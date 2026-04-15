@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">影</string>
+    <string name="app_name_en">Shadow</string>
+    <string name="accessibility_service_description">允许影通过无障碍服务控制设备操作（如点击、滑动），用于自动化与辅助控制。</string>
+</resources>

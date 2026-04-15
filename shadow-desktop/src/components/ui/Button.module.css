@@ -1,0 +1,129 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font-family: var(--font-sans);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+  position: relative;
+  overflow: hidden;
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Glass effect for all buttons */
+.primary {
+  background: linear-gradient(135deg, var(--shadow-primary), var(--tech-cyan));
+  color: white;
+  border: none;
+}
+
+.primary:hover:not(:disabled) {
+  box-shadow: 0 0 25px var(--shadow-primary-glow);
+  transform: translateY(-1px);
+}
+
+.secondary {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  color: var(--text-primary);
+  border: 1px solid var(--glass-border);
+}
+
+.secondary:hover:not(:disabled) {
+  background: var(--glass-bg-hover);
+  border-color: var(--shadow-primary);
+  box-shadow: 0 0 15px rgba(34, 197, 94, 0.15);
+}
+
+.ghost {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.ghost:hover:not(:disabled) {
+  background: var(--glass-bg);
+  color: var(--text-primary);
+}
+
+.danger {
+  background: linear-gradient(135deg, var(--danger), #dc2626);
+  color: white;
+  border: none;
+}
+
+.danger:hover:not(:disabled) {
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.4);
+  transform: translateY(-1px);
+}
+
+.success {
+  background: linear-gradient(135deg, var(--success), #16a34a);
+  color: white;
+  border: none;
+}
+
+.success:hover:not(:disabled) {
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.4);
+  transform: translateY(-1px);
+}
+
+.sm {
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
+  height: 28px;
+}
+
+.md {
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-sm);
+  height: 36px;
+}
+
+.lg {
+  padding: var(--space-3) var(--space-6);
+  font-size: var(--text-base);
+  height: 44px;
+}
+
+.fullWidth {
+  width: 100%;
+}
+
+.loading {
+  pointer-events: none;
+}
+
+.spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.text {
+  display: flex;
+  align-items: center;
+}

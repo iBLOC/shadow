@@ -1,0 +1,49 @@
+[package]
+name = "shadow-desktop"
+version = "0.1.0"
+description = "Shadow Desktop - AI Agent Executor"
+authors = ["Shadow Team"]
+edition = "2021"
+
+[lib]
+name = "shadow_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tokio = { version = "1", features = ["full"] }
+prefrontal-core = { path = "/home/ibloc/Projects/prefrontal" }
+
+# WebSocket with TLS
+tokio-tungstenite = { version = "0.26", features = ["native-tls", "tokio-native-tls"] }
+tokio-native-tls = "0.3"
+native-tls = "0.2"
+futures-util = "0.3"
+futures-channel = "0.3"
+url = "2"
+http = "1"
+
+# Database
+postgresql_embedded = "0.20"
+
+# Encryption
+aes-gcm = "0.10"
+password-hash = "0.5"
+rand = "0.8"
+md5 = "0.7"
+dirs = "5"
+
+# HTTP client
+reqwest = { version = "0.12", features = ["json"] }
+
+# Process management
+portpicker = "0.1"
+uuid = { version = "1", features = ["v4"] }

@@ -1,0 +1,74 @@
+{
+  "@@locale": "en",
+  "appTitle": "Shadow",
+  "models": "Models",
+  "settings": "Settings",
+  "startConversation": "Start a conversation",
+  "addLocalModelComingSoon": "Add local model dialog coming soon",
+  "askSomething": "Ask something...",
+  "initializing": "Initializing...",
+  "modelInfo": "Model Info",
+  "resetEngine": "Reset Engine",
+  "reinitializeMnn": "Reinitialize the MNN engine",
+  "theme": "Theme",
+  "accessibilityControl": "Accessibility Control",
+  "accessibilityOn": "Enabled. You can control device tap/swipe.",
+  "accessibilityOff": "Disabled. Tap to open settings.",
+  "addModel": "Add Model",
+  "addLocalModel": "Add Local Model",
+  "addCloudModel": "Add Cloud Model",
+  "searchModels": "Search models...",
+  "filterAll": "All",
+  "filterText": "Text",
+  "filterVision": "Vision",
+  "filterAudio": "Audio",
+  "filterLocal": "Local",
+  "filterCloud": "Cloud",
+  "local": "Local",
+  "cloud": "Cloud",
+  "loaded": "Loaded",
+  "notLoaded": "Not loaded",
+  "modelSettings": "Model Settings",
+  "threadCount": "Thread Count: {n}",
+  "@threadCount": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "backendType": "Backend Type",
+  "cpu": "CPU",
+  "opencl": "OpenCL",
+  "metal": "Metal",
+  "modelPath": "Model Path",
+  "cancel": "Cancel",
+  "apply": "Apply",
+  "noModels": "No Models",
+  "addModelToGetStarted": "Add a model to get started",
+  "cloudModel": "Cloud Model",
+  "endpoint": "Endpoint",
+  "model": "Model",
+  "apiKey": "API Key",
+  "notSet": "Not set",
+  "configureCloudModel": "Configure Cloud Model",
+  "apiEndpoint": "API Endpoint",
+  "save": "Save",
+  "cloudModelSettings": "Cloud Model Settings",
+  "provider": "Provider",
+  "modelInfoNotInitialized": "Not initialized",
+  "modelLoaded": "Model loaded",
+  "desktopMode": "Desktop mode (Android only)",
+  "errorMnnInitFailed": "Failed to initialize MNN engine",
+  "initializingMnn": "Initializing MNN engine...",
+  "mnnInitSuccess": "MNN engine initialized successfully!\nModel loaded\nYou can now start chatting.",
+  "errorGeneric": "Error: {detail}",
+  "@errorGeneric": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
+  "desktopUnsupportedMessage": "MNN engine is only available on Android.\nThis is a desktop build - local LLM features are disabled.\nYou can still use cloud models."
+}

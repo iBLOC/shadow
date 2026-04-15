@@ -1,0 +1,32 @@
+{
+  "builtIn": [
+    {
+      "id": "playwright",
+      "name": "Playwright",
+      "description": "Browser automation for testing and web interaction",
+      "category": "built-in",
+      "icon": "🎭"
+    },
+    {
+      "id": "frontend-ui-ux",
+      "name": "UI/UX Pro Max",
+      "description": "Designer-turned-developer for stunning UI/UX",
+      "category": "built-in",
+      "icon": "🎨"
+    },
+    {
+      "id": "git-master",
+      "name": "Git Master",
+      "description": "Atomic commits, rebase/squash, history search",
+      "category": "built-in",
+      "icon": "📊"
+    },
+    {
+      "id": "dev-browser",
+      "name": "Dev Browser",
+      "description": "Browser automation with persistent page state",
+      "category": "built-in",
+      "icon": "🌐"
+    }
+  ]
+}

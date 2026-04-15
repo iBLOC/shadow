@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- 影 - Shadow/Avatar Icon -->
+    <!-- Crescent moon shape representing shadow -->
+    <path
+        android:fillColor="#1A1A2E"
+        android:pathData="M54,24
+            C74.77,24 92,41.23 92,62
+            C92,82.77 74.77,100 54,100
+            C42.5,100 32.1,94.5 25,86
+            C35,91 47.5,94 54,94
+            C67.8,94 79,82.8 79,69
+            C79,55.2 67.8,44 54,44
+            C47.5,44 41.5,46 37,49.5
+            C32.5,40 40,30 50,27
+            C51.5,26 53,25.5 54,24Z" />
+</vector>
