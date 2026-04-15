@@ -1,0 +1,82 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+out/
+
+# Rust build outputs
+target/
+Cargo.lock
+
+# Android
+*.apk
+*.aab
+.gradle/
+*.jar
+*.class
+*.dex
+*.jks
+*.keystore
+
+# iOS
+*.ipa
+*.dSYM
+*.xcuserdata
+*.xcworkspace
+
+# Flutter
+.packages
+.pub-cache/
+.pub/
+.flutter-plugins
+.flutter-plugins-dependencies
+.dart_tool/
+pubspec.lock
+
+# MNN / Model files
+*.mnn
+*.onnx
+*.pt
+*.bin
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment / Secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# Logs
+*.log
+logs/
+
+# Test coverage
+coverage/
+lcov.info
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# OpenCode
+.opencode/
+
+# Misc
+*.bak
+*.orig
