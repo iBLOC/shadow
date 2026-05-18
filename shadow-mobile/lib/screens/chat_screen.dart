@@ -9,6 +9,7 @@ import '../utils/chat_state_l10n.dart';
 import '../widgets/chat_bubble.dart';
 import '../router/app_router.dart';
 import '../theme/app_colors.dart';
+import '../multimodal/multimodal.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   const ChatScreen({super.key});
@@ -136,6 +137,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               promptController: _promptController,
               onSendMessage: _sendMessage,
               onSpeak: () => ref.read(chatProvider.notifier).speakLastResponse(),
+              onPickImage: () => ref.read(chatProvider.notifier).pickImage(),
+              onCaptureImage: () => ref.read(chatProvider.notifier).captureImage(),
+              onPickFile: () => ref.read(chatProvider.notifier).pickFile(),
+              onStartAudioRecording: () => ref.read(chatProvider.notifier).startAudioRecording(),
+              onStopAudioRecording: () => ref.read(chatProvider.notifier).stopAudioRecording(),
             ),
     );
   }
@@ -169,6 +175,11 @@ class _LocalChatView extends StatelessWidget {
   final TextEditingController promptController;
   final VoidCallback onSendMessage;
   final VoidCallback onSpeak;
+  final VoidCallback onPickImage;
+  final VoidCallback onCaptureImage;
+  final VoidCallback onPickFile;
+  final VoidCallback onStartAudioRecording;
+  final VoidCallback onStopAudioRecording;
 
   const _LocalChatView({
     required this.chatState,
@@ -178,6 +189,11 @@ class _LocalChatView extends StatelessWidget {
     required this.promptController,
     required this.onSendMessage,
     required this.onSpeak,
+    required this.onPickImage,
+    required this.onCaptureImage,
+    required this.onPickFile,
+    required this.onStartAudioRecording,
+    required this.onStopAudioRecording,
   });
 
   @override
@@ -290,45 +306,131 @@ class _LocalChatView extends StatelessWidget {
             ),
           ),
           child: SafeArea(
-            child: Row(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Expanded(
-                  child: TextField(
-                    controller: promptController,
-                    decoration: InputDecoration(
-                      hintText: chatState.isInitialized || chatState.isLitertReady
-                          ? l10n.askSomething
-                          : l10n.initializing,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(24),
+                // Attachments preview
+                if (chatState.attachments.isNotEmpty)
+                  Container(
+                    height: 60,
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: chatState.attachments.length,
+                      itemBuilder: (context, index) {
+                        final attachment = chatState.attachments[index];
+                        return _AttachmentChip(
+                          type: attachment.type,
+                          path: attachment.path ?? '',
+                          onRemove: () {
+                            // TODO: Remove attachment
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                Row(
+                  children: [
+                    // Attachment menu
+                    PopupMenuButton<String>(
+                      icon: const Icon(Icons.attach_file),
+                      onSelected: (value) {
+                        switch (value) {
+                          case 'gallery':
+                            onPickImage();
+                            break;
+                          case 'camera':
+                            onCaptureImage();
+                            break;
+                          case 'file':
+                            onPickFile();
+                            break;
+                        }
+                      },
+                      itemBuilder: (context) => [
+                        const PopupMenuItem(
+                          value: 'gallery',
+                          child: Row(
+                            children: [
+                              Icon(Icons.photo_library),
+                              SizedBox(width: 8),
+                              Text('Gallery'),
+                            ],
+                          ),
+                        ),
+                        const PopupMenuItem(
+                          value: 'camera',
+                          child: Row(
+                            children: [
+                              Icon(Icons.camera_alt),
+                              SizedBox(width: 8),
+                              Text('Camera'),
+                            ],
+                          ),
+                        ),
+                        const PopupMenuItem(
+                          value: 'file',
+                          child: Row(
+                            children: [
+                              Icon(Icons.insert_drive_file),
+                              SizedBox(width: 8),
+                              Text('File'),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    // Audio recording button
+                    IconButton(
+                      icon: Icon(
+                        chatState.isRecordingAudio
+                            ? Icons.stop_circle
+                            : Icons.mic,
+                        color: chatState.isRecordingAudio ? Colors.red : null,
                       ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
+                      onPressed: chatState.isRecordingAudio
+                          ? onStopAudioRecording
+                          : onStartAudioRecording,
+                    ),
+                    Expanded(
+                      child: TextField(
+                        controller: promptController,
+                        decoration: InputDecoration(
+                          hintText: chatState.isInitialized || chatState.isLitertReady
+                              ? l10n.askSomething
+                              : l10n.initializing,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(24),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                        ),
+                        enabled: (chatState.isInitialized || chatState.isLitertReady) && !chatState.isLoading,
+                        maxLines: 4,
+                        minLines: 1,
+                        textInputAction: TextInputAction.send,
+                        onSubmitted: (_) => onSendMessage(),
                       ),
                     ),
-                    enabled: (chatState.isInitialized || chatState.isLitertReady) && !chatState.isLoading,
-                    maxLines: 4,
-                    minLines: 1,
-                    textInputAction: TextInputAction.send,
-                    onSubmitted: (_) => onSendMessage(),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                IconButton.filled(
-                  onPressed: chatState.isInitialized && !chatState.isLoading
-                      ? onSendMessage
-                      : null,
-                  icon: chatState.isLoading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Icon(Icons.send),
+                    const SizedBox(width: 8),
+                    IconButton.filled(
+                      onPressed: (chatState.isInitialized || chatState.isLitertReady) && !chatState.isLoading
+                          ? onSendMessage
+                          : null,
+                      icon: chatState.isLoading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.send),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -613,7 +715,52 @@ class _Agent2UIInputBarState extends ConsumerState<_Agent2UIInputBar> {
             ),
           ],
         ),
+      ],
+    );
+  }
+}
+
+/// Attachment chip widget for multimodal inputs
+class _AttachmentChip extends StatelessWidget {
+  final MultimodalInputType type;
+  final String path;
+  final VoidCallback onRemove;
+
+  const _AttachmentChip({
+    required this.type,
+    required this.path,
+    required this.onRemove,
+  });
+
+  IconData get _icon {
+    switch (type) {
+      case MultimodalInputType.audio:
+        return Icons.mic;
+      case MultimodalInputType.image:
+        return Icons.image;
+      case MultimodalInputType.camera:
+        return Icons.camera_alt;
+      case MultimodalInputType.file:
+        return Icons.insert_drive_file;
+    }
+  }
+
+  String get _label {
+    final fileName = path.split('/').last;
+    return fileName.length > 15 ? '${fileName.substring(0, 12)}...' : fileName;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      child: Chip(
+        avatar: Icon(_icon, size: 18),
+        label: Text(_label, style: const TextStyle(fontSize: 12)),
+        deleteIcon: const Icon(Icons.close, size: 16),
+        onDeleted: onRemove,
       ),
     );
   }
+}
 }
