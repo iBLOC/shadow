@@ -4,13 +4,16 @@ import '../model_manager.dart';
 import '../features/models/screens/model_list_screen.dart';
 import '../litert_engine.dart';
 import '../tts_engine.dart';
+import '../multimodal/multimodal.dart';
 
 /// Chat message model for the UI
 class ChatMessageModel {
   final String content;
   final ChatRole role;
+  final String? attachmentPath;
+  final MultimodalInputType? attachmentType;
 
-  ChatMessageModel(this.content, this.role);
+  ChatMessageModel(this.content, this.role, {this.attachmentPath, this.attachmentType});
 }
 
 enum ChatRole { user, assistant, system }
@@ -42,6 +45,8 @@ class ChatState {
   final String? errorMessageArg;
   final ChatMode mode;
   final bool isLitertReady;
+  final bool isRecordingAudio;
+  final List<MultimodalInput> attachments;
 
   const ChatState({
     this.messages = const [],
@@ -54,6 +59,8 @@ class ChatState {
     this.errorMessageArg,
     this.mode = ChatMode.off,
     this.isLitertReady = false,
+    this.isRecordingAudio = false,
+    this.attachments = const [],
   });
 
   static const _omit = _CopyWithOmit();
@@ -69,6 +76,8 @@ class ChatState {
     Object? errorMessageArg = _omit,
     ChatMode? mode,
     bool? isLitertReady,
+    bool? isRecordingAudio,
+    List<MultimodalInput>? attachments,
   }) {
     final explicitError = !identical(errorMessage, _omit);
     final clearError = explicitError && errorMessage == null;
@@ -91,6 +100,8 @@ class ChatState {
                 : errorMessageArg as String?),
       mode: mode ?? this.mode,
       isLitertReady: isLitertReady ?? this.isLitertReady,
+      isRecordingAudio: isRecordingAudio ?? this.isRecordingAudio,
+      attachments: attachments ?? this.attachments,
     );
   }
 }
@@ -104,9 +115,72 @@ class ChatNotifier extends StateNotifier<ChatState> {
   final ModelManager _modelManager;
   final LitertEngine _litertEngine;
   final TtsEngine _ttsEngine;
+  final MultimodalInputManager _multimodalManager = MultimodalInputManager();
 
   ChatNotifier(this._modelManager, this._litertEngine, this._ttsEngine) : super(const ChatState()) {
     _initMNN();
+  }
+
+  // Multimodal input methods
+  Future<void> pickImage() async {
+    final input = await _multimodalManager.pickImageFromGallery();
+    if (input != null) {
+      state = state.copyWith(
+        attachments: [...state.attachments, input],
+      );
+    }
+  }
+
+  Future<void> captureImage() async {
+    final input = await _multimodalManager.captureImage();
+    if (input != null) {
+      state = state.copyWith(
+        attachments: [...state.attachments, input],
+      );
+    }
+  }
+
+  Future<void> pickFile() async {
+    final input = await _multimodalManager.pickFile();
+    if (input != null) {
+      state = state.copyWith(
+        attachments: [...state.attachments, input],
+      );
+    }
+  }
+
+  Future<void> startAudioRecording() async {
+    final hasPermission = await _multimodalManager.hasAudioPermission();
+    if (!hasPermission) {
+      state = state.copyWith(errorMessage: 'Microphone permission denied');
+      return;
+    }
+    final path = await _multimodalManager.startAudioRecording();
+    if (path != null) {
+      state = state.copyWith(isRecordingAudio: true);
+    }
+  }
+
+  Future<void> stopAudioRecording() async {
+    final input = await _multimodalManager.stopAudioRecording();
+    state = state.copyWith(isRecordingAudio: false);
+    if (input != null) {
+      state = state.copyWith(
+        attachments: [...state.attachments, input],
+      );
+    }
+  }
+
+  void removeAttachment(int index) {
+    final attachments = List<MultimodalInput>.from(state.attachments);
+    if (index >= 0 && index < attachments.length) {
+      attachments.removeAt(index);
+      state = state.copyWith(attachments: attachments);
+    }
+  }
+
+  void clearAttachments() {
+    state = state.copyWith(attachments: []);
   }
 
   Future<void> _initMNN() async {
@@ -320,6 +394,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
   Future<void> reset() async {
     await MNNEngine.release();
     await _litertEngine.release();
+    await _multimodalManager.dispose();
     state = const ChatState();
     await _initMNN();
   }
@@ -351,6 +426,11 @@ final chatProvider = StateNotifierProvider<ChatNotifier, ChatState>((ref) {
     ref.watch(litertEngineProvider),
     ref.watch(ttsEngineProvider),
   );
+});
+
+/// Provider for MultimodalInputManager
+final multimodalInputManagerProvider = Provider<MultimodalInputManager>((ref) {
+  return MultimodalInputManager();
 });
 
 /// Provider for selected model ID
