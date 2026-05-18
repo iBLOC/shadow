@@ -53,6 +53,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       }
     });
 
+    // Determine mode from chatState
+    final isAgent2UI = chatState.mode == ChatMode.off && useAgent2UI;
+    final isLitertMode = chatState.mode == ChatMode.litert;
+
+    String getModeTitle() {
+      if (isAgent2UI) return 'Agent2UI';
+      if (isLitertMode) return 'LiteRT';
+      return l10n.appTitle;
+    }
+
+    IconData getModeIcon() {
+      if (isAgent2UI) return Icons.psychology;
+      if (isLitertMode) return Icons.smart_toy;
+      return Icons.chat_bubble_outline;
+    }
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
@@ -60,24 +76,39 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         elevation: 0,
         title: Row(
           children: [
-            Icon(
-              useAgent2UI ? Icons.psychology : Icons.chat_bubble_outline,
-              color: AppColors.primary,
-            ),
+            Icon(getModeIcon(), color: AppColors.primary),
             const SizedBox(width: 8),
-            Text(useAgent2UI ? 'Agent2UI' : l10n.appTitle),
+            Text(getModeTitle()),
           ],
         ),
         actions: [
-          // Mode toggle: Local (MNN) vs Agent2UI
+          // Mode toggle: Local MNN -> LiteRT -> Agent2UI -> Local MNN
           IconButton(
-            icon: Icon(useAgent2UI ? Icons.phone_android : Icons.psychology),
+            icon: Icon(
+              isAgent2UI
+                  ? Icons.phone_android
+                  : isLitertMode
+                      ? Icons.psychology
+                      : Icons.smart_toy,
+            ),
             onPressed: () {
-              ref.read(useAgent2UIModeProvider.notifier).state = !useAgent2UI;
+              final nextMode = isAgent2UI
+                  ? ChatMode.localMnn
+                  : isLitertMode
+                      ? ChatMode.off
+                      : ChatMode.litert;
+              if (nextMode == ChatMode.off) {
+                ref.read(useAgent2UIModeProvider.notifier).state = true;
+              } else {
+                ref.read(useAgent2UIModeProvider.notifier).state = false;
+                ref.read(chatProvider.notifier).setMode(nextMode);
+              }
             },
-            tooltip: useAgent2UI
-                ? 'Switch to Local Mode'
-                : 'Switch to Agent2UI',
+            tooltip: isAgent2UI
+                ? 'Switch to Local MNN'
+                : isLitertMode
+                    ? 'Switch to Agent2UI'
+                    : 'Switch to LiteRT',
           ),
           IconButton(
             icon: const Icon(Icons.model_training),
@@ -86,7 +117,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             },
             tooltip: l10n.models,
           ),
-          if (chatState.isInitialized && !useAgent2UI)
+          if ((chatState.isInitialized || chatState.isLitertReady) && !isAgent2UI)
             IconButton(
               icon: const Icon(Icons.settings),
               onPressed: () =>
@@ -95,7 +126,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             ),
         ],
       ),
-      body: useAgent2UI
+      body: isAgent2UI
           ? const _Agent2UIView()
           : _LocalChatView(
               chatState: chatState,
@@ -104,6 +135,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               scrollController: _scrollController,
               promptController: _promptController,
               onSendMessage: _sendMessage,
+              onSpeak: () => ref.read(chatProvider.notifier).speakLastResponse(),
             ),
     );
   }
@@ -136,6 +168,7 @@ class _LocalChatView extends StatelessWidget {
   final ScrollController scrollController;
   final TextEditingController promptController;
   final VoidCallback onSendMessage;
+  final VoidCallback onSpeak;
 
   const _LocalChatView({
     required this.chatState,
@@ -144,6 +177,7 @@ class _LocalChatView extends StatelessWidget {
     required this.scrollController,
     required this.promptController,
     required this.onSendMessage,
+    required this.onSpeak,
   });
 
   @override
@@ -221,9 +255,23 @@ class _LocalChatView extends StatelessWidget {
                   itemBuilder: (context, index) {
                     final msg = chatState.messages[index];
                     final role = _convertRole(msg.role);
-                    return MessageBubble(
-                      key: ValueKey(index),
-                      message: _toChatMessage(msg.content, role),
+                    final isAssistant = msg.role == ChatRole.assistant;
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: MessageBubble(
+                            key: ValueKey(index),
+                            message: _toChatMessage(msg.content, role),
+                          ),
+                        ),
+                        if (isAssistant && chatState.mode == ChatMode.litert)
+                          IconButton(
+                            icon: const Icon(Icons.volume_up, size: 20),
+                            onPressed: onSpeak,
+                            tooltip: 'Speak response',
+                          ),
+                      ],
                     );
                   },
                 ),
@@ -248,7 +296,7 @@ class _LocalChatView extends StatelessWidget {
                   child: TextField(
                     controller: promptController,
                     decoration: InputDecoration(
-                      hintText: chatState.isInitialized
+                      hintText: chatState.isInitialized || chatState.isLitertReady
                           ? l10n.askSomething
                           : l10n.initializing,
                       border: OutlineInputBorder(
@@ -259,7 +307,7 @@ class _LocalChatView extends StatelessWidget {
                         vertical: 12,
                       ),
                     ),
-                    enabled: chatState.isInitialized && !chatState.isLoading,
+                    enabled: (chatState.isInitialized || chatState.isLitertReady) && !chatState.isLoading,
                     maxLines: 4,
                     minLines: 1,
                     textInputAction: TextInputAction.send,
