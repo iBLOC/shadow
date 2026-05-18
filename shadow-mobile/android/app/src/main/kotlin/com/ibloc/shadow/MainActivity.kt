@@ -13,17 +13,30 @@ import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
 import com.ibloc.shadow.mnn.PrefrontalMNN
 import com.ibloc.shadow.mnn.OpenAIServerManager
+import com.ibloc.shadow.litert.LitertEngine
+import com.ibloc.shadow.tts.TtsManager
 import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "com.ibloc.shadow/mnn"
     private val A11Y_CHANNEL = "com.ibloc.shadow/accessibility"
     private val MDNS_CHANNEL = "com.ibloc.shadow/mdns"
     private val LOG_CHANNEL = "com.ibloc.shadow/mnn_logs"
+    private val LITERT_CHANNEL = "com.ibloc.shadow/litert"
+    private val TTS_CHANNEL = "com.ibloc.shadow/tts"
+    
+    private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     
     private var nsdManager: NsdManager? = null
     private val discoveredServices = ConcurrentHashMap<String, NsdServiceInfo>()
     private var logcatReader: LogcatReader? = null
+    
+    private var litertEngine: LitertEngine? = null
+    private var ttsManager: TtsManager? = null
     
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -33,6 +46,8 @@ class MainActivity : FlutterActivity() {
         setupAccessibilityChannel(flutterEngine)
         setupMdnsChannel(flutterEngine)
         setupLogcatChannel(flutterEngine)
+        setupLitertChannel(flutterEngine)
+        setupTtsChannel(flutterEngine)
         
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
@@ -141,6 +156,74 @@ class MainActivity : FlutterActivity() {
                 "resolveMdns" -> {
                     val serviceName = call.argument<String>("serviceName") ?: ""
                     resolveMdnsService(serviceName, result)
+                }
+                else -> result.notImplemented()
+            }
+        }
+    }
+    
+    private fun setupLitertChannel(flutterEngine: FlutterEngine) {
+        litertEngine = LitertEngine()
+        
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, LITERT_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "initialize" -> {
+                    val modelPath = call.argument<String>("modelPath") ?: ""
+                    scope.launch {
+                        try {
+                            val success = litertEngine?.initialize(modelPath) ?: false
+                            if (success) {
+                                litertEngine?.createConversation()
+                            }
+                            result.success(success)
+                        } catch (e: Exception) {
+                            result.error("INIT_ERROR", e.message, null)
+                        }
+                    }
+                }
+                "sendMessage" -> {
+                    val text = call.argument<String>("text") ?: ""
+                    scope.launch {
+                        try {
+                            val response = litertEngine?.sendMessage(text) ?: ""
+                            result.success(response)
+                        } catch (e: Exception) {
+                            result.error("SEND_ERROR", e.message, null)
+                        }
+                    }
+                }
+                "isInitialized" -> {
+                    result.success(litertEngine?.isInitialized?.value ?: false)
+                }
+                "isConversationReady" -> {
+                    result.success(litertEngine?.isConversationReady?.value ?: false)
+                }
+                "release" -> {
+                    litertEngine?.release()
+                    result.success(true)
+                }
+                else -> result.notImplemented()
+            }
+        }
+    }
+    
+    private fun setupTtsChannel(flutterEngine: FlutterEngine) {
+        ttsManager = TtsManager(this)
+        
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, TTS_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "speak" -> {
+                    val text = call.argument<String>("text") ?: ""
+                    val lang = call.argument<String>("lang") ?: "zh-CN"
+                    ttsManager?.speak(text, lang)
+                    result.success(true)
+                }
+                "stop" -> {
+                    ttsManager?.stop()
+                    result.success(true)
+                }
+                "isSpeaking" -> {
+                    result.success(ttsManager?.isSpeaking?.value ?: false)
                 }
                 else -> result.notImplemented()
             }
@@ -271,5 +354,9 @@ class MainActivity : FlutterActivity() {
         super.onDestroy()
         PrefrontalMNN.release()
         OpenAIServerManager.stopServer()
+        litertEngine?.release()
+        litertEngine = null
+        ttsManager?.release()
+        ttsManager = null
     }
 }
