@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../mnn_engine.dart';
 import '../model_manager.dart';
 import '../features/models/screens/model_list_screen.dart';
+import '../litert_engine.dart';
+import '../tts_engine.dart';
 
 /// Chat message model for the UI
 class ChatMessageModel {
@@ -13,6 +15,9 @@ class ChatMessageModel {
 
 enum ChatRole { user, assistant, system }
 
+/// Chat mode enum
+enum ChatMode { off, localMnn, litert }
+
 /// L10n keys for provider messages (resolved in UI with AppLocalizations).
 enum ChatStateL10nKey {
   modelInfoNotInitialized,
@@ -20,6 +25,9 @@ enum ChatStateL10nKey {
   desktopMode,
   errorMnnInitFailed,
   errorGeneric,
+  litertInitializing,
+  litertReady,
+  errorLitertInitFailed,
 }
 
 /// Chat state
@@ -29,13 +37,11 @@ class ChatState {
   final bool isInitialized;
   final String modelInfo;
   final String? errorMessage;
-
-  /// When set, UI should display modelInfo via l10n[modelInfoL10nKey].
   final ChatStateL10nKey? modelInfoL10nKey;
-
-  /// When set, UI should display error via l10n (errorMessageL10nKey + errorMessageArg).
   final ChatStateL10nKey? errorMessageL10nKey;
   final String? errorMessageArg;
+  final ChatMode mode;
+  final bool isLitertReady;
 
   const ChatState({
     this.messages = const [],
@@ -46,6 +52,8 @@ class ChatState {
     this.modelInfoL10nKey = ChatStateL10nKey.modelInfoNotInitialized,
     this.errorMessageL10nKey,
     this.errorMessageArg,
+    this.mode = ChatMode.off,
+    this.isLitertReady = false,
   });
 
   static const _omit = _CopyWithOmit();
@@ -59,6 +67,8 @@ class ChatState {
     ChatStateL10nKey? modelInfoL10nKey,
     Object? errorMessageL10nKey = _omit,
     Object? errorMessageArg = _omit,
+    ChatMode? mode,
+    bool? isLitertReady,
   }) {
     final explicitError = !identical(errorMessage, _omit);
     final clearError = explicitError && errorMessage == null;
@@ -79,6 +89,8 @@ class ChatState {
           : (identical(errorMessageArg, _omit)
                 ? this.errorMessageArg
                 : errorMessageArg as String?),
+      mode: mode ?? this.mode,
+      isLitertReady: isLitertReady ?? this.isLitertReady,
     );
   }
 }
@@ -90,8 +102,10 @@ class _CopyWithOmit {
 /// Chat notifier
 class ChatNotifier extends StateNotifier<ChatState> {
   final ModelManager _modelManager;
+  final LitertEngine _litertEngine;
+  final TtsEngine _ttsEngine;
 
-  ChatNotifier(this._modelManager) : super(const ChatState()) {
+  ChatNotifier(this._modelManager, this._litertEngine, this._ttsEngine) : super(const ChatState()) {
     _initMNN();
   }
 
@@ -193,9 +207,50 @@ class ChatNotifier extends StateNotifier<ChatState> {
     }
   }
 
-  Future<void> generateResponse(String prompt) async {
-    if (prompt.isEmpty || state.isLoading || !state.isInitialized) return;
+  Future<void> initLitert({String modelPath = '/data/local/tmp/gemma-4-e4b.litertlm'}) async {
+    state = state.copyWith(
+      mode: ChatMode.litert,
+      messages: [...state.messages, ChatMessageModel('Initializing LiteRT engine...', ChatRole.system)],
+      modelInfoL10nKey: ChatStateL10nKey.litertInitializing,
+    );
 
+    try {
+      final success = await _litertEngine.initialize(modelPath: modelPath);
+      if (success) {
+        state = state.copyWith(
+          isLitertReady: true,
+          modelInfo: 'LiteRT ready',
+          modelInfoL10nKey: ChatStateL10nKey.litertReady,
+          messages: [...state.messages, ChatMessageModel('LiteRT engine ready!', ChatRole.system)],
+        );
+      } else {
+        state = state.copyWith(
+          errorMessage: 'Failed to initialize LiteRT engine',
+          errorMessageL10nKey: ChatStateL10nKey.errorLitertInitFailed,
+          messages: [...state.messages, ChatMessageModel('Failed to initialize LiteRT engine', ChatRole.system)],
+        );
+      }
+    } catch (e) {
+      state = state.copyWith(
+        errorMessage: 'Error: $e',
+        errorMessageL10nKey: ChatStateL10nKey.errorGeneric,
+        errorMessageArg: e.toString(),
+        messages: [...state.messages, ChatMessageModel('Error: $e', ChatRole.system)],
+      );
+    }
+  }
+
+  Future<void> generateResponse(String prompt) async {
+    if (prompt.isEmpty || state.isLoading) return;
+
+    if (state.mode == ChatMode.litert && state.isLitertReady) {
+      await _generateLitertResponse(prompt);
+    } else if (state.mode == ChatMode.localMnn && state.isInitialized) {
+      await _generateMnnResponse(prompt);
+    }
+  }
+
+  Future<void> _generateMnnResponse(String prompt) async {
     state = state.copyWith(
       messages: [...state.messages, ChatMessageModel(prompt, ChatRole.user)],
       isLoading: true,
@@ -205,10 +260,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
     try {
       final response = await MNNEngine.generate(prompt);
       state = state.copyWith(
-        messages: [
-          ...state.messages,
-          ChatMessageModel(response, ChatRole.assistant),
-        ],
+        messages: [...state.messages, ChatMessageModel(response, ChatRole.assistant)],
         isLoading: false,
       );
     } catch (e) {
@@ -216,17 +268,58 @@ class ChatNotifier extends StateNotifier<ChatState> {
         errorMessage: 'Error: $e',
         errorMessageL10nKey: ChatStateL10nKey.errorGeneric,
         errorMessageArg: e.toString(),
-        messages: [
-          ...state.messages,
-          ChatMessageModel('Error: $e', ChatRole.system),
-        ],
+        messages: [...state.messages, ChatMessageModel('Error: $e', ChatRole.system)],
         isLoading: false,
       );
     }
   }
 
+  Future<void> _generateLitertResponse(String prompt) async {
+    state = state.copyWith(
+      messages: [...state.messages, ChatMessageModel(prompt, ChatRole.user)],
+      isLoading: true,
+      errorMessage: null,
+    );
+
+    try {
+      final response = await _litertEngine.sendMessage(prompt);
+      state = state.copyWith(
+        messages: [...state.messages, ChatMessageModel(response, ChatRole.assistant)],
+        isLoading: false,
+      );
+      // TTS speak
+      await _ttsEngine.speak(response);
+    } catch (e) {
+      state = state.copyWith(
+        errorMessage: 'Error: $e',
+        errorMessageL10nKey: ChatStateL10nKey.errorGeneric,
+        errorMessageArg: e.toString(),
+        messages: [...state.messages, ChatMessageModel('Error: $e', ChatRole.system)],
+        isLoading: false,
+      );
+    }
+  }
+
+  Future<void> speakLastResponse() async {
+    final lastAssistant = state.messages.lastWhere(
+      (m) => m.role == ChatRole.assistant,
+      orElse: () => ChatMessageModel('', ChatRole.assistant),
+    );
+    if (lastAssistant.content.isNotEmpty) {
+      await _ttsEngine.speak(lastAssistant.content);
+    }
+  }
+
+  Future<void> setMode(ChatMode mode) async {
+    if (mode == ChatMode.litert && !state.isLitertReady) {
+      await initLitert();
+    }
+    state = state.copyWith(mode: mode);
+  }
+
   Future<void> reset() async {
     await MNNEngine.release();
+    await _litertEngine.release();
     state = const ChatState();
     await _initMNN();
   }
@@ -241,10 +334,23 @@ final modelManagerProvider = Provider<ModelManager>((ref) {
   return ModelManager();
 });
 
+/// Provider for LitertEngine
+final litertEngineProvider = Provider<LitertEngine>((ref) {
+  return LitertEngine();
+});
+
+/// Provider for TtsEngine
+final ttsEngineProvider = Provider<TtsEngine>((ref) {
+  return TtsEngine();
+});
+
 /// Provider for ChatNotifier
 final chatProvider = StateNotifierProvider<ChatNotifier, ChatState>((ref) {
-  final modelManager = ref.watch(modelManagerProvider);
-  return ChatNotifier(modelManager);
+  return ChatNotifier(
+    ref.watch(modelManagerProvider),
+    ref.watch(litertEngineProvider),
+    ref.watch(ttsEngineProvider),
+  );
 });
 
 /// Provider for selected model ID
