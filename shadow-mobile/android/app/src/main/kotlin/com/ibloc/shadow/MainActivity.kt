@@ -163,7 +163,7 @@ class MainActivity : FlutterActivity() {
     }
     
     private fun setupLitertChannel(flutterEngine: FlutterEngine) {
-        litertEngine = LitertEngine()
+        litertEngine = LitertEngine(this)
         
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, LITERT_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {

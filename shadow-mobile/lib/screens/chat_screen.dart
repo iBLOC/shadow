@@ -715,7 +715,7 @@ class _Agent2UIInputBarState extends ConsumerState<_Agent2UIInputBar> {
             ),
           ],
         ),
-      ],
+      ),
     );
   }
 }
@@ -762,5 +762,4 @@ class _AttachmentChip extends StatelessWidget {
       ),
     );
   }
-}
 }
