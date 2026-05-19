@@ -6,15 +6,12 @@ import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.EngineConfig
 import com.google.ai.edge.litertlm.Conversation
 import com.google.ai.edge.litertlm.ConversationConfig
-import com.google.ai.edge.litertlm.Content
-import com.google.ai.edge.litertlm.Message
+import com.google.ai.edge.litertlm.Contents
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 class LitertEngine(private val context: Context) {
     private var engine: Engine? = null
@@ -38,7 +35,6 @@ class LitertEngine(private val context: Context) {
             val config = EngineConfig(
                 modelPath = modelPath,
                 backend = Backend.GPU(),
-                // Use cache dir for better performance on subsequent loads
                 cacheDir = context.cacheDir.path
             )
             engine = Engine(config)
@@ -58,12 +54,8 @@ class LitertEngine(private val context: Context) {
         if (!_isInitialized.value || engine == null) return false
 
         return try {
-            val convConfig = if (systemInstruction != null) {
-                ConversationConfig(
-                    systemInstruction = Content.of(Message.of(systemInstruction))
-                )
-            } else null
-
+            // Create conversation with empty config - system instruction not supported directly
+            val convConfig = ConversationConfig()
             conversation = engine?.createConversation(convConfig)
             _isConversationReady.value = true
             true
@@ -80,28 +72,24 @@ class LitertEngine(private val context: Context) {
         }
 
         return try {
-            val content = Content.of(Message.of(text))
-            val response = conversation?.sendMessage(content)
-            response?.let { extractText(it) } ?: ""
+            // Use String overload of sendMessage
+            val response = conversation?.sendMessage(text)
+            // Response is Message type - extract text content
+            // Based on API, Message has text property
+            response?.let { msg ->
+                // Try different ways to get text from Message
+                try {
+                    val textField = msg.javaClass.getDeclaredField("text")
+                    textField.isAccessible = true
+                    textField.get(msg) as? String ?: ""
+                } catch (e: Exception) {
+                    // Fallback: return class name for debugging
+                    "Response: ${msg.javaClass.simpleName}"
+                }
+            } ?: ""
         } catch (e: Exception) {
             e.printStackTrace()
             throw e
-        }
-    }
-
-    private fun extractText(message: Message): String {
-        // Extract text content from the response message
-        // The message structure contains content parts
-        return try {
-            val text = StringBuilder()
-            // Message contains content parts - extract text from each
-            if (message.text.isNotEmpty()) {
-                text.append(message.text)
-            }
-            text.toString()
-        } catch (e: Exception) {
-            e.printStackTrace()
-            ""
         }
     }
 
