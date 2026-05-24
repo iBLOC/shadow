@@ -71,6 +71,23 @@ class _ModelManagementScreenState extends ConsumerState<ModelManagementScreen>
 
   Future<void> _downloadModel(ModelInfo model) async {
     final modelStoreNotifier = ref.read(modelStoreProvider.notifier);
+
+    // Check if already downloading before starting
+    final existingProgress = ref.read(
+      modelDownloadProgressProvider(model.modelId),
+    );
+    if (existingProgress?.isDownloading == true) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('下载已在进行中，请勿重复点击'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+      return;
+    }
+
     final path = await modelStoreNotifier.downloadModel(model);
 
     if (path != null && mounted) {
@@ -83,8 +100,15 @@ class _ModelManagementScreenState extends ConsumerState<ModelManagementScreen>
         type: model.supportsThinking ? 'text' : 'text',
       );
 
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('${model.name} 下载成功')));
+    } else if (mounted) {
+      // Show error message when download fails
+      final error =
+          modelStoreNotifier.getProgress(model.modelId)?.error ?? '未知错误';
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${model.name} downloaded successfully')),
+        SnackBar(content: Text('下载失败: $error'), backgroundColor: Colors.red),
       );
     }
   }

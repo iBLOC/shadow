@@ -1,4 +1,6 @@
+import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
 import '../model_manager.dart';
 import '../features/models/screens/model_list_screen.dart';
 import '../litert_engine.dart';
@@ -135,6 +137,9 @@ class ChatNotifier extends StateNotifier<ChatState> {
   final MultimodalInputManager _multimodalManager = MultimodalInputManager();
   final LiteRTDownloadService _downloadService = LiteRTDownloadService();
 
+  // 下载锁，防止多次并发调用
+  bool _isDownloading = false;
+
   ChatNotifier(this._litertEngine, this._ttsEngine) : super(const ChatState()) {
     _initLiteRT();
   }
@@ -164,14 +169,48 @@ class ChatNotifier extends StateNotifier<ChatState> {
       ],
     );
 
-    // ML Kit handles model management automatically
+    // 检查模型文件是否存在
+    final modelPath = await _getModelPath(agent.model);
+    final file = File(modelPath);
+    final exists = await file.exists();
+
+    if (!exists) {
+      // 模型不存在，触发下载
+      state = state.copyWith(
+        modelInfo: 'Model not found, ready to download',
+        isLitertReady: false,
+        isDownloading: false,
+        downloadProgress: -1.0,
+      );
+      // 不再自动初始化，UI 会检测到 modelNotReady 并弹出下载对话框
+      return;
+    }
+
+    // 模型存在，正常初始化
     await initLitert();
   }
 
+  /// 获取模型的本地路径
+  Future<String> _getModelPath(LiteRTModel model) async {
+    final appDir = await getApplicationDocumentsDirectory();
+    final modelDir = Directory('${appDir.path}/models');
+    if (!await modelDir.exists()) {
+      await modelDir.create(recursive: true);
+    }
+    return '${modelDir.path}/${model.name}.litertlm';
+  }
+
   Future<void> downloadModel() async {
+    // 检查是否正在下载，防止重复调用
+    if (_isDownloading) {
+      return;
+    }
+    _isDownloading = true;
+
     final agent = state.currentAgent;
     state = state.copyWith(
       isDownloading: true,
+      downloadProgress: 0.0, // 立即设置为0，让UI正确检测到下载开始
       messages: [
         ...state.messages,
         ChatMessageModel(
@@ -183,7 +222,13 @@ class ChatNotifier extends StateNotifier<ChatState> {
     );
 
     try {
+      // 获取模型路径和下载URL
+      final modelPath = await _getModelPath(agent.model);
+      final downloadUrl = _getModelDownloadUrl(agent.model.id);
+
       final path = await _downloadService.downloadModel(
+        modelPath: modelPath,
+        downloadUrl: downloadUrl,
         onProgress: (progress) {
           final percent = (progress * 100).toStringAsFixed(1);
           state = state.copyWith(
@@ -230,7 +275,30 @@ class ChatNotifier extends StateNotifier<ChatState> {
           ChatMessageModel('Download error: $e', ChatRole.system),
         ],
       );
+    } finally {
+      // 确保下载锁被释放
+      _isDownloading = false;
     }
+  }
+
+  /// 获取模型下载URL（优先 ModelScope，其次 HuggingFace）
+  String _getModelDownloadUrl(String modelId) {
+    // 模型ID到下载URL的映射
+    // 优先使用 ModelScope（国内镜像，速度更快）
+    final modelUrls = {
+      'gemma4-e4b':
+          // ModelScope 镜像
+          'https://modelscope.cn/models/litert-community/gemma-4-E2B-it-litert-lm/resolve/master/gemma-4-E2B-it.litertlm',
+      'gemma3-1b':
+          // ModelScope 镜像
+          'https://modelscope.cn/models/litert-community/gemma-3-E2B-it-litert-lm/resolve/master/gemma-3-E2B-it.litertlm',
+    };
+
+    final url = modelUrls[modelId];
+    if (url != null) return url;
+
+    // 备用：HuggingFace 原站
+    return 'https://huggingface.co/litert-community/$modelId/resolve/main/gemma-4-E2B-it.litertlm';
   }
 
   Future<void> initLitert() async {
@@ -248,7 +316,9 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
     try {
       _litertEngine.setModel(agent.model);
-      final success = await _litertEngine.initialize();
+      // 使用正确的模型路径
+      final modelPath = await _getModelPath(agent.model);
+      final success = await _litertEngine.initialize(modelPath: modelPath);
       if (success) {
         state = state.copyWith(
           isLitertReady: true,

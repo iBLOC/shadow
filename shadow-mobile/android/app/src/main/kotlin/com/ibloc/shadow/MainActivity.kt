@@ -170,11 +170,10 @@ class MainActivity : FlutterActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, LITERT_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
                 "initialize" -> {
-                    val modelName = call.argument<String>("modelName") ?: "gemma-4-it-4b"
-                    // ML Kit uses default config, releaseStage and preference not needed
+                    val modelPath = call.argument<String>("modelPath") ?: ""
                     scope.launch {
                         try {
-                            val success = litertEngine?.initialize(modelName) ?: false
+                            val success = litertEngine?.initialize(modelPath) ?: false
                             result.success(success)
                         } catch (e: Exception) {
                             result.error("INIT_ERROR", e.message, null)

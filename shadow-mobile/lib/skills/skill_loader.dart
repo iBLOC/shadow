@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/services.dart';
 import 'dart:convert';
 import 'skill.dart';
@@ -69,23 +69,18 @@ class SkillLoader {
       // 解析frontmatter
       final frontmatter = _parseFrontmatter(frontmatterContent);
 
-      final name = frontmatter['name'] as String?;
-      final description = frontmatter['description'] as String? ?? '';
-      final homepage = frontmatter['homepage'] as String?;
+      final name = frontmatter['name'];
+      final description = frontmatter['description'] ?? '';
+      final homepage = frontmatter['homepage'];
       final requireSecret =
           frontmatter['requireSecret'] == 'true' ||
           frontmatter['requireSecret'] == 'yes';
-      final requireSecretDescription =
-          frontmatter['requireSecretDescription'] as String?;
+      final requireSecretDescription = frontmatter['requireSecretDescription'];
 
       if (name == null || name.isEmpty) {
         debugPrint('Skill name is required: $path');
         return null;
       }
-
-      // 确定Skill类型
-      final type = frontmatter['type'] as String?;
-      final skillType = type == 'native' ? SkillType.native : SkillType.js;
 
       // 提取指令（body中 # 标题之后的内容）
       String instructions = bodyContent;

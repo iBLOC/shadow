@@ -1,14 +1,13 @@
 package com.ibloc.shadow.litert
 
 import android.content.Context
-import android.graphics.Bitmap
 import android.util.Log
-import com.google.mlkit.genai.common.DownloadStatus
-import com.google.mlkit.genai.common.FeatureStatus
-import com.google.mlkit.genai.prompt.Generation
-import com.google.mlkit.genai.prompt.GenerativeModel
-import com.google.mlkit.genai.prompt.TextPart
-import com.google.mlkit.genai.prompt.generateContentRequest
+import com.google.ai.edge.litertlm.Backend
+import com.google.ai.edge.litertlm.Content
+import com.google.ai.edge.litertlm.Conversation
+import com.google.ai.edge.litertlm.Engine
+import com.google.ai.edge.litertlm.EngineConfig
+import com.google.ai.edge.litertlm.LogSeverity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -17,7 +16,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
 class LitertEngine(private val context: Context) {
-    private var generativeModel: GenerativeModel? = null
+    private var engine: Engine? = null
+    private var conversation: Conversation? = null
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     private val _isInitialized = MutableStateFlow(false)
@@ -37,64 +37,31 @@ class LitertEngine(private val context: Context) {
 
     private var isStreaming = false
 
-    suspend fun initialize(modelName: String = "gemma-4-it-4b"): Boolean {
+    suspend fun initialize(modelPath: String): Boolean {
         if (_isInitialized.value) return true
 
         _isLoading.value = true
         _lastError.value = null
 
+        // 设置日志级别，减少噪音
+        Engine.setNativeMinLogSeverity(LogSeverity.ERROR)
+
         try {
-            generativeModel = Generation.getClient()
+            val engineConfig = EngineConfig(
+                modelPath = modelPath,
+                backend = Backend.CPU(),
+                cacheDir = context.cacheDir.path
+            )
 
-            val status = generativeModel!!.checkStatus()
-            when (status) {
-                FeatureStatus.AVAILABLE -> {
-                    generativeModel!!.warmup()
-                    _isInitialized.value = true
-                    _isLoading.value = false
-                    Log.d("LitertEngine", "Model is available")
-                }
-                FeatureStatus.DOWNLOADABLE, FeatureStatus.DOWNLOADING -> {
-                    Log.d("LitertEngine", "Model needs download, starting download...")
-                    generativeModel!!.download().collect { downloadStatus ->
-                        when (downloadStatus) {
-                            is DownloadStatus.DownloadStarted -> {
-                                _downloadProgress.value = Pair(0L, 0L)
-                            }
-                            is DownloadStatus.DownloadProgress -> {
-                                _downloadProgress.value = Pair(
-                                    downloadStatus.totalBytesDownloaded,
-                                    downloadStatus.totalBytesDownloaded
-                                )
-                            }
-                            is DownloadStatus.DownloadCompleted -> {
-                                _downloadProgress.value = null
-                                generativeModel!!.warmup()
-                                _isInitialized.value = true
-                                _isLoading.value = false
-                                Log.d("LitertEngine", "Model download completed")
-                            }
-                            is DownloadStatus.DownloadFailed -> {
-                                _lastError.value = downloadStatus.e?.message
-                                _isLoading.value = false
-                                Log.e("LitertEngine", "Download failed", downloadStatus.e)
-                            }
-                        }
-                    }
-                }
-                FeatureStatus.UNAVAILABLE -> {
-                    _lastError.value = "Model is unavailable on this device"
-                    _isLoading.value = false
-                    Log.e("LitertEngine", "Model unavailable")
-                }
-                else -> {
-                    _lastError.value = "Unknown model status: $status"
-                    _isLoading.value = false
-                }
-            }
+            engine = Engine(engineConfig)
+            engine!!.initialize()
 
-            Log.d("LitertEngine", "Initialized ML Kit for model: $modelName")
-            return _isInitialized.value
+            conversation = engine!!.createConversation()
+
+            _isInitialized.value = true
+            _isLoading.value = false
+            Log.d("LitertEngine", "Initialized LiteRT engine with model: $modelPath")
+            return true
         } catch (e: Exception) {
             Log.e("LitertEngine", "Initialization failed", e)
             _lastError.value = e.message
@@ -103,9 +70,25 @@ class LitertEngine(private val context: Context) {
         }
     }
 
-    suspend fun generateContentStream(prompt: String, image: Bitmap? = null) {
-        if (!_isInitialized.value || generativeModel == null) {
-            _lastError.value = "Model not initialized"
+    suspend fun generateContent(prompt: String): String {
+        if (!_isInitialized.value || engine == null || conversation == null) {
+            _lastError.value = "Engine not initialized"
+            return ""
+        }
+
+        try {
+            val response = conversation!!.sendMessage(prompt)
+            return response.toString()
+        } catch (e: Exception) {
+            Log.e("LitertEngine", "Generation failed", e)
+            _lastError.value = e.message
+            return ""
+        }
+    }
+
+    suspend fun generateContentStream(prompt: String) {
+        if (!_isInitialized.value || engine == null || conversation == null) {
+            _lastError.value = "Engine not initialized"
             return
         }
 
@@ -118,13 +101,10 @@ class LitertEngine(private val context: Context) {
         _responseText.value = ""
 
         try {
-            val request = generateContentRequest(TextPart(prompt)) {}
-            val flow = generativeModel!!.generateContentStream(request)
-
-            flow.collect { response ->
-                val text = response.candidates.firstOrNull()?.text ?: ""
-                _responseText.value += text
-            }
+            conversation!!.sendMessageAsync(prompt)
+                .collect { message ->
+                    _responseText.value += message.toString()
+                }
         } catch (e: Exception) {
             Log.e("LitertEngine", "Generation failed", e)
             _lastError.value = e.message
@@ -133,27 +113,13 @@ class LitertEngine(private val context: Context) {
         }
     }
 
-    suspend fun generateContent(prompt: String, image: Bitmap? = null): String {
-        if (!_isInitialized.value || generativeModel == null) {
-            _lastError.value = "Model not initialized"
-            return ""
-        }
-
-        try {
-            val response = generativeModel!!.generateContent(prompt)
-            return response.candidates.firstOrNull()?.text ?: ""
-        } catch (e: Exception) {
-            Log.e("LitertEngine", "Generation failed", e)
-            _lastError.value = e.message
-            return ""
-        }
-    }
-
     fun release() {
         try {
-            generativeModel?.close()
+            conversation?.close()
+            engine?.close()
         } catch (_: Exception) {}
-        generativeModel = null
+        engine = null
+        conversation = null
         _isInitialized.value = false
         _isLoading.value = false
         _downloadProgress.value = null

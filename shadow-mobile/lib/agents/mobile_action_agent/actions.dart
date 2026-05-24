@@ -70,8 +70,8 @@ class CreateContactAction extends Action {
         functionName: 'createContact',
         parameters: {
           'name': name,
-          if (phone != null) 'phone': phone!,
-          if (email != null) 'email': email!,
+          if (phone != null) 'phone': phone,
+          if (email != null) 'email': email,
         },
       );
 
@@ -148,9 +148,9 @@ class CreateCalendarAction extends Action {
          parameters: {
            'title': title,
            'start_time': startTime.toIso8601String(),
-           if (endTime != null) 'end_time': endTime!.toIso8601String(),
-           if (description != null) 'description': description!,
-           if (location != null) 'location': location!,
+           if (endTime != null) 'end_time': endTime.toIso8601String(),
+           if (description != null) 'description': description,
+           if (location != null) 'location': location,
          },
        );
 

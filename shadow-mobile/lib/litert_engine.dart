@@ -11,7 +11,7 @@ class LitertEngine {
   String? _lastError;
   String? get lastError => _lastError;
 
-  String _responseText = "";
+  final String _responseText = '';
   String get responseText => _responseText;
 
   LiteRTModel get currentModel => _currentModel;
@@ -20,16 +20,10 @@ class LitertEngine {
     _currentModel = model;
   }
 
-  Future<bool> initialize() async {
+  Future<bool> initialize({required String modelPath}) async {
     try {
       final result = await _channel.invokeMethod<bool>('initialize', {
-        'modelName': _currentModel.name,
-        'releaseStage': _currentModel.releaseStage == ModelReleaseStage.preview
-            ? 'PREVIEW'
-            : 'STABLE',
-        'preference': _currentModel.preference == ModelPreference.full
-            ? 'FULL'
-            : 'FAST',
+        'modelPath': modelPath,
       });
 
       _isInitialized = result ?? false;

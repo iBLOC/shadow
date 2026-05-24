@@ -8,7 +8,7 @@ plugins {
 android {
     namespace = "com.ibloc.shadow"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = "27.2.12479018"
+    ndkVersion = "30.0.14904198"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -72,5 +72,5 @@ flutter {
 }
 
 dependencies {
-    implementation("com.google.mlkit:genai-prompt:1.0.0-beta2")
+    implementation("com.google.ai.edge.litertlm:litertlm-android:latest.release")
 }

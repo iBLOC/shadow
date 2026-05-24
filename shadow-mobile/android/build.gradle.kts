@@ -2,6 +2,13 @@ allprojects {
     repositories {
         google()
         mavenCentral()
+        // LiteRT Maven repository
+        maven {
+            url = uri("https://maven.google.com/")
+            content {
+                includeGroup("com.google.ai.edge.litertlm")
+            }
+        }
     }
 }
 

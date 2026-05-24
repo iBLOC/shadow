@@ -1,5 +1,4 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../models/model_config.dart';
 import '../../models/model_engine.dart';
 import '../../models/model_providers.dart';
 import '../main_agent/main_agent.dart';

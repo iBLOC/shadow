@@ -213,7 +213,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         builder: (dialogContext) => AlertDialog(
           title: const Text('Mobile Network Detected'),
           content: Text(
-            'You are on mobile data. The model (${modelSize}) will be downloaded. '
+            'You are on mobile data. The model ($modelSize) will be downloaded. '
             'Do you want to download now or wait for WiFi?',
           ),
           actions: [
@@ -529,17 +529,29 @@ class _LocalChatView extends StatelessWidget {
                         ),
                       ],
                     ),
-                    // Audio recording button
-                    IconButton(
-                      icon: Icon(
-                        chatState.isRecordingAudio
-                            ? Icons.stop_circle
-                            : Icons.mic,
-                        color: chatState.isRecordingAudio ? Colors.red : null,
+                    // Audio recording button - 长按开始录音，松手自动发送
+                    GestureDetector(
+                      onLongPressStart: (_) {
+                        if (!chatState.isRecordingAudio) {
+                          onStartAudioRecording();
+                        }
+                      },
+                      onLongPressEnd: (_) {
+                        if (chatState.isRecordingAudio) {
+                          onStopAudioRecording();
+                          // 松手后自动发送录音
+                          onSendMessage();
+                        }
+                      },
+                      child: IconButton(
+                        icon: Icon(
+                          chatState.isRecordingAudio
+                              ? Icons.mic
+                              : Icons.mic_none,
+                          color: chatState.isRecordingAudio ? Colors.red : null,
+                        ),
+                        onPressed: null, // 禁用点击，仅响应长按
                       ),
-                      onPressed: chatState.isRecordingAudio
-                          ? onStopAudioRecording
-                          : onStartAudioRecording,
                     ),
                     Expanded(
                       child: TextField(

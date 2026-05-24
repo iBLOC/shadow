@@ -1,5 +1,4 @@
 import 'package:flutter/foundation.dart';
-import '../a2a/a2a_message.dart';
 import 'actions.dart';
 
 /// MobileActionAgent的工具定义

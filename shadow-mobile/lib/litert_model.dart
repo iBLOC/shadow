@@ -23,13 +23,13 @@ class LiteRTModel {
     required this.preference,
   });
 
-  String get sizeString => "ML Kit Managed";
+  String get sizeString => 'ML Kit Managed';
 }
 
 class LiteRTModels {
   static const gemma4E4B = LiteRTModel(
     id: 'gemma4-e4b',
-    name: 'gemma-4-it-4b',
+    name: 'gemma-4-E2B-it',
     displayName: 'Gemma-4-E4B',
     minMemoryGb: 12,
     description: 'Gemma 4 4B parameters, supports image input',
@@ -40,7 +40,7 @@ class LiteRTModels {
 
   static const gemma3_1B = LiteRTModel(
     id: 'gemma3-1b',
-    name: 'gemma-3n-e4b',
+    name: 'gemma-3n-E4B-it',
     displayName: 'Gemma-3-1B',
     minMemoryGb: 6,
     description: 'Gemma 3 1B, lightweight for mobile devices',

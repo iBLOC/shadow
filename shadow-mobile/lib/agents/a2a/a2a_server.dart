@@ -11,16 +11,10 @@ class A2AServer {
   bool _isRunning = false;
   final _messageController = StreamController<A2AMessage>.broadcast();
   final _clients = <String, String>{}; // clientId -> agentId
-  DelegateHandler? _requestHandler;
 
   A2AServer({this.port = 8083});
 
   bool get isRunning => _isRunning;
-
-  /// 设置请求处理器
-  void setRequestHandler(DelegateHandler? handler) {
-    _requestHandler = handler;
-  }
 
   /// 启动A2A服务器
   ///
