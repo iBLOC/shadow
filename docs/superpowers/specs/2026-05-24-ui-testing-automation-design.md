@@ -14,7 +14,7 @@ Establish comprehensive automated UI testing capabilities for Shadow project (sh
 
 | Application | Framework | Pages/Screens |
 |-------------|-----------|---------------|
-| shadow-desktop | Vitest + React Testing Library | 6 pages (Agents, Conversation, MCPPage, Memory, Models, Settings, Setup, Skills, TaskBoard) |
+| shadow-desktop | Vitest + React Testing Library | 9 pages (Agents, Conversation, MCPPage, Memory, Models, Settings, Setup, Skills, TaskBoard) |
 | shadow-mobile | flutter_test + integration_test | 10 screens (agents, chat, conversation, memory, mcp, model_management, providers, settings, skills, task_board) |
 
 ### 1.3 Success Criteria
