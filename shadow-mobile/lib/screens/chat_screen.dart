@@ -207,6 +207,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final modelSize = agent.model.sizeString;
 
     if (networkType == NetworkType.mobile) {
+      final navigator = Navigator.of(context);
       final result = await showDialog<String>(
         context: context,
         barrierDismissible: false,
@@ -230,7 +231,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       );
 
       if (result == 'wifi') {
-        if (context.mounted) Navigator.of(context).pop();
+        navigator.pop();
         return;
       }
     }
