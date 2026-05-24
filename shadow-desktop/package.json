@@ -12,7 +12,9 @@
     "lint:fix": "eslint src --ext .ts,.tsx --fix",
     "validate-i18n": "node scripts/validate-i18n-keys.mjs",
     "test": "vitest",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "test:ci": "vitest run --reporter=json --outputFile=test-results.json",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "react": "^19.1.0",
