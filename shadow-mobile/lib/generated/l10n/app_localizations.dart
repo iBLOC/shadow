@@ -439,6 +439,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'MNN engine is only available on Android.\nThis is a desktop build - local LLM features are disabled.\nYou can still use cloud models.'**
   String get desktopUnsupportedMessage;
+
+  /// No description provided for @mobileNetworkDetected.
+  ///
+  /// In en, this message translates to:
+  /// **'Mobile Network Detected'**
+  String get mobileNetworkDetected;
+
+  /// No description provided for @downloadOnMobile.
+  ///
+  /// In en, this message translates to:
+  /// **'You are on mobile data. The model ({modelSize}) will be downloaded. Do you want to download now or wait for WiFi?'**
+  String downloadOnMobile(String modelSize);
+
+  /// No description provided for @waitForWifi.
+  ///
+  /// In en, this message translates to:
+  /// **'Wait for WiFi'**
+  String get waitForWifi;
+
+  /// No description provided for @downloadNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Download Now'**
+  String get downloadNow;
 }
 
 class _AppLocalizationsDelegate

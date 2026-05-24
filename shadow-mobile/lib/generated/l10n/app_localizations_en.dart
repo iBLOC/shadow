@@ -184,4 +184,18 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get desktopUnsupportedMessage =>
       'MNN engine is only available on Android.\nThis is a desktop build - local LLM features are disabled.\nYou can still use cloud models.';
+
+  @override
+  String get mobileNetworkDetected => 'Mobile Network Detected';
+
+  @override
+  String downloadOnMobile(String modelSize) {
+    return 'You are on mobile data. The model ($modelSize) will be downloaded. Do you want to download now or wait for WiFi?';
+  }
+
+  @override
+  String get waitForWifi => 'Wait for WiFi';
+
+  @override
+  String get downloadNow => 'Download Now';
 }

@@ -56,5 +56,9 @@
   "initializingMnn": "正在初始化 MNN 引擎…",
   "mnnInitSuccess": "MNN 引擎已初始化成功！\n模型已加载\n可以开始对话。",
   "errorGeneric": "错误：{detail}",
-  "desktopUnsupportedMessage": "MNN 引擎仅在 Android 上可用。\n当前为桌面构建，本地 LLM 功能已禁用。\n您仍可使用云端模型。"
+  "desktopUnsupportedMessage": "MNN 引擎仅在 Android 上可用。\n当前为桌面构建，本地 LLM 功能已禁用。\n您仍可使用云端模型。",
+  "mobileNetworkDetected": "检测到移动网络",
+  "downloadOnMobile": "您正在使用移动数据。模型 ({modelSize}) 将被下载。是否立即下载或等待 WiFi？",
+  "waitForWifi": "等待 WiFi",
+  "downloadNow": "立即下载"
 }

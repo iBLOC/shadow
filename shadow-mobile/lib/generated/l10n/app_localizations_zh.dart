@@ -183,4 +183,18 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get desktopUnsupportedMessage =>
       'MNN 引擎仅在 Android 上可用。\n当前为桌面构建，本地 LLM 功能已禁用。\n您仍可使用云端模型。';
+
+  @override
+  String get mobileNetworkDetected => '检测到移动网络';
+
+  @override
+  String downloadOnMobile(String modelSize) {
+    return '您正在使用移动数据。模型 ($modelSize) 将被下载。是否立即下载或等待 WiFi？';
+  }
+
+  @override
+  String get waitForWifi => '等待 WiFi';
+
+  @override
+  String get downloadNow => '立即下载';
 }

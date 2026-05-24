@@ -11,7 +11,6 @@ import '../widgets/chat_bubble.dart';
 import '../router/app_router.dart';
 import '../theme/app_colors.dart';
 import '../multimodal/multimodal.dart';
-import '../litert_model.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   const ChatScreen({super.key});
@@ -100,52 +99,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ],
         ),
         actions: [
-          // Agent selector dropdown
-          if (chatState.mode == ChatMode.litert && !isAgent2UI)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: DropdownButton<Agent>(
-                value: chatState.currentAgent,
-                underline: const SizedBox(),
-                icon: const Icon(Icons.arrow_drop_down),
-                items: Agents.allAgents.map((agent) {
-                  return DropdownMenuItem<Agent>(
-                    value: agent,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          agent.type == AgentType.chat
-                              ? Icons.chat
-                              : Icons.smart_toy,
-                          size: 18,
-                          color: AppColors.primary,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(agent.type.displayName),
-                      ],
-                    ),
-                  );
-                }).toList(),
-                onChanged: (Agent? newAgent) {
-                  if (newAgent != null && newAgent != chatState.currentAgent) {
-                    ref.read(chatProvider.notifier).selectAgent(newAgent);
-                    // Trigger download dialog if model not ready
-                    if (!chatState.isLitertReady) {
-                      _downloadDialogShown = false;
-                      _showDownloadDialog(context);
-                    }
-                  }
-                },
-              ),
-            ),
-          IconButton(
-            icon: const Icon(Icons.model_training),
-            onPressed: () {
-              context.push(AppRoutes.manageModels);
-            },
-            tooltip: l10n.models,
-          ),
           if ((chatState.isInitialized || chatState.isLitertReady) &&
               !isAgent2UI)
             IconButton(
@@ -199,6 +152,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   void _showDownloadDialog(BuildContext context) async {
+    final l10n = AppLocalizations.of(context)!;
     final chatNotifier = ref.read(chatProvider.notifier);
     final networkService = NetworkService();
     final networkType = await networkService.getNetworkType();
@@ -212,19 +166,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         context: context,
         barrierDismissible: false,
         builder: (dialogContext) => AlertDialog(
-          title: const Text('Mobile Network Detected'),
-          content: Text(
-            'You are on mobile data. The model ($modelSize) will be downloaded. '
-            'Do you want to download now or wait for WiFi?',
-          ),
+          title: Text(l10n.mobileNetworkDetected),
+          content: Text(l10n.downloadOnMobile(modelSize)),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop('wifi'),
-              child: const Text('Wait for WiFi'),
+              child: Text(l10n.waitForWifi),
             ),
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop('download'),
-              child: const Text('Download Now'),
+              child: Text(l10n.downloadNow),
             ),
           ],
         ),

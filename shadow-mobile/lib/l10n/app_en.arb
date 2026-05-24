@@ -70,5 +70,16 @@
       }
     }
   },
-  "desktopUnsupportedMessage": "MNN engine is only available on Android.\nThis is a desktop build - local LLM features are disabled.\nYou can still use cloud models."
+  "desktopUnsupportedMessage": "MNN engine is only available on Android.\nThis is a desktop build - local LLM features are disabled.\nYou can still use cloud models.",
+  "mobileNetworkDetected": "Mobile Network Detected",
+  "downloadOnMobile": "You are on mobile data. The model ({modelSize}) will be downloaded. Do you want to download now or wait for WiFi?",
+  "@downloadOnMobile": {
+    "placeholders": {
+      "modelSize": {
+        "type": "String"
+      }
+    }
+  },
+  "waitForWifi": "Wait for WiFi",
+  "downloadNow": "Download Now"
 }
