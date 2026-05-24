@@ -1,0 +1,40 @@
+test_configuration:
+  test_directory: "integration_test"
+  devices:
+    - android_emulator
+    - android_device
+  timeout: 120
+  fresh_start: true
+  screens:
+    - chat_screen
+    - task_board_screen
+    - conversation_screen
+    - agents_screen
+    - providers_screen
+    - mcp_screen
+    - skills_screen
+    - memory_screen
+    - settings_screen
+  env:
+    PREFRONTAL_HOST: "http://localhost:8082"
+    HIPPOCAMPUS_HOST: "http://localhost:8081"
+    RESONANCE_HOST: "http://localhost:8080"
+  network:
+    timeout_seconds: 30
+    retry_attempts: 3
+  mock_data:
+    enabled: false
+    endpoints:
+      prefrontal: "http://localhost:8082"
+      hippocampus: "http://localhost:8081"
+  logging:
+    level: "info"
+    verbose: true
+  screenshot_on_failure: true
+  screenshot_dir: "test_results/screenshots"
+  video_recording: false
+  collect_performance_metrics: false
+  metrics:
+    - frame_rate
+    - memory_usage
+    - battery_usage
