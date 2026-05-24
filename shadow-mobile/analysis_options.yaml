@@ -25,13 +25,13 @@ linter:
     prefer_single_quotes: true
     
     # Require description in Intl.message() and similar
-    prefer_intl_message: true
+    # prefer_intl_message: true  # Removed: not available in current Flutter SDK
     
     # Prefer using generated localization classes
-    prefer_app_localizations: true
+    # prefer_app_localizations: true  # Removed: not available in current Flutter SDK
     
     # Ensure ARB files are properly formatted
-    prefer_conditional_exports: true
+    # prefer_conditional_exports: true  # Removed: not available in current Flutter SDK
     
     # avoid_print: false  # Uncomment to disable the `avoid_print` rule
     # prefer_single_quotes: true  # Uncomment to enable the `prefer_single_quotes` rule

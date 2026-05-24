@@ -1,64 +1,70 @@
 import 'dart:io';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+import 'package:connectivity_plus/connectivity_plus.dart';
+
+enum NetworkType { wifi, mobile, unknown }
+
+class NetworkUtils {
+  static Future<NetworkType> getNetworkType() async {
+    final connectivity = await Connectivity().checkConnectivity();
+    if (connectivity.contains(ConnectivityResult.wifi)) {
+      return NetworkType.wifi;
+    } else if (connectivity.contains(ConnectivityResult.mobile)) {
+      return NetworkType.mobile;
+    }
+    return NetworkType.unknown;
+  }
+
+  static Future<bool> isWifi() async {
+    return await getNetworkType() == NetworkType.wifi;
+  }
+
+  static Stream<List<ConnectivityResult>> watchConnectivity() {
+    return Connectivity().onConnectivityChanged;
+  }
+}
+
+class LiteRTDownloadService {
+  // ML Kit handles model download automatically
+  // This class is kept for compatibility but model download is no-op
+
+  bool _isDownloading = false;
+  double _progress = 0.0;
+  String? _lastError;
+
+  bool get isDownloading => _isDownloading;
+  double get progress => _progress;
+  String? get lastError => _lastError;
+
+  Future<bool> isModelDownloaded() async {
+    // ML Kit manages model availability via Google Play Services
+    // Always return true here - ML Kit will handle download status
+    return true;
+  }
+
+  Future<String?> downloadModel({
+    void Function(double progress)? onProgress,
+  }) async {
+    // ML Kit handles model download automatically
+    // No manual download needed
+    _lastError = 'Not needed - ML Kit handles downloads automatically';
+    return null;
+  }
+
+  void cancel() {
+    _isDownloading = false;
+  }
+}
 
 class ModelDownloadService {
+  // Kept for API compatibility - ML Kit handles model management
   static const String _defaultModelStoreHost = 'modelscope.cn';
 
   final String _baseUrl;
-  final http.Client _client;
 
-  ModelDownloadService({String? baseUrl, http.Client? client})
-    : _baseUrl = baseUrl ?? 'https://$_defaultModelStoreHost/api/v1',
-      _client = client ?? http.Client();
+  ModelDownloadService({String? baseUrl})
+    : _baseUrl = baseUrl ?? 'https://$_defaultModelStoreHost/api/v1';
 
   String get modelListUrl => '$_baseUrl/models.json';
-
-  Future<List<ModelInfo>> fetchModelList() async {
-    final response = await _client.get(Uri.parse(modelListUrl));
-    if (response.statusCode == 200) {
-      final Map<String, dynamic> data = json.decode(response.body);
-      final List<dynamic> models = data['models'] ?? [];
-      return models.map((m) => ModelInfo.fromJson(m)).toList();
-    }
-    throw Exception('Failed to load model list: ${response.statusCode}');
-  }
-
-  Future<Directory> downloadModel(
-    String url,
-    String saveDir,
-    String modelName,
-    void Function(int received, int total)? onProgress,
-  ) async {
-    final dir = Directory(saveDir);
-    if (!await dir.exists()) {
-      await dir.create(recursive: true);
-    }
-
-    final filePath = '$saveDir/$modelName.zip';
-    final file = File(filePath);
-    final sink = file.openWrite();
-
-    final request = http.Request('GET', Uri.parse(url));
-    final response = await _client.send(request);
-    final contentLength = response.contentLength ?? 0;
-
-    int received = 0;
-    await for (final chunk in response.stream) {
-      sink.add(chunk);
-      received += chunk.length;
-      if (contentLength > 0) {
-        onProgress?.call(received, contentLength);
-      }
-    }
-
-    await sink.close();
-    return dir;
-  }
-
-  void dispose() {
-    _client.close();
-  }
 }
 
 class ModelInfo {

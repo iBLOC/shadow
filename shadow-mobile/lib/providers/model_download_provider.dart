@@ -1,5 +1,4 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path_provider/path_provider.dart';
 import '../services/model_download_service.dart';
 import '../services/app_config_service.dart';
 
@@ -67,89 +66,21 @@ class ModelStoreState {
   }
 }
 
-/// Notifier for model store (fetching and downloading server models)
+/// Notifier for model store - ML Kit handles models automatically
 class ModelStoreNotifier extends StateNotifier<ModelStoreState> {
-  final ModelDownloadService _downloadService;
+  ModelStoreNotifier() : super(const ModelStoreState());
 
-  ModelStoreNotifier(this._downloadService) : super(const ModelStoreState());
-
-  /// Fetch available models from the server
+  /// Fetch available models - ML Kit manages this automatically
   Future<void> fetchAvailableModels() async {
-    state = state.copyWith(isLoading: true, error: null);
-    try {
-      final models = await _downloadService.fetchModelList();
-      state = state.copyWith(availableModels: models, isLoading: false);
-    } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
-    }
+    // ML Kit handles model availability automatically
+    // No need to fetch from server
+    state = state.copyWith(isLoading: false, availableModels: []);
   }
 
-  /// Download a model
+  /// Download a model - ML Kit handles this automatically
   Future<String?> downloadModel(ModelInfo model) async {
-    final modelId = model.modelId;
-
-    // Initialize progress tracking
-    state = state.copyWith(
-      downloadProgress: {
-        ...state.downloadProgress,
-        modelId: DownloadProgress(
-          modelId: modelId,
-          modelName: model.name,
-          isDownloading: true,
-        ),
-      },
-    );
-
-    try {
-      // Get the app's documents directory for storing models
-      final appDir = await getApplicationDocumentsDirectory();
-      final modelDir = '${appDir.path}/models/${model.modelName}';
-
-      // Download the model
-      await _downloadService.downloadModel(
-        model.url,
-        modelDir,
-        model.modelName,
-        (received, total) {
-          // Update progress
-          final progress = total > 0 ? received / total : 0.0;
-          state = state.copyWith(
-            downloadProgress: {
-              ...state.downloadProgress,
-              modelId: state.downloadProgress[modelId]!.copyWith(
-                progress: progress,
-              ),
-            },
-          );
-        },
-      );
-
-      // Mark as complete
-      state = state.copyWith(
-        downloadProgress: {
-          ...state.downloadProgress,
-          modelId: state.downloadProgress[modelId]!.copyWith(
-            isDownloading: false,
-            isComplete: true,
-            progress: 1.0,
-          ),
-        },
-      );
-
-      return modelDir;
-    } catch (e) {
-      // Mark as error
-      state = state.copyWith(
-        downloadProgress: {
-          ...state.downloadProgress,
-          modelId: state.downloadProgress[modelId]!.copyWith(
-            isDownloading: false,
-            error: e.toString(),
-          ),
-        },
-      );
-      return null;
-    }
+    // ML Kit handles model download automatically
+    return null;
   }
 
   /// Get download progress for a specific model
@@ -181,8 +112,7 @@ final appConfigServiceProvider = Provider<AppConfigService>((ref) {
 /// Provider for ModelStoreNotifier
 final modelStoreProvider =
     StateNotifierProvider<ModelStoreNotifier, ModelStoreState>((ref) {
-      final downloadService = ref.watch(modelDownloadServiceProvider);
-      return ModelStoreNotifier(downloadService);
+      return ModelStoreNotifier();
     });
 
 /// Provider to check if a specific model is downloading

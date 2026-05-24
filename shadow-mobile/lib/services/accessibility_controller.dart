@@ -121,6 +121,6 @@ enum GlobalAction {
   home,
   recents,
   notifications,
-  quick_settings,
-  power_dialog,
+  quickSettings,
+  powerDialog,
 }

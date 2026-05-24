@@ -157,7 +157,11 @@ class TaskBoardScreen extends ConsumerWidget {
     TasksState state,
   ) {
     final columns = [
-      _ColumnConfig(id: 'backlog', title: '待办', color: AppColors.darkTextSecondary),
+      _ColumnConfig(
+        id: 'backlog',
+        title: '待办',
+        color: AppColors.darkTextSecondary,
+      ),
       _ColumnConfig(id: 'todo', title: 'To Do', color: AppColors.primary),
       _ColumnConfig(id: 'in-progress', title: '进行中', color: AppColors.warning),
       _ColumnConfig(id: 'done', title: '已完成', color: AppColors.success),
@@ -217,7 +221,7 @@ class _KanbanColumn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+
     return Container(
       width: 280,
       margin: const EdgeInsets.only(right: 16),
@@ -227,8 +231,8 @@ class _KanbanColumn extends StatelessWidget {
           filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
           child: Container(
             decoration: BoxDecoration(
-              color: isDark 
-                  ? AppColors.darkSurfaceGlass 
+              color: isDark
+                  ? AppColors.darkSurfaceGlass
                   : AppColors.lightSurfaceGlass,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
@@ -265,7 +269,10 @@ class _KanbanColumn extends StatelessWidget {
                         ),
                         child: Text(
                           '${tasks.length}',
-                          style: const TextStyle(color: Colors.white, fontSize: 12),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                          ),
                         ),
                       ),
                     ],
@@ -277,8 +284,8 @@ class _KanbanColumn extends StatelessWidget {
                           child: Text(
                             '暂无任务',
                             style: TextStyle(
-                              color: isDark 
-                                  ? AppColors.darkTextSecondary 
+                              color: isDark
+                                  ? AppColors.darkTextSecondary
                                   : AppColors.lightTextSecondary,
                             ),
                           ),
@@ -395,7 +402,7 @@ class _AddTaskDialogState extends State<_AddTaskDialog> {
           ),
           const SizedBox(height: 16),
           DropdownButtonFormField<String>(
-            value: _priority,
+            initialValue: _priority,
             decoration: const InputDecoration(
               labelText: '优先级',
               border: OutlineInputBorder(),

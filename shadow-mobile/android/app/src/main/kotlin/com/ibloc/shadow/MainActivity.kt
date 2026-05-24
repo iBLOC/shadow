@@ -11,8 +11,9 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
-import com.ibloc.shadow.mnn.PrefrontalMNN
-import com.ibloc.shadow.mnn.OpenAIServerManager
+// MNN imports - commented out, keeping for future reference
+// import com.ibloc.shadow.mnn.PrefrontalMNN
+// import com.ibloc.shadow.mnn.OpenAIServerManager
 import com.ibloc.shadow.litert.LitertEngine
 import com.ibloc.shadow.tts.TtsManager
 import java.util.concurrent.ConcurrentHashMap
@@ -49,39 +50,40 @@ class MainActivity : FlutterActivity() {
         setupLitertChannel(flutterEngine)
         setupTtsChannel(flutterEngine)
         
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
-            when (call.method) {
-                "initialize" -> {
-                    val modelPath = call.argument<String>("modelPath") ?: ""
-                    val threadNum = call.argument<Int>("threadNum") ?: 4
-                    val backendType = call.argument<Int>("backendType") ?: 0
-                    result.success(PrefrontalMNN.initialize(modelPath, threadNum, backendType))
-                }
-                "loadModel" -> {
-                    val configPath = call.argument<String>("configPath") ?: ""
-                    result.success(PrefrontalMNN.loadModel(configPath))
-                }
-                "generate" -> {
-                    val prompt = call.argument<String>("prompt") ?: ""
-                    result.success(PrefrontalMNN.generate(prompt))
-                }
-                "getModelInfo" -> result.success(PrefrontalMNN.getModelInfo())
-                "isInitialized" -> result.success(PrefrontalMNN.isInitialized())
-                "isModelLoaded" -> result.success(PrefrontalMNN.isModelLoaded())
-                "release" -> { PrefrontalMNN.release(); result.success(null) }
-                "startServer" -> {
-                    val port = call.argument<Int>("port") ?: 8080
-                    result.success(OpenAIServerManager.startServer(applicationContext, port))
-                }
-                "stopServer" -> { OpenAIServerManager.stopServer(); result.success(null) }
-                "isServerRunning" -> result.success(OpenAIServerManager.isServerRunning())
-                "getServerUrl" -> result.success(OpenAIServerManager.getServerUrl())
-                "getApiKey" -> result.success(OpenAIServerManager.getApiKey())
-                "setApiKey" -> { OpenAIServerManager.setApiKey(call.argument<String>("key") ?: ""); result.success(null) }
-                "setServerAuthEnabled" -> { OpenAIServerManager.setAuthEnabled(call.argument<Boolean>("enabled") ?: true); result.success(null) }
-                else -> result.notImplemented()
-            }
-        }
+        // MNN MethodChannel - commented out, keeping for future reference
+        // MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
+        //     when (call.method) {
+        //         "initialize" -> {
+        //             val modelPath = call.argument<String>("modelPath") ?: ""
+        //             val threadNum = call.argument<Int>("threadNum") ?: 4
+        //             val backendType = call.argument<Int>("backendType") ?: 0
+        //             result.success(PrefrontalMNN.initialize(modelPath, threadNum, backendType))
+        //         }
+        //         "loadModel" -> {
+        //             val configPath = call.argument<String>("configPath") ?: ""
+        //             result.success(PrefrontalMNN.loadModel(configPath))
+        //         }
+        //         "generate" -> {
+        //             val prompt = call.argument<String>("prompt") ?: ""
+        //             result.success(PrefrontalMNN.generate(prompt))
+        //         }
+        //         "getModelInfo" -> result.success(PrefrontalMNN.getModelInfo())
+        //         "isInitialized" -> result.success(PrefrontalMNN.isInitialized())
+        //         "isModelLoaded" -> result.success(PrefrontalMNN.isModelLoaded())
+        //         "release" -> { PrefrontalMNN.release(); result.success(null) }
+        //         "startServer" -> {
+        //             val port = call.argument<Int>("port") ?: 8080
+        //             result.success(OpenAIServerManager.startServer(applicationContext, port))
+        //         }
+        //         "stopServer" -> { OpenAIServerManager.stopServer(); result.success(null) }
+        //         "isServerRunning" -> result.success(OpenAIServerManager.isServerRunning())
+        //         "getServerUrl" -> result.success(OpenAIServerManager.getServerUrl())
+        //         "getApiKey" -> result.success(OpenAISServerManager.getApiKey())
+        //         "setApiKey" -> { OpenAIServerManager.setApiKey(call.argument<String>("key") ?: ""); result.success(null) }
+        //         "setServerAuthEnabled" -> { OpenAIServerManager.setAuthEnabled(call.argument<Boolean>("enabled") ?: true); result.success(null) }
+        //         else -> result.notImplemented()
+        //     }
+        // }
     }
     
     private fun setupAccessibilityChannel(flutterEngine: FlutterEngine) {
@@ -164,39 +166,58 @@ class MainActivity : FlutterActivity() {
     
     private fun setupLitertChannel(flutterEngine: FlutterEngine) {
         litertEngine = LitertEngine(this)
-        
+
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, LITERT_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
                 "initialize" -> {
-                    val modelPath = call.argument<String>("modelPath") ?: ""
+                    val modelName = call.argument<String>("modelName") ?: "gemma-4-it-4b"
+                    // ML Kit uses default config, releaseStage and preference not needed
                     scope.launch {
                         try {
-                            val success = litertEngine?.initialize(modelPath) ?: false
-                            if (success) {
-                                litertEngine?.createConversation()
-                            }
+                            val success = litertEngine?.initialize(modelName) ?: false
                             result.success(success)
                         } catch (e: Exception) {
                             result.error("INIT_ERROR", e.message, null)
                         }
                     }
                 }
-                "sendMessage" -> {
-                    val text = call.argument<String>("text") ?: ""
+                "generateContent" -> {
+                    val prompt = call.argument<String>("prompt") ?: ""
                     scope.launch {
                         try {
-                            val response = litertEngine?.sendMessage(text) ?: ""
+                            val response = litertEngine?.generateContent(prompt) ?: ""
                             result.success(response)
                         } catch (e: Exception) {
-                            result.error("SEND_ERROR", e.message, null)
+                            result.error("GEN_ERROR", e.message, null)
                         }
                     }
+                }
+                "generateContentStream" -> {
+                    val prompt = call.argument<String>("prompt") ?: ""
+                    scope.launch {
+                        try {
+                            litertEngine?.generateContentStream(prompt)
+                            result.success(true)
+                        } catch (e: Exception) {
+                            result.error("GEN_ERROR", e.message, null)
+                        }
+                    }
+                }
+                "getResponseText" -> {
+                    result.success(litertEngine?.responseText?.value ?: "")
                 }
                 "isInitialized" -> {
                     result.success(litertEngine?.isInitialized?.value ?: false)
                 }
-                "isConversationReady" -> {
-                    result.success(litertEngine?.isConversationReady?.value ?: false)
+                "isLoading" -> {
+                    result.success(litertEngine?.isLoading?.value ?: false)
+                }
+                "getDownloadProgress" -> {
+                    val progress = litertEngine?.downloadProgress?.value
+                    result.success(progress?.let { mapOf("downloaded" to it.first, "total" to it.second) })
+                }
+                "getLastError" -> {
+                    result.success(litertEngine?.lastError?.value)
                 }
                 "release" -> {
                     litertEngine?.release()
@@ -352,8 +373,8 @@ class MainActivity : FlutterActivity() {
     
     override fun onDestroy() {
         super.onDestroy()
-        PrefrontalMNN.release()
-        OpenAIServerManager.stopServer()
+        // PrefrontalMNN.release()  // MNN - commented out
+        // OpenAIServerManager.stopServer()  // MNN - commented out
         litertEngine?.release()
         litertEngine = null
         ttsManager?.release()

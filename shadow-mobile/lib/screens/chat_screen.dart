@@ -5,11 +5,13 @@ import 'package:genui/genui.dart' hide ChatMessage;
 import '../generated/l10n/app_localizations.dart';
 import '../providers/chat_provider.dart';
 import '../providers/genui_provider.dart';
+import '../services/network_service.dart';
 import '../utils/chat_state_l10n.dart';
 import '../widgets/chat_bubble.dart';
 import '../router/app_router.dart';
 import '../theme/app_colors.dart';
 import '../multimodal/multimodal.dart';
+import '../litert_model.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   const ChatScreen({super.key});
@@ -41,6 +43,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     });
   }
 
+  bool _downloadDialogShown = false;
+
   @override
   Widget build(BuildContext context) {
     final chatState = ref.watch(chatProvider);
@@ -54,7 +58,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       }
     });
 
-    // Determine mode from chatState
+    final bool modelNotReady =
+        !chatState.isLitertReady &&
+        chatState.mode == ChatMode.litert &&
+        !useAgent2UI;
+
+    if (modelNotReady && !_downloadDialogShown) {
+      _downloadDialogShown = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _showDownloadDialog(context);
+      });
+    } else if (!modelNotReady && _downloadDialogShown) {
+      _downloadDialogShown = false;
+    }
+
     final isAgent2UI = chatState.mode == ChatMode.off && useAgent2UI;
     final isLitertMode = chatState.mode == ChatMode.litert;
 
@@ -83,34 +100,45 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ],
         ),
         actions: [
-          // Mode toggle: Local MNN -> LiteRT -> Agent2UI -> Local MNN
-          IconButton(
-            icon: Icon(
-              isAgent2UI
-                  ? Icons.phone_android
-                  : isLitertMode
-                      ? Icons.psychology
-                      : Icons.smart_toy,
+          // Agent selector dropdown
+          if (chatState.mode == ChatMode.litert && !isAgent2UI)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: DropdownButton<Agent>(
+                value: chatState.currentAgent,
+                underline: const SizedBox(),
+                icon: const Icon(Icons.arrow_drop_down),
+                items: Agents.allAgents.map((agent) {
+                  return DropdownMenuItem<Agent>(
+                    value: agent,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          agent.type == AgentType.chat
+                              ? Icons.chat
+                              : Icons.smart_toy,
+                          size: 18,
+                          color: AppColors.primary,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(agent.type.displayName),
+                      ],
+                    ),
+                  );
+                }).toList(),
+                onChanged: (Agent? newAgent) {
+                  if (newAgent != null && newAgent != chatState.currentAgent) {
+                    ref.read(chatProvider.notifier).selectAgent(newAgent);
+                    // Trigger download dialog if model not ready
+                    if (!chatState.isLitertReady) {
+                      _downloadDialogShown = false;
+                      _showDownloadDialog(context);
+                    }
+                  }
+                },
+              ),
             ),
-            onPressed: () {
-              final nextMode = isAgent2UI
-                  ? ChatMode.localMnn
-                  : isLitertMode
-                      ? ChatMode.off
-                      : ChatMode.litert;
-              if (nextMode == ChatMode.off) {
-                ref.read(useAgent2UIModeProvider.notifier).state = true;
-              } else {
-                ref.read(useAgent2UIModeProvider.notifier).state = false;
-                ref.read(chatProvider.notifier).setMode(nextMode);
-              }
-            },
-            tooltip: isAgent2UI
-                ? 'Switch to Local MNN'
-                : isLitertMode
-                    ? 'Switch to Agent2UI'
-                    : 'Switch to LiteRT',
-          ),
           IconButton(
             icon: const Icon(Icons.model_training),
             onPressed: () {
@@ -118,7 +146,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             },
             tooltip: l10n.models,
           ),
-          if ((chatState.isInitialized || chatState.isLitertReady) && !isAgent2UI)
+          if ((chatState.isInitialized || chatState.isLitertReady) &&
+              !isAgent2UI)
             IconButton(
               icon: const Icon(Icons.settings),
               onPressed: () =>
@@ -136,12 +165,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               scrollController: _scrollController,
               promptController: _promptController,
               onSendMessage: _sendMessage,
-              onSpeak: () => ref.read(chatProvider.notifier).speakLastResponse(),
+              onSpeak: () =>
+                  ref.read(chatProvider.notifier).speakLastResponse(),
               onPickImage: () => ref.read(chatProvider.notifier).pickImage(),
-              onCaptureImage: () => ref.read(chatProvider.notifier).captureImage(),
+              onCaptureImage: () =>
+                  ref.read(chatProvider.notifier).captureImage(),
               onPickFile: () => ref.read(chatProvider.notifier).pickFile(),
-              onStartAudioRecording: () => ref.read(chatProvider.notifier).startAudioRecording(),
-              onStopAudioRecording: () => ref.read(chatProvider.notifier).stopAudioRecording(),
+              onStartAudioRecording: () =>
+                  ref.read(chatProvider.notifier).startAudioRecording(),
+              onStopAudioRecording: () =>
+                  ref.read(chatProvider.notifier).stopAudioRecording(),
             ),
     );
   }
@@ -161,6 +194,122 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         'onReset': () {
           ref.read(chatProvider.notifier).reset();
         },
+      },
+    );
+  }
+
+  void _showDownloadDialog(BuildContext context) async {
+    final chatNotifier = ref.read(chatProvider.notifier);
+    final networkService = NetworkService();
+    final networkType = await networkService.getNetworkType();
+    final chatState = ref.read(chatProvider);
+    final agent = chatState.currentAgent;
+    final modelSize = agent.model.sizeString;
+
+    if (networkType == NetworkType.mobile) {
+      final result = await showDialog<String>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Mobile Network Detected'),
+          content: Text(
+            'You are on mobile data. The model (${modelSize}) will be downloaded. '
+            'Do you want to download now or wait for WiFi?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop('wifi'),
+              child: const Text('Wait for WiFi'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop('download'),
+              child: const Text('Download Now'),
+            ),
+          ],
+        ),
+      );
+
+      if (result == 'wifi') {
+        if (context.mounted) Navigator.of(context).pop();
+        return;
+      }
+    }
+
+    if (!context.mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return Consumer(
+          builder: (context, ref, child) {
+            final chatState = ref.watch(chatProvider);
+            final progress = chatState.downloadProgress;
+            final isDownloading = progress >= 0 && progress < 1;
+            final isComplete = chatState.isLitertReady;
+            final hasError = chatState.errorMessage != null && !isDownloading;
+            final currentAgent = chatState.currentAgent;
+
+            return AlertDialog(
+              title: Text('Download ${currentAgent.model.displayName}'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    networkType == NetworkType.mobile
+                        ? 'Downloading over mobile data...'
+                        : 'This model (${currentAgent.model.sizeString}) is required for ${currentAgent.type.displayName}. '
+                              'Download from hf-mirror.com (China mirror)?',
+                  ),
+                  const SizedBox(height: 24),
+                  if (isDownloading) ...[
+                    LinearProgressIndicator(value: progress),
+                    const SizedBox(height: 8),
+                    Text('${(progress * 100).toStringAsFixed(1)}%'),
+                  ] else if (isComplete) ...[
+                    const Icon(
+                      Icons.check_circle,
+                      color: Colors.green,
+                      size: 48,
+                    ),
+                    const SizedBox(height: 8),
+                    const Text('Download complete!'),
+                  ] else if (hasError) ...[
+                    const Icon(
+                      Icons.error_outline,
+                      color: Colors.red,
+                      size: 48,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      chatState.errorMessage ?? 'Download failed',
+                      style: const TextStyle(color: Colors.red),
+                    ),
+                  ] else ...[
+                    const CircularProgressIndicator(),
+                  ],
+                ],
+              ),
+              actions: [
+                if (hasError)
+                  TextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    child: const Text('Cancel'),
+                  ),
+                if (!isComplete && !isDownloading)
+                  TextButton(
+                    onPressed: () => chatNotifier.downloadModel(),
+                    child: const Text('Download'),
+                  ),
+                if (isComplete)
+                  TextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    child: const Text('Start Chatting'),
+                  ),
+              ],
+            );
+          },
+        );
       },
     );
   }
@@ -396,7 +545,8 @@ class _LocalChatView extends StatelessWidget {
                       child: TextField(
                         controller: promptController,
                         decoration: InputDecoration(
-                          hintText: chatState.isInitialized || chatState.isLitertReady
+                          hintText:
+                              chatState.isInitialized || chatState.isLitertReady
                               ? l10n.askSomething
                               : l10n.initializing,
                           border: OutlineInputBorder(
@@ -407,7 +557,10 @@ class _LocalChatView extends StatelessWidget {
                             vertical: 12,
                           ),
                         ),
-                        enabled: (chatState.isInitialized || chatState.isLitertReady) && !chatState.isLoading,
+                        enabled:
+                            (chatState.isInitialized ||
+                                chatState.isLitertReady) &&
+                            !chatState.isLoading,
                         maxLines: 4,
                         minLines: 1,
                         textInputAction: TextInputAction.send,
@@ -416,7 +569,10 @@ class _LocalChatView extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     IconButton.filled(
-                      onPressed: (chatState.isInitialized || chatState.isLitertReady) && !chatState.isLoading
+                      onPressed:
+                          (chatState.isInitialized ||
+                                  chatState.isLitertReady) &&
+                              !chatState.isLoading
                           ? onSendMessage
                           : null,
                       icon: chatState.isLoading
@@ -476,7 +632,7 @@ class _Agent2UIView extends ConsumerWidget {
         ConnectionStatus.disconnected => AppColors.darkTextMuted,
       },
       loading: () => AppColors.warning,
-      error: (_, __) => AppColors.error,
+      error: (e, s) => AppColors.error,
     );
   }
 
@@ -489,7 +645,7 @@ class _Agent2UIView extends ConsumerWidget {
         ConnectionStatus.disconnected => Icons.cloud_off,
       },
       loading: () => Icons.wifi_find,
-      error: (_, __) => Icons.wifi_off,
+      error: (e, s) => Icons.wifi_off,
     );
   }
 

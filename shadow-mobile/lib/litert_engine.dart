@@ -1,48 +1,109 @@
 import 'package:flutter/services.dart';
+import 'litert_model.dart';
 
 class LitertEngine {
   static const _channel = MethodChannel('com.ibloc.shadow/litert');
-  
+
+  LiteRTModel _currentModel = LiteRTModels.defaultModel;
   bool _isInitialized = false;
   bool get isInitialized => _isInitialized;
-  
-  bool _isConversationReady = false;
-  bool get isConversationReady => _isConversationReady;
-  
-  Future<bool> initialize({
-    String modelPath = '/data/local/tmp/gemma-4-e4b.litertlm',
-  }) async {
+
+  String? _lastError;
+  String? get lastError => _lastError;
+
+  String _responseText = "";
+  String get responseText => _responseText;
+
+  LiteRTModel get currentModel => _currentModel;
+
+  void setModel(LiteRTModel model) {
+    _currentModel = model;
+  }
+
+  Future<bool> initialize() async {
     try {
       final result = await _channel.invokeMethod<bool>('initialize', {
-        'modelPath': modelPath,
+        'modelName': _currentModel.name,
+        'releaseStage': _currentModel.releaseStage == ModelReleaseStage.preview
+            ? 'PREVIEW'
+            : 'STABLE',
+        'preference': _currentModel.preference == ModelPreference.full
+            ? 'FULL'
+            : 'FAST',
       });
+
       _isInitialized = result ?? false;
+      if (!_isInitialized) {
+        _lastError = await _channel.invokeMethod<String>('getLastError');
+      }
       return _isInitialized;
     } catch (e) {
+      _lastError = e.toString();
       _isInitialized = false;
       return false;
     }
   }
-  
-  Future<String> sendMessage(String text) async {
+
+  Future<String> generateContent(String prompt) async {
     if (!_isInitialized) {
       throw StateError('LitertEngine not initialized');
     }
     try {
-      final result = await _channel.invokeMethod<String>('sendMessage', {
-        'text': text,
+      final result = await _channel.invokeMethod<String>('generateContent', {
+        'prompt': prompt,
       });
       return result ?? '';
     } catch (e) {
-      throw Exception('Failed to send message: $e');
+      throw Exception('Failed to generate content: $e');
     }
   }
-  
+
+  Future<void> generateContentStream(String prompt) async {
+    if (!_isInitialized) {
+      throw StateError('LitertEngine not initialized');
+    }
+    try {
+      await _channel.invokeMethod<bool>('generateContentStream', {
+        'prompt': prompt,
+      });
+    } catch (e) {
+      throw Exception('Failed to generate content stream: $e');
+    }
+  }
+
+  Future<String?> getResponseText() async {
+    try {
+      return await _channel.invokeMethod<String>('getResponseText');
+    } catch (e) {
+      return null;
+    }
+  }
+
+  Future<Map<String, int>?> getDownloadProgress() async {
+    try {
+      final result = await _channel.invokeMethod<Map>('getDownloadProgress');
+      if (result == null) return null;
+      return {
+        'downloaded': (result['downloaded'] as num?)?.toInt() ?? 0,
+        'total': (result['total'] as num?)?.toInt() ?? 0,
+      };
+    } catch (e) {
+      return null;
+    }
+  }
+
+  Future<bool> isLoading() async {
+    try {
+      return await _channel.invokeMethod<bool>('isLoading') ?? false;
+    } catch (e) {
+      return false;
+    }
+  }
+
   Future<bool> release() async {
     try {
       await _channel.invokeMethod<bool>('release');
       _isInitialized = false;
-      _isConversationReady = false;
       return true;
     } catch (e) {
       return false;

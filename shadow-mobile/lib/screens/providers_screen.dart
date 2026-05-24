@@ -453,7 +453,7 @@ class _AddProviderSheetState extends ConsumerState<_AddProviderSheet> {
 
             // Provider类型选择
             DropdownButtonFormField<ProviderType>(
-              value: _selectedType,
+              initialValue: _selectedType,
               decoration: const InputDecoration(
                 labelText: '提供商',
                 border: OutlineInputBorder(),

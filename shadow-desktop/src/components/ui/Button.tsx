@@ -39,6 +39,7 @@ export function Button({
     <button
       className={classNames}
       disabled={disabled || loading}
+      aria-busy={loading}
       {...props}
     >
       {loading ? (

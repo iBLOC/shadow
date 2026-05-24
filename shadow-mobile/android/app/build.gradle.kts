@@ -21,7 +21,7 @@ android {
 
     defaultConfig {
         applicationId = "com.ibloc.shadow"
-        minSdk = 26
+        minSdk = 31
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -44,18 +44,20 @@ android {
         }
     }
     
-    externalNativeBuild {
-        cmake {
-            path = file("src/main/cpp/CMakeLists.txt")
-            version = "3.22.1"
-        }
-    }
+    // MNN native build - commented out, keeping for future reference
+    // externalNativeBuild {
+    //     cmake {
+    //         path = file("src/main/cpp/CMakeLists.txt")
+    //         version = "3.22.1"
+    //     }
+    // }
     
-    sourceSets {
-        getByName("main") {
-            jniLibs.srcDirs("src/main/jniLibs")
-        }
-    }
+    // MNN jniLibs - commented out, keeping for future reference
+    // sourceSets {
+    //     getByName("main") {
+    //         jniLibs.srcDirs("src/main/jniLibs")
+    //     }
+    // }
 
     packaging {
         jniLibs {
@@ -70,5 +72,5 @@ flutter {
 }
 
 dependencies {
-    implementation("com.google.ai.edge.litertlm:litertlm-android:latest.release")
+    implementation("com.google.mlkit:genai-prompt:1.0.0-beta2")
 }

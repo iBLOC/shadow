@@ -1,10 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../mnn_engine.dart';
 import '../model_manager.dart';
 import '../features/models/screens/model_list_screen.dart';
 import '../litert_engine.dart';
+import '../services/model_download_service.dart';
 import '../tts_engine.dart';
 import '../multimodal/multimodal.dart';
+import '../litert_model.dart';
 
 /// Chat message model for the UI
 class ChatMessageModel {
@@ -13,13 +14,18 @@ class ChatMessageModel {
   final String? attachmentPath;
   final MultimodalInputType? attachmentType;
 
-  ChatMessageModel(this.content, this.role, {this.attachmentPath, this.attachmentType});
+  ChatMessageModel(
+    this.content,
+    this.role, {
+    this.attachmentPath,
+    this.attachmentType,
+  });
 }
 
 enum ChatRole { user, assistant, system }
 
 /// Chat mode enum
-enum ChatMode { off, localMnn, litert }
+enum ChatMode { off, litert }
 
 /// L10n keys for provider messages (resolved in UI with AppLocalizations).
 enum ChatStateL10nKey {
@@ -47,6 +53,9 @@ class ChatState {
   final bool isLitertReady;
   final bool isRecordingAudio;
   final List<MultimodalInput> attachments;
+  final double downloadProgress;
+  final Agent currentAgent;
+  final bool isDownloading;
 
   const ChatState({
     this.messages = const [],
@@ -61,6 +70,9 @@ class ChatState {
     this.isLitertReady = false,
     this.isRecordingAudio = false,
     this.attachments = const [],
+    this.downloadProgress = -1.0,
+    this.currentAgent = Agents.chatAgent,
+    this.isDownloading = false,
   });
 
   static const _omit = _CopyWithOmit();
@@ -78,6 +90,9 @@ class ChatState {
     bool? isLitertReady,
     bool? isRecordingAudio,
     List<MultimodalInput>? attachments,
+    double? downloadProgress,
+    Agent? currentAgent,
+    bool? isDownloading,
   }) {
     final explicitError = !identical(errorMessage, _omit);
     final clearError = explicitError && errorMessage == null;
@@ -102,6 +117,9 @@ class ChatState {
       isLitertReady: isLitertReady ?? this.isLitertReady,
       isRecordingAudio: isRecordingAudio ?? this.isRecordingAudio,
       attachments: attachments ?? this.attachments,
+      downloadProgress: downloadProgress ?? this.downloadProgress,
+      currentAgent: currentAgent ?? this.currentAgent,
+      isDownloading: isDownloading ?? this.isDownloading,
     );
   }
 }
@@ -112,40 +130,184 @@ class _CopyWithOmit {
 
 /// Chat notifier
 class ChatNotifier extends StateNotifier<ChatState> {
-  final ModelManager _modelManager;
   final LitertEngine _litertEngine;
   final TtsEngine _ttsEngine;
   final MultimodalInputManager _multimodalManager = MultimodalInputManager();
+  final LiteRTDownloadService _downloadService = LiteRTDownloadService();
 
-  ChatNotifier(this._modelManager, this._litertEngine, this._ttsEngine) : super(const ChatState()) {
-    _initMNN();
+  ChatNotifier(this._litertEngine, this._ttsEngine) : super(const ChatState()) {
+    _initLiteRT();
+  }
+
+  void selectAgent(Agent agent) {
+    _litertEngine.setModel(agent.model);
+    // ML Kit handles model selection automatically
+    state = state.copyWith(
+      currentAgent: agent,
+      isLitertReady: false,
+      isDownloading: false,
+      downloadProgress: -1.0,
+      modelInfo: '${agent.type.displayName}: ${agent.model.displayName}',
+    );
+  }
+
+  Future<void> _initLiteRT() async {
+    final agent = state.currentAgent;
+    state = state.copyWith(
+      mode: ChatMode.litert,
+      messages: [
+        ...state.messages,
+        ChatMessageModel(
+          'Checking ${agent.model.displayName}...',
+          ChatRole.system,
+        ),
+      ],
+    );
+
+    // ML Kit handles model management automatically
+    await initLitert();
+  }
+
+  Future<void> downloadModel() async {
+    final agent = state.currentAgent;
+    state = state.copyWith(
+      isDownloading: true,
+      messages: [
+        ...state.messages,
+        ChatMessageModel(
+          'Downloading ${agent.model.displayName} (${agent.model.sizeString}) from hf-mirror.com...',
+          ChatRole.system,
+        ),
+      ],
+      modelInfo: 'Downloading...',
+    );
+
+    try {
+      final path = await _downloadService.downloadModel(
+        onProgress: (progress) {
+          final percent = (progress * 100).toStringAsFixed(1);
+          state = state.copyWith(
+            modelInfo: 'Downloading... $percent%',
+            downloadProgress: progress,
+          );
+        },
+      );
+
+      if (path != null) {
+        state = state.copyWith(
+          modelInfo: 'Download complete, initializing...',
+          downloadProgress: 1.0,
+          messages: [
+            ...state.messages,
+            ChatMessageModel(
+              'Download complete! Initializing engine...',
+              ChatRole.system,
+            ),
+          ],
+        );
+        await initLitert();
+      } else {
+        final error = _downloadService.lastError ?? 'Unknown error';
+        state = state.copyWith(
+          errorMessage: 'Download failed: $error',
+          errorMessageL10nKey: ChatStateL10nKey.errorGeneric,
+          downloadProgress: -1.0,
+          isDownloading: false,
+          messages: [
+            ...state.messages,
+            ChatMessageModel('Download failed: $error', ChatRole.system),
+          ],
+        );
+      }
+    } catch (e) {
+      state = state.copyWith(
+        errorMessage: 'Download error: $e',
+        errorMessageL10nKey: ChatStateL10nKey.errorGeneric,
+        downloadProgress: -1.0,
+        isDownloading: false,
+        messages: [
+          ...state.messages,
+          ChatMessageModel('Download error: $e', ChatRole.system),
+        ],
+      );
+    }
+  }
+
+  Future<void> initLitert() async {
+    final agent = state.currentAgent;
+    state = state.copyWith(
+      modelInfoL10nKey: ChatStateL10nKey.litertInitializing,
+      messages: [
+        ...state.messages,
+        ChatMessageModel(
+          'Initializing ${agent.model.displayName}...',
+          ChatRole.system,
+        ),
+      ],
+    );
+
+    try {
+      _litertEngine.setModel(agent.model);
+      final success = await _litertEngine.initialize();
+      if (success) {
+        state = state.copyWith(
+          isLitertReady: true,
+          modelInfo: '${agent.model.displayName} ready',
+          modelInfoL10nKey: ChatStateL10nKey.litertReady,
+          messages: [
+            ...state.messages,
+            ChatMessageModel(
+              '${agent.model.displayName} engine ready!',
+              ChatRole.system,
+            ),
+          ],
+        );
+      } else {
+        final errorMsg = _litertEngine.lastError ?? 'Unknown error';
+        state = state.copyWith(
+          errorMessage: 'Failed to initialize LiteRT engine: $errorMsg',
+          errorMessageL10nKey: ChatStateL10nKey.errorLitertInitFailed,
+          messages: [
+            ...state.messages,
+            ChatMessageModel(
+              'Failed to initialize LiteRT engine: $errorMsg',
+              ChatRole.system,
+            ),
+          ],
+        );
+      }
+    } catch (e) {
+      state = state.copyWith(
+        errorMessage: 'Error: $e',
+        errorMessageL10nKey: ChatStateL10nKey.errorGeneric,
+        errorMessageArg: e.toString(),
+        messages: [
+          ...state.messages,
+          ChatMessageModel('Error: $e', ChatRole.system),
+        ],
+      );
+    }
   }
 
   // Multimodal input methods
   Future<void> pickImage() async {
     final input = await _multimodalManager.pickImageFromGallery();
     if (input != null) {
-      state = state.copyWith(
-        attachments: [...state.attachments, input],
-      );
+      state = state.copyWith(attachments: [...state.attachments, input]);
     }
   }
 
   Future<void> captureImage() async {
     final input = await _multimodalManager.captureImage();
     if (input != null) {
-      state = state.copyWith(
-        attachments: [...state.attachments, input],
-      );
+      state = state.copyWith(attachments: [...state.attachments, input]);
     }
   }
 
   Future<void> pickFile() async {
     final input = await _multimodalManager.pickFile();
     if (input != null) {
-      state = state.copyWith(
-        attachments: [...state.attachments, input],
-      );
+      state = state.copyWith(attachments: [...state.attachments, input]);
     }
   }
 
@@ -165,9 +327,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
     final input = await _multimodalManager.stopAudioRecording();
     state = state.copyWith(isRecordingAudio: false);
     if (input != null) {
-      state = state.copyWith(
-        attachments: [...state.attachments, input],
-      );
+      state = state.copyWith(attachments: [...state.attachments, input]);
     }
   }
 
@@ -183,168 +343,11 @@ class ChatNotifier extends StateNotifier<ChatState> {
     state = state.copyWith(attachments: []);
   }
 
-  Future<void> _initMNN() async {
-    if (!MNNEngine.isSupported) {
-      state = state.copyWith(
-        messages: [
-          ...state.messages,
-          ChatMessageModel(
-            'MNN engine is only available on Android.\n'
-            'This is a desktop build - local LLM features are disabled.\n'
-            'You can still use cloud models.',
-            ChatRole.system,
-          ),
-        ],
-        isInitialized: false,
-        modelInfo: 'Desktop mode (Android only)',
-        modelInfoL10nKey: ChatStateL10nKey.desktopMode,
-      );
-      return;
-    }
-
-    state = state.copyWith(
-      messages: [
-        ...state.messages,
-        ChatMessageModel('Initializing MNN engine...', ChatRole.system),
-      ],
-    );
-
-    try {
-      final success = await MNNEngine.initialize(
-        modelPath: 'assets/models',
-        threadNum: 4,
-        backendType: 0,
-      );
-
-      if (success) {
-        final modelLoaded = await MNNEngine.loadModel(
-          'assets/models/config.json',
-        );
-
-        if (!modelLoaded) {
-          state = state.copyWith(
-            errorMessage: 'Failed to load MNN model',
-            errorMessageL10nKey: ChatStateL10nKey.errorGeneric,
-            messages: [
-              ...state.messages,
-              ChatMessageModel('Failed to load MNN model', ChatRole.system),
-            ],
-          );
-          return;
-        }
-
-        final modelPath = 'assets/models';
-        final modelName = modelPath.split('/').last;
-        _modelManager.addLocalRunningModel(
-          id: 'local_loaded',
-          name: modelName,
-          path: modelPath,
-          type: 'text',
-        );
-        state = state.copyWith(
-          isInitialized: true,
-          modelInfo: 'Model loaded',
-          modelInfoL10nKey: ChatStateL10nKey.modelLoaded,
-          messages: [
-            ...state.messages,
-            ChatMessageModel(
-              'MNN engine initialized successfully!\n'
-              'Model loaded\n'
-              'You can now start chatting.',
-              ChatRole.system,
-            ),
-          ],
-        );
-      } else {
-        state = state.copyWith(
-          errorMessage: 'Failed to initialize MNN engine',
-          errorMessageL10nKey: ChatStateL10nKey.errorMnnInitFailed,
-          messages: [
-            ...state.messages,
-            ChatMessageModel(
-              'Failed to initialize MNN engine',
-              ChatRole.system,
-            ),
-          ],
-        );
-      }
-    } catch (e) {
-      state = state.copyWith(
-        errorMessage: 'Error: $e',
-        errorMessageL10nKey: ChatStateL10nKey.errorGeneric,
-        errorMessageArg: e.toString(),
-        messages: [
-          ...state.messages,
-          ChatMessageModel('Error: $e', ChatRole.system),
-        ],
-      );
-    }
-  }
-
-  Future<void> initLitert({String modelPath = '/data/local/tmp/gemma-4-e4b.litertlm'}) async {
-    state = state.copyWith(
-      mode: ChatMode.litert,
-      messages: [...state.messages, ChatMessageModel('Initializing LiteRT engine...', ChatRole.system)],
-      modelInfoL10nKey: ChatStateL10nKey.litertInitializing,
-    );
-
-    try {
-      final success = await _litertEngine.initialize(modelPath: modelPath);
-      if (success) {
-        state = state.copyWith(
-          isLitertReady: true,
-          modelInfo: 'LiteRT ready',
-          modelInfoL10nKey: ChatStateL10nKey.litertReady,
-          messages: [...state.messages, ChatMessageModel('LiteRT engine ready!', ChatRole.system)],
-        );
-      } else {
-        state = state.copyWith(
-          errorMessage: 'Failed to initialize LiteRT engine',
-          errorMessageL10nKey: ChatStateL10nKey.errorLitertInitFailed,
-          messages: [...state.messages, ChatMessageModel('Failed to initialize LiteRT engine', ChatRole.system)],
-        );
-      }
-    } catch (e) {
-      state = state.copyWith(
-        errorMessage: 'Error: $e',
-        errorMessageL10nKey: ChatStateL10nKey.errorGeneric,
-        errorMessageArg: e.toString(),
-        messages: [...state.messages, ChatMessageModel('Error: $e', ChatRole.system)],
-      );
-    }
-  }
-
   Future<void> generateResponse(String prompt) async {
     if (prompt.isEmpty || state.isLoading) return;
 
     if (state.mode == ChatMode.litert && state.isLitertReady) {
       await _generateLitertResponse(prompt);
-    } else if (state.mode == ChatMode.localMnn && state.isInitialized) {
-      await _generateMnnResponse(prompt);
-    }
-  }
-
-  Future<void> _generateMnnResponse(String prompt) async {
-    state = state.copyWith(
-      messages: [...state.messages, ChatMessageModel(prompt, ChatRole.user)],
-      isLoading: true,
-      errorMessage: null,
-    );
-
-    try {
-      final response = await MNNEngine.generate(prompt);
-      state = state.copyWith(
-        messages: [...state.messages, ChatMessageModel(response, ChatRole.assistant)],
-        isLoading: false,
-      );
-    } catch (e) {
-      state = state.copyWith(
-        errorMessage: 'Error: $e',
-        errorMessageL10nKey: ChatStateL10nKey.errorGeneric,
-        errorMessageArg: e.toString(),
-        messages: [...state.messages, ChatMessageModel('Error: $e', ChatRole.system)],
-        isLoading: false,
-      );
     }
   }
 
@@ -356,9 +359,12 @@ class ChatNotifier extends StateNotifier<ChatState> {
     );
 
     try {
-      final response = await _litertEngine.sendMessage(prompt);
+      final response = await _litertEngine.generateContent(prompt);
       state = state.copyWith(
-        messages: [...state.messages, ChatMessageModel(response, ChatRole.assistant)],
+        messages: [
+          ...state.messages,
+          ChatMessageModel(response, ChatRole.assistant),
+        ],
         isLoading: false,
       );
       // TTS speak
@@ -368,7 +374,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
         errorMessage: 'Error: $e',
         errorMessageL10nKey: ChatStateL10nKey.errorGeneric,
         errorMessageArg: e.toString(),
-        messages: [...state.messages, ChatMessageModel('Error: $e', ChatRole.system)],
+        messages: [
+          ...state.messages,
+          ChatMessageModel('Error: $e', ChatRole.system),
+        ],
         isLoading: false,
       );
     }
@@ -392,11 +401,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
   }
 
   Future<void> reset() async {
-    await MNNEngine.release();
     await _litertEngine.release();
     await _multimodalManager.dispose();
     state = const ChatState();
-    await _initMNN();
+    await _initLiteRT();
   }
 
   void clearError() {
@@ -422,7 +430,6 @@ final ttsEngineProvider = Provider<TtsEngine>((ref) {
 /// Provider for ChatNotifier
 final chatProvider = StateNotifierProvider<ChatNotifier, ChatState>((ref) {
   return ChatNotifier(
-    ref.watch(modelManagerProvider),
     ref.watch(litertEngineProvider),
     ref.watch(ttsEngineProvider),
   );
@@ -440,4 +447,9 @@ final selectedModelIdProvider = StateProvider<String?>((ref) => null);
 final modelListProvider = Provider<List<ModelItem>>((ref) {
   final modelManager = ref.watch(modelManagerProvider);
   return modelManager.models;
+});
+
+/// Provider for available agents
+final availableAgentsProvider = Provider<List<Agent>>((ref) {
+  return Agents.allAgents;
 });

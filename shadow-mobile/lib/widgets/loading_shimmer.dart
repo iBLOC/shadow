@@ -75,7 +75,7 @@ class ShimmerList extends StatelessWidget {
     return ListView.separated(
       padding: const EdgeInsets.all(16),
       itemCount: itemCount,
-      separatorBuilder: (_, __) => SizedBox(height: spacing),
+      separatorBuilder: (context, index) => SizedBox(height: spacing),
       itemBuilder: (context, index) {
         return LoadingShimmer(
           width: double.infinity,
