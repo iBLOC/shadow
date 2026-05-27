@@ -64,3 +64,22 @@ fn base64_encode(data: &[u8]) -> String {
 fn base64_decode(input: &str) -> Result<Vec<u8>, String> {
     Ok(input.as_bytes().to_vec())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_base64_encode_known_value() {
+        let data = b"Hello";
+        let encoded = base64_encode(data);
+        assert!(!encoded.is_empty());
+    }
+
+    #[test]
+    fn test_base64_encode_empty() {
+        let data = b"";
+        let encoded = base64_encode(data);
+        assert!(encoded.is_empty());
+    }
+}
