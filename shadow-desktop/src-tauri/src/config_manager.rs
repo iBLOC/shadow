@@ -176,3 +176,85 @@ impl Default for SecureAuth {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_app_config_default() {
+        let config = AppConfig::default();
+        assert!(config.password_hash.is_empty());
+        assert!(config.db_type.is_empty());
+        assert!(!config.setup_complete);
+        assert!(config.provider_config.provider_type.is_empty());
+    }
+
+    #[test]
+    fn test_provider_config_default() {
+        let config = ProviderConfig::default();
+        assert!(config.provider_type.is_empty());
+        assert!(config.name.is_empty());
+        assert!(config.api_base.is_empty());
+        assert!(config.api_key.is_none());
+    }
+
+    #[test]
+    fn test_database_config_default() {
+        let config = DatabaseConfig::default();
+        assert!(config.host.is_none());
+        assert!(config.port.is_none());
+        assert!(config.username.is_none());
+        assert!(config.password.is_none());
+        assert!(config.database.is_none());
+    }
+
+    #[test]
+    fn test_database_config_with_values() {
+        let config = DatabaseConfig {
+            host: Some("localhost".to_string()),
+            port: Some(5432),
+            username: Some("user".to_string()),
+            password: Some("pass".to_string()),
+            database: Some("shadow".to_string()),
+        };
+        assert_eq!(config.host, Some("localhost".to_string()));
+        assert_eq!(config.port, Some(5432));
+    }
+
+    #[test]
+    fn test_app_config_serialization() {
+        let config = AppConfig {
+            password_hash: "abc123".to_string(),
+            db_type: "postgres".to_string(),
+            db_config: DatabaseConfig::default(),
+            setup_complete: true,
+            setup_step: "complete".to_string(),
+            provider_config: ProviderConfig::default(),
+        };
+        let json = serde_json::to_string(&config).unwrap();
+        assert!(json.contains("abc123"));
+        assert!(json.contains("postgres"));
+        assert!(json.contains("setup_complete"));
+        let deserialized: AppConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.password_hash, "abc123");
+        assert_eq!(deserialized.db_type, "postgres");
+        assert!(deserialized.setup_complete);
+    }
+
+    #[test]
+    fn test_provider_config_serialization() {
+        let config = ProviderConfig {
+            provider_type: "openai".to_string(),
+            name: "OpenAI".to_string(),
+            api_base: "https://api.openai.com".to_string(),
+            api_key: Some("sk-123".to_string()),
+        };
+        let json = serde_json::to_string(&config).unwrap();
+        assert!(json.contains("openai"));
+        assert!(json.contains("sk-123"));
+        let deserialized: ProviderConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.provider_type, "openai");
+        assert_eq!(deserialized.api_key, Some("sk-123".to_string()));
+    }
+}
