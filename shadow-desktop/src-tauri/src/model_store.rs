@@ -194,3 +194,133 @@ fn base64_encode(data: &[u8]) -> String {
 fn base64_decode(input: &str) -> Result<Vec<u8>, String> {
     Ok(input.as_bytes().to_vec())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_test_provider() -> ModelProvider {
+        ModelProvider {
+            id: "test-provider".to_string(),
+            name: "Test Provider".to_string(),
+            provider_type: "openai".to_string(),
+            api_base: Some("https://api.test.com".to_string()),
+            api_key: Some("sk-test123".to_string()),
+            enabled: true,
+            models: vec![
+                LLMModel {
+                    id: "model-1".to_string(),
+                    name: "Model 1".to_string(),
+                    model_id: "gpt-4".to_string(),
+                    model_type: "chat".to_string(),
+                    context_length: Some(8192),
+                    supports_vision: false,
+                    supports_function_calling: true,
+                    enabled: true,
+                    is_default: true,
+                },
+            ],
+        }
+    }
+
+    #[test]
+    fn test_model_store_new() {
+        let store = ModelStore::new();
+        assert!(store.list_providers().is_empty());
+    }
+
+    #[test]
+    fn test_model_store_add_provider() {
+        let mut store = ModelStore::new();
+        let provider = make_test_provider();
+        store.add_provider(provider.clone());
+        assert_eq!(store.list_providers().len(), 1);
+    }
+
+    #[test]
+    fn test_model_store_get_provider() {
+        let mut store = ModelStore::new();
+        let provider = make_test_provider();
+        store.add_provider(provider.clone());
+        let retrieved = store.get_provider("test-provider");
+        assert!(retrieved.is_some());
+        assert_eq!(retrieved.unwrap().name, "Test Provider");
+    }
+
+    #[test]
+    fn test_model_store_get_provider_not_found() {
+        let store = ModelStore::new();
+        let retrieved = store.get_provider("nonexistent");
+        assert!(retrieved.is_none());
+    }
+
+    #[test]
+    fn test_model_store_delete_provider() {
+        let mut store = ModelStore::new();
+        let provider = make_test_provider();
+        store.add_provider(provider.clone());
+        assert!(store.delete_provider("test-provider"));
+        assert!(store.list_providers().is_empty());
+    }
+
+    #[test]
+    fn test_model_store_delete_provider_not_found() {
+        let mut store = ModelStore::new();
+        assert!(!store.delete_provider("nonexistent"));
+    }
+
+    #[test]
+    fn test_model_store_update_provider() {
+        let mut store = ModelStore::new();
+        let provider = make_test_provider();
+        store.add_provider(provider);
+
+        let mut updated = make_test_provider();
+        updated.name = "Updated Provider".to_string();
+        assert!(store.update_provider(updated.clone()));
+        assert_eq!(store.get_provider("test-provider").unwrap().name, "Updated Provider");
+    }
+
+    #[test]
+    fn test_model_store_update_provider_not_found() {
+        let mut store = ModelStore::new();
+        let provider = make_test_provider();
+        assert!(!store.update_provider(provider));
+    }
+
+    #[test]
+    fn test_model_provider_serialization() {
+        let provider = make_test_provider();
+        let json = serde_json::to_string(&provider).unwrap();
+        assert!(json.contains("test-provider"));
+        assert!(json.contains("gpt-4"));
+        let deserialized: ModelProvider = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.id, "test-provider");
+        assert_eq!(deserialized.models.len(), 1);
+    }
+
+    #[test]
+    fn test_llm_model_serialization() {
+        let model = LLMModel {
+            id: "test-model".to_string(),
+            name: "Test Model".to_string(),
+            model_id: "test-id".to_string(),
+            model_type: "chat".to_string(),
+            context_length: Some(4096),
+            supports_vision: true,
+            supports_function_calling: false,
+            enabled: true,
+            is_default: false,
+        };
+        let json = serde_json::to_string(&model).unwrap();
+        let deserialized: LLMModel = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.id, "test-model");
+        assert!(deserialized.supports_vision);
+    }
+
+    #[test]
+    fn test_encrypted_storage_new() {
+        let storage = EncryptedStorage::new();
+        assert!(storage.store.try_lock().is_ok());
+    }
+}
