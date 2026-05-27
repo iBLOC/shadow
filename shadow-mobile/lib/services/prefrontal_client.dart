@@ -228,6 +228,85 @@ class PrefrontalClient {
     await _request('DELETE', '/api/sessions/$sessionId');
   }
 
+  // ============ Soul APIs ============
+
+  /// 获取Soul
+  Future<SoulResponse?> getSoul(String agentId) async {
+    try {
+      final data = await _request<Map<String, dynamic>>(
+        'GET',
+        '/api/soul/$agentId',
+      );
+      if (data['success'] == true && data['data'] != null) {
+        return SoulResponse.fromJson(data['data']);
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// 更新Soul
+  Future<SoulResponse?> updateSoul({
+    required String agentId,
+    required String soul,
+    required String source,
+    String? reason,
+    String? conversationSummary,
+    String? triggerType,
+  }) async {
+    final body = {
+      'soul': soul,
+      'source': source,
+      if (reason != null) 'reason': reason,
+      if (conversationSummary != null)
+        'conversation_summary': conversationSummary,
+      if (triggerType != null) 'trigger_type': triggerType,
+    };
+
+    final data = await _request<Map<String, dynamic>>(
+      'PUT',
+      '/api/soul/$agentId',
+      body: body,
+    );
+    if (data['success'] == true && data['data'] != null) {
+      return SoulResponse.fromJson(data['data']);
+    }
+    return null;
+  }
+
+  /// 获取Soul历史版本
+  Future<List<SoulVersionResponse>> getSoulHistory(String agentId) async {
+    try {
+      final data = await _request<List<dynamic>>(
+        'GET',
+        '/api/soul/$agentId/history',
+      );
+      return data.map((v) => SoulVersionResponse.fromJson(v)).toList();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  /// 获取Soul指定版本
+  Future<SoulVersionResponse?> getSoulVersion(
+    String agentId,
+    String versionId,
+  ) async {
+    try {
+      final data = await _request<Map<String, dynamic>>(
+        'GET',
+        '/api/soul/$agentId/version/$versionId',
+      );
+      if (data['success'] == true && data['data'] != null) {
+        return SoulVersionResponse.fromJson(data['data']);
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
   // ============ MCP APIs ============
 
   /// 获取MCP服务器列表
@@ -266,6 +345,102 @@ class PrefrontalClient {
 
   void dispose() {
     _client.close();
+  }
+
+  Future<Map<String, dynamic>> request(
+    String method,
+    String path, {
+    Map<String, dynamic>? body,
+  }) async {
+    final uri = Uri.parse('$baseUrl$path');
+    final requestHeaders = {'Content-Type': 'application/json'};
+
+    http.Response response;
+
+    switch (method.toUpperCase()) {
+      case 'GET':
+        response = await _client.get(uri, headers: requestHeaders);
+        break;
+      case 'POST':
+        response = await _client.post(
+          uri,
+          headers: requestHeaders,
+          body: body != null ? json.encode(body) : null,
+        );
+        break;
+      case 'PUT':
+        response = await _client.put(
+          uri,
+          headers: requestHeaders,
+          body: body != null ? json.encode(body) : null,
+        );
+        break;
+      case 'DELETE':
+        response = await _client.delete(uri, headers: requestHeaders);
+        break;
+      default:
+        throw PrefrontalApiException('Unsupported method: $method');
+    }
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      if (response.body.isNotEmpty) {
+        return json.decode(response.body);
+      }
+      return {};
+    } else {
+      throw PrefrontalApiException(
+        'API Error: ${response.statusCode} - ${response.body}',
+      );
+    }
+  }
+
+  Future<List<dynamic>> requestList(
+    String method,
+    String path, {
+    Map<String, dynamic>? body,
+  }) async {
+    final uri = Uri.parse('$baseUrl$path');
+    final requestHeaders = {'Content-Type': 'application/json'};
+
+    http.Response response;
+
+    switch (method.toUpperCase()) {
+      case 'GET':
+        response = await _client.get(uri, headers: requestHeaders);
+        break;
+      case 'POST':
+        response = await _client.post(
+          uri,
+          headers: requestHeaders,
+          body: body != null ? json.encode(body) : null,
+        );
+        break;
+      case 'PUT':
+        response = await _client.put(
+          uri,
+          headers: requestHeaders,
+          body: body != null ? json.encode(body) : null,
+        );
+        break;
+      case 'DELETE':
+        response = await _client.delete(uri, headers: requestHeaders);
+        break;
+      default:
+        throw PrefrontalApiException('Unsupported method: $method');
+    }
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      if (response.body.isNotEmpty) {
+        final decoded = json.decode(response.body);
+        if (decoded is List) return decoded;
+        if (decoded is Map && decoded['data'] is List) return decoded['data'];
+      }
+      return [];
+    } else {
+      throw PrefrontalApiException(
+        'API Error: ${response.statusCode} - ${response.body}',
+      );
+    }
   }
 }
 
@@ -598,6 +773,64 @@ class AddMCPServerRequest {
   };
 }
 
+class SoulResponse {
+  final String agentId;
+  final String soul;
+  final DateTime updatedAt;
+
+  SoulResponse({
+    required this.agentId,
+    required this.soul,
+    required this.updatedAt,
+  });
+
+  factory SoulResponse.fromJson(Map<String, dynamic> json) {
+    return SoulResponse(
+      agentId: json['agentId'] as String,
+      soul: json['soul'] as String,
+      updatedAt: DateTime.parse(json['updatedAt'] as String),
+    );
+  }
+}
+
+class SoulVersionResponse {
+  final String id;
+  final String agentId;
+  final String content;
+  final String source;
+  final String? reason;
+  final String? conversationSummary;
+  final String triggerType;
+  final int version;
+  final DateTime createdAt;
+
+  SoulVersionResponse({
+    required this.id,
+    required this.agentId,
+    required this.content,
+    required this.source,
+    this.reason,
+    this.conversationSummary,
+    required this.triggerType,
+    required this.version,
+    required this.createdAt,
+  });
+
+  factory SoulVersionResponse.fromJson(Map<String, dynamic> json) {
+    return SoulVersionResponse(
+      id: json['id'] as String,
+      agentId: json['agentId'] as String,
+      content: json['content'] as String,
+      source: json['source'] as String,
+      reason: json['reason'] as String?,
+      conversationSummary: json['conversationSummary'] as String?,
+      triggerType: json['triggerType'] as String,
+      version: json['version'] as int,
+      createdAt: DateTime.parse(json['createdAt'] as String),
+    );
+  }
+}
+
 class PrefrontalApiException implements Exception {
   final String message;
   PrefrontalApiException(this.message);
@@ -606,8 +839,97 @@ class PrefrontalApiException implements Exception {
   String toString() => 'PrefrontalApiException: $message';
 }
 
+// ============ Hub State (for Management Hub) ============
+
+/// Hub state holding counts for all management categories
+class HubState {
+  final int providerCount;
+  final int skillCount;
+  final int agentCount;
+  final int mcpServerCount;
+  final int memoryCount;
+  final bool isLoading;
+  final String? error;
+
+  const HubState({
+    this.providerCount = 0,
+    this.skillCount = 0,
+    this.agentCount = 0,
+    this.mcpServerCount = 0,
+    this.memoryCount = 0,
+    this.isLoading = false,
+    this.error,
+  });
+
+  HubState copyWith({
+    int? providerCount,
+    int? skillCount,
+    int? agentCount,
+    int? mcpServerCount,
+    int? memoryCount,
+    bool? isLoading,
+    String? error,
+  }) {
+    return HubState(
+      providerCount: providerCount ?? this.providerCount,
+      skillCount: skillCount ?? this.skillCount,
+      agentCount: agentCount ?? this.agentCount,
+      mcpServerCount: mcpServerCount ?? this.mcpServerCount,
+      memoryCount: memoryCount ?? this.memoryCount,
+      isLoading: isLoading ?? this.isLoading,
+      error: error,
+    );
+  }
+}
+
+/// Hub notifier that fetches counts from Prefrontal API
+class HubNotifier extends StateNotifier<HubState> {
+  final PrefrontalClient _client;
+
+  HubNotifier(this._client) : super(const HubState()) {
+    loadAllCounts();
+  }
+
+  Future<void> loadAllCounts() async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      // Fetch all counts in parallel
+      final results = await Future.wait([
+        _client.getProviders(),
+        _client.getSkills(),
+        _client.getAgents(),
+        _client.getMCPServers(),
+        _client.searchMemory(''),
+      ]);
+
+      final providers = results[0];
+      final skills = results[1];
+      final agents = results[2];
+      final mcpServers = results[3];
+      final memories = results[4];
+
+      state = state.copyWith(
+        providerCount: providers.length,
+        skillCount: skills.length,
+        agentCount: agents.length,
+        mcpServerCount: mcpServers.length,
+        memoryCount: memories.length,
+        isLoading: false,
+      );
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+    }
+  }
+}
+
 // ============ Provider ============
 
 final prefrontalClientProvider = Provider<PrefrontalClient>((ref) {
   return PrefrontalClient();
+});
+
+/// Provider for management hub state
+final hubNotifierProvider = StateNotifierProvider<HubNotifier, HubState>((ref) {
+  final client = ref.watch(prefrontalClientProvider);
+  return HubNotifier(client);
 });

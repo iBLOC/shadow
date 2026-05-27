@@ -15,22 +15,23 @@ class LogPanelSection extends ConsumerStatefulWidget {
 
 class _LogPanelSectionState extends ConsumerState<LogPanelSection> {
   final ScrollController _scrollController = ScrollController();
+  bool _disposed = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(logServiceProvider.notifier)
-        ..connectPrefrontal('http://10.0.2.2:8082')
-        ..connectMnn();
+      if (!_disposed) {
+        ref.read(logServiceProvider.notifier)
+          ..connectPrefrontal('http://10.0.2.2:8082')
+          ..connectMnn();
+      }
     });
   }
 
   @override
   void dispose() {
-    ref.read(logServiceProvider.notifier)
-      ..disconnectPrefrontal()
-      ..disconnectMnn();
+    _disposed = true;
     _scrollController.dispose();
     super.dispose();
   }

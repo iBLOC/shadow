@@ -1,15 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../services/prefrontal_client.dart';
+import '../services/database/database_helper.dart';
+import '../services/database/repository_factory.dart';
+import '../services/database/repositories.dart';
+import '../services/database/skill.dart';
+import '../widgets/glass_card.dart';
 import '../widgets/empty_state.dart';
+import '../theme/app_colors.dart';
+
+final skillRepositoryProvider = Provider<ISkillRepository>((ref) {
+  return RepositoryFactory.createSkillRepository();
+});
 
 final skillsNotifierProvider =
     StateNotifierProvider<SkillsNotifier, SkillsState>((ref) {
-      return SkillsNotifier(ref.watch(prefrontalClientProvider));
+      return SkillsNotifier(ref.watch(skillRepositoryProvider));
     });
 
 class SkillsState {
-  final List<SkillInfo> skills;
+  final List<Skill> skills;
   final bool isLoading;
   final String? error;
 
@@ -19,11 +28,7 @@ class SkillsState {
     this.error,
   });
 
-  SkillsState copyWith({
-    List<SkillInfo>? skills,
-    bool? isLoading,
-    String? error,
-  }) {
+  SkillsState copyWith({List<Skill>? skills, bool? isLoading, String? error}) {
     return SkillsState(
       skills: skills ?? this.skills,
       isLoading: isLoading ?? this.isLoading,
@@ -31,148 +36,64 @@ class SkillsState {
     );
   }
 
-  List<SkillInfo> get builtInSkills =>
-      skills.where((s) => s.isBuiltIn).toList();
-  List<SkillInfo> get customSkills =>
-      skills.where((s) => !s.isBuiltIn).toList();
-}
-
-class SkillInfo {
-  final String name;
-  final String description;
-  final Map<String, dynamic> inputSchema;
-  final bool enabled;
-  final bool isBuiltIn;
-
-  SkillInfo({
-    required this.name,
-    required this.description,
-    required this.inputSchema,
-    required this.enabled,
-    this.isBuiltIn = false,
-  });
-
-  factory SkillInfo.fromJson(Map<String, dynamic> json) {
-    return SkillInfo(
-      name: json['name'] ?? '',
-      description: json['description'] ?? '',
-      inputSchema: json['input_schema'] ?? {},
-      enabled: json['enabled'] ?? true,
-      isBuiltIn: json['is_built_in'] ?? false,
-    );
-  }
+  List<Skill> get builtInSkills => skills.where((s) => s.isBuiltIn).toList();
+  List<Skill> get customSkills => skills.where((s) => !s.isBuiltIn).toList();
 }
 
 class SkillsNotifier extends StateNotifier<SkillsState> {
-  final PrefrontalClient _client;
+  final ISkillRepository _repository;
 
-  SkillsNotifier(this._client) : super(const SkillsState()) {
-    loadSkills();
+  SkillsNotifier(this._repository) : super(const SkillsState()) {
+    _init();
+  }
+
+  Future<void> _init() async {
+    await DatabaseHelper.instance.database;
+    await _repository.initializeDefaultSkills();
+    await loadSkills();
   }
 
   Future<void> loadSkills() async {
     state = state.copyWith(isLoading: true, error: null);
     try {
-      final skills = await _client.getSkills();
-      state = state.copyWith(
-        skills: skills
-            .map(
-              (s) => SkillInfo.fromJson({
-                'name': s.name,
-                'description': s.description,
-                'input_schema': s.inputSchema,
-                'enabled': s.enabled,
-                'is_built_in': _isBuiltIn(s.name),
-              }),
-            )
-            .toList(),
-        isLoading: false,
-      );
+      final skills = await _repository.getAll();
+      state = state.copyWith(skills: skills, isLoading: false);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
 
-  bool _isBuiltIn(String name) {
-    const builtIn = [
-      'echo',
-      'search',
-      'memory',
-      'shell',
-      'filesystem',
-      'http',
-      'json',
-      'time',
-    ];
-    return builtIn.contains(name.toLowerCase());
-  }
-
-  Future<void> toggleSkill(String name) async {
-    final skill = state.skills.firstWhere((s) => s.name == name);
-    final newEnabled = !skill.enabled;
+  Future<void> toggleSkill(String id) async {
     try {
-      final skills = await _client.toggleSkill(name, newEnabled);
-      state = state.copyWith(
-        skills: skills
-            .map(
-              (s) => SkillInfo.fromJson({
-                'name': s.name,
-                'description': s.description,
-                'input_schema': s.inputSchema,
-                'enabled': s.enabled,
-                'is_built_in': _isBuiltIn(s.name),
-              }),
-            )
-            .toList(),
-      );
+      await _repository.toggleSkill(id);
+      await loadSkills();
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
   }
 
-  Future<void> addCustomSkill(String name, String description) async {
-    state = state.copyWith(isLoading: true, error: null);
+  Future<void> addSkill(String name, String? description) async {
     try {
-      final skills = await _client.addCustomSkill(name, description);
-      state = state.copyWith(
-        skills: skills
-            .map(
-              (s) => SkillInfo.fromJson({
-                'name': s.name,
-                'description': s.description,
-                'input_schema': s.inputSchema,
-                'enabled': s.enabled,
-                'is_built_in': _isBuiltIn(s.name),
-              }),
-            )
-            .toList(),
-        isLoading: false,
+      final skill = Skill(
+        id: 'custom_${DateTime.now().millisecondsSinceEpoch}',
+        name: name,
+        description: description,
+        isEnabled: true,
+        isBuiltIn: false,
       );
+      await _repository.insert(skill);
+      await loadSkills();
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(error: e.toString());
     }
   }
 
-  Future<void> deleteSkill(String name) async {
-    state = state.copyWith(isLoading: true, error: null);
+  Future<void> deleteSkill(String id) async {
     try {
-      final skills = await _client.deleteCustomSkill(name);
-      state = state.copyWith(
-        skills: skills
-            .map(
-              (s) => SkillInfo.fromJson({
-                'name': s.name,
-                'description': s.description,
-                'input_schema': s.inputSchema,
-                'enabled': s.enabled,
-                'is_built_in': _isBuiltIn(s.name),
-              }),
-            )
-            .toList(),
-        isLoading: false,
-      );
+      await _repository.delete(id);
+      await loadSkills();
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(error: e.toString());
     }
   }
 }
@@ -215,7 +136,7 @@ class SkillsScreen extends ConsumerWidget {
     SkillsState state,
   ) {
     if (state.skills.isEmpty && !state.isLoading) {
-      return EmptyState(
+      return const EmptyState(
         icon: Icons.psychology_outlined,
         title: '暂无技能',
         description: '点击右下角添加自定义技能',
@@ -257,7 +178,7 @@ class SkillsScreen extends ConsumerWidget {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      '连接失败，使用离线数据: ${state.error}',
+                      '错误: ${state.error}',
                       style: const TextStyle(color: Colors.red),
                     ),
                   ),
@@ -275,7 +196,7 @@ class SkillsScreen extends ConsumerWidget {
       context: context,
       builder: (context) => _AddSkillDialog(
         onAdd: (name, desc) {
-          ref.read(skillsNotifierProvider.notifier).addCustomSkill(name, desc);
+          ref.read(skillsNotifierProvider.notifier).addSkill(name, desc);
         },
       ),
     );
@@ -283,38 +204,55 @@ class SkillsScreen extends ConsumerWidget {
 }
 
 class _SkillCard extends ConsumerWidget {
-  final SkillInfo skill;
+  final Skill skill;
   final bool showDelete;
 
   const _SkillCard({required this.skill, this.showDelete = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Card(
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: skill.isBuiltIn
-              ? Theme.of(context).colorScheme.primaryContainer
-              : Theme.of(context).colorScheme.secondaryContainer,
-          child: Icon(
-            skill.isBuiltIn ? Icons.psychology : Icons.extension,
-            color: skill.isBuiltIn
-                ? Theme.of(context).colorScheme.onPrimaryContainer
-                : Theme.of(context).colorScheme.onSecondaryContainer,
-          ),
-        ),
-        title: Text(skill.name),
-        subtitle: Text(skill.description),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: GlassCard(
+        child: Row(
           children: [
+            CircleAvatar(
+              backgroundColor: skill.isBuiltIn
+                  ? AppColors.primary.withValues(alpha: 0.2)
+                  : AppColors.secondary.withValues(alpha: 0.2),
+              child: Icon(
+                skill.isBuiltIn ? Icons.psychology : Icons.extension,
+                color: skill.isBuiltIn
+                    ? AppColors.primary
+                    : AppColors.secondary,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    skill.name,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  if (skill.description != null)
+                    Text(
+                      skill.description!,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                ],
+              ),
+            ),
             Switch(
-              value: skill.enabled,
+              value: skill.isEnabled,
               onChanged: (value) {
-                ref
-                    .read(skillsNotifierProvider.notifier)
-                    .toggleSkill(skill.name);
+                ref.read(skillsNotifierProvider.notifier).toggleSkill(skill.id);
               },
+              activeColor: AppColors.primary,
             ),
             if (showDelete)
               IconButton(
@@ -340,7 +278,7 @@ class _SkillCard extends ConsumerWidget {
           ),
           TextButton(
             onPressed: () {
-              ref.read(skillsNotifierProvider.notifier).deleteSkill(skill.name);
+              ref.read(skillsNotifierProvider.notifier).deleteSkill(skill.id);
               Navigator.pop(context);
             },
             child: const Text('删除', style: TextStyle(color: Colors.red)),
@@ -352,7 +290,7 @@ class _SkillCard extends ConsumerWidget {
 }
 
 class _AddSkillDialog extends StatefulWidget {
-  final Function(String name, String description) onAdd;
+  final Function(String name, String? description) onAdd;
 
   const _AddSkillDialog({required this.onAdd});
 
@@ -404,7 +342,10 @@ class _AddSkillDialogState extends State<_AddSkillDialog> {
         FilledButton(
           onPressed: () {
             if (_nameController.text.isNotEmpty) {
-              widget.onAdd(_nameController.text, _descController.text);
+              widget.onAdd(
+                _nameController.text,
+                _descController.text.isEmpty ? null : _descController.text,
+              );
               Navigator.pop(context);
             }
           },

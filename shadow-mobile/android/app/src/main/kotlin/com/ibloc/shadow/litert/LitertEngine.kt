@@ -2,8 +2,10 @@ package com.ibloc.shadow.litert
 
 import android.content.Context
 import android.util.Log
+import android.util.Base64
 import com.google.ai.edge.litertlm.Backend
 import com.google.ai.edge.litertlm.Content
+import com.google.ai.edge.litertlm.Contents
 import com.google.ai.edge.litertlm.Conversation
 import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.EngineConfig
@@ -13,7 +15,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.launch
+import org.json.JSONObject
 
 class LitertEngine(private val context: Context) {
     private var engine: Engine? = null
@@ -43,7 +45,6 @@ class LitertEngine(private val context: Context) {
         _isLoading.value = true
         _lastError.value = null
 
-        // 设置日志级别，减少噪音
         Engine.setNativeMinLogSeverity(LogSeverity.ERROR)
 
         try {
@@ -86,31 +87,70 @@ class LitertEngine(private val context: Context) {
         }
     }
 
-    suspend fun generateContentStream(prompt: String) {
+    suspend fun generateContentStream(contentJson: String): String {
         if (!_isInitialized.value || engine == null || conversation == null) {
             _lastError.value = "Engine not initialized"
-            return
+            return ""
         }
 
         if (isStreaming) {
             _lastError.value = "Already generating"
-            return
+            return ""
         }
 
         isStreaming = true
         _responseText.value = ""
 
         try {
-            conversation!!.sendMessageAsync(prompt)
-                .collect { message ->
-                    _responseText.value += message.toString()
-                }
+            val contents = buildContentsFromJson(contentJson)
+            val response = conversation!!.sendMessage(contents)
+            val responseStr = response.toString()
+            _responseText.value = responseStr
+            return responseStr
         } catch (e: Exception) {
             Log.e("LitertEngine", "Generation failed", e)
             _lastError.value = e.message
+            return ""
         } finally {
             isStreaming = false
         }
+    }
+
+    private fun buildContentsFromJson(contentJson: String): Contents {
+        val json = JSONObject(contentJson)
+        val prompt = json.optString("prompt", "")
+        val partsJson = json.optJSONArray("parts")
+
+        val contents = mutableListOf<Content>()
+
+        if (prompt.isNotEmpty()) {
+            contents.add(Content.Text(prompt))
+        }
+
+        if (partsJson != null) {
+            for (i in 0 until partsJson.length()) {
+                val part = partsJson.getJSONObject(i)
+
+                if (part.has("text")) {
+                    val text = part.getString("text")
+                    contents.add(Content.Text(text))
+                }
+
+                if (part.has("audio")) {
+                    val base64Audio = part.getString("audio")
+                    val audioBytes = Base64.decode(base64Audio, Base64.DEFAULT)
+                    contents.add(Content.AudioBytes(audioBytes))
+                }
+
+                if (part.has("image")) {
+                    val base64Image = part.getString("image")
+                    val imageBytes = Base64.decode(base64Image, Base64.DEFAULT)
+                    contents.add(Content.ImageBytes(imageBytes))
+                }
+            }
+        }
+
+        return Contents.of(contents)
     }
 
     fun release() {

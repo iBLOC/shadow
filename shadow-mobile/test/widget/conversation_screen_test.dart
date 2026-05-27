@@ -4,8 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:shadow_mobile/generated/l10n/app_localizations.dart';
 import 'package:shadow_mobile/screens/conversation_screen.dart';
+import 'test_helper.dart';
 
 void main() {
+  testSetup();
   group('ConversationScreen Widget Tests', () {
     testWidgets('renders conversation screen with scaffold', (
       WidgetTester tester,

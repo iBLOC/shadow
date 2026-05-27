@@ -463,6 +463,360 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Download Now'**
   String get downloadNow;
+
+  /// No description provided for @gallery.
+  ///
+  /// In en, this message translates to:
+  /// **'Gallery'**
+  String get gallery;
+
+  /// No description provided for @camera.
+  ///
+  /// In en, this message translates to:
+  /// **'Camera'**
+  String get camera;
+
+  /// No description provided for @file.
+  ///
+  /// In en, this message translates to:
+  /// **'File'**
+  String get file;
+
+  /// No description provided for @textMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Message Mode'**
+  String get textMode;
+
+  /// No description provided for @voiceMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Conversation Mode'**
+  String get voiceMode;
+
+  /// No description provided for @agent2uiReady.
+  ///
+  /// In en, this message translates to:
+  /// **'Agent2UI Ready'**
+  String get agent2uiReady;
+
+  /// No description provided for @askMeAnything.
+  ///
+  /// In en, this message translates to:
+  /// **'Ask me anything and I will generate UI for you'**
+  String get askMeAnything;
+
+  /// No description provided for @connectedToShadowA2AServer.
+  ///
+  /// In en, this message translates to:
+  /// **'Connected to Shadow A2A Server'**
+  String get connectedToShadowA2AServer;
+
+  /// No description provided for @connectingToShadow.
+  ///
+  /// In en, this message translates to:
+  /// **'Connecting to Shadow...'**
+  String get connectingToShadow;
+
+  /// No description provided for @connectionError.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection error'**
+  String get connectionError;
+
+  /// No description provided for @disconnected.
+  ///
+  /// In en, this message translates to:
+  /// **'Disconnected'**
+  String get disconnected;
+
+  /// No description provided for @connecting.
+  ///
+  /// In en, this message translates to:
+  /// **'Connecting...'**
+  String get connecting;
+
+  /// No description provided for @disconnect.
+  ///
+  /// In en, this message translates to:
+  /// **'Disconnect'**
+  String get disconnect;
+
+  /// No description provided for @holdToRecord.
+  ///
+  /// In en, this message translates to:
+  /// **'Hold to record'**
+  String get holdToRecord;
+
+  /// No description provided for @recording.
+  ///
+  /// In en, this message translates to:
+  /// **'Recording...'**
+  String get recording;
+
+  /// No description provided for @downloadComplete.
+  ///
+  /// In en, this message translates to:
+  /// **'Download complete!'**
+  String get downloadComplete;
+
+  /// No description provided for @downloadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Download failed'**
+  String get downloadFailed;
+
+  /// No description provided for @retry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get retry;
+
+  /// No description provided for @startChatting.
+  ///
+  /// In en, this message translates to:
+  /// **'Start Chatting'**
+  String get startChatting;
+
+  /// No description provided for @manage.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage'**
+  String get manage;
+
+  /// No description provided for @providers.
+  ///
+  /// In en, this message translates to:
+  /// **'Providers'**
+  String get providers;
+
+  /// No description provided for @skills.
+  ///
+  /// In en, this message translates to:
+  /// **'Skills'**
+  String get skills;
+
+  /// No description provided for @agents.
+  ///
+  /// In en, this message translates to:
+  /// **'Agents'**
+  String get agents;
+
+  /// No description provided for @memory.
+  ///
+  /// In en, this message translates to:
+  /// **'Memory'**
+  String get memory;
+
+  /// No description provided for @mcp.
+  ///
+  /// In en, this message translates to:
+  /// **'MCP'**
+  String get mcp;
+
+  /// No description provided for @conversations.
+  ///
+  /// In en, this message translates to:
+  /// **'Conversations'**
+  String get conversations;
+
+  /// No description provided for @tasks.
+  ///
+  /// In en, this message translates to:
+  /// **'Tasks'**
+  String get tasks;
+
+  /// No description provided for @localModels.
+  ///
+  /// In en, this message translates to:
+  /// **'Local Models'**
+  String get localModels;
+
+  /// No description provided for @modelStore.
+  ///
+  /// In en, this message translates to:
+  /// **'Model Store'**
+  String get modelStore;
+
+  /// No description provided for @noModelsAvailable.
+  ///
+  /// In en, this message translates to:
+  /// **'No models available'**
+  String get noModelsAvailable;
+
+  /// No description provided for @serviceStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Service Status'**
+  String get serviceStatus;
+
+  /// No description provided for @healthy.
+  ///
+  /// In en, this message translates to:
+  /// **'Healthy'**
+  String get healthy;
+
+  /// No description provided for @offline.
+  ///
+  /// In en, this message translates to:
+  /// **'Offline'**
+  String get offline;
+
+  /// No description provided for @checking.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking...'**
+  String get checking;
+
+  /// No description provided for @unhealthy.
+  ///
+  /// In en, this message translates to:
+  /// **'Unhealthy'**
+  String get unhealthy;
+
+  /// No description provided for @unknown.
+  ///
+  /// In en, this message translates to:
+  /// **'Unknown'**
+  String get unknown;
+
+  /// No description provided for @modelStoreUrlUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'Model store URL updated'**
+  String get modelStoreUrlUpdated;
+
+  /// No description provided for @modelStoreServer.
+  ///
+  /// In en, this message translates to:
+  /// **'Model Store Server'**
+  String get modelStoreServer;
+
+  /// No description provided for @custom.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom'**
+  String get custom;
+
+  /// No description provided for @defaultOption.
+  ///
+  /// In en, this message translates to:
+  /// **'Default'**
+  String get defaultOption;
+
+  /// No description provided for @liteRT.
+  ///
+  /// In en, this message translates to:
+  /// **'LiteRT'**
+  String get liteRT;
+
+  /// No description provided for @agent2UI.
+  ///
+  /// In en, this message translates to:
+  /// **'Agent2UI'**
+  String get agent2UI;
+
+  /// No description provided for @voiceInputPlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'[Voice input: {count} samples]'**
+  String voiceInputPlaceholder(int count);
+
+  /// No description provided for @audioProcessingNotImplemented.
+  ///
+  /// In en, this message translates to:
+  /// **'[This is a placeholder response. Audio processing not yet implemented.]'**
+  String get audioProcessingNotImplemented;
+
+  /// No description provided for @removeAttachment.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove attachment'**
+  String get removeAttachment;
+
+  /// No description provided for @webviewSkillNotImplemented.
+  ///
+  /// In en, this message translates to:
+  /// **'[Webview skill execution not yet implemented]'**
+  String get webviewSkillNotImplemented;
+
+  /// No description provided for @nativeSkillNotImplemented.
+  ///
+  /// In en, this message translates to:
+  /// **'[Native skill execution not yet implemented]'**
+  String get nativeSkillNotImplemented;
+
+  /// No description provided for @dimensionUser.
+  ///
+  /// In en, this message translates to:
+  /// **'User'**
+  String get dimensionUser;
+
+  /// No description provided for @dimensionAgent.
+  ///
+  /// In en, this message translates to:
+  /// **'Agent'**
+  String get dimensionAgent;
+
+  /// No description provided for @dimensionSession.
+  ///
+  /// In en, this message translates to:
+  /// **'Session'**
+  String get dimensionSession;
+
+  /// No description provided for @dimensionResources.
+  ///
+  /// In en, this message translates to:
+  /// **'Resources'**
+  String get dimensionResources;
+
+  /// No description provided for @score.
+  ///
+  /// In en, this message translates to:
+  /// **'Score: {value}'**
+  String score(String value);
+
+  /// No description provided for @toDo.
+  ///
+  /// In en, this message translates to:
+  /// **'To Do'**
+  String get toDo;
+
+  /// No description provided for @inProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'In Progress'**
+  String get inProgress;
+
+  /// No description provided for @done.
+  ///
+  /// In en, this message translates to:
+  /// **'Done'**
+  String get done;
+
+  /// No description provided for @welcomeMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Hello! I can hear your voice.'**
+  String get welcomeMessage;
+
+  /// No description provided for @tellMeStory.
+  ///
+  /// In en, this message translates to:
+  /// **'Tell me a story'**
+  String get tellMeStory;
+
+  /// No description provided for @whatCanYouHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'What can you help me with?'**
+  String get whatCanYouHelp;
+
+  /// No description provided for @howAudioWorks.
+  ///
+  /// In en, this message translates to:
+  /// **'How does audio input work?'**
+  String get howAudioWorks;
 }
 
 class _AppLocalizationsDelegate

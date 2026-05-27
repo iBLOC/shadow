@@ -19,19 +19,20 @@ class MultimodalInputManager {
   final FileInputHandler _fileHandler = FileInputHandler();
 
   AudioInputState get audioState => _audioHandler.state;
+  Stream<double> get amplitudeStream => _audioHandler.amplitudeStream;
+  int get recordingDuration => _audioHandler.recordingDurationSeconds;
 
-  // Audio
   Future<bool> hasAudioPermission() => _audioHandler.hasPermission();
-  
+
   Future<String?> startAudioRecording() => _audioHandler.startRecording();
-  
+
   Future<MultimodalInput?> stopAudioRecording() async {
-    final path = await _audioHandler.stopRecording();
-    if (path != null) {
+    final pcmData = await _audioHandler.stopRecording();
+    if (pcmData != null) {
       return MultimodalInput(
         type: MultimodalInputType.audio,
-        data: path,
-        path: path,
+        data: pcmData,
+        path: null,
       );
     }
     return null;
@@ -66,7 +67,9 @@ class MultimodalInputManager {
 
   // File
   Future<MultimodalInput?> pickFile({List<String>? allowedExtensions}) async {
-    final file = await _fileHandler.pickFile(allowedExtensions: allowedExtensions);
+    final file = await _fileHandler.pickFile(
+      allowedExtensions: allowedExtensions,
+    );
     if (file != null) {
       return MultimodalInput(
         type: MultimodalInputType.file,
@@ -77,13 +80,21 @@ class MultimodalInputManager {
     return null;
   }
 
-  Future<List<MultimodalInput>> pickMultipleFiles({List<String>? allowedExtensions}) async {
-    final files = await _fileHandler.pickMultipleFiles(allowedExtensions: allowedExtensions);
-    return files.map((f) => MultimodalInput(
-      type: MultimodalInputType.file,
-      data: f,
-      path: f.path,
-    )).toList();
+  Future<List<MultimodalInput>> pickMultipleFiles({
+    List<String>? allowedExtensions,
+  }) async {
+    final files = await _fileHandler.pickMultipleFiles(
+      allowedExtensions: allowedExtensions,
+    );
+    return files
+        .map(
+          (f) => MultimodalInput(
+            type: MultimodalInputType.file,
+            data: f,
+            path: f.path,
+          ),
+        )
+        .toList();
   }
 
   // Utility

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'litert_model.dart';
 
@@ -49,6 +50,25 @@ class LitertEngine {
       return result ?? '';
     } catch (e) {
       throw Exception('Failed to generate content: $e');
+    }
+  }
+
+  Future<String> generateContentWithAttachments(
+    String prompt,
+    List<Map<String, dynamic>> attachments,
+  ) async {
+    if (!_isInitialized) {
+      throw StateError('LitertEngine not initialized');
+    }
+    try {
+      final content = <String, dynamic>{'prompt': prompt, 'parts': attachments};
+      final result = await _channel.invokeMethod<String>(
+        'generateContentStream',
+        {'content': jsonEncode(content)},
+      );
+      return result ?? '';
+    } catch (e) {
+      throw Exception('Failed to generate content with attachments: $e');
     }
   }
 

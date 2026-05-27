@@ -4,8 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:shadow_mobile/generated/l10n/app_localizations.dart';
 import 'package:shadow_mobile/screens/agents_screen.dart';
+import 'test_helper.dart';
 
 void main() {
+  testSetup();
   group('AgentsScreen Widget Tests', () {
     testWidgets('renders agents screen with app bar', (
       WidgetTester tester,
@@ -30,7 +32,8 @@ void main() {
     });
 
     testWidgets('shows title "Agent 管理"', (WidgetTester tester) async {
-      await tester.pumpWidget(
+      await pumpWidgetForTest(
+        tester,
         ProviderScope(
           child: MaterialApp(
             localizationsDelegates: const [
@@ -44,13 +47,13 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
 
-      expect(find.text('Agent 管理'), findsOneWidget);
+      expect(find.text('Agents'), findsOneWidget);
     });
 
     testWidgets('has refresh button', (WidgetTester tester) async {
-      await tester.pumpWidget(
+      await pumpWidgetForTest(
+        tester,
         ProviderScope(
           child: MaterialApp(
             localizationsDelegates: const [
@@ -64,7 +67,6 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
 
       expect(find.byIcon(Icons.refresh), findsOneWidget);
     });
@@ -72,7 +74,8 @@ void main() {
     testWidgets('shows empty state when no agents', (
       WidgetTester tester,
     ) async {
-      await tester.pumpWidget(
+      await pumpWidgetForTest(
+        tester,
         ProviderScope(
           child: MaterialApp(
             localizationsDelegates: const [
@@ -86,9 +89,8 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
 
-      expect(find.text('暂无 Agent'), findsOneWidget);
+      expect(find.byIcon(Icons.psychology_outlined), findsOneWidget);
     });
   });
 }

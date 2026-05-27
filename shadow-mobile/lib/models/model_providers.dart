@@ -94,7 +94,8 @@ class LiteRTEngine implements ModelEngine {
 
   @override
   Future<void> initialize(ModelInfo model) async {
-    // TODO: 通过Platform Channel调用Android Native LiteRT SDK
+    // NOTE: LiteRT引擎需要通过Platform Channel调用Android Native LiteRT SDK
+    // 实现状态: 等待Android Native层实现
     // Platform: MethodChannel('com.ibloc.shadow/litert')
     _currentModel = model;
     _isInitialized = true;
@@ -107,19 +108,26 @@ class LiteRTEngine implements ModelEngine {
 
   @override
   Future<String> generate(String prompt) async {
-    // TODO: 通过Platform Channel调用模型推理
-    throw UnimplementedError('LiteRT generate not implemented');
+    // NOTE: LiteRT generate需要Platform Channel实现
+    // 实现状态: 等待Android Native层实现
+    throw UnimplementedError(
+      'LiteRT generate not implemented - requires Android Native LiteRT SDK',
+    );
   }
 
   @override
   Stream<String> generateStream(String prompt) async* {
-    // TODO: 通过Platform Channel调用流式推理
-    throw UnimplementedError('LiteRT generateStream not implemented');
+    // NOTE: LiteRT流式推理需要Platform Channel实现
+    // 实现状态: 等待Android Native层实现
+    throw UnimplementedError(
+      'LiteRT generateStream not implemented - requires Android Native LiteRT SDK',
+    );
   }
 
   @override
   Future<void> release() async {
-    // TODO: 释放LiteRT资源
+    // NOTE: LiteRT资源释放需要Platform Channel实现
+    // 实现状态: 等待Android Native层实现
     _isInitialized = false;
     _currentModel = null;
   }
@@ -145,7 +153,8 @@ class MNNEngine implements ModelEngine {
 
   @override
   Future<void> initialize(ModelInfo model) async {
-    // TODO: 通过Platform Channel调用Android Native MNN SDK
+    // NOTE: MNN引擎需要通过Platform Channel调用Android Native MNN SDK
+    // 实现状态: 等待Android Native层实现
     // Platform: MethodChannel('com.ibloc.shadow/mnn')
     _currentModel = model;
     _isInitialized = true;
@@ -158,19 +167,26 @@ class MNNEngine implements ModelEngine {
 
   @override
   Future<String> generate(String prompt) async {
-    // TODO: 通过Platform Channel调用模型推理
-    throw UnimplementedError('MNN generate not implemented');
+    // NOTE: MNN generate需要Platform Channel实现
+    // 实现状态: 等待Android Native层实现
+    throw UnimplementedError(
+      'MNN generate not implemented - requires Android Native MNN SDK',
+    );
   }
 
   @override
   Stream<String> generateStream(String prompt) async* {
-    // TODO: 通过Platform Channel调用流式推理
-    throw UnimplementedError('MNN generateStream not implemented');
+    // NOTE: MNN流式推理需要Platform Channel实现
+    // 实现状态: 等待Android Native层实现
+    throw UnimplementedError(
+      'MNN generateStream not implemented - requires Android Native MNN SDK',
+    );
   }
 
   @override
   Future<void> release() async {
-    // TODO: 释放MNN资源
+    // NOTE: MNN资源释放需要Platform Channel实现
+    // 实现状态: 等待Android Native层实现
     _isInitialized = false;
     _currentModel = null;
   }

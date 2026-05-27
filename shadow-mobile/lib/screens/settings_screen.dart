@@ -96,7 +96,7 @@ class SettingsScreen extends ConsumerWidget {
                   children: [
                     ListTile(
                       leading: Icon(Icons.cloud, color: AppColors.primary),
-                      title: const Text('Service Status'),
+                      title: Text(l10n.serviceStatus),
                       trailing: IconButton(
                         icon: const Icon(Icons.refresh),
                         onPressed: () =>
@@ -173,15 +173,21 @@ class _ServiceStatusTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     final statusConfig = {
-      ServiceStatus.healthy: (Icons.check_circle, AppColors.success, 'Healthy'),
-      ServiceStatus.offline: (Icons.cancel, AppColors.error, 'Offline'),
-      ServiceStatus.checking: (Icons.sync, AppColors.warning, 'Checking...'),
-      ServiceStatus.unhealthy: (Icons.error, AppColors.error, 'Unhealthy'),
+      ServiceStatus.healthy: (
+        Icons.check_circle,
+        AppColors.success,
+        l10n.healthy,
+      ),
+      ServiceStatus.offline: (Icons.cancel, AppColors.error, l10n.offline),
+      ServiceStatus.checking: (Icons.sync, AppColors.warning, l10n.checking),
+      ServiceStatus.unhealthy: (Icons.error, AppColors.error, l10n.unhealthy),
       ServiceStatus.unknown: (
         Icons.help,
         AppColors.darkTextSecondary,
-        'Unknown',
+        l10n.unknown,
       ),
     };
 
@@ -305,9 +311,11 @@ class _ModelStoreConfigState extends State<_ModelStoreConfig> {
     _isEditing = false;
     await _loadCurrentUrl();
     if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Model store URL updated')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(AppLocalizations.of(context)!.modelStoreUrlUpdated),
+        ),
+      );
     }
   }
 
@@ -325,11 +333,12 @@ class _ModelStoreConfigState extends State<_ModelStoreConfig> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Column(
       children: [
         ListTile(
           leading: Icon(Icons.download, color: AppColors.primary),
-          title: const Text('Model Store Server'),
+          title: Text(l10n.modelStoreServer),
           trailing: _isEditing
               ? Row(
                   mainAxisSize: MainAxisSize.min,
@@ -367,9 +376,9 @@ class _ModelStoreConfigState extends State<_ModelStoreConfig> {
                         color: AppColors.secondary.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(4),
                       ),
-                      child: const Text(
-                        'Custom',
-                        style: TextStyle(
+                      child: Text(
+                        l10n.custom,
+                        style: const TextStyle(
                           fontSize: 10,
                           color: AppColors.secondary,
                         ),
@@ -385,9 +394,9 @@ class _ModelStoreConfigState extends State<_ModelStoreConfig> {
                         color: AppColors.success.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(4),
                       ),
-                      child: const Text(
-                        'Default',
-                        style: TextStyle(
+                      child: Text(
+                        l10n.defaultOption,
+                        style: const TextStyle(
                           fontSize: 10,
                           color: AppColors.success,
                         ),

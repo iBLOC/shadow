@@ -81,5 +81,78 @@
     }
   },
   "waitForWifi": "Wait for WiFi",
-  "downloadNow": "Download Now"
+  "downloadNow": "Download Now",
+  "gallery": "Gallery",
+  "camera": "Camera",
+  "file": "File",
+  "textMode": "Message Mode",
+  "voiceMode": "Conversation Mode",
+  "agent2uiReady": "Agent2UI Ready",
+  "askMeAnything": "Ask me anything and I will generate UI for you",
+  "connectedToShadowA2AServer": "Connected to Shadow A2A Server",
+  "connectingToShadow": "Connecting to Shadow...",
+  "connectionError": "Connection error",
+  "disconnected": "Disconnected",
+  "connecting": "Connecting...",
+  "disconnect": "Disconnect",
+  "holdToRecord": "Hold to record",
+  "recording": "Recording...",
+  "downloadComplete": "Download complete!",
+  "downloadFailed": "Download failed",
+  "retry": "Retry",
+  "startChatting": "Start Chatting",
+  "manage": "Manage",
+  "providers": "Providers",
+  "skills": "Skills",
+  "agents": "Agents",
+  "memory": "Memory",
+  "mcp": "MCP",
+  "conversations": "Conversations",
+  "tasks": "Tasks",
+  "localModels": "Local Models",
+  "modelStore": "Model Store",
+  "noModelsAvailable": "No models available",
+  "serviceStatus": "Service Status",
+  "healthy": "Healthy",
+  "offline": "Offline",
+  "checking": "Checking...",
+  "unhealthy": "Unhealthy",
+  "unknown": "Unknown",
+  "modelStoreUrlUpdated": "Model store URL updated",
+  "modelStoreServer": "Model Store Server",
+  "custom": "Custom",
+  "defaultOption": "Default",
+  "liteRT": "LiteRT",
+  "agent2UI": "Agent2UI",
+  "voiceInputPlaceholder": "[Voice input: {count} samples]",
+  "@voiceInputPlaceholder": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "audioProcessingNotImplemented": "[This is a placeholder response. Audio processing not yet implemented.]",
+  "removeAttachment": "Remove attachment",
+  "webviewSkillNotImplemented": "[Webview skill execution not yet implemented]",
+  "nativeSkillNotImplemented": "[Native skill execution not yet implemented]",
+  "dimensionUser": "User",
+  "dimensionAgent": "Agent",
+  "dimensionSession": "Session",
+  "dimensionResources": "Resources",
+  "score": "Score: {value}",
+  "@score": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
+  "toDo": "To Do",
+  "inProgress": "In Progress",
+  "done": "Done",
+  "welcomeMessage": "Hello! I can hear your voice.",
+  "tellMeStory": "Tell me a story",
+  "whatCanYouHelp": "What can you help me with?",
+  "howAudioWorks": "How does audio input work?"
 }

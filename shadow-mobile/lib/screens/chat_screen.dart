@@ -2,15 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:genui/genui.dart' hide ChatMessage;
+import 'package:camera/camera.dart';
 import '../generated/l10n/app_localizations.dart';
 import '../providers/chat_provider.dart';
 import '../providers/genui_provider.dart';
+import '../providers/conversation_mode_provider.dart';
 import '../services/network_service.dart';
 import '../utils/chat_state_l10n.dart';
 import '../widgets/chat_bubble.dart';
 import '../router/app_router.dart';
 import '../theme/app_colors.dart';
 import '../multimodal/multimodal.dart';
+import '../widgets/camera_preview_widget.dart';
+import '../services/video_frame_collector.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   const ChatScreen({super.key});
@@ -57,6 +61,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       }
     });
 
+    // Listen for audio segments from conversation mode
+    final convState = ref.watch(conversationModeProvider);
+    if (convState.pendingSegments.isNotEmpty) {
+      for (final segment in convState.pendingSegments) {
+        ref
+            .read(chatProvider.notifier)
+            .processAudioSegment(
+              List<double>.from(
+                segment.data.asMap().keys.map((i) => segment.data[i] / 32768.0),
+              ),
+            );
+      }
+    }
+
     final bool modelNotReady =
         !chatState.isLitertReady &&
         chatState.mode == ChatMode.litert &&
@@ -75,8 +93,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final isLitertMode = chatState.mode == ChatMode.litert;
 
     String getModeTitle() {
-      if (isAgent2UI) return 'Agent2UI';
-      if (isLitertMode) return 'LiteRT';
+      if (isAgent2UI) return l10n.agent2UI;
+      if (isLitertMode) return l10n.liteRT;
       return l10n.appTitle;
     }
 
@@ -99,6 +117,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ],
         ),
         actions: [
+          if ((chatState.isInitialized || chatState.isLitertReady) &&
+              !isAgent2UI)
+            _ModeSwitcher(),
           if ((chatState.isInitialized || chatState.isLitertReady) &&
               !isAgent2UI)
             IconButton(
@@ -128,15 +149,39 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   ref.read(chatProvider.notifier).startAudioRecording(),
               onStopAudioRecording: () =>
                   ref.read(chatProvider.notifier).stopAudioRecording(),
+              onStopAndSend: _stopRecordingAndSend,
             ),
     );
   }
 
   void _sendMessage() {
     final prompt = _promptController.text.trim();
-    if (prompt.isEmpty) return;
+    final chatState = ref.read(chatProvider);
+    final hasAttachments = chatState.attachments.isNotEmpty;
+
+    // 如果没有文字也没有附件，直接返回
+    if (prompt.isEmpty && !hasAttachments) return;
+
     _promptController.clear();
-    ref.read(chatProvider.notifier).generateResponse(prompt);
+
+    if (chatState.mode == ChatMode.litert && chatState.isLitertReady) {
+      ref
+          .read(chatProvider.notifier)
+          .generateResponseWithAttachments(prompt, chatState.attachments);
+    } else {
+      // 清除附件（如果已发送）
+      if (hasAttachments) {
+        ref.read(chatProvider.notifier).clearAttachments();
+      }
+      if (prompt.isNotEmpty) {
+        ref.read(chatProvider.notifier).generateResponse(prompt);
+      }
+    }
+  }
+
+  Future<void> _stopRecordingAndSend() async {
+    await ref.read(chatProvider.notifier).stopAudioRecording();
+    _sendMessage();
   }
 
   void _showSettings(BuildContext context, String modelInfo) {
@@ -203,13 +248,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             final currentAgent = chatState.currentAgent;
 
             return AlertDialog(
-              title: Text('Download ${currentAgent.model.displayName}'),
+              title: Text(
+                '${l10n.downloadNow} ${currentAgent.model.displayName}',
+              ),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     networkType == NetworkType.mobile
-                        ? 'Downloading over mobile data...'
+                        ? l10n.mobileNetworkDetected
                         : 'This model (${currentAgent.model.sizeString}) is required for ${currentAgent.type.displayName}. '
                               'Download from hf-mirror.com (China mirror)?',
                   ),
@@ -225,7 +272,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       size: 48,
                     ),
                     const SizedBox(height: 8),
-                    const Text('Download complete!'),
+                    Text(l10n.downloadComplete),
                   ] else if (hasError) ...[
                     const Icon(
                       Icons.error_outline,
@@ -234,7 +281,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      chatState.errorMessage ?? 'Download failed',
+                      chatState.errorMessage ?? l10n.downloadFailed,
                       style: const TextStyle(color: Colors.red),
                     ),
                   ] else ...[
@@ -246,17 +293,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 if (hasError)
                   TextButton(
                     onPressed: () => Navigator.of(dialogContext).pop(),
-                    child: const Text('Cancel'),
+                    child: Text(l10n.cancel),
                   ),
                 if (!isComplete && !isDownloading)
                   TextButton(
                     onPressed: () => chatNotifier.downloadModel(),
-                    child: const Text('Download'),
+                    child: Text(l10n.downloadNow),
                   ),
                 if (isComplete)
                   TextButton(
                     onPressed: () => Navigator.of(dialogContext).pop(),
-                    child: const Text('Start Chatting'),
+                    child: Text(l10n.startChatting),
                   ),
               ],
             );
@@ -267,8 +314,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 }
 
-/// Local MNN Chat View (existing implementation)
-class _LocalChatView extends StatelessWidget {
+class _LocalChatView extends ConsumerStatefulWidget {
   final ChatState chatState;
   final AppLocalizations l10n;
   final bool isDark;
@@ -281,6 +327,7 @@ class _LocalChatView extends StatelessWidget {
   final VoidCallback onPickFile;
   final VoidCallback onStartAudioRecording;
   final VoidCallback onStopAudioRecording;
+  final VoidCallback onStopAndSend;
 
   const _LocalChatView({
     required this.chatState,
@@ -295,10 +342,22 @@ class _LocalChatView extends StatelessWidget {
     required this.onPickFile,
     required this.onStartAudioRecording,
     required this.onStopAudioRecording,
+    required this.onStopAndSend,
   });
 
   @override
+  ConsumerState<_LocalChatView> createState() => _LocalChatViewState();
+}
+
+class _LocalChatViewState extends ConsumerState<_LocalChatView> {
+  @override
   Widget build(BuildContext context) {
+    final chatState = widget.chatState;
+    final isDark = widget.isDark;
+    final l10n = widget.l10n;
+    final convState = ref.watch(conversationModeProvider);
+    final isConversationMode = convState.mode == ConversationMode.conversation;
+
     return Column(
       children: [
         // Error banner
@@ -338,6 +397,70 @@ class _LocalChatView extends StatelessWidget {
               ],
             ),
           ),
+        // Video preview (shown in conversation mode with camera enabled)
+        if (isConversationMode && convState.videoState != VideoState.off)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Row(
+              children: [
+                // Camera preview
+                _CameraPreviewWrapper(),
+                const SizedBox(width: 12),
+                // Video status and controls
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.videocam,
+                            size: 16,
+                            color: AppColors.success,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            _getVideoStatusText(convState.videoState),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isDark
+                                  ? AppColors.darkTextSecondary
+                                  : AppColors.lightTextSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      // Video control buttons
+                      Row(
+                        children: [
+                          _VideoControlButton(
+                            icon: Icons.flip_camera_ios,
+                            label: '翻转',
+                            onPressed: () {
+                              ref
+                                  .read(conversationModeProvider.notifier)
+                                  .flipCamera();
+                            },
+                          ),
+                          const SizedBox(width: 8),
+                          _VideoControlButton(
+                            icon: Icons.videocam_off,
+                            label: '关闭',
+                            onPressed: () {
+                              ref
+                                  .read(conversationModeProvider.notifier)
+                                  .toggleCamera();
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
         // Message list
         Expanded(
           child: chatState.messages.isEmpty
@@ -366,7 +489,7 @@ class _LocalChatView extends StatelessWidget {
                   ),
                 )
               : ListView.builder(
-                  controller: scrollController,
+                  controller: widget.scrollController,
                   padding: const EdgeInsets.all(16),
                   itemCount: chatState.messages.length,
                   itemBuilder: (context, index) {
@@ -385,7 +508,7 @@ class _LocalChatView extends StatelessWidget {
                         if (isAssistant && chatState.mode == ChatMode.litert)
                           IconButton(
                             icon: const Icon(Icons.volume_up, size: 20),
-                            onPressed: onSpeak,
+                            onPressed: widget.onSpeak,
                             tooltip: 'Speak response',
                           ),
                       ],
@@ -424,7 +547,8 @@ class _LocalChatView extends StatelessWidget {
                           type: attachment.type,
                           path: attachment.path ?? '',
                           onRemove: () {
-                            // TODO: Remove attachment
+                            // TODO: Implement attachment removal
+                            // Issue: Need access to chat state notifier to remove attachment
                           },
                         );
                       },
@@ -438,118 +562,127 @@ class _LocalChatView extends StatelessWidget {
                       onSelected: (value) {
                         switch (value) {
                           case 'gallery':
-                            onPickImage();
+                            widget.onPickImage();
                             break;
                           case 'camera':
-                            onCaptureImage();
+                            widget.onCaptureImage();
                             break;
                           case 'file':
-                            onPickFile();
+                            widget.onPickFile();
                             break;
                         }
                       },
                       itemBuilder: (context) => [
-                        const PopupMenuItem(
+                        PopupMenuItem(
                           value: 'gallery',
                           child: Row(
                             children: [
-                              Icon(Icons.photo_library),
-                              SizedBox(width: 8),
-                              Text('Gallery'),
+                              const Icon(Icons.photo_library),
+                              const SizedBox(width: 8),
+                              Text(l10n.gallery),
                             ],
                           ),
                         ),
-                        const PopupMenuItem(
+                        PopupMenuItem(
                           value: 'camera',
                           child: Row(
                             children: [
-                              Icon(Icons.camera_alt),
-                              SizedBox(width: 8),
-                              Text('Camera'),
+                              const Icon(Icons.camera_alt),
+                              const SizedBox(width: 8),
+                              Text(l10n.camera),
                             ],
                           ),
                         ),
-                        const PopupMenuItem(
+                        PopupMenuItem(
                           value: 'file',
                           child: Row(
                             children: [
-                              Icon(Icons.insert_drive_file),
-                              SizedBox(width: 8),
-                              Text('File'),
+                              const Icon(Icons.insert_drive_file),
+                              const SizedBox(width: 8),
+                              Text(l10n.file),
                             ],
                           ),
                         ),
                       ],
                     ),
-                    // Audio recording button - 长按开始录音，松手自动发送
-                    GestureDetector(
-                      onLongPressStart: (_) {
-                        if (!chatState.isRecordingAudio) {
-                          onStartAudioRecording();
-                        }
-                      },
-                      onLongPressEnd: (_) {
-                        if (chatState.isRecordingAudio) {
-                          onStopAudioRecording();
-                          // 松手后自动发送录音
-                          onSendMessage();
-                        }
-                      },
-                      child: IconButton(
-                        icon: Icon(
-                          chatState.isRecordingAudio
-                              ? Icons.mic
-                              : Icons.mic_none,
-                          color: chatState.isRecordingAudio ? Colors.red : null,
-                        ),
-                        onPressed: null, // 禁用点击，仅响应长按
+                    // Voice mode toggle button
+                    IconButton(
+                      icon: Icon(
+                        isConversationMode ? Icons.keyboard : Icons.mic,
+                        color: isConversationMode
+                            ? Theme.of(context).colorScheme.primary
+                            : null,
                       ),
+                      onPressed: () {
+                        final notifier = ref.read(
+                          conversationModeProvider.notifier,
+                        );
+                        if (isConversationMode) {
+                          notifier.startMessageMode();
+                        } else {
+                          notifier.startConversationMode();
+                        }
+                      },
                     ),
+                    // Input area: voice mode or text mode
                     Expanded(
-                      child: TextField(
-                        controller: promptController,
-                        decoration: InputDecoration(
-                          hintText:
-                              chatState.isInitialized || chatState.isLitertReady
-                              ? l10n.askSomething
-                              : l10n.initializing,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(24),
-                          ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                        ),
-                        enabled:
-                            (chatState.isInitialized ||
-                                chatState.isLitertReady) &&
-                            !chatState.isLoading,
-                        maxLines: 4,
-                        minLines: 1,
-                        textInputAction: TextInputAction.send,
-                        onSubmitted: (_) => onSendMessage(),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton.filled(
-                      onPressed:
-                          (chatState.isInitialized ||
-                                  chatState.isLitertReady) &&
-                              !chatState.isLoading
-                          ? onSendMessage
-                          : null,
-                      icon: chatState.isLoading
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
+                      child: isConversationMode
+                          ? _VoiceInputView(
+                              isRecording: chatState.isRecordingAudio,
+                              isEnabled:
+                                  (chatState.isInitialized ||
+                                      chatState.isLitertReady) &&
+                                  !chatState.isLoading,
+                              onStartRecording: widget.onStartAudioRecording,
+                              onStopAndSend: widget.onStopAndSend,
                             )
-                          : const Icon(Icons.send),
+                          : TextField(
+                              controller: widget.promptController,
+                              decoration: InputDecoration(
+                                hintText:
+                                    chatState.isInitialized ||
+                                        chatState.isLitertReady
+                                    ? l10n.askSomething
+                                    : l10n.initializing,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(24),
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
+                              ),
+                              enabled:
+                                  (chatState.isInitialized ||
+                                      chatState.isLitertReady) &&
+                                  !chatState.isLoading,
+                              maxLines: 4,
+                              minLines: 1,
+                              textInputAction: TextInputAction.send,
+                              onSubmitted: (_) => widget.onSendMessage(),
+                            ),
                     ),
+                    if (!isConversationMode) ...[
+                      const SizedBox(width: 8),
+                      IconButton.filled(
+                        onPressed:
+                            (chatState.isInitialized ||
+                                    chatState.isLitertReady) &&
+                                !chatState.isLoading
+                            ? widget.onSendMessage
+                            : null,
+                        icon: chatState.isLoading
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(Icons.send),
+                      ),
+                    ],
                   ],
                 ),
               ],
@@ -613,21 +746,25 @@ class _Agent2UIView extends ConsumerWidget {
     );
   }
 
-  String _getStatusText(AsyncValue<ConnectionStatus> status) {
+  String _getStatusText(
+    AsyncValue<ConnectionStatus> status,
+    AppLocalizations l10n,
+  ) {
     return status.when(
       data: (s) => switch (s) {
-        ConnectionStatus.connected => 'Connected to Shadow A2A Server',
-        ConnectionStatus.connecting => 'Connecting to Shadow...',
-        ConnectionStatus.error => 'Connection error',
-        ConnectionStatus.disconnected => 'Disconnected',
+        ConnectionStatus.connected => l10n.connectedToShadowA2AServer,
+        ConnectionStatus.connecting => l10n.connectingToShadow,
+        ConnectionStatus.error => l10n.connectionError,
+        ConnectionStatus.disconnected => l10n.disconnected,
       },
-      loading: () => 'Connecting...',
-      error: (e, _) => 'Error: ${e.toString()}',
+      loading: () => l10n.connecting,
+      error: (e, _) => l10n.errorGeneric(e.toString()),
     );
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
     final service = ref.watch(genUIAgentServiceProvider);
     final surfaceIds = ref.watch(surfaceIdsProvider);
     final connectionStatus = ref.watch(a2uiConnectionStatusProvider);
@@ -656,7 +793,7 @@ class _Agent2UIView extends ConsumerWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  _getStatusText(connectionStatus),
+                  _getStatusText(connectionStatus, l10n),
                   style: TextStyle(
                     color: _getStatusColor(connectionStatus),
                     fontSize: 12,
@@ -667,7 +804,7 @@ class _Agent2UIView extends ConsumerWidget {
                 onPressed: () {
                   ref.read(useAgent2UIModeProvider.notifier).state = false;
                 },
-                child: const Text('Disconnect'),
+                child: Text(l10n.disconnect),
               ),
             ],
           ),
@@ -688,13 +825,13 @@ class _Agent2UIView extends ConsumerWidget {
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        'Agent2UI Ready',
+                        l10n.agent2uiReady,
                         style: Theme.of(context).textTheme.titleMedium
                             ?.copyWith(color: AppColors.primary),
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Ask me anything and I will generate UI for you',
+                        l10n.askMeAnything,
                         style: TextStyle(
                           color: AppColors.darkTextMuted,
                           fontSize: 14,
@@ -803,7 +940,7 @@ class _Agent2UIInputBarState extends ConsumerState<_Agent2UIInputBar> {
               child: TextField(
                 controller: _controller,
                 decoration: InputDecoration(
-                  hintText: 'Ask me anything...',
+                  hintText: AppLocalizations.of(context)!.askSomething,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(24),
                   ),
@@ -879,6 +1016,257 @@ class _AttachmentChip extends StatelessWidget {
         label: Text(_label, style: const TextStyle(fontSize: 12)),
         deleteIcon: const Icon(Icons.close, size: 16),
         onDeleted: onRemove,
+      ),
+    );
+  }
+}
+
+class _ModeSwitcher extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final convState = ref.watch(conversationModeProvider);
+    final notifier = ref.read(conversationModeProvider.notifier);
+
+    return PopupMenuButton<ConversationMode>(
+      icon: Icon(
+        convState.mode == ConversationMode.message
+            ? Icons.chat_bubble_outline
+            : Icons.mic,
+        color: convState.mode == ConversationMode.conversation
+            ? AppColors.primary
+            : null,
+      ),
+      onSelected: (mode) async {
+        switch (mode) {
+          case ConversationMode.message:
+            await notifier.startMessageMode();
+            break;
+          case ConversationMode.conversation:
+            await notifier.startConversationMode();
+            break;
+        }
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem(
+          value: ConversationMode.message,
+          child: Row(
+            children: [
+              Icon(
+                Icons.chat_bubble_outline,
+                color: convState.mode == ConversationMode.message
+                    ? AppColors.primary
+                    : null,
+              ),
+              const SizedBox(width: 8),
+              Text(l10n.textMode),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: ConversationMode.conversation,
+          child: Row(
+            children: [
+              Icon(
+                Icons.mic,
+                color: convState.mode == ConversationMode.conversation
+                    ? AppColors.primary
+                    : null,
+              ),
+              const SizedBox(width: 8),
+              Text(l10n.voiceMode),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _VoiceInputView extends StatelessWidget {
+  final bool isRecording;
+  final bool isEnabled;
+  final VoidCallback onStartRecording;
+  final VoidCallback onStopAndSend;
+
+  const _VoiceInputView({
+    required this.isRecording,
+    required this.isEnabled,
+    required this.onStartRecording,
+    required this.onStopAndSend,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
+    if (!isEnabled) {
+      return Center(
+        child: Text(
+          l10n.initializing,
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+      );
+    }
+
+    return GestureDetector(
+      onLongPressStart: (_) {
+        if (!isRecording) {
+          onStartRecording();
+        }
+      },
+      onLongPressEnd: (_) {
+        if (isRecording) {
+          onStopAndSend();
+        }
+      },
+      child: Container(
+        height: 56,
+        decoration: BoxDecoration(
+          color: isRecording
+              ? Colors.red.withValues(alpha: 0.1)
+              : Theme.of(context).colorScheme.primaryContainer,
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(
+            color: isRecording
+                ? Colors.red
+                : Theme.of(context).colorScheme.primary,
+            width: 2,
+          ),
+        ),
+        child: Center(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                isRecording ? Icons.mic : Icons.mic_none,
+                color: isRecording
+                    ? Colors.red
+                    : Theme.of(context).colorScheme.primary,
+                size: 28,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                isRecording ? l10n.recording : l10n.holdToRecord,
+                style: TextStyle(
+                  color: isRecording
+                      ? Colors.red
+                      : Theme.of(context).colorScheme.primary,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Camera preview wrapper widget
+class _CameraPreviewWrapper extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final convState = ref.watch(conversationModeProvider);
+    final videoCollector = ref.watch(videoCollectorProvider);
+
+    if (convState.videoState == VideoState.off ||
+        !videoCollector.isInitialized) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      width: 100,
+      height: 130,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.3),
+          width: 1,
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(7),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Mirrored preview for front camera
+            Transform(
+              alignment: Alignment.center,
+              transform: Matrix4.identity()
+                ..scale(convState.isMirrored ? -1.0 : 1.0, 1.0),
+              child:
+                  videoCollector.controller != null &&
+                      videoCollector.controller!.value.isInitialized
+                  ? CameraPreview(videoCollector.controller!)
+                  : Container(color: Colors.black),
+            ),
+            // Streaming indicator
+            if (convState.videoState == VideoState.streaming)
+              Positioned(
+                top: 4,
+                right: 4,
+                child: Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                    color: Colors.red,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Get video status text
+String _getVideoStatusText(VideoState videoState) {
+  switch (videoState) {
+    case VideoState.off:
+      return '摄像头关闭';
+    case VideoState.on:
+      return '摄像头就绪';
+    case VideoState.streaming:
+      return '采集中...';
+  }
+}
+
+/// Video control button
+class _VideoControlButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
+
+  const _VideoControlButton({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onPressed,
+      borderRadius: BorderRadius.circular(4),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.grey.withValues(alpha: 0.2),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16),
+            const SizedBox(width: 4),
+            Text(label, style: const TextStyle(fontSize: 12)),
+          ],
+        ),
       ),
     );
   }

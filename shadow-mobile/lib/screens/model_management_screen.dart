@@ -1,10 +1,141 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../providers/chat_provider.dart';
-import '../providers/model_download_provider.dart';
-import '../features/models/screens/model_list_screen.dart';
-import '../features/cloud_models/widgets/cloud_model_widgets.dart';
-import '../services/model_download_service.dart';
+import '../generated/l10n/app_localizations.dart';
+import '../services/database/database_helper.dart';
+import '../services/database/repository_factory.dart';
+import '../services/database/repositories.dart';
+import '../services/database/model_item.dart';
+import '../widgets/glass_card.dart';
+import '../widgets/empty_state.dart';
+import '../theme/app_colors.dart';
+
+final modelRepositoryProvider = Provider<IModelRepository>((ref) {
+  return RepositoryFactory.createModelRepository();
+});
+
+final modelsProvider = StateNotifierProvider<ModelsNotifier, ModelsState>((
+  ref,
+) {
+  return ModelsNotifier(ref.watch(modelRepositoryProvider));
+});
+
+class ModelsState {
+  final List<ModelItem> models;
+  final bool isLoading;
+  final String? error;
+
+  const ModelsState({
+    this.models = const [],
+    this.isLoading = false,
+    this.error,
+  });
+
+  ModelsState copyWith({
+    List<ModelItem>? models,
+    bool? isLoading,
+    String? error,
+  }) {
+    return ModelsState(
+      models: models ?? this.models,
+      isLoading: isLoading ?? this.isLoading,
+      error: error,
+    );
+  }
+
+  List<ModelItem> get localModels => models.where((m) => m.isLocal).toList();
+  List<ModelItem> get cloudModels => models.where((m) => !m.isLocal).toList();
+}
+
+class ModelsNotifier extends StateNotifier<ModelsState> {
+  final IModelRepository _repository;
+
+  ModelsNotifier(this._repository) : super(const ModelsState()) {
+    _init();
+  }
+
+  Future<void> _init() async {
+    await DatabaseHelper.instance.database;
+    await _repository.initializeDefaultModels();
+    await loadModels();
+  }
+
+  Future<void> loadModels() async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      final models = await _repository.getAll();
+      state = state.copyWith(models: models, isLoading: false);
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+    }
+  }
+
+  Future<void> addLocalModel(
+    String name,
+    String path,
+    String type,
+    int size,
+  ) async {
+    try {
+      final model = ModelItem(
+        id: 'local_${DateTime.now().millisecondsSinceEpoch}',
+        name: name,
+        path: path,
+        type: type,
+        size: size,
+        isLoaded: true,
+        isLocal: true,
+      );
+      await _repository.insert(model);
+      await loadModels();
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+    }
+  }
+
+  Future<void> addCloudModel(
+    String name,
+    String endpoint, {
+    String? apiKey,
+    String? model,
+  }) async {
+    try {
+      final m = ModelItem(
+        id: 'cloud_${DateTime.now().millisecondsSinceEpoch}',
+        name: name,
+        path: endpoint,
+        type: 'text',
+        size: 0,
+        isLoaded: false,
+        isLocal: false,
+        endpoint: endpoint,
+        apiKey: apiKey,
+        model: model,
+      );
+      await _repository.insert(m);
+      await loadModels();
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+    }
+  }
+
+  Future<void> deleteModel(String id) async {
+    try {
+      await _repository.delete(id);
+      await loadModels();
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+    }
+  }
+
+  Future<void> setModelLoaded(String id, bool isLoaded) async {
+    try {
+      await _repository.setModelLoaded(id, isLoaded);
+      await loadModels();
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+    }
+  }
+}
 
 class ModelManagementScreen extends ConsumerStatefulWidget {
   const ModelManagementScreen({super.key});
@@ -22,10 +153,6 @@ class _ModelManagementScreenState extends ConsumerState<ModelManagementScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    // Fetch available models from server when screen loads
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(modelStoreProvider.notifier).fetchAvailableModels();
-    });
   }
 
   @override
@@ -34,259 +161,438 @@ class _ModelManagementScreenState extends ConsumerState<ModelManagementScreen>
     super.dispose();
   }
 
-  void _addLocalModel(BuildContext context, WidgetRef ref) async {
+  void _addLocalModel(BuildContext context) async {
     final result = await showDialog<Map<String, String>>(
       context: context,
       builder: (_) => const LocalModelConfigDialog(),
     );
     if (result != null) {
-      final modelManager = ref.read(modelManagerProvider);
-      modelManager.addLocalRunningModel(
-        id: 'local_${DateTime.now().millisecondsSinceEpoch}',
-        name: result['name'] ?? 'New Local Model',
-        path: result['path'] ?? '',
-        type: 'text',
-      );
+      ref
+          .read(modelsProvider.notifier)
+          .addLocalModel(
+            result['name'] ?? 'New Local Model',
+            result['path'] ?? '',
+            'text',
+            int.tryParse(result['size'] ?? '0') ?? 0,
+          );
     }
   }
 
-  void _addCloudModel(BuildContext context, WidgetRef ref) async {
+  void _addCloudModel(BuildContext context) async {
     final result = await showDialog<Map<String, String>>(
       context: context,
       builder: (_) => const CloudModelConfigDialog(),
     );
     if (result != null) {
-      final modelManager = ref.read(modelManagerProvider);
-      modelManager.addCloudModel(
-        id: 'cloud_${DateTime.now().millisecondsSinceEpoch}',
-        name: result['model'] ?? 'New Cloud Model',
-        endpoint: result['endpoint'] ?? '',
-      );
-    }
-  }
-
-  void _onModelSelected(String modelId) {
-    debugPrint('Selected model: $modelId');
-  }
-
-  Future<void> _downloadModel(ModelInfo model) async {
-    final modelStoreNotifier = ref.read(modelStoreProvider.notifier);
-
-    // Check if already downloading before starting
-    final existingProgress = ref.read(
-      modelDownloadProgressProvider(model.modelId),
-    );
-    if (existingProgress?.isDownloading == true) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('下载已在进行中，请勿重复点击'),
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
-      return;
-    }
-
-    final path = await modelStoreNotifier.downloadModel(model);
-
-    if (path != null && mounted) {
-      // Add to local models after successful download
-      final modelManager = ref.read(modelManagerProvider);
-      modelManager.addLocalRunningModel(
-        id: 'local_${DateTime.now().millisecondsSinceEpoch}',
-        name: model.name,
-        path: path,
-        type: model.supportsThinking ? 'text' : 'text',
-      );
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('${model.name} 下载成功')));
-    } else if (mounted) {
-      // Show error message when download fails
-      final error =
-          modelStoreNotifier.getProgress(model.modelId)?.error ?? '未知错误';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('下载失败: $error'), backgroundColor: Colors.red),
-      );
+      ref
+          .read(modelsProvider.notifier)
+          .addCloudModel(
+            result['name'] ?? 'New Cloud Model',
+            result['endpoint'] ?? '',
+            apiKey: result['apiKey'],
+            model: result['model'],
+          );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final modelManager = ref.watch(modelManagerProvider);
-    final models = modelManager.models;
-    final storeState = ref.watch(modelStoreProvider);
+    final modelsState = ref.watch(modelsProvider);
+    final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text('Models'),
+        title: Text(l10n.models),
         bottom: TabBar(
           controller: _tabController,
-          tabs: const [
-            Tab(text: 'Local Models'),
-            Tab(text: 'Model Store'),
+          tabs: [
+            Tab(text: l10n.localModels),
+            Tab(text: l10n.modelStore),
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          // Local Models Tab
-          ModelListScreen(
-            models: models,
-            onAddModel: () => _addLocalModel(context, ref),
-            onAddCloudModel: () => _addCloudModel(context, ref),
-            onModelSelected: _onModelSelected,
-          ),
-          // Model Store Tab (Cloud/Downloadable models)
-          _buildModelStoreTab(storeState),
-        ],
-      ),
+      body: modelsState.isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : TabBarView(
+              controller: _tabController,
+              children: [
+                _buildLocalModelsTab(context, modelsState),
+                _buildCloudModelsTab(context, modelsState),
+              ],
+            ),
     );
   }
 
-  Widget _buildModelStoreTab(ModelStoreState storeState) {
-    if (storeState.isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
+  Widget _buildLocalModelsTab(BuildContext context, ModelsState state) {
+    final localModels = state.localModels;
 
-    if (storeState.error != null) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, size: 48, color: Colors.red),
-            const SizedBox(height: 16),
-            Text('Error: ${storeState.error}'),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () {
-                ref.read(modelStoreProvider.notifier).fetchAvailableModels();
-              },
-              child: const Text('Retry'),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (storeState.availableModels.isEmpty) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.cloud_off, size: 48, color: Colors.grey),
-            SizedBox(height: 16),
-            Text('No models available'),
-          ],
-        ),
+    if (localModels.isEmpty) {
+      return EmptyState(
+        icon: Icons.model_training,
+        title: '暂无本地模型',
+        description: '点击右下角添加本地模型',
       );
     }
 
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: storeState.availableModels.length,
+      itemCount: localModels.length,
       itemBuilder: (context, index) {
-        final model = storeState.availableModels[index];
-        final progress = ref.watch(
-          modelDownloadProgressProvider(model.modelId),
+        final model = localModels[index];
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: _LocalModelCard(model: model),
         );
-
-        return _buildStoreModelCard(model, progress);
       },
     );
   }
 
-  Widget _buildStoreModelCard(ModelInfo model, DownloadProgress? progress) {
-    final isDownloading = progress?.isDownloading ?? false;
-    final isComplete = progress?.isComplete ?? false;
-    final downloadProgress = progress?.progress ?? 0.0;
+  Widget _buildCloudModelsTab(BuildContext context, ModelsState state) {
+    final cloudModels = state.cloudModels;
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+    return Column(
+      children: [
+        Expanded(
+          child: cloudModels.isEmpty
+              ? EmptyState(
+                  icon: Icons.cloud,
+                  title: '暂无云端模型',
+                  description: '点击右下角添加云端模型',
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: cloudModels.length,
+                  itemBuilder: (context, index) {
+                    final model = cloudModels[index];
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _CloudModelCard(model: model),
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+class _LocalModelCard extends ConsumerWidget {
+  final ModelItem model;
+
+  const _LocalModelCard({required this.model});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return GlassCard(
+      child: Row(
+        children: [
+          CircleAvatar(
+            backgroundColor: model.isLoaded
+                ? AppColors.success.withValues(alpha: 0.2)
+                : AppColors.darkTextSecondary.withValues(alpha: 0.2),
+            child: Icon(
+              Icons.model_training,
+              color: model.isLoaded
+                  ? AppColors.success
+                  : AppColors.darkTextSecondary,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primaryContainer,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    Icons.model_training,
-                    color: Theme.of(context).colorScheme.onPrimaryContainer,
+                Text(
+                  model.name,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        model.name,
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      Text(
-                        '${model.vendor} • ${model.sizeGb.toStringAsFixed(1)} GB',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.outline,
-                        ),
-                      ),
-                    ],
-                  ),
+                Text(
+                  '${model.type} • ${(model.size / 1024).toStringAsFixed(1)} MB',
+                  style: Theme.of(context).textTheme.bodySmall,
                 ),
-                if (isComplete)
-                  const Icon(Icons.check_circle, color: Colors.green)
-                else if (isDownloading)
-                  const SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                else
-                  IconButton(
-                    icon: const Icon(Icons.download),
-                    onPressed: () => _downloadModel(model),
-                  ),
               ],
             ),
-            if (model.tags.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 4,
-                runSpacing: 4,
-                children: model.tags.map((tag) {
-                  return Chip(
-                    label: Text(tag, style: const TextStyle(fontSize: 10)),
-                    padding: EdgeInsets.zero,
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  );
-                }).toList(),
+          ),
+          if (model.isLoaded)
+            const Chip(
+              label: Text('已加载'),
+              backgroundColor: Colors.green,
+              labelStyle: TextStyle(color: Colors.white, fontSize: 10),
+            ),
+          IconButton(
+            icon: const Icon(Icons.delete, color: Colors.red),
+            onPressed: () => _confirmDelete(context, ref),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmDelete(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('确认删除'),
+        content: Text('确定要删除 ${model.name} 吗？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () {
+              ref.read(modelsProvider.notifier).deleteModel(model.id);
+              Navigator.pop(context);
+            },
+            child: const Text('删除', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CloudModelCard extends ConsumerWidget {
+  final ModelItem model;
+
+  const _CloudModelCard({required this.model});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return GlassCard(
+      child: Row(
+        children: [
+          CircleAvatar(
+            backgroundColor: AppColors.primary.withValues(alpha: 0.2),
+            child: Icon(Icons.cloud, color: AppColors.primary),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  model.name,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  model.endpoint ?? '',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(fontFamily: 'monospace'),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete, color: Colors.red),
+            onPressed: () => _confirmDelete(context, ref),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmDelete(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('确认删除'),
+        content: Text('确定要删除 ${model.name} 吗？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () {
+              ref.read(modelsProvider.notifier).deleteModel(model.id);
+              Navigator.pop(context);
+            },
+            child: const Text('删除', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class LocalModelConfigDialog extends StatefulWidget {
+  const LocalModelConfigDialog({super.key});
+
+  @override
+  State<LocalModelConfigDialog> createState() => _LocalModelConfigDialogState();
+}
+
+class _LocalModelConfigDialogState extends State<LocalModelConfigDialog> {
+  final _nameController = TextEditingController();
+  final _pathController = TextEditingController();
+  final _sizeController = TextEditingController();
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _pathController.dispose();
+    _sizeController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('添加本地模型'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _nameController,
+              decoration: const InputDecoration(
+                labelText: '模型名称',
+                border: OutlineInputBorder(),
               ),
-            ],
-            if (isDownloading) ...[
-              const SizedBox(height: 12),
-              LinearProgressIndicator(value: downloadProgress),
-              const SizedBox(height: 4),
-              Text(
-                '${(downloadProgress * 100).toStringAsFixed(1)}%',
-                style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _pathController,
+              decoration: const InputDecoration(
+                labelText: '模型路径',
+                border: OutlineInputBorder(),
+                hintText: 'assets/models/xxx',
               ),
-            ],
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _sizeController,
+              decoration: const InputDecoration(
+                labelText: '大小 (MB)',
+                border: OutlineInputBorder(),
+              ),
+              keyboardType: TextInputType.number,
+            ),
           ],
         ),
       ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: () {
+            if (_nameController.text.isNotEmpty &&
+                _pathController.text.isNotEmpty) {
+              Navigator.pop(context, {
+                'name': _nameController.text,
+                'path': _pathController.text,
+                'size': _sizeController.text,
+              });
+            }
+          },
+          child: const Text('添加'),
+        ),
+      ],
+    );
+  }
+}
+
+class CloudModelConfigDialog extends StatefulWidget {
+  const CloudModelConfigDialog({super.key});
+
+  @override
+  State<CloudModelConfigDialog> createState() => _CloudModelConfigDialogState();
+}
+
+class _CloudModelConfigDialogState extends State<CloudModelConfigDialog> {
+  final _nameController = TextEditingController();
+  final _endpointController = TextEditingController();
+  final _apiKeyController = TextEditingController();
+  final _modelController = TextEditingController();
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _endpointController.dispose();
+    _apiKeyController.dispose();
+    _modelController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('添加云端模型'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _nameController,
+              decoration: const InputDecoration(
+                labelText: '名称',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _endpointController,
+              decoration: const InputDecoration(
+                labelText: 'API Endpoint',
+                border: OutlineInputBorder(),
+                hintText: 'https://api.openai.com/v1',
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _apiKeyController,
+              decoration: const InputDecoration(
+                labelText: 'API Key (可选)',
+                border: OutlineInputBorder(),
+              ),
+              obscureText: true,
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _modelController,
+              decoration: const InputDecoration(
+                labelText: '模型名称 (可选)',
+                border: OutlineInputBorder(),
+                hintText: 'gpt-4',
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: () {
+            if (_nameController.text.isNotEmpty &&
+                _endpointController.text.isNotEmpty) {
+              Navigator.pop(context, {
+                'name': _nameController.text,
+                'endpoint': _endpointController.text,
+                'apiKey': _apiKeyController.text,
+                'model': _modelController.text,
+              });
+            }
+          },
+          child: const Text('添加'),
+        ),
+      ],
     );
   }
 }

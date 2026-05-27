@@ -22,11 +22,23 @@ dependencies:
   path_provider: ^2.1.0
   connectivity_plus: ^6.0.0
 
+  # Database
+  sqflite: ^2.3.0
+  path: ^1.8.0
+
   # Multimodal input
   record: ^6.0.0
   image_picker: ^1.1.0
   camera: ^0.11.0
   file_picker: ^8.0.0
+
+  # Voice Activity Detection
+  vad: ^0.0.5
+  permission_handler: ^11.3.1
+
+  flutter_ai_toolkit: ^1.0.0
+  crypto: ^3.0.3
+  qr_flutter: ^4.1.0
   
   # GenUI - Agent2UI 框架
   genui: ^0.7.0
@@ -43,6 +55,7 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^6.0.0
   flutter_localization_linter: ^1.0.2
+  sqflite_common_ffi: ^2.3.0
 
 flutter:
   uses-material-design: true

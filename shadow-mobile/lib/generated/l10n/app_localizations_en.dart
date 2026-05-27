@@ -198,4 +198,188 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get downloadNow => 'Download Now';
+
+  @override
+  String get gallery => 'Gallery';
+
+  @override
+  String get camera => 'Camera';
+
+  @override
+  String get file => 'File';
+
+  @override
+  String get textMode => 'Message Mode';
+
+  @override
+  String get voiceMode => 'Conversation Mode';
+
+  @override
+  String get agent2uiReady => 'Agent2UI Ready';
+
+  @override
+  String get askMeAnything => 'Ask me anything and I will generate UI for you';
+
+  @override
+  String get connectedToShadowA2AServer => 'Connected to Shadow A2A Server';
+
+  @override
+  String get connectingToShadow => 'Connecting to Shadow...';
+
+  @override
+  String get connectionError => 'Connection error';
+
+  @override
+  String get disconnected => 'Disconnected';
+
+  @override
+  String get connecting => 'Connecting...';
+
+  @override
+  String get disconnect => 'Disconnect';
+
+  @override
+  String get holdToRecord => 'Hold to record';
+
+  @override
+  String get recording => 'Recording...';
+
+  @override
+  String get downloadComplete => 'Download complete!';
+
+  @override
+  String get downloadFailed => 'Download failed';
+
+  @override
+  String get retry => 'Retry';
+
+  @override
+  String get startChatting => 'Start Chatting';
+
+  @override
+  String get manage => 'Manage';
+
+  @override
+  String get providers => 'Providers';
+
+  @override
+  String get skills => 'Skills';
+
+  @override
+  String get agents => 'Agents';
+
+  @override
+  String get memory => 'Memory';
+
+  @override
+  String get mcp => 'MCP';
+
+  @override
+  String get conversations => 'Conversations';
+
+  @override
+  String get tasks => 'Tasks';
+
+  @override
+  String get localModels => 'Local Models';
+
+  @override
+  String get modelStore => 'Model Store';
+
+  @override
+  String get noModelsAvailable => 'No models available';
+
+  @override
+  String get serviceStatus => 'Service Status';
+
+  @override
+  String get healthy => 'Healthy';
+
+  @override
+  String get offline => 'Offline';
+
+  @override
+  String get checking => 'Checking...';
+
+  @override
+  String get unhealthy => 'Unhealthy';
+
+  @override
+  String get unknown => 'Unknown';
+
+  @override
+  String get modelStoreUrlUpdated => 'Model store URL updated';
+
+  @override
+  String get modelStoreServer => 'Model Store Server';
+
+  @override
+  String get custom => 'Custom';
+
+  @override
+  String get defaultOption => 'Default';
+
+  @override
+  String get liteRT => 'LiteRT';
+
+  @override
+  String get agent2UI => 'Agent2UI';
+
+  @override
+  String voiceInputPlaceholder(int count) {
+    return '[Voice input: $count samples]';
+  }
+
+  @override
+  String get audioProcessingNotImplemented =>
+      '[This is a placeholder response. Audio processing not yet implemented.]';
+
+  @override
+  String get removeAttachment => 'Remove attachment';
+
+  @override
+  String get webviewSkillNotImplemented =>
+      '[Webview skill execution not yet implemented]';
+
+  @override
+  String get nativeSkillNotImplemented =>
+      '[Native skill execution not yet implemented]';
+
+  @override
+  String get dimensionUser => 'User';
+
+  @override
+  String get dimensionAgent => 'Agent';
+
+  @override
+  String get dimensionSession => 'Session';
+
+  @override
+  String get dimensionResources => 'Resources';
+
+  @override
+  String score(String value) {
+    return 'Score: $value';
+  }
+
+  @override
+  String get toDo => 'To Do';
+
+  @override
+  String get inProgress => 'In Progress';
+
+  @override
+  String get done => 'Done';
+
+  @override
+  String get welcomeMessage => 'Hello! I can hear your voice.';
+
+  @override
+  String get tellMeStory => 'Tell me a story';
+
+  @override
+  String get whatCanYouHelp => 'What can you help me with?';
+
+  @override
+  String get howAudioWorks => 'How does audio input work?';
 }

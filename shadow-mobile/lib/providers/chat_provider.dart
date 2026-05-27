@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import '../model_manager.dart';
@@ -417,25 +419,117 @@ class ChatNotifier extends StateNotifier<ChatState> {
     if (prompt.isEmpty || state.isLoading) return;
 
     if (state.mode == ChatMode.litert && state.isLitertReady) {
-      await _generateLitertResponse(prompt);
+      await _generateLitertResponse(prompt, []);
     }
   }
 
-  Future<void> _generateLitertResponse(String prompt) async {
+  Future<void> generateResponseWithAttachments(
+    String prompt,
+    List<MultimodalInput> attachments,
+  ) async {
+    if (state.isLoading) return;
+
+    if (state.mode == ChatMode.litert && state.isLitertReady) {
+      await _generateLitertResponse(prompt, attachments);
+    }
+  }
+
+  Future<void> processAudioSegment(List<double> audioSamples) async {
+    if (state.isLoading) return;
+
     state = state.copyWith(
-      messages: [...state.messages, ChatMessageModel(prompt, ChatRole.user)],
+      messages: [
+        ...state.messages,
+        ChatMessageModel(
+          '[Voice input: ${audioSamples.length} samples]',
+          ChatRole.user,
+        ),
+      ],
+    );
+
+    // NOTE: 音频处理占位实现
+    // 实现状态: 等待LiteRT引擎实现
+    // 需要的步骤:
+    // 1. Convert audio samples to audio file
+    // 2. Send to LiteRT engine with audio input
+    // 3. Return real transcription result
+    state = state.copyWith(isLoading: true);
+
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    // 当前返回占位响应 - 音频输入功能不可用
+    const response =
+        '[This is a placeholder response. Audio processing not yet implemented - requires LiteRT engine]';
+
+    // 使用i18n占位符文本（如果需要本地化）
+    // final l10n = AppLocalizations.of(context)!;
+    // response = l10n.audioProcessingNotImplemented;
+    state = state.copyWith(
+      messages: [
+        ...state.messages,
+        ChatMessageModel(response, ChatRole.assistant),
+      ],
+      isLoading: false,
+    );
+
+    // TTS speak
+    await _ttsEngine.speak(response);
+  }
+
+  Future<void> _generateLitertResponse(
+    String prompt,
+    List<MultimodalInput> attachments,
+  ) async {
+    // 构建消息内容
+    String displayContent = prompt;
+    String? attachmentPath;
+    MultimodalInputType? attachmentType;
+
+    if (attachments.isNotEmpty) {
+      final first = attachments.first;
+      attachmentPath = first.path;
+      attachmentType = first.type;
+      if (prompt.isEmpty) {
+        displayContent = '[Voice message]';
+      }
+    }
+
+    state = state.copyWith(
+      messages: [
+        ...state.messages,
+        ChatMessageModel(
+          displayContent,
+          ChatRole.user,
+          attachmentPath: attachmentPath,
+          attachmentType: attachmentType,
+        ),
+      ],
       isLoading: true,
       errorMessage: null,
     );
 
     try {
-      final response = await _litertEngine.generateContent(prompt);
+      String response;
+      if (attachments.isNotEmpty) {
+        // 转换附件为 LiteRT 格式
+        final attachmentData = await _convertAttachmentsToLitertFormat(
+          attachments,
+        );
+        response = await _litertEngine.generateContentWithAttachments(
+          prompt,
+          attachmentData,
+        );
+      } else {
+        response = await _litertEngine.generateContent(prompt);
+      }
+
       state = state.copyWith(
         messages: [
           ...state.messages,
           ChatMessageModel(response, ChatRole.assistant),
         ],
         isLoading: false,
+        attachments: [],
       );
       // TTS speak
       await _ttsEngine.speak(response);
@@ -449,8 +543,46 @@ class ChatNotifier extends StateNotifier<ChatState> {
           ChatMessageModel('Error: $e', ChatRole.system),
         ],
         isLoading: false,
+        attachments: [],
       );
     }
+  }
+
+  Future<List<Map<String, dynamic>>> _convertAttachmentsToLitertFormat(
+    List<MultimodalInput> attachments,
+  ) async {
+    final result = <Map<String, dynamic>>[];
+
+    for (final attachment in attachments) {
+      Uint8List? bytes;
+
+      if (attachment.data is Uint8List) {
+        bytes = attachment.data as Uint8List;
+      } else if (attachment.path != null) {
+        final file = File(attachment.path!);
+        if (await file.exists()) {
+          bytes = await file.readAsBytes();
+        }
+      }
+
+      if (bytes != null) {
+        final base64Data = base64Encode(bytes);
+
+        switch (attachment.type) {
+          case MultimodalInputType.audio:
+            result.add({'audio': base64Data, 'mimeType': 'audio/pcm'});
+            break;
+          case MultimodalInputType.image:
+          case MultimodalInputType.camera:
+            result.add({'image': base64Data, 'mimeType': 'image/jpeg'});
+            break;
+          default:
+            break;
+        }
+      }
+    }
+
+    return result;
   }
 
   Future<void> speakLastResponse() async {

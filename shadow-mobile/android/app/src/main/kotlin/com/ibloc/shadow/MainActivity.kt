@@ -15,6 +15,7 @@ import io.flutter.plugin.common.MethodChannel
 // import com.ibloc.shadow.mnn.PrefrontalMNN
 // import com.ibloc.shadow.mnn.OpenAIServerManager
 import com.ibloc.shadow.litert.LitertEngine
+import com.ibloc.shadow.pcm.PcmAudioRecorder
 import com.ibloc.shadow.tts.TtsManager
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CoroutineScope
@@ -29,7 +30,8 @@ class MainActivity : FlutterActivity() {
     private val LOG_CHANNEL = "com.ibloc.shadow/mnn_logs"
     private val LITERT_CHANNEL = "com.ibloc.shadow/litert"
     private val TTS_CHANNEL = "com.ibloc.shadow/tts"
-    
+    private val PCM_AUDIO_CHANNEL = "com.ibloc.shadow/pcm_audio"
+
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     
     private var nsdManager: NsdManager? = null
@@ -38,17 +40,20 @@ class MainActivity : FlutterActivity() {
     
     private var litertEngine: LitertEngine? = null
     private var ttsManager: TtsManager? = null
+    private var pcmAudioRecorder: PcmAudioRecorder? = null
     
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         
         nsdManager = getSystemService(Context.NSD_SERVICE) as NsdManager
-        
+        pcmAudioRecorder = PcmAudioRecorder(this)
+
         setupAccessibilityChannel(flutterEngine)
         setupMdnsChannel(flutterEngine)
         setupLogcatChannel(flutterEngine)
         setupLitertChannel(flutterEngine)
         setupTtsChannel(flutterEngine)
+        setupPcmAudioChannel(flutterEngine)
         
         // MNN MethodChannel - commented out, keeping for future reference
         // MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
@@ -192,11 +197,11 @@ class MainActivity : FlutterActivity() {
                     }
                 }
                 "generateContentStream" -> {
-                    val prompt = call.argument<String>("prompt") ?: ""
+                    val content = call.argument<String>("content") ?: ""
                     scope.launch {
                         try {
-                            litertEngine?.generateContentStream(prompt)
-                            result.success(true)
+                            val response = litertEngine?.generateContentStream(content) ?: ""
+                            result.success(response)
                         } catch (e: Exception) {
                             result.error("GEN_ERROR", e.message, null)
                         }
@@ -249,7 +254,42 @@ class MainActivity : FlutterActivity() {
             }
         }
     }
-    
+
+    private fun setupPcmAudioChannel(flutterEngine: FlutterEngine) {
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, PCM_AUDIO_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "hasPermission" -> {
+                    result.success(pcmAudioRecorder?.hasPermission() ?: false)
+                }
+                "startRecording" -> {
+                    scope.launch {
+                        val success = pcmAudioRecorder?.startRecording() ?: false
+                        result.success(success)
+                    }
+                }
+                "stopRecording" -> {
+                    val pcmData = pcmAudioRecorder?.stopRecording()
+                    if (pcmData != null) {
+                        result.success(pcmData)
+                    } else {
+                        result.success(null)
+                    }
+                }
+                "cancelRecording" -> {
+                    pcmAudioRecorder?.cancelRecording()
+                    result.success(true)
+                }
+                "isRecording" -> {
+                    result.success(pcmAudioRecorder?.isRecording() ?: false)
+                }
+                "getElapsedTimeMs" -> {
+                    result.success(pcmAudioRecorder?.getElapsedTimeMs() ?: 0L)
+                }
+                else -> result.notImplemented()
+            }
+        }
+    }
+
     private fun discoverMdnsServices(serviceType: String, timeout: Int, result: MethodChannel.Result) {
         val manager = nsdManager
         if (manager == null) {
@@ -378,5 +418,7 @@ class MainActivity : FlutterActivity() {
         litertEngine = null
         ttsManager?.release()
         ttsManager = null
+        pcmAudioRecorder?.release()
+        pcmAudioRecorder = null
     }
 }

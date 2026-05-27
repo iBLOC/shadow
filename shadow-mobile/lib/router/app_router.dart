@@ -13,6 +13,8 @@ import '../screens/agents_screen.dart';
 import '../screens/manage/management_hub_screen.dart';
 import '../screens/model_settings_screen.dart';
 import '../screens/prompt_settings_screen.dart';
+import '../screens/voice_conversation_screen.dart';
+import '../screens/group_screen.dart';
 import '../widgets/main_shell.dart';
 
 /// Route names
@@ -30,6 +32,8 @@ class AppRoutes {
   static const String settings = '/settings';
   static const String modelSettings = '/settings/model';
   static const String promptSettings = '/settings/prompt';
+  static const String voice = '/voice';
+  static const String group = '/group';
 
   // Legacy routes (redirect)
   static const String agents = '/agents';
@@ -158,6 +162,22 @@ final GoRouter appRouter = GoRouter(
       name: 'promptSettings',
       pageBuilder: (context, state) =>
           _fadePage(state, _wrapInShell(state, const PromptSettingsScreen())),
+    ),
+    // Voice conversation
+    GoRoute(
+      path: AppRoutes.voice,
+      name: 'voice',
+      pageBuilder: (context, state) => _fadePage(
+        state,
+        _wrapInShell(state, const VoiceConversationScreen()),
+      ),
+    ),
+    // Group
+    GoRoute(
+      path: AppRoutes.group,
+      name: 'group',
+      pageBuilder: (context, state) =>
+          _fadePage(state, _wrapInShell(state, const GroupScreen())),
     ),
     // Legacy redirects
     GoRoute(

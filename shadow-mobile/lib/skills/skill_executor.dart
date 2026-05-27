@@ -119,19 +119,20 @@ class SkillExecutor {
   }
 
   /// 在Webview中执行JS
+  /// NOTE: Webview Skill执行需要与Flutter Webview插件配合
+  /// 实现状态: 等待Webview插件集成
+  /// 需要的步骤:
+  /// 1. 添加webview_flutter依赖
+  /// 2. 创建Webview窗口
+  /// 3. 注入数据和secret
+  /// 4. 等待结果回调
+  /// 5. 关闭Webview窗口
   Future<SkillResult> _executeJsInWebview({
     required String url,
     required String data,
     String? secret,
   }) async {
-    // TODO: 实现Webview执行逻辑
-    // 这个需要与Flutter Webview插件配合
-    // 1. 创建Webview窗口
-    // 2. 注入数据和secret
-    // 3. 等待结果回调
-    // 4. 关闭Webview窗口
-
-    // 暂时返回占位结果
+    // 当前返回占位结果 - Skill仍可被选择但不会真正执行
     return SkillResult.success('JS Skill executed: $url with data: $data');
   }
 

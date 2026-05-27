@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../generated/l10n/app_localizations.dart';
 import '../services/prefrontal_client.dart';
 import '../widgets/empty_state.dart';
 
@@ -142,6 +143,7 @@ class MemoryScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
     final memoryState = ref.watch(memoryNotifierProvider);
 
     return Scaffold(
@@ -149,7 +151,7 @@ class MemoryScreen extends ConsumerWidget {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text('记忆管理'),
+        title: Text(l10n.memory),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -164,7 +166,7 @@ class MemoryScreen extends ConsumerWidget {
             padding: const EdgeInsets.all(16),
             child: TextField(
               decoration: InputDecoration(
-                hintText: '搜索记忆...',
+                hintText: l10n.searchModels,
                 prefixIcon: const Icon(Icons.search),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -181,7 +183,7 @@ class MemoryScreen extends ConsumerWidget {
             child: Row(
               children: [
                 FilterChip(
-                  label: const Text('全部'),
+                  label: Text(l10n.filterAll),
                   selected: memoryState.selectedDimension == null,
                   onSelected: (_) => ref
                       .read(memoryNotifierProvider.notifier)
@@ -189,7 +191,7 @@ class MemoryScreen extends ConsumerWidget {
                 ),
                 const SizedBox(width: 8),
                 FilterChip(
-                  label: const Text('用户'),
+                  label: Text(l10n.dimensionUser),
                   selected: memoryState.selectedDimension == 'User',
                   onSelected: (_) => ref
                       .read(memoryNotifierProvider.notifier)
@@ -197,7 +199,7 @@ class MemoryScreen extends ConsumerWidget {
                 ),
                 const SizedBox(width: 8),
                 FilterChip(
-                  label: const Text('Agent'),
+                  label: Text(l10n.dimensionAgent),
                   selected: memoryState.selectedDimension == 'Agent',
                   onSelected: (_) => ref
                       .read(memoryNotifierProvider.notifier)
@@ -205,7 +207,7 @@ class MemoryScreen extends ConsumerWidget {
                 ),
                 const SizedBox(width: 8),
                 FilterChip(
-                  label: const Text('会话'),
+                  label: Text(l10n.dimensionSession),
                   selected: memoryState.selectedDimension == 'Session',
                   onSelected: (_) => ref
                       .read(memoryNotifierProvider.notifier)

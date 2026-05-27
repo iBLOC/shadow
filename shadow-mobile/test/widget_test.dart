@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:shadow_mobile/generated/l10n/app_localizations.dart';
 import 'package:shadow_mobile/screens/chat_screen.dart';
 import 'package:shadow_mobile/screens/task_board_screen.dart';
@@ -13,6 +14,10 @@ import 'package:shadow_mobile/screens/memory_screen.dart';
 import 'package:shadow_mobile/screens/conversation_screen.dart';
 
 void main() {
+  setUpAll(() {
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
+  });
   group('Shadow Mobile Widget Tests', () {
     testWidgets('ChatScreen renders correctly', (WidgetTester tester) async {
       await tester.pumpWidget(

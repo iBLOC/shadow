@@ -2,8 +2,8 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/prefrontal_client.dart';
-import '../widgets/glass_card.dart';
 import '../theme/app_colors.dart';
+import '../widgets/glass_card.dart';
 
 final tasksNotifierProvider = StateNotifierProvider<TasksNotifier, TasksState>((
   ref,

@@ -197,4 +197,185 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get downloadNow => '立即下载';
+
+  @override
+  String get gallery => '相册';
+
+  @override
+  String get camera => '相机';
+
+  @override
+  String get file => '文件';
+
+  @override
+  String get textMode => '消息模式';
+
+  @override
+  String get voiceMode => '对话模式';
+
+  @override
+  String get agent2uiReady => 'Agent2UI 就绪';
+
+  @override
+  String get askMeAnything => '问我任何问题，我会为您生成界面';
+
+  @override
+  String get connectedToShadowA2AServer => '已连接到 Shadow A2A 服务器';
+
+  @override
+  String get connectingToShadow => '正在连接 Shadow...';
+
+  @override
+  String get connectionError => '连接错误';
+
+  @override
+  String get disconnected => '已断开';
+
+  @override
+  String get connecting => '连接中...';
+
+  @override
+  String get disconnect => '断开连接';
+
+  @override
+  String get holdToRecord => '按住录音';
+
+  @override
+  String get recording => '录音中...';
+
+  @override
+  String get downloadComplete => '下载完成！';
+
+  @override
+  String get downloadFailed => '下载失败';
+
+  @override
+  String get retry => '重试';
+
+  @override
+  String get startChatting => '开始对话';
+
+  @override
+  String get manage => '管理';
+
+  @override
+  String get providers => '提供商';
+
+  @override
+  String get skills => '技能';
+
+  @override
+  String get agents => '代理';
+
+  @override
+  String get memory => '记忆';
+
+  @override
+  String get mcp => 'MCP';
+
+  @override
+  String get conversations => '会话';
+
+  @override
+  String get tasks => '任务';
+
+  @override
+  String get localModels => '本地模型';
+
+  @override
+  String get modelStore => '模型商店';
+
+  @override
+  String get noModelsAvailable => '暂无可用模型';
+
+  @override
+  String get serviceStatus => '服务状态';
+
+  @override
+  String get healthy => '正常';
+
+  @override
+  String get offline => '离线';
+
+  @override
+  String get checking => '检查中...';
+
+  @override
+  String get unhealthy => '异常';
+
+  @override
+  String get unknown => '未知';
+
+  @override
+  String get modelStoreUrlUpdated => '模型商店地址已更新';
+
+  @override
+  String get modelStoreServer => '模型商店服务器';
+
+  @override
+  String get custom => '自定义';
+
+  @override
+  String get defaultOption => '默认';
+
+  @override
+  String get liteRT => 'LiteRT';
+
+  @override
+  String get agent2UI => 'Agent2UI';
+
+  @override
+  String voiceInputPlaceholder(int count) {
+    return '[语音输入：$count 采样]';
+  }
+
+  @override
+  String get audioProcessingNotImplemented => '[这是一个占位响应。音频处理尚未实现。]';
+
+  @override
+  String get removeAttachment => '移除附件';
+
+  @override
+  String get webviewSkillNotImplemented => '[Webview 技能执行尚未实现]';
+
+  @override
+  String get nativeSkillNotImplemented => '[原生技能执行尚未实现]';
+
+  @override
+  String get dimensionUser => '用户';
+
+  @override
+  String get dimensionAgent => '代理';
+
+  @override
+  String get dimensionSession => '会话';
+
+  @override
+  String get dimensionResources => '资源';
+
+  @override
+  String score(String value) {
+    return '评分：$value';
+  }
+
+  @override
+  String get toDo => '待办';
+
+  @override
+  String get inProgress => '进行中';
+
+  @override
+  String get done => '已完成';
+
+  @override
+  String get welcomeMessage => '你好！我能听到你的声音。';
+
+  @override
+  String get tellMeStory => '给我讲个故事';
+
+  @override
+  String get whatCanYouHelp => '有什么可以帮助你的？';
+
+  @override
+  String get howAudioWorks => '音频输入是如何工作的？';
 }

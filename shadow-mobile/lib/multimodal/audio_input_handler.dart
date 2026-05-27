@@ -1,16 +1,24 @@
 import 'dart:async';
-import 'dart:io';
-import 'package:record/record.dart';
-import 'package:path_provider/path_provider.dart';
+import 'dart:typed_data';
+import '../services/pcm_audio_recorder.dart';
 
 enum AudioInputState { idle, recording, processing }
 
 class AudioInputHandler {
-  final AudioRecorder _recorder = AudioRecorder();
+  final PcmAudioRecorder _recorder = PcmAudioRecorder();
   AudioInputState _state = AudioInputState.idle;
-  String? _currentPath;
+  DateTime? _recordingStartTime;
+  Timer? _amplitudeTimer;
+  final _amplitudeController = StreamController<double>.broadcast();
 
   AudioInputState get state => _state;
+  Stream<double> get amplitudeStream => _amplitudeController.stream;
+  DateTime? get recordingStartTime => _recordingStartTime;
+
+  int get recordingDurationSeconds {
+    if (_recordingStartTime == null) return 0;
+    return DateTime.now().difference(_recordingStartTime!).inSeconds;
+  }
 
   Future<bool> hasPermission() async {
     return await _recorder.hasPermission();
@@ -18,51 +26,59 @@ class AudioInputHandler {
 
   Future<String?> startRecording() async {
     if (_state == AudioInputState.recording) return null;
-    
+
     final hasPermission = await _recorder.hasPermission();
     if (!hasPermission) return null;
 
-    final dir = await getTemporaryDirectory();
-    final path = '${dir.path}/audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
-    _currentPath = path;
+    final success = await _recorder.startRecording();
+    if (!success) return null;
 
-    await _recorder.start(
-      const RecordConfig(
-        encoder: AudioEncoder.aacLc,
-        bitRate: 128000,
-        sampleRate: 44100,
-      ),
-      path: path,
+    _recordingStartTime = DateTime.now();
+    _state = AudioInputState.recording;
+
+    _amplitudeTimer = Timer.periodic(
+      const Duration(milliseconds: 100),
+      (_) => _updateAmplitude(),
     );
 
-    _state = AudioInputState.recording;
-    return path;
+    return 'pcm_recording';
   }
 
-  Future<String?> stopRecording() async {
+  Future<void> _updateAmplitude() async {
+    if (_state != AudioInputState.recording) return;
+    try {
+      final elapsed = await _recorder.getElapsedTimeMs();
+      final normalized = ((elapsed % 1000) / 1000.0).clamp(0.0, 1.0);
+      _amplitudeController.add(normalized);
+    } catch (_) {}
+  }
+
+  Future<Uint8List?> stopRecording() async {
     if (_state != AudioInputState.recording) return null;
 
+    _amplitudeTimer?.cancel();
+    _amplitudeTimer = null;
     _state = AudioInputState.processing;
-    final path = await _recorder.stop();
+
+    final pcmData = await _recorder.stopRecording();
+    _recordingStartTime = null;
     _state = AudioInputState.idle;
-    return path;
+
+    return pcmData;
   }
 
   Future<void> cancelRecording() async {
     if (_state != AudioInputState.recording) return;
-    
-    await _recorder.stop();
-    if (_currentPath != null) {
-      final file = File(_currentPath!);
-      if (await file.exists()) {
-        await file.delete();
-      }
-    }
-    _currentPath = null;
+
+    _amplitudeTimer?.cancel();
+    _amplitudeTimer = null;
+    await _recorder.cancelRecording();
+    _recordingStartTime = null;
     _state = AudioInputState.idle;
   }
 
   Future<void> dispose() async {
-    await _recorder.dispose();
+    _amplitudeTimer?.cancel();
+    await _amplitudeController.close();
   }
 }
