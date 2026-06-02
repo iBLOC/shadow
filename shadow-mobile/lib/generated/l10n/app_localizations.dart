@@ -817,6 +817,72 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'How does audio input work?'**
   String get howAudioWorks;
+
+  /// No description provided for @ttsSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'TTS Voice Synthesis'**
+  String get ttsSettings;
+
+  /// No description provided for @ttsEngine.
+  ///
+  /// In en, this message translates to:
+  /// **'Voice Engine'**
+  String get ttsEngine;
+
+  /// No description provided for @ttsEngineAndroid.
+  ///
+  /// In en, this message translates to:
+  /// **'Android Built-in'**
+  String get ttsEngineAndroid;
+
+  /// No description provided for @ttsEngineExternal.
+  ///
+  /// In en, this message translates to:
+  /// **'External Service'**
+  String get ttsEngineExternal;
+
+  /// No description provided for @ttsStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Engine Status'**
+  String get ttsStatus;
+
+  /// No description provided for @ttsReady.
+  ///
+  /// In en, this message translates to:
+  /// **'Ready'**
+  String get ttsReady;
+
+  /// No description provided for @ttsNotReady.
+  ///
+  /// In en, this message translates to:
+  /// **'Not Ready'**
+  String get ttsNotReady;
+
+  /// No description provided for @ttsExternalUrl.
+  ///
+  /// In en, this message translates to:
+  /// **'External TTS Service URL'**
+  String get ttsExternalUrl;
+
+  /// No description provided for @ttsExternalUrlHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter external TTS API URL'**
+  String get ttsExternalUrlHint;
+
+  /// No description provided for @ttsTest.
+  ///
+  /// In en, this message translates to:
+  /// **'Test Speech'**
+  String get ttsTest;
+
+  /// No description provided for @ttsTestText.
+  ///
+  /// In en, this message translates to:
+  /// **'Hello, this is a speech synthesis test'**
+  String get ttsTestText;
 }
 
 class _AppLocalizationsDelegate

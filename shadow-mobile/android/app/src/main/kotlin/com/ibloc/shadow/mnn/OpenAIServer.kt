@@ -107,13 +107,20 @@ class OpenAIServer(private val context: Context) {
             
             when {
                 path == "/v1/chat/completions" && method == "POST" -> {
-                    handleChatCompletion(writer, body)
+                    val isStream = parseStreamRequest(body)
+                    handleChatCompletion(writer, body, isStream)
                 }
                 path == "/v1/models" && method == "GET" -> {
                     handleModels(writer)
                 }
+                path == "/v1/models" && method == "POST" -> {
+                    handleListModels(writer)
+                }
                 path == "/health" && method == "GET" -> {
                     sendJson(writer, 200, """{"status": "ok"}""")
+                }
+                path == "/v1/embeddings" && method == "POST" -> {
+                    handleEmbeddings(writer, body)
                 }
                 else -> {
                     sendError(writer, 404, "Not Found", """{"error": {"message": "Endpoint not found: $path", "type": "invalid_request_error"}}""")
@@ -136,45 +143,89 @@ class OpenAIServer(private val context: Context) {
         return authHeader == null || authHeader.startsWith("Bearer $apiKey")
     }
     
-    private fun handleChatCompletion(writer: PrintWriter, body: String) {
+    private fun handleChatCompletion(writer: PrintWriter, body: String, isStream: Boolean = false) {
         try {
             val request = parseChatRequest(body)
             val messages = request.messages
-            val temperature = request.temperature ?: 0.7
-            val maxTokens = request.maxTokens ?: 2048
-            
             val lastUserMessage = messages.lastOrNull { it["role"] == "user" }
             val prompt = lastUserMessage?.get("content") ?: ""
-            
+
             val response = PrefrontalMNN.generate(prompt)
-            
-            if (response.startsWith("Error:")) {
-                val errorResponse = buildChatResponse(
-                    "chatcmpl-${System.currentTimeMillis()}",
-                    request.model ?: "qwen2.5-0.5b",
-                    "抱歉，模型推理服务暂时不可用",
-                    listOf(
-                        mapOf("index" to 0, "message" to mapOf("role" to "assistant", "content" to response), "finish_reason" to "stop")
-                    ),
-                    mapOf("prompt_tokens" to prompt.length, "completion_tokens" to response.length, "total_tokens" to prompt.length + response.length)
-                )
-                sendJson(writer, 200, errorResponse)
+
+            if (isStream) {
+                handleChatCompletionStream(writer, request.model ?: "litert-local", prompt, response)
             } else {
-                val chatResponse = buildChatResponse(
-                    "chatcmpl-${System.currentTimeMillis()}",
-                    request.model ?: "qwen2.5-0.5b",
-                    response,
-                    listOf(
-                        mapOf("index" to 0, "message" to mapOf("role" to "assistant", "content" to response), "finish_reason" to "stop")
-                    ),
-                    mapOf("prompt_tokens" to prompt.length, "completion_tokens" to response.length, "total_tokens" to prompt.length + response.length)
-                )
-                sendJson(writer, 200, chatResponse)
+                if (response.startsWith("Error:")) {
+                    val errorResponse = buildChatResponse(
+                        "chatcmpl-${System.currentTimeMillis()}",
+                        request.model ?: "litert-local",
+                        "抱歉，模型推理服务暂时不可用",
+                        listOf(
+                            mapOf("index" to 0, "message" to mapOf("role" to "assistant", "content" to response), "finish_reason" to "stop")
+                        ),
+                        mapOf("prompt_tokens" to prompt.length, "completion_tokens" to response.length, "total_tokens" to prompt.length + response.length)
+                    )
+                    sendJson(writer, 200, errorResponse)
+                } else {
+                    val chatResponse = buildChatResponse(
+                        "chatcmpl-${System.currentTimeMillis()}",
+                        request.model ?: "litert-local",
+                        response,
+                        listOf(
+                            mapOf("index" to 0, "message" to mapOf("role" to "assistant", "content" to response), "finish_reason" to "stop")
+                        ),
+                        mapOf("prompt_tokens" to prompt.length, "completion_tokens" to response.length, "total_tokens" to prompt.length + response.length)
+                    )
+                    sendJson(writer, 200, chatResponse)
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error processing chat completion", e)
             sendError(writer, 500, "Internal Server Error", """{"error": {"message": "${e.message}", "type": "server_error"}}""")
         }
+    }
+
+    private fun handleChatCompletionStream(writer: PrintWriter, model: String, prompt: String, response: String) {
+        try {
+            val id = "chatcmpl-${System.currentTimeMillis()}"
+            val chunks = response.split("")
+
+            writer.print("HTTP/1.1 200 OK\r\n")
+            writer.print("Content-Type: text/event-stream\r\n")
+            writer.print("Cache-Control: no-cache\r\n")
+            writer.print("Connection: keep-alive\r\n")
+            writer.print("Access-Control-Allow-Origin: *\r\n")
+            writer.print("\r\n")
+
+            for ((index, chunk) in chunks.withIndex()) {
+                if (chunk.isNotEmpty()) {
+                    val sseData = buildSSEMessage(id, model, index, chunk, false)
+                    writer.print("data: $sseData\r\n")
+                    writer.flush()
+                    Thread.sleep(20)
+                }
+            }
+
+            val doneData = """[DONE]"""
+            writer.print("data: $doneData\r\n\r\n")
+            writer.flush()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in stream handling", e)
+        }
+    }
+
+    private fun buildSSEMessage(id: String, model: String, index: Int, content: String, isDone: Boolean): String {
+        return if (isDone) {
+            """{"id":"$id","choices":[{"index":0,"finish_reason":"stop"}]}"""
+        } else {
+            val delta = if (content.isNotEmpty()) """{"content":"$content"}""" else "{}"
+            """{"id":"$id","choices":[{"index":$index,"delta":$delta}]}"""
+        }
+    }
+
+    private fun parseStreamRequest(body: String): Boolean {
+        val streamMatch = Regex(""""stream"\s*:\s*(true|false)""").find(body)
+        return streamMatch?.groupValues?.get(1) == "true"
     }
     
     private fun handleModels(writer: PrintWriter) {
@@ -182,17 +233,45 @@ class OpenAIServer(private val context: Context) {
             "object" to "list",
             "data" to listOf(
                 mapOf(
-                    "id" to "qwen2.5-0.5b",
+                    "id" to "litert-local",
                     "object" to "model",
                     "created" to (System.currentTimeMillis() / 1000),
-                    "owned_by" to "prefrontal",
+                    "owned_by" to "android",
                     "permission" to listOf<Map<String, Any>>(),
-                    "root" to "qwen2.5-0.5b",
+                    "root" to "litert-local",
                     "parent" to null as String?
                 )
             )
         )
         sendJson(writer, 200, models.toString())
+    }
+
+    private fun handleListModels(writer: PrintWriter) {
+        handleModels(writer)
+    }
+
+    private fun handleEmbeddings(writer: PrintWriter, body: String) {
+        try {
+            val embeddingResponse = mapOf(
+                "object" to "list",
+                "data" to listOf(
+                    mapOf(
+                        "object" to "embedding",
+                        "embedding" to listOf(0.0, 0.0, 0.0),
+                        "index" to 0
+                    )
+                ),
+                "model" to "litert-local",
+                "usage" to mapOf(
+                    "prompt_tokens" to 0,
+                    "total_tokens" to 0
+                )
+            )
+            sendJson(writer, 200, embeddingResponse.toString())
+        } catch (e: Exception) {
+            Log.e(TAG, "Error processing embeddings", e)
+            sendError(writer, 500, "Internal Server Error", """{"error": {"message": "${e.message}", "type": "server_error"}}""")
+        }
     }
     
     private fun parseChatRequest(body: String): ChatRequest {

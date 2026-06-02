@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -13,8 +14,6 @@ import '../widgets/chat_bubble.dart';
 import '../router/app_router.dart';
 import '../theme/app_colors.dart';
 import '../multimodal/multimodal.dart';
-import '../widgets/camera_preview_widget.dart';
-import '../services/video_frame_collector.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   const ChatScreen({super.key});
@@ -61,22 +60,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       }
     });
 
-    // Listen for audio segments from conversation mode
-    final convState = ref.watch(conversationModeProvider);
-    if (convState.pendingSegments.isNotEmpty) {
-      for (final segment in convState.pendingSegments) {
-        ref
-            .read(chatProvider.notifier)
-            .processAudioSegment(
-              List<double>.from(
-                segment.data.asMap().keys.map((i) => segment.data[i] / 32768.0),
-              ),
-            );
-      }
-    }
+    // Listen for transcriptions from Rust-side VAD in conversation mode
+    ref.listen<ConversationModeNotifier>(conversationModeProvider.notifier, (
+      previous,
+      next,
+    ) {
+      next.transcriptionStream.listen((transcription) {
+        if (transcription.isNotEmpty) {
+          ref.read(chatProvider.notifier).generateResponse(transcription);
+        }
+      });
+    });
 
     final bool modelNotReady =
-        !chatState.isLitertReady &&
+        chatState.modelNotFound &&
         chatState.mode == ChatMode.litert &&
         !useAgent2UI;
 
@@ -491,21 +488,74 @@ class _LocalChatViewState extends ConsumerState<_LocalChatView> {
               : ListView.builder(
                   controller: widget.scrollController,
                   padding: const EdgeInsets.all(16),
-                  itemCount: chatState.messages.length,
+                  itemCount:
+                      chatState.messages.length +
+                      (chatState.streamingText.isNotEmpty ? 1 : 0),
                   itemBuilder: (context, index) {
+                    if (chatState.streamingText.isNotEmpty &&
+                        index == chatState.messages.length) {
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: MessageBubble(
+                              key: const ValueKey('streaming'),
+                              message: ChatMessage.assistant(
+                                chatState.streamingText,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 40),
+                        ],
+                      );
+                    }
                     final msg = chatState.messages[index];
                     final role = _convertRole(msg.role);
                     final isAssistant = msg.role == ChatRole.assistant;
+                    final isVoice =
+                        msg.attachmentType == MultimodalInputType.voice;
+                    final isImage =
+                        msg.attachmentType == MultimodalInputType.image ||
+                        msg.attachmentType == MultimodalInputType.camera;
+                    final isAudio =
+                        msg.attachmentType == MultimodalInputType.audio;
+                    final isVideo =
+                        msg.attachmentType == MultimodalInputType.video;
                     return Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
-                          child: MessageBubble(
-                            key: ValueKey(index),
-                            message: _toChatMessage(msg.content, role),
-                          ),
+                          child: isVoice
+                              ? _VoiceMessageBubble(
+                                  durationMs: null,
+                                  onPlay: () => ref
+                                      .read(chatProvider.notifier)
+                                      .playVoiceMessage(index),
+                                )
+                              : isImage
+                              ? _ImageMessageBubble(
+                                  imagePath: msg.attachmentPath,
+                                )
+                              : isAudio
+                              ? _AudioMessageBubble(
+                                  onPlay: () => ref
+                                      .read(chatProvider.notifier)
+                                      .playVoiceMessage(index),
+                                )
+                              : isVideo
+                              ? _VideoMessageBubble(
+                                  videoPath: msg.attachmentPath,
+                                )
+                              : MessageBubble(
+                                  key: ValueKey(index),
+                                  message: _toChatMessage(msg.content, role),
+                                ),
                         ),
-                        if (isAssistant && chatState.mode == ChatMode.litert)
+                        if (isAssistant &&
+                            chatState.mode == ChatMode.litert &&
+                            !isVoice &&
+                            !isImage &&
+                            !isVideo)
                           IconButton(
                             icon: const Icon(Icons.volume_up, size: 20),
                             onPressed: widget.onSpeak,
@@ -671,7 +721,9 @@ class _LocalChatViewState extends ConsumerState<_LocalChatView> {
                                 !chatState.isLoading
                             ? widget.onSendMessage
                             : null,
-                        icon: chatState.isLoading
+                        icon:
+                            chatState.isLoading &&
+                                chatState.streamingText.isEmpty
                             ? const SizedBox(
                                 width: 20,
                                 height: 20,
@@ -999,6 +1051,10 @@ class _AttachmentChip extends StatelessWidget {
         return Icons.camera_alt;
       case MultimodalInputType.file:
         return Icons.insert_drive_file;
+      case MultimodalInputType.voice:
+        return Icons.voice_chat;
+      case MultimodalInputType.video:
+        return Icons.videocam;
     }
   }
 
@@ -1024,61 +1080,195 @@ class _AttachmentChip extends StatelessWidget {
 class _ModeSwitcher extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context)!;
-    final convState = ref.watch(conversationModeProvider);
-    final notifier = ref.read(conversationModeProvider.notifier);
+    final convNotifier = ref.read(conversationModeProvider.notifier);
+    final chatNotifier = ref.read(chatProvider.notifier);
 
-    return PopupMenuButton<ConversationMode>(
-      icon: Icon(
-        convState.mode == ConversationMode.message
-            ? Icons.chat_bubble_outline
-            : Icons.mic,
-        color: convState.mode == ConversationMode.conversation
-            ? AppColors.primary
-            : null,
-      ),
-      onSelected: (mode) async {
-        switch (mode) {
-          case ConversationMode.message:
-            await notifier.startMessageMode();
-            break;
-          case ConversationMode.conversation:
-            await notifier.startConversationMode();
-            break;
-        }
+    return IconButton(
+      icon: Icon(Icons.phone, color: AppColors.primary),
+      onPressed: () {
+        chatNotifier.sendGreeting();
+        convNotifier.startConversationMode();
       },
-      itemBuilder: (context) => [
-        PopupMenuItem(
-          value: ConversationMode.message,
-          child: Row(
+      tooltip: 'Voice Mode',
+    );
+  }
+}
+
+class _VoiceMessageBubble extends StatelessWidget {
+  final int? durationMs;
+  final VoidCallback onPlay;
+
+  const _VoiceMessageBubble({required this.durationMs, required this.onPlay});
+
+  String get _durationText {
+    if (durationMs == null) return 'Voice';
+    final seconds = durationMs! ~/ 1000;
+    if (seconds < 60) return '${seconds}s';
+    return '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: Icon(
+              Icons.play_circle_fill,
+              color: AppColors.primary,
+              size: 40,
+            ),
+            onPressed: onPlay,
+            tooltip: 'Play voice message',
+          ),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                Icons.chat_bubble_outline,
-                color: convState.mode == ConversationMode.message
-                    ? AppColors.primary
-                    : null,
+              Text(
+                'Voice message',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: isDark ? Colors.white : Colors.black87,
+                ),
               ),
-              const SizedBox(width: 8),
-              Text(l10n.textMode),
+              Text(
+                _durationText,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: isDark ? Colors.white60 : Colors.black54,
+                ),
+              ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ImageMessageBubble extends StatelessWidget {
+  final String? imagePath;
+
+  const _ImageMessageBubble({required this.imagePath});
+
+  @override
+  Widget build(BuildContext context) {
+    if (imagePath == null) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.grey[300],
+          borderRadius: BorderRadius.circular(12),
         ),
-        PopupMenuItem(
-          value: ConversationMode.conversation,
-          child: Row(
-            children: [
-              Icon(
-                Icons.mic,
-                color: convState.mode == ConversationMode.conversation
-                    ? AppColors.primary
-                    : null,
-              ),
-              const SizedBox(width: 8),
-              Text(l10n.voiceMode),
-            ],
+        child: const Icon(Icons.broken_image, color: Colors.grey),
+      );
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: Image.file(
+        File(imagePath!),
+        width: 200,
+        height: 200,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          return Container(
+            width: 200,
+            height: 200,
+            color: Colors.grey[300],
+            child: const Center(
+              child: Icon(Icons.broken_image, color: Colors.grey, size: 48),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _AudioMessageBubble extends StatelessWidget {
+  final VoidCallback onPlay;
+
+  const _AudioMessageBubble({required this.onPlay});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: Icon(
+              Icons.play_circle_fill,
+              color: AppColors.primary,
+              size: 40,
+            ),
+            onPressed: onPlay,
+            tooltip: 'Play audio',
           ),
-        ),
-      ],
+          const SizedBox(width: 8),
+          Text(
+            'Audio message',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: isDark ? Colors.white : Colors.black87,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _VideoMessageBubble extends StatelessWidget {
+  final String? videoPath;
+
+  const _VideoMessageBubble({required this.videoPath});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.videocam, color: AppColors.primary, size: 40),
+          const SizedBox(width: 8),
+          Text(
+            'Video (not supported yet)',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: isDark ? Colors.white : Colors.black87,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

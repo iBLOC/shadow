@@ -119,5 +119,16 @@
   "welcomeMessage": "你好！我能听到你的声音。",
   "tellMeStory": "给我讲个故事",
   "whatCanYouHelp": "有什么可以帮助你的？",
-  "howAudioWorks": "音频输入是如何工作的？"
+  "howAudioWorks": "音频输入是如何工作的？",
+  "ttsSettings": "TTS 语音合成",
+  "ttsEngine": "语音引擎",
+  "ttsEngineAndroid": "Android 内置",
+  "ttsEngineExternal": "外部服务",
+  "ttsStatus": "引擎状态",
+  "ttsReady": "就绪",
+  "ttsNotReady": "未就绪",
+  "ttsExternalUrl": "外部 TTS 服务地址",
+  "ttsExternalUrlHint": "输入外部 TTS API 地址",
+  "ttsTest": "测试朗读",
+  "ttsTestText": "你好，这是语音合成测试"
 }

@@ -101,3 +101,71 @@ impl Default for WorktreeManager {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_worktree_info_creation() {
+        let info = WorktreeInfo {
+            task_id: "task-123".to_string(),
+            path: "/path/to/worktree".to_string(),
+            branch_name: "task-123/abc123".to_string(),
+            base_branch: "main".to_string(),
+        };
+        assert_eq!(info.task_id, "task-123");
+        assert_eq!(info.path, "/path/to/worktree");
+        assert_eq!(info.branch_name, "task-123/abc123");
+        assert_eq!(info.base_branch, "main");
+    }
+
+    #[test]
+    fn test_worktree_info_serialization() {
+        let info = WorktreeInfo {
+            task_id: "task-456".to_string(),
+            path: "/repo/.shadow/worktrees/task-456".to_string(),
+            branch_name: "task-456/def456".to_string(),
+            base_branch: "develop".to_string(),
+        };
+        let json = serde_json::to_string(&info).unwrap();
+        assert!(json.contains("task-456"));
+        assert!(json.contains("/repo/.shadow/worktrees/task-456"));
+        let deserialized: WorktreeInfo = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.task_id, "task-456");
+        assert_eq!(deserialized.base_branch, "develop");
+    }
+
+    #[tokio::test]
+    async fn test_worktree_manager_new() {
+        let manager = WorktreeManager::new();
+        let worktrees = manager.list().await;
+        assert!(worktrees.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_worktree_manager_get_not_found() {
+        let manager = WorktreeManager::new();
+        let result = manager.get("nonexistent").await;
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_worktree_manager_default() {
+        let manager = WorktreeManager::default();
+        assert!(manager.worktrees.try_lock().is_ok());
+    }
+
+    #[test]
+    fn test_worktree_info_clone() {
+        let info = WorktreeInfo {
+            task_id: "clone-test".to_string(),
+            path: "/path".to_string(),
+            branch_name: "branch".to_string(),
+            base_branch: "main".to_string(),
+        };
+        let cloned = info.clone();
+        assert_eq!(cloned.task_id, info.task_id);
+        assert_eq!(cloned.path, info.path);
+    }
+}

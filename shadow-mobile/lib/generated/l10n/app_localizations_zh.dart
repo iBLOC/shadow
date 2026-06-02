@@ -378,4 +378,37 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get howAudioWorks => '音频输入是如何工作的？';
+
+  @override
+  String get ttsSettings => 'TTS 语音合成';
+
+  @override
+  String get ttsEngine => '语音引擎';
+
+  @override
+  String get ttsEngineAndroid => 'Android 内置';
+
+  @override
+  String get ttsEngineExternal => '外部服务';
+
+  @override
+  String get ttsStatus => '引擎状态';
+
+  @override
+  String get ttsReady => '就绪';
+
+  @override
+  String get ttsNotReady => '未就绪';
+
+  @override
+  String get ttsExternalUrl => '外部 TTS 服务地址';
+
+  @override
+  String get ttsExternalUrlHint => '输入外部 TTS API 地址';
+
+  @override
+  String get ttsTest => '测试朗读';
+
+  @override
+  String get ttsTestText => '你好，这是语音合成测试';
 }

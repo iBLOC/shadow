@@ -154,5 +154,16 @@
   "welcomeMessage": "Hello! I can hear your voice.",
   "tellMeStory": "Tell me a story",
   "whatCanYouHelp": "What can you help me with?",
-  "howAudioWorks": "How does audio input work?"
+  "howAudioWorks": "How does audio input work?",
+  "ttsSettings": "TTS Voice Synthesis",
+  "ttsEngine": "Voice Engine",
+  "ttsEngineAndroid": "Android Built-in",
+  "ttsEngineExternal": "External Service",
+  "ttsStatus": "Engine Status",
+  "ttsReady": "Ready",
+  "ttsNotReady": "Not Ready",
+  "ttsExternalUrl": "External TTS Service URL",
+  "ttsExternalUrlHint": "Enter external TTS API URL",
+  "ttsTest": "Test Speech",
+  "ttsTestText": "Hello, this is a speech synthesis test"
 }

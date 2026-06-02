@@ -343,6 +343,106 @@ class PrefrontalClient {
     return data.map((s) => MCPServerResponse.fromJson(s)).toList();
   }
 
+  // ============ Session APIs ============
+
+  Future<SessionResponse> createSession({String? name}) async {
+    final data = await _request<Map<String, dynamic>>(
+      'POST',
+      '/api/sessions',
+      body: {'name': name},
+      parser: (data) => data,
+    );
+    return SessionResponse.fromJson(data);
+  }
+
+  Future<List<String>> listSessions() async {
+    final data = await _request<List<dynamic>>('GET', '/api/sessions');
+    return data.map((s) => s.toString()).toList();
+  }
+
+  Future<SessionResponse?> getSession(String sessionId) async {
+    try {
+      final data = await _request<Map<String, dynamic>>(
+        'GET',
+        '/api/sessions/$sessionId',
+      );
+      if (data['success'] == true && data['data'] != null) {
+        return SessionResponse.fromJson(data['data']);
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  Future<bool> addSessionMessage({
+    required String sessionId,
+    required String role,
+    required String content,
+  }) async {
+    await _request(
+      'POST',
+      '/api/sessions/$sessionId/messages',
+      body: {'role': role, 'content': content},
+    );
+    return true;
+  }
+
+  Future<ProcessResponse> processMessage({
+    required String sessionId,
+    required String message,
+    bool useTools = false,
+  }) async {
+    final data = await _request<Map<String, dynamic>>(
+      'POST',
+      '/api/sessions/$sessionId/process',
+      body: {'message': message, 'use_tools': useTools},
+    );
+    if (data['success'] == true && data['data'] != null) {
+      return ProcessResponse.fromJson(data['data']);
+    }
+    throw PrefrontalApiException(data['error']?.toString() ?? 'Unknown error');
+  }
+
+  Stream<String> processMessageStream({
+    required String sessionId,
+    required String message,
+    bool useTools = false,
+  }) async* {
+    final uri = Uri.parse('$baseUrl/api/sessions/$sessionId/stream');
+    final requestHeaders = {'Content-Type': 'application/json'};
+
+    final client = http.Client();
+    try {
+      final request = http.Request('POST', uri);
+      request.headers.addAll(requestHeaders);
+      request.body = json.encode({'message': message, 'use_tools': useTools});
+
+      final response = await client.send(request);
+
+      if (response.statusCode != 200) {
+        throw PrefrontalApiException('Stream error: ${response.statusCode}');
+      }
+
+      String buffer = '';
+      await for (final bytes in response.stream) {
+        buffer += utf8.decode(bytes);
+        final lines = buffer.split('\n');
+        buffer = lines.removeLast();
+        for (final line in lines) {
+          if (line.startsWith('data: ')) {
+            final data = line.substring(6);
+            if (data.isNotEmpty) {
+              yield data;
+            }
+          }
+        }
+      }
+    } finally {
+      client.close();
+    }
+  }
+
   void dispose() {
     _client.close();
   }
@@ -837,6 +937,40 @@ class PrefrontalApiException implements Exception {
 
   @override
   String toString() => 'PrefrontalApiException: $message';
+}
+
+class SessionResponse {
+  final String id;
+  final String? name;
+  final DateTime createdAt;
+
+  SessionResponse({required this.id, this.name, required this.createdAt});
+
+  factory SessionResponse.fromJson(Map<String, dynamic> json) {
+    return SessionResponse(
+      id: json['id'] ?? '',
+      name: json['name'],
+      createdAt: DateTime.parse(
+        json['created_at'] ?? DateTime.now().toIso8601String(),
+      ),
+    );
+  }
+}
+
+class ProcessResponse {
+  final String response;
+  final List<String>? toolCalls;
+
+  ProcessResponse({required this.response, this.toolCalls});
+
+  factory ProcessResponse.fromJson(Map<String, dynamic> json) {
+    return ProcessResponse(
+      response: json['response'] ?? '',
+      toolCalls: json['tool_calls'] != null
+          ? List<String>.from(json['tool_calls'])
+          : null,
+    );
+  }
 }
 
 // ============ Hub State (for Management Hub) ============

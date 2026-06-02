@@ -382,4 +382,37 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get howAudioWorks => 'How does audio input work?';
+
+  @override
+  String get ttsSettings => 'TTS Voice Synthesis';
+
+  @override
+  String get ttsEngine => 'Voice Engine';
+
+  @override
+  String get ttsEngineAndroid => 'Android Built-in';
+
+  @override
+  String get ttsEngineExternal => 'External Service';
+
+  @override
+  String get ttsStatus => 'Engine Status';
+
+  @override
+  String get ttsReady => 'Ready';
+
+  @override
+  String get ttsNotReady => 'Not Ready';
+
+  @override
+  String get ttsExternalUrl => 'External TTS Service URL';
+
+  @override
+  String get ttsExternalUrlHint => 'Enter external TTS API URL';
+
+  @override
+  String get ttsTest => 'Test Speech';
+
+  @override
+  String get ttsTestText => 'Hello, this is a speech synthesis test';
 }

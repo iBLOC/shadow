@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../generated/l10n/app_localizations.dart';
+import '../providers/chat_provider.dart';
 import '../services/database/database_helper.dart';
 import '../services/database/repository_factory.dart';
 import '../services/database/repositories.dart';
@@ -23,27 +24,42 @@ class ModelsState {
   final List<ModelItem> models;
   final bool isLoading;
   final String? error;
+  final ModelType? typeFilter;
 
   const ModelsState({
     this.models = const [],
     this.isLoading = false,
     this.error,
+    this.typeFilter,
   });
 
   ModelsState copyWith({
     List<ModelItem>? models,
     bool? isLoading,
     String? error,
+    ModelType? typeFilter,
   }) {
     return ModelsState(
       models: models ?? this.models,
       isLoading: isLoading ?? this.isLoading,
       error: error,
+      typeFilter: typeFilter ?? this.typeFilter,
     );
   }
 
-  List<ModelItem> get localModels => models.where((m) => m.isLocal).toList();
-  List<ModelItem> get cloudModels => models.where((m) => !m.isLocal).toList();
+  List<ModelItem> get filteredModels {
+    if (typeFilter == null) return models;
+    return models.where((m) => m.modelType == typeFilter).toList();
+  }
+
+  List<ModelItem> get localModels =>
+      filteredModels.where((m) => m.source == ModelSource.localEngine).toList();
+  List<ModelItem> get internalServiceModels => filteredModels
+      .where((m) => m.source == ModelSource.internalService)
+      .toList();
+  List<ModelItem> get cloudModels => filteredModels
+      .where((m) => m.source == ModelSource.cloudProvider)
+      .toList();
 }
 
 class ModelsNotifier extends StateNotifier<ModelsState> {
@@ -69,21 +85,27 @@ class ModelsNotifier extends StateNotifier<ModelsState> {
     }
   }
 
+  void setTypeFilter(ModelType? type) {
+    state = state.copyWith(typeFilter: type);
+  }
+
   Future<void> addLocalModel(
     String name,
     String path,
     String type,
-    int size,
-  ) async {
+    int size, {
+    ModelSource source = ModelSource.localEngine,
+  }) async {
     try {
       final model = ModelItem(
-        id: 'local_${DateTime.now().millisecondsSinceEpoch}',
+        id: '${source.name}_${DateTime.now().millisecondsSinceEpoch}',
         name: name,
         path: path,
         type: type,
         size: size,
         isLoaded: true,
-        isLocal: true,
+        isLocal: source == ModelSource.localEngine,
+        source: source,
       );
       await _repository.insert(model);
       await loadModels();
@@ -107,6 +129,7 @@ class ModelsNotifier extends StateNotifier<ModelsState> {
         size: 0,
         isLoaded: false,
         isLocal: false,
+        source: ModelSource.cloudProvider,
         endpoint: endpoint,
         apiKey: apiKey,
         model: model,
@@ -134,6 +157,84 @@ class ModelsNotifier extends StateNotifier<ModelsState> {
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
+  }
+}
+
+class _EngineStatusBar extends StatelessWidget {
+  final bool isLitertReady;
+  final String modelName;
+  final String engineName;
+
+  const _EngineStatusBar({
+    required this.isLitertReady,
+    required this.modelName,
+    required this.engineName,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: isLitertReady
+            ? AppColors.success.withValues(alpha: 0.1)
+            : AppColors.darkTextSecondary.withValues(alpha: 0.1),
+        border: Border(
+          bottom: BorderSide(
+            color: isLitertReady
+                ? AppColors.success.withValues(alpha: 0.3)
+                : AppColors.darkBorder,
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            isLitertReady ? Icons.play_circle_filled : Icons.circle_outlined,
+            color: isLitertReady
+                ? AppColors.success
+                : AppColors.darkTextSecondary,
+            size: 20,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  isLitertReady ? '引擎运行中' : '引擎未运行',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: isLitertReady
+                        ? AppColors.success
+                        : AppColors.darkTextSecondary,
+                  ),
+                ),
+                if (isLitertReady)
+                  Text(
+                    '$engineName • $modelName',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: AppColors.darkTextSecondary,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          if (isLitertReady)
+            Chip(
+              label: Text(
+                engineName,
+                style: const TextStyle(fontSize: 10, color: Colors.white),
+              ),
+              backgroundColor: AppColors.success,
+              padding: EdgeInsets.zero,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+        ],
+      ),
+    );
   }
 }
 
@@ -198,6 +299,7 @@ class _ModelManagementScreenState extends ConsumerState<ModelManagementScreen>
   @override
   Widget build(BuildContext context) {
     final modelsState = ref.watch(modelsProvider);
+    final chatState = ref.watch(chatProvider);
     final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
@@ -214,39 +316,136 @@ class _ModelManagementScreenState extends ConsumerState<ModelManagementScreen>
           ],
         ),
       ),
-      body: modelsState.isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : TabBarView(
-              controller: _tabController,
-              children: [
-                _buildLocalModelsTab(context, modelsState),
-                _buildCloudModelsTab(context, modelsState),
-              ],
-            ),
+      body: Column(
+        children: [
+          _EngineStatusBar(
+            isLitertReady: chatState.isLitertReady,
+            modelName: chatState.currentAgent.model.displayName,
+            engineName: chatState.mode == ChatMode.litert ? 'LiteRT' : 'MNN',
+          ),
+          Expanded(
+            child: modelsState.isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : TabBarView(
+                    controller: _tabController,
+                    children: [
+                      _buildLocalModelsTab(context, modelsState),
+                      _buildCloudModelsTab(context, modelsState),
+                    ],
+                  ),
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildLocalModelsTab(BuildContext context, ModelsState state) {
     final localModels = state.localModels;
+    final internalModels = state.internalServiceModels;
+    final cloudModels = state.cloudModels;
 
-    if (localModels.isEmpty) {
+    if (localModels.isEmpty && internalModels.isEmpty && cloudModels.isEmpty) {
       return EmptyState(
         icon: Icons.model_training,
-        title: '暂无本地模型',
-        description: '点击右下角添加本地模型',
+        title: '暂无模型',
+        description: '点击右下角添加模型',
       );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: localModels.length,
-      itemBuilder: (context, index) {
-        final model = localModels[index];
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: _LocalModelCard(model: model),
-        );
-      },
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              const Text('类型:', style: TextStyle(fontSize: 13)),
+              const SizedBox(width: 8),
+              SegmentedButton<ModelType?>(
+                segments: const [
+                  ButtonSegment(
+                    value: null,
+                    label: Text('全部', style: TextStyle(fontSize: 11)),
+                  ),
+                  ButtonSegment(
+                    value: ModelType.llm,
+                    label: Text('LLM', style: TextStyle(fontSize: 11)),
+                  ),
+                  ButtonSegment(
+                    value: ModelType.tts,
+                    label: Text('TTS', style: TextStyle(fontSize: 11)),
+                  ),
+                ],
+                selected: {state.typeFilter},
+                onSelectionChanged: (selected) {
+                  ref
+                      .read(modelsProvider.notifier)
+                      .setTypeFilter(selected.first);
+                },
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            children: [
+              if (localModels.isNotEmpty) ...[
+                _buildSectionHeader(context, 'LiteRT 引擎', Icons.memory),
+                ...localModels.map(
+                  (m) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _LocalModelCard(model: m),
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+              if (internalModels.isNotEmpty) ...[
+                _buildSectionHeader(context, '内部服务 (Rust)', Icons.cloud_done),
+                ...internalModels.map(
+                  (m) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _LocalModelCard(model: m),
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+              if (cloudModels.isNotEmpty) ...[
+                _buildSectionHeader(context, '云端供应商', Icons.cloud),
+                ...cloudModels.map(
+                  (m) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _LocalModelCard(model: m),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSectionHeader(
+    BuildContext context,
+    String title,
+    IconData icon,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: AppColors.primary),
+          const SizedBox(width: 8),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: AppColors.primary,
+            ),
+          ),
+        ],
+      ),
     );
   }
 

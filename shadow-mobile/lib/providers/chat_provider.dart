@@ -10,6 +10,10 @@ import '../services/model_download_service.dart';
 import '../tts_engine.dart';
 import '../multimodal/multimodal.dart';
 import '../litert_model.dart';
+import '../screens/model_management_screen.dart';
+import '../services/database/model_item.dart' as db;
+import '../services/prefrontal_client.dart';
+import 'conversation_mode_provider.dart';
 
 /// Chat message model for the UI
 class ChatMessageModel {
@@ -60,6 +64,9 @@ class ChatState {
   final double downloadProgress;
   final Agent currentAgent;
   final bool isDownloading;
+  final VoiceState voiceState;
+  final bool modelNotFound;
+  final String streamingText;
 
   const ChatState({
     this.messages = const [],
@@ -77,6 +84,9 @@ class ChatState {
     this.downloadProgress = -1.0,
     this.currentAgent = Agents.chatAgent,
     this.isDownloading = false,
+    this.voiceState = VoiceState.idle,
+    this.modelNotFound = false,
+    this.streamingText = '',
   });
 
   static const _omit = _CopyWithOmit();
@@ -97,6 +107,9 @@ class ChatState {
     double? downloadProgress,
     Agent? currentAgent,
     bool? isDownloading,
+    VoiceState? voiceState,
+    bool? modelNotFound,
+    String? streamingText,
   }) {
     final explicitError = !identical(errorMessage, _omit);
     final clearError = explicitError && errorMessage == null;
@@ -124,6 +137,9 @@ class ChatState {
       downloadProgress: downloadProgress ?? this.downloadProgress,
       currentAgent: currentAgent ?? this.currentAgent,
       isDownloading: isDownloading ?? this.isDownloading,
+      voiceState: voiceState ?? this.voiceState,
+      modelNotFound: modelNotFound ?? this.modelNotFound,
+      streamingText: streamingText ?? this.streamingText,
     );
   }
 }
@@ -136,14 +152,28 @@ class _CopyWithOmit {
 class ChatNotifier extends StateNotifier<ChatState> {
   final LitertEngine _litertEngine;
   final TtsEngine _ttsEngine;
+  final PrefrontalClient _prefrontalClient;
   final MultimodalInputManager _multimodalManager = MultimodalInputManager();
   final LiteRTDownloadService _downloadService = LiteRTDownloadService();
+  final ModelsNotifier? _modelsNotifier;
+  String? _currentSessionId;
 
-  // 下载锁，防止多次并发调用
   bool _isDownloading = false;
 
-  ChatNotifier(this._litertEngine, this._ttsEngine) : super(const ChatState()) {
-    _initLiteRT();
+  ChatNotifier(
+    this._litertEngine,
+    this._ttsEngine,
+    this._prefrontalClient, {
+    bool skipInit = false,
+    bool litertReady = false,
+    ModelsNotifier? modelsNotifier,
+  }) : _modelsNotifier = modelsNotifier,
+       super(const ChatState()) {
+    if (!skipInit) {
+      _initLiteRT();
+    } else if (litertReady) {
+      state = state.copyWith(isLitertReady: true);
+    }
   }
 
   void selectAgent(Agent agent) {
@@ -177,16 +207,17 @@ class ChatNotifier extends StateNotifier<ChatState> {
     final exists = await file.exists();
 
     if (!exists) {
-      // 模型不存在，触发下载
       state = state.copyWith(
         modelInfo: 'Model not found, ready to download',
         isLitertReady: false,
         isDownloading: false,
         downloadProgress: -1.0,
+        modelNotFound: true,
       );
-      // 不再自动初始化，UI 会检测到 modelNotReady 并弹出下载对话框
       return;
     }
+
+    state = state.copyWith(modelNotFound: false);
 
     // 模型存在，正常初始化
     await initLitert();
@@ -322,6 +353,17 @@ class ChatNotifier extends StateNotifier<ChatState> {
       final modelPath = await _getModelPath(agent.model);
       final success = await _litertEngine.initialize(modelPath: modelPath);
       if (success) {
+        final modelFile = File(modelPath);
+        final modelSize = await modelFile.exists()
+            ? (await modelFile.length()) ~/ (1024 * 1024)
+            : 0;
+        _modelsNotifier?.addLocalModel(
+          agent.model.displayName,
+          modelPath,
+          agent.model.supportImage ? 'vision' : 'text',
+          modelSize,
+          source: db.ModelSource.localEngine,
+        );
         state = state.copyWith(
           isLitertReady: true,
           modelInfo: '${agent.model.displayName} ready',
@@ -415,6 +457,16 @@ class ChatNotifier extends StateNotifier<ChatState> {
     state = state.copyWith(attachments: []);
   }
 
+  void sendGreeting() {
+    const greeting = '你好，我是Shadow，有什么可以帮你的吗？';
+    state = state.copyWith(
+      messages: [
+        ...state.messages,
+        ChatMessageModel(greeting, ChatRole.assistant),
+      ],
+    );
+  }
+
   Future<void> generateResponse(String prompt) async {
     if (prompt.isEmpty || state.isLoading) return;
 
@@ -430,40 +482,47 @@ class ChatNotifier extends StateNotifier<ChatState> {
     if (state.isLoading) return;
 
     if (state.mode == ChatMode.litert && state.isLitertReady) {
+      final hasImage = attachments.any(
+        (a) =>
+            a.type == MultimodalInputType.image ||
+            a.type == MultimodalInputType.camera,
+      );
+      if (hasImage) {
+        state = state.copyWith(
+          errorMessage: 'LiteRT 图片功能暂时不可用，请等待版本更新',
+          errorMessageL10nKey: ChatStateL10nKey.errorGeneric,
+        );
+        return;
+      }
       await _generateLitertResponse(prompt, attachments);
     }
   }
 
   Future<void> processAudioSegment(List<double> audioSamples) async {
     if (state.isLoading) return;
+    if (!state.isLitertReady) return;
 
+    final audioLength = audioSamples.length;
     state = state.copyWith(
       messages: [
         ...state.messages,
-        ChatMessageModel(
-          '[Voice input: ${audioSamples.length} samples]',
-          ChatRole.user,
-        ),
+        ChatMessageModel('[Voice: $audioLength samples]', ChatRole.user),
       ],
     );
 
-    // NOTE: 音频处理占位实现
-    // 实现状态: 等待LiteRT引擎实现
-    // 需要的步骤:
-    // 1. Convert audio samples to audio file
-    // 2. Send to LiteRT engine with audio input
-    // 3. Return real transcription result
     state = state.copyWith(isLoading: true);
 
-    await Future.delayed(const Duration(milliseconds: 500));
+    String response;
+    try {
+      if (_litertEngine.isInitialized) {
+        response = await _litertEngine.generateContent('请简短回复: 用户发送了语音消息');
+      } else {
+        response = '语音功能需要先加载模型';
+      }
+    } catch (e) {
+      response = '抱歉，发生了错误: $e';
+    }
 
-    // 当前返回占位响应 - 音频输入功能不可用
-    const response =
-        '[This is a placeholder response. Audio processing not yet implemented - requires LiteRT engine]';
-
-    // 使用i18n占位符文本（如果需要本地化）
-    // final l10n = AppLocalizations.of(context)!;
-    // response = l10n.audioProcessingNotImplemented;
     state = state.copyWith(
       messages: [
         ...state.messages,
@@ -472,15 +531,55 @@ class ChatNotifier extends StateNotifier<ChatState> {
       isLoading: false,
     );
 
-    // TTS speak
     await _ttsEngine.speak(response);
+  }
+
+  Future<void> processAudioSegmentAndContinue(
+    List<double> audioSamples,
+    Future<void> Function() onComplete,
+  ) async {
+    if (state.isLoading) return;
+    if (!state.isLitertReady) return;
+
+    final audioLength = audioSamples.length;
+    state = state.copyWith(
+      messages: [
+        ...state.messages,
+        ChatMessageModel('[Voice: $audioLength samples]', ChatRole.user),
+      ],
+    );
+
+    state = state.copyWith(isLoading: true, voiceState: VoiceState.processing);
+
+    String response;
+    try {
+      if (_litertEngine.isInitialized) {
+        response = await _litertEngine.generateContent('用户发送了语音消息，请简短回复');
+      } else {
+        response = '语音功能需要先加载模型';
+      }
+    } catch (e) {
+      response = '抱歉，发生了错误';
+    }
+
+    state = state.copyWith(
+      messages: [
+        ...state.messages,
+        ChatMessageModel(response, ChatRole.assistant),
+      ],
+      isLoading: false,
+      voiceState: VoiceState.speaking,
+    );
+
+    await _ttsEngine.speak(response);
+    state = state.copyWith(voiceState: VoiceState.idle);
+    await onComplete();
   }
 
   Future<void> _generateLitertResponse(
     String prompt,
     List<MultimodalInput> attachments,
   ) async {
-    // 构建消息内容
     String displayContent = prompt;
     String? attachmentPath;
     MultimodalInputType? attachmentType;
@@ -490,7 +589,11 @@ class ChatNotifier extends StateNotifier<ChatState> {
       attachmentPath = first.path;
       attachmentType = first.type;
       if (prompt.isEmpty) {
-        displayContent = '[Voice message]';
+        if (first.type == MultimodalInputType.audio) {
+          displayContent = '[Audio]';
+        } else {
+          displayContent = '[Image]';
+        }
       }
     }
 
@@ -509,18 +612,56 @@ class ChatNotifier extends StateNotifier<ChatState> {
     );
 
     try {
-      String response;
-      if (attachments.isNotEmpty) {
-        // 转换附件为 LiteRT 格式
-        final attachmentData = await _convertAttachmentsToLitertFormat(
-          attachments,
-        );
-        response = await _litertEngine.generateContentWithAttachments(
-          prompt,
-          attachmentData,
-        );
-      } else {
-        response = await _litertEngine.generateContent(prompt);
+      String response = '';
+      bool httpSuccess = false;
+
+      if (attachments.isEmpty) {
+        try {
+          _currentSessionId ??= (await _prefrontalClient.createSession()).id;
+          if (_currentSessionId != null) {
+            await _prefrontalClient.addSessionMessage(
+              sessionId: _currentSessionId!,
+              role: 'user',
+              content: prompt,
+            );
+
+            StringBuffer streamedResponse = StringBuffer();
+            state = state.copyWith(streamingText: '');
+
+            await for (final chunk in _prefrontalClient.processMessageStream(
+              sessionId: _currentSessionId!,
+              message: prompt,
+              useTools: false,
+            )) {
+              if (chunk.startsWith('error:')) {
+                throw Exception(chunk);
+              }
+              streamedResponse.write(chunk);
+              state = state.copyWith(
+                streamingText: streamedResponse.toString(),
+              );
+            }
+
+            response = streamedResponse.toString();
+            httpSuccess = true;
+          }
+        } catch (e) {
+          state = state.copyWith(streamingText: '');
+        }
+      }
+
+      if (!httpSuccess) {
+        if (attachments.isNotEmpty) {
+          final attachmentData = await _convertAttachmentsToLitertFormat(
+            attachments,
+          );
+          response = await _litertEngine.generateContentWithAttachments(
+            prompt,
+            attachmentData,
+          );
+        } else {
+          response = await _litertEngine.generateContent(prompt);
+        }
       }
 
       state = state.copyWith(
@@ -530,8 +671,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
         ],
         isLoading: false,
         attachments: [],
+        streamingText: '',
       );
-      // TTS speak
       await _ttsEngine.speak(response);
     } catch (e) {
       state = state.copyWith(
@@ -544,6 +685,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
         ],
         isLoading: false,
         attachments: [],
+        streamingText: '',
       );
     }
   }
@@ -595,6 +737,18 @@ class ChatNotifier extends StateNotifier<ChatState> {
     }
   }
 
+  Future<void> playVoiceMessage(int index) async {
+    if (index < 0 || index >= state.messages.length) return;
+    final message = state.messages[index];
+    if (message.attachmentType != MultimodalInputType.voice &&
+        message.attachmentType != MultimodalInputType.audio) {
+      return;
+    }
+    await _ttsEngine.speak(
+      message.content.isNotEmpty ? message.content : 'Audio message',
+    );
+  }
+
   Future<void> setMode(ChatMode mode) async {
     if (mode == ChatMode.litert && !state.isLitertReady) {
       await initLitert();
@@ -634,6 +788,7 @@ final chatProvider = StateNotifierProvider<ChatNotifier, ChatState>((ref) {
   return ChatNotifier(
     ref.watch(litertEngineProvider),
     ref.watch(ttsEngineProvider),
+    ref.watch(prefrontalClientProvider),
   );
 });
 

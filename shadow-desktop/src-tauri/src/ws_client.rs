@@ -191,3 +191,64 @@ impl Default for MtlsWebSocketClient {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_websocket_message_creation() {
+        let msg = WebSocketMessage {
+            msg_type: "chat".to_string(),
+            payload: serde_json::json!({"content": "hello"}),
+        };
+        assert_eq!(msg.msg_type, "chat");
+        assert_eq!(msg.payload["content"], "hello");
+    }
+
+    #[test]
+    fn test_websocket_message_serialization() {
+        let msg = WebSocketMessage {
+            msg_type: "task_update".to_string(),
+            payload: serde_json::json!({"task_id": "123", "status": "done"}),
+        };
+        let json = serde_json::to_string(&msg).unwrap();
+        assert!(json.contains("task_update"));
+        assert!(json.contains("123"));
+        let deserialized: WebSocketMessage = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.msg_type, "task_update");
+        assert_eq!(deserialized.payload["task_id"], "123");
+    }
+
+    #[test]
+    fn test_websocket_message_clone() {
+        let msg = WebSocketMessage {
+            msg_type: "clone_test".to_string(),
+            payload: serde_json::json!({"key": "value"}),
+        };
+        let cloned = msg.clone();
+        assert_eq!(cloned.msg_type, msg.msg_type);
+        assert_eq!(cloned.payload, msg.payload);
+    }
+
+    #[tokio::test]
+    async fn test_mtls_websocket_client_new() {
+        let client = MtlsWebSocketClient::new();
+        assert!(!client.is_connected().await);
+    }
+
+    #[tokio::test]
+    async fn test_mtls_websocket_client_disconnect_when_not_connected() {
+        let client = MtlsWebSocketClient::new();
+        client.disconnect().await;
+        assert!(!client.is_connected().await);
+    }
+
+    #[tokio::test]
+    async fn test_mtls_websocket_client_send_when_not_connected() {
+        let client = MtlsWebSocketClient::new();
+        let result = client.send("test message".to_string()).await;
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "Not connected");
+    }
+}

@@ -73,4 +73,5 @@ flutter {
 
 dependencies {
     implementation("com.google.ai.edge.litertlm:litertlm-android:latest.release")
+    implementation("org.nanohttpd:nanohttpd:2.3.1")
 }

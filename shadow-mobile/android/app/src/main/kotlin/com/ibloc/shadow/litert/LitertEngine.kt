@@ -20,6 +20,7 @@ import org.json.JSONObject
 class LitertEngine(private val context: Context) {
     private var engine: Engine? = null
     private var conversation: Conversation? = null
+    private var currentModelPath: String = ""
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     private val _isInitialized = MutableStateFlow(false)
@@ -39,11 +40,29 @@ class LitertEngine(private val context: Context) {
 
     private var isStreaming = false
 
+    data class ModelInfo(
+        val id: String,
+        val modelPath: String,
+        val backend: String,
+        val loadedAt: Long
+    )
+
+    fun getLoadedModelInfo(): ModelInfo? {
+        if (!_isInitialized.value || engine == null) return null
+        return ModelInfo(
+            id = "litert-${currentModelPath.hashCode()}",
+            modelPath = currentModelPath,
+            backend = "CPU",
+            loadedAt = System.currentTimeMillis()
+        )
+    }
+
     suspend fun initialize(modelPath: String): Boolean {
         if (_isInitialized.value) return true
 
         _isLoading.value = true
         _lastError.value = null
+        currentModelPath = modelPath
 
         Engine.setNativeMinLogSeverity(LogSeverity.ERROR)
 

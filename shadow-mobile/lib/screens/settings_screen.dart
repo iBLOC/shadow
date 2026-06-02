@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../generated/l10n/app_localizations.dart';
@@ -8,6 +9,78 @@ import '../providers/service_provider.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/log_panel_section.dart';
 import '../theme/app_colors.dart';
+import '../tts_engine.dart';
+
+final systemMemoryProvider = FutureProvider<SystemMemoryInfo>((ref) async {
+  return SystemMemoryInfo.getMemoryInfo();
+});
+
+class SystemMemoryInfo {
+  final int totalMb;
+  final int usedMb;
+  final int freeMb;
+  final double usagePercent;
+
+  SystemMemoryInfo({
+    required this.totalMb,
+    required this.usedMb,
+    required this.freeMb,
+    required this.usagePercent,
+  });
+
+  static Future<SystemMemoryInfo> getMemoryInfo() async {
+    try {
+      final file = File('/proc/meminfo');
+      final content = await file.readAsString();
+      final lines = content.split('\n');
+
+      int? memTotal;
+      int? memFree;
+      int? memAvailable;
+
+      for (final line in lines) {
+        if (line.startsWith('MemTotal:')) {
+          memTotal = _parseMemValue(line);
+        } else if (line.startsWith('MemAvailable:')) {
+          memAvailable = _parseMemValue(line);
+        } else if (line.startsWith('MemFree:')) {
+          memFree = _parseMemValue(line);
+        }
+        if (memTotal != null && memAvailable != null) break;
+      }
+
+      if (memTotal == null) return _empty();
+
+      final totalMb = (memTotal ~/ 1024);
+      final freeMb = memAvailable != null
+          ? (memAvailable ~/ 1024)
+          : (memFree != null ? (memFree ~/ 1024) : 0);
+      final usedMb = totalMb - freeMb;
+      final usagePercent = totalMb > 0 ? (usedMb / totalMb * 100) : 0.0;
+
+      return SystemMemoryInfo(
+        totalMb: totalMb,
+        usedMb: usedMb,
+        freeMb: freeMb,
+        usagePercent: usagePercent,
+      );
+    } catch (e) {
+      return _empty();
+    }
+  }
+
+  static int _parseMemValue(String line) {
+    final parts = line.split(RegExp(r'\s+'));
+    if (parts.length >= 2) {
+      return int.tryParse(parts[1]) ?? 0;
+    }
+    return 0;
+  }
+
+  static SystemMemoryInfo _empty() {
+    return SystemMemoryInfo(totalMb: 0, usedMb: 0, freeMb: 0, usagePercent: 0);
+  }
+}
 
 class SettingsScreen extends ConsumerWidget {
   final String modelInfo;
@@ -95,6 +168,39 @@ class SettingsScreen extends ConsumerWidget {
                 child: Column(
                   children: [
                     ListTile(
+                      leading: Icon(Icons.memory, color: AppColors.primary),
+                      title: const Text('内存使用'),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.refresh),
+                        onPressed: () => ref.refresh(systemMemoryProvider),
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    Consumer(
+                      builder: (context, ref, child) {
+                        final memoryAsync = ref.watch(systemMemoryProvider);
+                        return memoryAsync.when(
+                          data: (memory) => _MemoryUsageBar(memory: memory),
+                          loading: () => const Padding(
+                            padding: EdgeInsets.all(16),
+                            child: Center(child: CircularProgressIndicator()),
+                          ),
+                          error: (e, s) => Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Text('读取失败: $e'),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              GlassCard(
+                padding: EdgeInsets.zero,
+                child: Column(
+                  children: [
+                    ListTile(
                       leading: Icon(Icons.cloud, color: AppColors.primary),
                       title: Text(l10n.serviceStatus),
                       trailing: IconButton(
@@ -110,6 +216,8 @@ class SettingsScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 16),
               GlassCard(padding: EdgeInsets.zero, child: _ModelStoreConfig()),
+              const SizedBox(height: 16),
+              GlassCard(padding: EdgeInsets.zero, child: _TtsSettingsSection()),
               if (AccessibilityController.isSupported) ...[
                 const SizedBox(height: 16),
                 GlassCard(
@@ -426,6 +534,259 @@ class _ModelStoreConfigState extends State<_ModelStoreConfig> {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _TtsSettingsSection extends StatefulWidget {
+  @override
+  State<_TtsSettingsSection> createState() => _TtsSettingsSectionState();
+}
+
+class _TtsSettingsSectionState extends State<_TtsSettingsSection> {
+  final TtsEngine _ttsEngine = TtsEngine();
+  bool _isInitialized = false;
+  TtsEngineType _engineType = TtsEngineType.androidBuiltIn;
+  bool _isEditingUrl = false;
+  final _urlController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _initTts();
+  }
+
+  Future<void> _initTts() async {
+    final initialized = await _ttsEngine.initialize();
+    if (mounted) {
+      setState(() {
+        _isInitialized = initialized;
+        _engineType = _ttsEngine.engineType;
+        _urlController.text = _ttsEngine.externalUrl;
+      });
+    }
+  }
+
+  Future<void> _onEngineTypeChanged(TtsEngineType? type) async {
+    if (type == null) return;
+    await _ttsEngine.setEngineType(type);
+    if (mounted) {
+      setState(() => _engineType = type);
+    }
+  }
+
+  Future<void> _saveUrl() async {
+    await _ttsEngine.setExternalUrl(_urlController.text.trim());
+    _isEditingUrl = false;
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _testSpeech() async {
+    final l10n = AppLocalizations.of(context)!;
+    await _ttsEngine.speak(l10n.ttsTestText);
+  }
+
+  @override
+  void dispose() {
+    _urlController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return Column(
+      children: [
+        ListTile(
+          leading: Icon(Icons.record_voice_over, color: AppColors.primary),
+          title: Text(l10n.ttsSettings),
+        ),
+        const Divider(height: 1),
+        ListTile(
+          dense: true,
+          title: Text(l10n.ttsStatus),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.refresh, size: 18),
+                onPressed: _initTts,
+                tooltip: '刷新状态',
+              ),
+              Icon(
+                _isInitialized ? Icons.check_circle : Icons.error,
+                color: _isInitialized ? AppColors.success : AppColors.error,
+                size: 16,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                _isInitialized ? l10n.ttsReady : l10n.ttsNotReady,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: _isInitialized ? AppColors.success : AppColors.error,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 1),
+        ListTile(
+          dense: true,
+          title: Text(l10n.ttsEngine),
+          trailing: SegmentedButton<TtsEngineType>(
+            segments: [
+              ButtonSegment(
+                value: TtsEngineType.androidBuiltIn,
+                label: Text(
+                  l10n.ttsEngineAndroid,
+                  style: const TextStyle(fontSize: 10),
+                ),
+              ),
+              ButtonSegment(
+                value: TtsEngineType.external,
+                label: Text(
+                  l10n.ttsEngineExternal,
+                  style: const TextStyle(fontSize: 10),
+                ),
+              ),
+            ],
+            selected: {_engineType},
+            onSelectionChanged: (selection) =>
+                _onEngineTypeChanged(selection.first),
+          ),
+        ),
+        if (_engineType == TtsEngineType.external) ...[
+          const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(l10n.ttsExternalUrl, style: const TextStyle(fontSize: 12)),
+                const SizedBox(height: 8),
+                if (_isEditingUrl)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _urlController,
+                          decoration: InputDecoration(
+                            hintText: l10n.ttsExternalUrlHint,
+                            border: const OutlineInputBorder(),
+                            isDense: true,
+                          ),
+                          style: const TextStyle(fontSize: 14),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 20),
+                        onPressed: () => setState(() => _isEditingUrl = false),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.check, size: 20),
+                        onPressed: _saveUrl,
+                      ),
+                    ],
+                  )
+                else
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _urlController.text.isEmpty
+                              ? l10n.ttsExternalUrlHint
+                              : _urlController.text,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: _urlController.text.isEmpty
+                                    ? AppColors.darkTextSecondary
+                                    : null,
+                              ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.edit, size: 20),
+                        onPressed: () => setState(() => _isEditingUrl = true),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+        ],
+        const Divider(height: 1),
+        ListTile(
+          dense: true,
+          title: Text(l10n.ttsTest),
+          trailing: IconButton(
+            icon: Icon(Icons.play_circle, color: AppColors.primary),
+            onPressed: _isInitialized ? _testSpeech : null,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MemoryUsageBar extends StatelessWidget {
+  final SystemMemoryInfo memory;
+
+  const _MemoryUsageBar({required this.memory});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '已用: ${memory.usedMb} MB',
+                style: const TextStyle(fontSize: 12),
+              ),
+              Text(
+                '总计: ${memory.totalMb} MB',
+                style: const TextStyle(fontSize: 12),
+              ),
+              Text(
+                '空闲: ${memory.freeMb} MB',
+                style: const TextStyle(fontSize: 12),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: memory.usagePercent / 100,
+              backgroundColor: Colors.grey.withValues(alpha: 0.3),
+              valueColor: AlwaysStoppedAnimation<Color>(
+                memory.usagePercent > 80
+                    ? AppColors.error
+                    : memory.usagePercent > 60
+                    ? Colors.orange
+                    : AppColors.success,
+              ),
+              minHeight: 8,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '使用率: ${memory.usagePercent.toStringAsFixed(1)}%',
+            style: TextStyle(
+              fontSize: 11,
+              color: memory.usagePercent > 80
+                  ? AppColors.error
+                  : memory.usagePercent > 60
+                  ? Colors.orange
+                  : AppColors.success,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

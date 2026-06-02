@@ -1,4 +1,5 @@
 import 'package:sqflite/sqflite.dart';
+import 'package:flutter/services.dart';
 import 'database_helper.dart';
 import 'model_item.dart';
 import 'repositories.dart';
@@ -92,38 +93,138 @@ class SqliteModelRepository implements IModelRepository {
     final models = await getAll();
     if (models.isNotEmpty) return;
 
-    final defaultModels = [
-      const ModelItem(
-        id: 'local_qwen2.5-0.5b',
-        name: 'Qwen2.5-0.5B',
-        path: 'assets/models/qwen2.5-0.5b',
-        type: 'text',
-        size: 1024,
-        isLoaded: true,
-        isLocal: true,
-      ),
-      const ModelItem(
-        id: 'local_qwen2.5-1.5b',
-        name: 'Qwen2.5-1.5B',
-        path: 'assets/models/qwen2.5-1.5b',
-        type: 'text',
-        size: 3072,
-        isLoaded: false,
-        isLocal: true,
-      ),
-      const ModelItem(
-        id: 'local_qwen2-vl-2b',
-        name: 'Qwen2-VL-2B',
-        path: 'assets/models/qwen2-vl-2b',
-        type: 'vision',
-        size: 4608,
-        isLoaded: false,
-        isLocal: true,
-      ),
-    ];
-
-    for (final model in defaultModels) {
+    final localModels = await _scanLocalModels();
+    for (final model in localModels) {
       await insert(model);
+    }
+  }
+
+  Future<List<ModelItem>> _scanLocalModels() async {
+    try {
+      final manifestContent = await rootBundle.loadString('AssetManifest.json');
+      final Map<String, dynamic> manifest = Map<String, dynamic>.from(
+        manifestContent.contains('"assets"')
+            ? _parseManifest(manifestContent)
+            : {},
+      );
+
+      final modelDirs = <String, List<String>>{};
+      for (final key in manifest.keys) {
+        if (key.startsWith('assets/models/')) {
+          final parts = key.split('/');
+          if (parts.length >= 3) {
+            final modelName = parts[2];
+            if (!modelDirs.containsKey(modelName)) {
+              modelDirs[modelName] = [];
+            }
+            modelDirs[modelName]!.add(key);
+          }
+        }
+      }
+
+      final localModels = <ModelItem>[];
+      for (final entry in modelDirs.entries) {
+        final modelName = entry.key;
+        final files = entry.value;
+        final hasVision = files.any(
+          (f) =>
+              f.contains('_vl') || f.contains('vision') || f.contains('_image'),
+        );
+
+        final totalSize = await _estimateModelSize(modelName);
+
+        localModels.add(
+          ModelItem(
+            id: 'local_$modelName',
+            name: _formatModelName(modelName),
+            path: 'assets/models/$modelName',
+            type: hasVision ? 'vision' : 'text',
+            size: totalSize,
+            isLoaded: false,
+            isLocal: true,
+          ),
+        );
+      }
+
+      if (localModels.isEmpty) {
+        localModels.add(
+          const ModelItem(
+            id: 'local_placeholder',
+            name: '暂无本地模型',
+            path: '',
+            type: 'text',
+            size: 0,
+            isLoaded: false,
+            isLocal: true,
+          ),
+        );
+      }
+
+      return localModels;
+    } catch (e) {
+      return [
+        const ModelItem(
+          id: 'local_placeholder',
+          name: '暂无本地模型',
+          path: '',
+          type: 'text',
+          size: 0,
+          isLoaded: false,
+          isLocal: true,
+        ),
+      ];
+    }
+  }
+
+  Map<String, dynamic> _parseManifest(String content) {
+    final Map<String, dynamic> result = {};
+    try {
+      final lines = content.split('\n');
+      for (final line in lines) {
+        if (line.contains('": [')) {
+          final keyMatch = RegExp(r'"([^"]+)":\s*\[').firstMatch(line);
+          if (keyMatch != null) {
+            final key = keyMatch.group(1)!;
+            final assets = <String>[];
+            final assetMatches = RegExp(r'"([^"]+)"').allMatches(line);
+            for (final m in assetMatches) {
+              if (m.group(1) != null) {
+                assets.add(m.group(1)!);
+              }
+            }
+            if (assets.isNotEmpty) {
+              result[key] = assets;
+            }
+          }
+        }
+      }
+    } catch (_) {}
+    return result;
+  }
+
+  String _formatModelName(String name) {
+    return name
+        .replaceAll('-', ' ')
+        .replaceAll('_', ' ')
+        .split(' ')
+        .map(
+          (w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '',
+        )
+        .join(' ');
+  }
+
+  Future<int> _estimateModelSize(String modelName) async {
+    try {
+      final manifestContent = await rootBundle.loadString('AssetManifest.json');
+      int totalSize = 0;
+      for (final key in manifestContent.split('"')) {
+        if (key.contains('assets/models/$modelName/') && key.endsWith('.bin')) {
+          totalSize += 1024 * 1024;
+        }
+      }
+      return totalSize > 0 ? totalSize : 1024;
+    } catch (_) {
+      return 1024;
     }
   }
 }

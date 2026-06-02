@@ -29,7 +29,7 @@ class LiteRTModel {
 class LiteRTModels {
   static const gemma4E4B = LiteRTModel(
     id: 'gemma4-e4b',
-    name: 'gemma-4-E2B-it',
+    name: 'gemma-4-E4B-it',
     displayName: 'Gemma-4-E4B',
     minMemoryGb: 12,
     description: 'Gemma 4 4B parameters, supports image input',

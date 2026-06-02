@@ -3,7 +3,7 @@ import 'audio_input_handler.dart';
 import 'image_input_handler.dart';
 import 'file_input_handler.dart';
 
-enum MultimodalInputType { audio, image, camera, file }
+enum MultimodalInputType { audio, image, camera, file, voice, video }
 
 class MultimodalInput {
   final MultimodalInputType type;

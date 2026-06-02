@@ -17,6 +17,7 @@ import io.flutter.plugin.common.MethodChannel
 import com.ibloc.shadow.litert.LitertEngine
 import com.ibloc.shadow.pcm.PcmAudioRecorder
 import com.ibloc.shadow.tts.TtsManager
+import com.ibloc.shadow.http.MobileActionServer
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -31,6 +32,7 @@ class MainActivity : FlutterActivity() {
     private val LITERT_CHANNEL = "com.ibloc.shadow/litert"
     private val TTS_CHANNEL = "com.ibloc.shadow/tts"
     private val PCM_AUDIO_CHANNEL = "com.ibloc.shadow/pcm_audio"
+    private val HTTP_SERVER_CHANNEL = "com.ibloc.shadow/http_server"
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     
@@ -54,6 +56,7 @@ class MainActivity : FlutterActivity() {
         setupLitertChannel(flutterEngine)
         setupTtsChannel(flutterEngine)
         setupPcmAudioChannel(flutterEngine)
+        setupHttpServerChannel(flutterEngine)
         
         // MNN MethodChannel - commented out, keeping for future reference
         // MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
@@ -250,6 +253,9 @@ class MainActivity : FlutterActivity() {
                 "isSpeaking" -> {
                     result.success(ttsManager?.isSpeaking?.value ?: false)
                 }
+                "isInitialized" -> {
+                    result.success(ttsManager?.isInitialized() ?: false)
+                }
                 else -> result.notImplemented()
             }
         }
@@ -284,6 +290,29 @@ class MainActivity : FlutterActivity() {
                 }
                 "getElapsedTimeMs" -> {
                     result.success(pcmAudioRecorder?.getElapsedTimeMs() ?: 0L)
+                }
+                else -> result.notImplemented()
+            }
+        }
+    }
+
+    private fun setupHttpServerChannel(flutterEngine: FlutterEngine) {
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, HTTP_SERVER_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "start" -> {
+                    val port = call.argument<Int>("port") ?: 8080
+                    val success = MobileActionServer.start(port)
+                    result.success(success)
+                }
+                "stop" -> {
+                    MobileActionServer.stop()
+                    result.success(true)
+                }
+                "isRunning" -> {
+                    result.success(MobileActionServer.instance != null)
+                }
+                "getPort" -> {
+                    result.success(MobileActionServer.instance?.listeningPort ?: -1)
                 }
                 else -> result.notImplemented()
             }

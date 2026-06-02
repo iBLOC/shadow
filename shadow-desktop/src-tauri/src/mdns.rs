@@ -177,3 +177,91 @@ pub async fn resolve_service(service_name: &str) -> Result<Option<DiscoveredServ
         Ok(None)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_discovered_service_creation() {
+        let service = DiscoveredService {
+            name: "resonance".to_string(),
+            host: "192.168.1.100".to_string(),
+            port: 8080,
+            txt_records: HashMap::new(),
+        };
+        assert_eq!(service.name, "resonance");
+        assert_eq!(service.host, "192.168.1.100");
+        assert_eq!(service.port, 8080);
+        assert!(service.txt_records.is_empty());
+    }
+
+    #[test]
+    fn test_discovered_service_with_txt_records() {
+        let mut txt_records = HashMap::new();
+        txt_records.insert("version".to_string(), "1.0.0".to_string());
+        txt_records.insert("capabilities".to_string(), "chat,memory".to_string());
+
+        let service = DiscoveredService {
+            name: "shadow-desktop".to_string(),
+            host: "localhost".to_string(),
+            port: 8082,
+            txt_records,
+        };
+        assert_eq!(service.txt_records.get("version"), Some(&"1.0.0".to_string()));
+        assert_eq!(service.txt_records.get("capabilities"), Some(&"chat,memory".to_string()));
+    }
+
+    #[test]
+    fn test_discovered_service_serialization() {
+        let service = DiscoveredService {
+            name: "test-service".to_string(),
+            host: "127.0.0.1".to_string(),
+            port: 9000,
+            txt_records: HashMap::new(),
+        };
+        let json = serde_json::to_string(&service).unwrap();
+        assert!(json.contains("test-service"));
+        assert!(json.contains("127.0.0.1"));
+        assert!(json.contains("9000"));
+        let deserialized: DiscoveredService = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.name, "test-service");
+        assert_eq!(deserialized.port, 9000);
+    }
+
+    #[test]
+    fn test_discovered_service_clone() {
+        let service = DiscoveredService {
+            name: "clone".to_string(),
+            host: "clone.host".to_string(),
+            port: 1234,
+            txt_records: HashMap::new(),
+        };
+        let cloned = service.clone();
+        assert_eq!(cloned.name, service.name);
+        assert_eq!(cloned.host, service.host);
+        assert_eq!(cloned.port, service.port);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn test_extract_host_port_with_port() {
+        let line = "hostname=myhost.local:8080";
+        let result = extract_host_port(line);
+        assert!(result.is_some());
+        let (host, port) = result.unwrap();
+        assert_eq!(host, "myhost.local");
+        assert_eq!(port, 8080);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn test_extract_host_port_without_port() {
+        let line = "hostname=myhost.local";
+        let result = extract_host_port(line);
+        assert!(result.is_some());
+        let (host, port) = result.unwrap();
+        assert_eq!(host, "myhost.local");
+        assert_eq!(port, 8080);
+    }
+}

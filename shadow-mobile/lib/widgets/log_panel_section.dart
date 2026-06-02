@@ -72,10 +72,12 @@ class _LogPanelSectionState extends ConsumerState<LogPanelSection> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               const Icon(Icons.article_outlined, size: 20),
-              const SizedBox(width: 8),
               const Text(
                 '日志',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
@@ -94,7 +96,6 @@ class _LogPanelSectionState extends ConsumerState<LogPanelSection> {
                       .setSourceFilter(selected.first);
                 },
               ),
-              const SizedBox(width: 8),
               PopupMenuButton<LogLevel?>(
                 icon: const Icon(Icons.filter_list),
                 onSelected: (level) {
