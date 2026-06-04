@@ -20,6 +20,19 @@
       "installDesc": "Add to home screen for one-tap launch and native feel",
       "install": "Install"
     },
+    "migrate": {
+      "title": "Move session",
+      "description": "Hand off this conversation to another Shadow node on the LAN and pick it up there.",
+      "selectPeer": "Pick a target device",
+      "noPeers": "No Shadow nodes discovered yet",
+      "confirm": "Move now",
+      "preparing": "Preparing…",
+      "inProgress": "Sending to {peer}…",
+      "success": "Moved to {peer}",
+      "error": "Move failed: {error}",
+      "sizeKb": "{kb} KB",
+      "messageCount": "{count} messages"
+    },
     "stopped": "Stopped",
     "error": "Error",
     "settings": "Settings",

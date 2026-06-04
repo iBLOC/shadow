@@ -108,6 +108,40 @@ export class PrefrontalClient {
     await this.request(`/api/sessions/${sessionId}`, { method: 'DELETE' });
   }
 
+  async exportSession(sessionId: string): Promise<unknown> {
+    return this.request<unknown>(`/api/sessions/${sessionId}/export`);
+  }
+
+  async prepareMigration(sessionId: string): Promise<{
+    ready_for_migration: boolean;
+    session_id: string;
+    payload: unknown;
+    size_bytes: number;
+  }> {
+    return this.request(`/api/sessions/${sessionId}/migrate`);
+  }
+
+  async importSession(payload: unknown, opts: { newId?: boolean } = {}): Promise<unknown> {
+    return this.request('/api/sessions/import', {
+      method: 'POST',
+      body: JSON.stringify({
+        payload,
+        new_id: opts.newId ?? true,
+      }),
+    });
+  }
+
+  async listA2APeers(): Promise<{ count: number; data: unknown[] }> {
+    return this.request<{ count: number; data: unknown[] }>('/api/a2a/peers');
+  }
+
+  async registerA2APeer(id: string, url: string, fetchCard = true): Promise<unknown> {
+    return this.request('/api/a2a/peers', {
+      method: 'POST',
+      body: JSON.stringify({ id, url, fetch_card: fetchCard }),
+    });
+  }
+
   async addSessionMessage(
     sessionId: string,
     role: string,

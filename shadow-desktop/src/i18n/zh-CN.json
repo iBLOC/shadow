@@ -16,6 +16,19 @@
       "installDesc": "添加到桌面，一键启动，享受原生体验",
       "install": "安装"
     },
+    "migrate": {
+      "title": "迁移对话",
+      "description": "将当前对话移动到局域网内的另一台 Shadow 设备继续。",
+      "selectPeer": "选择目标设备",
+      "noPeers": "未发现 Shadow 节点",
+      "confirm": "开始迁移",
+      "preparing": "准备中...",
+      "inProgress": "正在发送到 {peer}...",
+      "success": "对话已迁移到 {peer}",
+      "error": "迁移失败：{error}",
+      "sizeKb": "{kb} KB",
+      "messageCount": "{count} 条消息"
+    },
     "confirm": "确认",
     "enabled": "已启用",
     "disabled": "已禁用",

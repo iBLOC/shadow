@@ -618,3 +618,9 @@
   color: var(--text-muted, #71717a);
   font-style: italic;
 }
+
+.move-session-row {
+  display: flex;
+  justify-content: flex-end;
+  padding: 8px 16px 0 16px;
+}

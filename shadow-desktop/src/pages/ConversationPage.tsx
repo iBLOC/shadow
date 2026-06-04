@@ -5,6 +5,8 @@ import { useConversationStore } from '../stores/conversationStore';
 import { useAgentStore } from '../stores/agentStore';
 import { useCompanionModeStore } from '../stores/companionModeStore';
 import { Button, EmptyState } from '../components/ui';
+import { MoveSessionDialog } from '../components/MoveSessionDialog';
+import '../components/MoveSessionDialog.css';
 import {
   Send,
   Plus,
@@ -16,6 +18,7 @@ import {
   Sparkles,
   Mic,
   Radio,
+  ArrowRightLeft,
 } from 'lucide-react';
 import type { Conversation, Message } from '../types';
 import './ConversationPage.css';
@@ -38,6 +41,7 @@ export function ConversationPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showAgentSelector, setShowAgentSelector] = useState(false);
+  const [showMoveDialog, setShowMoveDialog] = useState(false);
   
   const activeConversation = conversations.find(c => c.id === activeConversationId);
 
@@ -297,6 +301,29 @@ export function ConversationPage() {
             </div>
             
             <CompanionModePanel />
+
+            {activeConversationId && (
+              <div className="move-session-row">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={<ArrowRightLeft size={16} />}
+                  onClick={() => setShowMoveDialog(true)}
+                >
+                  {t('common.migrate.title')}
+                </Button>
+              </div>
+            )}
+
+            <MoveSessionDialog
+              open={showMoveDialog}
+              sessionId={activeConversationId}
+              messageCount={0}
+              onClose={() => setShowMoveDialog(false)}
+              onMigrated={(newId, peerName) => {
+                console.log('Session migrated to', peerName, 'as', newId);
+              }}
+            />
 
             <div className="input-container">
               <div className="input-wrapper">
