@@ -1,122 +1,155 @@
 # PROJECT KNOWLEDGE BASE
 
-**Generated:** 2026-03-14
-**Updated:** 2026-03-21
-**Project:** shadow-desktop (Tauri Desktop App)
+**Updated:** 2026-06-04
+**Project:** shadow-desktop (Layer 4 — Interaction)
 
-## OVERVIEW
+## ARCHITECTURAL ROLE
 
-Shadow 桌面端应用，基于 Tauri (Rust + React)。作为用户分身的桌面界面，通过 Prefrontal 执行任务，支持 CopilotKit Agent2UI 和 candle-vllm 本地推理。
+Shadow-Desktop is the **Interaction Layer** (Layer 4) of the Shadow Platform 4-layer architecture. It is a **thin UI client** that talks to:
 
-## 架构定位
+- **Agent Layer** (Prefrontal) via OpenAI `/v1/*` and A2A protocols
+- **Engine Layer** (optional, when bundling local models) via OpenAI `/v1/*`
 
-```
-Shadow-Desktop
-    │
-    ├── UI Shell (React 19 + Zustand)
-    │         │
-    │         └── CopilotKit (Agent2UI)
-    │
-    ├── Prefrontal Client (HTTP API → :8082)
-    │
-    └── Candle-VLLM (本地模型推理，可选)
-```
+**Reference**: `/home/ibloc/Projects/docs/superpowers/specs/2026-06-04-shadow-architecture-redesign.md`
+
+## KEY PRINCIPLE: THIN CLIENT
+
+The desktop app should NOT directly know about LLM/TTS/ASR internals. It only:
+1. Sends user input to Agent (OpenAI `/v1/chat/completions` or A2A)
+2. Receives streamed responses (SSE / WebSocket)
+3. Plays TTS (via browser `Audio` element from `/v1/audio/speech` response)
+4. Captures mic audio (WebRTC for Companion Mode)
+5. Renders UI (React 19 + Tauri 2)
 
 ## STRUCTURE
 
 ```
 shadow-desktop/
-├── src/                    # TypeScript frontend (React 19)
-│   ├── App.tsx            # Root component
-│   ├── main.tsx          # Entry point
-│   ├── components/       # Reusable UI components
-│   ├── hooks/           # Custom React hooks
-│   ├── pages/            # Route pages
-│   ├── stores/           # Zustand state stores (HTTP API calls)
-│   ├── lib/              # Utilities
-│   ├── types/            # TypeScript types
-│   └── i18n/             # Internationalization
-└── src-tauri/            # Rust backend
-    ├── src/lib.rs        # Prefrontal integration + window controls
-    ├── Cargo.toml        # Rust dependencies (Prefrontal crate)
-    └── tauri.conf.json   # Tauri config
+├── src/                          # TypeScript frontend (React 19)
+│   ├── App.tsx                   # Root
+│   ├── main.tsx                  # Entry
+│   ├── pages/                    # Routes
+│   │   ├── ConversationPage.tsx  # Includes CompanionModePanel (WebRTC)
+│   │   ├── AgentsPage.tsx
+│   │   ├── ModelsPage.tsx
+│   │   ├── SettingsPage.tsx
+│   │   ├── SetupPage.tsx
+│   │   ├── MCPPage.tsx
+│   │   ├── MemoryPage.tsx
+│   │   ├── SkillsPage.tsx
+│   │   └── TaskBoardPage.tsx
+│   ├── components/
+│   │   ├── AppInitializer.tsx
+│   │   ├── Layout.tsx
+│   │   ├── DatabaseSettings.tsx
+│   │   ├── business/             # Business components
+│   │   └── ui/                   # Reusable UI primitives
+│   ├── stores/                   # Zustand stores
+│   │   ├── companionModeStore.ts # NEW: WebRTC companion state
+│   │   ├── conversationStore.ts
+│   │   ├── agentStore.ts
+│   │   ├── resonanceStore.ts
+│   │   └── ...
+│   ├── lib/                      # Utilities
+│   │   ├── webrtcCompanion.ts    # NEW: RTCPeerConnection + WebSocket signaling
+│   │   ├── prefrontalClient.ts   # OpenAI-style HTTP client
+│   │   └── ...
+│   ├── i18n/
+│   ├── hooks/
+│   └── types/
+└── src-tauri/                    # Tauri 2 backend (RUST — Layer 3 host)
+    ├── src/lib.rs                # Prefrontal embedding + window mgmt
+    └── Cargo.toml
 ```
 
-## WHERE TO LOOK
+## INBOUND PROTOCOLS (calls Prefrontal)
 
-| Task | Location | Notes |
-|------|----------|-------|
-| UI Components | `src/components/` | React components |
-| State Management | `src/stores/` | Zustand stores (HTTP API) |
-| Routes/Pages | `src/pages/` | React Router pages |
-| CopilotKit Integration | `src/lib/copilotkit.ts` | Agent2UI setup |
-| Prefrontal Client | `src-tauri/src/lib.rs` | Rust-side Prefrontal calls |
-| Config | `tauri.conf.json` | App window/settings |
+All HTTP calls go to standard endpoints. **No custom Tauri invoke for chat!**
+
+```typescript
+// LLM Chat (streaming)
+POST {host}/v1/chat/completions
+  body: { model, messages, stream: true }
+  returns: SSE
+
+// TTS
+POST {host}/v1/audio/speech
+  body: { model: "tts-1", input: "Hello", voice: "alloy", response_format: "mp3" }
+  returns: audio/mpeg
+
+// ASR (when needed)
+POST {host}/v1/audio/transcriptions
+  body: multipart { file, model: "whisper-1" }
+  returns: { text }
+
+// Sessions
+POST {host}/api/sessions
+GET  {host}/api/sessions/{id}
+
+// WebSocket streaming
+WS {host}/api/sessions/{id}/ws
+
+// WebRTC (Companion Mode)
+POST {host}/api/sessions/{id}/webrtc/offer  → { sdp: answer, ice: ... }
+
+// Agent discovery
+GET  {host}/.well-known/agent.json  → A2A AgentCard
+```
+
+## mDNS SERVICE DISCOVERY
+
+On startup, browser uses WebRTC mDNS or HTTP-based discovery to find nearby Prefrontal instances:
+
+```typescript
+// mDNS query for _shadow._tcp services
+// then for each found service, GET /.well-known/agent.json
+// display in settings UI: "Found Agent: home-server.local:8082"
+```
+
+## COMPANION MODE (WebRTC)
+
+The `webrtcCompanion.ts` service uses:
+- `RTCPeerConnection` (browser native) for peer connection
+- `WebSocket` to `ws://{host}/api/sessions/{id}/ws` for signaling (SDP/ICE)
+- Microphone via `navigator.mediaDevices.getUserMedia`
+- Opus codec (auto-negotiated)
+- Audio playback via `<audio>` element
 
 ## CONVENTIONS
 
-- **Frontend**: React 19, TypeScript
-- **Build**: Vite 7, pnpm
-- **State**: Zustand 5
-- **Routing**: react-router-dom 7
-- **Validation**: Zod
-- **i18n**: i18next + react-i18next
-- **Tauri**: v2
-- **Agent2UI**: CopilotKit
-- **API Communication**: HTTP fetch / WebSocket
+- React 19 with TypeScript
+- Zustand for state management
+- React Router 7
+- i18next + react-i18next
+- Zod for validation
+- NEVER use Tauri invoke for chat — always HTTP
+- Tauri only for OS-level (window, tray, notifications, fs)
 
-## 与 RESONANCE 的连接
-
-### 连接流程
-1. mDNS 发现 `_shadow._tcp` 服务
-2. 主动建立 mTLS 连接
-3. TLS 双向认证
-4. A2A 能力注册（模型/Skill/MCP）
-5. WebSocket 接收任务推送
-
-### 环境变量
-```bash
-export RESONANCE_HOST="http://localhost:8080"
-export SHADOW_ID="uuid"
-export MTLS_CERT_PATH="/path/to/client.pem"
-export MTLS_KEY_PATH="/path/to/client.key"
-export MTLS_CA_PATH="/path/to/ca.pem"
-```
-
-## API ENDPOINTS
-
-| Service | URL | Purpose |
-|---------|-----|---------|
-| Resonance | `http://localhost:8080` | 任务派发、模型评分 |
-| Prefrontal | `http://localhost:8082` | 任务执行、Agent 管理 |
-| Hippocampus | `http://localhost:8081` | 记忆存储和搜索 |
-
-## 本地模型 (CANDLE-VLLM)
-
-Candle-VLLM 集成用于本地大模型推理：
-- 路径：`src-tauri/` 中的 Rust 集成
-- 模型来源：魔搭社区下载
-- 配置：通过 Prefrontal 的模型管理接口
-
-## COMMANDS
+## BUILD COMMANDS
 
 ```bash
-# Development
-pnpm dev
-
-# Build frontend
-pnpm build
-
-# Run Tauri
-pnpm tauri dev
-
-# Build Tauri app
-pnpm tauri build
+pnpm dev                  # Vite dev server
+pnpm build                # validate-i18n + tsc + lint + vite build
+pnpm tauri dev            # Tauri dev with hot reload
+pnpm tauri build          # Production bundle
+pnpm test                 # Vitest
 ```
 
-## NOTES
+## STATE STATUS (2026-06-04)
 
-- Rust 后端负责 Prefrontal 集成和窗口控制
-- CopilotKit 提供 Agent2UI 能力（对话式 + 自动化）
-- 所有数据操作通过 HTTP API 与 Prefrontal/Hippocampus 通信
-- mTLS 证书管理在首次连接时初始化
+**Completed** ✅:
+- React 19 + Tauri 2 foundation
+- Zustand stores for all entities
+- PrefrontalClient (HTTP)
+- ConversationPage with text chat
+- CompanionModePanel (WebRTC) — my recent addition
+- webrtcCompanion.ts (browser RTCPeerConnection)
+- companionModeStore.ts (VAD/barge-in/multi-turn state)
+- i18n (zh-CN + en-US)
+- mDNS service discovery (HTTP-based)
+
+**Planned** 📋:
+- Tauri Rust backend → embed Prefrontal core (drop in-process, no separate service)
+- Replace Tauri invoke commands with HTTP
+- A2A AgentCard UI (show remote agents)
+- Cross-device session transfer
