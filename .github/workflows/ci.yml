@@ -1,0 +1,119 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  prefrontal-rust:
+    name: Prefrontal Rust
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout shadow
+        uses: actions/checkout@v4
+
+      - name: Checkout prefrontal
+        uses: actions/checkout@v4
+        with:
+          path: ../prefrontal
+          sparse-checkout: |
+            Cargo.toml
+            src
+            tests
+            benches
+
+      - name: Setup Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ../prefrontal
+
+      - name: Cargo check
+        working-directory: ../prefrontal
+        run: cargo check --manifest-path Cargo.toml
+
+      - name: Cargo test
+        working-directory: ../prefrontal
+        run: cargo test --manifest-path Cargo.toml
+
+      - name: Cargo clippy
+        working-directory: ../prefrontal
+        run: cargo clippy --manifest-path Cargo.toml -- -D warnings
+
+  desktop-build:
+    name: Desktop Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: pnpm
+          cache-dependency-path: shadow-desktop/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: shadow-desktop
+        run: pnpm install --frozen-lockfile
+
+      - name: TypeScript check
+        working-directory: shadow-desktop
+        run: pnpm exec tsc --noEmit
+
+      - name: Build Tauri
+        working-directory: shadow-desktop
+        run: pnpm build
+
+      - name: Build web
+        working-directory: shadow-desktop
+        run: pnpm build:web
+
+  mobile-analyze:
+    name: Mobile Analyze
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: temurin
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.11'
+          channel: stable
+
+      - name: Cache Flutter pub
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-flutter-pub-${{ hashFiles('shadow-mobile/pubspec.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-pub-
+
+      - name: Flutter pub get
+        working-directory: shadow-mobile
+        run: flutter pub get
+
+      - name: Flutter analyze
+        working-directory: shadow-mobile
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
