@@ -13,10 +13,10 @@ import kotlin.concurrent.thread
 class OpenAIServer(private val context: Context) {
     companion object {
         private const val TAG = "OpenAIServer"
-        private const val DEFAULT_PORT = 8080
+        private const val DEFAULT_PORT = 8085
         private const val MAX_THREADS = 4
     }
-    
+
     private var serverSocket: ServerSocket? = null
     private var isRunning = false
     private var port = DEFAULT_PORT
@@ -24,6 +24,17 @@ class OpenAIServer(private val context: Context) {
     private var authEnabled = true
     private var apiKey = generateApiKey()
     private val executor = Executors.newFixedThreadPool(MAX_THREADS)
+
+    @Volatile
+    private var engineProvider: EngineProvider? = null
+
+    fun interface EngineProvider {
+        fun generate(prompt: String): String
+    }
+
+    fun setEngineProvider(provider: EngineProvider?) {
+        engineProvider = provider
+    }
     
     fun start(): Boolean {
         if (isRunning) return true
@@ -150,7 +161,12 @@ class OpenAIServer(private val context: Context) {
             val lastUserMessage = messages.lastOrNull { it["role"] == "user" }
             val prompt = lastUserMessage?.get("content") ?: ""
 
-            val response = PrefrontalMNN.generate(prompt)
+            val provider = engineProvider
+            val response = if (provider != null) {
+                provider.generate(prompt)
+            } else {
+                "Error: no LLM engine registered. Call setEngineProvider() first."
+            }
 
             if (isStream) {
                 handleChatCompletionStream(writer, request.model ?: "litert-local", prompt, response)
@@ -353,6 +369,7 @@ class OpenAIServer(private val context: Context) {
     fun setAuthEnabled(enabled: Boolean) { authEnabled = enabled }
     fun setApiKey(key: String) { apiKey = key }
     fun getApiKey(): String = apiKey
+    fun setEngineProviderCompat(provider: EngineProvider?) { engineProvider = provider }
     
     private fun generateApiKey(): String {
         val chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"

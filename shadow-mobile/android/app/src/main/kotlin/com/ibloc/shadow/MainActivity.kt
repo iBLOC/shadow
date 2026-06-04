@@ -11,10 +11,9 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
-// MNN imports - commented out, keeping for future reference
-// import com.ibloc.shadow.mnn.PrefrontalMNN
-// import com.ibloc.shadow.mnn.OpenAIServerManager
 import com.ibloc.shadow.litert.LitertEngine
+import com.ibloc.shadow.mnn.OpenAIServer
+import com.ibloc.shadow.mnn.OpenAIServerManager
 import com.ibloc.shadow.pcm.PcmAudioRecorder
 import com.ibloc.shadow.tts.TtsManager
 import com.ibloc.shadow.http.MobileActionServer
@@ -32,7 +31,9 @@ class MainActivity : FlutterActivity() {
     private val LITERT_CHANNEL = "com.ibloc.shadow/litert"
     private val TTS_CHANNEL = "com.ibloc.shadow/tts"
     private val PCM_AUDIO_CHANNEL = "com.ibloc.shadow/pcm_audio"
+    private val PCM_AUDIO_STREAM_CHANNEL = "com.ibloc.shadow/pcm_audio_stream"
     private val HTTP_SERVER_CHANNEL = "com.ibloc.shadow/http_server"
+    private val ENGINE_CHANNEL = "com.ibloc.shadow/engine"
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     
@@ -43,10 +44,13 @@ class MainActivity : FlutterActivity() {
     private var litertEngine: LitertEngine? = null
     private var ttsManager: TtsManager? = null
     private var pcmAudioRecorder: PcmAudioRecorder? = null
+
+    private var engineRegistrationListener: NsdManager.RegistrationListener? = null
+    private var engineRegisteredName: String? = null
     
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        
+
         nsdManager = getSystemService(Context.NSD_SERVICE) as NsdManager
         pcmAudioRecorder = PcmAudioRecorder(this)
 
@@ -57,41 +61,7 @@ class MainActivity : FlutterActivity() {
         setupTtsChannel(flutterEngine)
         setupPcmAudioChannel(flutterEngine)
         setupHttpServerChannel(flutterEngine)
-        
-        // MNN MethodChannel - commented out, keeping for future reference
-        // MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
-        //     when (call.method) {
-        //         "initialize" -> {
-        //             val modelPath = call.argument<String>("modelPath") ?: ""
-        //             val threadNum = call.argument<Int>("threadNum") ?: 4
-        //             val backendType = call.argument<Int>("backendType") ?: 0
-        //             result.success(PrefrontalMNN.initialize(modelPath, threadNum, backendType))
-        //         }
-        //         "loadModel" -> {
-        //             val configPath = call.argument<String>("configPath") ?: ""
-        //             result.success(PrefrontalMNN.loadModel(configPath))
-        //         }
-        //         "generate" -> {
-        //             val prompt = call.argument<String>("prompt") ?: ""
-        //             result.success(PrefrontalMNN.generate(prompt))
-        //         }
-        //         "getModelInfo" -> result.success(PrefrontalMNN.getModelInfo())
-        //         "isInitialized" -> result.success(PrefrontalMNN.isInitialized())
-        //         "isModelLoaded" -> result.success(PrefrontalMNN.isModelLoaded())
-        //         "release" -> { PrefrontalMNN.release(); result.success(null) }
-        //         "startServer" -> {
-        //             val port = call.argument<Int>("port") ?: 8080
-        //             result.success(OpenAIServerManager.startServer(applicationContext, port))
-        //         }
-        //         "stopServer" -> { OpenAIServerManager.stopServer(); result.success(null) }
-        //         "isServerRunning" -> result.success(OpenAIServerManager.isServerRunning())
-        //         "getServerUrl" -> result.success(OpenAIServerManager.getServerUrl())
-        //         "getApiKey" -> result.success(OpenAISServerManager.getApiKey())
-        //         "setApiKey" -> { OpenAIServerManager.setApiKey(call.argument<String>("key") ?: ""); result.success(null) }
-        //         "setServerAuthEnabled" -> { OpenAIServerManager.setAuthEnabled(call.argument<Boolean>("enabled") ?: true); result.success(null) }
-        //         else -> result.notImplemented()
-        //     }
-        // }
+        setupEngineChannel(flutterEngine)
     }
     
     private fun setupAccessibilityChannel(flutterEngine: FlutterEngine) {
@@ -155,6 +125,74 @@ class MainActivity : FlutterActivity() {
         )
     }
     
+    private fun bindEngineToLiteRT() {
+        val engine = litertEngine ?: return
+        OpenAIServerManager.setEngineProvider(OpenAIServer.EngineProvider { prompt ->
+            kotlinx.coroutines.runBlocking {
+                engine.generateContent(prompt)
+            }
+        })
+    }
+
+    private fun registerEngineService(port: Int) {
+        val manager = nsdManager ?: run {
+            android.util.Log.w("MainActivity", "NsdManager unavailable; engine not advertised")
+            return
+        }
+        if (engineRegistrationListener != null) return
+
+        val serviceInfo = NsdServiceInfo().apply {
+            serviceName = "shadow-engine-${android.os.Build.MODEL}"
+                .replace(' ', '_')
+                .take(63)
+            serviceType = "_shadow._tcp."
+            this.port = port
+            setAttribute("id", android.provider.Settings.Secure.getString(
+                contentResolver, android.provider.Settings.Secure.ANDROID_ID
+            ) ?: "android-unknown")
+            setAttribute("name", "Shadow Mobile Engine")
+            setAttribute("type", "engine")
+            setAttribute("capabilities", "llm,asr,tts")
+            setAttribute("endpoints", "chat,chat_stream,audio_speech,audio_transcriptions,models")
+            setAttribute("version", "1.0")
+        }
+
+        val listener = object : NsdManager.RegistrationListener {
+            override fun onServiceRegistered(serviceInfo: NsdServiceInfo) {
+                engineRegisteredName = serviceInfo.serviceName
+                android.util.Log.i("MainActivity", "Engine advertised as ${serviceInfo.serviceName}")
+            }
+            override fun onRegistrationFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
+                android.util.Log.e("MainActivity", "Engine registration failed: $errorCode")
+            }
+            override fun onServiceUnregistered(arg0: NsdServiceInfo) {
+                android.util.Log.i("MainActivity", "Engine unregistered")
+            }
+            override fun onUnregistrationFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
+                android.util.Log.w("MainActivity", "Engine unregistration failed: $errorCode")
+            }
+        }
+
+        try {
+            manager.registerService(serviceInfo, NsdManager.PROTOCOL_DNS_SD, listener)
+            engineRegistrationListener = listener
+        } catch (e: Exception) {
+            android.util.Log.e("MainActivity", "registerService threw", e)
+        }
+    }
+
+    private fun unregisterEngineService() {
+        val manager = nsdManager ?: return
+        val listener = engineRegistrationListener ?: return
+        try {
+            manager.unregisterService(listener)
+        } catch (e: Exception) {
+            android.util.Log.w("MainActivity", "unregisterService threw", e)
+        }
+        engineRegistrationListener = null
+        engineRegisteredName = null
+    }
+
     private fun setupMdnsChannel(flutterEngine: FlutterEngine) {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, MDNS_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
@@ -262,6 +300,18 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun setupPcmAudioChannel(flutterEngine: FlutterEngine) {
+        EventChannel(flutterEngine.dartExecutor.binaryMessenger, PCM_AUDIO_STREAM_CHANNEL).setStreamHandler(
+            object : EventChannel.StreamHandler {
+                override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+                    pcmAudioRecorder?.setEventSink(events)
+                }
+
+                override fun onCancel(arguments: Any?) {
+                    pcmAudioRecorder?.setEventSink(null)
+                }
+            }
+        )
+
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, PCM_AUDIO_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
                 "hasPermission" -> {
@@ -314,6 +364,43 @@ class MainActivity : FlutterActivity() {
                 "getPort" -> {
                     result.success(MobileActionServer.instance?.listeningPort ?: -1)
                 }
+                else -> result.notImplemented()
+            }
+        }
+    }
+
+    private fun setupEngineChannel(flutterEngine: FlutterEngine) {
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, ENGINE_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "startServer" -> {
+                    val port = call.argument<Int>("port") ?: OpenAIServerManager.DEFAULT_PORT
+                    val advertise = call.argument<Boolean>("advertise") ?: true
+                    val authEnabled = call.argument<Boolean>("authEnabled") ?: true
+                    OpenAIServerManager.setAuthEnabled(authEnabled)
+                    val started = OpenAIServerManager.startServer(applicationContext, port)
+                    if (started && advertise) {
+                        bindEngineToLiteRT()
+                        registerEngineService(port)
+                    }
+                    result.success(started)
+                }
+                "stopServer" -> {
+                    unregisterEngineService()
+                    OpenAIServerManager.stopServer()
+                    result.success(true)
+                }
+                "isServerRunning" -> result.success(OpenAIServerManager.isServerRunning())
+                "getServerUrl" -> result.success(OpenAIServerManager.getServerUrl())
+                "getApiKey" -> result.success(OpenAIServerManager.getApiKey())
+                "setApiKey" -> {
+                    OpenAIServerManager.setApiKey(call.argument<String>("key") ?: "")
+                    result.success(true)
+                }
+                "setAuthEnabled" -> {
+                    OpenAIServerManager.setAuthEnabled(call.argument<Boolean>("enabled") ?: true)
+                    result.success(true)
+                }
+                "getServiceName" -> result.success(engineRegisteredName)
                 else -> result.notImplemented()
             }
         }
@@ -441,8 +528,8 @@ class MainActivity : FlutterActivity() {
     
     override fun onDestroy() {
         super.onDestroy()
-        // PrefrontalMNN.release()  // MNN - commented out
-        // OpenAIServerManager.stopServer()  // MNN - commented out
+        unregisterEngineService()
+        OpenAIServerManager.stopServer()
         litertEngine?.release()
         litertEngine = null
         ttsManager?.release()
