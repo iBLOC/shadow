@@ -411,4 +411,40 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get ttsTestText => '你好，这是语音合成测试';
+
+  @override
+  String get continueDesktopTitle => '继续在桌面端';
+
+  @override
+  String get continueDesktopDescription => '将会话迁移到其他设备继续。';
+
+  @override
+  String get continueDesktopConfirm => '迁移';
+
+  @override
+  String get continueDesktopNoPeers => '未发现设备';
+
+  @override
+  String continueDesktopMessageCount(int count) => '$count 条消息';
+
+  @override
+  String continueDesktopSizeKb(int kb) => '$kb KB';
+
+  @override
+  String get continueDesktopPreparing => '准备中...';
+
+  @override
+  String continueDesktopInProgress(String peer) => '正在发送到 $peer...';
+
+  @override
+  String continueDesktopSuccess(String peer) => '已迁移到 $peer';
+
+  @override
+  String continueDesktopError(String error) => '迁移失败：$error';
+
+  @override
+  String get addManually => '手动添加';
+
+  @override
+  String get confirm => '确认';
 }

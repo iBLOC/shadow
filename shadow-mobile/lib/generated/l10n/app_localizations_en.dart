@@ -415,4 +415,41 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get ttsTestText => 'Hello, this is a speech synthesis test';
+
+  @override
+  String get continueDesktopTitle => 'Continue on Desktop';
+
+  @override
+  String get continueDesktopDescription =>
+      'Transfer this conversation to continue on another device.';
+
+  @override
+  String get continueDesktopConfirm => 'Transfer';
+
+  @override
+  String get continueDesktopNoPeers => 'No devices found';
+
+  @override
+  String continueDesktopMessageCount(int count) => '$count messages';
+
+  @override
+  String continueDesktopSizeKb(int kb) => '$kb KB';
+
+  @override
+  String get continueDesktopPreparing => 'Preparing...';
+
+  @override
+  String continueDesktopInProgress(String peer) => 'Sending to $peer...';
+
+  @override
+  String continueDesktopSuccess(String peer) => 'Transferred to $peer';
+
+  @override
+  String continueDesktopError(String error) => 'Transfer failed: $error';
+
+  @override
+  String get addManually => 'Add Manually';
+
+  @override
+  String get confirm => 'OK';
 }

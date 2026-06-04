@@ -883,6 +883,78 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Hello, this is a speech synthesis test'**
   String get ttsTestText;
+
+  /// No description provided for @continueDesktopTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue on Desktop'**
+  String get continueDesktopTitle;
+
+  /// No description provided for @continueDesktopDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Transfer this conversation to continue on another device.'**
+  String get continueDesktopDescription;
+
+  /// No description provided for @continueDesktopConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Transfer'**
+  String get continueDesktopConfirm;
+
+  /// No description provided for @continueDesktopNoPeers.
+  ///
+  /// In en, this message translates to:
+  /// **'No devices found'**
+  String get continueDesktopNoPeers;
+
+  /// No description provided for @continueDesktopMessageCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} messages'**
+  String continueDesktopMessageCount(int count);
+
+  /// No description provided for @continueDesktopSizeKb.
+  ///
+  /// In en, this message translates to:
+  /// **'{kb} KB'**
+  String continueDesktopSizeKb(int kb);
+
+  /// No description provided for @continueDesktopPreparing.
+  ///
+  /// In en, this message translates to:
+  /// **'Preparing...'**
+  String get continueDesktopPreparing;
+
+  /// No description provided for @continueDesktopInProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Sending to {peer}...'**
+  String continueDesktopInProgress(String peer);
+
+  /// No description provided for @continueDesktopSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Transferred to {peer}'**
+  String continueDesktopSuccess(String peer);
+
+  /// No description provided for @continueDesktopError.
+  ///
+  /// In en, this message translates to:
+  /// **'Transfer failed: {error}'**
+  String continueDesktopError(String error);
+
+  /// No description provided for @addManually.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Manually'**
+  String get addManually;
+
+  /// No description provided for @confirm.
+  ///
+  /// In en, this message translates to:
+  /// **'OK'**
+  String get confirm;
 }
 
 class _AppLocalizationsDelegate

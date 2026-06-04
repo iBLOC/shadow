@@ -67,6 +67,7 @@ class ChatState {
   final VoiceState voiceState;
   final bool modelNotFound;
   final String streamingText;
+  final String? sessionId;
 
   const ChatState({
     this.messages = const [],
@@ -87,6 +88,7 @@ class ChatState {
     this.voiceState = VoiceState.idle,
     this.modelNotFound = false,
     this.streamingText = '',
+    this.sessionId,
   });
 
   static const _omit = _CopyWithOmit();
@@ -110,6 +112,7 @@ class ChatState {
     VoiceState? voiceState,
     bool? modelNotFound,
     String? streamingText,
+    String? sessionId,
   }) {
     final explicitError = !identical(errorMessage, _omit);
     final clearError = explicitError && errorMessage == null;
@@ -140,6 +143,7 @@ class ChatState {
       voiceState: voiceState ?? this.voiceState,
       modelNotFound: modelNotFound ?? this.modelNotFound,
       streamingText: streamingText ?? this.streamingText,
+      sessionId: sessionId ?? this.sessionId,
     );
   }
 }
@@ -721,6 +725,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
         try {
           _currentSessionId ??= (await _prefrontalClient.createSession()).id;
           if (_currentSessionId != null) {
+            state = state.copyWith(sessionId: _currentSessionId);
             await _prefrontalClient.addSessionMessage(
               sessionId: _currentSessionId!,
               role: 'user',

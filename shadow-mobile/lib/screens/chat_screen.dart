@@ -4,16 +4,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:genui/genui.dart' hide ChatMessage;
 import 'package:camera/camera.dart';
+import 'package:flutter_ai_toolkit/flutter_ai_toolkit.dart' as ai_toolkit;
 import '../generated/l10n/app_localizations.dart';
 import '../providers/chat_provider.dart';
 import '../providers/genui_provider.dart';
 import '../providers/conversation_mode_provider.dart';
+import '../providers/ai/prefrontal_provider.dart';
 import '../services/network_service.dart';
 import '../utils/chat_state_l10n.dart';
 import '../widgets/chat_bubble.dart';
 import '../router/app_router.dart';
 import '../theme/app_colors.dart';
 import '../multimodal/multimodal.dart';
+import '../widgets/continue_on_desktop_dialog.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   const ChatScreen({super.key});
@@ -72,6 +75,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       });
     });
 
+    // Set up audio chunk callback when conversation mode changes
+    ref.listen<ConversationState>(conversationModeProvider, (previous, next) {
+      if (next.mode == ConversationMode.conversation) {
+        ref
+            .read(chatProvider.notifier)
+            .setAudioChunkCallback(
+              (chunk) => ref
+                  .read(conversationModeProvider.notifier)
+                  .sendAudioData(chunk),
+            );
+      } else {
+        ref.read(chatProvider.notifier).setAudioChunkCallback(null);
+      }
+    });
+
     final bool modelNotReady =
         chatState.modelNotFound &&
         chatState.mode == ChatMode.litert &&
@@ -115,6 +133,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ),
         actions: [
           if ((chatState.isInitialized || chatState.isLitertReady) &&
+              !isAgent2UI &&
+              chatState.sessionId != null)
+            IconButton(
+              icon: const Icon(Icons.swap_horiz),
+              onPressed: () {
+                final sessionId = chatState.sessionId;
+                if (sessionId != null) {
+                  showContinueOnDesktopDialog(context, sessionId);
+                }
+              },
+              tooltip: l10n.continueDesktopTitle,
+            ),
+          if ((chatState.isInitialized || chatState.isLitertReady) &&
               !isAgent2UI)
             _ModeSwitcher(),
           if ((chatState.isInitialized || chatState.isLitertReady) &&
@@ -129,6 +160,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       ),
       body: isAgent2UI
           ? const _Agent2UIView()
+          : isLitertMode
+          ? const _PrefrontalChatView()
           : _LocalChatView(
               chatState: chatState,
               l10n: l10n,
@@ -292,11 +325,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     onPressed: () => Navigator.of(dialogContext).pop(),
                     child: Text(l10n.cancel),
                   ),
-                if (!isComplete && !isDownloading)
+                if (!isComplete && !isDownloading) ...[
+                  TextButton(
+                    onPressed: () {
+                      ref.read(useAgent2UIModeProvider.notifier).state = true;
+                      ref.read(chatProvider.notifier).setMode(ChatMode.off);
+                      Navigator.of(dialogContext).pop();
+                    },
+                    child: const Text('Use Agent2UI'),
+                  ),
                   TextButton(
                     onPressed: () => chatNotifier.downloadModel(),
                     child: Text(l10n.downloadNow),
                   ),
+                ],
                 if (isComplete)
                   TextButton(
                     onPressed: () => Navigator.of(dialogContext).pop(),
@@ -521,6 +563,8 @@ class _LocalChatViewState extends ConsumerState<_LocalChatView> {
                         msg.attachmentType == MultimodalInputType.audio;
                     final isVideo =
                         msg.attachmentType == MultimodalInputType.video;
+                    final isFile =
+                        msg.attachmentType == MultimodalInputType.file;
                     return Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -535,6 +579,13 @@ class _LocalChatViewState extends ConsumerState<_LocalChatView> {
                               : isImage
                               ? _ImageMessageBubble(
                                   imagePath: msg.attachmentPath,
+                                  onTap: () {
+                                    if (msg.attachmentPath != null) {
+                                      debugPrint(
+                                        'Image tapped: ${msg.attachmentPath}',
+                                      );
+                                    }
+                                  },
                                 )
                               : isAudio
                               ? _AudioMessageBubble(
@@ -546,6 +597,13 @@ class _LocalChatViewState extends ConsumerState<_LocalChatView> {
                               ? _VideoMessageBubble(
                                   videoPath: msg.attachmentPath,
                                 )
+                              : isFile
+                              ? _FileMessageBubble(
+                                  filePath: msg.attachmentPath,
+                                  fileName: msg.content.isNotEmpty
+                                      ? msg.content
+                                      : null,
+                                )
                               : MessageBubble(
                                   key: ValueKey(index),
                                   message: _toChatMessage(msg.content, role),
@@ -555,7 +613,8 @@ class _LocalChatViewState extends ConsumerState<_LocalChatView> {
                             chatState.mode == ChatMode.litert &&
                             !isVoice &&
                             !isImage &&
-                            !isVideo)
+                            !isVideo &&
+                            !isFile)
                           IconButton(
                             icon: const Icon(Icons.volume_up, size: 20),
                             onPressed: widget.onSpeak,
@@ -765,6 +824,63 @@ class _LocalChatViewState extends ConsumerState<_LocalChatView> {
       case MessageRole.system:
         return ChatMessage.system(content);
     }
+  }
+}
+
+/// Prefrontal Chat View using LlmChatView with PrefrontalProvider
+class _PrefrontalChatView extends ConsumerStatefulWidget {
+  const _PrefrontalChatView();
+
+  @override
+  ConsumerState<_PrefrontalChatView> createState() =>
+      _PrefrontalChatViewState();
+}
+
+class _PrefrontalChatViewState extends ConsumerState<_PrefrontalChatView> {
+  PrefrontalProvider? _provider;
+  String? _sessionId;
+
+  @override
+  void initState() {
+    super.initState();
+    _initProvider();
+  }
+
+  Future<void> _initProvider() async {
+    final provider = PrefrontalProvider();
+    final sessionId = await provider.createSession();
+    if (mounted) {
+      setState(() {
+        _provider = provider;
+        _sessionId = sessionId;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
+    if (_provider == null || _sessionId == null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text(l10n.initializing),
+          ],
+        ),
+      );
+    }
+
+    return ai_toolkit.LlmChatView(
+      provider: _provider!,
+      enableAttachments: true,
+      enableVoiceNotes: true,
+      welcomeMessage: l10n.welcomeMessage,
+      suggestions: [l10n.tellMeStory, l10n.whatCanYouHelp, l10n.howAudioWorks],
+    );
   }
 }
 
@@ -1159,39 +1275,66 @@ class _VoiceMessageBubble extends StatelessWidget {
 
 class _ImageMessageBubble extends StatelessWidget {
   final String? imagePath;
+  final VoidCallback? onTap;
 
-  const _ImageMessageBubble({required this.imagePath});
+  const _ImageMessageBubble({required this.imagePath, this.onTap});
 
   @override
   Widget build(BuildContext context) {
     if (imagePath == null) {
-      return Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.grey[300],
-          borderRadius: BorderRadius.circular(12),
+      return GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.grey[300],
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Icon(Icons.broken_image, color: Colors.grey),
         ),
-        child: const Icon(Icons.broken_image, color: Colors.grey),
       );
     }
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: Image.file(
-        File(imagePath!),
-        width: 200,
-        height: 200,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) {
-          return Container(
-            width: 200,
-            height: 200,
-            color: Colors.grey[300],
-            child: const Center(
-              child: Icon(Icons.broken_image, color: Colors.grey, size: 48),
-            ),
-          );
-        },
+    final file = File(imagePath!);
+    final fileExists = file.existsSync();
+
+    return GestureDetector(
+      onTap: onTap,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: fileExists
+            ? Image.file(
+                file,
+                width: 200,
+                height: 200,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    width: 200,
+                    height: 200,
+                    color: Colors.grey[300],
+                    child: const Center(
+                      child: Icon(
+                        Icons.broken_image,
+                        color: Colors.grey,
+                        size: 48,
+                      ),
+                    ),
+                  );
+                },
+              )
+            : Container(
+                width: 200,
+                height: 200,
+                color: Colors.grey[300],
+                child: const Center(
+                  child: Icon(
+                    Icons.image_not_supported,
+                    color: Colors.grey,
+                    size: 48,
+                  ),
+                ),
+              ),
       ),
     );
   }
@@ -1260,11 +1403,125 @@ class _VideoMessageBubble extends StatelessWidget {
           Icon(Icons.videocam, color: AppColors.primary, size: 40),
           const SizedBox(width: 8),
           Text(
-            'Video (not supported yet)',
+            videoPath != null ? 'Video' : 'Video (no file)',
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w500,
               color: isDark ? Colors.white : Colors.black87,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FileMessageBubble extends StatelessWidget {
+  final String? filePath;
+  final String? fileName;
+
+  const _FileMessageBubble({required this.filePath, this.fileName});
+
+  String get _displayName {
+    if (fileName != null && fileName!.isNotEmpty) return fileName!;
+    if (filePath == null) return 'File';
+    return filePath!.split('/').last;
+  }
+
+  String get _fileExtension {
+    final name = _displayName;
+    final dotIndex = name.lastIndexOf('.');
+    if (dotIndex == -1) return '';
+    return name.substring(dotIndex + 1).toLowerCase();
+  }
+
+  IconData get _fileIcon {
+    switch (_fileExtension) {
+      case 'pdf':
+        return Icons.picture_as_pdf;
+      case 'doc':
+      case 'docx':
+        return Icons.description;
+      case 'xls':
+      case 'xlsx':
+        return Icons.table_chart;
+      case 'ppt':
+      case 'pptx':
+        return Icons.slideshow;
+      case 'zip':
+      case 'rar':
+      case 'tar':
+      case 'gz':
+        return Icons.folder_zip;
+      case 'mp3':
+      case 'wav':
+      case 'aac':
+      case 'flac':
+        return Icons.audio_file;
+      case 'mp4':
+      case 'avi':
+      case 'mov':
+      case 'mkv':
+        return Icons.video_file;
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+      case 'gif':
+      case 'webp':
+      case 'bmp':
+        return Icons.image;
+      case 'txt':
+      case 'md':
+      case 'json':
+      case 'xml':
+      case 'html':
+      case 'css':
+      case 'js':
+        return Icons.code;
+      default:
+        return Icons.insert_drive_file;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(_fileIcon, color: AppColors.primary, size: 40),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _displayName,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (_fileExtension.isNotEmpty)
+                  Text(
+                    _fileExtension.toUpperCase(),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isDark ? Colors.white60 : Colors.black54,
+                    ),
+                  ),
+              ],
             ),
           ),
         ],
