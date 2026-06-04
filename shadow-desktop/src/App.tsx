@@ -10,6 +10,7 @@ import { MemoryPage } from './pages/MemoryPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { ModelsPage } from './pages/ModelsPage';
 import { SetupPage } from './pages/SetupPage';
+import { DiscoveryPage } from './pages/DiscoveryPage';
 import './App.css';
 
 function App() {
@@ -22,11 +23,12 @@ function App() {
           <Route path="tasks" element={<TaskBoardPage />} />
           <Route path="conversation" element={<ConversationPage />} />
           <Route path="agents" element={<AgentsPage />} />
+          <Route path="models" element={<ModelsPage />} />
           <Route path="mcp" element={<MCPPage />} />
           <Route path="skills" element={<SkillsPage />} />
           <Route path="memory" element={<MemoryPage />} />
           <Route path="settings" element={<SettingsPage />} />
-          <Route path="models" element={<ModelsPage />} />
+          <Route path="discovery" element={<DiscoveryPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

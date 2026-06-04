@@ -9,6 +9,7 @@ import {
   Bot,
   Settings,
   Cpu,
+  Radar,
 } from 'lucide-react';
 import { useResonanceStore } from '../stores/resonanceStore';
 import './Layout.css';
@@ -16,6 +17,7 @@ import './Layout.css';
 const navItems = [
   { path: '/tasks', icon: LayoutGrid, labelKey: 'nav.tasks', showBadge: true },
   { path: '/conversation', icon: MessageSquare, labelKey: 'nav.chat' },
+  { path: '/discovery', icon: Radar, labelKey: 'nav.discovery' },
   { path: '/agents', icon: Bot, labelKey: 'nav.agents' },
   { path: '/models', icon: Cpu, labelKey: 'nav.models' },
   { path: '/mcp', icon: Wrench, labelKey: 'nav.mcp' },
