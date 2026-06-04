@@ -367,5 +367,6 @@ Each project has an `AGENTS.md` aligned with this spec, plus per-project docs:
 
 - 🛑 移动端 Kotlin Engine 重构为独立 OpenAI 服务 (工作量大, Phase 3)
 - 🛑 ESP32 硬件适配 (Phase 6)
-- 🛑 多节点存储迁移 (Phase 5)
+- ✅ 多节点存储迁移 (Phase 5 — Neon + S3)
+- ✅ 跨服务 session 迁移 (Phase 7 — export/import/migrate)
 - 🛑 Resonance 详细改造
