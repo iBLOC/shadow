@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { invoke } from '@tauri-apps/api/core';
+import { safeInvoke } from '../lib/tauriSafe';
 
 export type DatabaseType = 'embedded' | 'external' | 'neon';
 export type DatabaseStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
@@ -58,7 +58,7 @@ export const useDatabaseStore = create<DatabaseState>((set, get) => ({
   startEmbedded: async () => {
     set({ status: 'connecting', error: null });
     try {
-      const port = await invoke<number>('start_embedded_pg');
+      const port = await safeInvoke<number>('start_embedded_pg');
       set({ status: 'connected', embeddedPort: port });
     } catch (e) {
       set({
@@ -70,7 +70,7 @@ export const useDatabaseStore = create<DatabaseState>((set, get) => ({
 
   stopEmbedded: async () => {
     try {
-      await invoke('stop_embedded_pg');
+      await safeInvoke('stop_embedded_pg');
       set({ status: 'disconnected', embeddedPort: null });
     } catch (e) {
       set({
@@ -94,25 +94,29 @@ export const useDatabaseStore = create<DatabaseState>((set, get) => ({
     }
   },
 
-  encryptValue: async (value: string) => {
+  encryptValue: async (value: string): Promise<string> => {
     const { masterPassword } = get();
     if (!masterPassword) {
       throw new Error('Master password not set');
     }
-    return invoke<string>('encrypt_value', {
+    const result = await safeInvoke<string>('encrypt_value', {
       value,
       passphrase: masterPassword,
     });
+    if (result === null) throw new Error('encrypt_value returned null');
+    return result;
   },
 
-  decryptValue: async (encrypted: string) => {
+  decryptValue: async (encrypted: string): Promise<string> => {
     const { masterPassword } = get();
     if (!masterPassword) {
       throw new Error('Master password not set');
     }
-    return invoke<string>('decrypt_value', {
+    const result = await safeInvoke<string>('decrypt_value', {
       encrypted,
       passphrase: masterPassword,
     });
+    if (result === null) throw new Error('decrypt_value returned null');
+    return result;
   },
 }));

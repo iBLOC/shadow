@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
+import { safeInvoke, safeEventListen } from '../lib/tauriSafe';
 
 export interface DiscoveredService {
   name: string;
@@ -80,8 +79,8 @@ export const useResonanceStore = create<ResonanceState>()(
 
       discoverServices: async () => {
         try {
-          const services = await invoke<DiscoveredService[]>('discover_resonance');
-          set({ discoveredServices: services, error: null });
+          const services = await safeInvoke<DiscoveredService[]>('discover_resonance');
+          set({ discoveredServices: services ?? [], error: null });
         } catch (error) {
           set({ error: String(error) });
         }
@@ -103,18 +102,17 @@ export const useResonanceStore = create<ResonanceState>()(
         try {
           const wsUrl = `wss://${selectedService.host}:${selectedService.port}/api/v1/shadow/ws`;
           
-          await invoke('ws_connect', { url: wsUrl });
-          
+          await safeInvoke('ws_connect', { url: wsUrl });
+
           set({ connectionStatus: 'connected' });
-          
+
           await get().sendCapabilityRegister();
 
-          await listen('ws_message', (event) => {
-            const msg = event.payload as WebSocketMessage;
+          await safeEventListen<WebSocketMessage>('ws_message', (msg) => {
             get().handleMessage(msg);
           });
 
-          await listen('ws_disconnected', () => {
+          await safeEventListen('ws_disconnected', () => {
             get().handleDisconnect();
           });
         } catch (error) {
@@ -124,7 +122,7 @@ export const useResonanceStore = create<ResonanceState>()(
 
       disconnect: async () => {
         try {
-          await invoke('ws_disconnect');
+          await safeInvoke('ws_disconnect');
           set({ connectionStatus: 'disconnected' });
         } catch (error) {
           set({ error: String(error) });
@@ -133,7 +131,7 @@ export const useResonanceStore = create<ResonanceState>()(
 
       sendMessage: async (message: Record<string, unknown>) => {
         try {
-          await invoke('ws_send', { message: JSON.stringify(message) });
+          await safeInvoke('ws_send', { message: JSON.stringify(message) });
         } catch (error) {
           set({ error: String(error) });
         }
@@ -266,7 +264,7 @@ export const useResonanceStore = create<ResonanceState>()(
           if (currentAttempts <= maxAttempts) {
             set({ connectionStatus: 'connecting', error: null });
             try {
-              await invoke('ws_reconnect');
+              await safeInvoke('ws_reconnect');
               set({ connectionStatus: 'connected', reconnectAttempts: 0 });
             } catch (error) {
               set({ error: String(error), connectionStatus: 'error' });

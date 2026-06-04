@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { invoke } from '@tauri-apps/api/core';
+import { safeInvoke } from '../lib/tauriSafe';
 import { useConversationStore } from '../stores/conversationStore';
 import { useAgentStore } from '../stores/agentStore';
 import { useCompanionModeStore } from '../stores/companionModeStore';
@@ -78,11 +78,14 @@ export function ConversationPage() {
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
           if (!sessionId || attempt > 0) {
-            sessionId = await invoke<string>('prefrontal_create_session');
-            setSessionId(activeConversationId, sessionId);
+            const newId = await safeInvoke<string>('prefrontal_create_session');
+            if (newId) {
+              sessionId = newId;
+              setSessionId(activeConversationId, sessionId);
+            }
           }
           
-          const response = await invoke<string>('prefrontal_process', {
+          const response = await safeInvoke<string>('prefrontal_process', {
             sessionId,
             message: input,
           });

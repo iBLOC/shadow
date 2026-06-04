@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { invoke } from '@tauri-apps/api/core';
+import { safeInvoke } from '../lib/tauriSafe';
 import { prefrontalClient } from '../lib/prefrontalClient';
 import type { Agent, AgentTask, OpenCodeInstance, OpenCodeConfig } from '../types';
 
@@ -93,17 +93,18 @@ export const useAgentStore = create<AgentState>()(
       fetchOpenCodeInstances: async () => {
         set({ isLoadingOpenCode: true });
         try {
-          const instances = await invoke<OpenCodeInstance[]>('opencode_list_instances');
-          set({ opencodeInstances: instances, isLoadingOpenCode: false });
+          const instances = await safeInvoke<OpenCodeInstance[]>('opencode_list_instances');
+          set({ opencodeInstances: instances ?? [], isLoadingOpenCode: false });
         } catch (error) {
           console.error('Failed to fetch OpenCode instances:', error);
           set({ isLoadingOpenCode: false });
         }
       },
-      launchOpenCode: async (port: number) => {
+      launchOpenCode: async (port: number): Promise<OpenCodeInstance> => {
         set({ isLoadingOpenCode: true });
         try {
-          const instance = await invoke<OpenCodeInstance>('opencode_launch', { port });
+          const instance = await safeInvoke<OpenCodeInstance>('opencode_launch', { port });
+          if (!instance) throw new Error('opencode_launch returned null');
           set((state) => ({
             opencodeInstances: [...state.opencodeInstances, instance],
             isLoadingOpenCode: false
@@ -117,7 +118,7 @@ export const useAgentStore = create<AgentState>()(
       stopOpenCode: async (instanceId: string) => {
         set({ isLoadingOpenCode: true });
         try {
-          await invoke('opencode_stop', { instanceId });
+          await safeInvoke('opencode_stop', { instanceId });
           set((state) => ({
             opencodeInstances: state.opencodeInstances.filter(i => i.id !== instanceId),
             isLoadingOpenCode: false
@@ -127,11 +128,12 @@ export const useAgentStore = create<AgentState>()(
           throw error;
         }
       },
-      checkOpenCodeInstalled: async () => {
+      checkOpenCodeInstalled: async (): Promise<boolean> => {
         try {
-          const installed = await invoke<boolean>('opencode_check_installed');
-          set({ opencodeInstalled: installed });
-          return installed;
+          const installed = await safeInvoke<boolean>('opencode_check_installed');
+          const value = installed ?? false;
+          set({ opencodeInstalled: value });
+          return value;
         } catch (error) {
           console.error('Failed to check OpenCode installation:', error);
           return false;
@@ -140,7 +142,7 @@ export const useAgentStore = create<AgentState>()(
       installOpenCode: async () => {
         set({ isLoadingOpenCode: true });
         try {
-          await invoke('opencode_install');
+          await safeInvoke('opencode_install');
           set({ opencodeInstalled: true, isLoadingOpenCode: false });
         } catch (error) {
           set({ isLoadingOpenCode: false });

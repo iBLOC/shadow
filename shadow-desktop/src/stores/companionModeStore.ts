@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { invoke } from '@tauri-apps/api/core';
 import { createCompanion, WebRtcCompanion, type VadState } from '../lib/webrtcCompanion';
+import { prefrontalClient } from '../lib/prefrontalClient';
 
 export type CompanionPhase =
   | 'idle'
@@ -31,9 +31,12 @@ let companion: WebRtcCompanion | null = null;
 
 const DEFAULT_HOST = 'http://localhost:8082';
 
-async function createPrefrontalSession(host: string): Promise<string> {
-  const sessionId = await invoke<string>('prefrontal_create_session', { host });
-  return sessionId;
+async function createPrefrontalSession(_host: string): Promise<string> {
+  // Use HTTP API so this works in both Tauri and web builds.
+  // The Tauri-side `prefrontal_create_session` command still works in
+  // desktop, but going through HTTP keeps the code path identical.
+  const session = await prefrontalClient.createSession();
+  return session.id;
 }
 
 export const useCompanionModeStore = create<CompanionState>((set, get) => ({

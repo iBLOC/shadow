@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { Database, Globe, Monitor, Minimize2, Eye, EyeOff, Sun, Moon, RefreshCw, Server, CheckCircle, XCircle, HelpCircle, Wifi, WifiOff, Plug, Unplug } from 'lucide-react';
-import { invoke } from '@tauri-apps/api/core';
+import { safeInvoke } from '../lib/tauriSafe';
+import { isTauri } from '../lib/platform';
 import { useEffect, useState } from 'react';
 import { useThemeStore } from '../stores/themeStore';
 import { useServiceStore, type ServiceStatus, type ServiceInfo } from '../stores/serviceStore';
@@ -238,28 +239,30 @@ export function SettingsPage() {
           </div>
         </SettingsCard>
 
-        <SettingsCard
-          variant="glass"
-          title={t('settings.systemTray')}
-          description={t('settings.systemTrayDesc')}
-          icon={<Monitor size={24} />}
-        >
-          <div className="tray-controls">
-            <button className="btn btn-secondary" onClick={() => invoke('show_window')}>
-              <Eye size={16} />
-              {t('settings.showWindow')}
-            </button>
-            <button className="btn btn-secondary" onClick={() => invoke('hide_window')}>
-              <EyeOff size={16} />
-              {t('settings.hideWindow')}
-            </button>
-            <button className="btn btn-secondary" onClick={() => invoke('minimize_window')}>
-              <Minimize2 size={16} />
-              {t('settings.minimize')}
-            </button>
-          </div>
-          <p className="tray-hint">{t('settings.trayHint')}</p>
-        </SettingsCard>
+        {isTauri() && (
+          <SettingsCard
+            variant="glass"
+            title={t('settings.systemTray')}
+            description={t('settings.systemTrayDesc')}
+            icon={<Monitor size={24} />}
+          >
+            <div className="tray-controls">
+              <button className="btn btn-secondary" onClick={() => safeInvoke('show_window')}>
+                <Eye size={16} />
+                {t('settings.showWindow')}
+              </button>
+              <button className="btn btn-secondary" onClick={() => safeInvoke('hide_window')}>
+                <EyeOff size={16} />
+                {t('settings.hideWindow')}
+              </button>
+              <button className="btn btn-secondary" onClick={() => safeInvoke('minimize_window')}>
+                <Minimize2 size={16} />
+                {t('settings.minimize')}
+              </button>
+            </div>
+            <p className="tray-hint">{t('settings.trayHint')}</p>
+          </SettingsCard>
+        )}
       </div>
     </div>
   );

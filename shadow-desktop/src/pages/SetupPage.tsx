@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { invoke } from '@tauri-apps/api/core';
+import { safeInvoke } from '../lib/tauriSafe';
 import { Database, Server, Cloud, Lock, CheckCircle, AlertCircle, Key, Plus, Loader2, ChevronRight } from 'lucide-react';
 import { useDatabaseStore, type DatabaseType } from '../stores/databaseStore';
 import { ProviderForm } from '../components/business';
@@ -179,14 +179,16 @@ export function SetupPage() {
   const [isAddingModel, setIsAddingModel] = useState(false);
 
   useEffect(() => {
-    invoke<string>('get_machine_id').then(setMachineId).catch(console.error);
+    safeInvoke<string>('get_machine_id').then((id) => {
+      if (id) setMachineId(id);
+    }).catch(console.error);
     loadSetupProgress();
   }, []);
 
   const loadSetupProgress = async () => {
     try {
-      const savedStep = await invoke<string>('get_setup_step');
-      const providerConfig = await invoke<{ provider_type: string; name: string; api_base: string; api_key: string | null }>('get_provider_config');
+      const savedStep = await safeInvoke<string>('get_setup_step');
+      const providerConfig = await safeInvoke<{ provider_type: string; name: string; api_base: string; api_key: string | null }>('get_provider_config');
 
       if (savedStep && savedStep !== 'password') {
         setStep(savedStep as SetupStep);
@@ -227,8 +229,8 @@ export function SetupPage() {
     setPasswordError('');
 
     try {
-      await invoke('set_password', { password: masterPasswordInput, machineId });
-      await invoke('update_setup_step', { step: 'database' });
+      await safeInvoke('set_password', { password: masterPasswordInput, machineId });
+      await safeInvoke('update_setup_step', { step: 'database' });
       setStep('database');
     } catch (err) {
       setPasswordError(String(err));
@@ -244,12 +246,12 @@ export function SetupPage() {
   const handleConfigureDb = async () => {
     if (dbType === 'embedded') {
       await startEmbedded();
-      await invoke('update_setup_step', { step: 'provider' });
+      await safeInvoke('update_setup_step', { step: 'provider' });
       setStep('provider');
     } else if (dbType === 'external') {
       setConnectionTestResult('testing');
       try {
-        await invoke('save_db_config', {
+        await safeInvoke('save_db_config', {
           dbType: 'external',
           dbConfig: {
             host: externalDbConfig.host,
@@ -260,7 +262,7 @@ export function SetupPage() {
           },
         });
         setConnectionTestResult('success');
-        await invoke('update_setup_step', { step: 'provider' });
+        await safeInvoke('update_setup_step', { step: 'provider' });
         setTimeout(() => setStep('provider'), 1000);
       } catch {
         setConnectionTestResult('failed');
@@ -271,7 +273,7 @@ export function SetupPage() {
   const handleTestConnection = async () => {
     setConnectionTestResult('testing');
     try {
-      await invoke('save_db_config', {
+      await safeInvoke('save_db_config', {
         dbType: 'external',
         dbConfig: {
           host: externalDbConfig.host,
@@ -294,7 +296,7 @@ export function SetupPage() {
     setProviderError('');
 
     try {
-      await invoke('save_provider_config', {
+      await safeInvoke('save_provider_config', {
         providerConfig: {
           provider_type: providerType,
           name: providerName,
@@ -302,7 +304,7 @@ export function SetupPage() {
           api_key: apiKey || null,
         },
       });
-      await invoke('update_setup_step', { step: 'models' });
+      await safeInvoke('update_setup_step', { step: 'models' });
       setStep('models');
     } catch (err) {
       setProviderError(String(err));
@@ -319,12 +321,12 @@ export function SetupPage() {
     setFetchedModels([]);
 
     try {
-      const models = await invoke<FetchedModel[]>('fetch_provider_models', {
+      const models = await safeInvoke<FetchedModel[]>('fetch_provider_models', {
         apiBase,
         apiKey: apiKey || null,
       });
 
-      const modelsWithToggle = models.map(m => ({
+      const modelsWithToggle = (models ?? []).map(m => ({
         ...m,
         enabled: true,
       }));
@@ -362,19 +364,19 @@ export function SetupPage() {
 
     setIsAddingModel(true);
     try {
-      const providers = await invoke<ModelProvider[]>('list_model_providers');
-      const currentProvider = providers.find(p => p.name === providerName);
+      const providers = await safeInvoke<ModelProvider[]>('list_model_providers');
+      const currentProvider = (providers ?? []).find(p => p.name === providerName);
 
       if (currentProvider && enabledModels.length > 0) {
         const updatedProvider = {
           ...currentProvider,
           models: [...(currentProvider.models || []), ...enabledModels],
         };
-        await invoke('delete_model_provider', { id: currentProvider.id });
-        await invoke('add_model_provider', { provider: updatedProvider });
+        await safeInvoke('delete_model_provider', { id: currentProvider.id });
+        await safeInvoke('add_model_provider', { provider: updatedProvider });
       }
 
-      await invoke('mark_setup_complete');
+      await safeInvoke('mark_setup_complete');
       localStorage.setItem('shadow_setup_complete', 'true');
       navigate('/');
     } catch (err) {

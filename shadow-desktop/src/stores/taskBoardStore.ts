@@ -1,6 +1,6 @@
 import { create } from 'zustand';
+import { safeInvoke } from '../lib/tauriSafe';
 import { persist } from 'zustand/middleware';
-import { invoke } from '@tauri-apps/api/core';
 import type { Task, TaskBoardColumn, WorkflowPhase, PlanStep } from '../types';
 
 interface WorkflowPlan {
@@ -77,11 +77,12 @@ export const useTaskBoardStore = create<TaskBoardState>()(
       setAutoApprove: (enabled) => set({ autoApprove: enabled }),
       startPlanningWithLLM: async (taskId, taskTitle, taskDescription) => {
         try {
-          const plan = await invoke<WorkflowPlan>('workflow_start_planning', {
+          const plan = await safeInvoke<WorkflowPlan>('workflow_start_planning', {
             taskId,
             taskTitle,
             taskDescription,
           });
+          if (!plan) throw new Error('workflow_start_planning returned null');
           const steps: PlanStep[] = plan.steps.map((s) => ({
             order: s.order,
             description: s.description,

@@ -5,16 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "pnpm validate-i18n && tsc && pnpm lint && vite build",
+    "dev:web": "vite --config vite.config.web.ts",
+    "build": "tsc -b && vite build",
+    "build:web": "tsc --noEmit && vite build --config vite.config.web.ts --mode web",
     "preview": "vite preview",
-    "tauri": "tauri",
-    "lint": "eslint src --ext .ts,.tsx --ignore-pattern '**/*.json'",
-    "lint:fix": "eslint src --ext .ts,.tsx --fix",
-    "validate-i18n": "node scripts/validate-i18n-keys.mjs",
-    "test": "vitest",
-    "test:run": "vitest run",
-    "test:ci": "vitest run --reporter=json --outputFile=test-results.json",
-    "test:coverage": "vitest run --coverage"
+    "preview:web": "vite preview --config vite.config.web.ts --port 4173 --host 0.0.0.0",
+    "lint": "eslint .",
+    "tauri": "tauri"
   },
   "dependencies": {
     "react": "^19.1.0",

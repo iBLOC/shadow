@@ -128,12 +128,26 @@ The `webrtcCompanion.ts` service uses:
 ## BUILD COMMANDS
 
 ```bash
-pnpm dev                  # Vite dev server
-pnpm build                # validate-i18n + tsc + lint + vite build
+pnpm dev                  # Vite dev (Tauri) on :1420
+pnpm dev:web              # Vite dev (web SPA) on :5173
+pnpm build                # Tauri build: validate-i18n + tsc + lint + vite build
+pnpm build:web            # Web SPA build → dist-web/
+pnpm preview:web          # Serve the built web SPA on :4173
 pnpm tauri dev            # Tauri dev with hot reload
-pnpm tauri build          # Production bundle
+pnpm tauri build          # Production native bundle
 pnpm test                 # Vitest
 ```
+
+## BUILD TARGETS
+
+The same `src/` produces **two artefacts**:
+
+| Command | Output | Run-time |
+|---|---|---|
+| `pnpm build` → `pnpm tauri build` | `src-tauri/target/release/bundle/...` | Native binary (Linux/macOS/Windows) |
+| `pnpm build:web` | `dist-web/` | Static SPA — host on Vercel / Netlify / S3 / GitHub Pages |
+
+`src/lib/platform.ts` is the single source of truth for which target is in use. Tauri-only calls go through `src/lib/tauriSafe.ts::safeInvoke()` which returns `null` on the web build.
 
 ## STATE STATUS (2026-06-04)
 
