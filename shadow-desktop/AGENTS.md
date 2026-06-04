@@ -140,16 +140,18 @@ pnpm test                 # Vitest
 **Completed** ✅:
 - React 19 + Tauri 2 foundation
 - Zustand stores for all entities
-- PrefrontalClient (HTTP)
+- PrefrontalClient (HTTP) with `/v1/*` standard + `/api/*` Prefrontal-specific methods
+- New `lib/openaiClient.ts` typed wrapper for OpenAI /v1/* (chatCompletions, speech, transcriptions, listModels)
 - ConversationPage with text chat
-- CompanionModePanel (WebRTC) — my recent addition
-- webrtcCompanion.ts (browser RTCPeerConnection)
-- companionModeStore.ts (VAD/barge-in/multi-turn state)
-- i18n (zh-CN + en-US)
-- mDNS service discovery (HTTP-based)
+- **CompanionModePanel (WebRTC)** — `lib/webrtcCompanion.ts` + `stores/companionModeStore.ts` (VAD-driven, barge-in, multi-turn)
+- **Discovery page** (`pages/DiscoveryPage.tsx`) — mDNS browser, manual add, active node, localStorage persistence
+- i18n (zh-CN + en-US) with ~20 new keys for Discovery
+- mDNS service discovery (HTTP-based via Prefrontal `/api/discovery/*`)
+- **Tauri invoke migration** — `agentStore.fetchAgents()` now uses `prefrontalClient.listAgents()` over HTTP instead of `invoke('prefrontal_list_agents')`
+- A2A-ready: HTTP client can talk to `/api/a2a/peers` for cross-service agent delegation
 
 **Planned** 📋:
 - Tauri Rust backend → embed Prefrontal core (drop in-process, no separate service)
-- Replace Tauri invoke commands with HTTP
-- A2A AgentCard UI (show remote agents)
+- Finish SetupPage Tauri invoke migration (needs Rust HTTP endpoints for secure_auth + model_storage)
 - Cross-device session transfer
+- A2A peer card in Discovery page (promote a discovered node to a delegatable A2A peer)

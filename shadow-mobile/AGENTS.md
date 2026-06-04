@@ -164,21 +164,23 @@ Phone Mic → PcmAudioRecorder (PCM 16kHz) → EventChannel
 - Flutter UI with 10 pages
 - Riverpod providers for state
 - MNN + LiteRT integration
-- Companion Mode (Riverpod state machine)
+- Companion Mode (Riverpod state machine) — WebSocket audio streaming
 - Audio recording via Platform Channel
-- WebSocket audio streaming to Prefrontal
 - mDNS discovery
 - mTLS group manager
 - Model download from ModelScope/HF
+- **LiteRT init timeout + model-dir diagnosis** (was hanging forever; now 10s timeout, calls `diagnoseModelDirectory` first, shows download dialog immediately if model missing)
+- **Phone-as-Engine mode** (`OpenAIServer.kt` on port 8085, SSE streaming, bridged to `LitertEngine` via `EngineProvider`, mDNS `_shadow._tcp` advertisement with capabilities TXT records)
+- **Engine Platform Channel** `com.ibloc.shadow/engine` (startServer/stopServer/isServerRunning/getServerUrl/getApiKey/setApiKey/setAuthEnabled/getServiceName)
+- **Network security config** permitting cleartext to localhost / 127.0.0.1 / 10.0.2.2 / *.local (dev only)
 
 **In Progress** 🔄:
-- LiteRT initialization hangs (no dispatch library) — needs investigation
-- WebRTC for Companion Mode (currently uses WebSocket audio)
+- Mobile WebRTC: still using WebSocket audio over `/api/sessions/{id}/audio` rather than `flutter_webrtc`. Desktop already uses browser-native WebRTC. Migration path: add `flutter_webrtc` dependency and replace `audio_ws_service.dart` with `RTCPeerConnection` similar to `webrtcCompanion.ts`.
 
 **Planned** 📋:
-- Phone as Engine (HTTP server on :8085)
 - Voice wake word
-- ESP32 / hardware device pairing
+- ESP32 / hardware device pairing (per `2026-06-04-shadow-architecture-redesign.md` Phase 6)
+- Prefrontal mobile (as library, not server) via Tauri embedding or FFI
 
 ## COMMANDS
 
@@ -187,4 +189,8 @@ flutter run
 flutter build apk --debug
 flutter analyze
 adb logcat | grep shadow
+# Trigger phone-as-Engine mode (after UI button or automatic on Engine-Only config)
+adb shell am start -n com.ibloc.shadow/.MainActivity
+# Discover the phone from a Linux machine
+avahi-browse -rt _shadow._tcp
 ```

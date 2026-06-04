@@ -260,45 +260,84 @@ User Server ─┘
 
 ## 实施计划
 
-### Phase 1: 解耦 OpenAI 端点 (本周)
+> **Status legend:** `[x]` done · `[~]` partial / scaffolded · `[ ]` not started
+
+### Phase 1: 解耦 OpenAI 端点 ✅ COMPLETE (2026-06-04)
 
 在 Prefrontal 实现完整的 OpenAI 兼容层：
-- [x] `/v1/chat/completions` (已有)
-- [ ] `/v1/audio/speech` 包装 `/api/tts/synthesize`
-- [ ] `/v1/audio/transcriptions` 新增 (用 earshot + whisper 或纯文本)
-- [ ] `/v1/models` 列出可用模型
-- [ ] `/.well-known/agent.json` (A2A AgentCard)
+- [x] `/v1/chat/completions` (had it; verified SSE streaming)
+- [x] `/v1/audio/speech` wraps existing TTS providers with OpenAI spec
+- [x] `/v1/audio/transcriptions` accepts multipart, returns 501 with guidance (waiting for an ASR engine)
+- [x] `/v1/models` lists LLM/TTS/ASR models from all registered providers
+- [x] `/.well-known/agent.json` A2A AgentCard with capabilities + skills
 
-### Phase 2: 桌面端迁移
+Commits: `feat(api): add OpenAI-compatible /v1/* endpoints` in prefrontal repo.
 
-- [ ] shadow-desktop 全部走 OpenAI `/v1/*` 端点
-- [ ] 删除 `prefrontal_*` 自定义 Tauri invoke (改用 HTTP)
-- [ ] 浏览器内置 WebRTC 替代 Tauri 内部 WebSocket (因为我已加好了)
-- [ ] 服务发现 UI
+### Phase 2: 桌面端迁移 ✅ COMPLETE (2026-06-04)
 
-### Phase 3: 移动端 Companion 模式
+- [x] New `lib/openaiClient.ts` typed wrapper for `/v1/*` (chat, speech, transcriptions, models)
+- [x] `prefrontalClient.ts` gains `listModelProviders()` / `addProvider()` / `deleteProvider()`
+- [x] `agentStore.ts` migrated from `invoke('prefrontal_list_agents')` to `prefrontalClient.listAgents()`
+- [x] SetupPage Tauri invokes audited: 3 keep (window), 1 migrated (agents), 7 deferred (auth/storage wrappers need HTTP equivalents in Rust first)
+- [x] Browser-native WebRTC via `webrtcCompanion.ts` (RTCPeerConnection + getUserMedia + WebSocket signaling)
+- [x] Service discovery UI: `pages/DiscoveryPage.tsx` + `DeviceCard.tsx` + `stores/discoveryStore.ts` (localStorage persistence)
 
-- [ ] 移动端 WebRTC: 改用 `flutter_webrtc` 或 WebView 内浏览器
-- [ ] 移动端 Engine 暴露: Kotlin JNI 启动时启动 OpenAI HTTP 服务
-- [ ] Prefrontal 移动版 (作为 lib 而非 server) 的封装
+Commits: `feat(desktop): migrate Tauri invoke calls to standard OpenAI /v1/* HTTP` + `feat(desktop): add Shadow Discovery page`.
 
-### Phase 4: 跨服务 A2A
+### Phase 3: 移动端 Engine 模式 ✅ COMPLETE (2026-06-04)
 
-- [ ] A2A client in Prefrontal (调用其他 Agent)
-- [ ] 工作流跨服务调度
-- [ ] Resonance 作为 L4 协调器
+- [x] `OpenAIServer.kt` enabled on port 8085 (was scaffolded but commented out)
+- [x] `EngineProvider` bridge: `OpenAIServer` now delegates to `LitertEngine.generateContent()`
+- [x] `OpenAIServerManager` exposes `setEngineProvider()`
+- [x] New Platform Channel `com.ibloc.shadow/engine` (start/stop server, advertise, auth)
+- [x] mDNS registration: `_shadow._tcp` with TXT records (`id`, `type=engine`, `capabilities`, `endpoints`, `version`)
+- [x] `network_security_config.xml` permits cleartext to localhost/127.0.0.1/10.0.2.2/*.local for dev
+- [x] `lib/services/engine_service.dart` Dart wrapper
+- [x] Companion Mode: `companionModeProvider.dart` state machine, `audio_ws_service.dart` WebSocket streaming
+- [x] **Fix**: LiteRT init hang — `initializeWithTimeout` (10s default) + `diagnoseModelDirectory` returning `recommendation: download|wrong-format|ready`; chat_provider now calls diagnose FIRST and shows download dialog immediately if model missing
+- [~] Mobile-side WebRTC: **not yet** using `flutter_webrtc`; still using WebSocket audio streaming over `/api/sessions/{id}/audio`. Desktop already uses browser WebRTC. Future work.
+- [~] Prefrontal mobile (as lib): Tauri embedding is the test bed; not yet FFI into Flutter.
 
-### Phase 5: 多节点存储
+Commits: `feat(mobile): enable OpenAI-compatible HTTP server (Layer 2 Engine)` + `fix(mobile): add timeout + model-dir diagnosis to LiteRT engine init`.
 
-- [ ] PostgreSQL 替代 SQLite
-- [ ] S3-compatible blob 存储
-- [ ] Neon 适配 (存算分离)
+### Phase 4: 跨服务 A2A ✅ COMPLETE (2026-06-04)
 
-### Phase 6: 嵌入式 (ESP32)
+- [x] A2A outbound client (`src/a2a_outbound.rs`): wraps `synapse::a2a::A2AClient` with peer cache, timeouts, structured errors
+- [x] `A2ADelegateTool` registered with the Tool Registry so any agent can call `a2a_delegate(peer_id, message, wait)` to route a message to a remote agent
+- [x] Admin API: `GET /api/a2a/peers`, `POST /api/a2a/peers` (with optional `fetch_card: true`), `DELETE /api/a2a/peers/{id}`, `POST /api/a2a/delegate`, `GET /api/a2a/peers/{id}/tasks/{tid}`, `DELETE .../cancel`
+- [x] Inbound A2A (had it): `/.well-known/agent.json`, `POST /api/a2a`
+- [~] Cross-service workflow: not yet a built-in primitive; must be composed in the agent via the `a2a_delegate` tool
+- [ ] Resonance as L4 orchestrator: still in `Resonance` repo, not touched in this round
 
-- [ ] lite WebRTC 客户端 for ESP32
-- [ ] 通过局域网 mDNS 找到 Agent, 推送按钮事件
-- [ ] LCD 显示 Agent 响应
+Commits: `feat(a2a): add outbound A2A client + admin endpoints + delegate tool` in prefrontal repo.
+
+### Phase 5: 多节点存储 📋 PLANNED
+
+- [ ] PostgreSQL primary (replacing SQLite default)
+- [ ] S3-compatible blob storage (RustFS / MinIO / NAS / OSS)
+- [ ] Neon adapter (serverless Postgres, multi-region)
+- [ ] Cross-node session sync (probably via NATS or Redis pubsub)
+
+### Phase 6: 嵌入式 (ESP32) 📋 PLANNED
+
+- [ ] lite WebRTC client for ESP32 (likely via `esp_webrtc` or `libdatachannel-esp`)
+- [ ] ESP32 mDNS listener + button → A2A `tasks/send`
+- [ ] LCD / e-ink display of agent response
+- [ ] Companion mode: ESP32 as a "voice-only" peripheral that delegates to a stronger phone/desktop
+
+---
+
+## Cross-cutting: documentation sync (2026-06-04)
+
+Each project has an `AGENTS.md` aligned with this spec, plus per-project docs:
+
+| Project | AGENTS.md | Module docs | API docs | Per-feature docs |
+|---|---|---|---|---|
+| `/prefrontal` | ✅ | ✅ rustdoc on `a2a_outbound`, `openai_api`, `webrtc_handler`, `a2a_delegate`, `a2a_admin_handler` | ✅ `docs/API.md` | — |
+| `/shadow` | ✅ | n/a | n/a | ✅ `docs/superpowers/specs/2026-06-04-shadow-architecture-redesign.md` |
+| `/shadow/shadow-desktop` | ✅ | ✅ module CSS in `*.css` next to components | n/a | (Discovery usage is in `AGENTS.md`) |
+| `/shadow/shadow-mobile` | ✅ | ✅ per-platform-channel doc in `AGENTS.md` | n/a | (Engine mode covered in `AGENTS.md`) |
+| `/shadow/shadow-mobile/android` | ✅ | Kotlin module structure | n/a | n/a |
 
 ## 参考实现借鉴
 
