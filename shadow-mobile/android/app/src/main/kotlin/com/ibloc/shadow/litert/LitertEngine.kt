@@ -15,7 +15,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
+import java.io.File
 
 class LitertEngine(private val context: Context) {
     private var engine: Engine? = null
@@ -64,6 +66,15 @@ class LitertEngine(private val context: Context) {
         _lastError.value = null
         currentModelPath = modelPath
 
+        val diagnosis = diagnoseModelDirectory(modelPath)
+        if (diagnosis["dispatchLibraryPresent"] != true) {
+            val recommendation = diagnosis["recommendation"] as? String ?: "download"
+            Log.w("LitertEngine", "No dispatch library found, recommendation: $recommendation")
+            _lastError.value = "No dispatch library found in $modelPath"
+            _isLoading.value = false
+            return false
+        }
+
         Engine.setNativeMinLogSeverity(LogSeverity.ERROR)
 
         try {
@@ -84,10 +95,104 @@ class LitertEngine(private val context: Context) {
             return true
         } catch (e: Exception) {
             Log.e("LitertEngine", "Initialization failed", e)
-            _lastError.value = e.message
+            _lastError.value = e.message ?: "Unknown error"
             _isLoading.value = false
             return false
         }
+    }
+
+    suspend fun initializeWithTimeout(modelPath: String, timeoutMs: Long = 10000): Boolean {
+        if (_isInitialized.value) return true
+
+        _isLoading.value = true
+        _lastError.value = null
+
+        val diagnosis = diagnoseModelDirectory(modelPath)
+        if (diagnosis["dispatchLibraryPresent"] != true) {
+            val recommendation = diagnosis["recommendation"] as? String ?: "download"
+            Log.w("LitertEngine", "No dispatch library found, recommendation: $recommendation")
+            _lastError.value = "No dispatch library found in $modelPath"
+            _isLoading.value = false
+            return false
+        }
+
+        Engine.setNativeMinLogSeverity(LogSeverity.ERROR)
+
+        val startTime = System.currentTimeMillis()
+        val success = withTimeoutOrNull(timeoutMs) {
+            try {
+                val engineConfig = EngineConfig(
+                    modelPath = modelPath,
+                    backend = Backend.CPU(),
+                    cacheDir = context.cacheDir.path
+                )
+
+                engine = Engine(engineConfig)
+                engine!!.initialize()
+
+                conversation = engine!!.createConversation()
+
+                _isInitialized.value = true
+                Log.d("LitertEngine", "Initialized LiteRT engine with model: $modelPath")
+                true
+            } catch (e: Exception) {
+                Log.e("LitertEngine", "Initialization failed", e)
+                _lastError.value = e.message ?: "Unknown error"
+                false
+            }
+        } ?: false
+
+        val elapsed = System.currentTimeMillis() - startTime
+        _isLoading.value = false
+
+        if (!success) {
+            if (_lastError.value == null) {
+                _lastError.value = "Initialization timed out after ${elapsed}ms"
+            }
+            Log.w("LitertEngine", "initializeWithTimeout timed out after ${elapsed}ms")
+        }
+
+        return success
+    }
+
+    fun diagnoseModelDirectory(modelPath: String): Map<String, Any> {
+        val modelDir = File(modelPath)
+        val dirExists = modelDir.exists() && modelDir.isDirectory
+
+        if (!dirExists) {
+            return mapOf(
+                "exists" to false,
+                "dispatchLibraryPresent" to false,
+                "modelFiles" to emptyList<String>(),
+                "totalSize" to 0L,
+                "recommendation" to "download"
+            )
+        }
+
+        val files = modelDir.listFiles()?.toList() ?: emptyList()
+        val fileNames = files.filter { it.isFile }.map { it.name }
+        val totalSize = files.sumOf { it.length() }
+
+        val dispatchPatterns = listOf(".dispatch", "_dispatch", "dispatch.", "litertlm")
+        val hasDispatchLib = fileNames.any { name ->
+            dispatchPatterns.any { pattern ->
+                name.contains(pattern, ignoreCase = true)
+            }
+        } && fileNames.any { it.endsWith(".litertlm", ignoreCase = true) }
+
+        val recommendation = when {
+            !hasDispatchLib && fileNames.isEmpty() -> "download"
+            !hasDispatchLib -> "wrong-format"
+            else -> "ready"
+        }
+
+        return mapOf(
+            "exists" to dirExists,
+            "dispatchLibraryPresent" to hasDispatchLib,
+            "modelFiles" to fileNames,
+            "totalSize" to totalSize,
+            "recommendation" to recommendation
+        )
     }
 
     suspend fun generateContent(prompt: String): String {

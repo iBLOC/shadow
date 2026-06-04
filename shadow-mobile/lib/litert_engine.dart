@@ -21,21 +21,67 @@ class LitertEngine {
     _currentModel = model;
   }
 
-  Future<bool> initialize({required String modelPath}) async {
+  Future<bool> initialize({
+    required String modelPath,
+    int timeoutMs = 15000,
+  }) async {
+    final startTime = DateTime.now();
     try {
-      final result = await _channel.invokeMethod<bool>('initialize', {
-        'modelPath': modelPath,
-      });
+      final result = await _channel.invokeMethod<bool>(
+        'initializeWithTimeout',
+        {'modelPath': modelPath, 'timeoutMs': timeoutMs},
+      );
 
+      final elapsed = DateTime.now().difference(startTime).inMilliseconds;
       _isInitialized = result ?? false;
       if (!_isInitialized) {
-        _lastError = await _channel.invokeMethod<String>('getLastError');
+        _lastError ??=
+            await _channel.invokeMethod<String>('getLastError') ??
+            'Initialization failed after ${elapsed}ms';
+      } else {
+        // ignore: avoid_print
+        print('LitertEngine.initialize succeeded in ${elapsed}ms');
       }
       return _isInitialized;
     } catch (e) {
       _lastError = e.toString();
       _isInitialized = false;
       return false;
+    }
+  }
+
+  Future<Map<String, dynamic>> diagnoseModelDirectory(String modelPath) async {
+    try {
+      final result = await _channel.invokeMethod<Map<Object?, Object?>>(
+        'diagnose',
+        {'modelPath': modelPath},
+      );
+      if (result == null) {
+        return {
+          'exists': false,
+          'dispatchLibraryPresent': false,
+          'modelFiles': <String>[],
+          'totalSize': 0,
+          'recommendation': 'download',
+        };
+      }
+      return {
+        'exists': result['exists'] ?? false,
+        'dispatchLibraryPresent': result['dispatchLibraryPresent'] ?? false,
+        'modelFiles':
+            (result['modelFiles'] as List?)?.cast<String>() ?? <String>[],
+        'totalSize': (result['totalSize'] as num?)?.toInt() ?? 0,
+        'recommendation': result['recommendation'] ?? 'download',
+      };
+    } catch (e) {
+      return {
+        'exists': false,
+        'dispatchLibraryPresent': false,
+        'modelFiles': <String>[],
+        'totalSize': 0,
+        'recommendation': 'download',
+        'error': e.toString(),
+      };
     }
   }
 

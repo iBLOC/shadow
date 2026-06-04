@@ -226,6 +226,23 @@ class MainActivity : FlutterActivity() {
                         }
                     }
                 }
+                "initializeWithTimeout" -> {
+                    val modelPath = call.argument<String>("modelPath") ?: ""
+                    val timeoutMs = call.argument<Number>("timeoutMs")?.toLong() ?: 10000L
+                    scope.launch {
+                        try {
+                            val success = litertEngine?.initializeWithTimeout(modelPath, timeoutMs) ?: false
+                            result.success(success)
+                        } catch (e: Exception) {
+                            result.error("INIT_ERROR", e.message, null)
+                        }
+                    }
+                }
+                "diagnose" -> {
+                    val modelPath = call.argument<String>("modelPath") ?: ""
+                    val diagnosis = litertEngine?.diagnoseModelDirectory(modelPath)
+                    result.success(diagnosis ?: emptyMap<String, Any>())
+                }
                 "generateContent" -> {
                     val prompt = call.argument<String>("prompt") ?: ""
                     scope.launch {

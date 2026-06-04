@@ -170,7 +170,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
   }) : _modelsNotifier = modelsNotifier,
        super(const ChatState()) {
     if (!skipInit) {
-      _initLiteRT();
+      Future.microtask(() => _initLiteRT());
     } else if (litertReady) {
       state = state.copyWith(isLitertReady: true);
     }
@@ -349,57 +349,141 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
     try {
       _litertEngine.setModel(agent.model);
-      // 使用正确的模型路径
       final modelPath = await _getModelPath(agent.model);
-      final success = await _litertEngine.initialize(modelPath: modelPath);
-      if (success) {
-        final modelFile = File(modelPath);
-        final modelSize = await modelFile.exists()
-            ? (await modelFile.length()) ~/ (1024 * 1024)
-            : 0;
-        _modelsNotifier?.addLocalModel(
-          agent.model.displayName,
-          modelPath,
-          agent.model.supportImage ? 'vision' : 'text',
-          modelSize,
-          source: db.ModelSource.localEngine,
-        );
+
+      // First call diagnose BEFORE attempting initialize
+      final diagnosis = await _litertEngine.diagnoseModelDirectory(modelPath);
+      final recommendation =
+          diagnosis['recommendation'] as String? ?? 'download';
+
+      // Log diagnostic result
+      // ignore: avoid_print
+      print(
+        'LiteRT Diagnostic: exists=${diagnosis['exists']}, '
+        'dispatchLibraryPresent=${diagnosis['dispatchLibraryPresent']}, '
+        'recommendation=$recommendation, '
+        'files=${diagnosis['modelFiles']}',
+      );
+
+      // If diagnosis says download or wrong-format, bail early
+      if (recommendation == 'download' || recommendation == 'wrong-format') {
         state = state.copyWith(
-          isLitertReady: true,
-          modelInfo: '${agent.model.displayName} ready',
-          modelInfoL10nKey: ChatStateL10nKey.litertReady,
+          modelNotFound: true,
+          isLitertReady: false,
+          modelInfo: recommendation == 'download'
+              ? 'No model found, please download'
+              : 'Model format incorrect, please download',
+          errorMessage: recommendation == 'download'
+              ? 'No model found in $modelPath'
+              : 'Model files present but format incorrect',
+          errorMessageL10nKey: ChatStateL10nKey.errorLitertInitFailed,
           messages: [
             ...state.messages,
             ChatMessageModel(
-              '${agent.model.displayName} engine ready!',
+              recommendation == 'download'
+                  ? 'No model found, downloading required'
+                  : 'Model format incorrect, downloading required',
               ChatRole.system,
             ),
           ],
         );
+        return;
+      }
+
+      // Try initialize with timeout
+      final success = await _litertEngine
+          .initialize(modelPath: modelPath)
+          .timeout(
+            const Duration(seconds: 15),
+            onTimeout: () {
+              _litertEngine.release();
+              return false;
+            },
+          );
+
+      if (success) {
+        final testResult = await _testLitertEngine();
+        if (testResult) {
+          state = state.copyWith(
+            isLitertReady: true,
+            modelInfo: '${agent.model.displayName} ready',
+            modelInfoL10nKey: ChatStateL10nKey.litertReady,
+            messages: [
+              ...state.messages,
+              ChatMessageModel(
+                '${agent.model.displayName} engine ready!',
+                ChatRole.system,
+              ),
+            ],
+          );
+        } else {
+          state = state.copyWith(
+            modelNotFound: true,
+            isLitertReady: false,
+            modelInfo: 'Model test failed, please download',
+            errorMessage: 'Engine initialized but test generation failed',
+            errorMessageL10nKey: ChatStateL10nKey.errorLitertInitFailed,
+          );
+        }
       } else {
         final errorMsg = _litertEngine.lastError ?? 'Unknown error';
         state = state.copyWith(
           errorMessage: 'Failed to initialize LiteRT engine: $errorMsg',
           errorMessageL10nKey: ChatStateL10nKey.errorLitertInitFailed,
-          messages: [
-            ...state.messages,
-            ChatMessageModel(
-              'Failed to initialize LiteRT engine: $errorMsg',
-              ChatRole.system,
-            ),
-          ],
+          modelNotFound: true,
+          isLitertReady: false,
         );
       }
     } catch (e) {
       state = state.copyWith(
-        errorMessage: 'Error: $e',
+        errorMessage: 'Error: ${e.toString()}',
         errorMessageL10nKey: ChatStateL10nKey.errorGeneric,
-        errorMessageArg: e.toString(),
+        modelNotFound: true,
+        isLitertReady: false,
+      );
+    }
+  }
+
+  Future<void> runLiteRTDiagnostic() async {
+    final agent = state.currentAgent;
+    try {
+      final modelPath = await _getModelPath(agent.model);
+      final diagnosis = await _litertEngine.diagnoseModelDirectory(modelPath);
+      final recommendation =
+          diagnosis['recommendation'] as String? ?? 'download';
+
+      final message =
+          'LiteRT Diagnostic: '
+          'directory exists=${diagnosis['exists']}, '
+          'dispatch library present=${diagnosis['dispatchLibraryPresent']}, '
+          'recommendation=$recommendation, '
+          'total size=${diagnosis['totalSize']} bytes, '
+          'files=${(diagnosis['modelFiles'] as List?)?.length ?? 0}';
+
+      state = state.copyWith(
+        modelInfo: message,
+        isLitertReady: recommendation == 'ready',
+        modelNotFound: recommendation == 'download',
         messages: [
           ...state.messages,
-          ChatMessageModel('Error: $e', ChatRole.system),
+          ChatMessageModel(message, ChatRole.system),
         ],
       );
+    } catch (e) {
+      state = state.copyWith(
+        errorMessage: 'Diagnostic failed: $e',
+        errorMessageL10nKey: ChatStateL10nKey.errorGeneric,
+      );
+    }
+  }
+
+  Future<bool> _testLitertEngine() async {
+    await Future.delayed(const Duration(milliseconds: 100));
+    try {
+      final result = await _litertEngine.generateContent('Hi');
+      return result.isNotEmpty;
+    } catch (_) {
+      return false;
     }
   }
 
@@ -423,6 +507,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
     if (input != null) {
       state = state.copyWith(attachments: [...state.attachments, input]);
     }
+  }
+
+  void setAudioChunkCallback(void Function(Uint8List)? callback) {
+    _multimodalManager.setAudioChunkCallback(callback);
   }
 
   Future<void> startAudioRecording() async {
@@ -589,10 +677,24 @@ class ChatNotifier extends StateNotifier<ChatState> {
       attachmentPath = first.path;
       attachmentType = first.type;
       if (prompt.isEmpty) {
-        if (first.type == MultimodalInputType.audio) {
-          displayContent = '[Audio]';
-        } else {
-          displayContent = '[Image]';
+        switch (first.type) {
+          case MultimodalInputType.audio:
+            displayContent = '[Audio]';
+            break;
+          case MultimodalInputType.voice:
+            displayContent = '[Voice]';
+            break;
+          case MultimodalInputType.image:
+          case MultimodalInputType.camera:
+            displayContent = '[Image]';
+            break;
+          case MultimodalInputType.video:
+            displayContent = '[Video]';
+            break;
+          case MultimodalInputType.file:
+            final fileName = first.path?.split('/').last;
+            displayContent = fileName ?? '[File]';
+            break;
         }
       }
     }
