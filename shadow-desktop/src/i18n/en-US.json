@@ -13,6 +13,13 @@
     "enabled": "Enabled",
     "disabled": "Disabled",
     "running": "Running",
+    "online": "Online",
+    "offline": "Offline",
+    "pwa": {
+      "installTitle": "Install Shadow app",
+      "installDesc": "Add to home screen for one-tap launch and native feel",
+      "install": "Install"
+    },
     "stopped": "Stopped",
     "error": "Error",
     "settings": "Settings",

@@ -1,0 +1,73 @@
+{
+  "name": "Shadow - AI 影",
+  "short_name": "Shadow",
+  "description": "Distributed AI user avatar. Talk to your Shadow agent, browse nearby Shadow nodes, stream WebRTC voice.",
+  "id": "/",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "browser"],
+  "orientation": "any",
+  "background_color": "#0a0a0a",
+  "theme_color": "#06b6d4",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": ["productivity", "utilities", "developer"],
+  "icons": [
+    {
+      "src": "./pwa-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./pwa-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./pwa-512-monochrome.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "monochrome"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "./screenshot-wide.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Shadow desktop dashboard"
+    },
+    {
+      "src": "./screenshot-narrow.png",
+      "sizes": "750x1334",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Shadow mobile view"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "New Chat",
+      "short_name": "Chat",
+      "description": "Start a new conversation",
+      "url": "./?route=/conversation",
+      "icons": [{ "src": "./pwa-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Discover",
+      "short_name": "Discover",
+      "description": "Browse Shadow nodes on the LAN",
+      "url": "./?route=/discovery",
+      "icons": [{ "src": "./pwa-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ],
+  "edge_side_panel": { "preferred_width": 480 },
+  "launch_handler": {
+    "client_mode": "auto"
+  },
+  "prefer_related_applications": false
+}

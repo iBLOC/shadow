@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { AppInitializer } from './components/AppInitializer';
+import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { TaskBoardPage } from './pages/TaskBoardPage';
 import { ConversationPage } from './pages/ConversationPage';
 import { AgentsPage } from './pages/AgentsPage';
@@ -16,6 +17,7 @@ import './App.css';
 function App() {
   return (
     <BrowserRouter>
+      <PWAInstallPrompt />
       <Routes>
         <Route path="/setup" element={<SetupPage />} />
         <Route path="/" element={<AppInitializer><Layout /></AppInitializer>}>
