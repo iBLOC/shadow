@@ -115,23 +115,30 @@ This allows a desktop/Prefrontal agent to call `http://mobile.local:8085/v1/chat
 
 ## COMPANION MODE
 
-Implemented as a **Riverpod-driven** state machine (`companion_mode_provider.dart`):
-- `mode: message | conversation`
-- `voiceState: idle | listening | recording | processing | speaking`
-- `videoState: off | on | streaming`
-- `sendAudioData(Uint8List)` → WebSocket to Prefrontal
+Implemented as a **Riverpod-driven** state machine (`companion_mode_provider.dart`)
+backed by real WebRTC peer connections:
 
-Audio flow:
 ```
-Phone Mic → PcmAudioRecorder (PCM 16kHz) → EventChannel
-       → AudioInputHandler.onAudioChunk
-       → MultimodalInputManager.setAudioChunkCallback
-       → ChatProvider.setAudioChunkCallback
-       → CompanionModeNotifier.sendAudioData
-       → AudioWsService (WebSocket)
-       → Prefrontal /api/sessions/{id}/audio
-       → VAD → STT → Agent → TTS response
+flutter_webrtc (RTCPeerConnection + getUserMedia)
+       ↕ SDP/ICE (W3C WebRTC)
+WebRtcSignaling (WebSocket over /api/sessions/{id}/ws)
+       ↕ webrtc_offer / webrtc_answer / webrtc_ice
+Prefrontal webrtc_handler (webrtc-rs, Opus 48kHz, earshot VAD, Agent.process)
+       ↕ A2A / OpenAI /v1/* / etc.
 ```
+
+State machine (`WebRtcPhase`):
+- `idle → connecting → signaling → negotiating → connected → speaking`
+- `error` is terminal until `stop()` is called.
+
+VAD events (`vad_state` messages) drive `voiceState: idle | listening | speaking | bargeIn`.
+Barge-in (user starts talking while agent is mid-response) is signalled via
+`webrtc_barge_in` and resets the agent.
+
+> **For the message-style Conversation Mode (one-shot voice messages over
+> WebSocket, not real-time), use `conversation_mode_provider` + `AudioWsService`
+> instead. That path stays for low-bandwidth or text-with-voice-attach
+> workflows; the WebRTC path is the real-time Companion Mode.
 
 ## PLATFORM CHANNELS (Flutter ↔ Kotlin)
 
@@ -173,9 +180,10 @@ Phone Mic → PcmAudioRecorder (PCM 16kHz) → EventChannel
 - **Phone-as-Engine mode** (`OpenAIServer.kt` on port 8085, SSE streaming, bridged to `LitertEngine` via `EngineProvider`, mDNS `_shadow._tcp` advertisement with capabilities TXT records)
 - **Engine Platform Channel** `com.ibloc.shadow/engine` (startServer/stopServer/isServerRunning/getServerUrl/getApiKey/setApiKey/setAuthEnabled/getServiceName)
 - **Network security config** permitting cleartext to localhost / 127.0.0.1 / 10.0.2.2 / *.local (dev only)
+- **Companion Mode WebRTC** (`lib/services/webrtc_companion.dart` + `webrtc_signaling.dart` + rewritten `companion_mode_provider.dart`): real RTCPeerConnection via `flutter_webrtc`, getUserMedia mic capture, SDP/ICE exchange over the existing Prefrontal WebSocket, Opus codec auto-negotiated with Prefrontal's `webrtc_handler.rs`, VAD-driven voice state, barge-in signaling, RTCVideoRenderer for remote TTS playback. Mirrors the desktop `webrtcCompanion.ts` so the two clients share the same end-to-end protocol.
 
 **In Progress** 🔄:
-- Mobile WebRTC: still using WebSocket audio over `/api/sessions/{id}/audio` rather than `flutter_webrtc`. Desktop already uses browser-native WebRTC. Migration path: add `flutter_webrtc` dependency and replace `audio_ws_service.dart` with `RTCPeerConnection` similar to `webrtcCompanion.ts`.
+- (no current in-progress items)
 
 **Planned** 📋:
 - Voice wake word

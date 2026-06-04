@@ -1,198 +1,188 @@
 import 'dart:async';
-import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_webrtc/flutter_webrtc.dart';
-import '../services/audio_ws_service.dart';
 
-enum CompanionMode { off, connecting, connected, streaming }
+import '../services/webrtc_companion.dart';
+import '../services/webrtc_signaling.dart';
 
-enum VoiceState { idle, listening, speaking }
+enum VoiceState { idle, listening, speaking, bargeIn }
 
 class CompanionState {
-  final CompanionMode mode;
+  final WebRtcPhase phase;
   final VoiceState voiceState;
-  final String? errorMessage;
   final bool isMuted;
   final String? sessionId;
+  final String? lastTranscript;
+  final String? errorMessage;
 
   const CompanionState({
-    this.mode = CompanionMode.off,
+    this.phase = WebRtcPhase.idle,
     this.voiceState = VoiceState.idle,
-    this.errorMessage,
     this.isMuted = false,
     this.sessionId,
+    this.lastTranscript,
+    this.errorMessage,
   });
 
   CompanionState copyWith({
-    CompanionMode? mode,
+    WebRtcPhase? phase,
     VoiceState? voiceState,
-    String? errorMessage,
     bool? isMuted,
     String? sessionId,
+    String? lastTranscript,
+    String? errorMessage,
+    bool clearError = false,
   }) {
     return CompanionState(
-      mode: mode ?? this.mode,
+      phase: phase ?? this.phase,
       voiceState: voiceState ?? this.voiceState,
-      errorMessage: errorMessage,
       isMuted: isMuted ?? this.isMuted,
       sessionId: sessionId ?? this.sessionId,
+      lastTranscript: lastTranscript ?? this.lastTranscript,
+      errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
     );
   }
 }
 
 class CompanionModeNotifier extends StateNotifier<CompanionState> {
-  RTCPeerConnection? _peerConnection;
-  MediaStream? _localStream;
-  final String? _baseUrl;
-  final AudioWsService? _audioService;
+  WebRtcCompanion? _companion;
+  WebRtcSignaling? _signaling;
+  StreamSubscription? _vadSub;
+  StreamSubscription? _transcriptionSub;
+  StreamSubscription? _connectedSub;
+  StreamSubscription? _disconnectedSub;
+  StreamSubscription? _errorSub;
 
-  final _transcriptionController = StreamController<String>.broadcast();
-  Stream<String> get transcriptionStream => _transcriptionController.stream;
+  CompanionModeNotifier() : super(const CompanionState());
 
-  CompanionModeNotifier({String? baseUrl, AudioWsService? audioService})
-    : _baseUrl = baseUrl,
-      _audioService = audioService,
-      super(const CompanionState());
+  Future<bool> start({required String sessionId, String? baseUrl}) async {
+    if (state.phase == WebRtcPhase.connected ||
+        state.phase == WebRtcPhase.negotiating ||
+        state.phase == WebRtcPhase.streaming) {
+      return true;
+    }
 
-  Future<bool> connect(String sessionId) async {
     state = state.copyWith(
-      mode: CompanionMode.connecting,
+      phase: WebRtcPhase.connecting,
       sessionId: sessionId,
+      clearError: true,
     );
 
     try {
-      _localStream = await _createLocalStream();
-      await _createPeerConnection();
-      state = state.copyWith(mode: CompanionMode.connected);
+      _signaling = WebRtcSignaling(sessionId: sessionId, baseUrl: baseUrl);
+      _companion = WebRtcCompanion(signaling: _signaling!);
+
+      _wireSignalingStreams();
+
+      final ok = await _companion!.start();
+      if (!ok) {
+        state = state.copyWith(
+          phase: WebRtcPhase.error,
+          errorMessage: _companion!.error ?? 'start failed',
+        );
+        return false;
+      }
       return true;
     } catch (e) {
       state = state.copyWith(
-        mode: CompanionMode.off,
+        phase: WebRtcPhase.error,
         errorMessage: e.toString(),
       );
       return false;
     }
   }
 
-  Future<MediaStream> _createLocalStream() async {
-    final audioConstraints = {
-      'echoCancellation': true,
-      'noiseSuppression': true,
-      'autoGainControl': true,
-    };
+  void _wireSignalingStreams() {
+    final s = _signaling!;
+    _vadSub?.cancel();
+    _vadSub = s.vad.listen((v) {
+      switch (v) {
+        case 'speaking':
+        case 'listening':
+        case 'barge_in':
+          state = state.copyWith(voiceState: _mapVad(v));
+          break;
+        default:
+          state = state.copyWith(voiceState: VoiceState.idle);
+      }
+    });
 
-    return await navigator.mediaDevices.getUserMedia({
-      'audio': audioConstraints,
-      'video': false,
+    _transcriptionSub?.cancel();
+    _transcriptionSub = s.transcription.listen((text) {
+      if (text.isNotEmpty) {
+        state = state.copyWith(lastTranscript: text);
+      }
+    });
+
+    _connectedSub?.cancel();
+    _connectedSub = s.connected.listen((_) {
+      state = state.copyWith(phase: WebRtcPhase.connected);
+    });
+
+    _disconnectedSub?.cancel();
+    _disconnectedSub = s.disconnected.listen((_) {
+      state = state.copyWith(phase: WebRtcPhase.idle);
+    });
+
+    _errorSub?.cancel();
+    _errorSub = s.error.listen((e) {
+      state = state.copyWith(errorMessage: e, phase: WebRtcPhase.error);
     });
   }
 
-  Future<void> _createPeerConnection() async {
-    final config = {
-      'iceServers': [
-        {'urls': 'stun:stun.l.google.com:19302'},
-        {'urls': 'stun:stun1.l.google.com:19302'},
-      ],
-    };
-
-    _peerConnection = await createPeerConnection(config);
-
-    _peerConnection!.onTrack = (RTCTrackEvent event) {
-      if (event.streams.isNotEmpty) {
-        _handleRemoteStream(event.streams[0]);
-      }
-    };
-
-    _peerConnection!.onIceCandidate = (RTCIceCandidate candidate) {
-      _sendIceCandidate(candidate);
-    };
-
-    _peerConnection!.onConnectionState = (RTCPeerConnectionState rtcState) {
-      switch (rtcState) {
-        case RTCPeerConnectionState.RTCPeerConnectionStateConnected:
-          state = state.copyWith(mode: CompanionMode.connected);
-          break;
-        case RTCPeerConnectionState.RTCPeerConnectionStateDisconnected:
-          state = state.copyWith(mode: CompanionMode.off);
-          break;
-        case RTCPeerConnectionState.RTCPeerConnectionStateFailed:
-          state = state.copyWith(
-            mode: CompanionMode.off,
-            errorMessage: 'Connection failed',
-          );
-          break;
-        default:
-          break;
-      }
-    };
-
-    if (_localStream != null) {
-      for (final track in _localStream!.getTracks()) {
-        _peerConnection!.addTrack(track, _localStream!);
-      }
+  VoiceState _mapVad(String v) {
+    switch (v) {
+      case 'speaking':
+        return VoiceState.speaking;
+      case 'listening':
+        return VoiceState.listening;
+      case 'barge_in':
+        return VoiceState.bargeIn;
+      default:
+        return VoiceState.idle;
     }
   }
 
-  void _handleRemoteStream(MediaStream stream) {
-    final audioTracks = stream.getAudioTracks();
-    if (audioTracks.isNotEmpty) {
-      state = state.copyWith(voiceState: VoiceState.speaking);
-    }
+  void toggleMute() {
+    if (_companion == null) return;
+    final next = !state.isMuted;
+    _companion!.toggleMic(next);
+    state = state.copyWith(isMuted: next);
   }
 
-  void _sendIceCandidate(RTCIceCandidate candidate) {}
-
-  Future<void> startStreaming() async {
-    if (_peerConnection == null || _localStream == null) return;
-
-    try {
-      final offer = await _peerConnection!.createOffer();
-      await _peerConnection!.setLocalDescription(offer);
-      state = state.copyWith(mode: CompanionMode.streaming);
-    } catch (e) {
-      state = state.copyWith(errorMessage: e.toString());
-    }
+  void bargeIn() {
+    _companion?.sendBargeIn();
+    state = state.copyWith(voiceState: VoiceState.bargeIn);
   }
 
   Future<void> stop() async {
-    await _localStream?.dispose();
-    await _peerConnection?.close();
+    await _vadSub?.cancel();
+    await _transcriptionSub?.cancel();
+    await _connectedSub?.cancel();
+    await _disconnectedSub?.cancel();
+    await _errorSub?.cancel();
+    _vadSub = _transcriptionSub = _connectedSub = _disconnectedSub = _errorSub =
+        null;
 
-    _localStream = null;
-    _peerConnection = null;
+    await _companion?.stop();
+    _companion = null;
+    await _signaling?.dispose();
+    _signaling = null;
 
     state = state.copyWith(
-      mode: CompanionMode.off,
+      phase: WebRtcPhase.idle,
       voiceState: VoiceState.idle,
       sessionId: null,
     );
   }
 
-  void toggleMute() {
-    if (_localStream == null) return;
-
-    for (final track in _localStream!.getAudioTracks()) {
-      track.enabled = !track.enabled;
-    }
-
-    state = state.copyWith(isMuted: !state.isMuted);
-  }
-
-  void sendAudioData(Uint8List data) {
-    _audioService?.sendAudioData(data);
-  }
-
-  MediaStream? get localStream => _localStream;
-
   @override
   void dispose() {
     stop();
-    _transcriptionController.close();
     super.dispose();
   }
 }
 
 final companionModeProvider =
-    StateNotifierProvider<CompanionModeNotifier, CompanionState>((ref) {
-      return CompanionModeNotifier();
-    });
+    StateNotifierProvider<CompanionModeNotifier, CompanionState>(
+      (ref) => CompanionModeNotifier(),
+    );
