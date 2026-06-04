@@ -65,7 +65,20 @@
     "whatCanYouDo": "你能做什么？",
     "showMyAgents": "显示我的智能体",
     "searchPlaceholder": "搜索对话...",
-    "messages": "条消息"
+    "messages": "条消息",
+    "companion": {
+      "start": "开始Companion语音对话",
+      "stop": "结束",
+      "listening": "聆听中...",
+      "speaking": "说话中...",
+      "processing": "思考中...",
+      "bargeIn": "已打断",
+      "connectError": "连接失败",
+      "browserNotSupport": "浏览器不支持WebRTC",
+      "micDenied": "麦克风权限被拒绝",
+      "turnCount": "{{count}} 轮对话",
+      "placeholder": "Companion模式：点击开始实时语音对话"
+    }
   },
   "models": {
     "title": "模型管理",

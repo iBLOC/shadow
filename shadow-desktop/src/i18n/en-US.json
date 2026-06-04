@@ -65,7 +65,20 @@
     "whatCanYouDo": "What can you do?",
     "showMyAgents": "Show my agents",
     "searchPlaceholder": "Search conversations...",
-    "messages": "messages"
+    "messages": "messages",
+    "companion": {
+      "start": "Start Companion Voice Mode",
+      "stop": "Stop",
+      "listening": "Listening...",
+      "speaking": "Speaking...",
+      "processing": "Thinking...",
+      "bargeIn": "Interrupted",
+      "connectError": "Connection failed",
+      "browserNotSupport": "Browser does not support WebRTC",
+      "micDenied": "Microphone permission denied",
+      "turnCount": "{{count}} turns",
+      "placeholder": "Companion Mode: Click to start real-time voice conversation"
+    }
   },
   "models": {
     "title": "Model Management",

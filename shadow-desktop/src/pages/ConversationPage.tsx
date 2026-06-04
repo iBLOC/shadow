@@ -3,16 +3,19 @@ import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { useConversationStore } from '../stores/conversationStore';
 import { useAgentStore } from '../stores/agentStore';
+import { useCompanionModeStore } from '../stores/companionModeStore';
 import { Button, EmptyState } from '../components/ui';
-import { 
-  Send, 
-  Plus, 
-  Trash2, 
-  Bot, 
+import {
+  Send,
+  Plus,
+  Trash2,
+  Bot,
   User,
   Search,
   MessageSquare,
   Sparkles,
+  Mic,
+  Radio,
 } from 'lucide-react';
 import type { Conversation, Message } from '../types';
 import './ConversationPage.css';
@@ -290,6 +293,8 @@ export function ConversationPage() {
               <div ref={messagesEndRef} />
             </div>
             
+            <CompanionModePanel />
+
             <div className="input-container">
               <div className="input-wrapper">
                 <textarea
@@ -300,7 +305,7 @@ export function ConversationPage() {
                   className="message-input"
                   rows={1}
                 />
-                <Button 
+                <Button
                   variant="primary"
                   icon={<Send size={18} />}
                   onClick={handleSendMessage}
@@ -328,6 +333,74 @@ export function ConversationPage() {
           </div>
         )}
       </main>
+    </div>
+  );
+}
+
+function CompanionModePanel() {
+  const { t } = useTranslation();
+  const {
+    phase,
+    transcript,
+    partialTranscript,
+    error,
+    turnCount,
+    isActive,
+    start,
+    stop,
+  } = useCompanionModeStore();
+
+  const handleToggle = async () => {
+    if (isActive) {
+      await stop();
+    } else {
+      await start();
+    }
+  };
+
+  const phaseLabel = (() => {
+    switch (phase) {
+      case 'connecting':
+        return t('common.connecting');
+      case 'listening':
+        return t('conversation.companion.listening');
+      case 'speaking':
+        return t('conversation.companion.speaking');
+      case 'processing':
+        return t('conversation.companion.processing');
+      case 'barge_in':
+        return t('conversation.companion.bargeIn');
+      case 'error':
+        return error || t('conversation.companion.connectError');
+      default:
+        return t('conversation.companion.placeholder');
+    }
+  })();
+
+  return (
+    <div className={`companion-panel ${phase}`}>
+      <button
+        className={`companion-toggle ${isActive ? 'active' : ''}`}
+        onClick={handleToggle}
+        title={isActive ? t('conversation.companion.stop') : t('conversation.companion.start')}
+      >
+        {isActive ? <Radio size={20} /> : <Mic size={20} />}
+      </button>
+      <div className="companion-status">
+        <span className={`companion-phase-dot ${phase}`} />
+        <span className="companion-phase-label">{phaseLabel}</span>
+        {isActive && turnCount > 0 && (
+          <span className="companion-turn-count">
+            {t('conversation.companion.turnCount', { count: turnCount })}
+          </span>
+        )}
+      </div>
+      {(transcript || partialTranscript) && (
+        <div className="companion-transcript">
+          {transcript}
+          {partialTranscript && <em className="partial"> {partialTranscript}</em>}
+        </div>
+      )}
     </div>
   );
 }
