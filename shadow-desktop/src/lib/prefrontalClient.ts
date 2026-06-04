@@ -192,6 +192,10 @@ export class PrefrontalClient {
     await this.request(`/api/providers/${type}`, { method: 'DELETE' });
   }
 
+  async listModelProviders(): Promise<Provider[]> {
+    return this.request<Provider[]>('/api/model-providers');
+  }
+
   async listAgents(): Promise<Agent[]> {
     return this.request<Agent[]>('/api/agents');
   }

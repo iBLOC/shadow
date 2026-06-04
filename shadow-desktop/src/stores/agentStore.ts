@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { invoke } from '@tauri-apps/api/core';
+import { prefrontalClient } from '../lib/prefrontalClient';
 import type { Agent, AgentTask, OpenCodeInstance, OpenCodeConfig } from '../types';
 
 interface AgentState {
@@ -49,7 +50,15 @@ export const useAgentStore = create<AgentState>()(
       fetchAgents: async () => {
         set({ isLoading: true, error: null });
         try {
-          const agents = await invoke<Agent[]>('prefrontal_list_agents');
+          const pfAgents = await prefrontalClient.listAgents();
+          const agents: Agent[] = pfAgents.map((a) => ({
+            ...a,
+            category: 'external' as const,
+            status: 'online' as const,
+            capabilities: [],
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          }));
           set({ agents, isLoading: false });
         } catch (error) {
           set({ 
