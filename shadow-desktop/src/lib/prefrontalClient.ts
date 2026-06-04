@@ -142,6 +142,35 @@ export class PrefrontalClient {
     });
   }
 
+  async delegateToPeer(
+    peerId: string,
+    message: string,
+    wait: boolean
+  ): Promise<{
+    text: string;
+    task_id?: string | null;
+    state: string;
+  }> {
+    return this.request('/api/a2a/delegate', {
+      method: 'POST',
+      body: JSON.stringify({ peer_id: peerId, message, wait }),
+    });
+  }
+
+  async getA2ATask(peerId: string, taskId: string): Promise<{
+    task_id: string;
+    state: string;
+    result?: { text: string };
+  }> {
+    return this.request(`/api/a2a/peers/${peerId}/tasks/${taskId}`);
+  }
+
+  async cancelA2ATask(peerId: string, taskId: string): Promise<{ success: boolean }> {
+    return this.request(`/api/a2a/peers/${peerId}/tasks/${taskId}/cancel`, {
+      method: 'DELETE',
+    });
+  }
+
   async addSessionMessage(
     sessionId: string,
     role: string,

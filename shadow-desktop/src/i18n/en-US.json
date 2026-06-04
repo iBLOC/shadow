@@ -20,7 +20,7 @@
       "installDesc": "Add to home screen for one-tap launch and native feel",
       "install": "Install"
     },
-    "migrate": {
+"migrate": {
       "title": "Move session",
       "description": "Hand off this conversation to another Shadow node on the LAN and pick it up there.",
       "selectPeer": "Pick a target device",
@@ -32,6 +32,20 @@
       "error": "Move failed: {error}",
       "sizeKb": "{kb} KB",
       "messageCount": "{count} messages"
+    },
+    "delegate": {
+      "title": "Delegate to peer",
+      "description": "Send a message to another Shadow node to process.",
+      "pickPeer": "Pick a peer",
+      "addPeer": "Add new peer",
+      "message": "Message",
+      "placeholder": "Type your message...",
+      "send": "Send",
+      "result": "Result from peer",
+      "error": "Error: {error}",
+      "emptyPeers": "No A2A peers found. Add a peer to delegate tasks.",
+      "sending": "Sending to peer...",
+      "button": "Delegate"
     },
     "stopped": "Stopped",
     "error": "Error",

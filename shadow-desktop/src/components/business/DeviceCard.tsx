@@ -9,6 +9,7 @@ import {
   MoreHorizontal,
   Trash2,
   Zap,
+  Send,
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
@@ -23,6 +24,7 @@ interface DeviceCardProps {
   onSetActive: () => void;
   onRemove: () => void;
   onDetails: () => void;
+  onDelegate?: () => void;
 }
 
 const capabilityIcons: Record<string, React.ComponentType<{ size?: number }>> = {
@@ -44,6 +46,7 @@ export function DeviceCard({
   onSetActive, 
   onRemove, 
   onDetails,
+  onDelegate,
 }: DeviceCardProps) {
   const { t } = useTranslation();
   const [testing, setTesting] = useState(false);
@@ -149,6 +152,17 @@ export function DeviceCard({
             onClick={onSetActive}
           >
             {t('discovery.setActive')}
+          </Button>
+        )}
+
+        {device.capabilities.includes('llm') && onDelegate && (
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={<Send size={14} />}
+            onClick={onDelegate}
+          >
+            {t('common.delegate.button')}
           </Button>
         )}
         

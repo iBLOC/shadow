@@ -15,6 +15,7 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { Modal } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
 import { DeviceCard } from '../components/business/DeviceCard';
+import { DelegateToPeerDialog } from '../components/DelegateToPeerDialog';
 import { useDiscoveryStore } from '../stores/discoveryStore';
 import type { DiscoveredDevice, DeviceCapability } from '../lib/discoveryClient';
 import './DiscoveryPage.css';
@@ -37,7 +38,9 @@ export function DiscoveryPage() {
 
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [showDelegateDialog, setShowDelegateDialog] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<DiscoveredDevice | null>(null);
+  const [delegatePreloadUrl, setDelegatePreloadUrl] = useState<string | undefined>();
   
   const [manualHost, setManualHost] = useState('');
   const [manualPort, setManualPort] = useState('8082');
@@ -59,6 +62,12 @@ export function DiscoveryPage() {
   const handleDetails = (device: DiscoveredDevice) => {
     setSelectedDevice(device);
     setShowDetailModal(true);
+  };
+
+  const handleDelegate = (device: DiscoveredDevice) => {
+    setSelectedDevice(device);
+    setDelegatePreloadUrl(`http://${device.host}:${device.port}`);
+    setShowDelegateDialog(true);
   };
 
   const handleAddManual = () => {
@@ -158,6 +167,7 @@ export function DiscoveryPage() {
                 onSetActive={() => setActiveNode(device)}
                 onRemove={() => removeDevice(device.id)}
                 onDetails={() => handleDetails(device)}
+                onDelegate={() => handleDelegate(device)}
               />
             ))}
           </div>
@@ -318,7 +328,13 @@ export function DiscoveryPage() {
             </div>
           </div>
         )}
-      </Modal>
-    </div>
-  );
-}
+        </Modal>
+
+        <DelegateToPeerDialog
+          open={showDelegateDialog}
+          onClose={() => setShowDelegateDialog(false)}
+          prefillUrl={delegatePreloadUrl}
+        />
+      </div>
+    );
+  }
