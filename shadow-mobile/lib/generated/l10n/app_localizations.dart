@@ -887,73 +887,79 @@ abstract class AppLocalizations {
   /// No description provided for @continueDesktopTitle.
   ///
   /// In en, this message translates to:
-  /// **'Continue on Desktop'**
+  /// **'Continue on desktop'**
   String get continueDesktopTitle;
 
   /// No description provided for @continueDesktopDescription.
   ///
   /// In en, this message translates to:
-  /// **'Transfer this conversation to continue on another device.'**
+  /// **'Hand off this conversation to another Shadow node on the LAN and pick it up there.'**
   String get continueDesktopDescription;
 
   /// No description provided for @continueDesktopConfirm.
   ///
   /// In en, this message translates to:
-  /// **'Transfer'**
+  /// **'Continue now'**
   String get continueDesktopConfirm;
 
   /// No description provided for @continueDesktopNoPeers.
   ///
   /// In en, this message translates to:
-  /// **'No devices found'**
+  /// **'No Shadow nodes discovered yet'**
   String get continueDesktopNoPeers;
 
   /// No description provided for @continueDesktopMessageCount.
   ///
   /// In en, this message translates to:
   /// **'{count} messages'**
-  String continueDesktopMessageCount(int count);
+  String continueDesktopMessageCount(Object count);
 
   /// No description provided for @continueDesktopSizeKb.
   ///
   /// In en, this message translates to:
   /// **'{kb} KB'**
-  String continueDesktopSizeKb(int kb);
+  String continueDesktopSizeKb(Object kb);
 
   /// No description provided for @continueDesktopPreparing.
   ///
   /// In en, this message translates to:
-  /// **'Preparing...'**
+  /// **'Preparing…'**
   String get continueDesktopPreparing;
 
   /// No description provided for @continueDesktopInProgress.
   ///
   /// In en, this message translates to:
-  /// **'Sending to {peer}...'**
-  String continueDesktopInProgress(String peer);
+  /// **'Sending to {peer}…'**
+  String continueDesktopInProgress(Object peer);
 
   /// No description provided for @continueDesktopSuccess.
   ///
   /// In en, this message translates to:
-  /// **'Transferred to {peer}'**
-  String continueDesktopSuccess(String peer);
+  /// **'Moved to {peer}'**
+  String continueDesktopSuccess(Object peer);
 
   /// No description provided for @continueDesktopError.
   ///
   /// In en, this message translates to:
-  /// **'Transfer failed: {error}'**
-  String continueDesktopError(String error);
+  /// **'Move failed: {error}'**
+  String continueDesktopError(Object error);
 
   /// No description provided for @addManually.
   ///
   /// In en, this message translates to:
-  /// **'Add Manually'**
+  /// **'Add manually'**
   String get addManually;
+
+  /// No description provided for @wakeWordHeard.
+  ///
+  /// In en, this message translates to:
+  /// **'Heard you'**
+  String get wakeWordHeard;
 
   /// No description provided for @confirm.
   ///
   /// In en, this message translates to:
-  /// **'OK'**
+  /// **'Confirm'**
   String get confirm;
 }
 

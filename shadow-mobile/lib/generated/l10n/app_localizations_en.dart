@@ -417,39 +417,42 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ttsTestText => 'Hello, this is a speech synthesis test';
 
   @override
-  String get continueDesktopTitle => 'Continue on Desktop';
+  String get continueDesktopTitle => 'Continue on desktop';
 
   @override
   String get continueDesktopDescription =>
-      'Transfer this conversation to continue on another device.';
+      'Hand off this conversation to another Shadow node on the LAN and pick it up there.';
 
   @override
-  String get continueDesktopConfirm => 'Transfer';
+  String get continueDesktopConfirm => 'Continue now';
 
   @override
-  String get continueDesktopNoPeers => 'No devices found';
+  String get continueDesktopNoPeers => 'No Shadow nodes discovered yet';
 
   @override
-  String continueDesktopMessageCount(int count) => '$count messages';
+  String continueDesktopMessageCount(Object count) => '$count messages';
 
   @override
-  String continueDesktopSizeKb(int kb) => '$kb KB';
+  String continueDesktopSizeKb(Object kb) => '$kb KB';
 
   @override
-  String get continueDesktopPreparing => 'Preparing...';
+  String get continueDesktopPreparing => 'Preparing…';
 
   @override
-  String continueDesktopInProgress(String peer) => 'Sending to $peer...';
+  String continueDesktopInProgress(Object peer) => 'Sending to $peer…';
 
   @override
-  String continueDesktopSuccess(String peer) => 'Transferred to $peer';
+  String continueDesktopSuccess(Object peer) => 'Moved to $peer';
 
   @override
-  String continueDesktopError(String error) => 'Transfer failed: $error';
+  String continueDesktopError(Object error) => 'Move failed: $error';
 
   @override
-  String get addManually => 'Add Manually';
+  String get addManually => 'Add manually';
 
   @override
-  String get confirm => 'OK';
+  String get wakeWordHeard => 'Heard you';
+
+  @override
+  String get confirm => 'Confirm';
 }

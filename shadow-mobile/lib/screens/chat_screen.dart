@@ -8,6 +8,8 @@ import 'package:flutter_ai_toolkit/flutter_ai_toolkit.dart' as ai_toolkit;
 import '../generated/l10n/app_localizations.dart';
 import '../providers/chat_provider.dart';
 import '../providers/genui_provider.dart';
+import '../providers/wake_word_provider.dart';
+import '../services/wake_word_service.dart';
 import '../providers/conversation_mode_provider.dart';
 import '../providers/ai/prefrontal_provider.dart';
 import '../services/network_service.dart';
@@ -28,9 +30,38 @@ class ChatScreen extends ConsumerStatefulWidget {
 class _ChatScreenState extends ConsumerState<ChatScreen> {
   final TextEditingController _promptController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  ProviderSubscription<AsyncValue<WakeWordEvent>>? _wakeWordSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _wakeWordSub = ref.listenManual<AsyncValue<WakeWordEvent>>(
+      wakeWordEventsProvider,
+      (prev, next) {
+        if (next is AsyncData<WakeWordEvent>) {
+          _onWakeWord(next.value!);
+        }
+      },
+    );
+  }
+
+  void _onWakeWord(WakeWordEvent event) {
+    if (!mounted) return;
+    if (_promptController.text.isEmpty) {
+      _promptController.text = 'Hello!';
+      _scrollToBottom();
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('🎤 Heard you'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
 
   @override
   void dispose() {
+    _wakeWordSub?.close();
     _promptController.dispose();
     _scrollController.dispose();
     super.dispose();
