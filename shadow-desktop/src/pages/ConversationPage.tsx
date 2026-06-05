@@ -19,9 +19,29 @@ import {
   Mic,
   Radio,
   ArrowRightLeft,
+  Paperclip,
+  X,
 } from 'lucide-react';
 import type { Conversation, Message } from '../types';
 import './ConversationPage.css';
+
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+const ACCEPTED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
+
+interface StagedImage {
+  id: string;
+  dataUrl: string;
+  file: File;
+}
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
 
 export function ConversationPage() {
   const { t } = useTranslation();
@@ -39,9 +59,11 @@ export function ConversationPage() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [stagedImages, setStagedImages] = useState<StagedImage[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showAgentSelector, setShowAgentSelector] = useState(false);
   const [showMoveDialog, setShowMoveDialog] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const activeConversation = conversations.find(c => c.id === activeConversationId);
 
@@ -60,8 +82,35 @@ export function ConversationPage() {
     addConversation(conversation);
   };
 
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    for (const file of Array.from(files)) {
+      if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+        continue;
+      }
+      if (file.size > MAX_IMAGE_SIZE) {
+        continue;
+      }
+      const dataUrl = await fileToDataUrl(file);
+      setStagedImages(prev => [...prev, {
+        id: crypto.randomUUID(),
+        dataUrl,
+        file,
+      }]);
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveImage = (id: string) => {
+    setStagedImages(prev => prev.filter(img => img.id !== id));
+  };
+
   const handleSendMessage = async () => {
-    if (!input.trim() || !activeConversationId) return;
+    if ((!input.trim() && stagedImages.length === 0) || !activeConversationId) return;
     
     const userMessage: Message = {
       id: crypto.randomUUID(),
@@ -72,6 +121,7 @@ export function ConversationPage() {
     
     addMessage(activeConversationId, userMessage);
     setInput('');
+    setStagedImages([]);
     setIsLoading(true);
     
     try {
@@ -326,7 +376,37 @@ export function ConversationPage() {
             />
 
             <div className="input-container">
+              {stagedImages.length > 0 && (
+                <div className="image-preview-row">
+                  {stagedImages.map(img => (
+                    <div key={img.id} className="image-preview">
+                      <img src={img.dataUrl} alt="preview" />
+                      <button 
+                        className="remove-image"
+                        onClick={() => handleRemoveImage(img.id)}
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
               <div className="input-wrapper">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept={ACCEPTED_IMAGE_TYPES.join(',')}
+                  onChange={handleImageSelect}
+                  className="hidden-file-input"
+                  multiple
+                />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon={<Paperclip size={18} />}
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isLoading}
+                />
                 <textarea
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
@@ -339,7 +419,7 @@ export function ConversationPage() {
                   variant="primary"
                   icon={<Send size={18} />}
                   onClick={handleSendMessage}
-                  disabled={!input.trim() || isLoading}
+                  disabled={(!input.trim() && stagedImages.length === 0) || isLoading}
                 />
               </div>
               <p className="input-hint">
