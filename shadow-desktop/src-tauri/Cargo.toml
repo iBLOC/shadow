@@ -5,6 +5,9 @@ description = "Shadow Desktop - AI Agent Executor"
 authors = ["Shadow Team"]
 edition = "2021"
 
+[workspace]
+members = ["."]
+
 [lib]
 name = "shadow_desktop_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]

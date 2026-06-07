@@ -58,9 +58,9 @@ export const prefrontalUrl = (): string => {
   if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_PREFRONTAL_URL) {
     return import.meta.env.VITE_PREFRONTAL_URL as string;
   }
-  if (isTauri()) return 'http://localhost:8082';
+  if (isTauri()) return 'http://localhost:8085';
   if (typeof window !== 'undefined') return window.location.origin;
-  return 'http://localhost:8082';
+  return 'http://localhost:8085';
 };
 
 /**
