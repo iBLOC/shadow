@@ -33,9 +33,9 @@ const DEFAULT_SERVICES: Record<ServiceName, ServiceInfo> = {
   },
   prefrontal: {
     name: 'prefrontal',
-    displayName: 'Prefrontal',
+    displayName: 'Neure (Prefrontal)',
     host: 'localhost',
-    port: 8082,
+    port: 8085,
     status: 'unknown',
   },
   hippocampus: {

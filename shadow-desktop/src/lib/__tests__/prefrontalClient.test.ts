@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi, afterEach } from 'vitest';
 
+vi.mock('../platform', () => ({
+  prefrontalUrl: () => 'http://localhost:8085',
+}));
+
 describe('prefrontalClient', () => {
   let mockFetch: ReturnType<typeof vi.fn>;
 
@@ -10,6 +14,20 @@ describe('prefrontalClient', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  describe('neure port configuration', () => {
+    it('uses neure port 8085 by default from platform config', async () => {
+      const { PrefrontalClient } = await import('../prefrontalClient');
+      const client = new PrefrontalClient();
+      expect(client.baseUrl).toBe('http://localhost:8085');
+    });
+
+    it('respects custom host override', async () => {
+      const { PrefrontalClient } = await import('../prefrontalClient');
+      const client = new PrefrontalClient('http://custom:9090');
+      expect(client.baseUrl).toBe('http://custom:9090');
+    });
   });
 
   describe('A2A delegation', () => {
@@ -30,7 +48,7 @@ describe('prefrontalClient', () => {
       const result = await prefrontalClient.delegateToPeer('peer-uuid', 'Hello peer', true);
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:8082/api/a2a/delegate',
+        'http://localhost:8085/api/a2a/delegate',
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({ 'Content-Type': 'application/json' }),
@@ -109,7 +127,7 @@ describe('prefrontalClient', () => {
       const result = await prefrontalClient.getA2ATask('peer-uuid', 'task-789');
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:8082/api/a2a/peers/peer-uuid/tasks/task-789',
+        'http://localhost:8085/api/a2a/peers/peer-uuid/tasks/task-789',
         expect.objectContaining({ method: 'GET' })
       );
       expect(result.task_id).toBe('task-789');
@@ -129,7 +147,7 @@ describe('prefrontalClient', () => {
       await prefrontalClient.cancelA2ATask('peer-uuid', 'task-789');
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:8082/api/a2a/peers/peer-uuid/tasks/task-789/cancel',
+        'http://localhost:8085/api/a2a/peers/peer-uuid/tasks/task-789/cancel',
         expect.objectContaining({ method: 'DELETE' })
       );
     });

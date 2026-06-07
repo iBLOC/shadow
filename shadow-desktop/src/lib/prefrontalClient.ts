@@ -48,12 +48,14 @@ type HttpRequestOptions = {
   body?: string;
 };
 
+import { prefrontalUrl } from './platform';
+
 export class PrefrontalClient {
   private baseUrl: string;
   private headers: Record<string, string>;
 
-  constructor(baseUrl: string = 'http://localhost:8082') {
-    this.baseUrl = baseUrl;
+  constructor(baseUrl?: string) {
+    this.baseUrl = baseUrl ?? prefrontalUrl();
     this.headers = {
       'Content-Type': 'application/json',
     };
@@ -306,4 +308,4 @@ export class PrefrontalClient {
   }
 }
 
-export const prefrontalClient = new PrefrontalClient();
+export const prefrontalClient = new PrefrontalClient(prefrontalUrl());
