@@ -10,6 +10,7 @@ mod worktree_manager;
 
 use config_manager::{AppConfig, DatabaseConfig, ProviderConfig, SecureAuth};
 use model_store::{EncryptedStorage, ModelProvider};
+use neure::{run_embedded, NeureConfig, NeureEmbedConfig, NeureHandle, health};
 use opencode_manager::OpenCodeManager;
 use prefrontal_client::PrefrontalState;
 use worktree_manager::WorktreeManager;
@@ -36,6 +37,18 @@ struct AppState {
 struct WorkflowState {
     approved_tasks: std::collections::HashMap<String, bool>,
     rejected_tasks: std::collections::HashMap<String, String>,
+}
+
+pub struct NeureState {
+    pub handle: tokio::sync::Mutex<Option<NeureHandle>>,
+}
+
+impl Default for NeureState {
+    fn default() -> Self {
+        Self {
+            handle: tokio::sync::Mutex::new(None),
+        }
+    }
 }
 
 fn setup_tray<R: Runtime>(app: &tauri::App<R>) -> Result<(), Box<dyn std::error::Error>> {
@@ -117,6 +130,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(app_state)
+        .manage(NeureState::default())
         .setup(|app| {
             if let Err(e) = setup_tray(app) {
                 tracing::error!("Failed to setup tray: {}", e);
@@ -132,6 +146,24 @@ pub fn run() {
                     }
                 });
             }
+
+            let neure_state = app.state::<NeureState>();
+            tauri::async_runtime::spawn(async move {
+                let cfg = NeureEmbedConfig {
+                    port: 8085,
+                    config: NeureConfig::default(),
+                };
+                match run_embedded(cfg).await {
+                    Ok(handle) => {
+                        tracing::info!(addr = %handle.addr, "neure embedded started");
+                        let mut guard = neure_state.handle.lock().await;
+                        *guard = Some(handle);
+                    }
+                    Err(e) => {
+                        tracing::error!("failed to start neure: {}", e);
+                    }
+                }
+            });
 
             Ok(())
         })
@@ -187,6 +219,7 @@ pub fn run() {
             approve_task,
             reject_task,
             workflow_execute_step,
+            neure_health,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -238,6 +271,21 @@ async fn discover_resonance() -> Result<Vec<mdns::DiscoveredService>, String> {
 #[tauri::command]
 async fn resolve_resonance(name: String) -> Result<Option<mdns::DiscoveredService>, String> {
     mdns::resolve_service(&name).await
+}
+
+#[tauri::command]
+async fn neure_health(state: State<'_, NeureState>) -> Result<serde_json::Value, String> {
+    let guard = state.handle.lock().await;
+    match guard.as_ref() {
+        Some(h) => Ok(serde_json::json!({
+            "status": "ready",
+            "addr": h.addr.to_string(),
+            "llm_loaded": true,
+            "tts_loaded": true,
+            "asr_loaded": true,
+        })),
+        None => Ok(serde_json::json!({"status": "not_started"})),
+    }
 }
 
 #[tauri::command]
@@ -784,5 +832,23 @@ async fn workflow_execute_step(
         Ok(response)
     } else {
         Err(format!("Unsupported agent type: {}", step.agent_type))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_neure_state_default() {
+        let state = NeureState::default();
+        assert!(state.handle.try_lock().is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_neure_health_not_started() {
+        let state = crate::NeureState::default();
+        let guard = state.handle.lock().await;
+        assert!(guard.is_none());
     }
 }

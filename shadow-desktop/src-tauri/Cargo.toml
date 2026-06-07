@@ -21,6 +21,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tokio = { version = "1", features = ["full"] }
 prefrontal-core = { path = "/home/ibloc/Projects/prefrontal" }
+neure = { path = "/home/ibloc/Projects/neure" }
 
 # WebSocket with TLS
 tokio-tungstenite = { version = "0.26", features = ["native-tls", "tokio-native-tls"] }
