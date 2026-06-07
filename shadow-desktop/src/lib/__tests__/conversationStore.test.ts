@@ -25,19 +25,19 @@ describe('conversationStore', () => {
   });
 
   it('starts with empty conversations array', async () => {
-    const { useConversationStore } = await import('../../../stores/conversationStore');
+    const { useConversationStore } = await import('../../stores/conversationStore');
     const { conversations } = useConversationStore.getState();
     expect(conversations).toEqual([]);
   });
 
   it('starts with null activeConversationId', async () => {
-    const { useConversationStore } = await import('../../../stores/conversationStore');
+    const { useConversationStore } = await import('../../stores/conversationStore');
     const { activeConversationId } = useConversationStore.getState();
     expect(activeConversationId).toBeNull();
   });
 
   it('addConversation adds conversation and sets it as active', async () => {
-    const { useConversationStore } = await import('../../../stores/conversationStore');
+    const { useConversationStore } = await import('../../stores/conversationStore');
     const { addConversation } = useConversationStore.getState();
     
     const conv = createMockConversation();
@@ -50,7 +50,7 @@ describe('conversationStore', () => {
   });
 
   it('removeConversation removes conversation by id', async () => {
-    const { useConversationStore } = await import('../../../stores/conversationStore');
+    const { useConversationStore } = await import('../../stores/conversationStore');
     const { addConversation, removeConversation } = useConversationStore.getState();
     
     const conv = createMockConversation();
@@ -62,7 +62,7 @@ describe('conversationStore', () => {
   });
 
   it('removeConversation clears activeConversationId if removed', async () => {
-    const { useConversationStore } = await import('../../../stores/conversationStore');
+    const { useConversationStore } = await import('../../stores/conversationStore');
     const { addConversation, removeConversation } = useConversationStore.getState();
     
     const conv = createMockConversation();
@@ -74,7 +74,7 @@ describe('conversationStore', () => {
   });
 
   it('removeConversation preserves other conversations', async () => {
-    const { useConversationStore } = await import('../../../stores/conversationStore');
+    const { useConversationStore } = await import('../../stores/conversationStore');
     const { addConversation, removeConversation } = useConversationStore.getState();
     
     addConversation(createMockConversation({ id: 'conv-1' }));
@@ -87,7 +87,7 @@ describe('conversationStore', () => {
   });
 
   it('updateConversation updates conversation fields', async () => {
-    const { useConversationStore } = await import('../../../stores/conversationStore');
+    const { useConversationStore } = await import('../../stores/conversationStore');
     const { addConversation, updateConversation } = useConversationStore.getState();
     
     addConversation(createMockConversation());
@@ -102,7 +102,7 @@ describe('conversationStore', () => {
     const initialTime = new Date('2025-01-01T00:00:00Z');
     vi.setSystemTime(initialTime);
     
-    const { useConversationStore } = await import('../../../stores/conversationStore');
+    const { useConversationStore } = await import('../../stores/conversationStore');
     const { addConversation, updateConversation } = useConversationStore.getState();
     
     addConversation(createMockConversation());
@@ -117,7 +117,7 @@ describe('conversationStore', () => {
   });
 
   it('setActiveConversation sets active conversation id', async () => {
-    const { useConversationStore } = await import('../../../stores/conversationStore');
+    const { useConversationStore } = await import('../../stores/conversationStore');
     const { addConversation, setActiveConversation } = useConversationStore.getState();
     
     addConversation(createMockConversation({ id: 'conv-1' }));
@@ -129,7 +129,7 @@ describe('conversationStore', () => {
   });
 
   it('setActiveConversation can set null', async () => {
-    const { useConversationStore } = await import('../../../stores/conversationStore');
+    const { useConversationStore } = await import('../../stores/conversationStore');
     const { addConversation, setActiveConversation } = useConversationStore.getState();
     
     addConversation(createMockConversation());
@@ -140,7 +140,7 @@ describe('conversationStore', () => {
   });
 
   it('addMessage appends message to conversation', async () => {
-    const { useConversationStore } = await import('../../../stores/conversationStore');
+    const { useConversationStore } = await import('../../stores/conversationStore');
     const { addConversation, addMessage } = useConversationStore.getState();
     
     addConversation(createMockConversation());
@@ -152,7 +152,7 @@ describe('conversationStore', () => {
   });
 
   it('setSessionId updates sessionId on conversation', async () => {
-    const { useConversationStore } = await import('../../../stores/conversationStore');
+    const { useConversationStore } = await import('../../stores/conversationStore');
     const { addConversation, setSessionId } = useConversationStore.getState();
     
     addConversation(createMockConversation());
@@ -163,7 +163,7 @@ describe('conversationStore', () => {
   });
 
   it('clearConversations resets store state', async () => {
-    const { useConversationStore } = await import('../../../stores/conversationStore');
+    const { useConversationStore } = await import('../../stores/conversationStore');
     const { addConversation, clearConversations } = useConversationStore.getState();
     
     addConversation(createMockConversation());
