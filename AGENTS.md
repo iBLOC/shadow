@@ -122,7 +122,7 @@ Resonance 建立任务评估体系，根据任务复杂程度给出模型评分�
 ```
 shadow/
 ├── AGENTS.md                    # 系统级文档
-├── docs/superpowers/specs/      # 设计规范文档
+├── docs/superpowers/specs/      # 设计规范文档 (NOT version-controlled — see note below)
 │   └── 2026-03-21-shadow-design.md
 ├── shadow-desktop/              # 桌面端 (Tauri + React)
 │   ├── src/                    # React 19 前端
@@ -250,3 +250,10 @@ export PREFRONTAL_MODE="executor"                 # executor / full
 - 模型下载平台
 - 支持 MNN 和 candle 格式模型
 - modelscope.cn
+
+## 设计规范版本控制策略
+
+`/home/ibloc/Projects/docs/superpowers/specs/` **不是 git 仓库**。架构规范（如 `2026-06-04-shadow-architecture-redesign.md`）的修改不进入 git 历史，依赖**手动 SOP 同步**。
+
+决策记录（2026-06-08）：评估 neure 重构后的代码/文档对齐时，Layer 2 ENGINE 块加入了 neure 说明。该修改留在工作树中，未做 commit。后续如需恢复该规范的历史追踪，需将 `docs/` 初始化为独立仓库并按 `日期-主题.md` 命名补录。
+
