@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type ServiceName = 'resonance' | 'prefrontal' | 'hippocampus';
+export type ServiceName = 'resonance' | 'prefrontal' | 'neure' | 'hippocampus';
 export type ServiceStatus = 'unknown' | 'checking' | 'healthy' | 'unhealthy' | 'offline';
 
 export interface ServiceInfo {
@@ -33,7 +33,14 @@ const DEFAULT_SERVICES: Record<ServiceName, ServiceInfo> = {
   },
   prefrontal: {
     name: 'prefrontal',
-    displayName: 'Neure (Prefrontal)',
+    displayName: 'Prefrontal (Agent)',
+    host: 'localhost',
+    port: 8082,
+    status: 'unknown',
+  },
+  neure: {
+    name: 'neure',
+    displayName: 'Neure (Embedded Engine)',
     host: 'localhost',
     port: 8085,
     status: 'unknown',
