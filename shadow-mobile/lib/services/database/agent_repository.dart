@@ -11,18 +11,7 @@ class PrefrontalAgentRepository implements IAgentRepository {
   @override
   Future<List<AgentSettings>> getAll() async {
     final agents = await _client.getAgents();
-    return agents
-        .map(
-          (a) => AgentSettings(
-            id: a.id,
-            name: a.name,
-            description: a.description,
-            isEnabled: true,
-            settings: {},
-            soul: null,
-          ),
-        )
-        .toList();
+    return agents.map((a) => AgentSettings.fromAgentResponse(a)).toList();
   }
 
   @override
@@ -30,9 +19,9 @@ class PrefrontalAgentRepository implements IAgentRepository {
 
   @override
   Future<AgentSettings?> getById(String id) async {
-    final agents = await getAll();
     try {
-      return agents.firstWhere((a) => a.id == id);
+      final agent = await _client.getAgent(id);
+      return AgentSettings.fromAgentResponse(agent);
     } catch (_) {
       return null;
     }
@@ -43,7 +32,13 @@ class PrefrontalAgentRepository implements IAgentRepository {
 
   @override
   Future<void> insert(AgentSettings agent) async {
-    throw UnimplementedError('Use Prefrontal server to create agents');
+    final request = CreateAgentRequest(
+      name: agent.name,
+      description: agent.description,
+      model: agent.model.isNotEmpty ? agent.model : 'gpt-4o',
+      skills: agent.skills,
+    );
+    await _client.createAgent(request);
   }
 
   @override
@@ -51,7 +46,9 @@ class PrefrontalAgentRepository implements IAgentRepository {
 
   @override
   Future<void> update(AgentSettings agent) async {
-    throw UnimplementedError('Use Prefrontal server to update agents');
+    if (agent.model.isNotEmpty) {
+      await _client.updateAgentModel(agent.id, agent.model);
+    }
   }
 
   @override
@@ -59,16 +56,14 @@ class PrefrontalAgentRepository implements IAgentRepository {
 
   @override
   Future<void> delete(String id) async {
-    throw UnimplementedError('Use Prefrontal server to delete agents');
+    await _client.deleteAgent(id);
   }
 
   @override
   Future<void> deleteAgent(String id) => delete(id);
 
   @override
-  Future<void> toggleAgent(String id) async {
-    throw UnimplementedError('Use Prefrontal server to toggle agents');
-  }
+  Future<void> toggleAgent(String id) async {}
 
   @override
   Future<void> initializeDefaultAgents() async {}

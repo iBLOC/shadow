@@ -643,6 +643,10 @@ class _TtsSettingsSectionState extends State<_TtsSettingsSection> {
                 ),
               ),
               ButtonSegment(
+                value: TtsEngineType.rust,
+                label: Text('Rust', style: const TextStyle(fontSize: 10)),
+              ),
+              ButtonSegment(
                 value: TtsEngineType.external,
                 label: Text(
                   l10n.ttsEngineExternal,

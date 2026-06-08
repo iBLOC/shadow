@@ -68,7 +68,7 @@ class PrefrontalAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun findNodeByText(
+    fun findNodeByText(
         node: AccessibilityNodeInfo,
         text: String,
         visited: MutableSet<AccessibilityNodeInfo>

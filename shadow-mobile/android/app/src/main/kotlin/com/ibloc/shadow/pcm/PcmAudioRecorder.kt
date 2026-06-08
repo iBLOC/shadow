@@ -21,7 +21,10 @@ import android.content.Context
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
+import io.flutter.plugin.common.EventChannel
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.Dispatchers
@@ -29,17 +32,18 @@ import kotlinx.coroutines.withContext
 
 private const val TAG = "PcmAudioRecorder"
 
-// Same constants as Gallery app
 const val SAMPLE_RATE = 16000
 private const val CHANNEL_CONFIG = AudioFormat.CHANNEL_IN_MONO
 private const val AUDIO_FORMAT = AudioFormat.ENCODING_PCM_16BIT
-private const val MAX_DURATION_MS = 30000L // 30 seconds max
+private const val MAX_DURATION_MS = 30000L
 
 class PcmAudioRecorder(private val context: Context) {
     private var audioRecord: AudioRecord? = null
     private val isRecording = AtomicBoolean(false)
     private val audioStream = ByteArrayOutputStream()
     private var recordingStartTime: Long = 0
+    private var audioEventSink: EventChannel.EventSink? = null
+    private val streamChunkSize = 4096
 
     /**
      * Check if audio recording permission is granted
@@ -114,6 +118,12 @@ class PcmAudioRecorder(private val context: Context) {
             val bytesRead = audioRecord?.read(buffer, 0, buffer.size) ?: 0
             if (bytesRead > 0) {
                 audioStream.write(buffer, 0, bytesRead)
+                if (audioEventSink != null && bytesRead >= streamChunkSize) {
+                    val chunk = buffer.copyOf(bytesRead)
+                    Handler(Looper.getMainLooper()).post {
+                        audioEventSink?.success(chunk)
+                    }
+                }
             }
         }
     }
@@ -182,15 +192,14 @@ class PcmAudioRecorder(private val context: Context) {
         }
     }
 
-    /**
-     * Check if currently recording
-     */
+    fun setEventSink(eventSink: EventChannel.EventSink?) {
+        audioEventSink = eventSink
+    }
+
     fun isRecording(): Boolean = isRecording.get()
 
-    /**
-     * Release resources
-     */
     fun release() {
         cancelRecording()
+        audioEventSink = null
     }
 }

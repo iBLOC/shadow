@@ -170,6 +170,70 @@ class PrefrontalClient {
     );
   }
 
+  /// 获取单个Agent
+  Future<AgentResponse> getAgent(String agentId) async {
+    return await _request<AgentResponse>(
+      'GET',
+      '/api/agents/$agentId',
+      parser: (data) => AgentResponse.fromJson(data),
+    );
+  }
+
+  /// 删除Agent
+  Future<void> deleteAgent(String agentId) async {
+    await _request('DELETE', '/api/agents/$agentId');
+  }
+
+  /// 更新Agent模型
+  Future<AgentResponse> updateAgentModel(String agentId, String model) async {
+    return await _request<AgentResponse>(
+      'PUT',
+      '/api/agents/$agentId/model',
+      body: {'model': model},
+      parser: (data) => AgentResponse.fromJson(data),
+    );
+  }
+
+  /// Agent添加Skill
+  Future<AgentResponse> addAgentSkill(String agentId, String skill) async {
+    return await _request<AgentResponse>(
+      'POST',
+      '/api/agents/$agentId/skills',
+      body: {'skill': skill},
+      parser: (data) => AgentResponse.fromJson(data),
+    );
+  }
+
+  /// Agent移除Skill
+  Future<AgentResponse> removeAgentSkill(String agentId, String skill) async {
+    return await _request<AgentResponse>(
+      'DELETE',
+      '/api/agents/$agentId/skills',
+      body: {'skill': skill},
+      parser: (data) => AgentResponse.fromJson(data),
+    );
+  }
+
+  /// Agent添加MCP Server
+  Future<AgentResponse> addAgentMcp(String agentId, String server) async {
+    return await _request<AgentResponse>(
+      'POST',
+      '/api/agents/$agentId/mcps',
+      body: {'server': server},
+      parser: (data) => AgentResponse.fromJson(data),
+    );
+  }
+
+  /// Agent移除MCP Server
+  Future<AgentResponse> removeAgentMcp(String agentId, String server) async {
+    return await _request<AgentResponse>(
+      'DELETE',
+      '/api/agents/$agentId/mcps',
+      body: {'server': server},
+      parser: (data) => AgentResponse.fromJson(data),
+    );
+  }
+
   // ============ Task APIs ============
 
   /// 获取任务列表
@@ -443,6 +507,97 @@ class PrefrontalClient {
     }
   }
 
+  Future<String> chatCompletions({
+    String? model,
+    required List<Map<String, dynamic>> messages,
+    bool stream = false,
+    bool useTools = false,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/chat/completions');
+    final requestHeaders = {'Content-Type': 'application/json'};
+
+    final body = <String, dynamic>{
+      if (model != null) 'model': model,
+      'messages': messages,
+      'stream': stream,
+      'use_tools': useTools,
+    };
+
+    final response = await _client.post(
+      uri,
+      headers: requestHeaders,
+      body: json.encode(body),
+    );
+
+    if (response.statusCode != 200) {
+      throw PrefrontalApiException(
+        'Chat completions error: ${response.statusCode}',
+      );
+    }
+
+    final data = json.decode(response.body) as Map<String, dynamic>;
+    final choices = data['choices'] as List<dynamic>?;
+    if (choices == null || choices.isEmpty) {
+      throw PrefrontalApiException('No response choices');
+    }
+
+    final firstChoice = choices.first as Map<String, dynamic>;
+    final message = firstChoice['message'] as Map<String, dynamic>?;
+    if (message == null) {
+      throw PrefrontalApiException('No message in response');
+    }
+
+    return message['content'] as String? ?? '';
+  }
+
+  Stream<String> chatCompletionsStream({
+    String? model,
+    required List<Map<String, dynamic>> messages,
+    bool useTools = false,
+  }) async* {
+    final uri = Uri.parse('$baseUrl/api/chat/completions');
+    final requestHeaders = {'Content-Type': 'application/json'};
+
+    final client = http.Client();
+    try {
+      final body = <String, dynamic>{
+        if (model != null) 'model': model,
+        'messages': messages,
+        'stream': true,
+        'use_tools': useTools,
+      };
+
+      final request = http.Request('POST', uri);
+      request.headers.addAll(requestHeaders);
+      request.body = json.encode(body);
+
+      final response = await client.send(request);
+
+      if (response.statusCode != 200) {
+        throw PrefrontalApiException(
+          'Chat completions stream error: ${response.statusCode}',
+        );
+      }
+
+      String buffer = '';
+      await for (final bytes in response.stream) {
+        buffer += utf8.decode(bytes);
+        final lines = buffer.split('\n');
+        buffer = lines.removeLast();
+        for (final line in lines) {
+          if (line.startsWith('data: ')) {
+            final data = line.substring(6);
+            if (data.isNotEmpty && data != '[DONE]') {
+              yield data;
+            }
+          }
+        }
+      }
+    } finally {
+      client.close();
+    }
+  }
+
   void dispose() {
     _client.close();
   }
@@ -642,16 +797,22 @@ class AgentResponse {
   final String name;
   final String? description;
   final String model;
-  final String? skills;
+  final List<String> skills;
+  final List<String> mcpServers;
   final DateTime createdAt;
+  final bool isOnline;
+  final bool isDefault;
 
   AgentResponse({
     required this.id,
     required this.name,
     this.description,
     required this.model,
-    this.skills,
+    required this.skills,
+    required this.mcpServers,
     required this.createdAt,
+    required this.isOnline,
+    required this.isDefault,
   });
 
   factory AgentResponse.fromJson(Map<String, dynamic> json) {
@@ -660,10 +821,21 @@ class AgentResponse {
       name: json['name'] ?? '',
       description: json['description'],
       model: json['model'] ?? '',
-      skills: json['skills'],
+      skills:
+          (json['skills'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          [],
+      mcpServers:
+          (json['mcp_servers'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          [],
       createdAt: DateTime.parse(
         json['created_at'] ?? DateTime.now().toIso8601String(),
       ),
+      isOnline: json['is_online'] ?? false,
+      isDefault: json['is_default'] ?? false,
     );
   }
 }

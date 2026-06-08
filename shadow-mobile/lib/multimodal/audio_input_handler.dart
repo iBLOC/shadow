@@ -1,5 +1,9 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../services/pcm_audio_recorder.dart';
 
 enum AudioInputState { idle, recording, processing }
@@ -10,6 +14,7 @@ class AudioInputHandler {
   DateTime? _recordingStartTime;
   Timer? _amplitudeTimer;
   final _amplitudeController = StreamController<double>.broadcast();
+  void Function(Uint8List)? onAudioChunk;
 
   AudioInputState get state => _state;
   Stream<double> get amplitudeStream => _amplitudeController.stream;
@@ -21,17 +26,33 @@ class AudioInputHandler {
   }
 
   Future<bool> hasPermission() async {
-    return await _recorder.hasPermission();
+    final status = await Permission.microphone.status;
+    return status.isGranted;
+  }
+
+  Future<bool> requestPermission() async {
+    final status = await Permission.microphone.request();
+    return status.isGranted;
   }
 
   Future<String?> startRecording() async {
     if (_state == AudioInputState.recording) return null;
 
-    final hasPermission = await _recorder.hasPermission();
-    if (!hasPermission) return null;
+    var hasPermission = await Permission.microphone.status.isGranted;
+    if (!hasPermission) {
+      hasPermission = await Permission.microphone.request().isGranted;
+      if (!hasPermission) {
+        debugPrint('AudioInputHandler: Microphone permission denied');
+        return null;
+      }
+    }
 
+    _recorder.onAudioChunk = _handleAudioChunk;
     final success = await _recorder.startRecording();
-    if (!success) return null;
+    if (!success) {
+      debugPrint('AudioInputHandler: Failed to start recording');
+      return null;
+    }
 
     _recordingStartTime = DateTime.now();
     _state = AudioInputState.recording;
@@ -42,6 +63,10 @@ class AudioInputHandler {
     );
 
     return 'pcm_recording';
+  }
+
+  void _handleAudioChunk(Uint8List chunk) {
+    onAudioChunk?.call(chunk);
   }
 
   Future<void> _updateAmplitude() async {
@@ -77,8 +102,28 @@ class AudioInputHandler {
     _state = AudioInputState.idle;
   }
 
+  Future<String?> saveAudioToFile(Uint8List pcmData) async {
+    try {
+      final appDir = await getApplicationDocumentsDirectory();
+      final audioDir = Directory('${appDir.path}/audio_recordings');
+      if (!await audioDir.exists()) {
+        await audioDir.create(recursive: true);
+      }
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final path = '${audioDir.path}/voice_$timestamp.pcm';
+      final file = File(path);
+      await file.writeAsBytes(pcmData);
+      debugPrint('AudioInputHandler: Saved audio to $path');
+      return path;
+    } catch (e) {
+      debugPrint('AudioInputHandler: Failed to save audio: $e');
+      return null;
+    }
+  }
+
   Future<void> dispose() async {
     _amplitudeTimer?.cancel();
+    _recorder.dispose();
     await _amplitudeController.close();
   }
 }

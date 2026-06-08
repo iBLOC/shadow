@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'audio_input_handler.dart';
 import 'image_input_handler.dart';
 import 'file_input_handler.dart';
@@ -24,15 +25,20 @@ class MultimodalInputManager {
 
   Future<bool> hasAudioPermission() => _audioHandler.hasPermission();
 
+  void setAudioChunkCallback(void Function(Uint8List)? callback) {
+    _audioHandler.onAudioChunk = callback;
+  }
+
   Future<String?> startAudioRecording() => _audioHandler.startRecording();
 
   Future<MultimodalInput?> stopAudioRecording() async {
     final pcmData = await _audioHandler.stopRecording();
     if (pcmData != null) {
+      final path = await _audioHandler.saveAudioToFile(pcmData);
       return MultimodalInput(
         type: MultimodalInputType.audio,
         data: pcmData,
-        path: null,
+        path: path,
       );
     }
     return null;

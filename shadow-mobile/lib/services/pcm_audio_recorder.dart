@@ -1,8 +1,34 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 class PcmAudioRecorder {
   static const _channel = MethodChannel('com.ibloc.shadow/pcm_audio');
+  static const _streamChannel = EventChannel(
+    'com.ibloc.shadow/pcm_audio_stream',
+  );
+
+  StreamSubscription<dynamic>? _streamSubscription;
+  void Function(Uint8List)? onAudioChunk;
+
+  void _startListening() {
+    _streamSubscription?.cancel();
+    _streamSubscription = _streamChannel.receiveBroadcastStream().listen(
+      (dynamic data) {
+        if (data is Uint8List && onAudioChunk != null) {
+          onAudioChunk!(data);
+        }
+      },
+      onError: (dynamic error) {
+        debugPrint('PcmAudioRecorder stream error: $error');
+      },
+    );
+  }
+
+  void _stopListening() {
+    _streamSubscription?.cancel();
+    _streamSubscription = null;
+  }
 
   Future<bool> hasPermission() async {
     try {
@@ -14,6 +40,7 @@ class PcmAudioRecorder {
 
   Future<bool> startRecording() async {
     try {
+      _startListening();
       return await _channel.invokeMethod<bool>('startRecording') ?? false;
     } catch (e) {
       return false;
@@ -22,6 +49,7 @@ class PcmAudioRecorder {
 
   Future<Uint8List?> stopRecording() async {
     try {
+      _stopListening();
       final result = await _channel.invokeMethod<Uint8List>('stopRecording');
       return result;
     } catch (e) {
@@ -31,6 +59,7 @@ class PcmAudioRecorder {
 
   Future<bool> cancelRecording() async {
     try {
+      _stopListening();
       return await _channel.invokeMethod<bool>('cancelRecording') ?? false;
     } catch (e) {
       return false;
@@ -51,5 +80,9 @@ class PcmAudioRecorder {
     } catch (e) {
       return 0;
     }
+  }
+
+  void dispose() {
+    _stopListening();
   }
 }

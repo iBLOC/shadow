@@ -82,7 +82,7 @@ class _LogPanelSectionState extends ConsumerState<LogPanelSection> {
                 '日志',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
               SegmentedButton<LogSource?>(
                 segments: const [
                   ButtonSegment(value: null, label: Text('全部')),

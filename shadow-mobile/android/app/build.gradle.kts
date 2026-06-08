@@ -72,6 +72,14 @@ flutter {
 }
 
 dependencies {
-    implementation("com.google.ai.edge.litertlm:litertlm-android:latest.release")
+    // Pinned to 0.13.1 (released 2026-06-03). Do NOT use `latest.release` here —
+    // floating versions break reproducible builds and have caused silent upgrades
+    // when Google publishes patch releases. The artifact's Kotlin API surface
+    // (Engine / EngineConfig / Backend / Conversation / Content / Contents) is
+    // backward compatible with our LitertEngine.kt. See:
+    //   https://github.com/google-ai-edge/LiteRT-LM/releases/tag/v0.13.1
+    //   https://maven.google.com/web/index.html#com.google.ai.edge.litertlm:litertlm-android
+    implementation("com.google.ai.edge.litertlm:litertlm-android:0.13.1")
     implementation("org.nanohttpd:nanohttpd:2.3.1")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 }

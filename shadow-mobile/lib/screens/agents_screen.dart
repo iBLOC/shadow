@@ -168,17 +168,46 @@ class _AgentCard extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      agent.name,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            agent.name,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        if (agent.isDefault) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Text(
+                              'DEFAULT',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                     if (agent.description != null)
                       Text(
                         agent.description!,
                         style: Theme.of(context).textTheme.bodySmall,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
                   ],
                 ),
@@ -192,15 +221,64 @@ class _AgentCard extends ConsumerWidget {
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          if (agent.settings != null) ...[
-            _buildSettingsRow(context, agent.settings!),
-            const SizedBox(height: 12),
+          const SizedBox(height: 12),
+          if (agent.model.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.model_training,
+                    size: 14,
+                    color: Colors.grey,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    agent.model,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+          if (agent.skills.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Wrap(
+              spacing: 4,
+              runSpacing: 4,
+              children: agent.skills.map((skill) {
+                return Chip(
+                  avatar: const Icon(Icons.extension, size: 14),
+                  label: Text(skill, style: const TextStyle(fontSize: 11)),
+                  padding: EdgeInsets.zero,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.compact,
+                );
+              }).toList(),
+            ),
           ],
+          if (agent.mcpServers.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Wrap(
+              spacing: 4,
+              runSpacing: 4,
+              children: agent.mcpServers.map((server) {
+                return Chip(
+                  avatar: const Icon(Icons.cloud, size: 14),
+                  label: Text(server, style: const TextStyle(fontSize: 11)),
+                  padding: EdgeInsets.zero,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  visualDensity: VisualDensity.compact,
+                );
+              }).toList(),
+            ),
+          ],
+          const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              if (agent.id == 'chat') // Only Chat Agent has Soul
+              if (agent.id == 'main-agent' || agent.id == 'chat')
                 TextButton.icon(
                   onPressed: () => _showSoulSettings(context),
                   icon: const Icon(Icons.person),

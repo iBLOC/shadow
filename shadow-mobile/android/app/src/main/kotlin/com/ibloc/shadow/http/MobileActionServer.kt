@@ -43,23 +43,23 @@ class MobileActionServer(
 
             val result = when (action) {
                 "tap" -> {
-                    val x = params.optNumber("x", 0).toFloat()
-                    val y = params.optNumber("y", 0).toFloat()
+                    val x = params.optDouble("x", 0.0).toFloat()
+                    val y = params.optDouble("y", 0.0).toFloat()
                     val success = accessibilityService.performTap(x, y)
                     jsonResponse(success, "Tapped at ($x, $y)")
                 }
                 "long_press" -> {
-                    val x = params.optNumber("x", 0).toFloat()
-                    val y = params.optNumber("y", 0).toFloat()
+                    val x = params.optDouble("x", 0.0).toFloat()
+                    val y = params.optDouble("y", 0.0).toFloat()
                     val success = accessibilityService.performLongPress(x, y)
                     jsonResponse(success, "Long pressed at ($x, $y)")
                 }
                 "swipe" -> {
-                    val x1 = params.optNumber("x1", 0).toFloat()
-                    val y1 = params.optNumber("y1", 0).toFloat()
-                    val x2 = params.optNumber("x2", 0).toFloat()
-                    val y2 = params.optNumber("y2", 0).toFloat()
-                    val duration = params.optNumber("duration_ms", 300).toLong()
+                    val x1 = params.optDouble("x1", 0.0).toFloat()
+                    val y1 = params.optDouble("y1", 0.0).toFloat()
+                    val x2 = params.optDouble("x2", 0.0).toFloat()
+                    val y2 = params.optDouble("y2", 0.0).toFloat()
+                    val duration = params.optInt("duration_ms", 300).toLong()
                     val success = accessibilityService.performSwipe(x1, y1, x2, y2, duration)
                     jsonResponse(success, "Swiped from ($x1, $y1) to ($x2, $y2)")
                 }

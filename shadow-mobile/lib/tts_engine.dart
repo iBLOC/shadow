@@ -1,9 +1,12 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 
 enum TtsEngineType {
   androidBuiltIn('Android 内置', 'android'),
+  rust('Rust TTS', 'rust'),
   external('外部服务', 'external');
 
   final String label;
@@ -13,6 +16,7 @@ enum TtsEngineType {
 
 class TtsEngine {
   static const _channel = MethodChannel('com.ibloc.shadow/tts');
+  static const String _rustTtsUrl = 'http://localhost:8082/api/tts/synthesize';
 
   TtsEngineType _engineType = TtsEngineType.androidBuiltIn;
   String _externalUrl = '';
@@ -61,22 +65,62 @@ class TtsEngine {
   Future<void> speak(String text, {String lang = 'zh-CN'}) async {
     if (text.isEmpty) return;
 
-    if (_engineType == TtsEngineType.external && _externalUrl.isNotEmpty) {
-      await _speakExternal(text, lang);
-      return;
+    switch (_engineType) {
+      case TtsEngineType.rust:
+        await _speakRust(text, lang);
+        break;
+      case TtsEngineType.external:
+        if (_externalUrl.isNotEmpty) {
+          await _speakExternal(text, lang);
+        }
+        break;
+      case TtsEngineType.androidBuiltIn:
+        final initialized = await initialize();
+        if (!initialized) {
+          debugPrint('TtsEngine.speak: TTS not initialized');
+          return;
+        }
+        try {
+          await _channel.invokeMethod<bool>('speak', {
+            'text': text,
+            'lang': lang,
+          });
+        } catch (e) {
+          debugPrint('TtsEngine.speak error: $e');
+        }
+        break;
     }
+  }
 
-    final initialized = await initialize();
-    if (!initialized) {
-      debugPrint('TtsEngine.speak: TTS not initialized');
-      return;
-    }
-
+  Future<void> _speakRust(String text, String lang) async {
     try {
-      await _channel.invokeMethod<bool>('speak', {'text': text, 'lang': lang});
+      final response = await http.post(
+        Uri.parse(_rustTtsUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({'text': text, 'voice_path': null, 'speed': null}),
+      );
+
+      if (response.statusCode != 200) {
+        debugPrint('TtsEngine._speakRust: HTTP ${response.statusCode}');
+        return;
+      }
+
+      final data = json.decode(response.body) as Map<String, dynamic>;
+      final audioBase64 = data['audio'] as String?;
+      if (audioBase64 == null || audioBase64.isEmpty) {
+        debugPrint('TtsEngine._speakRust: No audio in response');
+        return;
+      }
+
+      final audioBytes = base64Decode(audioBase64);
+      await _playAudio(audioBytes);
     } catch (e) {
-      debugPrint('TtsEngine.speak error: $e');
+      debugPrint('TtsEngine._speakRust error: $e');
     }
+  }
+
+  Future<void> _playAudio(Uint8List audioBytes) async {
+    debugPrint('TtsEngine._playAudio: Playing ${audioBytes.length} bytes');
   }
 
   Future<void> _speakExternal(String text, String lang) async {

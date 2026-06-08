@@ -1,8 +1,9 @@
 import 'dart:async';
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/audio_ws_service.dart';
 import '../services/video_frame_collector.dart';
+import '../services/prefrontal_client.dart';
 
 enum ConversationMode { message, conversation }
 
@@ -16,6 +17,7 @@ class ConversationState {
   final VideoState videoState;
   final bool isMirrored;
   final String? errorMessage;
+  final String? sessionId;
 
   const ConversationState({
     this.mode = ConversationMode.message,
@@ -23,6 +25,7 @@ class ConversationState {
     this.videoState = VideoState.off,
     this.isMirrored = true,
     this.errorMessage,
+    this.sessionId,
   });
 
   ConversationState copyWith({
@@ -31,6 +34,7 @@ class ConversationState {
     VideoState? videoState,
     bool? isMirrored,
     String? errorMessage,
+    String? sessionId,
   }) {
     return ConversationState(
       mode: mode ?? this.mode,
@@ -38,6 +42,7 @@ class ConversationState {
       videoState: videoState ?? this.videoState,
       isMirrored: isMirrored ?? this.isMirrored,
       errorMessage: errorMessage,
+      sessionId: sessionId ?? this.sessionId,
     );
   }
 }
@@ -45,7 +50,8 @@ class ConversationState {
 class ConversationModeNotifier extends StateNotifier<ConversationState> {
   AudioWsService? _audioService;
   final VideoFrameCollector _videoCollector;
-  final String? _sessionId;
+  final PrefrontalClient _prefrontalClient;
+  String? _sessionId;
   final String? _baseUrl;
 
   StreamSubscription<AudioWsState>? _stateSubscription;
@@ -59,15 +65,36 @@ class ConversationModeNotifier extends StateNotifier<ConversationState> {
     String? sessionId,
     String? baseUrl,
     VideoFrameCollector? videoCollector,
+    PrefrontalClient? prefrontalClient,
   }) : _sessionId = sessionId,
        _baseUrl = baseUrl,
        _videoCollector = videoCollector ?? VideoFrameCollector(),
+       _prefrontalClient =
+           prefrontalClient ?? PrefrontalClient(baseUrl: baseUrl),
        super(const ConversationState());
 
-  Future<bool> connect() async {
-    if (_sessionId == null) return false;
+  Future<String?> _createSession() async {
+    try {
+      final session = await _prefrontalClient.createSession();
+      debugPrint('ConversationModeNotifier: Created session ${session.id}');
+      return session.id;
+    } catch (e) {
+      debugPrint('ConversationModeNotifier: Failed to create session: $e');
+      return null;
+    }
+  }
 
-    _audioService = AudioWsService(sessionId: _sessionId, baseUrl: _baseUrl);
+  Future<bool> connect() async {
+    if (_sessionId == null) {
+      _sessionId = await _createSession();
+      if (_sessionId == null) {
+        state = state.copyWith(errorMessage: 'Failed to create session');
+        return false;
+      }
+      state = state.copyWith(sessionId: _sessionId);
+    }
+
+    _audioService = AudioWsService(sessionId: _sessionId!, baseUrl: _baseUrl);
 
     _stateSubscription = _audioService!.stateStream.listen((wsState) {
       switch (wsState) {
