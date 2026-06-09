@@ -125,12 +125,12 @@ export const useServiceStore = create<ServiceState>((set, get) => ({
 
   checkAllServices: async () => {
     set({ isChecking: true });
-    const services = Object.keys(DEFAULT_SERVICES) as ServiceName[];
-    
+    const services = Object.keys(get().services) as ServiceName[];
+
     await Promise.all(
       services.map((name) => get().checkService(name))
     );
-    
+
     set({ isChecking: false });
   },
 
