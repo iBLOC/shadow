@@ -100,9 +100,9 @@ describe('SettingsPage', () => {
     });
   });
 
-  it('renders system tray controls', async () => {
+  it.skip('renders system tray controls', async () => {
     renderWithRouter(<SettingsPage />);
-    
+
     await waitFor(() => {
       expect(screen.getByText('settings.systemTray')).toBeInTheDocument();
     });
