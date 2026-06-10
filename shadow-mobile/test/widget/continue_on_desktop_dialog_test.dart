@@ -61,7 +61,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Continue on Desktop'), findsOneWidget);
-      expect(find.text('Transfer'), findsOneWidget);
+      expect(find.text('Hand off'), findsOneWidget);
     });
 
     testWidgets('shows add manually option when no peers', (
