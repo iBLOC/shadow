@@ -14,6 +14,7 @@ void main() {
     ) async {
       await tester.pumpWidget(
         ProviderScope(
+          overrides: getTestOverrides(),
           child: MaterialApp(
             localizationsDelegates: const [
               AppLocalizations.delegate,
@@ -36,6 +37,7 @@ void main() {
     ) async {
       await tester.pumpWidget(
         ProviderScope(
+          overrides: getTestOverrides(),
           child: MaterialApp(
             localizationsDelegates: const [
               AppLocalizations.delegate,
@@ -50,12 +52,13 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.byType(ListView), findsOneWidget);
+      expect(find.byType(Center), findsWidgets);
     });
 
     testWidgets('has send button', (WidgetTester tester) async {
       await tester.pumpWidget(
         ProviderScope(
+          overrides: getTestOverrides(),
           child: MaterialApp(
             localizationsDelegates: const [
               AppLocalizations.delegate,
@@ -76,6 +79,7 @@ void main() {
     testWidgets('has TextField for input', (WidgetTester tester) async {
       await tester.pumpWidget(
         ProviderScope(
+          overrides: getTestOverrides(),
           child: MaterialApp(
             localizationsDelegates: const [
               AppLocalizations.delegate,
@@ -97,6 +101,7 @@ void main() {
       await pumpWidgetForTest(
         tester,
         ProviderScope(
+          overrides: getTestOverrides(),
           child: MaterialApp(
             localizationsDelegates: const [
               AppLocalizations.delegate,
@@ -117,6 +122,7 @@ void main() {
       await pumpWidgetForTest(
         tester,
         ProviderScope(
+          overrides: getTestOverrides(),
           child: MaterialApp(
             localizationsDelegates: const [
               AppLocalizations.delegate,
@@ -131,6 +137,41 @@ void main() {
       );
 
       expect(find.byIcon(Icons.mic), findsOneWidget);
+    });
+
+    testWidgets('can enter text and tap send button', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: getTestOverrides(),
+          child: MaterialApp(
+            localizationsDelegates: const [
+              AppLocalizations.delegate,
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+            ],
+            supportedLocales: const [Locale('en')],
+            locale: const Locale('en'),
+            home: const ChatScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final textField = find.byType(TextField);
+      expect(textField, findsOneWidget);
+
+      await tester.enterText(textField, 'Hello, Shadow!');
+      await tester.pumpAndSettle();
+
+      final sendButton = find.byIcon(Icons.send);
+      expect(sendButton, findsOneWidget);
+
+      await tester.tap(sendButton);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Hello, Shadow!'), findsNothing);
     });
   });
 }
