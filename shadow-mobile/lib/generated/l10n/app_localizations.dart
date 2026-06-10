@@ -887,74 +887,74 @@ abstract class AppLocalizations {
   /// No description provided for @continueDesktopTitle.
   ///
   /// In en, this message translates to:
-  /// **'Continue on desktop'**
+  /// **'Continue on Desktop'**
   String get continueDesktopTitle;
 
   /// No description provided for @continueDesktopDescription.
   ///
   /// In en, this message translates to:
-  /// **'Hand off this conversation to another Shadow node on the LAN and pick it up there.'**
+  /// **'Pick a desktop peer to hand this conversation off to. Audio and TTS stay on the phone; inference moves to the desktop.'**
   String get continueDesktopDescription;
 
   /// No description provided for @continueDesktopConfirm.
   ///
   /// In en, this message translates to:
-  /// **'Continue now'**
+  /// **'Hand off'**
   String get continueDesktopConfirm;
 
   /// No description provided for @continueDesktopNoPeers.
   ///
   /// In en, this message translates to:
-  /// **'No Shadow nodes discovered yet'**
+  /// **'No desktop peers found. Make sure your desktop is running and on the same network.'**
   String get continueDesktopNoPeers;
+
+  /// No description provided for @continueDesktopProvider.
+  ///
+  /// In en, this message translates to:
+  /// **'Desktop peer'**
+  String get continueDesktopProvider;
 
   /// No description provided for @continueDesktopMessageCount.
   ///
   /// In en, this message translates to:
-  /// **'{count} messages'**
-  String continueDesktopMessageCount(Object count);
+  /// **'{count, plural, =0{No messages yet} =1{1 message} other{{count} messages}}'**
+  String continueDesktopMessageCount(int count);
 
   /// No description provided for @continueDesktopSizeKb.
   ///
   /// In en, this message translates to:
-  /// **'{kb} KB'**
-  String continueDesktopSizeKb(Object kb);
+  /// **'{size} KB'**
+  String continueDesktopSizeKb(int size);
 
   /// No description provided for @continueDesktopPreparing.
   ///
   /// In en, this message translates to:
-  /// **'Preparing…'**
+  /// **'Preparing handoff...'**
   String get continueDesktopPreparing;
 
   /// No description provided for @continueDesktopInProgress.
   ///
   /// In en, this message translates to:
-  /// **'Sending to {peer}…'**
-  String continueDesktopInProgress(Object peer);
+  /// **'Handing off to {peer}...'**
+  String continueDesktopInProgress(String peer);
 
   /// No description provided for @continueDesktopSuccess.
   ///
   /// In en, this message translates to:
-  /// **'Moved to {peer}'**
-  String continueDesktopSuccess(Object peer);
+  /// **'Handoff to {peer} complete. Open the conversation on your desktop.'**
+  String continueDesktopSuccess(String peer);
 
   /// No description provided for @continueDesktopError.
   ///
   /// In en, this message translates to:
-  /// **'Move failed: {error}'**
-  String continueDesktopError(Object error);
+  /// **'Handoff failed: {message}'**
+  String continueDesktopError(String message);
 
   /// No description provided for @addManually.
   ///
   /// In en, this message translates to:
   /// **'Add manually'**
   String get addManually;
-
-  /// No description provided for @wakeWordHeard.
-  ///
-  /// In en, this message translates to:
-  /// **'Heard you'**
-  String get wakeWordHeard;
 
   /// No description provided for @confirm.
   ///

@@ -130,5 +130,53 @@
   "ttsExternalUrl": "外部 TTS 服务地址",
   "ttsExternalUrlHint": "输入外部 TTS API 地址",
   "ttsTest": "测试朗读",
-  "ttsTestText": "你好，这是语音合成测试"
+  "ttsTestText": "你好，这是语音合成测试",
+  "continueDesktopTitle": "在桌面端继续",
+  "continueDesktopDescription": "选择一个桌面端节点，把当前对话交接过去。音频和 TTS 保留在手机上，推理移动到桌面端。",
+  "continueDesktopConfirm": "开始交接",
+  "continueDesktopNoPeers": "未发现桌面端节点。请确认桌面端已启动且在同一网络。",
+  "continueDesktopProvider": "桌面端节点",
+  "continueDesktopMessageCount": "{count, plural, =0{暂无消息} =1{1 条消息} other{{count} 条消息}}",
+  "@continueDesktopMessageCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "continueDesktopSizeKb": "{size} KB",
+  "@continueDesktopSizeKb": {
+    "placeholders": {
+      "size": {
+        "type": "int"
+      }
+    }
+  },
+  "continueDesktopPreparing": "正在准备交接...",
+  "continueDesktopInProgress": "正在交接至 {peer}...",
+  "@continueDesktopInProgress": {
+    "placeholders": {
+      "peer": {
+        "type": "String"
+      }
+    }
+  },
+  "continueDesktopSuccess": "与 {peer} 的交接完成。请在桌面端打开对话。",
+  "@continueDesktopSuccess": {
+    "placeholders": {
+      "peer": {
+        "type": "String"
+      }
+    }
+  },
+  "continueDesktopError": "交接失败：{message}",
+  "@continueDesktopError": {
+    "placeholders": {
+      "message": {
+        "type": "String"
+      }
+    }
+  },
+  "addManually": "手动添加",
+  "confirm": "确认"
 }

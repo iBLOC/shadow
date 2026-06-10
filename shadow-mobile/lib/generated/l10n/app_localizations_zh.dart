@@ -413,40 +413,58 @@ class AppLocalizationsZh extends AppLocalizations {
   String get ttsTestText => '你好，这是语音合成测试';
 
   @override
-  String get continueDesktopTitle => '在桌面继续';
+  String get continueDesktopTitle => '在桌面端继续';
 
   @override
-  String get continueDesktopDescription => '将当前对话迁移到局域网中的另一台 Shadow 设备继续。';
+  String get continueDesktopDescription =>
+      '选择一个桌面端节点，把当前对话交接过去。音频和 TTS 保留在手机上，推理移动到桌面端。';
 
   @override
-  String get continueDesktopConfirm => '立即迁移';
+  String get continueDesktopConfirm => '开始交接';
 
   @override
-  String get continueDesktopNoPeers => '未发现 Shadow 节点';
+  String get continueDesktopNoPeers => '未发现桌面端节点。请确认桌面端已启动且在同一网络。';
 
   @override
-  String continueDesktopMessageCount(Object count) => '$count 条消息';
+  String get continueDesktopProvider => '桌面端节点';
 
   @override
-  String continueDesktopSizeKb(Object kb) => '$kb KB';
+  String continueDesktopMessageCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count 条消息',
+      one: '1 条消息',
+      zero: '暂无消息',
+    );
+    return '$_temp0';
+  }
 
   @override
-  String get continueDesktopPreparing => '准备中…';
+  String continueDesktopSizeKb(int size) {
+    return '$size KB';
+  }
 
   @override
-  String continueDesktopInProgress(Object peer) => '正在发送到 $peer…';
+  String get continueDesktopPreparing => '正在准备交接...';
 
   @override
-  String continueDesktopSuccess(Object peer) => '已迁移到 $peer';
+  String continueDesktopInProgress(String peer) {
+    return '正在交接至 $peer...';
+  }
 
   @override
-  String continueDesktopError(Object error) => '迁移失败：$error';
+  String continueDesktopSuccess(String peer) {
+    return '与 $peer 的交接完成。请在桌面端打开对话。';
+  }
+
+  @override
+  String continueDesktopError(String message) {
+    return '交接失败：$message';
+  }
 
   @override
   String get addManually => '手动添加';
-
-  @override
-  String get wakeWordHeard => '听到你啦';
 
   @override
   String get confirm => '确认';

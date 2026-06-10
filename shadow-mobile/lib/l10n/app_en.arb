@@ -165,5 +165,61 @@
   "ttsExternalUrl": "External TTS Service URL",
   "ttsExternalUrlHint": "Enter external TTS API URL",
   "ttsTest": "Test Speech",
-  "ttsTestText": "Hello, this is a speech synthesis test"
+  "ttsTestText": "Hello, this is a speech synthesis test",
+  "continueDesktopTitle": "Continue on Desktop",
+  "@continueDesktopTitle": {},
+  "continueDesktopDescription": "Pick a desktop peer to hand this conversation off to. Audio and TTS stay on the phone; inference moves to the desktop.",
+  "@continueDesktopDescription": {},
+  "continueDesktopConfirm": "Hand off",
+  "@continueDesktopConfirm": {},
+  "continueDesktopNoPeers": "No desktop peers found. Make sure your desktop is running and on the same network.",
+  "@continueDesktopNoPeers": {},
+  "continueDesktopProvider": "Desktop peer",
+  "@continueDesktopProvider": {},
+  "continueDesktopMessageCount": "{count, plural, =0{No messages yet} =1{1 message} other{{count} messages}}",
+  "@continueDesktopMessageCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "continueDesktopSizeKb": "{size} KB",
+  "@continueDesktopSizeKb": {
+    "placeholders": {
+      "size": {
+        "type": "int"
+      }
+    }
+  },
+  "continueDesktopPreparing": "Preparing handoff...",
+  "@continueDesktopPreparing": {},
+  "continueDesktopInProgress": "Handing off to {peer}...",
+  "@continueDesktopInProgress": {
+    "placeholders": {
+      "peer": {
+        "type": "String"
+      }
+    }
+  },
+  "continueDesktopSuccess": "Handoff to {peer} complete. Open the conversation on your desktop.",
+  "@continueDesktopSuccess": {
+    "placeholders": {
+      "peer": {
+        "type": "String"
+      }
+    }
+  },
+  "continueDesktopError": "Handoff failed: {message}",
+  "@continueDesktopError": {
+    "placeholders": {
+      "message": {
+        "type": "String"
+      }
+    }
+  },
+  "addManually": "Add manually",
+  "@addManually": {},
+  "confirm": "Confirm",
+  "@confirm": {}
 }

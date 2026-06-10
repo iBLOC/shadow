@@ -417,41 +417,59 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ttsTestText => 'Hello, this is a speech synthesis test';
 
   @override
-  String get continueDesktopTitle => 'Continue on desktop';
+  String get continueDesktopTitle => 'Continue on Desktop';
 
   @override
   String get continueDesktopDescription =>
-      'Hand off this conversation to another Shadow node on the LAN and pick it up there.';
+      'Pick a desktop peer to hand this conversation off to. Audio and TTS stay on the phone; inference moves to the desktop.';
 
   @override
-  String get continueDesktopConfirm => 'Continue now';
+  String get continueDesktopConfirm => 'Hand off';
 
   @override
-  String get continueDesktopNoPeers => 'No Shadow nodes discovered yet';
+  String get continueDesktopNoPeers =>
+      'No desktop peers found. Make sure your desktop is running and on the same network.';
 
   @override
-  String continueDesktopMessageCount(Object count) => '$count messages';
+  String get continueDesktopProvider => 'Desktop peer';
 
   @override
-  String continueDesktopSizeKb(Object kb) => '$kb KB';
+  String continueDesktopMessageCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count messages',
+      one: '1 message',
+      zero: 'No messages yet',
+    );
+    return '$_temp0';
+  }
 
   @override
-  String get continueDesktopPreparing => 'Preparing…';
+  String continueDesktopSizeKb(int size) {
+    return '$size KB';
+  }
 
   @override
-  String continueDesktopInProgress(Object peer) => 'Sending to $peer…';
+  String get continueDesktopPreparing => 'Preparing handoff...';
 
   @override
-  String continueDesktopSuccess(Object peer) => 'Moved to $peer';
+  String continueDesktopInProgress(String peer) {
+    return 'Handing off to $peer...';
+  }
 
   @override
-  String continueDesktopError(Object error) => 'Move failed: $error';
+  String continueDesktopSuccess(String peer) {
+    return 'Handoff to $peer complete. Open the conversation on your desktop.';
+  }
+
+  @override
+  String continueDesktopError(String message) {
+    return 'Handoff failed: $message';
+  }
 
   @override
   String get addManually => 'Add manually';
-
-  @override
-  String get wakeWordHeard => 'Heard you';
 
   @override
   String get confirm => 'Confirm';
