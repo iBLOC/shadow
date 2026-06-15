@@ -69,9 +69,13 @@ class MockThemeNotifier extends ThemeModeNotifier {
   MockThemeNotifier() : super();
 
   @override
-  void setThemeMode(ThemeMode mode) {}
+  void setThemeMode(ThemeMode mode) {
+    state = mode;
+  }
   @override
-  void toggleTheme() {}
+  void toggleTheme() {
+    state = state == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
+  }
 }
 
 class MockChatNotifier extends ChatNotifier {

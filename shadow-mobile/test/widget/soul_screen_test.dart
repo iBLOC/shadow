@@ -31,6 +31,15 @@ class MockSoulService extends SoulService {
       ),
     ];
   }
+
+  @override
+  Future<void> updateSoulByUser({
+    required String agentId,
+    required String newSoul,
+    String? triggerType = 'user_edit',
+  }) async {
+    // no-op for tests
+  }
 }
 
 final mockSoulServiceProvider = Provider<SoulService>((ref) {
@@ -128,5 +137,53 @@ void main() {
     final textField = tester.widget<TextField>(find.byType(TextField));
     expect(textField.maxLines, null);
     expect(textField.expands, true);
+  });
+
+  testWidgets('can enter custom soul text', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          soulServiceProvider.overrideWith((ref) => MockSoulService()),
+        ],
+        child: const MaterialApp(home: SoulScreen(agentId: 'test-agent')),
+      ),
+    );
+
+    await tester.pump(const Duration(milliseconds: 500));
+
+    final textField = find.byType(TextField);
+    expect(textField, findsOneWidget);
+
+    await tester.enterText(textField, 'You are my personal assistant.');
+    await tester.pumpAndSettle();
+
+    expect(find.text('You are my personal assistant.'), findsOneWidget);
+  });
+
+  testWidgets('can tap save button', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          soulServiceProvider.overrideWith((ref) => MockSoulService()),
+        ],
+        child: const MaterialApp(home: SoulScreen(agentId: 'test-agent')),
+      ),
+    );
+
+    await tester.pump(const Duration(milliseconds: 500));
+
+    // Change the text so the save button appears (_hasChanges becomes true)
+    final textField = find.byType(TextField);
+    await tester.enterText(textField, 'Modified soul text');
+    await tester.pump();
+
+    // After text change, AppBar actions should include the save button
+    expect(find.text('保存'), findsOneWidget);
+
+    await tester.tap(find.text('保存'));
+    await tester.pump();
+
+    // After save, _hasChanges resets to false so the button is hidden again
+    expect(find.text('保存'), findsNothing);
   });
 }
