@@ -1,0 +1,98 @@
+/**
+ * End-to-end tests for prefrontalClient against a real running Prefrontal
+ * instance. Spawns `prefrontal serve` and exercises the HTTP client methods
+ * that the desktop UI depends on.
+ *
+ * The Prefrontal binary listens on 127.0.0.1:8082 by default (per
+ * AGENTS.md convention). Override with the PREFRONTAL_TEST_PORT env var
+ * if the binary is configured for a different port.
+ */
+
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { spawn, type ChildProcess } from 'node:child_process';
+import { PrefrontalClient } from '../prefrontalClient';
+import { existsSync } from 'node:fs';
+
+const PREFRONTAL_BIN = '/home/ibloc/Projects/prefrontal/target/debug/prefrontal';
+const PREFRONTAL_PORT = Number(process.env.PREFRONTAL_TEST_PORT ?? 8082);
+const PREFRONTAL_BASE = `http://127.0.0.1:${PREFRONTAL_PORT}`;
+
+let serverProcess: ChildProcess | null = null;
+
+async function waitForHealthy(url: string, maxMs = 15000): Promise<void> {
+  const start = Date.now();
+  let lastErr: unknown;
+  while (Date.now() - start < maxMs) {
+    try {
+      const res = await fetch(url);
+      if (res.ok) return;
+    } catch (e) {
+      lastErr = e;
+    }
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  throw new Error(`server did not become healthy within ${maxMs}ms: ${lastErr}`);
+}
+
+beforeAll(async () => {
+  if (!existsSync(PREFRONTAL_BIN)) {
+    throw new Error(
+      `prefrontal binary not found at ${PREFRONTAL_BIN} — build it with 'cargo build --bin prefrontal' first`,
+    );
+  }
+  serverProcess = spawn(PREFRONTAL_BIN, ['serve'], {
+    env: { ...process.env, RUST_LOG: 'warn' },
+    stdio: 'pipe',
+  });
+  serverProcess.stderr?.on('data', (chunk) => {
+    process.stderr.write(`[prefrontal] ${chunk}`);
+  });
+  await waitForHealthy(`${PREFRONTAL_BASE}/health`);
+}, 30000);
+
+afterAll(async () => {
+  if (serverProcess && !serverProcess.killed) {
+    serverProcess.kill('SIGKILL');
+    await new Promise((r) => setTimeout(r, 200));
+  }
+});
+
+describe('prefrontalClient e2e', () => {
+  it('hits /health on the running server', async () => {
+    const res = await fetch(`${PREFRONTAL_BASE}/health`);
+    expect(res.ok).toBe(true);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.data.status).toBe('healthy');
+  });
+
+  it('PrefrontalClient.healthCheck() returns true for a real server', async () => {
+    const client = new PrefrontalClient(PREFRONTAL_BASE);
+    const ok = await client.healthCheck();
+    expect(ok).toBe(true);
+  });
+
+  it('PrefrontalClient.listAgents() reaches a live server', async () => {
+    const client = new PrefrontalClient(PREFRONTAL_BASE);
+    const agents = await client.listAgents();
+    expect(agents).toBeDefined();
+  });
+
+  it('PrefrontalClient.createSession() returns a defined payload', async () => {
+    const client = new PrefrontalClient(PREFRONTAL_BASE);
+    const created = await client.createSession('e2e-test-session');
+    expect(created).toBeDefined();
+  });
+
+  it('PrefrontalClient.listSessions() reaches a live server', async () => {
+    const client = new PrefrontalClient(PREFRONTAL_BASE);
+    const sessions = await client.listSessions();
+    expect(sessions).toBeDefined();
+  });
+
+  it('PrefrontalClient rejects requests to a dead server with a clear error', async () => {
+    const deadClient = new PrefrontalClient('http://127.0.0.1:1');
+    const ok = await deadClient.healthCheck();
+    expect(ok).toBe(false);
+  });
+});

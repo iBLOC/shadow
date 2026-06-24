@@ -31,7 +31,7 @@ export function MCPPage() {
 
   const handleAddServer = () => {
     if (!newServer.name || !newServer.command) return;
-    
+
     const server: MCPServer = {
       id: crypto.randomUUID(),
       name: newServer.name,
@@ -40,10 +40,14 @@ export function MCPPage() {
       env: newServer.env || {},
       status: 'stopped',
     };
-    
-    addServer(server);
-    setShowAddForm(false);
-    setNewServer({ name: '', command: '', args: [], env: {} });
+
+    try {
+      addServer(server);
+      setShowAddForm(false);
+      setNewServer({ name: '', command: '', args: [], env: {} });
+    } catch (err) {
+      console.error('Failed to add MCP server:', err);
+    }
   };
 
   const handleToggleServer = (server: MCPServer) => {
