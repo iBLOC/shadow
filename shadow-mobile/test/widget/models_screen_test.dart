@@ -93,5 +93,33 @@ void main() {
 
       expect(find.byType(TabBar), findsOneWidget);
     });
+
+    testWidgets('can switch between Local Models and Model Store tabs', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            localizationsDelegates: const [
+              AppLocalizations.delegate,
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+            ],
+            supportedLocales: const [Locale('en')],
+            locale: const Locale('en'),
+            home: const ModelManagementScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Local Models'), findsOneWidget);
+      expect(find.text('Model Store'), findsOneWidget);
+
+      await tester.tap(find.text('Model Store'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Model Store'), findsOneWidget);
+    });
   });
 }

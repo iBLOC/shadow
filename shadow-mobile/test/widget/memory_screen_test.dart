@@ -90,5 +90,31 @@ void main() {
 
       expect(find.byIcon(Icons.refresh), findsOneWidget);
     });
+
+    testWidgets('can enter search query', (WidgetTester tester) async {
+      await pumpWidgetForTest(
+        tester,
+        ProviderScope(
+          child: MaterialApp(
+            localizationsDelegates: const [
+              AppLocalizations.delegate,
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+            ],
+            supportedLocales: const [Locale('en')],
+            locale: const Locale('en'),
+            home: const MemoryScreen(),
+          ),
+        ),
+      );
+
+      final searchField = find.byIcon(Icons.search);
+      expect(searchField, findsOneWidget);
+
+      await tester.tap(searchField);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(TextField), findsOneWidget);
+    });
   });
 }

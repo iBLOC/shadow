@@ -70,5 +70,33 @@ void main() {
 
       expect(find.byType(Scaffold), findsWidgets);
     });
+
+    testWidgets('can tap add button in kanban column', (
+      WidgetTester tester,
+    ) async {
+      await pumpWidgetForTest(
+        tester,
+        ProviderScope(
+          child: MaterialApp(
+            localizationsDelegates: const [
+              AppLocalizations.delegate,
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+            ],
+            supportedLocales: const [Locale('en')],
+            locale: const Locale('en'),
+            home: const TaskBoardScreen(),
+          ),
+        ),
+      );
+
+      final addIcons = find.byIcon(Icons.add);
+      expect(addIcons, findsWidgets);
+
+      await tester.tap(addIcons.first);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(TextField), findsOneWidget);
+    });
   });
 }

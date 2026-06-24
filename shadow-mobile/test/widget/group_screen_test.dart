@@ -1,17 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shadow_mobile/screens/group_screen.dart' hide groupServiceProvider;
+import 'package:shadow_mobile/screens/group_screen.dart'
+    hide groupServiceProvider;
 import 'package:shadow_mobile/services/group_service.dart';
 import 'test_helper.dart';
 
 class MockGroupServiceNotifier extends GroupServiceNotifier {
   MockGroupServiceNotifier()
-      : super(
-          service: GroupService(),
-          deviceName: 'Test Device',
-          pubkey: 'test-pubkey',
-        );
+    : super(
+        service: GroupService(),
+        deviceName: 'Test Device',
+        pubkey: 'test-pubkey',
+      );
 
   @override
   Future<void> createGroup(String pin) async {
@@ -46,7 +47,9 @@ void main() {
         ProviderScope(
           overrides: [
             ...getTestOverrides(),
-            groupServiceProvider.overrideWith((ref) => MockGroupServiceNotifier()),
+            groupServiceProvider.overrideWith(
+              (ref) => MockGroupServiceNotifier(),
+            ),
           ],
           child: const MaterialApp(home: GroupScreen()),
         ),
@@ -62,7 +65,9 @@ void main() {
         ProviderScope(
           overrides: [
             ...getTestOverrides(),
-            groupServiceProvider.overrideWith((ref) => MockGroupServiceNotifier()),
+            groupServiceProvider.overrideWith(
+              (ref) => MockGroupServiceNotifier(),
+            ),
           ],
           child: const MaterialApp(home: GroupScreen()),
         ),
@@ -71,13 +76,17 @@ void main() {
       expect(find.text('Group'), findsOneWidget);
     });
 
-    testWidgets('shows idle state with join/create buttons', (WidgetTester tester) async {
+    testWidgets('shows idle state with join/create buttons', (
+      WidgetTester tester,
+    ) async {
       await pumpWidgetForTest(
         tester,
         ProviderScope(
           overrides: [
             ...getTestOverrides(),
-            groupServiceProvider.overrideWith((ref) => MockGroupServiceNotifier()),
+            groupServiceProvider.overrideWith(
+              (ref) => MockGroupServiceNotifier(),
+            ),
           ],
           child: const MaterialApp(home: GroupScreen()),
         ),
@@ -96,7 +105,9 @@ void main() {
         ProviderScope(
           overrides: [
             ...getTestOverrides(),
-            groupServiceProvider.overrideWith((ref) => MockGroupServiceNotifier()),
+            groupServiceProvider.overrideWith(
+              (ref) => MockGroupServiceNotifier(),
+            ),
           ],
           child: const MaterialApp(home: GroupScreen()),
         ),
@@ -112,7 +123,9 @@ void main() {
         ProviderScope(
           overrides: [
             ...getTestOverrides(),
-            groupServiceProvider.overrideWith((ref) => MockGroupServiceNotifier()),
+            groupServiceProvider.overrideWith(
+              (ref) => MockGroupServiceNotifier(),
+            ),
           ],
           child: const MaterialApp(home: GroupScreen()),
         ),
@@ -130,7 +143,9 @@ void main() {
         ProviderScope(
           overrides: [
             ...getTestOverrides(),
-            groupServiceProvider.overrideWith((ref) => MockGroupServiceNotifier()),
+            groupServiceProvider.overrideWith(
+              (ref) => MockGroupServiceNotifier(),
+            ),
           ],
           child: const MaterialApp(home: GroupScreen()),
         ),
@@ -145,22 +160,31 @@ void main() {
         ProviderScope(
           overrides: [
             ...getTestOverrides(),
-            groupServiceProvider.overrideWith((ref) => MockGroupServiceNotifier()),
+            groupServiceProvider.overrideWith(
+              (ref) => MockGroupServiceNotifier(),
+            ),
           ],
           child: const MaterialApp(home: GroupScreen()),
         ),
       );
 
-      expect(find.text('Enter 6-digit PIN to join existing group or create new one'), findsOneWidget);
+      expect(
+        find.text('Enter 6-digit PIN to join existing group or create new one'),
+        findsOneWidget,
+      );
     });
 
-    testWidgets('join and create buttons are side by side', (WidgetTester tester) async {
+    testWidgets('join and create buttons are side by side', (
+      WidgetTester tester,
+    ) async {
       await pumpWidgetForTest(
         tester,
         ProviderScope(
           overrides: [
             ...getTestOverrides(),
-            groupServiceProvider.overrideWith((ref) => MockGroupServiceNotifier()),
+            groupServiceProvider.overrideWith(
+              (ref) => MockGroupServiceNotifier(),
+            ),
           ],
           child: const MaterialApp(home: GroupScreen()),
         ),
@@ -170,6 +194,52 @@ void main() {
       final createButton = find.widgetWithText(FilledButton, 'Create');
       expect(joinButton, findsOneWidget);
       expect(createButton, findsOneWidget);
+    });
+
+    testWidgets('can enter PIN code', (WidgetTester tester) async {
+      await pumpWidgetForTest(
+        tester,
+        ProviderScope(
+          overrides: [
+            ...getTestOverrides(),
+            groupServiceProvider.overrideWith(
+              (ref) => MockGroupServiceNotifier(),
+            ),
+          ],
+          child: const MaterialApp(home: GroupScreen()),
+        ),
+      );
+
+      final textField = find.byType(TextField);
+      expect(textField, findsOneWidget);
+
+      await tester.enterText(textField, '123456');
+      await tester.pumpAndSettle();
+
+      expect(find.text('123456'), findsOneWidget);
+    });
+
+    testWidgets('can tap Join button', (WidgetTester tester) async {
+      await pumpWidgetForTest(
+        tester,
+        ProviderScope(
+          overrides: [
+            ...getTestOverrides(),
+            groupServiceProvider.overrideWith(
+              (ref) => MockGroupServiceNotifier(),
+            ),
+          ],
+          child: const MaterialApp(home: GroupScreen()),
+        ),
+      );
+
+      final joinButton = find.widgetWithText(OutlinedButton, 'Join');
+      expect(joinButton, findsOneWidget);
+
+      await tester.tap(joinButton);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Join'), findsOneWidget);
     });
   });
 }

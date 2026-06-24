@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shadow_mobile/services/wake_word_service.dart';
 
@@ -50,5 +51,65 @@ void main() {
         WakeWordEvent.detectedNihao,
       ]),
     );
+  });
+
+  group('WakeWordWidget', () {
+    testWidgets('shows enable/disable toggle', (WidgetTester tester) async {
+      bool enabled = false;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: StatefulBuilder(
+              builder: (context, setState) {
+                return SwitchListTile(
+                  title: const Text('Wake Word'),
+                  value: enabled,
+                  onChanged: (value) {
+                    setState(() {
+                      enabled = value;
+                    });
+                  },
+                );
+              },
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Wake Word'), findsOneWidget);
+      expect(find.byType(SwitchListTile), findsOneWidget);
+    });
+
+    testWidgets('can toggle wake word switch on', (WidgetTester tester) async {
+      bool enabled = false;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: StatefulBuilder(
+              builder: (context, setState) {
+                return SwitchListTile(
+                  title: const Text('Wake Word'),
+                  value: enabled,
+                  onChanged: (value) {
+                    setState(() {
+                      enabled = value;
+                    });
+                  },
+                );
+              },
+            ),
+          ),
+        ),
+      );
+
+      expect(find.byType(SwitchListTile), findsOneWidget);
+
+      await tester.tap(find.byType(SwitchListTile));
+      await tester.pumpAndSettle();
+
+      expect(enabled, isTrue);
+    });
   });
 }

@@ -48,7 +48,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('技能管理'), findsOneWidget);
+      expect(find.text('Skills Management'), findsOneWidget);
     });
 
     testWidgets('has floating action button', (WidgetTester tester) async {
@@ -88,7 +88,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('添加'), findsOneWidget);
+      expect(find.text('Add Model'), findsOneWidget);
     });
 
     testWidgets('has refresh button', (WidgetTester tester) async {

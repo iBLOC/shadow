@@ -48,7 +48,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('MCP 服务管理'), findsOneWidget);
+      expect(find.text('MCP Server Management'), findsOneWidget);
     });
 
     testWidgets('has floating action button', (WidgetTester tester) async {
@@ -88,7 +88,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('添加服务器'), findsOneWidget);
+      expect(find.text('Add Server'), findsOneWidget);
     });
 
     testWidgets('has refresh button', (WidgetTester tester) async {
@@ -109,6 +109,34 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byIcon(Icons.refresh), findsOneWidget);
+    });
+
+    testWidgets('can tap FAB to add new MCP server', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            localizationsDelegates: const [
+              AppLocalizations.delegate,
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+            ],
+            supportedLocales: const [Locale('en')],
+            locale: const Locale('en'),
+            home: const MCPScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final fab = find.byType(FloatingActionButton);
+      expect(fab, findsOneWidget);
+
+      await tester.tap(fab);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Add Server'), findsOneWidget);
     });
   });
 }

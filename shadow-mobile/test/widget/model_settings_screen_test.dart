@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:shadow_mobile/generated/l10n/app_localizations.dart';
 import 'package:shadow_mobile/screens/model_settings_screen.dart';
 import 'package:shadow_mobile/models/model_config.dart';
 import 'package:shadow_mobile/models/model_providers.dart';
@@ -36,8 +38,7 @@ void main() {
 
   group('ModelSettingsScreen Widget Tests', () {
     testWidgets('renders scaffold with app bar', (WidgetTester tester) async {
-      await pumpWidgetForTest(
-        tester,
+      await tester.pumpWidget(
         ProviderScope(
           overrides: [
             ...getTestOverrides(),
@@ -45,7 +46,16 @@ void main() {
             currentEngineConfigProvider.overrideWith((ref) async => testConfig),
             selectedModelIdProvider.overrideWith((ref) => 'test-model'),
           ],
-          child: const MaterialApp(home: ModelSettingsScreen()),
+          child: MaterialApp(
+            localizationsDelegates: const [
+              AppLocalizations.delegate,
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+            ],
+            supportedLocales: const [Locale('en')],
+            locale: const Locale('en'),
+            home: const ModelSettingsScreen(),
+          ),
         ),
       );
 
@@ -53,9 +63,10 @@ void main() {
       expect(find.byType(AppBar), findsOneWidget);
     });
 
-    testWidgets('shows 模型设置 title in app bar', (WidgetTester tester) async {
-      await pumpWidgetForTest(
-        tester,
+    testWidgets('shows Model Settings title in app bar', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(
         ProviderScope(
           overrides: [
             ...getTestOverrides(),
@@ -63,16 +74,26 @@ void main() {
             currentEngineConfigProvider.overrideWith((ref) async => testConfig),
             selectedModelIdProvider.overrideWith((ref) => 'test-model'),
           ],
-          child: const MaterialApp(home: ModelSettingsScreen()),
+          child: MaterialApp(
+            localizationsDelegates: const [
+              AppLocalizations.delegate,
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+            ],
+            supportedLocales: const [Locale('en')],
+            locale: const Locale('en'),
+            home: const ModelSettingsScreen(),
+          ),
         ),
       );
 
-      expect(find.text('模型设置'), findsOneWidget);
+      expect(find.text('Model Settings'), findsOneWidget);
     });
 
-    testWidgets('shows engine selector with liteRT and MNN options', (WidgetTester tester) async {
-      await pumpWidgetForTest(
-        tester,
+    testWidgets('shows engine selector with LiteRT and MNN options', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(
         ProviderScope(
           overrides: [
             ...getTestOverrides(),
@@ -80,18 +101,28 @@ void main() {
             currentEngineConfigProvider.overrideWith((ref) async => testConfig),
             selectedModelIdProvider.overrideWith((ref) => 'test-model'),
           ],
-          child: const MaterialApp(home: ModelSettingsScreen()),
+          child: MaterialApp(
+            localizationsDelegates: const [
+              AppLocalizations.delegate,
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+            ],
+            supportedLocales: const [Locale('en')],
+            locale: const Locale('en'),
+            home: const ModelSettingsScreen(),
+          ),
         ),
       );
 
-      expect(find.text('liteRT'), findsOneWidget);
+      expect(find.text('LiteRT'), findsOneWidget);
       expect(find.text('MNN'), findsOneWidget);
       expect(find.byType(SegmentedButton<EngineType>), findsOneWidget);
     });
 
-    testWidgets('shows 选择模型 section title', (WidgetTester tester) async {
-      await pumpWidgetForTest(
-        tester,
+    testWidgets('shows Select Model section title', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(
         ProviderScope(
           overrides: [
             ...getTestOverrides(),
@@ -99,11 +130,52 @@ void main() {
             currentEngineConfigProvider.overrideWith((ref) async => testConfig),
             selectedModelIdProvider.overrideWith((ref) => 'test-model'),
           ],
-          child: const MaterialApp(home: ModelSettingsScreen()),
+          child: MaterialApp(
+            localizationsDelegates: const [
+              AppLocalizations.delegate,
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+            ],
+            supportedLocales: const [Locale('en')],
+            locale: const Locale('en'),
+            home: const ModelSettingsScreen(),
+          ),
         ),
       );
 
-      expect(find.text('选择模型'), findsOneWidget);
+      expect(find.text('Select Model'), findsOneWidget);
+    });
+
+    testWidgets('can switch engine type via segmented button', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            ...getTestOverrides(),
+            selectedEngineProvider.overrideWith((ref) => EngineType.mnn),
+            currentEngineConfigProvider.overrideWith((ref) async => testConfig),
+            selectedModelIdProvider.overrideWith((ref) => 'test-model'),
+          ],
+          child: MaterialApp(
+            localizationsDelegates: const [
+              AppLocalizations.delegate,
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+            ],
+            supportedLocales: const [Locale('en')],
+            locale: const Locale('en'),
+            home: const ModelSettingsScreen(),
+          ),
+        ),
+      );
+
+      expect(find.text('MNN'), findsOneWidget);
+
+      await tester.tap(find.text('LiteRT'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('LiteRT'), findsOneWidget);
     });
   });
 }

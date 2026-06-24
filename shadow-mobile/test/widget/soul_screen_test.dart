@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:shadow_mobile/generated/l10n/app_localizations.dart';
 import 'package:shadow_mobile/screens/soul_screen.dart';
 import 'package:shadow_mobile/services/prefrontal_client.dart';
 import 'package:shadow_mobile/services/soul_service.dart';
-import 'package:shadow_mobile/widgets/glass_card.dart';
 import 'test_helper.dart';
 
 class MockSoulService extends SoulService {
@@ -46,6 +47,19 @@ final mockSoulServiceProvider = Provider<SoulService>((ref) {
   return MockSoulService();
 });
 
+MaterialApp _localizedApp(Widget child) {
+  return MaterialApp(
+    localizationsDelegates: const [
+      AppLocalizations.delegate,
+      GlobalMaterialLocalizations.delegate,
+      GlobalWidgetsLocalizations.delegate,
+    ],
+    supportedLocales: const [Locale('en')],
+    locale: const Locale('en'),
+    home: child,
+  );
+}
+
 void main() {
   testSetup();
 
@@ -55,14 +69,14 @@ void main() {
         overrides: [
           soulServiceProvider.overrideWith((ref) => MockSoulService()),
         ],
-        child: const MaterialApp(home: SoulScreen(agentId: 'test-agent')),
+        child: _localizedApp(const SoulScreen(agentId: 'test-agent')),
       ),
     );
 
     await tester.pump(const Duration(milliseconds: 500));
 
-    expect(find.text('Soul 设置'), findsOneWidget);
-    expect(find.text('Soul - 你的个人助理灵魂'), findsOneWidget);
+    expect(find.text('Soul Settings'), findsOneWidget);
+    expect(find.text('Soul - Your Personal Assistant'), findsOneWidget);
   });
 
   testWidgets('SoulScreen shows AppBar with title', (
@@ -73,14 +87,14 @@ void main() {
         overrides: [
           soulServiceProvider.overrideWith((ref) => MockSoulService()),
         ],
-        child: const MaterialApp(home: SoulScreen(agentId: 'test-agent')),
+        child: _localizedApp(const SoulScreen(agentId: 'test-agent')),
       ),
     );
 
     await tester.pump(const Duration(milliseconds: 500));
 
     expect(find.byType(AppBar), findsOneWidget);
-    expect(find.text('Soul 设置'), findsOneWidget);
+    expect(find.text('Soul Settings'), findsOneWidget);
   });
 
   testWidgets('SoulScreen shows loading then content', (
@@ -91,7 +105,7 @@ void main() {
         overrides: [
           soulServiceProvider.overrideWith((ref) => MockSoulService()),
         ],
-        child: const MaterialApp(home: SoulScreen(agentId: 'test-agent')),
+        child: _localizedApp(const SoulScreen(agentId: 'test-agent')),
       ),
     );
 
@@ -111,13 +125,13 @@ void main() {
         overrides: [
           soulServiceProvider.overrideWith((ref) => MockSoulService()),
         ],
-        child: const MaterialApp(home: SoulScreen(agentId: 'test-agent')),
+        child: _localizedApp(const SoulScreen(agentId: 'test-agent')),
       ),
     );
 
     await tester.pump(const Duration(milliseconds: 500));
 
-    expect(find.text('版本历史'), findsOneWidget);
+    expect(find.text('Version History'), findsOneWidget);
   });
 
   testWidgets('SoulScreen has text field for soul editing', (
@@ -128,7 +142,7 @@ void main() {
         overrides: [
           soulServiceProvider.overrideWith((ref) => MockSoulService()),
         ],
-        child: const MaterialApp(home: SoulScreen(agentId: 'test-agent')),
+        child: _localizedApp(const SoulScreen(agentId: 'test-agent')),
       ),
     );
 
@@ -145,7 +159,7 @@ void main() {
         overrides: [
           soulServiceProvider.overrideWith((ref) => MockSoulService()),
         ],
-        child: const MaterialApp(home: SoulScreen(agentId: 'test-agent')),
+        child: _localizedApp(const SoulScreen(agentId: 'test-agent')),
       ),
     );
 
@@ -166,7 +180,7 @@ void main() {
         overrides: [
           soulServiceProvider.overrideWith((ref) => MockSoulService()),
         ],
-        child: const MaterialApp(home: SoulScreen(agentId: 'test-agent')),
+        child: _localizedApp(const SoulScreen(agentId: 'test-agent')),
       ),
     );
 
@@ -178,12 +192,12 @@ void main() {
     await tester.pump();
 
     // After text change, AppBar actions should include the save button
-    expect(find.text('保存'), findsOneWidget);
+    expect(find.text('Save'), findsOneWidget);
 
-    await tester.tap(find.text('保存'));
+    await tester.tap(find.text('Save'));
     await tester.pump();
 
     // After save, _hasChanges resets to false so the button is hidden again
-    expect(find.text('保存'), findsNothing);
+    expect(find.text('Save'), findsNothing);
   });
 }
