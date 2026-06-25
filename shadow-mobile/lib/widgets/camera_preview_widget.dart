@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 
@@ -71,7 +70,12 @@ class _CameraPreviewWidgetState extends State<CameraPreviewWidget> {
             Transform(
               alignment: Alignment.center,
               transform: Matrix4.identity()
-                ..scale(widget.isMirrored ? -1.0 : 1.0, 1.0),
+                ..scaleByDouble(
+                  widget.isMirrored ? -1.0 : 1.0,
+                  1.0,
+                  widget.isMirrored ? -1.0 : 1.0,
+                  1.0,
+                ),
               child: CameraPreview(widget.controller!),
             ),
             // Control buttons overlay

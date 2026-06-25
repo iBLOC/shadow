@@ -120,8 +120,8 @@ class WebRtcSignaling {
     _send(
       WebRtcSignal(WebRtcSignalType.ice, {
         'candidate': candidate,
-        if (sdpMid != null) 'sdp_mid': sdpMid,
-        if (sdpMLineIndex != null) 'sdp_m_line_index': sdpMLineIndex,
+        ?'sdp_mid': sdpMid,
+        ?'sdp_m_line_index': sdpMLineIndex,
       }),
     );
   }

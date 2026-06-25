@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'prefrontal_client.dart';
 
 class DiscoveredPeer {
   final String id;
@@ -73,12 +72,10 @@ class SessionExport {
 
 class SessionTransferService {
   final http.Client _client;
-  final PrefrontalClient _prefrontalClient;
   final String _localUrl;
 
   SessionTransferService({http.Client? client, String? baseUrl})
     : _client = client ?? http.Client(),
-      _prefrontalClient = PrefrontalClient(baseUrl: baseUrl),
       _localUrl = baseUrl ?? 'http://localhost:8082';
 
   String get localBaseUrl => _localUrl;
