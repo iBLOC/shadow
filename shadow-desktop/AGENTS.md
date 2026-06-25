@@ -130,12 +130,13 @@ The `webrtcCompanion.ts` service uses:
 ```bash
 pnpm dev                  # Vite dev (Tauri) on :1420
 pnpm dev:web              # Vite dev (web SPA) on :5173
-pnpm build                # Tauri build: validate-i18n + tsc + lint + vite build
+pnpm build                # tsc -b && vite build
 pnpm build:web            # Web SPA build → dist-web/
 pnpm preview:web          # Serve the built web SPA on :4173
 pnpm tauri dev            # Tauri dev with hot reload
 pnpm tauri build          # Production native bundle
 pnpm test                 # Vitest
+pnpm lint                 # ESLint over src/
 ```
 
 ## BUILD TARGETS
