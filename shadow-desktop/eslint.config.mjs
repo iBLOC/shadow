@@ -45,6 +45,7 @@ export default [
 
       // Disable base rules that conflict with TypeScript
       'no-unused-vars': 'off',
+      'no-undef': 'off', // TypeScript's own type system handles undefined refs
 
       // TypeScript rules
       '@typescript-eslint/no-unused-vars': 'off',
@@ -70,24 +71,37 @@ export default [
     },
   },
 
-  // 3. JSON files (translation files themselves)
+  // 3. Test files - allow Node globals (process, global, etc.)
   {
-    files: ['**/*.json'],
-    rules: {
-      // Allow comments in JSON (some translation tools add them)
-      'no-trailing-spaces': 'warn',
+    files: ['**/__tests__/**', '**/*.test.*', '**/*.spec.*'],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+      },
     },
   },
 
-  // 4. Ignore patterns
+  // 4. Service Worker - allow SW-specific globals
+  {
+    files: ['src/sw.ts'],
+    languageOptions: {
+      globals: {
+        ...globals.serviceworker,
+      },
+    },
+  },
+
+  // 5. Ignore patterns
   {
     ignores: [
       'node_modules/**',
       'dist/**',
+      'dist-web/**',
       'src-tauri/**',
       '.opencode/**',
-      '*.config.js',
-      '*.config.ts',
+      '**/*.config.js',
+      '**/*.config.ts',
+      '**/*.config.mjs',
     ],
   },
 ];
