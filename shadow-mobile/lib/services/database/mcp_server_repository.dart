@@ -17,7 +17,6 @@ class SqliteMCPServerRepository implements IMCPServerRepository {
     return maps.map((map) => MCPServer.fromMap(map)).toList();
   }
 
-  @override
   Future<List<MCPServer>> getAllServers() async => getAll();
 
   @override
@@ -28,7 +27,6 @@ class SqliteMCPServerRepository implements IMCPServerRepository {
     return MCPServer.fromMap(maps.first);
   }
 
-  @override
   Future<MCPServer?> getServerById(String id) async => getById(id);
 
   @override
@@ -41,7 +39,6 @@ class SqliteMCPServerRepository implements IMCPServerRepository {
     );
   }
 
-  @override
   Future<void> insertServer(MCPServer server) async => insert(server);
 
   @override
@@ -55,7 +52,6 @@ class SqliteMCPServerRepository implements IMCPServerRepository {
     );
   }
 
-  @override
   Future<void> updateServer(MCPServer server) async => update(server);
 
   @override
@@ -64,7 +60,6 @@ class SqliteMCPServerRepository implements IMCPServerRepository {
     await db.delete(_tableName, where: 'id = ?', whereArgs: [id]);
   }
 
-  @override
   Future<void> deleteServer(String id) async => delete(id);
 
   @override

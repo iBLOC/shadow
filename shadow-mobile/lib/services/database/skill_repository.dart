@@ -17,7 +17,6 @@ class SqliteSkillRepository implements ISkillRepository {
     return maps.map((map) => Skill.fromMap(map)).toList();
   }
 
-  @override
   Future<List<Skill>> getAllSkills() async => getAll();
 
   @override
@@ -28,7 +27,6 @@ class SqliteSkillRepository implements ISkillRepository {
     return Skill.fromMap(maps.first);
   }
 
-  @override
   Future<Skill?> getSkillById(String id) async => getById(id);
 
   @override
@@ -41,7 +39,6 @@ class SqliteSkillRepository implements ISkillRepository {
     );
   }
 
-  @override
   Future<void> insertSkill(Skill skill) async => insert(skill);
 
   @override
@@ -55,7 +52,6 @@ class SqliteSkillRepository implements ISkillRepository {
     );
   }
 
-  @override
   Future<void> updateSkill(Skill skill) async => update(skill);
 
   @override
@@ -64,7 +60,6 @@ class SqliteSkillRepository implements ISkillRepository {
     await db.delete(_tableName, where: 'id = ?', whereArgs: [id]);
   }
 
-  @override
   Future<void> deleteSkill(String id) async => delete(id);
 
   @override

@@ -14,7 +14,6 @@ class PrefrontalAgentRepository implements IAgentRepository {
     return agents.map((a) => AgentSettings.fromAgentResponse(a)).toList();
   }
 
-  @override
   Future<List<AgentSettings>> getAllAgents() => getAll();
 
   @override
@@ -27,7 +26,6 @@ class PrefrontalAgentRepository implements IAgentRepository {
     }
   }
 
-  @override
   Future<AgentSettings?> getAgentById(String id) => getById(id);
 
   @override
@@ -41,7 +39,6 @@ class PrefrontalAgentRepository implements IAgentRepository {
     await _client.createAgent(request);
   }
 
-  @override
   Future<void> insertAgent(AgentSettings agent) => insert(agent);
 
   @override
@@ -51,7 +48,6 @@ class PrefrontalAgentRepository implements IAgentRepository {
     }
   }
 
-  @override
   Future<void> updateAgent(AgentSettings agent) => update(agent);
 
   @override
@@ -59,7 +55,6 @@ class PrefrontalAgentRepository implements IAgentRepository {
     await _client.deleteAgent(id);
   }
 
-  @override
   Future<void> deleteAgent(String id) => delete(id);
 
   @override
