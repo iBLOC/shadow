@@ -1,4 +1,3 @@
-/* eslint-disable no-undef */
 /**
  * WebRTC peer connection service for Companion Mode
  * Uses browser's native RTCPeerConnection + WebSocket signaling

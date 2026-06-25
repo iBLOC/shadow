@@ -56,7 +56,7 @@ export default [
         'error',
         {
           // Exclude certain contexts where literal strings are acceptable
-          excludeFiles: ['**/*.json', '**/*.md', '**/*.test.*', '**/*.spec.*', 'src/config/**', 'src/i18n/**'],
+          excludeFiles: ['**/*.json', '**/*.md', '**/*.test.*', '**/*.spec.*', 'src/config/**', 'src/i18n/**', 'tests/**/*'],
           excludeLiterals: [
             // Allow console.log, URLs, file paths
             { pattern: /^console\.(log|warn|error)/ },
@@ -71,17 +71,35 @@ export default [
     },
   },
 
-  // 3. Test files - allow Node globals (process, global, etc.)
+  // 3. Test files - allow Node globals (process, global, etc.) and
+  // disable i18next rule (tests use hardcoded strings for fixtures)
   {
-    files: ['**/__tests__/**', '**/*.test.*', '**/*.spec.*'],
+    files: ['**/__tests__/**', '**/*.test.*', '**/*.spec.*', 'tests/**'],
     languageOptions: {
       globals: {
         ...globals.node,
       },
     },
+    rules: {
+      'i18next/no-literal-string': 'off',
+    },
   },
 
-  // 4. Service Worker - allow SW-specific globals
+  // 4. Node scripts (validate-i18n, etc.) - allow Node globals
+  {
+    files: ['scripts/**/*.mjs', 'scripts/**/*.js'],
+    languageOptions: {
+      sourceType: 'module',
+      globals: {
+        ...globals.node,
+      },
+    },
+    rules: {
+      'i18next/no-literal-string': 'off',
+    },
+  },
+
+  // 5. Service Worker - allow SW-specific globals
   {
     files: ['src/sw.ts'],
     languageOptions: {

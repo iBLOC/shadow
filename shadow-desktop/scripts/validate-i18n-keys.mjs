@@ -25,8 +25,6 @@ function getNestedKeys(obj, prefix = '') {
 const enKeys = new Set(getNestedKeys(enUS));
 const zhKeys = new Set(getNestedKeys(zhCN));
 
-const allKeys = new Set([...enKeys, ...zhKeys]);
-
 const tsxFiles = [];
 function walkDir(dir) {
   const entries = fs.readdirSync(dir, { withFileTypes: true });
