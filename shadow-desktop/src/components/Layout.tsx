@@ -1,20 +1,30 @@
 import { Outlet, NavLink } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { 
-  Brain, 
-  Wrench, 
-  LayoutGrid, 
-  Database, 
+import {
+  Brain,
+  Wrench,
+  LayoutGrid,
+  Database,
   MessageSquare,
   Bot,
   Settings,
   Cpu,
   Radar,
+  ScrollText,
+  Server,
+  type LucideIcon,
 } from 'lucide-react';
 import { useResonanceStore } from '../stores/resonanceStore';
-import './Layout.css';
+import { cn } from '../lib/utils';
 
-const navItems = [
+interface NavItem {
+  path: string;
+  icon: LucideIcon;
+  labelKey: string;
+  showBadge?: boolean;
+}
+
+const navItems: NavItem[] = [
   { path: '/tasks', icon: LayoutGrid, labelKey: 'nav.tasks', showBadge: true },
   { path: '/conversation', icon: MessageSquare, labelKey: 'nav.chat' },
   { path: '/discovery', icon: Radar, labelKey: 'nav.discovery' },
@@ -23,6 +33,8 @@ const navItems = [
   { path: '/mcp', icon: Wrench, labelKey: 'nav.mcp' },
   { path: '/skills', icon: Brain, labelKey: 'nav.skills' },
   { path: '/memory', icon: Database, labelKey: 'nav.memory' },
+  { path: '/services', icon: Server, labelKey: 'nav.services' },
+  { path: '/logs', icon: ScrollText, labelKey: 'nav.logs' },
 ];
 
 export function Layout() {
@@ -41,21 +53,25 @@ export function Layout() {
   };
 
   return (
-    <div className="app-layout">
-      <aside className="sidebar">
-        <div className="sidebar-header">
-          <div className="logo-container">
-            <div className="logo-icon">
+    <div className="flex h-screen bg-background text-foreground">
+      <aside className="flex w-[260px] flex-shrink-0 flex-col border-r border-border bg-card p-4 max-lg:w-20 max-lg:p-3">
+        {/* Logo / Header */}
+        <div className="mb-6 p-3 max-lg:p-2 max-lg:mb-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary text-primary-foreground max-lg:mx-auto">
               <Brain size={24} />
             </div>
-            <div className="logo-text-container">
-              <span className="logo-text">{t('layout.brandName')}</span>
-              <span className="logo-subtitle">{t('layout.brandSubtitle')}</span>
+            <div className="flex flex-col leading-tight max-lg:hidden">
+              <span className="text-lg font-bold tracking-wide">{t('layout.brandName')}</span>
+              <span className="text-xs text-muted-foreground tracking-widest uppercase">
+                {t('layout.brandSubtitle')}
+              </span>
             </div>
           </div>
         </div>
 
-        <nav className="nav">
+        {/* Navigation */}
+        <nav className="flex flex-1 flex-col gap-1">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isInbox = item.path === '/tasks/inbox';
@@ -65,39 +81,57 @@ export function Layout() {
               <NavLink
                 key={item.path}
                 to={item.path}
-                className={({ isActive }) => 
-                  `nav-item ${isActive ? 'active' : ''}`
+                className={({ isActive }) =>
+                  cn(
+                    'flex items-center gap-3 rounded-md px-4 py-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground max-lg:justify-center max-lg:px-3',
+                    isActive && 'bg-primary/10 text-foreground'
+                  )
                 }
               >
-                <Icon size={20} />
-                <span className="nav-label">{t(item.labelKey)}</span>
+                <Icon size={20} className="flex-shrink-0" />
+                <span className="max-lg:hidden">{t(item.labelKey)}</span>
                 {item.showBadge && badgeCount > 0 && (
-                  <span className="nav-badge">{badgeCount}</span>
+                  <span className="ml-auto rounded-full bg-destructive px-2 py-0.5 text-[11px] font-semibold text-destructive-foreground min-w-[20px] text-center max-lg:absolute max-lg:top-1 max-lg:right-1 max-lg:min-w-[16px] max-lg:px-1 max-lg:text-[10px]">
+                    {badgeCount}
+                  </span>
                 )}
               </NavLink>
             );
           })}
         </nav>
 
-        <div className="sidebar-footer">
-          <div className="connection-indicator">
-            <div className={`connection-dot ${connectionStatus}`} />
-            <span className="connection-label">{getConnectionLabel()}</span>
+        {/* Footer */}
+        <div className="mt-auto flex flex-col gap-2 border-t border-border pt-4">
+          <div className="flex items-center gap-3 rounded-md border border-border bg-muted/50 px-4 py-3 max-lg:hidden">
+            <div
+              className={cn(
+                'h-2.5 w-2.5 flex-shrink-0 rounded-full',
+                connectionStatus === 'connected' && 'bg-green-500',
+                connectionStatus === 'connecting' && 'bg-yellow-500 animate-pulse',
+                connectionStatus === 'disconnected' && 'bg-muted-foreground'
+              )}
+            />
+            <span className="text-xs text-muted-foreground font-medium">
+              {getConnectionLabel()}
+            </span>
           </div>
-          
+
           <NavLink
             to="/settings"
-            className={({ isActive }) => 
-              `nav-item ${isActive ? 'active' : ''}`
+            className={({ isActive }) =>
+              cn(
+                'flex items-center gap-3 rounded-md px-4 py-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground max-lg:justify-center max-lg:px-3',
+                isActive && 'bg-primary/10 text-foreground'
+              )
             }
           >
-            <Settings size={20} />
-            <span className="nav-label">{t('nav.settings')}</span>
+            <Settings size={20} className="flex-shrink-0" />
+            <span className="max-lg:hidden">{t('nav.settings')}</span>
           </NavLink>
         </div>
       </aside>
 
-      <main className="main-content">
+      <main className="flex-1 overflow-auto p-6">
         <Outlet />
       </main>
     </div>
