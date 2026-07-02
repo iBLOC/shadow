@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { X, Send, Check, AlertCircle, Loader, Plus, Server } from 'lucide-react';
 import { prefrontalClient } from '../lib/prefrontalClient';
-import { Button } from './ui/Button';
+import { Button } from './ui';
 
 interface DiscoveredPeer {
   id: string;
@@ -118,9 +118,9 @@ export function DelegateToPeerDialog({ open, onClose, prefillUrl }: DelegateDial
       >
         <div className="modal-header">
           <h2>{t('common.delegate.title')}</h2>
-          <button className="icon-btn" onClick={onClose} aria-label={t('common.close')}>
+          <Button size="icon" variant="ghost" onClick={onClose} aria-label={t('common.close')}>
             <X size={18} />
-          </button>
+          </Button>
         </div>
 
         <p className="modal-description">{t('common.delegate.description')}</p>

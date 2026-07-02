@@ -7,10 +7,11 @@ mod model_store;
 mod config_manager;
 mod opencode_manager;
 mod worktree_manager;
+mod service_manager;
 
 use config_manager::{AppConfig, DatabaseConfig, ProviderConfig, SecureAuth};
 use model_store::{EncryptedStorage, ModelProvider};
-use neure::{run_embedded, NeureConfig, NeureEmbedConfig, NeureHandle, health};
+use neure_lib::{run_embedded, NeureConfig, NeureEmbedConfig, NeureHandle, health};
 use opencode_manager::OpenCodeManager;
 use prefrontal_client::PrefrontalState;
 use worktree_manager::WorktreeManager;
@@ -32,6 +33,7 @@ struct AppState {
     opencode_manager: Arc<OpenCodeManager>,
     worktree_manager: Arc<WorktreeManager>,
     workflow_state: Arc<tokio::sync::Mutex<WorkflowState>>,
+    service_manager: Arc<service_manager::EmbeddedServiceManager>,
 }
 
 struct WorkflowState {
@@ -125,6 +127,7 @@ pub fn run() {
             approved_tasks: std::collections::HashMap::new(),
             rejected_tasks: std::collections::HashMap::new(),
         })),
+        service_manager: Arc::new(service_manager::EmbeddedServiceManager::new()),
     };
 
     tauri::Builder::default()
@@ -147,7 +150,7 @@ pub fn run() {
                 });
             }
 
-            let neure_state = app.state::<NeureState>();
+            let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 let cfg = NeureEmbedConfig {
                     port: 8085,
@@ -156,12 +159,23 @@ pub fn run() {
                 match run_embedded(cfg).await {
                     Ok(handle) => {
                         tracing::info!(addr = %handle.addr, "neure embedded started");
+                        let neure_state = app_handle.state::<NeureState>();
                         let mut guard = neure_state.handle.lock().await;
                         *guard = Some(handle);
                     }
                     Err(e) => {
                         tracing::error!("failed to start neure: {}", e);
                     }
+                }
+            });
+
+            let app_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let service_manager = app_handle.state::<AppState>().service_manager.clone();
+                if let Err(e) = service_manager.start_all().await {
+                    tracing::error!("failed to auto-start services: {}", e);
+                } else {
+                    tracing::info!("all embedded services auto-started");
                 }
             });
 
@@ -220,6 +234,12 @@ pub fn run() {
             reject_task,
             workflow_execute_step,
             neure_health,
+            service_list_all,
+            service_get,
+            service_start,
+            service_stop,
+            service_start_all,
+            service_stop_all,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -833,6 +853,36 @@ async fn workflow_execute_step(
     } else {
         Err(format!("Unsupported agent type: {}", step.agent_type))
     }
+}
+
+#[tauri::command]
+async fn service_list_all(state: State<'_, AppState>) -> Result<Vec<service_manager::ServiceInfo>, String> {
+    Ok(state.service_manager.get_all_services().await)
+}
+
+#[tauri::command]
+async fn service_get(state: State<'_, AppState>, name: String) -> Result<Option<service_manager::ServiceInfo>, String> {
+    Ok(state.service_manager.get_service(&name).await)
+}
+
+#[tauri::command]
+async fn service_start(state: State<'_, AppState>, name: String) -> Result<(), String> {
+    state.service_manager.start_service(&name).await
+}
+
+#[tauri::command]
+async fn service_stop(state: State<'_, AppState>, name: String) -> Result<(), String> {
+    state.service_manager.stop_service(&name).await
+}
+
+#[tauri::command]
+async fn service_start_all(state: State<'_, AppState>) -> Result<(), String> {
+    state.service_manager.start_all().await
+}
+
+#[tauri::command]
+async fn service_stop_all(state: State<'_, AppState>) -> Result<(), String> {
+    state.service_manager.stop_all().await
 }
 
 #[cfg(test)]

@@ -13,6 +13,7 @@ import {
   EyeOff,
 } from 'lucide-react';
 import { useDatabaseStore, type DatabaseType } from '../stores/databaseStore';
+import { Button } from './ui';
 
 const DB_TYPE_OPTIONS: { value: DatabaseType; icon: typeof Server; labelKey: string; disabled?: boolean }[] = [
   { value: 'embedded', icon: Server, labelKey: 'settings.dbEmbedded' },
@@ -73,15 +74,16 @@ export function DatabaseSettings() {
           {DB_TYPE_OPTIONS.map((option) => {
             const Icon = option.icon;
             return (
-              <button
+              <Button
                 key={option.value}
-                className={`db-type-btn ${dbType === option.value ? 'active' : ''}`}
+                data-testid={`db-type-${option.value}`}
+                variant={dbType === option.value ? 'default' : 'outline'}
                 onClick={() => !option.disabled && setDbType(option.value)}
                 disabled={option.disabled}
+                icon={<Icon size={16} />}
               >
-                <Icon size={16} />
-                <span>{t(option.labelKey)}</span>
-              </button>
+                {t(option.labelKey)}
+              </Button>
             );
           })}
         </div>
@@ -103,19 +105,19 @@ export function DatabaseSettings() {
           </div>
           <div className="db-actions">
             {status === 'connected' ? (
-              <button className="btn btn-danger" onClick={stopEmbedded}>
-                <Square size={16} />
+              <Button data-testid="db-embedded-stop" variant="destructive" onClick={stopEmbedded} icon={<Square size={16} />}>
                 {t('settings.dbStop')}
-              </button>
+              </Button>
             ) : (
-              <button
-                className="btn btn-success"
+              <Button
+                data-testid="db-embedded-start"
+                variant="success"
                 onClick={startEmbedded}
                 disabled={status === 'connecting'}
+                icon={<Play size={16} />}
               >
-                <Play size={16} />
                 {status === 'connecting' ? t('settings.dbConnecting') : t('settings.dbStart')}
-              </button>
+              </Button>
             )}
           </div>
         </div>
@@ -161,13 +163,16 @@ export function DatabaseSettings() {
                 onChange={(e) => setExternalConfig({ password: e.target.value })}
                 placeholder="********"
               />
-              <button
+              <Button
                 type="button"
-                className="btn-icon"
+                data-testid="db-external-password-toggle"
+                size="icon"
+                variant="ghost"
                 onClick={() => setShowPassword(!showPassword)}
+                aria-label={showPassword ? t('common.hidePassword') : t('common.showPassword')}
               >
                 {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
+              </Button>
             </div>
           </div>
           <div className="form-group">
@@ -180,13 +185,14 @@ export function DatabaseSettings() {
             />
           </div>
           <div className="db-actions">
-            <button
-              className="btn btn-secondary"
+            <Button
+              data-testid="db-external-test-connection"
+              variant="secondary"
               onClick={testExternalConnection}
               disabled={status === 'connecting'}
             >
               {status === 'connecting' ? t('settings.dbConnecting') : t('settings.dbTestConnection')}
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -218,21 +224,24 @@ export function DatabaseSettings() {
                 onChange={(e) => setMasterPasswordInput(e.target.value)}
                 placeholder="********"
               />
-              <button
+              <Button
                 type="button"
-                className="btn-icon"
+                data-testid="db-master-password-toggle"
+                size="icon"
+                variant="ghost"
                 onClick={() => setShowMasterPassword(!showMasterPassword)}
+                aria-label={showMasterPassword ? t('common.hidePassword') : t('common.showPassword')}
               >
                 {showMasterPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
+              </Button>
             </div>
-            <button
-              className="btn btn-primary"
+            <Button
+              data-testid="db-master-password-set"
               onClick={handleSetMasterPassword}
               disabled={masterPasswordInput.length < 8}
             >
               {t('settings.dbSetMasterPassword')}
-            </button>
+            </Button>
           </div>
         )}
       </div>

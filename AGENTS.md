@@ -1,8 +1,9 @@
 # PROJECT KNOWLEDGE BASE
 
 **Generated:** 2026-03-21
-**Updated:** 2026-03-21
+**Updated:** 2026-06-09
 **Project:** shadow (影) - AI 用户分身系统
+**Spec version:** 2026-06-04 4-layer architecture (aligned with root `/AGENTS.md`)
 
 ## OVERVIEW
 
@@ -18,57 +19,113 @@
 
 ## 系统架构
 
+> **规范版本**: 2026-06-04 4 层架构（与根 `/AGENTS.md` 对齐）。
+> 旧版"Resonance 中心 + Shadow 二级"图已弃用，仅在 `docs/architecture.md §7` 留作历史参考。
+
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                              Resonance                                     │
-│                    任务编排 / 规划 / 工作流引擎                            │
-│                              Port 8080                                    │
+│  Layer 4: INTERACTION (本仓库)                                              │
 │                                                                             │
-│  • 任务派发 (WebSocket push)     • 模型 Benchmark 评分                    │
-│  • A2A 能力注册                  • mDNS 服务发现                          │
-│  • 工作流编排                    • 用户认证                               │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                     │
-                                     │ mTLS 双向认证
-                                     │ WebSocket 推送任务
-                                     │ A2A 协议能力同步
-                                     ▼
+│  ┌─────────────────────────────┐    ┌─────────────────────────────┐          │
+│  │   Shadow-Desktop            │    │   Shadow-Mobile             │          │
+│  │   shadow/shadow-desktop/    │    │   shadow/shadow-mobile/     │          │
+│  │                             │    │                             │          │
+│  │   Tauri 2 + React 19        │    │   Flutter 3.11+             │          │
+│  │   • Zustand 5               │    │   • Riverpod                │          │
+│  │   • React Router 7          │    │   • GoRouter                │          │
+│  │   • CopilotKit (Agent2UI)   │    │   • flutter_genui (Agent2UI)│          │
+│  │   • candle-vllm 本地推理    │    │   • MNN C++ JNI 本地推理    │          │
+│  │   • 桌面自动化              │    │   • Android 无障碍 API      │          │
+│  └──────────────┬──────────────┘    └──────────────┬──────────────┘          │
+│                 │  OpenAI /v1/* + WebSocket + WebRTC                        │
+└─────────────────┼──────────────────────────────────┼─────────────────────────┘
+                  ▼                                  ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                              Shadow (影)                                   │
-│                         用户设备上的安全分身                                │
+│  Layer 3: AGENT  (外部项目)                                                  │
 │                                                                             │
-│  ┌─────────────────────────────┐    ┌─────────────────────────────┐        │
-│  │    Shadow-Mobile (移动端)   │    │   Shadow-Desktop (桌面端)  │        │
-│  │       Flutter + MNN        │    │      Tauri + Rust          │        │
-│  │                             │    │                             │        │
-│  │  • MNN 本地推理            │    │  • candle-vllm 本地推理    │        │
-│  │  • 魔搭社区下载模型        │    │  • 魔搭社区下载模型       │        │
-│  │  • flutter_genui Agent2UI  │    │  • CopilotKit Agent2UI     │        │
-│  │  • Android 无障碍 API       │    │  • 桌面自动化              │        │
-│  └─────────────────────────────┘    └─────────────────────────────┘        │
-│                                     │                                       │
-│                                     ▼                                       │
-│  ┌─────────────────────────────────────────────────────────────────────┐  │
-│  │                     Prefrontal (前额叶)                               │  │
-│  │                    Rust 多智能体执行引擎                               │  │
-│  │                         Port 8082                                    │  │
-│  │                                                                      │  │
-│  │  • 内置 Agent (Rust)           • Skill 系统                        │  │
-│  │  • 工具执行                    • LLM 提供者 (OpenAI/Anthropic)       │  │
-│  │  • 会话管理                    • MCP 工具支持                        │  │
-│  └─────────────────────────────────────────────────────────────────────┘  │
-│                                     │                                       │
-│                                     ▼                                       │
-│  ┌─────────────────────────────────────────────────────────────────────┐  │
-│  │                    Hippocampus (海马体)                               │  │
-│  │                       长期记忆存储                                   │  │
-│  │                         Port 8081                                    │  │
-│  │                                                                      │  │
-│  │  • HybridRAG 搜索           • 向量存储                               │  │
-│  │  • 知识图谱                 • 会话记忆                               │  │
-│  └─────────────────────────────────────────────────────────────────────┘  │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │  Prefrontal  /home/ibloc/Projects/prefrontal       Port 8082        │    │
+│  │  Rust 多智能体执行引擎 (单 crate, 可嵌入或独立运行)                    │    │
+│  │  • agent / session / tool / skill / MCP / A2A orchestration        │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                  │  OpenAI /v1/*                                            │
+└──────────────────┼──────────────────────────────────────────────────────────┘
+                   ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Layer 3.5: CORTEX  (Agent 编排层, 单 shadow 中心化)                          │
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │  Cortex  /home/ibloc/Projects/cortex            Port 8443         │    │
+│  │  Rust (axum 0.8 + synapse::wasm)                                     │    │
+│  │  • 本地 registry (native lobes + user WASM agents)                    │    │
+│  │  • A2A gateway (skill-based routing)                                  │    │
+│  │  • encrypted mDNS 广播 + mTLS 信任存储                                │    │
+│  │  • hot-reload config + admin API (X-Admin-Token)                      │    │
+│  │  Talks up: A2A to Resonance / other cortexes (mTLS)                  │    │
+│  │  Talks down: A2A to native lobes, WASM in-process                     │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                  │  A2A (skill)                                              │
+└──────────────────┼──────────────────────────────────────────────────────────┘
+                   ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Layer 2: ENGINE  (外部项目)                                                 │
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │  neure  /home/ibloc/Projects/neure     Port 8083 (8085 embedded)    │    │
+│  │  Rust 单二进制推理运行时 (LLM/TTS/ASR/Rerank)                         │    │
+│  │  • candle (默认) / voxcpm (burn) / litert 三个 ML 后端              │    │
+│  │  • 9 个 OpenAI-兼容 HTTP 端点                                        │    │
+│  │  • 模型来源: 本地 / HuggingFace / 魔搭社区                            │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                  │  OpenAI /v1/* (云) 或 in-process (本地)                 │
+└──────────────────┼──────────────────────────────────────────────────────────┘
+                   ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Layer 1: MODEL  (横切)                                                     │
+│                                                                             │
+│  云端 (MiniMax / Xiaomi Mimo / OpenAI / Anthropic / DeepSeek)               │
+│  本地 (GGUF / safetensors / .mnn / .litertlm / burn .mpk)                  │
+│                                                                             │
+│  Shadow-Desktop 通过 neure 加载 candle 本地模型                              │
+│  Shadow-Mobile 通过 Kotlin `OpenAIServer.kt` (MNN + LiteRT) 加载本地模型      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Layer 0: STORAGE  (横切, 所有层共享)                                        │
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │  Hippocampus  /home/ibloc/Projects/hippocampus      Port 8081        │    │
+│  │  5-crate Rust workspace — HybridRAG + temporal + consciousness      │    │
+│  │  • hippocampus-core (lib)  • hippocampus-storage (Postgres/Neon)   │    │
+│  │  • hippocampus-server (Axum REST)  • hippocampus-mcp (stdio)        │    │
+│  │  • hippocampus-cli                                              │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│  + Prefrontal persistence/ (sqlite / postgres / file 嵌入式会话存储)         │
+│  + 模型权重: ~/.neure/models/{engine}/{id}/                                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  Layer 5 (横切): ORCHESTRATION  (外部项目, 多用户/跨设备)                     │
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │  Resonance  /home/ibloc/Projects/resonance         Port 8080        │    │
+│  │  任务编排 / 规划 / 工作流引擎 / Benchmark 评分                       │    │
+│  │  • 任务派发 (WebSocket push)                                          │    │
+│  │  • A2A 能力注册 (Shadow → Resonance)                                  │    │
+│  │  • mDNS 服务发现 (_shadow._tcp)                                       │    │
+│  │  • mTLS 双向认证 (Shadow 主动连接)                                    │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
+
+### Shadow 在 4 层架构中的位置
+
+| 维度 | 位置 |
+|---|---|
+| 主要职责 | Layer 4 (Interaction) — 用户交互 UI |
+| 嵌入式职责 | 包含 Layer 2 (neure embedded at :8085) + Prefrontal 客户端 |
+| 跨层通信 | L4↔L3 (OpenAI/WS/WebRTC), L4↔L5 (mTLS/WS/A2A/mDNS) |
+| 独立服务 | 不运行独立服务器; Tauri/Flutter 直接调用 Layer 3 Prefrontal |
 
 ## 与 Resonance 的交互
 
@@ -176,7 +233,8 @@ shadow/
 | 模块 | 位置 | 端口 | 功能 |
 |------|------|------|------|
 | **Resonance** | `/home/ibloc/Projects/resonance` | 8080 | 任务编排、规划、工作流引擎 |
-| **Prefrontal** | `/home/ibloc/Projects/prefrontal` | 8082 | 多智能体执行、工具调用、内置 Agent |
+| **Cortex** | `/home/ibloc/Projects/cortex` | 8443 | 单 shadow 中心化 agent 注册 + A2A gateway + WASM 宿主 |
+| **Prefrontal** | `/home/ibloc/Projects/prefrontal` | 8082 | 多智能体执行、工具调用、内置 Agent (prefrontal 是 cortex 管理的 lobe 之一) |
 | **Hippocampus** | `/home/ibloc/Projects/hippocampus` | 8081 | 长期记忆、HybridRAG 搜索 |
 | **Shadow-Desktop** | `shadow-desktop/` | N/A | 桌面端 UI + candle-vllm |
 | **Shadow-Mobile** | `shadow-mobile/` | N/A | 移动端 UI + MNN |
@@ -255,5 +313,10 @@ export PREFRONTAL_MODE="executor"                 # executor / full
 
 `/home/ibloc/Projects/docs/superpowers/specs/` **不是 git 仓库**。架构规范（如 `2026-06-04-shadow-architecture-redesign.md`）的修改不进入 git 历史，依赖**手动 SOP 同步**。
 
-决策记录（2026-06-08）：评估 neure 重构后的代码/文档对齐时，Layer 2 ENGINE 块加入了 neure 说明。该修改留在工作树中，未做 commit。后续如需恢复该规范的历史追踪，需将 `docs/` 初始化为独立仓库并按 `日期-主题.md` 命名补录。
+决策记录（2026-06-08 → 2026-06-09）：评估 neure 重构后的代码/文档对齐时，Layer 2 ENGINE 块加入了 neure 说明。该修改已反映在以下文档中：
+- `/home/ibloc/Projects/AGENTS.md` PROJECTS 表（neure 列入 Layer 2，synapse 列为 shared/突触层）
+- `/home/ibloc/Projects/docs/architecture.md`（完整架构图 + 内嵌 Mermaid + 生物类比 §8）
+- `/home/ibloc/Projects/docs/diagrams/architecture.mmd`（SVG/PNG 渲染源文件）
+- `/home/ibloc/Projects/hippocampus/AGENTS.md`（synapse path dep 关系说明）
+- 8 个项目根目录分别放置了 `ARCHITECTURE.md` 指针文件
 
