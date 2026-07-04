@@ -2,10 +2,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { useDiscoveryStore } from '../../src/stores/discoveryStore';
 import type { DiscoveredDevice } from '../../src/lib/discoveryClient';
 
-vi.mock('../../src/lib/prefrontalClient', () => ({
-  prefrontalClient: {
-    healthCheck: vi.fn().mockResolvedValue(true),
-  },
+const mockSafeInvoke = vi.fn().mockResolvedValue(undefined);
+
+vi.mock('../../src/lib/tauriSafe', () => ({
+  safeInvoke: (...args: unknown[]) => mockSafeInvoke(...args),
 }));
 
 const mockLocalStorage = {
@@ -72,12 +72,11 @@ describe('DiscoveryStore', () => {
     });
 
     it('sets error on failure', async () => {
-      const { prefrontalClient } = await import('../../src/lib/prefrontalClient');
-      vi.mocked(prefrontalClient.healthCheck).mockRejectedValueOnce(new Error('Network error'));
-      
+      mockSafeInvoke.mockRejectedValueOnce(new Error('Network error'));
+
       const { startScan } = useDiscoveryStore.getState();
       await startScan();
-      
+
       const state = useDiscoveryStore.getState();
       expect(state.error).toBe('Network error');
       expect(state.isScanning).toBe(false);
@@ -106,12 +105,11 @@ describe('DiscoveryStore', () => {
     });
 
     it('sets error on failure', async () => {
-      const { prefrontalClient } = await import('../../src/lib/prefrontalClient');
-      vi.mocked(prefrontalClient.healthCheck).mockRejectedValueOnce(new Error('Failed'));
-      
+      mockSafeInvoke.mockRejectedValueOnce(new Error('Failed'));
+
       const { refreshDevices } = useDiscoveryStore.getState();
       await refreshDevices();
-      
+
       const state = useDiscoveryStore.getState();
       expect(state.error).toBe('Failed');
     });

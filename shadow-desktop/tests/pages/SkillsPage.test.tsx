@@ -55,12 +55,12 @@ describe('SkillsPage', () => {
 
   it('shows add form when button clicked', async () => {
     const { container } = renderWithRouter(<SkillsPage />);
-    
-    await waitFor(() => {
-      const buttons = container.querySelectorAll('.btn-primary');
-      fireEvent.click(buttons[0]);
+
+    await waitFor(async () => {
+      const addBtn = screen.getByRole('button', { name: /skills\.addSkill/i });
+      fireEvent.click(addBtn);
     });
-    
+
     await waitFor(() => {
       const formElements = container.querySelectorAll('input[placeholder="skills.myCustomSkill"]');
       expect(formElements.length).toBeGreaterThan(0);

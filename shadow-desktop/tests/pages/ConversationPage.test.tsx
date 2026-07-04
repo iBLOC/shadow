@@ -80,7 +80,7 @@ describe('ConversationPage', () => {
   it('renders without crashing', async () => {
     renderWithRouter(<ConversationPage />);
     await waitFor(() => {
-      expect(document.querySelector('.conversation-container')).toBeInTheDocument();
+      expect(screen.getByText('conversation.title')).toBeInTheDocument();
     });
   });
 });

@@ -3,17 +3,16 @@ import { useTranslation } from 'react-i18next';
 import { Modal, Button } from '../../ui';
 import { ProviderForm } from '../ProviderForm';
 import type { AddProviderModalProps, ModelProvider, ProviderFormData } from './types';
-import styles from './AddProviderModal.module.css';
 
 const API_BASE = 'http://localhost:8082';
 
-export function AddProviderModal({ 
-  isOpen, 
-  onClose, 
+export function AddProviderModal({
+  isOpen,
+  onClose,
   onSuccess,
   onSave,
   providerTypes,
-  defaultApiBase = {}
+  defaultApiBase = {},
 }: AddProviderModalProps) {
   const { t } = useTranslation();
   const [formData, setFormData] = useState<ProviderFormData>({
@@ -27,7 +26,7 @@ export function AddProviderModal({
 
   const handleAddProvider = async () => {
     if (!formData.name) return;
-    
+
     setIsSubmitting(true);
     try {
       if (onSave) {
@@ -38,15 +37,13 @@ export function AddProviderModal({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(formData),
         });
-        
-        if (!response.ok) {
-          throw new Error('Failed to add provider');
-        }
-        
+
+        if (!response.ok) throw new Error('Failed to add provider');
+
         const provider: ModelProvider = await response.json();
         onSuccess?.(provider);
       }
-      
+
       resetForm();
       onClose();
     } catch (error) {
@@ -79,12 +76,12 @@ export function AddProviderModal({
       description={t('models.addProviderDesc')}
       size="md"
       footer={
-        <div className={styles.footer}>
+        <div className="flex justify-end gap-2">
           <Button variant="secondary" onClick={handleClose}>
             {t('common.cancel')}
           </Button>
-          <Button 
-            variant="primary" 
+          <Button
+            variant="primary"
             onClick={handleAddProvider}
             loading={isSubmitting}
             disabled={!formData.name || !formData.api_base}

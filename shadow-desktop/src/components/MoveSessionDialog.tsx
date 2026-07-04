@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { X, ArrowRight, Server, Check, AlertCircle, Loader } from 'lucide-react';
 import { prefrontalClient } from '../lib/prefrontalClient';
+import { Button } from './ui';
 
 interface DiscoveredPeer {
   id: string;
@@ -85,9 +86,9 @@ export function MoveSessionDialog({
       >
         <div className="modal-header">
           <h2>{t('common.migrate.title')}</h2>
-          <button className="icon-btn" onClick={onClose} aria-label={t('common.close')}>
+          <Button size="icon" variant="ghost" onClick={onClose} aria-label={t('common.close')}>
             <X size={18} />
-          </button>
+          </Button>
         </div>
 
         <p className="modal-description">{t('common.migrate.description')}</p>
@@ -179,21 +180,21 @@ export function MoveSessionDialog({
 
         <div className="modal-actions">
           {phase === 'success' ? (
-            <button className="btn btn-primary" onClick={onClose}>
+            <Button onClick={onClose}>
               {t('common.confirm')}
-            </button>
+            </Button>
           ) : (
             <>
-              <button className="btn btn-secondary" onClick={onClose}>
+              <Button variant="secondary" onClick={onClose}>
                 {t('common.cancel')}
-              </button>
-              <button
-                className="btn btn-primary"
+              </Button>
+              <Button
                 onClick={handleMigrate}
                 disabled={!selectedPeer || phase !== 'idle'}
+                icon={phase === 'idle' ? undefined : <ArrowRight size={16} />}
               >
-                {phase === 'idle' ? t('common.migrate.confirm') : <ArrowRight size={16} />}
-              </button>
+                {phase === 'idle' ? t('common.migrate.confirm') : ''}
+              </Button>
             </>
           )}
         </div>

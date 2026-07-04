@@ -9,24 +9,36 @@ interface ThemeState {
   toggleTheme: () => void;
 }
 
+function applyTheme(theme: Theme) {
+  const root = document.documentElement;
+  if (theme === 'dark') {
+    root.classList.add('dark');
+  } else {
+    root.classList.remove('dark');
+  }
+}
+
 export const useThemeStore = create<ThemeState>()(
   persist(
     (set, get) => ({
       theme: 'dark',
       setTheme: (theme) => {
-        document.body.classList.remove('light', 'dark');
-        document.body.classList.add(theme);
+        applyTheme(theme);
         set({ theme });
       },
       toggleTheme: () => {
         const newTheme = get().theme === 'dark' ? 'light' : 'dark';
-        document.body.classList.remove('light', 'dark');
-        document.body.classList.add(newTheme);
+        applyTheme(newTheme);
         set({ theme: newTheme });
       },
     }),
     {
       name: 'theme-storage',
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          applyTheme(state.theme);
+        }
+      },
     }
   )
 );

@@ -119,6 +119,16 @@ class LogService extends StateNotifier<LogState> {
     state = state.copyWith(logs: newLogs);
   }
 
+  void addClientError({required String tag, required String message, String? stack}) {
+    addLog(LogEntry(
+      timestamp: DateTime.now(),
+      source: LogSource.prefrontal,
+      level: LogLevel.error,
+      tag: tag,
+      message: stack != null ? '$message\n$stack' : message,
+    ));
+  }
+
   void clearLogs() {
     state = state.copyWith(logs: []);
   }

@@ -15,6 +15,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useResonanceStore } from '../stores/resonanceStore';
+import { useCortexStore } from '../stores/cortexStore';
 import { cn } from '../lib/utils';
 
 interface NavItem {
@@ -39,17 +40,24 @@ const navItems: NavItem[] = [
 
 export function Layout() {
   const { t } = useTranslation();
-  const { pendingTasks, connectionStatus } = useResonanceStore();
+  const { pendingTasks } = useResonanceStore();
+  const cortexStatus = useCortexStore((s) => s.status);
+  const resonanceStatus = useResonanceStore((s) => s.connectionStatus);
 
-  const getConnectionLabel = () => {
-    switch (connectionStatus) {
-      case 'connected':
-        return t('common.status.connected');
-      case 'connecting':
-        return t('common.status.connecting');
-      default:
-        return t('common.status.disconnected');
+  const getCortexIndicator = () => {
+    if (cortexStatus === 'running' && resonanceStatus === 'connected') {
+      return { dot: 'bg-green-500', label: t('common.status.connected') };
     }
+    if (cortexStatus === 'running' && resonanceStatus === 'connecting') {
+      return { dot: 'bg-yellow-500 animate-pulse', label: t('common.status.connecting') };
+    }
+    if (cortexStatus === 'starting') {
+      return { dot: 'bg-yellow-500 animate-pulse', label: t('common.status.connecting') };
+    }
+    if (cortexStatus === 'unreachable') {
+      return { dot: 'bg-red-500', label: t('common.status.disconnected') };
+    }
+    return { dot: 'bg-muted-foreground', label: t('common.status.disconnected') };
   };
 
   return (
@@ -102,19 +110,17 @@ export function Layout() {
 
         {/* Footer */}
         <div className="mt-auto flex flex-col gap-2 border-t border-border pt-4">
-          <div className="flex items-center gap-3 rounded-md border border-border bg-muted/50 px-4 py-3 max-lg:hidden">
-            <div
-              className={cn(
-                'h-2.5 w-2.5 flex-shrink-0 rounded-full',
-                connectionStatus === 'connected' && 'bg-green-500',
-                connectionStatus === 'connecting' && 'bg-yellow-500 animate-pulse',
-                connectionStatus === 'disconnected' && 'bg-muted-foreground'
-              )}
-            />
-            <span className="text-xs text-muted-foreground font-medium">
-              {getConnectionLabel()}
-            </span>
-          </div>
+          {(() => {
+            const indicator = getCortexIndicator();
+            return (
+              <div className="flex items-center gap-3 rounded-md border border-border bg-muted/50 px-4 py-3 max-lg:hidden">
+                <div className={cn('h-2.5 w-2.5 flex-shrink-0 rounded-full', indicator.dot)} />
+                <span className="text-xs text-muted-foreground font-medium">
+                  {indicator.label}
+                </span>
+              </div>
+            );
+          })()}
 
           <NavLink
             to="/settings"

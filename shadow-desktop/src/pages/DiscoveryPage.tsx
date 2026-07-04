@@ -1,35 +1,34 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { 
-  Wifi, 
-  Radar, 
-  Plus, 
-  RefreshCw, 
-  X, 
+import {
+  Wifi,
+  Radar,
+  Plus,
+  RefreshCw,
+  X,
   AlertCircle,
   CheckCircle2,
   Loader2,
 } from 'lucide-react';
-import { Button } from '../components/ui/Button';
-import { EmptyState } from '../components/ui/EmptyState';
-import { Modal } from '../components/ui/Modal';
-import { Input } from '../components/ui/Input';
+import { Button, EmptyState, Modal, Input } from '../components/ui';
 import { DeviceCard } from '../components/business/DeviceCard';
 import { DelegateToPeerDialog } from '../components/DelegateToPeerDialog';
 import { useDiscoveryStore } from '../stores/discoveryStore';
 import type { DiscoveredDevice, DeviceCapability } from '../lib/discoveryClient';
-import './DiscoveryPage.css';
+import { cn } from '../lib/utils';
 
 export function DiscoveryPage() {
   const { t } = useTranslation();
   const {
     devices,
+    cortexInstances,
     activeNode,
     isScanning,
     lastScan,
     error,
     startScan,
     refreshDevices,
+    discoverCortexInstances,
     setActiveNode,
     addManualDevice,
     removeDevice,
@@ -41,7 +40,7 @@ export function DiscoveryPage() {
   const [showDelegateDialog, setShowDelegateDialog] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<DiscoveredDevice | null>(null);
   const [delegatePreloadUrl, setDelegatePreloadUrl] = useState<string | undefined>();
-  
+
   const [manualHost, setManualHost] = useState('');
   const [manualPort, setManualPort] = useState('8082');
   const [manualName, setManualName] = useState('');
@@ -50,13 +49,14 @@ export function DiscoveryPage() {
   const [manualVersion, setManualVersion] = useState('');
 
   useEffect(() => {
-    refreshDevices();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    void refreshDevices();
+    void discoverCortexInstances();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleStartScan = async () => {
     await startScan();
     await refreshDevices();
+    await discoverCortexInstances();
   };
 
   const handleDetails = (device: DiscoveredDevice) => {
@@ -72,7 +72,6 @@ export function DiscoveryPage() {
 
   const handleAddManual = () => {
     if (!manualHost.trim()) return;
-    
     addManualDevice({
       name: manualName.trim() || `${manualHost}:${manualPort}`,
       type: manualType,
@@ -81,47 +80,36 @@ export function DiscoveryPage() {
       port: parseInt(manualPort, 10) || 8082,
       version: manualVersion.trim() || undefined,
     });
-    
     setShowAddDialog(false);
-    setManualHost('');
-    setManualPort('8082');
-    setManualName('');
-    setManualType('agent');
-    setManualCapabilities(['llm']);
-    setManualVersion('');
+    setManualHost(''); setManualPort('8082'); setManualName('');
+    setManualType('agent'); setManualCapabilities(['llm']); setManualVersion('');
   };
 
   const toggleCapability = (cap: DeviceCapability) => {
-    setManualCapabilities((prev) => 
-      prev.includes(cap)
-        ? prev.filter((c) => c !== cap)
-        : [...prev, cap]
+    setManualCapabilities((prev) =>
+      prev.includes(cap) ? prev.filter((c) => c !== cap) : [...prev, cap]
     );
   };
 
   return (
-    <div className="discovery-page">
-      <header className="discovery-header">
-        <div className="header-content">
-          <div className="header-icon">
+    <div className="flex h-full flex-col gap-4 p-6">
+      <header className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className="flex h-14 w-14 items-center justify-center rounded-md bg-foreground text-background">
             <Radar size={32} />
           </div>
-          <div className="headerText">
-            <h1>{t('discovery.title')}</h1>
-            <p>{t('discovery.subtitle')}</p>
+          <div>
+            <h1 className="text-2xl font-semibold text-foreground">{t('discovery.title')}</h1>
+            <p className="mt-1 text-sm text-muted-foreground">{t('discovery.subtitle')}</p>
           </div>
         </div>
-        <div className="header-actions">
-          <Button
-            variant="ghost"
-            icon={<Plus size={16} />}
-            onClick={() => setShowAddDialog(true)}
-          >
+        <div className="flex gap-3">
+          <Button variant="ghost" icon={<Plus size={16} />} onClick={() => setShowAddDialog(true)}>
             {t('discovery.manualAdd')}
           </Button>
           <Button
             variant="primary"
-            icon={isScanning ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}
+            icon={isScanning ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
             onClick={handleStartScan}
             disabled={isScanning}
           >
@@ -131,34 +119,52 @@ export function DiscoveryPage() {
       </header>
 
       {error && (
-        <div className="discovery-error">
+        <div className="flex items-center gap-2 rounded-md border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-500">
           <AlertCircle size={16} />
           <span>{error}</span>
-          <button onClick={clearError}>
+          <Button size="icon" variant="ghost" className="ml-auto" onClick={clearError} aria-label={t('common.close')}>
             <X size={14} />
-          </button>
+          </Button>
         </div>
       )}
 
-      <div className="discovery-content">
+      {cortexInstances.length > 0 && (
+        <div className="rounded-md border border-primary/30 bg-primary/5 p-4">
+          <div className="mb-2 flex items-center gap-2">
+            <CheckCircle2 size={16} className="text-primary" />
+            <h2 className="text-sm font-semibold text-foreground">
+              {t('discovery.cortexInstances') || 'Cortex Instances'}
+            </h2>
+          </div>
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+            {cortexInstances.map((cortex) => (
+              <div
+                key={`${cortex.host}:${cortex.port}`}
+                className="flex items-center justify-between rounded-md border border-border bg-background/50 p-2"
+              >
+                <div className="flex flex-col">
+                  <span className="text-sm font-medium text-foreground">{cortex.name}</span>
+                  <span className="font-mono text-xs text-muted-foreground">
+                    {cortex.host}:{cortex.port}
+                  </span>
+                </div>
+                <code className="text-xs text-muted-foreground">{t('discovery.cortexDefaultPort') || '8443'}</code>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="flex-1 overflow-y-auto">
         {devices.length === 0 ? (
-<div className="empty-state-container">
-            <EmptyState
-              icon={<Wifi size={48} />}
-              title={t('discovery.noNodes')}
-              description={t('discovery.noNodesHint')}
-            />
-            <Button
-              variant="primary"
-              icon={<Radar size={18} />}
-              onClick={handleStartScan}
-              className="empty-action"
-            >
+          <div className="flex h-full flex-col items-center justify-center gap-4">
+            <EmptyState icon={<Wifi size={48} />} title={t('discovery.noNodes')} description={t('discovery.noNodesHint')} />
+            <Button variant="primary" icon={<Radar size={18} />} onClick={handleStartScan}>
               {t('discovery.startScan')}
             </Button>
           </div>
         ) : (
-          <div className="devices-grid">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
             {devices.map((device) => (
               <DeviceCard
                 key={device.id}
@@ -175,73 +181,46 @@ export function DiscoveryPage() {
       </div>
 
       {lastScan && (
-        <div className="discovery-footer">
-          <span className="last-scan">
-            {t('discovery.lastScan')}: {lastScan.toLocaleTimeString()}
-          </span>
-          <span className="device-count">
-            {t('discovery.deviceCount', { count: devices.length })}
-          </span>
+        <div className="flex justify-between border-t border-border pt-4 text-xs text-muted-foreground">
+          <span>{t('discovery.lastScan')}: {lastScan.toLocaleTimeString()}</span>
+          <span>{t('discovery.deviceCount', { count: devices.length })}</span>
         </div>
       )}
 
-      <Modal
-        isOpen={showAddDialog}
-        onClose={() => setShowAddDialog(false)}
-        title={t('discovery.addNode')}
-      >
-        <div className="add-dialog-form">
-          <Input
-            label={t('discovery.host')}
-            value={manualHost}
-            onChange={(e) => setManualHost(e.target.value)}
-            placeholder="192.168.1.100"
-          />
-          <Input
-            label={t('discovery.port')}
-            value={manualPort}
-            onChange={(e) => setManualPort(e.target.value)}
-            placeholder="8082"
-            type="number"
-          />
-          <Input
-            label={t('discovery.name')}
-            value={manualName}
-            onChange={(e) => setManualName(e.target.value)}
-            placeholder="My Shadow Node"
-          />
-          
-          <div className="form-group">
-            <label>{t('discovery.type')}</label>
-            <div className="type-selector">
-              <button
-                className={`type-btn ${manualType === 'agent' ? 'active' : ''}`}
-                onClick={() => setManualType('agent')}
-              >
-                {t('discovery.types.agent')}
-              </button>
-              <button
-                className={`type-btn ${manualType === 'engine' ? 'active' : ''}`}
-                onClick={() => setManualType('engine')}
-              >
-                {t('discovery.types.engine')}
-              </button>
-              <button
-                className={`type-btn ${manualType === 'router' ? 'active' : ''}`}
-                onClick={() => setManualType('router')}
-              >
-                {t('discovery.types.router')}
-              </button>
+      <Modal isOpen={showAddDialog} onClose={() => setShowAddDialog(false)} title={t('discovery.addNode')}>
+        <div className="flex flex-col gap-4">
+          <Input label={t('discovery.host')} value={manualHost} onChange={(e) => setManualHost(e.target.value)} placeholder="192.168.1.100" />
+          <Input label={t('discovery.port')} value={manualPort} onChange={(e) => setManualPort(e.target.value)} placeholder="8082" type="number" />
+          <Input label={t('discovery.name')} value={manualName} onChange={(e) => setManualName(e.target.value)} placeholder="My Shadow Node" />
+
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-medium text-foreground">{t('discovery.type')}</label>
+            <div className="flex flex-wrap gap-2">
+              {(['agent', 'engine', 'router'] as const).map((tp) => (
+                <button
+                  key={tp}
+                  className={cn(
+                    'rounded-md border border-border bg-muted px-4 py-2 text-sm text-muted-foreground transition-colors hover:border-foreground/40',
+                    manualType === tp && 'border-foreground bg-foreground text-background'
+                  )}
+                  onClick={() => setManualType(tp)}
+                >
+                  {t(`discovery.types.${tp}`)}
+                </button>
+              ))}
             </div>
           </div>
 
-          <div className="form-group">
-            <label>{t('discovery.capabilities')}</label>
-            <div className="capability-selector">
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-medium text-foreground">{t('discovery.capabilities')}</label>
+            <div className="flex flex-wrap gap-2">
               {(['llm', 'tts', 'asr', 'vad'] as const).map((cap) => (
                 <button
                   key={cap}
-                  className={`cap-btn ${manualCapabilities.includes(cap) ? 'active' : ''}`}
+                  className={cn(
+                    'rounded-md border border-border bg-muted px-4 py-2 text-sm text-muted-foreground transition-colors hover:border-foreground/40',
+                    manualCapabilities.includes(cap) && 'border-foreground bg-foreground text-background'
+                  )}
                   onClick={() => toggleCapability(cap)}
                 >
                   {t(`discovery.capabilities.${cap}`)}
@@ -250,52 +229,42 @@ export function DiscoveryPage() {
             </div>
           </div>
 
-          <Input
-            label={t('discovery.version')}
-            value={manualVersion}
-            onChange={(e) => setManualVersion(e.target.value)}
-            placeholder="v0.1.0"
-          />
+          <Input label={t('discovery.version')} value={manualVersion} onChange={(e) => setManualVersion(e.target.value)} placeholder="v0.1.0" />
 
-          <div className="dialog-actions">
-            <Button variant="ghost" onClick={() => setShowAddDialog(false)}>
-              {t('common.cancel')}
-            </Button>
-            <Button variant="primary" onClick={handleAddManual}>
-              {t('common.save')}
-            </Button>
+          <div className="flex justify-end gap-3 border-t border-border pt-4">
+            <Button variant="ghost" onClick={() => setShowAddDialog(false)}>{t('common.cancel')}</Button>
+            <Button variant="primary" onClick={handleAddManual}>{t('common.save')}</Button>
           </div>
         </div>
       </Modal>
 
-      <Modal
-        isOpen={showDetailModal}
-        onClose={() => setShowDetailModal(false)}
-        title={selectedDevice?.name || ''}
-      >
+      <Modal isOpen={showDetailModal} onClose={() => setShowDetailModal(false)} title={selectedDevice?.name || ''}>
         {selectedDevice && (
-          <div className="detail-modal">
-            <div className="detail-section">
-              <h4>{t('discovery.endpoint')}</h4>
-              <code className="endpoint-url">
+          <div className="flex flex-col gap-5">
+            <div className="flex flex-col gap-2">
+              <h4 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{t('discovery.endpoint')}</h4>
+              <code className="rounded-md bg-muted px-3 py-2 font-mono text-sm text-foreground">
                 {'http://' + selectedDevice.host + ':' + selectedDevice.port}
               </code>
             </div>
-            
-            <div className="detail-section">
-              <h4>{t('discovery.capabilities')}</h4>
-              <div className="capability-chips">
+
+            <div className="flex flex-col gap-2">
+              <h4 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{t('discovery.capabilities')}</h4>
+              <div className="flex flex-wrap gap-2">
                 {selectedDevice.capabilities.map((cap) => (
-                  <span key={cap} className="chip">
+                  <span key={cap} className="rounded-full bg-muted px-3 py-1 text-sm text-foreground">
                     {t(`discovery.capabilities.${cap}`)}
                   </span>
                 ))}
               </div>
             </div>
 
-            <div className="detail-section">
-              <h4>{t('discovery.status')}</h4>
-              <div className={`status-indicator ${activeNode?.id === selectedDevice.id ? 'active' : ''}`}>
+            <div className="flex flex-col gap-2">
+              <h4 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{t('discovery.status')}</h4>
+              <div className={cn(
+                'flex items-center gap-2 rounded-md bg-muted px-3 py-2 text-sm',
+                activeNode?.id === selectedDevice.id && 'bg-green-500/15 text-green-500'
+              )}>
                 {activeNode?.id === selectedDevice.id ? (
                   <>
                     <CheckCircle2 size={14} />
@@ -304,23 +273,18 @@ export function DiscoveryPage() {
                 ) : (
                   <>
                     <AlertCircle size={14} />
-                    <span>{t('discovery.inactive')}</span>
+                    <span className="text-muted-foreground">{t('discovery.inactive')}</span>
                   </>
                 )}
               </div>
             </div>
 
-            <div className="dialog-actions">
-              <Button variant="ghost" onClick={() => setShowDetailModal(false)}>
-                {t('common.close')}
-              </Button>
+            <div className="flex justify-end gap-3 border-t border-border pt-4">
+              <Button variant="ghost" onClick={() => setShowDetailModal(false)}>{t('common.close')}</Button>
               {activeNode?.id !== selectedDevice.id && (
                 <Button
                   variant="primary"
-                  onClick={() => {
-                    setActiveNode(selectedDevice);
-                    setShowDetailModal(false);
-                  }}
+                  onClick={() => { setActiveNode(selectedDevice); setShowDetailModal(false); }}
                 >
                   {t('discovery.setActive')}
                 </Button>
@@ -328,13 +292,9 @@ export function DiscoveryPage() {
             </div>
           </div>
         )}
-        </Modal>
+      </Modal>
 
-        <DelegateToPeerDialog
-          open={showDelegateDialog}
-          onClose={() => setShowDelegateDialog(false)}
-          prefillUrl={delegatePreloadUrl}
-        />
-      </div>
-    );
-  }
+      <DelegateToPeerDialog open={showDelegateDialog} onClose={() => setShowDelegateDialog(false)} prefillUrl={delegatePreloadUrl} />
+    </div>
+  );
+}

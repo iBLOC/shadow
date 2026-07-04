@@ -7,14 +7,14 @@ mod model_store;
 mod config_manager;
 mod opencode_manager;
 mod worktree_manager;
-mod service_manager;
+mod cortex_manager;
 
 use config_manager::{AppConfig, DatabaseConfig, ProviderConfig, SecureAuth};
 use model_store::{EncryptedStorage, ModelProvider};
-use neure_lib::{run_embedded, NeureConfig, NeureEmbedConfig, NeureHandle, health};
 use opencode_manager::OpenCodeManager;
 use prefrontal_client::PrefrontalState;
 use worktree_manager::WorktreeManager;
+use cortex_manager::CortexManager;
 use std::sync::Arc;
 use tauri::{
     image::Image,
@@ -33,24 +33,12 @@ struct AppState {
     opencode_manager: Arc<OpenCodeManager>,
     worktree_manager: Arc<WorktreeManager>,
     workflow_state: Arc<tokio::sync::Mutex<WorkflowState>>,
-    service_manager: Arc<service_manager::EmbeddedServiceManager>,
+    cortex_manager: Arc<CortexManager>,
 }
 
 struct WorkflowState {
     approved_tasks: std::collections::HashMap<String, bool>,
     rejected_tasks: std::collections::HashMap<String, String>,
-}
-
-pub struct NeureState {
-    pub handle: tokio::sync::Mutex<Option<NeureHandle>>,
-}
-
-impl Default for NeureState {
-    fn default() -> Self {
-        Self {
-            handle: tokio::sync::Mutex::new(None),
-        }
-    }
 }
 
 fn setup_tray<R: Runtime>(app: &tauri::App<R>) -> Result<(), Box<dyn std::error::Error>> {
@@ -127,13 +115,12 @@ pub fn run() {
             approved_tasks: std::collections::HashMap::new(),
             rejected_tasks: std::collections::HashMap::new(),
         })),
-        service_manager: Arc::new(service_manager::EmbeddedServiceManager::new()),
+        cortex_manager: Arc::new(CortexManager::new()),
     };
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(app_state)
-        .manage(NeureState::default())
         .setup(|app| {
             if let Err(e) = setup_tray(app) {
                 tracing::error!("Failed to setup tray: {}", e);
@@ -152,30 +139,9 @@ pub fn run() {
 
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                let cfg = NeureEmbedConfig {
-                    port: 8085,
-                    config: NeureConfig::default(),
-                };
-                match run_embedded(cfg).await {
-                    Ok(handle) => {
-                        tracing::info!(addr = %handle.addr, "neure embedded started");
-                        let neure_state = app_handle.state::<NeureState>();
-                        let mut guard = neure_state.handle.lock().await;
-                        *guard = Some(handle);
-                    }
-                    Err(e) => {
-                        tracing::error!("failed to start neure: {}", e);
-                    }
-                }
-            });
-
-            let app_handle = app.handle().clone();
-            tauri::async_runtime::spawn(async move {
-                let service_manager = app_handle.state::<AppState>().service_manager.clone();
-                if let Err(e) = service_manager.start_all().await {
-                    tracing::error!("failed to auto-start services: {}", e);
-                } else {
-                    tracing::info!("all embedded services auto-started");
+                let cortex_manager = app_handle.state::<AppState>().cortex_manager.clone();
+                if let Err(e) = cortex_manager.start().await {
+                    tracing::warn!("cortex sidecar start deferred: {}", e);
                 }
             });
 
@@ -188,11 +154,10 @@ pub fn run() {
             toggle_window_visibility,
             discover_resonance,
             resolve_resonance,
-            prefrontal_init,
+            discover_cortex,
             prefrontal_create_session,
             prefrontal_list_sessions,
             prefrontal_delete_session,
-            prefrontal_process,
             prefrontal_list_agents,
             ws_connect,
             ws_send,
@@ -233,13 +198,10 @@ pub fn run() {
             approve_task,
             reject_task,
             workflow_execute_step,
-            neure_health,
-            service_list_all,
-            service_get,
-            service_start,
-            service_stop,
-            service_start_all,
-            service_stop_all,
+            cortex_health,
+            cortex_start,
+            cortex_stop,
+            cortex_status,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -294,26 +256,28 @@ async fn resolve_resonance(name: String) -> Result<Option<mdns::DiscoveredServic
 }
 
 #[tauri::command]
-async fn neure_health(state: State<'_, NeureState>) -> Result<serde_json::Value, String> {
-    let guard = state.handle.lock().await;
-    match guard.as_ref() {
-        Some(h) => Ok(serde_json::json!({
-            "status": "ready",
-            "addr": h.addr.to_string(),
-            "llm_loaded": true,
-            "tts_loaded": true,
-            "asr_loaded": true,
-        })),
-        None => Ok(serde_json::json!({"status": "not_started"})),
-    }
+async fn discover_cortex() -> Result<Vec<mdns::DiscoveredService>, String> {
+    mdns::discover_cortex().await
 }
 
 #[tauri::command]
-async fn prefrontal_init(
-    state: State<'_, AppState>,
-    config: prefrontal_core_lib::PrefrontalConfig,
-) -> Result<(), String> {
-    state.prefrontal.initialize(config).await
+async fn cortex_health(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+    state.cortex_manager.health().await
+}
+
+#[tauri::command]
+async fn cortex_start(state: State<'_, AppState>) -> Result<(), String> {
+    state.cortex_manager.start().await
+}
+
+#[tauri::command]
+async fn cortex_stop(state: State<'_, AppState>) -> Result<(), String> {
+    state.cortex_manager.stop().await
+}
+
+#[tauri::command]
+async fn cortex_status(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+    state.cortex_manager.status_json().await
 }
 
 #[tauri::command]
@@ -335,17 +299,8 @@ async fn prefrontal_delete_session(
 }
 
 #[tauri::command]
-async fn prefrontal_process(
-    state: State<'_, AppState>,
-    session_id: String,
-    message: String,
-) -> Result<String, String> {
-    state.prefrontal.process(&session_id, &message).await
-}
-
-#[tauri::command]
-fn prefrontal_list_agents(state: State<'_, AppState>) -> Vec<serde_json::Value> {
-    state.prefrontal.list_agents()
+async fn prefrontal_list_agents(state: State<'_, AppState>) -> Result<Vec<serde_json::Value>, String> {
+    Ok(state.prefrontal.list_agents().await)
 }
 
 #[tauri::command]
@@ -855,50 +810,14 @@ async fn workflow_execute_step(
     }
 }
 
-#[tauri::command]
-async fn service_list_all(state: State<'_, AppState>) -> Result<Vec<service_manager::ServiceInfo>, String> {
-    Ok(state.service_manager.get_all_services().await)
-}
-
-#[tauri::command]
-async fn service_get(state: State<'_, AppState>, name: String) -> Result<Option<service_manager::ServiceInfo>, String> {
-    Ok(state.service_manager.get_service(&name).await)
-}
-
-#[tauri::command]
-async fn service_start(state: State<'_, AppState>, name: String) -> Result<(), String> {
-    state.service_manager.start_service(&name).await
-}
-
-#[tauri::command]
-async fn service_stop(state: State<'_, AppState>, name: String) -> Result<(), String> {
-    state.service_manager.stop_service(&name).await
-}
-
-#[tauri::command]
-async fn service_start_all(state: State<'_, AppState>) -> Result<(), String> {
-    state.service_manager.start_all().await
-}
-
-#[tauri::command]
-async fn service_stop_all(state: State<'_, AppState>) -> Result<(), String> {
-    state.service_manager.stop_all().await
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_neure_state_default() {
-        let state = NeureState::default();
-        assert!(state.handle.try_lock().is_ok());
-    }
-
     #[tokio::test]
-    async fn test_neure_health_not_started() {
-        let state = crate::NeureState::default();
-        let guard = state.handle.lock().await;
-        assert!(guard.is_none());
+    async fn test_cortex_manager_initial_state() {
+        let m = CortexManager::new();
+        let status = m.status_json().await.unwrap();
+        assert_eq!(status["status"], "stopped");
     }
 }

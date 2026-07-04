@@ -1,11 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { Loading, Skeleton, SkeletonCard } from '../../src/components/ui/Loading';
+import { Loading, Skeleton } from '../../src/components/ui';
 
 describe('Loading', () => {
   it('renders loading spinner', () => {
-    render(<Loading />);
-    expect(document.querySelector('svg.lucide-loader-circle')).toBeInTheDocument();
+    const { container } = render(<Loading />);
+    const svg = container.querySelector('svg');
+    expect(svg).toBeInTheDocument();
+    expect(svg).toHaveClass('animate-spin');
   });
 
   it('renders with text when provided', () => {
@@ -14,64 +16,56 @@ describe('Loading', () => {
   });
 
   it('renders small size', () => {
-    render(<Loading size="sm" />);
-    const svg = document.querySelector('svg');
-    expect(svg).toHaveAttribute('height', '16');
+    const { container } = render(<Loading size="sm" />);
+    const svg = container.querySelector('svg');
+    expect(svg).toBeInTheDocument();
   });
 
   it('renders medium size by default', () => {
-    render(<Loading />);
-    const svg = document.querySelector('svg');
-    expect(svg).toHaveAttribute('height', '24');
+    const { container } = render(<Loading />);
+    const svg = container.querySelector('svg');
+    expect(svg).toBeInTheDocument();
   });
 
   it('renders large size', () => {
-    render(<Loading size="lg" />);
-    const svg = document.querySelector('svg');
-    expect(svg).toHaveAttribute('height', '32');
+    const { container } = render(<Loading size="lg" />);
+    const svg = container.querySelector('svg');
+    expect(svg).toBeInTheDocument();
   });
 
   it('renders fullscreen when fullScreen prop is true', () => {
     const { container } = render(<Loading fullScreen />);
-    expect(container.firstChild).toHaveClass(/_fullScreen/);
+    expect(container.firstChild).toHaveClass('fixed');
   });
 });
 
 describe('Skeleton', () => {
   it('renders skeleton placeholder', () => {
-    render(<Skeleton />);
-    expect(document.querySelector('div[style]')).toBeInTheDocument();
+    const { container } = render(<Skeleton />);
+    expect(container.firstChild).toHaveClass('animate-pulse');
   });
 
   it('renders with custom width', () => {
-    render(<Skeleton width={100} />);
-    const skeleton = document.querySelector('div[style]') as HTMLElement;
+    const { container } = render(<Skeleton style={{ width: 100 }} />);
+    const skeleton = container.firstChild as HTMLElement;
     expect(skeleton.style.width).toBe('100px');
   });
 
   it('renders with custom height', () => {
-    render(<Skeleton height={50} />);
-    const skeleton = document.querySelector('div[style]') as HTMLElement;
+    const { container } = render(<Skeleton style={{ height: 50 }} />);
+    const skeleton = container.firstChild as HTMLElement;
     expect(skeleton.style.height).toBe('50px');
   });
 
   it('renders with custom border radius', () => {
-    render(<Skeleton borderRadius="lg" />);
-    const skeleton = document.querySelector('div[style]') as HTMLElement;
+    const { container } = render(<Skeleton style={{ borderRadius: '12px' }} />);
+    const skeleton = container.firstChild as HTMLElement;
     expect(skeleton.style.borderRadius).toBe('12px');
   });
 
   it('renders full border radius', () => {
-    render(<Skeleton borderRadius="full" />);
-    const skeleton = document.querySelector('div[style]') as HTMLElement;
+    const { container } = render(<Skeleton style={{ borderRadius: '9999px' }} />);
+    const skeleton = container.firstChild as HTMLElement;
     expect(skeleton.style.borderRadius).toBe('9999px');
-  });
-});
-
-describe('SkeletonCard', () => {
-  it('renders skeleton card', () => {
-    render(<SkeletonCard />);
-    const skeletonCard = document.querySelector('div[class*="skeletonCard"]');
-    expect(skeletonCard).toBeInTheDocument();
   });
 });

@@ -63,8 +63,8 @@ describe('AddProviderModal', () => {
       />
     );
     
-    const buttons = document.querySelectorAll('button');
-    await user.click(buttons[0]);
+    const cancelButton = screen.getByText('common.cancel');
+    await user.click(cancelButton);
     expect(handleClose).toHaveBeenCalled();
   });
 
@@ -75,8 +75,7 @@ describe('AddProviderModal', () => {
         onClose={() => {}}
       />
     );
-    const buttons = document.querySelectorAll('button');
-    const addButton = buttons[buttons.length - 1];
+    const addButton = screen.getByText('common.add');
     expect(addButton).toBeDisabled();
   });
 

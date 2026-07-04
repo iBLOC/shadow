@@ -128,6 +128,10 @@ export class CortexClient {
     return this.request(`/shadow/v1/conversations/${encodeURIComponent(id)}`);
   }
 
+  async listConversations(): Promise<Conversation[]> {
+    return this.request('/shadow/v1/conversations');
+  }
+
   async sendMessage(conversationId: string, req: SendMessageRequest): Promise<SendMessageResponse> {
     return this.request(`/shadow/v1/conversations/${encodeURIComponent(conversationId)}/messages`, {
       method: 'POST',

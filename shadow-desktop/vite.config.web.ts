@@ -1,5 +1,9 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /**
  * Vite config for the **web** build (`pnpm build:web`).
@@ -13,6 +17,11 @@ import react from '@vitejs/plugin-react';
  * - Drops Tauri-specific env defaults; only the web-relevant envs are kept.
  */
 export default defineConfig({
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
   plugins: [
     react(),
     {

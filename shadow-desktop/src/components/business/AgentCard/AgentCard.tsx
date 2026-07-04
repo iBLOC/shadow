@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import { Bot, Play, Square, Settings, Trash2, ExternalLink } from 'lucide-react';
 import { Button, StatusBadge } from '../../ui';
 import type { AgentCardProps } from './types';
-import styles from './AgentCard.module.css';
 
 const BUILT_IN_ROLES = [
   { value: 'planner', icon: '🧠', color: '#6366f1', labelKey: 'agents.planner' },
@@ -30,7 +29,7 @@ function mapAgentStatus(status: 'online' | 'offline' | 'busy'): 'online' | 'offl
 
 export function AgentCard({ agent, onEdit, onDelete, onInvoke }: AgentCardProps) {
   const { t } = useTranslation();
-  
+
   const typeConfig = useMemo(() => {
     if (agent.category === 'built-in') {
       return BUILT_IN_ROLES.find(r => r.value === agent.role) || BUILT_IN_ROLES[0];
@@ -41,43 +40,43 @@ export function AgentCard({ agent, onEdit, onDelete, onInvoke }: AgentCardProps)
   const color = typeConfig.color;
 
   return (
-    <div className={styles.card}>
-      <div className={styles.header}>
-        <div className={styles.icon} style={{ background: color }}>
+    <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4">
+      <div className="flex items-center gap-3">
+        <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-md text-white" style={{ background: color }}>
           <Bot size={24} />
         </div>
-        <div className={styles.info}>
-          <h3 className={styles.name}>{agent.name}</h3>
-          <span className={styles.type} style={{ color }}>
+        <div className="min-w-0 flex-1">
+          <h3 className="truncate text-base font-semibold text-foreground">{agent.name}</h3>
+          <span className="text-xs font-medium" style={{ color }}>
             {t(typeConfig.labelKey)}
           </span>
         </div>
         <StatusBadge status={mapAgentStatus(agent.status)} />
       </div>
-      
+
       {agent.description && (
-        <p className={styles.description}>{agent.description}</p>
+        <p className="line-clamp-2 text-sm leading-relaxed text-muted-foreground">{agent.description}</p>
       )}
-      
+
       {agent.endpoint && (
-        <div className={styles.endpoint}>
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <ExternalLink size={14} />
-          <code>{agent.endpoint}</code>
+          <code className="rounded bg-muted px-1.5 py-0.5 font-mono">{agent.endpoint}</code>
         </div>
       )}
-      
+
       {agent.capabilities.length > 0 && (
-        <div className={styles.capabilities}>
+        <div className="flex flex-wrap gap-1.5">
           {agent.capabilities.slice(0, 3).map((cap) => (
-            <span key={cap} className={styles.capabilityTag}>{cap}</span>
+            <span key={cap} className="rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground">{cap}</span>
           ))}
           {agent.capabilities.length > 3 && (
-            <span className={styles.capabilityMore}>+{agent.capabilities.length - 3}</span>
+            <span className="px-1 text-xs text-muted-foreground">+{agent.capabilities.length - 3}</span>
           )}
         </div>
       )}
-      
-      <div className={styles.actions}>
+
+      <div className="mt-1 flex gap-2">
         <Button
           variant={agent.status === 'online' ? 'secondary' : 'success'}
           size="sm"
@@ -87,9 +86,9 @@ export function AgentCard({ agent, onEdit, onDelete, onInvoke }: AgentCardProps)
           {agent.status === 'online' ? t('agents.stop') : t('agents.start')}
         </Button>
         <Button variant="ghost" size="sm" icon={<Settings size={14} />} onClick={() => onEdit?.(agent)} />
-        <Button 
-          variant="ghost" 
-          size="sm" 
+        <Button
+          variant="ghost"
+          size="sm"
           icon={<Trash2 size={14} />}
           onClick={() => onDelete?.(agent.id)}
         />

@@ -2,6 +2,30 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
+class SessionExport {
+  final String sessionId;
+  final List<Map<String, dynamic>> messages;
+  final int sizeBytes;
+
+  const SessionExport({
+    required this.sessionId,
+    required this.messages,
+    required this.sizeBytes,
+  });
+
+  factory SessionExport.fromJson(Map<String, dynamic> json) {
+    return SessionExport(
+      sessionId: json['session_id'] ?? json['id'] ?? '',
+      messages:
+          (json['messages'] as List<dynamic>?)
+              ?.map((e) => Map<String, dynamic>.from(e as Map))
+              .toList() ??
+          [],
+      sizeBytes: json['size_bytes'] ?? 0,
+    );
+  }
+}
+
 /// Cortex connection config
 class CortexConfig {
   final String baseUrl;
@@ -328,6 +352,33 @@ class CortexClient {
 
   Future<Conversation> getConversation(String id) async {
     final json = await _get('/shadow/v1/conversations/${Uri.encodeComponent(id)}');
+    return Conversation.fromJson(json);
+  }
+
+  Future<List<Conversation>> listConversations() async {
+    final json = await _get('/shadow/v1/conversations');
+    return (json as List<dynamic>)
+        .map((e) => Conversation.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<Conversation> importSessionAsConversation({
+    required SessionExport export,
+    String agent = 'prefrontal',
+  }) async {
+    final history = export.messages.map((m) => {
+      'role': m['role'] ?? 'user',
+      'text': m['text'] ?? '',
+      'timestamp': (m['timestamp'] is int) ? m['timestamp'] : (m['timestamp'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch,
+    }).toList();
+    final body = {
+      'agent': agent,
+      'history': history,
+    };
+    final json = await _post(
+      '/shadow/v1/conversations/${Uri.encodeComponent(export.sessionId)}/import',
+      body,
+    );
     return Conversation.fromJson(json);
   }
 

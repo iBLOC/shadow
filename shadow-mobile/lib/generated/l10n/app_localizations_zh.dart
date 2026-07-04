@@ -36,9 +36,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get resetEngine => '重置引擎';
 
   @override
-  String get reinitializeMnn => '重新初始化 MNN 引擎';
-
-  @override
   String get theme => '主题';
 
   @override
@@ -165,15 +162,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get desktopMode => '桌面模式（仅 Android）';
-
-  @override
-  String get errorMnnInitFailed => 'MNN 引擎初始化失败';
-
-  @override
-  String get initializingMnn => '正在初始化 MNN 引擎…';
-
-  @override
-  String get mnnInitSuccess => 'MNN 引擎已初始化成功！\n模型已加载\n可以开始对话。';
 
   @override
   String errorGeneric(String detail) {

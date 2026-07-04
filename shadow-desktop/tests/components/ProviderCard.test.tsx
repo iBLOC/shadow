@@ -30,8 +30,8 @@ describe('ProviderCard', () => {
 
   it('renders provider type in span element', () => {
     render(<ProviderCard provider={mockProvider} />);
-    const typeSpan = document.querySelector('span[class*="_type"]');
-    expect(typeSpan?.textContent).toBe('openai');
+    const typeSpan = screen.getByText('openai');
+    expect(typeSpan.tagName).toBe('SPAN');
   });
 
   it('renders enabled badge when provider is enabled', () => {
@@ -73,12 +73,12 @@ describe('ProviderCard', () => {
 
   it('toggles expanded state', async () => {
     const user = userEvent.setup();
-    render(<ProviderCard provider={mockProviderWithModels} />);
-    
-    const card = document.querySelector('div[class*="_card"]');
-    if (card) {
-      await user.click(card);
+    const { container } = render(<ProviderCard provider={mockProviderWithModels} />);
+    const header = container.querySelector('.cursor-pointer');
+    if (header) {
+      await user.click(header);
     }
+    expect(screen.getByText('GPT-4')).toBeInTheDocument();
   });
 
   it('does not render models section when no models', async () => {

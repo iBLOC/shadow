@@ -2,7 +2,6 @@ import { useTranslation } from 'react-i18next';
 import { Loader2 } from 'lucide-react';
 import { Button, Badge } from '../../ui';
 import type { ServiceStatusProps } from './types';
-import styles from './ServiceStatus.module.css';
 
 const STATUS_CONFIG = {
   connected: { variant: 'success' as const, label: 'Connected', pulse: true },
@@ -16,28 +15,28 @@ export function ServiceStatus({ name, status, message, onConnect, onDisconnect }
   const config = STATUS_CONFIG[status];
 
   return (
-    <div className={styles.container}>
-      <div className={styles.info}>
-        <div className={styles.header}>
-          <span className={styles.name}>{name}</span>
+    <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-card p-4">
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-3">
+          <span className="text-[15px] font-semibold text-foreground">{name}</span>
           <Badge variant={config.variant} dot pulse={config.pulse}>
             {config.label}
           </Badge>
         </div>
-        {message && <p className={styles.message}>{message}</p>}
+        {message && <p className="mt-1 text-xs text-muted-foreground">{message}</p>}
       </div>
-      <div className={styles.actions}>
+      <div className="flex-shrink-0">
         {status === 'connected' || status === 'error' ? (
           <Button variant="secondary" size="sm" onClick={onDisconnect}>
             {t('common.disconnect')}
           </Button>
         ) : (
-          <Button 
-            variant="primary" 
-            size="sm" 
+          <Button
+            variant="primary"
+            size="sm"
             onClick={onConnect}
             disabled={status === 'connecting'}
-            icon={status === 'connecting' ? <Loader2 size={14} className={styles.spin} /> : undefined}
+            icon={status === 'connecting' ? <Loader2 size={14} className="animate-spin" /> : undefined}
           >
             {status === 'connecting' ? t('common.connecting') : t('common.connect')}
           </Button>

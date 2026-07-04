@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Eye, EyeOff } from 'lucide-react';
-import { Input } from '../../ui';
+import { Button, Input } from '../../ui';
 import type { ProviderFormProps, ProviderTypeOption } from './types';
-import styles from './ProviderForm.module.css';
+import { cn } from '../../../lib/utils';
 
 const DEFAULT_PROVIDER_TYPES: ProviderTypeOption[] = [
   { id: 'openai', name: 'OpenAI', color: '#10a37f' },
@@ -27,7 +27,7 @@ export function ProviderForm({
   };
 
   return (
-    <div className={styles.form}>
+    <div className="flex flex-col gap-4">
       {showProviderName && (
         <Input
           label={t('models.providerName')}
@@ -37,24 +37,24 @@ export function ProviderForm({
           disabled={disabled}
         />
       )}
-      
-      <div className={styles.formGroup}>
-        <label className={styles.label}>{t('models.providerType')}</label>
-        <div className={providerTypes.length > 4 ? styles.typeList : styles.typeGrid}>
+
+      <div className="flex flex-col gap-2">
+        <label className="text-sm font-medium text-muted-foreground">{t('models.providerType')}</label>
+        <div className={cn(
+          providerTypes.length > 4 ? 'flex max-h-[200px] flex-col gap-1.5 overflow-y-auto' : 'grid grid-cols-2 gap-2'
+        )}>
           {providerTypes.map((type) => (
-            <button
+            <Button
               key={type.id}
               type="button"
-              className={`${styles.typeBtn} ${value.provider_type === type.id ? styles.selected : ''}`}
+              variant={value.provider_type === type.id ? 'default' : 'outline'}
               onClick={() => handleProviderTypeChange(type.id)}
               disabled={disabled}
+              className="flex items-center justify-start gap-2"
             >
-              <span 
-                className={styles.typeDot}
-                style={{ background: type.color }}
-              />
+              <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ background: type.color }} />
               {type.name}
-            </button>
+            </Button>
           ))}
         </div>
       </div>
@@ -66,26 +66,29 @@ export function ProviderForm({
         placeholder="https://api.openai.com/v1"
         disabled={disabled}
       />
-      
-      <div className={styles.formGroup}>
-        <label className={styles.label}>{t('models.apiKey')}</label>
-        <div className={styles.apiKeyInput}>
+
+      <div className="flex flex-col gap-2">
+        <label className="text-sm font-medium text-muted-foreground">{t('models.apiKey')}</label>
+        <div className="relative flex items-center">
           <input
             type={showApiKey ? 'text' : 'password'}
             value={value.api_key}
             onChange={(e) => onChange({ ...value, api_key: e.target.value })}
             placeholder="sk-..."
-            className={styles.input}
             disabled={disabled}
+            className="w-full rounded-md border border-border bg-muted py-2.5 pr-10 pl-3 text-sm text-foreground focus:border-foreground focus:outline-none disabled:opacity-60"
           />
-          <button 
+          <Button
             type="button"
-            className={styles.toggleVisibility}
+            size="icon"
+            variant="ghost"
+            className="absolute right-3"
             onClick={() => setShowApiKey(!showApiKey)}
             disabled={disabled}
+            aria-label={showApiKey ? t('common.hidePassword') : t('common.showPassword')}
           >
             {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

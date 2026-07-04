@@ -29,6 +29,12 @@ export interface Task {
   updatedAt?: string;
 }
 
+export interface ApiEnvelope<T> {
+  success: boolean;
+  data?: T;
+  error?: string;
+}
+
 export type ServiceStatus = 'unknown' | 'checking' | 'healthy' | 'unhealthy' | 'offline';
 
 export interface ServiceInfo {
@@ -49,34 +55,75 @@ type HttpRequestOptions = {
 };
 
 import { prefrontalUrl } from './platform';
+import { useCortexStore } from '../stores/cortexStore';
+import { useErrorDialogStore } from '../stores/errorDialogStore';
 
 export class PrefrontalClient {
-  private baseUrl: string;
   private headers: Record<string, string>;
 
   constructor(baseUrl?: string) {
-    this.baseUrl = baseUrl ?? prefrontalUrl();
     this.headers = {
       'Content-Type': 'application/json',
     };
+    if (baseUrl) {
+      useCortexStore.getState().setBaseUrl(baseUrl);
+    }
+  }
+
+  private getBaseUrl(): string {
+    const cortexBase = useCortexStore.getState().connection.baseUrl;
+    if (cortexBase) return cortexBase;
+    return prefrontalUrl();
   }
 
   private async request<T>(
     endpoint: string,
     options: HttpRequestOptions = {}
   ): Promise<T> {
-    const url = `${this.baseUrl}${endpoint}`;
-    const response = await fetch(url, {
-      method: options.method || 'GET',
-      headers: {
-        ...this.headers,
-        ...options.headers,
-      },
-      body: options.body,
-    });
+    const url = `${this.getBaseUrl()}${endpoint}`;
+    const method = (options.method || 'GET').toUpperCase();
+
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method,
+        headers: {
+          ...this.headers,
+          ...options.headers,
+        },
+        body: options.body,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      const stack = err instanceof Error ? err.stack : undefined;
+      useErrorDialogStore.getState().show({
+        source: 'http',
+        endpoint: url,
+        method,
+        message: `Network error: ${message}`,
+        stack,
+      });
+      throw err;
+    }
 
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      let body = '';
+      try {
+        const text = await response.clone().text();
+        body = text ? `: ${text.slice(0, 500)}` : '';
+      } catch {
+        // body read failures are non-fatal
+      }
+      const message = `HTTP ${response.status}: ${response.statusText}${body}`;
+      useErrorDialogStore.getState().show({
+        source: 'http',
+        endpoint: url,
+        method,
+        status: response.status,
+        statusText: response.statusText,
+        message,
+      });
+      throw new Error(message);
     }
 
     return response.json();
@@ -92,14 +139,18 @@ export class PrefrontalClient {
   }
 
   async createSession(name?: string): Promise<SessionResponse> {
-    return this.request<SessionResponse>('/api/sessions', {
+    const env = await this.request<ApiEnvelope<SessionResponse>>('/api/sessions', {
       method: 'POST',
       body: JSON.stringify({ name }),
     });
+    if (!env.success) throw new Error(env.error || 'createSession failed');
+    return env.data!;
   }
 
   async listSessions(): Promise<SessionResponse[]> {
-    return this.request<SessionResponse[]>('/api/sessions');
+    const env = await this.request<ApiEnvelope<SessionResponse[]>>('/api/sessions');
+    if (!env.success) throw new Error(env.error || 'listSessions failed');
+    return env.data ?? [];
   }
 
   async getSession(sessionId: string): Promise<SessionResponse> {
@@ -203,7 +254,7 @@ export class PrefrontalClient {
     message: string,
     useTools: boolean = false
   ): AsyncGenerator<string> {
-    const url = `${this.baseUrl}/api/sessions/${sessionId}/stream`;
+    const url = `${this.getBaseUrl()}/api/sessions/${sessionId}/stream`;
     const response = await fetch(url, {
       method: 'POST',
       headers: this.headers,
@@ -262,7 +313,9 @@ export class PrefrontalClient {
   }
 
   async listAgents(): Promise<Agent[]> {
-    return this.request<Agent[]>('/api/agents');
+    const env = await this.request<ApiEnvelope<Agent[]>>('/api/agents');
+    if (!env.success) throw new Error(env.error || 'listAgents failed');
+    return env.data ?? [];
   }
 
   async getAgent(agentId: string): Promise<Agent> {

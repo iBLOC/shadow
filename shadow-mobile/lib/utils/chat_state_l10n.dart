@@ -18,8 +18,6 @@ extension ChatStateL10n on ChatState {
   String? displayErrorMessage(AppLocalizations l10n) {
     if (errorMessageL10nKey == null) return errorMessage;
     switch (errorMessageL10nKey!) {
-      case ChatStateL10nKey.errorMnnInitFailed:
-        return l10n.errorMnnInitFailed;
       case ChatStateL10nKey.errorGeneric:
         return l10n.errorGeneric(errorMessageArg ?? '');
       default:

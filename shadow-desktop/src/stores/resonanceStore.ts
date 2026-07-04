@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { safeInvoke, safeEventListen } from '../lib/tauriSafe';
+import { cortexClient, type SendMessageResponse } from '../lib/cortexClient';
+import { safeInvoke } from '../lib/tauriSafe';
+import { useCortexStore } from './cortexStore';
 
 export interface DiscoveredService {
   name: string;
@@ -39,99 +41,142 @@ export interface TaskPush {
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 
-interface WebSocketMessage {
+interface A2aMessage {
   msg_type: string;
   payload: Record<string, unknown>;
 }
 
 interface ResonanceState {
   discoveredServices: DiscoveredService[];
-  selectedService: DiscoveredService | null;
   connectionStatus: ConnectionStatus;
   modelScores: ModelScore[];
   pendingTasks: TaskPush[];
   error: string | null;
   reconnectAttempts: number;
-  
+  a2aEndpoint: string;
+
   discoverServices: () => Promise<void>;
-  selectService: (service: DiscoveredService) => void;
   connect: () => Promise<void>;
   disconnect: () => Promise<void>;
   sendMessage: (message: Record<string, unknown>) => Promise<void>;
   sendCapabilityRegister: () => Promise<void>;
-  sendTaskResponse: (taskId: string, status: 'accepted' | 'rejected' | 'deferred', reason?: string) => Promise<void>;
-  sendTaskProgress: (taskId: string, progress: number, currentStep: string, message: string) => Promise<void>;
-  sendTaskResult: (taskId: string, status: 'completed' | 'failed' | 'cancelled', result: unknown) => Promise<void>;
-  handleMessage: (message: WebSocketMessage) => Promise<void>;
+  sendTaskResponse: (
+    taskId: string,
+    status: 'accepted' | 'rejected' | 'deferred',
+    reason?: string,
+  ) => Promise<void>;
+  sendTaskProgress: (
+    taskId: string,
+    progress: number,
+    currentStep: string,
+    message: string,
+  ) => Promise<void>;
+  sendTaskResult: (
+    taskId: string,
+    status: 'completed' | 'failed' | 'cancelled',
+    result: unknown,
+  ) => Promise<void>;
+  handleMessage: (message: A2aMessage) => Promise<void>;
   handleDisconnect: () => Promise<void>;
+  clearError: () => void;
+}
+
+function getA2aEndpoint(): string {
+  const base = useCortexStore.getState().connection.baseUrl;
+  return `${base}/a2a`;
+}
+
+async function postA2a(endpoint: string, body: Record<string, unknown>): Promise<unknown> {
+  const resp = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!resp.ok) {
+    throw new Error(`A2A gateway ${resp.status}: ${resp.statusText}`);
+  }
+  return resp.json();
 }
 
 export const useResonanceStore = create<ResonanceState>()(
   persist(
     (set, get) => ({
       discoveredServices: [],
-      selectedService: null,
       connectionStatus: 'disconnected',
       modelScores: [],
       pendingTasks: [],
       error: null,
       reconnectAttempts: 0,
+      a2aEndpoint: getA2aEndpoint(),
+
+      clearError: () => set({ error: null }),
 
       discoverServices: async () => {
+        if (!useCortexStore.getState().hasConfiguredResonance()) {
+          set({
+            error: 'No Resonance instances configured. Add one in Settings first.',
+            discoveredServices: [],
+          });
+          return;
+        }
         try {
-          const services = await safeInvoke<DiscoveredService[]>('discover_resonance');
+          const services = await safeInvoke<DiscoveredService[]>(
+            'discover_resonance',
+          );
           set({ discoveredServices: services ?? [], error: null });
         } catch (error) {
           set({ error: String(error) });
         }
       },
 
-      selectService: (service) => {
-        set({ selectedService: service });
-      },
-
       connect: async () => {
-        const { selectedService } = get();
-        if (!selectedService) {
-          set({ error: 'No service selected' });
+        const cortexStatus = useCortexStore.getState().status;
+        if (cortexStatus !== 'running') {
+          set({
+            error: 'Cortex must be running to connect to Resonance',
+            connectionStatus: 'error',
+          });
           return;
         }
 
-        set({ connectionStatus: 'connecting', error: null });
+        if (!useCortexStore.getState().hasConfiguredResonance()) {
+          set({
+            error: 'No Resonance instances configured. Add one in Settings first.',
+            connectionStatus: 'error',
+          });
+          return;
+        }
+
+        set({ connectionStatus: 'connecting', error: null, a2aEndpoint: getA2aEndpoint() });
 
         try {
-          const wsUrl = `wss://${selectedService.host}:${selectedService.port}/api/v1/shadow/ws`;
-          
-          await safeInvoke('ws_connect', { url: wsUrl });
+          const endpoint = `${getA2aEndpoint()}/health`;
+          const resp = await fetch(endpoint);
+          if (!resp.ok) {
+            throw new Error(`cortex A2A gateway not reachable: ${resp.status}`);
+          }
 
           set({ connectionStatus: 'connected' });
-
           await get().sendCapabilityRegister();
-
-          await safeEventListen<WebSocketMessage>('ws_message', (msg) => {
-            get().handleMessage(msg);
-          });
-
-          await safeEventListen('ws_disconnected', () => {
-            get().handleDisconnect();
-          });
         } catch (error) {
           set({ error: String(error), connectionStatus: 'error' });
         }
       },
 
       disconnect: async () => {
-        try {
-          await safeInvoke('ws_disconnect');
-          set({ connectionStatus: 'disconnected' });
-        } catch (error) {
-          set({ error: String(error) });
-        }
+        set({ connectionStatus: 'disconnected' });
       },
 
-      sendMessage: async (message: Record<string, unknown>) => {
+      sendMessage: async (message) => {
+        if (get().connectionStatus !== 'connected') {
+          set({ error: 'Not connected to Resonance (via cortex A2A gateway)' });
+          return;
+        }
         try {
-          await safeInvoke('ws_send', { message: JSON.stringify(message) });
+          await postA2a(`${getA2aEndpoint()}/tasks/send`, {
+            method: 'tasks/send',
+            params: message,
+          });
         } catch (error) {
           set({ error: String(error) });
         }
@@ -139,7 +184,13 @@ export const useResonanceStore = create<ResonanceState>()(
 
       sendCapabilityRegister: async () => {
         const models = [
-          { id: 'qwen2.5-3b', provider: 'candle-vllm', context_length: 8192, quantization: 'q4km', supports: ['chat', 'reasoning'] as string[] },
+          {
+            id: 'qwen2.5-3b',
+            provider: 'candle-vllm',
+            context_length: 8192,
+            quantization: 'q4km',
+            supports: ['chat', 'reasoning'] as string[],
+          },
         ];
 
         const message = {
@@ -149,15 +200,17 @@ export const useResonanceStore = create<ResonanceState>()(
           payload: {
             shadow_id: localStorage.getItem('shadow_id') || crypto.randomUUID(),
             device_type: 'desktop',
-            instance_name: 'shadow-desktop-' + (typeof window !== 'undefined' ? window.location.hostname : 'unknown'),
+            instance_name:
+              'shadow-desktop-' +
+              (typeof window !== 'undefined' ? window.location.hostname : 'unknown'),
             capabilities: {
               models,
               skills: [],
               mcp_tools: [],
             },
             preferred_connection: {
-              protocol: 'wss',
-              port: 8080,
+              protocol: 'https',
+              port: 8443,
             },
           },
         };
@@ -206,7 +259,10 @@ export const useResonanceStore = create<ResonanceState>()(
             task_id: taskId,
             status,
             result: {
-              summary: status === 'completed' ? 'Task completed successfully' : 'Task failed',
+              summary:
+                status === 'completed'
+                  ? 'Task completed successfully'
+                  : 'Task failed',
               data: result,
             },
             memory_summary: {
@@ -219,20 +275,25 @@ export const useResonanceStore = create<ResonanceState>()(
         await get().sendMessage(message);
       },
 
-      handleMessage: async (message: WebSocketMessage) => {
+      handleMessage: async (message) => {
         switch (message.msg_type) {
           case 'model_scores':
-            set({ modelScores: (message.payload.scores as ModelScore[]) });
+            set({ modelScores: message.payload.scores as ModelScore[] });
             break;
           case 'task_push':
             set((state) => ({
-              pendingTasks: [...state.pendingTasks, message.payload as unknown as TaskPush],
+              pendingTasks: [
+                ...state.pendingTasks,
+                message.payload as unknown as TaskPush,
+              ],
             }));
             break;
           case 'task_cancel': {
             const cancelPayload = message.payload as { task_id: string };
             set((state) => ({
-              pendingTasks: state.pendingTasks.filter((t) => t.task_id !== cancelPayload.task_id),
+              pendingTasks: state.pendingTasks.filter(
+                (t) => t.task_id !== cancelPayload.task_id,
+              ),
             }));
             break;
           }
@@ -240,45 +301,30 @@ export const useResonanceStore = create<ResonanceState>()(
       },
 
       handleDisconnect: async () => {
-        const { reconnectAttempts, selectedService } = get();
-        
-        if (!selectedService) {
-          set({ connectionStatus: 'disconnected', error: 'No service selected' });
-          return;
-        }
-
         set({ connectionStatus: 'disconnected' });
 
         const maxAttempts = 5;
+        const { reconnectAttempts } = get();
         if (reconnectAttempts >= maxAttempts) {
-          set({ error: 'Max reconnection attempts reached', connectionStatus: 'error' });
+          set({
+            error: 'Max reconnection attempts reached',
+            connectionStatus: 'error',
+          });
           return;
         }
 
         const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
-        
         set((state) => ({ reconnectAttempts: state.reconnectAttempts + 1 }));
-        
-        setTimeout(async () => {
-          const { reconnectAttempts: currentAttempts } = get();
-          if (currentAttempts <= maxAttempts) {
-            set({ connectionStatus: 'connecting', error: null });
-            try {
-              await safeInvoke('ws_reconnect');
-              set({ connectionStatus: 'connected', reconnectAttempts: 0 });
-            } catch (error) {
-              set({ error: String(error), connectionStatus: 'error' });
-              get().handleDisconnect();
-            }
-          }
+
+        setTimeout(() => {
+          const { reconnectAttempts: current } = get();
+          if (current > maxAttempts) return;
+          void get().connect();
         }, delay);
       },
     }),
-    {
-      name: 'resonance-storage',
-      partialize: (state) => ({
-        selectedService: state.selectedService,
-      }),
-    }
-  )
+    { name: 'resonance-state' },
+  ),
 );
+
+export type { SendMessageResponse };

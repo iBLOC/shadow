@@ -1,8 +1,8 @@
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Trash2, TestTube, Settings, ChevronDown, ChevronRight } from 'lucide-react';
 import { Button, Badge, StatusBadge } from '../../ui';
 import type { ProviderCardProps } from './types';
-import styles from './ProviderCard.module.css';
 
 const PROVIDER_LOGOS: Record<string, { bg: string; text: string }> = {
   openai: { bg: '#10a37f', text: 'AI' },
@@ -28,42 +28,42 @@ export function ProviderCard({ provider, onEdit, onDelete, onTest }: ProviderCar
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <div className={styles.card}>
-      <div className={styles.header} onClick={() => setExpanded(!expanded)}>
-        <div className={styles.logo} style={{ background: logo.bg }}>
+    <div className="overflow-hidden rounded-lg border border-border bg-card">
+      <div className="flex cursor-pointer items-center gap-3 px-4 py-3" onClick={() => setExpanded(!expanded)}>
+        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md text-xs font-semibold text-white" style={{ background: logo.bg }}>
           {logo.text}
         </div>
-        <div className={styles.info}>
-          <div className={styles.nameRow}>
-            <h3 className={styles.name}>{provider.name}</h3>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <h3 className="truncate text-[15px] font-semibold text-foreground">{provider.name}</h3>
             <Badge variant={provider.enabled ? 'success' : 'default'} size="sm">
               {provider.enabled ? 'Enabled' : 'Disabled'}
             </Badge>
           </div>
-          <span className={styles.type}>{provider.provider_type}</span>
+          <span className="text-xs text-muted-foreground">{provider.provider_type}</span>
         </div>
-        <div className={styles.actions} onClick={(e) => e.stopPropagation()}>
-          <Button variant="ghost" size="sm" icon={<TestTube size={14} />} onClick={() => onTest?.(provider.id)} />
-          <Button variant="ghost" size="sm" icon={<Settings size={14} />} onClick={() => onEdit?.(provider)} />
-          <Button variant="ghost" size="sm" icon={<Trash2 size={14} />} onClick={() => onDelete?.(provider.id)} />
+        <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+          <Button variant="ghost" size="sm" icon={<TestTube size={14} />} onClick={() => onTest?.(provider.id)} aria-label={t('models.test')} />
+          <Button variant="ghost" size="sm" icon={<Settings size={14} />} onClick={() => onEdit?.(provider)} aria-label={t('common.edit')} />
+          <Button variant="ghost" size="sm" icon={<Trash2 size={14} />} onClick={() => onDelete?.(provider.id)} aria-label={t('common.delete')} />
         </div>
-        <button className={styles.expandBtn}>
+        <Button size="icon" variant="ghost" aria-label={expanded ? t('common.collapse') : t('common.expand')}>
           {expanded ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
-        </button>
+        </Button>
       </div>
-      
+
       {expanded && provider.models.length > 0 && (
-        <div className={styles.models}>
-          <div className={styles.modelsHeader}>
+        <div className="border-t border-border px-4 py-3">
+          <div className="mb-2 flex items-center justify-between text-[13px] font-medium text-muted-foreground">
             <span>{t('models.models')}</span>
-            <span className={styles.modelCount}>{provider.models.length}</span>
+            <span className="rounded-full bg-muted px-2 py-0.5 text-xs">{provider.models.length}</span>
           </div>
-          <div className={styles.modelList}>
+          <div className="flex flex-col gap-2">
             {provider.models.map((model) => (
-              <div key={model.id} className={styles.modelItem}>
-                <div className={styles.modelInfo}>
-                  <span className={styles.modelName}>{model.name}</span>
-                  <span className={styles.modelId}>{model.model_id}</span>
+              <div key={model.id} className="flex items-center justify-between rounded-md bg-muted px-3 py-2">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-sm font-medium text-foreground">{model.name}</span>
+                  <span className="font-mono text-xs text-muted-foreground">{model.model_id}</span>
                 </div>
                 <StatusBadge status={model.enabled ? 'online' : 'offline'} size="sm" />
               </div>
@@ -75,5 +75,4 @@ export function ProviderCard({ provider, onEdit, onDelete, onTest }: ProviderCar
   );
 }
 
-import { useState } from 'react';
 export type { ProviderCardProps } from './types';

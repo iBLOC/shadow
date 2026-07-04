@@ -231,7 +231,7 @@ class SettingsScreen extends ConsumerWidget {
                 child: ListTile(
                   leading: Icon(Icons.refresh, color: AppColors.error),
                   title: Text(l10n.resetEngine),
-                  subtitle: Text(l10n.reinitializeMnn),
+                  subtitle: const Text('Reinitialize engine'),
                   onTap: onReset,
                 ),
               ),

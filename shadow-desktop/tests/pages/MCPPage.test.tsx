@@ -46,9 +46,9 @@ describe('MCPPage', () => {
   });
 
   it('renders page without crashing', async () => {
-    const { container } = renderWithRouter(<MCPPage />);
+    renderWithRouter(<MCPPage />);
     await waitFor(() => {
-      expect(container.querySelector('.mcp-page')).toBeInTheDocument();
+      expect(screen.getByText('mcp.title')).toBeInTheDocument();
     });
   });
 });

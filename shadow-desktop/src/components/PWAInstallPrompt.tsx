@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Download, X } from 'lucide-react';
 import { isWeb, isTauri } from '../lib/platform';
+import { Button } from './ui';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
@@ -72,12 +73,12 @@ export function PWAInstallPrompt() {
           <strong>{t('pwa.installTitle')}</strong>
           <span>{t('pwa.installDesc')}</span>
         </div>
-        <button className="pwa-install-accept" onClick={accept}>
+        <Button onClick={accept}>
           {t('pwa.install')}
-        </button>
-        <button className="pwa-install-dismiss" onClick={dismiss} aria-label={t('common.close')}>
+        </Button>
+        <Button size="icon" variant="ghost" onClick={dismiss} aria-label={t('common.close')}>
           <X size={16} />
-        </button>
+        </Button>
       </div>
     </div>
   );

@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { safeInvoke } from '../lib/tauriSafe';
-import { Database, Server, Cloud, Lock, CheckCircle, AlertCircle, Key, Plus, Loader2, ChevronRight } from 'lucide-react';
+import { Database, Server, Cloud, Lock, CheckCircle, AlertCircle, Key, Plus, ChevronRight, type LucideIcon } from 'lucide-react';
 import { useDatabaseStore, type DatabaseType } from '../stores/databaseStore';
 import { ProviderForm } from '../components/business';
 import type { ProviderFormData, ProviderTypeOption } from '../components/business';
-import './SetupPage.css';
+import { Button } from '../components/ui/button';
+import { cn } from '../lib/utils';
 
 interface LLMModel {
   id: string;
@@ -30,7 +31,7 @@ interface ModelProvider {
   models: LLMModel[];
 }
 
-const DB_TYPE_OPTIONS: { value: DatabaseType; icon: typeof Server; labelKey: string; descKey: string; disabled?: boolean }[] = [
+const DB_TYPE_OPTIONS: { value: DatabaseType; icon: LucideIcon; labelKey: string; descKey: string; disabled?: boolean }[] = [
   { value: 'embedded', icon: Server, labelKey: 'settings.dbEmbedded', descKey: 'setup.dbEmbeddedDesc' },
   { value: 'external', icon: Database, labelKey: 'settings.dbExternal', descKey: 'setup.dbExternalDesc' },
   { value: 'neon', icon: Cloud, labelKey: 'settings.dbNeon', descKey: 'setup.dbNeonDesc', disabled: true },
@@ -150,11 +151,7 @@ export function SetupPage() {
   const [isSettingPassword, setIsSettingPassword] = useState(false);
 
   const [externalDbConfig, setExternalDbConfig] = useState({
-    host: 'localhost',
-    port: '5432',
-    username: 'postgres',
-    password: '',
-    database: 'shadow',
+    host: 'localhost', port: '5432', username: 'postgres', password: '', database: 'shadow',
   });
   const [connectionTestResult, setConnectionTestResult] = useState<'idle' | 'testing' | 'success' | 'failed'>('idle');
 
@@ -166,11 +163,7 @@ export function SetupPage() {
   const [providerError, setProviderError] = useState('');
 
   const [providerFormData, setProviderFormData] = useState<ProviderFormData>({
-    name: '',
-    provider_type: 'openai',
-    api_base: '',
-    api_key: '',
-    enabled: true,
+    name: '', provider_type: 'openai', api_base: '', api_key: '', enabled: true,
   });
 
   const [fetchedModels, setFetchedModels] = useState<FetchedModel[]>([]);
@@ -179,9 +172,7 @@ export function SetupPage() {
   const [isAddingModel, setIsAddingModel] = useState(false);
 
   useEffect(() => {
-    safeInvoke<string>('get_machine_id').then((id) => {
-      if (id) setMachineId(id);
-    }).catch(console.error);
+    safeInvoke<string>('get_machine_id').then((id) => { if (id) setMachineId(id); }).catch(console.error);
     loadSetupProgress();
   }, []);
 
@@ -189,18 +180,12 @@ export function SetupPage() {
     try {
       const savedStep = await safeInvoke<string>('get_setup_step');
       const providerConfig = await safeInvoke<{ provider_type: string; name: string; api_base: string; api_key: string | null }>('get_provider_config');
-
-      if (savedStep && savedStep !== 'password') {
-        setStep(savedStep as SetupStep);
-      }
-
+      if (savedStep && savedStep !== 'password') setStep(savedStep as SetupStep);
       if (providerConfig && providerConfig.name) {
         setProviderType(providerConfig.provider_type as ProviderTypeId);
         setProviderName(providerConfig.name);
         setApiBase(providerConfig.api_base);
-        if (providerConfig.api_key) {
-          setApiKey(providerConfig.api_key);
-        }
+        if (providerConfig.api_key) setApiKey(providerConfig.api_key);
       }
     } catch (err) {
       console.error('Failed to load setup progress:', err);
@@ -216,18 +201,10 @@ export function SetupPage() {
   };
 
   const handleSetPassword = async () => {
-    if (masterPasswordInput.length < 8) {
-      setPasswordError(t('setup.passwordTooShort'));
-      return;
-    }
-    if (masterPasswordInput !== confirmPassword) {
-      setPasswordError(t('setup.passwordMismatch'));
-      return;
-    }
-
+    if (masterPasswordInput.length < 8) { setPasswordError(t('setup.passwordTooShort')); return; }
+    if (masterPasswordInput !== confirmPassword) { setPasswordError(t('setup.passwordMismatch')); return; }
     setIsSettingPassword(true);
     setPasswordError('');
-
     try {
       await safeInvoke('set_password', { password: masterPasswordInput, machineId });
       await safeInvoke('update_setup_step', { step: 'database' });
@@ -239,9 +216,7 @@ export function SetupPage() {
     }
   };
 
-  const handleSelectDb = (type: DatabaseType) => {
-    setDbType(type);
-  };
+  const handleSelectDb = (type: DatabaseType) => setDbType(type);
 
   const handleConfigureDb = async () => {
     if (dbType === 'embedded') {
@@ -254,10 +229,8 @@ export function SetupPage() {
         await safeInvoke('save_db_config', {
           dbType: 'external',
           dbConfig: {
-            host: externalDbConfig.host,
-            port: parseInt(externalDbConfig.port, 10),
-            username: externalDbConfig.username,
-            password: externalDbConfig.password,
+            host: externalDbConfig.host, port: parseInt(externalDbConfig.port, 10),
+            username: externalDbConfig.username, password: externalDbConfig.password,
             database: externalDbConfig.database,
           },
         });
@@ -276,10 +249,8 @@ export function SetupPage() {
       await safeInvoke('save_db_config', {
         dbType: 'external',
         dbConfig: {
-          host: externalDbConfig.host,
-          port: parseInt(externalDbConfig.port, 10),
-          username: externalDbConfig.username,
-          password: externalDbConfig.password,
+          host: externalDbConfig.host, port: parseInt(externalDbConfig.port, 10),
+          username: externalDbConfig.username, password: externalDbConfig.password,
           database: externalDbConfig.database,
         },
       });
@@ -291,18 +262,11 @@ export function SetupPage() {
 
   const handleAddProvider = async () => {
     if (!providerName || !apiBase) return;
-
     setIsAddingProvider(true);
     setProviderError('');
-
     try {
       await safeInvoke('save_provider_config', {
-        providerConfig: {
-          provider_type: providerType,
-          name: providerName,
-          api_base: apiBase,
-          api_key: apiKey || null,
-        },
+        providerConfig: { provider_type: providerType, name: providerName, api_base: apiBase, api_key: apiKey || null },
       });
       await safeInvoke('update_setup_step', { step: 'models' });
       setStep('models');
@@ -315,23 +279,12 @@ export function SetupPage() {
 
   const handleFetchModels = async () => {
     if (!apiBase) return;
-
     setIsFetchingModels(true);
     setFetchError('');
     setFetchedModels([]);
-
     try {
-      const models = await safeInvoke<FetchedModel[]>('fetch_provider_models', {
-        apiBase,
-        apiKey: apiKey || null,
-      });
-
-      const modelsWithToggle = (models ?? []).map(m => ({
-        ...m,
-        enabled: true,
-      }));
-
-      setFetchedModels(modelsWithToggle);
+      const models = await safeInvoke<FetchedModel[]>('fetch_provider_models', { apiBase, apiKey: apiKey || null });
+      setFetchedModels((models ?? []).map(m => ({ ...m, enabled: true })));
     } catch (err) {
       setFetchError(String(err));
     } finally {
@@ -340,11 +293,7 @@ export function SetupPage() {
   };
 
   const toggleModel = (modelId: string) => {
-    setFetchedModels(prev =>
-      prev.map(m =>
-        m.id === modelId ? { ...m, enabled: !m.enabled } : m
-      )
-    );
+    setFetchedModels(prev => prev.map(m => m.id === modelId ? { ...m, enabled: !m.enabled } : m));
   };
 
   const handleAddModels = async () => {
@@ -352,30 +301,21 @@ export function SetupPage() {
       .filter(m => m.enabled)
       .map((m, index) => ({
         id: crypto.randomUUID(),
-        name: m.name,
-        model_id: m.model_id,
-        model_type: m.model_type,
+        name: m.name, model_id: m.model_id, model_type: m.model_type,
         context_length: m.context_length,
-        supports_vision: m.supports_vision,
-        supports_function_calling: m.supports_function_calling,
-        enabled: true,
-        is_default: index === 0,
+        supports_vision: m.supports_vision, supports_function_calling: m.supports_function_calling,
+        enabled: true, is_default: index === 0,
       }));
 
     setIsAddingModel(true);
     try {
       const providers = await safeInvoke<ModelProvider[]>('list_model_providers');
       const currentProvider = (providers ?? []).find(p => p.name === providerName);
-
       if (currentProvider && enabledModels.length > 0) {
-        const updatedProvider = {
-          ...currentProvider,
-          models: [...(currentProvider.models || []), ...enabledModels],
-        };
+        const updatedProvider = { ...currentProvider, models: [...(currentProvider.models || []), ...enabledModels] };
         await safeInvoke('delete_model_provider', { id: currentProvider.id });
         await safeInvoke('add_model_provider', { provider: updatedProvider });
       }
-
       await safeInvoke('mark_setup_complete');
       localStorage.setItem('shadow_setup_complete', 'true');
       navigate('/');
@@ -386,216 +326,197 @@ export function SetupPage() {
     }
   };
 
-  const getStatusIcon = () => {
-    if (status === 'connected') {
-      return <CheckCircle size={16} className="status-success" />;
-    }
-    if (status === 'error') {
-      return <AlertCircle size={16} className="status-error" />;
-    }
-    return null;
-  };
-
   const selectedProvider = PROVIDER_TYPES.find(p => p.id === providerType);
 
   return (
-    <div className="setup-page">
-      <div className="setup-container">
-        <div className="setup-header">
-          <div className="logo">
+    <div className="flex min-h-screen items-center justify-center bg-background p-6">
+      <div className="w-full max-w-2xl rounded-xl border border-border bg-card p-8">
+        <div className="mb-8 text-center">
+          <div className="mb-4 flex items-center justify-center gap-3 text-foreground">
             <Server size={32} />
-            <h1>{t('layout.brandName')}</h1>
+            <h1 className="text-3xl font-bold">{t('layout.brandName')}</h1>
           </div>
-          <p className="setup-subtitle">{t('setup.welcome')}</p>
+          <p className="text-base text-muted-foreground">{t('setup.welcome')}</p>
         </div>
 
-        <div className="setup-steps">
-          <div className={`step ${step === 'password' ? 'active' : ''} ${['database', 'provider', 'models'].includes(step) ? 'completed' : ''}`}>
-            <span className="step-number">1</span>
-            <span className="step-label">{t('setup.setPassword')}</span>
-          </div>
-          <div className="step-line" />
-          <div className={`step ${step === 'database' ? 'active' : ''} ${['provider', 'models'].includes(step) ? 'completed' : ''}`}>
-            <span className="step-number">2</span>
-            <span className="step-label">{t('setup.selectDatabase')}</span>
-          </div>
-          <div className="step-line" />
-          <div className={`step ${step === 'provider' ? 'active' : ''} ${step === 'models' ? 'completed' : ''}`}>
-            <span className="step-number">3</span>
-            <span className="step-label">{t('setup.addProvider')}</span>
-          </div>
-          <div className="step-line" />
-          <div className={`step ${step === 'models' ? 'active' : ''}`}>
-            <span className="step-number">4</span>
-            <span className="step-label">{t('setup.manageModels')}</span>
-          </div>
+        <div className="mb-8 flex items-center justify-center">
+          <StepIndicator step={step} stepName="password" label={t('setup.setPassword')} index={1} />
+          <StepLine />
+          <StepIndicator step={step} stepName="database" label={t('setup.selectDatabase')} index={2} />
+          <StepLine />
+          <StepIndicator step={step} stepName="provider" label={t('setup.addProvider')} index={3} />
+          <StepLine />
+          <StepIndicator step={step} stepName="models" label={t('setup.manageModels')} index={4} />
         </div>
 
-        <div className="setup-content">
+        <div className="rounded-lg bg-muted/30 p-6">
           {step === 'password' && (
-            <div className="step-content">
-              <h2>{t('setup.setPasswordTitle')}</h2>
-              <p className="step-desc">{t('setup.setPasswordDesc')}</p>
+            <div className="flex flex-col gap-6">
+              <div className="text-center">
+                <h2 className="mb-2 text-xl font-semibold text-foreground">{t('setup.setPasswordTitle')}</h2>
+                <p className="text-sm text-muted-foreground">{t('setup.setPasswordDesc')}</p>
+              </div>
 
-              <div className="password-form">
-                <div className="form-group">
-                  <label><Lock size={14} /> {t('setup.masterPassword')}</label>
+              <div className="mx-auto flex w-full max-w-sm flex-col gap-4">
+                <div className="flex flex-col gap-2">
+                  <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Lock size={14} /> {t('setup.masterPassword')}
+                  </label>
                   <input
                     type="password"
                     value={masterPasswordInput}
                     onChange={(e) => setMasterPasswordInput(e.target.value)}
                     placeholder="********"
+                    className="w-full rounded-md border border-border bg-card px-3 py-2.5 text-sm text-foreground focus:border-foreground focus:outline-none"
                   />
                 </div>
-                <div className="form-group">
-                  <label>{t('setup.confirmPassword')}</label>
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm text-muted-foreground">{t('setup.confirmPassword')}</label>
                   <input
                     type="password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="********"
+                    className="w-full rounded-md border border-border bg-card px-3 py-2.5 text-sm text-foreground focus:border-foreground focus:outline-none"
                   />
                 </div>
-                {passwordError && <p className="error-text">{passwordError}</p>}
-                <p className="password-hint">
+                {passwordError && <p className="text-sm text-red-500">{passwordError}</p>}
+                <p className="flex items-center gap-1 text-xs text-muted-foreground">
                   <Key size={12} /> {t('setup.passwordHint')}
                 </p>
-                <p className="machine-id-display">
-                  {t('setup.machineId')}: <code>{machineId.slice(0, 8)}...</code>
+                <p className="text-xs text-muted-foreground">
+                  {t('setup.machineId')}: <code className="rounded bg-muted px-1.5 py-0.5 font-mono">{machineId.slice(0, 8)}...</code>
                 </p>
               </div>
 
-              <div className="step-actions">
-                <button
-                  className="btn btn-primary"
+              <div className="flex justify-end gap-3">
+                <Button
                   onClick={handleSetPassword}
                   disabled={!masterPasswordInput || !confirmPassword || isSettingPassword}
+                  loading={isSettingPassword}
                 >
                   {isSettingPassword ? t('common.loading') : t('common.next')}
-                </button>
+                </Button>
               </div>
             </div>
           )}
 
           {step === 'database' && (
-            <div className="step-content">
-              <h2>{t('setup.selectDatabaseTitle')}</h2>
-              <p className="step-desc">{t('setup.selectDatabaseDesc')}</p>
+            <div className="flex flex-col gap-6">
+              <div className="text-center">
+                <h2 className="mb-2 text-xl font-semibold text-foreground">{t('setup.selectDatabaseTitle')}</h2>
+                <p className="text-sm text-muted-foreground">{t('setup.selectDatabaseDesc')}</p>
+              </div>
 
-              <div className="db-type-cards">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 {DB_TYPE_OPTIONS.map((option) => {
                   const Icon = option.icon;
                   return (
                     <button
                       key={option.value}
-                      className={`db-type-card ${dbType === option.value ? 'selected' : ''} ${option.disabled ? 'disabled' : ''}`}
                       onClick={() => !option.disabled && handleSelectDb(option.value)}
                       disabled={option.disabled}
+                      className={cn(
+                        'flex flex-col items-center gap-3 rounded-lg border-2 border-border bg-card p-5 text-center transition-colors',
+                        !option.disabled && 'hover:border-foreground/40',
+                        dbType === option.value && !option.disabled && 'border-foreground',
+                        option.disabled && 'cursor-not-allowed opacity-50'
+                      )}
                     >
-                      <Icon size={32} />
-                      <h3>{t(option.labelKey)}</h3>
-                      <p>{t(option.descKey)}</p>
+                      <Icon size={32} className={cn('text-muted-foreground', dbType === option.value && 'text-foreground')} />
+                      <h3 className="text-sm font-semibold text-foreground">{t(option.labelKey)}</h3>
+                      <p className="text-xs text-muted-foreground">{t(option.descKey)}</p>
                     </button>
                   );
                 })}
               </div>
 
               {dbType === 'embedded' && (
-                <div className="embedded-status">
-                  <div className="status-row">
+                <div className="rounded-md bg-card p-4">
+                  <div className="flex items-center gap-3 font-medium">
                     <Database size={20} />
                     <span>{t('settings.dbEmbedded')}</span>
-                    {getStatusIcon()}
+                    {status === 'connected' && <CheckCircle size={16} className="text-green-500" />}
+                    {status === 'error' && <AlertCircle size={16} className="text-red-500" />}
                   </div>
-                  {status === 'connected' && (
-                    <p className="status-text success">{t('setup.dbReady')}</p>
-                  )}
-                  {status === 'connecting' && (
-                    <p className="status-text">{t('setup.connecting')}</p>
-                  )}
+                  {status === 'connected' && <p className="mt-2 text-sm text-green-500">{t('setup.dbReady')}</p>}
+                  {status === 'connecting' && <p className="mt-2 text-sm text-muted-foreground">{t('setup.connecting')}</p>}
                 </div>
               )}
 
               {dbType === 'external' && (
-                <div className="external-config">
-                  <div className="form-group">
-                    <label>{t('settings.dbHost')}</label>
+                <div className="flex flex-col gap-4 rounded-md bg-card p-4">
+                  <div className="flex flex-col gap-2">
+                    <label className="text-sm text-muted-foreground">{t('settings.dbHost')}</label>
                     <input
-                      type="text"
-                      value={externalDbConfig.host}
+                      type="text" value={externalDbConfig.host}
                       onChange={(e) => setExternalDbConfig({ ...externalDbConfig, host: e.target.value })}
+                      className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-foreground focus:outline-none"
                     />
                   </div>
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label>{t('settings.dbPort')}</label>
-                      <input
-                        type="text"
-                        value={externalDbConfig.port}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col gap-2">
+                      <label className="text-sm text-muted-foreground">{t('settings.dbPort')}</label>
+                      <input type="text" value={externalDbConfig.port}
                         onChange={(e) => setExternalDbConfig({ ...externalDbConfig, port: e.target.value })}
+                        className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-foreground focus:outline-none"
                       />
                     </div>
-                    <div className="form-group">
-                      <label>{t('settings.dbName')}</label>
-                      <input
-                        type="text"
-                        value={externalDbConfig.database}
+                    <div className="flex flex-col gap-2">
+                      <label className="text-sm text-muted-foreground">{t('settings.dbName')}</label>
+                      <input type="text" value={externalDbConfig.database}
                         onChange={(e) => setExternalDbConfig({ ...externalDbConfig, database: e.target.value })}
+                        className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-foreground focus:outline-none"
                       />
                     </div>
                   </div>
-                  <div className="form-group">
-                    <label>{t('settings.dbUser')}</label>
-                    <input
-                      type="text"
-                      value={externalDbConfig.username}
+                  <div className="flex flex-col gap-2">
+                    <label className="text-sm text-muted-foreground">{t('settings.dbUser')}</label>
+                    <input type="text" value={externalDbConfig.username}
                       onChange={(e) => setExternalDbConfig({ ...externalDbConfig, username: e.target.value })}
+                      className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-foreground focus:outline-none"
                     />
                   </div>
-                  <div className="form-group">
-                    <label>{t('settings.dbPassword')}</label>
-                    <input
-                      type="password"
-                      value={externalDbConfig.password}
+                  <div className="flex flex-col gap-2">
+                    <label className="text-sm text-muted-foreground">{t('settings.dbPassword')}</label>
+                    <input type="password" value={externalDbConfig.password}
                       onChange={(e) => setExternalDbConfig({ ...externalDbConfig, password: e.target.value })}
+                      className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-foreground focus:outline-none"
                     />
                   </div>
-                  <button
-                    className="btn btn-secondary"
-                    onClick={handleTestConnection}
-                    disabled={connectionTestResult === 'testing'}
-                  >
-                    {connectionTestResult === 'testing' ? t('settings.dbConnecting') : t('settings.dbTestConnection')}
-                  </button>
+                  <div>
+                    <Button variant="secondary" onClick={handleTestConnection} disabled={connectionTestResult === 'testing'}>
+                      {connectionTestResult === 'testing' ? t('settings.dbConnecting') : t('settings.dbTestConnection')}
+                    </Button>
+                  </div>
                   {connectionTestResult === 'success' && (
-                    <p className="status-text success"><CheckCircle size={14} /> {t('setup.connectionSuccess')}</p>
+                    <p className="flex items-center gap-1 text-sm text-green-500">
+                      <CheckCircle size={14} /> {t('setup.connectionSuccess')}
+                    </p>
                   )}
                   {connectionTestResult === 'failed' && (
-                    <p className="status-text error"><AlertCircle size={14} /> {t('setup.connectionFailed')}</p>
+                    <p className="flex items-center gap-1 text-sm text-red-500">
+                      <AlertCircle size={14} /> {t('setup.connectionFailed')}
+                    </p>
                   )}
                 </div>
               )}
 
-              <div className="step-actions">
-                <button className="btn btn-secondary" onClick={() => setStep('password')}>
-                  {t('common.back')}
-                </button>
-                <button
-                  className="btn btn-primary"
-                  onClick={handleConfigureDb}
-                >
-                  {t('common.next')}
-                </button>
+              <div className="flex justify-between gap-3">
+                <Button variant="secondary" onClick={() => setStep('password')}>{t('common.back')}</Button>
+                <Button onClick={handleConfigureDb}>{t('common.next')}</Button>
               </div>
             </div>
           )}
 
           {step === 'provider' && (
-            <div className="step-content">
-              <h2>{t('setup.addProviderTitle')}</h2>
-              <p className="step-desc">{t('setup.addProviderDesc')}</p>
+            <div className="flex flex-col gap-6">
+              <div className="text-center">
+                <h2 className="mb-2 text-xl font-semibold text-foreground">{t('setup.addProviderTitle')}</h2>
+                <p className="text-sm text-muted-foreground">{t('setup.addProviderDesc')}</p>
+              </div>
 
-              <div className="model-form">
+              <div>
                 <ProviderForm
                   value={providerFormData}
                   onChange={handleProviderFormChange}
@@ -603,90 +524,90 @@ export function SetupPage() {
                   defaultApiBase={DEFAULT_API_BASE}
                   showProviderName={true}
                 />
-                {providerError && <p className="error-text">{providerError}</p>}
+                {providerError && <p className="mt-2 text-sm text-red-500">{providerError}</p>}
               </div>
 
-              <div className="step-actions">
-                <button className="btn btn-secondary" onClick={() => setStep('database')}>
-                  {t('common.back')}
-                </button>
-                <button
-                  className="btn btn-primary"
+              <div className="flex justify-between gap-3">
+                <Button variant="secondary" onClick={() => setStep('database')}>{t('common.back')}</Button>
+                <Button
                   onClick={handleAddProvider}
                   disabled={!providerName || !apiBase || isAddingProvider}
+                  loading={isAddingProvider}
+                  icon={isAddingProvider ? undefined : <ChevronRight size={14} />}
                 >
-                  {isAddingProvider ? (
-                    <><Loader2 size={14} className="spin" /> {t('common.loading')}</>
-                  ) : (
-                    <><ChevronRight size={14} /> {t('setup.nextToModels')}</>
-                  )}
-                </button>
+                  {isAddingProvider ? t('common.loading') : t('setup.nextToModels')}
+                </Button>
               </div>
             </div>
           )}
 
           {step === 'models' && (
-            <div className="step-content">
-              <div className="provider-summary">
-                <span 
-                  className="provider-dot" 
-                  style={{ background: selectedProvider?.color }}
-                />
-                <span className="provider-name">{providerName}</span>
-                <button 
-                  type="button" 
-                  className="btn-link"
-                  onClick={() => setStep('provider')}
-                >
+            <div className="flex flex-col gap-6">
+              <div className="flex items-center gap-3 rounded-md bg-card p-3">
+                <span className="h-3 w-3 flex-shrink-0 rounded-full" style={{ background: selectedProvider?.color }} />
+                <span className="flex-1 font-medium text-foreground">{providerName}</span>
+                <Button type="button" variant="link" onClick={() => setStep('provider')}>
                   {t('setup.edit')}
-                </button>
+                </Button>
               </div>
 
-              <h2>{t('setup.selectModelsTitle')}</h2>
-              <p className="step-desc">{t('setup.selectModelsDesc')}</p>
+              <div className="text-center">
+                <h2 className="mb-2 text-xl font-semibold text-foreground">{t('setup.selectModelsTitle')}</h2>
+                <p className="text-sm text-muted-foreground">{t('setup.selectModelsDesc')}</p>
+              </div>
 
-              <div className="model-form">
-                <button
+              <div className="flex flex-col gap-4">
+                <Button
                   type="button"
-                  className="btn btn-secondary"
+                  variant="secondary"
                   onClick={handleFetchModels}
                   disabled={!apiBase || isFetchingModels}
+                  loading={isFetchingModels}
+                  icon={isFetchingModels ? undefined : <Plus size={14} />}
                 >
-                  {isFetchingModels ? (
-                    <><Loader2 size={14} className="spin" /> {t('common.loading')}</>
-                  ) : (
-                    <><Plus size={14} /> {t('setup.fetchModels')}</>
-                  )}
-                </button>
+                  {isFetchingModels ? t('common.loading') : t('setup.fetchModels')}
+                </Button>
 
-                {fetchError && (
-                  <p className="error-text">{fetchError}</p>
-                )}
+                {fetchError && <p className="text-sm text-red-500">{fetchError}</p>}
 
                 {fetchedModels.length > 0 && (
-                  <div className="fetched-models">
-                    <div className="models-header">
-                      <h4>{t('setup.availableModels')}</h4>
-                      <span className="models-count">
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-base font-medium text-foreground">{t('setup.availableModels')}</h4>
+                      <span className="text-sm text-muted-foreground">
                         {fetchedModels.filter(m => m.enabled).length} / {fetchedModels.length}
                       </span>
                     </div>
                     {fetchedModels.map((model) => (
-                      <div key={model.id} className={`model-item ${model.enabled ? 'enabled' : ''}`}>
-                        <label className="model-toggle">
+                      <div key={model.id} className={cn(
+                        'flex items-center gap-3 rounded-md border border-border bg-card p-3',
+                        model.enabled && 'border-foreground'
+                      )}>
+                        <label className="relative h-5 w-9 flex-shrink-0">
                           <input
                             type="checkbox"
                             checked={model.enabled}
                             onChange={() => toggleModel(model.id)}
+                            className="peer absolute inset-0 cursor-pointer opacity-0"
                           />
-                          <span className="toggle-slider"></span>
+                          <span className={cn(
+                            'block h-5 w-9 cursor-pointer rounded-full transition-colors',
+                            model.enabled ? 'bg-green-500' : 'bg-muted'
+                          )}>
+                            <span className={cn(
+                              'absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform',
+                              model.enabled ? 'translate-x-4' : 'translate-x-0.5'
+                            )} />
+                          </span>
                         </label>
-                        <div className="model-info">
-                          <span className="model-name">{model.name}</span>
-                          <span className="model-id">{model.model_id}</span>
+                        <div className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-medium text-foreground">{model.name}</span>
+                          <span className="block truncate font-mono text-xs text-muted-foreground">{model.model_id}</span>
                         </div>
                         {model.context_length && (
-                          <span className="model-context">{model.context_length.toLocaleString()} {t('setup.ctx')}</span>
+                          <span className="whitespace-nowrap text-xs text-muted-foreground">
+                            {model.context_length.toLocaleString()} {t('setup.ctx')}
+                          </span>
                         )}
                       </div>
                     ))}
@@ -694,21 +615,16 @@ export function SetupPage() {
                 )}
               </div>
 
-              <div className="step-actions">
-                <button className="btn btn-secondary" onClick={() => setStep('provider')}>
-                  {t('common.back')}
-                </button>
-                <button
-                  className="btn btn-primary"
+              <div className="flex justify-between gap-3">
+                <Button variant="secondary" onClick={() => setStep('provider')}>{t('common.back')}</Button>
+                <Button
                   onClick={handleAddModels}
                   disabled={fetchedModels.length === 0 || fetchedModels.filter(m => m.enabled).length === 0 || isAddingModel}
+                  loading={isAddingModel}
+                  icon={isAddingModel ? undefined : <Plus size={14} />}
                 >
-                  {isAddingModel ? (
-                    <><Loader2 size={14} className="spin" /> {t('common.loading')}</>
-                  ) : (
-                    <><Plus size={14} /> {t('setup.completeSetup')}</>
-                  )}
-                </button>
+                  {isAddingModel ? t('common.loading') : t('setup.completeSetup')}
+                </Button>
               </div>
             </div>
           )}
@@ -716,4 +632,30 @@ export function SetupPage() {
       </div>
     </div>
   );
+}
+
+function StepIndicator({ step, stepName, label, index }: { step: SetupStep; stepName: SetupStep; label: string; index: number }) {
+  const isActive = step === stepName;
+  const isCompleted = (
+    (stepName === 'password' && ['database', 'provider', 'models'].includes(step)) ||
+    (stepName === 'database' && ['provider', 'models'].includes(step)) ||
+    (stepName === 'provider' && step === 'models')
+  );
+  return (
+    <div className={cn('flex items-center gap-2', isActive && 'text-foreground')}>
+      <span className={cn(
+        'flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold',
+        isActive && 'bg-foreground text-background',
+        isCompleted && 'bg-green-500 text-white',
+        !isActive && !isCompleted && 'bg-muted text-muted-foreground'
+      )}>
+        {index}
+      </span>
+      <span className={cn('text-sm', isActive ? 'font-medium text-foreground' : 'text-muted-foreground')}>{label}</span>
+    </div>
+  );
+}
+
+function StepLine() {
+  return <div className="mx-3 h-0.5 w-15 bg-muted" />;
 }

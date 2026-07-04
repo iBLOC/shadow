@@ -75,6 +75,8 @@ export type StreamChunk = {
   }>;
 }
 
+import { useErrorDialogStore } from '../stores/errorDialogStore';
+
 export class OpenAIClient {
   private baseUrl: string;
   private headers: Record<string, string>;
@@ -91,17 +93,43 @@ export class OpenAIClient {
     options: globalThis.RequestInit = {}
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        ...this.headers,
-        ...options.headers,
-      },
-    });
+    const method = (options.method ?? 'GET').toString().toUpperCase();
+
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        ...options,
+        method,
+        headers: {
+          ...this.headers,
+          ...options.headers,
+        },
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      const stack = err instanceof Error ? err.stack : undefined;
+      useErrorDialogStore.getState().show({
+        source: 'http',
+        endpoint: url,
+        method,
+        message: `Network error: ${message}`,
+        stack,
+      });
+      throw err;
+    }
 
     if (!response.ok) {
       const error = await response.text().catch(() => '');
-      throw new Error(`HTTP ${response.status}: ${response.statusText} ${error}`);
+      const message = `HTTP ${response.status}: ${response.statusText} ${error}`.trim();
+      useErrorDialogStore.getState().show({
+        source: 'http',
+        endpoint: url,
+        method,
+        status: response.status,
+        statusText: response.statusText,
+        message,
+      });
+      throw new Error(message);
     }
 
     const contentType = response.headers.get('content-type') || '';

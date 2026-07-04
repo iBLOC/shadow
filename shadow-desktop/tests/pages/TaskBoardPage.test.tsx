@@ -82,9 +82,9 @@ describe('TaskBoardPage', () => {
   });
 
   it('renders page without crashing', async () => {
-    const { container } = renderWithRouter(<TaskBoardPage />);
+    renderWithRouter(<TaskBoardPage />);
     await waitFor(() => {
-      expect(container.querySelector('.taskboard-page')).toBeInTheDocument();
+      expect(screen.getByText('tasks.title')).toBeInTheDocument();
     });
   });
 });

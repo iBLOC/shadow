@@ -4,6 +4,19 @@ vi.mock('../../src/lib/platform', () => ({
   prefrontalUrl: () => 'http://localhost:8085',
 }));
 
+const cortexState: { connection: { baseUrl: string } } = {
+  connection: { baseUrl: 'http://localhost:8085' },
+};
+
+vi.mock('../../src/stores/cortexStore', () => ({
+  useCortexStore: {
+    getState: () => ({
+      connection: cortexState.connection,
+      setBaseUrl: (url: string) => { cortexState.connection.baseUrl = url; },
+    }),
+  },
+}));
+
 type MockFetch = ReturnType<typeof vi.fn>;
 
 function okJson(data: unknown) {
@@ -34,6 +47,7 @@ describe('PrefrontalClient contract tests', () => {
   let PrefrontalClient: typeof import('../../src/lib/prefrontalClient').PrefrontalClient;
 
   beforeEach(async () => {
+    cortexState.connection.baseUrl = 'http://localhost:8085';
     mockFetch = vi.fn();
     globalThis.fetch = mockFetch;
     const mod = await import('../../src/lib/prefrontalClient');

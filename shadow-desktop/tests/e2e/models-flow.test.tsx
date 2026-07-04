@@ -99,38 +99,38 @@ describe('Models Flow E2E', () => {
  });
  });
 
- it('expands provider card to show model details on click', async () => {
- mockFetchSuccess(providersResponse);
- renderWithRouter(<ModelsPage />);
+  it('expands provider card to show model details on click', async () => {
+  mockFetchSuccess(providersResponse);
+  renderWithRouter(<ModelsPage />);
 
- await waitFor(() => {
- expect(screen.getByText('OpenAI')).toBeInTheDocument();
- });
+  await waitFor(() => {
+  expect(screen.getByText('OpenAI')).toBeInTheDocument();
+  });
 
- const providerHeader = screen.getByText('OpenAI').closest('.provider-header');
- expect(providerHeader).not.toBeNull();
- fireEvent.click(providerHeader!);
+  const providerHeader = screen.getByText('OpenAI').closest('.cursor-pointer');
+  expect(providerHeader).not.toBeNull();
+  fireEvent.click(providerHeader!);
 
- await waitFor(() => {
- expect(screen.getByText('GPT-4o')).toBeInTheDocument();
- expect(screen.getByText('gpt-4o')).toBeInTheDocument();
- });
- });
+  await waitFor(() => {
+  expect(screen.getByText('GPT-4o')).toBeInTheDocument();
+  expect(screen.getByText('gpt-4o')).toBeInTheDocument();
+  });
+  });
 
- it('calls test connection endpoint when test button clicked', async () => {
- mockFetchSuccess(providersResponse);
- renderWithRouter(<ModelsPage />);
+  it('calls test connection endpoint when test button clicked', async () => {
+  mockFetchSuccess(providersResponse);
+  renderWithRouter(<ModelsPage />);
 
- await waitFor(() => {
- expect(screen.getByText('OpenAI')).toBeInTheDocument();
- });
+  await waitFor(() => {
+  expect(screen.getByText('OpenAI')).toBeInTheDocument();
+  });
 
- const providerHeader = screen.getByText('OpenAI').closest('.provider-header');
- fireEvent.click(providerHeader!);
+  const providerHeader = screen.getByText('OpenAI').closest('.cursor-pointer');
+  fireEvent.click(providerHeader!);
 
- await waitFor(() => {
- expect(screen.getByText('GPT-4o')).toBeInTheDocument();
- });
+  await waitFor(() => {
+  expect(screen.getByText('GPT-4o')).toBeInTheDocument();
+  });
 
  const testButton = screen.getByRole('button', {
  name: /models.testConnection/i,

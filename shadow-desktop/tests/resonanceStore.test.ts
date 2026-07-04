@@ -8,6 +8,25 @@ vi.mock('@tauri-apps/api/event', () => ({
   listen: vi.fn(),
 }));
 
+vi.mock('../src/stores/cortexStore', () => ({
+  useCortexStore: {
+    getState: () => ({
+      status: 'stopped',
+      connection: { baseUrl: 'http://127.0.0.1:8443', apiKey: '' },
+      hasConfiguredResonance: () => false,
+    }),
+  },
+}));
+
+vi.mock('../src/stores/serviceStore', () => ({
+  useServiceStore: {
+    getState: () => ({
+      getPrimaryResonance: () => null,
+      hasConfiguredResonance: () => false,
+    }),
+  },
+}));
+
 import { useResonanceStore, type DiscoveredService, type TaskPush } from '../src/stores/resonanceStore';
 
 describe('ResonanceStore', () => {
@@ -15,12 +34,12 @@ describe('ResonanceStore', () => {
     vi.clearAllMocks();
     useResonanceStore.setState({
       discoveredServices: [],
-      selectedService: null,
       connectionStatus: 'disconnected',
       modelScores: [],
       pendingTasks: [],
       error: null,
       reconnectAttempts: 0,
+      a2aEndpoint: 'http://127.0.0.1:8443/a2a',
     });
   });
 
@@ -28,7 +47,6 @@ describe('ResonanceStore', () => {
     it('has correct initial values', () => {
       const state = useResonanceStore.getState();
       expect(state.discoveredServices).toEqual([]);
-      expect(state.selectedService).toBeNull();
       expect(state.connectionStatus).toBe('disconnected');
       expect(state.modelScores).toEqual([]);
       expect(state.pendingTasks).toEqual([]);
@@ -37,19 +55,65 @@ describe('ResonanceStore', () => {
     });
   });
 
-  describe('selectService', () => {
-    it('sets selected service', () => {
-      const service: DiscoveredService = {
-        name: 'Resonance',
-        host: 'localhost',
-        port: 8080,
-        txt_records: {},
-      };
-
-      useResonanceStore.getState().selectService(service);
-
+  describe('connect', () => {
+    it('sets error when cortex is not running', async () => {
+      const { connect } = useResonanceStore.getState();
+      await connect();
       const state = useResonanceStore.getState();
-      expect(state.selectedService).toEqual(service);
+      expect(state.error).toMatch(/cortex must be running/i);
+      expect(state.connectionStatus).toBe('error');
+    });
+  });
+
+  describe('handleMessage', () => {
+    it('appends task_push to pendingTasks', async () => {
+      const task: TaskPush = {
+        task_id: 'task-1',
+        priority: 'normal',
+        goal: 'Test task',
+        required_capabilities: {
+          min_model_score: 0,
+          preferred_models: [],
+          required_skills: [],
+        },
+        context: {
+          user_id: 'u1',
+          session_id: 's1',
+          metadata: {},
+        },
+      };
+      await useResonanceStore.getState().handleMessage({
+        msg_type: 'task_push',
+        payload: task as unknown as Record<string, unknown>,
+      });
+      expect(useResonanceStore.getState().pendingTasks).toContainEqual(task);
+    });
+
+    it('removes task on task_cancel', async () => {
+      useResonanceStore.setState({
+        pendingTasks: [
+          {
+            task_id: 'cancel-me',
+            priority: 'normal',
+            goal: '',
+            required_capabilities: { min_model_score: 0, preferred_models: [], required_skills: [] },
+            context: { user_id: 'u', session_id: 's', metadata: {} },
+          },
+        ],
+      });
+      await useResonanceStore.getState().handleMessage({
+        msg_type: 'task_cancel',
+        payload: { task_id: 'cancel-me' },
+      });
+      expect(useResonanceStore.getState().pendingTasks).toEqual([]);
+    });
+  });
+
+  describe('clearError', () => {
+    it('clears the error', () => {
+      useResonanceStore.setState({ error: 'something' });
+      useResonanceStore.getState().clearError();
+      expect(useResonanceStore.getState().error).toBeNull();
     });
   });
 
@@ -70,7 +134,6 @@ describe('ResonanceStore', () => {
           metadata: {},
         },
       };
-
       expect(task.task_id).toBe('test-task-1');
       expect(task.priority).toBe('normal');
       expect(task.required_capabilities.min_model_score).toBe(75);
@@ -80,8 +143,7 @@ describe('ResonanceStore', () => {
   describe('ConnectionStatus', () => {
     it('has valid status values', () => {
       const statuses = ['disconnected', 'connecting', 'connected', 'error'] as const;
-
-      statuses.forEach(status => {
+      statuses.forEach((status) => {
         useResonanceStore.setState({ connectionStatus: status });
         expect(useResonanceStore.getState().connectionStatus).toBe(status);
       });

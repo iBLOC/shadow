@@ -5,6 +5,7 @@ import { DiscoveryPage } from '../../src/pages/DiscoveryPage';
 
 const mockStartScan = vi.fn().mockResolvedValue(undefined);
 const mockRefreshDevices = vi.fn().mockResolvedValue(undefined);
+const mockDiscoverCortexInstances = vi.fn().mockResolvedValue(undefined);
 const mockSetActiveNode = vi.fn();
 const mockAddManualDevice = vi.fn();
 const mockRemoveDevice = vi.fn();
@@ -13,12 +14,14 @@ const mockClearError = vi.fn();
 vi.mock('../../src/stores/discoveryStore', () => ({
  useDiscoveryStore: vi.fn(() => ({
  devices: [],
+ cortexInstances: [],
  activeNode: null,
  isScanning: false,
  lastScan: null,
  error: null,
  startScan: mockStartScan,
  refreshDevices: mockRefreshDevices,
+ discoverCortexInstances: mockDiscoverCortexInstances,
  setActiveNode: mockSetActiveNode,
  addManualDevice: mockAddManualDevice,
  removeDevice: mockRemoveDevice,

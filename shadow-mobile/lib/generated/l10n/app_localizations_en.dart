@@ -36,9 +36,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get resetEngine => 'Reset Engine';
 
   @override
-  String get reinitializeMnn => 'Reinitialize the MNN engine';
-
-  @override
   String get theme => 'Theme';
 
   @override
@@ -165,16 +162,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get desktopMode => 'Desktop mode (Android only)';
-
-  @override
-  String get errorMnnInitFailed => 'Failed to initialize MNN engine';
-
-  @override
-  String get initializingMnn => 'Initializing MNN engine...';
-
-  @override
-  String get mnnInitSuccess =>
-      'MNN engine initialized successfully!\nModel loaded\nYou can now start chatting.';
 
   @override
   String errorGeneric(String detail) {

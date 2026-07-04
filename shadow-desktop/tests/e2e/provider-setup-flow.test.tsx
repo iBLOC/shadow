@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { ModelsPage } from '../../src/pages/ModelsPage';
 
@@ -93,5 +94,44 @@ describe('Provider Setup Flow E2E', () => {
     await waitFor(() => {
       expect(screen.getByText('models.noProviders')).toBeInTheDocument();
     });
+  });
+
+  it('opens add provider modal when add provider button clicked', async () => {
+    const user = userEvent.setup();
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve([]),
+    } as Response);
+
+    renderWithRouter(<ModelsPage />);
+
+    const addButton = await waitFor(() => screen.getByRole('button', { name: /models.addProvider/i }));
+    await user.click(addButton);
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+  });
+
+  it('closes add provider modal when cancel clicked', async () => {
+    const user = userEvent.setup();
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve([]),
+    } as Response);
+
+    renderWithRouter(<ModelsPage />);
+
+    const addButton = await waitFor(() => screen.getByRole('button', { name: /models.addProvider/i }));
+    await user.click(addButton);
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+
+    const cancelButton = screen.getByRole('button', { name: /common.cancel/i });
+    await user.click(cancelButton);
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });

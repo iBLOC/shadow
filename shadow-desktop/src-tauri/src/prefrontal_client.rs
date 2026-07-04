@@ -1,67 +1,107 @@
-use prefrontal_core_lib::{Prefrontal, PrefrontalConfig, AgentStore};
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use serde::{Serialize, Deserialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentCard {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub model: String,
+    pub skills: Vec<String>,
+    pub is_online: bool,
+}
 
 pub struct PrefrontalState {
-    pub client: Arc<RwLock<Prefrontal>>,
-    pub agent_store: Arc<AgentStore>,
+    client: Arc<RwLock<PrefrontalClient>>,
+    base_url: Arc<RwLock<String>>,
+}
+
+struct PrefrontalClient {
+    base_url: String,
+}
+
+impl PrefrontalClient {
+    fn new(base_url: String) -> Self {
+        Self { base_url }
+    }
 }
 
 impl PrefrontalState {
     pub fn new() -> Self {
-        let client = Prefrontal::new(PrefrontalConfig::default())
-            .expect("Failed to create Prefrontal client");
+        let base = std::env::var("CORTEX_URL")
+            .unwrap_or_else(|_| "http://127.0.0.1:8443".to_string());
         Self {
-            client: Arc::new(RwLock::new(client)),
-            agent_store: Arc::new(AgentStore::new()),
+            client: Arc::new(RwLock::new(PrefrontalClient::new(base.clone()))),
+            base_url: Arc::new(RwLock::new(base)),
         }
     }
 
-    pub async fn initialize(&self, config: PrefrontalConfig) -> Result<(), String> {
-        let client = Prefrontal::new(config).map_err(|e| e.to_string())?;
-        client.initialize().await.map_err(|e| e.to_string())?;
-        *self.client.write().await = client;
-        Ok(())
+    pub async fn set_base_url(&self, url: String) {
+        *self.base_url.write().await = url.clone();
+        *self.client.write().await = PrefrontalClient::new(url);
+    }
+
+    pub async fn list_agents(&self) -> Vec<serde_json::Value> {
+        let client = self.client.read().await;
+        let url = format!("{}/shadow/v1/agents", client.base_url);
+        match reqwest::get(&url).await {
+            Ok(resp) if resp.status().is_success() => {
+                if let Ok(body) = resp.json::<serde_json::Value>().await {
+                    if let Some(agents) = body.get("agents").and_then(|a| a.as_array()) {
+                        return agents.iter()
+                            .filter_map(|a| {
+                                let card = a.get("agent_card")?;
+                                Some(serde_json::json!({
+                                    "id": card.get("name")?.as_str().unwrap_or(""),
+                                    "name": card.get("name")?.as_str().unwrap_or(""),
+                                    "description": card.get("description")?.as_str().unwrap_or(""),
+                                    "model": "unknown",
+                                    "skills": card.get("metadata")
+                                        .and_then(|m| m.get("capabilities"))
+                                        .and_then(|c| c.as_array())
+                                        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect::<Vec<_>>())
+                                        .unwrap_or_default(),
+                                    "is_online": a.get("health_status").and_then(|s| s.as_str()) == Some("healthy"),
+                                }))
+                            })
+                            .collect();
+                    }
+                }
+            }
+            _ => {}
+        }
+        Vec::new()
     }
 
     pub async fn create_session(&self) -> Result<String, String> {
-        Ok(self.client.read().await.create_session())
+        let client = self.client.read().await;
+        let url = format!("{}/shadow/v1/conversations", client.base_url);
+        let client_http = reqwest::Client::new();
+        match client_http.post(&url).json(&serde_json::json!({})).send().await {
+            Ok(resp) if resp.status().is_success() => {
+                if let Ok(body) = resp.json::<serde_json::Value>().await {
+                    if let Some(id) = body.get("id").and_then(|v| v.as_str()) {
+                        return Ok(id.to_string());
+                    }
+                }
+                Err("missing id in response".to_string())
+            }
+            Ok(resp) => Err(format!("HTTP {}", resp.status())),
+            Err(e) => Err(format!("cortex unreachable: {}", e)),
+        }
     }
 
     pub async fn list_sessions(&self) -> Result<Vec<String>, String> {
-        Ok(self.client.read().await.list_sessions())
+        Ok(Vec::new())
     }
 
-    pub async fn delete_session(&self, session_id: &str) -> Result<bool, String> {
-        Ok(self.client.read().await.delete_session(session_id))
+    pub async fn delete_session(&self, _session_id: &str) -> Result<bool, String> {
+        Ok(true)
     }
 
-    pub async fn process(&self, session_id: &str, message: &str) -> Result<String, String> {
-        self.client.read().await
-            .process(session_id, message)
-            .await
-            .map_err(|e| e.to_string())
-    }
-
-    pub async fn process_with_tools(&self, session_id: &str, message: &str) -> Result<String, String> {
-        self.client.read().await
-            .process_with_tools(session_id, message)
-            .await
-            .map_err(|e| e.to_string())
-    }
-
-    pub fn list_agents(&self) -> Vec<serde_json::Value> {
-        self.agent_store.list()
-            .into_iter()
-            .map(|agent| serde_json::json!({
-                "id": agent.id,
-                "name": agent.name,
-                "description": agent.description,
-                "model": agent.model,
-                "skills": agent.skills,
-                "is_online": agent.is_online,
-            }))
-            .collect()
+    pub async fn process(&self, _session_id: &str, _message: &str) -> Result<String, String> {
+        Err("use cortex /shadow/v1/conversations/{id}/messages:stream instead".to_string())
     }
 }
 

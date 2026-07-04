@@ -23,11 +23,9 @@ serde_json = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tokio = { version = "1", features = ["full"] }
-prefrontal-core = { path = "/home/ibloc/Projects/prefrontal" }
-neure = { path = "/home/ibloc/Projects/neure" }
-hippocampus-core = { path = "/home/ibloc/Projects/hippocampus/hippocampus-core" }
-hippocampus-server = { path = "/home/ibloc/Projects/hippocampus/hippocampus-server" }
-axum = "0.7"
+
+# Cortex is spawned as a sidecar binary (see cortex_manager.rs)
+# Shadow-Desktop is a thin client that talks to cortex via /shadow/v1/* HTTP
 
 # WebSocket with TLS
 tokio-tungstenite = { version = "0.26", features = ["native-tls", "tokio-native-tls"] }

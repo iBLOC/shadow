@@ -22,7 +22,7 @@ pub async fn discover_resonance() -> Result<Vec<DiscoveredService>, String> {
             Ok(out) => {
                 let stdout = String::from_utf8_lossy(&out.stdout);
                 let mut services = Vec::new();
-                
+
                 for line in stdout.lines() {
                     if line.contains("=;") && line.contains(";shadow") {
                         let parts: Vec<&str> = line.split(';').collect();
@@ -65,6 +65,109 @@ pub async fn discover_resonance() -> Result<Vec<DiscoveredService>, String> {
     {
         Ok(Vec::new())
     }
+}
+
+pub async fn discover_cortex() -> Result<Vec<DiscoveredService>, String> {
+    browse_service("_cortex._tcp").await
+}
+
+async fn browse_service(service_type: &str) -> Result<Vec<DiscoveredService>, String> {
+    #[cfg(target_os = "linux")]
+    {
+        let output = Command::new("avahi-browse")
+            .args(["-r", "-t", service_type])
+            .output()
+            .await;
+
+        match output {
+            Ok(out) => {
+                let stdout = String::from_utf8_lossy(&out.stdout);
+                let mut services = Vec::new();
+
+                for line in stdout.lines() {
+                    if !line.starts_with("=") {
+                        continue;
+                    }
+                    let parts: Vec<&str> = line.split(';').collect();
+                    if parts.len() < 7 {
+                        continue;
+                    }
+                    let raw_name = parts[3].trim();
+                    if !raw_name.contains(service_type.trim_start_matches('_').trim_end_matches("._tcp")) {
+                        continue;
+                    }
+                    let name = raw_name.to_string();
+                    let host_port = parts[5];
+                    if let Some((host, port)) = host_port.rsplit_once(':') {
+                        let port: u16 = port.parse().unwrap_or(8443);
+                        services.push(DiscoveredService {
+                            name,
+                            host: host.to_string(),
+                            port,
+                            txt_records: HashMap::new(),
+                        });
+                    }
+                }
+                Ok(services)
+            }
+            Err(_) => Ok(Vec::new()),
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let output = Command::new("dns-sd")
+            .args(["-B", service_type, "local."])
+            .output()
+            .await;
+
+        match output {
+            Ok(out) => {
+                let stdout = String::from_utf8_lossy(&out.stdout);
+                let mut services = Vec::new();
+                for line in stdout.lines() {
+                    if line.contains(service_type) {
+                        if let Some(service) = resolve_macos_service_type(line, service_type).await {
+                            services.push(service);
+                        }
+                    }
+                }
+                Ok(services)
+            }
+            Err(_) => Ok(Vec::new()),
+        }
+    }
+
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+    {
+        Ok(Vec::new())
+    }
+}
+
+#[cfg(target_os = "macos")]
+async fn resolve_macos_service_type(name: &str, service_type: &str) -> Option<DiscoveredService> {
+    let output = Command::new("dns-sd")
+        .args(["-L", name, service_type, "local."])
+        .output()
+        .await
+        .ok()?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    for line in stdout.lines() {
+        if line.contains("hostname=") {
+            if let Some(host_port) = extract_host_port(line) {
+                return Some(DiscoveredService {
+                    name: name.to_string(),
+                    host: host_port.0,
+                    port: host_port.1,
+                    txt_records: HashMap::new(),
+                });
+            }
+        }
+    }
+
+    None
 }
 
 #[cfg(target_os = "macos")]

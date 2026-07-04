@@ -1,13 +1,31 @@
 import { beforeEach, describe, expect, it, vi, afterEach } from 'vitest';
 
+const { cortexState } = vi.hoisted(() => ({
+  cortexState: { connection: { baseUrl: 'http://localhost:8085' } },
+}));
+
 vi.mock('../platform', () => ({
   prefrontalUrl: () => 'http://localhost:8085',
+}));
+
+vi.mock('../cortexClient', () => ({
+  cortexClient: { setBaseUrl: vi.fn() },
+}));
+
+vi.mock('../../stores/cortexStore', () => ({
+  useCortexStore: {
+    getState: () => ({
+      connection: cortexState.connection,
+      setBaseUrl: (url: string) => { cortexState.connection.baseUrl = url; },
+    }),
+  },
 }));
 
 describe('prefrontalClient', () => {
   let mockFetch: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
+    cortexState.connection.baseUrl = 'http://localhost:8085';
     mockFetch = vi.fn();
     global.fetch = mockFetch;
   });
@@ -16,17 +34,35 @@ describe('prefrontalClient', () => {
     vi.restoreAllMocks();
   });
 
-  describe('neure port configuration', () => {
-    it('uses neure port 8085 by default from platform config', async () => {
-      const { PrefrontalClient } = await import('../prefrontalClient');
-      const client = new PrefrontalClient();
-      expect(client.baseUrl).toBe('http://localhost:8085');
-    });
-
-    it('respects custom host override', async () => {
+  describe('cortex-aware baseUrl', () => {
+    it('accepts custom baseUrl override', async () => {
       const { PrefrontalClient } = await import('../prefrontalClient');
       const client = new PrefrontalClient('http://custom:9090');
-      expect(client.baseUrl).toBe('http://custom:9090');
+      mockFetch.mockResolvedValue({
+        ok: true, status: 200, statusText: 'OK',
+        json: async () => ({ status: 'ok' }),
+        text: async () => '{"status":"ok"}',
+      });
+      await client.healthCheck();
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://custom:9090/health',
+        expect.any(Object),
+      );
+    });
+
+    it('falls back to platform prefrontalUrl when no cortex override', async () => {
+      const { PrefrontalClient } = await import('../prefrontalClient');
+      const client = new PrefrontalClient();
+      mockFetch.mockResolvedValue({
+        ok: true, status: 200, statusText: 'OK',
+        json: async () => ({ status: 'ok' }),
+        text: async () => '{"status":"ok"}',
+      });
+      await client.healthCheck();
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://localhost:8085/health',
+        expect.any(Object),
+      );
     });
   });
 

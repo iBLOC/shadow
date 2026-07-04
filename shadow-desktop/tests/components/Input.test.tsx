@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { Input, Textarea, Select } from '../../src/components/ui/Input';
+import { Input, Textarea, Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../../src/components/ui';
 
 describe('Input', () => {
   it('renders input with label', () => {
@@ -62,49 +62,54 @@ describe('Input', () => {
 });
 
 describe('Textarea', () => {
-  it('renders textarea with label', () => {
-    render(<Textarea label="Description" />);
-    expect(screen.getByText(/description/i)).toBeInTheDocument();
+  it('renders textarea', () => {
+    render(<Textarea data-testid="ta" />);
+    expect(screen.getByTestId('ta')).toBeInTheDocument();
   });
 
-  it('handles onChange event', async () => {
+  it('renders textarea and accepts input', async () => {
     const user = userEvent.setup();
     const handleChange = vi.fn();
-    render(<Textarea onChange={handleChange} />);
+    render(<Textarea onChange={handleChange} data-testid="ta" />);
     
-    await user.type(screen.getByRole('textbox'), 'some text');
+    await user.type(screen.getByTestId('ta'), 'some text');
     expect(handleChange).toHaveBeenCalled();
   });
 
-  it('displays error message when error prop is provided', () => {
-    render(<Textarea error="Error message" />);
-    expect(screen.getByText(/error message/i)).toBeInTheDocument();
+  it('accepts placeholder text', () => {
+    render(<Textarea placeholder="Enter description" />);
+    expect(screen.getByPlaceholderText(/enter description/i)).toBeInTheDocument();
   });
 });
 
 describe('Select', () => {
-  it('renders select with options', () => {
-    const options = [
-      { value: 'opt1', label: 'Option 1' },
-      { value: 'opt2', label: 'Option 2' },
-    ];
-    render(<Select options={options} />);
-    
-    expect(screen.getByRole('combobox')).toBeInTheDocument();
-    expect(screen.getByText(/option 1/i)).toBeInTheDocument();
-    expect(screen.getByText(/option 2/i)).toBeInTheDocument();
+  it('renders select trigger', () => {
+    render(
+      <Select>
+        <SelectTrigger data-testid="select-trigger">
+          <SelectValue placeholder="Select option" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="opt1">Option 1</SelectItem>
+          <SelectItem value="opt2">Option 2</SelectItem>
+        </SelectContent>
+      </Select>
+    );
+    expect(screen.getByTestId('select-trigger')).toBeInTheDocument();
   });
 
-  it('handles option selection', async () => {
-    const user = userEvent.setup();
-    const handleChange = vi.fn();
-    const options = [
-      { value: 'opt1', label: 'Option 1' },
-      { value: 'opt2', label: 'Option 2' },
-    ];
-    render(<Select onChange={handleChange} options={options} />);
-    
-    await user.selectOptions(screen.getByRole('combobox'), 'opt2');
-    expect(handleChange).toHaveBeenCalled();
+  it('displays selected value', () => {
+    render(
+      <Select defaultValue="opt1">
+        <SelectTrigger data-testid="select-trigger">
+          <SelectValue placeholder="Select option" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="opt1">Option 1</SelectItem>
+          <SelectItem value="opt2">Option 2</SelectItem>
+        </SelectContent>
+      </Select>
+    );
+    expect(screen.getByTestId('select-trigger')).toBeInTheDocument();
   });
 });

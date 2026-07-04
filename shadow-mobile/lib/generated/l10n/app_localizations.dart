@@ -152,12 +152,6 @@ abstract class AppLocalizations {
   /// **'Reset Engine'**
   String get resetEngine;
 
-  /// No description provided for @reinitializeMnn.
-  ///
-  /// In en, this message translates to:
-  /// **'Reinitialize the MNN engine'**
-  String get reinitializeMnn;
-
   /// No description provided for @theme.
   ///
   /// In en, this message translates to:
@@ -409,24 +403,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Desktop mode (Android only)'**
   String get desktopMode;
-
-  /// No description provided for @errorMnnInitFailed.
-  ///
-  /// In en, this message translates to:
-  /// **'Failed to initialize MNN engine'**
-  String get errorMnnInitFailed;
-
-  /// No description provided for @initializingMnn.
-  ///
-  /// In en, this message translates to:
-  /// **'Initializing MNN engine...'**
-  String get initializingMnn;
-
-  /// No description provided for @mnnInitSuccess.
-  ///
-  /// In en, this message translates to:
-  /// **'MNN engine initialized successfully!\nModel loaded\nYou can now start chatting.'**
-  String get mnnInitSuccess;
 
   /// No description provided for @errorGeneric.
   ///

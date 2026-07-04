@@ -1,33 +1,29 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSkillStore } from '../stores/skillStore';
-import { 
-  Brain, 
-  Plus, 
-  Trash2, 
-  ToggleLeft, 
+import {
+  Brain,
+  Plus,
+  Trash2,
+  ToggleLeft,
   ToggleRight,
   Play,
   Settings
 } from 'lucide-react';
 import type { Skill } from '../types';
 import { FormCard, FormGroup } from '../components/business';
-import './SkillsPage.css';
+import { Button } from '../components/ui/button';
 
 export function SkillsPage() {
   const { t } = useTranslation();
   const { skills, addSkill, removeSkill, toggleSkill } = useSkillStore();
   const [showAddForm, setShowAddForm] = useState(false);
   const [newSkill, setNewSkill] = useState<Partial<Skill>>({
-    name: '',
-    description: '',
-    category: 'custom',
-    enabled: true,
+    name: '', description: '', category: 'custom', enabled: true,
   });
 
   const handleAddSkill = () => {
     if (!newSkill.name || !newSkill.description) return;
-    
     const skill: Skill = {
       id: crypto.randomUUID(),
       name: newSkill.name,
@@ -35,7 +31,6 @@ export function SkillsPage() {
       category: 'custom',
       enabled: newSkill.enabled ?? true,
     };
-    
     addSkill(skill);
     setShowAddForm(false);
     setNewSkill({ name: '', description: '', category: 'custom', enabled: true });
@@ -59,13 +54,9 @@ export function SkillsPage() {
           <h1>{t('skills.title')}</h1>
           <p className="subtitle">{t('skills.subtitle')}</p>
         </div>
-        <button 
-          className="btn btn-primary"
-          onClick={() => setShowAddForm(!showAddForm)}
-        >
-          <Plus size={18} />
+        <Button onClick={() => setShowAddForm(!showAddForm)} icon={<Plus size={18} />}>
           {t('skills.addSkill')}
-        </button>
+        </Button>
       </header>
 
       {showAddForm && (
@@ -98,49 +89,52 @@ export function SkillsPage() {
       {categories.map((category) => {
         const categorySkills = skills.filter((s) => s.category === category);
         if (categorySkills.length === 0) return null;
-        
         return (
-          <div key={category} className="skill-section">
-            <h2 className="section-title">{getCategoryTitle(category)}</h2>
-            <div className="skill-grid">
+          <div key={category} className="rounded-lg border border-border bg-card p-5">
+            <h2 className="mb-4 text-base font-semibold text-foreground">{getCategoryTitle(category)}</h2>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
               {categorySkills.map((skill) => (
-                <div key={skill.id} className="card skill-card">
-                  <div className="skill-header">
-                    <div className="skill-icon">
+                <div key={skill.id} className="flex justify-between gap-3 rounded-lg border border-border bg-muted/30 p-4 transition-colors hover:border-foreground/30">
+                  <div className="flex flex-1 gap-3">
+                    <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-md border border-border bg-card text-foreground">
                       {skill.icon || <Brain size={24} />}
                     </div>
-                    <div className="skill-info">
-                      <h3>{skill.name}</h3>
-                      <p>{skill.description}</p>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="mb-1 text-base font-semibold text-foreground">{skill.name}</h3>
+                      <p className="line-clamp-2 text-sm leading-snug text-muted-foreground">{skill.description}</p>
                     </div>
                   </div>
-                  <div className="skill-actions">
-                    <button
-                      className="btn btn-icon"
+                  <div className="flex flex-shrink-0 gap-1">
+                    <Button
+                      size="icon"
+                      variant="ghost"
                       onClick={() => toggleSkill(skill.id)}
                       title={skill.enabled ? t('common.disabled') : t('common.enabled')}
+                      aria-label={skill.enabled ? t('common.disabled') : t('common.enabled')}
                     >
                       {skill.enabled ? (
-                        <ToggleRight size={20} className="toggle-on" />
+                        <ToggleRight size={20} className="text-green-500" />
                       ) : (
                         <ToggleLeft size={20} />
                       )}
-                    </button>
+                    </Button>
                     {skill.category !== 'built-in' && (
                       <>
-                        <button className="btn btn-icon" title={t('skills.execute')}>
+                        <Button size="icon" variant="ghost" title={t('skills.execute')} aria-label={t('skills.execute')}>
                           <Play size={16} />
-                        </button>
-                        <button className="btn btn-icon" title={t('skills.skillSettings')}>
+                        </Button>
+                        <Button size="icon" variant="ghost" title={t('skills.skillSettings')} aria-label={t('skills.skillSettings')}>
                           <Settings size={16} />
-                        </button>
-                        <button
-                          className="btn btn-icon btn-danger"
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
                           onClick={() => removeSkill(skill.id)}
                           title={t('common.delete')}
+                          aria-label={t('common.delete')}
                         >
                           <Trash2 size={16} />
-                        </button>
+                        </Button>
                       </>
                     )}
                   </div>

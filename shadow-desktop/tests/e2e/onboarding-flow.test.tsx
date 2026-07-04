@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { SetupPage } from '../../src/pages/SetupPage';
 
@@ -96,6 +97,44 @@ describe('Onboarding Flow E2E', () => {
 
     await waitFor(() => {
       expect(screen.getAllByPlaceholderText('********').length).toBe(2);
+    });
+  });
+
+  it('advances from password to database step when valid passwords entered', async () => {
+    const user = userEvent.setup();
+    renderWithRouter(<SetupPage />);
+
+    const inputs = await waitFor(() => screen.getAllByPlaceholderText('********'));
+    const passwordInput = inputs[0];
+    const confirmInput = inputs[1];
+
+    await user.type(passwordInput, 'testpassword123');
+    await user.type(confirmInput, 'testpassword123');
+
+    const nextButton = await waitFor(() => screen.getByRole('button', { name: /common.next/i }));
+    await user.click(nextButton);
+
+    await waitFor(() => {
+      expect(screen.getByText('setup.selectDatabase')).toBeInTheDocument();
+    });
+  });
+
+  it('advances from database to provider step when embedded database selected', async () => {
+    const user = userEvent.setup();
+    renderWithRouter(<SetupPage />);
+
+    const inputs = await waitFor(() => screen.getAllByPlaceholderText('********'));
+    const passwordInput = inputs[0];
+    const confirmInput = inputs[1];
+
+    await user.type(passwordInput, 'testpassword123');
+    await user.type(confirmInput, 'testpassword123');
+
+    const nextButton = await waitFor(() => screen.getByRole('button', { name: /common.next/i }));
+    await user.click(nextButton);
+
+    await waitFor(() => {
+      expect(screen.getByText('setup.addProvider')).toBeInTheDocument();
     });
   });
 });

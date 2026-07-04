@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
 import { Button } from '../../ui';
-import styles from './FormCard.module.css';
 
 export interface FormCardProps {
   title: string;
@@ -24,13 +23,11 @@ export function FormCard({
   disabled = false,
 }: FormCardProps) {
   return (
-    <div className={styles.formCard}>
-      <h3 className={styles.title}>{title}</h3>
-      <div className={styles.content}>
-        {children}
-      </div>
+    <div className="rounded-xl border border-border bg-card p-5">
+      <h3 className="mb-4 text-base font-semibold text-foreground">{title}</h3>
+      <div className="flex flex-col gap-4">{children}</div>
       {(onCancel || onSubmit) && (
-        <div className={styles.actions}>
+        <div className="mt-2 flex justify-end gap-2 border-t border-border pt-4">
           {onCancel && (
             <Button variant="secondary" onClick={onCancel} disabled={isSubmitting}>
               {cancelLabel}
@@ -54,8 +51,8 @@ export interface FormGroupProps {
 
 export function FormGroup({ label, children }: FormGroupProps) {
   return (
-    <div className={styles.formGroup}>
-      {label && <label>{label}</label>}
+    <div className="flex flex-col gap-1.5">
+      {label && <label className="text-sm font-medium text-muted-foreground">{label}</label>}
       {children}
     </div>
   );
@@ -66,5 +63,5 @@ export interface FormRowProps {
 }
 
 export function FormRow({ children }: FormRowProps) {
-  return <div className={styles.formRow}>{children}</div>;
+  return <div className="flex gap-4">{children}</div>;
 }

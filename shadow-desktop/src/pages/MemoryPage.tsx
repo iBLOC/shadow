@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMemoryStore } from '../stores/memoryStore';
-import { 
-  Database, 
-  Search, 
-  Plus, 
-  Trash2, 
+import {
+  Database,
+  Search,
+  Plus,
+  Trash2,
   Layers,
   Clock,
   Brain
@@ -13,7 +13,8 @@ import {
 import type { Memory } from '../types';
 import { format } from 'date-fns';
 import { FormCard, FormGroup, FormRow } from '../components/business';
-import './MemoryPage.css';
+import { Button } from '../components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 
 export function MemoryPage() {
   const { t } = useTranslation();
@@ -33,7 +34,6 @@ export function MemoryPage() {
 
   const handleAddMemory = () => {
     if (!newMemory.content) return;
-    
     const memory: Memory = {
       id: crypto.randomUUID(),
       uri: `memory://${Date.now()}`,
@@ -43,23 +43,12 @@ export function MemoryPage() {
       createdAt: new Date(),
       updatedAt: new Date(),
     };
-    
     addMemory(memory);
     setShowAddForm(false);
     setNewMemory({ content: '', dimension: 'Agent', layer: 'L2' });
   };
 
-  const getDimensionColor = (dimension: string) => {
-    switch (dimension) {
-      case 'User': return '#3b82f6';
-      case 'Agent': return '#8b5cf6';
-      case 'Session': return '#10b981';
-      case 'Resources': return '#f59e0b';
-      default: return '#6b7280';
-    }
-  };
-
-  const displayMemories = searchResults.length > 0 
+  const displayMemories = searchResults.length > 0
     ? searchResults.map(r => r.memory)
     : memories;
 
@@ -70,43 +59,42 @@ export function MemoryPage() {
           <h1>{t('memory.title')}</h1>
           <p className="subtitle">{t('memory.subtitle')}</p>
         </div>
-        <button 
-          className="btn btn-primary"
-          onClick={() => setShowAddForm(!showAddForm)}
-        >
-          <Plus size={18} />
+        <Button onClick={() => setShowAddForm(!showAddForm)} icon={<Plus size={18} />}>
           {t('memory.addMemory')}
-        </button>
+        </Button>
       </header>
 
-      <div className="search-bar">
-        <div className="search-input-wrapper">
-          <Search size={18} />
+      <div className="flex flex-wrap gap-3">
+        <div className="flex min-w-[300px] flex-1 items-center gap-3 rounded-lg border border-border bg-card px-4">
+          <Search size={18} className="text-muted-foreground" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder={t('memory.searchPlaceholder')}
             onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+            className="flex-1 border-none bg-transparent py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
           />
         </div>
-        <select
-          value={selectedDimension}
-          onChange={(e) => setSelectedDimension(e.target.value)}
-        >
-          <option value="">{t('memory.allDimensions')}</option>
-          <option value="User">{t('memory.user')}</option>
-          <option value="Agent">{t('memory.agent')}</option>
-          <option value="Session">{t('memory.session')}</option>
-          <option value="Resources">{t('memory.resources')}</option>
-        </select>
-        <button className="btn btn-primary" onClick={handleSearch} disabled={isLoading}>
+        <Select value={selectedDimension} onValueChange={setSelectedDimension}>
+          <SelectTrigger className="min-w-[160px]">
+            <SelectValue placeholder={t('memory.allDimensions')} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">{t('memory.allDimensions')}</SelectItem>
+            <SelectItem value="User">{t('memory.user')}</SelectItem>
+            <SelectItem value="Agent">{t('memory.agent')}</SelectItem>
+            <SelectItem value="Session">{t('memory.session')}</SelectItem>
+            <SelectItem value="Resources">{t('memory.resources')}</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button onClick={handleSearch} disabled={isLoading}>
           {isLoading ? t('common.loading') : t('common.search')}
-        </button>
+        </Button>
       </div>
 
       {error && (
-        <div className="error-banner">
+        <div className="rounded-md border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-500">
           {error}
         </div>
       )}
@@ -129,72 +117,74 @@ export function MemoryPage() {
           </FormGroup>
           <FormRow>
             <FormGroup label={t('memory.dimension')}>
-              <select
+              <Select
                 value={newMemory.dimension || 'Agent'}
-                onChange={(e) => setNewMemory({ ...newMemory, dimension: e.target.value as Memory['dimension'] })}
+                onValueChange={(v) => setNewMemory({ ...newMemory, dimension: v as Memory['dimension'] })}
               >
-                <option value="User">{t('memory.user')}</option>
-                <option value="Agent">{t('memory.agent')}</option>
-                <option value="Session">{t('memory.session')}</option>
-                <option value="Resources">{t('memory.resources')}</option>
-              </select>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="User">{t('memory.user')}</SelectItem>
+                  <SelectItem value="Agent">{t('memory.agent')}</SelectItem>
+                  <SelectItem value="Session">{t('memory.session')}</SelectItem>
+                  <SelectItem value="Resources">{t('memory.resources')}</SelectItem>
+                </SelectContent>
+              </Select>
             </FormGroup>
             <FormGroup label={t('memory.layer')}>
-              <select
+              <Select
                 value={newMemory.layer || 'L2'}
-                onChange={(e) => setNewMemory({ ...newMemory, layer: e.target.value as Memory['layer'] })}
+                onValueChange={(v) => setNewMemory({ ...newMemory, layer: v as Memory['layer'] })}
               >
-                <option value="L0">{t('memory.layerL0')}</option>
-                <option value="L1">{t('memory.layerL1')}</option>
-                <option value="L2">{t('memory.layerL2')}</option>
-              </select>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="L0">{t('memory.layerL0')}</SelectItem>
+                  <SelectItem value="L1">{t('memory.layerL1')}</SelectItem>
+                  <SelectItem value="L2">{t('memory.layerL2')}</SelectItem>
+                </SelectContent>
+              </Select>
             </FormGroup>
           </FormRow>
         </FormCard>
       )}
 
       {searchResults.length > 0 && (
-        <div className="search-results-info">
+        <div className="mb-3 flex items-center gap-2 text-sm text-muted-foreground">
           <Brain size={16} />
           {t('memory.foundResults', { count: searchResults.length })}
         </div>
       )}
 
-      <div className="memory-list">
+      <div className="flex flex-col gap-3">
         {displayMemories.length === 0 ? (
-          <div className="empty-state">
+          <div className="flex flex-col items-center justify-center p-10 text-center text-muted-foreground">
             <Database size={48} strokeWidth={1} />
-            <p>{t('memory.noMemories')}</p>
-            <p className="hint">{t('memory.noMemoriesHint')}</p>
+            <p className="mt-3 text-sm">{t('memory.noMemories')}</p>
+            <p className="mt-1 text-xs">{t('memory.noMemoriesHint')}</p>
           </div>
         ) : (
           displayMemories.map((memory) => (
-            <div key={memory.id} className="card memory-card">
-              <div className="memory-header">
-                <div className="memory-tags">
-                  <span 
-                    className="tag dimension-tag"
-                    style={{ background: getDimensionColor(memory.dimension) }}
-                  >
+            <div key={memory.id} className="rounded-lg border border-border bg-card p-4">
+              <div className="mb-3 flex items-start justify-between">
+                <div className="flex gap-2">
+                  <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-foreground">
                     {t(`memory.${memory.dimension.toLowerCase()}`)}
                   </span>
-                  <span className="tag layer-tag">
+                  <span className="flex items-center gap-1 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground">
                     <Layers size={12} />
                     {memory.layer}
                   </span>
                 </div>
-                <button
-                  className="btn btn-icon btn-danger btn-small"
-                  onClick={() => removeMemory(memory.id)}
-                >
+                <Button size="icon" variant="ghost" onClick={() => removeMemory(memory.id)} aria-label={t('common.delete')}>
                   <Trash2 size={14} />
-                </button>
+                </Button>
               </div>
-              <div className="memory-content">
-                {memory.content}
-              </div>
-              <div className="memory-meta">
-                <span className="meta-item">
+              <div className="mb-3 text-sm leading-relaxed text-foreground">{memory.content}</div>
+              <div className="flex gap-4 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1">
                   <Clock size={12} />
                   {format(new Date(memory.createdAt), 'MMM d, yyyy HH:mm')}
                 </span>

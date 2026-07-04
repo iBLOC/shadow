@@ -9,7 +9,6 @@
   "initializing": "Initializing...",
   "modelInfo": "Model Info",
   "resetEngine": "Reset Engine",
-  "reinitializeMnn": "Reinitialize the MNN engine",
   "theme": "Theme",
   "accessibilityControl": "Accessibility Control",
   "accessibilityOn": "Enabled. You can control device tap/swipe.",
@@ -59,9 +58,6 @@
   "modelInfoNotInitialized": "Not initialized",
   "modelLoaded": "Model loaded",
   "desktopMode": "Desktop mode (Android only)",
-  "errorMnnInitFailed": "Failed to initialize MNN engine",
-  "initializingMnn": "Initializing MNN engine...",
-  "mnnInitSuccess": "MNN engine initialized successfully!\nModel loaded\nYou can now start chatting.",
   "errorGeneric": "Error: {detail}",
   "@errorGeneric": {
     "placeholders": {

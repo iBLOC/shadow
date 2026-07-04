@@ -40,7 +40,6 @@ enum ChatStateL10nKey {
   modelInfoNotInitialized,
   modelLoaded,
   desktopMode,
-  errorMnnInitFailed,
   errorGeneric,
   litertInitializing,
   litertReady,

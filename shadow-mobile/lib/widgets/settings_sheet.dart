@@ -45,7 +45,7 @@ class SettingsSheet extends StatelessWidget {
               color: Theme.of(context).colorScheme.error,
             ),
             title: Text(l10n.resetEngine),
-            subtitle: Text(l10n.reinitializeMnn),
+            subtitle: const Text('Reinitialize engine'),
             onTap: onReset,
           ),
           const SizedBox(height: 16),

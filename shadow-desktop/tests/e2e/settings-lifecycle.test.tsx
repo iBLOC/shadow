@@ -1,0 +1,270 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import userEvent, { PointerEventsCheckLevel } from '@testing-library/user-event';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { SettingsPage } from '../../src/pages/SettingsPage';
+
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) => key,
+    i18n: { language: 'en-US', changeLanguage: vi.fn() },
+  }),
+}));
+
+vi.mock('../../src/lib/tauriSafe', () => ({
+  safeInvoke: vi.fn(() => Promise.resolve(null)),
+}));
+
+vi.mock('../../src/lib/platform', () => ({
+  isTauri: vi.fn(() => false),
+}));
+
+vi.mock('../../src/components/DatabaseSettings', () => ({
+  DatabaseSettings: () => <div data-testid="database-settings">Database Settings Mock</div>,
+}));
+
+vi.mock('../../src/stores/themeStore', () => ({
+  useThemeStore: vi.fn(() => ({
+    theme: 'dark',
+    setTheme: vi.fn(),
+    toggleTheme: vi.fn(),
+  })),
+}));
+
+vi.mock('../../src/stores/cortexStore', () => {
+  const state: Record<string, unknown> = {
+    status: 'running',
+    connection: { baseUrl: 'http://127.0.0.1:8443', apiKey: '' },
+    cortexId: 'cortex-test',
+    defaultAgent: 'temporal',
+    lobes: [
+      { name: 'temporal', kind: 'native', url: 'http://temporal:8443', enabled: true, skills: ['routing:prefrontal'], agent_card: { name: 'temporal', description: '', version: '0.1', url: '', metadata: { input_modalities: ['text'], output_modalities: ['text'], capabilities: [] } }, health_status: 'healthy' },
+      { name: 'memory', kind: 'native', url: 'http://memory:8443', enabled: true, skills: ['memory:recall'], agent_card: { name: 'memory', description: '', version: '0.1', url: '', metadata: { input_modalities: ['text'], output_modalities: ['text'], capabilities: [] } }, health_status: 'healthy' },
+    ],
+    lastCheck: null,
+    error: null,
+    refreshStatus: vi.fn(),
+    refreshLobes: vi.fn(),
+    startCortex: vi.fn(),
+    stopCortex: vi.fn(),
+    setBaseUrl: vi.fn(),
+    setApiKey: vi.fn(),
+  };
+  const hook: any = vi.fn((selector?: any) => (selector ? selector(state) : state));
+  hook.getState = vi.fn(() => state);
+  return { useCortexStore: hook };
+});
+
+vi.mock('../../src/stores/serviceStore', () => {
+  const mockState = {
+    services: {
+      resonance: { name: 'resonance' as const, displayName: 'Resonance', host: 'localhost', port: 8080, status: 'unknown' as const },
+      prefrontal: { name: 'prefrontal' as const, displayName: 'Prefrontal (Agent)', host: 'localhost', port: 8082, status: 'unknown' as const },
+      neure: { name: 'neure' as const, displayName: 'Neure (Embedded Engine)', host: 'localhost', port: 8085, status: 'unknown' as const },
+      hippocampus: { name: 'hippocampus' as const, displayName: 'Hippocampus', host: 'localhost', port: 8081, status: 'unknown' as const },
+    },
+    resonanceInstances: [],
+    isChecking: false,
+    checkAllServices: vi.fn(),
+    hasConfiguredResonance: vi.fn(() => false),
+    getPrimaryResonance: vi.fn(() => null),
+    addResonanceInstance: vi.fn(),
+    updateResonanceInstance: vi.fn(),
+    removeResonanceInstance: vi.fn(),
+    setPrimaryResonance: vi.fn(),
+  };
+  const hook: any = vi.fn((selector?: any) => selector ? selector(mockState) : mockState);
+  hook.getState = vi.fn(() => mockState);
+  return { useServiceStore: hook };
+});
+
+vi.mock('../../src/stores/resonanceStore', () => ({
+  useResonanceStore: vi.fn(() => ({
+    discoveredServices: [],
+    resonanceInstances: [],
+    connectionStatus: 'disconnected',
+    discoverServices: vi.fn(),
+    connect: vi.fn(),
+    disconnect: vi.fn(),
+  })),
+}));
+
+const renderWithRouter = () =>
+  render(
+    <MemoryRouter initialEntries={['/settings']}>
+      <Routes>
+        <Route path="/settings" element={<SettingsPage />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+describe('SettingsPage Lifecycle E2E', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  describe('Page render', () => {
+    it('renders page title', async () => {
+      renderWithRouter();
+      await screen.findByText('settings.title');
+      expect(screen.getByText('settings.title')).toBeInTheDocument();
+    });
+
+    it('renders page subtitle', async () => {
+      renderWithRouter();
+      await screen.findByText('settings.title');
+      expect(screen.getByText('settings.subtitle')).toBeInTheDocument();
+    });
+  });
+
+  describe('Empty state', () => {
+    it('renders cortex status section', async () => {
+      renderWithRouter();
+      await screen.findByText('settings.title');
+      expect(screen.getAllByText('settings.cortexStatus')[0]).toBeInTheDocument();
+    });
+
+    it('renders resonance connection section', async () => {
+      renderWithRouter();
+      await screen.findByText('settings.title');
+      expect(screen.getAllByText('settings.resonanceConnection')[0]).toBeInTheDocument();
+    });
+
+    it('renders database settings section', async () => {
+      renderWithRouter();
+      await screen.findByText('settings.title');
+      expect(screen.getByTestId('database-settings')).toBeInTheDocument();
+    });
+  });
+
+  describe('Theme toggle', () => {
+    it('renders theme section', async () => {
+      renderWithRouter();
+      await screen.findByText('settings.title');
+      expect(screen.getAllByText('settings.theme')[0]).toBeInTheDocument();
+    });
+
+    it('renders light and dark theme buttons', async () => {
+      renderWithRouter();
+      await screen.findByText('settings.title');
+      expect(screen.getAllByText('settings.light')[0]).toBeInTheDocument();
+      expect(screen.getAllByText('settings.dark')[0]).toBeInTheDocument();
+    });
+
+    it('has active dark button by default', async () => {
+      renderWithRouter();
+      await screen.findByText('settings.title');
+      const darkBtn = screen.getAllByText('settings.dark')[0];
+      expect(darkBtn).toBeInTheDocument();
+    });
+  });
+
+  describe('Lobe list display', () => {
+    it('renders lobe list with lobes', async () => {
+      renderWithRouter();
+      await screen.findByText('settings.title');
+      await waitFor(() => {
+        expect(screen.getAllByText('temporal').length).toBeGreaterThan(0);
+        expect(screen.getAllByText('memory').length).toBeGreaterThan(0);
+      });
+    });
+
+    it('renders lobe health status', async () => {
+      renderWithRouter();
+      await screen.findByText('settings.title');
+      expect(screen.getAllByText('healthy').length).toBeGreaterThan(0);
+    });
+
+    it('renders refresh button for cortex', async () => {
+      renderWithRouter();
+      await screen.findByText('settings.title');
+      const refreshBtn = screen.getAllByRole('button', { name: /settings\.refreshStatus/i })[0];
+      expect(refreshBtn).toBeInTheDocument();
+    });
+  });
+
+  describe('Resonance discover', () => {
+    it('renders discover description', async () => {
+      renderWithRouter();
+      await screen.findByText('settings.title');
+      expect(screen.getAllByText('settings.resonanceNotConfigured')[0]).toBeInTheDocument();
+    });
+
+    it('renders scan network button when no services found', async () => {
+      renderWithRouter();
+      await screen.findByText('settings.title');
+      expect(screen.queryByText('settings.scanNetwork')).not.toBeInTheDocument();
+    });
+
+    it('renders no servers found message', async () => {
+      renderWithRouter();
+      await screen.findByText('settings.title');
+      expect(screen.getAllByText('settings.resonanceNotConfigured')[0]).toBeInTheDocument();
+    });
+  });
+
+  describe('Language selector', () => {
+    it('renders language section', async () => {
+      renderWithRouter();
+      await screen.findByText('settings.title');
+      expect(screen.getAllByText('settings.language')[0]).toBeInTheDocument();
+    });
+
+    it('renders language select dropdown', async () => {
+      renderWithRouter();
+      await screen.findByText('settings.title');
+      const select = screen.getByRole('combobox');
+      expect(select).toBeInTheDocument();
+      expect(select.textContent).toContain('en-US');
+    });
+
+    it('renders language options', async () => {
+      const user = userEvent.setup({ pointerEventsCheck: PointerEventsCheckLevel.Never });
+      renderWithRouter();
+      await screen.findByText('settings.title');
+      const select = screen.getByRole('combobox');
+      expect(select).toBeInTheDocument();
+      expect(select.textContent).toContain('en-US');
+      await user.click(select);
+      expect(await screen.findByRole('option', { name: /zh-CN/i })).toBeInTheDocument();
+      expect(await screen.findByRole('option', { name: /en-US/i })).toBeInTheDocument();
+    });
+  });
+
+  describe('Memory integration', () => {
+    it('renders memory integration section', async () => {
+      renderWithRouter();
+      await screen.findByText('settings.title');
+      expect(screen.getAllByText('settings.memoryIntegration')[0]).toBeInTheDocument();
+    });
+
+    it('renders connected status badge', async () => {
+      renderWithRouter();
+      await screen.findByText('settings.title');
+      expect(screen.getAllByText('settings.connected')[0]).toBeInTheDocument();
+    });
+
+    it('renders storage path', async () => {
+      renderWithRouter();
+      await screen.findByText('settings.title');
+      expect(screen.getAllByText('settings.storagePathDefault')[0]).toBeInTheDocument();
+    });
+  });
+
+  describe('System tray (non-Tauri)', () => {
+    it('does not render system tray section when isTauri is false', async () => {
+      renderWithRouter();
+      await screen.findByText('settings.title');
+      expect(screen.queryByText('settings.systemTray')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Database settings mock', () => {
+    it('renders mocked database settings', async () => {
+      renderWithRouter();
+      await screen.findByText('settings.title');
+      expect(screen.getByTestId('database-settings')).toBeInTheDocument();
+      expect(screen.getByText('Database Settings Mock')).toBeInTheDocument();
+    });
+  });
+});

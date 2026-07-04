@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { Badge } from '../../ui';
-import styles from './EntityCard.module.css';
+import { Badge, Button } from '../../ui';
+import { cn } from '../../../lib/utils';
 
 export interface EntityCardProps {
   header?: {
@@ -26,17 +26,17 @@ export function EntityCard({
   onExpand,
 }: EntityCardProps) {
   return (
-    <div className={styles.card}>
+    <div className="overflow-hidden rounded-lg border border-border bg-card">
       {header && (
-        <div 
-          className={`${styles.header} ${onClick ? styles.clickable : ''}`}
+        <div
+          className={cn('flex items-center justify-between gap-3 px-4 py-3', onClick && 'cursor-pointer hover:bg-muted')}
           onClick={onClick}
         >
-          <div className={styles.headerMain}>
-            {header.icon && <div className={styles.icon}>{header.icon}</div>}
-            <div className={styles.info}>
-              <div className={styles.titleRow}>
-                <h3 className={styles.title}>{header.title}</h3>
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            {header.icon && <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">{header.icon}</div>}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <h3 className="truncate text-[15px] font-semibold text-foreground">{header.title}</h3>
                 {header.badge && (
                   <Badge variant={header.badgeVariant || 'default'} size="sm">
                     {header.badge}
@@ -44,24 +44,28 @@ export function EntityCard({
                 )}
               </div>
               {header.subtitle && (
-                <span className={styles.subtitle}>{header.subtitle}</span>
+                <span className="text-xs text-muted-foreground">{header.subtitle}</span>
               )}
             </div>
           </div>
-          <div className={styles.headerActions}>
+          <div className="flex flex-shrink-0 items-center gap-1">
             {actions}
             {onExpand && (
-              <button className={styles.expandBtn} onClick={(e) => { e.stopPropagation(); onExpand(); }}>
-                {expanded ? '▼' : '▶'}
-              </button>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="text-xs"
+                onClick={(e) => { e.stopPropagation(); onExpand(); }}
+                aria-label={expanded ? 'Collapse' : 'Expand'}
+              >
+                <span aria-hidden="true">{expanded ? '▼' : '▶'}</span>
+              </Button>
             )}
           </div>
         </div>
       )}
       {expanded && children && (
-        <div className={styles.content}>
-          {children}
-        </div>
+        <div className="border-t border-border bg-muted px-4 py-3">{children}</div>
       )}
     </div>
   );

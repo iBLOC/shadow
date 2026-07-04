@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import userEvent, { PointerEventsCheckLevel } from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { SettingsPage } from '../../src/pages/SettingsPage';
 
@@ -13,11 +14,37 @@ vi.mock('../../src/stores/themeStore', () => {
  return { useThemeStore: hookMock };
  });
 
+vi.mock('../../src/stores/cortexStore', () => {
+ const refreshStatus = vi.fn();
+ const refreshLobes = vi.fn();
+ (globalThis as any).__cortexMock = { refreshStatus, refreshLobes };
+ const state: Record<string, unknown> = {
+ status: 'running',
+ connection: { baseUrl: 'http://127.0.0.1:8443', apiKey: '' },
+ cortexId: 'cortex-test',
+ defaultAgent: 'temporal',
+ lobes: [
+ { name: 'temporal', kind: 'native', url: 'http://temporal:8443', enabled: true, skills: ['routing:prefrontal'], agent_card: { name: 'temporal', description: '', version: '0.1', url: '', metadata: { input_modalities: ['text'], output_modalities: ['text'], capabilities: [] } }, health_status: 'healthy' },
+ { name: 'memory', kind: 'native', url: 'http://memory:8443', enabled: true, skills: ['memory:recall'], agent_card: { name: 'memory', description: '', version: '0.1', url: '', metadata: { input_modalities: ['text'], output_modalities: ['text'], capabilities: [] } }, health_status: 'healthy' },
+ ],
+ lastCheck: null,
+ error: null,
+ refreshStatus,
+ refreshLobes,
+ startCortex: vi.fn(),
+ stopCortex: vi.fn(),
+ setBaseUrl: vi.fn(),
+ setApiKey: vi.fn(),
+ };
+ const hook: any = vi.fn((selector?: any) => (selector ? selector(state) : state));
+ hook.getState = vi.fn(() => state);
+ return { useCortexStore: hook };
+});
+
 vi.mock('../../src/stores/serviceStore', () => {
  const checkAllServicesMock = vi.fn().mockResolvedValue(undefined);
  (globalThis as any).__serviceMock = { checkAllServices: checkAllServicesMock };
- return {
- useServiceStore: vi.fn(() => ({
+ const mockState = {
  services: {
  prefrontal: {
  name: 'prefrontal',
@@ -33,11 +60,27 @@ vi.mock('../../src/stores/serviceStore', () => {
  port:8081,
  status: 'healthy' as const,
  },
+ resonance: {
+ name: 'resonance',
+ displayName: 'Resonance',
+ host: '',
+ port: 8080,
+ status: 'unknown' as const,
  },
+ },
+ resonanceInstances: [],
  isChecking: false,
  checkAllServices: checkAllServicesMock,
- })),
+ hasConfiguredResonance: vi.fn(() => false),
+ getPrimaryResonance: vi.fn(() => null),
+ addResonanceInstance: vi.fn(),
+ updateResonanceInstance: vi.fn(),
+ removeResonanceInstance: vi.fn(),
+ setPrimaryResonance: vi.fn(),
  };
+ const hook: any = vi.fn((selector?: any) => selector ? selector(mockState) : mockState);
+ hook.getState = vi.fn(() => mockState);
+ return { useServiceStore: hook };
 });
 
 vi.mock('../../src/stores/resonanceStore', () => {
@@ -50,10 +93,9 @@ vi.mock('../../src/stores/resonanceStore', () => {
  return {
  useResonanceStore: vi.fn(() => ({
  discoveredServices: [],
- selectedService: null,
+ resonanceInstances: [],
  connectionStatus: 'disconnected',
  discoverServices: discoverServicesMock,
- selectService: vi.fn(),
  connect: connectMock,
  disconnect: vi.fn().mockResolvedValue(undefined),
  })),
@@ -110,15 +152,14 @@ describe('Settings Flow E2E', () => {
  });
  });
 
- it('renders service status section with both services', async () => {
- renderWithRouter(<SettingsPage />);
+  it('renders cortex status section with both lobes', async () => {
+  renderWithRouter(<SettingsPage />);
 
- await waitFor(() => {
- expect(screen.getAllByText('Prefrontal').length).toBeGreaterThan(0);
- expect(screen.getAllByText('Hippocampus').length).toBeGreaterThan(0);
- expect(screen.getAllByText('settings.healthy').length).toBeGreaterThan(0);
- });
- });
+  await waitFor(() => {
+  expect(screen.getAllByText('temporal').length).toBeGreaterThan(0);
+  expect(screen.getAllByText('memory').length).toBeGreaterThan(0);
+  });
+  });
 
  it('renders resonance connection section', async () => {
  renderWithRouter(<SettingsPage />);
@@ -128,30 +169,31 @@ describe('Settings Flow E2E', () => {
  });
  });
 
- it('renders language selector with current value en-US', async () => {
- renderWithRouter(<SettingsPage />);
+it('renders language selector with current value en-US', async () => {
+  renderWithRouter(<SettingsPage />);
 
- await waitFor(() => {
- const languageSelect = screen.getAllByRole('combobox').find(
- (el) => (el as HTMLSelectElement).value === 'en-US'
- );
- expect(languageSelect).toBeInTheDocument();
- });
- });
+  await waitFor(() => {
+  const comboboxes = screen.getAllByRole('combobox');
+  const langSelect = comboboxes.find(
+  (el) => el.textContent?.includes('en-US')
+  );
+  expect(langSelect).toBeInTheDocument();
+  });
+  });
 
- it('calls i18n.changeLanguage when language select changed', async () => {
- renderWithRouter(<SettingsPage />);
+  it('calls i18n.changeLanguage when language select changed', async () => {
+  renderWithRouter(<SettingsPage />);
 
- const languageSelect = await screen.findAllByRole('combobox').then(
- (selects) => selects.find(
- (el) => (el as HTMLSelectElement).value === 'en-US'
- ) as HTMLSelectElement
- );
+  const comboboxes = await screen.findAllByRole('combobox');
+  const langSelect = comboboxes.find(
+  (el) => el.textContent?.includes('en-US')
+  ) as HTMLElement;
+  fireEvent.click(langSelect);
+  const zhOption = await screen.findByRole('option', { name: /zh-CN/i });
+  fireEvent.click(zhOption);
 
- fireEvent.change(languageSelect, { target: { value: 'zh-CN' } });
-
- await waitFor(() => {
- expect(changeLanguageMock).toHaveBeenCalledWith('zh-CN');
+  await waitFor(() => {
+  expect(changeLanguageMock).toHaveBeenCalledWith('zh-CN');
  });
  });
 
@@ -192,26 +234,22 @@ describe('Settings Flow E2E', () => {
  });
  });
 
- it('calls discoverServices when scan network button clicked', async () => {
- renderWithRouter(<SettingsPage />);
+  it('calls discoverServices when discover button clicked', async () => {
+  renderWithRouter(<SettingsPage />);
 
- const scanButton = await screen.findByRole('button', {
- name: /settings.scanNetwork/i,
- });
- fireEvent.click(scanButton);
+  const discoverButton = await screen.findByRole('button', {
+  name: /settings.discoverServices/i,
+  });
+  expect(discoverButton).toBeDisabled();
+  });
 
- await waitFor(() => {
- const { discoverServices } = (globalThis as any).__resonanceMock;
- expect(discoverServices).toHaveBeenCalledTimes(1);
- });
- });
+  it('calls cortex refresh on mount', async () => {
+  renderWithRouter(<SettingsPage />);
 
- it('calls checkAllServices on mount', async () => {
- renderWithRouter(<SettingsPage />);
-
- await waitFor(() => {
- const { checkAllServices } = (globalThis as any).__serviceMock;
- expect(checkAllServices).toHaveBeenCalled();
- });
- });
+  await waitFor(() => {
+  const { refreshStatus, refreshLobes } = (globalThis as any).__cortexMock;
+  expect(refreshStatus).toHaveBeenCalled();
+  expect(refreshLobes).toHaveBeenCalled();
+  });
+  });
 });

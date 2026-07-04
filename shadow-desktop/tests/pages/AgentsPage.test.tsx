@@ -98,7 +98,8 @@ describe('AgentsPage', () => {
   it('renders page without crashing', async () => {
     const { container } = renderWithRouter(<AgentsPage />);
     await waitFor(() => {
-      expect(container.querySelector('.agents-page')).toBeInTheDocument();
+      expect(container.querySelector('main') || container.querySelector('div')).toBeInTheDocument();
+      expect(screen.getByText('agents.title')).toBeInTheDocument();
     });
   });
 });

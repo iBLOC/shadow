@@ -48,30 +48,6 @@ class DiscoveredPeer {
   }
 }
 
-class SessionExport {
-  final String sessionId;
-  final List<Map<String, dynamic>> messages;
-  final int sizeBytes;
-
-  SessionExport({
-    required this.sessionId,
-    required this.messages,
-    required this.sizeBytes,
-  });
-
-  factory SessionExport.fromJson(Map<String, dynamic> json) {
-    return SessionExport(
-      sessionId: json['session_id'] ?? json['id'] ?? '',
-      messages:
-          (json['messages'] as List<dynamic>?)
-              ?.map((e) => Map<String, dynamic>.from(e as Map))
-              .toList() ??
-          [],
-      sizeBytes: json['size_bytes'] ?? 0,
-    );
-  }
-}
-
 class SessionTransferService {
   final http.Client _client;
   final String _localUrl;
@@ -161,8 +137,22 @@ class SessionTransferService {
 
   Future<Map<String, dynamic>> importSession(
     String peerUrl,
-    SessionExport export,
-  ) async {
+    SessionExport export, {
+    bool useCortex = true,
+  }) async {
+    if (useCortex && _cortex != null) {
+      try {
+        final convo = await _cortex!.importSessionAsConversation(export: export);
+        return {
+          'conversation_id': convo.id,
+          'cortex_url': _cortex!.baseUrl,
+          'transferred_via': 'cortex',
+        };
+      } catch (e) {
+        // fall through to peer-direct transfer
+      }
+    }
+
     final payload = {
       'messages': export.messages,
       'session_id': export.sessionId,
@@ -178,7 +168,7 @@ class SessionTransferService {
       throw Exception('Failed to import session: ${response.statusCode}');
     }
 
-    return jsonDecode(response.body) as Map<String, dynamic>;
+    return {'transferred_via': 'peer', ...jsonDecode(response.body) as Map<String, dynamic>};
   }
 
   void dispose() {
