@@ -13,6 +13,7 @@ export type ConnectionState =
 
 export interface CompanionConfig {
   signalingUrl: string;
+  fallbackUrl?: string;
   sessionId: string;
   iceServers?: RTCIceServer[];
 }
@@ -71,6 +72,7 @@ export class WebRtcCompanion {
   public transcript = new ObservableValue<string>('');
   public error = new ObservableValue<string | null>(null);
   public audioLevel = new ObservableValue<number>(0);
+  public usedFallback = new ObservableValue<boolean>(false);
 
   private audioContext: AudioContext | null = null;
   private analyser: AnalyserNode | null = null;
@@ -170,33 +172,53 @@ export class WebRtcCompanion {
 
   private connectSignaling() {
     const url = this.config.signalingUrl;
-    this.ws = new WebSocket(url);
+    const fallbackUrl = this.config.fallbackUrl ?? 'ws://localhost:8082';
 
-    this.ws.addEventListener('open', () => {
-      if (this.pc?.localDescription) {
-        this.sendSignaling({
-          type: 'webrtc_offer',
-          sdp: this.pc.localDescription.sdp,
-        });
-      }
-    });
+    const tryConnect = (targetUrl: string, isFallback: boolean) => {
+      this.ws = new WebSocket(targetUrl);
 
-    this.ws.addEventListener('message', (ev) => {
-      try {
-        const msg: SignalingMessage = JSON.parse(ev.data);
-        this.handleSignalingMessage(msg);
-      } catch (e) {
-        console.error('[WebRTC] Failed to parse signaling message', e);
-      }
-    });
+      this.ws.addEventListener('open', () => {
+        if (isFallback) {
+          this.usedFallback.value = true;
+        }
+        if (this.pc?.localDescription) {
+          this.sendSignaling({
+            type: 'webrtc_offer',
+            sdp: this.pc.localDescription.sdp,
+          });
+        }
+      });
 
-    this.ws.addEventListener('error', () => {
-      this.error.value = 'Signaling connection error';
-    });
+      this.ws.addEventListener('message', (ev) => {
+        try {
+          const msg: SignalingMessage = JSON.parse(ev.data);
+          this.handleSignalingMessage(msg);
+        } catch (e) {
+          console.error('[WebRTC] Failed to parse signaling message', e);
+        }
+      });
 
-    this.ws.addEventListener('close', () => {
-      if (this.state.value === 'connected') {
-        this.state.value = 'disconnected';
+      this.ws.addEventListener('error', () => {
+        if (isFallback) {
+          this.error.value = 'Signaling connection error: both cortex and fallback failed';
+        } else {
+          this.error.value = 'Signaling connection error';
+        }
+      });
+
+      this.ws.addEventListener('close', () => {
+        if (this.state.value === 'connected') {
+          this.state.value = 'disconnected';
+        }
+      });
+    };
+
+    tryConnect(url, false);
+
+    this.ws?.addEventListener('error', () => {
+      if (!this.usedFallback.value && fallbackUrl) {
+        console.log('[WebRTC] Cortex signaling failed, trying fallback:', fallbackUrl);
+        tryConnect(fallbackUrl, true);
       }
     });
   }
