@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { cortexClient, type LobeInfo } from '../lib/cortexClient';
+import { cortexClient, type LobeInfo, type FlowMeta } from '../lib/cortexClient';
 
 export type CortexStatus = 'stopped' | 'starting' | 'running' | 'unreachable' | 'error';
 
@@ -15,6 +15,7 @@ interface CortexState {
   cortexId: string | null;
   defaultAgent: string | null;
   lobes: LobeInfo[];
+  flows: FlowMeta[];
   lastCheck: Date | null;
   error: string | null;
 
@@ -22,6 +23,7 @@ interface CortexState {
   setApiKey: (key: string) => void;
   refreshStatus: () => Promise<void>;
   refreshLobes: () => Promise<void>;
+  refreshFlows: () => Promise<void>;
   startCortex: () => Promise<void>;
   stopCortex: () => Promise<void>;
 }
@@ -39,6 +41,7 @@ export const useCortexStore = create<CortexState>()(
       cortexId: null,
       defaultAgent: null,
       lobes: [],
+      flows: [],
       lastCheck: null,
       error: null,
 
@@ -86,6 +89,13 @@ export const useCortexStore = create<CortexState>()(
             lastCheck: new Date(),
           });
         }
+      },
+
+      refreshFlows: async () => {
+        try {
+          const flows = await cortexClient.listFlows();
+          set({ flows });
+        } catch { }
       },
 
       startCortex: async () => {

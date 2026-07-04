@@ -16,6 +16,7 @@ import { DiscoveryPage } from './pages/DiscoveryPage';
 import { LogsPage } from './pages/LogsPage';
 import { ModelDownloadPage } from './pages/ModelDownloadPage';
 import { VoicePage } from './pages/VoicePage';
+import { FlowsPage } from './pages/FlowsPage';
 import { GroupPage } from './pages/GroupPage';
 import { PromptSettingsPage } from './pages/PromptSettingsPage';
 import { ServicesPage } from './pages/ServicesPage';
@@ -44,6 +45,7 @@ function App() {
           <Route path="logs" element={<LogsPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="discovery" element={<DiscoveryPage />} />
+          <Route path="flows" element={<FlowsPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

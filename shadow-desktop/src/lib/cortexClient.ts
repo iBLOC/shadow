@@ -71,6 +71,36 @@ export interface StreamEvent {
   error?: string;
 }
 
+export interface FlowMeta {
+  id: string;
+  name: string;
+  version: string;
+  is_draft: boolean;
+  tags: string[];
+}
+
+export interface FlowDefinition {
+  id: string;
+  name: string;
+  version: string;
+  schema_version: string;
+  description?: string | null;
+  inputs: unknown[];
+  outputs: unknown[];
+  variables: unknown[];
+  nodes: unknown[];
+  edges: unknown[];
+  metadata?: {
+    tags?: string[];
+    created_by?: string | null;
+    provenance?: unknown;
+  };
+}
+
+export interface FlowRunResult {
+  outputs: Record<string, unknown>;
+}
+
 export class CortexClient {
   private baseUrl: string;
   private apiKey?: string;
@@ -174,6 +204,61 @@ export class CortexClient {
 
   webrtcSignalingUrl(sessionId: string, modality: string = 'voice'): string {
     return `${this.baseUrl}/api/webrtc/${modality}/sessions/${encodeURIComponent(sessionId)}/ws`;
+  }
+
+  async listFlows(opts: { name?: string; tag?: string; isDraft?: boolean } = {}): Promise<FlowMeta[]> {
+    const params = new URLSearchParams();
+    if (opts.name) params.set('name', opts.name);
+    if (opts.tag) params.set('tag', opts.tag);
+    if (opts.isDraft !== undefined) params.set('is_draft', String(opts.isDraft));
+    const qs = params.toString();
+    const path = `/api/flows${qs ? `?${qs}` : ''}`;
+    return this.request<FlowMeta[]>(path);
+  }
+
+  async getFlow(id: string): Promise<FlowDefinition> {
+    return this.request<FlowDefinition>(`/api/flows/${encodeURIComponent(id)}`);
+  }
+
+  async createFlow(flow: FlowDefinition): Promise<FlowDefinition> {
+    return this.request<FlowDefinition>('/api/flows', {
+      method: 'POST',
+      body: JSON.stringify(flow),
+    });
+  }
+
+  async runFlow(
+    flowName: string,
+    inputs: Record<string, unknown>,
+    opts: { sessionId?: string; version?: string } = {},
+  ): Promise<FlowRunResult> {
+    const body: Record<string, unknown> = { inputs };
+    if (opts.sessionId) body.session_id = opts.sessionId;
+    const versionPath = opts.version ? `/${encodeURIComponent(opts.version)}` : '';
+    return this.request<FlowRunResult>(
+      `/api/flows/by-name/${encodeURIComponent(flowName)}${versionPath}/invoke`,
+      { method: 'POST', body: JSON.stringify(body) },
+    );
+  }
+
+  async listDrafts(): Promise<FlowDefinition[]> {
+    const resp = await this.request<{ drafts?: FlowDefinition[] } | FlowDefinition[]>('/api/flows/draft');
+    if (Array.isArray(resp)) return resp;
+    return resp.drafts ?? [];
+  }
+
+  async promoteDraft(draftId: string): Promise<FlowDefinition> {
+    return this.request<FlowDefinition>(
+      `/api/flows/draft/${encodeURIComponent(draftId)}/promote`,
+      { method: 'POST', body: '{}' },
+    );
+  }
+
+  async rejectDraft(draftId: string): Promise<void> {
+    await fetch(`${this.baseUrl}/api/flows/draft/${encodeURIComponent(draftId)}/reject`, {
+      method: 'POST',
+      headers: this.apiKey ? { 'X-Shadow-Key': this.apiKey } : {},
+    });
   }
 }
 

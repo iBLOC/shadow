@@ -12,6 +12,7 @@ import {
   Radar,
   ScrollText,
   Server,
+  Workflow,
   type LucideIcon,
 } from 'lucide-react';
 import { useResonanceStore } from '../stores/resonanceStore';
@@ -30,6 +31,7 @@ const navItems: NavItem[] = [
   { path: '/conversation', icon: MessageSquare, labelKey: 'nav.chat' },
   { path: '/discovery', icon: Radar, labelKey: 'nav.discovery' },
   { path: '/agents', icon: Bot, labelKey: 'nav.agents' },
+  { path: '/flows', icon: Workflow, labelKey: 'nav.flows' },
   { path: '/models', icon: Cpu, labelKey: 'nav.models' },
   { path: '/mcp', icon: Wrench, labelKey: 'nav.mcp' },
   { path: '/skills', icon: Brain, labelKey: 'nav.skills' },
