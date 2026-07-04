@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../generated/l10n/app_localizations.dart';
+import '../providers/cortex_provider.dart';
 import '../services/session_transfer_service.dart';
 import '../theme/app_colors.dart';
 
@@ -150,7 +151,8 @@ class ContinueDesktopNotifier extends StateNotifier<ContinueDesktopState> {
 }
 
 final sessionTransferServiceProvider = Provider<SessionTransferService>((ref) {
-  return SessionTransferService();
+  final cortex = ref.watch(cortexClientProvider);
+  return SessionTransferService(cortex: cortex);
 });
 
 final continueDesktopProvider =

@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
+import 'cortex/cortex_client.dart';
+
 class DiscoveredPeer {
   final String id;
   final String name;
@@ -73,12 +75,15 @@ class SessionExport {
 class SessionTransferService {
   final http.Client _client;
   final String _localUrl;
+  final CortexClient? _cortex;
 
-  SessionTransferService({http.Client? client, String? baseUrl})
+  SessionTransferService({http.Client? client, String? baseUrl, CortexClient? cortex})
     : _client = client ?? http.Client(),
-      _localUrl = baseUrl ?? 'http://localhost:8082';
+      _localUrl = baseUrl ?? 'http://localhost:8082',
+      _cortex = cortex;
 
   String get localBaseUrl => _localUrl;
+  CortexClient? get cortexClient => _cortex;
 
   Future<DiscoveredPeer> probePeer(String url) async {
     final uri = Uri.parse('$url/v1/models');
@@ -110,6 +115,32 @@ class SessionTransferService {
       isLocal: true,
     );
     peers.add(localPeer);
+
+    if (_cortex != null) {
+      try {
+        final agents = await _cortex.listAgents();
+        for (final lobe in agents.agents) {
+          if (!lobe.enabled) continue;
+          final uri = Uri.tryParse(lobe.url);
+          if (uri == null) continue;
+          final host = uri.host;
+          final port = uri.hasPort ? uri.port : (uri.scheme == 'https' ? 443 : 80);
+          if (host.isEmpty || port <= 0) continue;
+          if (peers.any((p) => p.host == host && p.port == port)) continue;
+          peers.add(
+            DiscoveredPeer(
+              id: 'cortex:${lobe.name}',
+              name: lobe.agentCard.name.isNotEmpty ? lobe.agentCard.name : lobe.name,
+              host: host,
+              port: port,
+              capabilities: lobe.skills,
+            ),
+          );
+        }
+      } catch (_) {
+        // cortex unreachable — fall back to local-only discovery
+      }
+    }
 
     return peers;
   }

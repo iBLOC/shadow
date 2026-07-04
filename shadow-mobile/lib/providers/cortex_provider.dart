@@ -101,3 +101,7 @@ class CortexNotifier extends StateNotifier<CortexState> {
 final cortexProvider = StateNotifierProvider<CortexNotifier, CortexState>((ref) {
   return CortexNotifier();
 });
+
+final cortexClientProvider = Provider<CortexClient>((ref) {
+  return ref.watch(cortexProvider.notifier).client;
+});
