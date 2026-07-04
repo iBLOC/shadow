@@ -67,9 +67,11 @@ String _wireName(WebRtcSignalType t) {
 /// candidate generation lives in `WebRtcCompanion`.
 class WebRtcSignaling {
   final String _baseUrl;
+  final String _fallbackUrl;
   final String _sessionId;
   WebSocketChannel? _channel;
   bool _disposed = false;
+  bool _usedFallback = false;
 
   final _outbound = StreamController<WebRtcSignal>.broadcast();
   final _vad = StreamController<String>.broadcast();
@@ -78,9 +80,12 @@ class WebRtcSignaling {
   final _disconnected = StreamController<void>.broadcast();
   final _error = StreamController<String>.broadcast();
 
-  WebRtcSignaling({required String sessionId, String? baseUrl})
-    : _baseUrl = baseUrl ?? 'ws://localhost:8082',
+  WebRtcSignaling({required String sessionId, String? baseUrl, String? fallbackUrl})
+    : _baseUrl = baseUrl ?? 'ws://localhost:8443',
+      _fallbackUrl = fallbackUrl ?? 'ws://localhost:8082',
       _sessionId = sessionId;
+
+  bool get usedFallback => _usedFallback;
 
   Stream<WebRtcSignal> get outbound => _outbound.stream;
   Stream<String> get vad => _vad.stream;
@@ -92,20 +97,30 @@ class WebRtcSignaling {
   Future<bool> connect() async {
     if (_disposed) return false;
     try {
-      final uri = Uri.parse('$_baseUrl/api/sessions/$_sessionId/ws');
-      _channel = WebSocketChannel.connect(uri);
-      await _channel!.ready;
-      _channel!.stream.listen(
-        _onMessage,
-        onError: _onError,
-        onDone: _onDone,
-        cancelOnError: false,
-      );
+      await _connectTo(_baseUrl);
       return true;
     } catch (e) {
-      _error.add('signaling connect: $e');
-      return false;
+      try {
+        await _connectTo(_fallbackUrl);
+        _usedFallback = true;
+        return true;
+      } catch (e2) {
+        _error.add('Both cortex ($_baseUrl) and fallback ($_fallbackUrl) failed: $e / $e2');
+        return false;
+      }
     }
+  }
+
+  Future<void> _connectTo(String baseUrl) async {
+    final uri = Uri.parse('$baseUrl/api/sessions/$_sessionId/ws');
+    _channel = WebSocketChannel.connect(uri);
+    await _channel!.ready;
+    _channel!.stream.listen(
+      _onMessage,
+      onError: _onError,
+      onDone: _onDone,
+      cancelOnError: false,
+    );
   }
 
   void sendOffer(String sdp) {

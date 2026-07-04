@@ -415,6 +415,13 @@ class CortexClient {
       _postExpectEmpty('/api/flows/draft/${Uri.encodeComponent(draftId)}/reject');
 
   void dispose() => _http.close();
+
+  /// Build the cortex WebRTC signaling URL for a session.
+  /// Endpoint not yet exposed by cortex (spec §4 unimplemented).
+  /// Kept here as the canonical URL when cortex adds the endpoint.
+  Uri webrtcSignalingUrl(String sessionId, {String modality = 'voice'}) {
+    return Uri.parse('$_baseUrl/api/webrtc/$modality/sessions/${Uri.encodeComponent(sessionId)}/ws');
+  }
 }
 
 class CortexException implements Exception {
