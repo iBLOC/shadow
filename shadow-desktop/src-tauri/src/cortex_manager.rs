@@ -163,16 +163,40 @@ impl Drop for CortexManager {
 
 fn resolve_cortex_binary() -> std::path::PathBuf {
     if let Ok(p) = std::env::var("CORTEX_BIN") {
-        return std::path::PathBuf::from(p);
+        let p = std::path::PathBuf::from(p);
+        if p.exists() {
+            return p;
+        }
+        eprintln!("CORTEX_BIN={p:?} does not exist; falling back");
     }
-    let exe_dir = std::env::current_exe()
+
+    if let Some(dir) = std::env::current_exe()
         .ok()
-        .and_then(|p| p.parent().map(|d| d.to_path_buf()));
-    if let Some(dir) = exe_dir {
+        .and_then(|p| p.parent().map(|d| d.to_path_buf()))
+    {
         let candidate = dir.join(CORTEX_BIN_NAME);
         if candidate.exists() {
             return candidate;
         }
     }
+
+    if let Some(exe_parent) = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|d| d.to_path_buf()))
+    {
+        if let Some(workspace) = exe_parent.parent() {
+            for profile in &["debug", "release"] {
+                let candidate = workspace
+                    .join("cortex")
+                    .join("target")
+                    .join(profile)
+                    .join("cortex");
+                if candidate.exists() {
+                    return candidate;
+                }
+            }
+        }
+    }
+
     std::path::PathBuf::from(CORTEX_BIN_NAME)
 }
