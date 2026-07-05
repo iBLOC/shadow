@@ -1,11 +1,15 @@
 use std::process::Stdio;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
+use tokio::io::AsyncReadExt;
 use tokio::process::{Child, Command};
 use tokio::sync::Mutex;
 use serde::{Serialize, Deserialize};
 
 const DEFAULT_CORTEX_PORT: u16 = 8443;
 const CORTEX_BIN_NAME: &str = "cortex";
+const READY_TIMEOUT: Duration = Duration::from_secs(10);
+const READY_POLL_INTERVAL: Duration = Duration::from_millis(200);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -36,6 +40,8 @@ pub struct CortexManager {
 struct CortexInner {
     status: CortexStatus,
     child: Option<Child>,
+    stderr_task: Option<tokio::task::JoinHandle<()>>,
+    stderr_buf: Arc<Mutex<String>>,
     port: u16,
     host: String,
     error: Option<String>,
@@ -44,16 +50,27 @@ struct CortexInner {
 
 impl CortexManager {
     pub fn new() -> Self {
+        Self::with_port(DEFAULT_CORTEX_PORT)
+    }
+
+    pub fn with_port(port: u16) -> Self {
         Self {
             inner: Arc::new(Mutex::new(CortexInner {
                 status: CortexStatus::Stopped,
                 child: None,
-                port: DEFAULT_CORTEX_PORT,
+                stderr_task: None,
+                stderr_buf: Arc::new(Mutex::new(String::new())),
+                port,
                 host: "127.0.0.1".to_string(),
                 error: None,
                 started_at: None,
             })),
         }
+    }
+
+    pub async fn set_port(&self, port: u16) {
+        let mut inner = self.inner.lock().await;
+        inner.port = port;
     }
 
     pub async fn health(&self) -> Result<serde_json::Value, String> {
@@ -80,16 +97,29 @@ impl CortexManager {
     pub async fn status_json(&self) -> Result<serde_json::Value, String> {
         let inner = self.inner.lock().await;
         let addr = format!("{}:{}", inner.host, inner.port);
+        let stderr = inner.stderr_buf.lock().await.clone();
         Ok(serde_json::json!({
             "status": inner.status.to_string(),
             "addr": addr,
             "port": inner.port,
             "error": inner.error,
             "started_at": inner.started_at,
+            "stderr_tail": stderr_tail(&stderr, 1024),
         }))
     }
 
+    pub async fn stderr_tail(&self, max_bytes: usize) -> String {
+        let inner = self.inner.lock().await;
+        let buf = inner.stderr_buf.lock().await.clone();
+        drop(inner);
+        stderr_tail(&buf, max_bytes)
+    }
+
     pub async fn start(&self) -> Result<(), String> {
+        self.start_with_binary(resolve_cortex_binary()).await
+    }
+
+    pub async fn start_with_binary(&self, bin: std::path::PathBuf) -> Result<(), String> {
         let mut inner = self.inner.lock().await;
         if inner.status == CortexStatus::Running || inner.status == CortexStatus::Starting {
             return Ok(());
@@ -97,34 +127,143 @@ impl CortexManager {
 
         inner.status = CortexStatus::Starting;
         inner.error = None;
+        inner.stderr_buf.lock().await.clear();
 
         let port = inner.port;
         let host = inner.host.clone();
-        let bin = resolve_cortex_binary();
+        let stderr_buf = inner.stderr_buf.clone();
 
         let mut cmd = Command::new(&bin);
         cmd.env("CORTEX_PORT", port.to_string())
             .env("CORTEX_BIND", &host)
+            .env("DATABASE_URL", "")
+            .env("CORTEX_SKIP_NEURE", "1")
             .stdin(Stdio::null())
             .stdout(Stdio::null())
-            .stderr(Stdio::null())
+            .stderr(Stdio::piped())
             .kill_on_drop(true);
 
-        match cmd.spawn() {
-            Ok(child) => {
-                inner.child = Some(child);
-                inner.status = CortexStatus::Running;
-                inner.started_at = Some(chrono::Utc::now());
-                tracing::info!(addr = %format!("{}:{}", host, port), "cortex sidecar started");
-                Ok(())
-            }
+        let mut child = match cmd.spawn() {
+            Ok(c) => c,
             Err(e) => {
                 inner.status = CortexStatus::Error;
                 inner.error = Some(format!("failed to spawn cortex: {}", e));
-                inner.child = None;
-                Err(format!("cortex spawn failed: {}", e))
+                return Err(format!("cortex spawn failed: {}", e));
+            }
+        };
+
+        if let Some(mut stderr) = child.stderr.take() {
+            let buf = stderr_buf.clone();
+            let handle = tokio::spawn(async move {
+                let mut tmp = [0u8; 4096];
+                loop {
+                    match stderr.read(&mut tmp).await {
+                        Ok(0) => break,
+                        Ok(n) => {
+                            let mut g = buf.lock().await;
+                            g.push_str(&String::from_utf8_lossy(&tmp[..n]));
+                            if g.len() > 16 * 1024 {
+                                let drop_at = g.len() - 16 * 1024;
+                                g.drain(..drop_at);
+                            }
+                        }
+                        Err(_) => break,
+                    }
+                }
+            });
+            inner.stderr_task = Some(handle);
+        }
+
+        inner.child = Some(child);
+        inner.status = CortexStatus::Running;
+        inner.started_at = Some(chrono::Utc::now());
+        tracing::info!(addr = %format!("{}:{}", host, port), bin = %bin.display(), "cortex sidecar started");
+
+        drop(inner);
+        match self.wait_for_ready().await {
+            Ok(()) => Ok(()),
+            Err(e) => {
+                self.mark_error(format!("cortex failed to become ready: {e}")).await;
+                Err(e)
             }
         }
+    }
+
+    #[allow(unused_assignments)]
+    pub async fn wait_for_ready(&self) -> Result<(), String> {
+        let inner = self.inner.lock().await;
+        let addr = format!("{}:{}", inner.host, inner.port);
+        drop(inner);
+
+        let deadline = Instant::now() + READY_TIMEOUT;
+        let mut last_err: Option<String>;
+        last_err = None;
+        loop {
+            if let Some(err) = self.check_process_alive().await {
+                let stderr = self.stderr_tail(2048).await;
+                let detail = if stderr.is_empty() {
+                    err
+                } else {
+                    format!("{err}; stderr tail:\n{stderr}")
+                };
+                return Err(format!("cortex exited before becoming ready: {detail}"));
+            }
+
+            match reqwest::get(format!("http://{}/.well-known/agent.json", addr)).await {
+                Ok(resp) if resp.status().is_success() => {
+                    tracing::info!(addr = %addr, "cortex sidecar ready");
+                    return Ok(());
+                }
+                Ok(resp) => {
+                    last_err = Some(format!("status {}", resp.status()));
+                }
+                Err(e) => {
+                    last_err = Some(e.to_string());
+                }
+            }
+
+            if Instant::now() >= deadline {
+                let last = last_err.unwrap_or_else(|| "no response yet".to_string());
+                return Err(format!(
+                    "timed out after {}ms waiting for cortex at {addr} (last error: {last})",
+                    READY_TIMEOUT.as_millis()
+                ));
+            }
+            tokio::time::sleep(READY_POLL_INTERVAL).await;
+        }
+    }
+
+    async fn check_process_alive(&self) -> Option<String> {
+        let mut inner = self.inner.lock().await;
+        let child = inner.child.as_mut()?;
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                let stderr = inner.stderr_buf.lock().await.clone();
+                let detail = if stderr.is_empty() {
+                    format!("exit status: {status}")
+                } else {
+                    let tail = stderr_tail(&stderr, 2048);
+                    format!("exit status: {status}; stderr tail:\n{tail}")
+                };
+                inner.status = CortexStatus::Error;
+                inner.error = Some(detail.clone());
+                inner.child = None;
+                Some(detail)
+            }
+            Ok(None) => None,
+            Err(e) => Some(format!("try_wait error: {e}")),
+        }
+    }
+
+    async fn mark_error(&self, msg: String) {
+        let mut inner = self.inner.lock().await;
+        if let Some(mut child) = inner.child.take() {
+            let _ = child.start_kill();
+            let _ = child.wait().await;
+        }
+        inner.status = CortexStatus::Error;
+        inner.error = Some(msg.clone());
+        tracing::error!(error = %msg, "cortex sidecar entered error state");
     }
 
     pub async fn stop(&self) -> Result<(), String> {
@@ -136,6 +275,9 @@ impl CortexManager {
         if let Some(mut child) = inner.child.take() {
             let _ = child.start_kill();
             let _ = child.wait().await;
+        }
+        if let Some(task) = inner.stderr_task.take() {
+            task.abort();
         }
         inner.status = CortexStatus::Stopped;
         inner.started_at = None;
@@ -157,11 +299,22 @@ impl Drop for CortexManager {
             if let Some(mut child) = inner.child.take() {
                 let _ = child.start_kill();
             }
+            if let Some(task) = inner.stderr_task.take() {
+                task.abort();
+            }
         }
     }
 }
 
-fn resolve_cortex_binary() -> std::path::PathBuf {
+fn stderr_tail(buf: &str, max_bytes: usize) -> String {
+    if buf.len() <= max_bytes {
+        buf.to_string()
+    } else {
+        buf[buf.len() - max_bytes..].to_string()
+    }
+}
+
+pub fn resolve_cortex_binary() -> std::path::PathBuf {
     if let Ok(p) = std::env::var("CORTEX_BIN") {
         let p = std::path::PathBuf::from(p);
         if p.exists() {
@@ -180,20 +333,26 @@ fn resolve_cortex_binary() -> std::path::PathBuf {
         }
     }
 
-    if let Some(exe_parent) = std::env::current_exe()
+    if let Some(start) = std::env::current_exe()
         .ok()
         .and_then(|p| p.parent().map(|d| d.to_path_buf()))
     {
-        if let Some(workspace) = exe_parent.parent() {
-            for profile in &["debug", "release"] {
-                let candidate = workspace
-                    .join("cortex")
-                    .join("target")
-                    .join(profile)
-                    .join("cortex");
-                if candidate.exists() {
-                    return candidate;
+        let mut dir = start.clone();
+        for _ in 0..12 {
+            if let Some(parent) = dir.parent() {
+                for profile in &["debug", "release"] {
+                    let candidate = parent
+                        .join(CORTEX_BIN_NAME)
+                        .join("target")
+                        .join(profile)
+                        .join(CORTEX_BIN_NAME);
+                    if candidate.exists() {
+                        return candidate;
+                    }
                 }
+                dir = parent.to_path_buf();
+            } else {
+                break;
             }
         }
     }

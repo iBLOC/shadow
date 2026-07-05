@@ -7,7 +7,7 @@ mod model_store;
 mod config_manager;
 mod opencode_manager;
 mod worktree_manager;
-mod cortex_manager;
+pub mod cortex_manager;
 
 use config_manager::{AppConfig, DatabaseConfig, ProviderConfig, SecureAuth};
 use model_store::{EncryptedStorage, ModelProvider};
@@ -497,6 +497,7 @@ struct ProviderModelData {
     #[serde(default)]
     object: String,
     #[serde(default)]
+    #[allow(dead_code)]
     created: Option<u64>,
     #[serde(default)]
     context_window: Option<i32>,
@@ -745,7 +746,7 @@ pub struct WorkflowPlan {
 #[tauri::command]
 async fn workflow_start_planning(
     state: State<'_, AppState>,
-    task_id: String,
+    _task_id: String,
     task_title: String,
     task_description: String,
 ) -> Result<WorkflowPlan, String> {
@@ -797,7 +798,7 @@ async fn reject_task(
 #[tauri::command]
 async fn workflow_execute_step(
     state: State<'_, AppState>,
-    task_id: String,
+    _task_id: String,
     step: PlanStep,
 ) -> Result<String, String> {
     if step.agent_type == "opencode" {
