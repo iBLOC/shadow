@@ -135,40 +135,16 @@ class SessionTransferService {
     return SessionExport.fromJson(json);
   }
 
-  Future<Map<String, dynamic>> importSession(
-    String peerUrl,
-    SessionExport export, {
-    bool useCortex = true,
-  }) async {
-    if (useCortex && _cortex != null) {
-      try {
-        final convo = await _cortex!.importSessionAsConversation(export: export);
-        return {
-          'conversation_id': convo.id,
-          'cortex_url': _cortex!.baseUrl,
-          'transferred_via': 'cortex',
-        };
-      } catch (e) {
-        // fall through to peer-direct transfer
-      }
+  Future<Map<String, dynamic>> importSession(SessionExport export) async {
+    if (_cortex == null) {
+      throw StateError('cortex is required for session transfer; configure it in the cortex provider');
     }
-
-    final payload = {
-      'messages': export.messages,
-      'session_id': export.sessionId,
+    final convo = await _cortex.importSessionAsConversation(export: export);
+    return {
+      'conversation_id': convo.id,
+      'cortex_url': _cortex.baseUrl,
+      'transferred_via': 'cortex',
     };
-
-    final response = await _client.post(
-      Uri.parse('$peerUrl/api/sessions/import'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode(payload),
-    );
-
-    if (response.statusCode != 200) {
-      throw Exception('Failed to import session: ${response.statusCode}');
-    }
-
-    return {'transferred_via': 'peer', ...jsonDecode(response.body) as Map<String, dynamic>};
   }
 
   void dispose() {

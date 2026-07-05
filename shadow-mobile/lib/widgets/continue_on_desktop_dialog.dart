@@ -129,7 +129,7 @@ class ContinueDesktopNotifier extends StateNotifier<ContinueDesktopState> {
         phase: ContinueDesktopPhase.sending,
       );
 
-      await _service.importSession(state.selectedPeer!.url, export);
+      await _service.importSession(export);
 
       state = state.copyWith(phase: ContinueDesktopPhase.success);
     } catch (e) {
