@@ -15,6 +15,7 @@ import '../screens/model_settings_screen.dart';
 import '../screens/prompt_settings_screen.dart';
 import '../screens/voice_conversation_screen.dart';
 import '../screens/group_screen.dart';
+import '../screens/flows_screen.dart';
 import '../widgets/main_shell.dart';
 
 /// Route names
@@ -34,6 +35,7 @@ class AppRoutes {
   static const String promptSettings = '/settings/prompt';
   static const String voice = '/voice';
   static const String group = '/group';
+  static const String flows = '/flows';
 
   // Legacy routes (redirect)
   static const String agents = '/agents';
@@ -178,6 +180,13 @@ final GoRouter appRouter = GoRouter(
       name: 'group',
       pageBuilder: (context, state) =>
           _fadePage(state, _wrapInShell(state, const GroupScreen())),
+    ),
+    // Flows
+    GoRoute(
+      path: AppRoutes.flows,
+      name: 'flows',
+      pageBuilder: (context, state) =>
+          _fadePage(state, _wrapInShell(state, const FlowsScreen())),
     ),
     // Legacy redirects
     GoRoute(

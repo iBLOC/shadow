@@ -217,5 +217,11 @@
   "addManually": "Add manually",
   "@addManually": {},
   "confirm": "Confirm",
-  "@confirm": {}
+  "@confirm": {},
+  "cortexFlows": "Cortex Flows",
+  "@cortexFlows": {},
+  "active": "Active",
+  "@active": {},
+  "drafts": "Drafts",
+  "@drafts": {}
 }

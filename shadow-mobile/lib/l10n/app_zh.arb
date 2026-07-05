@@ -174,5 +174,11 @@
     }
   },
   "addManually": "手动添加",
-  "confirm": "确认"
+  "confirm": "确认",
+  "cortexFlows": "大脑皮层流程",
+  "@cortexFlows": {},
+  "active": "活跃",
+  "@active": {},
+  "drafts": "草稿",
+  "@drafts": {}
 }

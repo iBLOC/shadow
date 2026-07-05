@@ -460,4 +460,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get confirm => 'Confirm';
+
+  @override
+  String get cortexFlows => 'Cortex Flows';
+
+  @override
+  String get active => 'Active';
+
+  @override
+  String get drafts => 'Drafts';
 }

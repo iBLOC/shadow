@@ -10,6 +10,7 @@ import '../widgets/glass_card.dart';
 import '../widgets/log_panel_section.dart';
 import '../theme/app_colors.dart';
 import '../tts_engine.dart';
+import 'flows_screen.dart';
 
 final systemMemoryProvider = FutureProvider<SystemMemoryInfo>((ref) async {
   return SystemMemoryInfo.getMemoryInfo();
@@ -225,6 +226,20 @@ class SettingsScreen extends ConsumerWidget {
                   child: _AccessibilityTile(),
                 ),
               ],
+              const SizedBox(height: 16),
+              GlassCard(
+                padding: EdgeInsets.zero,
+                child: ListTile(
+                  leading: Icon(Icons.account_tree, color: AppColors.primary),
+                  title: Text(l10n.cortexFlows),
+                  subtitle: const Text('Browse and run cortex flows'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const FlowsScreen()),
+                  ),
+                ),
+              ),
               const SizedBox(height: 16),
               GlassCard(
                 padding: EdgeInsets.zero,

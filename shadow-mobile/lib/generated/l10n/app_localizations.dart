@@ -937,6 +937,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Confirm'**
   String get confirm;
+
+  /// No description provided for @cortexFlows.
+  ///
+  /// In en, this message translates to:
+  /// **'Cortex Flows'**
+  String get cortexFlows;
+
+  /// No description provided for @active.
+  ///
+  /// In en, this message translates to:
+  /// **'Active'**
+  String get active;
+
+  /// No description provided for @drafts.
+  ///
+  /// In en, this message translates to:
+  /// **'Drafts'**
+  String get drafts;
 }
 
 class _AppLocalizationsDelegate

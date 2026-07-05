@@ -456,4 +456,13 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get confirm => '确认';
+
+  @override
+  String get cortexFlows => '大脑皮层流程';
+
+  @override
+  String get active => '活跃';
+
+  @override
+  String get drafts => '草稿';
 }
