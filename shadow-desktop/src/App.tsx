@@ -20,6 +20,7 @@ import { FlowsPage } from './pages/FlowsPage';
 import { GroupPage } from './pages/GroupPage';
 import { PromptSettingsPage } from './pages/PromptSettingsPage';
 import { ServicesPage } from './pages/ServicesPage';
+import { ResonancePage } from './pages/ResonancePage';
 import './App.css';
 
 function App() {
@@ -46,6 +47,7 @@ function App() {
           <Route path="settings" element={<SettingsPage />} />
           <Route path="discovery" element={<DiscoveryPage />} />
           <Route path="flows" element={<FlowsPage />} />
+          <Route path="resonance" element={<ResonancePage />} />
         </Route>
       </Routes>
     </BrowserRouter>

@@ -13,40 +13,22 @@ describe('DatabaseStore', () => {
  vi.clearAllMocks();
  mockSafeInvoke.mockReset();
  useDatabaseStore.setState({
- dbType: 'embedded',
+ dbType: 'internal',
  status: 'disconnected',
- embeddedPort: null,
- externalConfig: {
- host: 'localhost',
- port: 5432,
- username: 'postgres',
- password: '',
- database: 'shadow',
- },
+ internalPort: null,
  masterPassword: null,
  error: null,
  });
  });
 
  describe('initial state', () => {
- it('starts with embedded dbType and disconnected status', () => {
+ it('starts with internal dbType and disconnected status', () => {
  const state = useDatabaseStore.getState();
- expect(state.dbType).toBe('embedded');
+ expect(state.dbType).toBe('internal');
  expect(state.status).toBe('disconnected');
- expect(state.embeddedPort).toBeNull();
+ expect(state.internalPort).toBeNull();
  expect(state.masterPassword).toBeNull();
  expect(state.error).toBeNull();
- });
-
- it('exposes default external config', () => {
- const state = useDatabaseStore.getState();
- expect(state.externalConfig).toEqual({
- host: 'localhost',
- port: 5432,
- username: 'postgres',
- password: '',
- database: 'shadow',
- });
  });
  });
 
@@ -55,52 +37,20 @@ describe('DatabaseStore', () => {
  useDatabaseStore.setState({ error: 'previous error' });
  const { setDbType } = useDatabaseStore.getState();
 
- setDbType('external');
+ setDbType('distributed');
 
  const state = useDatabaseStore.getState();
- expect(state.dbType).toBe('external');
+ expect(state.dbType).toBe('distributed');
  expect(state.error).toBeNull();
  });
 
  it('accepts all valid DatabaseType values', () => {
- const types: DatabaseType[] = ['embedded', 'external', 'neon'];
+ const types: DatabaseType[] = ['internal', 'distributed'];
  for (const t of types) {
  const { setDbType } = useDatabaseStore.getState();
  setDbType(t);
  expect(useDatabaseStore.getState().dbType).toBe(t);
  }
- });
- });
-
- describe('setExternalConfig', () => {
- it('merges partial config', () => {
- const { setExternalConfig } = useDatabaseStore.getState();
- setExternalConfig({ host: 'db.example.com', port: 6543 });
-
- const config = useDatabaseStore.getState().externalConfig;
- expect(config.host).toBe('db.example.com');
- expect(config.port).toBe(6543);
- expect(config.username).toBe('postgres');
- expect(config.database).toBe('shadow');
- });
-
- it('keeps untouched fields intact', () => {
- useDatabaseStore.setState({
- externalConfig: {
- host: 'first',
- port: 1111,
- username: 'u1',
- password: 'p1',
- database: 'd1',
- },
- });
- const { setExternalConfig } = useDatabaseStore.getState();
- setExternalConfig({ host: 'second' });
-
- const config = useDatabaseStore.getState().externalConfig;
- expect(config.host).toBe('second');
- expect(config.port).toBe(1111);
- expect(config.username).toBe('u1');
  });
  });
 
@@ -113,24 +63,24 @@ describe('DatabaseStore', () => {
  });
  });
 
- describe('startEmbedded', () => {
+ describe('startInternal', () => {
  it('sets connected status with port on success', async () => {
  mockSafeInvoke.mockResolvedValueOnce(54329);
- const { startEmbedded } = useDatabaseStore.getState();
+ const { startInternal } = useDatabaseStore.getState();
 
- await startEmbedded();
+ await startInternal();
 
  const state = useDatabaseStore.getState();
  expect(state.status).toBe('connected');
- expect(state.embeddedPort).toBe(54329);
+ expect(state.internalPort).toBe(54329);
  expect(state.error).toBeNull();
  });
 
  it('sets error status on failure', async () => {
  mockSafeInvoke.mockRejectedValueOnce(new Error('Port already in use'));
- const { startEmbedded } = useDatabaseStore.getState();
+ const { startInternal } = useDatabaseStore.getState();
 
- await startEmbedded();
+ await startInternal();
 
  const state = useDatabaseStore.getState();
  expect(state.status).toBe('error');
@@ -138,37 +88,27 @@ describe('DatabaseStore', () => {
  });
  });
 
- describe('stopEmbedded', () => {
+ describe('stopInternal', () => {
  it('disconnects and clears port on success', async () => {
  mockSafeInvoke.mockResolvedValueOnce(undefined);
- useDatabaseStore.setState({ status: 'connected', embeddedPort: 54329 });
- const { stopEmbedded } = useDatabaseStore.getState();
+ useDatabaseStore.setState({ status: 'connected', internalPort: 54329 });
+ const { stopInternal } = useDatabaseStore.getState();
 
- await stopEmbedded();
+ await stopInternal();
 
  const state = useDatabaseStore.getState();
  expect(state.status).toBe('disconnected');
- expect(state.embeddedPort).toBeNull();
+ expect(state.internalPort).toBeNull();
  });
 
  it('sets error on failure', async () => {
  mockSafeInvoke.mockRejectedValueOnce(new Error('Stop failed'));
- const { stopEmbedded } = useDatabaseStore.getState();
+ const { stopInternal } = useDatabaseStore.getState();
 
- await stopEmbedded();
+ await stopInternal();
 
  const state = useDatabaseStore.getState();
  expect(state.error).toBe('Stop failed');
- });
- });
-
- describe('testExternalConnection', () => {
- it('returns true on success and sets connected', async () => {
- const { testExternalConnection } = useDatabaseStore.getState();
- const result = await testExternalConnection();
-
- expect(result).toBe(true);
- expect(useDatabaseStore.getState().status).toBe('connected');
  });
  });
 

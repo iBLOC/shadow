@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useCortexStore } from '../stores/cortexStore';
 import { cortexClient, type FlowMeta } from '../lib/cortexClient';
 
 export function FlowsPage() {
+  const { t } = useTranslation();
   const flows = useCortexStore((s) => s.flows);
   const refreshFlows = useCortexStore((s) => s.refreshFlows);
   const [running, setRunning] = useState<string | null>(null);
@@ -25,15 +27,15 @@ export function FlowsPage() {
 
   return (
     <div className="p-4">
-      <h1 className="text-xl mb-4">Cortex Flows</h1>
-      <button onClick={refreshFlows} className="mb-4 px-3 py-1 bg-blue-500 text-white rounded">Refresh</button>
+      <h1 className="text-xl mb-4">{t('flows.title')}</h1>
+      <button onClick={refreshFlows} className="mb-4 px-3 py-1 bg-blue-500 text-white rounded">{t('flows.refresh')}</button>
       <table className="w-full border-collapse">
         <thead>
           <tr className="border-b">
-            <th className="text-left p-2">Name</th>
-            <th className="text-left p-2">Version</th>
-            <th className="text-left p-2">Tags</th>
-            <th className="text-left p-2">Actions</th>
+            <th className="text-left p-2">{t('flows.name')}</th>
+            <th className="text-left p-2">{t('flows.version')}</th>
+            <th className="text-left p-2">{t('flows.tags')}</th>
+            <th className="text-left p-2">{t('flows.actions')}</th>
           </tr>
         </thead>
         <tbody>
@@ -48,7 +50,7 @@ export function FlowsPage() {
                   disabled={running === f.id}
                   className="px-2 py-1 bg-green-500 text-white rounded"
                 >
-                  {running === f.id ? 'Running...' : 'Run'}
+                  {running === f.id ? t('flows.running') : t('flows.run')}
                 </button>
               </td>
             </tr>

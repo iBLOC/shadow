@@ -20,9 +20,13 @@ export interface ResonanceInstance {
   id: string;
   name: string;
   host: string;
-  port: number;
-  enabled: boolean;
+  port?: number;
+  apiKey?: string | null;
   isPrimary: boolean;
+  status: 'connected' | 'disconnected' | 'connecting';
+  latency?: number;
+  version?: string;
+  exposedAgents: string[];
   createdAt: number;
 }
 
@@ -42,7 +46,7 @@ interface ServiceState {
 
   addResonanceInstance: (
     instance: Omit<ResonanceInstance, 'id' | 'createdAt' | 'isPrimary'>,
-  ) => ResonanceInstance;
+  ) => void;
   updateResonanceInstance: (id: string, patch: Partial<ResonanceInstance>) => void;
   removeResonanceInstance: (id: string) => void;
   setPrimaryResonance: (id: string | null) => void;

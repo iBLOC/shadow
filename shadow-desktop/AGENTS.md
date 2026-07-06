@@ -150,7 +150,7 @@ The same `src/` produces **two artefacts**:
 
 `src/lib/platform.ts` is the single source of truth for which target is in use. Tauri-only calls go through `src/lib/tauriSafe.ts::safeInvoke()` which returns `null` on the web build.
 
-## STATE STATUS (2026-06-04)
+## STATE STATUS (2026-07-06)
 
 **Completed** ✅:
 - React 19 + Tauri 2 foundation
@@ -164,9 +164,14 @@ The same `src/` produces **two artefacts**:
 - mDNS service discovery (HTTP-based via Prefrontal `/api/discovery/*`)
 - **Tauri invoke migration** — `agentStore.fetchAgents()` now uses `prefrontalClient.listAgents()` over HTTP instead of `invoke('prefrontal_list_agents')`
 - A2A-ready: HTTP client can talk to `/api/a2a/peers` for cross-service agent delegation
+- **Database type simplification** — 仅支持 `internal`（内部数据库）+ `distributed`（分布式数据库/Neon），移除 external pgsql
+- **FlowsPage i18n** — "Cortex Flows" → "思维定式"
+- **ResonancePage** — 独立共鸣管理页面，支持多实例配置、主实例设置、Agent 开放选择
 
 **Planned** 📋:
 - Tauri Rust backend → embed Prefrontal core (drop in-process, no separate service)
 - Finish SetupPage Tauri invoke migration (needs Rust HTTP endpoints for secure_auth + model_storage)
 - Cross-device session transfer
 - A2A peer card in Discovery page (promote a discovered node to a delegatable A2A peer)
+- 思维定式编辑能力 — 用户可修改已抽象的流程
+- Resonance 连接测试 — 实际 HTTP 连接检测 + 延迟测量

@@ -22,11 +22,17 @@ export interface Agent {
 }
 
 export interface Task {
-  id: string;
-  status: string;
-  message?: string;
-  createdAt?: string;
-  updatedAt?: string;
+  task_id: string;
+  source?: 'local' | 'a2a' | 'schedule';
+  target_agent: string;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  tenant_id: string;
+  received_at: string;
+  completed_at: string | null;
+  result?: unknown;
+  error?: string | null;
+  payload?: unknown;
+  tags?: string[];
 }
 
 export interface ApiEnvelope<T> {
@@ -322,12 +328,12 @@ export class PrefrontalClient {
     return this.request<Agent>(`/api/agents/${agentId}`);
   }
 
-  async listTasks(): Promise<Task[]> {
-    return this.request<Task[]>('/api/tasks');
+  async listTasks(tenantId: string = 'default'): Promise<Task[]> {
+    return this.request<Task[]>(`/hippocampus/api/tasks?tenantId=${encodeURIComponent(tenantId)}`);
   }
 
-  async getTask(taskId: string): Promise<Task> {
-    return this.request<Task>(`/api/tasks/${taskId}`);
+  async getTask(tenantId: string, taskId: string): Promise<Task> {
+    return this.request<Task>(`/hippocampus/api/tasks/${encodeURIComponent(tenantId)}/${encodeURIComponent(taskId)}`);
   }
 
   async listSkills(): Promise<unknown[]> {

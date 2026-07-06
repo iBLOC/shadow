@@ -96,7 +96,7 @@
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
 │  │  Hippocampus  /home/ibloc/Projects/hippocampus      Port 8081        │    │
 │  │  5-crate Rust workspace — HybridRAG + temporal + consciousness      │    │
-│  │  • hippocampus-core (lib)  • hippocampus-storage (Postgres/Neon)   │    │
+│  │  • hippocampus-core (lib)  • hippocampus-storage (内部数据库/分布式数据库)   │    │
 │  │  • hippocampus-server (Axum REST)  • hippocampus-mcp (stdio)        │    │
 │  │  • hippocampus-cli                                              │    │
 │  └─────────────────────────────────────────────────────────────────────┘    │

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { safeInvoke } from '../lib/tauriSafe';
-import { Database, Server, Cloud, Lock, CheckCircle, AlertCircle, Key, Plus, ChevronRight, type LucideIcon } from 'lucide-react';
+import { Server, Cloud, Lock, CheckCircle, AlertCircle, Key, Plus, ChevronRight, Database, type LucideIcon } from 'lucide-react';
 import { useDatabaseStore, type DatabaseType } from '../stores/databaseStore';
 import { ProviderForm } from '../components/business';
 import type { ProviderFormData, ProviderTypeOption } from '../components/business';
@@ -32,9 +32,8 @@ interface ModelProvider {
 }
 
 const DB_TYPE_OPTIONS: { value: DatabaseType; icon: LucideIcon; labelKey: string; descKey: string; disabled?: boolean }[] = [
-  { value: 'embedded', icon: Server, labelKey: 'settings.dbEmbedded', descKey: 'setup.dbEmbeddedDesc' },
-  { value: 'external', icon: Database, labelKey: 'settings.dbExternal', descKey: 'setup.dbExternalDesc' },
-  { value: 'neon', icon: Cloud, labelKey: 'settings.dbNeon', descKey: 'setup.dbNeonDesc', disabled: true },
+  { value: 'internal', icon: Server, labelKey: 'settings.dbInternal', descKey: 'setup.dbInternalDesc' },
+  { value: 'distributed', icon: Cloud, labelKey: 'settings.dbDistributed', descKey: 'setup.dbDistributedDesc', disabled: true },
 ];
 
 const PROVIDER_TYPES = [
@@ -141,7 +140,7 @@ type SetupStep = 'password' | 'database' | 'provider' | 'models';
 export function SetupPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { dbType, status, setDbType, startEmbedded } = useDatabaseStore();
+  const { dbType, status, setDbType, startInternal } = useDatabaseStore();
   const [step, setStep] = useState<SetupStep>('password');
 
   const [masterPasswordInput, setMasterPasswordInput] = useState('');
@@ -149,11 +148,6 @@ export function SetupPage() {
   const [passwordError, setPasswordError] = useState('');
   const [machineId, setMachineId] = useState('');
   const [isSettingPassword, setIsSettingPassword] = useState(false);
-
-  const [externalDbConfig, setExternalDbConfig] = useState({
-    host: 'localhost', port: '5432', username: 'postgres', password: '', database: 'shadow',
-  });
-  const [connectionTestResult, setConnectionTestResult] = useState<'idle' | 'testing' | 'success' | 'failed'>('idle');
 
   const [providerType, setProviderType] = useState<ProviderTypeId>('openai');
   const [providerName, setProviderName] = useState('');
@@ -219,44 +213,10 @@ export function SetupPage() {
   const handleSelectDb = (type: DatabaseType) => setDbType(type);
 
   const handleConfigureDb = async () => {
-    if (dbType === 'embedded') {
-      await startEmbedded();
+    if (dbType === 'internal') {
+      await startInternal();
       await safeInvoke('update_setup_step', { step: 'provider' });
       setStep('provider');
-    } else if (dbType === 'external') {
-      setConnectionTestResult('testing');
-      try {
-        await safeInvoke('save_db_config', {
-          dbType: 'external',
-          dbConfig: {
-            host: externalDbConfig.host, port: parseInt(externalDbConfig.port, 10),
-            username: externalDbConfig.username, password: externalDbConfig.password,
-            database: externalDbConfig.database,
-          },
-        });
-        setConnectionTestResult('success');
-        await safeInvoke('update_setup_step', { step: 'provider' });
-        setTimeout(() => setStep('provider'), 1000);
-      } catch {
-        setConnectionTestResult('failed');
-      }
-    }
-  };
-
-  const handleTestConnection = async () => {
-    setConnectionTestResult('testing');
-    try {
-      await safeInvoke('save_db_config', {
-        dbType: 'external',
-        dbConfig: {
-          host: externalDbConfig.host, port: parseInt(externalDbConfig.port, 10),
-          username: externalDbConfig.username, password: externalDbConfig.password,
-          database: externalDbConfig.database,
-        },
-      });
-      setConnectionTestResult('success');
-    } catch {
-      setConnectionTestResult('failed');
     }
   };
 
@@ -408,7 +368,7 @@ export function SetupPage() {
                 <p className="text-sm text-muted-foreground">{t('setup.selectDatabaseDesc')}</p>
               </div>
 
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 {DB_TYPE_OPTIONS.map((option) => {
                   const Icon = option.icon;
                   return (
@@ -431,74 +391,16 @@ export function SetupPage() {
                 })}
               </div>
 
-              {dbType === 'embedded' && (
+              {dbType === 'internal' && (
                 <div className="rounded-md bg-card p-4">
                   <div className="flex items-center gap-3 font-medium">
                     <Database size={20} />
-                    <span>{t('settings.dbEmbedded')}</span>
+                    <span>{t('settings.dbInternal')}</span>
                     {status === 'connected' && <CheckCircle size={16} className="text-green-500" />}
                     {status === 'error' && <AlertCircle size={16} className="text-red-500" />}
                   </div>
                   {status === 'connected' && <p className="mt-2 text-sm text-green-500">{t('setup.dbReady')}</p>}
                   {status === 'connecting' && <p className="mt-2 text-sm text-muted-foreground">{t('setup.connecting')}</p>}
-                </div>
-              )}
-
-              {dbType === 'external' && (
-                <div className="flex flex-col gap-4 rounded-md bg-card p-4">
-                  <div className="flex flex-col gap-2">
-                    <label className="text-sm text-muted-foreground">{t('settings.dbHost')}</label>
-                    <input
-                      type="text" value={externalDbConfig.host}
-                      onChange={(e) => setExternalDbConfig({ ...externalDbConfig, host: e.target.value })}
-                      className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-foreground focus:outline-none"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="flex flex-col gap-2">
-                      <label className="text-sm text-muted-foreground">{t('settings.dbPort')}</label>
-                      <input type="text" value={externalDbConfig.port}
-                        onChange={(e) => setExternalDbConfig({ ...externalDbConfig, port: e.target.value })}
-                        className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-foreground focus:outline-none"
-                      />
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      <label className="text-sm text-muted-foreground">{t('settings.dbName')}</label>
-                      <input type="text" value={externalDbConfig.database}
-                        onChange={(e) => setExternalDbConfig({ ...externalDbConfig, database: e.target.value })}
-                        className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-foreground focus:outline-none"
-                      />
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <label className="text-sm text-muted-foreground">{t('settings.dbUser')}</label>
-                    <input type="text" value={externalDbConfig.username}
-                      onChange={(e) => setExternalDbConfig({ ...externalDbConfig, username: e.target.value })}
-                      className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-foreground focus:outline-none"
-                    />
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <label className="text-sm text-muted-foreground">{t('settings.dbPassword')}</label>
-                    <input type="password" value={externalDbConfig.password}
-                      onChange={(e) => setExternalDbConfig({ ...externalDbConfig, password: e.target.value })}
-                      className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-foreground focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <Button variant="secondary" onClick={handleTestConnection} disabled={connectionTestResult === 'testing'}>
-                      {connectionTestResult === 'testing' ? t('settings.dbConnecting') : t('settings.dbTestConnection')}
-                    </Button>
-                  </div>
-                  {connectionTestResult === 'success' && (
-                    <p className="flex items-center gap-1 text-sm text-green-500">
-                      <CheckCircle size={14} /> {t('setup.connectionSuccess')}
-                    </p>
-                  )}
-                  {connectionTestResult === 'failed' && (
-                    <p className="flex items-center gap-1 text-sm text-red-500">
-                      <AlertCircle size={14} /> {t('setup.connectionFailed')}
-                    </p>
-                  )}
                 </div>
               )}
 

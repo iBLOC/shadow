@@ -6,7 +6,7 @@ use tokio::process::{Child, Command};
 use tokio::sync::Mutex;
 use serde::{Serialize, Deserialize};
 
-const DEFAULT_CORTEX_PORT: u16 = 8443;
+const DEFAULT_CORTEX_PORT: u16 = 60000;
 const CORTEX_BIN_NAME: &str = "cortex";
 const READY_TIMEOUT: Duration = Duration::from_secs(10);
 const READY_POLL_INTERVAL: Duration = Duration::from_millis(200);

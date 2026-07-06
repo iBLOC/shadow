@@ -88,6 +88,7 @@ impl WorktreeManager {
         worktrees.get(task_id).cloned()
     }
 
+    #[allow(dead_code)]
     pub async fn list(&self) -> Vec<WorktreeInfo> {
         let worktrees = self.worktrees.lock().await;
         worktrees.values().cloned().collect()

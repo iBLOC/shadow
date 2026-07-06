@@ -3,6 +3,7 @@ use tokio::sync::RwLock;
 use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct AgentCard {
     pub id: String,
     pub name: String,
@@ -14,6 +15,7 @@ pub struct AgentCard {
 
 pub struct PrefrontalState {
     client: Arc<RwLock<PrefrontalClient>>,
+    #[allow(dead_code)]
     base_url: Arc<RwLock<String>>,
 }
 
@@ -37,6 +39,7 @@ impl PrefrontalState {
         }
     }
 
+    #[allow(dead_code)]
     pub async fn set_base_url(&self, url: String) {
         *self.base_url.write().await = url.clone();
         *self.client.write().await = PrefrontalClient::new(url);

@@ -2,7 +2,7 @@ use aes_gcm::{
     aead::{Aead, KeyInit},
     Aes256Gcm, Nonce,
 };
-use password_hash::{PasswordHash, PasswordHasher};
+use password_hash::PasswordHash;
 use rand::rngs::OsRng;
 use rand::RngCore;
 

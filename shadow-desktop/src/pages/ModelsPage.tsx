@@ -6,27 +6,25 @@ import { Plus, Trash2, Cpu, TestTube, CheckCircle, XCircle, ChevronDown, Chevron
 import type { ModelProvider } from '../components/business/AddProviderModal/types';
 
 interface EngineModel {
-  model_id: string;
-  engine: string;
-  local_path: string | null;
-  size_bytes: number;
-  loaded_at: string;
-  source: string;
+  id: string;
+  object: string;
+  created: number;
+  owned_by: string;
+  capabilities: string[];
 }
 
 interface ModelDownloadTask {
-  task_id: string;
-  model_id: string;
-  engine: string;
-  reference: string;
-  phase: 'pending' | 'downloading' | 'verifying' | 'loading' | 'ready' | 'failed' | string;
+  job_id: string;
+  status: 'pending' | 'downloading' | 'verifying' | 'loading' | 'ready' | 'failed' | string;
   progress: number;
   error: string | null;
-  local_path: string | null;
+  source: string;
+  reference: string;
 }
 
-const PREFRONTAL_URL = 'http://localhost:8082';
-const API_BASE = 'http://localhost:8082';
+import { prefrontalUrl } from '../lib/platform';
+
+const API_BASE = prefrontalUrl();
 
 const providerLogos: Record<string, { bg: string; text: string }> = {
   openai: { bg: '#10a37f', text: 'AI' },
@@ -276,7 +274,9 @@ function LocalEngineModelsSection({ onChanged }: { onChanged: () => void }) {
     setLoading(true);
     setError(null);
     try {
-      const r = await fetch(`${PREFRONTAL_URL}/api/engine-models`);
+      // Neure is embedded in cortex at /neure/* — its OpenAI-compatible
+      // /v1/models endpoint is the canonical model list.
+      const r = await fetch(`${API_BASE}/neure/v1/models`);
       if (r.status === 404) { setModels([]); return; }
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const body = await r.json();
@@ -292,7 +292,8 @@ function LocalEngineModelsSection({ onChanged }: { onChanged: () => void }) {
 
   const handleRelease = async (modelId: string) => {
     try {
-      const r = await fetch(`${PREFRONTAL_URL}/api/engine-models/${modelId}/release`, { method: 'POST' });
+      // Neure's DELETE /v1/models/all/{id} removes a downloaded model.
+      const r = await fetch(`${API_BASE}/neure/v1/models/all/${modelId}`, { method: 'DELETE' });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       await load();
       onChanged();
@@ -304,12 +305,12 @@ function LocalEngineModelsSection({ onChanged }: { onChanged: () => void }) {
   const pollTask = async (taskId: string) => {
     for (let i = 0; i < 30; i++) {
       try {
-        const r = await fetch(`${PREFRONTAL_URL}/api/engine-models/download/${taskId}`);
+        const r = await fetch(`${API_BASE}/neure/v1/models/pull/${taskId}`);
         if (!r.ok) return;
         const body: ModelDownloadTask = await r.json();
         setTasks((prev) => ({ ...prev, [taskId]: body }));
-        if (body.phase === 'ready' || body.phase === 'failed') {
-          if (body.phase === 'ready') { await load(); onChanged(); }
+        if (body.status === 'ready' || body.status === 'failed') {
+          if (body.status === 'ready') { await load(); onChanged(); }
           return;
         }
       } catch { return; }
@@ -322,7 +323,7 @@ function LocalEngineModelsSection({ onChanged }: { onChanged: () => void }) {
       <header className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-lg font-semibold text-foreground">{taskT('models.localEngineTitle')}</h2>
-          <p className="subtitle">{taskT('models.localEngineDesc', { url: PREFRONTAL_URL })}</p>
+          <p className="subtitle">{taskT('models.localEngineDesc', { url: API_BASE })}</p>
         </div>
         <Button variant="primary" icon={<Download size={18} />} onClick={() => setShowDownload(true)}>
           {taskT('models.downloadNewModel')}
@@ -351,12 +352,16 @@ function LocalEngineModelsSection({ onChanged }: { onChanged: () => void }) {
                 {engineIcon(m.engine)}
               </div>
               <div className="flex-1">
-                <div className="text-sm font-medium text-foreground">{m.model_id}</div>
+                <div className="text-sm font-medium text-foreground">{m.id}</div>
                 <div className="text-xs text-muted-foreground">
-                  {taskT('models.modelMeta', { engine: m.engine, size: (m.size_bytes / (1024 * 1024)).toFixed(1), source: m.source })}
+                  {taskT('models.modelMeta', {
+                    engine: m.capabilities?.[0] ?? 'unknown',
+                    size: '0',
+                    source: m.owned_by,
+                  })}
                 </div>
               </div>
-              <Button size="icon" variant="ghost" onClick={() => handleRelease(m.model_id)} aria-label={taskT('models.releaseModel')}>
+              <Button size="icon" variant="ghost" onClick={() => handleRelease(m.id)} aria-label={taskT('models.releaseModel')}>
                 <Trash size={16} />
               </Button>
             </div>
@@ -368,9 +373,9 @@ function LocalEngineModelsSection({ onChanged }: { onChanged: () => void }) {
         <div className="flex flex-col gap-2">
           <h3 className="text-sm font-semibold text-foreground">{taskT('models.downloadTasks')}</h3>
           {Object.values(tasks).map((t) => (
-            <div key={t.task_id} className="flex items-center gap-3 rounded-md border border-border bg-card p-3 text-sm">
-              <span className="flex-1 text-foreground">{t.model_id || t.task_id.slice(0, 8)}</span>
-              <span className="text-muted-foreground">{taskT('models.taskPhase', { phase: t.phase, progress: (t.progress * 100).toFixed(0) })}</span>
+            <div key={t.job_id} className="flex items-center gap-3 rounded-md border border-border bg-card p-3 text-sm">
+              <span className="flex-1 text-foreground">{t.reference || t.job_id.slice(0, 8)}</span>
+              <span className="text-muted-foreground">{taskT('models.taskPhase', { phase: t.status, progress: (t.progress * 100).toFixed(0) })}</span>
               {t.error && <span className="text-red-500">{t.error}</span>}
             </div>
           ))}
@@ -383,14 +388,15 @@ function LocalEngineModelsSection({ onChanged }: { onChanged: () => void }) {
           onSubmit={async (req) => {
             setShowDownload(false);
             try {
-              const r = await fetch(`${PREFRONTAL_URL}/api/engine-models`, {
+              // Neure's POST /v1/models/pull returns { job_id, status }.
+              const r = await fetch(`${API_BASE}/neure/v1/models/pull`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(req),
               });
               if (!r.ok) throw new Error(`HTTP ${r.status}`);
               const body = await r.json();
-              pollTask(body.task_id);
+              pollTask(body.job_id);
             } catch (e) {
               setError(e instanceof Error ? e.message : String(e));
             }
@@ -406,13 +412,13 @@ function DownloadModelDialog({
   onSubmit,
 }: {
   onClose: () => void;
-  onSubmit: (req: { model_id?: string; engine: string; reference: string; revision?: string; sha256?: string }) => void;
+  onSubmit: (req: { id: string; engine: string; reference: string; revision?: string; source?: string }) => void;
 }) {
   const { t: dialogT } = useTranslation();
   const [modelId, setModelId] = useState('');
   const [engine, setEngine] = useState('llm');
   const [reference, setReference] = useState('');
-  const [sha256, setSha256] = useState('');
+  const [revision, setRevision] = useState('');
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={onClose}>
@@ -449,22 +455,22 @@ function DownloadModelDialog({
           />
         </div>
         <div className="flex flex-col gap-2">
-          <label className="text-sm text-muted-foreground">{dialogT('models.sha256Label')}</label>
+          <label className="text-sm text-muted-foreground">{dialogT('models.revisionLabel')}</label>
           <input
             className="w-full rounded-md border border-border bg-muted px-3 py-2 text-sm text-foreground focus:border-foreground focus:outline-none"
-            value={sha256} onChange={(e) => setSha256(e.target.value)}
+            value={revision} onChange={(e) => setRevision(e.target.value)}
           />
         </div>
         <div className="flex justify-end gap-2 border-t border-border pt-4">
           <Button variant="outline" onClick={onClose}>{dialogT('common.cancel')}</Button>
           <Button
             variant="primary"
-            disabled={!reference.trim()}
+            disabled={!reference.trim() || !modelId.trim()}
             onClick={() => onSubmit({
-              model_id: modelId.trim() || undefined,
+              id: modelId.trim(),
               engine,
               reference: reference.trim(),
-              sha256: sha256.trim() || undefined,
+              revision: revision.trim() || undefined,
             })}
           >
             {dialogT('models.startDownload')}

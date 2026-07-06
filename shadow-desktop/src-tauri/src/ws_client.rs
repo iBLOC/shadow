@@ -169,6 +169,7 @@ impl MtlsWebSocketClient {
         *self.app_handle.write().await = None;
     }
 
+    #[allow(dead_code)]
     pub async fn is_connected(&self) -> bool {
         self.sender.read().await.is_some()
     }

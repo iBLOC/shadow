@@ -40,7 +40,7 @@ impl OpenCodeManager {
             return Err("OpenCode is not installed. Use opencode_install first.".to_string());
         }
 
-        let mut child = Command::new("opencode")
+        let child = Command::new("opencode")
             .args(["serve", "--port", &port.to_string()])
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())

@@ -1,4 +1,4 @@
-const DEFAULT_CORTEX_URL = 'http://127.0.0.1:8443';
+const DEFAULT_CORTEX_URL = 'http://127.0.0.1:60000';
 
 export interface CortexConfig {
   baseUrl: string;

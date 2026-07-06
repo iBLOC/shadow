@@ -206,18 +206,18 @@ describe('PrefrontalClient contract tests', () => {
       expectRequest('GET', '/api/agents/agent-1');
     });
 
-    it('listTasks sends GET /api/tasks', async () => {
+    it('listTasks sends GET /hippocampus/api/tasks', async () => {
       mockFetch.mockResolvedValue(okJson([{ id: 'task-1', status: 'completed' }]));
       const tasks = await client.listTasks();
       expect(tasks).toHaveLength(1);
-      expectRequest('GET', '/api/tasks');
+      expectRequest('GET', '/hippocampus/api/tasks?tenantId=default');
     });
 
-    it('getTask sends GET /api/tasks/:id', async () => {
+    it('getTask sends GET /hippocampus/api/tasks/:tenant/:id', async () => {
       mockFetch.mockResolvedValue(okJson({ id: 'task-1', status: 'running', message: 'Processing' }));
-      const task = await client.getTask('task-1');
+      const task = await client.getTask('default', 'task-1');
       expect(task.status).toBe('running');
-      expectRequest('GET', '/api/tasks/task-1');
+      expectRequest('GET', '/hippocampus/api/tasks/default/task-1');
     });
 
     it('rejects with HTTP error for non-ok responses', async () => {

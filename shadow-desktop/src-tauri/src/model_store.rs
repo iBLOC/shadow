@@ -2,7 +2,7 @@ use aes_gcm::{
     aead::{Aead, KeyInit},
     Aes256Gcm, Nonce,
 };
-use password_hash::{PasswordHash, PasswordHasher};
+use password_hash::PasswordHash;
 use rand::rngs::OsRng;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
@@ -51,6 +51,7 @@ impl ModelStore {
         self.providers.insert(provider.id.clone(), provider);
     }
 
+    #[allow(dead_code)]
     pub fn get_provider(&self, id: &str) -> Option<&ModelProvider> {
         self.providers.get(id)
     }
@@ -63,6 +64,7 @@ impl ModelStore {
         self.providers.remove(id).is_some()
     }
 
+    #[allow(dead_code)]
     pub fn update_provider(&mut self, provider: ModelProvider) -> bool {
         if self.providers.contains_key(&provider.id) {
             self.providers.insert(provider.id.clone(), provider);
