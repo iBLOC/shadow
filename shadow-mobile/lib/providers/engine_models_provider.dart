@@ -147,9 +147,9 @@ class EngineModelsNotifier extends StateNotifier<EngineModelsState> {
         super(const EngineModelsState());
 
   static String _deriveBaseUrl() {
-    // Defaults mirror the desktop serviceStore's resonance port map.
-    // Tests can override with `create(... baseUrl: '...')`.
-    return 'http://localhost:8082';
+    // Cortex is the single platform entry point (port 60000).
+    // Neure is embedded at root: /v1/models, /v1/chat/completions, etc.
+    return 'http://localhost:60000';
   }
 
   Future<void> refresh() async {
@@ -168,7 +168,8 @@ class EngineModelsNotifier extends StateNotifier<EngineModelsState> {
   }
 
   Future<List<EngineModel>> _listLoaded() async {
-    final r = await _client.get(Uri.parse('$_baseUrl/api/engine-models'));
+    // Neure is embedded in cortex at root: /v1/models
+    final r = await _client.get(Uri.parse('$_baseUrl/v1/models'));
     if (r.statusCode == 404) return const [];
     if (r.statusCode >= 400) {
       throw HttpException(r.statusCode, r.body);
@@ -198,15 +199,15 @@ class EngineModelsNotifier extends StateNotifier<EngineModelsState> {
     String? revision,
     String? sha256,
   }) async {
+    // Neure's POST /v1/models/pull returns { job_id, status }.
     final r = await _client.post(
-      Uri.parse('$_baseUrl/api/engine-models'),
+      Uri.parse('$_baseUrl/v1/models/pull'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
-        ?modelId: 'model_id',
+        'id': modelId ?? '',
         'engine': engine,
         'reference': reference,
-        ?revision: 'revision',
-        ?sha256: 'sha256',
+        if (revision != null) 'revision': revision,
       }),
     );
     if (r.statusCode >= 400) {
@@ -214,14 +215,13 @@ class EngineModelsNotifier extends StateNotifier<EngineModelsState> {
     }
     final body = jsonDecode(r.body) as Map<String, dynamic>;
     final task = ModelDownloadTask.fromJson(body);
-    // Optimistic insert so UI shows it immediately.
     state = state.copyWith(tasks: [...state.tasks, task]);
     return task;
   }
 
   Future<ModelDownloadTask> pollDownload(String taskId) async {
     final r = await _client.get(
-      Uri.parse('$_baseUrl/api/engine-models/download/$taskId'),
+      Uri.parse('$_baseUrl/v1/models/pull/$taskId'),
     );
     if (r.statusCode == 404) {
       throw HttpException(404, 'task $taskId not found');
@@ -234,8 +234,9 @@ class EngineModelsNotifier extends StateNotifier<EngineModelsState> {
   }
 
   Future<void> releaseModel(String modelId) async {
-    final r = await _client.post(
-      Uri.parse('$_baseUrl/api/engine-models/$modelId/release'),
+    // Neure's DELETE /v1/models/all/{id} removes a downloaded model.
+    final r = await _client.delete(
+      Uri.parse('$_baseUrl/v1/models/all/$modelId'),
     );
     if (r.statusCode >= 400) {
       throw HttpException(r.statusCode, r.body);
@@ -247,7 +248,7 @@ class EngineModelsNotifier extends StateNotifier<EngineModelsState> {
 
   Future<void> loadModel(String modelId) async {
     final r = await _client.post(
-      Uri.parse('$_baseUrl/api/engine-models/$modelId/load'),
+      Uri.parse('$_baseUrl/v1/models/$modelId/load'),
     );
     if (r.statusCode >= 400) {
       throw HttpException(r.statusCode, r.body);
@@ -271,4 +272,4 @@ final engineModelsProvider =
   return EngineModelsNotifier(baseUrl: baseUrl);
 });
 
-final prefrontalBaseUrlProvider = StateProvider<String>((ref) => 'http://localhost:8082');
+final prefrontalBaseUrlProvider = StateProvider<String>((ref) => 'http://localhost:60000');

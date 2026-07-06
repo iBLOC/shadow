@@ -29,7 +29,7 @@ class AudioWsService {
 
   AudioWsService({required String sessionId, String? baseUrl})
     : _sessionId = sessionId,
-      _url = baseUrl ?? 'ws://localhost:8082';
+      _url = baseUrl ?? 'ws://localhost:60000';
 
   Future<bool> connect() async {
     if (_state == AudioWsState.connected || _state == AudioWsState.connecting) {

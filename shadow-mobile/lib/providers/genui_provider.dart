@@ -7,7 +7,7 @@ import '../services/genui/shadow_catalog.dart';
 export '../services/genui/gen_ui_agent_service.dart';
 
 /// Prefrontal server URL
-const prefrontalUrl = 'http://localhost:8082';
+const prefrontalUrl = 'http://localhost:60000';
 
 /// Provider for GenUIAgentService
 final genUIAgentServiceProvider = Provider<GenUIAgentService>((ref) {

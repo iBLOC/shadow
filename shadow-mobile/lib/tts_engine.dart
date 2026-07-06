@@ -16,7 +16,7 @@ enum TtsEngineType {
 
 class TtsEngine {
   static const _channel = MethodChannel('com.ibloc.shadow/tts');
-  static const String _rustTtsUrl = 'http://localhost:8082/api/tts/synthesize';
+  static const String _rustTtsUrl = 'http://localhost:60000/v1/audio/speech';
 
   TtsEngineType _engineType = TtsEngineType.androidBuiltIn;
   String _externalUrl = '';

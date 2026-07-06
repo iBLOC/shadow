@@ -2,14 +2,16 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
-/// Prefrontal API Client
-/// 负责与 Prefrontal (port 8082) 通信
+/// Cortex API Client
+/// All backend endpoints are proxied through cortex (port 60000).
+/// Task, memory, and session endpoints are served by the embedded
+/// hippocampus at /hippocampus/*.
 class PrefrontalClient {
   final String baseUrl;
   final http.Client _client;
 
   PrefrontalClient({String? baseUrl, http.Client? client})
-    : baseUrl = baseUrl ?? 'http://localhost:8082',
+    : baseUrl = baseUrl ?? 'http://localhost:60000',
       _client = client ?? http.Client();
 
   /// 基础请求方法
@@ -238,7 +240,7 @@ class PrefrontalClient {
 
   /// 获取任务列表
   Future<List<TaskResponse>> getTasks() async {
-    final data = await _request<List<dynamic>>('GET', '/api/tasks');
+    final data = await _request<List<dynamic>>('GET', '/hippocampus/api/tasks');
     return data.map((t) => TaskResponse.fromJson(t)).toList();
   }
 
@@ -246,7 +248,7 @@ class PrefrontalClient {
   Future<TaskResponse> createTask(CreateTaskRequest request) async {
     return await _request<TaskResponse>(
       'POST',
-      '/api/tasks',
+      '/hippocampus/api/tasks',
       body: request.toJson(),
       parser: (data) => TaskResponse.fromJson(data),
     );
@@ -258,14 +260,14 @@ class PrefrontalClient {
   Future<List<MemoryResponse>> searchMemory(String query) async {
     final data = await _request<List<dynamic>>(
       'GET',
-      '/api/memory/search?q=${Uri.encodeComponent(query)}',
+      '/hippocampus/api/memory/search?q=${Uri.encodeComponent(query)}',
     );
     return data.map((m) => MemoryResponse.fromJson(m)).toList();
   }
 
   /// 添加记忆
   Future<void> addMemory(AddMemoryRequest request) async {
-    await _request('POST', '/api/memory', body: request.toJson());
+    await _request('POST', '/hippocampus/api/memory', body: request.toJson());
   }
 
   // ============ Conversation APIs ============
@@ -289,7 +291,7 @@ class PrefrontalClient {
 
   /// 删除会话
   Future<void> deleteSession(String sessionId) async {
-    await _request('DELETE', '/api/sessions/$sessionId');
+    await _request('DELETE', '/hippocampus/api/sessions/$sessionId');
   }
 
   // ============ Soul APIs ============
@@ -412,7 +414,7 @@ class PrefrontalClient {
   Future<SessionResponse> createSession({String? name}) async {
     final data = await _request<Map<String, dynamic>>(
       'POST',
-      '/api/sessions',
+      '/hippocampus/api/sessions',
       body: {'name': name},
       parser: (data) => data,
     );
@@ -420,7 +422,7 @@ class PrefrontalClient {
   }
 
   Future<List<String>> listSessions() async {
-    final data = await _request<List<dynamic>>('GET', '/api/sessions');
+    final data = await _request<List<dynamic>>('GET', '/hippocampus/api/sessions');
     return data.map((s) => s.toString()).toList();
   }
 
@@ -428,7 +430,7 @@ class PrefrontalClient {
     try {
       final data = await _request<Map<String, dynamic>>(
         'GET',
-        '/api/sessions/$sessionId',
+        '/hippocampus/api/sessions/$sessionId',
       );
       if (data['success'] == true && data['data'] != null) {
         return SessionResponse.fromJson(data['data']);
@@ -446,7 +448,7 @@ class PrefrontalClient {
   }) async {
     await _request(
       'POST',
-      '/api/sessions/$sessionId/messages',
+      '/hippocampus/api/sessions/$sessionId/messages',
       body: {'role': role, 'content': content},
     );
     return true;
@@ -459,7 +461,7 @@ class PrefrontalClient {
   }) async {
     final data = await _request<Map<String, dynamic>>(
       'POST',
-      '/api/sessions/$sessionId/process',
+      '/hippocampus/api/sessions/$sessionId/process',
       body: {'message': message, 'use_tools': useTools},
     );
     if (data['success'] == true && data['data'] != null) {
