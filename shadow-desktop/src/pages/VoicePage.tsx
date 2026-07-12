@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Mic, MicOff, Phone, PhoneOff, Volume2, AlertCircle, RefreshCw } from 'lucide-react';
-import { Button } from '../components/ui';
+import { Mic, Phone, PhoneOff, Volume2, AlertCircle, RefreshCw } from 'lucide-react';
 import { useCompanionModeStore } from '../stores/companionModeStore';
 import { isTauri } from '../lib/platform';
 

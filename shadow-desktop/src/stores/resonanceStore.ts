@@ -1,8 +1,9 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { cortexClient, type SendMessageResponse } from '../lib/cortexClient';
+import { type SendMessageResponse } from '../lib/cortexClient';
 import { safeInvoke } from '../lib/tauriSafe';
 import { useCortexStore } from './cortexStore';
+import { useServiceStore } from './serviceStore';
 
 export interface DiscoveredService {
   name: string;
@@ -112,7 +113,7 @@ export const useResonanceStore = create<ResonanceState>()(
       clearError: () => set({ error: null }),
 
       discoverServices: async () => {
-        if (!useCortexStore.getState().hasConfiguredResonance()) {
+        if (!useServiceStore.getState().hasConfiguredResonance()) {
           set({
             error: 'No Resonance instances configured. Add one in Settings first.',
             discoveredServices: [],
@@ -139,7 +140,7 @@ export const useResonanceStore = create<ResonanceState>()(
           return;
         }
 
-        if (!useCortexStore.getState().hasConfiguredResonance()) {
+        if (!useServiceStore.getState().hasConfiguredResonance()) {
           set({
             error: 'No Resonance instances configured. Add one in Settings first.',
             connectionStatus: 'error',

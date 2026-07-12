@@ -19,7 +19,7 @@ export interface AgentCard {
 
 export interface LobeInfo {
   name: string;
-  kind: 'native' | 'wasm';
+  kind: 'native' | 'wasm' | 'prompt' | 'external';
   url: string;
   enabled: boolean;
   skills: string[];
@@ -99,6 +99,45 @@ export interface FlowDefinition {
 
 export interface FlowRunResult {
   outputs: Record<string, unknown>;
+}
+
+export interface AgentMutationResult {
+  name: string;
+  version: string;
+  kind: string;
+  skills: string[];
+  description: string | null;
+  created_at: string;
+}
+
+export interface ScanResult {
+  scanned_at: string;
+  hosts: string;
+  detected: Array<{
+    provider_id: string;
+    provider_label: string;
+    detected_path: string;
+    version: string | null;
+    reachable: boolean;
+    endpoint: string | null;
+    skills: string[];
+    models: string[];
+  }>;
+}
+
+export interface DiscoveryResult {
+  agents: Array<{
+    name: string;
+    kind: string;
+    description: string;
+    skills: string[];
+    input_modalities: string[];
+    output_modalities: string[];
+    url: string | null;
+    enabled: boolean;
+    version: string;
+  }>;
+  count: number;
 }
 
 export class CortexClient {
@@ -259,6 +298,36 @@ export class CortexClient {
       method: 'POST',
       headers: this.apiKey ? { 'X-Shadow-Key': this.apiKey } : {},
     });
+  }
+
+  async createPromptAgent(req: {
+    name: string;
+    version?: string;
+    system_prompt: string;
+    description?: string;
+    skills?: string[];
+    model_provider?: string;
+    model_name?: string;
+  }): Promise<AgentMutationResult> {
+    return this.request<AgentMutationResult>('/api/cortex/admin/agents/create', {
+      method: 'POST',
+      body: JSON.stringify(req),
+    });
+  }
+
+  async scanExternalAgents(): Promise<ScanResult> {
+    return this.request<ScanResult>('/api/cortex/agents/scan', { method: 'POST' });
+  }
+
+  async syncExternalAgent(providerId: string): Promise<AgentMutationResult> {
+    return this.request<AgentMutationResult>(
+      `/api/cortex/agents/sync/${encodeURIComponent(providerId)}`,
+      { method: 'POST' }
+    );
+  }
+
+  async discoverAgents(): Promise<DiscoveryResult> {
+    return this.request<DiscoveryResult>('/api/cortex/agents/discover');
   }
 }
 

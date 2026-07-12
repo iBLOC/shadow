@@ -54,12 +54,12 @@ interface ServiceState {
   getPrimaryResonance: () => ResonanceInstance | null;
 }
 
-const DEFAULT_RESONANCE = {
+const DEFAULT_RESONANCE: ServiceInfo = {
   name: 'resonance',
   displayName: 'Resonance',
   host: '',
   port: 8080,
-  status: 'unknown' as ServiceStatus,
+  status: 'unknown',
 };
 
 const DEFAULT_SERVICES: Record<ServiceName, ServiceInfo> = {
@@ -237,11 +237,11 @@ export const useServiceStore = create<ServiceState>()(
         const newInstance: ResonanceInstance = {
           ...instance,
           id,
-          isPrimary: instance.isPrimary || isFirst,
+          isPrimary: isFirst,
           createdAt: Date.now(),
         };
         set((state) => {
-          const instances = instance.isPrimary
+          const instances = isFirst
             ? state.resonanceInstances.map((r) => ({ ...r, isPrimary: false }))
             : state.resonanceInstances;
           return { resonanceInstances: [...instances, newInstance] };
@@ -256,8 +256,9 @@ export const useServiceStore = create<ServiceState>()(
               resonance: {
                 ...state.services.resonance,
                 host: primary.host,
-                port: primary.port,
+                port: primary.port ?? 8080,
                 displayName: primary.name,
+                name: 'resonance' as ServiceName,
               },
             },
           }));
@@ -276,19 +277,20 @@ export const useServiceStore = create<ServiceState>()(
           return { resonanceInstances: next };
         });
         const updated = get().resonanceInstances.find((r) => r.id === id);
-        if (updated?.isPrimary) {
-          set((state) => ({
-            services: {
-              ...state.services,
-              resonance: {
-                ...state.services.resonance,
-                host: updated.host,
-                port: updated.port,
-                displayName: updated.name,
+          if (updated?.isPrimary) {
+            set((state) => ({
+              services: {
+                ...state.services,
+                resonance: {
+                  ...state.services.resonance,
+                  host: updated.host,
+                  port: updated.port ?? 8080,
+                  displayName: updated.name,
+                  name: 'resonance' as ServiceName,
+                },
               },
-            },
-          }));
-        }
+            }));
+          }
       },
 
       removeResonanceInstance: (id) => {
@@ -307,11 +309,12 @@ export const useServiceStore = create<ServiceState>()(
             services.resonance = {
               ...services.resonance,
               host: promoted.host,
-              port: promoted.port,
+              port: promoted.port ?? 8080,
               displayName: promoted.name,
+              name: 'resonance' as ServiceName,
             };
           } else {
-            services.resonance = { ...DEFAULT_RESONANCE };
+            services.resonance = { ...DEFAULT_RESONANCE } as ServiceInfo;
           }
           return { resonanceInstances: finalInstances, services };
         });
@@ -332,8 +335,9 @@ export const useServiceStore = create<ServiceState>()(
               resonance: {
                 ...state.services.resonance,
                 host: primary.host,
-                port: primary.port,
+                port: primary.port ?? 8080,
                 displayName: primary.name,
+                name: 'resonance' as ServiceName,
               },
             },
           }));
@@ -341,7 +345,7 @@ export const useServiceStore = create<ServiceState>()(
           set((state) => ({
             services: {
               ...state.services,
-              resonance: { ...DEFAULT_RESONANCE },
+              resonance: { ...DEFAULT_RESONANCE } as ServiceInfo,
             },
           }));
         }

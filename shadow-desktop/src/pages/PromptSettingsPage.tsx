@@ -69,7 +69,6 @@ export function PromptSettingsPage() {
   const topP = usePromptStore((s) => s.topP);
   const maxTokens = usePromptStore((s) => s.maxTokens);
   const setSystemPrompt = usePromptStore((s) => s.setSystemPrompt);
-  const resetSystemPrompt = usePromptStore((s) => s.resetSystemPrompt);
   const setCustomName = usePromptStore((s) => s.setCustomName);
   const setTemperature = usePromptStore((s) => s.setTemperature);
   const setTopP = usePromptStore((s) => s.setTopP);

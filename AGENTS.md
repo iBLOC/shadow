@@ -61,6 +61,9 @@
 │  │  • A2A gateway (skill-based routing)                                  │    │
 │  │  • encrypted mDNS 广播 + mTLS 信任存储                                │    │
 │  │  • hot-reload config + admin API (X-Admin-Token)                      │    │
+│  │  • LobeKind: Native / Wasm / Prompt / External                        │    │
+│  │  • agent/scan + agent/sync/{provider_id} 外部智能体管理                │    │
+│  │  • agent/create 纯提示词智能体 + agent/discover A2A 自发现             │    │
 │  │  Talks up: A2A to Resonance / other cortexes (mTLS)                  │    │
 │  │  Talks down: A2A to native lobes, WASM in-process                     │    │
 │  └─────────────────────────────────────────────────────────────────────┘    │
@@ -233,7 +236,7 @@ shadow/
 | 模块 | 位置 | 端口 | 功能 |
 |------|------|------|------|
 | **Resonance** | `/home/ibloc/Projects/resonance` | 8080 | 任务编排、规划、工作流引擎 |
-| **Cortex** | `/home/ibloc/Projects/cortex` | 8443 | 单 shadow 中心化 agent 注册 + A2A gateway + WASM 宿主 |
+| **Cortex** | `/home/ibloc/Projects/cortex` | 8443 | 单 shadow 中心化 agent 注册 + A2A gateway + WASM 宿主 + 外部智能体扫描同步 |
 | **Prefrontal** | `/home/ibloc/Projects/prefrontal` | 8082 | 多智能体执行、工具调用、内置 Agent (prefrontal 是 cortex 管理的 lobe 之一) |
 | **Hippocampus** | `/home/ibloc/Projects/hippocampus` | 8081 | 长期记忆、HybridRAG 搜索 |
 | **Shadow-Desktop** | `shadow-desktop/` | N/A | 桌面端 UI + candle-vllm |

@@ -51,7 +51,10 @@ export function DelegateToPeerDialog({ open, onClose, prefillUrl }: DelegateDial
         const withLlms = reachable.filter((p) => p.capabilities.includes('llm'));
         setPeers(withLlms);
       })
-      .catch((e) => setError(String(e)))
+      .catch(() => {
+        // A2A peer list endpoint not implemented yet — show empty state
+        setPeers([]);
+      })
       .finally(() => setLoading(false));
   }, [open]);
 
@@ -67,7 +70,9 @@ export function DelegateToPeerDialog({ open, onClose, prefillUrl }: DelegateDial
     setLoading(true);
     try {
       const peerId = newPeerUrl.replace(/^https?:\/\//, '').replace(/:/, '-').replace(/\./g, '-');
-      await prefrontalClient.registerA2APeer(peerId, newPeerUrl.trim(), true);
+      await prefrontalClient.registerA2APeer(peerId, newPeerUrl.trim(), true).catch(() => {
+        // A2A peer registration endpoint not implemented yet
+      });
       const newPeer: DiscoveredPeer = {
         id: peerId,
         url: newPeerUrl.trim(),

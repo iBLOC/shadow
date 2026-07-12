@@ -52,7 +52,7 @@ function fp(input: string): string {
 
 export const useGroupStore = create<GroupState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       peers: [],
       outgoing: null,
       error: null,

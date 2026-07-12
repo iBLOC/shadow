@@ -167,6 +167,8 @@ The same `src/` produces **two artefacts**:
 - **Database type simplification** — 仅支持 `internal`（内部数据库）+ `distributed`（分布式数据库/Neon），移除 external pgsql
 - **FlowsPage i18n** — "Cortex Flows" → "思维定式"
 - **ResonancePage** — 独立共鸣管理页面，支持多实例配置、主实例设置、Agent 开放选择
+- **AgentsPage unified** — Cortex & Lobe 合并入智能体页面，所有 lobe 视为内部智能体，支持为内部智能体设置模型
+- **ModelOnboardingPage** — 应用启动时通过 neure API 检查模型配置，若无可用模型则跳转引导页。下载由 neure 后端处理（`POST /v1/models/pull`），用户可在下载期间自由导航
 
 **Planned** 📋:
 - Tauri Rust backend → embed Prefrontal core (drop in-process, no separate service)
@@ -175,3 +177,4 @@ The same `src/` produces **two artefacts**:
 - A2A peer card in Discovery page (promote a discovered node to a delegatable A2A peer)
 - 思维定式编辑能力 — 用户可修改已抽象的流程
 - Resonance 连接测试 — 实际 HTTP 连接检测 + 延迟测量
+- 后端持久化 — lobe 模型绑定保存到 cortex/agent.json

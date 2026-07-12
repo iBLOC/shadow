@@ -11,7 +11,6 @@ import {
   Cpu,
   Radar,
   ScrollText,
-  Server,
   Workflow,
   Waves,
   type LucideIcon,
@@ -38,7 +37,6 @@ const navItems: NavItem[] = [
   { path: '/mcp', icon: Wrench, labelKey: 'nav.mcp' },
   { path: '/skills', icon: Brain, labelKey: 'nav.skills' },
   { path: '/memory', icon: Database, labelKey: 'nav.memory' },
-  { path: '/services', icon: Server, labelKey: 'nav.services' },
   { path: '/logs', icon: ScrollText, labelKey: 'nav.logs' },
 ];
 

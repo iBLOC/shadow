@@ -1,29 +1,59 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { prefrontalUrl } from '../lib/platform';
+
+const NEURE_BASE = prefrontalUrl();
 
 interface AppInitializerProps {
-  children: React.ReactNode;
+  children?: React.ReactNode;
 }
 
 export function AppInitializer({ children }: AppInitializerProps) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
-    const checkSetup = () => {
+    const init = async () => {
       const setupComplete = localStorage.getItem('shadow_setup_complete');
       if (!setupComplete) {
-        navigate('/setup');
+        navigate('/setup', { replace: true });
+        setIsChecking(false);
+        return;
       }
+
+      if (location.pathname === '/onboarding') {
+        setIsChecking(false);
+        return;
+      }
+
+      try {
+        const [cloudRes, localRes] = await Promise.allSettled([
+          fetch(`${NEURE_BASE}/models/providers`).then(r => r.ok ? r.json() : []),
+          fetch(`${NEURE_BASE}/v1/models?engine=llm`).then(r => r.ok ? r.json() : { data: [] }),
+        ]);
+        const hasCloud = cloudRes.status === 'fulfilled' && Array.isArray(cloudRes.value) && cloudRes.value.length > 0;
+        const hasLocal = localRes.status === 'fulfilled' && (localRes.value.data ?? []).some((m: { available?: boolean }) => m.available);
+        if (!hasCloud && !hasLocal) {
+          navigate('/onboarding', { replace: true });
+        }
+      } catch {
+        navigate('/onboarding', { replace: true });
+      }
+
       setIsChecking(false);
     };
 
-    checkSetup();
-  }, [navigate]);
+    void init();
+  }, [location.pathname, navigate]);
 
   if (isChecking) {
-    return null;
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <div className="text-sm text-muted-foreground">检查模型配置中…</div>
+      </div>
+    );
   }
 
-  return <>{children}</>;
+  return children ? <>{children}</> : <Outlet />;
 }

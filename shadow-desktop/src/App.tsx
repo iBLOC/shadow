@@ -18,9 +18,8 @@ import { ModelDownloadPage } from './pages/ModelDownloadPage';
 import { VoicePage } from './pages/VoicePage';
 import { FlowsPage } from './pages/FlowsPage';
 import { GroupPage } from './pages/GroupPage';
-import { PromptSettingsPage } from './pages/PromptSettingsPage';
-import { ServicesPage } from './pages/ServicesPage';
 import { ResonancePage } from './pages/ResonancePage';
+import { ModelOnboardingPage } from './pages/ModelOnboardingPage';
 import './App.css';
 
 function App() {
@@ -30,6 +29,7 @@ function App() {
       <PWAInstallPrompt />
       <Routes>
         <Route path="/setup" element={<SetupPage />} />
+        <Route path="/onboarding" element={<ModelOnboardingPage />} />
         <Route path="/" element={<AppInitializer><Layout /></AppInitializer>}>
           <Route index element={<TaskBoardPage />} />
           <Route path="tasks" element={<TaskBoardPage />} />
@@ -42,7 +42,6 @@ function App() {
           <Route path="mcp" element={<MCPPage />} />
           <Route path="skills" element={<SkillsPage />} />
           <Route path="memory" element={<MemoryPage />} />
-          <Route path="services" element={<ServicesPage />} />
           <Route path="logs" element={<LogsPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="discovery" element={<DiscoveryPage />} />

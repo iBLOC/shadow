@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { cortexClient, type LobeInfo, type FlowMeta } from '../lib/cortexClient';
 
-export type CortexStatus = 'stopped' | 'starting' | 'running' | 'unreachable' | 'error';
+export type CortexStatus = 'stopped' | 'starting' | 'running' | 'stopping' | 'unreachable' | 'error';
 
 export interface CortexConnection {
   baseUrl: string;

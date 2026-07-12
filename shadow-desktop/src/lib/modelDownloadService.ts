@@ -22,6 +22,16 @@ export interface AvailableModel {
 
 export const AVAILABLE_MODELS: AvailableModel[] = [
   {
+    id: 'gemma4-e4b-q4km',
+    name: 'Gemma 4 E4B (Q4_K_M) — 推荐',
+    repo: 'unsloth/gemma-4-E4B-it-GGUF',
+    filename: 'gemma-4-E4B-it-Q4_K_M.gguf',
+    sizeBytes: 3_200_000_000,
+    quantization: 'Q4_K_M',
+    contextLength: 128000,
+    recommended: true,
+  },
+  {
     id: 'qwen2.5-3b-q4km',
     name: 'Qwen2.5 3B (Q4_K_M)',
     repo: 'Qwen/Qwen2.5-3B-Instruct-GGUF',
