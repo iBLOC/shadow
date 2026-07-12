@@ -25,6 +25,8 @@
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-opener": "^2",
     "date-fns": "^4.1.0",
+    "echarts": "^6.1.0",
+    "echarts-for-react": "^3.0.6",
     "i18next": "^24.2.2",
     "lucide-react": "^0.469.0",
     "react": "^19.1.0",

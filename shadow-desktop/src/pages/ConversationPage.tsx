@@ -1,12 +1,14 @@
 import { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { safeInvoke } from '../lib/tauriSafe';
 import { cortexClient } from '../lib/cortexClient';
 import { useConversationStore } from '../stores/conversationStore';
-import { useAgentStore } from '../stores/agentStore';
+import { useCortexStore } from '../stores/cortexStore';
 import { useCompanionModeStore } from '../stores/companionModeStore';
 import { Button, EmptyState } from '../components/ui';
 import { MoveSessionDialog } from '../components/MoveSessionDialog';
+import { ChartCard } from '../components/chatbi';
+import { isChatBiPayload } from '../lib/chatbi/guards';
+import type { ChatBiPayload } from '../lib/chatbi/guards';
 import {
   Send,
   Plus,
@@ -21,8 +23,10 @@ import {
   ArrowRightLeft,
   Paperclip,
   X,
+  ChevronDown,
 } from 'lucide-react';
 import type { Conversation, Message } from '../types';
+import type { LobeInfo } from '../lib/cortexClient';
 import { cn } from '../lib/utils';
 
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
@@ -54,7 +58,10 @@ export function ConversationPage() {
     addMessage,
     setSessionId,
   } = useConversationStore();
-  const { agents, activeAgentId, setActiveAgent } = useAgentStore();
+  const lobes = useCortexStore((s) => s.lobes);
+  const defaultAgent = useCortexStore((s) => s.defaultAgent);
+  const refreshLobes = useCortexStore((s) => s.refreshLobes);
+  const status = useCortexStore((s) => s.status);
 
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -62,14 +69,39 @@ export function ConversationPage() {
   const [stagedImages, setStagedImages] = useState<StagedImage[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showAgentSelector, setShowAgentSelector] = useState(false);
+  const [activeLobeName, setActiveLobeName] = useState<string | null>(null);
   const [showMoveDialog, setShowMoveDialog] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const activeConversation = conversations.find(c => c.id === activeConversationId);
 
   useEffect(() => {
+    if (!activeLobeName && defaultAgent) {
+      setActiveLobeName(defaultAgent);
+    }
+  }, [defaultAgent, activeLobeName]);
+
+  useEffect(() => {
+    if (lobes.length === 0 && status === 'running') {
+      refreshLobes();
+    }
+  }, [status, lobes.length, refreshLobes]);
+
+  useEffect(() => {
+    if (!activeLobeName && lobes.length > 0 && defaultAgent) {
+      setActiveLobeName(defaultAgent);
+    }
+  }, [lobes, activeLobeName, defaultAgent]);
+
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [activeConversation?.messages]);
+
+  const lobeDisplayName = (lobe: LobeInfo): string => {
+    return t(`lobes.${lobe.name}`, lobe.agent_card?.name || lobe.name);
+  };
+
+  const selectedLobe = lobes.find(l => l.name === activeLobeName);
 
   const handleNewConversation = () => {
     const conversation: Conversation = {
@@ -122,16 +154,30 @@ export function ConversationPage() {
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
           if (!conversationId || attempt > 0) {
-            const newConv = await cortexClient.createConversation({});
+            const newConv = await cortexClient.createConversation({
+              agent: activeLobeName || defaultAgent || undefined,
+            });
             conversationId = newConv.id;
             setSessionId(activeConversationId, conversationId);
           }
 
           let accumulated = '';
+          let chatbiPayload: ChatBiPayload | undefined;
           for await (const event of cortexClient.streamMessage(conversationId, { text: input })) {
             if (event.type === 'delta' && event.delta) {
               accumulated += event.delta;
             } else if (event.type === 'done') {
+              // Try to parse accumulated as a ChatBI-structured response
+              if (accumulated.trim().startsWith('{')) {
+                try {
+                  const parsed = JSON.parse(accumulated);
+                  if (isChatBiPayload(parsed)) {
+                    chatbiPayload = parsed;
+                  }
+                } catch {
+                  // not JSON — keep as plain text
+                }
+              }
               break;
             } else if (event.type === 'error') {
               throw new Error(event.error || 'cortex stream error');
@@ -141,8 +187,14 @@ export function ConversationPage() {
           const assistantMessage: Message = {
             id: crypto.randomUUID(),
             role: 'assistant',
-            content: accumulated || t('conversation.noResponse'),
+            content: chatbiPayload
+              ? t('conversation.chatbi.chartTitle', {
+                  sql: chatbiPayload.sql_executed,
+                  ms: chatbiPayload.took_ms,
+                })
+              : accumulated || t('conversation.noResponse'),
             timestamp: new Date(),
+            chatbi: chatbiPayload,
           };
           addMessage(activeConversationId, assistantMessage);
           return;
@@ -158,7 +210,7 @@ export function ConversationPage() {
 
           if (isSessionError && attempt === 0) {
             setSessionId(activeConversationId, '');
-            sessionId = undefined;
+            conversationId = undefined;
             continue;
           }
           break;
@@ -187,8 +239,6 @@ export function ConversationPage() {
   const filteredConversations = conversations.filter(c =>
     c.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
-
-  const selectedAgent = agents.find(a => a.id === activeAgentId);
 
   return (
     <div className="flex h-[calc(100vh-3rem)] overflow-hidden rounded-lg border border-border bg-card">
@@ -245,41 +295,50 @@ export function ConversationPage() {
         </div>
 
         <div className="relative border-t border-border p-3">
-          <Button variant="outline" fullWidth onClick={() => setShowAgentSelector(!showAgentSelector)}>
+          <Button
+            variant="outline"
+            fullWidth
+            onClick={() => setShowAgentSelector(!showAgentSelector)}
+            disabled={lobes.length === 0}
+          >
             <div className="flex flex-1 items-center gap-2 text-sm font-medium text-foreground">
               <Bot size={16} />
-              <span>{selectedAgent?.name || t('conversation.selectAgent')}</span>
+              <span>{selectedLobe ? lobeDisplayName(selectedLobe) : t('conversation.selectAgent')}</span>
             </div>
-            <div className={cn(
-              'h-2 w-2 rounded-full',
-              selectedAgent?.status === 'online' && 'bg-green-500',
-              selectedAgent?.status === 'offline' && 'bg-muted-foreground',
-              !selectedAgent?.status && 'bg-muted-foreground'
-            )} />
+            <ChevronDown size={14} className="text-muted-foreground" />
           </Button>
 
           {showAgentSelector && (
-            <div className="absolute bottom-full left-3 right-3 mb-2 rounded-md border border-border bg-card p-2 shadow-lg">
-              {agents.map((agent) => (
-                <div
-                  key={agent.id}
-                  className={cn(
-                    'flex cursor-pointer items-center gap-2 rounded px-3 py-2 text-sm transition-colors hover:bg-muted',
-                    activeAgentId === agent.id && 'bg-foreground/10'
-                  )}
-                  onClick={() => {
-                    setActiveAgent(agent.id);
-                    setShowAgentSelector(false);
-                  }}
-                >
-                  <Bot size={16} />
-                  <span className="flex-1 text-foreground">{agent.name}</span>
-                  <span className={cn(
-                    'h-1.5 w-1.5 rounded-full',
-                    agent.status === 'online' ? 'bg-green-500' : 'bg-muted-foreground'
-                  )} />
+            <div className="absolute bottom-full left-3 right-3 mb-2 max-h-60 overflow-y-auto rounded-md border border-border bg-card p-2 shadow-lg">
+              {lobes.length === 0 ? (
+                <div className="px-3 py-4 text-center text-xs text-muted-foreground">
+                  {status === 'running' ? t('agents.noLobes') : t('agents.startCortexHint')}
                 </div>
-              ))}
+              ) : (
+                lobes.map((lobe) => (
+                  <div
+                    key={lobe.name}
+                    className={cn(
+                      'flex cursor-pointer items-center gap-2 rounded px-3 py-2 text-sm transition-colors hover:bg-muted',
+                      activeLobeName === lobe.name && 'bg-foreground/10'
+                    )}
+                    onClick={() => {
+                      setActiveLobeName(lobe.name);
+                      setShowAgentSelector(false);
+                    }}
+                  >
+                    <Bot size={16} className="text-muted-foreground" />
+                    <span className="flex-1 text-foreground">{lobeDisplayName(lobe)}</span>
+                    <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                      {t(`agents.lobeKind.${lobe.kind}`, lobe.kind)}
+                    </span>
+                    <span className={cn(
+                      'h-1.5 w-1.5 rounded-full',
+                      lobe.health_status === 'healthy' ? 'bg-green-500' : 'bg-muted-foreground'
+                    )} />
+                  </div>
+                ))
+              )}
             </div>
           )}
         </div>
@@ -326,12 +385,22 @@ export function ConversationPage() {
                         {msg.role === 'user' ? <User size={20} /> : <Bot size={20} />}
                       </div>
                       <div className="flex flex-col gap-1">
-                        <div className={cn(
-                          'whitespace-pre-wrap break-words rounded-lg px-4 py-3 text-sm leading-relaxed',
-                          msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'border border-border bg-card text-foreground'
-                        )}>
-                          {msg.content}
-                        </div>
+                        {msg.chatbi ? (
+                          <ChartCard
+                            vizType={msg.chatbi.viz_type}
+                            columns={msg.chatbi.columns}
+                            rows={msg.chatbi.rows}
+                            title={msg.content}
+                            className="max-w-full"
+                          />
+                        ) : (
+                          <div className={cn(
+                            'whitespace-pre-wrap break-words rounded-lg px-4 py-3 text-sm leading-relaxed',
+                            msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'border border-border bg-card text-foreground'
+                          )}>
+                            {msg.content}
+                          </div>
+                        )}
                         <div className={cn(
                           'px-2 text-xs text-muted-foreground',
                           msg.role === 'user' && 'text-right'

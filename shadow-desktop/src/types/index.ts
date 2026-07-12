@@ -192,6 +192,8 @@ export interface Message {
   content: string;
   timestamp: Date;
   attachments?: Attachment[];
+  /** ChatBI structured payload (if the assistant response is a chart query result). */
+  chatbi?: import('../lib/chatbi/guards').ChatBiPayload;
 }
 
 export interface Attachment {
