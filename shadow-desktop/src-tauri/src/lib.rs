@@ -8,6 +8,7 @@ mod config_manager;
 mod opencode_manager;
 mod worktree_manager;
 pub mod cortex_manager;
+mod logger;
 
 use config_manager::{AppConfig, DatabaseConfig, ProviderConfig, SecureAuth};
 use model_store::{EncryptedStorage, ModelProvider};
@@ -101,7 +102,8 @@ fn setup_tray<R: Runtime>(app: &tauri::App<R>) -> Result<(), Box<dyn std::error:
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tracing_subscriber::fmt().with_env_filter("info").init();
+    logger::init();
+    logger::log_startup_diagnostics();
 
     let app_state = AppState {
         prefrontal: Arc::new(PrefrontalState::new()),
@@ -202,6 +204,8 @@ pub fn run() {
             cortex_start,
             cortex_stop,
             cortex_status,
+            set_hf_token,
+            get_hf_token,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -278,6 +282,29 @@ async fn cortex_stop(state: State<'_, AppState>) -> Result<(), String> {
 #[tauri::command]
 async fn cortex_status(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
     state.cortex_manager.status_json().await
+}
+
+#[tauri::command]
+async fn set_hf_token(
+    state: State<'_, AppState>,
+    token: String,
+) -> Result<serde_json::Value, String> {
+    // Persist the token in the manager's in-memory store. If cortex
+    // is already running, the user has to bounce it (we don't yet
+    // support hot-swapping env vars on a running neure process) —
+    // the frontend prompts for the restart after this call returns
+    // `running: true`.
+    let running = state.cortex_manager.set_hf_token(token).await;
+    let mut info = state.cortex_manager.get_hf_token().await;
+    if let Some(obj) = info.as_object_mut() {
+        obj.insert("running".to_string(), serde_json::Value::Bool(running));
+    }
+    Ok(info)
+}
+
+#[tauri::command]
+async fn get_hf_token(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+    Ok(state.cortex_manager.get_hf_token().await)
 }
 
 #[tauri::command]

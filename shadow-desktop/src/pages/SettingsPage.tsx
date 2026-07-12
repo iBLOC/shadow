@@ -7,6 +7,7 @@ import { useThemeStore } from '../stores/themeStore';
 import { useCortexStore } from '../stores/cortexStore';
 import { SettingsCard } from '../components/business';
 import { DatabaseSettings } from '../components/DatabaseSettings';
+import { HfTokenSettings } from '../components/business/HfTokenSettings';
 import { Button } from '../components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { cn } from '../lib/utils';
@@ -114,6 +115,8 @@ export function SettingsPage() {
         </div>
 
         <DatabaseSettings />
+
+        <HfTokenSettings onSaved={() => { void refreshStatus(); }} />
 
         <SettingsCard
           variant="glass"

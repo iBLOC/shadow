@@ -46,6 +46,12 @@ struct CortexInner {
     host: String,
     error: Option<String>,
     started_at: Option<chrono::DateTime<chrono::Utc>>,
+    /// HuggingFace auth token forwarded to the neure runtime as
+    /// the `HF_TOKEN` env var on every sidecar launch. Kept in
+    /// memory only — the user re-enters it after each Desktop
+    /// restart. (Persisting secrets to disk crosses a security
+    /// boundary that should be a deliberate decision later.)
+    hf_token: Option<String>,
 }
 
 impl CortexManager {
@@ -64,6 +70,7 @@ impl CortexManager {
                 host: "127.0.0.1".to_string(),
                 error: None,
                 started_at: None,
+                hf_token: None,
             })),
         }
     }
@@ -71,6 +78,38 @@ impl CortexManager {
     pub async fn set_port(&self, port: u16) {
         let mut inner = self.inner.lock().await;
         inner.port = port;
+    }
+
+    /// Persist a HuggingFace token in memory. Returns whether the
+    /// cortex sidecar is currently running (the caller decides
+    /// whether to bounce it). The token is forwarded as
+    /// `HF_TOKEN` on the next `start_with_binary` call. Pass an
+    /// empty string to clear.
+    pub async fn set_hf_token(&self, token: String) -> bool {
+        let mut inner = self.inner.lock().await;
+        let trimmed = token.trim().to_string();
+        inner.hf_token = if trimmed.is_empty() { None } else { Some(trimmed) };
+        matches!(inner.status, CortexStatus::Running)
+    }
+
+    /// Return a masked preview of the stored token (last 4 chars
+    /// only) plus a flag indicating whether one is configured. The
+    /// UI uses this to render the Settings page without ever
+    /// exfiltrating the raw secret back to JS.
+    pub async fn get_hf_token(&self) -> serde_json::Value {
+        let inner = self.inner.lock().await;
+        match &inner.hf_token {
+            Some(t) => {
+                let len = t.len();
+                let tail: String = t.chars().rev().take(4).collect::<String>().chars().rev().collect();
+                serde_json::json!({
+                    "configured": true,
+                    "length": len,
+                    "preview": format!("…{}", tail),
+                })
+            }
+            None => serde_json::json!({ "configured": false }),
+        }
     }
 
     pub async fn health(&self) -> Result<serde_json::Value, String> {
@@ -132,14 +171,22 @@ impl CortexManager {
         let port = inner.port;
         let host = inner.host.clone();
         let stderr_buf = inner.stderr_buf.clone();
+        let hf_token = inner.hf_token.clone();
 
         let mut cmd = Command::new(&bin);
         cmd.env("CORTEX_PORT", port.to_string())
             .env("CORTEX_BIND", &host)
             .env("DATABASE_URL", "")
-            .env("CORTEX_SKIP_NEURE", "1")
+            // Forward the user-supplied HF token (if any). The neure
+            // runtime picks this up via `std::env::var("HF_TOKEN")`
+            // and attaches it as a `Authorization: Bearer` header
+            // for gated-repo downloads.
+            .env(
+                "HF_TOKEN",
+                hf_token.as_deref().unwrap_or(""),
+            )
             .stdin(Stdio::null())
-            .stdout(Stdio::null())
+            .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .kill_on_drop(true);
 
@@ -152,19 +199,61 @@ impl CortexManager {
             }
         };
 
+        // Capture stdout → tracing::info with [cortex] prefix
+        if let Some(mut stdout) = child.stdout.take() {
+            tokio::spawn(async move {
+                let mut buf = Vec::new();
+                let mut tmp = [0u8; 4096];
+                loop {
+                    match stdout.read(&mut tmp).await {
+                        Ok(0) => break,
+                        Ok(n) => {
+                            buf.extend_from_slice(&tmp[..n]);
+                            while let Some(pos) = buf.iter().position(|&b| b == b'\n') {
+                                let line: Vec<u8> = buf.drain(..=pos).collect();
+                                if let Ok(s) = std::str::from_utf8(&line) {
+                                    let s = s.trim();
+                                    if !s.is_empty() {
+                                        tracing::info!(target: "cortex", "{}", s);
+                                    }
+                                }
+                            }
+                        }
+                        Err(_) => break,
+                    }
+                }
+            });
+        }
+
+        // Capture stderr → tracing::warn + buffer for status
         if let Some(mut stderr) = child.stderr.take() {
             let buf = stderr_buf.clone();
             let handle = tokio::spawn(async move {
+                let mut line_buf = Vec::new();
                 let mut tmp = [0u8; 4096];
                 loop {
                     match stderr.read(&mut tmp).await {
                         Ok(0) => break,
                         Ok(n) => {
-                            let mut g = buf.lock().await;
-                            g.push_str(&String::from_utf8_lossy(&tmp[..n]));
-                            if g.len() > 16 * 1024 {
-                                let drop_at = g.len() - 16 * 1024;
-                                g.drain(..drop_at);
+                            // Append to ring buffer (keep last 16KB)
+                            {
+                                let mut g = buf.lock().await;
+                                g.push_str(&String::from_utf8_lossy(&tmp[..n]));
+                                if g.len() > 16 * 1024 {
+                                    let drop_at = g.len() - 16 * 1024;
+                                    g.drain(..drop_at);
+                                }
+                            }
+                            // Split into lines and forward to tracing
+                            line_buf.extend_from_slice(&tmp[..n]);
+                            while let Some(pos) = line_buf.iter().position(|&b| b == b'\n') {
+                                let line: Vec<u8> = line_buf.drain(..=pos).collect();
+                                if let Ok(s) = std::str::from_utf8(&line) {
+                                    let s = s.trim();
+                                    if !s.is_empty() {
+                                        tracing::warn!(target: "cortex", "{}", s);
+                                    }
+                                }
                             }
                         }
                         Err(_) => break,
