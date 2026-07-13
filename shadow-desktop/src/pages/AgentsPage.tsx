@@ -9,11 +9,11 @@ import {
 import { Button, Badge, EmptyState, Modal } from '../components/ui';
 import { useAgentStore } from '../stores/agentStore';
 import { useCortexStore } from '../stores/cortexStore';
-import { cortexClient, type ScanResult } from '../lib/cortexClient';
+import { cortexClient, type ScanResult, type InstalledWasmList } from '../lib/cortexClient';
 import { openaiClient } from '../lib/openaiClient';
 import { cn } from '../lib/utils';
 
-type AgentSection = 'internal' | 'custom' | 'external';
+type AgentSection = 'internal' | 'custom' | 'wasm' | 'external';
 
 export function AgentsPage() {
   const { t } = useTranslation();
@@ -30,9 +30,12 @@ export function AgentsPage() {
   const refreshStatus = useCortexStore((s) => s.refreshStatus);
   const refreshLobes = useCortexStore((s) => s.refreshLobes);
 
+  const isRunning = cortexStatus === 'running';
+
   const [expanded, setExpanded] = useState<Record<AgentSection, boolean>>({
     internal: true,
     custom: true,
+    wasm: true,
     external: true,
   });
   const [showCreatePrompt, setShowCreatePrompt] = useState(false);
@@ -40,6 +43,10 @@ export function AgentsPage() {
   const [scanError, setScanError] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const [syncingId, setSyncingId] = useState<string | null>(null);
+  const [installedWasm, setInstalledWasm] = useState<InstalledWasmList | null>(null);
+  const [loadingWasm, setLoadingWasm] = useState(false);
+  const [wasmError, setWasmError] = useState<string | null>(null);
+  const [uninstallingWasm, setUninstallingWasm] = useState<string | null>(null);
 
   useEffect(() => {
     checkOpenCodeInstalled();
@@ -83,7 +90,38 @@ export function AgentsPage() {
     }
   }, [refreshCortex]);
 
-  const isRunning = cortexStatus === 'running';
+  const loadInstalledWasm = useCallback(async () => {
+    setLoadingWasm(true);
+    setWasmError(null);
+    try {
+      const result = await cortexClient.listInstalledWasm();
+      setInstalledWasm(result);
+    } catch (e) {
+      setWasmError(e instanceof Error ? e.message : String(e));
+      setInstalledWasm({ count: 0, entries: [] });
+    } finally {
+      setLoadingWasm(false);
+    }
+  }, []);
+
+  const handleUninstallWasm = useCallback(async (name: string, version: string) => {
+    const key = `${name}@${version}`;
+    setUninstallingWasm(key);
+    try {
+      await cortexClient.deleteWasm(name, version);
+      await Promise.all([loadInstalledWasm(), refreshCortex()]);
+    } catch (e) {
+      setWasmError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setUninstallingWasm(null);
+    }
+  }, [loadInstalledWasm, refreshCortex]);
+
+  useEffect(() => {
+    if (isRunning) {
+      void loadInstalledWasm();
+    }
+  }, [isRunning, loadInstalledWasm]);
 
   const internalLobes = useMemo(() => cortexLobes.filter((l) => l.kind === 'native' || l.kind === 'wasm'), [cortexLobes]);
   const externalLobes = useMemo(() => cortexLobes.filter((l) => l.kind === 'external'), [cortexLobes]);
@@ -160,6 +198,73 @@ export function AgentsPage() {
                 onToggleStatus={() => updateAgent(a.id, { status: a.status === 'online' ? 'offline' : 'online' })}
               />
             ))}
+          </div>
+        )}
+      </SectionCard>
+
+      <SectionCard
+        title={t('agents.wasmAgents')}
+        icon={<Boxes size={20} />}
+        count={installedWasm?.count ?? 0}
+        isOpen={expanded.wasm}
+        onToggle={() => toggle('wasm')}
+        action={
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={<RefreshCw size={14} />}
+            loading={loadingWasm}
+            onClick={loadInstalledWasm}
+            disabled={!isRunning}
+          >
+            {t('agents.refresh')}
+          </Button>
+        }
+      >
+        {!isRunning ? (
+          <EmptyState icon={<Server size={48} />} title={t('agents.startCortexHint')} size="sm" />
+        ) : wasmError ? (
+          <div className="flex items-start gap-2 rounded-md border border-red-500/30 bg-red-500/10 p-2 text-sm text-red-500">
+            <AlertCircle size={14} />
+            <span>{wasmError}</span>
+          </div>
+        ) : installedWasm && installedWasm.entries.length === 0 ? (
+          <EmptyState
+            icon={<Boxes size={48} />}
+            title={t('agents.noInstalledWasm')}
+            description={t('agents.noInstalledWasmDesc')}
+          />
+        ) : (
+          <div className="space-y-2">
+            {installedWasm?.entries.map((entry) => {
+              const key = `${entry.name}@${entry.version}`;
+              return (
+                <div key={key} className="flex items-center justify-between rounded-md border border-border bg-muted/30 p-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-sm font-medium">{entry.name}</span>
+                      <Badge variant="outline" size="sm">v{entry.version}</Badge>
+                      <Badge variant="default" size="sm">{entry.source}</Badge>
+                    </div>
+                    <div className="font-mono text-xs text-muted-foreground">
+                      {(entry.size_bytes / 1024).toFixed(1)} KiB · sha256:{entry.sha256.slice(0, 12)}…
+                    </div>
+                    {entry.source_url && (
+                      <div className="font-mono text-xs text-muted-foreground">{entry.source_url}</div>
+                    )}
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    icon={<Trash2 size={14} />}
+                    loading={uninstallingWasm === key}
+                    onClick={() => handleUninstallWasm(entry.name, entry.version)}
+                  >
+                    {t('agents.uninstall')}
+                  </Button>
+                </div>
+              );
+            })}
           </div>
         )}
       </SectionCard>

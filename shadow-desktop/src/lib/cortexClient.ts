@@ -125,6 +125,21 @@ export interface ScanResult {
   }>;
 }
 
+export interface InstalledWasmEntry {
+  name: string;
+  version: string;
+  sha256: string;
+  source: string;
+  source_url: string | null;
+  size_bytes: number;
+  uploaded_at: string;
+}
+
+export interface InstalledWasmList {
+  count: number;
+  entries: InstalledWasmEntry[];
+}
+
 export interface DiscoveryResult {
   agents: Array<{
     name: string;
@@ -328,6 +343,17 @@ export class CortexClient {
 
   async discoverAgents(): Promise<DiscoveryResult> {
     return this.request<DiscoveryResult>('/api/cortex/agents/discover');
+  }
+
+  async listInstalledWasm(): Promise<InstalledWasmList> {
+    return this.request<InstalledWasmList>('/api/cortex/admin/agents/installed');
+  }
+
+  async deleteWasm(name: string, version: string): Promise<void> {
+    await this.request<void>(
+      `/api/cortex/admin/agents/${encodeURIComponent(name)}/${encodeURIComponent(version)}`,
+      { method: 'DELETE' },
+    );
   }
 }
 
