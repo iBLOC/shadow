@@ -9,7 +9,7 @@ import {
 import { Button, Badge, EmptyState, Modal } from '../components/ui';
 import { useAgentStore } from '../stores/agentStore';
 import { useCortexStore } from '../stores/cortexStore';
-import { cortexClient, type ScanResult, type InstalledWasmList, type AgentSearchResponse } from '../lib/cortexClient';
+import { cortexClient, type ScanResult, type InstalledWasmList, type AgentSearchResponse, type McpAgentBinding, type McpServerRecord } from '../lib/cortexClient';
 import { cn } from '../lib/utils';
 
 type AgentSection = 'internal' | 'custom' | 'wasm' | 'external';
@@ -149,8 +149,84 @@ export function AgentsPage() {
     }
   }, [isRunning, loadInstalledWasm]);
 
+
   const internalLobes = useMemo(() => cortexLobes.filter((l) => l.kind === 'native' || l.kind === 'wasm'), [cortexLobes]);
   const externalLobes = useMemo(() => cortexLobes.filter((l) => l.kind === 'external'), [cortexLobes]);
+  const [mcpBindingsByAgent, setMcpBindingsByAgent] = useState<Record<string, McpAgentBinding[]>>({});
+  const [mcpBindError, setMcpBindError] = useState<string | null>(null);
+  const [bindModalAgent, setBindModalAgent] = useState<string | null>(null);
+  const [availableMcpServers, setAvailableMcpServers] = useState<McpServerRecord[]>([]);
+  const [bindSubmitting, setBindSubmitting] = useState(false);
+
+  const loadMcpBindings = useCallback(async () => {
+    if (!isRunning) {
+      setMcpBindingsByAgent({});
+      return;
+    }
+    const agents = [...internalLobes, ...externalLobes];
+    const entries = await Promise.all(
+      agents.map(async (a) => {
+        try {
+          const resp = await cortexClient.listMcpServersForAgent(a.name);
+          return [a.name, resp.bindings] as const;
+        } catch {
+          return [a.name, []] as const;
+        }
+      })
+    );
+    setMcpBindingsByAgent(Object.fromEntries(entries));
+  }, [isRunning, internalLobes, externalLobes]);
+  useEffect(() => {
+    void loadMcpBindings();
+  }, [loadMcpBindings]);
+  const handleUnbindMcp = useCallback(
+    async (agentName: string, serverId: string) => {
+      try {
+        await cortexClient.unbindMcpServerFromAgent(agentName, serverId);
+      } catch (e) {
+        setMcpBindError(e instanceof Error ? e.message : String(e));
+      } finally {
+        await loadMcpBindings();
+      }
+    },
+    [loadMcpBindings]
+  );
+
+  const openBindModal = useCallback(
+    async (agentName: string) => {
+      setBindModalAgent(agentName);
+      setMcpBindError(null);
+      try {
+        const list = await cortexClient.listMcpServers();
+        const bound = (mcpBindingsByAgent[agentName] ?? []).map((b) => b.server_id);
+        setAvailableMcpServers(
+          list.servers.filter((s) => s.state === 'running' && !bound.includes(s.id))
+        );
+      } catch (e) {
+        setMcpBindError(e instanceof Error ? e.message : String(e));
+        setAvailableMcpServers([]);
+      }
+    },
+    [mcpBindingsByAgent]
+  );
+
+  const submitBind = useCallback(
+    async (serverId: string) => {
+      if (!bindModalAgent) return;
+      setBindSubmitting(true);
+      setMcpBindError(null);
+      try {
+        await cortexClient.bindMcpServerToAgent(bindModalAgent, serverId);
+        await loadMcpBindings();
+        setBindModalAgent(null);
+      } catch (e) {
+        setMcpBindError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setBindSubmitting(false);
+      }
+    },
+    [bindModalAgent, loadMcpBindings]
+  );
 
   const toggle = (k: AgentSection) => setExpanded((prev) => ({ ...prev, [k]: !prev[k] }));
 
@@ -274,6 +350,9 @@ export function AgentsPage() {
                 <InternalAgentCard
                   key={l.name}
                   lobe={l}
+                  mcpBindings={mcpBindingsByAgent[l.name]}
+                  onUnbindMcp={(sid) => handleUnbindMcp(l.name, sid)}
+                  onOpenMcpBind={openBindModal}
                 />
               ))}
             </div>
@@ -454,7 +533,14 @@ export function AgentsPage() {
         ) : (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
             {externalLobes.map((lobe) => (
-              <InternalAgentCard key={lobe.name} lobe={lobe} showUnlink />
+              <InternalAgentCard
+                key={lobe.name}
+                lobe={lobe}
+                showUnlink
+                mcpBindings={mcpBindingsByAgent[lobe.name]}
+                onUnbindMcp={(sid) => handleUnbindMcp(lobe.name, sid)}
+                onOpenMcpBind={openBindModal}
+              />
             ))}
           </div>
         )}
@@ -535,6 +621,16 @@ export function AgentsPage() {
           }}
         />
       )}
+      {bindModalAgent && (
+        <McpBindModal
+          agentName={bindModalAgent}
+          servers={availableMcpServers}
+          onClose={() => setBindModalAgent(null)}
+          onBind={submitBind}
+          submitting={bindSubmitting}
+          error={mcpBindError}
+        />
+      )}
     </div>
   );
 }
@@ -595,11 +691,110 @@ function SectionCard({
   );
 }
 
+function McpBindingsPanel({
+  bindings,
+  onUnbind,
+}: {
+  bindings: McpAgentBinding[];
+  onUnbind: (serverId: string) => void;
+}) {
+  const { t } = useTranslation();
+  if (bindings.length === 0) {
+    return (
+      <p className="text-xs text-muted-foreground">{t('mcpAgentBindings')}: 0</p>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-xs font-medium text-muted-foreground">
+        {t('mcpAgentBindings')} ({bindings.length})
+      </p>
+      <div className="flex flex-wrap gap-1">
+        {bindings.map((b) => (
+          <Badge
+            key={b.server_id}
+            variant="outline"
+            size="sm"
+            className="cursor-pointer"
+            onClick={() => onUnbind(b.server_id)}
+            title={`server: ${b.server_id.slice(0, 8)}…`}
+          >
+            <span className="font-mono text-xs">{b.server_id.slice(0, 8)}…</span>
+          </Badge>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function McpBindModal({
+  agentName,
+  servers,
+  onClose,
+  onBind,
+  submitting,
+  error,
+}: {
+  agentName: string;
+  servers: McpServerRecord[];
+  onClose: () => void;
+  onBind: (serverId: string) => void;
+  submitting: boolean;
+  error: string | null;
+}) {
+  const { t } = useTranslation();
+  return (
+    <Modal
+      isOpen
+      onClose={onClose}
+      title={t('mcpBindTitle', { agent: agentName })}
+      size="md"
+    >
+      {servers.length === 0 ? (
+        <p className="text-sm text-muted-foreground">{t('mcpBindNoEligible')}</p>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {servers.map((s) => (
+            <div
+              key={s.id}
+              className="flex items-center justify-between rounded-md border border-border bg-muted/30 p-3"
+            >
+              <div>
+                <span className="text-sm font-medium">{s.name}</span>
+                <span className="ml-2 font-mono text-xs text-muted-foreground">
+                  {s.wasm.name}@{s.wasm.version}
+                </span>
+              </div>
+              <Button
+                size="sm"
+                variant="primary"
+                loading={submitting}
+                onClick={() => onBind(s.id)}
+              >
+                {t('mcpBind')}
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+      {error && (
+        <div className="mt-3 flex items-start gap-2 rounded-md border border-red-500/30 bg-red-500/10 p-2 text-sm text-red-500">
+          <AlertCircle size={14} />
+          <span>{error}</span>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
 function InternalAgentCard({
-  lobe, showUnlink,
+  lobe, showUnlink, mcpBindings, onUnbindMcp, onOpenMcpBind,
 }: {
   lobe: import('../lib/cortexClient').LobeInfo;
   showUnlink?: boolean;
+  mcpBindings?: McpAgentBinding[];
+  onUnbindMcp?: (serverId: string) => void;
+  onOpenMcpBind?: (agentName: string) => void;
 }) {
   const { t } = useTranslation();
   const healthy = lobe.health_status === 'healthy';
@@ -623,13 +818,29 @@ function InternalAgentCard({
           <Badge key={s} variant="outline" size="sm">{s}</Badge>
         ))}
       </div>
-      {showUnlink ? (
-        <div className="flex justify-end pt-2 border-t border-border">
+      {mcpBindings && onUnbindMcp && onOpenMcpBind ? (
+        <McpBindingsPanel
+          bindings={mcpBindings}
+          onUnbind={onUnbindMcp}
+        />
+      ) : null}
+      <div className="flex items-center justify-between border-t border-border pt-2">
+        {onOpenMcpBind ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => onOpenMcpBind(lobe.name)}
+            icon={<Link2 size={12} />}
+          >
+            {t('mcp.bind')}
+          </Button>
+        ) : <span />}
+        {showUnlink ? (
           <Button size="sm" variant="ghost" icon={<Unlink size={14} />}>
             {t('agents.unlink')}
           </Button>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
     </div>
   );
 }
