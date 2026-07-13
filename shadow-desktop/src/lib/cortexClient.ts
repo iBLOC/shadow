@@ -160,6 +160,56 @@ export interface InstalledWasmList {
   entries: InstalledWasmEntry[];
 }
 
+export type McpServerState = 'stopped' | 'starting' | 'running' | 'error';
+
+export interface McpWasmRef {
+  name: string;
+  version: string;
+  sha256: string;
+}
+
+export interface McpResourceQuota {
+  memory_bytes: number;
+  fuel: number;
+  wall_clock_ms: number;
+}
+
+export interface McpToolSummary {
+  name: string;
+  description: string | null;
+  input_schema: unknown;
+}
+
+export interface McpServerRecord {
+  id: string;
+  name: string;
+  wasm: McpWasmRef;
+  quota: McpResourceQuota;
+  description: string | null;
+  state: McpServerState;
+  last_error: string | null;
+  tools: McpToolSummary[];
+  registered_at: string;
+  last_started_at: string | null;
+}
+
+export interface McpServerList {
+  count: number;
+  servers: McpServerRecord[];
+}
+
+export interface McpAgentBinding {
+  agent_name: string;
+  server_id: string;
+  bound_at: string;
+}
+
+export interface McpAgentBindingsList {
+  agent_name: string;
+  count: number;
+  bindings: McpAgentBinding[];
+}
+
 export interface DiscoveryResult {
   agents: Array<{
     name: string;
@@ -393,6 +443,81 @@ export class CortexClient {
     const qs = params.toString();
     return this.request<AgentSearchResponse>(
       `/api/cortex/agents/search${qs ? `?${qs}` : ''}`,
+    );
+  }
+
+  async listMcpServers(): Promise<McpServerList> {
+    return this.request<McpServerList>('/api/cortex/mcp/servers');
+  }
+
+  async getMcpServer(id: string): Promise<McpServerRecord> {
+    return this.request<McpServerRecord>(
+      `/api/cortex/mcp/servers/${encodeURIComponent(id)}`,
+    );
+  }
+
+  async getMcpServerTools(id: string): Promise<McpToolSummary[]> {
+    return this.request<McpToolSummary[]>(
+      `/api/cortex/mcp/servers/${encodeURIComponent(id)}/tools`,
+    );
+  }
+
+  async listMcpServersForAgent(agentName: string): Promise<McpAgentBindingsList> {
+    return this.request<McpAgentBindingsList>(
+      `/api/cortex/mcp/agents/${encodeURIComponent(agentName)}/servers`,
+    );
+  }
+
+  async getAgentMcpTools(agentName: string): Promise<McpToolSummary[]> {
+    return this.request<McpToolSummary[]>(
+      `/api/cortex/mcp/agents/${encodeURIComponent(agentName)}/tools`,
+    );
+  }
+
+  async createMcpServer(req: {
+    name: string;
+    wasm: McpWasmRef;
+    quota?: McpResourceQuota;
+    description?: string;
+  }): Promise<McpServerRecord> {
+    return this.request<McpServerRecord>('/api/cortex/admin/mcp/servers', {
+      method: 'POST',
+      body: JSON.stringify(req),
+    });
+  }
+
+  async deleteMcpServer(id: string): Promise<void> {
+    await this.request<void>(
+      `/api/cortex/admin/mcp/servers/${encodeURIComponent(id)}`,
+      { method: 'DELETE' },
+    );
+  }
+
+  async startMcpServer(id: string): Promise<McpServerRecord> {
+    return this.request<McpServerRecord>(
+      `/api/cortex/admin/mcp/servers/${encodeURIComponent(id)}/start`,
+      { method: 'POST' },
+    );
+  }
+
+  async stopMcpServer(id: string): Promise<McpServerRecord> {
+    return this.request<McpServerRecord>(
+      `/api/cortex/admin/mcp/servers/${encodeURIComponent(id)}/stop`,
+      { method: 'POST' },
+    );
+  }
+
+  async bindMcpServerToAgent(agentName: string, serverId: string): Promise<McpAgentBinding> {
+    return this.request<McpAgentBinding>(
+      `/api/cortex/admin/mcp/agents/${encodeURIComponent(agentName)}/servers/${encodeURIComponent(serverId)}`,
+      { method: 'POST' },
+    );
+  }
+
+  async unbindMcpServerFromAgent(agentName: string, serverId: string): Promise<void> {
+    await this.request<void>(
+      `/api/cortex/admin/mcp/agents/${encodeURIComponent(agentName)}/servers/${encodeURIComponent(serverId)}`,
+      { method: 'DELETE' },
     );
   }
 }
