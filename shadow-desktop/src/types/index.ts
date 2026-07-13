@@ -1,26 +1,3 @@
-// MCP Types
-export interface MCPServer {
-  id: string;
-  name: string;
-  command: string;
-  args: string[];
-  env: Record<string, string>;
-  status: 'running' | 'stopped' | 'error';
-  lastError?: string;
-}
-
-export interface MCPTool {
-  name: string;
-  description: string;
-  inputSchema: Record<string, unknown>;
-}
-
-export interface MCPResource {
-  uri: string;
-  name: string;
-  mimeType: string;
-}
-
 // ====================
 // Agent Types - Extended
 // ====================
