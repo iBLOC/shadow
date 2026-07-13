@@ -304,6 +304,7 @@
     "generateDescSystemPrompt": "你是一个智能体描述生成器。根据以下系统提示词，用一句简洁的中文描述这个智能体的核心能力。只输出描述文本，不要额外内容。",
     "generating": "生成中...",
     "generateDescription": "AI 生成描述",
+    "generateDescriptionUnavailable": "Cortex 暂未配置 LLM (设置 OPENAI_API_KEY 后重启 Cortex)",
     "fieldName": "名称",
     "fieldSystemPrompt": "系统提示词",
     "fieldSystemPromptPlaceholder": "输入系统提示词，定义智能体的身份、行为和约束...",

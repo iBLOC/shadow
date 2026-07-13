@@ -110,6 +110,11 @@ export interface AgentMutationResult {
   created_at: string;
 }
 
+export interface GeneratedDescription {
+  description: string;
+  model: string;
+}
+
 export interface ScanResult {
   scanned_at: string;
   hosts: string;
@@ -328,6 +333,16 @@ export class CortexClient {
       method: 'POST',
       body: JSON.stringify(req),
     });
+  }
+
+  async generateAgentDescription(systemPrompt: string): Promise<GeneratedDescription> {
+    return this.request<GeneratedDescription>(
+      '/api/cortex/admin/agents/generate-description',
+      {
+        method: 'POST',
+        body: JSON.stringify({ system_prompt: systemPrompt }),
+      },
+    );
   }
 
   async scanExternalAgents(): Promise<ScanResult> {

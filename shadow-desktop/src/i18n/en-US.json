@@ -304,6 +304,7 @@
     "generateDescSystemPrompt": "You are an agent description generator. Based on the system prompt below, write a concise English description of this agent's core capability. Output only the description text.",
     "generating": "Generating...",
     "generateDescription": "AI Generate Description",
+    "generateDescriptionUnavailable": "Cortex LLM not configured (set OPENAI_API_KEY then restart cortex)",
     "fieldName": "Name",
     "fieldSystemPrompt": "System Prompt",
     "fieldSystemPromptPlaceholder": "Enter system prompt to define agent identity, behavior and constraints...",

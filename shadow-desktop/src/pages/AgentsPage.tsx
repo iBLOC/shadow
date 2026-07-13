@@ -10,7 +10,6 @@ import { Button, Badge, EmptyState, Modal } from '../components/ui';
 import { useAgentStore } from '../stores/agentStore';
 import { useCortexStore } from '../stores/cortexStore';
 import { cortexClient, type ScanResult, type InstalledWasmList } from '../lib/cortexClient';
-import { openaiClient } from '../lib/openaiClient';
 import { cn } from '../lib/utils';
 
 type AgentSection = 'internal' | 'custom' | 'wasm' | 'external';
@@ -571,28 +570,21 @@ function CreateCustomAgentModal({
   const [skills, setSkills] = useState('');
   const [description, setDescription] = useState('');
   const [generatingDesc, setGeneratingDesc] = useState(false);
+  const [generateDescError, setGenerateDescError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleGenerateDescription = useCallback(async () => {
     if (!systemPrompt.trim()) return;
     setGeneratingDesc(true);
     try {
-      const result = await openaiClient.chatCompletions({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: t('agents.generateDescSystemPrompt') },
-          { role: 'user', content: systemPrompt },
-        ],
-        temperature: 0.3,
-        max_tokens: 200,
-      });
-      const text = result.choices?.[0]?.message?.content ?? '';
-      setDescription(text.trim());
-    } catch {
+      const result = await cortexClient.generateAgentDescription(systemPrompt);
+      setDescription(result.description.trim());
+    } catch (e) {
+      setGenerateDescError(e instanceof Error ? e.message : String(e));
     } finally {
       setGeneratingDesc(false);
     }
-  }, [systemPrompt, t]);
+  }, [systemPrompt]);
 
   const handleSubmit = useCallback(async () => {
     if (!name.trim() || !systemPrompt.trim()) return;
@@ -645,6 +637,12 @@ function CreateCustomAgentModal({
             {generatingDesc ? t('agents.generating') : t('agents.generateDescription')}
           </button>
         </div>
+        {generateDescError && (
+          <div className="flex items-start gap-2 rounded-md border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-500">
+            <AlertCircle size={12} />
+            <span>{generateDescError}</span>
+          </div>
+        )}
         <div>
           <label className="mb-1 block text-sm font-medium">{t('agents.fieldDescription')}</label>
           <textarea
