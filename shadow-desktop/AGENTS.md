@@ -2,7 +2,7 @@
 
 **Updated:** 2026-07-13
 **Project:** shadow-desktop (Layer 4 — Interaction)
-**Sprint-1 status:** ✅ AgentsPage + ModelsPage + ConversationPage hardened against the cortex-driven agent registry. 10 AgentsPage tests + 10 chartbi tests passing. TypeScript and ESLint clean.
+**Sprint-2 status:** ✅ MCP management wired through cortex — AgentsPage per-card binding panel + bind modal + 12 new cortexClient methods + 18 i18n keys. 10 AgentsPage + 10 chartbi + 20 lib vitest tests passing (147 pre-existing failures in unrelated test files unchanged). TypeScript clean.
 
 ## ARCHITECTURAL ROLE
 
@@ -116,6 +116,18 @@ GET    /api/cortex/admin/agents/installed      → list installed WASM with sha2
 DELETE /api/cortex/admin/agents/{name}/{version} → uninstall WASM (cleans up filesystem mirror)
 POST   /api/cortex/admin/agents/generate-description → LLM-backed description generator
 
+// MCP surface (Sprint 2 — wasm-only transport)
+GET    /api/cortex/mcp/servers                  → McpServerList (id, name, wasm, state, tools)
+GET    /api/cortex/mcp/servers/{id}/tools       → live McpToolSummary[] (lazy fetch)
+GET    /api/cortex/mcp/agents/{name}/servers    → bindings for an agent
+GET    /api/cortex/mcp/agents/{name}/tools      → flattened tools across all bindings
+POST   /api/cortex/admin/mcp/servers            → register (name + wasm ref + sha256)
+DELETE /api/cortex/admin/mcp/servers/{id}       → uninstall (cascade bindings)
+POST   /api/cortex/admin/mcp/servers/{id}/start → run JSON-RPC initialize + tools/list
+POST   /api/cortex/admin/mcp/servers/{id}/stop  → state=Stopped
+POST   /api/cortex/admin/mcp/agents/{name}/servers/{id}  → bind
+DELETE /api/cortex/admin/mcp/agents/{name}/servers/{id}  → unbind
+
 // Chat stream surface (Sprint 1 ChatBI)
 POST   /shadow/v1/conversations/{id}/messages:stream → SSE stream; payload may carry ChartPayload (viz_type + columns[] + rows[][])
 ```
@@ -177,9 +189,13 @@ The same `src/` produces **two artefacts**:
 
 `src/lib/platform.ts` is the single source of truth for which target is in use. Tauri-only calls go through `src/lib/tauriSafe.ts::safeInvoke()` which returns `null` on the web build.
 
-## STATE STATUS (2026-07-13, post-Sprint-1)
+## STATE STATUS (2026-07-13, post-Sprint-2)
 
-**Completed** ✅ (since 2026-07-06):
+**Completed** ✅ (since 2026-07-13):
+- **MCP management UI** (commits `0109bad`-precedent, `40ba82e`, `445df73`) — `MCPPage` and AgentsPage's per-card binding panel both read from the cortex admin API (no more browser-local mcpStore for MCP). 12 new methods on `cortexClient` (listMcpServers / create / delete / start / stop / bind / unbind / etc.) plus McpServerRecord / McpToolSummary / McpAgentBinding / McpServerList TS types matching the cortex wire format. AgentsPage now shows a McpBindingsPanel below each InternalAgentCard with truncated server_id chips that unbind on click, plus a 'Bind MCP' button that opens a per-agent modal showing currently-running servers not yet bound. 18 new i18n keys (mcpTitle / mcpStart / mcpStop / mcpBind / etc.) added to both zh-CN and en-US.
+- **WASM fs-mirror + agent search bar** (commits `0109bad`) — Already in Sprint 1.
+
+**Completed earlier** ✅:
 - **ChatBI frontend** (commits `acc45be`, `f1e8e31` followup) — ConversationPage parses `ChartPayload` from cortex SSE and renders `ChartCard` via `echarts-for-react`; chartRegistry builds ECharts option per `VizType`. `isChatBiPayload` guard at `src/lib/chatbi/guards.ts`. 10 chartbi tests passing.
 - **Agent search bar** (commit `0109bad`) — full-width Find-Agent panel above the internal section: skill filter + text query backed by `cortexClient.searchAgents({skill, q})`. Skill filter is exact; text is case-insensitive substring across name / description / skills / url.
 - **Generate-description wired through cortex** (commit `b4f1f2c`) — replaced inline `openaiClient.chatCompletions({model:"gpt-4o-mini"})` in CreateCustomAgentModal with `cortexClient.generateAgentDescription(systemPrompt)`. Errors surface in a red banner; 503 → "Cortex LLM not configured".
