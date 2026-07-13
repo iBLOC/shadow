@@ -115,6 +115,21 @@ export interface GeneratedDescription {
   model: string;
 }
 
+export interface AgentSearchHit {
+  name: string;
+  kind: string;
+  description: string | null;
+  skills: string[];
+  url: string | null;
+  enabled: boolean;
+  version: string;
+}
+
+export interface AgentSearchResponse {
+  count: number;
+  agents: AgentSearchHit[];
+}
+
 export interface ScanResult {
   scanned_at: string;
   hosts: string;
@@ -368,6 +383,16 @@ export class CortexClient {
     await this.request<void>(
       `/api/cortex/admin/agents/${encodeURIComponent(name)}/${encodeURIComponent(version)}`,
       { method: 'DELETE' },
+    );
+  }
+
+  async searchAgents(opts: { skill?: string; q?: string } = {}): Promise<AgentSearchResponse> {
+    const params = new URLSearchParams();
+    if (opts.skill) params.set('skill', opts.skill);
+    if (opts.q) params.set('q', opts.q);
+    const qs = params.toString();
+    return this.request<AgentSearchResponse>(
+      `/api/cortex/agents/search${qs ? `?${qs}` : ''}`,
     );
   }
 }

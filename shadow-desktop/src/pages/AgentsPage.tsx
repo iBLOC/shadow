@@ -3,13 +3,13 @@ import { useTranslation } from 'react-i18next';
 import {
   Plus, Trash2, Settings, Play, Square, Brain,
   ChevronDown, ChevronRight, Terminal, RefreshCw, Download,
-  AlertCircle, Server, Sparkles, Boxes,
+  AlertCircle, Server, Sparkles, Boxes, Search,
   ScanLine, Link2, Unlink, Wand2,
 } from 'lucide-react';
 import { Button, Badge, EmptyState, Modal } from '../components/ui';
 import { useAgentStore } from '../stores/agentStore';
 import { useCortexStore } from '../stores/cortexStore';
-import { cortexClient, type ScanResult, type InstalledWasmList } from '../lib/cortexClient';
+import { cortexClient, type ScanResult, type InstalledWasmList, type AgentSearchResponse } from '../lib/cortexClient';
 import { cn } from '../lib/utils';
 
 type AgentSection = 'internal' | 'custom' | 'wasm' | 'external';
@@ -103,6 +103,33 @@ export function AgentsPage() {
     }
   }, []);
 
+  const [searchInput, setSearchInput] = useState('');
+  const [skillInput, setSkillInput] = useState('');
+  const [searchResults, setSearchResults] = useState<AgentSearchResponse | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+
+  const runAgentSearch = useCallback(async () => {
+    const skill = skillInput.trim();
+    const q = searchInput.trim();
+    if (!skill && !q) {
+      setSearchResults(null);
+      setSearchError(null);
+      return;
+    }
+    setSearching(true);
+    setSearchError(null);
+    try {
+      const resp = await cortexClient.searchAgents({ skill, q });
+      setSearchResults(resp);
+    } catch (e) {
+      setSearchError(e instanceof Error ? e.message : String(e));
+      setSearchResults(null);
+    } finally {
+      setSearching(false);
+    }
+  }, [searchInput, skillInput]);
+
   const handleUninstallWasm = useCallback(async (name: string, version: string) => {
     const key = `${name}@${version}`;
     setUninstallingWasm(key);
@@ -142,6 +169,94 @@ export function AgentsPage() {
         baseUrl={cortexBaseUrl}
         onRefresh={refreshCortex}
       />
+
+      <div className="rounded-lg border border-border bg-card p-4">
+        <div className="mb-3 flex items-center gap-2">
+          <Search size={16} className="text-muted-foreground" />
+          <h3 className="text-sm font-semibold text-foreground">{t('agents.searchTitle')}</h3>
+        </div>
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="flex-1 min-w-[160px]">
+            <label className="mb-1 block text-xs text-muted-foreground">{t('agents.searchQueryLabel')}</label>
+            <input
+              type="text"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void runAgentSearch();
+              }}
+              placeholder={t('agents.searchQueryPlaceholder')}
+              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+            />
+          </div>
+          <div className="w-44">
+            <label className="mb-1 block text-xs text-muted-foreground">{t('agents.searchSkillLabel')}</label>
+            <input
+              type="text"
+              value={skillInput}
+              onChange={(e) => setSkillInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void runAgentSearch();
+              }}
+              placeholder={t('agents.searchSkillPlaceholder')}
+              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+            />
+          </div>
+          <Button variant="primary" onClick={runAgentSearch} loading={searching} disabled={!isRunning}>
+            {t('agents.search')}
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setSearchInput('');
+              setSkillInput('');
+              setSearchResults(null);
+              setSearchError(null);
+            }}
+          >
+            {t('common.cancel')}
+          </Button>
+        </div>
+        {searchError && (
+          <div className="mt-3 flex items-start gap-2 rounded-md border border-red-500/30 bg-red-500/10 p-2 text-sm text-red-500">
+            <AlertCircle size={14} />
+            <span>{searchError}</span>
+          </div>
+        )}
+        {searchResults && (
+          <div className="mt-3">
+            <p className="mb-2 text-xs text-muted-foreground">
+              {t('agents.searchResultsCount', { count: searchResults.count })}
+            </p>
+            {searchResults.agents.length === 0 ? (
+              <p className="text-sm text-muted-foreground">{t('agents.searchResultsEmpty')}</p>
+            ) : (
+              <div className="space-y-2">
+                {searchResults.agents.map((a) => (
+                  <div key={a.name} className="flex flex-col gap-2 rounded-md border border-border bg-muted/30 p-3">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-sm font-medium">{a.name}</span>
+                      <Badge variant="outline" size="sm">{a.kind}</Badge>
+                      <Badge variant="default" size="sm">v{a.version}</Badge>
+                      {!a.enabled && <Badge variant="warning" size="sm">{t('agents.disabled')}</Badge>}
+                    </div>
+                    {a.description && (
+                      <p className="text-xs text-muted-foreground line-clamp-2">{a.description}</p>
+                    )}
+                    {a.skills.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {a.skills.map((s) => (
+                          <Badge key={s} variant="outline" size="sm">{s}</Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       <SectionCard
         title={t('agents.internalAgents')}
