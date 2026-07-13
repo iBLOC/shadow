@@ -1,7 +1,8 @@
 # PROJECT KNOWLEDGE BASE
 
-**Updated:** 2026-06-04
+**Updated:** 2026-07-13
 **Project:** shadow-desktop (Layer 4 — Interaction)
+**Sprint-1 status:** ✅ AgentsPage + ModelsPage + ConversationPage hardened against the cortex-driven agent registry. 10 AgentsPage tests + 10 chartbi tests passing. TypeScript and ESLint clean.
 
 ## ARCHITECTURAL ROLE
 
@@ -94,6 +95,32 @@ POST {host}/api/sessions/{id}/webrtc/offer  → { sdp: answer, ice: ... }
 
 // Agent discovery
 GET  {host}/.well-known/agent.json  → A2A AgentCard
+
+## CORTEX-SPECIFIC ENDPOINTS (Sprint 1)
+
+The actual runtime talks to **Cortex**, not Prefrontal. The cortexClient in `src/lib/cortexClient.ts` is the canonical caller for everything except chat/TTS/ASR (which still go through `prefrontalClient.ts` against the cortex `/v1/*` shim).
+
+```typescript
+// AgentsPage surface (Sprint 1)
+GET    /api/cortex/agents                  → list installed lobes (Native + Wasm + Prompt + External)
+POST   /api/cortex/agents/scan            → probe 6 external CLIs (opencode, claude-code, codex, openclaw, aider, continue)
+POST   /api/cortex/agents/sync/{provider_id} → promote scan row → LobeKind::External
+GET    /api/cortex/agents/discover        → A2A-shaped discovery payload
+GET    /api/cortex/agents/search?skill=&q= → lexical agent search (desktop AgentsPage search bar)
+GET    /api/cortex/agents/mirror?limit=N  → raw hippocampus Dimension::Agent memory rows
+
+// Admin (requires CORTEX_ADMIN_KEY)
+POST   /api/cortex/admin/agents/create         → pure-prompt agent with system_prompt
+POST   /api/cortex/admin/agents/install        → base64 / URL WASM upload
+GET    /api/cortex/admin/agents/installed      → list installed WASM with sha256 + size
+DELETE /api/cortex/admin/agents/{name}/{version} → uninstall WASM (cleans up filesystem mirror)
+POST   /api/cortex/admin/agents/generate-description → LLM-backed description generator
+
+// Chat stream surface (Sprint 1 ChatBI)
+POST   /shadow/v1/conversations/{id}/messages:stream → SSE stream; payload may carry ChartPayload (viz_type + columns[] + rows[][])
+```
+
+Discovery is centralised in `src/lib/cortexClient.ts`. Stale data in the desktop is *not* modelled — every read goes through cortex with `refreshLobes` on a 5s polling interval. Fetching more than a polled refresh (e.g. after a write) calls the affected method directly.
 ```
 
 ## mDNS SERVICE DISCOVERY
@@ -150,17 +177,24 @@ The same `src/` produces **two artefacts**:
 
 `src/lib/platform.ts` is the single source of truth for which target is in use. Tauri-only calls go through `src/lib/tauriSafe.ts::safeInvoke()` which returns `null` on the web build.
 
-## STATE STATUS (2026-07-06)
+## STATE STATUS (2026-07-13, post-Sprint-1)
 
-**Completed** ✅:
+**Completed** ✅ (since 2026-07-06):
+- **ChatBI frontend** (commits `acc45be`, `f1e8e31` followup) — ConversationPage parses `ChartPayload` from cortex SSE and renders `ChartCard` via `echarts-for-react`; chartRegistry builds ECharts option per `VizType`. `isChatBiPayload` guard at `src/lib/chatbi/guards.ts`. 10 chartbi tests passing.
+- **Agent search bar** (commit `0109bad`) — full-width Find-Agent panel above the internal section: skill filter + text query backed by `cortexClient.searchAgents({skill, q})`. Skill filter is exact; text is case-insensitive substring across name / description / skills / url.
+- **Generate-description wired through cortex** (commit `b4f1f2c`) — replaced inline `openaiClient.chatCompletions({model:"gpt-4o-mini"})` in CreateCustomAgentModal with `cortexClient.generateAgentDescription(systemPrompt)`. Errors surface in a red banner; 503 → "Cortex LLM not configured".
+- **WASM install UI** (commit `82f5494`) — AgentsPage WASM section between Custom and External. Lists installed binaries with size/sha/source badges. Delete per row. Refresh button. Disabled-when-cortex-stopped empty state. Cortex stores these in postgres `cortex_wasm_binaries` and mirrors to `${CORTEX_WASM_DIR or exe_dir}/wasm_modules/`.
+- **Sprint 1 backend alignment** — fixed pre-existing flow-agent.rs test compile errors (`FlowContext`/`FlowError` imports) and one agent_management.rs route that used axum 0.7 `:name` syntax (axum 0.8 wants `{name}`).
+
+**Completed earlier** ✅:
 - React 19 + Tauri 2 foundation
-- Zustand stores for all entities
+- Zustand stores for all entities (with Sprint 1 selector-pattern refactor to avoid Maximum-update-depth loop)
 - PrefrontalClient (HTTP) with `/v1/*` standard + `/api/*` Prefrontal-specific methods
 - New `lib/openaiClient.ts` typed wrapper for OpenAI /v1/* (chatCompletions, speech, transcriptions, listModels)
 - ConversationPage with text chat
 - **CompanionModePanel (WebRTC)** — `lib/webrtcCompanion.ts` + `stores/companionModeStore.ts` (VAD-driven, barge-in, multi-turn)
 - **Discovery page** (`pages/DiscoveryPage.tsx`) — mDNS browser, manual add, active node, localStorage persistence
-- i18n (zh-CN + en-US) with ~20 new keys for Discovery
+- i18n (zh-CN + en-US) — 100+ keys across chatbi / install / search / HF token / ngrok URLs etc.
 - mDNS service discovery (HTTP-based via Prefrontal `/api/discovery/*`)
 - **Tauri invoke migration** — `agentStore.fetchAgents()` now uses `prefrontalClient.listAgents()` over HTTP instead of `invoke('prefrontal_list_agents')`
 - A2A-ready: HTTP client can talk to `/api/a2a/peers` for cross-service agent delegation
