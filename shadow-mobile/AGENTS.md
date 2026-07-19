@@ -404,7 +404,7 @@ No errors, no warnings — only style-level info issues (deprecated `value` / `a
 | Prefrontal | `/home/ibloc/Projects/prefrontal` | Layer 3 (Agent) — used as fallback when cortex unavailable |
 | **Cortex** | `/home/ibloc/Projects/cortex` | **Layer 3.5 (Orchestrator) — primary HTTP target** |
 | Hippocampus | `/home/ibloc/Projects/hippocampus` | Layer 0 (Memory) — reached via cortex on `:60000/hippocampus` |
-| neure | `/home/ibloc/Projects/neure` | Layer 2 (Engine) — on-device MNN / LiteRT, plus remote `:8085` HTTP |
+| neure | [github.com/iBLOC/neure-rs](https://github.com/iBLOC/neure-rs) | Layer 2 (Engine) — on-device MNN / LiteRT, plus remote `:8085` HTTP |
 | Resonance | `/home/ibloc/Projects/resonance` | Layer 5 (Cross-user orchestration) — discovered via mDNS but mobile does not currently push tasks |
 
 ## ENVIRONMENT VARIABLES (mobile build-time)

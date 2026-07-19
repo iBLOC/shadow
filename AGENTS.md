@@ -76,7 +76,7 @@
 │  Layer 2: ENGINE  (外部项目)                                                 │
 │                                                                             │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │  neure  /home/ibloc/Projects/neure     Port 8083 (8085 embedded)    │    │
+│  │  neure  github.com/iBLOC/neure-rs    Port 8083 (8085 embedded)    │    │
 │  │  Rust 单二进制推理运行时 (LLM/TTS/ASR/Rerank)                         │    │
 │  │  • candle (默认) / voxcpm (burn) / litert 三个 ML 后端              │    │
 │  │  • 9 个 OpenAI-兼容 HTTP 端点                                        │    │
