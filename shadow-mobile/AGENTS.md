@@ -1,144 +1,264 @@
-# PROJECT KNOWLEDGE BASE
+# PROJECT KNOWLEDGE BASE — shadow-mobile
 
-**Updated:** 2026-06-04
-**Project:** shadow-mobile (Layer 4 Interaction + Layer 2 Engine hybrid)
+**Updated:** 2026-07-19 (post-cortex client wiring Sprint 1+2 + FlowsScreen `55ffc95` + continue-on-desktop via cortex only `dacbe83` + cortex-embedded neure+hippocampus paths `05aa697`)
+**Project:** shadow-mobile (Layer 4 Interaction + thin on-device Engine via Kotlin Native)
+
+> **Note (2026-07-19)**: This doc was previously framed as a "Layer 4 + Layer 2 hybrid" with 3 user-configurable modes. That framing predates **Cortex** (Layer 3.5). Current architecture: mobile is **primarily Layer 4** (Flutter UI); the on-device inference capability lives in the **Kotlin Native** layer (OpenAIServer.kt + LiteRT/MNN), exposed as a sidecar HTTP server on `:8085` when the user opts in. The default mobile flow routes everything through **cortex** (`:60000`).
 
 ## ARCHITECTURAL ROLE
 
-Shadow-Mobile is BOTH:
-- **Layer 4** (Interaction): Flutter UI for the user
-- **Layer 2** (Engine): Kotlin Native + LiteRT/MNN for on-device LLM/VLM
+Shadow-Mobile is the **Interaction Layer (Layer 4)** mobile client of the Shadow Platform. It is a **thin UI client** that talks to:
 
-This dual role is what makes Mobile special: it can run as a **standalone LLM Engine** for desktop/server agents, while also being a UI client.
+- **Agent Orchestrator (Cortex, Layer 3.5)** via `/api/cortex/*` — **primary** path; the mobile app routes most agent / flow / MCP / conversation / discovery operations through cortex
+- **Agent Layer (Prefrontal)** via OpenAI `/v1/*` and A2A — **fallback** when cortex unreachable (note: `dacbe83` removed automatic fallback for `continue-on-desktop`)
+- **Local inference** via Kotlin `OpenAIServer.kt` (MNN / LiteRT bindings) on `:8085` when in **Phone-as-Engine** opt-in mode
 
 **Reference**: `/home/ibloc/Projects/docs/superpowers/specs/2026-06-04-shadow-architecture-redesign.md`
 
-## HYBRID MODE
+## KEY PRINCIPLE: THIN CLIENT
 
-The phone can operate in 3 modes (user-configurable):
+The mobile app should NOT directly know about LLM/TTS/ASR internals. It only:
+1. Sends user input to Agent (OpenAI `/v1/chat/completions` or A2A)
+2. Receives streamed responses (SSE / WebSocket)
+3. Plays TTS (via `/v1/audio/speech` response)
+4. Captures mic audio (WebRTC for Companion Mode + VAD-driven `audio_ws_service`)
+5. Renders UI (Flutter 3.11+ with Riverpod 2.5 + GoRouter 14.8)
+6. Surfaces native-platform capabilities (Android Accessibility for automation, MNN/LiteRT for on-device inference)
+
+## OPERATING MODES (legacy hybrid-mode framing, kept for reference)
+
+The phone can operate in 3 modes (user-configurable on the Settings screen):
 
 | Mode | Layer 4 | Layer 2 | Description |
 |---|---|---|---|
-| **Standalone** | Flutter UI | MNN/LiteRT in-process | One app, all layers, no network |
-| **UI Only** | Flutter UI | (use remote) | Phone is just UI, desktop is Agent+Engine |
-| **Engine Only** | (hidden) | Kotlin HTTP server | Phone runs LLM, exposes `/v1/*` for desktop |
+| **UI + Cortex (default)** | Flutter UI | (cortex-sidecar `:60000/hippocampus`) | Phone is just UI; cortex owns Agent + flow + memory + WASM; only Kotlin inference is on-device |
+| **Standalone (offline)** | Flutter UI | MNN/LiteRT in-process (Kotlin `OpenAIServer.kt` on `:8085`) | One app, no network; uses `main_agent` + mobile `agents/main_agent/` + on-device model |
+| **Phone-as-Engine** | (hidden) | Kotlin HTTP server `:8085` exposes `/v1/*` for desktop | Phone runs LLM, advertises via mDNS `_shadow._tcp`; desktop Prefrontal calls `http://mobile.local:8085/v1/chat/completions` |
+
+> **Current focus (2026-07-19)**: Mode 1 (UI + Cortex) is the default. Mode 2/3 are still supported but rarely used since cortex can run on any device on the LAN.
 
 ## STRUCTURE
 
 ```
 shadow-mobile/
-├── lib/                              # Flutter (Layer 4 UI)
-│   ├── main.dart                     # App entry
-│   ├── router/                       # GoRouter (10 routes)
-│   ├── screens/                      # 10 pages
-│   │   ├── chat_screen.dart          # Chat + Companion Mode
-│   │   ├── task_board_screen.dart
-│   │   ├── conversation_screen.dart
-│   │   ├── agents_screen.dart
-│   │   ├── model_management_screen.dart
-│   │   ├── mcp_screen.dart
-│   │   ├── skills_screen.dart
-│   │   ├── memory_screen.dart
-│   │   ├── providers_screen.dart
-│   │   └── settings_screen.dart
-│   ├── providers/                    # Riverpod
-│   │   ├── chat_provider.dart        # LLM state + LiteRT
-│   │   ├── companion_mode_provider.dart  # NEW: WebRTC companion
-│   │   ├── conversation_mode_provider.dart # NEW: voice conversation
-│   │   └── model_download_provider.dart
-│   ├── services/                     # Service layer
-│   │   ├── prefrontal_client.dart    # HTTP to Prefrontal Agent
-│   │   ├── model_download_service.dart
-│   │   ├── audio_ws_service.dart     # WebSocket audio streaming
-│   │   ├── video_frame_collector.dart
-│   │   ├── mdns_discovery.dart
-│   │   └── accessibility_controller.dart
-│   ├── multimodal/                   # Image / Audio / Video input
-│   │   ├── multimodal_input_manager.dart
-│   │   ├── audio_input_handler.dart  # PcmAudioRecorder (16kHz)
-│   │   ├── image_input_handler.dart
-│   │   └── video_input_handler.dart
-│   ├── mnn_engine.dart               # Dart MNN binding
-│   ├── litert_engine.dart            # Dart LiteRT binding
-│   └── ...
-└── android/                          # Android Native (Layer 2)
-    └── app/src/main/
-        ├── kotlin/com/ibloc/shadow/
-        │   ├── MainActivity.kt       # Platform Channels
-        │   ├── PrefrontalAccessibilityService.kt
-        │   ├── litert/
-        │   │   └── LitertEngine.kt   # Google AI Edge LiteRT
-        │   ├── mnn/                  # MNN wrapper
-        │   ├── pcm/PcmAudioRecorder.kt  # 16kHz PCM recording
-        │   ├── tts/TtsManager.kt
-        │   ├── http/MobileActionServer.kt
-        │   └── ...
-        └── cpp/                      # C++ JNI bridge
-            ├── mnn_bridge.cpp
-            └── CMakeLists.txt
+├── pubspec.yaml                         # Flutter package (Dart SDK ^3.11.1)
+├── lib/
+│   ├── main.dart                        # Entry — initializes AppConfig + ModelManager + Riverpod
+│   ├── litert_engine.dart               # LiteRT LM engine wrapper
+│   ├── litert_model.dart                # LiteRT model metadata + load
+│   ├── mnn_engine.dart                  # MNN inference engine wrapper (uses Android Kotlin/C++ bridge)
+│   ├── tts_engine.dart                  # TTS pipeline
+│   ├── model_manager.dart               # Model registry + lifecycle
+│   ├── model_config.dart                # Model configuration types
+│   ├── router/
+│   │   └── app_router.dart              # GoRouter declarative routes
+│   ├── agents/                          # In-process agent runtimes
+│   │   ├── a2a/                         # A2A client + message + server stubs (3 files)
+│   │   ├── main_agent/                  # Main chat orchestrator (prompt + tools, 3 files)
+│   │   ├── mobile_action_agent/         # Android-action sub-agent (Accessibility-based, 4 files)
+│   │   └── providers/                   # agent_provider (Riverpod)
+│   ├── screens/                         # 19 UI pages
+│   │   ├── agents_screen.dart / chat_screen.dart / conversation_screen.dart
+│   │   ├── flows_screen.dart            # Browse / run cortex flows (Sprint 1, commit 55ffc95)
+│   │   ├── group_screen.dart / mcp_screen.dart / memory_screen.dart
+│   │   ├── model_management_screen.dart / model_settings_screen.dart
+│   │   ├── prompt_settings_screen.dart / providers_screen.dart / settings_screen.dart
+│   │   ├── setup_wizard_screen.dart     # First-run wizard (cortex discovery + model check)
+│   │   ├── skills_screen.dart / soul_screen.dart / task_board_screen.dart
+│   │   ├── voice_conversation_screen.dart  # Hands-free voice mode
+│   │   └── manage/                      # Sub-management screens
+│   ├── services/                        # Wire-level + service layer (23 files)
+│   │   ├── cortex/                      # cortex_client.dart (492 lines) — HTTP to cortex :60000
+│   │   ├── prefrontal/                  # Mobile wrappers around prefrontal (7 files)
+│   │   ├── database/                    # SQLite repositories (11 files)
+│   │   ├── genui/                       # GenUI server helpers (Agent2UI)
+│   │   ├── audio_ws_service.dart        # WebSocket audio streaming (VAD-driven)
+│   │   ├── webrtc_companion.dart        # flutter_webrtc + WS signaling (196 LOC)
+│   │   ├── webrtc_signaling.dart        # SDP / ICE offer-answer bookkeeping
+│   │   ├── wake_word_service.dart       # Wake-word detection
+│   │   ├── accessibility_controller.dart  # Android Accessibility API bridge
+│   │   ├── session_transfer_service.dart  # Cross-device session transfer
+│   │   ├── soul_service.dart            # "Soul" agent persistence
+│   │   ├── model_download_service.dart  # Model puller (delegates to neure `/v1/models/pull`)
+│   │   ├── mdns_discovery.dart          # `_shadow._tcp` browsing
+│   │   ├── network_service.dart         # connectivity_plus wrapper
+│   │   ├── group_service.dart           # mTLS group manager
+│   │   ├── engine_service.dart          # Inference engine coordination
+│   │   ├── log_service.dart             # Rolling file logger (mobile-side)
+│   │   ├── pcm_audio_recorder.dart      # PCM mic capture
+│   │   ├── video_frame_collector.dart   # Camera frame capture for multimodal
+│   │   ├── agent_review_service.dart    # Agent-review flow (approve / reject draft flows)
+│   │   ├── app_config_service.dart      # App-level config init
+│   │   └── prefrontal_client.dart       # HTTP client to prefrontal :8082 (fallback)
+│   ├── providers/                       # Riverpod state (14 providers)
+│   │   ├── ai/                          # AI-specific providers (model registry, embeddings)
+│   │   ├── cortex_provider.dart
+│   │   ├── chat_provider.dart / conversation_mode_provider.dart / companion_mode_provider.dart
+│   │   ├── flow_provider.dart / genui_provider.dart
+│   │   ├── mnn_agent_integration.dart
+│   │   ├── model_download_provider.dart / engine_models_provider.dart
+│   │   ├── wake_word_provider.dart / theme_provider.dart / log_provider.dart
+│   │   ├── service_provider.dart / error_dialog_provider.dart
+│   ├── multimodal/                      # Audio / image / file input handlers (5 files)
+│   ├── models/                          # Data classes (conversations, agents, flows, etc.)
+│   ├── skills/                          # Skill definitions
+│   ├── flutter_genui/                   # GenUI runtime (Agent2UI)
+│   ├── theme/                           # Material 3 + glassmorphism themes
+│   ├── widgets/                         # Reusable widgets
+│   ├── utils/                           # Helpers (logging, formatting, etc.)
+│   ├── config/                          # Build-time config
+│   ├── l10n/                            # i18n strings (zh / en arb files — see i18n section)
+│   └── generated/l10n/                  # Generated AppLocalizations (from arb files)
+├── android/                             # Android platform code (Kotlin + C++)
+│   └── app/src/main/
+│       ├── kotlin/com/ibloc/shadow/
+│       │   ├── MainActivity.kt          # Platform Channels registration
+│       │   ├── PrefrontalAccessibilityService.kt
+│       │   ├── litert/LitertEngine.kt   # Google AI Edge LiteRT
+│       │   ├── mnn/                     # MNN wrapper
+│       │   ├── pcm/PcmAudioRecorder.kt  # 16kHz PCM recording
+│       │   ├── tts/TtsManager.kt
+│       │   ├── http/MobileActionServer.kt  # HTTP server for mobile-action sub-agent
+│       │   ├── OpenAIServer.kt          # Phone-as-Engine OpenAI-compat server (port 8085)
+│       │   └── ...
+│       └── cpp/                         # C++ JNI bridge
+│           └── mnn_bridge.cpp
+├── ios/                                 # iOS platform code (Swift / Objective-C)
+│   └── Runner.xcodeproj/
+└── assets/
+    ├── models/                          # Default model catalog (small JSONs)
+    └── config/                          # Default config files
 ```
 
-## INBOUND PROTOCOLS (calls Prefrontal)
+## INBOUND PROTOCOLS (calls Cortex, then Prefrontal as fallback)
 
-All HTTP to standard OpenAI endpoints:
+All HTTP calls go to standard endpoints. **No direct engine calls** — the mobile app never speaks `/v1/chat/completions` directly when cortex is reachable.
 
 ```dart
-// LLM Chat
-POST {prefrontalUrl}/v1/chat/completions
+// LLM Chat (streaming)
+POST {host}/v1/chat/completions       // via cortex or prefrontal
+  body: { model, messages, stream: true }
+  returns: SSE
 
 // TTS
-POST {prefrontalUrl}/v1/audio/speech
+POST {host}/v1/audio/speech
+  body: { model: "tts-1", input: "Hello", voice: "alloy", response_format: "mp3" }
+  returns: audio/mpeg
 
-// ASR
-POST {prefrontalUrl}/v1/audio/transcriptions
+// ASR (when needed)
+POST {host}/v1/audio/transcriptions
+  body: multipart { file, model: "whisper-1" }
+  returns: { text }
 
-// Sessions + WebSocket
-POST {prefrontalUrl}/api/sessions
-WS   {prefrontalUrl}/api/sessions/{id}/ws
+// Conversations (cortex preferred — `/shadow/v1/conversations`)
+POST {host}/shadow/v1/conversations                // create
+GET  {host}/shadow/v1/conversations                // list
+POST {host}/shadow/v1/conversations/{id}/messages  // send (may return SSE)
 
-// WebRTC
-POST {prefrontalUrl}/api/sessions/{id}/webrtc/offer
+// WebSocket streaming (chat)
+WS {host}/api/sessions/{id}/ws
+
+// WebRTC (Companion Mode — flutter_webrtc + WS signaling)
+POST {host}/api/sessions/{id}/webrtc/offer  → { sdp: answer, ice: ... }
+
+// Agent discovery
+GET  {host}/.well-known/agent.json  → A2A AgentCard
 ```
 
-## OUTBOUND PROTOCOLS (when Mobile is Engine)
+## CORTEX-SPECIFIC ENDPOINTS (Sprint 1+2)
 
-The phone's Kotlin native should expose an HTTP server with OpenAI endpoints:
+`lib/services/cortex/cortex_client.dart` (492 lines) is the canonical caller for everything except chat/TTS/ASR (which still go through `prefrontal_client.dart` against the cortex `/v1/*` shim).
+
+```dart
+// === Health / discovery ===
+Future<Map<String, dynamic>> health()                  // GET /.well-known/agent.json
+Future<AgentsResponse>    listAgents()                 // GET /api/cortex/agents
+Future<Map<String, dynamic>> getAgent(String name)     // GET /api/cortex/agents/{name}
+Future<Map<String, dynamic>> getAgentMirror(...)       // GET /api/cortex/agents/mirror
+
+// === Conversations (Sprint 1 — cortex persistence) ===
+Future<Conversation> createConversation({agent, systemPrompt})  // POST /shadow/v1/conversations
+Future<Conversation> getConversation(String id)                 // GET  /shadow/v1/conversations/{id}
+Future<List<Conversation>> listConversations()                  // GET  /shadow/v1/conversations
+Future<Conversation> importSessionAsConversation(...)           // POST session-export → conversation
+Future<SendMessageResponse> sendMessage(id, req)                // POST /shadow/v1/conversations/{id}/messages
+
+// === Flows (Sprint 1 — flows via cortex) ===
+Future<List<FlowMeta>>      listFlows({name, tag, isDraft})      // GET    /api/flows
+Future<FlowDefinition>      createFlow(FlowDefinition flow)      // POST   /api/flows
+Future<FlowDefinition>      getFlow(String id)                   // GET    /api/flows/{id}
+Future<FlowRunResult>       runFlow(flowIdOrName, inputs, ...)   // POST   /api/flows/{id}/run
+Future<List<FlowDefinition>> listDrafts()                       // GET    /api/flows/draft
+Future<FlowDefinition>      promoteDraft(draftId)                // POST   /api/flows/draft/{id}/promote
+void                       rejectDraft(draftId)                 // POST   /api/flows/draft/{id}/reject
+
+// === Admin (via shared surface with desktop) ===
+// MCP / WASM / agent install / LLM description — same routes as desktop's cortexClient
+```
+
+Mobile-specific helpers (NOT in desktop's cortexClient):
+- `importSessionAsConversation(...)` — converts a `SessionExport` JSON into a cortex conversation so the phone can pick up where another device left off
+- **continue-on-desktop flow** (per `dacbe83`) — uses cortex only (no prefrontal fallback); the mobile app discovers the desktop's cortex endpoint and routes the chat session there
+
+## OUTBOUND PROTOCOLS (when Mobile is in Phone-as-Engine mode)
+
+When the user enables **Phone-as-Engine** in Settings, the Kotlin `OpenAIServer.kt` exposes an OpenAI-compatible HTTP server on `:8085`:
 
 ```
 POST /v1/chat/completions    # Delegates to LiteRT.generateContent()
 GET  /v1/models              # Lists installed .litertlm files
 ```
 
-This allows a desktop/Prefrontal agent to call `http://mobile.local:8085/v1/chat/completions` and use the phone's local LLM.
+This allows a desktop/Prefrontal agent to call `http://mobile.local:8085/v1/chat/completions` and use the phone's local LLM. mDNS `_shadow._tcp` advertises the service with capabilities TXT records.
 
-(Planned for Phase 3)
+## mDNS SERVICE DISCOVERY
 
-## COMPANION MODE
+On startup, the app browses `_shadow._tcp` services via `mdns_discovery.dart`:
 
-Implemented as a **Riverpod-driven** state machine (`companion_mode_provider.dart`)
-backed by real WebRTC peer connections:
+```dart
+// mDNS query for _shadow._tcp services
+// then for each found service:
+//   - GET http://host:port/.well-known/agent.json  → A2A AgentCard
+//   - POST http://host:60000/api/cortex/agents  → register self (if user opts in)
+//   - open WS ws://host:60000/api/webrtc/... for companion mode
+```
+
+Persist discovered hosts in `preferences` (or SQLite via `group_service.dart`); the user can pin favourites on the Group page (`group_screen.dart`).
+
+## COMPANION MODE (WebRTC + flutter_webrtc)
+
+`lib/services/webrtc_companion.dart` (196 LOC) wires `flutter_webrtc` to cortex's WebRTC endpoint:
 
 ```
 flutter_webrtc (RTCPeerConnection + getUserMedia)
        ↕ SDP/ICE (W3C WebRTC)
 WebRtcSignaling (WebSocket over /api/sessions/{id}/ws)
        ↕ webrtc_offer / webrtc_answer / webrtc_ice
-Prefrontal webrtc_handler (webrtc-rs, Opus 48kHz, earshot VAD, Agent.process)
+Cortex webrtc (ModalityRouter + SRTP relay, Opus 48kHz, VAD, Agent.process)
        ↕ A2A / OpenAI /v1/* / etc.
 ```
 
-State machine (`WebRtcPhase`):
+State machine (`WebRtcPhase` in `companion_mode_provider.dart`):
 - `idle → connecting → signaling → negotiating → connected → speaking`
 - `error` is terminal until `stop()` is called.
 
 VAD events (`vad_state` messages) drive `voiceState: idle | listening | speaking | bargeIn`.
-Barge-in (user starts talking while agent is mid-response) is signalled via
-`webrtc_barge_in` and resets the agent.
+Barge-in (user starts talking while agent is mid-response) is signalled via `webrtc_barge_in` and resets the agent.
 
-> **For the message-style Conversation Mode (one-shot voice messages over
-> WebSocket, not real-time), use `conversation_mode_provider` + `AudioWsService`
-> instead. That path stays for low-bandwidth or text-with-voice-attach
-> workflows; the WebRTC path is the real-time Companion Mode.
+> For the message-style **Conversation Mode** (one-shot voice messages over WebSocket, not real-time), use `conversation_mode_provider` + `AudioWsService` instead. That path stays for low-bandwidth or text-with-voice-attach workflows; the WebRTC path is the real-time Companion Mode.
+
+## AGENTS (in-process)
+
+`lib/agents/` hosts three runtimes + their providers:
+
+| Subdir | Files | Role |
+|---|---|---|
+| `a2a/` | `a2a_client.dart` / `a2a_message.dart` / `a2a_server.dart` | A2A message types + client (outbound HTTP to other cortex / prefrontal / external) + server stub |
+| `main_agent/` | `main_agent.dart` / `main_agent_prompt.dart` / `main_agent_tools.dart` | Primary chat orchestrator; system prompt + tool registry; runs on-device in Standalone mode |
+| `mobile_action_agent/` | `actions.dart` / `mobile_action_agent.dart` / `mobile_actions_tools.dart` / `mobile_actions_viewmodel.dart` | Sub-agent that calls `AccessibilityController` to tap / swipe / type on Android UI elements |
+| `providers/` | `agent_provider.dart` | Riverpod glue |
+
+The `main_agent` is intentionally thin — for any non-trivial task (file ops, code edits, browser automation), it delegates to a **cortex flow** via `CortexClient.runFlow(...)`. The `mobile_action_agent` is one of the few exceptions (it must run on-device because it touches the Android Accessibility API).
 
 ## PLATFORM CHANNELS (Flutter ↔ Kotlin)
 
@@ -153,52 +273,160 @@ Barge-in (user starts talking while agent is mid-response) is signalled via
 | `com.ibloc.shadow/pcm_audio` | Audio recording control |
 | `com.ibloc.shadow/pcm_audio_stream` | Audio data stream (EventChannel) |
 | `com.ibloc.shadow/http_server` | Mobile action server |
+| `com.ibloc.shadow/engine` | Phone-as-Engine OpenAI server: `startServer` / `stopServer` / `isServerRunning` / `getServerUrl` / `getApiKey` / `setApiKey` / `setAuthEnabled` / `getServiceName` |
+
+## MULTIMODAL INPUT
+
+`lib/multimodal/` wraps three input channels:
+- `audio_input_handler.dart` — mic capture via `record` package; PCM chunks → `pcm_audio_recorder.dart`
+- `image_input_handler.dart` — `image_picker` + `camera`; feeds `video_frame_collector.dart` for streaming
+- `file_input_handler.dart` — `file_picker`; uploads to cortex via `CortexClient`
+
+`multimodal_input_manager.dart` multiplexes these into a single inbound stream consumed by `main_agent`.
+
+## ANDROID NATIVE (MNN + LiteRT)
+
+`android/app/src/main/cpp/mnn_bridge.cpp` is the JNI bridge between Dart (`lib/mnn_engine.dart`) and the MNN C++ runtime. MNN is the on-device inference engine for older / lower-end devices. LiteRT (via `lib/litert_engine.dart` + `lib/litert_model.dart`) is the newer path for devices that ship Google's LiteRT-LM. The Kotlin side wraps both into a single `OpenAIServer.kt` that exposes an OpenAI-compatible `/v1/*` surface on `:8085`.
+
+**LiteRT init timeout + model-dir diagnosis** (recent fix): previously hanging forever; now 10s timeout, calls `diagnoseModelDirectory` first, shows download dialog immediately if model missing.
+
+## i18n
+
+Two ARB files (auto-generated Dart bindings live in `lib/generated/l10n/`):
+- `lib/l10n/app_en.arb`
+- `lib/l10n/app_zh.arb`
+
+CI runs `flutter_localization_linter` — adding a UI string to only one locale fails the build.
 
 ## CONVENTIONS
 
-- Flutter 3.11+
-- Riverpod for state
-- GoRouter for navigation
-- flutter_genui for Agent2UI (planned)
-- MNN + LiteRT (with CPU/Neural Accelerators)
-- Android only (iOS stub)
-- mTLS for secure communication
+- Flutter 3.11+ with Dart SDK `^3.11.1`
+- Riverpod 2.5 for state management (`flutter_riverpod`)
+- GoRouter 14.8 for declarative routing (`lib/router/app_router.dart`)
+- flutter_webrtc 1.4.1 for WebRTC
+- speech_to_text 7.0 for ASR fallback
+- sqflite 2.3 (mobile) + sqflite_common_ffi 2.3 (desktop tests) for local persistence
+- genui 0.7 + genui_a2ui 0.7 for Agent2UI
+- flutter_ai_toolkit 1.0 for chat UI primitives
+- freezed_annotation + json_annotation for DTOs
+- **Never** call `/v1/chat/completions` directly from a screen — always go through a provider or service
+- i18n strings MUST appear in both `app_en.arb` and `app_zh.arb`
 - Kotlin 1.9, NDK 27.2, Gradle 8.14, Java 17
+- mTLS for secure communication (via `group_service.dart`)
+- Network security config permits cleartext to `localhost` / `127.0.0.1` / `10.0.2.2` / `*.local` (dev only)
 
-## STATE STATUS (2026-06-04)
-
-**Completed** ✅:
-- Flutter UI with 10 pages
-- Riverpod providers for state
-- MNN + LiteRT integration
-- Companion Mode (Riverpod state machine) — WebSocket audio streaming
-- Audio recording via Platform Channel
-- mDNS discovery
-- mTLS group manager
-- Model download from ModelScope/HF
-- **LiteRT init timeout + model-dir diagnosis** (was hanging forever; now 10s timeout, calls `diagnoseModelDirectory` first, shows download dialog immediately if model missing)
-- **Phone-as-Engine mode** (`OpenAIServer.kt` on port 8085, SSE streaming, bridged to `LitertEngine` via `EngineProvider`, mDNS `_shadow._tcp` advertisement with capabilities TXT records)
-- **Engine Platform Channel** `com.ibloc.shadow/engine` (startServer/stopServer/isServerRunning/getServerUrl/getApiKey/setApiKey/setAuthEnabled/getServiceName)
-- **Network security config** permitting cleartext to localhost / 127.0.0.1 / 10.0.2.2 / *.local (dev only)
-- **Companion Mode WebRTC** (`lib/services/webrtc_companion.dart` + `webrtc_signaling.dart` + rewritten `companion_mode_provider.dart`): real RTCPeerConnection via `flutter_webrtc`, getUserMedia mic capture, SDP/ICE exchange over the existing Prefrontal WebSocket, Opus codec auto-negotiated with Prefrontal's `webrtc_handler.rs`, VAD-driven voice state, barge-in signaling, RTCVideoRenderer for remote TTS playback. Mirrors the desktop `webrtcCompanion.ts` so the two clients share the same end-to-end protocol.
-
-**In Progress** 🔄:
-- (no current in-progress items)
-
-**Planned** 📋:
-- Voice wake word
-- ESP32 / hardware device pairing (per `2026-06-04-shadow-architecture-redesign.md` Phase 6)
-- Prefrontal mobile (as library, not server) via Tauri embedding or FFI
-
-## COMMANDS
+## BUILD COMMANDS
 
 ```bash
-flutter run
-flutter build apk --debug
-flutter analyze
-adb logcat | grep shadow
+flutter pub get
+flutter run                                # debug on attached device
+flutter test                               # unit tests
+flutter test integration_test              # integration tests
+dart analyze                               # linter; 100 info-level issues as of 2026-07-19 (0 errors)
+flutter build apk --release                # Android APK
+flutter build appbundle --release          # Android App Bundle
+flutter build ios --release --no-codesign  # iOS (unsigned; signing handled by Xcode)
+flutter build web --release                # Web SPA (experimental — not the primary target)
+
 # Trigger phone-as-Engine mode (after UI button or automatic on Engine-Only config)
 adb shell am start -n com.ibloc.shadow/.MainActivity
+
 # Discover the phone from a Linux machine
 avahi-browse -rt _shadow._tcp
+
+# Tail mobile logs
+adb logcat | grep shadow
 ```
+
+## BUILD TARGETS
+
+| Target | Output | Notes |
+|---|---|---|
+| Android (APK / App Bundle) | `build/app/outputs/{apk,flutter-apk,bundle}/*` | Primary target; on-device MNN / LiteRT for offline inference |
+| iOS | `build/ios/iphoneos/Runner.app` | Secondary target; requires Apple Developer account |
+| Web (experimental) | `build/web/` | No native inference; routes everything through cortex or prefrontal HTTP |
+
+## CODE HEALTH
+
+```
+$ dart analyze
+100 issues found.   # 0 errors, 100 info-level (deprecation warnings + avoid_print + use_null_aware_elements)
+```
+
+No errors, no warnings — only style-level info issues (deprecated `value` / `activeColor` form-field props, stray `print()` calls in services, null-check patterns that could use `?.` shorthand).
+
+## STATE STATUS (2026-07-19)
+
+**Completed** ✅ (recent additions marked 🆕):
+- 🆕 **Cortex client** (`lib/services/cortex/cortex_client.dart`, 492 lines) — wired for agents / conversations / flows / drafts / agent mirror / import-session-as-conversation; all of Sprint 1+2 surface
+- 🆕 **FlowsScreen** (`lib/screens/flows_screen.dart` + commit `55ffc95`) — browse / run cortex flows from the phone
+- 🆕 **continue-on-desktop via cortex only** (`dacbe83`) — chat sessions hand off to a desktop cortex without falling back to prefrontal
+- 🆕 **cortex-embedded neure+hippocampus paths** (`05aa697`) — all hardcoded URLs updated to the cortex-sidecar model (`:60000/hippocampus/api/...`)
+- **Companion Mode (WebRTC)** — `webrtc_companion.dart` (196 LOC) + `webrtc_signaling.dart` + VAD-driven barge-in via `audio_ws_service.dart` + `wake_word_service.dart`; mirrors desktop `webrtcCompanion.ts` so the two clients share the same end-to-end protocol
+- **Mobile sub-agent** (`lib/agents/mobile_action_agent/`) — AccessibilityController-driven UI automation as a cortex-flow tool
+- **A2A message types + client** (`lib/agents/a2a/`) — outbound A2A delegation to other cortex / prefrontal instances
+- **Main agent** (`lib/agents/main_agent/`) — system prompt + tool registry; runs locally in Standalone mode
+- **Multimodal input** — audio / image / file via `lib/multimodal/`, including `video_frame_collector.dart` for camera-streaming
+- **Wake-word detection** — `wake_word_service.dart` for "Hey Shadow"-style invocation
+- **Session transfer** — `session_transfer_service.dart` + `SessionExport` for cross-device handoff
+- **Soul agent persistence** — `soul_service.dart` for user-persona state
+- **Model downloader** — delegates to neure's `/v1/models/pull` via `model_download_service.dart` + `model_download_provider.dart`
+- **mDNS discovery** — `mdns_discovery.dart` for `_shadow._tcp` browsing + `group_service.dart` for mTLS trust
+- **i18n** — `app_en.arb` + `app_zh.arb` with `flutter_localization_linter` enforcement
+- **Database layer** — `lib/services/database/` with repositories for agents / MCP servers / skills / models
+- **Agent review** — `agent_review_service.dart` for approve / reject draft flows
+- **Voice conversation screen** — `lib/screens/voice_conversation_screen.dart` for hands-free mode
+- **Phone-as-Engine mode** (`OpenAIServer.kt` on port 8085, SSE streaming, bridged to `LitertEngine` via `EngineProvider`, mDNS `_shadow._tcp` advertisement with capabilities TXT records)
+- **Engine Platform Channel** `com.ibloc.shadow/engine` (startServer/stopServer/isServerRunning/getServerUrl/getApiKey/setApiKey/setAuthEnabled/getServiceName)
+- **Network security config** permitting cleartext to `localhost` / `127.0.0.1` / `10.0.2.2` / `*.local` (dev only)
+- **LiteRT init timeout + model-dir diagnosis** — was hanging forever; now 10s timeout, calls `diagnoseModelDirectory` first, shows download dialog immediately if model missing
+
+**In Progress** 🔄:
+- WebRTC full DTLS-SRTP handshake on the mobile side — currently relies on cortex to handle encryption; mobile only deals with plain RTP via flutter_webrtc's default stack
+- Offline-first chat — main_agent can run locally for trivial replies but anything non-trivial still requires cortex or neure HTTP
+
+**Planned** 📋:
+- iOS companion-mode parity (current focus is Android; iOS WebRTC works but accessory flows need re-testing on a physical device)
+- Hot reload of cortex flows into the FlowsScreen without app restart (currently requires re-fetch via `flow_provider`)
+- Voice wake word integration hardening
+- ESP32 / hardware device pairing (per `2026-06-04-shadow-architecture-redesign.md` Phase 6)
+- Voice cloning on mobile (per platform-wide v0.9+ backlog)
+- A2UI streaming on mobile (genui_a2ui 0.7 already declared; widgets not yet wired)
+- Battery-aware inference scheduling (throttle MNN / LiteRT when device is unplugged or below 20% battery)
+- ~~Prefrontal mobile (as library, not server) via Tauri embedding or FFI~~ — **DONE as A2A** (`c5812a3`); FFI scaffolding removed
+
+## RELATED PROJECTS
+
+| Project | Path | Role |
+|---|---|---|
+| Shadow umbrella | `/home/ibloc/Projects/shadow` | Container for mobile + desktop |
+| Shadow-Desktop | `/home/ibloc/Projects/shadow/shadow-desktop` | Sibling Layer 4 client (Tauri + React) |
+| Prefrontal | `/home/ibloc/Projects/prefrontal` | Layer 3 (Agent) — used as fallback when cortex unavailable |
+| **Cortex** | `/home/ibloc/Projects/cortex` | **Layer 3.5 (Orchestrator) — primary HTTP target** |
+| Hippocampus | `/home/ibloc/Projects/hippocampus` | Layer 0 (Memory) — reached via cortex on `:60000/hippocampus` |
+| neure | `/home/ibloc/Projects/neure` | Layer 2 (Engine) — on-device MNN / LiteRT, plus remote `:8085` HTTP |
+| Resonance | `/home/ibloc/Projects/resonance` | Layer 5 (Cross-user orchestration) — discovered via mDNS but mobile does not currently push tasks |
+
+## ENVIRONMENT VARIABLES (mobile build-time)
+
+```bash
+# Optional — only needed when targeting a specific cortex / prefrontal in dev
+export CORTEX_HOST="http://localhost:60000"        # default in production: discovered via mDNS
+export PREFRONTAL_HOST="http://localhost:8082"     # fallback only — `dacbe83` removed automatic fallback
+
+# Model download defaults
+export NEURE_DEFAULT_SOURCE="modelscope"           # mobile's `model_download_provider.dart` defaults to ModelScope
+export HF_TOKEN="..."                                # for gated HuggingFace repos
+export MODELSCOPE_TOKEN="..."                       # for gated ModelScope repos
+```
+
+## Commits (mobile-only, last 10)
+
+| Hash | Description |
+|------|-------------|
+| 05aa697 | feat(shadow-mobile): update all paths to cortex-embedded neure+hippocampus |
+| dacbe83 | feat(mobile): continue-on-desktop uses cortex only (no prefrontal fallback) |
+| 55ffc95 | feat(mobile): add FlowsScreen for browsing/running cortex flows |
+| (older — see git log) | Cortex client wiring (Sprint 1+2); main_agent + mobile_action_agent split; WebRTC companion mode; wake-word service; multimodal input; session transfer |
+
+> The mobile project shares its git repository with shadow-desktop (`/home/ibloc/Projects/shadow/.git`), so commits are interleaved. Filter with `git log --author ...` or by `feat(mobile)` / `feat(shadow-mobile)` prefix.
