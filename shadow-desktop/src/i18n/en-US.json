@@ -302,6 +302,8 @@
     "noModelAssigned": "No model assigned",
     "defaultModel": "Default Model",
     "noDefaultModel": "No default model set",
+    "requiredCapabilities": "Required Capabilities",
+    "matchedModels": "Matched Models",
     "unlink": "Unlink",
     "generateDescSystemPrompt": "You are an agent description generator. Based on the system prompt below, write a concise English description of this agent's core capability. Output only the description text.",
     "generating": "Generating...",

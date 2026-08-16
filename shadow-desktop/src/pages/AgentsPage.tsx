@@ -830,7 +830,9 @@ function InternalAgentCard({
 }) {
   const { t } = useTranslation();
   const healthy = lobe.health_status === 'healthy';
-  const currentModel = (lobe.config as Record<string, unknown>)?.model_id as string | undefined;
+  const config = lobe.config as Record<string, unknown> | undefined;
+  const requiredCaps = (config?.required_capabilities as string[]) || [];
+  const matchedModels = (config?.matched_models as Record<string, { model_id: string }>) || {};
 
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4">
@@ -852,12 +854,36 @@ function InternalAgentCard({
           <Badge key={s} variant="outline" size="sm">{s}</Badge>
         ))}
       </div>
+      {requiredCaps.length > 0 && (
+        <div className="space-y-1">
+          <span className="text-xs font-medium text-muted-foreground">{t('agents.requiredCapabilities')}:</span>
+          <div className="flex flex-wrap gap-1">
+            {requiredCaps.map((cap) => (
+              <Badge key={cap} variant="secondary" size="sm">{cap}</Badge>
+            ))}
+          </div>
+        </div>
+      )}
+      {Object.keys(matchedModels).length > 0 && (
+        <div className="space-y-1">
+          <span className="text-xs font-medium text-muted-foreground">{t('agents.matchedModels')}:</span>
+          <div className="space-y-1">
+            {Object.entries(matchedModels).map(([cap, model]) => (
+              <div key={cap} className="flex items-center gap-2 text-xs">
+                <Badge variant="outline" size="sm">{cap}</Badge>
+                <span className="text-muted-foreground">→</span>
+                <span className="font-mono">{model.model_id}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       {onModelChange && providers && (
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">{t('agents.defaultModel')}:</span>
           <select
             className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-xs"
-            value={currentModel || ''}
+            value={config?.model_id as string || ''}
             onChange={(e) => onModelChange(lobe.name, e.target.value)}
           >
             <option value="">{t('agents.noDefaultModel')}</option>
