@@ -1,0 +1,121 @@
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: settings.spec.ts >> Settings Page >> 主题切换
+- Location: tests/e2e-ui/settings.spec.ts:42:3
+
+# Error details
+
+```
+Test timeout of 30000ms exceeded.
+```
+
+```
+Error: locator.click: Test timeout of 30000ms exceeded.
+Call log:
+  - waiting for locator('button:has-text("settings.light")')
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=e4]:
+  - generic [ref=e5]:
+    - heading "Shadow" [level=1] [ref=e10]
+    - paragraph [ref=e11]: 欢迎使用 Shadow 设置向导
+  - generic [ref=e12]:
+    - generic [ref=e13]:
+      - generic [ref=e14]: "1"
+      - generic [ref=e15]: 设置密码
+    - generic [ref=e16]:
+      - generic [ref=e17]: "2"
+      - generic [ref=e18]: 选择数据库
+    - generic [ref=e19]:
+      - generic [ref=e20]: "3"
+      - generic [ref=e21]: 添加供应商
+    - generic [ref=e22]:
+      - generic [ref=e23]: "4"
+      - generic [ref=e24]: 管理模型
+  - generic [ref=e26]:
+    - generic [ref=e27]:
+      - heading "保护您的数据" [level=2] [ref=e28]
+      - paragraph [ref=e29]: 创建主密码以加密敏感信息，使用机器ID作为盐值
+    - generic [ref=e30]:
+      - generic [ref=e31]:
+        - generic [ref=e32]: 主密码
+        - textbox "********" [ref=e36]
+      - generic [ref=e37]:
+        - generic [ref=e38]: 确认密码
+        - textbox "********" [ref=e39]
+      - paragraph [ref=e40]: 此密码用于加密您存储的凭据，机器ID将作为盐值
+      - paragraph [ref=e45]:
+        - text: "机器ID:"
+        - code [ref=e46]: ...
+    - generic [ref=e47]:
+      - button "下一步" [disabled]
+```
+
+# Test source
+
+```ts
+  1  | import { test, expect } from '@playwright/test';
+  2  | 
+  3  | test.describe('Settings Page', () => {
+  4  |   test.beforeEach(async ({ page }) => {
+  5  |     await page.goto('/settings');
+  6  |     await page.waitForLoadState('networkidle');
+  7  |   });
+  8  | 
+  9  |   test('页面标题正确显示', async ({ page }) => {
+  10 |     await expect(page.locator('h1')).toContainText('settings');
+  11 |   });
+  12 | 
+  13 |   test('显示 Cortex 状态', async ({ page }) => {
+  14 |     const cortexSection = page.locator('text=settings.cortexStatus');
+  15 |     await expect(cortexSection).toBeVisible();
+  16 |   });
+  17 | 
+  18 |   test('显示数据库设置', async ({ page }) => {
+  19 |     const dbSection = page.locator('text=settings.database');
+  20 |     await expect(dbSection).toBeVisible();
+  21 |   });
+  22 | 
+  23 |   test('显示语言设置', async ({ page }) => {
+  24 |     const langSection = page.locator('text=settings.language');
+  25 |     await expect(langSection).toBeVisible();
+  26 |   });
+  27 | 
+  28 |   test('显示主题设置', async ({ page }) => {
+  29 |     const themeSection = page.locator('text=settings.theme');
+  30 |     await expect(themeSection).toBeVisible();
+  31 |   });
+  32 | 
+  33 |   test('语言切换', async ({ page }) => {
+  34 |     const langSelect = page.locator('select').first();
+  35 |     await langSelect.selectOption('zh-CN');
+  36 |     await page.waitForTimeout(500);
+  37 |     
+  38 |     await langSelect.selectOption('en-US');
+  39 |     await page.waitForTimeout(500);
+  40 |   });
+  41 | 
+  42 |   test('主题切换', async ({ page }) => {
+  43 |     const lightButton = page.locator('button:has-text("settings.light")');
+  44 |     const darkButton = page.locator('button:has-text("settings.dark")');
+  45 |     
+> 46 |     await lightButton.click();
+     |                       ^ Error: locator.click: Test timeout of 30000ms exceeded.
+  47 |     await page.waitForTimeout(500);
+  48 |     
+  49 |     await darkButton.click();
+  50 |     await page.waitForTimeout(500);
+  51 |   });
+  52 | });
+  53 | 
+```

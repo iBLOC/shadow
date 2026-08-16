@@ -1,8 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { safeInvoke } from '../lib/tauriSafe';
 import { prefrontalClient } from '../lib/prefrontalClient';
-import type { Agent, AgentTask, OpenCodeInstance, OpenCodeConfig } from '../types';
+import type { Agent, AgentTask } from '../types';
 
 interface AgentState {
   agents: Agent[];
@@ -10,11 +9,6 @@ interface AgentState {
   activeAgentId: string | null;
   isLoading: boolean;
   error: string | null;
-  // OpenCode management
-  opencodeConfig: OpenCodeConfig;
-  opencodeInstances: OpenCodeInstance[];
-  opencodeInstalled: boolean;
-  isLoadingOpenCode: boolean;
   fetchAgents: () => Promise<void>;
   addAgent: (agent: Agent) => void;
   removeAgent: (id: string) => void;
@@ -22,13 +16,6 @@ interface AgentState {
   setActiveAgent: (id: string | null) => void;
   addTask: (task: AgentTask) => void;
   updateTask: (id: string, updates: Partial<AgentTask>) => void;
-  // OpenCode methods
-  setOpenCodeConfig: (config: Partial<OpenCodeConfig>) => void;
-  fetchOpenCodeInstances: () => Promise<void>;
-  launchOpenCode: (port: number) => Promise<OpenCodeInstance>;
-  stopOpenCode: (instanceId: string) => Promise<void>;
-  checkOpenCodeInstalled: () => Promise<boolean>;
-  installOpenCode: () => Promise<void>;
 }
 
 export const useAgentStore = create<AgentState>()(
@@ -39,14 +26,6 @@ export const useAgentStore = create<AgentState>()(
       activeAgentId: null,
       isLoading: false,
       error: null,
-      opencodeConfig: {
-        port: 3000,
-        autoLaunch: false,
-        autoInstall: false,
-      },
-      opencodeInstances: [],
-      opencodeInstalled: false,
-      isLoadingOpenCode: false,
       fetchAgents: async () => {
         set({ isLoading: true, error: null });
         try {
@@ -87,74 +66,11 @@ export const useAgentStore = create<AgentState>()(
           t.id === id ? { ...t, ...updates } : t
         )
       })),
-      setOpenCodeConfig: (config) => set((state) => ({
-        opencodeConfig: { ...state.opencodeConfig, ...config }
-      })),
-      fetchOpenCodeInstances: async () => {
-        set({ isLoadingOpenCode: true });
-        try {
-          const instances = await safeInvoke<OpenCodeInstance[]>('opencode_list_instances');
-          set({ opencodeInstances: instances ?? [], isLoadingOpenCode: false });
-        } catch (error) {
-          console.error('Failed to fetch OpenCode instances:', error);
-          set({ isLoadingOpenCode: false });
-        }
-      },
-      launchOpenCode: async (port: number): Promise<OpenCodeInstance> => {
-        set({ isLoadingOpenCode: true });
-        try {
-          const instance = await safeInvoke<OpenCodeInstance>('opencode_launch', { port });
-          if (!instance) throw new Error('opencode_launch returned null');
-          set((state) => ({
-            opencodeInstances: [...state.opencodeInstances, instance],
-            isLoadingOpenCode: false
-          }));
-          return instance;
-        } catch (error) {
-          set({ isLoadingOpenCode: false });
-          throw error;
-        }
-      },
-      stopOpenCode: async (instanceId: string) => {
-        set({ isLoadingOpenCode: true });
-        try {
-          await safeInvoke('opencode_stop', { instanceId });
-          set((state) => ({
-            opencodeInstances: state.opencodeInstances.filter(i => i.id !== instanceId),
-            isLoadingOpenCode: false
-          }));
-        } catch (error) {
-          set({ isLoadingOpenCode: false });
-          throw error;
-        }
-      },
-      checkOpenCodeInstalled: async (): Promise<boolean> => {
-        try {
-          const installed = await safeInvoke<boolean>('opencode_check_installed');
-          const value = installed ?? false;
-          set({ opencodeInstalled: value });
-          return value;
-        } catch (error) {
-          console.error('Failed to check OpenCode installation:', error);
-          return false;
-        }
-      },
-      installOpenCode: async () => {
-        set({ isLoadingOpenCode: true });
-        try {
-          await safeInvoke('opencode_install');
-          set({ opencodeInstalled: true, isLoadingOpenCode: false });
-        } catch (error) {
-          set({ isLoadingOpenCode: false });
-          throw error;
-        }
-      },
     }),
     {
       name: 'shadow-agent-storage',
       partialize: (state) => ({
         agents: state.agents,
-        opencodeConfig: state.opencodeConfig,
       }),
     }
   )

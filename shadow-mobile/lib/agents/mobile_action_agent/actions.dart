@@ -68,11 +68,7 @@ class CreateContactAction extends Action {
         type: ActionType.createContact,
         icon: Icons.person_add,
         functionName: 'createContact',
-        parameters: {
-          'name': name,
-          if (phone != null) 'phone': phone,
-          if (email != null) 'email': email,
-        },
+        parameters: {'name': name, 'phone': ?phone, 'email': ?email},
       );
 
   @override
@@ -149,8 +145,8 @@ class CreateCalendarAction extends Action {
            'title': title,
            'start_time': startTime.toIso8601String(),
            if (endTime != null) 'end_time': endTime.toIso8601String(),
-           if (description != null) 'description': description,
-           if (location != null) 'location': location,
+           'description': ?description,
+           'location': ?location,
          },
        );
 

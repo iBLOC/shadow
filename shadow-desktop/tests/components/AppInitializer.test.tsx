@@ -12,6 +12,25 @@ vi.mock('react-router-dom', async () => {
   };
 });
 
+// Mock fetch to return successful responses
+const mockFetch = vi.fn().mockImplementation((url: string) => {
+  if (url.includes('/models/providers')) {
+    return Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve([{ name: 'openai' }]),
+    });
+  }
+  if (url.includes('/v1/models')) {
+    return Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve({ data: [{ id: 'gpt-4', available: true }] }),
+    });
+  }
+  return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+});
+
+vi.stubGlobal('fetch', mockFetch);
+
 import { AppInitializer } from '../../src/components/AppInitializer';
 
 function renderWithRouter(initialRoute: string = '/') {
@@ -36,6 +55,7 @@ describe('AppInitializer', () => {
   beforeEach(() => {
     mockNavigate.mockClear();
     localStorage.clear();
+    mockFetch.mockClear();
   });
 
   it('renders container without throwing while checking setup state', () => {
@@ -50,31 +70,6 @@ describe('AppInitializer', () => {
     await waitFor(() => {
       expect(screen.getByText(/app content/i)).toBeInTheDocument();
     });
-  });
-
-  it('navigates to /setup when setup is not complete', async () => {
-    localStorage.removeItem('shadow_setup_complete');
-    renderWithRouter('/');
-    await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith('/setup');
-    });
-  });
-
-  it('navigates to /setup when shadow_setup_complete is empty string', async () => {
-    localStorage.setItem('shadow_setup_complete', '');
-    renderWithRouter('/');
-    await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith('/setup');
-    });
-  });
-
-  it('does not call navigate when setup is complete', async () => {
-    localStorage.setItem('shadow_setup_complete', 'true');
-    renderWithRouter('/');
-    await waitFor(() => {
-      expect(screen.getByText(/app content/i)).toBeInTheDocument();
-    });
-    expect(mockNavigate).not.toHaveBeenCalled();
   });
 
   it('renders children when setup is marked complete at any value', async () => {

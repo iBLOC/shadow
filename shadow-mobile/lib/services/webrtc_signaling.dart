@@ -81,7 +81,7 @@ class WebRtcSignaling {
   final _error = StreamController<String>.broadcast();
 
   WebRtcSignaling({required String sessionId, String? baseUrl, String? fallbackUrl})
-    : _baseUrl = baseUrl ?? 'ws://localhost:8443',
+    : _baseUrl = baseUrl ?? 'ws://localhost:60080',
       _fallbackUrl = fallbackUrl ?? 'ws://localhost:8082',
       _sessionId = sessionId;
 

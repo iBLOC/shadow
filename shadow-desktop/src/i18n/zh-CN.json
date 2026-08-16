@@ -777,7 +777,10 @@
     "sourceLabel": "来源：{{source}}",
     "stackTrace": "堆栈跟踪",
     "timeLabel": "时间：{{timestamp}}",
-    "userAgentLabel": "UA：{{userAgent}}"
+    "userAgentLabel": "UA：{{userAgent}}",
+    "copy": "复制",
+    "copied": "已复制！",
+    "close": "关闭"
   },
   "group": {
     "title": "设备组",

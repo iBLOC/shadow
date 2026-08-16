@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../generated/l10n/app_localizations.dart';
 import '../services/accessibility_controller.dart';
 import '../services/app_config_service.dart';
@@ -238,6 +239,42 @@ class SettingsScreen extends ConsumerWidget {
                     context,
                     MaterialPageRoute(builder: (_) => const FlowsScreen()),
                   ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              // 设备发现
+              GlassCard(
+                padding: EdgeInsets.zero,
+                child: ListTile(
+                  leading: Icon(Icons.wifi_find, color: AppColors.primary),
+                  title: const Text('设备发现'),
+                  subtitle: const Text('扫描和发现网络设备'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push('/discovery'),
+                ),
+              ),
+              const SizedBox(height: 16),
+              // 系统日志
+              GlassCard(
+                padding: EdgeInsets.zero,
+                child: ListTile(
+                  leading: Icon(Icons.article_outlined, color: AppColors.primary),
+                  title: const Text('系统日志'),
+                  subtitle: const Text('查看应用日志和错误信息'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push('/logs'),
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Resonance管理
+              GlassCard(
+                padding: EdgeInsets.zero,
+                child: ListTile(
+                  leading: Icon(Icons.cloud_sync, color: AppColors.primary),
+                  title: const Text('Resonance管理'),
+                  subtitle: const Text('管理Resonance服务实例'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push('/resonance'),
                 ),
               ),
               const SizedBox(height: 16),

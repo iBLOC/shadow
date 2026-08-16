@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { Button, Badge, EmptyState, Modal } from '../components/ui';
 import { useAgentStore } from '../stores/agentStore';
+import { useOpenCodeStore } from '../stores/opencodeStore';
 import { useCortexStore } from '../stores/cortexStore';
 import { cortexClient, type ScanResult, type InstalledWasmList, type AgentSearchResponse, type McpAgentBinding, type McpServerRecord } from '../lib/cortexClient';
 import { cn } from '../lib/utils';
@@ -18,10 +19,12 @@ export function AgentsPage() {
   const { t } = useTranslation();
   const {
     agents, addAgent, removeAgent, updateAgent,
-    opencodeConfig, opencodeInstances, opencodeInstalled, isLoadingOpenCode,
-    setOpenCodeConfig, fetchOpenCodeInstances, launchOpenCode, stopOpenCode,
-    checkOpenCodeInstalled, installOpenCode,
   } = useAgentStore();
+  const {
+    config: opencodeConfig, instances: opencodeInstances, installed: opencodeInstalled, isLoading: isLoadingOpenCode,
+    setConfig: setOpenCodeConfig, fetchInstances: fetchOpenCodeInstances, launch: launchOpenCode, stop: stopOpenCode,
+    checkInstalled: checkOpenCodeInstalled, install: installOpenCode,
+  } = useOpenCodeStore();
   const cortexStatus = useCortexStore((s) => s.status);
   const cortexError = useCortexStore((s) => s.error);
   const cortexBaseUrl = useCortexStore((s) => s.connection.baseUrl);

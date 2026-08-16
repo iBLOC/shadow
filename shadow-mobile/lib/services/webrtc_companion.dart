@@ -26,6 +26,10 @@ enum WebRtcPhase {
 /// - Remote audio (TTS response) is rendered via
 ///   `RTCVideoRenderer` with `audio: true`.
 /// - VAD-driven barge-in is signalled over the same WebSocket.
+///
+/// Fallback behavior:
+/// - If the primary signaling connection fails, the companion will
+///   automatically try the fallback URL (default: prefrontal at :8082)
 class WebRtcCompanion {
   RTCPeerConnection? _pc;
   MediaStream? _localStream;
@@ -35,12 +39,14 @@ class WebRtcCompanion {
   WebRtcPhase _phase = WebRtcPhase.idle;
   String? _error;
   StreamSubscription? _sigSub;
+  bool _usedFallback = false;
 
   WebRtcCompanion({required WebRtcSignaling signaling})
     : _signaling = signaling;
 
   WebRtcPhase get phase => _phase;
   String? get error => _error;
+  bool get usedFallback => _usedFallback;
   RTCVideoRenderer get remoteRenderer => _remoteRenderer;
   MediaStream? get localStream => _localStream;
 
@@ -75,8 +81,9 @@ class WebRtcCompanion {
 
       final connected = await _signaling.connect();
       if (!connected) {
-        throw StateError('signaling WebSocket failed to open');
+        throw StateError('signaling WebSocket failed to open (tried primary and fallback)');
       }
+      _usedFallback = _signaling.usedFallback;
 
       _sigSub = _signaling.outbound.listen(_handleSignaling);
 

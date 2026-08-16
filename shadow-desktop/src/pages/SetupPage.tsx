@@ -37,6 +37,7 @@ const DB_TYPE_OPTIONS: { value: DatabaseType; icon: LucideIcon; labelKey: string
 ];
 
 const PROVIDER_TYPES = [
+  { id: 'xiaomi-mimo', name: 'Xiaomi MiMo', color: '#ff6900' },
   { id: 'openai', name: 'OpenAI', color: '#10a37f' },
   { id: 'anthropic', name: 'Anthropic', color: '#d4a574' },
   { id: 'github-copilot', name: 'GitHub Copilot', color: '#6e5494' },
@@ -82,6 +83,7 @@ const PROVIDER_TYPES = [
 type ProviderTypeId = typeof PROVIDER_TYPES[number]['id'];
 
 const DEFAULT_API_BASE: Record<string, string> = {
+  'xiaomi-mimo': 'https://api.xiaomimimo.com/v1',
   openai: 'https://api.openai.com/v1',
   anthropic: 'https://api.anthropic.com',
   'github-copilot': 'https://api.githubcopilot.com/chat/completions',

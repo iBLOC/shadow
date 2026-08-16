@@ -270,31 +270,6 @@ describe('AgentStore', () => {
     });
   });
 
-  describe('opencodeConfig', () => {
-    it('setOpenCodeConfig updates configuration', () => {
-      const { setOpenCodeConfig } = useAgentStore.getState();
-      setOpenCodeConfig({ port: 4000, autoLaunch: true });
-      
-      const state = useAgentStore.getState();
-      expect(state.opencodeConfig.port).toBe(4000);
-      expect(state.opencodeConfig.autoLaunch).toBe(true);
-      expect(state.opencodeConfig.autoInstall).toBe(false);
-    });
-
-    it('merges partial config', () => {
-      useAgentStore.setState({
-        opencodeConfig: { port: 3000, autoLaunch: false, autoInstall: false },
-      });
-      
-      const { setOpenCodeConfig } = useAgentStore.getState();
-      setOpenCodeConfig({ autoInstall: true });
-      
-      const state = useAgentStore.getState();
-      expect(state.opencodeConfig.port).toBe(3000);
-      expect(state.opencodeConfig.autoInstall).toBe(true);
-    });
-  });
-
   describe('persistence', () => {
     it('preserves agents across state updates', () => {
       const agents = [
@@ -311,12 +286,10 @@ describe('AgentStore', () => {
       
       useAgentStore.setState({
         agents,
-        opencodeConfig: { port: 5000, autoLaunch: true, autoInstall: false },
       });
       
       const state = useAgentStore.getState();
       expect(state.agents).toHaveLength(1);
-      expect(state.opencodeConfig.port).toBe(5000);
     });
   });
 });

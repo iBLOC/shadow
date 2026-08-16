@@ -34,7 +34,12 @@ class _MainShellState extends State<MainShell> {
         path == '/memory') {
       return 2;
     }
-    if (path == '/settings') return 3;
+    if (path == '/settings' ||
+        path == '/discovery' ||
+        path == '/logs' ||
+        path == '/resonance') {
+      return 3;
+    }
     return 0;
   }
 

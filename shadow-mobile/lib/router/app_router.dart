@@ -16,6 +16,9 @@ import '../screens/prompt_settings_screen.dart';
 import '../screens/voice_conversation_screen.dart';
 import '../screens/group_screen.dart';
 import '../screens/flows_screen.dart';
+import '../screens/discovery_screen.dart';
+import '../screens/logs_screen.dart';
+import '../screens/resonance_screen.dart';
 import '../widgets/main_shell.dart';
 
 /// Route names
@@ -36,6 +39,9 @@ class AppRoutes {
   static const String voice = '/voice';
   static const String group = '/group';
   static const String flows = '/flows';
+  static const String discovery = '/discovery';
+  static const String logs = '/logs';
+  static const String resonance = '/resonance';
 
   // Legacy routes (redirect)
   static const String agents = '/agents';
@@ -187,6 +193,27 @@ final GoRouter appRouter = GoRouter(
       name: 'flows',
       pageBuilder: (context, state) =>
           _fadePage(state, _wrapInShell(state, const FlowsScreen())),
+    ),
+    // Discovery
+    GoRoute(
+      path: AppRoutes.discovery,
+      name: 'discovery',
+      pageBuilder: (context, state) =>
+          _fadePage(state, _wrapInShell(state, const DiscoveryPage())),
+    ),
+    // Logs
+    GoRoute(
+      path: AppRoutes.logs,
+      name: 'logs',
+      pageBuilder: (context, state) =>
+          _fadePage(state, _wrapInShell(state, const LogsPage())),
+    ),
+    // Resonance
+    GoRoute(
+      path: AppRoutes.resonance,
+      name: 'resonance',
+      pageBuilder: (context, state) =>
+          _fadePage(state, _wrapInShell(state, const ResonancePage())),
     ),
     // Legacy redirects
     GoRoute(

@@ -282,7 +282,7 @@ class FlowRunResult {
 }
 
 class CortexClient {
-  static const String _defaultBaseUrl = 'http://127.0.0.1:8443';
+  static const String _defaultBaseUrl = 'http://127.0.0.1:60080';
 
   String _baseUrl;
   String? _apiKey;
@@ -465,6 +465,168 @@ class CortexClient {
   Future<void> rejectDraft(String draftId) =>
       _postExpectEmpty('/api/flows/draft/${Uri.encodeComponent(draftId)}/reject');
 
+  // ---- MCP Management API ----
+
+  Future<List<Map<String, dynamic>>> listMcpServers() async {
+    final json = await _get('/api/cortex/mcp/servers');
+    return (json['servers'] as List<dynamic>?)
+        ?.map((e) => Map<String, dynamic>.from(e as Map))
+        .toList() ?? [];
+  }
+
+  Future<Map<String, dynamic>> getMcpServer(String id) async {
+    return await _get('/api/cortex/mcp/servers/${Uri.encodeComponent(id)}');
+  }
+
+  Future<List<Map<String, dynamic>>> getMcpServerTools(String id) async {
+    final json = await _get('/api/cortex/mcp/servers/${Uri.encodeComponent(id)}/tools');
+    return (json as List<dynamic>)
+        .map((e) => Map<String, dynamic>.from(e as Map))
+        .toList();
+  }
+
+  Future<List<Map<String, dynamic>>> listMcpServersForAgent(String agentName) async {
+    final json = await _get('/api/cortex/mcp/agents/${Uri.encodeComponent(agentName)}/servers');
+    return (json['bindings'] as List<dynamic>?)
+        ?.map((e) => Map<String, dynamic>.from(e as Map))
+        .toList() ?? [];
+  }
+
+  Future<List<Map<String, dynamic>>> getAgentMcpTools(String agentName) async {
+    final json = await _get('/api/cortex/mcp/agents/${Uri.encodeComponent(agentName)}/tools');
+    return (json as List<dynamic>)
+        .map((e) => Map<String, dynamic>.from(e as Map))
+        .toList();
+  }
+
+  Future<Map<String, dynamic>> createMcpServer({
+    required String name,
+    required String wasmName,
+    required String wasmVersion,
+    required String wasmSha256,
+    int? memoryBytes,
+    int? fuel,
+    int? wallClockMs,
+    String? description,
+  }) async {
+    final body = <String, dynamic>{
+      'name': name,
+      'wasm': {
+        'name': wasmName,
+        'version': wasmVersion,
+        'sha256': wasmSha256,
+      },
+    };
+    if (memoryBytes != null || fuel != null || wallClockMs != null) {
+      body['quota'] = {
+        if (memoryBytes != null) 'memory_bytes': memoryBytes,
+        if (fuel != null) 'fuel': fuel,
+        if (wallClockMs != null) 'wall_clock_ms': wallClockMs,
+      };
+    }
+    if (description != null) body['description'] = description;
+    return await _post('/api/cortex/admin/mcp/servers', body);
+  }
+
+  Future<void> deleteMcpServer(String id) async {
+    await _http.delete(
+      Uri.parse('$_baseUrl/api/cortex/admin/mcp/servers/${Uri.encodeComponent(id)}'),
+      headers: _headers(),
+    );
+  }
+
+  Future<Map<String, dynamic>> startMcpServer(String id) async {
+    return await _post('/api/cortex/admin/mcp/servers/${Uri.encodeComponent(id)}/start', const {});
+  }
+
+  Future<Map<String, dynamic>> stopMcpServer(String id) async {
+    return await _post('/api/cortex/admin/mcp/servers/${Uri.encodeComponent(id)}/stop', const {});
+  }
+
+  Future<Map<String, dynamic>> bindMcpServerToAgent(String agentName, String serverId) async {
+    return await _post(
+      '/api/cortex/admin/mcp/agents/${Uri.encodeComponent(agentName)}/servers/${Uri.encodeComponent(serverId)}',
+      const {},
+    );
+  }
+
+  Future<void> unbindMcpServerFromAgent(String agentName, String serverId) async {
+    await _http.delete(
+      Uri.parse(
+        '$_baseUrl/api/cortex/admin/mcp/agents/${Uri.encodeComponent(agentName)}/servers/${Uri.encodeComponent(serverId)}',
+      ),
+      headers: _headers(),
+    );
+  }
+
+  // ---- Agent Management API ----
+
+  Future<Map<String, dynamic>> scanExternalAgents() async {
+    return await _post('/api/cortex/agents/scan', const {});
+  }
+
+  Future<Map<String, dynamic>> syncExternalAgent(String providerId) async {
+    return await _post('/api/cortex/agents/sync/${Uri.encodeComponent(providerId)}', const {});
+  }
+
+  Future<Map<String, dynamic>> discoverAgents() async {
+    return await _get('/api/cortex/agents/discover');
+  }
+
+  Future<Map<String, dynamic>> searchAgents({String? skill, String? q}) async {
+    final query = <String, String>{};
+    if (skill != null) query['skill'] = skill;
+    if (q != null) query['q'] = q;
+    final uri = Uri.parse('$_baseUrl/api/cortex/agents/search')
+        .replace(queryParameters: query.isEmpty ? null : query);
+    final r = await _http.get(uri, headers: _headers());
+    if (r.statusCode != 200) {
+      throw CortexException('searchAgents → ${r.statusCode}: ${r.body}');
+    }
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  Future<List<Map<String, dynamic>>> listInstalledWasm() async {
+    final json = await _get('/api/cortex/admin/agents/installed');
+    return (json['entries'] as List<dynamic>?)
+        ?.map((e) => Map<String, dynamic>.from(e as Map))
+        .toList() ?? [];
+  }
+
+  Future<void> deleteWasm(String name, String version) async {
+    await _http.delete(
+      Uri.parse('$_baseUrl/api/cortex/admin/agents/${Uri.encodeComponent(name)}/${Uri.encodeComponent(version)}'),
+      headers: _headers(),
+    );
+  }
+
+  Future<Map<String, dynamic>> createPromptAgent({
+    required String name,
+    required String systemPrompt,
+    String? version,
+    String? description,
+    List<String>? skills,
+    String? modelProvider,
+    String? modelName,
+  }) async {
+    final body = <String, dynamic>{
+      'name': name,
+      'system_prompt': systemPrompt,
+    };
+    if (version != null) body['version'] = version;
+    if (description != null) body['description'] = description;
+    if (skills != null) body['skills'] = skills;
+    if (modelProvider != null) body['model_provider'] = modelProvider;
+    if (modelName != null) body['model_name'] = modelName;
+    return await _post('/api/cortex/admin/agents/create', body);
+  }
+
+  Future<Map<String, dynamic>> generateAgentDescription(String systemPrompt) async {
+    return await _post('/api/cortex/admin/agents/generate-description', {
+      'system_prompt': systemPrompt,
+    });
+  }
+
   void dispose() => _http.close();
 
   /// Build the cortex WebRTC signaling URL for a session.
@@ -489,4 +651,4 @@ class CortexConnection {
 }
 
 final defaultCortexClient = CortexClient();
-final defaultCortexConnection = CortexConnection(baseUrl: 'http://127.0.0.1:8443');
+final defaultCortexConnection = CortexConnection(baseUrl: 'http://127.0.0.1:60080');

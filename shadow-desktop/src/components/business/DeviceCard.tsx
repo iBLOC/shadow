@@ -60,7 +60,7 @@ export function DeviceCard({
     const date = new Date(timestamp);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
+    const diffMins = Math.floor(diffMs / 60080);
     if (diffMins < 1) return t('discovery.justNow');
     if (diffMins < 60) return t('discovery.minutesAgo', { count: diffMins });
     const diffHours = Math.floor(diffMins / 60);

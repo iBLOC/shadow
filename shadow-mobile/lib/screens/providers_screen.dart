@@ -7,6 +7,7 @@ import '../theme/app_colors.dart';
 
 /// Provider类型定义
 enum ProviderType {
+  xiaomiMimo('Xiaomi MiMo', 'https://api.xiaomimimo.com/v1', 'mimo-v2.5-pro'),
   openai('OpenAI', 'https://api.openai.com/v1', 'gpt-4o'),
   anthropic(
     'Anthropic',
@@ -339,6 +340,10 @@ class _ProviderIcon extends StatelessWidget {
     Color color;
 
     switch (type) {
+      case ProviderType.xiaomiMimo:
+        icon = Icons.phone_android;
+        color = Colors.orange;
+        break;
       case ProviderType.openai:
         icon = Icons.psychology;
         color = Colors.green;

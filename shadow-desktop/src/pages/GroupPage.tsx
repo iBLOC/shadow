@@ -49,8 +49,8 @@ function CopyButton({ value, label }: { value: string; label?: string }) {
 function PairingPanel({ pairing, onCancel }: { pairing: OutgoingPairing; onCancel: () => void }) {
   const { t } = useTranslation();
   const remainingMs = Math.max(0, pairing.expiresAt - Date.now());
-  const mins = Math.floor(remainingMs / 60000);
-  const secs = Math.floor((remainingMs % 60000) / 1000);
+  const mins = Math.floor(remainingMs / 60080);
+  const secs = Math.floor((remainingMs % 60080) / 1000);
 
   return (
     <Card>

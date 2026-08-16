@@ -4,6 +4,9 @@ import { prefrontalUrl } from '../lib/platform';
 
 const NEURE_BASE = prefrontalUrl();
 
+// Paths that should be accessible even without models
+const MODEL_SETUP_PATHS = ['/models', '/models/download', '/providers', '/setup'];
+
 interface AppInitializerProps {
   children?: React.ReactNode;
 }
@@ -18,6 +21,12 @@ export function AppInitializer({ children }: AppInitializerProps) {
       const setupComplete = localStorage.getItem('shadow_setup_complete');
       if (!setupComplete) {
         navigate('/setup', { replace: true });
+        setIsChecking(false);
+        return;
+      }
+
+      // Allow access to model setup paths without checking
+      if (MODEL_SETUP_PATHS.some(p => location.pathname.startsWith(p))) {
         setIsChecking(false);
         return;
       }

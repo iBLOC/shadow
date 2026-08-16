@@ -106,10 +106,10 @@ describe('databaseStore', () => {
     localStorage.clear();
   });
 
-  it('starts with embedded db type', async () => {
+  it('starts with internal db type', async () => {
     const { useDatabaseStore } = await import('../../stores/databaseStore');
     const { dbType } = useDatabaseStore.getState();
-    expect(dbType).toBe('embedded');
+    expect(dbType).toBe('internal');
   });
 
   it('starts with disconnected status', async () => {
@@ -118,16 +118,10 @@ describe('databaseStore', () => {
     expect(status).toBe('disconnected');
   });
 
-  it('starts with null embedded port', async () => {
+  it('starts with null internal port', async () => {
     const { useDatabaseStore } = await import('../../stores/databaseStore');
-    const { embeddedPort } = useDatabaseStore.getState();
-    expect(embeddedPort).toBeNull();
-  });
-
-  it('starts with default external config', async () => {
-    const { useDatabaseStore } = await import('../../stores/databaseStore');
-    const { externalConfig } = useDatabaseStore.getState();
-    expect(externalConfig.host).toBe('localhost');
+    const { internalPort } = useDatabaseStore.getState();
+    expect(internalPort).toBeNull();
   });
 
   it('starts with null master password', async () => {
@@ -140,20 +134,10 @@ describe('databaseStore', () => {
     const { useDatabaseStore } = await import('../../stores/databaseStore');
     const { setDbType } = useDatabaseStore.getState();
 
-    setDbType('external');
+    setDbType('distributed');
 
     const { dbType } = useDatabaseStore.getState();
-    expect(dbType).toBe('external');
-  });
-
-  it('setExternalConfig updates config', async () => {
-    const { useDatabaseStore } = await import('../../stores/databaseStore');
-    const { setExternalConfig } = useDatabaseStore.getState();
-
-    setExternalConfig({ host: 'neon.host' });
-
-    const { externalConfig } = useDatabaseStore.getState();
-    expect(externalConfig.host).toBe('neon.host');
+    expect(dbType).toBe('distributed');
   });
 
   it('setMasterPassword updates password', async () => {
@@ -164,26 +148,6 @@ describe('databaseStore', () => {
 
     const { masterPassword } = useDatabaseStore.getState();
     expect(masterPassword).toBe('secret');
-  });
-
-  it('setDbType accepts neon type', async () => {
-    const { useDatabaseStore } = await import('../../stores/databaseStore');
-    const { setDbType } = useDatabaseStore.getState();
-
-    setDbType('neon');
-
-    const { dbType } = useDatabaseStore.getState();
-    expect(dbType).toBe('neon');
-  });
-
-  it('setExternalConfig merges config', async () => {
-    const { useDatabaseStore } = await import('../../stores/databaseStore');
-    const { setExternalConfig } = useDatabaseStore.getState();
-
-    setExternalConfig({ username: 'admin' });
-
-    const { externalConfig } = useDatabaseStore.getState();
-    expect(externalConfig.username).toBe('admin');
   });
 });
 

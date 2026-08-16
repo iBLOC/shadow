@@ -766,7 +766,10 @@
     "sourceLabel": "Source: {{source}}",
     "stackTrace": "Stack trace",
     "timeLabel": "Time: {{timestamp}}",
-    "userAgentLabel": "UA: {{userAgent}}"
+    "userAgentLabel": "UA: {{userAgent}}",
+    "copy": "Copy",
+    "copied": "Copied!",
+    "close": "Close"
   },
   "group": {
     "title": "Device Groups",

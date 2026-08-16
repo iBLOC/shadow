@@ -28,7 +28,7 @@ vi.mock('../../src/stores/cortexStore', () => {
   const stub = {
     status: 'stopped',
     error: null,
-    connection: { baseUrl: 'http://localhost:60000' },
+    connection: { baseUrl: 'http://localhost:60080' },
     lobes: [],
     defaultAgent: null,
     refreshStatus: vi.fn(),

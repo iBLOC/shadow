@@ -147,9 +147,9 @@ class EngineModelsNotifier extends StateNotifier<EngineModelsState> {
         super(const EngineModelsState());
 
   static String _deriveBaseUrl() {
-    // Cortex is the single platform entry point (port 60000).
+    // Cortex is the single platform entry point (port 60080).
     // Neure is embedded at root: /v1/models, /v1/chat/completions, etc.
-    return 'http://localhost:60000';
+    return 'http://localhost:60080';
   }
 
   Future<void> refresh() async {
@@ -272,4 +272,4 @@ final engineModelsProvider =
   return EngineModelsNotifier(baseUrl: baseUrl);
 });
 
-final prefrontalBaseUrlProvider = StateProvider<String>((ref) => 'http://localhost:60000');
+final prefrontalBaseUrlProvider = StateProvider<String>((ref) => 'http://localhost:60080');

@@ -3,7 +3,7 @@
 **Updated:** 2026-07-19 (post-cortex client wiring Sprint 1+2 + FlowsScreen `55ffc95` + continue-on-desktop via cortex only `dacbe83` + cortex-embedded neure+hippocampus paths `05aa697`)
 **Project:** shadow-mobile (Layer 4 Interaction + thin on-device Engine via Kotlin Native)
 
-> **Note (2026-07-19)**: This doc was previously framed as a "Layer 4 + Layer 2 hybrid" with 3 user-configurable modes. That framing predates **Cortex** (Layer 3.5). Current architecture: mobile is **primarily Layer 4** (Flutter UI); the on-device inference capability lives in the **Kotlin Native** layer (OpenAIServer.kt + LiteRT/MNN), exposed as a sidecar HTTP server on `:8085` when the user opts in. The default mobile flow routes everything through **cortex** (`:60000`).
+> **Note (2026-07-19)**: This doc was previously framed as a "Layer 4 + Layer 2 hybrid" with 3 user-configurable modes. That framing predates **Cortex** (Layer 3.5). Current architecture: mobile is **primarily Layer 4** (Flutter UI); the on-device inference capability lives in the **Kotlin Native** layer (OpenAIServer.kt + LiteRT/MNN), exposed as a sidecar HTTP server on `:8085` when the user opts in. The default mobile flow routes everything through **cortex** (`:60080`).
 
 ## ARCHITECTURAL ROLE
 
@@ -31,7 +31,7 @@ The phone can operate in 3 modes (user-configurable on the Settings screen):
 
 | Mode | Layer 4 | Layer 2 | Description |
 |---|---|---|---|
-| **UI + Cortex (default)** | Flutter UI | (cortex-sidecar `:60000/hippocampus`) | Phone is just UI; cortex owns Agent + flow + memory + WASM; only Kotlin inference is on-device |
+| **UI + Cortex (default)** | Flutter UI | (cortex-sidecar `:60080/hippocampus`) | Phone is just UI; cortex owns Agent + flow + memory + WASM; only Kotlin inference is on-device |
 | **Standalone (offline)** | Flutter UI | MNN/LiteRT in-process (Kotlin `OpenAIServer.kt` on `:8085`) | One app, no network; uses `main_agent` + mobile `agents/main_agent/` + on-device model |
 | **Phone-as-Engine** | (hidden) | Kotlin HTTP server `:8085` exposes `/v1/*` for desktop | Phone runs LLM, advertises via mDNS `_shadow._tcp`; desktop Prefrontal calls `http://mobile.local:8085/v1/chat/completions` |
 
@@ -68,7 +68,7 @@ shadow-mobile/
 │   │   ├── voice_conversation_screen.dart  # Hands-free voice mode
 │   │   └── manage/                      # Sub-management screens
 │   ├── services/                        # Wire-level + service layer (23 files)
-│   │   ├── cortex/                      # cortex_client.dart (492 lines) — HTTP to cortex :60000
+│   │   ├── cortex/                      # cortex_client.dart (492 lines) — HTTP to cortex :60080
 │   │   ├── prefrontal/                  # Mobile wrappers around prefrontal (7 files)
 │   │   ├── database/                    # SQLite repositories (11 files)
 │   │   ├── genui/                       # GenUI server helpers (Agent2UI)
@@ -219,8 +219,8 @@ On startup, the app browses `_shadow._tcp` services via `mdns_discovery.dart`:
 // mDNS query for _shadow._tcp services
 // then for each found service:
 //   - GET http://host:port/.well-known/agent.json  → A2A AgentCard
-//   - POST http://host:60000/api/cortex/agents  → register self (if user opts in)
-//   - open WS ws://host:60000/api/webrtc/... for companion mode
+//   - POST http://host:60080/api/cortex/agents  → register self (if user opts in)
+//   - open WS ws://host:60080/api/webrtc/... for companion mode
 ```
 
 Persist discovered hosts in `preferences` (or SQLite via `group_service.dart`); the user can pin favourites on the Group page (`group_screen.dart`).
@@ -361,7 +361,7 @@ No errors, no warnings — only style-level info issues (deprecated `value` / `a
 - 🆕 **Cortex client** (`lib/services/cortex/cortex_client.dart`, 492 lines) — wired for agents / conversations / flows / drafts / agent mirror / import-session-as-conversation; all of Sprint 1+2 surface
 - 🆕 **FlowsScreen** (`lib/screens/flows_screen.dart` + commit `55ffc95`) — browse / run cortex flows from the phone
 - 🆕 **continue-on-desktop via cortex only** (`dacbe83`) — chat sessions hand off to a desktop cortex without falling back to prefrontal
-- 🆕 **cortex-embedded neure+hippocampus paths** (`05aa697`) — all hardcoded URLs updated to the cortex-sidecar model (`:60000/hippocampus/api/...`)
+- 🆕 **cortex-embedded neure+hippocampus paths** (`05aa697`) — all hardcoded URLs updated to the cortex-sidecar model (`:60080/hippocampus/api/...`)
 - **Companion Mode (WebRTC)** — `webrtc_companion.dart` (196 LOC) + `webrtc_signaling.dart` + VAD-driven barge-in via `audio_ws_service.dart` + `wake_word_service.dart`; mirrors desktop `webrtcCompanion.ts` so the two clients share the same end-to-end protocol
 - **Mobile sub-agent** (`lib/agents/mobile_action_agent/`) — AccessibilityController-driven UI automation as a cortex-flow tool
 - **A2A message types + client** (`lib/agents/a2a/`) — outbound A2A delegation to other cortex / prefrontal instances
@@ -403,7 +403,7 @@ No errors, no warnings — only style-level info issues (deprecated `value` / `a
 | Shadow-Desktop | `/home/ibloc/Projects/shadow/shadow-desktop` | Sibling Layer 4 client (Tauri + React) |
 | Prefrontal | `/home/ibloc/Projects/prefrontal` | Layer 3 (Agent) — used as fallback when cortex unavailable |
 | **Cortex** | `/home/ibloc/Projects/cortex` | **Layer 3.5 (Orchestrator) — primary HTTP target** |
-| Hippocampus | `/home/ibloc/Projects/hippocampus` | Layer 0 (Memory) — reached via cortex on `:60000/hippocampus` |
+| Hippocampus | `/home/ibloc/Projects/hippocampus` | Layer 0 (Memory) — reached via cortex on `:60080/hippocampus` |
 | neure | [github.com/iBLOC/neure-rs](https://github.com/iBLOC/neure-rs) | Layer 2 (Engine) — on-device MNN / LiteRT, plus remote `:8085` HTTP |
 | Resonance | `/home/ibloc/Projects/resonance` | Layer 5 (Cross-user orchestration) — discovered via mDNS but mobile does not currently push tasks |
 
@@ -411,7 +411,7 @@ No errors, no warnings — only style-level info issues (deprecated `value` / `a
 
 ```bash
 # Optional — only needed when targeting a specific cortex / prefrontal in dev
-export CORTEX_HOST="http://localhost:60000"        # default in production: discovered via mDNS
+export CORTEX_HOST="http://localhost:60080"        # default in production: discovered via mDNS
 export PREFRONTAL_HOST="http://localhost:8082"     # fallback only — `dacbe83` removed automatic fallback
 
 # Model download defaults

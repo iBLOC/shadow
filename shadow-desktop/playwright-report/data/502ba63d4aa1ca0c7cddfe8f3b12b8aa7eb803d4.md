@@ -1,0 +1,86 @@
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: memory.spec.ts >> Memory Page >> 显示搜索功能
+- Location: tests/e2e-ui/memory.spec.ts:13:3
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: locator('input[placeholder*="memory.searchPlaceholder"]')
+Expected: visible
+Timeout: 5000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toBeVisible" with timeout 5000ms
+  - waiting for locator('input[placeholder*="memory.searchPlaceholder"]')
+
+```
+
+```yaml
+- img
+- heading "Shadow" [level=1]
+- paragraph: 欢迎使用 Shadow 设置向导
+- text: 1 设置密码 2 选择数据库 3 添加供应商 4 管理模型
+- heading "保护您的数据" [level=2]
+- paragraph: 创建主密码以加密敏感信息，使用机器ID作为盐值
+- img
+- text: 主密码
+- textbox "********"
+- text: 确认密码
+- textbox "********"
+- paragraph:
+  - img
+  - text: 此密码用于加密您存储的凭据，机器ID将作为盐值
+- paragraph:
+  - text: "机器ID:"
+  - code: ...
+- button "下一步" [disabled]
+```
+
+# Test source
+
+```ts
+  1  | import { test, expect } from '@playwright/test';
+  2  | 
+  3  | test.describe('Memory Page', () => {
+  4  |   test.beforeEach(async ({ page }) => {
+  5  |     await page.goto('/memory');
+  6  |     await page.waitForLoadState('networkidle');
+  7  |   });
+  8  | 
+  9  |   test('页面标题正确显示', async ({ page }) => {
+  10 |     await expect(page.locator('h1')).toContainText('memory');
+  11 |   });
+  12 | 
+  13 |   test('显示搜索功能', async ({ page }) => {
+  14 |     const searchInput = page.locator('input[placeholder*="memory.searchPlaceholder"]');
+> 15 |     await expect(searchInput).toBeVisible();
+     |                               ^ Error: expect(locator).toBeVisible() failed
+  16 |   });
+  17 | 
+  18 |   test('显示记忆列表', async ({ page }) => {
+  19 |     const memoryList = page.locator('[data-testid="memory-list"]');
+  20 |     await expect(memoryList).toBeVisible();
+  21 |   });
+  22 | 
+  23 |   test('搜索记忆', async ({ page }) => {
+  24 |     const searchInput = page.locator('input[placeholder*="memory.searchPlaceholder"]');
+  25 |     await searchInput.fill('test');
+  26 |     
+  27 |     const searchButton = page.locator('button:has-text("memory.search")');
+  28 |     await searchButton.click();
+  29 |     
+  30 |     await page.waitForTimeout(1000);
+  31 |   });
+  32 | });
+  33 | 
+```

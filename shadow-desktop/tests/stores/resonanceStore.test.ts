@@ -28,7 +28,7 @@ vi.mock('../../src/stores/serviceStore', () => ({
   useServiceStore: {
     getState: () => ({
       getPrimaryResonance: () => null,
-      hasConfiguredResonance: () => false,
+      hasConfiguredResonance: () => hasResonanceRef.value,
     }),
   },
 }));

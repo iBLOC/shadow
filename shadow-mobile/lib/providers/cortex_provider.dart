@@ -13,7 +13,7 @@ class CortexState {
   final String? error;
 
   const CortexState({
-    this.connection = const CortexConnection(baseUrl: 'http://127.0.0.1:8443'),
+    this.connection = const CortexConnection(baseUrl: 'http://127.0.0.1:60080'),
     this.status = CortexStatus.stopped,
     this.cortexId,
     this.defaultAgent,

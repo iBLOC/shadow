@@ -1,7 +1,7 @@
 # PROJECT KNOWLEDGE BASE
 
 **Generated:** 2026-03-21
-**Updated:** 2026-07-19 (post-port-unification 2757fea: cortex :8443→:60000; SQLite dropped from prefrontal 70a9976/2561ece; candle-vllm reference removed in favor of neure-embedded)
+**Updated:** 2026-07-19 (post-port-unification 2757fea: cortex :8443→:60080; SQLite dropped from prefrontal 70a9976/2561ece; candle-vllm reference removed in favor of neure-embedded)
 **Project:** shadow (影) - AI 用户分身系统
 **Spec version:** 2026-06-04 4-layer architecture (aligned with root `/AGENTS.md`)
 
@@ -37,8 +37,19 @@
 │  │   • neure (embedded :8085)  │    │   • MNN C++ JNI 本地推理    │          │
 │  │   • 桌面自动化              │    │   • Android 无障碍 API      │          │
 │  └──────────────┬──────────────┘    └──────────────┬──────────────┘          │
-│                 │  OpenAI /v1/* + WebSocket + WebRTC                        │
-└─────────────────┼──────────────────────────────────┼─────────────────────────┘
+│                 │                                │                           │
+│  ┌──────────────┴───────────────┐                │                           │
+│  │   Shadow-ESP32 (v0.x 概念)  │                │                           │
+│  │   shadow/shadow-esp32/      │                │                           │
+│  │                             │                │                           │
+│  │   Zephyr 4.4.x + C          │                │                           │
+│  │   • ESP32-S3-DevKitC 板级   │                │                           │
+│  │   • cJSON A2A 客户端        │                │                           │
+│  │   • mDNS `_shadow._tcp`     │                │                           │
+│  └──────────────┬──────────────┘                │                           │
+│                 │                                │                           │
+│                 │  OpenAI /v1/* + WebSocket + WebRTC + mDNS + A2A (JSON-RPC)│
+└─────────────────┼────────────────────────────────┼─────────────────────────┘
                   ▼                                  ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  Layer 3: AGENT  (外部项目)                                                  │
@@ -55,7 +66,7 @@
 │  Layer 3.5: CORTEX  (Agent 编排层, 单 shadow 中心化)                          │
 │                                                                             │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │  Cortex  /home/ibloc/Projects/cortex            Port 60000        │    │
+│  │  Cortex  /home/ibloc/Projects/cortex            Port 60080        │    │
 │  │  Rust (axum 0.8 + synapse::wasm)                                     │    │
 │  │  • 本地 registry (native lobes + user WASM agents)                    │    │
 │  │  • A2A gateway (skill-based routing)                                  │    │
@@ -205,9 +216,19 @@ shadow/
         └── app/src/main/
             ├── kotlin/         # Kotlin 代码
             └── cpp/            # C++ JNI 桥接
+
+└── shadow-esp32/               # 边缘 ESP32-S3 客户端 (Zephyr + C, v0.x 概念阶段)
+    ├── main/                   # 当前是 ESP-IDF esp_hid_device scaffold (过渡)
+    ├── docs/
+    │   ├── RESEARCH.md         # 2026-08-16 调研报告(esp-claw 对比 + Zephyr/Rust 评估)
+    │   └── adr/
+    │       └── 0001-stack-choice-zephyr-c.md   # 决策 ADR:采用 Zephyr + C
+    ├── build/                  # ESP-IDF v6.0.2 编译产物(已验证工具链 OK)
+    ├── README.md
+    └── sdkconfig.defaults.esp32s3
 ```
 
-> **Note (2026-07-19)**: shadow-mobile 现在有独立的 AGENTS.md（`/home/ibloc/Projects/shadow/shadow-mobile/AGENTS.md`，431 行重写覆盖了 2026-06-04 的旧 204 行版本）。原版本描述「Layer 4 + Layer 2 hybrid」3 模式架构，已被 cortex-centric 视图取代——mobile 默认走 cortex (`:60000`)，只有 Phone-as-Engine 模式才在 Kotlin 层暴露 OpenAIServer `:8085`。
+> **Note (2026-07-19)**: shadow-mobile 现在有独立的 AGENTS.md（`/home/ibloc/Projects/shadow/shadow-mobile/AGENTS.md`，431 行重写覆盖了 2026-06-04 的旧 204 行版本）。原版本描述「Layer 4 + Layer 2 hybrid」3 模式架构，已被 cortex-centric 视图取代——mobile 默认走 cortex (`:60080`)，只有 Phone-as-Engine 模式才在 Kotlin 层暴露 OpenAIServer `:8085`。
 
 ## 双端差异
 
@@ -240,11 +261,12 @@ shadow/
 | 模块 | 位置 | 端口 | 功能 |
 |------|------|------|------|
 | **Resonance** | `/home/ibloc/Projects/resonance` | 8080 | 任务编排、规划、工作流引擎 |
-| **Cortex** | `/home/ibloc/Projects/cortex` | 60000 | 单 shadow 中心化 agent 注册 + A2A gateway + WASM 宿主 + 外部智能体扫描同步 + MCP 管理 (v0.5 Sprint 2) |
+| **Cortex** | `/home/ibloc/Projects/cortex` | 60080 | 单 shadow 中心化 agent 注册 + A2A gateway + WASM 宿主 + 外部智能体扫描同步 + MCP 管理 (v0.5 Sprint 2) |
 | **Prefrontal** | `/home/ibloc/Projects/prefrontal` | 8082 | 多智能体执行、工具调用、内置 Agent (prefrontal 是 cortex 管理的 lobe 之一) |
 | **Hippocampus** | `/home/ibloc/Projects/hippocampus` | 8081 | 长期记忆、HybridRAG 搜索 |
 | **Shadow-Desktop** | `shadow-desktop/` | N/A | 桌面端 UI + neure (embedded :8085 via Tauri shell) |
 | **Shadow-Mobile** | `shadow-mobile/` | N/A | 移动端 UI + MNN |
+| **Shadow-ESP32** | `shadow-esp32/` | N/A | 边缘客户端原型 — **Zephyr 4.4.x + C + west**(`esp32s3_devkitc` 板级;v0.x 概念阶段;决策见 `shadow-esp32/docs/adr/0001-stack-choice-zephyr-c.md`;调研见 `shadow-esp32/docs/RESEARCH.md`)。通过 mDNS `_shadow._tcp` + A2A (JSON-RPC) 加入 Shadow 平台与 cortex/prefrontal 通信 |
 
 ## 环境变量
 

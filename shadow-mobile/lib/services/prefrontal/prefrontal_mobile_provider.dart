@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
+import 'dart:convert' show jsonDecode;
 import 'prefrontal_mobile_service.dart';
 
 /// Prefrontal 移动端状态
@@ -221,9 +222,6 @@ class PrefrontalMobileNotifier extends StateNotifier<PrefrontalMobileState> {
     super.dispose();
   }
 }
-
-// 导入 jsonDecode
-import 'dart:convert' show jsonDecode;
 
 /// 默认服务实例 Provider
 final prefrontalMobileServiceProvider = Provider<PrefrontalMobileService>((ref) {
