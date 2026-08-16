@@ -130,6 +130,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_wdio_webdriver::init())
         .plugin(tauri_plugin_store::Builder::default().build())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(app_state)
         .setup(|app| {
             if let Err(e) = setup_tray(app) {
