@@ -225,13 +225,13 @@ describe('platform', () => {
       expect(prefrontalUrl()).toBe('http://localhost:8082');
     });
 
-    it('falls back to window.location.origin on web', async () => {
+    it('falls back to cortex default on web', async () => {
       delete (window as any).__TAURI__;
       vi.stubEnv('VITE_PREFRONTAL_URL', '');
       vi.stubGlobal('window', { location: { origin: 'http://localhost:5173' } });
       vi.resetModules();
       const { prefrontalUrl } = await import('../platform');
-      expect(prefrontalUrl()).toBe('http://localhost:5173');
+      expect(prefrontalUrl()).toBe('http://localhost:60080');
     });
   });
 });

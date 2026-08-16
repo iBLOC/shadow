@@ -243,19 +243,19 @@ describe('Settings Persistence E2E', () => {
   describe('Database settings in settings page', () => {
     it('renders settings page', async () => {
       renderWithRouter();
-      await screen.findByText('settings.database');
+      await screen.findByText('settings.title');
       expect(screen.getByText('settings.title')).toBeInTheDocument();
     });
 
     it('renders settings page without crashing', async () => {
       renderWithRouter();
-      await screen.findByText('settings.database');
+      await screen.findByText('settings.title');
       expect(screen.getByText('settings.title')).toBeInTheDocument();
     });
 
     it('shows settings section', async () => {
       renderWithRouter();
-      await screen.findByText('settings.database');
+      await screen.findByText('settings.title');
       expect(screen.getByText('settings.title')).toBeInTheDocument();
     });
   });

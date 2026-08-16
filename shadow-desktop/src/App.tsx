@@ -5,6 +5,7 @@ import { AppInitializer } from './components/AppInitializer';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { GlobalErrorDialog } from './components/error/GlobalErrorDialog';
 import { installGlobalErrorHandlers } from './lib/errorTriggers';
+import { migrateFromLocalStorage } from './lib/migrateSettings';
 import { TaskBoardPage } from './pages/TaskBoardPage';
 import { ConversationPage } from './pages/ConversationPage';
 import { AgentsPage } from './pages/AgentsPage';
@@ -28,6 +29,7 @@ import './App.css';
 function App() {
   useEffect(() => {
     installGlobalErrorHandlers();
+    migrateFromLocalStorage();
   }, []);
 
   return (

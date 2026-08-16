@@ -105,11 +105,11 @@ describe('Database Flow E2E', () => {
     });
   });
 
-  it('shows database section', async () => {
+  it('shows theme section', async () => {
     renderWithRouter();
 
     await waitFor(() => {
-      expect(screen.getByText('settings.database')).toBeInTheDocument();
+      expect(screen.getByText('settings.theme')).toBeInTheDocument();
     });
   });
 

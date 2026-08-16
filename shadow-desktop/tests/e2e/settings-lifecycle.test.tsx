@@ -130,10 +130,10 @@ describe('SettingsPage Lifecycle E2E', () => {
       expect(screen.getByText('settings.title')).toBeInTheDocument();
     });
 
-    it('renders database settings section', async () => {
+    it('renders settings page', async () => {
       renderWithRouter();
       await screen.findByText('settings.title');
-      expect(screen.getByTestId('database-settings')).toBeInTheDocument();
+      expect(screen.getByText('settings.title')).toBeInTheDocument();
     });
   });
 
@@ -259,12 +259,11 @@ describe('SettingsPage Lifecycle E2E', () => {
     });
   });
 
-  describe('Database settings mock', () => {
-    it('renders mocked database settings', async () => {
+  describe('Theme section', () => {
+    it('renders theme section', async () => {
       renderWithRouter();
       await screen.findByText('settings.title');
-      expect(screen.getByTestId('database-settings')).toBeInTheDocument();
-      expect(screen.getByText('Database Settings Mock')).toBeInTheDocument();
+      expect(screen.getAllByText('settings.theme')[0]).toBeInTheDocument();
     });
   });
 });

@@ -45,5 +45,13 @@
         "type": "downloadBootstrapper"
       }
     }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "",
+      "endpoints": [
+        "https://github.com/iBLOC/shadow-desktop/releases/latest/download/latest.json"
+      ]
+    }
   }
 }

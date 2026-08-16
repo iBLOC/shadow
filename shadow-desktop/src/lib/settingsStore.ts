@@ -1,35 +1,36 @@
-import { Store } from '@tauri-apps/plugin-store';
-
-let store: Store | null = null;
-
-export async function getStore(): Promise<Store> {
-  if (!store) {
-    store = await Store.load('settings.json');
-  }
-  return store;
-}
+const cache = new Map<string, unknown>();
 
 export async function getSetting<T>(key: string, defaultValue: T): Promise<T> {
-  try {
-    const s = await getStore();
-    const value = await s.get<T>(key);
-    return value ?? defaultValue;
-  } catch {
-    return defaultValue;
+  if (cache.has(key)) {
+    return cache.get(key) as T;
   }
+
+  const value = localStorage.getItem(key);
+  if (value !== null) {
+    try {
+      const parsed = JSON.parse(value) as T;
+      cache.set(key, parsed);
+      return parsed;
+    } catch {
+      cache.set(key, value as T);
+      return value as T;
+    }
+  }
+
+  return defaultValue;
 }
 
 export async function setSetting<T>(key: string, value: T): Promise<void> {
-  const s = await getStore();
-  await s.set(key, value);
+  cache.set(key, value);
+  localStorage.setItem(key, JSON.stringify(value));
 }
 
 export async function deleteSetting(key: string): Promise<void> {
-  const s = await getStore();
-  await s.delete(key);
+  cache.delete(key);
+  localStorage.removeItem(key);
 }
 
 export async function clearSettings(): Promise<void> {
-  const s = await getStore();
-  await s.clear();
+  cache.clear();
+  localStorage.clear();
 }

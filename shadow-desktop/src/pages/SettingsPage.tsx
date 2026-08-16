@@ -7,6 +7,7 @@ import { useThemeStore } from '../stores/themeStore';
 import { useCortexStore } from '../stores/cortexStore';
 import { SettingsCard } from '../components/business';
 import { HfTokenSettings } from '../components/business/HfTokenSettings';
+import { UpdateChecker } from '../components/business/UpdateChecker';
 import { Button } from '../components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { cn } from '../lib/utils';
@@ -179,6 +180,8 @@ export function SettingsPage() {
             <code className="text-xs text-muted-foreground">{t('settings.storagePathDefault')}</code>
           </div>
         </SettingsCard>
+
+        {isTauri() && <UpdateChecker />}
 
         {isTauri() && (
           <SettingsCard
