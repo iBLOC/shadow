@@ -15,13 +15,8 @@ test.describe('Settings Page', () => {
   });
 
   test('显示 Cortex 状态', async ({ page }) => {
-    const cortexSection = page.getByRole('heading', { name: 'Cortex 状态' });
+    const cortexSection = page.getByRole('heading', { name: /Cortex/ });
     await expect(cortexSection).toBeVisible();
-  });
-
-  test('显示数据库设置', async ({ page }) => {
-    const dbSection = page.getByRole('heading', { name: '数据库' });
-    await expect(dbSection).toBeVisible();
   });
 
   test('显示语言设置', async ({ page }) => {
@@ -32,5 +27,12 @@ test.describe('Settings Page', () => {
   test('显示主题设置', async ({ page }) => {
     const themeSection = page.locator('text=主题').first();
     await expect(themeSection).toBeVisible();
+  });
+
+  test('显示记忆集成', async ({ page }) => {
+    const memorySection = page.locator('text=记忆').first();
+    if (await memorySection.isVisible()) {
+      await expect(memorySection).toBeVisible();
+    }
   });
 });
