@@ -882,7 +882,7 @@ function InternalAgentCard({
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">{t('agents.defaultModel')}:</span>
           <select
-            className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-xs"
+            className="flex-1 rounded-md border border-border bg-popover px-2 py-1 text-xs text-popover-foreground"
             value={config?.model_id as string || ''}
             onChange={(e) => onModelChange(lobe.name, e.target.value)}
           >
