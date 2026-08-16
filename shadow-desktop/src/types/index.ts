@@ -27,6 +27,8 @@ export interface Agent {
   protocol?: AgentProtocol;
   endpoint?: string;
   apiKey?: string;
+  // Model configuration
+  modelConfig?: AgentModelConfig;
   // Common
   status: 'online' | 'offline' | 'busy';
   description?: string;

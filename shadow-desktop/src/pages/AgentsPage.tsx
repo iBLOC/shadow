@@ -10,7 +10,7 @@ import { Button, Badge, EmptyState, Modal } from '../components/ui';
 import { useAgentStore } from '../stores/agentStore';
 import { useOpenCodeStore } from '../stores/opencodeStore';
 import { useCortexStore } from '../stores/cortexStore';
-import { cortexClient, type ScanResult, type InstalledWasmList, type AgentSearchResponse, type McpAgentBinding, type McpServerRecord } from '../lib/cortexClient';
+import { cortexClient, type ScanResult, type InstalledWasmList, type AgentSearchResponse, type McpAgentBinding, type McpServerRecord, type ModelProvider } from '../lib/cortexClient';
 import { cn } from '../lib/utils';
 
 type AgentSection = 'internal' | 'custom' | 'wasm' | 'external';
@@ -49,6 +49,20 @@ export function AgentsPage() {
   const [loadingWasm, setLoadingWasm] = useState(false);
   const [wasmError, setWasmError] = useState<string | null>(null);
   const [uninstallingWasm, setUninstallingWasm] = useState<string | null>(null);
+  const [providers, setProviders] = useState<ModelProvider[]>([]);
+
+  const fetchProviders = useCallback(async () => {
+    try {
+      const result = await cortexClient.listProviders();
+      setProviders(result);
+    } catch {
+      setProviders([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchProviders();
+  }, [fetchProviders]);
 
   useEffect(() => {
     checkOpenCodeInstalled();
@@ -105,6 +119,15 @@ export function AgentsPage() {
       setLoadingWasm(false);
     }
   }, []);
+
+  const handleModelChange = useCallback(async (agentName: string, modelId: string) => {
+    try {
+      await cortexClient.updateLobeConfig(agentName, { model_id: modelId });
+      await refreshCortex();
+    } catch (e) {
+      console.error('Failed to update model config:', e);
+    }
+  }, [refreshCortex]);
 
   const [searchInput, setSearchInput] = useState('');
   const [skillInput, setSkillInput] = useState('');
@@ -356,6 +379,8 @@ export function AgentsPage() {
                   mcpBindings={mcpBindingsByAgent[l.name]}
                   onUnbindMcp={(sid) => handleUnbindMcp(l.name, sid)}
                   onOpenMcpBind={openBindModal}
+                  onModelChange={handleModelChange}
+                  providers={providers}
                 />
               ))}
             </div>
@@ -543,6 +568,8 @@ export function AgentsPage() {
                 mcpBindings={mcpBindingsByAgent[lobe.name]}
                 onUnbindMcp={(sid) => handleUnbindMcp(lobe.name, sid)}
                 onOpenMcpBind={openBindModal}
+                onModelChange={handleModelChange}
+                providers={providers}
               />
             ))}
           </div>
@@ -791,16 +818,20 @@ function McpBindModal({
 }
 
 function InternalAgentCard({
-  lobe, showUnlink, mcpBindings, onUnbindMcp, onOpenMcpBind,
+  lobe, showUnlink, mcpBindings, onUnbindMcp, onOpenMcpBind, onModelChange, providers,
 }: {
   lobe: import('../lib/cortexClient').LobeInfo;
   showUnlink?: boolean;
   mcpBindings?: McpAgentBinding[];
   onUnbindMcp?: (serverId: string) => void;
   onOpenMcpBind?: (agentName: string) => void;
+  onModelChange?: (agentName: string, modelId: string) => void;
+  providers?: import('../lib/cortexClient').ModelProvider[];
 }) {
   const { t } = useTranslation();
   const healthy = lobe.health_status === 'healthy';
+  const currentModel = (lobe.config as Record<string, unknown>)?.model_id as string | undefined;
+
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4">
       <div className="flex items-start gap-3">
@@ -821,6 +852,25 @@ function InternalAgentCard({
           <Badge key={s} variant="outline" size="sm">{s}</Badge>
         ))}
       </div>
+      {onModelChange && providers && (
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">{t('agents.defaultModel')}:</span>
+          <select
+            className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-xs"
+            value={currentModel || ''}
+            onChange={(e) => onModelChange(lobe.name, e.target.value)}
+          >
+            <option value="">{t('agents.noDefaultModel')}</option>
+            {providers.map((p) => (
+              <optgroup key={p.id} label={p.name}>
+                {p.models.map((m) => (
+                  <option key={m.id} value={m.id}>{m.name}</option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        </div>
+      )}
       {mcpBindings && onUnbindMcp && onOpenMcpBind ? (
         <McpBindingsPanel
           bindings={mcpBindings}

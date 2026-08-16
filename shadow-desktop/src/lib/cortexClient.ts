@@ -25,6 +25,7 @@ export interface LobeInfo {
   skills: string[];
   agent_card: AgentCard;
   health_status: 'healthy' | 'unhealthy' | 'unknown' | 'offline';
+  config?: Record<string, unknown>;
 }
 
 export interface AgentsResponse {
@@ -158,6 +159,24 @@ export interface InstalledWasmEntry {
 export interface InstalledWasmList {
   count: number;
   entries: InstalledWasmEntry[];
+}
+
+export interface ModelProvider {
+  id: string;
+  name: string;
+  provider_type: string;
+  api_base?: string;
+  api_key?: string;
+  models: ModelInfo[];
+}
+
+export interface ModelInfo {
+  id: string;
+  name: string;
+  model_id: string;
+  is_default: boolean;
+  supports_vision: boolean;
+  supports_function_calling: boolean;
 }
 
 export type McpServerState = 'stopped' | 'starting' | 'running' | 'error';
@@ -436,6 +455,10 @@ export class CortexClient {
     );
   }
 
+  async listProviders(): Promise<ModelProvider[]> {
+    return this.request<ModelProvider[]>('/models/providers');
+  }
+
   async searchAgents(opts: { skill?: string; q?: string } = {}): Promise<AgentSearchResponse> {
     const params = new URLSearchParams();
     if (opts.skill) params.set('skill', opts.skill);
@@ -443,6 +466,16 @@ export class CortexClient {
     const qs = params.toString();
     return this.request<AgentSearchResponse>(
       `/api/cortex/agents/search${qs ? `?${qs}` : ''}`,
+    );
+  }
+
+  async updateLobeConfig(name: string, config: Record<string, unknown>): Promise<void> {
+    await this.request<void>(
+      `/api/cortex/agents/${encodeURIComponent(name)}/config`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ config }),
+      },
     );
   }
 
