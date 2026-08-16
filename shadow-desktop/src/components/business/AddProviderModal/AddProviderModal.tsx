@@ -24,8 +24,9 @@ export function AddProviderModal({
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showAutoMatchDialog, setShowAutoMatchDialog] = useState(false);
+  const [fetchedProviderId, setFetchedProviderId] = useState<string | null>(null);
 
-  // Auto-fill API base URL when provider type changes
   useEffect(() => {
     if (defaultApiBase[formData.provider_type] && !formData.api_base) {
       setFormData(prev => ({
@@ -64,7 +65,6 @@ export function AddProviderModal({
           throw new Error(`Failed to add provider: ${response.status} ${errorBody}`);
         }
 
-        // Fetch models from the provider's API
         try {
           const fetchModelsResponse = await fetch(`${API_BASE}/models/providers/${providerId}/fetch-models`, {
             method: 'POST',
@@ -72,6 +72,11 @@ export function AddProviderModal({
           if (fetchModelsResponse.ok) {
             const modelsData = await fetchModelsResponse.json();
             console.log(`Fetched ${modelsData.count} models from provider`);
+            if (modelsData.count > 0) {
+              setFetchedProviderId(providerId);
+              setShowAutoMatchDialog(true);
+              return;
+            }
           }
         } catch (e) {
           console.warn('Failed to fetch models from provider:', e);
@@ -91,6 +96,28 @@ export function AddProviderModal({
     }
   };
 
+  const handleAutoMatch = async (autoMatch: boolean) => {
+    setShowAutoMatchDialog(false);
+    
+    if (autoMatch && fetchedProviderId) {
+      try {
+        const response = await fetch(`${API_BASE}/models/providers/${fetchedProviderId}/auto-match`, {
+          method: 'POST',
+        });
+        if (response.ok) {
+          console.log('Auto-matched models to agents');
+        }
+      } catch (e) {
+        console.warn('Failed to auto-match models:', e);
+      }
+    }
+    
+    setFetchedProviderId(null);
+    onSuccess?.();
+    resetForm();
+    onClose();
+  };
+
   const resetForm = () => {
     setFormData({
       name: '',
@@ -106,6 +133,30 @@ export function AddProviderModal({
     resetForm();
     onClose();
   };
+
+  if (showAutoMatchDialog) {
+    return (
+      <Modal
+        isOpen={isOpen}
+        onClose={() => handleAutoMatch(false)}
+        title={t('models.autoMatchTitle')}
+        description={t('models.autoMatchDesc')}
+        size="md"
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => handleAutoMatch(false)}>
+              {t('models.skipAutoMatch')}
+            </Button>
+            <Button variant="primary" onClick={() => handleAutoMatch(true)}>
+              {t('models.confirmAutoMatch')}
+            </Button>
+          </div>
+        }
+      >
+        <div />
+      </Modal>
+    );
+  }
 
   return (
     <Modal

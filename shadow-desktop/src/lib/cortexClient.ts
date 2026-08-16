@@ -175,6 +175,7 @@ export interface ModelInfo {
   name: string;
   model_id: string;
   is_default: boolean;
+  capabilities: string[];
   supports_vision: boolean;
   supports_function_calling: boolean;
 }
