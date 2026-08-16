@@ -1,8 +1,10 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { useEffect } from 'react';
 import { Layout } from './components/Layout';
 import { AppInitializer } from './components/AppInitializer';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { GlobalErrorDialog } from './components/error/GlobalErrorDialog';
+import { installGlobalErrorHandlers } from './lib/errorTriggers';
 import { TaskBoardPage } from './pages/TaskBoardPage';
 import { ConversationPage } from './pages/ConversationPage';
 import { AgentsPage } from './pages/AgentsPage';
@@ -20,9 +22,14 @@ import { FlowsPage } from './pages/FlowsPage';
 import { GroupPage } from './pages/GroupPage';
 import { ResonancePage } from './pages/ResonancePage';
 import { ModelOnboardingPage } from './pages/ModelOnboardingPage';
+import { ProvidersPage } from './pages/ProvidersPage';
 import './App.css';
 
 function App() {
+  useEffect(() => {
+    installGlobalErrorHandlers();
+  }, []);
+
   return (
     <BrowserRouter>
       <GlobalErrorDialog />
@@ -47,6 +54,7 @@ function App() {
           <Route path="discovery" element={<DiscoveryPage />} />
           <Route path="flows" element={<FlowsPage />} />
           <Route path="resonance" element={<ResonancePage />} />
+          <Route path="providers" element={<ProvidersPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

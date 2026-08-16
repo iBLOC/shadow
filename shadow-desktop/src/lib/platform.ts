@@ -58,9 +58,8 @@ export const prefrontalUrl = (): string => {
   if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_PREFRONTAL_URL) {
     return import.meta.env.VITE_PREFRONTAL_URL as string;
   }
-  if (isTauri()) return 'http://localhost:60000';
-  if (typeof window !== 'undefined') return window.location.origin;
-  return 'http://localhost:60000';
+  // Always use cortex URL regardless of environment
+  return 'http://localhost:60080';
 };
 
 /**

@@ -172,12 +172,19 @@ export function LogsPage() {
             return (
               <Card key={entry.id} className="overflow-hidden">
                 <CardContent className="p-0">
-                  <button
-                    type="button"
-                    className="w-full text-left p-4 hover:bg-muted/50 transition-colors"
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    className="w-full text-left p-4 hover:bg-muted/50 transition-colors cursor-pointer"
                     onClick={() =>
                       setExpandedId(expanded ? null : entry.id)
                     }
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setExpandedId(expanded ? null : entry.id);
+                      }
+                    }}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
@@ -225,7 +232,7 @@ export function LogsPage() {
                         )}
                       </Button>
                     </div>
-                  </button>
+                  </div>
                   {expanded && entry.stack && (
                     <div className="border-t bg-muted/30 p-4">
                       <pre className="text-xs overflow-x-auto max-h-64 overflow-y-auto whitespace-pre-wrap break-all">

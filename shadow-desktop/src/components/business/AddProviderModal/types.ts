@@ -40,7 +40,7 @@ export interface ProviderFormData {
 export interface AddProviderModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess?: (provider: ModelProvider) => void;
+  onSuccess?: (provider?: ModelProvider) => void;
   onSave?: (data: ProviderFormData) => Promise<void>;
   providerTypes?: ProviderTypeOption[];
   defaultApiBase?: Record<string, string>;

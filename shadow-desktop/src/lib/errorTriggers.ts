@@ -28,6 +28,8 @@ export function installGlobalErrorHandlers(): void {
       source: 'unhandled',
       message: event.message || 'Unknown runtime error',
       stack: event.error instanceof Error ? event.error.stack : undefined,
+      // Add file/line information
+      endpoint: event.filename ? `${event.filename}:${event.lineno}:${event.colno}` : undefined,
     });
   });
 

@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Modal, Button } from '../../ui';
 import { ProviderForm } from '../ProviderForm';
-import type { AddProviderModalProps, ModelProvider, ProviderFormData } from './types';
+import type { AddProviderModalProps, ProviderFormData } from './types';
 
-const API_BASE = 'http://localhost:8082';
+const API_BASE = 'http://localhost:60080';
 
 export function AddProviderModal({
   isOpen,
@@ -23,31 +23,69 @@ export function AddProviderModal({
     enabled: true,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Auto-fill API base URL when provider type changes
+  useEffect(() => {
+    if (defaultApiBase[formData.provider_type] && !formData.api_base) {
+      setFormData(prev => ({
+        ...prev,
+        api_base: defaultApiBase[prev.provider_type] || '',
+      }));
+    }
+  }, [formData.provider_type, defaultApiBase]);
 
   const handleAddProvider = async () => {
     if (!formData.name) return;
 
     setIsSubmitting(true);
+    setError(null);
     try {
       if (onSave) {
         await onSave(formData);
       } else {
+        const providerId = `${formData.provider_type}-${Date.now()}`;
+        
         const response = await fetch(`${API_BASE}/models/providers`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(formData),
+          body: JSON.stringify({
+            id: providerId,
+            name: formData.name,
+            provider_type: formData.provider_type,
+            api_base: formData.api_base || null,
+            api_key: formData.api_key || null,
+            models: [],
+          }),
         });
 
-        if (!response.ok) throw new Error('Failed to add provider');
+        if (!response.ok) {
+          const errorBody = await response.text();
+          throw new Error(`Failed to add provider: ${response.status} ${errorBody}`);
+        }
 
-        const provider: ModelProvider = await response.json();
-        onSuccess?.(provider);
+        // Fetch models from the provider's API
+        try {
+          const fetchModelsResponse = await fetch(`${API_BASE}/models/providers/${providerId}/fetch-models`, {
+            method: 'POST',
+          });
+          if (fetchModelsResponse.ok) {
+            const modelsData = await fetchModelsResponse.json();
+            console.log(`Fetched ${modelsData.count} models from provider`);
+          }
+        } catch (e) {
+          console.warn('Failed to fetch models from provider:', e);
+        }
+
+        onSuccess?.();
       }
 
       resetForm();
       onClose();
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to add provider';
       console.error('Failed to add provider:', error);
+      setError(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -61,6 +99,7 @@ export function AddProviderModal({
       api_key: '',
       enabled: true,
     });
+    setError(null);
   };
 
   const handleClose = () => {
@@ -76,18 +115,25 @@ export function AddProviderModal({
       description={t('models.addProviderDesc')}
       size="md"
       footer={
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={handleClose}>
-            {t('common.cancel')}
-          </Button>
-          <Button
-            variant="primary"
-            onClick={handleAddProvider}
-            loading={isSubmitting}
-            disabled={!formData.name || !formData.api_base}
-          >
-            {t('common.add')}
-          </Button>
+        <div className="flex flex-col gap-2">
+          {error && (
+            <div className="rounded-md bg-red-50 p-3 text-sm text-red-600">
+              {error}
+            </div>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={handleClose}>
+              {t('common.cancel')}
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleAddProvider}
+              loading={isSubmitting}
+              disabled={!formData.name || !formData.api_base}
+            >
+              {t('common.add')}
+            </Button>
+          </div>
         </div>
       }
     >
