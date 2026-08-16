@@ -11,7 +11,9 @@
     "preview": "vite preview",
     "preview:web": "vite preview --config vite.config.web.ts --port 4173 --host 0.0.0.0",
     "lint": "eslint .",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "test:e2e": "cd e2e-tests && xvfb-run pnpm test",
+    "test:e2e:setup": "cd e2e-tests && pnpm install"
   },
   "dependencies": {
     "@google/design.md": "^0.3.0",
@@ -38,6 +40,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
+    "@playwright/test": "^1.62.1",
     "@tauri-apps/cli": "^2",
     "@testing-library/jest-dom": "^6.6.0",
     "@testing-library/react": "^16.0.0",
