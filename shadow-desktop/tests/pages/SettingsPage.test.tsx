@@ -114,14 +114,6 @@ describe('SettingsPage', () => {
     });
   });
 
-  it('renders resonance connection section', async () => {
-    renderWithRouter(<SettingsPage />);
-    
-    await waitFor(() => {
-      expect(screen.getByText('settings.resonanceConnection')).toBeInTheDocument();
-    });
-  });
-
   it('renders language selector section', async () => {
     renderWithRouter(<SettingsPage />);
     

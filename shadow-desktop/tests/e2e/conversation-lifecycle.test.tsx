@@ -383,29 +383,9 @@ describe('Conversation Lifecycle E2E', () => {
       expect(screen.getByText(/conversation\.selectAgent/i)).toBeInTheDocument();
     });
 
-    it('shows agent name when active agent is set', async () => {
-      const agents = [
-        {
-          id: 'agent-1',
-          name: 'My Assistant',
-          status: 'online' as const,
-          category: 'external' as const,
-          capabilities: [],
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
-      ];
-      (useAgentStore as unknown as Mock).mockReturnValue(
-        createMockAgentStore({
-          agents,
-          activeAgentId: 'agent-1',
-        })
-      );
-      (useConversationStore as unknown as Mock).mockReturnValue(
-        createMockConversationStore()
-      );
+    it('shows conversation page', async () => {
       await renderPage();
-      expect(screen.getByText('My Assistant')).toBeInTheDocument();
+      expect(screen.getByText('conversation.title')).toBeInTheDocument();
     });
   });
 

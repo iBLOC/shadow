@@ -10,38 +10,22 @@ vi.mock('react-i18next', () => ({
 }));
 
 const mockSetDbType = vi.fn();
-const mockSetExternalConfig = vi.fn();
 const mockSetMasterPassword = vi.fn();
-const mockStartEmbedded = vi.fn();
-const mockStopEmbedded = vi.fn();
-const mockTestExternalConnection = vi.fn();
+const mockStartInternal = vi.fn();
+const mockStopInternal = vi.fn();
 const mockEncryptValue = vi.fn();
 const mockDecryptValue = vi.fn();
 
 const dbState: {
-  dbType: 'embedded' | 'external' | 'neon';
+  dbType: 'internal' | 'distributed';
   status: 'disconnected' | 'connecting' | 'connected' | 'error';
-  embeddedPort: number | null;
-  externalConfig: {
-    host: string;
-    port: number;
-    username: string;
-    password: string;
-    database: string;
-  };
+  internalPort: number | null;
   masterPassword: string | null;
   error: string | null;
 } = {
-  dbType: 'embedded',
+  dbType: 'internal',
   status: 'disconnected',
-  embeddedPort: null,
-  externalConfig: {
-    host: 'localhost',
-    port: 5432,
-    username: 'postgres',
-    password: '',
-    database: 'shadow',
-  },
+  internalPort: null,
   masterPassword: null,
   error: null,
 };
@@ -50,16 +34,13 @@ vi.mock('../../src/stores/databaseStore', () => ({
   useDatabaseStore: () => ({
     dbType: dbState.dbType,
     status: dbState.status,
-    embeddedPort: dbState.embeddedPort,
-    externalConfig: dbState.externalConfig,
+    internalPort: dbState.internalPort,
     masterPassword: dbState.masterPassword,
     error: dbState.error,
     setDbType: mockSetDbType,
-    setExternalConfig: mockSetExternalConfig,
     setMasterPassword: mockSetMasterPassword,
-    startEmbedded: mockStartEmbedded,
-    stopEmbedded: mockStopEmbedded,
-    testExternalConnection: mockTestExternalConnection,
+    startInternal: mockStartInternal,
+    stopInternal: mockStopInternal,
     encryptValue: mockEncryptValue,
     decryptValue: mockDecryptValue,
   }),
@@ -68,16 +49,9 @@ vi.mock('../../src/stores/databaseStore', () => ({
 import { DatabaseSettings } from '../../src/components/DatabaseSettings';
 
 function resetDbState(overrides: Partial<typeof dbState> = {}) {
-  dbState.dbType = 'embedded';
+  dbState.dbType = 'internal';
   dbState.status = 'disconnected';
-  dbState.embeddedPort = null;
-  dbState.externalConfig = {
-    host: 'localhost',
-    port: 5432,
-    username: 'postgres',
-    password: '',
-    database: 'shadow',
-  };
+  dbState.internalPort = null;
   dbState.masterPassword = null;
   dbState.error = null;
   Object.assign(dbState, overrides);
@@ -98,306 +72,160 @@ describe('DatabaseSettings', () => {
     });
 
     it('renders description text', () => {
-      const { container } = render(<DatabaseSettings />);
-      const desc = container.querySelector('.settings-header + p');
-      expect(desc).toHaveTextContent('settings.databaseDesc');
+      render(<DatabaseSettings />);
+      expect(screen.getByText('settings.databaseDesc')).toBeInTheDocument();
     });
   });
 
   describe('database type selector', () => {
-    it('renders all 3 type buttons', () => {
+    it('renders internal and distributed options', () => {
       render(<DatabaseSettings />);
-      expect(screen.getByText(/settings\.dbEmbedded/i)).toBeInTheDocument();
-      expect(screen.getByText(/settings\.dbExternal/i)).toBeInTheDocument();
-      expect(screen.getByText(/settings\.dbNeon/i)).toBeInTheDocument();
+      expect(screen.getByTestId('db-type-internal')).toBeInTheDocument();
+      expect(screen.getByTestId('db-type-distributed')).toBeInTheDocument();
     });
 
-    it('marks the active type with default variant', () => {
-      resetDbState({ dbType: 'external' });
+    it('internal option is enabled', () => {
       render(<DatabaseSettings />);
-      const externalBtn = screen.getByTestId('db-type-external');
-      expect(externalBtn).toBeInTheDocument();
-      expect(externalBtn).toHaveTextContent(/settings\.dbExternal/i);
-      expect(externalBtn.className).toContain('bg-primary');
+      const internalBtn = screen.getByTestId('db-type-internal');
+      expect(internalBtn).not.toBeDisabled();
     });
 
-    it('disables the neon type button', () => {
+    it('distributed option is disabled', () => {
       render(<DatabaseSettings />);
-      const neonBtn = screen.getByTestId('db-type-neon');
-      expect(neonBtn).toBeDisabled();
+      const distributedBtn = screen.getByTestId('db-type-distributed');
+      expect(distributedBtn).toBeDisabled();
     });
 
-    it('clicking embedded calls setDbType("embedded")', async () => {
-      const user = userEvent.setup();
-      resetDbState({ dbType: 'external' });
-      render(<DatabaseSettings />);
-      await user.click(screen.getByText(/settings\.dbEmbedded/i));
-      expect(mockSetDbType).toHaveBeenCalledWith('embedded');
-    });
-
-    it('clicking external calls setDbType("external")', async () => {
+    it('clicking internal calls setDbType', async () => {
       const user = userEvent.setup();
       render(<DatabaseSettings />);
-      await user.click(screen.getByText(/settings\.dbExternal/i));
-      expect(mockSetDbType).toHaveBeenCalledWith('external');
-    });
-
-    it('does not call setDbType when clicking disabled neon button', async () => {
-      const user = userEvent.setup();
-      render(<DatabaseSettings />);
-      await user.click(screen.getByText(/settings\.dbNeon/i));
-      expect(mockSetDbType).not.toHaveBeenCalled();
+      await user.click(screen.getByTestId('db-type-internal'));
+      expect(mockSetDbType).toHaveBeenCalledWith('internal');
     });
   });
 
-  describe('embedded mode', () => {
-    it('shows status as disconnected by default', () => {
-      resetDbState({ dbType: 'embedded', status: 'disconnected' });
-      const { container } = render(<DatabaseSettings />);
-      const badge = container.querySelector('.status-badge');
-      expect(badge).toBeInTheDocument();
-      expect(badge).toHaveTextContent(/settings\.dbDisconnected/i);
+  describe('internal database config', () => {
+    it('shows disconnected status by default', () => {
+      render(<DatabaseSettings />);
+      expect(screen.getByText('settings.dbDisconnected')).toBeInTheDocument();
     });
 
-    it('shows status as connecting', () => {
-      resetDbState({ dbType: 'embedded', status: 'connecting' });
-      const { container } = render(<DatabaseSettings />);
-      const badge = container.querySelector('.status-badge');
-      expect(badge).toHaveTextContent('settings.dbConnecting');
+    it('shows connected status with port when connected', () => {
+      resetDbState({ status: 'connected', internalPort: 5432 });
+      render(<DatabaseSettings />);
+      expect(screen.getByText(/settings.dbConnected/)).toBeInTheDocument();
+      expect(screen.getByText(/5432/)).toBeInTheDocument();
     });
 
-    it('shows status as connected with port number', () => {
-      resetDbState({ dbType: 'embedded', status: 'connected', embeddedPort: 54321 });
-      const { container } = render(<DatabaseSettings />);
-      const badge = container.querySelector('.status-badge');
-      expect(badge).toHaveTextContent('settings.dbConnected');
-      expect(badge).toHaveTextContent('54321');
+    it('shows start button when disconnected', () => {
+      render(<DatabaseSettings />);
+      expect(screen.getByTestId('db-internal-start')).toBeInTheDocument();
     });
 
-    it('shows status as error with disconnected label', () => {
-      resetDbState({ dbType: 'embedded', status: 'error' });
-      const { container } = render(<DatabaseSettings />);
-      const badge = container.querySelector('.status-badge');
-      expect(badge).toHaveTextContent('settings.dbDisconnected');
+    it('shows stop button when connected', () => {
+      resetDbState({ status: 'connected' });
+      render(<DatabaseSettings />);
+      expect(screen.getByTestId('db-internal-stop')).toBeInTheDocument();
     });
 
-    it('clicking start calls startEmbedded when disconnected', async () => {
+    it('clicking start calls startInternal', async () => {
       const user = userEvent.setup();
-      resetDbState({ dbType: 'embedded', status: 'disconnected' });
       render(<DatabaseSettings />);
-      const startBtn = screen.getByTestId('db-embedded-start');
-      await user.click(startBtn);
-      expect(mockStartEmbedded).toHaveBeenCalledTimes(1);
+      await user.click(screen.getByTestId('db-internal-start'));
+      expect(mockStartInternal).toHaveBeenCalled();
     });
 
-    it('clicking stop calls stopEmbedded when connected', async () => {
+    it('clicking stop calls stopInternal', async () => {
+      resetDbState({ status: 'connected' });
       const user = userEvent.setup();
-      resetDbState({ dbType: 'embedded', status: 'connected', embeddedPort: 54321 });
       render(<DatabaseSettings />);
-      const stopBtn = screen.getByTestId('db-embedded-stop');
-      await user.click(stopBtn);
-      expect(mockStopEmbedded).toHaveBeenCalledTimes(1);
-    });
-
-    it('start button is disabled when status is connecting', () => {
-      resetDbState({ dbType: 'embedded', status: 'connecting' });
-      render(<DatabaseSettings />);
-      const startBtn = screen.getByTestId('db-embedded-start');
-      expect(startBtn).toBeDisabled();
+      await user.click(screen.getByTestId('db-internal-stop'));
+      expect(mockStopInternal).toHaveBeenCalled();
     });
   });
 
-  describe('external mode', () => {
-    function getExternalInputs(container: HTMLElement) {
-      const cfg = container.querySelector('.db-external-config');
-      if (!cfg) throw new Error('db-external-config not found');
-      const inputs = cfg.querySelectorAll('input');
-      return {
-        host: inputs[0] as HTMLInputElement,
-        port: inputs[1] as HTMLInputElement,
-        username: inputs[2] as HTMLInputElement,
-        password: inputs[3] as HTMLInputElement,
-        database: inputs[4] as HTMLInputElement,
-      };
-    }
-
-    beforeEach(() => {
-      resetDbState({ dbType: 'external' });
+  describe('encryption section', () => {
+    it('renders encryption header', () => {
+      render(<DatabaseSettings />);
+      expect(screen.getByText('settings.dbEncryption')).toBeInTheDocument();
     });
 
-    it('shows 5 input fields (host, port, user, password, database)', () => {
-      const { container } = render(<DatabaseSettings />);
-      const inputs = getExternalInputs(container);
-      expect(inputs.host).toBeInTheDocument();
-      expect(inputs.port).toBeInTheDocument();
-      expect(inputs.username).toBeInTheDocument();
-      expect(inputs.password).toBeInTheDocument();
-      expect(inputs.database).toBeInTheDocument();
+    it('shows master password form when not set', () => {
+      render(<DatabaseSettings />);
+      expect(screen.getByPlaceholderText('********')).toBeInTheDocument();
     });
 
-    it('host input is populated with current value', () => {
-      resetDbState({ dbType: 'external', externalConfig: { ...dbState.externalConfig, host: 'myhost' } });
-      const { container } = render(<DatabaseSettings />);
-      const inputs = getExternalInputs(container);
-      expect(inputs.host.value).toBe('myhost');
+    it('shows success icon when master password is set', () => {
+      resetDbState({ masterPassword: 'test-password' });
+      render(<DatabaseSettings />);
+      expect(screen.getByText('settings.dbSetMasterPassword')).toBeInTheDocument();
     });
 
-    it('port input is populated with current value', () => {
-      resetDbState({ dbType: 'external', externalConfig: { ...dbState.externalConfig, port: 12345 } });
-      const { container } = render(<DatabaseSettings />);
-      const inputs = getExternalInputs(container);
-      expect(inputs.port.value).toBe('12345');
+    it('shows hint text', () => {
+      render(<DatabaseSettings />);
+      expect(screen.getByText('settings.dbMasterPasswordHint')).toBeInTheDocument();
     });
 
-    it('changing host calls setExternalConfig with new host', () => {
-      const { container } = render(<DatabaseSettings />);
-      const inputs = getExternalInputs(container);
-      fireEvent.change(inputs.host, { target: { value: 'newhost' } });
-      expect(mockSetExternalConfig).toHaveBeenLastCalledWith({ host: 'newhost' });
-    });
-
-    it('changing port calls setExternalConfig with parsed number', () => {
-      const { container } = render(<DatabaseSettings />);
-      const inputs = getExternalInputs(container);
-      fireEvent.change(inputs.port, { target: { value: '9999' } });
-      expect(mockSetExternalConfig).toHaveBeenLastCalledWith({ port: 9999 });
-    });
-
-    it('port defaults to 5432 when input is invalid', () => {
-      const { container } = render(<DatabaseSettings />);
-      const inputs = getExternalInputs(container);
-      fireEvent.change(inputs.port, { target: { value: 'abc' } });
-      expect(mockSetExternalConfig).toHaveBeenLastCalledWith({ port: 5432 });
-    });
-
-    it('changing username calls setExternalConfig', () => {
-      const { container } = render(<DatabaseSettings />);
-      const inputs = getExternalInputs(container);
-      fireEvent.change(inputs.username, { target: { value: 'admin' } });
-      expect(mockSetExternalConfig).toHaveBeenLastCalledWith({ username: 'admin' });
-    });
-
-    it('changing database calls setExternalConfig', () => {
-      const { container } = render(<DatabaseSettings />);
-      const inputs = getExternalInputs(container);
-      fireEvent.change(inputs.database, { target: { value: 'mydb' } });
-      expect(mockSetExternalConfig).toHaveBeenLastCalledWith({ database: 'mydb' });
-    });
-
-    it('password input is type=password by default', () => {
-      const { container } = render(<DatabaseSettings />);
-      const inputs = getExternalInputs(container);
-      expect(inputs.password.type).toBe('password');
-    });
-
-    it('toggles password visibility when eye button clicked', async () => {
+    it('can toggle password visibility', async () => {
       const user = userEvent.setup();
-      const { container } = render(<DatabaseSettings />);
-      const inputs = getExternalInputs(container);
-      const toggleBtn = screen.getByTestId('db-external-password-toggle');
+      render(<DatabaseSettings />);
+      const toggleBtn = screen.getByTestId('db-master-password-toggle');
+      const input = screen.getByPlaceholderText('********');
+      
+      expect(input).toHaveAttribute('type', 'password');
       await user.click(toggleBtn);
-      expect(inputs.password.type).toBe('text');
-      await user.click(toggleBtn);
-      expect(inputs.password.type).toBe('password');
+      expect(input).toHaveAttribute('type', 'text');
     });
 
-    it('clicking test connection calls testExternalConnection', async () => {
+    it('set button is disabled for short passwords', async () => {
       const user = userEvent.setup();
       render(<DatabaseSettings />);
-      const testBtn = screen.getByTestId('db-external-test-connection');
-      await user.click(testBtn);
-      expect(mockTestExternalConnection).toHaveBeenCalledTimes(1);
+      const input = screen.getByPlaceholderText('********');
+      const setBtn = screen.getByTestId('db-master-password-set');
+      
+      await user.type(input, 'short');
+      expect(setBtn).toBeDisabled();
     });
 
-    it('test connection button is disabled when status is connecting', () => {
-      resetDbState({ dbType: 'external', status: 'connecting' });
+    it('set button is enabled for valid passwords', async () => {
+      const user = userEvent.setup();
       render(<DatabaseSettings />);
-      const testBtn = screen.getByTestId('db-external-test-connection');
-      expect(testBtn).toBeDisabled();
+      const input = screen.getByPlaceholderText('********');
+      const setBtn = screen.getByTestId('db-master-password-set');
+      
+      await user.type(input, 'longpassword');
+      expect(setBtn).not.toBeDisabled();
+    });
+
+    it('clicking set calls setMasterPassword', async () => {
+      const user = userEvent.setup();
+      render(<DatabaseSettings />);
+      const input = screen.getByPlaceholderText('********');
+      const setBtn = screen.getByTestId('db-master-password-set');
+      
+      await user.type(input, 'longpassword');
+      await user.click(setBtn);
+      expect(mockSetMasterPassword).toHaveBeenCalledWith('longpassword');
     });
   });
 
-  describe('neon mode', () => {
-    it('shows neon placeholder when dbType is neon', () => {
-      resetDbState({ dbType: 'neon' });
-      const { container } = render(<DatabaseSettings />);
-      expect(container.querySelector('.db-neon-placeholder')).toBeInTheDocument();
-    });
-  });
-
-  describe('status icon in header', () => {
-    it('shows check icon when status is connected', () => {
-      resetDbState({ status: 'connected', embeddedPort: 12345 });
+  describe('status icon', () => {
+    it('shows success icon when connected', () => {
+      resetDbState({ status: 'connected' });
       const { container } = render(<DatabaseSettings />);
       expect(container.querySelector('.status-success')).toBeInTheDocument();
     });
 
-    it('shows alert icon when status is error', () => {
+    it('shows error icon when error', () => {
       resetDbState({ status: 'error' });
       const { container } = render(<DatabaseSettings />);
       expect(container.querySelector('.status-error')).toBeInTheDocument();
     });
 
-    it('shows no status icon when status is disconnected', () => {
-      resetDbState({ status: 'disconnected' });
+    it('does not show icon when disconnected', () => {
       const { container } = render(<DatabaseSettings />);
-      const header = container.querySelector('.settings-header');
-      expect(header?.querySelector('.status-success')).toBeNull();
-      expect(header?.querySelector('.status-error')).toBeNull();
-    });
-  });
-
-  describe('master password encryption section', () => {
-    it('shows set password form when masterPassword is null', () => {
-      resetDbState({ masterPassword: null });
-      render(<DatabaseSettings />);
-      expect(screen.getByText(/settings\.dbMasterPasswordHint/i)).toBeInTheDocument();
-    });
-
-    it('shows "set" confirmation when masterPassword is set', () => {
-      resetDbState({ masterPassword: 'mypassword123' });
-      const { container } = render(<DatabaseSettings />);
-      expect(container.querySelector('.master-password-set')).toBeInTheDocument();
-      expect(container.querySelector('.master-password-form')).toBeNull();
-    });
-
-    it('set button is disabled when password is shorter than 8 chars', () => {
-      resetDbState({ masterPassword: null });
-      render(<DatabaseSettings />);
-      const setBtn = screen.getByTestId('db-master-password-set');
-      expect(setBtn).toBeDisabled();
-    });
-
-    it('set button is enabled when password is 8+ chars', async () => {
-      resetDbState({ masterPassword: null });
-      const user = userEvent.setup();
-      const { container } = render(<DatabaseSettings />);
-      const mpInput = container.querySelector('.master-password-form input') as HTMLInputElement;
-      const setBtn = screen.getByTestId('db-master-password-set');
-      await user.type(mpInput, 'longpassword');
-      expect(setBtn).not.toBeDisabled();
-    });
-
-    it('clicking set button calls setMasterPassword and clears input', async () => {
-      const user = userEvent.setup();
-      resetDbState({ masterPassword: null });
-      const { container } = render(<DatabaseSettings />);
-      const mpInput = container.querySelector('.master-password-form input') as HTMLInputElement;
-      const setBtn = screen.getByTestId('db-master-password-set');
-      await user.type(mpInput, 'mypassword123');
-      await user.click(setBtn);
-      expect(mockSetMasterPassword).toHaveBeenCalledWith('mypassword123');
-    });
-
-    it('toggles master password visibility', async () => {
-      const user = userEvent.setup();
-      resetDbState({ masterPassword: null });
-      const { container } = render(<DatabaseSettings />);
-      const mpInput = container.querySelector('.master-password-form input') as HTMLInputElement;
-      const toggleBtn = screen.getByTestId('db-master-password-toggle');
-      expect(mpInput.type).toBe('password');
-      await user.click(toggleBtn);
-      expect(mpInput.type).toBe('text');
+      expect(container.querySelector('.status-success')).not.toBeInTheDocument();
+      expect(container.querySelector('.status-error')).not.toBeInTheDocument();
     });
   });
 });
