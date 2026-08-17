@@ -40,4 +40,10 @@ void shadow_io_task_start(void);
 void shadow_net_task_start(void);
 void shadow_led_task_start(void);
 
+/* Cross-task signals. net_task posts `shadow_net_wifi_up` after a
+ * successful Wi-Fi association; dialog_task waits on it before
+ * opening the WebRTC signaling WebSocket. */
+#include <zephyr/kernel.h>
+extern struct k_sem shadow_net_wifi_up;
+
 #endif /* SHADOW_ESP32_TASKS_H */

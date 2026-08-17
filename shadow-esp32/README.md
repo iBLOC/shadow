@@ -193,7 +193,8 @@ west debug
 4. ⏳ **dialog_task**:WebSocket signaling + SDP/ICE + DTLS PSK + SRTP + Opus + ICE-lite — 6-7 周
 5. ⏳ **dialog_task** WebRTC Data Channel (SCTP over DTLS) + MCP JSON-RPC 2.0 handler — 1-2 周(并入 #4)
 6. ⏳ **io_task**:Zephyr device drivers + MCP server over data channel + capability 注册 — 3 周
-7. ⏳ **net_task + led_task** + mDNS `_shadow._tcp` 广播 — 1 周
+7. 🟡 **net_task Wi-Fi + reconnect** + mDNS `_shadow._tcp` 广播(v1 落地)— 2026-08-16;WebSocket signaling 客户端属于 #3(`dialog_task`)
+7a. ⏳ **led_task** — 与 #3 合并落地
 8. ⏳ **end-to-end demo**:ESP32 ↔ cortex webrtc_route ↔ temporal lobe ↔ neure ASR/TTS ↔ prefrontal LLM + LLM tool call via data channel → ESP32 GPIO — 2 周
 9. ⏳ **CI**:twister + QEMU sim 子集 + 板级 sanity build — 1 周
 10. ⏳ **OTA 镜像**(LittleFS)与 user skills 持久化 — 1 周
@@ -226,6 +227,7 @@ west debug
 
 | 日期 | 版本 | 修订 |
 |---|---|---|
+| 2026-08-16 | 0.6 | net_task v1 实现:Wi-Fi PSK connect + 事件回调 + 5s 重连 + mDNS responder;`shadow_net_wifi_up` 信号暴露给 dialog_task;Roadmap #7 标部分完成 |
 | 2026-08-16 | 0.5 | Zephyr scaffold:写 west.yml + 顶层 CMakeLists/prj.conf + `app/` 5 个 task 占位 + devcontainer 切到 `zephyrprojectrtos/zephyr-build:0.16-3`;`.legacy-esp-idf/` 冻结;Roadmap #3 标完成;章节"当前代码"重写为新目录结构 |
 | 2026-08-16 | 0.4 | **架构升级到 v2**:WebRTC + data channel + 跨端统一(用户推翻 v1 WebSocket 提议);重写"这是什么"/"协议握手"/Roadmap;ADR-0002 v1 → v2 标记 superseded;加入 shadow-desktop / shadow-mobile WebRTC companion 文件路径链接 |
 | 2026-08-16 | 0.3 | 实施架构:加入 ADR-0002 链接;重写"这是什么"/"协议握手"/"Roadmap";架构升级为 Zephyr 多任务 + xiaozhi wire + Shadow temporal 后端;引用更新 |
