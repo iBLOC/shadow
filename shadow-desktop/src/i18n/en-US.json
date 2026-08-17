@@ -146,7 +146,9 @@
       "browserNotSupport": "Browser does not support WebRTC",
       "micDenied": "Microphone permission denied",
       "turnCount": "{{count}} turns",
-      "placeholder": "Companion Mode: Click to start real-time voice conversation"
+      "placeholder": "Companion Mode: Click to start real-time voice conversation",
+      "listeningForWakeWord": "Listening for wake word (Hey Shadow / 你好影)...",
+      "wakeWordDetected": "Wake word detected!"
     },
     "chatbi": {
       "chartTitle": "SQL: {{sql}} ({{ms}} ms)"

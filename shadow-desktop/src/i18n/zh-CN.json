@@ -146,7 +146,9 @@
       "browserNotSupport": "浏览器不支持WebRTC",
       "micDenied": "麦克风权限被拒绝",
       "turnCount": "{{count}} 轮对话",
-      "placeholder": "Companion模式：点击开始实时语音对话"
+      "placeholder": "Companion模式：点击开始实时语音对话",
+      "listeningForWakeWord": "等待唤醒词 (Hey Shadow / 你好影)...",
+      "wakeWordDetected": "唤醒词已检测到！"
     },
     "chatbi": {
       "chartTitle": "SQL: {{sql}}（{{ms}} 毫秒）"

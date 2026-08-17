@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { cortexClient } from '../lib/cortexClient';
 import { useConversationStore } from '../stores/conversationStore';
 import { useCompanionModeStore } from '../stores/companionModeStore';
+import { WakeWordDetector } from '../lib/wakeWordDetector';
 import { Button, EmptyState } from '../components/ui';
 import { MoveSessionDialog } from '../components/MoveSessionDialog';
 import { ChartCard } from '../components/chatbi';
@@ -18,7 +19,6 @@ import {
   MessageSquare,
   Sparkles,
   Mic,
-  Radio,
   ArrowRightLeft,
   Paperclip,
   X,
@@ -450,14 +450,34 @@ function CompanionModePanel() {
     error,
     turnCount,
     isActive,
+    wakeWordDetected,
     start,
-    stop,
+    setWakeWordDetected,
   } = useCompanionModeStore();
 
-  const handleToggle = async () => {
-    if (isActive) await stop();
-    else await start();
-  };
+  const [wakeDetector] = useState(() => new WakeWordDetector());
+
+  useEffect(() => {
+    if (!wakeDetector.available) return;
+
+    const unsubscribe = wakeDetector.onWakeWord((event) => {
+      console.log('Wake word detected:', event.word);
+      setWakeWordDetected(true);
+      
+      if (!isActive) {
+        start();
+      }
+      
+      setTimeout(() => setWakeWordDetected(false), 3000);
+    });
+
+    wakeDetector.start();
+
+    return () => {
+      unsubscribe();
+      wakeDetector.stop();
+    };
+  }, [wakeDetector, isActive, start, setWakeWordDetected]);
 
   const phaseLabel = (() => {
     switch (phase) {
@@ -467,7 +487,9 @@ function CompanionModePanel() {
       case 'processing': return t('conversation.companion.processing');
       case 'barge_in': return t('conversation.companion.bargeIn');
       case 'error': return error || t('conversation.companion.connectError');
-      default: return t('conversation.companion.placeholder');
+      default: return wakeWordDetected 
+        ? t('conversation.companion.wakeWordDetected')
+        : t('conversation.companion.listeningForWakeWord');
     }
   })();
 
@@ -479,7 +501,7 @@ function CompanionModePanel() {
       case 'processing': return 'bg-yellow-500 animate-pulse';
       case 'barge_in': return 'bg-purple-500';
       case 'error': return 'bg-red-500';
-      default: return 'bg-muted-foreground';
+      default: return wakeWordDetected ? 'bg-green-500 animate-pulse' : 'bg-muted-foreground';
     }
   })();
 
@@ -489,18 +511,12 @@ function CompanionModePanel() {
       phase === 'speaking' && 'border-foreground',
       phase === 'error' && 'border-red-500',
       phase === 'processing' && 'border-yellow-500',
-      phase === 'barge_in' && 'border-purple-500'
+      phase === 'barge_in' && 'border-purple-500',
+      wakeWordDetected && 'border-green-500'
     )}>
-      <button
-        className={cn(
-          'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border-none bg-foreground text-background transition-transform hover:scale-105',
-          isActive && 'bg-red-500 text-white animate-pulse'
-        )}
-        onClick={handleToggle}
-        title={isActive ? t('conversation.companion.stop') : t('conversation.companion.start')}
-      >
-        {isActive ? <Radio size={20} /> : <Mic size={20} />}
-      </button>
+      <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-muted">
+        <Mic size={20} className={wakeWordDetected ? 'text-green-500' : 'text-muted-foreground'} />
+      </div>
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <span className={cn('h-2 w-2 flex-shrink-0 rounded-full', phaseDotClass)} />
         <span className="truncate text-sm text-foreground">{phaseLabel}</span>

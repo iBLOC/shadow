@@ -20,11 +20,13 @@ interface CompanionState {
   sessionId: string | null;
   isActive: boolean;
   turnCount: number;
+  wakeWordDetected: boolean;
 
   start: (prefrontalHost?: string) => Promise<boolean>;
   stop: () => Promise<void>;
   pushTurn: (userText: string, assistantText: string) => void;
   reset: () => void;
+  setWakeWordDetected: (detected: boolean) => void;
 }
 
 let companion: WebRtcCompanion | null = null;
@@ -32,9 +34,6 @@ let companion: WebRtcCompanion | null = null;
 const DEFAULT_HOST = 'http://localhost:8082';
 
 async function createPrefrontalSession(_host: string): Promise<string> {
-  // Use HTTP API so this works in both Tauri and web builds.
-  // The Tauri-side `prefrontal_create_session` command still works in
-  // desktop, but going through HTTP keeps the code path identical.
   const session = await prefrontalClient.createSession();
   return session.id;
 }
@@ -48,6 +47,7 @@ export const useCompanionModeStore = create<CompanionState>((set, get) => ({
   sessionId: null,
   isActive: false,
   turnCount: 0,
+  wakeWordDetected: false,
 
   start: async (prefrontalHost?: string) => {
     if (get().isActive) return true;
@@ -133,7 +133,12 @@ export const useCompanionModeStore = create<CompanionState>((set, get) => ({
       error: null,
       audioLevel: 0,
       turnCount: 0,
+      wakeWordDetected: false,
     });
+  },
+
+  setWakeWordDetected: (detected: boolean) => {
+    set({ wakeWordDetected: detected });
   },
 }));
 
