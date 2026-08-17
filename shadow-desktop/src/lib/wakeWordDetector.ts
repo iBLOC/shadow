@@ -3,6 +3,7 @@ const WAKE_WORDS = ['hey shadow', 'hey, shadow', 'heyshadow', '你好影', '你�
 export type WakeWordEvent = {
   word: string;
   timestamp: number;
+  transcript: string;
 };
 
 type Listener = (event: WakeWordEvent) => void;
@@ -23,6 +24,7 @@ export class WakeWordDetector {
   private recognition: SpeechRecognitionType | null = null;
   private isRunning = false;
   private listeners: Set<Listener> = new Set();
+  private transcriptBuffer = '';
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -44,8 +46,9 @@ export class WakeWordDetector {
     this.recognition.onresult = (event: any) => {
       for (let i = event.resultIndex; i < event.results.length; i++) {
         if (event.results[i].isFinal) {
-          const transcript = event.results[i][0].transcript.toLowerCase().trim();
-          this.checkWakeWords(transcript);
+          const transcript = event.results[i][0].transcript;
+          this.transcriptBuffer += ' ' + transcript;
+          this.checkWakeWords(transcript.toLowerCase().trim());
         }
       }
     };
@@ -68,7 +71,12 @@ export class WakeWordDetector {
     
     for (const word of WAKE_WORDS) {
       if (normalized.includes(word)) {
-        this.emit({ word, timestamp: Date.now() });
+        this.emit({ 
+          word, 
+          timestamp: Date.now(),
+          transcript: this.transcriptBuffer.trim()
+        });
+        this.transcriptBuffer = '';
         break;
       }
     }

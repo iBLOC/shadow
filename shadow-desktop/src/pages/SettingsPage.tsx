@@ -1,8 +1,8 @@
 import { useTranslation } from 'react-i18next';
-import { Database, Globe, Monitor, Minimize2, Eye, EyeOff, Sun, Moon, RefreshCw, Server, CheckCircle, XCircle } from 'lucide-react';
+import { Database, Globe, Monitor, Minimize2, Eye, EyeOff, Sun, Moon, RefreshCw, Server, CheckCircle, XCircle, Edit3 } from 'lucide-react';
 import { safeInvoke } from '../lib/tauriSafe';
 import { isTauri } from '../lib/platform';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useThemeStore } from '../stores/themeStore';
 import { useCortexStore } from '../stores/cortexStore';
 import { SettingsCard } from '../components/business';
@@ -163,6 +163,8 @@ export function SettingsPage() {
           </div>
         </SettingsCard>
 
+        <AgentNameSettings />
+
         <SettingsCard
           variant="glass"
           title={t('settings.memoryIntegration')}
@@ -206,5 +208,53 @@ export function SettingsPage() {
         )}
       </div>
     </div>
+  );
+}
+
+function AgentNameSettings() {
+  const { t } = useTranslation();
+  const [agentName, setAgentName] = useState(() => {
+    return localStorage.getItem('shadow_agent_name') || 'Shadow';
+  });
+  const [isEditing, setIsEditing] = useState(false);
+
+  const handleSave = () => {
+    localStorage.setItem('shadow_agent_name', agentName);
+    setIsEditing(false);
+  };
+
+  return (
+    <SettingsCard
+      variant="glass"
+      title={t('settings.agentName')}
+      description={t('settings.agentNameDesc')}
+      icon={<Edit3 size={24} />}
+    >
+      <div className="flex items-center justify-between py-3">
+        <label className="text-sm text-muted-foreground">{t('settings.agentNameLabel')}</label>
+        {isEditing ? (
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={agentName}
+              onChange={(e) => setAgentName(e.target.value)}
+              className="rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground"
+              placeholder={t('settings.agentNamePlaceholder')}
+              autoFocus
+            />
+            <Button size="sm" onClick={handleSave}>{t('common.save')}</Button>
+            <Button size="sm" variant="ghost" onClick={() => setIsEditing(false)}>{t('common.cancel')}</Button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-foreground">{agentName}</span>
+            <Button size="icon" variant="ghost" onClick={() => setIsEditing(true)}>
+              <Edit3 size={14} />
+            </Button>
+          </div>
+        )}
+      </div>
+      <p className="text-xs text-muted-foreground">{t('settings.agentNameHint')}</p>
+    </SettingsCard>
   );
 }
