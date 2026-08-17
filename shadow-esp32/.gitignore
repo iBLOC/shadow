@@ -30,7 +30,9 @@ build/
 *.map
 flasher_args.json # Generated in build directory
 sdkconfig.old
-sdkconfig
+# sdkconfig itself is intentionally not ignored — `.legacy-esp-idf/sdkconfig`
+# is part of the retained ESP-IDF scaffold snapshot. New Zephyr builds do not
+# produce a `sdkconfig` file (Kconfig overlays land under `app/build/`).
 
 # ESP-IDF dependencies
 # For older versions or manual component management
@@ -40,6 +42,16 @@ sdkconfig
 managed_components/
 # If ESP-IDF tools are installed/referenced locally to the project
 .espressif/
+
+# Zephyr + west (downloaded by `west update`)
+/zephyrproject/
+/.bootloader/
+/modules/
+/twister-out/
+
+# Zephyr build artifacts (per-app + workspace root)
+/app/build/
+/build/
 
 # CMake generated files
 CMakeCache.txt

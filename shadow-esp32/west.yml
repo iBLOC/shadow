@@ -1,0 +1,21 @@
+# west workspace manifest for shadow-esp32.
+#
+# Usage:
+#   west init -l .
+#   west update
+#   west build -b esp32s3_devkitc app
+#
+# ADR-0002 v2 §4.2 — Zephyr 4.4.x RTOS on ESP32-S3-DevKitC. ESP32
+# Wi-Fi / Bluetooth / peripheral drivers are in mainline Zephyr
+# as of 4.4 (the standalone `hal_espressif` module is no longer
+# required for ESP32-S3 boards).
+
+manifest:
+  projects:
+    - name: zephyr
+      url: https://github.com/zephyrproject-rtos/zephyr
+      revision: v4.4.1
+      west-commands: west commands from manifest
+
+  self:
+    path: app

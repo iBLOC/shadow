@@ -92,48 +92,66 @@ Shadow 平台的端侧(Layer 4)目前由 **Shadow-Desktop**(Tauri + React)和 **
 
 完整论述、引用、版本号、外设覆盖矩阵、风险点:见 [`docs/RESEARCH.md`](docs/RESEARCH.md);决策与后果:见 [`docs/adr/0001-stack-choice-zephyr-c.md`](docs/adr/0001-stack-choice-zephyr-c.md) + [`docs/adr/0002-shadow-esp32-implementation-architecture.md`](docs/adr/0002-shadow-esp32-implementation-architecture.md)。
 
-## 当前代码(过渡状态)
+## 当前代码结构(2026-08-16,ADR-0002 v2 §后续动作 #2 已落地)
 
 ```
 shadow-esp32/
-├── CMakeLists.txt            # ESP-IDF project root (project(shadow-esp32))
-├── sdkconfig.defaults        # BT/BLE/HID 全开 — 当前是 HID demo 配
-├── sdkconfig.defaults.esp32s3
-├── sdkconfig                 # 已固化,v6.0.2 输出
-├── main/
-│   ├── CMakeLists.txt        # idf_component_register(SRCS esp_hid_device_main.c esp_hid_gap.c, REQUIRES esp_hid)
-│   ├── Kconfig.projbuild     # EXAMPLE_HID_DEVICE_ROLE: Media/Keyboard/Mouse
-│   ├── esp_hid_device_main.c # 35 KB — HID 键鼠逻辑,需替换
-│   ├── esp_hid_gap.c         # 41 KB — GAP/HID 协议,需替换
-│   └── esp_hid_gap.h
-├── .devcontainer/  .vscode/  .clangd  # 已配置但目前指向 C 工具链
-├── build/                    # ESP-IDF v6.0.2 编译产物(已成功,过渡)
-└── docs/
-    ├── RESEARCH.md           # 2026-08-16 调研报告
-    └── adr/
-        ├── 0001-stack-choice-zephyr-c.md   # 决策 ADR(调研)
-        └── 0002-shadow-esp32-implementation-architecture.md   # 决策 ADR(实施架构 v2)
+├── west.yml                  # workspace manifest → Zephyr v4.4.1
+├── CMakeLists.txt            # 顶层,引用 Zephyr SDK + add_subdirectory(app)
+├── prj.conf                  # 顶层 workspace 默认 Kconfig
+├── app/                      # Zephyr 应用
+│   ├── CMakeLists.txt        # 列出 5 个 task 源文件 + zephyr_library
+│   ├── prj.conf              # 应用 Kconfig(Wi-Fi / DTLS / mDNS / mbedTLS / 多线程)
+│   └── src/
+│       ├── include/shadow_esp32/
+│       │   └── tasks.h        # task 公共 API(栈大小 + 优先级常量)
+│       ├── main.c            # 启动 → 4 个 task `*_task_start()`
+│       ├── dialog_task.c     # ADR-0002 v2 §4.3 位置,WebRTC client 占位心跳
+│       ├── io_task.c         # ADR-0002 v2 §4.6 位置,MCP server 占位心跳
+│       ├── net_task.c        # ADR-0002 v2 §4.6 位置,Wi-Fi/mDNS/signaling 占位
+│       └── led_task.c        # ADR-0002 v2 §4.3 状态指示器
+├── .devcontainer/            # Zephyr 镜像(`zephyrprojectrtos/zephyr-build`)
+│   ├── Dockerfile
+│   └── devcontainer.json     # postCreateCommand: west init + update + pip
+├── .legacy-esp-idf/          # 历史: ESP-IDF v6.0.2 HID demo scaffold(冻结,不再开发)
+├── docs/
+│   ├── RESEARCH.md
+│   ├── adr/
+│   │   ├── 0001-stack-choice-zephyr-c.md
+│   │   └── 0002-shadow-esp32-implementation-architecture.md
+│   └── implementation-notes/
+│       └── 2026-08-16-cortex-data-channel-device-router.md
+├── README.md                 # 本文件
+└── .gitignore                # Zephyr + ESP-IDF 双重 ignore
 ```
 
-## 编译(当前可工作 — ESP-IDF scaffold,过渡)
+## 编译(Zephyr + west)
 
 ```bash
-# 前置:export IDF_PATH + . $IDF_PATH/export.sh
+# 一次性准备(在 devcontainer 或本机装了 Zephyr SDK 的环境)
 cd shadow-esp32
-idf.py set-target esp32s3
-idf.py build
+west init -l .            # 用 west.yml 初始化 workspace
+west update              # 拉 Zephyr v4.4.1
+west packages pip --install
+
+# 构建
+west build -b esp32s3_devkitc app
+
+# 烧写(板级直连)
+west flash
+
+# 串口监控
+west debug
 ```
 
-输出:
+构建产物:
+- `app/build/zephyr/zephyr.elf` — 固件 ELF
+- `app/build/zephyr/zephyr.bin` — 烧写镜像
+- `app/build/twister-out/` — 测试报告
 
-```
-Project version: b414802-dirty
-Target: esp32s3
-Toolchain: xtensa-esp-elf GCC 15.2.0
-Binary: build/shadow-esp32.bin (partition-table.bin at 0x8000)
-```
+**`west build` 必须有 Zephyr SDK + xtensa-espressif_esp32s3 工具链**。devcontainer (`zephyrprojectrtos/zephyr-build:0.16-3`) 自带。本机无 SDK 时的轻量选择:用 devcontainer 或在 CI 里跑 `west build`。
 
-但**现在跑的是 HID mouse demo**,不是 Shadow Agent。当前状态:ESP-IDF scaffold 保留以验证工具链,真正 Shadow Agent 在 West/Zephyr scaffold 替换后才动(见 `Roadmap`)。
+`.legacy-esp-idf/` 子目录保留了 ESP-IDF scaffold 的 snapshot — **不再开发**,作为 ADR-0001 调研阶段的 git 历史证据。
 
 ## 协议握手(目标 — WebRTC 复用 Desktop/Mobile 通路)
 
@@ -167,20 +185,20 @@ Binary: build/shadow-esp32.bin (partition-table.bin at 0x8000)
 
 ## Roadmap(已锚定路径 D + ADR-0002 v2 实施架构)
 
-完整任务分解见 ADR-0002 §"后续动作"9 项。当前优先级:
+完整任务分解见 ADR-0002 §"后续动作"9 项。当前进度:
 
-1. ✅ 路径 D 调研 / ✅ ADR-0001(调研) / ✅ ADR-0002 v1(已 superseded)/ ✅ ADR-0002 v2(WebRTC 复用)
-2. ⏳ **cortex Data Channel + device_router**(Rust):`cortex::webrtc::data_channel` + `cortex::mcp::device_router` + `cortex::api::device` — 1.5-2 周
-3. ⏳ **shadow-esp32 Zephyr scaffold**:`app/prj.conf` + `CMakeLists.txt` + `west.yml`,目标 `esp32s3_devkitc` — 1 周
-4. ⏳ **dialog_task** 实现:WebSocket signaling + SDP/ICE + DTLS handshake (mbedtls PSK) + SRTP (libsrtp out-of-tree) + Opus codec (libopus out-of-tree) + ICE-lite — 6-7 周
+1. ✅ 路径 D 调研 / ✅ ADR-0001(调研) / ✅ ADR-0002 v1(superseded)/ ✅ ADR-0002 v2(WebRTC 复用)
+2. ✅ **cortex Data Channel + device_router + api::device**(Rust,~600 LOC)— 2026-08-16 落地;`POST /invoke` 暂返 501 + `InvokeUnimplemented`(详见 `docs/implementation-notes/2026-08-16-cortex-data-channel-device-router.md`)
+3. ✅ **shadow-esp32 Zephyr scaffold**(west.yml + 顶层 CMakeLists/prj.conf + app/ + 4 task 占位 + devcontainer)— 2026-08-16 落地
+4. ⏳ **dialog_task**:WebSocket signaling + SDP/ICE + DTLS PSK + SRTP + Opus + ICE-lite — 6-7 周
 5. ⏳ **dialog_task** WebRTC Data Channel (SCTP over DTLS) + MCP JSON-RPC 2.0 handler — 1-2 周(并入 #4)
-6. ⏳ **io_task** 实现:Zephyr device drivers + MCP server over data channel + capability 注册 — 3 周
+6. ⏳ **io_task**:Zephyr device drivers + MCP server over data channel + capability 注册 — 3 周
 7. ⏳ **net_task + led_task** + mDNS `_shadow._tcp` 广播 — 1 周
 8. ⏳ **end-to-end demo**:ESP32 ↔ cortex webrtc_route ↔ temporal lobe ↔ neure ASR/TTS ↔ prefrontal LLM + LLM tool call via data channel → ESP32 GPIO — 2 周
 9. ⏳ **CI**:twister + QEMU sim 子集 + 板级 sanity build — 1 周
 10. ⏳ **OTA 镜像**(LittleFS)与 user skills 持久化 — 1 周
 
-总估 **5-6 人月**(以有经验的 embedded C + WebRTC 经验工程师计)。详细每个动作的内容 + 依赖关系见 ADR-0002 v2。
+剩余 **5-6 人月**(以有经验的 embedded C + WebRTC 经验工程师计)。详细每个动作的内容 + 依赖关系见 ADR-0002 v2。
 
 ## 引用 / See also
 
@@ -208,6 +226,7 @@ Binary: build/shadow-esp32.bin (partition-table.bin at 0x8000)
 
 | 日期 | 版本 | 修订 |
 |---|---|---|
+| 2026-08-16 | 0.5 | Zephyr scaffold:写 west.yml + 顶层 CMakeLists/prj.conf + `app/` 5 个 task 占位 + devcontainer 切到 `zephyrprojectrtos/zephyr-build:0.16-3`;`.legacy-esp-idf/` 冻结;Roadmap #3 标完成;章节"当前代码"重写为新目录结构 |
 | 2026-08-16 | 0.4 | **架构升级到 v2**:WebRTC + data channel + 跨端统一(用户推翻 v1 WebSocket 提议);重写"这是什么"/"协议握手"/Roadmap;ADR-0002 v1 → v2 标记 superseded;加入 shadow-desktop / shadow-mobile WebRTC companion 文件路径链接 |
 | 2026-08-16 | 0.3 | 实施架构:加入 ADR-0002 链接;重写"这是什么"/"协议握手"/"Roadmap";架构升级为 Zephyr 多任务 + xiaozhi wire + Shadow temporal 后端;引用更新 |
 | 2026-08-16 | 0.2 | 标记决策已定(D: Zephyr + C);加入 ADR-0001 链接;Roadmap 锚定 Zephyr scaffold 替换;更新引用与版本表 |
