@@ -1,9 +1,23 @@
 # [ADR-0001] 在 ESP32-S3 上使用 **Zephyr RTOS + C** 作为 shadow-esp32 的核心技术栈
 
-- **状态**: Accepted
+- **状态**: Accepted (调研阶段决策;**实施架构见 [ADR-0002 v2](0002-shadow-esp32-implementation-architecture.md)** — supersedes ADR-0002 v1)
 - **日期**: 2026-08-16
 - **决策者**: shadow 项目所有者(经 Sisyphus 编排)
-- **关联文档**: [`../RESEARCH.md`](../RESEARCH.md) (调研报告), [`../../README.md`](../../README.md) (项目 README)
+- **关联文档**: [`../RESEARCH.md`](../RESEARCH.md) (调研报告), [`../../README.md`](../../README.md) (项目 README), [`0002-shadow-esp32-implementation-architecture.md`](0002-shadow-esp32-implementation-architecture.md) (实施架构 ADR v2,WebRTC 复用)
+
+## 此 ADR 的范围
+
+本 ADR 仅锁定三项底层选型:**RTOS / 语言 / 芯片**(结论:Zephyr + C + ESP32-S3)。
+
+**wire protocol / 应用层架构 / 任务分配 / 后端集成**等实施层决策在 [ADR-0002 v2](0002-shadow-esp32-implementation-architecture.md) 中,**该 ADR v2 是当前权威**。本 ADR-0001 v1 在实施阶段被用户推翻后的变更记录:
+
+| 实施关注 | ADR-0001 v1 立场 | 后续修正 | 见 |
+|---|---|---|---|
+| Wire protocol | (未决,留待 ADR-0002) | **WebRTC**(复用 shadow-desktop / mobile 通路,用户于 2026-08-16 推翻 v1 的 WebSocket 提议) | [ADR-0002 v2](0002-shadow-esp32-implementation-architecture.md) §4.1 |
+| Cortex bridge 中间层 | (未决) | **不需要**(`cortex::webrtc_route` 现成即可) | ADR-0002 v2 §4.5 |
+| IO 控制 transport | (未决) | **WebRTC Data Channel**(SCTP-over-DTLS + MCP JSON-RPC 2.0) | ADR-0002 v2 §4.4 |
+| 应用层状态机 | (未决) | 借鉴 xiaozhi-esp32(state machine + Opus codec) | ADR-0002 v2 §4.3 |
+| ESP32 thin client | (未决) | 验证:Xtensa ESP32 无可用 WASM runtime → 所有 agent 逻辑必须在 server | [RESEARCH.md §9.5](../RESEARCH.md) |
 
 ## 上下文与问题陈述
 

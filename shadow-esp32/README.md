@@ -1,47 +1,46 @@
 # shadow-esp32
 
-> **Shadow 在 ESP32-S3 边缘节点上的客户端原型** — 用 **Zephyr RTOS + C**(经 [ADR-0001](./docs/adr/0001-stack-choice-zephyr-c.md) 决策) 在 ESP32-S3 上落地 Shadow 平台互联
+> **Shadow 在 ESP32-S3 边缘节点上的语音助手 + IO 控制客户端** — 参照 [`78/xiaozhi-esp32`](https://github.com/78/xiaozhi-esp32) 应用层架构,**复用 Shadow Desktop/Mobile 同一套 WebRTC 通路** 与 Shadow cortex 后端通信,后端走 `temporal` lobe;firmware 用 **Zephyr RTOS + C** 多任务实现([ADR-0001](./docs/adr/0001-stack-choice-zephyr-c.md) 调研 + [ADR-0002 v2](./docs/adr/0002-shadow-esp32-implementation-architecture.md) 实施架构)。
 
 | 字段 | 值 |
 |---|---|
 | **目标平台** | ESP32-S3-DevKitC(首选) / M5Stack CoreS3 / 其它 ESP32-S3-WROOM 模组 |
-| **状态** | **0.x — 已选定技术栈(2026-08-16)**,从 ESP-IDF HID demo 模板脚手架过渡到 Zephyr 应用中 |
+| **状态** | **0.4 — 实施架构 v2 已定(ADR-0002 v2,2026-08-16,WebRTC 复用)**,待启动 scaffold 替换 |
 | **决策栈** | **Zephyr 4.4.x + C + west**(`esp32s3_devkitc` 板级) |
-| **决策 ADR** | [`docs/adr/0001-stack-choice-zephyr-c.md`](docs/adr/0001-stack-choice-zephyr-c.md) |
-| **调研文档** | [`docs/RESEARCH.md`](docs/RESEARCH.md) — Zephyr/Rust 可行性评估 + 方案矩阵 |
+| **架构 ADR** | [`docs/adr/0001-stack-choice-zephyr-c.md`](docs/adr/0001-stack-choice-zephyr-c.md)(调研 RTOS/语言/chip) + [`docs/adr/0002-shadow-esp32-implementation-architecture.md`](docs/adr/0002-shadow-esp32-implementation-architecture.md)(实施架构 v2) |
+| **调研文档** | [`docs/RESEARCH.md`](docs/RESEARCH.md) — Zephyr/Rust + xiaozhi/esp-claw/temporal + WASM-on-Xtensa + WebRTC 复用综合调研 |
+| **应用架构参考** | [`78/xiaozhi-esp32`](https://github.com/78/xiaozhi-esp32)(state machine + Opus + MCP tools + 板级;28.9k stars / MIT) |
+| **IO 控制参考** | [`espressif/esp-claw`](https://github.com/espressif/esp-claw)(capability 派发思路;不引入 Lua) |
+| **后端复用** | Shadow `cortex` webrtc_route → `temporal` lobe(webrtc-rs 0.8 + DTLS-SRTP)→ `neure` ASR/TTS;**与 shadow-desktop / shadow-mobile 完全相同** |
 | **代码来源(过渡)** | ESP-IDF v6.0.2 `esp_hid_device` 示例(脚手架,即将迁移) |
-| **上游参考** | [`espressif/esp-claw`](https://github.com/espressif/esp-claw) (Apache-2.0),乐鑫官方的 IoT AI agent 框架 |
 
 ---
 
 ## 这是什么
 
-Shadow 平台的端侧(Layer 4)目前由 **Shadow-Desktop**(Tauri + React)和 **Shadow-Mobile**(Flutter)构成。`shadow-esp32` 是考察中的第三条端形态 —— **把 Shadow Agent 的最小执行环境搬上 ESP32-S3,作为低成本的边缘验证/测试节点**:
+Shadow 平台的端侧(Layer 4)目前由 **Shadow-Desktop**(Tauri + React)和 **Shadow-Mobile**(Flutter)构成。`shadow-esp32` 是第三条端形态 —— **ESP32-S3 上的低功耗语音助手 + IO 控制节点**,目标场景是低成本边缘硬件上的智能助理:
 
-- 用 ESP32-S3 上的 Wi-Fi/BLE 接入局域网
-- 通过 **mDNS `_shadow._tcp`** 参与 Shadow 平台的服务发现
-- 通过 **A2A(OpenClaw JSON-RPC 变体)** 与本地 cortex / prefrontal 通信
-- 跑一个 Shadow 兼容的 Agent Loop(LLM 调用本地 prefrontal 而非云端)
+- **对话能力**:xiaozhi-esp32 风格的 wake word → 流式 ASR → LLM → TTS 闭环,但 **不** 在 ESP32 上跑模型,只跑 Opus codec + WebRTC client
+- **后端复用**:**与 shadow-desktop / shadow-mobile 同一套 WebRTC 通路**(SDP / ICE / DTLS-SRTP / Opus 媒体)。Cortex 端 `cortex::webrtc_route` 已经是 ESP32 的现成终点,**无需新增 bridge 模块**;`temporal::webrtc::real::RealTransport` 直接服务 ESP32
+- **IO 控制**:esp-claw capability 派发思路,每个 capability 是 Zephyr `device` driver + MCP JSON-RPC 暴露的工具;承载协议是 **WebRTC Data Channel**(SCTP-over-DTLS,JSON-RPC 2.0)
+- **对话独立**:Zephyr 多任务架构,`dialog_task`(prio 5,最高)与 `io_task`(prio 7)完全解耦,通过 `k_msgq` 交换轻量事件
+- **ESP32 是 thin client**:所有 agent 逻辑跑在 cortex/temporal 后端;Xtensa ESP32 无可用 WASM runtime,验证了 thin client 设计
 
 它**不是** ESP-IDF 上游的 HID 设备 demo —— README 里那些鼠标/键盘示例代码(`main/esp_hid_device_main.c` 等)只是脚手架起点,会被替换为 Shadow Agent 实现。
 
-## 为什么参考 esp-claw
+## 为什么参考 esp-claw(IO 控制派发思路)
 
-[`espressif/esp-claw`](https://github.com/espressif/esp-claw) 是乐鑫官方在 2025–2026 年主推的 IoT-side AI agent framework(2.0k stars, Apache-2.0)。它在 ESP32-S3 上已经验证:
+[`espressif/esp-claw`](https://github.com/espressif/esp-claw) 是乐鑫官方在 2025–2026 年主推的 IoT-side AI agent framework(2.0k stars, Apache-2.0)。它的 capability 派发思路(opaque handle + 注册表 + 板级 peripheral YAML)在 Zephyr 上直接对应 `device` driver 模型。**只借鉴组织思路,不引入 esp-claw 本身**(esp-claw 是 ESP-IDF + C + FreeRTOS + Lua,**与 Zephyr 不兼容**):
 
-- 事件路由机制(`claw_event_router`)—— 把 IM / 定时器 / Lua / sensor 事件分发到 capability 上
-- Agent Loop + Cloud LLM provider 插件(OpenAI / Anthropic / Qwen / DeepSeek)
-- 结构化 Memory + Session + Skills + MCP(server + client)
-- Board manager + Lua 运行时 + `/system` RO + `/fatfs` RW 的 FATFS 双区布局
-- 配套的在线 flash 工具 esp-claw.com,降低用户入门门槛
+- 借鉴:capability 注册流程(`claw_cap_*` opaque handle 模式 → Zephyr `device` driver)
+- 借鉴:板级 peripheral YAML → Zephyr `devicetree` `.overlay`
+- **不引入**:Lua runtime(降低 firmware 体积,ESP32-S3 RAM 紧张)、esp-claw 的 cloud LLM 调用(我们走 Shadow 自家 backend)
 
-Shadow-esp32 **不打算 fork 它的 C 代码**(详见 [`docs/RESEARCH.md §1`](docs/RESEARCH.md))。但**借鉴**它的能力分层:`event_router → core agent → capabilities → memory`。
+**关键差异**:esp-claw 是 ESP-IDF + C + FreeRTOS + Lua + cloud LLM,**不是** Zephyr,**也不** 是 WebRTC,**也不** 接 Shadow backend。它给的是 IO 派发的**架构蓝图**,不是代码模板。
 
-**关键差异**:esp-claw 是 ESP-IDF + C + FreeRTOS,**不是** Zephyr,**也不** 是 Rust。它给我们的是**架构蓝图**,不是代码模板。
+## 技术栈(**已选定 D: Zephyr + C,WebRTC 复用**)
 
-## 技术栈(**已选定 D: Zephyr + C**)
-
-> ✅ **2026-08-16 决策**:采用路径 D。完整记录见 [`docs/adr/0001-stack-choice-zephyr-c.md`](docs/adr/0001-stack-choice-zephyr-c.md)。所有备选路径的对比见 [`docs/RESEARCH.md §5`](docs/RESEARCH.md)。
+> ✅ **2026-08-16 决策**:RTOS / 语言 / 芯片 = D(ADR-0001);wire protocol = WebRTC(复用 shadow-desktop/mobile 通路,ADR-0002 v2)。完整记录见 [`docs/adr/0001-stack-choice-zephyr-c.md`](docs/adr/0001-stack-choice-zephyr-c.md) + [`docs/adr/0002-shadow-esp32-implementation-architecture.md`](docs/adr/0002-shadow-esp32-implementation-architecture.md)。
 
 ### 决策栈
 
@@ -50,11 +49,18 @@ Shadow-esp32 **不打算 fork 它的 C 代码**(详见 [`docs/RESEARCH.md §1`](
 | **RTOS** | Zephyr 4.4.x(≥ 4.4.1) | `esp32s3_devkitc` 板级已 `Maintained` |
 | **语言** | C | ESP32 上 Zephyr 一等公民语言 |
 | **构建** | west + CMake + Kconfig + devicetree | 标准 Zephyr 工作流 |
-| **Wi-Fi 驱动** | `espressif,esp32-wifi`(`hal_espressif` 模块) | Zephyr 4.4.x 已合 mainline |
-| **JSON / RPC** | `cJSON` + 自行实现 A2A envelope(对齐 cortex 的 JSON-RPC 2.0 包装) | 同步路径足够覆盖 Shadow 边缘用例 |
+| **Wi-Fi 驱动** | Zephyr 自带(原 `hal_espressif` 模块已合 mainline) | — |
+| **wire protocol** | **WebRTC**(SDP / ICE / DTLS-SRTP / Opus / SCTP Data Channel)| **同 shadow-desktop / mobile** |
+| **DTLS 栈** | Zephyr 自带 **mbedtls**(`CONFIG_MBEDTLS + CONFIG_MBEDTLS_KEY_EXCHANGE_PSK_ENABLED`)| PSK 模式简化首版 |
+| **SRTP 栈** | **libsrtp**(out-of-tree 移植,Zephyr 无 upstream)| RFC 3711 加解密 |
+| **Opus codec** | **libopus**(out-of-tree 移植)| 60 ms 帧长,16 kHz mono |
+| **ICE** | **ICE-lite**(自实现,~500 LOC)| 家庭 Wi-Fi 够用;复杂 NAT 后续加 TURN |
+| **IO 控制** | **WebRTC Data Channel "mcp"**(SCTP-over-DTLS,JSON-RPC 2.0)| cortex::mcp → device_router → ESP32 data channel |
 | **mDNS** | Zephyr 内置 `zephyr/net/dns_sd.h` 或 sample `net/mdns_responder` | 广播 `_shadow._tcp` 服务 |
 
 ### 所有评估过的路径(决策上下文)
+
+#### RTOS / 语言 / 芯片(ADR-0001)
 
 | 路径 | RTOS | 语言 | ESP32-S3 状态 | 决策 |
 |---|---|---|---|---|
@@ -65,6 +71,13 @@ Shadow-esp32 **不打算 fork 它的 C 代码**(详见 [`docs/RESEARCH.md §1`](
 | E | Zephyr | Rust | ❌ **平台不支持(Xtensa 缺位)** | ❌ 不可行;**唯一可走 Zephyr+Rust 的方式是换芯片到 RISC-V** |
 | F | (no-op) | — | — | ❌ 不前 |
 
+#### Wire protocol(ADR-0002 v2)
+
+| 路径 | Wire | Cortex 后端 | 跨端一致 | 决策 |
+|---|---|---|---|---|
+| **A ◀ CHOSEN** | **WebRTC**(同 desktop / mobile)| **0 改动**(`webrtc_route` 现成)| ✅ 三端统一 | ✅ **采纳** |
+| B(已推翻 v1)| WebSocket + Opus + `xiaozhi_bridge`(v1 原案)| 新增 800-1500 LOC bridge | ❌ 分叉 | ❌ 被用户推翻 |
+
 ### 调研结论(摘要 — 决策依据)
 
 针对用户原始问题"是否 Zephyr + Rust 在 ESP32-S3 上可行":
@@ -73,9 +86,11 @@ Shadow-esp32 **不打算 fork 它的 C 代码**(详见 [`docs/RESEARCH.md §1`](
 - **Zephyr 的 Rust 语言支持**(`zephyrproject-rtos/zephyr-lang-rust`)当前平台白名单只有 8 个,**且唯一 ESP 平台是 `esp32c3_supermini/esp32c3`(RISC-V)—— ESP32-S3 不在白名单**。
 - 这意味着 Zephyr + Rust on Xtensa 需要自行维护 LLVM/Rust fork + Zephyr out-of-tree patches,工程风险极大,本项目不采纳。
 - **Rust on ESP32-S3 在 2026-08 实际可行的栈** 是 `esp-hal 1.x`(已 vendor-backed by Espressif;v1.0.0 stable 2025-10,v1.1.2 在 2026-08)+ Embassy 异步 Runtime + `esp-radio`(Wi-Fi + BLE)。但**它失去 Zephyr**。
+- **WASM on Xtensa ESP32 不可用**:wasmtime / wasmer / wazero 官方 tier-1 均无 Xtensa target;WAMR Xtensa 后端是 fork 状态。验证了 **ESP32 是 thin client** 设计 —— 所有 agent 逻辑必须在 server。
+- **Wire protocol 选择**:shadow-desktop / mobile 已用 WebRTC 与 cortex 通信,ESP32 **复用**同一通路 → 跨端协议一致,不引入新协议。
 - **决策接受的语言代价**:shadow-esp32 将是 Shadow 平台**唯一**的非 Rust 端(其它全 Rust)。
 
-完整论述、引用、版本号、外设覆盖矩阵、风险点:见 [`docs/RESEARCH.md`](docs/RESEARCH.md);决策与后果:见 [`docs/adr/0001-stack-choice-zephyr-c.md`](docs/adr/0001-stack-choice-zephyr-c.md)。
+完整论述、引用、版本号、外设覆盖矩阵、风险点:见 [`docs/RESEARCH.md`](docs/RESEARCH.md);决策与后果:见 [`docs/adr/0001-stack-choice-zephyr-c.md`](docs/adr/0001-stack-choice-zephyr-c.md) + [`docs/adr/0002-shadow-esp32-implementation-architecture.md`](docs/adr/0002-shadow-esp32-implementation-architecture.md)。
 
 ## 当前代码(过渡状态)
 
@@ -96,10 +111,11 @@ shadow-esp32/
 └── docs/
     ├── RESEARCH.md           # 2026-08-16 调研报告
     └── adr/
-        └── 0001-stack-choice-zephyr-c.md   # 决策 ADR:Zephyr + C
+        ├── 0001-stack-choice-zephyr-c.md   # 决策 ADR(调研)
+        └── 0002-shadow-esp32-implementation-architecture.md   # 决策 ADR(实施架构 v2)
 ```
 
-## 编译(当前可工作)
+## 编译(当前可工作 — ESP-IDF scaffold,过渡)
 
 ```bash
 # 前置:export IDF_PATH + . $IDF_PATH/export.sh
@@ -119,53 +135,80 @@ Binary: build/shadow-esp32.bin (partition-table.bin at 0x8000)
 
 但**现在跑的是 HID mouse demo**,不是 Shadow Agent。当前状态:ESP-IDF scaffold 保留以验证工具链,真正 Shadow Agent 在 West/Zephyr scaffold 替换后才动(见 `Roadmap`)。
 
-## Roadmap(已锚定路径 D)
-
-完整任务分解见 [`docs/adr/0001-stack-choice-zephyr-c.md`](docs/adr/0001-stack-choice-zephyr-c.md) §"后续动作"。当前优先级:
-
-1. ✅ **路径选定 D** —— ADR-0001(2026-08-16)
-2. ⏳ **脚手架替换**:把 `main/esp_hid_device_main.c` / `esp_hid_gap.c` 移入 `.legacy-esp-idf/`(备份);新建 `app/src/main.c` + `app/prj.conf` + `app/CMakeLists.txt` + 仓库 root `west.yml` 拉 Zephyr 4.4.1 + `hal_espressif` 模块
-3. ⏳ **Kconfig 迁移**:把 `sdkconfig.defaults.esp32s3` 的 `CONFIG_BT_*` / `CONFIG_BT_HID_*` 翻译为 Zephyr 的 `CONFIG_BT=y` / `CONFIG_BT_PERIPHERAL=y` / `CONFIG_BT_HIDS=y`(实际上 Shadow Agent 不需要 HID 角色—— 这些翻译后会被删除)
-4. ⏳ **A2A C 客户端**:用 `cJSON` 序列化为 cortex 的 `/api/a2a/tasks/send` JSON-RPC envelope
-5. ⏳ **mDNS**:Zephyr `dns_sd` API 广播 `_shadow._tcp`
-6. ⏳ **板级验证**:`west build -b esp32s3_devkitc app` + 上电后查询 mDNS 看到 `shadow-esp32.local`
-7. ⏳ **CI**:GitHub Actions 跑 `west init -l app && west update && west build -b esp32s3_devkitc app`
-8. ⏳ **未来迁移**:每 6 个月重新评估 Zephyr Xtensa Rust 上游进度
-
-## 协议握手(目标)
+## 协议握手(目标 — WebRTC 复用 Desktop/Mobile 通路)
 
 ```
-┌──────────────┐                                         ┌──────────────┐
-│ shadow-esp32 │  ─── mDNS query "_shadow._tcp" ────────▶│ cortex       │
-│ (ESP32-S3)   │  ◀───── A: instance_name + port ──────── │ (single-bin) │
-│              │                                          │              │
-│              │  ─── HTTPS POST /a2a/tasks/send ────────▶│              │
-│              │  ◀───── SSE /tasks/stream ──────────────│              │
-│              │                                          │              │
-│              │  ─── WebSocket /api/sessions/{id}/ws ───▶│              │
-└──────────────┘                                          └──────────────┘
+┌──────────────────────┐                                         ┌──────────────────────────────────┐
+│ shadow-esp32         │                                         │ cortex                            │
+│ (Zephyr dialog_task) │                                         │                                  │
+│                      │                                         │  ┌────────────────────────────┐  │
+│  mDNS _shadow._tcp ──┼── mDNS query (net_task) ───────────────▶│  │ mds_discovery               │  │
+│                      │  ◀──── instance_name + port ─────────── │  └─────────────┬──────────────┘  │
+│                      │                                         │                ▼                  │
+│ ┌──────────────────┐ │  ─── WebSocket signaling ────────────▶ │  ┌────────────────────────────┐  │
+│ │ RTCPeerConnection │ │   GET /api/webrtc/voice/sessions/{id}/ws│ │ cortex::webrtc_route (现成) │  │
+│ │  ├─ audio Opus/SRTP│ │   SDP offer/answer + ICE candidates    │ │  ModalityRouter → temporal   │  │
+│ │  └─ DC "mcp"      │ │                                         │ │  rtp_relay (per-dir SRTP)    │  │
+│ └──────────────────┘ │  ◀═══ DTLS-SRTP over UDP ════════════   │ └─────────────┬──────────────┘  │
+│           ▲           │  (audio: Opus 60ms frames;             │               ▼ A2A              │
+│           │           │   data: SCTP-over-DTLS JSON-RPC)        │  ┌────────────────────────────┐  │
+│  ┌────────┴────────┐  │                                         │  │ temporal lobe (现成)        │  │
+│  │  mbedtls DTLS + │  │                                         │  │  WebRtcAnswerSkill          │  │
+│  │  libsrtp +      │  │                                         │  │  WebRtcIceSkill             │  │
+│  │  libopus + ICE  │  │                                         │  │  NeureAsr / NeureTts        │  │
+│  └─────────────────┘  │                                         │  │  dialog / hippocamp / prefrontal│  │
+│  (Zephyr BSD sockets)  │                                         │  └────────────────────────────┘  │
+└──────────────────────┘                                         └──────────────────────────────────┘
 ```
+
+**Wire protocol**:WebRTC(同 shadow-desktop `webrtcCompanion.ts` + shadow-mobile `webrtc_companion.dart`)。**Audio transceiver**:Opus/SRTP/DTLS。**Data channel "mcp"**:SCTP-over-DTLS,承载 MCP JSON-RPC 2.0(esp32 ↔ cortex::mcp device_router,新增 ~1500 LOC Rust)。
+
+> 完整 wire format + 5 个 dialog 状态机 + 4 个 Zephyr task 优先级 + 9 项后续动作见 [`docs/adr/0002-shadow-esp32-implementation-architecture.md`](docs/adr/0002-shadow-esp32-implementation-architecture.md)。
+
+## Roadmap(已锚定路径 D + ADR-0002 v2 实施架构)
+
+完整任务分解见 ADR-0002 §"后续动作"9 项。当前优先级:
+
+1. ✅ 路径 D 调研 / ✅ ADR-0001(调研) / ✅ ADR-0002 v1(已 superseded)/ ✅ ADR-0002 v2(WebRTC 复用)
+2. ⏳ **cortex Data Channel + device_router**(Rust):`cortex::webrtc::data_channel` + `cortex::mcp::device_router` + `cortex::api::device` — 1.5-2 周
+3. ⏳ **shadow-esp32 Zephyr scaffold**:`app/prj.conf` + `CMakeLists.txt` + `west.yml`,目标 `esp32s3_devkitc` — 1 周
+4. ⏳ **dialog_task** 实现:WebSocket signaling + SDP/ICE + DTLS handshake (mbedtls PSK) + SRTP (libsrtp out-of-tree) + Opus codec (libopus out-of-tree) + ICE-lite — 6-7 周
+5. ⏳ **dialog_task** WebRTC Data Channel (SCTP over DTLS) + MCP JSON-RPC 2.0 handler — 1-2 周(并入 #4)
+6. ⏳ **io_task** 实现:Zephyr device drivers + MCP server over data channel + capability 注册 — 3 周
+7. ⏳ **net_task + led_task** + mDNS `_shadow._tcp` 广播 — 1 周
+8. ⏳ **end-to-end demo**:ESP32 ↔ cortex webrtc_route ↔ temporal lobe ↔ neure ASR/TTS ↔ prefrontal LLM + LLM tool call via data channel → ESP32 GPIO — 2 周
+9. ⏳ **CI**:twister + QEMU sim 子集 + 板级 sanity build — 1 周
+10. ⏳ **OTA 镜像**(LittleFS)与 user skills 持久化 — 1 周
+
+总估 **5-6 人月**(以有经验的 embedded C + WebRTC 经验工程师计)。详细每个动作的内容 + 依赖关系见 ADR-0002 v2。
 
 ## 引用 / See also
 
 ### 项目内
-- [`docs/RESEARCH.md`](docs/RESEARCH.md) — 2026-08-16 Zephyr + Rust on ESP32-S3 调研报告(完整方案矩阵)
-- [`docs/adr/0001-stack-choice-zephyr-c.md`](docs/adr/0001-stack-choice-zephyr-c.md) — **决策 ADR:采用 Zephyr + C** (accepted)
+- [`docs/RESEARCH.md`](docs/RESEARCH.md) — 2026-08-16 调研 + §9 xiaozhi/esp-claw/temporal/WASM-on-Xtensa 整合分析
+- [`docs/adr/0001-stack-choice-zephyr-c.md`](docs/adr/0001-stack-choice-zephyr-c.md) — **调研阶段 ADR**:采用 Zephyr + C (accepted)
+- [`docs/adr/0002-shadow-esp32-implementation-architecture.md`](docs/adr/0002-shadow-esp32-implementation-architecture.md) — **实施架构 ADR v2**:Zephyr 多任务 + WebRTC(同 desktop/mobile)+ Shadow temporal backend (accepted)
 - `Shadow` 根文档:[`/home/ibloc/Projects/shadow/AGENTS.md`](../AGENTS.md)
+- Shadow `temporal` lobe:[`/home/ibloc/Projects/temporal/`](../temporal/)
+- Shadow `cortex` webrtc route:[`/home/ibloc/Projects/cortex/src/api/webrtc_route.rs`](../cortex/src/api/webrtc_route.rs)
+- Shadow-Desktop WebRTC companion 参考:[`/home/ibloc/Projects/shadow/shadow-desktop/src/lib/webrtcCompanion.ts`](../shadow-desktop/src/lib/webrtcCompanion.ts)
+- Shadow-Mobile WebRTC companion 参考:[`/home/ibloc/Projects/shadow/shadow-mobile/lib/services/webrtc_companion.dart`](../shadow-mobile/lib/services/webrtc_companion.dart)
 
 ### 外部资料
-- [`espressif/esp-claw`](https://github.com/espressif/esp-claw) — 乐鑫官方 IoT AI agent 框架(参考架构,Apache-2.0)
-- [`espressif/esp-claw/blob/master/AGENTS.md`](https://github.com/espressif/esp-claw/blob/master/AGENTS.md) — esp-claw 内部的代码风格 / 路径规则
+- [`78/xiaozhi-esp32`](https://github.com/78/xiaozhi-esp32) — 应用层架构参考(state machine + Opus + MCP server;28.9k stars / MIT)
+- [`78/xiaozhi-esp32/blob/main/docs/mcp-protocol.md`](https://github.com/78/xiaozhi-esp32/blob/main/docs/mcp-protocol.md) — MCP JSON-RPC 2.0 envelope 定义(协议名沿用,transport 由 WS → SCTP over WebRTC)
+- [`espressif/esp-claw`](https://github.com/espressif/esp-claw) — IO control capability 派发参考(借鉴组织思路,不引入 Lua)
 - [Zephyr Project — Espressif boards](https://docs.zephyrproject.org/latest/boards/espressif/index.html) — Zephyr 板列表
 - [Zephyr Project — esp32s3_devkitc board](https://docs.zephyrproject.org/latest/boards/espressif/esp32s3_devkitc/doc/index.html) — 本项目目标板
-- [Zephyr Project — Rust language support](https://docs.zephyrproject.org/latest/develop/languages/rust/index.html) — Zephyr Rust 集成
+- [Zephyr Project — mbedtls](https://docs.zephyrproject.org/latest/services/security/mbedtls.html) — DTLS 基础
 - [Zephyr Support Status (Espressif Developer Portal)](https://developer.espressif.com/software/zephyr-support-status/) — Espressif 官方对 Zephyr 状态的公告
-- [Rust on ESP Book](https://docs.espressif.com/projects/rust/book/) — 乐鑫官方 Rust 用户手册(本项目不走 Rust 但作为对照)
-- [esp-hal](https://github.com/esp-rs/esp-hal) — 2026 主流 ESP32 Rust HAL,v1.x 稳定(备选路径的生态基础)
+- [RFC 5245 (ICE)](https://datatracker.ietf.org/doc/html/rfc5245) / [RFC 5764 (DTLS-SRTP)](https://datatracker.ietf.org/doc/html/rfc5764) / [RFC 3711 (SRTP)](https://datatracker.ietf.org/doc/html/rfc3711) / [RFC 7587 (Opus RTP)](https://datatracker.ietf.org/doc/html/rfc7587) — WebRTC 协议族
 
 ## 修订
 
 | 日期 | 版本 | 修订 |
 |---|---|---|
+| 2026-08-16 | 0.4 | **架构升级到 v2**:WebRTC + data channel + 跨端统一(用户推翻 v1 WebSocket 提议);重写"这是什么"/"协议握手"/Roadmap;ADR-0002 v1 → v2 标记 superseded;加入 shadow-desktop / shadow-mobile WebRTC companion 文件路径链接 |
+| 2026-08-16 | 0.3 | 实施架构:加入 ADR-0002 链接;重写"这是什么"/"协议握手"/"Roadmap";架构升级为 Zephyr 多任务 + xiaozhi wire + Shadow temporal 后端;引用更新 |
 | 2026-08-16 | 0.2 | 标记决策已定(D: Zephyr + C);加入 ADR-0001 链接;Roadmap 锚定 Zephyr scaffold 替换;更新引用与版本表 |
 | 2026-08-16 | 0.1 | 初版 — 替换 ESP-IDF `esp_hid_device` 上游 README,落到 Shadow-esp32 项目实际身份;附 [`docs/RESEARCH.md`](docs/RESEARCH.md) 调研报告 |

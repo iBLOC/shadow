@@ -267,3 +267,132 @@ Zephyr 的 Xtensa 架构 port **本身**存在(由 Synopsys 维护),但要让其
 | 日期 | 作者 | 修订 |
 |---|---|---|
 | 2026-08-16 | Sisyphus 编排产出 | 初版(vs. `/home/ibloc/Projects/shadow/shadow-esp32/README.md` v0;基于 ESP-IDF v6.0.2 / esp-hal v1.1.2 / Zephyr v4.4.2-rc1 / zephyr-lang-rust main 等当前上游状态) |
+| 2026-08-16 | Sisyphus | §9 增补:加入 xiaozhi-esp32 / Shadow temporal lobe 画像,描述 ADR-0002 实施架构;RTOS 与语言选择延续 ADR-0001 |
+
+---
+
+## 9. 增补(2026-08-16):xiaozhi-esp32 / esp-claw / Shadow temporal lobe
+
+> 本节追加是因为 ADR-0001 已落地,实施阶段浮现新需求(对话能力 + IO 控制 + Shadow temporal 后端复用),需要把三个参考对象的画像与整合架构落到同一份调研档案中。
+
+### 9.1 xiaozhi-esp32 (`78/xiaozhi-esp32`,MIT,28.9k stars / 6.7k forks)
+
+| 维度 | 数据 |
+|---|---|
+| 栈 | ESP-IDF v6.0+ C/C++;Google C++ style |
+| 板级 | 138 个 board 目录 / **171 个 release variant**;覆盖 ESP32 / S3 / C3 / C5 / C6 / P4 / **S31** |
+| 网络 | Wi-Fi / Ethernet / USB RNDIS / 4G Cat.1(ML307/EC801E/NT26) |
+| 音频 | **Opus 编码,16 kHz mono,60 ms 帧长**,3 个 binary protocol 版本 (raw v1 / 带 timestamp 的 v2 / 轻量 v3) |
+| Transport | **WebSocket + MQTT+UDP**(两种可切);默认 `wss://api.tenclass.net/xiaozhi/v1/` |
+| ASR/TTS | 流式 ASR → LLM → TTS,或 Realtime end-to-end 语音模型;有 AEC 全双工支持;ESP-SR 离线唤醒 |
+| **IO 控制** | **MCP (Model Context Protocol)**,device-side `McpServer::AddTool`;JSON-RPC 2.0 envelope;`AddUserOnlyTool` 隐藏 privileged actions |
+| 状态机 | Unknown → Starting → WifiConfiguring → Activating → Idle → Connecting → Listening → Speaking → Idle |
+| JSON 类型 | `hello` / `listen` / `abort` / `stt` / `llm` / `tts` / `mcp` / `alert` / `system` / `custom` |
+
+**对 shadow-esp32 的价值**:应用层架构(state machine + Opus codec + MCP server + 板级驱动)可以直接作为 firmware 模板;**不**直接 fork ESP-IDF 代码(因为 ADR-0001 锁了 Zephyr)。
+
+### 9.2 esp-claw (`espressif/esp-claw`,Apache-2.0,2.0k stars)
+
+| 维度 | 数据 |
+|---|---|
+| 结构 | `components/claw_capabilities/*` (C 端 capability 函数) + `components/claw_modules/claw_cap/` (注册派发) + `components/common/app_claw/app_capabilities.c` (启动注册) |
+| Skills | `components/skills/*` 文本型,built-in skill 烧录到 SYSTEM image(只读);运行时 user skill 写到 DATA 分区 |
+| Lua | `components/lua_modules/*` 提供硬件抽象(storage / gpio / threading / http / json / board_manager);Lua 脚本动态加载行为 |
+| Board | `application/edge_agent/boards/{vendor}/{board}/` 含 peripheral YAML + setup + defaults + FATFS overlay |
+| IO 抽象 | C 端 `claw_cap_*` opaque-handle 模式;Lua 端 `storage` / `thread` 模块 |
+
+**与 xiaozhi IO 模型的对比**:esp-claw 的 capability 派发思路(opaque handle + 注册表 + 板级 peripheral YAML)比 xiaozhi 的 MCP-style 更"嵌入式工业风";但 xiaozhi 的 MCP 更轻量、更标准化。**shadow-esp32 选 xiaozhi 的 MCP 作为对外接口,内部 capability 实现借鉴 esp-claw 的派发思路**——既利用 xiaozhi 的 wire 兼容性,又保留 esp-claw 的代码组织纪律。
+
+### 9.3 Shadow temporal lobe (`/home/ibloc/Projects/temporal/`)
+
+| 维度 | 数据 |
+|---|---|
+| 职责 | "User-channel voice/text agent";**WebRTC Companion Mode 默认 receiver** |
+| 协议层 | webrtc-rs 0.8 + DTLS-SRTP(`webrtc/real.rs::RealTransport`);`WebRtcAnswerSkill` + `WebRtcIceSkill` |
+| ASR | `NeureAsr`(POST `/v1/audio/transcriptions`,multipart WAV);`StubAsr` fallback |
+| TTS | `NeureTts`(POST `/v1/audio/speech`,JSON Opus);`StubTts` fallback |
+| VAD | `EnergyVad`(20ms RMS);`silero_vad` blocked on stable |
+| Dialog | `build_context`(查询 hippocampus `recent_messages`)→ `classify` intent → A2A 调 peer lobes(prefrontal / hippocampus / occipital / parietal) |
+| Cortex 路由 | `ModalityDefaults { text/voice/video_agent: "temporal" }` —— 默认所有 modality 走 temporal lobe |
+
+**对 ESP32 的桥接**:temporal lobe 的内部业务逻辑(WebRTC ↔ ASR ↔ TTS ↔ Dialog)完全可复用;ESP32 ↔ cortex 之间的 wire 用 WebSocket+Opus 取代 WebRTC+DTLS-SRTP(ESP32 上的 DTLS-SRTP 实现栈不成熟)。
+
+### 9.4 整合架构(ADR-0002 v2 — WebRTC 复用通路)
+
+```
+┌──────────────────────────────────────┐
+│  ESP32-S3 + Zephyr (shadow-esp32)    │
+│                                      │
+│  ┌─ dialog_task (prio 5) ──────────┐ │
+│  │ WebRTC client:                │ │
+│  │   SDP/ICE + DTLS-SRTP         │ │
+│  │   + Opus codec (libopus)      │ │
+│  │   + Data Channel "mcp"        │ │
+│  │ I²S mic/speaker               │ │
+│  └────────┬─────────────────────────┘ │
+│           │ k_msgq (events)         │
+│  ┌─ io_task (prio 7) ──────────────┐ │
+│  │ GPIO / sensor / PWM           │ │
+│  │ MCP server (data channel)     │ │
+│  └──────────────────────────────┘  │
+│  ┌─ net_task (prio 6) ──────────────┐ │
+│  │ Wi-Fi / mDNS / WebSocket     │ │
+│  │ signaling client / 重连      │ │
+│  └──────────────────────────────┘  │
+└───────────────┬──────────────────────┘
+                │ signaling: WebSocket
+                │  GET /api/webrtc/voice/sessions/{id}/ws
+                │  SDP offer/answer + ICE candidates
+                │ media: DTLS-SRTP over UDP (single peer conn)
+                │   Opus payload (60ms frames)
+                │ data:  SCTP-over-DTLS data channel "mcp"
+                │   JSON-RPC 2.0 tool calls
+                ▼
+┌──────────────────────────────────────┐
+│  cortex::webrtc_route (现成,0 改动)  │
+│                                      │
+│  ModalityRouter(text/voice → temporal)│
+│  rtp_relay (per-direction SRTP)     │
+└───────────────┬──────────────────────┘
+                │ A2A
+                ▼
+┌──────────────────────────────────────┐
+│  temporal lobe (现成,0 改动)        │
+│  - WebRtcAnswerSkill (webrtc-rs)    │
+│  - WebRtcIceSkill                  │
+│  - NeureAsr / NeureTts / Dialog    │
+│  - hippocamp + prefrontal (LLM)   │
+└──────────────────────────────────────┘
+```
+
+**关键架构决策**(详见 ADR-0002 v2):
+- ESP32 ↔ cortex: **WebRTC(SDP/ICE/DTLS-SRTP/Opus/SCTP data channel)**——与 shadow-desktop / shadow-mobile 同一通路
+- 不引入 cortex `xiaozhi_bridge` 中间层(架构 v1 原方案,**已被用户推翻**)
+- cortex 新增 ~1500 LOC Rust:`cortex::webrtc::data_channel` + `cortex::mcp::device_router` + `cortex::api::device`(使 prefrontal LLM tool call 可路由到 ESP32 data channel)
+- ESP32 上**对话与 IO 完全解耦**(Zephyr 多任务 + k_msgq);`dialog_task` 不阻塞 IO,IO 不影响对话延迟
+- IO 能力:WebRTC Data Channel 上的 MCP JSON-RPC 2.0(协议名沿用 xiaozhi / cortex 的 MCP 规范,但 transport 由 WS 改为 SCTP-over-DTLS)
+- 实施时间:**5-6 人月**(以有经验的 embedded C + WebRTC 经验工程师计)
+
+### 9.5 WASM 现状(2026-08-16 用户确认):Xtensa ESP32 无可用 runtime
+
+| 运行时 | Xtensa 支持 | 备注 |
+|---|---|---|
+| **wasmtime** | ❌ tier-1 target:`x86_64` / `aarch64` / `riscv64` / `s390x` | 无 Xtensa 后端 |
+| **wasmer** | ❌ target:`x86_64` / `aarch64` / `riscv64` | 无 Xtensa 后端 |
+| **wazero** | ❌ target:`amd64` / `arm64` / `riscv64` | 无 Xtensa 后端 |
+| **WAMR** | ⚠️ Xtensa 后端 fork 状态 | 生产案例极少 |
+| `wasm2c` (transpile) | ✅ 工程手法 | 失去 WASM 优势,等价于写 C |
+
+**结论**:**ESP32-S3 (Xtensa) 没有可用于生产的 WASM runtime**,所以 shadow-esp32 的设计必须把 agent 逻辑放在 cortex/temporal 后端,ESP32 是 thin client。**WASM 在 cortex 一侧仍然有效**(synapse::wasm 跑 MCP servers / agent logic),与 ESP32 无关。
+
+### 9.6 跨端统一:shadow-desktop / mobile / esp32 同一 WebRTC 通路
+
+| 端 | 文件 | WebRTC 实现 | 终点 |
+|---|---|---|---|
+| **shadow-desktop** | `shadow-desktop/src/lib/webrtcCompanion.ts` | 浏览器 `RTCPeerConnection` API | `cortex::api::webrtc_route` |
+| **shadow-mobile** | `shadow-mobile/lib/services/webrtc_companion.dart` | `flutter_webrtc` plugin | 同上 |
+| **shadow-esp32** (待实现) | `dialog_task` (Zephyr) | mbedtls DTLS + libsrtp + libopus + ICE-lite + SCTP data channel | 同上 |
+
+**关键事实**:三端走的是同一个 cortex WebRTC 路由 → temporal lobe 的 `webrtc::real::RealTransport` (webrtc-rs 0.8 + DTLS-SRTP)。所以 ESP32 端的实现路径已经被 Desktop / Mobile 在 cortex 一侧 ready,**ESP32 只需补全 client 实现**。
+
+完整任务估时、wire format、capability 列表、cortex 端新增模块见 ADR-0002 v2 §4.1–§4.6 + §后续动作。
