@@ -17,6 +17,8 @@ import com.ibloc.shadow.mnn.OpenAIServerManager
 import com.ibloc.shadow.pcm.PcmAudioRecorder
 import com.ibloc.shadow.tts.TtsManager
 import com.ibloc.shadow.http.MobileActionServer
+import com.ibloc.shadow.provision.BleProvisioningService
+import com.ibloc.shadow.audio.UsbAudioRouter
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -34,6 +36,8 @@ class MainActivity : FlutterActivity() {
     private val PCM_AUDIO_STREAM_CHANNEL = "com.ibloc.shadow/pcm_audio_stream"
     private val HTTP_SERVER_CHANNEL = "com.ibloc.shadow/http_server"
     private val ENGINE_CHANNEL = "com.ibloc.shadow/engine"
+    private val BLE_PROVISION_CHANNEL = "com.ibloc.shadow/ble_provision"
+    private val USB_AUDIO_CHANNEL = "com.ibloc.shadow/usb_audio"
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     
@@ -44,6 +48,8 @@ class MainActivity : FlutterActivity() {
     private var litertEngine: LitertEngine? = null
     private var ttsManager: TtsManager? = null
     private var pcmAudioRecorder: PcmAudioRecorder? = null
+    private var usbAudioRouter: UsbAudioRouter? = null
+    private var bleProvisioner: BleProvisioningService? = null
 
     private var engineRegistrationListener: NsdManager.RegistrationListener? = null
     private var engineRegisteredName: String? = null
@@ -53,6 +59,8 @@ class MainActivity : FlutterActivity() {
 
         nsdManager = getSystemService(Context.NSD_SERVICE) as NsdManager
         pcmAudioRecorder = PcmAudioRecorder(this)
+        usbAudioRouter = UsbAudioRouter(this)
+        bleProvisioner = BleProvisioningService(this)
 
         setupAccessibilityChannel(flutterEngine)
         setupMdnsChannel(flutterEngine)
@@ -63,6 +71,8 @@ class MainActivity : FlutterActivity() {
         setupHttpServerChannel(flutterEngine)
         setupEngineChannel(flutterEngine)
         setupPrefrontalRuntimeChannel(flutterEngine)
+        setupBleProvisionChannel(flutterEngine)
+        setupUsbAudioChannel(flutterEngine)
     }
     
     private fun setupAccessibilityChannel(flutterEngine: FlutterEngine) {
@@ -684,6 +694,48 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+    }
+
+    private fun setupBleProvisionChannel(flutterEngine: FlutterEngine) {
+        bleProvisioner?.attach(flutterEngine)
+    }
+
+    private fun setupUsbAudioChannel(flutterEngine: FlutterEngine) {
+        val router = usbAudioRouter ?: return
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger,
+                       USB_AUDIO_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "listRoutes" -> {
+                    scope.launch {
+                        try {
+                            val routes = router.listSinks()
+                                .map { r -> mapOf(
+                                    "id" to r.id,
+                                    "name" to r.name,
+                                    "isUsb" to r.isUsb,
+                                ) }
+                            result.success(routes)
+                        } catch (e: Exception) {
+                            result.error("USB_AUDIO_LIST", e.message, null)
+                        }
+                    }
+                }
+                "routeTo" -> {
+                    val id = call.argument<Number>("id")?.toInt() ?: -1
+                    if (id < 0) {
+                        result.error("USB_AUDIO_ID", "missing id", null)
+                    } else {
+                        try {
+                            router.routeTo(id)
+                            result.success(true)
+                        } catch (e: Exception) {
+                            result.error("USB_AUDIO_ROUTE", e.message, null)
+                        }
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
     }
 
     override fun onDestroy() {

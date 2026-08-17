@@ -25,8 +25,10 @@
 #include <zephyr/net/net_if.h>
 #include <zephyr/net/wifi.h>
 #include <zephyr/net/wifi_mgmt.h>
+#include <zephyr/settings/settings.h>
 
 #include <shadow_esp32/tasks.h>
+#include <shadow_esp32/provision.h>
 
 LOG_MODULE_REGISTER(shadow_net, CONFIG_SHADOW_ESP32_LOG_LEVEL);
 
@@ -100,6 +102,45 @@ static void wifi_reconnect_work_handler(struct k_work *work)
 #endif
 }
 
+/* v2.5 — connect using credentials the provision module loaded
+ * from settings (saved by the BLE GATT write callback). Returns
+ * 0 on a successful mgmt request, negative on a hard error. */
+static int wifi_connect_loaded_creds(void)
+{
+    char ssid[33] = { 0 };
+    char psk[64]  = { 0 };
+    size_t ssid_len = settings_read_one("shadow/wifi/ssid",
+                                         ssid, sizeof(ssid) - 1);
+    if (ssid_len == 0) {
+        return -1;
+    }
+    ssid[ssid_len] = '\0';
+    size_t psk_len = settings_read_one("shadow/wifi/psk",
+                                        psk, sizeof(psk) - 1);
+    psk[psk_len] = '\0';
+    LOG_INF("wifi_connect_loaded_creds: ssid=%s psk_len=%zu", ssid, psk_len);
+
+    struct net_if *iface = net_if_get_default();
+    if (iface == NULL) {
+        return -1;
+    }
+    struct wifi_connect_req_params cnx = {
+        .ssid = ssid,
+        .ssid_length = ssid_len,
+        .psk = psk,
+        .psk_length = psk_len,
+        .security = WIFI_SECURITY_TYPE_PSK,
+        .channel = 0,
+        .band = WIFI_FREQ_BAND_2_4,
+    };
+    int rc = net_mgmt(NET_REQUEST_WIFI_CONNECT, iface, &cnx, sizeof(cnx));
+    if (rc) {
+        LOG_ERR("net_mgmt WIFI_CONNECT (loaded): %d", rc);
+        return rc;
+    }
+    return 0;
+}
+
 static int wifi_event_init(void)
 {
     net_mgmt_init_event_callback(&wifi_mgmt_cb, wifi_mgmt_handler,
@@ -122,6 +163,20 @@ static void net_task_fn(void *p1, void *p2, void *p3)
         return;
     }
 
+    /* v2.5 — try stored credentials first. If none, the
+     * provision module's BLE GATT service is the fallback
+     * (started from main() before net_task). In that path the
+     * phone writes SSID+PSK → settings → we pick them up here
+     * the next time the user re-touches this routine (or we
+     * re-arm via the prov callback). */
+    if (wifi_connect_loaded_creds() != 0) {
+        LOG_WRN("no stored Wi-Fi creds yet; waiting for BLE provision");
+    } else {
+        /* The compiled-in CONFIG_SHADOW_WIFI_* path is the
+         * developer convenience; once a phone provisions, the
+         * settings-backed path is what runs in production. */
+        (void)0;
+    }
     wifi_reconnect_work_handler(NULL);
 
     while (1) {

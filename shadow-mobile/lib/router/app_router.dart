@@ -14,11 +14,13 @@ import '../screens/manage/management_hub_screen.dart';
 import '../screens/model_settings_screen.dart';
 import '../screens/prompt_settings_screen.dart';
 import '../screens/voice_conversation_screen.dart';
+import '../screens/livestream_screen.dart';
 import '../screens/group_screen.dart';
 import '../screens/flows_screen.dart';
 import '../screens/discovery_screen.dart';
 import '../screens/logs_screen.dart';
 import '../screens/resonance_screen.dart';
+import '../screens/digital_human_screen.dart';
 import '../widgets/main_shell.dart';
 
 /// Route names
@@ -37,6 +39,7 @@ class AppRoutes {
   static const String modelSettings = '/settings/model';
   static const String promptSettings = '/settings/prompt';
   static const String voice = '/voice';
+  static const String liveStream = '/livestream';
   static const String group = '/group';
   static const String flows = '/flows';
   static const String discovery = '/discovery';
@@ -171,13 +174,22 @@ final GoRouter appRouter = GoRouter(
       pageBuilder: (context, state) =>
           _fadePage(state, _wrapInShell(state, const PromptSettingsScreen())),
     ),
-    // Voice conversation
+    // Voice conversation (voice-assistant mode)
     GoRoute(
       path: AppRoutes.voice,
       name: 'voice',
       pageBuilder: (context, state) => _fadePage(
         state,
         _wrapInShell(state, const VoiceConversationScreen()),
+      ),
+    ),
+    // Live-stream / read-aloud mode (voice-only, no digital avatar)
+    GoRoute(
+      path: AppRoutes.liveStream,
+      name: 'livestream',
+      pageBuilder: (context, state) => _fadePage(
+        state,
+        _wrapInShell(state, const LivestreamScreen()),
       ),
     ),
     // Group

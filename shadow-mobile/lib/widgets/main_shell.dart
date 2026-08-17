@@ -16,6 +16,7 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   static const _navItems = [
     GlassBottomNavItem(icon: Icons.chat_bubble_outline, label: 'Chat'),
+    GlassBottomNavItem(icon: Icons.live_tv, label: 'Live'),
     GlassBottomNavItem(icon: Icons.task_alt, label: 'Tasks'),
     GlassBottomNavItem(icon: Icons.dashboard_customize, label: 'Manage'),
     GlassBottomNavItem(icon: Icons.settings_outlined, label: 'Settings'),
@@ -24,7 +25,8 @@ class _MainShellState extends State<MainShell> {
   int _getSelectedIndex() {
     final path = widget.currentPath;
     if (path == '/' || path == '/chat') return 0;
-    if (path.startsWith('/tasks') || path == '/conversations') return 1;
+    if (path == '/livestream') return 1;
+    if (path.startsWith('/tasks') || path == '/conversations') return 2;
     if (path.startsWith('/manage') ||
         path == '/agents' ||
         path == '/models' ||
@@ -32,13 +34,14 @@ class _MainShellState extends State<MainShell> {
         path == '/mcp' ||
         path == '/skills' ||
         path == '/memory') {
-      return 2;
+      return 3;
     }
     if (path == '/settings' ||
         path == '/discovery' ||
         path == '/logs' ||
-        path == '/resonance') {
-      return 3;
+        path == '/resonance' ||
+        path == '/provision') {
+      return 4;
     }
     return 0;
   }
@@ -49,12 +52,15 @@ class _MainShellState extends State<MainShell> {
         context.go('/');
         break;
       case 1:
-        context.go('/tasks');
+        context.go('/livestream');
         break;
       case 2:
-        context.go('/manage');
+        context.go('/tasks');
         break;
       case 3:
+        context.go('/manage');
+        break;
+      case 4:
         context.go('/settings');
         break;
     }

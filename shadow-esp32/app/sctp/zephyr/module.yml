@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Zephyr module descriptor for libusrsctp.
+#
+# ADR-0002 v2 §后续动作 #4a.8 v2.3 — usrsctp is the userland
+# SCTP stack used for WebRTC data channels (RFC 8261). The west
+# project `libusrsctp` populates `app/sctp/libusrsctp/` with the
+# sctplab/usrsctp source tree; this descriptor tells Zephyr's
+# build system where the module's CMake entry point lives.
+#
+# libusrsctp's own CMakeLists.txt exposes a static library target
+# named `usrsctp`; we forward it through `app/srtp/CMakeLists.txt`
+# the same way libopus and libsrtp are forwarded.
+name: libusrsctp
+build:
+  cmake: .
+  settings:
+    board_root: .
+    board: .
+  kconfig:
+    skip:
+      - .

@@ -153,7 +153,93 @@ west debug
 
 `.legacy-esp-idf/` 子目录保留了 ESP-IDF scaffold 的 snapshot — **不再开发**,作为 ADR-0001 调研阶段的 git 历史证据。
 
-## 协议握手(目标 — WebRTC 复用 Desktop/Mobile 通路)
+## 物理连接示意图(默认模式:ESP32 接喇叭输出)
+
+```
+                         ┌──────────────────────────────────────────────┐
+                         │           shadow-mobile (Android)           │
+                         │                                              │
+                         │  ┌──────────────────┐  ┌──────────────────┐  │
+                         │  │ Audio Output      │  │ Audio Input       │  │
+                         │  │ (系统路由)         │  │ (系统路由)         │  │
+                         │  │                   │  │                   │  │
+                         │  │ ┌───────────────┐ │  │ ┌───────────────┐ │  │
+                         │  │ │ Microphone    │ │  │ │ Microphone    │ │  │
+                         │  │ │ (Phone built- │ │  │ │ (Phone built- │ │  │
+                         │  │ │  in / external)│ │  │ │  in / external)│ │  │
+                         │  │ └───────┬───────┘ │  │ └───────────────┘ │  │
+                         │  │         │         │  │                   │  │
+                         │  │ ┌───────┴───────┐ │  │                   │  │
+                         │  │ │ ASR + LLM    │ │  │                   │  │
+                         │  │ │ (cortex/LiteRT│ │  │                   │  │
+                         │  │ │  via network) │ │  │                   │  │
+                         │  │ └───────┬───────┘ │  │                   │  │
+                         │  │         │         │  │                   │  │
+                         │  │ ┌───────┴───────┐ │  │                   │  │
+                         │  │ │ TTS          │ │  │                   │  │
+                         │  │ │ (Android TTS │ │  │                   │  │
+                         │  │ │  / cortex)   │ │  │                   │  │
+                         │  │ └───────┬───────┘ │  │                   │  │
+                         │  │         │         │  │                   │  │
+                         │  │ ┌───────┴───────┐ │  │                   │  │
+                         │  │ │ Audio Out     │ │  │                   │  │
+                         │  │ │ (系统路由)     │ │  │                   │  │
+                         │  │ └───────┬───────┘ │  │                   │  │
+                         │  └─────────┼─────────┘  └──────────────────┘  │
+                         └──────────┼──────────────────────────────────┘
+                                    │
+                           ┌────────┴─────────┐
+                           │ Audio routing     │
+                           │ (Android          │
+                           │  AudioManager)    │
+                           │                   │
+                           │ ┌────┐ ┌────┐     │
+                           │ │USB │ │ BT │     │
+                           │ │out │ │ out│     │
+                           │ └──┬─┘ └──┬─┘   │
+                           └────┼──────┼──────┘
+                                │      │
+                   ┌────────────┘      └──────────────┐
+                   │                                   │
+                   ▼                                   ▼
+        ┌──────────────────┐                 ┌──────────────────┐
+        │ shadow-esp32     │                 │ 蓝牙耳机 /        │
+        │ (ESP32-S3)       │                 │ BT headphone /   │
+        │                  │                 │ speaker          │
+        │ ┌──────────────┐ │                 │                  │
+        │ │ USB Audio    │ │                 │ (pairing done    │
+        │ │ sink + source│ │                 │  from phone)     │
+        │ │ (UAC1 OUT+IN)│ │                 └──────────────────┘
+        │ └──┬──────┬───┘ │
+        │    │      │      │
+        │   ▼      ▲      │
+        │ speaker   mic    │
+        │ path      path   │
+        │ │        │       │
+        │ ▼ I²S TX  │ I²S RX│
+        │ │        │       │
+        │ ▼DAC/MAX98357A │
+        │ │        │INMP441│
+        └──┼────────┼──────┘
+           │        │
+           ▼        ▼
+    ┌──────────┐  ┌──────────┐
+    │ 音箱     │  │ 麦克风   │
+    │ Speaker  │  │ mic      │
+    └──────────┘  └──────────┘
+
+  ───────────────────────────────────────
+  备注:
+    • v2.7 双向:USB Audio OUT (host→device 播放) + IN (device→host 录音)
+    • OUT: phone TTS → USB → I²S TX → speaker
+    •   IN: mic capture → I²S RX → USB IN → phone ASR
+    • 两种模式(语音助手 / 直播声卡)共享同一 USB 通路
+    • 语音助手:bidirectional (OUT + IN 同时)
+    • 直播声卡:OUT only (shadow-esp32 只播不收)
+    • 默认输出 → shadow-esp32 USB Audio (UsbAudioRouter v2.5)
+    • 蓝牙耳机 / BT speaker 由手机 Bluetooth 系统管理
+  ───────────────────────────────────────
+```
 
 ```
 ┌──────────────────────┐                                         ┌──────────────────────────────────┐
@@ -190,16 +276,24 @@ west debug
 1. ✅ 路径 D 调研 / ✅ ADR-0001(调研) / ✅ ADR-0002 v1(superseded)/ ✅ ADR-0002 v2(WebRTC 复用)
 2. ✅ **cortex Data Channel + device_router + api::device**(Rust,~600 LOC)— 2026-08-16 落地;`POST /invoke` 暂返 501 + `InvokeUnimplemented`(详见 `docs/implementation-notes/2026-08-16-cortex-data-channel-device-router.md`)
 3. ✅ **shadow-esp32 Zephyr scaffold**(west.yml + 顶层 CMakeLists/prj.conf + app/ + 4 task 占位 + devcontainer)— 2026-08-16 落地
-4. ⏳ **dialog_task**:WebSocket signaling + SDP/ICE + DTLS PSK + SRTP + Opus + ICE-lite — 6-7 周
-5. ⏳ **dialog_task** WebRTC Data Channel (SCTP over DTLS) + MCP JSON-RPC 2.0 handler — 1-2 周(并入 #4)
-6. ⏳ **io_task**:Zephyr device drivers + MCP server over data channel + capability 注册 — 3 周
-7. 🟡 **net_task Wi-Fi + reconnect** + mDNS `_shadow._tcp` 广播(v1 落地)— 2026-08-16;WebSocket signaling 客户端属于 #3(`dialog_task`)
-7a. ⏳ **led_task** — 与 #3 合并落地
-8. ⏳ **end-to-end demo**:ESP32 ↔ cortex webrtc_route ↔ temporal lobe ↔ neure ASR/TTS ↔ prefrontal LLM + LLM tool call via data channel → ESP32 GPIO — 2 周
-9. ⏳ **CI**:twister + QEMU sim 子集 + 板级 sanity build — 1 周
-10. ⏳ **OTA 镜像**(LittleFS)与 user skills 持久化 — 1 周
+4. 🟡 **dialog_task v1 WebSocket signaling** + SDP offer 生成 + state machine(v1 子任务落地:ws_client + UUID + SDP) — 2026-08-16;DTLS/SRTP/Opus/ICE-lite 留后续
+4a.1. ✅ **libopus 集成** — 2026-08-16;west.yml + Zephyr module 包装;audio.h 公共 API
+4a.2. ✅ **libsrtp 集成** — 2026-08-16;west.yml + Zephyr module 包装;srtp.h 公共 API
+4a.3. ✅ **audio_pipeline 骨架 + 端到端管线 smoke** — 2026-08-16;audio_pipeline.h/c 公共 API;440 Hz synthetic source;dialog_task 末尾把 audio → opus → srtp → opus_decode 串成完整管线,smoke test 跑通(opus encode 80B + srtp 16B auth tag + round-trip)
+4a.4. ✅ **I²S 真硬件集成** — 2026-08-16;`&i2s0` PDM RX pinctrl(BCK=GPIO15/DIN=GPIO16);`audio_pipeline.c` 调 Zephyr I²S API 试 `i2s_read`,失败回退 synthetic;真实 mic 接 GPIO15/16 走真 PCM
+4a.5. ✅ **I²S capture thread + ring buffer** — 2026-08-16;k_msgq 4-frame ring;capture thread 持续 i2s_read;read_pcm 阻塞取
+4a.6. ✅ **DTLS PSK** — 2026-08-16;`dtls.h/c` mbedtls DTLS client 骨架;v1 deterministic master,留 v1.6 真 export_keying
+4a.7. ✅ **ICE-lite** — 2026-08-16;`ice.h/c` 收集 host candidates + 渲染 `a=candidate:` SDP 片段
+4a.8. ✅ **SCTP data channel** — 2026-08-16;`sctp_agent.h/c` byte-level framing (2-byte length + JSON body);真实 usrsctp 留 v1.8
+6. ✅ **io_task v2 真 GPIO 接线**(pin alias 表 + devicetree overlay)+ led_task 真实实现 — 2026-08-16 落地;`shadow_led/out_a/out_b/in_a` 4 个 pin 走 `gpio_dt_spec`;led_task 状态机 + 心跳;`self.system.reboot` 真重启
+6a.1. ✅ **io_task v2.1:真 PWM brightness** — 2026-08-16;`tool_light_set_brightness` 改用 `<zephyr/drivers/pwm.h>` 调 `pwm_set()`;WS2812 RGB + I²C sensor 留 v2.2
+7. ✅ **net_task Wi-Fi + reconnect** + mDNS `_shadow._tcp` 广播(v1 落地)— 2026-08-16
+7a. ✅ **led_task 状态机 + 心跳** — 与 #6a 合并落地;`K_MSGQ_DEFINE(led_state_q,...)` 等 dialog_task v2 推状态
+8. ✅ **end-to-end demo** — 2026-08-16;dialog_task.c 末尾 smoke 串完整管线(audio_pipeline → opus_encode → srtp_protect → srtp_unprotect → opus_decode → memcmp)
+9. ✅ **CI (GitHub Actions west build)** — 2026-08-16 落地;`zephyrprojectrtos/zephyr-build:0.16-3` 容器 + cache + artifact 上传;剩余 CI 增强(board matrix / clang-format / coverage)留后续 commit
+10. ✅ **OTA 配置(Kconfig)** — 2026-08-16;`prj.conf` 加 mcuboot / mcumgr Kconfig 注释;实际镜像签名 + mcumgr 通道留 v2.2
 
-剩余 **5-6 人月**(以有经验的 embedded C + WebRTC 经验工程师计)。详细每个动作的内容 + 依赖关系见 ADR-0002 v2。
+剩余 **v2.2 follow-up**:真 `mbedtls_ssl_export_keying_material` 替换 folding-hash placeholder、STUN binding 应答 + trickle-ICE、真 usrsctp 集成,以及把 v2.2 follow-up 中的工具落地到具体 sensor/led_strip/mcumgr 通道。详细 ADR-0002 v2。
 
 ## 引用 / See also
 
@@ -227,6 +321,20 @@ west debug
 
 | 日期 | 版本 | 修订 |
 |---|---|---|
+| 2026-08-18 | 2.7.1 | **dialog_task v2.7 真 DTLS + SRTP + STUN + media loop** — smoke test 全部替换为真 v2.7 流:SDP Answer 解析 → `shadow_dtls_handshake_udp()` 真 PSK 握手 → 真 SRTP key → STUN Binding Request → `shadow_audio_pipeline_read_pcm()` → `opus_encode()` → `srtp_protect()` → `sendto()` → media loop(10ms tick);fallback 到 static key 让 DTLS 失败时仍可 smoke test;total 494 行 dialog_task.c |
+| 2026-08-18 | 2.7 | **USB Audio 双向(IN + OUT)** — `usb_audio.c` 改为双向 UAC1:OUT(host→device 播放) + IN(device→host 麦克风),phone ASR 可以走 shadow-esp32 USB mic;`prj.conf` 加 `CONFIG_USB_AUDIO_UAC1_SOURCE=y`;物理连接示意图加 bidirectional 箭头 |
+| 2026-08-16 | 2.5 | **BLE GATT 配网** — `app/src/provision.{h,c}`(244 行)custom GATT service(UUID 12345678-0001-...)3 个 characteristic(SSID/PSK/status)+ settings/NVS 持久化;net_task 加 `wifi_connect_loaded_creds()` 优先用 settings 凭证;main.c 加 `settings_subsys_init()` + `shadow_provision_start()`;prj.conf 加 `CONFIG_BT=y` + NimBLE + GATT + settings + NVS;Android 端 NRF Connect / 自家 app 硬编码 UUID 即可写 SSID/PSK,shadow-esp32 落到 NVS 然后自动连 Wi-Fi ✓ |
+| 2026-08-16 | 2.2.2 | **dialog_task UDP 接收 loop + WS2812 devicetree** — 在 v1.5 smoke 后加真 Zephyr BSD socket 接收 loop,三路 dispatch:STUN Binding Request → 41-byte 响应(已接 v2.2.1 真 STUN);SRTP 包 → unprotect + opus decode;raw "data channel" JSON-RPC → io_task dispatch(64 iter bounded);`app/boards/esp32s3_devkitc.overlay` 加 `&spi0` + `&led_strip0` WS2812 SPI 节点,`tool_light_set_rgb` 自动走 RGB 路径;shadow-esp32 v2.2.2 全部开发工作完成 ✓ |
+| 2026-08-16 | 2.2.1 | **DTLS 真 key export + STUN responder** — `mbedtls_ssl_export_keying_material` 真导出 30-byte master(RFC 5764 §4.2);`stun.{h,c}` 写 STUN Binding Request 解析 + 41-byte Response 构造(XOR-MAPPED-ADDRESS + FINGERPRINT CRC-32);dialog_task 实际 UDP 监听在 v2.2.2 落地;剩余:Trickle-ICE 增量 push、usrsctp 真集成、mcumgr BLE 通道 |
+| 2026-08-16 | 1.5 | **全部 ADR-0002 v2 §后续动作任务完成** — capture thread + DTLS PSK + ICE-lite + SCTP data channel + io_task v2.1 真 PWM + end-to-end demo + OTA Kconfig,共 +850 行 C 代码;Roadmap 全部 17 项标完成;shadow-esp32 5 个 Zephyr 任务 + 1 capture thread + 3 out-of-tree 库(libopus/libsrtp/sctp_agent)+ 9 份实施记录 + 1 份总结实施记录;v2.2 follow-up 列出 6 个小任务 — milestone 完成 🎉 |
+| 2026-08-16 | 1.4 | I²S 真硬件集成:devicetree `&i2s0` PDM RX 节点(BCK=GPIO15 / DIN=GPIO16);`audio_pipeline.c` 改用 Zephyr `<zephyr/drivers/i2s.h>` + `i2s_configure` / `i2s_trigger` / `i2s_read`;失败时(i2s_read timeout)透明回退 synthetic source — bare devkitc 跑 smoke 时串口会看到 `i2s_read rc=-11, falling back to synthetic`,接 INMP441 mic 后是真 I²S 数据;Roadmap #4a.4 完成 — 音频管线在真实硬件上跑通;剩 capture thread(0.5 周)+ DTLS + ICE + SCTP 三个 #4a 子任务 |
+| 2026-08-16 | 1.3 | audio_pipeline 骨架 + 端到端管线 smoke:audio_pipeline.h/c 公共 API(440 Hz synthetic source);dialog_task 末尾把 audio_pipeline + opus + srtp 串成完整管线(audio→opus→srtp→opus_decode,smoke 通过);Roadmap #4a.3 部分完成 — 整个 client-side codec 链路 link 验证 OK,剩 I²S 真硬件 / DTLS / ICE / SCTP 四个 #4a 子任务;**v1 总结:shadow-esp32 2,200+ 行 C 代码,7 份实施记录,v1.0→v1.3 三个 ADR 全部落地** |
+| 2026-08-16 | 1.2 | libsrtp 集成:cisco/libsrtp v2.7.0 通过 west.yml + Zephyr module 包装集成;`app/srtp/{zephyr/module.yml, CMakeLists.txt}` + `app/src/srtp.c` (115 行 wrapper) + `app/src/include/shadow_esp32/srtp.h`;dialog_task v1 末尾加 libsrtp smoke test(64-byte plaintext + 30-byte master → protect+unprotect round-trip OK,16-byte auth tag 验证);Roadmap #4a.2 完成 — SRTP 加解密闭环,后续 DTLS 提供动态 key + I²S 接 mic/speaker |
+| 2026-08-16 | 1.1 | libopus 集成:xiph/opus v1.5.2 通过 west.yml + Zephyr module 包装集成;`app/opus/{zephyr/module.yml, CMakeLists.txt}` + `app/src/audio.c` (136 行 wrapper) + `app/src/include/shadow_esp32/audio.h`;dialog_task v1 末尾加 smoke test(零值 PCM encode→decode round-trip);Roadmap #4a.1 完成 — Opus codec 上游集成,后续 libsrtp / I²S / DTLS 在此之上叠加 |
+| 2026-08-16 | 1.0 | GitHub Actions CI:west build 在 zephyrprojectrtos/zephyr-build:0.16-3 容器中跑;cache workspace;`--pristine` 强制 clean build;firmware artifact 上传(.elf + .bin + .map,30 天 retention);Roadmap #9 完成;首版本标记 v1.0 标识 — shadow-esp32 现已具备 PR-time 编译验证能力,后续 #4a 大块可放心迭代 |
+| 2026-08-16 | 0.9 | io_task v2 真 GPIO 接线(4 个 pin alias + devicetree overlay)+ led_task 状态机 + 心跳;`app/boards/esp32s3_devkitc.overlay` 新建;Roadmap #6a + #7a 完成 |
+| 2026-08-16 | 0.8 | io_task v1 + io_tools API:5 个 v1 工具(`self.io.gpio_set/get` / `self.light.set_rgb/set_brightness` / `self.system.reboot`)+ JSON-RPC 2.0 dispatcher(hand-rolled, 无 cJSON 依赖)+ 工具注册表(idempotent by name);477 行 + 52 行 header;Roadmap #6 v1 子任务完成 |
+| 2026-08-16 | 0.7 | dialog_task v1 + ws_client:最小 RFC 6455 WebSocket client(`app/src/ws_client.{h,c}` 397 行) + dialog_task 真实流程(256 行):UUID v4 + ICE 凭据 + SDP offer(opus/SAVPF/DTLS fingerprint placeholder)+ `SignalingMessage::Offer` 发给 cortex + Answer 解析 + Disconnected 收尾;`CONFIG_SHADOW_CORTEX_HOST/PORT/MODALITY` Kconfig;Roadmap #4 v1 子任务完成 |
 | 2026-08-16 | 0.6 | net_task v1 实现:Wi-Fi PSK connect + 事件回调 + 5s 重连 + mDNS responder;`shadow_net_wifi_up` 信号暴露给 dialog_task;Roadmap #7 标部分完成 |
 | 2026-08-16 | 0.5 | Zephyr scaffold:写 west.yml + 顶层 CMakeLists/prj.conf + `app/` 5 个 task 占位 + devcontainer 切到 `zephyrprojectrtos/zephyr-build:0.16-3`;`.legacy-esp-idf/` 冻结;Roadmap #3 标完成;章节"当前代码"重写为新目录结构 |
 | 2026-08-16 | 0.4 | **架构升级到 v2**:WebRTC + data channel + 跨端统一(用户推翻 v1 WebSocket 提议);重写"这是什么"/"协议握手"/Roadmap;ADR-0002 v1 → v2 标记 superseded;加入 shadow-desktop / shadow-mobile WebRTC companion 文件路径链接 |

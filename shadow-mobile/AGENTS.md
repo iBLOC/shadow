@@ -1,6 +1,6 @@
 # PROJECT KNOWLEDGE BASE — shadow-mobile
 
-**Updated:** 2026-07-19 (post-cortex client wiring Sprint 1+2 + FlowsScreen `55ffc95` + continue-on-desktop via cortex only `dacbe83` + cortex-embedded neure+hippocampus paths `05aa697`)
+**Updated:** 2026-08-16 (v2.5 — BLE provisioning of shadow-esp32 + USB Audio routing for digital-human livestream PoC; complements shadow-esp32 v2.4/v2.5)
 **Project:** shadow-mobile (Layer 4 Interaction + thin on-device Engine via Kotlin Native)
 
 > **Note (2026-07-19)**: This doc was previously framed as a "Layer 4 + Layer 2 hybrid" with 3 user-configurable modes. That framing predates **Cortex** (Layer 3.5). Current architecture: mobile is **primarily Layer 4** (Flutter UI); the on-device inference capability lives in the **Kotlin Native** layer (OpenAIServer.kt + LiteRT/MNN), exposed as a sidecar HTTP server on `:8085` when the user opts in. The default mobile flow routes everything through **cortex** (`:60080`).
@@ -25,19 +25,41 @@ The mobile app should NOT directly know about LLM/TTS/ASR internals. It only:
 5. Renders UI (Flutter 3.11+ with Riverpod 2.5 + GoRouter 14.8)
 6. Surfaces native-platform capabilities (Android Accessibility for automation, MNN/LiteRT for on-device inference)
 
-## OPERATING MODES (legacy hybrid-mode framing, kept for reference)
+## OPERATING MODES (v2.6+ — post 2026-08-16 refactoring)
 
-The phone can operate in 3 modes (user-configurable on the Settings screen):
-
-| Mode | Layer 4 | Layer 2 | Description |
+| Mode | Path | Route | What happens |
 |---|---|---|---|
-| **UI + Cortex (default)** | Flutter UI | (cortex-sidecar `:60080/hippocampus`) | Phone is just UI; cortex owns Agent + flow + memory + WASM; only Kotlin inference is on-device |
-| **Standalone (offline)** | Flutter UI | MNN/LiteRT in-process (Kotlin `OpenAIServer.kt` on `:8085`) | One app, no network; uses `main_agent` + mobile `agents/main_agent/` + on-device model |
-| **Phone-as-Engine** | (hidden) | Kotlin HTTP server `:8085` exposes `/v1/*` for desktop | Phone runs LLM, advertises via mDNS `_shadow._tcp`; desktop Prefrontal calls `http://mobile.local:8085/v1/chat/completions` |
+| **Voice Assistant** (default) | `/voice` | mic → ASR → LLM (cortex or LiteRT) → TTS → shadow-esp32 USB / phone / BT | Interactive speech dialog. phone runs everything; shadow-esp32 is USB Audio sink only. |
+| **Live Stream** | `/livestream` | phone TTS text input → TTS → shadow-esp32 USB / phone / BT | TTS playback / read-aloud mode. shadow-esp32 is USB Audio sink only. |
 
-> **Current focus (2026-07-19)**: Mode 1 (UI + Cortex) is the default. Mode 2/3 are still supported but rarely used since cortex can run on any device on the LAN.
+Both modes route audio via `UsbAudioRouter` (v2.5) to whichever output the user selects in the screen header:
 
-## STRUCTURE
+| Output | Code | Description |
+|---|---|---|
+| **phone speaker** | `ShadowOutputRoute.phoneSpeaker` | Built-in speaker / wired headset |
+| **BT headset** | `ShadowOutputRoute.bluetoothHeadset` | Standard Android Bluetooth; phone handles pairing |
+| **shadow-esp32** | `ShadowOutputRoute.shadowEsp32` | `UsbAudioRouter.routeTo()` → `AudioManager.preferredDevice` |
+
+The `ShadowOperationModeProvider` / `ShadowOutputRouteProvider` Riverpod state holds the current selection. A "Live" bottom-nav tab (added to `MainShell`) drives to `/livestream`; tapping the mic icon from there jumps back to `/voice`.
+
+## PLATFORM CHANNELS (registered in `MainActivity.configureFlutterEngine`)
+
+| Channel | Direction | Purpose |
+|---|---|---|
+| `com.ibloc.shadow/litert` | ⇅ | Load / infer / diagnose LiteRT model |
+| `com.ibloc.shadow/engine` | ⇅ | Start/stop OpenAIServer, mDNS, auth, port config |
+| `com.ibloc.shadow/tts` | ⇅ | Android TTS engine |
+| `com.ibloc.shadow/accessibility` | ⇅ | Android Accessibility automation |
+| `com.ibloc.shadow/mdns` | ⇅ | Discover + resolve `_shadow._tcp` services |
+| `com.ibloc.shadow/mnn_logs` | ← | EventChannel: logcat streaming |
+| `com.ibloc.shadow/pcm_audio` | ⇅ | Start/stop 16kHz PCM recording |
+| `com.ibloc.shadow/pcm_audio_stream` | ← | EventChannel: PCM chunks to Dart |
+| `com.ibloc.shadow/http_server` | ⇅ | MobileActionServer start/stop |
+| `com.ibloc.shadow/engine` | ⇅ | Phone-as-Engine OpenAI server |
+| `com.ibloc.shadow/ble_provision` | **v2.5** ⇅ | `provision(ssid, psk)` writes shadow-esp32 Wi-Fi creds via GATT |
+| `com.ibloc.shadow/usb_audio` | **v2.5** ⇅ | `listRoutes` / `routeTo(id)` route Android audio to shadow-esp32 USB sink |
+
+> **Design note (v2.6+):** `com.ibloc.shadow/ble_provision` and `com.ibloc.shadow/usb_audio` were added in v2.5 to support the BLE provisioning flow. The `voice_conversation_screen.dart` and `livestream_screen.dart` screens automatically call `UsbAudioRouter.routeTo()` on initialization when they detect a connected shadow-esp32 — no explicit user-tap needed after initial provisioning.
 
 ```
 shadow-mobile/
@@ -263,7 +285,7 @@ The `main_agent` is intentionally thin — for any non-trivial task (file ops, c
 ## PLATFORM CHANNELS (Flutter ↔ Kotlin)
 
 | Channel | Purpose |
-|---|---|
+|---|---|---|
 | `com.ibloc.shadow/litert` | LiteRT model load + inference |
 | `com.ibloc.shadow/mnn` | MNN model load + inference |
 | `com.ibloc.shadow/tts` | Android TTS engine |
@@ -274,6 +296,8 @@ The `main_agent` is intentionally thin — for any non-trivial task (file ops, c
 | `com.ibloc.shadow/pcm_audio_stream` | Audio data stream (EventChannel) |
 | `com.ibloc.shadow/http_server` | Mobile action server |
 | `com.ibloc.shadow/engine` | Phone-as-Engine OpenAI server: `startServer` / `stopServer` / `isServerRunning` / `getServerUrl` / `getApiKey` / `setApiKey` / `setAuthEnabled` / `getServiceName` |
+| `com.ibloc.shadow/ble_provision` | **v2.5** — `provision(ssid, psk)` writes shadow-esp32 Wi-Fi creds via GATT |
+| `com.ibloc.shadow/usb_audio` | **v2.5** — `listRoutes` / `routeTo(id)` route Android audio to shadow-esp32 USB sink |
 
 ## MULTIMODAL INPUT
 
@@ -384,6 +408,9 @@ No errors, no warnings — only style-level info issues (deprecated `value` / `a
 **In Progress** 🔄:
 - WebRTC full DTLS-SRTP handshake on the mobile side — currently relies on cortex to handle encryption; mobile only deals with plain RTP via flutter_webrtc's default stack
 - Offline-first chat — main_agent can run locally for trivial replies but anything non-trivial still requires cortex or neure HTTP
+- **v2.5 — shadow-esp32 BLE provisioning flow** is wired (Kotlin + Dart) but the live-streaming screen doesn't yet auto-discover a shadow-esp32 over BLE; v2.6 adds an `onAttach` hook that opens the provisioning screen when the user plugs the device in
+- **v2.5 — USB Audio routing** is wired at the platform-channel level (UsbAudioRouter.kt + usb_audio_routing_service.dart); the actual `setMode(MODE_NORMAL) / isSpeakerphoneOn = false / preferredDevice` calls land in v2.6 once the live-streaming screen flips them on user-tap
+- **Provisioning — security** — SSID/PSK travel over BLE cleartext in v2.5; v2.6 enables BLE bonding + MITM protection to encrypt the GATT writes
 
 **Planned** 📋:
 - iOS companion-mode parity (current focus is Android; iOS WebRTC works but accessory flows need re-testing on a physical device)
@@ -424,6 +451,7 @@ export MODELSCOPE_TOKEN="..."                       # for gated ModelScope repos
 
 | Hash | Description |
 |------|-------------|
+| (v2.5) | feat(mobile): BLE provisioning of shadow-esp32 + USB Audio routing for digital-human livestream PoC; complements shadow-esp32 v2.4/v2.5; `BleProvisioningService.kt` + `UsbAudioRouter.kt`; Dart `ble_provisioning_service.dart` + `usb_audio_routing_service.dart` + `provisioning_screen.dart`; new channels `com.ibloc.shadow/ble_provision` and `com.ibloc.shadow/usb_audio` |
 | 05aa697 | feat(shadow-mobile): update all paths to cortex-embedded neure+hippocampus |
 | dacbe83 | feat(mobile): continue-on-desktop uses cortex only (no prefrontal fallback) |
 | 55ffc95 | feat(mobile): add FlowsScreen for browsing/running cortex flows |

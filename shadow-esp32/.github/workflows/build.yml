@@ -1,0 +1,82 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# shadow-esp32 Zephyr build verification.
+#
+# ADR-0002 v2 §后续动作 #9 — CI runs `west build` against the
+# `zephyrprojectrtos/zephyr-build:0.16-3` container image, which
+# ships Zephyr SDK 0.16+ with the xtensa-espressif_esp32s3
+# toolchain. The west workspace is cached between runs to keep
+# the cold-start time under 4 minutes.
+#
+# Triggered on every push and pull_request so regressions show
+# up in CI before they reach `main`.
+
+name: shadow-esp32 build
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: west build (esp32s3_devkitc)
+    runs-on: ubuntu-latest
+    container:
+      image: zephyrprojectrtos/zephyr-build:0.16-3
+
+    env:
+      ZEPHYR_BASE: /workdir/zephyrproject/zephyr
+      # west refuses to run as root unless explicitly told.
+      WEST_USER_DATA: /tmp/west-userdata
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Cache west workspace
+        uses: actions/cache@v4
+        with:
+          path: |
+            zephyrproject
+            .west
+          key: ${{ runner.os }}-west-0.16.3-${{ hashFiles('west.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-west-0.16.3-
+
+      - name: West init + update
+        run: |
+          west init -l .
+          west update
+          west packages pip --install
+
+      - name: West build (esp32s3_devkitc)
+        run: west build -b esp32s3_devkitc app --pristine
+
+      - name: Build summary
+        run: |
+          set -e
+          echo "### Build artifacts"
+          ls -la app/build/zephyr/zephyr.elf app/build/zephyr/zephyr.bin 2>/dev/null || true
+          echo
+          echo "### Section sizes (top 10)"
+          if [ -f app/build/zephyr/zephyr.elf ]; then
+            size app/build/zephyr/zephyr.elf | sort -nr | head -10
+          fi
+
+      - name: Upload firmware binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: shadow-esp32-firmware
+          path: |
+            app/build/zephyr/zephyr.elf
+            app/build/zephyr/zephyr.bin
+            app/build/zephyr/zephyr.map
+          if-no-files-found: warn
+          retention-days: 30

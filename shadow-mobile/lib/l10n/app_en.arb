@@ -223,5 +223,45 @@
   "active": "Active",
   "@active": {},
   "drafts": "Drafts",
-  "@drafts": {}
+  "@drafts": {},
+  "liveStreamMode": "Live Stream",
+  "@liveStreamMode": {},
+  "audioOutput": "Audio Output",
+  "@audioOutput": {},
+  "routePhoneSpeaker": "Phone Speaker",
+  "@routePhoneSpeaker": {},
+  "routeBluetoothHeadset": "Bluetooth",
+  "@routeBluetoothHeadset": {},
+  "routeShadowEsp32": "shadow-esp32",
+  "@routeShadowEsp32": {},
+  "shadowEsp32ReceivesAudio": "shadow-esp32 is receiving audio",
+  "@shadowEsp32ReceivesAudio": {},
+  "routeViaBluetoothA2dp": "via Bluetooth",
+  "@routeViaBluetoothA2dp": {},
+  "routeViaPhoneSpeaker": "via phone speaker",
+  "@routeViaPhoneSpeaker": {},
+  "modeMismatch": "Current mode does not match this screen. Tap the mic icon in the top-right to switch to voice mode.",
+  "@modeMismatch": {},
+  "openVoiceMode": "Voice Mode",
+  "@openVoiceMode": {},
+  "ttsInputLabel": "Text to speak",
+  "@ttsInputLabel": {},
+  "ttsInputHint": "Type what the digital human should say…",
+  "@ttsInputHint": {},
+  "startTts": "Start",
+  "@startTts": {},
+  "stopTts": "Stop",
+  "@stopTts": {},
+  "routeSelected": "Output: {device}",
+  "@routeSelected": {
+    "placeholders": {
+      "device": {
+        "type": "String"
+      }
+    }
+  },
+  "digitalHumanTtsNow": "Live Stream Mode",
+  "@digitalHumanTtsNow": {},
+  "shadowEsp32PlayingFromUsbAudio": "shadow-esp32 connected via USB Audio",
+  "@shadowEsp32PlayingFromUsbAudio": {}
 }

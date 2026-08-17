@@ -1,0 +1,120 @@
+/* SPDX-License-Identifier: Apache-2.0
+ *
+ * Board overlay for the Espressif ESP32-S3-DevKitC-1
+ * (Zephyr board name: esp32s3_devkitc).
+ *
+ * v2.7 of this overlay adds USB Audio IN + OUT
+ * (host→device playback AND device→host microphone capture)
+ * so the phone can BOTH send audio to shadow-esp32 (TTS
+ * playback) and receive audio from it (mic capture for ASR).
+ * This enables the voice-assistant bidirectional flow:
+ *   shadow-esp32 mic → I²S capture → USB Audio IN → phone
+ *   phone TTS → USB Audio OUT → shadow-esp32 → speaker
+ *
+ * Pin map:
+ *   - shadow_led    GPIO48  on-board RGB LED
+ *   - shadow_out_a  GPIO1   configurable output
+ *   - shadow_out_b  GPIO2   configurable output
+ *   - shadow_in_a   GPIO4   configurable input
+ *   - shadow_i2c    I2C0    SDA=GPIO8, SCL=GPIO9
+ *   - shadow_pwm    PWM0    channel 0 → GPIO5
+ *
+ * I²S PDM RX (mic input to shadow-esp32):
+ *   - i2s0_bck   GPIO15   PDM clock (output to mic)
+ *   - i2s0_din   GPIO16   PDM data  (input from mic)
+ *
+ * I²S TX (audio output from shadow-esp32):
+ *   - i2s0_mclk  GPIO17   TX master clock (output to amp)
+ *   - i2s0_dout  GPIO9    TX data (output to amp/DAC)
+ *
+ * USB:
+ *   - USB_DP    GPIO20   USB D+ (Full-Speed OTG)
+ *   - USB_DM    GPIO19   USB D-
+ */
+
+&{/pinctrl} {
+    pinctrl-names = "default";
+    pinctrl-0 = <&shadow_io_default &shadow_i2s0_pdm_rx_default &shadow_i2s0_tx_default>;
+    shadow_io_default: shadow_io_default {
+        group1 {
+            psels = <GPIO48 GPIO1 GPIO2 GPIO4 GPIO5>;
+        };
+    };
+    shadow_i2s0_pdm_rx_default: shadow_i2s0_pdm_rx_default {
+        group1 {
+            psels = <GPIO15 GPIO16>;
+        };
+    };
+    shadow_i2s0_tx_default: shadow_i2s0_tx_default {
+        group1 {
+            psels = <GPIO17 GPIO9>;
+        };
+    };
+};
+
+&{/gpio0} {
+    shadow_led: shadow_led {
+        compatible = "gpio-leds";
+        gpios = <&gpio0 48 GPIO_ACTIVE_HIGH>;
+        label = "shadow_led";
+    };
+    shadow_out_a: shadow_out_a {
+        compatible = "gpio-leds";
+        gpios = <&gpio0 1 GPIO_ACTIVE_HIGH>;
+        label = "shadow_out_a";
+    };
+    shadow_out_b: shadow_out_b {
+        compatible = "gpio-leds";
+        gpios = <&gpio0 2 GPIO_ACTIVE_HIGH>;
+        label = "shadow_out_b";
+    };
+    shadow_in_a: shadow_in_a {
+        compatible = "zephyr,gpio-keys";
+        gpios = <&gpio0 4 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+        label = "shadow_in_a";
+    };
+};
+
+&{/i2c0} {
+    pinctrl-0 = <&i2c0_default>;
+    pinctrl-names = "default";
+    status = "okay";
+    clock-frequency = <I2C_BIT_RATE_STANDARD>;
+    shadow_sensor: shadow_sensor@0x68 {
+        compatible = "i2c-device";
+        reg = <0x68>;
+        label = "shadow_sensor";
+    };
+};
+
+&{/pwm0} {
+    status = "okay";
+    pinctrl-0 = <&pwm0_default>;
+    pinctrl-names = "default";
+    shadow_pwm_default: shadow_pwm_default {
+        group1 {
+            psels = <GPIO5>;
+        };
+    };
+};
+
+&{/i2s0} {
+    status = "okay";
+    pinctrl-0 = <&shadow_i2s0_pdm_rx_default &shadow_i2s0_tx_default>;
+    pinctrl-names = "default";
+};
+
+&{/spi0} {
+    status = "okay";
+    pinctrl-0 = <&spi0_default>;
+    pinctrl-names = "default";
+};
+
+&{/led_strip0} {
+    compatible = "worldsemi,ws2812-spi";
+    status = "okay";
+    spi-dev = <&spi0>;
+    chain-length = <1>;
+    color-mapping = <LED_COLOR_ID_GRB>;
+    spi-max-frequency = <4000000>;
+};

@@ -19,9 +19,34 @@ target_sources(app PRIVATE
     src/io_task.c
     src/net_task.c
     src/led_task.c
+    src/ws_client.c
+    src/audio.c
+    src/srtp.c
+    src/audio_pipeline.c
+    src/dtls.c
+    src/ice.c
+    src/sctp_agent.c
+    src/stun.c
+    src/usb_audio.c
+    src/provision.c
 )
 
 target_include_directories(app PRIVATE src/include)
+
+# libopus is brought in as a Zephyr module via `app/opus/`; the
+# `add_subdirectory(libopus)` inside `app/opus/CMakeLists.txt`
+# builds the upstream `opus` static library which Zephyr's CMake
+# glue exposes to `app` via the `libopus` link target.
+target_link_libraries(app PRIVATE libopus)
+
+# libsrtp follows the same module pattern. The upstream library
+# target is named `srtp2` in libsrtp v2.x (renamed from `srtp`).
+target_link_libraries(app PRIVATE srtp2)
+
+# libusrsctp is the canonical SCTP userland stack and the basis
+# for WebRTC data channels (RFC 8261). v2.3 wires it as a Zephyr
+# module via `app/sctp/`. The upstream library target is `usrsctp`.
+target_link_libraries(app PRIVATE usrsctp)
 
 # Out-of-tree libs that we expect to add in follow-up ADR-0002 v2
 # §后续动作 #3-#5. Listed as commented targets so the Zephyr

@@ -1,0 +1,36 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Zephyr module descriptor for libopus.
+#
+# ADR-0002 v2 §后续动作 #4a.1 — west pulls `libopus` from xiph/opus
+# into `app/opus/libopus/` (see `west.yml`). This descriptor tells
+# Zephyr's build system where the module's CMake entry point
+# lives; the `app/opus/CMakeLists.txt` here is a thin Zephyr wrapper
+# around the upstream build, not a re-implementation.
+#
+# The `board:` field is intentionally absent so the module links
+# against any board the application is built for. `snippet:` is
+# absent for the same reason (no snippets ship with libopus).
+#
+# Required-fields reference: Zephyr 4.4 `zephyr/module.yml` schema.
+
+name: libopus
+build:
+  cmake: .
+  settings:
+    # libopus has its own CMake build with a target called `opus`.
+    # Zephyr's CMake glue discovers it through the `add_subdirectory`
+    # below and links it into the app via `target_link_libraries`.
+    # The empty `board.cmake` is required by the schema; we don't
+    # need per-board configuration for a software-only codec.
+    board_root: .
+    board: .
+
+  # The set of subdirectories in this module that Zephyr should
+  # NOT scan for Kconfig fragments. The upstream libopus ships a
+  # `Kconfig` file (intended for use as a standalone library) that
+  # collides with our shadow-esp32 app's Kconfig; skipping it keeps
+  # the Zephyr Kconfig loader happy.
+  kconfig:
+    skip:
+      - .

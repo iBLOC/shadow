@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Zephyr module descriptor for libsrtp.
+#
+# ADR-0002 v2 §后续动作 #4a.2 — west pulls `libsrtp` from
+# cisco/libsrtp into `app/srtp/libsrtp/`. We do not vendor the
+# upstream source tree into git; instead this descriptor points
+# the Zephyr build at our thin wrapper under `app/srtp/`.
+#
+# `board.cmake: .` keeps the module board-agnostic; SRTP is a
+# pure-software library with no per-board configuration.
+#
+# `kconfig.skip: ["."]` is the same defense used for libopus:
+# upstream libsrtp ships a `Kconfig` file that would collide
+# with our app's Kconfig namespace.
+
+name: libsrtp
+build:
+  cmake: .
+  settings:
+    board_root: .
+    board: .
+  kconfig:
+    skip:
+      - .

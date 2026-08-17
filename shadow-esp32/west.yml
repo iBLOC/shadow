@@ -9,6 +9,13 @@
 # Wi-Fi / Bluetooth / peripheral drivers are in mainline Zephyr
 # as of 4.4 (the standalone `hal_espressif` module is no longer
 # required for ESP32-S3 boards).
+#
+# ADR-0002 v2 §后续动作 #4a.1 — `libopus` is pulled from upstream
+# (xiph/opus) as a Zephyr module under `app/opus/`. We do not
+# `add_subdirectory` libopus's own CMake build directly because
+# Zephyr's `app/` build system prefers the module pattern. The
+# upstream source tree is included via `zephyr/module.yml`'s
+# `build.cmake` entry, which points at our thin Zephyr wrapper.
 
 manifest:
   projects:
@@ -17,5 +24,22 @@ manifest:
       revision: v4.4.1
       west-commands: west commands from manifest
 
+    - name: libopus
+      url: https://github.com/xiph/opus
+      revision: v1.5.2
+      path: app/opus/libopus
+
+    - name: libsrtp
+      url: https://github.com/cisco/libsrtp
+      revision: v2.7.0
+      path: app/srtp/libsrtp
+
+    - name: libusrsctp
+      url: https://github.com/sctplab/usrsctp
+      revision: master
+      path: app/sctp/libusrsctp
+
   self:
     path: app
+  user:
+    suppress-getty-notice: true

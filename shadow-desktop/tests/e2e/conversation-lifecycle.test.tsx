@@ -371,18 +371,7 @@ describe('Conversation Lifecycle E2E', () => {
     });
   });
 
-  describe('Agent selector', () => {
-    it('shows select agent when no agents exist', async () => {
-      (useConversationStore as unknown as Mock).mockReturnValue(
-        createMockConversationStore()
-      );
-      (useAgentStore as unknown as Mock).mockReturnValue(
-        createMockAgentStore({ agents: [] })
-      );
-      await renderPage();
-      expect(screen.getByText(/conversation\.selectAgent/i)).toBeInTheDocument();
-    });
-
+  describe('Conversation page', () => {
     it('shows conversation page', async () => {
       await renderPage();
       expect(screen.getByText('conversation.title')).toBeInTheDocument();

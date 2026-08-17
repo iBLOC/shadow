@@ -180,5 +180,45 @@
   "active": "活跃",
   "@active": {},
   "drafts": "草稿",
-  "@drafts": {}
+  "@drafts": {},
+  "liveStreamMode": "直播模式",
+  "@liveStreamMode": {},
+  "audioOutput": "音频输出",
+  "@audioOutput": {},
+  "routePhoneSpeaker": "手机扬声器",
+  "@routePhoneSpeaker": {},
+  "routeBluetoothHeadset": "蓝牙",
+  "@routeBluetoothHeadset": {},
+  "routeShadowEsp32": "shadow-esp32",
+  "@routeShadowEsp32": {},
+  "shadowEsp32ReceivesAudio": "shadow-esp32 正在接收音频",
+  "@shadowEsp32ReceivesAudio": {},
+  "routeViaBluetoothA2dp": "通过蓝牙",
+  "@routeViaBluetoothA2dp": {},
+  "routeViaPhoneSpeaker": "通过手机扬声器",
+  "@routeViaPhoneSpeaker": {},
+  "modeMismatch": "当前模式与此页面不匹配。点击右上角麦克风图标切换到语音模式。",
+  "@modeMismatch": {},
+  "openVoiceMode": "语音模式",
+  "@openVoiceMode": {},
+  "ttsInputLabel": "朗读文本",
+  "@ttsInputLabel": {},
+  "ttsInputHint": "输入数字人要说的话…",
+  "@ttsInputHint": {},
+  "startTts": "开始",
+  "@startTts": {},
+  "stopTts": "停止",
+  "@stopTts": {},
+  "routeSelected": "输出: {device}",
+  "@routeSelected": {
+    "placeholders": {
+      "device": {
+        "type": "String"
+      }
+    }
+  },
+  "digitalHumanTtsNow": "直播模式",
+  "@digitalHumanTtsNow": {},
+  "shadowEsp32PlayingFromUsbAudio": "shadow-esp32 已通过 USB Audio 连接",
+  "@shadowEsp32PlayingFromUsbAudio": {}
 }

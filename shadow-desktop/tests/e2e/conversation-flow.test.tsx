@@ -83,14 +83,6 @@ describe('Conversation Flow E2E', () => {
     });
   });
 
-  it('renders agent selector in sidebar', async () => {
-    renderWithRouter(<ConversationPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText('conversation.selectAgent')).toBeInTheDocument();
-    });
-  });
-
   it('renders message container when no conversation selected', async () => {
     renderWithRouter(<ConversationPage />);
 

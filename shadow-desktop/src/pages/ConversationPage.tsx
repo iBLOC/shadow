@@ -2,7 +2,6 @@ import { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { cortexClient } from '../lib/cortexClient';
 import { useConversationStore } from '../stores/conversationStore';
-import { useCortexStore } from '../stores/cortexStore';
 import { useCompanionModeStore } from '../stores/companionModeStore';
 import { Button, EmptyState } from '../components/ui';
 import { MoveSessionDialog } from '../components/MoveSessionDialog';
@@ -23,10 +22,8 @@ import {
   ArrowRightLeft,
   Paperclip,
   X,
-  ChevronDown,
 } from 'lucide-react';
 import type { Conversation, Message } from '../types';
-import type { LobeInfo } from '../lib/cortexClient';
 import { cn } from '../lib/utils';
 
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
@@ -58,50 +55,20 @@ export function ConversationPage() {
     addMessage,
     setSessionId,
   } = useConversationStore();
-  const lobes = useCortexStore((s) => s.lobes);
-  const defaultAgent = useCortexStore((s) => s.defaultAgent);
-  const refreshLobes = useCortexStore((s) => s.refreshLobes);
-  const status = useCortexStore((s) => s.status);
 
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [stagedImages, setStagedImages] = useState<StagedImage[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [showAgentSelector, setShowAgentSelector] = useState(false);
-  const [activeLobeName, setActiveLobeName] = useState<string | null>(null);
   const [showMoveDialog, setShowMoveDialog] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const activeConversation = conversations.find(c => c.id === activeConversationId);
 
   useEffect(() => {
-    if (!activeLobeName && defaultAgent) {
-      setActiveLobeName(defaultAgent);
-    }
-  }, [defaultAgent, activeLobeName]);
-
-  useEffect(() => {
-    if (lobes.length === 0 && status === 'running') {
-      refreshLobes();
-    }
-  }, [status, lobes.length, refreshLobes]);
-
-  useEffect(() => {
-    if (!activeLobeName && lobes.length > 0 && defaultAgent) {
-      setActiveLobeName(defaultAgent);
-    }
-  }, [lobes, activeLobeName, defaultAgent]);
-
-  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [activeConversation?.messages]);
-
-  const lobeDisplayName = (lobe: LobeInfo): string => {
-    return t(`lobes.${lobe.name}`, lobe.agent_card?.name || lobe.name);
-  };
-
-  const selectedLobe = lobes.find(l => l.name === activeLobeName);
 
   const handleNewConversation = () => {
     const conversation: Conversation = {
@@ -154,9 +121,7 @@ export function ConversationPage() {
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
           if (!conversationId || attempt > 0) {
-            const newConv = await cortexClient.createConversation({
-              agent: activeLobeName || defaultAgent || undefined,
-            });
+            const newConv = await cortexClient.createConversation({});
             conversationId = newConv.id;
             setSessionId(activeConversationId, conversationId);
           }
@@ -291,55 +256,6 @@ export function ConversationPage() {
                 </Button>
               </div>
             ))
-          )}
-        </div>
-
-        <div className="relative border-t border-border p-3">
-          <Button
-            variant="outline"
-            fullWidth
-            onClick={() => setShowAgentSelector(!showAgentSelector)}
-            disabled={lobes.length === 0}
-          >
-            <div className="flex flex-1 items-center gap-2 text-sm font-medium text-foreground">
-              <Bot size={16} />
-              <span>{selectedLobe ? lobeDisplayName(selectedLobe) : t('conversation.selectAgent')}</span>
-            </div>
-            <ChevronDown size={14} className="text-muted-foreground" />
-          </Button>
-
-          {showAgentSelector && (
-            <div className="absolute bottom-full left-3 right-3 mb-2 max-h-60 overflow-y-auto rounded-md border border-border bg-card p-2 shadow-lg">
-              {lobes.length === 0 ? (
-                <div className="px-3 py-4 text-center text-xs text-muted-foreground">
-                  {status === 'running' ? t('agents.noLobes') : t('agents.startCortexHint')}
-                </div>
-              ) : (
-                lobes.map((lobe) => (
-                  <div
-                    key={lobe.name}
-                    className={cn(
-                      'flex cursor-pointer items-center gap-2 rounded px-3 py-2 text-sm transition-colors hover:bg-muted',
-                      activeLobeName === lobe.name && 'bg-foreground/10'
-                    )}
-                    onClick={() => {
-                      setActiveLobeName(lobe.name);
-                      setShowAgentSelector(false);
-                    }}
-                  >
-                    <Bot size={16} className="text-muted-foreground" />
-                    <span className="flex-1 text-foreground">{lobeDisplayName(lobe)}</span>
-                    <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                      {t(`agents.lobeKind.${lobe.kind}`, lobe.kind)}
-                    </span>
-                    <span className={cn(
-                      'h-1.5 w-1.5 rounded-full',
-                      lobe.health_status === 'healthy' ? 'bg-green-500' : 'bg-muted-foreground'
-                    )} />
-                  </div>
-                ))
-              )}
-            </div>
           )}
         </div>
       </aside>
