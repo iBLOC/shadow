@@ -15,6 +15,7 @@ import '../screens/model_settings_screen.dart';
 import '../screens/prompt_settings_screen.dart';
 import '../screens/voice_conversation_screen.dart';
 import '../screens/livestream_screen.dart';
+import '../screens/customer_service_screen.dart';
 import '../screens/group_screen.dart';
 import '../screens/flows_screen.dart';
 import '../screens/discovery_screen.dart';
@@ -40,6 +41,7 @@ class AppRoutes {
   static const String promptSettings = '/settings/prompt';
   static const String voice = '/voice';
   static const String liveStream = '/livestream';
+  static const String customerService = '/customer-service';
   static const String group = '/group';
   static const String flows = '/flows';
   static const String discovery = '/discovery';
@@ -190,6 +192,15 @@ final GoRouter appRouter = GoRouter(
       pageBuilder: (context, state) => _fadePage(
         state,
         _wrapInShell(state, const LivestreamScreen()),
+      ),
+    ),
+    // Smart customer service mode (AI auto-answer calls via shadow-esp32)
+    GoRoute(
+      path: AppRoutes.customerService,
+      name: 'customerService',
+      pageBuilder: (context, state) => _fadePage(
+        state,
+        _wrapInShell(state, const CustomerServiceScreen()),
       ),
     ),
     // Group

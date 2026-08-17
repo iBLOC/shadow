@@ -420,6 +420,20 @@ export class CortexClient {
     });
   }
 
+  async registerExternalAgent(req: {
+    name: string;
+    endpoint: string;
+    description?: string;
+    skills?: string[];
+    version?: string;
+    provider_type?: string;
+  }): Promise<AgentMutationResult> {
+    return this.request<AgentMutationResult>('/api/cortex/admin/agents/register', {
+      method: 'POST',
+      body: JSON.stringify(req),
+    });
+  }
+
   async generateAgentDescription(systemPrompt: string): Promise<GeneratedDescription> {
     return this.request<GeneratedDescription>(
       '/api/cortex/admin/agents/generate-description',

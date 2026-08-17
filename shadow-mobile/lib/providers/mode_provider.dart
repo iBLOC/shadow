@@ -1,52 +1,58 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// v2.6 — Mode provider for the two main runtime shapes the
-// mobile app supports. The Provider holds the current
-// `ShadowOperationMode` (live-stream or voice-assistant) and
-// the audio output device (`ShadowOutputRoute`). Other widgets
-// read these to switch between the digital-human live-streaming
-// screen and the existing voice-conversation screen, and to
-// pick where the synthesised audio lands (phone speaker, BLE
-// headset, or shadow-esp32 USB).
+// v2.8 — Mode provider for three runtime shapes:
+//   1. liveStream — phone TTS to shadow-esp32 (one-way)
+//   2. voiceAssistant — bi-directional voice with LLM
+//   3. customerService — phone call with AI auto-answer
+//
+// All three modes use the same shadow-esp32 USB Audio sink.
+// The difference is which audio sources are active and whether
+// the phone's cellular call is involved.
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 enum ShadowOperationMode {
-  /// Phone hosts the digital human avatar; TTS audio is pushed
-  /// to shadow-esp32 over USB Audio. The lib/widgets/live2d
-  /// and lib/screens/digital_human_screen.dart pair implement
-  /// this end.
+  /// Phone hosts TTS playback. shadow-esp32 is USB Audio sink.
   liveStream,
 
-  /// Phone is a passive voice assistant: mic capture (I²S) on
-  /// shadow-esp32 → ASR → LLM (cortex or on-device LiteRT) →
-  /// TTS → shadow-esp32 USB Audio → speaker. The existing
-  /// `voice_conversation_screen.dart` is the UI surface.
+  /// Phone runs ASR + LLM + TTS. shadow-esp32 is USB Audio sink + mic source.
   voiceAssistant,
+
+  /// Phone answers cellular calls with AI auto-reply.
+  /// Shadow-esp32 is USB Audio sink (caller voice + AI TTS).
+  /// Human can takeover with wired earphone.
+  customerService,
 }
 
 enum ShadowOutputRoute {
   /// Built-in phone speaker or wired headset.
   phoneSpeaker,
 
-  /// Bluetooth A2DP output. shadow-mobile routes the stream
-  /// through the system AudioManager. The pair happens on
-  /// Settings → Bluetooth on the phone; shadow-esp32 is not
-  /// involved in pairing.
+  /// Bluetooth A2DP output.
   bluetoothHeadset,
 
-  /// shadow-esp32 USB Audio Class 1.0 sink. v2.4 of the firmware
-  /// enumerates as a USB audio device; v2.5 of mobile routes
-  /// there via `UsbAudioRouter.routeTo`.
+  /// shadow-esp32 USB Audio Class 1.0 sink.
   shadowEsp32,
 }
 
+/// Current mode.
 final shadowOperationModeProvider =
     StateProvider<ShadowOperationMode>(
-  (ref) => ShadowOperationMode.voiceAssistant,
+  (ref) => ShadowOperationMode.customerService,
 );
 
+/// Current output route.
 final shadowOutputRouteProvider =
     StateProvider<ShadowOutputRoute>(
   (ref) => ShadowOutputRoute.shadowEsp32,
+);
+
+/// Is the phone in a call? Updated by InCallService on Android.
+final isPhoneCallActiveProvider = StateProvider<bool>(
+  (ref) => false,
+);
+
+/// Has the wired earphone takeover happened?
+final isEarphoneTakeoverProvider = StateProvider<bool>(
+  (ref) => false,
 );

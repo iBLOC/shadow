@@ -1,6 +1,6 @@
 # PROJECT KNOWLEDGE BASE — shadow-mobile
 
-**Updated:** 2026-08-16 (v2.5 — BLE provisioning of shadow-esp32 + USB Audio routing for digital-human livestream PoC; complements shadow-esp32 v2.4/v2.5)
+**Updated:** 2026-08-18 (v2.8 — smart customer service mode + InCallService + USB/earphone auto-routing; complements shadow-esp32 v2.4/v2.5/v2.7)
 **Project:** shadow-mobile (Layer 4 Interaction + thin on-device Engine via Kotlin Native)
 
 > **Note (2026-07-19)**: This doc was previously framed as a "Layer 4 + Layer 2 hybrid" with 3 user-configurable modes. That framing predates **Cortex** (Layer 3.5). Current architecture: mobile is **primarily Layer 4** (Flutter UI); the on-device inference capability lives in the **Kotlin Native** layer (OpenAIServer.kt + LiteRT/MNN), exposed as a sidecar HTTP server on `:8085` when the user opts in. The default mobile flow routes everything through **cortex** (`:60080`).
@@ -25,12 +25,13 @@ The mobile app should NOT directly know about LLM/TTS/ASR internals. It only:
 5. Renders UI (Flutter 3.11+ with Riverpod 2.5 + GoRouter 14.8)
 6. Surfaces native-platform capabilities (Android Accessibility for automation, MNN/LiteRT for on-device inference)
 
-## OPERATING MODES (v2.6+ — post 2026-08-16 refactoring)
+## OPERATING MODES (v2.8+ — post 2026-08-18)
 
 | Mode | Path | Route | What happens |
 |---|---|---|---|
-| **Voice Assistant** (default) | `/voice` | mic → ASR → LLM (cortex or LiteRT) → TTS → shadow-esp32 USB / phone / BT | Interactive speech dialog. phone runs everything; shadow-esp32 is USB Audio sink only. |
+| **Voice Assistant** (default) | `/voice` | mic → ASR → LLM (cortex or LiteRT) → TTS → shadow-esp32 USB / phone / BT | Interactive speech dialog. phone runs everything; shadow-esp32 is USB Audio sink + mic source. |
 | **Live Stream** | `/livestream` | phone TTS text input → TTS → shadow-esp32 USB / phone / BT | TTS playback / read-aloud mode. shadow-esp32 is USB Audio sink only. |
+| **Customer Service** | `/customer-service` | phone cellular call → shadow-esp32 USB / wired earphone | AI auto-answer phone calls. shadow-esp32 plays caller voice + AI TTS. Earphone takeover when plugged in. |
 
 Both modes route audio via `UsbAudioRouter` (v2.5) to whichever output the user selects in the screen header:
 
@@ -58,6 +59,7 @@ The `ShadowOperationModeProvider` / `ShadowOutputRouteProvider` Riverpod state h
 | `com.ibloc.shadow/engine` | ⇅ | Phone-as-Engine OpenAI server |
 | `com.ibloc.shadow/ble_provision` | **v2.5** ⇅ | `provision(ssid, psk)` writes shadow-esp32 Wi-Fi creds via GATT |
 | `com.ibloc.shadow/usb_audio` | **v2.5** ⇅ | `listRoutes` / `routeTo(id)` route Android audio to shadow-esp32 USB sink |
+| `com.ibloc.shadow/call_state` | **v2.8** ⇅ | InCallService call events: `onCallState(idle/ringing/active/ended)`, `onEarphoneTakeover(taken)`, `setAiAutoAnswer(enabled)`, `setPreferredDevice(device)` |
 
 > **Design note (v2.6+):** `com.ibloc.shadow/ble_provision` and `com.ibloc.shadow/usb_audio` were added in v2.5 to support the BLE provisioning flow. The `voice_conversation_screen.dart` and `livestream_screen.dart` screens automatically call `UsbAudioRouter.routeTo()` on initialization when they detect a connected shadow-esp32 — no explicit user-tap needed after initial provisioning.
 
