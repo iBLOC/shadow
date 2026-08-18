@@ -140,44 +140,64 @@ describe('Settings Flow E2E', () => {
   });
 
   it('renders language selector with current value en-US', async () => {
-  renderWithRouter(<SettingsPage />);
+    renderWithRouter(<SettingsPage />);
 
-  await waitFor(() => {
-  const comboboxes = screen.getAllByRole('combobox');
-  const langSelect = comboboxes.find(
-  (el) => el.textContent?.includes('en-US')
-  );
-  expect(langSelect).toBeInTheDocument();
-  });
+    const uiButton = screen.getByRole('button', { name: /settings.section.ui/i });
+    fireEvent.click(uiButton);
+
+    await waitFor(() => {
+      const comboboxes = screen.getAllByRole('combobox');
+      const langSelect = comboboxes.find(
+        (el) => el.textContent?.includes('en-US')
+      );
+      expect(langSelect).toBeInTheDocument();
+    });
   });
 
   it('calls i18n.changeLanguage when language select changed', async () => {
-  renderWithRouter(<SettingsPage />);
+    renderWithRouter(<SettingsPage />);
 
-  const comboboxes = await screen.findAllByRole('combobox');
-  const langSelect = comboboxes.find(
-  (el) => el.textContent?.includes('en-US')
-  ) as HTMLElement;
-  fireEvent.click(langSelect);
-  const zhOption = await screen.findByRole('option', { name: /zh-CN/i });
-  fireEvent.click(zhOption);
+    const uiButton = screen.getByRole('button', { name: /settings.section.ui/i });
+    fireEvent.click(uiButton);
 
-  await waitFor(() => {
-  expect(changeLanguageMock).toHaveBeenCalledWith('zh-CN');
- });
- });
+    await waitFor(() => {
+      expect(screen.getByText('settings.languageLabel')).toBeInTheDocument();
+    });
 
- it('renders theme buttons (light and dark)', async () => {
- renderWithRouter(<SettingsPage />);
+    const comboboxes = await screen.findAllByRole('combobox');
+    const langSelect = comboboxes.find(
+      (el) => el.textContent?.includes('en-US')
+    ) as HTMLElement;
+    fireEvent.click(langSelect);
+    const zhOption = await screen.findByRole('option', { name: /zh-CN/i });
+    fireEvent.click(zhOption);
 
- await waitFor(() => {
- expect(screen.getByText('settings.light')).toBeInTheDocument();
- expect(screen.getByText('settings.dark')).toBeInTheDocument();
- });
- });
+    await waitFor(() => {
+      expect(changeLanguageMock).toHaveBeenCalledWith('zh-CN');
+    });
+  });
+
+  it('renders theme buttons (light and dark)', async () => {
+    renderWithRouter(<SettingsPage />);
+
+    const uiButton = screen.getByRole('button', { name: /settings.section.ui/i });
+    fireEvent.click(uiButton);
+
+    await waitFor(() => {
+      expect(screen.getByText('settings.light')).toBeInTheDocument();
+      expect(screen.getByText('settings.dark')).toBeInTheDocument();
+    });
+  });
 
   it('calls setTheme when light theme button clicked', async () => {
     renderWithRouter(<SettingsPage />);
+
+    const uiButton = screen.getByRole('button', { name: /settings.section.ui/i });
+    fireEvent.click(uiButton);
+
+    await waitFor(() => {
+      expect(screen.getByText('settings.themeLabel')).toBeInTheDocument();
+    });
 
     const lightButton = await screen.findByRole('button', {
       name: /settings.light/i,
@@ -191,6 +211,13 @@ describe('Settings Flow E2E', () => {
 
   it('calls setTheme when dark theme button clicked', async () => {
     renderWithRouter(<SettingsPage />);
+
+    const uiButton = screen.getByRole('button', { name: /settings.section.ui/i });
+    fireEvent.click(uiButton);
+
+    await waitFor(() => {
+      expect(screen.getByText('settings.themeLabel')).toBeInTheDocument();
+    });
 
     const darkButton = await screen.findByRole('button', {
       name: /settings.dark/i,

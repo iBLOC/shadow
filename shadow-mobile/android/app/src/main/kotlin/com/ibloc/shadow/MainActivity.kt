@@ -709,11 +709,6 @@ class MainActivity : FlutterActivity() {
                     scope.launch {
                         try {
                             val routes = router.listSinks()
-                                .map { r -> mapOf(
-                                    "id" to r.id,
-                                    "name" to r.name,
-                                    "isUsb" to r.isUsb,
-                                ) }
                             result.success(routes)
                         } catch (e: Exception) {
                             result.error("USB_AUDIO_LIST", e.message, null)

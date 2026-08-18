@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { SettingsPage } from '../../src/pages/SettingsPage';
 
@@ -108,8 +108,11 @@ describe('Database Flow E2E', () => {
   it('shows theme section', async () => {
     renderWithRouter();
 
+    const uiButton = screen.getByRole('button', { name: /settings.section.ui/i });
+    fireEvent.click(uiButton);
+
     await waitFor(() => {
-      expect(screen.getByText('settings.theme')).toBeInTheDocument();
+      expect(screen.getByText('settings.themeLabel')).toBeInTheDocument();
     });
   });
 

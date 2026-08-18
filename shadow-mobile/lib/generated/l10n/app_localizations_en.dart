@@ -469,4 +469,102 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get drafts => 'Drafts';
+
+  @override
+  String get liveStreamMode => 'Live Stream';
+
+  @override
+  String get audioOutput => 'Audio Output';
+
+  @override
+  String get routePhoneSpeaker => 'Phone Speaker';
+
+  @override
+  String get routeBluetoothHeadset => 'Bluetooth';
+
+  @override
+  String get routeShadowEsp32 => 'shadow-esp32';
+
+  @override
+  String get shadowEsp32ReceivesAudio => 'shadow-esp32 is receiving audio';
+
+  @override
+  String get routeViaBluetoothA2dp => 'via Bluetooth';
+
+  @override
+  String get routeViaPhoneSpeaker => 'via phone speaker';
+
+  @override
+  String get modeMismatch =>
+      'Current mode does not match this screen. Tap the mic icon in the top-right to switch to voice mode.';
+
+  @override
+  String get openVoiceMode => 'Voice Assistant';
+
+  @override
+  String get ttsInputLabel => 'Text to speak';
+
+  @override
+  String get ttsInputHint => 'Type what the digital human should say…';
+
+  @override
+  String get startTts => 'Start';
+
+  @override
+  String get stopTts => 'Stop';
+
+  @override
+  String routeSelected(String device) {
+    return 'Output: $device';
+  }
+
+  @override
+  String get digitalHumanTtsNow => 'Live Stream Mode';
+
+  @override
+  String get shadowEsp32PlayingFromUsbAudio =>
+      'shadow-esp32 connected via USB Audio';
+
+  @override
+  String get customerServiceMode => 'Customer Service';
+
+  @override
+  String get callState => 'Call State';
+
+  @override
+  String get callStateIdle => 'Idle';
+
+  @override
+  String get callStateRinging => 'Ringing';
+
+  @override
+  String get callStateActive => 'Active';
+
+  @override
+  String get callStateEnded => 'Ended';
+
+  @override
+  String get earphoneTakeoverActive =>
+      'Wired earphone detected — audio routed to earphone for human takeover.';
+
+  @override
+  String get earphoneTakeoverAudioRouteNote =>
+      'When earphone is connected, call audio automatically routes to earphone. Plug it back out to route to shadow-esp32.';
+
+  @override
+  String get aiAutoAnswer => 'AI Auto-Answer';
+
+  @override
+  String get aiAutoAnswerDesc =>
+      'Automatically answer incoming calls and respond with AI (cortex / LiteRT).';
+
+  @override
+  String get endCall => 'End Call';
+
+  @override
+  String get openLiveStreamMode => 'Live Stream';
+
+  @override
+  String get customerServiceHint =>
+      'AI will answer incoming calls and reply using the LLM. Shadow-esp32 plays caller voice and AI response. Plug earphone to take over.';
 }

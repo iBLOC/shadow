@@ -14,10 +14,9 @@
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN"
                      android:usesPermissionFlags="neverForLocation"/>
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
-    <!-- v2.8 — call detection for smart customer service mode -->
-    <uses-permission android:name="android.permission.READ_PHONE_STATE"/>
-    <uses-permission android:name="android.permission.CALL_PHONE"/>
-    <uses-permission android:name="android.permission.ANSWER_PHONE_CALLS"/>
+    <!-- v2.8 — shadow-esp32 mic as USB Audio IN for phone -->
+    <!-- No special permissions needed — Android routes USB Audio IN -->
+    <!-- to AudioRecord automatically when USB Audio device is preferred -->
 
     <application
         android:label="@string/app_name"

@@ -21,7 +21,6 @@ import '../screens/flows_screen.dart';
 import '../screens/discovery_screen.dart';
 import '../screens/logs_screen.dart';
 import '../screens/resonance_screen.dart';
-import '../screens/digital_human_screen.dart';
 import '../widgets/main_shell.dart';
 
 /// Route names

@@ -44,14 +44,9 @@ class UsbAudioRouter(private val context: Context) {
         val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
         am.mode = AudioManager.MODE_NORMAL
         am.isSpeakerphoneOn = false
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            // API 31+ — preferredDevice is the modern path.
-            am.preferredDevice = am.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
-                .firstOrNull { it.id == deviceId }
-        }
         // requestAudioFocus to actually activate the route.
         am.requestAudioFocus(null, AudioManager.STREAM_MUSIC,
                              AudioManager.AUDIOFOCUS_GAIN)
-        Log.i(TAG, "routeTo: deviceId=$deviceId set preferredDevice (if API31+)")
+        Log.i(TAG, "routeTo: deviceId=$deviceId, set MODE_NORMAL + speakerphoneOff")
     }
 }

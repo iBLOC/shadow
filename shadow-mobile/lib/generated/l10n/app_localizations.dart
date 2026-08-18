@@ -955,6 +955,186 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Drafts'**
   String get drafts;
+
+  /// No description provided for @liveStreamMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Live Stream'**
+  String get liveStreamMode;
+
+  /// No description provided for @audioOutput.
+  ///
+  /// In en, this message translates to:
+  /// **'Audio Output'**
+  String get audioOutput;
+
+  /// No description provided for @routePhoneSpeaker.
+  ///
+  /// In en, this message translates to:
+  /// **'Phone Speaker'**
+  String get routePhoneSpeaker;
+
+  /// No description provided for @routeBluetoothHeadset.
+  ///
+  /// In en, this message translates to:
+  /// **'Bluetooth'**
+  String get routeBluetoothHeadset;
+
+  /// No description provided for @routeShadowEsp32.
+  ///
+  /// In en, this message translates to:
+  /// **'shadow-esp32'**
+  String get routeShadowEsp32;
+
+  /// No description provided for @shadowEsp32ReceivesAudio.
+  ///
+  /// In en, this message translates to:
+  /// **'shadow-esp32 is receiving audio'**
+  String get shadowEsp32ReceivesAudio;
+
+  /// No description provided for @routeViaBluetoothA2dp.
+  ///
+  /// In en, this message translates to:
+  /// **'via Bluetooth'**
+  String get routeViaBluetoothA2dp;
+
+  /// No description provided for @routeViaPhoneSpeaker.
+  ///
+  /// In en, this message translates to:
+  /// **'via phone speaker'**
+  String get routeViaPhoneSpeaker;
+
+  /// No description provided for @modeMismatch.
+  ///
+  /// In en, this message translates to:
+  /// **'Current mode does not match this screen. Tap the mic icon in the top-right to switch to voice mode.'**
+  String get modeMismatch;
+
+  /// No description provided for @openVoiceMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Voice Assistant'**
+  String get openVoiceMode;
+
+  /// No description provided for @ttsInputLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Text to speak'**
+  String get ttsInputLabel;
+
+  /// No description provided for @ttsInputHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Type what the digital human should say…'**
+  String get ttsInputHint;
+
+  /// No description provided for @startTts.
+  ///
+  /// In en, this message translates to:
+  /// **'Start'**
+  String get startTts;
+
+  /// No description provided for @stopTts.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop'**
+  String get stopTts;
+
+  /// No description provided for @routeSelected.
+  ///
+  /// In en, this message translates to:
+  /// **'Output: {device}'**
+  String routeSelected(String device);
+
+  /// No description provided for @digitalHumanTtsNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Live Stream Mode'**
+  String get digitalHumanTtsNow;
+
+  /// No description provided for @shadowEsp32PlayingFromUsbAudio.
+  ///
+  /// In en, this message translates to:
+  /// **'shadow-esp32 connected via USB Audio'**
+  String get shadowEsp32PlayingFromUsbAudio;
+
+  /// No description provided for @customerServiceMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Customer Service'**
+  String get customerServiceMode;
+
+  /// No description provided for @callState.
+  ///
+  /// In en, this message translates to:
+  /// **'Call State'**
+  String get callState;
+
+  /// No description provided for @callStateIdle.
+  ///
+  /// In en, this message translates to:
+  /// **'Idle'**
+  String get callStateIdle;
+
+  /// No description provided for @callStateRinging.
+  ///
+  /// In en, this message translates to:
+  /// **'Ringing'**
+  String get callStateRinging;
+
+  /// No description provided for @callStateActive.
+  ///
+  /// In en, this message translates to:
+  /// **'Active'**
+  String get callStateActive;
+
+  /// No description provided for @callStateEnded.
+  ///
+  /// In en, this message translates to:
+  /// **'Ended'**
+  String get callStateEnded;
+
+  /// No description provided for @earphoneTakeoverActive.
+  ///
+  /// In en, this message translates to:
+  /// **'Wired earphone detected — audio routed to earphone for human takeover.'**
+  String get earphoneTakeoverActive;
+
+  /// No description provided for @earphoneTakeoverAudioRouteNote.
+  ///
+  /// In en, this message translates to:
+  /// **'When earphone is connected, call audio automatically routes to earphone. Plug it back out to route to shadow-esp32.'**
+  String get earphoneTakeoverAudioRouteNote;
+
+  /// No description provided for @aiAutoAnswer.
+  ///
+  /// In en, this message translates to:
+  /// **'AI Auto-Answer'**
+  String get aiAutoAnswer;
+
+  /// No description provided for @aiAutoAnswerDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatically answer incoming calls and respond with AI (cortex / LiteRT).'**
+  String get aiAutoAnswerDesc;
+
+  /// No description provided for @endCall.
+  ///
+  /// In en, this message translates to:
+  /// **'End Call'**
+  String get endCall;
+
+  /// No description provided for @openLiveStreamMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Live Stream'**
+  String get openLiveStreamMode;
+
+  /// No description provided for @customerServiceHint.
+  ///
+  /// In en, this message translates to:
+  /// **'AI will answer incoming calls and reply using the LLM. Shadow-esp32 plays caller voice and AI response. Plug earphone to take over.'**
+  String get customerServiceHint;
 }
 
 class _AppLocalizationsDelegate

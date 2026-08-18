@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { SettingsPage } from '../../src/pages/SettingsPage';
 
@@ -100,13 +100,13 @@ describe('SettingsPage', () => {
 
   it('renders page header', async () => {
     renderWithRouter(<SettingsPage />);
-    
+
     await waitFor(() => {
       expect(screen.getByText('settings.title')).toBeInTheDocument();
     });
   });
 
-  it('renders cortex status section', async () => {
+  it('renders service section by default', async () => {
     renderWithRouter(<SettingsPage />);
 
     await waitFor(() => {
@@ -114,24 +114,33 @@ describe('SettingsPage', () => {
     });
   });
 
-  it('renders language selector section', async () => {
+  it('renders language selector when switching to UI section', async () => {
     renderWithRouter(<SettingsPage />);
-    
+
+    const uiButton = screen.getByRole('button', { name: /settings.section.ui/i });
+    fireEvent.click(uiButton);
+
     await waitFor(() => {
-      expect(screen.getAllByText('settings.language').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByText('settings.languageLabel')).toBeInTheDocument();
     });
   });
 
-  it('renders theme selector', async () => {
+  it('renders theme selector when switching to UI section', async () => {
     renderWithRouter(<SettingsPage />);
-    
+
+    const uiButton = screen.getByRole('button', { name: /settings.section.ui/i });
+    fireEvent.click(uiButton);
+
     await waitFor(() => {
-      expect(screen.getByText('settings.theme')).toBeInTheDocument();
+      expect(screen.getByText('settings.themeLabel')).toBeInTheDocument();
     });
   });
 
   it.skip('renders system tray controls', async () => {
     renderWithRouter(<SettingsPage />);
+
+    const systemButton = screen.getByRole('button', { name: /settings.section.system/i });
+    fireEvent.click(systemButton);
 
     await waitFor(() => {
       expect(screen.getByText('settings.systemTray')).toBeInTheDocument();

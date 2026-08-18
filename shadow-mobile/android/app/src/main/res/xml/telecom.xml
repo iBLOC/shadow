@@ -1,12 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  v2.8 — telecom.xml for the shadow InCallService.
-  Declares that this service wants to be notified of calls and
-  can route audio. Required for BIND_INCALL_SERVICE permission
-  on Android 12+.
--->
-<telecom-telecom xmlns:android="http://schemas.android.com/apk/res/android">
-  <abilities>
-    <ability android:supportedAudioRoutes="speaker|earpiece|wired_headset|usb"/>
-  </abilities>
-</telecom-telecom>
+<incall-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:name="com.ibloc.shadow.ShadowInCallService"
+    android:label="Shadow"
+    android:permission="android.permission.BIND_INCALL_SERVICE">
+    <intent-filter>
+        <action android:name="android.telecom.InCallService" />
+    </intent-filter>
+</incall-service>

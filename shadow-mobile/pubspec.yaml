@@ -22,6 +22,11 @@ dependencies:
   path_provider: ^2.1.0
   connectivity_plus: ^6.0.0
 
+  # v2.5 BLE provisioning of shadow-esp32
+  flutter_blue_plus: ^1.31.0
+  # v2.4 USB Audio device detection/routing
+  usb_serial: ^0.5.0
+
   # Database
   sqflite: ^2.3.0
   path: ^1.8.0

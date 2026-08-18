@@ -465,4 +465,98 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get drafts => '草稿';
+
+  @override
+  String get liveStreamMode => '直播模式';
+
+  @override
+  String get audioOutput => '音频输出';
+
+  @override
+  String get routePhoneSpeaker => '手机扬声器';
+
+  @override
+  String get routeBluetoothHeadset => '蓝牙';
+
+  @override
+  String get routeShadowEsp32 => 'shadow-esp32';
+
+  @override
+  String get shadowEsp32ReceivesAudio => 'shadow-esp32 正在接收音频';
+
+  @override
+  String get routeViaBluetoothA2dp => '通过蓝牙';
+
+  @override
+  String get routeViaPhoneSpeaker => '通过手机扬声器';
+
+  @override
+  String get modeMismatch => '当前模式与此页面不匹配。点击右上角麦克风图标切换到语音模式。';
+
+  @override
+  String get openVoiceMode => '语音助手';
+
+  @override
+  String get ttsInputLabel => '朗读文本';
+
+  @override
+  String get ttsInputHint => '输入数字人要说的话…';
+
+  @override
+  String get startTts => '开始';
+
+  @override
+  String get stopTts => '停止';
+
+  @override
+  String routeSelected(String device) {
+    return '输出: $device';
+  }
+
+  @override
+  String get digitalHumanTtsNow => '直播模式';
+
+  @override
+  String get shadowEsp32PlayingFromUsbAudio => 'shadow-esp32 已通过 USB Audio 连接';
+
+  @override
+  String get customerServiceMode => '智能客服';
+
+  @override
+  String get callState => '通话状态';
+
+  @override
+  String get callStateIdle => '待机';
+
+  @override
+  String get callStateRinging => '响铃';
+
+  @override
+  String get callStateActive => '通话中';
+
+  @override
+  String get callStateEnded => '已结束';
+
+  @override
+  String get earphoneTakeoverActive => '检测到有线耳机 — 音频已切到耳机，便于人接管。';
+
+  @override
+  String get earphoneTakeoverAudioRouteNote =>
+      '耳机插入时，通话音频自动切到耳机；拔出后自动切回 shadow-esp32。';
+
+  @override
+  String get aiAutoAnswer => 'AI 自动应答';
+
+  @override
+  String get aiAutoAnswerDesc => '自动接听来电并用 LLM 自动回复（cortex / LiteRT）。';
+
+  @override
+  String get endCall => '挂断';
+
+  @override
+  String get openLiveStreamMode => '直播模式';
+
+  @override
+  String get customerServiceHint =>
+      'AI 会自动接听电话并回复。shadow-esp32 播放来电方语音和 AI 回复。插入耳机后自动切到耳机。';
 }

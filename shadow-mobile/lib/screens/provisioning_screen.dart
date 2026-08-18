@@ -41,14 +41,14 @@ class _ProvisioningScreenState extends ConsumerState<ProvisioningScreen> {
 
   Future<void> _startScan() async {
     setState(() => _scanning = true);
-    bleProvisioningPhaseProvider.state = const BleProvisionResult(
+    ref.read(bleProvisioningPhaseProvider.notifier).state = const BleProvisionResult(
       phase: BleProvisionPhase.idle,
     );
     await _ble.provision(
       ssid: _ssidCtl.text,
       psk:  _pskCtl.text,
-      onUpdate: (r) {
-        bleProvisioningPhaseProvider.state = r;
+      onUpdate: (r) async {
+        ref.read(bleProvisioningPhaseProvider.notifier).state = r;
         if (r.phase == BleProvisionPhase.connected) {
           // The shadow-esp32 just joined the Wi-Fi network. Try
           // to switch this phone's audio output to it so the

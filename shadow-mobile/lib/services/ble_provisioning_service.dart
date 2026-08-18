@@ -71,7 +71,7 @@ class BleProvisionResult {
 }
 
 class BleProvisioningService {
-  Stream<dynamic>? _resultsSubscription;
+  StreamSubscription<dynamic>? _resultsSubscription;
   BluetoothDevice? _device;
   BluetoothCharacteristic? _charSsid;
   BluetoothCharacteristic? _charPsk;
@@ -87,9 +87,11 @@ class BleProvisioningService {
   }) async {
     onUpdate(const BleProvisionResult(phase: BleProvisionPhase.scanning));
 
-    _resultsSubscription = FlutterBluePlus.scanResults(
-      timeout: const Duration(seconds: 8),
-    ).listen((results) async {
+    // flutter_blue_plus scanResults is a getter; startScan drives
+    // the actual scan. The stream listener receives updates for
+    // every batch of scan results, including the device name
+    // metadata. We keep the subscription alive while scanning.
+    _resultsSubscription = FlutterBluePlus.scanResults.listen((results) async {
       for (final r in results) {
         final name = r.device.platformName;
         if (name.contains(ProvisioningUuids.deviceNameFragment)) {
@@ -99,16 +101,14 @@ class BleProvisioningService {
             deviceName: name,
             deviceAddress: r.device.remoteId.str,
           ));
+          await FlutterBluePlus.stopScan();
           await _connectAndWrite(ssid: ssid, psk: psk, onUpdate: onUpdate);
           return;
         }
       }
     });
 
-    // Stop scanning after 8 s.
-    await Future.delayed(const Duration(seconds: 8), () async {
-      await FlutterBluePlus.stopScan();
-    });
+    await FlutterBluePlus.startScan(timeout: const Duration(seconds: 8));
   }
 
   Future<void> _connectAndWrite({
@@ -130,55 +130,56 @@ class BleProvisioningService {
       deviceAddress: dev.remoteId.str,
     ));
 
-    await dev.connect(timeout: const Duration(seconds: 10));
-    onUpdate(BleProvisionResult(
-      phase: BleProvisionPhase.discoveringServices,
-      deviceName: dev.platformName,
-      deviceAddress: dev.remoteId.str,
-    ));
-    await dev.discoverServices();
-    final services = await dev.discoverServices();
-    final svc = services.firstWhere(
-      (s) => s.uuid == ProvisioningUuids.service,
-      orElse: () => throw StateError('shadow provisioning service not found'),
-    );
-    _charSsid  = svc.characteristics.firstWhere((c) => c.uuid == ProvisioningUuids.charSsid);
-    _charPsk   = svc.characteristics.firstWhere((c) => c.uuid == ProvisioningUuids.charPsk);
-    _charStatus = svc.characteristics.firstWhere((c) => c.uuid == ProvisioningUuids.charStatus);
+    try {
+      await dev.connect(timeout: const Duration(seconds: 10));
+      onUpdate(BleProvisionResult(
+        phase: BleProvisionPhase.discoveringServices,
+        deviceName: dev.platformName,
+        deviceAddress: dev.remoteId.str,
+      ));
+      await dev.discoverServices();
+      final services = await dev.discoverServices();
+      final svc = services.firstWhere(
+        (s) => s.uuid == ProvisioningUuids.service,
+        orElse: () => throw StateError('shadow provisioning service not found'),
+      );
+      _charSsid  = svc.characteristics.firstWhere((c) => c.uuid == ProvisioningUuids.charSsid);
+      _charPsk   = svc.characteristics.firstWhere((c) => c.uuid == ProvisioningUuids.charPsk);
+      _charStatus = svc.characteristics.firstWhere((c) => c.uuid == ProvisioningUuids.charStatus);
 
-    onUpdate(BleProvisionResult(
-      phase: BleProvisionPhase.writingCredentials,
-      deviceName: dev.platformName,
-      deviceAddress: dev.remoteId.str,
-      ssid: ssid,
-    ));
-    await _charSsid!.write(utf8.encode(ssid), withoutResponse: true);
-    await _charPsk!.write(utf8.encode(psk), withoutResponse: true);
+      onUpdate(BleProvisionResult(
+        phase: BleProvisionPhase.writingCredentials,
+        deviceName: dev.platformName,
+        deviceAddress: dev.remoteId.str,
+        ssid: ssid,
+      ));
+      await _charSsid!.write(utf8.encode(ssid), withoutResponse: true);
+      await _charPsk!.write(utf8.encode(psk), withoutResponse: true);
 
-    onUpdate(BleProvisionResult(
-      phase: BleProvisionPhase.readingStatus,
-      deviceName: dev.platformName,
-      deviceAddress: dev.remoteId.str,
-      ssid: ssid,
-    ));
-    final raw = await _charStatus!.read();
-    final status = utf8.decode(raw);
+      onUpdate(BleProvisionResult(
+        phase: BleProvisionPhase.readingStatus,
+        deviceName: dev.platformName,
+        deviceAddress: dev.remoteId.str,
+        ssid: ssid,
+      ));
+      final raw = await _charStatus!.read();
+      final status = utf8.decode(raw);
 
-    onUpdate(BleProvisionResult(
-      phase: BleProvisionPhase.connected,
-      deviceName: dev.platformName,
-      deviceAddress: dev.remoteId.str,
-      ssid: ssid,
-      status: status,
-    ));
-  } catch (e) {
-    onUpdate(BleProvisionResult(
-      phase: BleProvisionPhase.failed,
-      error: e.toString(),
-    ));
-  } finally {
-    await _device?.disconnect();
-  }
+      onUpdate(BleProvisionResult(
+        phase: BleProvisionPhase.connected,
+        deviceName: dev.platformName,
+        deviceAddress: dev.remoteId.str,
+        ssid: ssid,
+        status: status,
+      ));
+    } catch (e) {
+      onUpdate(BleProvisionResult(
+        phase: BleProvisionPhase.failed,
+        error: e.toString(),
+      ));
+    } finally {
+      await _device?.disconnect();
+    }
   }
 
   Future<void> stop() async {
@@ -188,15 +189,13 @@ class BleProvisioningService {
   }
 }
 
-/// Provider so the provisioning screen can drive the service and
-/// observe the latest phase without owning it.
-final bleProvisioningServiceProvider = Provider<(({
-  required String ssid,
-  required String psk,
-  required void Function(BleProvisionResult) onUpdate,
-}) future)>(
-  (ref) => null,
-);
+/// Riverpod provider so provisioning_screen.dart can watch phase
+/// and drive the service without owning it.
+final bleProvisioningServiceProvider = Provider<BleProvisioningService>((ref) {
+  final svc = BleProvisioningService();
+  ref.onDispose(() => svc.stop());
+  return svc;
+});
 
 final bleProvisioningPhaseProvider = StateProvider<BleProvisionResult>(
   (ref) => const BleProvisionResult(phase: BleProvisionPhase.idle),
