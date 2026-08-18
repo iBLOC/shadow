@@ -321,7 +321,22 @@ export class CortexClient {
       { method: 'POST', headers, body: JSON.stringify(req) },
     );
     if (!resp.ok || !resp.body) {
-      throw new Error(`cortex stream ${resp.status}: ${resp.statusText}`);
+      let errorMsg = `cortex stream ${resp.status}: ${resp.statusText}`;
+      try {
+        const errorBody = await resp.text();
+        if (errorBody) {
+          const parsed = JSON.parse(errorBody);
+          if (parsed.error && parsed.error.message) {
+            errorMsg = parsed.error.message;
+            if (parsed.error.hint) {
+              errorMsg += ` (${parsed.error.hint})`;
+            }
+          }
+        }
+      } catch {
+        // ignore parse errors
+      }
+      throw new Error(errorMsg);
     }
     const reader = resp.body.getReader();
     const decoder = new TextDecoder();

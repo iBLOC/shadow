@@ -132,7 +132,6 @@ export function ConversationPage() {
             if (event.type === 'delta' && event.delta) {
               accumulated += event.delta;
             } else if (event.type === 'done') {
-              // Try to parse accumulated as a ChatBI-structured response
               if (accumulated.trim().startsWith('{')) {
                 try {
                   const parsed = JSON.parse(accumulated);
