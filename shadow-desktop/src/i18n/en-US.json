@@ -114,7 +114,8 @@
     "logs": "Error Log",
     "settings": "Settings",
     "flows": "Flows",
-    "resonance": "Resonance"
+    "resonance": "Resonance",
+    "trace": "Trace"
   },
   "conversation": {
     "title": "Conversation",

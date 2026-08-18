@@ -114,7 +114,8 @@
     "logs": "错误日志",
     "settings": "设置",
     "flows": "思维定式",
-    "resonance": "共鸣"
+    "resonance": "共鸣",
+    "trace": "执行追踪"
   },
   "conversation": {
     "title": "对话",

@@ -23,6 +23,7 @@ import { GroupPage } from './pages/GroupPage';
 import { ResonancePage } from './pages/ResonancePage';
 import { ModelOnboardingPage } from './pages/ModelOnboardingPage';
 import { ProvidersPage } from './pages/ProvidersPage';
+import { TracePage } from './pages/TracePage';
 import './App.css';
 
 function App() {
@@ -55,6 +56,7 @@ function App() {
           <Route path="flows" element={<FlowsPage />} />
           <Route path="resonance" element={<ResonancePage />} />
           <Route path="providers" element={<ProvidersPage />} />
+          <Route path="trace" element={<TracePage />} />
         </Route>
       </Routes>
     </BrowserRouter>
