@@ -897,5 +897,15 @@
     "recommended": "Recommended",
     "skipForNow": "Configure Later",
     "checking": "Checking model configuration…"
+  },
+  "update": {
+    "title": "Update Available",
+    "check": "Check for Updates",
+    "noUpdates": "No updates available",
+    "available": "Version {{version}} is available",
+    "downloading": "Downloading... {{progress}}%",
+    "download": "Download Update",
+    "install": "Install Update",
+    "updated": "Update installed successfully"
   }
 }

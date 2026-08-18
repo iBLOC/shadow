@@ -9,6 +9,17 @@ interface RequestMeta {
   method: string;
 }
 
+interface ApiError {
+  code: number;
+  message: string;
+  details?: unknown;
+  hint?: string;
+}
+
+interface ApiErrorResponse {
+  error: ApiError;
+}
+
 function extractMeta(
   input: RequestInfo | URL,
   init?: RequestInit
@@ -16,6 +27,18 @@ function extractMeta(
   const url = typeof input === 'string' ? input : input.toString();
   const method = (init?.method ?? 'GET').toUpperCase();
   return { url, method };
+}
+
+function parseApiError(body: string): ApiError | null {
+  try {
+    const parsed = JSON.parse(body) as ApiErrorResponse;
+    if (parsed.error && typeof parsed.error.code === 'number' && typeof parsed.error.message === 'string') {
+      return parsed.error;
+    }
+  } catch {
+    // not JSON or not our error format
+  }
+  return null;
 }
 
 /**
@@ -51,20 +74,35 @@ export function installHttpErrorInterceptor(): void {
         let body = '';
         try {
           const text = await response.clone().text();
-          body = text ? `: ${text.slice(0, 500)}` : '';
+          body = text ? text.slice(0, 2000) : '';
         } catch {
           // ignore body read errors
         }
-        useErrorDialogStore.getState().show({
-          source: 'http',
-          endpoint: meta.url,
-          method: meta.method,
-          status: response.status,
-          statusText: response.statusText,
-          message: `HTTP ${response.status} ${
-            response.statusText
-          }${body}`.trim(),
-        });
+        
+        const apiError = parseApiError(body);
+        
+        if (apiError) {
+          const hint = apiError.hint ? `\n\n💡 Hint: ${apiError.hint}` : '';
+          useErrorDialogStore.getState().show({
+            source: 'http',
+            endpoint: meta.url,
+            method: meta.method,
+            status: response.status,
+            statusText: response.statusText,
+            message: `[${apiError.code}] ${apiError.message}${hint}`,
+          });
+        } else {
+          useErrorDialogStore.getState().show({
+            source: 'http',
+            endpoint: meta.url,
+            method: meta.method,
+            status: response.status,
+            statusText: response.statusText,
+            message: `HTTP ${response.status} ${
+              response.statusText
+            }${body ? `: ${body.slice(0, 500)}` : ''}`.trim(),
+          });
+        }
       }
       return response;
     } catch (err) {

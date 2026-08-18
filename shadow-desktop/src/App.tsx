@@ -8,7 +8,6 @@ import { installGlobalErrorHandlers } from './lib/errorTriggers';
 import { migrateFromLocalStorage } from './lib/migrateSettings';
 import { TaskBoardPage } from './pages/TaskBoardPage';
 import { ConversationPage } from './pages/ConversationPage';
-import { AgentsPage } from './pages/AgentsPage';
 import { MCPPage } from './pages/MCPPage';
 import { SkillsPage } from './pages/SkillsPage';
 import { MemoryPage } from './pages/MemoryPage';
@@ -43,7 +42,6 @@ function App() {
           <Route index element={<TaskBoardPage />} />
           <Route path="tasks" element={<TaskBoardPage />} />
           <Route path="conversation" element={<ConversationPage />} />
-          <Route path="agents" element={<AgentsPage />} />
           <Route path="models" element={<ModelsPage />} />
           <Route path="models/download" element={<ModelDownloadPage />} />
           <Route path="voice" element={<VoicePage />} />
