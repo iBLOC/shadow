@@ -13,7 +13,11 @@
     "lint": "eslint .",
     "tauri": "tauri",
     "test:e2e": "cd e2e-tests && xvfb-run pnpm test",
-    "test:e2e:setup": "cd e2e-tests && pnpm install"
+    "test:e2e:setup": "cd e2e-tests && pnpm install",
+    "test:wdio": "wdio run tests/wdio/wdio.conf.ts",
+    "test:wdio:conversation": "wdio run tests/wdio/wdio.conf.ts --spec tests/wdio/conversation.test.ts",
+    "test:wdio:pages": "wdio run tests/wdio/wdio.conf.ts --spec tests/wdio/pages.test.ts",
+    "test:wdio:api": "wdio run tests/wdio/wdio.conf.ts --spec tests/wdio/api.test.ts"
   },
   "dependencies": {
     "@google/design.md": "^0.3.0",
@@ -68,6 +72,13 @@
     "tailwindcss-animate": "^1.0.7",
     "typescript": "~5.8.3",
     "vite": "^7.0.4",
-    "vitest": "^3.1.0"
+    "vitest": "^3.1.0",
+    "@wdio/cli": "^9.0.0",
+    "@wdio/globals": "^9.0.0",
+    "@wdio/local-runner": "^9.0.0",
+    "@wdio/mocha-framework": "^9.0.0",
+    "@wdio/spec-reporter": "^9.0.0",
+    "wdio-chromedriver-service": "^8.0.0",
+    "chromedriver": "^131.0.0"
   }
 }
