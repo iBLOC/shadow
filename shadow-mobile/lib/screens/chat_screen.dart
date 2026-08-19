@@ -36,7 +36,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       wakeWordEventsProvider,
       (prev, next) {
         if (next is AsyncData<WakeWordEvent>) {
-          _onWakeWord(next.value!);
+          _onWakeWord(next.value);
         }
       },
     );

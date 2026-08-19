@@ -252,7 +252,7 @@ class _SkillCard extends ConsumerWidget {
               onChanged: (value) {
                 ref.read(skillsNotifierProvider.notifier).toggleSkill(skill.id);
               },
-              activeColor: AppColors.primary,
+              activeThumbColor: AppColors.primary,
             ),
             if (showDelete)
               IconButton(

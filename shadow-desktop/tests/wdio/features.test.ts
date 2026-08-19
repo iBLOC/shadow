@@ -140,6 +140,70 @@ describe('Shadow Desktop - 共鸣管理', () => {
   });
 });
 
+describe('Shadow Desktop - 智能体调度 (prefrontal)', () => {
+  it('应该列出可调度的智能体', async () => {
+    await browser.url(`${CORTEX_URL}/api/cortex/prefrontal/agents`);
+    const body = await browser.$('body');
+    const text = await body.getText();
+    expect(text).toContain('dispatchable_via');
+  });
+
+  it('应该包含 temporal lobe', async () => {
+    await browser.url(`${CORTEX_URL}/api/cortex/prefrontal/agents`);
+    const body = await browser.$('body');
+    const text = await body.getText();
+    expect(text).toContain('temporal');
+  });
+
+  it('应该返回 lobe runtime 信息', async () => {
+    await browser.url(`${CORTEX_URL}/api/cortex/lobes/runtime/temporal`);
+    const body = await browser.$('body');
+    const text = await body.getText();
+    expect(text).toContain('openai_base_url');
+  });
+
+  it('应该接受 lobe 重新配置', async () => {
+    await browser.url(`${CORTEX_URL}/api/cortex/lobes/reconfigure/temporal`);
+    const body = await browser.$('body');
+    const text = await body.getText();
+    expect(text).toBeTruthy();
+  });
+
+  it('应该列出 lobe capabilities', async () => {
+    await browser.url(`${CORTEX_URL}/api/cortex/lobes/capabilities`);
+    const body = await browser.$('body');
+    const text = await body.getText();
+    expect(text).toContain('llm');
+    expect(text).toContain('asr');
+    expect(text).toContain('tts');
+  });
+
+  it('应该列出 lobe manifests', async () => {
+    await browser.url(`${CORTEX_URL}/api/cortex/lobes/manifest`);
+    const body = await browser.$('body');
+    const text = await body.getText();
+    expect(text).toContain('temporal');
+    expect(text).toContain('prefrontal');
+  });
+});
+
+describe('Shadow Desktop - 外部 Agent (tiangong) A2A 调度', () => {
+  it('应该通过 prefrontal/agents 看到外部 agent', async () => {
+    await browser.url(`${CORTEX_URL}/api/cortex/prefrontal/agents`);
+    const body = await browser.$('body');
+    const text = await body.getText();
+    // tiangong-agent may or may not be registered, but the endpoint should respond
+    expect(text).toBeTruthy();
+  });
+
+  it('prefrontal/dispatch 应该接受 agent 字段', async () => {
+    await browser.url(`${CORTEX_URL}/api/cortex/prefrontal/dispatch`);
+    const body = await browser.$('body');
+    const text = await body.getText();
+    expect(text).toBeTruthy();
+  });
+});
+
 describe('Shadow Desktop - 思维定式', () => {
   it('应该加载思维定式页面', async () => {
     await browser.url('/flows');

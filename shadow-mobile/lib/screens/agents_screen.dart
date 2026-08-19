@@ -217,7 +217,7 @@ class _AgentCard extends ConsumerWidget {
                 onChanged: (value) {
                   ref.read(agentsProvider.notifier).toggleAgent(agent.id);
                 },
-                activeColor: AppColors.primary,
+                activeThumbColor: AppColors.primary,
               ),
             ],
           ),

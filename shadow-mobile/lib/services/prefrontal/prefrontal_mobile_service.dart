@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
@@ -38,10 +37,7 @@ class PrefrontalMobileService {
   bool _isRunning = false;
   late final http.Client _httpClient;
 
-  PrefrontalMobileService({
-    this.host = '127.0.0.1',
-    this.preferredPort,
-  }) {
+  PrefrontalMobileService({this.host = '127.0.0.1', this.preferredPort}) {
     _httpClient = http.Client();
   }
 
@@ -70,9 +66,7 @@ class PrefrontalMobileService {
       // 1. 通过 MethodChannel 启动 Android Service
       final result = await _channel.invokeMethod<Map<dynamic, dynamic>>(
         'start',
-        {
-          'port': preferredPort ?? 0,
-        },
+        {'port': preferredPort ?? 0},
       );
 
       if (result == null || result['success'] != true) {
@@ -146,15 +140,13 @@ class PrefrontalMobileService {
   /// 获取服务状态
   Future<Map<String, dynamic>> getStatus() async {
     try {
-      final result = await _channel.invokeMethod<Map<dynamic, dynamic>>('getStatus');
+      final result = await _channel.invokeMethod<Map<dynamic, dynamic>>(
+        'getStatus',
+      );
       return Map<String, dynamic>.from(result ?? {});
     } catch (e) {
       _log.warning('获取状态失败: $e');
-      return {
-        'running': false,
-        'port': 0,
-        'healthy': false,
-      };
+      return {'running': false, 'port': 0, 'healthy': false};
     }
   }
 
@@ -205,11 +197,13 @@ class PrefrontalMobileService {
     }
 
     try {
-      final response = await _httpClient.post(
-        Uri.parse('$baseUrl/api/v1/cluster/agents/$agentId/invoke'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({'input': input}),
-      ).timeout(const Duration(seconds: 30));
+      final response = await _httpClient
+          .post(
+            Uri.parse('$baseUrl/api/v1/cluster/agents/$agentId/invoke'),
+            headers: {'Content-Type': 'application/json'},
+            body: json.encode({'input': input}),
+          )
+          .timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         final body = json.decode(response.body);
@@ -253,9 +247,9 @@ class PrefrontalMobileService {
   Future<String?> httpGet(String path) async {
     if (baseUrl == null) return null;
     try {
-      final response = await _httpClient.get(
-        Uri.parse('$baseUrl$path'),
-      ).timeout(const Duration(seconds: 30));
+      final response = await _httpClient
+          .get(Uri.parse('$baseUrl$path'))
+          .timeout(const Duration(seconds: 30));
       return response.body;
     } catch (e) {
       _log.warning('HTTP GET $path 失败: $e');
@@ -267,11 +261,13 @@ class PrefrontalMobileService {
   Future<String?> httpPost(String path, Map<String, dynamic> body) async {
     if (baseUrl == null) return null;
     try {
-      final response = await _httpClient.post(
-        Uri.parse('$baseUrl$path'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode(body),
-      ).timeout(const Duration(seconds: 30));
+      final response = await _httpClient
+          .post(
+            Uri.parse('$baseUrl$path'),
+            headers: {'Content-Type': 'application/json'},
+            body: json.encode(body),
+          )
+          .timeout(const Duration(seconds: 30));
       return response.body;
     } catch (e) {
       _log.warning('HTTP POST $path 失败: $e');
@@ -287,13 +283,7 @@ class PrefrontalMobileService {
 }
 
 /// Prefrontal 状态
-enum PrefrontalMobileStatus {
-  stopped,
-  starting,
-  running,
-  stopping,
-  error,
-}
+enum PrefrontalMobileStatus { stopped, starting, running, stopping, error }
 
 /// Prefrontal 智能体信息
 class MobileAgentInfo {

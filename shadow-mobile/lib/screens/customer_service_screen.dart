@@ -101,10 +101,7 @@ class _CSState extends ConsumerState<CustomerServiceScreen> {
               enableAttachments: true,
               enableVoiceNotes: true,
               welcomeMessage: l10n.customerServiceHint,
-              suggestions: [
-                l10n.whatCanYouHelp,
-                l10n.howAudioWorks,
-              ],
+              suggestions: [l10n.whatCanYouHelp, l10n.howAudioWorks],
             ),
           ),
         ],
@@ -152,7 +149,7 @@ class _CSState extends ConsumerState<CustomerServiceScreen> {
               Switch(
                 value: _aiAutoAnswer,
                 onChanged: (v) => setState(() => _aiAutoAnswer = v),
-                activeColor: Colors.green,
+                activeThumbColor: Colors.green,
               ),
             ],
           ),

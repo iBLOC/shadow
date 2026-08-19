@@ -112,7 +112,10 @@ class _LSState extends ConsumerState<LivestreamScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(l10n.audioOutput, style: Theme.of(context).textTheme.titleMedium),
+                    Text(
+                      l10n.audioOutput,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
                     const SizedBox(height: 8),
                     SegmentedButton<ShadowOutputRoute>(
                       segments: const [
@@ -135,29 +138,37 @@ class _LSState extends ConsumerState<LivestreamScreen> {
                       selected: {route},
                       onSelectionChanged: (sel) {
                         ref.read(shadowOutputRouteProvider.notifier).state =
-                            sel.first!;
+                            sel.first;
                         _mirrorRoute();
                       },
                     ),
                     const SizedBox(height: 8),
-                    if (_routingToShadow || route == ShadowOutputRoute.shadowEsp32)
+                    if (_routingToShadow ||
+                        route == ShadowOutputRoute.shadowEsp32)
                       Text(
                         l10n.shadowEsp32ReceivesAudio,
                         style: const TextStyle(color: Colors.green),
                       )
                     else if (route == ShadowOutputRoute.bluetoothHeadset)
-                      Text(l10n.routeViaBluetoothA2dp,
-                          style: const TextStyle(color: Colors.blue))
+                      Text(
+                        l10n.routeViaBluetoothA2dp,
+                        style: const TextStyle(color: Colors.blue),
+                      )
                     else
-                      Text(l10n.routeViaPhoneSpeaker,
-                          style: const TextStyle(color: Colors.grey)),
+                      Text(
+                        l10n.routeViaPhoneSpeaker,
+                        style: const TextStyle(color: Colors.grey),
+                      ),
                   ],
                 ),
               ),
             ),
             const SizedBox(height: 16),
             // ---- Live-stream / TTS panel ----------------
-            Text(l10n.liveStreamMode, style: Theme.of(context).textTheme.titleLarge),
+            Text(
+              l10n.liveStreamMode,
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
             const SizedBox(height: 8),
             TextField(
               controller: _textCtl,
@@ -187,8 +198,10 @@ class _LSState extends ConsumerState<LivestreamScreen> {
                   color: Colors.orange.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Text(l10n.modeMismatch,
-                    style: const TextStyle(color: Colors.orange)),
+                child: Text(
+                  l10n.modeMismatch,
+                  style: const TextStyle(color: Colors.orange),
+                ),
               ),
             ],
           ],

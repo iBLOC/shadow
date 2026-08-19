@@ -161,9 +161,7 @@ class _WelcomeStep extends StatelessWidget {
     return _StepFrame(
       title: 'Setupwelcometitle',
       subtitle: 'Setupwelcomedesc',
-      actions: [
-        FilledButton(onPressed: onNext, child: Text('Commoncontinue')),
-      ],
+      actions: [FilledButton(onPressed: onNext, child: Text('Commoncontinue'))],
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -231,7 +229,8 @@ class _PasswordStepState extends State<_PasswordStep> {
               labelText: 'Setuppasswordlabel',
               border: const OutlineInputBorder(),
             ),
-            onChanged: (v) => widget.onChange(widget.state.copyWith(password: v)),
+            onChanged: (v) =>
+                widget.onChange(widget.state.copyWith(password: v)),
           ),
           const SizedBox(height: 12),
           TextField(
@@ -299,7 +298,7 @@ class _ProviderStepState extends State<_ProviderStep> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           DropdownButtonFormField<String>(
-            value: widget.state.providerType,
+            initialValue: widget.state.providerType,
             decoration: InputDecoration(
               labelText: 'Setupprovidertype',
               border: const OutlineInputBorder(),
@@ -345,8 +344,7 @@ class _ProviderStepState extends State<_ProviderStep> {
               hintText: 'sk-...',
               border: const OutlineInputBorder(),
             ),
-            onChanged: (v) =>
-                widget.onChange(widget.state.copyWith(apiKey: v)),
+            onChanged: (v) => widget.onChange(widget.state.copyWith(apiKey: v)),
           ),
           if (_hint != null) ...[
             const SizedBox(height: 12),
@@ -402,26 +400,18 @@ class _StepFrame extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            title,
-            style: Theme.of(context).textTheme.headlineSmall,
-          ),
+          Text(title, style: Theme.of(context).textTheme.headlineSmall),
           const SizedBox(height: 8),
           Text(
             subtitle,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: 24),
-          Expanded(
-            child: SingleChildScrollView(child: child),
-          ),
+          Expanded(child: SingleChildScrollView(child: child)),
           const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: actions,
-          ),
+          Row(mainAxisAlignment: MainAxisAlignment.end, children: actions),
         ],
       ),
     );

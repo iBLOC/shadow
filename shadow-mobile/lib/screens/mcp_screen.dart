@@ -214,7 +214,7 @@ class _ServerCard extends ConsumerWidget {
                       .read(mcpNotifierProvider.notifier)
                       .toggleServer(server.id);
                 },
-                activeColor: AppColors.primary,
+                activeThumbColor: AppColors.primary,
               ),
             ],
           ),

@@ -324,10 +324,9 @@ class PrefrontalClient {
     final body = {
       'soul': soul,
       'source': source,
-      if (reason != null) 'reason': reason,
-      if (conversationSummary != null)
-        'conversation_summary': conversationSummary,
-      if (triggerType != null) 'trigger_type': triggerType,
+      'reason': ?reason,
+      'conversation_summary': ?conversationSummary,
+      'trigger_type': ?triggerType,
     };
 
     final data = await _request<Map<String, dynamic>>(
@@ -422,7 +421,10 @@ class PrefrontalClient {
   }
 
   Future<List<String>> listSessions() async {
-    final data = await _request<List<dynamic>>('GET', '/hippocampus/api/sessions');
+    final data = await _request<List<dynamic>>(
+      'GET',
+      '/hippocampus/api/sessions',
+    );
     return data.map((s) => s.toString()).toList();
   }
 
@@ -519,7 +521,7 @@ class PrefrontalClient {
     final requestHeaders = {'Content-Type': 'application/json'};
 
     final body = <String, dynamic>{
-      if (model != null) 'model': model,
+      'model': ?model,
       'messages': messages,
       'stream': stream,
       'use_tools': useTools,
@@ -563,7 +565,7 @@ class PrefrontalClient {
     final client = http.Client();
     try {
       final body = <String, dynamic>{
-        if (model != null) 'model': model,
+        'model': ?model,
         'messages': messages,
         'stream': true,
         'use_tools': useTools,

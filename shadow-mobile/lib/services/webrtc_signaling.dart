@@ -80,10 +80,13 @@ class WebRtcSignaling {
   final _disconnected = StreamController<void>.broadcast();
   final _error = StreamController<String>.broadcast();
 
-  WebRtcSignaling({required String sessionId, String? baseUrl, String? fallbackUrl})
-    : _baseUrl = baseUrl ?? 'ws://localhost:60080',
-      _fallbackUrl = fallbackUrl ?? 'ws://localhost:8082',
-      _sessionId = sessionId;
+  WebRtcSignaling({
+    required String sessionId,
+    String? baseUrl,
+    String? fallbackUrl,
+  }) : _baseUrl = baseUrl ?? 'ws://localhost:60080',
+       _fallbackUrl = fallbackUrl ?? 'ws://localhost:8082',
+       _sessionId = sessionId;
 
   bool get usedFallback => _usedFallback;
 
@@ -105,7 +108,9 @@ class WebRtcSignaling {
         _usedFallback = true;
         return true;
       } catch (e2) {
-        _error.add('Both cortex ($_baseUrl) and fallback ($_fallbackUrl) failed: $e / $e2');
+        _error.add(
+          'Both cortex ($_baseUrl) and fallback ($_fallbackUrl) failed: $e / $e2',
+        );
         return false;
       }
     }
@@ -135,8 +140,8 @@ class WebRtcSignaling {
     _send(
       WebRtcSignal(WebRtcSignalType.ice, {
         'candidate': candidate,
-        ?'sdp_mid': sdpMid,
-        ?'sdp_m_line_index': sdpMLineIndex,
+        'sdp_mid': sdpMid,
+        'sdp_m_line_index': sdpMLineIndex,
       }),
     );
   }

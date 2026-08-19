@@ -11,7 +11,6 @@ import '../tts_engine.dart';
 import '../multimodal/multimodal.dart';
 import '../litert_model.dart';
 import '../screens/model_management_screen.dart';
-import '../services/database/model_item.dart' as db;
 import '../services/prefrontal_client.dart';
 import 'conversation_mode_provider.dart';
 

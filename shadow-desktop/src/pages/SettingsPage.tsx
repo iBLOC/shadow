@@ -4,16 +4,15 @@ import {
   Database, Globe, Monitor, Sun, Moon, RefreshCw, Server,
   CheckCircle, XCircle, Edit3, Bot, Mic, Save, RotateCcw,
   HardDrive, Network, Shield, Bell, Keyboard, ChevronRight,
-  Cpu, Zap, Trash2, Plus, Brain, ChevronDown, Terminal,
+  Cpu, Zap, Trash2, Plus, Brain, ChevronDown,
   AlertCircle, Boxes, Search, ScanLine, Link2, Unlink, Wand2,
-  Sparkles, Settings, Play, Square, Download,
+  Sparkles, Settings, Play,
 } from 'lucide-react';
 import { safeInvoke } from '../lib/tauriSafe';
 import { isTauri } from '../lib/platform';
 import { useThemeStore } from '../stores/themeStore';
 import { useCortexStore } from '../stores/cortexStore';
 import { useAgentStore } from '../stores/agentStore';
-import { useOpenCodeStore } from '../stores/opencodeStore';
 import { cortexClient, type ScanResult, type InstalledWasmList, type AgentSearchResponse, type McpAgentBinding, type McpServerRecord, type ModelProvider } from '../lib/cortexClient';
 import { HfTokenSettings } from '../components/business/HfTokenSettings';
 import { UpdateChecker } from '../components/business/UpdateChecker';
@@ -309,11 +308,6 @@ function AgentSection() {
   const {
     agents, addAgent, removeAgent, updateAgent,
   } = useAgentStore();
-  const {
-    config: opencodeConfig, instances: opencodeInstances, installed: opencodeInstalled, isLoading: isLoadingOpenCode,
-    setConfig: setOpenCodeConfig, fetchInstances: fetchOpenCodeInstances, launch: launchOpenCode, stop: stopOpenCode,
-    checkInstalled: checkOpenCodeInstalled, install: installOpenCode,
-  } = useOpenCodeStore();
   const cortexStatus = useCortexStore((s) => s.status);
   const cortexLobes = useCortexStore((s) => s.lobes);
   const refreshStatus = useCortexStore((s) => s.refreshStatus);
@@ -350,11 +344,6 @@ function AgentSection() {
   useEffect(() => {
     void fetchProviders();
   }, [fetchProviders]);
-
-  useEffect(() => {
-    checkOpenCodeInstalled();
-    fetchOpenCodeInstances();
-  }, [checkOpenCodeInstalled, fetchOpenCodeInstances]);
 
   const refreshCortex = useCallback(async () => {
     await refreshStatus();
@@ -855,63 +844,6 @@ function AgentSection() {
                 providers={providers}
               />
             ))}
-          </div>
-        )}
-      </SectionCard>
-
-      {/* OpenCode Section */}
-      <SectionCard
-        title={t('agents.openCodeSection')}
-        icon={<Terminal size={20} />}
-        count={opencodeInstances.length}
-        isOpen={expanded.custom}
-        onToggle={() => toggle('custom')}
-      >
-        <p className="text-sm text-muted-foreground">{t('agents.openCodeSubtitle')}</p>
-        {!opencodeInstalled ? (
-          <div className="mt-3 flex items-center gap-4 rounded-md border border-border bg-muted/30 p-4">
-            <Badge variant="warning">{t('agents.notInstalled')}</Badge>
-            <Button variant="primary" icon={<Download size={16} />} onClick={installOpenCode} disabled={isLoadingOpenCode}>
-              {isLoadingOpenCode ? t('agents.installing') : t('agents.installOpenCode')}
-            </Button>
-          </div>
-        ) : (
-          <div className="mt-3 flex flex-col gap-4">
-            <div className="flex flex-wrap items-center gap-4">
-              <Button variant="success" size="sm" icon={<Play size={14} />} onClick={() => launchOpenCode(opencodeConfig.port ?? 3000)} disabled={isLoadingOpenCode}>
-                {t('agents.launchInstance')}
-              </Button>
-              <Button variant="ghost" size="sm" icon={<RefreshCw size={14} />} onClick={fetchOpenCodeInstances} disabled={isLoadingOpenCode}>
-                {t('agents.refresh')}
-              </Button>
-              <label className="flex items-center gap-2 text-sm text-muted-foreground">
-                <input
-                  type="checkbox"
-                  checked={opencodeConfig.autoLaunch}
-                  onChange={(e) => setOpenCodeConfig({ autoLaunch: e.target.checked })}
-                  className="h-4 w-4"
-                />
-                {t('agents.autoLaunch')}
-              </label>
-            </div>
-            {opencodeInstances.length === 0 ? (
-              <EmptyState icon={<Terminal size={48} />} title={t('agents.noInstances')} description={t('agents.noInstancesHint')} size="sm" />
-            ) : (
-              <div className="space-y-2">
-                {opencodeInstances.map((inst) => (
-                  <div key={inst.id} className="flex items-center justify-between rounded-md border border-border bg-muted/30 p-3">
-                    <div className="flex items-center gap-3">
-                      <Terminal size={18} />
-                      <span className="font-mono text-sm">:{inst.port}</span>
-                      <Badge variant={inst.status === 'running' ? 'success' : 'outline'}>{inst.status}</Badge>
-                    </div>
-                    <Button size="sm" variant="danger" icon={<Square size={14} />} onClick={() => stopOpenCode(inst.id)} disabled={inst.status === 'stopped'}>
-                      {t('agents.stopInstance')}
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         )}
       </SectionCard>

@@ -59,8 +59,10 @@ class AgentCard {
       description: json['description'] as String? ?? '',
       version: json['version'] as String? ?? '',
       url: json['url'] as String? ?? '',
-      inputModalities: (meta['input_modalities'] as List?)?.cast<String>() ?? const [],
-      outputModalities: (meta['output_modalities'] as List?)?.cast<String>() ?? const [],
+      inputModalities:
+          (meta['input_modalities'] as List?)?.cast<String>() ?? const [],
+      outputModalities:
+          (meta['output_modalities'] as List?)?.cast<String>() ?? const [],
       capabilities: (meta['capabilities'] as List?)?.cast<String>() ?? const [],
     );
   }
@@ -116,7 +118,9 @@ class AgentsResponse {
       cortexId: cortex['id'] as String? ?? '',
       instanceName: cortex['instance_name'] as String? ?? '',
       defaultAgent: cortex['default_agent'] as String? ?? '',
-      agents: agents.map((e) => LobeInfo.fromJson(e as Map<String, dynamic>)).toList(),
+      agents: agents
+          .map((e) => LobeInfo.fromJson(e as Map<String, dynamic>))
+          .toList(),
     );
   }
 }
@@ -125,15 +129,20 @@ class ConversationTurn {
   final String role;
   final String text;
   final DateTime timestamp;
-  ConversationTurn({required this.role, required this.text, required this.timestamp});
+  ConversationTurn({
+    required this.role,
+    required this.text,
+    required this.timestamp,
+  });
 
-  factory ConversationTurn.fromJson(Map<String, dynamic> json) => ConversationTurn(
-    role: json['role'] as String,
-    text: json['text'] as String,
-    timestamp: DateTime.fromMillisecondsSinceEpoch(
-      (json['timestamp'] as num).toInt(),
-    ),
-  );
+  factory ConversationTurn.fromJson(Map<String, dynamic> json) =>
+      ConversationTurn(
+        role: json['role'] as String,
+        text: json['text'] as String,
+        timestamp: DateTime.fromMillisecondsSinceEpoch(
+          (json['timestamp'] as num).toInt(),
+        ),
+      );
 
   Map<String, dynamic> toJson() => {
     'role': role,
@@ -173,7 +182,10 @@ class SendMessageRequest {
   final String? agent;
   const SendMessageRequest({required this.text, this.agent});
 
-  Map<String, dynamic> toJson() => {'text': text, if (agent != null) 'agent': agent};
+  Map<String, dynamic> toJson() => {
+    'text': text,
+    if (agent != null) 'agent': agent,
+  };
 }
 
 class SendMessageResponse {
@@ -191,15 +203,16 @@ class SendMessageResponse {
     required this.timestamp,
   });
 
-  factory SendMessageResponse.fromJson(Map<String, dynamic> json) => SendMessageResponse(
-    conversationId: json['conversation_id'] as String,
-    agent: json['agent'] as String,
-    reply: json['reply'] as String,
-    state: json['state'] as String,
-    timestamp: DateTime.fromMillisecondsSinceEpoch(
-      (json['timestamp'] as num).toInt(),
-    ),
-  );
+  factory SendMessageResponse.fromJson(Map<String, dynamic> json) =>
+      SendMessageResponse(
+        conversationId: json['conversation_id'] as String,
+        agent: json['agent'] as String,
+        reply: json['reply'] as String,
+        state: json['state'] as String,
+        timestamp: DateTime.fromMillisecondsSinceEpoch(
+          (json['timestamp'] as num).toInt(),
+        ),
+      );
 }
 
 class StreamEvent {
@@ -228,7 +241,9 @@ class StreamEvent {
     conversationId: json['conversation_id'] as String?,
     state: json['state'] as String?,
     timestamp: json['timestamp'] != null
-        ? DateTime.fromMillisecondsSinceEpoch((json['timestamp'] as num).toInt())
+        ? DateTime.fromMillisecondsSinceEpoch(
+            (json['timestamp'] as num).toInt(),
+          )
         : null,
     error: json['error'] as String?,
   );
@@ -264,7 +279,13 @@ class FlowDefinition {
   final String version;
   final String schemaVersion;
   final Map<String, dynamic> raw;
-  FlowDefinition({required this.id, required this.name, required this.version, required this.schemaVersion, required this.raw});
+  FlowDefinition({
+    required this.id,
+    required this.name,
+    required this.version,
+    required this.schemaVersion,
+    required this.raw,
+  });
 
   factory FlowDefinition.fromJson(Map<String, dynamic> json) => FlowDefinition(
     id: json['id'] as String,
@@ -278,7 +299,8 @@ class FlowDefinition {
 class FlowRunResult {
   final Map<String, dynamic> outputs;
   FlowRunResult({required this.outputs});
-  factory FlowRunResult.fromJson(Map<String, dynamic> json) => FlowRunResult(outputs: json);
+  factory FlowRunResult.fromJson(Map<String, dynamic> json) =>
+      FlowRunResult(outputs: json);
 }
 
 class CortexClient {
@@ -289,9 +311,9 @@ class CortexClient {
   final http.Client _http;
 
   CortexClient({String? baseUrl, String? apiKey, http.Client? client})
-      : _baseUrl = baseUrl ?? _defaultBaseUrl,
-        _apiKey = apiKey,
-        _http = client ?? http.Client();
+    : _baseUrl = baseUrl ?? _defaultBaseUrl,
+      _apiKey = apiKey,
+      _http = client ?? http.Client();
 
   String get baseUrl => _baseUrl;
   void setBaseUrl(String url) => _baseUrl = url;
@@ -315,16 +337,30 @@ class CortexClient {
     return jsonDecode(r.body) as Map<String, dynamic>;
   }
 
-  Future<Map<String, dynamic>> _post(String path, Map<String, dynamic> body) async {
-    final r = await _http.post(_u(path), headers: _headers(jsonBody: true), body: jsonEncode(body));
+  Future<Map<String, dynamic>> _post(
+    String path,
+    Map<String, dynamic> body,
+  ) async {
+    final r = await _http.post(
+      _u(path),
+      headers: _headers(jsonBody: true),
+      body: jsonEncode(body),
+    );
     if (r.statusCode != 200 && r.statusCode != 201) {
       throw CortexException('POST $path → ${r.statusCode}: ${r.body}');
     }
     return jsonDecode(r.body) as Map<String, dynamic>;
   }
 
-  Future<void> _postExpectEmpty(String path, [Map<String, dynamic>? body]) async {
-    final r = await _http.post(_u(path), headers: _headers(jsonBody: true), body: jsonEncode(body ?? const {}));
+  Future<void> _postExpectEmpty(
+    String path, [
+    Map<String, dynamic>? body,
+  ]) async {
+    final r = await _http.post(
+      _u(path),
+      headers: _headers(jsonBody: true),
+      body: jsonEncode(body ?? const {}),
+    );
     if (r.statusCode != 200 && r.statusCode != 204) {
       throw CortexException('POST $path → ${r.statusCode}: ${r.body}');
     }
@@ -342,7 +378,10 @@ class CortexClient {
   Future<Map<String, dynamic>> getAgent(String name) =>
       _get('/shadow/v1/agents/${Uri.encodeComponent(name)}');
 
-  Future<Conversation> createConversation({String? agent, String? systemPrompt}) async {
+  Future<Conversation> createConversation({
+    String? agent,
+    String? systemPrompt,
+  }) async {
     final body = <String, dynamic>{};
     if (agent != null) body['agent'] = agent;
     if (systemPrompt != null) body['system'] = systemPrompt;
@@ -351,7 +390,9 @@ class CortexClient {
   }
 
   Future<Conversation> getConversation(String id) async {
-    final json = await _get('/shadow/v1/conversations/${Uri.encodeComponent(id)}');
+    final json = await _get(
+      '/shadow/v1/conversations/${Uri.encodeComponent(id)}',
+    );
     return Conversation.fromJson(json);
   }
 
@@ -366,15 +407,19 @@ class CortexClient {
     required SessionExport export,
     String agent = 'prefrontal',
   }) async {
-    final history = export.messages.map((m) => {
-      'role': m['role'] ?? 'user',
-      'text': m['text'] ?? '',
-      'timestamp': (m['timestamp'] is int) ? m['timestamp'] : (m['timestamp'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch,
-    }).toList();
-    final body = {
-      'agent': agent,
-      'history': history,
-    };
+    final history = export.messages
+        .map(
+          (m) => {
+            'role': m['role'] ?? 'user',
+            'text': m['text'] ?? '',
+            'timestamp': (m['timestamp'] is int)
+                ? m['timestamp']
+                : (m['timestamp'] as num?)?.toInt() ??
+                      DateTime.now().millisecondsSinceEpoch,
+          },
+        )
+        .toList();
+    final body = {'agent': agent, 'history': history};
     final json = await _post(
       '/shadow/v1/conversations/${Uri.encodeComponent(export.sessionId)}/import',
       body,
@@ -382,7 +427,10 @@ class CortexClient {
     return Conversation.fromJson(json);
   }
 
-  Future<SendMessageResponse> sendMessage(String conversationId, SendMessageRequest req) async {
+  Future<SendMessageResponse> sendMessage(
+    String conversationId,
+    SendMessageRequest req,
+  ) async {
     final json = await _post(
       '/shadow/v1/conversations/${Uri.encodeComponent(conversationId)}/messages',
       req.toJson(),
@@ -391,9 +439,17 @@ class CortexClient {
   }
 
   /// Stream message via SSE. Yields StreamEvent as they arrive.
-  Stream<StreamEvent> streamMessage(String conversationId, SendMessageRequest req) async* {
+  Stream<StreamEvent> streamMessage(
+    String conversationId,
+    SendMessageRequest req,
+  ) async* {
     final headers = _headers(jsonBody: true);
-    final request = http.Request('POST', _u('/shadow/v1/conversations/${Uri.encodeComponent(conversationId)}/messages:stream'));
+    final request = http.Request(
+      'POST',
+      _u(
+        '/shadow/v1/conversations/${Uri.encodeComponent(conversationId)}/messages:stream',
+      ),
+    );
     request.headers.addAll(headers);
     request.body = jsonEncode(req.toJson());
 
@@ -401,7 +457,9 @@ class CortexClient {
     if (response.statusCode != 200) {
       throw CortexException('streamMessage → ${response.statusCode}');
     }
-    final lines = response.stream.transform(utf8.decoder).transform(const LineSplitter());
+    final lines = response.stream
+        .transform(utf8.decoder)
+        .transform(const LineSplitter());
     String? pendingData;
     await for (final raw in lines) {
       final line = raw.trim();
@@ -421,16 +479,25 @@ class CortexClient {
 
   // ---- Flow runtime API ----
 
-  Future<List<FlowMeta>> listFlows({String? name, String? tag, bool? isDraft}) async {
+  Future<List<FlowMeta>> listFlows({
+    String? name,
+    String? tag,
+    bool? isDraft,
+  }) async {
     final query = <String, String>{};
     if (name != null) query['name'] = name;
     if (tag != null) query['tag'] = tag;
     if (isDraft != null) query['is_draft'] = isDraft.toString();
-    final uri = Uri.parse('$_baseUrl/api/flows').replace(queryParameters: query.isEmpty ? null : query);
+    final uri = Uri.parse(
+      '$_baseUrl/api/flows',
+    ).replace(queryParameters: query.isEmpty ? null : query);
     final r = await _http.get(uri, headers: _headers());
-    if (r.statusCode != 200) throw CortexException('listFlows → ${r.statusCode}');
+    if (r.statusCode != 200)
+      throw CortexException('listFlows → ${r.statusCode}');
     final list = jsonDecode(r.body) as List<dynamic>;
-    return list.map((e) => FlowMeta.fromJson(e as Map<String, dynamic>)).toList();
+    return list
+        .map((e) => FlowMeta.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   Future<FlowDefinition> createFlow(FlowDefinition flow) async {
@@ -443,10 +510,17 @@ class CortexClient {
     return FlowDefinition.fromJson(json);
   }
 
-  Future<FlowRunResult> runFlow(String flowIdOrName, Map<String, dynamic> inputs, {String? sessionId}) async {
+  Future<FlowRunResult> runFlow(
+    String flowIdOrName,
+    Map<String, dynamic> inputs, {
+    String? sessionId,
+  }) async {
     final body = <String, dynamic>{'inputs': inputs};
     if (sessionId != null) body['session_id'] = sessionId;
-    final json = await _post('/api/flows/by-name/${Uri.encodeComponent(flowIdOrName)}/invoke', body);
+    final json = await _post(
+      '/api/flows/by-name/${Uri.encodeComponent(flowIdOrName)}/invoke',
+      body,
+    );
     return FlowRunResult.fromJson(json);
   }
 
@@ -458,20 +532,25 @@ class CortexClient {
   }
 
   Future<FlowDefinition> promoteDraft(String draftId) async {
-    final json = await _post('/api/flows/draft/${Uri.encodeComponent(draftId)}/promote', const {});
+    final json = await _post(
+      '/api/flows/draft/${Uri.encodeComponent(draftId)}/promote',
+      const {},
+    );
     return FlowDefinition.fromJson(json);
   }
 
-  Future<void> rejectDraft(String draftId) =>
-      _postExpectEmpty('/api/flows/draft/${Uri.encodeComponent(draftId)}/reject');
+  Future<void> rejectDraft(String draftId) => _postExpectEmpty(
+    '/api/flows/draft/${Uri.encodeComponent(draftId)}/reject',
+  );
 
   // ---- MCP Management API ----
 
   Future<List<Map<String, dynamic>>> listMcpServers() async {
     final json = await _get('/api/cortex/mcp/servers');
     return (json['servers'] as List<dynamic>?)
-        ?.map((e) => Map<String, dynamic>.from(e as Map))
-        .toList() ?? [];
+            ?.map((e) => Map<String, dynamic>.from(e as Map))
+            .toList() ??
+        [];
   }
 
   Future<Map<String, dynamic>> getMcpServer(String id) async {
@@ -479,21 +558,30 @@ class CortexClient {
   }
 
   Future<List<Map<String, dynamic>>> getMcpServerTools(String id) async {
-    final json = await _get('/api/cortex/mcp/servers/${Uri.encodeComponent(id)}/tools');
+    final json = await _get(
+      '/api/cortex/mcp/servers/${Uri.encodeComponent(id)}/tools',
+    );
     return (json as List<dynamic>)
         .map((e) => Map<String, dynamic>.from(e as Map))
         .toList();
   }
 
-  Future<List<Map<String, dynamic>>> listMcpServersForAgent(String agentName) async {
-    final json = await _get('/api/cortex/mcp/agents/${Uri.encodeComponent(agentName)}/servers');
+  Future<List<Map<String, dynamic>>> listMcpServersForAgent(
+    String agentName,
+  ) async {
+    final json = await _get(
+      '/api/cortex/mcp/agents/${Uri.encodeComponent(agentName)}/servers',
+    );
     return (json['bindings'] as List<dynamic>?)
-        ?.map((e) => Map<String, dynamic>.from(e as Map))
-        .toList() ?? [];
+            ?.map((e) => Map<String, dynamic>.from(e as Map))
+            .toList() ??
+        [];
   }
 
   Future<List<Map<String, dynamic>>> getAgentMcpTools(String agentName) async {
-    final json = await _get('/api/cortex/mcp/agents/${Uri.encodeComponent(agentName)}/tools');
+    final json = await _get(
+      '/api/cortex/mcp/agents/${Uri.encodeComponent(agentName)}/tools',
+    );
     return (json as List<dynamic>)
         .map((e) => Map<String, dynamic>.from(e as Map))
         .toList();
@@ -511,17 +599,13 @@ class CortexClient {
   }) async {
     final body = <String, dynamic>{
       'name': name,
-      'wasm': {
-        'name': wasmName,
-        'version': wasmVersion,
-        'sha256': wasmSha256,
-      },
+      'wasm': {'name': wasmName, 'version': wasmVersion, 'sha256': wasmSha256},
     };
     if (memoryBytes != null || fuel != null || wallClockMs != null) {
       body['quota'] = {
-        if (memoryBytes != null) 'memory_bytes': memoryBytes,
-        if (fuel != null) 'fuel': fuel,
-        if (wallClockMs != null) 'wall_clock_ms': wallClockMs,
+        'memory_bytes': ?memoryBytes,
+        'fuel': ?fuel,
+        'wall_clock_ms': ?wallClockMs,
       };
     }
     if (description != null) body['description'] = description;
@@ -530,27 +614,41 @@ class CortexClient {
 
   Future<void> deleteMcpServer(String id) async {
     await _http.delete(
-      Uri.parse('$_baseUrl/api/cortex/admin/mcp/servers/${Uri.encodeComponent(id)}'),
+      Uri.parse(
+        '$_baseUrl/api/cortex/admin/mcp/servers/${Uri.encodeComponent(id)}',
+      ),
       headers: _headers(),
     );
   }
 
   Future<Map<String, dynamic>> startMcpServer(String id) async {
-    return await _post('/api/cortex/admin/mcp/servers/${Uri.encodeComponent(id)}/start', const {});
+    return await _post(
+      '/api/cortex/admin/mcp/servers/${Uri.encodeComponent(id)}/start',
+      const {},
+    );
   }
 
   Future<Map<String, dynamic>> stopMcpServer(String id) async {
-    return await _post('/api/cortex/admin/mcp/servers/${Uri.encodeComponent(id)}/stop', const {});
+    return await _post(
+      '/api/cortex/admin/mcp/servers/${Uri.encodeComponent(id)}/stop',
+      const {},
+    );
   }
 
-  Future<Map<String, dynamic>> bindMcpServerToAgent(String agentName, String serverId) async {
+  Future<Map<String, dynamic>> bindMcpServerToAgent(
+    String agentName,
+    String serverId,
+  ) async {
     return await _post(
       '/api/cortex/admin/mcp/agents/${Uri.encodeComponent(agentName)}/servers/${Uri.encodeComponent(serverId)}',
       const {},
     );
   }
 
-  Future<void> unbindMcpServerFromAgent(String agentName, String serverId) async {
+  Future<void> unbindMcpServerFromAgent(
+    String agentName,
+    String serverId,
+  ) async {
     await _http.delete(
       Uri.parse(
         '$_baseUrl/api/cortex/admin/mcp/agents/${Uri.encodeComponent(agentName)}/servers/${Uri.encodeComponent(serverId)}',
@@ -566,7 +664,10 @@ class CortexClient {
   }
 
   Future<Map<String, dynamic>> syncExternalAgent(String providerId) async {
-    return await _post('/api/cortex/agents/sync/${Uri.encodeComponent(providerId)}', const {});
+    return await _post(
+      '/api/cortex/agents/sync/${Uri.encodeComponent(providerId)}',
+      const {},
+    );
   }
 
   Future<Map<String, dynamic>> discoverAgents() async {
@@ -577,8 +678,9 @@ class CortexClient {
     final query = <String, String>{};
     if (skill != null) query['skill'] = skill;
     if (q != null) query['q'] = q;
-    final uri = Uri.parse('$_baseUrl/api/cortex/agents/search')
-        .replace(queryParameters: query.isEmpty ? null : query);
+    final uri = Uri.parse(
+      '$_baseUrl/api/cortex/agents/search',
+    ).replace(queryParameters: query.isEmpty ? null : query);
     final r = await _http.get(uri, headers: _headers());
     if (r.statusCode != 200) {
       throw CortexException('searchAgents → ${r.statusCode}: ${r.body}');
@@ -589,13 +691,16 @@ class CortexClient {
   Future<List<Map<String, dynamic>>> listInstalledWasm() async {
     final json = await _get('/api/cortex/admin/agents/installed');
     return (json['entries'] as List<dynamic>?)
-        ?.map((e) => Map<String, dynamic>.from(e as Map))
-        .toList() ?? [];
+            ?.map((e) => Map<String, dynamic>.from(e as Map))
+            .toList() ??
+        [];
   }
 
   Future<void> deleteWasm(String name, String version) async {
     await _http.delete(
-      Uri.parse('$_baseUrl/api/cortex/admin/agents/${Uri.encodeComponent(name)}/${Uri.encodeComponent(version)}'),
+      Uri.parse(
+        '$_baseUrl/api/cortex/admin/agents/${Uri.encodeComponent(name)}/${Uri.encodeComponent(version)}',
+      ),
       headers: _headers(),
     );
   }
@@ -609,10 +714,7 @@ class CortexClient {
     String? modelProvider,
     String? modelName,
   }) async {
-    final body = <String, dynamic>{
-      'name': name,
-      'system_prompt': systemPrompt,
-    };
+    final body = <String, dynamic>{'name': name, 'system_prompt': systemPrompt};
     if (version != null) body['version'] = version;
     if (description != null) body['description'] = description;
     if (skills != null) body['skills'] = skills;
@@ -621,7 +723,9 @@ class CortexClient {
     return await _post('/api/cortex/admin/agents/create', body);
   }
 
-  Future<Map<String, dynamic>> generateAgentDescription(String systemPrompt) async {
+  Future<Map<String, dynamic>> generateAgentDescription(
+    String systemPrompt,
+  ) async {
     return await _post('/api/cortex/admin/agents/generate-description', {
       'system_prompt': systemPrompt,
     });
@@ -633,7 +737,9 @@ class CortexClient {
   /// Endpoint not yet exposed by cortex (spec §4 unimplemented).
   /// Kept here as the canonical URL when cortex adds the endpoint.
   Uri webrtcSignalingUrl(String sessionId, {String modality = 'voice'}) {
-    return Uri.parse('$_baseUrl/api/webrtc/$modality/sessions/${Uri.encodeComponent(sessionId)}/ws');
+    return Uri.parse(
+      '$_baseUrl/api/webrtc/$modality/sessions/${Uri.encodeComponent(sessionId)}/ws',
+    );
   }
 }
 
@@ -651,4 +757,6 @@ class CortexConnection {
 }
 
 final defaultCortexClient = CortexClient();
-final defaultCortexConnection = CortexConnection(baseUrl: 'http://127.0.0.1:60080');
+final defaultCortexConnection = CortexConnection(
+  baseUrl: 'http://127.0.0.1:60080',
+);

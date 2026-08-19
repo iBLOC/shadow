@@ -58,7 +58,8 @@ class EngineModel {
       engine: j['engine'] as String? ?? 'unknown',
       localPath: j['local_path'] as String?,
       sizeBytes: (j['size_bytes'] as num?)?.toInt() ?? 0,
-      loadedAt: DateTime.tryParse(j['loaded_at'] as String? ?? '') ??
+      loadedAt:
+          DateTime.tryParse(j['loaded_at'] as String? ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0),
       source: j['source'] as String? ?? 'unknown',
     );
@@ -101,9 +102,11 @@ class ModelDownloadTask {
       progress: (j['progress'] as num?)?.toDouble() ?? 0.0,
       error: j['error'] as String?,
       localPath: j['local_path'] as String?,
-      startedAt: DateTime.tryParse(j['started_at'] as String? ?? '') ??
+      startedAt:
+          DateTime.tryParse(j['started_at'] as String? ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0),
-      updatedAt: DateTime.tryParse(j['updated_at'] as String? ?? '') ??
+      updatedAt:
+          DateTime.tryParse(j['updated_at'] as String? ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0),
     );
   }
@@ -142,9 +145,9 @@ class EngineModelsNotifier extends StateNotifier<EngineModelsState> {
   final http.Client _client;
 
   EngineModelsNotifier({String? baseUrl, http.Client? client})
-      : _baseUrl = (baseUrl ?? _deriveBaseUrl()).replaceAll(RegExp(r'/+$'), ''),
-        _client = client ?? http.Client(),
-        super(const EngineModelsState());
+    : _baseUrl = (baseUrl ?? _deriveBaseUrl()).replaceAll(RegExp(r'/+$'), ''),
+      _client = client ?? http.Client(),
+      super(const EngineModelsState());
 
   static String _deriveBaseUrl() {
     // Cortex is the single platform entry point (port 60080).
@@ -157,11 +160,7 @@ class EngineModelsNotifier extends StateNotifier<EngineModelsState> {
     try {
       final models = await _listLoaded();
       final tasks = await _listTasks();
-      state = state.copyWith(
-        models: models,
-        tasks: tasks,
-        isLoading: false,
-      );
+      state = state.copyWith(models: models, tasks: tasks, isLoading: false);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
@@ -176,10 +175,7 @@ class EngineModelsNotifier extends StateNotifier<EngineModelsState> {
     }
     final body = jsonDecode(r.body) as Map<String, dynamic>;
     final data = (body['data'] as List?) ?? const [];
-    return data
-        .cast<Map<String, dynamic>>()
-        .map(EngineModel.fromJson)
-        .toList();
+    return data.cast<Map<String, dynamic>>().map(EngineModel.fromJson).toList();
   }
 
   Future<List<ModelDownloadTask>> _listTasks() async {
@@ -207,7 +203,7 @@ class EngineModelsNotifier extends StateNotifier<EngineModelsState> {
         'id': modelId ?? '',
         'engine': engine,
         'reference': reference,
-        if (revision != null) 'revision': revision,
+        'revision': ?revision,
       }),
     );
     if (r.statusCode >= 400) {
@@ -220,9 +216,7 @@ class EngineModelsNotifier extends StateNotifier<EngineModelsState> {
   }
 
   Future<ModelDownloadTask> pollDownload(String taskId) async {
-    final r = await _client.get(
-      Uri.parse('$_baseUrl/v1/models/pull/$taskId'),
-    );
+    final r = await _client.get(Uri.parse('$_baseUrl/v1/models/pull/$taskId'));
     if (r.statusCode == 404) {
       throw HttpException(404, 'task $taskId not found');
     }
@@ -268,8 +262,10 @@ class HttpException implements Exception {
 
 final engineModelsProvider =
     StateNotifierProvider<EngineModelsNotifier, EngineModelsState>((ref) {
-  final baseUrl = ref.watch(prefrontalBaseUrlProvider);
-  return EngineModelsNotifier(baseUrl: baseUrl);
-});
+      final baseUrl = ref.watch(prefrontalBaseUrlProvider);
+      return EngineModelsNotifier(baseUrl: baseUrl);
+    });
 
-final prefrontalBaseUrlProvider = StateProvider<String>((ref) => 'http://localhost:60080');
+final prefrontalBaseUrlProvider = StateProvider<String>(
+  (ref) => 'http://localhost:60080',
+);
