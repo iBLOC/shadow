@@ -1,7 +1,8 @@
-import { defineConfig } from '@wdio/cli';
-
-export default defineConfig({
-  runner: 'browser',
+export const config = {
+  runner: 'local',
+  specs: [
+    '*.test.ts',
+  ],
   autoCompileOpts: {
     autoCompile: true,
     tsNodeOpts: {
@@ -15,9 +16,6 @@ export default defineConfig({
       'goog:chromeOptions': {
         args: ['headless', 'disable-gpu', 'no-sandbox'],
       },
-      'tauri:options': {
-        application: '../../src-tauri/target/debug/shadow-desktop',
-      },
     },
   ],
   logLevel: 'info',
@@ -25,11 +23,17 @@ export default defineConfig({
   waitforTimeout: 30000,
   connectionRetryTimeout: 120000,
   connectionRetryCount: 3,
-  services: ['chromedriver'],
+  services: [
+    ['chromedriver', {
+      chromedriverCustomPath: '/home/ibloc/.local/share/pnpm/nodejs/24.11.1/lib/node_modules/chromedriver/lib/chromedriver/chromedriver',
+    }],
+  ],
   framework: 'mocha',
   reporters: ['spec'],
   mochaOpts: {
     ui: 'bdd',
     timeout: 120000,
   },
-});
+  baseUrl: 'http://localhost:1420',
+  maxInstancesPerCapability: 1,
+};
