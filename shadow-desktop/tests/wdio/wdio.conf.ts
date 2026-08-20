@@ -34,6 +34,6 @@ export const config = {
     ui: 'bdd',
     timeout: 120000,
   },
-  baseUrl: 'http://localhost:1420',
+  baseUrl: process.env.WDIO_BASE_URL || 'http://localhost:5173',
   maxInstancesPerCapability: 1,
 };
