@@ -20,12 +20,12 @@ import { Button, Badge, EmptyState, Modal } from '../components/ui';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { cn } from '../lib/utils';
 
-type SettingsSection = 'service' | 'agent' | 'ui' | 'data' | 'system';
+type SettingsSection = 'service' | 'models' | 'ui' | 'data' | 'system';
 type AgentSection = 'internal' | 'custom' | 'wasm' | 'external';
 
 const SECTIONS: { id: SettingsSection; icon: typeof Server; labelKey: string }[] = [
   { id: 'service', icon: Server, labelKey: 'settings.section.service' },
-  { id: 'agent', icon: Bot, labelKey: 'settings.section.agent' },
+  { id: 'models', icon: Cpu, labelKey: 'settings.section.models' },
   { id: 'ui', icon: Monitor, labelKey: 'settings.section.ui' },
   { id: 'data', icon: Database, labelKey: 'settings.section.data' },
   { id: 'system', icon: Shield, labelKey: 'settings.section.system' },
@@ -40,7 +40,7 @@ export function SettingsPage() {
       <main className="flex-1 overflow-y-auto pr-2">
         <SettingsHeader />
         {activeSection === 'service' && <ServiceSection />}
-        {activeSection === 'agent' && <AgentSection />}
+        {activeSection === 'models' && <ModelsSection />}
         {activeSection === 'ui' && <UISection />}
         {activeSection === 'data' && <DataSection />}
         {activeSection === 'system' && <SystemSection />}
@@ -1446,6 +1446,98 @@ function DataSection() {
       </SettingsCard>
 
       <HfTokenSettings onSaved={() => {}} />
+    </div>
+  );
+}
+
+// ─── Models Section ───────────────────────────────────────────────────────────
+
+function ModelsSection() {
+  const { t } = useTranslation();
+  const [providers, setProviders] = useState<ModelProvider[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const fetchProviders = useCallback(async () => {
+    setLoading(true);
+    try {
+      const result = await cortexClient.listProviders();
+      setProviders(result);
+    } catch {
+      setProviders([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchProviders();
+  }, [fetchProviders]);
+
+  return (
+    <div>
+      <SettingsCard
+        title={t('settings.modelProviders')}
+        description={t('settings.modelProvidersDesc')}
+        icon={<Cpu size={20} />}
+        footer={
+          <div className="flex items-center justify-between">
+            <div className="text-xs text-muted-foreground">
+              {t('settings.providersCount', { count: providers.length })}
+            </div>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => void fetchProviders()}
+              disabled={loading}
+              icon={<RefreshCw size={14} className={cn(loading && 'animate-spin')} />}
+            >
+              {t('settings.refresh')}
+            </Button>
+          </div>
+        }
+      >
+        {providers.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-8 text-center">
+            <Cpu size={32} className="text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">{t('settings.noProviders')}</p>
+            <p className="text-xs text-muted-foreground">{t('settings.addProviderHint')}</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+            {providers.map((provider) => (
+              <div
+                key={provider.id}
+                className="flex items-center justify-between rounded-md border border-border bg-muted/20 px-3 py-2"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <Cpu size={14} className="flex-shrink-0 text-muted-foreground" />
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium text-foreground">{provider.name}</div>
+                    <div className="truncate text-xs text-muted-foreground">{provider.type}</div>
+                  </div>
+                </div>
+                <Badge variant={provider.enabled ? 'default' : 'secondary'}>
+                  {provider.enabled ? t('settings.enabled') : t('settings.disabled')}
+                </Badge>
+              </div>
+            ))}
+          </div>
+        )}
+      </SettingsCard>
+
+      <SettingsCard
+        title={t('settings.addProvider')}
+        description={t('settings.addProviderDesc')}
+        icon={<Plus size={20} />}
+      >
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+          {['openai', 'anthropic', 'deepseek', 'ollama'].map((type) => (
+            <Button key={type} variant="outline" size="sm">
+              {type.charAt(0).toUpperCase() + type.slice(1)}
+            </Button>
+          ))}
+        </div>
+      </SettingsCard>
     </div>
   );
 }

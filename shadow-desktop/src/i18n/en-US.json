@@ -516,8 +516,8 @@
     "appName": "Shadow",
     "subtitle": "Configure Shadow Desktop (Cortex client)",
     "section": {
-      "service": "Service",
-      "agent": "Agent",
+      "service": "Service & Agents",
+      "models": "Model Management",
       "ui": "Interface",
       "data": "Data",
       "system": "System"
@@ -587,6 +587,16 @@
       "restarted": "Cortex restarted",
       "getTokenLink": "Get token on HuggingFace"
     },
+    "modelProviders": "Model Providers",
+    "modelProvidersDesc": "Configure cloud or local model providers",
+    "providersCount": "{{count}} providers",
+    "noProviders": "No model providers",
+    "addProviderHint": "Add a cloud provider (like OpenAI) or configure local models",
+    "addProvider": "Add Provider",
+    "addProviderDesc": "Select the type of model provider to add",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "refresh": "Refresh",
     "connected": "Connected",
     "statusLabel": "Status",
     "disconnected": "Disconnected",

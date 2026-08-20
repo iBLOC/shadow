@@ -29,11 +29,8 @@ interface NavItem {
 const navItems: NavItem[] = [
   { path: '/tasks', icon: LayoutGrid, labelKey: 'nav.tasks', showBadge: true },
   { path: '/conversation', icon: MessageSquare, labelKey: 'nav.chat' },
-  { path: '/discovery', icon: Radar, labelKey: 'nav.discovery' },
   { path: '/flows', icon: Workflow, labelKey: 'nav.flows' },
   { path: '/trace', icon: Activity, labelKey: 'nav.trace' },
-  { path: '/resonance', icon: Waves, labelKey: 'nav.resonance' },
-  { path: '/models', icon: Cpu, labelKey: 'nav.models' },
   { path: '/mcp', icon: Wrench, labelKey: 'nav.mcp' },
   { path: '/skills', icon: Brain, labelKey: 'nav.skills' },
   { path: '/memory', icon: Database, labelKey: 'nav.memory' },
