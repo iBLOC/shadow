@@ -583,6 +583,55 @@ export class CortexClient {
       { method: 'DELETE' },
     );
   }
+
+  // Voice methods
+  async transcribeAudio(audio: string, format: string = 'webm', language: string = 'zh'): Promise<{ text: string }> {
+    return this.request<{ text: string }>('/api/cortex/voice/transcribe', {
+      method: 'POST',
+      body: JSON.stringify({ audio, format, language }),
+    });
+  }
+
+  async synthesizeSpeech(text: string, voice: string = 'alloy'): Promise<Blob> {
+    const response = await fetch(`${this.baseUrl}/api/cortex/voice/synthesize`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ text, voice }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Speech synthesis failed: ${response.statusText}`);
+    }
+
+    return response.blob();
+  }
+
+  // Task methods
+  async getTasks(): Promise<any[]> {
+    return this.request<any[]>('/api/cortex/tasks');
+  }
+
+  async createTask(task: {
+    title: string;
+    description?: string;
+    dueTime?: string;
+    priority?: string;
+    tags?: string[];
+  }): Promise<any> {
+    return this.request<any>('/api/cortex/tasks', {
+      method: 'POST',
+      body: JSON.stringify(task),
+    });
+  }
+
+  async confirmTask(taskId: string, confirmed: boolean, modifications?: any): Promise<any> {
+    return this.request<any>(`/api/cortex/tasks/${taskId}/confirm`, {
+      method: 'POST',
+      body: JSON.stringify({ confirmed, modifications }),
+    });
+  }
 }
 
 export const cortexClient = new CortexClient();

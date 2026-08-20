@@ -5,6 +5,7 @@ import { useConversationStore } from '../stores/conversationStore';
 import { useCompanionModeStore } from '../stores/companionModeStore';
 import { WakeWordDetector } from '../lib/wakeWordDetector';
 import { Button, EmptyState } from '../components/ui';
+import { VoiceButton } from '../components/ui/voice-button';
 import { MoveSessionDialog } from '../components/MoveSessionDialog';
 import { ChartCard } from '../components/chatbi';
 import { isChatBiPayload } from '../lib/chatbi/guards';
@@ -413,6 +414,11 @@ export function ConversationPage() {
                   placeholder={t('conversation.placeholder')}
                   rows={1}
                   className="min-h-[44px] max-h-[120px] flex-1 resize-none rounded-lg border border-border bg-muted px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-foreground focus:outline-none"
+                />
+                <VoiceButton
+                  onTranscription={(text) => setInput(prev => prev ? `${prev} ${text}` : text)}
+                  onError={(error) => console.error('Voice error:', error)}
+                  disabled={isLoading}
                 />
                 <Button
                   variant="primary"
