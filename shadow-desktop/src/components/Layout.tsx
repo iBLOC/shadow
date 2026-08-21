@@ -7,11 +7,8 @@ import {
   Database,
   MessageSquare,
   Settings,
-  Cpu,
-  Radar,
   ScrollText,
   Workflow,
-  Waves,
   Activity,
   type LucideIcon,
 } from 'lucide-react';

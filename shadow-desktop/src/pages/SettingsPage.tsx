@@ -2,9 +2,9 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Database, Globe, Monitor, Sun, Moon, RefreshCw, Server,
-  CheckCircle, XCircle, Edit3, Bot, Mic, Save, RotateCcw,
-  HardDrive, Network, Shield, Bell, Keyboard, ChevronRight,
-  Cpu, Zap, Trash2, Plus, Brain, ChevronDown,
+  Edit3, Mic, Save, RotateCcw,
+  HardDrive, Shield, Bell, Keyboard, ChevronRight,
+  Cpu, Trash2, Plus, Brain, ChevronDown,
   AlertCircle, Boxes, Search, ScanLine, Link2, Unlink, Wand2,
   Sparkles, Settings, Play,
 } from 'lucide-react';
@@ -39,7 +39,7 @@ export function SettingsPage() {
       <SettingsSidebar activeSection={activeSection} onSelect={setActiveSection} />
       <main className="flex-1 overflow-y-auto pr-2">
         <SettingsHeader />
-        {activeSection === 'service' && <ServiceSection />}
+        {activeSection === 'service' && <ServiceAndAgentsSection />}
         {activeSection === 'models' && <ModelsSection />}
         {activeSection === 'ui' && <UISection />}
         {activeSection === 'data' && <DataSection />}
@@ -190,120 +190,10 @@ function SectionCard({
   );
 }
 
-// ─── Service Section ──────────────────────────────────────────────────────────
 
-function ServiceSection() {
-  const { t } = useTranslation();
-  const cortexStatus = useCortexStore((s) => s.status);
-  const cortexLobes = useCortexStore((s) => s.lobes);
-  const cortexConnection = useCortexStore((s) => s.connection);
-  const refreshStatus = useCortexStore((s) => s.refreshStatus);
-  const refreshLobes = useCortexStore((s) => s.refreshLobes);
-  const startCortex = useCortexStore((s) => s.startCortex);
-  const isRefreshing = cortexStatus === 'starting';
-  const healthyLobes = cortexLobes.filter((l) => l.health_status === 'healthy').length;
+// ─── Service & Agents Section ──────────────────────────────────────────────────
 
-  useEffect(() => {
-    void refreshStatus();
-    void refreshLobes();
-  }, [refreshStatus, refreshLobes]);
-
-  return (
-    <div>
-      <SettingsCard
-        title={t('settings.cortexStatus')}
-        description={t('settings.cortexStatusDesc')}
-        icon={<Server size={20} />}
-        footer={
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span>{t('settings.lobeCount', { total: cortexLobes.length, healthy: healthyLobes })}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              {cortexStatus !== 'running' && (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => void startCortex()}
-                  icon={<Zap size={14} />}
-                >
-                  {t('settings.startCortex')}
-                </Button>
-              )}
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={() => { void refreshStatus(); void refreshLobes(); }}
-                disabled={isRefreshing}
-              >
-                <RefreshCw size={16} className={cn(isRefreshing && 'animate-spin')} />
-              </Button>
-            </div>
-          </div>
-        }
-      >
-        <SettingRow label={t('settings.status')}>
-          <div className="flex items-center gap-2 text-xs">
-            {cortexStatus === 'running' ? (
-              <CheckCircle size={14} className="text-green-500" />
-            ) : (
-              <XCircle size={14} className="text-red-500" />
-            )}
-            <span className={cortexStatus === 'running' ? 'text-green-500' : 'text-red-500'}>
-              {cortexStatus}
-            </span>
-          </div>
-        </SettingRow>
-        <SettingRow label={t('settings.endpoint')} description={t('settings.cortexEndpointDesc')}>
-          <code className="rounded bg-muted px-2 py-0.5 font-mono text-xs text-foreground">
-            {cortexConnection.baseUrl}
-          </code>
-        </SettingRow>
-      </SettingsCard>
-
-      <SettingsCard
-        title={t('settings.registeredLobes')}
-        description={t('settings.registeredLobesDesc')}
-        icon={<Network size={20} />}
-      >
-        {cortexLobes.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 py-8 text-center">
-            <Bot size={32} className="text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">{t('settings.noLobes')}</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-            {cortexLobes.map((lobe) => (
-              <div
-                key={lobe.name}
-                className="flex items-center justify-between rounded-md border border-border bg-muted/20 px-3 py-2"
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <Cpu size={14} className="flex-shrink-0 text-muted-foreground" />
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-medium text-foreground">{lobe.agent_card.name}</div>
-                    <div className="truncate text-xs text-muted-foreground">{lobe.kind}</div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1 text-xs">
-                  {lobe.health_status === 'healthy' ? (
-                    <CheckCircle size={12} className="text-green-500" />
-                  ) : (
-                    <XCircle size={12} className="text-muted-foreground" />
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </SettingsCard>
-    </div>
-  );
-}
-
-// ─── Agent Section (Merged from AgentsPage) ───────────────────────────────────
-
-function AgentSection() {
+function ServiceAndAgentsSection() {
   const { t } = useTranslation();
   const {
     agents, addAgent, removeAgent, updateAgent,
@@ -1513,11 +1403,11 @@ function ModelsSection() {
                   <Cpu size={14} className="flex-shrink-0 text-muted-foreground" />
                   <div className="min-w-0">
                     <div className="truncate text-sm font-medium text-foreground">{provider.name}</div>
-                    <div className="truncate text-xs text-muted-foreground">{provider.type}</div>
+                    <div className="truncate text-xs text-muted-foreground">{provider.provider_type}</div>
                   </div>
                 </div>
-                <Badge variant={provider.enabled ? 'default' : 'secondary'}>
-                  {provider.enabled ? t('settings.enabled') : t('settings.disabled')}
+                <Badge variant="secondary">
+                  {provider.models.length > 0 ? `${provider.models.length} models` : t('settings.disabled')}
                 </Badge>
               </div>
             ))}
