@@ -16,6 +16,7 @@ import { ModelsPage } from './pages/ModelsPage';
 import { SetupPage } from './pages/SetupPage';
 import { DiscoveryPage } from './pages/DiscoveryPage';
 import { LogsPage } from './pages/LogsPage';
+import { CortexStatusPage } from './pages/CortexStatusPage';
 import { ModelDownloadPage } from './pages/ModelDownloadPage';
 import { VoicePage } from './pages/VoicePage';
 import { FlowsPage } from './pages/FlowsPage';
@@ -51,6 +52,7 @@ function App() {
           <Route path="skills" element={<SkillsPage />} />
           <Route path="memory" element={<MemoryPage />} />
           <Route path="logs" element={<LogsPage />} />
+          <Route path="cortex-status" element={<CortexStatusPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="discovery" element={<DiscoveryPage />} />
           <Route path="flows" element={<FlowsPage />} />
