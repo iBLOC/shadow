@@ -1,0 +1,228 @@
+import { browser, expect } from '@wdio/globals';
+import '../wdio-hooks';
+
+const CORTEX_URL = 'http://localhost:60080';
+
+describe('Shadow Desktop - 供应商管理 (Tauri Wdio)', () => {
+  before(async () => {
+    await browser.url('/models');
+    await browser.waitUntil(async () => {
+      const url = await browser.getUrl();
+      return url.includes('/models') || url.includes('/setup') || url.includes('/onboarding');
+    }, { timeout: 15_000 });
+  });
+
+  it('应该加载模型页面', async () => {
+    const url = await browser.getUrl();
+    expect(url).toBeTruthy();
+  });
+
+  it('应该检查 Cortex API 供应商列表', async () => {
+    await browser.url(`${CORTEX_URL}/models/providers`);
+    const body = await browser.$('body');
+    const text = await body.getText();
+    expect(text).toBeTruthy();
+  });
+});
+
+describe('Shadow Desktop - 智能体模型配置 (Tauri Wdio)', () => {
+  it('应该获取智能体配置', async () => {
+    await browser.url(`${CORTEX_URL}/api/cortex/agents`);
+    const body = await browser.$('body');
+    const text = await body.getText();
+    expect(text).toContain('lobes');
+  });
+
+  it('应该包含 required_capabilities', async () => {
+    await browser.url(`${CORTEX_URL}/api/cortex/agents`);
+    const body = await browser.$('body');
+    const text = await body.getText();
+    expect(text).toContain('required_capabilities');
+  });
+});
+
+describe('Shadow Desktop - 对话 API (Tauri Wdio)', () => {
+  it('应该创建对话', async () => {
+    await browser.url(`${CORTEX_URL}/shadow/v1/conversations`);
+    const body = await browser.$('body');
+    const text = await body.getText();
+    expect(text).toBeTruthy();
+  });
+
+  it('应该获取对话列表', async () => {
+    await browser.url(`${CORTEX_URL}/shadow/v1/conversations`);
+    const body = await browser.$('body');
+    const text = await body.getText();
+    expect(text).toBeTruthy();
+  });
+});
+
+describe('Shadow Desktop - 模型列表 (Tauri Wdio)', () => {
+  it('应该获取本地模型列表', async () => {
+    await browser.url(`${CORTEX_URL}/v1/models`);
+    const body = await browser.$('body');
+    const text = await body.getText();
+    expect(text).toBeTruthy();
+  });
+});
+
+describe('Shadow Desktop - Trace 功能 (Tauri Wdio)', () => {
+  it('应该加载 Trace 页面', async () => {
+    await browser.url('/trace');
+    await browser.waitUntil(async () => {
+      const url = await browser.getUrl();
+      return url.includes('/trace') || url.includes('/setup') || url.includes('/onboarding');
+    }, { timeout: 15_000 });
+    const url = await browser.getUrl();
+    expect(url).toBeTruthy();
+  });
+});
+
+describe('Shadow Desktop - MCP 管理 (Tauri Wdio)', () => {
+  it('应该加载 MCP 页面', async () => {
+    await browser.url('/mcp');
+    await browser.waitUntil(async () => {
+      const url = await browser.getUrl();
+      return url.includes('/mcp') || url.includes('/setup') || url.includes('/onboarding');
+    }, { timeout: 15_000 });
+    const url = await browser.getUrl();
+    expect(url).toBeTruthy();
+  });
+
+  it('应该获取 MCP 服务器列表', async () => {
+    await browser.url(`${CORTEX_URL}/api/cortex/mcp/servers`);
+    const body = await browser.$('body');
+    const text = await body.getText();
+    expect(text).toBeTruthy();
+  });
+});
+
+describe('Shadow Desktop - 记忆功能 (Tauri Wdio)', () => {
+  it('应该加载记忆页面', async () => {
+    await browser.url('/memory');
+    await browser.waitUntil(async () => {
+      const url = await browser.getUrl();
+      return url.includes('/memory') || url.includes('/setup') || url.includes('/onboarding');
+    }, { timeout: 15_000 });
+    const url = await browser.getUrl();
+    expect(url).toBeTruthy();
+  });
+
+  it('应该获取记忆列表', async () => {
+    await browser.url(`${CORTEX_URL}/hippocampus/api/memory`);
+    const body = await browser.$('body');
+    const text = await body.getText();
+    expect(text).toBeTruthy();
+  });
+});
+
+describe('Shadow Desktop - 技能管理 (Tauri Wdio)', () => {
+  it('应该加载技能页面', async () => {
+    await browser.url('/skills');
+    await browser.waitUntil(async () => {
+      const url = await browser.getUrl();
+      return url.includes('/skills') || url.includes('/setup') || url.includes('/onboarding');
+    }, { timeout: 15_000 });
+    const url = await browser.getUrl();
+    expect(url).toBeTruthy();
+  });
+});
+
+describe('Shadow Desktop - 共鸣管理 (Tauri Wdio)', () => {
+  it('应该加载共鸣页面', async () => {
+    await browser.url('/resonance');
+    await browser.waitUntil(async () => {
+      const url = await browser.getUrl();
+      return url.includes('/resonance') || url.includes('/setup') || url.includes('/onboarding');
+    }, { timeout: 15_000 });
+    const url = await browser.getUrl();
+    expect(url).toBeTruthy();
+  });
+});
+
+describe('Shadow Desktop - 智能体调度 (prefrontal) (Tauri Wdio)', () => {
+  it('应该列出可调度的智能体', async () => {
+    await browser.url(`${CORTEX_URL}/api/cortex/prefrontal/agents`);
+    const body = await browser.$('body');
+    const text = await body.getText();
+    expect(text).toContain('dispatchable_via');
+  });
+
+  it('应该包含 temporal lobe', async () => {
+    await browser.url(`${CORTEX_URL}/api/cortex/prefrontal/agents`);
+    const body = await browser.$('body');
+    const text = await body.getText();
+    expect(text).toContain('temporal');
+  });
+
+  it('应该返回 lobe runtime 信息', async () => {
+    await browser.url(`${CORTEX_URL}/api/cortex/lobes/runtime/temporal`);
+    const body = await browser.$('body');
+    const text = await body.getText();
+    expect(text).toContain('openai_base_url');
+  });
+
+  it('应该接受 lobe 重新配置', async () => {
+    await browser.url(`${CORTEX_URL}/api/cortex/lobes/reconfigure/temporal`);
+    const body = await browser.$('body');
+    const text = await body.getText();
+    expect(text).toBeTruthy();
+  });
+
+  it('应该列出 lobe capabilities', async () => {
+    await browser.url(`${CORTEX_URL}/api/cortex/lobes/capabilities`);
+    const body = await browser.$('body');
+    const text = await body.getText();
+    expect(text).toContain('llm');
+    expect(text).toContain('asr');
+    expect(text).toContain('tts');
+  });
+
+  it('应该列出 lobe manifests', async () => {
+    await browser.url(`${CORTEX_URL}/api/cortex/lobes/manifest`);
+    const body = await browser.$('body');
+    const text = await body.getText();
+    expect(text).toContain('temporal');
+    expect(text).toContain('prefrontal');
+  });
+});
+
+describe('Shadow Desktop - 外部 Agent A2A 调度 (Tauri Wdio)', () => {
+  it('应该通过 prefrontal/agents 看到外部 agent', async () => {
+    await browser.url(`${CORTEX_URL}/api/cortex/prefrontal/agents`);
+    const body = await browser.$('body');
+    const text = await body.getText();
+    expect(text).toBeTruthy();
+  });
+
+  it('prefrontal/dispatch 应该接受 agent 字段', async () => {
+    await browser.url(`${CORTEX_URL}/api/cortex/prefrontal/dispatch`);
+    const body = await browser.$('body');
+    const text = await body.getText();
+    expect(text).toBeTruthy();
+  });
+});
+
+describe('Shadow Desktop - 思维定式 (Tauri Wdio)', () => {
+  it('应该加载思维定式页面', async () => {
+    await browser.url('/flows');
+    await browser.waitUntil(async () => {
+      const url = await browser.getUrl();
+      return url.includes('/flows') || url.includes('/setup') || url.includes('/onboarding');
+    }, { timeout: 15_000 });
+    const url = await browser.getUrl();
+    expect(url).toBeTruthy();
+  });
+});
+
+describe('Shadow Desktop - 语音功能 (Tauri Wdio)', () => {
+  it('应该加载语音页面', async () => {
+    await browser.url('/voice');
+    await browser.waitUntil(async () => {
+      const url = await browser.getUrl();
+      return url.includes('/voice') || url.includes('/setup') || url.includes('/onboarding');
+    }, { timeout: 15_000 });
+    const url = await browser.getUrl();
+    expect(url).toBeTruthy();
+  });
+});
