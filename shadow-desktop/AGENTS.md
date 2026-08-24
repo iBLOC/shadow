@@ -1,6 +1,6 @@
 # PROJECT KNOWLEDGE BASE
 
-**Updated:** 2026-07-13
+**Updated:** 2026-08-23
 **Project:** shadow-desktop (Layer 4 — Interaction)
 **Sprint-2 status:** ✅ MCP management wired through cortex — AgentsPage per-card binding panel + bind modal + 12 new cortexClient methods + 18 i18n keys. 10 AgentsPage + 10 chartbi + 20 lib vitest tests passing (147 pre-existing failures in unrelated test files unchanged). TypeScript clean.
 
@@ -22,6 +22,12 @@ The desktop app should NOT directly know about LLM/TTS/ASR internals. It only:
 4. Captures mic audio (WebRTC for Companion Mode)
 5. Renders UI (React 19 + Tauri 2)
 
+## UI COMPONENTS
+
+**必须优先使用 shadcn/ui 组件**，避免自行实现基础 UI 功能。详见 `UI_COMPONENT_SPEC.md`。
+
+已安装的 shadcn/ui 组件：Button, Input, Textarea, Label, Select, Dialog, AlertDialog, Tabs, Badge, Card, Progress, Skeleton, Separator, Toast (Sonner), Tooltip, Popover, Dropdown Menu, Command, Table, Calendar, DatePicker 等。
+
 ## STRUCTURE
 
 ```
@@ -32,8 +38,7 @@ shadow-desktop/
 │   ├── pages/                    # Routes
 │   │   ├── ConversationPage.tsx  # Includes CompanionModePanel (WebRTC)
 │   │   ├── AgentsPage.tsx
-│   │   ├── ModelsPage.tsx
-│   │   ├── SettingsPage.tsx
+│   │   ├── SettingsPage.tsx      # Models section = provider CRUD + LocalEnginePanel
 │   │   ├── SetupPage.tsx
 │   │   ├── MCPPage.tsx
 │   │   ├── MemoryPage.tsx
@@ -164,6 +169,20 @@ The `webrtcCompanion.ts` service uses:
 - NEVER use Tauri invoke for chat — always HTTP
 - Tauri only for OS-level (window, tray, notifications, fs)
 
+## MODEL MANAGEMENT CONSOLIDATION (added 2026-08-23)
+
+- **SettingsPage is the only home for model management.** Its Models section (`ModelsSection`) now covers: cloud provider CRUD (per-row Edit/Delete buttons + `AddProviderModal` in add or edit mode via `initialProvider`/`initialType` props), and local engine models via `components/business/LocalEnginePanel` (type tabs, neure `/v1/models` list, download queue with job polling, install/release, source-repo download dialog — ported verbatim from the deleted ModelsPage).
+- **Deleted as deprecated:** `pages/ModelsPage.tsx`, `pages/ProvidersPage.tsx`, `pages/ModelDownloadPage.tsx`, `stores/modelDownloadStore.ts`. Routes `/models`, `/models/download`, `/providers` removed from `App.tsx`.
+- **Provider constants live in `src/lib/cloudProviders.ts`** (`CLOUD_PROVIDER_TYPES` + `DEFAULT_API_BASE`), shared by SettingsPage; `AddProviderModal` resolves its base URL via `prefrontalUrl()` (no more hardcoded `:60080`).
+- **`AppInitializer.MODEL_SETUP_PATHS = ['/settings', '/setup']`** — `/settings` must stay in this whitelist or users without models loop between `/onboarding` and `/settings` forever. `ModelOnboardingPage` navigates to `/settings`.
+- Provider edit/delete backend: cortex `PUT/DELETE /models/providers/{id}`; client methods `cortexClient.updateProvider/deleteProvider`.
+- Tests: ModelsPage-exclusive test files deleted; `tests/e2e/setup-lifecycle.test.tsx` platform mock now exports `prefrontalUrl`.
+
+## DEFAULT ROUTE & TTS PLAYBACK (added 2026-08-23)
+
+- **Default entry** is `ConversationPage` (`<Route index element={<ConversationPage />} />` in `App.tsx`). `TaskBoardPage` is reachable via `/tasks` but no longer the index.
+- **TTS playback** of agent responses lives in `src/lib/tts.ts` (wraps `openaiClient.speech()` + browser `HTMLAudioElement` + per-text audio cache). Triggered automatically when an assistant message is added (skipped for ChatBI chart payloads to avoid noisy narration). User can disable via the TTS toggle in the conversation header; preference persists in `localStorage` (`shadow.tts.enabled`). Per-message Volume2/VolumeX buttons let the user replay or stop the current playback. Architecture follows the synapse-first standard: TTS request goes through `OpenAIProvider::chat`-style abstraction (`openaiClient.speech` is the wrapped OpenAI client).
+
 ## BUILD COMMANDS
 
 ```bash
@@ -176,7 +195,29 @@ pnpm tauri dev            # Tauri dev with hot reload
 pnpm tauri build          # Production native bundle
 pnpm test                 # Vitest
 pnpm lint                 # ESLint over src/
+pnpm test:tauri           # Wdio Tauri E2E (full stack — auto-xvfb on Linux)
+pnpm test:tauri:headed    # Wdio Tauri E2E without xvfb (use existing display)
+pnpm test:tauri:reuse     # Reuse already-running Tauri + cortex
+pnpm test:tauri:spec      # Run a single spec file
 ```
+
+### Tauri Wdio E2E (full stack)
+
+Runs the actual Tauri WebView shell + cortex sidecar via the W3C
+WebDriver protocol exposed by `tauri-plugin-wdio-webdriver` at
+port 4445. Use for testing platform-specific features (system tray,
+IPC, native dialogs) and the cortex-sidecar launch path.
+
+State reset between specs hits `POST /api/cortex/admin/test/reset`
+(see `cortex/src/api/test_reset.rs`). Single worker (`maxInstances:1`)
+because of `tauri-plugin-single-instance` — bypass env var
+`TAURI_TEST_NO_SINGLE_INSTANCE=1` is set by `global-setup.ts`.
+
+The cortex sidecar receives test-specific env vars via
+`SHADOW_CORTEX_CONFIG` (YAML file with `DATABASE_URL`,
+`LANCE_URI`, etc.) — `cortex_manager.rs` loads this file and merges
+into the cortex child process env. Production behavior is unchanged
+when `SHADOW_CORTEX_CONFIG` is unset.
 
 ## BUILD TARGETS
 
