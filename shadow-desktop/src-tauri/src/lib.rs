@@ -122,6 +122,13 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            // In test mode (wdio Tauri E2E), bypass the focus-existing-window
+            // behavior so a second `pnpm tauri dev` launched by a developer
+            // during a test run starts a fresh instance instead of stealing
+            // focus from the wdio-controlled Tauri process.
+            if std::env::var("TAURI_TEST_NO_SINGLE_INSTANCE").is_ok() {
+                return;
+            }
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.show();
                 let _ = window.set_focus();
