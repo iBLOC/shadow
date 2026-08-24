@@ -3,7 +3,7 @@ import '../wdio-hooks';
 
 describe('Shadow Desktop - 对话功能 (Tauri Wdio)', () => {
   before(async () => {
-    await browser.url('/');
+    await browser.url('http://localhost:1420');
     await browser.waitUntil(async () => {
       const url = await browser.getUrl();
       return url.length > 0;
