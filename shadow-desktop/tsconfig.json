@@ -27,7 +27,7 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src"],
-  "exclude": ["src/lib/__tests__/**"],
+  "include": ["src", "tests/tauri-e2e", "wdio.conf.tauri.ts"],
+  "exclude": ["src/lib/__tests__/**", "tests/wdio/**"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

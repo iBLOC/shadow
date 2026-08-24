@@ -76,6 +76,7 @@
     "@wdio/local-runner": "^9.0.0",
     "@wdio/mocha-framework": "^9.0.0",
     "@wdio/spec-reporter": "^9.0.0",
+    "@wdio/types": "^9.31.2",
     "autoprefixer": "^10.5.1",
     "chromedriver": "^131.0.0",
     "class-variance-authority": "^0.7.1",
