@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -10,6 +12,40 @@ const DEFAULT_CORTEX_PORT: u16 = 60080;
 const CORTEX_BIN_NAME: &str = "cortex";
 const READY_TIMEOUT: Duration = Duration::from_secs(10);
 const READY_POLL_INTERVAL: Duration = Duration::from_millis(200);
+
+/// Load test configuration from a YAML file pointed to by
+/// `SHADOW_CORTEX_CONFIG`. Returns an empty HashMap if the env
+/// var is unset (production behavior unchanged). Used by the
+/// wdio Tauri E2E test orchestrator to inject DATABASE_URL,
+/// LANCE_URI, etc. without code changes.
+fn load_test_config() -> HashMap<String, String> {
+    let Some(path_str) = std::env::var("SHADOW_CORTEX_CONFIG").ok() else {
+        return HashMap::new();
+    };
+    let path = PathBuf::from(&path_str);
+    let yaml = match std::fs::read_to_string(&path) {
+        Ok(s) => s,
+        Err(e) => {
+            tracing::error!(
+                "SHADOW_CORTEX_CONFIG set but cannot read {}: {}",
+                path_str,
+                e
+            );
+            return HashMap::new();
+        }
+    };
+    match serde_yaml::from_str::<HashMap<String, String>>(&yaml) {
+        Ok(m) => m,
+        Err(e) => {
+            tracing::error!(
+                "SHADOW_CORTEX_CONFIG at {} is invalid YAML: {}",
+                path_str,
+                e
+            );
+            HashMap::new()
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -172,6 +208,13 @@ impl CortexManager {
         let host = inner.host.clone();
         let stderr_buf = inner.stderr_buf.clone();
         let hf_token = inner.hf_token.clone();
+        let test_config = load_test_config();
+        if !test_config.is_empty() {
+            tracing::info!(
+                count = test_config.len(),
+                "applying SHADOW_CORTEX_CONFIG to cortex sidecar"
+            );
+        }
 
         let mut cmd = Command::new(&bin);
         cmd.env("CORTEX_PORT", port.to_string())
@@ -185,6 +228,7 @@ impl CortexManager {
                 "HF_TOKEN",
                 hf_token.as_deref().unwrap_or(""),
             )
+            .envs(test_config)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -447,4 +491,39 @@ pub fn resolve_cortex_binary() -> std::path::PathBuf {
     }
 
     std::path::PathBuf::from(CORTEX_BIN_NAME)
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn with_test_config_path(contents: &str) -> String {
+        let path = std::env::temp_dir().join("shadow_test_cortex_config.yaml");
+        std::fs::write(&path, contents).unwrap();
+        path.to_string_lossy().into_owned()
+    }
+
+    #[test]
+    fn load_test_config_returns_empty_when_env_unset() {
+        std::env::remove_var("SHADOW_CORTEX_CONFIG");
+        let config = load_test_config();
+        assert!(config.is_empty());
+    }
+
+    #[test]
+    fn load_test_config_parses_yaml() {
+        let path = with_test_config_path("DATABASE_URL: \"\"\nLANCE_URI: \"file:///tmp/lance\"\n");
+        std::env::set_var("SHADOW_CORTEX_CONFIG", &path);
+        let config = load_test_config();
+        assert_eq!(config.get("DATABASE_URL").map(|s| s.as_str()), Some(""));
+        assert_eq!(config.get("LANCE_URI").map(|s| s.as_str()), Some("file:///tmp/lance"));
+        std::env::remove_var("SHADOW_CORTEX_CONFIG");
+    }
+
+    #[test]
+    fn load_test_config_handles_missing_file() {
+        std::env::set_var("SHADOW_CORTEX_CONFIG", "/nonexistent/path/cortex.yaml");
+        let config = load_test_config();
+        assert!(config.is_empty());
+        std::env::remove_var("SHADOW_CORTEX_CONFIG");
+    }
 }
