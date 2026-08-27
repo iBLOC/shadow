@@ -1,4 +1,5 @@
 mod mdns;
+mod video_source;
 mod prefrontal_client;
 mod ws_client;
 mod embedded_pg;
@@ -222,6 +223,10 @@ pub fn run() {
             cortex_status,
             set_hf_token,
             get_hf_token,
+            video_source::enumerate_uvc,
+            video_source::probe_capabilities,
+            video_source::push_to_cortex,
+            video_source::sync_health,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
