@@ -245,6 +245,39 @@ export interface DiscoveryResult {
   count: number;
 }
 
+// Video source types (Spec #1 — cortex_video_sources table)
+export interface VideoSource {
+  id: string;
+  deviceId: string;
+  label: string;
+  kind: string;
+  serial?: string;
+  transport: string;
+  capabilities: Record<string, unknown>;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DeviceBlock {
+  platform: string;
+  hostname: string;
+  cortexVersion: string;
+}
+
+export interface CortexVideoSourcesSnapshot {
+  sources: VideoSource[];
+  activeId?: string | null;
+  device?: DeviceBlock | null;
+}
+
+export class Cortex412Error extends Error {
+  constructor(public reason: string) {
+    super(reason);
+    this.name = 'Cortex412Error';
+  }
+}
+
 export class CortexClient {
   private baseUrl: string;
   private apiKey?: string;
@@ -631,6 +664,37 @@ export class CortexClient {
       method: 'POST',
       body: JSON.stringify({ confirmed, modifications }),
     });
+  }
+
+  // Video source methods (Spec #1)
+  async listVideoSources(): Promise<CortexVideoSourcesSnapshot> {
+    return this.request<CortexVideoSourcesSnapshot>('/api/cortex/video-sources');
+  }
+
+  async putVideoSources(
+    snapshot: CortexVideoSourcesSnapshot,
+    ifMatch: string,
+  ): Promise<string> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'If-Match': ifMatch,
+    };
+    const resp = await fetch(`${this.baseUrl}/api/cortex/video-sources`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...headers,
+      },
+      body: JSON.stringify(snapshot),
+    });
+    if (resp.status === 412) {
+      throw new Cortex412Error('video-sources ETag mismatch');
+    }
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => '');
+      throw new Error(`putVideoSources ${resp.status}: ${text || resp.statusText}`);
+    }
+    return resp.headers.get('ETag') || '';
   }
 }
 

@@ -518,6 +518,7 @@
     "section": {
       "service": "服务与智能体",
       "models": "模型管理",
+      "video": "视频源",
       "ui": "界面",
       "data": "数据",
       "system": "系统"
@@ -941,6 +942,29 @@
     "noSpeechDetected": "未检测到语音，请重试",
     "processing": "处理中...",
     "error": "语音处理失败"
+  },
+  "videoSources": {
+    "title": "视频源",
+    "emptyNoDevices": "未发现视频设备",
+    "emptyHint": "连接摄像头或检查设备连接状态",
+    "add": "添加",
+    "makeActive": "设为活动",
+    "remove": "移除",
+    "rescan": "重新扫描",
+    "activeBadge": "活动",
+    "sourcesHeader": "个源",
+    "availableHeader": "可用（未添加）",
+    "serialUnknown": "序列号未知",
+    "capabilitiesUnknown": "能力未知",
+    "statusSynced": "已与 cortex 同步",
+    "statusStale": "过期 — 同步失败",
+    "syncFailed": "Cortex 同步失败",
+    "errorNoActive": "没有配置活动视频源",
+    "permissionDenied": "需要相机权限",
+    "permissionHint": "授权摄像头访问以发现视频设备",
+    "grantAccess": "授权访问",
+    "duplicateSource": "重复的源",
+    "duplicateSourceHint": "该源已存在于你的源列表中"
   },
   "cortexStatus": {
     "title": "Cortex 内部状态",

@@ -21,3 +21,5 @@ export type { FormCardProps, FormGroupProps, FormRowProps } from './FormCard';
 
 export { EntityCard } from './EntityCard';
 export type { EntityCardProps } from './EntityCard';
+
+export { VideoSourcesCard } from './VideoSourcesCard';

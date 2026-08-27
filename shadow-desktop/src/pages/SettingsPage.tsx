@@ -6,7 +6,7 @@ import {
   HardDrive, Shield, Bell, Keyboard, ChevronRight,
   Cpu, Trash2, Plus, Brain, ChevronDown,
   AlertCircle, Boxes, Search, ScanLine, Link2, Unlink, Wand2,
-  Sparkles, Settings, Play,
+  Sparkles, Settings, Play, Camera,
 } from 'lucide-react';
 import { safeInvoke } from '../lib/tauriSafe';
 import { isTauri } from '../lib/platform';
@@ -16,16 +16,18 @@ import { useAgentStore } from '../stores/agentStore';
 import { cortexClient, type ScanResult, type InstalledWasmList, type AgentSearchResponse, type McpAgentBinding, type McpServerRecord, type ModelProvider } from '../lib/cortexClient';
 import { HfTokenSettings } from '../components/business/HfTokenSettings';
 import { UpdateChecker } from '../components/business/UpdateChecker';
+import { VideoSourcesCard } from '../components/business/VideoSourcesCard';
 import { Button, Badge, EmptyState, Modal } from '../components/ui';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { cn } from '../lib/utils';
 
-type SettingsSection = 'service' | 'models' | 'ui' | 'data' | 'system';
+type SettingsSection = 'service' | 'models' | 'video' | 'ui' | 'data' | 'system';
 type AgentSection = 'internal' | 'custom' | 'wasm' | 'external';
 
 const SECTIONS: { id: SettingsSection; icon: typeof Server; labelKey: string }[] = [
   { id: 'service', icon: Server, labelKey: 'settings.section.service' },
   { id: 'models', icon: Cpu, labelKey: 'settings.section.models' },
+  { id: 'video', icon: Camera, labelKey: 'settings.section.video' },
   { id: 'ui', icon: Monitor, labelKey: 'settings.section.ui' },
   { id: 'data', icon: Database, labelKey: 'settings.section.data' },
   { id: 'system', icon: Shield, labelKey: 'settings.section.system' },
@@ -41,6 +43,7 @@ export function SettingsPage() {
         <SettingsHeader />
         {activeSection === 'service' && <ServiceAndAgentsSection />}
         {activeSection === 'models' && <ModelsSection />}
+        {activeSection === 'video' && <VideoSourcesCard />}
         {activeSection === 'ui' && <UISection />}
         {activeSection === 'data' && <DataSection />}
         {activeSection === 'system' && <SystemSection />}

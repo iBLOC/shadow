@@ -518,6 +518,7 @@
     "section": {
       "service": "Service & Agents",
       "models": "Model Management",
+      "video": "Video Sources",
       "ui": "Interface",
       "data": "Data",
       "system": "System"
@@ -925,5 +926,28 @@
     "noSpeechDetected": "No speech detected, please try again",
     "processing": "Processing...",
     "error": "Voice processing failed"
+  },
+  "videoSources": {
+    "title": "Video Sources",
+    "emptyNoDevices": "No video sources found",
+    "emptyHint": "Plug in a camera or check your device connections",
+    "add": "Add",
+    "makeActive": "Make Active",
+    "remove": "Remove",
+    "rescan": "Re-scan",
+    "activeBadge": "Active",
+    "sourcesHeader": "sources",
+    "availableHeader": "Available (not added)",
+    "serialUnknown": "serial unknown",
+    "capabilitiesUnknown": "capabilities unknown",
+    "statusSynced": "synced with cortex",
+    "statusStale": "stale — sync failed",
+    "syncFailed": "Cortex sync failed",
+    "errorNoActive": "No active video source configured",
+    "permissionDenied": "Camera access required",
+    "permissionHint": "Grant camera access to discover video sources",
+    "grantAccess": "Grant Access",
+    "duplicateSource": "Duplicate source",
+    "duplicateSourceHint": "This source already exists in your sources"
   }
 }
