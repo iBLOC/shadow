@@ -86,3 +86,6 @@ temp/
 # Misc
 *.bak
 *.orig
+
+# Isolated workspaces
+.worktrees/
