@@ -559,4 +559,12 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get customerServiceHint =>
       'AI 会自动接听电话并回复。shadow-esp32 播放来电方语音和 AI 回复。插入耳机后自动切到耳机。';
+
+  @override
+  String get visualQaPickCamera => '请选择摄像头';
+
+  @override
+  String visualQaPicked(Object label) {
+    return '已选择 $label';
+  }
 }

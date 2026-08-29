@@ -567,4 +567,12 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get customerServiceHint =>
       'AI will answer incoming calls and reply using the LLM. Shadow-esp32 plays caller voice and AI response. Plug earphone to take over.';
+
+  @override
+  String get visualQaPickCamera => 'Pick a camera';
+
+  @override
+  String visualQaPicked(Object label) {
+    return 'Picked $label';
+  }
 }

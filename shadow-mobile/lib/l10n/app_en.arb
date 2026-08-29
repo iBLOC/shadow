@@ -291,5 +291,13 @@
   "openVoiceMode": "Voice Assistant",
   "@openVoiceMode": {},
   "customerServiceHint": "AI will answer incoming calls and reply using the LLM. Shadow-esp32 plays caller voice and AI response. Plug earphone to take over.",
-  "@customerServiceHint": {}
+  "@customerServiceHint": {},
+  "visualQaPickCamera": "Pick a camera",
+  "@visualQaPickCamera": {},
+  "visualQaPicked": "Picked {label}",
+  "@visualQaPicked": {
+    "placeholders": {
+      "label": {}
+    }
+  }
 }

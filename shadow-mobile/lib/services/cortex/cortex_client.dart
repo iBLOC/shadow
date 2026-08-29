@@ -223,6 +223,7 @@ class StreamEvent {
   final String? state;
   final DateTime? timestamp;
   final String? error;
+  final ClarificationPayload? clarification;
 
   StreamEvent({
     required this.type,
@@ -232,6 +233,7 @@ class StreamEvent {
     this.state,
     this.timestamp,
     this.error,
+    this.clarification,
   });
 
   factory StreamEvent.fromJson(Map<String, dynamic> json) => StreamEvent(
@@ -246,7 +248,56 @@ class StreamEvent {
           )
         : null,
     error: json['error'] as String?,
+    clarification: json['clarification'] is Map<String, dynamic>
+        ? ClarificationPayload.fromJson(
+            json['clarification'] as Map<String, dynamic>,
+          )
+        : null,
   );
+}
+
+/// Wire shape of `metadata.shadow.clarification` carried by a
+/// cortex stream event of type `"clarification"`. The visual-QA
+/// router emits this when the LLM needs the user to pick a video
+/// source (multi-camera setup, peer cortex candidate, etc.).
+class ClarificationPayload {
+  final String kind;
+  final List<ClarificationCandidate> candidates;
+
+  const ClarificationPayload({required this.kind, required this.candidates});
+
+  factory ClarificationPayload.fromJson(Map<String, dynamic> json) {
+    final raw = json['candidates'];
+    final list = raw is List
+        ? raw
+              .whereType<Map<String, dynamic>>()
+              .map(ClarificationCandidate.fromJson)
+              .toList()
+        : const <ClarificationCandidate>[];
+    return ClarificationPayload(
+      kind: (json['kind'] as String?) ?? 'unknown',
+      candidates: list,
+    );
+  }
+}
+
+class ClarificationCandidate {
+  final String sourceId;
+  final String deviceLabel;
+  final String? hostLabel;
+
+  const ClarificationCandidate({
+    required this.sourceId,
+    required this.deviceLabel,
+    this.hostLabel,
+  });
+
+  factory ClarificationCandidate.fromJson(Map<String, dynamic> json) =>
+      ClarificationCandidate(
+        sourceId: (json['source_id'] as String?) ?? '',
+        deviceLabel: (json['device_label'] as String?) ?? '',
+        hostLabel: json['host_label'] as String?,
+      );
 }
 
 class FlowMeta {

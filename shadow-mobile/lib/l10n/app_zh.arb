@@ -248,5 +248,13 @@
   "openVoiceMode": "语音助手",
   "@openVoiceMode": {},
   "customerServiceHint": "AI 会自动接听电话并回复。shadow-esp32 播放来电方语音和 AI 回复。插入耳机后自动切到耳机。",
-  "@customerServiceHint": {}
+  "@customerServiceHint": {},
+  "visualQaPickCamera": "请选择摄像头",
+  "@visualQaPickCamera": {},
+  "visualQaPicked": "已选择 {label}",
+  "@visualQaPicked": {
+    "placeholders": {
+      "label": {}
+    }
+  }
 }

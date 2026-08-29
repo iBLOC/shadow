@@ -153,6 +153,11 @@
     },
     "chatbi": {
       "chartTitle": "SQL: {{sql}}（{{ms}} 毫秒）"
+    },
+    "visualQa": {
+      "pickSource": "请选择摄像头",
+      "picked": "已选择 {{label}}",
+      "host": "{{label}} · {{host}}"
     }
   },
   "lobes": {

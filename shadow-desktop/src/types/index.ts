@@ -173,6 +173,18 @@ export interface Message {
   attachments?: Attachment[];
   /** ChatBI structured payload (if the assistant response is a chart query result). */
   chatbi?: import('../lib/chatbi/guards').ChatBiPayload;
+  /** visual_qa clarification chip (when the user must pick a source). */
+  visual_qa_clarification?: VisualQaClarification;
+}
+
+export interface VisualQaClarification {
+  kind: string;
+  candidates: Array<{
+    deviceId?: string;
+    deviceLabel: string;
+    sourceId: string;
+    hostLabel?: string;
+  }>;
 }
 
 export interface Attachment {

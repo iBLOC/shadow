@@ -8,8 +8,10 @@ import { Button, EmptyState } from '../components/ui';
 import { VoiceButton } from '../components/ui/voice-button';
 import { MoveSessionDialog } from '../components/MoveSessionDialog';
 import { ChartCard } from '../components/chatbi';
+import { VisualQaClarificationChip } from '../components/chat/VisualQaClarificationChip';
 import { isChatBiPayload } from '../lib/chatbi/guards';
 import type { ChatBiPayload } from '../lib/chatbi/guards';
+import type { VisualQaClarification } from '../types';
 import {
   Send,
   Plus,
@@ -129,9 +131,12 @@ export function ConversationPage() {
 
           let accumulated = '';
           let chatbiPayload: ChatBiPayload | undefined;
+          let visualQaClarification: VisualQaClarification | undefined;
           for await (const event of cortexClient.streamMessage(conversationId, { text: input })) {
             if (event.type === 'delta' && event.delta) {
               accumulated += event.delta;
+            } else if (event.type === 'clarification' && event.clarification) {
+              visualQaClarification = event.clarification;
             } else if (event.type === 'done') {
               if (accumulated.trim().startsWith('{')) {
                 try {
@@ -160,6 +165,7 @@ export function ConversationPage() {
               : accumulated || t('conversation.noResponse'),
             timestamp: new Date(),
             chatbi: chatbiPayload,
+            visual_qa_clarification: visualQaClarification,
           };
           addMessage(activeConversationId, assistantMessage);
           return;
@@ -308,6 +314,24 @@ export function ConversationPage() {
                             rows={msg.chatbi.rows}
                             title={msg.content}
                             className="max-w-full"
+                          />
+                        ) : msg.visual_qa_clarification ? (
+                          <VisualQaClarificationChip
+                            clarification={msg.visual_qa_clarification}
+                            onPick={(c) => {
+                              addMessage(activeConversationId, {
+                                id: crypto.randomUUID(),
+                                role: 'user',
+                                content: t('conversation.visualQa.picked', {
+                                  label: c.deviceLabel,
+                                }),
+                                timestamp: new Date(),
+                              });
+                              setInput(`${c.sourceId} ${c.deviceLabel}`);
+                              setTimeout(() => {
+                                void handleSendMessage();
+                              }, 0);
+                            }}
                           />
                         ) : (
                           <div className={cn(

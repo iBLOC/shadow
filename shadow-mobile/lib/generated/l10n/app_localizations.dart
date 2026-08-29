@@ -1135,6 +1135,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'AI will answer incoming calls and reply using the LLM. Shadow-esp32 plays caller voice and AI response. Plug earphone to take over.'**
   String get customerServiceHint;
+
+  /// No description provided for @visualQaPickCamera.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick a camera'**
+  String get visualQaPickCamera;
+
+  /// No description provided for @visualQaPicked.
+  ///
+  /// In en, this message translates to:
+  /// **'Picked {label}'**
+  String visualQaPicked(Object label);
 }
 
 class _AppLocalizationsDelegate

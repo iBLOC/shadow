@@ -1,0 +1,600 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../screens/task_board_screen.dart';
+import 'task_edit_dialog.dart';
+
+/// 任务详情弹窗 - 显示完整任务信息 + 子任务列表 + 子任务进度。
+/// 点击任务卡片时打开。
+class TaskDetailDialog extends ConsumerStatefulWidget {
+  final TaskInfo task;
+  const TaskDetailDialog({super.key, required this.task});
+
+  @override
+  ConsumerState<TaskDetailDialog> createState() => _TaskDetailDialogState();
+}
+
+class _TaskDetailDialogState extends ConsumerState<TaskDetailDialog>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController;
+  bool _isRefreshing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _refresh() async {
+    setState(() => _isRefreshing = true);
+    try {
+      await ref
+          .read(tasksNotifierProvider.notifier)
+          .reloadTask(widget.task.id);
+    } finally {
+      if (mounted) setState(() => _isRefreshing = false);
+    }
+  }
+
+  Future<void> _delete() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('确认删除'),
+        content: Text('确认删除任务 "${widget.task.title}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await ref.read(tasksNotifierProvider.notifier).deleteTask(widget.task.id);
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('删除失败: $e')),
+        );
+      }
+    }
+  }
+
+  void _openEdit() {
+    Navigator.of(context).pop();
+    showDialog(
+      context: context,
+      builder: (_) => TaskEditDialog(task: widget.task),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Listen for updates so dialog re-renders after edits.
+    final task = ref
+            .watch(tasksNotifierProvider)
+            .tasks
+            .firstWhere(
+              (t) => t.id == widget.task.id,
+              orElse: () => widget.task,
+            );
+
+    final steps = task.steps;
+    final completed =
+        steps.where((s) => s.status == 'completed').length;
+    final total = steps.length;
+    final progress = total > 0 ? completed / total : 0.0;
+
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.all(16),
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 600, maxHeight: 700),
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildHeader(task),
+            TabBar(
+              controller: _tabController,
+              tabs: [
+                Tab(text: '概览'),
+                Tab(text: '子任务 (${steps.length})'),
+                Tab(text: '日志'),
+              ],
+            ),
+            Flexible(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildOverview(task, completed, total, progress),
+                  _buildSubtasks(steps),
+                  _buildLogs(task),
+                ],
+              ),
+            ),
+            _buildFooter(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader(TaskInfo task) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.checklist, color: Colors.indigo),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  task.title,
+                  style: Theme.of(context).textTheme.titleLarge,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              IconButton(
+                icon: Icon(
+                  _isRefreshing
+                      ? Icons.refresh
+                      : Icons.refresh,
+                ),
+                onPressed: _isRefreshing ? null : _refresh,
+                tooltip: '刷新',
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              _StatusChip(status: task.status),
+              if (task.priority.isNotEmpty)
+                Chip(
+                  label: Text(task.priority),
+                  visualDensity: VisualDensity.compact,
+                ),
+              Chip(
+                label: Text(task.id.length > 12
+                    ? '${task.id.substring(0, 12)}…'
+                    : task.id),
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOverview(
+    TaskInfo task,
+    int completed,
+    int total,
+    double progress,
+  ) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (task.description != null && task.description!.isNotEmpty) ...[
+            const Text('描述',
+                style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 4),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(task.description!),
+            ),
+            const SizedBox(height: 16),
+          ],
+          _InfoRow(label: '状态', value: task.status),
+          _InfoRow(label: '优先级', value: task.priority),
+          _InfoRow(
+            label: '创建时间',
+            value: _fmtDate(task.createdAt),
+          ),
+          if (task.completedAt != null)
+            _InfoRow(
+              label: '完成时间',
+              value: _fmtDate(task.completedAt!),
+            ),
+          if (task.tags.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            const Text('标签',
+                style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 4),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: task.tags
+                  .map((t) => Chip(
+                        label: Text(t),
+                        visualDensity: VisualDensity.compact,
+                      ))
+                  .toList(),
+            ),
+          ],
+          if (total > 0) ...[
+            const SizedBox(height: 16),
+            _ProgressBar(
+              completed: completed,
+              total: total,
+              ratio: progress,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSubtasks(List<SubTaskStep> steps) {
+    if (steps.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Text(
+            '此任务暂无子任务',
+            style: TextStyle(color: Theme.of(context).hintColor),
+          ),
+        ),
+      );
+    }
+    final sorted = [...steps]..sort((a, b) => a.order.compareTo(b.order));
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: sorted.length,
+      itemBuilder: (context, index) => _SubTaskRow(step: sorted[index]),
+    );
+  }
+
+  Widget _buildLogs(TaskInfo task) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: SelectableText(
+        _buildPrettyJson(task),
+        style: const TextStyle(
+          fontFamily: 'monospace',
+          fontSize: 12,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFooter() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: Colors.grey.withOpacity(0.2))),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          TextButton.icon(
+            icon: const Icon(Icons.delete_outline, color: Colors.red),
+            label: const Text('删除', style: TextStyle(color: Colors.red)),
+            onPressed: _delete,
+          ),
+          const SizedBox(width: 8),
+          FilledButton.icon(
+            icon: const Icon(Icons.edit_outlined),
+            label: const Text('编辑'),
+            onPressed: _openEdit,
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _buildPrettyJson(TaskInfo task) {
+    return const JsonEncoderPretty().encode(task);
+  }
+}
+
+String _fmtDate(DateTime d) {
+  String two(int n) => n.toString().padLeft(2, '0');
+  return '${d.year}-${two(d.month)}-${two(d.day)} '
+      '${two(d.hour)}:${two(d.minute)}:${two(d.second)}';
+}
+
+class JsonEncoderPretty {
+  const JsonEncoderPretty();
+  String encode(TaskInfo t) {
+    final map = {
+      'id': t.id,
+      'title': t.title,
+      'status': t.status,
+      'priority': t.priority,
+      'description': t.description,
+      'tags': t.tags,
+      'steps': t.steps
+          .map((s) => {
+                'step_id': s.stepId,
+                'order': s.order,
+                'status': s.status,
+                'started_at': s.startedAt?.toIso8601String(),
+                'completed_at': s.completedAt?.toIso8601String(),
+                'error': s.error,
+              })
+          .toList(),
+      'created_at': t.createdAt.toIso8601String(),
+      'completed_at': t.completedAt?.toIso8601String(),
+    };
+    return _prettyJson(map);
+  }
+}
+
+String _prettyJson(Map<String, dynamic> map, [int indent = 0]) {
+  final pad = '  ' * indent;
+  final innerPad = '  ' * (indent + 1);
+  final buf = StringBuffer();
+  buf.writeln('{');
+  final entries = map.entries.toList();
+  for (var i = 0; i < entries.length; i++) {
+    final e = entries[i];
+    final comma = i < entries.length - 1 ? ',' : '';
+    if (e.value is Map) {
+      buf.writeln(
+          '$innerPad"${e.key}": ${_prettyJson(Map<String, dynamic>.from(e.value as Map), indent + 1)}$comma');
+    } else if (e.value is List) {
+      buf.write('$innerPad"${e.key}": ');
+      final list = e.value as List;
+      if (list.isEmpty) {
+        buf.writeln('[]$comma');
+      } else {
+        buf.writeln('[');
+        for (var j = 0; j < list.length; j++) {
+          final lc = j < list.length - 1 ? ',' : '';
+          if (list[j] is Map) {
+            buf.writeln(
+                '${'  ' * (indent + 2)}${_prettyJson(Map<String, dynamic>.from(list[j] as Map), indent + 2)}$lc');
+          } else {
+            buf.writeln(
+                '${'  ' * (indent + 2)}${list[j]}$lc');
+          }
+        }
+        buf.writeln('$innerPad]$comma');
+      }
+    } else {
+      buf.writeln('$innerPad"${e.key}": ${e.value}$comma');
+    }
+  }
+  buf.write('$pad}');
+  return buf.toString();
+}
+
+class _StatusChip extends StatelessWidget {
+  final String status;
+  const _StatusChip({required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = {
+      'pending': Colors.orange,
+      'running': Colors.blue,
+      'completed': Colors.green,
+      'failed': Colors.red,
+      'cancelled': Colors.grey,
+    };
+    final color = colors[status] ?? Colors.grey;
+    return Chip(
+      label: Text(status),
+      backgroundColor: color.withOpacity(0.15),
+      labelStyle: TextStyle(color: color, fontWeight: FontWeight.bold),
+      visualDensity: VisualDensity.compact,
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  final String label;
+  final String value;
+  const _InfoRow({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 80,
+            child: Text(
+              label,
+              style: TextStyle(color: Theme.of(context).hintColor),
+            ),
+          ),
+          Expanded(child: Text(value)),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProgressBar extends StatelessWidget {
+  final int completed;
+  final int total;
+  final double ratio;
+  const _ProgressBar({
+    required this.completed,
+    required this.total,
+    required this.ratio,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('子任务进度',
+                style: TextStyle(fontWeight: FontWeight.bold)),
+            Text('$completed / $total (${(ratio * 100).toInt()}%)'),
+          ],
+        ),
+        const SizedBox(height: 4),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: ratio,
+            minHeight: 8,
+            backgroundColor: Colors.grey.withOpacity(0.2),
+            valueColor: AlwaysStoppedAnimation<Color>(
+              ratio >= 1.0 ? Colors.green : Colors.blue,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SubTaskRow extends StatelessWidget {
+  final SubTaskStep step;
+  const _SubTaskRow({required this.step});
+
+  IconData _iconForStatus(String s) {
+    switch (s) {
+      case 'completed':
+        return Icons.check_circle;
+      case 'running':
+        return Icons.autorenew;
+      case 'failed':
+        return Icons.error;
+      case 'cancelled':
+        return Icons.cancel;
+      default:
+        return Icons.circle_outlined;
+    }
+  }
+
+  Color _colorForStatus(String s) {
+    switch (s) {
+      case 'completed':
+        return Colors.green;
+      case 'running':
+        return Colors.blue;
+      case 'failed':
+        return Colors.red;
+      case 'cancelled':
+        return Colors.grey;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _colorForStatus(step.status);
+    final duration =
+        step.startedAt != null && step.completedAt != null
+            ? step.completedAt!.difference(step.startedAt!).inSeconds
+            : null;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.03),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(_iconForStatus(step.status), color: color, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '#${step.order} ${step.stepId}',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  step.status,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: color,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (step.startedAt != null || step.completedAt != null || duration != null) ...[
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 12,
+              children: [
+                if (step.startedAt != null)
+                  Text('开始: ${_fmtDate(step.startedAt!)}',
+                      style: TextStyle(
+                          fontSize: 11,
+                          color: Theme.of(context).hintColor)),
+                if (step.completedAt != null)
+                  Text('完成: ${_fmtDate(step.completedAt!)}',
+                      style: TextStyle(
+                          fontSize: 11,
+                          color: Theme.of(context).hintColor)),
+                if (duration != null)
+                  Text('耗时: ${duration}s',
+                      style: TextStyle(
+                          fontSize: 11,
+                          color: Theme.of(context).hintColor)),
+              ],
+            ),
+          ],
+          if (step.error != null && step.error!.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                step.error!,
+                style: const TextStyle(fontSize: 11, color: Colors.red),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}

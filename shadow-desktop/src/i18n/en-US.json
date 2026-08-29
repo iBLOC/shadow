@@ -153,6 +153,11 @@
     },
     "chatbi": {
       "chartTitle": "SQL: {{sql}} ({{ms}} ms)"
+    },
+    "visualQa": {
+      "pickSource": "Pick a camera",
+      "picked": "Picked {{label}}",
+      "host": "{{label}} · {{host}}"
     }
   },
   "lobes": {
