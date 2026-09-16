@@ -221,6 +221,7 @@ pub fn run() {
             cortex_start,
             cortex_stop,
             cortex_status,
+            cortex_set_supervision,
             set_hf_token,
             get_hf_token,
             video_source::enumerate_uvc,
@@ -303,6 +304,14 @@ async fn cortex_stop(state: State<'_, AppState>) -> Result<(), String> {
 #[tauri::command]
 async fn cortex_status(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
     state.cortex_manager.status_json().await
+}
+
+#[tauri::command]
+async fn cortex_set_supervision(
+    state: State<'_, AppState>,
+    enabled: bool,
+) -> Result<bool, String> {
+    Ok(state.cortex_manager.set_supervision(enabled).await)
 }
 
 #[tauri::command]
