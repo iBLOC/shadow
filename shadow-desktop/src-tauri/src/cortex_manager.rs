@@ -793,4 +793,24 @@ mod tests {
         let alive = m.check_process_alive().await;
         assert!(alive.is_none(), "no child means nothing died");
     }
+
+    #[tokio::test]
+    async fn supervisor_state_round_trip() {
+        // Sanity check on the supervisor state machine without
+        // actually spawning a child: the inner fields that the UI
+        // reads via status_json() must reflect what set_supervision
+        // last set, even across multiple toggles.
+        let m = manager();
+        let s0 = m.status_json().await.unwrap();
+        assert_eq!(s0["supervision_enabled"], serde_json::json!(true));
+        assert_eq!(s0["restart_count"], serde_json::json!(0));
+
+        assert!(!m.set_supervision(false).await);
+        let s1 = m.status_json().await.unwrap();
+        assert_eq!(s1["supervision_enabled"], serde_json::json!(false));
+
+        assert!(m.set_supervision(true).await);
+        let s2 = m.status_json().await.unwrap();
+        assert_eq!(s2["supervision_enabled"], serde_json::json!(true));
+    }
 }
