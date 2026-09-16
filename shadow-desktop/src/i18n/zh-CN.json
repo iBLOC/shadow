@@ -514,7 +514,12 @@
     "address": "地址",
     "cortexId": "id",
     "noLobes": "暂无 lobe 注册",
-    "startHint": "启动 cortex 以发现并连接已注册的 lobe。"
+    "startHint": "启动 cortex 以发现并连接已注册的 lobe。",
+    "supervisor": "崩溃自动重启",
+    "supervisorEnabled": "监督器已启用",
+    "supervisorDisabled": "监督器已禁用",
+    "supervisorHelp": "启用后，监督器会在 cortex sidecar 异常退出时自动拉起（1s → 2s → 4s ... 退避，最多 5 次）。禁用 = 仅手动启动。",
+    "restartCount": "自上次成功以来已重启 {{count}} 次"
   },
   "settings": {
     "title": "设置",

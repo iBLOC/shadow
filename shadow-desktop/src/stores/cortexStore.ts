@@ -9,6 +9,11 @@ export interface CortexConnection {
   apiKey: string;
 }
 
+export interface CortexSupervisorInfo {
+  enabled: boolean;
+  restartCount: number;
+}
+
 interface CortexState {
   connection: CortexConnection;
   status: CortexStatus;
@@ -18,6 +23,7 @@ interface CortexState {
   flows: FlowMeta[];
   lastCheck: Date | null;
   error: string | null;
+  supervisor: CortexSupervisorInfo;
 
   setBaseUrl: (url: string) => void;
   setApiKey: (key: string) => void;
@@ -26,6 +32,7 @@ interface CortexState {
   refreshFlows: () => Promise<void>;
   startCortex: () => Promise<void>;
   stopCortex: () => Promise<void>;
+  setSupervision: (enabled: boolean) => Promise<void>;
 }
 
 const DEFAULT_BASE_URL = 'http://127.0.0.1:8443';
@@ -44,6 +51,7 @@ export const useCortexStore = create<CortexState>()(
       flows: [],
       lastCheck: null,
       error: null,
+      supervisor: { enabled: true, restartCount: 0 },
 
       setBaseUrl: (url) => {
         cortexClient.setBaseUrl(url);
@@ -70,6 +78,26 @@ export const useCortexStore = create<CortexState>()(
             error: e instanceof Error ? e.message : String(e),
             lastCheck: new Date(),
           });
+        }
+        // Pull supervisor state from the sidecar (Tauri-only; on
+        // the web build the invoke returns null and we keep the
+        // previous value).
+        try {
+          const { safeInvoke } = await import('../lib/tauriSafe');
+          const raw = await safeInvoke<{
+            supervision_enabled?: boolean;
+            restart_count?: number;
+          }>('cortex_status');
+          if (raw && typeof raw === 'object') {
+            set((prev) => ({
+              supervisor: {
+                enabled: raw.supervision_enabled ?? prev.supervisor.enabled,
+                restartCount: raw.restart_count ?? prev.supervisor.restartCount,
+              },
+            }));
+          }
+        } catch {
+          /* keep previous supervisor state on transient Tauri errors */
         }
       },
 
@@ -118,6 +146,21 @@ export const useCortexStore = create<CortexState>()(
           const { safeInvoke } = await import('../lib/tauriSafe');
           await safeInvoke('cortex_stop');
           set({ status: 'stopped', lobes: [], cortexId: null });
+        } catch (e) {
+          set({ error: e instanceof Error ? e.message : String(e) });
+        }
+      },
+
+      setSupervision: async (enabled) => {
+        try {
+          const { safeInvoke } = await import('../lib/tauriSafe');
+          const newValue = await safeInvoke<boolean>('cortex_set_supervision', { enabled });
+          set((prev) => ({
+            supervisor: {
+              enabled: newValue ?? enabled,
+              restartCount: prev.supervisor.restartCount,
+            },
+          }));
         } catch (e) {
           set({ error: e instanceof Error ? e.message : String(e) });
         }

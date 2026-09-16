@@ -514,7 +514,12 @@
     "address": "Address",
     "cortexId": "id",
     "noLobes": "No lobes registered",
-    "startHint": "Start cortex to discover and connect to its registered lobes."
+    "startHint": "Start cortex to discover and connect to its registered lobes.",
+    "supervisor": "Auto-restart on crash",
+    "supervisorEnabled": "Supervisor enabled",
+    "supervisorDisabled": "Supervisor disabled",
+    "supervisorHelp": "When enabled, the supervisor respawns the cortex sidecar after an unexpected exit (1s → 2s → 4s ... backoff, max 5 attempts). Disabled = manual restart only.",
+    "restartCount": "{{count}} restart{{plural}} since last success"
   },
   "settings": {
     "title": "Settings",

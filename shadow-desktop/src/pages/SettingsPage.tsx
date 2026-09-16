@@ -205,6 +205,8 @@ function ServiceAndAgentsSection() {
   const cortexLobes = useCortexStore((s) => s.lobes);
   const refreshStatus = useCortexStore((s) => s.refreshStatus);
   const refreshLobes = useCortexStore((s) => s.refreshLobes);
+  const supervisor = useCortexStore((s) => s.supervisor);
+  const setSupervision = useCortexStore((s) => s.setSupervision);
 
   const isRunning = cortexStatus === 'running';
 
@@ -431,6 +433,35 @@ function ServiceAndAgentsSection() {
       {/* Agent Name & Wake Word Settings */}
       <AgentNameSettings />
       <WakeWordSettings />
+
+      {/* Cortex supervisor (auto-restart on crash) */}
+      <div className="rounded-lg border border-border bg-card p-4">
+        <div className="mb-2 flex items-center gap-2">
+          <Shield size={16} className="text-muted-foreground" />
+          <h3 className="text-sm font-semibold text-foreground">{t('services.supervisor')}</h3>
+          <Badge variant={supervisor.enabled ? 'success' : 'secondary'} size="sm">
+            {supervisor.enabled ? t('services.supervisorEnabled') : t('services.supervisorDisabled')}
+          </Badge>
+          {supervisor.restartCount > 0 && (
+            <Badge variant="warning" size="sm">
+              {t('services.restartCount', {
+                count: supervisor.restartCount,
+                plural: supervisor.restartCount === 1 ? '' : 's',
+              })}
+            </Badge>
+          )}
+        </div>
+        <label className="mb-1 flex items-center gap-2 text-sm text-foreground">
+          <input
+            type="checkbox"
+            checked={supervisor.enabled}
+            onChange={(e) => void setSupervision(e.target.checked)}
+            className="h-4 w-4 rounded border-border bg-background"
+          />
+          {t('services.supervisor')}
+        </label>
+        <p className="text-xs text-muted-foreground">{t('services.supervisorHelp')}</p>
+      </div>
 
       {/* Agent Search */}
       <div className="rounded-lg border border-border bg-card p-4">
