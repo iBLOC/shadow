@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { safeInvoke } from '../lib/tauriSafe';
-import { Server, Cloud, Lock, CheckCircle, AlertCircle, Key, Plus, ChevronRight, Database, type LucideIcon } from 'lucide-react';
-import { useDatabaseStore, type DatabaseType } from '../stores/databaseStore';
+import { Server, Lock, Key, Plus, ChevronRight } from 'lucide-react';
+import { useDatabaseStore } from '../stores/databaseStore';
 import { ProviderForm } from '../components/business';
 import type { ProviderFormData, ProviderTypeOption } from '../components/business';
 import { Button } from '../components/ui/button';
@@ -30,11 +30,6 @@ interface ModelProvider {
   enabled: boolean;
   models: LLMModel[];
 }
-
-const DB_TYPE_OPTIONS: { value: DatabaseType; icon: LucideIcon; labelKey: string; descKey: string; disabled?: boolean }[] = [
-  { value: 'internal', icon: Server, labelKey: 'settings.dbInternal', descKey: 'setup.dbInternalDesc' },
-  { value: 'distributed', icon: Cloud, labelKey: 'settings.dbDistributed', descKey: 'setup.dbDistributedDesc', disabled: true },
-];
 
 const PROVIDER_TYPES = [
   { id: 'xiaomi-mimo', name: 'Xiaomi MiMo', color: '#ff6900' },
@@ -137,12 +132,12 @@ interface FetchedModel {
   enabled: boolean;
 }
 
-type SetupStep = 'password' | 'database' | 'provider' | 'models';
+type SetupStep = 'password' | 'provider' | 'models';
 
 export function SetupPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { dbType, status, setDbType, startInternal } = useDatabaseStore();
+  useDatabaseStore();
   const [step, setStep] = useState<SetupStep>('password');
 
   const [masterPasswordInput, setMasterPasswordInput] = useState('');
@@ -203,22 +198,12 @@ export function SetupPage() {
     setPasswordError('');
     try {
       await safeInvoke('set_password', { password: masterPasswordInput, machineId });
-      await safeInvoke('update_setup_step', { step: 'database' });
-      setStep('database');
+      await safeInvoke('update_setup_step', { step: 'provider' });
+      setStep('provider');
     } catch (err) {
       setPasswordError(String(err));
     } finally {
       setIsSettingPassword(false);
-    }
-  };
-
-  const handleSelectDb = (type: DatabaseType) => setDbType(type);
-
-  const handleConfigureDb = async () => {
-    if (dbType === 'internal') {
-      await startInternal();
-      await safeInvoke('update_setup_step', { step: 'provider' });
-      setStep('provider');
     }
   };
 
@@ -304,11 +289,9 @@ export function SetupPage() {
         <div className="mb-8 flex items-center justify-center">
           <StepIndicator step={step} stepName="password" label={t('setup.setPassword')} index={1} />
           <StepLine />
-          <StepIndicator step={step} stepName="database" label={t('setup.selectDatabase')} index={2} />
+          <StepIndicator step={step} stepName="provider" label={t('setup.addProvider')} index={2} />
           <StepLine />
-          <StepIndicator step={step} stepName="provider" label={t('setup.addProvider')} index={3} />
-          <StepLine />
-          <StepIndicator step={step} stepName="models" label={t('setup.manageModels')} index={4} />
+          <StepIndicator step={step} stepName="models" label={t('setup.manageModels')} index={3} />
         </div>
 
         <div className="rounded-lg bg-muted/30 p-6">
@@ -363,56 +346,6 @@ export function SetupPage() {
             </div>
           )}
 
-          {step === 'database' && (
-            <div className="flex flex-col gap-6">
-              <div className="text-center">
-                <h2 className="mb-2 text-xl font-semibold text-foreground">{t('setup.selectDatabaseTitle')}</h2>
-                <p className="text-sm text-muted-foreground">{t('setup.selectDatabaseDesc')}</p>
-              </div>
-
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                {DB_TYPE_OPTIONS.map((option) => {
-                  const Icon = option.icon;
-                  return (
-                    <button
-                      key={option.value}
-                      onClick={() => !option.disabled && handleSelectDb(option.value)}
-                      disabled={option.disabled}
-                      className={cn(
-                        'flex flex-col items-center gap-3 rounded-lg border-2 border-border bg-card p-5 text-center transition-colors',
-                        !option.disabled && 'hover:border-foreground/40',
-                        dbType === option.value && !option.disabled && 'border-foreground',
-                        option.disabled && 'cursor-not-allowed opacity-50'
-                      )}
-                    >
-                      <Icon size={32} className={cn('text-muted-foreground', dbType === option.value && 'text-foreground')} />
-                      <h3 className="text-sm font-semibold text-foreground">{t(option.labelKey)}</h3>
-                      <p className="text-xs text-muted-foreground">{t(option.descKey)}</p>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {dbType === 'internal' && (
-                <div className="rounded-md bg-card p-4">
-                  <div className="flex items-center gap-3 font-medium">
-                    <Database size={20} />
-                    <span>{t('settings.dbInternal')}</span>
-                    {status === 'connected' && <CheckCircle size={16} className="text-green-500" />}
-                    {status === 'error' && <AlertCircle size={16} className="text-red-500" />}
-                  </div>
-                  {status === 'connected' && <p className="mt-2 text-sm text-green-500">{t('setup.dbReady')}</p>}
-                  {status === 'connecting' && <p className="mt-2 text-sm text-muted-foreground">{t('setup.connecting')}</p>}
-                </div>
-              )}
-
-              <div className="flex justify-between gap-3">
-                <Button variant="secondary" onClick={() => setStep('password')}>{t('common.back')}</Button>
-                <Button onClick={handleConfigureDb}>{t('common.next')}</Button>
-              </div>
-            </div>
-          )}
-
           {step === 'provider' && (
             <div className="flex flex-col gap-6">
               <div className="text-center">
@@ -432,7 +365,7 @@ export function SetupPage() {
               </div>
 
               <div className="flex justify-between gap-3">
-                <Button variant="secondary" onClick={() => setStep('database')}>{t('common.back')}</Button>
+                <Button variant="secondary" onClick={() => setStep('password')}>{t('common.back')}</Button>
                 <Button
                   onClick={handleAddProvider}
                   disabled={!providerName || !apiBase || isAddingProvider}
@@ -541,8 +474,7 @@ export function SetupPage() {
 function StepIndicator({ step, stepName, label, index }: { step: SetupStep; stepName: SetupStep; label: string; index: number }) {
   const isActive = step === stepName;
   const isCompleted = (
-    (stepName === 'password' && ['database', 'provider', 'models'].includes(step)) ||
-    (stepName === 'database' && ['provider', 'models'].includes(step)) ||
+    (stepName === 'password' && ['provider', 'models'].includes(step)) ||
     (stepName === 'provider' && step === 'models')
   );
   return (

@@ -424,7 +424,7 @@ import { Database } from 'lucide-react';
   icon={<Database />}
   actions={<Button size="sm">保存</Button>}
 >
-  <DatabaseSettings />
+  {/* Database settings now handled automatically with Lance */}
 </SettingsCard>
 
 // 毛玻璃样式（用于设置页面）
@@ -657,7 +657,7 @@ import { ProviderForm } from '../components/business';
     <p>配置数据库连接</p>
   </div>
   <div className="settings-card-content">
-    <DatabaseSettings />
+    {/* Database settings now handled automatically with Lance */}
   </div>
   <div className="settings-card-footer">
     <Button size="sm">保存</Button>
@@ -674,7 +674,7 @@ import { ProviderForm } from '../components/business';
   icon={<Database />}
   actions={<Button size="sm">保存</Button>}
 >
-  <DatabaseSettings />
+  {/* Database settings now handled automatically with Lance */}
 </SettingsCard>
 ```
 
