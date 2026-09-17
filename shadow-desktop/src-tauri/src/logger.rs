@@ -112,7 +112,7 @@ pub fn log_startup_diagnostics() {
     // 环境变量
     for (key, value) in [
         ("CORTEX_SKIP_NEURE", std::env::var("CORTEX_SKIP_NEURE").unwrap_or_default()),
-        ("DATABASE_URL", std::env::var("DATABASE_URL").map(|_| "***".to_string()).unwrap_or_default()),
+        ("LANCE_URI", std::env::var("LANCE_URI").map(|_| "***".to_string()).unwrap_or_default()),
         ("CORTEX_PORT", std::env::var("CORTEX_PORT").unwrap_or_default()),
         ("RUST_LOG", std::env::var("RUST_LOG").unwrap_or_default()),
     ] {

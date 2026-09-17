@@ -40,9 +40,6 @@ futures-channel = "0.3"
 url = "2"
 http = "1"
 
-# Database
-postgresql_embedded = "0.20"
-
 # Encryption
 aes-gcm = "0.10"
 password-hash = "0.5"

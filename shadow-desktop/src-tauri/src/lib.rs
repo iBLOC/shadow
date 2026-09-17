@@ -2,7 +2,6 @@ mod mdns;
 mod video_source;
 mod prefrontal_client;
 mod ws_client;
-mod embedded_pg;
 mod crypto;
 mod model_store;
 mod config_manager;
@@ -29,7 +28,6 @@ use ws_client::MtlsWebSocketClient;
 struct AppState {
     prefrontal: Arc<PrefrontalState>,
     ws_client: Arc<MtlsWebSocketClient>,
-    embedded_pg: Arc<tokio::sync::Mutex<embedded_pg::EmbeddedPg>>,
     model_storage: Arc<EncryptedStorage>,
     secure_auth: Arc<SecureAuth>,
     opencode_manager: Arc<OpenCodeManager>,
@@ -109,7 +107,6 @@ pub fn run() {
     let app_state = AppState {
         prefrontal: Arc::new(PrefrontalState::new()),
         ws_client: Arc::new(MtlsWebSocketClient::new()),
-        embedded_pg: Arc::new(tokio::sync::Mutex::new(embedded_pg::EmbeddedPg::new())),
         model_storage: Arc::new(EncryptedStorage::new()),
         secure_auth: Arc::new(SecureAuth::new()),
         opencode_manager: Arc::new(OpenCodeManager::new()),
@@ -182,9 +179,6 @@ pub fn run() {
             ws_send,
             ws_disconnect,
             ws_reconnect,
-            start_embedded_pg,
-            stop_embedded_pg,
-            get_embedded_pg_port,
             encrypt_value,
             decrypt_value,
             set_master_key,
@@ -403,23 +397,6 @@ async fn ws_disconnect(state: State<'_, AppState>) -> Result<(), String> {
 #[tauri::command]
 async fn ws_reconnect(state: State<'_, AppState>) -> Result<(), String> {
     state.ws_client.reconnect().await
-}
-
-#[tauri::command]
-async fn start_embedded_pg(state: State<'_, AppState>) -> Result<u16, String> {
-    let mut pg = state.embedded_pg.lock().await;
-    pg.start().await.map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-async fn stop_embedded_pg(state: State<'_, AppState>) -> Result<(), String> {
-    let mut pg = state.embedded_pg.lock().await;
-    pg.stop().await.map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-fn get_embedded_pg_port(state: State<'_, AppState>) -> u16 {
-    state.embedded_pg.blocking_lock().port()
 }
 
 #[tauri::command]

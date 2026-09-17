@@ -226,7 +226,7 @@ mod tests {
     fn test_app_config_serialization() {
         let config = AppConfig {
             password_hash: "abc123".to_string(),
-            db_type: "postgres".to_string(),
+            db_type: "lance".to_string(),
             db_config: DatabaseConfig::default(),
             setup_complete: true,
             setup_step: "complete".to_string(),
@@ -234,11 +234,11 @@ mod tests {
         };
         let json = serde_json::to_string(&config).unwrap();
         assert!(json.contains("abc123"));
-        assert!(json.contains("postgres"));
+        assert!(json.contains("lance"));
         assert!(json.contains("setup_complete"));
         let deserialized: AppConfig = serde_json::from_str(&json).unwrap();
         assert_eq!(deserialized.password_hash, "abc123");
-        assert_eq!(deserialized.db_type, "postgres");
+        assert_eq!(deserialized.db_type, "lance");
         assert!(deserialized.setup_complete);
     }
 
