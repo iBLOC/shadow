@@ -6,10 +6,9 @@ import { SetupPage } from '../../src/pages/SetupPage';
 
 vi.mock('../../src/stores/databaseStore', () => ({
   useDatabaseStore: vi.fn(() => ({
-    dbType: 'embedded',
-    status: 'disconnected',
-    setDbType: vi.fn(),
-    startEmbedded: vi.fn().mockResolvedValue(undefined),
+    dbType: 'internal',
+    status: 'connected',
+    setMasterPassword: vi.fn(),
   })),
 }));
 
@@ -60,15 +59,7 @@ describe('Onboarding Flow E2E', () => {
     });
   });
 
-  it('displays step indicator 2 (database)', async () => {
-    renderWithRouter(<SetupPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText('setup.selectDatabase')).toBeInTheDocument();
-    });
-  });
-
-  it('displays step indicator 3 (provider)', async () => {
+  it('displays step indicator 2 (provider) - no database step', async () => {
     renderWithRouter(<SetupPage />);
 
     await waitFor(() => {
@@ -76,7 +67,7 @@ describe('Onboarding Flow E2E', () => {
     });
   });
 
-  it('displays step indicator 4 (models)', async () => {
+  it('displays step indicator 3 (models)', async () => {
     renderWithRouter(<SetupPage />);
 
     await waitFor(() => {
@@ -100,26 +91,7 @@ describe('Onboarding Flow E2E', () => {
     });
   });
 
-  it('advances from password to database step when valid passwords entered', async () => {
-    const user = userEvent.setup();
-    renderWithRouter(<SetupPage />);
-
-    const inputs = await waitFor(() => screen.getAllByPlaceholderText('********'));
-    const passwordInput = inputs[0];
-    const confirmInput = inputs[1];
-
-    await user.type(passwordInput, 'testpassword123');
-    await user.type(confirmInput, 'testpassword123');
-
-    const nextButton = await waitFor(() => screen.getByRole('button', { name: /common.next/i }));
-    await user.click(nextButton);
-
-    await waitFor(() => {
-      expect(screen.getByText('setup.selectDatabase')).toBeInTheDocument();
-    });
-  });
-
-  it('advances from database to provider step when embedded database selected', async () => {
+  it('advances from password to provider step when valid passwords entered', async () => {
     const user = userEvent.setup();
     renderWithRouter(<SetupPage />);
 

@@ -112,32 +112,16 @@ describe('databaseStore', () => {
     expect(dbType).toBe('internal');
   });
 
-  it('starts with disconnected status', async () => {
+  it('starts with connected status', async () => {
     const { useDatabaseStore } = await import('../../stores/databaseStore');
     const { status } = useDatabaseStore.getState();
-    expect(status).toBe('disconnected');
-  });
-
-  it('starts with null internal port', async () => {
-    const { useDatabaseStore } = await import('../../stores/databaseStore');
-    const { internalPort } = useDatabaseStore.getState();
-    expect(internalPort).toBeNull();
+    expect(status).toBe('connected');
   });
 
   it('starts with null master password', async () => {
     const { useDatabaseStore } = await import('../../stores/databaseStore');
     const { masterPassword } = useDatabaseStore.getState();
     expect(masterPassword).toBeNull();
-  });
-
-  it('setDbType updates db type', async () => {
-    const { useDatabaseStore } = await import('../../stores/databaseStore');
-    const { setDbType } = useDatabaseStore.getState();
-
-    setDbType('distributed');
-
-    const { dbType } = useDatabaseStore.getState();
-    expect(dbType).toBe('distributed');
   });
 
   it('setMasterPassword updates password', async () => {

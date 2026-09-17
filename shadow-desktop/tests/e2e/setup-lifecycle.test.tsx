@@ -21,14 +21,9 @@ vi.mock('../../src/lib/tauriSafe', () => ({
 vi.mock('../../src/stores/databaseStore', () => ({
   useDatabaseStore: () => ({
     dbType: 'internal',
-    status: 'disconnected',
-    internalPort: null,
+    status: 'connected',
     masterPassword: null,
-    error: null,
-    setDbType: vi.fn(),
     setMasterPassword: vi.fn(),
-    startInternal: vi.fn(),
-    stopInternal: vi.fn(),
     encryptValue: vi.fn(),
     decryptValue: vi.fn(),
   }),

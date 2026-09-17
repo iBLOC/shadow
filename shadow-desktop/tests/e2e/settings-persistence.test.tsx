@@ -80,28 +80,17 @@ vi.mock('../../src/stores/resonanceStore', () => ({
 }));
 
 const dbState: any = {
-  dbType: 'embedded',
-  status: 'disconnected',
-  embeddedPort: null,
-  externalConfig: { host: 'localhost', port: 5432, username: 'postgres', password: '', database: 'shadow' },
+  dbType: 'internal',
+  status: 'connected',
   masterPassword: null,
-  error: null,
 };
 
 vi.mock('../../src/stores/databaseStore', () => ({
   useDatabaseStore: () => ({
     dbType: dbState.dbType,
     status: dbState.status,
-    embeddedPort: dbState.embeddedPort,
-    externalConfig: dbState.externalConfig,
     masterPassword: dbState.masterPassword,
-    error: dbState.error,
-    setDbType: vi.fn(),
-    setExternalConfig: vi.fn(),
     setMasterPassword: vi.fn(),
-    startEmbedded: vi.fn().mockResolvedValue(undefined),
-    stopEmbedded: vi.fn().mockResolvedValue(undefined),
-    testExternalConnection: vi.fn().mockResolvedValue(true),
     encryptValue: vi.fn(),
     decryptValue: vi.fn(),
   }),
