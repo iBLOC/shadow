@@ -440,6 +440,32 @@ impl CortexManager {
         }
     }
 
+    /// Pure helper that decides whether the supervisor's "alive"
+    /// tick should be a no-op (reset backoff, return) versus
+    /// fall through to the restart branch.
+    ///
+    /// `check_process_alive` returns `None` for three reasons:
+    ///   (a) the child exists and `try_wait` returned Ok(None);
+    ///   (b) no child, status != Error (Stopped / Stopping /
+    ///       Starting) — the supervisor has nothing to do;
+    ///   (c) no child, status == Error — the most recent
+    ///       `start_with_binary` failed during `wait_for_ready`
+    ///       and `mark_error` cleared `inner.child`. Treat as a
+    ///       crash so the restart counter keeps accumulating.
+    ///
+    /// Extracted so the supervisor's restart-vs-reset decision is
+    /// unit-testable without spawning a real supervisor loop.
+    pub(crate) fn alive_tick_is_noop(status: CortexStatus, child_present: bool) -> bool {
+        if child_present {
+            return true;
+        }
+        // No child. Status == Error means a previous restart failed
+        // during startup — do NOT treat as a no-op; the supervisor
+        // must fall through to the restart branch so the counter
+        // accumulates.
+        status != CortexStatus::Error
+    }
+
     async fn mark_error(&self, msg: String) {
         let mut inner = self.inner.lock().await;
         if let Some(mut child) = inner.child.take() {
@@ -564,17 +590,30 @@ impl CortexManager {
     }
 
     if self.check_process_alive().await.is_none() {
-        // Process still alive — reset the backoff so the
-        // next crash pays a small initial delay, not the
-        // accumulated delay from a previous crash streak.
-        let mut inner = self.inner.lock().await;
-        if inner.restart_count > 0 {
-            inner.restart_count = 0;
-            inner.last_restart_at = None;
-            tracing::info!("cortex sidecar recovered; supervisor restart counter reset");
+        // check_process_alive returned None — decide whether this
+        // is a "still alive" tick or a pending-failure tick using
+        // the documented predicate (see `alive_tick_is_noop`).
+        let (status, child_present) = {
+            let inner = self.inner.lock().await;
+            (inner.status, inner.child.is_some())
+        };
+        if Self::alive_tick_is_noop(status, child_present) {
+            // Genuinely alive (or stopped without error) — reset
+            // the backoff so the next crash pays a small initial
+            // delay, not the accumulated delay from a previous
+            // crash streak.
+            let mut inner = self.inner.lock().await;
+            if inner.restart_count > 0 {
+                inner.restart_count = 0;
+                inner.last_restart_at = None;
+                tracing::info!("cortex sidecar recovered; supervisor restart counter reset");
+            }
+            *backoff = RESTART_BACKOFF_INITIAL;
+            return;
         }
-        *backoff = RESTART_BACKOFF_INITIAL;
-        return;
+        // Otherwise fall through to the restart branch below —
+        // the previous restart attempt is still considered a
+        // pending failure from the supervisor's perspective.
     }
 
     // Process died. Decide whether to restart.
@@ -812,5 +851,38 @@ mod tests {
         assert!(m.set_supervision(true).await);
         let s2 = m.status_json().await.unwrap();
         assert_eq!(s2["supervision_enabled"], serde_json::json!(true));
+    }
+
+    #[tokio::test]
+    async fn supervisor_does_not_reset_counter_when_start_with_binary_failed() {
+        // Regression: a misconfigured cortex that dies during
+        // `wait_for_ready` lands in `status = Error` with no child.
+        // Before the fix, the supervisor's next tick saw
+        // `check_process_alive() == None` (no child) and treated
+        // that as "still alive", zeroing the restart counter and
+        // looping forever without ever tripping
+        // MAX_RESTART_ATTEMPTS. We test the extracted predicate
+        // directly: when there is no child and status == Error,
+        // the tick must NOT be a no-op (i.e. the supervisor must
+        // fall through to the restart branch and accumulate).
+        use CortexStatus::*;
+        assert!(
+            !CortexManager::alive_tick_is_noop(Error, false),
+            "startup failure (status=Error, child missing) must NOT be a no-op — \
+             supervisor must fall through to the restart branch so the counter accumulates"
+        );
+        assert!(CortexManager::alive_tick_is_noop(Running, true), "live child must be a no-op");
+        assert!(
+            CortexManager::alive_tick_is_noop(Stopped, false),
+            "Stopped with no child is the normal off state — no-op is correct"
+        );
+        assert!(
+            CortexManager::alive_tick_is_noop(Starting, false),
+            "Starting without a child yet is a transient state — no-op is correct"
+        );
+        assert!(
+            CortexManager::alive_tick_is_noop(Stopping, false),
+            "Stopping without a child is mid-shutdown — no-op is correct"
+        );
     }
 }
