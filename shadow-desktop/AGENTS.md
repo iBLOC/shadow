@@ -276,7 +276,7 @@ The same `src/` produces **two artefacts**:
 - mDNS service discovery (HTTP-based via Prefrontal `/api/discovery/*`)
 - **Tauri invoke migration** — `agentStore.fetchAgents()` now uses `prefrontalClient.listAgents()` over HTTP instead of `invoke('prefrontal_list_agents')`
 - A2A-ready: HTTP client can talk to `/api/a2a/peers` for cross-service agent delegation
-- **Database type simplification** — 仅支持 `internal`（内部数据库）+ `distributed`（分布式数据库/Neon），移除 external pgsql
+- **Lance-only storage** — hippocampus now ships with Lance as the single backend (no Postgres / pgsql UI or embedded binary). See commits `b4939e5`–`8e590b8` for the cleanup.
 - **FlowsPage i18n** — "Cortex Flows" → "思维定式"
 - **ResonancePage** — 独立共鸣管理页面，支持多实例配置、主实例设置、Agent 开放选择
 - **AgentsPage unified** — Cortex & Lobe 合并入智能体页面，所有 lobe 视为内部智能体，支持为内部智能体设置模型
