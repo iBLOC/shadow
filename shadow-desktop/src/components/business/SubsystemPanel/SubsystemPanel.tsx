@@ -80,8 +80,9 @@ function ThalamusPanel() {
 function HippocampusPanel() {
   const { t } = useTranslation();
   const store = useSubsystemStore();
-  const stats = store.hippocampusStats as { memory_count: number; session_count: number; graph_node_count: number } | null;
+  const stats = store.hippocampusStats;
   const recent = store.hippocampusRecent;
+  const consolidator = store.consolidatorState;
 
   return (
     <SettingsCard title={t('subsystem.hippocampus.title')} icon={<RefreshCw size={20} />}>
@@ -91,17 +92,49 @@ function HippocampusPanel() {
           <div className="text-xs text-muted-foreground">{t('subsystem.hippocampus.memories')}</div>
         </div>
         <div className="text-center">
-          <div className="text-2xl font-bold">{stats?.session_count ?? '-'}</div>
-          <div className="text-xs text-muted-foreground">{t('subsystem.hippocampus.sessions')}</div>
-        </div>
-        <div className="text-center">
           <div className="text-2xl font-bold">{stats?.graph_node_count ?? '-'}</div>
           <div className="text-xs text-muted-foreground">{t('subsystem.hippocampus.graphNodes')}</div>
         </div>
+        <div className="text-center">
+          <div className="text-2xl font-bold">{stats?.pending_consolidations ?? '-'}</div>
+          <div className="text-xs text-muted-foreground">{t('subsystem.hippocampus.pendingConsolidations')}</div>
+        </div>
       </div>
-      <SettingRow label={t('subsystem.hippocampus.recent')}>
-        <Badge variant="outline">{recent.length}</Badge>
-      </SettingRow>
+      <div className="mb-4">
+        <div className="text-sm font-medium mb-2">{t('subsystem.hippocampus.recent')}</div>
+        {recent.length === 0 ? (
+          <p className="text-xs text-muted-foreground">{t('subsystem.hippocampus.noRecent')}</p>
+        ) : (
+          <div className="max-h-32 overflow-y-auto space-y-1">
+            {recent.slice(0, 5).map((mem) => (
+              <div key={mem.id} className="text-xs border-b border-border pb-1 last:border-0">
+                <div className="font-mono text-muted-foreground truncate">{mem.uri}</div>
+                <div className="truncate text-muted-foreground/70">{mem.content.slice(0, 60)}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      {consolidator && (
+        <div className="border-t border-border pt-4">
+          <div className="text-sm font-medium mb-2">{t('subsystem.hippocampus.consolidator')}</div>
+          <div className="flex items-center justify-between">
+            <div className="text-center">
+              <div className="text-xl font-bold">{consolidator.pending}</div>
+              <div className="text-xs text-muted-foreground">{t('subsystem.hippocampus.pending')}</div>
+            </div>
+            <div className="text-right text-xs">
+              <div className="text-muted-foreground">{t('subsystem.hippocampus.lastRunAt')}</div>
+              <div>{consolidator.last_run_at ? new Date(consolidator.last_run_at).toLocaleString() : '-'}</div>
+            </div>
+            {consolidator.last_status && (
+              <Badge variant={consolidator.last_status === 'success' ? 'default' : 'destructive'}>
+                {consolidator.last_status}
+              </Badge>
+            )}
+          </div>
+        </div>
+      )}
     </SettingsCard>
   );
 }

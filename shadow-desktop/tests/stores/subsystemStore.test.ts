@@ -7,8 +7,9 @@ vi.mock('../../src/lib/cortexClient', () => ({
       listSensors: vi.fn().mockResolvedValue(['sensor1', 'sensor2']),
     },
     hippocampus: {
-      stats: vi.fn().mockResolvedValue({ memory_count: 10, session_count: 5 }),
-      recent: vi.fn().mockResolvedValue({ entries: [{ id: '1' }] }),
+      stats: vi.fn().mockResolvedValue({ memory_count: 10, graph_node_count: 3, pending_consolidations: 5 }),
+      recent: vi.fn().mockResolvedValue({ entries: [{ id: '1', uri: 'test://uri', content: 'test content', layer: 'L0', dimension: 'User', memory_type: 'fact', created_at: '2026-01-01', updated_at: '2026-01-01' }] }),
+      consolidator: vi.fn().mockResolvedValue({ pending: 5, last_consolidated_id: 'uuid-123', last_run_at: '2026-01-01T00:00:00Z', last_status: 'success' }),
     },
     neure: {
       models: vi.fn().mockResolvedValue([{ model_id: 'gpt-4' }]),
@@ -23,6 +24,7 @@ describe('subsystemStore', () => {
       thalamusStats: {},
       hippocampusStats: null,
       hippocampusRecent: [],
+      consolidatorState: null,
       neureModels: [],
       lastPollAt: null,
     });
@@ -34,7 +36,8 @@ describe('subsystemStore', () => {
 
     const state = useSubsystemStore.getState();
     expect(state.thalamusSensors).toEqual(['sensor1', 'sensor2']);
-    expect(state.hippocampusStats).toEqual({ memory_count: 10, session_count: 5 });
+    expect(state.hippocampusStats).toEqual({ memory_count: 10, graph_node_count: 3, pending_consolidations: 5 });
+    expect(state.consolidatorState).toEqual({ pending: 5, last_consolidated_id: 'uuid-123', last_run_at: '2026-01-01T00:00:00Z', last_status: 'success' });
     expect(state.neureModels).toEqual([{ model_id: 'gpt-4' }]);
     expect(state.lastPollAt).toBeInstanceOf(Date);
   });

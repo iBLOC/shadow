@@ -288,16 +288,26 @@ export interface ThalamusSensorList {
   sensors: string[];
 }
 
+export interface HippocampusMemory {
+  id: string;
+  uri: string;
+  content: string;
+  layer: string;
+  dimension: string;
+  memory_type: string;
+  created_at: string;
+  updated_at: string;
+  metadata?: Record<string, unknown>;
+}
+
 export interface HippocampusStats {
   memory_count: number;
-  session_count: number;
   graph_node_count: number;
-  _stub?: boolean;
-  _hint?: string;
+  pending_consolidations: number;
 }
 
 export interface HippocampusRecent {
-  entries: unknown[];
+  entries: HippocampusMemory[];
   filter: {
     layer?: string;
     dimension?: string;
@@ -307,8 +317,9 @@ export interface HippocampusRecent {
 
 export interface ConsolidatorState {
   pending: number;
-  last_run_count: number;
-  _stub?: boolean;
+  last_consolidated_id: string | null;
+  last_run_at: string | null;
+  last_status: string | null;
 }
 
 export interface GraphNode {

@@ -548,9 +548,14 @@
       "hippocampus": {
         "title": "海马体（记忆）",
         "memories": "记忆",
-        "sessions": "会话",
         "graphNodes": "图节点",
-        "recent": "最近条目"
+        "pendingConsolidations": "待处理",
+        "recent": "最近",
+        "noRecent": "暂无最近记忆",
+        "consolidator": "合并器",
+        "pending": "待处理",
+        "lastRunAt": "上次运行",
+        "lastStatus": "状态"
       },
       "neure": {
         "title": "神经（模型）",
