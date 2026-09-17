@@ -135,6 +135,22 @@ DELETE /api/cortex/admin/mcp/agents/{name}/servers/{id}  → unbind
 
 // Chat stream surface (Sprint 1 ChatBI)
 POST   /shadow/v1/conversations/{id}/messages:stream → SSE stream; payload may carry ChartPayload (viz_type + columns[] + rows[][])
+
+// Subsystem management surface (Sprint 3 — 3-tier auth)
+cortexClient.thalamus.listSensors()                  → GET /api/cortex/thalamus/preview/sensors
+cortexClient.thalamus.getStats(name)                 → GET /api/cortex/thalamus/preview/sensors/{name}/stats
+cortexClient.thalamus.tail(name, limit)              → GET /api/cortex/thalamus/preview/sensors/{name}/tail?limit=N
+cortexClient.thalamus.query(template, sensor, limit) → POST /api/cortex/thalamus/preview/query
+cortexClient.thalamus.register({name, kind, capacity}) → POST /api/cortex/thalamus/manage/sensors
+cortexClient.thalamus.deregister(name)              → DELETE /api/cortex/thalamus/manage/sensors/{name}
+cortexClient.thalamus.updateConfig(name, {capacity}) → PUT /api/cortex/thalamus/manage/sensors/{name}/config
+cortexClient.hippocampus.stats()                    → GET /api/cortex/hippocampus/preview/stats
+cortexClient.hippocampus.recent({layer, dimension, limit}) → GET /api/cortex/hippocampus/preview/recent
+cortexClient.hippocampus.consolidator()             → GET /api/cortex/hippocampus/preview/consolidator
+cortexClient.hippocampus.graphNode(nodeId)          → GET /api/cortex/hippocampus/preview/graph/{node_id}
+cortexClient.neure.models()                         → GET /api/cortex/neure/preview/models
+cortexClient.neure.stats()                           → GET /api/cortex/neure/preview/stats
+cortexClient.issueSubsystemToken(scopes, ttlSeconds) → POST /api/cortex/admin/token (via Tauri command cortex_issue_subsystem_token)
 ```
 
 Discovery is centralised in `src/lib/cortexClient.ts`. Stale data in the desktop is *not* modelled — every read goes through cortex with `refreshLobes` on a 5s polling interval. Fetching more than a polled refresh (e.g. after a write) calls the affected method directly.
