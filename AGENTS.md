@@ -1,9 +1,11 @@
 # PROJECT KNOWLEDGE BASE
 
 **Generated:** 2026-03-21
-**Updated:** 2026-07-19 (post-port-unification 2757fea: cortex :8443→:60080; SQLite dropped from prefrontal 70a9976/2561ece; candle-vllm reference removed in favor of neure-embedded)
+**Updated:** 2026-07-19 (post-port-unification 2757fea: cortex :8443→:60080; SQLite dropped from prefrontal 70a9976/2561ece; candle-vllm reference removed in favor of neure-embedded); 2026-09-02 (subsystem management panel: 3-tier auth client + thalamus/hippocampus/neure preview/config; see [`2026-09-02-cortex-subsystem-management-design.md`](../cortex/docs/superpowers/specs/2026-09-02-cortex-subsystem-management-design.md))
 **Project:** shadow (影) - AI 用户分身系统
 **Spec version:** 2026-06-04 4-layer architecture (aligned with root `/AGENTS.md`)
+**Parent project summary:** `/home/ibloc/Projects/AGENTS.md` (not git-tracked — drift-prone; mirrors major cortex/shadow changes)
+**Cortex subsystem surface**: see [`cortex/AGENTS.md`](../cortex/AGENTS.md) §Subsystem management surface for the 3-tier auth model and route tables consumed by Shadow-Desktop.
 
 ## OVERVIEW
 
