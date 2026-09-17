@@ -271,6 +271,72 @@ export interface CortexVideoSourcesSnapshot {
   device?: DeviceBlock | null;
 }
 
+export interface ThalamusSensorStats {
+  name: string;
+  capacity: number;
+  length: number;
+  oldest_ts_ms: number | null;
+  newest_ts_ms: number | null;
+}
+
+export interface ThalamusSample {
+  ts_ms: number;
+  value: number;
+}
+
+export interface ThalamusSensorList {
+  sensors: string[];
+}
+
+export interface HippocampusStats {
+  memory_count: number;
+  session_count: number;
+  graph_node_count: number;
+  _stub?: boolean;
+  _hint?: string;
+}
+
+export interface HippocampusRecent {
+  entries: unknown[];
+  filter: {
+    layer?: string;
+    dimension?: string;
+    limit?: number;
+  };
+}
+
+export interface ConsolidatorState {
+  pending: number;
+  last_run_count: number;
+  _stub?: boolean;
+}
+
+export interface GraphNode {
+  node_id: string;
+  _stub?: boolean;
+}
+
+export interface NeureModelSummary {
+  capability: string;
+  model_id: string;
+  quantization: string | null;
+}
+
+export interface NeureModelsResponse {
+  models: NeureModelSummary[];
+}
+
+export interface NeureStats {
+  running: boolean;
+  models_loaded: number;
+}
+
+export interface SubsystemTokenResponse {
+  token: string;
+  scopes: string[];
+  expires_at_unix: number;
+}
+
 export class Cortex412Error extends Error {
   constructor(public reason: string) {
     super(reason);
@@ -696,6 +762,73 @@ export class CortexClient {
     }
     return resp.headers.get('ETag') || '';
   }
+
+  thalamus = {
+    listSensors: (): Promise<string[]> =>
+      this.request<ThalamusSensorList>('/api/cortex/thalamus/preview/sensors').then((r) => r.sensors),
+    getStats: (name: string): Promise<ThalamusSensorStats> =>
+      this.request<ThalamusSensorStats>(`/api/cortex/thalamus/preview/sensors/${encodeURIComponent(name)}/stats`),
+    tail: (name: string, limit?: number): Promise<ThalamusSample[]> => {
+      const qs = limit ? `?limit=${limit}` : '';
+      return this.request<{ samples: ThalamusSample[] }>(
+        `/api/cortex/thalamus/preview/sensors/${encodeURIComponent(name)}/tail${qs}`
+      ).then((r) => r.samples);
+    },
+    query: (template: string, sensor: string, limit?: number): Promise<ThalamusSample[]> => {
+      const body: Record<string, unknown> = { template, sensor };
+      if (limit) body.limit = limit;
+      return this.request<{ samples?: ThalamusSample[] }>('/api/cortex/thalamus/preview/query', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }).then((r) => r.samples ?? []);
+    },
+    register: (req: { name: string; kind?: string; capacity?: number }): Promise<{ name: string }> =>
+      this.request<{ name: string }>('/api/cortex/thalamus/manage/sensors', {
+        method: 'POST',
+        body: JSON.stringify(req),
+      }),
+    deregister: (name: string): Promise<void> =>
+      this.request<void>(`/api/cortex/thalamus/manage/sensors/${encodeURIComponent(name)}`, {
+        method: 'DELETE',
+      }),
+    updateConfig: (name: string, cfg: { capacity: number }): Promise<void> =>
+      this.request<void>(`/api/cortex/thalamus/manage/sensors/${encodeURIComponent(name)}/config`, {
+        method: 'PUT',
+        body: JSON.stringify(cfg),
+      }),
+  };
+
+  hippocampus = {
+    stats: (): Promise<HippocampusStats> =>
+      this.request<HippocampusStats>('/api/cortex/hippocampus/preview/stats'),
+    recent: (opts: { layer?: string; dimension?: string; limit?: number } = {}): Promise<HippocampusRecent> => {
+      const params = new URLSearchParams();
+      if (opts.layer) params.set('layer', opts.layer);
+      if (opts.dimension) params.set('dimension', opts.dimension);
+      if (opts.limit) params.set('limit', String(opts.limit));
+      const qs = params.toString();
+      return this.request<HippocampusRecent>(`/api/cortex/hippocampus/preview/recent${qs ? `?${qs}` : ''}`);
+    },
+    consolidator: (): Promise<ConsolidatorState> =>
+      this.request<ConsolidatorState>('/api/cortex/hippocampus/preview/consolidator'),
+    graphNode: (nodeId: string): Promise<GraphNode> =>
+      this.request<GraphNode>(`/api/cortex/hippocampus/preview/graph/${encodeURIComponent(nodeId)}`),
+  };
+
+  neure = {
+    models: (): Promise<NeureModelSummary[]> =>
+      this.request<NeureModelsResponse>('/api/cortex/neure/preview/models').then((r) => r.models),
+    stats: (): Promise<NeureStats> =>
+      this.request<NeureStats>('/api/cortex/neure/preview/stats'),
+  };
+
+  issueSubsystemToken = async (
+    scopes: string[],
+    ttlSeconds?: number
+  ): Promise<SubsystemTokenResponse> => {
+    const { invoke } = await import('@tauri-apps/api/core');
+    return invoke<SubsystemTokenResponse>('cortex_issue_subsystem_token', { scopes, ttlSeconds });
+  };
 }
 
 export const cortexClient = new CortexClient();

@@ -13,6 +13,27 @@ const CORTEX_BIN_NAME: &str = "cortex";
 const READY_TIMEOUT: Duration = Duration::from_secs(10);
 const READY_POLL_INTERVAL: Duration = Duration::from_millis(200);
 
+fn generate_admin_key() -> String {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let seed = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos() as u64;
+    let mut bytes = [0u8; 32];
+    for (i, b) in bytes.iter_mut().enumerate() {
+        *b = ((seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407 + i as u64)) >> 33) as u8;
+    }
+    hex_encode(&bytes)
+}
+
+fn hex_encode(bytes: &[u8]) -> String {
+    let mut s = String::with_capacity(bytes.len() * 2);
+    for b in bytes {
+        s.push_str(&format!("{b:02x}"));
+    }
+    s
+}
+
 /// How often the supervisor wakes to check whether the cortex
 /// child is still alive. 1 second is fast enough for human-noticeable
 /// recovery and slow enough to be free at idle.
@@ -131,6 +152,10 @@ struct CortexInner {
     /// Handle to the supervisor background task. `None` when
     /// supervision is disabled or the cortex is not running.
     supervisor_task: Option<tokio::task::JoinHandle<()>>,
+    /// Admin key for issuing subsystem tokens. This is set when
+    /// the cortex sidecar starts and used to mint X-Subsystem-Token
+    /// credentials for the frontend.
+    admin_key: Option<String>,
 }
 
 impl CortexManager {
@@ -154,6 +179,7 @@ impl CortexManager {
                 restart_count: 0,
                 last_restart_at: None,
                 supervisor_task: None,
+                admin_key: None,
             })),
         }
     }
@@ -216,6 +242,39 @@ impl CortexManager {
         }
     }
 
+    pub async fn issue_subsystem_token(
+        &self,
+        scopes: Vec<String>,
+        ttl_seconds: Option<i64>,
+    ) -> Result<serde_json::Value, String> {
+        let inner = self.inner.lock().await;
+        let addr = format!("{}:{}", inner.host, inner.port);
+        let admin_key = inner.admin_key.clone().ok_or("admin key not configured")?;
+        drop(inner);
+
+        let client = reqwest::Client::new();
+        let url = format!("http://{}/api/cortex/admin/token", addr);
+        let ttl = ttl_seconds.unwrap_or(3600).clamp(60, 86400);
+        let body = serde_json::json!({
+            "scopes": scopes,
+            "ttl_seconds": ttl,
+        });
+        let resp = client
+            .post(&url)
+            .header("x-admin-token", &admin_key)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| format!("network error: {}", e))?;
+        let status = resp.status();
+        if !status.is_success() {
+            let text = resp.text().await.unwrap_or_default();
+            return Err(format!("HTTP {}: {}", status, text));
+        }
+        let v: serde_json::Value = resp.json().await.map_err(|e| format!("parse error: {}", e))?;
+        Ok(v)
+    }
+
     pub async fn status_json(&self) -> Result<serde_json::Value, String> {
         let inner = self.inner.lock().await;
         let addr = format!("{}:{}", inner.host, inner.port);
@@ -253,6 +312,9 @@ impl CortexManager {
         inner.error = None;
         inner.stderr_buf.lock().await.clear();
 
+        let admin_key = generate_admin_key();
+        inner.admin_key = Some(admin_key.clone());
+
         let port = inner.port;
         let host = inner.host.clone();
         let stderr_buf = inner.stderr_buf.clone();
@@ -269,6 +331,7 @@ impl CortexManager {
         cmd.env("CORTEX_PORT", port.to_string())
             .env("CORTEX_BIND", &host)
             .env("DATABASE_URL", "")
+            .env("CORTEX_ADMIN_KEY", &admin_key)
             // Forward the user-supplied HF token (if any). The neure
             // runtime picks this up via `std::env::var("HF_TOKEN")`
             // and attaches it as a `Authorization: Bearer` header
