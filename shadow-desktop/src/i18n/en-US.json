@@ -44,6 +44,8 @@
     "react": "React",
     "unhandled": "Unhandled",
     "promise": "Promise",
+    "refreshAll": "Refresh All",
+    "refresh": "Refresh",
     "pwa": {
       "installTitle": "Install Shadow app",
       "installDesc": "Add to home screen for one-tap launch and native feel",
@@ -529,9 +531,31 @@
       "service": "Service & Agents",
       "models": "Model Management",
       "video": "Video Sources",
+      "subsystem": "Subsystems",
       "ui": "Interface",
       "data": "Data",
       "system": "System"
+    },
+    "subsystem": {
+      "title": "Subsystem Management",
+      "refresh": "Refresh",
+      "thalamus": {
+        "title": "Thalamus (Sensors)",
+        "sensors": "Registered Sensors",
+        "noSensors": "No sensors registered"
+      },
+      "hippocampus": {
+        "title": "Hippocampus (Memory)",
+        "memories": "Memories",
+        "sessions": "Sessions",
+        "graphNodes": "Graph Nodes",
+        "recent": "Recent Entries"
+      },
+      "neure": {
+        "title": "Neure (Models)",
+        "models": "Loaded Models",
+        "noModels": "No models loaded"
+      }
     },
     "saveChanges": "Save Changes",
     "resetAll": "Reset All",

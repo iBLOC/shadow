@@ -17,17 +17,19 @@ import { cortexClient, type ScanResult, type InstalledWasmList, type AgentSearch
 import { HfTokenSettings } from '../components/business/HfTokenSettings';
 import { UpdateChecker } from '../components/business/UpdateChecker';
 import { VideoSourcesCard } from '../components/business/VideoSourcesCard';
+import { SubsystemPanel } from '../components/business/SubsystemPanel/SubsystemPanel';
 import { Button, Badge, EmptyState, Modal } from '../components/ui';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { cn } from '../lib/utils';
 
-type SettingsSection = 'service' | 'models' | 'video' | 'ui' | 'data' | 'system';
+type SettingsSection = 'service' | 'models' | 'video' | 'ui' | 'data' | 'system' | 'subsystem';
 type AgentSection = 'internal' | 'custom' | 'wasm' | 'external';
 
 const SECTIONS: { id: SettingsSection; icon: typeof Server; labelKey: string }[] = [
   { id: 'service', icon: Server, labelKey: 'settings.section.service' },
   { id: 'models', icon: Cpu, labelKey: 'settings.section.models' },
   { id: 'video', icon: Camera, labelKey: 'settings.section.video' },
+  { id: 'subsystem', icon: Server, labelKey: 'settings.section.subsystem' },
   { id: 'ui', icon: Monitor, labelKey: 'settings.section.ui' },
   { id: 'data', icon: Database, labelKey: 'settings.section.data' },
   { id: 'system', icon: Shield, labelKey: 'settings.section.system' },
@@ -44,6 +46,7 @@ export function SettingsPage() {
         {activeSection === 'service' && <ServiceAndAgentsSection />}
         {activeSection === 'models' && <ModelsSection />}
         {activeSection === 'video' && <VideoSourcesCard />}
+        {activeSection === 'subsystem' && <SubsystemPanel />}
         {activeSection === 'ui' && <UISection />}
         {activeSection === 'data' && <DataSection />}
         {activeSection === 'system' && <SystemSection />}

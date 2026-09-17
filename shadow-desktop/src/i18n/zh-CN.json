@@ -40,6 +40,8 @@
     "react": "React",
     "unhandled": "未处理",
     "promise": "Promise",
+    "refreshAll": "刷新全部",
+    "refresh": "刷新",
     "pwa": {
       "installTitle": "安装 Shadow 应用",
       "installDesc": "添加到桌面，一键启动，享受原生体验",
@@ -529,9 +531,32 @@
       "service": "服务与智能体",
       "models": "模型管理",
       "video": "视频源",
+      "subsystem": "子系统",
       "ui": "界面",
       "data": "数据",
       "system": "系统"
+    },
+    "subsystem": {
+      "title": "子系统管理",
+      "refresh": "刷新",
+      "common.refreshAll": "刷新全部",
+      "thalamus": {
+        "title": "丘脑（传感器）",
+        "sensors": "已注册的传感器",
+        "noSensors": "暂无注册的传感器"
+      },
+      "hippocampus": {
+        "title": "海马体（记忆）",
+        "memories": "记忆",
+        "sessions": "会话",
+        "graphNodes": "图节点",
+        "recent": "最近条目"
+      },
+      "neure": {
+        "title": "神经（模型）",
+        "models": "已加载模型",
+        "noModels": "暂无加载的模型"
+      }
     },
     "saveChanges": "保存更改",
     "resetAll": "重置全部",
