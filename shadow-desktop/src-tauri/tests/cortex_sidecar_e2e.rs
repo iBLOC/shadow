@@ -113,7 +113,7 @@ fn fake_cortex_immediate_exit_script() -> std::path::PathBuf {
         "fake_cortex_exit.sh",
         r#"
 echo 'fake cortex: database connection refused (simulated)' >&2
-echo 'DATABASE_URL=postgres://localhost:5432/none connect failed' >&2
+echo 'LANCE_URI=lance:///nonexistent connect failed' >&2
 exit 7
 "#,
     )
@@ -254,7 +254,7 @@ async fn start_with_immediate_exit_standin_reports_error_with_stderr() {
         .unwrap_or("");
     assert!(
         stderr_tail.contains("database connection refused")
-            || stderr_tail.contains("DATABASE_URL"),
+            || stderr_tail.contains("LANCE_URI"),
         "stderr should be captured; got: {stderr_tail}"
     );
 
