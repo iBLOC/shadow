@@ -54,8 +54,7 @@ const MAX_RESTART_ATTEMPTS: u32 = 5;
 /// Load test configuration from a YAML file pointed to by
 /// `SHADOW_CORTEX_CONFIG`. Returns an empty HashMap if the env
 /// var is unset (production behavior unchanged). Used by the
-/// wdio Tauri E2E test orchestrator to inject DATABASE_URL,
-/// LANCE_URI, etc. without code changes.
+/// wdio Tauri E2E test orchestrator to inject LANCE_URI, etc.
 fn load_test_config() -> HashMap<String, String> {
     let Some(path_str) = std::env::var("SHADOW_CORTEX_CONFIG").ok() else {
         return HashMap::new();
@@ -330,7 +329,7 @@ impl CortexManager {
         let mut cmd = Command::new(&bin);
         cmd.env("CORTEX_PORT", port.to_string())
             .env("CORTEX_BIND", &host)
-            .env("DATABASE_URL", "")
+            .env("LANCE_URI", "file://$HOME/.shadow/lance")
             .env("CORTEX_ADMIN_KEY", &admin_key)
             // Forward the user-supplied HF token (if any). The neure
             // runtime picks this up via `std::env::var("HF_TOKEN")`
@@ -829,10 +828,9 @@ mod tests {
 
     #[test]
     fn load_test_config_parses_yaml() {
-        let path = with_test_config_path("DATABASE_URL: \"\"\nLANCE_URI: \"file:///tmp/lance\"\n");
+        let path = with_test_config_path("LANCE_URI: \"file:///tmp/lance\"\n");
         std::env::set_var("SHADOW_CORTEX_CONFIG", &path);
         let config = load_test_config();
-        assert_eq!(config.get("DATABASE_URL").map(|s| s.as_str()), Some(""));
         assert_eq!(config.get("LANCE_URI").map(|s| s.as_str()), Some("file:///tmp/lance"));
         std::env::remove_var("SHADOW_CORTEX_CONFIG");
     }

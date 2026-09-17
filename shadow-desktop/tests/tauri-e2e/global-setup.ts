@@ -27,7 +27,6 @@ export async function setup(): Promise<void> {
   mkdirSync(join(TEST_DIR, 'lance'), { recursive: true });
 
   const cortexYaml = [
-    'DATABASE_URL: ""',
     'LANCE_URI: "file://' + TEST_DIR + '/lance"',
     '',
   ].join('\n');
@@ -41,7 +40,6 @@ export async function setup(): Promise<void> {
       SHADOW_CORTEX_CONFIG: join(TEST_DIR, 'cortex.yaml'),
       CORTEX_PORT: String(CORTEX_PORT),
       LANCE_URI: 'file://' + TEST_DIR + '/lance',
-      DATABASE_URL: '',
       TAURI_WEBDRIVER_PORT: String(WEBDRIVER_PORT),
       TAURI_TEST_NO_SINGLE_INSTANCE: '1',
       RUST_LOG: 'warn',

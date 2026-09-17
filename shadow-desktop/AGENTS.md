@@ -230,8 +230,8 @@ because of `tauri-plugin-single-instance` — bypass env var
 `TAURI_TEST_NO_SINGLE_INSTANCE=1` is set by `global-setup.ts`.
 
 The cortex sidecar receives test-specific env vars via
-`SHADOW_CORTEX_CONFIG` (YAML file with `DATABASE_URL`,
-`LANCE_URI`, etc.) — `cortex_manager.rs` loads this file and merges
+`SHADOW_CORTEX_CONFIG` (YAML file with `LANCE_URI`, etc.) —
+`cortex_manager.rs` loads this file and merges
 into the cortex child process env. Production behavior is unchanged
 when `SHADOW_CORTEX_CONFIG` is unset.
 

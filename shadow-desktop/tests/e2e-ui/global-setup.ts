@@ -45,8 +45,6 @@ async function globalSetup(_config: FullConfig) {
     cwd: '/home/ibloc/Projects/cortex',
     env: { 
       ...process.env, 
-      DATABASE_URL: '',
-      HIPPOCAMPUS_DATA_DIR: `${TEST_DATA_DIR}/lance`,
       LANCE_URI: `file://${TEST_DATA_DIR}/lance`,
     },
     stdio: 'ignore',
