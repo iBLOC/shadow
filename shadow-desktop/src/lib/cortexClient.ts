@@ -327,17 +327,17 @@ export interface GraphNode {
   _stub?: boolean;
 }
 
-export interface NeureModelSummary {
+export interface NeuronModelSummary {
   capability: string;
   model_id: string;
   quantization: string | null;
 }
 
-export interface NeureModelsResponse {
-  models: NeureModelSummary[];
+export interface NeuronModelsResponse {
+  models: NeuronModelSummary[];
 }
 
-export interface NeureStats {
+export interface NeuronStats {
   running: boolean;
   models_loaded: number;
 }
@@ -826,11 +826,11 @@ export class CortexClient {
       this.request<GraphNode>(`/api/cortex/hippocampus/preview/graph/${encodeURIComponent(nodeId)}`),
   };
 
-  neure = {
-    models: (): Promise<NeureModelSummary[]> =>
-      this.request<NeureModelsResponse>('/api/cortex/neure/preview/models').then((r) => r.models),
-    stats: (): Promise<NeureStats> =>
-      this.request<NeureStats>('/api/cortex/neure/preview/stats'),
+  neuron = {
+    models: (): Promise<NeuronModelSummary[]> =>
+      this.request<NeuronModelsResponse>('/api/cortex/neuron/preview/models').then((r) => r.models),
+    stats: (): Promise<NeuronStats> =>
+      this.request<NeuronStats>('/api/cortex/neuron/preview/stats'),
   };
 
   issueSubsystemToken = async (

@@ -5,7 +5,7 @@ import { openaiClient } from './openaiClient';
  *
  * 架构 (synapse-first + multi-engine fallback):
  *
- * 1. **主路径** — OpenAI 兼容 `/v1/audio/speech` (cortex → neure TTS 模型)
+ * 1. **主路径** — OpenAI 兼容 `/v1/audio/speech` (cortex → neuron TTS 模型)
  * 2. **Fallback 路径 (兜底)** — W3C Web Speech API (`window.speechSynthesis`)
  *    仅当 temporal lobe (Agent) 未配置 TTS 模型时启用:
  *    - cortex 返回 `STRUCT_ERROR|5030|...` (LLM_NOT_REGISTERED)

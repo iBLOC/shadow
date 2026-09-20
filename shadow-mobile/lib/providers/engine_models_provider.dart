@@ -151,7 +151,7 @@ class EngineModelsNotifier extends StateNotifier<EngineModelsState> {
 
   static String _deriveBaseUrl() {
     // Cortex is the single platform entry point (port 60080).
-    // Neure is embedded at root: /v1/models, /v1/chat/completions, etc.
+    // Neuron is embedded at root: /v1/models, /v1/chat/completions, etc.
     return 'http://localhost:60080';
   }
 
@@ -167,7 +167,7 @@ class EngineModelsNotifier extends StateNotifier<EngineModelsState> {
   }
 
   Future<List<EngineModel>> _listLoaded() async {
-    // Neure is embedded in cortex at root: /v1/models
+    // Neuron is embedded in cortex at root: /v1/models
     final r = await _client.get(Uri.parse('$_baseUrl/v1/models'));
     if (r.statusCode == 404) return const [];
     if (r.statusCode >= 400) {
@@ -195,7 +195,7 @@ class EngineModelsNotifier extends StateNotifier<EngineModelsState> {
     String? revision,
     String? sha256,
   }) async {
-    // Neure's POST /v1/models/pull returns { job_id, status }.
+    // Neuron's POST /v1/models/pull returns { job_id, status }.
     final r = await _client.post(
       Uri.parse('$_baseUrl/v1/models/pull'),
       headers: {'Content-Type': 'application/json'},
@@ -228,7 +228,7 @@ class EngineModelsNotifier extends StateNotifier<EngineModelsState> {
   }
 
   Future<void> releaseModel(String modelId) async {
-    // Neure's DELETE /v1/models/all/{id} removes a downloaded model.
+    // Neuron's DELETE /v1/models/all/{id} removes a downloaded model.
     final r = await _client.delete(
       Uri.parse('$_baseUrl/v1/models/all/$modelId'),
     );

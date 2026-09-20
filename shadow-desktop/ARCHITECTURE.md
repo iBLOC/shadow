@@ -3,7 +3,7 @@
 This project is **Layer 4 (Interaction) — desktop** of the **Shadow 4-layer + 1 cross-cutting storage** platform.
 
 - Tauri 2 + React 19 desktop client
-- Embeds Layer 2 neure (port 8085) and calls Layer 3 Prefrontal (port 8082)
+- Embeds Layer 2 neuron (port 8085) and calls Layer 3 Prefrontal (port 8082)
 - Model sources: local candle / 魔搭社区 / cloud / Resonance
 
 The unified architecture document is here:

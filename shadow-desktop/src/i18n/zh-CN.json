@@ -557,7 +557,7 @@
         "lastRunAt": "上次运行",
         "lastStatus": "状态"
       },
-      "neure": {
+      "neuron": {
         "title": "神经（模型）",
         "models": "已加载模型",
         "noModels": "暂无加载的模型"
@@ -979,17 +979,17 @@
   },
   "cortexStatus": {
     "title": "Cortex 内部状态",
-    "subtitle": "查看 cortex 服务、neure 推理引擎和 lobe 的运行状态",
+    "subtitle": "查看 cortex 服务、neuron 推理引擎和 lobe 的运行状态",
     "tabStatus": "状态",
     "tabLogs": "日志",
-    "neureSection": "Neure 推理引擎",
-    "neureReachable": "可访问",
+    "neuronSection": "Neuron 推理引擎",
+    "neuronReachable": "可访问",
     "unreachable": "不可达",
     "actualModels": "已注册模型数",
     "availableModels": "可用模型数",
     "availableModelsList": "可用模型",
     "noModelWarning": "⚠️ 没有已注册的 LLM 模型",
-    "neureInfo": "Neure 详细信息",
+    "neuronInfo": "Neuron 详细信息",
     "connectionError": "无法连接到 Cortex",
     "connectionHint": "Cortex 应该在 localhost:60080 运行。如果未运行，请检查 Tauri 是否正确启动了 cortex sidecar。",
     "lines": "行",

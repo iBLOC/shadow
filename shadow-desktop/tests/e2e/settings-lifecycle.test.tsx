@@ -60,7 +60,7 @@ vi.mock('../../src/stores/serviceStore', () => {
     services: {
       resonance: { name: 'resonance' as const, displayName: 'Resonance', host: 'localhost', port: 8080, status: 'unknown' as const },
       prefrontal: { name: 'prefrontal' as const, displayName: 'Prefrontal (Agent)', host: 'localhost', port: 8082, status: 'unknown' as const },
-      neure: { name: 'neure' as const, displayName: 'Neure (Embedded Engine)', host: 'localhost', port: 8085, status: 'unknown' as const },
+      neuron: { name: 'neuron' as const, displayName: 'Neuron (Embedded Engine)', host: 'localhost', port: 8085, status: 'unknown' as const },
       hippocampus: { name: 'hippocampus' as const, displayName: 'Hippocampus', host: 'localhost', port: 8081, status: 'unknown' as const },
     },
     resonanceInstances: [],

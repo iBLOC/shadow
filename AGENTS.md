@@ -1,7 +1,7 @@
 # PROJECT KNOWLEDGE BASE
 
 **Generated:** 2026-03-21
-**Updated:** 2026-07-19 (post-port-unification 2757fea: cortex :8443→:60080; SQLite dropped from prefrontal 70a9976/2561ece; candle-vllm reference removed in favor of neure-embedded); 2026-09-02 (subsystem management panel: 3-tier auth client + thalamus/hippocampus/neure preview/config; see [`2026-09-02-cortex-subsystem-management-design.md`](../cortex/docs/superpowers/specs/2026-09-02-cortex-subsystem-management-design.md))
+**Updated:** 2026-07-19 (post-port-unification 2757fea: cortex :8443→:60080; SQLite dropped from prefrontal 70a9976/2561ece; candle-vllm reference removed in favor of neuron-embedded); 2026-09-02 (subsystem management panel: 3-tier auth client + thalamus/hippocampus/neuron preview/config; see [`2026-09-02-cortex-subsystem-management-design.md`](../cortex/docs/superpowers/specs/2026-09-02-cortex-subsystem-management-design.md))
 **Project:** shadow (影) - AI 用户分身系统
 **Spec version:** 2026-06-04 4-layer architecture (aligned with root `/AGENTS.md`)
 **Parent project summary:** `/home/ibloc/Projects/AGENTS.md` (not git-tracked — drift-prone; mirrors major cortex/shadow changes)
@@ -15,7 +15,7 @@
 
 - **任务目标驱动**：所有执行由 Resonance 统一派发
 - **零信任安全**：mTLS 双向认证，Shadow 主动发起连接
-- **本地推理能力**：移动端 MNN (LiteRT) + Kotlin `OpenAIServer.kt`，桌面端 neure (embedded at :8085 via `run_embedded()`，candle / burn / litert 三个 ML 后端)
+- **本地推理能力**：移动端 MNN (LiteRT) + Kotlin `OpenAIServer.kt`，桌面端 neuron (embedded at :8085 via `run_embedded()`，candle / burn / litert 三个 ML 后端)
 - **模型多样性**：支持本地、云端、魔搭社区、Resonance 提供
 - **A2A 协议**：Shadow 向 Resonance 注册能力，Benchmark 评分同步
 
@@ -36,7 +36,7 @@
 │  │   • Zustand 5               │    │   • Riverpod                │          │
 │  │   • React Router 7          │    │   • GoRouter                │          │
 │  │   • CopilotKit (Agent2UI)   │    │   • flutter_genui (Agent2UI)│          │
-│  │   • neure (embedded :8085)  │    │   • MNN C++ JNI 本地推理    │          │
+│  │   • neuron (embedded :8085)  │    │   • MNN C++ JNI 本地推理    │          │
 │  │   • 桌面自动化              │    │   • Android 无障碍 API      │          │
 │  └──────────────┬──────────────┘    └──────────────┬──────────────┘          │
 │                 │                                │                           │
@@ -89,7 +89,7 @@
 │  Layer 2: ENGINE  (外部项目)                                                 │
 │                                                                             │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │  neure  github.com/iBLOC/neure-rs    Port 8083 (8085 embedded)    │    │
+│  │  neuron  github.com/ibloc/neuron    Port 8083 (8085 embedded)    │    │
 │  │  Rust 单二进制推理运行时 (LLM/TTS/ASR/Rerank)                         │    │
 │  │  • candle (默认) / voxcpm (burn) / litert 三个 ML 后端              │    │
 │  │  • 9 个 OpenAI-兼容 HTTP 端点                                        │    │
@@ -104,7 +104,7 @@
 │  云端 (MiniMax / Xiaomi Mimo / OpenAI / Anthropic / DeepSeek)               │
 │  本地 (GGUF / safetensors / .mnn / .litertlm / burn .mpk)                  │
 │                                                                             │
-│  Shadow-Desktop 通过 neure 加载 candle 本地模型                              │
+│  Shadow-Desktop 通过 neuron 加载 candle 本地模型                              │
 │  Shadow-Mobile 通过 Kotlin `OpenAIServer.kt` (MNN + LiteRT) 加载本地模型      │
 └─────────────────────────────────────────────────────────────────────────────┘
 
@@ -119,7 +119,7 @@
 │  │  • hippocampus-cli                                              │    │
 │  └─────────────────────────────────────────────────────────────────────┘    │
 │  + Prefrontal persistence/ (postgres / file / neon / s3_blob; SQLite 已删除, 70a9976) │
-│  + 模型权重: ~/.neure/models/{engine}/{id}/                                 │
+│  + 模型权重: ~/.neuron/models/{engine}/{id}/                                 │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -141,7 +141,7 @@
 | 维度 | 位置 |
 |---|---|
 | 主要职责 | Layer 4 (Interaction) — 用户交互 UI |
-| 嵌入式职责 | 包含 Layer 2 (neure embedded at :8085) + Prefrontal 客户端 |
+| 嵌入式职责 | 包含 Layer 2 (neuron embedded at :8085) + Prefrontal 客户端 |
 | 跨层通信 | L4↔L3 (OpenAI/WS/WebRTC), L4↔L5 (mTLS/WS/A2A/mDNS) |
 | 独立服务 | 不运行独立服务器; Tauri/Flutter 直接调用 Layer 3 Prefrontal |
 
@@ -253,10 +253,10 @@ shadow/
 | **框架** | Tauri v2 (Rust + React 19) |
 | **状态管理** | Zustand 5 |
 | **路由** | React Router 7 |
-| **本地推理** | neure (embedded at :8085 via `run_embedded()`) — candle / burn / litert backends |
+| **本地推理** | neuron (embedded at :8085 via `run_embedded()`) — candle / burn / litert backends |
 | **Agent2UI** | React 19 components + Tauri OS bridge (CopilotKit 一度是候选, 实际未采用) |
 | **自动化** | Tauri commands (window / tray / notifications / fs) |
-| **模型来源** | 本地 neure (candle 默认) / 魔搭社区 (默认 NEURE_DEFAULT_SOURCE) / 云端 / Resonance |
+| **模型来源** | 本地 neuron (candle 默认) / 魔搭社区 (默认 NEURON_DEFAULT_SOURCE) / 云端 / Resonance |
 
 ## 模块说明
 
@@ -266,7 +266,7 @@ shadow/
 | **Cortex** | `/home/ibloc/Projects/cortex` | 60080 | 单 shadow 中心化 agent 注册 + A2A gateway + WASM 宿主 + 外部智能体扫描同步 + MCP 管理 (v0.5 Sprint 2) |
 | **Prefrontal** | `/home/ibloc/Projects/prefrontal` | 8082 | 多智能体执行、工具调用、内置 Agent (prefrontal 是 cortex 管理的 lobe 之一) |
 | **Hippocampus** | `/home/ibloc/Projects/hippocampus` | 8081 | 长期记忆、HybridRAG 搜索 |
-| **Shadow-Desktop** | `shadow-desktop/` | N/A | 桌面端 UI + neure (embedded :8085 via Tauri shell) |
+| **Shadow-Desktop** | `shadow-desktop/` | N/A | 桌面端 UI + neuron (embedded :8085 via Tauri shell) |
 | **Shadow-Mobile** | `shadow-mobile/` | N/A | 移动端 UI + MNN |
 | **Shadow-ESP32** | `shadow-esp32/` | N/A | 边缘客户端原型 — **Zephyr 4.4.x + C + west**(`esp32s3_devkitc` 板级;v0.x 概念阶段;决策见 `shadow-esp32/docs/adr/0001-stack-choice-zephyr-c.md`;调研见 `shadow-esp32/docs/RESEARCH.md`)。通过 mDNS `_shadow._tcp` + A2A (JSON-RPC) 加入 Shadow 平台与 cortex/prefrontal 通信 |
 
@@ -308,7 +308,7 @@ export PREFRONTAL_MODE="executor"                 # executor / full
 | **UI 框架** | Flutter 3.11+ | React 19 + Tauri v2 |
 | **状态管理** | Riverpod | Zustand 5 |
 | **路由** | GoRouter | React Router 7 |
-| **本地推理** | MNN (LiteRT + MNN) | neure (embedded at :8085) |
+| **本地推理** | MNN (LiteRT + MNN) | neuron (embedded at :8085) |
 | **Agent2UI** | flutter_genui | React 19 + Tauri commands |
 | **后端** | Kotlin (Android) | Rust (Tauri shell) |
 | **IPC** | Platform Channel | Tauri invoke + HTTP |
@@ -323,7 +323,7 @@ export PREFRONTAL_MODE="executor"                 # executor / full
 ### ~~candle-vllm~~ (桌面端本地推理 — 弃用)
 - ~~Rust 原生 vLLM 实现~~
 - ~~GitHub: github.com/EricLBuehler/candle-vllm~~
-- **现状 (2026-07-19)**: 已被 `neure` 取代; neure 通过 `run_embedded()` 在 Shadow-Desktop Tauri shell 内 :8085 提供推理服务, 默认 candle runtime。candle-vllm 不再作为桌面端默认引擎。
+- **现状 (2026-07-19)**: 已被 `neuron` 取代; neuron 通过 `run_embedded()` 在 Shadow-Desktop Tauri shell 内 :8085 提供推理服务, 默认 candle runtime。candle-vllm 不再作为桌面端默认引擎。
 
 ### flutter_genui (移动端 Agent2UI)
 - 对话式 Agent UI
@@ -344,8 +344,8 @@ export PREFRONTAL_MODE="executor"                 # executor / full
 
 `/home/ibloc/Projects/docs/superpowers/specs/` **不是 git 仓库**。架构规范（如 `2026-06-04-shadow-architecture-redesign.md`）的修改不进入 git 历史，依赖**手动 SOP 同步**。
 
-决策记录（2026-06-08 → 2026-06-09）：评估 neure 重构后的代码/文档对齐时，Layer 2 ENGINE 块加入了 neure 说明。该修改已反映在以下文档中：
-- `/home/ibloc/Projects/AGENTS.md` PROJECTS 表（neure 列入 Layer 2，synapse 列为 shared/突触层）
+决策记录（2026-06-08 → 2026-06-09）：评估 neuron 重构后的代码/文档对齐时，Layer 2 ENGINE 块加入了 neuron 说明。该修改已反映在以下文档中：
+- `/home/ibloc/Projects/AGENTS.md` PROJECTS 表（neuron 列入 Layer 2，synapse 列为 shared/突触层）
 - `/home/ibloc/Projects/docs/architecture.md`（完整架构图 + 内嵌 Mermaid + 生物类比 §8）
 - `/home/ibloc/Projects/docs/diagrams/architecture.mmd`（SVG/PNG 渲染源文件）
 - `/home/ibloc/Projects/hippocampus/AGENTS.md`（synapse path dep 关系说明）

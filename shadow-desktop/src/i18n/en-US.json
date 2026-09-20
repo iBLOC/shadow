@@ -556,8 +556,8 @@
         "lastRunAt": "Last Run",
         "lastStatus": "Status"
       },
-      "neure": {
-        "title": "Neure (Models)",
+      "neuron": {
+        "title": "Neuron (Models)",
         "models": "Loaded Models",
         "noModels": "No models loaded"
       }

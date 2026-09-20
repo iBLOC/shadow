@@ -1304,5 +1304,5 @@ git commit -m "test(desktop): video-sources playwright e2e + manual smoke doc"
 - cortex/src/flow/* (Spec #2 territory)
 - cortex/src/lobes/* (Spec #3 territory)
 - cortex/src/tool/* (Spec #4 territory)
-- neure/* (mage_vl setup is Spec #3 / Spec #4)
+- neuron/* (mage_vl setup is Spec #3 / Spec #4)
 - Any mobile project (Spec #2+#3 mobile followups deferred)

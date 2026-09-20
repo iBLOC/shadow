@@ -7,7 +7,7 @@ describe('Shadow Desktop - Cortex API', () => {
     await browser.url(`${CORTEX_URL}/health`);
     const body = await browser.$('body');
     const text = await body.getText();
-    expect(text).toContain('neure');
+    expect(text).toContain('neuron');
   });
 
   it('应该获取智能体列表', async () => {

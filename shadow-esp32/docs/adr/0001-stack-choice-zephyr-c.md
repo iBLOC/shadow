@@ -39,7 +39,7 @@
 
 - **硬件固定**: 已在用户手中的 ESP32-S3-DevKitC(M5Stack CoreS3 等同系列变种);想用 ESP32-C3/C6 必须重新采购。
 - **生态系统成熟**: 不愿采纳实验性栈;希望用 2026 年"production-ready"的组合。
-- **与 Shadow 主项目的关系**: Shadow 其余组件全 Rust(Prefrontal / Cortex / Hippocampus / neure / synapse)。语言一致性是次要但真实的工程成本。
+- **与 Shadow 主项目的关系**: Shadow 其余组件全 Rust(Prefrontal / Cortex / Hippocampus / neuron / synapse)。语言一致性是次要但真实的工程成本。
 - **参考对象 esp-claw** 提供了 ESP32 AI agent 的实操模板,可借鉴但不可直接 fork。
 - **可逆性**: 任何决策都不是终局的;几年后可重新评估。
 

@@ -11,7 +11,7 @@
 | **调研文档** | [`docs/RESEARCH.md`](docs/RESEARCH.md) — Zephyr/Rust + xiaozhi/esp-claw/temporal + WASM-on-Xtensa + WebRTC 复用综合调研 |
 | **应用架构参考** | [`78/xiaozhi-esp32`](https://github.com/78/xiaozhi-esp32)(state machine + Opus + MCP tools + 板级;28.9k stars / MIT) |
 | **IO 控制参考** | [`espressif/esp-claw`](https://github.com/espressif/esp-claw)(capability 派发思路;不引入 Lua) |
-| **后端复用** | Shadow `cortex` webrtc_route → `temporal` lobe(webrtc-rs 0.8 + DTLS-SRTP)→ `neure` ASR/TTS;**与 shadow-desktop / shadow-mobile 完全相同** |
+| **后端复用** | Shadow `cortex` webrtc_route → `temporal` lobe(webrtc-rs 0.8 + DTLS-SRTP)→ `neuron` ASR/TTS;**与 shadow-desktop / shadow-mobile 完全相同** |
 | **代码来源(过渡)** | ESP-IDF v6.0.2 `esp_hid_device` 示例(脚手架,即将迁移) |
 
 ---
@@ -259,7 +259,7 @@ west debug
 │  ┌────────┴────────┐  │                                         │  │ temporal lobe (现成)        │  │
 │  │  mbedtls DTLS + │  │                                         │  │  WebRtcAnswerSkill          │  │
 │  │  libsrtp +      │  │                                         │  │  WebRtcIceSkill             │  │
-│  │  libopus + ICE  │  │                                         │  │  NeureAsr / NeureTts        │  │
+│  │  libopus + ICE  │  │                                         │  │  NeuronAsr / NeuronTts        │  │
 │  └─────────────────┘  │                                         │  │  dialog / hippocamp / prefrontal│  │
 │  (Zephyr BSD sockets)  │                                         │  └────────────────────────────┘  │
 └──────────────────────┘                                         └──────────────────────────────────┘

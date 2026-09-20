@@ -139,20 +139,20 @@ function HippocampusPanel() {
   );
 }
 
-function NeurePanel() {
+function NeuronPanel() {
   const { t } = useTranslation();
   const store = useSubsystemStore();
-  const models = store.neureModels as Array<{ model_id: string; capability: string; quantization: string | null }>;
+  const models = store.neuronModels as Array<{ model_id: string; capability: string; quantization: string | null }>;
 
   return (
-    <SettingsCard title={t('subsystem.neure.title')} icon={<RefreshCw size={20} />}>
+    <SettingsCard title={t('subsystem.neuron.title')} icon={<RefreshCw size={20} />}>
       <div className="mb-4">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-medium">{t('subsystem.neure.models')}</span>
+          <span className="text-sm font-medium">{t('subsystem.neuron.models')}</span>
           <Badge variant="outline">{models.length}</Badge>
         </div>
         {models.length === 0 ? (
-          <p className="text-xs text-muted-foreground">{t('subsystem.neure.noModels')}</p>
+          <p className="text-xs text-muted-foreground">{t('subsystem.neuron.noModels')}</p>
         ) : (
           <div className="space-y-2">
             {models.map((m) => (
@@ -195,7 +195,7 @@ export function SubsystemPanel() {
       </div>
       <ThalamusPanel />
       <HippocampusPanel />
-      <NeurePanel />
+      <NeuronPanel />
     </div>
   );
 }

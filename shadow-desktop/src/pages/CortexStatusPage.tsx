@@ -7,7 +7,7 @@ import { Badge } from '../components/ui/badge';
 import { cn } from '../lib/utils';
 
 interface CortexStatus {
-  neure_reachable: boolean;
+  neuron_reachable: boolean;
   actual_models_count: number;
   available_models: Array<{
     id: string;
@@ -89,7 +89,7 @@ export function CortexStatusPage() {
             {t('cortexStatus.title', 'Cortex 内部状态')}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {t('cortexStatus.subtitle', '查看 cortex 服务、neure 推理引擎和 lobe 的运行状态')}
+            {t('cortexStatus.subtitle', '查看 cortex 服务、neuron 推理引擎和 lobe 的运行状态')}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -154,15 +154,15 @@ export function CortexStatusPage() {
               <div className="flex items-center gap-2 mb-3">
                 <Cpu size={18} className="text-muted-foreground" />
                 <h2 className="text-sm font-medium text-foreground">
-                  {t('cortexStatus.neureSection', 'Neure 推理引擎')}
+                  {t('cortexStatus.neuronSection', 'Neuron 推理引擎')}
                 </h2>
               </div>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">
-                    {t('cortexStatus.neureReachable', '可访问')}
+                    {t('cortexStatus.neuronReachable', '可访问')}
                   </span>
-                  {status.neure_reachable ? (
+                  {status.neuron_reachable ? (
                     <Badge variant="default" className="bg-green-500/20 text-green-500">
                       <CheckCircle size={12} className="mr-1" />
                       OK
@@ -231,7 +231,7 @@ export function CortexStatusPage() {
             <Card className="md:col-span-2">
               <CardContent className="p-4">
                 <h2 className="text-sm font-medium text-foreground mb-3">
-                  {t('cortexStatus.neureInfo', 'Neure 详细信息')}
+                  {t('cortexStatus.neuronInfo', 'Neuron 详细信息')}
                 </h2>
                 <pre className="text-xs font-mono bg-muted/30 p-3 rounded-md overflow-x-auto">
                   {JSON.stringify(status.info, null, 2)}

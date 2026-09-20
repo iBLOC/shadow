@@ -200,7 +200,7 @@ Zephyr 的 Xtensa 架构 port **本身**存在(由 Synopsys 维护),但要让其
 
 理由:
 1. **唯一能让 Xtensa 上的 Rust 真正 work 的栈**——esp-rs 团队 vendor-backed,生产案例(telenkov88、ro011110ot、John Lee Demo)都跑通 BLE HID / Wi-Fi / OTA / MQTT。
-2. **与 Shadow 平台的底层 Rust 一致**——Prefrontal / Cortex / Hippocampus / neure 全是 Rust,工具链心智模型一致(Rustc / Cargo / workspace / `cargo test` / `clippy` / `rustfmt`)。
+2. **与 Shadow 平台的底层 Rust 一致**——Prefrontal / Cortex / Hippocampus / neuron 全是 Rust,工具链心智模型一致(Rustc / Cargo / workspace / `cargo test` / `clippy` / `rustfmt`)。
 3. **Embassy 异步模型对齐**——如果 Shadow 后续想把边缘节点连入 cortex A2A,异步 I/O 模型与 Linux 上的 tokio 更近,易于共享协程模式。
 4. **板级支持最广**——esp-rs 在 ESP32-S3 上的`esp-hal` 1.x 是 2026 年唯一 vendor-backed、stable ABI、健全外设表的方案。
 5. **拥抱 AI 编码**——John Lee 的 2026-04 文章验证 AI agent + esp-hal 1.x + 公司 spec 能高产迭代;与 Sisyphus 工作流天然契合。
@@ -309,8 +309,8 @@ Zephyr 的 Xtensa 架构 port **本身**存在(由 Synopsys 维护),但要让其
 |---|---|
 | 职责 | "User-channel voice/text agent";**WebRTC Companion Mode 默认 receiver** |
 | 协议层 | webrtc-rs 0.8 + DTLS-SRTP(`webrtc/real.rs::RealTransport`);`WebRtcAnswerSkill` + `WebRtcIceSkill` |
-| ASR | `NeureAsr`(POST `/v1/audio/transcriptions`,multipart WAV);`StubAsr` fallback |
-| TTS | `NeureTts`(POST `/v1/audio/speech`,JSON Opus);`StubTts` fallback |
+| ASR | `NeuronAsr`(POST `/v1/audio/transcriptions`,multipart WAV);`StubAsr` fallback |
+| TTS | `NeuronTts`(POST `/v1/audio/speech`,JSON Opus);`StubTts` fallback |
 | VAD | `EnergyVad`(20ms RMS);`silero_vad` blocked on stable |
 | Dialog | `build_context`(查询 hippocampus `recent_messages`)→ `classify` intent → A2A 调 peer lobes(prefrontal / hippocampus / occipital / parietal) |
 | Cortex 路由 | `ModalityDefaults { text/voice/video_agent: "temporal" }` —— 默认所有 modality 走 temporal lobe |
@@ -360,7 +360,7 @@ Zephyr 的 Xtensa 架构 port **本身**存在(由 Synopsys 维护),但要让其
 │  temporal lobe (现成,0 改动)        │
 │  - WebRtcAnswerSkill (webrtc-rs)    │
 │  - WebRtcIceSkill                  │
-│  - NeureAsr / NeureTts / Dialog    │
+│  - NeuronAsr / NeuronTts / Dialog    │
 │  - hippocamp + prefrontal (LLM)   │
 └──────────────────────────────────────┘
 ```

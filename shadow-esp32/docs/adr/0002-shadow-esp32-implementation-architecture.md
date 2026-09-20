@@ -65,7 +65,7 @@ ESP32 (Zephyr dialog_task)            cortex
 ││  └ Opus 16kHz / SRTP   │ │ DTLS  │ └─ voice → temporal    │
 ││                         │ │ SRTP │                          │
 ││  local: I²S mic → Opus  │ │ over │ temporal lobe            │
-││  remote: Opus → I²S out │ │ UDP  │ ├─ NeureAsr/Tts         │
+││  remote: Opus → I²S out │ │ UDP  │ ├─ NeuronAsr/Tts         │
 ││                         │ │      │ ├─ dialog               │
 │└─────────────────────────┘ │      │ └─ hippocamp + prefrontal│
 │ └─ data channel "mcp"      │ ◀═══▶ │ cortex::mcp routing       │
@@ -192,7 +192,7 @@ esp-claw 的 capability 派发思路(opaque handle + 注册表 + 板级 peripher
 | 4 | dialog_task: WebRTC Data Channel (SCTP over DTLS) + MCP JSON-RPC 2.0 handler | 1-2 周(并入 dialog_task 工作) | 1 |
 | 5 | io_task: Zephyr device drivers + MCP server over data channel + capability 注册 | 3 周 | 2,4 |
 | 6 | net_task + led_task + mDNS `_shadow._tcp` 广播 | 1 周 | 2 |
-| 7 | end-to-end demo: ESP32 ↔ cortex webrtc_route ↔ temporal lobe ↔ neure ASR/TTS ↔ prefrontal LLM + LLM tool call via data channel → ESP32 GPIO | 2 周 | 1-6 |
+| 7 | end-to-end demo: ESP32 ↔ cortex webrtc_route ↔ temporal lobe ↔ neuron ASR/TTS ↔ prefrontal LLM + LLM tool call via data channel → ESP32 GPIO | 2 周 | 1-6 |
 | 8 | CI: twister + QEMU sim 子集 + 板级 sanity build | 1 周 | 3-5 |
 | 9 | OTA 镜像 (LittleFS) + user skills 持久化 | 1 周 | 3 |
 

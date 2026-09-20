@@ -127,7 +127,7 @@ struct CortexInner {
     host: String,
     error: Option<String>,
     started_at: Option<chrono::DateTime<chrono::Utc>>,
-    /// HuggingFace auth token forwarded to the neure runtime as
+    /// HuggingFace auth token forwarded to the neuron runtime as
     /// the `HF_TOKEN` env var on every sidecar launch. Kept in
     /// memory only — the user re-enters it after each Desktop
     /// restart. (Persisting secrets to disk crosses a security
@@ -331,7 +331,7 @@ impl CortexManager {
             .env("CORTEX_BIND", &host)
             .env("LANCE_URI", "file://$HOME/.shadow/lance")
             .env("CORTEX_ADMIN_KEY", &admin_key)
-            // Forward the user-supplied HF token (if any). The neure
+            // Forward the user-supplied HF token (if any). The neuron
             // runtime picks this up via `std::env::var("HF_TOKEN")`
             // and attaches it as a `Authorization: Bearer` header
             // for gated-repo downloads.

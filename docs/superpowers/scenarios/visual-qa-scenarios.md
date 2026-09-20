@@ -37,7 +37,7 @@ chat → send "看看前面有什么".
 **Manual reproduction**:
 ```bash
 # Prereqs: shadow-desktop running, cortex sidecar running, mage-vl shards
-# at NEURE_MAGE_VL_SHARD_DIR, 1 webcam plugged in
+# at NEURON_MAGE_VL_SHARD_DIR, 1 webcam plugged in
 
 # 1. Configure the source via desktop UI
 #    (Settings → Video Sources → select camera → Add)
@@ -64,7 +64,7 @@ curl -X POST http://localhost:60080/v1/chat/completions \
 - Spec #2 `visual_qa_router` → 1 candidate → direct route
 - Spec #3 `VisualQALobe` → `ToolRegistry::invoke_value("capture_frame", ...)`
 - Spec #3 desktop Tauri → WebRTC frame grab → JPEG base64
-- Spec #3 embedded neure mage_vl → reply text
+- Spec #3 embedded neuron mage_vl → reply text
 
 ---
 

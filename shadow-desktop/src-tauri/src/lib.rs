@@ -325,7 +325,7 @@ async fn set_hf_token(
 ) -> Result<serde_json::Value, String> {
     // Persist the token in the manager's in-memory store. If cortex
     // is already running, the user has to bounce it (we don't yet
-    // support hot-swapping env vars on a running neure process) —
+    // support hot-swapping env vars on a running neuron process) —
     // the frontend prompts for the restart after this call returns
     // `running: true`.
     let running = state.cortex_manager.set_hf_token(token).await;

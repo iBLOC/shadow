@@ -4,12 +4,12 @@
 
 **Goal:** 实现 Spec #2 第 3 节锁定的 A2A `visual_qa` skill 服务端 —— cortex 接到对端 A2A 调用后抓帧（通过本机 provider）→ 调 mage_vl → 返回文本。同时实现 minimal Tool 抽象（Spec #3 范围，不含通用框架）。
 
-**Architecture:** skill_router 加一条 `skill_id="visual_qa" → VisualQALobe`。VisualQALobe 通过 CapabilityRegistry 路由 capture_frame 到 desktop/mobile provider；embedded neure 调用 mage_vl；结果以 CortexStreamEvent::Delta 流回。Provider 在 desktop/mobile Tauri shell 启动时注册 capabilities + 30s heartbeat。
+**Architecture:** skill_router 加一条 `skill_id="visual_qa" → VisualQALobe`。VisualQALobe 通过 CapabilityRegistry 路由 capture_frame 到 desktop/mobile provider；embedded neuron 调用 mage_vl；结果以 CortexStreamEvent::Delta 流回。Provider 在 desktop/mobile Tauri shell 启动时注册 capabilities + 30s heartbeat。
 
 **Tech Stack:**
-- cortex: axum + reqwest + sqlx + existing neure_embed + skill_router
+- cortex: axum + reqwest + sqlx + existing neuron_embed + skill_router
 - shadow-desktop (Tauri Rust): reqwest + tiny_http 或 axum (localhost invoke server)
-- neure: existing mage_vl runtime (per Spec #1 verified)
+- neuron: existing mage_vl runtime (per Spec #1 verified)
 
 **Spec:** `/home/ibloc/Projects/shadow/docs/superpowers/specs/2026-08-26-cortex-visual-qa-service-design.md`
 
@@ -356,9 +356,9 @@ git commit -m "feat(cortex): capability_registry + VisualQATool (Spec #3 minimal
 // cortex/src/lobes/visual_qa.rs (inline #[cfg(test)])
 
 #[tokio::test]
-#[ignore = "requires mage_vl shards (~9GB) and embedded neure boot (~30s)"]
+#[ignore = "requires mage_vl shards (~9GB) and embedded neuron boot (~30s)"]
 async fn visual_qa_lobe_full_flow_capture_then_mage_vl() {
-    // Boot minimal cortex with embedded neure + visual_qa_tools + capability_registry (with mock provider)
+    // Boot minimal cortex with embedded neuron + visual_qa_tools + capability_registry (with mock provider)
     // Send A2A-style message: { question: "test", source_id: ..., max_tokens: 256 }
     // Assert reply text non-empty
 }
@@ -408,7 +408,7 @@ impl NativeLobe for VisualQALobe {
         ).await.map_err(|e| format!("capture_frame failed: {e}"))?;
         let jpeg_base64 = frame["jpeg_base64"].as_str().ok_or("missing jpeg_base64")?;
         let max_tokens = intent.max_tokens.unwrap_or(256);
-        let reply = self.state.embedded_neure.chat_completions(json!({
+        let reply = self.state.embedded_neuron.chat_completions(json!({
             "model": "microsoft/Mage-VL",
             "max_tokens": max_tokens,
             "messages": [{

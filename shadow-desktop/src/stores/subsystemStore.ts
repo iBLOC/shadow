@@ -7,7 +7,7 @@ interface SubsystemState {
   hippocampusStats: HippocampusStats | null;
   hippocampusRecent: HippocampusMemory[];
   consolidatorState: ConsolidatorState | null;
-  neureModels: unknown[];
+  neuronModels: unknown[];
   lastPollAt: Date | null;
   refreshAll: () => Promise<void>;
   startPolling: () => () => void;
@@ -19,7 +19,7 @@ export const useSubsystemStore = create<SubsystemState>((set, get) => ({
   hippocampusStats: null,
   hippocampusRecent: [],
   consolidatorState: null,
-  neureModels: [],
+  neuronModels: [],
   lastPollAt: null,
 
   refreshAll: async () => {
@@ -29,14 +29,14 @@ export const useSubsystemStore = create<SubsystemState>((set, get) => ({
         cortexClient.hippocampus.stats(),
         cortexClient.hippocampus.recent({ limit: 10 }),
         cortexClient.hippocampus.consolidator(),
-        cortexClient.neure.models(),
+        cortexClient.neuron.models(),
       ]);
       set({
         thalamusSensors: sensors,
         hippocampusStats: hstats,
         hippocampusRecent: recent.entries,
         consolidatorState: consolidator,
-        neureModels: models,
+        neuronModels: models,
         lastPollAt: new Date(),
       });
     } catch (e) {

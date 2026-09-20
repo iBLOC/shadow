@@ -103,7 +103,7 @@ shadow-mobile/
 │   │   ├── accessibility_controller.dart  # Android Accessibility API bridge
 │   │   ├── session_transfer_service.dart  # Cross-device session transfer
 │   │   ├── soul_service.dart            # "Soul" agent persistence
-│   │   ├── model_download_service.dart  # Model puller (delegates to neure `/v1/models/pull`)
+│   │   ├── model_download_service.dart  # Model puller (delegates to neuron `/v1/models/pull`)
 │   │   ├── mdns_discovery.dart          # `_shadow._tcp` browsing
 │   │   ├── network_service.dart         # connectivity_plus wrapper
 │   │   ├── group_service.dart           # mTLS group manager
@@ -387,7 +387,7 @@ No errors, no warnings — only style-level info issues (deprecated `value` / `a
 - 🆕 **Cortex client** (`lib/services/cortex/cortex_client.dart`, 492 lines) — wired for agents / conversations / flows / drafts / agent mirror / import-session-as-conversation; all of Sprint 1+2 surface
 - 🆕 **FlowsScreen** (`lib/screens/flows_screen.dart` + commit `55ffc95`) — browse / run cortex flows from the phone
 - 🆕 **continue-on-desktop via cortex only** (`dacbe83`) — chat sessions hand off to a desktop cortex without falling back to prefrontal
-- 🆕 **cortex-embedded neure+hippocampus paths** (`05aa697`) — all hardcoded URLs updated to the cortex-sidecar model (`:60080/hippocampus/api/...`)
+- 🆕 **cortex-embedded neuron+hippocampus paths** (`05aa697`) — all hardcoded URLs updated to the cortex-sidecar model (`:60080/hippocampus/api/...`)
 - **Companion Mode (WebRTC)** — `webrtc_companion.dart` (196 LOC) + `webrtc_signaling.dart` + VAD-driven barge-in via `audio_ws_service.dart` + `wake_word_service.dart`; mirrors desktop `webrtcCompanion.ts` so the two clients share the same end-to-end protocol
 - **Mobile sub-agent** (`lib/agents/mobile_action_agent/`) — AccessibilityController-driven UI automation as a cortex-flow tool
 - **A2A message types + client** (`lib/agents/a2a/`) — outbound A2A delegation to other cortex / prefrontal instances
@@ -396,7 +396,7 @@ No errors, no warnings — only style-level info issues (deprecated `value` / `a
 - **Wake-word detection** — `wake_word_service.dart` for "Hey Shadow"-style invocation
 - **Session transfer** — `session_transfer_service.dart` + `SessionExport` for cross-device handoff
 - **Soul agent persistence** — `soul_service.dart` for user-persona state
-- **Model downloader** — delegates to neure's `/v1/models/pull` via `model_download_service.dart` + `model_download_provider.dart`
+- **Model downloader** — delegates to neuron's `/v1/models/pull` via `model_download_service.dart` + `model_download_provider.dart`
 - **mDNS discovery** — `mdns_discovery.dart` for `_shadow._tcp` browsing + `group_service.dart` for mTLS trust
 - **i18n** — `app_en.arb` + `app_zh.arb` with `flutter_localization_linter` enforcement
 - **Database layer** — `lib/services/database/` with repositories for agents / MCP servers / skills / models
@@ -409,7 +409,7 @@ No errors, no warnings — only style-level info issues (deprecated `value` / `a
 
 **In Progress** 🔄:
 - WebRTC full DTLS-SRTP handshake on the mobile side — currently relies on cortex to handle encryption; mobile only deals with plain RTP via flutter_webrtc's default stack
-- Offline-first chat — main_agent can run locally for trivial replies but anything non-trivial still requires cortex or neure HTTP
+- Offline-first chat — main_agent can run locally for trivial replies but anything non-trivial still requires cortex or neuron HTTP
 - **v2.5 — shadow-esp32 BLE provisioning flow** is wired (Kotlin + Dart) but the live-streaming screen doesn't yet auto-discover a shadow-esp32 over BLE; v2.6 adds an `onAttach` hook that opens the provisioning screen when the user plugs the device in
 - **v2.5 — USB Audio routing** is wired at the platform-channel level (UsbAudioRouter.kt + usb_audio_routing_service.dart); the actual `setMode(MODE_NORMAL) / isSpeakerphoneOn = false / preferredDevice` calls land in v2.6 once the live-streaming screen flips them on user-tap
 - **Provisioning — security** — SSID/PSK travel over BLE cleartext in v2.5; v2.6 enables BLE bonding + MITM protection to encrypt the GATT writes
@@ -433,7 +433,7 @@ No errors, no warnings — only style-level info issues (deprecated `value` / `a
 | Prefrontal | `/home/ibloc/Projects/prefrontal` | Layer 3 (Agent) — used as fallback when cortex unavailable |
 | **Cortex** | `/home/ibloc/Projects/cortex` | **Layer 3.5 (Orchestrator) — primary HTTP target** |
 | Hippocampus | `/home/ibloc/Projects/hippocampus` | Layer 0 (Memory) — reached via cortex on `:60080/hippocampus` |
-| neure | [github.com/iBLOC/neure-rs](https://github.com/iBLOC/neure-rs) | Layer 2 (Engine) — on-device MNN / LiteRT, plus remote `:8085` HTTP |
+| neuron | [github.com/ibloc/neuron](https://github.com/ibloc/neuron) | Layer 2 (Engine) — on-device MNN / LiteRT, plus remote `:8085` HTTP |
 | Resonance | `/home/ibloc/Projects/resonance` | Layer 5 (Cross-user orchestration) — discovered via mDNS but mobile does not currently push tasks |
 
 ## ENVIRONMENT VARIABLES (mobile build-time)
@@ -444,7 +444,7 @@ export CORTEX_HOST="http://localhost:60080"        # default in production: disc
 export PREFRONTAL_HOST="http://localhost:8082"     # fallback only — `dacbe83` removed automatic fallback
 
 # Model download defaults
-export NEURE_DEFAULT_SOURCE="modelscope"           # mobile's `model_download_provider.dart` defaults to ModelScope
+export NEURON_DEFAULT_SOURCE="modelscope"           # mobile's `model_download_provider.dart` defaults to ModelScope
 export HF_TOKEN="..."                                # for gated HuggingFace repos
 export MODELSCOPE_TOKEN="..."                       # for gated ModelScope repos
 ```
@@ -454,7 +454,7 @@ export MODELSCOPE_TOKEN="..."                       # for gated ModelScope repos
 | Hash | Description |
 |------|-------------|
 | (v2.5) | feat(mobile): BLE provisioning of shadow-esp32 + USB Audio routing for digital-human livestream PoC; complements shadow-esp32 v2.4/v2.5; `BleProvisioningService.kt` + `UsbAudioRouter.kt`; Dart `ble_provisioning_service.dart` + `usb_audio_routing_service.dart` + `provisioning_screen.dart`; new channels `com.ibloc.shadow/ble_provision` and `com.ibloc.shadow/usb_audio` |
-| 05aa697 | feat(shadow-mobile): update all paths to cortex-embedded neure+hippocampus |
+| 05aa697 | feat(shadow-mobile): update all paths to cortex-embedded neuron+hippocampus |
 | dacbe83 | feat(mobile): continue-on-desktop uses cortex only (no prefrontal fallback) |
 | 55ffc95 | feat(mobile): add FlowsScreen for browsing/running cortex flows |
 | (older — see git log) | Cortex client wiring (Sprint 1+2); main_agent + mobile_action_agent split; WebRTC companion mode; wake-word service; multimodal input; session transfer |

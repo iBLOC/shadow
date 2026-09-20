@@ -45,7 +45,7 @@ shadow-mobile 端需新组件:
 ```
 shadow-esp32 I²S mic(PDM)
   ↓ opus encode + srtp protect + UDP send
-phone ASR(用 cortex / neure / 本地 LiteRT)
+phone ASR(用 cortex / neuron / 本地 LiteRT)
   ↓
 phone LLM(走 cortex / 本地 LiteRT)
   ↓

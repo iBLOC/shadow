@@ -148,8 +148,8 @@ cortexClient.hippocampus.stats()                    → GET /api/cortex/hippocam
 cortexClient.hippocampus.recent({layer, dimension, limit}) → GET /api/cortex/hippocampus/preview/recent
 cortexClient.hippocampus.consolidator()             → GET /api/cortex/hippocampus/preview/consolidator
 cortexClient.hippocampus.graphNode(nodeId)          → GET /api/cortex/hippocampus/preview/graph/{node_id}
-cortexClient.neure.models()                         → GET /api/cortex/neure/preview/models
-cortexClient.neure.stats()                           → GET /api/cortex/neure/preview/stats
+cortexClient.neuron.models()                         → GET /api/cortex/neuron/preview/models
+cortexClient.neuron.stats()                           → GET /api/cortex/neuron/preview/stats
 cortexClient.issueSubsystemToken(scopes, ttlSeconds) → POST /api/cortex/admin/token (via Tauri command cortex_issue_subsystem_token)
 ```
 
@@ -187,7 +187,7 @@ The `webrtcCompanion.ts` service uses:
 
 ## MODEL MANAGEMENT CONSOLIDATION (added 2026-08-23)
 
-- **SettingsPage is the only home for model management.** Its Models section (`ModelsSection`) now covers: cloud provider CRUD (per-row Edit/Delete buttons + `AddProviderModal` in add or edit mode via `initialProvider`/`initialType` props), and local engine models via `components/business/LocalEnginePanel` (type tabs, neure `/v1/models` list, download queue with job polling, install/release, source-repo download dialog — ported verbatim from the deleted ModelsPage).
+- **SettingsPage is the only home for model management.** Its Models section (`ModelsSection`) now covers: cloud provider CRUD (per-row Edit/Delete buttons + `AddProviderModal` in add or edit mode via `initialProvider`/`initialType` props), and local engine models via `components/business/LocalEnginePanel` (type tabs, neuron `/v1/models` list, download queue with job polling, install/release, source-repo download dialog — ported verbatim from the deleted ModelsPage).
 - **Deleted as deprecated:** `pages/ModelsPage.tsx`, `pages/ProvidersPage.tsx`, `pages/ModelDownloadPage.tsx`, `stores/modelDownloadStore.ts`. Routes `/models`, `/models/download`, `/providers` removed from `App.tsx`.
 - **Provider constants live in `src/lib/cloudProviders.ts`** (`CLOUD_PROVIDER_TYPES` + `DEFAULT_API_BASE`), shared by SettingsPage; `AddProviderModal` resolves its base URL via `prefrontalUrl()` (no more hardcoded `:60080`).
 - **`AppInitializer.MODEL_SETUP_PATHS = ['/settings', '/setup']`** — `/settings` must stay in this whitelist or users without models loop between `/onboarding` and `/settings` forever. `ModelOnboardingPage` navigates to `/settings`.
@@ -280,7 +280,7 @@ The same `src/` produces **two artefacts**:
 - **FlowsPage i18n** — "Cortex Flows" → "思维定式"
 - **ResonancePage** — 独立共鸣管理页面，支持多实例配置、主实例设置、Agent 开放选择
 - **AgentsPage unified** — Cortex & Lobe 合并入智能体页面，所有 lobe 视为内部智能体，支持为内部智能体设置模型
-- **ModelOnboardingPage** — 应用启动时通过 neure API 检查模型配置，若无可用模型则跳转引导页。下载由 neure 后端处理（`POST /v1/models/pull`），用户可在下载期间自由导航
+- **ModelOnboardingPage** — 应用启动时通过 neuron API 检查模型配置，若无可用模型则跳转引导页。下载由 neuron 后端处理（`POST /v1/models/pull`），用户可在下载期间自由导航
 
 **Planned** 📋:
 - Tauri Rust backend → embed Prefrontal core (drop in-process, no separate service)

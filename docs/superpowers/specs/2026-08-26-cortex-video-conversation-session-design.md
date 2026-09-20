@@ -79,10 +79,10 @@
 │   capability: list_local_video_sources (Spec #1)                        │
 └──────────────────────────────────────────────────────────────────────────┘
                 │
-                │  embedded neure HTTP /v1/chat/completions
+                │  embedded neuron HTTP /v1/chat/completions
                 ▼
 ┌──────────────────────────────────────────────────────────────────────────┐
-│ embedded neure (Spec #3)                                                │
+│ embedded neuron (Spec #3)                                                │
 │   mage_vl → 返回 "桌子空着, 远处书架可见"                                │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
@@ -175,7 +175,7 @@ use tracing::{info, warn};
 pub struct VideoCaptureLoop {
     pub session: Arc<VisualQASession>,
     pub capabilities: Arc<CapabilityRegistry>,
-    pub neure: Arc<neure_embed::EmbeddedNeure>,
+    pub neuron: Arc<neuron_embed::EmbeddedNeuron>,
     pub repo: Arc<VideoSessionRepo>,
     pub cancel_token: CancellationToken,
 }
@@ -274,7 +274,7 @@ impl VideoCaptureLoop {
             "Describe what is happening in this short video clip. \
              Be concise (1-2 sentences, under 30 words). Focus on visible objects and actions.{prev_section}"
         );
-        let reply = self.neure.chat_completions(json!({
+        let reply = self.neuron.chat_completions(json!({
             "model": "microsoft/Mage-VL",
             "max_tokens": 80,
             "messages": [{
@@ -367,7 +367,7 @@ impl SessionRegistry {
 pub struct VisualQASession {
     pub config: VisualSessionConfig,
     pub capabilities: Arc<CapabilityRegistry>,
-    pub neure: Arc<neure_embed::EmbeddedNeure>,
+    pub neuron: Arc<neuron_embed::EmbeddedNeuron>,
     pub repo: Arc<VideoSessionRepo>,
     pub cancel: CancellationToken,
     state: RwLock<SessionState>,
@@ -396,7 +396,7 @@ impl LobeSession for VisualQASession {
             VideoCaptureLoop {
                 session: me,
                 capabilities: me.capabilities.clone(),
-                neure: me.neure.clone(),
+                neuron: me.neuron.clone(),
                 repo: me.repo.clone(),
                 cancel_token: cancel,
             }.run().await;
@@ -623,7 +623,7 @@ async fn prefrontal_assembles_recent_descriptions_into_prompt() { /* mock sessio
 
 // cortex/tests/video_session_e2e.rs
 #[tokio::test]
-#[ignore = "requires mage_vl shards + embedded neure boot"]
+#[ignore = "requires mage_vl shards + embedded neuron boot"]
 async fn end_to_end_30s_session_then_ask_about_recent() { /* see scenarios/VQA-06 */ }
 ```
 
@@ -640,7 +640,7 @@ async fn end_to_end_30s_session_then_ask_about_recent() { /* see scenarios/VQA-0
 | `cortex_video_sources` table | Spec #1 | `video_source_id` 列 |
 | `CapabilityRegistry` + `capture_frame_uvc` capability | Spec #3 | 抓帧 |
 | `LobeSession` 是新 trait | 本 spec | 不影响 `NativeLobe` |
-| `embedded neure mage_vl` | Spec #3 | 持续推理 |
+| `embedded neuron mage_vl` | Spec #3 | 持续推理 |
 | `ToolPromptBuilder` (system prompt) | Spec #4 | temporal lobe 调用 (additively, not replace) |
 | `Intent::VisualQA` | Spec #2 | 不变（spec #6 是新 intent path） |
 

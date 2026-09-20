@@ -28,7 +28,7 @@
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
-│ cortex (一个 binary, 内嵌所有 native lobes + embedded neure + flow)        │
+│ cortex (一个 binary, 内嵌所有 native lobes + embedded neuron + flow)        │
 │                                                                          │
 │  ┌─────────────────────────────────────────────────────────────────┐    │
 │  │ core::tool::ToolRegistry                                          │    │
@@ -734,7 +734,7 @@ agent "ibloc-temp" gets assigned: ["capture_frame", "skill:visual_qa"]
 | `cortex_video_sources` schema | Spec #1 PUT | Built-in `capture_frame` 工具 |
 | `Intent::VisualQA` | Spec #2 | (skill routing 不变；Spec #4 不影响) |
 | `VisualQATool` + `CapabilityRegistry` | Spec #3 | migration 到统一 `Tool` trait |
-| `embedded neure` mage_vl | Spec #3 | 不变 |
+| `embedded neuron` mage_vl | Spec #3 | 不变 |
 | A2A skill contract | Spec #2 | SkillBackedTool 调同一个 A2A gateway |
 
 ## 范围外（未来 spec）

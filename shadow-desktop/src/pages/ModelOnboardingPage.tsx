@@ -5,7 +5,7 @@ import { Cloud, Server, Cpu, ArrowRight, Loader2 } from 'lucide-react';
 import { prefrontalUrl } from '../lib/platform';
 import { Button } from '../components/ui/button';
 
-const NEURE_BASE = prefrontalUrl();
+const NEURON_BASE = prefrontalUrl();
 
 interface ModelCheckResult {
   hasCloud: boolean;
@@ -21,10 +21,10 @@ export function ModelOnboardingPage() {
   useEffect(() => {
     const check = async () => {
       const [cloudResult, localResult] = await Promise.allSettled([
-        fetch(`${NEURE_BASE}/models/providers`)
+        fetch(`${NEURON_BASE}/models/providers`)
           .then(r => r.ok ? r.json() : Promise.reject(r.status))
           .then(d => Array.isArray(d) && d.length > 0),
-        fetch(`${NEURE_BASE}/v1/models?engine=llm`)
+        fetch(`${NEURON_BASE}/v1/models?engine=llm`)
           .then(r => r.ok ? r.json() : Promise.reject(r.status))
           .then(d => (d.data ?? []).some((m: { available?: boolean }) => m.available)),
       ]);

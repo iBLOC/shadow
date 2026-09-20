@@ -394,7 +394,7 @@ function LocalEngineTab() {
   // raw `llm/llama-3-8b` engine-qualified id.
   const [jobLabels, setJobLabels] = useState<Record<string, string>>({});
 
-  // Fetch models filtered by current engine type via the neure API.
+  // Fetch models filtered by current engine type via the neuron API.
   // The API response already groups entries that share the same
   // (engine, id) across multiple repositories into a single row
   // whose `sources` lists each repo separately.
@@ -419,7 +419,7 @@ function LocalEngineTab() {
   const handleRelease = async (modelId: string, engine: string) => {
     try {
       // `model.id` is `<engine>/<id>` (e.g. `llm/gemma-4-e4b-it`).
-      // The neure route is `DELETE /v1/models/{engine}/{id}` — strip
+      // The neuron route is `DELETE /v1/models/{engine}/{id}` — strip
       // the leading `<engine>/` so the URL is `…/llm/gemma-4-e4b-it`,
       // not `…/llm/llm/gemma-4-e4b-it` (which 400s with a
       // "model not found" because the second `llm` is treated as
@@ -435,7 +435,7 @@ function LocalEngineTab() {
     }
   };
 
-  // Fetch the live job list from neure, deduped by job_id. Also
+  // Fetch the live job list from neuron, deduped by job_id. Also
   // captures a friendly model label the first time we see a job.
   const refreshJobs = useCallback(async () => {
     try {
@@ -840,7 +840,7 @@ function DownloadQueue({ jobs, labels, onCancel, onClearFinished }: {
   );
 }
 
-/// Maps the neure `engine_impl` string to a friendly label and
+/// Maps the neuron `engine_impl` string to a friendly label and
 /// accent colour so the underlying runtime is immediately visible
 /// on every card.
 function RuntimeBadge({ impl }: { impl: string }) {

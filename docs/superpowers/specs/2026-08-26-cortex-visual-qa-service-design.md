@@ -46,9 +46,9 @@ camera）→ 调 mage_vl 推理 → 返回文本。具体分两件事：
 │   ├─ visual_qa_lobe (Native lobe; existing occipital slot reused)          │
 │   │   ├─ handle(message) → parse visualqa intent →                         │
 │   │   │   1) tool.invoke("capture_frame", { source_id })                 │
-│   │   │   2) tool result → mage_vl via embedded neure                      │
+│   │   │   2) tool result → mage_vl via embedded neuron                      │
 │   │   │   3) mage_vl reply → CortexStreamEvent::Delta { text }            │
-│   │   └─ embedded neure (cortex::neure_embed)                             │
+│   │   └─ embedded neuron (cortex::neuron_embed)                             │
 │   ├─ capability_registry (new; visual-qa-scoped)                           │
 │   │   ├─ register / heartbeat / invoke                                    │
 │   │   └─ stale-aware provider selection                                    │
@@ -488,7 +488,7 @@ class MobileVisualQAProvider {
 
 pub struct VisualQALobe {
     tools: Arc<VisualQAToolRegistry>,
-    neure: Arc<neure_embed::EmbeddedNeure>,
+    neuron: Arc<neuron_embed::EmbeddedNeuron>,
 }
 
 #[async_trait]
@@ -512,9 +512,9 @@ impl NativeLobe for VisualQALobe {
         ).await.map_err(|e| format!("capture_frame failed: {e}"))?;
         let jpeg_base64 = frame["jpeg_base64"].as_str().ok_or("missing jpeg_base64")?;
         
-        // Step 2: call mage_vl via embedded neure
+        // Step 2: call mage_vl via embedded neuron
         let max_tokens = intent.max_tokens.unwrap_or(256);
-        let reply = self.neure.chat_completions(json!({
+        let reply = self.neuron.chat_completions(json!({
             "model": "microsoft/Mage-VL",
             "max_tokens": max_tokens,
             "messages": [{
@@ -552,9 +552,9 @@ fn parse_visualqa_intent(message: &Message) -> Result<VisualQaIntent, String> {
 
 **skill_router 注册**: 加一条 `skill_id="visual_qa" → LobeClient::Native(VisualQALobe)`。
 
-**embedded neure 启动**: cortex 启动时 init `EmbeddedNeure::new(NeureEmbedConfig {
+**embedded neuron 启动**: cortex 启动时 init `EmbeddedNeuron::new(NeuronEmbedConfig {
 llm_runtime: "mage_vl",
-shard_dir: env("NEURE_MAGE_VL_SHARD_DIR"),
+shard_dir: env("NEURON_MAGE_VL_SHARD_DIR"),
 device: "cpu",
 dtype: "f32",
 })`。~18GB F32 内存（per Spec #1 经验）。启动延迟 30-40s。
@@ -617,7 +617,7 @@ mod tests {
 
     // visual_qa lobe (gated on mage_vl shards)
     #[tokio::test]
-    #[ignore = "requires mage_vl shards (~9GB) and embedded neure boot (~30s)"]
+    #[ignore = "requires mage_vl shards (~9GB) and embedded neuron boot (~30s)"]
     async fn visual_qa_lobe_full_flow_capture_then_mage_vl();
 }
 ```
@@ -651,8 +651,8 @@ e2e-tests/visual-qa-provider.spec.ts
 | `cortex_video_sources.transport` | Spec #1 PUT | 决定用 `capture_frame_uvc` 或 `capture_frame_native_camera` |
 | A2A `visual_qa` skill wire | Spec #2 锁定 | Spec #3 服务端实现该契约 |
 | `Intent::VisualQA` source_hint | Spec #2 | spec#3 通过 source_hint 取 source_id |
-| embedded neure mage_vl runtime | Spec #1 验证可用 | Spec #3 cortex 端也用相同的 `cortex::neure_embed` |
-| Mage-VL HTTP `/v1/chat/completions` with image_url | Spec #1 验证 | Spec #3 cortex → embedded neure 同接口 |
+| embedded neuron mage_vl runtime | Spec #1 验证可用 | Spec #3 cortex 端也用相同的 `cortex::neuron_embed` |
+| Mage-VL HTTP `/v1/chat/completions` with image_url | Spec #1 验证 | Spec #3 cortex → embedded neuron 同接口 |
 
 ## 范围外但保留扩展点（→ Spec #4）
 
@@ -694,7 +694,7 @@ user: "帮我看看这是什么"
        │    │    └─ HTTP POST localhost:<port>/api/cortex/capabilities/invoke
        │    │         └─ device-b-provider: WebRTC grab frame → JPEG base64
        │    └─ { jpeg_base64, width: 1920, height: 1080, captured_at }
-       ├─ embedded neure /v1/chat/completions
+       ├─ embedded neuron /v1/chat/completions
        │    { model: "microsoft/Mage-VL", messages: [{role:user, content:[text, image_url]}] }
        └─ reply text "A red square" → CortexStreamEvent::Delta
   ↓ cortex A receives A2A result text
