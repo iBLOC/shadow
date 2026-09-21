@@ -11,7 +11,7 @@
 - 工具: Rust → wasm32-unknown-unknown + serde + serde_json
 - CI: GitHub Actions `wasm32-unknown-unknown` target + `wasmtime` 系统库
 
-**Spec:** `/home/ibloc/Projects/shadow/docs/superpowers/specs/2026-08-26-cortex-wasm-tool-provider-design.md`
+**Spec:** `https://github.com/iBLOC/shadow/docs/superpowers/specs/2026-08-26-cortex-wasm-tool-provider-design.md`
 
 ---
 
@@ -479,7 +479,7 @@ git add workflows/cortex-tests.yml
 git commit -m "ci(cortex): build wasm32 sample tool for Spec #5 e2e"
 ```
 
-(Repo path is the cortex repo, not the shadow-orchestration repo. Find `.github/workflows/cortex-tests.yml` under `/home/ibloc/Projects/cortex`.)
+(Repo path is the cortex repo, not the shadow-orchestration repo. Find `.github/workflows/cortex-tests.yml` under `https://github.com/iBLOC/cortex`.)
 
 ---
 

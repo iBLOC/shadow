@@ -47,7 +47,7 @@ dependencies:
 - [ ] **Step 3: Commit**
 
 ```bash
-cd /home/ibloc/Projects/shadow/shadow-mobile
+cd https://github.com/iBLOC/shadow/shadow-mobile
 git add -A
 git commit -m "chore(mobile): add LiteRT-LM and TTS dependencies"
 ```

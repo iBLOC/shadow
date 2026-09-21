@@ -301,11 +301,11 @@ west debug
 - [`docs/RESEARCH.md`](docs/RESEARCH.md) — 2026-08-16 调研 + §9 xiaozhi/esp-claw/temporal/WASM-on-Xtensa 整合分析
 - [`docs/adr/0001-stack-choice-zephyr-c.md`](docs/adr/0001-stack-choice-zephyr-c.md) — **调研阶段 ADR**:采用 Zephyr + C (accepted)
 - [`docs/adr/0002-shadow-esp32-implementation-architecture.md`](docs/adr/0002-shadow-esp32-implementation-architecture.md) — **实施架构 ADR v2**:Zephyr 多任务 + WebRTC(同 desktop/mobile)+ Shadow temporal backend (accepted)
-- `Shadow` 根文档:[`/home/ibloc/Projects/shadow/AGENTS.md`](../AGENTS.md)
-- Shadow `temporal` lobe:[`/home/ibloc/Projects/temporal/`](../temporal/)
-- Shadow `cortex` webrtc route:[`/home/ibloc/Projects/cortex/src/api/webrtc_route.rs`](../cortex/src/api/webrtc_route.rs)
-- Shadow-Desktop WebRTC companion 参考:[`/home/ibloc/Projects/shadow/shadow-desktop/src/lib/webrtcCompanion.ts`](../shadow-desktop/src/lib/webrtcCompanion.ts)
-- Shadow-Mobile WebRTC companion 参考:[`/home/ibloc/Projects/shadow/shadow-mobile/lib/services/webrtc_companion.dart`](../shadow-mobile/lib/services/webrtc_companion.dart)
+- `Shadow` 根文档:[`https://github.com/iBLOC/shadow/AGENTS.md`](../AGENTS.md)
+- Shadow `temporal` lobe:[`https://github.com/iBLOC/temporal/`](../temporal/)
+- Shadow `cortex` webrtc route:[`https://github.com/iBLOC/cortex/src/api/webrtc_route.rs`](../cortex/src/api/webrtc_route.rs)
+- Shadow-Desktop WebRTC companion 参考:[`https://github.com/iBLOC/shadow/shadow-desktop/src/lib/webrtcCompanion.ts`](../shadow-desktop/src/lib/webrtcCompanion.ts)
+- Shadow-Mobile WebRTC companion 参考:[`https://github.com/iBLOC/shadow/shadow-mobile/lib/services/webrtc_companion.dart`](../shadow-mobile/lib/services/webrtc_companion.dart)
 
 ### 外部资料
 - [`78/xiaozhi-esp32`](https://github.com/78/xiaozhi-esp32) — 应用层架构参考(state machine + Opus + MCP server;28.9k stars / MIT)

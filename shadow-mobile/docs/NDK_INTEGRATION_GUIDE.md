@@ -65,7 +65,7 @@ rustup target add i686-linux-android
 #### 1.2 编译 .so
 
 ```bash
-cd /home/ibloc/Projects/prefrontal
+cd https://github.com/iBLOC/prefrontal
 
 # 使用我们提供的脚本 (已包含完整的 NDK 配置)
 ./scripts/build-android.sh
@@ -285,7 +285,7 @@ rustup target add aarch64-linux-android
 
 ```bash
 # 1. 编译 Prefrontal
-cd /home/ibloc/Projects/prefrontal
+cd https://github.com/iBLOC/prefrontal
 ./scripts/build-android.sh
 
 # 2. 在 Shadow-Mobile 中引入 PrefrontalMobilePage

@@ -10,7 +10,7 @@ Shadow is a secure AI user avatar that runs on user devices (desktop or mobile),
 |---------|------|-------------|
 | **shadow-desktop** | `shadow-desktop/` | Tauri + React desktop app |
 | **shadow-mobile** | `shadow-mobile/` | Flutter + Android mobile app |
-| **prefrontal** | `/home/ibloc/Projects/prefrontal` | AI Agent Engine (Layer 3) |
-| **resonance** | `/home/ibloc/Projects/resonance` | Task orchestration (Layer 5) |
+| **prefrontal** | `https://github.com/iBLOC/prefrontal` | AI Agent Engine (Layer 3) |
+| **resonance** | `https://github.com/iBLOC/resonance` | Task orchestration (Layer 5) |
 
 See [docs/superpowers/specs/](docs/superpowers/specs/) for the full specification.

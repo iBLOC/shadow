@@ -13,13 +13,13 @@
 ## Chunk 1: 修改 Prefrontal Core 创建 Client 模块
 
 **Files:**
-- Create: `/home/ibloc/Projects/prefrontal/src/client.rs`
-- Modify: `/home/ibloc/Projects/prefrontal/src/lib.rs`
+- Create: `https://github.com/iBLOC/prefrontal/src/client.rs`
+- Modify: `https://github.com/iBLOC/prefrontal/src/lib.rs`
 
 - [ ] **Step 1: 创建 client.rs 模块**
 
 ```rust
-// /home/ibloc/Projects/prefrontal/src/client.rs
+// https://github.com/iBLOC/prefrontal/src/client.rs
 use crate::config::{AgentConfig, LlmConfig};
 use crate::agent::Agent;
 use crate::error::{PrefrontalError, Result};
@@ -154,7 +154,7 @@ impl Prefrontal {
 
 - [ ] **Step 2: 更新 lib.rs 导出 client 模块**
 
-修改 `/home/ibloc/Projects/prefrontal/src/lib.rs`:
+修改 `https://github.com/iBLOC/prefrontal/src/lib.rs`:
 
 ```rust
 pub mod client;
@@ -187,13 +187,13 @@ pub use types::{Message, Role, ConversationContext};
 
 - [ ] **Step 3: 验证 Prefrontal 编译**
 
-Run: `cd /home/ibloc/Projects/prefrontal && cargo check 2>&1`
+Run: `cd https://github.com/iBLOC/prefrontal && cargo check 2>&1`
 Expected: 编译成功 (可能有 warning)
 
 - [ ] **Step 4: 提交**
 
 ```bash
-cd /home/ibloc/Projects/prefrontal
+cd https://github.com/iBLOC/prefrontal
 git add src/client.rs src/lib.rs
 git commit -m "feat: add Prefrontal client module for in-memory integration"
 ```
@@ -203,24 +203,24 @@ git commit -m "feat: add Prefrontal client module for in-memory integration"
 ## Chunk 2: Shadow-Desktop 集成 Prefrontal
 
 **Files:**
-- Modify: `/home/ibloc/Projects/shadow/shadow-desktop/src-tauri/Cargo.toml`
-- Create: `/home/ibloc/Projects/shadow/shadow-desktop/src-tauri/src/prefrontal_client.rs`
-- Modify: `/home/ibloc/Projects/shadow/shadow-desktop/src-tauri/src/lib.rs`
+- Modify: `https://github.com/iBLOC/shadow/shadow-desktop/src-tauri/Cargo.toml`
+- Create: `https://github.com/iBLOC/shadow/shadow-desktop/src-tauri/src/prefrontal_client.rs`
+- Modify: `https://github.com/iBLOC/shadow/shadow-desktop/src-tauri/src/lib.rs`
 
 - [ ] **Step 1: 添加 Cargo 依赖**
 
-修改 `/home/ibloc/Projects/shadow/shadow-desktop/src-tauri/Cargo.toml`:
+修改 `https://github.com/iBLOC/shadow/shadow-desktop/src-tauri/Cargo.toml`:
 在 `[dependencies]` 部分添加:
 
 ```toml
 [dependencies]
-prefrontal-core = { path = "/home/ibloc/Projects/prefrontal" }
+prefrontal-core = { path = "https://github.com/iBLOC/prefrontal" }
 ```
 
 - [ ] **Step 2: 创建 prefrontal_client.rs**
 
 ```rust
-// /home/ibloc/Projects/shadow/shadow-desktop/src-tauri/src/prefrontal_client.rs
+// https://github.com/iBLOC/shadow/shadow-desktop/src-tauri/src/prefrontal_client.rs
 use prefrontal_core::{Prefrontal, PrefrontalConfig};
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -268,7 +268,7 @@ impl PrefrontalState {
 
 - [ ] **Step 3: 更新 lib.rs 集成 Prefrontal**
 
-修改 `/home/ibloc/Projects/shadow/shadow-desktop/src-tauri/src/lib.rs`:
+修改 `https://github.com/iBLOC/shadow/shadow-desktop/src-tauri/src/lib.rs`:
 
 在文件顶部添加:
 ```rust
@@ -352,13 +352,13 @@ async fn prefrontal_process(
 
 - [ ] **Step 4: 验证编译**
 
-Run: `cd /home/ibloc/Projects/shadow/shadow-desktop && cargo check --manifest-path src-tauri/Cargo.toml 2>&1`
+Run: `cd https://github.com/iBLOC/shadow/shadow-desktop && cargo check --manifest-path src-tauri/Cargo.toml 2>&1`
 Expected: 编译成功
 
 - [ ] **Step 5: 提交**
 
 ```bash
-cd /home/ibloc/Projects/shadow/shadow-desktop
+cd https://github.com/iBLOC/shadow/shadow-desktop
 git add src-tauri/Cargo.toml src-tauri/src/prefrontal_client.rs src-tauri/src/lib.rs
 git commit -m "feat: integrate prefrontal-core for in-memory agent execution"
 ```
@@ -367,8 +367,8 @@ git commit -m "feat: integrate prefrontal-core for in-memory agent execution"
 
 ## 验证步骤
 
-1. **Prefrontal 编译**: `cd /home/ibloc/Projects/prefrontal && cargo build`
-2. **Shadow-Desktop 编译**: `cd /home/ibloc/Projects/shadow/shadow-desktop && cargo check --manifest-path src-tauri/Cargo.toml`
+1. **Prefrontal 编译**: `cd https://github.com/iBLOC/prefrontal && cargo build`
+2. **Shadow-Desktop 编译**: `cd https://github.com/iBLOC/shadow/shadow-desktop && cargo check --manifest-path src-tauri/Cargo.toml`
 
 ## 后续
 

@@ -230,7 +230,7 @@ export function createApiMock() {
 - [ ] **Step 4: 运行测试验证基础配置**
 
 ```bash
-cd /home/ibloc/Projects/shadow/shadow-desktop && pnpm test:run
+cd https://github.com/iBLOC/shadow/shadow-desktop && pnpm test:run
 ```
 
 Expected: Existing tests pass (Button.test.tsx, resonanceStore.test.ts)
@@ -342,7 +342,7 @@ describe('Modal Component', () => {
 - [ ] **Step 4: 运行组件测试验证**
 
 ```bash
-cd /home/ibloc/Projects/shadow/shadow-desktop && pnpm test:run tests/components/
+cd https://github.com/iBLOC/shadow/shadow-desktop && pnpm test:run tests/components/
 ```
 
 Expected: All component tests pass
@@ -407,7 +407,7 @@ describe('EntityCard Component', () => {
 - [ ] **Step 7: 运行所有组件测试**
 
 ```bash
-cd /home/ibloc/Projects/shadow/shadow-desktop && pnpm test:run tests/components/
+cd https://github.com/iBLOC/shadow/shadow-desktop && pnpm test:run tests/components/
 ```
 
 Expected: All component tests pass
@@ -601,7 +601,7 @@ describe('TaskStore', () => {
 - [ ] **Step 4: 运行 Store 测试验证**
 
 ```bash
-cd /home/ibloc/Projects/shadow/shadow-desktop && pnpm test:run tests/stores/
+cd https://github.com/iBLOC/shadow/shadow-desktop && pnpm test:run tests/stores/
 ```
 
 Expected: All store tests pass
@@ -764,7 +764,7 @@ describe('TaskBoardPage Integration', () => {
 - [ ] **Step 4: 运行页面集成测试**
 
 ```bash
-cd /home/ibloc/Projects/shadow/shadow-desktop && pnpm test:run tests/pages/
+cd https://github.com/iBLOC/shadow/shadow-desktop && pnpm test:run tests/pages/
 ```
 
 Expected: All page integration tests pass
@@ -894,7 +894,7 @@ describe('Task Creation E2E Flow', () => {
 - [ ] **Step 4: 运行 E2E 测试**
 
 ```bash
-cd /home/ibloc/Projects/shadow/shadow-desktop && pnpm test:run tests/e2e/
+cd https://github.com/iBLOC/shadow/shadow-desktop && pnpm test:run tests/e2e/
 ```
 
 Expected: All E2E tests pass
@@ -1014,7 +1014,7 @@ void main() {
 - [ ] **Step 4: 运行 Widget 测试**
 
 ```bash
-cd /home/ibloc/Projects/shadow/shadow-mobile && flutter test test/widget/
+cd https://github.com/iBLOC/shadow/shadow-mobile && flutter test test/widget/
 ```
 
 Expected: All widget tests pass
@@ -1115,7 +1115,7 @@ void main() {
 - [ ] **Step 4: 运行集成测试**
 
 ```bash
-cd /home/ibloc/Projects/shadow/shadow-mobile && flutter test integration_test/
+cd https://github.com/iBLOC/shadow/shadow-mobile && flutter test integration_test/
 ```
 
 Expected: All integration tests pass

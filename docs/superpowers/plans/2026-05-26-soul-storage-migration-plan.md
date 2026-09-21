@@ -647,7 +647,7 @@ rm -rf shadow-mobile/lib/services/neo4j/
 - [ ] **Step 11: 构建 Prefrontal**
 
 ```bash
-cd /home/ibloc/Projects/prefrontal
+cd https://github.com/iBLOC/prefrontal
 cargo build
 ```
 
@@ -656,7 +656,7 @@ cargo build
 - [ ] **Step 12: 构建 Flutter**
 
 ```bash
-cd /home/ibloc/Projects/shadow/shadow-mobile
+cd https://github.com/iBLOC/shadow/shadow-mobile
 flutter build apk --debug
 ```
 

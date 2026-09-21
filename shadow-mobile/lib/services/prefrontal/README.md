@@ -30,7 +30,7 @@
 ### 1. 编译 Prefrontal 可执行文件
 
 ```bash
-cd /home/ibloc/Projects/prefrontal
+cd https://github.com/iBLOC/prefrontal
 cargo build --release
 ```
 

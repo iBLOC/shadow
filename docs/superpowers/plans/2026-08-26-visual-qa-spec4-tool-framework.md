@@ -11,7 +11,7 @@
 - shadow-desktop / mobile: unaffected (no client-side changes)
 - Existing 187 lib + 4 webrtc e2e + 28 integration tests must keep passing
 
-**Spec:** `/home/ibloc/Projects/shadow/docs/superpowers/specs/2026-08-26-cortex-tool-framework-design.md`
+**Spec:** `https://github.com/iBLOC/shadow/docs/superpowers/specs/2026-08-26-cortex-tool-framework-design.md`
 
 ---
 

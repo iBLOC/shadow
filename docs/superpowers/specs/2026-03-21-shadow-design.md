@@ -91,11 +91,11 @@
 
 | 模块 | 位置 | 端口 | 职责 |
 |------|------|------|------|
-| **Resonance** | `/home/ibloc/Projects/resonance` | 8080 | 任务编排、规划、工作流引擎、模型评分 |
-| **Shadow-Mobile** | `/home/ibloc/Projects/shadow/shadow-mobile` | - | 移动端 UI、MNN 推理、flutter_genui |
-| **Shadow-Desktop** | `/home/ibloc/Projects/shadow/shadow-desktop` | - | 桌面端 UI、candle-vllm、CopilotKit |
-| **Prefrontal** | `/home/ibloc/Projects/prefrontal` | 8082 | 多智能体执行、工具调用、内置 Agent |
-| **Hippocampus** | `/home/ibloc/Projects/hippocampus` | 8081 | 长期记忆、HybridRAG 搜索 |
+| **Resonance** | `https://github.com/iBLOC/resonance` | 8080 | 任务编排、规划、工作流引擎、模型评分 |
+| **Shadow-Mobile** | `https://github.com/iBLOC/shadow/shadow-mobile` | - | 移动端 UI、MNN 推理、flutter_genui |
+| **Shadow-Desktop** | `https://github.com/iBLOC/shadow/shadow-desktop` | - | 桌面端 UI、candle-vllm、CopilotKit |
+| **Prefrontal** | `https://github.com/iBLOC/prefrontal` | 8082 | 多智能体执行、工具调用、内置 Agent |
+| **Hippocampus** | `https://github.com/iBLOC/hippocampus` | 8081 | 长期记忆、HybridRAG 搜索 |
 
 ---
 
@@ -471,7 +471,7 @@ shadow/
 
 | 项目 | 路径 | 说明 |
 |------|------|------|
-| **Resonance** | `/home/ibloc/Projects/resonance` | 任务编排、规划、工作流引擎 |
-| **Prefrontal** | `/home/ibloc/Projects/prefrontal` | 多智能体执行引擎 |
-| **Hippocampus** | `/home/ibloc/Projects/hippocampus` | 长期记忆存储 |
-| **Shadow** | `/home/ibloc/Projects/shadow` | 用户分身 (本文档) |
+| **Resonance** | `https://github.com/iBLOC/resonance` | 任务编排、规划、工作流引擎 |
+| **Prefrontal** | `https://github.com/iBLOC/prefrontal` | 多智能体执行引擎 |
+| **Hippocampus** | `https://github.com/iBLOC/hippocampus` | 长期记忆存储 |
+| **Shadow** | `https://github.com/iBLOC/shadow` | 用户分身 (本文档) |

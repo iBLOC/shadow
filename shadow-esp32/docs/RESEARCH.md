@@ -1,7 +1,7 @@
 # Zephyr + Rust on ESP32-S3 — 调研评估报告
 
 **日期**: 2026-08-16
-**作者**: Sisyphus (编排自 `/home/ibloc/Projects/shadow/shadow-esp32`)
+**作者**: Sisyphus (编排自 `https://github.com/iBLOC/shadow/shadow-esp32`)
 **问题**: 在 ESP32-S3 上以 Zephyr 为 RTOS、以 Rust 为开发语言来构建 shadow 的 IoT 端,可行性如何?
 **结论先行**: **对 Xtensa 系 ESP32-S3,Zephyr+Rust 的组合在 2026-08 不实际可用**,推荐迁移到 `esp-hal 1.x` + Embassy 异步栈 + no_std Rust(详见 §5)。
 
@@ -266,7 +266,7 @@ Zephyr 的 Xtensa 架构 port **本身**存在(由 Synopsys 维护),但要让其
 
 | 日期 | 作者 | 修订 |
 |---|---|---|
-| 2026-08-16 | Sisyphus 编排产出 | 初版(vs. `/home/ibloc/Projects/shadow/shadow-esp32/README.md` v0;基于 ESP-IDF v6.0.2 / esp-hal v1.1.2 / Zephyr v4.4.2-rc1 / zephyr-lang-rust main 等当前上游状态) |
+| 2026-08-16 | Sisyphus 编排产出 | 初版(vs. `https://github.com/iBLOC/shadow/shadow-esp32/README.md` v0;基于 ESP-IDF v6.0.2 / esp-hal v1.1.2 / Zephyr v4.4.2-rc1 / zephyr-lang-rust main 等当前上游状态) |
 | 2026-08-16 | Sisyphus | §9 增补:加入 xiaozhi-esp32 / Shadow temporal lobe 画像,描述 ADR-0002 实施架构;RTOS 与语言选择延续 ADR-0001 |
 
 ---
@@ -303,7 +303,7 @@ Zephyr 的 Xtensa 架构 port **本身**存在(由 Synopsys 维护),但要让其
 
 **与 xiaozhi IO 模型的对比**:esp-claw 的 capability 派发思路(opaque handle + 注册表 + 板级 peripheral YAML)比 xiaozhi 的 MCP-style 更"嵌入式工业风";但 xiaozhi 的 MCP 更轻量、更标准化。**shadow-esp32 选 xiaozhi 的 MCP 作为对外接口,内部 capability 实现借鉴 esp-claw 的派发思路**——既利用 xiaozhi 的 wire 兼容性,又保留 esp-claw 的代码组织纪律。
 
-### 9.3 Shadow temporal lobe (`/home/ibloc/Projects/temporal/`)
+### 9.3 Shadow temporal lobe (`https://github.com/iBLOC/temporal/`)
 
 | 维度 | 数据 |
 |---|---|

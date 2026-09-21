@@ -36,7 +36,7 @@ src-tauri/
 
 ## DEPENDENCIES
 
-- **hippocampus-core**: Memory system (local path: /home/ibloc/Projects/hippocampus/hippocampus-core)
+- **hippocampus-core**: Memory system (local path: https://github.com/iBLOC/hippocampus/hippocampus-core)
 - **tauri**: v2 with tray-icon, image-png features
 
 ## ANTI-PATTERNS

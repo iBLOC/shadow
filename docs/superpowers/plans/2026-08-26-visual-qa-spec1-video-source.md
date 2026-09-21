@@ -12,7 +12,7 @@
 - Cortex: axum 0.8 + sqlx + serde_json
 - Schema: Postgres (cortex database, 已有 `DATABASE_URL`)
 
-**Spec:** `/home/ibloc/Projects/shadow/docs/superpowers/specs/2026-08-26-shadow-desktop-video-source-config-design.md`
+**Spec:** `https://github.com/iBLOC/shadow/docs/superpowers/specs/2026-08-26-shadow-desktop-video-source-config-design.md`
 
 ---
 

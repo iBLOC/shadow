@@ -57,7 +57,7 @@
 │  Layer 3: AGENT  (外部项目)                                                  │
 │                                                                             │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │  Prefrontal  /home/ibloc/Projects/prefrontal       Port 8082        │    │
+│  │  Prefrontal  https://github.com/iBLOC/prefrontal       Port 8082        │    │
 │  │  Rust 多智能体执行引擎 (单 crate, 可嵌入或独立运行)                    │    │
 │  │  • agent / session / tool / skill / MCP / A2A orchestration        │    │
 │  └─────────────────────────────────────────────────────────────────────┘    │
@@ -68,7 +68,7 @@
 │  Layer 3.5: CORTEX  (Agent 编排层, 单 shadow 中心化)                          │
 │                                                                             │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │  Cortex  /home/ibloc/Projects/cortex            Port 60080        │    │
+│  │  Cortex  https://github.com/iBLOC/cortex            Port 60080        │    │
 │  │  Rust (axum 0.8 + synapse::wasm)                                     │    │
 │  │  • 本地 registry (native lobes + user WASM agents)                    │    │
 │  │  • A2A gateway (skill-based routing)                                  │    │
@@ -112,7 +112,7 @@
 │  Layer 0: STORAGE  (横切, 所有层共享)                                        │
 │                                                                             │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │  Hippocampus  /home/ibloc/Projects/hippocampus      Port 8081        │    │
+│  │  Hippocampus  https://github.com/iBLOC/hippocampus      Port 8081        │    │
 │  │  5-crate Rust workspace — HybridRAG + temporal + consciousness      │    │
 │  │  • hippocampus-core (lib)  • hippocampus-storage (内部数据库/分布式数据库)   │    │
 │  │  • hippocampus-server (Axum REST)  • hippocampus-mcp (stdio)        │    │
@@ -126,7 +126,7 @@
 │  Layer 5 (横切): ORCHESTRATION  (外部项目, 多用户/跨设备)                     │
 │                                                                             │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │  Resonance  /home/ibloc/Projects/resonance         Port 8080        │    │
+│  │  Resonance  https://github.com/iBLOC/resonance         Port 8080        │    │
 │  │  任务编排 / 规划 / 工作流引擎 / Benchmark 评分                       │    │
 │  │  • 任务派发 (WebSocket push)                                          │    │
 │  │  • A2A 能力注册 (Shadow → Resonance)                                  │    │
@@ -230,7 +230,7 @@ shadow/
     └── sdkconfig.defaults.esp32s3
 ```
 
-> **Note (2026-07-19)**: shadow-mobile 现在有独立的 AGENTS.md（`/home/ibloc/Projects/shadow/shadow-mobile/AGENTS.md`，431 行重写覆盖了 2026-06-04 的旧 204 行版本）。原版本描述「Layer 4 + Layer 2 hybrid」3 模式架构，已被 cortex-centric 视图取代——mobile 默认走 cortex (`:60080`)，只有 Phone-as-Engine 模式才在 Kotlin 层暴露 OpenAIServer `:8085`。
+> **Note (2026-07-19)**: shadow-mobile 现在有独立的 AGENTS.md（`https://github.com/iBLOC/shadow/shadow-mobile/AGENTS.md`，431 行重写覆盖了 2026-06-04 的旧 204 行版本）。原版本描述「Layer 4 + Layer 2 hybrid」3 模式架构，已被 cortex-centric 视图取代——mobile 默认走 cortex (`:60080`)，只有 Phone-as-Engine 模式才在 Kotlin 层暴露 OpenAIServer `:8085`。
 
 ## 双端差异
 
@@ -262,10 +262,10 @@ shadow/
 
 | 模块 | 位置 | 端口 | 功能 |
 |------|------|------|------|
-| **Resonance** | `/home/ibloc/Projects/resonance` | 8080 | 任务编排、规划、工作流引擎 |
-| **Cortex** | `/home/ibloc/Projects/cortex` | 60080 | 单 shadow 中心化 agent 注册 + A2A gateway + WASM 宿主 + 外部智能体扫描同步 + MCP 管理 (v0.5 Sprint 2) |
-| **Prefrontal** | `/home/ibloc/Projects/prefrontal` | 8082 | 多智能体执行、工具调用、内置 Agent (prefrontal 是 cortex 管理的 lobe 之一) |
-| **Hippocampus** | `/home/ibloc/Projects/hippocampus` | 8081 | 长期记忆、HybridRAG 搜索 |
+| **Resonance** | `https://github.com/iBLOC/resonance` | 8080 | 任务编排、规划、工作流引擎 |
+| **Cortex** | `https://github.com/iBLOC/cortex` | 60080 | 单 shadow 中心化 agent 注册 + A2A gateway + WASM 宿主 + 外部智能体扫描同步 + MCP 管理 (v0.5 Sprint 2) |
+| **Prefrontal** | `https://github.com/iBLOC/prefrontal` | 8082 | 多智能体执行、工具调用、内置 Agent (prefrontal 是 cortex 管理的 lobe 之一) |
+| **Hippocampus** | `https://github.com/iBLOC/hippocampus` | 8081 | 长期记忆、HybridRAG 搜索 |
 | **Shadow-Desktop** | `shadow-desktop/` | N/A | 桌面端 UI + neuron (embedded :8085 via Tauri shell) |
 | **Shadow-Mobile** | `shadow-mobile/` | N/A | 移动端 UI + MNN |
 | **Shadow-ESP32** | `shadow-esp32/` | N/A | 边缘客户端原型 — **Zephyr 4.4.x + C + west**(`esp32s3_devkitc` 板级;v0.x 概念阶段;决策见 `shadow-esp32/docs/adr/0001-stack-choice-zephyr-c.md`;调研见 `shadow-esp32/docs/RESEARCH.md`)。通过 mDNS `_shadow._tcp` + A2A (JSON-RPC) 加入 Shadow 平台与 cortex/prefrontal 通信 |
@@ -294,10 +294,10 @@ export PREFRONTAL_MODE="executor"                 # executor / full
 
 | 项目 | 路径 | 说明 |
 |------|------|------|
-| **Resonance** | `/home/ibloc/Projects/resonance` | 任务编排、规划、工作流引擎 |
-| **Prefrontal** | `/home/ibloc/Projects/prefrontal` | 多智能体执行引擎 |
-| **Hippocampus** | `/home/ibloc/Projects/hippocampus` | 长期记忆存储 |
-| **Shadow** | `/home/ibloc/Projects/shadow` | 用户分身系统 |
+| **Resonance** | `https://github.com/iBLOC/resonance` | 任务编排、规划、工作流引擎 |
+| **Prefrontal** | `https://github.com/iBLOC/prefrontal` | 多智能体执行引擎 |
+| **Hippocampus** | `https://github.com/iBLOC/hippocampus` | 长期记忆存储 |
+| **Shadow** | `https://github.com/iBLOC/shadow` | 用户分身系统 |
 | **Shadow-Desktop** | `shadow-desktop/` | 桌面端执行器 (Tauri) |
 | **Shadow-Mobile** | `shadow-mobile/` | 移动端执行器 (Flutter) |
 
@@ -348,6 +348,6 @@ export PREFRONTAL_MODE="executor"                 # executor / full
 - `/home/ibloc/Projects/AGENTS.md` PROJECTS 表（neuron 列入 Layer 2，synapse 列为 shared/突触层）
 - `/home/ibloc/Projects/docs/architecture.md`（完整架构图 + 内嵌 Mermaid + 生物类比 §8）
 - `/home/ibloc/Projects/docs/diagrams/architecture.mmd`（SVG/PNG 渲染源文件）
-- `/home/ibloc/Projects/hippocampus/AGENTS.md`（synapse path dep 关系说明）
+- `https://github.com/iBLOC/hippocampus/AGENTS.md`（synapse path dep 关系说明）
 - 8 个项目根目录分别放置了 `ARCHITECTURE.md` 指针文件
 

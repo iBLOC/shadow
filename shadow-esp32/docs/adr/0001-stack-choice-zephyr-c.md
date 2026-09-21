@@ -21,7 +21,7 @@
 
 ## 上下文与问题陈述
 
-`shadow-esp32`(`/home/ibloc/Projects/shadow/shadow-esp32`)是 Shadow 平台考察中的第三条端形态 —— 把 Shadow Agent 的最小执行环境搬上 ESP32-S3-DevKitC,作为低成本边缘测试节点。
+`shadow-esp32`(`https://github.com/iBLOC/shadow/shadow-esp32`)是 Shadow 平台考察中的第三条端形态 —— 把 Shadow Agent 的最小执行环境搬上 ESP32-S3-DevKitC,作为低成本边缘测试节点。
 
 原始偏好(来自用户的初始请求)是 **"Zephyr + Rust"**,理由是 Zephyr 比 ESP-IDF 内置的 FreeRTOS 现代化、有更好的驱动模型,且 Rust 优于 C 的内存安全保证。但需要确认该组合在 ESP32-S3 (Xtensa 架构) 上 2026-08 时的实际可行性。
 

@@ -11,7 +11,7 @@
 - shadow-desktop: 现有 cortexClient.ts + i18n keys
 - A2A: 现有 synapse::a2a 协议
 
-**Spec:** `/home/ibloc/Projects/shadow/docs/superpowers/specs/2026-08-26-cortex-visual-qa-router-design.md`
+**Spec:** `https://github.com/iBLOC/shadow/docs/superpowers/specs/2026-08-26-cortex-visual-qa-router-design.md`
 
 ---
 

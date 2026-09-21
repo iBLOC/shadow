@@ -328,7 +328,7 @@ Shadow-Desktop `src-tauri/Cargo.toml`:
 
 ```toml
 [dependencies]
-prefrontal-core = { path = "/home/ibloc/Projects/prefrontal" }
+prefrontal-core = { path = "https://github.com/iBLOC/prefrontal" }
 ```
 
 Prefrontal `Cargo.toml` 需要启用 jni feature:

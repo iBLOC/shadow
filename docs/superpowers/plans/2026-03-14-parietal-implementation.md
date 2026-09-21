@@ -1056,8 +1056,8 @@ impl MemoryService {
 
 ```toml
 [dependencies]
-hippocampus-core = { path = "/home/ibloc/Projects/hippocampus/hippocampus-core" }
-hippocampus-storage = { path = "/home/ibloc/Projects/hippocampus/hippocampus-storage" }
+hippocampus-core = { path = "https://github.com/iBLOC/hippocampus/hippocampus-core" }
+hippocampus-storage = { path = "https://github.com/iBLOC/hippocampus/hippocampus-storage" }
 ```
 
 - [ ] **Step 3: 测试编译**

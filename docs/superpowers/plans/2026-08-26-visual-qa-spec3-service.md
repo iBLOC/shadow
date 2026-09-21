@@ -11,7 +11,7 @@
 - shadow-desktop (Tauri Rust): reqwest + tiny_http 或 axum (localhost invoke server)
 - neuron: existing mage_vl runtime (per Spec #1 verified)
 
-**Spec:** `/home/ibloc/Projects/shadow/docs/superpowers/specs/2026-08-26-cortex-visual-qa-service-design.md`
+**Spec:** `https://github.com/iBLOC/shadow/docs/superpowers/specs/2026-08-26-cortex-visual-qa-service-design.md`
 
 ---
 

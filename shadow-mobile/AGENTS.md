@@ -428,13 +428,13 @@ No errors, no warnings — only style-level info issues (deprecated `value` / `a
 
 | Project | Path | Role |
 |---|---|---|
-| Shadow umbrella | `/home/ibloc/Projects/shadow` | Container for mobile + desktop |
-| Shadow-Desktop | `/home/ibloc/Projects/shadow/shadow-desktop` | Sibling Layer 4 client (Tauri + React) |
-| Prefrontal | `/home/ibloc/Projects/prefrontal` | Layer 3 (Agent) — used as fallback when cortex unavailable |
-| **Cortex** | `/home/ibloc/Projects/cortex` | **Layer 3.5 (Orchestrator) — primary HTTP target** |
-| Hippocampus | `/home/ibloc/Projects/hippocampus` | Layer 0 (Memory) — reached via cortex on `:60080/hippocampus` |
+| Shadow umbrella | `https://github.com/iBLOC/shadow` | Container for mobile + desktop |
+| Shadow-Desktop | `https://github.com/iBLOC/shadow/shadow-desktop` | Sibling Layer 4 client (Tauri + React) |
+| Prefrontal | `https://github.com/iBLOC/prefrontal` | Layer 3 (Agent) — used as fallback when cortex unavailable |
+| **Cortex** | `https://github.com/iBLOC/cortex` | **Layer 3.5 (Orchestrator) — primary HTTP target** |
+| Hippocampus | `https://github.com/iBLOC/hippocampus` | Layer 0 (Memory) — reached via cortex on `:60080/hippocampus` |
 | neuron | [github.com/ibloc/neuron](https://github.com/ibloc/neuron) | Layer 2 (Engine) — on-device MNN / LiteRT, plus remote `:8085` HTTP |
-| Resonance | `/home/ibloc/Projects/resonance` | Layer 5 (Cross-user orchestration) — discovered via mDNS but mobile does not currently push tasks |
+| Resonance | `https://github.com/iBLOC/resonance` | Layer 5 (Cross-user orchestration) — discovered via mDNS but mobile does not currently push tasks |
 
 ## ENVIRONMENT VARIABLES (mobile build-time)
 
@@ -459,4 +459,4 @@ export MODELSCOPE_TOKEN="..."                       # for gated ModelScope repos
 | 55ffc95 | feat(mobile): add FlowsScreen for browsing/running cortex flows |
 | (older — see git log) | Cortex client wiring (Sprint 1+2); main_agent + mobile_action_agent split; WebRTC companion mode; wake-word service; multimodal input; session transfer |
 
-> The mobile project shares its git repository with shadow-desktop (`/home/ibloc/Projects/shadow/.git`), so commits are interleaved. Filter with `git log --author ...` or by `feat(mobile)` / `feat(shadow-mobile)` prefix.
+> The mobile project shares its git repository with shadow-desktop (`https://github.com/iBLOC/shadow/.git`), so commits are interleaved. Filter with `git log --author ...` or by `feat(mobile)` / `feat(shadow-mobile)` prefix.

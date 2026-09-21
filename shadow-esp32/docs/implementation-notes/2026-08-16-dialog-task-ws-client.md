@@ -123,7 +123,7 @@ west flash && west debug
 ## 引用
 
 - ADR-0002 v2: `shadow-esp32/docs/adr/0002-shadow-esp32-implementation-architecture.md` §4.3 + §后续动作 #3
-- cortex `webrtc_route.rs`: `/home/ibloc/Projects/cortex/src/api/webrtc_route.rs`
-- cortex `SignalingMessage`: `/home/ibloc/Projects/cortex/src/webrtc/mod.rs`
+- cortex `webrtc_route.rs`: `https://github.com/iBLOC/cortex/src/api/webrtc_route.rs`
+- cortex `SignalingMessage`: `https://github.com/iBLOC/cortex/src/webrtc/mod.rs`
 - RFC 6455: https://datatracker.ietf.org/doc/html/rfc6455
 - Zephyr Wi-Fi API: https://docs.zephyrproject.org/latest/connectivity/networking/api/wifi.html

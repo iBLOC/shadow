@@ -13,9 +13,9 @@
 ## Chunk 1: Prefrontal 日志 SSE 端点
 
 **Files:**
-- Create: `/home/ibloc/Projects/prefrontal/src/server/log_handler.rs`
-- Modify: `/home/ibloc/Projects/prefrontal/src/server/routes.rs`
-- Modify: `/home/ibloc/Projects/prefrontal/src/server/mod.rs`
+- Create: `https://github.com/iBLOC/prefrontal/src/server/log_handler.rs`
+- Modify: `https://github.com/iBLOC/prefrontal/src/server/routes.rs`
+- Modify: `https://github.com/iBLOC/prefrontal/src/server/mod.rs`
 
 ### Task 1: 创建 log_handler.rs
 
@@ -77,7 +77,7 @@ mod log_handler;
 - [ ] **Step 1: 运行 cargo check**
 
 ```bash
-cd /home/ibloc/Projects/prefrontal && cargo check
+cd https://github.com/iBLOC/prefrontal && cargo check
 ```
 
 ---
@@ -85,8 +85,8 @@ cd /home/ibloc/Projects/prefrontal && cargo check
 ## Chunk 2: Flutter LogService + Provider
 
 **Files:**
-- Create: `/home/ibloc/Projects/shadow/shadow-mobile/lib/services/log_service.dart`
-- Create: `/home/ibloc/Projects/shadow/shadow-mobile/lib/providers/log_provider.dart`
+- Create: `https://github.com/iBLOC/shadow/shadow-mobile/lib/services/log_service.dart`
+- Create: `https://github.com/iBLOC/shadow/shadow-mobile/lib/providers/log_provider.dart`
 
 ### Task 1: 创建 LogService
 
@@ -261,7 +261,7 @@ final filteredLogsProvider = Provider<List<LogEntry>>((ref) {
 - [ ] **Step 1: 运行 flutter analyze**
 
 ```bash
-cd /home/ibloc/Projects/shadow/shadow-mobile && flutter analyze lib/services/log_service.dart lib/providers/log_provider.dart
+cd https://github.com/iBLOC/shadow/shadow-mobile && flutter analyze lib/services/log_service.dart lib/providers/log_provider.dart
 ```
 
 ---
@@ -269,7 +269,7 @@ cd /home/ibloc/Projects/shadow/shadow-mobile && flutter analyze lib/services/log
 ## Chunk 3: Prefrontal SSE 日志流连接
 
 **Files:**
-- Create: `/home/ibloc/Projects/shadow/shadow-mobile/lib/services/log_service/prefrontal_log_stream.dart`
+- Create: `https://github.com/iBLOC/shadow/shadow-mobile/lib/services/log_service/prefrontal_log_stream.dart`
 
 ### Task 1: 创建 PrefrontalLogStream
 
@@ -366,8 +366,8 @@ class LogService extends StateNotifier<LogState> {
 ## Chunk 4: MNN EventChannel (Android)
 
 **Files:**
-- Modify: `/home/ibloc/Projects/shadow/shadow-mobile/android/app/src/main/kotlin/com/ibloc/shadow/MainActivity.kt`
-- Create: `/home/ibloc/Projects/shadow/shadow-mobile/android/app/src/main/kotlin/com/ibloc/shadow/LogcatReader.kt`
+- Modify: `https://github.com/iBLOC/shadow/shadow-mobile/android/app/src/main/kotlin/com/ibloc/shadow/MainActivity.kt`
+- Create: `https://github.com/iBLOC/shadow/shadow-mobile/android/app/src/main/kotlin/com/ibloc/shadow/LogcatReader.kt`
 
 ### Task 1: 创建 LogcatReader.kt
 
@@ -506,7 +506,7 @@ setupLogcatChannel(binding.binaryMessenger)
 ## Chunk 5: MNN Flutter EventChannel 客户端
 
 **Files:**
-- Create: `/home/ibloc/Projects/shadow/shadow-mobile/lib/services/log_service/mnn_log_stream.dart`
+- Create: `https://github.com/iBLOC/shadow/shadow-mobile/lib/services/log_service/mnn_log_stream.dart`
 
 ### Task 1: 创建 MnnLogStream
 
@@ -597,8 +597,8 @@ class LogService extends StateNotifier<LogState> {
 ## Chunk 6: LogPanel UI
 
 **Files:**
-- Create: `/home/ibloc/Projects/shadow/shadow-mobile/lib/widgets/log_panel_section.dart`
-- Modify: `/home/ibloc/Projects/shadow/shadow-mobile/lib/screens/settings_screen.dart`
+- Create: `https://github.com/iBLOC/shadow/shadow-mobile/lib/widgets/log_panel_section.dart`
+- Modify: `https://github.com/iBLOC/shadow/shadow-mobile/lib/screens/settings_screen.dart`
 
 ### Task 1: 创建 LogPanelSection widget
 
@@ -862,6 +862,6 @@ Widget build(BuildContext context) {
 
 ## Verification
 
-- [ ] Prefrontal: `cargo build --manifest-path /home/ibloc/Projects/prefrontal/Cargo.toml`
+- [ ] Prefrontal: `cargo build --manifest-path https://github.com/iBLOC/prefrontal/Cargo.toml`
 - [ ] Flutter: `flutter analyze` 无错误
 - [ ] APK 构建: `flutter build apk --debug` 成功

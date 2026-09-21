@@ -168,7 +168,7 @@ when (call.method) {
 - [ ] **Step 5: 验证编译**
 
 ```bash
-cd /home/ibloc/Projects/shadow/shadow-mobile && flutter analyze
+cd https://github.com/iBLOC/shadow/shadow-mobile && flutter analyze
 ```
 
 ---
@@ -310,8 +310,8 @@ pub struct PrefrontalConfig {
 - [ ] **Step 5: 验证编译**
 
 ```bash
-cd /home/ibloc/Projects/prefrontal && cargo check
-cd /home/ibloc/Projects/shadow/shadow-desktop && cargo check --manifest-path src-tauri/Cargo.toml
+cd https://github.com/iBLOC/prefrontal && cargo check
+cd https://github.com/iBLOC/shadow/shadow-desktop && cargo check --manifest-path src-tauri/Cargo.toml
 ```
 
 ---
@@ -420,8 +420,8 @@ export function ModelsPage() {
 - [ ] **Step 4: 验证编译**
 
 ```bash
-cd /home/ibloc/Projects/shadow/shadow-mobile && flutter analyze
-cd /home/ibloc/Projects/shadow/shadow-desktop && pnpm tsc --noEmit
+cd https://github.com/iBLOC/shadow/shadow-mobile && flutter analyze
+cd https://github.com/iBLOC/shadow/shadow-desktop && pnpm tsc --noEmit
 ```
 
 ---
@@ -490,7 +490,7 @@ enum ModelBackend { mnn, candle, openai, anthropic }
 - [ ] **Step 3: 验证编译**
 
 ```bash
-cd /home/ibloc/Projects/shadow/shadow-mobile && flutter analyze
+cd https://github.com/iBLOC/shadow/shadow-mobile && flutter analyze
 ```
 
 ---
