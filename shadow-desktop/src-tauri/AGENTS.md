@@ -30,7 +30,7 @@ src-tauri/
 - **Error**: anyhow + thiserror
 - **Logging**: tracing + tracing-subscriber
 - **Serialization**: serde + serde_json
-- **Storage**: opendal (S3, GCS, Azure Blob, FS)
+- **Storage**: none locally — blob storage is delegated to `hippocampus` (port 8081); consume via `hippocampus-mcp` (`blob_put/get/delete/exists/size/list`) or `http://localhost:8081/api/blobs/*`. `opendal` itself lives in `hippocampus-storage`; this Tauri crate does NOT link it directly (avoids the `tonic 0.12 → axum 0.7` clash with cortex's axum 0.8 — see `hippocampus/Cargo.toml` long comment).
 - **HTTP**: reqwest
 - **ID**: uuid v4
 
