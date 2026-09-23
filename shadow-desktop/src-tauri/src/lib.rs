@@ -290,6 +290,7 @@ pub fn run() {
             computer_use::cu_keyboard_type,
             computer_use::cu_keyboard_combo,
             computer_use::cu_set_enabled,
+            computer_use::cu_get_enabled,
             #[cfg(target_os = "windows")]
             computer_use::cu_list_ui_elements,
             #[cfg(target_os = "windows")]
@@ -1025,12 +1026,17 @@ async fn document_publish_feishu(
 }
 
 #[tauri::command]
-async fn document_set_feishu_enabled(
-    state: State<'_, AppState>,
+async fn cu_set_enabled(
+    state: State<'_, super::AppState>,
     on: bool,
 ) -> Result<(), String> {
-    state.feishu_mcp.set_enabled(on);
+    state.computer_use.set_enabled(on);
     Ok(())
+}
+
+#[tauri::command]
+async fn cu_get_enabled(state: State<'_, super::AppState>) -> Result<bool, String> {
+    Ok(state.computer_use.is_enabled())
 }
 
 #[tauri::command]

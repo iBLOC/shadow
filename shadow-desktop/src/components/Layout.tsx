@@ -11,6 +11,7 @@ import {
   Workflow,
   Activity,
   Eye,
+  MousePointer,
   type LucideIcon,
 } from 'lucide-react';
 import { useResonanceStore } from '../stores/resonanceStore';
@@ -30,6 +31,7 @@ const navItems: NavItem[] = [
   { path: '/flows', icon: Workflow, labelKey: 'nav.flows' },
   { path: '/trace', icon: Activity, labelKey: 'nav.trace' },
   { path: '/previews', icon: Eye, labelKey: 'nav.previews' },
+  { path: '/computer-use', icon: MousePointer, labelKey: 'nav.computerUse' },
   { path: '/mcp', icon: Wrench, labelKey: 'nav.mcp' },
   { path: '/skills', icon: Brain, labelKey: 'nav.skills' },
   { path: '/memory', icon: Database, labelKey: 'nav.memory' },

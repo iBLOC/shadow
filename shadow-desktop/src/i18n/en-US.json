@@ -111,6 +111,7 @@
     "models": "Models",
     "mcp": "MCP",
     "previews": "Previews",
+    "computerUse": "Computer Use",
     "skills": "Skills",
     "memory": "Memory",
     "services": "Services",
@@ -185,6 +186,27 @@
       "openTitle": "Currently open",
       "empty": "No previews open. Use the form above to open one.",
       "close": "Close"
+    },
+    "computerUse": {
+      "gateTitle": "Safety gate",
+      "gateDescription": "Mouse + keyboard actions require the gate to be open. Screenshots work regardless.",
+      "gateUnknown": "Loading…",
+      "gateOn": "Open — mouse + keyboard active",
+      "gateOff": "Closed — only screenshots work",
+      "gateTurnOff": "Close gate",
+      "gateTurnOn": "Open gate",
+      "gateWarning": "Closing the gate is reversible; reopening requires explicit user action. The agent can still request screenshots while closed.",
+      "screenshotTitle": "Screenshot",
+      "screenshotDescription": "Captures the primary monitor via xcap. Returns PNG bytes rendered inline below.",
+      "capturing": "Capturing…",
+      "capture": "Capture screenshot",
+      "captured": "Captured {{width}}×{{height}}",
+      "screenshotAlt": "Most recent computer-use screenshot",
+      "noScreenshotYet": "No screenshot yet. Click \"Capture screenshot\" above.",
+      "notesTitle": "Notes",
+      "noteWindows": "Windows hosts get the full element-based path via UIA — click_ui_by_name, read_ui_text, etc. — see the 4 Windows-only cu_* commands in lib.rs.",
+      "noteOther": "macOS / Linux use coordinate-based mouse + keyboard via enigo. Coordinates break when windows resize or move; prefer the Windows path when available.",
+      "noteMcp": "For agent-driven use, the cu_* primitives are wrapped as MCP tools by a future change. The MCP wrapper lives in feishu_mcp's pattern — same substrate as diencephalon."
     }
   },
   "lobes": {
