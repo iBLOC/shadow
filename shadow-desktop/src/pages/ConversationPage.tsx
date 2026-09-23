@@ -10,6 +10,7 @@ import { MoveSessionDialog } from '../components/MoveSessionDialog';
 import { ChartCard } from '../components/chatbi';
 import { VisualQaClarificationChip } from '../components/chat/VisualQaClarificationChip';
 import { FeishuPublishedCard } from '../components/chat/FeishuPublishedCard';
+import { AudioEventChip } from '../components/chat/AudioEventChip';
 import { isChatBiPayload } from '../lib/chatbi/guards';
 import type { ChatBiPayload } from '../lib/chatbi/guards';
 import type { VisualQaClarification } from '../types';
@@ -138,6 +139,22 @@ export function ConversationPage() {
               accumulated += event.delta;
             } else if (event.type === 'clarification' && event.clarification) {
               visualQaClarification = event.clarification;
+            } else if (event.type === 'audio_event' && event.audio) {
+              // BC-01..05 — surface the audio event as its own
+              // message so it appears as a distinct chip in the
+              // chat stream rather than text the agent reacted to.
+              addMessage(activeConversationId, {
+                id: crypto.randomUUID(),
+                role: 'assistant',
+                content: '',
+                timestamp: new Date(event.timestamp ?? Date.now()),
+                audio_event: {
+                  classId: event.audio.classId,
+                  confidence: event.audio.confidence,
+                  source: event.audio.source,
+                  timestamp: event.timestamp,
+                },
+              });
             } else if (event.type === 'done') {
               if (accumulated.trim().startsWith('{')) {
                 try {
@@ -315,6 +332,13 @@ export function ConversationPage() {
                             rows={msg.chatbi.rows}
                             title={msg.content}
                             className="max-w-full"
+                          />
+                        ) : msg.audio_event ? (
+                          <AudioEventChip
+                            classId={msg.audio_event.classId}
+                            confidence={msg.audio_event.confidence}
+                            source={msg.audio_event.source}
+                            timestamp={msg.audio_event.timestamp}
                           />
                         ) : msg.visual_qa_clarification ? (
                           <VisualQaClarificationChip

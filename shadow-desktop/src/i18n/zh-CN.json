@@ -168,6 +168,34 @@
       "open": "打开",
       "messageContent": "📤 已将《{{title}}》发布到飞书 — 点击下方链接查看。"
     },
+    "audioEvent": {
+      "title": "检测到音频事件",
+      "confidence": "置信度 {{pct}}%",
+      "class": "类别 {{classId}}"
+    },
+    "computerUsePending": {
+      "title": "Computer-use 操作待确认",
+      "reviewBefore": "Agent 想在您的主机上执行 {{action}}。请检查后选择「执行」或「取消」。",
+      "proceed": "执行",
+      "cancel": "取消",
+      "actionMouseClick": "在 ({{x}}, {{y}}) 处点击 {{button}} 键",
+      "actionMouseMove": "把鼠标移到 ({{x}}, {{y}})",
+      "actionKeyboardType": "输入 {{count}} 个字符",
+      "actionKeyboardCombo": "按下 {{combo}} 组合键",
+      "x": "x",
+      "y": "y",
+      "button": "键"
+    },
+    "documentEditor": {
+      "loading": "加载中…",
+      "ready": "就绪 · 自动保存 2 秒",
+      "back": "返回",
+      "publishToFeishu": "发布到飞书"
+    },
+    "documentEditorError": {
+      "loadFailed": "工作簿加载失败",
+      "publishFailed": "发布失败：{{message}}"
+    },
     "preview": {
       "openInWindow": "预览",
       "dialogTitle": "为 {{taskId}} 打开预览",

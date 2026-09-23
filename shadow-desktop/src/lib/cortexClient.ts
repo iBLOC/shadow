@@ -63,13 +63,33 @@ export interface SendMessageResponse {
 }
 
 export interface StreamEvent {
-  type: 'delta' | 'done' | 'error';
+  type: 'delta' | 'done' | 'error' | 'audio_event' | 'computer_use_action';
   agent?: string;
   delta?: string;
   conversation_id?: string;
   state?: string;
   timestamp?: number;
   error?: string;
+  /** Audio event payload (BC-01..05). Present when type ===
+   *  'audio_event'. `classId` matches the diencephalon audio
+   *  classifier id (e.g. "baby_cry"); `confidence` is 0..1. */
+  audio?: {
+    classId: string
+    confidence: number
+    source: string
+  }
+  /** Computer-use proposed-action payload (R-11 preview-before-
+   *  commit). Present when type === 'computer_use_action'. The
+   *  modal renders the proposed action and asks the user to
+   *  Proceed / Cancel. */
+  computerUse?: {
+    action: 'mouse_click' | 'mouse_move' | 'keyboard_type' | 'keyboard_combo'
+    x?: number
+    y?: number
+    button?: 'left' | 'right' | 'middle'
+    text?: string
+    combo?: string
+  }
 }
 
 export interface FlowMeta {

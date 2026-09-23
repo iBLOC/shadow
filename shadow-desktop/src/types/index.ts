@@ -178,6 +178,10 @@ export interface Message {
   /** Feishu share card (DOC-03). Surfaced when a task's workbook
    *  has just been published to Feishu via document_publish_feishu. */
   feishu_published?: FeishuPublished;
+  /** Audio event chip (BC-01..05 baby-cry monitoring). Surfaced
+   *  when the cortex SSE stream emits an audio_event for this
+   *  conversation. */
+  audio_event?: AudioEventMessage;
 }
 
 export interface FeishuPublished {
@@ -185,6 +189,13 @@ export interface FeishuPublished {
   title: string;
   /** The Feishu share URL (spreadsheet_token-derived). */
   url: string;
+}
+
+export interface AudioEventMessage {
+  classId: string;
+  confidence: number;
+  source: string;
+  timestamp?: number;
 }
 
 export interface VisualQaClarification {

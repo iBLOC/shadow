@@ -168,6 +168,38 @@
       "open": "Open",
       "messageContent": "📤 Published “{{title}}” to Feishu — open the link below."
     },
+    "audioEvent": {
+      "title": "Audio event detected",
+      "confidence": "{{pct}}% confidence",
+      "class": "Class {{classId}}"
+    },
+    "computerUsePending": {
+      "title": "Computer-use action proposed",
+      "reviewBefore": "An agent wants to perform a {{action}} on your host. Review the details and Proceed or Cancel.",
+      "proceed": "Proceed",
+      "cancel": "Cancel",
+      "actionMouseClick": "mouse click at ({{x}}, {{y}}) with the {{button}} button",
+      "actionMouseMove": "mouse move to ({{x}}, {{y}})",
+      "actionKeyboardType": "type {{count}} characters",
+      "actionKeyboardCombo": "press the {{combo}} key combo",
+      "x": "x",
+      "y": "y",
+      "button": "button"
+    },
+    "documentEditor": {
+      "loading": "loading…",
+      "ready": "ready · auto-save 2s",
+      "back": "Back",
+      "publishToFeishu": "Publish to Feishu"
+    },
+    "documentEditorError": {
+      "loadFailed": "failed to load workbook",
+      "publishFailed": "publish failed: {{message}}"
+    },
+      "title": "Published to Feishu",
+      "open": "Open",
+      "messageContent": "📤 Published “{{title}}” to Feishu — open the link below."
+    },
     "preview": {
       "openInWindow": "Preview",
       "dialogTitle": "Open preview for {{taskId}}",
