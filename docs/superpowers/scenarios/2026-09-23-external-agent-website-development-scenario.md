@@ -24,7 +24,7 @@ This scenario adds three responsibilities and three capabilities to the platform
 - 前额叶 becomes the **gateway** to external A2A agents. All outbound calls to external agents go through 前额叶, not 颞叶 / 枕叶 / 顶叶 / 间脑 directly.
 
 **新增 shadow 能力（三件套）**:
-- **内嵌浏览器** (embedded browser / iframe) for previewing the deployed website inside the shadow client without bouncing to a separate browser tab.
+- **独立 WebviewWindow (per-preview)** — `tauri::WebviewWindowBuilder::new(app, label, WebviewUrl::External(url))` opens one **OS-level** WebView per preview, labelled `preview-<task_id>`. The main shadow window keeps its own state; preview reloads / navigation never affect it. Not an HTML `<iframe>`.
 - **RPA 能力** — Tauri commands + scripted UI automation, allowing shadow to drive external apps on behalf of the user when no A2A endpoint exists.
 - **成果管理 (Result management)** + **本地 git 仓库** — every external-agent task yields a local git repo (initialised + per-stage commits) so the user owns the artifact, can review history, and can roll back / fork / merge.
 
@@ -62,7 +62,7 @@ Same `cortex/src/lobes/prefrontal.rs` module, additional gateway method. The gat
 
 | Capability | How (current idea, design-level) | Open work |
 |---|---|---|
-| **内嵌浏览器** | Tauri WebView with `<iframe sandbox="allow-scripts allow-same-origin">`; or a dedicated WebView window per preview tab | iframe sandbox CSP for dev preview URLs; per-tab session storage; "open in system browser" fallback |
+| **独立 WebviewWindow** | `tauri::WebviewWindowBuilder` per-preview | per-WebView devtools opt-in; CSP via `initialization_script`; "open in system browser" fallback wired separately |
 | **RPA** | Tauri commands for window/focus/click/type (e.g., `tauri-plugin-automation`); shadow ships a small DSL ("click button labelled X") that user can author or that 前额叶 generates | Safety boundaries; sandbox-vs-real-screen toggle; recording-vs-scripting split |
 | **成果管理 + 本地 git** | `git2` Rust crate (or `git` shell-out) inside shadow-desktop/src-tauri; one local repo per task at `~/.shadow/results/<task-id>/`; per-stage auto-commit on each天工 milestone reply | Conflict resolution if user edits outside shadow; LFS for large artifacts; optional sync to remote git |
 
@@ -93,7 +93,7 @@ These three capabilities are **needed** for the WS-* scenarios but **not yet imp
 | 8 | 成果 git init + per-stage commits | shadow-desktop | local (git2) | On each 天工 artifact push, shadow's result-manager initialises or extends `~/.shadow/results/<task-id>/` with the new files and auto-commits with author `shadow <shadow@iBLOC.local>` and message `${tiangong task id} + ${stage}`. |
 | 9 | 天工 deploys (future) | 天工 | internal | When deploy capability lands, 天工 deploys to a target environment and returns `url`. (Currently skipped — open work.) |
 | 10 | 天工 → 前额叶 (final) | 天工 → 前额叶 | A2A | Final `status: "completed"`, `artifacts: { url, repo_path, summary }`. |
-| 11 | 前额叶 → 颞叶 → user (preview) | 前额叶 → 颞叶 → user | ACP + SSE + **内嵌浏览器** | 颞叶 renders the result card with an **iframe** pointing at the deployed URL (sandboxed CSP) + a git history panel + a "send to RPA" affordance. |
+| 11 | 前额叶 → 颞叶 → user (preview) | 前额叶 → 颞叶 → user | ACP + SSE + **独立 WebviewWindow** | 颞叶 invokes `preview_open(task_id, url)` to spawn a dedicated WebView pointed at the deployed URL; the existing chat WebView is untouched. |
 | 12 | User iterates | user ⇄ 颞叶 ⇄ 前额叶 ⇄ 天工 | full loop | "改一下 header 颜色" → 前额叶 forwards to 天工 (same task.id, new message) → 天工 iterates → back to step 7. |
 
 **Edge cases / variants covered separately: WS-02..WS-05.**
@@ -102,7 +102,7 @@ These three capabilities are **needed** for the WS-* scenarios but **not yet imp
 - End-to-end: user NL → first 天工 reply ≤ 5 s on local zero-trust network.
 - Zero data loss across iterations: every 天工 reply yields exactly one local git commit + one ACP/SSE delta.
 - Privacy: shadow → 天工 traffic is mTLS only; the mTLS cert + key live in shadow-desktop's encrypted secret store (already present per `shadow-desktop/src-tauri/AGENTS.md` § SecureAuth).
-- iframe preview respects dev-server CSP and never navigates the parent shadow WebView away.
+- preview WebView is a separate OS-level WebView; its navigation, devtools, and CSP are independent of the main shadow WebView.
 
 ---
 
@@ -132,7 +132,7 @@ These three capabilities are **needed** for the WS-* scenarios but **not yet imp
    - writes files into `~/.shadow/results/<task-id>/`
    - auto-commits with message `<stage>:<artifact-name>` (e.g. `feat: add index.html`, `feat: add styles.css`).
 3. 天工 reports `status: "completed"` + `url: "https://..."` (when deploy is implemented; currently `url: null`).
-4. 颞叶 renders preview iframe + git log + commit messages.
+4. 颞叶 invokes `preview_open(task_id, url)` → dedicated WebView window opens with the deployed URL; the same view also shows git history panel + commit messages.
 
 **Acceptance:** every artifact batch produces exactly one local commit; `git log --oneline` on `~/.shadow/results/<task-id>/` matches the artifact batch list 1:1.
 
@@ -172,7 +172,7 @@ These three capabilities are **needed** for the WS-* scenarios but **not yet imp
 This scenario cannot run end-to-end today. Required additions:
 
 1. **前额叶 external-A2A gateway** — `cortex::lobes::prefrontal::A2AGateway` (or new `cortex::lobes::a2a_gateway.rs`) with `Vec<A2APeerConfig>` loaded from `CORTEX_A2A_PEERS` (mTLS cert/key/CA per peer). Use `synapse::a2a::client::A2AClient` as the wire layer (already shipped per `synapse/`).
-2. **内嵌浏览器 (iframe)** — Tauri WebView-side `<iframe sandbox>` + dev-URL CSP allowlist. Consider a dedicated WebView window for preview (separate from the main chat window) so iframe reloads don't disrupt the chat.
+2. **独立 WebviewWindow (per-preview)** — `tauri::WebviewWindowBuilder::new(app, label, WebviewUrl::External(url))` spawns one OS-level WebView per preview, labelled `preview-<task_id>`. The main shadow window keeps its own state; preview reloads / navigation never affect it. The main window is **never** the iframe target.
 3. **RPA capability** — pick a Tauri-compatible automation lib (or write a thin wrapper around OS-level input APIs). Required for tasks 天工 can't reach (e.g., a local desktop app with no A2A endpoint).
 4. **成果管理 + 本地 git** — `git2` crate or shell-out; per-task repo at `~/.shadow/results/<task-id>/`; auto-commit on each 天工 artifact.
 5. **天工 agent itself** — external; outside this codebase. 天工 needs to implement A2A `tasks/send` server-side. (Documented here so shadow's contract is clear; implementation is on 天工's side.)
@@ -184,7 +184,7 @@ This scenario cannot run end-to-end today. Required additions:
 
 - [ ] 前额叶 A2A gateway implemented with at least one peer (天工) configured.
 - [ ] 颞叶 renders a structured plan card on first 天工 reply + clarification form on `input-required`.
-- [ ] iframe preview pane ships with CSP allowlist for dev-server URLs.
+- [ ] `preview_open` Tauri command creates a dedicated WebviewWindow with CSP allowlist for dev-server URLs; OS-level WebView isolation prevents DOM/state leakage from the main shadow window.
 - [ ] Per-task local git repo initialised + per-artifact commit verified.
 - [ ] WS-04 history view works after shadow-desktop restart (re-reads from `~/.shadow/results/<task-id>/.git`).
 - [ ] WS-05 failure path: sub-tool timeout surfaces within 10 s; user has retry/cancel/escalate affordances.

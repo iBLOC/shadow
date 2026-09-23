@@ -5,6 +5,7 @@ mod crypto;
 mod model_store;
 mod config_manager;
 mod opencode_manager;
+mod preview_window;
 mod result_manager;
 mod worktree_manager;
 mod logger;
@@ -24,6 +25,7 @@ use tauri::{
 use telencephalon::a2a::client::TelencephalonStreamEvent as Tse;
 use worktree_manager::WorktreeManager;
 use result_manager::{CommitInfo, ResultManager as ResultMgr, ResultManagerError};
+use preview_window as preview;
 use ws_client::MtlsWebSocketClient;
 
 struct AppState {
@@ -231,6 +233,8 @@ pub fn run() {
             result_init,
             result_commit,
             result_history,
+            preview::preview_open,
+            preview::preview_close,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
