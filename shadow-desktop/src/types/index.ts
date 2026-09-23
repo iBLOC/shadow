@@ -175,6 +175,16 @@ export interface Message {
   chatbi?: import('../lib/chatbi/guards').ChatBiPayload;
   /** visual_qa clarification chip (when the user must pick a source). */
   visual_qa_clarification?: VisualQaClarification;
+  /** Feishu share card (DOC-03). Surfaced when a task's workbook
+   *  has just been published to Feishu via document_publish_feishu. */
+  feishu_published?: FeishuPublished;
+}
+
+export interface FeishuPublished {
+  taskId: string;
+  title: string;
+  /** The Feishu share URL (spreadsheet_token-derived). */
+  url: string;
 }
 
 export interface VisualQaClarification {

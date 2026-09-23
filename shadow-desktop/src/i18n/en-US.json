@@ -160,6 +160,11 @@
       "pickSource": "Pick a camera",
       "picked": "Picked {{label}}",
       "host": "{{label}} · {{host}}"
+    },
+    "feishuPublished": {
+      "title": "Published to Feishu",
+      "open": "Open",
+      "messageContent": "📤 Published “{{title}}” to Feishu — open the link below."
     }
   },
   "lobes": {

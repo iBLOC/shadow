@@ -160,6 +160,11 @@
       "pickSource": "请选择摄像头",
       "picked": "已选择 {{label}}",
       "host": "{{label}} · {{host}}"
+    },
+    "feishuPublished": {
+      "title": "已发布到飞书",
+      "open": "打开",
+      "messageContent": "📤 已将《{{title}}》发布到飞书 — 点击下方链接查看。"
     }
   },
   "lobes": {

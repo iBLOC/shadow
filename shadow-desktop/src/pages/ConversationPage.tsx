@@ -9,6 +9,7 @@ import { VoiceButton } from '../components/ui/voice-button';
 import { MoveSessionDialog } from '../components/MoveSessionDialog';
 import { ChartCard } from '../components/chatbi';
 import { VisualQaClarificationChip } from '../components/chat/VisualQaClarificationChip';
+import { FeishuPublishedCard } from '../components/chat/FeishuPublishedCard';
 import { isChatBiPayload } from '../lib/chatbi/guards';
 import type { ChatBiPayload } from '../lib/chatbi/guards';
 import type { VisualQaClarification } from '../types';
@@ -333,6 +334,8 @@ export function ConversationPage() {
                               }, 0);
                             }}
                           />
+                        ) : msg.feishu_published ? (
+                          <FeishuPublishedCard data={msg.feishu_published} />
                         ) : (
                           <div className={cn(
                             'whitespace-pre-wrap break-words rounded-lg px-4 py-3 text-sm leading-relaxed',
@@ -486,17 +489,51 @@ function CompanionModePanel() {
 
   const [wakeDetector] = useState(() => new WakeWordDetector());
 
+  // DOC-03 share-URL card listener. DocumentPage fires a
+  // window CustomEvent when a publish completes; we surface the URL
+  // as a message in the current conversation so the user sees the
+  // Feishu link next to the chat that asked for the publish.
+  // `taskId` on the event detail disambiguates which conversation
+  // (and within a task board) the card belongs to.
+  useEffect(() => {
+    function onFeishuPublished(ev: Event) {
+      const detail = (ev as CustomEvent<{
+        taskId: string;
+        url: string;
+        title?: string;
+      }>).detail;
+      if (!detail || !detail.taskId || !detail.url) return;
+      const title =
+        detail.title?.trim() || detail.taskId;
+      addMessage(activeConversationId, {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: t('feishuPublished.messageContent', { title }),
+        timestamp: new Date(),
+        feishu_published: {
+          taskId: detail.taskId,
+          title,
+          url: detail.url,
+        },
+      });
+    }
+    window.addEventListener('shadow:feishu-published', onFeishuPublished);
+    return () => {
+      window.removeEventListener('shadow:feishu-published', onFeishuPublished);
+    };
+  }, [activeConversationId, addMessage, t]);
+
   useEffect(() => {
     if (!wakeDetector.available) return;
 
     const unsubscribe = wakeDetector.onWakeWord((event) => {
       console.log('Wake word detected:', event.word);
       setWakeWordDetected(true);
-      
+
       if (!isActive) {
         start();
       }
-      
+
       setTimeout(() => setWakeWordDetected(false), 3000);
     });
 
