@@ -7,6 +7,7 @@ mod config_manager;
 mod opencode_manager;
 mod preview_window;
 mod result_manager;
+mod computer_use;
 mod worktree_manager;
 mod logger;
 
@@ -26,6 +27,7 @@ use telencephalon::a2a::client::TelencephalonStreamEvent as Tse;
 use worktree_manager::WorktreeManager;
 use result_manager::{CommitInfo, ResultManager as ResultMgr, ResultManagerError};
 use preview_window as preview;
+use computer_use::{ComputerUse, Screenshot as CuScreenshot};
 use ws_client::MtlsWebSocketClient;
 
 struct AppState {
@@ -37,6 +39,7 @@ struct AppState {
     opencode_manager: Arc<OpenCodeManager>,
     worktree_manager: Arc<WorktreeManager>,
     result_manager: Arc<ResultMgr>,
+    computer_use: Arc<ComputerUse>,
     workflow_state: Arc<tokio::sync::Mutex<WorkflowState>>,
 }
 
@@ -131,6 +134,20 @@ pub fn run() {
         result_manager: Arc::new(
             ResultMgr::with_default_base_dir()
                 .unwrap_or_else(|_| ResultMgr::new(std::env::temp_dir().join("shadow-results"))),
+        ),
+        // Computer-use (RPA): mouse + keyboard + screenshot. Default
+        // OFF; the env var SHADOW_COMPUTER_USE_ENABLED=1 must be set
+        // by the user at launch time. If construction fails (no
+        // input backend on this platform, build with `enigo`'s
+        // Computer-use (RPA): mouse + keyboard + screenshot. gate
+        // defaults OFF; the env var SHADOW_COMPUTER_USE_ENABLED=1
+        // must be set by the user at launch time. `ComputerUse::new`
+        // is infallible: if enigo can't bind on this platform
+        // (headless CI runner), the instance is permanently disabled
+        // — every mouse/keyboard call returns Disabled.
+        computer_use: Arc::new(
+            ComputerUse::new()
+                .unwrap_or_else(|_| unreachable!("ComputerUse::new is infallible")),
         ),
         workflow_state: Arc::new(tokio::sync::Mutex::new(WorkflowState {
             approved_tasks: std::collections::HashMap::new(),
@@ -235,6 +252,13 @@ pub fn run() {
             result_history,
             preview::preview_open,
             preview::preview_close,
+            computer_use::cu_screenshot,
+            computer_use::cu_mouse_click,
+            computer_use::cu_mouse_move,
+            computer_use::cu_mouse_scroll,
+            computer_use::cu_keyboard_type,
+            computer_use::cu_keyboard_combo,
+            computer_use::cu_set_enabled,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
