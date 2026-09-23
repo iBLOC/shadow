@@ -5,6 +5,7 @@ mod crypto;
 mod model_store;
 mod config_manager;
 mod opencode_manager;
+mod result_manager;
 mod worktree_manager;
 mod logger;
 
@@ -22,6 +23,7 @@ use tauri::{
 };
 use telencephalon::a2a::client::TelencephalonStreamEvent as Tse;
 use worktree_manager::WorktreeManager;
+use result_manager::{CommitInfo, ResultManager as ResultMgr, ResultManagerError};
 use ws_client::MtlsWebSocketClient;
 
 struct AppState {
@@ -32,6 +34,7 @@ struct AppState {
     secure_auth: Arc<SecureAuth>,
     opencode_manager: Arc<OpenCodeManager>,
     worktree_manager: Arc<WorktreeManager>,
+    result_manager: Arc<ResultMgr>,
     workflow_state: Arc<tokio::sync::Mutex<WorkflowState>>,
 }
 
@@ -123,6 +126,10 @@ pub fn run() {
         secure_auth: Arc::new(SecureAuth::new()),
         opencode_manager: Arc::new(OpenCodeManager::new()),
         worktree_manager: Arc::new(WorktreeManager::new()),
+        result_manager: Arc::new(
+            ResultMgr::with_default_base_dir()
+                .unwrap_or_else(|_| ResultMgr::new(std::env::temp_dir().join("shadow-results"))),
+        ),
         workflow_state: Arc::new(tokio::sync::Mutex::new(WorkflowState {
             approved_tasks: std::collections::HashMap::new(),
             rejected_tasks: std::collections::HashMap::new(),
@@ -221,6 +228,9 @@ pub fn run() {
             video_source::probe_capabilities,
             video_source::push_thalamus,
             video_source::sync_health,
+            result_init,
+            result_commit,
+            result_history,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -794,6 +804,46 @@ async fn workflow_execute_step(
     } else {
         Err(format!("Unsupported agent type: {}", step.agent_type))
     }
+}
+
+// -- WS-01..WS-04 result-management Tauri surface -------------------------
+
+#[tauri::command]
+async fn result_init(
+    state: State<'_, AppState>,
+    task_id: String,
+    title: String,
+) -> Result<String, String> {
+    state
+        .result_manager
+        .init(&task_id, &title)
+        .map(|p| p.to_string_lossy().into_owned())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn result_commit(
+    state: State<'_, AppState>,
+    task_id: String,
+    message: String,
+) -> Result<String, String> {
+    state
+        .result_manager
+        .commit(&task_id, &message)
+        .map(|oid| oid.to_string())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn result_history(
+    state: State<'_, AppState>,
+    task_id: String,
+    limit: Option<usize>,
+) -> Result<Vec<CommitInfo>, String> {
+    state
+        .result_manager
+        .history(&task_id, limit.unwrap_or(50))
+        .map_err(|e| e.to_string())
 }
 
 #[cfg(test)]
