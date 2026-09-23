@@ -187,6 +187,17 @@
       "empty": "暂无预览窗口。用上面的表单打开一个。",
       "close": "关闭"
     },
+    "integrations": {
+      "title": "集成",
+      "description": "把 shadow 接入第三方服务。每个开关都可逆；关闭后对应 UI 入口隐藏，Tauri 命令也会拒绝调用。",
+      "feishu": {
+        "title": "飞书 / Lark",
+        "description": "启用 document_publish_feishu 和 /document/:taskId 上的「发布到飞书」按钮。关闭后，document_save 仍然工作（表格留在本地 git），只是不生成分享 URL。",
+        "enable": "启用",
+        "disable": "关闭",
+        "runtimeNote": "运行时开关（FEISHU_ENABLED）。构建时闸门（FEISHU_APP_ID + FEISHU_APP_SECRET 环境变量在 Tauri 后端）是分开的——没有那俩 env 即使启用也调不通 API。"
+      }
+    },
     "computerUse": {
       "gateTitle": "安全闸门",
       "gateDescription": "鼠标 + 键盘操作需要闸门开启。截图任何时候都可以。",
@@ -579,6 +590,7 @@
       "models": "模型管理",
       "video": "视频源",
       "subsystem": "子系统",
+    "integrations": "集成",
       "ui": "界面",
       "data": "数据",
       "system": "系统"

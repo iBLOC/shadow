@@ -6,7 +6,7 @@ import {
   HardDrive, Shield, Bell, Keyboard, ChevronRight,
   Cpu, Trash2, Plus, Brain, ChevronDown,
   AlertCircle, Boxes, Search, ScanLine, Link2, Unlink, Wand2,
-  Sparkles, Settings, Play, Camera,
+  Sparkles, Settings, Play, Camera, PlugZap,
 } from 'lucide-react';
 import { safeInvoke } from '../lib/tauriSafe';
 import { isTauri } from '../lib/platform';
@@ -22,7 +22,7 @@ import { Button, Badge, EmptyState, Modal } from '../components/ui';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { cn } from '../lib/utils';
 
-type SettingsSection = 'service' | 'models' | 'video' | 'ui' | 'data' | 'system' | 'subsystem';
+type SettingsSection = 'service' | 'models' | 'video' | 'ui' | 'data' | 'system' | 'subsystem' | 'integrations';
 type AgentSection = 'internal' | 'custom' | 'wasm' | 'external';
 
 const SECTIONS: { id: SettingsSection; icon: typeof Server; labelKey: string }[] = [
@@ -30,6 +30,7 @@ const SECTIONS: { id: SettingsSection; icon: typeof Server; labelKey: string }[]
   { id: 'models', icon: Cpu, labelKey: 'settings.section.models' },
   { id: 'video', icon: Camera, labelKey: 'settings.section.video' },
   { id: 'subsystem', icon: Server, labelKey: 'settings.section.subsystem' },
+  { id: 'integrations', icon: PlugZap, labelKey: 'settings.section.integrations' },
   { id: 'ui', icon: Monitor, labelKey: 'settings.section.ui' },
   { id: 'data', icon: Database, labelKey: 'settings.section.data' },
   { id: 'system', icon: Shield, labelKey: 'settings.section.system' },
@@ -47,6 +48,7 @@ export function SettingsPage() {
         {activeSection === 'models' && <ModelsSection />}
         {activeSection === 'video' && <VideoSourcesCard />}
         {activeSection === 'subsystem' && <SubsystemPanel />}
+        {activeSection === 'integrations' && <IntegrationsSection />}
         {activeSection === 'ui' && <UISection />}
         {activeSection === 'data' && <DataSection />}
         {activeSection === 'system' && <SystemSection />}

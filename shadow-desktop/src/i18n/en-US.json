@@ -187,6 +187,17 @@
       "empty": "No previews open. Use the form above to open one.",
       "close": "Close"
     },
+    "integrations": {
+      "title": "Integrations",
+      "description": "Connect shadow to third-party services. Each toggle is reversible; closing an integration hides its UI affordances and disables its Tauri commands.",
+      "feishu": {
+        "title": "Feishu / Lark",
+        "description": "Enables document_publish_feishu and the 'Publish to Feishu' button on /document/:taskId. With the toggle off, document_save still works (the sheet stays in local git) but no share URL is created.",
+        "enable": "Enable",
+        "disable": "Disable",
+        "runtimeNote": "Runtime toggle (FEISHU_ENABLED). The build-time gate (FEISHU_APP_ID + FEISHU_APP_SECRET env vars on the Tauri backend) is separate — without those the integration can't make API calls even when enabled."
+      }
+    },
     "computerUse": {
       "gateTitle": "Safety gate",
       "gateDescription": "Mouse + keyboard actions require the gate to be open. Screenshots work regardless.",
@@ -579,6 +590,7 @@
       "models": "Model Management",
       "video": "Video Sources",
       "subsystem": "Subsystems",
+      "integrations": "Integrations",
       "ui": "Interface",
       "data": "Data",
       "system": "System"
