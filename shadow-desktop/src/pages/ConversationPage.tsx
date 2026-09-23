@@ -11,6 +11,7 @@ import { ChartCard } from '../components/chatbi';
 import { VisualQaClarificationChip } from '../components/chat/VisualQaClarificationChip';
 import { FeishuPublishedCard } from '../components/chat/FeishuPublishedCard';
 import { AudioEventChip } from '../components/chat/AudioEventChip';
+import { ComputerUsePendingModal, type ComputerUseAction } from '../components/computerUse/ComputerUsePendingModal';
 import { isChatBiPayload } from '../lib/chatbi/guards';
 import type { ChatBiPayload } from '../lib/chatbi/guards';
 import type { VisualQaClarification } from '../types';
@@ -155,6 +156,24 @@ export function ConversationPage() {
                   timestamp: event.timestamp,
                 },
               });
+            } else if (event.type === 'computer_use_action' && event.computerUse) {
+              // R-11 — surface the proposed action as a modal
+              // outside the message stream so the user gets a
+              // blocking Proceed / Cancel dialog. The modal maps the
+              // SSE event to the corresponding cu_* Tauri command on
+              // confirm; Cancel just clears state.
+              const cu = event.computerUse;
+              let action: ComputerUseAction | null = null;
+              if (cu.action === 'mouse_click' && cu.x != null && cu.y != null && cu.button != null) {
+                action = { kind: 'mouse_click', x: cu.x, y: cu.y, button: cu.button };
+              } else if (cu.action === 'mouse_move' && cu.x != null && cu.y != null) {
+                action = { kind: 'mouse_move', x: cu.x, y: cu.y };
+              } else if (cu.action === 'keyboard_type' && cu.text != null) {
+                action = { kind: 'keyboard_type', text: cu.text };
+              } else if (cu.action === 'keyboard_combo' && cu.combo != null) {
+                action = { kind: 'keyboard_combo', combo: cu.combo };
+              }
+              if (action) setPendingCuAction(action);
             } else if (event.type === 'done') {
               if (accumulated.trim().startsWith('{')) {
                 try {
@@ -493,6 +512,14 @@ export function ConversationPage() {
           </div>
         )}
       </main>
+      {/* R-11 — page-level preview-before-commit modal for
+          computer-use actions. The modal lifecycle is independent
+          of the message stream so it can block (Cancel clears the
+          pending state without re-running the message render). */}
+      <ComputerUsePendingModal
+        action={pendingCuAction}
+        onResolved={() => setPendingCuAction(null)}
+      />
     </div>
   );
 }
@@ -512,6 +539,14 @@ function CompanionModePanel() {
   } = useCompanionModeStore();
 
   const [wakeDetector] = useState(() => new WakeWordDetector());
+
+  // R-11 — pending computer-use action for the preview-before-commit
+  // modal. The modal is mounted at the page level (not per-message)
+  // so it has its own state lifecycle independent of the message
+  // stream. When the agent emits a computer_use_action SSE event
+  // we set this state; Proceed clears it after invoking the cu_*
+  // Tauri command; Cancel just clears it.
+  const [pendingCuAction, setPendingCuAction] = useState<ComputerUseAction | null>(null);
 
   // DOC-03 share-URL card listener. DocumentPage fires a
   // window CustomEvent when a publish completes; we surface the URL
