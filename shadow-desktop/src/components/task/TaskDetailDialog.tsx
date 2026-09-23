@@ -16,6 +16,7 @@ import {
   Info,
   Terminal,
 } from 'lucide-react';
+import { PreviewButton } from '../preview/PreviewButton';
 import { Button, Badge } from '../ui';
 import {
   Dialog,
@@ -267,6 +268,13 @@ export function TaskDetailDialog({
                 ))}
               </div>
             )}
+
+            <div className="flex items-center gap-2 border-t border-border pt-3">
+              <span className="text-xs text-muted-foreground">
+                {t('tasks.detail.actions', 'Actions')}:
+              </span>
+              <PreviewButton taskId={task.id} />
+            </div>
 
             {steps.length > 0 && (
               <ProgressBar

@@ -110,6 +110,7 @@
     "agents": "Agents",
     "models": "Models",
     "mcp": "MCP",
+    "previews": "Previews",
     "skills": "Skills",
     "memory": "Memory",
     "services": "Services",
@@ -165,6 +166,25 @@
       "title": "Published to Feishu",
       "open": "Open",
       "messageContent": "📤 Published “{{title}}” to Feishu — open the link below."
+    },
+    "preview": {
+      "openInWindow": "Preview",
+      "dialogTitle": "Open preview for {{taskId}}",
+      "dialogDescription": "Spawns a dedicated Tauri WebviewWindow. Main shadow chat stays untouched; preview reloads are isolated.",
+      "urlLabel": "URL",
+      "urlHint": "e.g. http://localhost:3000 for a dev server, or https://your-deploy.example.com for a deployed site.",
+      "opening": "Opening…",
+      "open": "Open"
+    },
+    "previews": {
+      "adHocTitle": "Open a preview",
+      "taskIdLabel": "Task ID",
+      "urlLabel": "URL",
+      "opening": "Opening…",
+      "open": "Open",
+      "openTitle": "Currently open",
+      "empty": "No previews open. Use the form above to open one.",
+      "close": "Close"
     }
   },
   "lobes": {
