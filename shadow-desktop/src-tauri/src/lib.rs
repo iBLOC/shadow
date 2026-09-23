@@ -7,6 +7,7 @@ mod config_manager;
 mod opencode_manager;
 mod preview_window;
 mod result_manager;
+mod feishu_mcp;
 mod computer_use;
 mod worktree_manager;
 mod logger;
@@ -27,6 +28,7 @@ use telencephalon::a2a::client::TelencephalonStreamEvent as Tse;
 use worktree_manager::WorktreeManager;
 use result_manager::{CommitInfo, ResultManager as ResultMgr, ResultManagerError};
 use preview_window as preview;
+use feishu_mcp::{FeishuMcp, FeishuOps, FeishuSheet, MockFeishu, OpenLarkFeishu};
 use computer_use::{ComputerUse, Screenshot as CuScreenshot};
 use ws_client::MtlsWebSocketClient;
 
@@ -40,6 +42,7 @@ struct AppState {
     worktree_manager: Arc<WorktreeManager>,
     result_manager: Arc<ResultMgr>,
     computer_use: Arc<ComputerUse>,
+    feishu_mcp: Arc<FeishuMcp>,
     workflow_state: Arc<tokio::sync::Mutex<WorkflowState>>,
 }
 
@@ -149,6 +152,29 @@ pub fn run() {
             ComputerUse::new()
                 .unwrap_or_else(|_| unreachable!("ComputerUse::new is infallible")),
         ),
+        // Feishu MCP for the document-use surface (DOC-01..DOC-05). When
+        // FEISHU_APP_ID + FEISHU_APP_SECRET are set we use the real
+        // open-lark backend; otherwise we fall back to the in-memory
+        // MockFeishu so the wiring stays usable (every tool call then
+        // returns FeishuError::Disabled because FEISHU_ENABLED defaults
+        // off without the env vars).
+        feishu_mcp: Arc::new({
+            let ops: Arc<dyn FeishuOps> = match std::env::var("FEISHU_APP_ID") {
+                Ok(_) => match OpenLarkFeishu::from_env() {
+                    Ok(c) => Arc::new(c) as Arc<dyn FeishuOps>,
+                    Err(e) => {
+                        tracing::warn!(
+                            "FEISHU_APP_ID set but OpenLarkFeishu::from_env failed ({e}); \
+                             falling back to MockFeishu — every tool call will \
+                             return FeishuError::Api"
+                        );
+                        Arc::new(MockFeishu::default())
+                    }
+                },
+                Err(_) => Arc::new(MockFeishu::default()),
+            };
+            FeishuMcp::new(ops)
+        }),
         workflow_state: Arc::new(tokio::sync::Mutex::new(WorkflowState {
             approved_tasks: std::collections::HashMap::new(),
             rejected_tasks: std::collections::HashMap::new(),
@@ -250,6 +276,11 @@ pub fn run() {
             result_init,
             result_commit,
             result_history,
+            document_load,
+            document_save,
+            document_publish_feishu,
+            document_set_feishu_enabled,
+            document_feishu_enabled,
             preview::preview_open,
             preview::preview_close,
             computer_use::cu_screenshot,
@@ -880,6 +911,131 @@ async fn result_history(
         .result_manager
         .history(&task_id, limit.unwrap_or(50))
         .map_err(|e| e.to_string())
+}
+
+// -- WS-05 / DOC-01..DOC-05 document-use surface -------------------------
+//
+// DOC-01 mount UniverSheet and load the per-task workbook (xlsx bytes).
+// DOC-02 debounced auto-save back to disk + local git commit.
+// DOC-03 publish to Feishu with the full 5-tool orchestration.
+// DOC-04 best-effort rollback on mid-publish failure.
+// DOC-05 runtime toggle for the integration.
+
+const DEFAULT_XLSX_NAME: &str = "summary.xlsx";
+
+async fn read_task_xlsx(state: &AppState, task_id: &str) -> Result<Vec<u8>, String> {
+    use std::path::PathBuf;
+    let home = dirs::home_dir()
+        .ok_or_else(|| "no $HOME".to_string())?;
+    let path: PathBuf = home.join(".shadow").join("results").join(task_id).join(DEFAULT_XLSX_NAME);
+    tokio::fs::read(&path)
+        .await
+        .map_err(|e| format!("read {}: {e}", path.display()))
+}
+
+async fn write_task_xlsx(state: &AppState, task_id: &str, bytes: &[u8]) -> Result<(), String> {
+    use std::path::PathBuf;
+    let home = dirs::home_dir()
+        .ok_or_else(|| "no $HOME".to_string())?;
+    let dir: PathBuf = home.join(".shadow").join("results").join(task_id);
+    tokio::fs::create_dir_all(&dir)
+        .await
+        .map_err(|e| format!("mkdir {}: {e}", dir.display()))?;
+    let path = dir.join(DEFAULT_XLSX_NAME);
+    tokio::fs::write(&path, bytes)
+        .await
+        .map_err(|e| format!("write {}: {e}", path.display()))
+}
+
+#[tauri::command]
+async fn document_load(state: State<'_, AppState>, task_id: String) -> Result<Vec<u8>, String> {
+    read_task_xlsx(&state, &task_id).await
+}
+
+#[tauri::command]
+async fn document_save(
+    state: State<'_, AppState>,
+    task_id: String,
+    snapshot: Vec<u8>,
+) -> Result<(), String> {
+    write_task_xlsx(&state, &task_id, &snapshot).await?;
+    // DOC-02: auto-commit each save to the local git history.
+    state
+        .result_manager
+        .commit(&task_id, "edit: snapshot")
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+async fn document_publish_feishu(
+    state: State<'_, AppState>,
+    task_id: String,
+    title: String,
+    folder_token: Option<String>,
+    /// Sheet contents as `Vec<Vec<String>>`. Each outer element is a
+    /// sheet; each inner element is a row of stringified cells. Sent
+    /// through the JSON shape the MCP `feishu_sheet_write` tool expects.
+    sheets: Vec<Vec<Vec<String>>>,
+) -> Result<FeishuSheet, String> {
+    if state.feishu_mcp.is_enabled() == false {
+        return Err("feishu disabled (FEISHU_ENABLED=0)".into());
+    }
+    // DOC-03 step 3 — create.
+    let sheet = state
+        .feishu_mcp
+        .create_sheet(&title, folder_token.as_deref())
+        .await
+        .map_err(|e| e.to_string())?;
+    // DOC-03 step 4 — write each sheet.
+    for (i, rows) in sheets.iter().enumerate() {
+        let sheet_meta = sheet.sheets.get(i).cloned().unwrap_or_else(|| {
+            feishu_mcp::FeishuSheetMeta {
+                sheet_id: format!("sheet{}", i + 1),
+                title: format!("Sheet{}", i + 1),
+                row_count: rows.len() as i64,
+                column_count: rows.iter().map(|r| r.len() as i64).max().unwrap_or(0),
+            }
+        });
+        let range = format!("{}!A1:Z{}", sheet_meta.sheet_id, rows.len().max(1));
+        if let Err(e) = state
+            .feishu_mcp
+            .write_sheet_values(&sheet.spreadsheet_token, &sheet_meta.sheet_id, &range, rows)
+            .await
+        {
+            // DOC-04 — best-effort rollback.
+            let _ = state.feishu_mcp.delete_sheet(&sheet.spreadsheet_token).await;
+            return Err(format!("write_sheet_values sheet {i} failed: {e}; rolled back"));
+        }
+    }
+    // DOC-03 step 5 — share with view perm (default target = the
+    // user_email in OpenLarkFeishu, or the MockFeishu any-pass).
+    // For the v1 cut we hard-code email+view; users can re-share
+    // from the Feishu UI.
+    let (member_email, perm) = ("shadow@shadow.local", "view");
+    if let Err(e) = state
+        .feishu_mcp
+        .share_sheet(&sheet.spreadsheet_token, "email", member_email, perm)
+        .await
+    {
+        let _ = state.feishu_mcp.delete_sheet(&sheet.spreadsheet_token).await;
+        return Err(format!("share_sheet failed: {e}; rolled back"));
+    }
+    Ok(sheet)
+}
+
+#[tauri::command]
+async fn document_set_feishu_enabled(
+    state: State<'_, AppState>,
+    on: bool,
+) -> Result<(), String> {
+    state.feishu_mcp.set_enabled(on);
+    Ok(())
+}
+
+#[tauri::command]
+async fn document_feishu_enabled(state: State<'_, AppState>) -> Result<bool, String> {
+    Ok(state.feishu_mcp.is_enabled())
 }
 
 #[cfg(test)]
