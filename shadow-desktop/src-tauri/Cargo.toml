@@ -74,6 +74,14 @@ git2 = "0.19"
 enigo = { version = "0.6", default-features = false, features = ["std"] }
 xcap = "0.9"
 
+# Windows UI Automation — element-based computer-use (find button by
+# name, invoke it, read text, set value). Strongly preferred over
+# coordinate-based mouse for Windows hosts because it survives window
+# resize / DPI changes / position shifts. macOS / Linux continue to
+# use the enigo coordinate path.
+[target.'cfg(target_os = "windows")'.dependencies]
+uiautomation = "0.25"
+
 [dev-dependencies]
 wiremock = "0.6"
 tokio = { version = "1", features = ["macros", "rt", "time"] }

@@ -259,6 +259,14 @@ pub fn run() {
             computer_use::cu_keyboard_type,
             computer_use::cu_keyboard_combo,
             computer_use::cu_set_enabled,
+            #[cfg(target_os = "windows")]
+            computer_use::cu_list_ui_elements,
+            #[cfg(target_os = "windows")]
+            computer_use::cu_click_ui_by_name,
+            #[cfg(target_os = "windows")]
+            computer_use::cu_read_ui_text,
+            #[cfg(target_os = "windows")]
+            computer_use::cu_set_ui_value,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

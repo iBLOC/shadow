@@ -279,6 +279,256 @@ impl ComputerUse {
     }
 }
 
+// -- Windows UI Automation (cfg-gated) ----------------------------------
+//
+// Windows hosts get the full element-based computer-use surface:
+// find a button by Name / AutomationId, invoke it, read its text,
+// set its value. Strongly preferred over coordinate-based mouse
+// because it survives window resize / DPI changes / monitor moves.
+// macOS / Linux fall through to the enigo / xcap coordinate path
+// above (UIA equivalent on those platforms would need platform-
+// specific code — left as follow-up).
+//
+// All methods require the same SHADOW_COMPUTER_USE_ENABLED gate
+// the enigo path uses.
+
+#[derive(Debug, Clone, Serialize)]
+pub struct UiElement {
+    pub name: String,
+    pub automation_id: String,
+    pub control_type: String,
+    pub class_name: String,
+    /// Bounding rectangle in screen coordinates.
+    pub x: i32,
+    pub y: i32,
+    pub width: i32,
+    pub height: i32,
+}
+
+#[cfg(target_os = "windows")]
+impl ComputerUse {
+    /// Walk the UIA tree from the root and return every direct child
+    /// element. Useful for the agent's "what's on screen" step.
+    pub fn list_ui_elements(&self) -> Result<Vec<UiElement>, ComputerUseError> {
+        self.check_enabled()?;
+        uiautomation_list_root_children().map_err(ComputerUseError::InputAction)
+    }
+
+    /// Find the first descendant matching the given Name (substring,
+    /// case-insensitive). Use AutomationId when the app exposes one
+    /// (more robust); Name is the fallback for arbitrary apps.
+    pub fn find_ui_by_name(&self, name_substr: &str) -> Result<Option<UiElement>, ComputerUseError> {
+        self.check_enabled()?;
+        uiautomation_find_first_by_name(name_substr).map_err(ComputerUseError::InputAction)
+    }
+
+    /// Find the first descendant matching the given AutomationId
+    /// (exact match). Returns None when not found.
+    pub fn find_ui_by_automation_id(
+        &self,
+        automation_id: &str,
+    ) -> Result<Option<UiElement>, ComputerUseError> {
+        self.check_enabled()?;
+        uiautomation_find_first_by_automation_id(automation_id).map_err(ComputerUseError::InputAction)
+    }
+
+    /// Invoke an element's default action — for Buttons this is
+    /// `IInvokeProvider::Invoke`, which performs a click. Resolves
+    /// the element by Name (substring) then invokes.
+    pub fn click_ui_by_name(&self, name_substr: &str) -> Result<(), ComputerUseError> {
+        self.check_enabled()?;
+        let elem = uiautomation_find_first_by_name(name_substr)
+            .map_err(ComputerUseError::InputAction)?
+            .ok_or_else(|| {
+                ComputerUseError::InputAction(format!("no element with name matching {name_substr:?}"))
+            })?;
+        uiautomation_invoke(&elem).map_err(ComputerUseError::InputAction)
+    }
+
+    /// Read the `Name` or `Value` of an element found by Name
+    /// (substring). Prefers `Name`; falls back to `Value` when Name
+    /// is empty (edit controls typically only populate Value).
+    pub fn read_ui_text(&self, name_substr: &str) -> Result<String, ComputerUseError> {
+        self.check_enabled()?;
+        let elem = uiautomation_find_first_by_name(name_substr)
+            .map_err(ComputerUseError::InputAction)?
+            .ok_or_else(|| {
+                ComputerUseError::InputAction(format!("no element with name matching {name_substr:?}"))
+            })?;
+        uiautomation_read_text(&elem).map_err(ComputerUseError::InputAction)
+    }
+
+    /// Set value on an element supporting ValuePattern (edit controls,
+    /// combo boxes, etc.) Resolves by Name (substring).
+    pub fn set_ui_value(&self, name_substr: &str, value: &str) -> Result<(), ComputerUseError> {
+        self.check_enabled()?;
+        let elem = uiautomation_find_first_by_name(name_substr)
+            .map_err(ComputerUseError::InputAction)?
+            .ok_or_else(|| {
+                ComputerUseError::InputAction(format!("no element with name matching {name_substr:?}"))
+            })?;
+        uiautomation_set_value(&elem, value).map_err(ComputerUseError::InputAction)
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn uiautomation_to_element(handle: &uiautomation::UIElement) -> UiElement {
+    use uiautomation::types::Rect;
+    let Rect { left, top, width, height, .. } = handle.get_bounding_rectangle().unwrap_or_default();
+    UiElement {
+        name: handle.get_name().unwrap_or_default(),
+        automation_id: handle.get_automation_id().unwrap_or_default(),
+        control_type: handle.get_control_type().to_string(),
+        class_name: handle.get_classname().unwrap_or_default(),
+        x: left,
+        y: top,
+        width,
+        height,
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn uiautomation_list_root_children() -> Result<Vec<UiElement>, String> {
+    use uiautomation::UIAutomation;
+    let automation = uiautomation::UIAutomation::new(true)
+        .map_err(|e| format!("UIAutomation::new: {e}"))?;
+    let root = automation
+        .get_root_element()
+        .map_err(|e| format!("get_root_element: {e}"))?;
+    let children = root
+        .find_all(uiautomation::types::TreeScope::Children, &uiautomation::types::UICondition::create_true())
+        .map_err(|e| format!("find_all: {e}"))?;
+    Ok(children.iter().map(uiautomation_to_element).collect())
+}
+
+#[cfg(target_os = "windows")]
+fn uiautomation_find_first_by_name(name_substr: &str) -> Result<Option<UiElement>, String> {
+    use uiautomation::{UIAutomation, UIProperty};
+    use uiautomation::types::{TreeScope, UIPropertyCondition};
+    let needle = name_substr.to_ascii_lowercase();
+    let automation = uiautomation::UIAutomation::new(true)
+        .map_err(|e| format!("UIAutomation::new: {e}"))?;
+    let root = automation.get_root_element().map_err(|e| format!("root: {e}"))?;
+    // Cheap first pass: all descendants with a non-empty Name.
+    let candidates = root
+        .find_all(
+            TreeScope::Descendants,
+            UIPropertyCondition::new(UIProperty::Name, None, None, None).into(),
+        )
+        .map_err(|e| format!("find_all Descendants: {e}"))?;
+    for c in &candidates {
+        let n = c.get_name().unwrap_or_default();
+        if !n.is_empty() && n.to_ascii_lowercase().contains(&needle) {
+            return Ok(Some(uiautomation_to_element(c)));
+        }
+    }
+    Ok(None)
+}
+
+#[cfg(target_os = "windows")]
+fn uiautomation_find_first_by_automation_id(automation_id: &str) -> Result<Option<UiElement>, String> {
+    use uiautomation::{UIAutomation, UIProperty};
+    use uiautomation::types::{TreeScope, UIPropertyCondition};
+    let automation = uiautomation::UIAutomation::new(true)
+        .map_err(|e| format!("UIAutomation::new: {e}"))?;
+    let root = automation.get_root_element().map_err(|e| format!("root: {e}"))?;
+    let cond = UIPropertyCondition::new(UIProperty::AutomationId, Some(automation_id.into()), None, None);
+    let elem = root
+        .find_first(TreeScope::Descendants, &cond.into())
+        .map_err(|e| format!("find_first Descendants: {e}"))?;
+    Ok(elem.map(|e| uiautomation_to_element(&e)))
+}
+
+#[cfg(target_os = "windows")]
+fn uiautomation_invoke(elem: &UiElement) -> Result<(), String> {
+    // Re-find by AutomationId (or Name) since we don't hold the
+    // UIAutomation handle — the descriptor we have is serialisable.
+    // For v1 we always re-resolve by AutomationId, falling back to
+    // Name when the element has none.
+    use uiautomation::{UIAutomation, UIProperty};
+    use uiautomation::types::{TreeScope, UIPropertyCondition};
+    let automation = uiautomation::UIAutomation::new(true)
+        .map_err(|e| format!("UIAutomation::new: {e}"))?;
+    let root = automation.get_root_element().map_err(|e| format!("root: {e}"))?;
+    let handle = if !elem.automation_id.is_empty() {
+        let cond = UIPropertyCondition::new(
+            UIProperty::AutomationId,
+            Some(elem.automation_id.clone()),
+            None,
+            None,
+        );
+        root.find_first(TreeScope::Descendants, &cond.into())
+            .map_err(|e| format!("find_first by AutomationId: {e}"))?
+            .ok_or_else(|| format!("AutomationId {:?} disappeared between list and invoke", elem.automation_id))?
+    } else {
+        let needle = elem.name.to_ascii_lowercase();
+        let cond = UIPropertyCondition::new(UIProperty::Name, None, None, None);
+        let candidates = root
+            .find_all(TreeScope::Descendants, &cond)
+            .map_err(|e| format!("find_all Name: {e}"))?;
+        let mut found = None;
+        for c in &candidates {
+            let n = c.get_name().unwrap_or_default();
+            if n.to_ascii_lowercase() == needle {
+                found = Some(c);
+                break;
+            }
+        }
+        found.ok_or_else(|| format!("Name {:?} disappeared between list and invoke", elem.name))?
+    };
+    handle.invoke().map_err(|e| format!("invoke: {e}"))
+}
+
+#[cfg(target_os = "windows")]
+fn uiautomation_read_text(elem: &UiElement) -> Result<String, String> {
+    use uiautomation::{UIAutomation, UIProperty};
+    use uiautomation::types::{TreeScope, UIPropertyCondition};
+    let automation = uiautomation::UIAutomation::new(true)
+        .map_err(|e| format!("UIAutomation::new: {e}"))?;
+    let root = automation.get_root_element().map_err(|e| format!("root: {e}"))?;
+    let cond = if !elem.automation_id.is_empty() {
+        UIPropertyCondition::new(UIProperty::AutomationId, Some(elem.automation_id.clone()), None, None)
+    } else {
+        let needle = elem.name.to_ascii_lowercase();
+        UIPropertyCondition::new(UIProperty::Name, None, None, None)
+    };
+    let handle = root
+        .find_first(TreeScope::Descendants, &cond.into())
+        .map_err(|e| format!("find_first: {e}"))?
+        .ok_or_else(|| "element disappeared between list and read".to_string())?;
+    // Prefer Name; fall back to Value for edit controls.
+    let name = handle.get_name().map_err(|e| format!("get_name: {e}"))?;
+    if !name.is_empty() {
+        return Ok(name);
+    }
+    let value = handle.get_value().map_err(|e| format!("get_value: {e}"))?;
+    Ok(value)
+}
+
+#[cfg(target_os = "windows")]
+fn uiautomation_set_value(elem: &UiElement, value: &str) -> Result<(), String> {
+    use uiautomation::{UIAutomation, UIProperty};
+    use uiautomation::types::{TreeScope, UIPropertyCondition};
+    let automation = uiautomation::UIAutomation::new(true)
+        .map_err(|e| format!("UIAutomation::new: {e}"))?;
+    let root = automation.get_root_element().map_err(|e| format!("root: {e}"))?;
+    let cond = UIPropertyCondition::new(
+        UIProperty::AutomationId,
+        Some(elem.automation_id.clone()),
+        None,
+        None,
+    );
+    let handle = root
+        .find_first(TreeScope::Descendants, &cond.into())
+        .map_err(|e| format!("find_first by AutomationId: {e}"))?
+        .ok_or_else(|| {
+            format!("element with AutomationId {:?} disappeared", elem.automation_id)
+        })?;
+    handle
+        .set_value(value)
+        .map_err(|e| format!("set_value (control may not implement ValuePattern): {e}"))
+}
+
 // -- Tauri commands ----------------------------------------------------
 
 #[tauri::command]
@@ -340,6 +590,56 @@ async fn cu_set_enabled(
 ) -> Result<(), String> {
     state.computer_use.set_enabled(on);
     Ok(())
+}
+
+// -- Windows-only UI Automation Tauri surface ---------------------------
+
+#[cfg(target_os = "windows")]
+#[tauri::command]
+async fn cu_list_ui_elements(
+    state: State<'_, super::AppState>,
+) -> Result<Vec<UiElement>, String> {
+    state
+        .computer_use
+        .list_ui_elements()
+        .map_err(|e| e.to_string())
+}
+
+#[cfg(target_os = "windows")]
+#[tauri::command]
+async fn cu_click_ui_by_name(
+    state: State<'_, super::AppState>,
+    name: String,
+) -> Result<(), String> {
+    state
+        .computer_use
+        .click_ui_by_name(&name)
+        .map_err(|e| e.to_string())
+}
+
+#[cfg(target_os = "windows")]
+#[tauri::command]
+async fn cu_read_ui_text(
+    state: State<'_, super::AppState>,
+    name: String,
+) -> Result<String, String> {
+    state
+        .computer_use
+        .read_ui_text(&name)
+        .map_err(|e| e.to_string())
+}
+
+#[cfg(target_os = "windows")]
+#[tauri::command]
+async fn cu_set_ui_value(
+    state: State<'_, super::AppState>,
+    name: String,
+    value: String,
+) -> Result<(), String> {
+    state
+        .computer_use
+        .set_ui_value(&name, &value)
+        .map_err(|e| e.to_string())
 }
 
 // -- tests -------------------------------------------------------------
