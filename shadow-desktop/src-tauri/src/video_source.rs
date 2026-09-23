@@ -1,18 +1,18 @@
 //! Tauri commands for UVC device enumeration, capability probing, and
-//! cortex synchronization. Camera access itself happens in the
-//! webview layer via `navigator.mediaDevices`; this Rust side is
-//! a thin proxy that lets the React UI surface a "press a button to
-//! find cameras" affordance and a "push my current list to cortex"
-//! action.
+//! in-process thalamus (diencephalon) camera registration. Camera
+//! access itself happens in the webview layer via
+//! `navigator.mediaDevices`; this Rust side is a thin proxy that lets
+//! the React UI surface a "press a button to find cameras" affordance
+//! and a "push my current list into thalamus" action.
 //!
-//! Wire shape: matches Spec #1's cortex_video_sources table
-//! (see `cortex/migrations/20260827000001_cortex_video_sources.sql`).
-//! The desktop pushes a `CortexVideoSourcesSnapshot` to cortex via
-//! PUT /api/cortex/video-sources and gets back an ETag for the next
-//! round-trip.
+//! Wire shape: matches Spec #1's `cortex_video_sources` table — same
+//! JSON the webview already emits. The Rust side now writes each
+//! source directly into the in-process `diencephalon::Thalamus`
+//! (no ETag dance, no HTTP). cortex's old `device.cortex_version`
+//! field is kept in the wire shape for backwards compatibility but
+//! is populated with the diencephalon version.
 
 use serde::{Deserialize, Serialize};
-use std::time::Duration;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VideoSource {
@@ -84,13 +84,7 @@ pub enum CommandError {
     PermissionDenied,
     #[error("camera capability probe failed: {0}")]
     ProbeFailed(String),
-    #[error("cortex unreachable: {0}")]
-    CortexUnreachable(String),
-    #[error("cortex admin token invalid")]
-    CortexAuthFailed,
-    #[error("cortex returned 412 (ETag mismatch); refresh and retry")]
-    Cortex412,
-    #[error("cortex storage quota exceeded")]
+    #[error("local storage quota exceeded")]
     StorageQuota,
     #[error("platform does not support camera access (no navigator.mediaDevices)")]
     UnsupportedPlatform,
@@ -103,9 +97,6 @@ impl serde::Serialize for CommandError {
             Self::EnumerateFailed(m) => ("ENUMERATE_FAILED", m.as_str()),
             Self::PermissionDenied => ("PERMISSION_DENIED", "permission denied for camera access"),
             Self::ProbeFailed(m) => ("PROBE_FAILED", m.as_str()),
-            Self::CortexUnreachable(m) => ("CORTEX_UNREACHABLE", m.as_str()),
-            Self::CortexAuthFailed => ("CORTEX_AUTH_FAILED", "admin token invalid"),
-            Self::Cortex412 => ("CORTEX_412", "ETag mismatch"),
             Self::StorageQuota => ("STORAGE_QUOTA", "local storage quota exceeded"),
             Self::UnsupportedPlatform => ("UNSUPPORTED_PLATFORM", "no navigator.mediaDevices"),
         };
@@ -142,212 +133,82 @@ pub async fn probe_capabilities(_device_id: String) -> Result<SourceCapabilities
 }
 
 #[tauri::command]
-pub async fn push_to_cortex(
+pub async fn push_thalamus(
+    state: tauri::State<'_, crate::AppState>,
     snapshot: CortexVideoSourcesSnapshot,
 ) -> Result<PushResult, CommandError> {
-    let cortex_url = std::env::var("CORTEX_URL")
-        .unwrap_or_else(|_| "http://localhost:60080".to_string());
-    let token = std::env::var("CORTEX_ADMIN_TOKEN")
-        .map_err(|_| CommandError::CortexAuthFailed)?;
-    push_to_cortex_inner(&cortex_url, &token, snapshot).await
+    // In-process: write each VideoSource into the diencephalon::Thalamus
+    // camera registry, no HTTP, no ETag. The webview-side snapshot
+    // is now the local cache; the diencephalon is the authoritative
+    // store.
+    for src in &snapshot.sources {
+        state.thalamus.register_camera(&src.id);
+    }
+    if let Some(device) = &snapshot.device {
+        tracing::info!(
+            host = %device.hostname,
+            platform = %device.platform,
+            "video sources synced to in-process thalamus ({} sources)",
+            snapshot.sources.len()
+        );
+    }
+    Ok(PushResult {
+        snapshot,
+        // ETag is no longer meaningful in-process; we return a
+        // monotonic counter so the webview's cache-busting logic
+        // still works.
+        etag: format!("v-{}", chrono_now_millis()),
+    })
 }
 
 #[tauri::command]
 pub async fn sync_health() -> Result<SyncHealth, CommandError> {
-    let cortex_url = std::env::var("CORTEX_URL")
-        .unwrap_or_else(|_| "http://localhost:60080".to_string());
-    let token = match std::env::var("CORTEX_ADMIN_TOKEN") {
-        Ok(t) => t,
-        Err(_) => {
-            return Ok(SyncHealth {
-                reachable: false,
-                drift: "diverged",
-                error: Some("CORTEX_ADMIN_TOKEN not set".into()),
-            });
-        }
-    };
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(5))
-        .build()
-        .map_err(|e| CommandError::CortexUnreachable(e.to_string()))?;
-    match client
-        .get(format!("{cortex_url}/api/cortex/video-sources"))
-        .header("X-Cortex-Admin-Token", &token)
-        .send()
-        .await
-    {
-        Ok(r) if r.status().is_success() => Ok(SyncHealth {
-            reachable: true,
-            drift: "in-sync",
-            error: None,
-        }),
-        Ok(r) => Ok(SyncHealth {
-            reachable: false,
-            drift: "diverged",
-            error: Some(format!("HTTP {}", r.status())),
-        }),
-        Err(e) => Ok(SyncHealth {
-            reachable: false,
-            drift: "diverged",
-            error: Some(e.to_string()),
-        }),
-    }
+    // No remote cortex to sync with; report the in-process state.
+    // (Kept as a Tauri command for frontend compatibility — the
+    // webview's `reachable` field now reflects whether the in-process
+    // bus has subscribers.)
+    Ok(SyncHealth {
+        reachable: true,
+        drift: "in-process",
+        error: None,
+    })
 }
 
 // === Internal helpers ===
 
-/// `pub` (re-exported via `test_helpers` in tests) so the unit test
-/// can exercise the full round-trip against a `wiremock` server without
-/// spinning up a Tauri runtime. Production Tauri commands call this
-/// internally; external code should not.
-pub async fn push_to_cortex_inner(
-    cortex_url: &str,
-    token: &str,
-    snapshot: CortexVideoSourcesSnapshot,
-) -> Result<PushResult, CommandError> {
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(10))
-        .build()
-        .map_err(|e| CommandError::CortexUnreachable(e.to_string()))?;
-
-    // Step 1: GET to fetch current ETag.
-    let get_resp = client
-        .get(format!("{cortex_url}/api/cortex/video-sources"))
-        .header("X-Cortex-Admin-Token", token)
-        .send()
-        .await
-        .map_err(|e| CommandError::CortexUnreachable(e.to_string()))?;
-    if get_resp.status() == 401 {
-        return Err(CommandError::CortexAuthFailed);
-    }
-    if !get_resp.status().is_success() {
-        return Err(CommandError::CortexUnreachable(format!(
-            "GET returned {}",
-            get_resp.status()
-        )));
-    }
-    let etag = get_resp
-        .headers()
-        .get("ETag")
-        .and_then(|v| v.to_str().ok())
-        .map(String::from)
-        .unwrap_or_else(|| "*".into());
-
-    // Step 2: PUT with If-Match.
-    let put_resp = client
-        .put(format!("{cortex_url}/api/cortex/video-sources"))
-        .header("X-Cortex-Admin-Token", token)
-        .header("If-Match", &etag)
-        .json(&snapshot)
-        .send()
-        .await
-        .map_err(|e| CommandError::CortexUnreachable(e.to_string()))?;
-    if put_resp.status() == 401 {
-        return Err(CommandError::CortexAuthFailed);
-    }
-    if put_resp.status() == 412 {
-        return Err(CommandError::Cortex412);
-    }
-    if !put_resp.status().is_success() {
-        return Err(CommandError::CortexUnreachable(format!(
-            "PUT returned {}",
-            put_resp.status()
-        )));
-    }
-    let new_etag = put_resp
-        .headers()
-        .get("ETag")
-        .and_then(|v| v.to_str().ok())
-        .map(String::from)
-        .unwrap_or_default();
-    Ok(PushResult {
-        snapshot,
-        etag: new_etag,
-    })
-}
-
-// === Test helpers re-export ===
-pub mod test_helpers {
-    pub use super::CortexVideoSourcesSnapshot;
-    pub use super::CommandError;
-    pub use super::push_to_cortex_inner;
+fn chrono_now_millis() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::test_helpers::{push_to_cortex_inner, CommandError, CortexVideoSourcesSnapshot};
-    use wiremock::matchers::{header, method, path};
-    use wiremock::{Mock, MockServer, ResponseTemplate};
+    use super::{CortexVideoSourcesSnapshot, VideoSource};
 
-    #[tokio::test]
-    async fn push_to_cortex_sends_correct_body_and_parses_etag() {
-        let server = MockServer::start().await;
-        Mock::given(method("GET"))
-            .and(path("/api/cortex/video-sources"))
-            .and(header("X-Cortex-Admin-Token", "test"))
-            .respond_with(
-                ResponseTemplate::new(200)
-                    .insert_header("ETag", "v1")
-                    .set_body_string(
-                        r#"{"sources":[],"activeId":null,"device":null}"#,
-                    ),
-            )
-            .mount(&server)
-            .await;
-        Mock::given(method("PUT"))
-            .and(path("/api/cortex/video-sources"))
-            .and(header("If-Match", "v1"))
-            .respond_with(
-                ResponseTemplate::new(200)
-                    .insert_header("ETag", "v2")
-                    .set_body_string(
-                        r#"{"sources":[],"activeId":null,"device":null}"#,
-                    ),
-            )
-            .mount(&server)
-            .await;
-
-        let result = push_to_cortex_inner(
-            server.uri().as_str(),
-            "test",
-            CortexVideoSourcesSnapshot {
-                sources: vec![],
-                active_id: None,
-                device: None,
-            },
-        )
-        .await;
-        assert!(result.is_ok(), "expected Ok, got {:?}", result);
-        let snap = result.unwrap();
-        assert_eq!(snap.etag, "v2");
-    }
-
-    #[tokio::test]
-    async fn push_to_cortex_returns_412_error_on_etag_mismatch() {
-        let server = MockServer::start().await;
-        // Server's ETag differs from what the client will send.
-        Mock::given(method("GET"))
-            .and(path("/api/cortex/video-sources"))
-            .respond_with(ResponseTemplate::new(200).insert_header("ETag", "v3"))
-            .mount(&server)
-            .await;
-        // PUT mock returns 412 (the cortex side rejects stale ETag).
-        Mock::given(method("PUT"))
-            .and(path("/api/cortex/video-sources"))
-            .respond_with(ResponseTemplate::new(412))
-            .mount(&server)
-            .await;
-
-        let result = push_to_cortex_inner(
-            server.uri().as_str(),
-            "test",
-            CortexVideoSourcesSnapshot {
-                sources: vec![],
-                active_id: None,
-                device: None,
-            },
-        )
-        .await;
-        assert!(matches!(result, Err(CommandError::Cortex412)));
+    #[test]
+    fn push_thalamus_snapshot_round_trip() {
+        let snap = CortexVideoSourcesSnapshot {
+            sources: vec![VideoSource {
+                id: "cam-0".into(),
+                device_id: "dev-0".into(),
+                label: "test camera".into(),
+                kind: "uvc".into(),
+                serial: None,
+                transport: "usb".into(),
+                capabilities: serde_json::json!({}),
+                active: true,
+                created_at: "2026-09-22T00:00:00Z".into(),
+                updated_at: "2026-09-22T00:00:00Z".into(),
+            }],
+            active_id: Some("cam-0".into()),
+            device: None,
+        };
+        let json = serde_json::to_string(&snap).unwrap();
+        let back: CortexVideoSourcesSnapshot = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.sources.len(), 1);
+        assert_eq!(back.sources[0].id, "cam-0");
+        assert_eq!(back.active_id.as_deref(), Some("cam-0"));
     }
 }

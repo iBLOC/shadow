@@ -1,21 +1,18 @@
 mod mdns;
 mod video_source;
-mod prefrontal_client;
 mod ws_client;
 mod crypto;
 mod model_store;
 mod config_manager;
 mod opencode_manager;
 mod worktree_manager;
-pub mod cortex_manager;
 mod logger;
 
 use config_manager::{AppConfig, DatabaseConfig, ProviderConfig, SecureAuth};
+use diencephalon::Thalamus;
+use encephalon::{AcpEnvelope, AgentId, Encephalon, TelencephalonStreamEvent};
 use model_store::{EncryptedStorage, ModelProvider};
 use opencode_manager::OpenCodeManager;
-use prefrontal_client::PrefrontalState;
-use worktree_manager::WorktreeManager;
-use cortex_manager::CortexManager;
 use std::sync::Arc;
 use tauri::{
     image::Image,
@@ -23,17 +20,19 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Manager, Runtime, State, WindowEvent,
 };
+use telencephalon::a2a::client::TelencephalonStreamEvent as Tse;
+use worktree_manager::WorktreeManager;
 use ws_client::MtlsWebSocketClient;
 
 struct AppState {
-    prefrontal: Arc<PrefrontalState>,
+    encephalon: Arc<Encephalon>,
+    thalamus: Arc<Thalamus>,
     ws_client: Arc<MtlsWebSocketClient>,
     model_storage: Arc<EncryptedStorage>,
     secure_auth: Arc<SecureAuth>,
     opencode_manager: Arc<OpenCodeManager>,
     worktree_manager: Arc<WorktreeManager>,
     workflow_state: Arc<tokio::sync::Mutex<WorkflowState>>,
-    cortex_manager: Arc<CortexManager>,
 }
 
 struct WorkflowState {
@@ -104,8 +103,21 @@ pub fn run() {
     logger::init();
     logger::log_startup_diagnostics();
 
+    // Initialise the embedded 大脑 (encephalon) in-process. This blocks
+    // the main thread for a few ms (creating an empty thalamus + a
+    // broadcast::channel), which is faster than the old cortex-sidecar
+    // cold-start that previously added 100s–10s of startup latency.
+    let thalamus = Arc::new(
+        tauri::async_runtime::block_on(diencephalon::Thalamus::new(None))
+            .expect("init thalamus"),
+    );
+    let encephalon = Arc::new(
+        tauri::async_runtime::block_on(Encephalon::new(thalamus.clone())),
+    );
+
     let app_state = AppState {
-        prefrontal: Arc::new(PrefrontalState::new()),
+        encephalon: encephalon.clone(),
+        thalamus: thalamus.clone(),
         ws_client: Arc::new(MtlsWebSocketClient::new()),
         model_storage: Arc::new(EncryptedStorage::new()),
         secure_auth: Arc::new(SecureAuth::new()),
@@ -115,7 +127,6 @@ pub fn run() {
             approved_tasks: std::collections::HashMap::new(),
             rejected_tasks: std::collections::HashMap::new(),
         })),
-        cortex_manager: Arc::new(CortexManager::new()),
     };
 
     tauri::Builder::default()
@@ -154,12 +165,10 @@ pub fn run() {
             }
 
             let app_handle = app.handle().clone();
-            tauri::async_runtime::spawn(async move {
-                let cortex_manager = app_handle.state::<AppState>().cortex_manager.clone();
-                if let Err(e) = cortex_manager.start().await {
-                    tracing::warn!("cortex sidecar start deferred: {}", e);
-                }
-            });
+            // In-process encephalon is already initialised; nothing
+            // async to spawn here. (The old cortex sidecar spawn is
+            // gone — see commit f200f93 for the deletion history.)
+            let _ = app_handle;
 
             Ok(())
         })
@@ -170,11 +179,7 @@ pub fn run() {
             toggle_window_visibility,
             discover_resonance,
             resolve_resonance,
-            discover_cortex,
-            prefrontal_create_session,
-            prefrontal_list_sessions,
-            prefrontal_delete_session,
-            prefrontal_list_agents,
+            encephalon_status,
             ws_connect,
             ws_send,
             ws_disconnect,
@@ -211,17 +216,10 @@ pub fn run() {
             approve_task,
             reject_task,
             workflow_execute_step,
-            cortex_health,
-            cortex_start,
-            cortex_stop,
-            cortex_status,
-            cortex_set_supervision,
-            cortex_issue_subsystem_token,
-            set_hf_token,
-            get_hf_token,
+            encephalon_publish_demo,
             video_source::enumerate_uvc,
             video_source::probe_capabilities,
-            video_source::push_to_cortex,
+            video_source::push_thalamus,
             video_source::sync_health,
         ])
         .run(tauri::generate_context!())
@@ -277,94 +275,37 @@ async fn resolve_resonance(name: String) -> Result<Option<mdns::DiscoveredServic
 }
 
 #[tauri::command]
-async fn discover_cortex() -> Result<Vec<mdns::DiscoveredService>, String> {
-    mdns::discover_cortex().await
+async fn encephalon_status(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+    Ok(serde_json::json!({
+        "bus_receivers": state.encephalon.bus.receiver_count(),
+        "thalamus_sensor_count": state.thalamus.sensor_count(),
+        "thalamus_sensors": state.thalamus.sensor_names(),
+        "thalamus_video_cameras": state.thalamus.video_cameras(),
+        "telencephalon_attached": state.encephalon.telencephalon.is_some(),
+    }))
 }
 
 #[tauri::command]
-async fn cortex_health(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
-    state.cortex_manager.health().await
-}
-
-#[tauri::command]
-async fn cortex_start(state: State<'_, AppState>) -> Result<(), String> {
-    state.cortex_manager.start().await
-}
-
-#[tauri::command]
-async fn cortex_stop(state: State<'_, AppState>) -> Result<(), String> {
-    state.cortex_manager.stop().await
-}
-
-#[tauri::command]
-async fn cortex_status(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
-    state.cortex_manager.status_json().await
-}
-
-#[tauri::command]
-async fn cortex_set_supervision(
+async fn encephalon_publish_demo(
     state: State<'_, AppState>,
-    enabled: bool,
-) -> Result<bool, String> {
-    Ok(state.cortex_manager.set_supervision(enabled).await)
+    topic: String,
+    message: String,
+) -> Result<usize, String> {
+    state
+        .encephalon
+        .broadcast_event(
+            AgentId::from("shadow-desktop-demo"),
+            topic,
+            Tse::Delta { text: message },
+        )
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-async fn cortex_issue_subsystem_token(
+async fn ws_connect(
     state: State<'_, AppState>,
-    scopes: Vec<String>,
-    ttl_seconds: Option<i64>,
-) -> Result<serde_json::Value, String> {
-    state.cortex_manager.issue_subsystem_token(scopes, ttl_seconds).await
-}
-
-#[tauri::command]
-async fn set_hf_token(
-    state: State<'_, AppState>,
-    token: String,
-) -> Result<serde_json::Value, String> {
-    // Persist the token in the manager's in-memory store. If cortex
-    // is already running, the user has to bounce it (we don't yet
-    // support hot-swapping env vars on a running neuron process) —
-    // the frontend prompts for the restart after this call returns
-    // `running: true`.
-    let running = state.cortex_manager.set_hf_token(token).await;
-    let mut info = state.cortex_manager.get_hf_token().await;
-    if let Some(obj) = info.as_object_mut() {
-        obj.insert("running".to_string(), serde_json::Value::Bool(running));
-    }
-    Ok(info)
-}
-
-#[tauri::command]
-async fn get_hf_token(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
-    Ok(state.cortex_manager.get_hf_token().await)
-}
-
-#[tauri::command]
-async fn prefrontal_create_session(state: State<'_, AppState>) -> Result<String, String> {
-    state.prefrontal.create_session().await
-}
-
-#[tauri::command]
-async fn prefrontal_list_sessions(state: State<'_, AppState>) -> Result<Vec<String>, String> {
-    state.prefrontal.list_sessions().await
-}
-
-#[tauri::command]
-async fn prefrontal_delete_session(
-    state: State<'_, AppState>,
-    session_id: String,
-) -> Result<bool, String> {
-    state.prefrontal.delete_session(&session_id).await
-}
-
-#[tauri::command]
-async fn prefrontal_list_agents(state: State<'_, AppState>) -> Result<Vec<serde_json::Value>, String> {
-    Ok(state.prefrontal.list_agents().await)
-}
-
-#[tauri::command]
+    app: tauri::AppHandle,
+    url: String,
 async fn ws_connect(
     state: State<'_, AppState>,
     app: tauri::AppHandle,

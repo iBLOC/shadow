@@ -103,6 +103,17 @@ GET  {host}/.well-known/agent.json  → A2A AgentCard
 
 ## CORTEX-SPECIFIC ENDPOINTS (Sprint 1)
 
+> **DEPRECATED 2026-09-22:** the cortex sidecar has been replaced by the
+> embedded `encephalon` crate (at `C:/Projects/iBLOC/encephalon/`) — see
+> the rewrite in `src-tauri/` (`Cargo.toml`, `src/lib.rs`, `src/video_source.rs`).
+> The Rust backend now boots an in-process `Encephalon` + `diencephalon::Thalamus`
+> in `setup()`; the old `cortex_manager.rs` sidecar spawner is deleted.
+> This **frontend** cortexClient still hits the listed `/api/cortex/*` HTTP
+> endpoints, which **do not currently exist** on the in-process encephalon.
+> A follow-up PR must either (a) add an HTTP surface to encephalon mirroring
+> these routes, or (b) rewrite cortexClient.ts to call Tauri commands instead.
+> Until then the corticalAgent MCP UI is non-functional.
+
 The actual runtime talks to **Cortex**, not Prefrontal. The cortexClient in `src/lib/cortexClient.ts` is the canonical caller for everything except chat/TTS/ASR (which still go through `prefrontalClient.ts` against the cortex `/v1/*` shim).
 
 ```typescript

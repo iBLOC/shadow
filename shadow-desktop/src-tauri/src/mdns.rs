@@ -67,10 +67,6 @@ pub async fn discover_resonance() -> Result<Vec<DiscoveredService>, String> {
     }
 }
 
-pub async fn discover_cortex() -> Result<Vec<DiscoveredService>, String> {
-    browse_service("_cortex._tcp").await
-}
-
 async fn browse_service(service_type: &str) -> Result<Vec<DiscoveredService>, String> {
     #[cfg(target_os = "linux")]
     {
