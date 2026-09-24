@@ -111,7 +111,17 @@ The split is **not** mechanical code movement — three of the four lobes need t
 - Standalone `iBLOC/prefrontal` repo at port 8082 (Rust, OpenAI / Anthropic compatible)
 - `telencephalon/src/lobes/prefrontal.rs::*prefrontal dispatcher + TemporalLobe`
 
-**定论（2026-09-25）**：`iBLOC/prefrontal` 就是前额叶的 GitHub home — 不新建仓、不改名。用户确认 GitHub 已有对应项目；本地冗余的 prefrontal-lobe 骨架目录已删除。
+**定论（2026-09-25）**：GitHub 上四个 lobe 全部已有正式仓，均用裸名（无 -lobe 后缀）：
+- 颞叶 → `iBLOC/temporal`（Sprint 2/4 — ASR/TTS 音频管线 + WebRTC Companion）
+- 枕叶 → `iBLOC/occipital`（Mage-VL 默认视频/图像理解 + neuron_client）
+- 顶叶 → `iBLOC/parietal`（ChatBI + Chronos2 forecast + DataFusion SessionContext）
+- 前额叶 → `iBLOC/prefrontal`
+
+拆分方式随之修正：不是新建仓，而是把本会话新写的管线模块直接集成进
+各既有仓（temporal: src/audio_pipeline.rs；occipital: src/video_pipeline.rs；
+parietal: src/workflow_schema.rs + src/workflow_runtime.rs，均已提交推送）。
+telencephalon 经路径依赖 + pub use 重导出，既有调用方零改动。
+先前误建的 -lobe 骨架目录已删除。
 
 **Proposal**:
 - ~~Rename~~ — 不改名。GitHub 上 `iBLOC/prefrontal` 即前额叶 home（commit f2d0015 已推送）。
