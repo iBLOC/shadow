@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Button, Modal, Input, EmptyState,
   Server, Plus, Play, Square, Trash2, AlertCircle,
   Terminal, Globe, FileCode, ChevronDown, ChevronRight,
 } from 'lucide-react';
+import { Button, Modal, Input, EmptyState } from '../components/ui';
 import {
   cortexClient,
   type McpServerRecord,
