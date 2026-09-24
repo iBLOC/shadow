@@ -14,7 +14,7 @@ mod logger;
 
 use config_manager::{AppConfig, DatabaseConfig, ProviderConfig, SecureAuth};
 use diencephalon::Thalamus;
-use encephalon::{AcpEnvelope, AgentId, Encephalon, TelencephalonStreamEvent};
+use encephalon::{AcpEnvelope, AgentId, Encephalon};
 use model_store::{EncryptedStorage, ModelProvider};
 use opencode_manager::OpenCodeManager;
 use std::sync::Arc;
@@ -380,10 +380,6 @@ async fn encephalon_publish_demo(
 }
 
 #[tauri::command]
-async fn ws_connect(
-    state: State<'_, AppState>,
-    app: tauri::AppHandle,
-    url: String,
 async fn ws_connect(
     state: State<'_, AppState>,
     app: tauri::AppHandle,
@@ -1027,7 +1023,7 @@ async fn document_publish_feishu(
 
 #[tauri::command]
 async fn cu_set_enabled(
-    state: State<'_, super::AppState>,
+    state: State<'_, AppState>,
     on: bool,
 ) -> Result<(), String> {
     state.computer_use.set_enabled(on);
@@ -1035,7 +1031,7 @@ async fn cu_set_enabled(
 }
 
 #[tauri::command]
-async fn cu_get_enabled(state: State<'_, super::AppState>) -> Result<bool, String> {
+async fn cu_get_enabled(state: State<'_, AppState>) -> Result<bool, String> {
     Ok(state.computer_use.is_enabled())
 }
 

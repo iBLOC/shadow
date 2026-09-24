@@ -1,52 +1,49 @@
-//! Open-lark-backed `FeishuOps` impl. Doc-only scaffold — the actual
-//! HTTP calls against the Lark Open Platform go here. v1 uses a
-//! minimal slice (auth + sheets.v3 + drive.v1).
+//! Real `FeishuOps` impl stub against the open-lark 0.14 SDK.
 //!
-//! The struct + impl are split out from `mod.rs` so tests can use the
-//! `MockFeishu` impl without compiling open-lark's full surface.
+//! This module was scaffolded in commit 90878db but the OpenLarkFeishu
+//! wire has not been validated end-to-end against a real Lark tenant
+//! — and the open_lark 0.14 SDK's type names + module paths shifted
+//! (e.g. `CreateSpreadsheetRequest` is spelled `CreateSpreedSheetRequest`
+//! upstream). Pinning the exact API surface against the current
+//! 0.14 release is a follow-up that needs a real tenant for
+//! integration testing.
+//!
+//! For v1 the *MockFeishu* path covers tests + local development
+//! (FEISHU_APP_ID unset → MockFeishu). When FEISHU_APP_ID is set we
+//! want OpenLarkFeishu, so this stub returns FeishuError::Api
+//! explicitly rather than panicking — the failure surfaces as an
+//! actionable runtime error ("FEISHU_APP_ID set but OpenLarkFeishu
+//! is a 0.14-API placeholder; see client.rs for the rewrite plan")
+//! and doesn't break shadow-desktop's cargo check.
+//!
+//! End-to-end rewrite plan (tracked as a follow-up):
+//! - Pin open_lark to a known-good version (0.13 or 0.14 with
+//!   verified spreadsheet-create path) in workspace deps.
+//! - Verify the `auth().tenant_access_token()` request shape and
+//!   the `sheets.v3.spreadsheet.create()` response schema against
+//!   the official Lark API docs at open.feishu.cn.
+//! - Then re-enable the real impl with `#[cfg(feature =
+//!   "real-feishu")]` so MockFeishu remains the default for tests.
 
 use async_trait::async_trait;
-use open_lark::core::auth::AuthTrait;
-use open_lark::service::sheets::v3::spreadsheet::{CreateSpreadsheetRequest, CreateSpreadsheetResp};
-use open_lark::Client;
 
 use super::{FeishuError, FeishuOps, FeishuSheet};
 
 pub struct OpenLarkFeishu {
-    client: Client,
-    user_email: String,
+    pub user_email: String,
 }
 
 impl OpenLarkFeishu {
-    /// Construct from env vars. `FEISHU_APP_ID` + `FEISHU_APP_SECRET`
-    /// are required; `FEISHU_DEFAULT_USER_EMAIL` is the user the
-    /// `feishu_sheet_share` tool grants `view` to by default (DOC-03
-    /// privacy default).
     pub fn from_env() -> Result<Self, FeishuError> {
-        let app_id = std::env::var("FEISHU_APP_ID")
-            .map_err(|_| FeishuError::ConfigMissing("FEISHU_APP_ID"))?;
-        let app_secret = std::env::var("FEISHU_APP_SECRET")
-            .map_err(|_| FeishuError::ConfigMissing("FEISHU_APP_SECRET"))?;
-        let user_email = std::env::var("FEISHU_DEFAULT_USER_EMAIL")
-            .unwrap_or_else(|_| "default@shadow.local".into());
-        let client = Client::builder()
-            .app_id(app_id)
-            .app_secret(app_secret)
-            .build()
-            .map_err(|e| FeishuError::Auth(e.to_string()))?;
-        Ok(Self { client, user_email })
-    }
-
-    /// Exchange the app credentials for a `tenant_access_token`. The
-    /// open-lark client caches the token until expiry so callers don't
-    /// need to manage the refresh.
-    async fn auth(&self) -> Result<(), FeishuError> {
-        self.client
-            .auth()
-            .tenant_access_token()
-            .await
-            .map(|_| ())
-            .map_err(|e| FeishuError::Auth(e.to_string()))
+        // FEISHU_APP_ID + FEISHU_APP_SECRET are read at the call site
+        // (lib.rs build path). The OpenLarkFeishu constructor itself
+        // takes the configured identity; here we just plumb the
+        // default user email used by `document_publish_feishu` for
+        // the `share_sheet` permission grant.
+        Ok(Self {
+            user_email: std::env::var("FEISHU_DEFAULT_USER_EMAIL")
+                .unwrap_or_else(|_| "default@shadow.local".into()),
+        })
     }
 }
 
@@ -54,107 +51,39 @@ impl OpenLarkFeishu {
 impl FeishuOps for OpenLarkFeishu {
     async fn create_sheet(
         &self,
-        title: &str,
-        folder_token: Option<&str>,
+        _title: &str,
+        _folder_token: Option<&str>,
     ) -> Result<FeishuSheet, FeishuError> {
-        self.auth().await?;
-        let req = CreateSpreadsheetRequest {
-            title: title.to_string(),
-            folder_token: folder_token.map(str::to_string),
-        };
-        let resp: CreateSpreadsheetResp = self
-            .client
-            .sheets()
-            .v3()
-            .spreadsheet()
-            .create(&req)
-            .await
-            .map_err(|e| FeishuError::Api(e.to_string()))?;
-        Ok(FeishuSheet {
-            spreadsheet_token: resp.spreadsheet_token,
-            url: resp.url,
-            sheets: resp
-                .sheets
-                .into_iter()
-                .map(|s| super::FeishuSheetMeta {
-                    sheet_id: s.sheet_id,
-                    title: s.title,
-                    row_count: s.row_count,
-                    column_count: s.column_count,
-                })
-                .collect(),
-        })
+        Err(FeishuError::Api(
+            "OpenLarkFeishu is a v1.1 placeholder; the open_lark 0.14 \
+             SDK's create_sheet path needs verification against a real \
+             Lark tenant. MockFeishu is the working path for v1. See \
+             src-tauri/src/feishu_mcp/client.rs for the rewrite plan."
+                .into(),
+        ))
     }
 
     async fn write_sheet_values(
         &self,
-        spreadsheet_token: &str,
-        sheet_id: &str,
-        range: &str,
-        values: &[Vec<String>],
+        _spreadsheet_token: &str,
+        _sheet_id: &str,
+        _range: &str,
+        _values: &[Vec<String>],
     ) -> Result<(), FeishuError> {
-        self.auth().await?;
-        let req = open_lark::service::sheets::v2::value::WriteValuesRequest {
-            spreadsheet_token: spreadsheet_token.to_string(),
-            sheet_id: sheet_id.to_string(),
-            range: range.to_string(),
-            values: values.to_vec(),
-        };
-        self.client
-            .sheets()
-            .v2()
-            .value()
-            .write(&req)
-            .await
-            .map(|_| ())
-            .map_err(|e| FeishuError::Api(e.to_string()))
+        Err(FeishuError::Api("OpenLarkFeishu placeholder (see create_sheet)".into()))
     }
 
     async fn share_sheet(
         &self,
-        spreadsheet_token: &str,
-        member_type: &str,
-        member_id: &str,
-        perm: &str,
+        _spreadsheet_token: &str,
+        _member_type: &str,
+        _member_id: &str,
+        _perm: &str,
     ) -> Result<(), FeishuError> {
-        self.auth().await?;
-        let req = open_lark::service::drive::v1::permission::CreatePermissionRequest {
-            token: spreadsheet_token.to_string(),
-            member_type: member_type.to_string(),
-            member_id: member_id.to_string(),
-            perm: perm.to_string(),
-        };
-        self.client
-            .drive()
-            .v1()
-            .permission()
-            .create(&req)
-            .await
-            .map(|_| ())
-            .map_err(|e| FeishuError::Api(e.to_string()))
+        Err(FeishuError::Api("OpenLarkFeishu placeholder (see create_sheet)".into()))
     }
 
-    async fn delete_sheet(&self, spreadsheet_token: &str) -> Result<(), FeishuError> {
-        self.auth().await?;
-        let req = open_lark::service::drive::v1::file::DeleteFileRequest {
-            file_token: spreadsheet_token.to_string(),
-        };
-        self.client
-            .drive()
-            .v1()
-            .file()
-            .delete(&req)
-            .await
-            .map(|_| ())
-            .map_err(|e| FeishuError::Api(e.to_string()))
-    }
-}
-
-// DOC-03 default: when publish_feishu is invoked without an explicit
-// member_id, default to the constructor's user_email with view perm.
-// Stored on the impl so the Tauri command can read it.
-impl OpenLarkFeishu {
-    pub fn default_share_target(&self) -> (&str, &str) {
-        (self.user_email.as_str(), "view")
+    async fn delete_sheet(&self, _spreadsheet_token: &str) -> Result<(), FeishuError> {
+        Err(FeishuError::Api("OpenLarkFeishu placeholder (see create_sheet)".into()))
     }
 }

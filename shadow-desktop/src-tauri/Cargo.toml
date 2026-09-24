@@ -75,11 +75,26 @@ git2 = "0.19"
 # auth only for v1 — FEISHU_APP_ID + FEISHU_APP_SECRET env vars.
 open-lark = "0.14"
 
+# Async-trait support for the FeishuOps trait object (synapse_trait +
+# axum handlers each hold an `Arc<dyn FeishuOps>`).
+async-trait = "0.1"
+
+# synapse (transitive via encephalon → telencephalon, but we use
+# `synapse::mcp::*` types directly in feishu_mcp/mod.rs) — pull
+# directly so the import resolves.
+synapse = { path = "../../../synapse" }
+
+# Encephalon (top-level wrapper crate) embeds both telencephalon and
+# diencephalon. shadow-desktop depends on it directly so we can
+# construct FeishuMcp with a real diencephalon::Thalamus + open-lark
+# backend at startup — same wiring as the unit tests in feishu_mcp/mod.rs.
+diencephalon = { path = "../../../diencephalon" }
+
 # Computer-use (RPA) — drives the host's mouse + keyboard so an agent
 # can act on apps without an A2A endpoint. Guarded by
 # SHADOW_COMPUTER_USE_ENABLED=1 at startup; no production path flips
 # this on automatically. See src/computer_use.rs for the safety model.
-enigo = { version = "0.6", default-features = false, features = ["std"] }
+enigo = { version = "0.6", default-features = false, features = ["serde"] }
 xcap = "0.9"
 
 # Windows UI Automation — element-based computer-use (find button by
@@ -89,6 +104,14 @@ xcap = "0.9"
 # use the enigo coordinate path.
 [target.'cfg(target_os = "windows")'.dependencies]
 uiautomation = "0.25"
+
+# ziti-sdk override: pull the iBLOC fork instead of crates.io so
+# the `webpki-roots` reqwest feature req is dropped (the fork
+# substitutes `rustls` TLS roots). Without this patch, cargo can't
+# resolve `reqwest` because the upstream ziti-sdk 0.3.0 requires a
+# feature that doesn't exist in reqwest 0.13.x.
+[patch.crates-io]
+ziti-sdk = { git = "https://github.com/iBLOC/ziti-rust", branch = "master" }
 
 [dev-dependencies]
 wiremock = "0.6"

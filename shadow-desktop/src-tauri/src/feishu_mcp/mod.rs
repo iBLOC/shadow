@@ -31,6 +31,10 @@
 //! also behind the same trait so production swaps in by changing one
 //! constructor argument.
 
+mod client;
+
+pub use client::OpenLarkFeishu;
+
 use std::sync::Arc;
 
 use async_trait::async_trait;
