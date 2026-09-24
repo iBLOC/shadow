@@ -15,6 +15,7 @@ import {
   ListTodo,
   Info,
   Terminal,
+  History,
 } from 'lucide-react';
 import { PreviewButton } from '../preview/PreviewButton';
 import { Button, Badge } from '../ui';
@@ -145,6 +146,84 @@ function ProgressBar({ ratio, completed, total }: { ratio: number; completed: nu
   );
 }
 
+function HistoryTab({ taskId }: { taskId: string }) {
+  const { t } = useTranslation();
+  const [commits, setCommits] = useState<
+    Array<{ id: string; shortId: string; author: string; timestamp: number; message: string }>
+  >([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string>('');
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError('');
+    void invoke<typeof commits>('result_history', { taskId, limit: 50 })
+      .then((rows) => {
+        if (!cancelled) setCommits(rows);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(String(e));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // commit to deps so re-runs when taskId changes; the cast is
+    // so the `typeof commits` empty-array literal type tracks the
+    // shape without an explicit interface.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [taskId]);
+
+  if (loading) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        {t('tasks.detail.historyLoading')}
+      </p>
+    );
+  }
+  if (error) {
+    return (
+      <p className="text-xs text-destructive font-mono" role="alert">
+        {error}
+      </p>
+    );
+  }
+  if (commits.length === 0) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        {t('tasks.detail.historyEmpty')}
+      </p>
+    );
+  }
+  return (
+    <ol className="flex flex-col divide-y divide-border rounded-md border border-border bg-secondary/20">
+      {commits.map((c) => (
+        <li
+          key={c.id}
+          className="flex flex-col gap-1 px-3 py-2 text-xs"
+          data-testid={`history-row-${c.shortId}`}
+        >
+          <div className="flex items-center gap-2">
+            <code className="font-mono text-muted-foreground">{c.shortId}</code>
+            <span className="text-muted-foreground">·</span>
+            <span className="truncate font-medium">{c.message}</span>
+          </div>
+          <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+            <span>{c.author}</span>
+            <span>·</span>
+            <span className="font-mono">
+              {new Date(c.timestamp * 1000).toISOString()}
+            </span>
+          </div>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 export function TaskDetailDialog({
   open,
   task,
@@ -207,9 +286,9 @@ export function TaskDetailDialog({
 
         <Tabs
           value={activeTab}
-          onValueChange={(v) => setDetailTab(v as 'overview' | 'subtasks' | 'logs')}
+          onValueChange={(v) => setDetailTab(v as 'overview' | 'subtasks' | 'logs' | 'history')}
         >
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="overview">
               <Info className="mr-1 h-4 w-4" />
               {t('tasks.detail.overview', '概览')}
@@ -221,6 +300,10 @@ export function TaskDetailDialog({
             <TabsTrigger value="logs">
               <Terminal className="mr-1 h-4 w-4" />
               {t('tasks.detail.logs', '日志')}
+            </TabsTrigger>
+            <TabsTrigger value="history">
+              <History className="mr-1 h-4 w-4" />
+              {t('tasks.detail.history', '历史')}
             </TabsTrigger>
           </TabsList>
 
@@ -343,6 +426,10 @@ export function TaskDetailDialog({
                 2,
               )}
             </pre>
+          </TabsContent>
+
+          <TabsContent value="history" className="flex flex-col gap-3">
+            <HistoryTab taskId={task.id} />
           </TabsContent>
         </Tabs>
 
