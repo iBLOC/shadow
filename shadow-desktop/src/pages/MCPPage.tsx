@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Button, Modal, Input, StatusBadge, EmptyState,
+  Button, Modal, Input, EmptyState,
   Server, Plus, Play, Square, Trash2, AlertCircle,
   Terminal, Globe, FileCode, ChevronDown, ChevronRight,
 } from 'lucide-react';
