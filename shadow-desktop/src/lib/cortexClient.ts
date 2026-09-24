@@ -669,9 +669,19 @@ export class CortexClient {
 
   async createMcpServer(req: {
     name: string;
-    wasm: McpWasmRef;
+    wasm?: McpWasmRef;
     quota?: McpResourceQuota;
     description?: string;
+    transport?: {
+      kind: 'stdio';
+      command: string;
+      args: string[];
+      env?: Record<string, string>;
+    } | {
+      kind: 'http';
+      url: string;
+      bearer?: string;
+    };
   }): Promise<McpServerRecord> {
     return this.request<McpServerRecord>('/api/cortex/admin/mcp/servers', {
       method: 'POST',
