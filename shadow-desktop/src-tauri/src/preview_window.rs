@@ -143,7 +143,7 @@ pub fn list_open_previews(app: &AppHandle) -> Vec<String> {
 // -- Tauri commands ----------------------------------------------------
 
 #[tauri::command]
-async fn preview_open(
+pub async fn preview_open(
     app: AppHandle,
     task_id: String,
     url: String,
@@ -152,7 +152,7 @@ async fn preview_open(
 }
 
 #[tauri::command]
-async fn preview_close(
+pub async fn preview_close(
     app: AppHandle,
     task_id: String,
 ) -> Result<bool, String> {

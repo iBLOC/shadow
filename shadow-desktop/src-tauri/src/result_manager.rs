@@ -141,9 +141,10 @@ impl ResultManager {
 
         // Stage everything (untracked + modified + deleted).
         index.add_all(["*"].iter(), IndexAddOption::DEFAULT, None)?;
-        if !index.has_changes() {
-            return Err(ResultManagerError::NoChanges(task_id.to_string()));
-        }
+        // git2 0.19's Index has no `has_changes`; detect a clean tree
+        // by comparing the current HEAD tree with the freshly written
+        // index tree (after write_tree — an unchanged tree yields the
+        // same OID, so committing would be a no-op).
         let oid = index.write_tree()?;
         let tree = repo.find_tree(oid)?;
         let sig = self.signature()?;
@@ -151,6 +152,12 @@ impl ResultManager {
         // Parent = current HEAD commit (may be absent on the initial commit,
         // but init() always makes one first).
         let parent_commit = repo.head()?.peel_to_commit()?;
+        // NoChanges detection: if the freshly written tree matches the
+        // parent's tree, nothing actually changed — bail out instead
+        // of producing an empty commit.
+        if parent_commit.tree_id() == oid {
+            return Err(ResultManagerError::NoChanges(task_id.to_string()));
+        }
         let new_oid = repo.commit(
             Some("HEAD"),
             &sig,
@@ -227,7 +234,7 @@ mod tests {
         let path2 = m.init("task-002", "second").unwrap();
         assert_eq!(path1, path2);
         // The README must NOT have been overwritten by the second init.
-        let readme = std::fs::read_to_string(path.join("README.md")).unwrap();
+        let readme = std::fs::read_to_string(path1.join("README.md")).unwrap();
         assert!(readme.contains("first"), "first init title should survive");
         assert!(!readme.contains("second"));
     }
@@ -312,6 +319,10 @@ mod tests {
     #[test]
     fn with_default_base_dir_uses_home_dot_shadow_results() {
         let m = ResultManager::with_default_base_dir().unwrap();
-        assert!(m.path.ends_with(".shadow/results"));
+        let s = m.base_dir().to_string_lossy().replace('\\', "/");
+        assert!(
+            s.ends_with(".shadow/results"),
+            "base_dir should end with .shadow/results, got {s}"
+        );
     }
 }

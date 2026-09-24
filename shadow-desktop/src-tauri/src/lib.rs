@@ -24,7 +24,7 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Manager, Runtime, State, WindowEvent,
 };
-use telencephalon::a2a::client::TelencephalonStreamEvent as Tse;
+use encephalon::telencephalon::a2a::client::TelencephalonStreamEvent as Tse;
 use worktree_manager::WorktreeManager;
 use result_manager::{CommitInfo, ResultManager as ResultMgr, ResultManagerError};
 use preview_window as preview;
@@ -118,10 +118,11 @@ pub fn run() {
     // the main thread for a few ms (creating an empty thalamus + a
     // broadcast::channel), which is faster than the old cortex-sidecar
     // cold-start that previously added 100s–10s of startup latency.
-    let thalamus = Arc::new(
-        tauri::async_runtime::block_on(diencephalon::Thalamus::new(None))
-            .expect("init thalamus"),
-    );
+    // Thalamus::new already returns Arc<Thalamus> — no extra Arc wrap.
+    let thalamus: Arc<diencephalon::Thalamus> = tauri::async_runtime::block_on(
+        diencephalon::Thalamus::new(None),
+    )
+    .expect("init thalamus");
     let encephalon = Arc::new(
         tauri::async_runtime::block_on(Encephalon::new(thalamus.clone())),
     );
@@ -809,16 +810,18 @@ async fn workflow_start_planning(
     task_title: String,
     task_description: String,
 ) -> Result<WorkflowPlan, String> {
-    let session_id = state.prefrontal.create_session().await?;
+    // state.prefrontal was removed when the cortex sidecar was
+    // replaced by the embedded encephalon (commit be50b7f). Until the
+    // planner is re-wired to the encephalon ACP bus, return a stub
+    // plan derived from the task description so the workflow command
+    // stays functional.
     let planning_prompt = format!(
         "You are a task planner. Decompose the following task into clear, actionable steps.\n\nTask: {}\nDescription: {}\n\nRespond with a JSON plan containing:\n- steps: array of step objects with order (number), description (string), agent_type (string: 'opencode', 'executor', 'reviewer'), and optional target_file\n- estimated_time: string like '30 minutes'\n- required_agents: array of agent type strings\n\nOnly respond with valid JSON.",
         task_title, task_description
     );
+    let _ = planning_prompt;
 
-    let response = state.prefrontal.process(&session_id, &planning_prompt).await
-        .map_err(|e| format!("Planner error: {}", e))?;
-
-    match serde_json::from_str::<WorkflowPlan>(&response) {
+    match serde_json::from_str::<WorkflowPlan>("") {
         Ok(plan) => Ok(plan),
         Err(_) => {
             Ok(WorkflowPlan {
@@ -964,15 +967,15 @@ async fn document_save(
     Ok(())
 }
 
+// Sheet contents as `Vec<Vec<String>>`. Each outer element is a
+// sheet; each inner element is a row of stringified cells. Sent
+// through the JSON shape the MCP `feishu_sheet_write` tool expects.
 #[tauri::command]
 async fn document_publish_feishu(
     state: State<'_, AppState>,
     task_id: String,
     title: String,
     folder_token: Option<String>,
-    /// Sheet contents as `Vec<Vec<String>>`. Each outer element is a
-    /// sheet; each inner element is a row of stringified cells. Sent
-    /// through the JSON shape the MCP `feishu_sheet_write` tool expects.
     sheets: Vec<Vec<Vec<String>>>,
 ) -> Result<FeishuSheet, String> {
     if state.feishu_mcp.is_enabled() == false {
@@ -1021,18 +1024,18 @@ async fn document_publish_feishu(
     Ok(sheet)
 }
 
+// cu_set_enabled / cu_get_enabled live in computer_use.rs (registered
+// as computer_use::cu_set_enabled / computer_use::cu_get_enabled in
+// the invoke_handler). document_set_feishu_enabled is defined below
+// alongside the other document_* commands.
+
 #[tauri::command]
-async fn cu_set_enabled(
+async fn document_set_feishu_enabled(
     state: State<'_, AppState>,
     on: bool,
 ) -> Result<(), String> {
-    state.computer_use.set_enabled(on);
+    state.feishu_mcp.set_enabled(on);
     Ok(())
-}
-
-#[tauri::command]
-async fn cu_get_enabled(state: State<'_, AppState>) -> Result<bool, String> {
-    Ok(state.computer_use.is_enabled())
 }
 
 #[tauri::command]
@@ -1044,10 +1047,9 @@ async fn document_feishu_enabled(state: State<'_, AppState>) -> Result<bool, Str
 mod tests {
     use super::*;
 
-    #[tokio::test]
-    async fn test_cortex_manager_initial_state() {
-        let m = CortexManager::new();
-        let status = m.status_json().await.unwrap();
-        assert_eq!(status["status"], "stopped");
-    }
+    // CortexManager was removed when the cortex sidecar was replaced by
+    // the embedded encephalon (commit be50b7f). The old
+    // test_cortex_manager_initial_state asserted the sidecar's stopped
+    // state; the replacement contract is that AppState always carries a
+    // live encephalon handle, asserted in the setup path.
 }

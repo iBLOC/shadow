@@ -103,7 +103,7 @@ xcap = "0.9"
 # resize / DPI changes / position shifts. macOS / Linux continue to
 # use the enigo coordinate path.
 [target.'cfg(target_os = "windows")'.dependencies]
-uiautomation = "0.25"
+uiautomation = { version = "0.25", features = ["pattern"] }
 
 # ziti-sdk override: pull the iBLOC fork instead of crates.io so
 # the `webpki-roots` reqwest feature req is dropped (the fork

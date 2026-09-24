@@ -99,7 +99,7 @@ pub struct FeishuSheetMeta {
     pub column_count: i64,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct FeishuMcp {
     ops: Arc<dyn FeishuOps>,
     enabled: Arc<std::sync::atomic::AtomicBool>,
@@ -514,7 +514,11 @@ mod tests {
         assert!(!m.is_enabled());
         m.delete_sheet("orphan-token").await.unwrap();
         let calls = mock.calls.lock().unwrap().clone();
-        assert!(matches!(calls.as_slice(),(),[MockCall::Delete { spreadsheet_token }] if spreadsheet_token == "orphan-token"));
+        assert_eq!(calls.len(), 1);
+        assert!(
+            matches!(&calls[0], MockCall::Delete { spreadsheet_token } if spreadsheet_token == "orphan-token"),
+            "expected a single Delete call for orphan-token, got {calls:?}"
+        );
         if let Some(v) = prev {
             unsafe { std::env::set_var("FEISHU_ENABLED", v) };
         }
@@ -522,6 +526,7 @@ mod tests {
 
     #[tokio::test]
     async fn mcp_server_lists_five_tools_with_schemas() {
+        use synapse::mcp::McpServer;
         let m = enabled_mcp();
         let server = m.mcp_server();
         let tools = server.list_tools().await.unwrap();

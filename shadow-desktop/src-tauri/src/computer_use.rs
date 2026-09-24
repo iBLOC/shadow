@@ -40,8 +40,10 @@
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use enigo::{Button, Coordinate, Key, Keyboard, Mouse, Settings};
-use serde::Serialize;
+use enigo::{Axis, Button, Coordinate, Direction, Key, Keyboard, Mouse, Settings};
+use serde::{Deserialize, Serialize};
+use tauri::State;
+use super::AppState;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ComputerUseError {
@@ -60,7 +62,7 @@ pub enum ComputerUseError {
     Screenshot(String),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum MouseButton {
     Left,
@@ -78,19 +80,19 @@ impl From<MouseButton> for Button {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum KeyCombo {
     /// Press one named key (e.g. "Return", "Escape", "Tab").
-    Single(&'static str),
+    Single(String),
     /// `Ctrl+<key>`.
-    Ctrl(&'static str),
+    Ctrl(String),
     /// `Alt+<key>`.
-    Alt(&'static str),
+    Alt(String),
     /// `Shift+<key>`.
-    Shift(&'static str),
+    Shift(String),
     /// `Super+<key>` (Windows key / Cmd).
-    Super(&'static str),
+    Super(String),
 }
 
 fn parse_key(name: &str) -> Option<Key> {
@@ -210,7 +212,7 @@ impl ComputerUse {
     pub fn mouse_move(&self, x: i32, y: i32) -> Result<(), ComputerUseError> {
         self.check_enabled()?;
         let mut e = self.lock()?;
-        e.mouse_move_to(x, y)
+        e.move_mouse(x, y, Coordinate::Abs)
             .map_err(|e| ComputerUseError::InputAction(e.to_string()))
     }
 
@@ -222,17 +224,29 @@ impl ComputerUse {
     ) -> Result<(), ComputerUseError> {
         self.check_enabled()?;
         let mut e = self.lock()?;
-        e.mouse_move_to(x, y)
+        e.move_mouse(x, y, Coordinate::Abs)
             .map_err(|e| ComputerUseError::InputAction(e.to_string()))?;
-        e.mouse_click(Coordinate { x, y }, button.into())
+        // enigo 0.6's Mouse trait: button(b, Direction) — Direction::Click
+        // is press + release.
+        e.button(button.into(), Direction::Click)
             .map_err(|e| ComputerUseError::InputAction(e.to_string()))
     }
 
     pub fn mouse_scroll(&self, dx: i32, dy: i32) -> Result<(), ComputerUseError> {
         self.check_enabled()?;
         let mut e = self.lock()?;
-        e.mouse_scroll_wheel(dx, dy)
-            .map_err(|e| ComputerUseError::InputAction(e.to_string()))
+        // enigo 0.6 scroll(length, axis). Vertical first when both
+        // are non-zero (the agent sends one axis at a time in
+        // practice).
+        if dy != 0 {
+            e.scroll(dy, Axis::Vertical)
+                .map_err(|e| ComputerUseError::InputAction(e.to_string()))?;
+        }
+        if dx != 0 {
+            e.scroll(dx, Axis::Horizontal)
+                .map_err(|e| ComputerUseError::InputAction(e.to_string()))?;
+        }
+        Ok(())
     }
 
     pub fn keyboard_type(&self, text: &str) -> Result<(), ComputerUseError> {
@@ -260,19 +274,17 @@ impl ComputerUse {
             KeyCombo::Shift(n) => (Some(Key::Shift), n),
             KeyCombo::Super(n) => (Some(Key::Meta), n),
         };
-        let key = parse_key(name).ok_or_else(|| {
+        let key = parse_key(&name).ok_or_else(|| {
             ComputerUseError::InputAction(format!("unknown key name: {name:?}"))
         })?;
         let mut e = self.lock()?;
         if let Some(m) = modifier {
-            e.key_down(m)
-                .and_then(|_| e.key_down(key))
-                .and_then(|_| e.key_up(key))
-                .and_then(|_| e.key_up(m))
+            // enigo 0.6: key(k, Direction) replaces key_down/key_up.
+            e.key(m, Direction::Click)
+                .and_then(|_| e.key(key, Direction::Click))
                 .map_err(|e| ComputerUseError::InputAction(e.to_string()))?;
         } else {
-            e.key_down(key)
-                .and_then(|_| e.key_up(key))
+            e.key(key, Direction::Click)
                 .map_err(|e| ComputerUseError::InputAction(e.to_string()))?;
         }
         Ok(())
@@ -374,47 +386,67 @@ impl ComputerUse {
 #[cfg(target_os = "windows")]
 fn uiautomation_to_element(handle: &uiautomation::UIElement) -> UiElement {
     use uiautomation::types::Rect;
-    let Rect { left, top, width, height, .. } = handle.get_bounding_rectangle().unwrap_or_default();
+    // uiautomation 0.25 exposes left/top/right/bottom (not
+    // width/height); compute width/height locally so the public
+    // UiElement shape doesn't change.
+    let r: Rect = handle.get_bounding_rectangle().unwrap_or_default();
+    let left = r.get_left();
+    let top = r.get_top();
+    let right = r.get_right();
+    let bottom = r.get_bottom();
     UiElement {
         name: handle.get_name().unwrap_or_default(),
         automation_id: handle.get_automation_id().unwrap_or_default(),
-        control_type: handle.get_control_type().to_string(),
+        control_type: handle
+            .get_control_type()
+            .map(|t| format!("{t:?}"))
+            .unwrap_or_default(),
         class_name: handle.get_classname().unwrap_or_default(),
         x: left,
         y: top,
-        width,
-        height,
+        width: right - left,
+        height: bottom - top,
     }
 }
 
 #[cfg(target_os = "windows")]
 fn uiautomation_list_root_children() -> Result<Vec<UiElement>, String> {
     use uiautomation::UIAutomation;
-    let automation = uiautomation::UIAutomation::new(true)
+    let automation = uiautomation::UIAutomation::new()
         .map_err(|e| format!("UIAutomation::new: {e}"))?;
     let root = automation
         .get_root_element()
         .map_err(|e| format!("get_root_element: {e}"))?;
     let children = root
-        .find_all(uiautomation::types::TreeScope::Children, &uiautomation::types::UICondition::create_true())
+        .find_all(
+            uiautomation::types::TreeScope::Children,
+            &automation.create_true_condition().map_err(|e| format!("create_true_condition: {e}"))?,
+        )
         .map_err(|e| format!("find_all: {e}"))?;
     Ok(children.iter().map(uiautomation_to_element).collect())
 }
 
 #[cfg(target_os = "windows")]
 fn uiautomation_find_first_by_name(name_substr: &str) -> Result<Option<UiElement>, String> {
-    use uiautomation::{UIAutomation, UIProperty};
-    use uiautomation::types::{TreeScope, UIPropertyCondition};
+    use uiautomation::UIAutomation;
+    use uiautomation::types::UIProperty;
+    use uiautomation::types::TreeScope;
     let needle = name_substr.to_ascii_lowercase();
-    let automation = uiautomation::UIAutomation::new(true)
+    let automation = uiautomation::UIAutomation::new()
         .map_err(|e| format!("UIAutomation::new: {e}"))?;
     let root = automation.get_root_element().map_err(|e| format!("root: {e}"))?;
-    // Cheap first pass: all descendants with a non-empty Name.
-    let candidates = root
-        .find_all(
-            TreeScope::Descendants,
-            UIPropertyCondition::new(UIProperty::Name, None, None, None).into(),
+    // Cheap first pass: all descendants with a non-empty Name. The
+    // name-substring match happens client-side (create_property_condition
+    // only supports exact value match).
+    let cond = automation
+        .create_property_condition(
+            UIProperty::Name,
+            uiautomation::variants::Variant::from(""),
+            None,
         )
+        .map_err(|e| format!("create_property_condition: {e}"))?;
+    let candidates = root
+        .find_all(TreeScope::Descendants, &cond)
         .map_err(|e| format!("find_all Descendants: {e}"))?;
     for c in &candidates {
         let n = c.get_name().unwrap_or_default();
@@ -427,16 +459,23 @@ fn uiautomation_find_first_by_name(name_substr: &str) -> Result<Option<UiElement
 
 #[cfg(target_os = "windows")]
 fn uiautomation_find_first_by_automation_id(automation_id: &str) -> Result<Option<UiElement>, String> {
-    use uiautomation::{UIAutomation, UIProperty};
-    use uiautomation::types::{TreeScope, UIPropertyCondition};
-    let automation = uiautomation::UIAutomation::new(true)
+    use uiautomation::UIAutomation;
+    use uiautomation::types::UIProperty;
+    use uiautomation::types::TreeScope;
+    let automation = uiautomation::UIAutomation::new()
         .map_err(|e| format!("UIAutomation::new: {e}"))?;
     let root = automation.get_root_element().map_err(|e| format!("root: {e}"))?;
-    let cond = UIPropertyCondition::new(UIProperty::AutomationId, Some(automation_id.into()), None, None);
+    let cond = automation
+        .create_property_condition(
+            UIProperty::AutomationId,
+            uiautomation::variants::Variant::from(automation_id),
+            None,
+        )
+        .map_err(|e| format!("create_property_condition: {e}"))?;
     let elem = root
-        .find_first(TreeScope::Descendants, &cond.into())
+        .find_first(TreeScope::Descendants, &cond)
         .map_err(|e| format!("find_first Descendants: {e}"))?;
-    Ok(elem.map(|e| uiautomation_to_element(&e)))
+    Ok(Some(uiautomation_to_element(&elem)))
 }
 
 #[cfg(target_os = "windows")]
@@ -445,29 +484,33 @@ fn uiautomation_invoke(elem: &UiElement) -> Result<(), String> {
     // UIAutomation handle — the descriptor we have is serialisable.
     // For v1 we always re-resolve by AutomationId, falling back to
     // Name when the element has none.
-    use uiautomation::{UIAutomation, UIProperty};
-    use uiautomation::types::{TreeScope, UIPropertyCondition};
-    let automation = uiautomation::UIAutomation::new(true)
+    use uiautomation::UIAutomation;
+    use uiautomation::types::UIProperty;
+    use uiautomation::types::TreeScope;
+    use uiautomation::variants::Variant;
+    let automation = uiautomation::UIAutomation::new()
         .map_err(|e| format!("UIAutomation::new: {e}"))?;
     let root = automation.get_root_element().map_err(|e| format!("root: {e}"))?;
     let handle = if !elem.automation_id.is_empty() {
-        let cond = UIPropertyCondition::new(
-            UIProperty::AutomationId,
-            Some(elem.automation_id.clone()),
-            None,
-            None,
-        );
-        root.find_first(TreeScope::Descendants, &cond.into())
+        let cond = automation
+            .create_property_condition(
+                UIProperty::AutomationId,
+                Variant::from(elem.automation_id.as_str()),
+                None,
+            )
+            .map_err(|e| format!("create_property_condition: {e}"))?;
+        root.find_first(TreeScope::Descendants, &cond)
             .map_err(|e| format!("find_first by AutomationId: {e}"))?
-            .ok_or_else(|| format!("AutomationId {:?} disappeared between list and invoke", elem.automation_id))?
     } else {
         let needle = elem.name.to_ascii_lowercase();
-        let cond = UIPropertyCondition::new(UIProperty::Name, None, None, None);
+        let cond = automation
+            .create_true_condition()
+            .map_err(|e| format!("create_true_condition: {e}"))?;
         let candidates = root
             .find_all(TreeScope::Descendants, &cond)
             .map_err(|e| format!("find_all Name: {e}"))?;
-        let mut found = None;
-        for c in &candidates {
+        let mut found: Option<uiautomation::UIElement> = None;
+        for c in candidates {
             let n = c.get_name().unwrap_or_default();
             if n.to_ascii_lowercase() == needle {
                 found = Some(c);
@@ -476,55 +519,83 @@ fn uiautomation_invoke(elem: &UiElement) -> Result<(), String> {
         }
         found.ok_or_else(|| format!("Name {:?} disappeared between list and invoke", elem.name))?
     };
-    handle.invoke().map_err(|e| format!("invoke: {e}"))
+    // uiautomation 0.25 moves invoke/set_value/get_value onto control
+    // patterns (UIInvokePattern / UIValuePattern) behind the
+    // "pattern" feature — the element itself no longer exposes them.
+    use uiautomation::patterns::UIInvokePattern;
+    let pattern: UIInvokePattern = handle
+        .get_pattern()
+        .map_err(|e| format!("get InvokePattern: {e}"))?;
+    pattern.invoke().map_err(|e| format!("invoke: {e}"))
 }
 
 #[cfg(target_os = "windows")]
 fn uiautomation_read_text(elem: &UiElement) -> Result<String, String> {
-    use uiautomation::{UIAutomation, UIProperty};
-    use uiautomation::types::{TreeScope, UIPropertyCondition};
-    let automation = uiautomation::UIAutomation::new(true)
+    use uiautomation::UIAutomation;
+    use uiautomation::types::UIProperty;
+    use uiautomation::types::TreeScope;
+    use uiautomation::variants::Variant;
+    let automation = uiautomation::UIAutomation::new()
         .map_err(|e| format!("UIAutomation::new: {e}"))?;
     let root = automation.get_root_element().map_err(|e| format!("root: {e}"))?;
-    let cond = if !elem.automation_id.is_empty() {
-        UIPropertyCondition::new(UIProperty::AutomationId, Some(elem.automation_id.clone()), None, None)
+    let value: Variant = if !elem.automation_id.is_empty() {
+        Variant::from(elem.automation_id.as_str())
     } else {
-        let needle = elem.name.to_ascii_lowercase();
-        UIPropertyCondition::new(UIProperty::Name, None, None, None)
+        // Exact-match on Name; the caller passes the full name from
+        // the descriptor.
+        Variant::from(elem.name.as_str())
     };
+    let cond = automation
+        .create_property_condition(
+            if !elem.automation_id.is_empty() {
+                UIProperty::AutomationId
+            } else {
+                UIProperty::Name
+            },
+            value,
+            None,
+        )
+        .map_err(|e| format!("create_property_condition: {e}"))?;
     let handle = root
-        .find_first(TreeScope::Descendants, &cond.into())
-        .map_err(|e| format!("find_first: {e}"))?
-        .ok_or_else(|| "element disappeared between list and read".to_string())?;
+        .find_first(TreeScope::Descendants, &cond)
+        .map_err(|e| format!("find_first: {e}"))?;
     // Prefer Name; fall back to Value for edit controls.
     let name = handle.get_name().map_err(|e| format!("get_name: {e}"))?;
     if !name.is_empty() {
         return Ok(name);
     }
-    let value = handle.get_value().map_err(|e| format!("get_value: {e}"))?;
+    use uiautomation::patterns::UIValuePattern;
+    let pattern: UIValuePattern = handle
+        .get_pattern()
+        .map_err(|e| format!("get ValuePattern: {e}"))?;
+    let value = pattern.get_value().map_err(|e| format!("get_value: {e}"))?;
     Ok(value)
 }
 
 #[cfg(target_os = "windows")]
 fn uiautomation_set_value(elem: &UiElement, value: &str) -> Result<(), String> {
-    use uiautomation::{UIAutomation, UIProperty};
-    use uiautomation::types::{TreeScope, UIPropertyCondition};
-    let automation = uiautomation::UIAutomation::new(true)
+    use uiautomation::UIAutomation;
+    use uiautomation::types::UIProperty;
+    use uiautomation::types::TreeScope;
+    use uiautomation::variants::Variant;
+    let automation = uiautomation::UIAutomation::new()
         .map_err(|e| format!("UIAutomation::new: {e}"))?;
     let root = automation.get_root_element().map_err(|e| format!("root: {e}"))?;
-    let cond = UIPropertyCondition::new(
-        UIProperty::AutomationId,
-        Some(elem.automation_id.clone()),
-        None,
-        None,
-    );
+    let cond = automation
+        .create_property_condition(
+            UIProperty::AutomationId,
+            Variant::from(elem.automation_id.as_str()),
+            None,
+        )
+        .map_err(|e| format!("create_property_condition: {e}"))?;
     let handle = root
-        .find_first(TreeScope::Descendants, &cond.into())
-        .map_err(|e| format!("find_first by AutomationId: {e}"))?
-        .ok_or_else(|| {
-            format!("element with AutomationId {:?} disappeared", elem.automation_id)
-        })?;
-    handle
+        .find_first(TreeScope::Descendants, &cond)
+        .map_err(|e| format!("find_first by AutomationId: {e}"))?;
+    use uiautomation::patterns::UIValuePattern;
+    let pattern: UIValuePattern = handle
+        .get_pattern()
+        .map_err(|e| format!("get ValuePattern: {e}"))?;
+    pattern
         .set_value(value)
         .map_err(|e| format!("set_value (control may not implement ValuePattern): {e}"))
 }
@@ -532,13 +603,13 @@ fn uiautomation_set_value(elem: &UiElement, value: &str) -> Result<(), String> {
 // -- Tauri commands ----------------------------------------------------
 
 #[tauri::command]
-async fn cu_screenshot(state: State<'_, super::AppState>) -> Result<Screenshot, String> {
+pub async fn cu_screenshot(state: State<'_, AppState>) -> Result<Screenshot, String> {
     state.computer_use.screenshot().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-async fn cu_mouse_click(
-    state: State<'_, super::AppState>,
+pub async fn cu_mouse_click(
+    state: State<'_, AppState>,
     x: i32,
     y: i32,
     button: MouseButton,
@@ -550,8 +621,8 @@ async fn cu_mouse_click(
 }
 
 #[tauri::command]
-async fn cu_mouse_move(
-    state: State<'_, super::AppState>,
+pub async fn cu_mouse_move(
+    state: State<'_, AppState>,
     x: i32,
     y: i32,
 ) -> Result<(), String> {
@@ -559,8 +630,8 @@ async fn cu_mouse_move(
 }
 
 #[tauri::command]
-async fn cu_mouse_scroll(
-    state: State<'_, super::AppState>,
+pub async fn cu_mouse_scroll(
+    state: State<'_, AppState>,
     dx: i32,
     dy: i32,
 ) -> Result<(), String> {
@@ -568,36 +639,41 @@ async fn cu_mouse_scroll(
 }
 
 #[tauri::command]
-async fn cu_keyboard_type(
-    state: State<'_, super::AppState>,
+pub async fn cu_keyboard_type(
+    state: State<'_, AppState>,
     text: String,
 ) -> Result<(), String> {
     state.computer_use.keyboard_type(&text).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-async fn cu_keyboard_combo(
-    state: State<'_, super::AppState>,
+pub async fn cu_keyboard_combo(
+    state: State<'_, AppState>,
     combo: KeyCombo,
 ) -> Result<(), String> {
     state.computer_use.keyboard_combo(combo).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-async fn cu_set_enabled(
-    state: State<'_, super::AppState>,
+pub async fn cu_set_enabled(
+    state: State<'_, AppState>,
     on: bool,
 ) -> Result<(), String> {
     state.computer_use.set_enabled(on);
     Ok(())
 }
 
+#[tauri::command]
+pub async fn cu_get_enabled(state: State<'_, AppState>) -> Result<bool, String> {
+    Ok(state.computer_use.is_enabled())
+}
+
 // -- Windows-only UI Automation Tauri surface ---------------------------
 
 #[cfg(target_os = "windows")]
 #[tauri::command]
-async fn cu_list_ui_elements(
-    state: State<'_, super::AppState>,
+pub async fn cu_list_ui_elements(
+    state: State<'_, AppState>,
 ) -> Result<Vec<UiElement>, String> {
     state
         .computer_use
@@ -607,8 +683,8 @@ async fn cu_list_ui_elements(
 
 #[cfg(target_os = "windows")]
 #[tauri::command]
-async fn cu_click_ui_by_name(
-    state: State<'_, super::AppState>,
+pub async fn cu_click_ui_by_name(
+    state: State<'_, AppState>,
     name: String,
 ) -> Result<(), String> {
     state
@@ -619,8 +695,8 @@ async fn cu_click_ui_by_name(
 
 #[cfg(target_os = "windows")]
 #[tauri::command]
-async fn cu_read_ui_text(
-    state: State<'_, super::AppState>,
+pub async fn cu_read_ui_text(
+    state: State<'_, AppState>,
     name: String,
 ) -> Result<String, String> {
     state
@@ -631,8 +707,8 @@ async fn cu_read_ui_text(
 
 #[cfg(target_os = "windows")]
 #[tauri::command]
-async fn cu_set_ui_value(
-    state: State<'_, super::AppState>,
+pub async fn cu_set_ui_value(
+    state: State<'_, AppState>,
     name: String,
     value: String,
 ) -> Result<(), String> {
