@@ -202,18 +202,26 @@ export function UniverSheet(props: UniverSheetProps) {
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-2 border-b border-border bg-card px-3 py-2 text-sm">
         <span className="font-mono">{taskId}</span>
-        {status === 'loading' && <span>loading…</span>}
-        {status === 'error' && (
-          <span className="text-destructive">error: {errorMsg}</span>
+        {status === 'loading' && (
+          <span>{t('conversation.documentEditor.loading')}</span>
         )}
-        {status === 'ready' && <span className="text-muted-foreground">ready · auto-save 2s</span>}
+        {status === 'error' && (
+          <span className="text-destructive">
+            {t('conversation.documentEditorError.loadFailed')}: {errorMsg}
+          </span>
+        )}
+        {status === 'ready' && (
+          <span className="text-muted-foreground">
+            {t('conversation.documentEditor.ready')}
+          </span>
+        )}
         <span className="flex-1" />
         {onAbort && (
           <button
             className="rounded-md border border-border px-2 py-1 text-xs hover:bg-muted"
             onClick={onAbort}
           >
-            Back
+            {t('conversation.documentEditor.back')}
           </button>
         )}
         {feishuEnabled && status === 'ready' && (
@@ -221,7 +229,7 @@ export function UniverSheet(props: UniverSheetProps) {
             className="rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:opacity-90"
             onClick={onPublish}
           >
-            Publish to Feishu
+            {t('conversation.documentEditor.publishToFeishu')}
           </button>
         )}
       </div>
