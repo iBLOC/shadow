@@ -19,7 +19,7 @@ Today the four functional "lobes" of the shadow platform live in three different
 | **颞叶 (Temporal)** — user dialog surface (chat, SSE render) | `shadow-desktop/src/pages/ConversationPage.tsx`, `components/chat/*` | `iBLOC/temporal-lobe` | `temporal-lobe` |
 | **枕叶 (Occipital)** — visual QA + screenshot pipeline | `telencephalon/src/visual_qa/*`, `cortex/src/lobes/visual_qa.rs::*VisualQALobe` | `iBLOC/occipital-lobe` | `occipital-lobe` |
 | **顶叶 (Parietal)** — workflow authoring (drag-drop nodes) | (not yet implemented; only docs reference it) | `iBLOC/parietal-lobe` | `parietal-lobe` |
-| **前额叶 (Prefrontal)** — intent classification + agent dispatch | `iBLOC/prefrontal` (separate crate, port 8082) + `telencephalon/src/lobes/prefrontal.rs::*TemporalLobe dispatcher` | `iBLOC/prefrontal-lobe` | `prefrontal-lobe` |
+| **前额叶 (Prefrontal)** — intent classification + agent dispatch | `iBLOC/prefrontal` (separate crate, port 8082) + `telencephalon/src/lobes/prefrontal.rs` dispatcher | **`iBLOC/prefrontal`（已有仓，即前额叶 GitHub home — 不新建不改名）** | `prefrontal` |
 
 Splitting these into independent repos unlocks per-lobe ownership boundaries: each team can ship on its own cadence, choose its own transport (A2A / ACP / direct), and accept / decline PRs independently. It also clarifies the boundary the audit flagged as missing (R-12/R-13 — 顶叶 workflow editor entry).
 
@@ -105,16 +105,16 @@ The split is **not** mechanical code movement — three of the four lobes need t
 5. Build `apps/frontend/`: workflow editor + run-trace viewer.
 6. R-12 fix done: shadow-desktop adds a "Workflows" / "Tasks" nav entry that opens a WorkflowEditorPage hosted by an occipital-lobe WebViewWindow.
 
-### 1.4 前额叶 (Prefrontal) → `iBLOC/prefrontal-lobe`
+### 1.4 前额叶 (Prefrontal) → `iBLOC/prefrontal`（已有仓即 home）
 
 **Code locations today**:
 - Standalone `iBLOC/prefrontal` repo at port 8082 (Rust, OpenAI / Anthropic compatible)
 - `telencephalon/src/lobes/prefrontal.rs::*prefrontal dispatcher + TemporalLobe`
 
-**This one is closest to "ready"**: `prefrontal` is already a separate crate. The split is mostly *naming* — promote it from "the prefrontal project" to "the prefrontal-lobe project" and adjust repo metadata.
+**定论（2026-09-25）**：`iBLOC/prefrontal` 就是前额叶的 GitHub home — 不新建仓、不改名。用户确认 GitHub 已有对应项目；本地冗余的 prefrontal-lobe 骨架目录已删除。
 
 **Proposal**:
-- Rename `iBLOC/prefrontal` → `iBLOC/prefrontal-lobe` (or keep as-is and document the naming convention; renaming repos on GitHub preserves history but breaks old links).
+- ~~Rename~~ — 不改名。GitHub 上 `iBLOC/prefrontal` 即前额叶 home（commit f2d0015 已推送）。
 - In `telencephalon/src/lobes/prefrontal.rs`: the `TemporalLobe` struct + dispatcher stays. It's the in-process lobe part that talks to prefrontal-lobe over A2A. The dispatcher lives in telencephalon because it has to know how to route incoming tasks to specific lobes — that's an orchestration concern, not a prefrontal-lobe concern.
 
 **What does NOT move**: any of the cortex/lobes/prefrontal.rs code. It's already correctly placed in telencephalon.
@@ -134,7 +134,7 @@ When the splits happen, the order should be:
 
 1. **parietal-lobe** (greenfield, no code to move)
 2. **occipital-lobe** (Rust crate extraction from telencephalon — smallest blast radius)
-3. **prefrontal-lobe** (naming + doc refresh only)
+3. **前额叶**：已完成 — GitHub home 即 `iBLOC/prefrontal`，无需动作
 4. **temporal-lobe** (React extraction from shadow-desktop — biggest because it has the most files + the chat surface depends on Tauri APIs that need re-wiring)
 
 The order minimizes risk: greenfield first, then small Rust moves, then naming, then the big React move.
