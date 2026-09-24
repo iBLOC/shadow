@@ -12,6 +12,7 @@ import {
   Activity,
   Eye,
   MousePointer,
+  CircleDot,
   type LucideIcon,
 } from 'lucide-react';
 import { useResonanceStore } from '../stores/resonanceStore';
@@ -32,6 +33,7 @@ const navItems: NavItem[] = [
   { path: '/trace', icon: Activity, labelKey: 'nav.trace' },
   { path: '/previews', icon: Eye, labelKey: 'nav.previews' },
   { path: '/computer-use', icon: MousePointer, labelKey: 'nav.computerUse' },
+  { path: '/recording', icon: CircleDot, labelKey: 'nav.recording' },
   { path: '/mcp', icon: Wrench, labelKey: 'nav.mcp' },
   { path: '/skills', icon: Brain, labelKey: 'nav.skills' },
   { path: '/memory', icon: Database, labelKey: 'nav.memory' },

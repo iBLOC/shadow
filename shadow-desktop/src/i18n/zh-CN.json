@@ -1,28 +1,10 @@
 {
   "voice": {
-    "title": "语音对话",
-    "subtitle": "通过 WebRTC 与 Agent 进行实时语音对话。",
-    "start": "开始语音会话",
-    "stop": "结束语音会话",
-    "hint_idle": "点击下方按钮开始实时语音对话。",
-    "hint_active": "自然说话，Agent 会实时回应。",
-    "transcript": "转写",
-    "startHint": "点击电话按钮开始。",
-    "speakingHint": "正在聆听...",
-    "mic": "麦克风已开启",
-    "opus": "Opus 编码",
-    "turns": "轮次",
-    "tip_native": "Tauri 桌面体验最佳（始终可访问麦克风）。",
-    "tip_https": "浏览器需要 HTTPS 或 localhost 才能访问麦克风。",
-    "status": {
-      "idle": "就绪",
-      "connecting": "连接中",
-      "listening": "聆听中",
-      "speaking": "说话中",
-      "processing": "处理中",
-      "bargeIn": "用户打断",
-      "error": "错误"
-    }
+    "startRecording": "开始录音",
+    "stopRecording": "停止录音",
+    "noSpeechDetected": "未检测到语音，请重试",
+    "processing": "处理中...",
+    "error": "语音处理失败"
   },
   "common": {
     "add": "添加",
@@ -46,7 +28,7 @@
       "installTitle": "安装 Shadow 应用",
       "installDesc": "添加到桌面，一键启动，享受原生体验",
       "install": "安装"
-},
+    },
     "migrate": {
       "title": "迁移对话",
       "description": "将当前对话移动到局域网内的另一台 Shadow 设备继续。",
@@ -112,6 +94,7 @@
     "mcp": "MCP",
     "previews": "预览",
     "computerUse": "Computer Use",
+    "recording": "记录模式",
     "skills": "技能",
     "memory": "记忆",
     "services": "服务",
@@ -246,6 +229,25 @@
       "noteWindows": "Windows 主机走完整的 element-based 路径（UIA）—— click_ui_by_name / read_ui_text 等，见 lib.rs 里 4 个 Windows-only cu_* 命令。",
       "noteOther": "macOS / Linux 走坐标点击 + 键盘（enigo）。坐标在窗口 resize / 移动时会失效；优先用 Windows 路径。",
       "noteMcp": "agent 驱动的使用，cu_* 原语由后续改造包装为 MCP 工具。MCP 包装沿用 feishu_mcp 的模式 —— 与 diencephalon 同一 substrate。"
+    },
+    "recording": {
+      "modeAudio": "录音",
+      "modeVideo": "录像",
+      "title": "记录模式",
+      "description": "录制音频（VAD + 说话人区分 + ASR）或视频（额外 mage-vl 视觉理解）。事件与总结存储于海马体。",
+      "start": "开始记录",
+      "starting": "正在开始…",
+      "stop": "停止",
+      "stopping": "正在停止…",
+      "idle": "未在记录",
+      "eventCount": "已捕获 {{count}} 个事件",
+      "eventsTitle": "事件流",
+      "reportTitle": "总结报告",
+      "reportMeta": "{{count}} 个事件 · 参与人：{{persons}}",
+      "historyTitle": "历史会话",
+      "historyEmpty": "暂无记录。",
+      "viewReport": "查看报告",
+      "generatingReport": "正在生成总结报告…"
     }
   },
   "lobes": {
@@ -618,7 +620,7 @@
       "models": "模型管理",
       "video": "视频源",
       "subsystem": "子系统",
-    "integrations": "集成",
+      "integrations": "集成",
       "ui": "界面",
       "data": "数据",
       "system": "系统"
@@ -991,17 +993,6 @@
     "maxTokens": "单次回复最大 token",
     "highTempWarn": "高温度（>1.5）会得到更有创意但一致性下降的输出。"
   },
-  "modelDownload": {
-    "title": "模型下载",
-    "subtitle": "下载 GGUF 模型用于 candle-vllm 本地推理。存储在 IndexedDB。",
-    "recommended": "推荐",
-    "downloaded": "已下载",
-    "download": "下载",
-    "cancel": "取消",
-    "remove": "移除",
-    "ready": "就绪",
-    "specs": "{{quant}} · ctx {{ctx}} · {{size}}"
-  },
   "flows": {
     "title": "思维定式",
     "refresh": "刷新",
@@ -1033,13 +1024,6 @@
     "download": "下载更新",
     "install": "安装更新",
     "updated": "更新安装成功"
-  },
-  "voice": {
-    "startRecording": "开始录音",
-    "stopRecording": "停止录音",
-    "noSpeechDetected": "未检测到语音，请重试",
-    "processing": "处理中...",
-    "error": "语音处理失败"
   },
   "videoSources": {
     "title": "视频源",

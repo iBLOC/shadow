@@ -1,28 +1,10 @@
 {
   "voice": {
-    "title": "Voice Conversation",
-    "subtitle": "Real-time voice chat with the agent via WebRTC.",
-    "start": "Start Voice Session",
-    "stop": "End Voice Session",
-    "hint_idle": "Press the button below to begin a real-time voice conversation.",
-    "hint_active": "Speak naturally. The agent responds in real time.",
-    "transcript": "Transcript",
-    "startHint": "Tap the phone button to begin.",
-    "speakingHint": "Listening...",
-    "mic": "Microphone active",
-    "opus": "Opus codec",
-    "turns": "Turns",
-    "tip_native": "Best experience in Tauri desktop (microphone always available).",
-    "tip_https": "Web browser requires HTTPS or localhost for microphone access.",
-    "status": {
-      "idle": "Ready",
-      "connecting": "Connecting",
-      "listening": "Listening",
-      "speaking": "Speaking",
-      "processing": "Processing",
-      "bargeIn": "Barge-in",
-      "error": "Error"
-    }
+    "startRecording": "Start Recording",
+    "stopRecording": "Stop Recording",
+    "noSpeechDetected": "No speech detected, please try again",
+    "processing": "Processing...",
+    "error": "Voice processing failed"
   },
   "common": {
     "add": "Add",
@@ -51,7 +33,7 @@
       "installDesc": "Add to home screen for one-tap launch and native feel",
       "install": "Install"
     },
-"migrate": {
+    "migrate": {
       "title": "Move session",
       "description": "Hand off this conversation to another Shadow node on the LAN and pick it up there.",
       "selectPeer": "Pick a target device",
@@ -112,6 +94,7 @@
     "mcp": "MCP",
     "previews": "Previews",
     "computerUse": "Computer Use",
+    "recording": "Recording",
     "skills": "Skills",
     "memory": "Memory",
     "services": "Services",
@@ -196,10 +179,6 @@
       "loadFailed": "failed to load workbook",
       "publishFailed": "publish failed: {{message}}"
     },
-      "title": "Published to Feishu",
-      "open": "Open",
-      "messageContent": "📤 Published “{{title}}” to Feishu — open the link below."
-    },
     "preview": {
       "openInWindow": "Preview",
       "dialogTitle": "Open preview for {{taskId}}",
@@ -250,6 +229,25 @@
       "noteWindows": "Windows hosts get the full element-based path via UIA — click_ui_by_name, read_ui_text, etc. — see the 4 Windows-only cu_* commands in lib.rs.",
       "noteOther": "macOS / Linux use coordinate-based mouse + keyboard via enigo. Coordinates break when windows resize or move; prefer the Windows path when available.",
       "noteMcp": "For agent-driven use, the cu_* primitives are wrapped as MCP tools by a future change. The MCP wrapper lives in feishu_mcp's pattern — same substrate as diencephalon."
+    },
+    "recording": {
+      "modeAudio": "Audio",
+      "modeVideo": "Video",
+      "title": "Recording Mode",
+      "description": "Record audio (VAD + speaker ID + ASR) or video (adds mage-vl visual understanding). Events and summaries are stored in hippocampus.",
+      "start": "Start recording",
+      "starting": "Starting…",
+      "stop": "Stop",
+      "stopping": "Stopping…",
+      "idle": "Not recording",
+      "eventCount": "{{count}} events captured",
+      "eventsTitle": "Events",
+      "reportTitle": "Summary report",
+      "reportMeta": "{{count}} events · participants: {{persons}}",
+      "historyTitle": "Past sessions",
+      "historyEmpty": "No recordings yet.",
+      "viewReport": "View report",
+      "generatingReport": "Generating summary report…"
     }
   },
   "lobes": {
@@ -1020,13 +1018,6 @@
     "download": "Download Update",
     "install": "Install Update",
     "updated": "Update installed successfully"
-  },
-  "voice": {
-    "startRecording": "Start Recording",
-    "stopRecording": "Stop Recording",
-    "noSpeechDetected": "No speech detected, please try again",
-    "processing": "Processing...",
-    "error": "Voice processing failed"
   },
   "videoSources": {
     "title": "Video Sources",

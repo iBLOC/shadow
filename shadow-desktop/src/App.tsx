@@ -28,6 +28,7 @@ import { TracePage } from './pages/TracePage';
 import { DocumentPage } from './pages/DocumentPage';
 import { PreviewsPage } from './pages/PreviewsPage';
 import { ComputerUsePage } from './pages/ComputerUsePage';
+import { RecordingPage } from './pages/RecordingPage';
 import './App.css';
 
 function App() {
@@ -58,6 +59,7 @@ function App() {
           <Route path="document/:taskId" element={<DocumentPage />} />
           <Route path="previews" element={<PreviewsPage />} />
           <Route path="computer-use" element={<ComputerUsePage />} />
+          <Route path="recording" element={<RecordingPage />} />
           <Route path="cortex-status" element={<CortexStatusPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="discovery" element={<DiscoveryPage />} />
