@@ -284,8 +284,8 @@ export function WorkflowStudioPage() {
                 ([k]) => !['id', 'kind'].includes(k),
               ),
             ) as Record<string, string>,
-          ),
-        })
+          }),
+        )
         const importedEdges: EditorEdge[] = (data.edges ?? []).map((e: { from: string; to: string }) => ({
           from: e.from,
           to: e.to,

@@ -26,8 +26,8 @@ import { useEffect, useRef, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { createUniver, FUniver, Univer } from '@univerjs/presets'
 import { LocaleType, mergeLocales } from '@univerjs/core'
-import { enUS } from '@univerjs/presets/preset-sheets-core/locales/en-US'
-import { zhCN } from '@univerjs/sheets-zh'
+import { enUS } from '@univerjs/presets/lib/preset-sheets-core/locales/en-US'
+import { zhCN } from '@univerjs/presets/lib/preset-sheets-core/locales/zh-CN'
 
 export interface UniverSheetProps {
   taskId: string
