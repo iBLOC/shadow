@@ -39,6 +39,14 @@
 
 ## 2. 架构
 
+### 2.0 脑区分工（约束）
+
+> **音频任务归颞叶执行，视觉任务归枕叶执行。**
+>
+> 与脑解剖一致：颞叶负责听觉处理（听），枕叶负责视觉处理（看）。
+> RecordingManager 只做采集与会话编排，不做理解；理解逻辑按模态
+> 分属两个 lobe，通过 ACP/进程内调用下发任务。
+
 ```
 ┌─────────────────────── shadow-desktop (Tauri) ───────────────────────┐
 │                                                                      │
@@ -46,21 +54,25 @@
 │        │                                                             │
 │        ▼                                                             │
 │  [RecordingManager] (Rust, src-tauri/src/recording/)                 │
-│    ├─ AudioPipeline (两种模式都有)                                    │
-│    │    1. 采集 (cpal / wasapi，16kHz mono PCM)                      │
-│    │    2. VAD 切分 (neuron VAD，或 silero-rs)                       │
-│    │    3. 声纹提取 (speaker embedding → hippocampus 声纹匹配)        │
-│    │    4. ASR (neuron whisper/paraformer → 文本)                    │
+│    │   仅负责：采集调度 + 会话生命周期 + 相对时间戳 + 事件收集存储      │
+│    │   不做理解 — 理解按模态下发：                                    │
+│    │                                                                 │
+│    ├──(音频任务)──► 【颞叶 Temporal lobe】(音频执行方)                │
+│    │    1. VAD 切分 (neuron VAD，或 silero-rs)                       │
+│    │    2. 声纹提取 (speaker embedding → hippocampus 声纹匹配)        │
+│    │    3. ASR (neuron whisper/paraformer → 文本)                    │
 │    │    └─ 产出: AudioEvent { start_rel_ms, end_rel_ms, text,        │
 │    │              speaker_id, confidence }                           │
 │    │                                                                 │
-│    └─ VideoPipeline (仅录像模式，与 AudioPipeline 并行)               │
-│         1. 采集 (tauri webview screen capture / UVC camera)          │
-│         2. 关键帧抽取 (1 fps 或场景切换检测)                          │
-│         3. mage-vl 理解 (枕叶 → neuron vision → 文本描述)             │
-│         4. 人脸检测+识别 (帧内 → hippocampus 人脸匹配)                │
+│    └──(视觉任务)──► 【枕叶 Occipital lobe】(视觉执行方)               │
+│         1. 关键帧抽取 (1 fps 或场景切换检测)                          │
+│         2. mage-vl 理解 (微软开源 VLM → 文本描述)                     │
+│         3. 人脸检测+识别 (帧内 → hippocampus 人脸匹配)                │
 │         └─ 产出: VideoEvent { start_rel_ms, end_rel_ms,              │
 │               description, person_ids[] }                            │
+│                                                                      │
+│  (采集源：音频 cpal/wasapi 16kHz mono PCM；视频 tauri screen          │
+│   capture / UVC camera — 由 RecordingManager 采集后按模态下发)        │
 │                                                                      │
 │  [EventStore]                                                        │
 │    └─ RecordingEvent 表 (单一表，音视频事件同构):                     │
@@ -179,15 +191,20 @@ VAD 切出语音段
       └─ top1 ≤ 0.70 → 新说话人 → 创建新 Person + 首条声纹
 ```
 
-## 5. 录像模式的视频理解 (枕叶 mage-vl)
+## 5. 录像模式的视频理解 (枕叶执行)
+
+枕叶是视觉任务的执行方（§2.0 约束）。录像模式下 RecordingManager
+把视频帧按模态下发给枕叶：
 
 - 帧抽取：1 fps（可配置），或 scene-change 检测自适应。
 - 每帧（或每 N 帧关键帧）→ mage-vl (微软开源 VLM) → 文本描述。
 - 帧内人脸 → hippocampus 人脸库匹配 → person_ids。
 - 相邻帧描述去重（时间窗合并：同一场景连续帧 → 一个 VideoEvent，
   start/end 取窗口边界）。
-- 音频通道独立运行（同录音模式），与视频事件共用 RecordingEvent 表，
-  `event_type` 区分。
+- 音频通道由颞叶独立并行执行（同录音模式），两类事件共用
+  RecordingEvent 表，`event_type` 区分。
+
+对应地，录音模式下的 VAD/声纹/ASR 全部由颞叶执行（§2.0）。
 
 ## 6. Agent 总结 (telencephalon)
 
