@@ -84,6 +84,17 @@ async-trait = "0.1"
 # directly so the import resolves.
 synapse = { path = "../../../synapse" }
 
+# Disable wasmtime's `profiling` feature: it pulls ittapi-sys, whose
+# runtime needs libittnotify.dll next to the executable. The DLL isn't
+# copied into target/debug/deps for `cargo test`, so the test binary
+# exits with STATUS_ENTRYPOINT_NOT_FOUND (0xc0000139) at load. Profiling
+# is VTune-only — nothing in the shadow stack uses it.
+wasmtime = { version = "20", default-features = false, features = [
+    "cranelift",
+    "runtime",
+    "wat",
+] }
+
 # Encephalon (top-level wrapper crate) embeds both telencephalon and
 # diencephalon. shadow-desktop depends on it directly so we can
 # construct FeishuMcp with a real diencephalon::Thalamus + open-lark

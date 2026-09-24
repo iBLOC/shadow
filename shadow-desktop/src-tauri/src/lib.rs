@@ -10,6 +10,7 @@ mod result_manager;
 mod feishu_mcp;
 mod computer_use;
 mod worktree_manager;
+mod recording;
 mod logger;
 
 use config_manager::{AppConfig, DatabaseConfig, ProviderConfig, SecureAuth};
@@ -43,6 +44,7 @@ struct AppState {
     result_manager: Arc<ResultMgr>,
     computer_use: Arc<ComputerUse>,
     feishu_mcp: Arc<FeishuMcp>,
+    recording_store: Arc<recording::RecordingStore>,
     workflow_state: Arc<tokio::sync::Mutex<WorkflowState>>,
 }
 
@@ -176,6 +178,7 @@ pub fn run() {
             };
             FeishuMcp::new(ops)
         }),
+        recording_store: Arc::new(recording::RecordingStore::new()),
         workflow_state: Arc::new(tokio::sync::Mutex::new(WorkflowState {
             approved_tasks: std::collections::HashMap::new(),
             rejected_tasks: std::collections::HashMap::new(),
@@ -277,6 +280,12 @@ pub fn run() {
             result_init,
             result_commit,
             result_history,
+            recording_start,
+            recording_stop,
+            recording_status,
+            recording_events,
+            recording_list,
+            recording_report,
             document_load,
             document_save,
             document_publish_feishu,
@@ -911,6 +920,92 @@ async fn result_history(
         .result_manager
         .history(&task_id, limit.unwrap_or(50))
         .map_err(|e| e.to_string())
+}
+
+// -- 记录模式 (Recording Mode, spec 2026-09-24-recording-mode-design) ----
+
+#[tauri::command]
+async fn recording_start(
+    state: State<'_, AppState>,
+    mode: recording::RecordingMode,
+) -> Result<recording::RecordingSession, String> {
+    let session = state.recording_store.start_session(mode);
+    Ok(session)
+}
+
+#[tauri::command]
+async fn recording_stop(
+    state: State<'_, AppState>,
+    session_id: String,
+) -> Result<recording::RecordingSession, String> {
+    state
+        .recording_store
+        .stop_session(&session_id)
+        .ok_or_else(|| format!("unknown session {session_id}"))
+}
+
+#[tauri::command]
+async fn recording_status(
+    state: State<'_, AppState>,
+    session_id: String,
+) -> Result<serde_json::Value, String> {
+    let session = state
+        .recording_store
+        .get_session(&session_id)
+        .ok_or_else(|| format!("unknown session {session_id}"))?;
+    let count = state.recording_store.event_count(&session_id);
+    let elapsed = chrono::Utc::now().timestamp_millis() - session.wallclock_start_ms;
+    Ok(serde_json::json!({
+        "session": session,
+        "elapsed_ms": elapsed,
+        "event_count": count,
+    }))
+}
+
+#[tauri::command]
+async fn recording_events(
+    state: State<'_, AppState>,
+    session_id: String,
+) -> Result<Vec<recording::RecordingEvent>, String> {
+    Ok(state.recording_store.events(&session_id))
+}
+
+#[tauri::command]
+async fn recording_list(
+    state: State<'_, AppState>,
+) -> Result<Vec<recording::RecordingSession>, String> {
+    Ok(state.recording_store.list_sessions())
+}
+
+#[tauri::command]
+async fn recording_report(
+    state: State<'_, AppState>,
+    session_id: String,
+) -> Result<recording::SummaryReport, String> {
+    // 会话结束后由 stop 隐式触发总结（v1 用拼接 stub；R4 换 LLM）。
+    if let Some(existing) = state.recording_store.get_summary(&session_id) {
+        return Ok(existing);
+    }
+    state
+        .recording_store
+        .summarize(&session_id, |events| {
+            // v1 stub: 按时间拼接事件文本；person_ids 去重收集。
+            let mut text = String::from("记录总结：\n");
+            let mut ids = Vec::new();
+            for e in events {
+                text.push_str(&format!(
+                    "- [{}s–{}s] {}\n",
+                    e.start_rel_ms / 1000,
+                    e.end_rel_ms / 1000,
+                    e.content
+                ));
+                ids.extend(e.person_ids.iter().cloned());
+            }
+            ids.sort();
+            ids.dedup();
+            (text, ids)
+        })
+        .map_err(|e| e)
 }
 
 // -- WS-05 / DOC-01..DOC-05 document-use surface -------------------------
