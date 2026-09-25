@@ -126,6 +126,66 @@ impl RecordingStore {
         Some(session.clone())
     }
 
+    /// Generate a synthetic event for active sessions (dev/demo).
+    /// Real audio pipeline (neuron VAD→ASR) replaces this in production.
+    pub fn tick_synthetic_events(&self, session_id: &str) {
+        let sessions = self.sessions.lock().unwrap();
+        let session = match sessions.get(session_id) {
+            Some(s) if s.ended_at.is_none() => s.clone(),
+            _ => return,
+        };
+        drop(sessions);
+
+        let elapsed = chrono::Utc::now().timestamp_millis() - session.wallclock_start_ms;
+
+        // Snapshot the current state, then drop the lock before calling
+        // add_event (which acquires its own lock).
+        let (list_len, last_end) = {
+            let events = self.events.lock().unwrap();
+            let list = match events.get(session_id) {
+                Some(l) => l.clone(),
+                None => {
+                    // First event — add a session start marker.
+                    let _ = self.add_event(
+                        session_id,
+                        RecordingEventType::Audio,
+                        elapsed,
+                        elapsed + 200,
+                        "Recording session started — listening…".into(),
+                        vec![],
+                        1.0,
+                    );
+                    return;
+                }
+            };
+            (list.len(), list.last().map(|e| e.end_rel_ms).unwrap_or(0))
+        };
+        let gap = elapsed - last_end;
+        if gap < 3000 {
+            return; // Less than 3s since last event — don't spam.
+        }
+
+        // Generate a synthetic event with rotating content.
+        let pool: [(&str, &str, f32); 5] = [
+            ("audio", "检测到人声活动", 0.92),
+            ("audio", "环境音：背景噪音正常", 0.71),
+            ("audio", "语音段：说话内容待转写", 0.88),
+            ("video", "画面：人在工位上", 0.90),
+            ("audio", "检测到键盘敲击声", 0.85),
+        ];
+        let idx = list_len % pool.len();
+        let (etype, content, conf) = pool[idx];
+        let _ = self.add_event(
+            session_id,
+            if etype == "audio" { RecordingEventType::Audio } else { RecordingEventType::Video },
+            elapsed,
+            elapsed + 500,
+            content.to_string(),
+            vec![],
+            conf,
+        );
+    }
+
     pub fn get_session(&self, session_id: &str) -> Option<RecordingSession> {
         self.sessions.lock().unwrap().get(session_id).cloned()
     }

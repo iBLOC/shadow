@@ -967,6 +967,10 @@ async fn recording_events(
     state: State<'_, AppState>,
     session_id: String,
 ) -> Result<Vec<recording::RecordingEvent>, String> {
+    // Generate a synthetic event if enough time has passed since the
+    // last one — keeps the event stream alive for dev/demo (real
+    // audio pipeline replaces this in production).
+    state.recording_store.tick_synthetic_events(&session_id);
     Ok(state.recording_store.events(&session_id))
 }
 
