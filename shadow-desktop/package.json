@@ -12,6 +12,8 @@
     "preview:web": "vite preview --config vite.config.web.ts --port 4173 --host 0.0.0.0",
     "lint": "eslint .",
     "tauri": "tauri",
+    "test:smoke": "bash scripts/ui-smoke.sh",
+    "test:pre-push": "bash scripts/pre-push.sh",
     "test:e2e": "cd e2e-tests && xvfb-run pnpm test",
     "test:e2e:setup": "cd e2e-tests && pnpm install",
     "test:wdio": "wdio run tests/wdio/wdio.conf.ts",
