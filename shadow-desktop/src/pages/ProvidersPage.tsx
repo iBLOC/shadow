@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { invoke } from '@tauri-apps/api/core';
 import {
   Plus,
   RefreshCw,
@@ -11,329 +12,242 @@ import {
   Cpu,
   Loader2,
   AlertCircle,
+  Check,
+  Clock,
 } from 'lucide-react';
 import { Button, EmptyState, Modal, Input } from '../components/ui';
 import { cn } from '../lib/utils';
 
-interface ProviderType {
+// ---- backend contract (synapse catalog + encephalon ProviderManager) ----
+
+type ApiStandard = 'openai' | 'claude';
+
+interface ProviderPreset {
   id: string;
   name: string;
-  defaultBaseUrl: string;
-  defaultModel: string;
-  icon: React.ReactNode;
-  color: string;
+  base_url: string;
+  api_standard: ApiStandard;
+  default_model: string | null;
+  requires_key: boolean;
 }
 
-const PROVIDER_TYPES: ProviderType[] = [
-  {
-    id: 'xiaomi-mimo',
-    name: 'Xiaomi MiMo',
-    defaultBaseUrl: 'https://api.xiaomimimo.com/v1',
-    defaultModel: 'mimo-v2.5-pro',
-    icon: <Cpu size={20} />,
-    color: 'text-orange-500',
-  },
-  {
-    id: 'openai',
-    name: 'OpenAI',
-    defaultBaseUrl: 'https://api.openai.com/v1',
-    defaultModel: 'gpt-4o',
-    icon: <Cpu size={20} />,
-    color: 'text-green-500',
-  },
-  {
-    id: 'anthropic',
-    name: 'Anthropic',
-    defaultBaseUrl: 'https://api.anthropic.com',
-    defaultModel: 'claude-sonnet-4-20250514',
-    icon: <Cpu size={20} />,
-    color: 'text-orange-500',
-  },
-  {
-    id: 'ollama',
-    name: 'Ollama',
-    defaultBaseUrl: 'http://localhost:11434',
-    defaultModel: 'llama3',
-    icon: <Server size={20} />,
-    color: 'text-purple-500',
-  },
-  {
-    id: 'groq',
-    name: 'Groq',
-    defaultBaseUrl: 'https://api.groq.com/openai/v1',
-    defaultModel: 'llama-3.3-70b-versatile',
-    icon: <Cpu size={20} />,
-    color: 'text-blue-500',
-  },
-  {
-    id: 'deepseek',
-    name: 'DeepSeek',
-    defaultBaseUrl: 'https://api.deepseek.com',
-    defaultModel: 'deepseek-chat',
-    icon: <Cpu size={20} />,
-    color: 'text-cyan-500',
-  },
-  {
-    id: 'minimax',
-    name: 'MiniMax',
-    defaultBaseUrl: 'https://api.minimax.chat/v1',
-    defaultModel: 'MiniMax-Text-01',
-    icon: <Cpu size={20} />,
-    color: 'text-red-500',
-  },
-  {
-    id: 'qwen',
-    name: '通义千问',
-    defaultBaseUrl: 'https://dashscope.aliyuncs.com/api/v1',
-    defaultModel: 'qwen-plus',
-    icon: <Cpu size={20} />,
-    color: 'text-blue-gray-500',
-  },
-  {
-    id: 'moonshot',
-    name: 'Moonshot',
-    defaultBaseUrl: 'https://api.moonshot.cn/v1',
-    defaultModel: 'moonshot-v1-8k',
-    icon: <Cpu size={20} />,
-    color: 'text-indigo-500',
-  },
-  {
-    id: 'zhipuai',
-    name: '智谱AI',
-    defaultBaseUrl: 'https://open.bigmodel.cn/api/paas/v4',
-    defaultModel: 'glm-4',
-    icon: <Cpu size={20} />,
-    color: 'text-amber-500',
-  },
-  {
-    id: 'siliconflow',
-    name: 'SiliconFlow',
-    defaultBaseUrl: 'https://api.siliconflow.cn/v1',
-    defaultModel: 'deepseek-ai/DeepSeek-V3',
-    icon: <Cpu size={20} />,
-    color: 'text-teal-500',
-  },
-  {
-    id: 'doubao',
-    name: '字节豆包',
-    defaultBaseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
-    defaultModel: 'doubao-pro-32k',
-    icon: <Cpu size={20} />,
-    color: 'text-blue-600',
-  },
-  {
-    id: 'gemini',
-    name: 'Google Gemini',
-    defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
-    defaultModel: 'gemini-2.0-flash',
-    icon: <Cpu size={20} />,
-    color: 'text-blue-500',
-  },
-  {
-    id: 'mistral',
-    name: 'Mistral',
-    defaultBaseUrl: 'https://api.mistral.ai/v1',
-    defaultModel: 'mistral-large-latest',
-    icon: <Cpu size={20} />,
-    color: 'text-orange-600',
-  },
-  {
-    id: 'xai',
-    name: 'xAI Grok',
-    defaultBaseUrl: 'https://api.x.ai/v1',
-    defaultModel: 'grok-3',
-    icon: <Cpu size={20} />,
-    color: 'text-gray-800',
-  },
-  {
-    id: 'qianfan',
-    name: '百度千帆',
-    defaultBaseUrl: 'https://aip.baidubce.com/v2',
-    defaultModel: 'ernie-4.0-8k',
-    icon: <Cpu size={20} />,
-    color: 'text-blue-700',
-  },
-  {
-    id: 'spark',
-    name: '讯飞星火',
-    defaultBaseUrl: 'https://spark-api-open.xf-yun.com/v1',
-    defaultModel: 'generalv3.5',
-    icon: <Cpu size={20} />,
-    color: 'text-blue-400',
-  },
-  {
-    id: 'minimax-abab',
-    name: 'MiniMax ABAB',
-    defaultBaseUrl: 'https://api.minimaxi.chat/v1',
-    defaultModel: 'abab6.5s-chat',
-    icon: <Cpu size={20} />,
-    color: 'text-red-400',
-  },
-  {
-    id: 'local',
-    name: '本地模型',
-    defaultBaseUrl: 'http://localhost:8080',
-    defaultModel: 'local-model',
-    icon: <Server size={20} />,
-    color: 'text-gray-500',
-  },
-];
+interface ModelSummary {
+  id: string;
+  display_name?: string;
+  context_length?: number;
+  created_at?: number;
+}
 
-interface Provider {
+interface ProviderEntry {
   id: string;
   name: string;
-  type: string;
-  apiKey?: string;
-  baseUrl?: string;
-  model?: string;
+  preset_id?: string;
+  base_url: string;
+  api_standard: ApiStandard;
+  api_key?: string;
   enabled: boolean;
+  selected_model?: string;
+  default_model?: string;
+  models: ModelSummary[];
+  last_refreshed_at?: string;
+  last_error?: string;
 }
 
-interface ProviderFormData {
-  type: string;
-  apiKey: string;
+interface CustomFormData {
+  name: string;
   baseUrl: string;
-  model: string;
+  standard: ApiStandard;
+  apiKey: string;
+}
+
+function StandardBadge({ standard }: { standard: ApiStandard }) {
+  return (
+    <span
+      className={cn(
+        'rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide',
+        standard === 'claude'
+          ? 'bg-orange-500/10 text-orange-600'
+          : 'bg-emerald-500/10 text-emerald-600'
+      )}
+    >
+      {standard === 'claude' ? 'Claude' : 'OpenAI'}
+    </span>
+  );
+}
+
+function formatTime(iso?: string): string {
+  if (!iso) return '—';
+  try {
+    const d = new Date(iso);
+    const diffMin = Math.floor((Date.now() - d.getTime()) / 60000);
+    if (diffMin < 1) return '刚刚';
+    if (diffMin < 60) return `${diffMin} 分钟前`;
+    if (diffMin < 24 * 60) return `${Math.floor(diffMin / 60)} 小时前`;
+    return d.toLocaleString();
+  } catch {
+    return iso;
+  }
+}
+
+function formatContext(len?: number): string {
+  if (!len) return '';
+  if (len >= 1024 * 1024) return `${Math.round(len / 1024 / 1024)}M ctx`;
+  if (len >= 1024) return `${Math.round(len / 1024)}K ctx`;
+  return `${len} ctx`;
 }
 
 export function ProvidersPage() {
   const { t } = useTranslation();
-  const [providers, setProviders] = useState<Provider[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [presets, setPresets] = useState<ProviderPreset[]>([]);
+  const [providers, setProviders] = useState<ProviderEntry[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Add modal: preset flow (select card → key) + custom form.
   const [showAddModal, setShowAddModal] = useState(false);
-  const [editingProvider, setEditingProvider] = useState<Provider | null>(null);
-  const [formData, setFormData] = useState<ProviderFormData>({
-    type: 'openai',
-    apiKey: '',
+  const [addTab, setAddTab] = useState<'preset' | 'custom'>('preset');
+  const [selectedPreset, setSelectedPreset] = useState<ProviderPreset | null>(null);
+  const [presetKey, setPresetKey] = useState('');
+  const [customForm, setCustomForm] = useState<CustomFormData>({
+    name: '',
     baseUrl: '',
-    model: '',
+    standard: 'openai',
+    apiKey: '',
+  });
+  const [adding, setAdding] = useState(false);
+
+  // Edit modal: preset providers edit only the key; custom edit everything.
+  const [editing, setEditing] = useState<ProviderEntry | null>(null);
+  const [editKey, setEditKey] = useState('');
+  const [editForm, setEditForm] = useState<CustomFormData>({
+    name: '',
+    baseUrl: '',
+    standard: 'openai',
+    apiKey: '',
   });
 
-  const loadProviders = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
+  const [refreshingId, setRefreshingId] = useState<string | null>(null);
+
+  const loadAll = useCallback(async () => {
     try {
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      setProviders([
-        {
-          id: '1',
-          name: 'OpenAI',
-          type: 'openai',
-          apiKey: 'sk-...',
-          baseUrl: 'https://api.openai.com/v1',
-          model: 'gpt-4o',
-          enabled: true,
-        },
-        {
-          id: '2',
-          name: 'Ollama Local',
-          type: 'ollama',
-          baseUrl: 'http://localhost:11434',
-          model: 'llama3',
-          enabled: true,
-        },
+      const [p, list] = await Promise.all([
+        invoke<ProviderPreset[]>('provider_presets'),
+        invoke<ProviderEntry[]>('provider_list'),
       ]);
+      setPresets(p);
+      setProviders(list);
+      setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load providers');
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    loadProviders();
-  }, [loadProviders]);
+    loadAll();
+    // The Rust side refreshes model lists from each provider's /models
+    // endpoint every 10 min; the UI just re-reads the cache periodically.
+    const timer = setInterval(loadAll, 60_000);
+    return () => clearInterval(timer);
+  }, [loadAll]);
 
-  const handleAdd = async () => {
-    if (!formData.apiKey && formData.type !== 'ollama' && formData.type !== 'local') {
+  const runAction = async (action: () => Promise<unknown>) => {
+    try {
+      setError(null);
+      await action();
+      await loadAll();
+      return true;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      return false;
+    }
+  };
+
+  const handleAddPreset = async () => {
+    if (!selectedPreset) return;
+    if (selectedPreset.requires_key && !presetKey.trim()) {
       setError('API Key is required');
       return;
     }
-
-    try {
-      const newProvider: Provider = {
-        id: Date.now().toString(),
-        name: PROVIDER_TYPES.find((t) => t.id === formData.type)?.name || formData.type,
-        type: formData.type,
-        apiKey: formData.apiKey || undefined,
-        baseUrl: formData.baseUrl || undefined,
-        model: formData.model || undefined,
-        enabled: true,
-      };
-
-      setProviders((prev) => [...prev, newProvider]);
+    setAdding(true);
+    const ok = await runAction(() =>
+      invoke('provider_add_preset', {
+        presetId: selectedPreset.id,
+        apiKey: presetKey.trim() || null,
+      })
+    );
+    setAdding(false);
+    if (ok) {
       setShowAddModal(false);
-      resetForm();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add provider');
+      setSelectedPreset(null);
+      setPresetKey('');
     }
+  };
+
+  const handleAddCustom = async () => {
+    if (!customForm.name.trim() || !customForm.baseUrl.trim()) {
+      setError('Name and base URL are required');
+      return;
+    }
+    setAdding(true);
+    const ok = await runAction(() =>
+      invoke('provider_add_custom', {
+        name: customForm.name.trim(),
+        baseUrl: customForm.baseUrl.trim(),
+        apiStandard: customForm.standard,
+        apiKey: customForm.apiKey.trim() || null,
+      })
+    );
+    setAdding(false);
+    if (ok) {
+      setShowAddModal(false);
+      setCustomForm({ name: '', baseUrl: '', standard: 'openai', apiKey: '' });
+    }
+  };
+
+  const openEdit = (provider: ProviderEntry) => {
+    setEditing(provider);
+    setEditKey('');
+    setEditForm({
+      name: provider.name,
+      baseUrl: provider.base_url,
+      standard: provider.api_standard,
+      apiKey: '',
+    });
   };
 
   const handleUpdate = async () => {
-    if (!editingProvider) return;
-
-    try {
-      setProviders((prev) =>
-        prev.map((p) =>
-          p.id === editingProvider.id
-            ? {
-                ...p,
-                type: formData.type,
-                apiKey: formData.apiKey || undefined,
-                baseUrl: formData.baseUrl || undefined,
-                model: formData.model || undefined,
-              }
-            : p
+    if (!editing) return;
+    const isPreset = !!editing.preset_id;
+    const ok = isPreset
+      ? await runAction(() =>
+          invoke('provider_set_api_key', {
+            id: editing.id,
+            apiKey: editKey.trim() || editing.api_key || '',
+          })
         )
-      );
-      setEditingProvider(null);
-      resetForm();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update provider');
-    }
+      : await runAction(() =>
+          invoke('provider_update_custom', {
+            id: editing.id,
+            name: editForm.name.trim(),
+            baseUrl: editForm.baseUrl.trim(),
+            apiStandard: editForm.standard,
+            apiKey: editForm.apiKey.trim() || null,
+          })
+        );
+    if (ok) setEditing(null);
   };
 
-  const handleDelete = async (id: string) => {
-    try {
-      setProviders((prev) => prev.filter((p) => p.id !== id));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete provider');
-    }
+  const handleRefresh = async (id: string) => {
+    setRefreshingId(id);
+    await runAction(() => invoke('provider_refresh', { id }));
+    setRefreshingId(null);
   };
 
-  const handleToggle = async (id: string, enabled: boolean) => {
-    try {
-      setProviders((prev) =>
-        prev.map((p) => (p.id === id ? { ...p, enabled } : p))
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to toggle provider');
-    }
-  };
-
-  const resetForm = () => {
-    setFormData({
-      type: 'openai',
-      apiKey: '',
-      baseUrl: '',
-      model: '',
-    });
-  };
-
-  const openEditModal = (provider: Provider) => {
-    setEditingProvider(provider);
-    setFormData({
-      type: provider.type,
-      apiKey: provider.apiKey || '',
-      baseUrl: provider.baseUrl || '',
-      model: provider.model || '',
-    });
-  };
-
-  const getProviderType = (typeId: string): ProviderType | undefined => {
-    return PROVIDER_TYPES.find((t) => t.id === typeId);
-  };
+  const availablePresets = presets.filter(
+    (p) => !providers.some((prov) => prov.preset_id === p.id)
+  );
 
   return (
     <div className="flex h-full flex-col gap-4 p-6">
@@ -347,7 +261,7 @@ export function ProvidersPage() {
               {t('providers.title') || '大模型服务提供商'}
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              {t('providers.subtitle') || '管理和配置AI服务提供商'}
+              {t('providers.subtitle') || '选择预设供应商只需填写 API Key，模型列表自动获取并定期更新'}
             </p>
           </div>
         </div>
@@ -355,15 +269,19 @@ export function ProvidersPage() {
           <Button
             variant="ghost"
             icon={<RefreshCw size={16} />}
-            onClick={loadProviders}
-            disabled={isLoading}
+            onClick={() => runAction(() => invoke('provider_refresh_all'))}
           >
-            {t('common.refresh') || '刷新'}
+            {t('common.refresh') || '刷新模型'}
           </Button>
           <Button
             variant="primary"
             icon={<Plus size={16} />}
-            onClick={() => setShowAddModal(true)}
+            onClick={() => {
+              setShowAddModal(true);
+              setAddTab('preset');
+              setSelectedPreset(null);
+              setPresetKey('');
+            }}
           >
             {t('providers.add') || '添加提供商'}
           </Button>
@@ -373,13 +291,8 @@ export function ProvidersPage() {
       {error && (
         <div className="flex items-center gap-2 rounded-md border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-500">
           <AlertCircle size={16} />
-          <span>{error}</span>
-          <Button
-            size="icon"
-            variant="ghost"
-            className="ml-auto"
-            onClick={() => setError(null)}
-          >
+          <span className="flex-1">{error}</span>
+          <Button size="icon" variant="ghost" className="ml-auto" onClick={() => setError(null)}>
             <X size={14} />
           </Button>
         </div>
@@ -394,12 +307,18 @@ export function ProvidersPage() {
           <EmptyState
             icon={<Cloud size={48} />}
             title={t('providers.empty') || '暂未配置提供商'}
-            description={t('providers.emptyHint') || '点击上方按钮添加第一个提供商'}
+            description={
+              t('providers.emptyHint') || '点击上方按钮添加第一个提供商 — 预设供应商只需一个 API Key'
+            }
           />
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {providers.map((provider) => {
-              const providerType = getProviderType(provider.type);
+              const effectiveModel =
+                provider.selected_model ||
+                provider.default_model ||
+                provider.models[0]?.id ||
+                '';
               return (
                 <div
                   key={provider.id}
@@ -412,74 +331,120 @@ export function ProvidersPage() {
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
-                      <div
-                        className={cn(
-                          'flex h-10 w-10 items-center justify-center rounded-md',
-                          providerType?.color || 'text-gray-500'
-                        )}
-                      >
-                        {providerType?.icon || <Cloud size={20} />}
+                      <div className="flex h-10 w-10 items-center justify-center rounded-md text-gray-500">
+                        {provider.preset_id ? <Cpu size={20} /> : <Server size={20} />}
                       </div>
                       <div>
-                        <h3 className="font-medium text-foreground">
-                          {provider.name}
-                        </h3>
-                        <p className="text-xs text-muted-foreground">
-                          {provider.model || providerType?.defaultModel}
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-medium text-foreground">{provider.name}</h3>
+                          <StandardBadge standard={provider.api_standard} />
+                        </div>
+                        <p className="max-w-[220px] truncate text-xs text-muted-foreground">
+                          {provider.base_url}
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() =>
-                          handleToggle(provider.id, !provider.enabled)
-                        }
+                    <button
+                      onClick={() =>
+                        runAction(() =>
+                          invoke('provider_set_enabled', {
+                            id: provider.id,
+                            enabled: !provider.enabled,
+                          })
+                        )
+                      }
+                      className={cn(
+                        'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
+                        provider.enabled ? 'bg-primary' : 'bg-muted'
+                      )}
+                    >
+                      <span
                         className={cn(
-                          'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
-                          provider.enabled ? 'bg-primary' : 'bg-muted'
+                          'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
+                          provider.enabled ? 'translate-x-6' : 'translate-x-1'
                         )}
-                      >
-                        <span
-                          className={cn(
-                            'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
-                            provider.enabled
-                              ? 'translate-x-6'
-                              : 'translate-x-1'
-                          )}
-                        />
-                      </button>
-                    </div>
+                      />
+                    </button>
                   </div>
 
-                  {provider.apiKey && (
+                  {provider.api_key && (
                     <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
                       <Key size={12} />
-                      <span>
-                        API Key: {provider.apiKey.substring(0, 8)}...
-                      </span>
+                      <span>API Key: {provider.api_key.substring(0, 8)}…</span>
                     </div>
                   )}
 
-                  {provider.baseUrl && (
-                    <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-                      <Link size={12} />
-                      <span className="truncate">{provider.baseUrl}</span>
+                  {/* Model picker fed by the provider's own /models endpoint. */}
+                  <div className="mt-3">
+                    <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                      {t('providers.model') || '模型'}
+                      <span className="ml-2 font-normal">
+                        {provider.models.length > 0
+                          ? `${provider.models.length} 个可用`
+                          : '尚未获取'}
+                      </span>
+                    </label>
+                    <select
+                      value={effectiveModel}
+                      onChange={(e) =>
+                        runAction(() =>
+                          invoke('provider_select_model', {
+                            id: provider.id,
+                            modelId: e.target.value || null,
+                          })
+                        )
+                      }
+                      className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                      disabled={provider.models.length === 0}
+                    >
+                      {provider.models.length === 0 && (
+                        <option value="">{provider.default_model || '点击下方刷新获取模型'}</option>
+                      )}
+                      {provider.models.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.display_name || m.id}
+                          {formatContext(m.context_length) && ` · ${formatContext(m.context_length)}`}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                      <Clock size={11} />
+                      <span>
+                        {t('providers.lastRefresh') || '上次更新'}: {formatTime(provider.last_refreshed_at)}
+                      </span>
                     </div>
-                  )}
+                    {provider.last_error && (
+                      <div className="mt-1.5 flex items-start gap-1.5 text-[11px] text-red-500">
+                        <AlertCircle size={11} className="mt-0.5 shrink-0" />
+                        <span className="line-clamp-2">{provider.last_error}</span>
+                      </div>
+                    )}
+                  </div>
 
                   <div className="mt-4 flex justify-end gap-2">
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => openEditModal(provider)}
+                      icon={
+                        refreshingId === provider.id ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          <RefreshCw size={14} />
+                        )
+                      }
+                      onClick={() => handleRefresh(provider.id)}
+                      disabled={refreshingId === provider.id}
                     >
+                      {t('providers.refreshModels') || '刷新模型'}
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => openEdit(provider)}>
                       {t('common.edit') || '编辑'}
                     </Button>
                     <Button
                       variant="ghost"
                       size="sm"
                       className="text-red-500 hover:text-red-600"
-                      onClick={() => handleDelete(provider.id)}
+                      onClick={() => runAction(() => invoke('provider_remove', { id: provider.id }))}
                     >
                       {t('common.delete') || '删除'}
                     </Button>
@@ -491,102 +456,242 @@ export function ProvidersPage() {
         )}
       </div>
 
+      {/* ---- add modal: preset (key only) / custom (everything) ---- */}
       <Modal
-        isOpen={showAddModal || editingProvider !== null}
-        onClose={() => {
-          setShowAddModal(false);
-          setEditingProvider(null);
-          resetForm();
-        }}
-        title={
-          editingProvider
-            ? t('providers.edit') || '编辑提供商'
-            : t('providers.add') || '添加提供商'
-        }
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        title={t('providers.add') || '添加提供商'}
       >
         <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-2">
-            <label className="text-sm font-medium text-foreground">
-              {t('providers.type') || '提供商类型'}
-            </label>
-            <select
-              value={formData.type}
-              onChange={(e) => {
-                const selectedType = PROVIDER_TYPES.find(
-                  (t) => t.id === e.target.value
-                );
-                setFormData((prev) => ({
-                  ...prev,
-                  type: e.target.value,
-                  baseUrl: selectedType?.defaultBaseUrl || '',
-                  model: selectedType?.defaultModel || '',
-                }));
-              }}
-              className="rounded-md border border-border bg-background px-3 py-2 text-sm"
+          <div className="flex gap-1 rounded-md bg-muted p-1">
+            <button
+              className={cn(
+                'flex-1 rounded px-3 py-1.5 text-sm transition-colors',
+                addTab === 'preset' ? 'bg-background font-medium shadow' : 'text-muted-foreground'
+              )}
+              onClick={() => setAddTab('preset')}
             >
-              {PROVIDER_TYPES.map((type) => (
-                <option key={type.id} value={type.id}>
-                  {type.name}
-                </option>
-              ))}
-            </select>
+              {t('providers.presetTab') || '预设供应商'}
+            </button>
+            <button
+              className={cn(
+                'flex-1 rounded px-3 py-1.5 text-sm transition-colors',
+                addTab === 'custom' ? 'bg-background font-medium shadow' : 'text-muted-foreground'
+              )}
+              onClick={() => setAddTab('custom')}
+            >
+              {t('providers.customTab') || '自定义'}
+            </button>
           </div>
 
-          <Input
-            label={t('providers.apiKey') || 'API Key'}
-            value={formData.apiKey}
-            onChange={(e) =>
-              setFormData((prev) => ({ ...prev, apiKey: e.target.value }))
-            }
-            placeholder="sk-..."
-            type="password"
-          />
-
-          <Input
-            label={t('providers.baseUrl') || 'API 地址'}
-            value={formData.baseUrl}
-            onChange={(e) =>
-              setFormData((prev) => ({ ...prev, baseUrl: e.target.value }))
-            }
-            placeholder={
-              PROVIDER_TYPES.find((t) => t.id === formData.type)
-                ?.defaultBaseUrl
-            }
-          />
-
-          <Input
-            label={t('providers.model') || '模型'}
-            value={formData.model}
-            onChange={(e) =>
-              setFormData((prev) => ({ ...prev, model: e.target.value }))
-            }
-            placeholder={
-              PROVIDER_TYPES.find((t) => t.id === formData.type)
-                ?.defaultModel
-            }
-          />
-
-          <div className="flex justify-end gap-3 border-t border-border pt-4">
-            <Button
-              variant="ghost"
-              onClick={() => {
-                setShowAddModal(false);
-                setEditingProvider(null);
-                resetForm();
-              }}
-            >
-              {t('common.cancel') || '取消'}
-            </Button>
-            <Button
-              variant="primary"
-              onClick={editingProvider ? handleUpdate : handleAdd}
-            >
-              {editingProvider
-                ? t('common.save') || '保存'
-                : t('common.add') || '添加'}
-            </Button>
-          </div>
+          {addTab === 'preset' ? (
+            !selectedPreset ? (
+              <div className="grid max-h-80 grid-cols-2 gap-2 overflow-y-auto">
+                {availablePresets.map((preset) => (
+                  <button
+                    key={preset.id}
+                    onClick={() => {
+                      setSelectedPreset(preset);
+                      setPresetKey('');
+                    }}
+                    className="flex items-center justify-between gap-2 rounded-md border border-border p-3 text-left transition-colors hover:border-primary hover:bg-primary/5"
+                  >
+                    <div>
+                      <div className="text-sm font-medium text-foreground">{preset.name}</div>
+                      <div className="max-w-[140px] truncate text-[11px] text-muted-foreground">
+                        {preset.base_url}
+                      </div>
+                    </div>
+                    <StandardBadge standard={preset.api_standard} />
+                  </button>
+                ))}
+                {availablePresets.length === 0 && (
+                  <div className="col-span-2 py-6 text-center text-sm text-muted-foreground">
+                    所有预设供应商均已添加
+                  </div>
+                )}
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between rounded-md border border-border bg-muted/40 p-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">{selectedPreset.name}</span>
+                      <StandardBadge standard={selectedPreset.api_standard} />
+                    </div>
+                    <div className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+                      <Link size={11} />
+                      <span className="max-w-[240px] truncate">{selectedPreset.base_url}</span>
+                    </div>
+                  </div>
+                  <Check size={16} className="text-primary" />
+                </div>
+                {selectedPreset.requires_key ? (
+                  <Input
+                    label={t('providers.apiKey') || 'API Key'}
+                    value={presetKey}
+                    onChange={(e) => setPresetKey(e.target.value)}
+                    placeholder="sk-..."
+                    type="password"
+                    autoFocus
+                  />
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    {t('providers.keylessHint') || '本地运行时无需 API Key，直接添加即可'}
+                  </p>
+                )}
+                <div className="flex justify-end gap-3 border-t border-border pt-4">
+                  <Button variant="ghost" onClick={() => setSelectedPreset(null)}>
+                    {t('common.back') || '返回'}
+                  </Button>
+                  <Button
+                    variant="primary"
+                    icon={adding ? <Loader2 size={14} className="animate-spin" /> : undefined}
+                    onClick={handleAddPreset}
+                    disabled={adding}
+                  >
+                    {t('providers.addAndFetch') || '添加并获取模型'}
+                  </Button>
+                </div>
+              </>
+            )
+          ) : (
+            <>
+              <Input
+                label={t('providers.name') || '供应商名称'}
+                value={customForm.name}
+                onChange={(e) => setCustomForm((f) => ({ ...f, name: e.target.value }))}
+                placeholder="My Gateway"
+              />
+              <Input
+                label={t('providers.baseUrl') || '请求地址'}
+                value={customForm.baseUrl}
+                onChange={(e) => setCustomForm((f) => ({ ...f, baseUrl: e.target.value }))}
+                placeholder="https://api.example.com/v1"
+              />
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-medium text-foreground">
+                  {t('providers.standard') || '接口标准'}
+                </label>
+                <select
+                  value={customForm.standard}
+                  onChange={(e) =>
+                    setCustomForm((f) => ({ ...f, standard: e.target.value as ApiStandard }))
+                  }
+                  className="rounded-md border border-border bg-background px-3 py-2 text-sm"
+                >
+                  <option value="openai">OpenAI</option>
+                  <option value="claude">Claude</option>
+                </select>
+              </div>
+              <Input
+                label={t('providers.apiKey') || 'API Key'}
+                value={customForm.apiKey}
+                onChange={(e) => setCustomForm((f) => ({ ...f, apiKey: e.target.value }))}
+                placeholder="sk-...（可选）"
+                type="password"
+              />
+              <div className="flex justify-end gap-3 border-t border-border pt-4">
+                <Button variant="ghost" onClick={() => setShowAddModal(false)}>
+                  {t('common.cancel') || '取消'}
+                </Button>
+                <Button
+                  variant="primary"
+                  icon={adding ? <Loader2 size={14} className="animate-spin" /> : undefined}
+                  onClick={handleAddCustom}
+                  disabled={adding}
+                >
+                  {t('providers.addAndFetch') || '添加并获取模型'}
+                </Button>
+              </div>
+            </>
+          )}
         </div>
+      </Modal>
+
+      {/* ---- edit modal: preset → key only; custom → everything ---- */}
+      <Modal
+        isOpen={editing !== null}
+        onClose={() => setEditing(null)}
+        title={t('providers.edit') || '编辑提供商'}
+      >
+        {editing && (
+          <div className="flex flex-col gap-4">
+            {editing.preset_id ? (
+              <>
+                <div className="flex items-center justify-between rounded-md border border-border bg-muted/40 p-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">{editing.name}</span>
+                      <StandardBadge standard={editing.api_standard} />
+                    </div>
+                    <div className="mt-0.5 text-xs text-muted-foreground">
+                      {t('providers.presetLocked') || '预设供应商的地址与接口标准固定，仅可更换 API Key'}
+                    </div>
+                  </div>
+                </div>
+                <Input
+                  label={t('providers.newApiKey') || '新 API Key'}
+                  value={editKey}
+                  onChange={(e) => setEditKey(e.target.value)}
+                  placeholder={
+                    editing.api_key
+                      ? `${editing.api_key.substring(0, 6)}…（留空保持不变）`
+                      : 'sk-...'
+                  }
+                  type="password"
+                />
+              </>
+            ) : (
+              <>
+                <Input
+                  label={t('providers.name') || '供应商名称'}
+                  value={editForm.name}
+                  onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
+                />
+                <Input
+                  label={t('providers.baseUrl') || '请求地址'}
+                  value={editForm.baseUrl}
+                  onChange={(e) => setEditForm((f) => ({ ...f, baseUrl: e.target.value }))}
+                />
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm font-medium text-foreground">
+                    {t('providers.standard') || '接口标准'}
+                  </label>
+                  <select
+                    value={editForm.standard}
+                    onChange={(e) =>
+                      setEditForm((f) => ({ ...f, standard: e.target.value as ApiStandard }))
+                    }
+                    className="rounded-md border border-border bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="openai">OpenAI</option>
+                    <option value="claude">Claude</option>
+                  </select>
+                </div>
+                <Input
+                  label={t('providers.newApiKey') || '新 API Key'}
+                  value={editForm.apiKey}
+                  onChange={(e) => setEditForm((f) => ({ ...f, apiKey: e.target.value }))}
+                  placeholder={
+                    editing.api_key
+                      ? `${editing.api_key.substring(0, 6)}…（留空保持不变）`
+                      : 'sk-...'
+                  }
+                  type="password"
+                />
+              </>
+            )}
+            <div className="flex justify-end gap-3 border-t border-border pt-4">
+              <Button variant="ghost" onClick={() => setEditing(null)}>
+                {t('common.cancel') || '取消'}
+              </Button>
+              <Button variant="primary" onClick={handleUpdate}>
+                {t('common.save') || '保存'}
+              </Button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

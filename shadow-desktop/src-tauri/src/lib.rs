@@ -11,6 +11,7 @@ mod feishu_mcp;
 mod computer_use;
 mod worktree_manager;
 mod recording;
+mod provider_manager;
 mod logger;
 
 use config_manager::{AppConfig, DatabaseConfig, ProviderConfig, SecureAuth};
@@ -45,6 +46,7 @@ struct AppState {
     computer_use: Arc<ComputerUse>,
     feishu_mcp: Arc<FeishuMcp>,
     recording_store: Arc<recording::RecordingStore>,
+    provider_manager: Arc<encephalon::providers::ProviderManager>,
     workflow_state: Arc<tokio::sync::Mutex<WorkflowState>>,
 }
 
@@ -179,6 +181,9 @@ pub fn run() {
             FeishuMcp::new(ops)
         }),
         recording_store: Arc::new(recording::RecordingStore::new()),
+        // Provider management (端脑): presets need only an API key; model
+        // lists are fetched per provider and refreshed every 10 min.
+        provider_manager: Arc::new(provider_manager::new_manager()),
         workflow_state: Arc::new(tokio::sync::Mutex::new(WorkflowState {
             approved_tasks: std::collections::HashMap::new(),
             rejected_tasks: std::collections::HashMap::new(),
@@ -225,6 +230,18 @@ pub fn run() {
             // async to spawn here. (The old cortex sidecar spawn is
             // gone — see commit f200f93 for the deletion history.)
             let _ = app_handle;
+
+            // Periodic model refresh: every enabled provider's /models
+            // endpoint is re-fetched every 10 minutes so the cached model
+            // lists track what the provider actually serves.
+            let refresh_manager = app
+                .state::<AppState>()
+                .provider_manager
+                .clone();
+            tauri::async_runtime::spawn(async move {
+                refresh_manager
+                    .start_refresh_loop(std::time::Duration::from_secs(10 * 60));
+            });
 
             Ok(())
         })
@@ -309,6 +326,17 @@ pub fn run() {
             computer_use::cu_read_ui_text,
             #[cfg(target_os = "windows")]
             computer_use::cu_set_ui_value,
+            provider_manager::provider_presets,
+            provider_manager::provider_list,
+            provider_manager::provider_add_preset,
+            provider_manager::provider_add_custom,
+            provider_manager::provider_remove,
+            provider_manager::provider_set_enabled,
+            provider_manager::provider_set_api_key,
+            provider_manager::provider_update_custom,
+            provider_manager::provider_select_model,
+            provider_manager::provider_refresh,
+            provider_manager::provider_refresh_all,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
