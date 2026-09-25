@@ -1089,5 +1089,26 @@
     "historyEmpty": "No recordings yet.",
     "viewReport": "View report",
     "generatingReport": "Generating summary report…"
+  },
+  "providers": {
+    "title": "LLM Providers",
+    "subtitle": "Pick a preset and enter only the API key — model lists are fetched and refreshed automatically",
+    "add": "Add Provider",
+    "edit": "Edit Provider",
+    "empty": "No providers configured",
+    "emptyHint": "Click the button above to add your first provider — presets only need an API key",
+    "apiKey": "API Key",
+    "newApiKey": "New API Key",
+    "baseUrl": "Base URL",
+    "name": "Provider name",
+    "standard": "API standard",
+    "model": "Model",
+    "lastRefresh": "Last refresh",
+    "refreshModels": "Refresh models",
+    "presetTab": "Presets",
+    "customTab": "Custom",
+    "addAndFetch": "Add & fetch models",
+    "keylessHint": "Local runtimes need no API key — just add",
+    "presetLocked": "Preset providers keep a fixed URL and standard; only the API key can change"
   }
 }

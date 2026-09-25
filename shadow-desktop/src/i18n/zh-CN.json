@@ -1113,5 +1113,26 @@
     "historyEmpty": "暂无记录。",
     "viewReport": "查看报告",
     "generatingReport": "正在生成总结报告…"
+  },
+  "providers": {
+    "title": "大模型服务提供商",
+    "subtitle": "选择预设供应商只需填写 API Key，模型列表自动获取并定期更新",
+    "add": "添加提供商",
+    "edit": "编辑提供商",
+    "empty": "暂未配置提供商",
+    "emptyHint": "点击上方按钮添加第一个提供商 — 预设供应商只需一个 API Key",
+    "apiKey": "API Key",
+    "newApiKey": "新 API Key",
+    "baseUrl": "请求地址",
+    "name": "供应商名称",
+    "standard": "接口标准",
+    "model": "模型",
+    "lastRefresh": "上次更新",
+    "refreshModels": "刷新模型",
+    "presetTab": "预设供应商",
+    "customTab": "自定义",
+    "addAndFetch": "添加并获取模型",
+    "keylessHint": "本地运行时无需 API Key，直接添加即可",
+    "presetLocked": "预设供应商的地址与接口标准固定，仅可更换 API Key"
   }
 }
