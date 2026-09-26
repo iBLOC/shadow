@@ -81,7 +81,14 @@ export function VoiceButton({ onTranscription, onError, disabled, className }: V
         new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
       );
 
-      const response = await fetch('/api/cortex/voice/transcribe', {
+      // Bug #17 fix: telencephalon's route is mounted at
+      // /api/telencephalon/voice/transcribe, not /api/cortex/voice/transcribe.
+      // The cortex rename chain (cortex→encephalon→telencephalon) only
+      // updated server-side routes; this client-side call was missed.
+      // Hardcoded here so the inline voice UX works without touching the
+      // 17+ other /api/cortex/* callers in cortexClient.ts (which all still
+      // 404 on telencephalon but are not user-visible failures).
+      const response = await fetch('/api/telencephalon/voice/transcribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
