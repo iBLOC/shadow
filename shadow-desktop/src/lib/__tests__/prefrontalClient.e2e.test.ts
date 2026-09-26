@@ -10,12 +10,26 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { spawn, type ChildProcess } from 'node:child_process';
+import { platform } from 'node:process';
 import { PrefrontalClient } from '../prefrontalClient';
 import { existsSync } from 'node:fs';
 
-const PREFRONTAL_BIN = '/home/ibloc/Projects/prefrontal/target/debug/prefrontal';
+// Mirror the P0-A fix in `tests/e2e-ui/global-setup.ts`: cortex/telencephalon
+// hardcoded a Linux path that broke on Windows. Same pattern here for
+// prefrontal — env override > platform default. When the binary is not built,
+// the suite `describe.skip`s itself instead of throwing beforeAll.
+function defaultPrefrontalBin(): string {
+  if (process.env.SHADOW_PREFRONTAL_BIN) return process.env.SHADOW_PREFRONTAL_BIN;
+  if (platform === 'win32') {
+    return 'C:\\Projects\\iBLOC\\prefrontal\\target\\debug\\prefrontal.exe';
+  }
+  return '/home/ibloc/Projects/prefrontal/target/debug/prefrontal';
+}
+
+const PREFRONTAL_BIN = defaultPrefrontalBin();
 const PREFRONTAL_PORT = Number(process.env.PREFRONTAL_TEST_PORT ?? 8082);
 const PREFRONTAL_BASE = `http://127.0.0.1:${PREFRONTAL_PORT}`;
+const BIN_PRESENT = existsSync(PREFRONTAL_BIN);
 
 let serverProcess: ChildProcess | null = null;
 
@@ -35,10 +49,9 @@ async function waitForHealthy(url: string, maxMs = 15000): Promise<void> {
 }
 
 beforeAll(async () => {
-  if (!existsSync(PREFRONTAL_BIN)) {
-    throw new Error(
-      `prefrontal binary not found at ${PREFRONTAL_BIN} — build it with 'cargo build --bin prefrontal' first`,
-    );
+  if (!BIN_PRESENT) {
+    // Skip silently — `describe.skip` is wired below on this flag.
+    return;
   }
   serverProcess = spawn(PREFRONTAL_BIN, ['serve'], {
     env: { ...process.env, RUST_LOG: 'warn' },
@@ -57,7 +70,7 @@ afterAll(async () => {
   }
 });
 
-describe('prefrontalClient e2e', () => {
+describe.skipIf(!BIN_PRESENT)('prefrontalClient e2e', () => {
   it('hits /health on the running server', async () => {
     const res = await fetch(`${PREFRONTAL_BASE}/health`);
     expect(res.ok).toBe(true);

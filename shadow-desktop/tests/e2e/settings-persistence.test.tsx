@@ -33,6 +33,7 @@ vi.mock('../../src/stores/cortexStore', () => {
     ],
     lastCheck: null,
     error: null,
+    supervisor: { enabled: true, restartCount: 0 },
     refreshStatus: vi.fn(),
     refreshLobes: vi.fn(),
     startCortex: vi.fn(),

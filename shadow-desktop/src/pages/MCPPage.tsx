@@ -49,6 +49,37 @@ export function MCPPage() {
   const [submitting, setSubmitting] = useState(false);
   const [busyServer, setBusyServer] = useState<string | null>(null);
   const [toolsCache, setToolsCache] = useState<Record<string, McpToolSummary[]>>({});
+  // Transport-aware add-server form (stdio | http | wasm). Introduced in
+  // commit `1c0c3ec`; the useState declaration was missing so the page
+  // threw `ReferenceError: form is not defined` whenever the modal opened.
+  type Transport = 'stdio' | 'http' | 'wasm';
+  interface ServerForm {
+    name: string;
+    description: string;
+    transport: Transport;
+    command: string;
+    args: string;
+    env: string;
+    url: string;
+    bearer: string;
+    wasm_name: string;
+    wasm_version: string;
+    wasm_sha256: string;
+  }
+  const emptyForm = (): ServerForm => ({
+    name: '',
+    description: '',
+    transport: 'stdio',
+    command: '',
+    args: '',
+    env: '',
+    url: '',
+    bearer: '',
+    wasm_name: '',
+    wasm_version: '',
+    wasm_sha256: '',
+  });
+  const [form, setForm] = useState<ServerForm>(emptyForm);
 
   const loadServers = async () => {
     if (cortexStatus !== 'running') { setServers([]); return; }

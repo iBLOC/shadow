@@ -17,6 +17,7 @@ vi.mock('../../src/lib/tauriSafe', () => ({
 
 vi.mock('../../src/lib/platform', () => ({
   isTauri: vi.fn(() => false),
+  prefrontalUrl: vi.fn(() => 'http://localhost:8082'),
 }));
 
 vi.mock('../../src/components/DatabaseSettings', () => ({
@@ -43,6 +44,7 @@ vi.mock('../../src/stores/cortexStore', () => {
     ],
     lastCheck: null,
     error: null,
+    supervisor: { enabled: true, restartCount: 0 },
     refreshStatus: vi.fn(),
     refreshLobes: vi.fn(),
     startCortex: vi.fn(),
@@ -121,7 +123,9 @@ describe('SettingsPage Lifecycle E2E', () => {
     it('renders cortex status section', async () => {
       renderWithRouter();
       await screen.findByText('settings.title');
-      expect(screen.getAllByText('settings.cortexStatus')[0]).toBeInTheDocument();
+      // 2026-09 service-area refactor: supervisor heading replaces
+      // the older `settings.cortexStatus` title.
+      expect(screen.getAllByText('services.supervisor')[0]).toBeInTheDocument();
     });
 
     it('renders settings page', async () => {

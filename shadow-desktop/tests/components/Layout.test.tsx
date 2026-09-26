@@ -74,12 +74,20 @@ describe('Layout', () => {
 
   describe('navigation items', () => {
     it('renders all primary nav items', () => {
+      // Mirrors `navItems` in `src/components/Layout.tsx` — kept in sync when
+      // routes are added/removed. `discovery`, `agents`, and `models` were
+      // removed in the 2026-08-23 ModelsPage consolidation; new entries
+      // (flows, trace, previews, computerUse, recording, workflowStudio) ship
+      // per the 2026-09 audit cycle.
       renderLayout();
       expect(screen.getByText(/nav\.tasks/i)).toBeInTheDocument();
       expect(screen.getByText(/nav\.chat/i)).toBeInTheDocument();
-      expect(screen.getByText(/nav\.discovery/i)).toBeInTheDocument();
-      expect(screen.getByText(/nav\.agents/i)).toBeInTheDocument();
-      expect(screen.getByText(/nav\.models/i)).toBeInTheDocument();
+      expect(screen.getByText(/nav\.flows/i)).toBeInTheDocument();
+      expect(screen.getByText(/nav\.trace/i)).toBeInTheDocument();
+      expect(screen.getByText(/nav\.previews/i)).toBeInTheDocument();
+      expect(screen.getByText(/nav\.computerUse/i)).toBeInTheDocument();
+      expect(screen.getByText(/nav\.recording/i)).toBeInTheDocument();
+      expect(screen.getByText(/nav\.workflowStudio/i)).toBeInTheDocument();
       expect(screen.getByText(/nav\.mcp/i)).toBeInTheDocument();
       expect(screen.getByText(/nav\.skills/i)).toBeInTheDocument();
       expect(screen.getByText(/nav\.memory/i)).toBeInTheDocument();
@@ -102,12 +110,12 @@ describe('Layout', () => {
 
   describe('active nav highlighting', () => {
     it('marks active NavLink with bg-primary/10 class', () => {
-      const { container } = renderLayout('/agents');
+      const { container } = renderLayout('/mcp');
       const activeLinks = Array.from(container.querySelectorAll('a')).filter(
         (el) => el.className.includes('bg-primary/10')
       );
       expect(activeLinks.length).toBe(1);
-      expect(activeLinks[0]).toHaveTextContent(/nav\.agents/i);
+      expect(activeLinks[0]).toHaveTextContent(/nav\.mcp/i);
     });
 
     it('highlights settings link when on /settings', () => {

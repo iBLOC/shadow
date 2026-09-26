@@ -49,11 +49,11 @@ beforeEach(() => {
     }),
     getVoices: vi.fn(() => mockVoices),
   };
-  (globalThis as any).window = {
-    ...(globalThis as any).window,
-    speechSynthesis: mockSpeechSynthesis,
-    SpeechSynthesisUtterance: MockUtterance,
-  };
+  // Mutate the existing jsdom window rather than replacing it via spread:
+  // a `{ ...window, ... }` plain object loses the prototype getters for
+  // `localStorage` and friends, which makes `localStorage.clear()` throw.
+  (globalThis as any).window.speechSynthesis = mockSpeechSynthesis;
+  (globalThis as any).window.SpeechSynthesisUtterance = MockUtterance;
   (globalThis as any).SpeechSynthesisUtterance = MockUtterance;
   if (!globalThis.URL.createObjectURL) {
     globalThis.URL.createObjectURL = vi.fn(() => 'blob:mock-url');

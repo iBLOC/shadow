@@ -97,6 +97,14 @@ function renderDialog(props: Partial<{
 describe('MoveSessionDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // `mockReset` clears the per-test `mockImplementation(...)` overrides
+    // that prior tests in this file set with `setTimeout` delays. Without
+    // it, a delayed `prepareMigration` from the previous test can leak
+    // into the next one and cause the "shows preparing phase" assertion
+    // to race against a state transition to `sending`.
+    mockListA2APeers.mockReset();
+    mockPrepareMigration.mockReset();
+    mockImportSession.mockReset();
     mockListA2APeers.mockImplementation(() =>
       Promise.resolve({ data: [mockPeer1, mockPeer2, mockPeerUnreachable] }),
     );
@@ -295,8 +303,11 @@ describe('MoveSessionDialog', () => {
 
     it('shows preparing phase during prepareMigration', async () => {
       const user = userEvent.setup();
+      // 500ms delay: long enough that the assertion below reliably catches
+      // the `preparing` phase before it transitions to `sending`. The 100ms
+      // version used to flake in CI when the local timer was throttled.
       mockPrepareMigration.mockImplementation(
-        () => new Promise((resolve) => setTimeout(() => resolve({ payload: '', size_bytes: 100 }), 100)),
+        () => new Promise((resolve) => setTimeout(() => resolve({ payload: '', size_bytes: 100 }), 500)),
       );
       renderDialog();
       const peer1 = await screen.findByText('Peer 1');

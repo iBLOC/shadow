@@ -2,6 +2,32 @@ import { expect, afterEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import '@testing-library/jest-dom';
 
+// jsdom (≥ 20) does not auto-expose `localStorage` as a global; tests that
+// reference the bare `localStorage` identifier throw `localStorage.clear is
+// not a function`. Wire the jsdom storage into globalThis once at setup so
+// every test file gets a working Storage instance.
+if (typeof globalThis.localStorage === 'undefined' || typeof globalThis.localStorage?.clear !== 'function') {
+  if (typeof window !== 'undefined' && typeof window.localStorage?.clear === 'function') {
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: window.localStorage,
+      writable: true,
+      configurable: true,
+    });
+  } else {
+    // Last-resort in-memory stub so the identifier resolves and `.clear()` exists.
+    const store: Record<string, string> = {};
+    const stub: Storage = {
+      length: 0,
+      clear: () => { for (const k of Object.keys(store)) delete store[k]; stub.length = 0; },
+      getItem: (k) => store[k] ?? null,
+      key: (i) => Object.keys(store)[i] ?? null,
+      removeItem: (k) => { delete store[k]; stub.length = Object.keys(store).length; },
+      setItem: (k, v) => { store[k] = String(v); stub.length = Object.keys(store).length; },
+    };
+    Object.defineProperty(globalThis, 'localStorage', { value: stub, writable: true, configurable: true });
+  }
+}
+
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn().mockResolvedValue([]),
   convertFileSrc: vi.fn((p: string) => p),

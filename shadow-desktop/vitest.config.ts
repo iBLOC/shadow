@@ -9,6 +9,19 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./tests/setup.ts'],
     include: ['tests/**/*.test.{ts,tsx}', 'src/**/*.test.{ts,tsx}'],
+    // Exclude WebDriverIO + tauri-driver test files. They live under
+    // `tests/wdio/**` and `tests/tauri-e2e/**` and import `@wdio/globals`,
+    // which throws `No browser instance registered` outside the wdio runner.
+    // They are run via `pnpm test:wdio` and `pnpm test:tauri` respectively.
+    // `tests/e2e-ui/**` is auto-excluded by extension (.spec.ts, not .test.ts).
+    exclude: [
+      'node_modules/**',
+      'dist/**',
+      'dist-web/**',
+      'tests/wdio/**',
+      'tests/tauri-e2e/**',
+      'tests/e2e-ui/**',
+    ],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

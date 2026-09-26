@@ -69,6 +69,11 @@ export function ConversationPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showMoveDialog, setShowMoveDialog] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // R-11 — computer-use preview-before-commit state. Modal lifecycle is
+  // decoupled from message stream so a Cancel clears without re-rendering.
+  // The setter is set from the assistant SSE handler at line ~176 and the
+  // pending value feeds the page-level modal at line ~520.
+  const [pendingCuAction, setPendingCuAction] = useState<import('../components/computerUse/ComputerUsePendingModal').ComputerUseAction | null>(null);
 
   const activeConversation = conversations.find(c => c.id === activeConversationId);
 
@@ -538,15 +543,13 @@ function CompanionModePanel() {
     setWakeWordDetected,
   } = useCompanionModeStore();
 
-  const [wakeDetector] = useState(() => new WakeWordDetector());
+  // DOC-03 / R-11 — the page-level `<ComputerUsePendingModal>` (in the parent
+  // `ConversationPage` render) owns `pendingCuAction`. This panel only needs
+  // to surface Feishu publish events into the active conversation, so we
+  // pull just `activeConversationId` + `addMessage` from the store.
+  const { activeConversationId, addMessage } = useConversationStore();
 
-  // R-11 — pending computer-use action for the preview-before-commit
-  // modal. The modal is mounted at the page level (not per-message)
-  // so it has its own state lifecycle independent of the message
-  // stream. When the agent emits a computer_use_action SSE event
-  // we set this state; Proceed clears it after invoking the cu_*
-  // Tauri command; Cancel just clears it.
-  const [pendingCuAction, setPendingCuAction] = useState<ComputerUseAction | null>(null);
+  const [wakeDetector] = useState(() => new WakeWordDetector());
 
   // DOC-03 share-URL card listener. DocumentPage fires a
   // window CustomEvent when a publish completes; we surface the URL

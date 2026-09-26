@@ -1,8 +1,12 @@
 import { spawn, ChildProcess } from 'child_process';
 import { mkdirSync, rmSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
 import { join } from 'path';
 
-const TEST_DIR = '/tmp/shadow-tauri-test';
+// Same P0-A fix as e2e-ui/global-setup.ts: cross-platform default. The Tauri shell
+// itself spawns `cortex` via `src-tauri/src/cortex_manager.rs` (or, post-be50b7f,
+// the embedded encephalon), but we still need a per-platform test data dir here.
+const TEST_DIR = process.env.SHADOW_TAURI_TEST_DIR ?? join(tmpdir(), 'shadow-tauri-test');
 const VITE_PORT = 1420;
 const CORTEX_PORT = 60080;
 const WEBDRIVER_PORT = 4445;

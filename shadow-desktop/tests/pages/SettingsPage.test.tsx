@@ -28,6 +28,7 @@ vi.mock('../../src/stores/cortexStore', () => {
     ],
     lastCheck: null,
     error: null,
+    supervisor: { enabled: true, restartCount: 0 },
     refreshStatus,
     refreshLobes,
     startCortex,
@@ -109,8 +110,14 @@ describe('SettingsPage', () => {
   it('renders service section by default', async () => {
     renderWithRouter(<SettingsPage />);
 
+    // After the 2026-09 service-area refactor, the section's visible heading
+    // is `services.supervisor` (the supervisor subsection is the always-on
+    // entry point when cortex is running). `settings.cortexStatus` is no
+    // longer rendered. There are two renderings of this key (heading + form
+    // label) so use `getAllByText` and assert presence.
     await waitFor(() => {
-      expect(screen.getByText('settings.cortexStatus')).toBeInTheDocument();
+      const matches = screen.getAllByText('services.supervisor');
+      expect(matches.length).toBeGreaterThanOrEqual(1);
     });
   });
 

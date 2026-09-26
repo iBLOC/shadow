@@ -37,6 +37,7 @@ vi.mock('../../src/stores/cortexStore', () => {
     flows: [],
     lastCheck: null,
     error: null,
+    supervisor: { enabled: true, restartCount: 0 },
     refreshStatus: mockRefreshStatus,
     refreshLobes: mockRefreshLobes,
     refreshFlows: vi.fn(),
