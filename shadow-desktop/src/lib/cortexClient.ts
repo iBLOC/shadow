@@ -447,12 +447,17 @@ export class CortexClient {
     history.push({ role: 'user', content: req.text });
 
     let assistant = '';
+    // Qwen3-style models stream a <think>…</think> reasoning block
+    // before the answer; suppress it (statefully — the tags can be
+    // long and the model's generation is slow enough on CPU that
+    // letting reasoning stream through would look like a hang).
+    let inThink = false;
     try {
       const model = await this.pickNeuronModel();
       const resp = await fetch(`${neuronUrl()}/v1/chat/completions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, messages: history, stream: true }),
+        body: JSON.stringify({ model, messages: history, stream: true, max_tokens: 400 }),
       });
       if (!resp.ok || !resp.body) {
         let msg = `neuron chat ${resp.status}: ${resp.statusText}`;
@@ -478,21 +483,58 @@ export class CortexClient {
           if (!data || data === '[DONE]') continue;
           try {
             const chunk = JSON.parse(data);
-            const delta: string | undefined = chunk.choices?.[0]?.delta?.content;
+            let delta: string | undefined = chunk.choices?.[0]?.delta?.content;
             if (delta) {
-              assistant += delta;
-              yield {
-                type: 'delta',
-                delta,
-                agent: 'shadow-local',
-                conversation_id: conversationId,
-                timestamp: Date.now(),
-              };
+              if (inThink) {
+                const end = delta.indexOf('</think>');
+                if (end === -1) delta = undefined;
+                else {
+                  inThink = false;
+                  delta = delta.slice(end + '</think>'.length);
+                }
+              }
+              if (delta) {
+                const start = delta.indexOf('<think>');
+                if (start !== -1) {
+                  const end = delta.indexOf('</think>', start);
+                  if (end === -1) {
+                    inThink = true;
+                    delta = delta.slice(0, start);
+                  } else {
+                    delta = delta.slice(0, start) + delta.slice(end + '</think>'.length);
+                  }
+                }
+              }
+              if (delta) {
+                assistant += delta;
+                yield {
+                  type: 'delta',
+                  delta,
+                  agent: 'shadow-local',
+                  conversation_id: conversationId,
+                  timestamp: Date.now(),
+                };
+              }
             }
           } catch {
             /* skip malformed chunk */
           }
         }
+      }
+      if (!assistant) {
+        // The model spent its whole budget inside <think>…</think>
+        // (small Qwen3 models do this when the block never closes).
+        // Surface a graceful notice instead of a silent empty reply.
+        const fallback =
+          '（本地模型本次只输出了思考过程，没有给出答案 — 请重试或换个问法。）';
+        assistant = fallback;
+        yield {
+          type: 'delta',
+          delta: fallback,
+          agent: 'shadow-local',
+          conversation_id: conversationId,
+          timestamp: Date.now(),
+        };
       }
       history.push({ role: 'assistant', content: assistant });
       this.neuronHistory.set(conversationId, history);
