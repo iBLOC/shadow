@@ -293,6 +293,24 @@ On Windows this path is unreachable. The `cortex/` directory at `C:\Projects\iBL
 
 ---
 
+## Addendum (2026-09-26): telencephalon build + startup findings
+
+After the 2026-09-25 doc pass, I built `telencephalon` to verify the Playwright path. New findings:
+
+1. **Build:** `cargo build` from `C:\Projects\iBLOC\telencephalon` produces `target/debug/telencephalon.exe` in ~13 minutes. One-shot cargo warning, exit 0.
+
+2. **Startup behavior (2026-09-26):** Running the binary without env vars boots neuron embedded on `0.0.0.0:8086` and prints `DATABASE_URL is not set; booting in in-memory mode`, then **hangs indefinitely** before reaching `axum::serve` on the configured 60080. No "Cortex public listening" log line ever appears. `curl http://127.0.0.1:60080/health` returns nothing. The HTTP listener is never reached.
+
+3. **Suspect site:** `src/main.rs:241-243` — `if let Some(n) = neuron_handle.as_ref() { n.shutdown(); }` is called before `serve_embedded()`. If `NeuronHandle::shutdown()` waits for in-flight requests on neuron's router without a timeout, a single hung tokio task can block the main function forever. (Hypothesis — needs deeper investigation in the telencephalon repo; out of scope for this shadow-desktop assessment.)
+
+4. **Practical workaround:** Until the hang is diagnosed, Playwright on Windows stays gated. Two cheaper paths:
+   - Run the Playwright suite against a Linux CI runner where the hang may not reproduce (network socket + tokio runtime differences).
+   - Refactor `global-setup.ts` to **skip Playwright gracefully** when telencephalon fails to bind (downgrade from `process.exit(1)` to `console.warn` + per-test `isCortexReachable()` check), then gate each spec with `test.skip(!cortexReachable)`. The 24 of 28 specs that don't actually hit `60080/health` would then run.
+
+5. **out-of-scope:** the telencephalon hang is a telencephalon-repo bug, not a shadow-desktop test-infra bug. Tracking should live there.
+
+---
+
 ## 8. Acceptance checklist
 
 - [x] Per-repo test inventory with counts + runners + coverage tooling
