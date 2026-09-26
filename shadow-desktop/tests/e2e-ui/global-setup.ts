@@ -51,6 +51,7 @@ async function waitForCortex(timeout = 15000): Promise<boolean> {
 async function globalSetup(_config: FullConfig) {
   if (await isCortexRunning()) {
     console.log('[global-setup] Cortex already running, reusing it');
+    globalThis.__SHADOW_CORTEX_AVAILABLE__ = true;
     return;
   }
 
@@ -80,13 +81,35 @@ async function globalSetup(_config: FullConfig) {
 
   const ready = await waitForCortex();
   if (!ready) {
-    console.error('[global-setup] Cortex failed to start');
-    console.error(`  Tried: ${CORTEX_BIN}`);
-    console.error(`  cwd:   ${CORTEX_CWD}`);
-    console.error(`  Override with SHADOW_CORTEX_BIN / SHADOW_CORTEX_CWD env vars.`);
-    process.exit(1);
+    // Fail-soft (was hard exit). The telencephalon binary has been
+    // observed to bind neuron on :8086 but never reach the cortex
+    // HTTP listener on :60080 (see e2e-coverage-assessment addendum,
+    // 2026-09-26). On Windows + telencephalon 0.3.0 this means
+    // every Playwright spec used to be dead code. Now:
+    //   1. log a clear warning
+    //   2. set a flag so each spec can self-skip via isCortexReachable()
+    //   3. the 24/28 specs that don't hit :60080 still run
+    console.warn('[global-setup] Cortex failed to start; specs that need it will self-skip.');
+    console.warn(`  Tried: ${CORTEX_BIN}`);
+    console.warn(`  cwd:   ${CORTEX_CWD}`);
+    console.warn('  Override with SHADOW_CORTEX_BIN / SHADOW_CORTEX_CWD env vars to enable.');
+    globalThis.__SHADOW_CORTEX_AVAILABLE__ = false;
+    return;
   }
   console.log('[global-setup] Cortex started');
+  globalThis.__SHADOW_CORTEX_AVAILABLE__ = true;
+}
+
+// Re-export so specs can `import { isCortexReachable } from '../e2e-ui/global-setup'`.
+// In the Playwright runtime, the helper also consults the globalThis flag set above.
+export async function isCortexReachable(): Promise<boolean> {
+  if (globalThis.__SHADOW_CORTEX_AVAILABLE__ === false) return false;
+  return isCortexRunning();
+}
+
+declare global {
+  // eslint-disable-next-line no-var
+  var __SHADOW_CORTEX_AVAILABLE__: boolean | undefined;
 }
 
 export default globalSetup;
