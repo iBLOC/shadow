@@ -331,7 +331,11 @@
     "noModelsOfType": "No models of this type",
     "noModelsOfTypeDesc": "Switch to another type to see more models",
     "gatedModelHint": "This model requires HuggingFace login to download",
-    "goToSettings": "Go to Settings"
+    "goToSettings": "Go to Settings",
+    "providersMoved": "Cloud provider management moved to the \"LLM Providers\" page",
+    "providersMovedDesc": "Pick a preset and enter only the API key — model lists are fetched and refreshed automatically",
+    "openProviders": "Open provider management",
+    "neuronDown": "Local inference runtime not connected (neuron :8083). Model listing and downloads require neuron to be running."
   },
   "agents": {
     "title": "Agent Management",

@@ -63,6 +63,23 @@ export const prefrontalUrl = (): string => {
 };
 
 /**
+ * URL of the neuron inference runtime the UI should talk to for model
+ * management (`/v1/models*`: list / pull / release).
+ *
+ * The desktop app no longer proxies these through cortex (the sidecar was
+ * replaced by the in-process encephalon crate), so the models pages talk
+ * to neuron directly. Default is neuron's standalone port 8083; 8085 is
+ * only used when neuron is embedded in the Tauri shell, which the desktop
+ * build does not currently do. Override with `VITE_NEURON_URL`.
+ */
+export const neuronUrl = (): string => {
+  if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_NEURON_URL) {
+    return import.meta.env.VITE_NEURON_URL as string;
+  }
+  return 'http://localhost:8083';
+};
+
+/**
  * Whether a given OS-level feature is available.
  * Use this to hide / disable UI elements that would otherwise 404
  * when the user runs the web build.

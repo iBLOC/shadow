@@ -331,7 +331,11 @@
     "noModelsOfType": "暂无此类模型",
     "noModelsOfTypeDesc": "切换其他类型查看更多模型",
     "gatedModelHint": "此模型需要 HuggingFace 登录才能下载",
-    "goToSettings": "前往设置"
+    "goToSettings": "前往设置",
+    "providersMoved": "云供应商管理已移至「大模型服务提供商」页面",
+    "providersMovedDesc": "选择预设供应商只需填写 API Key，模型列表自动获取并定期更新",
+    "openProviders": "打开供应商管理",
+    "neuronDown": "本地推理引擎未连接（neuron :8083）。模型列表与下载需要 neuron 运行。"
   },
   "agents": {
     "title": "智能体管理",

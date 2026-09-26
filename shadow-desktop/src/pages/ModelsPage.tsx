@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { Button, Badge, EmptyState, Loading } from '../components/ui';
 import { AddProviderModal } from '../components/business';
 import type { ProviderTypeOption } from '../components/business/ProviderForm/types';
@@ -9,9 +10,15 @@ import {
   Trash, Package, RefreshCw, X, Loader2, AlertCircle, Ban, KeyRound
 } from 'lucide-react';
 import type { ModelProvider } from '../components/business/AddProviderModal/types';
-import { prefrontalUrl } from '../lib/platform';
+import { isTauri, prefrontalUrl, neuronUrl } from '../lib/platform';
 
+// Cortex base — only used by the web build's legacy provider CRUD.
+// The Tauri app has no cortex HTTP server (embedded encephalon instead),
+// so its provider management lives in ProvidersPage / provider_* commands.
 const API_BASE = prefrontalUrl();
+// neuron inference runtime — model management (/v1/models*) talks to it
+// directly since the cortex sidecar proxy is gone.
+const NEURON_BASE = neuronUrl();
 
 // Complete list of supported cloud providers
 const CLOUD_PROVIDER_TYPES: ProviderTypeOption[] = [
@@ -183,7 +190,41 @@ export function ModelsPage() {
         </button>
       </div>
 
-      {activeTab === 'cloud' ? <CloudProvidersTab /> : <LocalEngineTab />}
+      {activeTab === 'cloud' ? (
+        isTauri() ? <ProvidersMovedNotice /> : <CloudProvidersTab />
+      ) : (
+        <LocalEngineTab />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Tauri mode: the cortex `/models/providers` CRUD this tab used is gone
+ * (sidecar replaced by the embedded encephalon). Cloud provider management
+ * — including preset picking, API keys and per-provider model fetching —
+ * lives in ProvidersPage now.
+ */
+function ProvidersMovedNotice() {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  return (
+    <div className="flex flex-col items-center gap-4 rounded-lg border border-border p-8 text-center">
+      <Cpu size={48} className="text-muted-foreground" />
+      <div>
+        <h3 className="text-base font-medium text-foreground">
+          {t('models.providersMoved', '云供应商管理已移至「大模型服务提供商」页面')}
+        </h3>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {t(
+            'models.providersMovedDesc',
+            '选择预设供应商只需填写 API Key，模型列表自动获取并定期更新'
+          )}
+        </p>
+      </div>
+      <Button variant="primary" onClick={() => navigate('/providers')}>
+        {t('models.openProviders', '打开供应商管理')}
+      </Button>
     </div>
   );
 }
@@ -402,7 +443,7 @@ function LocalEngineTab() {
     setLoading(true);
     setError(null);
     try {
-      const r = await fetch(`${API_BASE}/v1/models?engine=${activeType}`);
+      const r = await fetch(`${NEURON_BASE}/v1/models?engine=${activeType}`);
       if (r.status === 404) { setModels([]); return; }
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const body = await r.json();
@@ -427,7 +468,7 @@ function LocalEngineTab() {
       const bareId = modelId.startsWith(`${engine}/`)
         ? modelId.slice(engine.length + 1)
         : modelId;
-      const r = await fetch(`${API_BASE}/v1/models/${engine}/${encodeURIComponent(bareId)}`, { method: 'DELETE' });
+      const r = await fetch(`${NEURON_BASE}/v1/models/${engine}/${encodeURIComponent(bareId)}`, { method: 'DELETE' });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       await load();
     } catch (e) {
@@ -437,10 +478,12 @@ function LocalEngineTab() {
 
   // Fetch the live job list from neuron, deduped by job_id. Also
   // captures a friendly model label the first time we see a job.
-  const refreshJobs = useCallback(async () => {
+  // Returns whether the runtime answered, so polling can back off
+  // when neuron isn't running instead of erroring every interval.
+  const refreshJobs = useCallback(async (): Promise<boolean> => {
     try {
-      const r = await fetch(`${API_BASE}/v1/models/pull`);
-      if (!r.ok) return;
+      const r = await fetch(`${NEURON_BASE}/v1/models/pull`);
+      if (!r.ok) return false;
       const body = await r.json();
       const list: ModelDownloadTask[] = body.data ?? [];
       setJobs(() => {
@@ -461,28 +504,56 @@ function LocalEngineTab() {
         }
         return next;
       });
-    } catch { /* non-fatal */ }
+      return true;
+    } catch {
+      return false;
+    }
   }, []);
 
-  // Initial fetch + interval polling. Polling rate is dynamic:
-  // tighter (1s) when something is in flight, relaxed (5s) when idle.
-  useEffect(() => {
-    refreshJobs();
-    let timer: ReturnType<typeof setInterval> | null = null;
+  // Job polling with backoff: 1s while something downloads, 5s idle, and a
+  // full stop after 3 consecutive failures (neuron not running) — every
+  // further request would only spam the error log. The reconnect hint
+  // restarts polling via pollSession.
+  const [neuronDown, setNeuronDown] = useState(false);
+  const [pollSession, setPollSession] = useState(0);
+  const pollFailures = useRef(0);
 
-    const tick = () => {
-      refreshJobs();
+  useEffect(() => {
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const tick = async () => {
+      const ok = await refreshJobs();
+      if (cancelled) return;
+      if (ok) {
+        pollFailures.current = 0;
+        setNeuronDown(false);
+      } else {
+        pollFailures.current += 1;
+        if (pollFailures.current >= 3) {
+          setNeuronDown(true);
+          return;
+        }
+      }
       const anyActive = Object.values(jobs).some(j =>
         j.status === 'pending' || j.status === 'in_progress'
       );
-      if (timer) clearInterval(timer);
-      timer = setInterval(tick, anyActive ? 1000 : 5000);
+      timer = setTimeout(tick, anyActive ? 1000 : 5000);
     };
-    tick();
+    void tick();
 
-    return () => { if (timer) clearInterval(timer); };
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refreshJobs]);
+  }, [refreshJobs, pollSession]);
+
+  const retryNeuron = () => {
+    pollFailures.current = 0;
+    setNeuronDown(false);
+    setPollSession(s => s + 1);
+  };
 
   // After any job transitions to completed, refresh the catalog
   // so the card flips from "supported" to "installed".
@@ -498,7 +569,7 @@ function LocalEngineTab() {
 
   const cancelJob = async (jobId: string) => {
     try {
-      await fetch(`${API_BASE}/v1/models/pull/${jobId}`, { method: 'DELETE' });
+      await fetch(`${NEURON_BASE}/v1/models/pull/${jobId}`, { method: 'DELETE' });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -574,6 +645,21 @@ function LocalEngineTab() {
         </div>
       )}
 
+      {/* Runtime unreachable — polling stopped to avoid error spam */}
+      {neuronDown && (
+        <div className="flex items-center justify-between gap-3 rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-600">
+          <span>
+            {t(
+              'models.neuronDown',
+              '本地推理引擎未连接（neuron :8083）。模型列表与下载需要 neuron 运行。'
+            )}
+          </span>
+          <Button variant="ghost" size="sm" onClick={retryNeuron}>
+            {t('common.retry', '重试')}
+          </Button>
+        </div>
+      )}
+
       {/* Download queue */}
       {(activeJobs.length > 0 || Object.keys(jobs).length > 0) && (
         <DownloadQueue
@@ -642,7 +728,7 @@ function LocalEngineTab() {
             const target = downloadTarget;
             setDownloadTarget(null);
             try {
-              const r = await fetch(`${API_BASE}/v1/models/pull`, {
+              const r = await fetch(`${NEURON_BASE}/v1/models/pull`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
