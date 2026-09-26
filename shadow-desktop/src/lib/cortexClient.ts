@@ -6,7 +6,11 @@ const DEFAULT_CORTEX_URL = 'http://127.0.0.1:60080';
 const NEURON_CHAT_MODEL_FALLBACK = 'qwen3-0.6b';
 const SHADOW_NEURON_SYSTEM =
   "You are Shadow (影), the user's personal AI avatar running locally. " +
-  'Reply helpfully and concisely in the language the user writes in.';
+  'Reply helpfully and concisely in the language the user writes in. ' +
+  // Qwen3 soft switch — skips the <think> reasoning block entirely,
+  // which otherwise burns minutes of CPU generation before any answer
+  // text appears (the bridge also strips think blocks as a fallback).
+  '/no_think';
 
 export interface CortexConfig {
   baseUrl: string;
