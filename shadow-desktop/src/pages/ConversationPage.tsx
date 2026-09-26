@@ -59,6 +59,7 @@ export function ConversationPage() {
     removeConversation,
     setActiveConversation,
     addMessage,
+    updateMessage,
     setSessionId,
   } = useConversationStore();
 
@@ -140,9 +141,24 @@ export function ConversationPage() {
           let accumulated = '';
           let chatbiPayload: ChatBiPayload | undefined;
           let visualQaClarification: VisualQaClarification | undefined;
+          // Local engines stream slowly (seconds per token on CPU) —
+          // render the reply incrementally instead of only after the
+          // stream ends, which looked like a hung app.
+          let streamingId: string | null = null;
           for await (const event of cortexClient.streamMessage(conversationId, { text: input })) {
             if (event.type === 'delta' && event.delta) {
               accumulated += event.delta;
+              if (!streamingId) {
+                streamingId = crypto.randomUUID();
+                addMessage(activeConversationId, {
+                  id: streamingId,
+                  role: 'assistant',
+                  content: event.delta,
+                  timestamp: new Date(),
+                });
+              } else {
+                updateMessage(activeConversationId, streamingId, { content: accumulated });
+              }
             } else if (event.type === 'clarification' && event.clarification) {
               visualQaClarification = event.clarification;
             } else if (event.type === 'audio_event' && event.audio) {
@@ -196,20 +212,29 @@ export function ConversationPage() {
             }
           }
 
-          const assistantMessage: Message = {
-            id: crypto.randomUUID(),
-            role: 'assistant',
-            content: chatbiPayload
-              ? t('conversation.chatbi.chartTitle', {
-                  sql: chatbiPayload.sql_executed,
-                  ms: chatbiPayload.took_ms,
-                })
-              : accumulated || t('conversation.noResponse'),
-            timestamp: new Date(),
-            chatbi: chatbiPayload,
-            visual_qa_clarification: visualQaClarification,
-          };
-          addMessage(activeConversationId, assistantMessage);
+          const finalContent = chatbiPayload
+            ? t('conversation.chatbi.chartTitle', {
+                sql: chatbiPayload.sql_executed,
+                ms: chatbiPayload.took_ms,
+              })
+            : accumulated || t('conversation.noResponse');
+          if (streamingId) {
+            // The streaming bubble already exists — finalize it.
+            updateMessage(activeConversationId, streamingId, {
+              content: finalContent,
+              chatbi: chatbiPayload,
+              visual_qa_clarification: visualQaClarification,
+            });
+          } else {
+            addMessage(activeConversationId, {
+              id: crypto.randomUUID(),
+              role: 'assistant',
+              content: finalContent,
+              timestamp: new Date(),
+              chatbi: chatbiPayload,
+              visual_qa_clarification: visualQaClarification,
+            });
+          }
           return;
         } catch (error) {
           lastError = error instanceof Error ? error : new Error(String(error));

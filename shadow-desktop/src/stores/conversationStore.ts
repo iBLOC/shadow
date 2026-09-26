@@ -10,6 +10,7 @@ interface ConversationState {
   updateConversation: (id: string, updates: Partial<Conversation>) => void;
   setActiveConversation: (id: string | null) => void;
   addMessage: (conversationId: string, message: Message) => void;
+  updateMessage: (conversationId: string, messageId: string, updates: Partial<Message>) => void;
   setSessionId: (conversationId: string, sessionId: string) => void;
   clearConversations: () => void;
 }
