@@ -27,6 +27,9 @@ use tauri::{
     Manager, Runtime, State, WindowEvent,
 };
 use encephalon::telencephalon::a2a::client::TelencephalonStreamEvent as Tse;
+// neuron's lib target is named neuron_lib (see neuron/Cargo.toml [lib]);
+// alias to the crate's project name, same as telencephalon does.
+use neuron_lib as neuron;
 use worktree_manager::WorktreeManager;
 use result_manager::{CommitInfo, ResultManager as ResultMgr, ResultManagerError};
 use preview_window as preview;
@@ -230,6 +233,29 @@ pub fn run() {
             // async to spawn here. (The old cortex sidecar spawn is
             // gone — see commit f200f93 for the deletion history.)
             let _ = app_handle;
+
+            // Embedded neuron inference runtime (:8085) — the models
+            // pages talk to it directly (platform.ts neuronUrl) since
+            // the cortex sidecar proxy is gone. A bind failure (port
+            // taken by another instance) is logged, not fatal: the UI
+            // degrades to its "runtime not connected" state.
+            tauri::async_runtime::spawn(async move {
+                let cfg = neuron::NeuronEmbedConfig {
+                    port: 8085,
+                    config: neuron::NeuronConfig::new(),
+                };
+                match neuron::run_embedded(cfg).await {
+                    Ok(handle) => {
+                        tracing::info!("neuron embedded listening on :{}", handle.addr);
+                        // Hold the handle for the app's lifetime: dropping
+                        // it closes the shutdown watch channel, which
+                        // neuron's serve loop treats as a shutdown signal
+                        // (observed: bind succeeds, listener vanishes).
+                        std::future::pending::<()>().await;
+                    }
+                    Err(e) => tracing::warn!("neuron embedded failed to start: {e}"),
+                }
+            });
 
             // Periodic model refresh: every enabled provider's /models
             // endpoint is re-fetched every 10 minutes so the cached model

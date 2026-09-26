@@ -66,17 +66,16 @@ export const prefrontalUrl = (): string => {
  * URL of the neuron inference runtime the UI should talk to for model
  * management (`/v1/models*`: list / pull / release).
  *
- * The desktop app no longer proxies these through cortex (the sidecar was
- * replaced by the in-process encephalon crate), so the models pages talk
- * to neuron directly. Default is neuron's standalone port 8083; 8085 is
- * only used when neuron is embedded in the Tauri shell, which the desktop
- * build does not currently do. Override with `VITE_NEURON_URL`.
+ * The desktop app embeds neuron in-process via `run_embedded()` on :8085
+ * (spawned in the Tauri setup hook), so Tauri builds always have a local
+ * runtime. The web build has no embedded engine — it targets a standalone
+ * neuron on the default :8083. Both overridable with `VITE_NEURON_URL`.
  */
 export const neuronUrl = (): string => {
   if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_NEURON_URL) {
     return import.meta.env.VITE_NEURON_URL as string;
   }
-  return 'http://localhost:8083';
+  return isTauri() ? 'http://localhost:8085' : 'http://localhost:8083';
 };
 
 /**

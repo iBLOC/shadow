@@ -83,6 +83,10 @@ async-trait = "0.1"
 # `synapse::mcp::*` types directly in feishu_mcp/mod.rs) — pull
 # directly so the import resolves.
 synapse = { path = "../../../synapse" }
+# Embedded inference runtime (AGENTS.md: neuron :8085 via run_embedded).
+# Already in the dep tree via telencephalon (default-features = false);
+# this entry enables the default candle backend for serving.
+neuron = { path = "../../../neuron" }
 
 # Disable wasmtime's `profiling` feature: it pulls ittapi-sys, whose
 # runtime needs libittnotify.dll next to the executable. The DLL isn't
