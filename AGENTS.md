@@ -1,11 +1,11 @@
 # PROJECT KNOWLEDGE BASE
 
 **Generated:** 2026-03-21
-**Updated:** 2026-07-19 (post-port-unification 2757fea: cortex :8443→:60080; SQLite dropped from prefrontal 70a9976/2561ece; candle-vllm reference removed in favor of neuron-embedded); 2026-09-02 (subsystem management panel: 3-tier auth client + thalamus/hippocampus/neuron preview/config; see [`2026-09-02-cortex-subsystem-management-design.md`](../cortex/docs/superpowers/specs/2026-09-02-cortex-subsystem-management-design.md))
+**Updated:** 2026-09-25 (post-audit-cycle: rename chain cortex→encephalon→**telencephalon** closed, port :8443→**`:60080`** unified across lobes, recording mode R1-R4 landed, MCP catalog 5×28 + transport-aware form shipped, Workflow Studio v1 closed R-12/R-13, 4-lobe split GitHub homes finalized at bare names per `1dd1f0c`; see [`2026-09-25-doc-sync-changelog.md`](docs/superpowers/architecture/2026-09-25-doc-sync-changelog.md))
 **Project:** shadow (影) - AI 用户分身系统
 **Spec version:** 2026-06-04 4-layer architecture (aligned with root `/AGENTS.md`)
-**Parent project summary:** `/home/ibloc/Projects/AGENTS.md` (not git-tracked — drift-prone; mirrors major cortex/shadow changes)
-**Cortex subsystem surface**: see [`cortex/AGENTS.md`](../cortex/AGENTS.md) §Subsystem management surface for the 3-tier auth model and route tables consumed by Shadow-Desktop.
+**Parent project summary**: `/home/ibloc/Projects/AGENTS.md` (not git-tracked — drift-prone; **not present on this Windows checkout**, paths stay verbatim Linux for now). Sibling audit: [`2026-09-23-iBLOC-progress-assessment.md`](docs/superpowers/architecture/2026-09-23-iBLOC-progress-assessment.md). Companion E2E coverage assessment: [`2026-09-25-e2e-coverage-assessment.md`](docs/superpowers/architecture/2026-09-25-e2e-coverage-assessment.md).
+**Telencephalon (Layer 3.5) subsystem surface**: see [`telencephalon/AGENTS.md` §Subsystem Management (3-tier auth)](../telencephalon/AGENTS.md) — the active repo after the 2026-09 rename chain. The original `cortex/` directory at `C:\Projects\iBLOC\cortex\` is empty (placeholder).
 
 ## OVERVIEW
 
@@ -68,7 +68,8 @@
 │  Layer 3.5: CORTEX  (Agent 编排层, 单 shadow 中心化)                          │
 │                                                                             │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │  Cortex  https://github.com/iBLOC/cortex            Port 60080        │    │
+│  │  Telencephalon  https://github.com/iBLOC/telencephalon Port 60080    │    │
+│  │  (was cortex → encephalon → telencephalon, 2026-09 rename chain)     │    │
 │  │  Rust (axum 0.8 + synapse::wasm)                                     │    │
 │  │  • 本地 registry (native lobes + user WASM agents)                    │    │
 │  │  • A2A gateway (skill-based routing)                                  │    │
@@ -263,7 +264,7 @@ shadow/
 | 模块 | 位置 | 端口 | 功能 |
 |------|------|------|------|
 | **Resonance** | `https://github.com/iBLOC/resonance` | 8080 | 任务编排、规划、工作流引擎 |
-| **Cortex** | `https://github.com/iBLOC/cortex` | 60080 | 单 shadow 中心化 agent 注册 + A2A gateway + WASM 宿主 + 外部智能体扫描同步 + MCP 管理 (v0.5 Sprint 2) |
+| **Cortex** (renamed to **Telencephalon** 2026-09) | `https://github.com/iBLOC/telencephalon` | 60080 | 单 shadow 中心化 agent 注册 + A2A gateway + WASM 宿主 + 外部智能体扫描同步 + MCP 管理 (v0.5 Sprint 2) |
 | **Prefrontal** | `https://github.com/iBLOC/prefrontal` | 8082 | 多智能体执行、工具调用、内置 Agent (prefrontal 是 cortex 管理的 lobe 之一) |
 | **Hippocampus** | `https://github.com/iBLOC/hippocampus` | 8081 | 长期记忆、HybridRAG 搜索 |
 | **Shadow-Desktop** | `shadow-desktop/` | N/A | 桌面端 UI + neuron (embedded :8085 via Tauri shell) |
@@ -339,6 +340,33 @@ export PREFRONTAL_MODE="executor"                 # executor / full
 - 模型下载平台
 - 支持 MNN 和 candle 格式模型
 - modelscope.cn
+
+## Recent changes (2026-09-24 / 2026-09-25)
+
+39+ commits landed after the 2026-09-23 audit cycle. Highlights (full e2e gap analysis in [`2026-09-25-e2e-coverage-assessment.md`](docs/superpowers/architecture/2026-09-25-e2e-coverage-assessment.md)):
+
+| Area | Change | Commits |
+|---|---|---|
+| **Rename chain closed** | cortex → encephalon → **telencephalon** (`telencephalon` is the active repo; `cortex/` directory is empty) | `b077a24`, `7128409`, `b0af1d7`, `f2d0015` |
+| **Port unification** | :8443 → `:60080` across all lobes (cortex/temporal/occipital/parietal `CORTEX_URL`) | `2757fea` |
+| **4-lobe GitHub homes** | Final decision: bare names `iBLOC/{temporal,occipital,parietal,prefrontal}`. `parietal-lobe/` skeleton superseded. Workflow schema + runtime moved to `cerebellum/`. | `1dd1f0c`, `d7cfec7`, `43f9e97` |
+| **Recording mode R1-R4** | RecordingPage UI + Tauri commands (recording_start/stop/status/events/list/report) + lobe ownership rule (音频→颞叶 / 视觉→枕叶) + recording summary + LanceGraph edges | `a1e3509`, `de0913e`, `8520c31`, `afa8d60`, `3600166`, `30d7f59`, `0390379`, `856621c`, `965bc15`, `ec467b7` |
+| **MCP catalog 5×28 + transport-aware MCPPage** | stdio / http / wasm transports, 5 built-in servers × 28 tools; button import fixes | `ccae5ce`, `1c0c3ec`, `5679021`, `f02ba35` |
+| **Workflow Studio v1 (R-12/R-13 closure)** | Drag-drop editor at `cerebellum/apps/editor` + Univer locale deps | `4023493`, `93f4ef9` |
+| **Subsystem management panel** | 3-tier auth client (thalamus / hippocampus / neuron preview/config) | `cd84a71` |
+| **Cortex sidecar → embedded encephalon** | Tauri shell boots `Encephalon` + `diencephalon::Thalamus` in `setup()` | `be50b7f` |
+| **Computer Use R-10/R-11** | 11 `cu_*` commands + ComputerUsePage + Windows UI Automation + preview-before-commit modal | `84418a2`, `9c46327`, `c37b163`, `b5743fc` |
+| **browser-use R-08/R-09** | WebviewWindow per-task + PreviewButton + PreviewsPage | `b834d20`, `858f0df` |
+| **Document productization DOC-01..05** | `<UniverSheet>` + `/document/:taskId` route + Feishu MCP bridge + open-lark backend + FeishuPublishedCard + Feishu Settings toggle + per-task result management with local git | `2bb8932`, `90878db`, `00c43fc`, `d7d1466`, `8bbc260`, `2aa0d3b` |
+| **AudioEventChip R-01** | R-11 SSE schema + UniverSheet i18n | `c08da1d` |
+| **History tab R-04/05** | TaskDetailDialog | `f246c31` |
+| **shadow-desktop build fixes** | ziti-sdk patch + dep-graph + API-drift fixes; i18n JSON repaired; pnpm tauri dev running | `cc1b787`, `2fee8eb`, `73b4cda`, `8f01cde`, `89e478b` |
+| **hippocampus voiceprint store** | Embedding table for audio enrolment (BC-01 pipeline anchor) | `6aea5e1` |
+| **diencephalon BC-01** | `subscribe_audio` / `unsubscribe_audio` MCP tools + `Thalamus::stream` public method | `7593343`, `4e96474`, `8fc67d9` |
+| **neuron** | `neure → neuron` rename; `AppState::register_engine`; test count → 618 | `e3d2c41`, `bccef7c` |
+| **synapse** | `transport::ziti` module + A2A metadata wire-forwarding via `__encephalon_meta_v1__` + audio providers | `8ff2294`, `135f1fd`, `cdb6249` |
+
+For the end-to-end coverage assessment of all the above (which has zero e2e in CI today), see the companion E2E assessment doc.
 
 ## 设计规范版本控制策略
 

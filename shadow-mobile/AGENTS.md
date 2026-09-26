@@ -1,6 +1,6 @@
 # PROJECT KNOWLEDGE BASE — shadow-mobile
 
-**Updated:** 2026-08-18 (v2.8 — smart customer service mode + InCallService + USB/earphone auto-routing; complements shadow-esp32 v2.4/v2.5/v2.7)
+**Updated:** 2026-09-25 (post-audit-cycle: cortex-centric view confirmed; port `:60080` unified; references [`2026-09-25-e2e-coverage-assessment.md`](../../docs/superpowers/architecture/2026-09-25-e2e-coverage-assessment.md))
 **Project:** shadow-mobile (Layer 4 Interaction + thin on-device Engine via Kotlin Native)
 
 > **Note (2026-07-19)**: This doc was previously framed as a "Layer 4 + Layer 2 hybrid" with 3 user-configurable modes. That framing predates **Cortex** (Layer 3.5). Current architecture: mobile is **primarily Layer 4** (Flutter UI); the on-device inference capability lives in the **Kotlin Native** layer (OpenAIServer.kt + LiteRT/MNN), exposed as a sidecar HTTP server on `:8085` when the user opts in. The default mobile flow routes everything through **cortex** (`:60080`).
@@ -440,7 +440,7 @@ No errors, no warnings — only style-level info issues (deprecated `value` / `a
 
 ```bash
 # Optional — only needed when targeting a specific cortex / prefrontal in dev
-export CORTEX_HOST="http://localhost:60080"        # default in production: discovered via mDNS
+export CORTEX_HOST="http://localhost:60080"        # default in production: discovered via mDNS (port unified 2026-09, was :8443)
 export PREFRONTAL_HOST="http://localhost:8082"     # fallback only — `dacbe83` removed automatic fallback
 
 # Model download defaults
@@ -448,6 +448,18 @@ export NEURON_DEFAULT_SOURCE="modelscope"           # mobile's `model_download_p
 export HF_TOKEN="..."                                # for gated HuggingFace repos
 export MODELSCOPE_TOKEN="..."                       # for gated ModelScope repos
 ```
+
+## E2E COVERAGE (audit 2026-09-25)
+
+Per [`2026-09-25-e2e-coverage-assessment.md`](../../docs/superpowers/architecture/2026-09-25-e2e-coverage-assessment.md), mobile's e2e coverage is held back by:
+
+- **Silent skip pattern** in `integration_test/*.dart`: `api_flow_test.dart`, `memory_flow_test.dart`, `group_flow_test.dart`, `model_share_test.dart` all start with `isPrefrontalRunning()` and `return;` on false. **No CI matrix boots prefrontal** before these.
+- **Stub app context** in `app_test.dart`, `conversation_flow_test.dart`, `task_flow_test.dart`: `app.main()` runs against a stub context with **no live CortexClient**.
+- **No real-cortex e2e**: `cortex_client_test.dart` uses `http_testing.MockClient` only — no real `:60080` exercise.
+- **Zero BLE / USB / InCallService e2e**: `com.ibloc.shadow/{ble_provision,usb_audio,call_state}` channels all uncovered.
+- **Zero Live Stream / Customer Service e2e**: `/livestream` and `/customer-service` modes uncovered.
+
+Sibling desktop has the same shape — see E2E assessment §3.6-3.9 for the desktop-side gaps.
 
 ## Commits (mobile-only, last 10)
 

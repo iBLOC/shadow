@@ -5,7 +5,7 @@
 | 字段 | 值 |
 |---|---|
 | **目标平台** | ESP32-S3-DevKitC(首选) / M5Stack CoreS3 / 其它 ESP32-S3-WROOM 模组 |
-| **状态** | **0.4 — 实施架构 v2 已定(ADR-0002 v2,2026-08-16,WebRTC 复用)**,待启动 scaffold 替换 |
+| **状态** | **v2.7.1 (2026-08-18) — dialog_task 真 DTLS + SRTP + STUN + media loop smoke 通过**. v0.x 概念阶段; ADR-0001 (Zephyr + C) + ADR-0002 v2 (WebRTC 复用) 已 accepted. 2026-09-25 audit: firmware 单元测试为零(`tests/` 目录不存在); CI 仅跑 `west build`. 详见 [`../docs/superpowers/architecture/2026-09-25-e2e-coverage-assessment.md` §3.10](../docs/superpowers/architecture/2026-09-25-e2e-coverage-assessment.md) |
 | **决策栈** | **Zephyr 4.4.x + C + west**(`esp32s3_devkitc` 板级) |
 | **架构 ADR** | [`docs/adr/0001-stack-choice-zephyr-c.md`](docs/adr/0001-stack-choice-zephyr-c.md)(调研 RTOS/语言/chip) + [`docs/adr/0002-shadow-esp32-implementation-architecture.md`](docs/adr/0002-shadow-esp32-implementation-architecture.md)(实施架构 v2) |
 | **调研文档** | [`docs/RESEARCH.md`](docs/RESEARCH.md) — Zephyr/Rust + xiaozhi/esp-claw/temporal + WASM-on-Xtensa + WebRTC 复用综合调研 |
