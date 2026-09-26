@@ -1,4 +1,12 @@
+import { isTauri, neuronUrl } from './platform';
+
 const DEFAULT_CORTEX_URL = 'http://127.0.0.1:60080';
+
+// Embedded-neuron bridge constants (Tauri desktop conversation path).
+const NEURON_CHAT_MODEL_FALLBACK = 'qwen3-0.6b';
+const SHADOW_NEURON_SYSTEM =
+  "You are Shadow (影), the user's personal AI avatar running locally. " +
+  'Reply helpfully and concisely in the language the user writes in.';
 
 export interface CortexConfig {
   baseUrl: string;
@@ -379,9 +387,129 @@ export class CortexClient {
   private baseUrl: string;
   private apiKey?: string;
 
+  // ---- embedded-neuron chat bridge (Tauri desktop) ----
+  // The cortex sidecar is gone from the desktop app (replaced by the
+  // in-process encephalon crate), so the /shadow/v1 conversation API no
+  // longer exists there. In Tauri builds the conversation surface talks
+  // to the embedded neuron's OpenAI-compatible /v1/chat/completions
+  // instead, preserving the StreamEvent contract ConversationPage
+  // consumes. Web builds keep targeting a deployed cortex.
+  private neuronHistory = new Map<string, Array<{ role: 'system' | 'user' | 'assistant'; content: string }>>();
+  private neuronModel: string | null = null;
+
   constructor(config: Partial<CortexConfig> = {}) {
     this.baseUrl = config.baseUrl ?? DEFAULT_CORTEX_URL;
     this.apiKey = config.apiKey;
+  }
+
+  /** Pick the first downloaded (available) llm model from the embedded
+   *  runtime, falling back to the small default catalog entry. */
+  private async pickNeuronModel(): Promise<string> {
+    if (this.neuronModel) return this.neuronModel;
+    try {
+      const r = await fetch(`${neuronUrl()}/v1/models?engine=llm`);
+      if (r.ok) {
+        const body = await r.json();
+        const available: Array<{ id: string; available?: boolean }> = body.data ?? [];
+        const first = available.find((m) => m.available);
+        if (first) {
+          // /v1/models ids look like `llm/qwen3-0.6b`; the chat API wants
+          // the registered (bare) model id.
+          this.neuronModel = first.id.split('/').pop() || NEURON_CHAT_MODEL_FALLBACK;
+          return this.neuronModel;
+        }
+      }
+    } catch {
+      // runtime not reachable — fall through to the catalog default so
+      // the error surfaces from the chat request itself.
+    }
+    return NEURON_CHAT_MODEL_FALLBACK;
+  }
+
+  private newLocalConversation(opts: { agent?: string; system?: string } = {}): Conversation {
+    const now = new Date().toISOString();
+    return {
+      id: `local-${crypto.randomUUID()}`,
+      agent: opts.agent ?? 'shadow-local',
+      created_at: now,
+      updated_at: now,
+      history: [],
+    };
+  }
+
+  private async *streamMessageNeuron(
+    conversationId: string,
+    req: SendMessageRequest,
+  ): AsyncGenerator<StreamEvent> {
+    const history = this.neuronHistory.get(conversationId) ?? [
+      { role: 'system' as const, content: SHADOW_NEURON_SYSTEM },
+    ];
+    history.push({ role: 'user', content: req.text });
+
+    let assistant = '';
+    try {
+      const model = await this.pickNeuronModel();
+      const resp = await fetch(`${neuronUrl()}/v1/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model, messages: history, stream: true }),
+      });
+      if (!resp.ok || !resp.body) {
+        let msg = `neuron chat ${resp.status}: ${resp.statusText}`;
+        try {
+          const body = await resp.json();
+          if (body?.error?.message) msg = body.error.message;
+        } catch { /* keep status line */ }
+        throw new Error(msg);
+      }
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+        for (const raw of lines) {
+          const line = raw.trim();
+          if (!line.startsWith('data:')) continue;
+          const data = line.slice(5).trim();
+          if (!data || data === '[DONE]') continue;
+          try {
+            const chunk = JSON.parse(data);
+            const delta: string | undefined = chunk.choices?.[0]?.delta?.content;
+            if (delta) {
+              assistant += delta;
+              yield {
+                type: 'delta',
+                delta,
+                agent: 'shadow-local',
+                conversation_id: conversationId,
+                timestamp: Date.now(),
+              };
+            }
+          } catch {
+            /* skip malformed chunk */
+          }
+        }
+      }
+      history.push({ role: 'assistant', content: assistant });
+      this.neuronHistory.set(conversationId, history);
+      yield {
+        type: 'done',
+        conversation_id: conversationId,
+        state: 'COMPLETED',
+        timestamp: Date.now(),
+      };
+    } catch (e) {
+      yield {
+        type: 'error',
+        conversation_id: conversationId,
+        error: e instanceof Error ? e.message : String(e),
+        timestamp: Date.now(),
+      };
+    }
   }
 
   setBaseUrl(url: string): void {
@@ -410,6 +538,13 @@ export class CortexClient {
   }
 
   async health(): Promise<{ status: string; addr: string }> {
+    if (isTauri()) {
+      // No cortex in the desktop app — the embedded neuron is the liveness
+      // surface (drives the header connection indicator).
+      const r = await fetch(`${neuronUrl()}/health`);
+      if (!r.ok) throw new Error(`neuron health ${r.status}: ${r.statusText}`);
+      return r.json();
+    }
     return this.request('/.well-known/agent.json');
   }
 
@@ -422,6 +557,7 @@ export class CortexClient {
   }
 
   async createConversation(opts: { agent?: string; system?: string } = {}): Promise<Conversation> {
+    if (isTauri()) return this.newLocalConversation(opts);
     return this.request('/shadow/v1/conversations', {
       method: 'POST',
       body: JSON.stringify(opts),
@@ -444,6 +580,10 @@ export class CortexClient {
   }
 
   async *streamMessage(conversationId: string, req: SendMessageRequest): AsyncGenerator<StreamEvent> {
+    if (isTauri()) {
+      yield* this.streamMessageNeuron(conversationId, req);
+      return;
+    }
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (this.apiKey) headers['X-Shadow-Key'] = this.apiKey;
     const resp = await fetch(
