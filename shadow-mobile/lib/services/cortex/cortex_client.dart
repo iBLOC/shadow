@@ -112,12 +112,14 @@ class AgentsResponse {
   });
 
   factory AgentsResponse.fromJson(Map<String, dynamic> json) {
-    final cortex = json['cortex'] as Map<String, dynamic>? ?? const {};
+    final envelope = (json['telencephalon'] as Map<String, dynamic>?) ??
+        (json['cortex'] as Map<String, dynamic>?) ??
+        const {};
     final agents = (json['agents'] as List?) ?? const [];
     return AgentsResponse(
-      cortexId: cortex['id'] as String? ?? '',
-      instanceName: cortex['instance_name'] as String? ?? '',
-      defaultAgent: cortex['default_agent'] as String? ?? '',
+      cortexId: envelope['id'] as String? ?? '',
+      instanceName: envelope['instance_name'] as String? ?? '',
+      defaultAgent: envelope['default_agent'] as String? ?? '',
       agents: agents
           .map((e) => LobeInfo.fromJson(e as Map<String, dynamic>))
           .toList(),
@@ -359,22 +361,33 @@ class CortexClient {
 
   String _baseUrl;
   String? _apiKey;
+  String? _adminToken;
   final http.Client _http;
 
-  CortexClient({String? baseUrl, String? apiKey, http.Client? client})
-    : _baseUrl = baseUrl ?? _defaultBaseUrl,
-      _apiKey = apiKey,
-      _http = client ?? http.Client();
+  CortexClient({
+    String? baseUrl,
+    String? apiKey,
+    String? adminToken,
+    http.Client? client,
+  }) : _baseUrl = baseUrl ?? _defaultBaseUrl,
+       _apiKey = apiKey,
+       _adminToken = adminToken,
+       _http = client ?? http.Client();
 
   String get baseUrl => _baseUrl;
   void setBaseUrl(String url) => _baseUrl = url;
   String? get apiKey => _apiKey;
   void setApiKey(String? key) => _apiKey = key;
+  String? get adminToken => _adminToken;
+  void setAdminToken(String? token) => _adminToken = token;
 
-  Map<String, String> _headers({bool jsonBody = false}) {
+  Map<String, String> _headers({bool jsonBody = false, bool admin = false}) {
     final h = <String, String>{};
     if (jsonBody) h['Content-Type'] = 'application/json';
     if (_apiKey != null && _apiKey!.isNotEmpty) h['X-Shadow-Key'] = _apiKey!;
+    if (admin && _adminToken != null && _adminToken!.isNotEmpty) {
+      h['X-Admin-Token'] = _adminToken!;
+    }
     return h;
   }
 
@@ -414,6 +427,36 @@ class CortexClient {
     );
     if (r.statusCode != 200 && r.statusCode != 204) {
       throw CortexException('POST $path → ${r.statusCode}: ${r.body}');
+    }
+  }
+
+  Future<Map<String, dynamic>> _adminPost(
+    String path,
+    Map<String, dynamic> body,
+  ) async {
+    final r = await _http.post(
+      _u(path),
+      headers: _headers(jsonBody: true, admin: true),
+      body: jsonEncode(body),
+    );
+    if (r.statusCode != 200 && r.statusCode != 201) {
+      throw CortexException('POST $path → ${r.statusCode}: ${r.body}');
+    }
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> _adminGet(String path) async {
+    final r = await _http.get(_u(path), headers: _headers(admin: true));
+    if (r.statusCode != 200) {
+      throw CortexException('GET $path → ${r.statusCode}: ${r.body}');
+    }
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
+  Future<void> _adminDelete(String path) async {
+    final r = await _http.delete(_u(path), headers: _headers(admin: true));
+    if (r.statusCode != 200 && r.statusCode != 204) {
+      throw CortexException('DELETE $path → ${r.statusCode}: ${r.body}');
     }
   }
 
@@ -566,13 +609,39 @@ class CortexClient {
     Map<String, dynamic> inputs, {
     String? sessionId,
   }) async {
+    // Telencephalon only exposes POST /api/flows/{id}/run; resolve by name
+    // via listFlows first. The id path short-circuits the list call when the
+    // caller already has a UUID-shaped flowId.
+    final resolvedId = _looksLikeFlowId(flowIdOrName)
+        ? flowIdOrName
+        : await _resolveFlowIdByName(flowIdOrName);
     final body = <String, dynamic>{'inputs': inputs};
     if (sessionId != null) body['session_id'] = sessionId;
     final json = await _post(
-      '/api/flows/by-name/${Uri.encodeComponent(flowIdOrName)}/invoke',
+      '/api/flows/${Uri.encodeComponent(resolvedId)}/run',
       body,
     );
     return FlowRunResult.fromJson(json);
+  }
+
+  bool _looksLikeFlowId(String s) {
+    if (s.isEmpty) return false;
+    final uuidLike = RegExp(
+      r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+    );
+    return uuidLike.hasMatch(s);
+  }
+
+  Future<String> _resolveFlowIdByName(String name) async {
+    final flows = await listFlows(name: name);
+    if (flows.isEmpty) {
+      throw CortexException('flow not found: $name');
+    }
+    final match = flows.firstWhere(
+      (f) => f.name == name,
+      orElse: () => flows.first,
+    );
+    return match.id;
   }
 
   Future<List<FlowDefinition>> listDrafts() async {
@@ -597,7 +666,7 @@ class CortexClient {
   // ---- MCP Management API ----
 
   Future<List<Map<String, dynamic>>> listMcpServers() async {
-    final json = await _get('/api/cortex/mcp/servers');
+    final json = await _get('/api/telencephalon/mcp/servers');
     return (json['servers'] as List<dynamic>?)
             ?.map((e) => Map<String, dynamic>.from(e as Map))
             .toList() ??
@@ -605,12 +674,12 @@ class CortexClient {
   }
 
   Future<Map<String, dynamic>> getMcpServer(String id) async {
-    return await _get('/api/cortex/mcp/servers/${Uri.encodeComponent(id)}');
+    return await _get('/api/telencephalon/mcp/servers/${Uri.encodeComponent(id)}');
   }
 
   Future<List<Map<String, dynamic>>> getMcpServerTools(String id) async {
     final json = await _get(
-      '/api/cortex/mcp/servers/${Uri.encodeComponent(id)}/tools',
+      '/api/telencephalon/mcp/servers/${Uri.encodeComponent(id)}/tools',
     );
     return (json as List<dynamic>)
         .map((e) => Map<String, dynamic>.from(e as Map))
@@ -621,7 +690,7 @@ class CortexClient {
     String agentName,
   ) async {
     final json = await _get(
-      '/api/cortex/mcp/agents/${Uri.encodeComponent(agentName)}/servers',
+      '/api/telencephalon/mcp/agents/${Uri.encodeComponent(agentName)}/servers',
     );
     return (json['bindings'] as List<dynamic>?)
             ?.map((e) => Map<String, dynamic>.from(e as Map))
@@ -631,7 +700,7 @@ class CortexClient {
 
   Future<List<Map<String, dynamic>>> getAgentMcpTools(String agentName) async {
     final json = await _get(
-      '/api/cortex/mcp/agents/${Uri.encodeComponent(agentName)}/tools',
+      '/api/telencephalon/mcp/agents/${Uri.encodeComponent(agentName)}/tools',
     );
     return (json as List<dynamic>)
         .map((e) => Map<String, dynamic>.from(e as Map))
@@ -660,28 +729,25 @@ class CortexClient {
       };
     }
     if (description != null) body['description'] = description;
-    return await _post('/api/cortex/admin/mcp/servers', body);
+    return await _adminPost('/api/telencephalon/admin/mcp/servers', body);
   }
 
   Future<void> deleteMcpServer(String id) async {
-    await _http.delete(
-      Uri.parse(
-        '$_baseUrl/api/cortex/admin/mcp/servers/${Uri.encodeComponent(id)}',
-      ),
-      headers: _headers(),
+    await _adminDelete(
+      '/api/telencephalon/admin/mcp/servers/${Uri.encodeComponent(id)}',
     );
   }
 
   Future<Map<String, dynamic>> startMcpServer(String id) async {
-    return await _post(
-      '/api/cortex/admin/mcp/servers/${Uri.encodeComponent(id)}/start',
+    return await _adminPost(
+      '/api/telencephalon/admin/mcp/servers/${Uri.encodeComponent(id)}/start',
       const {},
     );
   }
 
   Future<Map<String, dynamic>> stopMcpServer(String id) async {
-    return await _post(
-      '/api/cortex/admin/mcp/servers/${Uri.encodeComponent(id)}/stop',
+    return await _adminPost(
+      '/api/telencephalon/admin/mcp/servers/${Uri.encodeComponent(id)}/stop',
       const {},
     );
   }
@@ -690,8 +756,8 @@ class CortexClient {
     String agentName,
     String serverId,
   ) async {
-    return await _post(
-      '/api/cortex/admin/mcp/agents/${Uri.encodeComponent(agentName)}/servers/${Uri.encodeComponent(serverId)}',
+    return await _adminPost(
+      '/api/telencephalon/admin/mcp/agents/${Uri.encodeComponent(agentName)}/servers/${Uri.encodeComponent(serverId)}',
       const {},
     );
   }
@@ -700,29 +766,26 @@ class CortexClient {
     String agentName,
     String serverId,
   ) async {
-    await _http.delete(
-      Uri.parse(
-        '$_baseUrl/api/cortex/admin/mcp/agents/${Uri.encodeComponent(agentName)}/servers/${Uri.encodeComponent(serverId)}',
-      ),
-      headers: _headers(),
+    await _adminDelete(
+      '/api/telencephalon/admin/mcp/agents/${Uri.encodeComponent(agentName)}/servers/${Uri.encodeComponent(serverId)}',
     );
   }
 
   // ---- Agent Management API ----
 
   Future<Map<String, dynamic>> scanExternalAgents() async {
-    return await _post('/api/cortex/agents/scan', const {});
+    return await _post('/api/telencephalon/agents/scan', const {});
   }
 
   Future<Map<String, dynamic>> syncExternalAgent(String providerId) async {
     return await _post(
-      '/api/cortex/agents/sync/${Uri.encodeComponent(providerId)}',
+      '/api/telencephalon/agents/sync/${Uri.encodeComponent(providerId)}',
       const {},
     );
   }
 
   Future<Map<String, dynamic>> discoverAgents() async {
-    return await _get('/api/cortex/agents/discover');
+    return await _get('/api/telencephalon/agents/discover');
   }
 
   Future<Map<String, dynamic>> searchAgents({String? skill, String? q}) async {
@@ -730,7 +793,7 @@ class CortexClient {
     if (skill != null) query['skill'] = skill;
     if (q != null) query['q'] = q;
     final uri = Uri.parse(
-      '$_baseUrl/api/cortex/agents/search',
+      '$_baseUrl/api/telencephalon/agents/search',
     ).replace(queryParameters: query.isEmpty ? null : query);
     final r = await _http.get(uri, headers: _headers());
     if (r.statusCode != 200) {
@@ -740,7 +803,7 @@ class CortexClient {
   }
 
   Future<List<Map<String, dynamic>>> listInstalledWasm() async {
-    final json = await _get('/api/cortex/admin/agents/installed');
+    final json = await _adminGet('/api/telencephalon/admin/agents/installed');
     return (json['entries'] as List<dynamic>?)
             ?.map((e) => Map<String, dynamic>.from(e as Map))
             .toList() ??
@@ -748,11 +811,8 @@ class CortexClient {
   }
 
   Future<void> deleteWasm(String name, String version) async {
-    await _http.delete(
-      Uri.parse(
-        '$_baseUrl/api/cortex/admin/agents/${Uri.encodeComponent(name)}/${Uri.encodeComponent(version)}',
-      ),
-      headers: _headers(),
+    await _adminDelete(
+      '/api/telencephalon/admin/agents/${Uri.encodeComponent(name)}/${Uri.encodeComponent(version)}',
     );
   }
 
@@ -771,15 +831,16 @@ class CortexClient {
     if (skills != null) body['skills'] = skills;
     if (modelProvider != null) body['model_provider'] = modelProvider;
     if (modelName != null) body['model_name'] = modelName;
-    return await _post('/api/cortex/admin/agents/create', body);
+    return await _adminPost('/api/telencephalon/admin/agents/create', body);
   }
 
   Future<Map<String, dynamic>> generateAgentDescription(
     String systemPrompt,
   ) async {
-    return await _post('/api/cortex/admin/agents/generate-description', {
-      'system_prompt': systemPrompt,
-    });
+    return await _adminPost(
+      '/api/telencephalon/admin/agents/generate-description',
+      {'system_prompt': systemPrompt},
+    );
   }
 
   void dispose() => _http.close();

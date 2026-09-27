@@ -112,8 +112,8 @@ class LogsNotifier extends StateNotifier<LogsState> {
       id: '1',
       timestamp: DateTime.now().subtract(const Duration(minutes: 5)),
       level: LogLevel.info,
-      source: 'cortex',
-      message: 'Cortex服务启动成功',
+      source: 'telencephalon',
+      message: '端脑服务启动成功',
     ));
     addLog(LogEntry(
       id: '2',
@@ -126,7 +126,7 @@ class LogsNotifier extends StateNotifier<LogsState> {
       id: '3',
       timestamp: DateTime.now().subtract(const Duration(minutes: 1)),
       level: LogLevel.error,
-      source: 'cortex',
+      source: 'telencephalon',
       message: '无法连接到Hippocampus服务',
       stack: 'ConnectionError: http://localhost:8081\n  at HttpClient._send\n  at CortexClient.health',
     ));

@@ -150,7 +150,7 @@ class EngineModelsNotifier extends StateNotifier<EngineModelsState> {
       super(const EngineModelsState());
 
   static String _deriveBaseUrl() {
-    // Cortex is the single platform entry point (port 60080).
+    // Telencephalon is the single platform entry point (port 60080).
     // Neuron is embedded at root: /v1/models, /v1/chat/completions, etc.
     return 'http://localhost:60080';
   }
@@ -167,7 +167,7 @@ class EngineModelsNotifier extends StateNotifier<EngineModelsState> {
   }
 
   Future<List<EngineModel>> _listLoaded() async {
-    // Neuron is embedded in cortex at root: /v1/models
+    // Neuron is embedded in telencephalon at root: /v1/models
     final r = await _client.get(Uri.parse('$_baseUrl/v1/models'));
     if (r.statusCode == 404) return const [];
     if (r.statusCode >= 400) {

@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:math';
 
-const String PREFRONTAL_URL = 'http://localhost:8082';
+const String TELE_ULR = 'http://localhost:60080';
 const Duration timeout = Duration(seconds: 10);
 
 String generateTestPin() {
@@ -18,10 +18,10 @@ String generateTestPubkey() {
   return base64Encode(bytes);
 }
 
-Future<bool> isPrefrontalRunning() async {
+Future<bool> isTelencephalonReachable() async {
   try {
     final response = await http
-        .get(Uri.parse('$PREFRONTAL_URL/health'))
+        .get(Uri.parse('$TELE_ULR/health'))
         .timeout(Duration(seconds: 2));
     return response.statusCode == 200;
   } catch (e) {
@@ -34,9 +34,9 @@ void main() {
 
   group('Group Flow Integration Tests', () {
     testWidgets('group create flow', (WidgetTester tester) async {
-      final isRunning = await isPrefrontalRunning();
+      final isRunning = await isTelencephalonReachable();
       if (!isRunning) {
-        print('Prefrontal not running on $PREFRONTAL_URL, skipping test');
+        print('Telencephalon not reachable on $TELE_ULR, skipping test');
         return;
       }
 
@@ -51,7 +51,7 @@ void main() {
 
       final response = await http
           .post(
-            Uri.parse('$PREFRONTAL_URL/api/group/create'),
+            Uri.parse('$TELE_ULR/api/group/create'),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode(createPayload),
           )
@@ -67,14 +67,14 @@ void main() {
       );
 
       await http
-          .post(Uri.parse('$PREFRONTAL_URL/api/group/leave'))
+          .post(Uri.parse('$TELE_ULR/api/group/leave'))
           .timeout(timeout);
     });
 
     testWidgets('group create and leave flow', (WidgetTester tester) async {
-      final isRunning = await isPrefrontalRunning();
+      final isRunning = await isTelencephalonReachable();
       if (!isRunning) {
-        print('Prefrontal not running on $PREFRONTAL_URL, skipping test');
+        print('Telencephalon not reachable on $TELE_ULR, skipping test');
         return;
       }
 
@@ -89,7 +89,7 @@ void main() {
 
       final createResponse = await http
           .post(
-            Uri.parse('$PREFRONTAL_URL/api/group/create'),
+            Uri.parse('$TELE_ULR/api/group/create'),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode(createPayload),
           )
@@ -102,7 +102,7 @@ void main() {
       );
 
       final leaveResponse = await http
-          .post(Uri.parse('$PREFRONTAL_URL/api/group/leave'))
+          .post(Uri.parse('$TELE_ULR/api/group/leave'))
           .timeout(timeout);
 
       expect(
@@ -113,9 +113,9 @@ void main() {
     });
 
     testWidgets('group members listing flow', (WidgetTester tester) async {
-      final isRunning = await isPrefrontalRunning();
+      final isRunning = await isTelencephalonReachable();
       if (!isRunning) {
-        print('Prefrontal not running on $PREFRONTAL_URL, skipping test');
+        print('Telencephalon not reachable on $TELE_ULR, skipping test');
         return;
       }
 
@@ -130,14 +130,14 @@ void main() {
 
       await http
           .post(
-            Uri.parse('$PREFRONTAL_URL/api/group/create'),
+            Uri.parse('$TELE_ULR/api/group/create'),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode(createPayload),
           )
           .timeout(timeout);
 
       final membersResponse = await http
-          .get(Uri.parse('$PREFRONTAL_URL/api/group/members'))
+          .get(Uri.parse('$TELE_ULR/api/group/members'))
           .timeout(timeout);
 
       expect(
@@ -147,14 +147,14 @@ void main() {
       );
 
       await http
-          .post(Uri.parse('$PREFRONTAL_URL/api/group/leave'))
+          .post(Uri.parse('$TELE_ULR/api/group/leave'))
           .timeout(timeout);
     });
 
     testWidgets('group QR data generation flow', (WidgetTester tester) async {
-      final isRunning = await isPrefrontalRunning();
+      final isRunning = await isTelencephalonReachable();
       if (!isRunning) {
-        print('Prefrontal not running on $PREFRONTAL_URL, skipping test');
+        print('Telencephalon not reachable on $TELE_ULR, skipping test');
         return;
       }
 
@@ -169,14 +169,14 @@ void main() {
 
       await http
           .post(
-            Uri.parse('$PREFRONTAL_URL/api/group/create'),
+            Uri.parse('$TELE_ULR/api/group/create'),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode(createPayload),
           )
           .timeout(timeout);
 
       final qrResponse = await http
-          .get(Uri.parse('$PREFRONTAL_URL/api/group/qr'))
+          .get(Uri.parse('$TELE_ULR/api/group/qr'))
           .timeout(timeout);
 
       expect(
@@ -189,14 +189,14 @@ void main() {
       expect(data['success'], true, reason: 'QR response should be successful');
 
       await http
-          .post(Uri.parse('$PREFRONTAL_URL/api/group/leave'))
+          .post(Uri.parse('$TELE_ULR/api/group/leave'))
           .timeout(timeout);
     });
 
     testWidgets('group join with valid PIN flow', (WidgetTester tester) async {
-      final isRunning = await isPrefrontalRunning();
+      final isRunning = await isTelencephalonReachable();
       if (!isRunning) {
-        print('Prefrontal not running on $PREFRONTAL_URL, skipping test');
+        print('Telencephalon not reachable on $TELE_ULR, skipping test');
         return;
       }
 
@@ -212,7 +212,7 @@ void main() {
 
       final createResponse = await http
           .post(
-            Uri.parse('$PREFRONTAL_URL/api/group/create'),
+            Uri.parse('$TELE_ULR/api/group/create'),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode(createPayload),
           )
@@ -231,7 +231,7 @@ void main() {
 
       final joinResponse = await http
           .post(
-            Uri.parse('$PREFRONTAL_URL/api/group/join'),
+            Uri.parse('$TELE_ULR/api/group/join'),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode(joinPayload),
           )
@@ -240,7 +240,7 @@ void main() {
       expect(joinResponse.statusCode, 200, reason: 'Group join should succeed');
 
       await http
-          .post(Uri.parse('$PREFRONTAL_URL/api/group/leave'))
+          .post(Uri.parse('$TELE_ULR/api/group/leave'))
           .timeout(timeout);
     });
   });

@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:math';
 
-const String PREFRONTAL_URL = 'http://localhost:8082';
+const String TELE_ULR = 'http://localhost:60080';
 const Duration timeout = Duration(seconds: 10);
 
 String generateTestPin() {
@@ -18,10 +18,10 @@ String generateTestPubkey() {
   return base64Encode(bytes);
 }
 
-Future<bool> isPrefrontalRunning() async {
+Future<bool> isTelencephalonReachable() async {
   try {
     final response = await http
-        .get(Uri.parse('$PREFRONTAL_URL/health'))
+        .get(Uri.parse('$TELE_ULR/health'))
         .timeout(Duration(seconds: 2));
     return response.statusCode == 200;
   } catch (e) {
@@ -40,7 +40,7 @@ Future<void> createTestGroup() async {
   };
 
   await http.post(
-    Uri.parse('$PREFRONTAL_URL/api/group/create'),
+    Uri.parse('$TELE_ULR/api/group/create'),
     headers: {'Content-Type': 'application/json'},
     body: jsonEncode(createPayload),
   );
@@ -51,9 +51,9 @@ void main() {
 
   group('Model Share Flow Integration Tests', () {
     testWidgets('model registration flow', (WidgetTester tester) async {
-      final isRunning = await isPrefrontalRunning();
+      final isRunning = await isTelencephalonReachable();
       if (!isRunning) {
-        print('Prefrontal not running on $PREFRONTAL_URL, skipping test');
+        print('Telencephalon not reachable on $TELE_ULR, skipping test');
         return;
       }
 
@@ -75,7 +75,7 @@ void main() {
 
       final response = await http
           .post(
-            Uri.parse('$PREFRONTAL_URL/api/models/register'),
+            Uri.parse('$TELE_ULR/api/models/register'),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode(modelsPayload),
           )
@@ -88,14 +88,14 @@ void main() {
       );
 
       await http
-          .post(Uri.parse('$PREFRONTAL_URL/api/group/leave'))
+          .post(Uri.parse('$TELE_ULR/api/group/leave'))
           .timeout(timeout);
     });
 
     testWidgets('model advertisement flow', (WidgetTester tester) async {
-      final isRunning = await isPrefrontalRunning();
+      final isRunning = await isTelencephalonReachable();
       if (!isRunning) {
-        print('Prefrontal not running on $PREFRONTAL_URL, skipping test');
+        print('Telencephalon not reachable on $TELE_ULR, skipping test');
         return;
       }
 
@@ -121,7 +121,7 @@ void main() {
 
       final response = await http
           .post(
-            Uri.parse('$PREFRONTAL_URL/api/models/advertise'),
+            Uri.parse('$TELE_ULR/api/models/advertise'),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode(advertisementPayload),
           )
@@ -134,21 +134,21 @@ void main() {
       );
 
       await http
-          .post(Uri.parse('$PREFRONTAL_URL/api/group/leave'))
+          .post(Uri.parse('$TELE_ULR/api/group/leave'))
           .timeout(timeout);
     });
 
     testWidgets('model listing flow', (WidgetTester tester) async {
-      final isRunning = await isPrefrontalRunning();
+      final isRunning = await isTelencephalonReachable();
       if (!isRunning) {
-        print('Prefrontal not running on $PREFRONTAL_URL, skipping test');
+        print('Telencephalon not reachable on $TELE_ULR, skipping test');
         return;
       }
 
       await createTestGroup();
 
       final response = await http
-          .get(Uri.parse('$PREFRONTAL_URL/api/models'))
+          .get(Uri.parse('$TELE_ULR/api/models'))
           .timeout(timeout);
 
       expect(response.statusCode, 200, reason: 'Model listing should succeed');
@@ -161,21 +161,21 @@ void main() {
       );
 
       await http
-          .post(Uri.parse('$PREFRONTAL_URL/api/group/leave'))
+          .post(Uri.parse('$TELE_ULR/api/group/leave'))
           .timeout(timeout);
     });
 
     testWidgets('local models retrieval flow', (WidgetTester tester) async {
-      final isRunning = await isPrefrontalRunning();
+      final isRunning = await isTelencephalonReachable();
       if (!isRunning) {
-        print('Prefrontal not running on $PREFRONTAL_URL, skipping test');
+        print('Telencephalon not reachable on $TELE_ULR, skipping test');
         return;
       }
 
       await createTestGroup();
 
       final response = await http
-          .get(Uri.parse('$PREFRONTAL_URL/api/models/local'))
+          .get(Uri.parse('$TELE_ULR/api/models/local'))
           .timeout(timeout);
 
       expect(
@@ -185,14 +185,14 @@ void main() {
       );
 
       await http
-          .post(Uri.parse('$PREFRONTAL_URL/api/group/leave'))
+          .post(Uri.parse('$TELE_ULR/api/group/leave'))
           .timeout(timeout);
     });
 
     testWidgets('discovery start and stop flow', (WidgetTester tester) async {
-      final isRunning = await isPrefrontalRunning();
+      final isRunning = await isTelencephalonReachable();
       if (!isRunning) {
-        print('Prefrontal not running on $PREFRONTAL_URL, skipping test');
+        print('Telencephalon not reachable on $TELE_ULR, skipping test');
         return;
       }
 
@@ -207,7 +207,7 @@ void main() {
 
       final startResponse = await http
           .post(
-            Uri.parse('$PREFRONTAL_URL/api/discovery/start'),
+            Uri.parse('$TELE_ULR/api/discovery/start'),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode(startPayload),
           )
@@ -220,7 +220,7 @@ void main() {
       );
 
       final stopResponse = await http
-          .post(Uri.parse('$PREFRONTAL_URL/api/discovery/stop'))
+          .post(Uri.parse('$TELE_ULR/api/discovery/stop'))
           .timeout(timeout);
 
       expect(
@@ -230,16 +230,16 @@ void main() {
       );
 
       await http
-          .post(Uri.parse('$PREFRONTAL_URL/api/group/leave'))
+          .post(Uri.parse('$TELE_ULR/api/group/leave'))
           .timeout(timeout);
     });
 
     testWidgets('discovery broadcast and devices flow', (
       WidgetTester tester,
     ) async {
-      final isRunning = await isPrefrontalRunning();
+      final isRunning = await isTelencephalonReachable();
       if (!isRunning) {
-        print('Prefrontal not running on $PREFRONTAL_URL, skipping test');
+        print('Telencephalon not reachable on $TELE_ULR, skipping test');
         return;
       }
 
@@ -254,14 +254,14 @@ void main() {
 
       await http
           .post(
-            Uri.parse('$PREFRONTAL_URL/api/discovery/start'),
+            Uri.parse('$TELE_ULR/api/discovery/start'),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode(startPayload),
           )
           .timeout(timeout);
 
       final broadcastResponse = await http
-          .post(Uri.parse('$PREFRONTAL_URL/api/discovery/broadcast'))
+          .post(Uri.parse('$TELE_ULR/api/discovery/broadcast'))
           .timeout(timeout);
 
       expect(
@@ -271,7 +271,7 @@ void main() {
       );
 
       final devicesResponse = await http
-          .get(Uri.parse('$PREFRONTAL_URL/api/discovery/devices'))
+          .get(Uri.parse('$TELE_ULR/api/discovery/devices'))
           .timeout(timeout);
 
       expect(
@@ -281,7 +281,7 @@ void main() {
       );
 
       final allResponse = await http
-          .get(Uri.parse('$PREFRONTAL_URL/api/discovery/all'))
+          .get(Uri.parse('$TELE_ULR/api/discovery/all'))
           .timeout(timeout);
 
       expect(
@@ -291,11 +291,11 @@ void main() {
       );
 
       await http
-          .post(Uri.parse('$PREFRONTAL_URL/api/discovery/stop'))
+          .post(Uri.parse('$TELE_ULR/api/discovery/stop'))
           .timeout(timeout);
 
       await http
-          .post(Uri.parse('$PREFRONTAL_URL/api/group/leave'))
+          .post(Uri.parse('$TELE_ULR/api/group/leave'))
           .timeout(timeout);
     });
   });

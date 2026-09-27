@@ -3,13 +3,13 @@ import 'package:integration_test/integration_test.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
-const String PREFRONTAL_URL = 'http://localhost:8082';
+const String TELE_ULR = 'http://localhost:60080';
 const Duration timeout = Duration(seconds: 10);
 
-Future<bool> isPrefrontalRunning() async {
+Future<bool> isTelencephalonReachable() async {
   try {
     final response = await http
-        .get(Uri.parse('$PREFRONTAL_URL/health'))
+        .get(Uri.parse('$TELE_ULR/health'))
         .timeout(Duration(seconds: 2));
     return response.statusCode == 200;
   } catch (e) {
@@ -22,14 +22,14 @@ void main() {
 
   group('Memory Flow Integration Tests', () {
     testWidgets('memory search via Prefrontal', (WidgetTester tester) async {
-      final isRunning = await isPrefrontalRunning();
+      final isRunning = await isTelencephalonReachable();
       if (!isRunning) {
-        print('Prefrontal not running on $PREFRONTAL_URL, skipping test');
+        print('Telencephalon not reachable on $TELE_ULR, skipping test');
         return;
       }
 
       final response = await http
-          .get(Uri.parse('$PREFRONTAL_URL/api/memory/search?q=test&limit=5'))
+          .get(Uri.parse('$TELE_ULR/api/memory/search?q=test&limit=5'))
           .timeout(timeout);
 
       expect(response.statusCode, 200, reason: 'Memory search should succeed');
@@ -45,9 +45,9 @@ void main() {
     testWidgets('session creation and memory association flow', (
       WidgetTester tester,
     ) async {
-      final isRunning = await isPrefrontalRunning();
+      final isRunning = await isTelencephalonReachable();
       if (!isRunning) {
-        print('Prefrontal not running on $PREFRONTAL_URL, skipping test');
+        print('Telencephalon not reachable on $TELE_ULR, skipping test');
         return;
       }
 
@@ -57,7 +57,7 @@ void main() {
 
       final sessionResponse = await http
           .post(
-            Uri.parse('$PREFRONTAL_URL/api/sessions'),
+            Uri.parse('$TELE_ULR/api/sessions'),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode(sessionPayload),
           )
@@ -86,7 +86,7 @@ void main() {
 
         final messageResponse = await http
             .post(
-              Uri.parse('$PREFRONTAL_URL/api/sessions/$sessionId/messages'),
+              Uri.parse('$TELE_ULR/api/sessions/$sessionId/messages'),
               headers: {'Content-Type': 'application/json'},
               body: jsonEncode(messagePayload),
             )
@@ -99,7 +99,7 @@ void main() {
         );
 
         final deleteResponse = await http
-            .delete(Uri.parse('$PREFRONTAL_URL/api/sessions/$sessionId'))
+            .delete(Uri.parse('$TELE_ULR/api/sessions/$sessionId'))
             .timeout(timeout);
 
         expect(
@@ -111,9 +111,9 @@ void main() {
     });
 
     testWidgets('conversations listing flow', (WidgetTester tester) async {
-      final isRunning = await isPrefrontalRunning();
+      final isRunning = await isTelencephalonReachable();
       if (!isRunning) {
-        print('Prefrontal not running on $PREFRONTAL_URL, skipping test');
+        print('Telencephalon not reachable on $TELE_ULR, skipping test');
         return;
       }
 
@@ -123,14 +123,14 @@ void main() {
 
       await http
           .post(
-            Uri.parse('$PREFRONTAL_URL/api/sessions'),
+            Uri.parse('$TELE_ULR/api/sessions'),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode(createPayload),
           )
           .timeout(timeout);
 
       final response = await http
-          .get(Uri.parse('$PREFRONTAL_URL/api/conversations'))
+          .get(Uri.parse('$TELE_ULR/api/conversations'))
           .timeout(timeout);
 
       expect(
@@ -148,9 +148,9 @@ void main() {
     });
 
     testWidgets('multiple session lifecycle flow', (WidgetTester tester) async {
-      final isRunning = await isPrefrontalRunning();
+      final isRunning = await isTelencephalonReachable();
       if (!isRunning) {
-        print('Prefrontal not running on $PREFRONTAL_URL, skipping test');
+        print('Telencephalon not reachable on $TELE_ULR, skipping test');
         return;
       }
 
@@ -164,7 +164,7 @@ void main() {
 
         final createResponse = await http
             .post(
-              Uri.parse('$PREFRONTAL_URL/api/sessions'),
+              Uri.parse('$TELE_ULR/api/sessions'),
               headers: {'Content-Type': 'application/json'},
               body: jsonEncode(sessionPayload),
             )
@@ -185,7 +185,7 @@ void main() {
       );
 
       final listResponse = await http
-          .get(Uri.parse('$PREFRONTAL_URL/api/sessions'))
+          .get(Uri.parse('$TELE_ULR/api/sessions'))
           .timeout(timeout);
 
       expect(
@@ -196,7 +196,7 @@ void main() {
 
       for (final sessionId in sessionIds) {
         await http
-            .delete(Uri.parse('$PREFRONTAL_URL/api/sessions/$sessionId'))
+            .delete(Uri.parse('$TELE_ULR/api/sessions/$sessionId'))
             .timeout(timeout);
       }
     });

@@ -1,16 +1,16 @@
 # PROJECT KNOWLEDGE BASE — shadow-mobile
 
-**Updated:** 2026-09-25 (post-audit-cycle: cortex-centric view confirmed; port `:60080` unified; references [`2026-09-25-e2e-coverage-assessment.md`](../../docs/superpowers/architecture/2026-09-25-e2e-coverage-assessment.md))
+**Updated:** 2026-09-25 (post-audit-cycle: telencephalon-centric view confirmed; port `:60080` unified; references [`2026-09-25-e2e-coverage-assessment.md`](../../docs/superpowers/architecture/2026-09-25-e2e-coverage-assessment.md))
 **Project:** shadow-mobile (Layer 4 Interaction + thin on-device Engine via Kotlin Native)
 
-> **Note (2026-07-19)**: This doc was previously framed as a "Layer 4 + Layer 2 hybrid" with 3 user-configurable modes. That framing predates **Cortex** (Layer 3.5). Current architecture: mobile is **primarily Layer 4** (Flutter UI); the on-device inference capability lives in the **Kotlin Native** layer (OpenAIServer.kt + LiteRT/MNN), exposed as a sidecar HTTP server on `:8085` when the user opts in. The default mobile flow routes everything through **cortex** (`:60080`).
+> **Note (2026-07-19)**: This doc was previously framed as a "Layer 4 + Layer 2 hybrid" with 3 user-configurable modes. That framing predates **Telencephalon** (Layer 3.5). Current architecture: mobile is **primarily Layer 4** (Flutter UI); the on-device inference capability lives in the **Kotlin Native** layer (OpenAIServer.kt + LiteRT/MNN), exposed as a sidecar HTTP server on `:8085` when the user opts in. The default mobile flow routes everything through **telencephalon** (`:60080`).
 
 ## ARCHITECTURAL ROLE
 
 Shadow-Mobile is the **Interaction Layer (Layer 4)** mobile client of the Shadow Platform. It is a **thin UI client** that talks to:
 
-- **Agent Orchestrator (Cortex, Layer 3.5)** via `/api/cortex/*` — **primary** path; the mobile app routes most agent / flow / MCP / conversation / discovery operations through cortex
-- **Agent Layer (Prefrontal)** via OpenAI `/v1/*` and A2A — **fallback** when cortex unreachable (note: `dacbe83` removed automatic fallback for `continue-on-desktop`)
+- **Agent Orchestrator (Telencephalon, Layer 3.5)** via `/api/telencephalon/*` — **primary** path; the mobile app routes most agent / flow / MCP / conversation / discovery operations through telencephalon
+- **Agent Layer (Prefrontal)** via OpenAI `/v1/*` and A2A — **fallback** when telencephalon unreachable (note: `dacbe83` removed automatic fallback for `continue-on-desktop`)
 - **Local inference** via Kotlin `OpenAIServer.kt` (MNN / LiteRT bindings) on `:8085` when in **Phone-as-Engine** opt-in mode
 
 **Reference**: `/home/ibloc/Projects/docs/superpowers/specs/2026-06-04-shadow-architecture-redesign.md`
@@ -29,7 +29,7 @@ The mobile app should NOT directly know about LLM/TTS/ASR internals. It only:
 
 | Mode | Path | Route | What happens |
 |---|---|---|---|
-| **Voice Assistant** (default) | `/voice` | mic → ASR → LLM (cortex or LiteRT) → TTS → shadow-esp32 USB / phone / BT | Interactive speech dialog. phone runs everything; shadow-esp32 is USB Audio sink + mic source. |
+| **Voice Assistant** (default) | `/voice` | mic → ASR → LLM (telencephalon or LiteRT) → TTS → shadow-esp32 USB / phone / BT | Interactive speech dialog. phone runs everything; shadow-esp32 is USB Audio sink + mic source. |
 | **Live Stream** | `/livestream` | phone TTS text input → TTS → shadow-esp32 USB / phone / BT | TTS playback / read-aloud mode. shadow-esp32 is USB Audio sink only. |
 | **Customer Service** | `/customer-service` | phone cellular call → shadow-esp32 USB / wired earphone | AI auto-answer phone calls. shadow-esp32 plays caller voice + AI TTS. Earphone takeover when plugged in. |
 
@@ -83,16 +83,16 @@ shadow-mobile/
 │   │   └── providers/                   # agent_provider (Riverpod)
 │   ├── screens/                         # 19 UI pages
 │   │   ├── agents_screen.dart / chat_screen.dart / conversation_screen.dart
-│   │   ├── flows_screen.dart            # Browse / run cortex flows (Sprint 1, commit 55ffc95)
+│   │   ├── flows_screen.dart            # Browse / run telencephalon flows (Sprint 1, commit 55ffc95)
 │   │   ├── group_screen.dart / mcp_screen.dart / memory_screen.dart
 │   │   ├── model_management_screen.dart / model_settings_screen.dart
 │   │   ├── prompt_settings_screen.dart / providers_screen.dart / settings_screen.dart
-│   │   ├── setup_wizard_screen.dart     # First-run wizard (cortex discovery + model check)
+│   │   ├── setup_wizard_screen.dart     # First-run wizard (telencephalon discovery + model check)
 │   │   ├── skills_screen.dart / soul_screen.dart / task_board_screen.dart
 │   │   ├── voice_conversation_screen.dart  # Hands-free voice mode
 │   │   └── manage/                      # Sub-management screens
 │   ├── services/                        # Wire-level + service layer (23 files)
-│   │   ├── cortex/                      # cortex_client.dart (492 lines) — HTTP to cortex :60080
+│   │   ├── cortex/                      # cortex_client.dart — HTTP to telencephalon :60080 (dir name kept for git history)
 │   │   ├── prefrontal/                  # Mobile wrappers around prefrontal (7 files)
 │   │   ├── database/                    # SQLite repositories (11 files)
 │   │   ├── genui/                       # GenUI server helpers (Agent2UI)
@@ -154,13 +154,13 @@ shadow-mobile/
     └── config/                          # Default config files
 ```
 
-## INBOUND PROTOCOLS (calls Cortex, then Prefrontal as fallback)
+## INBOUND PROTOCOLS (calls Telencephalon, then Prefrontal as fallback)
 
-All HTTP calls go to standard endpoints. **No direct engine calls** — the mobile app never speaks `/v1/chat/completions` directly when cortex is reachable.
+All HTTP calls go to standard endpoints. **No direct engine calls** — the mobile app never speaks `/v1/chat/completions` directly when telencephalon is reachable.
 
 ```dart
 // LLM Chat (streaming)
-POST {host}/v1/chat/completions       // via cortex or prefrontal
+POST {host}/v1/chat/completions       // via telencephalon or prefrontal
   body: { model, messages, stream: true }
   returns: SSE
 
@@ -174,7 +174,7 @@ POST {host}/v1/audio/transcriptions
   body: multipart { file, model: "whisper-1" }
   returns: { text }
 
-// Conversations (cortex preferred — `/shadow/v1/conversations`)
+// Conversations (telencephalon preferred — `/shadow/v1/conversations`)
 POST {host}/shadow/v1/conversations                // create
 GET  {host}/shadow/v1/conversations                // list
 POST {host}/shadow/v1/conversations/{id}/messages  // send (may return SSE)
@@ -189,25 +189,25 @@ POST {host}/api/sessions/{id}/webrtc/offer  → { sdp: answer, ice: ... }
 GET  {host}/.well-known/agent.json  → A2A AgentCard
 ```
 
-## CORTEX-SPECIFIC ENDPOINTS (Sprint 1+2)
+## TELENCEPHALON-SPECIFIC ENDPOINTS (Sprint 1+2)
 
-`lib/services/cortex/cortex_client.dart` (492 lines) is the canonical caller for everything except chat/TTS/ASR (which still go through `prefrontal_client.dart` against the cortex `/v1/*` shim).
+`lib/services/cortex/cortex_client.dart` (~814 lines after 2026-09-27 telencephalon migration) is the canonical caller for everything except chat/TTS/ASR (which still go through `prefrontal_client.dart` against the telencephalon `/v1/*` shim).
 
 ```dart
 // === Health / discovery ===
 Future<Map<String, dynamic>> health()                  // GET /.well-known/agent.json
-Future<AgentsResponse>    listAgents()                 // GET /api/cortex/agents
-Future<Map<String, dynamic>> getAgent(String name)     // GET /api/cortex/agents/{name}
-Future<Map<String, dynamic>> getAgentMirror(...)       // GET /api/cortex/agents/mirror
+Future<AgentsResponse>    listAgents()                 // GET /api/telencephalon/agents
+Future<Map<String, dynamic>> getAgent(String name)     // GET /api/telencephalon/agents/{name}
+Future<Map<String, dynamic>> getAgentMirror(...)       // GET /api/telencephalon/agents/mirror
 
-// === Conversations (Sprint 1 — cortex persistence) ===
+// === Conversations (Sprint 1 — telencephalon persistence) ===
 Future<Conversation> createConversation({agent, systemPrompt})  // POST /shadow/v1/conversations
 Future<Conversation> getConversation(String id)                 // GET  /shadow/v1/conversations/{id}
 Future<List<Conversation>> listConversations()                  // GET  /shadow/v1/conversations
 Future<Conversation> importSessionAsConversation(...)           // POST session-export → conversation
 Future<SendMessageResponse> sendMessage(id, req)                // POST /shadow/v1/conversations/{id}/messages
 
-// === Flows (Sprint 1 — flows via cortex) ===
+// === Flows (Sprint 1 — flows via telencephalon) ===
 Future<List<FlowMeta>>      listFlows({name, tag, isDraft})      // GET    /api/flows
 Future<FlowDefinition>      createFlow(FlowDefinition flow)      // POST   /api/flows
 Future<FlowDefinition>      getFlow(String id)                   // GET    /api/flows/{id}
@@ -217,12 +217,12 @@ Future<FlowDefinition>      promoteDraft(draftId)                // POST   /api/
 void                       rejectDraft(draftId)                 // POST   /api/flows/draft/{id}/reject
 
 // === Admin (via shared surface with desktop) ===
-// MCP / WASM / agent install / LLM description — same routes as desktop's cortexClient
+// MCP / WASM / agent install / LLM description — same routes as desktop's telencephalon client
 ```
 
-Mobile-specific helpers (NOT in desktop's cortexClient):
-- `importSessionAsConversation(...)` — converts a `SessionExport` JSON into a cortex conversation so the phone can pick up where another device left off
-- **continue-on-desktop flow** (per `dacbe83`) — uses cortex only (no prefrontal fallback); the mobile app discovers the desktop's cortex endpoint and routes the chat session there
+Mobile-specific helpers (NOT in desktop's telencephalon client):
+- `importSessionAsConversation(...)` — converts a `SessionExport` JSON into a telencephalon conversation so the phone can pick up where another device left off
+- **continue-on-desktop flow** (per `dacbe83`) — uses telencephalon only (no prefrontal fallback); the mobile app discovers the desktop's telencephalon endpoint and routes the chat session there
 
 ## OUTBOUND PROTOCOLS (when Mobile is in Phone-as-Engine mode)
 
@@ -243,7 +243,7 @@ On startup, the app browses `_shadow._tcp` services via `mdns_discovery.dart`:
 // mDNS query for _shadow._tcp services
 // then for each found service:
 //   - GET http://host:port/.well-known/agent.json  → A2A AgentCard
-//   - POST http://host:60080/api/cortex/agents  → register self (if user opts in)
+//   - POST http://host:60080/api/telencephalon/agents  → register self (if user opts in)
 //   - open WS ws://host:60080/api/webrtc/... for companion mode
 ```
 
@@ -251,14 +251,14 @@ Persist discovered hosts in `preferences` (or SQLite via `group_service.dart`); 
 
 ## COMPANION MODE (WebRTC + flutter_webrtc)
 
-`lib/services/webrtc_companion.dart` (196 LOC) wires `flutter_webrtc` to cortex's WebRTC endpoint:
+`lib/services/webrtc_companion.dart` (196 LOC) wires `flutter_webrtc` to telencephalon's WebRTC endpoint:
 
 ```
 flutter_webrtc (RTCPeerConnection + getUserMedia)
        ↕ SDP/ICE (W3C WebRTC)
 WebRtcSignaling (WebSocket over /api/sessions/{id}/ws)
        ↕ webrtc_offer / webrtc_answer / webrtc_ice
-Cortex webrtc (ModalityRouter + SRTP relay, Opus 48kHz, VAD, Agent.process)
+Telencephalon webrtc (ModalityRouter + SRTP relay, Opus 48kHz, VAD, Agent.process)
        ↕ A2A / OpenAI /v1/* / etc.
 ```
 
@@ -277,12 +277,12 @@ Barge-in (user starts talking while agent is mid-response) is signalled via `web
 
 | Subdir | Files | Role |
 |---|---|---|
-| `a2a/` | `a2a_client.dart` / `a2a_message.dart` / `a2a_server.dart` | A2A message types + client (outbound HTTP to other cortex / prefrontal / external) + server stub |
+| `a2a/` | `a2a_client.dart` / `a2a_message.dart` / `a2a_server.dart` | A2A message types + client (outbound HTTP to other telencephalon / prefrontal / external) + server stub |
 | `main_agent/` | `main_agent.dart` / `main_agent_prompt.dart` / `main_agent_tools.dart` | Primary chat orchestrator; system prompt + tool registry; runs on-device in Standalone mode |
 | `mobile_action_agent/` | `actions.dart` / `mobile_action_agent.dart` / `mobile_actions_tools.dart` / `mobile_actions_viewmodel.dart` | Sub-agent that calls `AccessibilityController` to tap / swipe / type on Android UI elements |
 | `providers/` | `agent_provider.dart` | Riverpod glue |
 
-The `main_agent` is intentionally thin — for any non-trivial task (file ops, code edits, browser automation), it delegates to a **cortex flow** via `CortexClient.runFlow(...)`. The `mobile_action_agent` is one of the few exceptions (it must run on-device because it touches the Android Accessibility API).
+The `main_agent` is intentionally thin — for any non-trivial task (file ops, code edits, browser automation), it delegates to a **telencephalon flow** via `CortexClient.runFlow(...)`. The `mobile_action_agent` is one of the few exceptions (it must run on-device because it touches the Android Accessibility API).
 
 ## PLATFORM CHANNELS (Flutter ↔ Kotlin)
 
@@ -306,7 +306,7 @@ The `main_agent` is intentionally thin — for any non-trivial task (file ops, c
 `lib/multimodal/` wraps three input channels:
 - `audio_input_handler.dart` — mic capture via `record` package; PCM chunks → `pcm_audio_recorder.dart`
 - `image_input_handler.dart` — `image_picker` + `camera`; feeds `video_frame_collector.dart` for streaming
-- `file_input_handler.dart` — `file_picker`; uploads to cortex via `CortexClient`
+- `file_input_handler.dart` — `file_picker`; uploads to telencephalon via `CortexClient`
 
 `multimodal_input_manager.dart` multiplexes these into a single inbound stream consumed by `main_agent`.
 
@@ -370,7 +370,7 @@ adb logcat | grep shadow
 |---|---|---|
 | Android (APK / App Bundle) | `build/app/outputs/{apk,flutter-apk,bundle}/*` | Primary target; on-device MNN / LiteRT for offline inference |
 | iOS | `build/ios/iphoneos/Runner.app` | Secondary target; requires Apple Developer account |
-| Web (experimental) | `build/web/` | No native inference; routes everything through cortex or prefrontal HTTP |
+| Web (experimental) | `build/web/` | No native inference; routes everything through telencephalon or prefrontal HTTP |
 
 ## CODE HEALTH
 
@@ -384,13 +384,13 @@ No errors, no warnings — only style-level info issues (deprecated `value` / `a
 ## STATE STATUS (2026-07-19)
 
 **Completed** ✅ (recent additions marked 🆕):
-- 🆕 **Cortex client** (`lib/services/cortex/cortex_client.dart`, 492 lines) — wired for agents / conversations / flows / drafts / agent mirror / import-session-as-conversation; all of Sprint 1+2 surface
-- 🆕 **FlowsScreen** (`lib/screens/flows_screen.dart` + commit `55ffc95`) — browse / run cortex flows from the phone
-- 🆕 **continue-on-desktop via cortex only** (`dacbe83`) — chat sessions hand off to a desktop cortex without falling back to prefrontal
-- 🆕 **cortex-embedded neuron+hippocampus paths** (`05aa697`) — all hardcoded URLs updated to the cortex-sidecar model (`:60080/hippocampus/api/...`)
+- 🆕 **Telencephalon client** (`lib/services/cortex/cortex_client.dart`, ~814 lines after 2026-09-27 migration) — wired for agents / conversations / flows / drafts / agent mirror / import-session-as-conversation; all of Sprint 1+2 surface
+- 🆕 **FlowsScreen** (`lib/screens/flows_screen.dart` + commit `55ffc95`) — browse / run telencephalon flows from the phone
+- 🆕 **continue-on-desktop via telencephalon only** (`dacbe83`) — chat sessions hand off to a desktop telencephalon without falling back to prefrontal
+- 🆕 **telencephalon-embedded neuron+hippocampus paths** (`05aa697`) — all hardcoded URLs updated to the telencephalon-embedded model (`:60080/hippocampus/api/...`)
 - **Companion Mode (WebRTC)** — `webrtc_companion.dart` (196 LOC) + `webrtc_signaling.dart` + VAD-driven barge-in via `audio_ws_service.dart` + `wake_word_service.dart`; mirrors desktop `webrtcCompanion.ts` so the two clients share the same end-to-end protocol
-- **Mobile sub-agent** (`lib/agents/mobile_action_agent/`) — AccessibilityController-driven UI automation as a cortex-flow tool
-- **A2A message types + client** (`lib/agents/a2a/`) — outbound A2A delegation to other cortex / prefrontal instances
+- **Mobile sub-agent** (`lib/agents/mobile_action_agent/`) — AccessibilityController-driven UI automation as a telencephalon-flow tool
+- **A2A message types + client** (`lib/agents/a2a/`) — outbound A2A delegation to other telencephalon / prefrontal instances
 - **Main agent** (`lib/agents/main_agent/`) — system prompt + tool registry; runs locally in Standalone mode
 - **Multimodal input** — audio / image / file via `lib/multimodal/`, including `video_frame_collector.dart` for camera-streaming
 - **Wake-word detection** — `wake_word_service.dart` for "Hey Shadow"-style invocation
@@ -408,15 +408,15 @@ No errors, no warnings — only style-level info issues (deprecated `value` / `a
 - **LiteRT init timeout + model-dir diagnosis** — was hanging forever; now 10s timeout, calls `diagnoseModelDirectory` first, shows download dialog immediately if model missing
 
 **In Progress** 🔄:
-- WebRTC full DTLS-SRTP handshake on the mobile side — currently relies on cortex to handle encryption; mobile only deals with plain RTP via flutter_webrtc's default stack
-- Offline-first chat — main_agent can run locally for trivial replies but anything non-trivial still requires cortex or neuron HTTP
+- WebRTC full DTLS-SRTP handshake on the mobile side — currently relies on telencephalon to handle encryption; mobile only deals with plain RTP via flutter_webrtc's default stack
+- Offline-first chat — main_agent can run locally for trivial replies but anything non-trivial still requires telencephalon or neuron HTTP
 - **v2.5 — shadow-esp32 BLE provisioning flow** is wired (Kotlin + Dart) but the live-streaming screen doesn't yet auto-discover a shadow-esp32 over BLE; v2.6 adds an `onAttach` hook that opens the provisioning screen when the user plugs the device in
 - **v2.5 — USB Audio routing** is wired at the platform-channel level (UsbAudioRouter.kt + usb_audio_routing_service.dart); the actual `setMode(MODE_NORMAL) / isSpeakerphoneOn = false / preferredDevice` calls land in v2.6 once the live-streaming screen flips them on user-tap
 - **Provisioning — security** — SSID/PSK travel over BLE cleartext in v2.5; v2.6 enables BLE bonding + MITM protection to encrypt the GATT writes
 
 **Planned** 📋:
 - iOS companion-mode parity (current focus is Android; iOS WebRTC works but accessory flows need re-testing on a physical device)
-- Hot reload of cortex flows into the FlowsScreen without app restart (currently requires re-fetch via `flow_provider`)
+- Hot reload of telencephalon flows into the FlowsScreen without app restart (currently requires re-fetch via `flow_provider`)
 - Voice wake word integration hardening
 - ESP32 / hardware device pairing (per `2026-06-04-shadow-architecture-redesign.md` Phase 6)
 - Voice cloning on mobile (per platform-wide v0.9+ backlog)
@@ -430,17 +430,17 @@ No errors, no warnings — only style-level info issues (deprecated `value` / `a
 |---|---|---|
 | Shadow umbrella | `https://github.com/iBLOC/shadow` | Container for mobile + desktop |
 | Shadow-Desktop | `https://github.com/iBLOC/shadow/shadow-desktop` | Sibling Layer 4 client (Tauri + React) |
-| Prefrontal | `https://github.com/iBLOC/prefrontal` | Layer 3 (Agent) — used as fallback when cortex unavailable |
-| **Cortex** | `https://github.com/iBLOC/cortex` | **Layer 3.5 (Orchestrator) — primary HTTP target** |
-| Hippocampus | `https://github.com/iBLOC/hippocampus` | Layer 0 (Memory) — reached via cortex on `:60080/hippocampus` |
+| Prefrontal | `https://github.com/iBLOC/prefrontal` | Layer 3 (Agent) — used as fallback when telencephalon unavailable |
+| **Telencephalon** | `https://github.com/iBLOC/telencephalon` | **Layer 3.5 (Orchestrator) — primary HTTP target** |
+| Hippocampus | `https://github.com/iBLOC/hippocampus` | Layer 0 (Memory) — reached via telencephalon on `:60080/hippocampus` |
 | neuron | [github.com/ibloc/neuron](https://github.com/ibloc/neuron) | Layer 2 (Engine) — on-device MNN / LiteRT, plus remote `:8085` HTTP |
 | Resonance | `https://github.com/iBLOC/resonance` | Layer 5 (Cross-user orchestration) — discovered via mDNS but mobile does not currently push tasks |
 
 ## ENVIRONMENT VARIABLES (mobile build-time)
 
 ```bash
-# Optional — only needed when targeting a specific cortex / prefrontal in dev
-export CORTEX_HOST="http://localhost:60080"        # default in production: discovered via mDNS (port unified 2026-09, was :8443)
+# Optional — only needed when targeting a specific telencephalon / prefrontal in dev
+export TELE_ULR="http://localhost:60080"        # default in production: discovered via mDNS (port unified 2026-09, was :8443)
 export PREFRONTAL_HOST="http://localhost:8082"     # fallback only — `dacbe83` removed automatic fallback
 
 # Model download defaults
@@ -454,8 +454,8 @@ export MODELSCOPE_TOKEN="..."                       # for gated ModelScope repos
 Per [`2026-09-25-e2e-coverage-assessment.md`](../../docs/superpowers/architecture/2026-09-25-e2e-coverage-assessment.md), mobile's e2e coverage is held back by:
 
 - **Silent skip pattern** in `integration_test/*.dart`: `api_flow_test.dart`, `memory_flow_test.dart`, `group_flow_test.dart`, `model_share_test.dart` all start with `isPrefrontalRunning()` and `return;` on false. **No CI matrix boots prefrontal** before these.
-- **Stub app context** in `app_test.dart`, `conversation_flow_test.dart`, `task_flow_test.dart`: `app.main()` runs against a stub context with **no live CortexClient**.
-- **No real-cortex e2e**: `cortex_client_test.dart` uses `http_testing.MockClient` only — no real `:60080` exercise.
+- **Stub app context** in `app_test.dart`, `conversation_flow_test.dart`, `task_flow_test.dart`: `app.main()` runs against a stub context with **no live Telencephalon client**.
+- **No real-telencephalon e2e**: `cortex_client_test.dart` uses `http_testing.MockClient` only — no real `:60080` exercise.
 - **Zero BLE / USB / InCallService e2e**: `com.ibloc.shadow/{ble_provision,usb_audio,call_state}` channels all uncovered.
 - **Zero Live Stream / Customer Service e2e**: `/livestream` and `/customer-service` modes uncovered.
 

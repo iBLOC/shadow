@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
-/// Cortex API Client
-/// All backend endpoints are proxied through cortex (port 60080).
+/// Telencephalon API Client
+/// All backend endpoints are served by telencephalon (port 60080).
 /// Task, memory, and session endpoints are served by the embedded
 /// hippocampus at /hippocampus/*.
 class PrefrontalClient {

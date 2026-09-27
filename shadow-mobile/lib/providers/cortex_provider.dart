@@ -63,11 +63,15 @@ class CortexNotifier extends StateNotifier<CortexState> {
     state = state.copyWith(connection: CortexConnection(baseUrl: state.connection.baseUrl, apiKey: key));
   }
 
+  void setAdminToken(String? token) {
+    _client.setAdminToken(token);
+  }
+
   Future<void> refreshStatus() async {
     state = state.copyWith(status: CortexStatus.starting, clearError: true);
     try {
       final resp = await _client.health();
-      final id = (resp['id'] as String?) ?? 'cortex';
+      final id = (resp['id'] as String?) ?? 'telencephalon';
       state = state.copyWith(
         status: CortexStatus.running,
         cortexId: id,

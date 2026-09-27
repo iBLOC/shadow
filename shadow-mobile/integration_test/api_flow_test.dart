@@ -3,13 +3,13 @@ import 'package:integration_test/integration_test.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
-const String PREFRONTAL_URL = 'http://localhost:8082';
+const String TELE_ULR = 'http://localhost:60080';
 const Duration timeout = Duration(seconds: 10);
 
-Future<bool> isPrefrontalRunning() async {
+Future<bool> isTelencephalonReachable() async {
   try {
     final response = await http
-        .get(Uri.parse('$PREFRONTAL_URL/health'))
+        .get(Uri.parse('$TELE_ULR/health'))
         .timeout(Duration(seconds: 2));
     return response.statusCode == 200;
   } catch (e) {
@@ -22,9 +22,9 @@ void main() {
 
   group('API Flow Integration Tests', () {
     testWidgets('provider CRUD flow', (WidgetTester tester) async {
-      final isRunning = await isPrefrontalRunning();
+      final isRunning = await isTelencephalonReachable();
       if (!isRunning) {
-        print('Prefrontal not running on $PREFRONTAL_URL, skipping test');
+        print('Telencephalon not reachable on $TELE_ULR, skipping test');
         return;
       }
 
@@ -69,9 +69,9 @@ void main() {
     });
 
     testWidgets('skill listing flow', (WidgetTester tester) async {
-      final isRunning = await isPrefrontalRunning();
+      final isRunning = await isTelencephalonReachable();
       if (!isRunning) {
-        print('Prefrontal not running on $PREFRONTAL_URL, skipping test');
+        print('Telencephalon not reachable on $TELE_ULR, skipping test');
         return;
       }
 
@@ -90,9 +90,9 @@ void main() {
     });
 
     testWidgets('agent CRUD flow', (WidgetTester tester) async {
-      final isRunning = await isPrefrontalRunning();
+      final isRunning = await isTelencephalonReachable();
       if (!isRunning) {
-        print('Prefrontal not running on $PREFRONTAL_URL, skipping test');
+        print('Telencephalon not reachable on $TELE_ULR, skipping test');
         return;
       }
 
@@ -128,9 +128,9 @@ void main() {
     });
 
     testWidgets('task CRUD flow', (WidgetTester tester) async {
-      final isRunning = await isPrefrontalRunning();
+      final isRunning = await isTelencephalonReachable();
       if (!isRunning) {
-        print('Prefrontal not running on $PREFRONTAL_URL, skipping test');
+        print('Telencephalon not reachable on $TELE_ULR, skipping test');
         return;
       }
 
@@ -173,9 +173,9 @@ void main() {
     });
 
     testWidgets('MCP server CRUD flow', (WidgetTester tester) async {
-      final isRunning = await isPrefrontalRunning();
+      final isRunning = await isTelencephalonReachable();
       if (!isRunning) {
-        print('Prefrontal not running on $PREFRONTAL_URL, skipping test');
+        print('Telencephalon not reachable on $TELE_ULR, skipping test');
         return;
       }
 
@@ -212,9 +212,9 @@ void main() {
     });
 
     testWidgets('conversations listing flow', (WidgetTester tester) async {
-      final isRunning = await isPrefrontalRunning();
+      final isRunning = await isTelencephalonReachable();
       if (!isRunning) {
-        print('Prefrontal not running on $PREFRONTAL_URL, skipping test');
+        print('Telencephalon not reachable on $TELE_ULR, skipping test');
         return;
       }
 
@@ -237,9 +237,9 @@ void main() {
     });
 
     testWidgets('skill update and delete flow', (WidgetTester tester) async {
-      final isRunning = await isPrefrontalRunning();
+      final isRunning = await isTelencephalonReachable();
       if (!isRunning) {
-        print('Prefrontal not running on $PREFRONTAL_URL, skipping test');
+        print('Telencephalon not reachable on $TELE_ULR, skipping test');
         return;
       }
 
@@ -293,9 +293,9 @@ void main() {
     testWidgets('MCP server update and delete flow', (
       WidgetTester tester,
     ) async {
-      final isRunning = await isPrefrontalRunning();
+      final isRunning = await isTelencephalonReachable();
       if (!isRunning) {
-        print('Prefrontal not running on $PREFRONTAL_URL, skipping test');
+        print('Telencephalon not reachable on $TELE_ULR, skipping test');
         return;
       }
 

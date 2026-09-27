@@ -6,7 +6,8 @@ import '../services/genui/shadow_catalog.dart';
 /// Export GenUIAgentService for use in other files
 export '../services/genui/gen_ui_agent_service.dart';
 
-/// Prefrontal server URL
+/// Telencephalon (a.k.a. telencephalon) server URL — single platform entry point
+/// exposed on :60080. Name kept as `prefrontalUrl` for legacy callers.
 const prefrontalUrl = 'http://localhost:60080';
 
 /// Provider for GenUIAgentService

@@ -6,7 +6,7 @@ import '../providers/error_dialog_provider.dart';
 import '../router/app_router.dart';
 import '../theme/app_colors.dart';
 
-/// 模型绑定引导弹窗。当 cortex 返回 LLM_NOT_REGISTERED 时弹出。
+/// 模型绑定引导弹窗。当 telencephalon 返回 LLM_NOT_REGISTERED 时弹出。
 /// 提供按钮跳转到设置页面 (`/settings`) 或直接绑定特定选项。
 class ModelBindingPromptDialog extends ConsumerWidget {
   const ModelBindingPromptDialog({super.key});

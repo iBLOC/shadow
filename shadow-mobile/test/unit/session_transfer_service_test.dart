@@ -6,7 +6,7 @@ import 'package:shadow_mobile/services/session_transfer_service.dart';
 
 void main() {
   group('SessionTransferService.importSession', () {
-    test('uses cortex and returns conversation_id, cortex_url, transferred_via', () async {
+    test('uses telencephalon and returns conversation_id, telencephalon_url, transferred_via', () async {
       final mockClient = MockClient((request) async {
         if (request.url.path.contains('/shadow/v1/conversations/')) {
           final body = request.body;
@@ -20,7 +20,7 @@ void main() {
       });
 
       final cortex = CortexClient(
-        baseUrl: 'http://localhost:8443',
+        baseUrl: 'http://localhost:60080',
         client: mockClient,
       );
 
@@ -41,11 +41,11 @@ void main() {
       final result = await service.importSession(export);
 
       expect(result['conversation_id'], startsWith('conv-'));
-      expect(result['cortex_url'], 'http://localhost:8443');
-      expect(result['transferred_via'], 'cortex');
+      expect(result['telencephalon_url'], 'http://localhost:60080');
+      expect(result['transferred_via'], 'telencephalon');
     });
 
-    test('throws StateError when cortex is null', () async {
+    test('throws StateError when telencephalon is null', () async {
       final service = SessionTransferService();
 
       final export = SessionExport(

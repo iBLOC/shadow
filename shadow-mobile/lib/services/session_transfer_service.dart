@@ -105,7 +105,7 @@ class SessionTransferService {
           if (peers.any((p) => p.host == host && p.port == port)) continue;
           peers.add(
             DiscoveredPeer(
-              id: 'cortex:${lobe.name}',
+              id: 'telencephalon:${lobe.name}',
               name: lobe.agentCard.name.isNotEmpty ? lobe.agentCard.name : lobe.name,
               host: host,
               port: port,
@@ -114,7 +114,7 @@ class SessionTransferService {
           );
         }
       } catch (_) {
-        // cortex unreachable — fall back to local-only discovery
+        // telencephalon unreachable — fall back to local-only discovery
       }
     }
 
@@ -137,13 +137,13 @@ class SessionTransferService {
 
   Future<Map<String, dynamic>> importSession(SessionExport export) async {
     if (_cortex == null) {
-      throw StateError('cortex is required for session transfer; configure it in the cortex provider');
+      throw StateError('telencephalon is required for session transfer; configure it in the backend settings');
     }
     final convo = await _cortex.importSessionAsConversation(export: export);
     return {
       'conversation_id': convo.id,
-      'cortex_url': _cortex.baseUrl,
-      'transferred_via': 'cortex',
+      'telencephalon_url': _cortex.baseUrl,
+      'transferred_via': 'telencephalon',
     };
   }
 

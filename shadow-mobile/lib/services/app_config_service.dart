@@ -12,6 +12,8 @@ class AppConfigService {
 
   // 配置项
   String? _modelStoreUrl;
+  String? _telencephalonBaseUrl;
+  String? _telencephalonAdminToken;
   bool _isInitialized = false;
 
   // 单例
@@ -24,6 +26,13 @@ class AppConfigService {
 
   /// 是否使用默认地址
   bool get isUsingDefaultModelStore => _modelStoreUrl == null;
+
+  /// Telencephalon (a.k.a. cortex) base URL — null means use the
+  /// client default (`http://127.0.0.1:60080`).
+  String? get telencephalonBaseUrl => _telencephalonBaseUrl;
+
+  /// Telencephalon admin token — null means do not send `X-Admin-Token`.
+  String? get telencephalonAdminToken => _telencephalonAdminToken;
 
   /// 初始化配置服务
   Future<void> init() async {
@@ -40,6 +49,8 @@ class AppConfigService {
         final contents = await file.readAsString();
         final config = json.decode(contents) as Map<String, dynamic>;
         _modelStoreUrl = config['modelStoreUrl'] as String?;
+        _telencephalonBaseUrl = config['telencephalonBaseUrl'] as String?;
+        _telencephalonAdminToken = config['telencephalonAdminToken'] as String?;
       }
     } catch (e) {
       // 配置文件读取失败，使用默认值
@@ -51,9 +62,13 @@ class AppConfigService {
   Future<void> _saveConfig() async {
     try {
       final file = await _getConfigFile();
-      final config = {
-        if (_modelStoreUrl != null) 'modelStoreUrl': _modelStoreUrl,
-      };
+final config = {
+      if (_modelStoreUrl != null) 'modelStoreUrl': _modelStoreUrl,
+      if (_telencephalonBaseUrl != null)
+        'telencephalonBaseUrl': _telencephalonBaseUrl,
+      if (_telencephalonAdminToken != null)
+        'telencephalonAdminToken': _telencephalonAdminToken,
+    };
       await file.writeAsString(json.encode(config));
     } catch (e) {
       // 配置保存失败，忽略错误
@@ -76,6 +91,20 @@ class AppConfigService {
   /// 重置为默认模型下载服务器地址
   Future<void> resetModelStoreUrl() async {
     _modelStoreUrl = null;
+    await _saveConfig();
+  }
+
+  /// Set telencephalon base URL (persisted). Pass null to fall back to
+  /// the client default `http://127.0.0.1:60080`.
+  Future<void> setTelencephalonBaseUrl(String? url) async {
+    _telencephalonBaseUrl = (url == null || url.isEmpty) ? null : url;
+    await _saveConfig();
+  }
+
+  /// Set telencephalon admin token (persisted). Pass null/empty to
+  /// stop sending the `X-Admin-Token` header.
+  Future<void> setTelencephalonAdminToken(String? token) async {
+    _telencephalonAdminToken = (token == null || token.isEmpty) ? null : token;
     await _saveConfig();
   }
 }

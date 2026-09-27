@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
-/// WebRTC signaling message types exchanged with Prefrontal.
+/// WebRTC signaling message types exchanged with Telencephalon.
 ///
 /// Mirrors the desktop `webrtcCompanion.ts` wire format and the
 /// `WsMessage` enum in `prefrontal/src/server/websocket.rs`.
@@ -109,7 +109,7 @@ class WebRtcSignaling {
         return true;
       } catch (e2) {
         _error.add(
-          'Both cortex ($_baseUrl) and fallback ($_fallbackUrl) failed: $e / $e2',
+          'Both telencephalon ($_baseUrl) and fallback ($_fallbackUrl) failed: $e / $e2',
         );
         return false;
       }

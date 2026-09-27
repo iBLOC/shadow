@@ -23,7 +23,7 @@ void main() {
         if (path == '/shadow/v1/agents') {
           return http.Response(
             jsonEncode({
-              'cortex': {'id': 'test-id', 'instance_name': 'test', 'default_agent': 'prefrontal'},
+              'telencephalon': {'id': 'test-id', 'instance_name': 'test', 'default_agent': 'prefrontal'},
               'agents': [],
             }),
             200,
@@ -186,6 +186,77 @@ void main() {
       final json = req.toJson();
       expect(json['text'], 'Hello');
       expect(json.containsKey('agent'), false);
+    });
+
+    test('listAgents parses telencephalon envelope', () async {
+      final resp = await client.listAgents();
+      expect(resp.cortexId, 'test-id');
+      expect(resp.instanceName, 'test');
+      expect(resp.defaultAgent, 'prefrontal');
+    });
+
+    test('runFlow resolves by name then POSTs /api/flows/{id}/run', () async {
+      bool listCalled = false;
+      bool runCalled = false;
+      String? runPath;
+      final mockClient = http_testing.MockClient((request) async {
+        final path = request.url.path;
+        if (path == '/api/flows' && request.method == 'GET') {
+          listCalled = true;
+          return http.Response(
+            jsonEncode([
+              {
+                'id': 'flow-uuid-1234',
+                'name': 'demo',
+                'version': '0.1.0',
+                'is_draft': false,
+                'tags': [],
+              },
+            ]),
+            200,
+          );
+        }
+        if (path == '/api/flows/flow-uuid-1234/run' &&
+            request.method == 'POST') {
+          runCalled = true;
+          runPath = path;
+          return http.Response(jsonEncode({'ok': true}), 200);
+        }
+        return http.Response('Not Found: $path', 404);
+      });
+      final c = CortexClient(
+        baseUrl: 'http://127.0.0.1:60080',
+        client: mockClient,
+      );
+      final res = await c.runFlow('demo', {'input': 'hi'});
+      expect(listCalled, true);
+      expect(runCalled, true);
+      expect(runPath, '/api/flows/flow-uuid-1234/run');
+      expect(res.outputs['ok'], true);
+    });
+
+    test('admin POSTs include X-Admin-Token header', () async {
+      String? seenHeader;
+      final mockClient = http_testing.MockClient((request) async {
+        if (request.url.path == '/api/telencephalon/admin/mcp/servers' &&
+            request.method == 'POST') {
+          seenHeader = request.headers['X-Admin-Token'];
+          return http.Response(jsonEncode({'id': 'srv-1'}), 200);
+        }
+        return http.Response('Not Found', 404);
+      });
+      final c = CortexClient(
+        baseUrl: 'http://127.0.0.1:60080',
+        adminToken: 'secret-admin-token',
+        client: mockClient,
+      );
+      await c.createMcpServer(
+        name: 'srv-1',
+        wasmName: 'w',
+        wasmVersion: '0.1.0',
+        wasmSha256: 'deadbeef',
+      );
+      expect(seenHeader, 'secret-admin-token');
     });
   });
 }

@@ -6,6 +6,7 @@ import '../generated/l10n/app_localizations.dart';
 import '../services/accessibility_controller.dart';
 import '../services/app_config_service.dart';
 import '../providers/theme_provider.dart';
+import '../providers/cortex_provider.dart';
 import '../providers/service_provider.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/log_panel_section.dart';
@@ -228,20 +229,23 @@ class SettingsScreen extends ConsumerWidget {
                 ),
               ],
               const SizedBox(height: 16),
-              GlassCard(
-                padding: EdgeInsets.zero,
-                child: ListTile(
-                  leading: Icon(Icons.account_tree, color: AppColors.primary),
-                  title: Text(l10n.cortexFlows),
-                  subtitle: const Text('Browse and run cortex flows'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const FlowsScreen()),
+GlassCard(
+                  padding: EdgeInsets.zero,
+                  child: ListTile(
+                    leading: Icon(Icons.account_tree, color: AppColors.primary),
+                    title: Text(l10n.cortexFlows),
+                    subtitle: const Text('Browse and run telencephalon flows'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const FlowsScreen()),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 16),
+                const SizedBox(height: 16),
+                // Backend (telencephalon) 配置
+                const _BackendSettingsCard(),
+                const SizedBox(height: 16),
               // 设备发现
               GlassCard(
                 padding: EdgeInsets.zero,
@@ -839,6 +843,118 @@ class _MemoryUsageBar extends StatelessWidget {
                   : memory.usagePercent > 60
                   ? Colors.orange
                   : AppColors.success,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BackendSettingsCard extends ConsumerStatefulWidget {
+  const _BackendSettingsCard();
+
+  @override
+  ConsumerState<_BackendSettingsCard> createState() =>
+      _BackendSettingsCardState();
+}
+
+class _BackendSettingsCardState extends ConsumerState<_BackendSettingsCard> {
+  late TextEditingController _urlCtrl;
+  late TextEditingController _tokenCtrl;
+  bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _urlCtrl = TextEditingController();
+    _tokenCtrl = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _urlCtrl.dispose();
+    _tokenCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _hydrate() async {
+    final cfg = AppConfigService();
+    await cfg.init();
+    final live = ref.read(cortexProvider.notifier).client;
+    setState(() {
+      _urlCtrl.text = live.baseUrl;
+      _tokenCtrl.text = live.adminToken ?? '';
+      _loaded = true;
+    });
+  }
+
+  Future<void> _save() async {
+    final cfg = AppConfigService();
+    final url = _urlCtrl.text.trim();
+    final token = _tokenCtrl.text.trim();
+    await cfg.setTelencephalonBaseUrl(url.isEmpty ? null : url);
+    await cfg.setTelencephalonAdminToken(token.isEmpty ? null : token);
+    final notifier = ref.read(cortexProvider.notifier);
+    notifier.setBaseUrl(url.isEmpty ? 'http://127.0.0.1:60080' : url);
+    notifier.setAdminToken(token.isEmpty ? null : token);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Backend settings saved')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _hydrate());
+    }
+    return GlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.dns, color: AppColors.primary),
+              const SizedBox(width: 8),
+              const Text(
+                'Backend (Telencephalon)',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Override the telencephalon base URL and admin token used by the mobile client.',
+            style: TextStyle(fontSize: 12, color: Colors.black54),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _urlCtrl,
+            decoration: const InputDecoration(
+              labelText: 'Base URL',
+              hintText: 'http://127.0.0.1:60080',
+              border: OutlineInputBorder(),
+            ),
+            keyboardType: TextInputType.url,
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _tokenCtrl,
+            decoration: const InputDecoration(
+              labelText: 'Admin Token (optional)',
+              hintText: 'leave blank for dev mode',
+              border: OutlineInputBorder(),
+            ),
+            obscureText: true,
+          ),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerRight,
+            child: FilledButton.icon(
+              onPressed: _save,
+              icon: const Icon(Icons.save_outlined),
+              label: const Text('Save'),
             ),
           ),
         ],

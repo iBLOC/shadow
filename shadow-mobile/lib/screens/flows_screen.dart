@@ -74,7 +74,7 @@ class _FlowsList extends ConsumerWidget {
     }
     if (flows.isEmpty) {
       return ListView(children: const [
-        Padding(padding: EdgeInsets.all(24), child: Text('No flows registered in cortex yet.')),
+        Padding(padding: EdgeInsets.all(24), child: Text('No flows registered in telencephalon yet.')),
       ]);
     }
     return ListView.builder(
