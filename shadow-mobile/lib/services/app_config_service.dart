@@ -76,7 +76,15 @@ final config = {
   }
 
   /// 获取配置文件
+  ///
+  /// Tests can override [configFileOverride] to redirect persistence to a
+  /// temporary file without depending on `path_provider_platform_interface`.
+  static Future<File> Function()? configFileOverride;
+
   Future<File> _getConfigFile() async {
+    if (configFileOverride != null) {
+      return configFileOverride!();
+    }
     final directory = await getApplicationDocumentsDirectory();
     return File('${directory.path}/$_configFileName');
   }

@@ -160,5 +160,56 @@ void main() {
       expect(find.byType(ListTile), findsWidgets);
     });
 
+    testWidgets('Backend (Telencephalon) card renders with URL + token fields',
+        (WidgetTester tester) async {
+      await pumpWidgetForTest(
+        tester,
+        ProviderScope(
+          overrides: getTestOverrides(),
+          child: MaterialApp(
+            localizationsDelegates: const [
+              AppLocalizations.delegate,
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+            ],
+            supportedLocales: const [Locale('en')],
+            locale: const Locale('en'),
+            home: SettingsScreen(modelInfo: 'Test Model', onReset: () {}),
+          ),
+        ),
+      );
+
+      expect(find.text('Backend (Telencephalon)'), findsOneWidget);
+      // Two TextFields: Base URL + Admin Token
+      expect(find.byType(TextField), findsNWidgets(2));
+      expect(find.text('Base URL'), findsOneWidget);
+      expect(find.text('Admin Token (optional)'), findsOneWidget);
+      expect(find.text('Save'), findsOneWidget);
+    });
+
+    testWidgets('flows list tile subtitle mentions telencephalon (not cortex)',
+        (WidgetTester tester) async {
+      await pumpWidgetForTest(
+        tester,
+        ProviderScope(
+          overrides: getTestOverrides(),
+          child: MaterialApp(
+            localizationsDelegates: const [
+              AppLocalizations.delegate,
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+            ],
+            supportedLocales: const [Locale('en')],
+            locale: const Locale('en'),
+            home: SettingsScreen(modelInfo: 'Test Model', onReset: () {}),
+          ),
+        ),
+      );
+
+      expect(
+        find.text('Browse and run telencephalon flows'),
+        findsOneWidget,
+      );
+    });
   });
 }

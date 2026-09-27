@@ -138,7 +138,8 @@ jobs:
         run: |
           xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
             pnpm exec playwright test --reporter=github \
-              e2e-conversation-flow e2e-task-scheduling business-flow-ui
+              e2e-conversation-flow e2e-task-scheduling business-flow-ui \
+              telencephalon-endpoints
 
       - name: Upload Playwright report on failure
         if: failure()

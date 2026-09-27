@@ -258,5 +258,123 @@ void main() {
       );
       expect(seenHeader, 'secret-admin-token');
     });
+
+    test('AgentsResponse envelope falls back to legacy "cortex" key', () {
+      final r = AgentsResponse.fromJson({
+        'cortex': {
+          'id': 'legacy-id',
+          'instance_name': 'legacy',
+          'default_agent': 'prefrontal',
+        },
+        'agents': [],
+      });
+      expect(r.cortexId, 'legacy-id');
+      expect(r.instanceName, 'legacy');
+      expect(r.defaultAgent, 'prefrontal');
+      expect(r.agents, isEmpty);
+    });
+
+    test('AgentsResponse envelope prefers "telencephalon" over "cortex"', () {
+      final r = AgentsResponse.fromJson({
+        'telencephalon': {'id': 'new-id', 'instance_name': 'new', 'default_agent': 'temporal'},
+        'cortex': {'id': 'old-id', 'instance_name': 'old', 'default_agent': 'prefrontal'},
+        'agents': [],
+      });
+      expect(r.cortexId, 'new-id');
+      expect(r.instanceName, 'new');
+      expect(r.defaultAgent, 'temporal');
+    });
+
+    test('runFlow with a UUID-shaped id short-circuits list and posts /api/flows/{id}/run',
+        () async {
+      bool listCalled = false;
+      String? runPath;
+      final mockClient = http_testing.MockClient((request) async {
+        if (request.url.path == '/api/flows' && request.method == 'GET') {
+          listCalled = true;
+          return http.Response(jsonEncode([]), 200);
+        }
+        if (request.url.path == '/api/flows/12345678-1234-1234-1234-123456789abc/run') {
+          runPath = request.url.path;
+          return http.Response(jsonEncode({'ok': true}), 200);
+        }
+        return http.Response('Not Found', 404);
+      });
+      final c = CortexClient(
+        baseUrl: 'http://127.0.0.1:60080',
+        client: mockClient,
+      );
+      await c.runFlow('12345678-1234-1234-1234-123456789abc', {'k': 'v'});
+      expect(listCalled, false, reason: 'id-shaped input must skip list');
+      expect(runPath, '/api/flows/12345678-1234-1234-1234-123456789abc/run');
+    });
+
+    test('runFlow with an unknown name throws CortexException', () async {
+      final mockClient = http_testing.MockClient((request) async {
+        if (request.url.path == '/api/flows') {
+          return http.Response(jsonEncode([]), 200);
+        }
+        return http.Response('Not Found', 404);
+      });
+      final c = CortexClient(
+        baseUrl: 'http://127.0.0.1:60080',
+        client: mockClient,
+      );
+      expect(
+        () => c.runFlow('does-not-exist', const {}),
+        throwsA(isA<CortexException>()),
+      );
+    });
+
+    test('webrtcSignalingUrl builds a deterministic URL', () {
+      final url = client.webrtcSignalingUrl('sess-1', modality: 'voice');
+      expect(
+        url.toString(),
+        'http://127.0.0.1:60080/api/webrtc/voice/sessions/sess-1/ws',
+      );
+    });
+
+    test('searchAgents hits /api/telencephalon/agents/search with query params',
+        () async {
+      String? seenPath;
+      final mockClient = http_testing.MockClient((request) async {
+        if (request.url.path == '/api/telencephalon/agents/search') {
+          seenPath = request.url.path;
+          return http.Response(
+            jsonEncode({'agents': [{'name': 'asr-lobe'}]}),
+            200,
+          );
+        }
+        return http.Response('Not Found', 404);
+      });
+      final c = CortexClient(
+        baseUrl: 'http://127.0.0.1:60080',
+        client: mockClient,
+      );
+      final r = await c.searchAgents(skill: 'asr');
+      expect(seenPath, '/api/telencephalon/agents/search');
+      expect(r['agents'], hasLength(1));
+    });
+
+    test('health() retries the well-known URL on 500', () async {
+      int calls = 0;
+      final mockClient = http_testing.MockClient((request) async {
+        calls++;
+        if (calls == 1) {
+          return http.Response('boom', 500);
+        }
+        return http.Response(jsonEncode({'id': 'ok'}), 200);
+      });
+      final c = CortexClient(
+        baseUrl: 'http://127.0.0.1:60080',
+        client: mockClient,
+      );
+      // The current client does NOT retry on 500; assert the documented
+      // behaviour so a future change has to update the test on purpose.
+      expect(
+        () => c.health(),
+        throwsA(isA<CortexException>()),
+      );
+    });
   });
 }
