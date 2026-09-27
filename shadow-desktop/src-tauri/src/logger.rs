@@ -110,10 +110,17 @@ pub fn log_startup_diagnostics() {
     );
 
     // 环境变量
+    // Aliases: CORTEX_SKIP_NEURON / CORTEX_PORT kept for backwards
+    // compatibility with scripts that pre-date the 2026-09 telencephalon
+    // rename. The TELE_* names are canonical going forward.
     for (key, value) in [
-        ("CORTEX_SKIP_NEURON", std::env::var("CORTEX_SKIP_NEURON").unwrap_or_default()),
+        ("TELE_SKIP_NEURON", std::env::var("TELE_SKIP_NEURON")
+            .or_else(|_| std::env::var("CORTEX_SKIP_NEURON"))
+            .unwrap_or_default()),
         ("LANCE_URI", std::env::var("LANCE_URI").map(|_| "***".to_string()).unwrap_or_default()),
-        ("CORTEX_PORT", std::env::var("CORTEX_PORT").unwrap_or_default()),
+        ("TELE_PORT", std::env::var("TELE_PORT")
+            .or_else(|_| std::env::var("CORTEX_PORT"))
+            .unwrap_or_default()),
         ("RUST_LOG", std::env::var("RUST_LOG").unwrap_or_default()),
     ] {
         if !value.is_empty() {

@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
+import { isCortexReachable } from './global-setup';
 
-const CORTEX_URL = 'http://localhost:60080';
+const CORTEX_URL = process.env.SHADOW_CORTEX_URL ?? 'http://localhost:60080';
 
 test.describe('End-to-End: Conversation to Task Scheduling', () => {
   test.beforeEach(async ({ page }) => {
@@ -11,6 +12,7 @@ test.describe('End-to-End: Conversation to Task Scheduling', () => {
   });
 
   test('通过对话发布定时任务并验证调度链路', async ({ page }) => {
+    test.skip(!await isCortexReachable(), 'telencephalon not reachable on :60080');
     const createConvResponse = await page.request.post(`${CORTEX_URL}/shadow/v1/conversations`, {
       data: { agent: 'temporal' },
     });
@@ -53,6 +55,7 @@ test.describe('End-to-End: Conversation to Task Scheduling', () => {
   });
 
   test('验证颞叶到前额叶的A2A通信', async ({ page }) => {
+    test.skip(!await isCortexReachable(), 'telencephalon not reachable on :60080');
     const agentsResponse = await page.request.get(`${CORTEX_URL}/api/cortex/agents`);
     expect(agentsResponse.ok()).toBeTruthy();
     const agents = await agentsResponse.json();
@@ -74,6 +77,7 @@ test.describe('End-to-End: Conversation to Task Scheduling', () => {
   });
 
   test('验证智能体模型配置和调度能力', async ({ page }) => {
+    test.skip(!await isCortexReachable(), 'telencephalon not reachable on :60080');
     const agentsResponse = await page.request.get(`${CORTEX_URL}/api/cortex/agents`);
     expect(agentsResponse.ok()).toBeTruthy();
     const agents = await agentsResponse.json();
@@ -92,6 +96,7 @@ test.describe('End-to-End: Conversation to Task Scheduling', () => {
   });
 
   test('验证供应商和模型持久化', async ({ page }) => {
+    test.skip(!await isCortexReachable(), 'telencephalon not reachable on :60080');
     const providersResponse = await page.request.get(`${CORTEX_URL}/models/providers`);
     expect(providersResponse.ok()).toBeTruthy();
     const providers = await providersResponse.json();

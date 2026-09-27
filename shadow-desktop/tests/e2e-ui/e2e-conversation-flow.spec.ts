@@ -1,7 +1,9 @@
 import { test, expect } from '@playwright/test';
 import { TEST_CONFIG } from './config';
+import { isCortexReachable } from './global-setup';
 
-const CORTEX_URL = 'http://localhost:60080';
+const CORTEX_URL = TEST_CONFIG.CORTEX_URL;
+const FULL_STACK = process.env.SHADOW_FULL_STACK === '1';
 
 test.describe('Complete E2E: Conversation Flow', () => {
   test.beforeEach(async ({ page }) => {
@@ -12,6 +14,7 @@ test.describe('Complete E2E: Conversation Flow', () => {
   });
 
   test('发送消息并验证响应', async ({ page }) => {
+    test.skip(!await isCortexReachable(), 'telencephalon not reachable on :60080');
     // 1. 创建对话
     const createConvResponse = await page.request.post(`${CORTEX_URL}/shadow/v1/conversations`, {
       data: {},
@@ -31,15 +34,21 @@ test.describe('Complete E2E: Conversation Flow', () => {
       // 成功响应 - 检查 SSE 事件
       const text = await sendResponse.text();
       expect(text).toBeTruthy();
-      console.log('Message sent successfully, response:', text.substring(0, 200));
+      if (FULL_STACK) {
+        // Hard-assertion when full stack is requested: real reply must include
+        // either Chinese content or the literal 'hello' echo.
+        expect(text).toMatch(/[\u4e00-\u9fa5]|hello/i);
+      } else {
+        console.log('Message sent successfully, response:', text.substring(0, 200));
+      }
     } else {
       // 错误响应 - 验证错误格式
       const errorBody = await sendResponse.text();
       console.log('Message failed with error:', errorBody);
-      
+
       // 验证错误包含有用信息
       expect(errorBody).toBeTruthy();
-      
+
       // 如果是 lobe 不可达，错误应该包含具体信息
       if (errorBody.includes('unreachable') || errorBody.includes('connection refused')) {
         console.log('Lobe not reachable - this is expected if temporal/prefrontal is not running');
@@ -48,6 +57,7 @@ test.describe('Complete E2E: Conversation Flow', () => {
   });
 
   test('验证所有 lobe 可达性', async ({ page }) => {
+    test.skip(!await isCortexReachable(), 'telencephalon not reachable on :60080');
     // 获取所有 lobe
     const agentsResponse = await page.request.get(`${CORTEX_URL}/api/cortex/agents`);
     expect(agentsResponse.ok()).toBeTruthy();
@@ -74,6 +84,7 @@ test.describe('Complete E2E: Conversation Flow', () => {
   });
 
   test('验证错误处理 - lobe 不可达', async ({ page }) => {
+    test.skip(!await isCortexReachable(), 'telencephalon not reachable on :60080');
     // 创建对话
     const createConvResponse = await page.request.post(`${CORTEX_URL}/shadow/v1/conversations`, {
       data: {},
@@ -106,6 +117,7 @@ test.describe('Complete E2E: Conversation Flow', () => {
   });
 
   test('验证对话页面错误显示', async ({ page }) => {
+    test.skip(!await isCortexReachable(), 'telencephalon not reachable on :60080');
     await page.goto('/conversation');
     await page.waitForLoadState('networkidle');
 

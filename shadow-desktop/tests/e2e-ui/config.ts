@@ -1,5 +1,7 @@
 export const TEST_CONFIG = {
-  MIMO_API_KEY: 'sk-ckq348mmnv61tv4b7gqak7ztnendmnqsikt3mecy7g3oc13a',
+  // Real credentials come from the environment — specs that need the key
+  // self-skip via test.skip(!TEST_CONFIG.MIMO_API_KEY) when it is unset.
+  MIMO_API_KEY: process.env.MIMO_API_KEY ?? '',
   MIMO_API_BASE: 'https://api.xiaomimimo.com/v1',
-  CORTEX_URL: 'http://localhost:60080',
+  CORTEX_URL: process.env.SHADOW_CORTEX_URL ?? 'http://localhost:60080',
 };

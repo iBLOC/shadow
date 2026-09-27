@@ -16,7 +16,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri = { version = "2", features = ["tray-icon", "image-png", "unstable"] }
 tauri-plugin-opener = "2"
 tauri-plugin-single-instance = "2"
 tauri-plugin-wdio-webdriver = "1.3"
@@ -27,8 +27,9 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tracing-appender = "0.2"
 tokio = { version = "1", features = ["full"] }
 
-# Cortex is spawned as a sidecar binary (see cortex_manager.rs)
-# Shadow-Desktop is a thin client that talks to cortex via /shadow/v1/* HTTP
+# Cortex / Telencephalon is no longer spawned as a sidecar binary.
+# Shadow-Desktop is a thin client that talks to telencephalon via
+# /shadow/v1/* and /api/telencephalon/* HTTP when needed.
 # (DEPRECATED 2026-09-22: replaced by embedded `encephalon` crate.)
 
 # WebSocket with TLS

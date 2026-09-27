@@ -75,6 +75,87 @@ jobs:
         working-directory: shadow-desktop
         run: pnpm exec vitest run
 
+  desktop-e2e:
+    name: Desktop E2E (Playwright + Telencephalon)
+    # Promotes the soft-skip Playwright specs (e2e-conversation-flow,
+    # e2e-task-scheduling, business-flow-ui) to a real CI run against a
+    # telencephalon binary built alongside this job.
+    #
+    # NOTE (P0-D, 2026-09-27): Real-green depends on the telencephalon
+    # neuron_handle.shutdown hang bug being fixed
+    # (audit addendum 2026-09-26 L298-310). Until then this job may fail
+    # at boot when no in-process neuron is available.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout shadow
+        uses: actions/checkout@v4
+
+      - name: Checkout telencephalon
+        uses: actions/checkout@v4
+        with:
+          path: ../telencephalon
+          sparse-checkout: |
+            Cargo.toml
+            src
+            tests
+            migrations
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: pnpm
+          cache-dependency-path: shadow-desktop/pnpm-lock.yaml
+
+      - name: Setup Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ../telencephalon
+
+      - name: Build telencephalon
+        working-directory: ../telencephalon
+        run: cargo build --manifest-path Cargo.toml
+
+      - name: Install dependencies
+        working-directory: shadow-desktop
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        working-directory: shadow-desktop
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run Playwright E2E against telencephalon
+        working-directory: shadow-desktop
+        env:
+          SHADOW_CORTEX_BIN: ${{ github.workspace }}/../telencephalon/target/debug/telencephalon
+          SHADOW_CORTEX_CWD: ${{ github.workspace }}/../telencephalon
+          SHADOW_FULL_STACK: '1'
+        run: |
+          xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
+            pnpm exec playwright test --reporter=github \
+              e2e-conversation-flow e2e-task-scheduling business-flow-ui
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: shadow-desktop/playwright-report
+          retention-days: 7
+
+      - name: Upload test results on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-test-results
+          path: shadow-desktop/test-results
+          retention-days: 7
+
   desktop-build:
     name: Desktop Build
     runs-on: ubuntu-latest
