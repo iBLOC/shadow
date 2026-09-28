@@ -6,12 +6,14 @@ mod model_store;
 mod config_manager;
 mod opencode_manager;
 mod preview_window;
+mod inline_preview;
 mod result_manager;
 mod feishu_mcp;
 mod computer_use;
 mod worktree_manager;
 mod recording;
 mod provider_manager;
+mod global_keys;
 mod logger;
 
 use config_manager::{AppConfig, DatabaseConfig, ProviderConfig, SecureAuth};
@@ -193,6 +195,13 @@ pub fn run() {
         })),
     };
 
+    // Global shortcuts (keyboard chords + Mi Bluetooth remote buttons):
+    // one leaked instance is shared between the managed state and the
+    // raw WH_KEYBOARD_LL callback, so gk_set_bindings updates are seen
+    // by the hook immediately (same Arc<Inner> on both sides).
+    let global_keys_state: &'static global_keys::GlobalKeysState =
+        Box::leak(Box::new(global_keys::GlobalKeysState::new()));
+
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             // In test mode (wdio Tauri E2E), bypass the focus-existing-window
@@ -212,10 +221,16 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(app_state)
-        .setup(|app| {
+        .manage(global_keys_state.clone())
+        .setup(move |app| {
             if let Err(e) = setup_tray(app) {
                 tracing::error!("Failed to setup tray: {}", e);
             }
+
+            // Low-level keyboard hook for global shortcuts + Bluetooth
+            // remote buttons (Windows). Runs after the AppHandle exists
+            // so the hook thread can emit gk-trigger / gk-capture.
+            global_keys::install(global_keys_state, app.handle().clone());
 
             let main_window = app.get_webview_window("main");
             if let Some(window) = main_window {
@@ -336,6 +351,10 @@ pub fn run() {
             document_feishu_enabled,
             preview::preview_open,
             preview::preview_close,
+            inline_preview::inline_preview_open,
+            inline_preview::inline_preview_set_bounds,
+            inline_preview::inline_preview_close,
+            inline_preview::inline_preview_fetch_markdown,
             computer_use::cu_screenshot,
             computer_use::cu_mouse_click,
             computer_use::cu_mouse_move,
@@ -363,6 +382,9 @@ pub fn run() {
             provider_manager::provider_select_model,
             provider_manager::provider_refresh,
             provider_manager::provider_refresh_all,
+            global_keys::gk_set_bindings,
+            global_keys::gk_start_capture,
+            global_keys::gk_stop_capture,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

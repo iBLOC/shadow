@@ -121,6 +121,16 @@ xcap = "0.9"
 [target.'cfg(target_os = "windows")'.dependencies]
 uiautomation = { version = "0.25", features = ["pattern"] }
 
+# Global shortcut keys (keyboard chords + Mi Bluetooth remote buttons).
+# Only the low-level keyboard hook surface is needed: Foundation
+# (LRESULT/WPARAM), WindowsAndMessaging (SetWindowsHookExW family) and
+# LibraryLoader (GetModuleHandleW). See src/global_keys.rs.
+windows = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_System_LibraryLoader",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
 # ziti-sdk override: pull the iBLOC fork instead of crates.io so
 # the `webpki-roots` reqwest feature req is dropped (the fork
 # substitutes `rustls` TLS roots). Without this patch, cargo can't
