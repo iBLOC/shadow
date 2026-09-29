@@ -29,9 +29,6 @@ use tauri::{
     Manager, Runtime, State, WindowEvent,
 };
 use encephalon::telencephalon::a2a::client::TelencephalonStreamEvent as Tse;
-// neuron's lib target is named neuron_lib (see neuron/Cargo.toml [lib]);
-// alias to the crate's project name, same as telencephalon does.
-use neuron_lib as neuron;
 use worktree_manager::WorktreeManager;
 use result_manager::{CommitInfo, ResultManager as ResultMgr, ResultManagerError};
 use preview_window as preview;
@@ -123,18 +120,25 @@ pub fn run() {
     logger::init();
     logger::log_startup_diagnostics();
 
-    // Initialise the embedded 大脑 (encephalon) in-process. This blocks
-    // the main thread for a few ms (creating an empty thalamus + a
-    // broadcast::channel), which is faster than the old cortex-sidecar
-    // cold-start that previously added 100s–10s of startup latency.
-    // Thalamus::new already returns Arc<Thalamus> — no extra Arc wrap.
-    let thalamus: Arc<diencephalon::Thalamus> = tauri::async_runtime::block_on(
-        diencephalon::Thalamus::new(None),
-    )
-    .expect("init thalamus");
-    let encephalon = Arc::new(
-        tauri::async_runtime::block_on(Encephalon::new(thalamus.clone())),
-    );
+    // Initialise the embedded 大脑 (encephalon) in-process: thalamus
+    // (间脑) + ACP bus + hippocampus (海马体) + the single neuron
+    // inference instance (owned by telencephalon). The embedded
+    // encephalon is the ONLY place shadow gets inference from — no
+    // direct neuron dependency, no second runtime. Protocol note:
+    // shadow ↔ encephalon is process-internal by design; A2A is the
+    // encephalon's *external* agent protocol only.
+    let brain = tauri::async_runtime::block_on(encephalon::Embedded::boot(
+        // Fixed :8085 so the frontend's neuronUrl() (platform.ts)
+        // reaches the single embedded runtime.
+        encephalon::EmbeddedConfig { neuron_port: 8085 },
+    ))
+    .expect("boot embedded encephalon");
+    let neuron_addr = brain.neuron_addr();
+    tracing::info!("encephalon embedded; neuron at {neuron_addr}");
+    let thalamus: Arc<diencephalon::Thalamus> = brain.thalamus().clone();
+    let encephalon = brain.encephalon().clone();
+    // `brain` (Arc<Embedded>) stays alive for the process lifetime:
+    // run() never returns, so no extra keepalive is needed.
 
     let app_state = AppState {
         encephalon: encephalon.clone(),
@@ -248,29 +252,6 @@ pub fn run() {
             // async to spawn here. (The old cortex sidecar spawn is
             // gone — see commit f200f93 for the deletion history.)
             let _ = app_handle;
-
-            // Embedded neuron inference runtime (:8085) — the models
-            // pages talk to it directly (platform.ts neuronUrl) since
-            // the cortex sidecar proxy is gone. A bind failure (port
-            // taken by another instance) is logged, not fatal: the UI
-            // degrades to its "runtime not connected" state.
-            tauri::async_runtime::spawn(async move {
-                let cfg = neuron::NeuronEmbedConfig {
-                    port: 8085,
-                    config: neuron::NeuronConfig::new(),
-                };
-                match neuron::run_embedded(cfg).await {
-                    Ok(handle) => {
-                        tracing::info!("neuron embedded listening on :{}", handle.addr);
-                        // Hold the handle for the app's lifetime: dropping
-                        // it closes the shutdown watch channel, which
-                        // neuron's serve loop treats as a shutdown signal
-                        // (observed: bind succeeds, listener vanishes).
-                        std::future::pending::<()>().await;
-                    }
-                    Err(e) => tracing::warn!("neuron embedded failed to start: {e}"),
-                }
-            });
 
             // Periodic model refresh: every enabled provider's /models
             // endpoint is re-fetched every 10 minutes so the cached model
