@@ -45,6 +45,19 @@ export const useConversationStore = create<ConversationState>()(
             : c
         )
       })),
+      updateMessage: (conversationId, messageId, updates) => set((state) => ({
+        conversations: state.conversations.map(c =>
+          c.id === conversationId
+            ? {
+                ...c,
+                messages: c.messages.map(m =>
+                  m.id === messageId ? { ...m, ...updates } : m
+                ),
+                updatedAt: new Date(),
+              }
+            : c
+        )
+      })),
       setSessionId: (conversationId, sessionId) => set((state) => ({
         conversations: state.conversations.map(c => 
           c.id === conversationId 
