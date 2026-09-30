@@ -49,6 +49,7 @@ struct AppState {
     feishu_mcp: Arc<FeishuMcp>,
     recording_store: Arc<recording::RecordingStore>,
     provider_manager: Arc<encephalon::providers::ProviderManager>,
+    embedded_brain: Arc<encephalon::Embedded>,
     workflow_state: Arc<tokio::sync::Mutex<WorkflowState>>,
 }
 
@@ -128,8 +129,8 @@ pub fn run() {
     // shadow ↔ encephalon is process-internal by design; A2A is the
     // encephalon's *external* agent protocol only.
     let brain = tauri::async_runtime::block_on(encephalon::Embedded::boot(
-        // Fixed :8085 so the frontend's neuronUrl() (platform.ts)
-        // reaches the single embedded runtime.
+        // Fixed :8085 so loopback metadata reads (models list, health)
+        // keep working; chat itself goes in-process via neuron_infer.
         encephalon::EmbeddedConfig { neuron_port: 8085 },
     ))
     .expect("boot embedded encephalon");
@@ -137,8 +138,7 @@ pub fn run() {
     tracing::info!("encephalon embedded; neuron at {neuron_addr}");
     let thalamus: Arc<diencephalon::Thalamus> = brain.thalamus().clone();
     let encephalon = brain.encephalon().clone();
-    // `brain` (Arc<Embedded>) stays alive for the process lifetime:
-    // run() never returns, so no extra keepalive is needed.
+    let embedded_brain = brain.clone();
 
     let app_state = AppState {
         encephalon: encephalon.clone(),
@@ -193,6 +193,7 @@ pub fn run() {
         // Provider management (端脑): presets need only an API key; model
         // lists are fetched per provider and refreshed every 10 min.
         provider_manager: Arc::new(provider_manager::new_manager()),
+        embedded_brain: embedded_brain.clone(),
         workflow_state: Arc::new(tokio::sync::Mutex::new(WorkflowState {
             approved_tasks: std::collections::HashMap::new(),
             rejected_tasks: std::collections::HashMap::new(),
@@ -363,6 +364,7 @@ pub fn run() {
             provider_manager::provider_select_model,
             provider_manager::provider_refresh,
             provider_manager::provider_refresh_all,
+            neuron_infer,
             global_keys::gk_set_bindings,
             global_keys::gk_start_capture,
             global_keys::gk_stop_capture,
@@ -1029,6 +1031,28 @@ async fn recording_events(
     // audio pipeline replaces this in production).
     state.recording_store.tick_synthetic_events(&session_id);
     Ok(state.recording_store.events(&session_id))
+}
+
+/// In-process inference — the chat bridge's primary path. The
+/// frontend sends the OpenAI-compatible request body; it is
+/// dispatched straight into the embedded encephalon's neuron adapter
+/// pipeline (no loopback HTTP, no CORS). Returns
+/// `{ status, body }` where body is the raw OpenAI wire response.
+#[tauri::command]
+async fn neuron_infer(
+    state: State<'_, AppState>,
+    path: String,
+    body: Vec<u8>,
+) -> Result<serde_json::Value, String> {
+    // Only adapter routes are reachable through this command.
+    if path != "/v1/chat/completions" && path != "/v1/messages" {
+        return Err(format!("route not allowed through in-process infer: {path}"));
+    }
+    let (status, bytes) = state.embedded_brain.infer(&path, body).await;
+    let parsed: serde_json::Value = serde_json::from_slice(&bytes).unwrap_or(serde_json::json!({
+        "error": { "message": String::from_utf8_lossy(&bytes) }
+    }));
+    Ok(serde_json::json!({ "status": status, "body": parsed }))
 }
 
 #[tauri::command]

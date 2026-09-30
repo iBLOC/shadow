@@ -1,4 +1,5 @@
 import { isTauri, neuronUrl } from './platform';
+import { invoke } from '@tauri-apps/api/core';
 
 const DEFAULT_CORTEX_URL = 'http://127.0.0.1:60080';
 
@@ -451,79 +452,46 @@ export class CortexClient {
     history.push({ role: 'user', content: req.text });
 
     let assistant = '';
-    // Qwen3-style models stream a <think>…</think> reasoning block
-    // before the answer; suppress it (statefully — the tags can be
-    // long and the model's generation is slow enough on CPU that
-    // letting reasoning stream through would look like a hang).
-    let inThink = false;
+    // In-process inference: the Tauri command dispatches the request
+    // body straight into the embedded encephalon's neuron adapter
+    // pipeline — no loopback HTTP, no CORS. Non-stream by design
+    // (adapter dispatch buffers); the full answer is emitted as one
+    // delta after think-stripping below, which preserves the
+    // streaming-bubble contract ConversationPage consumes.
     try {
       const model = await this.pickNeuronModel();
-      const resp = await fetch(`${neuronUrl()}/v1/chat/completions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, messages: history, stream: true, max_tokens: 400 }),
-      });
-      if (!resp.ok || !resp.body) {
-        let msg = `neuron chat ${resp.status}: ${resp.statusText}`;
-        try {
-          const body = await resp.json();
-          if (body?.error?.message) msg = body.error.message;
-        } catch { /* keep status line */ }
+      const payload = JSON.stringify({ model, messages: history, stream: false, max_tokens: 400 });
+      const resp = await invoke<{ status: number; body: { choices?: Array<{ message?: { content?: string } }>; error?: { message?: string } } }>(
+        'neuron_infer',
+        {
+          path: '/v1/chat/completions',
+          body: Array.from(new TextEncoder().encode(payload)),
+        },
+      );
+      if (resp.status >= 400 || !resp.body) {
+        const msg = resp.body?.error?.message ?? `neuron chat ${resp.status}`;
         throw new Error(msg);
       }
-      const reader = resp.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() ?? '';
-        for (const raw of lines) {
-          const line = raw.trim();
-          if (!line.startsWith('data:')) continue;
-          const data = line.slice(5).trim();
-          if (!data || data === '[DONE]') continue;
-          try {
-            const chunk = JSON.parse(data);
-            let delta: string | undefined = chunk.choices?.[0]?.delta?.content;
-            if (delta) {
-              if (inThink) {
-                const end = delta.indexOf('</think>');
-                if (end === -1) delta = undefined;
-                else {
-                  inThink = false;
-                  delta = delta.slice(end + '</think>'.length);
-                }
-              }
-              if (delta) {
-                const start = delta.indexOf('<think>');
-                if (start !== -1) {
-                  const end = delta.indexOf('</think>', start);
-                  if (end === -1) {
-                    inThink = true;
-                    delta = delta.slice(0, start);
-                  } else {
-                    delta = delta.slice(0, start) + delta.slice(end + '</think>'.length);
-                  }
-                }
-              }
-              if (delta) {
-                assistant += delta;
-                yield {
-                  type: 'delta',
-                  delta,
-                  agent: 'shadow-local',
-                  conversation_id: conversationId,
-                  timestamp: Date.now(),
-                };
-              }
-            }
-          } catch {
-            /* skip malformed chunk */
-          }
+      let delta: string | undefined = resp.body.choices?.[0]?.message?.content;
+      if (delta) {
+        const start = delta.indexOf('<think>');
+        if (start !== -1) {
+          const end = delta.indexOf('</think>', start);
+          delta =
+            end === -1
+              ? delta.slice(0, start)
+              : delta.slice(0, start) + delta.slice(end + '</think>'.length);
         }
+      }
+      if (delta) {
+        assistant = delta;
+        yield {
+          type: 'delta',
+          delta,
+          agent: 'shadow-local',
+          conversation_id: conversationId,
+          timestamp: Date.now(),
+        };
       }
       if (!assistant) {
         // The model spent its whole budget inside <think>…</think>
@@ -745,7 +713,7 @@ export class CortexClient {
     model_provider?: string;
     model_name?: string;
   }): Promise<AgentMutationResult> {
-    return this.request<AgentMutationResult>('/api/cortex/admin/agents/create', {
+    return this.request<AgentMutationResult>('/api/telencephalon/admin/agents/create', {
       method: 'POST',
       body: JSON.stringify(req),
     });
@@ -759,7 +727,7 @@ export class CortexClient {
     version?: string;
     provider_type?: string;
   }): Promise<AgentMutationResult> {
-    return this.request<AgentMutationResult>('/api/cortex/admin/agents/register', {
+    return this.request<AgentMutationResult>('/api/telencephalon/admin/agents/register', {
       method: 'POST',
       body: JSON.stringify(req),
     });
@@ -767,7 +735,7 @@ export class CortexClient {
 
   async generateAgentDescription(systemPrompt: string): Promise<GeneratedDescription> {
     return this.request<GeneratedDescription>(
-      '/api/cortex/admin/agents/generate-description',
+      '/api/telencephalon/admin/agents/generate-description',
       {
         method: 'POST',
         body: JSON.stringify({ system_prompt: systemPrompt }),
@@ -776,27 +744,27 @@ export class CortexClient {
   }
 
   async scanExternalAgents(): Promise<ScanResult> {
-    return this.request<ScanResult>('/api/cortex/agents/scan', { method: 'POST' });
+    return this.request<ScanResult>('/api/telencephalon/agents/scan', { method: 'POST' });
   }
 
   async syncExternalAgent(providerId: string): Promise<AgentMutationResult> {
     return this.request<AgentMutationResult>(
-      `/api/cortex/agents/sync/${encodeURIComponent(providerId)}`,
+      `/api/telencephalon/agents/sync/${encodeURIComponent(providerId)}`,
       { method: 'POST' }
     );
   }
 
   async discoverAgents(): Promise<DiscoveryResult> {
-    return this.request<DiscoveryResult>('/api/cortex/agents/discover');
+    return this.request<DiscoveryResult>('/api/telencephalon/agents/discover');
   }
 
   async listInstalledWasm(): Promise<InstalledWasmList> {
-    return this.request<InstalledWasmList>('/api/cortex/admin/agents/installed');
+    return this.request<InstalledWasmList>('/api/telencephalon/admin/agents/installed');
   }
 
   async deleteWasm(name: string, version: string): Promise<void> {
     await this.request<void>(
-      `/api/cortex/admin/agents/${encodeURIComponent(name)}/${encodeURIComponent(version)}`,
+      `/api/telencephalon/admin/agents/${encodeURIComponent(name)}/${encodeURIComponent(version)}`,
       { method: 'DELETE' },
     );
   }
@@ -811,13 +779,13 @@ export class CortexClient {
     if (opts.q) params.set('q', opts.q);
     const qs = params.toString();
     return this.request<AgentSearchResponse>(
-      `/api/cortex/agents/search${qs ? `?${qs}` : ''}`,
+      `/api/telencephalon/agents/search${qs ? `?${qs}` : ''}`,
     );
   }
 
   async updateLobeConfig(name: string, config: Record<string, unknown>): Promise<void> {
     await this.request<void>(
-      `/api/cortex/agents/${encodeURIComponent(name)}/config`,
+      `/api/telencephalon/agents/${encodeURIComponent(name)}/config`,
       {
         method: 'PATCH',
         body: JSON.stringify({ config }),
@@ -826,30 +794,30 @@ export class CortexClient {
   }
 
   async listMcpServers(): Promise<McpServerList> {
-    return this.request<McpServerList>('/api/cortex/mcp/servers');
+    return this.request<McpServerList>('/api/telencephalon/mcp/servers');
   }
 
   async getMcpServer(id: string): Promise<McpServerRecord> {
     return this.request<McpServerRecord>(
-      `/api/cortex/mcp/servers/${encodeURIComponent(id)}`,
+      `/api/telencephalon/mcp/servers/${encodeURIComponent(id)}`,
     );
   }
 
   async getMcpServerTools(id: string): Promise<McpToolSummary[]> {
     return this.request<McpToolSummary[]>(
-      `/api/cortex/mcp/servers/${encodeURIComponent(id)}/tools`,
+      `/api/telencephalon/mcp/servers/${encodeURIComponent(id)}/tools`,
     );
   }
 
   async listMcpServersForAgent(agentName: string): Promise<McpAgentBindingsList> {
     return this.request<McpAgentBindingsList>(
-      `/api/cortex/mcp/agents/${encodeURIComponent(agentName)}/servers`,
+      `/api/telencephalon/mcp/agents/${encodeURIComponent(agentName)}/servers`,
     );
   }
 
   async getAgentMcpTools(agentName: string): Promise<McpToolSummary[]> {
     return this.request<McpToolSummary[]>(
-      `/api/cortex/mcp/agents/${encodeURIComponent(agentName)}/tools`,
+      `/api/telencephalon/mcp/agents/${encodeURIComponent(agentName)}/tools`,
     );
   }
 
@@ -869,7 +837,7 @@ export class CortexClient {
       bearer?: string;
     };
   }): Promise<McpServerRecord> {
-    return this.request<McpServerRecord>('/api/cortex/admin/mcp/servers', {
+    return this.request<McpServerRecord>('/api/telencephalon/admin/mcp/servers', {
       method: 'POST',
       body: JSON.stringify(req),
     });
@@ -877,49 +845,49 @@ export class CortexClient {
 
   async deleteMcpServer(id: string): Promise<void> {
     await this.request<void>(
-      `/api/cortex/admin/mcp/servers/${encodeURIComponent(id)}`,
+      `/api/telencephalon/admin/mcp/servers/${encodeURIComponent(id)}`,
       { method: 'DELETE' },
     );
   }
 
   async startMcpServer(id: string): Promise<McpServerRecord> {
     return this.request<McpServerRecord>(
-      `/api/cortex/admin/mcp/servers/${encodeURIComponent(id)}/start`,
+      `/api/telencephalon/admin/mcp/servers/${encodeURIComponent(id)}/start`,
       { method: 'POST' },
     );
   }
 
   async stopMcpServer(id: string): Promise<McpServerRecord> {
     return this.request<McpServerRecord>(
-      `/api/cortex/admin/mcp/servers/${encodeURIComponent(id)}/stop`,
+      `/api/telencephalon/admin/mcp/servers/${encodeURIComponent(id)}/stop`,
       { method: 'POST' },
     );
   }
 
   async bindMcpServerToAgent(agentName: string, serverId: string): Promise<McpAgentBinding> {
     return this.request<McpAgentBinding>(
-      `/api/cortex/admin/mcp/agents/${encodeURIComponent(agentName)}/servers/${encodeURIComponent(serverId)}`,
+      `/api/telencephalon/admin/mcp/agents/${encodeURIComponent(agentName)}/servers/${encodeURIComponent(serverId)}`,
       { method: 'POST' },
     );
   }
 
   async unbindMcpServerFromAgent(agentName: string, serverId: string): Promise<void> {
     await this.request<void>(
-      `/api/cortex/admin/mcp/agents/${encodeURIComponent(agentName)}/servers/${encodeURIComponent(serverId)}`,
+      `/api/telencephalon/admin/mcp/agents/${encodeURIComponent(agentName)}/servers/${encodeURIComponent(serverId)}`,
       { method: 'DELETE' },
     );
   }
 
   // Voice methods
   async transcribeAudio(audio: string, format: string = 'webm', language: string = 'zh'): Promise<{ text: string }> {
-    return this.request<{ text: string }>('/api/cortex/voice/transcribe', {
+    return this.request<{ text: string }>('/api/telencephalon/voice/transcribe', {
       method: 'POST',
       body: JSON.stringify({ audio, format, language }),
     });
   }
 
   async synthesizeSpeech(text: string, voice: string = 'alloy'): Promise<Blob> {
-    const response = await fetch(`${this.baseUrl}/api/cortex/voice/synthesize`, {
+    const response = await fetch(`${this.baseUrl}/api/telencephalon/voice/synthesize`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -936,7 +904,7 @@ export class CortexClient {
 
   // Task methods
   async getTasks(): Promise<any[]> {
-    return this.request<any[]>('/api/cortex/tasks');
+    return this.request<any[]>('/api/telencephalon/tasks');
   }
 
   async createTask(task: {
@@ -946,14 +914,14 @@ export class CortexClient {
     priority?: string;
     tags?: string[];
   }): Promise<any> {
-    return this.request<any>('/api/cortex/tasks', {
+    return this.request<any>('/api/telencephalon/tasks', {
       method: 'POST',
       body: JSON.stringify(task),
     });
   }
 
   async confirmTask(taskId: string, confirmed: boolean, modifications?: any): Promise<any> {
-    return this.request<any>(`/api/cortex/tasks/${taskId}/confirm`, {
+    return this.request<any>(`/api/telencephalon/tasks/${taskId}/confirm`, {
       method: 'POST',
       body: JSON.stringify({ confirmed, modifications }),
     });
@@ -961,7 +929,7 @@ export class CortexClient {
 
   // Video source methods (Spec #1)
   async listVideoSources(): Promise<CortexVideoSourcesSnapshot> {
-    return this.request<CortexVideoSourcesSnapshot>('/api/cortex/video-sources');
+    return this.request<CortexVideoSourcesSnapshot>('/api/telencephalon/video-sources');
   }
 
   async putVideoSources(
@@ -972,7 +940,7 @@ export class CortexClient {
       'Content-Type': 'application/json',
       'If-Match': ifMatch,
     };
-    const resp = await fetch(`${this.baseUrl}/api/cortex/video-sources`, {
+    const resp = await fetch(`${this.baseUrl}/api/telencephalon/video-sources`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -992,34 +960,34 @@ export class CortexClient {
 
   thalamus = {
     listSensors: (): Promise<string[]> =>
-      this.request<ThalamusSensorList>('/api/cortex/thalamus/preview/sensors').then((r) => r.sensors),
+      this.request<ThalamusSensorList>('/api/telencephalon/thalamus/preview/sensors').then((r) => r.sensors),
     getStats: (name: string): Promise<ThalamusSensorStats> =>
-      this.request<ThalamusSensorStats>(`/api/cortex/thalamus/preview/sensors/${encodeURIComponent(name)}/stats`),
+      this.request<ThalamusSensorStats>(`/api/telencephalon/thalamus/preview/sensors/${encodeURIComponent(name)}/stats`),
     tail: (name: string, limit?: number): Promise<ThalamusSample[]> => {
       const qs = limit ? `?limit=${limit}` : '';
       return this.request<{ samples: ThalamusSample[] }>(
-        `/api/cortex/thalamus/preview/sensors/${encodeURIComponent(name)}/tail${qs}`
+        `/api/telencephalon/thalamus/preview/sensors/${encodeURIComponent(name)}/tail${qs}`
       ).then((r) => r.samples);
     },
     query: (template: string, sensor: string, limit?: number): Promise<ThalamusSample[]> => {
       const body: Record<string, unknown> = { template, sensor };
       if (limit) body.limit = limit;
-      return this.request<{ samples?: ThalamusSample[] }>('/api/cortex/thalamus/preview/query', {
+      return this.request<{ samples?: ThalamusSample[] }>('/api/telencephalon/thalamus/preview/query', {
         method: 'POST',
         body: JSON.stringify(body),
       }).then((r) => r.samples ?? []);
     },
     register: (req: { name: string; kind?: string; capacity?: number }): Promise<{ name: string }> =>
-      this.request<{ name: string }>('/api/cortex/thalamus/manage/sensors', {
+      this.request<{ name: string }>('/api/telencephalon/thalamus/manage/sensors', {
         method: 'POST',
         body: JSON.stringify(req),
       }),
     deregister: (name: string): Promise<void> =>
-      this.request<void>(`/api/cortex/thalamus/manage/sensors/${encodeURIComponent(name)}`, {
+      this.request<void>(`/api/telencephalon/thalamus/manage/sensors/${encodeURIComponent(name)}`, {
         method: 'DELETE',
       }),
     updateConfig: (name: string, cfg: { capacity: number }): Promise<void> =>
-      this.request<void>(`/api/cortex/thalamus/manage/sensors/${encodeURIComponent(name)}/config`, {
+      this.request<void>(`/api/telencephalon/thalamus/manage/sensors/${encodeURIComponent(name)}/config`, {
         method: 'PUT',
         body: JSON.stringify(cfg),
       }),
@@ -1027,34 +995,50 @@ export class CortexClient {
 
   hippocampus = {
     stats: (): Promise<HippocampusStats> =>
-      this.request<HippocampusStats>('/api/cortex/hippocampus/preview/stats'),
+      this.request<HippocampusStats>('/api/telencephalon/hippocampus/preview/stats'),
     recent: (opts: { layer?: string; dimension?: string; limit?: number } = {}): Promise<HippocampusRecent> => {
       const params = new URLSearchParams();
       if (opts.layer) params.set('layer', opts.layer);
       if (opts.dimension) params.set('dimension', opts.dimension);
       if (opts.limit) params.set('limit', String(opts.limit));
       const qs = params.toString();
-      return this.request<HippocampusRecent>(`/api/cortex/hippocampus/preview/recent${qs ? `?${qs}` : ''}`);
+      return this.request<HippocampusRecent>(`/api/telencephalon/hippocampus/preview/recent${qs ? `?${qs}` : ''}`);
     },
     consolidator: (): Promise<ConsolidatorState> =>
-      this.request<ConsolidatorState>('/api/cortex/hippocampus/preview/consolidator'),
+      this.request<ConsolidatorState>('/api/telencephalon/hippocampus/preview/consolidator'),
     graphNode: (nodeId: string): Promise<GraphNode> =>
-      this.request<GraphNode>(`/api/cortex/hippocampus/preview/graph/${encodeURIComponent(nodeId)}`),
+      this.request<GraphNode>(`/api/telencephalon/hippocampus/preview/graph/${encodeURIComponent(nodeId)}`),
   };
 
   neuron = {
     models: (): Promise<NeuronModelSummary[]> =>
-      this.request<NeuronModelsResponse>('/api/cortex/neuron/preview/models').then((r) => r.models),
+      this.request<NeuronModelsResponse>('/api/telencephalon/neuron/preview/models').then((r) => r.models),
     stats: (): Promise<NeuronStats> =>
-      this.request<NeuronStats>('/api/cortex/neuron/preview/stats'),
+      this.request<NeuronStats>('/api/telencephalon/neuron/preview/stats'),
   };
 
   issueSubsystemToken = async (
     scopes: string[],
     ttlSeconds?: number
   ): Promise<SubsystemTokenResponse> => {
-    const { invoke } = await import('@tauri-apps/api/core');
-    return invoke<SubsystemTokenResponse>('cortex_issue_subsystem_token', { scopes, ttlSeconds });
+    // Telencephalon replaced the legacy `cortex_issue_subsystem_token`
+    // Tauri command with an HTTP admin endpoint. Resolve the admin
+    // token from localStorage (defaulting to `dev-admin-key` in dev)
+    // and forward as `X-Admin-Token`.
+    const adminToken =
+      typeof window !== 'undefined'
+        ? (window.localStorage.getItem('shadow-admin-token') ?? 'dev-admin-key')
+        : 'dev-admin-key';
+    const body: Record<string, unknown> = { scopes };
+    if (ttlSeconds !== undefined) body.ttl_seconds = ttlSeconds;
+    return this.request<SubsystemTokenResponse>(
+      '/api/telencephalon/admin/token',
+      {
+        method: 'POST',
+        headers: { 'X-Admin-Token': adminToken },
+        body: JSON.stringify(body),
+      },
+    );
   };
 }
 
