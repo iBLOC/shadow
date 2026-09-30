@@ -14,6 +14,9 @@ import {
   AlertCircle,
   Check,
   Clock,
+  Search,
+  Circle,
+  CheckCircle2,
 } from 'lucide-react';
 import { Button, EmptyState, Modal, Input } from '../components/ui';
 import { cn } from '../lib/utils';
@@ -116,6 +119,20 @@ export function ProvidersPage() {
   });
   const [adding, setAdding] = useState(false);
 
+  // Pre-save model-list preview for the Add form. Lives only while the modal
+  // is open — cleared on tab switch, preset change, and close.
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewModels, setPreviewModels] = useState<ModelSummary[] | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [previewSelected, setPreviewSelected] = useState<string | null>(null);
+
+  const resetPreview = () => {
+    setPreviewLoading(false);
+    setPreviewModels(null);
+    setPreviewError(null);
+    setPreviewSelected(null);
+  };
+
   // Edit modal: preset providers edit only the key; custom edit everything.
   const [editing, setEditing] = useState<ProviderEntry | null>(null);
   const [editKey, setEditKey] = useState('');
@@ -171,17 +188,27 @@ export function ProvidersPage() {
       return;
     }
     setAdding(true);
-    const ok = await runAction(() =>
-      invoke('provider_add_preset', {
+    let addedId: string | undefined;
+    const ok = await runAction(async () => {
+      const entry = await invoke<ProviderEntry>('provider_add_preset', {
         presetId: selectedPreset.id,
         apiKey: presetKey.trim() || null,
-      })
-    );
+      });
+      addedId = entry.id;
+      // Promote the preview-picked model to selected_model on the new entry.
+      if (previewSelected) {
+        await invoke('provider_select_model', {
+          id: entry.id,
+          modelId: previewSelected,
+        });
+      }
+    });
     setAdding(false);
     if (ok) {
       setShowAddModal(false);
       setSelectedPreset(null);
       setPresetKey('');
+      resetPreview();
     }
   };
 
@@ -191,20 +218,170 @@ export function ProvidersPage() {
       return;
     }
     setAdding(true);
-    const ok = await runAction(() =>
-      invoke('provider_add_custom', {
+    let addedId: string | undefined;
+    const ok = await runAction(async () => {
+      const entry = await invoke<ProviderEntry>('provider_add_custom', {
         name: customForm.name.trim(),
         baseUrl: customForm.baseUrl.trim(),
         apiStandard: customForm.standard,
         apiKey: customForm.apiKey.trim() || null,
-      })
-    );
+      });
+      addedId = entry.id;
+      // Promote the preview-picked model to selected_model on the new entry.
+      if (previewSelected) {
+        await invoke('provider_select_model', {
+          id: entry.id,
+          modelId: previewSelected,
+        });
+      }
+    });
     setAdding(false);
     if (ok) {
       setShowAddModal(false);
       setCustomForm({ name: '', baseUrl: '', standard: 'openai', apiKey: '' });
+      resetPreview();
     }
   };
+
+  // ---- pre-save model preview ----
+
+  const handlePreviewPreset = async () => {
+    if (!selectedPreset) return;
+    setPreviewLoading(true);
+    setPreviewError(null);
+    setPreviewModels(null);
+    try {
+      const models = await invoke<ModelSummary[]>('provider_preview_fetch', {
+        presetId: selectedPreset.id,
+        baseUrl: null,
+        apiStandard: selectedPreset.api_standard,
+        apiKey: presetKey.trim() || null,
+      });
+      setPreviewModels(models);
+      // Default selection: catalog hint → first entry.
+      const defaultId =
+        selectedPreset.default_model && models.some((m) => m.id === selectedPreset.default_model)
+          ? selectedPreset.default_model
+          : models[0]?.id ?? null;
+      setPreviewSelected(defaultId);
+    } catch (err) {
+      setPreviewError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const handlePreviewCustom = async () => {
+    if (!customForm.baseUrl.trim()) {
+      setPreviewError('Base URL is required');
+      return;
+    }
+    setPreviewLoading(true);
+    setPreviewError(null);
+    setPreviewModels(null);
+    try {
+      const models = await invoke<ModelSummary[]>('provider_preview_fetch', {
+        presetId: null,
+        baseUrl: customForm.baseUrl.trim(),
+        apiStandard: customForm.standard,
+        apiKey: customForm.apiKey.trim() || null,
+      });
+      setPreviewModels(models);
+      setPreviewSelected(models[0]?.id ?? null);
+    } catch (err) {
+      setPreviewError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const renderPreviewArea = () => (
+    <div className="flex flex-col gap-2 rounded-md border border-dashed border-border bg-muted/30 p-3">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium text-foreground">
+          {t('providers.previewTitle') || '可用模型预览'}
+          {previewModels && (
+            <span className="ml-2 font-normal text-muted-foreground">
+              {(t('providers.previewCount', { count: previewModels.length }) as string) ||
+                `共 ${previewModels.length} 个`}
+            </span>
+          )}
+        </span>
+      </div>
+      {previewLoading && (
+        <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
+          <Loader2 size={12} className="animate-spin" />
+          <span>{t('providers.testing') || '测试中…'}</span>
+        </div>
+      )}
+      {previewError && (
+        <div className="flex items-start gap-2 py-1 text-xs text-red-500">
+          <AlertCircle size={12} className="mt-0.5 shrink-0" />
+          <span className="line-clamp-3">
+            {(t('providers.previewErrorPrefix') || '获取失败：') + previewError}
+          </span>
+        </div>
+      )}
+      {previewModels && !previewLoading && !previewError && (
+        previewModels.length === 0 ? (
+          <div className="py-2 text-xs text-muted-foreground">
+            {t('providers.previewEmpty') || '未获取到模型，请检查地址与 API Key'}
+          </div>
+        ) : (
+          <>
+            <p className="text-[11px] text-muted-foreground">
+              {t('providers.previewHint') || '选择模型将在添加后自动选中'}
+            </p>
+            <div className="flex max-h-48 flex-col gap-1 overflow-y-auto">
+              {previewModels.map((m) => {
+                const picked = previewSelected === m.id;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => setPreviewSelected(m.id)}
+                    className={cn(
+                      'flex items-center gap-2 rounded border px-2 py-1.5 text-left text-xs transition-colors',
+                      picked
+                        ? 'border-primary bg-primary/10 text-foreground'
+                        : 'border-border bg-background text-foreground hover:border-primary/50'
+                    )}
+                  >
+                    {picked ? (
+                      <CheckCircle2 size={14} className="shrink-0 text-primary" />
+                    ) : (
+                      <Circle size={14} className="shrink-0 text-muted-foreground" />
+                    )}
+                    <span className="flex-1 truncate">
+                      <span className="font-medium">{m.display_name || m.id}</span>
+                      {m.display_name && m.display_name !== m.id && (
+                        <span className="ml-1.5 font-mono text-[10px] text-muted-foreground">{m.id}</span>
+                      )}
+                    </span>
+                    {m.context_length && (
+                      <span className="shrink-0 text-[10px] text-muted-foreground">
+                        {formatContext(m.context_length)}
+                      </span>
+                    )}
+                    {picked && (
+                      <span className="shrink-0 text-[10px] font-medium text-primary">
+                        {t('providers.previewSelected') || '已选'}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )
+      )}
+      {!previewModels && !previewLoading && !previewError && (
+        <p className="py-2 text-[11px] text-muted-foreground">
+          {t('providers.previewHint') || '选择模型将在添加后自动选中'}
+        </p>
+      )}
+    </div>
+  );
 
   const openEdit = (provider: ProviderEntry) => {
     setEditing(provider);
@@ -281,6 +458,7 @@ export function ProvidersPage() {
               setAddTab('preset');
               setSelectedPreset(null);
               setPresetKey('');
+              resetPreview();
             }}
           >
             {t('providers.add') || '添加提供商'}
@@ -459,7 +637,7 @@ export function ProvidersPage() {
       {/* ---- add modal: preset (key only) / custom (everything) ---- */}
       <Modal
         isOpen={showAddModal}
-        onClose={() => setShowAddModal(false)}
+        onClose={() => { setShowAddModal(false); resetPreview(); }}
         title={t('providers.add') || '添加提供商'}
       >
         <div className="flex flex-col gap-4">
@@ -469,7 +647,10 @@ export function ProvidersPage() {
                 'flex-1 rounded px-3 py-1.5 text-sm transition-colors',
                 addTab === 'preset' ? 'bg-background font-medium shadow' : 'text-muted-foreground'
               )}
-              onClick={() => setAddTab('preset')}
+              onClick={() => {
+                setAddTab('preset');
+                resetPreview();
+              }}
             >
               {t('providers.presetTab') || '预设供应商'}
             </button>
@@ -478,7 +659,10 @@ export function ProvidersPage() {
                 'flex-1 rounded px-3 py-1.5 text-sm transition-colors',
                 addTab === 'custom' ? 'bg-background font-medium shadow' : 'text-muted-foreground'
               )}
-              onClick={() => setAddTab('custom')}
+              onClick={() => {
+                setAddTab('custom');
+                resetPreview();
+              }}
             >
               {t('providers.customTab') || '自定义'}
             </button>
@@ -493,6 +677,7 @@ export function ProvidersPage() {
                     onClick={() => {
                       setSelectedPreset(preset);
                       setPresetKey('');
+                      resetPreview();
                     }}
                     className="flex items-center justify-between gap-2 rounded-md border border-border p-3 text-left transition-colors hover:border-primary hover:bg-primary/5"
                   >
@@ -540,8 +725,26 @@ export function ProvidersPage() {
                     {t('providers.keylessHint') || '本地运行时无需 API Key，直接添加即可'}
                   </p>
                 )}
+                <div className="flex justify-end">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    icon={
+                      previewLoading ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <Search size={14} />
+                      )
+                    }
+                    onClick={handlePreviewPreset}
+                    disabled={previewLoading}
+                  >
+                    {t('providers.testFetch') || '测试并获取模型'}
+                  </Button>
+                </div>
+                {renderPreviewArea()}
                 <div className="flex justify-end gap-3 border-t border-border pt-4">
-                  <Button variant="ghost" onClick={() => setSelectedPreset(null)}>
+                  <Button variant="ghost" onClick={() => { setSelectedPreset(null); resetPreview(); }}>
                     {t('common.back') || '返回'}
                   </Button>
                   <Button
@@ -591,8 +794,26 @@ export function ProvidersPage() {
                 placeholder="sk-...（可选）"
                 type="password"
               />
+              <div className="flex justify-end">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon={
+                    previewLoading ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <Search size={14} />
+                    )
+                  }
+                  onClick={handlePreviewCustom}
+                  disabled={previewLoading || !customForm.baseUrl.trim()}
+                >
+                  {t('providers.testFetch') || '测试并获取模型'}
+                </Button>
+              </div>
+              {renderPreviewArea()}
               <div className="flex justify-end gap-3 border-t border-border pt-4">
-                <Button variant="ghost" onClick={() => setShowAddModal(false)}>
+                <Button variant="ghost" onClick={() => { setShowAddModal(false); resetPreview(); }}>
                   {t('common.cancel') || '取消'}
                 </Button>
                 <Button

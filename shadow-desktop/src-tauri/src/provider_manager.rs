@@ -11,7 +11,7 @@
 use tauri::State;
 
 use encephalon::providers::{HttpModelFetcher, ProviderEntry, ProviderManager};
-use synapse::providers::catalog::{ApiStandard, ProviderPreset};
+use synapse::providers::catalog::{ApiStandard, ModelSummary, ProviderPreset};
 
 use crate::AppState;
 
@@ -127,6 +127,32 @@ pub async fn provider_refresh_all(
     state: State<'_, AppState>,
 ) -> Result<Vec<ProviderEntry>, String> {
     Ok(state.provider_manager.refresh_all().await)
+}
+
+/// Stateless model-list preview for the Add-form "测试并获取模型" button.
+///
+/// Resolves URL + standard from the catalog when `preset_id` is supplied;
+/// otherwise uses the caller's `base_url` + `api_standard`. Does not touch
+/// the entry list or persistence — purely a pre-flight.
+#[tauri::command]
+pub async fn provider_preview_fetch(
+    state: State<'_, AppState>,
+    preset_id: Option<String>,
+    base_url: Option<String>,
+    api_standard: String,
+    api_key: Option<String>,
+) -> Result<Vec<ModelSummary>, String> {
+    let standard = ApiStandard::parse(&api_standard)
+        .ok_or_else(|| format!("unknown API standard: {} (openai | claude)", api_standard))?;
+    state
+        .provider_manager
+        .preview_fetch(
+            preset_id.as_deref(),
+            base_url.as_deref().unwrap_or(""),
+            standard,
+            api_key,
+        )
+        .await
 }
 
 /// Construct the manager with `~/.shadow/providers.json` persistence.

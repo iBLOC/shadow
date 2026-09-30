@@ -92,7 +92,6 @@
     "agents": "智能体",
     "models": "模型",
     "mcp": "MCP",
-    "previews": "预览",
     "computerUse": "Computer Use",
     "recording": "记录模式",
     "workflowStudio": "工作流编排",
@@ -124,6 +123,16 @@
     "showMyAgents": "显示我的智能体",
     "searchPlaceholder": "搜索对话...",
     "messages": "条消息",
+    "newTextChat": "文本对话",
+    "newAudioChat": "语音对话",
+    "newVideoChat": "视频对话",
+    "newDefaultBadge": "默认",
+    "newAudioTitle": "语音会话",
+    "newVideoTitle": "视频会话",
+    "audioSessionFallback": "语音会话",
+    "videoSessionFallback": "视频会话",
+    "audioMeta": "语音 · 关闭 AI 仅记录",
+    "videoMeta": "视频 · 关闭 AI 仅记录",
     "companion": {
       "start": "开始Companion语音对话",
       "stop": "结束",
@@ -187,17 +196,22 @@
       "urlLabel": "URL",
       "urlHint": "例如 http://localhost:3000（开发服务器）或 https://your-deploy.example.com（部署站点）",
       "opening": "正在打开…",
-      "open": "打开"
-    },
-    "previews": {
-      "adHocTitle": "打开一个预览",
-      "taskIdLabel": "任务 ID",
-      "urlLabel": "URL",
-      "opening": "正在打开…",
       "open": "打开",
-      "openTitle": "当前已打开",
-      "empty": "暂无预览窗口。用上面的表单打开一个。",
-      "close": "关闭"
+      "pane": {
+        "title": "结果预览",
+        "addNew": "新建预览",
+        "kindLabel": "类型",
+        "taskIdLabel": "任务 ID",
+        "urlLabel": "URL",
+        "openInline": "在右栏打开",
+        "openMarkdown": "加载 Markdown",
+        "opening": "正在打开…",
+        "empty": "暂无预览。点击右上角 + 新建一个，或者从任务详情里点「预览」。",
+        "closeTab": "关闭",
+        "detachTitle": "把 {{taskId}} 拆出到独立窗口",
+        "hide": "隐藏右栏",
+        "show": "显示预览栏"
+      }
     },
     "integrations": {
       "title": "集成",
@@ -253,6 +267,10 @@
       "nodeKindAgent": "Agent",
       "nodeKindSink": "Sink",
       "dragHint": "Drag node cards to arrange; click the right dot then a target node to connect."
+    },
+    "tokenStats": {
+      "summary": "{{tokens}} tokens · {{speed}} tok/s",
+      "tooltip": "{{tokens}} tokens · {{seconds}}s"
     }
   },
   "lobes": {
@@ -628,6 +646,7 @@
       "service": "服务与智能体",
       "models": "模型管理",
       "video": "视频源",
+      "shortcuts": "快捷键",
       "subsystem": "子系统",
       "integrations": "集成",
       "ui": "界面",
@@ -770,7 +789,13 @@
     "modelClaude3Opus": "Claude 3 Opus",
     "modelGPT4": "GPT-4",
     "database": "数据库",
-    "databaseDesc": "数据存储在本地，使用 Lance"
+    "databaseDesc": "数据存储在本地，使用 Lance",
+    "tokenStats": {
+      "title": "Token 速度",
+      "desc": "在助手回复下方展示本轮回复的 Token 总量与生成速度",
+      "label": "显示 Token 速度",
+      "help": "开启后，对话页每条助手回复下方会显示总 token 与每秒速度"
+    }
   },
   "resonance": {
     "title": "共鸣",
@@ -867,7 +892,7 @@
     "title": "Shadow 节点",
     "subtitle": "发现并连接网络上的 Cortex 节点",
     "cortexInstances": "Cortex 实例",
-    "cortexDefaultPort": "默认 :8443",
+    "cortexDefaultPort": "默认 :60080",
     "startScan": "开始扫描",
     "stopScan": "停止扫描",
     "scanning": "扫描中...",
@@ -1116,7 +1141,9 @@
     "historyTitle": "历史会话",
     "historyEmpty": "暂无记录。",
     "viewReport": "查看报告",
-    "generatingReport": "正在生成总结报告…"
+    "generatingReport": "正在生成总结报告…",
+    "audioDescription": "VAD + 说话人区分 + ASR。事件与总结存储于海马体。",
+    "videoDescription": "在音频管线之上叠加 mage-vl 视觉理解。事件与总结存储于海马体。"
   },
   "providers": {
     "title": "大模型服务提供商",
@@ -1137,6 +1164,63 @@
     "customTab": "自定义",
     "addAndFetch": "添加并获取模型",
     "keylessHint": "本地运行时无需 API Key，直接添加即可",
-    "presetLocked": "预设供应商的地址与接口标准固定，仅可更换 API Key"
+    "presetLocked": "预设供应商的地址与接口标准固定，仅可更换 API Key",
+    "testFetch": "测试并获取模型",
+    "testing": "测试中…",
+    "previewTitle": "可用模型预览",
+    "previewHint": "选择模型将在添加后自动选中",
+    "previewEmpty": "未获取到模型，请检查地址与 API Key",
+    "previewErrorPrefix": "获取失败：",
+    "previewSelected": "已选",
+    "previewCount": "共 {{count}} 个"
+  },
+  "shortcuts": {
+    "title": "快捷键",
+    "desc": "为常用操作绑定键盘组合键或米家/小米蓝牙遥控器按键，全局生效",
+    "capture": "录制",
+    "capturing": "等待按键…",
+    "clear": "清除",
+    "unbound": "未绑定",
+    "captureTitle": "录制快捷键",
+    "capturePrompt": "按下任意键盘按键或遥控器按钮…",
+    "captureCancelHint": "按 Esc 取消",
+    "riskyTitle": "绑定普通字符键？",
+    "riskyDesc": "「{chord}」不带修饰键：绑定后该按键在所有应用中都会被 Shadow 拦截（包括在其它程序里输入）。确定继续吗？",
+    "confirm": "确认绑定",
+    "cancel": "取消",
+    "stoleNotice": "已同时移除「{action}」上的相同绑定",
+    "riskyBound": "已绑定。注意：该按键现在会被全局拦截",
+    "remoteHelpTitle": "米家 / 小米蓝牙遥控器",
+    "remoteHelp": "在 Windows「蓝牙和其他设备」中配对遥控器后，按键会以标准键盘码发送（播放/暂停、方向键、音量、OK=Enter、返回=Esc 等）。点击某项的「录制」后按遥控器按钮即可完成绑定；语音键需小米配套 App，不会发送按键。",
+    "actions": {
+      "window_toggle": {
+        "label": "显示 / 隐藏主窗口",
+        "desc": "在任意界面呼出或隐藏 Shadow 主窗口"
+      },
+      "window_hide": {
+        "label": "隐藏到托盘",
+        "desc": "快速隐藏窗口，后台继续运行"
+      },
+      "nav_tasks": {
+        "label": "打开任务板",
+        "desc": "显示窗口并跳转到任务板"
+      },
+      "nav_conversation": {
+        "label": "打开会话",
+        "desc": "显示窗口并跳转到统一会话收件箱"
+      },
+      "nav_settings": {
+        "label": "打开设置",
+        "desc": "显示窗口并跳转到设置页"
+      },
+      "conversation_new": {
+        "label": "新建文字会话",
+        "desc": "创建新的文字会话并进入"
+      },
+      "recording_toggle": {
+        "label": "开始 / 停止录音",
+        "desc": "没有进行中的录音时开始语音录音，否则停止并生成总结"
+      }
+    }
   }
 }

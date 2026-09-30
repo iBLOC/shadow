@@ -92,7 +92,6 @@
     "agents": "Agents",
     "models": "Models",
     "mcp": "MCP",
-    "previews": "Previews",
     "computerUse": "Computer Use",
     "recording": "Recording",
     "workflowStudio": "Workflow Studio",
@@ -124,6 +123,16 @@
     "showMyAgents": "Show my agents",
     "searchPlaceholder": "Search conversations...",
     "messages": "messages",
+    "newTextChat": "Text chat",
+    "newAudioChat": "Voice chat",
+    "newVideoChat": "Video chat",
+    "newDefaultBadge": "Default",
+    "newAudioTitle": "Voice session",
+    "newVideoTitle": "Video session",
+    "audioSessionFallback": "Voice session",
+    "videoSessionFallback": "Video session",
+    "audioMeta": "Voice · AI off, record-only",
+    "videoMeta": "Video · AI off, record-only",
     "companion": {
       "start": "Start Companion Voice Mode",
       "stop": "Stop",
@@ -187,17 +196,22 @@
       "urlLabel": "URL",
       "urlHint": "e.g. http://localhost:3000 for a dev server, or https://your-deploy.example.com for a deployed site.",
       "opening": "Opening…",
-      "open": "Open"
-    },
-    "previews": {
-      "adHocTitle": "Open a preview",
-      "taskIdLabel": "Task ID",
-      "urlLabel": "URL",
-      "opening": "Opening…",
       "open": "Open",
-      "openTitle": "Currently open",
-      "empty": "No previews open. Use the form above to open one.",
-      "close": "Close"
+      "pane": {
+        "title": "Result preview",
+        "addNew": "New preview",
+        "kindLabel": "Kind",
+        "taskIdLabel": "Task ID",
+        "urlLabel": "URL",
+        "openInline": "Open in pane",
+        "openMarkdown": "Load Markdown",
+        "opening": "Opening…",
+        "empty": "No previews yet. Click + in the corner to open one, or use Preview from a task detail.",
+        "closeTab": "Close tab",
+        "detachTitle": "Detach {{taskId}} into its own window",
+        "hide": "Hide preview pane",
+        "show": "Show preview pane"
+      }
     },
     "integrations": {
       "title": "Integrations",
@@ -253,6 +267,10 @@
       "nodeKindAgent": "Agent",
       "nodeKindSink": "Sink",
       "dragHint": "Drag node cards to arrange; click the right dot then a target node to connect."
+    },
+    "tokenStats": {
+      "summary": "{{tokens}} tokens · {{speed}} tok/s",
+      "tooltip": "{{tokens}} tokens · {{seconds}}s"
     }
   },
   "lobes": {
@@ -628,6 +646,7 @@
       "service": "Service & Agents",
       "models": "Model Management",
       "video": "Video Sources",
+      "shortcuts": "Shortcuts",
       "subsystem": "Subsystems",
       "integrations": "Integrations",
       "ui": "Interface",
@@ -764,7 +783,13 @@
     "modelClaude3Opus": "Claude 3 Opus",
     "modelGPT4": "GPT-4",
     "database": "Database",
-    "databaseDesc": "Data is stored locally using Lance"
+    "databaseDesc": "Data is stored locally using Lance",
+    "tokenStats": {
+      "title": "Token speed",
+      "desc": "Show total tokens and generation speed under assistant replies",
+      "label": "Show token speed",
+      "help": "When enabled, every assistant reply shows total tokens and tokens/sec."
+    }
   },
   "resonance": {
     "title": "Resonance",
@@ -861,7 +886,7 @@
     "title": "Shadow Nodes",
     "subtitle": "Discover and connect to Cortex nodes on your network",
     "cortexInstances": "Cortex Instances",
-    "cortexDefaultPort": "Default :8443",
+    "cortexDefaultPort": "Default :60080",
     "startScan": "Start Scan",
     "stopScan": "Stop Scan",
     "scanning": "Scanning...",
@@ -1092,7 +1117,9 @@
     "historyTitle": "Past sessions",
     "historyEmpty": "No recordings yet.",
     "viewReport": "View report",
-    "generatingReport": "Generating summary report…"
+    "generatingReport": "Generating summary report…",
+    "audioDescription": "VAD + speaker diarization + ASR. Events and summary land in Hippocampus.",
+    "videoDescription": "Audio pipeline plus mage-vl visual understanding. Events and summary land in Hippocampus."
   },
   "providers": {
     "title": "LLM Providers",
@@ -1113,6 +1140,63 @@
     "customTab": "Custom",
     "addAndFetch": "Add & fetch models",
     "keylessHint": "Local runtimes need no API key — just add",
-    "presetLocked": "Preset providers keep a fixed URL and standard; only the API key can change"
+    "presetLocked": "Preset providers keep a fixed URL and standard; only the API key can change",
+    "testFetch": "Test & fetch models",
+    "testing": "Testing…",
+    "previewTitle": "Available models",
+    "previewHint": "The selected model will be set automatically after adding",
+    "previewEmpty": "No models returned — check the URL and API key",
+    "previewErrorPrefix": "Fetch failed: ",
+    "previewSelected": "Selected",
+    "previewCount": "{{count}} available"
+  },
+  "shortcuts": {
+    "title": "Shortcuts",
+    "desc": "Bind keyboard combos or Mi Bluetooth remote buttons to common actions — works system-wide",
+    "capture": "Record",
+    "capturing": "Waiting for key…",
+    "clear": "Clear",
+    "unbound": "Unbound",
+    "captureTitle": "Record a shortcut",
+    "capturePrompt": "Press any keyboard key or remote button…",
+    "captureCancelHint": "Press Esc to cancel",
+    "riskyTitle": "Bind a plain character key?",
+    "riskyDesc": "\"{chord}\" has no modifier: once bound, Shadow swallows that key in every application (including typing elsewhere). Continue?",
+    "confirm": "Bind anyway",
+    "cancel": "Cancel",
+    "stoleNotice": "The same binding on \"{action}\" was removed",
+    "riskyBound": "Bound. Note: this key is now intercepted globally",
+    "remoteHelpTitle": "Mi Bluetooth Remote",
+    "remoteHelp": "After pairing the remote in Windows \"Bluetooth & devices\", its buttons arrive as standard key codes (play/pause, arrows, volume, OK=Enter, Back=Esc, …). Click \"Record\" on a row, then press the remote button. The voice key needs the Xiaomi companion app and sends no key code.",
+    "actions": {
+      "window_toggle": {
+        "label": "Show / Hide main window",
+        "desc": "Summon or hide the Shadow window from anywhere"
+      },
+      "window_hide": {
+        "label": "Hide to tray",
+        "desc": "Hide the window instantly; keeps running in background"
+      },
+      "nav_tasks": {
+        "label": "Open task board",
+        "desc": "Show the window and go to the task board"
+      },
+      "nav_conversation": {
+        "label": "Open conversations",
+        "desc": "Show the window and go to the conversation inbox"
+      },
+      "nav_settings": {
+        "label": "Open settings",
+        "desc": "Show the window and go to settings"
+      },
+      "conversation_new": {
+        "label": "New text conversation",
+        "desc": "Create a new text conversation and open it"
+      },
+      "recording_toggle": {
+        "label": "Start / stop recording",
+        "desc": "Start an audio recording when none is live; otherwise stop and summarise"
+      }
+    }
   }
 }

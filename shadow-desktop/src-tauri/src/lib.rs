@@ -364,6 +364,7 @@ pub fn run() {
             provider_manager::provider_select_model,
             provider_manager::provider_refresh,
             provider_manager::provider_refresh_all,
+            provider_manager::provider_preview_fetch,
             neuron_infer,
             global_keys::gk_set_bindings,
             global_keys::gk_start_capture,
