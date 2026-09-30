@@ -5,6 +5,19 @@
 # adapter = "cli": a local agent CLI spawned in the task sandbox.
 #   `{prompt}` is replaced with the task instruction, `{workdir}` with
 #   the sandbox path. Missing binaries are reported as "skip".
+# adapter = "shadow-desktop": full app via wdio WebDriver (functional test).
+# adapter = "iBLOC-encephalon-server" or "iBLOC-encephalon": the brain
+#   binary's OpenAI surface. Use base_url = "http://127.0.0.1:8082/v1".
+
+# Keys: api_key (inline, for tests) OR api_key_env (env var name,
+# resolved at request time). Keys never enter the repo or the
+# benchmark report.
+
+# Per-lobe model assignment (encephalon only): ENCEPHALON_DEFAULT_MODEL
+# sets the default for all four lobes; ENCEPHALON_LOBE_MODELS
+# ("temporal=m1,occipital=m2,parietal=m3") overrides per lobe. The
+# same can be done at runtime through POST /encephalon/model/default
+# and POST /encephalon/lobes/{name}/model.
 
 # Optional LLM judge for `llm-judge` scorers. Use a STRONG model —
 # judging with the model under test defeats the comparison.
