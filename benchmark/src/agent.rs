@@ -62,10 +62,30 @@ pub struct OpenAiAgent {
     pub model: String,
     #[serde(default)]
     pub api_key: Option<String>,
+    /// Name of an environment variable holding the API key. Resolved
+    /// at request time — keys stay out of config files entirely.
+    #[serde(default)]
+    pub api_key_env: Option<String>,
     #[serde(default = "default_max_tokens")]
     pub max_tokens: u32,
     #[serde(default = "default_timeout_secs")]
     pub timeout_secs: u64,
+}
+
+impl OpenAiAgent {
+    /// Resolve the API key: inline value first, then the environment
+    /// variable named by `api_key_env`.
+    fn resolved_key(&self) -> Option<String> {
+        self.api_key
+            .clone()
+            .filter(|k| !k.is_empty())
+            .or_else(|| {
+                self.api_key_env
+                    .as_ref()
+                    .and_then(|name| std::env::var(name).ok())
+                    .filter(|k| !k.is_empty())
+            })
+    }
 }
 
 fn default_max_tokens() -> u32 {
@@ -121,7 +141,7 @@ impl AgentAdapter for OpenAiAgent {
         let mut req = client
             .post(format!("{}/chat/completions", self.base_url.trim_end_matches('/')))
             .json(&body);
-        if let Some(key) = &self.api_key {
+        if let Some(key) = &self.resolved_key() {
             req = req.bearer_auth(key);
         }
         let resp = req.send().await.map_err(|e| AgentError::Failed {
@@ -365,5 +385,58 @@ mod tests {
         apply_fenced_patches(answer, &dir, &files);
         assert!(std::fs::read_to_string(dir.join("task.py")).unwrap().contains("new"));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+#[cfg(test)]
+mod key_env_tests {
+    use super::*;
+
+    #[test]
+    fn api_key_env_resolves_at_runtime() {
+        let var = format!("BENCH_KEY_TEST_{}", std::process::id());
+        // SAFETY: test-only; serial tests, unique var name per process.
+        unsafe { std::env::set_var(&var, "sk-from-env") };
+        let agent = OpenAiAgent {
+            name: "t".into(),
+            base_url: "http://127.0.0.1:1/v1".into(),
+            model: "m".into(),
+            api_key: None,
+            api_key_env: Some(var),
+            max_tokens: 16,
+            timeout_secs: 5,
+        };
+        assert_eq!(agent.resolved_key().as_deref(), Some("sk-from-env"));
+    }
+
+    #[test]
+    fn inline_key_wins_over_env() {
+        let var = format!("BENCH_KEY_TEST2_{}", std::process::id());
+        // SAFETY: test-only; serial tests, unique var name per process.
+        unsafe { std::env::set_var(&var, "env-key") };
+        let agent = OpenAiAgent {
+            name: "t".into(),
+            base_url: "http://127.0.0.1:1/v1".into(),
+            model: "m".into(),
+            api_key: Some("inline-key".into()),
+            api_key_env: Some(var),
+            max_tokens: 16,
+            timeout_secs: 5,
+        };
+        assert_eq!(agent.resolved_key().as_deref(), Some("inline-key"));
+    }
+
+    #[test]
+    fn missing_env_yields_none() {
+        let agent = OpenAiAgent {
+            name: "t".into(),
+            base_url: "http://127.0.0.1:1/v1".into(),
+            model: "m".into(),
+            api_key: None,
+            api_key_env: Some(format!("BENCH_KEY_MISSING_{}", std::process::id())),
+            max_tokens: 16,
+            timeout_secs: 5,
+        };
+        assert!(agent.resolved_key().is_none());
     }
 }

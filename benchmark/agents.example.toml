@@ -71,6 +71,67 @@ reply_timeout_secs = 600
 # model = "deepseek-chat"
 # api_key = "sk-..."
 
+# --- official-benchmark models (Terminal-Bench 2.0 / SWE-bench / tau2 官方同款) ---
+# Keys are read from environment variables (api_key_env) — never inline
+# them in this file. Export before running, e.g.:
+#   export SHADOW_BENCH_ANTHROPIC_KEY=sk-ant-...
+#
+# MODEL-LEVEL comparison only: official leaderboard entries are
+# model+harness combos; this harness drives the raw model via its
+# OpenAI-compatible endpoint (Anthropic's OpenAI-compat layer accepts
+# Bearer auth with your Anthropic key).
+
+# Claude Opus 4.5 — OpenHands / OpenCode harness model (Terminal-Bench 2.0)
+[[agent]]
+adapter = "openai"
+name = "claude-opus-4-5"
+base_url = "https://api.anthropic.com/v1"
+model = "claude-opus-4-5"
+api_key_env = "SHADOW_BENCH_ANTHROPIC_KEY"
+max_tokens = 512
+timeout_secs = 400
+
+# GPT (Codex harness model — Terminal-Bench top entry)
+[[agent]]
+adapter = "openai"
+name = "gpt"
+base_url = "https://api.openai.com/v1"
+model = "gpt-5.1"
+api_key_env = "SHADOW_BENCH_OPENAI_KEY"
+max_tokens = 512
+timeout_secs = 400
+
+# GLM 5 — Terminus 2 harness model (Terminal-Bench 2.0, 52.4%)
+[[agent]]
+adapter = "openai"
+name = "glm-5"
+base_url = "https://open.bigmodel.cn/api/paas/v4"
+model = "glm-5"
+api_key_env = "SHADOW_BENCH_ZHIPU_KEY"
+max_tokens = 512
+timeout_secs = 400
+
+# Qwen3 Max — SWE-bench Verified 72.5 / tau2-Verified 69.6 (DashScope
+# OpenAI-compatible mode)
+[[agent]]
+adapter = "openai"
+name = "qwen3-max"
+base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+model = "qwen3-max"
+api_key_env = "SHADOW_BENCH_DASHSCOPE_KEY"
+max_tokens = 512
+timeout_secs = 400
+
+# DeepSeek V3 — open-weights reference
+[[agent]]
+adapter = "openai"
+name = "deepseek-chat"
+base_url = "https://api.deepseek.com/v1"
+model = "deepseek-chat"
+api_key_env = "SHADOW_BENCH_DEEPSEEK_KEY"
+max_tokens = 512
+timeout_secs = 400
+
 # --- external open-source agents (CLI-driven) ---------------------------
 # Install each tool, adjust the command to match its CLI, then rerun.
 

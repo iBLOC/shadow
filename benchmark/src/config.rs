@@ -12,6 +12,8 @@ pub struct JudgeConfig {
     pub model: String,
     #[serde(default)]
     pub api_key: Option<String>,
+    #[serde(default)]
+    pub api_key_env: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -46,6 +48,9 @@ pub enum AgentSpec {
         model: String,
         #[serde(default)]
         api_key: Option<String>,
+        /// Env var holding the API key (keys stay out of config files).
+        #[serde(default)]
+        api_key_env: Option<String>,
         #[serde(default = "df_max_tokens")]
         max_tokens: u32,
         #[serde(default = "df_timeout")]
@@ -105,6 +110,7 @@ impl AgentSpec {
                 base_url,
                 model,
                 api_key,
+                api_key_env,
                 max_tokens,
                 timeout_secs,
             } => Box::new(OpenAiAgent {
@@ -112,6 +118,7 @@ impl AgentSpec {
                 base_url,
                 model,
                 api_key,
+                api_key_env,
                 max_tokens,
                 timeout_secs,
             }),
@@ -160,6 +167,7 @@ impl AgentsConfig {
             base_url: j.base_url.clone(),
             model: j.model.clone(),
             api_key: j.api_key.clone(),
+            api_key_env: j.api_key_env.clone(),
             max_tokens: 256,
             timeout_secs: 120,
         })
