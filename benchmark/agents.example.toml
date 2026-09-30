@@ -1,0 +1,96 @@
+# Benchmark participants — copy to agents.toml and adjust.
+#
+# adapter = "openai": any OpenAI-compatible chat endpoint. Shadow's
+#   embedded neuron (Tauri shell) serves one at http://127.0.0.1:8085/v1.
+# adapter = "cli": a local agent CLI spawned in the task sandbox.
+#   `{prompt}` is replaced with the task instruction, `{workdir}` with
+#   the sandbox path. Missing binaries are reported as "skip".
+
+# Optional LLM judge for `llm-judge` scorers. Use a STRONG model —
+# judging with the model under test defeats the comparison.
+# [judge]
+# base_url = "https://api.openai.com/v1"
+# model = "gpt-4o"
+# api_key = "sk-..."
+
+# Encephalon — the complete agent: A2A server + lobe (叶区) routing +
+# OpenAI-compatible surface + hippocampus memory + single neuron
+# instance. Standalone: cargo run -p encephalon --example a2a_server
+# (default :8082).
+[[agent]]
+adapter = "openai"
+name = "iBLOC-encephalon"
+base_url = "http://127.0.0.1:8082/v1"
+model = "qwen3-0.6b"
+max_tokens = 512
+timeout_secs = 300
+
+# The embedded neuron inside the shadow Tauri shell (engine-level
+# baseline, no agent layer):
+[[agent]]
+adapter = "openai"
+name = "shadow-neuron"
+base_url = "http://127.0.0.1:8085/v1"
+model = "qwen3-0.6b"
+max_tokens = 512
+timeout_secs = 300
+
+# Standalone neuron (neuron_server example) instead of the Tauri shell:
+# [[agent]]
+# adapter = "openai"
+# name = "shadow-neuron-standalone"
+# base_url = "http://127.0.0.1:18088/v1"
+# model = "qwen3-0.6b"
+
+# The Shadow-Desktop APP itself (full-stack functional test through the
+# wdio WebDriver surface): requires `pnpm tauri dev` running. The
+# instruction flows through AppInitializer -> ConversationPage ->
+# cortexClient bridge -> embedded neuron, and the reply is read back
+# from the rendered DOM.
+[[agent]]
+adapter = "shadow-desktop"
+name = "shadow-desktop"
+webdriver_url = "http://127.0.0.1:4445"
+app_url = "http://localhost:1420"
+reply_timeout_secs = 600
+
+# The Shadow-Mobile APP in Phone-as-Engine mode: OpenAIServer.kt serves
+# an OpenAI-compatible endpoint on the phone (:8085). Put the phone's
+# LAN IP here while the app runs.
+# [[agent]]
+# adapter = "openai"
+# name = "shadow-mobile"
+# base_url = "http://192.168.x.x:8085/v1"
+# model = "local"
+
+# DeepSeek API (model-only comparison — no harness):
+# [[agent]]
+# adapter = "openai"
+# name = "deepseek-api"
+# base_url = "https://api.deepseek.com/v1"
+# model = "deepseek-chat"
+# api_key = "sk-..."
+
+# --- external open-source agents (CLI-driven) ---------------------------
+# Install each tool, adjust the command to match its CLI, then rerun.
+
+[[agent]]
+adapter = "cli"
+name = "openclaw"
+# OpenClaw gateway/agent CLI — adjust to your install.
+command = ["openclaw", "agent", "--prompt", "{prompt}"]
+timeout_secs = 600
+
+[[agent]]
+adapter = "cli"
+name = "pi"
+# pi coding agent (npm pi-coding-agent): non-interactive print mode.
+command = ["pi", "-p", "{prompt}"]
+timeout_secs = 600
+
+[[agent]]
+adapter = "cli"
+name = "deepseek-harness"
+# DeepSeek Harness headless CLI runner (`dsh`).
+command = ["dsh", "run", "--headless", "--prompt", "{prompt}"]
+timeout_secs = 600

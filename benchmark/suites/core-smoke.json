@@ -1,0 +1,78 @@
+{
+  "name": "core-smoke",
+  "description": "Core capability smoke suite: reasoning, extraction, format-following, SQL, and two file-edit tasks scored by unit tests. Runs locally against any OpenAI-compatible endpoint or CLI agent.",
+  "tasks": [
+    {
+      "id": "arithmetic",
+      "instruction": "What is 17 * 23? Reply with just the number.",
+      "scorer": { "kind": "exact-match", "expected": "391" }
+    },
+    {
+      "id": "rate-problem",
+      "instruction": "A train travels at 60 km/h for 1.5 hours. How many kilometers does it travel? Reply with just the number.",
+      "scorer": { "kind": "exact-match", "expected": "90" }
+    },
+    {
+      "id": "letter-count",
+      "instruction": "How many times does the letter 'r' appear in the word 'strawberry'? Reply with just the number.",
+      "scorer": { "kind": "exact-match", "expected": "3" }
+    },
+    {
+      "id": "extraction",
+      "instruction": "From this text: 'Invoice #2043 was issued to Acme Corp on 2026-03-14. The subtotal was 1150.00 EUR and VAT added 130.00 EUR. The invoice total is 1280.00 EUR.' — What is the invoice total in EUR? Reply with just the number.",
+      "scorer": { "kind": "exact-match", "expected": "1280" }
+    },
+    {
+      "id": "json-output",
+      "instruction": "Return a single JSON object with keys \"name\" set to \"Alice\" and \"age\" set to 30. Output only the JSON, no markdown fences, no commentary.",
+      "scorer": { "kind": "contains", "all_of": ["\"name\"", "\"age\"", "Alice", "30"] }
+    },
+    {
+      "id": "format-following",
+      "instruction": "Reply with exactly the single word: PONG",
+      "scorer": { "kind": "exact-match", "expected": "PONG" }
+    },
+    {
+      "id": "sql",
+      "instruction": "Write a SQL query that selects all columns from the table 'users' where 'age' is greater than 18. Output only the SQL.",
+      "scorer": { "kind": "contains", "all_of": ["select", "users", "18"] }
+    },
+    {
+      "id": "code-fix-python",
+      "instruction": "The file task.py contains a function add(a, b) that is broken: it returns a - b. Fix task.py so that running 'python task_test.py' prints OK. Reply with the complete corrected task.py in a fenced block opened as ```path:task.py.",
+      "files": [
+        {
+          "path": "task.py",
+          "content": "def add(a, b):\n    return a - b\n"
+        },
+        {
+          "path": "task_test.py",
+          "content": "from task import add\nassert add(2, 2) == 4, 'add(2,2) != 4'\nassert add(0, 5) == 5, 'add(0,5) != 5'\nassert add(-3, 3) == 0, 'add(-3,3) != 0'\nprint('OK')\n"
+        }
+      ],
+      "scorer": { "kind": "unit-tests", "command": ["python", "task_test.py"] },
+      "timeout_secs": 240
+    },
+    {
+      "id": "code-implement-python",
+      "instruction": "The file prices.py has a function median(prices) that raises NotImplementedError. Implement it: return the median (middle value for odd-length lists, average of the two middle values for even-length lists). Do not sort the input list in place. When done, 'python prices_test.py' must print OK. Reply with the complete corrected prices.py in a fenced block opened as ```path:prices.py.",
+      "files": [
+        {
+          "path": "prices.py",
+          "content": "def median(prices):\n    \"\"\"Return the median of a non-empty list of numbers.\"\"\"\n    raise NotImplementedError\n"
+        },
+        {
+          "path": "prices_test.py",
+          "content": "from prices import median\nassert median([3.0, 1.0, 2.0]) == 2.0, 'odd length'\nassert median([4.0, 1.0, 3.0, 2.0]) == 2.5, 'even length'\nassert median([7.0]) == 7.0, 'single'\nsrc = [3.0, 1.0]\nmedian(src)\nassert src == [3.0, 1.0], 'input must not be mutated'\nprint('OK')\n"
+        }
+      ],
+      "scorer": { "kind": "unit-tests", "command": ["python", "prices_test.py"] },
+      "timeout_secs": 240
+    },
+    {
+      "id": "code-fix-rust-sha",
+      "instruction": "The file answer.md must contain exactly one line with the name of the Rust function used to hash a slice with SHA-256 in the sha2 crate (just the identifier, no backticks). Write that file using a ```path:answer.md fenced block.",
+      "scorer": { "kind": "exact-match", "expected": "update" }
+    }
+  ]
+}
