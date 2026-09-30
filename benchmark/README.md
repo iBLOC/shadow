@@ -39,13 +39,25 @@ SWE-bench、Terminal-Bench、GAIA、τ-bench、OSWorld 共享同一骨架：
 
 ```bash
 cd benchmark
-cp agents.example.toml agents.toml     # 调整端点/命令
+cp .env.example .env        # 设置你想测的 API key（不提交 git）
+set -a && source .env && set +a
+cp agents.example.toml agents.toml
 cargo run -- run \
   --suite suites/core-smoke.json \
   --agents agents.toml \
   [--only shadow-desktop,iBLOC-encephalon-server] \
   [--tasks format-following,json-output] \
   [--repeat 3] [--out reports]
+```
+
+`.env.example` 列出所有 env 变量（model API keys + encephalon 端口 /
+per-lobe 模型）。同一 SUITE 多次跑不同模型、对比 Shadow 在不同模型下的
+表现——参赛者名换成 `--only claude-opus-4-5,gpt,deepseek-chat` 即可。
+同模型下还能指定 lobe 分配：
+
+```bash
+export ENCEPHALON_DEFAULT_MODEL=deepseek-chat
+export ENCEPHALON_LOBE_MODELS="temporal=qwen3-max,occipital=claude-opus-4-5"
 ```
 
 报告输出 `reports/<suite>-report.{json,md}`；历史报告存

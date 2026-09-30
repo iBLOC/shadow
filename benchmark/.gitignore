@@ -2,3 +2,8 @@
 /reports/
 agents.toml
 Cargo.lock
+
+# Local credentials (never commit). Use .env.example for the schema.
+.env
+.env.*
+!.env.example
