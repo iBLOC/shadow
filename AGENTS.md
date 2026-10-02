@@ -80,7 +80,7 @@
 │  │  • agent/create 纯提示词智能体 + agent/discover A2A 自发现             │    │
 │  │  • MCP 管理 (v0.5 Sprint 2): wasm-only transport, 10-route HTTP,     │    │
 │  │    cortex_lobes/cortex_wasm_binaries/cortex_mcp_servers PG schema     │    │
-│  │  Talks up: A2A to Resonance / other cortexes (mTLS)                  │    │
+│  │  Talks up: A2A to Resonance / other telencephalons (mTLS)            │    │
 │  │  Talks down: A2A to native lobes, WASM in-process                     │    │
 │  └─────────────────────────────────────────────────────────────────────┘    │
 │                  │  A2A (skill)                                              │
@@ -265,11 +265,11 @@ shadow/
 |------|------|------|------|
 | **Resonance** | `https://github.com/iBLOC/resonance` | 8080 | 任务编排、规划、工作流引擎 |
 | **Cortex** (renamed to **Telencephalon** 2026-09) | `https://github.com/iBLOC/telencephalon` | 60080 | 单 shadow 中心化 agent 注册 + A2A gateway + WASM 宿主 + 外部智能体扫描同步 + MCP 管理 (v0.5 Sprint 2) |
-| **Prefrontal** | `https://github.com/iBLOC/prefrontal` | 8082 | 多智能体执行、工具调用、内置 Agent (prefrontal 是 cortex 管理的 lobe 之一) |
+| **Prefrontal** | `https://github.com/iBLOC/prefrontal` | 8082 | 多智能体执行、工具调用、内置 Agent (prefrontal 是 telencephalon 管理的 lobe 之一) |
 | **Hippocampus** | `https://github.com/iBLOC/hippocampus` | 8081 | 长期记忆、HybridRAG 搜索 |
 | **Shadow-Desktop** | `shadow-desktop/` | N/A | 桌面端 UI + neuron (embedded :8085 via Tauri shell) |
 | **Shadow-Mobile** | `shadow-mobile/` | N/A | 移动端 UI + MNN |
-| **Shadow-ESP32** | `shadow-esp32/` | N/A | 边缘客户端原型 — **Zephyr 4.4.x + C + west**(`esp32s3_devkitc` 板级;v0.x 概念阶段;决策见 `shadow-esp32/docs/adr/0001-stack-choice-zephyr-c.md`;调研见 `shadow-esp32/docs/RESEARCH.md`)。通过 mDNS `_shadow._tcp` + A2A (JSON-RPC) 加入 Shadow 平台与 cortex/prefrontal 通信 |
+| **Shadow-ESP32** | `shadow-esp32/` | N/A | 边缘客户端原型 — **Zephyr 4.4.x + C + west**(`esp32s3_devkitc` 板级;v0.x 概念阶段;决策见 `shadow-esp32/docs/adr/0001-stack-choice-zephyr-c.md`;调研见 `shadow-esp32/docs/RESEARCH.md`)。通过 mDNS `_shadow._tcp` + A2A (JSON-RPC) 加入 Shadow 平台与 telencephalon/prefrontal 通信 |
 
 ## 环境变量
 
@@ -347,6 +347,7 @@ export PREFRONTAL_MODE="executor"                 # executor / full
 
 | Area | Change | Commits |
 |---|---|---|
+| **ACP outbound delegation** (2026-09-27, local) | prefrontal `acp_delegate` tool + `acp_outbound` registry dispatch tasks to ACP coding agents (OpenCode / Claude Code / Codex) via `synapse::acp::AcpClient`; `Config.acp` presets; `acp_stub_agent` test double; synapse fix: `session/update` chunks were silently dropped (SessionNotification envelope) | uncommitted in `prefrontal` / `synapse` |
 | **Rename chain closed** | cortex → encephalon → **telencephalon** (`telencephalon` is the active repo; `cortex/` directory is empty) | `b077a24`, `7128409`, `b0af1d7`, `f2d0015` |
 | **Port unification** | :8443 → `:60080` across all lobes (cortex/temporal/occipital/parietal `CORTEX_URL`) | `2757fea` |
 | **4-lobe GitHub homes** | Final decision: bare names `iBLOC/{temporal,occipital,parietal,prefrontal}`. `parietal-lobe/` skeleton superseded. Workflow schema + runtime moved to `cerebellum/`. | `1dd1f0c`, `d7cfec7`, `43f9e97` |
