@@ -1,6 +1,6 @@
 # shadow-esp32
 
-> **Shadow 在 ESP32-S3 边缘节点上的语音助手 + IO 控制客户端** — 参照 [`78/xiaozhi-esp32`](https://github.com/78/xiaozhi-esp32) 应用层架构,**复用 Shadow Desktop/Mobile 同一套 WebRTC 通路** 与 Shadow cortex 后端通信,后端走 `temporal` lobe;firmware 用 **Zephyr RTOS + C** 多任务实现([ADR-0001](./docs/adr/0001-stack-choice-zephyr-c.md) 调研 + [ADR-0002 v2](./docs/adr/0002-shadow-esp32-implementation-architecture.md) 实施架构)。
+> **Shadow 在 ESP32-S3 边缘节点上的语音助手 + IO 控制客户端** — 参照 [`78/xiaozhi-esp32`](https://github.com/78/xiaozhi-esp32) 应用层架构,**复用 Shadow Desktop/Mobile 同一套 WebRTC 通路** 与 Shadow telencephalon 后端通信,后端走 `temporal` lobe;firmware 用 **Zephyr RTOS + C** 多任务实现([ADR-0001](./docs/adr/0001-stack-choice-zephyr-c.md) 调研 + [ADR-0002 v2](./docs/adr/0002-shadow-esp32-implementation-architecture.md) 实施架构)。
 
 | 字段 | 值 |
 |---|---|
@@ -11,7 +11,7 @@
 | **调研文档** | [`docs/RESEARCH.md`](docs/RESEARCH.md) — Zephyr/Rust + xiaozhi/esp-claw/temporal + WASM-on-Xtensa + WebRTC 复用综合调研 |
 | **应用架构参考** | [`78/xiaozhi-esp32`](https://github.com/78/xiaozhi-esp32)(state machine + Opus + MCP tools + 板级;28.9k stars / MIT) |
 | **IO 控制参考** | [`espressif/esp-claw`](https://github.com/espressif/esp-claw)(capability 派发思路;不引入 Lua) |
-| **后端复用** | Shadow `cortex` webrtc_route → `temporal` lobe(webrtc-rs 0.8 + DTLS-SRTP)→ `neuron` ASR/TTS;**与 shadow-desktop / shadow-mobile 完全相同** |
+| **后端复用** | Shadow `telencephalon` webrtc_route → `temporal` lobe(webrtc-rs 0.8 + DTLS-SRTP)→ `neuron` ASR/TTS;**与 shadow-desktop / shadow-mobile 完全相同** |
 | **代码来源(过渡)** | ESP-IDF v6.0.2 `esp_hid_device` 示例(脚手架,即将迁移) |
 
 ---
@@ -21,10 +21,10 @@
 Shadow 平台的端侧(Layer 4)目前由 **Shadow-Desktop**(Tauri + React)和 **Shadow-Mobile**(Flutter)构成。`shadow-esp32` 是第三条端形态 —— **ESP32-S3 上的低功耗语音助手 + IO 控制节点**,目标场景是低成本边缘硬件上的智能助理:
 
 - **对话能力**:xiaozhi-esp32 风格的 wake word → 流式 ASR → LLM → TTS 闭环,但 **不** 在 ESP32 上跑模型,只跑 Opus codec + WebRTC client
-- **后端复用**:**与 shadow-desktop / shadow-mobile 同一套 WebRTC 通路**(SDP / ICE / DTLS-SRTP / Opus 媒体)。Cortex 端 `cortex::webrtc_route` 已经是 ESP32 的现成终点,**无需新增 bridge 模块**;`temporal::webrtc::real::RealTransport` 直接服务 ESP32
+- **后端复用**:**与 shadow-desktop / shadow-mobile 同一套 WebRTC 通路**(SDP / ICE / DTLS-SRTP / Opus 媒体)。telencephalon 端 `telencephalon::webrtc_route` 已经是 ESP32 的现成终点,**无需新增 bridge 模块**;`temporal::webrtc::real::RealTransport` 直接服务 ESP32
 - **IO 控制**:esp-claw capability 派发思路,每个 capability 是 Zephyr `device` driver + MCP JSON-RPC 暴露的工具;承载协议是 **WebRTC Data Channel**(SCTP-over-DTLS,JSON-RPC 2.0)
 - **对话独立**:Zephyr 多任务架构,`dialog_task`(prio 5,最高)与 `io_task`(prio 7)完全解耦,通过 `k_msgq` 交换轻量事件
-- **ESP32 是 thin client**:所有 agent 逻辑跑在 cortex/temporal 后端;Xtensa ESP32 无可用 WASM runtime,验证了 thin client 设计
+- **ESP32 是 thin client**:所有 agent 逻辑跑在 telencephalon/temporal 后端;Xtensa ESP32 无可用 WASM runtime,验证了 thin client 设计
 
 它**不是** ESP-IDF 上游的 HID 设备 demo —— README 里那些鼠标/键盘示例代码(`main/esp_hid_device_main.c` 等)只是脚手架起点,会被替换为 Shadow Agent 实现。
 
@@ -55,7 +55,7 @@ Shadow 平台的端侧(Layer 4)目前由 **Shadow-Desktop**(Tauri + React)和 **
 | **SRTP 栈** | **libsrtp**(out-of-tree 移植,Zephyr 无 upstream)| RFC 3711 加解密 |
 | **Opus codec** | **libopus**(out-of-tree 移植)| 60 ms 帧长,16 kHz mono |
 | **ICE** | **ICE-lite**(自实现,~500 LOC)| 家庭 Wi-Fi 够用;复杂 NAT 后续加 TURN |
-| **IO 控制** | **WebRTC Data Channel "mcp"**(SCTP-over-DTLS,JSON-RPC 2.0)| cortex::mcp → device_router → ESP32 data channel |
+| **IO 控制** | **WebRTC Data Channel "mcp"**(SCTP-over-DTLS,JSON-RPC 2.0)| telencephalon::mcp → device_router → ESP32 data channel |
 | **mDNS** | Zephyr 内置 `zephyr/net/dns_sd.h` 或 sample `net/mdns_responder` | 广播 `_shadow._tcp` 服务 |
 
 ### 所有评估过的路径(决策上下文)
@@ -303,7 +303,7 @@ west debug
 - [`docs/adr/0002-shadow-esp32-implementation-architecture.md`](docs/adr/0002-shadow-esp32-implementation-architecture.md) — **实施架构 ADR v2**:Zephyr 多任务 + WebRTC(同 desktop/mobile)+ Shadow temporal backend (accepted)
 - `Shadow` 根文档:[`https://github.com/iBLOC/shadow/AGENTS.md`](../AGENTS.md)
 - Shadow `temporal` lobe:[`https://github.com/iBLOC/temporal/`](../temporal/)
-- Shadow `cortex` webrtc route:[`https://github.com/iBLOC/cortex/src/api/webrtc_route.rs`](../cortex/src/api/webrtc_route.rs)
+- Shadow `telencephalon` webrtc route:[`https://github.com/iBLOC/telencephalon/src/api/webrtc_route.rs`](../telencephalon/src/api/webrtc_route.rs)
 - Shadow-Desktop WebRTC companion 参考:[`https://github.com/iBLOC/shadow/shadow-desktop/src/lib/webrtcCompanion.ts`](../shadow-desktop/src/lib/webrtcCompanion.ts)
 - Shadow-Mobile WebRTC companion 参考:[`https://github.com/iBLOC/shadow/shadow-mobile/lib/services/webrtc_companion.dart`](../shadow-mobile/lib/services/webrtc_companion.dart)
 
