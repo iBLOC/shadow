@@ -938,11 +938,11 @@ abstract class AppLocalizations {
   /// **'Confirm'**
   String get confirm;
 
-  /// No description provided for @cortexFlows.
+  /// No description provided for @telencephalonFlows.
   ///
   /// In en, this message translates to:
-  /// **'Cortex Flows'**
-  String get cortexFlows;
+  /// **'Telencephalon Flows'**
+  String get telencephalonFlows;
 
   /// No description provided for @active.
   ///
@@ -1115,7 +1115,7 @@ abstract class AppLocalizations {
   /// No description provided for @aiAutoAnswerDesc.
   ///
   /// In en, this message translates to:
-  /// **'Automatically answer incoming calls and respond with AI (cortex / LiteRT).'**
+  /// **'Automatically answer incoming calls and respond with AI (telencephalon / LiteRT).'**
   String get aiAutoAnswerDesc;
 
   /// No description provided for @endCall.

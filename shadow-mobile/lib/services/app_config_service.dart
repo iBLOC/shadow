@@ -27,7 +27,7 @@ class AppConfigService {
   /// 是否使用默认地址
   bool get isUsingDefaultModelStore => _modelStoreUrl == null;
 
-  /// Telencephalon (a.k.a. cortex) base URL — null means use the
+  /// Telencephalon base URL — null means use the
   /// client default (`http://127.0.0.1:60080`).
   String? get telencephalonBaseUrl => _telencephalonBaseUrl;
 

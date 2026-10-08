@@ -2,11 +2,11 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart' as http_testing;
-import 'package:shadow_mobile/services/cortex/cortex_client.dart';
+import 'package:shadow_mobile/services/telencephalon/telencephalon_client.dart';
 
 void main() {
-  group('CortexClient', () {
-    late CortexClient client;
+  group('TelencephalonClient', () {
+    late TelencephalonClient client;
     late http.Client mockHttpClient;
 
     setUp(() {
@@ -53,7 +53,7 @@ void main() {
         return http.Response('Not Found', 404);
       });
       
-      client = CortexClient(
+      client = TelencephalonClient(
         baseUrl: 'http://127.0.0.1:60080',
         client: mockHttpClient,
       );
@@ -71,7 +71,7 @@ void main() {
 
     test('listAgents() returns AgentsResponse', () async {
       final response = await client.listAgents();
-      expect(response.cortexId, 'test-id');
+      expect(response.telencephalonId, 'test-id');
       expect(response.instanceName, 'test');
       expect(response.agents, isEmpty);
     });
@@ -106,7 +106,7 @@ void main() {
     });
   });
 
-  group('CortexClient models', () {
+  group('TelencephalonClient models', () {
     test('AgentCard.fromJson() parses correctly', () {
       final json = {
         'name': 'test-agent',
@@ -190,7 +190,7 @@ void main() {
 
     test('listAgents parses telencephalon envelope', () async {
       final resp = await client.listAgents();
-      expect(resp.cortexId, 'test-id');
+      expect(resp.telencephalonId, 'test-id');
       expect(resp.instanceName, 'test');
       expect(resp.defaultAgent, 'prefrontal');
     });
@@ -224,7 +224,7 @@ void main() {
         }
         return http.Response('Not Found: $path', 404);
       });
-      final c = CortexClient(
+      final c = TelencephalonClient(
         baseUrl: 'http://127.0.0.1:60080',
         client: mockClient,
       );
@@ -245,7 +245,7 @@ void main() {
         }
         return http.Response('Not Found', 404);
       });
-      final c = CortexClient(
+      final c = TelencephalonClient(
         baseUrl: 'http://127.0.0.1:60080',
         adminToken: 'secret-admin-token',
         client: mockClient,
@@ -268,7 +268,7 @@ void main() {
         },
         'agents': [],
       });
-      expect(r.cortexId, 'legacy-id');
+      expect(r.telencephalonId, 'legacy-id');
       expect(r.instanceName, 'legacy');
       expect(r.defaultAgent, 'prefrontal');
       expect(r.agents, isEmpty);
@@ -280,7 +280,7 @@ void main() {
         'cortex': {'id': 'old-id', 'instance_name': 'old', 'default_agent': 'prefrontal'},
         'agents': [],
       });
-      expect(r.cortexId, 'new-id');
+      expect(r.telencephalonId, 'new-id');
       expect(r.instanceName, 'new');
       expect(r.defaultAgent, 'temporal');
     });
@@ -300,7 +300,7 @@ void main() {
         }
         return http.Response('Not Found', 404);
       });
-      final c = CortexClient(
+      final c = TelencephalonClient(
         baseUrl: 'http://127.0.0.1:60080',
         client: mockClient,
       );
@@ -316,7 +316,7 @@ void main() {
         }
         return http.Response('Not Found', 404);
       });
-      final c = CortexClient(
+      final c = TelencephalonClient(
         baseUrl: 'http://127.0.0.1:60080',
         client: mockClient,
       );
@@ -347,7 +347,7 @@ void main() {
         }
         return http.Response('Not Found', 404);
       });
-      final c = CortexClient(
+      final c = TelencephalonClient(
         baseUrl: 'http://127.0.0.1:60080',
         client: mockClient,
       );
@@ -365,7 +365,7 @@ void main() {
         }
         return http.Response(jsonEncode({'id': 'ok'}), 200);
       });
-      final c = CortexClient(
+      final c = TelencephalonClient(
         baseUrl: 'http://127.0.0.1:60080',
         client: mockClient,
       );

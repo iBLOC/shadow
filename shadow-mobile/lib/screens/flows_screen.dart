@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../generated/l10n/app_localizations.dart';
 import '../providers/flow_provider.dart';
-import '../services/cortex/cortex_client.dart';
+import '../services/telencephalon/telencephalon_client.dart';
 
 class FlowsScreen extends ConsumerStatefulWidget {
   const FlowsScreen({super.key});
@@ -28,7 +28,7 @@ class _FlowsScreenState extends ConsumerState<FlowsScreen> {
       length: 2,
       child: Scaffold(
         appBar: AppBar(
-          title: Text(l10n.cortexFlows),
+          title: Text(l10n.telencephalonFlows),
           bottom: TabBar(
             tabs: [
               Tab(text: l10n.active),

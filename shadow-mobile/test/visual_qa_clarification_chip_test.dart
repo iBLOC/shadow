@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shadow_mobile/services/cortex/cortex_client.dart';
+import 'package:shadow_mobile/services/telencephalon/telencephalon_client.dart';
 import 'package:shadow_mobile/widgets/visual_qa_clarification_chip.dart';
 
 void main() {

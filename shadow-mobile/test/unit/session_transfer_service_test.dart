@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:shadow_mobile/services/cortex/cortex_client.dart';
+import 'package:shadow_mobile/services/telencephalon/telencephalon_client.dart';
 import 'package:shadow_mobile/services/session_transfer_service.dart';
 
 void main() {
@@ -19,14 +19,14 @@ void main() {
         return http.Response('{}', 404);
       });
 
-      final cortex = CortexClient(
+      final telencephalon = TelencephalonClient(
         baseUrl: 'http://localhost:60080',
         client: mockClient,
       );
 
       final service = SessionTransferService(
         client: mockClient,
-        cortex: cortex,
+        telencephalon: telencephalon,
       );
 
       final export = SessionExport(

@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../services/cortex/cortex_client.dart';
-import 'cortex_provider.dart';
+import '../services/telencephalon/telencephalon_client.dart';
+import 'telencephalon_provider.dart';
 
 enum FlowsStatus { idle, loading, loaded, error }
 
@@ -36,7 +36,7 @@ class FlowsNotifier extends StateNotifier<FlowsState> {
   final Ref _ref;
   FlowsNotifier(this._ref) : super(const FlowsState());
 
-  CortexClient get _client => _ref.read(cortexClientProvider);
+  TelencephalonClient get _client => _ref.read(telencephalonClientProvider);
 
   Future<void> refresh() async {
     state = state.copyWith(status: FlowsStatus.loading, clearError: true);

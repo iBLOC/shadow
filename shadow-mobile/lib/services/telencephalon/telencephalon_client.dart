@@ -26,11 +26,11 @@ class SessionExport {
   }
 }
 
-/// Cortex connection config
-class CortexConfig {
+/// Telencephalon connection config
+class TelencephalonConfig {
   final String baseUrl;
   final String? apiKey;
-  const CortexConfig({required this.baseUrl, this.apiKey});
+  const TelencephalonConfig({required this.baseUrl, this.apiKey});
 }
 
 class AgentCard {
@@ -99,13 +99,13 @@ class LobeInfo {
 }
 
 class AgentsResponse {
-  final String cortexId;
+  final String telencephalonId;
   final String instanceName;
   final String defaultAgent;
   final List<LobeInfo> agents;
 
   AgentsResponse({
-    required this.cortexId,
+    required this.telencephalonId,
     required this.instanceName,
     required this.defaultAgent,
     required this.agents,
@@ -113,11 +113,11 @@ class AgentsResponse {
 
   factory AgentsResponse.fromJson(Map<String, dynamic> json) {
     final envelope = (json['telencephalon'] as Map<String, dynamic>?) ??
-        (json['cortex'] as Map<String, dynamic>?) ??
+        (json['telencephalon'] as Map<String, dynamic>?) ??
         const {};
     final agents = (json['agents'] as List?) ?? const [];
     return AgentsResponse(
-      cortexId: envelope['id'] as String? ?? '',
+      telencephalonId: envelope['id'] as String? ?? '',
       instanceName: envelope['instance_name'] as String? ?? '',
       defaultAgent: envelope['default_agent'] as String? ?? '',
       agents: agents
@@ -259,9 +259,9 @@ class StreamEvent {
 }
 
 /// Wire shape of `metadata.shadow.clarification` carried by a
-/// cortex stream event of type `"clarification"`. The visual-QA
+/// telencephalon stream event of type `"clarification"`. The visual-QA
 /// router emits this when the LLM needs the user to pick a video
-/// source (multi-camera setup, peer cortex candidate, etc.).
+/// source (multi-camera setup, peer telencephalon candidate, etc.).
 class ClarificationPayload {
   final String kind;
   final List<ClarificationCandidate> candidates;
@@ -356,7 +356,7 @@ class FlowRunResult {
       FlowRunResult(outputs: json);
 }
 
-class CortexClient {
+class TelencephalonClient {
   static const String _defaultBaseUrl = 'http://127.0.0.1:60080';
 
   String _baseUrl;
@@ -364,7 +364,7 @@ class CortexClient {
   String? _adminToken;
   final http.Client _http;
 
-  CortexClient({
+  TelencephalonClient({
     String? baseUrl,
     String? apiKey,
     String? adminToken,
@@ -396,7 +396,7 @@ class CortexClient {
   Future<Map<String, dynamic>> _get(String path) async {
     final r = await _http.get(_u(path), headers: _headers());
     if (r.statusCode != 200) {
-      throw CortexException('GET $path → ${r.statusCode}: ${r.body}');
+      throw TelencephalonException('GET $path → ${r.statusCode}: ${r.body}');
     }
     return jsonDecode(r.body) as Map<String, dynamic>;
   }
@@ -411,7 +411,7 @@ class CortexClient {
       body: jsonEncode(body),
     );
     if (r.statusCode != 200 && r.statusCode != 201) {
-      throw CortexException('POST $path → ${r.statusCode}: ${r.body}');
+      throw TelencephalonException('POST $path → ${r.statusCode}: ${r.body}');
     }
     return jsonDecode(r.body) as Map<String, dynamic>;
   }
@@ -426,7 +426,7 @@ class CortexClient {
       body: jsonEncode(body ?? const {}),
     );
     if (r.statusCode != 200 && r.statusCode != 204) {
-      throw CortexException('POST $path → ${r.statusCode}: ${r.body}');
+      throw TelencephalonException('POST $path → ${r.statusCode}: ${r.body}');
     }
   }
 
@@ -440,7 +440,7 @@ class CortexClient {
       body: jsonEncode(body),
     );
     if (r.statusCode != 200 && r.statusCode != 201) {
-      throw CortexException('POST $path → ${r.statusCode}: ${r.body}');
+      throw TelencephalonException('POST $path → ${r.statusCode}: ${r.body}');
     }
     return jsonDecode(r.body) as Map<String, dynamic>;
   }
@@ -448,7 +448,7 @@ class CortexClient {
   Future<Map<String, dynamic>> _adminGet(String path) async {
     final r = await _http.get(_u(path), headers: _headers(admin: true));
     if (r.statusCode != 200) {
-      throw CortexException('GET $path → ${r.statusCode}: ${r.body}');
+      throw TelencephalonException('GET $path → ${r.statusCode}: ${r.body}');
     }
     return jsonDecode(r.body) as Map<String, dynamic>;
   }
@@ -456,14 +456,14 @@ class CortexClient {
   Future<void> _adminDelete(String path) async {
     final r = await _http.delete(_u(path), headers: _headers(admin: true));
     if (r.statusCode != 200 && r.statusCode != 204) {
-      throw CortexException('DELETE $path → ${r.statusCode}: ${r.body}');
+      throw TelencephalonException('DELETE $path → ${r.statusCode}: ${r.body}');
     }
   }
 
-  /// Probe cortex: GET /.well-known/agent.json
+  /// Probe telencephalon: GET /.well-known/agent.json
   Future<Map<String, dynamic>> health() => _get('/.well-known/agent.json');
 
-  /// List registered lobes (returns cortex id + agent list)
+  /// List registered lobes (returns telencephalon id + agent list)
   Future<AgentsResponse> listAgents() async {
     final json = await _get('/shadow/v1/agents');
     return AgentsResponse.fromJson(json);
@@ -549,7 +549,7 @@ class CortexClient {
 
     final response = await _http.send(request);
     if (response.statusCode != 200) {
-      throw CortexException('streamMessage → ${response.statusCode}');
+      throw TelencephalonException('streamMessage → ${response.statusCode}');
     }
     final lines = response.stream
         .transform(utf8.decoder)
@@ -587,7 +587,7 @@ class CortexClient {
     ).replace(queryParameters: query.isEmpty ? null : query);
     final r = await _http.get(uri, headers: _headers());
     if (r.statusCode != 200)
-      throw CortexException('listFlows → ${r.statusCode}');
+      throw TelencephalonException('listFlows → ${r.statusCode}');
     final list = jsonDecode(r.body) as List<dynamic>;
     return list
         .map((e) => FlowMeta.fromJson(e as Map<String, dynamic>))
@@ -635,7 +635,7 @@ class CortexClient {
   Future<String> _resolveFlowIdByName(String name) async {
     final flows = await listFlows(name: name);
     if (flows.isEmpty) {
-      throw CortexException('flow not found: $name');
+      throw TelencephalonException('flow not found: $name');
     }
     final match = flows.firstWhere(
       (f) => f.name == name,
@@ -797,7 +797,7 @@ class CortexClient {
     ).replace(queryParameters: query.isEmpty ? null : query);
     final r = await _http.get(uri, headers: _headers());
     if (r.statusCode != 200) {
-      throw CortexException('searchAgents → ${r.statusCode}: ${r.body}');
+      throw TelencephalonException('searchAgents → ${r.statusCode}: ${r.body}');
     }
     return jsonDecode(r.body) as Map<String, dynamic>;
   }
@@ -845,9 +845,9 @@ class CortexClient {
 
   void dispose() => _http.close();
 
-  /// Build the cortex WebRTC signaling URL for a session.
-  /// Endpoint not yet exposed by cortex (spec §4 unimplemented).
-  /// Kept here as the canonical URL when cortex adds the endpoint.
+/// Build the telencephalon WebRTC signaling URL for a session.
+/// Endpoint not yet exposed by telencephalon (spec §4 unimplemented).
+/// Kept here as the canonical URL when telencephalon adds the endpoint.
   Uri webrtcSignalingUrl(String sessionId, {String modality = 'voice'}) {
     return Uri.parse(
       '$_baseUrl/api/webrtc/$modality/sessions/${Uri.encodeComponent(sessionId)}/ws',
@@ -855,20 +855,20 @@ class CortexClient {
   }
 }
 
-class CortexException implements Exception {
+class TelencephalonException implements Exception {
   final String message;
-  CortexException(this.message);
+  TelencephalonException(this.message);
   @override
-  String toString() => 'CortexException: $message';
+  String toString() => 'TelencephalonException: $message';
 }
 
-class CortexConnection {
+class TelencephalonConnection {
   final String baseUrl;
   final String? apiKey;
-  const CortexConnection({required this.baseUrl, this.apiKey});
+  const TelencephalonConnection({required this.baseUrl, this.apiKey});
 }
 
-final defaultCortexClient = CortexClient();
-final defaultCortexConnection = CortexConnection(
+final defaultTelencephalonClient = TelencephalonClient();
+final defaultTelencephalonConnection = TelencephalonConnection(
   baseUrl: 'http://127.0.0.1:60080',
 );

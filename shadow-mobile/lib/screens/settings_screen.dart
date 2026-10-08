@@ -6,7 +6,7 @@ import '../generated/l10n/app_localizations.dart';
 import '../services/accessibility_controller.dart';
 import '../services/app_config_service.dart';
 import '../providers/theme_provider.dart';
-import '../providers/cortex_provider.dart';
+import '../providers/telencephalon_provider.dart';
 import '../providers/service_provider.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/log_panel_section.dart';
@@ -233,7 +233,7 @@ GlassCard(
                   padding: EdgeInsets.zero,
                   child: ListTile(
                     leading: Icon(Icons.account_tree, color: AppColors.primary),
-                    title: Text(l10n.cortexFlows),
+                    title: Text(l10n.telencephalonFlows),
                     subtitle: const Text('Browse and run telencephalon flows'),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () => Navigator.push(
@@ -881,7 +881,7 @@ class _BackendSettingsCardState extends ConsumerState<_BackendSettingsCard> {
   Future<void> _hydrate() async {
     final cfg = AppConfigService();
     await cfg.init();
-    final live = ref.read(cortexProvider.notifier).client;
+    final live = ref.read(telencephalonProvider.notifier).client;
     setState(() {
       _urlCtrl.text = live.baseUrl;
       _tokenCtrl.text = live.adminToken ?? '';
@@ -895,7 +895,7 @@ class _BackendSettingsCardState extends ConsumerState<_BackendSettingsCard> {
     final token = _tokenCtrl.text.trim();
     await cfg.setTelencephalonBaseUrl(url.isEmpty ? null : url);
     await cfg.setTelencephalonAdminToken(token.isEmpty ? null : token);
-    final notifier = ref.read(cortexProvider.notifier);
+    final notifier = ref.read(telencephalonProvider.notifier);
     notifier.setBaseUrl(url.isEmpty ? 'http://127.0.0.1:60080' : url);
     notifier.setAdminToken(token.isEmpty ? null : token);
     if (!mounted) return;

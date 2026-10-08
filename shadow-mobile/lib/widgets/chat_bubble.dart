@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../services/cortex/cortex_client.dart';
+import '../services/telencephalon/telencephalon_client.dart';
 import 'visual_qa_clarification_chip.dart';
 
 class ChatMessage {

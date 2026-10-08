@@ -458,7 +458,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get confirm => '确认';
 
   @override
-  String get cortexFlows => '大脑皮层流程';
+  String get telencephalonFlows => '端脑流程';
 
   @override
   String get active => '活跃';
@@ -548,7 +548,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get aiAutoAnswer => 'AI 自动应答';
 
   @override
-  String get aiAutoAnswerDesc => '自动接听来电并用 LLM 自动回复（cortex / LiteRT）。';
+  String get aiAutoAnswerDesc => '自动接听来电并用 LLM 自动回复（telencephalon / LiteRT）。';
 
   @override
   String get endCall => '挂断';

@@ -128,7 +128,7 @@ class LogsNotifier extends StateNotifier<LogsState> {
       level: LogLevel.error,
       source: 'telencephalon',
       message: '无法连接到Hippocampus服务',
-      stack: 'ConnectionError: http://localhost:8081\n  at HttpClient._send\n  at CortexClient.health',
+      stack: 'ConnectionError: http://localhost:8081\n  at HttpClient._send\n  at TelencephalonClient.health',
     ));
   }
 

@@ -282,7 +282,7 @@ Barge-in (user starts talking while agent is mid-response) is signalled via `web
 | `mobile_action_agent/` | `actions.dart` / `mobile_action_agent.dart` / `mobile_actions_tools.dart` / `mobile_actions_viewmodel.dart` | Sub-agent that calls `AccessibilityController` to tap / swipe / type on Android UI elements |
 | `providers/` | `agent_provider.dart` | Riverpod glue |
 
-The `main_agent` is intentionally thin — for any non-trivial task (file ops, code edits, browser automation), it delegates to a **telencephalon flow** via `CortexClient.runFlow(...)`. The `mobile_action_agent` is one of the few exceptions (it must run on-device because it touches the Android Accessibility API).
+The `main_agent` is intentionally thin — for any non-trivial task (file ops, code edits, browser automation), it delegates to a **telencephalon flow** via `TelencephalonClient.runFlow(...)`. The `mobile_action_agent` is one of the few exceptions (it must run on-device because it touches the Android Accessibility API).
 
 ## PLATFORM CHANNELS (Flutter ↔ Kotlin)
 
@@ -306,7 +306,7 @@ The `main_agent` is intentionally thin — for any non-trivial task (file ops, c
 `lib/multimodal/` wraps three input channels:
 - `audio_input_handler.dart` — mic capture via `record` package; PCM chunks → `pcm_audio_recorder.dart`
 - `image_input_handler.dart` — `image_picker` + `camera`; feeds `video_frame_collector.dart` for streaming
-- `file_input_handler.dart` — `file_picker`; uploads to telencephalon via `CortexClient`
+- `file_input_handler.dart` — `file_picker`; uploads to telencephalon via `TelencephalonClient`
 
 `multimodal_input_manager.dart` multiplexes these into a single inbound stream consumed by `main_agent`.
 

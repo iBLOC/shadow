@@ -462,7 +462,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get confirm => 'Confirm';
 
   @override
-  String get cortexFlows => 'Cortex Flows';
+  String get telencephalonFlows => 'Telencephalon Flows';
 
   @override
   String get active => 'Active';
@@ -556,7 +556,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get aiAutoAnswerDesc =>
-      'Automatically answer incoming calls and respond with AI (cortex / LiteRT).';
+      'Automatically answer incoming calls and respond with AI (telencephalon / LiteRT).';
 
   @override
   String get endCall => 'End Call';

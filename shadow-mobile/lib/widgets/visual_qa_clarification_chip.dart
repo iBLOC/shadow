@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../generated/l10n/app_localizations.dart';
-import '../../services/cortex/cortex_client.dart';
+import '../../services/telencephalon/telencephalon_client.dart';
 
 /// Visual-QA clarification chip — a glass card with one button per
 /// candidate video source. The user picks one; the parent screen

@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shadow_mobile/generated/l10n/app_localizations.dart';
 import 'package:shadow_mobile/providers/flow_provider.dart';
 import 'package:shadow_mobile/screens/flows_screen.dart';
-import 'package:shadow_mobile/services/cortex/cortex_client.dart';
+import 'package:shadow_mobile/services/telencephalon/telencephalon_client.dart';
 
 import 'test_helper.dart';
 
@@ -58,7 +58,7 @@ void main() {
 
   testWidgets('renders Telencephalon Flows title (i18n updated)', (tester) async {
     await pumpFlowsScreen(tester);
-    // i18n key stays `cortexFlows` but the value is now 'Telencephalon Flows'
+    // i18n key stays `telencephalonFlows` but the value is now 'Telencephalon Flows'
     await tester.pumpAndSettle();
     expect(find.text('Telencephalon Flows'), findsOneWidget);
   });
@@ -78,7 +78,7 @@ void main() {
     );
   });
 
-  testWidgets('cortexFlows i18n key resolves to new telencephalon value (zh)',
+  testWidgets('telencephalonFlows i18n key resolves to new telencephalon value (zh)',
       (tester) async {
     await pumpWidgetForTest(
       tester,

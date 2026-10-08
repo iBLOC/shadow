@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
-import 'cortex/cortex_client.dart';
+import 'telencephalon/telencephalon_client.dart';
 
 class DiscoveredPeer {
   final String id;
@@ -51,15 +51,15 @@ class DiscoveredPeer {
 class SessionTransferService {
   final http.Client _client;
   final String _localUrl;
-  final CortexClient? _cortex;
+  final TelencephalonClient? _telencephalon;
 
-  SessionTransferService({http.Client? client, String? baseUrl, CortexClient? cortex})
+  SessionTransferService({http.Client? client, String? baseUrl, TelencephalonClient? telencephalon})
     : _client = client ?? http.Client(),
       _localUrl = baseUrl ?? 'http://localhost:60080',
-      _cortex = cortex;
+      _telencephalon = telencephalon;
 
   String get localBaseUrl => _localUrl;
-  CortexClient? get cortexClient => _cortex;
+  TelencephalonClient? get telencephalonClient => _telencephalon;
 
   Future<DiscoveredPeer> probePeer(String url) async {
     final uri = Uri.parse('$url/v1/models');
@@ -92,9 +92,9 @@ class SessionTransferService {
     );
     peers.add(localPeer);
 
-    if (_cortex != null) {
+    if (_telencephalon != null) {
       try {
-        final agents = await _cortex.listAgents();
+        final agents = await _telencephalon.listAgents();
         for (final lobe in agents.agents) {
           if (!lobe.enabled) continue;
           final uri = Uri.tryParse(lobe.url);
@@ -136,13 +136,13 @@ class SessionTransferService {
   }
 
   Future<Map<String, dynamic>> importSession(SessionExport export) async {
-    if (_cortex == null) {
+    if (_telencephalon == null) {
       throw StateError('telencephalon is required for session transfer; configure it in the backend settings');
     }
-    final convo = await _cortex.importSessionAsConversation(export: export);
+    final convo = await _telencephalon.importSessionAsConversation(export: export);
     return {
       'conversation_id': convo.id,
-      'telencephalon_url': _cortex.baseUrl,
+      'telencephalon_url': _telencephalon.baseUrl,
       'transferred_via': 'telencephalon',
     };
   }
