@@ -75,7 +75,7 @@ async function fetchWithTimeout(
 
 let serverUp = false;
 
-describe('API contract: every endpoint in cortexClient must respond', () => {
+describe('API contract: every endpoint in telencephalonClient must respond', () => {
   beforeAll(async () => {
     const r = await checkServerReachable();
     serverUp = r.reachable;

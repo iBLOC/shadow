@@ -8,8 +8,8 @@ vi.mock('@tauri-apps/api/event', () => ({
   listen: vi.fn(),
 }));
 
-vi.mock('../src/stores/cortexStore', () => ({
-  useCortexStore: {
+vi.mock('../src/stores/telencephalonStore', () => ({
+  useTelencephalonStore: {
     getState: () => ({
       status: 'stopped',
       connection: { baseUrl: 'http://127.0.0.1:60080', apiKey: '' },

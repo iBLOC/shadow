@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
-import '../mocks/cortexClient';
+import '../mocks/telencephalonClient';
 import { MCPPage } from '../../src/pages/MCPPage';
 
 vi.mock('../../src/stores/mcpStore', () => ({

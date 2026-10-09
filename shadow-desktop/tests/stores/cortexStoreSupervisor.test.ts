@@ -9,8 +9,8 @@ vi.mock('../../src/lib/tauriSafe', () => ({
   safeInvoke: (...args: unknown[]) => mockSafeInvoke(...args),
 }));
 
-vi.mock('../../src/lib/cortexClient', () => ({
-  cortexClient: {
+vi.mock('../../src/lib/telencephalonClient', () => ({
+  telencephalonClient: {
     health: (...args: unknown[]) => mockHealth(...args),
     listAgents: vi.fn().mockRejectedValue(new Error('not used')),
   },
@@ -33,7 +33,7 @@ if (typeof globalThis.localStorage === 'undefined') {
   Object.defineProperty(globalThis, 'localStorage', { value: storageStub, writable: true });
 }
 
-describe('cortexStore — encephalon-backed supervisor mapping', () => {
+describe('telencephalonStore — encephalon-backed supervisor mapping', () => {
   beforeEach(() => {
     mockSafeInvoke.mockReset();
     mockHealth.mockReset();
@@ -41,8 +41,8 @@ describe('cortexStore — encephalon-backed supervisor mapping', () => {
   });
 
   it('starts with supervisor enabled and restart_count 0', async () => {
-    const { useCortexStore } = await import('../../src/stores/cortexStore');
-    const state = useCortexStore.getState();
+    const { useTelencephalonStore } = await import('../../src/stores/telencephalonStore');
+    const state = useTelencephalonStore.getState();
     expect(state.supervisor.enabled).toBe(true);
     expect(state.supervisor.restartCount).toBe(0);
   });
@@ -56,9 +56,9 @@ describe('cortexStore — encephalon-backed supervisor mapping', () => {
       thalamus_video_cameras: 0,
       telencephalon_attached: false,
     });
-    const { useCortexStore } = await import('../../src/stores/cortexStore');
-    await useCortexStore.getState().refreshStatus();
-    const sup = useCortexStore.getState().supervisor;
+    const { useTelencephalonStore } = await import('../../src/stores/telencephalonStore');
+    await useTelencephalonStore.getState().refreshStatus();
+    const sup = useTelencephalonStore.getState().supervisor;
     expect(sup.enabled).toBe(false);
     expect(mockSafeInvoke).toHaveBeenCalledWith('encephalon_status');
   });
@@ -72,9 +72,9 @@ describe('cortexStore — encephalon-backed supervisor mapping', () => {
       thalamus_video_cameras: 1,
       telencephalon_attached: true,
     });
-    const { useCortexStore } = await import('../../src/stores/cortexStore');
-    await useCortexStore.getState().refreshStatus();
-    const sup = useCortexStore.getState().supervisor;
+    const { useTelencephalonStore } = await import('../../src/stores/telencephalonStore');
+    await useTelencephalonStore.getState().refreshStatus();
+    const sup = useTelencephalonStore.getState().supervisor;
     expect(sup.enabled).toBe(true);
     expect(mockSafeInvoke).toHaveBeenCalledWith('encephalon_status');
   });
@@ -82,12 +82,12 @@ describe('cortexStore — encephalon-backed supervisor mapping', () => {
   it('refreshStatus tolerates Tauri unavailable (web build) — keeps previous state', async () => {
     mockHealth.mockResolvedValueOnce({ id: 'cortex-test' });
     mockSafeInvoke.mockResolvedValueOnce(null);
-    const { useCortexStore } = await import('../../src/stores/cortexStore');
-    useCortexStore.setState({
+    const { useTelencephalonStore } = await import('../../src/stores/telencephalonStore');
+    useTelencephalonStore.setState({
       supervisor: { enabled: true, restartCount: 0 },
     });
-    await useCortexStore.getState().refreshStatus();
-    const sup = useCortexStore.getState().supervisor;
+    await useTelencephalonStore.getState().refreshStatus();
+    const sup = useTelencephalonStore.getState().supervisor;
     expect(sup.enabled).toBe(true);
     expect(sup.restartCount).toBe(0);
   });

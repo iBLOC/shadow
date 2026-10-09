@@ -25,8 +25,8 @@ const ROOT = resolve(__dirname, '..', '..');
 const ADMIN_PREFIXES = ['/api/telencephalon/admin/'];
 
 const SOURCES = [
-  resolve(ROOT, 'src/lib/cortexClient.ts'),
-  resolve(ROOT, 'src/pages/CortexStatusPage.tsx'),
+  resolve(ROOT, 'src/lib/telencephalonClient.ts'),
+  resolve(ROOT, 'src/pages/TelencephalonStatusPage.tsx'),
   resolve(ROOT, 'tests/tauri-e2e/state-reset.ts'),
 ];
 

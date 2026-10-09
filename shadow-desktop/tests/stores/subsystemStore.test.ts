@@ -1,8 +1,8 @@
 import { beforeEach, describe, it, vi, expect } from 'vitest';
 import { useSubsystemStore } from '../../src/stores/subsystemStore';
 
-vi.mock('../../src/lib/cortexClient', () => ({
-  cortexClient: {
+vi.mock('../../src/lib/telencephalonClient', () => ({
+  telencephalonClient: {
     thalamus: {
       listSensors: vi.fn().mockResolvedValue(['sensor1', 'sensor2']),
     },
@@ -43,8 +43,8 @@ describe('subsystemStore', () => {
   });
 
   it('refreshAll swallows errors', async () => {
-    const { cortexClient } = await import('../../src/lib/cortexClient');
-    vi.mocked(cortexClient.thalamus.listSensors).mockRejectedValueOnce(new Error('network error'));
+    const { telencephalonClient } = await import('../../src/lib/telencephalonClient');
+    vi.mocked(telencephalonClient.thalamus.listSensors).mockRejectedValueOnce(new Error('network error'));
 
     const store = useSubsystemStore.getState();
     await expect(store.refreshAll()).resolves.not.toThrow();

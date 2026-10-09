@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
 
-// Global mock for cortexClient to prevent actual HTTP requests in tests
+// Global mock for telencephalonClient to prevent actual HTTP requests in tests
 export const mockCortexClient = {
   // Health & Status
   health: vi.fn().mockResolvedValue({ id: 'cortex-test', status: 'ok' }),
@@ -74,20 +74,20 @@ export const mockCortexClient = {
   getBaseUrl: vi.fn().mockReturnValue('http://127.0.0.1:60080'),
 };
 
-vi.mock('../../src/lib/cortexClient', () => ({
-  cortexClient: mockCortexClient,
+vi.mock('../../src/lib/telencephalonClient', () => ({
+  telencephalonClient: mockCortexClient,
   default: mockCortexClient,
 }));
 
 // Also mock the path relative to src/pages/
-vi.mock('../../../src/lib/cortexClient', () => ({
-  cortexClient: mockCortexClient,
+vi.mock('../../../src/lib/telencephalonClient', () => ({
+  telencephalonClient: mockCortexClient,
   default: mockCortexClient,
 }));
 
-// Mock cortexStore to use the correct port
-vi.mock('../../src/stores/cortexStore', () => ({
-  useCortexStore: vi.fn((selector?: any) => {
+// Mock telencephalonStore to use the correct port
+vi.mock('../../src/stores/telencephalonStore', () => ({
+  useTelencephalonStore: vi.fn((selector?: any) => {
     const state = {
       status: 'running',
       connection: { baseUrl: 'http://127.0.0.1:60080', apiKey: '' },

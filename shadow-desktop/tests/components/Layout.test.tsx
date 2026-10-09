@@ -26,8 +26,8 @@ vi.mock('../../src/stores/resonanceStore', () => ({
     selector ? selector(resonanceState) : resonanceState,
 }));
 
-vi.mock('../../src/stores/cortexStore', () => ({
-  useCortexStore: (selector?: (s: typeof cortexState) => unknown) =>
+vi.mock('../../src/stores/telencephalonStore', () => ({
+  useTelencephalonStore: (selector?: (s: typeof cortexState) => unknown) =>
     selector ? selector(cortexState) : cortexState,
 }));
 

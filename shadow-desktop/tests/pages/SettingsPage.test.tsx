@@ -10,7 +10,7 @@ vi.mock('../../src/stores/themeStore', () => ({
   })),
 }));
 
-vi.mock('../../src/stores/cortexStore', () => {
+vi.mock('../../src/stores/telencephalonStore', () => {
   const refreshStatus = vi.fn();
   const refreshLobes = vi.fn();
   const startCortex = vi.fn();
@@ -38,7 +38,7 @@ vi.mock('../../src/stores/cortexStore', () => {
   };
   const hook: any = vi.fn((selector?: any) => (selector ? selector(state) : state));
   hook.getState = vi.fn(() => state);
-  return { useCortexStore: hook };
+  return { useTelencephalonStore: hook };
 });
 
 vi.mock('../../src/stores/serviceStore', () => {

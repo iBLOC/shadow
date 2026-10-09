@@ -5,14 +5,14 @@ import { ConversationPage } from '../../src/pages/ConversationPage';
 import { useConversationStore } from '../../src/stores/conversationStore';
 import { useChatDisplayStore } from '../../src/stores/chatDisplayStore';
 
-// Real cortexClient would require the embedded neuron; mock the
+// Real telencephalonClient would require the embedded neuron; mock the
 // generator so we can drive the stream end-to-end inside jsdom.
 // `setBaseUrl` exists on the real client and is called from
 // `companionModeStore` via `prefrontalClient` during module init, so the
 // mock must keep every method the import chain touches.
-vi.mock('../../src/lib/cortexClient', () => {
+vi.mock('../../src/lib/telencephalonClient', () => {
   return {
-    cortexClient: {
+    telencephalonClient: {
       setBaseUrl: vi.fn(),
       getBaseUrl: () => 'http://127.0.0.1:60080',
       createConversation: vi.fn(async () => ({ id: 'c1' })),

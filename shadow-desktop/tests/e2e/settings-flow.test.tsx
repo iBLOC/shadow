@@ -24,7 +24,7 @@ vi.mock('../../src/stores/themeStore', () => {
   return { useThemeStore: hook };
 });
 
-vi.mock('../../src/stores/cortexStore', () => {
+vi.mock('../../src/stores/telencephalonStore', () => {
   const state = {
     status: 'running',
     connection: { baseUrl: 'http://127.0.0.1:60080', apiKey: '' },
@@ -48,7 +48,7 @@ vi.mock('../../src/stores/cortexStore', () => {
   };
   const hook = vi.fn((selector?: any) => selector ? selector(state) : state);
   hook.getState = vi.fn(() => state);
-  return { useCortexStore: hook };
+  return { useTelencephalonStore: hook };
 });
 
 vi.mock('../../src/stores/serviceStore', () => {

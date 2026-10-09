@@ -14,8 +14,8 @@ vi.mock('../../src/lib/tauriSafe', () => ({
   safeInvoke: (...args: unknown[]) => mockSafeInvoke(...args),
 }));
 
-vi.mock('../../src/stores/cortexStore', () => ({
-  useCortexStore: {
+vi.mock('../../src/stores/telencephalonStore', () => ({
+  useTelencephalonStore: {
     getState: () => ({
       status: cortexStatusRef.value,
       connection: cortexConnectionRef.value,

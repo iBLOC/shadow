@@ -8,8 +8,8 @@ const cortexState: { connection: { baseUrl: string } } = {
   connection: { baseUrl: 'http://localhost:8085' },
 };
 
-vi.mock('../../src/stores/cortexStore', () => ({
-  useCortexStore: {
+vi.mock('../../src/stores/telencephalonStore', () => ({
+  useTelencephalonStore: {
     getState: () => ({
       connection: cortexState.connection,
       setBaseUrl: (url: string) => { cortexState.connection.baseUrl = url; },

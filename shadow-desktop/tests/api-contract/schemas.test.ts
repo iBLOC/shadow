@@ -1,7 +1,7 @@
 /**
  * Hand-written shape tests for the highest-traffic endpoints. These
  * complement the auto-generated contract test by asserting that
- * response payloads match the TypeScript interfaces in `cortexClient.ts`
+ * response payloads match the TypeScript interfaces in `telencephalonClient.ts`
  * — i.e. a server field rename is caught here even if the status code
  * is still 200.
  *
@@ -191,7 +191,7 @@ interface CortexStatusResponse {
   [k: string]: unknown;
 }
 
-describe('CortexStatusPage lives /api/telencephalon/status|logs', () => {
+describe('TelencephalonStatusPage lives /api/telencephalon/status|logs', () => {
   it('GET /api/telencephalon/status returns a JSON object', async () => {
     await setup;
     if (!serverUp) return;
