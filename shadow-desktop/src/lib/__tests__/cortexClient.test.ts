@@ -8,7 +8,7 @@ describe('CortexClient flow API', () => {
     mockFetch = vi.fn();
     global.fetch = mockFetch;
     const { CortexClient } = await import('../cortexClient');
-    client = new CortexClient({ baseUrl: 'http://localhost:8443' });
+    client = new CortexClient({ baseUrl: 'http://localhost:60080' });
   });
 
   afterEach(() => {
@@ -28,7 +28,7 @@ describe('CortexClient flow API', () => {
       const result = await client.listFlows({ name: 'TestFlow', tag: 'test', isDraft: false });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:8443/api/flows?name=TestFlow&tag=test&is_draft=false',
+        'http://localhost:60080/api/flows?name=TestFlow&tag=test&is_draft=false',
         expect.any(Object),
       );
       expect(result).toHaveLength(1);
@@ -45,7 +45,7 @@ describe('CortexClient flow API', () => {
       await client.listFlows();
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:8443/api/flows',
+        'http://localhost:60080/api/flows',
         expect.any(Object),
       );
     });
@@ -72,7 +72,7 @@ describe('CortexClient flow API', () => {
       const result = await client.createFlow(flowDef as any);
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:8443/api/flows',
+        'http://localhost:60080/api/flows',
         expect.objectContaining({
           method: 'POST',
           body: JSON.stringify(flowDef),
@@ -94,7 +94,7 @@ describe('CortexClient flow API', () => {
       const result = await client.getFlow('flow-123');
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:8443/api/flows/flow-123',
+        'http://localhost:60080/api/flows/flow-123',
         expect.any(Object),
       );
       expect(result.id).toBe('flow-123');
@@ -112,7 +112,7 @@ describe('CortexClient flow API', () => {
       const result = await client.runFlow('my-flow', { input1: 'value1' }, { sessionId: 'sess-123' });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:8443/api/flows/by-name/my-flow/invoke',
+        'http://localhost:60080/api/flows/by-name/my-flow/invoke',
         expect.objectContaining({
           method: 'POST',
           body: JSON.stringify({ inputs: { input1: 'value1' }, session_id: 'sess-123' }),
@@ -131,7 +131,7 @@ describe('CortexClient flow API', () => {
       await client.runFlow('my-flow', {}, { version: '2.0.0' });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:8443/api/flows/by-name/my-flow/2.0.0/invoke',
+        'http://localhost:60080/api/flows/by-name/my-flow/2.0.0/invoke',
         expect.any(Object),
       );
     });
@@ -152,7 +152,7 @@ describe('CortexClient flow API', () => {
       const result = await client.listDrafts();
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:8443/api/flows/draft',
+        'http://localhost:60080/api/flows/draft',
         expect.any(Object),
       );
       expect(result).toHaveLength(1);
@@ -185,7 +185,7 @@ describe('CortexClient flow API', () => {
       const result = await client.promoteDraft('draft-123');
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:8443/api/flows/draft/draft-123/promote',
+        'http://localhost:60080/api/flows/draft/draft-123/promote',
         expect.objectContaining({
           method: 'POST',
           body: '{}',
@@ -205,7 +205,7 @@ describe('CortexClient flow API', () => {
       await client.rejectDraft('draft-456');
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:8443/api/flows/draft/draft-456/reject',
+        'http://localhost:60080/api/flows/draft/draft-456/reject',
         expect.objectContaining({ method: 'POST' }),
       );
     });

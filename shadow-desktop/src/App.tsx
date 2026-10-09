@@ -4,6 +4,7 @@ import { Layout } from './components/Layout';
 import { AppInitializer } from './components/AppInitializer';
 import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { GlobalErrorDialog } from './components/error/GlobalErrorDialog';
+import { ShortcutManager } from './components/ShortcutManager';
 import { installGlobalErrorHandlers } from './lib/errorTriggers';
 import { migrateFromLocalStorage } from './lib/migrateSettings';
 import { TaskBoardPage } from './pages/TaskBoardPage';
@@ -28,7 +29,6 @@ import { TracePage } from './pages/TracePage';
 import { DocumentPage } from './pages/DocumentPage';
 import { PreviewsPage } from './pages/PreviewsPage';
 import { ComputerUsePage } from './pages/ComputerUsePage';
-import { RecordingPage } from './pages/RecordingPage';
 import { WorkflowStudioPage } from './pages/WorkflowStudioPage';
 import './App.css';
 
@@ -41,6 +41,7 @@ function App() {
   return (
     <BrowserRouter>
       <GlobalErrorDialog />
+      <ShortcutManager />
       <PWAInstallPrompt />
       <Routes>
         <Route path="/setup" element={<SetupPage />} />
@@ -60,7 +61,6 @@ function App() {
           <Route path="document/:taskId" element={<DocumentPage />} />
           <Route path="previews" element={<PreviewsPage />} />
           <Route path="computer-use" element={<ComputerUsePage />} />
-          <Route path="recording" element={<RecordingPage />} />
           <Route path="workflow-studio" element={<WorkflowStudioPage />} />
           <Route path="cortex-status" element={<CortexStatusPage />} />
           <Route path="settings" element={<SettingsPage />} />

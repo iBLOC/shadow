@@ -502,7 +502,10 @@ fn is_known_code(code: &str) -> bool {
         return rest.len() == 1 && rest.as_bytes()[0].is_ascii_digit();
     }
     if let Some(rest) = code.strip_prefix("Numpad") {
-        return rest.len() == 1 && rest.as_bytes()[0].is_ascii_digit();
+        if rest.len() == 1 && rest.as_bytes()[0].is_ascii_digit() {
+            return true;
+        }
+        return matches!(rest, "Add" | "Subtract" | "Multiply" | "Divide" | "Decimal");
     }
     if let Some(rest) = code.strip_prefix("F") {
         return !rest.starts_with('0')
@@ -717,7 +720,9 @@ mod tests {
         assert_eq!(state.on_key_event(0x52, false), Some(1)); // R → bound
         assert_eq!(state.last_triggered(), Some("nav.tasks".into()));
 
-        // With Ctrl alone held, R does not match the Ctrl+Shift chord.
+        // Release R (swallowed to match the downstroke); with Ctrl alone
+        // held, a fresh R press does not match the Ctrl+Shift chord.
+        assert_eq!(state.on_key_event(0x52, true), Some(1));
         state.inner.modifiers.store(MOD_CTRL, Ordering::SeqCst);
         assert_eq!(state.on_key_event(0x52, false), None);
     }

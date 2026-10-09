@@ -35,12 +35,12 @@ vi.mock('../../src/stores/themeStore', () => ({
 vi.mock('../../src/stores/cortexStore', () => {
   const state: Record<string, unknown> = {
     status: 'running',
-    connection: { baseUrl: 'http://127.0.0.1:8443', apiKey: '' },
+    connection: { baseUrl: 'http://127.0.0.1:60080', apiKey: '' },
     cortexId: 'cortex-test',
     defaultAgent: 'temporal',
     lobes: [
-      { name: 'temporal', kind: 'native', url: 'http://temporal:8443', enabled: true, skills: ['routing:prefrontal'], agent_card: { name: 'temporal', description: '', version: '0.1', url: '', metadata: { input_modalities: ['text'], output_modalities: ['text'], capabilities: [] } }, health_status: 'healthy' },
-      { name: 'memory', kind: 'native', url: 'http://memory:8443', enabled: true, skills: ['memory:recall'], agent_card: { name: 'memory', description: '', version: '0.1', url: '', metadata: { input_modalities: ['text'], output_modalities: ['text'], capabilities: [] } }, health_status: 'healthy' },
+      { name: 'temporal', kind: 'native', url: 'http://temporal:60080', enabled: true, skills: ['routing:prefrontal'], agent_card: { name: 'temporal', description: '', version: '0.1', url: '', metadata: { input_modalities: ['text'], output_modalities: ['text'], capabilities: [] } }, health_status: 'healthy' },
+      { name: 'memory', kind: 'native', url: 'http://memory:60080', enabled: true, skills: ['memory:recall'], agent_card: { name: 'memory', description: '', version: '0.1', url: '', metadata: { input_modalities: ['text'], output_modalities: ['text'], capabilities: [] } }, health_status: 'healthy' },
     ],
     lastCheck: null,
     error: null,

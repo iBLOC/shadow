@@ -12,6 +12,7 @@ test.describe('Providers - Model Fetching', () => {
   });
 
   test('添加 MiMo 供应商并获取模型', async ({ page }) => {
+    test.skip(!TEST_CONFIG.MIMO_API_KEY, 'set MIMO_API_KEY to run against the real MiMo API');
     const cloudTab = page.locator('button:has-text("云端供应商")');
     await cloudTab.click();
     await page.waitForTimeout(500);

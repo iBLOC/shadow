@@ -211,7 +211,7 @@ export const useResonanceStore = create<ResonanceState>()(
             },
             preferred_connection: {
               protocol: 'https',
-              port: 8443,
+              port: 60080,
             },
           },
         };

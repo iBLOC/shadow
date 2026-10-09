@@ -30,7 +30,17 @@ const CORTEX_BIN = defaultCortexBin();
 const CORTEX_CWD = defaultCortexCwd();
 const TEST_DATA_DIR = process.env.SHADOW_TEST_DATA_DIR ?? join(tmpdir(), 'shadow-test-data');
 
+function isLoopbackUrl(url: string): boolean {
+  try {
+    const { hostname } = new URL(url);
+    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+  } catch {
+    return false;
+  }
+}
+
 async function isCortexRunning(): Promise<boolean> {
+  if (!isLoopbackUrl(CORTEX_URL)) return false;
   try {
     const res = await fetch(`${CORTEX_URL}/health`);
     return res.ok;

@@ -1,7 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { invoke } from '@tauri-apps/api/core';
 import { cortexClient } from '../lib/cortexClient';
+import { computeTokenStats } from '../lib/tokenStats';
 import { useConversationStore } from '../stores/conversationStore';
+import { useChatDisplayStore } from '../stores/chatDisplayStore';
 import { useCompanionModeStore } from '../stores/companionModeStore';
 import { WakeWordDetector } from '../lib/wakeWordDetector';
 import { Button, EmptyState } from '../components/ui';
@@ -12,9 +15,10 @@ import { VisualQaClarificationChip } from '../components/chat/VisualQaClarificat
 import { FeishuPublishedCard } from '../components/chat/FeishuPublishedCard';
 import { AudioEventChip } from '../components/chat/AudioEventChip';
 import { ComputerUsePendingModal, type ComputerUseAction } from '../components/computerUse/ComputerUsePendingModal';
+import { RecordingPanel } from '../components/recording/RecordingPanel';
 import { isChatBiPayload } from '../lib/chatbi/guards';
 import type { ChatBiPayload } from '../lib/chatbi/guards';
-import type { VisualQaClarification } from '../types';
+import type { Conversation, ConversationKind, Message, RecordingMode, VisualQaClarification } from '../types';
 import {
   Send,
   Plus,
@@ -25,11 +29,11 @@ import {
   MessageSquare,
   Sparkles,
   Mic,
+  Video,
   ArrowRightLeft,
   Paperclip,
   X,
 } from 'lucide-react';
-import type { Conversation, Message } from '../types';
 import { cn } from '../lib/utils';
 
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
@@ -57,6 +61,7 @@ export function ConversationPage() {
     activeConversationId,
     addConversation,
     removeConversation,
+    updateConversation,
     setActiveConversation,
     addMessage,
     updateMessage,
@@ -69,12 +74,17 @@ export function ConversationPage() {
   const [stagedImages, setStagedImages] = useState<StagedImage[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showMoveDialog, setShowMoveDialog] = useState(false);
+  const [showCreateMenu, setShowCreateMenu] = useState(false);
+  const createMenuRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   // R-11 — computer-use preview-before-commit state. Modal lifecycle is
   // decoupled from message stream so a Cancel clears without re-rendering.
   // The setter is set from the assistant SSE handler at line ~176 and the
   // pending value feeds the page-level modal at line ~520.
   const [pendingCuAction, setPendingCuAction] = useState<import('../components/computerUse/ComputerUsePendingModal').ComputerUseAction | null>(null);
+  // Settings → UI "Token 统计" toggle — when on, each assistant reply gets
+  // a live token-count / speed line under its bubble.
+  const showTokenStats = useChatDisplayStore((s) => s.showTokenStats);
 
   const activeConversation = conversations.find(c => c.id === activeConversationId);
 
@@ -82,15 +92,117 @@ export function ConversationPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [activeConversation?.messages]);
 
+  // + 三选一弹层：点击外部 / Esc 关闭。
+  useEffect(() => {
+    if (!showCreateMenu) return;
+    const onClick = (e: MouseEvent) => {
+      if (
+        createMenuRef.current &&
+        e.target instanceof Node &&
+        !createMenuRef.current.contains(e.target)
+      ) {
+        setShowCreateMenu(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowCreateMenu(false);
+    };
+    document.addEventListener('mousedown', onClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [showCreateMenu]);
+
+  // 启动时从后端拉 recording 会话，补齐 store 中尚未存在的项。
+  // 这是 /recording 页面被吸收进来的关键：历史录音会话要继续出现在统一收件箱里。
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const list = await invoke<
+          Array<{
+            id: string;
+            mode: RecordingMode;
+            started_at: string;
+            ended_at: string | null;
+            wallclock_start_ms: number;
+          }>
+        >('recording_list');
+        const knownIds = new Set(conversations.map((c) => c.id));
+        for (const s of list) {
+          if (cancelled) break;
+          if (knownIds.has(s.id)) continue;
+          const kind: ConversationKind = s.mode === 'audio' ? 'audio' : 'video';
+          addConversation({
+            id: s.id,
+            kind,
+            title:
+              kind === 'audio'
+                ? t('conversation.audioSessionFallback', { defaultValue: '语音会话' })
+                : t('conversation.videoSessionFallback', { defaultValue: '视频会话' }),
+            messages: [],
+            createdAt: new Date(s.started_at),
+            updatedAt: new Date(s.started_at),
+            recordingStartedAt: s.started_at,
+            recordingEndedAt: s.ended_at,
+            recordingWallclockStartMs: s.wallclock_start_ms,
+          });
+        }
+      } catch {
+        // 后端未就绪 — 忽略，统一收件箱可后续手动 + 出来。
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // 仅启动一次；后续流式事件由 RecordingPanel 内部轮询处理。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleNewConversation = () => {
     const conversation: Conversation = {
       id: crypto.randomUUID(),
+      kind: 'text',
       title: t('conversation.newChat'),
       messages: [],
       createdAt: new Date(),
       updatedAt: new Date(),
     };
     addConversation(conversation);
+  };
+
+  /** + 三选一弹层中语音/视频的回调。直接调 `recording_start` 写入后端，
+   *  把返回的 bookkeeping 落到 conversation store；AI 不参与（record-only）。 */
+  const handleCreateRecording = async (mode: RecordingMode) => {
+    setShowCreateMenu(false);
+    try {
+      const s = await invoke<{
+        id: string;
+        mode: RecordingMode;
+        started_at: string;
+        ended_at: string | null;
+        wallclock_start_ms: number;
+      }>('recording_start', { mode });
+      const conversation: Conversation = {
+        id: s.id,
+        kind: mode === 'audio' ? 'audio' : 'video',
+        title:
+          mode === 'audio'
+            ? t('conversation.newAudioTitle', { defaultValue: '语音会话' })
+            : t('conversation.newVideoTitle', { defaultValue: '视频会话' }),
+        messages: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        recordingStartedAt: s.started_at,
+        recordingEndedAt: s.ended_at,
+        recordingWallclockStartMs: s.wallclock_start_ms,
+      };
+      addConversation(conversation);
+    } catch (e) {
+      console.error('recording_start failed', e);
+    }
   };
 
   const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -145,9 +257,17 @@ export function ConversationPage() {
           // render the reply incrementally instead of only after the
           // stream ends, which looked like a hung app.
           let streamingId: string | null = null;
+          // Token-stats window opens at the first streamed delta so the
+          // speed measures generation, not connection setup.
+          let firstDeltaAt: number | null = null;
+          const liveStats = () =>
+            showTokenStats
+              ? computeTokenStats(accumulated, firstDeltaAt ?? Date.now())
+              : undefined;
           for await (const event of cortexClient.streamMessage(conversationId, { text: input })) {
             if (event.type === 'delta' && event.delta) {
               accumulated += event.delta;
+              if (firstDeltaAt === null) firstDeltaAt = Date.now();
               if (!streamingId) {
                 streamingId = crypto.randomUUID();
                 addMessage(activeConversationId, {
@@ -155,9 +275,13 @@ export function ConversationPage() {
                   role: 'assistant',
                   content: event.delta,
                   timestamp: new Date(),
+                  token_stats: liveStats(),
                 });
               } else {
-                updateMessage(activeConversationId, streamingId, { content: accumulated });
+                updateMessage(activeConversationId, streamingId, {
+                  content: accumulated,
+                  token_stats: liveStats(),
+                });
               }
             } else if (event.type === 'clarification' && event.clarification) {
               visualQaClarification = event.clarification;
@@ -218,12 +342,22 @@ export function ConversationPage() {
                 ms: chatbiPayload.took_ms,
               })
             : accumulated || t('conversation.noResponse');
+          // Final token-stats snapshot now that the stream has closed.
+          const finalStats = (() => {
+            if (!showTokenStats) return undefined;
+            // For ChatBI payloads the "reply" is the chart title, not the
+            // streamed text — only compute stats when we have a real
+            // stream window.
+            if (chatbiPayload || firstDeltaAt === null) return undefined;
+            return computeTokenStats(accumulated, firstDeltaAt);
+          })();
           if (streamingId) {
             // The streaming bubble already exists — finalize it.
             updateMessage(activeConversationId, streamingId, {
               content: finalContent,
               chatbi: chatbiPayload,
               visual_qa_clarification: visualQaClarification,
+              token_stats: finalStats ?? liveStats(),
             });
           } else {
             addMessage(activeConversationId, {
@@ -233,6 +367,7 @@ export function ConversationPage() {
               timestamp: new Date(),
               chatbi: chatbiPayload,
               visual_qa_clarification: visualQaClarification,
+              token_stats: finalStats,
             });
           }
           return;
@@ -284,7 +419,60 @@ export function ConversationPage() {
       <aside className="flex w-[280px] flex-shrink-0 flex-col border-r border-border bg-card">
         <div className="flex items-center justify-between border-b border-border p-4">
           <h3 className="text-sm font-semibold text-foreground">{t('conversation.title')}</h3>
-          <Button variant="ghost" size="sm" icon={<Plus size={18} />} onClick={handleNewConversation} />
+          <div className="relative" ref={createMenuRef}>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<Plus size={18} />}
+              onClick={() => setShowCreateMenu((v) => !v)}
+              aria-haspopup="menu"
+              aria-expanded={showCreateMenu}
+              data-testid="conversation-new-button"
+            />
+            {showCreateMenu && (
+              <div
+                role="menu"
+                className="absolute right-0 top-full z-20 mt-1 w-44 overflow-hidden rounded-md border border-border bg-card shadow-lg"
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted"
+                  onClick={() => {
+                    setShowCreateMenu(false);
+                    handleNewConversation();
+                  }}
+                  data-testid="conversation-new-text"
+                >
+                  <MessageSquare size={14} className="text-muted-foreground" />
+                  <span className="flex-1">{t('conversation.newTextChat')}</span>
+                  <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                    {t('conversation.newDefaultBadge', { defaultValue: '默认' })}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted"
+                  onClick={() => void handleCreateRecording('audio')}
+                  data-testid="conversation-new-audio"
+                >
+                  <Mic size={14} className="text-muted-foreground" />
+                  <span className="flex-1">{t('conversation.newAudioChat')}</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted"
+                  onClick={() => void handleCreateRecording('video')}
+                  data-testid="conversation-new-video"
+                >
+                  <Video size={14} className="text-muted-foreground" />
+                  <span className="flex-1">{t('conversation.newVideoChat')}</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="relative p-3">
@@ -302,33 +490,47 @@ export function ConversationPage() {
           {filteredConversations.length === 0 ? (
             <EmptyState icon={<MessageSquare size={24} />} title={t('conversation.noConversations')} size="sm" />
           ) : (
-            filteredConversations.map((conv) => (
-              <div
-                key={conv.id}
-                className={cn(
-                  'group flex cursor-pointer items-center gap-3 rounded-md p-3 transition-colors hover:bg-muted',
-                  activeConversationId === conv.id && 'bg-foreground/10'
-                )}
-                onClick={() => setActiveConversation(conv.id)}
-              >
-                <MessageSquare size={16} className="flex-shrink-0 text-muted-foreground" />
-                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <span className="truncate text-sm font-medium text-foreground">{conv.title}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {conv.messages.length} {t('conversation.messages')}
-                  </span>
-                </div>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="opacity-0 group-hover:opacity-100"
-                  onClick={(e) => { e.stopPropagation(); removeConversation(conv.id); }}
-                  aria-label={t('common.delete')}
+            filteredConversations.map((conv) => {
+              const kind = conv.kind ?? 'text';
+              const meta =
+                kind === 'audio'
+                  ? t('conversation.audioMeta')
+                  : kind === 'video'
+                    ? t('conversation.videoMeta')
+                    : `${conv.messages.length} ${t('conversation.messages')}`;
+              return (
+                <div
+                  key={conv.id}
+                  className={cn(
+                    'group flex cursor-pointer items-center gap-3 rounded-md p-3 transition-colors hover:bg-muted',
+                    activeConversationId === conv.id && 'bg-foreground/10'
+                  )}
+                  onClick={() => setActiveConversation(conv.id)}
+                  data-testid={`conversation-item-${kind}`}
                 >
-                  <Trash2 size={14} />
-                </Button>
-              </div>
-            ))
+                  {kind === 'audio' ? (
+                    <Mic size={16} className="flex-shrink-0 text-muted-foreground" />
+                  ) : kind === 'video' ? (
+                    <Video size={16} className="flex-shrink-0 text-muted-foreground" />
+                  ) : (
+                    <MessageSquare size={16} className="flex-shrink-0 text-muted-foreground" />
+                  )}
+                  <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <span className="truncate text-sm font-medium text-foreground">{conv.title}</span>
+                    <span className="text-xs text-muted-foreground">{meta}</span>
+                  </div>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="opacity-0 group-hover:opacity-100"
+                    onClick={(e) => { e.stopPropagation(); removeConversation(conv.id); }}
+                    aria-label={t('common.delete')}
+                  >
+                    <Trash2 size={14} />
+                  </Button>
+                </div>
+              );
+            })
           )}
         </div>
       </aside>
@@ -336,6 +538,12 @@ export function ConversationPage() {
       {/* Main */}
       <main className="flex flex-1 flex-col overflow-hidden bg-background">
         {activeConversation ? (
+          activeConversation.kind === 'audio' || activeConversation.kind === 'video' ? (
+            <RecordingPanel
+              session={activeConversation}
+              onSessionChange={(id, updates) => updateConversation(id, updates)}
+            />
+          ) : (
           <>
             <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-6">
               {activeConversation.messages.length === 0 ? (
@@ -418,10 +626,25 @@ export function ConversationPage() {
                           </div>
                         )}
                         <div className={cn(
-                          'px-2 text-xs text-muted-foreground',
-                          msg.role === 'user' && 'text-right'
+                          'flex items-center gap-2 px-2 text-xs text-muted-foreground',
+                          msg.role === 'user' && 'flex-row-reverse text-right'
                         )}>
-                          {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          <span>{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          {showTokenStats && msg.token_stats && msg.role === 'assistant' && (
+                            <span
+                              className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] tabular-nums"
+                              data-testid="token-stats"
+                              title={t('conversation.tokenStats.tooltip', {
+                                tokens: msg.token_stats.tokens,
+                                seconds: (msg.token_stats.durationMs / 1000).toFixed(2),
+                              })}
+                            >
+                              {t('conversation.tokenStats.summary', {
+                                tokens: msg.token_stats.tokens,
+                                speed: msg.token_stats.tokensPerSecond.toFixed(1),
+                              })}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -532,6 +755,7 @@ export function ConversationPage() {
               </p>
             </div>
           </>
+          )
         ) : (
           <div className="flex flex-1 flex-col items-center justify-center gap-4 text-muted-foreground">
             <MessageSquare size={64} className="opacity-50" />

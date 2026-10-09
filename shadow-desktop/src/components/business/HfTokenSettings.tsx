@@ -73,22 +73,6 @@ export function HfTokenSettings({ onSaved }: { onSaved?: () => void }) {
     }
   };
 
-  const handleRestart = async () => {
-    setRestarting(true);
-    setFeedback(null);
-    try {
-      await safeInvoke('cortex_stop');
-      await new Promise(r => setTimeout(r, 500));
-      await safeInvoke('cortex_start');
-      setFeedback({ kind: 'ok', msg: t('settings.hfToken.restarted') });
-      await refresh();
-    } catch (e) {
-      setFeedback({ kind: 'err', msg: String(e) });
-    } finally {
-      setRestarting(false);
-    }
-  };
-
   const isRunning = info?.running === true;
 
   return (
@@ -159,24 +143,6 @@ export function HfTokenSettings({ onSaved }: { onSaved?: () => void }) {
             </Button>
           )}
         </div>
-
-        {/* Running warning + restart */}
-        {isRunning && (
-          <div className="flex items-center gap-2 rounded-md border border-yellow-500/30 bg-yellow-500/5 px-3 py-2 text-xs text-yellow-600 dark:text-yellow-300">
-            <AlertCircle size={14} />
-            <span>{t('settings.hfToken.runningWarning')}</span>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleRestart}
-              disabled={restarting}
-              className="ml-auto"
-            >
-              {restarting ? <Loader2 size={12} className="animate-spin" /> : null}
-              {t('settings.hfToken.restartCortex')}
-            </Button>
-          </div>
-        )}
 
         {/* Feedback */}
         {feedback && (

@@ -155,6 +155,15 @@ export interface AgentTask {
 }
 
 // Conversation Types
+
+/** Media kind of a unified-inbox session. The same Conversation entity
+ *  serves both AI-attended chat (text) and "recording mode" (audio/video,
+ *  AI replies suppressed — purely capture then summarize).
+ *  Persisted state predating this field defaults to 'text'. */
+export type ConversationKind = 'text' | 'audio' | 'video';
+
+export type RecordingMode = 'audio' | 'video';
+
 export interface Conversation {
   id: string;
   agentId?: string;
@@ -163,6 +172,18 @@ export interface Conversation {
   messages: Message[];
   createdAt: Date;
   updatedAt: Date;
+  /** Media modality. Drives main-pane rendering and the sidebar icon.
+   *  - 'text'  → chat composer + AI stream (existing ConversationPage path)
+   *  - 'audio' → RecordingPanel with `recording_start { mode: 'audio' }`
+   *  - 'video' → RecordingPanel with `recording_start { mode: 'video' }` */
+  kind?: ConversationKind;
+  /** Recording-only bookkeeping (mirrors RecordingSession in tauri lib.rs).
+   *  `recordingWallclockStartMs` drives the live elapsed timer when the
+   *  recording is still active (recordingEndedAt === null). Only set when
+   *  kind === 'audio' | 'video'. */
+  recordingStartedAt?: string;
+  recordingEndedAt?: string | null;
+  recordingWallclockStartMs?: number;
 }
 
 export interface Message {
@@ -182,6 +203,19 @@ export interface Message {
    *  when the cortex SSE stream emits an audio_event for this
    *  conversation. */
   audio_event?: AudioEventMessage;
+  /** Token volume + generation speed measured while this assistant
+   *  reply streamed (client-side estimate — see lib/tokenStats.ts).
+   *  Rendered under the bubble when the user enables token stats. */
+  token_stats?: MessageTokenStats;
+}
+
+export interface MessageTokenStats {
+  /** Estimated token count of the reply text. */
+  tokens: number;
+  /** Wall-clock ms from first streamed delta to completion. */
+  durationMs: number;
+  /** tokens / (durationMs / 1000); 0 when the reply was not streamed. */
+  tokensPerSecond: number;
 }
 
 export interface FeishuPublished {

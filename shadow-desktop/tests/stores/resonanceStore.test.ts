@@ -5,7 +5,7 @@ import type { DiscoveredService, TaskPush } from '../../src/stores/resonanceStor
 const { mockSafeInvoke, cortexStatusRef, cortexConnectionRef, hasResonanceRef } = vi.hoisted(() => {
   const mockSafeInvoke = vi.fn();
   const cortexStatusRef = { value: 'stopped' };
-  const cortexConnectionRef = { value: { baseUrl: 'http://127.0.0.1:8443', apiKey: '' } };
+  const cortexConnectionRef = { value: { baseUrl: 'http://127.0.0.1:60080', apiKey: '' } };
   const hasResonanceRef = { value: false };
   return { mockSafeInvoke, cortexStatusRef, cortexConnectionRef, hasResonanceRef };
 });
@@ -69,7 +69,7 @@ describe('ResonanceStore', () => {
       pendingTasks: [],
       error: null,
       reconnectAttempts: 0,
-      a2aEndpoint: 'http://127.0.0.1:8443/a2a',
+      a2aEndpoint: 'http://127.0.0.1:60080/a2a',
     });
   });
 
@@ -156,14 +156,14 @@ describe('ResonanceStore', () => {
     it('connects successfully through cortex A2A gateway', async () => {
       hasResonanceRef.value = true;
       cortexStatusRef.value = 'running';
-      cortexConnectionRef.value = { baseUrl: "http://127.0.0.1:8443", apiKey: "" };
+      cortexConnectionRef.value = { baseUrl: "http://127.0.0.1:60080", apiKey: "" };
       const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
         new Response('{}', { status: 200 }),
       );
       const { connect } = useResonanceStore.getState();
       await connect();
       const state = useResonanceStore.getState();
-      expect(fetchSpy).toHaveBeenCalledWith('http://127.0.0.1:8443/a2a/health');
+      expect(fetchSpy).toHaveBeenCalledWith('http://127.0.0.1:60080/a2a/health');
       expect(state.connectionStatus).toBe('connected');
     });
 
@@ -205,7 +205,7 @@ describe('ResonanceStore', () => {
       const { sendMessage } = useResonanceStore.getState();
       await sendMessage({ type: 'ping' });
       expect(fetchSpy).toHaveBeenCalledWith(
-        'http://127.0.0.1:8443/a2a/tasks/send',
+        'http://127.0.0.1:60080/a2a/tasks/send',
         expect.objectContaining({ method: 'POST' }),
       );
     });

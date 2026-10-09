@@ -33,7 +33,7 @@ if (typeof globalThis.localStorage === 'undefined') {
   Object.defineProperty(globalThis, 'localStorage', { value: storageStub, writable: true });
 }
 
-describe('cortexStore supervisor state', () => {
+describe('cortexStore — encephalon-backed supervisor mapping', () => {
   beforeEach(() => {
     mockSafeInvoke.mockReset();
     mockHealth.mockReset();
@@ -47,33 +47,42 @@ describe('cortexStore supervisor state', () => {
     expect(state.supervisor.restartCount).toBe(0);
   });
 
-  it('setSupervision(false) updates enabled and persists to Tauri', async () => {
-    mockSafeInvoke.mockResolvedValueOnce(false);
-    const { useCortexStore } = await import('../../src/stores/cortexStore');
-    await useCortexStore.getState().setSupervision(false);
-    expect(useCortexStore.getState().supervisor.enabled).toBe(false);
-    expect(mockSafeInvoke).toHaveBeenCalledWith('cortex_set_supervision', { enabled: false });
-  });
-
-  it('refreshStatus pulls supervision_enabled + restart_count from cortex_status', async () => {
+  it('refreshStatus maps encephalon_status.telencephalon_attached → supervisor.enabled', async () => {
     mockHealth.mockResolvedValueOnce({ id: 'cortex-test' });
     mockSafeInvoke.mockResolvedValueOnce({
-      supervision_enabled: false,
-      restart_count: 3,
+      bus_receivers: 1,
+      thalamus_sensor_count: 0,
+      thalamus_sensors: [],
+      thalamus_video_cameras: 0,
+      telencephalon_attached: false,
     });
     const { useCortexStore } = await import('../../src/stores/cortexStore');
     await useCortexStore.getState().refreshStatus();
     const sup = useCortexStore.getState().supervisor;
     expect(sup.enabled).toBe(false);
-    expect(sup.restartCount).toBe(3);
+    expect(mockSafeInvoke).toHaveBeenCalledWith('encephalon_status');
+  });
+
+  it('refreshStatus keeps previous supervisor state when telencephalon is attached', async () => {
+    mockHealth.mockResolvedValueOnce({ id: 'cortex-test' });
+    mockSafeInvoke.mockResolvedValueOnce({
+      bus_receivers: 2,
+      thalamus_sensor_count: 3,
+      thalamus_sensors: ['mic', 'camera'],
+      thalamus_video_cameras: 1,
+      telencephalon_attached: true,
+    });
+    const { useCortexStore } = await import('../../src/stores/cortexStore');
+    await useCortexStore.getState().refreshStatus();
+    const sup = useCortexStore.getState().supervisor;
+    expect(sup.enabled).toBe(true);
+    expect(mockSafeInvoke).toHaveBeenCalledWith('encephalon_status');
   });
 
   it('refreshStatus tolerates Tauri unavailable (web build) — keeps previous state', async () => {
     mockHealth.mockResolvedValueOnce({ id: 'cortex-test' });
     mockSafeInvoke.mockResolvedValueOnce(null);
     const { useCortexStore } = await import('../../src/stores/cortexStore');
-    // Pin a known initial state before the refresh so the assertion
-    // does not depend on whatever the previous test left behind.
     useCortexStore.setState({
       supervisor: { enabled: true, restartCount: 0 },
     });

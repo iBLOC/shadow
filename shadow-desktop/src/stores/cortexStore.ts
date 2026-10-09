@@ -30,12 +30,22 @@ interface CortexState {
   refreshStatus: () => Promise<void>;
   refreshLobes: () => Promise<void>;
   refreshFlows: () => Promise<void>;
-  startCortex: () => Promise<void>;
-  stopCortex: () => Promise<void>;
-  setSupervision: (enabled: boolean) => Promise<void>;
 }
 
-const DEFAULT_BASE_URL = 'http://127.0.0.1:8443';
+const DEFAULT_BASE_URL = 'http://127.0.0.1:60080';
+
+/** Response shape from the embedded `encephalon_status` Tauri command
+ *  (`src-tauri/src/lib.rs::encephalon_status`). The supervisor-style
+ *  fields used here are derived from `telencephalon_attached`:
+ *  encephalon has no supervision concept, so being attached is the
+ *  closest equivalent. */
+interface EncephalonStatus {
+  bus_receivers: number;
+  thalamus_sensor_count: number;
+  thalamus_sensors: string[];
+  thalamus_video_cameras: number;
+  telencephalon_attached: boolean;
+}
 
 export const useCortexStore = create<CortexState>()(
   persist(
@@ -79,20 +89,20 @@ export const useCortexStore = create<CortexState>()(
             lastCheck: new Date(),
           });
         }
-        // Pull supervisor state from the sidecar (Tauri-only; on
-        // the web build the invoke returns null and we keep the
-        // previous value).
+        // Probe the in-process encephalon (Tauri-only; on the web
+        // build the invoke returns null and we keep the previous
+        // value). Replaces the legacy `cortex_status` sidecar call —
+        // encephalon has no `supervision_enabled`/`restart_count`
+        // fields, so we map `telencephalon_attached` onto
+        // `supervisor.enabled`.
         try {
           const { safeInvoke } = await import('../lib/tauriSafe');
-          const raw = await safeInvoke<{
-            supervision_enabled?: boolean;
-            restart_count?: number;
-          }>('cortex_status');
+          const raw = await safeInvoke<EncephalonStatus>('encephalon_status');
           if (raw && typeof raw === 'object') {
             set((prev) => ({
               supervisor: {
-                enabled: raw.supervision_enabled ?? prev.supervisor.enabled,
-                restartCount: raw.restart_count ?? prev.supervisor.restartCount,
+                enabled: raw.telencephalon_attached ?? prev.supervisor.enabled,
+                restartCount: prev.supervisor.restartCount,
               },
             }));
           }
@@ -124,46 +134,6 @@ export const useCortexStore = create<CortexState>()(
           const flows = await cortexClient.listFlows();
           set({ flows });
         } catch { }
-      },
-
-      startCortex: async () => {
-        set({ status: 'starting' });
-        try {
-          const { safeInvoke } = await import('../lib/tauriSafe');
-          await safeInvoke('cortex_start');
-          await get().refreshStatus();
-          await get().refreshLobes();
-        } catch (e) {
-          set({
-            status: 'error',
-            error: e instanceof Error ? e.message : String(e),
-          });
-        }
-      },
-
-      stopCortex: async () => {
-        try {
-          const { safeInvoke } = await import('../lib/tauriSafe');
-          await safeInvoke('cortex_stop');
-          set({ status: 'stopped', lobes: [], cortexId: null });
-        } catch (e) {
-          set({ error: e instanceof Error ? e.message : String(e) });
-        }
-      },
-
-      setSupervision: async (enabled) => {
-        try {
-          const { safeInvoke } = await import('../lib/tauriSafe');
-          const newValue = await safeInvoke<boolean>('cortex_set_supervision', { enabled });
-          set((prev) => ({
-            supervisor: {
-              enabled: newValue ?? enabled,
-              restartCount: prev.supervisor.restartCount,
-            },
-          }));
-        } catch (e) {
-          set({ error: e instanceof Error ? e.message : String(e) });
-        }
       },
     }),
     {

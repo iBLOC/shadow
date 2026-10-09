@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "mimosa-hook-status/v1",
+  "recordedAt": "2026-09-27T09:34:18.131Z",
+  "sessionId": "sess_6b4fe6ca-cde4-49bf-b447-d6148ec0e39b",
+  "event": "PostToolUse",
+  "toolName": "Edit",
+  "file": "C:\\Projects\\iBLOC\\shadow\\shadow-desktop\\src-tauri\\src\\logger.rs",
+  "outcome": "inconclusive",
+  "coverage": "partial",
+  "findingCount": 0,
+  "durationMs": 8,
+  "hostState": "hook_complete",
+  "reportHint": ".mimosa/reports/"
+}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Database, Globe, Monitor, Sun, Moon, RefreshCw, Server,
@@ -6,13 +6,22 @@ import {
   HardDrive, Shield, Bell, Keyboard, ChevronRight,
   Cpu, Trash2, Plus, Brain, ChevronDown,
   AlertCircle, Boxes, Search, ScanLine, Link2, Unlink, Wand2,
-  Sparkles, Settings, Play, Camera, PlugZap,
+  Sparkles, Settings, Play, Camera, PlugZap, Bluetooth,
 } from 'lucide-react';
 import { safeInvoke } from '../lib/tauriSafe';
 import { isTauri } from '../lib/platform';
 import { useThemeStore } from '../stores/themeStore';
+import { useChatDisplayStore } from '../stores/chatDisplayStore';
 import { useCortexStore } from '../stores/cortexStore';
 import { useAgentStore } from '../stores/agentStore';
+import { useShortcutStore } from '../stores/shortcutStore';
+import { SHORTCUT_ACTION_IDS } from '../lib/shortcutActions';
+import { formatChord, isBareTypingChord } from '../lib/shortcutKeys';
+import {
+  startGlobalKeyCapture,
+  stopGlobalKeyCapture,
+  onGlobalKeyCapture,
+} from '../lib/globalKeysClient';
 import { cortexClient, type ScanResult, type InstalledWasmList, type AgentSearchResponse, type McpAgentBinding, type McpServerRecord, type ModelProvider } from '../lib/cortexClient';
 import { HfTokenSettings } from '../components/business/HfTokenSettings';
 import { UpdateChecker } from '../components/business/UpdateChecker';
@@ -22,13 +31,14 @@ import { Button, Badge, EmptyState, Modal } from '../components/ui';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { cn } from '../lib/utils';
 
-type SettingsSection = 'service' | 'models' | 'video' | 'ui' | 'data' | 'system' | 'subsystem' | 'integrations';
+type SettingsSection = 'service' | 'models' | 'video' | 'ui' | 'shortcuts' | 'data' | 'system' | 'subsystem' | 'integrations';
 type AgentSection = 'internal' | 'custom' | 'wasm' | 'external';
 
 const SECTIONS: { id: SettingsSection; icon: typeof Server; labelKey: string }[] = [
   { id: 'service', icon: Server, labelKey: 'settings.section.service' },
   { id: 'models', icon: Cpu, labelKey: 'settings.section.models' },
   { id: 'video', icon: Camera, labelKey: 'settings.section.video' },
+  { id: 'shortcuts', icon: Keyboard, labelKey: 'settings.section.shortcuts' },
   { id: 'subsystem', icon: Server, labelKey: 'settings.section.subsystem' },
   { id: 'integrations', icon: PlugZap, labelKey: 'settings.section.integrations' },
   { id: 'ui', icon: Monitor, labelKey: 'settings.section.ui' },
@@ -47,6 +57,7 @@ export function SettingsPage() {
         {activeSection === 'service' && <ServiceAndAgentsSection />}
         {activeSection === 'models' && <ModelsSection />}
         {activeSection === 'video' && <VideoSourcesCard />}
+        {activeSection === 'shortcuts' && <ShortcutsSection />}
         {activeSection === 'subsystem' && <SubsystemPanel />}
         {activeSection === 'integrations' && <IntegrationsSection />}
         {activeSection === 'ui' && <UISection />}
@@ -211,7 +222,6 @@ function ServiceAndAgentsSection() {
   const refreshStatus = useCortexStore((s) => s.refreshStatus);
   const refreshLobes = useCortexStore((s) => s.refreshLobes);
   const supervisor = useCortexStore((s) => s.supervisor);
-  const setSupervision = useCortexStore((s) => s.setSupervision);
 
   const isRunning = cortexStatus === 'running';
 
@@ -456,15 +466,6 @@ function ServiceAndAgentsSection() {
             </Badge>
           )}
         </div>
-        <label className="mb-1 flex items-center gap-2 text-sm text-foreground">
-          <input
-            type="checkbox"
-            checked={supervisor.enabled}
-            onChange={(e) => void setSupervision(e.target.checked)}
-            className="h-4 w-4 rounded border-border bg-background"
-          />
-          {t('services.supervisor')}
-        </label>
         <p className="text-xs text-muted-foreground">{t('services.supervisorHelp')}</p>
       </div>
 
@@ -1295,6 +1296,8 @@ function CreateCustomAgentModal({
 function UISection() {
   const { t, i18n } = useTranslation();
   const { theme, setTheme } = useThemeStore();
+  const showTokenStats = useChatDisplayStore((s) => s.showTokenStats);
+  const setShowTokenStats = useChatDisplayStore((s) => s.setShowTokenStats);
 
   const changeLanguage = (lng: string) => {
     i18n.changeLanguage(lng);
@@ -1330,6 +1333,30 @@ function UISection() {
       </SettingsCard>
 
       <SettingsCard
+        title={t('settings.tokenStats.title')}
+        description={t('settings.tokenStats.desc')}
+        icon={<Sparkles size={20} />}
+      >
+        <SettingRow
+          label={t('settings.tokenStats.label')}
+          description={t('settings.tokenStats.help')}
+        >
+          <label className="flex cursor-pointer items-center gap-2">
+            <input
+              type="checkbox"
+              className="h-4 w-4 cursor-pointer rounded border-border bg-background accent-primary"
+              onChange={(e) => setShowTokenStats(e.target.checked)}
+              checked={showTokenStats}
+              data-testid="settings-show-token-stats"
+            />
+            <span className="text-xs text-muted-foreground">
+              {showTokenStats ? t('settings.enabled') : t('settings.disabled')}
+            </span>
+          </label>
+        </SettingRow>
+      </SettingsCard>
+
+      <SettingsCard
         title={t('settings.language')}
         description={t('settings.languageDesc')}
         icon={<Globe size={20} />}
@@ -1346,6 +1373,236 @@ function UISection() {
           </Select>
         </SettingRow>
       </SettingsCard>
+    </div>
+  );
+}
+
+// ─── Shortcuts Section ────────────────────────────────────────────────────────
+
+/**
+ * Global shortcut bindings — keyboard chords and Mi Bluetooth remote
+ * buttons. Binding capture runs through the Rust low-level keyboard
+ * hook (gk_start_capture / gk-capture events), so remote media keys and
+ * navigation keys are recorded exactly like ordinary chords, with the
+ * app focused or not. Escape always cancels; bare typing keys need an
+ * explicit confirm because they are swallowed system-wide once bound.
+ */
+export function ShortcutsSection() {
+  const { t, i18n } = useTranslation();
+  const bindings = useShortcutStore((s) => s.bindings);
+  const setBinding = useShortcutStore((s) => s.setBinding);
+  const clearBinding = useShortcutStore((s) => s.clearBinding);
+  const [capturingAction, setCapturingAction] = useState<string | null>(null);
+  const [pendingRisky, setPendingRisky] = useState<string | null>(null);
+  const [notice, setNotice] = useState('');
+  const unlistenCaptureRef = useRef<(() => void) | null>(null);
+
+  const teardownCapture = useCallback(async () => {
+    unlistenCaptureRef.current?.();
+    unlistenCaptureRef.current = null;
+    await stopGlobalKeyCapture();
+  }, []);
+
+  const handleCapturedChord = useCallback(
+    async (actionId: string, chord: string) => {
+      if (chord === 'Escape') {
+        await teardownCapture();
+        setCapturingAction(null);
+        return;
+      }
+      const current = useShortcutStore.getState().bindings;
+      const holder = Object.entries(current).find(
+        ([id, c]) => id !== actionId && c === chord,
+      );
+      if (isBareTypingChord(chord)) {
+        // Disarm capture first: otherwise the hook would swallow the
+        // Enter/click that confirms this dialog.
+        await teardownCapture();
+        setPendingRisky(chord);
+        return;
+      }
+      await teardownCapture();
+      setCapturingAction(null);
+      setBinding(actionId, chord);
+      if (holder) {
+        setNotice(
+          t('shortcuts.stoleNotice', {
+            action: t(`shortcuts.actions.${holder[0]}.label`),
+          }),
+        );
+      }
+    },
+    [setBinding, t, teardownCapture],
+  );
+
+  const beginCapture = useCallback(
+    async (actionId: string) => {
+      setNotice('');
+      setPendingRisky(null);
+      setCapturingAction(actionId);
+      // Register the capture listener before arming the hook so an
+      // immediate keypress cannot fall through the gap.
+      unlistenCaptureRef.current?.();
+      unlistenCaptureRef.current = await onGlobalKeyCapture((chord) => {
+        void handleCapturedChord(actionId, chord);
+      });
+      await startGlobalKeyCapture();
+    },
+    [handleCapturedChord],
+  );
+
+  const confirmRiskyBinding = useCallback(() => {
+    if (!capturingAction || !pendingRisky) return;
+    setBinding(capturingAction, pendingRisky);
+    setNotice(t('shortcuts.riskyBound'));
+    setPendingRisky(null);
+    setCapturingAction(null);
+  }, [capturingAction, pendingRisky, setBinding, t]);
+
+  const handleClear = useCallback(
+    (actionId: string) => {
+      clearBinding(actionId);
+      setNotice('');
+    },
+    [clearBinding],
+  );
+
+  // Unmount mid-capture (section switch): never leave the global hook
+  // swallowing every key.
+  useEffect(() => {
+    return () => {
+      unlistenCaptureRef.current?.();
+      void stopGlobalKeyCapture();
+    };
+  }, []);
+
+  return (
+    <div>
+      <SettingsCard
+        title={t('shortcuts.title')}
+        description={t('shortcuts.desc')}
+        icon={<Keyboard size={20} />}
+      >
+        <div className="flex flex-col" data-testid="shortcut-list">
+          {SHORTCUT_ACTION_IDS.map((id) => {
+            const chord = bindings[id] ?? '';
+            const isCapturing = capturingAction === id;
+            return (
+              <div
+                key={id}
+                className="flex items-center justify-between gap-3 border-b border-border py-3 last:border-b-0"
+                data-testid={`shortcut-row-${id}`}
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-foreground">
+                    {t(`shortcuts.actions.${id}.label`)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {t(`shortcuts.actions.${id}.desc`)}
+                  </p>
+                </div>
+                <div className="flex flex-shrink-0 items-center gap-2">
+                  {chord ? (
+                    <span
+                      className="rounded-md border border-border bg-muted px-2 py-1 font-mono text-xs text-foreground"
+                      data-testid={`shortcut-chord-${id}`}
+                    >
+                      {formatChord(chord, i18n.language)}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">
+                      {t('shortcuts.unbound')}
+                    </span>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void beginCapture(id)}
+                    disabled={capturingAction !== null && !isCapturing}
+                    data-testid={`shortcut-capture-${id}`}
+                  >
+                    {isCapturing ? t('shortcuts.capturing') : t('shortcuts.capture')}
+                  </Button>
+                  {chord && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleClear(id)}
+                      data-testid={`shortcut-clear-${id}`}
+                    >
+                      {t('shortcuts.clear')}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        {notice && (
+          <p className="mt-3 text-xs text-muted-foreground" data-testid="shortcut-notice">
+            {notice}
+          </p>
+        )}
+      </SettingsCard>
+
+      <SettingsCard
+        title={t('shortcuts.remoteHelpTitle')}
+        description={t('shortcuts.remoteHelp')}
+        icon={<Bluetooth size={20} />}
+      />
+
+      <Modal
+        isOpen={capturingAction !== null}
+        onClose={() => {
+          void teardownCapture();
+          setCapturingAction(null);
+        }}
+        title={t('shortcuts.captureTitle')}
+        size="sm"
+      >
+        <div className="flex flex-col items-center gap-3 py-6">
+          <Keyboard size={32} className="text-muted-foreground" />
+          <p className="text-sm text-foreground">{t('shortcuts.capturePrompt')}</p>
+          <p className="text-xs text-muted-foreground">{t('shortcuts.captureCancelHint')}</p>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={pendingRisky !== null}
+        onClose={() => {
+          setPendingRisky(null);
+          setCapturingAction(null);
+        }}
+        title={t('shortcuts.riskyTitle')}
+        size="sm"
+      >
+        <p className="text-sm text-foreground">
+          {t('shortcuts.riskyDesc', {
+            chord: pendingRisky ? formatChord(pendingRisky, i18n.language) : '',
+          })}
+        </p>
+        <div className="mt-5 flex justify-end gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setPendingRisky(null);
+              setCapturingAction(null);
+            }}
+            data-testid="shortcut-risky-cancel"
+          >
+            {t('shortcuts.cancel')}
+          </Button>
+          <Button
+            variant="default"
+            size="sm"
+            onClick={confirmRiskyBinding}
+            data-testid="shortcut-risky-confirm"
+          >
+            {t('shortcuts.confirm')}
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 }

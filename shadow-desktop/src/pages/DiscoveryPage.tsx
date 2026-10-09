@@ -148,7 +148,7 @@ export function DiscoveryPage() {
                     {cortex.host}:{cortex.port}
                   </span>
                 </div>
-                <code className="text-xs text-muted-foreground">{t('discovery.cortexDefaultPort') || '8443'}</code>
+                <code className="text-xs text-muted-foreground">{t('discovery.cortexDefaultPort') || '60080'}</code>
               </div>
             ))}
           </div>

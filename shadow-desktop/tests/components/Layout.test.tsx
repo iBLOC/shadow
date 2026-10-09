@@ -76,22 +76,22 @@ describe('Layout', () => {
     it('renders all primary nav items', () => {
       // Mirrors `navItems` in `src/components/Layout.tsx` — kept in sync when
       // routes are added/removed. `discovery`, `agents`, and `models` were
-      // removed in the 2026-08-23 ModelsPage consolidation; new entries
-      // (flows, trace, previews, computerUse, recording, workflowStudio) ship
-      // per the 2026-09 audit cycle.
+      // removed in the 2026-08-23 ModelsPage consolidation. The 2026-09
+      // audit cycle added `flows`, `trace`, `computerUse`, `recording`,
+      // `workflowStudio`. `previews` was folded into the right pane of
+      // `ConversationPage` (2026-09-25) and removed from the top-level nav.
       renderLayout();
       expect(screen.getByText(/nav\.tasks/i)).toBeInTheDocument();
       expect(screen.getByText(/nav\.chat/i)).toBeInTheDocument();
       expect(screen.getByText(/nav\.flows/i)).toBeInTheDocument();
       expect(screen.getByText(/nav\.trace/i)).toBeInTheDocument();
-      expect(screen.getByText(/nav\.previews/i)).toBeInTheDocument();
       expect(screen.getByText(/nav\.computerUse/i)).toBeInTheDocument();
-      expect(screen.getByText(/nav\.recording/i)).toBeInTheDocument();
       expect(screen.getByText(/nav\.workflowStudio/i)).toBeInTheDocument();
       expect(screen.getByText(/nav\.mcp/i)).toBeInTheDocument();
       expect(screen.getByText(/nav\.skills/i)).toBeInTheDocument();
       expect(screen.getByText(/nav\.memory/i)).toBeInTheDocument();
       expect(screen.getByText(/nav\.logs/i)).toBeInTheDocument();
+      expect(screen.queryByText(/nav\.previews/i)).not.toBeInTheDocument();
     });
 
     it('renders settings nav link in sidebar footer', () => {

@@ -1,0 +1,274 @@
+{
+  "version": 1,
+  "scrapedAt": "2026-09-26T17:58:56.493Z",
+  "baseUrl": "http://127.0.0.1:60080",
+  "endpointCount": 38,
+  "endpoints": [
+    {
+      "method": "DELETE",
+      "path": "/api/telencephalon/admin/agents/{name}/{version}",
+      "probePath": "/api/telencephalon/admin/agents/probe-agent/0.0.0",
+      "needsAdmin": true,
+      "source": "src\\lib\\cortexClient.ts:798"
+    },
+    {
+      "method": "POST",
+      "path": "/api/telencephalon/admin/agents/create",
+      "probePath": "/api/telencephalon/admin/agents/create",
+      "needsAdmin": true,
+      "source": "src\\lib\\cortexClient.ts:748"
+    },
+    {
+      "method": "POST",
+      "path": "/api/telencephalon/admin/agents/generate-description",
+      "probePath": "/api/telencephalon/admin/agents/generate-description",
+      "needsAdmin": true,
+      "source": "src\\lib\\cortexClient.ts:769"
+    },
+    {
+      "method": "GET",
+      "path": "/api/telencephalon/admin/agents/installed",
+      "probePath": "/api/telencephalon/admin/agents/installed",
+      "needsAdmin": true,
+      "source": "src\\lib\\cortexClient.ts:794"
+    },
+    {
+      "method": "POST",
+      "path": "/api/telencephalon/admin/agents/register",
+      "probePath": "/api/telencephalon/admin/agents/register",
+      "needsAdmin": true,
+      "source": "src\\lib\\cortexClient.ts:762"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/telencephalon/admin/mcp/agents/{agentName}/servers/{serverId}",
+      "probePath": "/api/telencephalon/admin/mcp/agents/probe-agent/servers/probe-mcp",
+      "needsAdmin": true,
+      "source": "src\\lib\\cortexClient.ts:907"
+    },
+    {
+      "method": "POST",
+      "path": "/api/telencephalon/admin/mcp/agents/{agentName}/servers/{serverId}",
+      "probePath": "/api/telencephalon/admin/mcp/agents/probe-agent/servers/probe-mcp",
+      "needsAdmin": true,
+      "source": "src\\lib\\cortexClient.ts:900"
+    },
+    {
+      "method": "POST",
+      "path": "/api/telencephalon/admin/mcp/servers",
+      "probePath": "/api/telencephalon/admin/mcp/servers",
+      "needsAdmin": true,
+      "source": "src\\lib\\cortexClient.ts:872"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/telencephalon/admin/mcp/servers/{id}",
+      "probePath": "/api/telencephalon/admin/mcp/servers/probe",
+      "needsAdmin": true,
+      "source": "src\\lib\\cortexClient.ts:879"
+    },
+    {
+      "method": "POST",
+      "path": "/api/telencephalon/admin/mcp/servers/{id}/start",
+      "probePath": "/api/telencephalon/admin/mcp/servers/probe/start",
+      "needsAdmin": true,
+      "source": "src\\lib\\cortexClient.ts:886"
+    },
+    {
+      "method": "POST",
+      "path": "/api/telencephalon/admin/mcp/servers/{id}/stop",
+      "probePath": "/api/telencephalon/admin/mcp/servers/probe/stop",
+      "needsAdmin": true,
+      "source": "src\\lib\\cortexClient.ts:893"
+    },
+    {
+      "method": "POST",
+      "path": "/api/telencephalon/admin/token",
+      "probePath": "/api/telencephalon/admin/token",
+      "needsAdmin": true,
+      "source": "src\\lib\\cortexClient.ts:1066"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/telencephalon/agents/{name}/config",
+      "probePath": "/api/telencephalon/agents/probe-agent/config",
+      "needsAdmin": false,
+      "source": "src\\lib\\cortexClient.ts:819"
+    },
+    {
+      "method": "GET",
+      "path": "/api/telencephalon/agents/discover",
+      "probePath": "/api/telencephalon/agents/discover",
+      "needsAdmin": false,
+      "source": "src\\lib\\cortexClient.ts:790"
+    },
+    {
+      "method": "POST",
+      "path": "/api/telencephalon/agents/scan",
+      "probePath": "/api/telencephalon/agents/scan",
+      "needsAdmin": false,
+      "source": "src\\lib\\cortexClient.ts:779"
+    },
+    {
+      "method": "GET",
+      "path": "/api/telencephalon/agents/search${qs ? ",
+      "probePath": "/api/telencephalon/agents/search${qs ? ",
+      "needsAdmin": false,
+      "source": "src\\lib\\cortexClient.ts:813"
+    },
+    {
+      "method": "POST",
+      "path": "/api/telencephalon/agents/sync/{providerId}",
+      "probePath": "/api/telencephalon/agents/sync/probe-provider",
+      "needsAdmin": false,
+      "source": "src\\lib\\cortexClient.ts:783"
+    },
+    {
+      "method": "GET",
+      "path": "/api/telencephalon/hippocampus/preview/consolidator",
+      "probePath": "/api/telencephalon/hippocampus/preview/consolidator",
+      "needsAdmin": false,
+      "source": "src\\lib\\cortexClient.ts:1037"
+    },
+    {
+      "method": "GET",
+      "path": "/api/telencephalon/hippocampus/preview/stats",
+      "probePath": "/api/telencephalon/hippocampus/preview/stats",
+      "needsAdmin": false,
+      "source": "src\\lib\\cortexClient.ts:1030"
+    },
+    {
+      "method": "GET",
+      "path": "/api/telencephalon/mcp/agents/{agentName}/servers",
+      "probePath": "/api/telencephalon/mcp/agents/probe-agent/servers",
+      "needsAdmin": false,
+      "source": "src\\lib\\cortexClient.ts:845"
+    },
+    {
+      "method": "GET",
+      "path": "/api/telencephalon/mcp/agents/{agentName}/tools",
+      "probePath": "/api/telencephalon/mcp/agents/probe-agent/tools",
+      "needsAdmin": false,
+      "source": "src\\lib\\cortexClient.ts:851"
+    },
+    {
+      "method": "GET",
+      "path": "/api/telencephalon/mcp/servers",
+      "probePath": "/api/telencephalon/mcp/servers",
+      "needsAdmin": false,
+      "source": "src\\lib\\cortexClient.ts:829"
+    },
+    {
+      "method": "GET",
+      "path": "/api/telencephalon/mcp/servers/{id}",
+      "probePath": "/api/telencephalon/mcp/servers/probe",
+      "needsAdmin": false,
+      "source": "src\\lib\\cortexClient.ts:833"
+    },
+    {
+      "method": "GET",
+      "path": "/api/telencephalon/mcp/servers/{id}/tools",
+      "probePath": "/api/telencephalon/mcp/servers/probe/tools",
+      "needsAdmin": false,
+      "source": "src\\lib\\cortexClient.ts:839"
+    },
+    {
+      "method": "GET",
+      "path": "/api/telencephalon/neuron/preview/models",
+      "probePath": "/api/telencephalon/neuron/preview/models",
+      "needsAdmin": false,
+      "source": "src\\lib\\cortexClient.ts:1042"
+    },
+    {
+      "method": "GET",
+      "path": "/api/telencephalon/neuron/preview/stats",
+      "probePath": "/api/telencephalon/neuron/preview/stats",
+      "needsAdmin": false,
+      "source": "src\\lib\\cortexClient.ts:1049"
+    },
+    {
+      "method": "GET",
+      "path": "/api/telencephalon/tasks",
+      "probePath": "/api/telencephalon/tasks",
+      "needsAdmin": false,
+      "source": "src\\lib\\cortexClient.ts:939"
+    },
+    {
+      "method": "POST",
+      "path": "/api/telencephalon/tasks",
+      "probePath": "/api/telencephalon/tasks",
+      "needsAdmin": false,
+      "source": "src\\lib\\cortexClient.ts:949"
+    },
+    {
+      "method": "POST",
+      "path": "/api/telencephalon/tasks/{taskId}/confirm",
+      "probePath": "/api/telencephalon/tasks/{taskId}/confirm",
+      "needsAdmin": false,
+      "source": "src\\lib\\cortexClient.ts:956"
+    },
+    {
+      "method": "POST",
+      "path": "/api/telencephalon/thalamus/manage/sensors",
+      "probePath": "/api/telencephalon/thalamus/manage/sensors",
+      "needsAdmin": false,
+      "source": "src\\lib\\cortexClient.ts:1013"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/telencephalon/thalamus/manage/sensors/{name}",
+      "probePath": "/api/telencephalon/thalamus/manage/sensors/probe-agent",
+      "needsAdmin": false,
+      "source": "src\\lib\\cortexClient.ts:1018"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/telencephalon/thalamus/manage/sensors/{name}/config",
+      "probePath": "/api/telencephalon/thalamus/manage/sensors/probe-agent/config",
+      "needsAdmin": false,
+      "source": "src\\lib\\cortexClient.ts:1022"
+    },
+    {
+      "method": "POST",
+      "path": "/api/telencephalon/thalamus/preview/query",
+      "probePath": "/api/telencephalon/thalamus/preview/query",
+      "needsAdmin": false,
+      "source": "src\\lib\\cortexClient.ts:1007"
+    },
+    {
+      "method": "GET",
+      "path": "/api/telencephalon/thalamus/preview/sensors",
+      "probePath": "/api/telencephalon/thalamus/preview/sensors",
+      "needsAdmin": false,
+      "source": "src\\lib\\cortexClient.ts:995"
+    },
+    {
+      "method": "GET",
+      "path": "/api/telencephalon/thalamus/preview/sensors/{name}/stats",
+      "probePath": "/api/telencephalon/thalamus/preview/sensors/probe-agent/stats",
+      "needsAdmin": false,
+      "source": "src\\lib\\cortexClient.ts:997"
+    },
+    {
+      "method": "GET",
+      "path": "/api/telencephalon/thalamus/preview/sensors/{name}/tail{qs}",
+      "probePath": "/api/telencephalon/thalamus/preview/sensors/probe-agent/tail{qs}",
+      "needsAdmin": false,
+      "source": "src\\lib\\cortexClient.ts:1000"
+    },
+    {
+      "method": "GET",
+      "path": "/api/telencephalon/video-sources",
+      "probePath": "/api/telencephalon/video-sources",
+      "needsAdmin": false,
+      "source": "src\\lib\\cortexClient.ts:964"
+    },
+    {
+      "method": "POST",
+      "path": "/api/telencephalon/voice/transcribe",
+      "probePath": "/api/telencephalon/voice/transcribe",
+      "needsAdmin": false,
+      "source": "src\\lib\\cortexClient.ts:915"
+    }
+  ]
+}

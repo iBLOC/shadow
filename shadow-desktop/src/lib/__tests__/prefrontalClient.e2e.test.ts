@@ -33,7 +33,19 @@ const BIN_PRESENT = existsSync(PREFRONTAL_BIN);
 
 let serverProcess: ChildProcess | null = null;
 
+function isLoopbackUrl(url: string): boolean {
+  try {
+    const { hostname } = new URL(url);
+    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+  } catch {
+    return false;
+  }
+}
+
 async function waitForHealthy(url: string, maxMs = 15000): Promise<void> {
+  if (!isLoopbackUrl(url)) {
+    throw new Error(`waitForHealthy refuses to poll a non-loopback url: ${url}`);
+  }
   const start = Date.now();
   let lastErr: unknown;
   while (Date.now() - start < maxMs) {

@@ -12,7 +12,7 @@ vi.mock('../src/stores/cortexStore', () => ({
   useCortexStore: {
     getState: () => ({
       status: 'stopped',
-      connection: { baseUrl: 'http://127.0.0.1:8443', apiKey: '' },
+      connection: { baseUrl: 'http://127.0.0.1:60080', apiKey: '' },
       hasConfiguredResonance: () => false,
     }),
   },
@@ -39,7 +39,7 @@ describe('ResonanceStore', () => {
       pendingTasks: [],
       error: null,
       reconnectAttempts: 0,
-      a2aEndpoint: 'http://127.0.0.1:8443/a2a',
+      a2aEndpoint: 'http://127.0.0.1:60080/a2a',
     });
   });
 

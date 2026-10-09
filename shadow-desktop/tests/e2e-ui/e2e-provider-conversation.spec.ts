@@ -3,6 +3,7 @@ import { TEST_CONFIG } from './config';
 
 test.describe('End-to-End: Provider Binding to Conversation', () => {
   test('添加 MiMo 供应商后进行对话', async ({ page }) => {
+    test.skip(!TEST_CONFIG.MIMO_API_KEY, 'set MIMO_API_KEY to run against the real MiMo API');
     await page.goto('/');
     await page.evaluate(() => {
       localStorage.setItem('shadow_setup_complete', 'true');
