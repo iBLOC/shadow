@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 // Test the pure translation function directly. We can't easily test the
-// full stream pipeline without cortexClient being callable in jsdom,
+// full stream pipeline without telencephalonClient being callable in jsdom,
 // so we re-export the translator for unit tests.
 
 interface StreamEvent {
@@ -213,12 +213,12 @@ describe('cortex StreamEvent → AI SDK wire chunks', () => {
   });
 });
 
-describe('createCortexChatTransport API surface', () => {
+describe('createTelencephalonChatTransport API surface', () => {
   it('returns a transport object exposing sendMessages + reconnectToStream', async () => {
-    const { createCortexChatTransport } = await import(
-      '../aiSdkCortexTransport'
+    const { createTelencephalonChatTransport } = await import(
+      '../aiSdkTelencephalonTransport'
     );
-    const transport = createCortexChatTransport({
+    const transport = createTelencephalonChatTransport({
       conversationId: 'conv-1',
     });
     expect(transport).toBeDefined();
@@ -227,10 +227,10 @@ describe('createCortexChatTransport API surface', () => {
   });
 
   it('reconnectToStream resolves to null (cortex does not resume streams)', async () => {
-    const { createCortexChatTransport } = await import(
-      '../aiSdkCortexTransport'
+    const { createTelencephalonChatTransport } = await import(
+      '../aiSdkTelencephalonTransport'
     );
-    const transport = createCortexChatTransport({
+    const transport = createTelencephalonChatTransport({
       conversationId: 'conv-2',
     });
     await expect(transport.reconnectToStream()).resolves.toBeNull();

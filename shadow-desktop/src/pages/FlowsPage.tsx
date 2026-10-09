@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useCortexStore } from '../stores/cortexStore';
-import { cortexClient, type FlowMeta } from '../lib/cortexClient';
+import { useTelencephalonStore } from '../stores/telencephalonStore';
+import { telencephalonClient, type FlowMeta } from '../lib/telencephalonClient';
 
 export function FlowsPage() {
   const { t } = useTranslation();
-  const flows = useCortexStore((s) => s.flows);
-  const refreshFlows = useCortexStore((s) => s.refreshFlows);
+  const flows = useTelencephalonStore((s) => s.flows);
+  const refreshFlows = useTelencephalonStore((s) => s.refreshFlows);
   const [running, setRunning] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
 
@@ -16,7 +16,7 @@ export function FlowsPage() {
     setRunning(f.id);
     setResult(null);
     try {
-      const r = await cortexClient.runFlow(f.name, { example: 'input' });
+      const r = await telencephalonClient.runFlow(f.name, { example: 'input' });
       setResult(JSON.stringify(r.outputs, null, 2));
     } catch (e) {
       setResult(`Error: ${e instanceof Error ? e.message : String(e)}`);

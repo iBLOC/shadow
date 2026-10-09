@@ -17,7 +17,7 @@ import { ModelsPage } from './pages/ModelsPage';
 import { SetupPage } from './pages/SetupPage';
 import { DiscoveryPage } from './pages/DiscoveryPage';
 import { LogsPage } from './pages/LogsPage';
-import { CortexStatusPage } from './pages/CortexStatusPage';
+import { TelencephalonStatusPage } from './pages/TelencephalonStatusPage';
 import { ModelDownloadPage } from './pages/ModelDownloadPage';
 import { VoicePage } from './pages/VoicePage';
 import { FlowsPage } from './pages/FlowsPage';
@@ -62,7 +62,7 @@ function App() {
           <Route path="previews" element={<PreviewsPage />} />
           <Route path="computer-use" element={<ComputerUsePage />} />
           <Route path="workflow-studio" element={<WorkflowStudioPage />} />
-          <Route path="cortex-status" element={<CortexStatusPage />} />
+          <Route path="cortex-status" element={<TelencephalonStatusPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="discovery" element={<DiscoveryPage />} />
           <Route path="flows" element={<FlowsPage />} />

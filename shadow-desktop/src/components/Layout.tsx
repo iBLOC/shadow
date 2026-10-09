@@ -15,7 +15,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useResonanceStore } from '../stores/resonanceStore';
-import { useCortexStore } from '../stores/cortexStore';
+import { useTelencephalonStore } from '../stores/telencephalonStore';
 import { cn } from '../lib/utils';
 
 interface NavItem {
@@ -41,7 +41,7 @@ const navItems: NavItem[] = [
 export function Layout() {
   const { t } = useTranslation();
   const { pendingTasks } = useResonanceStore();
-  const cortexStatus = useCortexStore((s) => s.status);
+  const cortexStatus = useTelencephalonStore((s) => s.status);
   const resonanceStatus = useResonanceStore((s) => s.connectionStatus);
 
   const getCortexIndicator = () => {

@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it, vi, afterEach } from 'vitest';
 
-describe('CortexClient flow API', () => {
+describe('TelencephalonClient flow API', () => {
   let mockFetch: ReturnType<typeof vi.fn>;
-  let client: import('../cortexClient').CortexClient;
+  let client: import('../telencephalonClient').TelencephalonClient;
 
   beforeEach(async () => {
     mockFetch = vi.fn();
     global.fetch = mockFetch;
-    const { CortexClient } = await import('../cortexClient');
-    client = new CortexClient({ baseUrl: 'http://localhost:60080' });
+    const { TelencephalonClient } = await import('../telencephalonClient');
+    client = new TelencephalonClient({ baseUrl: 'http://localhost:60080' });
   });
 
   afterEach(() => {

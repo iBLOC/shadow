@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { cortexClient, type LobeInfo, type FlowMeta } from '../lib/cortexClient';
+import { telencephalonClient, type LobeInfo, type FlowMeta } from '../lib/telencephalonClient';
 
 export type CortexStatus = 'stopped' | 'starting' | 'running' | 'stopping' | 'unreachable' | 'error';
 
@@ -47,7 +47,7 @@ interface EncephalonStatus {
   telencephalon_attached: boolean;
 }
 
-export const useCortexStore = create<CortexState>()(
+export const useTelencephalonStore = create<CortexState>()(
   persist(
     (set, get) => ({
       connection: {
@@ -64,7 +64,7 @@ export const useCortexStore = create<CortexState>()(
       supervisor: { enabled: true, restartCount: 0 },
 
       setBaseUrl: (url) => {
-        cortexClient.setBaseUrl(url);
+        telencephalonClient.setBaseUrl(url);
         set((state) => ({ connection: { ...state.connection, baseUrl: url } }));
       },
 
@@ -75,7 +75,7 @@ export const useCortexStore = create<CortexState>()(
       refreshStatus: async () => {
         set({ status: 'starting' });
         try {
-          const resp = await cortexClient.health();
+          const resp = await telencephalonClient.health();
           set({
             status: 'running',
             cortexId: (resp as { id?: string }).id ?? 'cortex',
@@ -113,7 +113,7 @@ export const useCortexStore = create<CortexState>()(
 
       refreshLobes: async () => {
         try {
-          const resp = await cortexClient.listAgents();
+          const resp = await telencephalonClient.listAgents();
           set({
             lobes: resp.agents,
             cortexId: resp.cortex?.id ?? get().cortexId,
@@ -131,7 +131,7 @@ export const useCortexStore = create<CortexState>()(
 
       refreshFlows: async () => {
         try {
-          const flows = await cortexClient.listFlows();
+          const flows = await telencephalonClient.listFlows();
           set({ flows });
         } catch { }
       },
@@ -144,5 +144,5 @@ export const useCortexStore = create<CortexState>()(
 );
 
 export function useCortexConnected(): boolean {
-  return useCortexStore((s) => s.status === 'running');
+  return useTelencephalonStore((s) => s.status === 'running');
 }

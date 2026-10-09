@@ -8,12 +8,12 @@ vi.mock('../platform', () => ({
   prefrontalUrl: () => 'http://localhost:8085',
 }));
 
-vi.mock('../cortexClient', () => ({
-  cortexClient: { setBaseUrl: vi.fn() },
+vi.mock('../telencephalonClient', () => ({
+  telencephalonClient: { setBaseUrl: vi.fn() },
 }));
 
-vi.mock('../../stores/cortexStore', () => ({
-  useCortexStore: {
+vi.mock('../../stores/telencephalonStore', () => ({
+  useTelencephalonStore: {
     getState: () => ({
       connection: cortexState.connection,
       setBaseUrl: (url: string) => { cortexState.connection.baseUrl = url; },

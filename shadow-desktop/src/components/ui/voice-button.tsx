@@ -86,7 +86,7 @@ export function VoiceButton({ onTranscription, onError, disabled, className }: V
       // The cortex rename chain (cortex→encephalon→telencephalon) only
       // updated server-side routes; this client-side call was missed.
       // Hardcoded here so the inline voice UX works without touching the
-      // 17+ other /api/cortex/* callers in cortexClient.ts (which all still
+      // 17+ other /api/cortex/* callers in telencephalonClient.ts (which all still
       // 404 on telencephalon but are not user-visible failures).
       const response = await fetch('/api/telencephalon/voice/transcribe', {
         method: 'POST',

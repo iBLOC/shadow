@@ -26,7 +26,7 @@ interface CortexLogs {
 
 const CORTEX_URL = 'http://localhost:60080';
 
-export function CortexStatusPage() {
+export function TelencephalonStatusPage() {
   const { t } = useTranslation();
   const [status, setStatus] = useState<CortexStatus | null>(null);
   const [logs, setLogs] = useState<CortexLogs | null>(null);

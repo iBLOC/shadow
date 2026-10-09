@@ -6,12 +6,12 @@ import {
 } from 'lucide-react';
 import { Button, Modal, Input, EmptyState } from '../components/ui';
 import {
-  cortexClient,
+  telencephalonClient,
   type McpServerRecord,
   type McpToolSummary,
-} from '../lib/cortexClient';
+} from '../lib/telencephalonClient';
 import { cn } from '../lib/utils';
-import { useCortexStore } from '../stores/cortexStore';
+import { useTelencephalonStore } from '../stores/telencephalonStore';
 
 type TransportType = 'stdio' | 'http' | 'wasm';
 
@@ -40,7 +40,7 @@ const EMPTY_FORM: FormState = {
 
 export function MCPPage() {
   const { t } = useTranslation();
-  const cortexStatus = useCortexStore((s) => s.status);
+  const cortexStatus = useTelencephalonStore((s) => s.status);
   const [servers, setServers] = useState<McpServerRecord[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -85,7 +85,7 @@ export function MCPPage() {
     if (cortexStatus !== 'running') { setServers([]); return; }
     setLoading(true); setError(null);
     try {
-      const list = await cortexClient.listMcpServers();
+      const list = await telencephalonClient.listMcpServers();
       setServers(list.servers);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e)); setServers([]);
@@ -94,7 +94,7 @@ export function MCPPage() {
 
   const loadTools = async (id: string) => {
     try {
-      const tools = await cortexClient.getMcpServerTools(id);
+      const tools = await telencephalonClient.getMcpServerTools(id);
       setToolsCache((m) => ({ ...m, [id]: tools }));
     } catch { setToolsCache((m) => ({ ...m, [id]: [] })); }
   };
@@ -177,8 +177,8 @@ export function MCPPage() {
                         onClick={(e) => {
                           e.stopPropagation();
                           const fn = server.state === 'running'
-                            ? cortexClient.stopMcpServer(server.id)
-                            : cortexClient.startMcpServer(server.id);
+                            ? telencephalonClient.stopMcpServer(server.id)
+                            : telencephalonClient.startMcpServer(server.id);
                           setBusyServer(server.id); setError(null);
                           fn.then(loadServers).catch((err) => setError(err instanceof Error ? err.message : String(err))).finally(() => setBusyServer(null));
                         }}>
@@ -190,7 +190,7 @@ export function MCPPage() {
                           e.stopPropagation();
                           if (!confirm(t('common.confirm') + '?')) return;
                           setBusyServer(server.id); setError(null);
-                          cortexClient.deleteMcpServer(server.id).then(loadServers)
+                          telencephalonClient.deleteMcpServer(server.id).then(loadServers)
                             .catch((err) => setError(err instanceof Error ? err.message : String(err)))
                             .finally(() => setBusyServer(null));
                         }}>
@@ -308,7 +308,7 @@ export function MCPPage() {
               disabled={!form.name?.trim()}
               onClick={() => {
                 setSubmitting(true); setError(null);
-                cortexClient.createMcpServer({
+                telencephalonClient.createMcpServer({
                   name: form.name.trim(),
                   ...(form.description.trim() && { description: form.description.trim() }),
                   ...(form.transport === 'stdio' && {

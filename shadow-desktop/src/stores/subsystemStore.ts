@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { cortexClient, ConsolidatorState, HippocampusMemory, HippocampusStats } from '../lib/cortexClient';
+import { telencephalonClient, ConsolidatorState, HippocampusMemory, HippocampusStats } from '../lib/telencephalonClient';
 
 interface SubsystemState {
   thalamusSensors: string[];
@@ -25,11 +25,11 @@ export const useSubsystemStore = create<SubsystemState>((set, get) => ({
   refreshAll: async () => {
     try {
       const [sensors, hstats, recent, consolidator, models] = await Promise.all([
-        cortexClient.thalamus.listSensors(),
-        cortexClient.hippocampus.stats(),
-        cortexClient.hippocampus.recent({ limit: 10 }),
-        cortexClient.hippocampus.consolidator(),
-        cortexClient.neuron.models(),
+        telencephalonClient.thalamus.listSensors(),
+        telencephalonClient.hippocampus.stats(),
+        telencephalonClient.hippocampus.recent({ limit: 10 }),
+        telencephalonClient.hippocampus.consolidator(),
+        telencephalonClient.neuron.models(),
       ]);
       set({
         thalamusSensors: sensors,

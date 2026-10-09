@@ -12,7 +12,7 @@ import { safeInvoke } from '../lib/tauriSafe';
 import { isTauri } from '../lib/platform';
 import { useThemeStore } from '../stores/themeStore';
 import { useChatDisplayStore } from '../stores/chatDisplayStore';
-import { useCortexStore } from '../stores/cortexStore';
+import { useTelencephalonStore } from '../stores/telencephalonStore';
 import { useAgentStore } from '../stores/agentStore';
 import { useShortcutStore } from '../stores/shortcutStore';
 import { SHORTCUT_ACTION_IDS } from '../lib/shortcutActions';
@@ -22,7 +22,7 @@ import {
   stopGlobalKeyCapture,
   onGlobalKeyCapture,
 } from '../lib/globalKeysClient';
-import { cortexClient, type ScanResult, type InstalledWasmList, type AgentSearchResponse, type McpAgentBinding, type McpServerRecord, type ModelProvider } from '../lib/cortexClient';
+import { telencephalonClient, type ScanResult, type InstalledWasmList, type AgentSearchResponse, type McpAgentBinding, type McpServerRecord, type ModelProvider } from '../lib/telencephalonClient';
 import { HfTokenSettings } from '../components/business/HfTokenSettings';
 import { UpdateChecker } from '../components/business/UpdateChecker';
 import { VideoSourcesCard } from '../components/business/VideoSourcesCard';
@@ -217,11 +217,11 @@ function ServiceAndAgentsSection() {
   const {
     agents, addAgent, removeAgent, updateAgent,
   } = useAgentStore();
-  const cortexStatus = useCortexStore((s) => s.status);
-  const cortexLobes = useCortexStore((s) => s.lobes);
-  const refreshStatus = useCortexStore((s) => s.refreshStatus);
-  const refreshLobes = useCortexStore((s) => s.refreshLobes);
-  const supervisor = useCortexStore((s) => s.supervisor);
+  const cortexStatus = useTelencephalonStore((s) => s.status);
+  const cortexLobes = useTelencephalonStore((s) => s.lobes);
+  const refreshStatus = useTelencephalonStore((s) => s.refreshStatus);
+  const refreshLobes = useTelencephalonStore((s) => s.refreshLobes);
+  const supervisor = useTelencephalonStore((s) => s.supervisor);
 
   const isRunning = cortexStatus === 'running';
 
@@ -244,7 +244,7 @@ function ServiceAndAgentsSection() {
 
   const fetchProviders = useCallback(async () => {
     try {
-      const result = await cortexClient.listProviders();
+      const result = await telencephalonClient.listProviders();
       setProviders(result);
     } catch {
       setProviders([]);
@@ -270,7 +270,7 @@ function ServiceAndAgentsSection() {
     setScanning(true);
     setScanError(null);
     try {
-      const result = await cortexClient.scanExternalAgents();
+      const result = await telencephalonClient.scanExternalAgents();
       setScannedAgents(result.detected);
     } catch (e) {
       setScanError(e instanceof Error ? e.message : String(e));
@@ -283,7 +283,7 @@ function ServiceAndAgentsSection() {
   const handleSyncOne = useCallback(async (providerId: string) => {
     setSyncingId(providerId);
     try {
-      await cortexClient.syncExternalAgent(providerId);
+      await telencephalonClient.syncExternalAgent(providerId);
       await refreshCortex();
     } catch (e) {
       setScanError(e instanceof Error ? e.message : String(e));
@@ -296,7 +296,7 @@ function ServiceAndAgentsSection() {
     setLoadingWasm(true);
     setWasmError(null);
     try {
-      const result = await cortexClient.listInstalledWasm();
+      const result = await telencephalonClient.listInstalledWasm();
       setInstalledWasm(result);
     } catch (e) {
       setWasmError(e instanceof Error ? e.message : String(e));
@@ -308,7 +308,7 @@ function ServiceAndAgentsSection() {
 
   const handleModelChange = useCallback(async (agentName: string, modelId: string) => {
     try {
-      await cortexClient.updateLobeConfig(agentName, { model_id: modelId });
+      await telencephalonClient.updateLobeConfig(agentName, { model_id: modelId });
       await refreshCortex();
     } catch (e) {
       console.error('Failed to update model config:', e);
@@ -332,7 +332,7 @@ function ServiceAndAgentsSection() {
     setSearching(true);
     setSearchError(null);
     try {
-      const resp = await cortexClient.searchAgents({ skill, q });
+      const resp = await telencephalonClient.searchAgents({ skill, q });
       setSearchResults(resp);
     } catch (e) {
       setSearchError(e instanceof Error ? e.message : String(e));
@@ -346,7 +346,7 @@ function ServiceAndAgentsSection() {
     const key = `${name}@${version}`;
     setUninstallingWasm(key);
     try {
-      await cortexClient.deleteWasm(name, version);
+      await telencephalonClient.deleteWasm(name, version);
       await Promise.all([loadInstalledWasm(), refreshCortex()]);
     } catch (e) {
       setWasmError(e instanceof Error ? e.message : String(e));
@@ -378,7 +378,7 @@ function ServiceAndAgentsSection() {
     const entries = await Promise.all(
       allAgents.map(async (a) => {
         try {
-          const resp = await cortexClient.listMcpServersForAgent(a.name);
+          const resp = await telencephalonClient.listMcpServersForAgent(a.name);
           return [a.name, resp.bindings] as const;
         } catch {
           return [a.name, []] as const;
@@ -395,7 +395,7 @@ function ServiceAndAgentsSection() {
   const handleUnbindMcp = useCallback(
     async (agentName: string, serverId: string) => {
       try {
-        await cortexClient.unbindMcpServerFromAgent(agentName, serverId);
+        await telencephalonClient.unbindMcpServerFromAgent(agentName, serverId);
       } catch (e) {
         setMcpBindError(e instanceof Error ? e.message : String(e));
       } finally {
@@ -410,7 +410,7 @@ function ServiceAndAgentsSection() {
       setBindModalAgent(agentName);
       setMcpBindError(null);
       try {
-        const list = await cortexClient.listMcpServers();
+        const list = await telencephalonClient.listMcpServers();
         const bound = (mcpBindingsByAgent[agentName] ?? []).map((b) => b.server_id);
         setAvailableMcpServers(
           list.servers.filter((s) => s.state === 'running' && !bound.includes(s.id))
@@ -429,7 +429,7 @@ function ServiceAndAgentsSection() {
       setBindSubmitting(true);
       setMcpBindError(null);
       try {
-        await cortexClient.bindMcpServerToAgent(bindModalAgent, serverId);
+        await telencephalonClient.bindMcpServerToAgent(bindModalAgent, serverId);
         await loadMcpBindings();
         setBindModalAgent(null);
       } catch (e) {
@@ -1033,13 +1033,13 @@ function McpBindModal({
 function InternalAgentCard({
   lobe, showUnlink, mcpBindings, onUnbindMcp, onOpenMcpBind, onModelChange, providers,
 }: {
-  lobe: import('../lib/cortexClient').LobeInfo;
+  lobe: import('../lib/telencephalonClient').LobeInfo;
   showUnlink?: boolean;
   mcpBindings?: McpAgentBinding[];
   onUnbindMcp?: (serverId: string) => void;
   onOpenMcpBind?: (agentName: string) => void;
   onModelChange?: (agentName: string, modelId: string) => void;
-  providers?: import('../lib/cortexClient').ModelProvider[];
+  providers?: import('../lib/telencephalonClient').ModelProvider[];
 }) {
   const { t } = useTranslation();
   const healthy = lobe.health_status === 'healthy';
@@ -1195,7 +1195,7 @@ function CreateCustomAgentModal({
     if (!systemPrompt.trim()) return;
     setGeneratingDesc(true);
     try {
-      const result = await cortexClient.generateAgentDescription(systemPrompt);
+      const result = await telencephalonClient.generateAgentDescription(systemPrompt);
       setDescription(result.description.trim());
     } catch (e) {
       setGenerateDescError(e instanceof Error ? e.message : String(e));
@@ -1209,7 +1209,7 @@ function CreateCustomAgentModal({
     setIsSubmitting(true);
     try {
       const skillList = skills.split(',').map((s) => s.trim()).filter(Boolean);
-      const result = await cortexClient.createPromptAgent({
+      const result = await telencephalonClient.createPromptAgent({
         name: name.trim(),
         system_prompt: systemPrompt,
         description: description.trim() || undefined,
@@ -1646,7 +1646,7 @@ function ModelsSection() {
   const fetchProviders = useCallback(async () => {
     setLoading(true);
     try {
-      const result = await cortexClient.listProviders();
+      const result = await telencephalonClient.listProviders();
       setProviders(result);
     } catch {
       setProviders([]);

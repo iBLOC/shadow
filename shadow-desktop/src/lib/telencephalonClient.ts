@@ -298,7 +298,7 @@ export interface DeviceBlock {
   cortexVersion: string;
 }
 
-export interface CortexVideoSourcesSnapshot {
+export interface TelencephalonVideoSourcesSnapshot {
   sources: VideoSource[];
   activeId?: string | null;
   device?: DeviceBlock | null;
@@ -381,14 +381,14 @@ export interface SubsystemTokenResponse {
   expires_at_unix: number;
 }
 
-export class Cortex412Error extends Error {
+export class Telencephalon412Error extends Error {
   constructor(public reason: string) {
     super(reason);
-    this.name = 'Cortex412Error';
+    this.name = 'Telencephalon412Error';
   }
 }
 
-export class CortexClient {
+export class TelencephalonClient {
   private baseUrl: string;
   private apiKey?: string;
 
@@ -928,12 +928,12 @@ export class CortexClient {
   }
 
   // Video source methods (Spec #1)
-  async listVideoSources(): Promise<CortexVideoSourcesSnapshot> {
-    return this.request<CortexVideoSourcesSnapshot>('/api/telencephalon/video-sources');
+  async listVideoSources(): Promise<TelencephalonVideoSourcesSnapshot> {
+    return this.request<TelencephalonVideoSourcesSnapshot>('/api/telencephalon/video-sources');
   }
 
   async putVideoSources(
-    snapshot: CortexVideoSourcesSnapshot,
+    snapshot: TelencephalonVideoSourcesSnapshot,
     ifMatch: string,
   ): Promise<string> {
     const headers: Record<string, string> = {
@@ -949,7 +949,7 @@ export class CortexClient {
       body: JSON.stringify(snapshot),
     });
     if (resp.status === 412) {
-      throw new Cortex412Error('video-sources ETag mismatch');
+      throw new Telencephalon412Error('video-sources ETag mismatch');
     }
     if (!resp.ok) {
       const text = await resp.text().catch(() => '');
@@ -1042,4 +1042,4 @@ export class CortexClient {
   };
 }
 
-export const cortexClient = new CortexClient();
+export const telencephalonClient = new TelencephalonClient();

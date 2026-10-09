@@ -1,5 +1,5 @@
 /**
- * AI SDK ChatTransport adapter for cortexClient.
+ * AI SDK ChatTransport adapter for telencephalonClient.
  *
  * Bridges shadow-desktop's existing cortex SSE streaming to the
  * Vercel AI SDK's ChatTransport interface. Lets `useChat` consume
@@ -9,10 +9,10 @@
  * Usage:
  * ```tsx
  * import { useChat } from '@ai-sdk/react';
- * import { cortexClient } from '@/lib/cortexClient';
- * import { createCortexChatTransport } from '@/lib/aiSdkCortexTransport';
+ * import { telencephalonClient } from '@/lib/telencephalonClient';
+ * import { createTelencephalonChatTransport } from '@/lib/aiSdkTelencephalonTransport';
  *
- * const transport = createCortexChatTransport({ conversationId: id });
+ * const transport = createTelencephalonChatTransport({ conversationId: id });
  * const { messages, sendMessage, addToolOutput, addToolApprovalResponse } = useChat({
  *   id,
  *   transport,
@@ -20,9 +20,9 @@
  * ```
  */
 
-import { cortexClient, type StreamEvent } from './cortexClient';
+import { telencephalonClient, type StreamEvent } from './telencephalonClient';
 
-export interface CortexChatTransportOptions {
+export interface TelencephalonChatTransportOptions {
   conversationId: string;
   /** Optional agent override. When omitted, cortex uses its default routing. */
   agent?: string;
@@ -158,14 +158,14 @@ function subscribe(
 }
 
 /**
- * Build an AI SDK ChatTransport-compatible object backed by cortexClient.
+ * Build an AI SDK ChatTransport-compatible object backed by telencephalonClient.
  *
  * The returned object implements `sendMessages` and `reconnectToStream` as
  * expected by `useChat`. It does **not** import `@ai-sdk/ui-utils` directly —
  * we duck-type the minimal surface that `useChat` uses so the import stays
  * optional at module level.
  */
-export function createCortexChatTransport(options: CortexChatTransportOptions) {
+export function createTelencephalonChatTransport(options: TelencephalonChatTransportOptions) {
   const { conversationId, agent } = options;
 
   return {
@@ -183,7 +183,7 @@ export function createCortexChatTransport(options: CortexChatTransportOptions) {
       const text = extractTextFromMessage(newMessages);
       if (!text) return Promise.resolve({ stream: emptyReadableStream() });
 
-      const stream = cortexClient.streamMessage(conversationId, {
+      const stream = telencephalonClient.streamMessage(conversationId, {
         text,
         agent,
       });
@@ -259,4 +259,4 @@ function extractTextFromMessage(message: unknown): string {
   return '';
 }
 
-export type CortexChatTransport = ReturnType<typeof createCortexChatTransport>;
+export type CortexChatTransport = ReturnType<typeof createTelencephalonChatTransport>;

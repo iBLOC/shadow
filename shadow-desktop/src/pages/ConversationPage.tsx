@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
-import { cortexClient } from '../lib/cortexClient';
+import { telencephalonClient } from '../lib/telencephalonClient';
 import { computeTokenStats } from '../lib/tokenStats';
 import { useConversationStore } from '../stores/conversationStore';
 import { useChatDisplayStore } from '../stores/chatDisplayStore';
@@ -245,7 +245,7 @@ export function ConversationPage() {
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
           if (!conversationId || attempt > 0) {
-            const newConv = await cortexClient.createConversation({});
+            const newConv = await telencephalonClient.createConversation({});
             conversationId = newConv.id;
             setSessionId(activeConversationId, conversationId);
           }
@@ -264,7 +264,7 @@ export function ConversationPage() {
             showTokenStats
               ? computeTokenStats(accumulated, firstDeltaAt ?? Date.now())
               : undefined;
-          for await (const event of cortexClient.streamMessage(conversationId, { text: input })) {
+          for await (const event of telencephalonClient.streamMessage(conversationId, { text: input })) {
             if (event.type === 'delta' && event.delta) {
               accumulated += event.delta;
               if (firstDeltaAt === null) firstDeltaAt = Date.now();

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Sparkles, Server, Loader2, AlertCircle, CheckCircle2, Download } from 'lucide-react';
 import { Button, Input, Label } from './ui';
-import { cortexClient } from '../lib/cortexClient';
+import { telencephalonClient } from '../lib/telencephalonClient';
 import {
   Dialog,
   DialogContent,
@@ -104,7 +104,7 @@ export function ModelSetupDialog({ open, onClose, userMessage, onConfigured }: M
     setStep('testing');
     setError(null);
     try {
-      const result = await cortexClient.configureLlm({
+      const result = await telencephalonClient.configureLlm({
         provider: selected,
         api_key: apiKey || undefined,
         base_url: baseUrl || undefined,

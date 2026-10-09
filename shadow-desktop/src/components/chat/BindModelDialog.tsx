@@ -21,7 +21,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Brain } from 'lucide-react';
-import type { ModelProvider } from '@/lib/cortexClient';
+import type { ModelProvider } from '@/lib/telencephalonClient';
 
 /**
  * Decision made by the user in the bind-model flow.

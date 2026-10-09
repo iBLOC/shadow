@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { type SendMessageResponse } from '../lib/cortexClient';
+import { type SendMessageResponse } from '../lib/telencephalonClient';
 import { safeInvoke } from '../lib/tauriSafe';
-import { useCortexStore } from './cortexStore';
+import { useTelencephalonStore } from './telencephalonStore';
 import { useServiceStore } from './serviceStore';
 
 export interface DiscoveredService {
@@ -83,7 +83,7 @@ interface ResonanceState {
 }
 
 function getA2aEndpoint(): string {
-  const base = useCortexStore.getState().connection.baseUrl;
+  const base = useTelencephalonStore.getState().connection.baseUrl;
   return `${base}/a2a`;
 }
 
@@ -131,7 +131,7 @@ export const useResonanceStore = create<ResonanceState>()(
       },
 
       connect: async () => {
-        const cortexStatus = useCortexStore.getState().status;
+        const cortexStatus = useTelencephalonStore.getState().status;
         if (cortexStatus !== 'running') {
           set({
             error: 'Cortex must be running to connect to Resonance',

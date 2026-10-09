@@ -1,7 +1,7 @@
 import { useChat } from '@ai-sdk/react';
 import { useMemo } from 'react';
 import type { ChatTransport, UIMessage } from 'ai';
-import { createCortexChatTransport } from './aiSdkCortexTransport';
+import { createTelencephalonChatTransport } from './aiSdkTelencephalonTransport';
 
 type ChatInit<UI_MESSAGE extends UIMessage> = Parameters<
   typeof useChat<UI_MESSAGE>
@@ -13,7 +13,7 @@ type ChatInit<UI_MESSAGE extends UIMessage> = Parameters<
       : never
   : never;
 
-export interface UseCortexChatOptions<
+export interface UseTelencephalonChatOptions<
   UI_MESSAGE extends UIMessage = UIMessage,
 > {
   conversationId: string;
@@ -26,8 +26,8 @@ export interface UseCortexChatOptions<
   id?: string;
 }
 
-export function useCortexChat<UI_MESSAGE extends UIMessage = UIMessage>(
-  options: UseCortexChatOptions<UI_MESSAGE>,
+export function useTelencephalonChat<UI_MESSAGE extends UIMessage = UIMessage>(
+  options: UseTelencephalonChatOptions<UI_MESSAGE>,
 ) {
   const {
     conversationId,
@@ -42,7 +42,7 @@ export function useCortexChat<UI_MESSAGE extends UIMessage = UIMessage>(
 
   const transport = useMemo(
     () =>
-      createCortexChatTransport({
+      createTelencephalonChatTransport({
         conversationId,
         agent,
       }) as unknown as ChatTransport<UI_MESSAGE>,

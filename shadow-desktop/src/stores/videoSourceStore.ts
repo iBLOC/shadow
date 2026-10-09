@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { cortexClient, type CortexVideoSourcesSnapshot, type VideoSource } from '../lib/cortexClient';
+import { telencephalonClient, type TelencephalonVideoSourcesSnapshot, type VideoSource } from '../lib/telencephalonClient';
 
-export type { VideoSource } from '../lib/cortexClient';
+export type { VideoSource } from '../lib/telencephalonClient';
 
 export interface RawDevice {
   deviceId: string;
@@ -27,13 +27,13 @@ interface VideoSourceState {
 
 function pushToCortex(catalog: Map<string, VideoSource>, activeId: string | null) {
   const sources = Array.from(catalog.values());
-  const snapshot: CortexVideoSourcesSnapshot = {
+  const snapshot: TelencephalonVideoSourcesSnapshot = {
     sources,
     activeId,
     device: { platform: 'web', hostname: location?.hostname ?? 'browser', cortexVersion: 'unknown' },
   };
   // fire-and-forget push; UI stays optimistic
-  cortexClient
+  telencephalonClient
     .putVideoSources(snapshot, '*')
     .then(() => {})
     .catch(() => {});
@@ -50,7 +50,7 @@ export const useVideoSourceStore = create<VideoSourceState>()(
       refreshFromCortex: async () => {
         set({ sync: 'pushing' });
         try {
-          const snapshot = await cortexClient.listVideoSources();
+          const snapshot = await telencephalonClient.listVideoSources();
           const newCatalog = new Map<string, VideoSource>();
           for (const s of snapshot.sources) {
             newCatalog.set(s.deviceId, { ...s });

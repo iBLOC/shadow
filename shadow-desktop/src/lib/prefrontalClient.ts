@@ -61,7 +61,7 @@ type HttpRequestOptions = {
 };
 
 import { prefrontalUrl } from './platform';
-import { useCortexStore } from '../stores/cortexStore';
+import { useTelencephalonStore } from '../stores/telencephalonStore';
 import { useErrorDialogStore } from '../stores/errorDialogStore';
 
 export class PrefrontalClient {
@@ -72,12 +72,12 @@ export class PrefrontalClient {
       'Content-Type': 'application/json',
     };
     if (baseUrl) {
-      useCortexStore.getState().setBaseUrl(baseUrl);
+      useTelencephalonStore.getState().setBaseUrl(baseUrl);
     }
   }
 
   private getBaseUrl(): string {
-    const cortexBase = useCortexStore.getState().connection.baseUrl;
+    const cortexBase = useTelencephalonStore.getState().connection.baseUrl;
     if (cortexBase) return cortexBase;
     return prefrontalUrl();
   }
