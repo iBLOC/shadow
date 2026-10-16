@@ -1,0 +1,183 @@
+{
+  "suite": "prefrontal-llm-smoke",
+  "agents": [
+    "deepseek-chat",
+    "brain-prefrontal-llm"
+  ],
+  "repeat": 1,
+  "results": [
+    {
+      "agent": "deepseek-chat",
+      "task_id": "llm-arithmetic",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "exact match",
+          "duration_secs": 0.9181117,
+          "answer": "56"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "deepseek-chat",
+      "task_id": "llm-arithmetic-2",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "exact match",
+          "duration_secs": 0.6703867,
+          "answer": "12"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "deepseek-chat",
+      "task_id": "llm-capital",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "exact match",
+          "duration_secs": 0.6364638,
+          "answer": "Paris"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "deepseek-chat",
+      "task_id": "llm-format-pong",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 0.7051755,
+          "answer": "pong"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "deepseek-chat",
+      "task_id": "llm-count",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "exact match",
+          "duration_secs": 0.9070872,
+          "answer": "6"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "brain-prefrontal-llm",
+      "task_id": "llm-arithmetic",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "exact match",
+          "duration_secs": 0.799318,
+          "answer": "56"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "brain-prefrontal-llm",
+      "task_id": "llm-arithmetic-2",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "exact match",
+          "duration_secs": 0.5743743,
+          "answer": "12"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "brain-prefrontal-llm",
+      "task_id": "llm-capital",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "exact match",
+          "duration_secs": 0.8596092,
+          "answer": "Paris"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "brain-prefrontal-llm",
+      "task_id": "llm-format-pong",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 0.8264097,
+          "answer": "pong"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "brain-prefrontal-llm",
+      "task_id": "llm-count",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "exact match",
+          "duration_secs": 0.7016497,
+          "answer": "6"
+        }
+      ],
+      "pass_k": true
+    }
+  ],
+  "summaries": [
+    {
+      "agent": "brain-prefrontal-llm",
+      "tasks_total": 5,
+      "tasks_passed": 5,
+      "tasks_failed": 0,
+      "tasks_skipped": 0,
+      "pass_rate": 1.0,
+      "pass_k_rate": 1.0,
+      "median_duration_secs": 0.799318
+    },
+    {
+      "agent": "deepseek-chat",
+      "tasks_total": 5,
+      "tasks_passed": 5,
+      "tasks_failed": 0,
+      "tasks_skipped": 0,
+      "pass_rate": 1.0,
+      "pass_k_rate": 1.0,
+      "median_duration_secs": 0.7051755
+    }
+  ],
+  "generated_at": "unix-1792174467"
+}

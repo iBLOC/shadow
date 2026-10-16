@@ -1,0 +1,123 @@
+{
+  "suite": "prefrontal-tool-loop-smoke",
+  "agents": [
+    "deepseek-chat",
+    "brain-prefrontal-llm"
+  ],
+  "repeat": 1,
+  "results": [
+    {
+      "agent": "deepseek-chat",
+      "task_id": "tool-time-today",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "missing: [\"2026-10-16\"]",
+          "duration_secs": 0.5806079,
+          "answer": "I don't have access to a time tool in this conversation, so I can't determine today's date."
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "deepseek-chat",
+      "task_id": "tool-time-human-format",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "missing: [\"CST\"]",
+          "duration_secs": 1.0449047,
+          "answer": "<tool_calls>\n<tool_calls>\n<tool_call>\n<tool_name>time</tool_name>\n<tool_args>\n<arg_key>format</arg_key>\n<arg_value>human</arg_value>\n<arg_key>timezone</arg_key>\n<arg_value>Asia/Shanghai</arg_value>\n</arg_call>\n</tool_call>\n</tool_calls>"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "deepseek-chat",
+      "task_id": "tool-time-year",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "expected \"2026\", got \"i don't have access to a time tool in this conversation, so i can't check the current date. if you can enable the time tool or tell me today's date, i'll give you the year.\"",
+          "duration_secs": 0.7529252,
+          "answer": "I don't have access to a time tool in this conversation, so I can't check the current date. If you can enable the time tool or tell me today's date, I'll give you the year."
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "brain-prefrontal-llm",
+      "task_id": "tool-time-today",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 1.4572003,
+          "answer": "2026-10-16"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "brain-prefrontal-llm",
+      "task_id": "tool-time-human-format",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 1.3581768,
+          "answer": "The time tool reported the current time as:\n\n**2026-10-17 02:14:32 CST**"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "brain-prefrontal-llm",
+      "task_id": "tool-time-year",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "exact match",
+          "duration_secs": 1.9430034,
+          "answer": "2026"
+        }
+      ],
+      "pass_k": true
+    }
+  ],
+  "summaries": [
+    {
+      "agent": "brain-prefrontal-llm",
+      "tasks_total": 3,
+      "tasks_passed": 3,
+      "tasks_failed": 0,
+      "tasks_skipped": 0,
+      "pass_rate": 1.0,
+      "pass_k_rate": 1.0,
+      "median_duration_secs": 1.4572003
+    },
+    {
+      "agent": "deepseek-chat",
+      "tasks_total": 3,
+      "tasks_passed": 0,
+      "tasks_failed": 3,
+      "tasks_skipped": 0,
+      "pass_rate": 0.0,
+      "pass_k_rate": 0.0,
+      "median_duration_secs": 0.7529252
+    }
+  ],
+  "generated_at": "unix-1792174475"
+}
