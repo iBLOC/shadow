@@ -44,6 +44,7 @@ task + answer
 | 模型写路径对了但内容是 junk | [4] | 文件存在但不含 gold marker → fail |
 | 模型在 LLM-direct 模式下胡乱猜 "I think the answer is 3" | [1] | contains scorer 已经 fail |
 | 模型 GAIA level 2/3 长推理输出，最后给 "egalitarian" | 无 | GAIA 任务不在守门范围，提取由 `extract_final_answer` 三级策略处理 |
+| 模型以 JSON 格式"调用"工具 (Anthropic/Mistral/OpenAI) | [2] | PHRASES 增 15 个 JSON 模式 (`{"name":"file_*"}`, `function_call":`, `{"function": "..."}` 等) |
 
 ## Round 5 回归 (4 套 ×2 agent)
 

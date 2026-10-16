@@ -73,14 +73,38 @@ pub fn detect_hallucinated_action(answer: &str) -> Option<&'static str> {
         "tools i have access to are",
         "我的 file_write",
         "已写入",
+        // JSON tool-call formats (Anthropic-style `<tool_call>`,
+        // Mistral/Mixtral `<tool_call>`, OpenAI function_call) —
+        // models that "fake" a tool invocation by emitting
+        // structured JSON in plain text instead of going through
+        // the wire tool loop. Common in prompt-only LLM backends
+        // when the model "thinks" it has a tool surface but
+        // actually doesn't.
+        "{\"name\": \"file_",
+        "{\"name\":\"file_",
+        "{\"tool\": \"file_",
+        "{\"tool\":\"file_",
+        "{\"function\": \"file_",
+        "{\"function\":\"file_",
+        "function_call\":",
+        "tool_call\":",
+        "\"name\": \"shell",
+        "{\"name\":\"shell",
+        "\"arguments\": {\"path\":",
+        "\"arguments\":{\"path\":",
+        "\"file_write\"",
+        "\"file_read\"",
+        "\"shell_cmd\"",
     ];
     for phrase in PHRASES {
         if lower.contains(phrase) {
-            // The narration is real only if the answer is more than a
-            // one-liner — a short answer can't actually narrate an
-            // action.
-            let candidate = extract_final_answer(answer);
-            if candidate.len() + (answer.len() - candidate.len()) > 60 {
+            // The narration is real only if the answer is more than
+            // a one-liner — a short answer can't actually narrate
+            // an action. The threshold is intentionally low (30
+            // chars) so JSON tool-call formats (compact by design)
+            // still trigger; we don't need verbosity as a
+            // discriminator, the phrase match already is.
+            if answer.len() > 30 {
                 return Some(phrase);
             }
         }
@@ -732,6 +756,51 @@ mod hallucination_tests {
                          Step 3: cross-reference the August 2016 submission. \
                          The label is egalitarian.";
         assert!(detect_hallucinated_action(reasoning).is_none());
+    }
+
+    #[test]
+    fn flags_json_tool_call_anthropic() {
+        // Anthropic-style `<tool_call>` block with JSON body
+        // naming file_write / file_read / shell. Common when
+        // models trained on Claude data try to "call tools" in
+        // plain text.
+        let ans = "I'll read the file for you. <tool_call>{\"name\": \"file_read\", \
+                   \"arguments\": {\"path\": \"pf-delta/secret.txt\"}}</tool_call>";
+        assert!(detect_hallucinated_action(ans).is_some());
+    }
+
+    #[test]
+    fn flags_json_tool_call_openai() {
+        // OpenAI function_call JSON (also emitted by some models
+        // even without a real tool surface).
+        let ans = "Sure, here you go: {\"function_call\": {\"name\": \"file_write\", \
+                   \"arguments\": {\"path\": \"x.txt\", \"content\": \"hi\"}}}";
+        assert!(detect_hallucinated_action(ans).is_some());
+    }
+
+    #[test]
+    fn flags_json_tool_call_compact() {
+        // Same JSON without spaces (some tokenizers strip them).
+        let ans = "{\"name\":\"file_write\",\"arguments\":{\"path\":\"x\"}}";
+        assert!(detect_hallucinated_action(ans).is_some());
+    }
+
+    #[test]
+    fn flags_function_call_field() {
+        // Generic {"function": "file_..."} style.
+        let ans = "I'll use the function: {\"function\": \"file_read\", \"args\": {}}";
+        assert!(detect_hallucinated_action(ans).is_some());
+    }
+
+    #[test]
+    fn does_not_flag_unrelated_json() {
+        // JSON that doesn't name a tool action passes through.
+        assert!(detect_hallucinated_action(
+            "{\"value\": 42, \"name\": \"answer\"}"
+        ).is_none());
+        assert!(detect_hallucinated_action(
+            "The answer is {\"x\": 1} as you can see in the data."
+        ).is_none());
     }
 
     #[test]
