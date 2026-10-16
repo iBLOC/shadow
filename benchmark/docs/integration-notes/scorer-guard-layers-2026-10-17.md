@@ -19,8 +19,11 @@ task + answer
     扫 instruction 提候选路径, 验证 workdir 至少一个存在
     fail 理由: "(disk check: expected path(s) absent on disk after run: [\"X\"])"
   ↓
-[4] (deferred) 工作树检查 — 检查 pf-delta/secret.txt 内容是否真含 expected
-    — 不在 bench harness, 走 git2 或 worktree 层面, deferred
+[4] disk content check (runner::verify_action_on_disk 第二步)
+    仅在 (3) 路径都存在 && 文本 score 通过时触发。读候选文件
+    内容, 确认至少一个含 gold marker (extract_gold 提取
+    exact/contains/gaia 三种 scorer 的 expected)。
+    fail 理由: "(disk check: no candidate file contains any gold marker [...])"
 ```
 
 ## 设计原则
@@ -38,6 +41,7 @@ task + answer
 | --- | --- | --- |
 | 模型声称"I wrote DELTA-042" 但没创盘 | [2] | "I wrote" 短语 → fail |
 | 模型直接吐 "DELTA-042"（fixture 答案泄露）| [3] | workdir 没 secret.txt → fail |
+| 模型写路径对了但内容是 junk | [4] | 文件存在但不含 gold marker → fail |
 | 模型在 LLM-direct 模式下胡乱猜 "I think the answer is 3" | [1] | contains scorer 已经 fail |
 | 模型 GAIA level 2/3 长推理输出，最后给 "egalitarian" | 无 | GAIA 任务不在守门范围，提取由 `extract_final_answer` 三级策略处理 |
 
@@ -54,20 +58,35 @@ fileloop 上 deepseek 1/3 → 0/3 是**预期下降**：harness 之前因 fixtur
 答案（"DELTA-042"）字面通过 contains scorer，现在 disk check 拦下。
 其他 3 套无回归。
 
+## Round 6 回归 (L4 content check)
+
+| Suite | Round 5 | Round 6 (L4 开) | Delta |
+| --- | --- | --- | --- |
+| prefrontal-llm-smoke (5) | 5/5 vs 5/5 | 5/5 vs 5/5 | 0 |
+| prefrontal-tool-loop-smoke (3) | 3/3 vs 0/3 | 3/3 vs 0/3 | 0 |
+| prefrontal-fileloop-smoke (3) | 0/3 vs 0/3 | 0/3 vs 0/3 | 0 (L4 守门待触发) |
+| gaia-text-smoke (10) | 2/10 vs 1/10 | 2/10 vs 1/10 | 0 |
+
+L4 设计目的是"写路径对了但内容是 junk"——当前 suite 还没模型
+做出这种攻击, 守门 0 触发是预期 (Round 7 显式构造 junk-body 任务
+验证守门动作)。5 测 unit 已覆盖 (file_with_wrong_content_fails,
+file_with_empty_content_fails, unit_tests_scorer_skips_content_check)。
+
 ## 测覆盖
 
 - scorer::gaia_match_tests — 7 测
 - scorer::hallucination_tests — 4 测
-- runner::disk_check_tests — 5 测
+- scorer::extract_gold_tests — 1 测
+- runner::disk_check_tests — 5 测 (含 wrong_content / empty / unit_tests)
 - scorer::tests (exact-match / contains) — 16 测
-- 总 36 测，0 fail
+- 总 41 测，0 fail
 
 ## 留作 deferred (未做)
 
-- **L4 工作树验证**：检查 `pf-delta/secret.txt` 内容真的含 expected 字符串
-  —— 需 runner 装 git2 或 worktree 抽象；当前守门只检查"文件存在"，
-  未检查"内容正确"。攻击向量：模型写任意内容也通过 disk check。
+- **L4 显式 junk-body 任务**：当前 bench suite 还没构造"路径对 + 内容错"
+  的恶意任务, L4 守门 0 触发属预期; Round 7 加一个 dummy 任务
+  验证守门动作
 - **Expanded hallucination patterns**：目前的 24 个短语是英文 + 简单中文，
-  多语种 / 隐喻说法 / JSON 工具调用未覆盖。
+  多语种 / 隐喻说法 / JSON 工具调用未覆盖
 - **bench 端 log trace**：RunOutcome.answer 字段是 32 KiB 截断，
-  不含 reasoning token（<think>...</think>），完整审计需扩字段。
+  不含 reasoning token（<think>...</think>），完整审计需扩字段

@@ -447,6 +447,26 @@ pub fn is_tool_action_task(task_id: &str) -> bool {
         || id.contains("shell_")
 }
 
+/// Pull the gold answer markers out of a `ScorerSpec`. Used by the
+/// disk-side content check (`verify_action_on_disk`) to confirm
+/// that any file the agent created actually contains the expected
+/// value (not just exists at the right path). For variants that
+/// don't carry a textual gold (e.g. `UnitTests` and `LlmJudge`),
+/// the returned vector is empty and the caller should skip the
+/// content check.
+pub fn extract_gold(spec: &ScorerSpec) -> Vec<String> {
+    match spec {
+        ScorerSpec::ExactMatch { expected, .. } => vec![expected.clone()],
+        ScorerSpec::Contains { all_of, any_of } => {
+            let mut g = all_of.clone();
+            g.extend(any_of.iter().cloned());
+            g
+        }
+        ScorerSpec::GaiaMatch { expected } => vec![expected.clone()],
+        ScorerSpec::UnitTests { .. } | ScorerSpec::LlmJudge { .. } => Vec::new(),
+    }
+}
+
 /// Trivial helper keeping the match arms tidy (identity).
 trait TapTask {
     fn tap_task(self, task: &Task) -> Score;
@@ -725,5 +745,37 @@ mod hallucination_tests {
         assert!(!is_tool_action_task("llm-arithmetic"));
         assert!(!is_tool_action_task("tool-time-today"));
         assert!(!is_tool_action_task("gaia-egalitarian"));
+    }
+
+    #[test]
+    fn extract_gold_pulls_textual_markers() {
+        use super::{extract_gold, ScorerSpec};
+        let exact = ScorerSpec::ExactMatch {
+            expected: "DELTA-042".into(),
+            case_sensitive: false,
+        };
+        assert_eq!(extract_gold(&exact), vec!["DELTA-042"]);
+
+        let contains = ScorerSpec::Contains {
+            all_of: vec!["x".into()],
+            any_of: vec!["y".into(), "z".into()],
+        };
+        assert_eq!(extract_gold(&contains), vec!["x", "y", "z"]);
+
+        let gaia = ScorerSpec::GaiaMatch {
+            expected: "egalitarian".into(),
+        };
+        assert_eq!(extract_gold(&gaia), vec!["egalitarian"]);
+
+        // Variants without a textual gold (the runner skips the
+        // content check for these).
+        let unit = ScorerSpec::UnitTests {
+            command: vec!["true".into()],
+        };
+        assert!(extract_gold(&unit).is_empty());
+        let judge = ScorerSpec::LlmJudge {
+            rubric: "...".into(),
+        };
+        assert!(extract_gold(&judge).is_empty());
     }
 }

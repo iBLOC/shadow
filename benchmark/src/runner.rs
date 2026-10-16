@@ -5,7 +5,7 @@
 
 use crate::agent::{apply_fenced_patches, AgentAdapter, AgentError};
 use crate::config::AgentsConfig;
-use crate::scorer::{is_tool_action_task, score, Score};
+use crate::scorer::{extract_gold, is_tool_action_task, score, Score};
 use crate::suite::Suite;
 use crate::task::Task;
 use serde::Serialize;
@@ -481,14 +481,37 @@ pub fn verify_action_on_disk(task: &Task, workdir: &Path) -> Result<(), String> 
             missing.push(p);
         }
     }
-    if missing.is_empty() {
-        Ok(())
-    } else {
-        Err(format!(
+    if !missing.is_empty() {
+        return Err(format!(
             "expected path(s) absent on disk after run: {:?}",
             missing
-        ))
+        ));
     }
+    // L4 content check: at least one existing file must contain a
+    // gold marker from the scorer. This catches the "agent wrote
+    // the path but the body is junk" attack vector. Skipped when
+    // the scorer variant carries no textual gold (UnitTests /
+    // LlmJudge) — those have their own validation paths.
+    let gold = extract_gold(&task.scorer);
+    if gold.is_empty() {
+        return Ok(());
+    }
+    for p in &candidates {
+        let full = workdir.join(p);
+        let body = match std::fs::read_to_string(&full) {
+            Ok(s) => s,
+            Err(_) => continue, // not a text file (binary? skip)
+        };
+        for marker in &gold {
+            if body.contains(marker) {
+                return Ok(());
+            }
+        }
+    }
+    Err(format!(
+        "no candidate file contains any gold marker {:?}",
+        gold
+    ))
 }
 
 #[cfg(test)]
@@ -562,6 +585,84 @@ mod disk_check_tests {
         assert!(is_tool_action_task("file-write-secret"));
         assert!(is_tool_action_task("file-roundtrip-verified"));
         assert!(!is_tool_action_task("llm-arithmetic"));
+    }
+
+    fn file_write_task(expected: &str) -> Task {
+        task_with_scorer(
+            "file-write-secret",
+            "write the secret to pf-delta/secret.txt",
+            ScorerSpec::Contains {
+                all_of: vec![expected.into()],
+                any_of: vec![],
+            },
+        )
+    }
+
+    fn task_with_scorer(id: &str, instruction: &str, scorer: ScorerSpec) -> Task {
+        Task {
+            id: id.into(),
+            instruction: instruction.into(),
+            files: vec![],
+            answer_contract: String::new(),
+            hidden_files: vec![],
+            scorer,
+            timeout_secs: None,
+        }
+    }
+
+    #[test]
+    fn file_with_correct_content_passes() {
+        let dir = tempdir();
+        let nested = dir.join("pf-delta");
+        std::fs::create_dir_all(&nested).unwrap();
+        std::fs::write(nested.join("secret.txt"), "DELTA-042").unwrap();
+        let t = file_write_task("DELTA-042");
+        assert!(verify_action_on_disk(&t, &dir).is_ok());
+    }
+
+    #[test]
+    fn file_with_wrong_content_fails() {
+        // L4 content check: agent created the right path but the
+        // body is junk. This is the attack vector the L4 layer
+        // exists to catch.
+        let dir = tempdir();
+        let nested = dir.join("pf-delta");
+        std::fs::create_dir_all(&nested).unwrap();
+        std::fs::write(nested.join("secret.txt"), "lorem ipsum dolor").unwrap();
+        let t = file_write_task("DELTA-042");
+        let err = verify_action_on_disk(&t, &dir).unwrap_err();
+        assert!(err.contains("no candidate file contains"), "got: {err}");
+        assert!(err.contains("DELTA-042"), "got: {err}");
+    }
+
+    #[test]
+    fn file_with_empty_content_fails() {
+        let dir = tempdir();
+        let nested = dir.join("pf-delta");
+        std::fs::create_dir_all(&nested).unwrap();
+        std::fs::write(nested.join("secret.txt"), "").unwrap();
+        let t = file_write_task("DELTA-042");
+        let err = verify_action_on_disk(&t, &dir).unwrap_err();
+        assert!(err.contains("no candidate file contains"));
+    }
+
+    #[test]
+    fn unit_tests_scorer_skips_content_check() {
+        // UnitTests has no textual gold — disk content check is
+        // skipped even if the file is empty (the unit test command
+        // is the validation).
+        let dir = tempdir();
+        let nested = dir.join("pf-delta");
+        std::fs::create_dir_all(&nested).unwrap();
+        std::fs::write(nested.join("secret.txt"), "").unwrap();
+        let t = task_with_scorer(
+            "file-write-secret",
+            "write the secret to pf-delta/secret.txt",
+            ScorerSpec::UnitTests {
+                command: vec!["true".into()],
+            },
+        );
+        assert!(verify_action_on_disk(&t, &dir).is_ok());
     }
 
     fn tempdir() -> PathBuf {

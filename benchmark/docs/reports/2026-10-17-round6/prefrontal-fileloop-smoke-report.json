@@ -1,0 +1,123 @@
+{
+  "suite": "prefrontal-fileloop-smoke",
+  "agents": [
+    "deepseek-chat",
+    "brain-prefrontal-llm"
+  ],
+  "repeat": 1,
+  "results": [
+    {
+      "agent": "deepseek-chat",
+      "task_id": "file-write-secret",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "contains all markers (disk check: expected path(s) absent on disk after run: [\"pf-delta/secret.txt\"])",
+          "duration_secs": 0.8524876,
+          "answer": "DELTA-042"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "deepseek-chat",
+      "task_id": "file-read-secret",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "expected \"delta-042\", got \"i'll read the file for you. <tool_call> {\\\"name\\\": \\\"file_read\\\", \\\"arguments\\\": {\\\"path\\\": \\\"pf-delta/secret.txt\\\"}} </tool_call>\"",
+          "duration_secs": 0.8810118,
+          "answer": "I'll read the file for you.\n\n<tool_call>\n{\"name\": \"file_read\", \"arguments\": {\"path\": \"pf-delta/secret.txt\"}}\n</tool_call>"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "deepseek-chat",
+      "task_id": "file-roundtrip-verified",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "missing: [\"DELTA-042\"]",
+          "duration_secs": 0.8335959,
+          "answer": "I don't have access to file_read or file_write tools in this conversation, so I can't perform those operations. If you provide the file contents or enable those tools, I can help."
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "brain-prefrontal-llm",
+      "task_id": "file-write-secret",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "missing: [\"DELTA-042\"]",
+          "duration_secs": 1.5836023,
+          "answer": "I can't do that — there's no `file_write` tool available to me. My available tools are: `http`, `mobile_action`, `json`, `acp_delegate`, `echo`, and `time`.\n\nSo I have no way to create `pf-delta/secret.txt`, and I won't claim to have written a file I didn't create. If you'd like, I can:\n\n- **Echo the content** back to you for confirmation (using `echo`), or\n- **Dispatch a coding agent** via `acp_delegate` that may have file-writing capability, if you confirm that's what you want.\n\nWhich would you prefer?"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "brain-prefrontal-llm",
+      "task_id": "file-read-secret",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "hallucinated action: answer narrates 'tools i have access to are' but no tool call was made",
+          "duration_secs": 1.2562286,
+          "answer": "I don't have a `file_read` tool available. The tools I have access to are: `http`, `mobile_action`, `json`, `acp_delegate`, `echo`, and `time`.\n\nIf you'd like, I can try reading the file another way (e.g., via an HTTP request if it's served over a URL), or dispatch the task to a coding agent that has filesystem access. Just let me know the file's location/URL or confirm you want me to delegate it."
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "brain-prefrontal-llm",
+      "task_id": "file-roundtrip-verified",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "hallucinated action: answer narrates 'tools i have access to are' but no tool call was made",
+          "duration_secs": 1.8278655000000001,
+          "answer": "I don't have `file_read` or `file_write` tools available. The tools I have access to are:\n\n- **http** — make HTTP requests\n- **mobile_action** — interact with a mobile device\n- **json** — format/validate/parse JSON\n- **acp_delegate** — dispatch tasks to a coding agent\n- **echo** — echo text back\n- **time** — get current time\n\nSo I can't directly read or write files on a filesystem. However, I can accomplish this if the files are reachable some other way. A couple of options:\n\n1. **If the file is served over HTTP**, give me the URL and I can `http get` it, then `http post/put` the content to wherever you want.\n2. **If you want a coding agent to do it**, I can dispatch the task to one of the configured ACP agents (`opencode`, `claude-code`, `codex`), which run with their own file and shell tools. For example, I could ask one to read `pf-delta/secret.txt`, write `pf-delta/copy.txt` with the same content, and report back the content.\n\nWhich would you like? If it's option 2, I'll dispatch it now — just confirm the working directory if it's not the current one."
+        }
+      ],
+      "pass_k": false
+    }
+  ],
+  "summaries": [
+    {
+      "agent": "brain-prefrontal-llm",
+      "tasks_total": 3,
+      "tasks_passed": 0,
+      "tasks_failed": 3,
+      "tasks_skipped": 0,
+      "pass_rate": 0.0,
+      "pass_k_rate": 0.0,
+      "median_duration_secs": 1.5836023
+    },
+    {
+      "agent": "deepseek-chat",
+      "tasks_total": 3,
+      "tasks_passed": 0,
+      "tasks_failed": 3,
+      "tasks_skipped": 0,
+      "pass_rate": 0.0,
+      "pass_k_rate": 0.0,
+      "median_duration_secs": 0.8524876
+    }
+  ],
+  "generated_at": "unix-1792175087"
+}
