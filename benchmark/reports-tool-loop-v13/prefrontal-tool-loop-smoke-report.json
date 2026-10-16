@@ -1,0 +1,117 @@
+{
+  "suite": "prefrontal-tool-loop-smoke",
+  "agents": [
+    "deepseek-chat",
+    "brain-prefrontal-llm"
+  ],
+  "repeat": 1,
+  "results": [
+    {
+      "agent": "deepseek-chat",
+      "task_id": "tool-time-today",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "missing: [\"2026-10-16\"]",
+          "duration_secs": 0.9123775
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "deepseek-chat",
+      "task_id": "tool-time-human-format",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "missing: [\"CST\"]",
+          "duration_secs": 1.0557863
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "deepseek-chat",
+      "task_id": "tool-time-year",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "expected \"2026\", got \"2025\"",
+          "duration_secs": 0.5842314
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "brain-prefrontal-llm",
+      "task_id": "tool-time-today",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 1.4353738
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "brain-prefrontal-llm",
+      "task_id": "tool-time-human-format",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 1.3288467
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "brain-prefrontal-llm",
+      "task_id": "tool-time-year",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "exact match",
+          "duration_secs": 1.4688836
+        }
+      ],
+      "pass_k": true
+    }
+  ],
+  "summaries": [
+    {
+      "agent": "brain-prefrontal-llm",
+      "tasks_total": 3,
+      "tasks_passed": 3,
+      "tasks_failed": 0,
+      "tasks_skipped": 0,
+      "pass_rate": 1.0,
+      "pass_k_rate": 1.0,
+      "median_duration_secs": 1.4353738
+    },
+    {
+      "agent": "deepseek-chat",
+      "tasks_total": 3,
+      "tasks_passed": 0,
+      "tasks_failed": 3,
+      "tasks_skipped": 0,
+      "pass_rate": 0.0,
+      "pass_k_rate": 0.0,
+      "median_duration_secs": 0.9123775
+    }
+  ],
+  "generated_at": "unix-1792143743"
+}
