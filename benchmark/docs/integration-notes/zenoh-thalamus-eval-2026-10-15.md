@@ -157,3 +157,22 @@ let thalamus = diencephalon::init_zenoh_thalamus(vec![
 diencephalon 新增 zenoh 会传导到依赖它的 crate（telencephalon / prefrontal /
 移动端 Cargo 图）。已验证：telencephalon 编译通过；首次全量编译约 +7 分钟。
 若后续需要「无 zenoh 构建」，建议加 feature 门（zenoh 相关模块均独立，门控可行）。
+
+### 部署验证 2026-10-16 (v2)
+
+`mcp_http_server` + `zenoh_publish` 独立进程，5 个温度值 ×5 轮共 25 次发布：
+
+| 模式 | 投递率 | 备注 |
+| --- | --- | --- |
+| 多播发现（默认 config） | 12/25 = 48% | 跨进程 multicast 不稳定（同进程 tests 100%） |
+| 显式 endpoint `tcp/127.0.0.1:7448` | **25/25 = 100%** | 推荐生产模式 |
+
+**端到端 5 测一验证路径**：
+- `publisher.put(ambient_temp, 18.0)` ×25 → **ring buffer 25 entries**（avg 20.8 = (18+19.5+21+22+23.5)*5/25 ✓）
+- MCP `zenoh_query` 返回 `(name=ambient_temp, kind=generic, samples=25)` JSON
+- MCP `sensor_stats` 返回 `{length: 25, capacity: 1024, ...}`
+- MCP `query` (DataFusion SQL) 返回 `MIN=18, AVG=20.8, MAX=23.5, N=25`
+- `sensor_tail` 返回最后 N 个 `(ts_ms, value)` 对
+
+生产推荐：`ZENOH_ENDPOINT` env 显式给两侧（丘脑 listen / 设备 connect），
+避免依赖多播。设备组网时 `zenohd` 中转（单机 peer 不需要）。
