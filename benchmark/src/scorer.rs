@@ -69,11 +69,48 @@ pub async fn score(
                 normalize(answer, *case_sensitive),
                 normalize(expected, *case_sensitive),
             );
-            let passed = a == e;
+            let mut passed = a == e;
+            let mut why = "exact match".to_string();
+            if !passed {
+                // Fallbacks for answers that carry the harness's own
+                // FINAL ANSWER contract or number formatting. Strictly
+                // F→P: only tried after the raw comparison failed.
+                // 1. Marker strip on a single line (caller preserved
+                //    case so case_sensitive suites still work).
+                if let Some(pos) = answer.to_lowercase().rfind("final answer:") {
+                    let rest = &answer[pos + "final answer:".len()..];
+                    let cand = normalize(rest.lines().next().unwrap_or("").trim(), *case_sensitive);
+                    if cand == e {
+                        passed = true;
+                        why = "exact match (FINAL ANSWER marker stripped)".into();
+                    }
+                }
+                // 2. Numeric equality ("1280.00" == "1280") — same
+                //    leniency official extract-and-compare harnesses
+                //    use. Tried on both raw answer and the marker
+                //    candidate so "final answer: 1280.00" composes.
+                if !passed {
+                    let mut cands: [&str; 2] = [a.as_str(), ""];
+                    if let Some(pos) = answer.to_lowercase().rfind("final answer:") {
+                        cands[1] = answer[pos + "final answer:".len()..]
+                            .lines()
+                            .next()
+                            .unwrap_or("")
+                            .trim();
+                    }
+                    if cands.iter().any(|c| match (c.parse::<f64>(), e.parse::<f64>()) {
+                        (Ok(x), Ok(y)) => (x - y).abs() <= 1e-9 + 1e-6 * y.abs(),
+                        _ => false,
+                    }) {
+                        passed = true;
+                        why = "exact match (numeric equality)".into();
+                    }
+                }
+            }
             Score {
                 passed,
                 detail: if passed {
-                    "exact match".into()
+                    why
                 } else {
                     format!("expected {e:?}, got {a:?}")
                 },
@@ -164,13 +201,15 @@ pub async fn score(
                 id: format!("judge-{}", task.id),
                 instruction: prompt,
                 files: vec![],
+                answer_contract: String::new(),
+                hidden_files: vec![],
                 scorer: ScorerSpec::Contains {
                     all_of: vec![],
                     any_of: vec![],
                 },
                 timeout_secs: task.timeout_secs,
             };
-            match crate::agent::AgentAdapter::run(judge, &judge_task, workdir).await {
+            match crate::agent::AgentAdapter::run(judge, &judge_task, workdir, "").await {
                 Ok(run) => match parse_judge_json(&run.answer) {
                     Some(parsed) => Score {
                         passed: parsed.pass,
@@ -187,8 +226,118 @@ pub async fn score(
                 },
             }
         }
+        ScorerSpec::GaiaMatch { expected } => {
+            let passed = gaia_matches(&expected, answer);
+            let detail = if passed {
+                "gaia match (number / list / normalized-string)".to_string()
+            } else {
+                let cand = extract_final_answer(answer);
+                format!("expected {expected:?} (normalized), got answer={answer:?} candidate={cand:?}")
+            };
+            Score { passed, detail }
+        }
     }
     .tap_task(task)
+}
+
+/// GAIA-style answer match: official `question_scorer` semantics ported
+/// to the local harness.
+///
+/// 1. **Number** — if both sides parse as `f64`, compare with abs/rel
+///    tolerance (mirrors the `math.isclose` style of the official
+///    scorer; a small slack prevents float-format edge cases from
+///    failing a clearly-correct answer).
+/// 2. **Comma-separated list** — split on `,`, strip, compare as
+///    sets (order-insensitive). The "set, not list" choice matches
+///    the official scorer for multi-value GAIA questions (zip codes
+///    appearing in any order should all pass).
+/// 3. **Normalised string** — strip, collapse whitespace, lowercase,
+///    remove leading articles ("a ", "an ", "the "), remove
+///    punctuation (`. , ! ? : ; ' "`); then exact equality.
+///
+/// The candidate answer is taken from the **last** `FINAL ANSWER:`
+/// marker line when present; else the whole answer. This matches
+/// the harness's `answer_contract` injection (GAIA suite appends
+/// it via `Task.answer_contract`).
+pub fn gaia_matches(expected: &str, answer: &str) -> bool {
+    let cand = extract_final_answer(answer);
+    let cand = cand.trim();
+    let expected = expected.trim();
+    if cand.is_empty() || expected.is_empty() {
+        return cand == expected;
+    }
+    // Number path — both parse strictly.
+    if let (Ok(e), Ok(c)) = (expected.parse::<f64>(), cand.parse::<f64>()) {
+        let tol = 1e-9 + 1e-6 * e.abs();
+        return (c - e).abs() <= tol;
+    }
+    // Comma list path — only when both contain a comma (avoid false
+    // positives on prose answers that happen to include a comma).
+    if expected.contains(',') && cand.contains(',') {
+        let e_norm: std::collections::BTreeSet<String> = expected
+            .split(',')
+            .map(|s| normalize_string_item(s))
+            .collect();
+        let c_norm: std::collections::BTreeSet<String> = cand
+            .split(',')
+            .map(|s| normalize_string_item(s))
+            .collect();
+        if e_norm == c_norm && !e_norm.is_empty() {
+            return true;
+        }
+    }
+    // Normalised string path.
+    normalize_string_item(expected) == normalize_string_item(cand)
+}
+
+/// Pull the answer out of the model's response. Strategy:
+/// 1. First `FINAL ANSWER: <value>` line (the harness's GAIA contract).
+/// 2. **Last short non-empty line** (≤ 80 chars, doesn't end in `.`)
+///    as a fallback — covers the common case where the LLM outputs
+///    reasoning followed by a short answer on the final line.
+/// 3. Whole answer.
+pub fn extract_final_answer(answer: &str) -> String {
+    for line in answer.lines() {
+        let lower = line.to_ascii_lowercase();
+        if let Some(pos) = lower.find("final answer:") {
+            return line[pos + "final answer:".len()..].trim().to_string();
+        }
+    }
+    for line in answer.lines().rev() {
+        let t = line.trim();
+        if t.is_empty() || t.len() > 80 || t.ends_with('.') {
+            continue;
+        }
+        return t.to_string();
+    }
+    answer.to_string()
+}
+
+fn normalize_string_item(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut prev_space = false;
+    for ch in s.chars() {
+        if ch.is_alphanumeric() || ch.is_whitespace() {
+            if ch.is_whitespace() {
+                if !prev_space {
+                    out.push(' ');
+                }
+                prev_space = true;
+            } else {
+                out.extend(ch.to_lowercase());
+                prev_space = false;
+            }
+        }
+        // punctuation / apostrophes / quotes are dropped
+    }
+    let trimmed = out.trim();
+    // strip leading article for natural-language GAIA answers
+    for art in ["a ", "an ", "the "] {
+        if let Some(rest) = trimmed.strip_prefix(art) {
+            return rest.to_string();
+        }
+    }
+    trimmed.to_string()
 }
 
 /// Trivial helper keeping the match arms tidy (identity).
@@ -254,6 +403,8 @@ mod tests {
             id: "t".into(),
             instruction: "q".into(),
             files: vec![],
+            answer_contract: String::new(),
+            hidden_files: vec![],
             scorer: ScorerSpec::ExactMatch {
                 expected: "391".into(),
                 case_sensitive: false,
@@ -263,6 +414,58 @@ mod tests {
         let s = score(&task.scorer, &task, Path::new("."), "  391 \n", None).await;
         assert!(s.passed);
         let s = score(&task.scorer, &task, Path::new("."), "392", None).await;
+        assert!(!s.passed);
+    }
+
+    /// F→P fallback: lowercase "final answer: <value>" answer text
+    /// passes the raw comparison (the harness's FINAL ANSWER contract).
+    /// Caught brain-qwen06's "final answer: 90" output style on
+    /// core-smoke rate-problem (2026-10-14).
+    #[tokio::test]
+    async fn exact_match_strips_lowercase_final_answer_marker() {
+        let task = Task {
+            id: "t".into(),
+            instruction: "q".into(),
+            files: vec![],
+            answer_contract: String::new(),
+            hidden_files: vec![],
+            scorer: ScorerSpec::ExactMatch {
+                expected: "90".into(),
+                case_sensitive: false,
+            },
+            timeout_secs: None,
+        };
+        let s = score(&task.scorer, &task, Path::new("."), "final answer: 90", None).await;
+        assert!(s.passed, "{:?}", s.detail);
+        // Wrong value must still fail (fallback is strictly F→P).
+        let s = score(&task.scorer, &task, Path::new("."), "final answer: 91", None).await;
+        assert!(!s.passed);
+    }
+
+    /// F→P fallback: "1280.00" vs "1280" — small float delta, official
+    /// harnesses treat them as equal. Originally surfaced by
+    /// brain-qwen06's core-smoke extraction task (2026-10-14).
+    #[tokio::test]
+    async fn exact_match_numeric_equality_fallback() {
+        let task = Task {
+            id: "t".into(),
+            instruction: "q".into(),
+            files: vec![],
+            answer_contract: String::new(),
+            hidden_files: vec![],
+            scorer: ScorerSpec::ExactMatch {
+                expected: "1280".into(),
+                case_sensitive: false,
+            },
+            timeout_secs: None,
+        };
+        let s = score(&task.scorer, &task, Path::new("."), "1280.00", None).await;
+        assert!(s.passed, "{:?}", s.detail);
+        // The two fallbacks compose: marker + numeric.
+        let s = score(&task.scorer, &task, Path::new("."), "final answer: 1280.00", None).await;
+        assert!(s.passed, "{:?}", s.detail);
+        // Wrong value stays failed.
+        let s = score(&task.scorer, &task, Path::new("."), "640.00", None).await;
         assert!(!s.passed);
     }
 
@@ -295,5 +498,81 @@ mod strip_tests {
             strip_think("<think>\n\n</think>\n\nOK"),
             "\n\nOK"
         );
+    }
+}
+
+#[cfg(test)]
+mod gaia_match_tests {
+    use super::{extract_final_answer, gaia_matches};
+
+    #[test]
+    fn number_exact() {
+        assert!(gaia_matches("42", "42"));
+        assert!(gaia_matches("42", "FINAL ANSWER: 42"));
+    }
+
+    #[test]
+    fn number_close_enough() {
+        // float formatting with trailing zeros + tiny slack
+        assert!(gaia_matches("1280.00", "1280"));
+        assert!(gaia_matches("0.1", "0.100000001")); // well within tolerance
+        assert!(!gaia_matches("3.14", "3.14159")); // 0.5% diff exceeds
+    }
+
+    #[test]
+    fn list_set_match() {
+        assert!(gaia_matches("10001, 10002, 10003", "10003, 10002, 10001"));
+        assert!(gaia_matches(
+            "10001,10002",
+            "FINAL ANSWER: 10001, 10002"
+        ));
+    }
+
+    #[test]
+    fn list_partial_fails() {
+        // missing element
+        assert!(!gaia_matches("10001, 10002, 10003", "10001, 10002"));
+    }
+
+    #[test]
+    fn string_normalized() {
+        assert!(gaia_matches("egalitarian", "Egalitarian"));
+        assert!(gaia_matches("a red bird", "the red bird"));
+        // accented chars are alphanumeric — `to_lowercase` folds them.
+        // (ASCII lower-cased to ASCII lower-cased: not a match because
+        // `côte` ≠ `cote` after lowercasing; that's the official
+        // scorer's behaviour too — GAIA answers fold but they do
+        // not transliterate.)
+        assert!(!gaia_matches("Côte d'Azur", "cote dazur"));
+        assert!(gaia_matches("Côte d'Azur", "Côte d'Azur"));
+    }
+
+    #[test]
+    fn extracts_first_marker() {
+        // Convention: the agent emits a single FINAL ANSWER: line
+        // (the harness's answer_contract). We take the first one.
+        assert_eq!(
+            extract_final_answer("reasoning...\nFINAL ANSWER: 7\nor maybe bar"),
+            "7"
+        );
+        assert_eq!(extract_final_answer("just a number 7"), "just a number 7");
+    }
+
+    #[test]
+    fn extracts_last_short_line_fallback() {
+        // When the model didn't follow the contract (common on
+        // GAIA level 2/3), the last non-empty short line is the
+        // closest "extract-and-compare" approximation.
+        let prose = "Step 1: recall the paper.\n\
+                     Step 2: identify the axis labels.\n\
+                     egalitarian";
+        assert_eq!(extract_final_answer(prose), "egalitarian");
+        // long final line (reasoning continuation) is not picked
+        let tail = "reasoning that keeps going and going and does not stop here\n\
+                    egalitarian";
+        assert_eq!(extract_final_answer(tail), "egalitarian");
+        // line ending in `.` is treated as prose
+        let dot = "We pick answer A.\nWe pick answer B.\nfinal answer: A";
+        assert_eq!(extract_final_answer(dot), "A");
     }
 }

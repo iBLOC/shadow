@@ -1,0 +1,254 @@
+{
+  "suite": "prefrontal-llm-smoke",
+  "agents": [
+    "deepseek-chat",
+    "brain-parietal-behavior",
+    "brain-prefrontal-llm"
+  ],
+  "repeat": 1,
+  "results": [
+    {
+      "agent": "deepseek-chat",
+      "task_id": "llm-arithmetic",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "exact match",
+          "duration_secs": 0.606162
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "deepseek-chat",
+      "task_id": "llm-arithmetic-2",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "exact match",
+          "duration_secs": 0.911707
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "deepseek-chat",
+      "task_id": "llm-capital",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "exact match",
+          "duration_secs": 0.573306
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "deepseek-chat",
+      "task_id": "llm-format-pong",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 0.7727868
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "deepseek-chat",
+      "task_id": "llm-count",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "exact match",
+          "duration_secs": 0.8577784
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "brain-parietal-behavior",
+      "task_id": "llm-arithmetic",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "expected \"56\", got \"channel=feishu_card | [what is 7*8? answer with just the number]\"",
+          "duration_secs": 0.0286978
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "brain-parietal-behavior",
+      "task_id": "llm-arithmetic-2",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "expected \"12\", got \"channel=feishu_card | [what is 144/12? answer with just the number]\"",
+          "duration_secs": 0.0033501
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "brain-parietal-behavior",
+      "task_id": "llm-capital",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "expected \"paris\", got \"channel=feishu_card | [what is the capital of france? answer with just the city name.]\"",
+          "duration_secs": 0.0027402
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "brain-parietal-behavior",
+      "task_id": "llm-format-pong",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 0.002313
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "brain-parietal-behavior",
+      "task_id": "llm-count",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "expected \"6\", got \"channel=feishu_card | [how many letters are in the word 'banana'? count only the letters, answer with just the number.]\"",
+          "duration_secs": 0.0019756
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "brain-prefrontal-llm",
+      "task_id": "llm-arithmetic",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "exact match",
+          "duration_secs": 0.7441822
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "brain-prefrontal-llm",
+      "task_id": "llm-arithmetic-2",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "exact match",
+          "duration_secs": 0.6773987
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "brain-prefrontal-llm",
+      "task_id": "llm-capital",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "exact match",
+          "duration_secs": 0.6591203
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "brain-prefrontal-llm",
+      "task_id": "llm-format-pong",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 0.7693884
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "brain-prefrontal-llm",
+      "task_id": "llm-count",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "exact match",
+          "duration_secs": 0.8513581
+        }
+      ],
+      "pass_k": true
+    }
+  ],
+  "summaries": [
+    {
+      "agent": "brain-parietal-behavior",
+      "tasks_total": 5,
+      "tasks_passed": 1,
+      "tasks_failed": 4,
+      "tasks_skipped": 0,
+      "pass_rate": 0.2,
+      "pass_k_rate": 0.2,
+      "median_duration_secs": 0.0027402
+    },
+    {
+      "agent": "brain-prefrontal-llm",
+      "tasks_total": 5,
+      "tasks_passed": 5,
+      "tasks_failed": 0,
+      "tasks_skipped": 0,
+      "pass_rate": 1.0,
+      "pass_k_rate": 1.0,
+      "median_duration_secs": 0.7441822
+    },
+    {
+      "agent": "deepseek-chat",
+      "tasks_total": 5,
+      "tasks_passed": 5,
+      "tasks_failed": 0,
+      "tasks_skipped": 0,
+      "pass_rate": 1.0,
+      "pass_k_rate": 1.0,
+      "median_duration_secs": 0.7727868
+    }
+  ],
+  "generated_at": "unix-1792162739"
+}

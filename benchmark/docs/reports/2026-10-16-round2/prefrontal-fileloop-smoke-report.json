@@ -1,0 +1,117 @@
+{
+  "suite": "prefrontal-fileloop-smoke",
+  "agents": [
+    "deepseek-chat",
+    "brain-prefrontal-llm"
+  ],
+  "repeat": 1,
+  "results": [
+    {
+      "agent": "deepseek-chat",
+      "task_id": "file-write-secret",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 0.864211
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "deepseek-chat",
+      "task_id": "file-read-secret",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "expected \"delta-042\", got \"i don't have access to a `file_read` tool in this environment, so i can't read `pf-delta/secret.txt` or provide its contents.\"",
+          "duration_secs": 1.138097
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "deepseek-chat",
+      "task_id": "file-roundtrip-verified",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "missing: [\"DELTA-042\"]",
+          "duration_secs": 1.1534387
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "brain-prefrontal-llm",
+      "task_id": "file-write-secret",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "missing: [\"DELTA-042\"]",
+          "duration_secs": 1.5591028
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "brain-prefrontal-llm",
+      "task_id": "file-read-secret",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "expected \"delta-042\", got \"i don't have a `file_read` tool available. the tools i have access to are: `http`, `mobile_action`, `json`, `acp_delegate`, `echo`, and `time`. if you'd like, i can try to read the file another way — for example, via an http request if it's served over a url, or by delegating to a coding agent that has filesystem access. let me know which you'd prefer.\"",
+          "duration_secs": 1.4097598
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "brain-prefrontal-llm",
+      "task_id": "file-roundtrip-verified",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "missing: [\"DELTA-042\"]",
+          "duration_secs": 1.7866455
+        }
+      ],
+      "pass_k": false
+    }
+  ],
+  "summaries": [
+    {
+      "agent": "brain-prefrontal-llm",
+      "tasks_total": 3,
+      "tasks_passed": 0,
+      "tasks_failed": 3,
+      "tasks_skipped": 0,
+      "pass_rate": 0.0,
+      "pass_k_rate": 0.0,
+      "median_duration_secs": 1.5591028
+    },
+    {
+      "agent": "deepseek-chat",
+      "tasks_total": 3,
+      "tasks_passed": 1,
+      "tasks_failed": 2,
+      "tasks_skipped": 0,
+      "pass_rate": 0.3333333333333333,
+      "pass_k_rate": 0.3333333333333333,
+      "median_duration_secs": 1.138097
+    }
+  ],
+  "generated_at": "unix-1792162856"
+}
