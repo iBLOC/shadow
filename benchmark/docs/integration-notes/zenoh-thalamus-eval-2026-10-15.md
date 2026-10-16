@@ -176,3 +176,8 @@ diencephalon 新增 zenoh 会传导到依赖它的 crate（telencephalon / prefr
 
 生产推荐：`ZENOH_ENDPOINT` env 显式给两侧（丘脑 listen / 设备 connect），
 避免依赖多播。设备组网时 `zenohd` 中转（单机 peer 不需要）。
+
+**跨夜验证 2026-10-17**：5 温度值 ×5 轮 = 25 次发布，5 个进程重启
+(新端口 7802/7449) → **25/25 (100%)**，SQL 算术一致（avg 25.5）。
+prefrontal v13 (39 sessions) + telencephalon v6 (6 lobes) 跨夜运行
+不需重启——zenoh 数据面 + A2A 协议栈两端独立存活。
