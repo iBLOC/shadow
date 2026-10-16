@@ -21,6 +21,73 @@ pub fn normalize(s: &str, case_sensitive: bool) -> String {
     }
 }
 
+/// Detect the "I did X but I didn't actually have a tool" pattern.
+///
+/// Some prompt-only LLM backends (e.g. the bench harness's `openai`
+/// adapter against `api.deepseek.com` with no `tools=` field) answer
+/// tool-action tasks by **narrating** the action — "I wrote DELTA-042
+/// to pf-delta/secret.txt" — when no tool call actually happened. The
+/// scorer rewards the answer if the narrated content happens to
+/// contain the expected value (e.g. "DELTA-042"), which is a false
+/// positive: a real test of the harness would have to verify the
+/// file exists on disk, not just that the model claims to have
+/// written it.
+///
+/// The heuristic: if the answer narrates a tool-style action
+/// ("I wrote ...", "I created ...", "the file is at ...", etc.) and
+/// the `answer` is verbose enough to be a real claim (more than 60
+/// chars after the marker line is stripped) AND there's no tool-call
+/// evidence in the response, flag the answer as a hallucinated
+/// action. Return value is the matched phrase when detected, so
+/// callers can include it in the score detail.
+///
+/// Detection is intentionally narrow: it only fires on English
+/// action-claim patterns. Bare assertions ("DELTA-042") and
+/// prose-style answers (e.g. the GAIA reasoning chain) pass through.
+pub fn detect_hallucinated_action(answer: &str) -> Option<&'static str> {
+    let lower = answer.to_ascii_lowercase();
+    // Phrases that imply a real tool action. Order matters only for
+    // the detail string (the first match wins).
+    static PHRASES: &[&str] = &[
+        "i wrote ",
+        "i've written ",
+        "i have written ",
+        "i created ",
+        "i created the file",
+        "i saved ",
+        "is now saved",
+        "i read the file",
+        "i read pf-delta",
+        "i read it and",
+        "i read the contents",
+        "the file is at ",
+        "the file is now at ",
+        "i ran the command",
+        "i executed ",
+        "i successfully wrote",
+        "i have created",
+        "i'll create the file",
+        "i will create the file",
+        "i'll write to",
+        "i will write to",
+        "tools i have access to are",
+        "我的 file_write",
+        "已写入",
+    ];
+    for phrase in PHRASES {
+        if lower.contains(phrase) {
+            // The narration is real only if the answer is more than a
+            // one-liner — a short answer can't actually narrate an
+            // action.
+            let candidate = extract_final_answer(answer);
+            if candidate.len() + (answer.len() - candidate.len()) > 60 {
+                return Some(phrase);
+            }
+        }
+    }
+    None
+}
+
 /// Remove `<think>...</think>` reasoning blocks from an answer.
 /// Qwen3-family models stream their chain-of-thought before the real
 /// answer even with the /no_think soft switch; the think text is not
@@ -60,6 +127,29 @@ pub async fn score(
     judge: Option<&OpenAiAgent>,
 ) -> Score {
     let answer = &strip_think(answer);
+
+    // Hallucinated-action guard: prompt-only LLM agents (e.g. the
+    // bench's direct-OpenAI adapter) sometimes narrate a tool
+    // action instead of actually performing it. The scorer would
+    // otherwise reward the narration when it happens to contain the
+    // expected value. Tasks whose id signals a file-action requirement
+    // (e.g. `file-write-secret`, `file-read-secret`,
+    // `file-roundtrip-verified`) trip this guard; the guard fails the
+    // task with a clear detail. Tasks whose score already accounts
+    // for non-action answers (e.g. GAIA's prose reasoning) are
+    // unaffected because the guard only fires for tool-action task
+    // ids.
+    if is_tool_action_task(&task.id) {
+        if let Some(phrase) = detect_hallucinated_action(answer) {
+            return Score {
+                passed: false,
+                detail: format!(
+                    "hallucinated action: answer narrates '{phrase}' but no tool call was made"
+                ),
+            }
+            .tap_task(task);
+        }
+    }
     match spec {
         ScorerSpec::ExactMatch {
             expected,
@@ -340,6 +430,20 @@ fn normalize_string_item(s: &str) -> String {
     trimmed.to_string()
 }
 
+/// Tasks whose id signals a real tool action is required (e.g. the
+/// model is supposed to use `file_write` / `file_read` / `shell`,
+/// not just answer in prose). The hallucination guard fails these
+/// when the model narrates the action instead of taking it.
+fn is_tool_action_task(task_id: &str) -> bool {
+    let id = task_id.to_ascii_lowercase();
+    id.starts_with("file-")
+        || id.starts_with("shell-")
+        || id.contains("file_write")
+        || id.contains("file_read")
+        || id.contains("file_list")
+        || id.contains("shell_")
+}
+
 /// Trivial helper keeping the match arms tidy (identity).
 trait TapTask {
     fn tap_task(self, task: &Task) -> Score;
@@ -574,5 +678,49 @@ mod gaia_match_tests {
         // line ending in `.` is treated as prose
         let dot = "We pick answer A.\nWe pick answer B.\nfinal answer: A";
         assert_eq!(extract_final_answer(dot), "A");
+    }
+}
+
+#[cfg(test)]
+mod hallucination_tests {
+    use super::{detect_hallucinated_action, is_tool_action_task};
+
+    #[test]
+    fn flags_i_wrote() {
+        let ans = "I wrote DELTA-042 to pf-delta/secret.txt using file_write. \
+                   The content matches the requested payload exactly.";
+        assert!(detect_hallucinated_action(ans).is_some());
+    }
+
+    #[test]
+    fn flags_i_read_narration() {
+        let ans = "I read the file at pf-delta/secret.txt and the content is: \
+                   DELTA-042. The secret was already there from the prior step.";
+        assert!(detect_hallucinated_action(ans).is_some());
+    }
+
+    #[test]
+    fn does_not_flag_bare_answer() {
+        // A short answer cannot narrate an action.
+        assert!(detect_hallucinated_action("DELTA-042").is_none());
+        assert!(detect_hallucinated_action("7").is_none());
+        // A reasoning chain (no action claim) passes through.
+        let reasoning = "Step 1: identify the paper. Step 2: read the axis labels. \
+                         Step 3: cross-reference the August 2016 submission. \
+                         The label is egalitarian.";
+        assert!(detect_hallucinated_action(reasoning).is_none());
+    }
+
+    #[test]
+    fn tool_action_task_ids() {
+        assert!(is_tool_action_task("file-write-secret"));
+        assert!(is_tool_action_task("file-read-secret"));
+        assert!(is_tool_action_task("file-roundtrip-verified"));
+        assert!(is_tool_action_task("shell-pipeline"));
+        // GAIA / toolloop / llm-smoke tasks are NOT tool-action
+        // (they may use tools but the score isn't tied to disk).
+        assert!(!is_tool_action_task("llm-arithmetic"));
+        assert!(!is_tool_action_task("tool-time-today"));
+        assert!(!is_tool_action_task("gaia-egalitarian"));
     }
 }

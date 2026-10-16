@@ -40,6 +40,14 @@ pub struct RunOutcome {
     pub passed: bool,
     pub detail: String,
     pub duration_secs: f64,
+    /// The full raw answer the agent emitted. Stored in the report so
+    /// the hallucination guard (`detect_hallucinated_action` in
+    /// `scorer`) is auditable after the run; before this field was
+    /// added, only the truncated `detail` was kept and the guard's
+    /// effectiveness on flagrant "I wrote X" narrations could not be
+    /// re-verified. Capped at 32 KiB to keep reports bounded.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub answer: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
 }
@@ -103,13 +111,18 @@ impl Runner {
         suite: &Suite,
         adapters: &[Box<dyn AgentAdapter>],
         agents_cfg: &AgentsConfig,
+        prior_traces: &std::collections::HashMap<(String, String), String>,
     ) -> Report {
         let judge = agents_cfg.judge_client();
         let mut results: Vec<TaskResult> = Vec::new();
 
         for adapter in adapters {
             for task in &suite.tasks {
-                results.push(self.run_one(adapter, task, &judge).await);
+                let prior = prior_traces
+                    .get(&(adapter.name().to_string(), task.id.clone()))
+                    .map(String::as_str)
+                    .unwrap_or("");
+                results.push(self.run_one(adapter, task, &judge, prior).await);
             }
         }
 
@@ -128,6 +141,7 @@ impl Runner {
         adapter: &Box<dyn AgentAdapter>,
         task: &Task,
         judge: &Option<crate::agent::OpenAiAgent>,
+        prior_traces: &str,
     ) -> TaskResult {
         let timeout = task
             .timeout_secs
@@ -158,7 +172,7 @@ impl Runner {
 
             // Drive the agent (per-repeat timeout).
             let started = std::time::Instant::now();
-            let run = tokio::time::timeout(timeout, adapter.run(task, &workdir)).await;
+            let run = tokio::time::timeout(timeout, adapter.run(task, &workdir, prior_traces)).await;
 
             let outcome = match run {
                 Err(_) => Err(AgentError::Failed {
@@ -181,11 +195,22 @@ impl Runner {
                     let score = score(&task.scorer, task, &workdir, &r.answer, judge.as_ref())
                         .await;
                     all_passed &= score.passed;
+                    let stored_answer = if r.answer.len() > 32 * 1024 {
+                        // Truncate with a marker so reviewers know
+                        // the original was longer.
+                        let mut s = r.answer;
+                        s.truncate(32 * 1024);
+                        s.push_str("\n…[truncated; full answer exceeded 32 KiB]");
+                        Some(s)
+                    } else {
+                        Some(r.answer)
+                    };
                     RunOutcome {
                         repeat: rep,
                         passed: score.passed,
                         detail: score.detail,
                         duration_secs: started.elapsed().as_secs_f64(),
+                        answer: stored_answer,
                         error: None,
                     }
                 }
@@ -196,6 +221,7 @@ impl Runner {
                         passed: false,
                         detail: String::new(),
                         duration_secs: started.elapsed().as_secs_f64(),
+                        answer: None,
                         error: Some(e.to_string()),
                     }
                 }

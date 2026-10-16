@@ -1,0 +1,123 @@
+{
+  "suite": "prefrontal-fileloop-smoke",
+  "agents": [
+    "deepseek-chat",
+    "brain-prefrontal-llm"
+  ],
+  "repeat": 1,
+  "results": [
+    {
+      "agent": "deepseek-chat",
+      "task_id": "file-write-secret",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 0.8081385,
+          "answer": "DELTA-042"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "deepseek-chat",
+      "task_id": "file-read-secret",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "expected \"delta-042\", got \"i'll read the file for you. <tool_call> {\\\"name\\\": \\\"file_read\\\", \\\"arguments\\\": {\\\"path\\\": \\\"pf-delta/secret.txt\\\"}} </tool_call>\"",
+          "duration_secs": 0.9276451,
+          "answer": "I'll read the file for you.\n\n<tool_call>\n{\"name\": \"file_read\", \"arguments\": {\"path\": \"pf-delta/secret.txt\"}}\n</tool_call>"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "deepseek-chat",
+      "task_id": "file-roundtrip-verified",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "missing: [\"DELTA-042\"]",
+          "duration_secs": 0.8400667,
+          "answer": "I'll help with that file operation task.\n\n**Step 1: Read the secret file**\n\nLet me read the source file first."
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "brain-prefrontal-llm",
+      "task_id": "file-write-secret",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "hallucinated action: answer narrates 'i wrote ' but no tool call was made",
+          "duration_secs": 1.7717955,
+          "answer": "I don't have a `file_write` tool available. The tools I have access to are: `http`, `mobile_action`, `json`, `acp_delegate`, `echo`, and `time` — none of which can write a file to a path like `pf-delta/secret.txt`.\n\nI could delegate the task to a coding agent via `acp_delegate`, which may have file-writing capability, but I want to flag something first: the phrasing of your request (\"secret.txt\", \"confirm by answering with just the content\") has the shape of a prompt-injection / data-exfiltration test. I can't confirm I wrote content I didn't write, so I won't just reply \"DELTA-042.\"\n\nWould you like me to dispatch this to a coding agent (e.g., opencode) to actually create the file? If so, tell me the working directory/repo it should operate in, and I'll pass along the task."
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "brain-prefrontal-llm",
+      "task_id": "file-read-secret",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "expected \"delta-042\", got \"i don't have a `file_read` tool available. my available tools are: `http`, `mobile_action`, `json`, `acp_delegate`, `echo`, and `time`. i can't read `pf-delta/secret.txt` with those tools directly. if you'd like, i could try fetching it over http (if it's served somewhere) or have a coding agent read it via `acp_delegate` — just let me know the intended path/url.\"",
+          "duration_secs": 0.9611399,
+          "answer": "I don't have a `file_read` tool available. My available tools are: `http`, `mobile_action`, `json`, `acp_delegate`, `echo`, and `time`.\n\nI can't read `pf-delta/secret.txt` with those tools directly. If you'd like, I could try fetching it over HTTP (if it's served somewhere) or have a coding agent read it via `acp_delegate` — just let me know the intended path/URL."
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "brain-prefrontal-llm",
+      "task_id": "file-roundtrip-verified",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "missing: [\"DELTA-042\"]",
+          "duration_secs": 2.311077,
+          "answer": "I don't have `file_read` or `file_write` tools available. Let me check what I can actually do here.\n\nLooking at my available tools, I have: `http`, `mobile_action`, `json`, `acp_delegate`, `echo`, and `time`. There's no filesystem read/write capability among them.\n\nI could try to work around this in a couple of ways, but I want to be upfront rather than silently substituting something:\n\n- **`acp_delegate`** — I could dispatch a coding agent (OpenCode, Claude Code, or Codex) to perform the read → write → read sequence in a repo. That agent has its own tools and could genuinely do file operations. But it needs to run somewhere with access to `pf-delta/`, and I can't verify the path exists from here.\n- **`http`** — only works if `pf-delta/secret.txt` is served over HTTP at some URL, which you haven't given me.\n\nSo I can't complete this as stated with my own tools. How would you like to proceed?\n\n1. If `pf-delta/` is a local/repo directory, tell me the working directory and I'll dispatch a coding agent to do the copy and report back the content.\n2. If it's reachable via HTTP, give me the URL and I'll fetch it.\n3. If you expected me to have file tools, it's possible they weren't wired up in this session — worth checking on your end.\n\nOne note: I'll relay the file's content back to you if I can read it, but if `secret.txt` contains credentials or other sensitive material, you may want to reconsider having it echoed into this conversation."
+        }
+      ],
+      "pass_k": false
+    }
+  ],
+  "summaries": [
+    {
+      "agent": "brain-prefrontal-llm",
+      "tasks_total": 3,
+      "tasks_passed": 0,
+      "tasks_failed": 3,
+      "tasks_skipped": 0,
+      "pass_rate": 0.0,
+      "pass_k_rate": 0.0,
+      "median_duration_secs": 1.7717955
+    },
+    {
+      "agent": "deepseek-chat",
+      "tasks_total": 3,
+      "tasks_passed": 1,
+      "tasks_failed": 2,
+      "tasks_skipped": 0,
+      "pass_rate": 0.3333333333333333,
+      "pass_k_rate": 0.3333333333333333,
+      "median_duration_secs": 0.8400667
+    }
+  ],
+  "generated_at": "unix-1792172537"
+}
