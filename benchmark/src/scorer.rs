@@ -434,7 +434,10 @@ fn normalize_string_item(s: &str) -> String {
 /// model is supposed to use `file_write` / `file_read` / `shell`,
 /// not just answer in prose). The hallucination guard fails these
 /// when the model narrates the action instead of taking it.
-fn is_tool_action_task(task_id: &str) -> bool {
+///
+/// Public so the runner can apply the same predicate to the
+/// disk-side post-score check (`verify_action_on_disk`).
+pub fn is_tool_action_task(task_id: &str) -> bool {
     let id = task_id.to_ascii_lowercase();
     id.starts_with("file-")
         || id.starts_with("shell-")

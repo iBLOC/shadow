@@ -5,7 +5,7 @@
 
 use crate::agent::{apply_fenced_patches, AgentAdapter, AgentError};
 use crate::config::AgentsConfig;
-use crate::scorer::{score, Score};
+use crate::scorer::{is_tool_action_task, score, Score};
 use crate::suite::Suite;
 use crate::task::Task;
 use serde::Serialize;
@@ -192,8 +192,24 @@ impl Runner {
                 Ok(r) => {
                     // Apply the agent's fenced file edits before scoring.
                     apply_fenced_patches(&r.answer, &workdir, &task.files);
-                    let score = score(&task.scorer, task, &workdir, &r.answer, judge.as_ref())
+                    let mut score = score(&task.scorer, task, &workdir, &r.answer, judge.as_ref())
                         .await;
+                    // Disk-side verification: when a tool-action task
+                    // passes the textual scorer but no tool call
+                    // materialised on disk, downgrade to fail. The
+                    // "I wrote X" hallucination guard in `scorer`
+                    // catches explicit narrations; this catches the
+                    // "model just answers the test fixture directly"
+                    // case (deepseek's "DELTA-042" leak on
+                    // file-write-secret is the canonical example).
+                    if score.passed && is_tool_action_task(&task.id) {
+                        if let Err(why) = verify_action_on_disk(task, &workdir) {
+                            score = Score {
+                                passed: false,
+                                detail: format!("{} (disk check: {})", score.detail, why),
+                            };
+                        }
+                    }
                     all_passed &= score.passed;
                     let stored_answer = if r.answer.len() > 32 * 1024 {
                         // Truncate with a marker so reviewers know
@@ -393,5 +409,173 @@ impl Report {
         }
 
         std::fs::write(path, md)
+    }
+}
+
+/// Disk-side post-score check for tool-action tasks.
+///
+/// Scorers (exact-match / contains / gaia-match) only look at the
+/// model's final text. A prompt-only LLM agent that knows the gold
+/// answer from training (e.g. deepseek's "DELTA-042" leak on
+/// `file-write-secret`) can pass the textual scorer without ever
+/// touching the workdir. The hallucination guard in `scorer` catches
+/// explicit narrations ("I wrote X"); this catches the silent
+/// answer-the-fixture case.
+///
+/// Heuristic: scan the task instruction for any relative path that
+/// looks like a tool-action target (e.g. `pf-delta/secret.txt`,
+/// `src/main.rs`); if the task's id signals a file/shell action,
+/// at least one such path must exist on disk after the agent's
+/// `apply_fenced_patches` materialization. Return `Ok(())` if
+/// everything checks out (or no actionable path was detected), or
+/// `Err(reason)` to downgrade the score.
+pub fn verify_action_on_disk(task: &Task, workdir: &Path) -> Result<(), String> {
+    let id = task.id.to_ascii_lowercase();
+    // Only file-* tasks get a path-existence check; shell-* tasks
+    // can produce any side effect (logs, processes) and the
+    // instruction rarely names a stable path.
+    if !id.starts_with("file-") {
+        return Ok(());
+    }
+    // Extract candidate paths: backslash-or-slash delimited tokens
+    // that look like "path/to/file.ext" (a real file path, not
+    // a stray word ending in a period). The token must include a
+    // `/` (or `\`), include a `.` that is **not** the last char,
+    // and start with a letter / `.` / `~`. This avoids grabbing
+    // URLs, version strings, or sentences like "...wrote.".
+    let mut candidates: Vec<String> = Vec::new();
+    for token in task.instruction.split(|c: char| {
+        c.is_whitespace() || c == '"' || c == '\'' || c == '`' || c == '(' || c == ')'
+    }) {
+        if token.is_empty() {
+            continue;
+        }
+        let t = token.trim_matches(|c: char| {
+            c == ',' || c == ';' || c == '?' || c == '!' || c == '*' || c == ']' || c == '['
+        });
+        // Drop trailing sentence terminators (`.` is a sentence
+        // boundary in prose, not part of a path).
+        let t = t.trim_end_matches(|c: char| c == '.' || c == ':');
+        if t.is_empty() {
+            continue;
+        }
+        if t.contains('/') // require a slash — separates from
+            // accidental look-alikes
+            && t.contains('.')
+            && !t.ends_with('.')
+            && t.len() >= 4
+            && t.len() <= 256
+            && t.starts_with(|c: char| c.is_ascii_lowercase() || c == '.' || c == '~')
+            && !t.starts_with("http")
+        {
+            candidates.push(t.to_string());
+        }
+    }
+    if candidates.is_empty() {
+        return Ok(());
+    }
+    let mut missing: Vec<&String> = Vec::new();
+    for p in &candidates {
+        let full = workdir.join(p);
+        if !full.exists() {
+            missing.push(p);
+        }
+    }
+    if missing.is_empty() {
+        Ok(())
+    } else {
+        Err(format!(
+            "expected path(s) absent on disk after run: {:?}",
+            missing
+        ))
+    }
+}
+
+#[cfg(test)]
+mod disk_check_tests {
+    use super::{is_tool_action_task, verify_action_on_disk};
+    use crate::task::{ScorerSpec, Task};
+    use std::path::PathBuf;
+
+    fn task(id: &str, instruction: &str) -> Task {
+        Task {
+            id: id.into(),
+            instruction: instruction.into(),
+            files: vec![],
+            answer_contract: String::new(),
+            hidden_files: vec![],
+            scorer: ScorerSpec::Contains {
+                all_of: vec!["DELTA-042".into()],
+                any_of: vec![],
+            },
+            timeout_secs: None,
+        }
+    }
+
+    #[test]
+    fn file_write_path_present_passes() {
+        let dir = tempdir();
+        let nested = dir.join("pf-delta");
+        std::fs::create_dir_all(&nested).unwrap();
+        std::fs::write(nested.join("secret.txt"), "DELTA-042").unwrap();
+        let t = task(
+            "file-write-secret",
+            "write DELTA-042 to pf-delta/secret.txt",
+        );
+        assert!(verify_action_on_disk(&t, &dir).is_ok());
+    }
+
+    #[test]
+    fn file_write_path_missing_fails() {
+        let dir = tempdir();
+        // No file materialised
+        let t = task(
+            "file-write-secret",
+            "write DELTA-042 to pf-delta/secret.txt",
+        );
+        let err = verify_action_on_disk(&t, &dir).unwrap_err();
+        assert!(err.contains("pf-delta/secret.txt"), "got: {err}");
+    }
+
+    #[test]
+    fn non_file_task_skips_disk_check() {
+        // Even if no file exists, a non-file-* task id short-circuits.
+        let dir = tempdir();
+        let t = task("tool-time-today", "tell me today's date");
+        assert!(verify_action_on_disk(&t, &dir).is_ok());
+    }
+
+    #[test]
+    fn instructions_without_path_skip_check() {
+        // No path-shaped token in the instruction — the check has
+        // nothing to verify and passes.
+        let dir = tempdir();
+        let t = task("file-write-secret", "write the secret content");
+        assert!(verify_action_on_disk(&t, &dir).is_ok());
+    }
+
+    #[test]
+    fn predicate_consistency() {
+        // The runner's disk check uses the same predicate as the
+        // hallucination guard so a task is either in both checks or
+        // neither.
+        assert!(is_tool_action_task("file-write-secret"));
+        assert!(is_tool_action_task("file-roundtrip-verified"));
+        assert!(!is_tool_action_task("llm-arithmetic"));
+    }
+
+    fn tempdir() -> PathBuf {
+        let p = std::env::temp_dir().join(format!("bench-disk-{}", uuid_like()));
+        let _ = std::fs::remove_dir_all(&p);
+        std::fs::create_dir_all(&p).unwrap();
+        p
+    }
+
+    fn uuid_like() -> u64 {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos() as u64
     }
 }
