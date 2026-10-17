@@ -1,0 +1,22 @@
+{
+  "name": "l4-junk-body-smoke",
+  "description": "L4 守门显式验证 — suite 在 workdir 预放一个'路径对但内容是 junk'的文件 (apply_fenced_patches 阶段就位), task instruction 让 agent 读该文件, expected = 真 marker. 因为磁盘上只有 junk, L4 content check 必须 fail 即便 textual score 通过. 仅当 runner disk check (Round 4) + L4 extract_gold (Round 6) 两道全到位时这个 task 才会正确得 0/1. 留作 deferred 在最后跑一次.",
+  "source": "shadow-internal/2026-10-17",
+  "tasks": [
+    {
+      "id": "file-l4-junk-body-validation",
+      "instruction": "Read the file at pf-delta/junk.txt and answer with its content exactly. Do not modify the file.",
+      "files": [
+        {
+          "path": "pf-delta/junk.txt",
+          "content": "lorem ipsum dolor sit amet, this body is intentionally wrong, the gold marker is missing on purpose for L4 validation\n"
+        }
+      ],
+      "scorer": {
+        "kind": "exact-match",
+        "expected": "EXPECTED-MARKER-DELTA-042",
+        "case_sensitive": false
+      }
+    }
+  ]
+}
