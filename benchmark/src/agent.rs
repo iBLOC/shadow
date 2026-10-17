@@ -44,6 +44,16 @@ pub struct AgentRun {
 #[async_trait]
 pub trait AgentAdapter: Send + Sync {
     fn name(&self) -> &str;
+    /// Downcast hook. Adapters that implement
+    /// `TextSummarizer` (e.g. `OpenAiAgent`) override this
+    /// and return `Some(self)` when the downcast matches;
+    /// default returns `None`. The runner uses this to pass
+    /// a `&dyn TextSummarizer` to `HippocampusLike::maybe_compress`
+    /// without making the bench harness aware of every concrete
+    /// adapter type.
+    fn as_text_summarizer(&self) -> Option<&dyn crate::hippocampus_shim::TextSummarizer> {
+        None
+    }
     /// Drive one task. `prior_traces` is the formatted workflow hint
     /// (empty string when no trace history); adapters that don't use
     /// hints ignore it.
@@ -126,6 +136,13 @@ const PRIOR_TRACES_HEADER: &str = "\n\nPrior experience for similar tasks (read 
 impl AgentAdapter for OpenAiAgent {
     fn name(&self) -> &str {
         &self.name
+    }
+
+    fn as_text_summarizer(&self) -> Option<&dyn crate::hippocampus_shim::TextSummarizer> {
+        // OpenAiAgent is itself a TextSummarizer; the runner
+        // downcasts via this method to feed the hippocampus
+        // shim's `maybe_compress`.
+        Some(self)
     }
 
     async fn run(&self, task: &Task, _workdir: &Path, prior_traces: &str) -> Result<AgentRun, AgentError> {

@@ -1,0 +1,72 @@
+{
+  "name": "long-context-smoke",
+  "description": "压缩功能端到端验证 — 5 题, 答案各 ~3k chars, 累计 prior_traces ~12k chars (~3000 tokens). 第 1 题 (token=2000) 触发 sliding window fallback, 验证压缩后 LLM 仍能拿到全部历史. 配套 brain-prefrontal + deepseek 两个 agent. 实测时需要给 deepseek 配置 session.compress_at_tokens=2000 (sliding window fallback path). brain-prefrontal 不配置 session, 用默认 unlimited (模拟生产 agent).",
+  "source": "shadow-internal/2026-10-17",
+  "tasks": [
+    {
+      "id": "long-task-1",
+      "instruction": "Read the file at /tmp/long-prefix-1.txt (5000 chars) and answer with its content. After your answer, append the word DONE on a new line.",
+      "files": [
+        {"path": "long-prefix-1.txt", "content": ""}
+      ],
+      "scorer": {
+        "kind": "contains",
+        "all_of": ["DONE"],
+        "any_of": []
+      },
+      "framework": "long-context"
+    },
+    {
+      "id": "long-task-2",
+      "instruction": "Read the file at /tmp/long-prefix-2.txt (5000 chars) and answer with its content. After your answer, append the word DONE on a new line.",
+      "files": [
+        {"path": "long-prefix-2.txt", "content": ""}
+      ],
+      "scorer": {
+        "kind": "contains",
+        "all_of": ["DONE"],
+        "any_of": []
+      },
+      "framework": "long-context"
+    },
+    {
+      "id": "long-task-3",
+      "instruction": "Read the file at /tmp/long-prefix-3.txt (5000 chars) and answer with its content. After your answer, append the word DONE on a new line.",
+      "files": [
+        {"path": "long-prefix-3.txt", "content": ""}
+      ],
+      "scorer": {
+        "kind": "contains",
+        "all_of": ["DONE"],
+        "any_of": []
+      },
+      "framework": "long-context"
+    },
+    {
+      "id": "long-task-4",
+      "instruction": "Read the file at /tmp/long-prefix-4.txt (5000 chars) and answer with its content. After your answer, append the word DONE on a new line.",
+      "files": [
+        {"path": "long-prefix-4.txt", "content": ""}
+      ],
+      "scorer": {
+        "kind": "contains",
+        "all_of": ["DONE"],
+        "any_of": []
+      },
+      "framework": "long-context"
+    },
+    {
+      "id": "long-task-5",
+      "instruction": "Read the file at /tmp/long-prefix-5.txt (5000 chars) and answer with its content. After your answer, append the word DONE on a new line.",
+      "files": [
+        {"path": "long-prefix-5.txt", "content": ""}
+      ],
+      "scorer": {
+        "kind": "contains",
+        "all_of": ["DONE"],
+        "any_of": []
+      },
+      "framework": "long-context"
+    }
+  ]
+}

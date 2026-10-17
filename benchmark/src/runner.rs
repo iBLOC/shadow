@@ -186,6 +186,52 @@ impl Runner {
                     shim.record_task_id(&task.id);
                     shim.record_framework(task.framework.as_deref());
                 }
+
+                // Threshold hooks. All three are no-ops when
+                // the agent's SessionConfig has the field set
+                // to the default (0 / unlimited). This is where
+                // operator-tunable compression / drift /
+                // branching fires.
+                let cfg = agents_cfg
+                    .agents
+                    .iter()
+                    .find(|s| s.name() == adapter.name())
+                    .map(AgentSpec::session_config)
+                    .unwrap_or_default();
+                if cfg.compress_at_tokens > 0
+                    && shim.cumulative_tokens() >= cfg.compress_at_tokens
+                {
+                    // OpenAiAgent implements TextSummarizer
+                    // (hardcoded compression prompt); other
+                    // adapters return None and the shim falls
+                    // back to its in-process sliding window.
+                    let summarizer: Option<&dyn crate::hippocampus_shim::TextSummarizer> =
+                        adapter.as_text_summarizer();
+                    let target = if cfg.target_tokens > 0 {
+                        cfg.target_tokens
+                    } else {
+                        cfg.compress_at_tokens / 2
+                    };
+                    let _ = shim.maybe_compress(summarizer, cfg.compress_at_tokens, target);
+                }
+                if cfg.detect_drift {
+                    if let Some(drift) = shim.detect_drift(task) {
+                        eprintln!(
+                            "[runner] drift detected {} → {} on task {} ({} → {})",
+                            drift.from_framework.as_deref().unwrap_or("?"),
+                            drift.to_framework.as_deref().unwrap_or("?"),
+                            drift.current_task_id,
+                            drift.previous_task_id,
+                            drift.current_task_id,
+                        );
+                    }
+                }
+                if cfg.branch_at_tasks > 0
+                    && shim.tasks_in_session() >= cfg.branch_at_tasks
+                {
+                    let _ = shim.branch(adapter.name(), &suite.name, BranchReason::MaxTasks);
+                }
+
                 results.push(result);
             }
         }
@@ -847,8 +893,116 @@ mod disk_check_tests {
     fn uuid_like() -> u64 {
         use std::time::{SystemTime, UNIX_EPOCH};
         SystemTime::now()
-            .duration_since(UNIX_EPOCH)
+            .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap()
             .as_nanos() as u64
+    }
+}
+
+#[cfg(test)]
+mod hippocampus_runner_tests {
+    use super::*;
+    use crate::hippocampus_shim::TextSummarizer;
+    use crate::task::Task;
+
+    /// Stub summarizer for runner threshold tests — halves the
+    /// input without making a real LLM call.
+    struct HalveSummarizer;
+    impl TextSummarizer for HalveSummarizer {
+        fn summarize(&self, text: &str, _max_tokens: usize) -> Result<String, String> {
+            Ok(format!("[halved:{} chars] {}", text.len(), &text[..text.len() / 2]))
+        }
+    }
+
+    fn task_with_framework(id: &str, framework: Option<&str>) -> Task {
+        Task {
+            id: id.into(),
+            instruction: format!("do {id}"),
+            files: vec![],
+            answer_contract: String::new(),
+            hidden_files: vec![],
+            framework: framework.map(str::to_string),
+            scorer: crate::task::ScorerSpec::Contains {
+                all_of: vec!["ok".into()],
+                any_of: vec![],
+            },
+            timeout_secs: None,
+        }
+    }
+
+    /// tasks_in_session is the single-writer counter used by
+    /// the runner's branch threshold check.
+    #[test]
+    fn tasks_in_session_grows_with_append() {
+        let shim = LocalHippocampusShim::new("a", "s");
+        assert_eq!(shim.tasks_in_session(), 0);
+        shim.append("s", "a", "t1", "first");
+        shim.append("s", "a", "t2", "second");
+        assert_eq!(shim.tasks_in_session(), 2);
+        // branch() resets the counter.
+        let _ = shim.branch("a", "s", BranchReason::MaxTasks);
+        assert_eq!(shim.tasks_in_session(), 0);
+    }
+
+    /// Threshold sequencing — push enough tasks to cross the
+    /// branch_at_tasks threshold; the runner's logic in `run()`
+    /// would call `branch()` when `tasks_in_session >=
+    /// cfg.branch_at_tasks`. This test exercises the same check
+    /// at the unit level (the runner's full integration is
+    /// covered by the bench end-to-end run).
+    #[test]
+    fn branch_threshold_fires_at_exact_count() {
+        let cfg_branch_at = 3;
+        let shim = LocalHippocampusShim::new("a", "s");
+        for i in 0..cfg_branch_at {
+            shim.append("s", "a", &format!("t{i}"), "x");
+        }
+        assert!(shim.tasks_in_session() >= cfg_branch_at);
+        // Branch and verify reset.
+        let cp = shim.branch("a", "s", BranchReason::MaxTasks);
+        assert_eq!(cp.ran_task_ids.len(), 3);
+        assert!(shim.tasks_in_session() < cfg_branch_at);
+    }
+
+    /// detect_drift: when all tasks share the framework tag,
+    /// no drift event fires (verifies the "first task doesn't
+    /// trigger" + "same-framework doesn't trigger" boundary in
+    /// the runner loop).
+    #[test]
+    fn no_drift_when_frameworks_match() {
+        let shim = LocalHippocampusShim::new("a", "s");
+        shim.append("s", "a", "t1", "x");
+        shim.record_task_id("t1");
+        shim.record_framework(Some("long-context"));
+        for i in 2..=5 {
+            let t = task_with_framework(&format!("t{i}"), Some("long-context"));
+            assert!(shim.detect_drift(&t).is_none(), "task {i} should not drift");
+            shim.record_task_id(&t.id);
+        }
+    }
+
+    /// End-to-end miniature: simulate the runner's three-step
+    /// per-task logic (append → maybe_compress → branch) for
+    /// a 3-task session with a low branch_at threshold. The
+    /// final branch should produce a checkpoint with all 3
+    /// task ids in order.
+    #[test]
+    fn end_to_end_session_lifecycle() {
+        let mut shim = LocalHippocampusShim::new("a", "s");
+        shim.append("s", "a", "t1", "first");
+        shim.record_task_id("t1");
+        shim.record_framework(Some("long-context"));
+        shim.append("s", "a", "t2", "second");
+        shim.record_task_id("t2");
+        shim.append("s", "a", "t3", "third");
+        shim.record_task_id("t3");
+        // Pretend a compression fired (LlmSummarize); the
+        // buffer is now the (fake) summary but the task list
+        // is preserved for the checkpoint.
+        let _ = shim.maybe_compress(Some(&HalveSummarizer), 1, 10);
+        let cp = shim.branch("a", "s", BranchReason::MaxTasks);
+        assert_eq!(cp.ran_task_ids, vec!["t1", "t2", "t3"]);
+        assert!(cp.compressions_applied >= 1);
+        assert_eq!(cp.ended_reason, BranchReason::MaxTasks);
     }
 }

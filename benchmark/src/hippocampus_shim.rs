@@ -201,6 +201,12 @@ impl LocalHippocampusShim {
     /// Start a fresh session for `(agent, suite)`. The runner
     /// calls this once at the start of a benchmark run (or
     /// after a `branch()`).
+    /// Number of tasks that have appended to this session
+    /// since the last `branch()` (or since `new`).
+    pub fn tasks_in_session(&self) -> usize {
+        self.inner.lock().expect("hippocampus shim mutex").ran_task_ids.len()
+    }
+
     pub fn new(agent: impl Into<String>, suite: impl Into<String>) -> Self {
         let started_at = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
