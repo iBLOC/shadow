@@ -1,0 +1,115 @@
+{
+  "suite": "l4-junk-body-smoke",
+  "agents": [
+    "deepseek-chat",
+    "mimo-flash",
+    "brain-parietal-behavior",
+    "brain-prefrontal-llm"
+  ],
+  "repeat": 1,
+  "results": [
+    {
+      "agent": "deepseek-chat",
+      "task_id": "file-l4-junk-body-validation",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "expected \"expected-marker-delta-042\", got \"i'll read the requested file and provide its content. ```path:pf-delta/junk.txt placeholder ```\"",
+          "duration_secs": 0.7189804,
+          "answer": "I'll read the requested file and provide its content.\n\n```path:pf-delta/junk.txt\nPLACEHOLDER\n```"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "mimo-flash",
+      "task_id": "file-l4-junk-body-validation",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "expected \"expected-marker-delta-042\", got \"i don't have file-access tools available in this session, so i can't read `pf-delta/junk.txt` to report its contents. if you paste the file's content or provide the tool access needed to read it, i can then answer exactly as requested.\"",
+          "duration_secs": 5.5243063,
+          "answer": "I don't have file-access tools available in this session, so I can't read `pf-delta/junk.txt` to report its contents. If you paste the file's content or provide the tool access needed to read it, I can then answer exactly as requested."
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "brain-parietal-behavior",
+      "task_id": "file-l4-junk-body-validation",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "expected \"expected-marker-delta-042\", got \"channel=feishu_card | [read the file at pf-delta/junk.txt and answer with its content exactly. do not modify the file.]\"",
+          "duration_secs": 0.0032038,
+          "answer": "channel=feishu_card | [Read the file at pf-delta/junk.txt and answer with its content exactly. Do not modify the file.] "
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "brain-prefrontal-llm",
+      "task_id": "file-l4-junk-body-validation",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "expected \"expected-marker-delta-042\", got \"i wasn't able to read that file, and i want to be upfront about that rather than guess at its contents. **what i tried:** 1. **`http` with `file://pf-delta/junk.txt`** → failed. the tool only supports http/https urls, not local filesystem paths. 2. **`http` with `http://localhost/pf-delta/junk.txt`** → failed. no web server is running locally to serve the file. 3. **`mobile_action` (read_screen)** → 404, and it's the wrong tool anyway — it inspects a phone screen, not a filesystem. **why i'm not just answering:** i have no filesystem-read tool available in this session, and there's no working http endpoint for that path. i could not retrieve the content, so any \\\"exact content\\\" i produced would be fabricated. i won't invent file contents, especially when you've asked for an exact reproduction. **how to get this done — a few options:** - **serve the file over http**, then i can fetch it: ``` cd pf-delta && python3 -m http.server 8000 ``` then tell me and i'll get `http://localhost:8000/junk.txt`. - **paste the content** directly into the chat and i'll echo it back exactly (unmodified). - **if you have a shell/agent tool available**, point me at it — i have an acp coding-agent dispatch tool that could run `cat pf-delta/junk.txt` in a repo context, but i'd need to know the working directory and that the file is reachable from that agent's environment. say the word and i'll dispatch it. note: i did not modify the file — i only attempted read operations, all of which failed.\"",
+          "duration_secs": 7.2031959,
+          "answer": "I wasn't able to read that file, and I want to be upfront about that rather than guess at its contents.\n\n**What I tried:**\n1. **`http` with `file://pf-delta/junk.txt`** → failed. The tool only supports HTTP/HTTPS URLs, not local filesystem paths.\n2. **`http` with `http://localhost/pf-delta/junk.txt`** → failed. No web server is running locally to serve the file.\n3. **`mobile_action` (read_screen)** → 404, and it's the wrong tool anyway — it inspects a phone screen, not a filesystem.\n\n**Why I'm not just answering:** I have no filesystem-read tool available in this session, and there's no working HTTP endpoint for that path. I could not retrieve the content, so any \"exact content\" I produced would be fabricated. I won't invent file contents, especially when you've asked for an exact reproduction.\n\n**How to get this done — a few options:**\n- **Serve the file over HTTP**, then I can fetch it:\n  ```\n  cd pf-delta && python3 -m http.server 8000\n  ```\n  Then tell me and I'll GET `http://localhost:8000/junk.txt`.\n- **Paste the content** directly into the chat and I'll echo it back exactly (unmodified).\n- **If you have a shell/agent tool available**, point me at it — I have an ACP coding-agent dispatch tool that could run `cat pf-delta/junk.txt` in a repo context, but I'd need to know the working directory and that the file is reachable from that agent's environment. Say the word and I'll dispatch it.\n\nNote: I did not modify the file — I only attempted read operations, all of which failed."
+        }
+      ],
+      "pass_k": false
+    }
+  ],
+  "summaries": [
+    {
+      "agent": "brain-parietal-behavior",
+      "tasks_total": 1,
+      "tasks_passed": 0,
+      "tasks_failed": 1,
+      "tasks_skipped": 0,
+      "pass_rate": 0.0,
+      "pass_k_rate": 0.0,
+      "median_duration_secs": 0.0032038
+    },
+    {
+      "agent": "brain-prefrontal-llm",
+      "tasks_total": 1,
+      "tasks_passed": 0,
+      "tasks_failed": 1,
+      "tasks_skipped": 0,
+      "pass_rate": 0.0,
+      "pass_k_rate": 0.0,
+      "median_duration_secs": 7.2031959
+    },
+    {
+      "agent": "deepseek-chat",
+      "tasks_total": 1,
+      "tasks_passed": 0,
+      "tasks_failed": 1,
+      "tasks_skipped": 0,
+      "pass_rate": 0.0,
+      "pass_k_rate": 0.0,
+      "median_duration_secs": 0.7189804
+    },
+    {
+      "agent": "mimo-flash",
+      "tasks_total": 1,
+      "tasks_passed": 0,
+      "tasks_failed": 1,
+      "tasks_skipped": 0,
+      "pass_rate": 0.0,
+      "pass_k_rate": 0.0,
+      "median_duration_secs": 5.5243063
+    }
+  ],
+  "generated_at": "unix-1792198756"
+}

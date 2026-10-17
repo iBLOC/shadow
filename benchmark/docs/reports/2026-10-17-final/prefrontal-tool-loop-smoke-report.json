@@ -1,0 +1,235 @@
+{
+  "suite": "prefrontal-tool-loop-smoke",
+  "agents": [
+    "deepseek-chat",
+    "mimo-flash",
+    "brain-parietal-behavior",
+    "brain-prefrontal-llm"
+  ],
+  "repeat": 1,
+  "results": [
+    {
+      "agent": "deepseek-chat",
+      "task_id": "tool-time-today",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "missing: [\"2026-10-16\"]",
+          "duration_secs": 0.8762912,
+          "answer": "I don't have access to a time tool or real-time information, so I can't determine today's date."
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "deepseek-chat",
+      "task_id": "tool-time-human-format",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "missing: [\"CST\"]",
+          "duration_secs": 0.5636859,
+          "answer": "{\"time\":\"2026-05-11 15:48:00\",\"timezone\":\"Asia/Shanghai\",\"format\":\"human\"}"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "deepseek-chat",
+      "task_id": "tool-time-year",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "expected \"2026\", got \"i don't have access to a time tool in this conversation, so i can't verify the current year.\"",
+          "duration_secs": 0.6946214,
+          "answer": "I don't have access to a time tool in this conversation, so I can't verify the current year."
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "mimo-flash",
+      "task_id": "tool-time-today",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "missing: [\"2026-10-16\"]",
+          "duration_secs": 4.0509205,
+          "answer": "I don't have a time tool available in this session, so I can't retrieve today's date."
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "mimo-flash",
+      "task_id": "tool-time-human-format",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "missing: [\"CST\"]",
+          "duration_secs": 3.0634872,
+          "answer": "I don't have a time tool (or any tools) available in this session, so I can't call one with format=human and timezone=Asia/Shanghai. I can only rely on my training data, which has no access to the current date or time."
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "mimo-flash",
+      "task_id": "tool-time-year",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "expected \"2026\", got \"2025\"",
+          "duration_secs": 3.5535579999999998,
+          "answer": "2025"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "brain-parietal-behavior",
+      "task_id": "tool-time-today",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "missing: [\"2026-10-16\"]",
+          "duration_secs": 0.0041479,
+          "answer": "channel=feishu_card | [What is today's date? Use the time tool and answer with just the date in YYYY-MM-DD format.] "
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "brain-parietal-behavior",
+      "task_id": "tool-time-human-format",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "missing: [\"CST\"]",
+          "duration_secs": 0.0025378,
+          "answer": "channel=feishu_card | [Use the time tool with format=human and timezone=Asia/Shanghai, then tell me the current time exactly as the tool reported it.] "
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "brain-parietal-behavior",
+      "task_id": "tool-time-year",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "expected \"2026\", got \"channel=feishu_card | [what year is it right now? use the time tool. answer with just the year.]\"",
+          "duration_secs": 0.002547,
+          "answer": "channel=feishu_card | [What year is it right now? Use the time tool. Answer with just the year.] "
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "brain-prefrontal-llm",
+      "task_id": "tool-time-today",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "missing: [\"2026-10-16\"]",
+          "duration_secs": 1.2068562,
+          "answer": "2026-10-17"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "brain-prefrontal-llm",
+      "task_id": "tool-time-human-format",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 1.3689942,
+          "answer": "The time tool reported: **2026-10-17 08:58:40 CST**"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "brain-prefrontal-llm",
+      "task_id": "tool-time-year",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "exact match",
+          "duration_secs": 1.3172103,
+          "answer": "2026"
+        }
+      ],
+      "pass_k": true
+    }
+  ],
+  "summaries": [
+    {
+      "agent": "brain-parietal-behavior",
+      "tasks_total": 3,
+      "tasks_passed": 0,
+      "tasks_failed": 3,
+      "tasks_skipped": 0,
+      "pass_rate": 0.0,
+      "pass_k_rate": 0.0,
+      "median_duration_secs": 0.002547
+    },
+    {
+      "agent": "brain-prefrontal-llm",
+      "tasks_total": 3,
+      "tasks_passed": 2,
+      "tasks_failed": 1,
+      "tasks_skipped": 0,
+      "pass_rate": 0.6666666666666666,
+      "pass_k_rate": 0.6666666666666666,
+      "median_duration_secs": 1.3172103
+    },
+    {
+      "agent": "deepseek-chat",
+      "tasks_total": 3,
+      "tasks_passed": 0,
+      "tasks_failed": 3,
+      "tasks_skipped": 0,
+      "pass_rate": 0.0,
+      "pass_k_rate": 0.0,
+      "median_duration_secs": 0.6946214
+    },
+    {
+      "agent": "mimo-flash",
+      "tasks_total": 3,
+      "tasks_passed": 0,
+      "tasks_failed": 3,
+      "tasks_skipped": 0,
+      "pass_rate": 0.0,
+      "pass_k_rate": 0.0,
+      "median_duration_secs": 3.5535579999999998
+    }
+  ],
+  "generated_at": "unix-1792198722"
+}
