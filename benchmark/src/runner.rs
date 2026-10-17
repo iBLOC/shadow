@@ -276,7 +276,7 @@ impl Runner {
     }
 }
 
-fn summarize(results: &[TaskResult], repeat: usize) -> Vec<AgentSummary> {
+fn summarize(results: &[TaskResult], _repeat: usize) -> Vec<AgentSummary> {
     let mut per_agent: BTreeMap<String, Vec<&TaskResult>> = BTreeMap::new();
     for r in results {
         per_agent.entry(r.agent.clone()).or_default().push(r);

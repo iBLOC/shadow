@@ -44,7 +44,15 @@ pub struct AgentRun {
 #[async_trait]
 pub trait AgentAdapter: Send + Sync {
     fn name(&self) -> &str;
-    async fn run(&self, task: &Task, workdir: &Path) -> Result<AgentRun, AgentError>;
+    /// Drive one task. `prior_traces` is the formatted workflow hint
+    /// (empty string when no trace history); adapters that don't use
+    /// hints ignore it.
+    async fn run(
+        &self,
+        task: &Task,
+        workdir: &Path,
+        prior_traces: &str,
+    ) -> Result<AgentRun, AgentError>;
 }
 
 /// Owned adapter handle used by the runner and the config layer.
@@ -108,13 +116,19 @@ When the instruction asks you to modify them, reply with the complete \
 corrected file content in a fenced block opened with the file path, e.g. \
 ```path:src/main.py```.";
 
+/// Hint header prepended to injected prior-trace history. The runner
+/// populates `OpenAiAgent.prior_traces` from telencephalon's
+/// `/api/flows/traces` filtered by `intent_signature`; this constant
+/// is just the visible wrapper, the rest is computed at runtime.
+const PRIOR_TRACES_HEADER: &str = "\n\nPrior experience for similar tasks (read carefully; reuse successful steps and avoid the known failures):\n";
+
 #[async_trait]
 impl AgentAdapter for OpenAiAgent {
     fn name(&self) -> &str {
         &self.name
     }
 
-    async fn run(&self, task: &Task, _workdir: &Path) -> Result<AgentRun, AgentError> {
+    async fn run(&self, task: &Task, _workdir: &Path, prior_traces: &str) -> Result<AgentRun, AgentError> {
         let started = std::time::Instant::now();
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(self.timeout_secs))
@@ -128,6 +142,11 @@ impl AgentAdapter for OpenAiAgent {
         if !task.files.is_empty() {
             system.push('\n');
             system.push_str(OPENAI_CODE_INSTRUCTION);
+        }
+        if !prior_traces.is_empty() {
+            system.push_str(PRIOR_TRACES_HEADER);
+            system.push_str(prior_traces);
+            system.push_str("\n\nApply the lessons above. Reuse successful steps; do not repeat the same failing steps verbatim.\n");
         }
         let body = serde_json::json!({
             "model": self.model,
@@ -197,7 +216,7 @@ impl AgentAdapter for CliAgent {
         &self.name
     }
 
-    async fn run(&self, task: &Task, workdir: &Path) -> Result<AgentRun, AgentError> {
+    async fn run(&self, task: &Task, workdir: &Path, _prior_traces: &str) -> Result<AgentRun, AgentError> {
         let started = std::time::Instant::now();
         let argv: Vec<String> = self
             .command
@@ -217,7 +236,7 @@ impl AgentAdapter for CliAgent {
         cmd.stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped());
         // A missing binary is a skipped agent, not a failed task.
-        let mut child = match cmd.spawn() {
+        let child = match cmd.spawn() {
             Ok(c) => c,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
                 return Err(AgentError::NotInstalled(program.clone()));
