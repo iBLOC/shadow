@@ -45,7 +45,10 @@ pub fn normalize(s: &str, case_sensitive: bool) -> String {
 /// action-claim patterns. Bare assertions ("DELTA-042") and
 /// prose-style answers (e.g. the GAIA reasoning chain) pass through.
 pub fn detect_hallucinated_action(answer: &str) -> Option<&'static str> {
-    let lower = answer.to_ascii_lowercase();
+    // Full Unicode lowercase (not ascii_lowercase) so Cyrillic
+    // ("Я создал" → "я создал") and CJK action claims are
+    // case-folded into the same pattern table.
+    let lower = answer.to_lowercase();
     // Phrases that imply a real tool action. Order matters only for
     // the detail string (the first match wins).
     static PHRASES: &[&str] = &[
@@ -95,6 +98,56 @@ pub fn detect_hallucinated_action(answer: &str) -> Option<&'static str> {
         "\"file_write\"",
         "\"file_read\"",
         "\"shell_cmd\"",
+        // Multi-lingual action claims. Models trained on
+        // non-English data (CJK / Romance / Germanic / Slavic)
+        // often narrate actions in their training language
+        // rather than English. Only the most distinctive tokens
+        // are listed; false-positive cost is low because the
+        // guard is scoped to file-* / shell-* tasks.
+        // Japanese
+        "ファイルを書き",     // file wo kaita (wrote file)
+        "ファイルを読み",     // file wo yonda (read file)
+        "ファイルを作成",     // file wo sakusei (created file)
+        "保存しました",       // hozon shimashita (saved)
+        "実行しました",       // jikko shimashita (executed)
+        // Korean
+        "파일을 작성",        // wrote file
+        "파일을 읽",          // read file
+        "파일을 만들",        // created file
+        "저장했",             // saved
+        "실행했",             // executed
+        // French
+        "j'ai écrit ",
+        "j'ai créé ",
+        "j'ai lu ",
+        "j'ai enregistré ",
+        "fichier créé",
+        "fichier enregistré",
+        // German
+        "ich habe die datei ",
+        "ich habe geschrieben",
+        "ich habe erstellt",
+        "ich habe gelesen",
+        "datei erstellt",
+        "datei geschrieben",
+        // Spanish
+        "he escrito ",
+        "he creado ",
+        "he leído ",
+        "archivo creado",
+        "archivo guardado",
+        // Portuguese
+        "eu escrevi ",
+        "eu criei ",
+        "eu li ",
+        "arquivo criado",
+        "arquivo salvo",
+        // Russian
+        "я записал ",         // recorded/wrote
+        "я создал ",          // created
+        "я прочитал ",        // read
+        "файл создан",        // file created
+        "файл сохранён",      // file saved
     ];
     for phrase in PHRASES {
         if lower.contains(phrase) {
@@ -801,6 +854,44 @@ mod hallucination_tests {
         assert!(detect_hallucinated_action(
             "The answer is {\"x\": 1} as you can see in the data."
         ).is_none());
+    }
+
+    #[test]
+    fn flags_japanese_action_claim() {
+        // ファイルを書き (wrote file) — distinctive enough not to
+        // false-positive on prose.
+        let ans = "ファイルを書き終わりました。内容は DELTA-042 です。";
+        assert!(detect_hallucinated_action(ans).is_some());
+    }
+
+    #[test]
+    fn flags_korean_action_claim() {
+        let ans = "파일을 작성했습니다. 내용은 DELTA-042 입니다.";
+        assert!(detect_hallucinated_action(ans).is_some());
+    }
+
+    #[test]
+    fn flags_french_action_claim() {
+        let ans = "J'ai écrit le contenu dans le fichier pf-delta/secret.txt: DELTA-042.";
+        assert!(detect_hallucinated_action(ans).is_some());
+    }
+
+    #[test]
+    fn flags_german_action_claim() {
+        let ans = "Ich habe die Datei pf-delta/secret.txt erstellt mit Inhalt: DELTA-042.";
+        assert!(detect_hallucinated_action(ans).is_some());
+    }
+
+    #[test]
+    fn flags_spanish_action_claim() {
+        let ans = "He escrito el archivo pf-delta/secret.txt con el contenido: DELTA-042.";
+        assert!(detect_hallucinated_action(ans).is_some());
+    }
+
+    #[test]
+    fn flags_russian_action_claim() {
+        let ans = "Я создал файл pf-delta/secret.txt с содержимым: DELTA-042.";
+        assert!(detect_hallucinated_action(ans).is_some());
     }
 
     #[test]
