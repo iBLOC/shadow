@@ -63,6 +63,13 @@ pub struct Task {
     /// in this harness — kept for forward-compat.
     #[serde(default)]
     pub hidden_files: Vec<TaskFile>,
+    /// Framework / topic tag for session drift detection. Optional
+    /// (backward-compatible). Examples: `"prefrontal"`, `"zenoh"`,
+    /// `"browser"`. The runner compares this against the
+    /// previously-appended task in the same session; a change
+    /// triggers a `BranchReason::TopicDrift`.
+    #[serde(default)]
+    pub framework: Option<String>,
     pub scorer: ScorerSpec,
     /// Per-task override of the runner's default timeout.
     #[serde(default)]

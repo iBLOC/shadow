@@ -578,6 +578,7 @@ mod disk_check_tests {
     fn task(id: &str, instruction: &str) -> Task {
         Task {
             id: id.into(),
+                framework: None,
             instruction: instruction.into(),
             files: vec![],
             answer_contract: String::new(),
@@ -656,6 +657,7 @@ mod disk_check_tests {
     fn task_with_scorer(id: &str, instruction: &str, scorer: ScorerSpec) -> Task {
         Task {
             id: id.into(),
+                framework: None,
             instruction: instruction.into(),
             files: vec![],
             answer_contract: String::new(),

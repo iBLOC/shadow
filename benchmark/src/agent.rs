@@ -210,6 +210,84 @@ pub struct CliAgent {
     pub timeout_secs: u64,
 }
 
+// ============================================================================
+// TextSummarizer impl for OpenAiAgent
+// ============================================================================
+
+/// Hardcoded summarization prompt. The shim calls this with
+/// `max_tokens` reflected in `max_tokens` of the chat completion
+/// request — the LLM is told to keep its reply under that cap.
+/// This is a "定式 task": fixed system prompt, fixed role
+/// (compress), bounded output. The hippocampus shim doesn't
+/// know or care what's in the prompt; it just hands a buffer
+/// to `summarize` and gets shorter text back.
+const SUMMARIZE_SYSTEM: &str = "\
+You are a context compressor for an agent benchmark. You will be \
+given prior task outputs (each prefixed with `[task_id] ...`). \
+Produce a concise summary in PLAIN TEXT that preserves:
+  - each task's id
+  - the model's final answer or result (one short line per task)
+  - any error or unexpected behaviour
+Do not add commentary, headers, or code fences. Plain lines, one per task.";
+
+impl crate::hippocampus_shim::TextSummarizer for OpenAiAgent {
+    fn summarize(&self, text: &str, max_tokens: usize) -> Result<String, String> {
+        // Synchronous wrapper around the async HTTP call. The
+        // shim is single-writer per session so this can't
+        // deadlock; the tokio runtime is provided by the
+        // bench harness or by the test harness.
+        let rt = tokio::runtime::Handle::try_current()
+            .map_err(|_| "summarize called outside a tokio runtime".to_string())?;
+        rt.block_on(async { self.summarize_async(text, max_tokens).await })
+    }
+}
+
+impl OpenAiAgent {
+    /// Async summarization call. Hardcoded prompt; `max_tokens`
+    /// is both the cap on output and a hint to the LLM.
+    async fn summarize_async(
+        &self,
+        text: &str,
+        max_tokens: usize,
+    ) -> Result<String, String> {
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(60))
+            .build()
+            .map_err(|e| format!("reqwest build: {e}"))?;
+        let body = serde_json::json!({
+            "model": self.model,
+            "max_tokens": max_tokens,
+            "temperature": 0.0,
+            "messages": [
+                {"role": "system", "content": SUMMARIZE_SYSTEM},
+                {"role": "user", "content": text},
+            ],
+        });
+        let mut req = client
+            .post(format!("{}/chat/completions", self.base_url.trim_end_matches('/')))
+            .json(&body);
+        if let Some(key) = &self.resolved_key() {
+            req = req.bearer_auth(key);
+        }
+        let resp = req
+            .send()
+            .await
+            .map_err(|e| format!("send: {e}"))?;
+        let status = resp.status();
+        if !status.is_success() {
+            return Err(format!("HTTP {status}"));
+        }
+        let json: serde_json::Value = resp
+            .json()
+            .await
+            .map_err(|e| format!("body: {e}"))?;
+        Ok(json["choices"][0]["message"]["content"]
+            .as_str()
+            .unwrap_or("")
+            .to_string())
+    }
+}
+
 #[async_trait]
 impl AgentAdapter for CliAgent {
     fn name(&self) -> &str {

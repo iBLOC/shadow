@@ -138,6 +138,7 @@ mod tests {
     fn task(instruction: &str) -> Task {
         Task {
             id: "t1".into(),
+                framework: None,
             instruction: instruction.into(),
             files: vec![],
             answer_contract: String::new(),

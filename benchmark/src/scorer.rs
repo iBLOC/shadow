@@ -366,6 +366,7 @@ pub async fn score(
             );
             let judge_task = crate::task::Task {
                 id: format!("judge-{}", task.id),
+                framework: None,
                 instruction: prompt,
                 files: vec![],
                 answer_contract: String::new(),
@@ -605,6 +606,7 @@ mod tests {
     async fn exact_match_normalizes() {
         let task = Task {
             id: "t".into(),
+                framework: None,
             instruction: "q".into(),
             files: vec![],
             answer_contract: String::new(),
@@ -629,6 +631,7 @@ mod tests {
     async fn exact_match_strips_lowercase_final_answer_marker() {
         let task = Task {
             id: "t".into(),
+                framework: None,
             instruction: "q".into(),
             files: vec![],
             answer_contract: String::new(),
@@ -653,6 +656,7 @@ mod tests {
     async fn exact_match_numeric_equality_fallback() {
         let task = Task {
             id: "t".into(),
+                framework: None,
             instruction: "q".into(),
             files: vec![],
             answer_contract: String::new(),
