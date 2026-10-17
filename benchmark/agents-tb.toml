@@ -1,0 +1,328 @@
+# Terminal-Bench slice participants. Keys come from env vars — source
+# benchmark/.env (gitignored) before running:
+#   set -a; source .env; set +a
+#   cargo run --bin bench -- run --suite suites/terminal-bench-2-smoke.json \
+#     --agents agents-tb.toml --out reports/
+
+# DeepSeek V3 — external model baseline on imported TB 2.x tasks.
+# Large max_tokens: these tasks expect a full file delivered in one
+# fenced code block, and the OpenAI adapter has no shell.
+[[agent]]
+adapter = "openai"
+name = "deepseek-chat"
+base_url = "https://api.deepseek.com/v1"
+model = "deepseek-chat"
+api_key_env = "SHADOW_BENCH_DEEPSEEK_KEY"
+max_tokens = 8192
+timeout_secs = 600
+
+# Same model in agentic mode — bash / write_file / read_file /
+# list_files / finish tool calling. The harness lets the model run
+# commands in a real workdir, which is what Terminal-Bench actually
+# measures (vs. one-shot text-only). 30 steps is enough for the
+# TB smoke slice; per-step `max_tokens = 2048` covers most
+# intermediate observations; overall timeout 900s covers ~30 steps.
+[[agent]]
+adapter = "openai"
+name = "deepseek-chat-agentic"
+base_url = "https://api.deepseek.com/v1"
+model = "deepseek-chat"
+api_key_env = "SHADOW_BENCH_DEEPSEEK_KEY"
+max_tokens = 8192
+timeout_secs = 900
+[agent.mode]
+kind = "agentic"
+max_steps = 30
+
+# Same agentic scaffold with a doubled step budget — diagnostics for
+# whether the 3 SWE f2p misses / TB batching timeout are budget-bound
+# or capability-bound.
+[[agent]]
+adapter = "openai"
+name = "deepseek-chat-agentic-50"
+base_url = "https://api.deepseek.com/v1"
+model = "deepseek-chat"
+api_key_env = "SHADOW_BENCH_DEEPSEEK_KEY"
+max_tokens = 8192
+timeout_secs = 1200
+[agent.mode]
+kind = "agentic"
+max_steps = 50
+
+# GLM-5 — Terminus-2 harness model on the Terminal-Bench 2.0 leaderboard;
+# cross-provider data point in the same 30-step scaffold.
+# [[agent]]
+# adapter = "openai"
+# name = "glm-5-agentic"
+# base_url = "https://open.bigmodel.cn/api/paas/v4"
+# model = "glm-5"
+# api_key_env = "SHADOW_BENCH_ZHIPU_KEY"
+# max_tokens = 8192
+# timeout_secs = 900
+# [agent.mode]
+# kind = "agentic"
+# max_steps = 30
+
+# Xiaomi MiMo — same model hippocampus's LongMemEval run used
+# (mimo-v2.6-flash, OpenAI-compatible at api.xiaomimimo.com). Key lives
+# in benchmark/.env (gitignored) as SHADOW_BENCH_MIMO_KEY.
+[[agent]]
+adapter = "openai"
+name = "mimo-flash"
+base_url = "https://api.xiaomimimo.com/v1"
+model = "mimo-v2.6-flash"
+api_key_env = "SHADOW_BENCH_MIMO_KEY"
+max_tokens = 8192
+timeout_secs = 600
+
+# Same model in agentic mode — lets us measure harness-level tool
+# gains across vendor (Xiaomi vs DeepSeek). 50 steps mirrors
+# deepseek-browser-agentic.
+[[agent]]
+adapter = "openai"
+name = "mimo-flash-agentic"
+base_url = "https://api.xiaomimimo.com/v1"
+model = "mimo-v2.6-flash"
+api_key_env = "SHADOW_BENCH_MIMO_KEY"
+max_tokens = 8192
+timeout_secs = 900
+[agent.mode]
+kind = "agentic"
+max_steps = 50
+
+# Xiaomi MiMo Pro tier — same endpoint/key, heavier model.
+[[agent]]
+adapter = "openai"
+name = "mimo-pro"
+base_url = "https://api.xiaomimimo.com/v1"
+model = "mimo-v2.6-pro"
+api_key_env = "SHADOW_BENCH_MIMO_KEY"
+max_tokens = 8192
+timeout_secs = 600
+
+[[agent]]
+adapter = "openai"
+name = "mimo-pro-agentic"
+base_url = "https://api.xiaomimimo.com/v1"
+model = "mimo-v2.6-pro"
+api_key_env = "SHADOW_BENCH_MIMO_KEY"
+max_tokens = 8192
+timeout_secs = 900
+[agent.mode]
+kind = "agentic"
+max_steps = 50
+
+# Qwen3 Max — official tau2-Verified ~69.6 / SWE-bench Verified 72.5
+# (DashScope OpenAI-compatible mode). The official-tier reference: if
+# this model scores near its official numbers on OUR harness, the
+# harness is faithful and the deepseek gap is model-tier, not scaffold.
+# [[agent]]
+# adapter = "openai"
+# name = "qwen3-max"
+# base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+# model = "qwen3-max"
+# api_key_env = "SHADOW_BENCH_DASHSCOPE_KEY"
+# max_tokens = 2048
+# timeout_secs = 900
+
+# qwen3.8 max (Qwen model, NOT Anthropic) — user-provided key in .env as
+# SHADOW_BENCH_QWEN38_KEY. Official docs (platform.qianwenai.com) say the
+# platform is OpenAI-SDK compatible; probed routes: /compatible-mode/v1
+# speaks OpenAI chat.completions (Bearer), /apps/anthropic speaks
+# Anthropic Messages (x-api-key) — same model behind both faces. We use
+# the OpenAI face so the Rust `openai` adapter works for GAIA/SWE and
+# litellm needs no provider prefix.
+# [[agent]]
+# adapter = "openai"
+# name = "qwen38-max"
+# base_url = "https://maas.qianwenaiapi.com/compatible-mode/v1"
+# model = "qwen3.8-max"
+# api_key_env = "SHADOW_BENCH_QWEN38_KEY"
+# max_tokens = 2048
+# timeout_secs = 900
+
+# More free-tier models callable with the same qianwenai key (probed
+# 2026-10-14): kimi-k3 and glm-5.3 pass a calculator tool-call round-trip;
+# qwen3.7-flash likewise. Rejected: MiniMax(/)-M3 ("product not
+# activated"), deepseek-v4-pro + qwen3.7-plus ("Free quota exhausted",
+# paid only), kimi/kimi-k3 prefixed variant (bare name is the live one).
+# [[agent]]
+# adapter = "openai"
+# name = "kimi-k3"
+# base_url = "https://maas.qianwenaiapi.com/compatible-mode/v1"
+# model = "kimi-k3"
+# api_key_env = "SHADOW_BENCH_QWEN38_KEY"
+# max_tokens = 2048
+# timeout_secs = 900
+
+# [[agent]]
+# adapter = "openai"
+# name = "glm-5.3"
+# base_url = "https://maas.qianwenaiapi.com/compatible-mode/v1"
+# model = "glm-5.3"
+# api_key_env = "SHADOW_BENCH_QWEN38_KEY"
+# max_tokens = 2048
+# timeout_secs = 900
+
+# [[agent]]
+# adapter = "openai"
+# name = "qwen37-flash"
+# base_url = "https://maas.qianwenaiapi.com/compatible-mode/v1"
+# model = "qwen3.7-flash"
+# api_key_env = "SHADOW_BENCH_QWEN38_KEY"
+# max_tokens = 2048
+# timeout_secs = 900
+
+# 大脑独立栈 (brain standalone) — benchmark subject #1 of 2 (desktop is
+# the wdio entry; mobile deferred by user decision 2026-10-14). The
+# brain = 端脑 telencephalon (4 lobes: temporal/occipital/parietal/
+# prefrontal) + 间脑 diencephalon (Thalamus) + 海马体 hippocampus (:
+# 8081). Boot (verified live 2026-10-14, all four components healthy):
+#   cd encephalon && NEURON_MODEL_DIRS=~/.neuron/models \
+#     cargo run --release -p encephalon --example a2a_server -- --port 8082
+# Two faces, two entries:
+#  (a) A2A face (brain-a2a): telencephalon gateway reads skill from
+#      message.metadata.skill and routes to a REGISTERED lobe — needs a
+#      serving lobe process (registered lobes ship placeholder .local
+#      URLs with empty skills; live probe: "skill not found, available
+#      skills: []"). Wire contract in src/brain_agent.rs.
+#  (b) neuron OpenAI face (brain-qwen06): full-stack serving /v1/chat/
+#      completions — measures the brain-as-inference-host delta now.
+#[[agent]]
+#adapter = "brain"
+#name = "brain-a2a"
+#a2a_base_url = "http://127.0.0.1:8082"
+#skill = "chat"
+#timeout_secs = 900
+
+[[agent]]
+adapter = "openai"
+name = "brain-qwen06"
+base_url = "http://127.0.0.1:8082/v1"
+model = "qwen3-0.6b"
+max_tokens = 2048
+timeout_secs = 900
+
+# (c) parietal-real behavior-evaluation face — 真被测物第一行跑分。
+# 前提：parietal-server 在跑（telencephalon/crates/behavior-stub 的
+# parietal-server.exe，ENCEPHALON_URL=http://127.0.0.1:8082 起动自动
+# 注册），端脑 lobe_cache 有 parietal-real（skills 含 behavior.evaluate）。
+# suite: suites/behavior-smoke.json（浴缸温度阈值场景）。
+[[agent]]
+adapter = "brain"
+name = "brain-parietal-behavior"
+a2a_base_url = "http://127.0.0.1:8082"
+skill = "behavior.evaluate"
+timeout_secs = 60
+
+# Agentic variants of the four qianwenai-platform models for GAIA —
+# same 50-step budget as deepseek-chat-agentic-50 for comparability.
+# [[agent]]
+# adapter = "openai"
+# name = "qwen38-max-agentic"
+# base_url = "https://maas.qianwenaiapi.com/compatible-mode/v1"
+# model = "qwen3.8-max"
+# api_key_env = "SHADOW_BENCH_QWEN38_KEY"
+# max_tokens = 8192
+# timeout_secs = 900
+# [agent.mode]
+# kind = "agentic"
+# max_steps = 50
+
+# [[agent]]
+# adapter = "openai"
+# name = "kimi-k3-agentic"
+# base_url = "https://maas.qianwenaiapi.com/compatible-mode/v1"
+# model = "kimi-k3"
+# api_key_env = "SHADOW_BENCH_QWEN38_KEY"
+# max_tokens = 8192
+# timeout_secs = 900
+# [agent.mode]
+# kind = "agentic"
+# max_steps = 50
+
+# [[agent]]
+# adapter = "openai"
+# name = "glm-53-agentic"
+# base_url = "https://maas.qianwenaiapi.com/compatible-mode/v1"
+# model = "glm-5.3"
+# api_key_env = "SHADOW_BENCH_QWEN38_KEY"
+# max_tokens = 8192
+# timeout_secs = 900
+# [agent.mode]
+# kind = "agentic"
+# max_steps = 50
+
+# [[agent]]
+# adapter = "openai"
+# name = "qwen37-flash-agentic"
+# base_url = "https://maas.qianwenaiapi.com/compatible-mode/v1"
+# model = "qwen3.7-flash"
+# api_key_env = "SHADOW_BENCH_QWEN38_KEY"
+# max_tokens = 8192
+# timeout_secs = 900
+# [agent.mode]
+# kind = "agentic"
+# max_steps = 50
+
+# deepseek-chat + real browser tools (W3C WebDriver via chromedriver on
+# :9515). Launch: chromedriver --port=9515. The browser_navigate /
+# browser_snapshot / browser_click tools join the loop when
+# webdriver_url is set.
+[[agent]]
+adapter = "openai"
+name = "deepseek-browser-agentic"
+base_url = "https://api.deepseek.com/v1"
+model = "deepseek-chat"
+api_key_env = "SHADOW_BENCH_DEEPSEEK_KEY"
+max_tokens = 2048
+timeout_secs = 900
+webdriver_url = "http://127.0.0.1:9515"
+[agent.mode]
+kind = "agentic"
+max_steps = 50
+
+# 大脑容器 (ibloc-brain) — the full production stack (端脑+丘脑+海马体+
+# neuron) behind ONE OpenAI face. Build: docker build -t ibloc-brain
+# -f encephalon/Dockerfile . (repo root context); run with
+# NEURON_REMOTE_* env per the Dockerfile header, port 8082 (local dev
+# boots use `cargo run --example a2a_server -- --port 18082` since
+# 8082 is held by a resident hippocampus-server).
+# Requires the neuron remote engine (NEURON_REMOTE_* env, merged into
+# neuron 2026-10-12) so cloud models live behind the brain's face.
+[[agent]]
+adapter = "openai"
+name = "brain-docker"
+base_url = "http://127.0.0.1:18082/v1"
+model = "deepseek-chat"
+max_tokens = 8192
+timeout_secs = 900
+[agent.mode]
+kind = "agentic"
+max_steps = 50
+
+# Shadow-Desktop as benchmark subject #2 (大脑是 subject #1)。前提：
+# `pnpm tauri dev` 在跑、wdio plugin 暴露在 :4445（默认配置见
+# shadow-desktop/tests/wdio/wdio.conf.ts）。当前 Tauri dev 模式未起，
+# 所以条目先注释——起 `pnpm tauri dev` 后取消注释即可实跑。
+#[[agent]]
+#adapter = "shadow-desktop"
+#name = "shadow-desktop-agentic"
+#webdriver_url = "http://127.0.0.1:4445"
+#app_url = "http://localhost:1420"
+#reply_timeout_secs = 600
+#[agent.mode]
+#kind = "agentic"
+#max_steps = 30
+
+# (d) prefrontal-real LLM-execution face — 被测物第二行。prefrontal
+# v9 serve :18082（--api-base deepseek）+ 端脑 lobe_cache 注册
+# prefrontal-real（skills 含 task_execution）。任务经 端脑 gateway →
+# prefrontal agent（process_with_tools 工具循环）→ deepseek → 回答。
+# 与 deepseek-chat（openai 直连）同模型对照 = 被测物 A2A 栈 delta。
+[[agent]]
+adapter = "brain"
+name = "brain-prefrontal-llm"
+a2a_base_url = "http://127.0.0.1:8082"
+skill = "task_execution"
+timeout_secs = 120
