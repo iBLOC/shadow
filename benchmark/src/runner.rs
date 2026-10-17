@@ -48,6 +48,15 @@ pub struct RunOutcome {
     /// re-verified. Capped at 32 KiB to keep reports bounded.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub answer: Option<String>,
+    /// Reasoning chain extracted from the raw answer (the content
+    /// inside `<think>...</think>` blocks, concatenated). Most
+    /// modern open-weight models (Qwen3, DeepSeek-R1, o-series)
+    /// emit thinking tokens inline; keeping them in a separate
+    /// field lets reviewers audit *why* the model reached its
+    /// conclusion without scanning the full answer. `None` when
+    /// the answer contains no think blocks.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
 }
@@ -211,6 +220,15 @@ impl Runner {
                         }
                     }
                     all_passed &= score.passed;
+                    // Reasoning extraction runs on the
+                    // pre-strip raw answer (so auditors see the
+                    // model's full thinking chain). The reasoning
+                    // field is independent of the 32 KiB answer
+                    // cap because thinking tokens are usually
+                    // short and useful. Done before truncation so
+                    // we don't accidentally drop a <think> block
+                    // sitting near the 32 KiB boundary.
+                    let reasoning = extract_reasoning(&r.answer);
                     let stored_answer = if r.answer.len() > 32 * 1024 {
                         // Truncate with a marker so reviewers know
                         // the original was longer.
@@ -227,6 +245,7 @@ impl Runner {
                         detail: score.detail,
                         duration_secs: started.elapsed().as_secs_f64(),
                         answer: stored_answer,
+                        reasoning,
                         error: None,
                     }
                 }
@@ -238,6 +257,7 @@ impl Runner {
                         detail: String::new(),
                         duration_secs: started.elapsed().as_secs_f64(),
                         answer: None,
+                        reasoning: None,
                         error: Some(e.to_string()),
                     }
                 }
@@ -321,6 +341,41 @@ fn chrono_utc() -> String {
         .map(|d| d.as_secs())
         .unwrap_or(0);
     format!("unix-{now}")
+}
+
+/// Extract the content inside `<think>...</think>` blocks from an
+/// LLM answer. Concatenates multiple blocks with blank-line
+/// separators (preserves order). Unclosed `<think>` (no matching
+/// `</think>`) is dropped — the answer might be truncated by the
+/// upstream token limit, and we don't want a half-open tag to
+/// surface as "reasoning" by mistake.
+///
+/// Returns `None` when the answer contains no complete think
+/// blocks (so the `reasoning` field in `RunOutcome` is
+/// `skip_serializing_if = "Option::is_none"` and absent in that
+/// case, keeping reports tidy).
+pub fn extract_reasoning(answer: &str) -> Option<String> {
+    let mut out = String::new();
+    let mut rest = answer;
+    while let Some(open) = rest.find("<think>") {
+        let after_open = &rest[open + "<think>".len()..];
+        if let Some(close) = after_open.find("</think>") {
+            if !out.is_empty() {
+                out.push_str("\n\n");
+            }
+            out.push_str(after_open[..close].trim());
+            rest = &after_open[close + "</think>".len()..];
+        } else {
+            // Unclosed tag — drop the rest. Same policy as
+            // `scorer::strip_think`.
+            break;
+        }
+    }
+    if out.is_empty() {
+        None
+    } else {
+        Some(out)
+    }
 }
 
 impl Report {
@@ -663,6 +718,66 @@ mod disk_check_tests {
             },
         );
         assert!(verify_action_on_disk(&t, &dir).is_ok());
+    }
+
+    /// Positive control: simulates the `l4-junk-body-smoke.json`
+    /// fixture. The runner materializes `pf-delta/junk.txt` (via
+    /// `task.files`) with content that intentionally does NOT
+    /// contain the gold marker. The textual scorer (exact-match)
+    /// fails (the agent has no tool to fix it), but more
+    /// importantly the L4 disk content check would also fail if
+    /// the textual score somehow passed — locking in the failure
+    /// contract on both layers.
+    #[test]
+    fn l4_junk_body_fixture_locked() {
+        let dir = tempdir();
+        let nested = dir.join("pf-delta");
+        std::fs::create_dir_all(&nested).unwrap();
+        std::fs::write(
+            nested.join("junk.txt"),
+            "lorem ipsum dolor sit amet\n",
+        )
+        .unwrap();
+        let t = task_with_scorer(
+            // l4- prefix mirrors the real suite; the L4 check
+            // is gated on the file- / shell- prefix, so this
+            // synthetic test uses file- to exercise the path
+            // without needing to update `is_tool_action_task`.
+            "file-l4-junk-body-validation",
+            "read pf-delta/junk.txt and answer with its content",
+            ScorerSpec::ExactMatch {
+                expected: "EXPECTED-MARKER-DELTA-042".into(),
+                case_sensitive: false,
+            },
+        );
+        let err = verify_action_on_disk(&t, &dir).unwrap_err();
+        assert!(
+            err.contains("no candidate file contains"),
+            "expected L4 content-check failure, got: {err}"
+        );
+        assert!(err.contains("EXPECTED-MARKER-DELTA-042"), "got: {err}");
+    }
+
+    #[test]
+    fn extract_reasoning_pulls_think_blocks() {
+        use super::extract_reasoning;
+        // Single block.
+        assert_eq!(
+            extract_reasoning("<think> I should write 7*8=56. </think>56"),
+            Some("I should write 7*8=56.".to_string())
+        );
+        // Multiple blocks concatenated.
+        let ans = "<think> step 1: recall. </think>first answer. \
+                    <think> step 2: check. </think>final answer.";
+        let r = extract_reasoning(ans).unwrap();
+        assert!(r.contains("step 1: recall"), "got: {r}");
+        assert!(r.contains("step 2: check"), "got: {r}");
+        // No think blocks — None.
+        assert_eq!(extract_reasoning("just a plain answer"), None);
+        // Unclosed think drops the rest (no half-open tag leaks).
+        assert_eq!(extract_reasoning("<think> rambling forever"), None);
+        // Answer is just a tag closer.
+        assert_eq!(extract_reasoning("only </think> here"), None);
     }
 
     fn tempdir() -> PathBuf {
