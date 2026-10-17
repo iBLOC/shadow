@@ -4,13 +4,15 @@
 //! metric.
 
 use crate::agent::{apply_fenced_patches, AgentAdapter, AgentError};
-use crate::config::AgentsConfig;
+use crate::config::{AgentSpec, AgentsConfig};
+use crate::hippocampus_shim::{BranchReason, HippocampusLike, LocalHippocampusShim};
 use crate::scorer::{extract_gold, is_tool_action_task, score, Score};
 use crate::suite::Suite;
 use crate::task::Task;
 use serde::Serialize;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::Duration;
 
 #[derive(Debug, Clone)]
@@ -125,13 +127,66 @@ impl Runner {
         let judge = agents_cfg.judge_client();
         let mut results: Vec<TaskResult> = Vec::new();
 
+        // One hippocampus shim per (agent, suite) pair. The shim
+        // owns the prior_traces buffer; the HashMap arg is
+        // honored as a *seed* (back-compat with callers that
+        // pass an externally-built history) but the in-loop
+        // state of truth is the shim.
+        let mut shims: std::collections::HashMap<String, Arc<LocalHippocampusShim>> =
+            std::collections::HashMap::new();
+        for spec in &agents_cfg.agents {
+            shims.insert(
+                spec.name().to_string(),
+                Arc::new(LocalHippocampusShim::new(spec.name(), suite.name.clone())),
+            );
+            // Seed from the HashMap if the caller passed a
+            // string for (agent, task[0]). Best-effort: we
+            // treat the seed as the buffer for the first task
+            // (replaced on first append). Future work can plumb
+            // a richer seed protocol.
+            if let Some(task) = suite.tasks.first() {
+                if let Some(seed) =
+                    prior_traces.get(&(spec.name().to_string(), task.id.clone()))
+                {
+                    shims
+                        .get(spec.name())
+                        .expect("just inserted")
+                        .append(&suite.name, spec.name(), &task.id, seed);
+                }
+            }
+        }
+
         for adapter in adapters {
             for task in &suite.tasks {
-                let prior = prior_traces
-                    .get(&(adapter.name().to_string(), task.id.clone()))
-                    .map(String::as_str)
-                    .unwrap_or("");
-                results.push(self.run_one(adapter, task, &judge, prior).await);
+                let shim = shims
+                    .get(adapter.name())
+                    .cloned()
+                    .unwrap_or_else(|| {
+                        // Adapter not in agents_cfg (e.g. ad-hoc
+                        // adapter built in tests). Fall back to a
+                        // default shim with no thresholds.
+                        Arc::new(LocalHippocampusShim::new(
+                            adapter.name(),
+                            suite.name.clone(),
+                        ))
+                    });
+                let prior = shim.current_prior_traces();
+                let result = self.run_one(adapter, task, &judge, &prior).await;
+                // Append the new answer to the shim for the
+                // *next* task in the loop to see as prior. We
+                // keep the append outside `run_one` so future
+                // hook points (compress / drift detect) hook in
+                // here without changing the run_one signature.
+                if let Some(ans) = result
+                    .runs
+                    .first()
+                    .and_then(|r| r.answer.clone())
+                {
+                    shim.append(&suite.name, adapter.name(), &task.id, &ans);
+                    shim.record_task_id(&task.id);
+                    shim.record_framework(task.framework.as_deref());
+                }
+                results.push(result);
             }
         }
 

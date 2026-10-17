@@ -55,6 +55,11 @@ pub enum AgentSpec {
         max_tokens: u32,
         #[serde(default = "df_timeout")]
         timeout_secs: u64,
+        /// Session-memory tuning. `None` falls back to
+        /// `SessionConfig::default()` (no auto-compression,
+        /// unlimited tasks, drift detection on).
+        #[serde(default)]
+        session: Option<SessionConfig>,
     },
     /// Local agent CLI driven on argv (`{prompt}` / `{workdir}`
     /// placeholders): openclaw, pi, dsh (DeepSeek Harness), aider…
@@ -63,6 +68,18 @@ pub enum AgentSpec {
         command: Vec<String>,
         #[serde(default = "df_timeout")]
         timeout_secs: u64,
+    },
+    /// 大脑独立栈 A2A endpoint (subject #1 of 2, see
+    /// docs/benchmark-positioning.md §0) — POST /a2a/tasks/send with
+    /// skill routing. `skill` selects the target lobe.
+    Brain {
+        name: String,
+        a2a_base_url: String,
+        skill: String,
+        #[serde(default = "df_timeout")]
+        timeout_secs: u64,
+        #[serde(default)]
+        session: Option<SessionConfig>,
     },
 }
 
@@ -83,12 +100,78 @@ fn df_reply_timeout() -> u64 {
     600
 }
 
+/// Session-memory configuration for an agent. The bench runner
+/// holds one `LocalHippocampusShim` per (agent, suite) pair and
+/// uses these thresholds to decide when to compress accumulated
+/// `prior_traces` (prefrontal-shaped fixed-template LLM
+/// summarization) and when to branch the session (drop the
+/// buffer, write a checkpoint, start fresh).
+///
+/// Defaults are deliberately generous: a typical long-suite run
+/// (10–20 tasks, each < 2k tokens of answer) stays well under
+/// the compress threshold. Operators tune these in agents-tb.toml
+/// per agent if they want to test the threshold behavior.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionConfig {
+    /// When `cumulative_tokens` exceeds this, run a compression
+    /// pass (sliding window if no `TextSummarizer` is wired, LLM
+    /// summarize otherwise). Default 0 = never auto-compress.
+    #[serde(default)]
+    pub compress_at_tokens: usize,
+    /// Target token count for the compressed buffer. The summarizer
+    /// is told to keep its reply under this cap. Default 0 = no
+    /// target (sliding window halves regardless).
+    #[serde(default)]
+    pub target_tokens: usize,
+    /// After this many tasks in the same session, force a
+    /// branch. Default 0 = no max (session runs the full suite).
+    #[serde(default)]
+    pub branch_at_tasks: usize,
+    /// Enable framework-tag-based topic-drift detection. Default
+    /// true; off skips drift events entirely.
+    #[serde(default = "df_true")]
+    pub detect_drift: bool,
+}
+
+impl Default for SessionConfig {
+    fn default() -> Self {
+        Self {
+            compress_at_tokens: 0,    // off by default (back-compat)
+            target_tokens: 0,
+            branch_at_tasks: 0,       // unlimited by default
+            detect_drift: true,
+        }
+    }
+}
+
+fn df_true() -> bool {
+    true
+}
+
 impl AgentSpec {
     pub fn name(&self) -> &str {
         match self {
             AgentSpec::ShadowDesktop { name, .. } => name,
             AgentSpec::OpenAi { name, .. } => name,
             AgentSpec::Cli { name, .. } => name,
+            AgentSpec::Brain { name, .. } => name,
+        }
+    }
+
+    /// Returns the agent's session-memory configuration, falling
+    /// back to `SessionConfig::default()` (no auto-compression,
+    /// unlimited tasks, drift detection on) for variants that
+    /// don't carry a `session` field.
+    pub fn session_config(&self) -> SessionConfig {
+        match self {
+            AgentSpec::OpenAi { session, .. } => session.clone().unwrap_or_default(),
+            AgentSpec::Brain { session, .. } => session.clone().unwrap_or_default(),
+            // CLI / ShadowDesktop don't carry session today —
+            // the runner reads prior_traces from the previous
+            // task's stdout / wdio DOM dump respectively, so
+            // hippocampus-shaped shim doesn't apply yet. Default
+            // values still let the runner work without crashing.
+            AgentSpec::Cli { .. } | AgentSpec::ShadowDesktop { .. } => SessionConfig::default(),
         }
     }
 
@@ -113,6 +196,11 @@ impl AgentSpec {
                 api_key_env,
                 max_tokens,
                 timeout_secs,
+                // `session` lives on the runner side, not the
+                // adapter — the adapter is stateless. The
+                // runner reads `AgentSpec::session_config()`
+                // and constructs the hippocampus shim from it.
+                ..
             } => Box::new(OpenAiAgent {
                 name,
                 base_url,
@@ -129,6 +217,18 @@ impl AgentSpec {
             } => Box::new(CliAgent {
                 name,
                 command,
+                timeout_secs,
+            }),
+            AgentSpec::Brain {
+                name,
+                a2a_base_url,
+                skill,
+                timeout_secs,
+                ..
+            } => Box::new(crate::brain_agent::BrainAgent {
+                name,
+                a2a_base_url,
+                skill,
                 timeout_secs,
             }),
         }
