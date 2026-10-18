@@ -129,41 +129,110 @@ export function JdmEditorPage() {
   const [tryRun, setTryRun] = useState<TryRunResult | null>(null);
   const [busy, setBusy] = useState(false);
   const dmnContainerRef = useRef<HTMLDivElement>(null);
+  const modelerRef = useRef<any>(null);
+  const [dmnReady, setDmnReady] = useState(false);
+  const [dmnError, setDmnError] = useState<string | null>(null);
 
-  // Render the dmn-js modeler in the dedicated container. dmn-js
-  // is a peer of bpmn-js; for an MVP we wire the standalone
-  // dmn-js viewer and let the user export DMN XML which the
-  // page converts on the fly.
+  // dmn-js Modeler lifecycle. Deterministic import path
+  // (`dmn-js/lib/Modeler` — verified against dmn-js@17.12.3).
+  // The canvas is presentation: the form below stays canonical,
+  // and "Sync from canvas" pulls user edits made in the
+  // decision-table UI back into the JdmRule state (saveXML →
+  // DMN parse).
   useEffect(() => {
     let cancelled = false;
+    let modeler: any = null;
     (async () => {
       try {
-        const mod: any = await import('dmn-js/dist/Modeler.no-extensions.min.js' as any)
-          .catch(() => import('dmn-js/dist/dmn-modeler.production.min.js' as any))
-          .catch(() => import('dmn-js' as any));
+        const mod: any = await import('dmn-js/lib/Modeler');
         if (cancelled || !dmnContainerRef.current) return;
-        const ctor = mod?.default ?? mod?.Modeler ?? mod;
-        if (!ctor) return;
-        const modeler = new ctor({ container: dmnContainerRef.current });
+        const Ctor = mod?.default ?? mod;
+        modeler = new Ctor({
+          container: dmnContainerRef.current,
+          keyboard: { bindTo: document },
+        });
+        modelerRef.current = modeler;
         await modeler.createDiagram();
-        // Best-effort: import a tiny decision-table DMN XML.
-        const sampleDmn = buildSampleDmn(rule);
         try {
-          await modeler.importXML(sampleDmn);
+          await modeler.importXML(buildSampleDmn(rule));
         } catch {
-          // Empty diagram is fine — the form below is the
-          // canonical editor for our simplified JDM shape.
+          // Empty canvas acceptable — the form remains the
+          // source of truth; the canvas is an optional view.
         }
-      } catch {
-        // dmn-js may not be installed at MVP time; the JSON form
-        // below is always available.
+        if (!cancelled) setDmnReady(true);
+      } catch (e) {
+        if (!cancelled) setDmnError(String(e));
       }
     })();
-    return () => { cancelled = true; };
-  // We intentionally don't depend on `rule` — dmn-js is
-  // presentation-only; the form is the source of truth.
+    return () => {
+      cancelled = true;
+      modelerRef.current = null;
+      try {
+        modeler?.destroy();
+      } catch {
+        // already torn down
+      }
+    };
+  // Intentionally no `rule` dependency: the canvas mounts once;
+  // rule changes flow canvas-ward only via "Sync to canvas".
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Canvas → form: export the DMN XML the user edited and parse
+  // the decision-table rows back into ComparisonRule entries.
+  const syncFromCanvas = useCallback(async () => {
+    const modeler = modelerRef.current;
+    if (!modeler) {
+      setDmnError('dmn-js modeler not ready');
+      return;
+    }
+    try {
+      const { xml } = await modeler.saveXML({ format: true });
+      const rules = parseDmnXmlToRules(String(xml));
+      if (rules.length === 0) {
+        setTryRun({ ok: false, detail: 'canvas has no parsable decision rows' });
+        return;
+      }
+      setRule((prev) => ({ ...prev, any_of: rules }));
+      setTryRun({ ok: true, detail: `synced ${rules.length} rule(s) from canvas` });
+    } catch (e) {
+      setDmnError(String(e));
+    }
+  }, []);
+
+  // Form → canvas: regenerate the DMN XML from the form state
+  // and re-import (so canvas edits don't silently diverge).
+  const syncToCanvas = useCallback(async () => {
+    const modeler = modelerRef.current;
+    if (!modeler) {
+      setDmnError('dmn-js modeler not ready');
+      return;
+    }
+    try {
+      await modeler.importXML(buildSampleDmn(rule));
+      setTryRun({ ok: true, detail: 'canvas re-imported from form' });
+    } catch (e) {
+      setDmnError(String(e));
+    }
+  }, [rule]);
+
+  // Export the current DMN XML to a downloadable file.
+  const exportXml = useCallback(async () => {
+    const modeler = modelerRef.current;
+    if (!modeler) return;
+    try {
+      const { xml } = await modeler.saveXML({ format: true });
+      const blob = new Blob([String(xml)], { type: 'application/xml' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${rule.rule_id.replace(/[^\w.-]/g, '_')}.dmn.xml`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setDmnError(String(e));
+    }
+  }, [rule.rule_id]);
 
   const zenGraph = useMemo(() => {
     try {
@@ -294,12 +363,34 @@ export function JdmEditorPage() {
         <CardHeader>
           <CardTitle>dmn-js Modeler</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-2">
+          <div className="flex items-center gap-2">
+            <Badge variant={dmnReady ? 'default' : 'secondary'}>
+              {dmnReady ? 'canvas ready' : 'loading…'}
+            </Badge>
+            {dmnError && <Badge variant="destructive">{dmnError}</Badge>}
+            <div className="flex-1" />
+            <Button size="sm" variant="outline" onClick={syncFromCanvas} disabled={!dmnReady}>
+              <Download className="w-4 h-4 mr-1" /> Sync from canvas
+            </Button>
+            <Button size="sm" variant="outline" onClick={syncToCanvas} disabled={!dmnReady}>
+              <Upload className="w-4 h-4 mr-1" /> Sync to canvas
+            </Button>
+            <Button size="sm" variant="outline" onClick={exportXml} disabled={!dmnReady}>
+              <Save className="w-4 h-4 mr-1" /> Export XML
+            </Button>
+          </div>
           <div
             ref={dmnContainerRef}
             className="h-[480px] w-full border rounded"
             style={{ background: 'var(--background)' }}
           />
+          <p className="text-xs text-muted-foreground">
+            Edit rows in the decision table above, then "Sync from canvas" pulls the
+            comparison conditions back into the form (which is what the zen-engine
+            evaluation uses). Only simple comparisons (variable &gt;/&lt;/= number)
+            round-trip; complex FEEL expressions are skipped.
+          </p>
         </CardContent>
       </Card>
 
@@ -408,4 +499,36 @@ ${cases}
     </decisionTable>
   </decision>
 </definitions>`;
+}
+
+/// Parse the rule rows back out of a dmn-js-exported DMN XML.
+///
+/// dmn-js decision tables serialize each row as
+/// `<rule id="..."><inputEntry><text>FEEL</text></inputEntry>...
+/// </rule>`. We extract the FEEL conditions of the shape
+/// `variable > 25` / `<` / `=` and rebuild `ComparisonRule`
+/// entries. Non-comparison conditions (FEEL functions, ranges)
+/// are skipped — those need the full expression editor, which
+/// is a separate work item.
+export function parseDmnXmlToRules(xml: string): ComparisonRule[] {
+  const out: ComparisonRule[] = [];
+  const doc = new DOMParser().parseFromString(xml, 'application/xml');
+  const rows = Array.from(doc.getElementsByTagName('rule'));
+  for (const row of rows) {
+    const inputs = Array.from(row.getElementsByTagName('inputEntry'));
+    for (const input of inputs) {
+      const text = input.getElementsByTagName('text')[0]?.textContent?.trim();
+      if (!text) continue;
+      const m = text.match(/^(\w+)\s*(>|<|=)\s*(-?\d+(?:\.\d+)?)$/);
+      if (!m) continue;
+      const [, variable, op, threshold] = m;
+      out.push({
+        id: `${variable}_${out.length}`,
+        variable,
+        op: op as ComparisonRule['op'],
+        threshold: Number(threshold),
+      });
+    }
+  }
+  return out;
 }
