@@ -137,6 +137,12 @@ pub fn run() {
     let neuron_addr = brain.neuron_addr();
     tracing::info!("encephalon embedded; neuron at {neuron_addr}");
     let thalamus: Arc<diencephalon::Thalamus> = brain.thalamus().clone();
+    // JDM editor (`/jdm-editor` page) calls `jdm_try_run_rule`
+    // which delegates to `Thalamus::try_run_graph` — that builds
+    // a fresh ZenRuleEngine per call (no global state needed on
+    // the thalamus side). The thalamus hot path uses the
+    // broadcaster (notify_tx) but not the JDM editor; we leave
+    // the hot-path engine set to None here.
     let encephalon = brain.encephalon().clone();
     let embedded_brain = brain.clone();
 
@@ -389,6 +395,29 @@ fn hide_window(app: tauri::AppHandle) -> Result<(), String> {
         window.hide().map_err(|e| e.to_string())?;
     }
     Ok(())
+}
+/// Tauri command: dry-run a JDM graph against an input snapshot
+/// without going through the hot path. The JDM editor page
+/// (`src/pages/JdmEditorPage.tsx`) calls this with the
+/// currently-edited graph (GoRules JDM JSON) + a sample input;
+/// diencephalon (in-process in the Tauri shell) builds a fresh
+/// `ZenRuleEngine`, evaluates, and returns the
+/// `DecisionOutcome`. No global state is mutated.
+///
+/// Wire format:
+/// `(graph: serde_json::Value, input: serde_json::Value)
+///  -> Result<serde_json::Value, String>`
+/// where the Ok value is the `DecisionOutcome` serialized. The
+/// error string is a human-readable reason ("graph parse: …",
+/// "evaluate: …", etc.).
+#[tauri::command]
+fn jdm_try_run_rule(
+    graph: serde_json::Value,
+    input: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    diencephalon::Thalamus::try_run_graph(graph, &input)
+        .map(|o| serde_json::to_value(o).map_err(|e| e.to_string()))
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]

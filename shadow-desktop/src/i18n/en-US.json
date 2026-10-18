@@ -92,6 +92,7 @@
     "agents": "Agents",
     "models": "Models",
     "mcp": "MCP",
+    "jdmEditor": "JDM Editor",
     "computerUse": "Computer Use",
     "recording": "Recording",
     "workflowStudio": "Workflow Studio",
@@ -1148,7 +1149,18 @@
     "previewEmpty": "No models returned — check the URL and API key",
     "previewErrorPrefix": "Fetch failed: ",
     "previewSelected": "Selected",
-    "previewCount": "{{count}} available"
+    "previewCount": "{{count}} available",
+    "endpointsTitle": "Endpoints (derived from the base URL)",
+    "endpointsPending": "Endpoints are generated once a base URL is entered",
+    "epModels": "Models",
+    "epChat": "Chat",
+    "epEmbeddings": "Embeddings",
+    "epTokens": "Token count",
+    "autoFetchHint": "Available models are fetched automatically once the API key is entered",
+    "manualModelLabel": "Enter model ID manually",
+    "manualModelHint": "Auto-fetch failed — type the model ID directly; it becomes the default after adding",
+    "manualModelInUse": "Will use the manually entered model",
+    "manualModelPlaceholder": "e.g. gpt-4o-mini"
   },
   "shortcuts": {
     "title": "Shortcuts",

@@ -92,6 +92,7 @@
     "agents": "智能体",
     "models": "模型",
     "mcp": "MCP",
+    "jdmEditor": "JDM 编辑器",
     "computerUse": "Computer Use",
     "recording": "记录模式",
     "workflowStudio": "工作流编排",
@@ -1172,7 +1173,18 @@
     "previewEmpty": "未获取到模型，请检查地址与 API Key",
     "previewErrorPrefix": "获取失败：",
     "previewSelected": "已选",
-    "previewCount": "共 {{count}} 个"
+    "previewCount": "共 {{count}} 个",
+    "endpointsTitle": "接口地址（由请求地址自动推导）",
+    "endpointsPending": "填入请求地址后自动生成接口地址",
+    "epModels": "模型列表",
+    "epChat": "对话补全",
+    "epEmbeddings": "向量嵌入",
+    "epTokens": "Token 计数",
+    "autoFetchHint": "填写 API Key 后将自动获取可用模型",
+    "manualModelLabel": "手动填写模型 ID",
+    "manualModelHint": "自动获取失败时，可直接填写模型 ID，添加后作为默认模型",
+    "manualModelInUse": "将使用手动填写的模型",
+    "manualModelPlaceholder": "例如 gpt-4o-mini"
   },
   "shortcuts": {
     "title": "快捷键",

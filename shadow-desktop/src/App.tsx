@@ -30,6 +30,7 @@ import { DocumentPage } from './pages/DocumentPage';
 import { PreviewsPage } from './pages/PreviewsPage';
 import { ComputerUsePage } from './pages/ComputerUsePage';
 import { WorkflowStudioPage } from './pages/WorkflowStudioPage';
+import { JdmEditorPage } from './pages/JdmEditorPage';
 import './App.css';
 
 function App() {
@@ -55,6 +56,7 @@ function App() {
           <Route path="voice" element={<VoicePage />} />
           <Route path="group" element={<GroupPage />} />
           <Route path="mcp" element={<MCPPage />} />
+          <Route path="jdm-editor" element={<JdmEditorPage />} />
           <Route path="skills" element={<SkillsPage />} />
           <Route path="memory" element={<MemoryPage />} />
           <Route path="logs" element={<LogsPage />} />

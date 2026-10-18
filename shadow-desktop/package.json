@@ -47,6 +47,7 @@
     "@tanstack/ai-client": "^0.20.0",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-opener": "^2",
+    "dmn-js": "^17.12.3",
     "@univerjs/core": "0.6.10",
     "@univerjs/presets": "^0.6.0",
     "@univerjs/sheets": "^0.6.0",
