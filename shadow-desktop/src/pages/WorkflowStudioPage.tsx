@@ -22,14 +22,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ArrowRight, Play, Save, Trash2, Upload, Zap } from 'lucide-react'
+import { ArrowRight, Save, Trash2, Upload, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 
-type NodeKind = 'source' | 'transform' | 'agent' | 'sink'
+type NodeKind = 'source' | 'transform' | 'agent' | 'sink' | 'rule'
 
 interface EditorNode {
   id: string
@@ -40,7 +40,8 @@ interface EditorNode {
    *  source: source, filter[]
    *  agent: lobe, prompt
    *  sink: sink, channel
-   *  transform: op (JSON string, v1 透传) */
+   *  transform: op (JSON string, v1 透传)
+   *  rule: variable, rules (紧凑比较列表字符串, 如 "gt:25,lt:20") */
   config: Record<string, string>
 }
 
@@ -57,6 +58,7 @@ const KIND_COLORS: Record<NodeKind, string> = {
   transform: 'border-amber-500/60 bg-amber-500/10',
   agent: 'border-violet-500/60 bg-violet-500/10',
   sink: 'border-green-500/60 bg-green-500/10',
+  rule: 'border-rose-500/60 bg-rose-500/10',
 }
 
 const KIND_LABELS: Record<NodeKind, string> = {
@@ -64,6 +66,7 @@ const KIND_LABELS: Record<NodeKind, string> = {
   transform: 'Transform',
   agent: 'Agent',
   sink: 'Sink',
+  rule: 'Rule (zen)',
 }
 
 function detectCycle(nodes: string[], edges: EditorEdge[]): boolean {
@@ -152,7 +155,9 @@ export function WorkflowStudioPage() {
               ? { lobe: 'temporal', prompt: '' }
               : kind === 'sink'
                 ? { sink: 'feishu_card', channel: '' }
-                : { op: '{}' },
+                : kind === 'rule'
+                  ? { variable: 'value', rules: 'gt:25,lt:20' }
+                  : { op: '{}' },
       }
       updateAll([...nodes, node], edges)
       setSelected(id)
@@ -321,6 +326,9 @@ export function WorkflowStudioPage() {
           </Button>
           <Button variant="outline" size="sm" className="gap-1.5" onClick={() => addNode('agent')}>
             {t('workflowStudio.addNodeAgent')}
+          </Button>
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => addNode('rule')}>
+            {t('workflowStudio.addNodeRule')}
           </Button>
           <Button variant="outline" size="sm" className="gap-1.5" onClick={() => addNode('sink')}>
             {t('workflowStudio.addNodeSink')}

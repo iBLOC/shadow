@@ -1082,6 +1082,7 @@
     "addNodeSource": "Source",
     "addNodeTransform": "Transform",
     "addNodeAgent": "Agent",
+    "addNodeRule": "Rule (zen)",
     "addNodeSink": "Sink",
     "export": "Export JSON",
     "import": "Import",

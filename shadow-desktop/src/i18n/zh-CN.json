@@ -1106,6 +1106,7 @@
     "addNodeSource": "Source",
     "addNodeTransform": "Transform",
     "addNodeAgent": "Agent",
+    "addNodeRule": "规则 (zen)",
     "addNodeSink": "Sink",
     "export": "Export JSON",
     "import": "Import",
