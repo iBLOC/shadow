@@ -181,3 +181,20 @@ diencephalon 新增 zenoh 会传导到依赖它的 crate（telencephalon / prefr
 (新端口 7802/7449) → **25/25 (100%)**，SQL 算术一致（avg 25.5）。
 prefrontal v13 (39 sessions) + telencephalon v6 (6 lobes) 跨夜运行
 不需重启——zenoh 数据面 + A2A 协议栈两端独立存活。
+
+**规则事件多进程 wire 化 2026-10-18**：rule fire 现在双出口——
+1. in-process `broadcast::Sender<RuleEvent>`（temporal 同 binary 时）
+2. zenoh pub `shadow/rule-event/<rule_id>`（temporal 独立进程时）
+   payload = `synapse::notifications::RuleEvent` JSON（跨进程 schema
+   契约定义在 synapse，字段漂移不可能）。
+
+temporal 端 `spawn_wire_subscriber(buf, endpoint)` 订阅
+`shadow/rule-event/**` → 反序列化 → 同一 NotificationBuffer（与
+in-process 路径共用 dialog 管线）。部署形态二选一：
+- **同进程**（shadow-desktop Tauri）：走 broadcast，零网络开销
+- **跨进程**（temporal 独立服务）：走 wire，需要 zenohd 组网或同
+  网段多播（`scripts/zenohd/start-router.sh`）
+
+对应 commits：diencephalon `22ae77b`（pub 出口）+ temporal
+`f59d16e`（wire consumer）。`iBLOC/rule-engine` 共享仓方案**取消**
+（用户定调：不需要独立建仓，trait 稳定 + 各仓 impl 即可）。
