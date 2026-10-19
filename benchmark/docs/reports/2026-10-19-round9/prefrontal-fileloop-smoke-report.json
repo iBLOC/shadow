@@ -1,0 +1,123 @@
+{
+  "suite": "prefrontal-fileloop-smoke",
+  "agents": [
+    "deepseek-chat",
+    "mimo-flash"
+  ],
+  "repeat": 1,
+  "results": [
+    {
+      "agent": "deepseek-chat",
+      "task_id": "file-write-secret",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "contains all markers (disk check: expected path(s) absent on disk after run: [\"pf-delta/secret.txt\"])",
+          "duration_secs": 0.7801888,
+          "answer": "DELTA-042"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "deepseek-chat",
+      "task_id": "file-read-secret",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "expected \"delta-042\", got \"file_read is not available in this environment, so i cannot read pf-delta/secret.txt.\"",
+          "duration_secs": 0.8612923,
+          "answer": "file_read is not available in this environment, so I cannot read pf-delta/secret.txt."
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "deepseek-chat",
+      "task_id": "file-roundtrip-verified",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "missing: [\"DELTA-042\"]",
+          "duration_secs": 0.8582876,
+          "answer": "I can't complete this task because `file_read` is not available in this environment, so I cannot read `pf-delta/secret.txt` or later verify `pf-delta/copy.txt`. Without reading the source content, I also can't faithfully create the copy. If you can enable `file_read` or paste the file's contents, I can proceed."
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "mimo-flash",
+      "task_id": "file-write-secret",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "contains all markers (disk check: expected path(s) absent on disk after run: [\"pf-delta/secret.txt\"])",
+          "duration_secs": 7.7948391,
+          "answer": "I don't have a file_write tool available in this environment, so I can't create the file. If the file had been written, the content would be:\n\nDELTA-042"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "mimo-flash",
+      "task_id": "file-read-secret",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "expected \"delta-042\", got \"<tool_call><function=execute_bash><parameter=command>cat pf-delta/secret.txt 2>&1 || ls pf-delta 2>&1</parameter></function></tool_call>\"",
+          "duration_secs": 18.0547569,
+          "answer": "<tool_call><function=execute_bash><parameter=command>cat pf-delta/secret.txt 2>&1 || ls pf-delta 2>&1</parameter></function></tool_call>"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "mimo-flash",
+      "task_id": "file-roundtrip-verified",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "missing: [\"DELTA-042\"]",
+          "duration_secs": 4.922374,
+          "answer": "<tool_call_36a8b94076c558de0938f7e4f3cd4f18c5490ca0><function=execute_bash><parameter=command>cat pf-delta/secret.txt</parameter></function></tool_call_36a8b94076c558de0938f7e4f3cd4f18c5490ca0>"
+        }
+      ],
+      "pass_k": false
+    }
+  ],
+  "summaries": [
+    {
+      "agent": "deepseek-chat",
+      "tasks_total": 3,
+      "tasks_passed": 0,
+      "tasks_failed": 3,
+      "tasks_skipped": 0,
+      "pass_rate": 0.0,
+      "pass_k_rate": 0.0,
+      "median_duration_secs": 0.8582876
+    },
+    {
+      "agent": "mimo-flash",
+      "tasks_total": 3,
+      "tasks_passed": 0,
+      "tasks_failed": 3,
+      "tasks_skipped": 0,
+      "pass_rate": 0.0,
+      "pass_k_rate": 0.0,
+      "median_duration_secs": 7.7948391
+    }
+  ],
+  "generated_at": "unix-1792416777"
+}
