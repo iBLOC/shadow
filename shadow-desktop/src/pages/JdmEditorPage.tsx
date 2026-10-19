@@ -30,8 +30,11 @@ import { invoke } from '@tauri-apps/api/core';
 interface ComparisonRule {
   id: string;
   variable: string; // top-level binding (e.g. "value")
-  op: 'gt' | 'lt' | 'eq';
+  op: 'gt' | 'lt' | 'eq' | 'between';
+  /** gt/lt/eq: 单阈值; between: lo 阈值 */
   threshold: number;
+  /** 仅 between 使用; 默认 -Infinity 让旧数据兼容 */
+  high?: number;
 }
 
 interface JdmRule {
@@ -81,7 +84,7 @@ function toZenGraph(rule: JdmRule): unknown {
         hitPolicy: rule.all_of.length > 0 ? 'all' : 'first',
         statements: comparisons.map((r) => ({
           id: `s-${r.id}`,
-          condition: `${r.variable} ${opToFeel(r.op)} ${r.threshold}`,
+          condition: opToFeel(r.op, r),
         })),
       },
     },
@@ -107,11 +110,17 @@ function toZenGraph(rule: JdmRule): unknown {
   return { edges, nodes };
 }
 
-function opToFeel(op: ComparisonRule['op']): string {
+function opToFeel(op: ComparisonRule['op'], rule: ComparisonRule): string {
   switch (op) {
     case 'gt': return '>';
     case 'lt': return '<';
     case 'eq': return '=';
+    case 'between':
+      // FEEL between(x, lo, hi) 是闭区间; 与编辑器默认的 "X
+      // 介于 lo 和 hi" 语义匹配. hi 缺失时退化为 lo < x 单边
+      // (使用者应保证两个值都有).
+      const hi = rule.high ?? Infinity;
+      return `between(${rule.variable}, ${rule.threshold}, ${hi})`;
   }
 }
 
@@ -452,13 +461,28 @@ function RuleSection({ title, items, onChange }: RuleSectionProps) {
             <option value="gt">&gt;</option>
             <option value="lt">&lt;</option>
             <option value="eq">=</option>
+            <option value="between">between</option>
           </select>
           <Input
-            className="w-24"
+            className="w-20"
             type="number"
             value={r.threshold}
             onChange={(e) => update(i, { threshold: Number(e.target.value) })}
+            placeholder={r.op === 'between' ? 'lo' : 'value'}
           />
+          {r.op === 'between' && (
+            <Input
+              className="w-20"
+              type="number"
+              value={r.high ?? ''}
+              onChange={(e) =>
+                update(i, {
+                  high: e.target.value === '' ? undefined : Number(e.target.value),
+                })
+              }
+              placeholder="hi"
+            />
+          )}
           <Button
             size="icon"
             variant="ghost"
@@ -483,7 +507,7 @@ function buildSampleDmn(rule: JdmRule): string {
     .map(
       (r) => `        <inputEntry id="i1-${r.id}"><text>${r.variable}</text></inputEntry>
         <outputEntry id="o1-${r.id}"><text>"notify"</text></outputEntry>
-        <ruleEntry id="r-${r.id}"><text>${r.variable} ${opToFeel(r.op)} ${r.threshold}</text></ruleEntry>`,
+        <ruleEntry id="r-${r.id}"><text>${opToFeel(r.op, r)}</text></ruleEntry>`,
     )
     .join('\n');
   return `<?xml version="1.0" encoding="UTF-8"?>
@@ -505,11 +529,12 @@ ${cases}
 ///
 /// dmn-js decision tables serialize each row as
 /// `<rule id="..."><inputEntry><text>FEEL</text></inputEntry>...
-/// </rule>`. We extract the FEEL conditions of the shape
-/// `variable > 25` / `<` / `=` and rebuild `ComparisonRule`
-/// entries. Non-comparison conditions (FEEL functions, ranges)
-/// are skipped — those need the full expression editor, which
-/// is a separate work item.
+/// </rule>`. We extract two FEEL shapes:
+/// - Simple comparisons: `variable > 25` / `<` / `=`
+/// - Range expressions: `between(variable, lo, hi)` (FEEL standard)
+///
+/// Other FEEL forms (functions, durations, ranges) are skipped —
+/// those need a full expression editor and remain deferred.
 export function parseDmnXmlToRules(xml: string): ComparisonRule[] {
   const out: ComparisonRule[] = [];
   const doc = new DOMParser().parseFromString(xml, 'application/xml');
@@ -519,15 +544,32 @@ export function parseDmnXmlToRules(xml: string): ComparisonRule[] {
     for (const input of inputs) {
       const text = input.getElementsByTagName('text')[0]?.textContent?.trim();
       if (!text) continue;
-      const m = text.match(/^(\w+)\s*(>|<|=)\s*(-?\d+(?:\.\d+)?)$/);
-      if (!m) continue;
-      const [, variable, op, threshold] = m;
-      out.push({
-        id: `${variable}_${out.length}`,
-        variable,
-        op: op as ComparisonRule['op'],
-        threshold: Number(threshold),
-      });
+      // Simple comparison: variable op number
+      const simple = text.match(/^(\w+)\s*(>|<|=)\s*(-?\d+(?:\.\d+)?)$/);
+      if (simple) {
+        const [, variable, op, threshold] = simple;
+        out.push({
+          id: `${variable}_${out.length}`,
+          variable,
+          op: op as ComparisonRule['op'],
+          threshold: Number(threshold),
+        });
+        continue;
+      }
+      // Range: between(variable, lo, hi)
+      const range = text.match(/^between\(\s*(\w+)\s*,\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\)$/);
+      if (range) {
+        const [, variable, lo, hi] = range;
+        out.push({
+          id: `${variable}_${out.length}`,
+          variable,
+          op: 'between',
+          threshold: Number(lo),
+          high: Number(hi),
+        });
+        continue;
+      }
+      // Other shapes: skipped
     }
   }
   return out;
