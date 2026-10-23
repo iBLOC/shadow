@@ -1,0 +1,89 @@
+{
+  "suite": "l4-junk-body-smoke",
+  "agents": [
+    "deepseek-chat",
+    "mimo-flash",
+    "brain-prefrontal-llm"
+  ],
+  "repeat": 1,
+  "results": [
+    {
+      "agent": "deepseek-chat",
+      "task_id": "file-l4-junk-body-validation",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "expected \"expected-marker-delta-042\", got \"i can't read files directly. please paste the content of `pf-delta/junk.txt` and i'll return it exactly as provided.\"",
+          "duration_secs": 0.8543509,
+          "answer": "I can't read files directly. Please paste the content of `pf-delta/junk.txt` and I'll return it exactly as provided."
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "mimo-flash",
+      "task_id": "file-l4-junk-body-validation",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "expected \"expected-marker-delta-042\", got \"i don't have file access in this conversation, so i can't read `pf-delta/junk.txt`. no tools were provided to me for reading files, and the file contents weren't included in your message. if you paste the file's content here, i can repeat it back to you exactly. alternatively, if the file exists in the working directory of an agent with file tools, re-run the request there.\"",
+          "duration_secs": 4.9499547,
+          "answer": "I don't have file access in this conversation, so I can't read `pf-delta/junk.txt`. No tools were provided to me for reading files, and the file contents weren't included in your message.\n\nIf you paste the file's content here, I can repeat it back to you exactly. Alternatively, if the file exists in the working directory of an agent with file tools, re-run the request there."
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "brain-prefrontal-llm",
+      "task_id": "file-l4-junk-body-validation",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "expected \"expected-marker-delta-042\", got \"i don't have a file-reading tool available — my tools are limited to http requests, mobile device actions, json formatting, delegating to coding agents, echo, and time. none of these can read a local file directly. a couple of options: 1. if you can paste the file's content, i'll echo it back exactly. 2. if the file is accessible via a url, give me the url and i can fetch it with an http get. 3. i could dispatch the task to a coding agent (e.g., `opencode`) which may have shell access to read `pf-delta/junk.txt` — though note that would run in its own environment, not necessarily yours. let me know which you'd prefer.\"",
+          "duration_secs": 1.230523,
+          "answer": "I don't have a file-reading tool available — my tools are limited to HTTP requests, mobile device actions, JSON formatting, delegating to coding agents, echo, and time. None of these can read a local file directly.\n\nA couple of options:\n\n1. If you can paste the file's content, I'll echo it back exactly.\n2. If the file is accessible via a URL, give me the URL and I can fetch it with an HTTP GET.\n3. I could dispatch the task to a coding agent (e.g., `opencode`) which may have shell access to read `pf-delta/junk.txt` — though note that would run in its own environment, not necessarily yours.\n\nLet me know which you'd prefer."
+        }
+      ],
+      "pass_k": false
+    }
+  ],
+  "summaries": [
+    {
+      "agent": "brain-prefrontal-llm",
+      "tasks_total": 1,
+      "tasks_passed": 0,
+      "tasks_failed": 1,
+      "tasks_skipped": 0,
+      "pass_rate": 0.0,
+      "pass_k_rate": 0.0,
+      "median_duration_secs": 1.230523
+    },
+    {
+      "agent": "deepseek-chat",
+      "tasks_total": 1,
+      "tasks_passed": 0,
+      "tasks_failed": 1,
+      "tasks_skipped": 0,
+      "pass_rate": 0.0,
+      "pass_k_rate": 0.0,
+      "median_duration_secs": 0.8543509
+    },
+    {
+      "agent": "mimo-flash",
+      "tasks_total": 1,
+      "tasks_passed": 0,
+      "tasks_failed": 1,
+      "tasks_skipped": 0,
+      "pass_rate": 0.0,
+      "pass_k_rate": 0.0,
+      "median_duration_secs": 4.9499547
+    }
+  ],
+  "generated_at": "unix-1792750218"
+}
