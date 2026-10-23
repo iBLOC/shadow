@@ -75,6 +75,12 @@ logs/
 coverage/
 lcov.info
 
+# Test runner output (playwright / webdriver artifacts)
+test-results/
+playwright-report/
+blob-report/
+.playwright/
+
 # Temporary files
 tmp/
 temp/
@@ -92,3 +98,15 @@ temp/
 
 # tooling state
 benchmark/.mimosa/
+**/.mimosa/
+
+# zcode local state
+.zcode/
+
+# benchmark runtime scratch (task workdirs + alternate target dirs
+# used by the harness; regenerated per run, never source)
+benchmark/.swe-work/
+benchmark/.tau2/
+benchmark/target-*/
+benchmark/reports-*/
+benchmark/runs-*traj/
