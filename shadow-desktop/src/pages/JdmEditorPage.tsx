@@ -30,7 +30,7 @@ import { invoke } from '@tauri-apps/api/core';
 interface ComparisonRule {
   id: string;
   variable: string; // top-level binding (e.g. "value")
-  op: 'gt' | 'lt' | 'eq' | 'between';
+  op: 'gt' | 'lt' | 'eq' | 'between' | 'outside';
   /** gt/lt/eq: 单阈值; between: lo 阈值 */
   threshold: number;
   /** 仅 between 使用; 默认 -Infinity 让旧数据兼容 */
@@ -115,12 +115,22 @@ function opToFeel(op: ComparisonRule['op'], rule: ComparisonRule): string {
     case 'gt': return '>';
     case 'lt': return '<';
     case 'eq': return '=';
-    case 'between':
-      // FEEL between(x, lo, hi) 是闭区间; 与编辑器默认的 "X
-      // 介于 lo 和 hi" 语义匹配. hi 缺失时退化为 lo < x 单边
-      // (使用者应保证两个值都有).
+    case 'between': {
+      // FEEL between(x, lo, hi) is a closed interval. hi missing
+      // degrades to a one-sided test (operator should set both).
       const hi = rule.high ?? Infinity;
       return `between(${rule.variable}, ${rule.threshold}, ${hi})`;
+    }
+    case 'outside': {
+      // Complement of `between` — "normal range is lo..hi, alert
+      // only when OUTSIDE it". The common fish-tank case is the
+      // reverse (<20 OR >25), but real-world sensors (room temp,
+      // humidity) are usually "alert when outside the comfort
+      // band". FEEL has no `!between`, so we spell it out as the
+      // two-sided OR.
+      const hi = rule.high ?? Infinity;
+      return `not(between(${rule.variable}, ${rule.threshold}, ${hi}))`;
+    }
   }
 }
 
@@ -496,15 +506,16 @@ function RuleSection({ title, items, onChange }: RuleSectionProps) {
             <option value="lt">&lt;</option>
             <option value="eq">=</option>
             <option value="between">between</option>
+            <option value="outside">outside</option>
           </select>
           <Input
             className="w-20"
             type="number"
             value={r.threshold}
             onChange={(e) => update(i, { threshold: Number(e.target.value) })}
-            placeholder={r.op === 'between' ? 'lo' : 'value'}
+            placeholder={(r.op === 'between' || r.op === 'outside') ? 'lo' : 'value'}
           />
-          {r.op === 'between' && (
+          {(r.op === 'between' || r.op === 'outside') && (
             <Input
               className="w-20"
               type="number"
@@ -590,14 +601,18 @@ export function parseDmnXmlToRules(xml: string): ComparisonRule[] {
         });
         continue;
       }
-      // Range: between(variable, lo, hi)
-      const range = text.match(/^between\(\s*(\w+)\s*,\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\)$/);
+      // Range: between(variable, lo, hi) — and its complement
+      // not(between(...)) which is the common "alert when OUTSIDE
+      // the comfort band" shape (room temp / humidity).
+      const range = text.match(
+        /^(not\()?between\(\s*(\w+)\s*,\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*\)(\)?)$/,
+      );
       if (range) {
-        const [, variable, lo, hi] = range;
+        const [, negated, variable, lo, hi] = range;
         out.push({
           id: `${variable}_${out.length}`,
           variable,
-          op: 'between',
+          op: negated ? 'outside' : 'between',
           threshold: Number(lo),
           high: Number(hi),
         });
