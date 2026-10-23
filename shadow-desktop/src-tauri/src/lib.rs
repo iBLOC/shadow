@@ -278,6 +278,10 @@ pub fn run() {
             show_window,
             hide_window,
             minimize_window,
+            // JDM editor dry-run + publish (registered here —
+            // they were defined but never wired before).
+            jdm_try_run_rule,
+            jdm_register_rule,
             toggle_window_visibility,
             discover_resonance,
             resolve_resonance,
@@ -418,6 +422,17 @@ fn jdm_try_run_rule(
     diencephalon::Thalamus::try_run_graph(graph, &input)
         .map(|o| serde_json::to_value(o).map_err(|e| e.to_string()))
         .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+fn jdm_register_rule(
+    state: tauri::State<'_, AppState>,
+    rule_id: String,
+    graph: serde_json::Value,
+) -> Result<(), String> {
+    // Publish: store the graph on the embedded thalamus. Hot path
+    // picks it up next sensor event automatically.
+    state.thalamus.register_rule(rule_id, graph)
 }
 
 #[tauri::command]

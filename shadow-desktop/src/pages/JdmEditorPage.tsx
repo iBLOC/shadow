@@ -137,6 +137,7 @@ export function JdmEditorPage() {
   );
   const [tryRun, setTryRun] = useState<TryRunResult | null>(null);
   const [busy, setBusy] = useState(false);
+  const [publishing, setPublishing] = useState(false);
   const dmnContainerRef = useRef<HTMLDivElement>(null);
   const modelerRef = useRef<any>(null);
   const [dmnReady, setDmnReady] = useState(false);
@@ -273,6 +274,30 @@ export function JdmEditorPage() {
     }
   }, [rule, inputJson]);
 
+  // Publish: register the rule on the running thalamus so the
+  // hot path evaluates it on every subsequent sensor event (no
+  // per-call LLM, no per-call invoke). Distinct from `run`,
+  // which is a one-shot dry-run against a synthetic input.
+  const publish = useCallback(async () => {
+    setPublishing(true);
+    setTryRun(null);
+    try {
+      const graph = toZenGraph(rule);
+      await invoke('jdm_register_rule', {
+        ruleId: rule.rule_id,
+        graph,
+      });
+      setTryRun({
+        ok: true,
+        detail: `published "${rule.rule_id}" — hot path will evaluate it on every event`,
+      });
+    } catch (e) {
+      setTryRun({ ok: false, detail: `publish failed: ${e}` });
+    } finally {
+      setPublishing(false);
+    }
+  }, [rule]);
+
   const onUpload = useCallback((ev: React.ChangeEvent<HTMLInputElement>) => {
     const f = ev.target.files?.[0];
     if (!f) return;
@@ -379,6 +404,15 @@ export function JdmEditorPage() {
             </Badge>
             {dmnError && <Badge variant="destructive">{dmnError}</Badge>}
             <div className="flex-1" />
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={publish}
+              disabled={busy || publishing}
+            >
+              <Save className="w-4 h-4 mr-1" />
+              {publishing ? 'Publishing…' : 'Publish to thalamus'}
+            </Button>
             <Button size="sm" variant="outline" onClick={syncFromCanvas} disabled={!dmnReady}>
               <Download className="w-4 h-4 mr-1" /> Sync from canvas
             </Button>
