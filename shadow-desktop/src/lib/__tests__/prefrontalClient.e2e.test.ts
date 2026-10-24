@@ -27,7 +27,12 @@ function defaultPrefrontalBin(): string {
 }
 
 const PREFRONTAL_BIN = defaultPrefrontalBin();
-const PREFRONTAL_PORT = Number(process.env.PREFRONTAL_TEST_PORT ?? 8082);
+// Matches prefrontal's new default (127.0.0.1:18083). The old 8082
+// collided with the encephalon a2a_server on this dev box — the
+// spawned server failed to bind, waitForHealthy passed against the
+// OTHER process, and the suite asserted a2a_server's contract (the
+// "missing field session_id" 422).
+const PREFRONTAL_PORT = 18083;
 const PREFRONTAL_BASE = `http://127.0.0.1:${PREFRONTAL_PORT}`;
 const BIN_PRESENT = existsSync(PREFRONTAL_BIN);
 
