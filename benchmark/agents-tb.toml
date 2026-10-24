@@ -326,3 +326,10 @@ name = "brain-prefrontal-llm"
 a2a_base_url = "http://127.0.0.1:8082"
 skill = "task_execution"
 timeout_secs = 120
+
+# (e) rule-engine-zen — 确定性被测物：diencephalon 内嵌 zen-engine
+# (与丘脑热路径同一后端)。rule-engine-smoke 套件专用；零网络零 LLM，
+# 每题 ~10µs。答案只能是 notify/ignore —— 引擎语义回归即翻红。
+[[agent]]
+adapter = "rule-engine"
+name = "rule-engine-zen"

@@ -81,6 +81,14 @@ pub enum AgentSpec {
         #[serde(default)]
         session: Option<SessionConfig>,
     },
+    /// In-process zen rule engine (diencephalon) — the deterministic
+    /// subject for the rule-engine-smoke suite. Not an LLM: answers
+    /// are "notify" / "ignore" from the engine's FEEL evaluation.
+    /// Takes no config; the bath-guard rule is registered in code.
+    #[serde(rename = "rule-engine")]
+    RuleEngine {
+        name: String,
+    },
 }
 
 fn df_max_tokens() -> u32 {
@@ -155,6 +163,7 @@ impl AgentSpec {
             AgentSpec::OpenAi { name, .. } => name,
             AgentSpec::Cli { name, .. } => name,
             AgentSpec::Brain { name, .. } => name,
+            AgentSpec::RuleEngine { name } => name,
         }
     }
 
@@ -172,6 +181,13 @@ impl AgentSpec {
             // hippocampus-shaped shim doesn't apply yet. Default
             // values still let the runner work without crashing.
             AgentSpec::Cli { .. } | AgentSpec::ShadowDesktop { .. } => SessionConfig::default(),
+            // Deterministic engine — no memory, no drift, no LLM.
+            AgentSpec::RuleEngine { .. } => SessionConfig {
+                compress_at_tokens: 0,
+                target_tokens: 0,
+                branch_at_tasks: 0,
+                detect_drift: false,
+            },
         }
     }
 
@@ -231,6 +247,9 @@ impl AgentSpec {
                 skill,
                 timeout_secs,
             }),
+            AgentSpec::RuleEngine { .. } => {
+                Box::new(crate::rule_engine_agent::RuleEngineAgent::new_bath_guard())
+            }
         }
     }
 }

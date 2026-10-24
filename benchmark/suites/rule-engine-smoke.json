@@ -1,0 +1,63 @@
+{
+  "name": "rule-engine-smoke",
+  "description": "zen 规则引擎语义回归 — 浴缸守卫规则 (value > 25 OR value < 20 → notify) 在边界值上的 notify/ignore 判定。被测物是 diencephalon 内嵌的 zen-engine（与丘脑热路径同一后端），非 LLM：agent adapter 'rule-engine' 直接在 bench 进程内评估，零网络、零 LLM。任务 instruction 即传感器快照 JSON；期望答案只能是 'notify' 或 'ignore'。boundary 任务 (25.0 / 20.0) 锁定严格不等号语义 — 引擎若误用 >= / <= 立即翻红。",
+  "source": "shadow-internal/2026-10-24",
+  "tasks": [
+    {
+      "id": "rule-high-notifies",
+      "instruction": "{\"value\": 27.3}",
+      "files": [],
+      "framework": "rule-engine",
+      "scorer": { "kind": "contains", "all_of": ["notify"], "any_of": [] }
+    },
+    {
+      "id": "rule-low-notifies",
+      "instruction": "{\"value\": 18.5}",
+      "files": [],
+      "framework": "rule-engine",
+      "scorer": { "kind": "contains", "all_of": ["notify"], "any_of": [] }
+    },
+    {
+      "id": "rule-comfort-ignores",
+      "instruction": "{\"value\": 22.0}",
+      "files": [],
+      "framework": "rule-engine",
+      "scorer": { "kind": "contains", "all_of": ["ignore"], "any_of": [] }
+    },
+    {
+      "id": "rule-boundary-25-strict-gt",
+      "instruction": "{\"value\": 25.0}",
+      "files": [],
+      "framework": "rule-engine",
+      "scorer": { "kind": "contains", "all_of": ["ignore"], "any_of": [] }
+    },
+    {
+      "id": "rule-boundary-20-strict-lt",
+      "instruction": "{\"value\": 20.0}",
+      "files": [],
+      "framework": "rule-engine",
+      "scorer": { "kind": "contains", "all_of": ["ignore"], "any_of": [] }
+    },
+    {
+      "id": "rule-far-high-notifies",
+      "instruction": "{\"value\": 99.9}",
+      "files": [],
+      "framework": "rule-engine",
+      "scorer": { "kind": "contains", "all_of": ["notify"], "any_of": [] }
+    },
+    {
+      "id": "rule-far-low-notifies",
+      "instruction": "{\"value\": -0.5}",
+      "files": [],
+      "framework": "rule-engine",
+      "scorer": { "kind": "contains", "all_of": ["notify"], "any_of": [] }
+    },
+    {
+      "id": "rule-mid-band-ignores",
+      "instruction": "{\"value\": 20.5}",
+      "files": [],
+      "framework": "rule-engine",
+      "scorer": { "kind": "contains", "all_of": ["ignore"], "any_of": [] }
+    }
+  ]
+}

@@ -25,6 +25,7 @@ pub mod brain_agent;
 pub mod config;
 pub mod desktop_agent;
 pub mod hippocampus_shim;
+pub mod rule_engine_agent;
 pub mod runner;
 pub mod scorer;
 pub mod suite;

@@ -1,0 +1,142 @@
+{
+  "suite": "rule-engine-smoke",
+  "agents": [
+    "rule-engine-zen"
+  ],
+  "repeat": 1,
+  "results": [
+    {
+      "agent": "rule-engine-zen",
+      "task_id": "rule-high-notifies",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 0.0007032,
+          "answer": "notify"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "rule-engine-zen",
+      "task_id": "rule-low-notifies",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 0.0000727,
+          "answer": "notify"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "rule-engine-zen",
+      "task_id": "rule-comfort-ignores",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 0.0000619,
+          "answer": "ignore"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "rule-engine-zen",
+      "task_id": "rule-boundary-25-strict-gt",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 0.0000714,
+          "answer": "ignore"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "rule-engine-zen",
+      "task_id": "rule-boundary-20-strict-lt",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 0.0000647,
+          "answer": "ignore"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "rule-engine-zen",
+      "task_id": "rule-far-high-notifies",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 0.0000569,
+          "answer": "notify"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "rule-engine-zen",
+      "task_id": "rule-far-low-notifies",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 0.0000555,
+          "answer": "notify"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "rule-engine-zen",
+      "task_id": "rule-mid-band-ignores",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 0.0000589,
+          "answer": "ignore"
+        }
+      ],
+      "pass_k": true
+    }
+  ],
+  "summaries": [
+    {
+      "agent": "rule-engine-zen",
+      "tasks_total": 8,
+      "tasks_passed": 8,
+      "tasks_failed": 0,
+      "tasks_skipped": 0,
+      "pass_rate": 1.0,
+      "pass_k_rate": 1.0,
+      "median_duration_secs": 0.0000647
+    }
+  ],
+  "generated_at": "unix-1792861659"
+}
