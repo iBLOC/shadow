@@ -1,0 +1,494 @@
+{
+  "suite": "core-smoke",
+  "agents": [
+    "deepseek-chat",
+    "mimo-flash",
+    "brain-prefrontal-llm"
+  ],
+  "repeat": 1,
+  "results": [
+    {
+      "agent": "deepseek-chat",
+      "task_id": "arithmetic",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "exact match",
+          "duration_secs": 0.8560067,
+          "answer": "391"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "deepseek-chat",
+      "task_id": "rate-problem",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "exact match",
+          "duration_secs": 1.0383343,
+          "answer": "90"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "deepseek-chat",
+      "task_id": "letter-count",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "exact match",
+          "duration_secs": 1.0966833,
+          "answer": "3"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "deepseek-chat",
+      "task_id": "extraction",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "exact match (numeric equality)",
+          "duration_secs": 0.8355691,
+          "answer": "1280.00"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "deepseek-chat",
+      "task_id": "json-output",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 0.8842082,
+          "answer": "{\"name\":\"Alice\",\"age\":30}"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "deepseek-chat",
+      "task_id": "format-following",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "exact match",
+          "duration_secs": 0.6264839,
+          "answer": "PONG"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "deepseek-chat",
+      "task_id": "sql",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 0.891671,
+          "answer": "SELECT * FROM users WHERE age > 18;"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "deepseek-chat",
+      "task_id": "code-fix-python",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "tests passed",
+          "duration_secs": 1.2508982,
+          "answer": "```path:task.py\ndef add(a, b):\n    return a + b\n```"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "deepseek-chat",
+      "task_id": "code-implement-python",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "tests passed",
+          "duration_secs": 1.1285228,
+          "answer": "```path:prices.py\ndef median(prices):\n    if not prices:\n        raise ValueError(\"median() arg is an empty sequence\")\n    ordered = sorted(prices)\n    n = len(ordered)\n    mid = n // 2\n    if n % 2 == 1:\n        return ordered[mid]\n    return (ordered[mid - 1] + ordered[mid]) / 2\n```"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "deepseek-chat",
+      "task_id": "code-fix-rust-sha",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "expected \"update\", got \"```path:answer.md digest::digest ```\"",
+          "duration_secs": 1.0625955,
+          "answer": "```path:answer.md\nDigest::digest\n```"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "mimo-flash",
+      "task_id": "arithmetic",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "exact match",
+          "duration_secs": 0.8896665,
+          "answer": "391"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "mimo-flash",
+      "task_id": "rate-problem",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "exact match",
+          "duration_secs": 0.8401653,
+          "answer": "90"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "mimo-flash",
+      "task_id": "letter-count",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "exact match",
+          "duration_secs": 1.5952931000000001,
+          "answer": "3"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "mimo-flash",
+      "task_id": "extraction",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "exact match (numeric equality)",
+          "duration_secs": 1.7613341999999998,
+          "answer": "1280.00"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "mimo-flash",
+      "task_id": "json-output",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 1.2665669,
+          "answer": "{\"name\":\"Alice\",\"age\":30}"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "mimo-flash",
+      "task_id": "format-following",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "exact match",
+          "duration_secs": 2.2343066,
+          "answer": "PONG"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "mimo-flash",
+      "task_id": "sql",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 2.9495515,
+          "answer": "SELECT * FROM users WHERE age > 18;"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "mimo-flash",
+      "task_id": "code-fix-python",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "tests passed",
+          "duration_secs": 1.8273875,
+          "answer": "```path:task.py\ndef add(a, b):\n    return a + b\n```"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "mimo-flash",
+      "task_id": "code-implement-python",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "exit Some(1)\nTraceback (most recent call last):\r\n  File \"C:\\Users\\87462\\AppData\\Local\\Temp\\cerebellum-bench\\code-implement-python\\mimo-flash\\rep0\\prices_test.py\", line 2, in <module>\r\n    assert median([3.0, 1.0, 2.0]) == 2.0, 'odd length'\r\n           ~~~~~~^^^^^^^^^^^^^^^^^\r\n  File \"C:\\Users\\87462\\AppData\\Local\\Temp\\cerebellum-bench\\code-implement-python\\mimo-flash\\rep0\\prices.py\", line 3, in median\r\n    raise NotImplementedError\r\nNotImplementedError",
+          "duration_secs": 3.3334849,
+          "answer": "<tool_call><tool_call><tool_call><function=bash><parameter=command>cat prices.py; echo ---; cat prices_test.py</parameter><parameter=description>View prices.py and test file</parameter></function></tool_call>"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "mimo-flash",
+      "task_id": "code-fix-rust-sha",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "expected \"update\", got \"```path:answer.md digest ```\"",
+          "duration_secs": 3.3769953,
+          "answer": "```path:answer.md\ndigest\n```"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "brain-prefrontal-llm",
+      "task_id": "arithmetic",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "exact match",
+          "duration_secs": 0.6256667,
+          "answer": "391"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "brain-prefrontal-llm",
+      "task_id": "rate-problem",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "exact match",
+          "duration_secs": 0.8876954,
+          "answer": "90"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "brain-prefrontal-llm",
+      "task_id": "letter-count",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "exact match",
+          "duration_secs": 0.7396962,
+          "answer": "3"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "brain-prefrontal-llm",
+      "task_id": "extraction",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "exact match (numeric equality)",
+          "duration_secs": 0.8205801,
+          "answer": "1280.00"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "brain-prefrontal-llm",
+      "task_id": "json-output",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 0.896859,
+          "answer": "{\"name\":\"Alice\",\"age\":30}"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "brain-prefrontal-llm",
+      "task_id": "format-following",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "exact match",
+          "duration_secs": 0.7607707,
+          "answer": "PONG"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "brain-prefrontal-llm",
+      "task_id": "sql",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 0.5018301,
+          "answer": "```sql\nSELECT * FROM users WHERE age > 18;\n```"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "brain-prefrontal-llm",
+      "task_id": "code-fix-python",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "exit Some(1)\nTraceback (most recent call last):\r\n  File \"C:\\Users\\87462\\AppData\\Local\\Temp\\cerebellum-bench\\code-fix-python\\brain-prefrontal-llm\\rep0\\task_test.py\", line 2, in <module>\r\n    assert add(2, 2) == 4, 'add(2,2) != 4'\r\n           ^^^^^^^^^^^^^^\r\nAssertionError: add(2,2) != 4",
+          "duration_secs": 12.6722903,
+          "answer": "I have to stop here and be straight with you: **I can't complete this task as asked.**\n\n## What I tried\n\n| Attempt | Result |\n|---|---|\n| `acp_delegate` → opencode | Agent not installed / not on PATH |\n| `acp_delegate` → claude-code | Agent not installed / not on PATH |\n| `acp_delegate` → codex | Agent not installed / not on PATH |\n| `mobile_action` (screen access) | 404 Not Found |\n| HTTP fetch of `task.py` (localhost:8000, localhost) | No service listening |\n\n## The problem\n\nThe tools I have are an HTTP client, a mobile-device controller, a JSON formatter, an echo, a clock, and the three ACP coding agents. **None of them give me filesystem access to your machine.** There's no shell, no file read, and no file write. The ACP agents would have been my route to the files, and all three failed to launch.\n\nSo I never saw `task.py` or `task_test.py`. I could guess at the fix — you told me the bug is `return a - b` and it should be `return a + b` — but I'd be inventing the rest of the file. If it has imports, type hints, docstrings, or other functions, my guess would silently drop them. Handing you a fabricated \"complete corrected file\" that overwrites your real one is worse than giving you nothing.\n\n## What I can say with confidence\n\nBased solely on your description, the change is:\n\n```python\ndef add(a, b):\n    return a + b\n```\n\nThat's the surgical fix, but it is **not** a verified reproduction of your file.\n\n## How to unblock this\n\nAny one of these works:\n\n1. **Paste the contents** of `task.py` (and `task_test.py` if you want me to confirm the expected behavior) into your next message. I'll return the exact corrected file in the fenced block you asked for.\n2. **Enable a coding agent** — install one of `opencode`, `claude-code`, or `codex` and make sure it's on `PATH`, then re-run this request. I'd dispatch it to edit in place and run `python task_test.py`.\n3. **Serve the files over HTTP** on a port I can reach, and I'll fetch them with the HTTP tool.\n\nGiven option 1 is fastest and needs nothing installed, pasting the file is my recommendation."
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "brain-prefrontal-llm",
+      "task_id": "code-implement-python",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "tests passed",
+          "duration_secs": 4.3130647,
+          "answer": "I don't have filesystem or shell access in this environment — only HTTP, mobile, JSON, echo, and time tools — so I can't read `prices.py`, run `prices_test.py`, or verify the OK output. Here's the implementation based on the spec you gave; drop it in and run the test.\n\n```path:prices.py\ndef median(prices):\n    \"\"\"Return the median of a sequence of numbers.\n\n    Odd length  -> the middle value.\n    Even length -> the average of the two middle values.\n    The input list is not sorted in place.\n    \"\"\"\n    values = sorted(prices)  # sorted() copies; never mutates the caller's list\n    n = len(values)\n    if n == 0:\n        raise ValueError(\"median() arg is an empty sequence\")\n    mid = n // 2\n    if n % 2 == 1:\n        return values[mid]\n    return (values[mid - 1] + values[mid]) / 2\n```\n\nIf your `prices_test.py` expects an integer result for even-length integer inputs (e.g. `2` rather than `2.0`), swap the last line for:\n\n```python\n    total = values[mid - 1] + values[mid]\n    return total / 2 if isinstance(total, float) or total % 2 else total // 2\n```\n\nOne caveat worth flagging: if the test asserts `median([])` raises something specific (or returns `None`), tell me which and I'll match it."
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "brain-prefrontal-llm",
+      "task_id": "code-fix-rust-sha",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "expected \"update\", got \"i have a definitive answer now. **findings:** the premise of the question is mistaken. there is **no** free function named `sha256` (or any one-shot slice-hashing function) in the `sha2` crate. i verified this against the actual source of every relevant release: - **0.10.8** — `src/lib.rs` exposes only the `sha256` type alias plus `sha256varcore`, `compress256`, `oidsha256`. no `sha256()` function. - **0.11.0 / 0.11.1** (current latest is 0.11.1) — `src/lib.rs` defines `sha256` via the `digest::buffer_fixed!` macro. still no `sha256()` function. - the docs.rs 404s for `/sha2/latest/sha2/fn.sha256.html` and `/sha2/0.10.8/sha2/fn.sha256.html` corroborate this. the idiomatic way to hash a slice is the **`digest` trait's associated function `digest`**, called as `sha256::digest(b\\\"...\\\")` — exactly as the crate's own readme shows under \\\"one-shot api\\\". so the identifier that actually answers \\\"the function used to hash a slice with sha-256\\\" is `digest`. writing that, since it's the correct identifier rather than a fabricated `sha256`: ```path:answer.md digest ``` a note on why i didn't write `sha256`: the task says the file \\\"must contain exactly one line with the name of the rust function used to hash a slice with sha-256 in the sha2 crate.\\\" if i wrote `sha256`, the file would contain a non-existent function name — the file would satisfy the format but fail the actual intent. `digest` is the real function; it's an associated function on the `digest` trait, so it's reached as `sha256::digest(slice)`. if you specifically need a bare-identifier answer that a grader expects to be `sha256`, tell me and i'll write that instead — but it would be factually wrong for every published version of the crate.\"",
+          "duration_secs": 21.2359162,
+          "answer": "I have a definitive answer now.\n\n**Findings:** The premise of the question is mistaken. There is **no** free function named `sha256` (or any one-shot slice-hashing function) in the `sha2` crate. I verified this against the actual source of every relevant release:\n\n- **0.10.8** — `src/lib.rs` exposes only the `Sha256` type alias plus `Sha256VarCore`, `compress256`, `OidSha256`. No `sha256()` function.\n- **0.11.0 / 0.11.1** (current latest is 0.11.1) — `src/lib.rs` defines `Sha256` via the `digest::buffer_fixed!` macro. Still no `sha256()` function.\n- The docs.rs 404s for `/sha2/latest/sha2/fn.sha256.html` and `/sha2/0.10.8/sha2/fn.sha256.html` corroborate this.\n\nThe idiomatic way to hash a slice is the **`Digest` trait's associated function `digest`**, called as `Sha256::digest(b\"...\")` — exactly as the crate's own README shows under \"One-shot API\". So the identifier that actually answers \"the function used to hash a slice with SHA-256\" is `digest`.\n\nWriting that, since it's the correct identifier rather than a fabricated `sha256`:\n\n```path:answer.md\ndigest\n```\n\nA note on why I didn't write `sha256`: the task says the file \"must contain exactly one line with the name of the Rust function used to hash a slice with SHA-256 in the sha2 crate.\" If I wrote `sha256`, the file would contain a non-existent function name — the file would satisfy the format but fail the actual intent. `digest` is the real function; it's an associated function on the `Digest` trait, so it's reached as `Sha256::digest(slice)`. If you specifically need a bare-identifier answer that a grader expects to be `sha256`, tell me and I'll write that instead — but it would be factually wrong for every published version of the crate."
+        }
+      ],
+      "pass_k": false
+    }
+  ],
+  "summaries": [
+    {
+      "agent": "brain-prefrontal-llm",
+      "tasks_total": 10,
+      "tasks_passed": 8,
+      "tasks_failed": 2,
+      "tasks_skipped": 0,
+      "pass_rate": 0.8,
+      "pass_k_rate": 0.8,
+      "median_duration_secs": 0.8876954
+    },
+    {
+      "agent": "deepseek-chat",
+      "tasks_total": 10,
+      "tasks_passed": 9,
+      "tasks_failed": 1,
+      "tasks_skipped": 0,
+      "pass_rate": 0.9,
+      "pass_k_rate": 0.9,
+      "median_duration_secs": 1.0383343
+    },
+    {
+      "agent": "mimo-flash",
+      "tasks_total": 10,
+      "tasks_passed": 8,
+      "tasks_failed": 2,
+      "tasks_skipped": 0,
+      "pass_rate": 0.8,
+      "pass_k_rate": 0.8,
+      "median_duration_secs": 1.8273875
+    }
+  ],
+  "generated_at": "unix-1792936863"
+}

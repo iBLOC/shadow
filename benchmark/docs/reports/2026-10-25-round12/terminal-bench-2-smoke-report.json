@@ -1,0 +1,82 @@
+{
+  "suite": "terminal-bench-2-smoke",
+  "agents": [
+    "deepseek-chat-agentic"
+  ],
+  "repeat": 1,
+  "results": [
+    {
+      "agent": "deepseek-chat-agentic",
+      "task_id": "terminal-bench/llm-inference-batching-scheduler",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "exit Some(1)\n…\r\n            # Check no duplicates\r\n            assert len(ids_plan) == len(set(ids_plan)), (\r\n                f\"Duplicates found in bucket {bucket_idx}\"\r\n            )\r\n    \r\n>       _check_bucket_no_duplicates(1)\r\n\r\ntests\\test_outputs.py:289: \r\n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\r\n\r\nbucket_idx = 1\r\n\r\n    def _check_bucket_no_duplicates(bucket_idx: int) -> None:\r\n        \"\"\"Check that a bucket has no duplicates and covers all requests.\"\"\"\r\n        reqs = _load_requests(bucket_idx)\r\n        plan = _load_plan(f\"plan_b{bucket_idx}.jsonl\")\r\n        ids_req = {r[\"request_id\"] for r in reqs}\r\n        ids_plan = [p[\"request_id\"] for p in plan]\r\n    \r\n        # Check coverage\r\n>       assert set(ids_plan) == ids_req, f\"Coverage mismatch in bucket {bucket_idx}\"\r\nE       AssertionError: Coverage mismatch in bucket 1\r\nE       assert set() == {'r-000000', ...-000005', ...}\r\nE         Extra items in the right set:\r\nE         'r-000083'\r\nE         'r-000667'\r\nE         'r-000724'\r\nE         'r-000341'\r\nE         'r-000299'\r\nE         'r-000585'...\r\nE         \r\nE         ...Full output truncated (796 lines hidden), use '-vv' to show\r\n\r\ntests\\test_outputs.py:283: AssertionError\r\n=========================== short test summary info ===========================\r\nFAILED tests/test_outputs.py::test_generate_and_schema - AssertionError: requ...\r\nFAILED tests/test_outputs.py::test_solution_coverage_no_duplicates - Assertio...\r\n2 failed, 4 passed in 0.12s",
+          "duration_secs": 1.4427514000000001,
+          "answer": "```path:task_file/output_data/plan_b1.jsonl\n```\n```path:task_file/output_data/plan_b2.jsonl\n```"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "deepseek-chat-agentic",
+      "task_id": "terminal-bench/raman-fitting",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "exit Some(1)\n…_\r\n\r\n    def test_result_file_exists():\r\n        result_path = Path(\"results.json\")\r\n    \r\n>       assert result_path.exists(), f\"File {result_path} does not exist\"\r\nE       AssertionError: File results.json does not exist\r\nE       assert False\r\nE        +  where False = <bound method PathBase.exists of WindowsPath('results.json')>()\r\nE        +    where <bound method PathBase.exists of WindowsPath('results.json')> = WindowsPath('results.json').exists\r\n\r\ntests\\test_outputs.py:11: AssertionError\r\n_________________________________ test_G_Peak _________________________________\r\n\r\n    def test_G_Peak():\r\n        result_path = Path(\"results.json\")\r\n    \r\n>       with open(result_path, \"r\") as f:\r\nE       FileNotFoundError: [Errno 2] No such file or directory: 'results.json'\r\n\r\ntests\\test_outputs.py:17: FileNotFoundError\r\n________________________________ test_2D_Peak _________________________________\r\n\r\n    def test_2D_Peak():\r\n        result_path = Path(\"results.json\")\r\n    \r\n>       with open(result_path, \"r\") as f:\r\nE       FileNotFoundError: [Errno 2] No such file or directory: 'results.json'\r\n\r\ntests\\test_outputs.py:46: FileNotFoundError\r\n=========================== short test summary info ===========================\r\nFAILED tests/test_outputs.py::test_result_file_exists - AssertionError: File ...\r\nFAILED tests/test_outputs.py::test_G_Peak - FileNotFoundError: [Errno 2] No s...\r\nFAILED tests/test_outputs.py::test_2D_Peak - FileNotFoundError: [Errno 2] No ...\r\n3 failed in 0.08s",
+          "duration_secs": 1.6440709,
+          "answer": "I don't have the actual file content in my working directory yet—could you paste the Raman spectrum file contents or the filename/path so I can fit the peaks and produce `results.json`?"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "deepseek-chat-agentic",
+      "task_id": "terminal-bench/regex-log",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "tests passed",
+          "duration_secs": 4.0340141,
+          "answer": "```regex\n(?m)^(?=.*(?<![0-9A-Za-z])(?:(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\\.){3}(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])(?![0-9A-Za-z])).*(?<![0-9A-Za-z])((?:[0-9]{4})-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])(?=.*$))\n```\n\nSave the above regex (without the surrounding code fence) into `regex.txt`.\n\nExplanation:\n- `(?m)^` anchors to the start of each line (MULTILINE).\n- `(?=.*(?<![0-9A-Za-z])IPv4(?![0-9A-Za-z]))` is a lookahead asserting the line contains a valid IPv4 address not adjacent to alphanumerics. The octet pattern `(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])` forbids leading zeros and caps at 255.\n- `.*` consumes up to the last possible position, and the greedy behavior combined with the final `(?=.*$)` ensures only the last date on the line is matched.\n- The date pattern `[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])` enforces month 01–12 and day 01–31 (Feb up to 29 allowed by 29 being within 01–31 range; note this also permits e.g. Feb 30/31, but the spec only requires \"up to 29 days\" as a cap—if strict per-month validation is needed, adjust accordingly).\n- `(?<![0-9A-Za-z])` before and `(?=.*$)` after the date ensure it isn't embedded inside alphanumeric text, preventing false matches like `1134-12-1234`.\n\nNote: If strict day-per-month validation (e.g., rejecting Feb 30) is required, replace the day rule with:\n```\n(?:0[1-9]|1[0-9]|2[0-8]|(?:29|30|31)(?=-(?<=-0[1-9]...)))\n```\nwhich is significantly more complex. The simple version above matches the common interpretation."
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "deepseek-chat-agentic",
+      "task_id": "terminal-bench/schemelike-metacircular-eval",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "exit Some(1)\n…07313156127929688\r\nFAILED: OUTPUT MISMATCH:\r\nDirect:\r\nStack operations: Top: 3, After pop: 2\r\nQueue operations: Front: 1, After dequeue: 2\r\nDictionary operations: Get 'b': 2, Get 'x': False\r\nTree map (double all values): Root: 2, First child: 4\r\n\r\nThrough eval.scm:\r\nError: Unexpected closing parenthesis\r\n\r\nTesting: tests\\test\\test_read.scm\r\n----------------------------------------\r\ntakes 0.06848669052124023\r\nFAILED: OUTPUT MISMATCH:\r\nDirect:\r\nReading\r\nhello\r\nDone\r\n\r\nThrough eval.scm:\r\nError: Unexpected closing parenthesis\r\n\r\nTesting: tests\\test\\variadic_functions.scm\r\n----------------------------------------\r\ntakes 0.0713036060333252\r\nFAILED: OUTPUT MISMATCH:\r\nDirect:\r\nSum of (1 2 3 4 5): 15\r\nProduct of (2 3 4): 24\r\nMax of (3 1 4 1 5 9 2 6): 9\r\nMin of (3 1 4 1 5 9 2 6): 1\r\nConcatenate ((1 2) (3 4) (5 6)): (1 2 3 4 5 6)\r\nSquare all (1 2 3 4): (1 4 9 16)\r\n((x + 1) * 2)^2 of 3: 64\r\n\r\nThrough eval.scm:\r\nError: Unexpected closing parenthesis\r\n\r\nTesting: tests\\test\\y_combinator.scm\r\n----------------------------------------\r\ntakes 0.07048177719116211\r\nFAILED: OUTPUT MISMATCH:\r\nDirect:\r\nFactorial of 5 using Y combinator: 120\r\nFirst 8 Fibonacci numbers: 0 1 1 2 3 5 8 13\r\n\r\nThrough eval.scm:\r\nError: Unexpected closing parenthesis\r\n\r\n==================================================\r\nSummary: 0 passed, 63 failed out of 63 tests\r\n=========================== short test summary info ===========================\r\nFAILED tests/test_outputs.py::test_interp - assert 63 == 0\r\n1 failed in 12.47s",
+          "duration_secs": 13.9568882,
+          "answer": "I'll start by exploring the working directory to understand the task.\n\n<｜｜DSML｜｜ calls>\n<｜｜DSML｜｜ invoke name=\"terminal\">\n<｜｜DSML｜｜ parameter name=\"command\" string=\"true\">cd /app 2>/dev/null || cd ~; pwd; ls -la</｜｜DSML｜｜ parameter>\n</｜｜DSML｜｜ invoke>\n</｜｜DSML｜｜ calls>"
+        }
+      ],
+      "pass_k": false
+    }
+  ],
+  "summaries": [
+    {
+      "agent": "deepseek-chat-agentic",
+      "tasks_total": 4,
+      "tasks_passed": 1,
+      "tasks_failed": 3,
+      "tasks_skipped": 0,
+      "pass_rate": 0.25,
+      "pass_k_rate": 0.25,
+      "median_duration_secs": 4.0340141
+    }
+  ],
+  "generated_at": "unix-1792936912"
+}
