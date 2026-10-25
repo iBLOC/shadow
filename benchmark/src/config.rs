@@ -292,3 +292,48 @@ impl AgentsConfig {
         })
     }
 }
+
+#[cfg(test)]
+mod session_config_tests {
+    use super::*;
+
+    /// The [agent.session] sub-table in agents-tb.toml must parse
+    /// into SessionConfig on the OpenAi variant. Guards the TOML
+    /// shape used by deepseek-compress in the long-context run.
+    #[test]
+    fn openai_session_subtable_parses() {
+        let toml = r##"[[agent]]
+adapter = "openai"
+name = "deepseek-compress"
+base_url = "https://api.deepseek.com/v1"
+model = "deepseek-chat"
+[agent.session]
+compress_at_tokens = 1200
+target_tokens = 400
+branch_at_tasks = 0
+detect_drift = false
+"##;
+        let cfg: AgentsConfig = toml::from_str(toml).expect("parse");
+        let s = cfg.agents[0].session_config();
+        assert_eq!(s.compress_at_tokens, 1200);
+        assert_eq!(s.target_tokens, 400);
+        assert_eq!(s.branch_at_tasks, 0);
+        assert!(!s.detect_drift);
+    }
+
+    /// Agents without a [agent.session] block get the default
+    /// (no compression, no branch, drift on).
+    #[test]
+    fn missing_session_falls_back_to_default() {
+        let toml = r##"[[agent]]
+adapter = "openai"
+name = "deepseek-chat"
+base_url = "https://api.deepseek.com/v1"
+model = "deepseek-chat"
+"##;
+        let cfg: AgentsConfig = toml::from_str(toml).expect("parse");
+        let s = cfg.agents[0].session_config();
+        assert_eq!(s.compress_at_tokens, 0);
+        assert!(s.detect_drift);
+    }
+}

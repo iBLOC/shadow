@@ -250,3 +250,27 @@ mod tests {
         assert!(r.answer.contains("bad snapshot"), "got: {}", r.answer);
     }
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn openai_summarizer_inside_async_context() {
+    // Mirrors the runner: OpenAiAgent::summarize (sync TextSummarizer)
+    // called from inside a tokio task. Its internal Handle::try_current
+    // + rt.block_on dance must not panic and must return a summary.
+    let agent = crate::agent::OpenAiAgent {
+        name: "summarize-probe".into(),
+        base_url: "https://api.deepseek.com/v1".into(),
+        model: "deepseek-chat".into(),
+        api_key: std::env::var("SHADOW_BENCH_DEEPSEEK_KEY").ok(),
+        api_key_env: None,
+        max_tokens: 512,
+        timeout_secs: 60,
+    };
+    let text = "long document ".repeat(200);
+    let out = tokio::task::block_in_place(|| {
+        crate::hippocampus_shim::TextSummarizer::summarize(&agent, &text, 100)
+    });
+    match out {
+        Ok(s) => println!("[probe] summary len={}", s.len()),
+        Err(e) => println!("[probe] summarize err: {e}"),
+    }
+}

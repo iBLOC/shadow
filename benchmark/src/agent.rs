@@ -249,13 +249,28 @@ Do not add commentary, headers, or code fences. Plain lines, one per task.";
 
 impl crate::hippocampus_shim::TextSummarizer for OpenAiAgent {
     fn summarize(&self, text: &str, max_tokens: usize) -> Result<String, String> {
-        // Synchronous wrapper around the async HTTP call. The
-        // shim is single-writer per session so this can't
-        // deadlock; the tokio runtime is provided by the
-        // bench harness or by the test harness.
-        let rt = tokio::runtime::Handle::try_current()
-            .map_err(|_| "summarize called outside a tokio runtime".to_string())?;
-        rt.block_on(async { self.summarize_async(text, max_tokens).await })
+        // Synchronous wrapper around the async HTTP call.
+        //
+        // Two contexts call this:
+        // - inside a tokio runtime (the runner): Handle::block_on
+        //   panics there, so use block_in_place + Handle::block_on
+        //   (legal on multi-thread runtimes);
+        // - outside any runtime (plain tests): spawn a dedicated
+        //   current-thread runtime and block on it.
+        if let Ok(handle) = tokio::runtime::Handle::try_current() {
+            tokio::task::block_in_place(|| {
+                handle
+                    .block_on(async { self.summarize_async(text, max_tokens).await })
+                    .map_err(|e| e.to_string())
+            })
+        } else {
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .map_err(|e| format!("summarize runtime build: {e}"))?;
+            rt.block_on(async { self.summarize_async(text, max_tokens).await })
+                .map_err(|e| e.to_string())
+        }
     }
 }
 

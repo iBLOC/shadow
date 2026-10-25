@@ -1,0 +1,271 @@
+{
+  "suite": "long-context-smoke",
+  "agents": [
+    "deepseek-chat",
+    "deepseek-compress"
+  ],
+  "repeat": 1,
+  "results": [
+    {
+      "agent": "deepseek-chat",
+      "task_id": "long-task-1",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 1.1277515,
+          "answer": "MARKER-01-XQ7"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "deepseek-chat",
+      "task_id": "long-task-2",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 1.1116175,
+          "answer": "MARKER-02-XQ7"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "deepseek-chat",
+      "task_id": "long-task-3",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 0.5100192,
+          "answer": "MARKER-03-XQ7"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "deepseek-chat",
+      "task_id": "long-task-4",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 0.7827866,
+          "answer": "MARKER-04-XQ7"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "deepseek-chat",
+      "task_id": "long-task-5",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 0.795967,
+          "answer": "MARKER-05-XQ7"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "deepseek-chat",
+      "task_id": "long-task-6",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 1.8097317,
+          "answer": "The document consists almost entirely of a long, continuous string of lowercase letters (a–j) with no spaces, punctuation, or sentence structure. It reads as an encoded or randomly generated sequence rather than natural language, so no substantive content, narrative, or argument can be extracted. Near the middle of the string, a single identifiable element appears: the marker code \"MARKER-06-XQ7\", embedded within the letter stream. The remaining text before and after this marker is composed of the same repetitive letter patterns, offering no further meaningful information. Overall, the document contains no discernible topics, entities, events, or claims beyond the embedded marker code.\n\nMARKER-CODE: MARKER-06-XQ7"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "deepseek-chat",
+      "task_id": "long-task-7",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 2.4022923,
+          "answer": "The document consists of a single, continuous block of text made up entirely of lowercase letters (a–j) with no spaces, punctuation, capitalization, or sentence structure. It reads as an encoded or randomly generated sequence, similar to a cipher or a stream of random characters, rather than natural language, so no substantive content, narrative, argument, or meaning can be extracted from it. There are no recognizable words, topics, entities, events, claims, or grammatical structures—only repetitive letter patterns distributed fairly evenly throughout the string.\n\nNear the center of the document, embedded within the letter stream, a single identifiable element appears: the marker code \"MARKER-07-XQ7.\" This code stands out because it contains uppercase letters, hyphens, and digits, in contrast to the surrounding lowercase letters. The text before this marker and the text after it are composed of the same repetitive letter patterns, offering no further meaningful information. The portion following the marker is similarly long and featureless, continuing the same a–j character distribution until the document ends.\n\nOverall, the document contains no discernible topics, entities, events, or claims beyond the single embedded marker code. Its content is essentially nonlinguistic filler, and the only extractable, meaningful datum is the marker code located roughly midway through the string.\n\nMARKER-CODE: MARKER-07-XQ7"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "deepseek-compress",
+      "task_id": "long-task-1",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 0.9370254,
+          "answer": "MARKER-01-XQ7"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "deepseek-compress",
+      "task_id": "long-task-2",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 0.8146187,
+          "answer": "MARKER-02-XQ7"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "deepseek-compress",
+      "task_id": "long-task-3",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 0.9267476,
+          "answer": "MARKER-03-XQ7"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "deepseek-compress",
+      "task_id": "long-task-4",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 0.8338729,
+          "answer": "MARKER-04-XQ7"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "deepseek-compress",
+      "task_id": "long-task-5",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 0.8166222,
+          "answer": "MARKER-05-XQ7"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "deepseek-compress",
+      "task_id": "long-task-6",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 2.8373105,
+          "answer": "The document consists entirely of a single long string of lowercase letters (a–j), with no spaces, punctuation, or discernible natural-language words. It appears to be encoded or randomized text rather than readable prose. Embedded within this continuous letter sequence, roughly in the middle portion of the document, is a distinctive alphanumeric marker: \"MARKER-06-XQ7.\" Aside from this marker, the document contains no headings, paragraphs, sentences, dates, names, numbers, or other substantive information that can be summarized or paraphrased. There is no narrative, argument, data table, or structured content to preserve; the only identifiable detail of interest is the marker code itself, which is set off from the surrounding lowercase letter stream by spaces. Because the remaining content is a uniform block of apparently meaningless characters, any summary beyond this description would be speculative and would not reflect actual document content. In short, the document is a long encoded or filler text string containing a single embedded marker code, \"MARKER-06-XQ7,\" and nothing else of semantic value.\n\nMARKER-CODE: MARKER-06-XQ7"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "deepseek-compress",
+      "task_id": "long-task-7",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 2.1391402,
+          "answer": "The document consists entirely of a single long string of lowercase letters (a–j) with no spaces, punctuation, or structured prose. It appears to be a randomly generated or encoded sequence rather than natural language. Near the middle of the string, embedded within the letter sequence, is a distinct marker token: \"MARKER-07-XQ7\". Apart from this marker, the document contains no headings, paragraphs, sentences, or identifiable semantic content; the bulk is a continuous run of characters drawn from the letters a through j, spanning the beginning, the portion before the marker, and a long continuation after it until the end. The document therefore carries no narrative, argument, data table, or explanatory text to summarize—only the uniform character stream and the one embedded marker code. Preserving all details amounts to noting the string's composition (letters a–j only), its uninterrupted format, its apparent lack of meaningful language or structure, and the presence and exact form of the embedded marker \"MARKER-07-XQ7\" located roughly in the middle of the text, with roughly equal lengths of letter-sequence preceding and following it.\n\nMARKER-CODE: MARKER-07-XQ7"
+        }
+      ],
+      "pass_k": true
+    }
+  ],
+  "summaries": [
+    {
+      "agent": "deepseek-chat",
+      "tasks_total": 7,
+      "tasks_passed": 7,
+      "tasks_failed": 0,
+      "tasks_skipped": 0,
+      "pass_rate": 1.0,
+      "pass_k_rate": 1.0,
+      "median_duration_secs": 1.1116175
+    },
+    {
+      "agent": "deepseek-compress",
+      "tasks_total": 7,
+      "tasks_passed": 7,
+      "tasks_failed": 0,
+      "tasks_skipped": 0,
+      "pass_rate": 1.0,
+      "pass_k_rate": 1.0,
+      "median_duration_secs": 0.9267476
+    }
+  ],
+  "sessions": [
+    {
+      "agent": "deepseek-compress",
+      "suite": "long-context-smoke",
+      "ran_task_ids": [
+        "long-task-6"
+      ],
+      "cumulative_tokens_before_branch": 328,
+      "compressions_applied": 1,
+      "ended_reason": "manual",
+      "summary_blob": "compression: 328 → 44 tokens (\"llm_summarize\"; after long-task-6)",
+      "started_at": "",
+      "ended_at": "unix-1792940743"
+    },
+    {
+      "agent": "deepseek-compress",
+      "suite": "long-context-smoke",
+      "ran_task_ids": [
+        "long-task-7"
+      ],
+      "cumulative_tokens_before_branch": 345,
+      "compressions_applied": 1,
+      "ended_reason": "manual",
+      "summary_blob": "compression: 345 → 45 tokens (\"llm_summarize\"; after long-task-7)",
+      "started_at": "",
+      "ended_at": "unix-1792940746"
+    }
+  ],
+  "generated_at": "unix-1792940746"
+}

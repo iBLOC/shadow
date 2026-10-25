@@ -333,3 +333,22 @@ timeout_secs = 120
 [[agent]]
 adapter = "rule-engine"
 name = "rule-engine-zen"
+
+# (f) deepseek-compress — deepseek-chat + hippocampus 压缩配置开启。
+# long-context-smoke 专用: cumulative_tokens 过 1200 触发 LLM 摘要
+# (TextSummarizer → OpenAiAgent 同一连接), 目标压到 400 token。
+# 对照组 deepseek-chat (无压缩) 同 suite 同跑即可观察压缩对答案
+# 质量的影响。
+[[agent]]
+adapter = "openai"
+name = "deepseek-compress"
+base_url = "https://api.deepseek.com/v1"
+model = "deepseek-chat"
+api_key_env = "SHADOW_BENCH_DEEPSEEK_KEY"
+max_tokens = 8192
+timeout_secs = 600
+[agent.session]
+compress_at_tokens = 200
+target_tokens = 80
+branch_at_tasks = 0
+detect_drift = false

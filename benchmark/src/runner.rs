@@ -98,6 +98,12 @@ pub struct Report {
     pub repeat: usize,
     pub results: Vec<TaskResult>,
     pub summaries: Vec<AgentSummary>,
+    /// Session-memory checkpoints — one per `branch()` fired during
+    /// the run, plus one per compression event (recorded as a
+    /// pseudo-checkpoint with the from→to token counts in the blob).
+    /// Empty when no agent crossed a session threshold.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub sessions: Vec<crate::hippocampus_shim::SessionCheckpoint>,
     pub generated_at: String,
 }
 
@@ -134,6 +140,9 @@ impl Runner {
         // state of truth is the shim.
         let mut shims: std::collections::HashMap<String, Arc<LocalHippocampusShim>> =
             std::collections::HashMap::new();
+        // Session checkpoints (branches + compression events) collected
+        // during the run; emitted into the report's `sessions` field.
+        let mut checkpoints: Vec<crate::hippocampus_shim::SessionCheckpoint> = Vec::new();
         for spec in &agents_cfg.agents {
             shims.insert(
                 spec.name().to_string(),
@@ -198,9 +207,21 @@ impl Runner {
                     .find(|s| s.name() == adapter.name())
                     .map(AgentSpec::session_config)
                     .unwrap_or_default();
+                eprintln!(
+                    "[runner] hook: agent={} buf_tokens={} cfg_compress={}",
+                    adapter.name(),
+                    shim.cumulative_tokens(),
+                    cfg.compress_at_tokens
+                );
                 if cfg.compress_at_tokens > 0
                     && shim.cumulative_tokens() >= cfg.compress_at_tokens
                 {
+                    eprintln!(
+                        "[runner] threshold hit: agent={} tokens={} threshold={}",
+                        adapter.name(),
+                        shim.cumulative_tokens(),
+                        cfg.compress_at_tokens
+                    );
                     // OpenAiAgent implements TextSummarizer
                     // (hardcoded compression prompt); other
                     // adapters return None and the shim falls
@@ -212,7 +233,33 @@ impl Runner {
                     } else {
                         cfg.compress_at_tokens / 2
                     };
-                    let _ = shim.maybe_compress(summarizer, cfg.compress_at_tokens, target);
+                    // Compression events land in the report as
+                    // pseudo-checkpoints (ended_reason: manual, the
+                    // from→to token counts in the blob) so the
+                    // long-context audit can see how often and how
+                    // aggressively the compressor fired.
+                    let evt_opt =
+                        shim.maybe_compress(summarizer, cfg.compress_at_tokens, target);
+                    eprintln!("[runner] maybe_compress returned: {}", evt_opt.is_some());
+                    if let Some(evt) = evt_opt {
+                        checkpoints.push(crate::hippocampus_shim::SessionCheckpoint {
+                            agent: adapter.name().to_string(),
+                            suite: suite.name.clone(),
+                            ran_task_ids: vec![task.id.clone()],
+                            cumulative_tokens_before_branch: evt.from_tokens,
+                            compressions_applied: 1,
+                            ended_reason: BranchReason::Manual,
+                            summary_blob: format!(
+                                "compression: {} → {} tokens ({}; after {})",
+                                evt.from_tokens,
+                                evt.to_tokens,
+                                serde_json::to_string(&evt.strategy).unwrap_or_default(),
+                                task.id,
+                            ),
+                            started_at: String::new(),
+                            ended_at: chrono_utc(),
+                        });
+                    }
                 }
                 if cfg.detect_drift {
                     if let Some(drift) = shim.detect_drift(task) {
@@ -229,7 +276,8 @@ impl Runner {
                 if cfg.branch_at_tasks > 0
                     && shim.tasks_in_session() >= cfg.branch_at_tasks
                 {
-                    let _ = shim.branch(adapter.name(), &suite.name, BranchReason::MaxTasks);
+                    let cp = shim.branch(adapter.name(), &suite.name, BranchReason::MaxTasks);
+                    checkpoints.push(cp);
                 }
 
                 results.push(result);
@@ -242,6 +290,7 @@ impl Runner {
             repeat: self.cfg.repeat,
             summaries: summarize(&results, self.cfg.repeat),
             results,
+            sessions: checkpoints,
             generated_at: chrono_utc(),
         }
     }
