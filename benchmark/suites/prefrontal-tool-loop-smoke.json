@@ -1,0 +1,37 @@
+{
+  "name": "prefrontal-tool-loop-smoke",
+  "description": "工具循环压测 — 任务设计为 deepseek 直连（无工具）不可能答对、prefrontal agent（time/json/http 工具循环）可答。delta = 被测物工具循环的净增值。日期类任务按运行日校验（expected 用占位说明）。",
+  "source": "shadow-internal/2026-10-16",
+  "tasks": [
+    {
+      "id": "tool-time-today",
+      "instruction": "What is today's date? Use the time tool and answer with just the date in YYYY-MM-DD format.",
+      "files": [],
+      "scorer": {
+        "kind": "contains",
+        "all_of": ["2026-10-16"],
+        "any_of": []
+      }
+    },
+    {
+      "id": "tool-time-human-format",
+      "instruction": "Use the time tool with format=human and timezone=Asia/Shanghai, then tell me the current time exactly as the tool reported it.",
+      "files": [],
+      "scorer": {
+        "kind": "contains",
+        "all_of": ["CST"],
+        "any_of": []
+      }
+    },
+    {
+      "id": "tool-time-year",
+      "instruction": "What year is it right now? Use the time tool. Answer with just the year.",
+      "files": [],
+      "scorer": {
+        "kind": "exact-match",
+        "expected": "2026",
+        "case_sensitive": false
+      }
+    }
+  ]
+}

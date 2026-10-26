@@ -3,6 +3,10 @@
 agents.toml
 Cargo.lock
 
+# Python driver bytecode
+__pycache__/
+*.pyc
+
 # Local credentials (never commit). Use .env.example for the schema.
 .env
 .env.*

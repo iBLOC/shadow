@@ -1,0 +1,58 @@
+{
+  "name": "behavior-smoke",
+  "description": "浴缸温度阈值场景 — 测大脑 A2A 真被测物（parietal-real behavior-evaluate lobe）的行为评估能力。任务 = sensor 快照（action 标签 + payload），期望 = StubParietal policy 渲染的 channel/文案。分数 = 被测物 A2A 端到端行为评估正确率（非模型能力——0 模型推理参与，纯 lobe stub 逻辑 + ACP/A2A 链路）。",
+  "source": "shadow-internal/2026-10-15",
+  "tasks": [
+    {
+      "id": "bath-temp-high-feishu",
+      "instruction": "notify_user {\"sensor\":\"bath_temp\",\"value\":27.3}",
+      "files": [],
+      "hidden_files": [],
+      "scorer": {
+        "kind": "contains",
+        "all_of": ["feishu_card", "27.3", "超过 25"]
+      }
+    },
+    {
+      "id": "bath-temp-low-feishu",
+      "instruction": "notify_user {\"sensor\":\"bath_temp\",\"value\":18.5}",
+      "files": [],
+      "hidden_files": [],
+      "scorer": {
+        "kind": "contains",
+        "all_of": ["feishu_card", "18.5", "低于 20"]
+      }
+    },
+    {
+      "id": "bath-temp-alert-tts",
+      "instruction": "alert {\"sensor\":\"bath_temp\",\"value\":30.0}",
+      "files": [],
+      "hidden_files": [],
+      "scorer": {
+        "kind": "contains",
+        "all_of": ["tts", "30.0"]
+      }
+    },
+    {
+      "id": "bath-temp-in-range-neutral-text",
+      "instruction": "notify_user {\"sensor\":\"bath_temp\",\"value\":22.0}",
+      "files": [],
+      "hidden_files": [],
+      "scorer": {
+        "kind": "contains",
+        "all_of": ["浴缸水温 22.0"],
+        "any_of": []
+      }
+    },
+    {
+      "id": "door-bell-falls-back-to-default",
+      "instruction": "low_priority {\"sensor\":\"door_bell\",\"value\":true}",
+      "files": [],
+      "hidden_files": [],
+      "scorer": {
+        "kind": "contains",
+        "all_of": ["feishu_card", "low_priority", "door_bell"]
+      }
+    }
+  ]
+}

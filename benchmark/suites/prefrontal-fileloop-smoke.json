@@ -1,0 +1,37 @@
+{
+  "name": "prefrontal-fileloop-smoke",
+  "description": "文件往返压测 — deepseek 直连（无工具）不可能知道/持久化文件内容；prefrontal agent（file_write/file_read 工具循环）可完成。delta = 被测物文件工具净增值。注意：任务共享 prefrontal 进程 cwd，前序任务产物可被后续任务读取（本套件 task 2 依赖 task 1 写入的文件）。",
+  "source": "shadow-internal/2026-10-16",
+  "tasks": [
+    {
+      "id": "file-write-secret",
+      "instruction": "Use the file_write tool to create a file at pf-delta/secret.txt with exactly this content: DELTA-042. Confirm by answering with just the content you wrote.",
+      "files": [],
+      "scorer": {
+        "kind": "contains",
+        "all_of": ["DELTA-042"],
+        "any_of": []
+      }
+    },
+    {
+      "id": "file-read-secret",
+      "instruction": "Use file_read to read pf-delta/secret.txt and answer with exactly the content of the file, nothing else.",
+      "files": [],
+      "scorer": {
+        "kind": "exact-match",
+        "expected": "DELTA-042",
+        "case_sensitive": false
+      }
+    },
+    {
+      "id": "file-roundtrip-verified",
+      "instruction": "Use file_read on pf-delta/secret.txt, then use file_write to create pf-delta/copy.txt with the same content, then read pf-delta/copy.txt and answer with its content.",
+      "files": [],
+      "scorer": {
+        "kind": "contains",
+        "all_of": ["DELTA-042"],
+        "any_of": []
+      }
+    }
+  ]
+}
