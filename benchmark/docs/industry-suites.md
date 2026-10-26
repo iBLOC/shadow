@@ -126,9 +126,24 @@ max_steps = 30`，但 harness 根本没有 agentic 模式——`AgentSpec::OpenA
 
 core-smoke 以文本题为主，工具帮不上忙，agentic 与 one-shot 基本
 持平（唯一差异是 extraction：agent 用了工具后过度推理，把 1280.00
-当答案）。**agentic 的价值要在工具题上兑现**（SWE / TB / 代码题）——
-code-fix-python 与 code-implement-python 两题里 agent 确实读了文件、
-改了代码、跑了测试才收工（5~6 次工具调用），这是 one-shot 做不到的。
+当答案）。**agentic 的价值要在工具题上兑现**——SWE 那 5 题：
+
+| 口径 | 成绩 | 说明 |
+|---|---|---|
+| one-shot（prompt-only） | 0/5 | 没有工具，改不了代码 |
+| agentic 30 步 | 0/5 | 每题撞满步数上限；flask-5014 还把 59 个原本通过的测试跑挂（p2p 0/59） |
+| agentic 50 步 | **4/5 (80%)** | flask 1/1+59/59、requests 2/2+185/185、pylint-6386 1/1、pylint-8898 1/1；pytest-10051 未修好且跑挂 1 个 p2p |
+
+50 步那轮复现了旧 harness 的历史成绩（deepseek 3/5@50 步、
+MiMo flash 4/5），说明**限制因素是步数预算不是能力**。唯一失败的
+pytest-10051 是典型的"修复引入回归"（f2p 0/1 + p2p 14/15）。
+
+**中途挖出的 harness 缺陷**（已修）：`bash` 工具在 Windows 上跑的是
+`cmd.exe`，而模型写的是 POSIX 命令——`;` 在 cmd 里不是命令分隔符，
+`ls; grep -n ... | head` 会被 `ls` 整行吞掉，模型于是把步数预算烧在
+shell 语法错误上。改成优先 POSIX shell（Windows 上先找 Git 的
+bash，避免撞上 WSL 的），并补了 `edit_file`（精确片段替换，替代整
+文件重写）。
 
 ## 2. GAIA 文本子集（10 任务）
 
