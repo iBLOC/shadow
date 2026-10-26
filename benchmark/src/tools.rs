@@ -19,6 +19,7 @@
 
 use serde_json::{json, Value};
 use std::path::{Component, Path, PathBuf};
+use std::time::Duration;
 
 /// Max characters of command/file output handed back to the model.
 /// Long output burns the context window and the model's attention;
@@ -30,6 +31,12 @@ pub const MAX_LIST_ENTRIES: usize = 500;
 
 /// Max bytes downloaded by `web_fetch` before the response is cut.
 pub const MAX_FETCH_BYTES: usize = 2 * 1024 * 1024;
+
+/// Wall-clock cap on one bash command. Builds and test suites fit in
+/// this; anything longer should be run in the background and polled.
+/// Without the cap, a command whose grandchild inherits the stdout
+/// pipe deadlocks the episode (child exits, pipe stays open).
+pub const BASH_TIMEOUT: Duration = Duration::from_secs(300);
 
 /// JSON schema of one tool, in OpenAI function-calling shape.
 pub fn tool_schemas() -> Vec<Value> {
@@ -592,6 +599,12 @@ fn html_to_text(html: &str) -> String {
 /// fail loudly instead of silently installing the task repo into the
 /// global site-packages (that is how the 2026-10-12 incident — a
 /// mutated SWE checkout shadowing the system pytest — happened).
+///
+/// Every command is bounded by [`BASH_TIMEOUT`]. Without it a command
+/// whose grandchild inherits the stdout pipe hangs `output()` forever
+/// — the child exits but the pipe stays open through the grandchild,
+/// and the whole episode deadlocks (observed live: a MiMo SWE run
+/// froze for an hour between two tasks).
 async fn run_bash(command: &str, workdir: &Path) -> ToolOutcome {
     for shell in posix_shells() {
         if let Some(out) = run_in_shell(&shell, command, workdir).await {
@@ -607,13 +620,20 @@ async fn run_bash(command: &str, workdir: &Path) -> ToolOutcome {
         .env("PIP_REQUIRE_VIRTUALENV", "1")
         .kill_on_drop(true);
     cmd.stdin(std::process::Stdio::null());
-    match cmd.output().await {
-        Ok(out) => ToolOutcome {
+    match tokio::time::timeout(BASH_TIMEOUT, cmd.output()).await {
+        Ok(Ok(out)) => ToolOutcome {
             content: format_shell_output(&out),
             finished: false,
         },
-        Err(e) => ToolOutcome {
+        Ok(Err(e)) => ToolOutcome {
             content: format!("error: cannot run command: {e}"),
+            finished: false,
+        },
+        Err(_) => ToolOutcome {
+            content: format!(
+                "error: command timed out after {}s (killed)",
+                BASH_TIMEOUT.as_secs()
+            ),
             finished: false,
         },
     }
@@ -650,14 +670,22 @@ async fn run_in_shell(shell: &str, command: &str, workdir: &Path) -> Option<Tool
         .env("PIP_REQUIRE_VIRTUALENV", "1")
         .kill_on_drop(true);
     cmd.stdin(std::process::Stdio::null());
-    match cmd.output().await {
-        Ok(out) => Some(ToolOutcome {
+    match tokio::time::timeout(BASH_TIMEOUT, cmd.output()).await {
+        Ok(Ok(out)) => Some(ToolOutcome {
             content: format_shell_output(&out),
             finished: false,
         }),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
-        Err(e) => Some(ToolOutcome {
+        // Shell itself absent → let the caller try the next candidate.
+        Ok(Err(e)) if e.kind() == std::io::ErrorKind::NotFound => None,
+        Ok(Err(e)) => Some(ToolOutcome {
             content: format!("error: cannot run command: {e}"),
+            finished: false,
+        }),
+        Err(_) => Some(ToolOutcome {
+            content: format!(
+                "error: command timed out after {}s (killed); if it needs longer, run it in the background and poll instead",
+                BASH_TIMEOUT.as_secs()
+            ),
             finished: false,
         }),
     }

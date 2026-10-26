@@ -593,14 +593,20 @@ pub async fn run(
                             });
                             continue;
                         }
-                    // 2. the agent works inside the checkout
+                    // 2. the agent works inside the checkout.
+                    // Hard episode cap: an agentic run is up to
+                    // max_steps provider calls and any one of them
+                    // can sit on a hung child process — without this
+                    // wrapper one wedged task stalls the whole sweep
+                    // forever (observed live, 2026-10-26).
                     let repo_dir = cfg
                         .work_root
                         .join(sanitize(&inst.instance_id))
                         .join("repo");
                     let task = agentic_task(inst);
-                    match agents[ai].run(&task, &repo_dir, "").await {
-                        Ok(ar) => {
+                    let agent_run = tokio::time::timeout(cfg.timeout, agents[ai].run(&task, &repo_dir, "")).await;
+                    match agent_run {
+                        Ok(Ok(ar)) => {
                             let af = std::env::temp_dir().join(format!(
                                 "shadow-swe-answer-{}-{}-{}.txt",
                                 sanitize(agent_name),
@@ -614,7 +620,7 @@ pub async fn run(
                                 steps: ar.steps,
                             }
                         }
-                        Err(e) => {
+                        Ok(Err(e)) => {
                             all_passed = false;
                             runs.push(RunOutcome {
                                 repeat: rep,
@@ -622,6 +628,25 @@ pub async fn run(
                                 detail: String::new(),
                                 duration_secs: started.elapsed().as_secs_f64(),
                                 error: Some(e.to_string()),
+                                usage: TokenUsage::default(),
+                                tool_calls: 0,
+                                steps: Vec::new(),
+                                answer: None,
+                                reasoning: None,
+                            });
+                            continue;
+                        }
+                        Err(_) => {
+                            all_passed = false;
+                            runs.push(RunOutcome {
+                                repeat: rep,
+                                passed: false,
+                                detail: String::new(),
+                                duration_secs: started.elapsed().as_secs_f64(),
+                                error: Some(format!(
+                                    "agentic episode timed out after {}s",
+                                    cfg.timeout.as_secs()
+                                )),
                                 usage: TokenUsage::default(),
                                 tool_calls: 0,
                                 steps: Vec::new(),
