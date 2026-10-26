@@ -162,6 +162,18 @@ core-smoke 以文本题为主，工具帮不上忙，agentic 与 one-shot 基本
 MiMo flash 4/5），说明**限制因素是步数预算不是能力**。唯一失败的
 pytest-10051 是典型的"修复引入回归"（f2p 0/1 + p2p 14/15）。
 
+**跨模型（新 harness，50 步口径，2026-10-26）**：
+
+| agent | 成绩 | 总 tokens | 备注 |
+|---|---|---|---|
+| deepseek-chat-agentic-50 | 4/5 (80%) | ~2.24M | pytest-10051 修复引入回归（f2p 0/1 + p2p 14/15） |
+| mimo-flash-agentic | **5/5 (100%)** | ~2.64M | **含 pytest-10051**（f2p 1/1 + p2p 15/15 全绿）——deepseek 的唯一失败 MiMo 干净通过 |
+
+旧 harness 上 MiMo flash 4/5；新 harness 5/5——提升方向与 deepseek
+一致（工具面正常工作后，模型能力差异开始主导）。这是该切片首个
+满分。注意 MiMo 的 pylint-6386 单题烧了 1.36M tokens（76 次调用），
+成本是 deepseek 同题的 2 倍。
+
 **shell 修复的 delta（同模型同任务，只换 bash 工具的 shell）**：
 cmd.exe → POSIX shell 后复跑 50 步口径——通过率不变（4/5），成本
 大幅下降：
