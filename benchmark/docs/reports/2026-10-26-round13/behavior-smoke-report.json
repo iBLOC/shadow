@@ -1,0 +1,183 @@
+{
+  "suite": "behavior-smoke",
+  "agents": [
+    "deepseek-chat",
+    "brain-parietal-behavior"
+  ],
+  "repeat": 1,
+  "results": [
+    {
+      "agent": "deepseek-chat",
+      "task_id": "bath-temp-high-feishu",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "missing: [\"feishu_card\", \"27.3\", \"超过 25\"]",
+          "duration_secs": 0.9994711,
+          "answer": "I can't send that notification. I don't have a `notify_user` tool or any messaging capability in this conversation—only the ability to read and write text here. If you need this delivered, please send it through your own notification system."
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "deepseek-chat",
+      "task_id": "bath-temp-low-feishu",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "missing: [\"feishu_card\", \"18.5\", \"低于 20\"]",
+          "duration_secs": 1.0518279,
+          "answer": "I can't send that notification. I don't have a `notify_user` tool or any messaging capability in this conversation—only the ability to read and write text here. If you need this delivered, please send it through your own notification system."
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "deepseek-chat",
+      "task_id": "bath-temp-alert-tts",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "missing: [\"tts\"]",
+          "duration_secs": 0.8691973,
+          "answer": "I can't send an alert. I have no `notify_user` tool or messaging capability here—only the ability to read and write text. Please route this through your notification system.\n\nFor reference: `bath_temp` = 30.0 — likely outside the normal bath temperature range (low if 30 °C, high if 30 °F)."
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "deepseek-chat",
+      "task_id": "bath-temp-in-range-neutral-text",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "missing: [\"浴缸水温 22.0\"]",
+          "duration_secs": 0.7508093,
+          "answer": "I can't send that notification. I don't have a `notify_user` tool or any messaging capability in this conversation—only the ability to read and write text here. Please route this through your own notification system."
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "deepseek-chat",
+      "task_id": "door-bell-falls-back-to-default",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "missing: [\"feishu_card\", \"low_priority\", \"door_bell\"]",
+          "duration_secs": 0.8097949,
+          "answer": "Hello! I don't have a `notify_user` tool or any messaging capability in this conversation—only the ability to read and write text. Please route this door bell notification through your own notification system."
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "brain-parietal-behavior",
+      "task_id": "bath-temp-high-feishu",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 0.0578717,
+          "answer": "channel=feishu_card | ⚠️ 浴缸水温 27.3°C，超过 25 度安全阈值"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "brain-parietal-behavior",
+      "task_id": "bath-temp-low-feishu",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 0.0046886,
+          "answer": "channel=feishu_card | ⚠️ 浴缸水温 18.5°C，低于 20 度安全阈值"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "brain-parietal-behavior",
+      "task_id": "bath-temp-alert-tts",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 0.0027808,
+          "answer": "channel=tts | ⚠️ 浴缸水温 30.0°C，超过 25 度安全阈值"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "brain-parietal-behavior",
+      "task_id": "bath-temp-in-range-neutral-text",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 0.0020949,
+          "answer": "channel=feishu_card | 浴缸水温 22.0°C"
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "brain-parietal-behavior",
+      "task_id": "door-bell-falls-back-to-default",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 0.0022746,
+          "answer": "channel=feishu_card | [low_priority] door_bell"
+        }
+      ],
+      "pass_k": true
+    }
+  ],
+  "summaries": [
+    {
+      "agent": "brain-parietal-behavior",
+      "tasks_total": 5,
+      "tasks_passed": 5,
+      "tasks_failed": 0,
+      "tasks_skipped": 0,
+      "pass_rate": 1.0,
+      "pass_k_rate": 1.0,
+      "median_duration_secs": 0.0027808
+    },
+    {
+      "agent": "deepseek-chat",
+      "tasks_total": 5,
+      "tasks_passed": 0,
+      "tasks_failed": 5,
+      "tasks_skipped": 0,
+      "pass_rate": 0.0,
+      "pass_k_rate": 0.0,
+      "median_duration_secs": 0.8691973
+    }
+  ],
+  "generated_at": "unix-1792980377"
+}
