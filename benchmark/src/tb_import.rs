@@ -62,11 +62,16 @@ pub struct ImportedTask {
 }
 
 /// Delivery contract for prompt-only agents (the OpenAI adapter has no
-/// shell, so imported tasks must say how files come back). CLI agents
-/// get a real workdir and ignore this.
-pub const ANSWER_CONTRACT: &str = "You have no shell access. Deliver every file the task \
+/// shell, so imported tasks must say how files come back). Tool-neutral
+/// phrasing so it stays true in the agentic mode too: agents WITH
+/// shell/edit tools should write files directly — which satisfies the
+/// same requirement — and only fall back to fenced blocks if they
+/// cannot. CLI agents get a real workdir and ignore this.
+pub const ANSWER_CONTRACT: &str = "Deliver every file the task \
 asks you to create or modify as a fenced code block opened with the file path, e.g. \
-```path:regex.txt```. The block body is the complete file content. One block per file.";
+```path:regex.txt```. The block body is the complete file content. One block per file. \
+If you have file-writing tools available, writing the files directly also satisfies this — \
+either way the verifier must be able to find the finished files.";
 
 /// Pytest over the imported verifier. Upstream `tests/test.sh` runs
 /// `uvx -p 3.13 -w pytest==8.4.1 …` inside the task image; locally the

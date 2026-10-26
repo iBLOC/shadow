@@ -417,6 +417,15 @@ impl OpenAiAgent {
             })?;
 
         let mut system = OPENAI_AGENTIC_SYSTEM.to_string();
+        // The task's answer contract (e.g. GAIA's "FINAL ANSWER: <x>"
+        // line format) constrains how the episode must END, which is
+        // orthogonal to having tools — drop it and the scorer reads a
+        // prose answer and fails every task regardless of correctness.
+        // Contracts are written tool-neutral so they hold here too.
+        if !task.answer_contract.is_empty() {
+            system.push('\n');
+            system.push_str(&task.answer_contract);
+        }
         if !prior_traces.is_empty() {
             system.push_str(PRIOR_TRACES_HEADER);
             system.push_str(prior_traces);

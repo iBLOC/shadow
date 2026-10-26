@@ -196,6 +196,26 @@ bash，避免撞上 WSL 的），并补了 `edit_file`（精确片段替换，�
   同量级）。启动条件：`chromedriver --port=9515`（或任一 W3C 驱动
   —— Selenium/Appium/shadow-desktop wdio 插件），agents-tb.toml 的
   `deepseek-browser-agentic` 条目带 `webdriver_url`。
+#### 2.1 原生工具重测（2026-10-26，harness 收口后）
+
+适配器入库 + agentic 模式落地后，GAIA 第一次以**原生工具面**复测
+（web_fetch 是 `src/tools.rs` 里的普通工具，不再需要 2026-10-13 那些
+一次性钩子代码）：
+
+| 轮次 | 成绩 | 工具调用 | tokens | 说明 |
+|---|---|---|---|---|
+| v1（answer_contract 未接进 agentic） | **0/10** | 225 | 2.65M | 答案常常是对的（egalitarian / 41 / 142 都在文本里），但 agentic 路径丢了 `FINAL ANSWER:` 约定，评分器读散文判全错 |
+| v2（contract 接进 agentic 系统提示） | **4/10 (40%)** | 85 | 1.44M | 同模型同任务，只修 harness——47% token、62% 工具调用，题目开始做对 |
+
+v2 残余 6 败的形态：2 题 50 步撞墙（没收敛就断）、3 题"凭记忆答"
+（tc=0 或个位数，模型没意识到可以去 fetch）、1 题 egalitarian 词形
+（老问题）。历史 7/10 是**钩子 + 答案规范化**共同作用；4/10 是诚实
+的原生口径，两者不可直接比。
+
+经验教训（对 agentic 适配器普适）：**answer_contract 是"回合怎么结束"
+的约定，与有没有工具正交**——任何 function-calling 适配器都必须把它
+带进系统提示，否则文本题全灭。
+
 - **mimo-flash + 答案规范化 + tail_candidate（2026-10-13，生产路径）**：
   **5/10 (50%)**——`tail_candidate` 把"Answer: 3"/"…last short line"/末
   token 数字兜底（模型没用 `FINAL ANSWER:` 标记时），与数字 token 抽取

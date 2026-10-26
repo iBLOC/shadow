@@ -13,12 +13,13 @@ use crate::suite::Suite;
 use crate::task::{ScorerSpec, Task};
 use serde::Deserialize;
 
-/// Delivery contract appended to every GAIA task prompt: the model has
-/// no tools in this harness (the OpenAI adapter is prompt-only), and the
-/// answer is read from the last `FINAL ANSWER:` marker line.
+/// Delivery contract appended to every GAIA task prompt. The answer is
+/// read from the last `FINAL ANSWER:` marker line. Tool-neutral on
+/// purpose: one-shot agents have no tools, agentic agents do (up to
+/// web_fetch) — the contract only fixes the answer format, which both
+/// must follow.
 pub const GAIA_ANSWER_CONTRACT: &str =
-    "This is a GAIA-style question. Answer with the knowledge you have; no \
-external tools or browsing are available. When you are done, present your \
+    "This is a GAIA-style question. When you are done, present your \
 final answer on its own line in exactly this format: FINAL ANSWER: <answer>. \
 The answer must be a number, a short string, or a comma-separated list of \
 values — nothing else.";
