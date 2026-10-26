@@ -94,6 +94,22 @@ pub fn tool_schemas() -> Vec<Value> {
         json!({
             "type": "function",
             "function": {
+                "name": "edit_file",
+                "description": "Replace an exact snippet in a file. The snippet must appear exactly once. Use this instead of rewriting whole files — it is far cheaper and safer. Read the file first so the snippet matches byte for byte.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string", "description": "Path relative to the working directory."},
+                        "search": {"type": "string", "description": "Exact text to replace, including indentation."},
+                        "replace": {"type": "string", "description": "The replacement text."}
+                    },
+                    "required": ["path", "search", "replace"]
+                }
+            }
+        }),
+        json!({
+            "type": "function",
+            "function": {
                 "name": "web_fetch",
                 "description": "Fetch a public http(s) URL and return its text content (HTML is stripped to text). Use it to look up facts you cannot recall.",
                 "parameters": {
@@ -297,6 +313,65 @@ pub async fn execute(call: &ToolCall, workdir: &Path) -> ToolOutcome {
             ToolOutcome {
                 content: format!("episode finished: {summary}"),
                 finished: true,
+            }
+        }
+        "edit_file" => {
+            let Some(rel) = call.arg_str("path") else {
+                return ToolOutcome {
+                    content: "error: 'edit_file' requires a 'path' argument".into(),
+                    finished: false,
+                };
+            };
+            let Some(abs) = safe_join(workdir, rel) else {
+                return ToolOutcome {
+                    content: format!("error: refusing path outside the working directory: {rel}"),
+                    finished: false,
+                };
+            };
+            let search = call.arg_str("search").unwrap_or("");
+            let replace = call.arg_str("replace").unwrap_or("");
+            if search.is_empty() {
+                return ToolOutcome {
+                    content: "error: 'edit_file' requires a non-empty 'search' argument".into(),
+                    finished: false,
+                };
+            }
+            let current = match tokio::fs::read_to_string(&abs).await {
+                Ok(t) => t,
+                Err(e) => {
+                    return ToolOutcome {
+                        content: format!("error: cannot read {rel}: {e}"),
+                        finished: false,
+                    }
+                }
+            };
+            let count = current.matches(search).count();
+            if count == 0 {
+                return ToolOutcome {
+                    content: format!(
+                        "error: the snippet was not found in {rel}. Read the file again and copy the text exactly (indentation included)."
+                    ),
+                    finished: false,
+                };
+            }
+            if count > 1 {
+                return ToolOutcome {
+                    content: format!(
+                        "error: the snippet appears {count} times in {rel}. Include more surrounding context so it is unique."
+                    ),
+                    finished: false,
+                };
+            }
+            let updated = current.replacen(search, replace, 1);
+            match tokio::fs::write(&abs, &updated).await {
+                Ok(()) => ToolOutcome {
+                    content: format!("edited {rel} ({} bytes)", updated.len()),
+                    finished: false,
+                },
+                Err(e) => ToolOutcome {
+                    content: format!("error: cannot write {rel}: {e}"),
+                    finished: false,
+                },
             }
         }
         "web_fetch" => {
@@ -503,46 +578,104 @@ fn html_to_text(html: &str) -> String {
 }
 
 /// Run a shell command in `workdir` and report its output.
-async fn run_bash(command: &str, workdir: &Path) -> ToolOutcome {    let shell = if cfg!(windows) { "cmd" } else { "sh" };
-    let flag = if cfg!(windows) { "/C" } else { "-c" };
-    let mut cmd = tokio::process::Command::new(shell);
-    cmd.arg(flag)
+///
+/// Models write POSIX shell commands (`ls; grep -n ... | head`, `sed
+/// -n 1,200p`, heredocs). Under `cmd.exe` those are silently
+/// mis-parsed — `;` is not a command separator there, so `ls` ends up
+/// swallowing the whole line as arguments and the agent burns its
+/// step budget on shell-syntax errors instead of on the task. So we
+/// prefer a POSIX shell and only fall back to `cmd` when none is
+/// available.
+async fn run_bash(command: &str, workdir: &Path) -> ToolOutcome {
+    for shell in posix_shells() {
+        if let Some(out) = run_in_shell(&shell, command, workdir).await {
+            return out;
+        }
+    }
+
+    // Windows fallback: cmd.exe.
+    let mut cmd = tokio::process::Command::new("cmd");
+    cmd.arg("/C")
         .arg(command)
         .current_dir(workdir)
         .kill_on_drop(true);
-    // Windows shells inherit stdio handles that break capture; null
-    // them explicitly.
     cmd.stdin(std::process::Stdio::null());
     match cmd.output().await {
-        Ok(out) => {
-            let mut text = String::new();
-            let stdout = String::from_utf8_lossy(&out.stdout);
-            let stderr = String::from_utf8_lossy(&out.stderr);
-            if !stdout.trim().is_empty() {
-                text.push_str(stdout.trim_end());
-            }
-            if !stderr.trim().is_empty() {
-                if !text.is_empty() {
-                    text.push('\n');
-                }
-                text.push_str("[stderr]\n");
-                text.push_str(stderr.trim_end());
-            }
-            let code = out.status.code().unwrap_or(-1);
-            if text.is_empty() {
-                text.push_str("(no output)");
-            }
-            text.push_str(&format!("\n[exit code: {code}]"));
-            ToolOutcome {
-                content: truncate_tail(&text),
-                finished: false,
-            }
-        }
+        Ok(out) => ToolOutcome {
+            content: format_shell_output(&out),
+            finished: false,
+        },
         Err(e) => ToolOutcome {
             content: format!("error: cannot run command: {e}"),
             finished: false,
         },
     }
+}
+
+/// Candidate POSIX shells, most specific first.
+///
+/// On Windows the Git-for-Windows bash is preferred over whatever
+/// `bash` resolves to on PATH (which may be WSL's, where the workdir
+/// path would not exist).
+fn posix_shells() -> Vec<String> {
+    let mut shells: Vec<String> = Vec::new();
+    if cfg!(windows) {
+        for candidate in [
+            "C:\\Program Files\\Git\\bin\\bash.exe",
+            "C:\\Program Files (x86)\\Git\\bin\\bash.exe",
+        ] {
+            if Path::new(candidate).exists() {
+                shells.push(candidate.to_string());
+            }
+        }
+    }
+    shells.push("bash".to_string());
+    shells.push("sh".to_string());
+    shells
+}
+
+/// Run `command` under `shell`; `None` when the shell does not exist.
+async fn run_in_shell(shell: &str, command: &str, workdir: &Path) -> Option<ToolOutcome> {
+    let mut cmd = tokio::process::Command::new(shell);
+    cmd.arg("-c")
+        .arg(command)
+        .current_dir(workdir)
+        .kill_on_drop(true);
+    cmd.stdin(std::process::Stdio::null());
+    match cmd.output().await {
+        Ok(out) => Some(ToolOutcome {
+            content: format_shell_output(&out),
+            finished: false,
+        }),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+        Err(e) => Some(ToolOutcome {
+            content: format!("error: cannot run command: {e}"),
+            finished: false,
+        }),
+    }
+}
+
+/// Format a finished command's output for the model.
+fn format_shell_output(out: &std::process::Output) -> String {
+    let mut text = String::new();
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    if !stdout.trim().is_empty() {
+        text.push_str(stdout.trim_end());
+    }
+    if !stderr.trim().is_empty() {
+        if !text.is_empty() {
+            text.push('\n');
+        }
+        text.push_str("[stderr]\n");
+        text.push_str(stderr.trim_end());
+    }
+    let code = out.status.code().unwrap_or(-1);
+    if text.is_empty() {
+        text.push_str("(no output)");
+    }
+    text.push_str(&format!("\n[exit code: {code}]"));
+    truncate_tail(&text)
 }
 
 /// List files under `abs`, relative to `label`.
@@ -755,5 +888,97 @@ mod tests {
     fn html_to_text_keeps_non_ascii_intact() {
         let text = html_to_text("<p>影 · 分身 · café</p>");
         assert!(text.contains("影 · 分身 · café"), "{text}");
+    }
+
+    #[test]
+    fn edit_file_replaces_exact_snippet() {
+        let dir = std::env::temp_dir().join("shadow-bench-edit-test");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("a.py"), "def f():\n    return 1\n").unwrap();
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+
+        let call = ToolCall {
+            id: "e".into(),
+            name: "edit_file".into(),
+            args: json!({"path": "a.py", "search": "    return 1", "replace": "    return 2"}),
+        };
+        let out = rt.block_on(execute(&call, &dir));
+        assert!(out.content.contains("edited a.py"), "{}", out.content);
+        assert!(std::fs::read_to_string(dir.join("a.py"))
+            .unwrap()
+            .contains("return 2"));
+
+        // A snippet that is not there must say so, not corrupt the file.
+        let miss = ToolCall {
+            id: "e2".into(),
+            name: "edit_file".into(),
+            args: json!({"path": "a.py", "search": "return 99", "replace": "x"}),
+        };
+        let out = rt.block_on(execute(&miss, &dir));
+        assert!(out.content.contains("not found"), "{}", out.content);
+        assert!(std::fs::read_to_string(dir.join("a.py"))
+            .unwrap()
+            .contains("return 2"));
+    }
+
+    #[test]
+    fn edit_file_refuses_ambiguous_snippet() {
+        let dir = std::env::temp_dir().join("shadow-bench-edit-dup-test");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("b.py"), "x = 1\nx = 1\n").unwrap();
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let call = ToolCall {
+            id: "e".into(),
+            name: "edit_file".into(),
+            args: json!({"path": "b.py", "search": "x = 1", "replace": "x = 2"}),
+        };
+        let out = rt.block_on(execute(&call, &dir));
+        assert!(out.content.contains("appears 2 times"), "{}", out.content);
+        // The file is untouched.
+        assert_eq!(
+            std::fs::read_to_string(dir.join("b.py")).unwrap(),
+            "x = 1\nx = 1\n"
+        );
+    }
+
+    /// The regression that mattered: under cmd.exe the agent's
+    /// `ls; grep -n "x" f | head` mis-parses (`;` is not a separator),
+    /// so `ls` swallows the whole line. A POSIX shell must run it.
+    #[test]
+    fn bash_runs_posix_command_sequences() {
+        let dir = std::env::temp_dir().join("shadow-bench-bash-test");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("f.txt"), "alpha\nbeta\n").unwrap();
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+
+        let call = ToolCall {
+            id: "b".into(),
+            name: "bash".into(),
+            args: json!({"command": "ls; grep -n beta f.txt | head -1"}),
+        };
+        let out = rt.block_on(execute(&call, &dir));
+        // The `;` must separate the commands, and the pipe must work.
+        assert!(
+            out.content.contains("f.txt"),
+            "first command did not run: {}",
+            out.content
+        );
+        assert!(
+            out.content.contains("2:beta"),
+            "grep|head did not run: {}",
+            out.content
+        );
     }
 }
