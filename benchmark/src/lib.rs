@@ -30,6 +30,7 @@ pub mod runner;
 pub mod scorer;
 pub mod suite;
 pub mod task;
+pub mod tau2;
 
 pub use agent::{AgentAdapter, AgentError, AgentRun, CliAgent, OpenAiAgent};
 pub use config::{AgentSpec, AgentsConfig, JudgeConfig};

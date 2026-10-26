@@ -39,6 +39,45 @@ pub struct AgentRun {
     pub answer: String,
     pub duration: Duration,
     pub exit_code: Option<i32>,
+    /// Provider token usage for this invocation. OpenAI-compatible
+    /// endpoints report it in the response body; CLI adapters leave it
+    /// zeroed.
+    pub usage: TokenUsage,
+    /// Number of tool calls the agent issued. Zero for prompt-only
+    /// adapters.
+    pub tool_calls: u32,
+}
+
+/// Token accounting for one agent invocation.
+///
+/// Adapters that talk to a provider that reports usage fill this
+/// in; prompt-only or CLI adapters leave it zeroed. It is
+/// serialized into the run report so cost per task can be compared
+/// across agents without re-running them.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq)]
+pub struct TokenUsage {
+    #[serde(default)]
+    pub prompt_tokens: u32,
+    #[serde(default)]
+    pub completion_tokens: u32,
+    #[serde(default)]
+    pub total_tokens: u32,
+}
+
+impl TokenUsage {
+    /// Build a usage record from a provider's prompt/completion
+    /// split, deriving the total when the provider omits it.
+    pub fn new(prompt_tokens: u32, completion_tokens: u32, total_tokens: Option<u32>) -> Self {
+        Self {
+            prompt_tokens,
+            completion_tokens,
+            total_tokens: total_tokens.unwrap_or(prompt_tokens + completion_tokens),
+        }
+    }
+
+    pub fn is_zero(&self) -> bool {
+        self.total_tokens == 0 && self.prompt_tokens == 0 && self.completion_tokens == 0
+    }
 }
 
 #[async_trait]
@@ -204,10 +243,24 @@ impl AgentAdapter for OpenAiAgent {
             .as_str()
             .unwrap_or_default()
             .to_string();
+        // Token accounting: every OpenAI-compatible endpoint reports
+        // `usage` in the response body. Reading it here is what makes
+        // per-task cost comparable across agents in the report.
+        let usage = TokenUsage::new(
+            json["usage"]["prompt_tokens"].as_u64().unwrap_or(0) as u32,
+            json["usage"]["completion_tokens"].as_u64().unwrap_or(0) as u32,
+            json["usage"]["total_tokens"].as_u64().map(|v| v as u32),
+        );
+        let tool_calls = json["choices"][0]["message"]["tool_calls"]
+            .as_array()
+            .map(|a| a.len() as u32)
+            .unwrap_or(0);
         Ok(AgentRun {
             answer,
             duration: started.elapsed(),
             exit_code: None,
+            usage,
+            tool_calls,
         })
     }
 }
@@ -375,6 +428,8 @@ impl AgentAdapter for CliAgent {
             answer,
             duration: started.elapsed(),
             exit_code: output.status.code(),
+            usage: TokenUsage::default(),
+            tool_calls: 0,
         })
     }
 }

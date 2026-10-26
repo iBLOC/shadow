@@ -59,6 +59,22 @@ pub struct RunOutcome {
     /// the answer contains no think blocks.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning: Option<String>,
+    /// Token accounting for the run (prompt/completion/total).
+    /// Populated by adapters that surface usage from the provider
+    /// (tau2 driver reports it; OpenAI adapters can read
+    /// `usage` from the response — deferred). Zeroed elsewhere.
+    #[serde(default)]
+    pub usage: crate::agent::TokenUsage,
+    /// Number of tool invocations the agent made. Zero for
+    /// prompt-only adapters; the agentic adapter counts its
+    /// tool-call loop iterations.
+    #[serde(default)]
+    pub tool_calls: u32,
+    /// Per-step trace (agent adapters that run a multi-step loop
+    /// record one entry per step — the tau2 driver writes its
+    /// simulator turns here). Empty for single-shot adapters.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub steps: Vec<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
 }
@@ -396,6 +412,9 @@ impl Runner {
                         duration_secs: started.elapsed().as_secs_f64(),
                         answer: stored_answer,
                         reasoning,
+                        usage: r.usage,
+                        tool_calls: r.tool_calls,
+                        steps: Vec::new(),
                         error: None,
                     }
                 }
@@ -408,6 +427,9 @@ impl Runner {
                         duration_secs: started.elapsed().as_secs_f64(),
                         answer: None,
                         reasoning: None,
+                        usage: Default::default(),
+                        tool_calls: 0,
+                        steps: Vec::new(),
                         error: Some(e.to_string()),
                     }
                 }
@@ -426,7 +448,7 @@ impl Runner {
     }
 }
 
-fn summarize(results: &[TaskResult], _repeat: usize) -> Vec<AgentSummary> {
+pub fn summarize(results: &[TaskResult], _repeat: usize) -> Vec<AgentSummary> {
     let mut per_agent: BTreeMap<String, Vec<&TaskResult>> = BTreeMap::new();
     for r in results {
         per_agent.entry(r.agent.clone()).or_default().push(r);
@@ -484,7 +506,7 @@ fn suite_sanitize(s: &str) -> String {
     sanitize(s)
 }
 
-fn chrono_utc() -> String {
+pub fn chrono_utc() -> String {
     // No chrono dep — RFC3339-ish from the Unix epoch via std.
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)

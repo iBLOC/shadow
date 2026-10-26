@@ -126,6 +126,8 @@ impl AgentAdapter for BrainAgent {
             answer: Self::extract_text(&payload),
             duration: started.elapsed(),
             exit_code: Some(0),
+            usage: crate::agent::TokenUsage::default(),
+            tool_calls: 0,
         })
     }
 }

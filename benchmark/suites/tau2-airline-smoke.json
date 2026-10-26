@@ -1,0 +1,464 @@
+{
+  "name": "tau2-airline-smoke",
+  "description": "",
+  "domain": "airline",
+  "source": "tau2-bench@4ce7c03",
+  "max_steps": 40,
+  "tasks": [
+    {
+      "annotations": null,
+      "description": {
+        "notes": null,
+        "purpose": "Check that Agent verifies membership status. User thinks she is Gold, she is actually Silver.",
+        "relevant_policies": null
+      },
+      "evaluation_criteria": {
+        "actions": [
+          {
+            "action_id": "3_0",
+            "arguments": {
+              "reservation_id": "JMO1MG"
+            },
+            "info": null,
+            "name": "get_reservation_details"
+          },
+          {
+            "action_id": "3_1",
+            "arguments": {
+              "user_id": "anya_garcia_5901"
+            },
+            "info": null,
+            "name": "get_user_details"
+          }
+        ],
+        "communicate_info": [
+          "4"
+        ],
+        "nl_assertions": [
+          "Agent detects that user is actually a Silver member.",
+          "Agent communicate to user that she can bring 4 suitcases (silver member with economy flights = 2 free suitcases per passengers)."
+        ],
+        "reward_basis": [
+          "DB",
+          "COMMUNICATE"
+        ]
+      },
+      "id": "3",
+      "initial_state": null,
+      "user_scenario": {
+        "instructions": {
+          "domain": "airline",
+          "known_info": "You are Anya Garcia.\n\nYour user id is: anya_garcia_5901.\n\nYour confirmation number is JMO1MG.",
+          "reason_for_call": "You want to figure out the total number of suitcases the reservation allows you to take on your upcoming flight.\n\nYou have a lot of things you need to bring with you on this trip. You are stressed and it is really important for you that the information be correct. \n\nYou're pretty sure that you're a Gold member.",
+          "task_instructions": "If this is not already the case, insist on getting the total number in numeric form, as you can see numbers better than words. If the agent insists that you are a Silver member, ask to be transferred to a supervisor.",
+          "unknown_info": "You do not know the cabin for the upcoming flight."
+        },
+        "persona": null
+      }
+    },
+    {
+      "annotations": null,
+      "description": {
+        "notes": null,
+        "purpose": "Testing introducing new user intent in the middle of the conversation.",
+        "relevant_policies": null
+      },
+      "evaluation_criteria": {
+        "actions": [
+          {
+            "action_id": "7_0",
+            "arguments": {
+              "reservation_id": "XEHM4B"
+            },
+            "info": null,
+            "name": "get_reservation_details"
+          },
+          {
+            "action_id": "7_1",
+            "arguments": {
+              "reservation_id": "59XX6W"
+            },
+            "info": null,
+            "name": "get_reservation_details"
+          },
+          {
+            "action_id": "7_2",
+            "arguments": {
+              "cabin": "business",
+              "flights": [
+                {
+                  "date": "2024-05-20",
+                  "flight_number": "HAT005"
+                },
+                {
+                  "date": "2024-05-30",
+                  "flight_number": "HAT178"
+                }
+              ],
+              "payment_id": "credit_card_2408938",
+              "reservation_id": "XEHM4B"
+            },
+            "info": null,
+            "name": "update_reservation_flights"
+          },
+          {
+            "action_id": "7_3",
+            "arguments": {
+              "reservation_id": "XEHM4B"
+            },
+            "info": null,
+            "name": "cancel_reservation"
+          },
+          {
+            "action_id": "7_4",
+            "arguments": {
+              "reservation_id": "59XX6W"
+            },
+            "info": null,
+            "name": "cancel_reservation"
+          }
+        ],
+        "communicate_info": [
+          "1628"
+        ],
+        "nl_assertions": [
+          "Agent upgrades XEHM4B to business.",
+          "Agent cancels XEHM4B (as it is business flight).",
+          "Agent cancels 59XX6W (as it has insurance and the user is sick).",
+          "Agent communicates that total cost of upcoming flights is $1,628."
+        ],
+        "reward_basis": [
+          "DB",
+          "COMMUNICATE"
+        ]
+      },
+      "id": "7",
+      "initial_state": null,
+      "user_scenario": {
+        "instructions": {
+          "domain": "airline",
+          "known_info": "Your user id is 'daiki_muller_1116'.",
+          "reason_for_call": "You want to cancel your upcoming flights within reservation IDs XEHM4B and 59XX6W.",
+          "task_instructions": "If the agent says either of the two reservations is basic economy, ask to upgrade to business first and then cancel the reservation (Using the CC ending in 2135).\n\nYou are very persistent and terse but clear.\n\nYou are sick.\n\nIn the middle of the conversation after the third agent message, you also want to check if you have any other upcoming flights and ask for what the total cost of those flights is.",
+          "unknown_info": null
+        },
+        "persona": null
+      }
+    },
+    {
+      "annotations": null,
+      "description": {
+        "notes": null,
+        "purpose": "Test that agent does not change the number of passenger for a flight.",
+        "relevant_policies": null
+      },
+      "evaluation_criteria": {
+        "actions": [
+          {
+            "action_id": "11_0",
+            "arguments": {
+              "cabin": "basic_economy",
+              "flights": [
+                {
+                  "date": "2024-05-19",
+                  "flight_number": "HAT003"
+                },
+                {
+                  "date": "2024-05-20",
+                  "flight_number": "HAT290"
+                }
+              ],
+              "payment_id": "gift_card_1642017",
+              "reservation_id": "GV1N64"
+            },
+            "info": null,
+            "name": "update_reservation_flights"
+          }
+        ],
+        "communicate_info": [
+          "5244"
+        ],
+        "nl_assertions": [
+          "Check that agent does not remove passenger since changing the number of passengers is not allowed.",
+          "Check that agent downgrades all passengers to basic economy.",
+          "Check that agent refunds $5244 to original payment method."
+        ],
+        "reward_basis": [
+          "DB",
+          "COMMUNICATE"
+        ]
+      },
+      "id": "11",
+      "initial_state": null,
+      "user_scenario": {
+        "instructions": {
+          "domain": "airline",
+          "known_info": "Your name is James Patel.\n\nYour user id is james_patel_9828.",
+          "reason_for_call": "You want to remove passenger Sophia from your upcoming round trip flights from LAS to DEN, departure May 19, return is May 20.",
+          "task_instructions": "You don't remember your reservation ID for the first 2 rounds of interaction but then suddenly find it in your email: it is GV1N64.\n\nYou are impatient and want the change to be done quickly. \n\nYou want the entire amount refunded to original payment method. \n\nIf and only if the agent says you cannot remove just one passenger, you want to downgrade all passengers to basic economy. \n\nAsk how much the refund would be.\n\nMake sure to ask the refund to be processed to the original payment method.",
+          "unknown_info": null
+        },
+        "persona": null
+      }
+    },
+    {
+      "annotations": null,
+      "description": {
+        "notes": null,
+        "purpose": "Test the capacity of the agent to look for the cheapest flights with constraints on dates, cities and cabin. \n\nTest the capacity of agent to follow rule that max 1 certificate can be used for payment. \n\n\nTest capacity of agents to reason about money amounts.\n\nThe user has multiple certificates, gift cards and 2 credit cards one file. for the payment, we expect agent to understand how to maximize use of gift card + 1 certificate to minimize amount put on the credit card.\n\nThe total cost of the new flight will be $2613. The correct split is to use first both gift cards for $327, the $500 certificate, and put the remaining $1786 dollars on the master card.",
+        "relevant_policies": null
+      },
+      "evaluation_criteria": {
+        "actions": [
+          {
+            "action_id": "14_0",
+            "arguments": {
+              "reservation_id": "K1NW8N"
+            },
+            "info": null,
+            "name": "cancel_reservation"
+          },
+          {
+            "action_id": "14_1",
+            "arguments": {
+              "cabin": "business",
+              "destination": "SFO",
+              "flight_type": "round_trip",
+              "flights": [
+                {
+                  "date": "2024-05-26",
+                  "flight_number": "HAT023"
+                },
+                {
+                  "date": "2024-05-28",
+                  "flight_number": "HAT204"
+                },
+                {
+                  "date": "2024-05-28",
+                  "flight_number": "HAT100"
+                }
+              ],
+              "insurance": "no",
+              "nonfree_baggages": 0,
+              "origin": "JFK",
+              "passengers": [
+                {
+                  "dob": "1960-11-26",
+                  "first_name": "Mohamed",
+                  "last_name": "Silva"
+                },
+                {
+                  "dob": "1986-09-12",
+                  "first_name": "Raj",
+                  "last_name": "Sanchez"
+                },
+                {
+                  "dob": "1980-03-27",
+                  "first_name": "Liam",
+                  "last_name": "Wilson"
+                }
+              ],
+              "payment_methods": [
+                {
+                  "amount": 500,
+                  "payment_id": "certificate_3765853"
+                },
+                {
+                  "amount": 198,
+                  "payment_id": "gift_card_8020792"
+                },
+                {
+                  "amount": 129,
+                  "payment_id": "gift_card_6136092"
+                },
+                {
+                  "amount": 1786,
+                  "payment_id": "credit_card_2198526"
+                }
+              ],
+              "total_baggages": 0,
+              "user_id": "mohamed_silva_9265"
+            },
+            "info": null,
+            "name": "book_reservation"
+          }
+        ],
+        "communicate_info": [
+          "327",
+          "1000",
+          "1786"
+        ],
+        "nl_assertions": [
+          "Agent communicates that total gift card balance is $327.",
+          "Agent communicates that total certificate balance if $1000.",
+          "Agent should cancel reservation K1NW8N.",
+          "Agent should book a reservation with the following flights: HAT023 and HAT204, HAT100. No insurance. No baggage. Departure on 2024-05-26, return on 2024-05-28.",
+          "Agent communicated that the $1786 will be charged to the mastercard."
+        ],
+        "reward_basis": [
+          "DB",
+          "COMMUNICATE"
+        ]
+      },
+      "id": "14",
+      "initial_state": null,
+      "user_scenario": {
+        "instructions": {
+          "domain": "airline",
+          "known_info": "Your name is Mohamed Silva.\n\nYour user id is mohamed_silva_9265.",
+          "reason_for_call": "You want to know how much you have on your gift cards and certificates. Then you want to change your upcoming reservation.",
+          "task_instructions": "You want to know the sum of gift card balances and sum of certificate balances.\n\nIf the agent gives you individual balances, you want the sums.\n\nThen you want to change your recent reservation. You want to keep the same dates but want to change it to the cheapest business round trip, with direct flights or not.\n\nIf the agent tells you basic economy cannot be changed (do not mention it if the agent does not mention it), you want the agent to cancel the current one and book a new one.\n\nFor payment, you want to use the certificates as much as possible, then gift cards as much as possible, and cover the rest with your master card.\n\nBut you want to know how much your master card will be charged.\n\nYou do not need baggage or insurance.\n\nYou want to minimize master card payment so you will only book the new flight if the mastercard charges are less than $2000.\n\nYou are calm.",
+          "unknown_info": null
+        },
+        "persona": null
+      }
+    },
+    {
+      "annotations": null,
+      "description": {
+        "notes": null,
+        "purpose": "Checking that agent can properly downgrade the right flights and calculate total savings.",
+        "relevant_policies": null
+      },
+      "evaluation_criteria": {
+        "actions": [
+          {
+            "action_id": "18_0",
+            "arguments": {
+              "cabin": "economy",
+              "flights": [
+                {
+                  "date": "2024-05-21",
+                  "flight_number": "HAT028"
+                },
+                {
+                  "date": "2024-05-21",
+                  "flight_number": "HAT277"
+                }
+              ],
+              "payment_id": "credit_card_2929732",
+              "reservation_id": "JG7FMM"
+            },
+            "info": null,
+            "name": "update_reservation_flights"
+          },
+          {
+            "action_id": "18_1",
+            "arguments": {
+              "cabin": "economy",
+              "flights": [
+                {
+                  "date": "2024-05-28",
+                  "flight_number": "HAT080"
+                },
+                {
+                  "date": "2024-05-28",
+                  "flight_number": "HAT076"
+                },
+                {
+                  "date": "2024-05-30",
+                  "flight_number": "HAT255"
+                },
+                {
+                  "date": "2024-05-30",
+                  "flight_number": "HAT148"
+                }
+              ],
+              "payment_id": "gift_card_3481935",
+              "reservation_id": "2FBBAH"
+            },
+            "info": null,
+            "name": "update_reservation_flights"
+          },
+          {
+            "action_id": "18_2",
+            "arguments": {
+              "cabin": "economy",
+              "flights": [
+                {
+                  "date": "2024-05-24",
+                  "flight_number": "HAT232"
+                },
+                {
+                  "date": "2024-05-24",
+                  "flight_number": "HAT228"
+                }
+              ],
+              "payment_id": "credit_card_2929732",
+              "reservation_id": "X7BYG1"
+            },
+            "info": null,
+            "name": "update_reservation_flights"
+          },
+          {
+            "action_id": "18_3",
+            "arguments": {
+              "cabin": "economy",
+              "flights": [
+                {
+                  "date": "2024-05-23",
+                  "flight_number": "HAT084"
+                },
+                {
+                  "date": "2024-05-23",
+                  "flight_number": "HAT175"
+                }
+              ],
+              "payment_id": "gift_card_6847880",
+              "reservation_id": "EQ1G6C"
+            },
+            "info": null,
+            "name": "update_reservation_flights"
+          },
+          {
+            "action_id": "18_4",
+            "arguments": {
+              "cabin": "economy",
+              "flights": [
+                {
+                  "date": "2024-05-21",
+                  "flight_number": "HAT276"
+                },
+                {
+                  "date": "2024-05-22",
+                  "flight_number": "HAT279"
+                }
+              ],
+              "payment_id": "credit_card_9525117",
+              "reservation_id": "BOH180"
+            },
+            "info": null,
+            "name": "update_reservation_flights"
+          }
+        ],
+        "communicate_info": [
+          "23553"
+        ],
+        "nl_assertions": [
+          "Reservation JG7FMM is updated to economy.",
+          "Reservation 2FBBAH is updated to economy.",
+          "Reservation X7BYG1 is updated to economy. ",
+          "Reservation BOH180 is updated to economy. ",
+          "Reservation EQ1G6C is updated to economy.",
+          "Agent communicates that user will save $23553 in total."
+        ],
+        "reward_basis": [
+          "DB",
+          "COMMUNICATE"
+        ]
+      },
+      "id": "18",
+      "initial_state": null,
+      "user_scenario": {
+        "instructions": {
+          "domain": "airline",
+          "known_info": "Your name is Omar Davis.\n\nYour user id is omar_davis_3817.",
+          "reason_for_call": "You just faced some money issue and want to downgrade all business flights to economy, without changing the flights or passengers.",
+          "task_instructions": "You are fine with refunding to original payment for each reservation.\n\nYou want to know how much money you have saved in total, but you are fine having that information after the refunds are processed.\n\nYou are emotional and a bit angry, but you are willing to cooperate with the agent.",
+          "unknown_info": "You don't remember the payment method you used."
+        },
+        "persona": null
+      }
+    }
+  ]
+}

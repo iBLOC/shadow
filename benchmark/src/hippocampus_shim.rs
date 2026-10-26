@@ -317,7 +317,7 @@ impl HippocampusLike for LocalHippocampusShim {
     }
 
     fn detect_drift(&self, new_task: &Task) -> Option<DriftEvent> {
-        let mut g = self.inner.lock().expect("hippocampus shim mutex");
+        let g = self.inner.lock().expect("hippocampus shim mutex");
         let new_fw = new_task.framework.as_ref().filter(|s| !s.is_empty()).cloned();
         let prev_fw = g.last_framework.clone();
         // Trigger only when (a) both sides are Some (avoids

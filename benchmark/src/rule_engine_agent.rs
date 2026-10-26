@@ -165,6 +165,8 @@ impl AgentAdapter for RuleEngineAgent {
                     answer: format!("rule-engine: bad snapshot JSON in instruction: {e}"),
                     duration: started.elapsed(),
                     exit_code: None,
+                    usage: crate::agent::TokenUsage::default(),
+                    tool_calls: 0,
                 })
             }
         };
@@ -182,6 +184,8 @@ impl AgentAdapter for RuleEngineAgent {
             answer,
             duration: started.elapsed(),
             exit_code: None,
+            usage: crate::agent::TokenUsage::default(),
+            tool_calls: 0,
         })
     }
 }

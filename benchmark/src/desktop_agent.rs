@@ -219,7 +219,7 @@ impl AgentAdapter for ShadowDesktopAgent {
         &self.name
     }
 
-    async fn run(&self, task: &Task, _workdir: &Path) -> Result<AgentRun, AgentError> {
+    async fn run(&self, task: &Task, _workdir: &Path, _prior_traces: &str) -> Result<AgentRun, AgentError> {
         let started = Instant::now();
         let sid = self.ensure_session().await?;
 
@@ -364,6 +364,8 @@ impl AgentAdapter for ShadowDesktopAgent {
             answer,
             duration: started.elapsed(),
             exit_code: None,
+            usage: crate::agent::TokenUsage::default(),
+            tool_calls: 0,
         })
     }
 }
