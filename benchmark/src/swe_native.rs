@@ -830,6 +830,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[allow(non_snake_case)]
     fn parse_status_map_pytest_rA() {
         let out = "\
 FAILED tests/test_x.py::test_a - AssertionError: boom

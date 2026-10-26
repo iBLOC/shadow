@@ -138,6 +138,7 @@ mod tests {
     use super::*;
     use crate::task::ScorerSpec;
 
+    #[allow(dead_code)]
     fn task(instruction: &str) -> Task {
         Task {
             id: "t1".into(),

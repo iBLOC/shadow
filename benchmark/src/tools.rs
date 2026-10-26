@@ -28,6 +28,9 @@ pub const MAX_OUTPUT_CHARS: usize = 12_000;
 /// Max files returned by `list_files`.
 pub const MAX_LIST_ENTRIES: usize = 500;
 
+/// Max bytes downloaded by `web_fetch` before the response is cut.
+pub const MAX_FETCH_BYTES: usize = 2 * 1024 * 1024;
+
 /// JSON schema of one tool, in OpenAI function-calling shape.
 pub fn tool_schemas() -> Vec<Value> {
     vec![
@@ -85,6 +88,20 @@ pub fn tool_schemas() -> Vec<Value> {
                         "path": {"type": "string", "description": "Subdirectory to list; omit for the working directory root."}
                     },
                     "required": []
+                }
+            }
+        }),
+        json!({
+            "type": "function",
+            "function": {
+                "name": "web_fetch",
+                "description": "Fetch a public http(s) URL and return its text content (HTML is stripped to text). Use it to look up facts you cannot recall.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "url": {"type": "string", "description": "Absolute http(s) URL."}
+                    },
+                    "required": ["url"]
                 }
             }
         }),
@@ -282,6 +299,24 @@ pub async fn execute(call: &ToolCall, workdir: &Path) -> ToolOutcome {
                 finished: true,
             }
         }
+        "web_fetch" => {
+            let Some(url) = call.arg_str("url") else {
+                return ToolOutcome {
+                    content: "error: 'web_fetch' requires a 'url' argument".into(),
+                    finished: false,
+                };
+            };
+            match fetch_url(url).await {
+                Ok(text) => ToolOutcome {
+                    content: text,
+                    finished: false,
+                },
+                Err(e) => ToolOutcome {
+                    content: format!("error: {e}"),
+                    finished: false,
+                },
+            }
+        }
         other => ToolOutcome {
             content: format!(
                 "error: unknown tool '{other}'; available tools: bash, read_file, write_file, list_files, finish"
@@ -291,9 +326,184 @@ pub async fn execute(call: &ToolCall, workdir: &Path) -> ToolOutcome {
     }
 }
 
+/// Fetch a public http(s) URL and return its text.
+///
+/// Guards: http(s) only, no loopback/private/link-local addresses
+/// (the bench runs on a developer machine — a model must not be able
+/// to probe it), response body capped at [`MAX_FETCH_BYTES`], and the
+/// text handed to the model capped at [`MAX_OUTPUT_CHARS`].
+async fn fetch_url(url: &str) -> Result<String, String> {
+    let parsed = reqwest::Url::parse(url.trim()).map_err(|e| format!("bad url: {e}"))?;
+    let scheme = parsed.scheme();
+    if scheme != "http" && scheme != "https" {
+        return Err(format!("only http(s) urls are allowed, got '{scheme}'"));
+    }
+    let host = parsed
+        .host_str()
+        .ok_or_else(|| "url has no host".to_string())?;
+
+    // Resolve first: a hostname can point at a private address.
+    let addrs: Vec<std::net::IpAddr> = tokio::net::lookup_host((host, parsed.port_or_known_default().unwrap_or(443)))
+        .await
+        .map_err(|e| format!("cannot resolve '{host}': {e}"))?
+        .map(|a| a.ip())
+        .collect();
+    if addrs.is_empty() {
+        return Err(format!("'{host}' resolved to no address"));
+    }
+    for ip in &addrs {
+        if is_private_ip(ip) {
+            return Err(format!(
+                "refusing to fetch '{host}': {ip} is a loopback/private/link-local address"
+            ));
+        }
+    }
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(20))
+        .user_agent("shadow-benchmark/0.1 (agent tool)")
+        .build()
+        .map_err(|e| format!("client build failed: {e}"))?;
+    let resp = client
+        .get(parsed.clone())
+        .send()
+        .await
+        .map_err(|e| format!("request failed: {e}"))?;
+    let status = resp.status();
+    if !status.is_success() {
+        return Err(format!("HTTP {status}"));
+    }
+    let bytes = resp
+        .bytes()
+        .await
+        .map_err(|e| format!("body read failed: {e}"))?;
+    let truncated = bytes.len() > MAX_FETCH_BYTES;
+    let slice = &bytes[..bytes.len().min(MAX_FETCH_BYTES)];
+    let content_type = String::new();
+    let _ = content_type;
+    let raw = String::from_utf8_lossy(slice);
+    let text = html_to_text(&raw);
+    let mut out = truncate_tail(&text);
+    if truncated {
+        out.push_str(&format!("\n[truncated at {MAX_FETCH_BYTES} bytes]"));
+    }
+    Ok(out)
+}
+
+/// True for addresses that must not be reachable from a tool call:
+/// loopback, private ranges, link-local, and unspecified.
+fn is_private_ip(ip: &std::net::IpAddr) -> bool {
+    match ip {
+        std::net::IpAddr::V4(v4) => {
+            v4.is_loopback()
+                || v4.is_private()
+                || v4.is_link_local()
+                || v4.is_unspecified()
+                || v4.is_broadcast()
+        }
+        std::net::IpAddr::V6(v6) => {
+            v6.is_loopback()
+                || v6.is_unspecified()
+                // unique local (fc00::/7) and link local (fe80::/10)
+                || (v6.segments()[0] & 0xfe00) == 0xfc00
+                || (v6.segments()[0] & 0xffc0) == 0xfe80
+        }
+    }
+}
+
+/// Tags that imply a line break in the rendered text.
+const BLOCK_TAGS: [&str; 14] = [
+    "p", "br", "div", "li", "ul", "ol", "tr", "td", "th", "h1", "h2", "h3", "h4", "section",
+];
+
+/// Strip HTML to readable text.
+///
+/// Not a full parser: `<script>`/`<style>` bodies are dropped, tags
+/// are removed (block-level ones become a line break), and the common
+/// named entities are decoded. The goal is a page the model can read,
+/// not fidelity.
+fn html_to_text(html: &str) -> String {
+    let chars: Vec<char> = html.chars().collect();
+    // `to_ascii_lowercase` preserves the character count, so the two
+    // vectors stay index-aligned.
+    let lower: Vec<char> = html.to_ascii_lowercase().chars().collect();
+    let mut out = String::with_capacity(chars.len());
+    let mut i = 0usize;
+
+    while i < chars.len() {
+        match chars[i] {
+            '<' => {
+                // Find the end of the tag.
+                let end = lower[i..]
+                    .iter()
+                    .position(|c| *c == '>')
+                    .map(|p| i + p)
+                    .unwrap_or(chars.len());
+                let tag: String = lower[i + 1..end.min(chars.len())].iter().collect();
+                let name: String = tag
+                    .chars()
+                    .take_while(|c| c.is_ascii_alphanumeric())
+                    .collect();
+
+                if (name == "script" || name == "style") && !tag.trim_end().ends_with('/') {
+                    // Skip the whole element body, not just its tag.
+                    let close = format!("</{name}");
+                    let rest: String = lower[end..].iter().collect();
+                    match rest.find(&close) {
+                        Some(p) => {
+                            i = end + p + close.len();
+                            continue;
+                        }
+                        None => {
+                            i = chars.len();
+                            continue;
+                        }
+                    }
+                }
+                if BLOCK_TAGS.contains(&name.as_str()) {
+                    out.push('\n');
+                }
+                i = end + 1;
+            }
+            '&' => {
+                // Decode the common named entities.
+                let rest: String = lower[i..].iter().take(12).collect();
+                let decoded = if let Some(semi) = rest.find(';') {
+                    match &rest[1..semi] {
+                        "amp" => Some('&'),
+                        "lt" => Some('<'),
+                        "gt" => Some('>'),
+                        "quot" => Some('"'),
+                        "apos" => Some('\''),
+                        "nbsp" => Some(' '),
+                        _ => None,
+                    }
+                } else {
+                    None
+                };
+                match decoded {
+                    Some(c) => {
+                        out.push(c);
+                        i += rest.find(';').unwrap_or(0) + 1;
+                    }
+                    None => {
+                        out.push('&');
+                        i += 1;
+                    }
+                }
+            }
+            c => {
+                out.push(c);
+                i += 1;
+            }
+        }
+    }
+
+    out.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
 /// Run a shell command in `workdir` and report its output.
-async fn run_bash(command: &str, workdir: &Path) -> ToolOutcome {
-    let shell = if cfg!(windows) { "cmd" } else { "sh" };
+async fn run_bash(command: &str, workdir: &Path) -> ToolOutcome {    let shell = if cfg!(windows) { "cmd" } else { "sh" };
     let flag = if cfg!(windows) { "/C" } else { "-c" };
     let mut cmd = tokio::process::Command::new(shell);
     cmd.arg(flag)
@@ -510,5 +720,40 @@ mod tests {
         let out = truncate_tail(&long);
         assert!(out.starts_with("…[truncated]"));
         assert_eq!(out.chars().count(), MAX_OUTPUT_CHARS + "…[truncated]\n".chars().count());
+    }
+
+    #[test]
+    fn private_addresses_are_refused() {
+        use std::net::IpAddr;
+        assert!(is_private_ip(&"127.0.0.1".parse::<IpAddr>().unwrap()));
+        assert!(is_private_ip(&"10.0.0.5".parse::<IpAddr>().unwrap()));
+        assert!(is_private_ip(&"192.168.1.1".parse::<IpAddr>().unwrap()));
+        assert!(is_private_ip(&"172.16.0.1".parse::<IpAddr>().unwrap()));
+        assert!(is_private_ip(&"169.254.1.1".parse::<IpAddr>().unwrap()));
+        assert!(is_private_ip(&"::1".parse::<IpAddr>().unwrap()));
+        assert!(is_private_ip(&"fe80::1".parse::<IpAddr>().unwrap()));
+        assert!(is_private_ip(&"fd00::1".parse::<IpAddr>().unwrap()));
+        // Public addresses stay fetchable.
+        assert!(!is_private_ip(&"93.184.216.34".parse::<IpAddr>().unwrap()));
+        assert!(!is_private_ip(&"2606:2800:220:1::1".parse::<IpAddr>().unwrap()));
+    }
+
+    #[test]
+    fn html_to_text_drops_tags_scripts_and_entities() {
+        let html = r#"<html><head><title>T</title><style>b{}</style></head>
+            <body><script>var x = 1;</script><p>Hello &amp; welcome</p>
+            <ul><li>one</li><li>two</li></ul></body></html>"#;
+        let text = html_to_text(html);
+        assert!(text.contains("Hello & welcome"), "{text}");
+        assert!(text.contains("one") && text.contains("two"), "{text}");
+        assert!(!text.contains("var x"), "script body leaked: {text}");
+        assert!(!text.contains("b{}"), "style body leaked: {text}");
+        assert!(!text.contains('<'), "tags leaked: {text}");
+    }
+
+    #[test]
+    fn html_to_text_keeps_non_ascii_intact() {
+        let text = html_to_text("<p>影 · 分身 · café</p>");
+        assert!(text.contains("影 · 分身 · café"), "{text}");
     }
 }

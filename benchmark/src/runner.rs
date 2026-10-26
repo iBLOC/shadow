@@ -962,7 +962,7 @@ mod disk_check_tests {
     }
 
     fn uuid_like() -> u64 {
-        use std::time::{SystemTime, UNIX_EPOCH};
+        use std::time::SystemTime;
         SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap()
@@ -1059,7 +1059,7 @@ mod hippocampus_runner_tests {
     /// task ids in order.
     #[test]
     fn end_to_end_session_lifecycle() {
-        let mut shim = LocalHippocampusShim::new("a", "s");
+        let shim = LocalHippocampusShim::new("a", "s");
         shim.append("s", "a", "t1", "first");
         shim.record_task_id("t1");
         shim.record_framework(Some("long-context"));

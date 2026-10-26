@@ -611,6 +611,7 @@ pub async fn run(
                             PatchInput::Worktree {
                                 usage: ar.usage,
                                 tool_calls: ar.tool_calls,
+                                steps: ar.steps,
                             }
                         }
                         Err(e) => {
@@ -869,9 +870,13 @@ pub async fn run(
 
                 // Agent cost accounting rides on the Worktree variant
                 // (agentic runs); every other input reports zero usage.
-                let (run_usage, run_tool_calls) = match &patch_input {
-                    PatchInput::Worktree { usage, tool_calls } => (usage.clone(), *tool_calls),
-                    _ => (Default::default(), 0),
+                let (run_usage, run_tool_calls, run_steps) = match &patch_input {
+                    PatchInput::Worktree {
+                        usage,
+                        tool_calls,
+                        steps,
+                    } => (usage.clone(), *tool_calls, steps.clone()),
+                    _ => (Default::default(), 0, Vec::new()),
                 };
 
                 runs.push(match outcome {
@@ -889,7 +894,7 @@ pub async fn run(
                             error: r.error,
                             usage: run_usage,
                             tool_calls: run_tool_calls,
-                            steps: Vec::new(),
+                            steps: run_steps,
                             answer: None,
                             reasoning: None,
                         }
@@ -959,6 +964,9 @@ enum PatchInput {
     Worktree {
         usage: crate::agent::TokenUsage,
         tool_calls: u32,
+        /// The agent's step trace — kept so a failed agentic run can
+        /// be audited (what it read, what it edited, what it ran).
+        steps: Vec<serde_json::Value>,
     },
 }
 
