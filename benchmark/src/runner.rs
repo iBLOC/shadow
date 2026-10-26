@@ -367,6 +367,19 @@ impl Runner {
                 Ok(r) => {
                     // Apply the agent's fenced file edits before scoring.
                     apply_fenced_patches(&r.answer, &workdir, &task.files);
+                    // Hidden files (TB's `tests/**`) materialise only
+                    // now, mirroring the verify-time /tests mount: the
+                    // agent worked without them on disk, the scorer
+                    // needs them. This also overwrites anything the
+                    // agent wrote into those paths — the mount is the
+                    // ground truth, not the model's edit.
+                    for f in &task.hidden_files {
+                        let dest = workdir.join(&f.path);
+                        if let Some(parent) = dest.parent() {
+                            let _ = std::fs::create_dir_all(parent);
+                        }
+                        let _ = std::fs::write(&dest, &f.content);
+                    }
                     let mut score = score(&task.scorer, task, &workdir, &r.answer, judge.as_ref())
                         .await;
                     // Disk-side verification: when a tool-action task
