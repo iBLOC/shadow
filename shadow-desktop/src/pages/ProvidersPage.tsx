@@ -78,6 +78,71 @@ function StandardBadge({ standard }: { standard: ApiStandard }) {
   );
 }
 
+// Mirrors synapse::providers::catalog::models_endpoint so the UI shows the
+// exact URLs the backend will actually request (Claude tolerates /v1 bases).
+interface DerivedEndpoint {
+  method: 'GET' | 'POST';
+  labelKey: string;
+  labelFallback: string;
+  url: string;
+}
+
+export function deriveEndpoints(baseUrl: string, standard: ApiStandard): DerivedEndpoint[] {
+  const base = baseUrl.trim().replace(/\/+$/, '');
+  if (!base) return [];
+  if (standard === 'claude') {
+    const b = /\/v1$/.test(base) ? base : `${base}/v1`;
+    return [
+      { method: 'GET', labelKey: 'providers.epModels', labelFallback: '模型列表', url: `${b}/models` },
+      { method: 'POST', labelKey: 'providers.epChat', labelFallback: '对话补全', url: `${b}/messages` },
+      {
+        method: 'POST',
+        labelKey: 'providers.epTokens',
+        labelFallback: 'Token 计数',
+        url: `${b}/messages/count_tokens`,
+      },
+    ];
+  }
+  return [
+    { method: 'GET', labelKey: 'providers.epModels', labelFallback: '模型列表', url: `${base}/models` },
+    { method: 'POST', labelKey: 'providers.epChat', labelFallback: '对话补全', url: `${base}/chat/completions` },
+    { method: 'POST', labelKey: 'providers.epEmbeddings', labelFallback: '向量嵌入', url: `${base}/embeddings` },
+  ];
+}
+
+function EndpointList({ baseUrl, standard }: { baseUrl: string; standard: ApiStandard }) {
+  const { t } = useTranslation();
+  const endpoints = deriveEndpoints(baseUrl, standard);
+  if (endpoints.length === 0) return null;
+  return (
+    <div className="rounded-md border border-border/60 bg-muted/20 p-2.5">
+      <p className="mb-1.5 text-[11px] font-medium text-muted-foreground">
+        {t('providers.endpointsTitle') || '接口地址（由请求地址自动推导）'}
+      </p>
+      <div className="flex flex-col gap-1">
+        {endpoints.map((e) => (
+          <div key={e.url} className="flex items-center gap-2 text-[11px]">
+            <span
+              className={cn(
+                'w-9 shrink-0 rounded px-1 py-0.5 text-center font-mono text-[9px] font-semibold',
+                e.method === 'GET' ? 'bg-sky-500/10 text-sky-600' : 'bg-violet-500/10 text-violet-600'
+              )}
+            >
+              {e.method}
+            </span>
+            <span className="shrink-0 text-muted-foreground">
+              {t(e.labelKey) || e.labelFallback}
+            </span>
+            <code className="min-w-0 flex-1 truncate font-mono text-foreground/80" title={e.url}>
+              {e.url}
+            </code>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function formatTime(iso?: string): string {
   if (!iso) return '—';
   try {
@@ -120,17 +185,36 @@ export function ProvidersPage() {
   const [adding, setAdding] = useState(false);
 
   // Pre-save model-list preview for the Add form. Lives only while the modal
-  // is open — cleared on tab switch, preset change, and close.
+  // is open — cleared on tab switch, preset change, and close. The preview
+  // auto-runs once the API key settles (debounce); `manualModel` is the
+  // fallback when the provider's /models endpoint yields nothing.
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewModels, setPreviewModels] = useState<ModelSummary[] | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [previewSelected, setPreviewSelected] = useState<string | null>(null);
+  const [manualModel, setManualModel] = useState('');
+
+  const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelAutoFetch = () => {
+    if (previewTimer.current) {
+      clearTimeout(previewTimer.current);
+      previewTimer.current = null;
+    }
+  };
+  // Fires once typing pauses long enough for the key to be complete.
+  const scheduleAutoFetch = (fn: () => void, delay = 700) => {
+    cancelAutoFetch();
+    previewTimer.current = setTimeout(fn, delay);
+  };
+  useEffect(() => cancelAutoFetch, []);
 
   const resetPreview = () => {
+    cancelAutoFetch();
     setPreviewLoading(false);
     setPreviewModels(null);
     setPreviewError(null);
     setPreviewSelected(null);
+    setManualModel('');
   };
 
   // Edit modal: preset providers edit only the key; custom edit everything.
@@ -188,18 +272,17 @@ export function ProvidersPage() {
       return;
     }
     setAdding(true);
-    let addedId: string | undefined;
     const ok = await runAction(async () => {
       const entry = await invoke<ProviderEntry>('provider_add_preset', {
         presetId: selectedPreset.id,
         apiKey: presetKey.trim() || null,
       });
-      addedId = entry.id;
-      // Promote the preview-picked model to selected_model on the new entry.
-      if (previewSelected) {
+      // Manual model (fetch failed) wins over the preview selection.
+      const modelToSelect = manualModel.trim() || previewSelected;
+      if (modelToSelect) {
         await invoke('provider_select_model', {
           id: entry.id,
-          modelId: previewSelected,
+          modelId: modelToSelect,
         });
       }
     });
@@ -218,7 +301,6 @@ export function ProvidersPage() {
       return;
     }
     setAdding(true);
-    let addedId: string | undefined;
     const ok = await runAction(async () => {
       const entry = await invoke<ProviderEntry>('provider_add_custom', {
         name: customForm.name.trim(),
@@ -226,12 +308,12 @@ export function ProvidersPage() {
         apiStandard: customForm.standard,
         apiKey: customForm.apiKey.trim() || null,
       });
-      addedId = entry.id;
-      // Promote the preview-picked model to selected_model on the new entry.
-      if (previewSelected) {
+      // Manual model (fetch failed) wins over the preview selection.
+      const modelToSelect = manualModel.trim() || previewSelected;
+      if (modelToSelect) {
         await invoke('provider_select_model', {
           id: entry.id,
-          modelId: previewSelected,
+          modelId: modelToSelect,
         });
       }
     });
@@ -245,54 +327,119 @@ export function ProvidersPage() {
 
   // ---- pre-save model preview ----
 
-  const handlePreviewPreset = async () => {
-    if (!selectedPreset) return;
+  interface PreviewOpts {
+    presetId: string | null;
+    baseUrl: string | null;
+    apiStandard: ApiStandard;
+    apiKey: string | null;
+    defaultModel?: string | null;
+  }
+
+  const fetchPreview = async (opts: PreviewOpts) => {
+    cancelAutoFetch();
     setPreviewLoading(true);
     setPreviewError(null);
     setPreviewModels(null);
+    setManualModel('');
     try {
       const models = await invoke<ModelSummary[]>('provider_preview_fetch', {
-        presetId: selectedPreset.id,
-        baseUrl: null,
-        apiStandard: selectedPreset.api_standard,
-        apiKey: presetKey.trim() || null,
+        presetId: opts.presetId,
+        baseUrl: opts.baseUrl,
+        apiStandard: opts.apiStandard,
+        apiKey: opts.apiKey,
       });
       setPreviewModels(models);
       // Default selection: catalog hint → first entry.
       const defaultId =
-        selectedPreset.default_model && models.some((m) => m.id === selectedPreset.default_model)
-          ? selectedPreset.default_model
+        opts.defaultModel && models.some((m) => m.id === opts.defaultModel)
+          ? opts.defaultModel
           : models[0]?.id ?? null;
       setPreviewSelected(defaultId);
     } catch (err) {
       setPreviewError(err instanceof Error ? err.message : String(err));
+      setPreviewSelected(null);
     } finally {
       setPreviewLoading(false);
     }
   };
 
-  const handlePreviewCustom = async () => {
-    if (!customForm.baseUrl.trim()) {
+  const previewPresetOpts = (apiKey: string | null): PreviewOpts | null =>
+    selectedPreset
+      ? {
+          presetId: selectedPreset.id,
+          baseUrl: null,
+          apiStandard: selectedPreset.api_standard,
+          apiKey,
+          defaultModel: selectedPreset.default_model,
+        }
+      : null;
+
+  const handlePreviewPreset = () => {
+    const opts = previewPresetOpts(presetKey.trim() || null);
+    if (opts) void fetchPreview(opts);
+  };
+
+  const handlePreviewCustom = () => {
+    const base = customForm.baseUrl.trim();
+    if (!base) {
       setPreviewError('Base URL is required');
       return;
     }
-    setPreviewLoading(true);
-    setPreviewError(null);
-    setPreviewModels(null);
-    try {
-      const models = await invoke<ModelSummary[]>('provider_preview_fetch', {
-        presetId: null,
-        baseUrl: customForm.baseUrl.trim(),
-        apiStandard: customForm.standard,
-        apiKey: customForm.apiKey.trim() || null,
-      });
-      setPreviewModels(models);
-      setPreviewSelected(models[0]?.id ?? null);
-    } catch (err) {
-      setPreviewError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setPreviewLoading(false);
+    void fetchPreview({
+      presetId: null,
+      baseUrl: base,
+      apiStandard: customForm.standard,
+      apiKey: customForm.apiKey.trim() || null,
+    });
+  };
+
+  // Custom form: auto-probe once the base URL looks like a URL and the key
+  // has settled. Called from the field updaters with the post-keystroke
+  // snapshot, so both "paste URL after key" and the reverse order fire.
+  const maybeAutoFetchCustom = (form: CustomFormData) => {
+    const base = form.baseUrl.trim();
+    const key = form.apiKey.trim();
+    if (/^https?:\/\//i.test(base) && base.length > 12 && key.length >= 8) {
+      scheduleAutoFetch(() =>
+        void fetchPreview({
+          presetId: null,
+          baseUrl: base,
+          apiStandard: form.standard,
+          apiKey: key,
+        })
+      );
+    } else {
+      cancelAutoFetch();
     }
+  };
+
+  const showManualFallback =
+    !previewLoading && (previewError !== null || (previewModels !== null && previewModels.length === 0));
+
+  const renderManualModelFallback = () => {
+    if (!showManualFallback) return null;
+    const manual = manualModel.trim();
+    return (
+      <div className="flex flex-col gap-1.5">
+        <Input
+          label={t('providers.manualModelLabel') || '手动填写模型 ID'}
+          value={manualModel}
+          onChange={(e) => setManualModel(e.target.value)}
+          placeholder={t('providers.manualModelPlaceholder') || '例如 gpt-4o-mini'}
+        />
+        <p
+          className={cn(
+            'text-[11px]',
+            manual ? 'text-primary' : 'text-muted-foreground'
+          )}
+        >
+          {manual
+            ? (t('providers.manualModelInUse') || '将使用手动填写的模型') + `: ${manual}`
+            : t('providers.manualModelHint') ||
+              '自动获取失败时，可直接填写模型 ID，添加后作为默认模型'}
+        </p>
+      </div>
+    );
   };
 
   const renderPreviewArea = () => (
@@ -377,9 +524,10 @@ export function ProvidersPage() {
       )}
       {!previewModels && !previewLoading && !previewError && (
         <p className="py-2 text-[11px] text-muted-foreground">
-          {t('providers.previewHint') || '选择模型将在添加后自动选中'}
+          {t('providers.autoFetchHint') || '填写 API Key 后将自动获取可用模型'}
         </p>
       )}
+      {renderManualModelFallback()}
     </div>
   );
 
@@ -398,12 +546,15 @@ export function ProvidersPage() {
     if (!editing) return;
     const isPreset = !!editing.preset_id;
     const ok = isPreset
-      ? await runAction(() =>
-          invoke('provider_set_api_key', {
+      ? await runAction(async () => {
+          await invoke('provider_set_api_key', {
             id: editing.id,
             apiKey: editKey.trim() || editing.api_key || '',
-          })
-        )
+          });
+          // A new key usually means a new account — refresh models now
+          // instead of waiting for the periodic loop.
+          await invoke('provider_refresh', { id: editing.id });
+        })
       : await runAction(() =>
           invoke('provider_update_custom', {
             id: editing.id,
@@ -678,6 +829,17 @@ export function ProvidersPage() {
                       setSelectedPreset(preset);
                       setPresetKey('');
                       resetPreview();
+                      // Keyless runtimes (ollama, neuron) can be probed
+                      // immediately — no key to wait for.
+                      if (!preset.requires_key) {
+                        void fetchPreview({
+                          presetId: preset.id,
+                          baseUrl: null,
+                          apiStandard: preset.api_standard,
+                          apiKey: null,
+                          defaultModel: preset.default_model,
+                        });
+                      }
                     }}
                     className="flex items-center justify-between gap-2 rounded-md border border-border p-3 text-left transition-colors hover:border-primary hover:bg-primary/5"
                   >
@@ -711,15 +873,35 @@ export function ProvidersPage() {
                   </div>
                   <Check size={16} className="text-primary" />
                 </div>
+                <EndpointList baseUrl={selectedPreset.base_url} standard={selectedPreset.api_standard} />
                 {selectedPreset.requires_key ? (
-                  <Input
-                    label={t('providers.apiKey') || 'API Key'}
-                    value={presetKey}
-                    onChange={(e) => setPresetKey(e.target.value)}
-                    placeholder="sk-..."
-                    type="password"
-                    autoFocus
-                  />
+                  <>
+                    <Input
+                      label={t('providers.apiKey') || 'API Key'}
+                      value={presetKey}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setPresetKey(v);
+                        // Auto-probe the provider's /models endpoint once the
+                        // key settles; short fragments just cancel the timer.
+                        const key = v.trim();
+                        if (key.length >= 8) {
+                          const opts = previewPresetOpts(key);
+                          if (opts) scheduleAutoFetch(() => void fetchPreview(opts));
+                        } else {
+                          cancelAutoFetch();
+                        }
+                      }}
+                      placeholder="sk-..."
+                      type="password"
+                      autoFocus
+                    />
+                    {!previewModels && !previewError && !previewLoading && (
+                      <p className="text-[11px] text-muted-foreground">
+                        {t('providers.autoFetchHint') || '填写 API Key 后将自动获取可用模型'}
+                      </p>
+                    )}
+                  </>
                 ) : (
                   <p className="text-xs text-muted-foreground">
                     {t('providers.keylessHint') || '本地运行时无需 API Key，直接添加即可'}
@@ -769,7 +951,11 @@ export function ProvidersPage() {
               <Input
                 label={t('providers.baseUrl') || '请求地址'}
                 value={customForm.baseUrl}
-                onChange={(e) => setCustomForm((f) => ({ ...f, baseUrl: e.target.value }))}
+                onChange={(e) => {
+                  const next = { ...customForm, baseUrl: e.target.value };
+                  setCustomForm(next);
+                  maybeAutoFetchCustom(next);
+                }}
                 placeholder="https://api.example.com/v1"
               />
               <div className="flex flex-col gap-2">
@@ -778,19 +964,32 @@ export function ProvidersPage() {
                 </label>
                 <select
                   value={customForm.standard}
-                  onChange={(e) =>
-                    setCustomForm((f) => ({ ...f, standard: e.target.value as ApiStandard }))
-                  }
+                  onChange={(e) => {
+                    const next = { ...customForm, standard: e.target.value as ApiStandard };
+                    setCustomForm(next);
+                    maybeAutoFetchCustom(next);
+                  }}
                   className="rounded-md border border-border bg-background px-3 py-2 text-sm"
                 >
                   <option value="openai">OpenAI</option>
                   <option value="claude">Claude</option>
                 </select>
               </div>
+              {customForm.baseUrl.trim() ? (
+                <EndpointList baseUrl={customForm.baseUrl} standard={customForm.standard} />
+              ) : (
+                <p className="text-[11px] text-muted-foreground">
+                  {t('providers.endpointsPending') || '填入请求地址后自动生成接口地址'}
+                </p>
+              )}
               <Input
                 label={t('providers.apiKey') || 'API Key'}
                 value={customForm.apiKey}
-                onChange={(e) => setCustomForm((f) => ({ ...f, apiKey: e.target.value }))}
+                onChange={(e) => {
+                  const next = { ...customForm, apiKey: e.target.value };
+                  setCustomForm(next);
+                  maybeAutoFetchCustom(next);
+                }}
                 placeholder="sk-...（可选）"
                 type="password"
               />
