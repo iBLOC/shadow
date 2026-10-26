@@ -366,6 +366,7 @@ impl AgentAdapter for ShadowDesktopAgent {
             exit_code: None,
             usage: crate::agent::TokenUsage::default(),
             tool_calls: 0,
+            steps: Vec::new(),
         })
     }
 }

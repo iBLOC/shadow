@@ -12,14 +12,14 @@
 | 套件 | 适配器代码 | CLI | 状态 |
 |---|---|---|---|
 | τ²-bench | `src/tau2.rs` | `bench tau2` / `bench tau2-import` / `bench tau2 --verify` | **已入库**，可复跑（§1.1） |
-| SWE-bench Verified | `src/swe.rs` / `src/swe_native.rs` / `src/swe_import.rs` | `bench swe --native` | **未入库**（并行 session 的 WIP，目标 API 尚未落地） |
-| GAIA | `src/gaia_import.rs` | `bench gaia-import` | **未入库**（同上） |
-| Terminal-Bench 2.x | `src/tb_import.rs` | `bench tb-import` | **未入库**（同上） |
-| browser 驱动 | `src/browser.rs` | — | **未入库**（同上） |
+| SWE-bench Verified | `src/swe.rs` / `src/swe_native.rs` / `src/swe_import.rs` | `bench swe` / `bench swe-import` | **已入库**（§1.2） |
+| GAIA | `src/gaia_import.rs` | `bench gaia-import` | **已入库**（§1.2） |
+| Terminal-Bench 2.x | `src/tb_import.rs` | `bench tb-import` | **已入库**（§1.2） |
+| browser 驱动 | `src/browser.rs` | — | **已入库**（模块级，未接 CLI） |
 
-未入库部分的**测量数字是真实的**（当时用工作区里的 WIP 代码跑出，
-记录在 git log `667f556` / `57cd8cc`），但复现需要先落地对应代码——
-文档里的命令在当前 HEAD 上不一定可执行。τ² 是第一条真正闭环的。
+全部套件的**导入**路径（冻结官方任务记录成 suite JSON）已可执行；
+**跑批**路径按套件依赖外部 harness：τ² 需钉住的 τ² checkout，
+SWE 需 `tools/swe_driver.py` 准备 repo + venv，TB 需任务镜像。
 
 ## 0. 统一方法
 
@@ -90,6 +90,45 @@ SWE 评估驱动提供 **Rust 原生实现**（`src/swe_native.rs`，`bench swe 
 
 不可比说明（1.1 口径）：非官方 τ² harness；单轮、5 任务切片；用户
 模拟器为 LLM（deepseek-chat 固定），非上游 gpt-4o-mini。
+
+### 1.2 agentic 模式与 SWE / GAIA / TB 适配器入库（2026-10-26）
+
+**此前**：`agents-tb.toml` 里写着 `[agent.mode] kind = "agentic"`
+max_steps = 30`，但 harness 根本没有 agentic 模式——`AgentSpec::OpenAi`
+没有 `mode` 字段，serde 把整张表当未知字段丢掉，所有 "agentic" agent
+实际跑的都是 one-shot。SWE / GAIA / TB 的适配器代码（另 4042 行 WIP）
+写的是旧 harness 的 API（`AgentMode` 枚举、`parse_path_marker`、
+`AgentRun.usage/tool_calls`、2 参 `run` 签名），一行都编不过。
+
+**本次**：
+
+- **agentic 模式落地**：`AgentMode` 枚举（OneShot / Agentic{max_steps}）
+  + `src/tools.rs` 工具层（bash / read_file / write_file / list_files /
+  finish，路径越界一律拒绝）+ `OpenAiAgent::run_agentic` 的 function
+  calling 循环。每一步都记进 `AgentRun.steps`，报告里能看清"模型怎么
+  走到这个结论"，而不只是最终答案。`[agent.mode]` 现在真的生效。
+- **路径标记统一**：`parse_path_marker` 同时接受 `path:src/a.py` 与
+  模型更爱写的 `python:src/a.py`，并拒绝绝对路径 / 盘符 / URL / `..`。
+  `apply_fenced_patches` 与 SWE 的补丁抽取共用同一套判定。
+- **适配器入库**：swe / swe_native / swe_import / gaia_import /
+  tb_import / browser 六个模块接进 `lib.rs`，机械性缺口（Task.framework、
+  answer_contract 类型、RunOutcome 新字段、Report.sessions、run 签名）
+  逐个补齐；`cargo test` 130 绿（含这六个模块自带的测试）。
+- **CLI**：`bench swe` / `bench swe-import` / `bench gaia-import` /
+  `bench tb-import`。
+
+**实测**（core-smoke 10 题，deepseek-chat）：
+
+| 口径 | 成绩 | median | 备注 |
+|---|---|---|---|
+| one-shot | **9/10** | 0.87s | 对照组 |
+| agentic | **8/10** | 2.42s | 22 次工具调用，1 题不同（extraction 翻红） |
+
+core-smoke 以文本题为主，工具帮不上忙，agentic 与 one-shot 基本
+持平（唯一差异是 extraction：agent 用了工具后过度推理，把 1280.00
+当答案）。**agentic 的价值要在工具题上兑现**（SWE / TB / 代码题）——
+code-fix-python 与 code-implement-python 两题里 agent 确实读了文件、
+改了代码、跑了测试才收工（5~6 次工具调用），这是 one-shot 做不到的。
 
 ## 2. GAIA 文本子集（10 任务）
 

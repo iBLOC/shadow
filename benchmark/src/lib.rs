@@ -22,15 +22,22 @@
 
 pub mod agent;
 pub mod brain_agent;
+pub mod browser;
 pub mod config;
 pub mod desktop_agent;
+pub mod gaia_import;
 pub mod hippocampus_shim;
 pub mod rule_engine_agent;
 pub mod runner;
 pub mod scorer;
 pub mod suite;
+pub mod swe;
+pub mod swe_import;
+pub mod swe_native;
+pub mod tb_import;
 pub mod task;
 pub mod tau2;
+pub mod tools;
 
 pub use agent::{AgentAdapter, AgentError, AgentRun, CliAgent, OpenAiAgent};
 pub use config::{AgentSpec, AgentsConfig, JudgeConfig};

@@ -60,6 +60,10 @@ pub enum AgentSpec {
         /// unlimited tasks, drift detection on).
         #[serde(default)]
         session: Option<SessionConfig>,
+        /// One-shot (default) or the agentic tool-calling loop.
+        /// `[agent.mode] kind = "agentic" max_steps = 30`.
+        #[serde(default)]
+        mode: crate::agent::AgentMode,
     },
     /// Local agent CLI driven on argv (`{prompt}` / `{workdir}`
     /// placeholders): openclaw, pi, dsh (DeepSeek Harness), aider…
@@ -212,6 +216,7 @@ impl AgentSpec {
                 api_key_env,
                 max_tokens,
                 timeout_secs,
+                mode,
                 // `session` lives on the runner side, not the
                 // adapter — the adapter is stateless. The
                 // runner reads `AgentSpec::session_config()`
@@ -225,6 +230,7 @@ impl AgentSpec {
                 api_key_env,
                 max_tokens,
                 timeout_secs,
+                mode,
             }),
             AgentSpec::Cli {
                 name,
@@ -289,6 +295,8 @@ impl AgentsConfig {
             api_key_env: j.api_key_env.clone(),
             max_tokens: 256,
             timeout_secs: 120,
+            // The judge is a one-shot completion — never the tool loop.
+            mode: crate::agent::AgentMode::OneShot,
         })
     }
 }
@@ -335,5 +343,48 @@ model = "deepseek-chat"
         let s = cfg.agents[0].session_config();
         assert_eq!(s.compress_at_tokens, 0);
         assert!(s.detect_drift);
+    }
+
+    /// `[agent.mode] kind = "agentic" max_steps = 30` must reach the
+    /// adapter — the agentic scaffold in agents-tb.toml used to be
+    /// silently ignored (serde drops unknown fields), so every
+    /// "agentic" agent actually ran one-shot.
+    #[test]
+    fn agent_mode_subtable_parses() {
+        let toml = r##"[[agent]]
+adapter = "openai"
+name = "ds-agentic"
+base_url = "https://api.deepseek.com/v1"
+model = "deepseek-chat"
+[agent.mode]
+kind = "agentic"
+max_steps = 30
+"##;
+        let cfg: AgentsConfig = toml::from_str(toml).expect("parse");
+        match &cfg.agents[0] {
+            AgentSpec::OpenAi { mode, .. } => assert_eq!(
+                mode,
+                &crate::agent::AgentMode::Agentic { max_steps: 30 }
+            ),
+            other => panic!("expected openai variant, got {other:?}"),
+        }
+    }
+
+    /// Without a `[agent.mode]` table the adapter stays one-shot.
+    #[test]
+    fn missing_mode_defaults_to_one_shot() {
+        let toml = r##"[[agent]]
+adapter = "openai"
+name = "ds"
+base_url = "https://api.deepseek.com/v1"
+model = "deepseek-chat"
+"##;
+        let cfg: AgentsConfig = toml::from_str(toml).expect("parse");
+        match &cfg.agents[0] {
+            AgentSpec::OpenAi { mode, .. } => {
+                assert_eq!(mode, &crate::agent::AgentMode::OneShot)
+            }
+            other => panic!("expected openai variant, got {other:?}"),
+        }
     }
 }

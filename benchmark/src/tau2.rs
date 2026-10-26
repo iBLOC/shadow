@@ -608,6 +608,7 @@ mod tests {
             max_tokens: 512,
             timeout_secs: 300,
             session: None,
+            mode: crate::agent::AgentMode::OneShot,
         };
         let a = Tau2Agent::from_spec(&spec).unwrap();
         assert_eq!(a.name, "ds");

@@ -167,6 +167,7 @@ impl AgentAdapter for RuleEngineAgent {
                     exit_code: None,
                     usage: crate::agent::TokenUsage::default(),
                     tool_calls: 0,
+                    steps: Vec::new(),
                 })
             }
         };
@@ -186,6 +187,7 @@ impl AgentAdapter for RuleEngineAgent {
             exit_code: None,
             usage: crate::agent::TokenUsage::default(),
             tool_calls: 0,
+            steps: Vec::new(),
         })
     }
 }
@@ -268,6 +270,7 @@ async fn openai_summarizer_inside_async_context() {
         api_key_env: None,
         max_tokens: 512,
         timeout_secs: 60,
+        mode: crate::agent::AgentMode::OneShot,
     };
     let text = "long document ".repeat(200);
     let out = tokio::task::block_in_place(|| {

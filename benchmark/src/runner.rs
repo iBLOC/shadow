@@ -414,7 +414,7 @@ impl Runner {
                         reasoning,
                         usage: r.usage,
                         tool_calls: r.tool_calls,
-                        steps: Vec::new(),
+                        steps: r.steps,
                         error: None,
                     }
                 }

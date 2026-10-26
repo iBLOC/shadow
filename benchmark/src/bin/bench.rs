@@ -76,7 +76,10 @@ async fn fetch_prior_hint(
 
 #[cfg(test)]
 mod format_prior_hint_inline_tests {
-    use super::format_prior_hint;
+    // The formatter lives in the library; the binary only fetches and
+    // delegates. A stale `super::` import here broke `cargo test
+    // --bins` outright.
+    use shadow_benchmark::format_prior_hint;
     use serde_json::json;
     // Smoke test to keep the bench-binary inline path honest even
     // if the lib test is skipped by `--lib` vs `--bins`. The lib-side
@@ -95,6 +98,10 @@ fn main() {
         "run" => run_suite(&args),
         "tau2" => run_tau2(&args),
         "tau2-import" => run_tau2_import(&args),
+        "swe" => run_swe(&args),
+        "swe-import" => run_swe_import(&args),
+        "gaia-import" => run_gaia_import(&args),
+        "tb-import" => run_tb_import(&args),
         other => {
             eprintln!(
                 "unknown command: {other}\n\
@@ -105,11 +112,399 @@ fn main() {
                  [--timeout secs] [--out dir] [--tau2-root <path>] \
                  [--agent-mode replay|llm] [--user-mode scripted|llm] [--shadow-addendum]\n  \
                  bench tau2-import --from <tau2-root-or-tasks.json> --out <suite.json> \
-                 [--domain airline] [--ids 3,7,11] [--name <suite>] [--max-steps 40]"
+                 [--domain airline] [--ids 3,7,11] [--name <suite>] [--max-steps 40]\n  \
+                 bench swe --suite <json> --agents <toml> [--only a,b] [--repeat k] \
+                 [--out dir] [--native] [--gold]\n  \
+                 bench swe-import --from <rows.json> --out <suite.json> [--ids a,b] [--name <suite>]\n  \
+                 bench gaia-import --from <rows.json> --out <suite.json> [--levels 1,2] [--text-only]\n  \
+                 bench tb-import --from <task-dir> --out <suite.json> [--name <suite>]"
             );
             std::process::exit(2);
         }
     }
+}
+
+/// SWE-bench Verified: the upstream harness owns the repo checkout and
+/// the test oracle, so this path drives the Python driver (or the
+/// Rust-native evaluator) per instance.
+fn run_swe(args: &[String]) {
+    use shadow_benchmark::swe::{SweRunConfig, SweSuite};
+
+    let mut suite_path: Option<PathBuf> = None;
+    let mut agents_path: Option<PathBuf> = None;
+    let mut only: Option<Vec<String>> = None;
+    let mut tasks: Option<Vec<String>> = None;
+    let mut repeat = 1usize;
+    let mut timeout_secs = 1800u64;
+    let mut out_dir = PathBuf::from("reports");
+    let mut driver = PathBuf::from("tools/swe_driver.py");
+    let mut work_root = PathBuf::from(".swe-work");
+    let mut python = "python".to_string();
+    let mut native = false;
+    let mut gold = false;
+
+    let mut i = 2;
+    while i < args.len() {
+        let next = |i: &mut usize| -> String {
+            *i += 1;
+            args.get(*i).cloned().unwrap_or_else(|| {
+                eprintln!("missing value for {}", args[*i - 1]);
+                std::process::exit(2);
+            })
+        };
+        match args[i].as_str() {
+            "swe" => {}
+            "--suite" => suite_path = Some(PathBuf::from(next(&mut i))),
+            "--agents" => agents_path = Some(PathBuf::from(next(&mut i))),
+            "--only" => {
+                let v = next(&mut i);
+                only = Some(v.split(',').map(str::trim).map(String::from).collect());
+            }
+            "--tasks" => {
+                let v = next(&mut i);
+                tasks = Some(v.split(',').map(str::trim).map(String::from).collect());
+            }
+            "--repeat" => repeat = next(&mut i).parse().expect("--repeat <k>"),
+            "--timeout" => timeout_secs = next(&mut i).parse().expect("--timeout <secs>"),
+            "--out" => out_dir = PathBuf::from(next(&mut i)),
+            "--driver" => driver = PathBuf::from(next(&mut i)),
+            "--work-root" => work_root = PathBuf::from(next(&mut i)),
+            "--python" => python = next(&mut i),
+            "--native" => native = true,
+            "--gold" => gold = true,
+            other => {
+                eprintln!("unknown arg: {other}");
+                std::process::exit(2);
+            }
+        }
+        i += 1;
+    }
+
+    let suite_path = suite_path.expect("--suite <json> required");
+    let mut suite = SweSuite::load(&suite_path).unwrap_or_else(|e| {
+        eprintln!("swe suite load failed: {e}");
+        std::process::exit(1);
+    });
+    if let Some(ids) = &tasks {
+        suite.instances.retain(|i| ids.iter().any(|x| x == &i.instance_id));
+    }
+    println!(
+        "swe suite '{}' — {} instances, repeat={repeat}{}",
+        suite.name,
+        suite.instances.len(),
+        if native { ", native eval" } else { "" }
+    );
+
+    // Participants: the shared agents.toml, openai variant only.
+    let mut agents: Vec<shadow_benchmark::agent::OpenAiAgent> = Vec::new();
+    if !gold {
+        let agents_path = agents_path.expect("--agents <toml> required (or use --gold)");
+        let cfg_raw = shadow_benchmark::AgentsConfig::load(&agents_path).unwrap_or_else(|e| {
+            eprintln!("agents config failed: {e}");
+            std::process::exit(1);
+        });
+        for spec in &cfg_raw.agents {
+            if let Some(names) = &only {
+                if !names.iter().any(|n| n == spec.name()) {
+                    continue;
+                }
+            }
+            if let shadow_benchmark::AgentSpec::OpenAi {
+                name,
+                base_url,
+                model,
+                api_key,
+                api_key_env,
+                max_tokens,
+                timeout_secs,
+                mode,
+                ..
+            } = spec
+            {
+                agents.push(shadow_benchmark::agent::OpenAiAgent {
+                    name: name.clone(),
+                    base_url: base_url.clone(),
+                    model: model.clone(),
+                    api_key: api_key.clone(),
+                    api_key_env: api_key_env.clone(),
+                    max_tokens: *max_tokens,
+                    timeout_secs: *timeout_secs,
+                    mode: mode.clone(),
+                });
+            }
+        }
+        if agents.is_empty() {
+            eprintln!("no agents selected (check --only and agents.toml)");
+            std::process::exit(1);
+        }
+        println!(
+            "agents: {:?}",
+            agents.iter().map(|a| a.name.clone()).collect::<Vec<_>>()
+        );
+    }
+
+    let driver = if driver.is_absolute() || driver.exists() {
+        driver
+    } else {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(driver)
+    };
+
+    let cfg = SweRunConfig {
+        driver,
+        work_root,
+        python,
+        repeat,
+        timeout: Duration::from_secs(timeout_secs),
+        test_timeout: None,
+        native,
+    };
+
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(4)
+        .enable_all()
+        .build()
+        .expect("tokio runtime");
+
+    runtime.block_on(async move {
+        let report = shadow_benchmark::swe::run(&suite, &agents, &cfg, gold, None).await;
+        let json_path = out_dir.join(format!("{}-report.json", suite.name));
+        let md_path = out_dir.join(format!("{}-report.md", suite.name));
+        report.write_json(&json_path).expect("write json");
+        report.write_markdown(&md_path).expect("write markdown");
+
+        println!("\n=== summary ===");
+        for s in &report.summaries {
+            println!(
+                "{:<20} passed {:>2}/{:<2} (skip {}) pass^k {:.0}%  median {:.2}s",
+                s.agent,
+                s.tasks_passed,
+                s.tasks_total,
+                s.tasks_skipped,
+                s.pass_k_rate * 100.0,
+                s.median_duration_secs
+            );
+        }
+        println!("\nreport: {} + {}", json_path.display(), md_path.display());
+    });
+}
+
+/// Freeze SWE-bench Verified instance rows into a shadow suite JSON.
+fn run_swe_import(args: &[String]) {
+    use shadow_benchmark::swe::SweSuite;
+    use shadow_benchmark::swe_import::{import_rows, SweImportOpts};
+
+    let mut from: Option<PathBuf> = None;
+    let mut out: Option<PathBuf> = None;
+    let mut ids: Vec<String> = Vec::new();
+    let mut name = "swe-verified-smoke".to_string();
+    let mut source = String::new();
+
+    let mut i = 2;
+    while i < args.len() {
+        let next = |i: &mut usize| -> String {
+            *i += 1;
+            args.get(*i).cloned().unwrap_or_else(|| {
+                eprintln!("missing value for {}", args[*i - 1]);
+                std::process::exit(2);
+            })
+        };
+        match args[i].as_str() {
+            "swe-import" => {}
+            "--from" => from = Some(PathBuf::from(next(&mut i))),
+            "--out" => out = Some(PathBuf::from(next(&mut i))),
+            "--ids" => {
+                let v = next(&mut i);
+                ids = v
+                    .split(',')
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                    .map(String::from)
+                    .collect();
+            }
+            "--name" => name = next(&mut i),
+            "--source" => source = next(&mut i),
+            other => {
+                eprintln!("unknown arg: {other}");
+                std::process::exit(2);
+            }
+        }
+        i += 1;
+    }
+
+    let from = from.expect("--from <rows.json> required");
+    let out = out.expect("--out <suite.json> required");
+    let raw = std::fs::read_to_string(&from).unwrap_or_else(|e| {
+        eprintln!("cannot read {}: {e}", from.display());
+        std::process::exit(1);
+    });
+    let opts = SweImportOpts {
+        name: &name,
+        source: &source,
+        ids: if ids.is_empty() { None } else { Some(ids.as_slice()) },
+    };
+    let suite = import_rows(&raw, &opts).unwrap_or_else(|e| {
+        eprintln!("swe import failed: {e}");
+        std::process::exit(1);
+    });
+    if let Some(parent) = out.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let json = serde_json::to_string_pretty(&suite).expect("serialize suite");
+    std::fs::write(&out, json).unwrap_or_else(|e| {
+        eprintln!("cannot write {}: {e}", out.display());
+        std::process::exit(1);
+    });
+    println!(
+        "imported {} instances from {} -> {}",
+        suite.instances.len(),
+        from.display(),
+        out.display()
+    );
+    let _ = SweSuite::load(&out);
+}
+
+/// Freeze GAIA rows into a shadow suite JSON.
+fn run_gaia_import(args: &[String]) {
+    use shadow_benchmark::gaia_import::{import_rows, GaiaImportOpts};
+
+    let mut from: Option<PathBuf> = None;
+    let mut out: Option<PathBuf> = None;
+    let mut levels: Vec<String> = Vec::new();
+    let mut ids: Vec<String> = Vec::new();
+    let mut name = "gaia-text-smoke".to_string();
+    let mut source = String::new();
+    let mut text_only = true;
+
+    let mut i = 2;
+    while i < args.len() {
+        let next = |i: &mut usize| -> String {
+            *i += 1;
+            args.get(*i).cloned().unwrap_or_else(|| {
+                eprintln!("missing value for {}", args[*i - 1]);
+                std::process::exit(2);
+            })
+        };
+        match args[i].as_str() {
+            "gaia-import" => {}
+            "--from" => from = Some(PathBuf::from(next(&mut i))),
+            "--out" => out = Some(PathBuf::from(next(&mut i))),
+            "--levels" => {
+                let v = next(&mut i);
+                levels = v
+                    .split(',')
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                    .map(String::from)
+                    .collect();
+            }
+            "--ids" => {
+                let v = next(&mut i);
+                ids = v
+                    .split(',')
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                    .map(String::from)
+                    .collect();
+            }
+            "--name" => name = next(&mut i),
+            "--source" => source = next(&mut i),
+            "--all" => text_only = false,
+            other => {
+                eprintln!("unknown arg: {other}");
+                std::process::exit(2);
+            }
+        }
+        i += 1;
+    }
+
+    let from = from.expect("--from <rows.json> required");
+    let out = out.expect("--out <suite.json> required");
+    let raw = std::fs::read_to_string(&from).unwrap_or_else(|e| {
+        eprintln!("cannot read {}: {e}", from.display());
+        std::process::exit(1);
+    });
+    let opts = GaiaImportOpts {
+        name: &name,
+        source: &source,
+        levels: if levels.is_empty() { None } else { Some(levels.as_slice()) },
+        ids: if ids.is_empty() { None } else { Some(ids.as_slice()) },
+        text_only,
+    };
+    let suite = import_rows(&raw, &opts).unwrap_or_else(|e| {
+        eprintln!("gaia import failed: {e}");
+        std::process::exit(1);
+    });
+    if let Some(parent) = out.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let json = serde_json::to_string_pretty(&suite).expect("serialize suite");
+    std::fs::write(&out, json).unwrap_or_else(|e| {
+        eprintln!("cannot write {}: {e}", out.display());
+        std::process::exit(1);
+    });
+    println!(
+        "imported {} tasks from {} -> {}",
+        suite.tasks.len(),
+        from.display(),
+        out.display()
+    );
+}
+
+/// Freeze one Terminal-Bench task directory into a shadow suite JSON.
+fn run_tb_import(args: &[String]) {
+    use shadow_benchmark::tb_import::import_task;
+
+    let mut from: Option<PathBuf> = None;
+    let mut out: Option<PathBuf> = None;
+    let mut name = "terminal-bench-smoke".to_string();
+
+    let mut i = 2;
+    while i < args.len() {
+        let next = |i: &mut usize| -> String {
+            *i += 1;
+            args.get(*i).cloned().unwrap_or_else(|| {
+                eprintln!("missing value for {}", args[*i - 1]);
+                std::process::exit(2);
+            })
+        };
+        match args[i].as_str() {
+            "tb-import" => {}
+            "--from" => from = Some(PathBuf::from(next(&mut i))),
+            "--out" => out = Some(PathBuf::from(next(&mut i))),
+            "--name" => name = next(&mut i),
+            other => {
+                eprintln!("unknown arg: {other}");
+                std::process::exit(2);
+            }
+        }
+        i += 1;
+    }
+
+    let from = from.expect("--from <task-dir> required");
+    let out = out.expect("--out <suite.json> required");
+    let imported = import_task(&from).unwrap_or_else(|e| {
+        eprintln!("tb import failed: {e}");
+        std::process::exit(1);
+    });
+    let suite = shadow_benchmark::Suite {
+        name,
+        description: String::new(),
+        tasks: vec![imported.task.clone()],
+    };
+    if let Some(parent) = out.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let json = serde_json::to_string_pretty(&suite).expect("serialize suite");
+    std::fs::write(&out, json).unwrap_or_else(|e| {
+        eprintln!("cannot write {}: {e}", out.display());
+        std::process::exit(1);
+    });
+    println!(
+        "imported task '{}' from {} -> {}",
+        imported.task.id,
+        from.display(),
+        out.display()
+    );
 }
 
 /// Freeze upstream τ² task records into a shadow suite JSON.

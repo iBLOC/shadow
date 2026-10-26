@@ -46,6 +46,9 @@ pub struct AgentRun {
     /// Number of tool calls the agent issued. Zero for prompt-only
     /// adapters.
     pub tool_calls: u32,
+    /// Per-step trace. The agentic adapter records one entry per
+    /// assistant turn / tool call; one-shot adapters leave it empty.
+    pub steps: Vec<serde_json::Value>,
 }
 
 /// Token accounting for one agent invocation.
@@ -127,6 +130,103 @@ pub struct OpenAiAgent {
     pub max_tokens: u32,
     #[serde(default = "default_timeout_secs")]
     pub timeout_secs: u64,
+    /// One-shot (single prompt → single answer) or the agentic
+    /// tool-calling loop. Defaults to one-shot so existing configs
+    /// keep their behaviour.
+    #[serde(default)]
+    pub mode: AgentMode,
+}
+
+/// How an agent is driven against a task.
+///
+/// `OneShot` is the original shape: one prompt, one answer, no tools.
+/// `Agentic` runs a function-calling loop — the model explores the
+/// workdir with `bash` / `read_file` / `write_file` / `list_files` and
+/// ends the episode with `finish`.
+///
+/// The TOML shape is `[agent.mode] kind = "agentic" max_steps = 30`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(tag = "kind", rename_all = "lowercase")]
+pub enum AgentMode {
+    /// One prompt, one answer. The default.
+    #[serde(rename = "oneshot")]
+    OneShot,
+    /// Function-calling tool loop.
+    #[serde(rename = "agentic")]
+    Agentic {
+        /// How many model turns the episode may take.
+        #[serde(default = "default_max_steps")]
+        max_steps: u32,
+    },
+}
+
+fn default_max_steps() -> u32 {
+    30
+}
+
+impl Default for AgentMode {
+    fn default() -> Self {
+        AgentMode::OneShot
+    }
+}
+
+/// Parse a fence marker into a relative path.
+///
+/// The code-edit instruction tells the model to answer with
+/// ```` ```path:src/main.py ```` blocks — but models frequently emit
+/// ```` ```python:src/main.py ```` instead, so the prefix is treated
+/// as an opaque tag and only the part after the colon is used.
+///
+/// Absolute paths, drive letters, URLs and `..` traversal are
+/// rejected: the model must not be able to write outside its sandbox.
+pub fn parse_path_marker(marker: &str) -> Option<String> {
+    let marker = marker.trim();
+    let (prefix, rest) = marker.split_once(':')?;
+    // The prefix is a tag: "path", a language name, … — never a path
+    // fragment of its own.
+    let prefix = prefix.trim();
+    if prefix.is_empty()
+        || !prefix
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '_' || c == '-' || c == '+')
+    {
+        return None;
+    }
+    let rest = rest.trim();
+    if rest.is_empty() {
+        return None;
+    }
+    // A second colon means a drive letter or a URL — both out of bounds.
+    if rest.contains(':') {
+        return None;
+    }
+    // Absolute on Windows ("\foo") and POSIX ("/foo").
+    if rest.starts_with('/') || rest.starts_with('\\') {
+        return None;
+    }
+    let p = std::path::Path::new(rest);
+    if p.is_absolute() {
+        return None;
+    }
+    let mut parts: Vec<&str> = Vec::new();
+    for comp in p.components() {
+        match comp {
+            std::path::Component::Normal(part) => {
+                let s = part.to_str()?;
+                if s.is_empty() {
+                    return None;
+                }
+                parts.push(s);
+            }
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir => return None,
+            std::path::Component::RootDir | std::path::Component::Prefix(_) => return None,
+        }
+    }
+    if parts.is_empty() {
+        return None;
+    }
+    Some(parts.join("/"))
 }
 
 impl OpenAiAgent {
@@ -154,6 +254,19 @@ fn default_timeout_secs() -> u64 {
 
 const OPENAI_SYSTEM: &str = "You are an AI agent under benchmark evaluation. \
 Follow the instruction exactly and answer concisely. \
+Do not add commentary outside what is asked. /no_think";
+
+/// System prompt for the agentic (tool-calling) loop. It states the
+/// discipline the bench measures: look before you write, keep the
+/// change minimal, verify with the tools, and end the episode with
+/// `finish` rather than stopping mid-way.
+const OPENAI_AGENTIC_SYSTEM: &str = "You are an AI agent working in a real working directory. \
+You have tools: bash (run a shell command), read_file, write_file, list_files, and finish. \
+Rules: \
+- Explore before you edit: read the relevant files first. \
+- Make the smallest change that solves the task; do not rewrite unrelated code. \
+- Verify your change with the tools (run the tests or the program) before finishing. \
+- When the work is done, call finish with a short summary. Do not stop without calling it. \
 Do not add commentary outside what is asked. /no_think";
 
 /// Extra instructions appended only when the task ships files (code-edit
@@ -184,7 +297,22 @@ impl AgentAdapter for OpenAiAgent {
         Some(self)
     }
 
-    async fn run(&self, task: &Task, _workdir: &Path, prior_traces: &str) -> Result<AgentRun, AgentError> {
+    async fn run(&self, task: &Task, workdir: &Path, prior_traces: &str) -> Result<AgentRun, AgentError> {
+        // One-shot and agentic share the prompt assembly but not the
+        // conversation shape: the agentic path keeps a message history
+        // and hands the model tools.
+        match &self.mode {
+            AgentMode::OneShot => self.run_oneshot(task, prior_traces).await,
+            AgentMode::Agentic { max_steps } => {
+                self.run_agentic(task, workdir, prior_traces, *max_steps).await
+            }
+        }
+    }
+}
+
+impl OpenAiAgent {
+    /// Single prompt → single answer.
+    async fn run_oneshot(&self, task: &Task, prior_traces: &str) -> Result<AgentRun, AgentError> {
         let started = std::time::Instant::now();
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(self.timeout_secs))
@@ -261,6 +389,169 @@ impl AgentAdapter for OpenAiAgent {
             exit_code: None,
             usage,
             tool_calls,
+            steps: Vec::new(),
+        })
+    }
+
+    /// Function-calling tool loop.
+    ///
+    /// The model gets a fixed tool set over the task workdir and keeps
+    /// turning until it calls `finish`, answers without a tool call,
+    /// or the step budget runs out. Every turn is recorded in
+    /// `AgentRun.steps` so the report can show *how* the agent got
+    /// there, not just its final answer.
+    async fn run_agentic(
+        &self,
+        task: &Task,
+        workdir: &Path,
+        prior_traces: &str,
+        max_steps: u32,
+    ) -> Result<AgentRun, AgentError> {
+        let started = std::time::Instant::now();
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(self.timeout_secs))
+            .build()
+            .map_err(|e| AgentError::Failed {
+                agent: self.name.clone(),
+                message: e.to_string(),
+            })?;
+
+        let mut system = OPENAI_AGENTIC_SYSTEM.to_string();
+        if !prior_traces.is_empty() {
+            system.push_str(PRIOR_TRACES_HEADER);
+            system.push_str(prior_traces);
+            system.push_str("\n\nApply the lessons above. Reuse successful steps; do not repeat the same failing steps verbatim.\n");
+        }
+
+        let mut messages: Vec<serde_json::Value> = vec![
+            serde_json::json!({"role": "system", "content": system}),
+            serde_json::json!({"role": "user", "content": task.instruction}),
+        ];
+        let mut usage = TokenUsage::default();
+        let mut tool_call_count = 0u32;
+        let mut steps: Vec<serde_json::Value> = Vec::new();
+        let mut answer = String::new();
+        let mut finished = false;
+
+        for _ in 0..max_steps.max(1) {
+            let body = serde_json::json!({
+                "model": self.model,
+                "max_tokens": self.max_tokens,
+                "messages": messages,
+                "tools": crate::tools::tool_schemas(),
+                "tool_choice": "auto",
+            });
+            let mut req = client
+                .post(format!("{}/chat/completions", self.base_url.trim_end_matches('/')))
+                .json(&body);
+            if let Some(key) = &self.resolved_key() {
+                req = req.bearer_auth(key);
+            }
+            let resp = req.send().await.map_err(|e| AgentError::Failed {
+                agent: self.name.clone(),
+                message: format!("request: {e}"),
+            })?;
+            let status = resp.status();
+            let json: serde_json::Value = resp.json().await.map_err(|e| AgentError::Failed {
+                agent: self.name.clone(),
+                message: format!("body at {status}: {e}"),
+            })?;
+            if !status.is_success() {
+                let msg = json["error"]["message"]
+                    .as_str()
+                    .unwrap_or("unknown error")
+                    .to_string();
+                return Err(AgentError::Failed {
+                    agent: self.name.clone(),
+                    message: format!("HTTP {status}: {msg}"),
+                });
+            }
+
+            // Accumulate usage across turns — the episode is billed as
+            // a whole, not per turn.
+            let turn_usage = TokenUsage::new(
+                json["usage"]["prompt_tokens"].as_u64().unwrap_or(0) as u32,
+                json["usage"]["completion_tokens"].as_u64().unwrap_or(0) as u32,
+                json["usage"]["total_tokens"].as_u64().map(|v| v as u32),
+            );
+            usage = TokenUsage::new(
+                usage.prompt_tokens + turn_usage.prompt_tokens,
+                usage.completion_tokens + turn_usage.completion_tokens,
+                Some(usage.total_tokens + turn_usage.total_tokens),
+            );
+
+            let message = json["choices"][0]["message"].clone();
+            let content = message["content"].as_str().unwrap_or("").to_string();
+            let raw_calls: Vec<serde_json::Value> = message["tool_calls"]
+                .as_array()
+                .cloned()
+                .unwrap_or_default();
+
+            if raw_calls.is_empty() {
+                // A plain answer ends the episode: the model stopped
+                // asking for tools.
+                if !content.is_empty() {
+                    answer = content.clone();
+                    steps.push(serde_json::json!({
+                        "type": "message", "role": "assistant", "text": content
+                    }));
+                }
+                break;
+            }
+
+            // The assistant turn must be echoed back verbatim before
+            // the tool results, or the provider rejects the history.
+            messages.push(message.clone());
+
+            for raw in raw_calls {
+                let Some(call) = crate::tools::ToolCall::from_json(&raw) else {
+                    continue;
+                };
+                tool_call_count += 1;
+                let outcome = crate::tools::execute(&call, workdir).await;
+                steps.push(serde_json::json!({
+                    "type": "tool_call",
+                    "name": call.name,
+                    "args": call.args,
+                    "result": outcome.content,
+                }));
+                if outcome.finished {
+                    finished = true;
+                    answer = call.arg_str("summary").unwrap_or(&outcome.content).to_string();
+                    steps.push(serde_json::json!({
+                        "type": "finish", "summary": answer
+                    }));
+                }
+                messages.push(serde_json::json!({
+                    "role": "tool",
+                    "tool_call_id": call.id,
+                    "content": outcome.content,
+                }));
+                if finished {
+                    break;
+                }
+            }
+            if finished {
+                break;
+            }
+        }
+
+        if answer.is_empty() {
+            // The model never produced text (it only ever called
+            // tools). The transcript is the deliverable, but the
+            // report still needs something to show.
+            answer = format!(
+                "(agentic episode ended after {tool_call_count} tool calls without a final message)"
+            );
+        }
+
+        Ok(AgentRun {
+            answer,
+            duration: started.elapsed(),
+            exit_code: None,
+            usage,
+            tool_calls: tool_call_count,
+            steps,
         })
     }
 }
@@ -430,6 +721,7 @@ impl AgentAdapter for CliAgent {
             exit_code: output.status.code(),
             usage: TokenUsage::default(),
             tool_calls: 0,
+            steps: Vec::new(),
         })
     }
 }
@@ -474,13 +766,13 @@ pub fn apply_fenced_patches(
     let mut written = Vec::new();
     let mut wrote_path_block = false;
     for (marker, body) in &blocks {
-        let Some(rel) = marker.strip_prefix("path:").map(str::trim) else {
+        // `parse_path_marker` accepts both `path:rel` and the
+        // language-prefixed `python:rel` form, and rejects anything
+        // that would escape the workdir.
+        let Some(rel) = parse_path_marker(marker) else {
             continue;
         };
-        if rel.is_empty() {
-            continue;
-        }
-        let dest = workdir.join(rel);
+        let dest = workdir.join(&rel);
         let dir_ok = dest.parent().map(|p| std::fs::create_dir_all(p)).unwrap_or(Ok(()));
         if dir_ok.is_ok() && std::fs::write(&dest, body.join("
 ")).is_ok() {
@@ -589,6 +881,7 @@ mod key_env_tests {
             api_key_env: Some(var),
             max_tokens: 16,
             timeout_secs: 5,
+            mode: AgentMode::OneShot,
         };
         assert_eq!(agent.resolved_key().as_deref(), Some("sk-from-env"));
     }
@@ -606,6 +899,7 @@ mod key_env_tests {
             api_key_env: Some(var),
             max_tokens: 16,
             timeout_secs: 5,
+            mode: AgentMode::OneShot,
         };
         assert_eq!(agent.resolved_key().as_deref(), Some("inline-key"));
     }
@@ -620,7 +914,38 @@ mod key_env_tests {
             api_key_env: Some(format!("BENCH_KEY_MISSING_{}", std::process::id())),
             max_tokens: 16,
             timeout_secs: 5,
+            mode: AgentMode::OneShot,
         };
         assert!(agent.resolved_key().is_none());
+    }
+
+    #[test]
+    fn path_marker_accepts_both_prefix_forms() {
+        assert_eq!(
+            parse_path_marker("path:src/main.py").as_deref(),
+            Some("src/main.py")
+        );
+        // Models frequently emit the language instead of "path".
+        assert_eq!(
+            parse_path_marker("python:src/a.py").as_deref(),
+            Some("src/a.py")
+        );
+        assert_eq!(parse_path_marker("  path : a/b.txt ").as_deref(), Some("a/b.txt"));
+    }
+
+    #[test]
+    fn path_marker_rejects_escapes_and_non_paths() {
+        // No colon at all — a plain language fence.
+        assert!(parse_path_marker("python").is_none());
+        assert!(parse_path_marker("rust").is_none());
+        // Traversal.
+        assert!(parse_path_marker("path:../etc/passwd").is_none());
+        assert!(parse_path_marker("path:a/../../b").is_none());
+        // Absolute / drive letter / URL.
+        assert!(parse_path_marker("path:/etc/passwd").is_none());
+        assert!(parse_path_marker("path:C:\\Windows\\system32").is_none());
+        assert!(parse_path_marker("https://example.com/x").is_none());
+        // Empty path.
+        assert!(parse_path_marker("path:").is_none());
     }
 }

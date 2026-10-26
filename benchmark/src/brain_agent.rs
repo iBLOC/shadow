@@ -128,6 +128,7 @@ impl AgentAdapter for BrainAgent {
             exit_code: Some(0),
             usage: crate::agent::TokenUsage::default(),
             tool_calls: 0,
+            steps: Vec::new(),
         })
     }
 }
