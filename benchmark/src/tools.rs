@@ -586,6 +586,12 @@ fn html_to_text(html: &str) -> String {
 /// step budget on shell-syntax errors instead of on the task. So we
 /// prefer a POSIX shell and only fall back to `cmd` when none is
 /// available.
+///
+/// `PIP_REQUIRE_VIRTUALENV=1` is exported into the child: an agent
+/// that runs a bare `pip install -e .` with the host interpreter must
+/// fail loudly instead of silently installing the task repo into the
+/// global site-packages (that is how the 2026-10-12 incident — a
+/// mutated SWE checkout shadowing the system pytest — happened).
 async fn run_bash(command: &str, workdir: &Path) -> ToolOutcome {
     for shell in posix_shells() {
         if let Some(out) = run_in_shell(&shell, command, workdir).await {
@@ -598,6 +604,7 @@ async fn run_bash(command: &str, workdir: &Path) -> ToolOutcome {
     cmd.arg("/C")
         .arg(command)
         .current_dir(workdir)
+        .env("PIP_REQUIRE_VIRTUALENV", "1")
         .kill_on_drop(true);
     cmd.stdin(std::process::Stdio::null());
     match cmd.output().await {
@@ -640,6 +647,7 @@ async fn run_in_shell(shell: &str, command: &str, workdir: &Path) -> Option<Tool
     cmd.arg("-c")
         .arg(command)
         .current_dir(workdir)
+        .env("PIP_REQUIRE_VIRTUALENV", "1")
         .kill_on_drop(true);
     cmd.stdin(std::process::Stdio::null());
     match cmd.output().await {

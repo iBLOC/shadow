@@ -13,13 +13,14 @@
 |---|---|---|---|
 | τ²-bench | `src/tau2.rs` | `bench tau2` / `bench tau2-import` / `bench tau2 --verify` | **已入库**，可复跑（§1.1） |
 | SWE-bench Verified | `src/swe.rs` / `src/swe_native.rs` / `src/swe_import.rs` | `bench swe` / `bench swe-import` | **已入库**（§1.2） |
-| GAIA | `src/gaia_import.rs` | `bench gaia-import` | **已入库**（§1.2） |
-| Terminal-Bench 2.x | `src/tb_import.rs` | `bench tb-import` | **已入库**（§1.2） |
+| GAIA | `src/gaia_import.rs` | `bench gaia-import` | **已入库**（§1.2 / §2.1） |
+| Terminal-Bench 2.x | `src/tb_import.rs` | `bench tb-import` | **已入库**，跑批走标准 runner（tb-import.md §原生 agentic 重测） |
 | browser 驱动 | `src/browser.rs` | — | **已入库**（模块级，未接 CLI） |
 
 全部套件的**导入**路径（冻结官方任务记录成 suite JSON）已可执行；
 **跑批**路径按套件依赖外部 harness：τ² 需钉住的 τ² checkout，
-SWE 需 `tools/swe_driver.py` 准备 repo + venv，TB 需任务镜像。
+SWE 需 `tools/swe_driver.py` 准备 repo + venv，TB 走标准 runner
+（隐藏测试文件在 agent 结束后物化，镜像 verify 时挂载 /tests）。
 
 ## 0. 统一方法
 
