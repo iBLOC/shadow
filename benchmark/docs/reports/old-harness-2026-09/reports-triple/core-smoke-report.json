@@ -1,0 +1,215 @@
+{
+  "suite": "core-smoke",
+  "agents": [
+    "shadow-neuron",
+    "shadow-desktop",
+    "iBLOC-encephalon-server"
+  ],
+  "repeat": 1,
+  "results": [
+    {
+      "agent": "shadow-neuron",
+      "task_id": "arithmetic",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "expected \"391\", got \"17 * 23 = 391\"",
+          "duration_secs": 149.0637409
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "shadow-neuron",
+      "task_id": "json-output",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 159.4166273
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "shadow-neuron",
+      "task_id": "format-following",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "exact match",
+          "duration_secs": 66.1689748
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "shadow-neuron",
+      "task_id": "code-fix-python",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 240.0014779,
+          "error": "agent 'shadow-neuron' failed: task timed out after 240s"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "shadow-desktop",
+      "task_id": "arithmetic",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "expected \"391\", got \"17 × 23 = 391\"",
+          "duration_secs": 179.6107009
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "shadow-desktop",
+      "task_id": "json-output",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 179.5136656
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "shadow-desktop",
+      "task_id": "format-following",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "exact match",
+          "duration_secs": 84.2823909
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "shadow-desktop",
+      "task_id": "code-fix-python",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 240.0046727,
+          "error": "agent 'shadow-desktop' failed: task timed out after 240s"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "iBLOC-encephalon-server",
+      "task_id": "arithmetic",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "expected \"391\", got \"17 * 23 = 391\"",
+          "duration_secs": 160.6946853
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "iBLOC-encephalon-server",
+      "task_id": "json-output",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 156.0279799
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "iBLOC-encephalon-server",
+      "task_id": "format-following",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "exact match",
+          "duration_secs": 64.9576613
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "iBLOC-encephalon-server",
+      "task_id": "code-fix-python",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 240.0121855,
+          "error": "agent 'iBLOC-encephalon-server' failed: task timed out after 240s"
+        }
+      ],
+      "pass_k": false
+    }
+  ],
+  "summaries": [
+    {
+      "agent": "iBLOC-encephalon-server",
+      "tasks_total": 4,
+      "tasks_passed": 2,
+      "tasks_failed": 2,
+      "tasks_skipped": 0,
+      "pass_rate": 0.5,
+      "pass_k_rate": 0.5,
+      "median_duration_secs": 160.6946853
+    },
+    {
+      "agent": "shadow-desktop",
+      "tasks_total": 4,
+      "tasks_passed": 2,
+      "tasks_failed": 2,
+      "tasks_skipped": 0,
+      "pass_rate": 0.5,
+      "pass_k_rate": 0.5,
+      "median_duration_secs": 179.6107009
+    },
+    {
+      "agent": "shadow-neuron",
+      "tasks_total": 4,
+      "tasks_passed": 2,
+      "tasks_failed": 2,
+      "tasks_skipped": 0,
+      "pass_rate": 0.5,
+      "pass_k_rate": 0.5,
+      "median_duration_secs": 159.4166273
+    }
+  ],
+  "generated_at": "unix-1790748498"
+}

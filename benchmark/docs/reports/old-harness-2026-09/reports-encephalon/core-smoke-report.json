@@ -1,0 +1,82 @@
+{
+  "suite": "core-smoke",
+  "agents": [
+    "iBLOC-encephalon"
+  ],
+  "repeat": 2,
+  "results": [
+    {
+      "agent": "iBLOC-encephalon",
+      "task_id": "arithmetic",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "expected \"391\", got \"17 * 23 = 391\"",
+          "duration_secs": 138.1308087
+        },
+        {
+          "repeat": 1,
+          "passed": false,
+          "detail": "expected \"391\", got \"17 * 23 = 391\"",
+          "duration_secs": 139.7144245
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "iBLOC-encephalon",
+      "task_id": "json-output",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 160.3241181
+        },
+        {
+          "repeat": 1,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 160.5795744
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "iBLOC-encephalon",
+      "task_id": "format-following",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "exact match",
+          "duration_secs": 68.2923041
+        },
+        {
+          "repeat": 1,
+          "passed": true,
+          "detail": "exact match",
+          "duration_secs": 68.5654611
+        }
+      ],
+      "pass_k": true
+    }
+  ],
+  "summaries": [
+    {
+      "agent": "iBLOC-encephalon",
+      "tasks_total": 3,
+      "tasks_passed": 2,
+      "tasks_failed": 1,
+      "tasks_skipped": 0,
+      "pass_rate": 0.6666666666666666,
+      "pass_k_rate": 0.6666666666666666,
+      "median_duration_secs": 139.7144245
+    }
+  ],
+  "generated_at": "unix-1790682828"
+}

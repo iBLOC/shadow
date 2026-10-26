@@ -1,0 +1,945 @@
+{
+  "suite": "core-smoke",
+  "agents": [
+    "shadow-neuron",
+    "openclaw",
+    "pi",
+    "deepseek-harness"
+  ],
+  "repeat": 2,
+  "results": [
+    {
+      "agent": "shadow-neuron",
+      "task_id": "arithmetic",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "expected \"391\", got \"17 * 23 = 391\"",
+          "duration_secs": 2.1216539
+        },
+        {
+          "repeat": 1,
+          "passed": false,
+          "detail": "expected \"391\", got \"17 * 23 = 391\"",
+          "duration_secs": 2.1013009
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "shadow-neuron",
+      "task_id": "rate-problem",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "expected \"90\", got \"60 km/h × 1.5 h = 90 km.\"",
+          "duration_secs": 2.7123309
+        },
+        {
+          "repeat": 1,
+          "passed": false,
+          "detail": "expected \"90\", got \"60 km/h × 1.5 h = 90 km.\"",
+          "duration_secs": 2.8834875
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "shadow-neuron",
+      "task_id": "letter-count",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "expected \"3\", got \"1\"",
+          "duration_secs": 1.0701181
+        },
+        {
+          "repeat": 1,
+          "passed": false,
+          "detail": "expected \"3\", got \"1\"",
+          "duration_secs": 1.0290218
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "shadow-neuron",
+      "task_id": "extraction",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "expected \"1280\", got \"1280.00\"",
+          "duration_secs": 1.9665773
+        },
+        {
+          "repeat": 1,
+          "passed": false,
+          "detail": "expected \"1280\", got \"1280.00\"",
+          "duration_secs": 1.9523866
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "shadow-neuron",
+      "task_id": "json-output",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 2.4120065
+        },
+        {
+          "repeat": 1,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 2.3963565
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "shadow-neuron",
+      "task_id": "format-following",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "exact match",
+          "duration_secs": 1.0745259
+        },
+        {
+          "repeat": 1,
+          "passed": true,
+          "detail": "exact match",
+          "duration_secs": 1.0737455
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "shadow-neuron",
+      "task_id": "sql",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 2.1541319
+        },
+        {
+          "repeat": 1,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 2.1544223000000002
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "shadow-neuron",
+      "task_id": "code-fix-python",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "tests passed",
+          "duration_secs": 4.7690487
+        },
+        {
+          "repeat": 1,
+          "passed": true,
+          "detail": "tests passed",
+          "duration_secs": 4.7308473
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "shadow-neuron",
+      "task_id": "code-implement-python",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "exit Some(1)\nTraceback (most recent call last):\r\n  File \"C:\\Users\\87462\\AppData\\Local\\Temp\\cerebellum-bench\\code-implement-python\\shadow-neuron\\rep0\\prices_test.py\", line 2, in <module>\r\n    assert median([3.0, 1.0, 2.0]) == 2.0, 'odd length'\r\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\r\nAssertionError: odd length",
+          "duration_secs": 20.6359077
+        },
+        {
+          "repeat": 1,
+          "passed": false,
+          "detail": "exit Some(1)\nTraceback (most recent call last):\r\n  File \"C:\\Users\\87462\\AppData\\Local\\Temp\\cerebellum-bench\\code-implement-python\\shadow-neuron\\rep1\\prices_test.py\", line 2, in <module>\r\n    assert median([3.0, 1.0, 2.0]) == 2.0, 'odd length'\r\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\r\nAssertionError: odd length",
+          "duration_secs": 20.1139857
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "shadow-neuron",
+      "task_id": "code-fix-rust-sha",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "expected \"update\", got \"```path:answer.md sha2::sha256::sha256::hash_slice ```\"",
+          "duration_secs": 3.6127214
+        },
+        {
+          "repeat": 1,
+          "passed": false,
+          "detail": "expected \"update\", got \"```path:answer.md sha2::sha256::sha256::hash_slice ```\"",
+          "duration_secs": 3.5918544
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "openclaw",
+      "task_id": "arithmetic",
+      "skipped": true,
+      "skip_reason": "not installed: openclaw",
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0021117,
+          "error": "agent binary not installed: openclaw"
+        },
+        {
+          "repeat": 1,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0009751,
+          "error": "agent binary not installed: openclaw"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "openclaw",
+      "task_id": "rate-problem",
+      "skipped": true,
+      "skip_reason": "not installed: openclaw",
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0009254,
+          "error": "agent binary not installed: openclaw"
+        },
+        {
+          "repeat": 1,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0008646,
+          "error": "agent binary not installed: openclaw"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "openclaw",
+      "task_id": "letter-count",
+      "skipped": true,
+      "skip_reason": "not installed: openclaw",
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0008407,
+          "error": "agent binary not installed: openclaw"
+        },
+        {
+          "repeat": 1,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0008312,
+          "error": "agent binary not installed: openclaw"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "openclaw",
+      "task_id": "extraction",
+      "skipped": true,
+      "skip_reason": "not installed: openclaw",
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0008429,
+          "error": "agent binary not installed: openclaw"
+        },
+        {
+          "repeat": 1,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0009695,
+          "error": "agent binary not installed: openclaw"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "openclaw",
+      "task_id": "json-output",
+      "skipped": true,
+      "skip_reason": "not installed: openclaw",
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0008348,
+          "error": "agent binary not installed: openclaw"
+        },
+        {
+          "repeat": 1,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0007534,
+          "error": "agent binary not installed: openclaw"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "openclaw",
+      "task_id": "format-following",
+      "skipped": true,
+      "skip_reason": "not installed: openclaw",
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0007176,
+          "error": "agent binary not installed: openclaw"
+        },
+        {
+          "repeat": 1,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0006705,
+          "error": "agent binary not installed: openclaw"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "openclaw",
+      "task_id": "sql",
+      "skipped": true,
+      "skip_reason": "not installed: openclaw",
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0006738,
+          "error": "agent binary not installed: openclaw"
+        },
+        {
+          "repeat": 1,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0006871,
+          "error": "agent binary not installed: openclaw"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "openclaw",
+      "task_id": "code-fix-python",
+      "skipped": true,
+      "skip_reason": "not installed: openclaw",
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.000693,
+          "error": "agent binary not installed: openclaw"
+        },
+        {
+          "repeat": 1,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.000756,
+          "error": "agent binary not installed: openclaw"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "openclaw",
+      "task_id": "code-implement-python",
+      "skipped": true,
+      "skip_reason": "not installed: openclaw",
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0007071,
+          "error": "agent binary not installed: openclaw"
+        },
+        {
+          "repeat": 1,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0007134,
+          "error": "agent binary not installed: openclaw"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "openclaw",
+      "task_id": "code-fix-rust-sha",
+      "skipped": true,
+      "skip_reason": "not installed: openclaw",
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0006689,
+          "error": "agent binary not installed: openclaw"
+        },
+        {
+          "repeat": 1,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0006597,
+          "error": "agent binary not installed: openclaw"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "pi",
+      "task_id": "arithmetic",
+      "skipped": true,
+      "skip_reason": "not installed: pi",
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0006739,
+          "error": "agent binary not installed: pi"
+        },
+        {
+          "repeat": 1,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0010216,
+          "error": "agent binary not installed: pi"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "pi",
+      "task_id": "rate-problem",
+      "skipped": true,
+      "skip_reason": "not installed: pi",
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0006838,
+          "error": "agent binary not installed: pi"
+        },
+        {
+          "repeat": 1,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0006577,
+          "error": "agent binary not installed: pi"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "pi",
+      "task_id": "letter-count",
+      "skipped": true,
+      "skip_reason": "not installed: pi",
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0008088,
+          "error": "agent binary not installed: pi"
+        },
+        {
+          "repeat": 1,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0006706,
+          "error": "agent binary not installed: pi"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "pi",
+      "task_id": "extraction",
+      "skipped": true,
+      "skip_reason": "not installed: pi",
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0006718,
+          "error": "agent binary not installed: pi"
+        },
+        {
+          "repeat": 1,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0006546,
+          "error": "agent binary not installed: pi"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "pi",
+      "task_id": "json-output",
+      "skipped": true,
+      "skip_reason": "not installed: pi",
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0007371,
+          "error": "agent binary not installed: pi"
+        },
+        {
+          "repeat": 1,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0007368,
+          "error": "agent binary not installed: pi"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "pi",
+      "task_id": "format-following",
+      "skipped": true,
+      "skip_reason": "not installed: pi",
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0006654,
+          "error": "agent binary not installed: pi"
+        },
+        {
+          "repeat": 1,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0007369,
+          "error": "agent binary not installed: pi"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "pi",
+      "task_id": "sql",
+      "skipped": true,
+      "skip_reason": "not installed: pi",
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0007089,
+          "error": "agent binary not installed: pi"
+        },
+        {
+          "repeat": 1,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0006591,
+          "error": "agent binary not installed: pi"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "pi",
+      "task_id": "code-fix-python",
+      "skipped": true,
+      "skip_reason": "not installed: pi",
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0006825,
+          "error": "agent binary not installed: pi"
+        },
+        {
+          "repeat": 1,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0006998,
+          "error": "agent binary not installed: pi"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "pi",
+      "task_id": "code-implement-python",
+      "skipped": true,
+      "skip_reason": "not installed: pi",
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0007265,
+          "error": "agent binary not installed: pi"
+        },
+        {
+          "repeat": 1,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0007235,
+          "error": "agent binary not installed: pi"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "pi",
+      "task_id": "code-fix-rust-sha",
+      "skipped": true,
+      "skip_reason": "not installed: pi",
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0006702,
+          "error": "agent binary not installed: pi"
+        },
+        {
+          "repeat": 1,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0006625,
+          "error": "agent binary not installed: pi"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "deepseek-harness",
+      "task_id": "arithmetic",
+      "skipped": true,
+      "skip_reason": "not installed: dsh",
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0006983,
+          "error": "agent binary not installed: dsh"
+        },
+        {
+          "repeat": 1,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0008888,
+          "error": "agent binary not installed: dsh"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "deepseek-harness",
+      "task_id": "rate-problem",
+      "skipped": true,
+      "skip_reason": "not installed: dsh",
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0006928,
+          "error": "agent binary not installed: dsh"
+        },
+        {
+          "repeat": 1,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0006876,
+          "error": "agent binary not installed: dsh"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "deepseek-harness",
+      "task_id": "letter-count",
+      "skipped": true,
+      "skip_reason": "not installed: dsh",
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0007044,
+          "error": "agent binary not installed: dsh"
+        },
+        {
+          "repeat": 1,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0006441,
+          "error": "agent binary not installed: dsh"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "deepseek-harness",
+      "task_id": "extraction",
+      "skipped": true,
+      "skip_reason": "not installed: dsh",
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0006535,
+          "error": "agent binary not installed: dsh"
+        },
+        {
+          "repeat": 1,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0006588,
+          "error": "agent binary not installed: dsh"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "deepseek-harness",
+      "task_id": "json-output",
+      "skipped": true,
+      "skip_reason": "not installed: dsh",
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0006882,
+          "error": "agent binary not installed: dsh"
+        },
+        {
+          "repeat": 1,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.000643,
+          "error": "agent binary not installed: dsh"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "deepseek-harness",
+      "task_id": "format-following",
+      "skipped": true,
+      "skip_reason": "not installed: dsh",
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0006395,
+          "error": "agent binary not installed: dsh"
+        },
+        {
+          "repeat": 1,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0006692,
+          "error": "agent binary not installed: dsh"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "deepseek-harness",
+      "task_id": "sql",
+      "skipped": true,
+      "skip_reason": "not installed: dsh",
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0006598,
+          "error": "agent binary not installed: dsh"
+        },
+        {
+          "repeat": 1,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0006642,
+          "error": "agent binary not installed: dsh"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "deepseek-harness",
+      "task_id": "code-fix-python",
+      "skipped": true,
+      "skip_reason": "not installed: dsh",
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.000731,
+          "error": "agent binary not installed: dsh"
+        },
+        {
+          "repeat": 1,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0006733,
+          "error": "agent binary not installed: dsh"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "deepseek-harness",
+      "task_id": "code-implement-python",
+      "skipped": true,
+      "skip_reason": "not installed: dsh",
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0006688,
+          "error": "agent binary not installed: dsh"
+        },
+        {
+          "repeat": 1,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0006965,
+          "error": "agent binary not installed: dsh"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "deepseek-harness",
+      "task_id": "code-fix-rust-sha",
+      "skipped": true,
+      "skip_reason": "not installed: dsh",
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0007587,
+          "error": "agent binary not installed: dsh"
+        },
+        {
+          "repeat": 1,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0009733,
+          "error": "agent binary not installed: dsh"
+        }
+      ],
+      "pass_k": false
+    }
+  ],
+  "summaries": [
+    {
+      "agent": "deepseek-harness",
+      "tasks_total": 10,
+      "tasks_passed": 0,
+      "tasks_failed": 0,
+      "tasks_skipped": 10,
+      "pass_rate": 0.0,
+      "pass_k_rate": 0.0,
+      "median_duration_secs": 0.0006876
+    },
+    {
+      "agent": "openclaw",
+      "tasks_total": 10,
+      "tasks_passed": 0,
+      "tasks_failed": 0,
+      "tasks_skipped": 10,
+      "pass_rate": 0.0,
+      "pass_k_rate": 0.0,
+      "median_duration_secs": 0.000756
+    },
+    {
+      "agent": "pi",
+      "tasks_total": 10,
+      "tasks_passed": 0,
+      "tasks_failed": 0,
+      "tasks_skipped": 10,
+      "pass_rate": 0.0,
+      "pass_k_rate": 0.0,
+      "median_duration_secs": 0.0006838
+    },
+    {
+      "agent": "shadow-neuron",
+      "tasks_total": 10,
+      "tasks_passed": 4,
+      "tasks_failed": 6,
+      "tasks_skipped": 0,
+      "pass_rate": 0.4,
+      "pass_k_rate": 0.4,
+      "median_duration_secs": 2.3963565
+    }
+  ],
+  "generated_at": "unix-1790658059"
+}

@@ -1,0 +1,52 @@
+{
+  "suite": "core-smoke",
+  "agents": [
+    "iBLOC-brain"
+  ],
+  "repeat": 1,
+  "results": [
+    {
+      "agent": "iBLOC-brain",
+      "task_id": "json-output",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0099159,
+          "error": "agent 'iBLOC-brain' failed: HTTP 404 Not Found: no engine registered for model 'qwen3-0.6b'"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "iBLOC-brain",
+      "task_id": "format-following",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 0.0014769,
+          "error": "agent 'iBLOC-brain' failed: HTTP 404 Not Found: no engine registered for model 'qwen3-0.6b'"
+        }
+      ],
+      "pass_k": false
+    }
+  ],
+  "summaries": [
+    {
+      "agent": "iBLOC-brain",
+      "tasks_total": 2,
+      "tasks_passed": 0,
+      "tasks_failed": 2,
+      "tasks_skipped": 0,
+      "pass_rate": 0.0,
+      "pass_k_rate": 0.0,
+      "median_duration_secs": 0.0099159
+    }
+  ],
+  "generated_at": "unix-1790678031"
+}
