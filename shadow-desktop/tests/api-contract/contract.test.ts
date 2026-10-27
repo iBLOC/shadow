@@ -93,19 +93,24 @@ describe('API contract: every endpoint in telencephalonClient must respond', () 
     }
   }, 10_000);
 
-  it('telencephalon is reachable on :60080 (or skip when allowed)', async () => {
+  it('telencephalon is reachable on :60080 (or skip when allowed)', async (ctx) => {
     const r = await checkServerReachable();
     if (IS_STRICT) {
       expect(r.reachable, `telencephalon must be reachable at ${API_BASE_URL}`).toBe(true);
-    } else {
-      expect(typeof r.reachable).toBe('boolean');
+    } else if (!r.reachable) {
+      // `ctx.skip()` reports the case as SKIPPED. A bare `return` would
+      // report it as PASSED — a green light for a probe that never ran.
+      ctx.skip();
     }
   }, 10_000);
 
   for (const ep of manifest.endpoints) {
     const label = `${ep.method.padEnd(6)} ${ep.path}`;
-    it(label, async () => {
-      if (!serverUp) return; // skip when server absent
+    it(label, async (ctx) => {
+      if (!serverUp) {
+        ctx.skip(); // server absent — report as skipped, not passed
+        return;
+      }
       const headers = authHeaders(ep.needsAdmin);
       const url = `${API_BASE_URL.replace(/\/$/, '')}${ep.probePath}`;
       const init: RequestInit = { method: ep.method, headers };

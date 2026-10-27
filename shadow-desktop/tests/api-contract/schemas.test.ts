@@ -63,9 +63,12 @@ interface InstalledWasmList {
 }
 
 describe('GET /api/telencephalon/admin/agents/installed', () => {
-  it('matches the InstalledWasmList contract', async () => {
+  it('matches the InstalledWasmList contract', async (ctx) => {
     await setup;
-    if (!serverUp) return;
+    if (!serverUp) {
+      ctx.skip(); // server absent — report as skipped, not passed
+      return;
+    }
     const body = await probe<InstalledWasmList>(
       '/api/telencephalon/admin/agents/installed',
       { headers: { 'X-Admin-Token': ADMIN_TOKEN } },
@@ -88,9 +91,12 @@ interface ThalamusSensorList {
 }
 
 describe('GET /api/telencephalon/thalamus/preview/sensors', () => {
-  it('returns { sensors: string[] }', async () => {
+  it('returns { sensors: string[] }', async (ctx) => {
     await setup;
-    if (!serverUp) return;
+    if (!serverUp) {
+      ctx.skip(); // server absent — report as skipped, not passed
+      return;
+    }
     const body = await probe<ThalamusSensorList>(
       '/api/telencephalon/thalamus/preview/sensors',
     );
@@ -108,9 +114,12 @@ interface HippocampusStats {
 }
 
 describe('GET /api/telencephalon/hippocampus/preview/stats', () => {
-  it('matches the HippocampusStats contract', async () => {
+  it('matches the HippocampusStats contract', async (ctx) => {
     await setup;
-    if (!serverUp) return;
+    if (!serverUp) {
+      ctx.skip(); // server absent — report as skipped, not passed
+      return;
+    }
     const body = await probe<HippocampusStats>(
       '/api/telencephalon/hippocampus/preview/stats',
     );
@@ -131,9 +140,12 @@ interface NeuronModelsResponse {
 }
 
 describe('GET /api/telencephalon/neuron/preview/models', () => {
-  it('matches the NeuronModelsResponse contract', async () => {
+  it('matches the NeuronModelsResponse contract', async (ctx) => {
     await setup;
-    if (!serverUp) return;
+    if (!serverUp) {
+      ctx.skip(); // server absent — report as skipped, not passed
+      return;
+    }
     const body = await probe<NeuronModelsResponse>(
       '/api/telencephalon/neuron/preview/models',
     );
@@ -152,9 +164,12 @@ interface SubsystemToken {
 }
 
 describe('POST /api/telencephalon/admin/token', () => {
-  it('returns a SubsystemToken with admin auth', async () => {
+  it('returns a SubsystemToken with admin auth', async (ctx) => {
     await setup;
-    if (!serverUp) return;
+    if (!serverUp) {
+      ctx.skip(); // server absent — report as skipped, not passed
+      return;
+    }
     const body = await probe<SubsystemToken>(
       '/api/telencephalon/admin/token',
       {
@@ -177,9 +192,12 @@ interface HealthPayload {
 }
 
 describe('GET /health', () => {
-  it('returns a JSON status payload', async () => {
+  it('returns a JSON status payload', async (ctx) => {
     await setup;
-    if (!serverUp) return;
+    if (!serverUp) {
+      ctx.skip(); // server absent — report as skipped, not passed
+      return;
+    }
     const body = await probe<HealthPayload>('/health');
     expect(typeof body).toBe('object');
   }, 15_000);
@@ -192,16 +210,22 @@ interface CortexStatusResponse {
 }
 
 describe('TelencephalonStatusPage lives /api/telencephalon/status|logs', () => {
-  it('GET /api/telencephalon/status returns a JSON object', async () => {
+  it('GET /api/telencephalon/status returns a JSON object', async (ctx) => {
     await setup;
-    if (!serverUp) return;
+    if (!serverUp) {
+      ctx.skip(); // server absent — report as skipped, not passed
+      return;
+    }
     const body = await probe<CortexStatusResponse>('/api/telencephalon/status');
     expect(typeof body).toBe('object');
   }, 15_000);
 
-  it('GET /api/telencephalon/logs returns a JSON object', async () => {
+  it('GET /api/telencephalon/logs returns a JSON object', async (ctx) => {
     await setup;
-    if (!serverUp) return;
+    if (!serverUp) {
+      ctx.skip(); // server absent — report as skipped, not passed
+      return;
+    }
     const body = await probe<CortexStatusResponse>('/api/telencephalon/logs');
     expect(typeof body).toBe('object');
   }, 15_000);
