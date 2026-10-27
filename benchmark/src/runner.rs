@@ -196,7 +196,20 @@ impl Runner {
                         ))
                     });
                 let prior = shim.current_prior_traces();
-                let result = self.run_one(adapter, task, &judge, &prior).await;
+                // Per-agent task timeout: the spec's override wins
+                // over the runner default (the desktop subject needs
+                // 600s while API one-shots finish in seconds; a
+                // uniform default either kills slow subjects or
+                // drags fast ones).
+                let agent_timeout = agents_cfg
+                    .agents
+                    .iter()
+                    .find(|s| s.name() == adapter.name())
+                    .and_then(|s| s.task_timeout_secs())
+                    .map(Duration::from_secs);
+                let result = self
+                    .run_one_with_timeout(adapter, task, &judge, &prior, agent_timeout)
+                    .await;
                 // Append the new answer to the shim for the
                 // *next* task in the loop to see as prior. We
                 // keep the append outside `run_one` so future
@@ -318,9 +331,23 @@ impl Runner {
         judge: &Option<crate::agent::OpenAiAgent>,
         prior_traces: &str,
     ) -> TaskResult {
+        self.run_one_with_timeout(adapter, task, judge, prior_traces, None)
+            .await
+    }
+
+    async fn run_one_with_timeout(
+        &self,
+        adapter: &Box<dyn AgentAdapter>,
+        task: &Task,
+        judge: &Option<crate::agent::OpenAiAgent>,
+        prior_traces: &str,
+        agent_timeout: Option<Duration>,
+    ) -> TaskResult {
+        // Precedence: per-task > per-agent > runner default.
         let timeout = task
             .timeout_secs
             .map(Duration::from_secs)
+            .or(agent_timeout)
             .unwrap_or(self.cfg.timeout_default);
 
         let mut runs = Vec::new();

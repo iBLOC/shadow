@@ -609,6 +609,7 @@ mod tests {
             timeout_secs: 300,
             session: None,
             mode: crate::agent::AgentMode::OneShot,
+            task_timeout_secs: None,
         };
         let a = Tau2Agent::from_spec(&spec).unwrap();
         assert_eq!(a.name, "ds");
@@ -620,7 +621,10 @@ mod tests {
     /// error must say so instead of silently producing an empty run.
     #[test]
     fn from_spec_rejects_non_openai_variants() {
-        let spec = crate::config::AgentSpec::RuleEngine { name: "zen".into() };
+        let spec = crate::config::AgentSpec::RuleEngine {
+            name: "zen".into(),
+            task_timeout_secs: None,
+        };
         let err = Tau2Agent::from_spec(&spec).unwrap_err();
         assert!(err.to_string().contains("rule-engine"));
     }

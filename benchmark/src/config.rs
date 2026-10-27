@@ -39,6 +39,11 @@ pub enum AgentSpec {
         app_url: String,
         #[serde(default = "df_reply_timeout")]
         reply_timeout_secs: u64,
+        /// Runner-level per-task wall clock. The desktop adapter's own
+        /// reply window (600s) is pointless if the runner kills the
+        /// task at the 180s default first — set this to match.
+        #[serde(default)]
+        task_timeout_secs: Option<u64>,
     },
     /// OpenAI-compatible chat endpoint (shadow embedded neuron, DeepSeek
     /// API, vLLM-hosted open models…).
@@ -64,6 +69,11 @@ pub enum AgentSpec {
         /// `[agent.mode] kind = "agentic" max_steps = 30`.
         #[serde(default)]
         mode: crate::agent::AgentMode,
+        /// Runner-level per-task wall clock override (reasoning
+        /// models need more than the default; a slow MiMo episode
+        /// dies at 180s otherwise).
+        #[serde(default)]
+        task_timeout_secs: Option<u64>,
     },
     /// Local agent CLI driven on argv (`{prompt}` / `{workdir}`
     /// placeholders): openclaw, pi, dsh (DeepSeek Harness), aider…
@@ -72,6 +82,8 @@ pub enum AgentSpec {
         command: Vec<String>,
         #[serde(default = "df_timeout")]
         timeout_secs: u64,
+        #[serde(default)]
+        task_timeout_secs: Option<u64>,
     },
     /// 大脑独立栈 A2A endpoint (subject #1 of 2, see
     /// docs/benchmark-positioning.md §0) — POST /a2a/tasks/send with
@@ -84,6 +96,8 @@ pub enum AgentSpec {
         timeout_secs: u64,
         #[serde(default)]
         session: Option<SessionConfig>,
+        #[serde(default)]
+        task_timeout_secs: Option<u64>,
     },
     /// In-process zen rule engine (diencephalon) — the deterministic
     /// subject for the rule-engine-smoke suite. Not an LLM: answers
@@ -92,6 +106,8 @@ pub enum AgentSpec {
     #[serde(rename = "rule-engine")]
     RuleEngine {
         name: String,
+        #[serde(default)]
+        task_timeout_secs: Option<u64>,
     },
 }
 
@@ -167,7 +183,21 @@ impl AgentSpec {
             AgentSpec::OpenAi { name, .. } => name,
             AgentSpec::Cli { name, .. } => name,
             AgentSpec::Brain { name, .. } => name,
-            AgentSpec::RuleEngine { name } => name,
+            AgentSpec::RuleEngine { name, .. } => name,
+        }
+    }
+
+    /// Runner-level per-task wall clock override. `None` = use the
+    /// runner's default. Reasoning models (MiMo) and the desktop
+    /// subject both need more than 180s; hard-coding `--timeout` on
+    /// every invocation does not scale across mixed-agent sweeps.
+    pub fn task_timeout_secs(&self) -> Option<u64> {
+        match self {
+            AgentSpec::ShadowDesktop { task_timeout_secs, .. }
+            | AgentSpec::OpenAi { task_timeout_secs, .. }
+            | AgentSpec::Cli { task_timeout_secs, .. }
+            | AgentSpec::Brain { task_timeout_secs, .. }
+            | AgentSpec::RuleEngine { task_timeout_secs, .. } => *task_timeout_secs,
         }
     }
 
@@ -202,6 +232,7 @@ impl AgentSpec {
                 webdriver_url,
                 app_url,
                 reply_timeout_secs,
+                ..
             } => Box::new(crate::desktop_agent::ShadowDesktopAgent::new(
                 name,
                 webdriver_url,
@@ -236,6 +267,7 @@ impl AgentSpec {
                 name,
                 command,
                 timeout_secs,
+                ..
             } => Box::new(CliAgent {
                 name,
                 command,
@@ -368,6 +400,33 @@ max_steps = 30
             ),
             other => panic!("expected openai variant, got {other:?}"),
         }
+    }
+
+    /// Per-agent task timeout: the desktop subject needs 600s while
+    /// the runner default is 180s — a sweep mixing both died at 180s
+    /// (4 tasks at exactly 180.0s, 2026-10-27) before this existed.
+    #[test]
+    fn task_timeout_override_parses() {
+        let toml = r##"[[agent]]
+adapter = "shadow-desktop"
+name = "desktop"
+webdriver_url = "http://127.0.0.1:4445"
+app_url = "http://localhost:1420"
+reply_timeout_secs = 600
+task_timeout_secs = 600
+"##;
+        let cfg: AgentsConfig = toml::from_str(toml).expect("parse");
+        assert_eq!(cfg.agents[0].task_timeout_secs(), Some(600));
+
+        // Absent → None (runner default applies).
+        let toml2 = r##"[[agent]]
+adapter = "openai"
+name = "ds"
+base_url = "https://api.deepseek.com/v1"
+model = "deepseek-chat"
+"##;
+        let cfg2: AgentsConfig = toml::from_str(toml2).expect("parse");
+        assert_eq!(cfg2.agents[0].task_timeout_secs(), None);
     }
 
     /// Without a `[agent.mode]` table the adapter stays one-shot.
