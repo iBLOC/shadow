@@ -347,13 +347,14 @@ export PREFRONTAL_MODE="executor"                 # executor / full
 
 | Area | Change | Commits |
 |---|---|---|
+| **Benchmark harness 收口 + 双被测物真跑分** (2026-10-26/27) | τ²/SWE/GAIA/TB 四套件适配器全部入库可复跑（4042 行 WIP 收口）；agentic 模式真落地（此前 `[agent.mode]` 被 serde 静默丢弃）；跨模型 2×4 矩阵（deepseek/MiMo）；**shadow-desktop 被测物首个完整真跑分**（core-smoke 6/10，wdio 真应用栈）；behavior delta=产品边界（desktop 0/5 vs 大脑 5/5，对话路径无动作面）；修复 6 个 harness 缺陷（cmd.exe 吞 POSIX、answer_contract 丢失、hidden_files 不物化、孙进程管道挂死、180s 误杀→task_timeout_secs）+ 2 个环境问题（pytest editable 污染、WAT 违反 ABI）+ **neuron KV cache 竞态**（chat() reset/generate 分窗，77+58=135，neuron `2bce199`）；prefrontal 定时任务落地（`39563ad`）。总成绩单见 `benchmark/docs/benchmark-positioning.md` §3.5 | `b6ef666`…`3199b15`（shadow 15+）、prefrontal `39563ad`/`18fd479`、neuron `2bce199` |
 | **ACP outbound delegation** (2026-09-27, local) | prefrontal `acp_delegate` tool + `acp_outbound` registry dispatch tasks to ACP coding agents (OpenCode / Claude Code / Codex) via `synapse::acp::AcpClient`; `Config.acp` presets; `acp_stub_agent` test double; synapse fix: `session/update` chunks were silently dropped (SessionNotification envelope) | uncommitted in `prefrontal` / `synapse` |
 | **Rename chain closed** | cortex → encephalon → **telencephalon** (`telencephalon` is the active repo; `cortex/` directory is empty) | `b077a24`, `7128409`, `b0af1d7`, `f2d0015` |
 | **Port unification** | :8443 → `:60080` across all lobes (cortex/temporal/occipital/parietal `CORTEX_URL`) | `2757fea` |
-| **4-lobe GitHub homes** | Final decision: bare names `iBLOC/{temporal,occipital,parietal,prefrontal}`. `parietal-lobe/` skeleton superseded. Workflow schema + runtime moved to `cerebellum/`. | `1dd1f0c`, `d7cfec7`, `43f9e97` |
+| **4-lobe GitHub homes** | Final decision: bare names `iBLOC/{temporal,occipital,parietal,prefrontal}`. `parietal-lobe/` skeleton superseded. Workflow schema + runtime moved to `cerebellum/` (2026-09), then **on to `telencephalon/crates/` 2026-10-14** — cerebellum now reserved for embodied intelligence. | `1dd1f0c`, `d7cfec7`, `43f9e97` |
 | **Recording mode R1-R4** | RecordingPage UI + Tauri commands (recording_start/stop/status/events/list/report) + lobe ownership rule (音频→颞叶 / 视觉→枕叶) + recording summary + LanceGraph edges | `a1e3509`, `de0913e`, `8520c31`, `afa8d60`, `3600166`, `30d7f59`, `0390379`, `856621c`, `965bc15`, `ec467b7` |
 | **MCP catalog 5×28 + transport-aware MCPPage** | stdio / http / wasm transports, 5 built-in servers × 28 tools; button import fixes | `ccae5ce`, `1c0c3ec`, `5679021`, `f02ba35` |
-| **Workflow Studio v1 (R-12/R-13 closure)** | Drag-drop editor at `cerebellum/apps/editor` + Univer locale deps | `4023493`, `93f4ef9` |
+| **Workflow Studio v1 (R-12/R-13 closure)** | Drag-drop editor, originally `cerebellum/apps/editor`, now **`telencephalon/apps/editor`** (2026-10-14) + Univer locale deps | `4023493`, `93f4ef9` |
 | **Subsystem management panel** | 3-tier auth client (thalamus / hippocampus / neuron preview/config) | `cd84a71` |
 | **Cortex sidecar → embedded encephalon** | Tauri shell boots `Encephalon` + `diencephalon::Thalamus` in `setup()` | `be50b7f` |
 | **Computer Use R-10/R-11** | 11 `cu_*` commands + ComputerUsePage + Windows UI Automation + preview-before-commit modal | `84418a2`, `9c46327`, `c37b163`, `b5743fc` |
