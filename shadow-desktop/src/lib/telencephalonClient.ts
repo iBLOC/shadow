@@ -76,13 +76,48 @@ export interface SendMessageResponse {
 }
 
 export interface StreamEvent {
-  type: 'delta' | 'done' | 'error' | 'audio_event' | 'computer_use_action';
+  type:
+    | 'delta'
+    | 'done'
+    | 'error'
+    | 'audio_event'
+    | 'computer_use_action'
+    // Progress events emitted by telencephalon /shadow/v1 SSE
+    // (src/api/shadow.rs TelencephalonStreamEvent). 'clarification'
+    // is currently desktop-side only — no backend emitter yet.
+    | 'tool_call'
+    | 'tool_result'
+    | 'route'
+    | 'handoff'
+    | 'step'
+    | 'clarification';
   agent?: string;
   delta?: string;
   conversation_id?: string;
   state?: string;
   timestamp?: number;
   error?: string;
+  /** tool_call / tool_result name. */
+  name?: string;
+  /** tool_call arguments (JSON value). */
+  args?: unknown;
+  /** tool_result payload. */
+  result?: unknown;
+  latency_ms?: number;
+  /** NOTE: telencephalon's ToolCall event carries no call id today,
+   *  so this stays undefined on the wire; consumers synthesize one. */
+  tool_call_id?: string;
+  /** route event. */
+  supervisor?: string;
+  target?: string;
+  reason?: string;
+  /** handoff / step event. */
+  from?: string;
+  to?: string;
+  context_size?: number;
+  step?: string;
+  /** clarification event payload (visual QA). */
+  clarification?: unknown;
   /** Audio event payload (BC-01..05). Present when type ===
    *  'audio_event'. `classId` matches the diencephalon audio
    *  classifier id (e.g. "baby_cry"); `confidence` is 0..1. */
@@ -239,6 +274,13 @@ export interface McpServerRecord {
   wasm: McpWasmRef;
   quota: McpResourceQuota;
   description: string | null;
+  /** Non-wasm backend descriptor. Null/absent = wasm (historical
+   *  default). Mirrors telencephalon TransportKind (serde tag
+   *  "kind", snake_case). */
+  transport?:
+    | { kind: 'stdio'; command: string; args: string[] }
+    | { kind: 'http'; url: string; bearer?: string | null }
+    | null;
   state: McpServerState;
   last_error: string | null;
   tools: McpToolSummary[];

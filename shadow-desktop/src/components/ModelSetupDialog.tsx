@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Sparkles, Server, Loader2, AlertCircle, CheckCircle2, Download } from 'lucide-react';
 import { Button, Input, Label } from './ui';
-import { telencephalonClient } from '../lib/telencephalonClient';
+import { safeInvoke } from '../lib/tauriSafe';
 import {
   Dialog,
   DialogContent,
@@ -104,13 +104,23 @@ export function ModelSetupDialog({ open, onClose, userMessage, onConfigured }: M
     setStep('testing');
     setError(null);
     try {
-      const result = await telencephalonClient.configureLlm({
-        provider: selected,
-        api_key: apiKey || undefined,
-        base_url: baseUrl || undefined,
-      });
-      if (!result.success) {
-        throw new Error(result.message || 'configure failed');
+      // LLM configuration is persisted by the desktop-side
+      // Tauri shell to ~/.shadow/cortex/llm-config.json and
+      // re-applied on telencephalon boot. The Tauri command
+      // `cortex_configure_llm` is currently unimplemented
+      // (TODO: wire to telencephalon /api/telencephalon/admin/llm);
+      // surface its absence as an error so the dialog does not
+      // silently pretend to save.
+      const result = await safeInvoke<{ success: boolean; message?: string }>(
+        'cortex_configure_llm',
+        {
+          provider: selected,
+          apiKey: apiKey || null,
+          baseUrl: baseUrl || null,
+        },
+      );
+      if (!result || !result.success) {
+        throw new Error(result?.message || 'configure failed (command missing)');
       }
       setStep('success');
       // 配置持久化到 ~/.shadow/cortex/llm-config.json 后，下次 cortex 启动会自动加载

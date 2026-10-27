@@ -18,7 +18,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Camera, Eye, Power, AlertTriangle, Info } from 'lucide-react'
+import { Camera, Power, AlertTriangle, Info } from 'lucide-react'
 import { invoke } from '@tauri-apps/api/core'
 import { Button } from '@/components/ui/button'
 import {

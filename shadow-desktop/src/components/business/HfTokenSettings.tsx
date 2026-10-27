@@ -26,7 +26,6 @@ export function HfTokenSettings({ onSaved }: { onSaved?: () => void }) {
   const [draft, setDraft] = useState('');
   const [showDraft, setShowDraft] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [restarting, setRestarting] = useState(false);
   const [feedback, setFeedback] = useState<{ kind: 'ok' | 'err'; msg: string } | null>(null);
 
   const refresh = async () => {
@@ -72,8 +71,6 @@ export function HfTokenSettings({ onSaved }: { onSaved?: () => void }) {
       setSaving(false);
     }
   };
-
-  const isRunning = info?.running === true;
 
   return (
     <SettingsCard

@@ -33,7 +33,49 @@ export interface Task {
   error?: string | null;
   payload?: unknown;
   tags?: string[];
+  /** Frontend-only presentation fields. hippocampus TaskRecord has
+   *  no such columns, so edits to them are not persisted server-side
+   *  (upsert drops unknown fields); they only round-trip in the
+   *  client cache. Optional because the backend never sends them. */
+  title?: string;
+  description?: string;
+  priority?: 'urgent' | 'high' | 'medium' | 'low';
+  metadata?: Record<string, unknown>;
+  /** Sub-task DAG from hippocampus TaskRecord.steps. The backend
+   *  serialises camelCase (stepId/dependsOn/...); fields below use
+   *  the snake_case spellings the desktop UI reads. */
+  steps?: TaskStep[];
 }
+
+export interface TaskStep {
+  step_id: string;
+  order: number;
+  depends_on?: string[];
+  status: Task['status'];
+  started_at?: string | null;
+  completed_at?: string | null;
+  result?: unknown;
+  error?: string | null;
+  /** Mirrors hippocampus `StepTarget` (tag = "type",
+   *  rename_all = "snake_case"). The `prompt`/`skill`/`tool_name`
+   *  fields below come from the wire. */
+  target?: TaskStepTarget;
+}
+
+export type TaskStepTarget =
+  | {
+      type?: 'agent';
+      skill?: string;
+      lobe_id?: string | null;
+      prompt?: string;
+      inputs?: unknown;
+    }
+  | {
+      type?: 'tool';
+      tool_name?: string;
+      args?: unknown;
+      timeout_ms?: number | null;
+    };
 
 export interface ApiEnvelope<T> {
   success: boolean;
@@ -334,6 +376,39 @@ export class PrefrontalClient {
 
   async getTask(tenantId: string, taskId: string): Promise<Task> {
     return this.request<Task>(`/hippocampus/api/tasks/${encodeURIComponent(tenantId)}/${encodeURIComponent(taskId)}`);
+  }
+
+  /**
+   * Persist task updates via the hippocampus upsert endpoint
+   * (POST /hippocampus/api/tasks). Only fields the backend
+   * TaskRecord knows (status/tags/steps/payload/...) survive the
+   * round-trip; title/description/priority/metadata are
+   * frontend-only and silently dropped by the backend.
+   */
+  async updateTask(
+    tenantId: string,
+    taskId: string,
+    updates: Partial<Pick<Task, 'status' | 'tags' | 'title' | 'description' | 'priority' | 'metadata' | 'steps' | 'payload' | 'result' | 'error'>>,
+  ): Promise<Task> {
+    const current = await this.getTask(tenantId, taskId);
+    const body = {
+      ...current,
+      ...updates,
+      task_id: current.task_id,
+      target_agent: current.target_agent,
+      tenant_id: tenantId,
+    };
+    return this.request<Task>('/hippocampus/api/tasks', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async deleteTask(tenantId: string, taskId: string): Promise<void> {
+    await this.request<void>(
+      `/hippocampus/api/tasks/${encodeURIComponent(tenantId)}/${encodeURIComponent(taskId)}`,
+      { method: 'DELETE' },
+    );
   }
 
   async listSkills(): Promise<unknown[]> {

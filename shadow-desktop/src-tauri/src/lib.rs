@@ -49,7 +49,7 @@ struct AppState {
     feishu_mcp: Arc<FeishuMcp>,
     recording_store: Arc<recording::RecordingStore>,
     provider_manager: Arc<encephalon::providers::ProviderManager>,
-    embedded_brain: Arc<encephalon::Embedded>,
+    embedded_stack: Arc<encephalon::Embedded>,
     workflow_state: Arc<tokio::sync::Mutex<WorkflowState>>,
 }
 
@@ -121,30 +121,30 @@ pub fn run() {
     logger::init();
     logger::log_startup_diagnostics();
 
-    // Initialise the embedded 大脑 (encephalon) in-process: thalamus
+    // Initialise the embedded encephalon in-process: thalamus
     // (间脑) + ACP bus + hippocampus (海马体) + the single neuron
     // inference instance (owned by telencephalon). The embedded
     // encephalon is the ONLY place shadow gets inference from — no
     // direct neuron dependency, no second runtime. Protocol note:
     // shadow ↔ encephalon is process-internal by design; A2A is the
     // encephalon's *external* agent protocol only.
-    let brain = tauri::async_runtime::block_on(encephalon::Embedded::boot(
+    let stack = tauri::async_runtime::block_on(encephalon::Embedded::boot(
         // Fixed :8085 so loopback metadata reads (models list, health)
         // keep working; chat itself goes in-process via neuron_infer.
         encephalon::EmbeddedConfig { neuron_port: 8085 },
     ))
     .expect("boot embedded encephalon");
-    let neuron_addr = brain.neuron_addr();
+    let neuron_addr = stack.neuron_addr();
     tracing::info!("encephalon embedded; neuron at {neuron_addr}");
-    let thalamus: Arc<diencephalon::Thalamus> = brain.thalamus().clone();
+    let thalamus: Arc<diencephalon::Thalamus> = stack.thalamus().clone();
     // JDM editor (`/jdm-editor` page) calls `jdm_try_run_rule`
     // which delegates to `Thalamus::try_run_graph` — that builds
     // a fresh ZenRuleEngine per call (no global state needed on
     // the thalamus side). The thalamus hot path uses the
     // broadcaster (notify_tx) but not the JDM editor; we leave
     // the hot-path engine set to None here.
-    let encephalon = brain.encephalon().clone();
-    let embedded_brain = brain.clone();
+    let encephalon = stack.encephalon().clone();
+    let embedded_stack = stack.clone();
 
     let app_state = AppState {
         encephalon: encephalon.clone(),
@@ -199,7 +199,7 @@ pub fn run() {
         // Provider management (端脑): presets need only an API key; model
         // lists are fetched per provider and refreshed every 10 min.
         provider_manager: Arc::new(provider_manager::new_manager()),
-        embedded_brain: embedded_brain.clone(),
+        embedded_stack: embedded_stack.clone(),
         workflow_state: Arc::new(tokio::sync::Mutex::new(WorkflowState {
             approved_tasks: std::collections::HashMap::new(),
             rejected_tasks: std::collections::HashMap::new(),
@@ -1093,7 +1093,7 @@ async fn neuron_infer(
     if path != "/v1/chat/completions" && path != "/v1/messages" {
         return Err(format!("route not allowed through in-process infer: {path}"));
     }
-    let (status, bytes) = state.embedded_brain.infer(&path, body).await;
+    let (status, bytes) = state.embedded_stack.infer(&path, body).await;
     let parsed: serde_json::Value = serde_json::from_slice(&bytes).unwrap_or(serde_json::json!({
         "error": { "message": String::from_utf8_lossy(&bytes) }
     }));

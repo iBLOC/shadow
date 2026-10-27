@@ -284,7 +284,12 @@ export function ConversationPage() {
                 });
               }
             } else if (event.type === 'clarification' && event.clarification) {
-              visualQaClarification = event.clarification;
+              // The telencephalon wire does not yet emit 'clarification'
+              // events; this branch is a desktop-side hook for a future
+              // visual-QA clarification flow. Cast through unknown.
+              visualQaClarification = event.clarification as
+                | VisualQaClarification
+                | undefined;
             } else if (event.type === 'audio_event' && event.audio) {
               // BC-01..05 — surface the audio event as its own
               // message so it appears as a distinct chip in the
@@ -601,6 +606,7 @@ export function ConversationPage() {
                           <VisualQaClarificationChip
                             clarification={msg.visual_qa_clarification}
                             onPick={(c) => {
+                              if (!activeConversationId) return;
                               addMessage(activeConversationId, {
                                 id: crypto.randomUUID(),
                                 role: 'user',
@@ -814,6 +820,7 @@ function CompanionModePanel() {
         title?: string;
       }>).detail;
       if (!detail || !detail.taskId || !detail.url) return;
+      if (!activeConversationId) return;
       const title =
         detail.title?.trim() || detail.taskId;
       addMessage(activeConversationId, {

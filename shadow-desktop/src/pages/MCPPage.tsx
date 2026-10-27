@@ -13,8 +13,6 @@ import {
 import { cn } from '../lib/utils';
 import { useTelencephalonStore } from '../stores/telencephalonStore';
 
-type TransportType = 'stdio' | 'http' | 'wasm';
-
 interface FormState {
   name: string;
   description: string;
@@ -354,15 +352,15 @@ export function MCPPage() {
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({ state }: { state: string }) {
   const colorMap: Record<string, string> = {
     running: 'bg-green-500/20 text-green-600 border-green-500/30',
     error: 'bg-red-500/20 text-red-600 border-red-500/30',
     stopped: 'bg-gray-500/20 text-gray-600 border-gray-500/30',
   };
   return (
-    <span className={cn('inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium', colorMap[status] ?? colorMap.stopped)}>
-      {status}
+    <span className={cn('inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium', colorMap[state] ?? colorMap.stopped)}>
+      {state}
     </span>
   );
 }

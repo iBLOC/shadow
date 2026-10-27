@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { prefrontalClient } from '../lib/prefrontalClient';
 import type { Task } from '../lib/prefrontalClient';
 
-export type TaskDetailTab = 'overview' | 'subtasks' | 'logs';
+export type TaskDetailTab = 'overview' | 'subtasks' | 'logs' | 'history';
 
 interface TaskDetailState {
   taskId: string | null;

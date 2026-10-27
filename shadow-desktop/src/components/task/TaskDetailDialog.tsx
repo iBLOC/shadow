@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { invoke } from '@tauri-apps/api/core';
 import {
   Calendar,
   Tag,
@@ -83,6 +84,13 @@ function PriorityBadge({ priority }: { priority?: string }) {
   );
 }
 
+function stepLabel(target: TaskStep['target'], stepId: string): string {
+  if (!target) return stepId;
+  if (target.type === 'agent' && target.skill) return `${target.skill}`;
+  if (target.type === 'tool' && target.tool_name) return target.tool_name ?? stepId;
+  return stepId;
+}
+
 function SubtaskRow({ step }: { step: TaskStep }) {
   const t = step.target;
   const startedAt = step.started_at ? new Date(step.started_at) : null;
@@ -97,7 +105,7 @@ function SubtaskRow({ step }: { step: TaskStep }) {
       <div className="flex items-center gap-2">
         {STEP_STATUS_ICON[step.status] ?? <Circle className="h-4 w-4" />}
         <span className="text-sm font-medium text-foreground">
-          #{step.order} {t?.agent_name ?? t?.tool_name ?? step.step_id}
+          #{step.order} {stepLabel(t, step.step_id)}
         </span>
         <StatusBadge status={step.status} />
         {step.depends_on && step.depends_on.length > 0 && (
@@ -356,7 +364,7 @@ export function TaskDetailDialog({
               <span className="text-xs text-muted-foreground">
                 {t('tasks.detail.actions', 'Actions')}:
               </span>
-              <PreviewButton taskId={task.id} />
+              <PreviewButton taskId={task.task_id} />
             </div>
 
             {steps.length > 0 && (
@@ -429,7 +437,7 @@ export function TaskDetailDialog({
           </TabsContent>
 
           <TabsContent value="history" className="flex flex-col gap-3">
-            <HistoryTab taskId={task.id} />
+            <HistoryTab taskId={task.task_id} />
           </TabsContent>
         </Tabs>
 

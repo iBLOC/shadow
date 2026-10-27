@@ -1291,6 +1291,80 @@ function CreateCustomAgentModal({
   );
 }
 
+// ─── Integrations Section ────────────────────────────────────────────────────
+
+function IntegrationsSection() {
+  const { t } = useTranslation();
+  const [feishuEnabled, setFeishuEnabled] = useState<boolean | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void safeInvoke<boolean>('document_feishu_enabled')
+      .then((v) => { if (!cancelled) setFeishuEnabled(v); })
+      .catch((e: unknown) => {
+        if (!cancelled) {
+          setFeishuEnabled(false);
+          setError(e instanceof Error ? e.message : String(e));
+        }
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  const toggle = async (next: boolean) => {
+    setSaving(true);
+    setError(null);
+    try {
+      await safeInvoke('document_set_feishu_enabled', { on: next });
+      setFeishuEnabled(next);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div>
+      <SettingsCard
+        title={t('conversation.integrations.title')}
+        description={t('conversation.integrations.description')}
+        icon={<PlugZap size={20} />}
+      >
+        <div className="flex items-center justify-between gap-4 py-1">
+          <div className="flex-1">
+            <div className="text-sm font-medium text-foreground">
+              {t('conversation.integrations.feishu.title')}
+            </div>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {t('conversation.integrations.feishu.description')}
+            </p>
+            <p className="mt-1 text-[11px] text-muted-foreground/80">
+              {t('conversation.integrations.feishu.runtimeNote')}
+            </p>
+          </div>
+          <Button
+            variant={feishuEnabled ? 'secondary' : 'primary'}
+            size="sm"
+            disabled={saving || feishuEnabled === null}
+            onClick={() => { void toggle(!feishuEnabled); }}
+          >
+            {saving
+              ? '…'
+              : feishuEnabled
+                ? t('conversation.integrations.feishu.disable')
+                : t('conversation.integrations.feishu.enable')}
+          </Button>
+        </div>
+        {error && (
+          <p className="mt-2 text-xs text-destructive">{error}</p>
+        )}
+      </SettingsCard>
+    </div>
+  );
+}
+
 // ─── UI Section ───────────────────────────────────────────────────────────────
 
 function UISection() {
@@ -1549,7 +1623,9 @@ export function ShortcutsSection() {
         title={t('shortcuts.remoteHelpTitle')}
         description={t('shortcuts.remoteHelp')}
         icon={<Bluetooth size={20} />}
-      />
+      >
+        <p className="text-sm text-muted-foreground">{t('shortcuts.remoteHelpHint')}</p>
+      </SettingsCard>
 
       <Modal
         isOpen={capturingAction !== null}

@@ -11,35 +11,70 @@ describe('previewStore', () => {
     });
   });
 
-  describe('openInline', () => {
-    it('inserts an entry and makes it active', () => {
-      usePreviewStore.getState().openInline('task-007', 'http://localhost:3000');
+  describe('openInline (kind = web)', () => {
+    it('inserts an entry with kind=web and makes it active', () => {
+      usePreviewStore.getState().openInline('task-007', 'http://localhost:3000', 'web');
       const s = usePreviewStore.getState();
       expect(s.inlinePreviews.size).toBe(1);
-      expect(s.inlinePreviews.get('task-007')?.url).toBe('http://localhost:3000');
+      const entry = s.inlinePreviews.get('task-007');
+      expect(entry?.url).toBe('http://localhost:3000');
+      expect(entry?.kind).toBe('web');
+      expect(entry?.content).toBeUndefined();
       expect(s.activeTaskId).toBe('task-007');
     });
 
     it('clears paneHidden when an inline preview is opened', () => {
       usePreviewStore.setState({ paneHidden: true });
-      usePreviewStore.getState().openInline('task-001', 'http://localhost:3001');
+      usePreviewStore.getState().openInline('task-001', 'http://localhost:3001', 'web');
       expect(usePreviewStore.getState().paneHidden).toBe(false);
     });
 
     it('overwrites URL if the same task_id is opened again', () => {
-      usePreviewStore.getState().openInline('task-007', 'http://a.example');
-      usePreviewStore.getState().openInline('task-007', 'http://b.example');
+      usePreviewStore.getState().openInline('task-007', 'http://a.example', 'web');
+      usePreviewStore.getState().openInline('task-007', 'http://b.example', 'web');
       const s = usePreviewStore.getState();
       expect(s.inlinePreviews.size).toBe(1);
       expect(s.inlinePreviews.get('task-007')?.url).toBe('http://b.example');
     });
   });
 
+  describe('openInline (kind = markdown)', () => {
+    it('inserts an entry with kind=markdown and no content yet', () => {
+      usePreviewStore.getState().openInline('task-007', 'https://example.com/README.md', 'markdown');
+      const entry = usePreviewStore.getState().inlinePreviews.get('task-007');
+      expect(entry?.kind).toBe('markdown');
+      expect(entry?.content).toBeUndefined();
+    });
+  });
+
+  describe('setInlineContent', () => {
+    it('backfills content for a markdown-kind entry', () => {
+      usePreviewStore.getState().openInline('task-007', 'https://x.md', 'markdown');
+      usePreviewStore.getState().setInlineContent('task-007', '# Hello');
+      expect(usePreviewStore.getState().inlinePreviews.get('task-007')?.content).toBe('# Hello');
+    });
+
+    it('is a no-op for a web-kind entry', () => {
+      usePreviewStore.getState().openInline('task-007', 'http://localhost:3000', 'web');
+      usePreviewStore.getState().setInlineContent('task-007', '# Hello');
+      const entry = usePreviewStore.getState().inlinePreviews.get('task-007');
+      expect(entry?.kind).toBe('web');
+      expect(entry?.content).toBeUndefined();
+    });
+
+    it('is a no-op for an unknown task_id', () => {
+      const before = usePreviewStore.getState();
+      usePreviewStore.getState().setInlineContent('ghost', '# Hello');
+      const after = usePreviewStore.getState();
+      expect(after.inlinePreviews).toBe(before.inlinePreviews);
+    });
+  });
+
   describe('closeInline', () => {
     beforeEach(() => {
-      usePreviewStore.getState().openInline('a', 'http://a');
-      usePreviewStore.getState().openInline('b', 'http://b');
-      usePreviewStore.getState().openInline('c', 'http://c');
+      usePreviewStore.getState().openInline('a', 'http://a', 'web');
+      usePreviewStore.getState().openInline('b', 'http://b', 'web');
+      usePreviewStore.getState().openInline('c', 'http://c', 'web');
     });
 
     it('removes the entry from the map', () => {
@@ -73,7 +108,7 @@ describe('previewStore', () => {
 
   describe('detach', () => {
     it('removes the entry but does NOT clear paneHidden (caller handles window)', () => {
-      usePreviewStore.getState().openInline('task-007', 'http://localhost:3000');
+      usePreviewStore.getState().openInline('task-007', 'http://localhost:3000', 'web');
       usePreviewStore.getState().detach('task-007');
       const s = usePreviewStore.getState();
       expect(s.inlinePreviews.size).toBe(0);
@@ -81,25 +116,32 @@ describe('previewStore', () => {
     });
 
     it('picks a new active when the detached tab was active', () => {
-      usePreviewStore.getState().openInline('a', 'http://a');
-      usePreviewStore.getState().openInline('b', 'http://b');
+      usePreviewStore.getState().openInline('a', 'http://a', 'web');
+      usePreviewStore.getState().openInline('b', 'http://b', 'web');
       usePreviewStore.setState({ activeTaskId: 'b' });
       usePreviewStore.getState().detach('b');
       expect(usePreviewStore.getState().activeTaskId).toBe('a');
+    });
+
+    it('drops a markdown-kind entry (no OS window to migrate to)', () => {
+      usePreviewStore.getState().openInline('doc-1', 'https://x.md', 'markdown');
+      usePreviewStore.setState({ activeTaskId: 'doc-1' });
+      usePreviewStore.getState().detach('doc-1');
+      expect(usePreviewStore.getState().inlinePreviews.size).toBe(0);
     });
   });
 
   describe('setActive', () => {
     it('updates the active task id when the task exists', () => {
-      usePreviewStore.getState().openInline('a', 'http://a');
-      usePreviewStore.getState().openInline('b', 'http://b');
+      usePreviewStore.getState().openInline('a', 'http://a', 'web');
+      usePreviewStore.getState().openInline('b', 'http://b', 'web');
       usePreviewStore.setState({ activeTaskId: 'a' });
       usePreviewStore.getState().setActive('b');
       expect(usePreviewStore.getState().activeTaskId).toBe('b');
     });
 
     it('is a no-op for unknown task ids', () => {
-      usePreviewStore.getState().openInline('a', 'http://a');
+      usePreviewStore.getState().openInline('a', 'http://a', 'web');
       usePreviewStore.setState({ activeTaskId: 'a' });
       usePreviewStore.getState().setActive('ghost');
       expect(usePreviewStore.getState().activeTaskId).toBe('a');
