@@ -104,6 +104,16 @@ void main() {
       client.setApiKey('test-key-123');
       expect(client.apiKey, 'test-key-123');
     });
+
+    // This one needs the group's `client` (and the mock that serves
+    // /shadow/v1/agents), so it belongs to the first group rather than
+    // the model-only group below.
+    test('listAgents parses telencephalon envelope', () async {
+      final resp = await client.listAgents();
+      expect(resp.telencephalonId, 'test-id');
+      expect(resp.instanceName, 'test');
+      expect(resp.defaultAgent, 'prefrontal');
+    });
   });
 
   group('TelencephalonClient models', () {
@@ -186,13 +196,6 @@ void main() {
       final json = req.toJson();
       expect(json['text'], 'Hello');
       expect(json.containsKey('agent'), false);
-    });
-
-    test('listAgents parses telencephalon envelope', () async {
-      final resp = await client.listAgents();
-      expect(resp.telencephalonId, 'test-id');
-      expect(resp.instanceName, 'test');
-      expect(resp.defaultAgent, 'prefrontal');
     });
 
     test('runFlow resolves by name then POSTs /api/flows/{id}/run', () async {
@@ -309,7 +312,7 @@ void main() {
       expect(runPath, '/api/flows/12345678-1234-1234-1234-123456789abc/run');
     });
 
-    test('runFlow with an unknown name throws CortexException', () async {
+    test('runFlow with an unknown name throws TelencephalonException', () async {
       final mockClient = http_testing.MockClient((request) async {
         if (request.url.path == '/api/flows') {
           return http.Response(jsonEncode([]), 200);
@@ -322,12 +325,14 @@ void main() {
       );
       expect(
         () => c.runFlow('does-not-exist', const {}),
-        throwsA(isA<CortexException>()),
+        throwsA(isA<TelencephalonException>()),
       );
     });
 
     test('webrtcSignalingUrl builds a deterministic URL', () {
-      final url = client.webrtcSignalingUrl('sess-1', modality: 'voice');
+      // Pure URL builder — no HTTP involved, so a local client is enough.
+      final c = TelencephalonClient(baseUrl: 'http://127.0.0.1:60080');
+      final url = c.webrtcSignalingUrl('sess-1', modality: 'voice');
       expect(
         url.toString(),
         'http://127.0.0.1:60080/api/webrtc/voice/sessions/sess-1/ws',
@@ -373,7 +378,7 @@ void main() {
       // behaviour so a future change has to update the test on purpose.
       expect(
         () => c.health(),
-        throwsA(isA<CortexException>()),
+        throwsA(isA<TelencephalonException>()),
       );
     });
   });
