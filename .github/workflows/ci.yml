@@ -21,6 +21,20 @@ jobs:
       - name: Checkout shadow
         uses: actions/checkout@v7
 
+      - name: Require cross-repo token
+        env:
+          IBLOC_TOKEN: ${{ secrets.IBLOC_TOKEN }}
+        run: |
+          if [ -z "$IBLOC_TOKEN" ]; then
+            echo "::error::secrets.IBLOC_TOKEN is not configured."
+            echo "::error::The iBLOC stack is a local-path workspace. prefrontal,"
+            echo "::error::hippocampus and neuron are private siblings and cannot be"
+            echo "::error::checked out with the default GITHUB_TOKEN, which is scoped"
+            echo "::error::to iBLOC/shadow only. Add a PAT with read access to those"
+            echo "::error::repos as the IBLOC_TOKEN repository secret."
+            exit 1
+          fi
+
       # The iBLOC stack is a multi-repo local-path workspace: every crate
       # resolves siblings via `path = "../<repo>"`. `actions/checkout`
       # refuses any path outside GITHUB_WORKSPACE, so siblings MUST be
@@ -36,24 +50,28 @@ jobs:
         with:
           repository: iBLOC/prefrontal
           path: prefrontal
+          token: ${{ secrets.IBLOC_TOKEN }}
 
       - name: Checkout synapse
         uses: actions/checkout@v7
         with:
           repository: iBLOC/synapse
           path: synapse
+          token: ${{ secrets.IBLOC_TOKEN }}
 
       - name: Checkout hippocampus
         uses: actions/checkout@v7
         with:
           repository: iBLOC/hippocampus
           path: hippocampus
+          token: ${{ secrets.IBLOC_TOKEN }}
 
       - name: Checkout neuron
         uses: actions/checkout@v7
         with:
           repository: iBLOC/neuron
           path: neuron
+          token: ${{ secrets.IBLOC_TOKEN }}
 
       - name: Setup Rust
         uses: Swatinem/rust-cache@v2
@@ -114,6 +132,21 @@ jobs:
       - name: Checkout shadow
         uses: actions/checkout@v7
 
+      - name: Require cross-repo token
+        env:
+          IBLOC_TOKEN: ${{ secrets.IBLOC_TOKEN }}
+        run: |
+          if [ -z "$IBLOC_TOKEN" ]; then
+            echo "::error::secrets.IBLOC_TOKEN is not configured."
+            echo "::error::The iBLOC stack is a local-path workspace. telencephalon,"
+            echo "::error::prefrontal, hippocampus, diencephalon, temporal and"
+            echo "::error::occipital are private siblings and cannot be checked out"
+            echo "::error::with the default GITHUB_TOKEN, which is scoped to"
+            echo "::error::iBLOC/shadow only. Add a PAT with read access to those"
+            echo "::error::repos as the IBLOC_TOKEN repository secret."
+            exit 1
+          fi
+
       # telencephalon's transitive `path` dep closure (comments stripped):
       #   synapse                              -> (leaf)
       #   neuron                               -> (leaf)
@@ -128,48 +161,56 @@ jobs:
         with:
           repository: iBLOC/telencephalon
           path: telencephalon
+          token: ${{ secrets.IBLOC_TOKEN }}
 
       - name: Checkout synapse
         uses: actions/checkout@v7
         with:
           repository: iBLOC/synapse
           path: synapse
+          token: ${{ secrets.IBLOC_TOKEN }}
 
       - name: Checkout prefrontal
         uses: actions/checkout@v7
         with:
           repository: iBLOC/prefrontal
           path: prefrontal
+          token: ${{ secrets.IBLOC_TOKEN }}
 
       - name: Checkout hippocampus
         uses: actions/checkout@v7
         with:
           repository: iBLOC/hippocampus
           path: hippocampus
+          token: ${{ secrets.IBLOC_TOKEN }}
 
       - name: Checkout neuron
         uses: actions/checkout@v7
         with:
           repository: iBLOC/neuron
           path: neuron
+          token: ${{ secrets.IBLOC_TOKEN }}
 
       - name: Checkout diencephalon
         uses: actions/checkout@v7
         with:
           repository: iBLOC/diencephalon
           path: diencephalon
+          token: ${{ secrets.IBLOC_TOKEN }}
 
       - name: Checkout temporal
         uses: actions/checkout@v7
         with:
           repository: iBLOC/temporal
           path: temporal
+          token: ${{ secrets.IBLOC_TOKEN }}
 
       - name: Checkout occipital
         uses: actions/checkout@v7
         with:
           repository: iBLOC/occipital
           path: occipital
+          token: ${{ secrets.IBLOC_TOKEN }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6

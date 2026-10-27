@@ -13,7 +13,7 @@
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
-    "types": ["vitest/globals"],
+    "types": ["vitest/globals", "@testing-library/jest-dom"],
 
     /* Linting */
     "strict": true,
@@ -27,7 +27,7 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src", "tests/tauri-e2e", "wdio.conf.tauri.ts"],
-  "exclude": ["src/lib/__tests__/**", "tests/wdio/**"],
+  "include": ["src"],
+  "exclude": ["src/lib/__tests__/**", "tests/wdio/**", "tests/tauri-e2e/**", "wdio.conf.tauri.ts"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

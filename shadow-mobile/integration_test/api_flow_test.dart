@@ -3,13 +3,17 @@ import 'package:integration_test/integration_test.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 
-const String TELE_ULR = 'http://localhost:60080';
+/// Telencephalon gateway (port 60080) fronts the prefrontal API —
+/// `/api/providers`, `/api/skills`, `/api/agents`, `/api/tasks`,
+/// `/api/mcp/servers` and `/api/conversations` are all served from
+/// here, exactly as `lib/services/prefrontal_client.dart` calls them.
+const String TELE_URL = 'http://localhost:60080';
 const Duration timeout = Duration(seconds: 10);
 
 Future<bool> isTelencephalonReachable() async {
   try {
     final response = await http
-        .get(Uri.parse('$TELE_ULR/health'))
+        .get(Uri.parse('$TELE_URL/health'))
         .timeout(Duration(seconds: 2));
     return response.statusCode == 200;
   } catch (e) {
@@ -24,7 +28,7 @@ void main() {
     testWidgets('provider CRUD flow', (WidgetTester tester) async {
       final isRunning = await isTelencephalonReachable();
       if (!isRunning) {
-        print('Telencephalon not reachable on $TELE_ULR, skipping test');
+        print('Telencephalon not reachable on $TELE_URL, skipping test');
         return;
       }
 
@@ -38,7 +42,7 @@ void main() {
 
       final addResponse = await http
           .post(
-            Uri.parse('$PREFRONTAL_URL/api/providers'),
+            Uri.parse('$TELE_URL/api/providers'),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode(providerPayload),
           )
@@ -51,7 +55,7 @@ void main() {
       );
 
       final listResponse = await http
-          .get(Uri.parse('$PREFRONTAL_URL/api/providers'))
+          .get(Uri.parse('$TELE_URL/api/providers'))
           .timeout(timeout);
 
       expect(
@@ -71,12 +75,12 @@ void main() {
     testWidgets('skill listing flow', (WidgetTester tester) async {
       final isRunning = await isTelencephalonReachable();
       if (!isRunning) {
-        print('Telencephalon not reachable on $TELE_ULR, skipping test');
+        print('Telencephalon not reachable on $TELE_URL, skipping test');
         return;
       }
 
       final response = await http
-          .get(Uri.parse('$PREFRONTAL_URL/api/skills'))
+          .get(Uri.parse('$TELE_URL/api/skills'))
           .timeout(timeout);
 
       expect(response.statusCode, 200, reason: 'Skills listing should succeed');
@@ -92,7 +96,7 @@ void main() {
     testWidgets('agent CRUD flow', (WidgetTester tester) async {
       final isRunning = await isTelencephalonReachable();
       if (!isRunning) {
-        print('Telencephalon not reachable on $TELE_ULR, skipping test');
+        print('Telencephalon not reachable on $TELE_URL, skipping test');
         return;
       }
 
@@ -104,7 +108,7 @@ void main() {
 
       final createResponse = await http
           .post(
-            Uri.parse('$PREFRONTAL_URL/api/agents'),
+            Uri.parse('$TELE_URL/api/agents'),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode(agentPayload),
           )
@@ -117,7 +121,7 @@ void main() {
       );
 
       final listResponse = await http
-          .get(Uri.parse('$PREFRONTAL_URL/api/agents'))
+          .get(Uri.parse('$TELE_URL/api/agents'))
           .timeout(timeout);
 
       expect(
@@ -130,7 +134,7 @@ void main() {
     testWidgets('task CRUD flow', (WidgetTester tester) async {
       final isRunning = await isTelencephalonReachable();
       if (!isRunning) {
-        print('Telencephalon not reachable on $TELE_ULR, skipping test');
+        print('Telencephalon not reachable on $TELE_URL, skipping test');
         return;
       }
 
@@ -142,7 +146,7 @@ void main() {
 
       final createResponse = await http
           .post(
-            Uri.parse('$PREFRONTAL_URL/api/tasks'),
+            Uri.parse('$TELE_URL/api/tasks'),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode(taskPayload),
           )
@@ -155,7 +159,7 @@ void main() {
       );
 
       final listResponse = await http
-          .get(Uri.parse('$PREFRONTAL_URL/api/tasks'))
+          .get(Uri.parse('$TELE_URL/api/tasks'))
           .timeout(timeout);
 
       expect(
@@ -175,7 +179,7 @@ void main() {
     testWidgets('MCP server CRUD flow', (WidgetTester tester) async {
       final isRunning = await isTelencephalonReachable();
       if (!isRunning) {
-        print('Telencephalon not reachable on $TELE_ULR, skipping test');
+        print('Telencephalon not reachable on $TELE_URL, skipping test');
         return;
       }
 
@@ -188,7 +192,7 @@ void main() {
 
       final addResponse = await http
           .post(
-            Uri.parse('$PREFRONTAL_URL/api/mcp/servers'),
+            Uri.parse('$TELE_URL/api/mcp/servers'),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode(mcpPayload),
           )
@@ -201,7 +205,7 @@ void main() {
       );
 
       final listResponse = await http
-          .get(Uri.parse('$PREFRONTAL_URL/api/mcp/servers'))
+          .get(Uri.parse('$TELE_URL/api/mcp/servers'))
           .timeout(timeout);
 
       expect(
@@ -214,12 +218,12 @@ void main() {
     testWidgets('conversations listing flow', (WidgetTester tester) async {
       final isRunning = await isTelencephalonReachable();
       if (!isRunning) {
-        print('Telencephalon not reachable on $TELE_ULR, skipping test');
+        print('Telencephalon not reachable on $TELE_URL, skipping test');
         return;
       }
 
       final response = await http
-          .get(Uri.parse('$PREFRONTAL_URL/api/conversations'))
+          .get(Uri.parse('$TELE_URL/api/conversations'))
           .timeout(timeout);
 
       expect(
@@ -239,7 +243,7 @@ void main() {
     testWidgets('skill update and delete flow', (WidgetTester tester) async {
       final isRunning = await isTelencephalonReachable();
       if (!isRunning) {
-        print('Telencephalon not reachable on $TELE_ULR, skipping test');
+        print('Telencephalon not reachable on $TELE_URL, skipping test');
         return;
       }
 
@@ -252,7 +256,7 @@ void main() {
 
       final addResponse = await http
           .post(
-            Uri.parse('$PREFRONTAL_URL/api/skills'),
+            Uri.parse('$TELE_URL/api/skills'),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode(addPayload),
           )
@@ -267,7 +271,7 @@ void main() {
 
       final updateResponse = await http
           .put(
-            Uri.parse('$PREFRONTAL_URL/api/skills/$skillName'),
+            Uri.parse('$TELE_URL/api/skills/$skillName'),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode(updatePayload),
           )
@@ -280,7 +284,7 @@ void main() {
       );
 
       final deleteResponse = await http
-          .delete(Uri.parse('$PREFRONTAL_URL/api/skills/$skillName'))
+          .delete(Uri.parse('$TELE_URL/api/skills/$skillName'))
           .timeout(timeout);
 
       expect(
@@ -295,7 +299,7 @@ void main() {
     ) async {
       final isRunning = await isTelencephalonReachable();
       if (!isRunning) {
-        print('Telencephalon not reachable on $TELE_ULR, skipping test');
+        print('Telencephalon not reachable on $TELE_URL, skipping test');
         return;
       }
 
@@ -309,7 +313,7 @@ void main() {
 
       final addResponse = await http
           .post(
-            Uri.parse('$PREFRONTAL_URL/api/mcp/servers'),
+            Uri.parse('$TELE_URL/api/mcp/servers'),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode(addPayload),
           )
@@ -324,7 +328,7 @@ void main() {
 
       final updateResponse = await http
           .put(
-            Uri.parse('$PREFRONTAL_URL/api/mcp/servers/$serverName'),
+            Uri.parse('$TELE_URL/api/mcp/servers/$serverName'),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode(updatePayload),
           )
@@ -337,7 +341,7 @@ void main() {
       );
 
       final deleteResponse = await http
-          .delete(Uri.parse('$PREFRONTAL_URL/api/mcp/servers/$serverName'))
+          .delete(Uri.parse('$TELE_URL/api/mcp/servers/$serverName'))
           .timeout(timeout);
 
       expect(
