@@ -1,0 +1,242 @@
+{
+  "suite": "swe-verified-smoke",
+  "agents": [
+    "deepseek-chat-agentic-50"
+  ],
+  "repeat": 3,
+  "results": [
+    {
+      "agent": "deepseek-chat-agentic-50",
+      "task_id": "pallets__flask-5014",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "f2p 1/1, p2p 59/59, pytest rc=0",
+          "duration_secs": 5.63,
+          "usage": {
+            "prompt_tokens": 270178,
+            "completion_tokens": 3438,
+            "total_tokens": 273616
+          },
+          "tool_calls": 35
+        },
+        {
+          "repeat": 1,
+          "passed": true,
+          "detail": "f2p 1/1, p2p 59/59, pytest rc=0",
+          "duration_secs": 3.832,
+          "usage": {
+            "prompt_tokens": 582795,
+            "completion_tokens": 6730,
+            "total_tokens": 589525
+          },
+          "tool_calls": 52
+        },
+        {
+          "repeat": 2,
+          "passed": true,
+          "detail": "f2p 1/1, p2p 59/59, pytest rc=0",
+          "duration_secs": 3.839,
+          "usage": {
+            "prompt_tokens": 368034,
+            "completion_tokens": 4457,
+            "total_tokens": 372491
+          },
+          "tool_calls": 38
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "deepseek-chat-agentic-50",
+      "task_id": "psf__requests-6028",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "f2p 2/2, p2p 185/185, pytest rc=1",
+          "duration_secs": 4.522,
+          "usage": {
+            "prompt_tokens": 359159,
+            "completion_tokens": 5395,
+            "total_tokens": 364554
+          },
+          "tool_calls": 40
+        },
+        {
+          "repeat": 1,
+          "passed": true,
+          "detail": "f2p 2/2, p2p 185/185, pytest rc=1",
+          "duration_secs": 3.666,
+          "usage": {
+            "prompt_tokens": 368819,
+            "completion_tokens": 4869,
+            "total_tokens": 373688
+          },
+          "tool_calls": 38
+        },
+        {
+          "repeat": 2,
+          "passed": true,
+          "detail": "f2p 2/2, p2p 185/185, pytest rc=1",
+          "duration_secs": 3.86,
+          "usage": {
+            "prompt_tokens": 323134,
+            "completion_tokens": 5858,
+            "total_tokens": 328992
+          },
+          "tool_calls": 36
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "deepseek-chat-agentic-50",
+      "task_id": "pylint-dev__pylint-6386",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "f2p 0/1, p2p 7/7, pytest rc=1; f2p failing/missing: ['tests/config/test_config.py::test_short_verbose']",
+          "duration_secs": 7.552,
+          "usage": {
+            "prompt_tokens": 742605,
+            "completion_tokens": 5872,
+            "total_tokens": 748477
+          },
+          "tool_calls": 53
+        },
+        {
+          "repeat": 1,
+          "passed": false,
+          "detail": "f2p 0/1, p2p 7/7, pytest rc=1; f2p failing/missing: ['tests/config/test_config.py::test_short_verbose']",
+          "duration_secs": 5.3,
+          "usage": {
+            "prompt_tokens": 771058,
+            "completion_tokens": 5930,
+            "total_tokens": 776988
+          },
+          "tool_calls": 51
+        },
+        {
+          "repeat": 2,
+          "passed": false,
+          "detail": "f2p 0/1, p2p 7/7, pytest rc=1; f2p failing/missing: ['tests/config/test_config.py::test_short_verbose']",
+          "duration_secs": 5.773,
+          "usage": {
+            "prompt_tokens": 752100,
+            "completion_tokens": 6269,
+            "total_tokens": 758369
+          },
+          "tool_calls": 51
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "deepseek-chat-agentic-50",
+      "task_id": "pylint-dev__pylint-8898",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "f2p 1/1, p2p 18/18, pytest rc=0",
+          "duration_secs": 9.953,
+          "usage": {
+            "prompt_tokens": 660381,
+            "completion_tokens": 6204,
+            "total_tokens": 666585
+          },
+          "tool_calls": 44
+        },
+        {
+          "repeat": 1,
+          "passed": true,
+          "detail": "f2p 1/1, p2p 18/18, pytest rc=0",
+          "duration_secs": 10.194,
+          "usage": {
+            "prompt_tokens": 522144,
+            "completion_tokens": 6163,
+            "total_tokens": 528307
+          },
+          "tool_calls": 47
+        },
+        {
+          "repeat": 2,
+          "passed": true,
+          "detail": "f2p 1/1, p2p 18/18, pytest rc=0",
+          "duration_secs": 12.691,
+          "usage": {
+            "prompt_tokens": 503858,
+            "completion_tokens": 5345,
+            "total_tokens": 509203
+          },
+          "tool_calls": 39
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "deepseek-chat-agentic-50",
+      "task_id": "pytest-dev__pytest-10051",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "f2p 1/1, p2p 15/15, pytest rc=0",
+          "duration_secs": 7.344,
+          "usage": {
+            "prompt_tokens": 801268,
+            "completion_tokens": 8189,
+            "total_tokens": 809457
+          },
+          "tool_calls": 51
+        },
+        {
+          "repeat": 1,
+          "passed": true,
+          "detail": "f2p 1/1, p2p 15/15, pytest rc=0",
+          "duration_secs": 6.038,
+          "usage": {
+            "prompt_tokens": 620352,
+            "completion_tokens": 7198,
+            "total_tokens": 627550
+          },
+          "tool_calls": 48
+        },
+        {
+          "repeat": 2,
+          "passed": true,
+          "detail": "f2p 1/1, p2p 15/15, pytest rc=0",
+          "duration_secs": 6.449,
+          "usage": {
+            "prompt_tokens": 453270,
+            "completion_tokens": 5575,
+            "total_tokens": 458845
+          },
+          "tool_calls": 40
+        }
+      ],
+      "pass_k": true
+    }
+  ],
+  "summaries": [
+    {
+      "agent": "deepseek-chat-agentic-50",
+      "tasks_total": 5,
+      "tasks_passed": 4,
+      "tasks_failed": 1,
+      "tasks_skipped": 0,
+      "pass_rate": 0.8,
+      "pass_k_rate": 0.8,
+      "median_duration_secs": 5.773
+    }
+  ],
+  "generated_at": "unix-1791947753"
+}

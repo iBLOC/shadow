@@ -1,0 +1,78 @@
+{
+  "suite": "core-smoke",
+  "agents": [
+    "deepseek-chat-agentic-50"
+  ],
+  "repeat": 1,
+  "results": [
+    {
+      "agent": "deepseek-chat-agentic-50",
+      "task_id": "arithmetic",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "exact match",
+          "duration_secs": 0.7147264
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "deepseek-chat-agentic-50",
+      "task_id": "rate-problem",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "exact match",
+          "duration_secs": 0.7470147
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "deepseek-chat-agentic-50",
+      "task_id": "letter-count",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "exact match",
+          "duration_secs": 0.4095158
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "deepseek-chat-agentic-50",
+      "task_id": "extraction",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "exact match (numeric equality)",
+          "duration_secs": 0.8737224
+        }
+      ],
+      "pass_k": true
+    }
+  ],
+  "summaries": [
+    {
+      "agent": "deepseek-chat-agentic-50",
+      "tasks_total": 4,
+      "tasks_passed": 4,
+      "tasks_failed": 0,
+      "tasks_skipped": 0,
+      "pass_rate": 1.0,
+      "pass_k_rate": 1.0,
+      "median_duration_secs": 0.7470147
+    }
+  ],
+  "generated_at": "unix-1791986664"
+}

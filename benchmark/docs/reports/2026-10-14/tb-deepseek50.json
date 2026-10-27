@@ -1,0 +1,78 @@
+{
+  "suite": "terminal-bench-2-smoke",
+  "agents": [
+    "deepseek-chat-agentic-50"
+  ],
+  "repeat": 1,
+  "results": [
+    {
+      "agent": "deepseek-chat-agentic-50",
+      "task_id": "terminal-bench/llm-inference-batching-scheduler",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "exit Some(1)\n…a batching plan.\r\n    \r\n        Args:\r\n            req_path: Path to the input requests file (JSONL format)\r\n            plan_path: Path to the output plan file (JSONL format)\r\n            gran: Granularity for alignment calculations (default: 64)\r\n    \r\n        Returns:\r\n            Dictionary containing performance metrics:\r\n            - cost: Total computational cost\r\n            - pad_ratio: Fraction of computation spent on padding\r\n            - p95_latency_ms: 95th percentile latency in milliseconds\r\n            - sequential_timecost: Total time to execute all batches sequentially\r\n        \"\"\"\r\n        cm = CostModel(granularity=gran)\r\n        with open(req_path) as f:\r\n            reqs = [json.loads(line) for line in f]\r\n        req_idx = {r[\"request_id\"]: r for r in reqs}\r\n>       with open(plan_path) as f:\r\nE       FileNotFoundError: [Errno 2] No such file or directory: 'task_file/output_data/plan_b1.jsonl'\r\n\r\ntests\\test_outputs.py:54: FileNotFoundError\r\n=========================== short test summary info ===========================\r\nFAILED tests/test_outputs.py::test_output_files_exist - AssertionError: Missi...\r\nFAILED tests/test_outputs.py::test_generate_and_schema - FileNotFoundError: [...\r\nFAILED tests/test_outputs.py::test_solution_shape_feasibility_and_batch_consistency\r\nFAILED tests/test_outputs.py::test_solution_coverage_no_duplicates - FileNotF...\r\nFAILED tests/test_outputs.py::test_performance_thresholds - FileNotFoundError...\r\n5 failed, 1 passed in 0.17s",
+          "duration_secs": 1.9926063
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "deepseek-chat-agentic-50",
+      "task_id": "terminal-bench/raman-fitting",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "exit Some(1)\n…esult_path = Path(\"results.json\")\r\n    \r\n        with open(result_path, \"r\") as f:\r\n            data = json.load(f)\r\n    \r\n        x0_expected = 2670.08\r\n        gamma_expected = 17.52\r\n        A_expected = 12314.42\r\n        offset_expected = 1239.09\r\n    \r\n        G_peak = data[\"2D\"]\r\n        x0 = G_peak[\"x0\"]\r\n        gamma = G_peak[\"gamma\"]\r\n        A = G_peak[\"amplitude\"]\r\n        offset = G_peak[\"offset\"]\r\n    \r\n        x0_correct = abs(1 - x0 / x0_expected) < 0.05\r\n        gamma_correct = abs(gamma - gamma_expected) < 1\r\n        A_correct = abs(1 - A / A_expected) < 0.05\r\n        offset_correct = abs(1 - offset / offset_expected) < 0.1\r\n    \r\n>       assert x0_correct and gamma_correct and A_correct and offset_correct, (\r\n            f\"Expected 2D_peak values: x0={x0_expected}, gamma={gamma_expected}, \"\r\n            f\"A={A_expected}, offset={offset_expected}. \"\r\n            f\"Got: x0={x0}, gamma={gamma}, A={A}, offset={offset}\"\r\n        )\r\nE       AssertionError: Expected 2D_peak values: x0=2670.08, gamma=17.52, A=12314.42, offset=1239.09. Got: x0=6327.004772823943, gamma=34.85407895268729, A=8363.999412522238, offset=5658.94253777626\r\nE       assert (False)\r\n\r\ntests\\test_outputs.py:65: AssertionError\r\n=========================== short test summary info ===========================\r\nFAILED tests/test_outputs.py::test_G_Peak - AssertionError: Expected G_peak v...\r\nFAILED tests/test_outputs.py::test_2D_Peak - AssertionError: Expected 2D_peak...\r\n2 failed, 1 passed in 0.09s",
+          "duration_secs": 3.0604354
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "deepseek-chat-agentic-50",
+      "task_id": "terminal-bench/regex-log",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "tests passed",
+          "duration_secs": 7.7211434
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "deepseek-chat-agentic-50",
+      "task_id": "terminal-bench/schemelike-metacircular-eval",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "exit Some(1)\n…alse\r\nTree map (double all values): Root: 2, First child: 4\r\n\r\nThrough eval.scm:\r\n[RECURSION] Deep recursion detected! Last expression: ('fgetchr' 'f')\r\nUnexpected error: Recursion limit exceeded\r\n\r\nTesting: tests\\test\\test_read.scm\r\n----------------------------------------\r\ntakes 0.08432865142822266\r\nFAILED: OUTPUT MISMATCH:\r\nDirect:\r\nReading\r\nhello\r\nDone\r\n\r\nThrough eval.scm:\r\nUnexpected error: 'str' object has no attribute 'car'\r\n\r\nTesting: tests\\test\\variadic_functions.scm\r\n----------------------------------------\r\ntakes 0.09736204147338867\r\nFAILED: OUTPUT MISMATCH:\r\nDirect:\r\nSum of (1 2 3 4 5): 15\r\nProduct of (2 3 4): 24\r\nMax of (3 1 4 1 5 9 2 6): 9\r\nMin of (3 1 4 1 5 9 2 6): 1\r\nConcatenate ((1 2) (3 4) (5 6)): (1 2 3 4 5 6)\r\nSquare all (1 2 3 4): (1 4 9 16)\r\n((x + 1) * 2)^2 of 3: 64\r\n\r\nThrough eval.scm:\r\n[RECURSION] Deep recursion detected! Last expression: ('fgetchr' 'f')\r\nUnexpected error: Recursion limit exceeded\r\n\r\nTesting: tests\\test\\y_combinator.scm\r\n----------------------------------------\r\ntakes 0.09628558158874512\r\nFAILED: OUTPUT MISMATCH:\r\nDirect:\r\nFactorial of 5 using Y combinator: 120\r\nFirst 8 Fibonacci numbers: 0 1 1 2 3 5 8 13\r\n\r\nThrough eval.scm:\r\nUnexpected error: 'str' object has no attribute 'car'\r\n\r\n==================================================\r\nSummary: 0 passed, 63 failed out of 63 tests\r\n=========================== short test summary info ===========================\r\nFAILED tests/test_outputs.py::test_interp - assert 63 == 0\r\n1 failed in 14.19s",
+          "duration_secs": 15.7064934
+        }
+      ],
+      "pass_k": false
+    }
+  ],
+  "summaries": [
+    {
+      "agent": "deepseek-chat-agentic-50",
+      "tasks_total": 4,
+      "tasks_passed": 1,
+      "tasks_failed": 3,
+      "tasks_skipped": 0,
+      "pass_rate": 0.25,
+      "pass_k_rate": 0.25,
+      "median_duration_secs": 7.7211434
+    }
+  ],
+  "generated_at": "unix-1791985389"
+}

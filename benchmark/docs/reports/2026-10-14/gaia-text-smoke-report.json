@@ -1,0 +1,820 @@
+{
+  "suite": "gaia-text-smoke",
+  "agents": [
+    "qwen38-max-agentic",
+    "kimi-k3-agentic",
+    "glm-53-agentic",
+    "qwen37-flash-agentic"
+  ],
+  "repeat": 1,
+  "results": [
+    {
+      "agent": "qwen38-max-agentic",
+      "task_id": "c61d22de-5f6c-4958-a7f6-5e9707bd3466",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "gaia match: \"egalitarian\"",
+          "duration_secs": 849.6618867,
+          "usage": {
+            "prompt_tokens": 875694,
+            "completion_tokens": 18117,
+            "total_tokens": 893811
+          },
+          "tool_calls": 41
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "qwen38-max-agentic",
+      "task_id": "17b5a6a3-bc87-42e8-b0fb-6ab0781ef2cc",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "gaia match: \"34689\"",
+          "duration_secs": 262.1707966,
+          "usage": {
+            "prompt_tokens": 182462,
+            "completion_tokens": 6755,
+            "total_tokens": 189217
+          },
+          "tool_calls": 32
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "qwen38-max-agentic",
+      "task_id": "04a04a9b-226c-43fd-b319-d5e89743676f",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "gaia match: \"41\"",
+          "duration_secs": 355.846275,
+          "usage": {
+            "prompt_tokens": 218980,
+            "completion_tokens": 10241,
+            "total_tokens": 229221
+          },
+          "tool_calls": 31
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "qwen38-max-agentic",
+      "task_id": "14569e28-c88c-43e4-8c32-097d35b9a67d",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "gaia match: \"backtick\"",
+          "duration_secs": 347.0727227,
+          "usage": {
+            "prompt_tokens": 136520,
+            "completion_tokens": 12359,
+            "total_tokens": 148879
+          },
+          "tool_calls": 18
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "qwen38-max-agentic",
+      "task_id": "e1fc63a2-da7a-432f-be78-7c4a95598703",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "gaia match: \"17\"",
+          "duration_secs": 80.0875734,
+          "usage": {
+            "prompt_tokens": 32281,
+            "completion_tokens": 2863,
+            "total_tokens": 35144
+          },
+          "tool_calls": 9
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "qwen38-max-agentic",
+      "task_id": "8e867cd7-cff9-4e6c-867a-ff5ddc2550be",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "gaia match: \"3\"",
+          "duration_secs": 53.3342035,
+          "usage": {
+            "prompt_tokens": 22170,
+            "completion_tokens": 1684,
+            "total_tokens": 23854
+          },
+          "tool_calls": 8
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "qwen38-max-agentic",
+      "task_id": "3627a8be-a77f-41bb-b807-7e1bd4c0ebdf",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 900.0034433,
+          "error": "agent 'qwen38-max-agentic' failed: task timed out after 900s"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "qwen38-max-agentic",
+      "task_id": "ec09fa32-d03f-4bf8-84b0-1f16922c3ae4",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 900.0016812,
+          "error": "agent 'qwen38-max-agentic' failed: task timed out after 900s"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "qwen38-max-agentic",
+      "task_id": "5d0080cb-90d7-4712-bc33-848150e917d3",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "gaia match: \"0.1777\"",
+          "duration_secs": 37.7670504,
+          "usage": {
+            "prompt_tokens": 26086,
+            "completion_tokens": 941,
+            "total_tokens": 27027
+          },
+          "tool_calls": 7
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "qwen38-max-agentic",
+      "task_id": "a1e91b78-d3d8-4675-bb8d-62741b4b68a6",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 900.0012594,
+          "error": "agent 'qwen38-max-agentic' failed: task timed out after 900s"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "kimi-k3-agentic",
+      "task_id": "c61d22de-5f6c-4958-a7f6-5e9707bd3466",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "gaia mismatch: expected \"egalitarian\", got \"Identified the June 2022 AI-regulation paper as arXiv:2207.01510. Its figure labels one axis “Utilitarian” versus “Egalitarian.” The August 11, 2016 Physics and Society article arXiv:1608.03637 describes “egalitarian societies” (and a transition from egalitarian to hierarchical societies).\"",
+          "duration_secs": 307.8904652,
+          "usage": {
+            "prompt_tokens": 320418,
+            "completion_tokens": 5338,
+            "total_tokens": 325756
+          },
+          "tool_calls": 29
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "kimi-k3-agentic",
+      "task_id": "17b5a6a3-bc87-42e8-b0fb-6ab0781ef2cc",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "gaia match: \"Identified the Finding Nemo fish as the clown anemonefish (Amphiprion ocellaris). USGS NAS records show one pre-2020 nonnative occurrence, collected at Fred Howard Park in Tarpon Springs, Florida, in 2018; the park ZIP code is 34689.\"",
+          "duration_secs": 117.095595,
+          "usage": {
+            "prompt_tokens": 145666,
+            "completion_tokens": 3157,
+            "total_tokens": 148823
+          },
+          "tool_calls": 23
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "kimi-k3-agentic",
+      "task_id": "04a04a9b-226c-43fd-b319-d5e89743676f",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "gaia match: \"41\"",
+          "duration_secs": 113.445914,
+          "usage": {
+            "prompt_tokens": 50793,
+            "completion_tokens": 2644,
+            "total_tokens": 53437
+          },
+          "tool_calls": 8
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "kimi-k3-agentic",
+      "task_id": "14569e28-c88c-43e4-8c32-097d35b9a67d",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "gaia match: \"backtick\"",
+          "duration_secs": 108.4538389,
+          "usage": {
+            "prompt_tokens": 11496,
+            "completion_tokens": 3041,
+            "total_tokens": 14537
+          },
+          "tool_calls": 4
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "kimi-k3-agentic",
+      "task_id": "e1fc63a2-da7a-432f-be78-7c4a95598703",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "gaia match: \"17\"",
+          "duration_secs": 60.7414307,
+          "usage": {
+            "prompt_tokens": 14966,
+            "completion_tokens": 1449,
+            "total_tokens": 16415
+          },
+          "tool_calls": 8
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "kimi-k3-agentic",
+      "task_id": "8e867cd7-cff9-4e6c-867a-ff5ddc2550be",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "gaia match: \"3\"",
+          "duration_secs": 51.2260358,
+          "usage": {
+            "prompt_tokens": 18616,
+            "completion_tokens": 1624,
+            "total_tokens": 20240
+          },
+          "tool_calls": 7
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "kimi-k3-agentic",
+      "task_id": "3627a8be-a77f-41bb-b807-7e1bd4c0ebdf",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "gaia match: \"142\"",
+          "duration_secs": 463.4800911,
+          "usage": {
+            "prompt_tokens": 665365,
+            "completion_tokens": 7363,
+            "total_tokens": 672728
+          },
+          "tool_calls": 65
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "kimi-k3-agentic",
+      "task_id": "ec09fa32-d03f-4bf8-84b0-1f16922c3ae4",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "gaia match: \"Determined that ball 3 has the highest probability of being ejected by the pistons.\"",
+          "duration_secs": 225.4506115,
+          "usage": {
+            "prompt_tokens": 88715,
+            "completion_tokens": 5792,
+            "total_tokens": 94507
+          },
+          "tool_calls": 14
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "kimi-k3-agentic",
+      "task_id": "5d0080cb-90d7-4712-bc33-848150e917d3",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "gaia match: \"Located the University of Leicester Journal of Interdisciplinary Science Topics article and its PDF. The paper models the fish bag as a cylinder and states its capacity as 0.1777 m³.\"",
+          "duration_secs": 341.0805803,
+          "usage": {
+            "prompt_tokens": 694051,
+            "completion_tokens": 6642,
+            "total_tokens": 700693
+          },
+          "tool_calls": 58
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "kimi-k3-agentic",
+      "task_id": "a1e91b78-d3d8-4675-bb8d-62741b4b68a6",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "gaia mismatch: expected \"3\", got \"Let me confirm the clip's content via web articles about this viral moment.\"",
+          "duration_secs": 827.7862108,
+          "usage": {
+            "prompt_tokens": 875054,
+            "completion_tokens": 24463,
+            "total_tokens": 899517
+          },
+          "tool_calls": 61
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "glm-53-agentic",
+      "task_id": "c61d22de-5f6c-4958-a7f6-5e9707bd3466",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "gaia mismatch: expected \"egalitarian\", got \"egalitarianism\"",
+          "duration_secs": 69.4819169,
+          "usage": {
+            "prompt_tokens": 40620,
+            "completion_tokens": 3949,
+            "total_tokens": 44569
+          },
+          "tool_calls": 11
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "glm-53-agentic",
+      "task_id": "17b5a6a3-bc87-42e8-b0fb-6ab0781ef2cc",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "gaia match: \"34689\"",
+          "duration_secs": 142.2872706,
+          "usage": {
+            "prompt_tokens": 285239,
+            "completion_tokens": 5533,
+            "total_tokens": 290772
+          },
+          "tool_calls": 30
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "glm-53-agentic",
+      "task_id": "04a04a9b-226c-43fd-b319-d5e89743676f",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 900.0023275,
+          "error": "agent 'glm-53-agentic' failed: task timed out after 900s"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "glm-53-agentic",
+      "task_id": "14569e28-c88c-43e4-8c32-097d35b9a67d",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 900.0016535,
+          "error": "agent 'glm-53-agentic' failed: task timed out after 900s"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "glm-53-agentic",
+      "task_id": "e1fc63a2-da7a-432f-be78-7c4a95598703",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "gaia match: \"17\"",
+          "duration_secs": 81.7896713,
+          "usage": {
+            "prompt_tokens": 72027,
+            "completion_tokens": 4250,
+            "total_tokens": 76277
+          },
+          "tool_calls": 15
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "glm-53-agentic",
+      "task_id": "8e867cd7-cff9-4e6c-867a-ff5ddc2550be",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "gaia match: \"3\"",
+          "duration_secs": 56.0014935,
+          "usage": {
+            "prompt_tokens": 39885,
+            "completion_tokens": 2715,
+            "total_tokens": 42600
+          },
+          "tool_calls": 10
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "glm-53-agentic",
+      "task_id": "3627a8be-a77f-41bb-b807-7e1bd4c0ebdf",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 900.0022448,
+          "error": "agent 'glm-53-agentic' failed: task timed out after 900s"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "glm-53-agentic",
+      "task_id": "ec09fa32-d03f-4bf8-84b0-1f16922c3ae4",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "gaia match: \"3\"",
+          "duration_secs": 768.7543502,
+          "usage": {
+            "prompt_tokens": 472288,
+            "completion_tokens": 40656,
+            "total_tokens": 512944
+          },
+          "tool_calls": 14
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "glm-53-agentic",
+      "task_id": "5d0080cb-90d7-4712-bc33-848150e917d3",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "gaia mismatch: expected \"0.1777\", got \"Found the paper's PDF URL via OpenAlex. Let me download it.\"",
+          "duration_secs": 819.3672547,
+          "usage": {
+            "prompt_tokens": 1849574,
+            "completion_tokens": 13320,
+            "total_tokens": 1862894
+          },
+          "tool_calls": 72
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "glm-53-agentic",
+      "task_id": "a1e91b78-d3d8-4675-bb8d-62741b4b68a6",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "gaia match: \"3\"",
+          "duration_secs": 504.9491597,
+          "usage": {
+            "prompt_tokens": 226511,
+            "completion_tokens": 10147,
+            "total_tokens": 236658
+          },
+          "tool_calls": 29
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "qwen37-flash-agentic",
+      "task_id": "c61d22de-5f6c-4958-a7f6-5e9707bd3466",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "gaia mismatch: expected \"egalitarian\", got \"\"",
+          "duration_secs": 299.8022936,
+          "usage": {
+            "prompt_tokens": 1223100,
+            "completion_tokens": 7894,
+            "total_tokens": 1230994
+          },
+          "tool_calls": 50
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "qwen37-flash-agentic",
+      "task_id": "17b5a6a3-bc87-42e8-b0fb-6ab0781ef2cc",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "gaia mismatch: expected \"34689\", got \"\"",
+          "duration_secs": 208.5094197,
+          "usage": {
+            "prompt_tokens": 771403,
+            "completion_tokens": 5027,
+            "total_tokens": 776430
+          },
+          "tool_calls": 50
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "qwen37-flash-agentic",
+      "task_id": "04a04a9b-226c-43fd-b319-d5e89743676f",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "gaia mismatch: expected \"41\", got \"\"",
+          "duration_secs": 376.2017117,
+          "usage": {
+            "prompt_tokens": 1231851,
+            "completion_tokens": 9293,
+            "total_tokens": 1241144
+          },
+          "tool_calls": 55
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "qwen37-flash-agentic",
+      "task_id": "14569e28-c88c-43e4-8c32-097d35b9a67d",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "gaia match: \"Based on my analysis of the Unlambda code structure:\\n\\n**Parsing breakdown:**\\n- `r` is the outermost read-and-print function  \\n- The dot-prefixed sequences (`.F`, `.o`, `.r`, `. `, `.p`, `.e`, `.n`, `.g`, `.u`, `.i`, `.n`, `.s`) are 12 token outputs for \\\"For penguins\\\"\\n- `i` is an additional identity combinator (totaling 13 tokens)\\n\\n**Structure rule:** In Unlambda, valid well-formed expressions require `tokens = backticks + 1`, meaning backticks must equal `tokens - 1`.\\n\\nWith 13 tokens, we need **12 backticks**. Analysis shows the code has 11 backticks, so adding **one backtick** produces the correct count of 12 for valid syntax.\\n\\nbacktick\"",
+          "duration_secs": 449.5282199,
+          "usage": {
+            "prompt_tokens": 412624,
+            "completion_tokens": 26098,
+            "total_tokens": 438722
+          },
+          "tool_calls": 29
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "qwen37-flash-agentic",
+      "task_id": "e1fc63a2-da7a-432f-be78-7c4a95598703",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "gaia mismatch: expected \"17\", got \"\"",
+          "duration_secs": 370.7049824,
+          "usage": {
+            "prompt_tokens": 1243495,
+            "completion_tokens": 8453,
+            "total_tokens": 1251948
+          },
+          "tool_calls": 51
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "qwen37-flash-agentic",
+      "task_id": "8e867cd7-cff9-4e6c-867a-ff5ddc2550be",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "",
+          "duration_secs": 90.8663584,
+          "error": "agent 'qwen37-flash-agentic' failed: request: error sending request for url (https://maas.qianwenaiapi.com/compatible-mode/v1/chat/completions)"
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "qwen37-flash-agentic",
+      "task_id": "3627a8be-a77f-41bb-b807-7e1bd4c0ebdf",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "gaia match: \"142\"",
+          "duration_secs": 252.5892687,
+          "usage": {
+            "prompt_tokens": 1027091,
+            "completion_tokens": 6755,
+            "total_tokens": 1033846
+          },
+          "tool_calls": 47
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "qwen37-flash-agentic",
+      "task_id": "ec09fa32-d03f-4bf8-84b0-1f16922c3ae4",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "gaia match: \"3\"",
+          "duration_secs": 277.3110732,
+          "usage": {
+            "prompt_tokens": 168029,
+            "completion_tokens": 19310,
+            "total_tokens": 187339
+          },
+          "tool_calls": 13
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "qwen37-flash-agentic",
+      "task_id": "5d0080cb-90d7-4712-bc33-848150e917d3",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "gaia mismatch: expected \"0.1777\", got \"\"",
+          "duration_secs": 315.0672186,
+          "usage": {
+            "prompt_tokens": 1382310,
+            "completion_tokens": 6592,
+            "total_tokens": 1388902
+          },
+          "tool_calls": 57
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "qwen37-flash-agentic",
+      "task_id": "a1e91b78-d3d8-4675-bb8d-62741b4b68a6",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "gaia match: \"Based on my analysis of the YouTube video page for **L1vXCYZAYYM**, here's what I found:\\n\\n**Video details:**\\n- Title: \\\"Penguin Chicks Stand Up To Giant Petrel...With The Help of a Friend!\\\"\\n- Description: \\\"Emperor Penguin Chicks and Adelie Penguins stand up to Giant Petrel...\\\"\\n- From BBC's \\\"Spy in the Snow\\\" series\\n- Duration: 2:58 minutes\\n\\nThe video description and title explicitly mention three bird species interacting:\\n1. **Emperor Penguin** (the chicks)\\n2. **Adélie Penguin** (the \\\"feisty\\\" helper/friend)\\n3. **Giant Petrel** (the predator/antagonist)\\n\\nNo other bird species are mentioned in the video's title, description, or any associated metadata on the page. While Antarctic settings often feature various seabirds in the background, this particular 3-minute clip focuses specifically on these three species.\\n\\n**Answer: 3**\"",
+          "duration_secs": 231.2809289,
+          "usage": {
+            "prompt_tokens": 511465,
+            "completion_tokens": 6405,
+            "total_tokens": 517870
+          },
+          "tool_calls": 45
+        }
+      ],
+      "pass_k": true
+    }
+  ],
+  "summaries": [
+    {
+      "agent": "glm-53-agentic",
+      "tasks_total": 10,
+      "tasks_passed": 5,
+      "tasks_failed": 5,
+      "tasks_skipped": 0,
+      "pass_rate": 0.5,
+      "pass_k_rate": 0.5,
+      "median_duration_secs": 768.7543502
+    },
+    {
+      "agent": "kimi-k3-agentic",
+      "tasks_total": 10,
+      "tasks_passed": 8,
+      "tasks_failed": 2,
+      "tasks_skipped": 0,
+      "pass_rate": 0.8,
+      "pass_k_rate": 0.8,
+      "median_duration_secs": 225.4506115
+    },
+    {
+      "agent": "qwen37-flash-agentic",
+      "tasks_total": 10,
+      "tasks_passed": 4,
+      "tasks_failed": 6,
+      "tasks_skipped": 0,
+      "pass_rate": 0.4,
+      "pass_k_rate": 0.4,
+      "median_duration_secs": 299.8022936
+    },
+    {
+      "agent": "qwen38-max-agentic",
+      "tasks_total": 10,
+      "tasks_passed": 7,
+      "tasks_failed": 3,
+      "tasks_skipped": 0,
+      "pass_rate": 0.7,
+      "pass_k_rate": 0.7,
+      "median_duration_secs": 355.846275
+    }
+  ],
+  "generated_at": "unix-1791961451"
+}

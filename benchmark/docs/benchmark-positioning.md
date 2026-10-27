@@ -237,6 +237,13 @@ agents-tb.toml 已加注释条目（`shadow-desktop-agentic`，webdriver_url=:44
 | 套件 | shadow-desktop（嵌入 0.6B 完整产品栈） | 大脑独立栈（gateway→真 lobe） | API 直连 |
 |---|---|---|---|
 | core-smoke (10) | **6/10** @600s | — | deepseek one-shot 9/10 |
+
+desktop 的 6/10 构成（修复 neuron KV 竞态 + task_timeout_secs 之后）：
+通过 arithmetic / rate-problem / extraction / json-output /
+format-following / sql；失败 letter-count（0.6B 真实短板）+ 3 道代码题
+（0.6B 跑不动多步编辑）。**修复前同样的 6/10 里混着基础设施失败**
+（sql 题撞引擎错误、json/format 死于 180s 超时误杀）——分数没变，
+构成变了：现在剩下的全是真实能力边界。
 | behavior-smoke (5) | **0/5** | **5/5** | deepseek 直连 0/5（对照组预期） |
 | prefrontal-llm-smoke (5) | — | **5/5 delta=0** | 5/5 |
 

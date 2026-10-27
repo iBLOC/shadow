@@ -1,0 +1,117 @@
+{
+  "suite": "prefrontal-fileloop-smoke",
+  "agents": [
+    "deepseek-chat",
+    "brain-prefrontal-llm"
+  ],
+  "repeat": 1,
+  "results": [
+    {
+      "agent": "deepseek-chat",
+      "task_id": "file-write-secret",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 0.7024199
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "deepseek-chat",
+      "task_id": "file-read-secret",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "expected \"delta-042\", got \"i'll read the file for you. <tool_call> {\\\"name\\\": \\\"file_read\\\", \\\"arguments\\\": {\\\"path\\\": \\\"pf-delta/secret.txt\\\"}} </tool_call>\"",
+          "duration_secs": 0.9436278
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "deepseek-chat",
+      "task_id": "file-roundtrip-verified",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "missing: [\"DELTA-042\"]",
+          "duration_secs": 1.3509706000000001
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "brain-prefrontal-llm",
+      "task_id": "file-write-secret",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 1.6645617000000001
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "brain-prefrontal-llm",
+      "task_id": "file-read-secret",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "exact match",
+          "duration_secs": 2.008239
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "brain-prefrontal-llm",
+      "task_id": "file-roundtrip-verified",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 3.528738
+        }
+      ],
+      "pass_k": true
+    }
+  ],
+  "summaries": [
+    {
+      "agent": "brain-prefrontal-llm",
+      "tasks_total": 3,
+      "tasks_passed": 3,
+      "tasks_failed": 0,
+      "tasks_skipped": 0,
+      "pass_rate": 1.0,
+      "pass_k_rate": 1.0,
+      "median_duration_secs": 2.008239
+    },
+    {
+      "agent": "deepseek-chat",
+      "tasks_total": 3,
+      "tasks_passed": 1,
+      "tasks_failed": 2,
+      "tasks_skipped": 0,
+      "pass_rate": 0.3333333333333333,
+      "pass_k_rate": 0.3333333333333333,
+      "median_duration_secs": 0.9436278
+    }
+  ],
+  "generated_at": "unix-1792132043"
+}

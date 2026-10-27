@@ -1,0 +1,78 @@
+{
+  "suite": "terminal-bench-2-smoke",
+  "agents": [
+    "glm-53-agentic"
+  ],
+  "repeat": 1,
+  "results": [
+    {
+      "agent": "glm-53-agentic",
+      "task_id": "terminal-bench/llm-inference-batching-scheduler",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "exit Some(4)\nno tests ran in 0.00s\r\nERROR: file or directory not found: tests/test_outputs.py",
+          "duration_secs": 5.6438129
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "glm-53-agentic",
+      "task_id": "terminal-bench/raman-fitting",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "exit Some(4)\nno tests ran in 0.00s\r\nERROR: file or directory not found: tests/test_outputs.py",
+          "duration_secs": 1.3536404
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "glm-53-agentic",
+      "task_id": "terminal-bench/regex-log",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "exit Some(4)\nno tests ran in 0.00s\r\nERROR: file or directory not found: tests/test_outputs.py",
+          "duration_secs": 114.7388277
+        }
+      ],
+      "pass_k": false
+    },
+    {
+      "agent": "glm-53-agentic",
+      "task_id": "terminal-bench/schemelike-metacircular-eval",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": false,
+          "detail": "exit Some(4)\nno tests ran in 0.00s\r\nERROR: file or directory not found: tests/test_outputs.py",
+          "duration_secs": 114.3685166
+        }
+      ],
+      "pass_k": false
+    }
+  ],
+  "summaries": [
+    {
+      "agent": "glm-53-agentic",
+      "tasks_total": 4,
+      "tasks_passed": 0,
+      "tasks_failed": 4,
+      "tasks_skipped": 0,
+      "pass_rate": 0.0,
+      "pass_k_rate": 0.0,
+      "median_duration_secs": 114.3685166
+    }
+  ],
+  "generated_at": "unix-1791985335"
+}

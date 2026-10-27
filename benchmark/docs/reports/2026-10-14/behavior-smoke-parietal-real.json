@@ -1,0 +1,92 @@
+{
+  "suite": "behavior-smoke",
+  "agents": [
+    "brain-parietal-behavior"
+  ],
+  "repeat": 1,
+  "results": [
+    {
+      "agent": "brain-parietal-behavior",
+      "task_id": "bath-temp-high-feishu",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 0.0071796
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "brain-parietal-behavior",
+      "task_id": "bath-temp-low-feishu",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 0.0019734
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "brain-parietal-behavior",
+      "task_id": "bath-temp-alert-tts",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 0.0021534
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "brain-parietal-behavior",
+      "task_id": "bath-temp-in-range-neutral-text",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 0.0021281
+        }
+      ],
+      "pass_k": true
+    },
+    {
+      "agent": "brain-parietal-behavior",
+      "task_id": "door-bell-falls-back-to-default",
+      "skipped": false,
+      "runs": [
+        {
+          "repeat": 0,
+          "passed": true,
+          "detail": "contains all markers",
+          "duration_secs": 0.0020761
+        }
+      ],
+      "pass_k": true
+    }
+  ],
+  "summaries": [
+    {
+      "agent": "brain-parietal-behavior",
+      "tasks_total": 5,
+      "tasks_passed": 5,
+      "tasks_failed": 0,
+      "tasks_skipped": 0,
+      "pass_rate": 1.0,
+      "pass_k_rate": 1.0,
+      "median_duration_secs": 0.0021281
+    }
+  ],
+  "generated_at": "unix-1792063437"
+}
