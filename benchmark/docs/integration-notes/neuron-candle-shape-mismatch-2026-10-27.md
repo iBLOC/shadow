@@ -2,7 +2,7 @@
 
 **日期**: 2026-10-27 晨
 **严重度**: 中（间歇性，会把可答题变成错误输出，且错误文本直接进对话 UI）
-**状态**: 未复现（现场 1 次，随后 3 次同题重跑全过）
+**状态**: ✅ **已根因 + 已修复**（neuron `2bce199`，同日晚些——见文末"根因"）
 
 ## 现场
 
@@ -43,6 +43,19 @@ mismatch in broadcast_add, lhs: [1, 14, 77, 135], rhs: [1, 1, 77, 77]
 3. 影响面：错误文本被 conversation UI 当普通回复渲染。**建议应用侧
    把 `engine execution error` 前缀的消息走错误样式**，避免用户把
    引擎错误当模型回答。
+
+## 根因（2026-10-27 晚些确认，已修复）
+
+复跑未再触发的原因也解释通了：竞态需要并发请求恰好落在空窗里。
+回到源码发现 **`chat()` 的 reset 与 generate 是两段独立加锁**——
+reset 释放锁之后、generate 重新拿锁之前（render prompt + tokenize
+的空窗），任何并发请求（桌面应用里嵌入的 encephalon/hippocampus
+后台任务都会打 neuron）完成一次生成，其 KV cache 残留就被本请求
+继承：77 新 + 58 残留 = 135。数字严丝合缝，"58" 就是一次后台生成
+的长度。`chat_stream` 本来就全程持锁，只有非流式 `chat()` 漏了。
+
+**修复**：neuron `2bce199`（main）——reset 移进 generate 的同一
+临界区，与 chat_stream 模式对齐；cargo test --lib 701 全绿。
 
 ## 关联
 
