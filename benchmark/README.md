@@ -1,96 +1,106 @@
 # Shadow Benchmark
 
-Shadow 平台的 agent benchmark 框架——在**同一套任务套件**上评估并对比
-Shadow 的三种形态与外部开源 agent。
+Shadow 平台的 agent benchmark——**同一套原生 harness** 测三类对象：
+跨模型对照（API 直连）、跨被测物对照（shadow-desktop / 大脑独立栈）、
+以及行业套件切片（τ² / SWE-bench Verified / GAIA / Terminal-Bench 2.x）。
 
-## 三种 Shadow 形态（可同台对比）
+> 定位声明：项目测的是 **shadow-desktop / 大脑两个被测物自身的能力**，
+> 基础模型只是被测物内部的权重资源；同模型跨被测物的 delta 才是
+> harness 工程的真产出。详见
+> [docs/benchmark-positioning.md](docs/benchmark-positioning.md)。
 
-| 形态 | 接入方式 | 测的是什么 |
-|---|---|---|
-| **shadow-neuron** | OpenAI 兼容 :8085（shadow-desktop 内嵌 neuron） | 裸推理引擎基线 |
-| **iBLOC-encephalon-server** | OpenAI 兼容 :8082（大脑独立二进制） | 大脑服务全栈（间脑+端脑+海马体+neuron + A2A 面） |
-| **shadow-desktop** | wdio WebDriver 驱动真实 UI | 完整产品链路（守卫/桥/流式渲染/存储）——兼作功能测试 |
-| 外部 agent（openclaw / pi / dsh / aider） | CLI argv 驱动 `{prompt}` | 开源生态对比；未安装自动报告 skip |
+## 总成绩单（2026-10-27 收口）
 
-外部 agent 未安装时报告为 **skip**（不是 fail）——部分对比依然有效。
+### 跨模型矩阵（deepseek-chat vs MiMo flash，同一原生 harness）
 
-## 最新实测结果（core-smoke 4 任务 × 1 轮，qwen3-0.6B）
-
-| agent | 通过 | pass^k | 中位延迟 |
+| 套件 | deepseek-chat | MiMo flash | 备注 |
 |---|---|---|---|
-| shadow-neuron | 2/4 | 50% | 159s |
-| iBLOC-encephalon-server | 2/4 | 50% | 161s |
-| shadow-desktop | 2/4 | 50% | 180s |
+| τ² airline (5) | 3/5（r3 pass@1 40%） | **4/5** | MiMo 需 ≥900s 超时 |
+| SWE-bench Verified (5) | 4/5 @50步 | **5/5** | 新 harness 首个全绿切片 |
+| GAIA 文本 (10) | **4/10** | 3/10 | 原生工具口径（历史 7/10 含一次性钩子） |
+| Terminal-Bench 2.x (4) | 1/4 | **2/4** | MiMo 过了 batching-scheduler |
 
-**关键结论：三个 Shadow 形态得分完全一致**——应用全栈与大脑服务在裸引擎
-之上**零额外失败**，架构分层无回归。完整报告见
-[docs/reports/three-way-example.md](docs/reports/three-way-example.md)。
+分化模式：MiMo 强在长程工具循环，deepseek 强在事实检索 + 格式纪律；
+四套件各拿两条强项，无全能选手。所有分数都**不可与官方榜单直接比较**
+（小切片、单轮、非官方 harness）——它们是能力探针与回归基线。
 
-失败项均为 0.6B 模型能力短板（算术答案带算式前缀、code-fix 整文件
-回复超时）——正是 benchmark 要诚实暴露的。
+### 跨被测物（同套件三方对照）
 
-## 行业基准的对应关系
+| 套件 | shadow-desktop（嵌入 0.6B 完整产品栈） | 大脑独立栈（gateway→真 lobe） | API 直连 |
+|---|---|---|---|
+| core-smoke (10) | **6/10** @600s | — | deepseek one-shot 9/10 |
+| behavior-smoke (5) | **0/5**（读得出数值，无动作面） | **5/5** | 0/5（对照组预期） |
 
-SWE-bench、Terminal-Bench、GAIA、τ-bench、OSWorld 共享同一骨架：
-**任务 → agent 适配器 → 环境 → 评分器 → 报告**。本框架在本地实现该
-骨架，使平台既能回归测试自家 agent，也能在相同基准上对比开源生态。
+behavior-smoke 的 delta 就是产品边界：**"鱼缸低于 20 度通知我"在
+desktop 对话路径现在通不了**——notify/alert 动作面住在大脑栈。要通，
+需 desktop 接 Resonance 派发或给 conversation 挂行为动作面。
+
+## 套件与 CLI
+
+| 套件 | CLI | 依赖 |
+|---|---|---|
+| core-smoke / behavior-smoke / rule-engine-smoke / long-context-smoke | `bench run` | 无（纯本地） |
+| τ²-bench | `bench tau2` / `bench tau2-import` / `bench tau2 --verify` | 钉住的 τ² checkout（`.tau2/`） |
+| SWE-bench Verified | `bench swe` / `bench swe-import` | `tools/swe_driver.py` 准备 repo+venv |
+| GAIA 文本 | `bench gaia-import` + `bench run` | 冻结的 suite JSON |
+| Terminal-Bench 2.x | `bench tb-import` + `bench run` | 冻结的 suite JSON |
+
+每个套件的入库门槛：**oracle（gold）全绿**——环境坏了必须先红。
+各套件的详细实测记录、失败归因与"不可比声明"见
+[docs/industry-suites.md](docs/industry-suites.md)；
+Terminal-Bench 见 [docs/tb-import.md](docs/tb-import.md)。
 
 ## 运行
 
 ```bash
 cd benchmark
-cp .env.example .env        # 设置你想测的 API key（不提交 git）
+cp .env.example .env            # 设置 API key（gitignored）
 set -a && source .env && set +a
-cp agents.example.toml agents.toml
-cargo run -- run \
+cargo run --bin bench -- run \
   --suite suites/core-smoke.json \
-  --agents agents.toml \
-  [--only shadow-desktop,iBLOC-encephalon-server] \
-  [--tasks format-following,json-output] \
-  [--repeat 3] [--out reports]
+  --agents agents-tb.toml \
+  [--only deepseek-chat,mimo-flash] [--repeat 3] [--out reports]
 ```
 
-`.env.example` 列出所有 env 变量（model API keys + encephalon 端口 /
-per-lobe 模型）。同一 SUITE 多次跑不同模型、对比 Shadow 在不同模型下的
-表现——参赛者名换成 `--only claude-opus-4-5,gpt,deepseek-chat` 即可。
-同模型下还能指定 lobe 分配：
+- `agents.example.toml` 是配置模板（`agents-tb.toml` 是实际在用的，
+  gitignored——含 `task_timeout_secs` 每被测物超时、`[agent.mode]`
+  agentic 工具循环等）。
+- 报告输出 `reports/<suite>-report.{json,md}`（gitignored），含
+  answer / usage / tool_calls / steps 可审计字段。
 
-```bash
-export ENCEPHALON_DEFAULT_MODEL=deepseek-chat
-export ENCEPHALON_LOBE_MODELS="temporal=qwen3-max,occipital=claude-opus-4-5"
-```
+## 参赛对象
 
-报告输出 `reports/<suite>-report.{json,md}`；历史报告存
-[docs/reports/](docs/reports/)。
+| adapter | 接入 | 说明 |
+|---|---|---|
+| `openai` | OpenAI 兼容端点 | one-shot 或 `[agent.mode] kind="agentic"` 工具循环（bash/read/write/edit/list/web_fetch/finish，路径越界拒绝） |
+| `shadow-desktop` | wdio WebDriver :4445 | 真实 Tauri 应用全栈——兼作功能测试；需 `pnpm tauri dev` |
+| `brain` | A2A :8082 | 大脑独立栈（gateway → 真 lobe） |
+| `cli` | argv `{prompt}/{workdir}` | 开源 agent CLI；未安装自动 skip |
+| `rule-engine` | 进程内 zen-engine | 确定性对照（diencephalon 同一后端） |
 
 ## 架构
 
 ```
-src/task.rs            Task + ScorerSpec（exact-match / contains / unit-tests / llm-judge）
-src/suite.rs           Suite 加载与校验（JSON）
-src/agent.rs           适配器：OpenAI 兼容端点、CLI（{prompt}/{workdir}）+ 围栏补丁应用
-src/desktop_agent.rs   shadow-desktop 全栈功能测试适配器（WebDriver 驱动真实 UI）
-src/scorer.rs          评分（归一化 / 单测执行 / 宽松 LLM-judge JSON）
-src/runner.rs          Runner：超时、重复、pass^k、JSON+Markdown 报告
-src/bin/bench.rs       CLI 入口
-suites/                任务套件（core-smoke：推理/抽取/格式遵循/SQL/代码修复）
+src/task.rs            Task + ScorerSpec（exact-match/contains/unit-tests/llm-judge/gaia-match）
+src/suite.rs           Suite 加载与校验
+src/agent.rs           OpenAI 适配器 + AgentMode（OneShot/Agentic）+ TokenUsage
+src/tools.rs           agentic 工具面（bash 300s 上限 / 路径沙箱 / web_fetch SSRF 防护）
+src/desktop_agent.rs   shadow-desktop 全栈适配器（WebDriver）
+src/brain_agent.rs     大脑 A2A 适配器
+src/tau2.rs            τ² 适配器（驱动上游 harness，answer/tool_calls/usage/steps 进报告）
+src/swe*.rs            SWE 适配器 + Rust 原生评估器（swe_parity 与 Python 驱动逐字段一致）
+src/gaia_import.rs     GAIA 导入（官方 question_scorer 语义移植）
+src/tb_import.rs       Terminal-Bench 导入（hidden_files = verify 时挂载语义）
+src/runner.rs          Runner：超时（task > agent > 默认）、pass^k、会话检查点、报告
+suites/                冻结的官方任务套件
+docs/                  industry-suites / benchmark-positioning / tb-import / integration-notes
 ```
-
-### 参赛目标
-
-| agent | adapter | 说明 |
-|---|---|---|
-| iBLOC-encephalon-server | openai | 大脑独立二进制（:8082，间脑+端脑+海马体+单 neuron + A2A 面） |
-| shadow-neuron | openai | shadow-desktop 内嵌引擎（:8085/v1）或独立 neuron_server |
-| shadow-desktop | shadow-desktop | wdio WebDriver 驱动真实 UI——兼作功能测试 |
-| deepseek-api | openai | DeepSeek API，纯模型对比 |
-| openclaw / pi / deepseek-harness | cli | 开源 agent CLI（未安装自动 skip） |
 
 ## Metrics
 
-- **pass-rate** — 至少一轮通过的任务占比
+- **pass-rate / pass@1** — 至少一轮通过的任务占比（5 题切片建议 repeat≥3）
 - **pass^k** — 全部 k 轮都通过的任务占比（τ-bench 可靠性指标）
-- **median duration** — 每 (任务, agent) 的墙钟中位数
+- **median duration / tokens / tool_calls** — 成本面，报告 JSON 逐 run 记录
 
 ## License
 
