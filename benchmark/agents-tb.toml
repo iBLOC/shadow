@@ -303,17 +303,13 @@ max_steps = 50
 
 # Shadow-Desktop as benchmark subject #2 (大脑是 subject #1)。前提：
 # `pnpm tauri dev` 在跑、wdio plugin 暴露在 :4445（默认配置见
-# shadow-desktop/tests/wdio/wdio.conf.ts）。当前 Tauri dev 模式未起，
-# 所以条目先注释——起 `pnpm tauri dev` 后取消注释即可实跑。
-#[[agent]]
-#adapter = "shadow-desktop"
-#name = "shadow-desktop-agentic"
-#webdriver_url = "http://127.0.0.1:4445"
-#app_url = "http://localhost:1420"
-#reply_timeout_secs = 600
-#[agent.mode]
-#kind = "agentic"
-#max_steps = 30
+# shadow-desktop/tests/wdio/wdio.conf.ts）。
+[[agent]]
+adapter = "shadow-desktop"
+name = "shadow-desktop-agentic"
+webdriver_url = "http://127.0.0.1:4445"
+app_url = "http://localhost:1420"
+reply_timeout_secs = 600
 
 # (d) prefrontal-real LLM-execution face — 被测物第二行。prefrontal
 # v9 serve :18082（--api-base deepseek）+ 端脑 lobe_cache 注册

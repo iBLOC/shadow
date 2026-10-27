@@ -92,6 +92,13 @@ suite 描述里带同款免责声明。报告（`reports/`，gitignored）只用
 压根没跑起来、1 题死于环境崩溃；本轮 4 题全部真实执行，失败归于模型
 能力（预算内写不出正确的调度器/解释器）。
 
+**跨模型**（2026-10-26 深夜）：mimo-flash-agentic **2/4**——过了
+llm-inference-batching-scheduler（deepseek 挂的那题，1.34M tokens
+硬磨出来）和 regex-log；raman-fitting 整题 1500s 超时（**0 次工具
+调用、0 tokens**——MiMo 推理单请求吃满 900s 请求超时，episode
+预算耗尽在第一轮，与 τ² 的"慢模型要长超时"同一教训），schemelike
+9 次调用后测试未过。TB 口径 MiMo > deepseek。
+
 ### 途中修掉的两个 harness/环境缺陷
 
 1. **runner 不物化 hidden_files**（fda801b）：unit-tests 评分器要跑

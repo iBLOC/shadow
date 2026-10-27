@@ -127,9 +127,27 @@ pass^k 50%），引擎→大脑服务 +2s、→桌面 UI +20s，失败为零**�
 
 | 被测物 | 状态 | 当前切片成绩 | 下一步 |
 |---|---|---|---|
-| **shadow-desktop**（wdio :4445）| **未实测**——本项目还没起过 `pnpm tauri dev`，无真跑分 | — | 起 chromedriver + dev 模式 → `bench run --only shadow-desktop` |
+| **shadow-desktop**（wdio :4445）| **真跑分已落地（2026-10-26）**：`pnpm tauri dev` 起真应用（vite :1420 + wdio :4445 + 嵌入 neuron qwen3-0.6B），desktop_agent 走完整产品栈（AppInitializer → ConversationPage → 渲染 DOM 读回答） | core-smoke **6/10 (60%)** @600s 单题超时（180s 默认超时首轮只有 3/10——4 题被误杀；sql 题首轮炸出 candle shape mismatch 引擎错误，复跑消失=非确定性模型执行 bug） | 四套件全量 + 代码题超时预算 |
 | **大脑独立栈**（端脑+间脑+海马体作为 A2A server）| **真跑分已落地（2026-10-16）**：prefrontal-real（task_execution，真 LLM 工具循环）+ parietal-real（behavior.evaluate，行为评估）两个真 lobe 全链路通 | behavior-smoke 5/5 (100%)；prefrontal-llm-smoke **5/5 delta=0**（vs deepseek 直连，见下） | 扩任务集 + thalamus 流式 watcher |
 | **基础模型**（只作为被测物内部权重）| 不作被测单元 | deepseek-chat 4/5/4/2/1（4 套件切片）、kimi-k3 8/3 等（同上） | 这些是参考对照，不是 benchmark 主输出 |
+
+### 被测物 #2 首个完整跑分（2026-10-26，core-smoke 10 题）
+
+shadow-desktop（嵌入 qwen3-0.6B）vs 纯 API 模型同题对照：
+
+| 对照组 | core-smoke | 说明 |
+|---|---|---|
+| deepseek-chat（one-shot 直连） | 9/10 | 上限参考 |
+| deepseek-chat-agentic | 8/10 | — |
+| **shadow-desktop-agentic（嵌入 0.6B）** | **6/10** | 通过：391/90/1280 三道计算 + json-output + format-following + sql |
+
+跑分过程中被 benchmark 揪出的问题（这就是"benchmark 兼功能测试"的本义）：
+
+- **sql 题 candle shape mismatch**（`not_implemented: forward pass 1: shape mismatch`）——复跑消失，非确定性的嵌入推理引擎 bug，值得报给 neuron；
+- letter-count 答 '2'（'r' in strawberry 实为 3）——0.6B 模型真实能力短板；
+- 3 道代码题全部超时——0.6B 跑不动多步编辑，需要专项预算或换大嵌入模型。
+
+**两个被测物至此都有完整真跑分**（2026-10-15 定下的"实测 0 → 实测 N"目标达成）。
 
 ### 第一张同模型跨被测物 delta 表（2026-10-16，prefrontal-llm-smoke 5 题）
 
