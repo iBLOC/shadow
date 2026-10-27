@@ -45,18 +45,25 @@ mismatch in broadcast_add, lhs: [1, 14, 77, 135], rhs: [1, 1, 77, 77]
    把 `engine execution error` 前缀的消息走错误样式**，避免用户把
    引擎错误当模型回答。
 
-## 根因（2026-10-27 晚些确认，已修复）
+## 根因（2026-10-27 晚些确认，已修复；并发假设已修正）
 
-复跑未再触发的原因也解释通了：竞态需要并发请求恰好落在空窗里。
-回到源码发现 **`chat()` 的 reset 与 generate 是两段独立加锁**——
-reset 释放锁之后、generate 重新拿锁之前（render prompt + tokenize
-的空窗），任何并发请求（桌面应用里嵌入的 encephalon/hippocampus
-后台任务都会打 neuron）完成一次生成，其 KV cache 残留就被本请求
-继承：77 新 + 58 残留 = 135。数字严丝合缝，"58" 就是一次后台生成
-的长度。`chat_stream` 本来就全程持锁，只有非流式 `chat()` 漏了。
+**先纠正本笔记早先的推断**：压测脚本（`tools/neuron_kv_race_stress.sh`
+的并发模式）从未复现——模型锁把生成本来就串行化了，"reset→forward
+空窗被并发请求插队"这个窗口实际不存在。真正的复现条件是**纯顺序
+请求**：一条长生成之后紧跟 sql prompt，第二个请求的 prompt 前向
+撞上第一个请求留下的缓存（`lhs: [1,14,24,43]` = 24 新 + 19 残留，
+掩码按 24 建——同一 bug 的另一组数字）。
+
+回到源码：`chat()` 的 reset 与 generate 是两段独立加锁，而
+candle 上游 CPU 路径的注意力掩码由调用方的 `offset` 推导、契约是
+"forward 时缓存必须为空"——顺序场景下 reset 与下一次 forward 之间
+隔着上一请求**未走完**的解码循环（KV 条目 19 = 上一次的 prompt 17 +
+生成 2，不是生成总数），残留被继承。`chat_stream` 全程持锁所以
+幸免，只有非流式 `chat()` 中招。
 
 **修复**：neuron `2bce199`（main）——reset 移进 generate 的同一
 临界区，与 chat_stream 模式对齐；cargo test --lib 701 全绿。
+压测脚本保留为回归探针（预期 0 mismatch）。
 
 ## 验证（2026-10-27 深夜）
 
