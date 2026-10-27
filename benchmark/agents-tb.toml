@@ -173,31 +173,31 @@ max_steps = 50
 # max_tokens = 2048
 # timeout_secs = 900
 
-# 大脑独立栈 (brain standalone) — benchmark subject #1 of 2 (desktop is
-# the wdio entry; mobile deferred by user decision 2026-10-14). The
-# brain = 端脑 telencephalon (4 lobes: temporal/occipital/parietal/
+# encephalon 独立栈 (encephalon standalone) — benchmark subject #1 of 2
+# (desktop is the wdio entry; mobile deferred by user decision 2026-10-14).
+# The stack = 端脑 telencephalon (4 lobes: temporal/occipital/parietal/
 # prefrontal) + 间脑 diencephalon (Thalamus) + 海马体 hippocampus (:
 # 8081). Boot (verified live 2026-10-14, all four components healthy):
 #   cd encephalon && NEURON_MODEL_DIRS=~/.neuron/models \
 #     cargo run --release -p encephalon --example a2a_server -- --port 8082
 # Two faces, two entries:
-#  (a) A2A face (brain-a2a): telencephalon gateway reads skill from
+#  (a) A2A face (encephalon-a2a): telencephalon gateway reads skill from
 #      message.metadata.skill and routes to a REGISTERED lobe — needs a
 #      serving lobe process (registered lobes ship placeholder .local
 #      URLs with empty skills; live probe: "skill not found, available
-#      skills: []"). Wire contract in src/brain_agent.rs.
-#  (b) neuron OpenAI face (brain-qwen06): full-stack serving /v1/chat/
-#      completions — measures the brain-as-inference-host delta now.
+#      skills: []"). Wire contract in src/encephalon_agent.rs.
+#  (b) neuron OpenAI face (encephalon-qwen06): full-stack serving
+#      /v1/chat/completions — measures the stack-as-inference-host delta.
 #[[agent]]
-#adapter = "brain"
-#name = "brain-a2a"
+#adapter = "encephalon"
+#name = "encephalon-a2a"
 #a2a_base_url = "http://127.0.0.1:8082"
 #skill = "chat"
 #timeout_secs = 900
 
 [[agent]]
 adapter = "openai"
-name = "brain-qwen06"
+name = "encephalon-qwen06"
 base_url = "http://127.0.0.1:8082/v1"
 model = "qwen3-0.6b"
 max_tokens = 2048
@@ -209,8 +209,8 @@ timeout_secs = 900
 # 注册），端脑 lobe_cache 有 parietal-real（skills 含 behavior.evaluate）。
 # suite: suites/behavior-smoke.json（浴缸温度阈值场景）。
 [[agent]]
-adapter = "brain"
-name = "brain-parietal-behavior"
+adapter = "encephalon"
+name = "encephalon-parietal-behavior"
 a2a_base_url = "http://127.0.0.1:8082"
 skill = "behavior.evaluate"
 timeout_secs = 60
@@ -282,17 +282,17 @@ webdriver_url = "http://127.0.0.1:9515"
 kind = "agentic"
 max_steps = 50
 
-# 大脑容器 (ibloc-brain) — the full production stack (端脑+丘脑+海马体+
-# neuron) behind ONE OpenAI face. Build: docker build -t ibloc-brain
+# encephalon 容器 (ibloc-encephalon) — the full production stack (端脑+丘脑+海马体+
+# neuron) behind ONE OpenAI face. Build: docker build -t ibloc-encephalon
 # -f encephalon/Dockerfile . (repo root context); run with
 # NEURON_REMOTE_* env per the Dockerfile header, port 8082 (local dev
 # boots use `cargo run --example a2a_server -- --port 18082` since
 # 8082 is held by a resident hippocampus-server).
 # Requires the neuron remote engine (NEURON_REMOTE_* env, merged into
-# neuron 2026-10-12) so cloud models live behind the brain's face.
+# neuron 2026-10-12) so cloud models live behind the stack's face.
 [[agent]]
 adapter = "openai"
-name = "brain-docker"
+name = "encephalon-docker"
 base_url = "http://127.0.0.1:18082/v1"
 model = "deepseek-chat"
 max_tokens = 8192
@@ -301,7 +301,7 @@ timeout_secs = 900
 kind = "agentic"
 max_steps = 50
 
-# Shadow-Desktop as benchmark subject #2 (大脑是 subject #1)。前提：
+# Shadow-Desktop as benchmark subject #2 (encephalon 是 subject #1)。前提：
 # `pnpm tauri dev` 在跑、wdio plugin 暴露在 :4445（默认配置见
 # shadow-desktop/tests/wdio/wdio.conf.ts）。task_timeout_secs 必须
 # ≥ reply_timeout_secs——runner 默认 180s 会先把任务杀掉（2026-10-27
@@ -320,8 +320,8 @@ task_timeout_secs = 600
 # prefrontal agent（process_with_tools 工具循环）→ deepseek → 回答。
 # 与 deepseek-chat（openai 直连）同模型对照 = 被测物 A2A 栈 delta。
 [[agent]]
-adapter = "brain"
-name = "brain-prefrontal-llm"
+adapter = "encephalon"
+name = "encephalon-prefrontal-llm"
 a2a_base_url = "http://127.0.0.1:8082"
 skill = "task_execution"
 timeout_secs = 120

@@ -85,10 +85,10 @@ pub enum AgentSpec {
         #[serde(default)]
         task_timeout_secs: Option<u64>,
     },
-    /// 大脑独立栈 A2A endpoint (subject #1 of 2, see
+    /// encephalon 独立栈 A2A endpoint (subject #1 of 2, see
     /// docs/benchmark-positioning.md §0) — POST /a2a/tasks/send with
     /// skill routing. `skill` selects the target lobe.
-    Brain {
+    Encephalon {
         name: String,
         a2a_base_url: String,
         skill: String,
@@ -182,7 +182,7 @@ impl AgentSpec {
             AgentSpec::ShadowDesktop { name, .. } => name,
             AgentSpec::OpenAi { name, .. } => name,
             AgentSpec::Cli { name, .. } => name,
-            AgentSpec::Brain { name, .. } => name,
+            AgentSpec::Encephalon { name, .. } => name,
             AgentSpec::RuleEngine { name, .. } => name,
         }
     }
@@ -196,7 +196,7 @@ impl AgentSpec {
             AgentSpec::ShadowDesktop { task_timeout_secs, .. }
             | AgentSpec::OpenAi { task_timeout_secs, .. }
             | AgentSpec::Cli { task_timeout_secs, .. }
-            | AgentSpec::Brain { task_timeout_secs, .. }
+            | AgentSpec::Encephalon { task_timeout_secs, .. }
             | AgentSpec::RuleEngine { task_timeout_secs, .. } => *task_timeout_secs,
         }
     }
@@ -208,7 +208,7 @@ impl AgentSpec {
     pub fn session_config(&self) -> SessionConfig {
         match self {
             AgentSpec::OpenAi { session, .. } => session.clone().unwrap_or_default(),
-            AgentSpec::Brain { session, .. } => session.clone().unwrap_or_default(),
+            AgentSpec::Encephalon { session, .. } => session.clone().unwrap_or_default(),
             // CLI / ShadowDesktop don't carry session today —
             // the runner reads prior_traces from the previous
             // task's stdout / wdio DOM dump respectively, so
@@ -273,13 +273,13 @@ impl AgentSpec {
                 command,
                 timeout_secs,
             }),
-            AgentSpec::Brain {
+            AgentSpec::Encephalon {
                 name,
                 a2a_base_url,
                 skill,
                 timeout_secs,
                 ..
-            } => Box::new(crate::brain_agent::BrainAgent {
+            } => Box::new(crate::encephalon_agent::EncephalonAgent {
                 name,
                 a2a_base_url,
                 skill,
@@ -444,6 +444,25 @@ model = "deepseek-chat"
                 assert_eq!(mode, &crate::agent::AgentMode::OneShot)
             }
             other => panic!("expected openai variant, got {other:?}"),
+        }
+    }
+
+    /// The `encephalon` adapter key must parse into the `Encephalon`
+    /// variant (renamed from `brain` on 2026-10-27). Guards against the
+    /// config/code drift that a renamed variant silently reintroduces:
+    /// serde would reject the unknown tag at load time.
+    #[test]
+    fn encephalon_adapter_key_parses() {
+        let toml = r##"[[agent]]
+adapter = "encephalon"
+name = "encephalon-a2a"
+a2a_base_url = "http://127.0.0.1:8082"
+skill = "chat"
+"##;
+        let cfg: AgentsConfig = toml::from_str(toml).expect("parse");
+        match &cfg.agents[0] {
+            AgentSpec::Encephalon { skill, .. } => assert_eq!(skill, "chat"),
+            other => panic!("expected encephalon variant, got {other:?}"),
         }
     }
 }

@@ -21,7 +21,7 @@
 //! with JSON + markdown exports. The `bench` binary ties it together.
 
 pub mod agent;
-pub mod brain_agent;
+pub mod encephalon_agent;
 pub mod browser;
 pub mod config;
 pub mod desktop_agent;
@@ -139,7 +139,7 @@ mod prior_hint_tests {
         assert!(snippet_len >= 100, "snippet_len={snippet_len}");
     }
 
-    /// End-to-end: feed the 2026-10-14 brain snapshot (5 rows, the
+    /// End-to-end: feed the 2026-10-14 encephalon snapshot (5 rows, the
     /// only real traces this crate has ingested to date) through the
     /// same filter+sort+format path the runner takes. Confirms the
     /// hint the runner would inject for `deepseek-chat-agentic:
@@ -147,13 +147,13 @@ mod prior_hint_tests {
     /// the q=0.0 2-step failure — the very signals that drive the
     /// "avoid bc/python" lesson the next runner should learn.
     #[test]
-    fn brain_snapshot_feeds_clean_hint_for_rate_problem() {
+    fn encephalon_snapshot_feeds_clean_hint_for_rate_problem() {
         // Locate the snapshot file in the workspace relative to
         // CARGO_MANIFEST_DIR (tests run from the crate root).
         let snap = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("docs")
             .join("reports")
-            .join("brain-trace-snapshot-2026-10-14.jsonl");
+            .join("encephalon-trace-snapshot-2026-10-14.jsonl");
         if !snap.exists() {
             // The test is opt-in: skip when the snapshot isn't on
             // disk (e.g. on a fresh CI worker). The lib tests stay

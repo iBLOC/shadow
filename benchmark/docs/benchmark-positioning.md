@@ -1,9 +1,9 @@
-# Benchmark 定位：测的是 **shadow-desktop / 大脑**，不是基础模型
+# Benchmark 定位：测的是 **shadow-desktop / encephalon**，不是基础模型
 
 > 2026-10-15 根本定位转向（用户原话："本项目的benchmark应该测试
 > 的是shadow- desktop/大脑而不是基础模型"）。**项目测的是被测物
-> 自身的能力**：shadow-desktop（用户实际操作的 UI 形态）和大脑
-> 独立栈（端脑 + 间脑 + 海马体）作为两个被测物，在 SWE / GAIA / τ² /
+> 自身的能力**：shadow-desktop（用户实际操作的 UI 形态）和
+> encephalon 独立栈（端脑 + 间脑 + 海马体）作为两个被测物，在 SWE / GAIA / τ² /
 > TB 4 套件上的能力画像。**基础模型**只是这两个被测物内部使用的
 > 资源（神经网络的"权重"），不作为被测单元。
 
@@ -36,7 +36,7 @@
         → ACP bus → 4 叶区
       - **初级视觉识别（ByteTrack + NMS）= 丘脑跑；高级视觉
         （OCR/理解/场景描述）= 枕叶跑**
-    - 大脑 bus 通信
+    - encephalon bus 通信
     - 源码锚点：`encephalon/src/acp.rs:14` `pub type BusEvent =
       telencephalon::a2a::client::TelencephalonStreamEvent`（feature-gated
       兼容回退 `serde_json::Value`）——内部 envelope 类型名为 ACP 但在
@@ -44,7 +44,7 @@
     - 子进程委托：prefrontal 内部用 `synapse::acp::AcpClient`
       （prefrontal/src/acp_outbound.rs）启 OpenCode/Claude Code/Codex
       作为 ACP 编码 agent
-  - **大脑对外 = A2A**（Agent-to-Agent JSON-RPC over HTTP）：被 prefrontal
+  - **encephalon 对外 = A2A**（Agent-to-Agent JSON-RPC over HTTP）：被 prefrontal
     这类 lobe 调时走 A2A（`POST /a2a/tasks/send` `tasks/get` `cancel`），
     bench 通过 A2A gateway 路由
   - **工具分级**（2026-10-15 用户定调）：
@@ -78,7 +78,7 @@
   把被测物稳定暴露到 4 套件的胶水
 
 **反过来说的逻辑**：
-> 同一基础模型 + 两个被测物形态（shadow-desktop vs 大脑 A2A），分数
+> 同一基础模型 + 两个被测物形态（shadow-desktop vs encephalon A2A），分数
 > 差 = 端到端栈（含 UI/工具/记忆）的 harness 工程产出。两个被测物
 > 分数接近 = 当前栈对 UI/A2A 形态不敏感；分数差 = 某形态有工程缺口
 > 可优化。这是本项目的真正产出（不是"shadow 排第几"）。
@@ -151,7 +151,7 @@ shadow-desktop（嵌入 qwen3-0.6B）vs 纯 API 模型同题对照：
 
 ### 第一张同模型跨被测物 delta 表（2026-10-16，prefrontal-llm-smoke 5 题）
 
-| 任务 | deepseek-chat（openai 直连）| brain-prefrontal-llm（端脑 gateway → prefrontal 工具循环 → deepseek）| delta |
+| 任务 | deepseek-chat（openai 直连）| encephalon-prefrontal-llm（端脑 gateway → prefrontal 工具循环 → deepseek）| delta |
 |---|---|---|---|
 | llm-arithmetic (7*8) | P | P | 0 |
 | llm-arithmetic-2 (144/12) | P | P | 0 |
@@ -164,7 +164,7 @@ shadow-desktop（嵌入 qwen3-0.6B）vs 纯 API 模型同题对照：
 
 ### 工具循环净增值 delta（2026-10-16，prefrontal-tool-loop-smoke 3 题）——**首个正向证据**
 
-| 任务 | deepseek 直连（无工具）| brain-prefrontal-llm（time 工具循环）| delta |
+| 任务 | deepseek 直连（无工具）| encephalon-prefrontal-llm（time 工具循环）| delta |
 |---|---|---|---|
 | tool-time-today（今天日期 2026-10-16）| **F**（幻觉训练期日期）| **P** | **+100%** |
 | tool-time-human-format（CST 时区）| **F** | **P** | **+100%** |
@@ -211,10 +211,10 @@ agents-tb.toml 已加注释条目（`shadow-desktop-agentic`，webdriver_url=:44
 
 **本会话最终产出**（2026-10-14 → 2026-10-15）：
 - 18 lib 测试全绿零回归
-- 5 个归档报告（`docs/reports/2026-10-14/`）：brain-qwen06 core-smoke、SWE r3-v2 80%、GAIA t900 4 模型、TB glm 0/4 + ds 1/4、5 行真 trace snapshot
+- 5 个归档报告（`docs/reports/2026-10-14/`）：encephalon-qwen06 core-smoke、SWE r3-v2 80%、GAIA t900 4 模型、TB glm 0/4 + ds 1/4、5 行真 trace snapshot
 - 1 个 A2A PR 草稿（`docs/integration-notes/prefrontal-llm-decode-fix-2026-10-15.md`）
 - 端脑 4 处 wire 修复 + prefrontal 真 lobe 注册 + gateway 路由链路 100% 打通
-- 大脑 8082 + prefrontal :18082 仍在跑，可立即用作被测物调试环境
+- encephalon 8082 + prefrontal :18082 仍在跑，可立即用作被测物调试环境
 - Vite dev :5173 200 OK（shadow-desktop 前端可达）
 
 **核心定位**：每个分数点都是**被测物的能力画像**——同模型跨被测物形态的 delta 才是 harness 工程产出。~~两个被测物当前都没有完整真跑分~~ **2026-10-26/27 已达成：两个被测物 + 2×4 跨模型矩阵全部实测完毕**（见下"总成绩单"）。
@@ -243,8 +243,8 @@ agents-tb.toml 已加注释条目（`shadow-desktop-agentic`，webdriver_url=:44
 **behavior-smoke 的 delta 就是产品边界**（2026-10-27 实测）：desktop
 如實读出传感器数值（27.3 / 18.5 / 30.0 全在回答里，door-bell 拒答），
 但对话路径没有 notify/alert 动作面——`feishu_card` / `tts` 这些执行
-通道住在大脑栈（parietal-real 5/5）。两被测物分工与架构声明一致
-（desktop=交互，大脑=执行），benchmark 把"分工"变成了可复核的数字：
+通道住在 encephalon 栈（parietal-real 5/5）。两被测物分工与架构声明一致
+（desktop=交互，encephalon=执行），benchmark 把"分工"变成了可复核的数字：
 **给 desktop 用户说"鱼缸低于 20 度通知我"，现在通不了**——要通，要么
 desktop 对接 Resonance 派发，要么给 conversation 挂行为动作面。
 

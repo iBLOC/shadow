@@ -2,7 +2,7 @@
 //! bench "agent" (2026-10-24).
 //!
 //! Rationale: the zen backend lives in the thalamus hot path
-//! (diencephalon), which the A2A bench path (brain-prefrontal →
+//! (diencephalon), which the A2A bench path (encephalon-prefrontal →
 //! telencephalon → prefrontal) never crosses. To keep the engine's
 //! notify/ignore semantics under the same regression regime as the
 //! LLM agents — same runner, same pass^k, same report tables —

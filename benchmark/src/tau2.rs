@@ -215,7 +215,7 @@ impl Tau2Agent {
                 match other {
                     crate::config::AgentSpec::ShadowDesktop { .. } => "shadow-desktop",
                     crate::config::AgentSpec::Cli { .. } => "cli",
-                    crate::config::AgentSpec::Brain { .. } => "brain",
+                    crate::config::AgentSpec::Encephalon { .. } => "encephalon",
                     crate::config::AgentSpec::RuleEngine { .. } => "rule-engine",
                     crate::config::AgentSpec::OpenAi { .. } => "openai",
                 }

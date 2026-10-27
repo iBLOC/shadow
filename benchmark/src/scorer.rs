@@ -625,7 +625,7 @@ mod tests {
 
     /// F→P fallback: lowercase "final answer: <value>" answer text
     /// passes the raw comparison (the harness's FINAL ANSWER contract).
-    /// Caught brain-qwen06's "final answer: 90" output style on
+    /// Caught encephalon-qwen06's "final answer: 90" output style on
     /// core-smoke rate-problem (2026-10-14).
     #[tokio::test]
     async fn exact_match_strips_lowercase_final_answer_marker() {
@@ -651,7 +651,7 @@ mod tests {
 
     /// F→P fallback: "1280.00" vs "1280" — small float delta, official
     /// harnesses treat them as equal. Originally surfaced by
-    /// brain-qwen06's core-smoke extraction task (2026-10-14).
+    /// encephalon-qwen06's core-smoke extraction task (2026-10-14).
     #[tokio::test]
     async fn exact_match_numeric_equality_fallback() {
         let task = Task {

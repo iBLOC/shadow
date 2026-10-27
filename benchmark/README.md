@@ -1,10 +1,10 @@
 # Shadow Benchmark
 
 Shadow 平台的 agent benchmark——**同一套原生 harness** 测三类对象：
-跨模型对照（API 直连）、跨被测物对照（shadow-desktop / 大脑独立栈）、
+跨模型对照（API 直连）、跨被测物对照（shadow-desktop / encephalon 独立栈）、
 以及行业套件切片（τ² / SWE-bench Verified / GAIA / Terminal-Bench 2.x）。
 
-> 定位声明：项目测的是 **shadow-desktop / 大脑两个被测物自身的能力**，
+> 定位声明：项目测的是 **shadow-desktop / encephalon 两个被测物自身的能力**，
 > 基础模型只是被测物内部的权重资源；同模型跨被测物的 delta 才是
 > harness 工程的真产出。详见
 > [docs/benchmark-positioning.md](docs/benchmark-positioning.md)。
@@ -74,7 +74,7 @@ cargo run --bin bench -- run \
 |---|---|---|
 | `openai` | OpenAI 兼容端点 | one-shot 或 `[agent.mode] kind="agentic"` 工具循环（bash/read/write/edit/list/web_fetch/finish，路径越界拒绝） |
 | `shadow-desktop` | wdio WebDriver :4445 | 真实 Tauri 应用全栈——兼作功能测试；需 `pnpm tauri dev` |
-| `brain` | A2A :8082 | 大脑独立栈（gateway → 真 lobe） |
+| `encephalon` | A2A :8082 | encephalon 独立栈（gateway → 真 lobe） |
 | `cli` | argv `{prompt}/{workdir}` | 开源 agent CLI；未安装自动 skip |
 | `rule-engine` | 进程内 zen-engine | 确定性对照（diencephalon 同一后端） |
 
@@ -86,7 +86,7 @@ src/suite.rs           Suite 加载与校验
 src/agent.rs           OpenAI 适配器 + AgentMode（OneShot/Agentic）+ TokenUsage
 src/tools.rs           agentic 工具面（bash 300s 上限 / 路径沙箱 / web_fetch SSRF 防护）
 src/desktop_agent.rs   shadow-desktop 全栈适配器（WebDriver）
-src/brain_agent.rs     大脑 A2A 适配器
+src/encephalon_agent.rs  encephalon A2A 适配器
 src/tau2.rs            τ² 适配器（驱动上游 harness，answer/tool_calls/usage/steps 进报告）
 src/swe*.rs            SWE 适配器 + Rust 原生评估器（swe_parity 与 Python 驱动逐字段一致）
 src/gaia_import.rs     GAIA 导入（官方 question_scorer 语义移植）

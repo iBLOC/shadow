@@ -6,8 +6,8 @@
 #   `{prompt}` is replaced with the task instruction, `{workdir}` with
 #   the sandbox path. Missing binaries are reported as "skip".
 # adapter = "shadow-desktop": full app via wdio WebDriver (functional test).
-# adapter = "iBLOC-encephalon-server" or "iBLOC-encephalon": the brain
-#   binary's OpenAI surface. Use base_url = "http://127.0.0.1:8082/v1".
+# adapter = "encephalon": the encephalon standalone stack's OpenAI
+#   surface. Use base_url = "http://127.0.0.1:8082/v1".
 
 # Keys: api_key (inline, for tests) OR api_key_env (env var name,
 # resolved at request time). Keys never enter the repo or the

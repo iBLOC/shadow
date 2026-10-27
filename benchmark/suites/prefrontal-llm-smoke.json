@@ -1,6 +1,6 @@
 {
   "name": "prefrontal-llm-smoke",
-  "description": "同模型跨被测物 delta 套件 — 5 道 LLM 直答任务（算术/常识/格式），在 deepseek-chat（openai 直连）与 brain-prefrontal-llm（端脑 gateway → prefrontal agent 工具循环 → deepseek）两个被测物上各跑一遍。delta = 被测物 A2A 栈损耗（理想为 0：加分项是 prefrontal 工具循环补足直答失败）。",
+  "description": "同模型跨被测物 delta 套件 — 5 道 LLM 直答任务（算术/常识/格式），在 deepseek-chat（openai 直连）与 encephalon-prefrontal-llm（端脑 gateway → prefrontal agent 工具循环 → deepseek）两个被测物上各跑一遍。delta = 被测物 A2A 栈损耗（理想为 0：加分项是 prefrontal 工具循环补足直答失败）。",
   "source": "shadow-internal/2026-10-16",
   "tasks": [
     {

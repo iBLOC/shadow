@@ -150,8 +150,8 @@ struct ResponseMessage {
    期望：返回 `"result.history[1].parts[0].text": "56"`（不再是
    `"Error: Request error: error decoding response body"`）
 
-4. 在端脑（已带 v0.2 wire）上跑 `bench run --only brain-a2a`：
-   完整 A2A 链路从脑 → prefrontal → deepseek → 回答案
+4. 在端脑（已带 v0.2 wire）上跑 `bench run --only encephalon-a2a`：
+   完整 A2A 链路从端脑 → prefrontal → deepseek → 回答案
 
 ## 端到端联调笔记
 
