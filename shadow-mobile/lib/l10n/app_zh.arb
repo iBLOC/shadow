@@ -256,5 +256,11 @@
     "placeholders": {
       "label": {}
     }
-  }
+  },
+  "modelBindingPromptTitle": "先绑定模型再继续",
+  "@modelBindingPromptTitle": {},
+  "modelBindingPromptGoSettings": "请先到设置页绑定模型",
+  "@modelBindingPromptGoSettings": {},
+  "modelBindingPromptLater": "稍后",
+  "@modelBindingPromptLater": {}
 }

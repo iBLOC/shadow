@@ -32,11 +32,51 @@ class TasksState {
 
 enum TaskStatus { pending, todo, inProgress, done }
 
+/// 子任务（步骤）。对应 hippocampus `TaskRecord.steps` 里的一个
+/// `TaskStep` —— 后端以 camelCase 序列化（stepId / startedAt / ...）。
+class SubTaskStep {
+  final String stepId;
+  final int order;
+  final String status;
+  final DateTime? startedAt;
+  final DateTime? completedAt;
+  final String? error;
+
+  SubTaskStep({
+    required this.stepId,
+    this.order = 0,
+    this.status = 'pending',
+    this.startedAt,
+    this.completedAt,
+    this.error,
+  });
+
+  factory SubTaskStep.fromJson(Map<String, dynamic> json) {
+    DateTime? parse(String camel, String snake) {
+      final raw = json[camel] ?? json[snake];
+      if (raw == null) return null;
+      return DateTime.tryParse(raw.toString());
+    }
+
+    return SubTaskStep(
+      stepId: (json['stepId'] ?? json['step_id'] ?? '').toString(),
+      order: (json['order'] as num?)?.toInt() ?? 0,
+      status: (json['status'] ?? 'pending').toString(),
+      startedAt: parse('startedAt', 'started_at'),
+      completedAt: parse('completedAt', 'completed_at'),
+      error: json['error'] as String?,
+    );
+  }
+}
+
 class TaskInfo {
   final String id;
   final String title;
   final String status;
   final String priority;
+  final String? description;
+  final List<String> tags;
+  final List<SubTaskStep> steps;
   final DateTime createdAt;
   final DateTime? completedAt;
 
@@ -45,20 +85,43 @@ class TaskInfo {
     required this.title,
     required this.status,
     this.priority = 'medium',
+    this.description,
+    this.tags = const [],
+    this.steps = const [],
     required this.createdAt,
     this.completedAt,
   });
 
   factory TaskInfo.fromJson(Map<String, dynamic> json) {
+    final rawSteps = json['steps'];
     return TaskInfo(
-      id: json['id'] ?? '',
-      title: json['title'] ?? '',
-      status: json['status'] ?? 'pending',
-      priority: json['priority'] ?? 'medium',
-      createdAt: DateTime.tryParse(json['created_at'] ?? '') ?? DateTime.now(),
-      completedAt: json['completed_at'] != null
-          ? DateTime.tryParse(json['completed_at'])
-          : null,
+      id: (json['taskId'] ?? json['task_id'] ?? json['id'] ?? '').toString(),
+      title: (json['title'] ?? '').toString(),
+      status: (json['status'] ?? 'pending').toString(),
+      priority: (json['priority'] ?? 'medium').toString(),
+      description: json['description'] as String?,
+      tags: json['tags'] is List
+          ? (json['tags'] as List).map((e) => e.toString()).toList()
+          : const <String>[],
+      steps: rawSteps is List
+          ? rawSteps
+              .whereType<Map<String, dynamic>>()
+              .map(SubTaskStep.fromJson)
+              .toList()
+          : const <SubTaskStep>[],
+      createdAt: DateTime.tryParse(
+                (json['receivedAt'] ??
+                        json['received_at'] ??
+                        json['created_at'] ??
+                        '')
+                    .toString(),
+              ) ??
+          DateTime.now(),
+      completedAt: json['completedAt'] != null
+          ? DateTime.tryParse(json['completedAt'].toString())
+          : (json['completed_at'] != null
+              ? DateTime.tryParse(json['completed_at'].toString())
+              : null),
     );
   }
 }
@@ -75,22 +138,95 @@ class TasksNotifier extends StateNotifier<TasksState> {
     try {
       final tasks = await _client.getTasks();
       state = state.copyWith(
-        tasks: tasks
-            .map(
-              (t) => TaskInfo.fromJson({
-                'id': t.id,
-                'title': t.title,
-                'status': _mapStatus(t.status),
-                'priority': t.priority ?? 'medium',
-                'created_at': t.createdAt.toIso8601String(),
-                'completed_at': t.completedAt?.toIso8601String(),
-              }),
-            )
-            .toList(),
+        tasks: tasks.map(_toTaskInfo).toList(),
         isLoading: false,
       );
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
+    }
+  }
+
+  /// TaskResponse -> TaskInfo。保留 hippocampus 的 taskId / receivedAt
+  /// 命名，并把子步骤 DAG 一并带过来。
+  TaskInfo _toTaskInfo(TaskResponse t) => TaskInfo(
+        id: t.id,
+        title: t.title,
+        status: _mapStatus(t.status),
+        priority: t.priority ?? 'medium',
+        description: t.description,
+        tags: t.tags,
+        steps: t.steps
+            .map(
+              (s) => SubTaskStep(
+                stepId: s.stepId,
+                order: s.order,
+                status: s.status,
+                startedAt: s.startedAt,
+                completedAt: s.completedAt,
+                error: s.error,
+              ),
+            )
+            .toList(),
+        createdAt: t.createdAt,
+        completedAt: t.completedAt,
+      );
+
+  /// 重新拉取单个任务并就地更新列表。
+  Future<void> reloadTask(String taskId) async {
+    try {
+      final updated = await _client.getTask(taskId);
+      final info = _toTaskInfo(updated);
+      state = state.copyWith(
+        tasks: state.tasks.map((t) => (t.id == taskId ? info : t)).toList(),
+      );
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+      rethrow;
+    }
+  }
+
+  /// 更新任务字段。
+  ///
+  /// title / description / priority 是仅前端字段 —— hippocampus 的
+  /// TaskRecord 没有这些列，upsert 会丢弃它们（与桌面端
+  /// `prefrontalClient.updateTask` 行为一致）。
+  Future<void> updateTask(
+    String taskId, {
+    String? title,
+    String? description,
+    String? priority,
+    String? status,
+    List<String>? tags,
+  }) async {
+    try {
+      final updated = await _client.updateTask(
+        taskId,
+        title: title,
+        description: description,
+        priority: priority,
+        status: status == null ? null : _serverStatus(status),
+        tags: tags,
+      );
+      final info = _toTaskInfo(updated);
+      state = state.copyWith(
+        tasks: state.tasks.map((t) => (t.id == taskId ? info : t)).toList(),
+      );
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+      rethrow;
+    }
+  }
+
+  /// 删除任务，并从本地列表移除。
+  Future<void> deleteTask(String taskId) async {
+    try {
+      await _client.deleteTask(taskId);
+      state = state.copyWith(
+        tasks: state.tasks.where((t) => t.id != taskId).toList(),
+      );
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+      rethrow;
     }
   }
 
@@ -114,12 +250,44 @@ class TasksNotifier extends StateNotifier<TasksState> {
         return 'todo';
       case 'in_progress':
       case 'in-progress':
+      case 'running':
         return 'in-progress';
       case 'done':
       case 'completed':
         return 'done';
+      case 'failed':
+        return 'failed';
+      case 'cancelled':
+      case 'canceled':
+        return 'cancelled';
       default:
         return 'backlog';
+    }
+  }
+
+  /// UI 状态 -> hippocampus `TaskStatus` 的线上取值。
+  /// 服务端只认 pending / running / completed / failed / cancelled，
+  /// 直接把 UI 的 'in-progress' 发过去会被 serde 拒绝。
+  String _serverStatus(String uiStatus) {
+    switch (uiStatus.toLowerCase()) {
+      case 'todo':
+      case 'backlog':
+      case 'pending':
+        return 'pending';
+      case 'in-progress':
+      case 'in_progress':
+      case 'running':
+        return 'running';
+      case 'done':
+      case 'completed':
+        return 'completed';
+      case 'failed':
+        return 'failed';
+      case 'cancelled':
+      case 'canceled':
+        return 'cancelled';
+      default:
+        return 'pending';
     }
   }
 }

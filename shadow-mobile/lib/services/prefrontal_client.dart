@@ -6,6 +6,11 @@ import 'package:http/http.dart' as http;
 /// All backend endpoints are served by telencephalon (port 60080).
 /// Task, memory, and session endpoints are served by the embedded
 /// hippocampus at /hippocampus/*.
+
+/// hippocampus 的任务按租户分区。默认租户与桌面端
+/// `taskBoardDataStore` 的 `DEFAULT_TENANT` 保持一致。
+const String defaultTaskTenantId = 'default';
+
 class PrefrontalClient {
   final String baseUrl;
   final http.Client _client;
@@ -252,6 +257,65 @@ class PrefrontalClient {
       body: request.toJson(),
       parser: (data) => TaskResponse.fromJson(data),
     );
+  }
+
+  /// 查询单个任务
+  Future<TaskResponse> getTask(
+    String taskId, {
+    String tenantId = defaultTaskTenantId,
+  }) async {
+    return await _request<TaskResponse>(
+      'GET',
+      '/hippocampus/api/tasks/$tenantId/$taskId',
+      parser: (data) => TaskResponse.fromJson(data),
+    );
+  }
+
+  /// 更新任务。
+  ///
+  /// hippocampus 的 upsert 只接受 `TaskRecord` 的字段；title /
+  /// description / priority 会被服务端丢弃 —— 与桌面端
+  /// `prefrontalClient.updateTask` 的行为一致（同样是仅前端字段）。
+  Future<TaskResponse> updateTask(
+    String taskId, {
+    String tenantId = defaultTaskTenantId,
+    String? title,
+    String? description,
+    String? priority,
+    String? status,
+    List<String>? tags,
+  }) async {
+    final current = await getTask(taskId, tenantId: tenantId);
+    final body = <String, dynamic>{
+      'taskId': current.id,
+      'tenantId': tenantId,
+      'source': current.source ?? 'local',
+      'targetAgent': current.targetAgent ?? '',
+      'status': status ?? current.status,
+      'receivedAt': current.createdAt.toIso8601String(),
+      'completedAt': current.completedAt?.toIso8601String(),
+      'tags': tags ?? current.tags,
+      'steps': current.steps.map((s) => s.toJson()).toList(),
+      // 仅前端字段：hippocampus 的 UpsertTaskRequest 没有这些列，
+      // serde 默认忽略未知字段，所以这里带上也不会报错 —— 但也不会被持久化。
+      if (title != null) 'title': title,
+      if (description != null) 'description': description,
+      if (priority != null) 'priority': priority,
+    };
+    return await _request<TaskResponse>(
+      'POST',
+      '/hippocampus/api/tasks',
+      body: body,
+      parser: (data) => TaskResponse.fromJson(data),
+    );
+  }
+
+  /// 删除任务
+  Future<void> deleteTask(
+    String taskId, {
+    String tenantId = defaultTaskTenantId,
+  }) async {
+    await _request<void>('DELETE', '/hippocampus/api/tasks/$tenantId/$taskId');
   }
 
   // ============ Memory APIs ============
@@ -865,11 +929,96 @@ class CreateAgentRequest {
   };
 }
 
+/// Sub-task (step) of a hippocampus task record.
+///
+/// The backend serialises `TaskStep` in camelCase (`stepId`, `dependsOn`,
+/// `startedAt`, ...), matching the desktop `TaskStep` contract in
+/// `shadow-desktop/src/lib/prefrontalClient.ts`.
+class TaskStepResponse {
+  final String stepId;
+  final int order;
+  final List<String> dependsOn;
+  final String status;
+  final DateTime? startedAt;
+  final DateTime? completedAt;
+  final String? error;
+  /// Raw `StepTarget` payload. Kept verbatim so an update round-trip can
+  /// hand the server back exactly what it sent — `TaskStep.target` is a
+  /// required field on the Rust side.
+  final Map<String, dynamic>? target;
+
+  TaskStepResponse({
+    required this.stepId,
+    this.order = 0,
+    this.dependsOn = const [],
+    this.status = 'pending',
+    this.startedAt,
+    this.completedAt,
+    this.error,
+    this.target,
+  });
+
+  factory TaskStepResponse.fromJson(Map<String, dynamic> json) {
+    DateTime? parse(String? key) {
+      final raw = json[key];
+      if (raw == null) return null;
+      return DateTime.tryParse(raw.toString());
+    }
+
+    final rawTarget = json['target'];
+    return TaskStepResponse(
+      stepId: (json['stepId'] ?? json['step_id'] ?? '').toString(),
+      order: (json['order'] as num?)?.toInt() ?? 0,
+      dependsOn: (json['dependsOn'] ?? json['depends_on']) is List
+          ? ((json['dependsOn'] ?? json['depends_on']) as List)
+              .map((e) => e.toString())
+              .toList()
+          : const <String>[],
+      status: (json['status'] ?? 'pending').toString(),
+      startedAt: parse('startedAt') ?? parse('started_at'),
+      completedAt: parse('completedAt') ?? parse('completed_at'),
+      error: json['error'] as String?,
+      target: rawTarget is Map<String, dynamic>
+          ? Map<String, dynamic>.from(rawTarget)
+          : null,
+    );
+  }
+
+  /// Wire representation — mirrors the Rust `TaskStep` serde
+  /// (`rename_all = "camelCase"`).
+  Map<String, dynamic> toJson() => {
+        'stepId': stepId,
+        'order': order,
+        'dependsOn': dependsOn,
+        'status': status,
+        'startedAt': startedAt?.toIso8601String(),
+        'completedAt': completedAt?.toIso8601String(),
+        'error': error,
+        if (target != null) 'target': target,
+      };
+}
+
+/// A task record as returned by the hippocampus task API.
+///
+/// Field names follow `hippocampus-core/src/task.rs::TaskRecord`, which
+/// carries `#[serde(rename_all = "camelCase")]` — so the wire format is
+/// `taskId` / `receivedAt` / `targetAgent`. The snake_case spelling is
+/// accepted as a fallback so the client keeps working if that attribute
+/// is ever dropped.
+///
+/// `title` / `description` / `priority` are presentation-only — the
+/// hippocampus `TaskRecord` has no such columns, so an upsert drops them
+/// and the list API never returns them. Same caveat as the desktop client.
 class TaskResponse {
   final String id;
   final String title;
   final String status;
   final String? priority;
+  final String? description;
+  final String? source;
+  final String? targetAgent;
+  final List<String> tags;
+  final List<TaskStepResponse> steps;
   final DateTime createdAt;
   final DateTime? completedAt;
 
@@ -878,22 +1027,45 @@ class TaskResponse {
     required this.title,
     required this.status,
     this.priority,
+    this.description,
+    this.source,
+    this.targetAgent,
+    this.tags = const [],
+    this.steps = const [],
     required this.createdAt,
     this.completedAt,
   });
 
   factory TaskResponse.fromJson(Map<String, dynamic> json) {
+    final rawSteps = json['steps'];
+    DateTime? parseDate(String camel, String snake) {
+      final raw = json[camel] ?? json[snake];
+      if (raw == null) return null;
+      return DateTime.tryParse(raw.toString());
+    }
+
     return TaskResponse(
-      id: json['id'] ?? '',
-      title: json['title'] ?? '',
-      status: json['status'] ?? 'pending',
+      id: (json['taskId'] ?? json['task_id'] ?? json['id'] ?? '').toString(),
+      title: (json['title'] ?? '').toString(),
+      status: (json['status'] ?? 'pending').toString(),
       priority: json['priority'] as String?,
-      createdAt: DateTime.parse(
-        json['created_at'] ?? DateTime.now().toIso8601String(),
-      ),
-      completedAt: json['completed_at'] != null
-          ? DateTime.parse(json['completed_at'])
-          : null,
+      description: json['description'] as String?,
+      source: json['source'] as String?,
+      targetAgent:
+          (json['targetAgent'] ?? json['target_agent'])?.toString(),
+      tags: json['tags'] is List
+          ? (json['tags'] as List).map((e) => e.toString()).toList()
+          : const <String>[],
+      steps: rawSteps is List
+          ? rawSteps
+              .whereType<Map<String, dynamic>>()
+              .map(TaskStepResponse.fromJson)
+              .toList()
+          : const <TaskStepResponse>[],
+      createdAt: parseDate('receivedAt', 'received_at') ??
+          parseDate('createdAt', 'created_at') ??
+          DateTime.now(),
+      completedAt: parseDate('completedAt', 'completed_at'),
     );
   }
 }

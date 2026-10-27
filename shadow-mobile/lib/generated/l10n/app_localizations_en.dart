@@ -575,4 +575,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String visualQaPicked(Object label) {
     return 'Picked $label';
   }
+
+  @override
+  String get modelBindingPromptTitle => 'Bind a model to continue';
+
+  @override
+  String get modelBindingPromptGoSettings =>
+      'Go to settings and bind a model first';
+
+  @override
+  String get modelBindingPromptLater => 'Later';
 }

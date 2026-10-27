@@ -299,5 +299,11 @@
     "placeholders": {
       "label": {}
     }
-  }
+  },
+  "modelBindingPromptTitle": "Bind a model to continue",
+  "@modelBindingPromptTitle": {},
+  "modelBindingPromptGoSettings": "Go to settings and bind a model first",
+  "@modelBindingPromptGoSettings": {},
+  "modelBindingPromptLater": "Later",
+  "@modelBindingPromptLater": {}
 }

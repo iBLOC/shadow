@@ -1147,6 +1147,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Picked {label}'**
   String visualQaPicked(Object label);
+
+  /// No description provided for @modelBindingPromptTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Bind a model to continue'**
+  String get modelBindingPromptTitle;
+
+  /// No description provided for @modelBindingPromptGoSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Go to settings and bind a model first'**
+  String get modelBindingPromptGoSettings;
+
+  /// No description provided for @modelBindingPromptLater.
+  ///
+  /// In en, this message translates to:
+  /// **'Later'**
+  String get modelBindingPromptLater;
 }
 
 class _AppLocalizationsDelegate

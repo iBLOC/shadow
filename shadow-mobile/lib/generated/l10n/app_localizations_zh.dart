@@ -567,4 +567,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String visualQaPicked(Object label) {
     return '已选择 $label';
   }
+
+  @override
+  String get modelBindingPromptTitle => '先绑定模型再继续';
+
+  @override
+  String get modelBindingPromptGoSettings => '请先到设置页绑定模型';
+
+  @override
+  String get modelBindingPromptLater => '稍后';
 }
