@@ -217,7 +217,38 @@ agents-tb.toml 已加注释条目（`shadow-desktop-agentic`，webdriver_url=:44
 - 大脑 8082 + prefrontal :18082 仍在跑，可立即用作被测物调试环境
 - Vite dev :5173 200 OK（shadow-desktop 前端可达）
 
-**核心定位**：每个分数点都是**被测物的能力画像**——同模型跨被测物形态的 delta 才是 harness 工程产出。两个被测物（shadow-desktop / 大脑）当前**都没有完整真跑分**，要做的第一件事是把"实测 0 → 实测 N 题"先跑起来。
+**核心定位**：每个分数点都是**被测物的能力画像**——同模型跨被测物形态的 delta 才是 harness 工程产出。~~两个被测物当前都没有完整真跑分~~ **2026-10-26/27 已达成：两个被测物 + 2×4 跨模型矩阵全部实测完毕**（见下"总成绩单"）。
+
+## 3.5 总成绩单（2026-10-27 收口）
+
+### 跨模型矩阵（API 对照组，同一原生 harness）
+
+| 套件 | deepseek-chat | MiMo flash | 备注 |
+|---|---|---|---|
+| τ² airline (5) | 3/5（r3 pass@1 40%, pass³ 20%） | **4/5** | MiMo 需 ≥900s 超时 |
+| SWE Verified (5) | 4/5 @50步 | **5/5** | 首个全绿切片 |
+| GAIA 文本 (10) | **4/10** | 3/10 | 原生工具口径（历史 7/10 含钩子） |
+| TB 2.x (4) | 1/4 | **2/4** | MiMo 过了 batching-scheduler |
+
+分化模式：MiMo 强在长程工具循环（SWE/τ²/TB），deepseek 强在事实检索 + 格式纪律（GAIA/τ² 速度）。四套件各拿两条强项，无全能选手。
+
+### 跨被测物（同套件对照）
+
+| 套件 | shadow-desktop（嵌入 0.6B 完整产品栈） | 大脑独立栈（gateway→真 lobe） | API 直连 |
+|---|---|---|---|
+| core-smoke (10) | **6/10** @600s | — | deepseek one-shot 9/10 |
+| behavior-smoke (5) | **0/5** | **5/5** | deepseek 直连 0/5（对照组预期） |
+| prefrontal-llm-smoke (5) | — | **5/5 delta=0** | 5/5 |
+
+**behavior-smoke 的 delta 就是产品边界**（2026-10-27 实测）：desktop
+如實读出传感器数值（27.3 / 18.5 / 30.0 全在回答里，door-bell 拒答），
+但对话路径没有 notify/alert 动作面——`feishu_card` / `tts` 这些执行
+通道住在大脑栈（parietal-real 5/5）。两被测物分工与架构声明一致
+（desktop=交互，大脑=执行），benchmark 把"分工"变成了可复核的数字：
+**给 desktop 用户说"鱼缸低于 20 度通知我"，现在通不了**——要通，要么
+desktop 对接 Resonance 派发，要么给 conversation 挂行为动作面。
+
+被测物跑分揪出的问题（benchmark 兼功能测试的产出）：candle shape mismatch 非确定性引擎 bug（未复现，笔记见 integration-notes）、letter-count '2'（0.6B 短板）、180s 默认超时误杀桌面被测物（→ task_timeout_secs 落地）。
 
 ## 4. 进官方榜单的路径（按可行性排序）
 
