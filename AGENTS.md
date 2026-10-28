@@ -296,6 +296,19 @@ CI 的 `Mobile Analyze` 作业固定 **Flutter 3.41.4（Dart 3.11.1）**（Dart 
 
 **模拟器硬阻塞**：本机 `systeminfo` 显示 `Virtualization Enabled In Firmware: No`、`HypervisorPresent=False`（AMD Ryzen 5 5600X，BIOS 未开 SVM），因此 Hyper-V / Windows Hypervisor Platform / Android Emulator hypervisor driver **全部不可用**；`aehd` 服务虽已安装但处于 Stopped，且当前 shell 非管理员。要跑模拟器必须先进 BIOS 开启 SVM 并重启。没有物理设备时 `adb devices` 为空，APK 无法安装验证。
 
+## 桌面端系统提示词链路
+
+桌面端「提示词设置」页（`/prompt-settings`，`PromptSettingsPage` + `promptStore`）的提示词要真正到达模型，**平台不同路径不同**，两条都要接：
+
+- **桌面 Tauri 模式**（对话跑在内置 neuron 上，`streamMessageNeuron`）：提示词直接进本地消息历史的 system 消息。`composeSystemPrompt()` 的顺序是**内置基线在前、用户人设在后** —— 基线带着 Qwen3 的 `/no_think` 指令（功能性的，不能丢），人设放后面是因为越靠近用户轮次权重越高。
+- **Web 模式**（对话走 telencephalon）：`createConversation({ system })` → 后端把提示词存成会话的 `[system] …` agent turn（`SYSTEM_TURN_PREFIX`，没有单独的列，也就不用改表结构）→ 发消息时 `system_prompt_of(&conv)` 取回 → 塞进 A2A 的 `metadata["system"]` → lobe 侧 `extract_system_prompt()` 取出 → `compose_system_prompt()` 拼在 lobe 基线之后。
+
+**A2A metadata 通道**：`metadata` 走的是把整张表打包进 `metadata["name"]`（`__cortex_meta_v1__` 前缀，`encode_metadata_for_transport` / `decode_metadata_from_name`）。v1 线上协议只转发 `name` 这一个键，所以**加一个新字段不需要改 synapse、也不需要改线上格式** —— 只要 lobe 侧从解包后的 map 里读。
+
+**桌面端页面的孤儿问题**：`src/pages/` 下出现过两次"写好了但没人引用"的页面（`RecordingPage` 被 `RecordingPanel` 取代后遗留、`PromptSettingsPage` 从未挂路由）。`src/__tests__/pageRouting.test.ts` 现在会挡住这类问题：每个页面模块必须被路由挂载，每条路由必须指向存在的页面。
+
+**`scripts/ui-smoke.sh` 是"假绿"陷阱（2026-10-28 修复）**：它原本只判断 HTTP 200，而 Vite 对不存在的路径会回退到 index.html **同样返回 200**，所以缺失模块一律"通过"。现在改成从文件系统自动发现模块，并要求响应体不是 HTML 外壳。跑它需要先起 `pnpm dev`（脚本打的是 `http://localhost:1420`）。
+
 ## 环境变量
 
 ```bash
