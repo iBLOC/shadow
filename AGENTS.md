@@ -282,6 +282,20 @@ CI 的 `Mobile Analyze` 作业固定 **Flutter 3.41.4（Dart 3.11.1）**（Dart 
 - Windows 上 `flutter pub get` 末尾会因缺符号链接支持退出 1（Developer Mode 未开）。依赖其实已解析完，`analyze` / `test` 不受影响；要跑桌面端构建需管理员执行 `reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock" /v AllowDevelopmentWithoutDevLicense /t REG_DWORD /d 1 /f`
 - 根 `.gitignore` 忽略了 `pubspec.lock`。Flutter 应用通常应当提交 lockfile —— 现在的状态意味着每次 CI 都重新解析依赖，构建不可复现
 
+## Android 打包环境与 APK 验收
+
+本机（Windows）已具备完整 Android 打包链路，均为免安装免管理员路线：
+
+- JDK 17：Temurin 17.0.20.1 → `C:\src\jdk17`（用户级 `JAVA_HOME`）
+- Android SDK：`C:\Users\87462\AppData\Local\Android\Sdk`（用户级 `ANDROID_HOME` / `ANDROID_SDK_ROOT`）。新 cmdline-tools 用 `android sdk install <pkg>@<ver>` / 路径式 `platforms/android-36` 语法，**旧 `sdkmanager` 已弃用**
+- 关键组件：`platforms/android-36`（Flutter 3.41.4 compileSdk=36）、`ndk/30.0.14904198`（工程钉死版本）、`cmake/3.22.1`（AGP 默认版本）
+- 打包：`flutter build apk --debug`（工作目录 `shadow-mobile/`）→ `build/app/outputs/flutter-apk/app-debug.apk`
+- 产物验收三件套：`aapt2 dump badging <apk>`（包名/SDK/ABI）、`tar -tf <apk>`（列 `.so`）、`llvm-nm -D --defined-only <so>`（校验 JNI 导出符号）
+
+**原生库打包陷阱（2026-10-28 修复，`69ff642`）**：`android/app/build.gradle.kts` 的 `externalNativeBuild` 必须写 `cmake { path = ... }`，否则 Flutter 的 Gradle 插件（`FlutterPluginUtils.forceNdkDownload`）会把 CMake 源目录改写成 flutter_tools 里那份**空的** CMakeLists.txt，`src/main/cpp/mnn_bridge.cpp` 永不编译，`libmnnbridge.so` 不进包。注意 **AGP 公共 DSL 里 `defaultConfig` 层的 `externalNativeBuild` 是 `ExternalNativeBuildFlags`（只有 cppFlags/arguments/abiFilters，没有 path/version）**，`path`/`version` 只能在**模块级** `android { externalNativeBuild { cmake { } } }` 上设置 —— 写错层级会报 "Unresolved reference"。
+
+**模拟器硬阻塞**：本机 `systeminfo` 显示 `Virtualization Enabled In Firmware: No`、`HypervisorPresent=False`（AMD Ryzen 5 5600X，BIOS 未开 SVM），因此 Hyper-V / Windows Hypervisor Platform / Android Emulator hypervisor driver **全部不可用**；`aehd` 服务虽已安装但处于 Stopped，且当前 shell 非管理员。要跑模拟器必须先进 BIOS 开启 SVM 并重启。没有物理设备时 `adb devices` 为空，APK 无法安装验证。
+
 ## 环境变量
 
 ```bash
