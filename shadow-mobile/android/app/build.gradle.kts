@@ -32,9 +32,27 @@ android {
         
         externalNativeBuild {
             cmake {
+                // defaultConfig 层的 externalNativeBuild 在 AGP 公共 DSL 里
+                // 是 ExternalNativeBuildFlags（只有 cppFlags/arguments/abiFilters
+                // 等 flags，没有 path/version），所以编译开关留在这里。
                 cppFlags += "-std=c++17"
                 arguments += listOf("-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON")
             }
+        }
+    }
+
+    // 必须显式指定 CMake 源目录。Flutter 的 Gradle 插件
+    // (FlutterPluginUtils.forceNdkDownload) 会在本模块没有 path 时，
+    // 把 CMake 源目录改写成 flutter_tools 里那份**空的** CMakeLists.txt ——
+    // 于是 src/main/cpp/mnn_bridge.cpp 永远不会被编译，libmnnbridge.so 不会
+    // 进包，PrefrontalMNN.kt 的 System.loadLibrary("mnnbridge")
+    // 必然抛 UnsatisfiedLinkError。
+    // path/version 只在**模块级** externalNativeBuild（ExternalNativeBuild →
+    // Cmake）上可用，defaultConfig 层拿不到。
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
         }
     }
 
