@@ -305,6 +305,8 @@ CI 的 `Mobile Analyze` 作业固定 **Flutter 3.41.4（Dart 3.11.1）**（Dart 
 
 **A2A metadata 通道**：`metadata` 走的是把整张表打包进 `metadata["name"]`（`__cortex_meta_v1__` 前缀，`encode_metadata_for_transport` / `decode_metadata_from_name`）。v1 线上协议只转发 `name` 这一个键，所以**加一个新字段不需要改 synapse、也不需要改线上格式** —— 只要 lobe 侧从解包后的 map 里读。
 
+**为什么不用改独立 lobe 仓库（2026-10-28 核实）**：lobe 记录全是 `LobeKind::Native`，默认 agent `temporal` 命中 telencephalon 进程内的 `NativeLobeRegistry::with_temporal()` → 走 `LobeClient::NativeWithConfig`（进程内，metadata 完整保留），所以提示词能到。走 HTTP 的只有**不在 registry 里的 lobe**（`occipital`、mDNS 发现的外来 agent）。而独立的 `temporal` 仓库是 ASR/TTS/音频管线、`occipital` 是视觉管线（Mage-VL，只发 `role: "user"`），**两者都没有带 system 插槽的文本对话 LLM 路径** —— 文本对话只存在于 telencephalon 的 native `TemporalLobe`。所以远端仓库无需改动；真要让外部 agent 支持人设，得让对方自己解 `metadata["name"]`。
+
 **桌面端页面的孤儿问题**：`src/pages/` 下出现过两次"写好了但没人引用"的页面（`RecordingPage` 被 `RecordingPanel` 取代后遗留、`PromptSettingsPage` 从未挂路由）。`src/__tests__/pageRouting.test.ts` 现在会挡住这类问题：每个页面模块必须被路由挂载，每条路由必须指向存在的页面。
 
 **`scripts/ui-smoke.sh` 是"假绿"陷阱（2026-10-28 修复）**：它原本只判断 HTTP 200，而 Vite 对不存在的路径会回退到 index.html **同样返回 200**，所以缺失模块一律"通过"。现在改成从文件系统自动发现模块，并要求响应体不是 HTML 外壳。跑它需要先起 `pnpm dev`（脚本打的是 `http://localhost:1420`）。
