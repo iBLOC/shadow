@@ -95,7 +95,7 @@ shadow-mobile/
 │   │   └── manage/                      # Sub-management screens
 │   ├── services/                        # Wire-level + service layer (23 files)
 │   │   ├── cortex/                      # cortex_client.dart — HTTP to telencephalon :60080 (dir name kept for git history)
-│   │   ├── prefrontal/                  # Mobile wrappers around prefrontal (7 files)
+│   │   ├── prefrontal/                  # Embedded prefrontal (.so) JNI bridge + settings page (4 files)
 │   │   ├── database/                    # SQLite repositories (11 files)
 │   │   ├── genui/                       # GenUI server helpers (Agent2UI)
 │   │   ├── audio_ws_service.dart        # WebSocket audio streaming (VAD-driven)
@@ -115,7 +115,7 @@ shadow-mobile/
 │   │   ├── video_frame_collector.dart   # Camera frame capture for multimodal
 │   │   ├── agent_review_service.dart    # Agent-review flow (approve / reject draft flows)
 │   │   ├── app_config_service.dart      # App-level config init
-│   │   └── prefrontal_client.dart       # HTTP client to prefrontal :8082 (fallback)
+│   │   └── prefrontal_client.dart       # HTTP client to telencephalon :60080 (/v1/* shim; chat/TTS/ASR)
 │   ├── providers/                       # Riverpod state (14 providers)
 │   │   ├── ai/                          # AI-specific providers (model registry, embeddings)
 │   │   ├── cortex_provider.dart
