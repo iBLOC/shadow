@@ -31,7 +31,7 @@ void main() {
       expect(find.byType(Scaffold), findsOneWidget);
     });
 
-    testWidgets('shows title "技能管理"', (WidgetTester tester) async {
+    testWidgets('shows the skills title', (WidgetTester tester) async {
       await tester.pumpWidget(
         ProviderScope(
           child: MaterialApp(
@@ -48,7 +48,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('技能管理'), findsOneWidget);
+      expect(find.text(l10nOf(tester).skillsTitle), findsOneWidget);
     });
 
     testWidgets('has floating action button', (WidgetTester tester) async {
@@ -88,7 +88,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('添加'), findsOneWidget);
+      expect(find.text(l10nOf(tester).commonAdd), findsOneWidget);
     });
 
     testWidgets('has refresh button', (WidgetTester tester) async {

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
+import '../l10n/current_l10n.dart';
 
 /// Telencephalon API Client
 /// All backend endpoints are served by telencephalon (port 60080).
@@ -1181,7 +1182,7 @@ class ConversationResponse {
   factory ConversationResponse.fromJson(Map<String, dynamic> json) {
     return ConversationResponse(
       id: json['id'] ?? '',
-      title: json['title'] ?? '新会话',
+      title: json['title'] ?? currentL10n().conversationNewSession,
       createdAt: DateTime.parse(
         json['created_at'] ?? DateTime.now().toIso8601String(),
       ),

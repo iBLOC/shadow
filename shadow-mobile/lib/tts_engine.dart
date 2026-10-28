@@ -4,14 +4,15 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 
+// label 是死字段：设置页用的是 l10n.ttsEngineAndroid /
+// l10n.ttsEngineExternal，没人读这个 label。
 enum TtsEngineType {
-  androidBuiltIn('Android 内置', 'android'),
-  rust('Rust TTS', 'rust'),
-  external('外部服务', 'external');
+  androidBuiltIn('android'),
+  rust('rust'),
+  external('external');
 
-  final String label;
   final String value;
-  const TtsEngineType(this.label, this.value);
+  const TtsEngineType(this.value);
 }
 
 class TtsEngine {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/mdns_discovery.dart';
+import '../generated/l10n/app_localizations.dart';
 
 /// 发现的设备信息
 class DiscoveredDevice {
@@ -151,7 +152,7 @@ class _DiscoveryPageState extends ConsumerState<DiscoveryPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('设备发现'),
+        title: Text(AppLocalizations.of(context)!.discoveryTitle),
         actions: [
           IconButton(
             icon: discoveryState.isScanning
@@ -200,14 +201,14 @@ class _DiscoveryPageState extends ConsumerState<DiscoveryPage> {
 
           // 扫描状态
           if (discoveryState.isScanning)
-            const Padding(
+            Padding(
               padding: EdgeInsets.all(16),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   CircularProgressIndicator(),
                   SizedBox(width: 16),
-                  Text('正在扫描网络设备...'),
+                  Text(AppLocalizations.of(context)!.discoveryScanning),
                 ],
               ),
             ),
@@ -226,14 +227,14 @@ class _DiscoveryPageState extends ConsumerState<DiscoveryPage> {
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          '未发现设备',
+                          AppLocalizations.of(context)!.discoveryNoDevices,
                           style: Theme.of(context).textTheme.titleMedium?.copyWith(
                             color: Colors.grey.shade600,
                           ),
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          '点击右上角刷新按钮重新扫描',
+                          AppLocalizations.of(context)!.discoveryNoDevicesHint,
                           style: TextStyle(color: Colors.grey.shade500),
                         ),
                       ],
@@ -267,14 +268,14 @@ class _DiscoveryPageState extends ConsumerState<DiscoveryPage> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    '上次扫描: ${discoveryState.lastScan!.hour}:${discoveryState.lastScan!.minute.toString().padLeft(2, '0')}',
+                    AppLocalizations.of(context)!.discoveryLastScan('${discoveryState.lastScan!.hour}:${discoveryState.lastScan!.minute.toString().padLeft(2, '0')}'),
                     style: TextStyle(
                       fontSize: 12,
                       color: Colors.grey.shade500,
                     ),
                   ),
                   Text(
-                    '发现 ${discoveryState.devices.length} 个设备',
+                    AppLocalizations.of(context)!.discoveryDeviceCount(discoveryState.devices.length),
                     style: TextStyle(
                       fontSize: 12,
                       color: Colors.grey.shade500,
@@ -300,22 +301,22 @@ class _DiscoveryPageState extends ConsumerState<DiscoveryPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('手动添加设备'),
+        title: Text(AppLocalizations.of(context)!.discoveryAddManually),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: hostController,
-              decoration: const InputDecoration(
-                labelText: '主机地址',
+              decoration: InputDecoration(
+                labelText: AppLocalizations.of(context)!.commonHostAddress,
                 hintText: '192.168.1.100',
               ),
             ),
             const SizedBox(height: 16),
             TextField(
               controller: portController,
-              decoration: const InputDecoration(
-                labelText: '端口',
+              decoration: InputDecoration(
+                labelText: AppLocalizations.of(context)!.commonPort,
                 hintText: '60080',
               ),
               keyboardType: TextInputType.number,
@@ -323,8 +324,8 @@ class _DiscoveryPageState extends ConsumerState<DiscoveryPage> {
             const SizedBox(height: 16),
             TextField(
               controller: nameController,
-              decoration: const InputDecoration(
-                labelText: '设备名称（可选）',
+              decoration: InputDecoration(
+                labelText: AppLocalizations.of(context)!.discoveryDeviceNameOptional,
                 hintText: 'My Shadow Node',
               ),
             ),
@@ -333,7 +334,7 @@ class _DiscoveryPageState extends ConsumerState<DiscoveryPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('取消'),
+            child: Text(AppLocalizations.of(context)!.cancel),
           ),
           ElevatedButton(
             onPressed: () {
@@ -353,7 +354,7 @@ class _DiscoveryPageState extends ConsumerState<DiscoveryPage> {
                 Navigator.of(context).pop();
               }
             },
-            child: const Text('添加'),
+            child: Text(AppLocalizations.of(context)!.commonAdd),
           ),
         ],
       ),
@@ -422,7 +423,7 @@ class _DeviceCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      '活跃',
+                      AppLocalizations.of(context)!.discoveryActive,
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.green.shade700,
@@ -455,14 +456,14 @@ class _DeviceCard extends StatelessWidget {
                 if (!isActive)
                   TextButton(
                     onPressed: onSetActive,
-                    child: const Text('设为活跃'),
+                    child: Text(AppLocalizations.of(context)!.discoverySetActive),
                   ),
                 TextButton(
                   onPressed: onRemove,
                   style: TextButton.styleFrom(
                     foregroundColor: Colors.red,
                   ),
-                  child: const Text('移除'),
+                  child: Text(AppLocalizations.of(context)!.commonRemove),
                 ),
               ],
             ),

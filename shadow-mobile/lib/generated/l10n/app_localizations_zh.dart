@@ -494,9 +494,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get modeMismatch => '当前模式与此页面不匹配。点击右上角麦克风图标切换到语音模式。';
 
   @override
-  String get openVoiceMode => '语音助手';
-
-  @override
   String get ttsInputLabel => '朗读文本';
 
   @override
@@ -557,6 +554,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get openLiveStreamMode => '直播模式';
 
   @override
+  String get openVoiceAssistant => '语音助手';
+
+  @override
   String get customerServiceHint =>
       'AI 会自动接听电话并回复。shadow-esp32 播放来电方语音和 AI 回复。插入耳机后自动切到耳机。';
 
@@ -576,4 +576,888 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get modelBindingPromptLater => '稍后';
+
+  @override
+  String get conversationNewSession => '新会话';
+
+  @override
+  String get conversationManagement => '会话管理';
+
+  @override
+  String get conversationEmpty => '暂无会话';
+
+  @override
+  String get conversationEmptyHint => '点击右下角开始新对话';
+
+  @override
+  String get conversationNewChat => '新对话';
+
+  @override
+  String get conversationTitleField => '对话标题';
+
+  @override
+  String get conversationCreate => '创建';
+
+  @override
+  String get commonConfirmDelete => '确认删除';
+
+  @override
+  String get commonDelete => '删除';
+
+  @override
+  String get discoveryTitle => '设备发现';
+
+  @override
+  String get discoveryScanning => '正在扫描网络设备...';
+
+  @override
+  String get discoveryNoDevices => '未发现设备';
+
+  @override
+  String get discoveryNoDevicesHint => '点击右上角刷新按钮重新扫描';
+
+  @override
+  String get discoveryAddManually => '手动添加设备';
+
+  @override
+  String get commonHostAddress => '主机地址';
+
+  @override
+  String get commonPort => '端口';
+
+  @override
+  String get discoveryDeviceNameOptional => '设备名称（可选）';
+
+  @override
+  String get commonAdd => '添加';
+
+  @override
+  String get discoveryActive => '活跃';
+
+  @override
+  String get discoverySetActive => '设为活跃';
+
+  @override
+  String get commonRemove => '移除';
+
+  @override
+  String get logsTelencephalonStarted => '端脑服务启动成功';
+
+  @override
+  String get logsDbTimeoutRetry => '数据库连接超时，正在重试...';
+
+  @override
+  String get logsHippocampusUnreachable => '无法连接到Hippocampus服务';
+
+  @override
+  String get logsTitle => '系统日志';
+
+  @override
+  String get logsClearFilter => '清除过滤';
+
+  @override
+  String get logsClearAll => '清除日志';
+
+  @override
+  String get logsClearConfirm => '确定要清除所有日志吗？';
+
+  @override
+  String get logsClear => '清除';
+
+  @override
+  String get logsEmpty => '暂无日志';
+
+  @override
+  String get logsNoMatch => '无匹配日志';
+
+  @override
+  String get logsCopied => '已复制到剪贴板';
+
+  @override
+  String get mcpTitle => 'MCP 服务管理';
+
+  @override
+  String get mcpAddServer => '添加服务器';
+
+  @override
+  String get mcpEmpty => '暂无 MCP 服务器';
+
+  @override
+  String get mcpEmptyHint => '点击右下角添加服务器';
+
+  @override
+  String get mcpAddServerTitle => '添加 MCP 服务器';
+
+  @override
+  String get commonName => '名称';
+
+  @override
+  String get mcpServerUrl => '服务器 URL';
+
+  @override
+  String get mcpAuthTokenOptional => '认证 Token (可选)';
+
+  @override
+  String get memoryEmpty => '暂无记忆';
+
+  @override
+  String get modelEngineRunning => '引擎运行中';
+
+  @override
+  String get modelEngineStopped => '引擎未运行';
+
+  @override
+  String get modelEmpty => '暂无模型';
+
+  @override
+  String get modelEmptyHint => '点击右下角添加模型';
+
+  @override
+  String get modelTypeLabel => '类型:';
+
+  @override
+  String get commonAll => '全部';
+
+  @override
+  String get modelLiteRtEngine => 'LiteRT 引擎';
+
+  @override
+  String get modelInternalService => '内部服务 (Rust)';
+
+  @override
+  String get modelCloudProvider => '云端供应商';
+
+  @override
+  String get modelNoCloudModels => '暂无云端模型';
+
+  @override
+  String get modelNoCloudModelsHint => '点击右下角添加云端模型';
+
+  @override
+  String get modelAddLocalTitle => '添加本地模型';
+
+  @override
+  String get modelNameField => '模型名称';
+
+  @override
+  String get modelPathField => '模型路径';
+
+  @override
+  String get modelSizeField => '大小 (MB)';
+
+  @override
+  String get modelAddCloudTitle => '添加云端模型';
+
+  @override
+  String get commonApiKeyOptional => 'API Key (可选)';
+
+  @override
+  String get modelNameOptional => '模型名称 (可选)';
+
+  @override
+  String get modelSettingsTitle => '模型设置';
+
+  @override
+  String get modelSettingsEngine => '推理引擎';
+
+  @override
+  String get modelSettingsSelectModel => '选择模型';
+
+  @override
+  String get promptSaved => '提示词已保存';
+
+  @override
+  String get promptRestored => '已恢复默认提示词';
+
+  @override
+  String get promptSettingsTitle => '提示词设置';
+
+  @override
+  String get commonSave => '保存';
+
+  @override
+  String get promptMainAgentLabel => '主Agent系统提示词';
+
+  @override
+  String get promptInputHint => '输入系统提示词...';
+
+  @override
+  String get promptRestoreDefault => '恢复默认';
+
+  @override
+  String get providerQwen => '通义千问';
+
+  @override
+  String get providerZhipu => '智谱AI';
+
+  @override
+  String get providerLocalModel => '本地模型';
+
+  @override
+  String get providersTitle => '大模型服务提供商';
+
+  @override
+  String get providersEmpty => '暂未配置提供商';
+
+  @override
+  String get providersEmptyHint => '点击右下角添加第一个提供商';
+
+  @override
+  String get providersAdd => '添加提供商';
+
+  @override
+  String get commonEdit => '编辑';
+
+  @override
+  String get providersEditTitle => '编辑提供商';
+
+  @override
+  String get commonProvider => '提供商';
+
+  @override
+  String get commonApiAddress => 'API 地址';
+
+  @override
+  String get commonModel => '模型';
+
+  @override
+  String get providersApiKeyRequired => '请输入 API Key';
+
+  @override
+  String get resonanceNotConnected => '未连接';
+
+  @override
+  String get resonanceConnecting => '连接中';
+
+  @override
+  String get resonanceConnected => '已连接';
+
+  @override
+  String get resonanceError => '错误';
+
+  @override
+  String get resonanceLocal => '本地Resonance';
+
+  @override
+  String get resonanceTitle => 'Resonance管理';
+
+  @override
+  String get resonanceEmpty => '暂无Resonance实例';
+
+  @override
+  String get resonanceAddInstance => '添加实例';
+
+  @override
+  String get resonanceAddTitle => '添加Resonance实例';
+
+  @override
+  String get resonanceInstanceName => '实例名称';
+
+  @override
+  String get resonanceApiKeyOptional => 'API密钥（可选）';
+
+  @override
+  String get resonanceEditTitle => '编辑Resonance实例';
+
+  @override
+  String get resonancePrimary => '主实例';
+
+  @override
+  String get resonanceSetPrimary => '设为主实例';
+
+  @override
+  String get resonanceTestConnection => '测试连接';
+
+  @override
+  String get settingsMemoryUsage => '内存使用';
+
+  @override
+  String get settingsDeviceDiscovery => '设备发现';
+
+  @override
+  String get settingsDeviceDiscoveryDesc => '扫描和发现网络设备';
+
+  @override
+  String get settingsLogsDesc => '查看应用日志和错误信息';
+
+  @override
+  String get settingsResonanceDesc => '管理Resonance服务实例';
+
+  @override
+  String get settingsRefreshStatus => '刷新状态';
+
+  @override
+  String get skillsTitle => '技能管理';
+
+  @override
+  String get skillsEmpty => '暂无技能';
+
+  @override
+  String get skillsEmptyHint => '点击右下角添加自定义技能';
+
+  @override
+  String get skillsBuiltIn => '内置技能';
+
+  @override
+  String get skillsCustom => '自定义技能';
+
+  @override
+  String get skillsAddCustom => '添加自定义技能';
+
+  @override
+  String get skillsNameField => '技能名称';
+
+  @override
+  String get commonDescription => '描述';
+
+  @override
+  String get soulSaved => 'Soul 已保存';
+
+  @override
+  String get soulTitle => 'Soul 设置';
+
+  @override
+  String get soulSubtitle => 'Soul - 你的个人助理灵魂';
+
+  @override
+  String get soulDescHint => '描述你的个人助理的性格、习惯和偏好。';
+
+  @override
+  String get soulVersionHistory => '版本历史';
+
+  @override
+  String get soulNoHistory => '暂无版本历史';
+
+  @override
+  String get soulUserModified => '用户修改';
+
+  @override
+  String get soulAgentReview => 'Agent 评估';
+
+  @override
+  String get soulNoReason => '无原因';
+
+  @override
+  String get soulChangeReason => '修改原因';
+
+  @override
+  String get soulConversationSummary => '对话摘要';
+
+  @override
+  String get soulContent => '内容';
+
+  @override
+  String get taskBoardTitle => '任务看板';
+
+  @override
+  String get taskStatusTodo => '待办';
+
+  @override
+  String get taskStatusInProgress => '进行中';
+
+  @override
+  String get taskStatusDone => '已完成';
+
+  @override
+  String get taskStatusFailed => '失败';
+
+  @override
+  String get taskStatusCancelled => '已取消';
+
+  @override
+  String get taskRetry => '重试';
+
+  @override
+  String get taskEmpty => '暂无任务';
+
+  @override
+  String get taskAdd => '添加任务';
+
+  @override
+  String get taskTitleField => '任务标题';
+
+  @override
+  String get taskPriority => '优先级';
+
+  @override
+  String get priorityLow => '低';
+
+  @override
+  String get priorityMedium => '中';
+
+  @override
+  String get priorityHigh => '高';
+
+  @override
+  String get priorityUrgent => '紧急';
+
+  @override
+  String get taskEditTitle => '编辑任务';
+
+  @override
+  String get taskStatus => '状态';
+
+  @override
+  String get taskTagsField => '标签 (逗号分隔)';
+
+  @override
+  String get taskEditPersistenceNote =>
+      'hippocampus 只持久化状态与标签，标题与描述没有对应列，不会保存。';
+
+  @override
+  String get taskOverview => '概览';
+
+  @override
+  String get taskLogs => '日志';
+
+  @override
+  String get commonRefresh => '刷新';
+
+  @override
+  String get taskCreatedAt => '创建时间';
+
+  @override
+  String get taskCompletedAt => '完成时间';
+
+  @override
+  String get taskTags => '标签';
+
+  @override
+  String get taskNoSubtasks => '此任务暂无子任务';
+
+  @override
+  String get taskSubtaskProgress => '子任务进度';
+
+  @override
+  String get logsTab => '日志';
+
+  @override
+  String get logsBackend => '后端';
+
+  @override
+  String get logsAllLevels => '所有级别';
+
+  @override
+  String get logsExport => '导出日志';
+
+  @override
+  String get logsPanelClearAll => '清空日志';
+
+  @override
+  String get soulPriorityNote => 'System Prompt 优先级最高。';
+
+  @override
+  String commonLoadFailed(String error) {
+    return '读取失败: $error';
+  }
+
+  @override
+  String commonErrorDetail(String error) {
+    return '错误: $error';
+  }
+
+  @override
+  String commonDeleteConfirmNamed(String name) {
+    return '确定要删除 \"$name\" 吗？';
+  }
+
+  @override
+  String commonDeleteFailed(String error) {
+    return '删除失败: $error';
+  }
+
+  @override
+  String commonMinutesAgo(int count) {
+    return '$count 分钟前';
+  }
+
+  @override
+  String commonHoursAgo(int count) {
+    return '$count 小时前';
+  }
+
+  @override
+  String commonDaysAgo(int count) {
+    return '$count 天前';
+  }
+
+  @override
+  String settingsMemUsed(int mb) {
+    return '已用: $mb MB';
+  }
+
+  @override
+  String settingsMemTotal(int mb) {
+    return '总计: $mb MB';
+  }
+
+  @override
+  String settingsMemFree(int mb) {
+    return '空闲: $mb MB';
+  }
+
+  @override
+  String settingsMemUsage(String percent) {
+    return '使用率: $percent%';
+  }
+
+  @override
+  String get settingsPrefrontalEmbedded => '嵌入式 Prefrontal';
+
+  @override
+  String get settingsPrefrontalEmbeddedDesc => '管理嵌入在本 App 里的 Prefrontal 运行时';
+
+  @override
+  String taskSubtasks(int count) {
+    return '子任务 ($count)';
+  }
+
+  @override
+  String taskStepStarted(String time) {
+    return '开始: $time';
+  }
+
+  @override
+  String taskStepCompleted(String time) {
+    return '完成: $time';
+  }
+
+  @override
+  String taskStepDuration(int seconds) {
+    return '耗时: ${seconds}s';
+  }
+
+  @override
+  String taskStepProgress(int completed, int total) {
+    return '$completed/$total 步';
+  }
+
+  @override
+  String get soulDescHintExample => '例如：\n- 语气友好、简洁\n- 称呼用户为“你”\n- 主动提供有用的建议';
+
+  @override
+  String soulHistoryLoadFailed(String error) {
+    return '无法加载历史: $error';
+  }
+
+  @override
+  String soulVersion(int version) {
+    return '版本 $version';
+  }
+
+  @override
+  String logsFilterLabel(String level, String source) {
+    return '过滤: $level $source';
+  }
+
+  @override
+  String logsTotalCount(int count) {
+    return '共 $count 条日志';
+  }
+
+  @override
+  String logsShownCount(int count) {
+    return '显示 $count 条';
+  }
+
+  @override
+  String discoveryLastScan(String time) {
+    return '上次扫描: $time';
+  }
+
+  @override
+  String discoveryDeviceCount(int count) {
+    return '发现 $count 个设备';
+  }
+
+  @override
+  String resonanceLatency(int ms) {
+    return '延迟: ${ms}ms';
+  }
+
+  @override
+  String get modelNameExample => '例如: Qwen2.5-7B';
+
+  @override
+  String get cameraOff => '摄像头关闭';
+
+  @override
+  String get cameraReady => '摄像头就绪';
+
+  @override
+  String get cameraStreaming => '采集中...';
+
+  @override
+  String get cameraFlip => '翻转';
+
+  @override
+  String get cameraClose => '关闭';
+
+  @override
+  String get prefrontalEmbeddedTitle => 'Prefrontal 嵌入式运行时 (NDK)';
+
+  @override
+  String get prefrontalEmbeddedRuntime => '嵌入式运行时';
+
+  @override
+  String prefrontalPort(int port) {
+    return '端口: $port';
+  }
+
+  @override
+  String get prefrontalStart => '启动';
+
+  @override
+  String get prefrontalStop => '停止';
+
+  @override
+  String prefrontalAgentsCount(int count) {
+    return '智能体 ($count)';
+  }
+
+  @override
+  String get prefrontalRefresh => '刷新';
+
+  @override
+  String get prefrontalStartFirst => '请先启动服务';
+
+  @override
+  String get prefrontalNoAgentsHint => '暂无智能体, 添加一个吧:';
+
+  @override
+  String get prefrontalAddSampleAgent => '添加示例智能体';
+
+  @override
+  String get prefrontalInvokeTitle => '调用智能体 (JNI)';
+
+  @override
+  String get prefrontalInput => '输入';
+
+  @override
+  String get prefrontalInputHint => '输入要发送给智能体的内容...';
+
+  @override
+  String get prefrontalInvoke => '调用 (JNI)';
+
+  @override
+  String get prefrontalNoOutput => '(无输出)';
+
+  @override
+  String get prefrontalAboutTitle => '关于 NDK 嵌入方式';
+
+  @override
+  String get prefrontalAboutLine1 => '- Prefrontal 作为 .so 嵌入在 App 进程内';
+
+  @override
+  String get prefrontalAboutLine2 => '- 通过 JNI 与 Kotlin Service 通信';
+
+  @override
+  String get prefrontalAboutLine3 => '- 通过 localhost HTTP 与 Prefrontal 通信';
+
+  @override
+  String get prefrontalAboutLine4 => '- 服务生命周期与 App 绑定';
+
+  @override
+  String get prefrontalAboutLine5 => '- 不需要外部进程, 不会被杀';
+
+  @override
+  String get prefrontalAboutArchitecture => '架构:';
+
+  @override
+  String get prefrontalStartSuccess => '嵌入式运行时启动成功';
+
+  @override
+  String get prefrontalStartFailed => '启动失败';
+
+  @override
+  String prefrontalStartError(String error) {
+    return '启动异常: $error';
+  }
+
+  @override
+  String get prefrontalStopSuccess => '嵌入式运行时已停止';
+
+  @override
+  String get prefrontalStopFailed => '停止失败';
+
+  @override
+  String prefrontalStopError(String error) {
+    return '停止异常: $error';
+  }
+
+  @override
+  String get prefrontalAddSuccess => '添加成功';
+
+  @override
+  String get prefrontalAddFailed => '添加失败';
+
+  @override
+  String prefrontalAddError(String error) {
+    return '添加异常: $error';
+  }
+
+  @override
+  String get prefrontalInvokeSuccess => 'JNI 调用成功';
+
+  @override
+  String get prefrontalInvokeFailed => '调用失败';
+
+  @override
+  String prefrontalInvokeError(String error) {
+    return '调用异常: $error';
+  }
+
+  @override
+  String get prefrontalStatusStopped => '已停止';
+
+  @override
+  String get prefrontalStatusStarting => '启动中...';
+
+  @override
+  String get prefrontalStatusRunning => '运行中';
+
+  @override
+  String get prefrontalStatusStopping => '停止中...';
+
+  @override
+  String get prefrontalStatusError => '错误';
+
+  @override
+  String get prefrontalSampleAgentName => '示例智能体';
+
+  @override
+  String get prefrontalSampleAgentDesc => '通过 JNI 注册的示例智能体';
+
+  @override
+  String prefrontalErrorPrefix(String error) {
+    return '错误: $error';
+  }
+
+  @override
+  String get chatGreeting => '你好，我是Shadow，有什么可以帮你的吗？';
+
+  @override
+  String get chatImageNotAvailable => 'LiteRT 图片功能暂时不可用，请等待版本更新';
+
+  @override
+  String get chatVoiceModelRequired => '语音功能需要先加载模型';
+
+  @override
+  String chatSorryError(String error) {
+    return '抱歉，发生了错误: $error';
+  }
+
+  @override
+  String get chatSorryErrorShort => '抱歉，发生了错误';
+
+  @override
+  String get modelPlaceholderNoLocal => '暂无本地模型';
+
+  @override
+  String get deviceThisMachine => '本机';
+
+  @override
+  String get actionFlashlightOn => '开启闪光灯';
+
+  @override
+  String get actionFlashlightOff => '关闭闪光灯';
+
+  @override
+  String actionCreateContact(String name) {
+    return '创建联系人: $name';
+  }
+
+  @override
+  String actionSendEmail(String to) {
+    return '发送邮件到: $to';
+  }
+
+  @override
+  String actionShowLocation(String query) {
+    return '显示位置: $query';
+  }
+
+  @override
+  String get actionOpenWifi => '打开WiFi设置';
+
+  @override
+  String actionCreateCalendar(String title) {
+    return '创建日历事件: $title';
+  }
+
+  @override
+  String get actionFlashlightOnDone => '闪光灯已开启';
+
+  @override
+  String actionFlashlightOnFailed(String error) {
+    return '闪光灯开启失败: $error';
+  }
+
+  @override
+  String get actionFlashlightOffDone => '闪光灯已关闭';
+
+  @override
+  String actionFlashlightOffFailed(String error) {
+    return '闪光灯关闭失败: $error';
+  }
+
+  @override
+  String actionCreatingContact(String name) {
+    return '正在创建联系人: $name';
+  }
+
+  @override
+  String get actionNoContactsApp => '无法打开联系人应用';
+
+  @override
+  String actionContactFailed(String error) {
+    return '联系人创建失败: $error';
+  }
+
+  @override
+  String actionEmailOpened(String to) {
+    return '邮件客户端已打开，收件人: $to';
+  }
+
+  @override
+  String get actionNoEmailApp => '无法打开邮件客户端';
+
+  @override
+  String actionEmailFailed(String error) {
+    return '邮件发送失败: $error';
+  }
+
+  @override
+  String actionShowingLocation(String query) {
+    return '正在显示位置: $query';
+  }
+
+  @override
+  String get actionNoMapsApp => '无法打开地图应用';
+
+  @override
+  String actionLocationFailed(String error) {
+    return '位置显示失败: $error';
+  }
+
+  @override
+  String get actionWifiOpened => 'WiFi设置已打开';
+
+  @override
+  String actionWifiFailed(String error) {
+    return 'WiFi设置打开失败: $error';
+  }
+
+  @override
+  String actionCalendarCreated(String title) {
+    return '日历事件已创建: $title';
+  }
+
+  @override
+  String get actionNoCalendarApp => '无法打开日历应用';
+
+  @override
+  String actionCalendarFailed(String error) {
+    return '日历事件创建失败: $error';
+  }
 }

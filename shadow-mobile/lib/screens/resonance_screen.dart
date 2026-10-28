@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../generated/l10n/app_localizations.dart';
+import '../l10n/current_l10n.dart';
 
 /// Resonance实例状态
 enum ResonanceStatus {
@@ -48,16 +50,20 @@ class ResonanceInstance {
     );
   }
 
-  String get statusLabel {
+  /// 状态标签的本地化文案。
+  ///
+  /// 原来是 `statusLabel` getter —— 但 model 上拿不到 BuildContext，
+  /// 所以改成由调用方把文案传进来。
+  String statusLabelOf(AppLocalizations l10n) {
     switch (status) {
       case ResonanceStatus.disconnected:
-        return '未连接';
+        return l10n.resonanceNotConnected;
       case ResonanceStatus.connecting:
-        return '连接中';
+        return l10n.resonanceConnecting;
       case ResonanceStatus.connected:
-        return '已连接';
+        return l10n.resonanceConnected;
       case ResonanceStatus.error:
-        return '错误';
+        return l10n.resonanceError;
     }
   }
 
@@ -116,7 +122,7 @@ class ResonanceNotifier extends StateNotifier<ResonanceState> {
     // 添加示例实例
     addInstance(ResonanceInstance(
       id: '1',
-      name: '本地Resonance',
+      name: currentL10n().resonanceLocal,
       host: 'localhost:8080',
     ));
   }
@@ -179,7 +185,7 @@ class _ResonancePageState extends ConsumerState<ResonancePage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Resonance管理'),
+        title: Text(AppLocalizations.of(context)!.resonanceTitle),
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
@@ -199,7 +205,7 @@ class _ResonancePageState extends ConsumerState<ResonancePage> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    '暂无Resonance实例',
+                    AppLocalizations.of(context)!.resonanceEmpty,
                     style: TextStyle(
                       fontSize: 16,
                       color: Colors.grey.shade600,
@@ -209,7 +215,7 @@ class _ResonancePageState extends ConsumerState<ResonancePage> {
                   ElevatedButton.icon(
                     onPressed: () => _showAddDialog(context),
                     icon: const Icon(Icons.add),
-                    label: const Text('添加实例'),
+                    label: Text(AppLocalizations.of(context)!.resonanceAddInstance),
                   ),
                 ],
               ),
@@ -247,30 +253,30 @@ class _ResonancePageState extends ConsumerState<ResonancePage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('添加Resonance实例'),
+        title: Text(AppLocalizations.of(context)!.resonanceAddTitle),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: nameController,
-              decoration: const InputDecoration(
-                labelText: '实例名称',
+              decoration: InputDecoration(
+                labelText: AppLocalizations.of(context)!.resonanceInstanceName,
                 hintText: 'My Resonance',
               ),
             ),
             const SizedBox(height: 16),
             TextField(
               controller: hostController,
-              decoration: const InputDecoration(
-                labelText: '主机地址',
+              decoration: InputDecoration(
+                labelText: AppLocalizations.of(context)!.commonHostAddress,
                 hintText: 'resonance.example.com:8080',
               ),
             ),
             const SizedBox(height: 16),
             TextField(
               controller: apiKeyController,
-              decoration: const InputDecoration(
-                labelText: 'API密钥（可选）',
+              decoration: InputDecoration(
+                labelText: AppLocalizations.of(context)!.resonanceApiKeyOptional,
                 hintText: 'sk-...',
               ),
               obscureText: true,
@@ -280,7 +286,7 @@ class _ResonancePageState extends ConsumerState<ResonancePage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('取消'),
+            child: Text(AppLocalizations.of(context)!.cancel),
           ),
           ElevatedButton(
             onPressed: () {
@@ -300,7 +306,7 @@ class _ResonancePageState extends ConsumerState<ResonancePage> {
                 Navigator.of(context).pop();
               }
             },
-            child: const Text('添加'),
+            child: Text(AppLocalizations.of(context)!.commonAdd),
           ),
         ],
       ),
@@ -315,28 +321,28 @@ class _ResonancePageState extends ConsumerState<ResonancePage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('编辑Resonance实例'),
+        title: Text(AppLocalizations.of(context)!.resonanceEditTitle),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: nameController,
-              decoration: const InputDecoration(
-                labelText: '实例名称',
+              decoration: InputDecoration(
+                labelText: AppLocalizations.of(context)!.resonanceInstanceName,
               ),
             ),
             const SizedBox(height: 16),
             TextField(
               controller: hostController,
-              decoration: const InputDecoration(
-                labelText: '主机地址',
+              decoration: InputDecoration(
+                labelText: AppLocalizations.of(context)!.commonHostAddress,
               ),
             ),
             const SizedBox(height: 16),
             TextField(
               controller: apiKeyController,
-              decoration: const InputDecoration(
-                labelText: 'API密钥（可选）',
+              decoration: InputDecoration(
+                labelText: AppLocalizations.of(context)!.resonanceApiKeyOptional,
               ),
               obscureText: true,
             ),
@@ -345,7 +351,7 @@ class _ResonancePageState extends ConsumerState<ResonancePage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('取消'),
+            child: Text(AppLocalizations.of(context)!.cancel),
           ),
           ElevatedButton(
             onPressed: () {
@@ -365,7 +371,7 @@ class _ResonancePageState extends ConsumerState<ResonancePage> {
                 Navigator.of(context).pop();
               }
             },
-            child: const Text('保存'),
+            child: Text(AppLocalizations.of(context)!.commonSave),
           ),
         ],
       ),
@@ -429,7 +435,7 @@ class _InstanceCard extends StatelessWidget {
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
-                                '主实例',
+                                AppLocalizations.of(context)!.resonancePrimary,
                                 style: TextStyle(
                                   fontSize: 10,
                                   color: Colors.blue.shade700,
@@ -473,7 +479,7 @@ class _InstanceCard extends StatelessWidget {
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        instance.statusLabel,
+                        instance.statusLabelOf(AppLocalizations.of(context)!),
                         style: TextStyle(
                           fontSize: 12,
                           color: instance.statusColor,
@@ -492,7 +498,7 @@ class _InstanceCard extends StatelessWidget {
                   Icon(Icons.speed, size: 14, color: Colors.grey.shade500),
                   const SizedBox(width: 4),
                   Text(
-                    '延迟: ${instance.latency}ms',
+                    AppLocalizations.of(context)!.resonanceLatency(instance.latency ?? 0),
                     style: TextStyle(
                       fontSize: 12,
                       color: Colors.grey.shade600,
@@ -524,22 +530,22 @@ class _InstanceCard extends StatelessWidget {
                 if (!isPrimary)
                   TextButton(
                     onPressed: onSetPrimary,
-                    child: const Text('设为主实例'),
+                    child: Text(AppLocalizations.of(context)!.resonanceSetPrimary),
                   ),
                 TextButton(
                   onPressed: onTest,
-                  child: const Text('测试连接'),
+                  child: Text(AppLocalizations.of(context)!.resonanceTestConnection),
                 ),
                 TextButton(
                   onPressed: onEdit,
-                  child: const Text('编辑'),
+                  child: Text(AppLocalizations.of(context)!.commonEdit),
                 ),
                 TextButton(
                   onPressed: onDelete,
                   style: TextButton.styleFrom(
                     foregroundColor: Colors.red,
                   ),
-                  child: const Text('删除'),
+                  child: Text(AppLocalizations.of(context)!.commonDelete),
                 ),
               ],
             ),

@@ -242,8 +242,6 @@
   "@routeViaPhoneSpeaker": {},
   "modeMismatch": "Current mode does not match this screen. Tap the mic icon in the top-right to switch to voice mode.",
   "@modeMismatch": {},
-  "openVoiceMode": "Voice Mode",
-  "@openVoiceMode": {},
   "ttsInputLabel": "Text to speak",
   "@ttsInputLabel": {},
   "ttsInputHint": "Type what the digital human should say…",
@@ -288,8 +286,8 @@
   "@endCall": {},
   "openLiveStreamMode": "Live Stream",
   "@openLiveStreamMode": {},
-  "openVoiceMode": "Voice Assistant",
-  "@openVoiceMode": {},
+  "openVoiceAssistant": "Voice Assistant",
+  "@openVoiceAssistant": {},
   "customerServiceHint": "AI will answer incoming calls and reply using the LLM. Shadow-esp32 plays caller voice and AI response. Plug earphone to take over.",
   "@customerServiceHint": {},
   "visualQaPickCamera": "Pick a camera",
@@ -305,5 +303,663 @@
   "modelBindingPromptGoSettings": "Go to settings and bind a model first",
   "@modelBindingPromptGoSettings": {},
   "modelBindingPromptLater": "Later",
-  "@modelBindingPromptLater": {}
+  "@modelBindingPromptLater": {},
+  "conversationNewSession": "New Session",
+  "conversationManagement": "Conversations",
+  "conversationEmpty": "No conversations",
+  "conversationEmptyHint": "Tap the button below to start a new chat",
+  "conversationNewChat": "New Chat",
+  "conversationTitleField": "Chat title",
+  "conversationCreate": "Create",
+  "commonConfirmDelete": "Confirm Delete",
+  "commonDelete": "Delete",
+  "discoveryTitle": "Device Discovery",
+  "discoveryScanning": "Scanning for devices...",
+  "discoveryNoDevices": "No devices found",
+  "discoveryNoDevicesHint": "Tap the refresh button to scan again",
+  "discoveryAddManually": "Add Device Manually",
+  "commonHostAddress": "Host address",
+  "commonPort": "Port",
+  "discoveryDeviceNameOptional": "Device name (optional)",
+  "commonAdd": "Add",
+  "discoveryActive": "Active",
+  "discoverySetActive": "Set as active",
+  "commonRemove": "Remove",
+  "logsTelencephalonStarted": "Telencephalon service started",
+  "logsDbTimeoutRetry": "Database connection timed out, retrying...",
+  "logsHippocampusUnreachable": "Cannot connect to the Hippocampus service",
+  "logsTitle": "System Logs",
+  "logsClearFilter": "Clear filter",
+  "logsClearAll": "Clear Logs",
+  "logsClearConfirm": "Clear all logs?",
+  "logsClear": "Clear",
+  "logsEmpty": "No logs yet",
+  "logsNoMatch": "No matching logs",
+  "logsCopied": "Copied to clipboard",
+  "mcpTitle": "MCP Servers",
+  "mcpAddServer": "Add server",
+  "mcpEmpty": "No MCP servers",
+  "mcpEmptyHint": "Tap the button below to add a server",
+  "mcpAddServerTitle": "Add MCP Server",
+  "commonName": "Name",
+  "mcpServerUrl": "Server URL",
+  "mcpAuthTokenOptional": "Auth token (optional)",
+  "memoryEmpty": "No memories yet",
+  "modelEngineRunning": "Engine running",
+  "modelEngineStopped": "Engine not running",
+  "modelEmpty": "No models",
+  "modelEmptyHint": "Tap the button below to add a model",
+  "modelTypeLabel": "Type:",
+  "commonAll": "All",
+  "modelLiteRtEngine": "LiteRT engine",
+  "modelInternalService": "Internal service (Rust)",
+  "modelCloudProvider": "Cloud provider",
+  "modelNoCloudModels": "No cloud models",
+  "modelNoCloudModelsHint": "Tap the button below to add a cloud model",
+  "modelAddLocalTitle": "Add Local Model",
+  "modelNameField": "Model name",
+  "modelPathField": "Model path",
+  "modelSizeField": "Size (MB)",
+  "modelAddCloudTitle": "Add Cloud Model",
+  "commonApiKeyOptional": "API key (optional)",
+  "modelNameOptional": "Model name (optional)",
+  "modelSettingsTitle": "Model Settings",
+  "modelSettingsEngine": "Inference engine",
+  "modelSettingsSelectModel": "Select model",
+  "promptSaved": "Prompt saved",
+  "promptRestored": "Default prompt restored",
+  "promptSettingsTitle": "Prompt Settings",
+  "commonSave": "Save",
+  "promptMainAgentLabel": "Main agent system prompt",
+  "promptInputHint": "Enter a system prompt...",
+  "promptRestoreDefault": "Restore default",
+  "providerQwen": "Qwen",
+  "providerZhipu": "Zhipu AI",
+  "providerLocalModel": "Local model",
+  "providersTitle": "Model Providers",
+  "providersEmpty": "No providers configured",
+  "providersEmptyHint": "Tap the button below to add your first provider",
+  "providersAdd": "Add provider",
+  "commonEdit": "Edit",
+  "providersEditTitle": "Edit Provider",
+  "commonProvider": "Provider",
+  "commonApiAddress": "API address",
+  "commonModel": "Model",
+  "providersApiKeyRequired": "Please enter an API key",
+  "resonanceNotConnected": "Not connected",
+  "resonanceConnecting": "Connecting",
+  "resonanceConnected": "Connected",
+  "resonanceError": "Error",
+  "resonanceLocal": "Local Resonance",
+  "resonanceTitle": "Resonance Management",
+  "resonanceEmpty": "No Resonance instances",
+  "resonanceAddInstance": "Add instance",
+  "resonanceAddTitle": "Add Resonance Instance",
+  "resonanceInstanceName": "Instance name",
+  "resonanceApiKeyOptional": "API key (optional)",
+  "resonanceEditTitle": "Edit Resonance Instance",
+  "resonancePrimary": "Primary",
+  "resonanceSetPrimary": "Set as primary",
+  "resonanceTestConnection": "Test connection",
+  "settingsMemoryUsage": "Memory usage",
+  "settingsDeviceDiscovery": "Device discovery",
+  "settingsDeviceDiscoveryDesc": "Scan for and discover network devices",
+  "settingsLogsDesc": "View app logs and error messages",
+  "settingsResonanceDesc": "Manage Resonance service instances",
+  "settingsRefreshStatus": "Refresh status",
+  "skillsTitle": "Skills",
+  "skillsEmpty": "No skills",
+  "skillsEmptyHint": "Tap the button below to add a custom skill",
+  "skillsBuiltIn": "Built-in skills",
+  "skillsCustom": "Custom skills",
+  "skillsAddCustom": "Add Custom Skill",
+  "skillsNameField": "Skill name",
+  "commonDescription": "Description",
+  "soulSaved": "Soul saved",
+  "soulTitle": "Soul Settings",
+  "soulSubtitle": "Soul - your personal assistant persona",
+  "soulDescHint": "Describe your assistant's personality, habits and preferences.",
+  "soulVersionHistory": "Version history",
+  "soulNoHistory": "No version history",
+  "soulUserModified": "User edit",
+  "soulAgentReview": "Agent review",
+  "soulNoReason": "No reason given",
+  "soulChangeReason": "Reason for change",
+  "soulConversationSummary": "Conversation summary",
+  "soulContent": "Content",
+  "taskBoardTitle": "Task Board",
+  "taskStatusTodo": "To do",
+  "taskStatusInProgress": "In progress",
+  "taskStatusDone": "Done",
+  "taskStatusFailed": "Failed",
+  "taskStatusCancelled": "Cancelled",
+  "taskRetry": "Retry",
+  "taskEmpty": "No tasks",
+  "taskAdd": "Add task",
+  "taskTitleField": "Task title",
+  "taskPriority": "Priority",
+  "priorityLow": "Low",
+  "priorityMedium": "Medium",
+  "priorityHigh": "High",
+  "priorityUrgent": "Urgent",
+  "taskEditTitle": "Edit Task",
+  "taskStatus": "Status",
+  "taskTagsField": "Tags (comma separated)",
+  "taskEditPersistenceNote": "Hippocampus only persists status and tags - title and description have no matching columns and are not saved.",
+  "taskOverview": "Overview",
+  "taskLogs": "Logs",
+  "commonRefresh": "Refresh",
+  "taskCreatedAt": "Created at",
+  "taskCompletedAt": "Completed at",
+  "taskTags": "Tags",
+  "taskNoSubtasks": "This task has no subtasks",
+  "taskSubtaskProgress": "Subtask progress",
+  "logsTab": "Logs",
+  "logsBackend": "Backend",
+  "logsAllLevels": "All levels",
+  "logsExport": "Export logs",
+  "logsPanelClearAll": "Clear all",
+  "soulPriorityNote": "System Prompt takes highest priority.",
+  "commonLoadFailed": "Load failed: {error}",
+  "@commonLoadFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "commonErrorDetail": "Error: {error}",
+  "@commonErrorDetail": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "commonDeleteConfirmNamed": "Delete \"{name}\"?",
+  "@commonDeleteConfirmNamed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "commonDeleteFailed": "Delete failed: {error}",
+  "@commonDeleteFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "commonMinutesAgo": "{count} min ago",
+  "@commonMinutesAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "commonHoursAgo": "{count} h ago",
+  "@commonHoursAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "commonDaysAgo": "{count} d ago",
+  "@commonDaysAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsMemUsed": "Used: {mb} MB",
+  "@settingsMemUsed": {
+    "placeholders": {
+      "mb": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsMemTotal": "Total: {mb} MB",
+  "@settingsMemTotal": {
+    "placeholders": {
+      "mb": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsMemFree": "Free: {mb} MB",
+  "@settingsMemFree": {
+    "placeholders": {
+      "mb": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsMemUsage": "Usage: {percent}%",
+  "@settingsMemUsage": {
+    "placeholders": {
+      "percent": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsPrefrontalEmbedded": "Embedded Prefrontal",
+  "@settingsPrefrontalEmbedded": {},
+  "settingsPrefrontalEmbeddedDesc": "Manage the Prefrontal runtime embedded in this app",
+  "@settingsPrefrontalEmbeddedDesc": {},
+  "taskSubtasks": "Subtasks ({count})",
+  "@taskSubtasks": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "taskStepStarted": "Started: {time}",
+  "@taskStepStarted": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "taskStepCompleted": "Completed: {time}",
+  "@taskStepCompleted": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "taskStepDuration": "Duration: {seconds}s",
+  "@taskStepDuration": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "taskStepProgress": "{completed}/{total} steps",
+  "@taskStepProgress": {
+    "placeholders": {
+      "completed": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "soulDescHintExample": "For example:\n- Friendly and concise\n- Address the user as \"you\"\n- Offer useful suggestions proactively",
+  "@soulDescHintExample": {},
+  "soulHistoryLoadFailed": "Failed to load history: {error}",
+  "@soulHistoryLoadFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "soulVersion": "Version {version}",
+  "@soulVersion": {
+    "placeholders": {
+      "version": {
+        "type": "int"
+      }
+    }
+  },
+  "logsFilterLabel": "Filter: {level} {source}",
+  "@logsFilterLabel": {
+    "placeholders": {
+      "level": {
+        "type": "String"
+      },
+      "source": {
+        "type": "String"
+      }
+    }
+  },
+  "logsTotalCount": "{count} logs in total",
+  "@logsTotalCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "logsShownCount": "Showing {count}",
+  "@logsShownCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "discoveryLastScan": "Last scan: {time}",
+  "@discoveryLastScan": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "discoveryDeviceCount": "{count} devices found",
+  "@discoveryDeviceCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "resonanceLatency": "Latency: {ms}ms",
+  "@resonanceLatency": {
+    "placeholders": {
+      "ms": {
+        "type": "int"
+      }
+    }
+  },
+  "modelNameExample": "e.g. Qwen2.5-7B",
+  "@modelNameExample": {},
+  "cameraOff": "Camera off",
+  "@cameraOff": {},
+  "cameraReady": "Camera ready",
+  "@cameraReady": {},
+  "cameraStreaming": "Capturing...",
+  "@cameraStreaming": {},
+  "cameraFlip": "Flip",
+  "@cameraFlip": {},
+  "cameraClose": "Close",
+  "@cameraClose": {},
+  "prefrontalEmbeddedTitle": "Prefrontal Embedded Runtime (NDK)",
+  "@prefrontalEmbeddedTitle": {},
+  "prefrontalEmbeddedRuntime": "Embedded runtime",
+  "@prefrontalEmbeddedRuntime": {},
+  "prefrontalPort": "Port: {port}",
+  "@prefrontalPort": {
+    "placeholders": {
+      "port": {
+        "type": "int"
+      }
+    }
+  },
+  "prefrontalStart": "Start",
+  "@prefrontalStart": {},
+  "prefrontalStop": "Stop",
+  "@prefrontalStop": {},
+  "prefrontalAgentsCount": "Agents ({count})",
+  "@prefrontalAgentsCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "prefrontalRefresh": "Refresh",
+  "@prefrontalRefresh": {},
+  "prefrontalStartFirst": "Start the service first",
+  "@prefrontalStartFirst": {},
+  "prefrontalNoAgentsHint": "No agents yet - add one:",
+  "@prefrontalNoAgentsHint": {},
+  "prefrontalAddSampleAgent": "Add sample agent",
+  "@prefrontalAddSampleAgent": {},
+  "prefrontalInvokeTitle": "Invoke agent (JNI)",
+  "@prefrontalInvokeTitle": {},
+  "prefrontalInput": "Input",
+  "@prefrontalInput": {},
+  "prefrontalInputHint": "Type what to send to the agent...",
+  "@prefrontalInputHint": {},
+  "prefrontalInvoke": "Invoke (JNI)",
+  "@prefrontalInvoke": {},
+  "prefrontalNoOutput": "(no output)",
+  "@prefrontalNoOutput": {},
+  "prefrontalAboutTitle": "About the NDK embedding",
+  "@prefrontalAboutTitle": {},
+  "prefrontalAboutLine1": "- Prefrontal is embedded in the app process as a .so",
+  "@prefrontalAboutLine1": {},
+  "prefrontalAboutLine2": "- Talks to the Kotlin service over JNI",
+  "@prefrontalAboutLine2": {},
+  "prefrontalAboutLine3": "- Talks to Prefrontal over localhost HTTP",
+  "@prefrontalAboutLine3": {},
+  "prefrontalAboutLine4": "- Service lifetime is bound to the app",
+  "@prefrontalAboutLine4": {},
+  "prefrontalAboutLine5": "- No external process, so it is not killed",
+  "@prefrontalAboutLine5": {},
+  "prefrontalAboutArchitecture": "Architecture:",
+  "@prefrontalAboutArchitecture": {},
+  "prefrontalStartSuccess": "Embedded runtime started",
+  "@prefrontalStartSuccess": {},
+  "prefrontalStartFailed": "Start failed",
+  "@prefrontalStartFailed": {},
+  "prefrontalStartError": "Start error: {error}",
+  "@prefrontalStartError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "prefrontalStopSuccess": "Embedded runtime stopped",
+  "@prefrontalStopSuccess": {},
+  "prefrontalStopFailed": "Stop failed",
+  "@prefrontalStopFailed": {},
+  "prefrontalStopError": "Stop error: {error}",
+  "@prefrontalStopError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "prefrontalAddSuccess": "Added",
+  "@prefrontalAddSuccess": {},
+  "prefrontalAddFailed": "Add failed",
+  "@prefrontalAddFailed": {},
+  "prefrontalAddError": "Add error: {error}",
+  "@prefrontalAddError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "prefrontalInvokeSuccess": "JNI call succeeded",
+  "@prefrontalInvokeSuccess": {},
+  "prefrontalInvokeFailed": "Call failed",
+  "@prefrontalInvokeFailed": {},
+  "prefrontalInvokeError": "Call error: {error}",
+  "@prefrontalInvokeError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "prefrontalStatusStopped": "Stopped",
+  "@prefrontalStatusStopped": {},
+  "prefrontalStatusStarting": "Starting...",
+  "@prefrontalStatusStarting": {},
+  "prefrontalStatusRunning": "Running",
+  "@prefrontalStatusRunning": {},
+  "prefrontalStatusStopping": "Stopping...",
+  "@prefrontalStatusStopping": {},
+  "prefrontalStatusError": "Error",
+  "@prefrontalStatusError": {},
+  "prefrontalSampleAgentName": "Sample agent",
+  "@prefrontalSampleAgentName": {},
+  "prefrontalSampleAgentDesc": "Sample agent registered over JNI",
+  "@prefrontalSampleAgentDesc": {},
+  "prefrontalErrorPrefix": "Error: {error}",
+  "@prefrontalErrorPrefix": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "chatGreeting": "Hello! I am Shadow. How can I help you?",
+  "@chatGreeting": {},
+  "chatImageNotAvailable": "LiteRT image support is not available yet - please wait for a version update",
+  "@chatImageNotAvailable": {},
+  "chatVoiceModelRequired": "Voice features need a model to be loaded first",
+  "@chatVoiceModelRequired": {},
+  "chatSorryError": "Sorry, something went wrong: {error}",
+  "@chatSorryError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "chatSorryErrorShort": "Sorry, something went wrong",
+  "@chatSorryErrorShort": {},
+  "modelPlaceholderNoLocal": "No local model yet",
+  "@modelPlaceholderNoLocal": {},
+  "deviceThisMachine": "This device",
+  "@deviceThisMachine": {},
+  "actionFlashlightOn": "Turn on flashlight",
+  "@actionFlashlightOn": {},
+  "actionFlashlightOff": "Turn off flashlight",
+  "@actionFlashlightOff": {},
+  "actionCreateContact": "Create contact: {name}",
+  "@actionCreateContact": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "actionSendEmail": "Send email to: {to}",
+  "@actionSendEmail": {
+    "placeholders": {
+      "to": {
+        "type": "String"
+      }
+    }
+  },
+  "actionShowLocation": "Show location: {query}",
+  "@actionShowLocation": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "actionOpenWifi": "Open WiFi settings",
+  "@actionOpenWifi": {},
+  "actionCreateCalendar": "Create calendar event: {title}",
+  "@actionCreateCalendar": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "actionFlashlightOnDone": "Flashlight is on",
+  "@actionFlashlightOnDone": {},
+  "actionFlashlightOnFailed": "Failed to turn on the flashlight: {error}",
+  "@actionFlashlightOnFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "actionFlashlightOffDone": "Flashlight is off",
+  "@actionFlashlightOffDone": {},
+  "actionFlashlightOffFailed": "Failed to turn off the flashlight: {error}",
+  "@actionFlashlightOffFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "actionCreatingContact": "Creating contact: {name}",
+  "@actionCreatingContact": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "actionNoContactsApp": "Cannot open the contacts app",
+  "@actionNoContactsApp": {},
+  "actionContactFailed": "Failed to create the contact: {error}",
+  "@actionContactFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "actionEmailOpened": "Email app opened, recipient: {to}",
+  "@actionEmailOpened": {
+    "placeholders": {
+      "to": {
+        "type": "String"
+      }
+    }
+  },
+  "actionNoEmailApp": "Cannot open the email app",
+  "@actionNoEmailApp": {},
+  "actionEmailFailed": "Failed to send the email: {error}",
+  "@actionEmailFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "actionShowingLocation": "Showing location: {query}",
+  "@actionShowingLocation": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "actionNoMapsApp": "Cannot open the maps app",
+  "@actionNoMapsApp": {},
+  "actionLocationFailed": "Failed to show the location: {error}",
+  "@actionLocationFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "actionWifiOpened": "WiFi settings opened",
+  "@actionWifiOpened": {},
+  "actionWifiFailed": "Failed to open the WiFi settings: {error}",
+  "@actionWifiFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "actionCalendarCreated": "Calendar event created: {title}",
+  "@actionCalendarCreated": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "actionNoCalendarApp": "Cannot open the calendar app",
+  "@actionNoCalendarApp": {},
+  "actionCalendarFailed": "Failed to create the calendar event: {error}",
+  "@actionCalendarFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  }
 }

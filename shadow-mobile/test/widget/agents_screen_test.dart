@@ -31,7 +31,7 @@ void main() {
       expect(find.byType(Scaffold), findsOneWidget);
     });
 
-    testWidgets('shows title "Agent 管理"', (WidgetTester tester) async {
+    testWidgets('shows the agents title', (WidgetTester tester) async {
       await pumpWidgetForTest(
         tester,
         ProviderScope(

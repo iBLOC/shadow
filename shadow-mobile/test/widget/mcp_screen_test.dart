@@ -31,7 +31,7 @@ void main() {
       expect(find.byType(Scaffold), findsOneWidget);
     });
 
-    testWidgets('shows title "MCP 服务管理"', (WidgetTester tester) async {
+    testWidgets('shows the MCP servers title', (WidgetTester tester) async {
       await tester.pumpWidget(
         ProviderScope(
           child: MaterialApp(
@@ -48,7 +48,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('MCP 服务管理'), findsOneWidget);
+      expect(find.text(l10nOf(tester).mcpTitle), findsOneWidget);
     });
 
     testWidgets('has floating action button', (WidgetTester tester) async {
@@ -71,7 +71,7 @@ void main() {
       expect(find.byType(FloatingActionButton), findsOneWidget);
     });
 
-    testWidgets('FAB has "添加服务器" label', (WidgetTester tester) async {
+    testWidgets('FAB has the add-server label', (WidgetTester tester) async {
       await tester.pumpWidget(
         ProviderScope(
           child: MaterialApp(
@@ -88,7 +88,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('添加服务器'), findsOneWidget);
+      expect(find.text(l10nOf(tester).mcpAddServer), findsOneWidget);
     });
 
     testWidgets('has refresh button', (WidgetTester tester) async {
@@ -136,7 +136,7 @@ void main() {
       await tester.tap(fab);
       await tester.pumpAndSettle();
 
-      expect(find.text('添加服务器'), findsOneWidget);
+      expect(find.text(l10nOf(tester).mcpAddServer), findsOneWidget);
     });
   });
 }

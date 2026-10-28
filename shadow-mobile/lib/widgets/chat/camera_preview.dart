@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:camera/camera.dart';
+import '../../l10n/current_l10n.dart';
 import '../../providers/conversation_mode_provider.dart';
 
 /// Camera preview wrapper widget
@@ -68,11 +69,11 @@ class CameraPreviewWrapper extends ConsumerWidget {
 String getVideoStatusText(VideoState videoState) {
   switch (videoState) {
     case VideoState.off:
-      return '摄像头关闭';
+      return currentL10n().cameraOff;
     case VideoState.on:
-      return '摄像头就绪';
+      return currentL10n().cameraReady;
     case VideoState.streaming:
-      return '采集中...';
+      return currentL10n().cameraStreaming;
   }
 }
 

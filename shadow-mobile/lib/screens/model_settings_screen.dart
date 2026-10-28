@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/model_config.dart';
 import '../../models/model_providers.dart';
+import '../generated/l10n/app_localizations.dart';
 
 /// 模型设置页面
 class ModelSettingsScreen extends ConsumerWidget {
@@ -14,7 +15,7 @@ class ModelSettingsScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('模型设置'),
+        title: Text(AppLocalizations.of(context)!.modelSettingsTitle),
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
@@ -37,7 +38,7 @@ class ModelSettingsScreen extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('推理引擎', style: Theme.of(context).textTheme.titleMedium),
+        Text(AppLocalizations.of(context)!.modelSettingsEngine, style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 8),
         SegmentedButton<EngineType>(
           segments: const [
@@ -70,7 +71,7 @@ class ModelSettingsScreen extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('选择模型', style: Theme.of(context).textTheme.titleMedium),
+        Text(AppLocalizations.of(context)!.modelSettingsSelectModel, style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 8),
         configAsync.when(
           data: (config) => Column(

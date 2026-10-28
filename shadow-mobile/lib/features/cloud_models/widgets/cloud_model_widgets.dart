@@ -437,23 +437,23 @@ class _LocalModelConfigDialogState extends State<LocalModelConfigDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('添加本地模型'),
+      title: Text(AppLocalizations.of(context)!.addLocalModel),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           TextField(
             controller: _nameController,
-            decoration: const InputDecoration(
-              labelText: '模型名称',
-              hintText: '例如: Qwen2.5-7B',
+            decoration: InputDecoration(
+              labelText: AppLocalizations.of(context)!.modelNameField,
+              hintText: AppLocalizations.of(context)!.modelNameExample,
               border: OutlineInputBorder(),
             ),
           ),
           const SizedBox(height: 16),
           TextField(
             controller: _pathController,
-            decoration: const InputDecoration(
-              labelText: '模型路径',
+            decoration: InputDecoration(
+              labelText: AppLocalizations.of(context)!.modelPathField,
               hintText: '/data/local/models/qwen2.5-7b',
               border: OutlineInputBorder(),
             ),
@@ -463,7 +463,7 @@ class _LocalModelConfigDialogState extends State<LocalModelConfigDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('取消'),
+          child: Text(AppLocalizations.of(context)!.cancel),
         ),
         FilledButton(
           onPressed: () {
@@ -475,7 +475,7 @@ class _LocalModelConfigDialogState extends State<LocalModelConfigDialog> {
               });
             }
           },
-          child: const Text('添加'),
+          child: Text(AppLocalizations.of(context)!.commonAdd),
         ),
       ],
     );

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'telencephalon/telencephalon_client.dart';
+import '../l10n/current_l10n.dart';
 
 class DiscoveredPeer {
   final String id;
@@ -84,7 +85,7 @@ class SessionTransferService {
 
     final localPeer = DiscoveredPeer(
       id: 'local',
-      name: '本机',
+      name: currentL10n().deviceThisMachine,
       host: 'localhost',
       port: 8082,
       capabilities: [],

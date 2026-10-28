@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../agents/providers/agent_provider.dart';
 import '../../agents/main_agent/main_agent_prompt.dart';
+import '../generated/l10n/app_localizations.dart';
 
 /// 提示词设置页面
 class PromptSettingsScreen extends ConsumerStatefulWidget {
@@ -45,7 +46,7 @@ class _PromptSettingsScreenState extends ConsumerState<PromptSettingsScreen> {
     setState(() => _hasChanges = false);
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(const SnackBar(content: Text('提示词已保存')));
+    ).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context)!.promptSaved)));
   }
 
   void _reset() {
@@ -54,20 +55,20 @@ class _PromptSettingsScreenState extends ConsumerState<PromptSettingsScreen> {
     setState(() => _hasChanges = false);
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(const SnackBar(content: Text('已恢复默认提示词')));
+    ).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context)!.promptRestored)));
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('提示词设置'),
+        title: Text(AppLocalizations.of(context)!.promptSettingsTitle),
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
           TextButton(
             onPressed: _hasChanges ? _save : null,
-            child: const Text('保存'),
+            child: Text(AppLocalizations.of(context)!.commonSave),
           ),
         ],
       ),
@@ -76,16 +77,16 @@ class _PromptSettingsScreenState extends ConsumerState<PromptSettingsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('主Agent系统提示词', style: Theme.of(context).textTheme.titleMedium),
+            Text(AppLocalizations.of(context)!.promptMainAgentLabel, style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             Expanded(
               child: TextField(
                 controller: _controller,
                 maxLines: null,
                 expands: true,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   border: OutlineInputBorder(),
-                  hintText: '输入系统提示词...',
+                  hintText: AppLocalizations.of(context)!.promptInputHint,
                 ),
                 style: const TextStyle(fontSize: 14),
               ),
@@ -97,7 +98,7 @@ class _PromptSettingsScreenState extends ConsumerState<PromptSettingsScreen> {
                 TextButton.icon(
                   onPressed: _reset,
                   icon: const Icon(Icons.restore),
-                  label: const Text('恢复默认'),
+                  label: Text(AppLocalizations.of(context)!.promptRestoreDefault),
                 ),
               ],
             ),

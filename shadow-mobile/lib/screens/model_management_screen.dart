@@ -202,7 +202,7 @@ class _EngineStatusBar extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  isLitertReady ? '引擎运行中' : '引擎未运行',
+                  isLitertReady ? AppLocalizations.of(context)!.modelEngineRunning : AppLocalizations.of(context)!.modelEngineStopped,
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
@@ -347,8 +347,8 @@ class _ModelManagementScreenState extends ConsumerState<ModelManagementScreen>
     if (localModels.isEmpty && internalModels.isEmpty && cloudModels.isEmpty) {
       return EmptyState(
         icon: Icons.model_training,
-        title: '暂无模型',
-        description: '点击右下角添加模型',
+        title: AppLocalizations.of(context)!.modelEmpty,
+        description: AppLocalizations.of(context)!.modelEmptyHint,
       );
     }
 
@@ -358,13 +358,13 @@ class _ModelManagementScreenState extends ConsumerState<ModelManagementScreen>
           padding: const EdgeInsets.all(12),
           child: Row(
             children: [
-              const Text('类型:', style: TextStyle(fontSize: 13)),
+              Text(AppLocalizations.of(context)!.modelTypeLabel, style: TextStyle(fontSize: 13)),
               const SizedBox(width: 8),
               SegmentedButton<ModelType?>(
-                segments: const [
+                segments: [
                   ButtonSegment(
                     value: null,
-                    label: Text('全部', style: TextStyle(fontSize: 11)),
+                    label: Text(AppLocalizations.of(context)!.commonAll, style: TextStyle(fontSize: 11)),
                   ),
                   ButtonSegment(
                     value: ModelType.llm,
@@ -390,7 +390,7 @@ class _ModelManagementScreenState extends ConsumerState<ModelManagementScreen>
             padding: const EdgeInsets.symmetric(horizontal: 16),
             children: [
               if (localModels.isNotEmpty) ...[
-                _buildSectionHeader(context, 'LiteRT 引擎', Icons.memory),
+                _buildSectionHeader(context, AppLocalizations.of(context)!.modelLiteRtEngine, Icons.memory),
                 ...localModels.map(
                   (m) => Padding(
                     padding: const EdgeInsets.only(bottom: 12),
@@ -400,7 +400,7 @@ class _ModelManagementScreenState extends ConsumerState<ModelManagementScreen>
                 const SizedBox(height: 16),
               ],
               if (internalModels.isNotEmpty) ...[
-                _buildSectionHeader(context, '内部服务 (Rust)', Icons.cloud_done),
+                _buildSectionHeader(context, AppLocalizations.of(context)!.modelInternalService, Icons.cloud_done),
                 ...internalModels.map(
                   (m) => Padding(
                     padding: const EdgeInsets.only(bottom: 12),
@@ -410,7 +410,7 @@ class _ModelManagementScreenState extends ConsumerState<ModelManagementScreen>
                 const SizedBox(height: 16),
               ],
               if (cloudModels.isNotEmpty) ...[
-                _buildSectionHeader(context, '云端供应商', Icons.cloud),
+                _buildSectionHeader(context, AppLocalizations.of(context)!.modelCloudProvider, Icons.cloud),
                 ...cloudModels.map(
                   (m) => Padding(
                     padding: const EdgeInsets.only(bottom: 12),
@@ -458,8 +458,8 @@ class _ModelManagementScreenState extends ConsumerState<ModelManagementScreen>
           child: cloudModels.isEmpty
               ? EmptyState(
                   icon: Icons.cloud,
-                  title: '暂无云端模型',
-                  description: '点击右下角添加云端模型',
+                  title: AppLocalizations.of(context)!.modelNoCloudModels,
+                  description: AppLocalizations.of(context)!.modelNoCloudModelsHint,
                 )
               : ListView.builder(
                   padding: const EdgeInsets.all(16),
@@ -519,8 +519,8 @@ class _LocalModelCard extends ConsumerWidget {
             ),
           ),
           if (model.isLoaded)
-            const Chip(
-              label: Text('已加载'),
+            Chip(
+              label: Text(AppLocalizations.of(context)!.modelLoaded),
               backgroundColor: Colors.green,
               labelStyle: TextStyle(color: Colors.white, fontSize: 10),
             ),
@@ -537,19 +537,19 @@ class _LocalModelCard extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('确认删除'),
-        content: Text('确定要删除 ${model.name} 吗？'),
+        title: Text(AppLocalizations.of(context)!.commonConfirmDelete),
+        content: Text(AppLocalizations.of(context)!.commonDeleteConfirmNamed(model.name)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
+            child: Text(AppLocalizations.of(context)!.cancel),
           ),
           TextButton(
             onPressed: () {
               ref.read(modelsProvider.notifier).deleteModel(model.id);
               Navigator.pop(context);
             },
-            child: const Text('删除', style: TextStyle(color: Colors.red)),
+            child: Text(AppLocalizations.of(context)!.commonDelete, style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -606,19 +606,19 @@ class _CloudModelCard extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('确认删除'),
-        content: Text('确定要删除 ${model.name} 吗？'),
+        title: Text(AppLocalizations.of(context)!.commonConfirmDelete),
+        content: Text(AppLocalizations.of(context)!.commonDeleteConfirmNamed(model.name)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
+            child: Text(AppLocalizations.of(context)!.cancel),
           ),
           TextButton(
             onPressed: () {
               ref.read(modelsProvider.notifier).deleteModel(model.id);
               Navigator.pop(context);
             },
-            child: const Text('删除', style: TextStyle(color: Colors.red)),
+            child: Text(AppLocalizations.of(context)!.commonDelete, style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -649,23 +649,23 @@ class _LocalModelConfigDialogState extends State<LocalModelConfigDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('添加本地模型'),
+      title: Text(AppLocalizations.of(context)!.modelAddLocalTitle),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: '模型名称',
+              decoration: InputDecoration(
+                labelText: AppLocalizations.of(context)!.modelNameField,
                 border: OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 16),
             TextField(
               controller: _pathController,
-              decoration: const InputDecoration(
-                labelText: '模型路径',
+              decoration: InputDecoration(
+                labelText: AppLocalizations.of(context)!.modelPathField,
                 border: OutlineInputBorder(),
                 hintText: 'assets/models/xxx',
               ),
@@ -673,8 +673,8 @@ class _LocalModelConfigDialogState extends State<LocalModelConfigDialog> {
             const SizedBox(height: 16),
             TextField(
               controller: _sizeController,
-              decoration: const InputDecoration(
-                labelText: '大小 (MB)',
+              decoration: InputDecoration(
+                labelText: AppLocalizations.of(context)!.modelSizeField,
                 border: OutlineInputBorder(),
               ),
               keyboardType: TextInputType.number,
@@ -685,7 +685,7 @@ class _LocalModelConfigDialogState extends State<LocalModelConfigDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('取消'),
+          child: Text(AppLocalizations.of(context)!.cancel),
         ),
         FilledButton(
           onPressed: () {
@@ -698,7 +698,7 @@ class _LocalModelConfigDialogState extends State<LocalModelConfigDialog> {
               });
             }
           },
-          child: const Text('添加'),
+          child: Text(AppLocalizations.of(context)!.commonAdd),
         ),
       ],
     );
@@ -730,15 +730,15 @@ class _CloudModelConfigDialogState extends State<CloudModelConfigDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('添加云端模型'),
+      title: Text(AppLocalizations.of(context)!.modelAddCloudTitle),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: '名称',
+              decoration: InputDecoration(
+                labelText: AppLocalizations.of(context)!.commonName,
                 border: OutlineInputBorder(),
               ),
             ),
@@ -754,8 +754,8 @@ class _CloudModelConfigDialogState extends State<CloudModelConfigDialog> {
             const SizedBox(height: 16),
             TextField(
               controller: _apiKeyController,
-              decoration: const InputDecoration(
-                labelText: 'API Key (可选)',
+              decoration: InputDecoration(
+                labelText: AppLocalizations.of(context)!.commonApiKeyOptional,
                 border: OutlineInputBorder(),
               ),
               obscureText: true,
@@ -763,8 +763,8 @@ class _CloudModelConfigDialogState extends State<CloudModelConfigDialog> {
             const SizedBox(height: 16),
             TextField(
               controller: _modelController,
-              decoration: const InputDecoration(
-                labelText: '模型名称 (可选)',
+              decoration: InputDecoration(
+                labelText: AppLocalizations.of(context)!.modelNameOptional,
                 border: OutlineInputBorder(),
                 hintText: 'gpt-4',
               ),
@@ -775,7 +775,7 @@ class _CloudModelConfigDialogState extends State<CloudModelConfigDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('取消'),
+          child: Text(AppLocalizations.of(context)!.cancel),
         ),
         FilledButton(
           onPressed: () {
@@ -789,7 +789,7 @@ class _CloudModelConfigDialogState extends State<CloudModelConfigDialog> {
               });
             }
           },
-          child: const Text('添加'),
+          child: Text(AppLocalizations.of(context)!.commonAdd),
         ),
       ],
     );

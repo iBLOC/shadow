@@ -5,6 +5,7 @@ import '../services/prefrontal_client.dart';
 import '../theme/app_colors.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/task_detail_dialog.dart';
+import '../generated/l10n/app_localizations.dart';
 
 final tasksNotifierProvider = StateNotifierProvider<TasksNotifier, TasksState>((
   ref,
@@ -344,7 +345,7 @@ class TaskBoardScreen extends ConsumerWidget {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text('任务看板'),
+        title: Text(AppLocalizations.of(context)!.taskBoardTitle),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -379,16 +380,16 @@ class TaskBoardScreen extends ConsumerWidget {
     final columns = [
       _ColumnConfig(
         id: 'backlog',
-        title: '待办',
+        title: AppLocalizations.of(context)!.taskStatusTodo,
         color: AppColors.darkTextSecondary,
       ),
       _ColumnConfig(id: 'todo', title: 'To Do', color: AppColors.primary),
-      _ColumnConfig(id: 'in-progress', title: '进行中', color: AppColors.warning),
-      _ColumnConfig(id: 'done', title: '已完成', color: AppColors.success),
+      _ColumnConfig(id: 'in-progress', title: AppLocalizations.of(context)!.taskStatusInProgress, color: AppColors.warning),
+      _ColumnConfig(id: 'done', title: AppLocalizations.of(context)!.taskStatusDone, color: AppColors.success),
       // hippocampus 的 TaskStatus 还有 failed / cancelled。少了这两列，
       // 失败和已取消的任务在看板上就完全看不见了。
-      _ColumnConfig(id: 'failed', title: '失败', color: AppColors.error),
-      _ColumnConfig(id: 'cancelled', title: '已取消', color: AppColors.darkTextSecondary),
+      _ColumnConfig(id: 'failed', title: AppLocalizations.of(context)!.taskStatusFailed, color: AppColors.error),
+      _ColumnConfig(id: 'cancelled', title: AppLocalizations.of(context)!.taskStatusCancelled, color: AppColors.darkTextSecondary),
     ];
 
     return ListView.builder(
@@ -471,7 +472,7 @@ class _TaskErrorBanner extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          TextButton(onPressed: onRetry, child: const Text('重试')),
+          TextButton(onPressed: onRetry, child: Text(AppLocalizations.of(context)!.taskRetry)),
         ],
       ),
     );
@@ -555,7 +556,7 @@ class _KanbanColumn extends StatelessWidget {
                   child: tasks.isEmpty
                       ? Center(
                           child: Text(
-                            '暂无任务',
+                            AppLocalizations.of(context)!.taskEmpty,
                             style: TextStyle(
                               color: isDark
                                   ? AppColors.darkTextSecondary
@@ -580,7 +581,7 @@ class _KanbanColumn extends StatelessWidget {
                   child: TextButton.icon(
                     onPressed: onAddTask,
                     icon: const Icon(Icons.add),
-                    label: const Text('添加任务'),
+                    label: Text(AppLocalizations.of(context)!.taskAdd),
                   ),
                 ),
               ],
@@ -631,7 +632,7 @@ class _TaskCard extends StatelessWidget {
                   if (total > 0) ...[
                     const SizedBox(width: 8),
                     Text(
-                      '$completed/$total 步',
+                      AppLocalizations.of(context)!.taskStepProgress(completed, total),
                       style: const TextStyle(fontSize: 12),
                     ),
                   ],
@@ -693,14 +694,14 @@ class _AddTaskDialogState extends State<_AddTaskDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('添加任务'),
+      title: Text(AppLocalizations.of(context)!.taskAdd),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           TextField(
             controller: _titleController,
-            decoration: const InputDecoration(
-              labelText: '任务标题',
+            decoration: InputDecoration(
+              labelText: AppLocalizations.of(context)!.taskTitleField,
               border: OutlineInputBorder(),
             ),
             autofocus: true,
@@ -708,15 +709,15 @@ class _AddTaskDialogState extends State<_AddTaskDialog> {
           const SizedBox(height: 16),
           DropdownButtonFormField<String>(
             initialValue: _priority,
-            decoration: const InputDecoration(
-              labelText: '优先级',
+            decoration: InputDecoration(
+              labelText: AppLocalizations.of(context)!.taskPriority,
               border: OutlineInputBorder(),
             ),
-            items: const [
-              DropdownMenuItem(value: 'low', child: Text('低')),
-              DropdownMenuItem(value: 'medium', child: Text('中')),
-              DropdownMenuItem(value: 'high', child: Text('高')),
-              DropdownMenuItem(value: 'urgent', child: Text('紧急')),
+            items: [
+              DropdownMenuItem(value: 'low', child: Text(AppLocalizations.of(context)!.priorityLow)),
+              DropdownMenuItem(value: 'medium', child: Text(AppLocalizations.of(context)!.priorityMedium)),
+              DropdownMenuItem(value: 'high', child: Text(AppLocalizations.of(context)!.priorityHigh)),
+              DropdownMenuItem(value: 'urgent', child: Text(AppLocalizations.of(context)!.priorityUrgent)),
             ],
             onChanged: (value) {
               if (value != null) setState(() => _priority = value);
@@ -727,7 +728,7 @@ class _AddTaskDialogState extends State<_AddTaskDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('取消'),
+          child: Text(AppLocalizations.of(context)!.cancel),
         ),
         FilledButton(
           onPressed: () {
@@ -736,7 +737,7 @@ class _AddTaskDialogState extends State<_AddTaskDialog> {
               Navigator.pop(context);
             }
           },
-          child: const Text('添加'),
+          child: Text(AppLocalizations.of(context)!.commonAdd),
         ),
       ],
     );

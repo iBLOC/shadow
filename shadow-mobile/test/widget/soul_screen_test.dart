@@ -75,11 +75,9 @@ void main() {
 
     await tester.pump(const Duration(milliseconds: 500));
 
-    // NOTE: SoulScreen renders hardcoded Chinese copy (it does not go through
-    // AppLocalizations yet), so the assertions below match the Chinese text
-    // even though the test app is pinned to the 'en' locale.
-    expect(find.text('Soul 设置'), findsOneWidget);
-    expect(find.text('Soul - 你的个人助理灵魂'), findsOneWidget);
+    // 文案走 l10n，所以断言也从 l10n 取 —— 翻译一改测试不用跟着改。
+    expect(find.text(l10nOf(tester).soulTitle), findsOneWidget);
+    expect(find.text(l10nOf(tester).soulSubtitle), findsOneWidget);
   });
 
   testWidgets('SoulScreen shows AppBar with title', (
@@ -97,7 +95,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
 
     expect(find.byType(AppBar), findsOneWidget);
-    expect(find.text('Soul 设置'), findsOneWidget);
+    expect(find.text(l10nOf(tester).soulTitle), findsOneWidget);
   });
 
   testWidgets('SoulScreen shows loading then content', (
@@ -134,7 +132,7 @@ void main() {
 
     await tester.pump(const Duration(milliseconds: 500));
 
-    expect(find.text('用户修改'), findsOneWidget);
+    expect(find.text(l10nOf(tester).soulUserModified), findsOneWidget);
   });
 
   testWidgets('SoulScreen has text field for soul editing', (
@@ -195,12 +193,12 @@ void main() {
     await tester.pump();
 
     // After text change, AppBar actions should include the save button
-    expect(find.text('保存'), findsOneWidget);
+    expect(find.text(l10nOf(tester).commonSave), findsOneWidget);
 
-    await tester.tap(find.text('保存'));
+    await tester.tap(find.text(l10nOf(tester).commonSave));
     await tester.pump();
 
     // After save, _hasChanges resets to false so the button is hidden again
-    expect(find.text('保存'), findsNothing);
+    expect(find.text(l10nOf(tester).commonSave), findsNothing);
   });
 }

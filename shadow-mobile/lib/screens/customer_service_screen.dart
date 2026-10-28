@@ -71,7 +71,7 @@ class _CSState extends ConsumerState<CustomerServiceScreen> {
         title: Text(l10n.customerServiceMode),
         actions: [
           IconButton(
-            tooltip: l10n.openVoiceMode,
+            tooltip: l10n.openVoiceAssistant,
             icon: const Icon(Icons.mic),
             onPressed: () {
               ref.read(shadowOperationModeProvider.notifier).state =

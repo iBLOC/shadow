@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:shadow_mobile/generated/l10n/app_localizations.dart';
 import 'package:shadow_mobile/litert_engine.dart';
 import 'package:shadow_mobile/providers/chat_provider.dart';
 import 'package:shadow_mobile/providers/conversation_mode_provider.dart';
@@ -94,4 +95,14 @@ Future<void> pumpWidgetForTest(WidgetTester tester, Widget child) async {
 
 Future<void> completePendingMicrotasks(WidgetTester tester) async {
   await tester.pump(const Duration(milliseconds: 100));
+}
+
+
+/// 取当前 widget 树里的本地化实例。
+///
+/// 断言文案时用它，而不是把中英文写死 —— 翻译一改，测试不该跟着改。
+/// 用 Scaffold 的 element：它在 MaterialApp 之下，能看到 Localizations 作用域。
+AppLocalizations l10nOf(WidgetTester tester) {
+  final ctx = tester.element(find.byType(Scaffold).first);
+  return AppLocalizations.of(ctx)!;
 }

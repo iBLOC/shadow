@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../screens/task_board_screen.dart';
+import '../generated/l10n/app_localizations.dart';
 
 /// 任务编辑弹窗。
 ///
@@ -77,7 +78,7 @@ class _TaskEditDialogState extends ConsumerState<TaskEditDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('编辑任务'),
+      title: Text(AppLocalizations.of(context)!.taskEditTitle),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -95,8 +96,8 @@ class _TaskEditDialogState extends ConsumerState<TaskEditDialog> {
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
               initialValue: _status,
-              decoration: const InputDecoration(
-                labelText: '状态',
+              decoration: InputDecoration(
+                labelText: AppLocalizations.of(context)!.taskStatus,
                 border: OutlineInputBorder(),
               ),
               items: _statuses
@@ -109,14 +110,14 @@ class _TaskEditDialogState extends ConsumerState<TaskEditDialog> {
             const SizedBox(height: 12),
             TextField(
               controller: _tagsController,
-              decoration: const InputDecoration(
-                labelText: '标签 (逗号分隔)',
+              decoration: InputDecoration(
+                labelText: AppLocalizations.of(context)!.taskTagsField,
                 border: OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 12),
             Text(
-              'hippocampus 只持久化状态与标签，标题与描述没有对应列，不会保存。',
+              AppLocalizations.of(context)!.taskEditPersistenceNote,
               style: TextStyle(fontSize: 11, color: Theme.of(context).hintColor),
             ),
             if (_errorMessage != null) ...[
@@ -132,7 +133,7 @@ class _TaskEditDialogState extends ConsumerState<TaskEditDialog> {
       actions: [
         TextButton(
           onPressed: _isSubmitting ? null : () => Navigator.pop(context),
-          child: const Text('取消'),
+          child: Text(AppLocalizations.of(context)!.cancel),
         ),
         FilledButton(
           onPressed: _isSubmitting ? null : _submit,
@@ -142,7 +143,7 @@ class _TaskEditDialogState extends ConsumerState<TaskEditDialog> {
                   height: 16,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : const Text('保存'),
+              : Text(AppLocalizations.of(context)!.commonSave),
         ),
       ],
     );

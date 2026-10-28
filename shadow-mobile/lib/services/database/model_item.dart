@@ -1,23 +1,11 @@
 import 'dart:convert';
 
-enum ModelSource {
-  localEngine('LiteRT', '本应用 LiteRT 推理引擎'),
-  internalService('内部服务', 'Prefrontal/Rust 服务'),
-  cloudProvider('云端', 'OpenAI/Anthropic 等云供应商');
+// label / description 原本是中文，但全仓没有任何地方读它们 ——
+// 模型列表和筛选器都直接用 l10n 或字面量。留着只会在英文界面里
+// 留一份永远显示不出来的中文，所以直接删掉。
+enum ModelSource { localEngine, internalService, cloudProvider }
 
-  final String label;
-  final String description;
-  const ModelSource(this.label, this.description);
-}
-
-enum ModelType {
-  llm('LLM', '大型语言模型'),
-  tts('TTS', '语音合成');
-
-  final String label;
-  final String description;
-  const ModelType(this.label, this.description);
-}
+enum ModelType { llm, tts }
 
 class ModelItem {
   final String id;

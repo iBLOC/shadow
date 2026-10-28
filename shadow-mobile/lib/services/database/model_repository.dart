@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'database_helper.dart';
 import 'model_item.dart';
 import 'repositories.dart';
+import '../../l10n/current_l10n.dart';
 
 /// SQLite implementation of IModelRepository
 /// Used as temporary local storage before Neon migration
@@ -148,9 +149,9 @@ class SqliteModelRepository implements IModelRepository {
 
       if (localModels.isEmpty) {
         localModels.add(
-          const ModelItem(
+          ModelItem(
             id: 'local_placeholder',
-            name: '暂无本地模型',
+            name: currentL10n().modelPlaceholderNoLocal,
             path: '',
             type: 'text',
             size: 0,
@@ -163,9 +164,9 @@ class SqliteModelRepository implements IModelRepository {
       return localModels;
     } catch (e) {
       return [
-        const ModelItem(
+        ModelItem(
           id: 'local_placeholder',
-          name: '暂无本地模型',
+          name: currentL10n().modelPlaceholderNoLocal,
           path: '',
           type: 'text',
           size: 0,

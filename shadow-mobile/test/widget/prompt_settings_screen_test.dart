@@ -57,7 +57,7 @@ void main() {
         ),
       );
 
-      expect(find.text('提示词设置'), findsOneWidget);
+      expect(find.text(l10nOf(tester).promptSettingsTitle), findsOneWidget);
     });
 
     testWidgets('shows save button in app bar', (WidgetTester tester) async {
@@ -80,7 +80,7 @@ void main() {
         ),
       );
 
-      expect(find.text('保存'), findsOneWidget);
+      expect(find.text(l10nOf(tester).commonSave), findsOneWidget);
     });
 
     testWidgets('shows TextField for prompt input', (
@@ -128,7 +128,7 @@ void main() {
         ),
       );
 
-      expect(find.text('恢复默认'), findsOneWidget);
+      expect(find.text(l10nOf(tester).promptRestoreDefault), findsOneWidget);
       expect(find.byIcon(Icons.restore), findsOneWidget);
     });
 
@@ -152,7 +152,7 @@ void main() {
         ),
       );
 
-      expect(find.text('主Agent系统提示词'), findsOneWidget);
+      expect(find.text(l10nOf(tester).promptMainAgentLabel), findsOneWidget);
     });
 
     testWidgets('can enter custom prompt text', (WidgetTester tester) async {
@@ -204,13 +204,13 @@ void main() {
         ),
       );
 
-      final saveButton = find.text('保存');
+      final saveButton = find.text(l10nOf(tester).commonSave);
       expect(saveButton, findsOneWidget);
 
       await tester.tap(saveButton);
       await tester.pumpAndSettle();
 
-      expect(find.text('保存'), findsOneWidget);
+      expect(find.text(l10nOf(tester).commonSave), findsOneWidget);
     });
   });
 }

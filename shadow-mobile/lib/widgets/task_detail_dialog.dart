@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../screens/task_board_screen.dart';
 import 'task_edit_dialog.dart';
+import '../generated/l10n/app_localizations.dart';
 
 /// 任务详情弹窗 - 显示完整任务信息 + 子任务列表 + 子任务进度。
 /// 点击任务卡片时打开。
@@ -45,16 +46,16 @@ class _TaskDetailDialogState extends ConsumerState<TaskDetailDialog>
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('确认删除'),
-        content: Text('确认删除任务 "${widget.task.title}"?'),
+        title: Text(AppLocalizations.of(context)!.commonConfirmDelete),
+        content: Text(AppLocalizations.of(context)!.commonDeleteConfirmNamed(widget.task.title)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('取消'),
+            child: Text(AppLocalizations.of(context)!.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('删除'),
+            child: Text(AppLocalizations.of(context)!.commonDelete),
           ),
         ],
       ),
@@ -66,7 +67,7 @@ class _TaskDetailDialogState extends ConsumerState<TaskDetailDialog>
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('删除失败: $e')),
+          SnackBar(content: Text(AppLocalizations.of(context)!.commonDeleteFailed(e.toString()))),
         );
       }
     }
@@ -116,9 +117,9 @@ class _TaskDetailDialogState extends ConsumerState<TaskDetailDialog>
             TabBar(
               controller: _tabController,
               tabs: [
-                Tab(text: '概览'),
-                Tab(text: '子任务 (${steps.length})'),
-                Tab(text: '日志'),
+                Tab(text: AppLocalizations.of(context)!.taskOverview),
+                Tab(text: AppLocalizations.of(context)!.taskSubtasks(steps.length)),
+                Tab(text: AppLocalizations.of(context)!.taskLogs),
               ],
             ),
             Flexible(
@@ -163,7 +164,7 @@ class _TaskDetailDialogState extends ConsumerState<TaskDetailDialog>
                       : Icons.refresh,
                 ),
                 onPressed: _isRefreshing ? null : _refresh,
-                tooltip: '刷新',
+                tooltip: AppLocalizations.of(context)!.commonRefresh,
               ),
             ],
           ),
@@ -203,7 +204,7 @@ class _TaskDetailDialogState extends ConsumerState<TaskDetailDialog>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (task.description != null && task.description!.isNotEmpty) ...[
-            const Text('描述',
+            Text(AppLocalizations.of(context)!.commonDescription,
                 style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 4),
             Container(
@@ -216,20 +217,20 @@ class _TaskDetailDialogState extends ConsumerState<TaskDetailDialog>
             ),
             const SizedBox(height: 16),
           ],
-          _InfoRow(label: '状态', value: task.status),
-          _InfoRow(label: '优先级', value: task.priority),
+          _InfoRow(label: AppLocalizations.of(context)!.taskStatus, value: task.status),
+          _InfoRow(label: AppLocalizations.of(context)!.taskPriority, value: task.priority),
           _InfoRow(
-            label: '创建时间',
+            label: AppLocalizations.of(context)!.taskCreatedAt,
             value: _fmtDate(task.createdAt),
           ),
           if (task.completedAt != null)
             _InfoRow(
-              label: '完成时间',
+              label: AppLocalizations.of(context)!.taskCompletedAt,
               value: _fmtDate(task.completedAt!),
             ),
           if (task.tags.isNotEmpty) ...[
             const SizedBox(height: 8),
-            const Text('标签',
+            Text(AppLocalizations.of(context)!.taskTags,
                 style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 4),
             Wrap(
@@ -262,7 +263,7 @@ class _TaskDetailDialogState extends ConsumerState<TaskDetailDialog>
         child: Padding(
           padding: const EdgeInsets.all(32),
           child: Text(
-            '此任务暂无子任务',
+            AppLocalizations.of(context)!.taskNoSubtasks,
             style: TextStyle(color: Theme.of(context).hintColor),
           ),
         ),
@@ -300,13 +301,13 @@ class _TaskDetailDialogState extends ConsumerState<TaskDetailDialog>
         children: [
           TextButton.icon(
             icon: const Icon(Icons.delete_outline, color: Colors.red),
-            label: const Text('删除', style: TextStyle(color: Colors.red)),
+            label: Text(AppLocalizations.of(context)!.commonDelete, style: TextStyle(color: Colors.red)),
             onPressed: _delete,
           ),
           const SizedBox(width: 8),
           FilledButton.icon(
             icon: const Icon(Icons.edit_outlined),
-            label: const Text('编辑'),
+            label: Text(AppLocalizations.of(context)!.commonEdit),
             onPressed: _openEdit,
           ),
         ],
@@ -458,7 +459,7 @@ class _ProgressBar extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('子任务进度',
+            Text(AppLocalizations.of(context)!.taskSubtaskProgress,
                 style: TextStyle(fontWeight: FontWeight.bold)),
             Text('$completed / $total (${(ratio * 100).toInt()}%)'),
           ],
@@ -565,17 +566,17 @@ class _SubTaskRow extends StatelessWidget {
               spacing: 12,
               children: [
                 if (step.startedAt != null)
-                  Text('开始: ${_fmtDate(step.startedAt!)}',
+                  Text(AppLocalizations.of(context)!.taskStepStarted(_fmtDate(step.startedAt!)),
                       style: TextStyle(
                           fontSize: 11,
                           color: Theme.of(context).hintColor)),
                 if (step.completedAt != null)
-                  Text('完成: ${_fmtDate(step.completedAt!)}',
+                  Text(AppLocalizations.of(context)!.taskStepCompleted(_fmtDate(step.completedAt!)),
                       style: TextStyle(
                           fontSize: 11,
                           color: Theme.of(context).hintColor)),
                 if (duration != null)
-                  Text('耗时: ${duration}s',
+                  Text(AppLocalizations.of(context)!.taskStepDuration(duration),
                       style: TextStyle(
                           fontSize: 11,
                           color: Theme.of(context).hintColor)),

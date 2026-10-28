@@ -6,6 +6,8 @@ import '../services/prefrontal_client.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/empty_state.dart';
 import '../theme/app_colors.dart';
+import '../generated/l10n/app_localizations.dart';
+import '../l10n/current_l10n.dart';
 
 final conversationsNotifierProvider =
     StateNotifierProvider<ConversationsNotifier, ConversationsState>((ref) {
@@ -54,7 +56,7 @@ class ConversationInfo {
   factory ConversationInfo.fromJson(Map<String, dynamic> json) {
     return ConversationInfo(
       id: json['id'] ?? '',
-      title: json['title'] ?? '新会话',
+      title: json['title'] ?? currentL10n().conversationNewSession,
       createdAt: DateTime.tryParse(json['created_at'] ?? '') ?? DateTime.now(),
       updatedAt: DateTime.tryParse(json['updated_at'] ?? '') ?? DateTime.now(),
       messageCount: json['message_count'] ?? 0,
@@ -116,7 +118,7 @@ class ConversationScreen extends ConsumerWidget {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text('会话管理'),
+        title: Text(AppLocalizations.of(context)!.conversationManagement),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -131,14 +133,14 @@ class ConversationScreen extends ConsumerWidget {
           : convState.conversations.isEmpty
           ? EmptyState(
               icon: Icons.chat_bubble_outline,
-              title: '暂无会话',
-              description: '点击右下角开始新对话',
+              title: AppLocalizations.of(context)!.conversationEmpty,
+              description: AppLocalizations.of(context)!.conversationEmptyHint,
             )
           : _buildConversationList(context, ref, convState),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _startNewConversation(context),
         icon: const Icon(Icons.add),
-        label: const Text('新对话'),
+        label: Text(AppLocalizations.of(context)!.conversationNewChat),
       ),
     );
   }
@@ -170,21 +172,21 @@ class ConversationScreen extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('新对话'),
-        content: const TextField(
+        title: Text(AppLocalizations.of(context)!.conversationNewChat),
+        content: TextField(
           decoration: InputDecoration(
-            labelText: '对话标题',
+            labelText: AppLocalizations.of(context)!.conversationTitleField,
             border: OutlineInputBorder(),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
+            child: Text(AppLocalizations.of(context)!.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('创建'),
+            child: Text(AppLocalizations.of(context)!.conversationCreate),
           ),
         ],
       ),
@@ -223,7 +225,7 @@ class _ConversationCard extends StatelessWidget {
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 Text(
-                  _formatTime(conversation.updatedAt),
+                  _formatTime(context, conversation.updatedAt),
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],
@@ -242,35 +244,35 @@ class _ConversationCard extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('确认删除'),
-        content: Text('确定要删除 "${conversation.title}" 吗？'),
+        title: Text(AppLocalizations.of(context)!.commonConfirmDelete),
+        content: Text(AppLocalizations.of(context)!.commonDeleteConfirmNamed(conversation.title)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
+            child: Text(AppLocalizations.of(context)!.cancel),
           ),
           TextButton(
             onPressed: () {
               onDelete();
               Navigator.pop(context);
             },
-            child: Text('删除', style: TextStyle(color: AppColors.error)),
+            child: Text(AppLocalizations.of(context)!.commonDelete, style: TextStyle(color: AppColors.error)),
           ),
         ],
       ),
     );
   }
 
-  String _formatTime(DateTime time) {
+  String _formatTime(BuildContext context, DateTime time) {
     final now = DateTime.now();
     final diff = now.difference(time);
 
     if (diff.inMinutes < 60) {
-      return '${diff.inMinutes} 分钟前';
+      return AppLocalizations.of(context)!.commonMinutesAgo(diff.inMinutes);
     } else if (diff.inHours < 24) {
-      return '${diff.inHours} 小时前';
+      return AppLocalizations.of(context)!.commonHoursAgo(diff.inHours);
     } else if (diff.inDays < 7) {
-      return '${diff.inDays} 天前';
+      return AppLocalizations.of(context)!.commonDaysAgo(diff.inDays);
     } else {
       return '${time.month}/${time.day}/${time.year}';
     }

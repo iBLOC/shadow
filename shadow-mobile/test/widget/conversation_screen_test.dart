@@ -31,7 +31,9 @@ void main() {
       expect(find.byType(Scaffold), findsOneWidget);
     });
 
-    testWidgets('shows title "会话管理"', (WidgetTester tester) async {
+    testWidgets('shows the conversation management title', (
+      WidgetTester tester,
+    ) async {
       await tester.pumpWidget(
         ProviderScope(
           child: MaterialApp(
@@ -48,7 +50,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('会话管理'), findsOneWidget);
+      expect(find.text(l10nOf(tester).conversationManagement), findsOneWidget);
     });
 
     testWidgets('has floating action button', (WidgetTester tester) async {
@@ -71,7 +73,7 @@ void main() {
       expect(find.byType(FloatingActionButton), findsOneWidget);
     });
 
-    testWidgets('FAB has "新对话" label', (WidgetTester tester) async {
+    testWidgets('FAB has the new-chat label', (WidgetTester tester) async {
       await tester.pumpWidget(
         ProviderScope(
           child: MaterialApp(
@@ -88,7 +90,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('新对话'), findsOneWidget);
+      expect(find.text(l10nOf(tester).conversationNewChat), findsOneWidget);
     });
 
     testWidgets('has refresh button', (WidgetTester tester) async {
@@ -130,7 +132,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('暂无会话'), findsOneWidget);
+      expect(find.text(l10nOf(tester).conversationEmpty), findsOneWidget);
     });
   });
 }

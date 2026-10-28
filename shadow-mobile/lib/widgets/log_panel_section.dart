@@ -5,6 +5,7 @@ import 'package:path_provider/path_provider.dart';
 import '../services/log_service.dart';
 import '../providers/log_provider.dart';
 import '../widgets/glass_card.dart';
+import '../generated/l10n/app_localizations.dart';
 
 class LogPanelSection extends ConsumerStatefulWidget {
   const LogPanelSection({super.key});
@@ -78,16 +79,16 @@ class _LogPanelSectionState extends ConsumerState<LogPanelSection> {
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               const Icon(Icons.article_outlined, size: 20),
-              const Text(
-                '日志',
+              Text(
+                AppLocalizations.of(context)!.logsTab,
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
               ),
               const SizedBox(width: 8),
               SegmentedButton<LogSource?>(
-                segments: const [
-                  ButtonSegment(value: null, label: Text('全部')),
+                segments: [
+                  ButtonSegment(value: null, label: Text(AppLocalizations.of(context)!.commonAll)),
                   ButtonSegment(value: LogSource.mnn, label: Text('MNN')),
-                  ButtonSegment(value: LogSource.prefrontal, label: Text('后端')),
+                  ButtonSegment(value: LogSource.prefrontal, label: Text(AppLocalizations.of(context)!.logsBackend)),
                 ],
                 selected: {logState.sourceFilter},
                 onSelectionChanged: (selected) {
@@ -102,7 +103,7 @@ class _LogPanelSectionState extends ConsumerState<LogPanelSection> {
                   ref.read(logServiceProvider.notifier).setLevelFilter(level);
                 },
                 itemBuilder: (context) => [
-                  const PopupMenuItem(value: null, child: Text('所有级别')),
+                  PopupMenuItem(value: null, child: Text(AppLocalizations.of(context)!.logsAllLevels)),
                   const PopupMenuItem(
                     value: LogLevel.debug,
                     child: Text('Debug'),
@@ -130,14 +131,14 @@ class _LogPanelSectionState extends ConsumerState<LogPanelSection> {
               IconButton(
                 icon: const Icon(Icons.download),
                 onPressed: _exportLogs,
-                tooltip: '导出日志',
+                tooltip: AppLocalizations.of(context)!.logsExport,
               ),
               IconButton(
                 icon: const Icon(Icons.delete_outline),
                 onPressed: () {
                   ref.read(logServiceProvider.notifier).clearLogs();
                 },
-                tooltip: '清空日志',
+                tooltip: AppLocalizations.of(context)!.logsClearAll,
               ),
             ],
           ),
@@ -149,8 +150,8 @@ class _LogPanelSectionState extends ConsumerState<LogPanelSection> {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: filteredLogs.isEmpty
-                  ? const Center(
-                      child: Text('暂无日志', style: TextStyle(color: Colors.grey)),
+                  ? Center(
+                      child: Text(AppLocalizations.of(context)!.logsEmpty, style: TextStyle(color: Colors.grey)),
                     )
                   : ListView.builder(
                       controller: _scrollController,

@@ -499,9 +499,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Current mode does not match this screen. Tap the mic icon in the top-right to switch to voice mode.';
 
   @override
-  String get openVoiceMode => 'Voice Assistant';
-
-  @override
   String get ttsInputLabel => 'Text to speak';
 
   @override
@@ -565,6 +562,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get openLiveStreamMode => 'Live Stream';
 
   @override
+  String get openVoiceAssistant => 'Voice Assistant';
+
+  @override
   String get customerServiceHint =>
       'AI will answer incoming calls and reply using the LLM. Shadow-esp32 plays caller voice and AI response. Plug earphone to take over.';
 
@@ -585,4 +585,901 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get modelBindingPromptLater => 'Later';
+
+  @override
+  String get conversationNewSession => 'New Session';
+
+  @override
+  String get conversationManagement => 'Conversations';
+
+  @override
+  String get conversationEmpty => 'No conversations';
+
+  @override
+  String get conversationEmptyHint =>
+      'Tap the button below to start a new chat';
+
+  @override
+  String get conversationNewChat => 'New Chat';
+
+  @override
+  String get conversationTitleField => 'Chat title';
+
+  @override
+  String get conversationCreate => 'Create';
+
+  @override
+  String get commonConfirmDelete => 'Confirm Delete';
+
+  @override
+  String get commonDelete => 'Delete';
+
+  @override
+  String get discoveryTitle => 'Device Discovery';
+
+  @override
+  String get discoveryScanning => 'Scanning for devices...';
+
+  @override
+  String get discoveryNoDevices => 'No devices found';
+
+  @override
+  String get discoveryNoDevicesHint => 'Tap the refresh button to scan again';
+
+  @override
+  String get discoveryAddManually => 'Add Device Manually';
+
+  @override
+  String get commonHostAddress => 'Host address';
+
+  @override
+  String get commonPort => 'Port';
+
+  @override
+  String get discoveryDeviceNameOptional => 'Device name (optional)';
+
+  @override
+  String get commonAdd => 'Add';
+
+  @override
+  String get discoveryActive => 'Active';
+
+  @override
+  String get discoverySetActive => 'Set as active';
+
+  @override
+  String get commonRemove => 'Remove';
+
+  @override
+  String get logsTelencephalonStarted => 'Telencephalon service started';
+
+  @override
+  String get logsDbTimeoutRetry => 'Database connection timed out, retrying...';
+
+  @override
+  String get logsHippocampusUnreachable =>
+      'Cannot connect to the Hippocampus service';
+
+  @override
+  String get logsTitle => 'System Logs';
+
+  @override
+  String get logsClearFilter => 'Clear filter';
+
+  @override
+  String get logsClearAll => 'Clear Logs';
+
+  @override
+  String get logsClearConfirm => 'Clear all logs?';
+
+  @override
+  String get logsClear => 'Clear';
+
+  @override
+  String get logsEmpty => 'No logs yet';
+
+  @override
+  String get logsNoMatch => 'No matching logs';
+
+  @override
+  String get logsCopied => 'Copied to clipboard';
+
+  @override
+  String get mcpTitle => 'MCP Servers';
+
+  @override
+  String get mcpAddServer => 'Add server';
+
+  @override
+  String get mcpEmpty => 'No MCP servers';
+
+  @override
+  String get mcpEmptyHint => 'Tap the button below to add a server';
+
+  @override
+  String get mcpAddServerTitle => 'Add MCP Server';
+
+  @override
+  String get commonName => 'Name';
+
+  @override
+  String get mcpServerUrl => 'Server URL';
+
+  @override
+  String get mcpAuthTokenOptional => 'Auth token (optional)';
+
+  @override
+  String get memoryEmpty => 'No memories yet';
+
+  @override
+  String get modelEngineRunning => 'Engine running';
+
+  @override
+  String get modelEngineStopped => 'Engine not running';
+
+  @override
+  String get modelEmpty => 'No models';
+
+  @override
+  String get modelEmptyHint => 'Tap the button below to add a model';
+
+  @override
+  String get modelTypeLabel => 'Type:';
+
+  @override
+  String get commonAll => 'All';
+
+  @override
+  String get modelLiteRtEngine => 'LiteRT engine';
+
+  @override
+  String get modelInternalService => 'Internal service (Rust)';
+
+  @override
+  String get modelCloudProvider => 'Cloud provider';
+
+  @override
+  String get modelNoCloudModels => 'No cloud models';
+
+  @override
+  String get modelNoCloudModelsHint =>
+      'Tap the button below to add a cloud model';
+
+  @override
+  String get modelAddLocalTitle => 'Add Local Model';
+
+  @override
+  String get modelNameField => 'Model name';
+
+  @override
+  String get modelPathField => 'Model path';
+
+  @override
+  String get modelSizeField => 'Size (MB)';
+
+  @override
+  String get modelAddCloudTitle => 'Add Cloud Model';
+
+  @override
+  String get commonApiKeyOptional => 'API key (optional)';
+
+  @override
+  String get modelNameOptional => 'Model name (optional)';
+
+  @override
+  String get modelSettingsTitle => 'Model Settings';
+
+  @override
+  String get modelSettingsEngine => 'Inference engine';
+
+  @override
+  String get modelSettingsSelectModel => 'Select model';
+
+  @override
+  String get promptSaved => 'Prompt saved';
+
+  @override
+  String get promptRestored => 'Default prompt restored';
+
+  @override
+  String get promptSettingsTitle => 'Prompt Settings';
+
+  @override
+  String get commonSave => 'Save';
+
+  @override
+  String get promptMainAgentLabel => 'Main agent system prompt';
+
+  @override
+  String get promptInputHint => 'Enter a system prompt...';
+
+  @override
+  String get promptRestoreDefault => 'Restore default';
+
+  @override
+  String get providerQwen => 'Qwen';
+
+  @override
+  String get providerZhipu => 'Zhipu AI';
+
+  @override
+  String get providerLocalModel => 'Local model';
+
+  @override
+  String get providersTitle => 'Model Providers';
+
+  @override
+  String get providersEmpty => 'No providers configured';
+
+  @override
+  String get providersEmptyHint =>
+      'Tap the button below to add your first provider';
+
+  @override
+  String get providersAdd => 'Add provider';
+
+  @override
+  String get commonEdit => 'Edit';
+
+  @override
+  String get providersEditTitle => 'Edit Provider';
+
+  @override
+  String get commonProvider => 'Provider';
+
+  @override
+  String get commonApiAddress => 'API address';
+
+  @override
+  String get commonModel => 'Model';
+
+  @override
+  String get providersApiKeyRequired => 'Please enter an API key';
+
+  @override
+  String get resonanceNotConnected => 'Not connected';
+
+  @override
+  String get resonanceConnecting => 'Connecting';
+
+  @override
+  String get resonanceConnected => 'Connected';
+
+  @override
+  String get resonanceError => 'Error';
+
+  @override
+  String get resonanceLocal => 'Local Resonance';
+
+  @override
+  String get resonanceTitle => 'Resonance Management';
+
+  @override
+  String get resonanceEmpty => 'No Resonance instances';
+
+  @override
+  String get resonanceAddInstance => 'Add instance';
+
+  @override
+  String get resonanceAddTitle => 'Add Resonance Instance';
+
+  @override
+  String get resonanceInstanceName => 'Instance name';
+
+  @override
+  String get resonanceApiKeyOptional => 'API key (optional)';
+
+  @override
+  String get resonanceEditTitle => 'Edit Resonance Instance';
+
+  @override
+  String get resonancePrimary => 'Primary';
+
+  @override
+  String get resonanceSetPrimary => 'Set as primary';
+
+  @override
+  String get resonanceTestConnection => 'Test connection';
+
+  @override
+  String get settingsMemoryUsage => 'Memory usage';
+
+  @override
+  String get settingsDeviceDiscovery => 'Device discovery';
+
+  @override
+  String get settingsDeviceDiscoveryDesc =>
+      'Scan for and discover network devices';
+
+  @override
+  String get settingsLogsDesc => 'View app logs and error messages';
+
+  @override
+  String get settingsResonanceDesc => 'Manage Resonance service instances';
+
+  @override
+  String get settingsRefreshStatus => 'Refresh status';
+
+  @override
+  String get skillsTitle => 'Skills';
+
+  @override
+  String get skillsEmpty => 'No skills';
+
+  @override
+  String get skillsEmptyHint => 'Tap the button below to add a custom skill';
+
+  @override
+  String get skillsBuiltIn => 'Built-in skills';
+
+  @override
+  String get skillsCustom => 'Custom skills';
+
+  @override
+  String get skillsAddCustom => 'Add Custom Skill';
+
+  @override
+  String get skillsNameField => 'Skill name';
+
+  @override
+  String get commonDescription => 'Description';
+
+  @override
+  String get soulSaved => 'Soul saved';
+
+  @override
+  String get soulTitle => 'Soul Settings';
+
+  @override
+  String get soulSubtitle => 'Soul - your personal assistant persona';
+
+  @override
+  String get soulDescHint =>
+      'Describe your assistant\'s personality, habits and preferences.';
+
+  @override
+  String get soulVersionHistory => 'Version history';
+
+  @override
+  String get soulNoHistory => 'No version history';
+
+  @override
+  String get soulUserModified => 'User edit';
+
+  @override
+  String get soulAgentReview => 'Agent review';
+
+  @override
+  String get soulNoReason => 'No reason given';
+
+  @override
+  String get soulChangeReason => 'Reason for change';
+
+  @override
+  String get soulConversationSummary => 'Conversation summary';
+
+  @override
+  String get soulContent => 'Content';
+
+  @override
+  String get taskBoardTitle => 'Task Board';
+
+  @override
+  String get taskStatusTodo => 'To do';
+
+  @override
+  String get taskStatusInProgress => 'In progress';
+
+  @override
+  String get taskStatusDone => 'Done';
+
+  @override
+  String get taskStatusFailed => 'Failed';
+
+  @override
+  String get taskStatusCancelled => 'Cancelled';
+
+  @override
+  String get taskRetry => 'Retry';
+
+  @override
+  String get taskEmpty => 'No tasks';
+
+  @override
+  String get taskAdd => 'Add task';
+
+  @override
+  String get taskTitleField => 'Task title';
+
+  @override
+  String get taskPriority => 'Priority';
+
+  @override
+  String get priorityLow => 'Low';
+
+  @override
+  String get priorityMedium => 'Medium';
+
+  @override
+  String get priorityHigh => 'High';
+
+  @override
+  String get priorityUrgent => 'Urgent';
+
+  @override
+  String get taskEditTitle => 'Edit Task';
+
+  @override
+  String get taskStatus => 'Status';
+
+  @override
+  String get taskTagsField => 'Tags (comma separated)';
+
+  @override
+  String get taskEditPersistenceNote =>
+      'Hippocampus only persists status and tags - title and description have no matching columns and are not saved.';
+
+  @override
+  String get taskOverview => 'Overview';
+
+  @override
+  String get taskLogs => 'Logs';
+
+  @override
+  String get commonRefresh => 'Refresh';
+
+  @override
+  String get taskCreatedAt => 'Created at';
+
+  @override
+  String get taskCompletedAt => 'Completed at';
+
+  @override
+  String get taskTags => 'Tags';
+
+  @override
+  String get taskNoSubtasks => 'This task has no subtasks';
+
+  @override
+  String get taskSubtaskProgress => 'Subtask progress';
+
+  @override
+  String get logsTab => 'Logs';
+
+  @override
+  String get logsBackend => 'Backend';
+
+  @override
+  String get logsAllLevels => 'All levels';
+
+  @override
+  String get logsExport => 'Export logs';
+
+  @override
+  String get logsPanelClearAll => 'Clear all';
+
+  @override
+  String get soulPriorityNote => 'System Prompt takes highest priority.';
+
+  @override
+  String commonLoadFailed(String error) {
+    return 'Load failed: $error';
+  }
+
+  @override
+  String commonErrorDetail(String error) {
+    return 'Error: $error';
+  }
+
+  @override
+  String commonDeleteConfirmNamed(String name) {
+    return 'Delete \"$name\"?';
+  }
+
+  @override
+  String commonDeleteFailed(String error) {
+    return 'Delete failed: $error';
+  }
+
+  @override
+  String commonMinutesAgo(int count) {
+    return '$count min ago';
+  }
+
+  @override
+  String commonHoursAgo(int count) {
+    return '$count h ago';
+  }
+
+  @override
+  String commonDaysAgo(int count) {
+    return '$count d ago';
+  }
+
+  @override
+  String settingsMemUsed(int mb) {
+    return 'Used: $mb MB';
+  }
+
+  @override
+  String settingsMemTotal(int mb) {
+    return 'Total: $mb MB';
+  }
+
+  @override
+  String settingsMemFree(int mb) {
+    return 'Free: $mb MB';
+  }
+
+  @override
+  String settingsMemUsage(String percent) {
+    return 'Usage: $percent%';
+  }
+
+  @override
+  String get settingsPrefrontalEmbedded => 'Embedded Prefrontal';
+
+  @override
+  String get settingsPrefrontalEmbeddedDesc =>
+      'Manage the Prefrontal runtime embedded in this app';
+
+  @override
+  String taskSubtasks(int count) {
+    return 'Subtasks ($count)';
+  }
+
+  @override
+  String taskStepStarted(String time) {
+    return 'Started: $time';
+  }
+
+  @override
+  String taskStepCompleted(String time) {
+    return 'Completed: $time';
+  }
+
+  @override
+  String taskStepDuration(int seconds) {
+    return 'Duration: ${seconds}s';
+  }
+
+  @override
+  String taskStepProgress(int completed, int total) {
+    return '$completed/$total steps';
+  }
+
+  @override
+  String get soulDescHintExample =>
+      'For example:\n- Friendly and concise\n- Address the user as \"you\"\n- Offer useful suggestions proactively';
+
+  @override
+  String soulHistoryLoadFailed(String error) {
+    return 'Failed to load history: $error';
+  }
+
+  @override
+  String soulVersion(int version) {
+    return 'Version $version';
+  }
+
+  @override
+  String logsFilterLabel(String level, String source) {
+    return 'Filter: $level $source';
+  }
+
+  @override
+  String logsTotalCount(int count) {
+    return '$count logs in total';
+  }
+
+  @override
+  String logsShownCount(int count) {
+    return 'Showing $count';
+  }
+
+  @override
+  String discoveryLastScan(String time) {
+    return 'Last scan: $time';
+  }
+
+  @override
+  String discoveryDeviceCount(int count) {
+    return '$count devices found';
+  }
+
+  @override
+  String resonanceLatency(int ms) {
+    return 'Latency: ${ms}ms';
+  }
+
+  @override
+  String get modelNameExample => 'e.g. Qwen2.5-7B';
+
+  @override
+  String get cameraOff => 'Camera off';
+
+  @override
+  String get cameraReady => 'Camera ready';
+
+  @override
+  String get cameraStreaming => 'Capturing...';
+
+  @override
+  String get cameraFlip => 'Flip';
+
+  @override
+  String get cameraClose => 'Close';
+
+  @override
+  String get prefrontalEmbeddedTitle => 'Prefrontal Embedded Runtime (NDK)';
+
+  @override
+  String get prefrontalEmbeddedRuntime => 'Embedded runtime';
+
+  @override
+  String prefrontalPort(int port) {
+    return 'Port: $port';
+  }
+
+  @override
+  String get prefrontalStart => 'Start';
+
+  @override
+  String get prefrontalStop => 'Stop';
+
+  @override
+  String prefrontalAgentsCount(int count) {
+    return 'Agents ($count)';
+  }
+
+  @override
+  String get prefrontalRefresh => 'Refresh';
+
+  @override
+  String get prefrontalStartFirst => 'Start the service first';
+
+  @override
+  String get prefrontalNoAgentsHint => 'No agents yet - add one:';
+
+  @override
+  String get prefrontalAddSampleAgent => 'Add sample agent';
+
+  @override
+  String get prefrontalInvokeTitle => 'Invoke agent (JNI)';
+
+  @override
+  String get prefrontalInput => 'Input';
+
+  @override
+  String get prefrontalInputHint => 'Type what to send to the agent...';
+
+  @override
+  String get prefrontalInvoke => 'Invoke (JNI)';
+
+  @override
+  String get prefrontalNoOutput => '(no output)';
+
+  @override
+  String get prefrontalAboutTitle => 'About the NDK embedding';
+
+  @override
+  String get prefrontalAboutLine1 =>
+      '- Prefrontal is embedded in the app process as a .so';
+
+  @override
+  String get prefrontalAboutLine2 => '- Talks to the Kotlin service over JNI';
+
+  @override
+  String get prefrontalAboutLine3 =>
+      '- Talks to Prefrontal over localhost HTTP';
+
+  @override
+  String get prefrontalAboutLine4 => '- Service lifetime is bound to the app';
+
+  @override
+  String get prefrontalAboutLine5 =>
+      '- No external process, so it is not killed';
+
+  @override
+  String get prefrontalAboutArchitecture => 'Architecture:';
+
+  @override
+  String get prefrontalStartSuccess => 'Embedded runtime started';
+
+  @override
+  String get prefrontalStartFailed => 'Start failed';
+
+  @override
+  String prefrontalStartError(String error) {
+    return 'Start error: $error';
+  }
+
+  @override
+  String get prefrontalStopSuccess => 'Embedded runtime stopped';
+
+  @override
+  String get prefrontalStopFailed => 'Stop failed';
+
+  @override
+  String prefrontalStopError(String error) {
+    return 'Stop error: $error';
+  }
+
+  @override
+  String get prefrontalAddSuccess => 'Added';
+
+  @override
+  String get prefrontalAddFailed => 'Add failed';
+
+  @override
+  String prefrontalAddError(String error) {
+    return 'Add error: $error';
+  }
+
+  @override
+  String get prefrontalInvokeSuccess => 'JNI call succeeded';
+
+  @override
+  String get prefrontalInvokeFailed => 'Call failed';
+
+  @override
+  String prefrontalInvokeError(String error) {
+    return 'Call error: $error';
+  }
+
+  @override
+  String get prefrontalStatusStopped => 'Stopped';
+
+  @override
+  String get prefrontalStatusStarting => 'Starting...';
+
+  @override
+  String get prefrontalStatusRunning => 'Running';
+
+  @override
+  String get prefrontalStatusStopping => 'Stopping...';
+
+  @override
+  String get prefrontalStatusError => 'Error';
+
+  @override
+  String get prefrontalSampleAgentName => 'Sample agent';
+
+  @override
+  String get prefrontalSampleAgentDesc => 'Sample agent registered over JNI';
+
+  @override
+  String prefrontalErrorPrefix(String error) {
+    return 'Error: $error';
+  }
+
+  @override
+  String get chatGreeting => 'Hello! I am Shadow. How can I help you?';
+
+  @override
+  String get chatImageNotAvailable =>
+      'LiteRT image support is not available yet - please wait for a version update';
+
+  @override
+  String get chatVoiceModelRequired =>
+      'Voice features need a model to be loaded first';
+
+  @override
+  String chatSorryError(String error) {
+    return 'Sorry, something went wrong: $error';
+  }
+
+  @override
+  String get chatSorryErrorShort => 'Sorry, something went wrong';
+
+  @override
+  String get modelPlaceholderNoLocal => 'No local model yet';
+
+  @override
+  String get deviceThisMachine => 'This device';
+
+  @override
+  String get actionFlashlightOn => 'Turn on flashlight';
+
+  @override
+  String get actionFlashlightOff => 'Turn off flashlight';
+
+  @override
+  String actionCreateContact(String name) {
+    return 'Create contact: $name';
+  }
+
+  @override
+  String actionSendEmail(String to) {
+    return 'Send email to: $to';
+  }
+
+  @override
+  String actionShowLocation(String query) {
+    return 'Show location: $query';
+  }
+
+  @override
+  String get actionOpenWifi => 'Open WiFi settings';
+
+  @override
+  String actionCreateCalendar(String title) {
+    return 'Create calendar event: $title';
+  }
+
+  @override
+  String get actionFlashlightOnDone => 'Flashlight is on';
+
+  @override
+  String actionFlashlightOnFailed(String error) {
+    return 'Failed to turn on the flashlight: $error';
+  }
+
+  @override
+  String get actionFlashlightOffDone => 'Flashlight is off';
+
+  @override
+  String actionFlashlightOffFailed(String error) {
+    return 'Failed to turn off the flashlight: $error';
+  }
+
+  @override
+  String actionCreatingContact(String name) {
+    return 'Creating contact: $name';
+  }
+
+  @override
+  String get actionNoContactsApp => 'Cannot open the contacts app';
+
+  @override
+  String actionContactFailed(String error) {
+    return 'Failed to create the contact: $error';
+  }
+
+  @override
+  String actionEmailOpened(String to) {
+    return 'Email app opened, recipient: $to';
+  }
+
+  @override
+  String get actionNoEmailApp => 'Cannot open the email app';
+
+  @override
+  String actionEmailFailed(String error) {
+    return 'Failed to send the email: $error';
+  }
+
+  @override
+  String actionShowingLocation(String query) {
+    return 'Showing location: $query';
+  }
+
+  @override
+  String get actionNoMapsApp => 'Cannot open the maps app';
+
+  @override
+  String actionLocationFailed(String error) {
+    return 'Failed to show the location: $error';
+  }
+
+  @override
+  String get actionWifiOpened => 'WiFi settings opened';
+
+  @override
+  String actionWifiFailed(String error) {
+    return 'Failed to open the WiFi settings: $error';
+  }
+
+  @override
+  String actionCalendarCreated(String title) {
+    return 'Calendar event created: $title';
+  }
+
+  @override
+  String get actionNoCalendarApp => 'Cannot open the calendar app';
+
+  @override
+  String actionCalendarFailed(String error) {
+    return 'Failed to create the calendar event: $error';
+  }
 }

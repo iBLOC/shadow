@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'actions.dart';
+import '../../l10n/current_l10n.dart';
 
 /// MobileActionAgent的Action执行器
 /// 参考Gallery的MobileActionsViewModel实现
@@ -30,10 +31,10 @@ class MobileActionsViewModel {
     try {
       const platform = MethodChannel('com.ibloc.shadow/flashlight');
       await platform.invokeMethod('turnOn');
-      return '闪光灯已开启';
+      return currentL10n().actionFlashlightOnDone;
     } catch (e) {
       debugPrint('[MobileActionsViewModel] turnOnFlashlight failed: $e');
-      return '闪光灯开启失败: $e';
+      return currentL10n().actionFlashlightOnFailed(e.toString());
     }
   }
 
@@ -41,10 +42,10 @@ class MobileActionsViewModel {
     try {
       const platform = MethodChannel('com.ibloc.shadow/flashlight');
       await platform.invokeMethod('turnOff');
-      return '闪光灯已关闭';
+      return currentL10n().actionFlashlightOffDone;
     } catch (e) {
       debugPrint('[MobileActionsViewModel] turnOffFlashlight failed: $e');
-      return '闪光灯关闭失败: $e';
+      return currentL10n().actionFlashlightOffFailed(e.toString());
     }
   }
 
@@ -59,13 +60,13 @@ class MobileActionsViewModel {
 
       if (await canLaunchUrl(uri)) {
         await launchUrl(uri);
-        return '正在创建联系人: ${action.name}';
+        return currentL10n().actionCreatingContact(action.name);
       } else {
-        return '无法打开联系人应用';
+        return currentL10n().actionNoContactsApp;
       }
     } catch (e) {
       debugPrint('[MobileActionsViewModel] createContact failed: $e');
-      return '联系人创建失败: $e';
+      return currentL10n().actionContactFailed(e.toString());
     }
   }
 
@@ -79,13 +80,13 @@ class MobileActionsViewModel {
 
       if (await canLaunchUrl(uri)) {
         await launchUrl(uri);
-        return '邮件客户端已打开，收件人: ${action.to}';
+        return currentL10n().actionEmailOpened(action.to);
       } else {
-        return '无法打开邮件客户端';
+        return currentL10n().actionNoEmailApp;
       }
     } catch (e) {
       debugPrint('[MobileActionsViewModel] sendEmail failed: $e');
-      return '邮件发送失败: $e';
+      return currentL10n().actionEmailFailed(e.toString());
     }
   }
 
@@ -100,7 +101,7 @@ class MobileActionsViewModel {
 
       if (await canLaunchUrl(uri)) {
         await launchUrl(uri);
-        return '正在显示位置: ${action.query}';
+        return currentL10n().actionShowingLocation(action.query);
       } else {
         // 尝试使用Google Maps
         final googleMapsUri = Uri.parse(
@@ -108,13 +109,13 @@ class MobileActionsViewModel {
         );
         if (await canLaunchUrl(googleMapsUri)) {
           await launchUrl(googleMapsUri, mode: LaunchMode.externalApplication);
-          return '正在显示位置: ${action.query}';
+          return currentL10n().actionShowingLocation(action.query);
         }
-        return '无法打开地图应用';
+        return currentL10n().actionNoMapsApp;
       }
     } catch (e) {
       debugPrint('[MobileActionsViewModel] showLocation failed: $e');
-      return '位置显示失败: $e';
+      return currentL10n().actionLocationFailed(e.toString());
     }
   }
 
@@ -123,10 +124,10 @@ class MobileActionsViewModel {
       // 打开WiFi设置
       const platform = MethodChannel('com.ibloc.shadow/settings');
       await platform.invokeMethod('openWifiSettings');
-      return 'WiFi设置已打开';
+      return currentL10n().actionWifiOpened;
     } catch (e) {
       debugPrint('[MobileActionsViewModel] openWifiSettings failed: $e');
-      return 'WiFi设置打开失败: $e';
+      return currentL10n().actionWifiFailed(e.toString());
     }
   }
 
@@ -148,13 +149,13 @@ class MobileActionsViewModel {
 
       if (await canLaunchUrl(uri)) {
         await launchUrl(uri);
-        return '日历事件已创建: ${action.title}';
+        return currentL10n().actionCalendarCreated(action.title);
       } else {
-        return '无法打开日历应用';
+        return currentL10n().actionNoCalendarApp;
       }
     } catch (e) {
       debugPrint('[MobileActionsViewModel] createCalendar failed: $e');
-      return '日历事件创建失败: $e';
+      return currentL10n().actionCalendarFailed(e.toString());
     }
   }
 }

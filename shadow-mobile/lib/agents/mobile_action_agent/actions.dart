@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../l10n/current_l10n.dart';
 
 /// Action类型枚举
 enum ActionType {
@@ -40,7 +41,7 @@ class FlashlightOnAction extends Action {
       );
 
   @override
-  String get displayName => '开启闪光灯';
+  String get displayName => currentL10n().actionFlashlightOn;
 }
 
 /// 闪光灯关闭Action
@@ -54,7 +55,7 @@ class FlashlightOffAction extends Action {
       );
 
   @override
-  String get displayName => '关闭闪光灯';
+  String get displayName => currentL10n().actionFlashlightOff;
 }
 
 /// 创建联系人Action
@@ -72,7 +73,7 @@ class CreateContactAction extends Action {
       );
 
   @override
-  String get displayName => '创建联系人: $name';
+  String get displayName => currentL10n().actionCreateContact(name);
 }
 
 /// 发送邮件Action
@@ -90,7 +91,7 @@ class SendEmailAction extends Action {
       );
 
   @override
-  String get displayName => '发送邮件到: $to';
+  String get displayName => currentL10n().actionSendEmail(to);
 }
 
 /// 显示位置Action
@@ -106,7 +107,7 @@ class ShowLocationAction extends Action {
       );
 
   @override
-  String get displayName => '显示位置: $query';
+  String get displayName => currentL10n().actionShowLocation(query);
 }
 
 /// 打开WiFi设置Action
@@ -120,7 +121,7 @@ class OpenWifiAction extends Action {
       );
 
   @override
-  String get displayName => '打开WiFi设置';
+  String get displayName => currentL10n().actionOpenWifi;
 }
 
 /// 创建日历事件Action
@@ -151,7 +152,7 @@ class CreateCalendarAction extends Action {
        );
 
   @override
-  String get displayName => '创建日历事件: $title';
+  String get displayName => currentL10n().actionCreateCalendar(title);
 }
 
 /// Action工厂类

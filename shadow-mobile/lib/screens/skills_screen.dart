@@ -7,6 +7,7 @@ import '../services/database/skill.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/empty_state.dart';
 import '../theme/app_colors.dart';
+import '../generated/l10n/app_localizations.dart';
 
 final skillRepositoryProvider = Provider<ISkillRepository>((ref) {
   return RepositoryFactory.createSkillRepository();
@@ -110,7 +111,7 @@ class SkillsScreen extends ConsumerWidget {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text('技能管理'),
+        title: Text(AppLocalizations.of(context)!.skillsTitle),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -125,7 +126,7 @@ class SkillsScreen extends ConsumerWidget {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showAddDialog(context, ref),
         icon: const Icon(Icons.add),
-        label: const Text('添加'),
+        label: Text(AppLocalizations.of(context)!.commonAdd),
       ),
     );
   }
@@ -136,10 +137,10 @@ class SkillsScreen extends ConsumerWidget {
     SkillsState state,
   ) {
     if (state.skills.isEmpty && !state.isLoading) {
-      return const EmptyState(
+      return EmptyState(
         icon: Icons.psychology_outlined,
-        title: '暂无技能',
-        description: '点击右下角添加自定义技能',
+        title: AppLocalizations.of(context)!.skillsEmpty,
+        description: AppLocalizations.of(context)!.skillsEmptyHint,
       );
     }
 
@@ -150,8 +151,8 @@ class SkillsScreen extends ConsumerWidget {
       padding: const EdgeInsets.all(16),
       children: [
         if (builtIn.isNotEmpty) ...[
-          const Text(
-            '内置技能',
+          Text(
+            AppLocalizations.of(context)!.skillsBuiltIn,
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
@@ -159,8 +160,8 @@ class SkillsScreen extends ConsumerWidget {
           const SizedBox(height: 24),
         ],
         if (custom.isNotEmpty) ...[
-          const Text(
-            '自定义技能',
+          Text(
+            AppLocalizations.of(context)!.skillsCustom,
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
@@ -178,7 +179,7 @@ class SkillsScreen extends ConsumerWidget {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      '错误: ${state.error}',
+                      AppLocalizations.of(context)!.commonErrorDetail(state.error!),
                       style: const TextStyle(color: Colors.red),
                     ),
                   ),
@@ -269,19 +270,19 @@ class _SkillCard extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('确认删除'),
-        content: Text('确定要删除 ${skill.name} 吗？'),
+        title: Text(AppLocalizations.of(context)!.commonConfirmDelete),
+        content: Text(AppLocalizations.of(context)!.commonDeleteConfirmNamed(skill.name)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
+            child: Text(AppLocalizations.of(context)!.cancel),
           ),
           TextButton(
             onPressed: () {
               ref.read(skillsNotifierProvider.notifier).deleteSkill(skill.id);
               Navigator.pop(context);
             },
-            child: const Text('删除', style: TextStyle(color: Colors.red)),
+            child: Text(AppLocalizations.of(context)!.commonDelete, style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -312,22 +313,22 @@ class _AddSkillDialogState extends State<_AddSkillDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('添加自定义技能'),
+      title: Text(AppLocalizations.of(context)!.skillsAddCustom),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           TextField(
             controller: _nameController,
-            decoration: const InputDecoration(
-              labelText: '技能名称',
+            decoration: InputDecoration(
+              labelText: AppLocalizations.of(context)!.skillsNameField,
               border: OutlineInputBorder(),
             ),
           ),
           const SizedBox(height: 16),
           TextField(
             controller: _descController,
-            decoration: const InputDecoration(
-              labelText: '描述',
+            decoration: InputDecoration(
+              labelText: AppLocalizations.of(context)!.commonDescription,
               border: OutlineInputBorder(),
             ),
             maxLines: 2,
@@ -337,7 +338,7 @@ class _AddSkillDialogState extends State<_AddSkillDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('取消'),
+          child: Text(AppLocalizations.of(context)!.cancel),
         ),
         FilledButton(
           onPressed: () {
@@ -349,7 +350,7 @@ class _AddSkillDialogState extends State<_AddSkillDialog> {
               Navigator.pop(context);
             }
           },
-          child: const Text('添加'),
+          child: Text(AppLocalizations.of(context)!.commonAdd),
         ),
       ],
     );

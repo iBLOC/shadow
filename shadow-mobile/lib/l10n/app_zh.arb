@@ -199,8 +199,6 @@
   "@routeViaPhoneSpeaker": {},
   "modeMismatch": "当前模式与此页面不匹配。点击右上角麦克风图标切换到语音模式。",
   "@modeMismatch": {},
-  "openVoiceMode": "语音模式",
-  "@openVoiceMode": {},
   "ttsInputLabel": "朗读文本",
   "@ttsInputLabel": {},
   "ttsInputHint": "输入数字人要说的话…",
@@ -245,8 +243,8 @@
   "@endCall": {},
   "openLiveStreamMode": "直播模式",
   "@openLiveStreamMode": {},
-  "openVoiceMode": "语音助手",
-  "@openVoiceMode": {},
+  "openVoiceAssistant": "语音助手",
+  "@openVoiceAssistant": {},
   "customerServiceHint": "AI 会自动接听电话并回复。shadow-esp32 播放来电方语音和 AI 回复。插入耳机后自动切到耳机。",
   "@customerServiceHint": {},
   "visualQaPickCamera": "请选择摄像头",
@@ -262,5 +260,663 @@
   "modelBindingPromptGoSettings": "请先到设置页绑定模型",
   "@modelBindingPromptGoSettings": {},
   "modelBindingPromptLater": "稍后",
-  "@modelBindingPromptLater": {}
+  "@modelBindingPromptLater": {},
+  "conversationNewSession": "新会话",
+  "conversationManagement": "会话管理",
+  "conversationEmpty": "暂无会话",
+  "conversationEmptyHint": "点击右下角开始新对话",
+  "conversationNewChat": "新对话",
+  "conversationTitleField": "对话标题",
+  "conversationCreate": "创建",
+  "commonConfirmDelete": "确认删除",
+  "commonDelete": "删除",
+  "discoveryTitle": "设备发现",
+  "discoveryScanning": "正在扫描网络设备...",
+  "discoveryNoDevices": "未发现设备",
+  "discoveryNoDevicesHint": "点击右上角刷新按钮重新扫描",
+  "discoveryAddManually": "手动添加设备",
+  "commonHostAddress": "主机地址",
+  "commonPort": "端口",
+  "discoveryDeviceNameOptional": "设备名称（可选）",
+  "commonAdd": "添加",
+  "discoveryActive": "活跃",
+  "discoverySetActive": "设为活跃",
+  "commonRemove": "移除",
+  "logsTelencephalonStarted": "端脑服务启动成功",
+  "logsDbTimeoutRetry": "数据库连接超时，正在重试...",
+  "logsHippocampusUnreachable": "无法连接到Hippocampus服务",
+  "logsTitle": "系统日志",
+  "logsClearFilter": "清除过滤",
+  "logsClearAll": "清除日志",
+  "logsClearConfirm": "确定要清除所有日志吗？",
+  "logsClear": "清除",
+  "logsEmpty": "暂无日志",
+  "logsNoMatch": "无匹配日志",
+  "logsCopied": "已复制到剪贴板",
+  "mcpTitle": "MCP 服务管理",
+  "mcpAddServer": "添加服务器",
+  "mcpEmpty": "暂无 MCP 服务器",
+  "mcpEmptyHint": "点击右下角添加服务器",
+  "mcpAddServerTitle": "添加 MCP 服务器",
+  "commonName": "名称",
+  "mcpServerUrl": "服务器 URL",
+  "mcpAuthTokenOptional": "认证 Token (可选)",
+  "memoryEmpty": "暂无记忆",
+  "modelEngineRunning": "引擎运行中",
+  "modelEngineStopped": "引擎未运行",
+  "modelEmpty": "暂无模型",
+  "modelEmptyHint": "点击右下角添加模型",
+  "modelTypeLabel": "类型:",
+  "commonAll": "全部",
+  "modelLiteRtEngine": "LiteRT 引擎",
+  "modelInternalService": "内部服务 (Rust)",
+  "modelCloudProvider": "云端供应商",
+  "modelNoCloudModels": "暂无云端模型",
+  "modelNoCloudModelsHint": "点击右下角添加云端模型",
+  "modelAddLocalTitle": "添加本地模型",
+  "modelNameField": "模型名称",
+  "modelPathField": "模型路径",
+  "modelSizeField": "大小 (MB)",
+  "modelAddCloudTitle": "添加云端模型",
+  "commonApiKeyOptional": "API Key (可选)",
+  "modelNameOptional": "模型名称 (可选)",
+  "modelSettingsTitle": "模型设置",
+  "modelSettingsEngine": "推理引擎",
+  "modelSettingsSelectModel": "选择模型",
+  "promptSaved": "提示词已保存",
+  "promptRestored": "已恢复默认提示词",
+  "promptSettingsTitle": "提示词设置",
+  "commonSave": "保存",
+  "promptMainAgentLabel": "主Agent系统提示词",
+  "promptInputHint": "输入系统提示词...",
+  "promptRestoreDefault": "恢复默认",
+  "providerQwen": "通义千问",
+  "providerZhipu": "智谱AI",
+  "providerLocalModel": "本地模型",
+  "providersTitle": "大模型服务提供商",
+  "providersEmpty": "暂未配置提供商",
+  "providersEmptyHint": "点击右下角添加第一个提供商",
+  "providersAdd": "添加提供商",
+  "commonEdit": "编辑",
+  "providersEditTitle": "编辑提供商",
+  "commonProvider": "提供商",
+  "commonApiAddress": "API 地址",
+  "commonModel": "模型",
+  "providersApiKeyRequired": "请输入 API Key",
+  "resonanceNotConnected": "未连接",
+  "resonanceConnecting": "连接中",
+  "resonanceConnected": "已连接",
+  "resonanceError": "错误",
+  "resonanceLocal": "本地Resonance",
+  "resonanceTitle": "Resonance管理",
+  "resonanceEmpty": "暂无Resonance实例",
+  "resonanceAddInstance": "添加实例",
+  "resonanceAddTitle": "添加Resonance实例",
+  "resonanceInstanceName": "实例名称",
+  "resonanceApiKeyOptional": "API密钥（可选）",
+  "resonanceEditTitle": "编辑Resonance实例",
+  "resonancePrimary": "主实例",
+  "resonanceSetPrimary": "设为主实例",
+  "resonanceTestConnection": "测试连接",
+  "settingsMemoryUsage": "内存使用",
+  "settingsDeviceDiscovery": "设备发现",
+  "settingsDeviceDiscoveryDesc": "扫描和发现网络设备",
+  "settingsLogsDesc": "查看应用日志和错误信息",
+  "settingsResonanceDesc": "管理Resonance服务实例",
+  "settingsRefreshStatus": "刷新状态",
+  "skillsTitle": "技能管理",
+  "skillsEmpty": "暂无技能",
+  "skillsEmptyHint": "点击右下角添加自定义技能",
+  "skillsBuiltIn": "内置技能",
+  "skillsCustom": "自定义技能",
+  "skillsAddCustom": "添加自定义技能",
+  "skillsNameField": "技能名称",
+  "commonDescription": "描述",
+  "soulSaved": "Soul 已保存",
+  "soulTitle": "Soul 设置",
+  "soulSubtitle": "Soul - 你的个人助理灵魂",
+  "soulDescHint": "描述你的个人助理的性格、习惯和偏好。",
+  "soulVersionHistory": "版本历史",
+  "soulNoHistory": "暂无版本历史",
+  "soulUserModified": "用户修改",
+  "soulAgentReview": "Agent 评估",
+  "soulNoReason": "无原因",
+  "soulChangeReason": "修改原因",
+  "soulConversationSummary": "对话摘要",
+  "soulContent": "内容",
+  "taskBoardTitle": "任务看板",
+  "taskStatusTodo": "待办",
+  "taskStatusInProgress": "进行中",
+  "taskStatusDone": "已完成",
+  "taskStatusFailed": "失败",
+  "taskStatusCancelled": "已取消",
+  "taskRetry": "重试",
+  "taskEmpty": "暂无任务",
+  "taskAdd": "添加任务",
+  "taskTitleField": "任务标题",
+  "taskPriority": "优先级",
+  "priorityLow": "低",
+  "priorityMedium": "中",
+  "priorityHigh": "高",
+  "priorityUrgent": "紧急",
+  "taskEditTitle": "编辑任务",
+  "taskStatus": "状态",
+  "taskTagsField": "标签 (逗号分隔)",
+  "taskEditPersistenceNote": "hippocampus 只持久化状态与标签，标题与描述没有对应列，不会保存。",
+  "taskOverview": "概览",
+  "taskLogs": "日志",
+  "commonRefresh": "刷新",
+  "taskCreatedAt": "创建时间",
+  "taskCompletedAt": "完成时间",
+  "taskTags": "标签",
+  "taskNoSubtasks": "此任务暂无子任务",
+  "taskSubtaskProgress": "子任务进度",
+  "logsTab": "日志",
+  "logsBackend": "后端",
+  "logsAllLevels": "所有级别",
+  "logsExport": "导出日志",
+  "logsPanelClearAll": "清空日志",
+  "soulPriorityNote": "System Prompt 优先级最高。",
+  "commonLoadFailed": "读取失败: {error}",
+  "@commonLoadFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "commonErrorDetail": "错误: {error}",
+  "@commonErrorDetail": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "commonDeleteConfirmNamed": "确定要删除 \"{name}\" 吗？",
+  "@commonDeleteConfirmNamed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "commonDeleteFailed": "删除失败: {error}",
+  "@commonDeleteFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "commonMinutesAgo": "{count} 分钟前",
+  "@commonMinutesAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "commonHoursAgo": "{count} 小时前",
+  "@commonHoursAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "commonDaysAgo": "{count} 天前",
+  "@commonDaysAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsMemUsed": "已用: {mb} MB",
+  "@settingsMemUsed": {
+    "placeholders": {
+      "mb": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsMemTotal": "总计: {mb} MB",
+  "@settingsMemTotal": {
+    "placeholders": {
+      "mb": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsMemFree": "空闲: {mb} MB",
+  "@settingsMemFree": {
+    "placeholders": {
+      "mb": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsMemUsage": "使用率: {percent}%",
+  "@settingsMemUsage": {
+    "placeholders": {
+      "percent": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsPrefrontalEmbedded": "嵌入式 Prefrontal",
+  "@settingsPrefrontalEmbedded": {},
+  "settingsPrefrontalEmbeddedDesc": "管理嵌入在本 App 里的 Prefrontal 运行时",
+  "@settingsPrefrontalEmbeddedDesc": {},
+  "taskSubtasks": "子任务 ({count})",
+  "@taskSubtasks": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "taskStepStarted": "开始: {time}",
+  "@taskStepStarted": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "taskStepCompleted": "完成: {time}",
+  "@taskStepCompleted": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "taskStepDuration": "耗时: {seconds}s",
+  "@taskStepDuration": {
+    "placeholders": {
+      "seconds": {
+        "type": "int"
+      }
+    }
+  },
+  "taskStepProgress": "{completed}/{total} 步",
+  "@taskStepProgress": {
+    "placeholders": {
+      "completed": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "soulDescHintExample": "例如：\n- 语气友好、简洁\n- 称呼用户为“你”\n- 主动提供有用的建议",
+  "@soulDescHintExample": {},
+  "soulHistoryLoadFailed": "无法加载历史: {error}",
+  "@soulHistoryLoadFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "soulVersion": "版本 {version}",
+  "@soulVersion": {
+    "placeholders": {
+      "version": {
+        "type": "int"
+      }
+    }
+  },
+  "logsFilterLabel": "过滤: {level} {source}",
+  "@logsFilterLabel": {
+    "placeholders": {
+      "level": {
+        "type": "String"
+      },
+      "source": {
+        "type": "String"
+      }
+    }
+  },
+  "logsTotalCount": "共 {count} 条日志",
+  "@logsTotalCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "logsShownCount": "显示 {count} 条",
+  "@logsShownCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "discoveryLastScan": "上次扫描: {time}",
+  "@discoveryLastScan": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "discoveryDeviceCount": "发现 {count} 个设备",
+  "@discoveryDeviceCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "resonanceLatency": "延迟: {ms}ms",
+  "@resonanceLatency": {
+    "placeholders": {
+      "ms": {
+        "type": "int"
+      }
+    }
+  },
+  "modelNameExample": "例如: Qwen2.5-7B",
+  "@modelNameExample": {},
+  "cameraOff": "摄像头关闭",
+  "@cameraOff": {},
+  "cameraReady": "摄像头就绪",
+  "@cameraReady": {},
+  "cameraStreaming": "采集中...",
+  "@cameraStreaming": {},
+  "cameraFlip": "翻转",
+  "@cameraFlip": {},
+  "cameraClose": "关闭",
+  "@cameraClose": {},
+  "prefrontalEmbeddedTitle": "Prefrontal 嵌入式运行时 (NDK)",
+  "@prefrontalEmbeddedTitle": {},
+  "prefrontalEmbeddedRuntime": "嵌入式运行时",
+  "@prefrontalEmbeddedRuntime": {},
+  "prefrontalPort": "端口: {port}",
+  "@prefrontalPort": {
+    "placeholders": {
+      "port": {
+        "type": "int"
+      }
+    }
+  },
+  "prefrontalStart": "启动",
+  "@prefrontalStart": {},
+  "prefrontalStop": "停止",
+  "@prefrontalStop": {},
+  "prefrontalAgentsCount": "智能体 ({count})",
+  "@prefrontalAgentsCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "prefrontalRefresh": "刷新",
+  "@prefrontalRefresh": {},
+  "prefrontalStartFirst": "请先启动服务",
+  "@prefrontalStartFirst": {},
+  "prefrontalNoAgentsHint": "暂无智能体, 添加一个吧:",
+  "@prefrontalNoAgentsHint": {},
+  "prefrontalAddSampleAgent": "添加示例智能体",
+  "@prefrontalAddSampleAgent": {},
+  "prefrontalInvokeTitle": "调用智能体 (JNI)",
+  "@prefrontalInvokeTitle": {},
+  "prefrontalInput": "输入",
+  "@prefrontalInput": {},
+  "prefrontalInputHint": "输入要发送给智能体的内容...",
+  "@prefrontalInputHint": {},
+  "prefrontalInvoke": "调用 (JNI)",
+  "@prefrontalInvoke": {},
+  "prefrontalNoOutput": "(无输出)",
+  "@prefrontalNoOutput": {},
+  "prefrontalAboutTitle": "关于 NDK 嵌入方式",
+  "@prefrontalAboutTitle": {},
+  "prefrontalAboutLine1": "- Prefrontal 作为 .so 嵌入在 App 进程内",
+  "@prefrontalAboutLine1": {},
+  "prefrontalAboutLine2": "- 通过 JNI 与 Kotlin Service 通信",
+  "@prefrontalAboutLine2": {},
+  "prefrontalAboutLine3": "- 通过 localhost HTTP 与 Prefrontal 通信",
+  "@prefrontalAboutLine3": {},
+  "prefrontalAboutLine4": "- 服务生命周期与 App 绑定",
+  "@prefrontalAboutLine4": {},
+  "prefrontalAboutLine5": "- 不需要外部进程, 不会被杀",
+  "@prefrontalAboutLine5": {},
+  "prefrontalAboutArchitecture": "架构:",
+  "@prefrontalAboutArchitecture": {},
+  "prefrontalStartSuccess": "嵌入式运行时启动成功",
+  "@prefrontalStartSuccess": {},
+  "prefrontalStartFailed": "启动失败",
+  "@prefrontalStartFailed": {},
+  "prefrontalStartError": "启动异常: {error}",
+  "@prefrontalStartError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "prefrontalStopSuccess": "嵌入式运行时已停止",
+  "@prefrontalStopSuccess": {},
+  "prefrontalStopFailed": "停止失败",
+  "@prefrontalStopFailed": {},
+  "prefrontalStopError": "停止异常: {error}",
+  "@prefrontalStopError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "prefrontalAddSuccess": "添加成功",
+  "@prefrontalAddSuccess": {},
+  "prefrontalAddFailed": "添加失败",
+  "@prefrontalAddFailed": {},
+  "prefrontalAddError": "添加异常: {error}",
+  "@prefrontalAddError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "prefrontalInvokeSuccess": "JNI 调用成功",
+  "@prefrontalInvokeSuccess": {},
+  "prefrontalInvokeFailed": "调用失败",
+  "@prefrontalInvokeFailed": {},
+  "prefrontalInvokeError": "调用异常: {error}",
+  "@prefrontalInvokeError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "prefrontalStatusStopped": "已停止",
+  "@prefrontalStatusStopped": {},
+  "prefrontalStatusStarting": "启动中...",
+  "@prefrontalStatusStarting": {},
+  "prefrontalStatusRunning": "运行中",
+  "@prefrontalStatusRunning": {},
+  "prefrontalStatusStopping": "停止中...",
+  "@prefrontalStatusStopping": {},
+  "prefrontalStatusError": "错误",
+  "@prefrontalStatusError": {},
+  "prefrontalSampleAgentName": "示例智能体",
+  "@prefrontalSampleAgentName": {},
+  "prefrontalSampleAgentDesc": "通过 JNI 注册的示例智能体",
+  "@prefrontalSampleAgentDesc": {},
+  "prefrontalErrorPrefix": "错误: {error}",
+  "@prefrontalErrorPrefix": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "chatGreeting": "你好，我是Shadow，有什么可以帮你的吗？",
+  "@chatGreeting": {},
+  "chatImageNotAvailable": "LiteRT 图片功能暂时不可用，请等待版本更新",
+  "@chatImageNotAvailable": {},
+  "chatVoiceModelRequired": "语音功能需要先加载模型",
+  "@chatVoiceModelRequired": {},
+  "chatSorryError": "抱歉，发生了错误: {error}",
+  "@chatSorryError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "chatSorryErrorShort": "抱歉，发生了错误",
+  "@chatSorryErrorShort": {},
+  "modelPlaceholderNoLocal": "暂无本地模型",
+  "@modelPlaceholderNoLocal": {},
+  "deviceThisMachine": "本机",
+  "@deviceThisMachine": {},
+  "actionFlashlightOn": "开启闪光灯",
+  "@actionFlashlightOn": {},
+  "actionFlashlightOff": "关闭闪光灯",
+  "@actionFlashlightOff": {},
+  "actionCreateContact": "创建联系人: {name}",
+  "@actionCreateContact": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "actionSendEmail": "发送邮件到: {to}",
+  "@actionSendEmail": {
+    "placeholders": {
+      "to": {
+        "type": "String"
+      }
+    }
+  },
+  "actionShowLocation": "显示位置: {query}",
+  "@actionShowLocation": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "actionOpenWifi": "打开WiFi设置",
+  "@actionOpenWifi": {},
+  "actionCreateCalendar": "创建日历事件: {title}",
+  "@actionCreateCalendar": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "actionFlashlightOnDone": "闪光灯已开启",
+  "@actionFlashlightOnDone": {},
+  "actionFlashlightOnFailed": "闪光灯开启失败: {error}",
+  "@actionFlashlightOnFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "actionFlashlightOffDone": "闪光灯已关闭",
+  "@actionFlashlightOffDone": {},
+  "actionFlashlightOffFailed": "闪光灯关闭失败: {error}",
+  "@actionFlashlightOffFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "actionCreatingContact": "正在创建联系人: {name}",
+  "@actionCreatingContact": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "actionNoContactsApp": "无法打开联系人应用",
+  "@actionNoContactsApp": {},
+  "actionContactFailed": "联系人创建失败: {error}",
+  "@actionContactFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "actionEmailOpened": "邮件客户端已打开，收件人: {to}",
+  "@actionEmailOpened": {
+    "placeholders": {
+      "to": {
+        "type": "String"
+      }
+    }
+  },
+  "actionNoEmailApp": "无法打开邮件客户端",
+  "@actionNoEmailApp": {},
+  "actionEmailFailed": "邮件发送失败: {error}",
+  "@actionEmailFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "actionShowingLocation": "正在显示位置: {query}",
+  "@actionShowingLocation": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "actionNoMapsApp": "无法打开地图应用",
+  "@actionNoMapsApp": {},
+  "actionLocationFailed": "位置显示失败: {error}",
+  "@actionLocationFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "actionWifiOpened": "WiFi设置已打开",
+  "@actionWifiOpened": {},
+  "actionWifiFailed": "WiFi设置打开失败: {error}",
+  "@actionWifiFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "actionCalendarCreated": "日历事件已创建: {title}",
+  "@actionCalendarCreated": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "actionNoCalendarApp": "无法打开日历应用",
+  "@actionNoCalendarApp": {},
+  "actionCalendarFailed": "日历事件创建失败: {error}",
+  "@actionCalendarFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  }
 }

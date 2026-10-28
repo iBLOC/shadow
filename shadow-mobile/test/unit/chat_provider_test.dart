@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shadow_mobile/providers/chat_provider.dart';
 import 'package:shadow_mobile/multimodal/multimodal_input_manager.dart';
+import 'package:shadow_mobile/l10n/current_l10n.dart';
 import 'package:shadow_mobile/tts_engine.dart';
 import 'package:shadow_mobile/litert_engine.dart';
 import 'package:shadow_mobile/services/prefrontal_client.dart';
@@ -124,7 +125,7 @@ void main() {
       container.read(chatProvider.notifier).sendGreeting();
       final state = container.read(chatProvider);
       expect(state.messages.length, equals(1));
-      expect(state.messages.first.content, equals('你好，我是Shadow，有什么可以帮你的吗？'));
+      expect(state.messages.first.content, equals(currentL10n().chatGreeting));
       expect(state.messages.first.role, equals(ChatRole.assistant));
     });
 
@@ -219,7 +220,7 @@ void main() {
       );
 
       final state = container.read(chatProvider);
-      expect(state.errorMessage, equals('LiteRT 图片功能暂时不可用，请等待版本更新'));
+      expect(state.errorMessage, equals(currentL10n().chatImageNotAvailable));
     });
 
     test('generateResponseWithAttachments with camera shows error', () async {
@@ -237,7 +238,7 @@ void main() {
       );
 
       final state = container.read(chatProvider);
-      expect(state.errorMessage, equals('LiteRT 图片功能暂时不可用，请等待版本更新'));
+      expect(state.errorMessage, equals(currentL10n().chatImageNotAvailable));
     });
 
     test('generateResponseWithAttachments with audio works', () async {

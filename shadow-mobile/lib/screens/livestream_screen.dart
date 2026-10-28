@@ -90,7 +90,7 @@ class _LSState extends ConsumerState<LivestreamScreen> {
         title: Text(l10n.liveStreamMode),
         actions: [
           IconButton(
-            tooltip: l10n.openVoiceMode,
+            tooltip: l10n.openVoiceAssistant,
             icon: const Icon(Icons.mic),
             onPressed: () {
               ref.read(shadowOperationModeProvider.notifier).state =

@@ -13,6 +13,7 @@ import '../litert_model.dart';
 import '../screens/model_management_screen.dart';
 import '../services/prefrontal_client.dart';
 import 'conversation_mode_provider.dart';
+import '../l10n/current_l10n.dart';
 
 /// Chat message model for the UI
 class ChatMessageModel {
@@ -548,7 +549,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
   }
 
   void sendGreeting() {
-    const greeting = '你好，我是Shadow，有什么可以帮你的吗？';
+    final greeting = currentL10n().chatGreeting;
     state = state.copyWith(
       messages: [
         ...state.messages,
@@ -579,7 +580,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
       );
       if (hasImage) {
         state = state.copyWith(
-          errorMessage: 'LiteRT 图片功能暂时不可用，请等待版本更新',
+          errorMessage: currentL10n().chatImageNotAvailable,
           errorMessageL10nKey: ChatStateL10nKey.errorGeneric,
         );
         return;
@@ -607,10 +608,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
       if (_litertEngine.isInitialized) {
         response = await _litertEngine.generateContent('请简短回复: 用户发送了语音消息');
       } else {
-        response = '语音功能需要先加载模型';
+        response = currentL10n().chatVoiceModelRequired;
       }
     } catch (e) {
-      response = '抱歉，发生了错误: $e';
+      response = currentL10n().chatSorryError(e.toString());
     }
 
     state = state.copyWith(
@@ -646,10 +647,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
       if (_litertEngine.isInitialized) {
         response = await _litertEngine.generateContent('用户发送了语音消息，请简短回复');
       } else {
-        response = '语音功能需要先加载模型';
+        response = currentL10n().chatVoiceModelRequired;
       }
     } catch (e) {
-      response = '抱歉，发生了错误';
+      response = currentL10n().chatSorryErrorShort;
     }
 
     state = state.copyWith(

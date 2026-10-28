@@ -4,6 +4,7 @@ import '../services/prefrontal_client.dart';
 import '../services/soul_service.dart';
 import '../widgets/glass_card.dart';
 import '../theme/app_colors.dart';
+import '../generated/l10n/app_localizations.dart';
 
 final soulServiceProvider = Provider<SoulService>((ref) {
   final client = ref.watch(prefrontalClientProvider);
@@ -86,7 +87,7 @@ class _SoulScreenState extends ConsumerState<SoulScreen> {
     if (mounted) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Soul 已保存')));
+      ).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context)!.soulSaved)));
     }
   }
 
@@ -99,13 +100,13 @@ class _SoulScreenState extends ConsumerState<SoulScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text('Soul 设置'),
+        title: Text(AppLocalizations.of(context)!.soulTitle),
         actions: [
           if (_hasChanges)
             TextButton.icon(
               onPressed: _saveSoul,
               icon: const Icon(Icons.save),
-              label: const Text('保存'),
+              label: Text(AppLocalizations.of(context)!.commonSave),
             ),
         ],
       ),
@@ -128,7 +129,7 @@ class _SoulScreenState extends ConsumerState<SoulScreen> {
                                 Icon(Icons.person, color: AppColors.primary),
                                 const SizedBox(width: 8),
                                 Text(
-                                  'Soul - 你的个人助理灵魂',
+                                  AppLocalizations.of(context)!.soulSubtitle,
                                   style: Theme.of(
                                     context,
                                   ).textTheme.titleMedium,
@@ -137,8 +138,8 @@ class _SoulScreenState extends ConsumerState<SoulScreen> {
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              '描述你的个人助理的性格、习惯和偏好。'
-                              ' System Prompt 优先级最高。',
+                              '${AppLocalizations.of(context)!.soulDescHint} '
+                              '${AppLocalizations.of(context)!.soulPriorityNote}',
                               style: Theme.of(context).textTheme.bodySmall,
                             ),
                             const SizedBox(height: 16),
@@ -149,8 +150,7 @@ class _SoulScreenState extends ConsumerState<SoulScreen> {
                                 expands: true,
                                 textAlignVertical: TextAlignVertical.top,
                                 decoration: InputDecoration(
-                                  hintText:
-                                      '例如：\n- 语气友好、简洁\n- 称呼用户为"你"\n- 主动提供有用的建议',
+                                  hintText: AppLocalizations.of(context)!.soulDescHintExample,
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(12),
                                   ),
@@ -187,7 +187,7 @@ class _SoulScreenState extends ConsumerState<SoulScreen> {
                                 Icon(Icons.history, color: AppColors.primary),
                                 const SizedBox(width: 8),
                                 Text(
-                                  '版本历史',
+                                  AppLocalizations.of(context)!.soulVersionHistory,
                                   style: Theme.of(
                                     context,
                                   ).textTheme.titleMedium,
@@ -203,7 +203,7 @@ class _SoulScreenState extends ConsumerState<SoulScreen> {
                               ),
                               error: (e, _) => Center(
                                 child: Text(
-                                  '无法加载历史: $e',
+                                  AppLocalizations.of(context)!.soulHistoryLoadFailed(e.toString()),
                                   style: const TextStyle(color: Colors.red),
                                 ),
                               ),
@@ -222,7 +222,7 @@ class _SoulScreenState extends ConsumerState<SoulScreen> {
 
   Widget _buildHistoryList(List<SoulVersionResponse> history) {
     if (history.isEmpty) {
-      return const Center(child: Text('暂无版本历史'));
+      return Center(child: Text(AppLocalizations.of(context)!.soulNoHistory));
     }
 
     return ListView.builder(
@@ -248,11 +248,11 @@ class _SoulScreenState extends ConsumerState<SoulScreen> {
             ),
           ),
           title: Text(
-            item.source == 'user' ? '用户修改' : 'Agent 评估',
+            item.source == 'user' ? AppLocalizations.of(context)!.soulUserModified : AppLocalizations.of(context)!.soulAgentReview,
             style: const TextStyle(fontSize: 14),
           ),
           subtitle: Text(
-            item.reason ?? '无原因',
+            item.reason ?? AppLocalizations.of(context)!.soulNoReason,
             style: const TextStyle(fontSize: 12),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -301,12 +301,12 @@ class _SoulScreenState extends ConsumerState<SoulScreen> {
                 child: Row(
                   children: [
                     Text(
-                      '版本 ${item.version}',
+                      AppLocalizations.of(context)!.soulVersion(item.version),
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     const Spacer(),
                     Chip(
-                      label: Text(item.source == 'user' ? '用户修改' : 'Agent 评估'),
+                      label: Text(item.source == 'user' ? AppLocalizations.of(context)!.soulUserModified : AppLocalizations.of(context)!.soulAgentReview),
                       backgroundColor: item.source == 'user'
                           ? AppColors.primary.withValues(alpha: 0.2)
                           : AppColors.secondary.withValues(alpha: 0.2),
@@ -323,7 +323,7 @@ class _SoulScreenState extends ConsumerState<SoulScreen> {
                     children: [
                       if (item.reason != null) ...[
                         Text(
-                          '修改原因',
+                          AppLocalizations.of(context)!.soulChangeReason,
                           style: Theme.of(context).textTheme.titleSmall,
                         ),
                         const SizedBox(height: 4),
@@ -332,14 +332,14 @@ class _SoulScreenState extends ConsumerState<SoulScreen> {
                       ],
                       if (item.conversationSummary != null) ...[
                         Text(
-                          '对话摘要',
+                          AppLocalizations.of(context)!.soulConversationSummary,
                           style: Theme.of(context).textTheme.titleSmall,
                         ),
                         const SizedBox(height: 4),
                         Text(item.conversationSummary!),
                         const SizedBox(height: 16),
                       ],
-                      Text('内容', style: Theme.of(context).textTheme.titleSmall),
+                      Text(AppLocalizations.of(context)!.soulContent, style: Theme.of(context).textTheme.titleSmall),
                       const SizedBox(height: 4),
                       Container(
                         padding: const EdgeInsets.all(12),

@@ -230,7 +230,7 @@ class MemoryScreen extends ConsumerWidget {
   }
 
   Widget _buildEmptyState(BuildContext context) {
-    return EmptyState(icon: Icons.psychology_outlined, title: '暂无记忆');
+    return EmptyState(icon: Icons.psychology_outlined, title: AppLocalizations.of(context)!.memoryEmpty);
   }
 
   Widget _buildMemoryList(BuildContext context, List<MemoryInfo> memories) {

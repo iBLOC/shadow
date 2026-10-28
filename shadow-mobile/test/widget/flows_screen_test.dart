@@ -101,6 +101,6 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('端脑流程'), findsOneWidget);
+    expect(find.text(l10nOf(tester).telencephalonFlows), findsOneWidget);
   });
 }

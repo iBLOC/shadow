@@ -4,6 +4,7 @@ import '../services/prefrontal_client.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/empty_state.dart';
 import '../theme/app_colors.dart';
+import '../generated/l10n/app_localizations.dart';
 
 /// Provider类型定义
 enum ProviderType {
@@ -18,16 +19,34 @@ enum ProviderType {
   groq('Groq', 'https://api.groq.com/openai/v1', 'llama-3.3-70b-versatile'),
   deepseek('DeepSeek', 'https://api.deepseek.com', 'deepseek-chat'),
   minimax('MiniMax', 'https://api.minimax.chat/v1', 'MiniMax-Text-01'),
-  qwen('通义千问', 'https://dashscope.aliyuncs.com/api/v1', 'qwen-plus'),
+  qwen('Qwen', 'https://dashscope.aliyuncs.com/api/v1', 'qwen-plus'),
   moonshot('Moonshot', 'https://api.moonshot.cn/v1', 'moonshot-v1-8k'),
-  zhipuai('智谱AI', 'https://open.bigmodel.cn/api/paas/v4', 'glm-4'),
-  local('本地模型', 'http://localhost:8080', 'local-model');
+  zhipuai('Zhipu AI', 'https://open.bigmodel.cn/api/paas/v4', 'glm-4'),
+  local('Local model', 'http://localhost:8080', 'local-model');
 
   final String displayName;
   final String defaultBaseUrl;
   final String defaultModel;
 
   const ProviderType(this.displayName, this.defaultBaseUrl, this.defaultModel);
+
+  /// 本地化后的显示名。
+  ///
+  /// 枚举的字段是编译期常量，拿不到 BuildContext，所以本地化放在这里做：
+  /// 品牌名（OpenAI / Ollama…）两种语言一样，只有通义千问、智谱 AI 和
+  /// 「本地模型」这种描述性名字需要翻译。
+  String localizedDisplayName(AppLocalizations l10n) {
+    switch (this) {
+      case ProviderType.qwen:
+        return l10n.providerQwen;
+      case ProviderType.zhipuai:
+        return l10n.providerZhipu;
+      case ProviderType.local:
+        return l10n.providerLocalModel;
+      default:
+        return displayName;
+    }
+  }
 }
 
 /// Provider信息模型 - 使用后端返回的格式
@@ -170,7 +189,7 @@ class ProvidersScreen extends ConsumerWidget {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text('大模型服务提供商'),
+        title: Text(AppLocalizations.of(context)!.providersTitle),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -185,9 +204,9 @@ class ProvidersScreen extends ConsumerWidget {
           : providersState.providers.isEmpty
           ? EmptyState(
               icon: Icons.cloud_off,
-              title: '暂未配置提供商',
-              description: '点击右下角添加第一个提供商',
-              buttonLabel: '添加提供商',
+              title: AppLocalizations.of(context)!.providersEmpty,
+              description: AppLocalizations.of(context)!.providersEmptyHint,
+              buttonLabel: AppLocalizations.of(context)!.providersAdd,
               onButtonPressed: () => _showAddProviderDialog(context, ref),
             )
           : ListView.builder(
@@ -204,7 +223,7 @@ class ProvidersScreen extends ConsumerWidget {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showAddProviderDialog(context, ref),
         icon: const Icon(Icons.add),
-        label: const Text('添加'),
+        label: Text(AppLocalizations.of(context)!.commonAdd),
       ),
     );
   }
@@ -272,13 +291,13 @@ class _ProviderCard extends ConsumerWidget {
               TextButton.icon(
                 onPressed: () => _showEditDialog(context, ref, provider),
                 icon: const Icon(Icons.edit, size: 18),
-                label: const Text('编辑'),
+                label: Text(AppLocalizations.of(context)!.commonEdit),
               ),
               const SizedBox(width: 8),
               TextButton.icon(
                 onPressed: () => _confirmDelete(context, ref, provider),
                 icon: Icon(Icons.delete, size: 18, color: AppColors.error),
-                label: Text('删除', style: TextStyle(color: AppColors.error)),
+                label: Text(AppLocalizations.of(context)!.commonDelete, style: TextStyle(color: AppColors.error)),
               ),
             ],
           ),
@@ -307,12 +326,12 @@ class _ProviderCard extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('确认删除'),
-        content: Text('确定要删除 ${provider.name} 吗？'),
+        title: Text(AppLocalizations.of(context)!.commonConfirmDelete),
+        content: Text(AppLocalizations.of(context)!.commonDeleteConfirmNamed(provider.name)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
+            child: Text(AppLocalizations.of(context)!.cancel),
           ),
           TextButton(
             onPressed: () {
@@ -321,7 +340,7 @@ class _ProviderCard extends ConsumerWidget {
                   .removeProvider(provider.name);
               Navigator.pop(context);
             },
-            child: Text('删除', style: TextStyle(color: AppColors.error)),
+            child: Text(AppLocalizations.of(context)!.commonDelete, style: TextStyle(color: AppColors.error)),
           ),
         ],
       ),
@@ -451,7 +470,7 @@ class _AddProviderSheetState extends ConsumerState<_AddProviderSheet> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              isEditing ? '编辑提供商' : '添加提供商',
+              isEditing ? AppLocalizations.of(context)!.providersEditTitle : AppLocalizations.of(context)!.providersAdd,
               style: Theme.of(context).textTheme.headlineSmall,
             ),
             const SizedBox(height: 24),
@@ -459,15 +478,15 @@ class _AddProviderSheetState extends ConsumerState<_AddProviderSheet> {
             // Provider类型选择
             DropdownButtonFormField<ProviderType>(
               initialValue: _selectedType,
-              decoration: const InputDecoration(
-                labelText: '提供商',
+              decoration: InputDecoration(
+                labelText: AppLocalizations.of(context)!.commonProvider,
                 border: OutlineInputBorder(),
                 prefixIcon: Icon(Icons.cloud),
               ),
               items: ProviderType.values.map((type) {
                 return DropdownMenuItem(
                   value: type,
-                  child: Text(type.displayName),
+                  child: Text(type.localizedDisplayName(AppLocalizations.of(context)!)),
                 );
               }).toList(),
               onChanged: (value) {
@@ -499,7 +518,7 @@ class _AddProviderSheetState extends ConsumerState<_AddProviderSheet> {
             TextField(
               controller: _baseUrlController,
               decoration: InputDecoration(
-                labelText: 'API 地址',
+                labelText: AppLocalizations.of(context)!.commonApiAddress,
                 border: const OutlineInputBorder(),
                 prefixIcon: const Icon(Icons.link),
                 hintText: _selectedType.defaultBaseUrl,
@@ -511,7 +530,7 @@ class _AddProviderSheetState extends ConsumerState<_AddProviderSheet> {
             TextField(
               controller: _modelController,
               decoration: InputDecoration(
-                labelText: '模型',
+                labelText: AppLocalizations.of(context)!.commonModel,
                 border: const OutlineInputBorder(),
                 prefixIcon: const Icon(Icons.model_training),
                 hintText: _selectedType.defaultModel,
@@ -521,12 +540,12 @@ class _AddProviderSheetState extends ConsumerState<_AddProviderSheet> {
 
             FilledButton(
               onPressed: _submit,
-              child: Text(isEditing ? '保存' : '添加'),
+              child: Text(isEditing ? AppLocalizations.of(context)!.commonSave : AppLocalizations.of(context)!.commonAdd),
             ),
             const SizedBox(height: 8),
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('取消'),
+              child: Text(AppLocalizations.of(context)!.cancel),
             ),
           ],
         ),
@@ -538,7 +557,7 @@ class _AddProviderSheetState extends ConsumerState<_AddProviderSheet> {
     if (_apiKeyController.text.isEmpty) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('请输入 API Key')));
+      ).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context)!.providersApiKeyRequired)));
       return;
     }
 

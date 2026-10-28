@@ -135,7 +135,7 @@ class _LocalChatViewState extends ConsumerState<LocalChatView> {
                         children: [
                           VideoControlButton(
                             icon: Icons.flip_camera_ios,
-                            label: '翻转',
+                            label: AppLocalizations.of(context)!.cameraFlip,
                             onPressed: () {
                               ref
                                   .read(conversationModeProvider.notifier)
@@ -145,7 +145,7 @@ class _LocalChatViewState extends ConsumerState<LocalChatView> {
                           const SizedBox(width: 8),
                           VideoControlButton(
                             icon: Icons.videocam_off,
-                            label: '关闭',
+                            label: AppLocalizations.of(context)!.cameraClose,
                             onPressed: () {
                               ref
                                   .read(conversationModeProvider.notifier)

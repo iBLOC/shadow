@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../generated/l10n/app_localizations.dart';
+import '../l10n/current_l10n.dart';
 
 /// 日志级别
 enum LogLevel {
@@ -108,26 +110,27 @@ class LogsNotifier extends StateNotifier<LogsState> {
 
   void _init() {
     // 添加示例日志
+    final l10n = currentL10n();
     addLog(LogEntry(
       id: '1',
       timestamp: DateTime.now().subtract(const Duration(minutes: 5)),
       level: LogLevel.info,
       source: 'telencephalon',
-      message: '端脑服务启动成功',
+      message: l10n.logsTelencephalonStarted,
     ));
     addLog(LogEntry(
       id: '2',
       timestamp: DateTime.now().subtract(const Duration(minutes: 3)),
       level: LogLevel.warning,
       source: 'prefrontal',
-      message: '数据库连接超时，正在重试...',
+      message: l10n.logsDbTimeoutRetry,
     ));
     addLog(LogEntry(
       id: '3',
       timestamp: DateTime.now().subtract(const Duration(minutes: 1)),
       level: LogLevel.error,
       source: 'telencephalon',
-      message: '无法连接到Hippocampus服务',
+      message: l10n.logsHippocampusUnreachable,
       stack: 'ConnectionError: http://localhost:8081\n  at HttpClient._send\n  at TelencephalonClient.health',
     ));
   }
@@ -177,7 +180,7 @@ class _LogsPageState extends ConsumerState<LogsPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('系统日志'),
+        title: Text(AppLocalizations.of(context)!.logsTitle),
         actions: [
           // 过滤按钮
           PopupMenuButton<String>(
@@ -194,9 +197,9 @@ class _LogsPageState extends ConsumerState<LogsPage> {
               }
             },
             itemBuilder: (context) => [
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'clear',
-                child: Text('清除过滤'),
+                child: Text(AppLocalizations.of(context)!.logsClearFilter),
               ),
               const PopupMenuDivider(),
               ...LogLevel.values.map((level) => PopupMenuItem(
@@ -232,19 +235,19 @@ class _LogsPageState extends ConsumerState<LogsPage> {
               showDialog(
                 context: context,
                 builder: (context) => AlertDialog(
-                  title: const Text('清除日志'),
-                  content: const Text('确定要清除所有日志吗？'),
+                  title: Text(AppLocalizations.of(context)!.logsClearAll),
+                  content: Text(AppLocalizations.of(context)!.logsClearConfirm),
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.of(context).pop(),
-                      child: const Text('取消'),
+                      child: Text(AppLocalizations.of(context)!.cancel),
                     ),
                     ElevatedButton(
                       onPressed: () {
                         ref.read(logsProvider.notifier).clear();
                         Navigator.of(context).pop();
                       },
-                      child: const Text('清除'),
+                      child: Text(AppLocalizations.of(context)!.logsClear),
                     ),
                   ],
                 ),
@@ -265,7 +268,7 @@ class _LogsPageState extends ConsumerState<LogsPage> {
                   const Icon(Icons.filter_list, size: 16),
                   const SizedBox(width: 8),
                   Text(
-                    '过滤: ${logsState.filterLevel?.name ?? ''} ${logsState.filterSource ?? ''}',
+                    AppLocalizations.of(context)!.logsFilterLabel(logsState.filterLevel?.name ?? '', logsState.filterSource ?? ''),
                     style: const TextStyle(fontSize: 12),
                   ),
                   const Spacer(),
@@ -291,7 +294,7 @@ class _LogsPageState extends ConsumerState<LogsPage> {
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          logsState.entries.isEmpty ? '暂无日志' : '无匹配日志',
+                          logsState.entries.isEmpty ? AppLocalizations.of(context)!.logsEmpty : AppLocalizations.of(context)!.logsNoMatch,
                           style: TextStyle(
                             fontSize: 16,
                             color: Colors.grey.shade600,
@@ -326,14 +329,14 @@ class _LogsPageState extends ConsumerState<LogsPage> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  '共 ${logsState.entries.length} 条日志',
+                  AppLocalizations.of(context)!.logsTotalCount(logsState.entries.length),
                   style: TextStyle(
                     fontSize: 12,
                     color: Colors.grey.shade500,
                   ),
                 ),
                 Text(
-                  '显示 ${logsState.filteredEntries.length} 条',
+                  AppLocalizations.of(context)!.logsShownCount(logsState.filteredEntries.length),
                   style: TextStyle(
                     fontSize: 12,
                     color: Colors.grey.shade500,
@@ -372,7 +375,7 @@ class _LogsPageState extends ConsumerState<LogsPage> {
     }
     Clipboard.setData(ClipboardData(text: buffer.toString()));
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('已复制到剪贴板')),
+      SnackBar(content: Text(AppLocalizations.of(context)!.logsCopied)),
     );
   }
 }

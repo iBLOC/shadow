@@ -7,6 +7,7 @@ import '../services/database/mcp_server.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/empty_state.dart';
 import '../theme/app_colors.dart';
+import '../generated/l10n/app_localizations.dart';
 
 final mcpServerRepositoryProvider = Provider<IMCPServerRepository>((ref) {
   return RepositoryFactory.createMCPServerRepository();
@@ -106,7 +107,7 @@ class MCPScreen extends ConsumerWidget {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text('MCP 服务管理'),
+        title: Text(AppLocalizations.of(context)!.mcpTitle),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -118,21 +119,21 @@ class MCPScreen extends ConsumerWidget {
       body: mcpState.isLoading
           ? const Center(child: CircularProgressIndicator())
           : mcpState.servers.isEmpty
-          ? _buildEmptyState()
+          ? _buildEmptyState(context)
           : _buildServerList(context, ref, mcpState),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showAddDialog(context, ref),
         icon: const Icon(Icons.add),
-        label: const Text('添加服务器'),
+        label: Text(AppLocalizations.of(context)!.mcpAddServer),
       ),
     );
   }
 
-  Widget _buildEmptyState() {
-    return const EmptyState(
+  Widget _buildEmptyState(BuildContext context) {
+    return EmptyState(
       icon: Icons.dns_outlined,
-      title: '暂无 MCP 服务器',
-      description: '点击右下角添加服务器',
+      title: AppLocalizations.of(context)!.mcpEmpty,
+      description: AppLocalizations.of(context)!.mcpEmptyHint,
     );
   }
 
@@ -224,7 +225,7 @@ class _ServerCard extends ConsumerWidget {
             children: [
               TextButton.icon(
                 icon: const Icon(Icons.delete, color: Colors.red, size: 18),
-                label: const Text('删除', style: TextStyle(color: Colors.red)),
+                label: Text(AppLocalizations.of(context)!.commonDelete, style: TextStyle(color: Colors.red)),
                 onPressed: () => _confirmDelete(context, ref),
               ),
             ],
@@ -238,19 +239,19 @@ class _ServerCard extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('确认删除'),
-        content: Text('确定要删除 ${server.name} 吗？'),
+        title: Text(AppLocalizations.of(context)!.commonConfirmDelete),
+        content: Text(AppLocalizations.of(context)!.commonDeleteConfirmNamed(server.name)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
+            child: Text(AppLocalizations.of(context)!.cancel),
           ),
           TextButton(
             onPressed: () {
               ref.read(mcpNotifierProvider.notifier).deleteServer(server.id);
               Navigator.pop(context);
             },
-            child: const Text('删除', style: TextStyle(color: Colors.red)),
+            child: Text(AppLocalizations.of(context)!.commonDelete, style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -283,15 +284,15 @@ class _AddServerDialogState extends State<_AddServerDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('添加 MCP 服务器'),
+      title: Text(AppLocalizations.of(context)!.mcpAddServerTitle),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: '名称',
+              decoration: InputDecoration(
+                labelText: AppLocalizations.of(context)!.commonName,
                 border: OutlineInputBorder(),
                 hintText: 'My MCP Server',
               ),
@@ -299,8 +300,8 @@ class _AddServerDialogState extends State<_AddServerDialog> {
             const SizedBox(height: 16),
             TextField(
               controller: _urlController,
-              decoration: const InputDecoration(
-                labelText: '服务器 URL',
+              decoration: InputDecoration(
+                labelText: AppLocalizations.of(context)!.mcpServerUrl,
                 border: OutlineInputBorder(),
                 hintText: 'http://localhost:3000',
               ),
@@ -308,8 +309,8 @@ class _AddServerDialogState extends State<_AddServerDialog> {
             const SizedBox(height: 16),
             TextField(
               controller: _tokenController,
-              decoration: const InputDecoration(
-                labelText: '认证 Token (可选)',
+              decoration: InputDecoration(
+                labelText: AppLocalizations.of(context)!.mcpAuthTokenOptional,
                 border: OutlineInputBorder(),
                 hintText: 'Bearer token',
               ),
@@ -321,7 +322,7 @@ class _AddServerDialogState extends State<_AddServerDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('取消'),
+          child: Text(AppLocalizations.of(context)!.cancel),
         ),
         FilledButton(
           onPressed: () {
@@ -335,7 +336,7 @@ class _AddServerDialogState extends State<_AddServerDialog> {
               Navigator.pop(context);
             }
           },
-          child: const Text('添加'),
+          child: Text(AppLocalizations.of(context)!.commonAdd),
         ),
       ],
     );
