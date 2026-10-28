@@ -283,10 +283,14 @@ export function TaskDetailDialog({
                 <ListTodo className="h-5 w-5 text-primary" />
                 {task.title ?? task.task_id}
               </DialogTitle>
-              <DialogDescription className="mt-1 flex flex-wrap items-center gap-2">
-                <StatusBadge status={task.status} />
-                <PriorityBadge priority={task.priority} />
-                <span className="font-mono text-xs">{task.task_id}</span>
+              {/* `asChild` + a <div>: Badge renders a <div>, which is
+                  invalid inside the default <p> description element. */}
+              <DialogDescription asChild>
+                <div className="mt-1 flex flex-wrap items-center gap-2">
+                  <StatusBadge status={task.status} />
+                  <PriorityBadge priority={task.priority} />
+                  <span className="font-mono text-xs">{task.task_id}</span>
+                </div>
               </DialogDescription>
             </div>
           </div>

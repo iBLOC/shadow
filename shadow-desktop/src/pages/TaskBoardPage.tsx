@@ -4,6 +4,7 @@ import { useTaskBoardStore } from '../stores/taskBoardStore';
 import { useAgentStore } from '../stores/agentStore';
 import { useResonanceStore } from '../stores/resonanceStore';
 import { Button, Badge } from '../components/ui';
+import { CortexTaskSection } from '../components/task/CortexTaskSection';
 import {
   Plus,
   Trash2,
@@ -378,6 +379,8 @@ export function TaskBoardPage() {
           </div>
         </div>
       )}
+
+      <CortexTaskSection />
     </div>
   );
 }

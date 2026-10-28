@@ -262,6 +262,12 @@ type HttpRequestOptions = {
   method?: string;
   headers?: Record<string, string>;
   body?: string;
+  /**
+   * Skip the global error dialog. Background/polling calls set this so an
+   * unreachable backend does not throw a modal at the user on every page
+   * mount; the caller surfaces the failure inline instead.
+   */
+  silent?: boolean;
 };
 
 import { prefrontalUrl } from './platform';
@@ -306,13 +312,15 @@ export class PrefrontalClient {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       const stack = err instanceof Error ? err.stack : undefined;
-      useErrorDialogStore.getState().show({
-        source: 'http',
-        endpoint: url,
-        method,
-        message: `Network error: ${message}`,
-        stack,
-      });
+      if (!options.silent) {
+        useErrorDialogStore.getState().show({
+          source: 'http',
+          endpoint: url,
+          method,
+          message: `Network error: ${message}`,
+          stack,
+        });
+      }
       throw err;
     }
 
@@ -325,14 +333,16 @@ export class PrefrontalClient {
         // body read failures are non-fatal
       }
       const message = `HTTP ${response.status}: ${response.statusText}${body}`;
-      useErrorDialogStore.getState().show({
-        source: 'http',
-        endpoint: url,
-        method,
-        status: response.status,
-        statusText: response.statusText,
-        message,
-      });
+      if (!options.silent) {
+        useErrorDialogStore.getState().show({
+          source: 'http',
+          endpoint: url,
+          method,
+          status: response.status,
+          statusText: response.statusText,
+          message,
+        });
+      }
       throw new Error(message);
     }
 
@@ -532,9 +542,13 @@ export class PrefrontalClient {
     return this.request<Agent>(`/api/agents/${agentId}`);
   }
 
-  async listTasks(tenantId: string = 'default'): Promise<Task[]> {
+  async listTasks(
+    tenantId: string = 'default',
+    opts: { silent?: boolean } = {},
+  ): Promise<Task[]> {
     const wire = await this.request<TaskRecordWire[]>(
-      `/hippocampus/api/tasks?tenantId=${encodeURIComponent(tenantId)}`
+      `/hippocampus/api/tasks?tenantId=${encodeURIComponent(tenantId)}`,
+      { silent: opts.silent }
     );
     return wire.map(mapTask);
   }

@@ -57,7 +57,11 @@ export const useTaskBoardDataStore = create<TaskBoardDataState>((set, get) => ({
   async fetchCortexTasks() {
     set({ isLoadingCortex: true, cortexError: null });
     try {
-      const tasks = await prefrontalClient.listTasks(DEFAULT_TENANT);
+      // `silent`: the task board polls this on mount. An unreachable
+      // hippocampus must render an inline hint, not a global modal.
+      const tasks = await prefrontalClient.listTasks(DEFAULT_TENANT, {
+        silent: true,
+      });
       set({ cortexTasks: tasks, isLoadingCortex: false });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -82,7 +86,26 @@ export const useTaskBoardDataStore = create<TaskBoardDataState>((set, get) => ({
       throw new Error(`Task ${taskId} not found in cortex cache`);
     }
     try {
-      const updated = await prefrontalClient.updateTask(DEFAULT_TENANT, taskId, updates);
+      const saved = await prefrontalClient.updateTask(
+        DEFAULT_TENANT,
+        taskId,
+        updates
+      );
+      // hippocampus `TaskRecord` has no title/description/priority/metadata
+      // columns, so the upsert drops them and the response never carries
+      // them back. Keep the locally submitted values in the cache instead
+      // of silently losing the user's edit.
+      const updated: Task = {
+        ...saved,
+        ...(updates.title !== undefined ? { title: updates.title } : {}),
+        ...(updates.description !== undefined
+          ? { description: updates.description }
+          : {}),
+        ...(updates.priority !== undefined
+          ? { priority: updates.priority }
+          : {}),
+        ...(updates.metadata !== undefined ? { metadata: updates.metadata } : {}),
+      };
       set((state) => ({
         cortexTasks: state.cortexTasks.map((t) => (t.task_id === taskId ? updated : t)),
       }));

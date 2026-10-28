@@ -35,10 +35,22 @@ vi.mock('@tauri-apps/api/core', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, opts?: Record<string, unknown>) => {
-      if (!opts) return key;
-      return Object.entries(opts).reduce(
-        (acc, [k, v]) => acc.replace(new RegExp('{' + k + '}', 'g'), String(v)),
+    t: (key: string, opts?: unknown) => {
+      // i18next has two second-argument shapes:
+      //   t(key)              -> the key itself
+      //   t(key, 'default')   -> the default string
+      //   t(key, { count })   -> interpolation options
+      // The old mock only handled the options form, so every
+      // `t(key, 'default')` call exploded with
+      // "Invalid regular expression: /{0}/g".
+      if (opts === undefined || opts === null) return key;
+      if (typeof opts === 'string') return opts;
+      if (typeof opts !== 'object') return key;
+      return Object.entries(opts as Record<string, unknown>).reduce(
+        (acc, [k, v]) =>
+          acc
+            .replace(new RegExp(`\\{\\{\\s*${k}\\s*\\}\\}`, 'g'), String(v))
+            .replace(new RegExp(`\\{\\s*${k}\\s*\\}`, 'g'), String(v)),
         key
       );
     },

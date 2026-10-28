@@ -593,7 +593,36 @@
     "accept": "Accept",
     "decline": "Decline",
     "taskTitle": "Task title",
-    "description": "Description"
+    "description": "Description",
+    "cortexTasks": "Hippocampus Tasks",
+    "cortexTasksError": "Failed to load hippocampus tasks: ",
+    "detail": {
+      "overview": "Overview",
+      "subtasks": "Subtasks",
+      "logs": "Logs",
+      "history": "History",
+      "historyLoading": "Loading history...",
+      "historyEmpty": "No history yet",
+      "targetAgent": "Target Agent",
+      "receivedAt": "Created At",
+      "completedAt": "Completed At",
+      "source": "Source",
+      "actions": "Actions",
+      "noSubtasks": "This task has no subtasks"
+    },
+    "edit": {
+      "title": "Edit Task",
+      "description": "Edit the task metadata. Change subtasks and status from the detail panel.",
+      "descriptionBackendOnly": "Edit the fields this backend persists. Subtasks and execution history live in the detail panel.",
+      "backendFieldsOnly": "This backend only persists status and tags — title, description and priority are not stored.",
+      "titleField": "Title",
+      "titlePlaceholder": "Task title",
+      "descriptionField": "Description",
+      "descriptionPlaceholder": "Detailed description...",
+      "priorityField": "Priority",
+      "statusField": "Status",
+      "tagsField": "Tags (comma separated)"
+    }
   },
   "memory": {
     "title": "Memory",

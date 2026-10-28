@@ -593,7 +593,36 @@
     "accept": "接受",
     "decline": "拒绝",
     "taskTitle": "任务标题",
-    "description": "描述"
+    "description": "描述",
+    "cortexTasks": "海马体任务",
+    "cortexTasksError": "无法读取 hippocampus 任务：",
+    "detail": {
+      "overview": "概览",
+      "subtasks": "子任务",
+      "logs": "日志",
+      "history": "历史",
+      "historyLoading": "正在加载历史记录...",
+      "historyEmpty": "暂无历史记录",
+      "targetAgent": "目标 Agent",
+      "receivedAt": "创建时间",
+      "completedAt": "完成时间",
+      "source": "来源",
+      "actions": "操作",
+      "noSubtasks": "此任务暂无子任务"
+    },
+    "edit": {
+      "title": "编辑任务",
+      "description": "修改任务的元数据。子任务和状态变更请在详情面板操作。",
+      "descriptionBackendOnly": "修改任务的持久化字段。子任务和执行历史请在详情面板查看。",
+      "backendFieldsOnly": "该后端只持久化状态与标签，标题/描述/优先级不会保存。",
+      "titleField": "标题",
+      "titlePlaceholder": "任务标题",
+      "descriptionField": "描述",
+      "descriptionPlaceholder": "详细描述...",
+      "priorityField": "优先级",
+      "statusField": "状态",
+      "tagsField": "标签 (逗号分隔)"
+    }
   },
   "memory": {
     "title": "记忆",
