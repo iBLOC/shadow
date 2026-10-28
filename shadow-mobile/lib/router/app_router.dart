@@ -21,6 +21,7 @@ import '../screens/flows_screen.dart';
 import '../screens/discovery_screen.dart';
 import '../screens/logs_screen.dart';
 import '../screens/resonance_screen.dart';
+import '../services/prefrontal/prefrontal_mobile_cluster_page.dart';
 import '../widgets/main_shell.dart';
 
 /// Route names
@@ -46,6 +47,7 @@ class AppRoutes {
   static const String discovery = '/discovery';
   static const String logs = '/logs';
   static const String resonance = '/resonance';
+  static const String prefrontalEmbedded = '/settings/prefrontal';
 
   // Legacy routes (redirect)
   static const String agents = '/agents';
@@ -236,6 +238,13 @@ final GoRouter appRouter = GoRouter(
       name: 'resonance',
       pageBuilder: (context, state) =>
           _fadePage(state, _wrapInShell(state, const ResonancePage())),
+    ),
+    // Embedded Prefrontal runtime (NDK .so)
+    GoRoute(
+      path: AppRoutes.prefrontalEmbedded,
+      name: 'prefrontalEmbedded',
+      pageBuilder: (context, state) =>
+          _fadePage(state, _wrapInShell(state, const PrefrontalMobilePage())),
     ),
     // Legacy redirects
     GoRoute(

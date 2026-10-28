@@ -172,7 +172,7 @@ class SettingsScreen extends ConsumerWidget {
                   children: [
                     ListTile(
                       leading: Icon(Icons.memory, color: AppColors.primary),
-                      title: const Text('内存使用'),
+                      title: Text(AppLocalizations.of(context)!.settingsMemoryUsage),
                       trailing: IconButton(
                         icon: const Icon(Icons.refresh),
                         onPressed: () => ref.refresh(systemMemoryProvider),
@@ -190,7 +190,7 @@ class SettingsScreen extends ConsumerWidget {
                           ),
                           error: (e, s) => Padding(
                             padding: const EdgeInsets.all(16),
-                            child: Text('读取失败: $e'),
+                            child: Text(AppLocalizations.of(context)!.commonLoadFailed(e.toString())),
                           ),
                         );
                       },
@@ -251,10 +251,22 @@ GlassCard(
                 padding: EdgeInsets.zero,
                 child: ListTile(
                   leading: Icon(Icons.wifi_find, color: AppColors.primary),
-                  title: const Text('设备发现'),
-                  subtitle: const Text('扫描和发现网络设备'),
+                  title: Text(AppLocalizations.of(context)!.settingsDeviceDiscovery),
+                  subtitle: Text(AppLocalizations.of(context)!.settingsDeviceDiscoveryDesc),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => context.push('/discovery'),
+                ),
+              ),
+              const SizedBox(height: 16),
+              // 嵌入式 Prefrontal（NDK .so）
+              GlassCard(
+                padding: EdgeInsets.zero,
+                child: ListTile(
+                  leading: Icon(Icons.psychology, color: AppColors.primary),
+                  title: Text(AppLocalizations.of(context)!.settingsPrefrontalEmbedded),
+                  subtitle: Text(AppLocalizations.of(context)!.settingsPrefrontalEmbeddedDesc),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push('/settings/prefrontal'),
                 ),
               ),
               const SizedBox(height: 16),
@@ -263,8 +275,8 @@ GlassCard(
                 padding: EdgeInsets.zero,
                 child: ListTile(
                   leading: Icon(Icons.article_outlined, color: AppColors.primary),
-                  title: const Text('系统日志'),
-                  subtitle: const Text('查看应用日志和错误信息'),
+                  title: Text(AppLocalizations.of(context)!.logsTitle),
+                  subtitle: Text(AppLocalizations.of(context)!.settingsLogsDesc),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => context.push('/logs'),
                 ),
@@ -275,8 +287,8 @@ GlassCard(
                 padding: EdgeInsets.zero,
                 child: ListTile(
                   leading: Icon(Icons.cloud_sync, color: AppColors.primary),
-                  title: const Text('Resonance管理'),
-                  subtitle: const Text('管理Resonance服务实例'),
+                  title: Text(AppLocalizations.of(context)!.resonanceTitle),
+                  subtitle: Text(AppLocalizations.of(context)!.settingsResonanceDesc),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => context.push('/resonance'),
                 ),
@@ -667,7 +679,7 @@ class _TtsSettingsSectionState extends State<_TtsSettingsSection> {
               IconButton(
                 icon: const Icon(Icons.refresh, size: 18),
                 onPressed: _initTts,
-                tooltip: '刷新状态',
+                tooltip: AppLocalizations.of(context)!.settingsRefreshStatus,
               ),
               Icon(
                 _isInitialized ? Icons.check_circle : Icons.error,
@@ -804,15 +816,15 @@ class _MemoryUsageBar extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '已用: ${memory.usedMb} MB',
+                AppLocalizations.of(context)!.settingsMemUsed(memory.usedMb),
                 style: const TextStyle(fontSize: 12),
               ),
               Text(
-                '总计: ${memory.totalMb} MB',
+                AppLocalizations.of(context)!.settingsMemTotal(memory.totalMb),
                 style: const TextStyle(fontSize: 12),
               ),
               Text(
-                '空闲: ${memory.freeMb} MB',
+                AppLocalizations.of(context)!.settingsMemFree(memory.freeMb),
                 style: const TextStyle(fontSize: 12),
               ),
             ],
@@ -835,7 +847,7 @@ class _MemoryUsageBar extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            '使用率: ${memory.usagePercent.toStringAsFixed(1)}%',
+            AppLocalizations.of(context)!.settingsMemUsage(memory.usagePercent.toStringAsFixed(1)),
             style: TextStyle(
               fontSize: 11,
               color: memory.usagePercent > 80

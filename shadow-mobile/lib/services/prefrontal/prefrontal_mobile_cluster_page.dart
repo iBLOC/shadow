@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../generated/l10n/app_localizations.dart';
 import 'prefrontal_mobile_provider.dart';
 import 'prefrontal_mobile_service.dart';
 
 /// Prefrontal 嵌入式运行时管理页面
-/// 
+///
 /// 这个页面使用 MethodChannel 与 Android Service 通信，
 /// 通过 JNI 调用 Prefrontal 嵌入式运行时。
-/// 
+///
 /// 与外部进程方式不同，Prefrontal 作为 .so 嵌入在 App 进程内。
 class PrefrontalMobilePage extends ConsumerStatefulWidget {
   const PrefrontalMobilePage({super.key});
@@ -29,12 +30,13 @@ class _PrefrontalMobilePageState extends ConsumerState<PrefrontalMobilePage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final state = ref.watch(prefrontalMobileProvider);
     final notifier = ref.read(prefrontalMobileProvider.notifier);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Prefrontal 嵌入式运行时 (NDK)'),
+        title: Text(l10n.prefrontalEmbeddedTitle),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
         actions: [
           IconButton(
@@ -49,17 +51,17 @@ class _PrefrontalMobilePageState extends ConsumerState<PrefrontalMobilePage> {
           padding: const EdgeInsets.all(16),
           children: [
             // 服务状态卡片
-            _buildStatusCard(context, state, notifier),
+            _buildStatusCard(context, l10n, state, notifier),
 
             const SizedBox(height: 16),
 
             // 智能体管理
-            _buildAgentCard(context, state, notifier),
+            _buildAgentCard(context, l10n, state, notifier),
 
             const SizedBox(height: 16),
 
             // 调用智能体
-            _buildInvokeCard(context, state, notifier),
+            _buildInvokeCard(context, l10n, state, notifier),
           ],
         ),
       ),
@@ -68,6 +70,7 @@ class _PrefrontalMobilePageState extends ConsumerState<PrefrontalMobilePage> {
 
   Widget _buildStatusCard(
     BuildContext context,
+    AppLocalizations l10n,
     PrefrontalMobileState state,
     PrefrontalMobileNotifier notifier,
   ) {
@@ -92,12 +95,12 @@ class _PrefrontalMobilePageState extends ConsumerState<PrefrontalMobilePage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '嵌入式运行时',
+                        l10n.prefrontalEmbeddedRuntime,
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        _statusText(state.status),
+                        _statusText(l10n, state.status),
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                     ],
@@ -107,7 +110,7 @@ class _PrefrontalMobilePageState extends ConsumerState<PrefrontalMobilePage> {
             ),
             if (state.port != null) ...[
               const SizedBox(height: 8),
-              Text('端口: ${state.port}'),
+              Text(l10n.prefrontalPort(state.port!)),
               Text('baseUrl: http://127.0.0.1:${state.port}'),
             ],
             if (state.errorMessage != null) ...[
@@ -119,7 +122,7 @@ class _PrefrontalMobilePageState extends ConsumerState<PrefrontalMobilePage> {
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
-                  '错误: ${state.errorMessage}',
+                  l10n.prefrontalErrorPrefix(state.errorMessage!),
                   style: const TextStyle(color: Colors.red, fontSize: 12),
                 ),
               ),
@@ -130,9 +133,9 @@ class _PrefrontalMobilePageState extends ConsumerState<PrefrontalMobilePage> {
                 Expanded(
                   child: ElevatedButton.icon(
                     icon: const Icon(Icons.play_arrow),
-                    label: const Text('启动'),
+                    label: Text(l10n.prefrontalStart),
                     onPressed: state.status == PrefrontalMobileStatus.stopped
-                        ? () => _startService(context, notifier)
+                        ? () => _startService(context, l10n, notifier)
                         : null,
                   ),
                 ),
@@ -140,9 +143,9 @@ class _PrefrontalMobilePageState extends ConsumerState<PrefrontalMobilePage> {
                 Expanded(
                   child: ElevatedButton.icon(
                     icon: const Icon(Icons.stop),
-                    label: const Text('停止'),
+                    label: Text(l10n.prefrontalStop),
                     onPressed: isRunning
-                        ? () => _stopService(context, notifier)
+                        ? () => _stopService(context, l10n, notifier)
                         : null,
                   ),
                 ),
@@ -156,6 +159,7 @@ class _PrefrontalMobilePageState extends ConsumerState<PrefrontalMobilePage> {
 
   Widget _buildAgentCard(
     BuildContext context,
+    AppLocalizations l10n,
     PrefrontalMobileState state,
     PrefrontalMobileNotifier notifier,
   ) {
@@ -171,12 +175,12 @@ class _PrefrontalMobilePageState extends ConsumerState<PrefrontalMobilePage> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  '智能体 (${state.agents.length})',
+                  l10n.prefrontalAgentsCount(state.agents.length),
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 TextButton.icon(
                   icon: const Icon(Icons.refresh, size: 18),
-                  label: const Text('刷新'),
+                  label: Text(l10n.prefrontalRefresh),
                   onPressed: isRunning ? () => notifier.refreshAgents() : null,
                 ),
               ],
@@ -186,7 +190,7 @@ class _PrefrontalMobilePageState extends ConsumerState<PrefrontalMobilePage> {
               Container(
                 padding: const EdgeInsets.all(16),
                 child: Text(
-                  '请先启动服务',
+                  l10n.prefrontalStartFirst,
                   style: TextStyle(color: Colors.grey[600]),
                   textAlign: TextAlign.center,
                 ),
@@ -197,14 +201,14 @@ class _PrefrontalMobilePageState extends ConsumerState<PrefrontalMobilePage> {
                 child: Column(
                   children: [
                     Text(
-                      '暂无智能体, 添加一个吧:',
+                      l10n.prefrontalNoAgentsHint,
                       style: TextStyle(color: Colors.grey[600]),
                     ),
                     const SizedBox(height: 12),
                     ElevatedButton.icon(
                       icon: const Icon(Icons.add),
-                      label: const Text('添加示例智能体'),
-                      onPressed: () => _addSampleAgent(context, notifier),
+                      label: Text(l10n.prefrontalAddSampleAgent),
+                      onPressed: () => _addSampleAgent(context, l10n, notifier),
                     ),
                   ],
                 ),
@@ -217,8 +221,8 @@ class _PrefrontalMobilePageState extends ConsumerState<PrefrontalMobilePage> {
                     title: Text(agent.name),
                     subtitle: Text(agent.description),
                     trailing: agent.isRunning
-                        ? const Chip(
-                            label: Text('Running'),
+                        ? Chip(
+                            label: Text(l10n.prefrontalStatusRunning),
                             backgroundColor: Colors.green,
                           )
                         : null,
@@ -231,6 +235,7 @@ class _PrefrontalMobilePageState extends ConsumerState<PrefrontalMobilePage> {
 
   Widget _buildInvokeCard(
     BuildContext context,
+    AppLocalizations l10n,
     PrefrontalMobileState state,
     PrefrontalMobileNotifier notifier,
   ) {
@@ -244,16 +249,16 @@ class _PrefrontalMobilePageState extends ConsumerState<PrefrontalMobilePage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '调用智能体 (JNI)',
+              l10n.prefrontalInvokeTitle,
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 12),
             TextField(
               controller: _inputController,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 border: OutlineInputBorder(),
-                labelText: '输入',
-                hintText: '输入要发送给智能体的内容...',
+                labelText: l10n.prefrontalInput,
+                hintText: l10n.prefrontalInputHint,
               ),
               maxLines: 3,
               enabled: isRunning && hasAgents,
@@ -267,9 +272,9 @@ class _PrefrontalMobilePageState extends ConsumerState<PrefrontalMobilePage> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.send),
-              label: const Text('调用 (JNI)'),
+              label: Text(l10n.prefrontalInvoke),
               onPressed: isRunning && hasAgents && !_isInvoking
-                  ? () => _invokeAgent(context, notifier)
+                  ? () => _invokeAgent(context, l10n, notifier)
                   : null,
             ),
             if (_output.isNotEmpty) ...[
@@ -290,42 +295,46 @@ class _PrefrontalMobilePageState extends ConsumerState<PrefrontalMobilePage> {
     );
   }
 
-  String _statusText(PrefrontalMobileStatus status) {
+  String _statusText(AppLocalizations l10n, PrefrontalMobileStatus status) {
     switch (status) {
       case PrefrontalMobileStatus.stopped:
-        return '已停止';
+        return l10n.prefrontalStatusStopped;
       case PrefrontalMobileStatus.starting:
-        return '启动中...';
+        return l10n.prefrontalStatusStarting;
       case PrefrontalMobileStatus.running:
-        return '运行中';
+        return l10n.prefrontalStatusRunning;
       case PrefrontalMobileStatus.stopping:
-        return '停止中...';
+        return l10n.prefrontalStatusStopping;
       case PrefrontalMobileStatus.error:
-        return '错误';
+        return l10n.prefrontalStatusError;
     }
   }
 
   void _showInfoDialog(BuildContext context, PrefrontalMobileState state) {
+    final l10n = AppLocalizations.of(context)!;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('关于 NDK 嵌入方式'),
-        content: const SingleChildScrollView(
+        title: Text(l10n.prefrontalAboutTitle),
+        content: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('• Prefrontal 作为 .so 嵌入在 App 进程内'),
+              Text(l10n.prefrontalAboutLine1),
               SizedBox(height: 4),
-              Text('• 通过 JNI 与 Kotlin Service 通信'),
+              Text(l10n.prefrontalAboutLine2),
               SizedBox(height: 4),
-              Text('• 通过 localhost HTTP 与 Prefrontal 通信'),
+              Text(l10n.prefrontalAboutLine3),
               SizedBox(height: 4),
-              Text('• 服务生命周期与 App 绑定'),
+              Text(l10n.prefrontalAboutLine4),
               SizedBox(height: 4),
-              Text('• 不需要外部进程, 不会被杀'),
+              Text(l10n.prefrontalAboutLine5),
               SizedBox(height: 8),
-              Text('架构:', style: TextStyle(fontWeight: FontWeight.bold)),
+              Text(
+                l10n.prefrontalAboutArchitecture,
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
               Text('Flutter → MethodChannel → JNI → .so'),
               Text('       ↓ HTTP (localhost)'),
               Text('       mini HTTP server (axum)'),
@@ -335,7 +344,7 @@ class _PrefrontalMobilePageState extends ConsumerState<PrefrontalMobilePage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('关闭'),
+            child: Text(l10n.cameraClose),
           ),
         ],
       ),
@@ -344,6 +353,7 @@ class _PrefrontalMobilePageState extends ConsumerState<PrefrontalMobilePage> {
 
   Future<void> _startService(
     BuildContext context,
+    AppLocalizations l10n,
     PrefrontalMobileNotifier notifier,
   ) async {
     try {
@@ -351,7 +361,7 @@ class _PrefrontalMobilePageState extends ConsumerState<PrefrontalMobilePage> {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(success ? '嵌入式运行时启动成功' : '启动失败'),
+            content: Text(success ? l10n.prefrontalStartSuccess : l10n.prefrontalStartFailed),
             backgroundColor: success ? Colors.green : Colors.red,
           ),
         );
@@ -363,7 +373,7 @@ class _PrefrontalMobilePageState extends ConsumerState<PrefrontalMobilePage> {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('启动异常: $e'),
+            content: Text(l10n.prefrontalStartError(e.toString())),
             backgroundColor: Colors.red,
           ),
         );
@@ -373,6 +383,7 @@ class _PrefrontalMobilePageState extends ConsumerState<PrefrontalMobilePage> {
 
   Future<void> _stopService(
     BuildContext context,
+    AppLocalizations l10n,
     PrefrontalMobileNotifier notifier,
   ) async {
     try {
@@ -380,7 +391,7 @@ class _PrefrontalMobilePageState extends ConsumerState<PrefrontalMobilePage> {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(success ? '嵌入式运行时已停止' : '停止失败'),
+            content: Text(success ? l10n.prefrontalStopSuccess : l10n.prefrontalStopFailed),
             backgroundColor: success ? Colors.green : Colors.red,
           ),
         );
@@ -389,7 +400,7 @@ class _PrefrontalMobilePageState extends ConsumerState<PrefrontalMobilePage> {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('停止异常: $e'),
+            content: Text(l10n.prefrontalStopError(e.toString())),
             backgroundColor: Colors.red,
           ),
         );
@@ -399,19 +410,20 @@ class _PrefrontalMobilePageState extends ConsumerState<PrefrontalMobilePage> {
 
   Future<void> _addSampleAgent(
     BuildContext context,
+    AppLocalizations l10n,
     PrefrontalMobileNotifier notifier,
   ) async {
     try {
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final success = await notifier.registerAgent(
         agentId: 'sample-agent-$timestamp',
-        name: '示例智能体',
-        description: '通过 JNI 注册的示例智能体',
+        name: l10n.prefrontalSampleAgentName,
+        description: l10n.prefrontalSampleAgentDesc,
       );
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(success ? '添加成功' : '添加失败'),
+            content: Text(success ? l10n.prefrontalAddSuccess : l10n.prefrontalAddFailed),
             backgroundColor: success ? Colors.green : Colors.red,
           ),
         );
@@ -419,7 +431,7 @@ class _PrefrontalMobilePageState extends ConsumerState<PrefrontalMobilePage> {
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('添加异常: $e')),
+          SnackBar(content: Text(l10n.prefrontalAddError(e.toString()))),
         );
       }
     }
@@ -427,6 +439,7 @@ class _PrefrontalMobilePageState extends ConsumerState<PrefrontalMobilePage> {
 
   Future<void> _invokeAgent(
     BuildContext context,
+    AppLocalizations l10n,
     PrefrontalMobileNotifier notifier,
   ) async {
     final state = ref.read(prefrontalMobileProvider);
@@ -445,13 +458,13 @@ class _PrefrontalMobilePageState extends ConsumerState<PrefrontalMobilePage> {
 
       if (context.mounted) {
         setState(() {
-          _output = result ?? '(无输出)';
+          _output = result ?? l10n.prefrontalNoOutput;
           _isInvoking = false;
         });
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(result != null ? 'JNI 调用成功' : '调用失败'),
+            content: Text(result != null ? l10n.prefrontalInvokeSuccess : l10n.prefrontalInvokeFailed),
             backgroundColor: result != null ? Colors.green : Colors.red,
           ),
         );
@@ -460,12 +473,12 @@ class _PrefrontalMobilePageState extends ConsumerState<PrefrontalMobilePage> {
       if (context.mounted) {
         setState(() {
           _isInvoking = false;
-          _output = '错误: $e';
+          _output = l10n.prefrontalErrorPrefix(e.toString());
         });
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('调用异常: $e'),
+            content: Text(l10n.prefrontalInvokeError(e.toString())),
             backgroundColor: Colors.red,
           ),
         );

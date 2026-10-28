@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 import 'dart:convert' show jsonDecode;
+import '../../l10n/current_l10n.dart';
 import 'prefrontal_mobile_service.dart';
 
 /// Prefrontal 移动端状态
@@ -89,7 +90,7 @@ class PrefrontalMobileNotifier extends StateNotifier<PrefrontalMobileState> {
       } else {
         state = state.copyWith(
           status: PrefrontalMobileStatus.error,
-          errorMessage: '启动失败',
+          errorMessage: currentL10n().prefrontalStartFailed,
         );
         return false;
       }
