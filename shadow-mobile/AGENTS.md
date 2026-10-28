@@ -324,6 +324,8 @@ Flutter → MethodChannel(com.ibloc.shadow/prefrontal_runtime)
 
 **这条支线在整体架构里的位置（重要）**：移动端**主链**是端脑 telencephalon（`:60080`，见 `engine_models_provider.dart`「Telencephalon is the single platform entry point」），prefrontal 在 HTTP 侧只是 fallback（`:8082`）。嵌入支线跑的却是**前额叶**——即 telencephalon 管的 lobe 之一，不是「大脑」本身。桌面端已经升级为嵌**大脑**（`encephalon::Embedded::boot()`），所以**两端嵌入的运行时目前不是同一个**。是否要把移动端也改成嵌大脑，尚未决策，见根 `AGENTS.md` §「移动端嵌入式前额叶」的跨端不一致一节。
 
+**Android 交叉编译探针**：`scripts/android-cross-probe/`（2026-10-28 加）。验任意 Rust crate 能否编到 `aarch64-linux-android` —— 判断「改嵌大脑」可行性的唯一硬判据。实测结论：**wasmtime 不是 blocker，synapse 能编过；第一个真 blocker 是 `rquickjs-sys` 没有 Android 绑定**（`zen-engine` → `rquickjs` → `rquickjs-sys`，只支持 14 个桌面/musl/wasm32 平台）。用法与三条修法见该目录的 `README.md`。
+
 ## MULTIMODAL INPUT
 
 `lib/multimodal/` wraps three input channels:

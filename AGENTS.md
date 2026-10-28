@@ -361,7 +361,21 @@ CI 的 `Mobile Analyze` 作业固定 **Flutter 3.41.4（Dart 3.11.1）**（Dart 
 
 移动端**主链**已经是端脑（`engine_models_provider.dart`：`http://localhost:60080`，注释「Telencephalon is the single platform entry point」），prefrontal 在 HTTP 侧只是 fallback（`:8082`）。于是手机上有两套 agent 运行时：主链走端脑、嵌入支线跑前额叶 —— 手机本地拿不到端脑编排的各 lobe（temporal / occipital / parietal），且与桌面端行为不一致。
 
-**改嵌「大脑」的成本**（2026-10-28 核实，不是换个 `.so` 那么简单）：`encephalon` / `telencephalon` 目前**没有 cdylib crate-type、没有 JNI 层、没有 android feature**。要嵌进 App 需要：① 加 `crate-type = ["cdylib"]`；② 重写一套 JNI 入口（prefrontal 那套 6 个入口是照它自己的 API 写的）；③ 整条依赖树交叉编译到 `aarch64-linux-android`：`telencephalon` → `neuron`(candle/wgpu) + `hippocampus`(sqlx/aes-gcm) + `synapse`(wasmtime) + `diencephalon` + `lance-graph`。prefrontal 已 40MB，带上 neuron/candle/wgpu 会显著变大。
+**改嵌「大脑」的成本**（2026-10-28 核实 + **实测交叉编译**，不是换个 `.so` 那么简单）：`encephalon` / `telencephalon` 目前**没有 cdylib crate-type、没有 JNI 层、没有 android feature**。要嵌进 App 需要：① 加 `crate-type = ["cdylib"]`；② 重写一套 JNI 入口（prefrontal 那套 6 个入口是照它自己的 API 写的）；③ 整条依赖树交叉编译到 `aarch64-linux-android`；④ **至少改一处依赖声明**（见下）。
+
+**实测结果**（NDK 30.0.14904198 / `aarch64-linux-android` / release；探针脚本 `shadow-mobile/scripts/android-cross-probe/`，可复跑）：
+
+| 依赖 | 强制？ | 结果 |
+|---|---|---|
+| `synapse`（含 wasmtime 20 + cranelift） | 是 | ✅ 通过，3m21s，`libsynapse.rlib` 25.0 MB |
+| `neuron`（candle 全 optional；**没有 wgpu** —— burn/burn-store 只在 `voxcpm` feature 下） | 是 | 未验，形态友好：`Cargo.toml` 已有 `crate-type = ["staticlib","cdylib","rlib"]` |
+| `hippocampus-storage`（`lance-graph`，default feature 就开着） | 端脑是 / 大脑可选 | 未验 |
+| `diencephalon`（`datafusion 55` + `arrow` + `zenoh` + `zen-engine`） | 是 | ❌ **失败** |
+| `prefrontal` | 是 | ✅ 通过（已产出 arm64 `.so`，6/6 JNI 符号） |
+
+**第一个真 blocker 是 `rquickjs-sys`，不是 `wasmtime`** —— wasmtime 20 + cranelift 干净编到了 Android。失败点：`zen-engine 2.1.4` → `rquickjs` → `rquickjs-sys 0.10.0` 只为 14 个平台提供预生成绑定，**没有 Android**（`aarch64-linux-android` 那个 `.rs` 根本不存在）。`zen-engine` 是 `diencephalon` 真在用的 DMN/JDM 规则引擎（`diencephalon/src/rule_engine.rs`），不是死依赖。三条修法：① 开 `zen-engine/bindgen` feature（官方逃生舱，但需要 libclang —— 本机 `C:\Program Files` 下没有 `libclang.dll`，rustup 也没装 llvm-tools 组件）；② 把 `zen-engine` 改成 optional feature（移动端不带 DMN 规则求值，**推荐这条**，只改 `diencephalon/Cargo.toml` 一行）；③ fork `rquickjs-sys` 补绑定（最脏）。
+
+体积：prefrontal 已 40MB，`synapse` 单独一个 rlib 就 25MB。全栈合成单个 `.so` 有撞 Android 单库 150MB（未压缩）上限的风险 —— **未实测**。
 
 功能上也**部分重叠**：桌面端「唯一推理来源 = 嵌入的大脑」在移动端不成立 —— 移动端另有 LiteRT / MNN 本地推理（`litert_engine.dart` / `mnn_engine.dart`），而端脑默认 feature 绑了 `neuron` + `candle`。所以「移动端该嵌哪个」是个需要决策的事，不是显然的替换。
 
