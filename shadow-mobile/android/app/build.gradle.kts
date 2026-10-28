@@ -10,6 +10,25 @@ android {
     compileSdk = flutter.compileSdkVersion
     ndkVersion = "30.0.14904198"
 
+    // 移动端实际支持的 ABI —— 取值必须与 android/app/src/main/jniLibs/ 下
+    // 实际有哪些 ABI 的原生库一致。
+    //
+    // 为什么必须**同时**设 defaultConfig 和每个 buildType：
+    // Flutter 的 Gradle 插件在「插件 apply 阶段」（也就是本文件的 android {}
+    // 块被求值**之前**）给每个 buildType 写死了 DEFAULT_PLATFORMS
+    // （arm64-v8a / armeabi-v7a / x86_64），而 buildType 上的 abiFilters
+    // 会**覆盖** defaultConfig 的。只在 defaultConfig 写，哪怕写对了，
+    // 也拦不住插件那三个。
+    //
+    // 为什么在意这个：APK 宣称支持一个 ABI、而包里没有那个 ABI 的原生
+    // 运行时 = 那些设备**装得上**（badging 的 native-code 是声明值），
+    // 但那个运行时根本不存在，表现为功能整个消失。
+    //
+    // libencephalon.so 目前只有 arm64-v8a 与 x86_64 两份 —— armeabi-v7a
+    // 编不出来（lance-core-8.0.1 的 SIMD 探测没有 target_arch="arm"
+    // 分支，见 encephalon 仓 scripts/README.md）。
+    val supportedAbis = listOf("arm64-v8a", "x86_64")
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -25,11 +44,17 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-        
+
         ndk {
-            abiFilters += listOf("arm64-v8a")
+            // 注意是 clear() + addAll()，不是 `=` 也不是 `+=`：
+            // abiFilters 在 AGP 的 Kotlin DSL 里是
+            // `val abiFilters: MutableSet<String>` —— 不能赋值（报
+            // "Val cannot be reassigned"）；而 `+=` 是往插件已经写进去的
+            // 集合上**追加**，等于什么都没限制。
+            abiFilters.clear()
+            abiFilters.addAll(supportedAbis)
         }
-        
+
         externalNativeBuild {
             cmake {
                 // defaultConfig 层的 externalNativeBuild 在 AGP 公共 DSL 里
@@ -57,8 +82,26 @@ android {
     }
 
     buildTypes {
-        release {
+        // buildType 上的 abiFilters **覆盖** defaultConfig 的，而 Flutter
+        // 的 Gradle 插件正是在插件 apply 阶段给每个 buildType 写死了
+        // arm64-v8a / armeabi-v7a / x86_64 —— 那个阶段早于本文件被求值，
+        // 所以这里再写一次才能真正把它限住。
+        //
+        // 插件的代码（FlutterPlugin.kt）自己也是 clear() + add()，但它加的
+        // 是 DEFAULT_PLATFORMS 全集；我们要的是「jniLibs 里真有运行时」的
+        // 那几个。见上面 supportedAbis 的注释。
+        getByName("debug") {
+            ndk {
+                abiFilters.clear()
+                abiFilters.addAll(supportedAbis)
+            }
+        }
+        getByName("release") {
             signingConfig = signingConfigs.getByName("debug")
+            ndk {
+                abiFilters.clear()
+                abiFilters.addAll(supportedAbis)
+            }
         }
     }
     
