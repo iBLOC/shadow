@@ -1,7 +1,7 @@
 # PROJECT KNOWLEDGE BASE
 
 **Generated:** 2026-03-21
-**Updated:** 2026-10-28 (hippocampus 任务板接入桌面端与移动端：任务列表/详情/编辑弹窗两端打通，`TaskRecord` 字段契约统一——标题/描述/优先级无对应列，编辑只暴露状态与标签；移动端 `createTask` 补齐 `taskId`/`targetAgent`；桌面端删除 UniverSheet 死代码；CI 3/5 绿，剩 `Prefrontal Rust` + `Desktop E2E` 待 `IBLOC_TOKEN`)
+**Updated:** 2026-10-28 (移动端测试从 173/28 修到 **201/201 全绿**并接入 CI：修 3 处真实代码 bug —— `AgentsResponse` 的 legacy `cortex` 键 fallback 写成了重复的 `telencephalon`、`AppConfigService` 解析失败只重置了一个字段且 `init()` 被 `_isInitialized` 短路导致永不重载、`TelencephalonClient.listConversations` 把 JSON 数组强转 Map；另修 20 处文案断言（屏幕硬编码中文）、3 处缺 localization delegate、2 处 `pumpAndSettle` 撞无限动画超时；CI 新增 `Mobile Test` 作业。同日修复移动端打包缺陷：`externalNativeBuild.cmake.path` 未设导致 Flutter 插件把 CMake 源目录改写成空模板，`libmnnbridge.so` 从未进过 APK)
 **Project:** shadow (影) - AI 用户分身系统
 **Spec version:** 2026-06-04 4-layer architecture (aligned with root `/AGENTS.md`)
 **Parent project summary**: `/home/ibloc/Projects/AGENTS.md` (not git-tracked — drift-prone; **not present on this Windows checkout**, paths stay verbatim Linux for now). Sibling audit: [`2026-09-23-iBLOC-progress-assessment.md`](docs/superpowers/architecture/2026-09-23-iBLOC-progress-assessment.md). Companion E2E coverage assessment: [`2026-09-25-e2e-coverage-assessment.md`](docs/superpowers/architecture/2026-09-25-e2e-coverage-assessment.md).
@@ -278,7 +278,7 @@ CI 的 `Mobile Analyze` 作业固定 **Flutter 3.41.4（Dart 3.11.1）**（Dart 
 - SDK：`C:\src\flutter`（用户级 PATH 已含 `C:\src\flutter\bin`），`flutter --version` = 3.41.4 / Dart 3.11.1
 - 拉依赖：`flutter pub get`（工作目录 `shadow-mobile/`）
 - 复刻 CI：`flutter analyze --no-fatal-infos --no-fatal-warnings` —— issues 全是 warning/info 才算过（2026-10-28：74 issues，无 error）
-- **CI 没有任何移动端测试作业**，`flutter test` 从未被跑过。2026-10-28 首次本地真跑：**173 通过 / 28 失败**。失败集中在 soul / mcp / skills / prompt-settings / model-settings / conversation 几个页面的文案断言与 i18n locale 不匹配，外加 ChatScreen 的 `pumpAndSettle` 超时；**任务板相关用例全绿**。修完之前不要把"移动端测试通过"写进结论
+- **CI 现在有移动端测试作业**（`Mobile Test`，2026-10-28 补上）。此前 `flutter test` 从未被任何自动化跑过，仓库里 201 个用例中 28 个是坏的，且**坏在三个方向**：① 多个屏幕（soul / mcp / skills / prompt-settings / model-settings / conversation）**硬编码中文文案**却断言英文；② 测试 MaterialApp 漏注册 `AppLocalizations.delegate` / `GlobalCupertinoLocalizations.delegate`，`AppLocalizations.of(context)!` 直接崩；③ `pumpAndSettle` 撞上 `CircularProgressIndicator` 这类无限动画必然超时。2026-10-28 全部修完，**201/201 全绿**（本地 exit 0）
 - Windows 上 `flutter pub get` 末尾会因缺符号链接支持退出 1（Developer Mode 未开）。依赖其实已解析完，`analyze` / `test` 不受影响；要跑桌面端构建需管理员执行 `reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock" /v AllowDevelopmentWithoutDevLicense /t REG_DWORD /d 1 /f`
 - 根 `.gitignore` 忽略了 `pubspec.lock`。Flutter 应用通常应当提交 lockfile —— 现在的状态意味着每次 CI 都重新解析依赖，构建不可复现
 
