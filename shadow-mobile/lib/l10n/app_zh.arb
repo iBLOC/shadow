@@ -922,5 +922,41 @@
   "encephalonStartFailed": "嵌入式大脑启动失败",
   "@encephalonStartFailed": {},
   "encephalonNotRunning": "嵌入式大脑未运行",
-  "@encephalonNotRunning": {}
+  "@encephalonNotRunning": {},
+  "encephalonEmbeddedTitle": "嵌入式大脑运行时（NDK）",
+  "@encephalonEmbeddedTitle": {},
+  "encephalonEmbeddedRuntime": "嵌入式大脑运行时",
+  "@encephalonEmbeddedRuntime": {},
+  "encephalonPort": "端口：{port}",
+  "@encephalonPort": {
+    "placeholders": {
+      "port": {
+        "type": "int"
+      }
+    }
+  },
+  "encephalonStart": "启动大脑",
+  "@encephalonStart": {},
+  "encephalonStop": "停止大脑",
+  "@encephalonStop": {},
+  "encephalonStatusStopped": "已停止",
+  "@encephalonStatusStopped": {},
+  "encephalonStatusStarting": "启动中...",
+  "@encephalonStatusStarting": {},
+  "encephalonStatusRunning": "运行中",
+  "@encephalonStatusRunning": {},
+  "encephalonStatusStopping": "停止中...",
+  "@encephalonStatusStopping": {},
+  "encephalonStatusError": "错误",
+  "@encephalonStatusError": {},
+  "encephalonInferTitle": "进程内推理",
+  "@encephalonInferTitle": {},
+  "encephalonInferHint": "请求直接进入进程内 neuron 的 adapter 管线 —— 不走 socket，没有 CORS。",
+  "@encephalonInferHint": {},
+  "encephalonInferPrompt": "提示词",
+  "@encephalonInferPrompt": {},
+  "encephalonInferRun": "执行推理",
+  "@encephalonInferRun": {},
+  "encephalonInferFailed": "推理失败",
+  "@encephalonInferFailed": {}
 }

@@ -22,6 +22,7 @@ import '../screens/discovery_screen.dart';
 import '../screens/logs_screen.dart';
 import '../screens/resonance_screen.dart';
 import '../services/prefrontal/prefrontal_mobile_cluster_page.dart';
+import '../services/encephalon/encephalon_mobile_page.dart';
 import '../widgets/main_shell.dart';
 
 /// Route names
@@ -48,6 +49,7 @@ class AppRoutes {
   static const String logs = '/logs';
   static const String resonance = '/resonance';
   static const String prefrontalEmbedded = '/settings/prefrontal';
+  static const String encephalonEmbedded = '/settings/encephalon';
 
   // Legacy routes (redirect)
   static const String agents = '/agents';
@@ -245,6 +247,13 @@ final GoRouter appRouter = GoRouter(
       name: 'prefrontalEmbedded',
       pageBuilder: (context, state) =>
           _fadePage(state, _wrapInShell(state, const PrefrontalMobilePage())),
+    ),
+    // Embedded Encephalon runtime (NDK .so) —— 与桌面端同款的大脑
+    GoRoute(
+      path: AppRoutes.encephalonEmbedded,
+      name: 'encephalonEmbedded',
+      pageBuilder: (context, state) =>
+          _fadePage(state, _wrapInShell(state, const EncephalonMobilePage())),
     ),
     // Legacy redirects
     GoRoute(

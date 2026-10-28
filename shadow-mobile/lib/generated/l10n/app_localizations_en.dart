@@ -1488,4 +1488,52 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get encephalonNotRunning => 'The embedded brain is not running';
+
+  @override
+  String get encephalonEmbeddedTitle => 'Embedded Brain Runtime (NDK)';
+
+  @override
+  String get encephalonEmbeddedRuntime => 'Embedded brain runtime';
+
+  @override
+  String encephalonPort(int port) {
+    return 'Port: $port';
+  }
+
+  @override
+  String get encephalonStart => 'Start brain';
+
+  @override
+  String get encephalonStop => 'Stop brain';
+
+  @override
+  String get encephalonStatusStopped => 'Stopped';
+
+  @override
+  String get encephalonStatusStarting => 'Starting...';
+
+  @override
+  String get encephalonStatusRunning => 'Running';
+
+  @override
+  String get encephalonStatusStopping => 'Stopping...';
+
+  @override
+  String get encephalonStatusError => 'Error';
+
+  @override
+  String get encephalonInferTitle => 'In-process inference';
+
+  @override
+  String get encephalonInferHint =>
+      'The request goes straight into the neuron adapter pipeline in-process — no socket, no CORS.';
+
+  @override
+  String get encephalonInferPrompt => 'Prompt';
+
+  @override
+  String get encephalonInferRun => 'Run inference';
+
+  @override
+  String get encephalonInferFailed => 'Inference failed';
 }

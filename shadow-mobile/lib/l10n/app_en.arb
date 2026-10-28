@@ -965,5 +965,41 @@
   "encephalonStartFailed": "Failed to start the embedded brain",
   "@encephalonStartFailed": {},
   "encephalonNotRunning": "The embedded brain is not running",
-  "@encephalonNotRunning": {}
+  "@encephalonNotRunning": {},
+  "encephalonEmbeddedTitle": "Embedded Brain Runtime (NDK)",
+  "@encephalonEmbeddedTitle": {},
+  "encephalonEmbeddedRuntime": "Embedded brain runtime",
+  "@encephalonEmbeddedRuntime": {},
+  "encephalonPort": "Port: {port}",
+  "@encephalonPort": {
+    "placeholders": {
+      "port": {
+        "type": "int"
+      }
+    }
+  },
+  "encephalonStart": "Start brain",
+  "@encephalonStart": {},
+  "encephalonStop": "Stop brain",
+  "@encephalonStop": {},
+  "encephalonStatusStopped": "Stopped",
+  "@encephalonStatusStopped": {},
+  "encephalonStatusStarting": "Starting...",
+  "@encephalonStatusStarting": {},
+  "encephalonStatusRunning": "Running",
+  "@encephalonStatusRunning": {},
+  "encephalonStatusStopping": "Stopping...",
+  "@encephalonStatusStopping": {},
+  "encephalonStatusError": "Error",
+  "@encephalonStatusError": {},
+  "encephalonInferTitle": "In-process inference",
+  "@encephalonInferTitle": {},
+  "encephalonInferHint": "The request goes straight into the neuron adapter pipeline in-process — no socket, no CORS.",
+  "@encephalonInferHint": {},
+  "encephalonInferPrompt": "Prompt",
+  "@encephalonInferPrompt": {},
+  "encephalonInferRun": "Run inference",
+  "@encephalonInferRun": {},
+  "encephalonInferFailed": "Inference failed",
+  "@encephalonInferFailed": {}
 }

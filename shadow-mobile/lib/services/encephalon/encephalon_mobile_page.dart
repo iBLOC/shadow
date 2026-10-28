@@ -1,0 +1,277 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../generated/l10n/app_localizations.dart';
+import 'encephalon_mobile_provider.dart';
+import 'encephalon_mobile_service.dart';
+
+/// Encephalon（大脑）嵌入式运行时管理页面
+///
+/// 与 [PrefrontalMobilePage] 同构，但反映「大脑」的语义：
+/// - 大脑跑在 App 进程内（`libencephalon.so`），不是外部进程；
+/// - 推理走**进程内**通道（`nativeInfer` 直接进 neuron's adapter
+///   管线），没有 socket、没有 CORS；
+/// - 大脑 = thalamus + ACP 总线 + telencephalon + 单一 neuron。
+class EncephalonMobilePage extends ConsumerStatefulWidget {
+  const EncephalonMobilePage({super.key});
+
+  @override
+  ConsumerState<EncephalonMobilePage> createState() => _EncephalonMobilePageState();
+}
+
+class _EncephalonMobilePageState extends ConsumerState<EncephalonMobilePage> {
+  final _inputController = TextEditingController();
+  String _output = '';
+  bool _isInferring = false;
+
+  @override
+  void dispose() {
+    _inputController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final state = ref.watch(encephalonMobileProvider);
+    final notifier = ref.read(encephalonMobileProvider.notifier);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(l10n.encephalonEmbeddedTitle),
+        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+      ),
+      body: RefreshIndicator(
+        onRefresh: () async {
+          // 重新读一次运行态：App 被系统重建后进程可能还活着。
+          await notifier.refreshStatus();
+        },
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            // 运行时状态卡片
+            _buildStatusCard(context, l10n, state, notifier),
+
+            const SizedBox(height: 16),
+
+            // 进程内推理
+            _buildInferCard(context, l10n, state),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusCard(
+    BuildContext context,
+    AppLocalizations l10n,
+    EncephalonMobileState state,
+    EncephalonMobileNotifier notifier,
+  ) {
+    final isRunning = state.status == EncephalonMobileStatus.running;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  isRunning ? Icons.check_circle : Icons.error,
+                  color: isRunning ? Colors.green : Colors.red,
+                  size: 32,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        l10n.encephalonEmbeddedRuntime,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _statusText(l10n, state.status),
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            if (state.port != null) ...[
+              const SizedBox(height: 8),
+              Text(l10n.encephalonPort(state.port!)),
+              Text('neuron: http://127.0.0.1:${state.port}'),
+            ],
+            if (state.errorMessage != null) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.red.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  state.errorMessage!,
+                  style: const TextStyle(color: Colors.red),
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: isRunning ? null : () => notifier.start(),
+                    icon: const Icon(Icons.play_arrow),
+                    label: Text(l10n.encephalonStart),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: isRunning ? () => notifier.stop() : null,
+                    icon: const Icon(Icons.stop),
+                    label: Text(l10n.encephalonStop),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInferCard(
+    BuildContext context,
+    AppLocalizations l10n,
+    EncephalonMobileState state,
+  ) {
+    final canInfer = state.status == EncephalonMobileStatus.running;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              l10n.encephalonInferTitle,
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              l10n.encephalonInferHint,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _inputController,
+              enabled: canInfer,
+              maxLines: 3,
+              minLines: 1,
+              decoration: InputDecoration(
+                labelText: l10n.encephalonInferPrompt,
+                border: const OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: canInfer && !_isInferring ? () => _runInfer(l10n) : null,
+              icon: _isInferring
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.send),
+              label: Text(l10n.encephalonInferRun),
+            ),
+            if (_output.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: SelectableText(_output),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 跑一次进程内推理：请求体直接进 neuron's adapter 管线。
+  Future<void> _runInfer(AppLocalizations l10n) async {
+    final prompt = _inputController.text.trim();
+    if (prompt.isEmpty) return;
+
+    setState(() {
+      _isInferring = true;
+      _output = '';
+    });
+
+    try {
+      final service = ref.read(encephalonMobileServiceProvider);
+      final body = utf8.encode(
+        '{"model":"probe","max_tokens":32,"messages":['
+        '{"role":"user","content":${_jsonEscape(prompt)}}]}',
+      );
+      final result = await service.infer(
+        path: '/v1/chat/completions',
+        body: Uint8List.fromList(body),
+      );
+      if (!mounted) return;
+      setState(() {
+        _isInferring = false;
+        _output = result == null
+            ? l10n.encephalonInferFailed
+            : 'HTTP ${result.status}\n\n${result.bodyText}';
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isInferring = false;
+        _output = '$e';
+      });
+    }
+  }
+
+  /// 把用户输入转成 JSON 字符串字面量（含转义）。
+  static String _jsonEscape(String value) {
+    final escaped = value
+        .replaceAll('\\', '\\\\')
+        .replaceAll('"', '\\"')
+        .replaceAll('\n', '\\n')
+        .replaceAll('\r', '\\r')
+        .replaceAll('\t', '\\t');
+    return '"$escaped"';
+  }
+
+  String _statusText(AppLocalizations l10n, EncephalonMobileStatus status) {
+    switch (status) {
+      case EncephalonMobileStatus.stopped:
+        return l10n.encephalonStatusStopped;
+      case EncephalonMobileStatus.starting:
+        return l10n.encephalonStatusStarting;
+      case EncephalonMobileStatus.running:
+        return l10n.encephalonStatusRunning;
+      case EncephalonMobileStatus.stopping:
+        return l10n.encephalonStatusStopping;
+      case EncephalonMobileStatus.error:
+        return l10n.encephalonStatusError;
+    }
+  }
+}

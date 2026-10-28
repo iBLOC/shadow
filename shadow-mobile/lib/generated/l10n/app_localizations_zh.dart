@@ -1466,4 +1466,52 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get encephalonNotRunning => '嵌入式大脑未运行';
+
+  @override
+  String get encephalonEmbeddedTitle => '嵌入式大脑运行时（NDK）';
+
+  @override
+  String get encephalonEmbeddedRuntime => '嵌入式大脑运行时';
+
+  @override
+  String encephalonPort(int port) {
+    return '端口：$port';
+  }
+
+  @override
+  String get encephalonStart => '启动大脑';
+
+  @override
+  String get encephalonStop => '停止大脑';
+
+  @override
+  String get encephalonStatusStopped => '已停止';
+
+  @override
+  String get encephalonStatusStarting => '启动中...';
+
+  @override
+  String get encephalonStatusRunning => '运行中';
+
+  @override
+  String get encephalonStatusStopping => '停止中...';
+
+  @override
+  String get encephalonStatusError => '错误';
+
+  @override
+  String get encephalonInferTitle => '进程内推理';
+
+  @override
+  String get encephalonInferHint =>
+      '请求直接进入进程内 neuron 的 adapter 管线 —— 不走 socket，没有 CORS。';
+
+  @override
+  String get encephalonInferPrompt => '提示词';
+
+  @override
+  String get encephalonInferRun => '执行推理';
+
+  @override
+  String get encephalonInferFailed => '推理失败';
 }

@@ -126,6 +126,31 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
     return _service.isHealthy();
   }
 
+  /// 重新读一次运行态。
+  ///
+  /// 用途：App 被系统重建后进程可能还活着（native 侧仍在跑），
+  /// 页面下拉刷新时用它把 UI 状态同步过来。
+  Future<void> refreshStatus() async {
+    try {
+      final status = await _service.getStatus();
+      if (status['running'] == true) {
+        state = state.copyWith(
+          status: EncephalonMobileStatus.running,
+          port: status['port'] as int?,
+          errorMessage: null,
+        );
+      } else {
+        state = state.copyWith(
+          status: EncephalonMobileStatus.stopped,
+          port: null,
+          errorMessage: null,
+        );
+      }
+    } catch (e) {
+      _log.fine('刷新运行态失败: $e');
+    }
+  }
+
   @override
   void dispose() {
     _service.dispose();

@@ -2755,6 +2755,96 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The embedded brain is not running'**
   String get encephalonNotRunning;
+
+  /// No description provided for @encephalonEmbeddedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Embedded Brain Runtime (NDK)'**
+  String get encephalonEmbeddedTitle;
+
+  /// No description provided for @encephalonEmbeddedRuntime.
+  ///
+  /// In en, this message translates to:
+  /// **'Embedded brain runtime'**
+  String get encephalonEmbeddedRuntime;
+
+  /// No description provided for @encephalonPort.
+  ///
+  /// In en, this message translates to:
+  /// **'Port: {port}'**
+  String encephalonPort(int port);
+
+  /// No description provided for @encephalonStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Start brain'**
+  String get encephalonStart;
+
+  /// No description provided for @encephalonStop.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop brain'**
+  String get encephalonStop;
+
+  /// No description provided for @encephalonStatusStopped.
+  ///
+  /// In en, this message translates to:
+  /// **'Stopped'**
+  String get encephalonStatusStopped;
+
+  /// No description provided for @encephalonStatusStarting.
+  ///
+  /// In en, this message translates to:
+  /// **'Starting...'**
+  String get encephalonStatusStarting;
+
+  /// No description provided for @encephalonStatusRunning.
+  ///
+  /// In en, this message translates to:
+  /// **'Running'**
+  String get encephalonStatusRunning;
+
+  /// No description provided for @encephalonStatusStopping.
+  ///
+  /// In en, this message translates to:
+  /// **'Stopping...'**
+  String get encephalonStatusStopping;
+
+  /// No description provided for @encephalonStatusError.
+  ///
+  /// In en, this message translates to:
+  /// **'Error'**
+  String get encephalonStatusError;
+
+  /// No description provided for @encephalonInferTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'In-process inference'**
+  String get encephalonInferTitle;
+
+  /// No description provided for @encephalonInferHint.
+  ///
+  /// In en, this message translates to:
+  /// **'The request goes straight into the neuron adapter pipeline in-process — no socket, no CORS.'**
+  String get encephalonInferHint;
+
+  /// No description provided for @encephalonInferPrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'Prompt'**
+  String get encephalonInferPrompt;
+
+  /// No description provided for @encephalonInferRun.
+  ///
+  /// In en, this message translates to:
+  /// **'Run inference'**
+  String get encephalonInferRun;
+
+  /// No description provided for @encephalonInferFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Inference failed'**
+  String get encephalonInferFailed;
 }
 
 class _AppLocalizationsDelegate
