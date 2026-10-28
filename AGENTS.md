@@ -58,9 +58,15 @@
 │  Layer 3: AGENT  (外部项目)                                                  │
 │                                                                             │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │  Prefrontal  https://github.com/iBLOC/prefrontal       Port 8082        │    │
-│  │  Rust 多智能体执行引擎 (单 crate, 可嵌入或独立运行)                    │    │
-│  │  • agent / session / tool / skill / MCP / A2A orchestration        │    │
+│  │  Encephalon (大脑)  https://github.com/iBLOC/encephalon             │    │
+│  │  顶层 agent crate: diencephalon(间脑) + telencephalon(端脑) +       │    │
+│  │  hippocampus(海马体), 捆在一个 ACP 总线和一棵 axum HTTP 树里        │    │
+│  │  • Embedded::boot() —— 进程内嵌入; 桌面端已用它 (:8085 跑 neuron)   │    │
+│  │                                                                     │    │
+│  │  Prefrontal (前额叶)  https://github.com/iBLOC/prefrontal  :8082    │    │
+│  │  Rust 多智能体执行引擎 (单 crate, 可嵌入或独立运行)                 │    │
+│  │  • agent / session / tool / skill / MCP / A2A orchestration         │    │
+│  │  • 四叶拆分后它只是 telencephalon 管的 lobe, 不再是独立的一层       │    │
 │  └─────────────────────────────────────────────────────────────────────┘    │
 │                  │  OpenAI /v1/*                                            │
 └──────────────────┼──────────────────────────────────────────────────────────┘
@@ -266,6 +272,7 @@ shadow/
 |------|------|------|------|
 | **Resonance** | `https://github.com/iBLOC/resonance` | 8080 | 任务编排、规划、工作流引擎 |
 | **Cortex** (renamed to **Telencephalon** 2026-09) | `https://github.com/iBLOC/telencephalon` | 60080 | 单 shadow 中心化 agent 注册 + A2A gateway + WASM 宿主 + 外部智能体扫描同步 + MCP 管理 (v0.5 Sprint 2) |
+| **Encephalon** (大脑) | `https://github.com/iBLOC/encephalon` | 进程内 | 顶层 agent crate: diencephalon(间脑) + telencephalon(端脑) + hippocampus(海马体) 捆在一个 ACP 总线里; 桌面端已改为进程内嵌入 (`Embedded::boot`), 旧的 cortex sidecar 模式已废弃 |
 | **Prefrontal** | `https://github.com/iBLOC/prefrontal` | 8082 | 多智能体执行、工具调用、内置 Agent (prefrontal 是 telencephalon 管理的 lobe 之一) |
 | **Hippocampus** | `https://github.com/iBLOC/hippocampus` | 8081 | 长期记忆、HybridRAG 搜索 |
 | **Shadow-Desktop** | `shadow-desktop/` | N/A | 桌面端 UI + neuron (embedded :8085 via Tauri shell) |
@@ -318,9 +325,11 @@ CI 的 `Mobile Analyze` 作业固定 **Flutter 3.41.4（Dart 3.11.1）**（Dart 
 
 **`scripts/ui-smoke.sh` 是"假绿"陷阱（2026-10-28 修复）**：它原本只判断 HTTP 200，而 Vite 对不存在的路径会回退到 index.html **同样返回 200**，所以缺失模块一律"通过"。现在改成从文件系统自动发现模块，并要求响应体不是 HTML 外壳。跑它需要先起 `pnpm dev`（脚本打的是 `http://localhost:1420`）。
 
-## 移动端嵌入式大脑（Prefrontal .so）
+## 移动端嵌入式前额叶（Prefrontal .so）
 
 链路：Flutter → MethodChannel(`com.ibloc.shadow/prefrontal_runtime`) → `PrefrontalRuntimeService`(Kotlin) → JNI → `libprefrontal_core_lib.so`(Rust) → axum mini HTTP server(localhost)。
+
+**注意措辞**：这一段嵌的是**前额叶（前额叶 = telencephalon 管的 lobe 之一）**，不是「大脑」本身。桌面端已经升级成嵌**大脑**（`encephalon::Embedded::boot()`，见 `shadow-desktop/src-tauri/src/lib.rs`），两端嵌的运行时**目前不是同一个**——这是已知的不一致，见下。
 
 **2026-10-28 之前这条链路从未通过**，三个原因都在 prefrontal 仓：
 
@@ -342,6 +351,19 @@ CI 的 `Mobile Analyze` 作业固定 **Flutter 3.41.4（Dart 3.11.1）**（Dart 
 **`.so` 不入库**：它是兄弟仓库源码的构建产物（40MB/ABI），按需构建。`.gitignore` 里排除了它；jniLibs 里的 MNN 那几个是 vendored 第三方二进制，仍然入库。
 
 **`.so` 缺失时必须优雅降级**：`PrefrontalRuntime` 的 companion `init{}` **不要重抛** `loadLibrary` 的失败 —— 重抛会让类初始化失败，之后每次访问变成 `NoClassDefFoundError`，而调用方接的是 `UnsatisfiedLinkError`（Error 不是 Exception，`catch (e: Exception)` 接不住）→ App 崩。现状是：不重抛 + 5 个 native 调用点各自 catch `UnsatisfiedLinkError`，于是错误以正确形态落进 `MainActivity` 已有的 `SO_NOT_LOADED` 分支。
+
+**跨端不一致（2026-10-28 核实，未解决）**：桌面端嵌的是**大脑**，移动端嵌的是**前额叶**。
+
+| 端 | 嵌入的运行时 | 证据 |
+|---|---|---|
+| shadow-desktop | `encephalon`（大脑） | `src-tauri/src/lib.rs`：`embedded_stack: Arc<encephalon::Embedded>` + `encephalon::Embedded::boot(EmbeddedConfig { neuron_port: 8085 })`；`Cargo.toml` 里 `encephalon = { path = "../../../encephalon" }`，且注释写明「旧的 cortex sidecar 模式 DEPRECATED (2026-09-22)，由 embedded encephalon 取代」「The embedded encephalon is the ONLY place shadow gets inference from」 |
+| shadow-mobile | `prefrontal`（前额叶） | 本节的 `libprefrontal_core_lib.so`；prefrontal 仓 `src/mobile/{mod,jni}.rs` |
+
+移动端**主链**已经是端脑（`engine_models_provider.dart`：`http://localhost:60080`，注释「Telencephalon is the single platform entry point」），prefrontal 在 HTTP 侧只是 fallback（`:8082`）。于是手机上有两套 agent 运行时：主链走端脑、嵌入支线跑前额叶 —— 手机本地拿不到端脑编排的各 lobe（temporal / occipital / parietal），且与桌面端行为不一致。
+
+**改嵌「大脑」的成本**（2026-10-28 核实，不是换个 `.so` 那么简单）：`encephalon` / `telencephalon` 目前**没有 cdylib crate-type、没有 JNI 层、没有 android feature**。要嵌进 App 需要：① 加 `crate-type = ["cdylib"]`；② 重写一套 JNI 入口（prefrontal 那套 6 个入口是照它自己的 API 写的）；③ 整条依赖树交叉编译到 `aarch64-linux-android`：`telencephalon` → `neuron`(candle/wgpu) + `hippocampus`(sqlx/aes-gcm) + `synapse`(wasmtime) + `diencephalon` + `lance-graph`。prefrontal 已 40MB，带上 neuron/candle/wgpu 会显著变大。
+
+功能上也**部分重叠**：桌面端「唯一推理来源 = 嵌入的大脑」在移动端不成立 —— 移动端另有 LiteRT / MNN 本地推理（`litert_engine.dart` / `mnn_engine.dart`），而端脑默认 feature 绑了 `neuron` + `candle`。所以「移动端该嵌哪个」是个需要决策的事，不是显然的替换。
 
 **宿主 JVM 直测（2026-10-28 补上，`prefrontal` 仓 `scripts/jni-host-test/`）**：模拟器跑不起来时，「`.so` 编出来了」和「Kotlin 真的调得到」之间会断一层 —— JNI 是**按名字**解析符号的（`Java_<包名>_<类名>_<方法名>`），符号名写错的话 `llvm-nm` 看得到符号、Kotlin 一调却 `UnsatisfiedLinkError`。做法是把同一个 Rust cdylib 交给**宿主 JVM**，用与 Kotlin 侧同包同名的 Java 类去调，验证符号解析、`String` 编解码（含中文与 emoji 等增补平面字符）、`byte[]` 回写、mini HTTP server 起来了、以及 JNI → Rust → HTTP → mock LLM → 原路返回的端到端往返。**12 项断言全绿**。
 

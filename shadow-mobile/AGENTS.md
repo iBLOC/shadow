@@ -1,5 +1,6 @@
 # PROJECT KNOWLEDGE BASE — shadow-mobile
 
+**Updated:** 2026-10-28 (补上 **嵌入式 Prefrontal 运行时**（NDK `.so`）这条支线：MethodChannel/JNI 链路、`.so` 来源与缺失降级、以及它在整体架构里的位置 —— 移动端主链是端脑 telencephalon，嵌入支线跑的是前额叶；桌面端已升级为嵌大脑 `encephalon`，**两端嵌入的运行时目前不一致**。另：补上 `com.ibloc.shadow/prefrontal_runtime` channel（此前漏登记）)
 **Updated:** 2026-09-25 (post-audit-cycle: telencephalon-centric view confirmed; port `:60080` unified; references [`2026-09-25-e2e-coverage-assessment.md`](../../docs/superpowers/architecture/2026-09-25-e2e-coverage-assessment.md))
 **Project:** shadow-mobile (Layer 4 Interaction + thin on-device Engine via Kotlin Native)
 
@@ -11,6 +12,7 @@ Shadow-Mobile is the **Interaction Layer (Layer 4)** mobile client of the Shadow
 
 - **Agent Orchestrator (Telencephalon, Layer 3.5)** via `/api/telencephalon/*` — **primary** path; the mobile app routes most agent / flow / MCP / conversation / discovery operations through telencephalon
 - **Agent Layer (Prefrontal)** via OpenAI `/v1/*` and A2A — **fallback** when telencephalon unreachable (note: `dacbe83` removed automatic fallback for `continue-on-desktop`)
+- **Embedded Prefrontal runtime** as an in-process NDK `.so` — a **third** path, for running an agent on-device with no remote server (see §EMBEDDED PREFRONTAL RUNTIME). Note this embeds a *lobe* (prefrontal), not the brain (encephalon) that shadow-desktop embeds
 - **Local inference** via Kotlin `OpenAIServer.kt` (MNN / LiteRT bindings) on `:8085` when in **Phone-as-Engine** opt-in mode
 
 **Reference**: `/home/ibloc/Projects/docs/superpowers/specs/2026-06-04-shadow-architecture-redesign.md`
@@ -297,9 +299,30 @@ The `main_agent` is intentionally thin — for any non-trivial task (file ops, c
 | `com.ibloc.shadow/pcm_audio` | Audio recording control |
 | `com.ibloc.shadow/pcm_audio_stream` | Audio data stream (EventChannel) |
 | `com.ibloc.shadow/http_server` | Mobile action server |
+| `com.ibloc.shadow/prefrontal_runtime` | 嵌入式 Prefrontal 运行时（NDK `.so`）：`start` / `stop` / `isHealthy` / `getStatus` / `registerAgent` / `invokeAgent` / `startAndroidService` / `stopAndroidService` |
 | `com.ibloc.shadow/engine` | Phone-as-Engine OpenAI server: `startServer` / `stopServer` / `isServerRunning` / `getServerUrl` / `getApiKey` / `setApiKey` / `setAuthEnabled` / `getServiceName` |
 | `com.ibloc.shadow/ble_provision` | **v2.5** — `provision(ssid, psk)` writes shadow-esp32 Wi-Fi creds via GATT |
 | `com.ibloc.shadow/usb_audio` | **v2.5** — `listRoutes` / `routeTo(id)` route Android audio to shadow-esp32 USB sink |
+
+## EMBEDDED PREFRONTAL RUNTIME (NDK `.so`, 2026-10-28)
+
+手机进程内嵌一份 Prefrontal（前额叶）运行时，让 agent 能力在**没有远端服务器**时也能用。
+
+```
+Flutter → MethodChannel(com.ibloc.shadow/prefrontal_runtime)
+        → PrefrontalRuntimeService (Kotlin)
+        → JNI (Java_com_ibloc_shadow_PrefrontalRuntime_*)
+        → libprefrontal_core_lib.so (Rust, 40MB/ABI)
+        → axum mini HTTP server (127.0.0.1:<port>)
+```
+
+- **Dart 侧**：`lib/services/prefrontal/prefrontal_mobile_service.dart`（MethodChannel + HTTP 客户端）、`prefrontal_mobile_provider.dart`（Riverpod 状态）、`prefrontal_mobile_cluster_page.dart`（管理页）
+- **入口**：路由 `/settings/prefrontal`，从「设置 → 嵌入式 Prefrontal」进
+- **Kotlin 侧**：`android/app/src/main/kotlin/com/ibloc/shadow/PrefrontalRuntime.kt`（6 个 `external fun`）+ `PrefrontalRuntimeService.kt`
+- **`.so` 不入库**：兄弟仓 [prefrontal](https://github.com/iBLOC/prefrontal) 的构建产物，按需用它的 `scripts/build-android.sh` 编，拷到 `android/app/src/main/jniLibs/<abi>/`。名字必须是 `prefrontal_core_lib`（Kotlin 侧 `System.loadLibrary("prefrontal_core_lib")`）
+- **`.so` 缺失不崩**：`PrefrontalRuntime` 的 `init{}` 不重抛 `loadLibrary` 失败，各 native 调用点自己 catch `UnsatisfiedLinkError`，错误落进 `MainActivity` 已有的 `SO_NOT_LOADED` 分支
+
+**这条支线在整体架构里的位置（重要）**：移动端**主链**是端脑 telencephalon（`:60080`，见 `engine_models_provider.dart`「Telencephalon is the single platform entry point」），prefrontal 在 HTTP 侧只是 fallback（`:8082`）。嵌入支线跑的却是**前额叶**——即 telencephalon 管的 lobe 之一，不是「大脑」本身。桌面端已经升级为嵌**大脑**（`encephalon::Embedded::boot()`），所以**两端嵌入的运行时目前不是同一个**。是否要把移动端也改成嵌大脑，尚未决策，见根 `AGENTS.md` §「移动端嵌入式前额叶」的跨端不一致一节。
 
 ## MULTIMODAL INPUT
 
