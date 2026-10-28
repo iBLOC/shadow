@@ -77,6 +77,168 @@ export type TaskStepTarget =
       timeout_ms?: number | null;
     };
 
+/**
+ * Wire shape of a hippocampus task.
+ *
+ * `hippocampus-core/src/task.rs` puts
+ * `#[serde(rename_all = "camelCase")]` on both `TaskRecord` and
+ * `TaskStep`, and `#[serde(tag = "type", rename_all = "snake_case")]` plus
+ * per-variant `rename_all = "camelCase"` on `StepTarget`. So the server
+ * speaks camelCase; the `Task` / `TaskStep` interfaces above are the
+ * UI-facing snake_case shape. The mappers below are the only place that
+ * knows the difference.
+ *
+ * The snake_case spellings are accepted as fallbacks so the client keeps
+ * working if that serde attribute is ever dropped.
+ */
+interface TaskRecordWire {
+  taskId?: string;
+  task_id?: string;
+  source?: string;
+  targetAgent?: string;
+  target_agent?: string;
+  status?: string;
+  tenantId?: string;
+  tenant_id?: string;
+  receivedAt?: string;
+  received_at?: string;
+  completedAt?: string | null;
+  completed_at?: string | null;
+  result?: unknown;
+  error?: string | null;
+  payload?: unknown;
+  tags?: string[];
+  steps?: TaskStepWire[];
+  [k: string]: unknown;
+}
+
+interface TaskStepWire {
+  stepId?: string;
+  step_id?: string;
+  order?: number;
+  dependsOn?: string[];
+  depends_on?: string[];
+  status?: string;
+  startedAt?: string | null;
+  started_at?: string | null;
+  completedAt?: string | null;
+  completed_at?: string | null;
+  result?: unknown;
+  error?: string | null;
+  target?: Record<string, unknown>;
+  [k: string]: unknown;
+}
+
+function mapStepTarget(wire: unknown): TaskStepTarget | undefined {
+  if (!wire || typeof wire !== 'object') return undefined;
+  const raw = wire as Record<string, unknown>;
+  if (raw.type === 'tool') {
+    return {
+      type: 'tool',
+      tool_name: (raw.toolName ?? raw.tool_name) as string | undefined,
+      args: raw.args,
+      timeout_ms: (raw.timeoutMs ?? raw.timeout_ms) as number | null | undefined,
+    };
+  }
+  return {
+    type: 'agent',
+    skill: raw.skill as string | undefined,
+    lobe_id: (raw.lobeId ?? raw.lobe_id) as string | null | undefined,
+    prompt: raw.prompt as string | undefined,
+    inputs: raw.inputs,
+  };
+}
+
+export function mapTaskStep(wire: TaskStepWire): TaskStep {
+  const dependsOn = Array.isArray(wire.dependsOn)
+    ? wire.dependsOn
+    : Array.isArray(wire.depends_on)
+      ? wire.depends_on
+      : undefined;
+  return {
+    step_id: String(wire.stepId ?? wire.step_id ?? ''),
+    order: typeof wire.order === 'number' ? wire.order : 0,
+    depends_on: dependsOn ? dependsOn.map((d) => String(d)) : undefined,
+    status: (wire.status ?? 'pending') as Task['status'],
+    started_at: (wire.startedAt ?? wire.started_at) as string | null | undefined,
+    completed_at: (wire.completedAt ?? wire.completed_at) as string | null | undefined,
+    result: wire.result,
+    error: (wire.error ?? null) as string | null,
+    target: mapStepTarget(wire.target),
+  };
+}
+
+export function mapTask(wire: TaskRecordWire): Task {
+  const mapped: Task = {
+    task_id: String(wire.taskId ?? wire.task_id ?? ''),
+    source: (wire.source ?? 'local') as Task['source'],
+    target_agent: String(wire.targetAgent ?? wire.target_agent ?? ''),
+    status: (wire.status ?? 'pending') as Task['status'],
+    tenant_id: String(wire.tenantId ?? wire.tenant_id ?? 'default'),
+    received_at: String(wire.receivedAt ?? wire.received_at ?? ''),
+    completed_at: (wire.completedAt ?? wire.completed_at ?? null) as string | null,
+    result: wire.result,
+    error: (wire.error ?? null) as string | null,
+    payload: wire.payload,
+    tags: Array.isArray(wire.tags) ? wire.tags.map((t) => String(t)) : undefined,
+    steps: Array.isArray(wire.steps) ? wire.steps.map(mapTaskStep) : undefined,
+  };
+  return mapped;
+}
+
+/**
+ * `TaskStepTarget.type` is optional on both union members, so the
+ * compiler cannot narrow the union by discriminant alone. Read the
+ * members through a plain record instead.
+ */
+function toStepTargetWire(target: TaskStepTarget | undefined): Record<string, unknown> | undefined {
+  if (!target) return undefined;
+  const raw = target as unknown as Record<string, unknown>;
+  if (raw.type === 'tool') {
+    return {
+      type: 'tool',
+      toolName: raw.tool_name,
+      args: raw.args ?? null,
+      timeoutMs: raw.timeout_ms ?? null,
+    };
+  }
+  return {
+    type: 'agent',
+    skill: raw.skill,
+    lobeId: raw.lobe_id ?? null,
+    prompt: raw.prompt,
+    inputs: raw.inputs ?? null,
+  };
+}
+
+/** Inverse of {@link mapTask} — the shape `UpsertTaskRequest` expects. */
+export function toTaskRecordWire(task: Task, tenantId: string): Record<string, unknown> {
+  return {
+    taskId: task.task_id,
+    source: task.source ?? 'local',
+    targetAgent: task.target_agent,
+    status: task.status,
+    tenantId,
+    receivedAt: task.received_at,
+    completedAt: task.completed_at ?? null,
+    result: task.result ?? null,
+    error: task.error ?? null,
+    payload: task.payload ?? null,
+    tags: task.tags ?? [],
+    steps: (task.steps ?? []).map((s) => ({
+      stepId: s.step_id,
+      order: s.order,
+      dependsOn: s.depends_on ?? [],
+      status: s.status,
+      startedAt: s.started_at ?? null,
+      completedAt: s.completed_at ?? null,
+      result: s.result ?? null,
+      error: s.error ?? null,
+      target: toStepTargetWire(s.target),
+    })),
+  };
+}
+
 export interface ApiEnvelope<T> {
   success: boolean;
   data?: T;
@@ -371,11 +533,17 @@ export class PrefrontalClient {
   }
 
   async listTasks(tenantId: string = 'default'): Promise<Task[]> {
-    return this.request<Task[]>(`/hippocampus/api/tasks?tenantId=${encodeURIComponent(tenantId)}`);
+    const wire = await this.request<TaskRecordWire[]>(
+      `/hippocampus/api/tasks?tenantId=${encodeURIComponent(tenantId)}`
+    );
+    return wire.map(mapTask);
   }
 
   async getTask(tenantId: string, taskId: string): Promise<Task> {
-    return this.request<Task>(`/hippocampus/api/tasks/${encodeURIComponent(tenantId)}/${encodeURIComponent(taskId)}`);
+    const wire = await this.request<TaskRecordWire>(
+      `/hippocampus/api/tasks/${encodeURIComponent(tenantId)}/${encodeURIComponent(taskId)}`
+    );
+    return mapTask(wire);
   }
 
   /**
@@ -391,17 +559,26 @@ export class PrefrontalClient {
     updates: Partial<Pick<Task, 'status' | 'tags' | 'title' | 'description' | 'priority' | 'metadata' | 'steps' | 'payload' | 'result' | 'error'>>,
   ): Promise<Task> {
     const current = await this.getTask(tenantId, taskId);
-    const body = {
+    const merged: Task = {
       ...current,
       ...updates,
-      task_id: current.task_id,
+      task_id: current.task_id || taskId,
       target_agent: current.target_agent,
       tenant_id: tenantId,
     };
-    return this.request<Task>('/hippocampus/api/tasks', {
+    const body = toTaskRecordWire(merged, tenantId);
+    // Frontend-only fields: the server's `UpsertTaskRequest` has no such
+    // columns and serde ignores unknown fields, so these are dropped —
+    // they only round-trip in the client cache.
+    if (updates.title !== undefined) body.title = updates.title;
+    if (updates.description !== undefined) body.description = updates.description;
+    if (updates.priority !== undefined) body.priority = updates.priority;
+    if (updates.metadata !== undefined) body.metadata = updates.metadata;
+    const wire = await this.request<TaskRecordWire>('/hippocampus/api/tasks', {
       method: 'POST',
       body: JSON.stringify(body),
     });
+    return mapTask(wire);
   }
 
   async deleteTask(tenantId: string, taskId: string): Promise<void> {
