@@ -1,6 +1,7 @@
 # PROJECT KNOWLEDGE BASE
 
 **Generated:** 2026-03-21
+**Updated:** 2026-10-28 (移动端 l10n 全量收口：220+ 处硬编码中文接入 `AppLocalizations`，arb 179→441 key；测试断言改走 `l10nOf(tester)` 不再写死中英文；修 `arb` 里 `openVoiceMode` 重复键（JSON 后者覆盖前者）；`currentL10n()` 改用 `PlatformDispatcher.instance`（`WidgetsBinding.instance` 要求 binding 已初始化，纯 Dart 单测与后台 isolate 会抛）；孤儿页处理 —— 嵌入式 Prefrontal 页接进路由 `/settings/prefrontal`，外部进程架构三件套（死代码）删除；`prefrontal` 仓新增**宿主 JVM 直测 JNI**（模拟器不可用时的替代验证，12 项断言全绿），顺带修一个真 bug：provider 与 agent 用的不是同一份 `LlmConfig`，导致嵌入式运行时永远指向 `api.openai.com` 且无 key)
 **Updated:** 2026-10-28 (移动端测试从 173/28 修到 **201/201 全绿**并接入 CI：修 3 处真实代码 bug —— `AgentsResponse` 的 legacy `cortex` 键 fallback 写成了重复的 `telencephalon`、`AppConfigService` 解析失败只重置了一个字段且 `init()` 被 `_isInitialized` 短路导致永不重载、`TelencephalonClient.listConversations` 把 JSON 数组强转 Map；另修 20 处文案断言（屏幕硬编码中文）、3 处缺 localization delegate、2 处 `pumpAndSettle` 撞无限动画超时；CI 新增 `Mobile Test` 作业。同日修复移动端打包缺陷：`externalNativeBuild.cmake.path` 未设导致 Flutter 插件把 CMake 源目录改写成空模板，`libmnnbridge.so` 从未进过 APK)
 **Project:** shadow (影) - AI 用户分身系统
 **Spec version:** 2026-06-04 4-layer architecture (aligned with root `/AGENTS.md`)
@@ -280,7 +281,13 @@ CI 的 `Mobile Analyze` 作业固定 **Flutter 3.41.4（Dart 3.11.1）**（Dart 
 - 复刻 CI：`flutter analyze --no-fatal-infos --no-fatal-warnings` —— issues 全是 warning/info 才算过（2026-10-28：74 issues，无 error）
 - **CI 现在有移动端测试作业**（`Mobile Test`，2026-10-28 补上）。此前 `flutter test` 从未被任何自动化跑过，仓库里 201 个用例中 28 个是坏的，且**坏在三个方向**：① 多个屏幕（soul / mcp / skills / prompt-settings / model-settings / conversation）**硬编码中文文案**却断言英文；② 测试 MaterialApp 漏注册 `AppLocalizations.delegate` / `GlobalCupertinoLocalizations.delegate`，`AppLocalizations.of(context)!` 直接崩；③ `pumpAndSettle` 撞上 `CircularProgressIndicator` 这类无限动画必然超时。2026-10-28 全部修完，**201/201 全绿**（本地 exit 0）
 - Windows 上 `flutter pub get` 末尾会因缺符号链接支持退出 1（Developer Mode 未开）。依赖其实已解析完，`analyze` / `test` 不受影响；要跑桌面端构建需管理员执行 `reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock" /v AllowDevelopmentWithoutDevLicense /t REG_DWORD /d 1 /f`
-- 根 `.gitignore` 忽略了 `pubspec.lock`。Flutter 应用通常应当提交 lockfile —— 现在的状态意味着每次 CI 都重新解析依赖，构建不可复现
+- 根 `.gitignore` 原本忽略 `pubspec.lock` —— **2026-10-28 已改**（`dd16ffe`）：忽略规则移除、锁文件入库（48265 B），构建可复现了
+- **移动端 l10n（2026-10-28 完成）**：移动端原先有 220+ 处硬编码中文（14 个屏幕 + features/ + widgets/chat/ + provider/service 层），英文界面下照样露中文。现已全部接入 `AppLocalizations`，arb 从 179 key 增到 **441 key**（`lib/l10n/app_en.arb` / `app_zh.arb`，`flutter gen-l10n` 生成到 `lib/generated/l10n/`）。
+  - **有意保留中文的地方**：LLM 提示词与工具描述（`lib/agents/`）、关键词匹配表（`mnn_agent_integration.dart` 的 `_localKeywords`、`wake_word_service.dart`）、内部日志（`_log.info`）。这些不是 UI 文案。
+  - **拿不到 `BuildContext` 的地方**（provider / notifier / model）用 `lib/l10n/current_l10n.dart` 的 `currentL10n()`。它读 `PlatformDispatcher.instance.locale` 而不是 `WidgetsBinding.instance.platformDispatcher` —— 后者要求 binding 已初始化，纯 Dart 单测和后台 isolate 里都会抛 "Binding has not yet been initialized"。
+  - **测试断言不要写死中英文**：用 `test/widget/test_helper.dart` 的 `l10nOf(tester)`（取 widget 树里的 `AppLocalizations`）——翻译一改测试不用跟着改。
+  - **`arb` 里不能有重复 key**：`openVoiceMode` 曾在 HEAD 里写了两遍，JSON 后者覆盖前者，代码实际拿到的是被遮住的那份。已改名 `openVoiceAssistant`。
+- **`flutter test` 的两个本地坑**：① 上一次 `flutter test` 的输出管道被提前关闭会留下 `flutter_tester` 残留进程，占着 `build/native_assets/windows/sqlite3.dll`，下次跑会报 `PathExistsException: 当文件已存在时，无法创建该文件`。先 `Get-Process flutter_tester | Stop-Process` 再重跑。② `mavis-trash` 对 `build/` 下的文件会报「指定的路径无效」，清不掉就用 `flutter clean` + `flutter pub get`。
 
 ## Android 打包环境与 APK 验收
 
@@ -336,7 +343,20 @@ CI 的 `Mobile Analyze` 作业固定 **Flutter 3.41.4（Dart 3.11.1）**（Dart 
 
 **`.so` 缺失时必须优雅降级**：`PrefrontalRuntime` 的 companion `init{}` **不要重抛** `loadLibrary` 的失败 —— 重抛会让类初始化失败，之后每次访问变成 `NoClassDefFoundError`，而调用方接的是 `UnsatisfiedLinkError`（Error 不是 Exception，`catch (e: Exception)` 接不住）→ App 崩。现状是：不重抛 + 5 个 native 调用点各自 catch `UnsatisfiedLinkError`，于是错误以正确形态落进 `MainActivity` 已有的 `SO_NOT_LOADED` 分支。
 
-**已知缺口**：`prefrontal_mobile_cluster_page.dart` 是孤儿页（Dart 里没有任何引用）；CI 不构建 Rust，所以 CI 出的 APK 没有这个 `.so`。
+**宿主 JVM 直测（2026-10-28 补上，`prefrontal` 仓 `scripts/jni-host-test/`）**：模拟器跑不起来时，「`.so` 编出来了」和「Kotlin 真的调得到」之间会断一层 —— JNI 是**按名字**解析符号的（`Java_<包名>_<类名>_<方法名>`），符号名写错的话 `llvm-nm` 看得到符号、Kotlin 一调却 `UnsatisfiedLinkError`。做法是把同一个 Rust cdylib 交给**宿主 JVM**，用与 Kotlin 侧同包同名的 Java 类去调，验证符号解析、`String` 编解码（含中文与 emoji 等增补平面字符）、`byte[]` 回写、mini HTTP server 起来了、以及 JNI → Rust → HTTP → mock LLM → 原路返回的端到端往返。**12 项断言全绿**。
+
+```powershell
+$env:JAVA_HOME='C:\src\jdk17'
+& C:\Projects\iBLOC\prefrontal-wt-jni\scripts\jni-host-test\run.ps1
+```
+
+为此 `prefrontal` 的 `jni` 从「仅 Android target 的依赖」改成 `mobile` feature 的可选依赖（`mobile = ["dep:jni"]`），`Cargo.lock` 不用动（lock 格式不分 dev / 普通依赖）。
+
+**嵌入式运行时的 LLM 端点（2026-10-28 修）**：`prefrontal_mobile_register_agent` 里 provider 用的是 `OpenAiProvider::new(&LlmConfig::default())`，和传给 agent 的 `llm_config` 是**两个不同对象** —— 于是请求地址永远是 `api.openai.com`、永远没有 key，嵌入式运行时此前调不通任何模型。现在 provider 与 agent 共用同一份 `llm_config`，端点 / 密钥从 `PREFRONTAL_LLM_BASE_URL` / `PREFRONTAL_LLM_API_KEY` 读（不设就是原默认值）。
+
+**孤儿页已处理（2026-10-28）**：`prefrontal_mobile_cluster_page.dart` 之前是孤儿页，但它是嵌入式大脑的唯一 UI，而嵌入式大脑正是活链路 —— 所以**接进路由**（`/settings/prefrontal`，设置页有入口），而不是删掉。另一套「外部进程架构」的 `prefrontal_cluster_page.dart` / `prefrontal_provider.dart` / `prefrontal_service.dart` 构成自引用闭环、零外部引用，已连同 ~107 处硬编码中文一起删除；`lib/services/prefrontal/README.md` 重写成实际架构。
+
+**已知缺口**：CI 不构建 Rust，所以 CI 出的 APK 没有这个 `.so`。另 3 个 ABI（x86_64 / armeabi-v7a / x86）尚未构建，每 ABI 约 10 分钟。
 
 ## 环境变量
 
