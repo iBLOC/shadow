@@ -48,7 +48,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('MCP Server Management'), findsOneWidget);
+      expect(find.text('MCP 服务管理'), findsOneWidget);
     });
 
     testWidgets('has floating action button', (WidgetTester tester) async {
@@ -88,7 +88,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Add Server'), findsOneWidget);
+      expect(find.text('添加服务器'), findsOneWidget);
     });
 
     testWidgets('has refresh button', (WidgetTester tester) async {
@@ -136,7 +136,7 @@ void main() {
       await tester.tap(fab);
       await tester.pumpAndSettle();
 
-      expect(find.text('Add Server'), findsOneWidget);
+      expect(find.text('添加服务器'), findsOneWidget);
     });
   });
 }

@@ -34,7 +34,11 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      // ChatScreen shows a CircularProgressIndicator while the model warms
+      // up — that animation never settles, so pumpAndSettle would time out.
+      // Bounded pumps are enough to get past the first layout.
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
       expect(find.byType(Scaffold), findsOneWidget);
     });
 

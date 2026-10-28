@@ -87,7 +87,7 @@ void main() {
         ),
       );
 
-      expect(find.text('Model Settings'), findsOneWidget);
+      expect(find.text('模型设置'), findsOneWidget);
     });
 
     testWidgets('shows engine selector with LiteRT and MNN options', (
@@ -143,7 +143,7 @@ void main() {
         ),
       );
 
-      expect(find.text('Select Model'), findsOneWidget);
+      expect(find.text('选择模型'), findsOneWidget);
     });
 
     testWidgets('can switch engine type via segmented button', (

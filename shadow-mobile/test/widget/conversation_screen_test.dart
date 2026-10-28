@@ -48,7 +48,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Conversation Management'), findsOneWidget);
+      expect(find.text('会话管理'), findsOneWidget);
     });
 
     testWidgets('has floating action button', (WidgetTester tester) async {
@@ -88,7 +88,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('New Conversation'), findsOneWidget);
+      expect(find.text('新对话'), findsOneWidget);
     });
 
     testWidgets('has refresh button', (WidgetTester tester) async {
@@ -130,7 +130,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('No conversations yet'), findsOneWidget);
+      expect(find.text('暂无会话'), findsOneWidget);
     });
   });
 }

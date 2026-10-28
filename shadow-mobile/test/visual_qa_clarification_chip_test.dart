@@ -1,13 +1,30 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shadow_mobile/generated/l10n/app_localizations.dart';
 import 'package:shadow_mobile/services/telencephalon/telencephalon_client.dart';
 import 'package:shadow_mobile/widgets/visual_qa_clarification_chip.dart';
+
+/// The chip reads `AppLocalizations.of(context)!`, so the test app has to
+/// register the generated delegate — otherwise it throws a null check error.
+MaterialApp _localizedApp(Widget child) {
+  return MaterialApp(
+    localizationsDelegates: const [
+      AppLocalizations.delegate,
+      GlobalMaterialLocalizations.delegate,
+      GlobalWidgetsLocalizations.delegate,
+    ],
+    supportedLocales: const [Locale('en')],
+    locale: const Locale('en'),
+    home: child,
+  );
+}
 
 void main() {
   group('VisualQaClarificationChip', () {
     testWidgets('renders candidates as outlined buttons', (tester) async {
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
+      await tester.pumpWidget(_localizedApp(
+        Scaffold(
           body: VisualQaClarificationChip(
             clarification: ClarificationPayload(
               kind: 'vsrc_pick',
@@ -43,8 +60,8 @@ void main() {
 
     testWidgets('onPick fires with the chosen candidate', (tester) async {
       ClarificationCandidate? picked;
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
+      await tester.pumpWidget(_localizedApp(
+        Scaffold(
           body: VisualQaClarificationChip(
             clarification: const ClarificationPayload(
               kind: 'vsrc_pick',
