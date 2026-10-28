@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:logging/logging.dart';
 import 'package:path_provider/path_provider.dart';
 import '../model_manager.dart';
 import '../features/models/screens/model_list_screen.dart';
@@ -11,8 +12,9 @@ import '../tts_engine.dart';
 import '../multimodal/multimodal.dart';
 import '../litert_model.dart';
 import '../screens/model_management_screen.dart';
-import '../services/prefrontal_client.dart';
+import '../services/telencephalon/telencephalon_client.dart';
 import 'conversation_mode_provider.dart';
+import 'telencephalon_provider.dart';
 import '../l10n/current_l10n.dart';
 
 /// Chat message model for the UI
@@ -153,12 +155,23 @@ class _CopyWithOmit {
 
 /// Chat notifier
 class ChatNotifier extends StateNotifier<ChatState> {
+  static final _log = Logger('ChatNotifier');
+
   final LitertEngine _litertEngine;
   final TtsEngine _ttsEngine;
-  final PrefrontalClient _prefrontalClient;
+
+  /// 端脑 client —— 对话走**端脑方言**（`/shadow/v1/conversations`），
+  /// 与桌面端同一条链路，也正是嵌入式大脑挂起来的那条面。
+  ///
+  /// 之前这里用的是 `PrefrontalClient`（前额叶方言：
+  /// `/api/sessions` + `/hippocampus/api/sessions`）—— 那条路在
+  /// 「改嵌大脑」之后不存在了：端脑面是 `/shadow/v1/*`。
+  final TelencephalonClient _telencephalonClient;
   final MultimodalInputManager _multimodalManager = MultimodalInputManager();
   final LiteRTDownloadService _downloadService = LiteRTDownloadService();
   final ModelsNotifier? _modelsNotifier;
+
+  /// 端脑侧的会话 id（`/shadow/v1/conversations/{id}`）。
   String? _currentSessionId;
 
   bool _isDownloading = false;
@@ -166,7 +179,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
   ChatNotifier(
     this._litertEngine,
     this._ttsEngine,
-    this._prefrontalClient, {
+    this._telencephalonClient, {
     bool skipInit = false,
     bool litertReady = false,
     ModelsNotifier? modelsNotifier,
@@ -722,36 +735,46 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
       if (attachments.isEmpty) {
         try {
-          _currentSessionId ??= (await _prefrontalClient.createSession()).id;
+          // 端脑（嵌入式大脑）侧的会话 —— `/shadow/v1/conversations`。
+          //
+          // 与桌面端同一条链路：桌面端的 `ConversationPage.tsx` 也是
+          // `createConversation` + `streamMessage`，人设提示词走
+          // `createConversation({ system })`。
+          _currentSessionId ??=
+              (await _telencephalonClient.createConversation()).id;
           if (_currentSessionId != null) {
             state = state.copyWith(sessionId: _currentSessionId);
-            await _prefrontalClient.addSessionMessage(
-              sessionId: _currentSessionId!,
-              role: 'user',
-              content: prompt,
-            );
 
-            StringBuffer streamedResponse = StringBuffer();
+            final buffer = StringBuffer();
             state = state.copyWith(streamingText: '');
 
-            await for (final chunk in _prefrontalClient.processMessageStream(
-              sessionId: _currentSessionId!,
-              message: prompt,
-              useTools: false,
+            await for (final event in _telencephalonClient.streamMessage(
+              _currentSessionId!,
+              SendMessageRequest(text: prompt),
             )) {
-              if (chunk.startsWith('error:')) {
-                throw Exception(chunk);
+              switch (event.type) {
+                case 'delta':
+                  final delta = event.delta ?? '';
+                  if (delta.isEmpty) break;
+                  buffer.write(delta);
+                  state = state.copyWith(streamingText: buffer.toString());
+                  break;
+                case 'error':
+                  throw Exception(
+                    event.error ?? currentL10n().chatSorryErrorShort,
+                  );
+                default:
+                  // tool_call / tool_result / route / handoff / step 等
+                  // 进度事件：移动端目前不渲染，先记一条日志。
+                  _log.fine('stream event: ${event.type}');
               }
-              streamedResponse.write(chunk);
-              state = state.copyWith(
-                streamingText: streamedResponse.toString(),
-              );
             }
 
-            response = streamedResponse.toString();
-            httpSuccess = true;
+            response = buffer.toString();
+            httpSuccess = response.isNotEmpty;
           }
         } catch (e) {
+          _log.warning('端脑对话失败, 回退到本地模型: $e');
           state = state.copyWith(streamingText: '');
         }
       }
@@ -894,7 +917,7 @@ final chatProvider = StateNotifierProvider<ChatNotifier, ChatState>((ref) {
   return ChatNotifier(
     ref.watch(litertEngineProvider),
     ref.watch(ttsEngineProvider),
-    ref.watch(prefrontalClientProvider),
+    ref.watch(telencephalonClientProvider),
   );
 });
 

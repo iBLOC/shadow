@@ -3,21 +3,40 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import '../l10n/current_l10n.dart';
 
-/// Telencephalon API Client
-/// All backend endpoints are served by telencephalon (port 60080).
-/// Task, memory, and session endpoints are served by the embedded
-/// hippocampus at /hippocampus/*.
-
 /// hippocampus 的任务按租户分区。默认租户与桌面端
 /// `taskBoardDataStore` 的 `DEFAULT_TENANT` 保持一致。
 const String defaultTaskTenantId = 'default';
 
+/// Telencephalon API Client
+/// All backend endpoints are served by telencephalon (port 60080).
+/// Task, memory, and session endpoints are served by the embedded
+/// hippocampus at /hippocampus/*.
+///
+/// **方言警告（2026-10-28）**：这个类说的是**前额叶方言**，不是端脑
+/// 方言 —— 路径是 `/api/sessions`、`/api/agents`、`/api/skills`、
+/// `/api/providers`、`/api/soul/*`、`/api/mcp/servers`、
+/// `/hippocampus/api/*`。而嵌入式大脑挂起来的那条面（端脑的
+/// `cortex_router`）说的是**端脑方言**：`/shadow/v1/*`、
+/// `/api/telencephalon/*`、`/models/providers`。
+///
+/// 两者**没有交集**。所以「改嵌大脑」之后，这个 client **不能**指向
+/// 嵌入式大脑的端脑面 —— 那样只会把「连接被拒」换成「404」。
+/// 已经迁到端脑方言的调用见 `TelencephalonClient`。
+///
+/// 仍然留在这里的那些（soul / tasks / memory / providers / skills /
+/// mcp / agents 列表页）在端脑里**没有对应概念**，需要单独决定由
+/// 零信任网络里的哪个服务提供（记忆按用户的要求走网络上的
+/// hippocampus，不在移动端本地）。
 class PrefrontalClient {
+  /// 端脑的默认地址 —— 外部 telencephalon 进程（:60080）。
+  static const String defaultBaseUrl = 'http://localhost:60080';
+
+  /// 端脑地址。
   final String baseUrl;
   final http.Client _client;
 
   PrefrontalClient({String? baseUrl, http.Client? client})
-    : baseUrl = baseUrl ?? 'http://localhost:60080',
+    : baseUrl = baseUrl ?? defaultBaseUrl,
       _client = client ?? http.Client();
 
   /// 基础请求方法

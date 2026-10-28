@@ -72,9 +72,10 @@ class EncephalonRuntime {
 
     // ==================== JNI 声明 ====================
 
-    private external fun nativeStart(preferredPort: Int): Int
+    private external fun nativeStart(preferredPort: Int, dataDir: String): Int
     private external fun nativeStop(): Int
     private external fun nativeGetPort(): Int
+    private external fun nativeGetAgentPort(): Int
     private external fun nativeHealthCheck(): Int
     private external fun nativeInfer(
         path: String,
@@ -89,10 +90,24 @@ class EncephalonRuntime {
     private var currentPort: Int = 0
 
     @Volatile
+    private var currentAgentPort: Int = 0
+
+    @Volatile
     private var isRunning: Boolean = false
 
     /** neuron 的 HTTP 面端口（OpenAI 兼容面）。 */
     fun getPort(): Int = currentPort
+
+    /**
+     * 端脑 HTTP 面端口（shadow API + A2A gateway + agent 管理）。
+     *
+     * 移动端不再依赖外部 telencephalon 进程 —— 同一套端脑就跑在 App
+     * 进程里，这个端口就是它。
+     *
+     * 0 = 端脑面没起来（但大脑本体在跑，neuron 面照常用）；
+     * -2 = 大脑整个没在跑。
+     */
+    fun getAgentPort(): Int = currentAgentPort
 
     /** 运行时是否已启动。 */
     fun isRunning(): Boolean = isRunning
@@ -114,14 +129,29 @@ class EncephalonRuntime {
      * 启动嵌入式大脑。
      *
      * @param preferredPort neuron HTTP 面的期望端口；0 = 随机。
+     * @param dataDir App 的私有目录（Android 上是 `context.filesDir`）。
+     *   端脑的 flow（工作流）存储要写在那里 —— Android 没有 `$HOME`，
+     *   进程工作目录是 `/`（不可写），不给目录 flow 就写不进去。
+     *   传 null 用默认位置。
      */
-    fun start(preferredPort: Int = 0): Boolean {
+    fun start(preferredPort: Int = 0, dataDir: String? = null): Boolean {
         return try {
-            val port = nativeStart(preferredPort)
+            val port = nativeStart(preferredPort, dataDir ?: "")
             if (port > 0) {
                 currentPort = port
                 isRunning = true
-                Log.i(TAG, "✅ Encephalon started on port $port")
+                // 端脑 HTTP 面（shadow API / A2A / agent 管理）的端口。
+                // 0 = 这条面没起来 —— 但大脑本体在跑，neuron 面照常用。
+                currentAgentPort = try {
+                    nativeGetAgentPort()
+                } catch (e: UnsatisfiedLinkError) {
+                    0
+                }
+                Log.i(
+                    TAG,
+                    "✅ Encephalon started on port $port " +
+                        "(agent surface: ${if (currentAgentPort > 0) currentAgentPort else "unavailable"})"
+                )
                 true
             } else {
                 Log.e(TAG, "❌ Failed to start Encephalon, returned: $port")
@@ -142,6 +172,7 @@ class EncephalonRuntime {
             val result = nativeStop()
             isRunning = false
             currentPort = 0
+            currentAgentPort = 0
             Log.i(TAG, "Encephalon stopped, result: $result")
             result == 0
         } catch (e: UnsatisfiedLinkError) {

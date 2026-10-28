@@ -719,12 +719,17 @@ class MainActivity : FlutterActivity() {
                 when (call.method) {
                     "start" -> {
                         val port = call.argument<Int>("port") ?: 0
+                        // App 私有目录 —— 端脑的 flow（工作流）存储要写在那里。
+                        // Android 没有 $HOME，进程工作目录是 /（不可写）。
+                        val dataDir = call.argument<String>("dataDir")
+                            ?: filesDir?.absolutePath
                         try {
                             val runtime = EncephalonRuntime.getInstance()
-                            val started = runtime.start(port)
+                            val started = runtime.start(port, dataDir)
                             result.success(mapOf(
                                 "success" to started,
-                                "port" to runtime.getPort()
+                                "port" to runtime.getPort(),
+                                "agentPort" to runtime.getAgentPort()
                             ))
                         } catch (e: UnsatisfiedLinkError) {
                             result.error("SO_NOT_LOADED", "Encephalon .so not loaded: ${e.message}", null)
@@ -763,12 +768,14 @@ class MainActivity : FlutterActivity() {
                             result.success(mapOf(
                                 "running" to runtime.isRunning(),
                                 "port" to runtime.getPort(),
+                                "agentPort" to runtime.getAgentPort(),
                                 "healthy" to runtime.isHealthy()
                             ))
                         } catch (e: Exception) {
                             result.success(mapOf(
                                 "running" to false,
                                 "port" to 0,
+                                "agentPort" to 0,
                                 "healthy" to false
                             ))
                         }

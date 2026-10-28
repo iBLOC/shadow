@@ -1,6 +1,7 @@
 # PROJECT KNOWLEDGE BASE
 
 **Generated:** 2026-03-21
+**Updated:** 2026-10-28 (移动端 agent 面切到嵌入式大脑 —— **两套「方言」问题查清并修掉**：移动端原有**两个** HTTP client，说的是**两种方言**：`PrefrontalClient` 说前额叶方言（`/api/sessions`、`/api/agents`、`/api/skills`、`/api/providers`、`/api/soul/*`、`/api/mcp/servers`、`/hippocampus/api/*`），`TelencephalonClient` 说端脑方言（`/shadow/v1/*`、`/api/telencephalon/*`、`/.well-known/agent.json`、`/api/flows`）。嵌入式大脑挂起来的那条面 = 端脑的 `cortex_router` → **只有端脑方言**。⇒ 把 `PrefrontalClient` 指过去只会把「连接被拒」换成「404」，本轮**不指**它；把**对话**与**会话列表**从前额叶方言迁到端脑方言（`chat_provider` 改走 `createConversation` + `streamMessage`，`conversation_screen` 改走 `listConversations`，与桌面端 `ConversationPage.tsx` 同一条链路）；Rust 侧 `start_agent_surface()` 在嵌入运行时里挂 `cortex_router`（127.0.0.1:0 随机端口），JNI 加 `nativeGetAgentPort` + `nativeStart(port, dataDir)`（Android 没有 `$HOME`、CWD 是 `/`，端脑的 flow 存储要显式给 App 私有目录），Dart 侧 `EncephalonMobileNotifier` 把端脑 client 的 baseUrl 改成 `http://127.0.0.1:<agentPort>`；**移动端不编本地海马体**（记忆走零信任网络内其它设备），⇒ `telencephalon` 把 `hippocampus-server` 改 optional，**Lance 退出移动端依赖图**；端脑**没有会话删除端点**（桌面端同样没有），移动端会话页的删除按钮移除)
 **Updated:** 2026-10-28 (移动端「改嵌大脑」落地：Rust 侧 `encephalon` 加 cdylib + JNI 壳 + `mobile` feature，产出 `libencephalon.so` 由 Kotlin 经 MethodChannel 加载，跑的是与桌面端同款的嵌入式大脑（thalamus + ACP 总线 + 端脑 + 单一 neuron），不再是前额叶 lobe；验证手段：无模拟器时的**宿主 JVM 直测 14/14 全绿** + 交叉编译 `.so` + APK 打包验收；shadow 侧新增 `/settings/encephalon` 运行时管理页与 5 项 widget 测试（`bafac3f`）；三个 PR 必须按 diencephalon → telencephalon → encephalon 顺序合并；CI 全红是缺 `IBLOC_TOKEN` secret 的**既有基线问题**，与本轮改动无关)
 **Updated:** 2026-10-28 (移动端 l10n 全量收口：220+ 处硬编码中文接入 `AppLocalizations`，arb 179→441 key；测试断言改走 `l10nOf(tester)` 不再写死中英文；修 `arb` 里 `openVoiceMode` 重复键（JSON 后者覆盖前者）；`currentL10n()` 改用 `PlatformDispatcher.instance`（`WidgetsBinding.instance` 要求 binding 已初始化，纯 Dart 单测与后台 isolate 会抛）；孤儿页处理 —— 嵌入式 Prefrontal 页接进路由 `/settings/prefrontal`，外部进程架构三件套（死代码）删除；`prefrontal` 仓新增**宿主 JVM 直测 JNI**（模拟器不可用时的替代验证，12 项断言全绿），顺带修一个真 bug：provider 与 agent 用的不是同一份 `LlmConfig`，导致嵌入式运行时永远指向 `api.openai.com` 且无 key)
 **Updated:** 2026-10-28 (移动端测试从 173/28 修到 **201/201 全绿**并接入 CI：修 3 处真实代码 bug —— `AgentsResponse` 的 legacy `cortex` 键 fallback 写成了重复的 `telencephalon`、`AppConfigService` 解析失败只重置了一个字段且 `init()` 被 `_isInitialized` 短路导致永不重载、`TelencephalonClient.listConversations` 把 JSON 数组强转 Map；另修 20 处文案断言（屏幕硬编码中文）、3 处缺 localization delegate、2 处 `pumpAndSettle` 撞无限动画超时；CI 新增 `Mobile Test` 作业。同日修复移动端打包缺陷：`externalNativeBuild.cmake.path` 未设导致 Flutter 插件把 CMake 源目录改写成空模板，`libmnnbridge.so` 从未进过 APK)
@@ -331,6 +332,35 @@ CI 的 `Mobile Analyze` 作业固定 **Flutter 3.41.4（Dart 3.11.1）**（Dart 
 **桌面端页面的孤儿问题**：`src/pages/` 下出现过两次"写好了但没人引用"的页面（`RecordingPage` 被 `RecordingPanel` 取代后遗留、`PromptSettingsPage` 从未挂路由）。`src/__tests__/pageRouting.test.ts` 现在会挡住这类问题：每个页面模块必须被路由挂载，每条路由必须指向存在的页面。
 
 **`scripts/ui-smoke.sh` 是"假绿"陷阱（2026-10-28 修复）**：它原本只判断 HTTP 200，而 Vite 对不存在的路径会回退到 index.html **同样返回 200**，所以缺失模块一律"通过"。现在改成从文件系统自动发现模块，并要求响应体不是 HTML 外壳。跑它需要先起 `pnpm dev`（脚本打的是 `http://localhost:1420`）。
+
+## 移动端 agent 面：两套「方言」与嵌入式大脑
+
+移动端有**两个** HTTP client，说的是**两种互不兼容的方言**。这是本轮最关键的事实 —— 搞混了就会出现「连接被拒」变「404」这种更难查的症状。
+
+| client | 方言 | 路径 | 谁在用 |
+|---|---|---|---|
+| `TelencephalonClient` | **端脑方言** | `/shadow/v1/*`、`/api/telencephalon/*`、`/.well-known/agent.json`、`/api/flows`、`/models/providers` | 对话、会话列表、flow、agent(lobe) 列表、会话迁移 |
+| `PrefrontalClient` | **前额叶方言** | `/api/sessions`、`/api/agents`、`/api/skills`、`/api/providers`、`/api/soul/*`、`/api/mcp/servers`、`/api/tasks`、`/api/conversations`、`/hippocampus/api/*` | soul / tasks / memory / providers / skills / mcp / agents 列表页、语音会话模式 |
+
+**嵌入式大脑挂起来的那条面 = 端脑的 `cortex_router`**（`telencephalon::boot::cortex_router`），所以它**只说端脑方言**。
+
+⇒ 规则：**端脑 client 指向嵌入式大脑；前额叶 client 不指**。把 `PrefrontalClient` 指过去毫无意义 —— 端脑面上一条前额叶路径都没有。
+
+**已迁移到端脑方言的**（2026-10-28）：
+
+- **对话**（`chat_provider.dart`）：`createConversation()` + `streamMessage()`（SSE `delta` 事件），与桌面端 `ConversationPage.tsx` 同一条链路。人设提示词走 `createConversation({ system })`。
+- **会话列表**（`conversation_screen.dart`）：`listConversations()`。
+- 端脑面**起不来时不动 client** —— 指向一个没人监听的端口比指向外部端脑更糟。
+
+**仍然留在前额叶方言的**（端脑里**没有对应概念**，需要单独决定由零信任网络里的哪个服务提供）：
+
+- soul / tasks / memory（hippocampus 概念 —— 记忆按用户的要求走网络上的 hippocampus，不在移动端本地）
+- providers / skills / mcp / agents 列表页（前额叶的管理面，端脑的对应路径是 `/api/telencephalon/providers`、`/api/telencephalon/mcp/servers`、`/api/telencephalon/agents`，**响应结构也不同**，迁移要连模型一起改）
+- 语音会话模式（`conversation_mode_provider.dart`）：WebSocket 走 `/api/sessions/{id}/audio` —— **端脑没有这个端点**，迁移前得先在端脑侧加。
+
+**端脑没有会话删除端点**：`/shadow/v1/conversations` 只有 create / list / get / messages / import，没有 DELETE；`ConversationStore` 也没有 delete（hippocampus 的 `SessionManager` 只有 `close_session`）。桌面端同样没提供这个操作。移动端会话页的删除按钮因此移除 —— 留着一个必然 404 的按钮不如不留；真要删，得先在端脑侧把「删会话」还是「close 会话」定下来。
+
+**移动端不编本地海马体**（记忆走零信任网络内其它设备）⇒ `telencephalon` 把 `hippocampus-server` 改 optional、`hippocampus-storage` 依赖直接删掉。**Lance 退出移动端依赖图**（实测 mobile profile 的构建日志里没有 `lance` crate）。但 **DataFusion / Arrow / Parquet 还在** —— 那是 `telencephalon` **自己**用的（皮层下数据网关的 SQL 引擎，`telencephalon/Cargo.toml` 里的 `datafusion = "55"`），不是 Lance 拖进来的。Lance 退出后，**armeabi-v7a 的硬阻断（`lance-core` 的 SIMD 探测没有 `target_arch = "arm"` 分支）消失**，armv7 从「原理上编不出来」变成「待实测」。
 
 ## 移动端嵌入式前额叶（Prefrontal .so）
 

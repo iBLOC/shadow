@@ -360,7 +360,11 @@ class FlowRunResult {
 }
 
 class TelencephalonClient {
-  static const String _defaultBaseUrl = 'http://127.0.0.1:60080';
+  /// 端脑的默认地址 —— 外部 telencephalon 进程（:60080）。
+  ///
+  /// 移动端「改嵌大脑」之后，嵌入式大脑起来时这个地址会被换成 App
+  /// 进程内那份端脑的地址（见 `EncephalonMobileNotifier`）。
+  static const String defaultBaseUrl = 'http://127.0.0.1:60080';
 
   String _baseUrl;
   String? _apiKey;
@@ -372,7 +376,7 @@ class TelencephalonClient {
     String? apiKey,
     String? adminToken,
     http.Client? client,
-  }) : _baseUrl = baseUrl ?? _defaultBaseUrl,
+  }) : _baseUrl = baseUrl ?? defaultBaseUrl,
        _apiKey = apiKey,
        _adminToken = adminToken,
        _http = client ?? http.Client();

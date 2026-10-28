@@ -35,10 +35,21 @@ class EncephalonMobileService {
   int? _port;
   bool _isRunning = false;
 
+  int? _agentPort;
+
   EncephalonMobileService({this.preferredPort});
 
   /// neuron HTTP 面（OpenAI 兼容）的端口。没在跑是 null。
   int? get port => _port;
+
+  /// 端脑 HTTP 面（shadow API + A2A gateway + agent 管理）的端口。
+  ///
+  /// 移动端「改嵌大脑」之后，App 的会话 / agent / MCP / skills 就走这条面
+  /// —— 同一套端脑跑在 App 进程里，不再依赖外部 telencephalon 进程。
+  ///
+  /// null = 大脑没在跑；0 = 大脑在跑但这条面没起来（此时 App 仍可用
+  /// neuron 面做推理，agent 面只能退回外部端脑）。
+  int? get agentPort => _agentPort;
 
   /// 运行时是否已启动。
   bool get isRunning => _isRunning;
@@ -46,7 +57,11 @@ class EncephalonMobileService {
   /// 启动嵌入式大脑。
   ///
   /// [preferredPort] 是 neuron HTTP 面的期望端口；null / 0 表示随机分配。
-  Future<bool> start() async {
+  ///
+  /// [dataDir] 是 App 的私有目录（Android 上是 `context.filesDir`）：
+  /// 端脑的 flow（工作流）存储要写在那里 —— Android 没有 `$HOME`，
+  /// 进程工作目录是 `/`（不可写），不给目录 flow 就写不进去。
+  Future<bool> start({int? preferredPort, String? dataDir}) async {
     if (_isRunning) {
       _log.warning('Encephalon 已在运行中');
       return true;
@@ -56,7 +71,10 @@ class EncephalonMobileService {
       _log.info('启动 Encephalon 嵌入式运行时...');
       final result = await _channel.invokeMethod<Map<dynamic, dynamic>>(
         'start',
-        {'port': preferredPort ?? 0},
+        {
+          'port': preferredPort ?? this.preferredPort ?? 0,
+          if (dataDir != null && dataDir.isNotEmpty) 'dataDir': dataDir,
+        },
       );
 
       if (result == null || result['success'] != true) {
@@ -65,8 +83,11 @@ class EncephalonMobileService {
       }
 
       _port = result['port'] as int?;
+      _agentPort = result['agentPort'] as int?;
       _isRunning = true;
-      _log.info('Encephalon 嵌入式运行时已启动, 端口: $_port');
+      _log.info(
+        'Encephalon 嵌入式运行时已启动, 端口: $_port, 端脑面: ${_agentPort ?? 0}',
+      );
       return true;
     } catch (e, stack) {
       _log.severe('启动 Encephalon 异常', e, stack);
@@ -86,6 +107,7 @@ class EncephalonMobileService {
 
       _isRunning = false;
       _port = null;
+      _agentPort = null;
 
       _log.info('Encephalon 嵌入式运行时已停止, result: $result');
       return result ?? true;
@@ -106,7 +128,7 @@ class EncephalonMobileService {
     }
   }
 
-  /// 获取运行时状态：running / port / healthy。
+  /// 获取运行时状态：running / port / agentPort / healthy。
   Future<Map<String, dynamic>> getStatus() async {
     try {
       final result = await _channel.invokeMethod<Map<dynamic, dynamic>>(
@@ -115,7 +137,12 @@ class EncephalonMobileService {
       return Map<String, dynamic>.from(result ?? {});
     } catch (e) {
       _log.warning('获取状态失败: $e');
-      return {'running': false, 'port': 0, 'healthy': false};
+      return {
+        'running': false,
+        'port': 0,
+        'agentPort': 0,
+        'healthy': false,
+      };
     }
   }
 

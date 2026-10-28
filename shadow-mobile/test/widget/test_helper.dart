@@ -9,7 +9,7 @@ import 'package:shadow_mobile/providers/conversation_mode_provider.dart';
 import 'package:shadow_mobile/providers/genui_provider.dart';
 import 'package:shadow_mobile/providers/service_provider.dart';
 import 'package:shadow_mobile/providers/theme_provider.dart';
-import 'package:shadow_mobile/services/prefrontal_client.dart';
+import 'package:shadow_mobile/services/telencephalon/telencephalon_client.dart';
 import 'package:shadow_mobile/tts_engine.dart';
 
 void testSetup() {
@@ -81,7 +81,7 @@ class MockThemeNotifier extends ThemeModeNotifier {
 
 class MockChatNotifier extends ChatNotifier {
   MockChatNotifier()
-    : super(LitertEngine(), TtsEngine(), PrefrontalClient(), skipInit: true);
+    : super(LitertEngine(), TtsEngine(), TelencephalonClient(), skipInit: true);
 }
 
 class MockConversationModeNotifier extends ConversationModeNotifier {

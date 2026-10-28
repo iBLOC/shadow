@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../router/app_router.dart';
-import '../services/prefrontal_client.dart';
+import '../providers/telencephalon_provider.dart';
+import '../services/telencephalon/telencephalon_client.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/empty_state.dart';
 import '../theme/app_colors.dart';
@@ -11,7 +12,7 @@ import '../l10n/current_l10n.dart';
 
 final conversationsNotifierProvider =
     StateNotifierProvider<ConversationsNotifier, ConversationsState>((ref) {
-      return ConversationsNotifier(ref.watch(prefrontalClientProvider));
+      return ConversationsNotifier(ref.watch(telencephalonClientProvider));
     });
 
 class ConversationsState {
@@ -52,20 +53,12 @@ class ConversationInfo {
     required this.updatedAt,
     this.messageCount = 0,
   });
-
-  factory ConversationInfo.fromJson(Map<String, dynamic> json) {
-    return ConversationInfo(
-      id: json['id'] ?? '',
-      title: json['title'] ?? currentL10n().conversationNewSession,
-      createdAt: DateTime.tryParse(json['created_at'] ?? '') ?? DateTime.now(),
-      updatedAt: DateTime.tryParse(json['updated_at'] ?? '') ?? DateTime.now(),
-      messageCount: json['message_count'] ?? 0,
-    );
-  }
 }
 
 class ConversationsNotifier extends StateNotifier<ConversationsState> {
-  final PrefrontalClient _client;
+  /// 端脑 client —— 会话列表走端脑方言 `/shadow/v1/conversations`，
+  /// 跟对话本身是同一份数据。
+  final TelencephalonClient _client;
 
   ConversationsNotifier(this._client) : super(const ConversationsState()) {
     loadConversations();
@@ -74,34 +67,25 @@ class ConversationsNotifier extends StateNotifier<ConversationsState> {
   Future<void> loadConversations() async {
     state = state.copyWith(isLoading: true, error: null);
     try {
-      final conversations = await _client.getConversations();
+      final conversations = await _client.listConversations();
       state = state.copyWith(
         conversations: conversations
             .map(
-              (c) => ConversationInfo.fromJson({
-                'id': c.id,
-                'title': c.title,
-                'created_at': c.createdAt.toIso8601String(),
-                'updated_at': c.updatedAt.toIso8601String(),
-                'message_count': c.messageCount,
-              }),
+              (c) => ConversationInfo(
+                id: c.id,
+                title: c.agent.isNotEmpty
+                    ? c.agent
+                    : currentL10n().conversationNewSession,
+                createdAt: c.createdAt,
+                updatedAt: c.updatedAt,
+                messageCount: c.history.length,
+              ),
             )
             .toList(),
         isLoading: false,
       );
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
-    }
-  }
-
-  Future<void> deleteConversation(String id) async {
-    try {
-      await _client.deleteSession(id);
-      state = state.copyWith(
-        conversations: state.conversations.where((c) => c.id != id).toList(),
-      );
-    } catch (e) {
-      state = state.copyWith(error: e.toString());
     }
   }
 }
@@ -159,9 +143,6 @@ class ConversationScreen extends ConsumerWidget {
           padding: const EdgeInsets.only(bottom: 12),
           child: _ConversationCard(
             conversation: conv,
-            onDelete: () => ref
-                .read(conversationsNotifierProvider.notifier)
-                .deleteConversation(conv.id),
           ),
         );
       },
@@ -196,9 +177,8 @@ class ConversationScreen extends ConsumerWidget {
 
 class _ConversationCard extends StatelessWidget {
   final ConversationInfo conversation;
-  final VoidCallback onDelete;
 
-  const _ConversationCard({required this.conversation, required this.onDelete});
+  const _ConversationCard({required this.conversation});
 
   @override
   Widget build(BuildContext context) {
@@ -231,33 +211,11 @@ class _ConversationCard extends StatelessWidget {
               ],
             ),
           ),
-          IconButton(
-            icon: Icon(Icons.delete, color: AppColors.error),
-            onPressed: () => _confirmDelete(context),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _confirmDelete(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(AppLocalizations.of(context)!.commonConfirmDelete),
-        content: Text(AppLocalizations.of(context)!.commonDeleteConfirmNamed(conversation.title)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(AppLocalizations.of(context)!.cancel),
-          ),
-          TextButton(
-            onPressed: () {
-              onDelete();
-              Navigator.pop(context);
-            },
-            child: Text(AppLocalizations.of(context)!.commonDelete, style: TextStyle(color: AppColors.error)),
-          ),
+          // 端脑（`/shadow/v1/conversations`）**没有删除会话的端点** ——
+          // 桌面端也没提供这个操作（`telencephalonClient.ts` 只有
+          // create / get / list）。留着一个必然 404 的删除按钮不如不留；
+          // 真要删除，得先在端脑侧把「删会话」这个语义定下来
+          // （删掉，还是只 close）。
         ],
       ),
     );

@@ -6,41 +6,51 @@ import 'package:shadow_mobile/multimodal/multimodal_input_manager.dart';
 import 'package:shadow_mobile/l10n/current_l10n.dart';
 import 'package:shadow_mobile/tts_engine.dart';
 import 'package:shadow_mobile/litert_engine.dart';
-import 'package:shadow_mobile/services/prefrontal_client.dart';
+import 'package:shadow_mobile/services/telencephalon/telencephalon_client.dart';
 
-class MockPrefrontalClient extends PrefrontalClient {
+/// 端脑 client 的 mock —— 对话走**端脑方言**
+/// （`/shadow/v1/conversations`），与桌面端同一条链路。
+///
+/// 之前的 mock 是「前额叶方言」（`/api/sessions` + `/hippocampus/...`），
+/// 那条路在「改嵌大脑」之后不存在了。
+class MockTelencephalonClient extends TelencephalonClient {
   bool shouldSucceed = true;
+  String mockResponse = '这是一条测试回复';
 
-  MockPrefrontalClient() : super(baseUrl: 'http://localhost:8082');
+  MockTelencephalonClient() : super(baseUrl: 'http://127.0.0.1:60080');
 
   @override
-  Future<SessionResponse> createSession({String? name}) async {
-    return SessionResponse(
-      id: 'test-session-123',
-      name: name,
-      createdAt: DateTime.now(),
+  Future<Conversation> createConversation({
+    String? agent,
+    String? systemPrompt,
+  }) async {
+    if (!shouldSucceed) {
+      throw Exception('Mock createConversation failed');
+    }
+    final now = DateTime.now();
+    return Conversation(
+      id: 'test-conversation-123',
+      agent: agent ?? 'test-agent',
+      createdAt: now,
+      updatedAt: now,
+      history: const [],
     );
   }
 
   @override
-  Future<bool> addSessionMessage({
-    required String sessionId,
-    required String role,
-    required String content,
-  }) async {
-    return true;
-  }
-
-  @override
-  Future<ProcessResponse> processMessage({
-    required String sessionId,
-    required String message,
-    bool useTools = false,
-  }) async {
+  Stream<StreamEvent> streamMessage(
+    String conversationId,
+    SendMessageRequest req,
+  ) async* {
     if (!shouldSucceed) {
-      throw Exception('Mock processMessage failed');
+      throw Exception('Mock streamMessage failed');
     }
-    return ProcessResponse(response: '这是一条测试回复');
+    yield StreamEvent(type: 'delta', delta: mockResponse);
+    yield StreamEvent(
+      type: 'done',
+      agent: 'test-agent',
+      conversationId: conversationId,
+    );
   }
 }
 
@@ -87,11 +97,12 @@ void main() {
     late ProviderContainer container;
     late MockLitertEngine mockEngine;
     late MockTtsEngine mockTts;
+    late MockTelencephalonClient mockClient;
 
     setUp(() {
       mockEngine = MockLitertEngine();
       mockTts = MockTtsEngine();
-      final mockClient = MockPrefrontalClient();
+      mockClient = MockTelencephalonClient();
 
       container = ProviderContainer(
         overrides: [
@@ -158,6 +169,8 @@ void main() {
     });
 
     test('generateResponse handles error gracefully', () async {
+      // 端脑不可达 → 退回本地模型 → 本地模型也失败 → 报错。
+      mockClient.shouldSucceed = false;
       mockEngine.shouldSucceed = false;
       container.read(chatProvider.notifier).setMode(ChatMode.litert);
 
@@ -180,11 +193,12 @@ void main() {
     late ProviderContainer container;
     late MockLitertEngine mockEngine;
     late MockTtsEngine mockTts;
+    late MockTelencephalonClient mockClient;
 
     setUp(() {
       mockEngine = MockLitertEngine();
       mockTts = MockTtsEngine();
-      final mockClient = MockPrefrontalClient();
+      mockClient = MockTelencephalonClient();
 
       container = ProviderContainer(
         overrides: [
@@ -272,11 +286,12 @@ void main() {
     late ProviderContainer container;
     late MockLitertEngine mockEngine;
     late MockTtsEngine mockTts;
+    late MockTelencephalonClient mockClient;
 
     setUp(() {
       mockEngine = MockLitertEngine();
       mockTts = MockTtsEngine();
-      final mockClient = MockPrefrontalClient();
+      mockClient = MockTelencephalonClient();
 
       container = ProviderContainer(
         overrides: [
@@ -312,11 +327,12 @@ void main() {
     late ProviderContainer container;
     late MockLitertEngine mockEngine;
     late MockTtsEngine mockTts;
+    late MockTelencephalonClient mockClient;
 
     setUp(() {
       mockEngine = MockLitertEngine();
       mockTts = MockTtsEngine();
-      final mockClient = MockPrefrontalClient();
+      mockClient = MockTelencephalonClient();
 
       container = ProviderContainer(
         overrides: [
@@ -361,11 +377,12 @@ void main() {
     late ProviderContainer container;
     late MockLitertEngine mockEngine;
     late MockTtsEngine mockTts;
+    late MockTelencephalonClient mockClient;
 
     setUp(() {
       mockEngine = MockLitertEngine();
       mockTts = MockTtsEngine();
-      final mockClient = MockPrefrontalClient();
+      mockClient = MockTelencephalonClient();
 
       container = ProviderContainer(
         overrides: [
@@ -396,6 +413,7 @@ void main() {
     });
 
     test('error message is set on generation failure', () async {
+      mockClient.shouldSucceed = false;
       mockEngine.shouldSucceed = false;
       await container.read(chatProvider.notifier).setMode(ChatMode.litert);
 
@@ -404,6 +422,59 @@ void main() {
       final state = container.read(chatProvider);
       expect(state.errorMessage, isNotNull);
       expect(state.messages.last.role, equals(ChatRole.system));
+    });
+  });
+
+  group('ChatNotifier 端脑链路（改嵌大脑）', () {
+    late ProviderContainer container;
+    late MockTelencephalonClient mockClient;
+    late MockLitertEngine localEngine;
+
+    setUp(() {
+      mockClient = MockTelencephalonClient();
+      localEngine = MockLitertEngine();
+      container = ProviderContainer(
+        overrides: [
+          chatProvider.overrideWith(
+            (ref) => ChatNotifier(
+              localEngine,
+              MockTtsEngine(),
+              mockClient,
+              skipInit: true,
+              litertReady: true,
+            ),
+          ),
+        ],
+      );
+    });
+
+    tearDown(() {
+      container.dispose();
+    });
+
+    test('对话走端脑的 shadow 会话（不退回本地模型）', () async {
+      await container.read(chatProvider.notifier).setMode(ChatMode.litert);
+      await container.read(chatProvider.notifier).generateResponse('你好');
+
+      final state = container.read(chatProvider);
+      // 会话 id 来自端脑（/shadow/v1/conversations），不是本地生成的。
+      expect(state.sessionId, equals('test-conversation-123'));
+      expect(state.messages.length, equals(2));
+      expect(state.messages[1].content, equals('这是一条测试回复'));
+      expect(state.messages[1].role, equals(ChatRole.assistant));
+      // 本地模型没被调用过 —— 端脑答的就用端脑的。
+      expect(localEngine.isInitialized, isTrue);
+    });
+
+    test('端脑不可达时退回本地模型', () async {
+      mockClient.shouldSucceed = false;
+      await container.read(chatProvider.notifier).setMode(ChatMode.litert);
+      await container.read(chatProvider.notifier).generateResponse('你好');
+
+      final state = container.read(chatProvider);
+      expect(state.messages.length, equals(2));
+      expect(state.messages[1].content, equals('这是一条测试回复'));
+      expect(state.messages[1].role, equals(ChatRole.assistant));
     });
   });
 }
