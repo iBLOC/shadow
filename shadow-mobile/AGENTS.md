@@ -1,5 +1,6 @@
 # PROJECT KNOWLEDGE BASE — shadow-mobile
 
+**Updated:** 2026-10-28 (收口残留的 `:8082`：移动端主链是端脑 `:60080`，但 6 处代码仍按前额叶 `:8082` 走。其中 4 处是纯端口残留（服务健康检查清单 / continue-on-desktop 手工填端点 / localPeer / 注释），改成 `:60080`；1 处（log 面板的 `/api/logs/stream`）只有前额叶有该路由，改连**本机嵌入式前额叶的真实端口**；3 处属于 **WebRTC companion 死代码**（自引用闭环、零外部引用，且 WS 路径 `/api/sessions/{id}/ws` 是前额叶专属、端脑的是 `/api/webrtc/{modality}/...`），按孤儿代码惯例整段删除并摘掉 `flutter_webrtc` 依赖)
 **Updated:** 2026-10-28 (补上 **嵌入式 Prefrontal 运行时**（NDK `.so`）这条支线：MethodChannel/JNI 链路、`.so` 来源与缺失降级、以及它在整体架构里的位置 —— 移动端主链是端脑 telencephalon，嵌入支线跑的是前额叶；桌面端已升级为嵌大脑 `encephalon`，**两端嵌入的运行时目前不一致**。另：补上 `com.ibloc.shadow/prefrontal_runtime` channel（此前漏登记）)
 **Updated:** 2026-09-25 (post-audit-cycle: telencephalon-centric view confirmed; port `:60080` unified; references [`2026-09-25-e2e-coverage-assessment.md`](../../docs/superpowers/architecture/2026-09-25-e2e-coverage-assessment.md))
 **Project:** shadow-mobile (Layer 4 Interaction + thin on-device Engine via Kotlin Native)
@@ -23,7 +24,7 @@ The mobile app should NOT directly know about LLM/TTS/ASR internals. It only:
 1. Sends user input to Agent (OpenAI `/v1/chat/completions` or A2A)
 2. Receives streamed responses (SSE / WebSocket)
 3. Plays TTS (via `/v1/audio/speech` response)
-4. Captures mic audio (WebRTC for Companion Mode + VAD-driven `audio_ws_service`)
+4. Captures mic audio (VAD-driven `audio_ws_service`)
 5. Renders UI (Flutter 3.11+ with Riverpod 2.5 + GoRouter 14.8)
 6. Surfaces native-platform capabilities (Android Accessibility for automation, MNN/LiteRT for on-device inference)
 
@@ -99,8 +100,6 @@ shadow-mobile/
 │   │   ├── database/                    # SQLite repositories (11 files)
 │   │   ├── genui/                       # GenUI server helpers (Agent2UI)
 │   │   ├── audio_ws_service.dart        # WebSocket audio streaming (VAD-driven)
-│   │   ├── webrtc_companion.dart        # flutter_webrtc + WS signaling (196 LOC)
-│   │   ├── webrtc_signaling.dart        # SDP / ICE offer-answer bookkeeping
 │   │   ├── wake_word_service.dart       # Wake-word detection
 │   │   ├── accessibility_controller.dart  # Android Accessibility API bridge
 │   │   ├── session_transfer_service.dart  # Cross-device session transfer
@@ -119,7 +118,7 @@ shadow-mobile/
 │   ├── providers/                       # Riverpod state (14 providers)
 │   │   ├── ai/                          # AI-specific providers (model registry, embeddings)
 │   │   ├── cortex_provider.dart
-│   │   ├── chat_provider.dart / conversation_mode_provider.dart / companion_mode_provider.dart
+│   │   ├── chat_provider.dart / conversation_mode_provider.dart
 │   │   ├── flow_provider.dart / genui_provider.dart
 │   │   ├── mnn_agent_integration.dart
 │   │   ├── model_download_provider.dart / engine_models_provider.dart
@@ -184,9 +183,6 @@ POST {host}/shadow/v1/conversations/{id}/messages  // send (may return SSE)
 // WebSocket streaming (chat)
 WS {host}/api/sessions/{id}/ws
 
-// WebRTC (Companion Mode — flutter_webrtc + WS signaling)
-POST {host}/api/sessions/{id}/webrtc/offer  → { sdp: answer, ice: ... }
-
 // Agent discovery
 GET  {host}/.well-known/agent.json  → A2A AgentCard
 ```
@@ -246,32 +242,32 @@ On startup, the app browses `_shadow._tcp` services via `mdns_discovery.dart`:
 // then for each found service:
 //   - GET http://host:port/.well-known/agent.json  → A2A AgentCard
 //   - POST http://host:60080/api/telencephalon/agents  → register self (if user opts in)
-//   - open WS ws://host:60080/api/webrtc/... for companion mode
+//   - open WS ws://host:60080/api/webrtc/... for companion mode（端脑确实有这条路由，
+//     但移动端 2026-10-28 把旧的 WebRTC companion 链当死代码删了，尚未接回来）
 ```
 
 Persist discovered hosts in `preferences` (or SQLite via `group_service.dart`); the user can pin favourites on the Group page (`group_screen.dart`).
 
-## COMPANION MODE (WebRTC + flutter_webrtc)
+## COMPANION MODE (WebRTC) —— 2026-10-28 整段删除
 
-`lib/services/webrtc_companion.dart` (196 LOC) wires `flutter_webrtc` to telencephalon's WebRTC endpoint:
+原实现三个文件（`lib/services/webrtc_companion.dart`、`lib/services/webrtc_signaling.dart`、
+`lib/providers/companion_mode_provider.dart`）**自引用闭环、零外部引用**：`companionModeProvider`
+从未被任何 screen/widget 读取，`CompanionModeNotifier.start()` 从未被调用，
+`telencephalon_client.webrtcSignalingUrl()` 也从未被引用 —— 整条链不可达。
 
-```
-flutter_webrtc (RTCPeerConnection + getUserMedia)
-       ↕ SDP/ICE (W3C WebRTC)
-WebRtcSignaling (WebSocket over /api/sessions/{id}/ws)
-       ↕ webrtc_offer / webrtc_answer / webrtc_ice
-Telencephalon webrtc (ModalityRouter + SRTP relay, Opus 48kHz, VAD, Agent.process)
-       ↕ A2A / OpenAI /v1/* / etc.
-```
+而且它指向的服务已经变了：`WebRtcSignaling` 拼的是 **`/api/sessions/{id}/ws`**，那是
+**Prefrontal 专属**路由（`prefrontal/src/server/routes.rs:76`）；Telencephalon 的 WS 路由是
+`/api/webrtc/{modality}/sessions/{id}/ws`（`telencephalon/src/api/webrtc_route.rs:36`）。
+原代码的 primary 是端脑 `:60080`、fallback 是前额叶 `:8082` —— 两边的路径都对不上。
 
-State machine (`WebRtcPhase` in `companion_mode_provider.dart`):
-- `idle → connecting → signaling → negotiating → connected → speaking`
-- `error` is terminal until `stop()` is called.
+故按「孤儿代码」惯例删除（git 历史保留），并从 `pubspec.yaml` 摘掉 `flutter_webrtc`
+（它唯一的使用者就是 `webrtc_companion.dart`；摘掉后 APK 不再带 `libjingle_peerconnection_so.so`）。
 
-VAD events (`vad_state` messages) drive `voiceState: idle | listening | speaking | bargeIn`.
-Barge-in (user starts talking while agent is mid-response) is signalled via `webrtc_barge_in` and resets the agent.
+要重做 Companion Mode 时：`TelencephalonClient.webrtcSignalingUrl(sessionId, modality)`
+已经是正确的 URL 构造器，直接接上 `flutter_webrtc` 即可。
 
-> For the message-style **Conversation Mode** (one-shot voice messages over WebSocket, not real-time), use `conversation_mode_provider` + `AudioWsService` instead. That path stays for low-bandwidth or text-with-voice-attach workflows; the WebRTC path is the real-time Companion Mode.
+> 消息式 **Conversation Mode**（WebSocket 一次性语音消息，非实时）不受影响 ——
+> 那条路走 `conversation_mode_provider` + `audio_ws_service.dart`，仍在。
 
 ## AGENTS (in-process)
 
@@ -354,7 +350,6 @@ CI runs `flutter_localization_linter` — adding a UI string to only one locale 
 - Flutter 3.11+ with Dart SDK `^3.11.1`
 - Riverpod 2.5 for state management (`flutter_riverpod`)
 - GoRouter 14.8 for declarative routing (`lib/router/app_router.dart`)
-- flutter_webrtc 1.4.1 for WebRTC
 - speech_to_text 7.0 for ASR fallback
 - sqflite 2.3 (mobile) + sqflite_common_ffi 2.3 (desktop tests) for local persistence
 - genui 0.7 + genui_a2ui 0.7 for Agent2UI
@@ -413,7 +408,7 @@ No errors, no warnings — only style-level info issues (deprecated `value` / `a
 - 🆕 **FlowsScreen** (`lib/screens/flows_screen.dart` + commit `55ffc95`) — browse / run telencephalon flows from the phone
 - 🆕 **continue-on-desktop via telencephalon only** (`dacbe83`) — chat sessions hand off to a desktop telencephalon without falling back to prefrontal
 - 🆕 **telencephalon-embedded neuron+hippocampus paths** (`05aa697`) — all hardcoded URLs updated to the telencephalon-embedded model (`:60080/hippocampus/api/...`)
-- **Companion Mode (WebRTC)** — `webrtc_companion.dart` (196 LOC) + `webrtc_signaling.dart` + VAD-driven barge-in via `audio_ws_service.dart` + `wake_word_service.dart`; mirrors desktop `webrtcCompanion.ts` so the two clients share the same end-to-end protocol
+- **VAD-driven barge-in** via `audio_ws_service.dart` + `wake_word_service.dart`（Companion Mode 的 WebRTC 那部分已于 2026-10-28 作为死代码删除，见 §COMPANION MODE）
 - **Mobile sub-agent** (`lib/agents/mobile_action_agent/`) — AccessibilityController-driven UI automation as a telencephalon-flow tool
 - **A2A message types + client** (`lib/agents/a2a/`) — outbound A2A delegation to other telencephalon / prefrontal instances
 - **Main agent** (`lib/agents/main_agent/`) — system prompt + tool registry; runs locally in Standalone mode
@@ -433,14 +428,13 @@ No errors, no warnings — only style-level info issues (deprecated `value` / `a
 - **LiteRT init timeout + model-dir diagnosis** — was hanging forever; now 10s timeout, calls `diagnoseModelDirectory` first, shows download dialog immediately if model missing
 
 **In Progress** 🔄:
-- WebRTC full DTLS-SRTP handshake on the mobile side — currently relies on telencephalon to handle encryption; mobile only deals with plain RTP via flutter_webrtc's default stack
 - Offline-first chat — main_agent can run locally for trivial replies but anything non-trivial still requires telencephalon or neuron HTTP
 - **v2.5 — shadow-esp32 BLE provisioning flow** is wired (Kotlin + Dart) but the live-streaming screen doesn't yet auto-discover a shadow-esp32 over BLE; v2.6 adds an `onAttach` hook that opens the provisioning screen when the user plugs the device in
 - **v2.5 — USB Audio routing** is wired at the platform-channel level (UsbAudioRouter.kt + usb_audio_routing_service.dart); the actual `setMode(MODE_NORMAL) / isSpeakerphoneOn = false / preferredDevice` calls land in v2.6 once the live-streaming screen flips them on user-tap
 - **Provisioning — security** — SSID/PSK travel over BLE cleartext in v2.5; v2.6 enables BLE bonding + MITM protection to encrypt the GATT writes
 
 **Planned** 📋:
-- iOS companion-mode parity (current focus is Android; iOS WebRTC works but accessory flows need re-testing on a physical device)
+- Companion Mode (WebRTC) 重做 —— 原实现已作为死代码删除（见 §COMPANION MODE）；重做时直接用 `TelencephalonClient.webrtcSignalingUrl()`
 - Hot reload of telencephalon flows into the FlowsScreen without app restart (currently requires re-fetch via `flow_provider`)
 - Voice wake word integration hardening
 - ESP32 / hardware device pairing (per `2026-06-04-shadow-architecture-redesign.md` Phase 6)

@@ -87,7 +87,7 @@ class SessionTransferService {
       id: 'local',
       name: currentL10n().deviceThisMachine,
       host: 'localhost',
-      port: 8082,
+      port: 60080,
       capabilities: [],
       isLocal: true,
     );

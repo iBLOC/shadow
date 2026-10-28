@@ -11,7 +11,7 @@ import '../providers/error_dialog_provider.dart';
 ///   [Shadow Error] 2026-06-25T10:30:45.123Z
 ///   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ///   Source:     http
-///   Endpoint:   POST http://localhost:8082/v1/chat/completions
+///   Endpoint:   POST http://localhost:60080/v1/chat/completions
 ///   Status:     503 Service Unavailable
 ///   Message:    HTTP 503: Service Unavailable
 ///   Platform:   android flutter

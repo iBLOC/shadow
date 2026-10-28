@@ -220,7 +220,7 @@ shadow/
     ├── lib/                    # Flutter UI (Dart)
     │   ├── screens/            # 页面
     │   ├── providers/          # Riverpod 状态
-    │   ├── services/          # 服务层 (含 cortex_client.dart, webrtc_companion.dart)
+    │   ├── services/          # 服务层 (含 cortex_client.dart)
     │   └── mnn_engine.dart    # MNN Platform Channel
     └── android/                # Android Native (Kotlin)
         └── app/src/main/
@@ -359,7 +359,7 @@ CI 的 `Mobile Analyze` 作业固定 **Flutter 3.41.4（Dart 3.11.1）**（Dart 
 | shadow-desktop | `encephalon`（大脑） | `src-tauri/src/lib.rs`：`embedded_stack: Arc<encephalon::Embedded>` + `encephalon::Embedded::boot(EmbeddedConfig { neuron_port: 8085 })`；`Cargo.toml` 里 `encephalon = { path = "../../../encephalon" }`，且注释写明「旧的 cortex sidecar 模式 DEPRECATED (2026-09-22)，由 embedded encephalon 取代」「The embedded encephalon is the ONLY place shadow gets inference from」 |
 | shadow-mobile | `prefrontal`（前额叶） | 本节的 `libprefrontal_core_lib.so`；prefrontal 仓 `src/mobile/{mod,jni}.rs` |
 
-移动端**主链**已经是端脑（`engine_models_provider.dart`：`http://localhost:60080`，注释「Telencephalon is the single platform entry point」），prefrontal 在 HTTP 侧只是 fallback（`:8082`）。于是手机上有两套 agent 运行时：主链走端脑、嵌入支线跑前额叶 —— 手机本地拿不到端脑编排的各 lobe（temporal / occipital / parietal），且与桌面端行为不一致。
+移动端**主链**已经是端脑（`engine_models_provider.dart`：`http://localhost:60080`，注释「Telencephalon is the single platform entry point」）。**2026-10-28 已把移动端代码里残留的 `:8082` 全部收口**：4 处纯端口残留（服务健康检查清单 / continue-on-desktop 手工端点 / localPeer / 注释）改为 `:60080`，日志流改连本机嵌入式前额叶的真实端口，另 3 处属于不可达的 WebRTC companion 死代码已整段删除。于是手机上有两套 agent 运行时：主链走端脑、嵌入支线跑前额叶 —— 手机本地拿不到端脑编排的各 lobe（temporal / occipital / parietal），且与桌面端行为不一致。
 
 **改嵌「大脑」的成本**（2026-10-28 核实 + **实测交叉编译**，不是换个 `.so` 那么简单）：`encephalon` / `telencephalon` 目前**没有 cdylib crate-type、没有 JNI 层、没有 android feature**。要嵌进 App 需要：① 加 `crate-type = ["cdylib"]`；② 重写一套 JNI 入口（prefrontal 那套 6 个入口是照它自己的 API 写的）；③ 整条依赖树交叉编译到 `aarch64-linux-android`；④ **至少改一处依赖声明**（见下）。
 

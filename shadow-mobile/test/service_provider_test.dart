@@ -65,7 +65,7 @@ void main() {
 
       final names = notifier.state.map((s) => s.name).toList();
       expect(names, contains('resonance'));
-      expect(names, contains('prefrontal'));
+      expect(names, contains('telencephalon'));
       expect(names, contains('hippocampus'));
     });
 
@@ -75,10 +75,14 @@ void main() {
       expect(resonance.host, 'localhost');
       expect(resonance.port, 8080);
 
-      final prefrontal = notifier.state.firstWhere((s) => s.name == 'prefrontal');
-      expect(prefrontal.displayName, 'Prefrontal');
-      expect(prefrontal.host, 'localhost');
-      expect(prefrontal.port, 8082);
+      // Telencephalon is the mobile's single platform entry point
+      // (port 60080) — the old entry pointed at Prefrontal :8082, which
+      // no longer exists as a standalone service anywhere.
+      final telencephalon =
+          notifier.state.firstWhere((s) => s.name == 'telencephalon');
+      expect(telencephalon.displayName, 'Telencephalon');
+      expect(telencephalon.host, 'localhost');
+      expect(telencephalon.port, 60080);
 
       final hippocampus = notifier.state.firstWhere((s) => s.name == 'hippocampus');
       expect(hippocampus.displayName, 'Hippocampus');

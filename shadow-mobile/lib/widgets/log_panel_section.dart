@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import '../services/log_service.dart';
 import '../providers/log_provider.dart';
+import '../services/prefrontal/prefrontal_mobile_provider.dart';
 import '../widgets/glass_card.dart';
 import '../generated/l10n/app_localizations.dart';
 
@@ -22,11 +23,19 @@ class _LogPanelSectionState extends ConsumerState<LogPanelSection> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_disposed) {
-        ref.read(logServiceProvider.notifier)
-          ..connectPrefrontal('http://10.0.2.2:8082')
-          ..connectMnn();
+      if (_disposed) return;
+      final notifier = ref.read(logServiceProvider.notifier);
+      // The agent log stream (`/api/logs/stream`) is served by Prefrontal
+      // only — Telencephalon has no such route. The desktop no longer runs
+      // a standalone Prefrontal (it embeds Encephalon), so the only live
+      // source on this device is the in-process embedded Prefrontal, whose
+      // port is only known after it starts. Stream from it when it is up;
+      // otherwise there is simply nothing to attach to.
+      final embeddedPort = ref.read(prefrontalMobilePortProvider);
+      if (embeddedPort != null) {
+        notifier.connectPrefrontal('http://127.0.0.1:$embeddedPort');
       }
+      notifier.connectMnn();
     });
   }
 

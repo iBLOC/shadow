@@ -372,7 +372,7 @@ class _PeerListViewState extends State<_PeerListView> {
                   child: TextField(
                     controller: _manualController,
                     decoration: InputDecoration(
-                      hintText: '192.168.1.x:8082',
+                      hintText: '192.168.1.x:60080',
                       labelText: l10n.endpoint,
                     ),
                   ),
@@ -382,7 +382,7 @@ class _PeerListViewState extends State<_PeerListView> {
                     final parts = _manualController.text.split(':');
                     if (parts.length == 2) {
                       final host = parts[0];
-                      final port = int.tryParse(parts[1]) ?? 8082;
+                      final port = int.tryParse(parts[1]) ?? 60080;
                       widget.onAddManually(host, port);
                     }
                   },
@@ -450,7 +450,7 @@ class _EmptyPeersView extends StatelessWidget {
           TextField(
             controller: controller,
             decoration: InputDecoration(
-              hintText: '192.168.1.100:8082',
+              hintText: '192.168.1.100:60080',
               labelText: l10n.endpoint,
               suffixIcon: IconButton(
                 icon: const Icon(Icons.add),
@@ -458,7 +458,7 @@ class _EmptyPeersView extends StatelessWidget {
                   final parts = controller.text.split(':');
                   if (parts.length == 2) {
                     final host = parts[0].trim();
-                    final port = int.tryParse(parts[1].trim()) ?? 8082;
+                    final port = int.tryParse(parts[1].trim()) ?? 60080;
                     onAddManually(host, port);
                   }
                 },

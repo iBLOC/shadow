@@ -40,10 +40,10 @@ class ServiceNotifier extends StateNotifier<List<ServiceInfo>> {
           port: 8080,
         ),
         ServiceInfo(
-          name: 'prefrontal',
-          displayName: 'Prefrontal',
+          name: 'telencephalon',
+          displayName: 'Telencephalon',
           host: 'localhost',
-          port: 8082,
+          port: 60080,
         ),
         ServiceInfo(
           name: 'hippocampus',
