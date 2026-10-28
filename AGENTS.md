@@ -1,6 +1,7 @@
 # PROJECT KNOWLEDGE BASE
 
 **Generated:** 2026-03-21
+**Updated:** 2026-10-28 (移动端「改嵌大脑」落地：Rust 侧 `encephalon` 加 cdylib + JNI 壳 + `mobile` feature，产出 `libencephalon.so` 由 Kotlin 经 MethodChannel 加载，跑的是与桌面端同款的嵌入式大脑（thalamus + ACP 总线 + 端脑 + 单一 neuron），不再是前额叶 lobe；验证手段：无模拟器时的**宿主 JVM 直测 14/14 全绿** + 交叉编译 `.so` + APK 打包验收；shadow 侧新增 `/settings/encephalon` 运行时管理页与 5 项 widget 测试（`bafac3f`）；三个 PR 必须按 diencephalon → telencephalon → encephalon 顺序合并；CI 全红是缺 `IBLOC_TOKEN` secret 的**既有基线问题**，与本轮改动无关)
 **Updated:** 2026-10-28 (移动端 l10n 全量收口：220+ 处硬编码中文接入 `AppLocalizations`，arb 179→441 key；测试断言改走 `l10nOf(tester)` 不再写死中英文；修 `arb` 里 `openVoiceMode` 重复键（JSON 后者覆盖前者）；`currentL10n()` 改用 `PlatformDispatcher.instance`（`WidgetsBinding.instance` 要求 binding 已初始化，纯 Dart 单测与后台 isolate 会抛）；孤儿页处理 —— 嵌入式 Prefrontal 页接进路由 `/settings/prefrontal`，外部进程架构三件套（死代码）删除；`prefrontal` 仓新增**宿主 JVM 直测 JNI**（模拟器不可用时的替代验证，12 项断言全绿），顺带修一个真 bug：provider 与 agent 用的不是同一份 `LlmConfig`，导致嵌入式运行时永远指向 `api.openai.com` 且无 key)
 **Updated:** 2026-10-28 (移动端测试从 173/28 修到 **201/201 全绿**并接入 CI：修 3 处真实代码 bug —— `AgentsResponse` 的 legacy `cortex` 键 fallback 写成了重复的 `telencephalon`、`AppConfigService` 解析失败只重置了一个字段且 `init()` 被 `_isInitialized` 短路导致永不重载、`TelencephalonClient.listConversations` 把 JSON 数组强转 Map；另修 20 处文案断言（屏幕硬编码中文）、3 处缺 localization delegate、2 处 `pumpAndSettle` 撞无限动画超时；CI 新增 `Mobile Test` 作业。同日修复移动端打包缺陷：`externalNativeBuild.cmake.path` 未设导致 Flutter 插件把 CMake 源目录改写成空模板，`libmnnbridge.so` 从未进过 APK)
 **Project:** shadow (影) - AI 用户分身系统
@@ -307,6 +308,8 @@ CI 的 `Mobile Analyze` 作业固定 **Flutter 3.41.4（Dart 3.11.1）**（Dart 
 - 产物验收三件套：`aapt2 dump badging <apk>`（包名/SDK/ABI）、`tar -tf <apk>`（列 `.so`）、`llvm-nm -D --defined-only <so>`（校验 JNI 导出符号）
 
 **原生库打包陷阱（2026-10-28 修复，`69ff642`）**：`android/app/build.gradle.kts` 的 `externalNativeBuild` 必须写 `cmake { path = ... }`，否则 Flutter 的 Gradle 插件（`FlutterPluginUtils.forceNdkDownload`）会把 CMake 源目录改写成 flutter_tools 里那份**空的** CMakeLists.txt，`src/main/cpp/mnn_bridge.cpp` 永不编译，`libmnnbridge.so` 不进包。注意 **AGP 公共 DSL 里 `defaultConfig` 层的 `externalNativeBuild` 是 `ExternalNativeBuildFlags`（只有 cppFlags/arguments/abiFilters，没有 path/version）**，`path`/`version` 只能在**模块级** `android { externalNativeBuild { cmake { } } }` 上设置 —— 写错层级会报 "Unresolved reference"。
+
+**jniLibs 的 ABI 覆盖（2026-10-28）**：`aapt2 dump badging` 报的 `native-code` 是 APK **声明**的 ABI 集合（Flutter 默认 arm64-v8a + armeabi-v7a + x86_64），跟包里实际有什么 `.so` 无关。`jniLibs/` 下**自带**的原生库（`libprefrontal_core_lib.so`、`libencephalon.so`）如果只放 arm64 一份，APK 在另两个 ABI 上装得上、跑起来却**没有那个运行时**——`System.loadLibrary` 抛 `UnsatisfiedLinkError`，Kotlin 侧按设计 catch 住降级（`init` 块不重抛，否则后续每次访问都变成接不住的 `NoClassDefFoundError`），表现为「嵌入式大脑/前额叶没起来」，**不是崩溃**。但对用户就是功能整个消失，且这种沉默降级很难在日志之外被发现 —— Gradle / Flutter 都不会替你补齐。验收要逐个 ABI 查：`tar -tf <apk> | Select-String 'lib/.*/libencephalon.so'` 应该每个 ABI 各一份。`libmnnbridge.so` 走 CMake 插件链路，AGP 自己会编全 ABI，不受这条影响。补齐方式见 `encephalon` 仓的 `scripts/build-android.ps1`（`-Target` 切 ABI），每个 Rust target 的 std 要单独 `rustup target add`。
 
 **模拟器硬阻塞**：本机 `systeminfo` 显示 `Virtualization Enabled In Firmware: No`、`HypervisorPresent=False`（AMD Ryzen 5 5600X，BIOS 未开 SVM），因此 Hyper-V / Windows Hypervisor Platform / Android Emulator hypervisor driver **全部不可用**；`aehd` 服务虽已安装但处于 Stopped，且当前 shell 非管理员。要跑模拟器必须先进 BIOS 开启 SVM 并重启。没有物理设备时 `adb devices` 为空，APK 无法安装验证。
 
