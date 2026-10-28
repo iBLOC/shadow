@@ -998,6 +998,26 @@ class TaskStepResponse {
       };
 }
 
+/// 任务的展示标题。
+///
+/// `TaskRecord` 没有 title 列，所以正常情况下标题写在 `payload.title`
+/// （客户端创建任务时放进去的那份）。旧数据可能直接带 `title` 字段，
+/// 两种都读。
+String taskTitleOf(Map<String, dynamic> json) {
+  final direct = json['title'];
+  if (direct != null && direct.toString().trim().isNotEmpty) {
+    return direct.toString();
+  }
+  final payload = json['payload'];
+  if (payload is Map) {
+    final nested = payload['title'];
+    if (nested != null && nested.toString().trim().isNotEmpty) {
+      return nested.toString();
+    }
+  }
+  return '';
+}
+
 /// A task record as returned by the hippocampus task API.
 ///
 /// Field names follow `hippocampus-core/src/task.rs::TaskRecord`, which
@@ -1046,7 +1066,7 @@ class TaskResponse {
 
     return TaskResponse(
       id: (json['taskId'] ?? json['task_id'] ?? json['id'] ?? '').toString(),
-      title: (json['title'] ?? '').toString(),
+      title: taskTitleOf(json),
       status: (json['status'] ?? 'pending').toString(),
       priority: json['priority'] as String?,
       description: json['description'] as String?,
@@ -1070,13 +1090,37 @@ class TaskResponse {
   }
 }
 
+/// 创建 hippocampus 任务。
+///
+/// `UpsertTaskRequest`（hippocampus-server/src/handlers.rs）的
+/// `taskId` / `targetAgent` 是必填字段，缺任意一个后端都会返回 400。
+/// `title` / `priority` 在 `TaskRecord` 里没有对应列，upsert 会丢弃它们
+/// —— 因此改放进 `payload`：`payload` 是后端真实持久化的 JSON 列，
+/// 列表接口再从 `payload.title` 把标题读回来。
 class CreateTaskRequest {
   final String title;
   final String? priority;
+  final String? taskId;
+  final String? targetAgent;
+  final String? status;
+  final Map<String, dynamic>? payload;
 
-  CreateTaskRequest({required this.title, this.priority});
+  CreateTaskRequest({
+    required this.title,
+    this.priority,
+    this.taskId,
+    this.targetAgent,
+    this.status,
+    this.payload,
+  });
 
   Map<String, dynamic> toJson() => {
+    if (taskId != null) 'taskId': taskId,
+    if (targetAgent != null) 'targetAgent': targetAgent,
+    if (status != null) 'status': status,
+    'source': 'local',
+    if (payload != null) 'payload': payload,
+    // 仅前端字段：后端没有这些列，serde 默认忽略未知字段。
     'title': title,
     if (priority != null) 'priority': priority,
   };

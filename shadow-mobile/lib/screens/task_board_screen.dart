@@ -4,12 +4,40 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/prefrontal_client.dart';
 import '../theme/app_colors.dart';
 import '../widgets/glass_card.dart';
+import '../widgets/task_detail_dialog.dart';
 
 final tasksNotifierProvider = StateNotifierProvider<TasksNotifier, TasksState>((
   ref,
 ) {
   return TasksNotifier(ref.watch(prefrontalClientProvider));
 });
+
+/// UI 状态 -> hippocampus `TaskStatus` 的线上取值。
+///
+/// 服务端只认 pending / running / completed / failed / cancelled，直接把
+/// UI 的 'in-progress' 发过去会被 serde 拒绝。
+String serverStatusOf(String uiStatus) {
+  switch (uiStatus.toLowerCase()) {
+    case 'todo':
+    case 'backlog':
+    case 'pending':
+      return 'pending';
+    case 'in-progress':
+    case 'in_progress':
+    case 'running':
+      return 'running';
+    case 'done':
+    case 'completed':
+      return 'completed';
+    case 'failed':
+      return 'failed';
+    case 'cancelled':
+    case 'canceled':
+      return 'cancelled';
+    default:
+      return 'pending';
+  }
+}
 
 class TasksState {
   final List<TaskInfo> tasks;
@@ -18,11 +46,19 @@ class TasksState {
 
   const TasksState({this.tasks = const [], this.isLoading = false, this.error});
 
-  TasksState copyWith({List<TaskInfo>? tasks, bool? isLoading, String? error}) {
+  TasksState copyWith({
+    List<TaskInfo>? tasks,
+    bool? isLoading,
+    String? error,
+    bool clearError = false,
+  }) {
     return TasksState(
       tasks: tasks ?? this.tasks,
       isLoading: isLoading ?? this.isLoading,
-      error: error,
+      // 错误默认保留：只有显式 clearError 或给出新错误时才变。
+      // 之前的写法 `error: error` 会让任何一次 copyWith 把错误抹掉，
+      // 界面上根本来不及显示。
+      error: clearError ? null : (error ?? this.error),
     );
   }
 
@@ -134,7 +170,7 @@ class TasksNotifier extends StateNotifier<TasksState> {
   }
 
   Future<void> loadTasks() async {
-    state = state.copyWith(isLoading: true, error: null);
+    state = state.copyWith(isLoading: true, clearError: true);
     try {
       final tasks = await _client.getTasks();
       state = state.copyWith(
@@ -150,7 +186,10 @@ class TasksNotifier extends StateNotifier<TasksState> {
   /// 命名，并把子步骤 DAG 一并带过来。
   TaskInfo _toTaskInfo(TaskResponse t) => TaskInfo(
         id: t.id,
-        title: t.title,
+        // hippocampus 的 TaskRecord 没有 title 列：客户端建的任务把标题
+        // 放在 payload 里，后端建的可能什么都没有 —— 两种都退回任务 id，
+        // 免得列表里出现空标题。
+        title: t.title.trim().isEmpty ? t.id : t.title,
         status: _mapStatus(t.status),
         priority: t.priority ?? 'medium',
         description: t.description,
@@ -204,7 +243,7 @@ class TasksNotifier extends StateNotifier<TasksState> {
         title: title,
         description: description,
         priority: priority,
-        status: status == null ? null : _serverStatus(status),
+        status: status == null ? null : serverStatusOf(status),
         tags: tags,
       );
       final info = _toTaskInfo(updated);
@@ -230,15 +269,42 @@ class TasksNotifier extends StateNotifier<TasksState> {
     }
   }
 
+  /// 新建 hippocampus 任务。
+  ///
+  /// `UpsertTaskRequest` 必填 `taskId` + `targetAgent`，缺一个后端就返回
+  /// 400，所以这里自己生成任务 id，并解析一个可用的目标 agent。标题与
+  /// 优先级放进 `payload`（后端真正持久化的 JSON 列）。
   Future<void> createTask(String title, String priority) async {
+    state = state.copyWith(isLoading: true, clearError: true);
     try {
+      final targetAgent = await _resolveTargetAgent();
+      final taskId = 'mobile-${DateTime.now().microsecondsSinceEpoch}';
       await _client.createTask(
-        CreateTaskRequest(title: title, priority: priority),
+        CreateTaskRequest(
+          title: title,
+          priority: priority,
+          taskId: taskId,
+          targetAgent: targetAgent,
+          status: 'pending',
+          payload: {'title': title, 'priority': priority},
+        ),
       );
       await loadTasks();
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      state = state.copyWith(isLoading: false, error: e.toString());
     }
+  }
+
+  /// 目标任务 id。后端不校验它是否存在，但派发时需要真实 agent，
+  /// 所以优先取 agent 列表的第一个，拿不到就退回常驻的 prefrontal。
+  Future<String> _resolveTargetAgent() async {
+    try {
+      final agents = await _client.getAgents();
+      if (agents.isNotEmpty) return agents.first.id;
+    } catch (_) {
+      // 列表拿不到就用默认执行器，不阻断新建流程。
+    }
+    return 'prefrontal';
   }
 
   String _mapStatus(String status) {
@@ -264,32 +330,6 @@ class TasksNotifier extends StateNotifier<TasksState> {
         return 'backlog';
     }
   }
-
-  /// UI 状态 -> hippocampus `TaskStatus` 的线上取值。
-  /// 服务端只认 pending / running / completed / failed / cancelled，
-  /// 直接把 UI 的 'in-progress' 发过去会被 serde 拒绝。
-  String _serverStatus(String uiStatus) {
-    switch (uiStatus.toLowerCase()) {
-      case 'todo':
-      case 'backlog':
-      case 'pending':
-        return 'pending';
-      case 'in-progress':
-      case 'in_progress':
-      case 'running':
-        return 'running';
-      case 'done':
-      case 'completed':
-        return 'completed';
-      case 'failed':
-        return 'failed';
-      case 'cancelled':
-      case 'canceled':
-        return 'cancelled';
-      default:
-        return 'pending';
-    }
-  }
 }
 
 class TaskBoardScreen extends ConsumerWidget {
@@ -313,9 +353,21 @@ class TaskBoardScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: tasksState.isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _buildKanbanBoard(context, ref, tasksState),
+      body: Column(
+        children: [
+          if (tasksState.error != null)
+            _TaskErrorBanner(
+              message: tasksState.error!,
+              onRetry: () =>
+                  ref.read(tasksNotifierProvider.notifier).loadTasks(),
+            ),
+          Expanded(
+            child: tasksState.isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _buildKanbanBoard(context, ref, tasksState),
+          ),
+        ],
+      ),
     );
   }
 
@@ -333,6 +385,10 @@ class TaskBoardScreen extends ConsumerWidget {
       _ColumnConfig(id: 'todo', title: 'To Do', color: AppColors.primary),
       _ColumnConfig(id: 'in-progress', title: '进行中', color: AppColors.warning),
       _ColumnConfig(id: 'done', title: '已完成', color: AppColors.success),
+      // hippocampus 的 TaskStatus 还有 failed / cancelled。少了这两列，
+      // 失败和已取消的任务在看板上就完全看不见了。
+      _ColumnConfig(id: 'failed', title: '失败', color: AppColors.error),
+      _ColumnConfig(id: 'cancelled', title: '已取消', color: AppColors.darkTextSecondary),
     ];
 
     return ListView.builder(
@@ -346,8 +402,17 @@ class TaskBoardScreen extends ConsumerWidget {
           column: column,
           tasks: columnTasks,
           onAddTask: () => _showAddTaskDialog(context, ref, column.id),
+          onTaskTap: (task) => _openTaskDetail(context, task),
         );
       },
+    );
+  }
+
+  /// 打开任务详情弹窗。弹窗内可以刷新、看子任务、编辑和删除。
+  void _openTaskDetail(BuildContext context, TaskInfo task) {
+    showDialog(
+      context: context,
+      builder: (_) => TaskDetailDialog(task: task),
     );
   }
 
@@ -375,15 +440,55 @@ class _ColumnConfig {
   _ColumnConfig({required this.id, required this.title, required this.color});
 }
 
+/// 任务读取失败提示。之前的错误只进了 state，从不显示 —— 用户只看到
+/// 一块空看板，不知道是后端没连上还是真的没有任务。
+class _TaskErrorBanner extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+
+  const _TaskErrorBanner({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.error.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.error.withOpacity(0.4)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.error_outline, color: AppColors.error, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(color: AppColors.error, fontSize: 12),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          TextButton(onPressed: onRetry, child: const Text('重试')),
+        ],
+      ),
+    );
+  }
+}
+
 class _KanbanColumn extends StatelessWidget {
   final _ColumnConfig column;
   final List<TaskInfo> tasks;
   final VoidCallback onAddTask;
+  final ValueChanged<TaskInfo> onTaskTap;
 
   const _KanbanColumn({
     required this.column,
     required this.tasks,
     required this.onAddTask,
+    required this.onTaskTap,
   });
 
   @override
@@ -463,7 +568,10 @@ class _KanbanColumn extends StatelessWidget {
                           itemCount: tasks.length,
                           itemBuilder: (context, index) {
                             final task = tasks[index];
-                            return _TaskCard(task: task);
+                            return _TaskCard(
+                              task: task,
+                              onTap: () => onTaskTap(task),
+                            );
                           },
                         ),
                 ),
@@ -486,11 +594,16 @@ class _KanbanColumn extends StatelessWidget {
 
 class _TaskCard extends StatelessWidget {
   final TaskInfo task;
+  final VoidCallback onTap;
 
-  const _TaskCard({required this.task});
+  const _TaskCard({required this.task, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
+    final completed =
+        task.steps.where((s) => s.status == 'completed').length;
+    final total = task.steps.length;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: GlassCard(
@@ -498,19 +611,43 @@ class _TaskCard extends StatelessWidget {
         margin: EdgeInsets.zero,
         child: ListTile(
           contentPadding: EdgeInsets.zero,
+          onTap: onTap,
           title: Text(task.title),
-          subtitle: Row(
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: _getPriorityColor(task.priority),
-                ),
+              Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: _getPriorityColor(task.priority),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(task.priority, style: const TextStyle(fontSize: 12)),
+                  if (total > 0) ...[
+                    const SizedBox(width: 8),
+                    Text(
+                      '$completed/$total 步',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ],
+                ],
               ),
-              const SizedBox(width: 4),
-              Text(task.priority, style: const TextStyle(fontSize: 12)),
+              if (total > 0) ...[
+                const SizedBox(height: 6),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: total > 0 ? completed / total : 0,
+                    minHeight: 4,
+                    backgroundColor: Colors.grey.withOpacity(0.2),
+                  ),
+                ),
+              ],
             ],
           ),
         ),

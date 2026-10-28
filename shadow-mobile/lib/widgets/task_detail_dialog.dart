@@ -73,7 +73,10 @@ class _TaskDetailDialogState extends ConsumerState<TaskDetailDialog>
   }
 
   void _openEdit() {
-    Navigator.of(context).pop();
+    // 不先 pop 详情弹窗：pop 之后它的 context 就失效了，再拿它去 push
+    // 下一个对话框会抛 "Looking up a deactivated widget's ancestor"。
+    // 直接把编辑弹窗叠在上面，保存后编辑弹窗自己 pop 回详情，
+    // 详情会通过 provider 重新渲染出最新的状态。
     showDialog(
       context: context,
       builder: (_) => TaskEditDialog(task: widget.task),
