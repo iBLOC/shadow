@@ -38,8 +38,8 @@
 
 1. **Flutter → MainActivity**: 通过 `MethodChannel("com.ibloc.shadow/prefrontal_runtime")`
 2. **MainActivity → PrefrontalRuntimeService**: 通过 `startService()` / `bindService()`
-3. **PrefrontalRuntimeService → libprefrontal.so**: 通过 JNI (`nativeStart`, `nativeStop`, 等)
-4. **libprefrontal.so → HTTP**: 启动 mini HTTP server (绑定 localhost)
+3. **PrefrontalRuntimeService → libprefrontal_core_lib.so**: 通过 JNI (`nativeStart`, `nativeStop`, 等)
+4. **libprefrontal_core_lib.so → HTTP**: 启动 mini HTTP server (绑定 localhost)
 5. **HTTP 回环**: MainActivity 通过 `httpGet`/`httpPost` 调用 Prefrontal API
 
 ## 🛠️ 完整实施步骤
@@ -67,21 +67,31 @@ rustup target add i686-linux-android
 ```bash
 cd https://github.com/iBLOC/prefrontal
 
-# 使用我们提供的脚本 (已包含完整的 NDK 配置)
+# 装进 shadow-mobile（脚本会自动探测 ../shadow-mobile 与 ../shadow/shadow-mobile）
 ./scripts/build-android.sh
 
-# 或指定单个架构
+# 或指定单个架构（默认只编 arm64，四个架构全编太慢）
 ./scripts/build-android.sh aarch64-linux-android
+
+# 或显式指定 App 目录
+./scripts/build-android.sh aarch64-linux-android --output /path/to/shadow-mobile
 ```
 
-**输出位置**:
-- `android/app/src/main/jniLibs/arm64-v8a/libprefrontal_mobile.so`
-- `android/app/src/main/jniLibs/armeabi-v7a/libprefrontal_mobile.so`
-- `android/app/src/main/jniLibs/x86_64/libprefrontal_mobile.so`
-- `android/app/src/main/jniLibs/x86/libprefrontal_mobile.so`
+**输出位置**（在 **shadow-mobile** 仓里，不是 prefrontal 仓）:
+
+- `android/app/src/main/jniLibs/arm64-v8a/libprefrontal_core_lib.so`
+- `android/app/src/main/jniLibs/armeabi-v7a/libprefrontal_core_lib.so`
+- `android/app/src/main/jniLibs/x86_64/libprefrontal_core_lib.so`
+
+> 文件名必须是 `libprefrontal_core_lib.so` —— Kotlin 侧是
+> `System.loadLibrary("prefrontal_core_lib")`，名字对不上就加载不了。
 
 **自动生成**:
 - `android/app/src/main/cpp/prefrontal_mobile.h` - JNI 头文件
+
+> `.so` 是构建产物，不入库（与 `libmnnbridge.so` 一样由构建现编）。
+> 脚本装好后会用 `llvm-nm` 校验 6 个 JNI 符号确实导出 ——
+> 「编译成功」不等于「Kotlin 调得到」。
 
 ### Step 2: Android Manifest 配置
 
@@ -214,7 +224,7 @@ print(result);
 **解决**:
 ```bash
 # 确认 .so 文件存在
-ls -la android/app/src/main/jniLibs/arm64-v8a/libprefrontal_mobile.so
+ls -la android/app/src/main/jniLibs/arm64-v8a/libprefrontal_core_lib.so
 
 # 清理并重新构建
 cd android && ./gradlew clean && cd ..
@@ -228,7 +238,7 @@ cd android && ./gradlew clean && cd ..
 **解决**:
 ```bash
 # 检查 .so 架构
-file android/app/src/main/jniLibs/arm64-v8a/libprefrontal_mobile.so
+file android/app/src/main/jniLibs/arm64-v8a/libprefrontal_core_lib.so
 
 # 应该输出: ELF 64-bit LSB shared object, ARM aarch64
 
@@ -272,7 +282,7 @@ rustup target add aarch64-linux-android
 - `android/app/src/main/kotlin/com/ibloc/shadow/PrefrontalRuntimeService.kt` - Android Service
 - `android/app/src/main/AndroidManifest.xml` - 服务声明 (已更新)
 - `android/app/src/main/kotlin/com/ibloc/shadow/MainActivity.kt` - MethodChannel 注册 (已更新)
-- `android/app/src/main/jniLibs/*/libprefrontal_mobile.so` - 编译产物 (由脚本生成)
+- `android/app/src/main/jniLibs/*/libprefrontal_core_lib.so` - 编译产物 (由脚本生成)
 - `android/app/src/main/cpp/prefrontal_mobile.h` - JNI 头文件 (由脚本生成)
 
 ### Shadow-Mobile (Flutter)

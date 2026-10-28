@@ -36,8 +36,14 @@ class PrefrontalRuntime {
                 System.loadLibrary(LIBRARY_NAME)
                 Log.d(TAG, "✅ Prefrontal .so loaded successfully")
             } catch (e: UnsatisfiedLinkError) {
+                // 这里不重抛。重抛会让类初始化失败，之后每次访问都变成
+                // NoClassDefFoundError —— 而调用方（MainActivity /
+                // PrefrontalRuntimeService）接的是 UnsatisfiedLinkError，
+                // 接不住 NoClassDefFoundError，App 会直接崩。
+                // 不重抛的话，.so 缺失会以 UnsatisfiedLinkError 的形式
+                // 从下面的 native 调用点冒出来，正好落进调用方的错误处理：
+                // 优雅降级，而不是崩溃。
                 Log.e(TAG, "❌ Failed to load $LIBRARY_NAME.so: ${e.message}")
-                throw e
             }
         }
 
@@ -83,6 +89,9 @@ class PrefrontalRuntime {
     fun isHealthy(): Boolean {
         return try {
             nativeHealthCheck() == 1
+        } catch (e: UnsatisfiedLinkError) {
+            Log.w(TAG, "Prefrontal .so not loaded: ${e.message}")
+            false
         } catch (e: Exception) {
             Log.w(TAG, "Health check failed: ${e.message}")
             false
@@ -101,6 +110,9 @@ class PrefrontalRuntime {
                 Log.e(TAG, "❌ Failed to start Prefrontal, returned port: $port")
                 false
             }
+        } catch (e: UnsatisfiedLinkError) {
+            Log.e(TAG, "❌ Prefrontal .so not loaded: ${e.message}")
+            false
         } catch (e: Exception) {
             Log.e(TAG, "❌ Exception starting Prefrontal: ${e.message}", e)
             false
@@ -114,6 +126,9 @@ class PrefrontalRuntime {
             currentPort = 0
             Log.i(TAG, "Prefrontal stopped, result: $result")
             result == 0
+        } catch (e: UnsatisfiedLinkError) {
+            Log.w(TAG, "Prefrontal .so not loaded: ${e.message}")
+            false
         } catch (e: Exception) {
             Log.w(TAG, "Error stopping Prefrontal: ${e.message}")
             false
@@ -124,6 +139,9 @@ class PrefrontalRuntime {
         return try {
             val result = nativeRegisterAgent(agentId, name, description)
             result == 0
+        } catch (e: UnsatisfiedLinkError) {
+            Log.e(TAG, "Prefrontal .so not loaded: ${e.message}")
+            false
         } catch (e: Exception) {
             Log.e(TAG, "Failed to register agent: ${e.message}")
             false
@@ -144,6 +162,9 @@ class PrefrontalRuntime {
                 Log.w(TAG, "Native invoke returned: $written")
                 null
             }
+        } catch (e: UnsatisfiedLinkError) {
+            Log.e(TAG, "Prefrontal .so not loaded: ${e.message}")
+            null
         } catch (e: Exception) {
             Log.e(TAG, "Failed to invoke agent: ${e.message}")
             null
