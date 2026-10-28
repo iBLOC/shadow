@@ -342,3 +342,48 @@ jobs:
       - name: Flutter analyze
         working-directory: shadow-mobile
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+  mobile-test:
+    name: Mobile Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # sqflite_common_ffi reaches SQLite through dart:ffi and looks for a
+      # plain "libsqlite3.so". ubuntu-latest ships libsqlite3.so.0 but not
+      # always the -dev symlink, so install it explicitly.
+      - name: Install SQLite runtime
+        run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
+
+      - name: Setup Java
+        uses: actions/setup-java@v6
+        with:
+          java-version: '17'
+          distribution: temurin
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.41.4
+          channel: stable
+
+      - name: Cache Flutter pub
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-flutter-pub-${{ hashFiles('shadow-mobile/pubspec.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-pub-
+
+      - name: Flutter pub get
+        working-directory: shadow-mobile
+        run: flutter pub get
+
+      # The suite was never wired into CI before, so it had rotted: 28 of
+      # 201 cases failed (stale copy assertions, missing localization
+      # delegates, two infinite-animation pumpAndSettle timeouts). Keep this
+      # job so the same drift cannot come back unnoticed.
+      - name: Flutter test
+        working-directory: shadow-mobile
+        run: flutter test
