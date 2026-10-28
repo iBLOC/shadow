@@ -14,7 +14,6 @@ class AppConfigService {
   String? _modelStoreUrl;
   String? _telencephalonBaseUrl;
   String? _telencephalonAdminToken;
-  bool _isInitialized = false;
 
   // 单例
   static final AppConfigService _instance = AppConfigService._internal();
@@ -35,10 +34,12 @@ class AppConfigService {
   String? get telencephalonAdminToken => _telencephalonAdminToken;
 
   /// 初始化配置服务
+  ///
+  /// Always (re)reads the config file. The settings screen hydrates through
+  /// this method every time it opens, and a cached in-memory copy would
+  /// survive a corrupted or externally edited file.
   Future<void> init() async {
-    if (_isInitialized) return;
     await _loadConfig();
-    _isInitialized = true;
   }
 
   /// 从文件加载配置
@@ -55,6 +56,8 @@ class AppConfigService {
     } catch (e) {
       // 配置文件读取失败，使用默认值
       _modelStoreUrl = null;
+      _telencephalonBaseUrl = null;
+      _telencephalonAdminToken = null;
     }
   }
 

@@ -43,7 +43,7 @@ class ModelSettingsScreen extends ConsumerWidget {
           segments: const [
             ButtonSegment(
               value: EngineType.litert,
-              label: Text('liteRT'),
+              label: Text('LiteRT'),
               icon: Icon(Icons.memory),
             ),
             ButtonSegment(

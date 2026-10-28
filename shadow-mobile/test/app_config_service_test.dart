@@ -36,7 +36,7 @@ void main() {
       await cfg.setTelencephalonBaseUrl('http://192.168.1.50:60080');
       expect(cfg.telencephalonBaseUrl, 'http://192.168.1.50:60080');
 
-      // Recreate the singleton — loadConfig runs again
+      // init() always re-reads the file, so this is a real reload
       final cfg2 = AppConfigService();
       await cfg2.init();
       expect(cfg2.telencephalonBaseUrl, 'http://192.168.1.50:60080');

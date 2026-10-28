@@ -112,8 +112,11 @@ class AgentsResponse {
   });
 
   factory AgentsResponse.fromJson(Map<String, dynamic> json) {
+    // Newer deployments answer with a "telencephalon" envelope; older ones
+    // still use "cortex". Fall back to the legacy key so older instances
+    // keep working.
     final envelope = (json['telencephalon'] as Map<String, dynamic>?) ??
-        (json['telencephalon'] as Map<String, dynamic>?) ??
+        (json['cortex'] as Map<String, dynamic>?) ??
         const {};
     final agents = (json['agents'] as List?) ?? const [];
     return AgentsResponse(
@@ -393,12 +396,19 @@ class TelencephalonClient {
 
   Uri _u(String path) => Uri.parse('$_baseUrl$path');
 
-  Future<Map<String, dynamic>> _get(String path) async {
+  /// Raw GET — returns the decoded JSON body as-is. Use this for endpoints
+  /// that answer with a JSON array; [_get] assumes an object body.
+  Future<dynamic> _getJson(String path) async {
     final r = await _http.get(_u(path), headers: _headers());
     if (r.statusCode != 200) {
       throw TelencephalonException('GET $path → ${r.statusCode}: ${r.body}');
     }
-    return jsonDecode(r.body) as Map<String, dynamic>;
+    return jsonDecode(r.body);
+  }
+
+  Future<Map<String, dynamic>> _get(String path) async {
+    final decoded = await _getJson(path);
+    return decoded as Map<String, dynamic>;
   }
 
   Future<Map<String, dynamic>> _post(
@@ -491,7 +501,9 @@ class TelencephalonClient {
   }
 
   Future<List<Conversation>> listConversations() async {
-    final json = await _get('/shadow/v1/conversations');
+    // This endpoint answers with a JSON array, so it must not go through
+    // [_get] (which casts the body to a Map).
+    final json = await _getJson('/shadow/v1/conversations');
     return (json as List<dynamic>)
         .map((e) => Conversation.fromJson(e as Map<String, dynamic>))
         .toList();
