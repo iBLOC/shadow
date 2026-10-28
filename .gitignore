@@ -40,7 +40,8 @@ Cargo.lock
 .flutter-plugins
 .flutter-plugins-dependencies
 .dart_tool/
-pubspec.lock
+# pubspec.lock 是故意不忽略的: Flutter 应用应该提交 lockfile,
+# 否则每次 CI 都要重新解析依赖, 构建不可复现。
 
 # MNN / Model files
 *.mnn
