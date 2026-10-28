@@ -548,7 +548,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get aiAutoAnswer => 'AI 自动应答';
 
   @override
-  String get aiAutoAnswerDesc => '自动接听来电并用 LLM 自动回复（telencephalon / LiteRT）。';
+  String get aiAutoAnswerDesc => '自动接听来电并用 LLM 自动回复（端脑 / LiteRT）。';
 
   @override
   String get endCall => '挂断';

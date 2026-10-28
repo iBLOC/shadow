@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../generated/l10n/app_localizations.dart';
-import '../providers/error_dialog_provider.dart';
 import '../providers/model_binding_prompt_provider.dart';
 import '../router/app_router.dart';
 import '../theme/app_colors.dart';
