@@ -2743,6 +2743,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Failed to create the calendar event: {error}'**
   String actionCalendarFailed(String error);
+
+  /// No description provided for @encephalonStartFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to start the embedded brain'**
+  String get encephalonStartFailed;
+
+  /// No description provided for @encephalonNotRunning.
+  ///
+  /// In en, this message translates to:
+  /// **'The embedded brain is not running'**
+  String get encephalonNotRunning;
 }
 
 class _AppLocalizationsDelegate

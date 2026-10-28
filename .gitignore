@@ -55,6 +55,11 @@ Cargo.lock
 # （jniLibs 里的 MNN 那几个是 vendored 第三方二进制，仍然入库。）
 shadow-mobile/android/app/src/main/jniLibs/*/libprefrontal_core_lib.so
 
+# 本地构建出来的原生库（encephalon 的嵌入式大脑）。
+# 由 encephalon/scripts/build-android.ps1 生成 —— 同样是兄弟仓库源码的
+# 构建产物，按 ABI 体积不小，不入库；需要时跑一次脚本即可。
+shadow-mobile/android/app/src/main/jniLibs/*/libencephalon.so
+
 # IDE
 .idea/
 *.iml

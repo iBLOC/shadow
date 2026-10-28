@@ -24,6 +24,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "com.ibloc.shadow/mnn"
@@ -38,6 +39,7 @@ class MainActivity : FlutterActivity() {
     private val ENGINE_CHANNEL = "com.ibloc.shadow/engine"
     private val BLE_PROVISION_CHANNEL = "com.ibloc.shadow/ble_provision"
     private val USB_AUDIO_CHANNEL = "com.ibloc.shadow/usb_audio"
+    private val ENCEPHALON_CHANNEL = "com.ibloc.shadow/encephalon_runtime"
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     
@@ -71,6 +73,7 @@ class MainActivity : FlutterActivity() {
         setupHttpServerChannel(flutterEngine)
         setupEngineChannel(flutterEngine)
         setupPrefrontalRuntimeChannel(flutterEngine)
+        setupEncephalonRuntimeChannel(flutterEngine)
         setupBleProvisionChannel(flutterEngine)
         setupUsbAudioChannel(flutterEngine)
     }
@@ -688,6 +691,114 @@ class MainActivity : FlutterActivity() {
                             result.success(true)
                         } catch (e: Exception) {
                             result.success(false)
+                        }
+                    }
+
+                    else -> result.notImplemented()
+                }
+            }
+    }
+
+    /**
+     * Encephalon（大脑）嵌入式运行时 MethodChannel
+     *
+     * 与桌面端同源：`encephalon::Embedded::boot(...)` 那一整栈大脑跑在
+     * App 进程内（libencephalon.so），不是外部进程。
+     *
+     * 通信流程:
+     * Flutter → MethodChannel → EncephalonRuntime → JNI → libencephalon.so
+     *                                                     ↓
+     *                                          进程内推理（不绕 socket）
+     *
+     * 与 Prefrontal 的差别：推理走 `infer`（进程内直接进 neuron 的
+     * adapter 管线），不是走 localhost HTTP。
+     */
+    private fun setupEncephalonRuntimeChannel(flutterEngine: FlutterEngine) {
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, ENCEPHALON_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "start" -> {
+                        val port = call.argument<Int>("port") ?: 0
+                        try {
+                            val runtime = EncephalonRuntime.getInstance()
+                            val started = runtime.start(port)
+                            result.success(mapOf(
+                                "success" to started,
+                                "port" to runtime.getPort()
+                            ))
+                        } catch (e: UnsatisfiedLinkError) {
+                            result.error("SO_NOT_LOADED", "Encephalon .so not loaded: ${e.message}", null)
+                        } catch (e: Exception) {
+                            result.error("START_FAILED", e.message ?: "Unknown error", null)
+                        }
+                    }
+
+                    "stop" -> {
+                        try {
+                            result.success(EncephalonRuntime.getInstance().stop())
+                        } catch (e: Exception) {
+                            result.success(false)
+                        }
+                    }
+
+                    "getPort" -> {
+                        try {
+                            result.success(EncephalonRuntime.getInstance().getPort())
+                        } catch (e: Exception) {
+                            result.success(0)
+                        }
+                    }
+
+                    "isHealthy" -> {
+                        try {
+                            result.success(EncephalonRuntime.getInstance().isHealthy())
+                        } catch (e: Exception) {
+                            result.success(false)
+                        }
+                    }
+
+                    "getStatus" -> {
+                        try {
+                            val runtime = EncephalonRuntime.getInstance()
+                            result.success(mapOf(
+                                "running" to runtime.isRunning(),
+                                "port" to runtime.getPort(),
+                                "healthy" to runtime.isHealthy()
+                            ))
+                        } catch (e: Exception) {
+                            result.success(mapOf(
+                                "running" to false,
+                                "port" to 0,
+                                "healthy" to false
+                            ))
+                        }
+                    }
+
+                    "infer" -> {
+                        val path = call.argument<String>("path")
+                        val body = call.argument<ByteArray>("body")
+                        if (path == null || body == null) {
+                            result.error("INVALID_ARGS", "Missing path or body", null)
+                            return@setMethodCallHandler
+                        }
+                        // nativeInfer 是阻塞调用（Rust 侧 rt.block_on），
+                        // 放 IO 线程，别卡住 UI。
+                        scope.launch {
+                            val inference = withContext(Dispatchers.IO) {
+                                try {
+                                    EncephalonRuntime.getInstance().infer(path, body)
+                                } catch (e: Exception) {
+                                    null
+                                }
+                            }
+                            if (inference == null) {
+                                result.error("INFER_FAILED", "infer failed", null)
+                            } else {
+                                result.success(mapOf(
+                                    "status" to inference.status,
+                                    "body" to inference.body
+                                ))
+                            }
                         }
                     }
 

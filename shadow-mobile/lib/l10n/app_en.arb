@@ -961,5 +961,9 @@
         "type": "String"
       }
     }
-  }
+  },
+  "encephalonStartFailed": "Failed to start the embedded brain",
+  "@encephalonStartFailed": {},
+  "encephalonNotRunning": "The embedded brain is not running",
+  "@encephalonNotRunning": {}
 }

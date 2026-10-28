@@ -1460,4 +1460,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String actionCalendarFailed(String error) {
     return '日历事件创建失败: $error';
   }
+
+  @override
+  String get encephalonStartFailed => '嵌入式大脑启动失败';
+
+  @override
+  String get encephalonNotRunning => '嵌入式大脑未运行';
 }

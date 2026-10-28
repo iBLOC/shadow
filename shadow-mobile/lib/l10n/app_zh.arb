@@ -918,5 +918,9 @@
         "type": "String"
       }
     }
-  }
+  },
+  "encephalonStartFailed": "嵌入式大脑启动失败",
+  "@encephalonStartFailed": {},
+  "encephalonNotRunning": "嵌入式大脑未运行",
+  "@encephalonNotRunning": {}
 }

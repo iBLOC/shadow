@@ -1482,4 +1482,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String actionCalendarFailed(String error) {
     return 'Failed to create the calendar event: $error';
   }
+
+  @override
+  String get encephalonStartFailed => 'Failed to start the embedded brain';
+
+  @override
+  String get encephalonNotRunning => 'The embedded brain is not running';
 }
