@@ -311,6 +311,33 @@ CI 的 `Mobile Analyze` 作业固定 **Flutter 3.41.4（Dart 3.11.1）**（Dart 
 
 **`scripts/ui-smoke.sh` 是"假绿"陷阱（2026-10-28 修复）**：它原本只判断 HTTP 200，而 Vite 对不存在的路径会回退到 index.html **同样返回 200**，所以缺失模块一律"通过"。现在改成从文件系统自动发现模块，并要求响应体不是 HTML 外壳。跑它需要先起 `pnpm dev`（脚本打的是 `http://localhost:1420`）。
 
+## 移动端嵌入式大脑（Prefrontal .so）
+
+链路：Flutter → MethodChannel(`com.ibloc.shadow/prefrontal_runtime`) → `PrefrontalRuntimeService`(Kotlin) → JNI → `libprefrontal_core_lib.so`(Rust) → axum mini HTTP server(localhost)。
+
+**2026-10-28 之前这条链路从未通过**，三个原因都在 prefrontal 仓：
+
+1. `mobile` feature **编译不过**（`AgentBuilder::build()` 改成返回 `Result`、`AppState::agent_store` 是字段不是方法、`agent::Agent` 没有 `spec.id`/`runtime_mut().with_model()`）—— `scripts/build-android.sh` 一直在构建一个不存在的东西。
+2. 仓库里**没有任何 JNI 入口**。`prefrontal_mobile_*` 是普通 C 符号（裸指针），Kotlin 的 `external fun` 找不到它们 → `UnsatisfiedLinkError`。已在 `src/mobile/jni.rs` 补上 6 个 JNI 入口（`Java_com_ibloc_shadow_PrefrontalRuntime_*`）。
+3. `scripts/build-android.sh` 有六处硬伤（末尾多余 `EOF` 让 `set -e` 直接失败、产物改名成 `libprefrontal_mobile.so` 而 Kotlin 要 `prefrontal_core_lib`、JNI 头文件符号前缀写错、输出目录指向 prefrontal 自己的 `android/`、覆盖全局 `~/.cargo/config.toml`、API level 硬编码 24 而 minSdk 是 31）。
+
+**怎么产出 `.so`**（在 prefrontal 仓）：
+
+```bash
+# 默认只编 arm64（41MB），装进 shadow-mobile 的 jniLibs
+./scripts/build-android.sh aarch64-linux-android
+# 显式指定 App 目录
+./scripts/build-android.sh aarch64-linux-android --output /path/to/shadow-mobile
+```
+
+脚本会用 `llvm-nm` 校验 6 个 JNI 符号确实导出 —— **「编译成功」不等于「Kotlin 调得到」**（符号名写错的话 loadLibrary 能成功但 native 调用必炸）。
+
+**`.so` 不入库**：它是兄弟仓库源码的构建产物（40MB/ABI），按需构建。`.gitignore` 里排除了它；jniLibs 里的 MNN 那几个是 vendored 第三方二进制，仍然入库。
+
+**`.so` 缺失时必须优雅降级**：`PrefrontalRuntime` 的 companion `init{}` **不要重抛** `loadLibrary` 的失败 —— 重抛会让类初始化失败，之后每次访问变成 `NoClassDefFoundError`，而调用方接的是 `UnsatisfiedLinkError`（Error 不是 Exception，`catch (e: Exception)` 接不住）→ App 崩。现状是：不重抛 + 5 个 native 调用点各自 catch `UnsatisfiedLinkError`，于是错误以正确形态落进 `MainActivity` 已有的 `SO_NOT_LOADED` 分支。
+
+**已知缺口**：`prefrontal_mobile_cluster_page.dart` 是孤儿页（Dart 里没有任何引用）；CI 不构建 Rust，所以 CI 出的 APK 没有这个 `.so`。
+
 ## 环境变量
 
 ```bash

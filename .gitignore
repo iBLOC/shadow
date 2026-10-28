@@ -49,6 +49,12 @@ Cargo.lock
 *.pt
 *.bin
 
+# 本地构建出来的原生库（prefrontal 的嵌入式大脑）。
+# 由 prefrontal/scripts/build-android.sh 生成 —— 那是兄弟仓库源码的
+# 构建产物，40MB/ABI，不入库；需要时跑一次脚本即可。
+# （jniLibs 里的 MNN 那几个是 vendored 第三方二进制，仍然入库。）
+shadow-mobile/android/app/src/main/jniLibs/*/libprefrontal_core_lib.so
+
 # IDE
 .idea/
 *.iml
