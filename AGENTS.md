@@ -1,7 +1,7 @@
 # PROJECT KNOWLEDGE BASE
 
 **Generated:** 2026-03-21
-**Updated:** 2026-09-25 (post-audit-cycle: rename chain cortex→encephalon→**telencephalon** closed, port :8443→**`:60080`** unified across lobes, recording mode R1-R4 landed, MCP catalog 5×28 + transport-aware form shipped, Workflow Studio v1 closed R-12/R-13, 4-lobe split GitHub homes finalized at bare names per `1dd1f0c`; see [`2026-09-25-doc-sync-changelog.md`](docs/superpowers/architecture/2026-09-25-doc-sync-changelog.md))
+**Updated:** 2026-10-28 (hippocampus 任务板接入桌面端与移动端：任务列表/详情/编辑弹窗两端打通，`TaskRecord` 字段契约统一——标题/描述/优先级无对应列，编辑只暴露状态与标签；移动端 `createTask` 补齐 `taskId`/`targetAgent`；桌面端删除 UniverSheet 死代码；CI 3/5 绿，剩 `Prefrontal Rust` + `Desktop E2E` 待 `IBLOC_TOKEN`)
 **Project:** shadow (影) - AI 用户分身系统
 **Spec version:** 2026-06-04 4-layer architecture (aligned with root `/AGENTS.md`)
 **Parent project summary**: `/home/ibloc/Projects/AGENTS.md` (not git-tracked — drift-prone; **not present on this Windows checkout**, paths stay verbatim Linux for now). Sibling audit: [`2026-09-23-iBLOC-progress-assessment.md`](docs/superpowers/architecture/2026-09-23-iBLOC-progress-assessment.md). Companion E2E coverage assessment: [`2026-09-25-e2e-coverage-assessment.md`](docs/superpowers/architecture/2026-09-25-e2e-coverage-assessment.md).
@@ -347,6 +347,7 @@ export PREFRONTAL_MODE="executor"                 # executor / full
 
 | Area | Change | Commits |
 |---|---|---|
+| **hippocampus 任务板接入双端** (2026-10-28) | 桌面端 `CortexTaskSection` 挂进 TaskBoardPage（hippocampus 任务列表 + 详情/编辑弹窗 + 刷新/删除）；移动端任务卡片可点开详情，编辑弹窗从"写好了没人引用"变成真能走通；两端统一遵守 `TaskRecord` 契约 —— 标题/描述/优先级没有对应列，编辑只暴露后端真正持久化的状态与标签，客户端建的标题改放 `payload`；修移动端 `createTask` 缺 `taskId`/`targetAgent`（后端 400）、看板漏掉 failed/cancelled 两列、读取失败从不显示；桌面端新增 `silent` 选项避免挂载即弹全局错误框 | `2f8b472`, `c3221d0`, `c53c256` |
 | **Benchmark harness 收口 + 双被测物真跑分** (2026-10-26/27) | τ²/SWE/GAIA/TB 四套件适配器全部入库可复跑（4042 行 WIP 收口）；agentic 模式真落地（此前 `[agent.mode]` 被 serde 静默丢弃）；跨模型 2×4 矩阵（deepseek/MiMo）；**shadow-desktop 被测物首个完整真跑分**（core-smoke 6/10，wdio 真应用栈）；behavior delta=产品边界（desktop 0/5 vs encephalon 5/5，对话路径无动作面）；修复 6 个 harness 缺陷（cmd.exe 吞 POSIX、answer_contract 丢失、hidden_files 不物化、孙进程管道挂死、180s 误杀→task_timeout_secs）+ 2 个环境问题（pytest editable 污染、WAT 违反 ABI）+ **neuron KV cache 竞态**（chat() reset/generate 分窗，77+58=135，neuron `2bce199`）；prefrontal 定时任务落地（`39563ad`）。总成绩单见 `benchmark/docs/benchmark-positioning.md` §3.5 | `b6ef666`…`3199b15`（shadow 15+）、prefrontal `39563ad`/`18fd479`、neuron `2bce199` |
 | **ACP outbound delegation** (2026-09-27, local) | prefrontal `acp_delegate` tool + `acp_outbound` registry dispatch tasks to ACP coding agents (OpenCode / Claude Code / Codex) via `synapse::acp::AcpClient`; `Config.acp` presets; `acp_stub_agent` test double; synapse fix: `session/update` chunks were silently dropped (SessionNotification envelope) | uncommitted in `prefrontal` / `synapse` |
 | **Rename chain closed** | cortex → encephalon → **telencephalon** (`telencephalon` is the active repo; `cortex/` directory is empty) | `b077a24`, `7128409`, `b0af1d7`, `f2d0015` |
