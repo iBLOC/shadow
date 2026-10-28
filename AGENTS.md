@@ -32,7 +32,7 @@
 │  │   Shadow-Desktop            │    │   Shadow-Mobile             │          │
 │  │   shadow/shadow-desktop/    │    │   shadow/shadow-mobile/     │          │
 │  │                             │    │                             │          │
-│  │   Tauri 2 + React 19        │    │   Flutter 3.11+             │          │
+│  │   Tauri 2 + React 19        │    │   Flutter 3.41.4            │          │
 │  │   • Zustand 5               │    │   • Riverpod                │          │
 │  │   • React Router 7          │    │   • GoRouter                │          │
 │  │   • CopilotKit (Agent2UI)   │    │   • flutter_genui (Agent2UI)│          │
@@ -239,7 +239,7 @@ shadow/
 
 | 特性 | 实现 |
 |------|------|
-| **框架** | Flutter 3.11+ |
+| **框架** | Flutter 3.41.4 |
 | **状态管理** | Riverpod |
 | **路由** | GoRouter |
 | **本地推理** | MNN (C++ JNI) |
@@ -270,6 +270,17 @@ shadow/
 | **Shadow-Desktop** | `shadow-desktop/` | N/A | 桌面端 UI + neuron (embedded :8085 via Tauri shell) |
 | **Shadow-Mobile** | `shadow-mobile/` | N/A | 移动端 UI + MNN |
 | **Shadow-ESP32** | `shadow-esp32/` | N/A | 边缘客户端原型 — **Zephyr 4.4.x + C + west**(`esp32s3_devkitc` 板级;v0.x 概念阶段;决策见 `shadow-esp32/docs/adr/0001-stack-choice-zephyr-c.md`;调研见 `shadow-esp32/docs/RESEARCH.md`)。通过 mDNS `_shadow._tcp` + A2A (JSON-RPC) 加入 Shadow 平台与 telencephalon/prefrontal 通信 |
+
+## 移动端本地开发环境
+
+CI 的 `Mobile Analyze` 作业固定 **Flutter 3.41.4（Dart 3.11.1）**（Dart 版本对应 `pubspec.yaml` 的 `sdk: ^3.11.1`）。本地装同版本，analyze 结果才和 CI 可比。
+
+- SDK：`C:\src\flutter`（用户级 PATH 已含 `C:\src\flutter\bin`），`flutter --version` = 3.41.4 / Dart 3.11.1
+- 拉依赖：`flutter pub get`（工作目录 `shadow-mobile/`）
+- 复刻 CI：`flutter analyze --no-fatal-infos --no-fatal-warnings` —— issues 全是 warning/info 才算过（2026-10-28：74 issues，无 error）
+- **CI 没有任何移动端测试作业**，`flutter test` 从未被跑过。2026-10-28 首次本地真跑：**173 通过 / 28 失败**。失败集中在 soul / mcp / skills / prompt-settings / model-settings / conversation 几个页面的文案断言与 i18n locale 不匹配，外加 ChatScreen 的 `pumpAndSettle` 超时；**任务板相关用例全绿**。修完之前不要把"移动端测试通过"写进结论
+- Windows 上 `flutter pub get` 末尾会因缺符号链接支持退出 1（Developer Mode 未开）。依赖其实已解析完，`analyze` / `test` 不受影响；要跑桌面端构建需管理员执行 `reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock" /v AllowDevelopmentWithoutDevLicense /t REG_DWORD /d 1 /f`
+- 根 `.gitignore` 忽略了 `pubspec.lock`。Flutter 应用通常应当提交 lockfile —— 现在的状态意味着每次 CI 都重新解析依赖，构建不可复现
 
 ## 环境变量
 
@@ -306,7 +317,7 @@ export PREFRONTAL_MODE="executor"                 # executor / full
 
 | 层级 | 移动端 | 桌面端 |
 |------|--------|--------|
-| **UI 框架** | Flutter 3.11+ | React 19 + Tauri v2 |
+| **UI 框架** | Flutter 3.41.4 | React 19 + Tauri v2 |
 | **状态管理** | Riverpod | Zustand 5 |
 | **路由** | GoRouter | React Router 7 |
 | **本地推理** | MNN (LiteRT + MNN) | neuron (embedded at :8085) |
