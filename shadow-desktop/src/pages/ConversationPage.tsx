@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { telencephalonClient } from '../lib/telencephalonClient';
 import { computeTokenStats } from '../lib/tokenStats';
 import { useConversationStore } from '../stores/conversationStore';
+import { usePromptStore } from '../stores/promptStore';
 import { useChatDisplayStore } from '../stores/chatDisplayStore';
 import { useCompanionModeStore } from '../stores/companionModeStore';
 import { WakeWordDetector } from '../lib/wakeWordDetector';
@@ -85,6 +86,10 @@ export function ConversationPage() {
   // Settings → UI "Token 统计" toggle — when on, each assistant reply gets
   // a live token-count / speed line under its bubble.
   const showTokenStats = useChatDisplayStore((s) => s.showTokenStats);
+  // System prompt configured on the prompt settings page. It is sent with
+  // every new server-side conversation and applied to the embedded-neuron
+  // conversation history, so the persona actually reaches the model.
+  const systemPrompt = usePromptStore((s) => s.systemPrompt);
 
   const activeConversation = conversations.find(c => c.id === activeConversationId);
 
@@ -245,7 +250,9 @@ export function ConversationPage() {
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
           if (!conversationId || attempt > 0) {
-            const newConv = await telencephalonClient.createConversation({});
+            const newConv = await telencephalonClient.createConversation({
+              system: systemPrompt,
+            });
             conversationId = newConv.id;
             setSessionId(activeConversationId, conversationId);
           }
@@ -264,7 +271,11 @@ export function ConversationPage() {
             showTokenStats
               ? computeTokenStats(accumulated, firstDeltaAt ?? Date.now())
               : undefined;
-          for await (const event of telencephalonClient.streamMessage(conversationId, { text: input })) {
+          for await (const event of telencephalonClient.streamMessage(
+            conversationId,
+            { text: input },
+            { system: systemPrompt },
+          )) {
             if (event.type === 'delta' && event.delta) {
               accumulated += event.delta;
               if (firstDeltaAt === null) firstDeltaAt = Date.now();

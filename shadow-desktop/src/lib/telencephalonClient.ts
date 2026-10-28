@@ -13,6 +13,19 @@ const SHADOW_NEURON_SYSTEM =
   // text appears (the bridge also strips think blocks as a fallback).
   '/no_think';
 
+/**
+ * Compose the effective system prompt.
+ *
+ * The baseline comes first because it carries the functional part (the
+ * Qwen3 `/no_think` directive has to survive a custom persona), and the
+ * user-configured persona goes last so it sits closest to the user turn —
+ * that is where a model gives it the most weight.
+ */
+export function composeSystemPrompt(custom?: string): string {
+  const persona = (custom ?? '').trim();
+  return persona ? `${SHADOW_NEURON_SYSTEM}\n\n${persona}` : SHADOW_NEURON_SYSTEM;
+}
+
 export interface CortexConfig {
   baseUrl: string;
   apiKey?: string;
@@ -487,10 +500,17 @@ export class TelencephalonClient {
   private async *streamMessageNeuron(
     conversationId: string,
     req: SendMessageRequest,
+    systemPrompt?: string,
   ): AsyncGenerator<StreamEvent> {
-    const history = this.neuronHistory.get(conversationId) ?? [
-      { role: 'system' as const, content: SHADOW_NEURON_SYSTEM },
-    ];
+    const system = composeSystemPrompt(systemPrompt);
+    const history = this.neuronHistory.get(conversationId) ?? [];
+    // Keep the system entry in sync with the current setting: the prompt
+    // settings page may be edited while a conversation is already open.
+    if (history.length === 0 || history[0].role !== 'system') {
+      history.unshift({ role: 'system' as const, content: system });
+    } else if (history[0].content !== system) {
+      history[0] = { role: 'system' as const, content: system };
+    }
     history.push({ role: 'user', content: req.text });
 
     let assistant = '';
@@ -635,9 +655,13 @@ export class TelencephalonClient {
     });
   }
 
-  async *streamMessage(conversationId: string, req: SendMessageRequest): AsyncGenerator<StreamEvent> {
+  async *streamMessage(
+    conversationId: string,
+    req: SendMessageRequest,
+    opts: { system?: string } = {},
+  ): AsyncGenerator<StreamEvent> {
     if (isTauri()) {
-      yield* this.streamMessageNeuron(conversationId, req);
+      yield* this.streamMessageNeuron(conversationId, req, opts.system);
       return;
     }
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };

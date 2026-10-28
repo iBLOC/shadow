@@ -13,6 +13,7 @@ import {
   MousePointer,
   GitBranch,
   FileCode,
+  MessageSquareQuote,
   type LucideIcon,
 } from 'lucide-react';
 import { useResonanceStore } from '../stores/resonanceStore';
@@ -36,6 +37,7 @@ const navItems: NavItem[] = [
   { path: '/mcp', icon: Wrench, labelKey: 'nav.mcp' },
   { path: '/jdm-editor', icon: FileCode, labelKey: 'nav.jdmEditor' },
   { path: '/skills', icon: Brain, labelKey: 'nav.skills' },
+  { path: '/prompt-settings', icon: MessageSquareQuote, labelKey: 'nav.promptSettings' },
   { path: '/memory', icon: Database, labelKey: 'nav.memory' },
   { path: '/logs', icon: ScrollText, labelKey: 'nav.logs' },
 ];

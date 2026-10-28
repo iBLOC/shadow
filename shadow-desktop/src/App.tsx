@@ -31,6 +31,7 @@ import { PreviewsPage } from './pages/PreviewsPage';
 import { ComputerUsePage } from './pages/ComputerUsePage';
 import { WorkflowStudioPage } from './pages/WorkflowStudioPage';
 import { JdmEditorPage } from './pages/JdmEditorPage';
+import { PromptSettingsPage } from './pages/PromptSettingsPage';
 import './App.css';
 
 function App() {
@@ -58,6 +59,7 @@ function App() {
           <Route path="mcp" element={<MCPPage />} />
           <Route path="jdm-editor" element={<JdmEditorPage />} />
           <Route path="skills" element={<SkillsPage />} />
+          <Route path="prompt-settings" element={<PromptSettingsPage />} />
           <Route path="memory" element={<MemoryPage />} />
           <Route path="logs" element={<LogsPage />} />
           <Route path="document/:taskId" element={<DocumentPage />} />
