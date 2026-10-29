@@ -71,7 +71,14 @@ export interface Conversation {
   history: Array<{
     role: 'user' | 'agent';
     text: string;
-    timestamp: number;
+    /**
+     * telencephalon's `ConversationTurn` serializes `at: DateTime<Utc>`,
+     * so the field on the wire is **`at`** (an RFC3339 string) — not
+     * `timestamp`. It used to be declared as `timestamp: number` here,
+     * which never matched the server and would have broken anyone who
+     * started reading the turns.
+     */
+    at: string;
   }>;
 }
 
