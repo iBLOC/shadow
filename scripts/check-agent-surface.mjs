@@ -27,6 +27,7 @@ import {
   buildAccentTs,
   buildShadScheme,
 } from './lib/tokens.mjs';
+import { normalizeEol } from './lib/eol.mjs';
 import {
   buildDesktopNav,
   buildMobileNav,
@@ -46,22 +47,18 @@ const GENERATED = [
   {
     path: 'shadow-desktop/src/styles/tokens.css',
     build: buildCss,
-    eol: '\n',
   },
   {
     path: 'shadow-desktop/src/styles/accent.g.ts',
     build: (t) => buildAccentTs(t),
-    eol: '\n',
   },
   {
     path: 'shadow-mobile/lib/theme/app_tokens.g.dart',
     build: buildDart,
-    eol: '\r\n',
   },
   {
     path: 'shadow-mobile/lib/theme/shad_scheme.g.dart',
     build: buildShadScheme,
-    eol: '\r\n',
   },
 ];
 
@@ -73,12 +70,10 @@ const NAV_GENERATED = [
   {
     path: 'shadow-desktop/src/navigation/nav.g.ts',
     build: buildDesktopNav,
-    eol: '\n',
   },
   {
     path: 'shadow-mobile/lib/navigation/nav.g.dart',
     build: buildMobileNav,
-    eol: '\r\n',
   },
 ];
 
@@ -94,8 +89,10 @@ function checkGeneratedFiles(entries, arg, fixHint) {
       stale += 1;
       continue;
     }
-    const expected = target.build(arg).split('\n').join(target.eol);
-    const current = readFileSync(abs, 'utf8');
+    // 比对时归一化行尾：Windows 工作树是 CRLF（autocrlf 检出），CI 是 LF，
+    // 两者都应判「同步」—— 详见 scripts/lib/eol.mjs。
+    const expected = normalizeEol(target.build(arg));
+    const current = normalizeEol(readFileSync(abs, 'utf8'));
     if (current !== expected) {
       errors.push(
         `生成物与共享源不同步：${target.path} —— 跑 ${fixHint}`,

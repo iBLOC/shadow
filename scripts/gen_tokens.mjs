@@ -22,33 +22,36 @@ import {
   buildAccentTs,
   buildShadScheme,
 } from './lib/tokens.mjs';
+import { normalizeEol } from './lib/eol.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CHECK = process.argv.includes('--check');
 
-/** 目标文件 → 生成器 → 行尾风格 */
+/**
+ * 目标文件 → 生成器
+ *
+ * 行尾**不再逐目标硬编码**：一律 LF 落盘、比对时归一化 —— 见
+ * `scripts/lib/eol.mjs` 里的理由（本地 autocrlf 是 CRLF、CI 是 LF，
+ * 硬编码行尾会变成「本地绿 / CI 红」的坑）。
+ */
 const TARGETS = [
   {
     path: 'shadow-desktop/src/styles/tokens.css',
     build: buildCss,
-    eol: '\n',
   },
   {
     path: 'shadow-desktop/src/styles/accent.g.ts',
     build: (t) => buildAccentTs(t),
-    eol: '\n',
     // TS 产物里本来就有合法的模板串 `${...}`，所以只查 NaN/undefined
     allowTemplateLiterals: true,
   },
   {
     path: 'shadow-mobile/lib/theme/app_tokens.g.dart',
     build: buildDart,
-    eol: '\r\n', // 移动端 Dart 源码是 CRLF
   },
   {
     path: 'shadow-mobile/lib/theme/shad_scheme.g.dart',
     build: buildShadScheme,
-    eol: '\r\n',
   },
 ];
 
@@ -58,7 +61,7 @@ let drift = 0;
 
 for (const target of TARGETS) {
   const abs = join(ROOT, target.path);
-  const content = target.build(tokens).split('\n').join(target.eol);
+  const content = normalizeEol(target.build(tokens));
 
   // 自检：模板串写错时产物里会残留未展开的 ${...} 或 NaN/undefined。
   // 这类错误肉眼很难发现，但它会直接变成两端跑不起来的常量，所以在这里拦死。
@@ -73,7 +76,9 @@ for (const target of TARGETS) {
 
   const current = existsSync(abs) ? readFileSync(abs, 'utf8') : null;
 
-  if (current === content) {
+  // 比对时归一化行尾：Windows 工作树是 CRLF（autocrlf 检出），CI 是 LF，
+  // 两者都应判「同步」—— 详见 scripts/lib/eol.mjs。
+  if (normalizeEol(current) === content) {
     console.log(`  = ${target.path} 已是最新`);
     continue;
   }
