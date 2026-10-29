@@ -717,6 +717,25 @@ class MainActivity : FlutterActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, ENCEPHALON_CHANNEL)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
+                    // LLM 上游（OpenAI 兼容）—— 必须在 "start" 之前调用。
+                    //
+                    // neuron 的 remote 引擎只认环境变量，而 Android App 进程的
+                    // 环境变量由 zygote 决定、宿主注入不了 —— 所以这条通道是
+                    // 「手机上跑一个云端模型」唯一的入口。
+                    "setLlmProvider" -> {
+                        val baseUrl = call.argument<String>("baseUrl") ?: ""
+                        val apiKey = call.argument<String>("apiKey") ?: ""
+                        val model = call.argument<String>("model") ?: ""
+                        try {
+                            result.success(
+                                EncephalonRuntime.getInstance()
+                                    .setLlmProvider(baseUrl, apiKey, model)
+                            )
+                        } catch (e: Exception) {
+                            result.success(false)
+                        }
+                    }
+
                     "start" -> {
                         val port = call.argument<Int>("port") ?: 0
                         // App 私有目录 —— 端脑的 flow（工作流）存储要写在那里。

@@ -77,6 +77,11 @@ class EncephalonRuntime {
     private external fun nativeGetPort(): Int
     private external fun nativeGetAgentPort(): Int
     private external fun nativeHealthCheck(): Int
+    private external fun nativeSetLlmProvider(
+        baseUrl: String,
+        apiKey: String,
+        model: String,
+    ): Int
     private external fun nativeInfer(
         path: String,
         body: ByteArray,
@@ -121,6 +126,39 @@ class EncephalonRuntime {
             false
         } catch (e: Exception) {
             Log.w(TAG, "Health check failed: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * 设置 LLM 上游（OpenAI 兼容）。**必须在 [start] 之前调用。**
+     *
+     * 为什么要有这条通道：neuron 的 remote 引擎只认环境变量，而 Android
+     * App 进程的环境变量由 zygote 决定、宿主注入不了 —— 于是「手机上跑
+     * 一个云端模型」只能走程序化注册。注册进去之后，叶区会改用这个模型
+     * id 去请求 neuron 的 OpenAI 面。
+     *
+     * @param baseUrl OpenAI 兼容的 base URL，**要含 `/v1`**。
+     * @param apiKey bearer token；空串 = 不带 Authorization 头。
+     * @param model 上游的模型 id，也是叶区请求时用的模型名。
+     *
+     * 三个参数都传空串 = 清空配置，回到「只用本地权重」。
+     */
+    fun setLlmProvider(baseUrl: String, apiKey: String, model: String): Boolean {
+        return try {
+            val rc = nativeSetLlmProvider(baseUrl, apiKey, model)
+            if (rc >= 0) {
+                Log.i(TAG, "✅ LLM provider set: $baseUrl model=$model")
+                true
+            } else {
+                Log.e(TAG, "❌ nativeSetLlmProvider returned: $rc")
+                false
+            }
+        } catch (e: UnsatisfiedLinkError) {
+            Log.w(TAG, "Encephalon .so not loaded: ${e.message}")
+            false
+        } catch (e: Exception) {
+            Log.e(TAG, "setLlmProvider failed: ${e.message}", e)
             false
         }
     }

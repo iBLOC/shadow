@@ -3,6 +3,8 @@ import 'package:logging/logging.dart';
 
 import '../../l10n/current_l10n.dart';
 import '../../providers/telencephalon_provider.dart';
+import '../../screens/model_management_screen.dart';
+import '../../services/database/model_item.dart';
 import '../telencephalon/telencephalon_client.dart';
 import 'encephalon_mobile_service.dart';
 
@@ -74,6 +76,47 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
     }
   }
 
+  /// 把 App 里配好的云端供应商推给嵌入式大脑。
+  ///
+  /// 取第一个「云端供应商」模型（`ModelSource.cloudProvider`）—— endpoint
+  /// 和 model 都得有，缺一个都跑不起来（neuron 拼的是
+  /// `{endpoint}/chat/completions`，叶区按 model 去请求）。
+  ///
+  /// 没配云端供应商时**不报错**：大脑照样起来，只是叶区没有可用模型
+  /// （会回 `NO_MODEL_CONFIGURED`），本地权重那条路仍然可用。
+  Future<void> _applyCloudProvider() async {
+    // 等模型列表**首次加载完** —— 第一次读 provider 时列表还是空的
+    // （加载是异步的），不等会误判成「用户没配云端供应商」。
+    try {
+      await _ref.read(modelsProvider.notifier).ready;
+    } catch (e) {
+      _log.warning('模型列表加载失败: $e');
+    }
+    final models = _ref.read(modelsProvider).models;
+    ModelItem? cloud;
+    for (final m in models) {
+      if (m.source != ModelSource.cloudProvider) continue;
+      if ((m.endpoint ?? '').trim().isEmpty) continue;
+      if ((m.model ?? '').trim().isEmpty) continue;
+      cloud = m;
+      break;
+    }
+    if (cloud == null) {
+      _log.info('未配置云端供应商 —— 大脑只会有本地权重可用');
+      return;
+    }
+    final ok = await _service.setLlmProvider(
+      baseUrl: (cloud.endpoint ?? '').trim(),
+      apiKey: cloud.apiKey ?? '',
+      model: (cloud.model ?? '').trim(),
+    );
+    if (ok) {
+      _log.info('云端供应商已交给大脑: ${cloud.endpoint} model=${cloud.model}');
+    } else {
+      _log.warning('云端供应商交接失败: ${cloud.endpoint}');
+    }
+  }
+
   /// 启动嵌入式大脑
   Future<bool> start() async {
     if (state.status == EncephalonMobileStatus.running) {
@@ -87,6 +130,14 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
     );
 
     try {
+      // 启动前把「宿主配的云端供应商」交给大脑。
+      //
+      // neuron 的 remote 引擎只认环境变量（NEURON_REMOTE_BASE_URL 等），
+      // 而 Android App 进程的环境变量由 zygote 决定、宿主注入不了 ——
+      // 所以只能走这条程序化通道：MethodChannel → JNI → Rust → 注册进
+      // neuron 的派发表。叶区随后会按这个模型 id 去请求 neuron。
+      await _applyCloudProvider();
+
       final success = await _service.start();
       if (success) {
         final agentPort = _service.agentPort;

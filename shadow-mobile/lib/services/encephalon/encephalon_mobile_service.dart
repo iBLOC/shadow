@@ -54,6 +54,33 @@ class EncephalonMobileService {
   /// 运行时是否已启动。
   bool get isRunning => _isRunning;
 
+  /// 设置 LLM 上游（OpenAI 兼容）。**必须在 [start] 之前调用。**
+  ///
+  /// neuron 的 remote 引擎只认环境变量，而 Android App 进程的环境变量由
+  /// zygote 决定、宿主注入不了 —— 于是「手机上跑一个云端模型」只能走这条
+  /// 程序化通道。注册进去之后，叶区会改用 [model] 这个 id 去请求 neuron's
+  /// OpenAI 面。
+  ///
+  /// [baseUrl] 要**含 `/v1`**（neuron 拼的是 `{baseUrl}/chat/completions`）。
+  /// [apiKey] 为空 = 不带 Authorization 头。三个都传空串 = 清空配置。
+  Future<bool> setLlmProvider({
+    required String baseUrl,
+    required String apiKey,
+    required String model,
+  }) async {
+    try {
+      final result = await _channel.invokeMethod<bool>('setLlmProvider', {
+        'baseUrl': baseUrl,
+        'apiKey': apiKey,
+        'model': model,
+      });
+      return result ?? false;
+    } catch (e, stack) {
+      _log.severe('设置 LLM 上游异常', e, stack);
+      return false;
+    }
+  }
+
   /// 启动嵌入式大脑。
   ///
   /// [preferredPort] 是 neuron HTTP 面的期望端口；null / 0 表示随机分配。
