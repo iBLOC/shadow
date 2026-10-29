@@ -434,6 +434,12 @@ abstract class AppLocalizations {
   /// **'Wait for WiFi'**
   String get waitForWifi;
 
+  /// No description provided for @waitingForWifiHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for WiFi — the model will download automatically once connected.'**
+  String get waitingForWifiHint;
+
   /// No description provided for @downloadNow.
   ///
   /// In en, this message translates to:

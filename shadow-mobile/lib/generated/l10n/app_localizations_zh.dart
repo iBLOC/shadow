@@ -185,6 +185,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get waitForWifi => '等待 WiFi';
 
   @override
+  String get waitingForWifiHint => '已选择等待 WiFi，连上后会自动开始下载。';
+
+  @override
   String get downloadNow => '立即下载';
 
   @override

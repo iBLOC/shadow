@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
 import '../generated/l10n/app_localizations.dart';
 import '../providers/chat_provider.dart';
 import '../providers/genui_provider.dart';
+import '../providers/network_provider.dart';
 import '../providers/wake_word_provider.dart';
 import '../services/wake_word_service.dart';
 import '../providers/conversation_mode_provider.dart';
@@ -29,6 +33,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final TextEditingController _promptController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   ProviderSubscription<AsyncValue<WakeWordEvent>>? _wakeWordSub;
+
+  /// 「等 WiFi」的订阅 —— 连上 WiFi 后自动开始下载模型。
+  StreamSubscription<NetworkType>? _wifiWaitSub;
 
   @override
   void initState() {
@@ -60,6 +67,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   void dispose() {
     _wakeWordSub?.close();
+    _wifiWaitSub?.cancel();
     _promptController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -127,7 +135,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (modelNotReady && !_downloadDialogShown) {
       _downloadDialogShown = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _showDownloadDialog(context);
+        if (!mounted) return;
+        _showDownloadDialog();
       });
     } else if (!modelNotReady && _downloadDialogShown) {
       _downloadDialogShown = false;
@@ -265,17 +274,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
-  void _showDownloadDialog(BuildContext context) async {
+  void _showDownloadDialog() async {
+    if (!mounted) return;
     final l10n = AppLocalizations.of(context)!;
     final chatNotifier = ref.read(chatProvider.notifier);
-    final networkService = NetworkService();
+    final networkService = ref.read(networkServiceProvider);
     final networkType = await networkService.getNetworkType();
+    // 网络类型是异步查的 —— 返回时这个页面可能已经被关掉了。
+    if (!mounted) return;
     final chatState = ref.read(chatProvider);
     final agent = chatState.currentAgent;
     final modelSize = agent.model.sizeString;
 
     if (networkType == NetworkType.mobile) {
-      final navigator = Navigator.of(context);
       final result = await showDialog<String>(
         context: context,
         barrierDismissible: false,
@@ -296,12 +307,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       );
 
       if (result == 'wifi') {
-        navigator.pop();
+        // 「等待 WiFi」= 现在不下载，等连上 WiFi 再自动下载。
+        //
+        // 原来的实现是 `navigator.pop()` —— 弹掉的是**当前路由**。而 /chat
+        // 是路由表的 initialLocation（根导航器上的第一个路由），弹掉之后
+        // 根导航器里就没有任何路由了 → 整个 App 黑屏。
+        //
+        // 「等 WiFi」是一个**推迟**动作，不是「离开」—— 它根本不该导航。
+        _waitForWifiThenDownload();
         return;
       }
     }
 
-    if (!context.mounted) return;
+    // 上面 await 过一个对话框 —— 页面可能已经被关掉了。
+    if (!mounted) return;
 
     showDialog(
       context: context,
@@ -389,5 +408,31 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         );
       },
     );
+  }
+
+  /// 「等待 WiFi」—— 现在不下载，**等连上 WiFi 自动开始下载**。
+  ///
+  /// 为什么要有这一段：用户点「等待 WiFi」表达的是「别用流量下载」，
+  /// 不是「离开这个页面」。之前的实现直接 `navigator.pop()` 把当前路由
+  /// 弹掉了 —— /chat 是路由表的 initialLocation，弹掉之后根导航器空了，
+  /// 整个 App 黑屏（真机反馈）。现在改成：留在原地 + 订阅网络变化。
+  ///
+  /// `_downloadDialogShown` 保持 true —— 否则 build 里 `modelNotReady` 会
+  /// 立刻把这个对话框再弹一遍，变成「关掉又弹」的死循环。
+  void _waitForWifiThenDownload() {
+    _wifiWaitSub?.cancel();
+    _wifiWaitSub = ref.read(networkServiceProvider).onNetworkTypeChanged.listen(
+      (type) {
+        if (type != NetworkType.wifi) return;
+        _wifiWaitSub?.cancel();
+        _wifiWaitSub = null;
+        if (!mounted) return;
+        ref.read(chatProvider.notifier).downloadModel();
+      },
+    );
+
+    final l10n = AppLocalizations.of(context)!;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(l10n.waitingForWifiHint)));
   }
 }

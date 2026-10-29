@@ -185,6 +185,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get waitForWifi => 'Wait for WiFi';
 
   @override
+  String get waitingForWifiHint =>
+      'Waiting for WiFi — the model will download automatically once connected.';
+
+  @override
   String get downloadNow => 'Download Now';
 
   @override

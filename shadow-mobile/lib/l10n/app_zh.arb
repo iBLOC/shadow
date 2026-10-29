@@ -56,6 +56,7 @@
   "mobileNetworkDetected": "检测到移动网络",
   "downloadOnMobile": "您正在使用移动数据。模型 ({modelSize}) 将被下载。是否立即下载或等待 WiFi？",
   "waitForWifi": "等待 WiFi",
+  "waitingForWifiHint": "已选择等待 WiFi，连上后会自动开始下载。",
   "downloadNow": "立即下载",
   "gallery": "相册",
   "camera": "相机",
