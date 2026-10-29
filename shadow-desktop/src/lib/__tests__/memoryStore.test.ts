@@ -1,7 +1,43 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+/**
+ * memoryStore 的行为测试。
+ *
+ * store 本身不含地址 —— 读写全部经由 `lib/hippocampusClient.ts` 打到端脑
+ * 里嵌着的海马体（`{端脑}/hippocampus/api/*`）。所以这里 mock 掉 `fetch`，
+ * 断言的是「store 真的走了海马体端点」以及「失败时状态是干净的」。
+ */
+
 const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
+
+const jsonResponse = (data: unknown) => ({
+  ok: true,
+  status: 200,
+  statusText: 'OK',
+  json: () => Promise.resolve(data),
+  text: () => Promise.resolve(JSON.stringify(data)),
+});
+
+const errorResponse = () => ({
+  ok: false,
+  status: 500,
+  statusText: 'Internal Server Error',
+  json: () => Promise.resolve({}),
+  text: () => Promise.resolve('boom'),
+});
+
+const wireMemory = {
+  id: 'mem-1',
+  uri: 'memory://123',
+  content: 'likes dark mode',
+  dimension: 'Agent',
+  layer: 'L2Detail',
+  session_id: null,
+  tenant_id: 'default',
+  created_at: '2026-10-29T01:02:03Z',
+  updated_at: '2026-10-29T01:02:04Z',
+};
 
 describe('memoryStore', () => {
   beforeEach(() => {
@@ -40,53 +76,152 @@ describe('memoryStore', () => {
     expect(currentSessionId).toBeNull();
   });
 
-  it('starts with default apiBase', async () => {
+  it('不再持有自己的 apiBase —— 地址只来自端脑运行时配置', async () => {
     const { useMemoryStore } = await import('../../stores/memoryStore');
-    const { apiBase } = useMemoryStore.getState();
-    expect(apiBase).toBe('http://localhost:8081');
+    expect(useMemoryStore.getState()).not.toHaveProperty('apiBase');
+    expect(useMemoryStore.getState()).not.toHaveProperty('setApiBase');
   });
 
-  it('addMemory adds memory to list', async () => {
+  it('fetchMemories 走 GET /hippocampus/api/memory 并映射成 UI 形状', async () => {
+    mockFetch.mockResolvedValue(jsonResponse([wireMemory]));
     const { useMemoryStore } = await import('../../stores/memoryStore');
-    const { addMemory } = useMemoryStore.getState();
 
-    addMemory({ id: 'mem-1', content: 'Test memory', createdAt: new Date() });
+    await useMemoryStore.getState().fetchMemories();
+
+    const [url, init] = mockFetch.mock.calls[0];
+    expect(url).toContain('/hippocampus/api/memory');
+    expect(init.method).toBe('GET');
+
+    const { memories, isLoading, error } = useMemoryStore.getState();
+    expect(memories).toHaveLength(1);
+    expect(memories[0].id).toBe('mem-1');
+    expect(memories[0].layer).toBe('L2');
+    expect(memories[0].createdAt).toBeInstanceOf(Date);
+    expect(isLoading).toBe(false);
+    expect(error).toBeNull();
+  });
+
+  it('fetchMemories 带维度时用小写查询参数', async () => {
+    mockFetch.mockResolvedValue(jsonResponse([]));
+    const { useMemoryStore } = await import('../../stores/memoryStore');
+
+    await useMemoryStore.getState().fetchMemories('Agent');
+
+    const [url] = mockFetch.mock.calls[0];
+    expect(url).toContain('dimension=agent');
+  });
+
+  it('searchMemories 走 POST /hippocampus/api/search', async () => {
+    mockFetch.mockResolvedValue(
+      jsonResponse([{ memory: wireMemory, score: 0.9, source: 'Vector' }])
+    );
+    const { useMemoryStore } = await import('../../stores/memoryStore');
+
+    await useMemoryStore.getState().searchMemories('coffee');
+
+    const [url, init] = mockFetch.mock.calls[0];
+    expect(url).toContain('/hippocampus/api/search');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body)).toMatchObject({ query: 'coffee' });
+
+    const { searchResults, hasSearched } = useMemoryStore.getState();
+    expect(searchResults).toHaveLength(1);
+    expect(searchResults[0].memory.content).toBe('likes dark mode');
+    expect(hasSearched).toBe(true);
+  });
+
+  it('空查询清掉搜索态（回到完整列表）', async () => {
+    const { useMemoryStore } = await import('../../stores/memoryStore');
+
+    await useMemoryStore.getState().searchMemories('   ');
+
+    const { searchResults, hasSearched } = useMemoryStore.getState();
+    expect(searchResults).toEqual([]);
+    expect(hasSearched).toBe(false);
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it('addMemory 先写后端再进本地列表', async () => {
+    mockFetch.mockResolvedValue(jsonResponse(wireMemory));
+    const { useMemoryStore } = await import('../../stores/memoryStore');
+
+    await useMemoryStore.getState().addMemory({
+      content: 'likes dark mode',
+      dimension: 'Agent',
+    });
+
+    const [url, init] = mockFetch.mock.calls[0];
+    expect(url).toContain('/hippocampus/api/memory');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body).dimension).toBe('agent');
 
     const { memories } = useMemoryStore.getState();
     expect(memories).toHaveLength(1);
     expect(memories[0].id).toBe('mem-1');
   });
 
-  it('removeMemory removes memory by id', async () => {
+  it('addMemory 带当前会话 id', async () => {
+    mockFetch.mockResolvedValue(jsonResponse(wireMemory));
     const { useMemoryStore } = await import('../../stores/memoryStore');
-    const { addMemory, removeMemory } = useMemoryStore.getState();
 
-    addMemory({ id: 'mem-1', content: 'Test', createdAt: new Date() });
-    removeMemory('mem-1');
+    useMemoryStore.getState().setSession('session-77');
+    await useMemoryStore.getState().addMemory({
+      content: 'x',
+      dimension: 'Agent',
+    });
 
-    const { memories } = useMemoryStore.getState();
-    expect(memories).toHaveLength(0);
+    const [, init] = mockFetch.mock.calls[0];
+    expect(JSON.parse(init.body).sessionId).toBe('session-77');
   });
 
-  it('updateMemory updates memory fields', async () => {
+  it('removeMemory 走后端并从本地移除', async () => {
+    mockFetch.mockResolvedValue(jsonResponse({ success: true }));
     const { useMemoryStore } = await import('../../stores/memoryStore');
-    const { addMemory, updateMemory } = useMemoryStore.getState();
 
-    addMemory({ id: 'mem-1', content: 'Test', createdAt: new Date() });
-    updateMemory('mem-1', { content: 'Updated' });
+    mockFetch.mockResolvedValueOnce(jsonResponse([wireMemory]));
+    await useMemoryStore.getState().fetchMemories();
+    expect(useMemoryStore.getState().memories).toHaveLength(1);
+
+    await useMemoryStore.getState().removeMemory('mem-1');
+
+    const [, init] = mockFetch.mock.calls[1];
+    expect(init.method).toBe('DELETE');
+    expect(useMemoryStore.getState().memories).toHaveLength(0);
+  });
+
+  it('updateMemory 走后端并替换本地那一条', async () => {
+    mockFetch.mockResolvedValue(jsonResponse([wireMemory]));
+    const { useMemoryStore } = await import('../../stores/memoryStore');
+
+    await useMemoryStore.getState().fetchMemories();
+
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({ ...wireMemory, content: 'Updated' })
+    );
+    await useMemoryStore.getState().updateMemory('mem-1', { content: 'Updated' });
+
+    const [, init] = mockFetch.mock.calls[1];
+    expect(init.method).toBe('PUT');
+    expect(JSON.parse(init.body)).toEqual({ content: 'Updated' });
 
     const { memories } = useMemoryStore.getState();
+    expect(memories).toHaveLength(1);
     expect(memories[0].content).toBe('Updated');
   });
 
-  it('setApiBase updates api base', async () => {
+  it('后端失败时把错误放进 error，并且不改本地数据', async () => {
+    mockFetch.mockResolvedValue(errorResponse());
     const { useMemoryStore } = await import('../../stores/memoryStore');
-    const { setApiBase } = useMemoryStore.getState();
 
-    setApiBase('http://custom:8081');
+    await useMemoryStore.getState().addMemory({
+      content: 'x',
+      dimension: 'Agent',
+    });
 
-    const { apiBase } = useMemoryStore.getState();
-    expect(apiBase).toBe('http://custom:8081');
+    const { memories, error, isLoading } = useMemoryStore.getState();
+    expect(memories).toHaveLength(0);
+    expect(error).toContain('500');
+    expect(isLoading).toBe(false);
   });
 
   it('setSession updates session id', async () => {
@@ -99,61 +234,26 @@ describe('memoryStore', () => {
     expect(currentSessionId).toBe('session-123');
   });
 
+  it('setPersona 换人格 = 换海马体租户', async () => {
+    mockFetch.mockResolvedValue(jsonResponse([]));
+    const { useMemoryStore } = await import('../../stores/memoryStore');
+
+    useMemoryStore.getState().setPersona('persona-ada');
+    await useMemoryStore.getState().fetchMemories();
+
+    expect(useMemoryStore.getState().personaId).toBe('persona-ada');
+    const [url] = mockFetch.mock.calls[0];
+    expect(url).toContain('tenantId=persona-ada');
+  });
+
   it('clearError clears error state', async () => {
+    mockFetch.mockResolvedValue(errorResponse());
     const { useMemoryStore } = await import('../../stores/memoryStore');
-    const { clearError } = useMemoryStore.getState();
 
-    clearError();
+    await useMemoryStore.getState().fetchMemories();
+    expect(useMemoryStore.getState().error).not.toBeNull();
 
-    const { error } = useMemoryStore.getState();
-    expect(error).toBeNull();
-  });
-
-  it('addMemory preserves existing memories', async () => {
-    const { useMemoryStore } = await import('../../stores/memoryStore');
-    const { addMemory } = useMemoryStore.getState();
-
-    addMemory({ id: 'mem-1', content: 'First', createdAt: new Date() });
-    addMemory({ id: 'mem-2', content: 'Second', createdAt: new Date() });
-
-    const { memories } = useMemoryStore.getState();
-    expect(memories).toHaveLength(2);
-  });
-
-  it('removeMemory preserves other memories', async () => {
-    const { useMemoryStore } = await import('../../stores/memoryStore');
-    const { addMemory, removeMemory } = useMemoryStore.getState();
-
-    addMemory({ id: 'mem-1', content: 'First', createdAt: new Date() });
-    addMemory({ id: 'mem-2', content: 'Second', createdAt: new Date() });
-    removeMemory('mem-1');
-
-    const { memories } = useMemoryStore.getState();
-    expect(memories).toHaveLength(1);
-    expect(memories[0].id).toBe('mem-2');
-  });
-
-  it('searchMemories sets loading state', async () => {
-    mockFetch.mockResolvedValue({ ok: true, json: () => Promise.resolve([]) });
-
-    const { useMemoryStore } = await import('../../stores/memoryStore');
-    const { searchMemories } = useMemoryStore.getState();
-
-    searchMemories('test');
-
-    const { isLoading } = useMemoryStore.getState();
-    expect(isLoading).toBe(true);
-  });
-
-  it('fetchMemories sets loading state', async () => {
-    mockFetch.mockResolvedValue({ ok: true, json: () => Promise.resolve([]) });
-
-    const { useMemoryStore } = await import('../../stores/memoryStore');
-    const { fetchMemories } = useMemoryStore.getState();
-
-    fetchMemories();
-
-    const { isLoading } = useMemoryStore.getState();
-    expect(isLoading).toBe(true);
+    useMemoryStore.getState().clearError();
+    expect(useMemoryStore.getState().error).toBeNull();
   });
 });

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMemoryStore } from '../stores/memoryStore';
 import {
@@ -18,38 +18,54 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 
 export function MemoryPage() {
   const { t } = useTranslation();
-  const { memories, searchResults, isLoading, error, searchMemories, addMemory, removeMemory } = useMemoryStore();
+  const {
+    memories,
+    searchResults,
+    hasSearched,
+    isLoading,
+    error,
+    searchMemories,
+    fetchMemories,
+    addMemory,
+    removeMemory,
+  } = useMemoryStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDimension, setSelectedDimension] = useState<string>('');
   const [showAddForm, setShowAddForm] = useState(false);
-  const [newMemory, setNewMemory] = useState<Partial<Memory>>({
-    content: '',
-    dimension: 'Agent',
-    layer: 'L2',
-  });
+  const [newMemory, setNewMemory] = useState<{
+    content: string;
+    dimension: Memory['dimension'];
+  }>({ content: '', dimension: 'Agent' });
+
+  // 页面一进来就把海马体里的记忆拉回来 —— 以前这个页面从来没发过请求，
+  // 所以永远是空的（store 里的 `fetchMemories` 没有任何调用方）。
+  useEffect(() => {
+    void fetchMemories();
+  }, [fetchMemories]);
 
   const handleSearch = () => {
-    searchMemories(searchQuery, selectedDimension || undefined);
+    void searchMemories(searchQuery);
   };
 
-  const handleAddMemory = () => {
-    if (!newMemory.content) return;
-    const memory: Memory = {
-      id: crypto.randomUUID(),
-      uri: `memory://${Date.now()}`,
-      content: newMemory.content,
-      dimension: newMemory.dimension as Memory['dimension'] || 'Agent',
-      layer: newMemory.layer as Memory['layer'] || 'L2',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    addMemory(memory);
+  // 维度过滤走列表端点（`GET /api/memory?dimension=`）—— 海马体的搜索端点
+  // 不接受 dimension 参数。
+  const handleDimensionChange = (value: string) => {
+    setSelectedDimension(value);
+    void fetchMemories(value ? (value as Memory['dimension']) : undefined);
+  };
+
+  const handleAddMemory = async () => {
+    if (!newMemory.content.trim()) return;
+    await addMemory({
+      content: newMemory.content.trim(),
+      dimension: newMemory.dimension,
+    });
     setShowAddForm(false);
-    setNewMemory({ content: '', dimension: 'Agent', layer: 'L2' });
+    setNewMemory({ content: '', dimension: 'Agent' });
   };
 
-  const displayMemories = searchResults.length > 0
-    ? searchResults.map(r => r.memory)
+  const displayMemories = hasSearched
+    ? searchResults.map((r) => r.memory)
     : memories;
 
   return (
@@ -76,7 +92,7 @@ export function MemoryPage() {
             className="flex-1 border-none bg-transparent py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
           />
         </div>
-        <Select value={selectedDimension} onValueChange={setSelectedDimension}>
+        <Select value={selectedDimension} onValueChange={handleDimensionChange}>
           <SelectTrigger className="min-w-[160px]">
             <SelectValue placeholder={t('memory.allDimensions')} />
           </SelectTrigger>
@@ -103,13 +119,13 @@ export function MemoryPage() {
         <FormCard
           title={t('memory.addMemory')}
           onCancel={() => setShowAddForm(false)}
-          onSubmit={handleAddMemory}
+          onSubmit={() => void handleAddMemory()}
           cancelLabel={t('common.cancel')}
           submitLabel={t('common.save')}
         >
           <FormGroup label={t('common.description')}>
             <textarea
-              value={newMemory.content || ''}
+              value={newMemory.content}
               onChange={(e) => setNewMemory({ ...newMemory, content: e.target.value })}
               placeholder={t('memory.searchPlaceholder')}
               rows={4}
@@ -118,8 +134,10 @@ export function MemoryPage() {
           <FormRow>
             <FormGroup label={t('memory.dimension')}>
               <Select
-                value={newMemory.dimension || 'Agent'}
-                onValueChange={(v) => setNewMemory({ ...newMemory, dimension: v as Memory['dimension'] })}
+                value={newMemory.dimension}
+                onValueChange={(v) =>
+                  setNewMemory({ ...newMemory, dimension: v as Memory['dimension'] })
+                }
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -132,26 +150,11 @@ export function MemoryPage() {
                 </SelectContent>
               </Select>
             </FormGroup>
-            <FormGroup label={t('memory.layer')}>
-              <Select
-                value={newMemory.layer || 'L2'}
-                onValueChange={(v) => setNewMemory({ ...newMemory, layer: v as Memory['layer'] })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="L0">{t('memory.layerL0')}</SelectItem>
-                  <SelectItem value="L1">{t('memory.layerL1')}</SelectItem>
-                  <SelectItem value="L2">{t('memory.layerL2')}</SelectItem>
-                </SelectContent>
-              </Select>
-            </FormGroup>
           </FormRow>
         </FormCard>
       )}
 
-      {searchResults.length > 0 && (
+      {hasSearched && (
         <div className="mb-3 flex items-center gap-2 text-sm text-muted-foreground">
           <Brain size={16} />
           {t('memory.foundResults', { count: searchResults.length })}
@@ -175,10 +178,15 @@ export function MemoryPage() {
                   </span>
                   <span className="flex items-center gap-1 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground">
                     <Layers size={12} />
-                    {memory.layer}
+                    {t(`memory.layer${memory.layer}`)}
                   </span>
                 </div>
-                <Button size="icon" variant="ghost" onClick={() => removeMemory(memory.id)} aria-label={t('common.delete')}>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => void removeMemory(memory.id)}
+                  aria-label={t('common.delete')}
+                >
                   <Trash2 size={14} />
                 </Button>
               </div>

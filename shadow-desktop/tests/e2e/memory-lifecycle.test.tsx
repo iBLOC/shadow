@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { useMemoryStore } from '../../src/stores/memoryStore';
 import { MemoryPage } from '../../src/pages/MemoryPage';
@@ -23,17 +23,18 @@ function createMockStore(overrides: Record<string, unknown> = {}) {
   return {
     memories: [],
     searchResults: [],
+    hasSearched: false,
     isLoading: false,
     error: null,
     currentSessionId: null,
-    apiBase: 'http://localhost:8081',
+    personaId: null,
     addMemory: mockAddMemory,
     removeMemory: mockRemoveMemory,
     searchMemories: mockSearchMemories,
     fetchMemories: vi.fn(),
     updateMemory: vi.fn(),
-    setApiBase: vi.fn(),
     setSession: vi.fn(),
+    setPersona: vi.fn(),
     clearError: vi.fn(),
     ...overrides,
   };
@@ -96,11 +97,13 @@ describe('Memory Lifecycle E2E', () => {
       expect(placeholders.length).toBeGreaterThanOrEqual(2);
     });
 
-    it('has dimension and layer selects in add form', () => {
+    it('has a dimension select in add form', () => {
       renderPage();
       fireEvent.click(screen.getByText(/memory\.addMemory/i));
       const selects = screen.getAllByRole('combobox');
-      expect(selects.length).toBeGreaterThanOrEqual(2);
+      expect(selects.length).toBeGreaterThanOrEqual(1);
+      // layer 由海马体分配，客户端不再提供选择器。
+      expect(screen.queryByText('memory.layer')).not.toBeInTheDocument();
     });
   });
 
@@ -127,7 +130,7 @@ describe('Memory Lifecycle E2E', () => {
       expect(mockAddMemory).not.toHaveBeenCalled();
     });
 
-    it('clears form after adding memory', () => {
+    it('clears form after adding memory', async () => {
       (useMemoryStore as unknown as Mock).mockReturnValue(
         createMockStore({ memories: [] })
       );
@@ -139,7 +142,10 @@ describe('Memory Lifecycle E2E', () => {
         fireEvent.change(formTextarea, { target: { value: 'Content' } });
       }
       fireEvent.click(screen.getByText(/common\.save/i));
-      expect(screen.queryByText(/common\.save/i)).not.toBeInTheDocument();
+      // 写海马体是异步的 —— 表单要等写入成功才收起来。
+      await waitFor(() => {
+        expect(screen.queryByText(/common\.save/i)).not.toBeInTheDocument();
+      });
     });
   });
 
@@ -270,7 +276,7 @@ describe('Memory Lifecycle E2E', () => {
         { memory: { id: 's-1', content: 'Result 1', dimension: 'Agent' as const, layer: 'L2' as const, createdAt: new Date(), updatedAt: new Date() }, score: 0.95 },
       ];
       (useMemoryStore as unknown as Mock).mockReturnValue(
-        createMockStore({ searchResults })
+        createMockStore({ searchResults, hasSearched: true })
       );
       renderPage();
       expect(screen.getByText(/memory\.foundResults/i)).toBeInTheDocument();
@@ -281,7 +287,7 @@ describe('Memory Lifecycle E2E', () => {
         { memory: { id: 's-2', content: 'Only search result', dimension: 'Agent' as const, layer: 'L2' as const, createdAt: new Date(), updatedAt: new Date() }, score: 0.95 },
       ];
       (useMemoryStore as unknown as Mock).mockReturnValue(
-        createMockStore({ searchResults, memories: [{ id: 'm-1', content: 'Full list item', dimension: 'Agent' as const, layer: 'L2' as const, createdAt: new Date(), updatedAt: new Date() }] })
+        createMockStore({ searchResults, hasSearched: true, memories: [{ id: 'm-1', content: 'Full list item', dimension: 'Agent' as const, layer: 'L2' as const, createdAt: new Date(), updatedAt: new Date() }] })
       );
       renderPage();
       expect(screen.getByText('Only search result')).toBeInTheDocument();

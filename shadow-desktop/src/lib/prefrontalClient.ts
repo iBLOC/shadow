@@ -614,15 +614,9 @@ export class PrefrontalClient {
     return this.request<unknown[]>('/api/conversations');
   }
 
-  async listMemories(
-    query?: string,
-    limit: number = 10
-  ): Promise<unknown[]> {
-    const params = new URLSearchParams();
-    if (query) params.set('q', query);
-    params.set('limit', limit.toString());
-    return this.request<unknown[]>(`/api/memory/search?${params}`);
-  }
+  // 记忆相关的读写走 `lib/hippocampusClient.ts`（端脑的 `/hippocampus/api/*`），
+  // 这里**不再**提供 `listMemories` —— 它打的是 `/api/memory/search`，而海马体
+  // 没有这个端点（搜索是 `POST /api/search`），而且它从来没有调用方。
 
   setAuthToken(token: string): void {
     this.headers['Authorization'] = `Bearer ${token}`;

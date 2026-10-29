@@ -6,6 +6,7 @@ import { MemoryPage } from '../../src/pages/MemoryPage';
 const mockAddMemory = vi.fn();
 const mockRemoveMemory = vi.fn();
 const mockSearchMemories = vi.fn();
+const mockFetchMemories = vi.fn();
 
 const sampleMemory = {
  id: 'mem-1',
@@ -21,9 +22,11 @@ vi.mock('../../src/stores/memoryStore', () => ({
  useMemoryStore: vi.fn(() => ({
  memories: [],
  searchResults: [],
+ hasSearched: false,
  isLoading: false,
  error: null,
  searchMemories: mockSearchMemories,
+ fetchMemories: mockFetchMemories,
  addMemory: mockAddMemory,
  removeMemory: mockRemoveMemory,
  })),
@@ -93,7 +96,8 @@ describe('Memory Flow E2E', () => {
 
  await waitFor(() => {
  expect(screen.getByText('memory.dimension')).toBeInTheDocument();
- expect(screen.getByText('memory.layer')).toBeInTheDocument();
+ // layer 由海马体服务端分配（insert 时恒为 L2Detail），客户端不能选。
+ expect(screen.queryByText('memory.layer')).not.toBeInTheDocument();
  });
  });
 
@@ -120,11 +124,12 @@ describe('Memory Flow E2E', () => {
 
  await waitFor(() => {
  expect(mockAddMemory).toHaveBeenCalledTimes(1);
+ });
  const passedMemory = mockAddMemory.mock.calls[0][0];
  expect(passedMemory.content).toBe('A new memory content');
  expect(passedMemory.dimension).toBe('Agent');
- expect(passedMemory.layer).toBe('L2');
- });
+ // id / uri / layer / 时间戳都由海马体生成，客户端不再自己造。
+ expect(passedMemory.layer).toBeUndefined();
  });
 
  it('calls searchMemories when search button clicked with query', async () => {
@@ -141,7 +146,7 @@ describe('Memory Flow E2E', () => {
  fireEvent.click(searchButton);
 
  await waitFor(() => {
- expect(mockSearchMemories).toHaveBeenCalledWith('dark mode', undefined);
+ expect(mockSearchMemories).toHaveBeenCalledWith('dark mode');
  });
  });
 

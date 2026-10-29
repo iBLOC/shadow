@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('certificateStore', () => {
   beforeEach(() => {
@@ -136,9 +136,36 @@ describe('databaseStore', () => {
 });
 
 describe('memoryStore', () => {
+  const mockFetch = vi.fn();
+
+  const okResponse = (data: unknown) => ({
+    ok: true,
+    status: 200,
+    statusText: 'OK',
+    json: () => Promise.resolve(data),
+    text: () => Promise.resolve(JSON.stringify(data)),
+  });
+
+  const wireMemory = {
+    id: 'mem-1',
+    uri: 'memory://1',
+    content: 'Test',
+    dimension: 'Agent',
+    layer: 'L2Detail',
+    created_at: '2026-10-29T00:00:00Z',
+    updated_at: '2026-10-29T00:00:00Z',
+  };
+
   beforeEach(() => {
     vi.resetModules();
     localStorage.clear();
+    vi.clearAllMocks();
+    vi.stubGlobal('fetch', mockFetch);
+    mockFetch.mockResolvedValue(okResponse([]));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it('starts with empty memories', async () => {
@@ -159,46 +186,47 @@ describe('memoryStore', () => {
     expect(isLoading).toBe(false);
   });
 
-  it('addMemory adds memory', async () => {
+  it('addMemory writes to hippocampus then appends locally', async () => {
     const { useMemoryStore } = await import('../../stores/memoryStore');
-    const { addMemory } = useMemoryStore.getState();
+    mockFetch.mockResolvedValueOnce(okResponse(wireMemory));
 
-    addMemory({ id: 'mem-1', content: 'Test', createdAt: new Date() });
+    await useMemoryStore.getState().addMemory({
+      content: 'Test',
+      dimension: 'Agent',
+    });
 
-    const { memories } = useMemoryStore.getState();
-    expect(memories).toHaveLength(1);
+    const [url, init] = mockFetch.mock.calls[0];
+    expect(url).toContain('/hippocampus/api/memory');
+    expect(init.method).toBe('POST');
+    expect(useMemoryStore.getState().memories).toHaveLength(1);
   });
 
-  it('removeMemory removes memory', async () => {
+  it('removeMemory deletes on hippocampus and drops locally', async () => {
     const { useMemoryStore } = await import('../../stores/memoryStore');
-    const { addMemory, removeMemory } = useMemoryStore.getState();
+    mockFetch.mockResolvedValueOnce(okResponse([wireMemory]));
+    await useMemoryStore.getState().fetchMemories();
 
-    addMemory({ id: 'mem-1', content: 'Test', createdAt: new Date() });
-    removeMemory('mem-1');
+    mockFetch.mockResolvedValueOnce(okResponse({ success: true }));
+    await useMemoryStore.getState().removeMemory('mem-1');
 
-    const { memories } = useMemoryStore.getState();
-    expect(memories).toHaveLength(0);
+    const [, init] = mockFetch.mock.calls[1];
+    expect(init.method).toBe('DELETE');
+    expect(useMemoryStore.getState().memories).toHaveLength(0);
   });
 
-  it('updateMemory updates memory', async () => {
+  it('updateMemory puts to hippocampus and replaces locally', async () => {
     const { useMemoryStore } = await import('../../stores/memoryStore');
-    const { addMemory, updateMemory } = useMemoryStore.getState();
+    mockFetch.mockResolvedValueOnce(okResponse([wireMemory]));
+    await useMemoryStore.getState().fetchMemories();
 
-    addMemory({ id: 'mem-1', content: 'Test', createdAt: new Date() });
-    updateMemory('mem-1', { content: 'Updated' });
+    mockFetch.mockResolvedValueOnce(
+      okResponse({ ...wireMemory, content: 'Updated' })
+    );
+    await useMemoryStore.getState().updateMemory('mem-1', { content: 'Updated' });
 
-    const { memories } = useMemoryStore.getState();
-    expect(memories[0].content).toBe('Updated');
-  });
-
-  it('setApiBase updates api base', async () => {
-    const { useMemoryStore } = await import('../../stores/memoryStore');
-    const { setApiBase } = useMemoryStore.getState();
-
-    setApiBase('http://custom:8081');
-
-    const { apiBase } = useMemoryStore.getState();
-    expect(apiBase).toBe('http://custom:8081');
+    const [, init] = mockFetch.mock.calls[1];
+    expect(init.method).toBe('PUT');
+    expect(useMemoryStore.getState().memories[0].content).toBe('Updated');
   });
 
   it('setSession updates session id', async () => {

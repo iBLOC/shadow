@@ -10,9 +10,11 @@ vi.mock('../../src/stores/memoryStore', () => ({
   useMemoryStore: () => ({
     memories: [],
     searchResults: [],
+    hasSearched: false,
     isLoading: false,
     error: null,
     searchMemories: vi.fn(),
+    fetchMemories: vi.fn(),
     addMemory: vi.fn(),
     removeMemory: vi.fn(),
   }),

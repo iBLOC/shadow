@@ -241,24 +241,10 @@ describe('PrefrontalClient contract tests', () => {
       expectRequest('GET', '/api/mcp/servers');
     });
 
-    it('listMemories sends GET /api/memory/search with query params', async () => {
-      mockFetch.mockResolvedValue(okJson([{ id: 'mem-1', content: 'some memory' }]));
-      const memories = await client.listMemories('test', 5);
-      expect(memories).toHaveLength(1);
-      expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:8085/api/memory/search?q=test&limit=5',
-        expect.anything(),
-      );
-    });
-
-    it('listMemories sends default limit=10 without query', async () => {
-      mockFetch.mockResolvedValue(okJson([]));
-      await client.listMemories();
-      expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:8085/api/memory/search?limit=10',
-        expect.anything(),
-      );
-    });
+    // 记忆的读写**不再**走 PrefrontalClient —— 它打的是
+    // `/api/memory/search`，而海马体没有这个端点（搜索是 `POST
+    // /api/search`）。记忆统一走 `src/lib/hippocampusClient.ts`
+    // （端脑的 `/hippocampus/api/*`）。
 
     it('listConversations sends GET /api/conversations', async () => {
       mockFetch.mockResolvedValue(okJson([{ id: 'conv-1' }]));
