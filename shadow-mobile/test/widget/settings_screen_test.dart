@@ -211,5 +211,37 @@ void main() {
         findsOneWidget,
       );
     });
+
+    // 2026-10-29：`/settings/encephalon` 的路由与页面早就有了，但设置页里
+    // **没有入口** —— 那个页面在 App 里点不到（嵌入式大脑只能启动、不能
+    // 管理、也看不到端口状态）。这条测试锁住入口，别让它再悄悄消失。
+    testWidgets('embedded brain runtime entry is reachable from settings',
+        (WidgetTester tester) async {
+      await pumpWidgetForTest(
+        tester,
+        ProviderScope(
+          overrides: getTestOverrides(),
+          child: MaterialApp(
+            localizationsDelegates: const [
+              AppLocalizations.delegate,
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+            ],
+            supportedLocales: const [Locale('en')],
+            locale: const Locale('en'),
+            home: SettingsScreen(modelInfo: 'Test Model', onReset: () {}),
+          ),
+        ),
+      );
+
+      final l10n = l10nOf(tester);
+      expect(find.text(l10n.settingsEncephalonEmbedded), findsOneWidget);
+      expect(
+        find.text(l10n.settingsEncephalonEmbeddedDesc),
+        findsOneWidget,
+      );
+      // 旧的嵌入式前额叶支线仍在（已降级为遗留路径，但入口不能凭空消失）
+      expect(find.text(l10n.settingsPrefrontalEmbedded), findsOneWidget);
+    });
   });
 }
