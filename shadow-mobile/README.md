@@ -1,156 +1,121 @@
-# Prefrontal 前额叶
+# shadow-mobile
 
-> 移动端本地大语言模型应用 | MNN 推理引擎 | MCP Skill 管理
+Shadow 的**移动端**：Flutter 3.47 + shadcn_ui 的 Android 应用，App 进程里嵌着 `libencephalon.so` —— 大脑、端脑、叶区和唯一的 neuron 都在本机。
 
-## 项目简介
+移动端与桌面端是同一个 agent 的两个终端 —— 通信链路完全一致：**大脑 → 端脑 → 叶区**。
 
-Prefrontal（前额叶）是一款面向移动端的本地大语言模型应用，基于 **MNN** 深度学习推理框架开发，旨在为用户提供完全本地化、隐私优先的 AI 对话体验。
+## 技术栈
 
-### 核心特性
+| 领域 | 选型 |
+|---|---|
+| UI | Flutter 3.47.8 / Dart SDK `^3.13.0` |
+| 组件 | shadcn_ui 0.57.3（Flutter ShadcnUI，MIT）—— 与桌面端真 shadcn 同源，共用仓根 `design-tokens.json` |
+| 状态 / 路由 | flutter_riverpod 2.5.1 / go_router 14.8.1 |
+| 数据 | sqflite + path_provider |
+| Agent → UI | genui / genui_a2ui 0.7.0（Agent2UI） |
+| 多模态 | record / image_picker / camera / file_picker / vad / speech_to_text |
+| 设备 | flutter_blue_plus（BLE 配网）/ usb_serial（USB 音频）/ flutter_ai_toolkit / connectivity_plus / web_socket_channel |
 
-- **本地 LLM 推理**: 基于 MNN-LLM 引擎，支持在移动设备本地运行大语言模型，无需网络连接
-- **多模态支持**: 文本对话、图像理解、语音处理（规划中）
-- **MCP Skill 管理**: 内置 MCP（Model Context Protocol）Skill 框架，支持扩展 AI 能力
-- **隐私优先**: 所有数据本地处理，确保用户隐私安全
-- **高性能**: 充分利用移动端 CPU/GPU 算力，针对 ARM 架构深度优化
-
-## 技术架构
-
-```
-┌─────────────────────────────────────────────┐
-│                 Flutter UI                   │
-│  (Dart / Riverpod / GoRouter)              │
-├─────────────────────────────────────────────┤
-│              Platform Channel                │
-├─────────────────────────────────────────────┤
-│              MNN-LLM Engine                 │
-│  ┌─────────────────────────────────────┐   │
-│  │  LLM 推理 │ Vision │ Audio │ Diffu  │   │
-│  └─────────────────────────────────────┘   │
-├─────────────────────────────────────────────┤
-│           Native Backend (C++)              │
-│  CPU / OpenCL / Metal / NPU                 │
-└─────────────────────────────────────────────┘
-```
-
-## MNN Android LLM 集成方案评估
-
-### 方案概述
-
-经过对 [MNN](https://github.com/alibaba/MNN) 源码库的调研，确定以下 Android 平台 LLM 部署方案：
-
-### 1. MNN-LLM 能力
-
-| 能力 | 支持情况 |
-|------|----------|
-| 文本生成 | ✅ 支持 |
-| 视觉理解 (VLM) | ✅ 支持 |
-| 语音识别/生成 | ✅ 支持 |
-| 图像生成 (Diffusion) | ✅ 支持 |
-
-### 2. 性能基准
-
-- **CPU 推理**: 比 llama.cpp 快 **8.6x** (prefill)，**2.3x** (decode)
-- **模型支持**: Qwen, Gemma, Llama, Baichuan, Yi, DeepSeek, InternLM, Phi, Smolm 等
-- **量化支持**: 4bit / 8bit 量化，AWQ、HQQ、GPTQ 算法
-
-### 3. Android 编译配置
+## 运行
 
 ```bash
-cd project/android
-mkdir build_64 && cd build_64
-../build_64.sh \
-  -DMNN_BUILD_LLM=true \
-  -DMNN_LOW_MEMORY=true \
-  -DMNN_CPU_WEIGHT_DEQUANT_GEMM=true \
-  -DMNN_SUPPORT_TRANSFORMER_FUSE=true \
-  -DMNN_ARM82=true \
-  -DMNN_OPENCL=true \
-  -DLLM_SUPPORT_VISION=true \
-  -DLLM_SUPPORT_AUDIO=true \
-  -DMNN_BUILD_DIFFUSION=ON
+flutter pub get
+flutter run                     # 真机 / 模拟器
+flutter analyze --no-fatal-infos --no-fatal-warnings
+flutter test
 ```
 
-### 4. Flutter 集成路径
+环境要求：Flutter ≥ 3.47.0（Dart ≥ 3.13.0）、JDK 17、Android SDK（compileSdk 36 / minSdk 31）、NDK 30.0.14904198、CMake 3.22.1。
 
-由于 MNN 主要面向 Native 开发，Flutter 集成需要通过以下方式：
+## 目录
 
-1. **Platform Channel**: 使用 MethodChannel 与原生 Android/iOS 通信
-2. **JNI 封装**: 将 MNN C++ 库封装为 Kotlin/Swift 接口
-3. **模型加载**: 通过 assets 或文件系统加载 .mnn 模型文件
-
-### 5. 推荐的模型
-
-| 模型 | 参数 | 场景 |
-|------|------|------|
-| Qwen2.5-0.5B | 0.5B | 入门级设备 |
-| Qwen2.5-1.5B | 1.5B | 主流设备 |
-| Qwen2.5-3B | 3B | 高端设备 |
-| DeepSeek-R1 | 1.5B+ | 推理任务 |
-
-## 快速开始
-
-### 环境要求
-
-- Flutter SDK >= 3.47.0（Dart SDK >= 3.13.0）
-- Android SDK (API 24+)
-BP|
-
-### 设置 MNN 库路径
-
-项目需要指向 MNN 编译后的库。有两种方式：
-
-1. **设置环境变量**（推荐）：
-```bash
-export MNN_ROOT=/path/to/MNN
-```
-
-2. **修改 CMakeLists.txt**：`android/app/src/main/cpp/CMakeLists.txt`
-```
-
-### 模型部署
-
-1. 从 ModelScope 或 HuggingFace 下载 MNN 格式模型
-2. 将模型文件放置到 `assets/models/` 目录
-3. 配置文件 `config.json` 设置推理参数
-
-## 项目结构
-
-```
-prefrontal-flutter/
+```text
+shadow-mobile/
 ├── lib/
-│   ├── main.dart              # 应用入口
-│   ├── app/                   # 应用配置
-│   ├── features/              # 功能模块
-│   │   ├── chat/              # 对话功能
-│   │   ├── skills/            # MCP Skill 管理
-│   │   └── settings/          # 设置功能
-│   ├── core/                  # 核心组件
-│   │   ├── mnn/               # MNN 引擎封装
-│   │   └── storage/           # 本地存储
-│   └── shared/                # 共享组件
-├── android/                   # Android 原生代码
-│   └── app/src/main/java/
-│       └── com/prefrontal/    # JNI 封装
-└── assets/
-    └── models/               # LLM 模型文件
+│   ├── main.dart              应用入口（挂 ShadTheme）
+│   ├── screens/               页面（对话 / 任务 / 能力 / 我 …）
+│   ├── widgets/               组件（chat / settings …）
+│   ├── providers/             Riverpod provider（chat / flow / telencephalon / ai …）
+│   ├── services/
+│   │   ├── encephalon/        嵌入式大脑（Dart 侧 MethodChannel 客户端 + provider）
+│   │   ├── telencephalon/     端脑方言客户端 —— 唯一的对话入口
+│   │   ├── prefrontal/        旧「前额叶方言」客户端（见「已知边界」）
+│   │   ├── database/           sqflite 仓储
+│   │   └── genui/              Agent2UI 渲染
+│   ├── agents/                agent provider（工具注册表、人设）
+│   ├── theme/                 app_tokens.g.dart / shad_scheme.g.dart（生成物）
+│   ├── navigation/nav.g.dart  ← 生成物
+│   ├── l10n/                  en / zh ARB
+│   └── models/ providers/ai/  数据模型与本地 LLM provider 封装
+├── android/app/src/main/
+│   ├── kotlin/com/ibloc/shadow/
+│   │   ├── MainActivity.kt
+│   │   ├── EncephalonRuntime.kt   嵌入式大脑的 JNI 桥
+│   │   ├── PrefrontalRuntime.kt   旧嵌入式前额叶（遗留）
+│   │   └── mnn/ litert/ tts/ …    本地推理引擎与设备能力
+│   └── jniLibs/<abi>/         libencephalon.so 等（不入库，需自行构建）
+└── test/                      单元 + widget 测试
 ```
 
-## Roadmap
+## 通信
 
-- [x] 完成 MNN 引擎的 Flutter 封装
-- [x] 实现基础文本对话功能
-- [ ] 添加 MCP Skill 框架
-- [ ] 集成视觉理解能力
-- [ ] 优化性能与内存占用
+对话**只**走端脑方言（`lib/services/telencephalon/telencephalon_client.dart`）：
 
-## 参考资源
+| 场景 | 端点 |
+|---|---|
+| 创建会话（带人设） | `POST /shadow/v1/conversations` |
+| 流式消息 | `POST /shadow/v1/conversations/{id}/messages:stream` |
+| 会话列表 / 详情 | `/shadow/v1/conversations*` |
+| 工作流 | `/api/flows` |
+| agent 搜索 | `/api/telencephalon/agents/search` |
 
-- [MNN 官方仓库](https://github.com/alibaba/MNN)
-- [MNN-LLM 文档](https://mnn-docs.readthedocs.io/en/latest/transformers/llm.html)
-- [MnnLlmChat Android Demo](https://github.com/alibaba/MNN/tree/master/apps/Android/MnnLlmChat)
-- [ModelScope MNN 模型](https://modelscope.cn/organization/MNN)
+人设走**会话创建**：`customPromptProvider`（提示词设置页存的那份）→ `createConversation(systemPrompt:)`。传的是**函数**而不是值，所以改人设不必重建 `ChatNotifier`（那会把当前对话冲掉）。
 
-## License
+### 嵌入式大脑怎么起来
 
-Apache License 2.0
+```text
+Dart  EncephalonMobileService.start()
+   │  MethodChannel 'com.ibloc.shadow/encephalon_runtime'
+   ▼
+Kotlin EncephalonRuntime
+   │  JNI
+   ▼
+libencephalon.so（Rust）
+   → 大脑（thalamus + ACP 总线）
+   → 端脑 cortex_router  127.0.0.1:0（随机端口）
+   → 单一 neuron
+```
+
+`start()` 返回 `{port, agentPort}`；端脑面端口随机分配，Dart 侧随即把 `TelencephalonClient` 指向 `http://127.0.0.1:$agentPort`。端脑面没起来时，client **保持**指向外部端脑 `:60080`（指向一个没人监听的端口比指向外部端脑更糟）。
+
+## 已知边界
+
+- **`PrefrontalClient` 说的是旧方言** —— 路径是 `/api/sessions`、`/api/agents`、`/api/skills`、`/api/soul/*`、`/api/mcp/servers`、`/hippocampus/api/*`，与端脑方言**没有交集**。灵魂 / 任务 / 记忆 / 提供商 / 技能 / MCP / agent 列表这些页面仍走它，而嵌入式大脑**不提供**这些概念（记忆按设计走零信任网络上的海马体，不在移动端本地）。把 client 指向嵌入式大脑只会把「连接被拒」换成「404」，更难排查。
+- **本地推理引擎（MNN / LiteRT）还在**，但**不在对话链路上** —— 对话路径只有端脑一条。
+- **`libencephalon.so` 不入库** —— 它是兄弟仓 `encephalon` 的交叉编译产物（Android 侧是 cdylib，Kotlin 侧 `System.loadLibrary("encephalon")`）。构建后拷进 `android/app/src/main/jniLibs/<abi>/libencephalon.so`。缺失时 App **不会崩**：加载失败被 catch，运行时优雅降级。
+- **ABI**：只出 `arm64-v8a` 与 `x86_64`。x86_64 的 jniLibs 目前**不完整**（缺 `libc++_shared.so` 与 MNN 全家）。
+- **去 Material 未完成**：`uses-material-design: true` 仍在，设置页等已迁到 shadcn 组件，其余页面还在迁移中。
+
+## 脚本
+
+| 命令 | 作用 |
+|---|---|
+| `flutter run` | 运行 |
+| `flutter analyze --no-fatal-infos --no-fatal-warnings` | 静态检查 |
+| `flutter test` | 单元 + widget 测试 |
+| `flutter build apk --release --split-per-abi` | 按 ABI 打包 |
+| `bash scripts/check-cortex-residue.sh` | 旧 `cortex` 命名残留检查 |
+
+## 约定
+
+- **不要并发跑两个 flutter 命令**。
+- Dart 源码行尾是 **CRLF**（生成器也是这么产的）。
+- 设计 token 与导航是**生成物**：改 `../design-tokens.json` 或 `../agent-surface.json` 后跑 `node ../scripts/gen_tokens.mjs` / `node ../scripts/gen_nav.mjs` —— CI 会查漂移。
+- shadcn 组件页面必须有 `ShadTheme` 祖先（生产 `main.dart` 已挂；测试用 `withShadTheme(...)` 装配同一套 `ShadScheme`）。
+- 移动端**不许**引入本地直连推理的对话编排器 —— `node ../scripts/check-brain-chain.mjs` 会拦。
+
+## 相关
+
+- 平台架构：[`../ARCHITECTURE.md`](../ARCHITECTURE.md)
+- 链路改造全文：[`../docs/superpowers/architecture/2026-10-29-brain-chain.md`](../docs/superpowers/architecture/2026-10-29-brain-chain.md)
+- 本目录知识库：[`AGENTS.md`](AGENTS.md)

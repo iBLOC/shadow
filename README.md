@@ -1,72 +1,101 @@
 [![CI](https://github.com/ibloc/shadow/actions/workflows/ci.yml/badge.svg)](https://github.com/ibloc/shadow/actions/workflows/ci.yml)
 
-# Shadow (影) — AI 用户分身系统 / AI User Avatar
+# Shadow (影) — 每个人的影子 / A Personal Agent for Everyone
 
-**Layer 4 (Interaction)** — Shadow 是用户的 AI 安全分身，运行在用户设备上（桌面或移动端），代表用户执行日常任务和工作。所有执行都是**任务目标驱动**：Shadow 不主动行动，只接受来自 **Resonance** 的任务派发。
-*Shadow is the user's secure AI avatar that runs on user devices (desktop or mobile) and represents the user for daily tasks. All execution is **task-goal driven** — Shadow never acts proactively, only accepting task dispatch from **Resonance**.*
+Shadow 是跑在**用户自己设备上**的个人助理（AI 影子）。桌面端与移动端是**同一个 agent 的两个终端**：共享同一套大脑、同一套端脑、同一份设计语言。
 
-> Canonical project knowledge base: **[`AGENTS.md`](AGENTS.md)** (382 lines, updated 2026-09-25). This README is the landing-page summary only.
+> Canonical project knowledge base: **[`AGENTS.md`](AGENTS.md)**（持续更新）。本 README 只做落地页摘要；细节以 `AGENTS.md` 与 [`docs/superpowers/architecture/`](docs/superpowers/architecture/) 为准。
+
+## 🔗 通信链路 —— 所有通信都走 大脑 → 端脑 → 叶区
+
+```text
+桌面端 (Tauri 2 + React 19)                 移动端 (Flutter + shadcn_ui)
+        │                                            │
+        │            端脑方言 /shadow/v1/*            │
+        ▼                                            ▼
+  大脑 encephalon (进程内)                 大脑 encephalon (libencephalon.so)
+        │                                            │
+  端脑 telencephalon :60080                端脑 telencephalon (进程内随机端口)
+        │                                            │
+  叶区 temporal / prefrontal / parietal  (端脑内的 native lobe)
+        │
+  neuron —— 唯一推理实例（桌面端 :8085）
+```
+
+**客户端不直接调推理。** 意图路由、工具调用（`tool_call`）、工作流、人格注入全都发生在端脑与叶区。绕过它们，对话照样能回话，但 agent 的能力会**静默失效**——桌面端真实发生过这件事（`isTauri()` 分支让对话直连 neuron，于是永远收不到 `tool_call`）。
+
+这条规则不是口头约定：[`scripts/check-brain-chain.mjs`](scripts/check-brain-chain.mjs) 把它写成 6 条可执行检查并接进 CI（`Brain chain check`）。改造全文见 [`docs/superpowers/architecture/2026-10-29-brain-chain.md`](docs/superpowers/architecture/2026-10-29-brain-chain.md)。
 
 ## 🧩 项目结构 / Projects
 
-| Project / 项目 | Path | Description / 说明 |
+| 项目 | 路径 | 说明 |
 |---|---|---|
-| **shadow-desktop** | `shadow-desktop/` | Tauri v2 + React 19 桌面端，Tauri commands + Zustand 5 + React Router 7，神经元嵌入式 :8085 (`run_embedded()`) |
-| **shadow-mobile** | `shadow-mobile/` | Flutter 3.11+ 移动端，Riverpod + GoRouter + MNN (LiteRT) 本地推理 |
-| **shadow-esp32** | `shadow-esp32/` | Zephyr 4.4.x + C 边缘客户端（v0.x 概念阶段），mDNS `_shadow._tcp` + A2A (JSON-RPC) |
-| **shadow-benchmark** | `benchmark/` | 性能基准 + leaderboard 三方对照（桌面 / encephalon-server / engine），`shadow-benchmark` crate |
+| **shadow-desktop** | [`shadow-desktop/`](shadow-desktop/) | Tauri 2 + React 19 桌面端。Rust sidecar 内嵌**大脑 + 端脑 + 叶区 + 单一 neuron**，端脑 HTTP 面在 `127.0.0.1:60080`。 |
+| **shadow-mobile** | [`shadow-mobile/`](shadow-mobile/) | Flutter 3.47.8 + shadcn_ui 移动端。Android 进程内嵌 `libencephalon.so`（大脑 + 端脑 + 叶区），端脑面由 JNI 取回随机端口。 |
+| **shadow-esp32** | [`shadow-esp32/`](shadow-esp32/) | Zephyr 边缘客户端（v0.x 概念阶段），mDNS `_shadow._tcp` + A2A（JSON-RPC）。 |
+| **benchmark** | [`benchmark/`](benchmark/) | 性能基准与三方对照报告。 |
+| **brand** | [`brand/`](brand/) | 品牌几何真相源 + logo / 平台图标生成器。 |
+| **scripts** | [`scripts/`](scripts/) | 跨端守门员与生成器（链路 / 能力清单 / 设计 token / 导航 / 品牌）。 |
 
-## 🏗️ 4-层架构 / 4-Layer Architecture
+## 🎨 一份真相源，两端投影
 
-```
-┌────────────────────────────────────────────────────────────────────┐
-│ Layer 4: INTERACTION (本仓库 / this repo)                          │
-│   shadow-desktop · shadow-mobile · shadow-esp32 · shadow-benchmark  │
-├────────────────────────────────────────────────────────────────────┤
-│ Layer 3: AGENT (外部项目 / external)                                │
-│   Prefrontal   https://github.com/iBLOC/prefrontal      Port 8082  │
-│   Rust multi-agent 引擎 (A2A / MCP / skill / session orchestration)  │
-├────────────────────────────────────────────────────────────────────┤
-│ Layer 3.5: CORTEX (端脑 / per-shadow hub)                            │
-│   Telencephalon https://github.com/iBLOC/telencephalon  Port 60080  │
-│   agent registry + A2A gateway + WASM host + MCP management          │
-├────────────────────────────────────────────────────────────────────┤
-│ Layer 2: ENGINE                                                      │
-│   neuron        github.com/ibloc/neuron    Port 8083 (8085 embed)   │
-│   candle / burn / litert 三个 ML 后端 / three ML backends           │
-├────────────────────────────────────────────────────────────────────┤
-│ Layer 1: MODEL                                                       │
-│   云端 MiniMax / OpenAI / Anthropic / DeepSeek + 本地 GGUF /       │
-│   MNN / candle / burn                                            │
-└────────────────────────────────────────────────────────────────────┘
-```
+| 真相源 | 投影产物 |
+|---|---|
+| [`design-tokens.json`](design-tokens.json) | `shadow-desktop/src/styles/tokens.css`、`src/styles/accent.g.ts`、`shadow-mobile/lib/theme/app_tokens.g.dart`、`lib/theme/shad_scheme.g.dart`（`scripts/gen_tokens.mjs`） |
+| [`agent-surface.json`](agent-surface.json) | 能力清单与两端导航：`src/navigation/nav.g.ts`、`shadow-mobile/lib/navigation/nav.g.dart`（`scripts/gen_nav.mjs`） |
+| [`brand/geom.mjs`](brand/geom.mjs) | 产品 logo 与全套平台图标（`brand/gen-logo.mjs`、`brand/gen-icons.mjs`） |
 
-完整架构图 / Full diagram: `AGENTS.md §系统架构` + `docs/architecture.md`
+统一的是**语义**（色彩、节奏、命名、能力名），分叉的是**容器形态**（桌面 WebView vs Android 原生）。两端不是「长得一样」，是「说同一种话」。
 
 ## 🧠 核心特性 / Core Features
 
-- **任务目标驱动** / **Task-goal driven** — 所有执行由 Resonance 统一派发
-- **零信任安全** / **Zero-trust** — mTLS 双向认证，Shadow 主动发起连接；可选 OpenZiti dark service
-- **本地推理能力** / **Local inference** — 移动端 MNN (LiteRT) + Kotlin `OpenAIServer.kt`；桌面端 neuron (embedded :8085)
-- **多端 + 多引擎** / **Multi-end + multi-engine** — 桌面 / 移动 / 边缘；candle / burn / litert / MNN
-- **A2A 协议** / **A2A protocol** — Shadow 向 Resonance 注册能力，Benchmark 评分同步
-- **MCP 目录 5×28** / **MCP catalog 5×28** — stdio / http / wasm 三种 transport
-- **Recording mode R1-R4** / **录制模式** — 音频→颞叶 / 视觉→枕叶，事件 + 总结 + LanceGraph 边
-- **Workflow Studio v1** — Drag-drop 编辑器 at `cerebellum/apps/editor` (R-08/R-09)
+- **统一链路** — 两端都走 大脑 → 端脑 → 叶区；意图路由、工具调用、工作流、人格注入都在链路上。
+- **进程内大脑** — 桌面端 `encephalon::Embedded::boot()`，移动端 `libencephalon.so`；推理实例只有一个（neuron）。
+- **长时记忆** — 海马体挂在端脑面的 `/hippocampus/api/*`；人设与主题色可以写成 `dimension=Agent` 的记忆。
+- **外观可定制** — 主题色、玻璃强度、对话框背景都是运行时变量；品牌色是**用户可覆盖的槽位**，影子本身保持中性。
+- **对话为主** — 对话是两端唯一主干与默认落地页；语音 / 直播 / 客服是对话的**形态**，不是并列 tab。
+- **可执行的跨端契约** — 5 个守门员脚本进 CI：通信链路、能力清单、设计 token 漂移、导航漂移、品牌资产漂移。
 
 ## 📚 文档 / Documentation
 
-- **[`AGENTS.md`](AGENTS.md)** — 项目知识库 / Project knowledge base (canonical, 382L)
-- **[`docs/superpowers/specs/`](docs/superpowers/specs/)** — 设计规范 / Design specs
-- **[`docs/superpowers/architecture/`](docs/superpowers/architecture/)** — 架构审计 / Architecture audits
-- **最近改版 / Recent changes** — `AGENTS.md §Recent changes` (2026-09-25 audit cycle)
+| 文档 | 内容 |
+|---|---|
+| [`AGENTS.md`](AGENTS.md) | 唯一知识库（canonical）：架构决定、坑、验证记录。**改动前先读它。** |
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | 平台架构：链路、组件职责、端口、协议。 |
+| [`docs/superpowers/architecture/`](docs/superpowers/architecture/) | 现行架构文档。2026-10-29 系列：链路改造、视觉语言、logo 定稿、跨端设计系统、对话为主 IA、人格与外观。 |
+| [`docs/superpowers/specs/`](docs/superpowers/specs/) · [`plans/`](docs/superpowers/plans/) · [`scenarios/`](docs/superpowers/scenarios/) | **历史设计记录**（2026-03 ～ 2026-09，44 份），按日期存档，描述的是**当时**的决策，不是现状。 |
+
+> 现状与历史记录冲突时，以 `AGENTS.md` + `docs/superpowers/architecture/` 为准。
+
+## 🧪 本地校验 / Local checks
+
+```bash
+# 仓根：跨端守门员 + 生成物漂移
+node scripts/check-brain-chain.mjs      # 通信链路 6 条规则
+node scripts/check-agent-surface.mjs    # 能力清单 ↔ 两端路由 ↔ 手写色值
+node scripts/gen_tokens.mjs --check     # 设计 token 漂移
+node scripts/gen_nav.mjs --check        # 导航结构漂移
+node brand/gen-icons.mjs --check        # 品牌资产漂移
+
+# 桌面端
+cd shadow-desktop
+pnpm exec tsc --noEmit
+pnpm exec vitest run
+pnpm build:web
+cargo check --tests --manifest-path src-tauri/Cargo.toml
+
+# 移动端（不要并发跑两个 flutter 命令）
+cd shadow-mobile
+flutter analyze --no-fatal-infos --no-fatal-warnings
+flutter test
+```
+
+桌面端的 Rust sidecar 依赖兄弟仓（`encephalon` / `telencephalon` / `hippocampus` / `synapse` / `diencephalon`），是**本地 path 依赖**——克隆后需要把兄弟仓放在同级目录。
 
 ## 🤝 贡献 / Contributing
 
-See [`AGENTS.md`](AGENTS.md) for full project context. PRs welcome — please run:
-- `cargo test --workspace` in any sub-project before pushing
-- `pnpm tauri dev` for shadow-desktop local verification
+改动前先读 [`AGENTS.md`](AGENTS.md)。跨端改动要**同时**改两端并跑齐上面的守门员；生成物（token / 导航 / 图标）改完必须重跑生成器，CI 会查漂移。
 
 ## 📝 License
 
-[Apache License 2.0](LICENSE)
+Apache License 2.0

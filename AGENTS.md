@@ -1,6 +1,8 @@
 # PROJECT KNOWLEDGE BASE
 
 **Generated:** 2026-03-21
+**Updated:** 2026-10-29 (⑭ **通信链路改造：所有通信走 大脑 → 端脑 → 叶区**：用户定调「所有的通信都要走大脑 端脑 叶区，两个客户端都需要维持这个链路」—— 这条把上一轮悬着的「桌面端对话要不要改走端脑」直接定了。① **改之前的实测现状**：端脑 → 叶区**真的**经过叶区（`api/shadow.rs` 的 `send_message_stream` 从 `lobe_cache` 取叶区 → `SkillRouter::build_lobe_client_with` → 进程内 `LobeClient::NativeWithConfig`）；移动端**本来就在链路上**（`chat_provider.dart` 走 `/shadow/v1/conversations`）；**桌面端是唯一缺口** —— `telencephalonClient.ts` 的 `isTauri()` 分支让对话直连 neuron（`streamMessageNeuron` + `neuron_infer` Tauri 命令）、会话是本地桩（`newLocalConversation`），于是**桌面端永远收不到 `tool_call`**（这正是「影子给客户端换主题」在桌面端不成立的根因）；桌面端 sidecar 也**只挂了海马体**（`hippo_http.rs`），端脑的 HTTP 面根本没起。② **桌面端 sidecar 起完整端脑面**（新增 `src-tauri/src/cortex_http.rs`，删掉 `hippo_http.rs`）：`telencephalon::boot::build_app_state(Some(stack.neuron().as_ref()))` + `telencephalon::api::build_full_app(state, conv_store, Some(neuron.router()), Some(hippocampus.router()))` → 挂在 `127.0.0.1:60080`，**形状与独立运行的端脑完全一致**（前端一行没改 —— `DEFAULT_BASE_URL` 就是这个端口）。三个决策：**海马体只有一份**（`encephalon` 的 `hippocampus` feature 在桌面端关掉 —— 两份 Lance 指向同一份存储会抢锁，海马体状态由 `build_app_state` 建、路由从**同一个** state 挂出来）；**叶区指向活着的那个 neuron**（`neuron::create_router` 每次调用都**重建** `ServerState`，所以装配完用 `state.native_lobes.reconfigure(name, stack.neuron_addr())` 把三个叶区的 LLM 端点显式改到 `:8085`）；**`telencephalon` 必须 path 依赖且与 `encephalon` 同目录**（两份端脑 = 两套 `AppState` 类型，传不过去）。③ **前端去旁路**：删掉 `newLocalConversation` / `streamMessageNeuron` / `pickNeuronModel` / `neuronHistory` / `NEURON_CHAT_MODEL_FALLBACK`；`createConversation` 与 `streamMessage` 恒走端脑；`health()` 从探 neuron 改成探端脑 `/api/telencephalon/status`；**Tauri 命令 `neuron_infer` 整个拆掉**（链路不留后门；`AppState.embedded_stack` 降级为「钉住大脑生命周期」，标 `#[allow(dead_code)]`）；人设改走**会话创建**（`composeSystemPrompt(persona)` → `createConversation({ system })`），与移动端同一机制。④ **端脑 PR 补上下文转发**（用户拍板「端脑提 PR」，不是客户端兜底）：端脑仓是他人 WIP（master 84 dirty）⇒ 走已有 worktree `telencephalon-wt-feat` 的 `feat/shadow-system-prompt` 分支（**PR #1 已开**），复用**已有 metadata 通道**（shadow API 把 metadata map 打包进 `metadata["name"]`，叶区 `decode_metadata_from_name` 还原 ⇒ **不改 wire format**）：新增 `"history"` 键转发先前几轮 + `history_of()`（跳过系统提示词那条、`TurnRole::User→"user"`/`Agent→"assistant"`、**最旧在前**、两条上限 `MAX_HISTORY_TURNS=20` / `MAX_HISTORY_CHARS=12000`，超出**先丢最旧的**）+ 叶区侧 `extract_history()` / `llm_messages()`（system → 历史 → 当前轮最后）。⚠️ **端脑仓本地构建要 protoc**（`lance-encoding` 的 build script）：本机没有系统 protoc，但 cargo registry 里有 `protoc-bin-vendored-win32-3.3.0` ⇒ `$env:PROTOC="$env:USERPROFILE\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\protoc-bin-vendored-win32-3.3.0\bin\protoc.exe"`。⑤ **移动端**：删掉本地直连死路径 `lib/agents/main_agent/main_agent.dart`（`MainAgentNotifier` 直接拿 `ModelEngine`（本地 MNN）跑推理，**全仓无消费者**，留着就可能被重新接上），连带移除 `mainAgentProvider`（`main_agent_prompt.dart` 保留 —— 提示词设置页在用它的默认人设）；**人设接进会话创建**（`chat_provider.dart` 之前 `createConversation()` **不带 system**，提示词设置页存的人设根本没进链路；现在用 `String? Function()` 传，改人设不重建 `ChatNotifier`）。⚠️ Dart 坑：初始化列表里写 `() => null` 会被解析成**构造器体**（`=>` 在初始化列表里有别的含义）⇒ 必须用具名函数。⑥ **守门员** `scripts/check-brain-chain.mjs`（接进 CI `Brain chain check`）：6 条规则拦「客户端直连推理 / 平台分支旁路 / sidecar 没挂端脑面 / 又暴露 infer 命令 / 移动端不走端脑 / 移动端留本地直连编排器」。**三个实现坑**：① **只认代码行不认注释**（这个仓的注释里经常**解释**被禁的东西，拿注释当证据会满屏误报）；② **不要手写注释词法分析器**（曾写状态机，遇到 Rust 的**跨行字符串续行**（`tracing::info!("... \` 换行`）时字符串状态跨行断裂，把后面代码整段当注释吃掉，且这种坑只在某个文件出现一次极难定位）⇒ 改**行级判定**（行首 `//` / `*` / `/*` 就跳过）；③ 白名单 `openaiClient.ts`（**云端供应商 / 语音**客户端，生产代码只被 `tts.ts` 用，不是对话链路）。**反向验证**：塞两个探针（桌面 `neuron_infer` + 移动 `MainAgentNotifier`）→ **exit 1** 并精确点名两个文件；删掉 → **exit 0**。⑦ **连带修掉的既有缺陷**：桌面 vitest 的 `ConversationPageTokenStats.test.tsx` 的模块 mock 必须补 `composeSystemPrompt`（人设改走会话创建后页面会调它）—— 新链路的副作用被测试抓到了；`src-tauri/src/lib.rs` 里过时注释「chat goes in-process via neuron_infer」已改正。验证：桌面 `tsc --noEmit` **exit 0** + vitest **112 文件 / 1140 passed / 2 skipped** + `build:web` **exit 0** + `cargo check --tests` **exit 0**；移动 `analyze` **0 error**（89 issues 与基线一致）+ `flutter test` **247/247 全绿**；`check-brain-chain` **0 阻断**（反向验证 exit 1 生效）、`check-agent-surface` **0 阻断 / 0 提示**。⚠️ **遗留**：**端脑 PR #1 待合并** —— 合并前桌面端的人设**到不了模型**（端脑只把 system 记在会话里、不往下传），链路的**形状**对了但叶区要等 PR；多轮上下文同理；**真机未验**（设备失联）；**云端供应商还没进叶区**（叶区 LLM 端点只有一个）；`/v1/chat/completions` 仍挂在端脑根上（与独立端脑同形状）属已知冗余。设计全文 `docs/superpowers/architecture/2026-10-29-brain-chain.md`)
+**Updated:** 2026-10-29 (⑬ **全新 logo 定稿「蚀」+ 两端图标全量换装**：承接第 ⑥ 条「影子本身没有颜色」的品牌原则 —— **影一律中性色，只有「光」吃主题色槽位**（`--logo-accent`，默认 `#71717A`，用户可覆盖）；**发光是实时信号不是装饰**；三层语言 Umbra 本影 / Penumbra 半影 / Caustic 焦散在 logo 上直接落成「本影实心块 + 焦散亮缝」。① **几何必须脚本生成**（不手画 SVG 路径）：`brand/geom.mjs` = 唯一真相源（调色板 `INK_LIGHT #09090B` / `INK_DARK #52525B` / `ACCENT #71717A` / `TILE_LIGHT #F4F4F5` / `TILE_RADIUS 112`，`circleIntersect` / `arcSpec` / `crescentPath` / `lensPath` / `innerArc`，四套方案 `CONCEPTS`）→ `brand/gen-logo.mjs` 产品牌 SVG 与预览、`brand/gen-icons.mjs` 产平台图标，两端 SVG 与 PNG **同源不许走样**，CI 新增 `Brand asset drift check`（`node brand/gen-icons.mjs --check`，**已反向验证**：改坏生成物 exit 1、重跑 exit 0）。② **零依赖光栅化** `brand/raster.mjs`：自写解析式扫描 + 4×4 超采样抗锯齿 + 手写 PNG 编码（IHDR/IDAT/IEND + CRC32 + adler32，`node:zlib`）—— 因为要逐像素验证「亮缝是否真落在影体内」这类几何断言，而环境没有可用位图库。③ **方案推导走了两轮**：第一轮（渐细月牙 / 横杠 / 禁止号斜杠）**全部淘汰**；第二轮四套 = 蚀 / 隙 / 环核 / 弧，**用户最终选「蚀（日月相蚀）」**，并补两条：白天日亮月暗、黑夜月亮日暗（**同一份几何只换两笔颜色角色**，形态不变、观者自己读出昼夜）；单色版**影与光之间留一道可见的缝**（否则两个咬合的圆糊成一块）。④ **用户反馈「有点丑，两个圆再近一些」后的定稿几何**：front 月 `(233,256) r150` 圆满在前，back 日 `(279,256) r150` 被遮在后，**圆心距 46**（日轮退成挂在月盘右缘的细月牙，恢复「主体压暗、光只占一条边」的观感）；单色版 `gap=20`（512 单位 → 16px 约 0.6px）；`bbox=[83,106,429,406]`。⑤ **渲染期自查修掉 4 个真 bug**：`fill-rule="evenodd"` 画两个交叠圆 = **对称差**（两片月牙）不是「A 减 B」→ 单片月牙必须显式两段弧接成闭合路径；暗底层级反了（光比影暗）→ 暗底影改 zinc-600、光用主题色提亮版；弧方案的焦散线「像条虫子」→ 改成贴着影内缘的**亮带**（`annulus ∩ disc`，SVG 用 `clipPath`，并用探针脚本实测 r=150..184 全在影内）；PNG 解不开是因为把 `zlib.deflateSync` 的输出（**已是完整 zlib 流，自带 header + adler32**）又包了一层 → 改为直接用。⑥ **平台资产全量换装**：`brand/icon/app-icon.png`(1024) → `pnpm tauri icon` 生成全套 Tauri 图标；桌面端 favicon 从 **Vite 默认 `/vite.svg`** 换成 `/pwa-icon.svg` + PNG 192 fallback，`theme-color` 由旧青蓝 `#06b6d4` 改 `#0A0A0B`，`manifest.web.json` 的 `theme_color`/`background_color` 同步；应用内 logo 用**生成物** `src/components/brand/ShadowMark.tsx` + `index.css` 的 `.shadow-mark`（亮底 `front=--logo-ink` / `back=--shadow-accent`，`.dark` 下两笔角色互换），侧栏 lucide `Brain` 占位与 SetupPage 的 `Server` 占位一并替换（去掉原 `bg-primary` 底块）；移动端 Android `mipmap-*/ic_launcher*.png` 全套重生成（原来是 **Flutter 默认 F 图标**），自适应图标前景用**位图**（`@mipmap/`）而非矢量（VectorDrawable 的 `<group>` transform 顺序不确定），背景从旧深蓝渐变改中性 `#F4F4F5`。⑦ **顺手修掉 3 个既有缺陷**：`manifest.web.json` 引用的 3 个 PWA 图标**仓库里根本不存在**（192 / 512 / monochrome-512 全缺）；favicon 一直指着 Vite 模板图标；Android 启动图标一直是 Flutter 默认图标。⑧ **令牌接线**：`design-tokens.json` 新增 `color.brand.logo`（inkLight / inkDark / tile / tileRadius），`scripts/lib/tokens.mjs` 投影 `--logo-ink`（`:root` 亮 / `.dark` 暗）与 `logoInkLight` / `logoInkDark` / `logoTile`（Dart 侧）。⑨ **两个坑要记住**：JS 块注释里出现 `mipmap-*/` 会**提前闭合注释**（改写 `mipmap-<dpi>/`）；`--check` 的 `process.exit(1)` 必须放在**所有写入调用之后**（放函数定义后会导致 drift 恒为 0）。⚠️ **遗留**：Windows 托盘模板图标未做（托盘仍显示浅底彩色方块，`.ico` 需结构级支持）；移动端**应用内没有 logo 位**（只换了启动图标）。验证：桌面 `tsc --noEmit` **exit 0** + vitest **112 文件 / 1140 passed / 2 skipped** + `build:web` **exit 0**；移动 `flutter analyze` **0 error**（89 issues 全是存量 info）+ `flutter test` **247/247 全绿**；`gen_tokens --check` / `gen_nav --check` **0 过期**、`check-agent-surface` **0 阻断 / 0 提示**、`gen-icons --check` **0 漂移**（反向验证 exit 1 生效）；浏览器实测 `brand/preview.html` 内联 SVG 与解析光栅图**完全一致**、独立 `brand/logo/eclipse.svg` 也能正确渲染、`vite preview` 起服后 `/setup` 页暗色模式下 `.dark` 角色互换生效。设计全文 `docs/superpowers/architecture/2026-10-29-shadow-logo.md`)
 **Updated:** 2026-10-29 (⑫ **桌面端「够得到海马体」+「主题色就是记忆」**：接着上一条的记忆路径修复，本轮补上两件让愿景能真正落地的事。① **重大发现：桌面端 Tauri 构建的对话根本不过端脑** —— `telencephalonClient.ts:665-673` 的 `streamMessage` 在 Tauri 下走 `streamMessageNeuron`（直连进程内 neuron 的 `/v1/chat/completions`），`createConversation` 走 `newLocalConversation` 本地桩 ⇒ 桌面端**压根不产生 `tool_call` 事件**（neuron 的 chat completions 不带 tools），端脑的意图路由 / 工具 / flow 在桌面端**全部不在链路上**；移动端相反（嵌入式大脑带端脑、`cortex_router` 在链路上）⇒ **批次 A 先在移动端落地是可行的**，桌面端要先做一个「对话要不要改走端脑」的架构决定。② **Tauri sidecar 只起了 neuron 的 HTTP（:8085），端脑的 HTTP 面没起** → 前端够不到进程内海马体 → 新增 `src-tauri/src/hippo_http.rs`：把 `hippocampus_server` 的 router `nest("/hippocampus")` 挂到 `127.0.0.1:60080`（= 前端 `telencephalonStore.ts` 的 `DEFAULT_BASE_URL`，**前端一行不用改**），前缀与端脑自己的挂法一致（`telencephalon/src/api/mod.rs:160`）⇒ 同一套客户端代码两端通用；CORS 放开（同 neuron）；端口被占用**不算错**（说明外部已有端脑在跑，前端本就该连那台）；**只挂海马体**，不挂端脑其余的面。③ **顺带修好一个既有坏测试**：`src-tauri/tests/embedded_stack.rs` 用 `neuron_lib` 但 `Cargo.toml` 从来没有 `neuron` 依赖 → `cargo test` 编不过（**HEAD 就是坏的**，与本轮无关）；妙的是 **`Cargo.lock` 里一直登记着 `axum`/`hippocampus-server`/`neuron`/`tower`/`tower-http`** —— 是 manifest 被削过而锁没跟上，补回依赖后**锁零改动**、两边重新对齐（`neuron` 必须用**同一个 git 源** `git = ".../ibloc/neuron", branch = "main"`，用 path 会编出两份 neuron、类型对不上）。④ **「主题色也是记忆的一部分」第一次真正落地**：`themeStore.setAppearance` 改色 → 写一条海马体记忆（`uri = 'preference://theme/accent'`、`dimension = Agent`、`content = '#rrggbb'`）；`App.tsx` 启动 → `hydrateFromMemory()` 读回并应用；读不到（端脑没起 / 离线）静默用本地那份；坏值被 `appearanceMemory.ts` 的 hex 校验拦掉。海马体没有 upsert 也没有「按 uri 查」⇒ `HippocampusClient.upsertMemory` 做「列出来按 uri 匹配 → 命中 PUT / 没命中 POST」，**一条稳定 uri**（偏好是当前值，不是历史流水）。⚠️ **移动端还做不到**（移动端脑不带海马体，`HippocampusClient` 在移动端还是空壳）。验证：sidecar `cargo check --tests` **exit 0**、`cargo test --lib hippo_http` **1 passed**、桌面 `tsc --noEmit` **exit 0** + vitest **112 文件 / 1140 passed / 2 skipped**（新增 8 例 `tests/stores/appearanceMemory.test.ts`）、**`Cargo.lock` 零改动**。设计文档同步补 §1.1b（桌面端不过端脑）与 §3bis（两批落地）)
 **Updated:** 2026-10-29 (⑪ **桌面端记忆路径修复 + 「影子外观与人格」设计定调**：用户提产品愿景「影子作为个人助理，支持 agent 自定义客户端主题色；用户可向影子要求换颜色 / 生成背景图设为聊天背景；影依托海马体记忆有自己的人格与喜好」，问卷定了三条 —— 背景图**云端/端侧双模式**、人格落**海马体 `dimension=Agent`**、**主题色也是记忆的一部分**且多端只在零信任网络里共享海马体、后续支持**一个海马体存多个人格**（家庭：只部署一个海马体，每人各有一个助理）。**本轮落地 = 桌面端记忆读/写路径修复**（人格落海马体的前置）：① 新增 `shadow-desktop/src/lib/hippocampusClient.ts` —— 桌面端**没有独立海马体进程**，海马体嵌在端脑里（`encephalon` 的 default features 含 hippocampus，`telencephalon/src/api/mod.rs:160` 把它 `nest` 在 `/hippocampus` 下），所以正确地址是 `{端脑}/hippocampus/api/*`；旧 store 打的是 `http://localhost:8081` —— **一个根本不存在的服务**，搜索还打 `POST /memories/search`（海马体没这个端点，搜索是 `POST /api/search`），增删改全是**纯本地不同步**，而且 `MemoryPage` **从来没调过 `fetchMemories`** → 记忆页永远是空的。② 三个契约陷阱已按源码核过并写进代码注释：**dimension 请求侧小写**（`handlers.rs:216-222` 传错直接 400 "Invalid dimension"）、**搜索是 POST `/api/search`**、**响应是 snake_case + dimension PascalCase + layer 枚举全名**（`L2Detail` → UI 的 `L2`）。③ 顺带修掉 3 个真问题：**维度过滤语义搞反**（`SearchRequest` 根本没有 dimension，筛选该走 `GET /api/memory?dimension=`）、**新增记忆时的 layer 选择器是假的**（`AddMemoryRequest`/`UpdateMemoryRequest` 都没有 layer 字段 → 服务端恒为 `L2Detail`，客户端选的值没地方存 → 从 UI 移除）、**「搜索到 0 条」会显示全部记忆**（新增 `hasSearched` 区分「搜过没搜到」和「还没搜」）。④ **`tenant_id` = 多灵魂的隔离轴**（用户要的「一个海马体多个灵魂」**零 schema 改动**）：`HippocampusClient.setTenantId()` + store 的 `personaId`（持久化 + `onRehydrateStorage` 同步给 client），家庭场景 = 每人一个 tenant id。⑤ 清理 `prefrontalClient.ts` 里无调用方且端点不存在的 `listMemories`。**关键发现**：海马体的巩固器**已经把洞见写成 `dimension=Agent` 的记忆**（`observer.rs:21-38` 的 `Insight::as_memory` → `consolidate.rs:118-124` 的 `insert_memory`，uri `insight://<uuid>`、metadata 带 title/source_events）—— 用户选的「人格落海马体 dimension=Agent」**不是提案，是已经建好但只写不读的方向**，缺的不是存储是**读**和**注入**。**核心判断**：缺的是一根线 ——「**agent → 客户端的结构化动作**」：端脑 `Intent` 九变体不覆盖外观（`intent.rs:6-38`）、`call_llm` 无 tools 字段（`lobes/mod.rs:321-344`）、`ToolRegistry` 没有 client action 类；而两端客户端**各有半截**（桌面端 `ToolPartRouter`/`ClientToolForm` 有渲染骨架但**全仓无消费方**；移动端 `chat_provider.dart:766-769` 的 `tool_call` **只打日志**）⇒ 只加 UI 或只加 Intent 都无效。设计全文 `docs/superpowers/architecture/2026-10-29-shadow-persona-and-appearance.md`（含批次 A 外观闭环 / B 背景图双模式 / C 人格三步路线）。⚠️ 移动端人格仍无落点（移动端脑**不带海马体** → 必须走零信任网络连远端）。验证：桌面 `tsc --noEmit` **exit 0** + vitest **111 文件 / 1132 passed / 2 skipped**（新增 12 例端点契约测试 `src/lib/__tests__/hippocampusClient.test.ts`），跨端守门员 **0 阻断 / 0 提示**)
 **Updated:** 2026-10-29 (⑩ **修「等 WiFi → 黑屏」**（真机反馈的启动期崩溃级 bug）：移动端启动时若本地模型还没下载好且当前是移动网络，会弹「检测到移动网络」对话框；点「等待 WiFi」之后**整个 App 黑屏**。根因在 `chat_screen.dart` 的 `_showDownloadDialog`：`result == 'wifi'` 分支写的是 `navigator.pop()`（`navigator` = `Navigator.of(context)`，即 ChatScreen 所在的那个导航器），而 `/chat` 是路由表的 `initialLocation` —— 根导航器上的**第一个**路由，弹掉之后根导航器里就没有任何路由了 → 屏幕上什么都没有。修法：① 「等 WiFi」**不再导航** —— 它是一个**推迟**动作，不是「离开」；② 改成订阅 `NetworkService().onNetworkTypeChanged`，连上 WiFi 后**自动**开始下载；③ 给用户一条 SnackBar 提示（l10n 新增 `waitingForWifiHint`）；④ `_downloadDialogShown` 保持 true —— 否则 build 里 `modelNotReady` 会立刻把同一个对话框再弹一遍，变成「关掉又弹」的死循环。可测性改造：`NetworkService` 改成 Riverpod provider（`lib/providers/network_provider.dart`）—— 这条分支既要读网络类型又要订阅网络变化，直接 `new` 的话测试既没法注入假网络类型，也没法把「连上 WiFi」这个事件推进去。顺手修 `use_build_context_synchronously`：`_showDownloadDialog` 的 `context` 参数**遮蔽**了 `State.context`，analyzer 认不出 `mounted` 守卫守的是同一个 → 去掉参数、直接用 `State.context`。回归测试 `test/widget/chat_screen_wifi_test.dart`（3 例：弹出了对话框 / 页面没被弹掉 / 连上 WiFi 自动下载）**并做了反向验证** —— 把 `navigator.pop()` 改回去，测试确实红：`Found 0 widgets with type "ChatScreen"`（页面被弹掉 = 黑屏）。验证：移动 `analyze` **0 error**（89 issues 全是存量 info）+ `flutter test` **247/247 全绿** + `dart format` 干净)
@@ -15,241 +17,179 @@
 **Updated:** 2026-10-28 (移动端 l10n 全量收口：220+ 处硬编码中文接入 `AppLocalizations`，arb 179→441 key；测试断言改走 `l10nOf(tester)` 不再写死中英文；修 `arb` 里 `openVoiceMode` 重复键（JSON 后者覆盖前者）；`currentL10n()` 改用 `PlatformDispatcher.instance`（`WidgetsBinding.instance` 要求 binding 已初始化，纯 Dart 单测与后台 isolate 会抛）；孤儿页处理 —— 嵌入式 Prefrontal 页接进路由 `/settings/prefrontal`，外部进程架构三件套（死代码）删除；`prefrontal` 仓新增**宿主 JVM 直测 JNI**（模拟器不可用时的替代验证，12 项断言全绿），顺带修一个真 bug：provider 与 agent 用的不是同一份 `LlmConfig`，导致嵌入式运行时永远指向 `api.openai.com` 且无 key)
 **Updated:** 2026-10-28 (移动端测试从 173/28 修到 **201/201 全绿**并接入 CI：修 3 处真实代码 bug —— `AgentsResponse` 的 legacy `cortex` 键 fallback 写成了重复的 `telencephalon`、`AppConfigService` 解析失败只重置了一个字段且 `init()` 被 `_isInitialized` 短路导致永不重载、`TelencephalonClient.listConversations` 把 JSON 数组强转 Map；另修 20 处文案断言（屏幕硬编码中文）、3 处缺 localization delegate、2 处 `pumpAndSettle` 撞无限动画超时；CI 新增 `Mobile Test` 作业。同日修复移动端打包缺陷：`externalNativeBuild.cmake.path` 未设导致 Flutter 插件把 CMake 源目录改写成空模板，`libmnnbridge.so` 从未进过 APK)
 **Project:** shadow (影) - AI 用户分身系统
-**Spec version:** 2026-06-04 4-layer architecture (aligned with root `/AGENTS.md`)
+**Spec version:** 2026-10-29 通信链路规范 —— 大脑 → 端脑 → 叶区（**以代码为准**）。旧的「4 层架构」分层法已弃用：Prefrontal 降为端脑内的 native lobe，客户端不再直连推理。
+**现行文档**: [`README.md`](README.md) · [`ARCHITECTURE.md`](ARCHITECTURE.md) · [`docs/superpowers/architecture/`](docs/superpowers/architecture/)
 **Parent project summary**: `/home/ibloc/Projects/AGENTS.md` (not git-tracked — drift-prone; **not present on this Windows checkout**, paths stay verbatim Linux for now). Sibling audit: [`2026-09-23-iBLOC-progress-assessment.md`](docs/superpowers/architecture/2026-09-23-iBLOC-progress-assessment.md). Companion E2E coverage assessment: [`2026-09-25-e2e-coverage-assessment.md`](docs/superpowers/architecture/2026-09-25-e2e-coverage-assessment.md).
 **Telencephalon (Layer 3.5) subsystem surface**: see [`telencephalon/AGENTS.md` §Subsystem Management (3-tier auth)](../telencephalon/AGENTS.md) — the active repo after the 2026-09 rename chain. The original `cortex/` directory at `C:\Projects\iBLOC\cortex\` is empty (placeholder).
 
 ## OVERVIEW
 
-**Shadow (影)** 是用户的 AI 安全分身，运行在用户设备上（桌面或移动端），代表用户执行日常任务和工作。与其他 AI 多智能体应用不同，Shadow 中的所有执行都是**任务目标驱动**的 —— Shadow 不主动行动，只接受来自 **Resonance** 的任务派发。
+**Shadow (影)** 是用户的个人助理（AI 影子），运行在用户自己的设备上（桌面或移动端），替用户执行日常任务和工作。桌面端与移动端是**同一个 agent 的两个终端** —— 共享同一套大脑、同一套端脑、同一份设计语言。
+
+最关键的一条：**所有通信都走 大脑 → 端脑 → 叶区**。客户端不直接调推理。
 
 ### 核心特性
 
-- **任务目标驱动**：所有执行由 Resonance 统一派发
-- **零信任安全**：mTLS 双向认证，Shadow 主动发起连接
-- **本地推理能力**：移动端 MNN (LiteRT) + Kotlin `OpenAIServer.kt`，桌面端 neuron (embedded at :8085 via `run_embedded()`，candle / burn / litert 三个 ML 后端)
-- **模型多样性**：支持本地、云端、魔搭社区、Resonance 提供
-- **A2A 协议**：Shadow 向 Resonance 注册能力，Benchmark 评分同步
+- **统一链路** —— 两端都走 大脑 → 端脑 → 叶区；意图路由、工具调用（`tool_call`）、工作流、人格注入都在链路上
+- **进程内大脑** —— 桌面端 `encephalon::Embedded::boot()`，移动端 `libencephalon.so`；推理实例只有一个（neuron）
+- **长时记忆** —— 海马体挂在端脑面的 `/hippocampus/api/*`；人设与主题色可以写成 `dimension=Agent` 的记忆
+- **外观可定制** —— 主题色 / 玻璃强度 / 对话框背景都是运行时变量；品牌色是**用户可覆盖的槽位**，影子本身保持中性
+- **对话为主** —— 对话是两端唯一主干与默认落地页；语音 / 直播 / 客服是对话的**形态**，不是并列 tab
+- **跨端契约可执行** —— 链路 / 能力清单 / 设计 token / 导航 / 品牌，5 个守门员进 CI
+- **本地与云端模型** —— 本地模型走 neuron（candle / burn / litert 等后端）；云端供应商走独立的 OpenAI 兼容客户端（**不是**对话链路）
 
 ## 系统架构
 
-> **规范版本**: 2026-06-04 4 层架构（与根 `/AGENTS.md` 对齐）。
-> 旧版"Resonance 中心 + Shadow 二级"图已弃用，仅在 `docs/architecture.md §7` 留作历史参考。
+> **规范版本**：2026-10-29（以代码为准）。
+> 旧的「4 层 + 中心化编排服务」分层图已弃用 —— Prefrontal 早已降为**端脑内的 native lobe**，客户端也不再直连推理。
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  Layer 4: INTERACTION (本仓库)                                              │
+│  客户端（两端同形）                                                          │
 │                                                                             │
 │  ┌─────────────────────────────┐    ┌─────────────────────────────┐          │
 │  │   Shadow-Desktop            │    │   Shadow-Mobile             │          │
 │  │   shadow/shadow-desktop/    │    │   shadow/shadow-mobile/     │          │
 │  │                             │    │                             │          │
 │  │   Tauri 2 + React 19        │    │   Flutter 3.47.8            │          │
-│  │   • Zustand 5               │    │   • Riverpod                │          │
-│  │   • React Router 7          │    │   • GoRouter                │          │
-│  │   • CopilotKit (Agent2UI)   │    │   • flutter_genui (Agent2UI)│          │
-│  │   • neuron (embedded :8085)  │    │   • MNN C++ JNI 本地推理    │          │
-│  │   • 桌面自动化              │    │   • Android 无障碍 API      │          │
+│  │   • Zustand 5               │    │   • Riverpod 2.5            │          │
+│  │   • React Router 7          │    │   • GoRouter 14             │          │
+│  │   • shadcn/ui (Radix + CVA) │    │   • shadcn_ui (ShadcnUI)    │          │
+│  │   • 桌面自动化 (RPA)        │    │   • Android 无障碍 API      │          │
 │  └──────────────┬──────────────┘    └──────────────┬──────────────┘          │
 │                 │                                │                           │
-│  ┌──────────────┴───────────────┐                │                           │
-│  │   Shadow-ESP32 (v0.x 概念)  │                │                           │
-│  │   shadow/shadow-esp32/      │                │                           │
-│  │                             │                │                           │
-│  │   Zephyr 4.4.x + C          │                │                           │
-│  │   • ESP32-S3-DevKitC 板级   │                │                           │
-│  │   • cJSON A2A 客户端        │                │                           │
-│  │   • mDNS `_shadow._tcp`     │                │                           │
-│  └──────────────┬──────────────┘                │                           │
-│                 │                                │                           │
-│                 │  OpenAI /v1/* + WebSocket + WebRTC + mDNS + A2A (JSON-RPC)│
+│                 │      端脑方言 /shadow/v1/*      │                           │
 └─────────────────┼────────────────────────────────┼─────────────────────────┘
                   ▼                                  ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  Layer 3: AGENT  (外部项目)                                                  │
-│                                                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │  Encephalon (大脑)  https://github.com/iBLOC/encephalon             │    │
-│  │  顶层 agent crate: diencephalon(间脑) + telencephalon(端脑) +       │    │
-│  │  hippocampus(海马体), 捆在一个 ACP 总线和一棵 axum HTTP 树里        │    │
-│  │  • Embedded::boot() —— 进程内嵌入; 桌面端已用它 (:8085 跑 neuron)   │    │
-│  │                                                                     │    │
-│  │  Prefrontal (前额叶)  https://github.com/iBLOC/prefrontal  :8082    │    │
-│  │  Rust 多智能体执行引擎 (单 crate, 可嵌入或独立运行)                 │    │
-│  │  • agent / session / tool / skill / MCP / A2A orchestration         │    │
-│  │  • 四叶拆分后它只是 telencephalon 管的 lobe, 不再是独立的一层       │    │
-│  └─────────────────────────────────────────────────────────────────────┘    │
-│                  │  OpenAI /v1/*                                            │
-└──────────────────┼──────────────────────────────────────────────────────────┘
-                   ▼
+│  大脑 Encephalon  https://github.com/iBLOC/encephalon                          │
+│  顶层 agent crate: diencephalon(间脑) + telencephalon(端脑) + 单一 neuron    │
+│  • Embedded::boot() —— 进程内嵌入                                             │
+│    桌面端 = Tauri sidecar（进程内）；移动端 = libencephalon.so（App 进程内）    │
+│  • 一棵 ACP 总线 + 一棵 axum HTTP 树                                          │
+└─────────────────┬───────────────────────────────────────────────────────────┘
+                  ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  Layer 3.5: CORTEX  (Agent 编排层, 单 shadow 中心化)                          │
-│                                                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │  Telencephalon  https://github.com/iBLOC/telencephalon Port 60080    │    │
-│  │  (was cortex → encephalon → telencephalon, 2026-09 rename chain)     │    │
-│  │  Rust (axum 0.8 + synapse::wasm)                                     │    │
-│  │  • 本地 registry (native lobes + user WASM agents)                    │    │
-│  │  • A2A gateway (skill-based routing)                                  │    │
-│  │  • encrypted mDNS 广播 + mTLS 信任存储                                │    │
-│  │  • hot-reload config + admin API (X-Admin-Token)                      │    │
-│  │  • LobeKind: Native / Wasm / Prompt / External                        │    │
-│  │  • agent/scan + agent/sync/{provider_id} 外部智能体管理                │    │
-│  │  • agent/create 纯提示词智能体 + agent/discover A2A 自发现             │    │
-│  │  • MCP 管理 (v0.5 Sprint 2): wasm-only transport, 10-route HTTP,     │    │
-│  │    cortex_lobes/cortex_wasm_binaries/cortex_mcp_servers PG schema     │    │
-│  │  Talks up: A2A to Resonance / other telencephalons (mTLS)            │    │
-│  │  Talks down: A2A to native lobes, WASM in-process                     │    │
-│  └─────────────────────────────────────────────────────────────────────┘    │
-│                  │  A2A (skill)                                              │
-└──────────────────┼──────────────────────────────────────────────────────────┘
-                   ▼
+│  端脑 Telencephalon  https://github.com/iBLOC/telencephalon   Port 60080     │
+│  (was cortex → encephalon → telencephalon, 2026-09 rename chain)             │
+│  Rust (axum 0.8 + synapse::wasm)                                             │
+│  • agent 运行时：会话 / agent registry / A2A gateway / WASM host / MCP 管理    │
+│  • 意图路由 + 工具调用 + 工作流 + 人格注入 —— 都在这一层                        │
+│  • LobeKind: Native / Wasm / Prompt / External                                │
+│  • MCP 管理: wasm-only transport, 10-route HTTP                               │
+│  • 客户端唯一对话对象：/shadow/v1/*  +  /api/telencephalon/*                 │
+│                                                                              │
+│  └── 叶区（native lobe，进程内）                                              │
+│        • temporal    对话 / 意图                                              │
+│        • prefrontal 任务                                                      │
+│        • parietal    编排                                                      │
+└─────────────────┬───────────────────────────────────────────────────────────┘
+                  ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  Layer 2: ENGINE  (外部项目)                                                 │
-│                                                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │  neuron  github.com/ibloc/neuron    Port 8083 (8085 embedded)    │    │
-│  │  Rust 单二进制推理运行时 (LLM/TTS/ASR/Rerank)                         │    │
-│  │  • candle (默认) / voxcpm (burn) / litert 三个 ML 后端              │    │
-│  │  • 9 个 OpenAI-兼容 HTTP 端点                                        │    │
-│  │  • 模型来源: 本地 / HuggingFace / 魔搭社区                            │    │
-│  └─────────────────────────────────────────────────────────────────────┘    │
-│                  │  OpenAI /v1/* (云) 或 in-process (本地)                 │
-└──────────────────┼──────────────────────────────────────────────────────────┘
-                   ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  Layer 1: MODEL  (横切)                                                     │
-│                                                                             │
-│  云端 (MiniMax / Xiaomi Mimo / OpenAI / Anthropic / DeepSeek)               │
-│  本地 (GGUF / safetensors / .mnn / .litertlm / burn .mpk)                  │
-│                                                                             │
-│  Shadow-Desktop 通过 neuron 加载 candle 本地模型                              │
-│  Shadow-Mobile 通过 Kotlin `OpenAIServer.kt` (MNN + LiteRT) 加载本地模型      │
+│  推理 neuron  github.com/ibloc/neuron   Port 8083 (8085 embedded)           │
+│  Rust 单二进制推理运行时 (LLM/TTS/ASR/Rerank)                                │
+│  • candle (默认) / voxcpm (burn) / litert 三个 ML 后端                       │
+│  • OpenAI 兼容 HTTP 端点（/v1/chat/completions 等）                           │
+│  • **进程内唯一实例** —— 叶区调它，客户端不调它                                │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  Layer 0: STORAGE  (横切, 所有层共享)                                        │
-│                                                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │  Hippocampus  https://github.com/iBLOC/hippocampus      Port 8081        │    │
-│  │  5-crate Rust workspace — HybridRAG + temporal + consciousness      │    │
-│  │  • hippocampus-core (lib)  • hippocampus-storage (内部数据库/分布式数据库)   │    │
-│  │  • hippocampus-server (Axum REST)  • hippocampus-mcp (stdio)        │    │
-│  │  • hippocampus-cli                                              │    │
-│  └─────────────────────────────────────────────────────────────────────┘    │
-│  + Prefrontal persistence/ (postgres / file / neon / s3_blob; SQLite 已删除, 70a9976) │
-│  + 模型权重: ~/.neuron/models/{engine}/{id}/                                 │
+│  存储（横切）                                                                │
+│  • Hippocampus  https://github.com/iBLOC/hippocampus  Port 8081              │
+│    5-crate Rust workspace — HybridRAG + temporal + consciousness             │
+│    桌面端：进程内，挂在端脑面的 /hippocampus/api/*（**只有一份**）             │
+│    移动端：脑内不带，按设计走零信任网络上的远端海马体                          │
+│  • 模型权重: ~/.neuron/models/{engine}/{id}/                                 │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  Layer 5 (横切): ORCHESTRATION  (外部项目, 多用户/跨设备)                     │
-│                                                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐    │
-│  │  Resonance  https://github.com/iBLOC/resonance         Port 8080        │    │
-│  │  任务编排 / 规划 / 工作流引擎 / Benchmark 评分                       │    │
-│  │  • 任务派发 (WebSocket push)                                          │    │
-│  │  • A2A 能力注册 (Shadow → Resonance)                                  │    │
-│  │  • mDNS 服务发现 (_shadow._tcp)                                       │    │
-│  │  • mTLS 双向认证 (Shadow 主动连接)                                    │    │
-│  └─────────────────────────────────────────────────────────────────────┘    │
+│  设备协同（横切，两端各自实现）                                               │
+│  • 桌面端：mDNS 设备发现 + 配对码握手 + 对端 agent 服务实例                   │
+│             （stores/serviceStore.ts / stores/certificateStore.ts /           │
+│               pages/ResonancePage.tsx / lib/discoveryClient.ts）              │
+│  • 移动端：BLE 配网（flutter_blue_plus）+ mDNS 发现 + USB 音频路由            │
+│  • 出网通道：端脑的 encrypted mDNS 广播 + mTLS 信任存储 + A2A gateway；        │
+│    桌面端 sidecar 另有 mTLS WebSocket 客户端（src-tauri/src/ws_client.rs）     │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Shadow 在 4 层架构中的位置
+### Shadow 在链路中的位置
 
 | 维度 | 位置 |
 |---|---|
-| 主要职责 | Layer 4 (Interaction) — 用户交互 UI |
-| 嵌入式职责 | 包含 Layer 2 (neuron embedded at :8085) + Prefrontal 客户端 |
-| 跨层通信 | L4↔L3 (OpenAI/WS/WebRTC), L4↔L5 (mTLS/WS/A2A/mDNS) |
-| 独立服务 | 不运行独立服务器; Tauri/Flutter 直接调用 Layer 3 Prefrontal |
+| 主要职责 | 客户端（Interaction）—— 用户交互 UI + 设备能力 |
+| 进程内职责 | 桌面端 sidecar 内嵌大脑 + 端脑 + 叶区 + 单一 neuron；移动端 App 进程内嵌 `libencephalon.so` |
+| 唯一对话对象 | 端脑（`/shadow/v1/*`）—— **不是** neuron |
+| 出网 | mTLS / A2A / mDNS / BLE —— 设备协同与模型来源 |
+| 独立服务 | 不再对外提供独立编排服务；客户端只做端脑的终端 |
 
-## 与 Resonance 的交互
+### 端口
 
-### 连接流程
+| 端口 | 谁在听 | 说明 |
+|---|---|---|
+| 60080 | 端脑 HTTP 面 | 桌面端固定；移动端嵌入式时随机分配 |
+| 8085 | neuron | 桌面端嵌入时固定 |
+| 8083 | neuron | 独立运行时的默认端口 |
+| 8081 | 海马体 | 独立进程时的默认端口（桌面端在进程内，不占这个端口） |
 
-```
-1. Shadow 启动
-       │
-       ▼
-2. mDNS 广播 "_shadow._tcp" 服务
-       │
-       ▼
-3. 发现局域网内 Resonance 服务
-       │
-       ▼
-4. Shadow 主动建立 mTLS 连接
-       │
-       ▼
-5. TLS 握手期间完成双向证书认证
-       │
-       ▼
-6. A2A 协议：Shadow 注册能力到 Resonance
-       │
-       ▼
-7. Resonance 返回模型 Benchmark 评分
-       │
-       ▼
-8. 双向 WebSocket 信道建立（用于任务推送）
-```
+### 通信链路的可执行保证
 
-### A2A 能力注册
+`scripts/check-brain-chain.mjs`（CI job `Brain chain check`）把下面 6 条写成检查：
 
-Shadow 通过 A2A 协议向 Resonance 注册：
-- **模型列表**：本地可用的模型及配置
-- **Skill**：Shadow 支持的技能
-- **MCP 工具**：可用的 MCP 工具服务器
+1. 桌面端客户端不得直连推理（`neuron_infer` / `/v1/chat/completions`）
+2. 桌面端客户端不得有绕过端脑会话 API 的平台分支
+3. 桌面端 sidecar 必须挂起端脑的 HTTP 面
+4. 桌面端 sidecar 不得再暴露直连推理的 Tauri 命令
+5. 移动端对话必须走端脑方言（`/shadow/v1/conversations`）
+6. 移动端不得保留本地直连推理的对话编排器
 
-### 任务评估体系
-
-Resonance 建立任务评估体系，根据任务复杂程度给出模型评分建议：
-
-| 复杂度 | 评分要求 | 示例 |
-|--------|----------|------|
-| 简单 | 60+ | 查天气、设置闹钟 |
-| 中等 | 75+ | 写邮件、生成报告 |
-| 复杂 | 85+ | 代码开发、复杂分析 |
-| 专家 | 90+ | 架构设计、战略规划 |
-
+详见 `docs/superpowers/architecture/2026-10-29-brain-chain.md`。
 ## 项目结构
 
 ```
 shadow/
-├── AGENTS.md                    # 系统级文档
-├── docs/superpowers/specs/      # 设计规范文档 (NOT version-controlled — see note below)
-│   └── 2026-03-21-shadow-design.md
-├── shadow-desktop/              # 桌面端 (Tauri + React)
-│   ├── src/                    # React 19 前端
-│   │   ├── pages/              # 8 个页面
-│   │   ├── stores/             # Zustand store
-│   │   ├── components/         # 共享组件
-│   │   └── i18n/               # 国际化
-│   └── src-tauri/              # Rust 后端
-│       └── Cargo.toml          # Prefrontal 依赖
-│
-└── shadow-mobile/              # 移动端 (Flutter + MNN)
-    ├── lib/                    # Flutter UI (Dart)
-    │   ├── screens/            # 页面
-    │   ├── providers/          # Riverpod 状态
-    │   ├── services/          # 服务层 (含 cortex_client.dart)
-    │   └── mnn_engine.dart    # MNN Platform Channel
-    └── android/                # Android Native (Kotlin)
-        └── app/src/main/
-            ├── kotlin/         # Kotlin 代码
-            └── cpp/            # C++ JNI 桥接
-
-└── shadow-esp32/               # 边缘 ESP32-S3 客户端 (Zephyr + C, v0.x 概念阶段)
-    ├── main/                   # 当前是 ESP-IDF esp_hid_device scaffold (过渡)
-    ├── docs/
-    │   ├── RESEARCH.md         # 2026-08-16 调研报告(esp-claw 对比 + Zephyr/Rust 评估)
-    │   └── adr/
-    │       └── 0001-stack-choice-zephyr-c.md   # 决策 ADR:采用 Zephyr + C
-    ├── build/                  # ESP-IDF v6.0.2 编译产物(已验证工具链 OK)
-    ├── README.md
-    └── sdkconfig.defaults.esp32s3
+├── AGENTS.md                    # 唯一知识库（本文）
+├── README.md                    # 落地页
+├── ARCHITECTURE.md              # 平台架构（链路 / 组件 / 端口 / 协议）
+├── design-tokens.json           # 设计数值唯一真相源 → 两端投影
+├── agent-surface.json           # 能力清单 + 导航结构唯一真相源 → 两端投影
+├── brand/                       # 品牌几何真相源（geom.mjs）+ logo / 图标生成器
+├── scripts/                     # 跨端守门员 + 生成器
+│   ├── check-brain-chain.mjs    # 通信链路 6 条规则
+│   ├── check-agent-surface.mjs  # 能力清单 ↔ 两端路由 / 生成物漂移
+│   ├── gen_tokens.mjs           # design-tokens.json → 两端 token
+│   └── gen_nav.mjs              # agent-surface.json → 两端导航
+├── docs/superpowers/
+│   ├── architecture/            # 现行架构文档（2026-09 / 2026-10-29 系列）
+│   ├── specs/  plans/  scenarios/   # 历史设计记录（按日期存档，描述当时的决策）
+├── shadow-desktop/              # 桌面端 (Tauri 2 + React 19)
+│   ├── src/                     # React 19 前端
+│   │   ├── pages/               # 25 个页面
+│   │   ├── components/          # 共享组件（ui = shadcn 原语）
+│   │   ├── stores/              # Zustand store
+│   │   ├── lib/                 # 端脑 / 海马体 / 云端供应商客户端
+│   │   └── i18n/                # 国际化 (en-US / zh-CN)
+│   └── src-tauri/               # Rust sidecar
+│       └── src/cortex_http.rs   # 端脑 HTTP 面（:60080）
+├── shadow-mobile/               # 移动端 (Flutter 3.47.8 + shadcn_ui)
+│   ├── lib/                     # Flutter UI (Dart)
+│   │   ├── screens/             # 24 个页面
+│   │   ├── providers/           # Riverpod 状态
+│   │   ├── services/            # 服务层（telencephalon / encephalon / database …）
+│   │   └── agents/              # agent provider（工具注册表、人设）
+│   └── android/app/src/main/
+│       ├── kotlin/com/ibloc/shadow/   # EncephalonRuntime（JNI 桥）等
+│       ├── cpp/                 # C++ JNI 桥接（MNN bridge）
+│       └── jniLibs/<abi>/       # libencephalon.so 等（不入库）
+├── shadow-esp32/                # 边缘 ESP32-S3 客户端 (Zephyr + C, v0.x 概念阶段)
+│   ├── main/                    # 当前是 ESP-IDF esp_hid_device scaffold (过渡)
+│   ├── docs/                    # RESEARCH.md + adr/0001-stack-choice-zephyr-c.md
+│   ├── build/                   # ESP-IDF v6.0.2 编译产物(已验证工具链 OK)
+│   └── README.md
+└── benchmark/                   # 性能基准 + 三方对照报告
 ```
 
-> **Note (2026-07-19)**: shadow-mobile 现在有独立的 AGENTS.md（`https://github.com/iBLOC/shadow/shadow-mobile/AGENTS.md`，431 行重写覆盖了 2026-06-04 的旧 204 行版本）。原版本描述「Layer 4 + Layer 2 hybrid」3 模式架构，已被 cortex-centric 视图取代——mobile 默认走 cortex (`:60080`)，只有 Phone-as-Engine 模式才在 Kotlin 层暴露 OpenAIServer `:8085`。
+> **Note**: `docs/superpowers/{specs,plans,scenarios}/` 是**历史设计记录**（2026-03 ～ 2026-09，44 份），记录的是**当时**的决策，不是现状。现行架构文档在 `docs/superpowers/architecture/`（尤其 2026-10-29 系列）。两端各有自己的 `AGENTS.md`（`shadow-desktop/AGENTS.md` / `shadow-mobile/AGENTS.md`）。
 
 ## 跨端设计契约（2026-10-29 起）
 
@@ -356,12 +296,14 @@ shadow/
 | 特性 | 实现 |
 |------|------|
 | **框架** | Flutter 3.47.8 |
-| **状态管理** | Riverpod |
-| **路由** | GoRouter |
-| **本地推理** | MNN (C++ JNI) |
-| **Agent2UI** | flutter_genui |
+| **状态管理** | Riverpod 2.5 |
+| **路由** | GoRouter 14 |
+| **UI 组件** | shadcn_ui（Flutter ShadcnUI 0.57.3） |
+| **大脑** | `libencephalon.so` 进程内嵌（大脑 + 端脑 + 叶区 + 单一 neuron），端脑面随机端口 |
+| **本地推理** | MNN / LiteRT 引擎封装仍在，但**不在对话链路上**；对话只走端脑 |
+| **Agent2UI** | flutter_genui + genui_a2ui |
 | **自动化** | Android Accessibility API |
-| **模型来源** | 本地 MNN / 魔搭社区 / 云端 / Resonance |
+| **模型来源** | 本地模型 / 魔搭社区 / 云端供应商 |
 
 ### Shadow-Desktop (桌面端)
 
@@ -370,23 +312,25 @@ shadow/
 | **框架** | Tauri v2 (Rust + React 19) |
 | **状态管理** | Zustand 5 |
 | **路由** | React Router 7 |
-| **本地推理** | neuron (embedded at :8085 via `run_embedded()`) — candle / burn / litert backends |
+| **UI 组件** | shadcn/ui (Radix + CVA) + Tailwind 3.4 |
+| **大脑** | Rust sidecar 进程内嵌（`encephalon::Embedded::boot()`），端脑 HTTP 面 `127.0.0.1:60080` |
+| **本地推理** | neuron (embedded at :8085) — candle / burn / litert backends |
 | **Agent2UI** | React 19 components + Tauri OS bridge (CopilotKit 一度是候选, 实际未采用) |
-| **自动化** | Tauri commands (window / tray / notifications / fs) |
-| **模型来源** | 本地 neuron (candle 默认) / 魔搭社区 (默认 NEURON_DEFAULT_SOURCE) / 云端 / Resonance |
+| **自动化** | Tauri commands (window / tray / notifications / fs) + `computer_use.rs` RPA |
+| **模型来源** | 本地 neuron (candle 默认) / 魔搭社区 (默认 NEURON_DEFAULT_SOURCE) / 云端供应商 |
 
 ## 模块说明
 
 | 模块 | 位置 | 端口 | 功能 |
 |------|------|------|------|
-| **Resonance** | `https://github.com/iBLOC/resonance` | 8080 | 任务编排、规划、工作流引擎 |
-| **Cortex** (renamed to **Telencephalon** 2026-09) | `https://github.com/iBLOC/telencephalon` | 60080 | 单 shadow 中心化 agent 注册 + A2A gateway + WASM 宿主 + 外部智能体扫描同步 + MCP 管理 (v0.5 Sprint 2) |
-| **Encephalon** (大脑) | `https://github.com/iBLOC/encephalon` | 进程内 | 顶层 agent crate: diencephalon(间脑) + telencephalon(端脑) + hippocampus(海马体) 捆在一个 ACP 总线里; 桌面端已改为进程内嵌入 (`Embedded::boot`), 旧的 cortex sidecar 模式已废弃 |
-| **Prefrontal** | `https://github.com/iBLOC/prefrontal` | 8082 | 多智能体执行、工具调用、内置 Agent (prefrontal 是 telencephalon 管理的 lobe 之一) |
-| **Hippocampus** | `https://github.com/iBLOC/hippocampus` | 8081 | 长期记忆、HybridRAG 搜索 |
-| **Shadow-Desktop** | `shadow-desktop/` | N/A | 桌面端 UI + neuron (embedded :8085 via Tauri shell) |
-| **Shadow-Mobile** | `shadow-mobile/` | N/A | 移动端 UI + MNN |
-| **Shadow-ESP32** | `shadow-esp32/` | N/A | 边缘客户端原型 — **Zephyr 4.4.x + C + west**(`esp32s3_devkitc` 板级;v0.x 概念阶段;决策见 `shadow-esp32/docs/adr/0001-stack-choice-zephyr-c.md`;调研见 `shadow-esp32/docs/RESEARCH.md`)。通过 mDNS `_shadow._tcp` + A2A (JSON-RPC) 加入 Shadow 平台与 telencephalon/prefrontal 通信 |
+| **Telencephalon** (端脑, 2026-09 由 Cortex 改名) | `https://github.com/iBLOC/telencephalon` | 60080 | agent 运行时：会话 / agent registry + A2A gateway + WASM 宿主 + 外部智能体扫描同步 + MCP 管理 (v0.5 Sprint 2) + 意图路由 + 工具调用 + 工作流 + 人格注入 |
+| **Encephalon** (大脑) | `https://github.com/iBLOC/encephalon` | 进程内 | 顶层 agent crate: diencephalon(间脑) + telencephalon(端脑) + 单一 neuron 捆在一个 ACP 总线里; 桌面端 `Embedded::boot()` / 移动端 `libencephalon.so` 进程内嵌入, 旧的 cortex sidecar 模式已废弃 |
+| **Neuron** (推理) | `https://github.com/iBLOC/neuron` | 8083 / 8085 (嵌入) | 单二进制推理运行时 (LLM/TTS/ASR/Rerank) — candle / burn / litert 后端; **进程内唯一实例** |
+| **Prefrontal** (叶区之一) | `https://github.com/iBLOC/prefrontal` | 无独立端口 | 多智能体执行、工具调用、内置 Agent —— 已降为 **telencephalon 内的 native lobe** (prefrontal lobe), 不是独立一层 |
+| **Hippocampus** (海马体) | `https://github.com/iBLOC/hippocampus` | 8081 (独立进程) | 长期记忆、HybridRAG 搜索; 桌面端进程内挂 `/hippocampus/api/*`, **只有一份** |
+| **Shadow-Desktop** | `shadow-desktop/` | N/A | 桌面端 UI + sidecar 内的 大脑/端脑/叶区/neuron |
+| **Shadow-Mobile** | `shadow-mobile/` | N/A | 移动端 UI + App 进程内的 `libencephalon.so` |
+| **Shadow-ESP32** | `shadow-esp32/` | N/A | 边缘客户端原型 — **Zephyr 4.4.x + C + west**(`esp32s3_devkitc` 板级;v0.x 概念阶段;决策见 `shadow-esp32/docs/adr/0001-stack-choice-zephyr-c.md`;调研见 `shadow-esp32/docs/RESEARCH.md`)。通过 mDNS `_shadow._tcp` + A2A (JSON-RPC) 加入 Shadow 平台与 telencephalon 通信 |
 
 ## 移动端本地开发环境
 
@@ -546,46 +490,67 @@ $env:JAVA_HOME='C:\src\jdk17'
 
 ## 环境变量
 
+桌面端 sidecar **实际读取**的（`src-tauri/src/`）：
+
 ```bash
-# Resonance 连接
-export RESONANCE_HOST="http://localhost:8080"    # Resonance 服务器地址
-export SHADOW_ID="uuid"                           # Shadow 实例 ID
-export MTLS_CERT_PATH="/path/to/client.pem"       # mTLS 客户端证书
-export MTLS_KEY_PATH="/path/to/client.key"         # mTLS 客户端密钥
-export MTLS_CA_PATH="/path/to/ca.pem"              # CA 证书
+# 端脑 / 调试
+export TELE_PORT="60080"                  # 端脑端口（旧名 CORTEX_PORT 仍兼容）
+export TELE_SKIP_NEURON="1"              # 跳过 neuron 启动（调试；旧名 CORTEX_SKIP_NEURON）
+export LANCE_URI="..."                    # 海马体存储位置（端脑 / 海马体读）
+export RUST_LOG="info"                    # 日志级别
 
-# 前额叶 (Prefrontal) - 任务执行
-export PREFRONTAL_HOST="http://localhost:8082"
+# 宿主 RPA —— 默认关，没有任何生产路径会自动打开
+export SHADOW_COMPUTER_USE_ENABLED="1"
 
-# 海马体 (Hippocampus) - 记忆存储
-export HIPPOCAMPUS_HOST="http://localhost:8081"
+# 飞书 MCP（应用级授权）
+export FEISHU_ENABLED="1"
+export FEISHU_APP_ID="..."
+export FEISHU_APP_SECRET="..."
+export FEISHU_DEFAULT_USER_EMAIL="..."
 
-# 模式配置
-export PREFRONTAL_MODE="executor"                 # executor / full
+# 测试
+export TAURI_TEST_NO_SINGLE_INSTANCE="1"
 ```
+
+E2E / CI：
+
+```bash
+export SHADOW_CORTEX_BIN="<path>/telencephalon"   # 外部端脑二进制
+export SHADOW_CORTEX_CWD="<path>"                  # 它的工作目录
+export SHADOW_FULL_STACK="1"                       # 打开硬断言（软跳过 → 真跑）
+```
+
+neuron 侧（兄弟仓）：`NEURON_PORT`（默认 8083）、`NEURON_DEFAULT_SOURCE`（默认 `modelscope`）。
+
+> ⚠️ 旧的 `RESONANCE_HOST` / `PREFRONTAL_HOST` / `HIPPOCAMPUS_HOST` / `PREFRONTAL_MODE` / `SHADOW_ID` / `MTLS_*_PATH` 在 shadow 代码里**没有任何消费方** —— 只在旧测试配置和历史文档里出现过。端脑地址在桌面端是写死的 `http://127.0.0.1:60080`（`telencephalonStore.ts` 的 `DEFAULT_BASE_URL`），移动端由嵌入式大脑的随机端口接管。
 
 ## 相关项目
 
 | 项目 | 路径 | 说明 |
 |------|------|------|
-| **Resonance** | `https://github.com/iBLOC/resonance` | 任务编排、规划、工作流引擎 |
-| **Prefrontal** | `https://github.com/iBLOC/prefrontal` | 多智能体执行引擎 |
-| **Hippocampus** | `https://github.com/iBLOC/hippocampus` | 长期记忆存储 |
-| **Shadow** | `https://github.com/iBLOC/shadow` | 用户分身系统 |
-| **Shadow-Desktop** | `shadow-desktop/` | 桌面端执行器 (Tauri) |
-| **Shadow-Mobile** | `shadow-mobile/` | 移动端执行器 (Flutter) |
+| **Encephalon** (大脑) | `https://github.com/iBLOC/encephalon` | 顶层 agent crate（间脑 + 端脑 + 单一 neuron） |
+| **Telencephalon** (端脑) | `https://github.com/iBLOC/telencephalon` | agent 运行时：会话 / agent registry / A2A / WASM / MCP / 叶区 |
+| **Neuron** (推理) | `https://github.com/iBLOC/neuron` | 单二进制推理运行时（LLM/TTS/ASR/Rerank） |
+| **Prefrontal** | `https://github.com/iBLOC/prefrontal` | 端脑内的 native lobe（任务） |
+| **Hippocampus** (海马体) | `https://github.com/iBLOC/hippocampus` | 长期记忆存储、HybridRAG |
+| **Shadow** | `https://github.com/iBLOC/shadow` | 用户分身系统（本仓） |
+| **Shadow-Desktop** | `shadow-desktop/` | 桌面端 (Tauri 2 + React 19) |
+| **Shadow-Mobile** | `shadow-mobile/` | 移动端 (Flutter 3.47.8 + shadcn_ui) |
 
 ## 技术栈
 
 | 层级 | 移动端 | 桌面端 |
 |------|--------|--------|
 | **UI 框架** | Flutter 3.47.8 | React 19 + Tauri v2 |
-| **状态管理** | Riverpod | Zustand 5 |
-| **路由** | GoRouter | React Router 7 |
-| **本地推理** | MNN (LiteRT + MNN) | neuron (embedded at :8085) |
-| **Agent2UI** | flutter_genui | React 19 + Tauri commands |
+| **UI 组件** | shadcn_ui (Flutter ShadcnUI 0.57.3) | shadcn/ui (Radix + CVA) + Tailwind 3.4 |
+| **状态管理** | Riverpod 2.5 | Zustand 5 |
+| **路由** | GoRouter 14 | React Router 7 |
+| **大脑** | `libencephalon.so`（App 进程内） | Rust sidecar（`encephalon::Embedded::boot()`） |
+| **对话后端** | 端脑方言 `/shadow/v1/*` | 端脑方言 `/shadow/v1/*`（`127.0.0.1:60080`） |
+| **本地推理** | MNN / LiteRT 引擎封装（不在对话链路上） | neuron (embedded at :8085) |
+| **Agent2UI** | flutter_genui + genui_a2ui | React 19 + Tauri commands |
 | **后端** | Kotlin (Android) | Rust (Tauri shell) |
-| **IPC** | Platform Channel | Tauri invoke + HTTP |
+| **IPC** | MethodChannel + JNI + HTTP | Tauri invoke + HTTP |
 
 ## 外部集成
 
@@ -597,7 +562,7 @@ export PREFRONTAL_MODE="executor"                 # executor / full
 ### ~~candle-vllm~~ (桌面端本地推理 — 弃用)
 - ~~Rust 原生 vLLM 实现~~
 - ~~GitHub: github.com/EricLBuehler/candle-vllm~~
-- **现状 (2026-07-19)**: 已被 `neuron` 取代; neuron 通过 `run_embedded()` 在 Shadow-Desktop Tauri shell 内 :8085 提供推理服务, 默认 candle runtime。candle-vllm 不再作为桌面端默认引擎。
+- **现状 (2026-07-19)**: 已被 `neuron` 取代; neuron 由大脑进程内嵌, 桌面端在 Tauri shell 里以 `:8085` 提供推理服务, 默认 candle runtime。candle-vllm 不再作为桌面端默认引擎。
 
 ### flutter_genui (移动端 Agent2UI)
 - 对话式 Agent UI
