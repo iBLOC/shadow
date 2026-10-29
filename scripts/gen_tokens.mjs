@@ -8,6 +8,7 @@
  * 产物：
  *   shadow-desktop/src/styles/tokens.css       —— CSS 变量 + shadcn 语义投影
  *   shadow-mobile/lib/theme/app_tokens.g.dart  —— Dart 常量
+ *   shadow-mobile/lib/theme/shad_scheme.g.dart —— Dart 侧 shadcn 主题适配
  *
  * 生成物是**从属**的：不要手改它们，要改就改 design-tokens.json 再重跑本脚本。
  */
@@ -15,7 +16,12 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { buildCss, buildDart, buildAccentTs } from './lib/tokens.mjs';
+import {
+  buildCss,
+  buildDart,
+  buildAccentTs,
+  buildShadScheme,
+} from './lib/tokens.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CHECK = process.argv.includes('--check');
@@ -38,6 +44,11 @@ const TARGETS = [
     path: 'shadow-mobile/lib/theme/app_tokens.g.dart',
     build: buildDart,
     eol: '\r\n', // 移动端 Dart 源码是 CRLF
+  },
+  {
+    path: 'shadow-mobile/lib/theme/shad_scheme.g.dart',
+    build: buildShadScheme,
+    eol: '\r\n',
   },
 ];
 

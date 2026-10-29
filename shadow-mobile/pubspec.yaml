@@ -4,13 +4,19 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.11.1
+  sdk: ^3.13.0
 
 dependencies:
   flutter:
     sdk: flutter
   flutter_localizations:
     sdk: flutter
+
+  # UI 组件库 —— Flutter ShadcnUI（nank1ro，MIT，2.4k stars）。
+  # 桌面端是真 shadcn/ui（Radix + CVA），移动端用这个直系移植，
+  # 两端共用仓根 design-tokens.json 的同一份设计数值。
+  # 主题映射见 lib/theme/shad_scheme.g.dart（由 scripts/gen_tokens.mjs 生成）。
+  shadcn_ui: ^0.57.3
 
   cupertino_icons: ^1.0.8
   flutter_riverpod: ^2.5.1

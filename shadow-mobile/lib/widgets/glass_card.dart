@@ -83,7 +83,18 @@ class GlassCard extends StatelessWidget {
                       : null,
                 ),
                 padding: padding ?? const EdgeInsets.all(16),
-                child: child,
+                // 玻璃层自带背景色，而 Material 组件（ListTile / InkWell …）
+                // 把自己的水波纹画在**最近的 Material 祖先**上 —— 那在外层，
+                // 会被这层背景盖住，点击看不到反馈。
+                //
+                // Flutter 3.47 起在 debug 模式下会对此直接断言报错
+                // （"ListTile background color or ink splashes may be invisible"）。
+                // 给 child 套一层自己的透明 Material，水波纹就画在玻璃**上面**，
+                // 背景透过来，玻璃感不变。
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: child,
+                ),
               ),
             ),
           ),

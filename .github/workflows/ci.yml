@@ -334,14 +334,16 @@ jobs:
           java-version: '17'
           distribution: temurin
 
-      # Flutter 3.41.4 ships Dart SDK 3.11.1, which is exactly the
+      # Flutter 3.47.8 ships Dart SDK 3.13.7, which satisfies the
       # `environment: sdk: ^3.11.1` constraint in shadow-mobile/pubspec.yaml.
-      # Older `flutter-version: 3.11` shipped Dart 3.0.x and is both
-      # unresolvable on the stable channel and incompatible with pubspec.
+      #
+      # 升级到 3.47 是为了引入 shadcn_flutter 0.0.55（它要求
+      # Flutter >=3.47.0 / Dart >=3.13.0）。旧版 3.11 的 `flutter-version`
+      # 带的是 Dart 3.0.x，在 stable 通道上既装不上也不满足 pubspec。
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: 3.41.4
+          flutter-version: 3.47.8
           channel: stable
 
       - name: Cache Flutter pub
@@ -382,7 +384,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: 3.41.4
+          flutter-version: 3.47.8
           channel: stable
 
       - name: Cache Flutter pub

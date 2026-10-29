@@ -500,6 +500,117 @@ export function buildDart(tokens) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// 生成：移动端 shadcn 主题适配
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * design-tokens.json → shadcn `ShadColorScheme` 的投影。
+ *
+ * 桌面端是真 shadcn（Radix + CVA），CSS 变量由 buildCss 里的
+ * 「shadcn 语义投影」提供；移动端用 Flutter ShadcnUI（shadcn_ui），
+ * 它要的是一个 `ShadColorScheme` 对象。
+ *
+ * **两端的映射必须逐项对齐** —— 否则同一个能力在两端是两个颜色。
+ * 所以这里的每一项都对应 buildCss 里的同名 CSS 变量，不是另起一套。
+ */
+export function buildShadScheme(tokens) {
+  const c = tokens.color;
+  const L = [];
+
+  // design-tokens.json 的路径 → AppTokens 里的常量名
+  const tok = (group, mode, key) => {
+    const m = mode === 'dark' ? 'Dark' : 'Light';
+    return `AppTokens.${group}${m}${cap(key)}`;
+  };
+
+  L.push('// ============================================================');
+  L.push('// Shadow × shadcn 主题适配 —— 由 scripts/gen_tokens.mjs 生成');
+  L.push('// 请勿手改。改 design-tokens.json 后重新运行：');
+  L.push('//     node scripts/gen_tokens.mjs');
+  L.push('//');
+  L.push('// 桌面端是真 shadcn（Radix + CVA），移动端用 Flutter ShadcnUI。');
+  L.push('// 两端共用同一份 design-tokens.json，所以这里是**投影**而不是第二套真相源 ——');
+  L.push('// 下面每一项都对应 tokens.css 里的同名 shadcn 语义变量。');
+  L.push('// ============================================================');
+  L.push('');
+  L.push("import 'package:flutter/material.dart';");
+  L.push("import 'package:shadcn_ui/shadcn_ui.dart';");
+  L.push('');
+  L.push("import 'app_tokens.g.dart';");
+  L.push('');
+  L.push('/// design-tokens.json → shadcn [ShadColorScheme] 的投影。');
+  L.push('///');
+  L.push('/// 主题色是**运行时可变**的（用户可覆盖的槽位），所以这里接 seed，');
+  L.push('/// 不直接用 AppTokens 的常量 —— 用户换色后整个 App 跟着变。');
+  L.push('class ShadScheme {');
+  L.push('  ShadScheme._();');
+  L.push('');
+  L.push('  /// 按当前亮度 + 当前主题色 seed 构造色板。');
+  L.push('  static ShadColorScheme of({');
+  L.push('    required Brightness brightness,');
+  L.push('    required Color accentSeed,');
+  L.push('  }) {');
+  L.push('    final tones = deriveAccentTones(accentSeed);');
+  L.push('    final soft = accentSeed.withValues(alpha: 0.12);');
+  L.push('    return brightness == Brightness.dark');
+  L.push('        ? _dark(');
+  L.push('            primary: tones.darkTone,');
+  L.push('            primaryForeground: tones.darkToneFg,');
+  L.push('            soft: soft,');
+  L.push('          )');
+  L.push('        : _light(');
+  L.push('            primary: tones.lightTone,');
+  L.push('            primaryForeground: tones.lightToneFg,');
+  L.push('            soft: soft,');
+  L.push('          );');
+  L.push('  }');
+  L.push('');
+
+  for (const mode of ['dark', 'light']) {
+    const fn = mode === 'dark' ? '_dark' : '_light';
+    L.push(`  static ShadColorScheme ${fn}({`);
+    L.push('    required Color primary,');
+    L.push('    required Color primaryForeground,');
+    L.push('    required Color soft,');
+    L.push('  }) {');
+    L.push('    return ShadColorScheme(');
+    // 与 tokens.css 的 shadcn 语义投影逐项对齐
+    const rows = [
+      ['background', tok('surface', mode, 'base')],
+      ['foreground', tok('text', mode, 'primary')],
+      ['card', tok('surface', mode, 'raised')],
+      ['cardForeground', tok('text', mode, 'primary')],
+      ['popover', tok('surface', mode, mode === 'dark' ? 'raised' : 'base')],
+      ['popoverForeground', tok('text', mode, 'primary')],
+      ['primary', 'primary'],
+      ['primaryForeground', 'primaryForeground'],
+      ['secondary', tok('surface', mode, 'overlay')],
+      ['secondaryForeground', tok('text', mode, 'primary')],
+      ['muted', tok('surface', mode, 'overlay')],
+      ['mutedForeground', tok('text', mode, 'secondary')],
+      ['accent', tok('surface', mode, 'overlay')],
+      ['accentForeground', tok('text', mode, 'primary')],
+      ['destructive', 'AppTokens.statusError'],
+      ['destructiveForeground', 'bestForeground(AppTokens.statusError)'],
+      ['border', tok('border', mode, 'default')],
+      ['input', tok('border', mode, 'default')],
+      ['ring', tok('border', mode, 'focus')],
+      ['selection', 'soft'],
+    ];
+    for (const [field, expr] of rows) {
+      L.push(`      ${field}: ${expr},`);
+    }
+    L.push('    );');
+    L.push('  }');
+  }
+
+  L.push('}');
+  L.push('');
+
+  return L.join('\n');
+}
+
+// ─────────────────────────────────────────────────────────────
 // 生成：桌面端主题色派生（TS）
 // ─────────────────────────────────────────────────────────────
 

@@ -71,7 +71,7 @@ The `ShadowOperationModeProvider` / `ShadowOutputRouteProvider` Riverpod state h
 
 ```
 shadow-mobile/
-├── pubspec.yaml                         # Flutter package (Dart SDK ^3.11.1)
+├── pubspec.yaml                         # Flutter package (Dart SDK ^3.13.0)
 ├── lib/
 │   ├── main.dart                        # Entry — initializes AppConfig + ModelManager + Riverpod
 │   ├── litert_engine.dart               # LiteRT LM engine wrapper
@@ -394,7 +394,8 @@ $adb='C:\Users\87462\AppData\Local\Android\Sdk\platform-tools\adb.exe'
 
 - **MIUI 安装拦截**：安全中心关掉「安装监控」之后 `adb install` 才能过。`settings`/`appops`/`pm install`/`file://` 唤起安装器/`adb root`（生产版不允许）全都无效。
 - **无线调试**：`adb mdns services` 里会列出 `adb-<model>/<serial> _adb._tcp <ip>:<port>`。⚠️ **同网段可能混着别人的设备** —— 2026-10-29 扫到 `192.168.31.235:5555` 是一台 `mi_lx04`（armeabi-v7a / SDK 27 / 800×480），**不是**目标机，连上后确认 `ro.product.model` / `ro.build.version.sdk` / `wm size` 再操作，别往陌生设备上装 APK。
-- **关掉 Impeller 做 A/B（不用重打 APK）**：`FlutterShellArgs.fromIntent` 会读 intent extra `enable-impeller`（`engine/.../FlutterShellArgs.java:51,125-131`），Flutter 3.41.4 上 `--enable-impeller=false` 仍能落到 Skia 分支（`flutter_main.cc:127` 的 `warn_on_impeller_opt_out` + `SelectedRenderingAPI` 的 `kSkiaOpenGLES`）：
+- **关掉 Impeller 做 A/B（不用重打 APK）**：`FlutterShellArgs.fromIntent` 会读 intent extra `enable-impeller`（`engine/.../FlutterShellArgs.java:51,125-131`），Flutter 3.41.4 上实测 `--enable-impeller=false` 仍能落到 Skia 分支（`flutter_main.cc:127` 的 `warn_on_impeller_opt_out` + `SelectedRenderingAPI` 的 `kSkiaOpenGLES`）：
+  - ⚠️ 2026-10-29 工具链升到 Flutter 3.47.8 后**这条没有重新实测** —— Skia 回退分支的代码路径可能变过，用之前先在真机上确认一次。
 
   ```powershell
   & $adb shell am force-stop com.ibloc.shadow
@@ -430,7 +431,7 @@ CI runs `flutter_localization_linter` — adding a UI string to only one locale 
 
 ## CONVENTIONS
 
-- Flutter 3.11+ with Dart SDK `^3.11.1`
+- Flutter 3.47+ with Dart SDK `^3.13.0`（CI 固定 3.47.8 / Dart 3.13.7）
 - Riverpod 2.5 for state management (`flutter_riverpod`)
 - GoRouter 14.8 for declarative routing (`lib/router/app_router.dart`)
 - speech_to_text 7.0 for ASR fallback

@@ -92,7 +92,7 @@ mkdir build_64 && cd build_64
 
 ### 环境要求
 
-- Flutter SDK >= 3.11.1
+- Flutter SDK >= 3.47.0（Dart SDK >= 3.13.0）
 - Android SDK (API 24+)
 BP|
 

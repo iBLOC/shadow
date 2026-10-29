@@ -21,7 +21,12 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { buildCss, buildDart, buildAccentTs } from './lib/tokens.mjs';
+import {
+  buildCss,
+  buildDart,
+  buildAccentTs,
+  buildShadScheme,
+} from './lib/tokens.mjs';
 import {
   buildDesktopNav,
   buildMobileNav,
@@ -51,6 +56,11 @@ const GENERATED = [
   {
     path: 'shadow-mobile/lib/theme/app_tokens.g.dart',
     build: buildDart,
+    eol: '\r\n',
+  },
+  {
+    path: 'shadow-mobile/lib/theme/shad_scheme.g.dart',
+    build: buildShadScheme,
     eol: '\r\n',
   },
 ];

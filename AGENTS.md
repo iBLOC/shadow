@@ -39,7 +39,7 @@
 │  │   Shadow-Desktop            │    │   Shadow-Mobile             │          │
 │  │   shadow/shadow-desktop/    │    │   shadow/shadow-mobile/     │          │
 │  │                             │    │                             │          │
-│  │   Tauri 2 + React 19        │    │   Flutter 3.41.4            │          │
+│  │   Tauri 2 + React 19        │    │   Flutter 3.47.8            │          │
 │  │   • Zustand 5               │    │   • Riverpod                │          │
 │  │   • React Router 7          │    │   • GoRouter                │          │
 │  │   • CopilotKit (Agent2UI)   │    │   • flutter_genui (Agent2UI)│          │
@@ -350,7 +350,7 @@ shadow/
 
 | 特性 | 实现 |
 |------|------|
-| **框架** | Flutter 3.41.4 |
+| **框架** | Flutter 3.47.8 |
 | **状态管理** | Riverpod |
 | **路由** | GoRouter |
 | **本地推理** | MNN (C++ JNI) |
@@ -385,9 +385,13 @@ shadow/
 
 ## 移动端本地开发环境
 
-CI 的 `Mobile Analyze` 作业固定 **Flutter 3.41.4（Dart 3.11.1）**（Dart 版本对应 `pubspec.yaml` 的 `sdk: ^3.11.1`）。本地装同版本，analyze 结果才和 CI 可比。
+CI 的 `Mobile Analyze` / `Mobile Test` 作业固定 **Flutter 3.47.8（Dart 3.13.7）**（Dart 版本对应 `pubspec.yaml` 的 `sdk: ^3.13.0`）。本地装同版本，analyze 结果才和 CI 可比。
 
-- SDK：`C:\src\flutter`（用户级 PATH 已含 `C:\src\flutter\bin`），`flutter --version` = 3.41.4 / Dart 3.11.1
+- SDK：`C:\src\flutter`（用户级 PATH 已含 `C:\src\flutter\bin`），`flutter --version` = 3.47.8 / Dart 3.13.7
+  - 2026-10-29 从 3.41.4 升上来：为了引入 `shadcn_ui`（nank1ro 的 Flutter ShadcnUI）并对齐 stable 最新版。
+    该包要求 Flutter ≥3.41.0 / Dart ≥3.11.0，**3.41.4 其实也满足**；升级是顺带的现代化，不是硬门槛。
+    升级可逆 —— `C:\src\flutter` 是 git checkout，回退执行 `git checkout 3.41.4` + 重新 `flutter upgrade` 即可。
+  - Flutter 3.47.8 的 compileSdk / targetSdk 仍是 **36**、minSdk 24，**Android SDK 侧不用装新平台**。
 - 拉依赖：`flutter pub get`（工作目录 `shadow-mobile/`）
 - 复刻 CI：`flutter analyze --no-fatal-infos --no-fatal-warnings` —— issues 全是 warning/info 才算过（2026-10-28：74 issues，无 error）
 - **CI 现在有移动端测试作业**（`Mobile Test`，2026-10-28 补上）。此前 `flutter test` 从未被任何自动化跑过，仓库里 201 个用例中 28 个是坏的，且**坏在三个方向**：① 多个屏幕（soul / mcp / skills / prompt-settings / model-settings / conversation）**硬编码中文文案**却断言英文；② 测试 MaterialApp 漏注册 `AppLocalizations.delegate` / `GlobalCupertinoLocalizations.delegate`，`AppLocalizations.of(context)!` 直接崩；③ `pumpAndSettle` 撞上 `CircularProgressIndicator` 这类无限动画必然超时。2026-10-28 全部修完，**201/201 全绿**（本地 exit 0）
@@ -406,7 +410,7 @@ CI 的 `Mobile Analyze` 作业固定 **Flutter 3.41.4（Dart 3.11.1）**（Dart 
 
 - JDK 17：Temurin 17.0.20.1 → `C:\src\jdk17`（用户级 `JAVA_HOME`）
 - Android SDK：`C:\Users\87462\AppData\Local\Android\Sdk`（用户级 `ANDROID_HOME` / `ANDROID_SDK_ROOT`）。新 cmdline-tools 用 `android sdk install <pkg>@<ver>` / 路径式 `platforms/android-36` 语法，**旧 `sdkmanager` 已弃用**
-- 关键组件：`platforms/android-36`（Flutter 3.41.4 compileSdk=36）、`ndk/30.0.14904198`（工程钉死版本）、`cmake/3.22.1`（AGP 默认版本）
+- 关键组件：`platforms/android-36`（Flutter 3.47.8 compileSdk=36）、`ndk/30.0.14904198`（工程钉死版本）、`cmake/3.22.1`（AGP 默认版本）
 - 打包：`flutter build apk --debug`（工作目录 `shadow-mobile/`）→ `build/app/outputs/flutter-apk/app-debug.apk`
 - 产物验收三件套：`aapt2 dump badging <apk>`（包名/SDK/ABI）、`tar -tf <apk>`（列 `.so`）、`llvm-nm -D --defined-only <so>`（校验 JNI 导出符号）
 
@@ -570,7 +574,7 @@ export PREFRONTAL_MODE="executor"                 # executor / full
 
 | 层级 | 移动端 | 桌面端 |
 |------|--------|--------|
-| **UI 框架** | Flutter 3.41.4 | React 19 + Tauri v2 |
+| **UI 框架** | Flutter 3.47.8 | React 19 + Tauri v2 |
 | **状态管理** | Riverpod | Zustand 5 |
 | **路由** | GoRouter | React Router 7 |
 | **本地推理** | MNN (LiteRT + MNN) | neuron (embedded at :8085) |
