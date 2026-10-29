@@ -15,6 +15,11 @@ class AppConfigService {
   String? _telencephalonBaseUrl;
   String? _telencephalonAdminToken;
 
+  // 外观偏好（个人助理的外观是用户自己的）
+  int? _accentColorValue;
+  double? _glassIntensity;
+  int? _surfaceOverrideValue;
+
   // 单例
   static final AppConfigService _instance = AppConfigService._internal();
   factory AppConfigService() => _instance;
@@ -32,6 +37,15 @@ class AppConfigService {
 
   /// Telencephalon admin token — null means do not send `X-Admin-Token`.
   String? get telencephalonAdminToken => _telencephalonAdminToken;
+
+  /// 用户选的主题色（ARGB int）— null 表示用默认中性色。
+  int? get accentColorValue => _accentColorValue;
+
+  /// 玻璃（半影层）强度 0..1 — null 表示默认全强度。
+  double? get glassIntensity => _glassIntensity;
+
+  /// 对话框 / 面板背景覆盖（ARGB int）— null 表示跟随主题。
+  int? get surfaceOverrideValue => _surfaceOverrideValue;
 
   /// 初始化配置服务
   ///
@@ -52,12 +66,18 @@ class AppConfigService {
         _modelStoreUrl = config['modelStoreUrl'] as String?;
         _telencephalonBaseUrl = config['telencephalonBaseUrl'] as String?;
         _telencephalonAdminToken = config['telencephalonAdminToken'] as String?;
+        _accentColorValue = config['accentColor'] as int?;
+        _glassIntensity = (config['glassIntensity'] as num?)?.toDouble();
+        _surfaceOverrideValue = config['surfaceOverride'] as int?;
       }
     } catch (e) {
       // 配置文件读取失败，使用默认值
       _modelStoreUrl = null;
       _telencephalonBaseUrl = null;
       _telencephalonAdminToken = null;
+      _accentColorValue = null;
+      _glassIntensity = null;
+      _surfaceOverrideValue = null;
     }
   }
 
@@ -71,6 +91,10 @@ final config = {
         'telencephalonBaseUrl': _telencephalonBaseUrl,
       if (_telencephalonAdminToken != null)
         'telencephalonAdminToken': _telencephalonAdminToken,
+      if (_accentColorValue != null) 'accentColor': _accentColorValue,
+      if (_glassIntensity != null) 'glassIntensity': _glassIntensity,
+      if (_surfaceOverrideValue != null)
+        'surfaceOverride': _surfaceOverrideValue,
     };
       await file.writeAsString(json.encode(config));
     } catch (e) {
@@ -116,6 +140,24 @@ final config = {
   /// stop sending the `X-Admin-Token` header.
   Future<void> setTelencephalonAdminToken(String? token) async {
     _telencephalonAdminToken = (token == null || token.isEmpty) ? null : token;
+    await _saveConfig();
+  }
+
+  /// 设置用户选的主题色（ARGB int）。传 null 恢复默认中性色。
+  Future<void> setAccentColor(int? value) async {
+    _accentColorValue = value;
+    await _saveConfig();
+  }
+
+  /// 设置玻璃（半影层）强度 0..1。传 null 恢复默认。
+  Future<void> setGlassIntensity(double? value) async {
+    _glassIntensity = value;
+    await _saveConfig();
+  }
+
+  /// 设置对话框 / 面板背景覆盖（ARGB int）。传 null 恢复跟随主题。
+  Future<void> setSurfaceOverride(int? value) async {
+    _surfaceOverrideValue = value;
     await _saveConfig();
   }
 }

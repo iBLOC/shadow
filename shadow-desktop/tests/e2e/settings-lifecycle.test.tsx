@@ -29,6 +29,12 @@ vi.mock('../../src/stores/themeStore', () => ({
     theme: 'dark',
     setTheme: vi.fn(),
     toggleTheme: vi.fn(),
+    appearance: {
+      accentSeed: '#71717A',
+      glassIntensity: 1,
+      surfaceOverride: null,
+    },
+    setAppearance: vi.fn(),
   })),
 }));
 

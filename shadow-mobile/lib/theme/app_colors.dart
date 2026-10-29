@@ -1,53 +1,102 @@
 import 'package:flutter/material.dart';
 
+import 'app_tokens.g.dart';
+
+/// Shadow 的色板。
+///
+/// **数值全部来自仓根 `design-tokens.json`**（经 `scripts/gen_tokens.mjs`
+/// 生成本目录的 `app_tokens.g.dart`）。这里不写任何色值。
+///
+/// 设计语言（Umbra）：
+///  - 影子本身没有颜色 —— 它是光的缺失。所以**基底是中性黑白灰**。
+///  - **主题色是用户可覆盖的槽位**，不是产品强加的品牌色。个人助理的
+///    影子有自己的色温。
+///  - 主题色相关的常量是**可变的**：用户换色后由 [applyAccent] 统一改写，
+///    整个 App 跟着变（这是「一个用户一个影子」的具体落点）。
 class AppColors {
-  // === Shadow 品牌色 (Deep Shadow 调色板) ===
+  AppColors._();
 
-  // Primary - 神秘淡紫
-  static const Color primary = Color(0xFFA78BFA);
-  static const Color primaryVariant = Color(0xFFC4B5FD);
-  static const Color primaryGlow = Color(0x4DA78BFA); // 30% for glow effects
+  // ── 主题色（可变）─────────────────────────────────────────
+  // 用户没换色时是中性灰 —— 影子本来就是无色的。
 
-  // Secondary - 智能青
-  static const Color secondary = Color(0xFF22D3EE);
-  static const Color secondaryVariant = Color(0xFF67E8F9);
-  static const Color secondaryGlow = Color(0x4D22D3EE);
+  static Color _primary = AppTokens.accentSeed;
+  static Color _primaryVariant = _lighten(AppTokens.accentSeed, 0.18);
+  static Color _primaryGlow = AppTokens.accentSoft;
 
-  // === 暗色模式背景 ===
-  static const Color darkBackground = Color(0xFF09090B); // 近黑 - OLED友好
-  static const Color darkBackgroundAlt = Color(0xFF18181B); // 深灰 - 卡片背景
-  static const Color darkSurface = Color(0xFF27272A); // 中灰 - 输入框
-  static const Color darkSurfaceGlass = Color(0x4D27272A); // 30% 玻璃背景
-  static const Color darkBorder = Color(0x1AFFFFFF); // 10% 白色边框
-  static const Color darkBorderGlow = Color(0x4DA78BFA); // 30% 发光边框
+  static Color _secondary = _shift(AppTokens.accentSeed, lightness: -0.12, saturation: 0.05);
+  static Color _secondaryVariant = _lighten(AppTokens.accentSeed, 0.10);
+  static Color _secondaryGlow = AppTokens.accentSoft;
 
-  // === 亮色模式背景 ===
-  static const Color lightBackground = Color(0xFFF4F4F5);
-  static const Color lightBackgroundEnd = Color(0xFFE4E4E7);
-  static const Color lightSurface = Color(0xFFFFFFFF);
-  static const Color lightSurfaceGlass = Color(0xB3FFFFFF); // 75% 白色玻璃
-  static const Color lightBorder = Color(0x4D3B82F6); // 30% 蓝色边框
-  static const Color lightBorderGlow = Color(0x4D3B82F6);
+  /// 主题色本身（seed）。
+  static Color get primary => _primary;
 
-  // === 文本色 (暗色模式) ===
-  static const Color darkTextPrimary = Color(0xFFFAFAFA);
-  static const Color darkTextSecondary = Color(0xFFA1A1AA);
-  static const Color darkTextMuted = Color(0xFF71717A);
+  /// 主题色的浅一档变体。
+  static Color get primaryVariant => _primaryVariant;
 
-  // === 文本色 (亮色模式) ===
-  static const Color lightTextPrimary = Color(0xFF09090B);
-  static const Color lightTextSecondary = Color(0xFF52525B);
-  static const Color lightTextMuted = Color(0xFFA1A1AA);
+  /// 主题色的低透明度版本 —— 用于光晕/边框辉光。
+  ///
+  /// 注意语义：辉光是**实时信号**（agent 在线 / 正在思考）用的，不是装饰。
+  static Color get primaryGlow => _primaryGlow;
 
-  // === 状态色 ===
-  static const Color success = Color(0xFF34D399);
-  static const Color successLight = Color(0xFF6EE7B7);
-  static const Color warning = Color(0xFFFBBF24);
-  static const Color warningLight = Color(0xFFFCD34D);
-  static const Color error = Color(0xFFF87171);
-  static const Color errorLight = Color(0xFFFCA5A5);
+  /// 次级色 —— 与主题色同色相、更暗一档。
+  static Color get secondary => _secondary;
+
+  static Color get secondaryVariant => _secondaryVariant;
+
+  static Color get secondaryGlow => _secondaryGlow;
+
+  /// 用户换色时由 [ThemeSettingsNotifier] 调用，把主题色写进全局。
+  ///
+  /// 放在这里而不是各屏幕里，是为了让 63 处 `AppColors.primary` 的
+  /// 既有引用无需逐个改造就能跟着主题走。
+  static void applyAccent(Color seed) {
+    _primary = seed;
+    _primaryVariant = _lighten(seed, 0.18);
+    _primaryGlow = seed.withValues(alpha: 0.30);
+    _secondary = _shift(seed, lightness: -0.12, saturation: 0.05);
+    _secondaryVariant = _lighten(seed, 0.10);
+    _secondaryGlow = seed.withValues(alpha: 0.30);
+  }
+
+  // ── 暗色模式表面（影子的底）────────────────────────────────
+
+  static const Color darkBackground = AppTokens.surfaceDarkBase;
+  static const Color darkBackgroundAlt = AppTokens.surfaceDarkRaised;
+  static const Color darkSurface = AppTokens.surfaceDarkOverlay;
+  static const Color darkSurfaceGlass = AppTokens.surfaceDarkGlass;
+  static const Color darkBorder = AppTokens.borderDarkDefault;
+  static const Color darkBorderGlow = AppTokens.accentRing;
+
+  // ── 亮色模式表面 ───────────────────────────────────────────
+
+  static const Color lightBackground = AppTokens.surfaceLightBase;
+  static const Color lightBackgroundEnd = AppTokens.surfaceLightOverlay;
+  static const Color lightSurface = AppTokens.surfaceLightRaised;
+  static const Color lightSurfaceGlass = AppTokens.surfaceLightGlass;
+  static const Color lightBorder = AppTokens.borderLightDefault;
+  static const Color lightBorderGlow = AppTokens.accentRing;
+
+  // ── 文本 ───────────────────────────────────────────────────
+
+  static const Color darkTextPrimary = AppTokens.textDarkPrimary;
+  static const Color darkTextSecondary = AppTokens.textDarkSecondary;
+  static const Color darkTextMuted = AppTokens.textDarkMuted;
+
+  static const Color lightTextPrimary = AppTokens.textLightPrimary;
+  static const Color lightTextSecondary = AppTokens.textLightSecondary;
+  static const Color lightTextMuted = AppTokens.textLightMuted;
+
+  // ── 状态色 ─────────────────────────────────────────────────
+
+  static const Color success = AppTokens.statusSuccess;
+  static const Color successLight = AppTokens.statusSuccessLight;
+  static const Color warning = AppTokens.statusWarning;
+  static const Color warningLight = AppTokens.statusWarningLight;
+  static const Color error = AppTokens.statusError;
+  static const Color errorLight = AppTokens.statusErrorLight;
 
   // === 渐变 ===
+
   static LinearGradient get darkGradient => const LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
@@ -60,8 +109,29 @@ class AppColors {
     colors: [lightBackground, lightBackgroundEnd],
   );
 
-  // === Neon Glow 效果辅助 ===
+  /// 辉光色 —— [baseColor] 的低透明度版本。
   static Color glowColor(Color baseColor, {double opacity = 0.3}) {
     return baseColor.withValues(alpha: opacity);
+  }
+
+  // === 内部工具 ===
+
+  static Color _lighten(Color color, double delta) {
+    final hsl = HSLColor.fromColor(color);
+    return hsl
+        .withLightness((hsl.lightness + delta).clamp(0.0, 1.0))
+        .toColor();
+  }
+
+  static Color _shift(
+    Color color, {
+    required double lightness,
+    double saturation = 0,
+  }) {
+    final hsl = HSLColor.fromColor(color);
+    return hsl
+        .withLightness((hsl.lightness + lightness).clamp(0.0, 1.0))
+        .withSaturation((hsl.saturation + saturation).clamp(0.0, 1.0))
+        .toColor();
   }
 }

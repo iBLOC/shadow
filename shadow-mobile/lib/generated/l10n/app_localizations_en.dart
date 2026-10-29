@@ -1567,4 +1567,62 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get encephalonInferFailed => 'Inference failed';
+
+  @override
+  String get settingsAppearance => 'Appearance';
+
+  @override
+  String get settingsThemeColor => 'Theme color';
+
+  @override
+  String get settingsThemeColorHint =>
+      'The shadow itself has no color — pick the light it casts in.';
+
+  @override
+  String get settingsGlassIntensity => 'Glass intensity';
+
+  @override
+  String get settingsGlassOff => 'Off';
+
+  @override
+  String get settingsGlassFull => 'Full';
+
+  @override
+  String get settingsDialogBackground => 'Dialog background';
+
+  @override
+  String get settingsFollowTheme => 'Follow theme';
+
+  @override
+  String get settingsSurfaceDeep => 'Deep';
+
+  @override
+  String get settingsSurfaceLight => 'Light';
+
+  @override
+  String get settingsSurfaceNeutral => 'Neutral';
+
+  @override
+  String get settingsSurfaceInk => 'Ink';
+
+  @override
+  String get appearanceAccentNeutral => 'Neutral';
+
+  @override
+  String get appearanceAccentSlate => 'Slate';
+
+  @override
+  String get appearanceAccentIndigo => 'Indigo';
+
+  @override
+  String get appearanceAccentCyan => 'Cyan';
+
+  @override
+  String get appearanceAccentEmerald => 'Emerald';
+
+  @override
+  String get appearanceAccentAmber => 'Amber';
+
+  @override
+  String get appearanceAccentRose => 'Rose';
 }

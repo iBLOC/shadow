@@ -190,7 +190,7 @@ class _AgentCard extends ConsumerWidget {
                               color: AppColors.primary.withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(4),
                             ),
-                            child: const Text(
+                            child: Text(
                               'DEFAULT',
                               style: TextStyle(
                                 fontSize: 10,

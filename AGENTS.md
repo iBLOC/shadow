@@ -1,7 +1,8 @@
 # PROJECT KNOWLEDGE BASE
 
 **Generated:** 2026-03-21
-**Updated:** 2026-10-29 (⑤ **立跨端设计契约**：桌面端与移动端是同一个 agent 的两个终端，按此把 UI 整改重排为「先立共享源、再改两端投影、最后清代码」。仓根新增两份唯一真相源 —— `design-tokens.json`（设计数值）与 `agent-surface.json`（能力 → 两端入口映射，30 条能力），配 `scripts/check-agent-surface.mjs` 守门员并接进 CI（`Cross-client consistency check`），当前两端 26 + 29 条路由**全部登记在册、0 阻断**。配套文档 `docs/superpowers/architecture/2026-10-29-cross-platform-design-system.md`。**统一 ≠ 长得一样**：统一的是色彩/节奏/命名/能力语义，分叉的是容器形态/密度/端侧特有功能。**待拍板**：品牌色取 `#A78BFA`（推荐）/ 桌面端要不要上玻璃拟态（推荐不要）/ `setup` 与 `provisioning` 接线还是删)
+**Updated:** 2026-10-29 (⑥ **跨端视觉语言落地（阶段 1）**：按用户产品定位「Shadow = 每个人的影子 / 个人助理」重新推导视觉 —— **影子本身没有颜色**（它是光的缺失），所以基底改为**中性黑白灰**（shadcn 的 zinc 语义色板），**品牌色从「内置霓虹紫青」改成「用户可覆盖的槽位」**（默认中性 `#71717A`，7 个预设）。三层语言 = **Umbra 本影（实心）/ Penumbra 半影（玻璃）/ Caustic 焦散（实时信号）**；**发光从装饰降级为信号**（只用于 agent 在线/思考/拾音，颜色取状态色）。落地：`design-tokens.json` 重写 + `scripts/gen_tokens.mjs`（生成桌面端 `tokens.css`/`accent.g.ts` 与移动端 `app_tokens.g.dart`，生成器核心 `deriveAccentTones` **只写一次**）→ 桌面端 `index.css` 改为引用 token + `.glass` 半影层 + `.shadow-ambient` 光源层 + `Card` 默认走玻璃；移动端去霓虹改中性阶、`glass_theme.dart` 改为 `GlassTheme.build(appearance, brightness)`、`AppColors` 主题色改为可变全局（63 处引用跟着主题走）。**两端都要玻璃拟态**（用户拍板）；⚠️ 桌面端是 Chromium WebView、移动端是 Android 原生 Flutter，**`BackdropFilter` 行为不等价，必须分别验证**。新增**用户自定义**：主题色 / 玻璃强度 / 对话框背景（桌面端 `themeStore.ts` 写 `<html>` 内联 CSS 变量，移动端 `theme_provider.dart` 落 `app_config.json`）。新增**跨端契约快照** `scripts/accent-tones.fixture.json` + 两端各自断言（两端算法不可能悄悄分叉）。顺手修一个真 bug：桌面端 `bg-primary/10` 之前**不透明度修饰符根本没生效**（Tailwind 缺 `<alpha-value>`），现在才真是 10%。守门员升级为拦截「生成物漂移 / 两端手写色值 / 玻璃语义不对等」。验证：桌面 `tsc` exit 0 + vitest **1111/1111**，移动 `analyze` 0 error + `flutter test` **228/228**，守门员 **0 阻断**。推导全文 `docs/superpowers/architecture/2026-10-29-shadow-visual-language.md`)
+**Updated:** 2026-10-29 (⑤ **立跨端设计契约**：桌面端与移动端是同一个 agent 的两个终端，按此把 UI 整改重排为「先立共享源、再改两端投影、最后清代码」。仓根新增两份唯一真相源 —— `design-tokens.json`（设计数值）与 `agent-surface.json`（能力 → 两端入口映射，30 条能力），配 `scripts/check-agent-surface.mjs` 守门员并接进 CI（`Cross-client consistency check`），当前两端 26 + 29 条路由**全部登记在册、0 阻断**。配套文档 `docs/superpowers/architecture/2026-10-29-cross-platform-design-system.md`。**统一 ≠ 长得一样**：统一的是色彩/节奏/命名/能力语义，分叉的是容器形态/密度/端侧特有功能)
 **Updated:** 2026-10-29 (① **移动端暂不做 armv7**（用户决定）：只发 `arm64-v8a` + `x86_64`，所以「把 wasmtime 拆可选以支持 armv7」的必要性消失 —— wasmtime 拆可选现在只剩**减体积**的价值（`.so` 150.6MB / APK 346.8MB，根因是端脑面带入的 DataFusion/Arrow/Parquet 栈 ≈47.8MB）。文档里「armeabi-v7a 为什么编不出来」的结论从「阻断点待转移」改成「明确不做」，cranelift/wasmtime 那段留作背景。② **修端脑会话的 wire 契约**：端脑 `ConversationTurn` 序列化成 `{role, text, at}`（`at` = RFC3339），**不是 `timestamp`**；移动端 Dart 照着前额叶方言读 `timestamp` → `(null as num).toInt()` → `_TypeError`，会话列表页与 session transfer 导入响应只要有历史就崩。已改成两种形状都认 + 4 条回归测试（fixture 用 Rust 侧实测字节）；桌面端 `Conversation.history` 类型声明同步改成 `at: string`。③ CI 红灯收敛为**只差 `IBLOC_TOKEN`**（三仓 workflow 的兄弟仓 checkout 都已就位，守卫步骤提前 exit 1 并打印该配什么）；shadow 仓我改的部分全绿（Mobile Analyze / Mobile Test / Desktop Tests / Desktop Build），仍红的只有 `Prefrontal Rust` 与 `Desktop E2E` 两个需要 secret 的 job。④ 真机（小米 2106118C / Android 13）已装 APK 并启动成功无崩溃，但**设置页正文全白未结案** —— 已排除代码 bug 与 build 异常，嫌疑 `BackdropFilter`/Impeller，拿到 `--ez enable-impeller false` 的**零重建** A/B 方案)
 **Updated:** 2026-10-28 (移动端 agent 面切到嵌入式大脑 —— **两套「方言」问题查清并修掉**：移动端原有**两个** HTTP client，说的是**两种方言**：`PrefrontalClient` 说前额叶方言（`/api/sessions`、`/api/agents`、`/api/skills`、`/api/providers`、`/api/soul/*`、`/api/mcp/servers`、`/hippocampus/api/*`），`TelencephalonClient` 说端脑方言（`/shadow/v1/*`、`/api/telencephalon/*`、`/.well-known/agent.json`、`/api/flows`）。嵌入式大脑挂起来的那条面 = 端脑的 `cortex_router` → **只有端脑方言**。⇒ 把 `PrefrontalClient` 指过去只会把「连接被拒」换成「404」，本轮**不指**它；把**对话**与**会话列表**从前额叶方言迁到端脑方言（`chat_provider` 改走 `createConversation` + `streamMessage`，`conversation_screen` 改走 `listConversations`，与桌面端 `ConversationPage.tsx` 同一条链路）；Rust 侧 `start_agent_surface()` 在嵌入运行时里挂 `cortex_router`（127.0.0.1:0 随机端口），JNI 加 `nativeGetAgentPort` + `nativeStart(port, dataDir)`（Android 没有 `$HOME`、CWD 是 `/`，端脑的 flow 存储要显式给 App 私有目录），Dart 侧 `EncephalonMobileNotifier` 把端脑 client 的 baseUrl 改成 `http://127.0.0.1:<agentPort>`；**移动端不编本地海马体**（记忆走零信任网络内其它设备），⇒ `telencephalon` 把 `hippocampus-server` 改 optional，**Lance 退出移动端依赖图**；端脑**没有会话删除端点**（桌面端同样没有），移动端会话页的删除按钮移除)
 **Updated:** 2026-10-28 (移动端「改嵌大脑」落地：Rust 侧 `encephalon` 加 cdylib + JNI 壳 + `mobile` feature，产出 `libencephalon.so` 由 Kotlin 经 MethodChannel 加载，跑的是与桌面端同款的嵌入式大脑（thalamus + ACP 总线 + 端脑 + 单一 neuron），不再是前额叶 lobe；验证手段：无模拟器时的**宿主 JVM 直测 14/14 全绿** + 交叉编译 `.so` + APK 打包验收；shadow 侧新增 `/settings/encephalon` 运行时管理页与 5 项 widget 测试（`bafac3f`）；三个 PR 必须按 diencephalon → telencephalon → encephalon 顺序合并；CI 全红是缺 `IBLOC_TOKEN` secret 的**既有基线问题**，与本轮改动无关)
@@ -256,19 +257,55 @@ shadow/
 
 | 文件 | 内容 | 消费方 |
 |---|---|---|
-| `design-tokens.json` | **设计数值的唯一真相源**：颜色 / 间距 / 圆角 / 字号 / 字重 / 时长 / 断点 | 桌面端 `tailwind.config.ts` 读取；移动端 `lib/theme/app_tokens.g.dart` 由脚本生成 |
+| `design-tokens.json` | **设计数值的唯一真相源**：颜色 / 间距 / 圆角 / 字号 / 字重 / 时长 / 断点 | 由 `scripts/gen_tokens.mjs` 生成两端落地文件（桌面端 `src/styles/tokens.css` + `accent.g.ts`；移动端 `lib/theme/app_tokens.g.dart`） |
 | `agent-surface.json` | **能力 → 两端入口的唯一映射表**：`id` / `group` / `labelKey` / `icon` / `desktop.route` / `mobile.route` | 两端导航从它生成，而不是各自硬编码一份页面清单 |
+| `scripts/accent-tones.fixture.json` | **主题色派生的跨端契约快照**（冻结的期望值） | 桌面端 `tests/styles/accentTones.test.ts` + 移动端 `test/theme/accent_tones_test.dart` 各自断言 |
 
 **统一什么 / 分叉什么**：设计数值、能力清单、能力状态、信息架构骨架、文案 key 语义、交互流程模式
 → **共享**；容器形态（侧边栏 vs 底 tab）、信息密度、端侧特有能力、组件实现（React vs Flutter）→ **分叉**。
 **统一 ≠ 两端长得一样**：统一的是语言（色彩语义 / 节奏 / 命名 / 能力语义），不是像素。
 
 **守门员**：`scripts/check-agent-surface.mjs`，CI 的 `Cross-client consistency check` 步骤（desktop-build job）。
-它拦住：清单里的路由在两端不存在 / 两端偷偷多出或少出路由 / 移动端颜色与 token 对不上 /
-两端文案 key 体系分叉。当前状态：**两端 26 + 29 条路由全部登记在册，0 阻断**。
+它拦住：清单里的路由在两端不存在 / 两端偷偷多出或少出路由 / **生成物与 token 源漂移** /
+移动端或桌面端偷偷手写色值 / 两端玻璃语义不对等 / 两端文案 key 体系分叉。
+当前状态：**两端 26 + 29 条路由全部登记在册，3 个生成物 0 过期，0 阻断**。
 
-**尚未推进**（阶段 1/2）：桌面端 `index.css` 的 `--primary` 还是近黑（token 接入后会变品牌紫
-`#A78BFA`）；两端文案 key 还没统一到 `surface.*`；导航还没改成数据驱动。
+**生成物是从属的**：不要手改 `tokens.css` / `accent.g.ts` / `app_tokens.g.dart` ——
+改 `design-tokens.json` 后跑 `node scripts/gen_tokens.mjs`。生成器核心
+（`deriveAccentTones` 等）在 `scripts/lib/tokens.mjs` 里**只写一次**，生成进两端，
+所以两端不可能算法分叉。
+
+**尚未推进**（阶段 1.5/2）：两端文案 key 还没统一到 `surface.*`；导航还没改成数据驱动；
+移动端 212 处 `EdgeInsets` / 117 处硬编码 `fontSize` 尚未 token 化；桌面端 351 处原始色阶 class 尚未 token 化。
+
+## 跨端视觉语言（2026-10-29 起）
+
+> **原则**：Shadow = **每个人的影子 / 个人助理**。影子本身没有颜色 —— 它是光的缺失。
+> 所以基底是**中性黑白灰**，**主题色是用户可覆盖的槽位**而不是产品强加的品牌色。
+>
+> 推导全文：[`docs/superpowers/architecture/2026-10-29-shadow-visual-language.md`](docs/superpowers/architecture/2026-10-29-shadow-visual-language.md)
+
+**三层语言**：
+
+| 层 | 语义 | 桌面端 | 移动端 |
+|---|---|---|---|
+| **Umbra**（本影） | 实心层：页面底 / 输入框 / 用户的确定数据 | `--background` / `--card` | `surfaceDark/LightBase` 等 |
+| **Penumbra**（半影） | 半透明层：卡片 / 对话框 / 底栏 / 侧边栏 | `.glass`（`src/index.css`） | `GlassCard` |
+| **Caustic**（焦散） | 实时信号：agent 在线 / 正在思考 / 正在拾音 | 状态色（暂未加辉光） | `GlassCard(glow: true)`，默认关 |
+
+**四条硬规则**（违反即视为破坏设计语言）：
+
+1. **基底无彩** —— 任何硬编码颜色都必须来自 `design-tokens.json`。
+2. **主色是反色** —— 暗色模式上是光（近白），亮色模式上是影（近黑）；用户换色后由同一算法派生两端色调。
+3. **玻璃 = 半影层** —— 两端都要有：模糊 + 半透明白 + 1px 边；**桌面端是 Chromium WebView，移动端是 Android 原生 Flutter，`BackdropFilter` 行为不等价，必须分别验证**。
+4. **发光是信号不是装饰** —— 只用于实时状态，颜色来自状态色。
+
+**用户可定制**（两端对称）：主题色 / 玻璃强度 / 对话框背景。
+桌面端 `stores/themeStore.ts`（写 `<html>` 内联 CSS 变量 + localStorage）；
+移动端 `providers/theme_provider.dart` + `theme/theme_appearance.dart`（`app_config.json`）。
+
+**已知风险**：移动端 `AppColors.primary` 为跟随主题变成了**可变全局**（63 处引用不用逐个改），
+代价是不能进 `const` 上下文；长期应改读 `Theme.of(context).colorScheme.primary`（阶段 1.5）。
 
 ## 双端差异
 

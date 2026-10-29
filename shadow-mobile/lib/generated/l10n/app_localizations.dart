@@ -2905,6 +2905,120 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Inference failed'**
   String get encephalonInferFailed;
+
+  /// No description provided for @settingsAppearance.
+  ///
+  /// In en, this message translates to:
+  /// **'Appearance'**
+  String get settingsAppearance;
+
+  /// No description provided for @settingsThemeColor.
+  ///
+  /// In en, this message translates to:
+  /// **'Theme color'**
+  String get settingsThemeColor;
+
+  /// No description provided for @settingsThemeColorHint.
+  ///
+  /// In en, this message translates to:
+  /// **'The shadow itself has no color — pick the light it casts in.'**
+  String get settingsThemeColorHint;
+
+  /// No description provided for @settingsGlassIntensity.
+  ///
+  /// In en, this message translates to:
+  /// **'Glass intensity'**
+  String get settingsGlassIntensity;
+
+  /// No description provided for @settingsGlassOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Off'**
+  String get settingsGlassOff;
+
+  /// No description provided for @settingsGlassFull.
+  ///
+  /// In en, this message translates to:
+  /// **'Full'**
+  String get settingsGlassFull;
+
+  /// No description provided for @settingsDialogBackground.
+  ///
+  /// In en, this message translates to:
+  /// **'Dialog background'**
+  String get settingsDialogBackground;
+
+  /// No description provided for @settingsFollowTheme.
+  ///
+  /// In en, this message translates to:
+  /// **'Follow theme'**
+  String get settingsFollowTheme;
+
+  /// No description provided for @settingsSurfaceDeep.
+  ///
+  /// In en, this message translates to:
+  /// **'Deep'**
+  String get settingsSurfaceDeep;
+
+  /// No description provided for @settingsSurfaceLight.
+  ///
+  /// In en, this message translates to:
+  /// **'Light'**
+  String get settingsSurfaceLight;
+
+  /// No description provided for @settingsSurfaceNeutral.
+  ///
+  /// In en, this message translates to:
+  /// **'Neutral'**
+  String get settingsSurfaceNeutral;
+
+  /// No description provided for @settingsSurfaceInk.
+  ///
+  /// In en, this message translates to:
+  /// **'Ink'**
+  String get settingsSurfaceInk;
+
+  /// No description provided for @appearanceAccentNeutral.
+  ///
+  /// In en, this message translates to:
+  /// **'Neutral'**
+  String get appearanceAccentNeutral;
+
+  /// No description provided for @appearanceAccentSlate.
+  ///
+  /// In en, this message translates to:
+  /// **'Slate'**
+  String get appearanceAccentSlate;
+
+  /// No description provided for @appearanceAccentIndigo.
+  ///
+  /// In en, this message translates to:
+  /// **'Indigo'**
+  String get appearanceAccentIndigo;
+
+  /// No description provided for @appearanceAccentCyan.
+  ///
+  /// In en, this message translates to:
+  /// **'Cyan'**
+  String get appearanceAccentCyan;
+
+  /// No description provided for @appearanceAccentEmerald.
+  ///
+  /// In en, this message translates to:
+  /// **'Emerald'**
+  String get appearanceAccentEmerald;
+
+  /// No description provided for @appearanceAccentAmber.
+  ///
+  /// In en, this message translates to:
+  /// **'Amber'**
+  String get appearanceAccentAmber;
+
+  /// No description provided for @appearanceAccentRose.
+  ///
+  /// In en, this message translates to:
+  /// **'Rose'**
+  String get appearanceAccentRose;
 }
 
 class _AppLocalizationsDelegate

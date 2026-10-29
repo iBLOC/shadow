@@ -438,7 +438,7 @@ class _ModelManagementScreenState extends ConsumerState<ModelManagementScreen>
           const SizedBox(width: 8),
           Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.bold,
               color: AppColors.primary,

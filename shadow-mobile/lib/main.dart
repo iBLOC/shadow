@@ -32,6 +32,7 @@ class ShadowApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final themeMode = ref.watch(themeModeProvider);
+    final appearance = ref.watch(themeAppearanceProvider);
     return MaterialApp.router(
       title: 'Shadow',
       debugShowCheckedModeBanner: false,
@@ -39,8 +40,8 @@ class ShadowApp extends ConsumerWidget {
       supportedLocales: AppLocalizations.supportedLocales,
       localeListResolutionCallback: (list, supported) =>
           basicLocaleListResolution(list, supported),
-      theme: GlassTheme.lightTheme,
-      darkTheme: GlassTheme.darkTheme,
+      theme: GlassTheme.build(appearance, Brightness.light),
+      darkTheme: GlassTheme.build(appearance, Brightness.dark),
       themeMode: themeMode,
       routerConfig: appRouter,
     );

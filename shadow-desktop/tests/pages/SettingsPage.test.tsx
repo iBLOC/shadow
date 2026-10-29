@@ -7,6 +7,12 @@ vi.mock('../../src/stores/themeStore', () => ({
   useThemeStore: vi.fn(() => ({
     theme: 'dark',
     setTheme: vi.fn(),
+    appearance: {
+      accentSeed: '#71717A',
+      glassIntensity: 1,
+      surfaceOverride: null,
+    },
+    setAppearance: vi.fn(),
   })),
 }));
 

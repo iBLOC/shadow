@@ -7,6 +7,12 @@ import { SettingsPage } from '../../src/pages/SettingsPage';
 const themeStoreMock: any = {
   theme: 'dark' as 'dark' | 'light',
   setTheme: vi.fn(),
+  appearance: {
+    accentSeed: '#71717A',
+    glassIntensity: 1,
+    surfaceOverride: null,
+  },
+  setAppearance: vi.fn(),
 };
 themeStoreMock.getState = () => themeStoreMock;
 

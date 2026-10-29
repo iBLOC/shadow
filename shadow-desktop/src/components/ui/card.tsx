@@ -3,7 +3,7 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 
 interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
-  variant?: 'default' | 'elevated' | 'outlined' | 'interactive'
+  variant?: 'default' | 'elevated' | 'outlined' | 'interactive' | 'solid'
   padding?: 'none' | 'sm' | 'md' | 'lg'
   hover?: boolean
 }
@@ -13,7 +13,10 @@ const Card = React.forwardRef<HTMLDivElement, CardProps>(
   <div
     ref={ref}
     className={cn(
-      "rounded-lg border bg-card text-card-foreground shadow-sm",
+      // `glass` = 半影层：模糊 + 半透明白。与移动端 GlassCard 同一套语义。
+      // `solid` 保留原来的实心卡（bg-card），供需要高对比承托的区域使用。
+      "rounded-lg border text-card-foreground shadow-sm",
+      variant === 'solid' ? 'bg-card' : 'glass',
       variant === 'elevated' && 'shadow-lg',
       variant === 'outlined' && 'border-2',
       variant === 'interactive' && 'cursor-pointer hover:shadow-md transition-shadow',

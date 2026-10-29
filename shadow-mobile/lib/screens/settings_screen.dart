@@ -8,6 +8,7 @@ import '../services/app_config_service.dart';
 import '../providers/theme_provider.dart';
 import '../providers/telencephalon_provider.dart';
 import '../providers/service_provider.dart';
+import '../widgets/appearance_section.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/log_panel_section.dart';
 import '../theme/app_colors.dart';
@@ -165,6 +166,8 @@ class SettingsScreen extends ConsumerWidget {
                   ],
                 ),
               ),
+              const SizedBox(height: 16),
+              const AppearanceSection(),
               const SizedBox(height: 16),
               GlassCard(
                 padding: EdgeInsets.zero,
@@ -570,7 +573,7 @@ class _ModelStoreConfigState extends State<_ModelStoreConfig> {
                       ),
                       child: Text(
                         l10n.custom,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 10,
                           color: AppColors.secondary,
                         ),

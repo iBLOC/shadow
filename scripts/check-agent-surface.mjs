@@ -19,8 +19,60 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { buildCss, buildDart, buildAccentTs } from './lib/tokens.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+
+/**
+ * 生成物清单 —— 与 scripts/gen_tokens.mjs 保持一致。
+ *
+ * 生成器核心（deriveAccentTones 等）在 lib/tokens.mjs 里只写一次，
+ * 写入与校验共用，所以「校验」用的就是「生成」用的那份代码。
+ */
+const GENERATED = [
+  {
+    path: 'shadow-desktop/src/styles/tokens.css',
+    build: buildCss,
+    eol: '\n',
+  },
+  {
+    path: 'shadow-desktop/src/styles/accent.g.ts',
+    build: (t) => buildAccentTs(t),
+    eol: '\n',
+  },
+  {
+    path: 'shadow-mobile/lib/theme/app_tokens.g.dart',
+    build: buildDart,
+    eol: '\r\n',
+  },
+];
+
+function checkGeneratedFiles(tokens) {
+  const errors = [];
+  const warnings = [];
+  let stale = 0;
+
+  for (const target of GENERATED) {
+    const abs = join(ROOT, target.path);
+    if (!existsSync(abs)) {
+      errors.push(
+        `生成物缺失：${target.path} —— 跑 node scripts/gen_tokens.mjs`,
+      );
+      stale += 1;
+      continue;
+    }
+    const expected = target.build(tokens).split('\n').join(target.eol);
+    const current = readFileSync(abs, 'utf8');
+    if (current !== expected) {
+      errors.push(
+        `生成物与 design-tokens.json 不同步：${target.path} —— 跑 node scripts/gen_tokens.mjs`,
+      );
+      stale += 1;
+    }
+  }
+
+  return { checked: GENERATED.length, stale, errors, warnings };
+}
 
 const errors = [];
 const warnings = [];
@@ -153,44 +205,53 @@ for (const r of mRoutes) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 4. token ↔ 移动端 AppColors 一致性
+// 4. token ↔ 两端落地文件：既查数值，也查「生成物有没有漂移」
 // ─────────────────────────────────────────────────────────────
 if (tokens) {
-  const colors = readText('shadow-mobile/lib/theme/app_colors.dart');
-  const flat = {
-    'color.brand.primary': tokens.color.brand.primary,
-    'color.brand.secondary': tokens.color.brand.secondary,
-    'color.bg.dark': tokens.color.bg.dark,
-    'color.bg.darkSurface': tokens.color.bg.darkSurface,
-    'color.bg.light': tokens.color.bg.light,
-    'color.bg.lightSurface': tokens.color.bg.lightSurface,
-    'color.text.darkPrimary': tokens.color.text.darkPrimary,
-    'color.text.darkSecondary': tokens.color.text.darkSecondary,
-    'color.text.lightPrimary': tokens.color.text.lightPrimary,
-    'color.text.lightSecondary': tokens.color.text.lightSecondary,
-    'color.status.success': tokens.color.status.success,
-    'color.status.warning': tokens.color.status.warning,
-    'color.status.error': tokens.color.status.error,
-  };
-  for (const [path, hex] of Object.entries(flat)) {
-    const bare = hex.replace(/^#/, '').toUpperCase();
-    if (!colors.toUpperCase().includes(bare)) {
+  // 4.1 生成物必须与 design-tokens.json 同步。
+  //     数值改了却忘了重跑生成器 = 两端悄悄分叉，这是最该被拦住的。
+  const drift = checkGeneratedFiles(tokens);
+  for (const d of drift.errors) errors.push(d);
+  for (const d of drift.warnings) warnings.push(d);
+  infos.push(
+    `生成物同步：${drift.checked} 个目标，${drift.stale} 个过期`,
+  );
+
+  // 4.2 移动端的颜色必须来自 token，不能再自己写死。
+  //     AppColors / glass_theme 里出现 Color(0x...) 就说明有人绕过了设计源。
+  const MOBILE_TOKEN_SOURCES = [
+    'shadow-mobile/lib/theme/app_colors.dart',
+    'shadow-mobile/lib/theme/glass_theme.dart',
+    'shadow-mobile/lib/widgets/glass_card.dart',
+  ];
+  for (const rel of MOBILE_TOKEN_SOURCES) {
+    if (!existsSync(join(ROOT, rel))) continue;
+    const src = stripLineComments(readText(rel));
+    const literals = src.match(/Color\(0x[0-9A-Fa-f]{8}\)/g) ?? [];
+    if (literals.length > 0) {
       errors.push(
-        `design-tokens.json 的 ${path} = ${hex} 在移动端 AppColors 里找不到（两端数值已漂移）`,
+        `${rel} 里出现手写色值 ${[...new Set(literals)].join(' ')} —— 颜色必须来自 design-tokens.json`,
       );
     }
   }
 
-  // 桌面端接入前，--primary 必然与 token 不同 —— 这是待办而不是错误
-  const css = readText('shadow-desktop/src/index.css');
-  const brandBare = tokens.color.brand.primary.replace(/^#/, '').toUpperCase();
-  const brandRgb = hexToRgb(tokens.color.brand.primary);
-  const desktopHasBrand =
-    css.toUpperCase().includes(brandBare) || css.includes(brandRgb);
-  if (!desktopHasBrand) {
-    warnings.push(
-      `桌面端 index.css 里还没有品牌色 ${tokens.color.brand.primary} —— 阶段 1「token 接入」尚未做`,
+  // 4.3 桌面端 index.css 只能引用变量，不能自己写色值。
+  const desktopCss = readText('shadow-desktop/src/index.css');
+  const rawHex = stripBlockComments(desktopCss).match(/#[0-9A-Fa-f]{6}\b/g) ?? [];
+  if (rawHex.length > 0) {
+    errors.push(
+      `shadow-desktop/src/index.css 里出现裸色值 ${[...new Set(rawHex)].join(' ')} —— 数值由 tokens.css 提供，这里只做投影`,
     );
+  }
+
+  // 4.4 两端都要有玻璃（半影层）这一层，且强度可调。
+  const desktopHasGlass = desktopCss.includes('.glass');
+  const mobileHasGlass = readText('shadow-mobile/lib/widgets/glass_card.dart').includes('BackdropFilter');
+  if (!desktopHasGlass) {
+    errors.push('桌面端 index.css 缺少 .glass（半影层）—— 两端的玻璃语义必须对等');
+  }
+  if (!mobileHasGlass) {
+    errors.push('移动端 GlassCard 缺少 BackdropFilter（半影层）');
   }
 }
 
@@ -216,6 +277,16 @@ function hexToRgb(hex) {
   const h = hex.replace('#', '');
   const n = parseInt(h, 16);
   return `${(n >> 16) & 255} ${(n >> 8) & 255} ${n & 255}`;
+}
+
+/** 去掉 Dart 的行注释 —— 注释里提到色值不算「硬编码」。 */
+function stripLineComments(src) {
+  return src.replace(/^\s*\/\/.*$/gm, '');
+}
+
+/** 去掉 CSS 的块注释。 */
+function stripBlockComments(src) {
+  return src.replace(/\/\*[\s\S]*?\*\//g, '');
 }
 
 // ─────────────────────────────────────────────────────────────

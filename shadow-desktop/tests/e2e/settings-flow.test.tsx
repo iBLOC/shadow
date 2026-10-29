@@ -18,6 +18,12 @@ vi.mock('../../src/stores/themeStore', () => {
   const state = {
     theme: 'dark',
     setTheme: mockSetTheme,
+    appearance: {
+      accentSeed: '#71717A',
+      glassIntensity: 1,
+      surfaceOverride: null,
+    },
+    setAppearance: vi.fn(),
   };
   const hook = vi.fn(() => state);
   hook.getState = vi.fn(() => state);

@@ -1,0 +1,69 @@
+{
+  "_note": "主题色派生的契约快照。移动端（app_tokens.g.dart）与桌面端（accent.g.ts）的两套实现都必须对上这份期望值。改算法请同时更新本文件。",
+  "cases": [
+    {
+      "seed": "#71717A",
+      "darkTone": "#F7F7F8",
+      "lightTone": "#0D0D0F",
+      "darkToneFg": "#09090B",
+      "lightToneFg": "#FFFFFF",
+      "fg": "#FFFFFF"
+    },
+    {
+      "seed": "#71717A",
+      "darkTone": "#F7F7F8",
+      "lightTone": "#0D0D0F",
+      "darkToneFg": "#09090B",
+      "lightToneFg": "#FFFFFF",
+      "fg": "#FFFFFF"
+    },
+    {
+      "seed": "#64748B",
+      "darkTone": "#C4CBD4",
+      "lightTone": "#5A687D",
+      "darkToneFg": "#09090B",
+      "lightToneFg": "#FFFFFF",
+      "fg": "#FFFFFF"
+    },
+    {
+      "seed": "#6366F1",
+      "darkTone": "#A6A7F2",
+      "lightTone": "#1B1EBB",
+      "darkToneFg": "#09090B",
+      "lightToneFg": "#FFFFFF",
+      "fg": "#FFFFFF"
+    },
+    {
+      "seed": "#22D3EE",
+      "darkTone": "#A6E8F2",
+      "lightTone": "#1BA6BB",
+      "darkToneFg": "#09090B",
+      "lightToneFg": "#09090B",
+      "fg": "#09090B"
+    },
+    {
+      "seed": "#10B981",
+      "darkTone": "#A6F2D9",
+      "lightTone": "#1BBB86",
+      "darkToneFg": "#09090B",
+      "lightToneFg": "#09090B",
+      "fg": "#09090B"
+    },
+    {
+      "seed": "#F59E0B",
+      "darkTone": "#F2D6A6",
+      "lightTone": "#BB801B",
+      "darkToneFg": "#09090B",
+      "lightToneFg": "#09090B",
+      "fg": "#09090B"
+    },
+    {
+      "seed": "#F43F5E",
+      "darkTone": "#F2A6B3",
+      "lightTone": "#BB1B36",
+      "darkToneFg": "#09090B",
+      "lightToneFg": "#FFFFFF",
+      "fg": "#09090B"
+    }
+  ]
+}

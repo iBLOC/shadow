@@ -1,72 +1,17 @@
+/* ============================================================
+ * Shadow 桌面端样式入口
+ *
+ * 颜色/间距/圆角等**数值**不在这里 —— 它们由仓根 design-tokens.json
+ * 生成到 src/styles/tokens.css，这里只做两件事：
+ *   1. 引入生成的变量
+ *   2. 把「表现层规则」（玻璃、光源）挂上去
+ * ============================================================ */
+
+@import './styles/tokens.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-@layer base {
-  :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 47.4% 11.2%;
-
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 47.4% 11.2%;
-
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 47.4% 11.2%;
-
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-
-    --ring: 215 20.2% 65.1%;
-
-    --radius: 0.5rem;
-  }
-
-  .dark {
-    --background: 222.2 47.4% 4.9%;
-    --foreground: 210 40% 98%;
-
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-
-    --popover: 222.2 47.4% 6%;
-    --popover-foreground: 210 40% 98%;
-
-    --card: 222.2 47.4% 6%;
-    --card-foreground: 210 40% 98%;
-
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-
-    --ring: 217.2 32.6% 17.5%;
-  }
-}
 
 @layer base {
   * {
@@ -75,5 +20,38 @@
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@layer components {
+  /* ------------------------------------------------------------
+   * 半影层（glassmorphism）
+   *
+   * 影子的边缘是柔的，不是硬的 —— 这是「影子」这个隐喻在界面上的
+   * 直接几何表达：模糊 + 半透明白。
+   *
+   * 边框刻意**不**在这里设：让元素自己的 `border border-border` 管宽度，
+   * 否则会和 `border-r`（只设右边）之类的工具类打架。
+   * 深色下 --border 是 12% 白、亮色下是 #E4E4E7，与移动端 GlassCard
+   * 的边框数值一致（都来自 design-tokens.json）。
+   *
+   * 与移动端 GlassCard 是同一套语义、同一套数值。
+   * ------------------------------------------------------------ */
+  .glass {
+    background: var(--glass-surface);
+    backdrop-filter: blur(var(--shadow-glass-blur)) saturate(var(--shadow-glass-saturation));
+    -webkit-backdrop-filter: blur(var(--shadow-glass-blur)) saturate(var(--shadow-glass-saturation));
+  }
+
+  /* ------------------------------------------------------------
+   * 光源层
+   *
+   * 页面上方那片柔和的光。玻璃要有东西可模糊，才不是一张贴纸。
+   * 光源色跟着用户选的主题色走（--ambient-glow 来自 accent seed）。
+   * ------------------------------------------------------------ */
+  .shadow-ambient {
+    background-image:
+      radial-gradient(120% 80% at 50% -10%, var(--ambient-glow) 0%, transparent 60%),
+      radial-gradient(80% 60% at 100% 0%, var(--ambient-glow-2) 0%, transparent 55%);
   }
 }

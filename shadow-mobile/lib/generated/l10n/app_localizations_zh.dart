@@ -1545,4 +1545,61 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get encephalonInferFailed => '推理失败';
+
+  @override
+  String get settingsAppearance => '外观';
+
+  @override
+  String get settingsThemeColor => '主题色';
+
+  @override
+  String get settingsThemeColorHint => '影子本身没有颜色 —— 挑一个属于你的光。';
+
+  @override
+  String get settingsGlassIntensity => '玻璃强度';
+
+  @override
+  String get settingsGlassOff => '关闭';
+
+  @override
+  String get settingsGlassFull => '全强度';
+
+  @override
+  String get settingsDialogBackground => '对话框背景';
+
+  @override
+  String get settingsFollowTheme => '跟随主题';
+
+  @override
+  String get settingsSurfaceDeep => '深';
+
+  @override
+  String get settingsSurfaceLight => '浅';
+
+  @override
+  String get settingsSurfaceNeutral => '中性';
+
+  @override
+  String get settingsSurfaceInk => '墨';
+
+  @override
+  String get appearanceAccentNeutral => '中性';
+
+  @override
+  String get appearanceAccentSlate => '石板';
+
+  @override
+  String get appearanceAccentIndigo => '靛蓝';
+
+  @override
+  String get appearanceAccentCyan => '月青';
+
+  @override
+  String get appearanceAccentEmerald => '竹青';
+
+  @override
+  String get appearanceAccentAmber => '琥珀';
+
+  @override
+  String get appearanceAccentRose => '绛';
 }

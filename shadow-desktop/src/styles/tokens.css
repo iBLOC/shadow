@@ -1,0 +1,97 @@
+/* ============================================================
+ * Shadow design tokens —— 由 scripts/gen_tokens.mjs 生成
+ * 请勿手改。改 design-tokens.json 后重新运行：
+ *     node scripts/gen_tokens.mjs
+ * ============================================================ */
+
+:root {
+  /* ---- 原始 token ---- */
+  --radius: 16px;
+  --shadow-radius-xs: 4px;
+  --shadow-radius-sm: 8px;
+  --shadow-radius-md: 12px;
+  --shadow-radius-lg: 16px;
+  --shadow-radius-xl: 24px;
+  --shadow-radius-pill: 9999px;
+  --shadow-glass-blur: 20px;
+  --shadow-glass-saturation: 140%;
+  --shadow-glass-border-width: 1px;
+  --shadow-accent-seed: #71717A;
+  --shadow-accent-dark-tone: #F7F7F8;
+  --shadow-accent-light-tone: #0D0D0F;
+  --shadow-accent-soft: rgb(113 113 122 / 0.122);
+  --shadow-accent-ring: rgb(113 113 122 / 0.4);
+  --ambient-glow: rgb(113 113 122 / 0.122);
+  --ambient-glow-2: rgb(113 113 122 / 0.071);
+
+  /* ---- shadcn 语义投影（亮色）---- */
+  --background: 0 0% 100%;
+  --foreground: 240 10% 3.9%;
+  --muted: 240 4.8% 95.9%;
+  --muted-foreground: 240 5.2% 33.9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 240 10% 3.9%;
+  --card: 0 0% 98%;
+  --card-foreground: 240 10% 3.9%;
+  --border: 240 5.9% 90%;
+  --input: 240 5.9% 90%;
+  --primary: 240 7.1% 5.5%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 240 4.8% 95.9%;
+  --secondary-foreground: 240 10% 3.9%;
+  --accent: 240 4.8% 95.9%;
+  --accent-foreground: 240 10% 3.9%;
+  --shadow-accent: 240 3.8% 46.1%;
+  --shadow-accent-fg: 0 0% 100%;
+  --destructive: 0 90.6% 70.8%;
+  --destructive-foreground: 240 10% 3.9%;
+  --ring: 240 3.8% 46.1%;
+  --success: 158.1 64.4% 51.6%;
+  --warning: 43.3 96.4% 56.3%;
+  --info: 198.4 93.2% 59.6%;
+  --glass-surface: rgb(255 255 255 / 0.702);
+  --glass-border: #E4E4E7;
+  --shadow-elevation-sm: 0 1px 2px 0 rgba(0,0,0,0.05);
+  --shadow-elevation-md: 0 1px 3px 0 rgba(0,0,0,0.06), 0 8px 20px -6px rgba(0,0,0,0.08);
+  --shadow-elevation-lg: 0 2px 6px 0 rgba(0,0,0,0.05), 0 24px 48px -12px rgba(0,0,0,0.10);
+}
+
+.dark {
+  /* ---- shadcn 语义投影（暗色）---- */
+  --background: 240 4.8% 4.1%;
+  --foreground: 0 0% 98%;
+  --muted: 240 5.9% 10%;
+  --muted-foreground: 240 5% 64.9%;
+  --popover: 240 5.6% 7.1%;
+  --popover-foreground: 0 0% 98%;
+  --card: 240 5.6% 7.1%;
+  --card-foreground: 0 0% 98%;
+  --border: 0 0% 100% / 0.122;
+  --input: 0 0% 100% / 0.122;
+  --primary: 240 6.7% 97.1%;
+  --primary-foreground: 240 10% 3.9%;
+  --secondary: 240 5.9% 10%;
+  --secondary-foreground: 0 0% 98%;
+  --accent: 240 5.9% 10%;
+  --accent-foreground: 0 0% 98%;
+  --shadow-accent: 240 3.8% 46.1%;
+  --shadow-accent-fg: 0 0% 100%;
+  --destructive: 0 90.6% 70.8%;
+  --destructive-foreground: 240 10% 3.9%;
+  --ring: 240 5% 64.9%;
+  --success: 158.1 64.4% 51.6%;
+  --warning: 43.3 96.4% 56.3%;
+  --info: 198.4 93.2% 59.6%;
+  --glass-surface: rgb(255 255 255 / 0.078);
+  --glass-border: #FFFFFF1F;
+  --shadow-elevation-sm: 0 1px 2px 0 rgba(0,0,0,0.28);
+  --shadow-elevation-md: 0 1px 3px 0 rgba(0,0,0,0.22), 0 8px 20px -6px rgba(0,0,0,0.20);
+  --shadow-elevation-lg: 0 2px 6px 0 rgba(0,0,0,0.18), 0 24px 48px -12px rgba(0,0,0,0.24);
+  --ambient-glow: rgb(113 113 122 / 0.161);
+  --ambient-glow-2: rgb(113 113 122 / 0.078);
+}
+
+/* 说明：表现层规则（.glass / .shadow-ambient）刻意**不**放在这里 ——
+   它们住在 shadow-desktop/src/index.css 的 @layer components 里，
+   这样 Tailwind 的工具类（bg-* / border-*）仍然能覆盖它们。
+   本文件只负责「数值」。 */

@@ -11,6 +11,7 @@ import {
 import { safeInvoke } from '../lib/tauriSafe';
 import { isTauri } from '../lib/platform';
 import { useThemeStore } from '../stores/themeStore';
+import { accentPresets, surfaceOverrides } from '../styles/accent.g';
 import { useChatDisplayStore } from '../stores/chatDisplayStore';
 import { useTelencephalonStore } from '../stores/telencephalonStore';
 import { useAgentStore } from '../stores/agentStore';
@@ -1369,12 +1370,45 @@ function IntegrationsSection() {
 
 function UISection() {
   const { t, i18n } = useTranslation();
-  const { theme, setTheme } = useThemeStore();
+  const { theme, setTheme, appearance, setAppearance } = useThemeStore();
   const showTokenStats = useChatDisplayStore((s) => s.showTokenStats);
   const setShowTokenStats = useChatDisplayStore((s) => s.setShowTokenStats);
 
   const changeLanguage = (lng: string) => {
     i18n.changeLanguage(lng);
+  };
+
+  const accentLabel = (id: string): string => {
+    switch (id) {
+      case 'slate':
+        return t('settings.accentSlate');
+      case 'indigo':
+        return t('settings.accentIndigo');
+      case 'cyan':
+        return t('settings.accentCyan');
+      case 'emerald':
+        return t('settings.accentEmerald');
+      case 'amber':
+        return t('settings.accentAmber');
+      case 'rose':
+        return t('settings.accentRose');
+      default:
+        return t('settings.accentNeutral');
+    }
+  };
+
+  const surfaceLabel = (hex: string | null): string => {
+    if (!hex) return t('settings.followTheme');
+    switch (hex.toUpperCase()) {
+      case '#0A0A0B':
+        return t('settings.surfaceInk');
+      case '#18181B':
+        return t('settings.surfaceDeep');
+      case '#F4F4F5':
+        return t('settings.surfaceNeutral');
+      default:
+        return t('settings.surfaceLight');
+    }
   };
 
   return (
@@ -1402,6 +1436,89 @@ function UISection() {
             >
               {t('settings.dark')}
             </Button>
+          </div>
+        </SettingRow>
+
+        <SettingRow
+          label={t('settings.accentColor')}
+          description={t('settings.accentColorDesc')}
+        >
+          <div className="flex flex-wrap gap-2">
+            {accentPresets.map((preset) => {
+              const selected =
+                preset.hex.toUpperCase() === appearance.accentSeed.toUpperCase();
+              return (
+                <button
+                  key={preset.id}
+                  type="button"
+                  title={accentLabel(preset.id)}
+                  aria-label={accentLabel(preset.id)}
+                  aria-pressed={selected}
+                  onClick={() => setAppearance({ accentSeed: preset.hex })}
+                  className={cn(
+                    'h-7 w-7 rounded-full border-2 transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                    selected
+                      ? 'scale-110 border-foreground'
+                      : 'border-transparent hover:scale-105',
+                  )}
+                  style={{ backgroundColor: preset.hex }}
+                />
+              );
+            })}
+          </div>
+        </SettingRow>
+
+        <SettingRow
+          label={t('settings.glassIntensity')}
+          description={t('settings.glassIntensityDesc')}
+        >
+          <div className="flex items-center gap-3">
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.05}
+              value={appearance.glassIntensity}
+              onChange={(e) =>
+                setAppearance({ glassIntensity: Number(e.target.value) })
+              }
+              className="h-1 w-40 cursor-pointer appearance-none rounded-full bg-muted accent-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label={t('settings.glassIntensity')}
+            />
+            <span className="w-16 text-right text-xs text-muted-foreground">
+              {appearance.glassIntensity <= 0.01
+                ? t('settings.glassOff')
+                : `${Math.round(appearance.glassIntensity * 100)}%`}
+            </span>
+          </div>
+        </SettingRow>
+
+        <SettingRow
+          label={t('settings.dialogBackground')}
+          description={t('settings.dialogBackgroundDesc')}
+        >
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant={appearance.surfaceOverride ? 'outline' : 'default'}
+              size="sm"
+              onClick={() => setAppearance({ surfaceOverride: null })}
+            >
+              {t('settings.followTheme')}
+            </Button>
+            {surfaceOverrides.map((option) => (
+              <Button
+                key={option.id}
+                variant={
+                  appearance.surfaceOverride?.toUpperCase() === option.hex
+                    ? 'default'
+                    : 'outline'
+                }
+                size="sm"
+                onClick={() => setAppearance({ surfaceOverride: option.hex })}
+              >
+                {surfaceLabel(option.hex)}
+              </Button>
+            ))}
           </div>
         </SettingRow>
       </SettingsCard>

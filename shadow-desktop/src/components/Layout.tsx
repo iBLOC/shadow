@@ -65,8 +65,8 @@ export function Layout() {
   };
 
   return (
-    <div className="flex h-screen bg-background text-foreground">
-      <aside className="flex w-[260px] flex-shrink-0 flex-col border-r border-border bg-card p-4 max-lg:w-20 max-lg:p-3">
+    <div className="flex h-screen bg-background text-foreground shadow-ambient">
+      <aside className="flex w-[260px] flex-shrink-0 flex-col border-r border-border glass p-4 max-lg:w-20 max-lg:p-3">
         {/* Logo / Header */}
         <div className="mb-6 p-3 max-lg:p-2 max-lg:mb-4">
           <div className="flex items-center gap-3">

@@ -1,63 +1,149 @@
 {
   "_meta": {
     "name": "Shadow design tokens",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "updated": "2026-10-29",
+    "designLanguage": "Umbra —— 影子的三层：实心本体（umbra）/ 半影玻璃（penumbra）/ 光源信号（caustic）",
     "structureCheckedBy": "scripts/check-agent-surface.mjs（CI 的 Cross-client consistency check 步骤）",
     "why": "桌面端与移动端是同一个 agent 的两个终端。它们的技术栈不同（React+Tailwind vs Flutter+Material），组件代码无法共享，但**设计数值必须共享** —— 否则「同一个产品」就只是口号。这一份是唯一的数值真相源。",
     "consumers": {
-      "shadow-desktop": "tailwind.config.ts 读取本文件 → 生成 CSS 变量与 Tailwind 扩展",
-      "shadow-mobile": "scripts/gen_tokens.dart 读取本文件 → 生成 lib/theme/app_tokens.g.dart"
+      "shadow-desktop": "shadow-desktop/src/styles/tokens.css（由 scripts/gen_tokens.mjs 生成）→ index.css 引用",
+      "shadow-mobile": "shadow-mobile/lib/theme/app_tokens.g.dart（由 scripts/gen_tokens.mjs 生成）→ app_colors.dart 引用"
     },
+    "principles": [
+      "影子没有颜色 —— 它是光的缺失。所以**基底是中性黑白灰**，不做内置品牌色。",
+      "主题色是**用户可覆盖的槽位**（accent.seed），不是产品强加的品牌。个人助理的影子有自己的色温。",
+      "primary 永远是**反色**：暗底上是光，亮底上是影 —— 与 shadcn 现有行为一致，与 Material 3 的 primary 色调规则一致。",
+      "玻璃拟态是**半影层**：模糊 + 半透明白 + 1px 边。两端都上，桌面端靠 CSS backdrop-filter，移动端靠 BackdropFilter（后者在 Impeller 上有已知风险，需真机验证）。",
+      "发光（glow）**不是装饰**，只用于实时信号：agent 在线 / 正在思考 / 正在拾音。颜色来自状态色，不来自主题色。",
+      "阴影永远朝同一个方向（光源在左上）—— 这是「同一个光源」的物理表达，也是两端叠在一起不打架的前提。"
+    ],
     "rules": [
       "两端任何硬编码的颜色/间距/圆角/字号/时长都必须能在这里找到对应项",
       "改这里的值，两端同时变 —— 这就是「统一」的可执行定义",
-      "端侧特有的效果（glassmorphism、neon glow）不是 token，是两端各自的表现层选择"
+      "生成物（tokens.css / app_tokens.g.dart）由脚本产出，不手改；CI 会校验二者与本文件同步"
+    ],
+    "knownGaps": [
+      "间距（移动端 212 处 EdgeInsets 字面量）与字号（移动端 117 处硬编码 fontSize）尚未接入 token —— 属机械迁移，留待阶段 1.5",
+      "移动端 30 处 Colors.grey.shade* 尚未映射到本文件的 neutral 阶"
     ]
   },
 
   "color": {
-    "brand": {
-      "primary": "#A78BFA",
-      "primaryVariant": "#C4B5FD",
-      "primaryGlow": "#4DA78BFA",
-      "secondary": "#22D3EE",
-      "secondaryVariant": "#67E8F9",
-      "secondaryGlow": "#4D22D3EE"
+    "surface": {
+      "dark": {
+        "base": "#0A0A0B",
+        "raised": "#111113",
+        "overlay": "#18181B",
+        "sunken": "#050506",
+        "glass": "#FFFFFF14",
+        "_note": "glass = 8% 白 —— 半影层。backdrop blur 之下的底色。"
+      },
+      "light": {
+        "base": "#FFFFFF",
+        "raised": "#FAFAFA",
+        "overlay": "#F4F4F5",
+        "sunken": "#F4F4F5",
+        "glass": "#FFFFFFB3"
+      },
+      "overrides": [
+        { "id": "ink", "hex": "#0A0A0B" },
+        { "id": "deep", "hex": "#18181B" },
+        { "id": "neutral", "hex": "#F4F4F5" },
+        { "id": "light", "hex": "#FFFFFF" }
+      ],
+      "_overrideNote": "对话框 / 面板背景的可选值。null = 跟随主题。两端同一份清单。"
     },
-    "bg": {
-      "dark": "#09090B",
-      "darkAlt": "#18181B",
-      "darkSurface": "#27272A",
-      "darkSurfaceGlass": "#4D27272A",
-      "light": "#F4F4F5",
-      "lightAlt": "#E4E4E7",
-      "lightSurface": "#FFFFFF",
-      "lightSurfaceGlass": "#B3FFFFFF"
-    },
+
     "text": {
-      "darkPrimary": "#FAFAFA",
-      "darkSecondary": "#A1A1AA",
-      "darkMuted": "#71717A",
-      "lightPrimary": "#09090B",
-      "lightSecondary": "#52525B",
-      "lightMuted": "#A1A1AA"
+      "dark": {
+        "primary": "#FAFAFA",
+        "secondary": "#A1A1AA",
+        "muted": "#71717A",
+        "inverse": "#09090B"
+      },
+      "light": {
+        "primary": "#09090B",
+        "secondary": "#52525B",
+        "muted": "#A1A1AA",
+        "inverse": "#FAFAFA"
+      }
     },
+
     "border": {
-      "dark": "#1AFFFFFF",
-      "darkGlow": "#4DA78BFA",
-      "light": "#4D3B82F6",
-      "lightGlow": "#4D3B82F6"
+      "dark": {
+        "subtle": "#FFFFFF14",
+        "default": "#FFFFFF1F",
+        "strong": "#FFFFFF2E",
+        "focus": "#A1A1AA"
+      },
+      "light": {
+        "subtle": "#F4F4F5",
+        "default": "#E4E4E7",
+        "strong": "#D4D4D8",
+        "focus": "#71717A"
+      }
     },
+
+    "accent": {
+      "seed": "#71717A",
+      "darkTone": "#FAFAFA",
+      "lightTone": "#09090B",
+      "darkToneFg": "#09090B",
+      "lightToneFg": "#FAFAFA",
+      "soft": "#71717A1F",
+      "ring": "#71717A66",
+      "_note": "主题色槽位。seed 默认中性（zinc-500），暗色模式取 darkTone（光），亮色模式取 lightTone（影）。用户换色后由 deriveAccentTones() 按同一算法派生两端色调 —— 桌面端与移动端各自实现，但算法与本文件里的默认值必须一致。",
+      "userSelectable": [
+        { "id": "neutral", "hex": "#71717A" },
+        { "id": "slate", "hex": "#64748B" },
+        { "id": "indigo", "hex": "#6366F1" },
+        { "id": "cyan", "hex": "#22D3EE" },
+        { "id": "emerald", "hex": "#10B981" },
+        { "id": "amber", "hex": "#F59E0B" },
+        { "id": "rose", "hex": "#F43F5E" }
+      ],
+      "_labelNote": "这里只放 id 与色值 —— 显示名是 UI 文案，走两端各自的 l10n（appearanceAccent*），不写死在设计源里。"
+    },
+
     "status": {
       "success": "#34D399",
       "successLight": "#6EE7B7",
+      "successSoft": "#34D3991F",
       "warning": "#FBBF24",
       "warningLight": "#FCD34D",
+      "warningSoft": "#FBBF241F",
       "error": "#F87171",
-      "errorLight": "#FCA5A5"
+      "errorLight": "#FCA5A5",
+      "errorSoft": "#F871711F",
+      "info": "#38BDF8",
+      "infoLight": "#7DD3FC",
+      "infoSoft": "#38BDF81F"
     },
-    "_note": "移动端 AppColors 是这份的当前实现；桌面端的 shadcn 语义变量（--background/--foreground/--muted/--border/--primary/--destructive…）是这份的桌面投影。接入后两端的 --primary 应当是同一个 brand.primary。"
+
+    "_note": "桌面端的 shadcn 语义变量（--background/--foreground/--muted/--border/--primary/--destructive…）是本文件的投影，由 tokens.css 生成后被 index.css 引用。"
+  },
+
+  "glass": {
+    "blur": "20px",
+    "saturation": "140%",
+    "borderWidth": "1px",
+    "highlightWidth": "1px",
+    "_note": "半影层的几何参数。桌面端 backdrop-blur + backdrop-saturate，移动端 BackdropFilter(sigma 20) + saturate。"
+  },
+
+  "shadow": {
+    "direction": "光源固定在左上，阴影一律朝右下 —— 两端叠在一起时不打架",
+    "dark": {
+      "sm": "0 1px 2px 0 rgba(0,0,0,0.28)",
+      "md": "0 1px 3px 0 rgba(0,0,0,0.22), 0 8px 20px -6px rgba(0,0,0,0.20)",
+      "lg": "0 2px 6px 0 rgba(0,0,0,0.18), 0 24px 48px -12px rgba(0,0,0,0.24)"
+    },
+    "light": {
+      "sm": "0 1px 2px 0 rgba(0,0,0,0.05)",
+      "md": "0 1px 3px 0 rgba(0,0,0,0.06), 0 8px 20px -6px rgba(0,0,0,0.08)",
+      "lg": "0 2px 6px 0 rgba(0,0,0,0.05), 0 24px 48px -12px rgba(0,0,0,0.10)"
+    }
   },
 
   "radius": {
@@ -66,7 +152,8 @@
     "md": "12px",
     "lg": "16px",
     "xl": "24px",
-    "pill": "9999px"
+    "pill": "9999px",
+    "_note": "lg=16px 是桌面端 --radius 的值（shadcn 默认 8px），与移动端 GlassCard 的 16px 对齐。"
   },
 
   "space": {
@@ -76,7 +163,8 @@
     "md": "12px",
     "lg": "16px",
     "xl": "24px",
-    "2xl": "32px"
+    "2xl": "32px",
+    "_note": "与 Tailwind 的 4px 基数一一对应（xs=1 sm=2 md=3 lg=4 xl=6 2xl=8）。"
   },
 
   "fontSize": {
@@ -85,7 +173,8 @@
     "base": "16px",
     "lg": "20px",
     "xl": "24px",
-    "2xl": "32px"
+    "2xl": "32px",
+    "_note": "对齐移动端现有字阶（桌面端 Tailwind 的 lg=18px 属于 lg/xl 之间，暂不动）。"
   },
 
   "fontWeight": {
@@ -102,7 +191,7 @@
   },
 
   "opacity": {
-    "subtle": "0.1",
+    "subtle": "0.08",
     "muted": "0.3",
     "strong": "0.6"
   },
