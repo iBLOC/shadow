@@ -1,6 +1,7 @@
 # PROJECT KNOWLEDGE BASE
 
 **Generated:** 2026-03-21
+**Updated:** 2026-10-29 (⑤ **立跨端设计契约**：桌面端与移动端是同一个 agent 的两个终端，按此把 UI 整改重排为「先立共享源、再改两端投影、最后清代码」。仓根新增两份唯一真相源 —— `design-tokens.json`（设计数值）与 `agent-surface.json`（能力 → 两端入口映射，30 条能力），配 `scripts/check-agent-surface.mjs` 守门员并接进 CI（`Cross-client consistency check`），当前两端 26 + 29 条路由**全部登记在册、0 阻断**。配套文档 `docs/superpowers/architecture/2026-10-29-cross-platform-design-system.md`。**统一 ≠ 长得一样**：统一的是色彩/节奏/命名/能力语义，分叉的是容器形态/密度/端侧特有功能。**待拍板**：品牌色取 `#A78BFA`（推荐）/ 桌面端要不要上玻璃拟态（推荐不要）/ `setup` 与 `provisioning` 接线还是删)
 **Updated:** 2026-10-29 (① **移动端暂不做 armv7**（用户决定）：只发 `arm64-v8a` + `x86_64`，所以「把 wasmtime 拆可选以支持 armv7」的必要性消失 —— wasmtime 拆可选现在只剩**减体积**的价值（`.so` 150.6MB / APK 346.8MB，根因是端脑面带入的 DataFusion/Arrow/Parquet 栈 ≈47.8MB）。文档里「armeabi-v7a 为什么编不出来」的结论从「阻断点待转移」改成「明确不做」，cranelift/wasmtime 那段留作背景。② **修端脑会话的 wire 契约**：端脑 `ConversationTurn` 序列化成 `{role, text, at}`（`at` = RFC3339），**不是 `timestamp`**；移动端 Dart 照着前额叶方言读 `timestamp` → `(null as num).toInt()` → `_TypeError`，会话列表页与 session transfer 导入响应只要有历史就崩。已改成两种形状都认 + 4 条回归测试（fixture 用 Rust 侧实测字节）；桌面端 `Conversation.history` 类型声明同步改成 `at: string`。③ CI 红灯收敛为**只差 `IBLOC_TOKEN`**（三仓 workflow 的兄弟仓 checkout 都已就位，守卫步骤提前 exit 1 并打印该配什么）；shadow 仓我改的部分全绿（Mobile Analyze / Mobile Test / Desktop Tests / Desktop Build），仍红的只有 `Prefrontal Rust` 与 `Desktop E2E` 两个需要 secret 的 job。④ 真机（小米 2106118C / Android 13）已装 APK 并启动成功无崩溃，但**设置页正文全白未结案** —— 已排除代码 bug 与 build 异常，嫌疑 `BackdropFilter`/Impeller，拿到 `--ez enable-impeller false` 的**零重建** A/B 方案)
 **Updated:** 2026-10-28 (移动端 agent 面切到嵌入式大脑 —— **两套「方言」问题查清并修掉**：移动端原有**两个** HTTP client，说的是**两种方言**：`PrefrontalClient` 说前额叶方言（`/api/sessions`、`/api/agents`、`/api/skills`、`/api/providers`、`/api/soul/*`、`/api/mcp/servers`、`/hippocampus/api/*`），`TelencephalonClient` 说端脑方言（`/shadow/v1/*`、`/api/telencephalon/*`、`/.well-known/agent.json`、`/api/flows`）。嵌入式大脑挂起来的那条面 = 端脑的 `cortex_router` → **只有端脑方言**。⇒ 把 `PrefrontalClient` 指过去只会把「连接被拒」换成「404」，本轮**不指**它；把**对话**与**会话列表**从前额叶方言迁到端脑方言（`chat_provider` 改走 `createConversation` + `streamMessage`，`conversation_screen` 改走 `listConversations`，与桌面端 `ConversationPage.tsx` 同一条链路）；Rust 侧 `start_agent_surface()` 在嵌入运行时里挂 `cortex_router`（127.0.0.1:0 随机端口），JNI 加 `nativeGetAgentPort` + `nativeStart(port, dataDir)`（Android 没有 `$HOME`、CWD 是 `/`，端脑的 flow 存储要显式给 App 私有目录），Dart 侧 `EncephalonMobileNotifier` 把端脑 client 的 baseUrl 改成 `http://127.0.0.1:<agentPort>`；**移动端不编本地海马体**（记忆走零信任网络内其它设备），⇒ `telencephalon` 把 `hippocampus-server` 改 optional，**Lance 退出移动端依赖图**；端脑**没有会话删除端点**（桌面端同样没有），移动端会话页的删除按钮移除)
 **Updated:** 2026-10-28 (移动端「改嵌大脑」落地：Rust 侧 `encephalon` 加 cdylib + JNI 壳 + `mobile` feature，产出 `libencephalon.so` 由 Kotlin 经 MethodChannel 加载，跑的是与桌面端同款的嵌入式大脑（thalamus + ACP 总线 + 端脑 + 单一 neuron），不再是前额叶 lobe；验证手段：无模拟器时的**宿主 JVM 直测 14/14 全绿** + 交叉编译 `.so` + APK 打包验收；shadow 侧新增 `/settings/encephalon` 运行时管理页与 5 项 widget 测试（`bafac3f`）；三个 PR 必须按 diencephalon → telencephalon → encephalon 顺序合并；CI 全红是缺 `IBLOC_TOKEN` secret 的**既有基线问题**，与本轮改动无关)
@@ -242,6 +243,32 @@ shadow/
 ```
 
 > **Note (2026-07-19)**: shadow-mobile 现在有独立的 AGENTS.md（`https://github.com/iBLOC/shadow/shadow-mobile/AGENTS.md`，431 行重写覆盖了 2026-06-04 的旧 204 行版本）。原版本描述「Layer 4 + Layer 2 hybrid」3 模式架构，已被 cortex-centric 视图取代——mobile 默认走 cortex (`:60080`)，只有 Phone-as-Engine 模式才在 Kotlin 层暴露 OpenAIServer `:8085`。
+
+## 跨端设计契约（2026-10-29 起）
+
+> **原则**：桌面端与移动端是**同一个 agent 的两个终端**。同一个 agent 能力不应该在两端有两个名字、
+> 两套入口语义、两种视觉。端侧特有功能（电脑操作 / 直播 / 客服 / 配网）是**同一能力的端侧封装**，
+> 不是另一个产品。
+>
+> 方案全文：[`docs/superpowers/architecture/2026-10-29-cross-platform-design-system.md`](docs/superpowers/architecture/2026-10-29-cross-platform-design-system.md)
+
+**两端同仓**（`shadow/shadow-desktop` + `shadow/shadow-mobile`）是能真正共享的前提。仓根两份契约：
+
+| 文件 | 内容 | 消费方 |
+|---|---|---|
+| `design-tokens.json` | **设计数值的唯一真相源**：颜色 / 间距 / 圆角 / 字号 / 字重 / 时长 / 断点 | 桌面端 `tailwind.config.ts` 读取；移动端 `lib/theme/app_tokens.g.dart` 由脚本生成 |
+| `agent-surface.json` | **能力 → 两端入口的唯一映射表**：`id` / `group` / `labelKey` / `icon` / `desktop.route` / `mobile.route` | 两端导航从它生成，而不是各自硬编码一份页面清单 |
+
+**统一什么 / 分叉什么**：设计数值、能力清单、能力状态、信息架构骨架、文案 key 语义、交互流程模式
+→ **共享**；容器形态（侧边栏 vs 底 tab）、信息密度、端侧特有能力、组件实现（React vs Flutter）→ **分叉**。
+**统一 ≠ 两端长得一样**：统一的是语言（色彩语义 / 节奏 / 命名 / 能力语义），不是像素。
+
+**守门员**：`scripts/check-agent-surface.mjs`，CI 的 `Cross-client consistency check` 步骤（desktop-build job）。
+它拦住：清单里的路由在两端不存在 / 两端偷偷多出或少出路由 / 移动端颜色与 token 对不上 /
+两端文案 key 体系分叉。当前状态：**两端 26 + 29 条路由全部登记在册，0 阻断**。
+
+**尚未推进**（阶段 1/2）：桌面端 `index.css` 的 `--primary` 还是近黑（token 接入后会变品牌紫
+`#A78BFA`）；两端文案 key 还没统一到 `surface.*`；导航还没改成数据驱动。
 
 ## 双端差异
 
