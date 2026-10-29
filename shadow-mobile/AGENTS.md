@@ -191,14 +191,13 @@ GET  {host}/.well-known/agent.json  → A2A AgentCard
 
 ## TELENCEPHALON-SPECIFIC ENDPOINTS (Sprint 1+2)
 
-`lib/services/cortex/cortex_client.dart` (~814 lines after 2026-09-27 telencephalon migration) is the canonical caller for everything except chat/TTS/ASR (which still go through `prefrontal_client.dart` against the telencephalon `/v1/*` shim).
+`lib/services/telencephalon/telencephalon_client.dart` (~814 lines after 2026-09-27 telencephalon migration) is the canonical caller for everything except chat/TTS/ASR (which still go through `prefrontal_client.dart` against the telencephalon `/v1/*` shim).
 
 ```dart
 // === Health / discovery ===
 Future<Map<String, dynamic>> health()                  // GET /.well-known/agent.json
-Future<AgentsResponse>    listAgents()                 // GET /api/telencephalon/agents
-Future<Map<String, dynamic>> getAgent(String name)     // GET /api/telencephalon/agents/{name}
-Future<Map<String, dynamic>> getAgentMirror(...)       // GET /api/telencephalon/agents/mirror
+Future<AgentsResponse>    listAgents()                 // GET /shadow/v1/agents
+Future<Map<String, dynamic>> getAgent(String name)     // GET /shadow/v1/agents/{name}
 
 // === Conversations (Sprint 1 — telencephalon persistence) ===
 Future<Conversation> createConversation({agent, systemPrompt})  // POST /shadow/v1/conversations
@@ -223,6 +222,36 @@ void                       rejectDraft(draftId)                 // POST   /api/f
 Mobile-specific helpers (NOT in desktop's telencephalon client):
 - `importSessionAsConversation(...)` — converts a `SessionExport` JSON into a telencephalon conversation so the phone can pick up where another device left off
 - **continue-on-desktop flow** (per `dacbe83`) — uses telencephalon only (no prefrontal fallback); the mobile app discovers the desktop's telencephalon endpoint and routes the chat session there
+
+### 端脑会话的 wire 形状（别照着前额叶方言抄）
+
+端脑的 `ConversationTurn` 在 Rust 侧是 `{ role, text, at }`，`at: DateTime<Utc>`
+序列化成 **RFC3339 字符串**：
+
+```json
+{ "role": "user", "text": "hi", "at": "2026-10-29T01:23:46.123456789Z" }
+```
+
+**字段名是 `at`，不是 `timestamp`。** 前额叶方言用的才是 `timestamp`（毫秒整数）。
+只认 `timestamp` 的客户端读到一条历史就会 `(json['timestamp'] as num).toInt()`
+撞上 `null` → `_TypeError`，于是**会话列表页和 session transfer 的导入响应
+一起崩**。`ConversationTurn.fromJson` 现在两种形状都认（见
+`lib/services/telencephalon/telencephalon_client.dart`），回归测试在
+`test/telencephalon_client_test.dart` 的 *conversation wire shape* 组里。
+
+其它容易抄错的地方：
+
+| 字段 | 端脑实际发的 | 说明 |
+|---|---|---|
+| `created_at` / `updated_at` | RFC3339 字符串 | `DateTime.parse` 直接能解 |
+| `history[].role` | `"user"` / `"agent"` | 不是 `"assistant"` |
+| `history[].at` | RFC3339 字符串 | **不是 `timestamp`** |
+| `SendMessageResponse.timestamp` | 毫秒整数 | 这个**是**整数 |
+| `agents[].agent_card.metadata.*` | `input_modalities` / `output_modalities` / `capabilities` | 空数组会被 `skip_serializing_if` 省略 |
+
+端脑注册了三个 native lobe：**`temporal` / `prefrontal` / `parietal`**
+（`NativeLobeRegistry::with_temporal()`）。`createConversation()` 不带 agent 时
+服务端用 `CORTEX_DEFAULT_AGENT` 或 `"temporal"`。
 
 ## OUTBOUND PROTOCOLS (when Mobile is in Phone-as-Engine mode)
 
