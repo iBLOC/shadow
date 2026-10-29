@@ -73,6 +73,29 @@ jobs:
           path: neuron
           token: ${{ secrets.IBLOC_TOKEN }}
 
+      # cargo 自己 clone **私有 git 依赖**时也要凭据 ——
+      # synapse 的 ziti feature 指向私有的 iBLOC/ziti-rust。actions/checkout
+      # 的 token 只作用于 checkout 步骤，cargo 自己的 git fetch 拿不到 →
+      # "failed to authenticate when downloading repository"。
+      #
+      # 关键：cargo 默认用 libgit2 拉依赖，而 **libgit2 不认
+      # url.<base>.insteadOf** —— 必须让 cargo 改用 git CLI
+      # （net.git-fetch-with-cli），改写才生效。
+      #
+      # 顺带装 protoc：lance-encoding 的 build script 要它（prost_build 编译
+      # .proto），runner 镜像不保证带 protobuf 编译器。
+      - name: Prepare Rust dependencies
+        env:
+          IBLOC_TOKEN: ${{ secrets.IBLOC_TOKEN }}
+        run: |
+          set -eu
+          echo "::add-mask::$IBLOC_TOKEN"
+          mkdir -p "$HOME/.cargo"
+          printf '[net]\ngit-fetch-with-cli = true\n' >> "$HOME/.cargo/config.toml"
+          git config --global url."https://x-access-token:${IBLOC_TOKEN}@github.com/".insteadOf "https://github.com/"
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq protobuf-compiler
+
       - name: Setup Rust
         uses: Swatinem/rust-cache@v2
         with:
@@ -223,6 +246,20 @@ jobs:
           repository: iBLOC/occipital
           path: occipital
           token: ${{ secrets.IBLOC_TOKEN }}
+
+      # 见上面 prefrontal-rust job 的同名步骤 —— 端脑 server 的构建链同样要
+      # 私有 git 依赖的凭据（ziti-sdk）与 protoc（lance-encoding）。
+      - name: Prepare Rust dependencies
+        env:
+          IBLOC_TOKEN: ${{ secrets.IBLOC_TOKEN }}
+        run: |
+          set -eu
+          echo "::add-mask::$IBLOC_TOKEN"
+          mkdir -p "$HOME/.cargo"
+          printf '[net]\ngit-fetch-with-cli = true\n' >> "$HOME/.cargo/config.toml"
+          git config --global url."https://x-access-token:${IBLOC_TOKEN}@github.com/".insteadOf "https://github.com/"
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq protobuf-compiler
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
