@@ -468,7 +468,127 @@ if (state.mode == ChatMode.litert && state.isLitertReady) { ... }
 - `ChatState.canChat` 取代「本地引擎就绪」作为输入框可用的条件。
 
 ⚠️ 这条的意义不止是「聊天能用」：它正是「**所有通信都要走 大脑 → 端脑 →
-叶区，两个客户端都需要维持这个链路**」这条规则在移动端 **UI 面**的兑现 ——
+叶区，两个客户端都要维持这个链路**」这条规则在移动端 **UI 面**的兑现 ——
 之前移动端那半边在代码上是断的。
+
+### 10.7 `tool_call`：端脑那条事件分支以前**没有任何生产者**
+
+端脑的 SSE 会话接口有一条 `tool_call` 事件分支
+（`api/shadow.rs` 的 `TelencephalonStreamEvent::ToolCall` ⇒
+`event: tool_call`）。它是「影子让客户端换主题」那条产品线的地基
+（⑪ 条定的方向），所以值得把「它到底能不能响」查到底。
+
+**逐层结论（都是读源码 + 实测，不是推测）**：
+
+| 层 | 能不能产出 `tool_call` | 依据 |
+| --- | --- | --- |
+| 端脑事件翻译 | ✅ 能 | `a2a/client.rs` 的 `translate_event` 把 `AgentStreamEvent::ToolStart` / `ToolCall` 翻成 `TelencephalonStreamEvent::ToolCall` |
+| native 叶区路径 | ❌ 不能 | `lobes/mod.rs` 全程只产 `Delta` / `Error`（47 处 `TelencephalonStreamEvent::Delta`，**零** `ToolCall`） |
+| A2A 路径 | ❌ **以前不能** | 见下 |
+
+⇒ **只有 A2A 对端能触发端脑的 `tool_call`**，而 A2A 那条路当时是断的。
+
+#### 根因：工具事件在 A2A 线上被消灭了（两层）
+
+**第一层 —— 协议形状**：A2A 官方的 `StreamResponse` 枚举只有
+`Task` / `Message` / `StatusUpdate` / `ArtifactUpdate` 四个变体，
+**没有任何一类能承载工具调用**。
+
+**第二层 —— synapse 把工具事件降级成纯文本，然后自己丢掉**：
+
+- 服务端（`synapse/src/a2a/server.rs`）：`AgentStreamEvent::ToolStart`
+  被 `format!("Calling tool: {}({})", name, args)` 拍平成一句人话，塞进
+  `StatusUpdate.status.message`，`metadata` 写 `None`；
+- 客户端（`synapse/src/a2a/client.rs`）：
+  `translate_a2a_response_to_agent_events` 只在 `state == Failed` 时把
+  `StatusUpdate` 翻成 `Error`，**其余一律丢弃**。
+
+⇒ 工具调用过了这一跳就变成了「一句没人读的文本」，端脑的 `tool_call`
+分支**没有任何可达的生产者**。
+
+#### 修法：用 `StatusUpdate.metadata` 开一条结构化旁路（改在 synapse）
+
+`StatusUpdate` 有个自由格式的 `metadata` map —— 用它当旁路：
+
+- 新模块 `synapse/src/a2a/tool_event.rs`：键名 `synapse_tool_event`，
+  值是 `{ "kind": "start" | "call" | "end", ... }`；
+- **服务端**：把结构化事件写进 `metadata`，**纯文本照样保留** ⇒
+  老对端看到的还是老样子，线上没有任何东西被删；
+- **客户端**：从 `metadata` 把原事件**还原**成 `AgentStreamEvent::ToolStart`
+  / `ToolCall` / `ToolEnd` ⇒ 端脑 `translate_event` 的工具分支第一次
+  真的可达。
+
+**反向验证**（探针 = 把客户端的还原逻辑短路掉）：圆跳测试
+`a2a::server::tests::tool_call_survives_the_full_a2a_hop` **FAILED**
+（`exactly one event must come back: left 0, right 1`）—— 0 个事件
+正是「工具调用在线上被消灭」的老行为；恢复后 synapse `a2a` 相关
+**30 passed / 0 failed**。
+
+#### 真机验证：端脑在手机上真的发出了 `tool_call`
+
+PC 侧跑一个确定性 A2A 对端（`shadow-mobile/tool/mock_a2a_agent.mjs`，
+`http://192.168.31.147:8898`，按那条旁路的线上格式发事件），注册进
+**手机里**的端脑：
+
+```
+POST /api/telencephalon/admin/agents/register
+{ "name": "toolbot", "endpoint": "http://192.168.31.147:8898",
+  "skills": ["set_theme"], "version": "0.1.0", "provider_type": "custom" }
+→ 200 {"name":"toolbot","kind":"external","skills":["set_theme"]}
+```
+
+端脑的流式会话（`POST /shadow/v1/conversations/{id}/messages:stream`）
+**在手机上**返回：
+
+```
+event: tool_call
+data: {"type":"tool_call","agent":"http://192.168.31.147:8898","name":"set_theme","args":"{\"color\":\"#71717A\"}"}
+
+event: delta
+data: {"type":"delta","agent":"toolbot","delta":"MOCK-A2A-OK (called set_theme)"}
+
+event: done
+data: {"type":"done","agent":"toolbot","state":"COMPLETED", ...}
+```
+
+PC 侧 mock 对端的请求日志（`mock_a2a_requests.jsonl`）反过来证明是
+**手机**连过来的：
+
+```json
+{"method":"SendStreamingMessage","peer":"192.168.31.85",
+ "body":{"jsonrpc":"2.0","method":"SendStreamingMessage",
+   "params":{"message":{"role":"ROLE_USER","parts":[{"text":"把主题色换成靛蓝"}],
+     "metadata":{"name":"__telencephalon_meta_v1__{\"source\":\"telencephalon-shadow\",\"target_agent\":\"toolbot\",\"skill\":\"shadow-conversation\"}"}}}}}
+```
+
+端脑仓也补了一条**走真实 A2A 客户端**的回归测试
+（`a2a::client::tests::a2a_peer_tool_call_becomes_a_tool_call_event`）：
+起一个本地 mock 对端 → 真的打一次 A2A → 断言端脑同时收到
+`tool_call`（名字与参数原样穿过）与正文。
+
+⚠️ **注意这个 `.so` 的依赖关系**：`telencephalon` 是 `synapse` 的
+path 依赖 ⇒ **synapse 的改动会改变手机里的 `.so`**。这次为了带上
+synapse 的修复，`libencephalon.so` 重编了 4m59s（增量）、
+`flutter build apk` 40s ⇒ 装机后端脑才真的能发 `tool_call`。
+
+#### ⚠️ 还没修的（明确记录，别以为通了就是通了）
+
+**native 叶区 → LLM 那条路仍然只发 `Delta`。** 上面跑通的 `tool_call`
+来自**外部 A2A 对端**，不是「模型自己决定调用客户端的工具」。要让
+「用户说『把主题换成靛蓝』，模型自己决定调 `set_theme`」成立，还差：
+
+1. **叶区**：`call_llm` 请求里带 `tools` 字段（现在没有），
+   并把返回的 `choices[0].message.tool_calls` 翻成
+   `TelencephalonStreamEvent::ToolCall`；
+2. **工具执行回路**：端脑把 `tool_call` 发给客户端 → 客户端执行 →
+   回传结果 → 端脑续上下一轮；
+3. **两端客户端的渲染与执行**：桌面端有渲染骨架
+   （`ToolPartRouter` / `ClientToolForm`）但**零消费方**；移动端
+   **完全没有**。
+
+好消息是第 1 步的地基已经有了：neuron 的 OpenAI 面**能往返
+`tool_calls`**（`telencephalon` 侧有测试
+`remote_llm_round_trips_tool_calls_through_the_neuron_route`），
+所以剩下的是端脑叶区 + 两端客户端的活，不是协议问题。
 
 
