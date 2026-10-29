@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Outlet, NavLink } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Brain, ChevronRight } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
+import { ShadowMark } from './brand/ShadowMark';
 import { useResonanceStore } from '../stores/resonanceStore';
 import { useTelencephalonStore } from '../stores/telencephalonStore';
 import { desktopNav, type NavItem, type NavSection } from '../navigation/nav.g';
@@ -48,8 +49,8 @@ export function Layout() {
         {/* Logo / Header */}
         <div className="mb-6 p-3 max-lg:p-2 max-lg:mb-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary text-primary-foreground max-lg:mx-auto">
-              <Brain size={24} />
+            <div className="flex h-11 w-11 items-center justify-center max-lg:mx-auto">
+              <ShadowMark size={28} />
             </div>
             <div className="flex flex-col leading-tight max-lg:hidden">
               <span className="text-lg font-bold tracking-wide">{t('layout.brandName')}</span>

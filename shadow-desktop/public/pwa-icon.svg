@@ -1,16 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <defs>
-    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#06b6d4"/>
-      <stop offset="100%" stop-color="#3b82f6"/>
-    </linearGradient>
-  </defs>
-  <rect width="512" height="512" rx="96" fill="url(#g)"/>
-  <g transform="translate(256, 256)" fill="white">
-    <path d="M -120,-80 C -120,-140 -50,-180 0,-140 C 50,-180 120,-140 120,-80 C 120,-20 60,40 0,80 C -60,40 -120,-20 -120,-80 Z" opacity="0.95"/>
-    <circle cx="0" cy="-80" r="20" fill="#06b6d4"/>
-    <circle cx="-40" cy="-50" r="8" fill="#06b6d4"/>
-    <circle cx="40" cy="-50" r="8" fill="#06b6d4"/>
-  </g>
-  <text x="256" y="430" text-anchor="middle" font-family="Orbitron, sans-serif" font-size="48" font-weight="700" fill="white">影</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" fill="none">
+  <rect x="0" y="0" width="512" height="512" rx="112" fill="#F4F4F5"/>
+  <circle cx="233" cy="256" r="150" fill="#09090B"/>
+  <path d="M 256 107.77 A 150 150 0 1 1 256 404.23 A 150 150 0 0 0 256 107.77 Z" fill="#71717A"/>
 </svg>

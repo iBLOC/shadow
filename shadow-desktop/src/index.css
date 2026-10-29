@@ -54,4 +54,27 @@
       radial-gradient(120% 80% at 50% -10%, var(--ambient-glow) 0%, transparent 60%),
       radial-gradient(80% 60% at 100% 0%, var(--ambient-glow-2) 0%, transparent 55%);
   }
+
+  /* ------------------------------------------------------------
+   * logo 标记（蚀 · 日月相蚀）
+   *
+   * 明暗两态**交换两笔的颜色角色**：
+   *   白天：日亮月暗 —— 后面的月牙吃主题色，前面的月盘是中性影色
+   *   黑夜：月亮日暗 —— 前面的月盘亮起来，后面的日轮退成暗影
+   *
+   * 同一份几何，只换颜色 —— 影子形态不变，观者自己读出昼夜。
+   * 几何在仓根 brand/geom.mjs，这里只挂颜色。
+   * ------------------------------------------------------------ */
+  .shadow-mark [data-part='front'] {
+    fill: var(--logo-ink);
+  }
+  .shadow-mark [data-part='back'] {
+    fill: var(--shadow-accent);
+  }
+  .dark .shadow-mark [data-part='front'] {
+    fill: var(--shadow-accent);
+  }
+  .dark .shadow-mark [data-part='back'] {
+    fill: var(--logo-ink);
+  }
 }

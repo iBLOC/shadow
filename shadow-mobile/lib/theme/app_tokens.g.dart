@@ -73,6 +73,11 @@ class AppTokens {
   static const Color statusInfoLight = Color(0xFF7DD3FC);
   static const Color statusInfoSoft = Color(0x1F38BDF8);
 
+  // ── logo 的影色（光走 accent 槽位）──
+  static const Color logoInkLight = Color(0xFF09090B);
+  static const Color logoInkDark = Color(0xFF52525B);
+  static const Color logoTile = Color(0xFFF4F4F5);
+
   // ── 玻璃（半影层）──
   static const double glassBlur = 20;
   static const double glassSaturation = 140;

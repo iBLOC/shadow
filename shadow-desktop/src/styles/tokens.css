@@ -54,6 +54,7 @@
   --shadow-elevation-sm: 0 1px 2px 0 rgba(0,0,0,0.05);
   --shadow-elevation-md: 0 1px 3px 0 rgba(0,0,0,0.06), 0 8px 20px -6px rgba(0,0,0,0.08);
   --shadow-elevation-lg: 0 2px 6px 0 rgba(0,0,0,0.05), 0 24px 48px -12px rgba(0,0,0,0.10);
+  --logo-ink: #09090B;
 }
 
 .dark {
@@ -89,6 +90,7 @@
   --shadow-elevation-lg: 0 2px 6px 0 rgba(0,0,0,0.18), 0 24px 48px -12px rgba(0,0,0,0.24);
   --ambient-glow: rgb(113 113 122 / 0.161);
   --ambient-glow-2: rgb(113 113 122 / 0.078);
+  --logo-ink: #52525B;
 }
 
 /* 说明：表现层规则（.glass / .shadow-ambient）刻意**不**放在这里 ——

@@ -121,6 +121,16 @@
       "infoSoft": "#38BDF81F"
     },
 
+    "brand": {
+      "logo": {
+        "inkLight": "#09090B",
+        "inkDark": "#52525B",
+        "tile": "#F4F4F5",
+        "tileRadius": 112,
+        "_note": "logo 的「影」色。影本身没有颜色 —— 只有中性色；「光」走 accent 槽位。亮底上影是近黑，暗底上影退成 zinc-600（暗但可辨），保证「光永远比影亮」这条层级在两种模式下都成立。tile 是应用图标的浅色底板（影要落在被照亮的表面上才看得见）。几何在仓根 brand/geom.mjs，产物由 brand/gen-icons.mjs 生成。"
+      }
+    },
+
     "_note": "桌面端的 shadcn 语义变量（--background/--foreground/--muted/--border/--primary/--destructive…）是本文件的投影，由 tokens.css 生成后被 index.css 引用。"
   },
 

@@ -247,6 +247,7 @@ export function buildCss(tokens) {
   L.push(`  --shadow-elevation-sm: ${tokens.shadow.light.sm};`);
   L.push(`  --shadow-elevation-md: ${tokens.shadow.light.md};`);
   L.push(`  --shadow-elevation-lg: ${tokens.shadow.light.lg};`);
+  L.push(`  --logo-ink: ${c.brand.logo.inkLight};`);
   L.push('}');
   L.push('');
   L.push('.dark {');
@@ -281,6 +282,7 @@ export function buildCss(tokens) {
   L.push(`  --shadow-elevation-lg: ${tokens.shadow.dark.lg};`);
   L.push(`  --ambient-glow: ${rgbaString(rgbToHex({ ...hexToRgb(accent.seed), a: 0.16 }))};`);
   L.push(`  --ambient-glow-2: ${rgbaString(rgbToHex({ ...hexToRgb(accent.seed), a: 0.08 }))};`);
+  L.push(`  --logo-ink: ${c.brand.logo.inkDark};`);
   L.push('}');
   L.push('');
   L.push('/* 说明：表现层规则（.glass / .shadow-ambient）刻意**不**放在这里 ——');
@@ -374,6 +376,12 @@ export function buildDart(tokens) {
     if (k.startsWith('_')) continue;
     L.push(`  static const Color status${cap(k)} = Color(${dartColor(v)});`);
   }
+  L.push('');
+
+  L.push('  // ── logo 的影色（光走 accent 槽位）──');
+  L.push(`  static const Color logoInkLight = Color(${dartColor(c.brand.logo.inkLight)});`);
+  L.push(`  static const Color logoInkDark = Color(${dartColor(c.brand.logo.inkDark)});`);
+  L.push(`  static const Color logoTile = Color(${dartColor(c.brand.logo.tile)});`);
   L.push('');
 
   L.push('  // ── 玻璃（半影层）──');

@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>Shadow · 新 logo 方案对照</title>
+<style>
+  :root {
+    --ink-dark: #52525B; --ink-light: #09090B;
+    --accent-light: #71717A; --accent-dark: #9c9ca2;
+    --accent-demo: #aea3f9;
+    --surface-dark: #0A0A0B; --surface-light: #FFFFFF;
+    --muted: #A1A1AA;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 28px; background: #161618; color: #FAFAFA;
+    font: 13px/1.6 ui-sans-serif, system-ui, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+  h1 { font-size: 19px; font-weight: 600; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 22px; font-size: 12px; max-width: 980px; }
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; align-items: start; }
+  .concept { background: #1c1c1f; border: 1px solid #ffffff14; border-radius: 14px; padding: 14px; }
+  h2 { font-size: 15px; font-weight: 600; margin: 0; }
+  .id { color: #71717A; font-weight: 400; font-size: 12px; }
+  .tags { margin: 6px 0 0; display: flex; gap: 6px; flex-wrap: wrap; }
+  .tag { font-size: 10px; color: #A1A1AA; border: 1px solid #ffffff1f; border-radius: 999px; padding: 1px 8px; }
+  .idea { color: var(--muted); font-size: 12px; margin: 8px 0 12px; min-height: 96px; }
+  .panel { border-radius: 10px; padding: 14px; margin-bottom: 10px; }
+  .panel.dark { background: var(--surface-dark); }
+  .panel.light { background: var(--surface-light); }
+  .panel.accent { --logo-accent: var(--accent-demo); }
+  .row { display: flex; gap: 14px; align-items: flex-end; margin-bottom: 12px; }
+  .row:last-of-type { margin-bottom: 0; }
+  .col { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .cap { font-size: 10px; color: #71717A; }
+  .cap-label { font-size: 10px; color: var(--muted); margin-top: 2px; }
+  .tile { display: grid; place-items: center; border-radius: 22%; overflow: hidden; }
+  .tile.dark { background: #111113; }
+  .tile.light { background: #F4F4F5; }
+  .dark { --logo-ink: var(--ink-dark); --logo-accent: var(--accent-dark); }
+  .light { --logo-ink: var(--ink-light); --logo-accent: var(--accent-light); }
+</style>
+</head>
+<body>
+  <h1>Shadow · 新 logo 方案对照</h1>
+  <p class="sub">
+    基准：<b>影子本身没有颜色</b> → 影一律中性色，只有「光」吃主题色槽位（默认 <code>#71717A</code>，用户可覆盖）。
+    <b>光永远比影亮</b>：亮底上影近黑、光中灰；暗底上影退成暗影、光才拿满主题色。
+    每套给白天 / 黑夜 / 托盘单色，以及 120 / 48 / 32 / 16 四档（16px 是任务栏与托盘的生死线）。
+  </p>
+  <div class="grid">
+  <section class="concept">
+    <h2>蚀 <span class="id">eclipse</span></h2>
+    <div class="tags"><span class="tag">模式响应</span><span class="tag">昼夜反转</span></div>
+    <p class="idea">日月相蚀。左「月」在前（圆满），右「日」在后（被遮盖，只剩月牙）。白天日亮月暗、黑夜月亮日暗 —— 同一份几何只换两笔颜色角色，影子形态不变，观者自己读出昼夜。</p>
+    <div class="panel light">
+      <div class="row">
+        <div class="col"><div class="tile light " style="width:120px;height:120px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="120" height="120" fill="none"><circle cx="233" cy="256" r="150" fill="var(--logo-ink, #09090B)"/>
+  <path d="M 256 107.77 A 150 150 0 1 1 256 404.23 A 150 150 0 0 0 256 107.77 Z" fill="var(--logo-accent, #71717A)"/></svg></div><span class="cap">120</span></div><div class="col"><div class="tile light " style="width:48px;height:48px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="48" height="48" fill="none"><circle cx="233" cy="256" r="150" fill="var(--logo-ink, #09090B)"/>
+  <path d="M 256 107.77 A 150 150 0 1 1 256 404.23 A 150 150 0 0 0 256 107.77 Z" fill="var(--logo-accent, #71717A)"/></svg></div><span class="cap">48</span></div><div class="col"><div class="tile light " style="width:32px;height:32px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="32" height="32" fill="none"><circle cx="233" cy="256" r="150" fill="var(--logo-ink, #09090B)"/>
+  <path d="M 256 107.77 A 150 150 0 1 1 256 404.23 A 150 150 0 0 0 256 107.77 Z" fill="var(--logo-accent, #71717A)"/></svg></div><span class="cap">32</span></div><div class="col"><div class="tile light " style="width:16px;height:16px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="16" height="16" fill="none"><circle cx="233" cy="256" r="150" fill="var(--logo-ink, #09090B)"/>
+  <path d="M 256 107.77 A 150 150 0 1 1 256 404.23 A 150 150 0 0 0 256 107.77 Z" fill="var(--logo-accent, #71717A)"/></svg></div><span class="cap">16</span></div>
+      </div>
+      <div class="cap-label">白天（日亮月暗）</div>
+    </div>
+    <div class="panel dark">
+      <div class="row">
+        <div class="col"><div class="tile dark " style="width:120px;height:120px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="120" height="120" fill="none"><circle cx="233" cy="256" r="150" fill="var(--logo-accent, #9c9ca2)"/>
+  <path d="M 256 107.77 A 150 150 0 1 1 256 404.23 A 150 150 0 0 0 256 107.77 Z" fill="var(--logo-ink, #52525B)"/></svg></div><span class="cap">120</span></div><div class="col"><div class="tile dark " style="width:48px;height:48px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="48" height="48" fill="none"><circle cx="233" cy="256" r="150" fill="var(--logo-accent, #9c9ca2)"/>
+  <path d="M 256 107.77 A 150 150 0 1 1 256 404.23 A 150 150 0 0 0 256 107.77 Z" fill="var(--logo-ink, #52525B)"/></svg></div><span class="cap">48</span></div><div class="col"><div class="tile dark " style="width:32px;height:32px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="32" height="32" fill="none"><circle cx="233" cy="256" r="150" fill="var(--logo-accent, #9c9ca2)"/>
+  <path d="M 256 107.77 A 150 150 0 1 1 256 404.23 A 150 150 0 0 0 256 107.77 Z" fill="var(--logo-ink, #52525B)"/></svg></div><span class="cap">32</span></div><div class="col"><div class="tile dark " style="width:16px;height:16px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="16" height="16" fill="none"><circle cx="233" cy="256" r="150" fill="var(--logo-accent, #9c9ca2)"/>
+  <path d="M 256 107.77 A 150 150 0 1 1 256 404.23 A 150 150 0 0 0 256 107.77 Z" fill="var(--logo-ink, #52525B)"/></svg></div><span class="cap">16</span></div>
+      </div>
+      <div class="row">
+        <div class="col"><div class="tile dark " style="width:120px;height:120px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="120" height="120" fill="none"><circle cx="233" cy="256" r="150" fill="currentColor"/>
+  <path d="M 325.57 113.41 A 150 150 0 0 1 325.57 398.59 A 170 170 0 0 0 325.57 113.41 Z" fill="currentColor"/></svg></div><span class="cap">120</span></div><div class="col"><div class="tile dark " style="width:48px;height:48px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="48" height="48" fill="none"><circle cx="233" cy="256" r="150" fill="currentColor"/>
+  <path d="M 325.57 113.41 A 150 150 0 0 1 325.57 398.59 A 170 170 0 0 0 325.57 113.41 Z" fill="currentColor"/></svg></div><span class="cap">48</span></div><div class="col"><div class="tile dark " style="width:32px;height:32px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="32" height="32" fill="none"><circle cx="233" cy="256" r="150" fill="currentColor"/>
+  <path d="M 325.57 113.41 A 150 150 0 0 1 325.57 398.59 A 170 170 0 0 0 325.57 113.41 Z" fill="currentColor"/></svg></div><span class="cap">32</span></div><div class="col"><div class="tile dark " style="width:16px;height:16px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="16" height="16" fill="none"><circle cx="233" cy="256" r="150" fill="currentColor"/>
+  <path d="M 325.57 113.41 A 150 150 0 0 1 325.57 398.59 A 170 170 0 0 0 325.57 113.41 Z" fill="currentColor"/></svg></div><span class="cap">16</span></div>
+      </div>
+      <div class="cap-label">黑夜（月亮日暗）　下：托盘单色</div>
+    </div>
+    <div class="panel dark accent">
+      <div class="row">
+        <div class="col"><div class="tile dark " style="width:120px;height:120px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="120" height="120" fill="none"><circle cx="233" cy="256" r="150" fill="var(--logo-ink, #09090B)"/>
+  <path d="M 256 107.77 A 150 150 0 1 1 256 404.23 A 150 150 0 0 0 256 107.77 Z" fill="var(--logo-accent, #71717A)"/></svg></div><span class="cap">120</span></div><div class="col"><div class="tile dark " style="width:48px;height:48px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="48" height="48" fill="none"><circle cx="233" cy="256" r="150" fill="var(--logo-ink, #09090B)"/>
+  <path d="M 256 107.77 A 150 150 0 1 1 256 404.23 A 150 150 0 0 0 256 107.77 Z" fill="var(--logo-accent, #71717A)"/></svg></div><span class="cap">48</span></div><div class="col"><div class="tile dark " style="width:32px;height:32px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="32" height="32" fill="none"><circle cx="233" cy="256" r="150" fill="var(--logo-ink, #09090B)"/>
+  <path d="M 256 107.77 A 150 150 0 1 1 256 404.23 A 150 150 0 0 0 256 107.77 Z" fill="var(--logo-accent, #71717A)"/></svg></div><span class="cap">32</span></div>
+      </div>
+      <div class="cap-label">用户换成主题色后（光吃主题色槽位）</div>
+    </div>
+    <img class="sheet" src="preview/eclipse-day.png" alt="" onerror="this.style.display='none'" />
+  </section>
+
+  <section class="concept">
+    <h2>隙 <span class="id">gap</span></h2>
+    <div class="tags"><span class="tag">共享</span></div>
+    <p class="idea">两个交叠的实心圆，交集那条透镜缝吃主题色。你和你的影子共享的那部分，是亮的。</p>
+    <div class="panel light">
+      <div class="row">
+        <div class="col"><div class="tile light " style="width:120px;height:120px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="120" height="120" fill="none"><path d="M 54 182 A 128 128 0 1 1 310 182 A 128 128 0 1 1 54 182 Z M 202 330 A 128 128 0 1 1 458 330 A 128 128 0 1 1 202 330 Z" fill="var(--logo-ink, #09090B)"/>
+  <path d="M 203.88 308.12 A 128 128 0 0 0 308.12 203.88 A 128 128 0 0 0 203.88 308.12 Z" fill="var(--logo-accent, #71717A)"/></svg></div><span class="cap">120</span></div><div class="col"><div class="tile light " style="width:48px;height:48px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="48" height="48" fill="none"><path d="M 54 182 A 128 128 0 1 1 310 182 A 128 128 0 1 1 54 182 Z M 202 330 A 128 128 0 1 1 458 330 A 128 128 0 1 1 202 330 Z" fill="var(--logo-ink, #09090B)"/>
+  <path d="M 203.88 308.12 A 128 128 0 0 0 308.12 203.88 A 128 128 0 0 0 203.88 308.12 Z" fill="var(--logo-accent, #71717A)"/></svg></div><span class="cap">48</span></div><div class="col"><div class="tile light " style="width:32px;height:32px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="32" height="32" fill="none"><path d="M 54 182 A 128 128 0 1 1 310 182 A 128 128 0 1 1 54 182 Z M 202 330 A 128 128 0 1 1 458 330 A 128 128 0 1 1 202 330 Z" fill="var(--logo-ink, #09090B)"/>
+  <path d="M 203.88 308.12 A 128 128 0 0 0 308.12 203.88 A 128 128 0 0 0 203.88 308.12 Z" fill="var(--logo-accent, #71717A)"/></svg></div><span class="cap">32</span></div><div class="col"><div class="tile light " style="width:16px;height:16px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="16" height="16" fill="none"><path d="M 54 182 A 128 128 0 1 1 310 182 A 128 128 0 1 1 54 182 Z M 202 330 A 128 128 0 1 1 458 330 A 128 128 0 1 1 202 330 Z" fill="var(--logo-ink, #09090B)"/>
+  <path d="M 203.88 308.12 A 128 128 0 0 0 308.12 203.88 A 128 128 0 0 0 203.88 308.12 Z" fill="var(--logo-accent, #71717A)"/></svg></div><span class="cap">16</span></div>
+      </div>
+      <div class="cap-label">白天（日亮月暗）</div>
+    </div>
+    <div class="panel dark">
+      <div class="row">
+        <div class="col"><div class="tile dark " style="width:120px;height:120px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="120" height="120" fill="none"><path d="M 54 182 A 128 128 0 1 1 310 182 A 128 128 0 1 1 54 182 Z M 202 330 A 128 128 0 1 1 458 330 A 128 128 0 1 1 202 330 Z" fill="var(--logo-ink, #09090B)"/>
+  <path d="M 203.88 308.12 A 128 128 0 0 0 308.12 203.88 A 128 128 0 0 0 203.88 308.12 Z" fill="var(--logo-accent, #9c9ca2)"/></svg></div><span class="cap">120</span></div><div class="col"><div class="tile dark " style="width:48px;height:48px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="48" height="48" fill="none"><path d="M 54 182 A 128 128 0 1 1 310 182 A 128 128 0 1 1 54 182 Z M 202 330 A 128 128 0 1 1 458 330 A 128 128 0 1 1 202 330 Z" fill="var(--logo-ink, #09090B)"/>
+  <path d="M 203.88 308.12 A 128 128 0 0 0 308.12 203.88 A 128 128 0 0 0 203.88 308.12 Z" fill="var(--logo-accent, #9c9ca2)"/></svg></div><span class="cap">48</span></div><div class="col"><div class="tile dark " style="width:32px;height:32px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="32" height="32" fill="none"><path d="M 54 182 A 128 128 0 1 1 310 182 A 128 128 0 1 1 54 182 Z M 202 330 A 128 128 0 1 1 458 330 A 128 128 0 1 1 202 330 Z" fill="var(--logo-ink, #09090B)"/>
+  <path d="M 203.88 308.12 A 128 128 0 0 0 308.12 203.88 A 128 128 0 0 0 203.88 308.12 Z" fill="var(--logo-accent, #9c9ca2)"/></svg></div><span class="cap">32</span></div><div class="col"><div class="tile dark " style="width:16px;height:16px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="16" height="16" fill="none"><path d="M 54 182 A 128 128 0 1 1 310 182 A 128 128 0 1 1 54 182 Z M 202 330 A 128 128 0 1 1 458 330 A 128 128 0 1 1 202 330 Z" fill="var(--logo-ink, #09090B)"/>
+  <path d="M 203.88 308.12 A 128 128 0 0 0 308.12 203.88 A 128 128 0 0 0 203.88 308.12 Z" fill="var(--logo-accent, #9c9ca2)"/></svg></div><span class="cap">16</span></div>
+      </div>
+      <div class="row">
+        <div class="col"><div class="tile dark " style="width:120px;height:120px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="120" height="120" fill="none"><path d="M 54 182 A 128 128 0 1 1 310 182 A 128 128 0 1 1 54 182 Z M 202 330 A 128 128 0 1 1 458 330 A 128 128 0 1 1 202 330 Z" fill="var(--logo-ink, #09090B)"/></svg></div><span class="cap">120</span></div><div class="col"><div class="tile dark " style="width:48px;height:48px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="48" height="48" fill="none"><path d="M 54 182 A 128 128 0 1 1 310 182 A 128 128 0 1 1 54 182 Z M 202 330 A 128 128 0 1 1 458 330 A 128 128 0 1 1 202 330 Z" fill="var(--logo-ink, #09090B)"/></svg></div><span class="cap">48</span></div><div class="col"><div class="tile dark " style="width:32px;height:32px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="32" height="32" fill="none"><path d="M 54 182 A 128 128 0 1 1 310 182 A 128 128 0 1 1 54 182 Z M 202 330 A 128 128 0 1 1 458 330 A 128 128 0 1 1 202 330 Z" fill="var(--logo-ink, #09090B)"/></svg></div><span class="cap">32</span></div><div class="col"><div class="tile dark " style="width:16px;height:16px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="16" height="16" fill="none"><path d="M 54 182 A 128 128 0 1 1 310 182 A 128 128 0 1 1 54 182 Z M 202 330 A 128 128 0 1 1 458 330 A 128 128 0 1 1 202 330 Z" fill="var(--logo-ink, #09090B)"/></svg></div><span class="cap">16</span></div>
+      </div>
+      <div class="cap-label">黑夜（月亮日暗）　下：托盘单色</div>
+    </div>
+    <div class="panel dark accent">
+      <div class="row">
+        <div class="col"><div class="tile dark " style="width:120px;height:120px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="120" height="120" fill="none"><path d="M 54 182 A 128 128 0 1 1 310 182 A 128 128 0 1 1 54 182 Z M 202 330 A 128 128 0 1 1 458 330 A 128 128 0 1 1 202 330 Z" fill="var(--logo-ink, #09090B)"/>
+  <path d="M 203.88 308.12 A 128 128 0 0 0 308.12 203.88 A 128 128 0 0 0 203.88 308.12 Z" fill="var(--logo-accent, #71717A)"/></svg></div><span class="cap">120</span></div><div class="col"><div class="tile dark " style="width:48px;height:48px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="48" height="48" fill="none"><path d="M 54 182 A 128 128 0 1 1 310 182 A 128 128 0 1 1 54 182 Z M 202 330 A 128 128 0 1 1 458 330 A 128 128 0 1 1 202 330 Z" fill="var(--logo-ink, #09090B)"/>
+  <path d="M 203.88 308.12 A 128 128 0 0 0 308.12 203.88 A 128 128 0 0 0 203.88 308.12 Z" fill="var(--logo-accent, #71717A)"/></svg></div><span class="cap">48</span></div><div class="col"><div class="tile dark " style="width:32px;height:32px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="32" height="32" fill="none"><path d="M 54 182 A 128 128 0 1 1 310 182 A 128 128 0 1 1 54 182 Z M 202 330 A 128 128 0 1 1 458 330 A 128 128 0 1 1 202 330 Z" fill="var(--logo-ink, #09090B)"/>
+  <path d="M 203.88 308.12 A 128 128 0 0 0 308.12 203.88 A 128 128 0 0 0 203.88 308.12 Z" fill="var(--logo-accent, #71717A)"/></svg></div><span class="cap">32</span></div>
+      </div>
+      <div class="cap-label">用户换成主题色后（光吃主题色槽位）</div>
+    </div>
+    <img class="sheet" src="preview/gap-day.png" alt="" onerror="this.style.display='none'" />
+  </section>
+
+  <section class="concept">
+    <h2>环核 <span class="id">core</span></h2>
+    <div class="tags"><span class="tag">记忆 × 灵魂</span></div>
+    <p class="idea">一个粗环里悬着偏离中心的实心核。记忆是环，灵魂是核 —— 核是偏的：它不完全受宿主支配。</p>
+    <div class="panel light">
+      <div class="row">
+        <div class="col"><div class="tile light " style="width:120px;height:120px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="120" height="120" fill="none"><path d="M 96 256 A 160 160 0 1 1 416 256 A 160 160 0 1 1 96 256 Z M 152 256 A 104 104 0 1 1 360 256 A 104 104 0 1 1 152 256 Z" fill-rule="evenodd" fill="var(--logo-ink, #09090B)"/>
+  <circle cx="230" cy="236" r="44" fill="var(--logo-accent, #71717A)"/></svg></div><span class="cap">120</span></div><div class="col"><div class="tile light " style="width:48px;height:48px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="48" height="48" fill="none"><path d="M 96 256 A 160 160 0 1 1 416 256 A 160 160 0 1 1 96 256 Z M 152 256 A 104 104 0 1 1 360 256 A 104 104 0 1 1 152 256 Z" fill-rule="evenodd" fill="var(--logo-ink, #09090B)"/>
+  <circle cx="230" cy="236" r="44" fill="var(--logo-accent, #71717A)"/></svg></div><span class="cap">48</span></div><div class="col"><div class="tile light " style="width:32px;height:32px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="32" height="32" fill="none"><path d="M 96 256 A 160 160 0 1 1 416 256 A 160 160 0 1 1 96 256 Z M 152 256 A 104 104 0 1 1 360 256 A 104 104 0 1 1 152 256 Z" fill-rule="evenodd" fill="var(--logo-ink, #09090B)"/>
+  <circle cx="230" cy="236" r="44" fill="var(--logo-accent, #71717A)"/></svg></div><span class="cap">32</span></div><div class="col"><div class="tile light " style="width:16px;height:16px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="16" height="16" fill="none"><path d="M 96 256 A 160 160 0 1 1 416 256 A 160 160 0 1 1 96 256 Z M 152 256 A 104 104 0 1 1 360 256 A 104 104 0 1 1 152 256 Z" fill-rule="evenodd" fill="var(--logo-ink, #09090B)"/>
+  <circle cx="230" cy="236" r="44" fill="var(--logo-accent, #71717A)"/></svg></div><span class="cap">16</span></div>
+      </div>
+      <div class="cap-label">白天（日亮月暗）</div>
+    </div>
+    <div class="panel dark">
+      <div class="row">
+        <div class="col"><div class="tile dark " style="width:120px;height:120px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="120" height="120" fill="none"><path d="M 96 256 A 160 160 0 1 1 416 256 A 160 160 0 1 1 96 256 Z M 152 256 A 104 104 0 1 1 360 256 A 104 104 0 1 1 152 256 Z" fill-rule="evenodd" fill="var(--logo-ink, #09090B)"/>
+  <circle cx="230" cy="236" r="44" fill="var(--logo-accent, #9c9ca2)"/></svg></div><span class="cap">120</span></div><div class="col"><div class="tile dark " style="width:48px;height:48px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="48" height="48" fill="none"><path d="M 96 256 A 160 160 0 1 1 416 256 A 160 160 0 1 1 96 256 Z M 152 256 A 104 104 0 1 1 360 256 A 104 104 0 1 1 152 256 Z" fill-rule="evenodd" fill="var(--logo-ink, #09090B)"/>
+  <circle cx="230" cy="236" r="44" fill="var(--logo-accent, #9c9ca2)"/></svg></div><span class="cap">48</span></div><div class="col"><div class="tile dark " style="width:32px;height:32px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="32" height="32" fill="none"><path d="M 96 256 A 160 160 0 1 1 416 256 A 160 160 0 1 1 96 256 Z M 152 256 A 104 104 0 1 1 360 256 A 104 104 0 1 1 152 256 Z" fill-rule="evenodd" fill="var(--logo-ink, #09090B)"/>
+  <circle cx="230" cy="236" r="44" fill="var(--logo-accent, #9c9ca2)"/></svg></div><span class="cap">32</span></div><div class="col"><div class="tile dark " style="width:16px;height:16px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="16" height="16" fill="none"><path d="M 96 256 A 160 160 0 1 1 416 256 A 160 160 0 1 1 96 256 Z M 152 256 A 104 104 0 1 1 360 256 A 104 104 0 1 1 152 256 Z" fill-rule="evenodd" fill="var(--logo-ink, #09090B)"/>
+  <circle cx="230" cy="236" r="44" fill="var(--logo-accent, #9c9ca2)"/></svg></div><span class="cap">16</span></div>
+      </div>
+      <div class="row">
+        <div class="col"><div class="tile dark " style="width:120px;height:120px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="120" height="120" fill="none"><path d="M 96 256 A 160 160 0 1 1 416 256 A 160 160 0 1 1 96 256 Z M 152 256 A 104 104 0 1 1 360 256 A 104 104 0 1 1 152 256 Z" fill-rule="evenodd" fill="var(--logo-ink, #09090B)"/>
+  <circle cx="230" cy="236" r="44" fill="currentColor"/></svg></div><span class="cap">120</span></div><div class="col"><div class="tile dark " style="width:48px;height:48px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="48" height="48" fill="none"><path d="M 96 256 A 160 160 0 1 1 416 256 A 160 160 0 1 1 96 256 Z M 152 256 A 104 104 0 1 1 360 256 A 104 104 0 1 1 152 256 Z" fill-rule="evenodd" fill="var(--logo-ink, #09090B)"/>
+  <circle cx="230" cy="236" r="44" fill="currentColor"/></svg></div><span class="cap">48</span></div><div class="col"><div class="tile dark " style="width:32px;height:32px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="32" height="32" fill="none"><path d="M 96 256 A 160 160 0 1 1 416 256 A 160 160 0 1 1 96 256 Z M 152 256 A 104 104 0 1 1 360 256 A 104 104 0 1 1 152 256 Z" fill-rule="evenodd" fill="var(--logo-ink, #09090B)"/>
+  <circle cx="230" cy="236" r="44" fill="currentColor"/></svg></div><span class="cap">32</span></div><div class="col"><div class="tile dark " style="width:16px;height:16px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="16" height="16" fill="none"><path d="M 96 256 A 160 160 0 1 1 416 256 A 160 160 0 1 1 96 256 Z M 152 256 A 104 104 0 1 1 360 256 A 104 104 0 1 1 152 256 Z" fill-rule="evenodd" fill="var(--logo-ink, #09090B)"/>
+  <circle cx="230" cy="236" r="44" fill="currentColor"/></svg></div><span class="cap">16</span></div>
+      </div>
+      <div class="cap-label">黑夜（月亮日暗）　下：托盘单色</div>
+    </div>
+    <div class="panel dark accent">
+      <div class="row">
+        <div class="col"><div class="tile dark " style="width:120px;height:120px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="120" height="120" fill="none"><path d="M 96 256 A 160 160 0 1 1 416 256 A 160 160 0 1 1 96 256 Z M 152 256 A 104 104 0 1 1 360 256 A 104 104 0 1 1 152 256 Z" fill-rule="evenodd" fill="var(--logo-ink, #09090B)"/>
+  <circle cx="230" cy="236" r="44" fill="var(--logo-accent, #71717A)"/></svg></div><span class="cap">120</span></div><div class="col"><div class="tile dark " style="width:48px;height:48px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="48" height="48" fill="none"><path d="M 96 256 A 160 160 0 1 1 416 256 A 160 160 0 1 1 96 256 Z M 152 256 A 104 104 0 1 1 360 256 A 104 104 0 1 1 152 256 Z" fill-rule="evenodd" fill="var(--logo-ink, #09090B)"/>
+  <circle cx="230" cy="236" r="44" fill="var(--logo-accent, #71717A)"/></svg></div><span class="cap">48</span></div><div class="col"><div class="tile dark " style="width:32px;height:32px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="32" height="32" fill="none"><path d="M 96 256 A 160 160 0 1 1 416 256 A 160 160 0 1 1 96 256 Z M 152 256 A 104 104 0 1 1 360 256 A 104 104 0 1 1 152 256 Z" fill-rule="evenodd" fill="var(--logo-ink, #09090B)"/>
+  <circle cx="230" cy="236" r="44" fill="var(--logo-accent, #71717A)"/></svg></div><span class="cap">32</span></div>
+      </div>
+      <div class="cap-label">用户换成主题色后（光吃主题色槽位）</div>
+    </div>
+    <img class="sheet" src="preview/core-day.png" alt="" onerror="this.style.display='none'" />
+  </section>
+
+  <section class="concept">
+    <h2>弧 <span class="id">arc</span></h2>
+    <div class="tags"><span class="tag">最省</span><span class="tag">焦散</span></div>
+    <p class="idea">一弯月牙本体是影，内缘那道焦散亮带是光。最接近传统月亮图标，16px 最稳。</p>
+    <div class="panel light">
+      <div class="row">
+        <div class="col"><div class="tile light " style="width:120px;height:120px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="120" height="120" fill="none"><path d="M 214.65 418.83 A 168 168 0 1 1 418.83 214.65 A 150 150 0 0 0 214.65 418.83 Z" fill="var(--logo-ink, #09090B)"/>
+  <defs><clipPath id="arc-band"><circle cx="256" cy="256" r="168"/></clipPath></defs>
+  <path d="M 161.5 345.5 A 184 184 0 1 1 529.5 345.5 A 184 184 0 1 1 161.5 345.5 Z M 195.5 345.5 A 150 150 0 1 1 495.5 345.5 A 150 150 0 1 1 195.5 345.5 Z" fill-rule="evenodd" clip-path="url(#arc-band)" fill="var(--logo-accent, #71717A)"/></svg></div><span class="cap">120</span></div><div class="col"><div class="tile light " style="width:48px;height:48px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="48" height="48" fill="none"><path d="M 214.65 418.83 A 168 168 0 1 1 418.83 214.65 A 150 150 0 0 0 214.65 418.83 Z" fill="var(--logo-ink, #09090B)"/>
+  <defs><clipPath id="arc-band"><circle cx="256" cy="256" r="168"/></clipPath></defs>
+  <path d="M 161.5 345.5 A 184 184 0 1 1 529.5 345.5 A 184 184 0 1 1 161.5 345.5 Z M 195.5 345.5 A 150 150 0 1 1 495.5 345.5 A 150 150 0 1 1 195.5 345.5 Z" fill-rule="evenodd" clip-path="url(#arc-band)" fill="var(--logo-accent, #71717A)"/></svg></div><span class="cap">48</span></div><div class="col"><div class="tile light " style="width:32px;height:32px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="32" height="32" fill="none"><path d="M 214.65 418.83 A 168 168 0 1 1 418.83 214.65 A 150 150 0 0 0 214.65 418.83 Z" fill="var(--logo-ink, #09090B)"/>
+  <defs><clipPath id="arc-band"><circle cx="256" cy="256" r="168"/></clipPath></defs>
+  <path d="M 161.5 345.5 A 184 184 0 1 1 529.5 345.5 A 184 184 0 1 1 161.5 345.5 Z M 195.5 345.5 A 150 150 0 1 1 495.5 345.5 A 150 150 0 1 1 195.5 345.5 Z" fill-rule="evenodd" clip-path="url(#arc-band)" fill="var(--logo-accent, #71717A)"/></svg></div><span class="cap">32</span></div><div class="col"><div class="tile light " style="width:16px;height:16px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="16" height="16" fill="none"><path d="M 214.65 418.83 A 168 168 0 1 1 418.83 214.65 A 150 150 0 0 0 214.65 418.83 Z" fill="var(--logo-ink, #09090B)"/>
+  <defs><clipPath id="arc-band"><circle cx="256" cy="256" r="168"/></clipPath></defs>
+  <path d="M 161.5 345.5 A 184 184 0 1 1 529.5 345.5 A 184 184 0 1 1 161.5 345.5 Z M 195.5 345.5 A 150 150 0 1 1 495.5 345.5 A 150 150 0 1 1 195.5 345.5 Z" fill-rule="evenodd" clip-path="url(#arc-band)" fill="var(--logo-accent, #71717A)"/></svg></div><span class="cap">16</span></div>
+      </div>
+      <div class="cap-label">白天（日亮月暗）</div>
+    </div>
+    <div class="panel dark">
+      <div class="row">
+        <div class="col"><div class="tile dark " style="width:120px;height:120px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="120" height="120" fill="none"><path d="M 214.65 418.83 A 168 168 0 1 1 418.83 214.65 A 150 150 0 0 0 214.65 418.83 Z" fill="var(--logo-ink, #09090B)"/>
+  <defs><clipPath id="arc-band"><circle cx="256" cy="256" r="168"/></clipPath></defs>
+  <path d="M 161.5 345.5 A 184 184 0 1 1 529.5 345.5 A 184 184 0 1 1 161.5 345.5 Z M 195.5 345.5 A 150 150 0 1 1 495.5 345.5 A 150 150 0 1 1 195.5 345.5 Z" fill-rule="evenodd" clip-path="url(#arc-band)" fill="var(--logo-accent, #9c9ca2)"/></svg></div><span class="cap">120</span></div><div class="col"><div class="tile dark " style="width:48px;height:48px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="48" height="48" fill="none"><path d="M 214.65 418.83 A 168 168 0 1 1 418.83 214.65 A 150 150 0 0 0 214.65 418.83 Z" fill="var(--logo-ink, #09090B)"/>
+  <defs><clipPath id="arc-band"><circle cx="256" cy="256" r="168"/></clipPath></defs>
+  <path d="M 161.5 345.5 A 184 184 0 1 1 529.5 345.5 A 184 184 0 1 1 161.5 345.5 Z M 195.5 345.5 A 150 150 0 1 1 495.5 345.5 A 150 150 0 1 1 195.5 345.5 Z" fill-rule="evenodd" clip-path="url(#arc-band)" fill="var(--logo-accent, #9c9ca2)"/></svg></div><span class="cap">48</span></div><div class="col"><div class="tile dark " style="width:32px;height:32px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="32" height="32" fill="none"><path d="M 214.65 418.83 A 168 168 0 1 1 418.83 214.65 A 150 150 0 0 0 214.65 418.83 Z" fill="var(--logo-ink, #09090B)"/>
+  <defs><clipPath id="arc-band"><circle cx="256" cy="256" r="168"/></clipPath></defs>
+  <path d="M 161.5 345.5 A 184 184 0 1 1 529.5 345.5 A 184 184 0 1 1 161.5 345.5 Z M 195.5 345.5 A 150 150 0 1 1 495.5 345.5 A 150 150 0 1 1 195.5 345.5 Z" fill-rule="evenodd" clip-path="url(#arc-band)" fill="var(--logo-accent, #9c9ca2)"/></svg></div><span class="cap">32</span></div><div class="col"><div class="tile dark " style="width:16px;height:16px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="16" height="16" fill="none"><path d="M 214.65 418.83 A 168 168 0 1 1 418.83 214.65 A 150 150 0 0 0 214.65 418.83 Z" fill="var(--logo-ink, #09090B)"/>
+  <defs><clipPath id="arc-band"><circle cx="256" cy="256" r="168"/></clipPath></defs>
+  <path d="M 161.5 345.5 A 184 184 0 1 1 529.5 345.5 A 184 184 0 1 1 161.5 345.5 Z M 195.5 345.5 A 150 150 0 1 1 495.5 345.5 A 150 150 0 1 1 195.5 345.5 Z" fill-rule="evenodd" clip-path="url(#arc-band)" fill="var(--logo-accent, #9c9ca2)"/></svg></div><span class="cap">16</span></div>
+      </div>
+      <div class="row">
+        <div class="col"><div class="tile dark " style="width:120px;height:120px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="120" height="120" fill="none"><path d="M 214.65 418.83 A 168 168 0 1 1 418.83 214.65 A 150 150 0 0 0 214.65 418.83 Z" fill="var(--logo-ink, #09090B)"/></svg></div><span class="cap">120</span></div><div class="col"><div class="tile dark " style="width:48px;height:48px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="48" height="48" fill="none"><path d="M 214.65 418.83 A 168 168 0 1 1 418.83 214.65 A 150 150 0 0 0 214.65 418.83 Z" fill="var(--logo-ink, #09090B)"/></svg></div><span class="cap">48</span></div><div class="col"><div class="tile dark " style="width:32px;height:32px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="32" height="32" fill="none"><path d="M 214.65 418.83 A 168 168 0 1 1 418.83 214.65 A 150 150 0 0 0 214.65 418.83 Z" fill="var(--logo-ink, #09090B)"/></svg></div><span class="cap">32</span></div><div class="col"><div class="tile dark " style="width:16px;height:16px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="16" height="16" fill="none"><path d="M 214.65 418.83 A 168 168 0 1 1 418.83 214.65 A 150 150 0 0 0 214.65 418.83 Z" fill="var(--logo-ink, #09090B)"/></svg></div><span class="cap">16</span></div>
+      </div>
+      <div class="cap-label">黑夜（月亮日暗）　下：托盘单色</div>
+    </div>
+    <div class="panel dark accent">
+      <div class="row">
+        <div class="col"><div class="tile dark " style="width:120px;height:120px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="120" height="120" fill="none"><path d="M 214.65 418.83 A 168 168 0 1 1 418.83 214.65 A 150 150 0 0 0 214.65 418.83 Z" fill="var(--logo-ink, #09090B)"/>
+  <defs><clipPath id="arc-band"><circle cx="256" cy="256" r="168"/></clipPath></defs>
+  <path d="M 161.5 345.5 A 184 184 0 1 1 529.5 345.5 A 184 184 0 1 1 161.5 345.5 Z M 195.5 345.5 A 150 150 0 1 1 495.5 345.5 A 150 150 0 1 1 195.5 345.5 Z" fill-rule="evenodd" clip-path="url(#arc-band)" fill="var(--logo-accent, #71717A)"/></svg></div><span class="cap">120</span></div><div class="col"><div class="tile dark " style="width:48px;height:48px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="48" height="48" fill="none"><path d="M 214.65 418.83 A 168 168 0 1 1 418.83 214.65 A 150 150 0 0 0 214.65 418.83 Z" fill="var(--logo-ink, #09090B)"/>
+  <defs><clipPath id="arc-band"><circle cx="256" cy="256" r="168"/></clipPath></defs>
+  <path d="M 161.5 345.5 A 184 184 0 1 1 529.5 345.5 A 184 184 0 1 1 161.5 345.5 Z M 195.5 345.5 A 150 150 0 1 1 495.5 345.5 A 150 150 0 1 1 195.5 345.5 Z" fill-rule="evenodd" clip-path="url(#arc-band)" fill="var(--logo-accent, #71717A)"/></svg></div><span class="cap">48</span></div><div class="col"><div class="tile dark " style="width:32px;height:32px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="32" height="32" fill="none"><path d="M 214.65 418.83 A 168 168 0 1 1 418.83 214.65 A 150 150 0 0 0 214.65 418.83 Z" fill="var(--logo-ink, #09090B)"/>
+  <defs><clipPath id="arc-band"><circle cx="256" cy="256" r="168"/></clipPath></defs>
+  <path d="M 161.5 345.5 A 184 184 0 1 1 529.5 345.5 A 184 184 0 1 1 161.5 345.5 Z M 195.5 345.5 A 150 150 0 1 1 495.5 345.5 A 150 150 0 1 1 195.5 345.5 Z" fill-rule="evenodd" clip-path="url(#arc-band)" fill="var(--logo-accent, #71717A)"/></svg></div><span class="cap">32</span></div>
+      </div>
+      <div class="cap-label">用户换成主题色后（光吃主题色槽位）</div>
+    </div>
+    <img class="sheet" src="preview/arc-day.png" alt="" onerror="this.style.display='none'" />
+  </section></div>
+</body>
+</html>

@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { safeInvoke } from '../lib/tauriSafe';
-import { Server, Lock, Key, Plus, ChevronRight } from 'lucide-react';
+import { Lock, Key, Plus, ChevronRight } from 'lucide-react';
+import { ShadowMark } from '../components/brand/ShadowMark';
 import { useDatabaseStore } from '../stores/databaseStore';
 import { ProviderForm } from '../components/business';
 import type { ProviderFormData, ProviderTypeOption } from '../components/business';
@@ -280,7 +281,7 @@ export function SetupPage() {
       <div className="w-full max-w-2xl rounded-xl border border-border bg-card p-8">
         <div className="mb-8 text-center">
           <div className="mb-4 flex items-center justify-center gap-3 text-foreground">
-            <Server size={32} />
+            <ShadowMark size={32} />
             <h1 className="text-3xl font-bold">{t('layout.brandName')}</h1>
           </div>
           <p className="text-base text-muted-foreground">{t('setup.welcome')}</p>

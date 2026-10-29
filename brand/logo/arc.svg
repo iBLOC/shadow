@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" fill="none">
+  <path d="M 214.65 418.83 A 168 168 0 1 1 418.83 214.65 A 150 150 0 0 0 214.65 418.83 Z" fill="var(--logo-ink, #09090B)"/>
+  <defs><clipPath id="arc-band"><circle cx="256" cy="256" r="168"/></clipPath></defs>
+  <path d="M 161.5 345.5 A 184 184 0 1 1 529.5 345.5 A 184 184 0 1 1 161.5 345.5 Z M 195.5 345.5 A 150 150 0 1 1 495.5 345.5 A 150 150 0 1 1 195.5 345.5 Z" fill-rule="evenodd" clip-path="url(#arc-band)" fill="var(--logo-accent, #71717A)"/>
+</svg>
