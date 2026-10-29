@@ -1108,6 +1108,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsPrefrontalEmbeddedDesc => '管理嵌入在本 App 里的 Prefrontal 运行时';
 
   @override
+  String get settingsEncephalonEmbedded => '嵌入式大脑';
+
+  @override
+  String get settingsEncephalonEmbeddedDesc =>
+      '管理嵌入在本 App 里的 Encephalon 大脑运行时（推理 + 端脑面）';
+
+  @override
   String taskSubtasks(int count) {
     return '子任务 ($count)';
   }

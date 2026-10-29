@@ -2180,6 +2180,18 @@ abstract class AppLocalizations {
   /// **'Manage the Prefrontal runtime embedded in this app'**
   String get settingsPrefrontalEmbeddedDesc;
 
+  /// No description provided for @settingsEncephalonEmbedded.
+  ///
+  /// In en, this message translates to:
+  /// **'Embedded Brain'**
+  String get settingsEncephalonEmbedded;
+
+  /// No description provided for @settingsEncephalonEmbeddedDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage the Encephalon brain runtime embedded in this app (inference + telencephalon agent surface)'**
+  String get settingsEncephalonEmbeddedDesc;
+
   /// No description provided for @taskSubtasks.
   ///
   /// In en, this message translates to:

@@ -1124,6 +1124,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'Manage the Prefrontal runtime embedded in this app';
 
   @override
+  String get settingsEncephalonEmbedded => 'Embedded Brain';
+
+  @override
+  String get settingsEncephalonEmbeddedDesc =>
+      'Manage the Encephalon brain runtime embedded in this app (inference + telencephalon agent surface)';
+
+  @override
   String taskSubtasks(int count) {
     return 'Subtasks ($count)';
   }

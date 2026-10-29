@@ -258,7 +258,23 @@ GlassCard(
                 ),
               ),
               const SizedBox(height: 16),
-              // 嵌入式 Prefrontal（NDK .so）
+              // 嵌入式大脑（NDK .so）—— 主路径：与桌面端嵌同一个 encephalon
+              GlassCard(
+                padding: EdgeInsets.zero,
+                child: ListTile(
+                  leading: Icon(Icons.psychology_alt, color: AppColors.primary),
+                  title: Text(
+                    AppLocalizations.of(context)!.settingsEncephalonEmbedded,
+                  ),
+                  subtitle: Text(
+                    AppLocalizations.of(context)!.settingsEncephalonEmbeddedDesc,
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push('/settings/encephalon'),
+                ),
+              ),
+              const SizedBox(height: 16),
+              // 嵌入式 Prefrontal（NDK .so）—— 遗留路径，已被嵌入式大脑取代
               GlassCard(
                 padding: EdgeInsets.zero,
                 child: ListTile(

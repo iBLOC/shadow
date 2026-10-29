@@ -509,6 +509,10 @@
   "@settingsPrefrontalEmbedded": {},
   "settingsPrefrontalEmbeddedDesc": "管理嵌入在本 App 里的 Prefrontal 运行时",
   "@settingsPrefrontalEmbeddedDesc": {},
+  "settingsEncephalonEmbedded": "嵌入式大脑",
+  "@settingsEncephalonEmbedded": {},
+  "settingsEncephalonEmbeddedDesc": "管理嵌入在本 App 里的 Encephalon 大脑运行时（推理 + 端脑面）",
+  "@settingsEncephalonEmbeddedDesc": {},
   "taskSubtasks": "子任务 ({count})",
   "@taskSubtasks": {
     "placeholders": {

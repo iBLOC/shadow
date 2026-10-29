@@ -552,6 +552,10 @@
   "@settingsPrefrontalEmbedded": {},
   "settingsPrefrontalEmbeddedDesc": "Manage the Prefrontal runtime embedded in this app",
   "@settingsPrefrontalEmbeddedDesc": {},
+  "settingsEncephalonEmbedded": "Embedded Brain",
+  "@settingsEncephalonEmbedded": {},
+  "settingsEncephalonEmbeddedDesc": "Manage the Encephalon brain runtime embedded in this app (inference + telencephalon agent surface)",
+  "@settingsEncephalonEmbeddedDesc": {},
   "taskSubtasks": "Subtasks ({count})",
   "@taskSubtasks": {
     "placeholders": {
