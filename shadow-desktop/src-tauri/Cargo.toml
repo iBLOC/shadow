@@ -89,7 +89,13 @@ encephalon = { path = "../../../encephalon", default-features = false, features 
 # unifies them into ONE crate. Do NOT switch this to a git source or a
 # different path: two copies of telencephalon means two sets of types
 # (AppState / ConversationStore) that cannot be passed between each other.
-telencephalon = { path = "../../../telencephalon" }
+#
+# `features = ["hippocampus"]` is written out **explicitly** (default
+# features stay on): the desktop mounts the hippocampus HTTP face from the
+# state `telencephalon::boot::build_app_state` hands back, and that state
+# only exists when the feature is on. Naming it here means the requirement
+# survives a change to telencephalon's own default feature list.
+telencephalon = { path = "../../../telencephalon", features = ["hippocampus"] }
 
 # 进程内海马体的 HTTP 面（`src/cortex_http.rs` 把端脑的 router 合成一台
 # 服务时用它的 router 工厂，挂在 `/hippocampus` 前缀下）。

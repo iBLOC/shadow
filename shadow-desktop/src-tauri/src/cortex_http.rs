@@ -47,6 +47,10 @@
 //! （见 `Cargo.toml` 的 `default-features = false`）：海马体状态由
 //! `telencephalon::boot::build_app_state` 建，路由也从**同一个** state
 //! 挂出来。两份 Lance 指向同一份存储会互相抢锁，所以只留一份。
+//!
+//! 端脑侧对应的 `hippocampus` feature 是**开着的**（桌面端
+//! `Cargo.toml` 里显式写了 `features = ["hippocampus"]`）—— 否则
+//! `build_app_state` 交回的是 `None`，桌面端就没有 `/hippocampus` 面可挂。
 
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
@@ -124,11 +128,29 @@ async fn build_router(stack: &Embedded) -> Result<Router, String> {
         }
     }
 
+    // 海马体的 HTTP 面 —— 从**同一个** state 挂出来。
+    //
+    // `build_app_state` 把海马体状态作为 `Option` 交回宿主（`hippocampus`
+    // feature 关掉时就是 `None`：没有本地海马体，记忆走零信任网络里的
+    // hippocampus 服务）。桌面端**开着**这个 feature（`Cargo.toml` 里显式
+    // 写 `features = ["hippocampus"]`），所以这里拿到的是 `Some`。
+    //
+    // 但**不 unwrap**：万一以后端脑把它关掉，正确的表现是「不挂
+    // `/hippocampus` 面」，而不是让整个 sidecar 起不来。
+    let hippocampus_router = hippocampus_state.map(hippocampus_server::build_router_unit);
+    if hippocampus_router.is_none() {
+        tracing::warn!(
+            "cortex http: no local hippocampus state — the /hippocampus face \
+             is not mounted (memory will come from a hippocampus service on \
+             the zero-trust network)."
+        );
+    }
+
     Ok(telencephalon::api::build_full_app(
         state,
         conv_store,
         Some(stack.neuron().router()),
-        Some(hippocampus_server::build_router_unit(hippocampus_state)),
+        hippocampus_router,
     ))
 }
 
