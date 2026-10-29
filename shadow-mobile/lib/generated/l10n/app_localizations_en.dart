@@ -651,6 +651,27 @@ class AppLocalizationsEn extends AppLocalizations {
   String get commonRemove => 'Remove';
 
   @override
+  String get commonClearFilters => 'Clear filters';
+
+  @override
+  String get navChat => 'Chat';
+
+  @override
+  String get navLive => 'Live';
+
+  @override
+  String get navService => 'Service';
+
+  @override
+  String get navTasks => 'Tasks';
+
+  @override
+  String get navManage => 'Manage';
+
+  @override
+  String get navSettings => 'Settings';
+
+  @override
   String get logsTelencephalonStarted => 'Telencephalon service started';
 
   @override
@@ -963,6 +984,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get taskBoardTitle => 'Task Board';
+
+  @override
+  String get taskStatusBacklog => 'Backlog';
 
   @override
   String get taskStatusTodo => 'To do';

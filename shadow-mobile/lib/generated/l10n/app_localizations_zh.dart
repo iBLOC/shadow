@@ -641,6 +641,27 @@ class AppLocalizationsZh extends AppLocalizations {
   String get commonRemove => '移除';
 
   @override
+  String get commonClearFilters => '清除筛选';
+
+  @override
+  String get navChat => '对话';
+
+  @override
+  String get navLive => '直播';
+
+  @override
+  String get navService => '客服';
+
+  @override
+  String get navTasks => '任务';
+
+  @override
+  String get navManage => '管理';
+
+  @override
+  String get navSettings => '设置';
+
+  @override
   String get logsTelencephalonStarted => '端脑服务启动成功';
 
   @override
@@ -948,6 +969,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get taskBoardTitle => '任务看板';
+
+  @override
+  String get taskStatusBacklog => '待规划';
 
   @override
   String get taskStatusTodo => '待办';

@@ -272,9 +272,13 @@ class _LogsPageState extends ConsumerState<LogsPage> {
                     style: const TextStyle(fontSize: 12),
                   ),
                   const Spacer(),
-                  GestureDetector(
-                    onTap: () => ref.read(logsProvider.notifier).clearFilters(),
-                    child: const Icon(Icons.close, size: 16),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 16),
+                    tooltip:
+                        AppLocalizations.of(context)!.commonClearFilters,
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () =>
+                        ref.read(logsProvider.notifier).clearFilters(),
                   ),
                 ],
               ),

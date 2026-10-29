@@ -1292,6 +1292,48 @@ abstract class AppLocalizations {
   /// **'Remove'**
   String get commonRemove;
 
+  /// No description provided for @commonClearFilters.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear filters'**
+  String get commonClearFilters;
+
+  /// No description provided for @navChat.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat'**
+  String get navChat;
+
+  /// No description provided for @navLive.
+  ///
+  /// In en, this message translates to:
+  /// **'Live'**
+  String get navLive;
+
+  /// No description provided for @navService.
+  ///
+  /// In en, this message translates to:
+  /// **'Service'**
+  String get navService;
+
+  /// No description provided for @navTasks.
+  ///
+  /// In en, this message translates to:
+  /// **'Tasks'**
+  String get navTasks;
+
+  /// No description provided for @navManage.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage'**
+  String get navManage;
+
+  /// No description provided for @navSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings'**
+  String get navSettings;
+
   /// No description provided for @logsTelencephalonStarted.
   ///
   /// In en, this message translates to:
@@ -1909,6 +1951,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Task Board'**
   String get taskBoardTitle;
+
+  /// No description provided for @taskStatusBacklog.
+  ///
+  /// In en, this message translates to:
+  /// **'Backlog'**
+  String get taskStatusBacklog;
 
   /// No description provided for @taskStatusTodo.
   ///

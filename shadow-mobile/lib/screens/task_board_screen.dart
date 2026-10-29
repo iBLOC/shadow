@@ -380,10 +380,14 @@ class TaskBoardScreen extends ConsumerWidget {
     final columns = [
       _ColumnConfig(
         id: 'backlog',
-        title: AppLocalizations.of(context)!.taskStatusTodo,
+        title: AppLocalizations.of(context)!.taskStatusBacklog,
         color: AppColors.darkTextSecondary,
       ),
-      _ColumnConfig(id: 'todo', title: 'To Do', color: AppColors.primary),
+      _ColumnConfig(
+        id: 'todo',
+        title: AppLocalizations.of(context)!.taskStatusTodo,
+        color: AppColors.primary,
+      ),
       _ColumnConfig(id: 'in-progress', title: AppLocalizations.of(context)!.taskStatusInProgress, color: AppColors.warning),
       _ColumnConfig(id: 'done', title: AppLocalizations.of(context)!.taskStatusDone, color: AppColors.success),
       // hippocampus 的 TaskStatus 还有 failed / cancelled。少了这两列，

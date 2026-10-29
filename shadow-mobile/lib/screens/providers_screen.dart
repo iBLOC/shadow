@@ -116,10 +116,12 @@ class ProvidersNotifier extends StateNotifier<ProvidersState> {
   final PrefrontalClient _client;
 
   ProvidersNotifier(this._client) : super(const ProvidersState()) {
-    _loadProviders();
+    loadProviders();
   }
 
-  Future<void> _loadProviders() async {
+  /// 公开入口：刷新按钮等 UI 需要触发重新拉取。
+  /// 之前是私有的 `_loadProviders()`，只有同文件的 UI 能调 —— 换文件就断。
+  Future<void> loadProviders() async {
     state = state.copyWith(isLoading: true);
     try {
       final resp = await _client.getProviders();
@@ -144,7 +146,7 @@ class ProvidersNotifier extends StateNotifier<ProvidersState> {
         model: model,
       );
       await _client.addProvider(req);
-      await _loadProviders();
+      await loadProviders();
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
@@ -153,7 +155,7 @@ class ProvidersNotifier extends StateNotifier<ProvidersState> {
   Future<void> removeProvider(String name) async {
     try {
       await _client.deleteProvider(name);
-      await _loadProviders();
+      await loadProviders();
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
@@ -163,7 +165,7 @@ class ProvidersNotifier extends StateNotifier<ProvidersState> {
     try {
       final req = UpdateProviderRequest(enabled: enabled);
       await _client.updateProvider(name, req);
-      await _loadProviders();
+      await loadProviders();
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
@@ -194,7 +196,7 @@ class ProvidersScreen extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () {
-              ref.read(providersNotifierProvider.notifier)._loadProviders();
+              ref.read(providersNotifierProvider.notifier).loadProviders();
             },
           ),
         ],
