@@ -25,8 +25,10 @@ android {
     // 但那个运行时根本不存在，表现为功能整个消失。
     //
     // libencephalon.so 目前只有 arm64-v8a 与 x86_64 两份 —— armeabi-v7a
-    // 编不出来（lance-core-8.0.1 的 SIMD 探测没有 target_arch="arm"
-    // 分支，见 encephalon 仓 scripts/README.md）。
+    // 编不出来。Lance 的阻断已消除（telencephalon 把 hippocampus 改成
+    // optional），但阻断点换成了 cranelift-codegen（wasmtime 的代码生成
+    // 器）："no supported isa found for arch `armv7`"。见 encephalon 仓
+    // scripts/README.md。
     val supportedAbis = listOf("arm64-v8a", "x86_64")
 
     compileOptions {
