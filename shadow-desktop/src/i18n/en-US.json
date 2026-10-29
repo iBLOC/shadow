@@ -104,7 +104,19 @@
     "settings": "Settings",
     "flows": "Flows",
     "resonance": "Resonance",
-    "trace": "Trace"
+    "trace": "Trace",
+    "section": {
+      "converse": "Converse",
+      "work": "Work",
+      "capability": "Capabilities",
+      "more": "More"
+    },
+    "tab": {
+      "chat": "Chat",
+      "tasks": "Tasks",
+      "capability": "Capabilities",
+      "me": "Me"
+    }
   },
   "conversation": {
     "title": "Conversation",
@@ -1260,5 +1272,39 @@
         "desc": "Start an audio recording when none is live; otherwise stop and summarise"
       }
     }
+  },
+  "surface": {
+    "chat": "Chat",
+    "conversations": "Conversations",
+    "voice": "Voice",
+    "livestream": "Livestream",
+    "customerService": "Customer service",
+    "tasks": "Tasks",
+    "group": "Group",
+    "document": "Document",
+    "previews": "Previews",
+    "agents": "Agents",
+    "models": "Models",
+    "modelDownload": "Model download",
+    "modelOnboarding": "Model onboarding",
+    "modelSettings": "Model settings",
+    "providers": "Providers",
+    "mcp": "MCP tools",
+    "skills": "Skills",
+    "memory": "Memory",
+    "promptSettings": "Prompts",
+    "flows": "Flows",
+    "workflowStudio": "Workflow studio",
+    "computerUse": "Computer use",
+    "jdmEditor": "Rule editor",
+    "provisioning": "Device provisioning",
+    "discovery": "Discovery",
+    "logs": "Logs",
+    "trace": "Trace",
+    "resonance": "Resonance",
+    "telencephalon": "Telencephalon",
+    "settings": "Settings",
+    "setup": "Setup",
+    "prefrontalEmbedded": "Embedded prefrontal"
   }
 }

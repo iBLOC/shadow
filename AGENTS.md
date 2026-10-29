@@ -1,6 +1,7 @@
 # PROJECT KNOWLEDGE BASE
 
 **Generated:** 2026-03-21
+**Updated:** 2026-10-29 (⑦ **对话为主的两端 IA 重构（批次 1+2）**：用户拍板「以对话为主」后落地 —— ① 桌面端默认落地页从任务看板改成对话（`App.tsx` index → `<Navigate to="/conversation" replace />`，用重定向保证侧栏高亮）；② 桌面端侧栏 12 项平铺 → 分段（常驻「对话/任务/群组」3 行 + 「能力」「更多」两块可折叠默认收起 + 设置固定底部）；③ 移动端底 tab **6 → 4**（对话/任务/能力/我），**直播/客服降级为对话形态** —— 它们本来就是同一个 agent 的表达方式，不是并列目的地；④ 两端对话页新增**形态切换器**（桌面 `ConversationModeSwitcher.tsx` / 移动 `conversation_mode_switcher.dart`）。导航结构不再两端各硬编码一份：仓根 `agent-surface.json` 新增 `navigation` 段（桌面 4 段 + 移动 4 tab + `conversationModes`），`scripts/lib/nav.mjs` + `scripts/gen_nav.mjs` 生成两端 `nav.g.ts` / `nav.g.dart`（含 lucide/Material 图标映射 + 规范 labelKey → 移动端平铺 ARB getter 的**生成 switch**）。用户裁定**承认端侧专属**：两端能力不对等，只保证同名同语义（清单里用 `_endSideExclusive` 标注理由）。顺手修一个真 bug：桌面端任务角标之前判断 `/tasks/inbox` 而实际路由是 `/tasks`，角标**一直没显示**。守门员升级：修掉规则 5 的**假阳性**（移动端 ARB 是平铺 camelCase、带点 key 解析会抛 `FormatException`，原来拿同一个子串找两端 → 22 条提示全是假的）、接入**导航生成物漂移校验**、CI 新增 `Navigation drift check`；并做了**反向验证**（抽掉两端各一个 key 确认真会报警）。验证：桌面 `tsc` exit 0 + vitest **1118 passed / 2 skipped**（110 文件），移动 `analyze` 0 error + `flutter test` **228/228**，守门员 **0 阻断 / 0 提示**。评估全文 `docs/superpowers/architecture/2026-10-29-conversation-first-ia-audit.md`)
 **Updated:** 2026-10-29 (⑥ **跨端视觉语言落地（阶段 1）**：按用户产品定位「Shadow = 每个人的影子 / 个人助理」重新推导视觉 —— **影子本身没有颜色**（它是光的缺失），所以基底改为**中性黑白灰**（shadcn 的 zinc 语义色板），**品牌色从「内置霓虹紫青」改成「用户可覆盖的槽位」**（默认中性 `#71717A`，7 个预设）。三层语言 = **Umbra 本影（实心）/ Penumbra 半影（玻璃）/ Caustic 焦散（实时信号）**；**发光从装饰降级为信号**（只用于 agent 在线/思考/拾音，颜色取状态色）。落地：`design-tokens.json` 重写 + `scripts/gen_tokens.mjs`（生成桌面端 `tokens.css`/`accent.g.ts` 与移动端 `app_tokens.g.dart`，生成器核心 `deriveAccentTones` **只写一次**）→ 桌面端 `index.css` 改为引用 token + `.glass` 半影层 + `.shadow-ambient` 光源层 + `Card` 默认走玻璃；移动端去霓虹改中性阶、`glass_theme.dart` 改为 `GlassTheme.build(appearance, brightness)`、`AppColors` 主题色改为可变全局（63 处引用跟着主题走）。**两端都要玻璃拟态**（用户拍板）；⚠️ 桌面端是 Chromium WebView、移动端是 Android 原生 Flutter，**`BackdropFilter` 行为不等价，必须分别验证**。新增**用户自定义**：主题色 / 玻璃强度 / 对话框背景（桌面端 `themeStore.ts` 写 `<html>` 内联 CSS 变量，移动端 `theme_provider.dart` 落 `app_config.json`）。新增**跨端契约快照** `scripts/accent-tones.fixture.json` + 两端各自断言（两端算法不可能悄悄分叉）。顺手修一个真 bug：桌面端 `bg-primary/10` 之前**不透明度修饰符根本没生效**（Tailwind 缺 `<alpha-value>`），现在才真是 10%。守门员升级为拦截「生成物漂移 / 两端手写色值 / 玻璃语义不对等」。验证：桌面 `tsc` exit 0 + vitest **1111/1111**，移动 `analyze` 0 error + `flutter test` **228/228**，守门员 **0 阻断**。推导全文 `docs/superpowers/architecture/2026-10-29-shadow-visual-language.md`)
 **Updated:** 2026-10-29 (⑤ **立跨端设计契约**：桌面端与移动端是同一个 agent 的两个终端，按此把 UI 整改重排为「先立共享源、再改两端投影、最后清代码」。仓根新增两份唯一真相源 —— `design-tokens.json`（设计数值）与 `agent-surface.json`（能力 → 两端入口映射，30 条能力），配 `scripts/check-agent-surface.mjs` 守门员并接进 CI（`Cross-client consistency check`），当前两端 26 + 29 条路由**全部登记在册、0 阻断**。配套文档 `docs/superpowers/architecture/2026-10-29-cross-platform-design-system.md`。**统一 ≠ 长得一样**：统一的是色彩/节奏/命名/能力语义，分叉的是容器形态/密度/端侧特有功能)
 **Updated:** 2026-10-29 (① **移动端暂不做 armv7**（用户决定）：只发 `arm64-v8a` + `x86_64`，所以「把 wasmtime 拆可选以支持 armv7」的必要性消失 —— wasmtime 拆可选现在只剩**减体积**的价值（`.so` 150.6MB / APK 346.8MB，根因是端脑面带入的 DataFusion/Arrow/Parquet 栈 ≈47.8MB）。文档里「armeabi-v7a 为什么编不出来」的结论从「阻断点待转移」改成「明确不做」，cranelift/wasmtime 那段留作背景。② **修端脑会话的 wire 契约**：端脑 `ConversationTurn` 序列化成 `{role, text, at}`（`at` = RFC3339），**不是 `timestamp`**；移动端 Dart 照着前额叶方言读 `timestamp` → `(null as num).toInt()` → `_TypeError`，会话列表页与 session transfer 导入响应只要有历史就崩。已改成两种形状都认 + 4 条回归测试（fixture 用 Rust 侧实测字节）；桌面端 `Conversation.history` 类型声明同步改成 `at: string`。③ CI 红灯收敛为**只差 `IBLOC_TOKEN`**（三仓 workflow 的兄弟仓 checkout 都已就位，守卫步骤提前 exit 1 并打印该配什么）；shadow 仓我改的部分全绿（Mobile Analyze / Mobile Test / Desktop Tests / Desktop Build），仍红的只有 `Prefrontal Rust` 与 `Desktop E2E` 两个需要 secret 的 job。④ 真机（小米 2106118C / Android 13）已装 APK 并启动成功无崩溃，但**设置页正文全白未结案** —— 已排除代码 bug 与 build 异常，嫌疑 `BackdropFilter`/Impeller，拿到 `--ez enable-impeller false` 的**零重建** A/B 方案)
@@ -258,7 +259,7 @@ shadow/
 | 文件 | 内容 | 消费方 |
 |---|---|---|
 | `design-tokens.json` | **设计数值的唯一真相源**：颜色 / 间距 / 圆角 / 字号 / 字重 / 时长 / 断点 | 由 `scripts/gen_tokens.mjs` 生成两端落地文件（桌面端 `src/styles/tokens.css` + `accent.g.ts`；移动端 `lib/theme/app_tokens.g.dart`） |
-| `agent-surface.json` | **能力 → 两端入口的唯一映射表**：`id` / `group` / `labelKey` / `icon` / `desktop.route` / `mobile.route` | 两端导航从它生成，而不是各自硬编码一份页面清单 |
+| `agent-surface.json` | **能力 → 两端入口的唯一映射表**：`id` / `group` / `labelKey` / `icon` / `desktop.route` / `mobile.route`，外加 **`navigation` 段**（桌面分段 / 移动 tab / 对话形态） | 两端导航从它生成（`scripts/gen_nav.mjs` → 桌面 `src/navigation/nav.g.ts` + 移动 `lib/navigation/nav.g.dart`），而不是各自硬编码一份页面清单 |
 | `scripts/accent-tones.fixture.json` | **主题色派生的跨端契约快照**（冻结的期望值） | 桌面端 `tests/styles/accentTones.test.ts` + 移动端 `test/theme/accent_tones_test.dart` 各自断言 |
 
 **统一什么 / 分叉什么**：设计数值、能力清单、能力状态、信息架构骨架、文案 key 语义、交互流程模式
@@ -267,16 +268,19 @@ shadow/
 
 **守门员**：`scripts/check-agent-surface.mjs`，CI 的 `Cross-client consistency check` 步骤（desktop-build job）。
 它拦住：清单里的路由在两端不存在 / 两端偷偷多出或少出路由 / **生成物与 token 源漂移** /
-移动端或桌面端偷偷手写色值 / 两端玻璃语义不对等 / 两端文案 key 体系分叉。
-当前状态：**两端 26 + 29 条路由全部登记在册，3 个生成物 0 过期，0 阻断**。
+**导航生成物漂移** / 移动端或桌面端偷偷手写色值 / 两端玻璃语义不对等 / 两端文案 key 体系分叉。
+当前状态：**两端 26 + 29 条路由全部登记在册，5 个生成物 0 过期，0 阻断 / 0 提示**。
 
-**生成物是从属的**：不要手改 `tokens.css` / `accent.g.ts` / `app_tokens.g.dart` ——
-改 `design-tokens.json` 后跑 `node scripts/gen_tokens.mjs`。生成器核心
-（`deriveAccentTones` 等）在 `scripts/lib/tokens.mjs` 里**只写一次**，生成进两端，
-所以两端不可能算法分叉。
+**生成物是从属的**：不要手改 `tokens.css` / `accent.g.ts` / `app_tokens.g.dart` /
+`nav.g.ts` / `nav.g.dart` —— 改 `design-tokens.json` 后跑 `node scripts/gen_tokens.mjs`，
+改 `agent-surface.json` 的 `navigation` 段后跑 `node scripts/gen_nav.mjs`。
+生成器核心（`deriveAccentTones` 等）在 `scripts/lib/tokens.mjs`、导航解析与
+`toArbKey` / `collectLabelKeys` 在 `scripts/lib/nav.mjs` 里**各只写一次**，
+生成与校验共用同一份实现，所以两端不可能算法分叉。
 
-**尚未推进**（阶段 1.5/2）：两端文案 key 还没统一到 `surface.*`；导航还没改成数据驱动；
-移动端 212 处 `EdgeInsets` / 117 处硬编码 `fontSize` 尚未 token 化；桌面端 351 处原始色阶 class 尚未 token 化。
+**尚未推进**（阶段 1.5/2）：移动端 212 处 `EdgeInsets` / 117 处硬编码 `fontSize` 尚未 token 化；
+桌面端 351 处原始色阶 class / 119 处硬编码 hex 尚未 token 化；
+两端老 `nav.*` 文案 key 已被 `surface.*` 取代但尚未清理。
 
 ## 跨端视觉语言（2026-10-29 起）
 
@@ -306,6 +310,39 @@ shadow/
 
 **已知风险**：移动端 `AppColors.primary` 为跟随主题变成了**可变全局**（63 处引用不用逐个改），
 代价是不能进 `const` 上下文；长期应改读 `Theme.of(context).colorScheme.primary`（阶段 1.5）。
+
+## 对话为主的两端 IA（2026-10-29 起）
+
+> **原则**：用户是**以对话为主**的。对话是唯一主干，也是两端的默认落地页；
+> 能力是对话可调用的工具，不是并列目的地；表达形态（语音 / 直播 / 客服）是对话的**模式**，
+> 不是并列 tab。
+>
+> 评估全文（含 7 条带代码证据的发现 F1–F7）：
+> [`docs/superpowers/architecture/2026-10-29-conversation-first-ia-audit.md`](docs/superpowers/architecture/2026-10-29-conversation-first-ia-audit.md)
+
+**已落地（批次 1+2）**：
+
+| 落法 | 桌面端 | 移动端 |
+|---|---|---|
+| 对话是默认落地页 | `App.tsx` index → `<Navigate to="/conversation" replace />` | 本来就是（`/` → `ChatScreen`） |
+| 导航收成一块 | 侧栏 12 平铺 → 常驻 3 行 + 「能力」「更多」两块可折叠 | 底 tab 6 → **4**（对话/任务/能力/我） |
+| 表达形态降级 | 对话页形态切换器（对话 / 语音） | 对话页形态切换条（对话 / 语音 / 直播 / 客服） |
+| 导航结构单一源 | `src/navigation/nav.g.ts`（生成） | `lib/navigation/nav.g.dart`（生成） |
+
+**端侧专属是允许的**：用户裁定「承认端侧专属，只保证同名同语义」——
+电脑操作 / 编排 / 规则编辑器 / 追踪 = 桌面端专属；直播 / 客服 / 配网 / 设备发现 = 移动与设备端专属。
+清单里用 `_endSideExclusive` 标注每个专属能力及理由；生成器按各端 route 解析，
+**某一端没有路由就自动跳过**该端导航项。
+
+**规范 labelKey 只有一份**（写在清单里，如 `surface.chat`），但两端**存储形式必须不同**：
+桌面端 i18next 用嵌套 JSON（`t('surface.chat')` 原生可用）；
+移动端 Flutter ARB 是**平铺**的 —— 带点的 key 解析会抛 `FormatException` ——
+所以存成 camelCase（`surfaceChat`），由生成的 `navLabel()` switch 做 id → getter 映射。
+**这个映射由脚本生成，不手改**（`scripts/lib/nav.mjs` 的 `toArbKey`）。
+
+**下一批（未做）**：批次 3 设置瘦身（桌面 9 section → 3 组；移动 18 平铺 tile → 4 组 + 高级折叠）、
+批次 4 能力回到对话界面（治 F4 根因：两端对话界面目前调不起任何能力）、
+批次 5 能力对齐、批次 6 `setup` 首次引导接线。
 
 ## 双端差异
 

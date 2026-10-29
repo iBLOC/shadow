@@ -104,7 +104,19 @@
     "settings": "设置",
     "flows": "思维定式",
     "resonance": "共鸣",
-    "trace": "执行追踪"
+    "trace": "执行追踪",
+    "section": {
+      "converse": "对话与表达",
+      "work": "任务与产出",
+      "capability": "能力",
+      "more": "更多"
+    },
+    "tab": {
+      "chat": "对话",
+      "tasks": "任务",
+      "capability": "能力",
+      "me": "我"
+    }
   },
   "conversation": {
     "title": "对话",
@@ -1284,5 +1296,39 @@
         "desc": "没有进行中的录音时开始语音录音，否则停止并生成总结"
       }
     }
+  },
+  "surface": {
+    "chat": "对话",
+    "conversations": "对话记录",
+    "voice": "语音对话",
+    "livestream": "直播",
+    "customerService": "智能客服",
+    "tasks": "任务",
+    "group": "群组",
+    "document": "文档",
+    "previews": "预览",
+    "agents": "智能体",
+    "models": "模型",
+    "modelDownload": "模型下载",
+    "modelOnboarding": "模型引导",
+    "modelSettings": "模型设置",
+    "providers": "提供商",
+    "mcp": "MCP 工具",
+    "skills": "技能",
+    "memory": "记忆",
+    "promptSettings": "提示词",
+    "flows": "流程",
+    "workflowStudio": "编排",
+    "computerUse": "电脑操作",
+    "jdmEditor": "规则编辑器",
+    "provisioning": "设备配网",
+    "discovery": "设备发现",
+    "logs": "日志",
+    "trace": "追踪",
+    "resonance": "Resonance",
+    "telencephalon": "端脑",
+    "settings": "设置",
+    "setup": "初始设置",
+    "prefrontalEmbedded": "嵌入式前额叶"
   }
 }

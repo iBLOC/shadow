@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../generated/l10n/app_localizations.dart';
+import '../navigation/nav.g.dart';
 import '../theme/app_colors.dart';
 import 'glass_bottom_nav.dart';
 
@@ -15,93 +16,52 @@ class MainShell extends StatefulWidget {
 }
 
 class _MainShellState extends State<MainShell> {
-  /// 底部导航的 6 个入口。label 走 l10n —— 之前这里是硬编码英文
-  /// （'Chat' / 'Live' / 'Service' / 'Tasks' / 'Manage' / 'Settings'），
-  /// 中文用户看到的是六个英文 tab。
+  /// 底部导航的 4 个入口：**对话 / 任务 / 能力 / 我**。
+  ///
+  /// 导航结构来自仓根 `agent-surface.json`（由 scripts/gen_nav.mjs 生成）。
+  /// 之前这里是 6 个硬编码 tab，其中「直播 / 客服」其实是同一个 agent 的
+  /// **对话形态**，不是并列目的地 —— 现在降级为对话页顶部的形态切换器。
   List<GlassBottomNavItem> _navItems(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     return [
-      GlassBottomNavItem(
-        icon: Icons.chat_bubble_outline,
-        label: l10n.navChat,
-      ),
-      GlassBottomNavItem(icon: Icons.live_tv, label: l10n.navLive),
-      GlassBottomNavItem(icon: Icons.headset_mic, label: l10n.navService),
-      GlassBottomNavItem(icon: Icons.task_alt, label: l10n.navTasks),
-      GlassBottomNavItem(
-        icon: Icons.dashboard_customize,
-        label: l10n.navManage,
-      ),
-      GlassBottomNavItem(
-        icon: Icons.settings_outlined,
-        label: l10n.navSettings,
-      ),
+      for (final tab in mobileNavTabs)
+        GlassBottomNavItem(icon: tab.icon, label: navLabel(l10n, tab.labelKey)),
     ];
   }
 
   /// 当前路径该高亮哪个 tab。
   ///
-  /// 必须用**前缀**匹配：之前是精确相等，于是 `/settings/model`、
-  /// `/settings/prompt`、`/settings/prefrontal`、`/settings/encephalon`、
-  /// `/voice`、`/group`、`/flows` 这 7 条路由全部落到 `return 0` ——
-  /// 用户点进「嵌入式大脑」设置页，底部高亮却跳回「Chat」。
+  /// 规则来自生成的清单，不在这里硬编码：
+  ///  - 对话 tab 额外覆盖所有对话形态的路由（语音 / 直播 / 客服）
+  ///  - 其余按 tab 的 alsoRoutes + 路由前缀匹配（长的优先）
   int _getSelectedIndex() {
     final path = widget.currentPath;
 
-    // 长前缀优先：`/settings/model` 要先于 `/settings` 命中。
-    if (path.startsWith('/settings')) return 5;
-    if (path.startsWith('/manage')) return 4;
-    // 旧的深层链接（`/agents`、`/models` …）重定向到 `/manage/*`。
-    if (path.startsWith('/agents') ||
-        path.startsWith('/models') ||
-        path.startsWith('/providers') ||
-        path.startsWith('/mcp') ||
-        path.startsWith('/skills') ||
-        path.startsWith('/memory')) {
-      return 4;
+    // 对话：对话本身 + 所有对话形态
+    final chatIndex = mobileNavTabs.indexWhere((t) => t.id == 'chat');
+    if (chatIndex >= 0) {
+      if (path == '/' || conversationModes.any((m) => m.route == path)) {
+        return chatIndex;
+      }
     }
-    if (path.startsWith('/tasks') || path.startsWith('/conversations')) {
-      return 3;
+
+    // 其余：精确命中 → alsoRoutes → 前缀匹配
+    for (var i = 0; i < mobileNavTabs.length; i++) {
+      final tab = mobileNavTabs[i];
+      if (tab.route == path) return i;
+      if (tab.alsoRoutes.contains(path)) return i;
     }
-    if (path.startsWith('/livestream')) return 1;
-    if (path.startsWith('/customer-service')) return 2;
-    if (path.startsWith('/group')) return 4;
-    if (path.startsWith('/flows')) return 5;
-    if (path.startsWith('/discovery') ||
-        path.startsWith('/logs') ||
-        path.startsWith('/resonance')) {
-      return 5;
-    }
-    // `provisioning_screen.dart` 还没接路由（页面存在但无入口）；
-    // 一旦接上，这里就会自动高亮 Settings，不用再改。
-    if (path == '/provision') return 5;
-    if (path == '/' || path.startsWith('/chat') || path.startsWith('/voice')) {
-      return 0;
+    for (var i = 0; i < mobileNavTabs.length; i++) {
+      final route = mobileNavTabs[i].route;
+      if (route == '/') continue;
+      if (path.startsWith('$route/')) return i;
     }
     return 0;
   }
 
   void _onDestinationSelected(BuildContext context, int index) {
-    switch (index) {
-      case 0:
-        context.go('/');
-        break;
-      case 1:
-        context.go('/livestream');
-        break;
-      case 2:
-        context.go('/customer-service');
-        break;
-      case 3:
-        context.go('/tasks');
-        break;
-      case 4:
-        context.go('/manage');
-        break;
-      case 5:
-        context.go('/settings');
-        break;
-    }
+    if (index < 0 || index >= mobileNavTabs.length) return;
+    context.go(mobileNavTabs[index].route);
   }
 
   @override

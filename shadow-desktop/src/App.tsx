@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useEffect } from 'react';
 import { Layout } from './components/Layout';
 import { AppInitializer } from './components/AppInitializer';
@@ -49,7 +49,9 @@ function App() {
         <Route path="/setup" element={<SetupPage />} />
         <Route path="/onboarding" element={<ModelOnboardingPage />} />
         <Route path="/" element={<AppInitializer><Layout /></AppInitializer>}>
-          <Route index element={<TaskBoardPage />} />
+          {/* 对话为主：默认落地页是对话，不是任务看板。
+              重定向而不是直接渲染，是为了让侧栏的「对话」项保持高亮。 */}
+          <Route index element={<Navigate to="/conversation" replace />} />
           <Route path="tasks" element={<TaskBoardPage />} />
           <Route path="conversation" element={<ConversationPage />} />
           <Route path="models" element={<ModelsPage />} />

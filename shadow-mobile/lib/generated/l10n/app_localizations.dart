@@ -3019,6 +3019,246 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Rose'**
   String get appearanceAccentRose;
+
+  /// No description provided for @surfaceChat.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat'**
+  String get surfaceChat;
+
+  /// No description provided for @surfaceConversations.
+  ///
+  /// In en, this message translates to:
+  /// **'Conversations'**
+  String get surfaceConversations;
+
+  /// No description provided for @surfaceVoice.
+  ///
+  /// In en, this message translates to:
+  /// **'Voice'**
+  String get surfaceVoice;
+
+  /// No description provided for @surfaceLivestream.
+  ///
+  /// In en, this message translates to:
+  /// **'Livestream'**
+  String get surfaceLivestream;
+
+  /// No description provided for @surfaceCustomerService.
+  ///
+  /// In en, this message translates to:
+  /// **'Customer service'**
+  String get surfaceCustomerService;
+
+  /// No description provided for @surfaceTasks.
+  ///
+  /// In en, this message translates to:
+  /// **'Tasks'**
+  String get surfaceTasks;
+
+  /// No description provided for @surfaceGroup.
+  ///
+  /// In en, this message translates to:
+  /// **'Group'**
+  String get surfaceGroup;
+
+  /// No description provided for @surfaceDocument.
+  ///
+  /// In en, this message translates to:
+  /// **'Document'**
+  String get surfaceDocument;
+
+  /// No description provided for @surfacePreviews.
+  ///
+  /// In en, this message translates to:
+  /// **'Previews'**
+  String get surfacePreviews;
+
+  /// No description provided for @surfaceAgents.
+  ///
+  /// In en, this message translates to:
+  /// **'Agents'**
+  String get surfaceAgents;
+
+  /// No description provided for @surfaceModels.
+  ///
+  /// In en, this message translates to:
+  /// **'Models'**
+  String get surfaceModels;
+
+  /// No description provided for @surfaceModelDownload.
+  ///
+  /// In en, this message translates to:
+  /// **'Model download'**
+  String get surfaceModelDownload;
+
+  /// No description provided for @surfaceModelOnboarding.
+  ///
+  /// In en, this message translates to:
+  /// **'Model onboarding'**
+  String get surfaceModelOnboarding;
+
+  /// No description provided for @surfaceModelSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Model settings'**
+  String get surfaceModelSettings;
+
+  /// No description provided for @surfaceProviders.
+  ///
+  /// In en, this message translates to:
+  /// **'Providers'**
+  String get surfaceProviders;
+
+  /// No description provided for @surfaceMcp.
+  ///
+  /// In en, this message translates to:
+  /// **'MCP tools'**
+  String get surfaceMcp;
+
+  /// No description provided for @surfaceSkills.
+  ///
+  /// In en, this message translates to:
+  /// **'Skills'**
+  String get surfaceSkills;
+
+  /// No description provided for @surfaceMemory.
+  ///
+  /// In en, this message translates to:
+  /// **'Memory'**
+  String get surfaceMemory;
+
+  /// No description provided for @surfacePromptSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Prompts'**
+  String get surfacePromptSettings;
+
+  /// No description provided for @surfaceFlows.
+  ///
+  /// In en, this message translates to:
+  /// **'Flows'**
+  String get surfaceFlows;
+
+  /// No description provided for @surfaceWorkflowStudio.
+  ///
+  /// In en, this message translates to:
+  /// **'Workflow studio'**
+  String get surfaceWorkflowStudio;
+
+  /// No description provided for @surfaceComputerUse.
+  ///
+  /// In en, this message translates to:
+  /// **'Computer use'**
+  String get surfaceComputerUse;
+
+  /// No description provided for @surfaceJdmEditor.
+  ///
+  /// In en, this message translates to:
+  /// **'Rule editor'**
+  String get surfaceJdmEditor;
+
+  /// No description provided for @surfaceProvisioning.
+  ///
+  /// In en, this message translates to:
+  /// **'Device provisioning'**
+  String get surfaceProvisioning;
+
+  /// No description provided for @surfaceDiscovery.
+  ///
+  /// In en, this message translates to:
+  /// **'Discovery'**
+  String get surfaceDiscovery;
+
+  /// No description provided for @surfaceLogs.
+  ///
+  /// In en, this message translates to:
+  /// **'Logs'**
+  String get surfaceLogs;
+
+  /// No description provided for @surfaceTrace.
+  ///
+  /// In en, this message translates to:
+  /// **'Trace'**
+  String get surfaceTrace;
+
+  /// No description provided for @surfaceResonance.
+  ///
+  /// In en, this message translates to:
+  /// **'Resonance'**
+  String get surfaceResonance;
+
+  /// No description provided for @surfaceTelencephalon.
+  ///
+  /// In en, this message translates to:
+  /// **'Telencephalon'**
+  String get surfaceTelencephalon;
+
+  /// No description provided for @surfaceSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings'**
+  String get surfaceSettings;
+
+  /// No description provided for @surfaceSetup.
+  ///
+  /// In en, this message translates to:
+  /// **'Setup'**
+  String get surfaceSetup;
+
+  /// No description provided for @surfacePrefrontalEmbedded.
+  ///
+  /// In en, this message translates to:
+  /// **'Embedded prefrontal'**
+  String get surfacePrefrontalEmbedded;
+
+  /// No description provided for @navSectionConverse.
+  ///
+  /// In en, this message translates to:
+  /// **'Converse'**
+  String get navSectionConverse;
+
+  /// No description provided for @navSectionWork.
+  ///
+  /// In en, this message translates to:
+  /// **'Work'**
+  String get navSectionWork;
+
+  /// No description provided for @navSectionCapability.
+  ///
+  /// In en, this message translates to:
+  /// **'Capabilities'**
+  String get navSectionCapability;
+
+  /// No description provided for @navSectionMore.
+  ///
+  /// In en, this message translates to:
+  /// **'More'**
+  String get navSectionMore;
+
+  /// No description provided for @navTabChat.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat'**
+  String get navTabChat;
+
+  /// No description provided for @navTabTasks.
+  ///
+  /// In en, this message translates to:
+  /// **'Tasks'**
+  String get navTabTasks;
+
+  /// No description provided for @navTabCapability.
+  ///
+  /// In en, this message translates to:
+  /// **'Capabilities'**
+  String get navTabCapability;
+
+  /// No description provided for @navTabMe.
+  ///
+  /// In en, this message translates to:
+  /// **'Me'**
+  String get navTabMe;
 }
 
 class _AppLocalizationsDelegate

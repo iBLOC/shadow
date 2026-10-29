@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../generated/l10n/app_localizations.dart';
+import '../../navigation/nav.g.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/glass_card.dart';
 import '../../widgets/glass_app_bar.dart';
@@ -88,6 +89,14 @@ class ManagementHubScreen extends ConsumerWidget {
                         ? '...'
                         : '${hubState.memoryCount} docs',
                     onTap: () => context.push('/manage/memory'),
+                  ),
+                  _ManagementCard(
+                    icon: Icons.account_tree,
+                    title: navLabel(l10n, 'surface.flows'),
+                    subtitle: hubState.isLoading
+                        ? '...'
+                        : '${hubState.flowCount} flows',
+                    onTap: () => context.push('/flows'),
                   ),
                 ],
               ),

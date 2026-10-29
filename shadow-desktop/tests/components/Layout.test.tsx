@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 
 vi.mock('react-i18next', () => ({
@@ -73,33 +73,38 @@ describe('Layout', () => {
   });
 
   describe('navigation items', () => {
-    it('renders all primary nav items', () => {
-      // Mirrors `navItems` in `src/components/Layout.tsx` — kept in sync when
-      // routes are added/removed. `discovery`, `agents`, and `models` were
-      // removed in the 2026-08-23 ModelsPage consolidation. The 2026-09
-      // audit cycle added `flows`, `trace`, `computerUse`, `workflowStudio`
-      // (`recording` went away with the standalone RecordingPage).
-      // `previews` was folded into the right pane of `ConversationPage`
-      // (2026-09-25) and removed from the top-level nav.
+    it('renders the always-visible items only (对话 / 任务 / 群组)', () => {
+      // 导航结构来自 agent-surface.json（scripts/gen_nav.mjs 生成）。
+      // 对话为主：常驻只留主干与工作产物，能力与「更多」默认收起。
       renderLayout();
-      expect(screen.getByText(/nav\.tasks/i)).toBeInTheDocument();
-      expect(screen.getByText(/nav\.chat/i)).toBeInTheDocument();
-      expect(screen.getByText(/nav\.flows/i)).toBeInTheDocument();
-      expect(screen.getByText(/nav\.trace/i)).toBeInTheDocument();
-      expect(screen.getByText(/nav\.computerUse/i)).toBeInTheDocument();
-      expect(screen.getByText(/nav\.workflowStudio/i)).toBeInTheDocument();
-      expect(screen.getByText(/nav\.mcp/i)).toBeInTheDocument();
-      expect(screen.getByText(/nav\.jdmEditor/i)).toBeInTheDocument();
-      expect(screen.getByText(/nav\.skills/i)).toBeInTheDocument();
-      expect(screen.getByText(/nav\.promptSettings/i)).toBeInTheDocument();
-      expect(screen.getByText(/nav\.memory/i)).toBeInTheDocument();
-      expect(screen.getByText(/nav\.logs/i)).toBeInTheDocument();
-      expect(screen.queryByText(/nav\.previews/i)).not.toBeInTheDocument();
+      expect(screen.getByText('surface.chat')).toBeInTheDocument();
+      expect(screen.getByText('surface.tasks')).toBeInTheDocument();
+      expect(screen.getByText('surface.group')).toBeInTheDocument();
+    });
+
+    it('renders collapsible section headers 能力 / 更多', () => {
+      renderLayout();
+      expect(screen.getByText('nav.section.capability')).toBeInTheDocument();
+      expect(screen.getByText('nav.section.more')).toBeInTheDocument();
+    });
+
+    it('keeps capability items hidden until the section is expanded', () => {
+      renderLayout();
+      expect(screen.queryByText('surface.mcp')).not.toBeInTheDocument();
+      expect(screen.queryByText('surface.skills')).not.toBeInTheDocument();
+    });
+
+    it('reveals capability items when the section is expanded', () => {
+      renderLayout();
+      fireEvent.click(screen.getByText('nav.section.capability'));
+      expect(screen.getByText('surface.mcp')).toBeInTheDocument();
+      expect(screen.getByText('surface.skills')).toBeInTheDocument();
+      expect(screen.getByText('surface.memory')).toBeInTheDocument();
     });
 
     it('renders settings nav link in sidebar footer', () => {
       renderLayout();
-      expect(screen.getByText(/nav\.settings/i)).toBeInTheDocument();
+      expect(screen.getByText('surface.settings')).toBeInTheDocument();
     });
 
     it('does not render tasks badge when pendingTasks is empty', () => {
@@ -109,22 +114,34 @@ describe('Layout', () => {
       const navBadges = Array.from(badges).filter(el => el.textContent && /^\d+$/.test(el.textContent.trim()));
       expect(navBadges.length).toBe(0);
     });
+
+    it('shows a badge on 任务 when there are pending tasks', () => {
+      resonanceState.pendingTasks = [{ id: 't1' }, { id: 't2' }];
+      const { container } = renderLayout();
+      const badges = Array.from(container.querySelectorAll('[class*="rounded-full"]')).filter(
+        el => el.textContent && /^\d+$/.test(el.textContent.trim()),
+      );
+      expect(badges.length).toBe(1);
+      expect(badges[0].textContent).toBe('2');
+    });
   });
 
   describe('active nav highlighting', () => {
     it('marks active NavLink with bg-primary/10 class', () => {
       const { container } = renderLayout('/mcp');
+      // /mcp 在「能力」段里 —— 段默认收起，先展开
+      fireEvent.click(screen.getByText('nav.section.capability'));
       const activeLinks = Array.from(container.querySelectorAll('a')).filter(
         (el) => el.className.includes('bg-primary/10')
       );
       expect(activeLinks.length).toBe(1);
-      expect(activeLinks[0]).toHaveTextContent(/nav\.mcp/i);
+      expect(activeLinks[0]).toHaveTextContent('surface.mcp');
     });
 
     it('highlights settings link when on /settings', () => {
       const { container } = renderLayout('/settings');
       const settingsLink = Array.from(container.querySelectorAll('a')).find(
-        (el) => el.textContent === 'nav.settings',
+        (el) => el.textContent === 'surface.settings',
       );
       expect(settingsLink).toBeDefined();
       expect(settingsLink!.className).toContain('bg-primary/10');

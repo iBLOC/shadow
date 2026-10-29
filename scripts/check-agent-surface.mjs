@@ -8,6 +8,8 @@
  *   2. agent-surface.json 是能力清单 —— 校验清单里的每条路由在两端真实存在，
  *      且两端的每条真实路由都在清单里登记过（不许悄悄出现/消失）。
  *   3. 两端的文案 key 体系在 capability 接入后应当一致（surface.*）。
+ *   4. 导航结构只有一份定义（agent-surface.json 的 navigation 段）——
+ *      两端导航都是生成物，校验它们没漂移。
  *
  * 用法：node scripts/check-agent-surface.mjs
  * 退出码 0 = 通过；1 = 有阻断问题。
@@ -20,11 +22,17 @@ import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { buildCss, buildDart, buildAccentTs } from './lib/tokens.mjs';
+import {
+  buildDesktopNav,
+  buildMobileNav,
+  collectLabelKeys,
+  toArbKey,
+} from './lib/nav.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 /**
- * 生成物清单 —— 与 scripts/gen_tokens.mjs 保持一致。
+ * 生成物清单 —— 与 scripts/gen_tokens.mjs / scripts/gen_nav.mjs 保持一致。
  *
  * 生成器核心（deriveAccentTones 等）在 lib/tokens.mjs 里只写一次，
  * 写入与校验共用，所以「校验」用的就是「生成」用的那份代码。
@@ -47,31 +55,46 @@ const GENERATED = [
   },
 ];
 
-function checkGeneratedFiles(tokens) {
+/**
+ * 导航生成物 —— 导航结构只有一份定义（agent-surface.json 的 navigation 段），
+ * 两端各生成一份。清单改了却忘了重跑生成器 = 两端导航悄悄分叉。
+ */
+const NAV_GENERATED = [
+  {
+    path: 'shadow-desktop/src/navigation/nav.g.ts',
+    build: buildDesktopNav,
+    eol: '\n',
+  },
+  {
+    path: 'shadow-mobile/lib/navigation/nav.g.dart',
+    build: buildMobileNav,
+    eol: '\r\n',
+  },
+];
+
+function checkGeneratedFiles(entries, arg, fixHint) {
   const errors = [];
   const warnings = [];
   let stale = 0;
 
-  for (const target of GENERATED) {
+  for (const target of entries) {
     const abs = join(ROOT, target.path);
     if (!existsSync(abs)) {
-      errors.push(
-        `生成物缺失：${target.path} —— 跑 node scripts/gen_tokens.mjs`,
-      );
+      errors.push(`生成物缺失：${target.path} —— 跑 ${fixHint}`);
       stale += 1;
       continue;
     }
-    const expected = target.build(tokens).split('\n').join(target.eol);
+    const expected = target.build(arg).split('\n').join(target.eol);
     const current = readFileSync(abs, 'utf8');
     if (current !== expected) {
       errors.push(
-        `生成物与 design-tokens.json 不同步：${target.path} —— 跑 node scripts/gen_tokens.mjs`,
+        `生成物与共享源不同步：${target.path} —— 跑 ${fixHint}`,
       );
       stale += 1;
     }
   }
 
-  return { checked: GENERATED.length, stale, errors, warnings };
+  return { checked: entries.length, stale, errors, warnings };
 }
 
 const errors = [];
@@ -210,7 +233,11 @@ for (const r of mRoutes) {
 if (tokens) {
   // 4.1 生成物必须与 design-tokens.json 同步。
   //     数值改了却忘了重跑生成器 = 两端悄悄分叉，这是最该被拦住的。
-  const drift = checkGeneratedFiles(tokens);
+  const drift = checkGeneratedFiles(
+    GENERATED,
+    tokens,
+    'node scripts/gen_tokens.mjs',
+  );
   for (const d of drift.errors) errors.push(d);
   for (const d of drift.warnings) warnings.push(d);
   infos.push(
@@ -256,21 +283,63 @@ if (tokens) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 5. 两端文案 key：能力清单用了 surface.* key，两端都应当有
+// 4.5 导航生成物：导航结构只有一份定义，两端各生成一份
 // ─────────────────────────────────────────────────────────────
 if (surface) {
-  const surfaceKeys = surface.capabilities.map((c) => c.labelKey);
-  const en = readText('shadow-mobile/lib/l10n/app_en.arb');
-  const desktopEn = readText('shadow-desktop/src/i18n/en-US.json');
+  const navDrift = checkGeneratedFiles(
+    NAV_GENERATED,
+    surface,
+    'node scripts/gen_nav.mjs',
+  );
+  for (const d of navDrift.errors) errors.push(d);
+  for (const d of navDrift.warnings) warnings.push(d);
+  infos.push(
+    `导航生成物同步：${navDrift.checked} 个目标，${navDrift.stale} 个过期`,
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// 5. 两端文案 key：能力清单用了 surface.* key，两端都应当有
+//
+// 两端的 key 形态不同，这是**已知且必要**的差异：
+//   桌面端 i18next  → 嵌套 JSON，`surface.chat`
+//   移动端 Flutter ARB → 平铺 camelCase，`surfaceChat`
+//     （ARB 不支持带点的 key —— 实测解析直接抛 FormatException）
+// 所以这里按各自真实结构查，不能拿同一个子串去找两边。
+// ─────────────────────────────────────────────────────────────
+if (surface) {
+  const surfaceKeys = collectLabelKeys(surface);
+
+  const mobileEn = readJson('shadow-mobile/lib/l10n/app_en.arb');
+  const mobileZh = readJson('shadow-mobile/lib/l10n/app_zh.arb');
+  const desktopEn = readJson('shadow-desktop/src/i18n/en-US.json');
+  const desktopZh = readJson('shadow-desktop/src/i18n/zh-CN.json');
+
   for (const key of surfaceKeys) {
-    const leaf = key.split('.').pop();
-    if (!en.includes(`"${leaf}"`)) {
-      warnings.push(`移动端 ARB 里还没有 ${key} 的文案（阶段 2 接入能力清单时补）`);
+    const flat = toArbKey(key);
+
+    if (!(flat in mobileEn) || !(flat in mobileZh)) {
+      warnings.push(
+        `移动端 ARB 里还没有 ${key} 的文案（平铺 key "${flat}"，阶段 2 接入能力清单时补）`,
+      );
     }
-    if (!desktopEn.includes(`"${leaf}"`)) {
-      warnings.push(`桌面端 en-US.json 里还没有 ${key} 的文案（阶段 2 接入能力清单时补）`);
+    if (!hasJsonPath(desktopEn, key) || !hasJsonPath(desktopZh, key)) {
+      warnings.push(
+        `桌面端 i18n 里还没有 ${key} 的文案（阶段 2 接入能力清单时补）`,
+      );
     }
   }
+}
+
+/** 嵌套 JSON 里有没有这条路径（`surface.chat` → obj.surface.chat）。 */
+function hasJsonPath(obj, dotted) {
+  return dotted
+    .split('.')
+    .reduce(
+      (acc, k) =>
+        acc && typeof acc === 'object' && k in acc ? acc[k] : undefined,
+      obj,
+    ) !== undefined;
 }
 
 function hexToRgb(hex) {

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import '../l10n/current_l10n.dart';
+import 'telencephalon/telencephalon_client.dart';
 
 /// hippocampus 的任务按租户分区。默认租户与桌面端
 /// `taskBoardDataStore` 的 `DEFAULT_TENANT` 保持一致。
@@ -1394,6 +1395,7 @@ class HubState {
   final int agentCount;
   final int mcpServerCount;
   final int memoryCount;
+  final int flowCount;
   final bool isLoading;
   final String? error;
 
@@ -1403,6 +1405,7 @@ class HubState {
     this.agentCount = 0,
     this.mcpServerCount = 0,
     this.memoryCount = 0,
+    this.flowCount = 0,
     this.isLoading = false,
     this.error,
   });
@@ -1413,6 +1416,7 @@ class HubState {
     int? agentCount,
     int? mcpServerCount,
     int? memoryCount,
+    int? flowCount,
     bool? isLoading,
     String? error,
   }) {
@@ -1422,6 +1426,7 @@ class HubState {
       agentCount: agentCount ?? this.agentCount,
       mcpServerCount: mcpServerCount ?? this.mcpServerCount,
       memoryCount: memoryCount ?? this.memoryCount,
+      flowCount: flowCount ?? this.flowCount,
       isLoading: isLoading ?? this.isLoading,
       error: error,
     );
@@ -1432,7 +1437,12 @@ class HubState {
 class HubNotifier extends StateNotifier<HubState> {
   final PrefrontalClient _client;
 
-  HubNotifier(this._client) : super(const HubState()) {
+  /// 流程走端脑（telencephalon）—— 它是端脑面才有的能力。
+  final TelencephalonClient _telencephalonClient;
+
+  HubNotifier(this._client, {TelencephalonClient? telencephalonClient})
+    : _telencephalonClient = telencephalonClient ?? TelencephalonClient(),
+      super(const HubState()) {
     loadAllCounts();
   }
 
@@ -1454,12 +1464,21 @@ class HubNotifier extends StateNotifier<HubState> {
       final mcpServers = results[3];
       final memories = results[4];
 
+      // 流程计数单独取 —— 端脑不可用时不影响其它计数
+      var flowCount = 0;
+      try {
+        flowCount = (await _telencephalonClient.listFlows()).length;
+      } catch (_) {
+        flowCount = 0;
+      }
+
       state = state.copyWith(
         providerCount: providers.length,
         skillCount: skills.length,
         agentCount: agents.length,
         mcpServerCount: mcpServers.length,
         memoryCount: memories.length,
+        flowCount: flowCount,
         isLoading: false,
       );
     } catch (e) {

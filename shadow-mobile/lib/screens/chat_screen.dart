@@ -14,6 +14,7 @@ import '../widgets/chat/local_chat_view.dart';
 import '../widgets/chat/prefrontal_chat_view.dart';
 import '../widgets/chat/agent2ui_view.dart';
 import '../widgets/chat/mode_switcher.dart';
+import '../widgets/chat/conversation_mode_switcher.dart';
 import '../theme/app_colors.dart';
 import '../router/app_router.dart';
 
@@ -186,29 +187,39 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             ),
         ],
       ),
-      body: isAgent2UI
-          ? const Agent2UIView()
-          : isLitertMode
-          ? const PrefrontalChatView()
-          : LocalChatView(
-              chatState: chatState,
-              l10n: l10n,
-              isDark: isDark,
-              scrollController: _scrollController,
-              promptController: _promptController,
-              onSendMessage: _sendMessage,
-              onSpeak: () =>
-                  ref.read(chatProvider.notifier).speakLastResponse(),
-              onPickImage: () => ref.read(chatProvider.notifier).pickImage(),
-              onCaptureImage: () =>
-                  ref.read(chatProvider.notifier).captureImage(),
-              onPickFile: () => ref.read(chatProvider.notifier).pickFile(),
-              onStartAudioRecording: () =>
-                  ref.read(chatProvider.notifier).startAudioRecording(),
-              onStopAudioRecording: () =>
-                  ref.read(chatProvider.notifier).stopAudioRecording(),
-              onStopAndSend: _stopRecordingAndSend,
-            ),
+      body: Column(
+        children: [
+          // 对话形态（对话 / 语音 / 直播 / 客服）是对话的方式，不是并列 tab
+          const ConversationModeSwitcher(),
+          Expanded(
+            child: isAgent2UI
+                ? const Agent2UIView()
+                : isLitertMode
+                ? const PrefrontalChatView()
+                : LocalChatView(
+                    chatState: chatState,
+                    l10n: l10n,
+                    isDark: isDark,
+                    scrollController: _scrollController,
+                    promptController: _promptController,
+                    onSendMessage: _sendMessage,
+                    onSpeak: () =>
+                        ref.read(chatProvider.notifier).speakLastResponse(),
+                    onPickImage: () =>
+                        ref.read(chatProvider.notifier).pickImage(),
+                    onCaptureImage: () =>
+                        ref.read(chatProvider.notifier).captureImage(),
+                    onPickFile: () =>
+                        ref.read(chatProvider.notifier).pickFile(),
+                    onStartAudioRecording: () =>
+                        ref.read(chatProvider.notifier).startAudioRecording(),
+                    onStopAudioRecording: () =>
+                        ref.read(chatProvider.notifier).stopAudioRecording(),
+                    onStopAndSend: _stopRecordingAndSend,
+                  ),
+          ),
+        ],
+      ),
     );
   }
 

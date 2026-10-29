@@ -13,6 +13,7 @@ import { VoiceButton } from '../components/ui/voice-button';
 import { MoveSessionDialog } from '../components/MoveSessionDialog';
 import { ChartCard } from '../components/chatbi';
 import { VisualQaClarificationChip } from '../components/chat/VisualQaClarificationChip';
+import { ConversationModeSwitcher } from '../components/chat/ConversationModeSwitcher';
 import { FeishuPublishedCard } from '../components/chat/FeishuPublishedCard';
 import { AudioEventChip } from '../components/chat/AudioEventChip';
 import { ComputerUsePendingModal, type ComputerUseAction } from '../components/computerUse/ComputerUsePendingModal';
@@ -553,6 +554,7 @@ export function ConversationPage() {
 
       {/* Main */}
       <main className="flex flex-1 flex-col overflow-hidden bg-background">
+        <ConversationModeSwitcher />
         {activeConversation ? (
           activeConversation.kind === 'audio' || activeConversation.kind === 'video' ? (
             <RecordingPanel

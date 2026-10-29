@@ -1602,4 +1602,124 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get appearanceAccentRose => '绛';
+
+  @override
+  String get surfaceChat => '对话';
+
+  @override
+  String get surfaceConversations => '对话记录';
+
+  @override
+  String get surfaceVoice => '语音对话';
+
+  @override
+  String get surfaceLivestream => '直播';
+
+  @override
+  String get surfaceCustomerService => '智能客服';
+
+  @override
+  String get surfaceTasks => '任务';
+
+  @override
+  String get surfaceGroup => '群组';
+
+  @override
+  String get surfaceDocument => '文档';
+
+  @override
+  String get surfacePreviews => '预览';
+
+  @override
+  String get surfaceAgents => '智能体';
+
+  @override
+  String get surfaceModels => '模型';
+
+  @override
+  String get surfaceModelDownload => '模型下载';
+
+  @override
+  String get surfaceModelOnboarding => '模型引导';
+
+  @override
+  String get surfaceModelSettings => '模型设置';
+
+  @override
+  String get surfaceProviders => '提供商';
+
+  @override
+  String get surfaceMcp => 'MCP 工具';
+
+  @override
+  String get surfaceSkills => '技能';
+
+  @override
+  String get surfaceMemory => '记忆';
+
+  @override
+  String get surfacePromptSettings => '提示词';
+
+  @override
+  String get surfaceFlows => '流程';
+
+  @override
+  String get surfaceWorkflowStudio => '编排';
+
+  @override
+  String get surfaceComputerUse => '电脑操作';
+
+  @override
+  String get surfaceJdmEditor => '规则编辑器';
+
+  @override
+  String get surfaceProvisioning => '设备配网';
+
+  @override
+  String get surfaceDiscovery => '设备发现';
+
+  @override
+  String get surfaceLogs => '日志';
+
+  @override
+  String get surfaceTrace => '追踪';
+
+  @override
+  String get surfaceResonance => 'Resonance';
+
+  @override
+  String get surfaceTelencephalon => '端脑';
+
+  @override
+  String get surfaceSettings => '设置';
+
+  @override
+  String get surfaceSetup => '初始设置';
+
+  @override
+  String get surfacePrefrontalEmbedded => '嵌入式前额叶';
+
+  @override
+  String get navSectionConverse => '对话与表达';
+
+  @override
+  String get navSectionWork => '任务与产出';
+
+  @override
+  String get navSectionCapability => '能力';
+
+  @override
+  String get navSectionMore => '更多';
+
+  @override
+  String get navTabChat => '对话';
+
+  @override
+  String get navTabTasks => '任务';
+
+  @override
+  String get navTabCapability => '能力';
+
+  @override
+  String get navTabMe => '我';
 }

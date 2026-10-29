@@ -304,6 +304,11 @@ jobs:
       - name: Design token drift check
         run: node scripts/gen_tokens.mjs --check
 
+      # 导航结构同样只有一份定义（agent-surface.json 的 navigation 段），
+      # 两端导航都是生成物 —— 改了清单忘了重跑生成器 = 两端导航悄悄分叉。
+      - name: Navigation drift check
+        run: node scripts/gen_nav.mjs --check
+
       - name: TypeScript check
         working-directory: shadow-desktop
         run: pnpm exec tsc --noEmit

@@ -1625,4 +1625,124 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get appearanceAccentRose => 'Rose';
+
+  @override
+  String get surfaceChat => 'Chat';
+
+  @override
+  String get surfaceConversations => 'Conversations';
+
+  @override
+  String get surfaceVoice => 'Voice';
+
+  @override
+  String get surfaceLivestream => 'Livestream';
+
+  @override
+  String get surfaceCustomerService => 'Customer service';
+
+  @override
+  String get surfaceTasks => 'Tasks';
+
+  @override
+  String get surfaceGroup => 'Group';
+
+  @override
+  String get surfaceDocument => 'Document';
+
+  @override
+  String get surfacePreviews => 'Previews';
+
+  @override
+  String get surfaceAgents => 'Agents';
+
+  @override
+  String get surfaceModels => 'Models';
+
+  @override
+  String get surfaceModelDownload => 'Model download';
+
+  @override
+  String get surfaceModelOnboarding => 'Model onboarding';
+
+  @override
+  String get surfaceModelSettings => 'Model settings';
+
+  @override
+  String get surfaceProviders => 'Providers';
+
+  @override
+  String get surfaceMcp => 'MCP tools';
+
+  @override
+  String get surfaceSkills => 'Skills';
+
+  @override
+  String get surfaceMemory => 'Memory';
+
+  @override
+  String get surfacePromptSettings => 'Prompts';
+
+  @override
+  String get surfaceFlows => 'Flows';
+
+  @override
+  String get surfaceWorkflowStudio => 'Workflow studio';
+
+  @override
+  String get surfaceComputerUse => 'Computer use';
+
+  @override
+  String get surfaceJdmEditor => 'Rule editor';
+
+  @override
+  String get surfaceProvisioning => 'Device provisioning';
+
+  @override
+  String get surfaceDiscovery => 'Discovery';
+
+  @override
+  String get surfaceLogs => 'Logs';
+
+  @override
+  String get surfaceTrace => 'Trace';
+
+  @override
+  String get surfaceResonance => 'Resonance';
+
+  @override
+  String get surfaceTelencephalon => 'Telencephalon';
+
+  @override
+  String get surfaceSettings => 'Settings';
+
+  @override
+  String get surfaceSetup => 'Setup';
+
+  @override
+  String get surfacePrefrontalEmbedded => 'Embedded prefrontal';
+
+  @override
+  String get navSectionConverse => 'Converse';
+
+  @override
+  String get navSectionWork => 'Work';
+
+  @override
+  String get navSectionCapability => 'Capabilities';
+
+  @override
+  String get navSectionMore => 'More';
+
+  @override
+  String get navTabChat => 'Chat';
+
+  @override
+  String get navTabTasks => 'Tasks';
+
+  @override
+  String get navTabCapability => 'Capabilities';
+
+  @override
+  String get navTabMe => 'Me';
 }
