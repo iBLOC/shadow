@@ -171,7 +171,21 @@ void main() {
       await tester.tap(sendButton);
       await tester.pumpAndSettle();
 
-      expect(find.text('Hello, Shadow!'), findsNothing);
+      // 断言的是「**输入框**被清空」，而不是「页面上找不到这句话」。
+      //
+      // ⚠️ `find.text` 同时匹配 `Text` 和 `EditableText` —— 消息真的发出去
+      // 之后，这句话会作为**用户消息气泡**留在会话里 ⇒ 那条「findsNothing」
+      // 命中的将是气泡而不是输入框。
+      //
+      // 那条旧断言是在「消息根本发不出去」的年代写的：那时
+      // `generateResponse` 带 `mode == litert && isLitertReady` 守卫，
+      // 在没有本地模型的测试环境里直接 return —— 什么都没发生，
+      // 测试也就「绿」了（`425e666` 修掉那个守卫之后才暴露）。
+      final field = tester.widget<TextField>(textField);
+      expect(field.controller?.text, isEmpty);
+
+      // 消息真的进了会话 —— 这比「找不到文本」更能证明发送成功。
+      expect(find.text('Hello, Shadow!'), findsOneWidget);
     });
   });
 }

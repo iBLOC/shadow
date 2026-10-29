@@ -219,7 +219,66 @@ void main() {
       container.dispose();
     });
 
-    test('generateResponseWithAttachments with image shows error', () async {
+    /// 本地引擎**没就绪**的容器 —— `mode=off`、`isLitertReady=false`。
+    ///
+    /// 带图的消息只能走本地引擎（端脑那条路只处理纯文本，见
+    /// `_generateLitertResponse` 里 `attachments.isEmpty` 那个分支）⇒
+    /// 本地引擎没就绪时必须**明确报错**，而不是把消息悄悄丢掉。
+    ProviderContainer containerWithoutLocalEngine() {
+      final c = ProviderContainer(
+        overrides: [
+          chatProvider.overrideWith(
+            (ref) => ChatNotifier(mockEngine, mockTts, mockClient, skipInit: true),
+          ),
+        ],
+      );
+      addTearDown(c.dispose);
+      return c;
+    }
+
+    test('generateResponseWithAttachments with image shows error when local engine is off', () async {
+      final off = containerWithoutLocalEngine();
+
+      final attachment = MultimodalInput(
+        type: MultimodalInputType.image,
+        data: null,
+        path: '/test/image.jpg',
+      );
+
+      await off
+          .read(chatProvider.notifier)
+          .generateResponseWithAttachments('', [attachment]);
+
+      final state = off.read(chatProvider);
+      expect(state.errorMessage, equals(currentL10n().chatImageNotAvailable));
+    });
+
+    test('generateResponseWithAttachments with camera shows error when local engine is off', () async {
+      final off = containerWithoutLocalEngine();
+
+      final attachment = MultimodalInput(
+        type: MultimodalInputType.camera,
+        data: null,
+        path: '/test/camera.jpg',
+      );
+
+      await off
+          .read(chatProvider.notifier)
+          .generateResponseWithAttachments('', [attachment]);
+
+      final state = off.read(chatProvider);
+      expect(state.errorMessage, equals(currentL10n().chatImageNotAvailable));
+    });
+
+    test('generateResponseWithAttachments with image goes to the local engine when ready', () async {
+      // ⚠️ 这里的语义在 `425e666` 之前是**反的**：那时是
+      // 「本地引擎就绪 + 有图 ⇒ 报图片不可用」，可
+      // `_convertAttachmentsToLitertFormat` 恰恰会把图片转成
+      // `{'image': base64}` 喂给本地引擎 —— 旧规则和那段代码自相矛盾。
+      //
+      // 正确的契约：**带图走本地引擎**（端脑只处理纯文本）⇒
+      // 本地引擎就绪就该能发出去，不该报错。
+      mockEngine.mockResponse = '图片回复';
       await container.read(chatProvider.notifier).setMode(ChatMode.litert);
 
       final attachment = MultimodalInput(
@@ -228,31 +287,14 @@ void main() {
         path: '/test/image.jpg',
       );
 
-      container.read(chatProvider.notifier).generateResponseWithAttachments(
-        '',
-        [attachment],
-      );
+      await container
+          .read(chatProvider.notifier)
+          .generateResponseWithAttachments('', [attachment]);
 
       final state = container.read(chatProvider);
-      expect(state.errorMessage, equals(currentL10n().chatImageNotAvailable));
-    });
-
-    test('generateResponseWithAttachments with camera shows error', () async {
-      await container.read(chatProvider.notifier).setMode(ChatMode.litert);
-
-      final attachment = MultimodalInput(
-        type: MultimodalInputType.camera,
-        data: null,
-        path: '/test/camera.jpg',
-      );
-
-      container.read(chatProvider.notifier).generateResponseWithAttachments(
-        '',
-        [attachment],
-      );
-
-      final state = container.read(chatProvider);
-      expect(state.errorMessage, equals(currentL10n().chatImageNotAvailable));
+      expect(state.errorMessage, isNull);
+      expect(state.messages.length, equals(2));
+      expect(state.messages[1].content, equals('图片回复'));
     });
 
     test('generateResponseWithAttachments with audio works', () async {
