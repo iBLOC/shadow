@@ -1,5 +1,6 @@
 # PROJECT KNOWLEDGE BASE — shadow-mobile
 
+**Updated:** 2026-10-29 (修**端脑会话的 wire 契约**：端脑 `ConversationTurn` 序列化成 `{role, text, at}`，`at` 是 RFC3339 字符串 —— **不是 `timestamp`**。移动端 Dart 客户端照着前额叶方言读 `json['timestamp']`，`(null as num).toInt()` 撞出 `_TypeError`，**会话列表页和 session transfer 的导入响应只要会话里有历史就崩**。已改成两种形状都认 + 4 条回归测试（fixture 用 Rust 侧实测的原始字节）；桌面端 `Conversation.history` 的类型声明同步改成 `at: string`。另外补「端脑会话的 wire 形状」一节，并修掉 AGENTS.md 里 3 处过时描述（client 文件名、`listAgents`/`getAgent` 的路由、已不存在的 `getAgentMirror`）。真机侧：APK 已装上并启动成功无崩溃；**设置页正文全白仍未结案**（嫌疑 `BackdropFilter`/Impeller，已排除代码 bug 与 build 异常，拿到 `--ez enable-impeller false` 的零重建 A/B 方案）；设备一度失联，同网段 `192.168.31.235:5555` 那台 `mi_lx04` **不是**目标机)
 **Updated:** 2026-10-28 (移动端「改嵌大脑」落地：嵌入式运行时换成与桌面端**同一个**大脑 `encephalon`（`libencephalon.so` 经 MethodChannel `com.ibloc.shadow/encephalon_runtime` 加载），不再是前额叶 lobe —— **两端嵌入的运行时现在一致了**。嵌入运行时内**再挂一层端脑面**（telencephalon `cortex_router`，`127.0.0.1` 随机端口），Dart 侧把端脑 client 指过去，**对话**与**会话列表**从前额叶方言迁到端脑方言；soul / tasks / memory / providers / skills / mcp / agents 列表页与语音会话模式**仍在前额叶方言**（端脑面上一条前额叶路径都没有，见根 `AGENTS.md` §「移动端 agent 面：两套「方言」与嵌入式大脑」）。移动端**不编本地海马体**（记忆走零信任网络内其它设备）⇒ Lance 退出移动端依赖图。旧的嵌入式前额叶支线（`/settings/prefrontal` + `libprefrontal_core_lib.so`）仍在，但已是**遗留**路径)
 **Updated:** 2026-10-28 (收口残留的 `:8082`：移动端主链是端脑 `:60080`，但 6 处代码仍按前额叶 `:8082` 走。其中 4 处是纯端口残留（服务健康检查清单 / continue-on-desktop 手工填端点 / localPeer / 注释），改成 `:60080`；1 处（log 面板的 `/api/logs/stream`）只有前额叶有该路由，改连**本机嵌入式前额叶的真实端口**；3 处属于 **WebRTC companion 死代码**（自引用闭环、零外部引用，且 WS 路径 `/api/sessions/{id}/ws` 是前额叶专属、端脑的是 `/api/webrtc/{modality}/...`），按孤儿代码惯例整段删除并摘掉 `flutter_webrtc` 依赖)
 **Updated:** 2026-10-28 (补上 **嵌入式 Prefrontal 运行时**（NDK `.so`）这条支线：MethodChannel/JNI 链路、`.so` 来源与缺失降级、以及它在整体架构里的位置 —— 移动端主链是端脑 telencephalon，嵌入支线跑的是前额叶；桌面端已升级为嵌大脑 `encephalon`，**两端嵌入的运行时目前不一致**。另：补上 `com.ibloc.shadow/prefrontal_runtime` channel（此前漏登记）)
@@ -377,7 +378,30 @@ Flutter → MethodChannel(com.ibloc.shadow/encephalon_runtime)
 
 **端脑面只说端脑方言**：嵌入式端脑面 = telencephalon 的 `cortex_router`，它**一条前额叶路径都没有**。所以 `PrefrontalClient`（`/api/sessions`、`/api/agents`、`/api/soul/*` …）**不能**指过去 —— 指了只会把「连接被拒」换成「404」。只有 `TelencephalonClient` 指过去，且目前只用得上 `/shadow/v1/*` 与 `/.well-known/agent.json` 两条线（对话 + 会话列表）。完整的方言对照见根 `AGENTS.md` §「移动端 agent 面：两套「方言」与嵌入式大脑」。
 
-**验证手段**（本机无模拟器：BIOS 没开 AMD SVM，`adb devices` 空）：宿主 JVM 直测 `encephalon` 仓 `scripts/jni-host-test/`（**21/21 全绿**，含端脑面端口、`/.well-known/agent.json` 200、`/shadow/v1/conversations` 有响应、flow 目录落在给定 `dataDir` 下）+ Flutter 单测 **220/220 全绿** + 交叉编译 `.so` + APK 打包验收。**设备侧行为未验证**。
+**验证手段**（2026-10-29 更新）：宿主 JVM 直测 `encephalon` 仓 `scripts/jni-host-test/`（**21/21 全绿**，含端脑面端口、`/.well-known/agent.json` 200、`/shadow/v1/conversations` 有响应、flow 目录落在给定 `dataDir` 下）+ Flutter 单测 **225/225 全绿** + 交叉编译 `.so` + APK 打包验收。**真机**（小米 2106118C / Android 13 / arm64-v8a）已装上 `app-debug.apk` 并启动成功、无崩溃，但**端脑面本身还没在真机上跑起来验证过**（见下节「真机调试清单」）。
+
+### 真机调试清单（2026-10-29）
+
+```powershell
+$adb='C:\Users\87462\AppData\Local\Android\Sdk\platform-tools\adb.exe'
+& $adb devices -l                       # USB 断了就是空；Windows 侧看不到 MTP/ADB 接口就是真没插
+& $adb mdns services                    # 局域网里的无线调试设备（Android 11+ 走 mDNS）
+& $adb install -r -g -d '<apk>'         # MIUI 可能拦：INSTALL_FAILED_USER_RESTRICTED
+& $adb shell am start -n com.ibloc.shadow/.MainActivity
+& $adb exec-out screencap -p > "$env:TEMP\shot.png"
+& $adb logcat -d -v brief | Select-String 'flutter|Dart'
+```
+
+- **MIUI 安装拦截**：安全中心关掉「安装监控」之后 `adb install` 才能过。`settings`/`appops`/`pm install`/`file://` 唤起安装器/`adb root`（生产版不允许）全都无效。
+- **无线调试**：`adb mdns services` 里会列出 `adb-<model>/<serial> _adb._tcp <ip>:<port>`。⚠️ **同网段可能混着别人的设备** —— 2026-10-29 扫到 `192.168.31.235:5555` 是一台 `mi_lx04`（armeabi-v7a / SDK 27 / 800×480），**不是**目标机，连上后确认 `ro.product.model` / `ro.build.version.sdk` / `wm size` 再操作，别往陌生设备上装 APK。
+- **关掉 Impeller 做 A/B（不用重打 APK）**：`FlutterShellArgs.fromIntent` 会读 intent extra `enable-impeller`（`engine/.../FlutterShellArgs.java:51,125-131`），Flutter 3.41.4 上 `--enable-impeller=false` 仍能落到 Skia 分支（`flutter_main.cc:127` 的 `warn_on_impeller_opt_out` + `SelectedRenderingAPI` 的 `kSkiaOpenGLES`）：
+
+  ```powershell
+  & $adb shell am force-stop com.ibloc.shadow
+  & $adb shell am start -n com.ibloc.shadow/.MainActivity --ez enable-impeller false
+  ```
+
+**设置页在真机上正文全白（未结案）**：AppBar 与底部导航正常，正文（**每一块都在 `GlassCard` 里** = `ClipRRect` + `BackdropFilter(ImageFilter.blur)` + `Material(transparent)` + `AnimatedContainer`）整片不绘制，连卡片那圈 `0x4D3B82F6` 边框也没画出来。已排除：① **不是代码 bug** —— widget 测试里该页渲染出 52 段文本；② **不是 build 异常** —— `AppErrorBoundary` 是整树替换（出错时整个 App 变 "Something went wrong"），而真机 AppBar/底栏正常；③ **不是 `ErrorWidget` 吞掉** —— 同上，debug APK 默认会红屏。没排除的：`BackdropFilter` 在该机 GPU（Impeller）上不 paint。先用上面的 `--ez enable-impeller false` A/B 定性，再决定是去掉 blur 还是加开关。
 
 **Android 交叉编译探针**：`scripts/android-cross-probe/`（2026-10-28 加）。验任意 Rust crate 能否编到 `aarch64-linux-android` —— 判断「改嵌大脑」可行性的唯一硬判据。实测结论：**wasmtime 不是 blocker，synapse 能编过；第一个真 blocker 是 `rquickjs-sys` 没有 Android 绑定**（`zen-engine` → `rquickjs` → `rquickjs-sys`，只支持 14 个桌面/musl/wasm32 平台）。用法与三条修法见该目录的 `README.md`。
 
