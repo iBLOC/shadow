@@ -65,8 +65,15 @@ class ModelsState {
 class ModelsNotifier extends StateNotifier<ModelsState> {
   final IModelRepository _repository;
 
+  /// 首次加载完成。
+  ///
+  /// 宿主（嵌入式大脑启动）**必须等它** —— 第一次读 provider 时模型列表
+  /// 还是空的（加载是异步的：开库 → 扫本地模型 → 查表）。不等的话会
+  /// 读到空列表，误判成「用户没配云端供应商」。
+  late final Future<void> ready;
+
   ModelsNotifier(this._repository) : super(const ModelsState()) {
-    _init();
+    ready = _init();
   }
 
   Future<void> _init() async {
@@ -316,6 +323,11 @@ class _ModelManagementScreenState extends ConsumerState<ModelManagementScreen>
           ],
         ),
       ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _showAddModelSheet(context),
+        tooltip: l10n.addModel,
+        child: const Icon(Icons.add),
+      ),
       body: Column(
         children: [
           _EngineStatusBar(
@@ -337,6 +349,42 @@ class _ModelManagementScreenState extends ConsumerState<ModelManagementScreen>
         ],
       ),
     );
+  }
+
+  /// 添加入口：本地模型 / 云端模型。
+  ///
+  /// 空状态提示「点击右下角添加模型」（`modelEmptyHint`）指的就是这个
+  /// 按钮 —— 但 `_addLocalModel` / `_addCloudModel` 之前**定义了却没有任何
+  /// 调用方**，所以那句提示是骗人的：用户点了右下角什么也不会发生，
+  /// 于是「云端供应商」在移动端根本配不出来。这里把入口补上。
+  Future<void> _showAddModelSheet(BuildContext context) async {
+    final l10n = AppLocalizations.of(context)!;
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.memory),
+              title: Text(l10n.addLocalModel),
+              onTap: () => Navigator.pop(ctx, 'local'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.cloud),
+              title: Text(l10n.addCloudModel),
+              onTap: () => Navigator.pop(ctx, 'cloud'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!context.mounted) return;
+    if (choice == 'local') {
+      _addLocalModel(context);
+    } else if (choice == 'cloud') {
+      _addCloudModel(context);
+    }
   }
 
   Widget _buildLocalModelsTab(BuildContext context, ModelsState state) {
