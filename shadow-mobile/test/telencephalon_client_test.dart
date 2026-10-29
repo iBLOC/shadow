@@ -382,4 +382,101 @@ void main() {
       );
     });
   });
+
+  // The wire shape below is what telencephalon actually emits — captured
+  // from `serde_json::to_value(ConversationTurn)` on the Rust side:
+  //
+  //   TURN_SHAPE={"role":"user","text":"hi","at":"2026-10-29T01:21:02.066679100Z"}
+  //
+  // Its `ConversationTurn` serializes `at: DateTime<Utc>`, so the field on
+  // the wire is **`at` (an RFC3339 string)** — not `timestamp` (millis).
+  // The client used to read `timestamp` only, which made every
+  // conversation with at least one turn throw a `null as num`
+  // TypeError while parsing — i.e. the conversation list crashed as soon
+  // as anything had been said in it.
+  group('TelencephalonClient conversation wire shape', () {
+    /// Exactly what `serde_json::to_value(ConversationTurn)` produces.
+    Map<String, dynamic> telencephalonTurn({
+      required String role,
+      required String text,
+      required String at,
+    }) =>
+        {'role': role, 'text': text, 'at': at};
+
+    Map<String, dynamic> telencephalonConversation() => {
+          'id': 'c1',
+          'agent': 'temporal',
+          // chrono keeps whatever precision it has — 6 digits here, 8
+          // there. Dart's DateTime.parse truncates to 6, so both are fine.
+          'created_at': '2026-10-29T01:21:02.067277Z',
+          'updated_at': '2026-10-29T01:21:02.06727800Z',
+          'history': [
+            telencephalonTurn(
+              role: 'user',
+              text: 'hi',
+              at: '2026-10-29T01:21:02.066679100Z',
+            ),
+            telencephalonTurn(
+              role: 'agent',
+              text: 'hello',
+              at: '2026-10-29T01:21:03.987654321Z',
+            ),
+          ],
+        };
+
+    test('ConversationTurn.fromJson() reads the "at" field telencephalon sends',
+        () {
+      final turn = ConversationTurn.fromJson(telencephalonTurn(
+        role: 'user',
+        text: 'hi',
+        at: '2026-10-29T01:21:02.066679100Z',
+      ));
+      expect(turn.role, 'user');
+      expect(turn.text, 'hi');
+      expect(turn.timestamp.toUtc().millisecondsSinceEpoch, 1793236862066);
+    });
+
+    test('ConversationTurn.fromJson() still reads the legacy "timestamp" millis',
+        () {
+      final turn = ConversationTurn.fromJson({
+        'role': 'agent',
+        'text': 'hello',
+        'timestamp': 1793236863987,
+      });
+      expect(turn.role, 'agent');
+      expect(turn.timestamp.millisecondsSinceEpoch, 1793236863987);
+    });
+
+    test('Conversation.fromJson() parses a conversation that has turns', () {
+      final conv = Conversation.fromJson(telencephalonConversation());
+      expect(conv.id, 'c1');
+      expect(conv.agent, 'temporal');
+      expect(conv.history, hasLength(2));
+      expect(conv.history.first.text, 'hi');
+      expect(conv.history.last.role, 'agent');
+      expect(conv.history.last.text, 'hello');
+    });
+
+    test('listConversations() does not throw on a non-empty history', () async {
+      final mockClient = http_testing.MockClient((request) async {
+        if (request.url.path == '/shadow/v1/conversations' &&
+            request.method == 'GET') {
+          return http.Response(
+            jsonEncode([telencephalonConversation()]),
+            200,
+          );
+        }
+        return http.Response('Not Found', 404);
+      });
+      final c = TelencephalonClient(
+        baseUrl: 'http://127.0.0.1:60080',
+        client: mockClient,
+      );
+      final convs = await c.listConversations();
+      expect(convs, hasLength(1));
+      expect(convs.first.history, hasLength(2));
+      expect(convs.first.history.first.timestamp.toUtc().millisecondsSinceEpoch,
+          1793236862066);
+    });
+  });
 }

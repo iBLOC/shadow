@@ -140,14 +140,28 @@ class ConversationTurn {
     required this.timestamp,
   });
 
+  /// 端脑（telencephalon）的会话轮次把时间放在 `at`（RFC3339 字符串），
+  /// 旧的前额叶方言放在 `timestamp`（毫秒整数）。两种形状都要认 —— 只认
+  /// 后者的话，会话列表读到第一条历史就会因 `null as num` 崩掉。
   factory ConversationTurn.fromJson(Map<String, dynamic> json) =>
       ConversationTurn(
-        role: json['role'] as String,
-        text: json['text'] as String,
-        timestamp: DateTime.fromMillisecondsSinceEpoch(
-          (json['timestamp'] as num).toInt(),
-        ),
+        role: (json['role'] as String?) ?? 'agent',
+        text: (json['text'] as String?) ?? '',
+        timestamp: parseTurnTimestamp(json),
       );
+
+  /// 轮次时间戳：优先 `at`（RFC3339），退回 `timestamp`（毫秒整数）。
+  static DateTime parseTurnTimestamp(Map<String, dynamic> json) {
+    final at = json['at'];
+    if (at is String) {
+      final parsed = DateTime.tryParse(at);
+      if (parsed != null) return parsed;
+    }
+    final ts = json['timestamp'];
+    if (ts is num) return DateTime.fromMillisecondsSinceEpoch(ts.toInt());
+    // 两种形状都没有：退回纪元，调用方至少不会崩。
+    return DateTime.fromMillisecondsSinceEpoch(0);
+  }
 
   Map<String, dynamic> toJson() => {
     'role': role,
