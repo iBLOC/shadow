@@ -118,10 +118,10 @@ jobs:
         run: pnpm exec vitest run
 
   desktop-e2e:
-    name: Desktop E2E (Playwright + Telencephalon)
+    name: Desktop E2E (Playwright + 端脑)
     # Promotes the soft-skip Playwright specs (e2e-conversation-flow,
-    # e2e-task-scheduling, business-flow-ui) to a real CI run against a
-    # telencephalon binary built alongside this job.
+    # e2e-task-scheduling, business-flow-ui) to a real CI run against the
+    # 端脑 server binary built alongside this job (`encephalon-server`).
     #
     # NOTE (P0-D, 2026-09-27): Real-green depends on the telencephalon
     # neuron_handle.shutdown hang bug being fixed
@@ -161,6 +161,18 @@ jobs:
         with:
           repository: iBLOC/telencephalon
           path: telencephalon
+          token: ${{ secrets.IBLOC_TOKEN }}
+
+      # The standalone 端脑 server binary lives in `encephalon`
+      # (`encephalon-server`); `telencephalon` itself is a pure library
+      # since the 2026-10 merge, so there is no `telencephalon` binary to
+      # build any more. `encephalon`'s path deps point at the siblings
+      # checked out below, so one more checkout completes the closure.
+      - name: Checkout encephalon
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/encephalon
+          path: encephalon
           token: ${{ secrets.IBLOC_TOKEN }}
 
       - name: Checkout synapse
@@ -227,11 +239,13 @@ jobs:
       - name: Setup Rust
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: telencephalon,synapse,prefrontal,hippocampus,neuron,diencephalon,temporal,occipital
+          workspaces: telencephalon,encephalon,synapse,prefrontal,hippocampus,neuron,diencephalon,temporal,occipital
 
-      - name: Build telencephalon
-        working-directory: telencephalon
-        run: cargo build --manifest-path Cargo.toml
+      # One process, one port: neuron's OpenAI face at the root, the 端脑
+      # face (/shadow/v1/*, /api/telencephalon/*), 海马体 at /hippocampus.
+      - name: Build the 端脑 server
+        working-directory: encephalon
+        run: cargo build --manifest-path Cargo.toml --bin encephalon-server
 
       - name: Install dependencies
         working-directory: shadow-desktop
@@ -241,11 +255,11 @@ jobs:
         working-directory: shadow-desktop
         run: pnpm exec playwright install --with-deps chromium
 
-      - name: Run Playwright E2E against telencephalon
+      - name: Run Playwright E2E against the 端脑 server
         working-directory: shadow-desktop
         env:
-          SHADOW_CORTEX_BIN: ${{ github.workspace }}/telencephalon/target/debug/telencephalon
-          SHADOW_CORTEX_CWD: ${{ github.workspace }}/telencephalon
+          SHADOW_CORTEX_BIN: ${{ github.workspace }}/encephalon/target/debug/encephalon-server
+          SHADOW_CORTEX_CWD: ${{ github.workspace }}/encephalon
           SHADOW_FULL_STACK: '1'
         run: |
           xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
