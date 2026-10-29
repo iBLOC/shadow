@@ -1088,5 +1088,34 @@
   "@navTabChat": {},
   "@navTabTasks": {},
   "@navTabCapability": {},
-  "@navTabMe": {}
+  "@navTabMe": {},
+  "settingsGroupAppearance": "外观",
+  "settingsGroupVoice": "语音与辅助",
+  "settingsGroupRuntime": "运行时",
+  "settingsGroupConnections": "连接",
+  "settingsGroupAdvanced": "高级",
+  "settingsGroupAdvancedDesc": "不常用与开发者选项",
+  "settingsAdvancedLogs": "日志",
+  "settingsAdvancedBackend": "端脑后端地址",
+  "settingsAdvancedBackendDesc": "覆盖移动端使用的端脑基础地址与管理员令牌。",
+  "settingsBackendAdminTokenHint": "留空则使用开发模式",
+  "settingsDangerZone": "危险操作",
+  "settingsDangerZoneDesc": "这些操作不可撤销，请谨慎使用。",
+  "resetEngineDesc": "重新初始化引擎",
+  "resetEngineConfirmDesc": "重置会重新初始化运行时，未保存的会话将丢失。此操作不可撤销。",
+  "resetEngineConfirm": "重置",
+  "telencephalonFlowsDesc": "浏览并运行端脑流程",
+  "settingsThemeModeLight": "浅色",
+  "settingsThemeModeDark": "深色",
+  "settingsDialogBackgroundDesc": "覆盖对话框与面板的底色。",
+  "ttsEngineRust": "Rust",
+  "settingsAdvancedLegacy": "遗留运行时",
+  "logsExported": "日志已导出到 {path}",
+  "@logsExported": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  }
 }

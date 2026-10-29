@@ -3,20 +3,61 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:shadow_mobile/generated/l10n/app_localizations.dart';
+import 'package:shadow_mobile/providers/log_provider.dart';
 import 'package:shadow_mobile/screens/settings_screen.dart';
+import 'package:shadow_mobile/services/log_service.dart';
+import 'package:shadow_mobile/services/prefrontal/prefrontal_mobile_provider.dart';
+import 'package:shadow_mobile/widgets/log_panel_section.dart';
+import 'package:shadow_mobile/widgets/settings/settings_row.dart';
+
 import 'test_helper.dart';
+
+/// 设置页 —— 重构后的契约。
+///
+/// 2026-10-29 之前这里是 18 个平铺 `ListTile`（审计 F6）。现在改成
+/// **4 组 + 高级折叠 + 危险操作隔离**，并整体换成 shadcn 组件。
+///
+/// 这些测试锁的是**结构契约**，不是像素：
+///  - 分组存在且标题正确
+///  - 折叠区**折叠时不构建**子树（不是「不显示」）
+///  - TTS 从 4 个平铺 tile 收成 1 组 2 项
+///  - 破坏性操作单独隔离，且**必须二次确认**
+/// 日志服务替身 —— 真身会去连 MNN / Prefrontal 的流，测试里没这个通道。
+class _MockLogService extends LogService {
+  @override
+  void connectMnn() {}
+
+  @override
+  void connectPrefrontal(String baseUrl) {}
+}
 
 void main() {
   testSetup();
-  group('SettingsScreen Widget Tests', () {
-    testWidgets('renders settings screen with scaffold', (
-      WidgetTester tester,
-    ) async {
-      await pumpWidgetForTest(
-        tester,
-        ProviderScope(
-          overrides: getTestOverrides(),
-          child: MaterialApp(
+
+  Future<void> pumpSettings(
+    WidgetTester tester, {
+    VoidCallback? onReset,
+  }) async {
+    await pumpWidgetForTest(
+      tester,
+      ProviderScope(
+        overrides: [
+          ...getTestOverrides(),
+          logServiceProvider.overrideWith((ref) => _MockLogService()),
+          prefrontalMobilePortProvider.overrideWithValue(null),
+          // 内存是异步读的；加载态用的是不定进度条（永远在动），
+          // `pumpAndSettle` 会因此超时。测试里直接给一个确定值。
+          systemMemoryProvider.overrideWith(
+            (ref) async => SystemMemoryInfo(
+              totalMb: 4096,
+              usedMb: 2048,
+              freeMb: 2048,
+              usagePercent: 50,
+            ),
+          ),
+        ],
+        child: withShadTheme(
+          MaterialApp(
             localizationsDelegates: const [
               AppLocalizations.delegate,
               GlobalMaterialLocalizations.delegate,
@@ -24,224 +65,210 @@ void main() {
             ],
             supportedLocales: const [Locale('en')],
             locale: const Locale('en'),
-            home: SettingsScreen(modelInfo: 'Test Model', onReset: () {}),
+            home: SettingsScreen(
+              modelInfo: 'Test Model',
+              onReset: onReset ?? () {},
+            ),
           ),
         ),
-      );
+      ),
+    );
+  }
+
+  /// 设置页很长，危险操作区在 800×600 测试窗之外 —— 先滚到可见再点。
+  Future<void> tapVisible(WidgetTester tester, Finder finder) async {
+    await tester.ensureVisible(finder);
+    await tester.pumpAndSettle();
+    await tester.tap(finder);
+    await tester.pumpAndSettle();
+  }
+
+  group('设置页分组结构', () {
+    testWidgets('渲染设置页并有返回入口', (WidgetTester tester) async {
+      await pumpSettings(tester);
 
       expect(find.byType(Scaffold), findsOneWidget);
-    });
-
-    testWidgets('shows back button', (WidgetTester tester) async {
-      await pumpWidgetForTest(
-        tester,
-        ProviderScope(
-          overrides: getTestOverrides(),
-          child: MaterialApp(
-            localizationsDelegates: const [
-              AppLocalizations.delegate,
-              GlobalMaterialLocalizations.delegate,
-              GlobalWidgetsLocalizations.delegate,
-            ],
-            supportedLocales: const [Locale('en')],
-            locale: const Locale('en'),
-            home: SettingsScreen(modelInfo: 'Test Model', onReset: () {}),
-          ),
-        ),
-      );
-
-      expect(find.byIcon(Icons.arrow_back), findsOneWidget);
-    });
-
-    testWidgets('shows Settings title in app bar', (WidgetTester tester) async {
-      await pumpWidgetForTest(
-        tester,
-        ProviderScope(
-          overrides: getTestOverrides(),
-          child: MaterialApp(
-            localizationsDelegates: const [
-              AppLocalizations.delegate,
-              GlobalMaterialLocalizations.delegate,
-              GlobalWidgetsLocalizations.delegate,
-            ],
-            supportedLocales: const [Locale('en')],
-            locale: const Locale('en'),
-            home: SettingsScreen(modelInfo: 'Test Model', onReset: () {}),
-          ),
-        ),
-      );
-
       expect(find.text('Settings'), findsOneWidget);
     });
 
-    testWidgets('shows model info section', (WidgetTester tester) async {
-      await pumpWidgetForTest(
-        tester,
-        ProviderScope(
-          overrides: getTestOverrides(),
-          child: MaterialApp(
-            localizationsDelegates: const [
-              AppLocalizations.delegate,
-              GlobalMaterialLocalizations.delegate,
-              GlobalWidgetsLocalizations.delegate,
-            ],
-            supportedLocales: const [Locale('en')],
-            locale: const Locale('en'),
-            home: SettingsScreen(modelInfo: 'Test Model', onReset: () {}),
-          ),
-        ),
-      );
+    testWidgets('四个主分组都在', (WidgetTester tester) async {
+      await pumpSettings(tester);
+
+      final l10n = l10nOf(tester);
+      expect(find.text(l10n.settingsGroupAppearance), findsOneWidget);
+      expect(find.text(l10n.settingsGroupVoice), findsOneWidget);
+      expect(find.text(l10n.settingsGroupRuntime), findsOneWidget);
+      expect(find.text(l10n.settingsGroupConnections), findsOneWidget);
+    });
+
+    testWidgets('高级分组默认折叠 —— 内容根本不构建', (WidgetTester tester) async {
+      await pumpSettings(tester);
+
+      final l10n = l10nOf(tester);
+      // 三个折叠标题在
+      expect(find.text(l10n.settingsAdvancedLogs), findsOneWidget);
+      expect(find.text(l10n.settingsAdvancedBackend), findsOneWidget);
+      expect(find.text(l10n.settingsAdvancedLegacy), findsOneWidget);
+      // 但折叠区里的内容不在（后端表单只有展开后才渲染）
+      expect(find.text(l10n.commonSave), findsNothing);
+      expect(find.text(l10n.settingsPrefrontalEmbedded), findsNothing);
+    });
+
+    testWidgets('折叠时日志面板不会被构建（不会偷偷连日志流）', (WidgetTester tester) async {
+      await pumpSettings(tester);
+
+      expect(find.byType(LogPanelSection), findsNothing);
+    });
+
+    testWidgets('展开「日志」后能看到日志面板', (WidgetTester tester) async {
+      await pumpSettings(tester);
+
+      final l10n = l10nOf(tester);
+      await tapVisible(tester, find.text(l10n.settingsAdvancedLogs));
+
+      expect(find.byType(LogPanelSection), findsOneWidget);
+      expect(find.text(l10n.logsEmpty), findsOneWidget);
+    });
+
+    testWidgets('展开「端脑后端地址」后能看到保存按钮', (WidgetTester tester) async {
+      await pumpSettings(tester);
+
+      final l10n = l10nOf(tester);
+      await tapVisible(tester, find.text(l10n.settingsAdvancedBackend));
+
+      expect(find.text(l10n.commonSave), findsOneWidget);
+    });
+
+    testWidgets('模型信息在外观组内', (WidgetTester tester) async {
+      await pumpSettings(tester);
 
       expect(find.text('Test Model'), findsOneWidget);
-      expect(find.byIcon(Icons.info_outline), findsOneWidget);
     });
 
-    testWidgets('shows theme toggle section', (WidgetTester tester) async {
-      await pumpWidgetForTest(
-        tester,
-        ProviderScope(
-          overrides: getTestOverrides(),
-          child: MaterialApp(
-            localizationsDelegates: const [
-              AppLocalizations.delegate,
-              GlobalMaterialLocalizations.delegate,
-              GlobalWidgetsLocalizations.delegate,
-            ],
-            supportedLocales: const [Locale('en')],
-            locale: const Locale('en'),
-            home: SettingsScreen(modelInfo: 'Test Model', onReset: () {}),
-          ),
-        ),
-      );
+    testWidgets('弹层里没有 Material 祖先也不崩（ShadSheet 不提供 Material）', (
+      WidgetTester tester,
+    ) async {
+      await pumpSettings(tester);
 
-      expect(find.byType(SegmentedButton<ThemeMode>), findsOneWidget);
+      final l10n = l10nOf(tester);
+      await tapVisible(tester, find.text(l10n.settingsDialogBackground));
+
+      // 弹层里的选项用的是 SettingsRow（不依赖 Material），不是 InkWell ——
+      // InkWell 在没有 Material 祖先时会直接断言失败。
+      expect(find.text(l10n.settingsSurfaceInk), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('TTS 合并为 1 组 2 项', () {
+    testWidgets('TTS 不再是 4 个平铺 tile，而是 2 行', (WidgetTester tester) async {
+      await pumpSettings(tester);
+
+      final l10n = l10nOf(tester);
+      // 引擎选择 + 试听 —— 两行
+      expect(find.text(l10n.ttsEngine), findsOneWidget);
+      expect(find.text(l10n.ttsTest), findsOneWidget);
+      // 原来的「引擎状态」标题行不再单独成行
+      expect(find.text(l10n.ttsStatus), findsNothing);
+    });
+  });
+
+  group('破坏性操作隔离', () {
+    testWidgets('重置引擎在独立的危险操作组里', (WidgetTester tester) async {
+      await pumpSettings(tester);
+
+      final l10n = l10nOf(tester);
+      expect(find.text(l10n.settingsDangerZone), findsOneWidget);
+      expect(find.text(l10n.resetEngine), findsOneWidget);
     });
 
-    testWidgets('shows service status section', (WidgetTester tester) async {
-      await pumpWidgetForTest(
-        tester,
-        ProviderScope(
-          overrides: getTestOverrides(),
-          child: MaterialApp(
-            localizationsDelegates: const [
-              AppLocalizations.delegate,
-              GlobalMaterialLocalizations.delegate,
-              GlobalWidgetsLocalizations.delegate,
-            ],
-            supportedLocales: const [Locale('en')],
-            locale: const Locale('en'),
-            home: SettingsScreen(modelInfo: 'Test Model', onReset: () {}),
-          ),
-        ),
-      );
+    testWidgets('点重置引擎不会直接执行 —— 先弹确认框', (WidgetTester tester) async {
+      var resetCalled = false;
+      await pumpSettings(tester, onReset: () => resetCalled = true);
 
-      expect(find.text('Service Status'), findsOneWidget);
-      expect(find.byIcon(Icons.cloud), findsOneWidget);
+      final l10n = l10nOf(tester);
+      await tapVisible(tester, find.text(l10n.resetEngine));
+
+      // 确认框出现，且此时还没执行
+      expect(find.text(l10n.resetEngineConfirmDesc), findsOneWidget);
+      expect(resetCalled, isFalse);
+
+      // 取消 → 仍然不执行
+      await tester.tap(find.text(l10n.cancel));
+      await tester.pumpAndSettle();
+      expect(resetCalled, isFalse);
     });
 
-    testWidgets('shows model store section', (WidgetTester tester) async {
-      await pumpWidgetForTest(
-        tester,
-        ProviderScope(
-          overrides: getTestOverrides(),
-          child: MaterialApp(
-            localizationsDelegates: const [
-              AppLocalizations.delegate,
-              GlobalMaterialLocalizations.delegate,
-              GlobalWidgetsLocalizations.delegate,
-            ],
-            supportedLocales: const [Locale('en')],
-            locale: const Locale('en'),
-            home: SettingsScreen(modelInfo: 'Test Model', onReset: () {}),
-          ),
-        ),
-      );
+    testWidgets('确认后才执行重置', (WidgetTester tester) async {
+      var resetCalled = false;
+      await pumpSettings(tester, onReset: () => resetCalled = true);
 
-      expect(find.byType(ListTile), findsWidgets);
+      final l10n = l10nOf(tester);
+      await tapVisible(tester, find.text(l10n.resetEngine));
+
+      await tester.tap(find.text(l10n.resetEngineConfirm));
+      await tester.pumpAndSettle();
+
+      expect(resetCalled, isTrue);
     });
+  });
 
-    testWidgets('Backend (Telencephalon) card renders with URL + token fields',
-        (WidgetTester tester) async {
-      await pumpWidgetForTest(
-        tester,
-        ProviderScope(
-          overrides: getTestOverrides(),
-          child: MaterialApp(
-            localizationsDelegates: const [
-              AppLocalizations.delegate,
-              GlobalMaterialLocalizations.delegate,
-              GlobalWidgetsLocalizations.delegate,
-            ],
-            supportedLocales: const [Locale('en')],
-            locale: const Locale('en'),
-            home: SettingsScreen(modelInfo: 'Test Model', onReset: () {}),
-          ),
-        ),
-      );
-
-      expect(find.text('Backend (Telencephalon)'), findsOneWidget);
-      // Two TextFields: Base URL + Admin Token
-      expect(find.byType(TextField), findsNWidgets(2));
-      expect(find.text('Base URL'), findsOneWidget);
-      expect(find.text('Admin Token (optional)'), findsOneWidget);
-      expect(find.text('Save'), findsOneWidget);
-    });
-
-    testWidgets('flows list tile subtitle mentions telencephalon (not cortex)',
-        (WidgetTester tester) async {
-      await pumpWidgetForTest(
-        tester,
-        ProviderScope(
-          overrides: getTestOverrides(),
-          child: MaterialApp(
-            localizationsDelegates: const [
-              AppLocalizations.delegate,
-              GlobalMaterialLocalizations.delegate,
-              GlobalWidgetsLocalizations.delegate,
-            ],
-            supportedLocales: const [Locale('en')],
-            locale: const Locale('en'),
-            home: SettingsScreen(modelInfo: 'Test Model', onReset: () {}),
-          ),
-        ),
-      );
-
-      expect(
-        find.text('Browse and run telencephalon flows'),
-        findsOneWidget,
-      );
-    });
-
+  group('能力入口可达', () {
     // 2026-10-29：`/settings/encephalon` 的路由与页面早就有了，但设置页里
-    // **没有入口** —— 那个页面在 App 里点不到（嵌入式大脑只能启动、不能
-    // 管理、也看不到端口状态）。这条测试锁住入口，别让它再悄悄消失。
-    testWidgets('embedded brain runtime entry is reachable from settings',
-        (WidgetTester tester) async {
-      await pumpWidgetForTest(
-        tester,
-        ProviderScope(
-          overrides: getTestOverrides(),
-          child: MaterialApp(
-            localizationsDelegates: const [
-              AppLocalizations.delegate,
-              GlobalMaterialLocalizations.delegate,
-              GlobalWidgetsLocalizations.delegate,
-            ],
-            supportedLocales: const [Locale('en')],
-            locale: const Locale('en'),
-            home: SettingsScreen(modelInfo: 'Test Model', onReset: () {}),
-          ),
-        ),
-      );
+    // **没有入口** —— 那个页面在 App 里点不到。这条测试锁住入口。
+    testWidgets('嵌入式大脑入口在连接组里', (WidgetTester tester) async {
+      await pumpSettings(tester);
 
       final l10n = l10nOf(tester);
       expect(find.text(l10n.settingsEncephalonEmbedded), findsOneWidget);
-      expect(
-        find.text(l10n.settingsEncephalonEmbeddedDesc),
-        findsOneWidget,
-      );
-      // 旧的嵌入式前额叶支线仍在（已降级为遗留路径，但入口不能凭空消失）
+      expect(find.text(l10n.settingsEncephalonEmbeddedDesc), findsOneWidget);
+    });
+
+    testWidgets('嵌入式 Prefrontal 入口在「遗留运行时」折叠里', (WidgetTester tester) async {
+      await pumpSettings(tester);
+
+      final l10n = l10nOf(tester);
+      // 默认折叠 → 入口行不可见
+      expect(find.text(l10n.settingsPrefrontalEmbedded), findsNothing);
+
+      await tapVisible(tester, find.text(l10n.settingsAdvancedLegacy));
+
       expect(find.text(l10n.settingsPrefrontalEmbedded), findsOneWidget);
+    });
+
+    testWidgets('设备发现 / 端脑流程 / Resonance 入口都在', (WidgetTester tester) async {
+      await pumpSettings(tester);
+
+      final l10n = l10nOf(tester);
+      expect(find.text(l10n.settingsDeviceDiscovery), findsOneWidget);
+      expect(find.text(l10n.telencephalonFlows), findsOneWidget);
+      expect(find.text(l10n.resonanceTitle), findsOneWidget);
+    });
+  });
+
+  group('已去 Material', () {
+    testWidgets('不再使用 Material 的 ListTile', (WidgetTester tester) async {
+      await pumpSettings(tester);
+
+      expect(find.byType(ListTile), findsNothing);
+    });
+
+    testWidgets('不再使用 Material 的 SegmentedButton / Switch', (
+      WidgetTester tester,
+    ) async {
+      await pumpSettings(tester);
+
+      expect(find.byType(SegmentedButton<ThemeMode>), findsNothing);
+      expect(find.byType(Switch), findsNothing);
+    });
+
+    testWidgets('行用自建的 SettingsRow（不依赖 Material 祖先）', (
+      WidgetTester tester,
+    ) async {
+      await pumpSettings(tester);
+
+      expect(find.byType(SettingsRow), findsWidgets);
+      expect(find.byType(SettingsGroup), findsWidgets);
     });
   });
 }

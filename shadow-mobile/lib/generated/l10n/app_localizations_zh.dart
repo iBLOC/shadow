@@ -1723,4 +1723,72 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get navTabMe => '我';
+
+  @override
+  String get settingsGroupAppearance => '外观';
+
+  @override
+  String get settingsGroupVoice => '语音与辅助';
+
+  @override
+  String get settingsGroupRuntime => '运行时';
+
+  @override
+  String get settingsGroupConnections => '连接';
+
+  @override
+  String get settingsGroupAdvanced => '高级';
+
+  @override
+  String get settingsGroupAdvancedDesc => '不常用与开发者选项';
+
+  @override
+  String get settingsAdvancedLogs => '日志';
+
+  @override
+  String get settingsAdvancedBackend => '端脑后端地址';
+
+  @override
+  String get settingsAdvancedBackendDesc => '覆盖移动端使用的端脑基础地址与管理员令牌。';
+
+  @override
+  String get settingsBackendAdminTokenHint => '留空则使用开发模式';
+
+  @override
+  String get settingsDangerZone => '危险操作';
+
+  @override
+  String get settingsDangerZoneDesc => '这些操作不可撤销，请谨慎使用。';
+
+  @override
+  String get resetEngineDesc => '重新初始化引擎';
+
+  @override
+  String get resetEngineConfirmDesc => '重置会重新初始化运行时，未保存的会话将丢失。此操作不可撤销。';
+
+  @override
+  String get resetEngineConfirm => '重置';
+
+  @override
+  String get telencephalonFlowsDesc => '浏览并运行端脑流程';
+
+  @override
+  String get settingsThemeModeLight => '浅色';
+
+  @override
+  String get settingsThemeModeDark => '深色';
+
+  @override
+  String get settingsDialogBackgroundDesc => '覆盖对话框与面板的底色。';
+
+  @override
+  String get ttsEngineRust => 'Rust';
+
+  @override
+  String get settingsAdvancedLegacy => '遗留运行时';
+
+  @override
+  String logsExported(String path) {
+    return '日志已导出到 $path';
+  }
 }

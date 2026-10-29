@@ -1131,5 +1131,34 @@
   "@navTabChat": {},
   "@navTabTasks": {},
   "@navTabCapability": {},
-  "@navTabMe": {}
+  "@navTabMe": {},
+  "settingsGroupAppearance": "Appearance",
+  "settingsGroupVoice": "Voice & Accessibility",
+  "settingsGroupRuntime": "Runtime",
+  "settingsGroupConnections": "Connections",
+  "settingsGroupAdvanced": "Advanced",
+  "settingsGroupAdvancedDesc": "Less-used and developer options",
+  "settingsAdvancedLogs": "Logs",
+  "settingsAdvancedBackend": "Telencephalon backend",
+  "settingsAdvancedBackendDesc": "Override the telencephalon base URL and admin token used by the mobile client.",
+  "settingsBackendAdminTokenHint": "leave blank for dev mode",
+  "settingsDangerZone": "Danger Zone",
+  "settingsDangerZoneDesc": "These actions cannot be undone. Use with care.",
+  "resetEngineDesc": "Reinitialize the engine",
+  "resetEngineConfirmDesc": "Resetting reinitializes the runtime and discards unsaved sessions. This cannot be undone.",
+  "resetEngineConfirm": "Reset",
+  "telencephalonFlowsDesc": "Browse and run telencephalon flows",
+  "settingsThemeModeLight": "Light",
+  "settingsThemeModeDark": "Dark",
+  "settingsDialogBackgroundDesc": "Override the background of dialogs and panels.",
+  "ttsEngineRust": "Rust",
+  "settingsAdvancedLegacy": "Legacy runtime",
+  "logsExported": "Logs exported to {path}",
+  "@logsExported": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  }
 }

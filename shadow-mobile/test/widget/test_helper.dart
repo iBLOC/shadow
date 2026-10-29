@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:shadow_mobile/generated/l10n/app_localizations.dart';
 import 'package:shadow_mobile/litert_engine.dart';
 import 'package:shadow_mobile/providers/chat_provider.dart';
@@ -10,6 +11,8 @@ import 'package:shadow_mobile/providers/genui_provider.dart';
 import 'package:shadow_mobile/providers/service_provider.dart';
 import 'package:shadow_mobile/providers/theme_provider.dart';
 import 'package:shadow_mobile/services/telencephalon/telencephalon_client.dart';
+import 'package:shadow_mobile/theme/app_tokens.g.dart';
+import 'package:shadow_mobile/theme/shad_scheme.g.dart';
 import 'package:shadow_mobile/tts_engine.dart';
 
 void testSetup() {
@@ -73,6 +76,7 @@ class MockThemeNotifier extends ThemeModeNotifier {
   void setThemeMode(ThemeMode mode) {
     state = mode;
   }
+
   @override
   void toggleTheme() {
     state = state == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
@@ -97,6 +101,26 @@ Future<void> completePendingMicrotasks(WidgetTester tester) async {
   await tester.pump(const Duration(milliseconds: 100));
 }
 
+/// 装配 shadcn 主题。
+///
+/// 生产环境 `main.dart` 用 `MaterialApp.router` 的 `builder:` 挂 `ShadTheme`，
+/// 页面里所有 shadcn 组件都靠它取配色。测试里也要装一份 —— 否则
+/// `ShadTheme.of(context)` 直接抛 FlutterError（静默用默认色更糟）。
+///
+/// 用的是生产同一套 `ShadScheme.of(...)` 投影 —— 测试与真机看到的是
+/// 同一份色板。
+Widget withShadTheme(Widget child, {Brightness brightness = Brightness.light}) {
+  return ShadTheme(
+    data: ShadThemeData(
+      colorScheme: ShadScheme.of(
+        brightness: brightness,
+        accentSeed: AppTokens.accentSeed,
+      ),
+      brightness: brightness,
+    ),
+    child: child,
+  );
+}
 
 /// 取当前 widget 树里的本地化实例。
 ///

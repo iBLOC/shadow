@@ -3259,6 +3259,138 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Me'**
   String get navTabMe;
+
+  /// No description provided for @settingsGroupAppearance.
+  ///
+  /// In en, this message translates to:
+  /// **'Appearance'**
+  String get settingsGroupAppearance;
+
+  /// No description provided for @settingsGroupVoice.
+  ///
+  /// In en, this message translates to:
+  /// **'Voice & Accessibility'**
+  String get settingsGroupVoice;
+
+  /// No description provided for @settingsGroupRuntime.
+  ///
+  /// In en, this message translates to:
+  /// **'Runtime'**
+  String get settingsGroupRuntime;
+
+  /// No description provided for @settingsGroupConnections.
+  ///
+  /// In en, this message translates to:
+  /// **'Connections'**
+  String get settingsGroupConnections;
+
+  /// No description provided for @settingsGroupAdvanced.
+  ///
+  /// In en, this message translates to:
+  /// **'Advanced'**
+  String get settingsGroupAdvanced;
+
+  /// No description provided for @settingsGroupAdvancedDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Less-used and developer options'**
+  String get settingsGroupAdvancedDesc;
+
+  /// No description provided for @settingsAdvancedLogs.
+  ///
+  /// In en, this message translates to:
+  /// **'Logs'**
+  String get settingsAdvancedLogs;
+
+  /// No description provided for @settingsAdvancedBackend.
+  ///
+  /// In en, this message translates to:
+  /// **'Telencephalon backend'**
+  String get settingsAdvancedBackend;
+
+  /// No description provided for @settingsAdvancedBackendDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Override the telencephalon base URL and admin token used by the mobile client.'**
+  String get settingsAdvancedBackendDesc;
+
+  /// No description provided for @settingsBackendAdminTokenHint.
+  ///
+  /// In en, this message translates to:
+  /// **'leave blank for dev mode'**
+  String get settingsBackendAdminTokenHint;
+
+  /// No description provided for @settingsDangerZone.
+  ///
+  /// In en, this message translates to:
+  /// **'Danger Zone'**
+  String get settingsDangerZone;
+
+  /// No description provided for @settingsDangerZoneDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'These actions cannot be undone. Use with care.'**
+  String get settingsDangerZoneDesc;
+
+  /// No description provided for @resetEngineDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Reinitialize the engine'**
+  String get resetEngineDesc;
+
+  /// No description provided for @resetEngineConfirmDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Resetting reinitializes the runtime and discards unsaved sessions. This cannot be undone.'**
+  String get resetEngineConfirmDesc;
+
+  /// No description provided for @resetEngineConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset'**
+  String get resetEngineConfirm;
+
+  /// No description provided for @telencephalonFlowsDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Browse and run telencephalon flows'**
+  String get telencephalonFlowsDesc;
+
+  /// No description provided for @settingsThemeModeLight.
+  ///
+  /// In en, this message translates to:
+  /// **'Light'**
+  String get settingsThemeModeLight;
+
+  /// No description provided for @settingsThemeModeDark.
+  ///
+  /// In en, this message translates to:
+  /// **'Dark'**
+  String get settingsThemeModeDark;
+
+  /// No description provided for @settingsDialogBackgroundDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Override the background of dialogs and panels.'**
+  String get settingsDialogBackgroundDesc;
+
+  /// No description provided for @ttsEngineRust.
+  ///
+  /// In en, this message translates to:
+  /// **'Rust'**
+  String get ttsEngineRust;
+
+  /// No description provided for @settingsAdvancedLegacy.
+  ///
+  /// In en, this message translates to:
+  /// **'Legacy runtime'**
+  String get settingsAdvancedLegacy;
+
+  /// No description provided for @logsExported.
+  ///
+  /// In en, this message translates to:
+  /// **'Logs exported to {path}'**
+  String logsExported(String path);
 }
 
 class _AppLocalizationsDelegate

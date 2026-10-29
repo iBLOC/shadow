@@ -1746,4 +1746,76 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get navTabMe => 'Me';
+
+  @override
+  String get settingsGroupAppearance => 'Appearance';
+
+  @override
+  String get settingsGroupVoice => 'Voice & Accessibility';
+
+  @override
+  String get settingsGroupRuntime => 'Runtime';
+
+  @override
+  String get settingsGroupConnections => 'Connections';
+
+  @override
+  String get settingsGroupAdvanced => 'Advanced';
+
+  @override
+  String get settingsGroupAdvancedDesc => 'Less-used and developer options';
+
+  @override
+  String get settingsAdvancedLogs => 'Logs';
+
+  @override
+  String get settingsAdvancedBackend => 'Telencephalon backend';
+
+  @override
+  String get settingsAdvancedBackendDesc =>
+      'Override the telencephalon base URL and admin token used by the mobile client.';
+
+  @override
+  String get settingsBackendAdminTokenHint => 'leave blank for dev mode';
+
+  @override
+  String get settingsDangerZone => 'Danger Zone';
+
+  @override
+  String get settingsDangerZoneDesc =>
+      'These actions cannot be undone. Use with care.';
+
+  @override
+  String get resetEngineDesc => 'Reinitialize the engine';
+
+  @override
+  String get resetEngineConfirmDesc =>
+      'Resetting reinitializes the runtime and discards unsaved sessions. This cannot be undone.';
+
+  @override
+  String get resetEngineConfirm => 'Reset';
+
+  @override
+  String get telencephalonFlowsDesc => 'Browse and run telencephalon flows';
+
+  @override
+  String get settingsThemeModeLight => 'Light';
+
+  @override
+  String get settingsThemeModeDark => 'Dark';
+
+  @override
+  String get settingsDialogBackgroundDesc =>
+      'Override the background of dialogs and panels.';
+
+  @override
+  String get ttsEngineRust => 'Rust';
+
+  @override
+  String get settingsAdvancedLegacy => 'Legacy runtime';
+
+  @override
+  String logsExported(String path) {
+    return 'Logs exported to $path';
+  }
 }

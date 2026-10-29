@@ -1,20 +1,24 @@
 import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shadcn_ui/shadcn_ui.dart';
+
 import '../generated/l10n/app_localizations.dart';
+import '../providers/telencephalon_provider.dart';
 import '../services/accessibility_controller.dart';
 import '../services/app_config_service.dart';
-import '../providers/theme_provider.dart';
-import '../providers/telencephalon_provider.dart';
-import '../providers/service_provider.dart';
-import '../widgets/appearance_section.dart';
+import '../theme/app_tokens.g.dart';
+import '../widgets/glass_app_bar.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/log_panel_section.dart';
-import '../theme/app_colors.dart';
-import '../tts_engine.dart';
-import 'flows_screen.dart';
+import '../widgets/settings/appearance_section.dart';
+import '../widgets/settings/service_status_block.dart';
+import '../widgets/settings/settings_row.dart';
+import '../widgets/settings/tts_settings_group.dart';
 
+/// 系统内存信息。
 final systemMemoryProvider = FutureProvider<SystemMemoryInfo>((ref) async {
   return SystemMemoryInfo.getMemoryInfo();
 });
@@ -86,6 +90,27 @@ class SystemMemoryInfo {
   }
 }
 
+/// 设置页 —— **4 组 + 高级折叠**，而不是 18 个平铺 tile。
+///
+/// ## 为什么分组（审计 F6）
+///
+/// 原来 18 个平铺 `ListTile` 混了四类不该在一起的东西：
+/// 外观 / 子系统内部（TTS 独占 4 个 tile）/ 运维（logs / resonance / flows）
+/// / 破坏性（重置引擎）。
+///
+/// 现在的结构：
+///
+/// ```
+/// ① 外观        模型信息 · 主题 · 主题色 · 玻璃强度 · 对话框背景
+/// ② 语音与辅助  TTS（1 组 2 项）· 无障碍
+/// ③ 运行时      内存 · 服务状态 · 模型仓库
+/// ④ 连接        设备发现 · 端脑流程 · 嵌入式大脑 · Resonance
+/// ⚙ 高级（折叠） 嵌入式 Prefrontal（遗留）· 日志 · 后端地址
+/// ⚠ 危险操作     重置引擎（独立成块，二次确认）
+/// ```
+///
+/// 破坏性操作**单独隔离**在最底部并要求确认 —— 它跟外观同列时，
+/// 点错了不可逆。
 class SettingsScreen extends ConsumerWidget {
   final String modelInfo;
   final VoidCallback onReset;
@@ -99,232 +124,444 @@ class SettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
-    final themeMode = ref.watch(themeModeProvider);
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: Text(l10n.settings),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-      ),
+      appBar: GlassAppBar(title: l10n.settings, showBackButton: true),
       body: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppTokens.spaceLg),
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              GlassCard(
-                padding: EdgeInsets.zero,
-                child: Column(
-                  children: [
-                    ListTile(
-                      leading: Icon(
-                        Icons.info_outline,
-                        color: AppColors.primary,
-                      ),
-                      title: Text(l10n.modelInfo),
-                      subtitle: Text(modelInfo),
-                    ),
-                    const Divider(height: 1),
-                    ListTile(
-                      leading: Icon(
-                        themeMode == ThemeMode.dark
-                            ? Icons.dark_mode
-                            : Icons.light_mode,
-                        color: AppColors.primary,
-                      ),
-                      title: Text(l10n.theme),
-                      trailing: SegmentedButton<ThemeMode>(
-                        segments: const [
-                          ButtonSegment(
-                            value: ThemeMode.light,
-                            icon: Icon(Icons.light_mode),
+              // ── ① 外观 ───────────────────────────────────────────
+              _Section(
+                children: [
+                  SettingsGroup(
+                    title: l10n.settingsGroupAppearance,
+                    icon: Icons.palette_outlined,
+                    children: [
+                      SettingsBlock(
+                        children: [
+                          SettingsRow(
+                            title: l10n.modelInfo,
+                            icon: Icons.info_outline,
+                            subtitle: modelInfo,
                           ),
-                          ButtonSegment(
-                            value: ThemeMode.dark,
-                            icon: Icon(Icons.dark_mode),
+                          const ShadSeparator.horizontal(
+                            margin: EdgeInsets.symmetric(
+                              horizontal: AppTokens.spaceLg,
+                            ),
                           ),
-                          ButtonSegment(
-                            value: ThemeMode.system,
-                            icon: Icon(Icons.settings_suggest),
+                          const AppearanceSectionBody(),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+
+              // ── ② 语音与辅助 ─────────────────────────────────────
+              _Section(
+                children: [
+                  SettingsGroup(
+                    title: l10n.settingsGroupVoice,
+                    icon: Icons.mic_none,
+                    children: [
+                      SettingsBlock(children: const [TtsSettingsGroup()]),
+                      const ShadSeparator.horizontal(
+                        margin: EdgeInsets.symmetric(
+                          horizontal: AppTokens.spaceLg,
+                        ),
+                      ),
+                      const AccessibilityRow(),
+                    ],
+                  ),
+                ],
+              ),
+
+              // ── ③ 运行时 ─────────────────────────────────────────
+              _Section(
+                children: [
+                  SettingsGroup(
+                    title: l10n.settingsGroupRuntime,
+                    icon: Icons.memory,
+                    children: [
+                      const MemoryUsageBlock(),
+                      const ShadSeparator.horizontal(
+                        margin: EdgeInsets.symmetric(
+                          horizontal: AppTokens.spaceLg,
+                        ),
+                      ),
+                      const ServiceStatusBlock(),
+                      const ShadSeparator.horizontal(
+                        margin: EdgeInsets.symmetric(
+                          horizontal: AppTokens.spaceLg,
+                        ),
+                      ),
+                      const ModelStoreBlock(),
+                    ],
+                  ),
+                ],
+              ),
+
+              // ── ④ 连接 ───────────────────────────────────────────
+              _Section(
+                children: [
+                  SettingsGroup(
+                    title: l10n.settingsGroupConnections,
+                    icon: Icons.hub_outlined,
+                    children: [
+                      SettingsBlock(
+                        children: [
+                          _NavRow(
+                            icon: Icons.wifi_find,
+                            title: l10n.settingsDeviceDiscovery,
+                            subtitle: l10n.settingsDeviceDiscoveryDesc,
+                            onTap: () => context.push('/discovery'),
+                          ),
+                          const ShadSeparator.horizontal(
+                            margin: EdgeInsets.symmetric(
+                              horizontal: AppTokens.spaceLg,
+                            ),
+                          ),
+                          _NavRow(
+                            icon: Icons.account_tree,
+                            title: l10n.telencephalonFlows,
+                            subtitle: l10n.telencephalonFlowsDesc,
+                            onTap: () => context.push('/flows'),
+                          ),
+                          const ShadSeparator.horizontal(
+                            margin: EdgeInsets.symmetric(
+                              horizontal: AppTokens.spaceLg,
+                            ),
+                          ),
+                          _NavRow(
+                            icon: Icons.psychology_alt,
+                            title: l10n.settingsEncephalonEmbedded,
+                            subtitle: l10n.settingsEncephalonEmbeddedDesc,
+                            onTap: () => context.push('/settings/encephalon'),
+                          ),
+                          const ShadSeparator.horizontal(
+                            margin: EdgeInsets.symmetric(
+                              horizontal: AppTokens.spaceLg,
+                            ),
+                          ),
+                          _NavRow(
+                            icon: Icons.cloud_sync,
+                            title: l10n.resonanceTitle,
+                            subtitle: l10n.settingsResonanceDesc,
+                            onTap: () => context.push('/resonance'),
                           ),
                         ],
-                        selected: {themeMode},
-                        onSelectionChanged: (Set<ThemeMode> selection) {
-                          ref
-                              .read(themeModeProvider.notifier)
-                              .setThemeMode(selection.first);
-                        },
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
+                ],
               ),
-              const SizedBox(height: 16),
-              const AppearanceSection(),
-              const SizedBox(height: 16),
-              GlassCard(
-                padding: EdgeInsets.zero,
-                child: Column(
-                  children: [
-                    ListTile(
-                      leading: Icon(Icons.memory, color: AppColors.primary),
-                      title: Text(AppLocalizations.of(context)!.settingsMemoryUsage),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.refresh),
-                        onPressed: () => ref.refresh(systemMemoryProvider),
+
+              // ── 高级（折叠）──────────────────────────────────────
+              _Section(
+                children: [
+                  SettingsGroup(
+                    title: l10n.settingsGroupAdvanced,
+                    icon: Icons.tune,
+                    description: l10n.settingsGroupAdvancedDesc,
+                    children: [
+                      SettingsDisclosure(
+                        title: l10n.settingsAdvancedLogs,
+                        subtitle: l10n.settingsLogsDesc,
+                        icon: Icons.article_outlined,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const ShadSeparator.horizontal(
+                              margin: EdgeInsets.symmetric(
+                                horizontal: AppTokens.spaceLg,
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.all(AppTokens.spaceLg),
+                              child: SizedBox(
+                                height: 320,
+                                child: const LogPanelSection(),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    const Divider(height: 1),
-                    Consumer(
-                      builder: (context, ref, child) {
-                        final memoryAsync = ref.watch(systemMemoryProvider);
-                        return memoryAsync.when(
-                          data: (memory) => _MemoryUsageBar(memory: memory),
-                          loading: () => const Padding(
-                            padding: EdgeInsets.all(16),
-                            child: Center(child: CircularProgressIndicator()),
-                          ),
-                          error: (e, s) => Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Text(AppLocalizations.of(context)!.commonLoadFailed(e.toString())),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              GlassCard(
-                padding: EdgeInsets.zero,
-                child: Column(
-                  children: [
-                    ListTile(
-                      leading: Icon(Icons.cloud, color: AppColors.primary),
-                      title: Text(l10n.serviceStatus),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.refresh),
-                        onPressed: () =>
-                            ref.read(serviceProvider.notifier).checkAll(),
+                      const ShadSeparator.horizontal(
+                        margin: EdgeInsets.symmetric(
+                          horizontal: AppTokens.spaceLg,
+                        ),
                       ),
-                    ),
-                    const Divider(height: 1),
-                    const _ServiceStatusSection(),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              GlassCard(padding: EdgeInsets.zero, child: _ModelStoreConfig()),
-              const SizedBox(height: 16),
-              GlassCard(padding: EdgeInsets.zero, child: _TtsSettingsSection()),
-              if (AccessibilityController.isSupported) ...[
-                const SizedBox(height: 16),
-                GlassCard(
-                  padding: EdgeInsets.zero,
-                  child: _AccessibilityTile(),
-                ),
-              ],
-              const SizedBox(height: 16),
-GlassCard(
-                  padding: EdgeInsets.zero,
-                  child: ListTile(
-                    leading: Icon(Icons.account_tree, color: AppColors.primary),
-                    title: Text(l10n.telencephalonFlows),
-                    subtitle: const Text('Browse and run telencephalon flows'),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const FlowsScreen()),
-                    ),
+                      SettingsDisclosure(
+                        title: l10n.settingsAdvancedBackend,
+                        subtitle: l10n.settingsAdvancedBackendDesc,
+                        icon: Icons.dns,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const ShadSeparator.horizontal(
+                              margin: EdgeInsets.symmetric(
+                                horizontal: AppTokens.spaceLg,
+                              ),
+                            ),
+                            const Padding(
+                              padding: EdgeInsets.all(AppTokens.spaceLg),
+                              child: BackendSettingsCard(),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const ShadSeparator.horizontal(
+                        margin: EdgeInsets.symmetric(
+                          horizontal: AppTokens.spaceLg,
+                        ),
+                      ),
+                      // 折叠标题是「遗留运行时」，真正的入口行在展开后 ——
+                      // 两者文案不能重复，否则同一个字符串在树上出现两次。
+                      SettingsDisclosure(
+                        title: l10n.settingsAdvancedLegacy,
+                        icon: Icons.history,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const ShadSeparator.horizontal(
+                              margin: EdgeInsets.symmetric(
+                                horizontal: AppTokens.spaceLg,
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.only(
+                                left: AppTokens.spaceLg,
+                                right: AppTokens.spaceLg,
+                                bottom: AppTokens.spaceLg,
+                              ),
+                              child: _NavRow(
+                                icon: Icons.psychology,
+                                title: l10n.settingsPrefrontalEmbedded,
+                                subtitle: l10n.settingsPrefrontalEmbeddedDesc,
+                                onTap: () =>
+                                    context.push('/settings/prefrontal'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(height: 16),
-                // Backend (telencephalon) 配置
-                const _BackendSettingsCard(),
-                const SizedBox(height: 16),
-              // 设备发现
-              GlassCard(
-                padding: EdgeInsets.zero,
-                child: ListTile(
-                  leading: Icon(Icons.wifi_find, color: AppColors.primary),
-                  title: Text(AppLocalizations.of(context)!.settingsDeviceDiscovery),
-                  subtitle: Text(AppLocalizations.of(context)!.settingsDeviceDiscoveryDesc),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => context.push('/discovery'),
-                ),
+                ],
               ),
-              const SizedBox(height: 16),
-              // 嵌入式大脑（NDK .so）—— 主路径：与桌面端嵌同一个 encephalon
-              GlassCard(
-                padding: EdgeInsets.zero,
-                child: ListTile(
-                  leading: Icon(Icons.psychology_alt, color: AppColors.primary),
-                  title: Text(
-                    AppLocalizations.of(context)!.settingsEncephalonEmbedded,
+
+              // ── 危险操作（隔离）─────────────────────────────────
+              _Section(
+                children: [
+                  SettingsGroup(
+                    title: l10n.settingsDangerZone,
+                    icon: Icons.warning_amber,
+                    description: l10n.settingsDangerZoneDesc,
+                    destructive: true,
+                    children: [
+                      SettingsRow(
+                        title: l10n.resetEngine,
+                        subtitle: l10n.resetEngineDesc,
+                        icon: Icons.restart_alt,
+                        destructive: true,
+                        onTap: () => _confirmReset(context, ref),
+                      ),
+                    ],
                   ),
-                  subtitle: Text(
-                    AppLocalizations.of(context)!.settingsEncephalonEmbeddedDesc,
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => context.push('/settings/encephalon'),
-                ),
+                ],
               ),
-              const SizedBox(height: 16),
-              // 嵌入式 Prefrontal（NDK .so）—— 遗留路径，已被嵌入式大脑取代
-              GlassCard(
-                padding: EdgeInsets.zero,
-                child: ListTile(
-                  leading: Icon(Icons.psychology, color: AppColors.primary),
-                  title: Text(AppLocalizations.of(context)!.settingsPrefrontalEmbedded),
-                  subtitle: Text(AppLocalizations.of(context)!.settingsPrefrontalEmbeddedDesc),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => context.push('/settings/prefrontal'),
-                ),
-              ),
-              const SizedBox(height: 16),
-              // 系统日志
-              GlassCard(
-                padding: EdgeInsets.zero,
-                child: ListTile(
-                  leading: Icon(Icons.article_outlined, color: AppColors.primary),
-                  title: Text(AppLocalizations.of(context)!.logsTitle),
-                  subtitle: Text(AppLocalizations.of(context)!.settingsLogsDesc),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => context.push('/logs'),
-                ),
-              ),
-              const SizedBox(height: 16),
-              // Resonance管理
-              GlassCard(
-                padding: EdgeInsets.zero,
-                child: ListTile(
-                  leading: Icon(Icons.cloud_sync, color: AppColors.primary),
-                  title: Text(AppLocalizations.of(context)!.resonanceTitle),
-                  subtitle: Text(AppLocalizations.of(context)!.settingsResonanceDesc),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => context.push('/resonance'),
-                ),
-              ),
-              const SizedBox(height: 16),
-              GlassCard(
-                padding: EdgeInsets.zero,
-                child: ListTile(
-                  leading: Icon(Icons.refresh, color: AppColors.error),
-                  title: Text(l10n.resetEngine),
-                  subtitle: const Text('Reinitialize engine'),
-                  onTap: onReset,
-                ),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(height: 400, child: const LogPanelSection()),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 破坏性操作必须二次确认 —— 原来的「重置引擎」一点就执行。
+  Future<void> _confirmReset(BuildContext context, WidgetRef ref) async {
+    final l10n = AppLocalizations.of(context)!;
+
+    final confirmed = await showShadDialog<bool>(
+      context: context,
+      builder: (dialogContext) => ShadDialog.alert(
+        title: Text(l10n.resetEngine),
+        description: Text(l10n.resetEngineConfirmDesc),
+        actions: [
+          ShadButton.outline(
+            child: Text(l10n.cancel),
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+          ),
+          ShadButton.destructive(
+            child: Text(l10n.resetEngineConfirm),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      onReset();
+    }
+  }
+}
+
+/// 一段设置的容器 —— 玻璃卡 + 上下留白。
+class _Section extends StatelessWidget {
+  final List<Widget> children;
+
+  const _Section({required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppTokens.spaceXl),
+      child: GlassCard(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppTokens.spaceSm,
+          vertical: AppTokens.spaceMd,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: children,
+        ),
+      ),
+    );
+  }
+}
+
+/// 导航行 —— 可点进二级页。
+class _NavRow extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final VoidCallback onTap;
+
+  const _NavRow({
+    required this.icon,
+    required this.title,
+    this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = ShadTheme.of(context);
+    return SettingsRow(
+      title: title,
+      subtitle: subtitle,
+      icon: icon,
+      onTap: onTap,
+      trailing: Icon(
+        Icons.chevron_right,
+        size: 18,
+        color: theme.colorScheme.mutedForeground,
+      ),
+    );
+  }
+}
+
+/// 内存占用。
+class MemoryUsageBlock extends ConsumerWidget {
+  const MemoryUsageBlock({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final theme = ShadTheme.of(context);
+    final memoryAsync = ref.watch(systemMemoryProvider);
+
+    return memoryAsync.when(
+      data: (memory) {
+        final color = memory.usagePercent > 80
+            ? AppTokens.statusError
+            : memory.usagePercent > 60
+            ? AppTokens.statusWarning
+            : AppTokens.statusSuccess;
+        return SettingsBlock(
+          children: [
+            SettingsRow(
+              title: l10n.settingsMemoryUsage,
+              icon: Icons.memory,
+              trailing: ShadIconButton.ghost(
+                icon: const Icon(Icons.refresh, size: 18),
+                onPressed: () => ref.refresh(systemMemoryProvider),
+              ),
+            ),
+            const ShadSeparator.horizontal(
+              margin: EdgeInsets.symmetric(horizontal: AppTokens.spaceLg),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppTokens.spaceLg,
+                AppTokens.spaceMd,
+                AppTokens.spaceLg,
+                AppTokens.spaceMd,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        l10n.settingsMemUsed(memory.usedMb),
+                        style: theme.textTheme.small,
+                      ),
+                      Text(
+                        l10n.settingsMemTotal(memory.totalMb),
+                        style: theme.textTheme.small,
+                      ),
+                      Text(
+                        l10n.settingsMemFree(memory.freeMb),
+                        style: theme.textTheme.small,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppTokens.spaceSm),
+                  ShadProgress(
+                    value: memory.usagePercent / 100,
+                    color: color,
+                    minHeight: 8,
+                    borderRadius: BorderRadius.circular(AppTokens.radiusXs),
+                  ),
+                  const SizedBox(height: AppTokens.spaceXs),
+                  Text(
+                    l10n.settingsMemUsage(
+                      memory.usagePercent.toStringAsFixed(1),
+                    ),
+                    style: theme.textTheme.small.copyWith(color: color),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+      loading: () => Padding(
+        padding: const EdgeInsets.all(AppTokens.spaceLg),
+        child: Center(
+          child: ShadProgress(
+            value: null,
+            minHeight: 4,
+            borderRadius: BorderRadius.circular(AppTokens.radiusXs),
+          ),
+        ),
+      ),
+      error: (e, s) => Padding(
+        padding: const EdgeInsets.all(AppTokens.spaceLg),
+        child: Text(
+          l10n.commonLoadFailed(e.toString()),
+          style: theme.textTheme.small.copyWith(
+            color: theme.colorScheme.destructive,
           ),
         ),
       ),
@@ -332,93 +569,15 @@ GlassCard(
   }
 }
 
-class _ServiceStatusSection extends ConsumerStatefulWidget {
-  const _ServiceStatusSection();
+/// 无障碍（Android 无障碍服务）。
+class AccessibilityRow extends StatefulWidget {
+  const AccessibilityRow({super.key});
 
   @override
-  ConsumerState<_ServiceStatusSection> createState() =>
-      _ServiceStatusSectionState();
+  State<AccessibilityRow> createState() => _AccessibilityRowState();
 }
 
-class _ServiceStatusSectionState extends ConsumerState<_ServiceStatusSection> {
-  @override
-  void initState() {
-    super.initState();
-    Future.microtask(() {
-      ref.read(serviceProvider.notifier).checkAll();
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final services = ref.watch(serviceProvider);
-
-    return Column(
-      children: services.map((service) {
-        return _ServiceStatusTile(service: service);
-      }).toList(),
-    );
-  }
-}
-
-class _ServiceStatusTile extends StatelessWidget {
-  final ServiceInfo service;
-
-  const _ServiceStatusTile({required this.service});
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-
-    final statusConfig = {
-      ServiceStatus.healthy: (
-        Icons.check_circle,
-        AppColors.success,
-        l10n.healthy,
-      ),
-      ServiceStatus.offline: (Icons.cancel, AppColors.error, l10n.offline),
-      ServiceStatus.checking: (Icons.sync, AppColors.warning, l10n.checking),
-      ServiceStatus.unhealthy: (Icons.error, AppColors.error, l10n.unhealthy),
-      ServiceStatus.unknown: (
-        Icons.help,
-        AppColors.darkTextSecondary,
-        l10n.unknown,
-      ),
-    };
-
-    final (icon, color, label) = statusConfig[service.status]!;
-
-    return ListTile(
-      dense: true,
-      leading: Icon(icon, color: color, size: 20),
-      title: Text(service.displayName),
-      subtitle: Text(
-        service.error ?? '${service.host}:${service.port}',
-        style: Theme.of(context).textTheme.bodySmall,
-      ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (service.latencyMs != null &&
-              service.status == ServiceStatus.healthy)
-            Text(
-              '${service.latencyMs}ms',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          const SizedBox(width: 8),
-          Text(label, style: TextStyle(fontSize: 12, color: color)),
-        ],
-      ),
-    );
-  }
-}
-
-class _AccessibilityTile extends StatefulWidget {
-  @override
-  State<_AccessibilityTile> createState() => _AccessibilityTileState();
-}
-
-class _AccessibilityTileState extends State<_AccessibilityTile>
+class _AccessibilityRowState extends State<AccessibilityRow>
     with WidgetsBindingObserver {
   bool _isEnabled = false;
 
@@ -454,11 +613,11 @@ class _AccessibilityTileState extends State<_AccessibilityTile>
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    return ListTile(
-      leading: Icon(Icons.accessibility, color: AppColors.primary),
-      title: Text(l10n.accessibilityControl),
-      subtitle: Text(_isEnabled ? l10n.accessibilityOn : l10n.accessibilityOff),
-      trailing: Switch(
+    return SettingsRow(
+      title: l10n.accessibilityControl,
+      subtitle: _isEnabled ? l10n.accessibilityOn : l10n.accessibilityOff,
+      icon: Icons.accessibility,
+      trailing: ShadSwitch(
         value: _isEnabled,
         onChanged: (value) async {
           if (value) {
@@ -470,12 +629,15 @@ class _AccessibilityTileState extends State<_AccessibilityTile>
   }
 }
 
-class _ModelStoreConfig extends StatefulWidget {
+/// 模型仓库地址 —— 之前是一整张卡（含徽标 + 可编辑文本框）。
+class ModelStoreBlock extends StatefulWidget {
+  const ModelStoreBlock({super.key});
+
   @override
-  State<_ModelStoreConfig> createState() => _ModelStoreConfigState();
+  State<ModelStoreBlock> createState() => _ModelStoreBlockState();
 }
 
-class _ModelStoreConfigState extends State<_ModelStoreConfig> {
+class _ModelStoreBlockState extends State<ModelStoreBlock> {
   final _urlController = TextEditingController();
   bool _isEditing = false;
   bool _isDefault = true;
@@ -505,13 +667,7 @@ class _ModelStoreConfigState extends State<_ModelStoreConfig> {
     }
     _isEditing = false;
     await _loadCurrentUrl();
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(AppLocalizations.of(context)!.modelStoreUrlUpdated),
-        ),
-      );
-    }
+    if (mounted) setState(() {});
   }
 
   void _cancelEdit() {
@@ -529,368 +685,78 @@ class _ModelStoreConfigState extends State<_ModelStoreConfig> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    return Column(
+
+    return SettingsBlock(
       children: [
-        ListTile(
-          leading: Icon(Icons.download, color: AppColors.primary),
-          title: Text(l10n.modelStoreServer),
-          trailing: _isEditing
-              ? Row(
+        SettingsRow(
+          title: l10n.modelStoreServer,
+          icon: Icons.download,
+          subtitle: _currentUrl,
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ShadBadge.outline(
+                child: Text(_isDefault ? l10n.defaultOption : l10n.custom),
+              ),
+              const SizedBox(width: AppTokens.spaceSm),
+              if (_isEditing)
+                Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    IconButton(
-                      icon: const Icon(Icons.close, size: 20),
+                    ShadIconButton.ghost(
+                      icon: const Icon(Icons.close, size: 18),
                       onPressed: _cancelEdit,
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.check, size: 20),
+                    ShadIconButton(
+                      icon: const Icon(Icons.check, size: 18),
                       onPressed: _saveUrl,
                     ),
                   ],
                 )
-              : IconButton(
-                  icon: const Icon(Icons.edit, size: 20),
+              else
+                ShadIconButton.ghost(
+                  icon: const Icon(Icons.edit, size: 18),
                   onPressed: () => setState(() => _isEditing = true),
                 ),
-        ),
-        const Divider(height: 1),
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  if (!_isDefault)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.secondary.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        l10n.custom,
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: AppColors.secondary,
-                        ),
-                      ),
-                    ),
-                  if (_isDefault)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.success.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        l10n.defaultOption,
-                        style: const TextStyle(
-                          fontSize: 10,
-                          color: AppColors.success,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              if (_isEditing)
-                TextField(
-                  controller: _urlController,
-                  decoration: const InputDecoration(
-                    hintText: 'https://modelscope.cn/api/v1',
-                    border: OutlineInputBorder(),
-                    isDense: true,
-                  ),
-                  style: const TextStyle(fontSize: 14),
-                )
-              else
-                Text(
-                  _currentUrl,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.darkTextSecondary,
-                  ),
-                ),
             ],
           ),
         ),
-      ],
-    );
-  }
-}
-
-class _TtsSettingsSection extends StatefulWidget {
-  @override
-  State<_TtsSettingsSection> createState() => _TtsSettingsSectionState();
-}
-
-class _TtsSettingsSectionState extends State<_TtsSettingsSection> {
-  final TtsEngine _ttsEngine = TtsEngine();
-  bool _isInitialized = false;
-  TtsEngineType _engineType = TtsEngineType.androidBuiltIn;
-  bool _isEditingUrl = false;
-  final _urlController = TextEditingController();
-
-  @override
-  void initState() {
-    super.initState();
-    _initTts();
-  }
-
-  Future<void> _initTts() async {
-    final initialized = await _ttsEngine.initialize();
-    if (mounted) {
-      setState(() {
-        _isInitialized = initialized;
-        _engineType = _ttsEngine.engineType;
-        _urlController.text = _ttsEngine.externalUrl;
-      });
-    }
-  }
-
-  Future<void> _onEngineTypeChanged(TtsEngineType? type) async {
-    if (type == null) return;
-    await _ttsEngine.setEngineType(type);
-    if (mounted) {
-      setState(() => _engineType = type);
-    }
-  }
-
-  Future<void> _saveUrl() async {
-    await _ttsEngine.setExternalUrl(_urlController.text.trim());
-    _isEditingUrl = false;
-    if (mounted) setState(() {});
-  }
-
-  Future<void> _testSpeech() async {
-    final l10n = AppLocalizations.of(context)!;
-    await _ttsEngine.speak(l10n.ttsTestText);
-  }
-
-  @override
-  void dispose() {
-    _urlController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    return Column(
-      children: [
-        ListTile(
-          leading: Icon(Icons.record_voice_over, color: AppColors.primary),
-          title: Text(l10n.ttsSettings),
-        ),
-        const Divider(height: 1),
-        ListTile(
-          dense: true,
-          title: Text(l10n.ttsStatus),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.refresh, size: 18),
-                onPressed: _initTts,
-                tooltip: AppLocalizations.of(context)!.settingsRefreshStatus,
-              ),
-              Icon(
-                _isInitialized ? Icons.check_circle : Icons.error,
-                color: _isInitialized ? AppColors.success : AppColors.error,
-                size: 16,
-              ),
-              const SizedBox(width: 4),
-              Text(
-                _isInitialized ? l10n.ttsReady : l10n.ttsNotReady,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: _isInitialized ? AppColors.success : AppColors.error,
-                ),
-              ),
-            ],
+        if (_isEditing) ...[
+          const ShadSeparator.horizontal(
+            margin: EdgeInsets.symmetric(horizontal: AppTokens.spaceLg),
           ),
-        ),
-        const Divider(height: 1),
-        ListTile(
-          dense: true,
-          title: Text(l10n.ttsEngine),
-          trailing: SegmentedButton<TtsEngineType>(
-            segments: [
-              ButtonSegment(
-                value: TtsEngineType.androidBuiltIn,
-                label: Text(
-                  l10n.ttsEngineAndroid,
-                  style: const TextStyle(fontSize: 10),
-                ),
-              ),
-              ButtonSegment(
-                value: TtsEngineType.rust,
-                label: Text('Rust', style: const TextStyle(fontSize: 10)),
-              ),
-              ButtonSegment(
-                value: TtsEngineType.external,
-                label: Text(
-                  l10n.ttsEngineExternal,
-                  style: const TextStyle(fontSize: 10),
-                ),
-              ),
-            ],
-            selected: {_engineType},
-            onSelectionChanged: (selection) =>
-                _onEngineTypeChanged(selection.first),
-          ),
-        ),
-        if (_engineType == TtsEngineType.external) ...[
-          const Divider(height: 1),
           Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(l10n.ttsExternalUrl, style: const TextStyle(fontSize: 12)),
-                const SizedBox(height: 8),
-                if (_isEditingUrl)
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _urlController,
-                          decoration: InputDecoration(
-                            hintText: l10n.ttsExternalUrlHint,
-                            border: const OutlineInputBorder(),
-                            isDense: true,
-                          ),
-                          style: const TextStyle(fontSize: 14),
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close, size: 20),
-                        onPressed: () => setState(() => _isEditingUrl = false),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.check, size: 20),
-                        onPressed: _saveUrl,
-                      ),
-                    ],
-                  )
-                else
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          _urlController.text.isEmpty
-                              ? l10n.ttsExternalUrlHint
-                              : _urlController.text,
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(
-                                color: _urlController.text.isEmpty
-                                    ? AppColors.darkTextSecondary
-                                    : null,
-                              ),
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.edit, size: 20),
-                        onPressed: () => setState(() => _isEditingUrl = true),
-                      ),
-                    ],
-                  ),
-              ],
+            padding: const EdgeInsets.fromLTRB(
+              AppTokens.spaceLg,
+              AppTokens.spaceMd,
+              AppTokens.spaceLg,
+              AppTokens.spaceMd,
+            ),
+            child: ShadInput(
+              controller: _urlController,
+              placeholder: const Text('https://modelscope.cn/api/v1'),
+              keyboardType: TextInputType.url,
             ),
           ),
         ],
-        const Divider(height: 1),
-        ListTile(
-          dense: true,
-          title: Text(l10n.ttsTest),
-          trailing: IconButton(
-            icon: Icon(Icons.play_circle, color: AppColors.primary),
-            onPressed: _isInitialized ? _testSpeech : null,
-          ),
-        ),
       ],
     );
   }
 }
 
-class _MemoryUsageBar extends StatelessWidget {
-  final SystemMemoryInfo memory;
-
-  const _MemoryUsageBar({required this.memory});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                AppLocalizations.of(context)!.settingsMemUsed(memory.usedMb),
-                style: const TextStyle(fontSize: 12),
-              ),
-              Text(
-                AppLocalizations.of(context)!.settingsMemTotal(memory.totalMb),
-                style: const TextStyle(fontSize: 12),
-              ),
-              Text(
-                AppLocalizations.of(context)!.settingsMemFree(memory.freeMb),
-                style: const TextStyle(fontSize: 12),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: memory.usagePercent / 100,
-              backgroundColor: Colors.grey.withValues(alpha: 0.3),
-              valueColor: AlwaysStoppedAnimation<Color>(
-                memory.usagePercent > 80
-                    ? AppColors.error
-                    : memory.usagePercent > 60
-                    ? Colors.orange
-                    : AppColors.success,
-              ),
-              minHeight: 8,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            AppLocalizations.of(context)!.settingsMemUsage(memory.usagePercent.toStringAsFixed(1)),
-            style: TextStyle(
-              fontSize: 11,
-              color: memory.usagePercent > 80
-                  ? AppColors.error
-                  : memory.usagePercent > 60
-                  ? Colors.orange
-                  : AppColors.success,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _BackendSettingsCard extends ConsumerStatefulWidget {
-  const _BackendSettingsCard();
+/// 端脑（Telencephalon）后端地址与管理员令牌。
+///
+/// 原来是一个独立的大卡片（标题 + 描述 + 两个 TextField + Save），
+/// 现在收进「高级」折叠区里 —— 这是开发者才需要改的东西。
+class BackendSettingsCard extends ConsumerStatefulWidget {
+  const BackendSettingsCard({super.key});
 
   @override
-  ConsumerState<_BackendSettingsCard> createState() =>
+  ConsumerState<BackendSettingsCard> createState() =>
       _BackendSettingsCardState();
 }
 
-class _BackendSettingsCardState extends ConsumerState<_BackendSettingsCard> {
+class _BackendSettingsCardState extends ConsumerState<BackendSettingsCard> {
   late TextEditingController _urlCtrl;
   late TextEditingController _tokenCtrl;
   bool _loaded = false;
@@ -913,6 +779,7 @@ class _BackendSettingsCardState extends ConsumerState<_BackendSettingsCard> {
     final cfg = AppConfigService();
     await cfg.init();
     final live = ref.read(telencephalonProvider.notifier).client;
+    if (!mounted) return;
     setState(() {
       _urlCtrl.text = live.baseUrl;
       _tokenCtrl.text = live.adminToken ?? '';
@@ -930,66 +797,44 @@ class _BackendSettingsCardState extends ConsumerState<_BackendSettingsCard> {
     notifier.setBaseUrl(url.isEmpty ? 'http://127.0.0.1:60080' : url);
     notifier.setAdminToken(token.isEmpty ? null : token);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Backend settings saved')),
-    );
+    setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     if (!_loaded) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _hydrate());
     }
-    return GlassCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.dns, color: AppColors.primary),
-              const SizedBox(width: 8),
-              const Text(
-                'Backend (Telencephalon)',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-              ),
-            ],
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // 标题与描述由外层的 SettingsDisclosure 提供，这里不再重复一遍 ——
+        // 同一个字符串在树上出现两次会让「折叠后不可见」这类断言失效。
+        ShadInput(
+          controller: _urlCtrl,
+          placeholder: const Text('http://127.0.0.1:60080'),
+          keyboardType: TextInputType.url,
+        ),
+        const SizedBox(height: AppTokens.spaceMd),
+        ShadInput(
+          controller: _tokenCtrl,
+          placeholder: Text(l10n.settingsBackendAdminTokenHint),
+          obscureText: true,
+        ),
+        const SizedBox(height: AppTokens.spaceMd),
+        Align(
+          alignment: Alignment.centerRight,
+          child: ShadButton(
+            onPressed: _save,
+            leading: const Icon(Icons.save_outlined, size: 16),
+            child: Text(l10n.commonSave),
           ),
-          const SizedBox(height: 4),
-          const Text(
-            'Override the telencephalon base URL and admin token used by the mobile client.',
-            style: TextStyle(fontSize: 12, color: Colors.black54),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _urlCtrl,
-            decoration: const InputDecoration(
-              labelText: 'Base URL',
-              hintText: 'http://127.0.0.1:60080',
-              border: OutlineInputBorder(),
-            ),
-            keyboardType: TextInputType.url,
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _tokenCtrl,
-            decoration: const InputDecoration(
-              labelText: 'Admin Token (optional)',
-              hintText: 'leave blank for dev mode',
-              border: OutlineInputBorder(),
-            ),
-            obscureText: true,
-          ),
-          const SizedBox(height: 12),
-          Align(
-            alignment: Alignment.centerRight,
-            child: FilledButton.icon(
-              onPressed: _save,
-              icon: const Icon(Icons.save_outlined),
-              label: const Text('Save'),
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
