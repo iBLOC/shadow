@@ -399,18 +399,14 @@ class _LocalChatViewState extends ConsumerState<LocalChatView> {
                           ? VoiceInputView(
                               isRecording: chatState.isRecordingAudio,
                               isEnabled:
-                                  (chatState.isInitialized ||
-                                      chatState.isLitertReady) &&
-                                  !chatState.isLoading,
+                                  chatState.canChat && !chatState.isLoading,
                               onStartRecording: widget.onStartAudioRecording,
                               onStopAndSend: widget.onStopAndSend,
                             )
                           : TextField(
                               controller: widget.promptController,
                               decoration: InputDecoration(
-                                hintText:
-                                    chatState.isInitialized ||
-                                        chatState.isLitertReady
+                                hintText: chatState.canChat
                                     ? l10n.askSomething
                                     : l10n.initializing,
                                 border: OutlineInputBorder(
@@ -422,9 +418,7 @@ class _LocalChatViewState extends ConsumerState<LocalChatView> {
                                 ),
                               ),
                               enabled:
-                                  (chatState.isInitialized ||
-                                      chatState.isLitertReady) &&
-                                  !chatState.isLoading,
+                                  chatState.canChat && !chatState.isLoading,
                               maxLines: 4,
                               minLines: 1,
                               textInputAction: TextInputAction.send,
@@ -435,9 +429,7 @@ class _LocalChatViewState extends ConsumerState<LocalChatView> {
                       const SizedBox(width: 8),
                       IconButton.filled(
                         onPressed:
-                            (chatState.isInitialized ||
-                                    chatState.isLitertReady) &&
-                                !chatState.isLoading
+                            chatState.canChat && !chatState.isLoading
                             ? widget.onSendMessage
                             : null,
                         icon:

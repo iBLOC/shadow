@@ -94,6 +94,18 @@ class ChatState {
     this.sessionId,
   });
 
+  /// 能不能发消息 —— 有没有可用的对话后端。
+  ///
+  /// **端脑链路（`/shadow/v1/*`）不依赖本地模型**：它是网络调用，指向
+  /// 嵌入式大脑的端脑面；本地 LiteRT 只是端脑不通时的**兜底**。
+  ///
+  /// ⚠️ 之前这个条件是 `isInitialized || isLitertReady` —— 两个都是
+  /// **本地引擎**的状态 ⇒ 没装本地模型的设备上**输入框整个是禁用的**，
+  /// 移动端对话页一条消息都发不出去。
+  ///
+  /// `mode == ChatMode.off` = 「没有本地模型，用端脑链路」。
+  bool get canChat => isInitialized || isLitertReady || mode == ChatMode.off;
+
   static const _omit = _CopyWithOmit();
 
   ChatState copyWith({
@@ -224,7 +236,17 @@ class ChatNotifier extends StateNotifier<ChatState> {
   Future<void> _initLiteRT() async {
     final agent = state.currentAgent;
     state = state.copyWith(
-      mode: ChatMode.litert,
+      // ⚠️ **不要**在这里把 mode 设成 `ChatMode.litert`。
+      //
+      // mode 决定「对话页渲染哪个视图」：
+      // `chat_screen.dart` 里 `isLitertMode = mode == ChatMode.litert`
+      // ⇒ 渲染 `PrefrontalChatView` —— 而那条视图走的是**前额叶方言**
+      // （`/api/sessions`），「改嵌大脑」之后端脑面上**根本没有这条路由**
+      // ⇒ 对话页永远卡在「初始化中…」。
+      //
+      // mode 应当在**本地引擎真的就绪**时才是 litert（见 `initLitert`）；
+      // 没有本地模型时保持 `off` —— 那才是端脑链路（`/shadow/v1/*`）。
+      mode: ChatMode.off,
       messages: [
         ...state.messages,
         ChatMessageModel(
@@ -439,6 +461,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
         if (testResult) {
           state = state.copyWith(
             isLitertReady: true,
+            // 本地引擎真的就绪了 —— 这时（且只有这时）对话页才切到
+            // LiteRT 视图。放在 `_initLiteRT` 里无条件设的话，没装本地
+            // 模型的设备会被推进一条**已经不存在的**前额叶链路。
+            mode: ChatMode.litert,
             modelInfo: '${agent.model.displayName} ready',
             modelInfoL10nKey: ChatStateL10nKey.litertReady,
             messages: [
@@ -591,9 +617,15 @@ class ChatNotifier extends StateNotifier<ChatState> {
   Future<void> generateResponse(String prompt) async {
     if (prompt.isEmpty || state.isLoading) return;
 
-    if (state.mode == ChatMode.litert && state.isLitertReady) {
-      await _generateLitertResponse(prompt, []);
-    }
+    // ⚠️ 这里**曾经**有个守卫：`mode == ChatMode.litert && isLitertReady`。
+    // 那两个条件说的都是**本地** LiteRT 引擎 ⇒ 没装本地模型的设备上
+    // **一条消息都发不出去**（函数直接返回，什么都不发生）。
+    //
+    // 正确的形状就是 `_generateLitertResponse` 自己已经实现的那个：
+    // **先走端脑（`/shadow/v1/*`），端脑不通才回退到本地模型**
+    // （见那里的 catch 分支）。本地模型是**兜底**，不是前提 ——
+    // 「所有通信都要走 大脑 → 端脑 → 叶区」这条规则在移动端也成立。
+    await _generateLitertResponse(prompt, []);
   }
 
   Future<void> generateResponseWithAttachments(
@@ -601,22 +633,22 @@ class ChatNotifier extends StateNotifier<ChatState> {
     List<MultimodalInput> attachments,
   ) async {
     if (state.isLoading) return;
-
-    if (state.mode == ChatMode.litert && state.isLitertReady) {
-      final hasImage = attachments.any(
-        (a) =>
-            a.type == MultimodalInputType.image ||
-            a.type == MultimodalInputType.camera,
+    final hasImage = attachments.any(
+      (a) =>
+          a.type == MultimodalInputType.image ||
+          a.type == MultimodalInputType.camera,
+    );
+    // 端脑那条路只处理纯文本（见 `_generateLitertResponse` 里的
+    // `attachments.isEmpty` 分支），带图只能走本地引擎。本地引擎没就绪
+    // ⇒ 明确报错，而不是把消息悄悄丢掉。
+    if (hasImage && !(state.mode == ChatMode.litert && state.isLitertReady)) {
+      state = state.copyWith(
+        errorMessage: currentL10n().chatImageNotAvailable,
+        errorMessageL10nKey: ChatStateL10nKey.errorGeneric,
       );
-      if (hasImage) {
-        state = state.copyWith(
-          errorMessage: currentL10n().chatImageNotAvailable,
-          errorMessageL10nKey: ChatStateL10nKey.errorGeneric,
-        );
-        return;
-      }
-      await _generateLitertResponse(prompt, attachments);
+      return;
     }
+    await _generateLitertResponse(prompt, attachments);
   }
 
   Future<void> processAudioSegment(List<double> audioSamples) async {
