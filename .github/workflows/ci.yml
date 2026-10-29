@@ -292,6 +292,13 @@ jobs:
         working-directory: shadow-desktop
         run: pnpm install --frozen-lockfile
 
+      # 桌面端与移动端是同一个 agent 的两个终端。design-tokens.json 与
+      # agent-surface.json 是两端共享的唯一真相源；这一步守住它们不被
+      # 两端各自改漂（清单里的路由不存在 / 两端偷偷多出或少了路由 /
+      # 移动端颜色与 token 对不上）。
+      - name: Cross-client consistency check
+        run: node scripts/check-agent-surface.mjs
+
       - name: TypeScript check
         working-directory: shadow-desktop
         run: pnpm exec tsc --noEmit

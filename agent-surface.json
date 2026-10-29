@@ -1,0 +1,318 @@
+{
+  "_meta": {
+    "name": "Shadow agent surface",
+    "version": "1.0.0",
+    "updated": "2026-10-29",
+    "structureCheckedBy": "scripts/check-agent-surface.mjs（CI 的 Cross-client consistency check 步骤）",
+    "why": "桌面端与移动端是**同一个 agent 的两个终端**。同一个 agent 能力不应该在两端有两个名字、两套入口语义、两种视觉。这一份是「能力 → 两端入口」的唯一映射表，两端的导航从它生成，而不是各自硬编码一份页面清单。",
+    "consumers": {
+      "shadow-desktop": "src/lib/agentSurface.ts 读取本文件 → 侧边栏分组 / 路由守卫 / 能力可用性",
+      "shadow-mobile": "lib/services/agent_surface.dart 读取本文件 → 底部 tab / 管理台卡片"
+    },
+    "groups": {
+      "converse": "对话与表达",
+      "work": "任务与产出",
+      "capability": "能力与资源",
+      "tools": "端侧工具",
+      "ops": "运维与诊断"
+    },
+    "rules": [
+      "两端共用同一个 id 与同一个 labelKey —— 同一个能力不能有两种叫法",
+      "desktop/mobile 有一端为 null = 该端暂时不做这个能力（这是允许的分叉），但要显式写出来而不是悄悄消失",
+      "route 写实际路径，不要写「页���名」",
+      "requires 声明该能力依赖哪个 lobe/skill，运行时不可用时两端都要能标灰"
+    ],
+    "_known_divergences": [
+      "chat：桌面在 /conversation，移动在 /（首页）—— 同一个能力，两个入口语义，建议统一",
+      "telencephalon：桌面在 /cortex-status，移动在 /settings/encephalon —— 名字与层级都不同",
+      "prompt-settings：桌面 /prompt-settings，移动 /settings/prompt —— 一致，但 key 命名体系不同",
+      "flows：桌面另有 /workflow-studio（工作流编排器），移动端没有"
+    ]
+  },
+
+  "capabilities": [
+    {
+      "id": "chat",
+      "group": "converse",
+      "labelKey": "surface.chat",
+      "icon": "chat",
+      "desktop": { "route": "/conversation", "nav": true },
+      "mobile": { "route": "/", "nav": true }
+    },
+    {
+      "id": "conversations",
+      "group": "converse",
+      "labelKey": "surface.conversations",
+      "icon": "history",
+      "desktop": { "route": null, "nav": false },
+      "mobile": { "route": "/conversations", "nav": true }
+    },
+    {
+      "id": "voice",
+      "group": "converse",
+      "labelKey": "surface.voice",
+      "icon": "mic",
+      "desktop": { "route": "/voice", "nav": true },
+      "mobile": { "route": "/voice", "nav": false }
+    },
+    {
+      "id": "livestream",
+      "group": "converse",
+      "labelKey": "surface.livestream",
+      "icon": "broadcast",
+      "desktop": { "route": null, "nav": false },
+      "mobile": { "route": "/livestream", "nav": true }
+    },
+    {
+      "id": "customer-service",
+      "group": "converse",
+      "labelKey": "surface.customerService",
+      "icon": "headset",
+      "desktop": { "route": null, "nav": false },
+      "mobile": { "route": "/customer-service", "nav": true }
+    },
+
+    {
+      "id": "tasks",
+      "group": "work",
+      "labelKey": "surface.tasks",
+      "icon": "board",
+      "desktop": { "route": "/tasks", "aliases": ["/"], "nav": true },
+      "mobile": { "route": "/tasks", "nav": true }
+    },
+    {
+      "id": "group",
+      "group": "work",
+      "labelKey": "surface.group",
+      "icon": "users",
+      "desktop": { "route": "/group", "nav": true },
+      "mobile": { "route": "/group", "nav": false }
+    },
+    {
+      "id": "document",
+      "group": "work",
+      "labelKey": "surface.document",
+      "icon": "file",
+      "desktop": { "route": "/document/:taskId", "nav": false },
+      "mobile": { "route": null, "nav": false }
+    },
+    {
+      "id": "previews",
+      "group": "work",
+      "labelKey": "surface.previews",
+      "icon": "eye",
+      "desktop": { "route": "/previews", "nav": false },
+      "mobile": { "route": null, "nav": false }
+    },
+
+    {
+      "id": "agents",
+      "group": "capability",
+      "labelKey": "surface.agents",
+      "icon": "robot",
+      "desktop": { "route": null, "nav": false },
+      "mobile": { "route": "/manage/agents", "nav": true }
+    },
+    {
+      "id": "models",
+      "group": "capability",
+      "labelKey": "surface.models",
+      "icon": "cube",
+      "desktop": { "route": "/models", "nav": false },
+      "mobile": { "route": "/manage/models", "nav": true }
+    },
+    {
+      "id": "model-download",
+      "group": "capability",
+      "labelKey": "surface.modelDownload",
+      "icon": "download",
+      "desktop": { "route": "/models/download", "nav": false },
+      "mobile": { "route": null, "nav": false }
+    },
+    {
+      "id": "model-onboarding",
+      "group": "capability",
+      "labelKey": "surface.modelOnboarding",
+      "icon": "rocket",
+      "desktop": { "route": "/onboarding", "nav": false },
+      "mobile": { "route": null, "nav": false }
+    },
+    {
+      "id": "model-settings",
+      "group": "capability",
+      "labelKey": "surface.modelSettings",
+      "icon": "sliders",
+      "desktop": { "route": null, "nav": false },
+      "mobile": { "route": "/settings/model", "nav": false }
+    },
+    {
+      "id": "providers",
+      "group": "capability",
+      "labelKey": "surface.providers",
+      "icon": "plug",
+      "desktop": { "route": "/providers", "nav": false },
+      "mobile": { "route": "/manage/providers", "nav": true }
+    },
+    {
+      "id": "mcp",
+      "group": "capability",
+      "labelKey": "surface.mcp",
+      "icon": "wrench",
+      "desktop": { "route": "/mcp", "nav": true },
+      "mobile": { "route": "/manage/mcp", "nav": true }
+    },
+    {
+      "id": "skills",
+      "group": "capability",
+      "labelKey": "surface.skills",
+      "icon": "sparkles",
+      "desktop": { "route": "/skills", "nav": true },
+      "mobile": { "route": "/manage/skills", "nav": true }
+    },
+    {
+      "id": "memory",
+      "group": "capability",
+      "labelKey": "surface.memory",
+      "icon": "database",
+      "desktop": { "route": "/memory", "nav": true },
+      "mobile": { "route": "/manage/memory", "nav": true }
+    },
+    {
+      "id": "prompt-settings",
+      "group": "capability",
+      "labelKey": "surface.promptSettings",
+      "icon": "quote",
+      "desktop": { "route": "/prompt-settings", "nav": true },
+      "mobile": { "route": "/settings/prompt", "nav": false }
+    },
+    {
+      "id": "flows",
+      "group": "capability",
+      "labelKey": "surface.flows",
+      "icon": "workflow",
+      "desktop": { "route": "/flows", "nav": true },
+      "mobile": { "route": "/flows", "nav": false }
+    },
+    {
+      "id": "workflow-studio",
+      "group": "capability",
+      "labelKey": "surface.workflowStudio",
+      "icon": "git-branch",
+      "desktop": { "route": "/workflow-studio", "nav": true },
+      "mobile": { "route": null, "nav": false }
+    },
+
+    {
+      "id": "computer-use",
+      "group": "tools",
+      "labelKey": "surface.computerUse",
+      "icon": "cursor",
+      "desktop": { "route": "/computer-use", "nav": true },
+      "mobile": { "route": null, "nav": false }
+    },
+    {
+      "id": "jdm-editor",
+      "group": "tools",
+      "labelKey": "surface.jdmEditor",
+      "icon": "code",
+      "desktop": { "route": "/jdm-editor", "nav": true },
+      "mobile": { "route": null, "nav": false }
+    },
+    {
+      "id": "provisioning",
+      "group": "tools",
+      "labelKey": "surface.provisioning",
+      "icon": "wifi",
+      "desktop": { "route": null, "nav": false },
+      "mobile": { "route": null, "nav": false, "_orphan": "页面存在但没有路由，也没有入口 —— 待接线" }
+    },
+
+    {
+      "id": "discovery",
+      "group": "ops",
+      "labelKey": "surface.discovery",
+      "icon": "radar",
+      "desktop": { "route": "/discovery", "nav": false },
+      "mobile": { "route": "/discovery", "nav": false }
+    },
+    {
+      "id": "logs",
+      "group": "ops",
+      "labelKey": "surface.logs",
+      "icon": "scroll",
+      "desktop": { "route": "/logs", "nav": true },
+      "mobile": { "route": "/logs", "nav": false }
+    },
+    {
+      "id": "trace",
+      "group": "ops",
+      "labelKey": "surface.trace",
+      "icon": "activity",
+      "desktop": { "route": "/trace", "nav": true },
+      "mobile": { "route": null, "nav": false }
+    },
+    {
+      "id": "resonance",
+      "group": "ops",
+      "labelKey": "surface.resonance",
+      "icon": "cloud",
+      "desktop": { "route": "/resonance", "nav": false },
+      "mobile": { "route": "/resonance", "nav": false }
+    },
+    {
+      "id": "telencephalon",
+      "group": "ops",
+      "labelKey": "surface.telencephalon",
+      "icon": "brain",
+      "desktop": { "route": "/cortex-status", "nav": false },
+      "mobile": { "route": "/settings/encephalon", "nav": false }
+    },
+    {
+      "id": "settings",
+      "group": "ops",
+      "labelKey": "surface.settings",
+      "icon": "settings",
+      "desktop": { "route": "/settings", "nav": false },
+      "mobile": { "route": "/settings", "nav": true }
+    },
+    {
+      "id": "setup",
+      "group": "ops",
+      "labelKey": "surface.setup",
+      "icon": "rocket",
+      "desktop": { "route": "/setup", "nav": false },
+      "mobile": { "route": null, "nav": false, "_orphan": "setup_wizard_screen.dart 存在但没有路由 —— 待接线" }
+    },
+    {
+      "id": "prefrontal-embedded",
+      "group": "ops",
+      "labelKey": "surface.prefrontalEmbedded",
+      "icon": "psychology",
+      "desktop": { "route": null, "nav": false },
+      "mobile": { "route": "/settings/prefrontal", "nav": false },
+      "_legacy": "旧的嵌入式前额叶支线（只跑一个 lobe，不是大脑）。已被「改嵌大脑」取代，待决定退役还是保留。"
+    }
+  ],
+
+  "_containers": {
+    "_note": "容器路由不是能力本身 —— 它们把一组能力聚合到一个入口。",
+    "mobile": [
+      { "route": "/manage", "labelKey": "surface.manage", "holds": ["agents", "models", "providers", "mcp", "skills", "memory"] }
+    ]
+  },
+
+  "_legacyRoutes": {
+    "_note": "兼容旧 deep link 的重定向，不是能力入口。桌面端暂无。",
+    "mobile": ["/agents", "/models", "/providers", "/mcp", "/skills", "/memory"]
+  },
+
+  "_runtime": {
+    "source": "端脑（telencephalon）",
+    "endpoints": {
+      "agents": "GET /shadow/v1/agents",
+      "agentCard": "GET /.well-known/agent.json",
+      "conversation": "GET/POST /shadow/v1/conversations"
+    },
+    "note": "能力是否**可用**由端脑运行时决定：lobe 的 enabled + health_status + agent_card.metadata.capabilities。注意 native lobe 的 skills[] 目前是空数组，能力标识实际在 agent_card.metadata.capabilities[] 与 config.required_capabilities 里 —— 接运行时状态前要先统一这两个字段的语义。"
+  }
+}

@@ -1,0 +1,116 @@
+{
+  "_meta": {
+    "name": "Shadow design tokens",
+    "version": "1.0.0",
+    "updated": "2026-10-29",
+    "structureCheckedBy": "scripts/check-agent-surface.mjs（CI 的 Cross-client consistency check 步骤）",
+    "why": "桌面端与移动端是同一个 agent 的两个终端。它们的技术栈不同（React+Tailwind vs Flutter+Material），组件代码无法共享，但**设计数值必须共享** —— 否则「同一个产品」就只是口号。这一份是唯一的数值真相源。",
+    "consumers": {
+      "shadow-desktop": "tailwind.config.ts 读取本文件 → 生成 CSS 变量与 Tailwind 扩展",
+      "shadow-mobile": "scripts/gen_tokens.dart 读取本文件 → 生成 lib/theme/app_tokens.g.dart"
+    },
+    "rules": [
+      "两端任何硬编码的颜色/间距/圆角/字号/时长都必须能在这里找到对应项",
+      "改这里的值，两端同时变 —— 这就是「统一」的可执行定义",
+      "端侧特有的效果（glassmorphism、neon glow）不是 token，是两端各自的表现层选择"
+    ]
+  },
+
+  "color": {
+    "brand": {
+      "primary": "#A78BFA",
+      "primaryVariant": "#C4B5FD",
+      "primaryGlow": "#4DA78BFA",
+      "secondary": "#22D3EE",
+      "secondaryVariant": "#67E8F9",
+      "secondaryGlow": "#4D22D3EE"
+    },
+    "bg": {
+      "dark": "#09090B",
+      "darkAlt": "#18181B",
+      "darkSurface": "#27272A",
+      "darkSurfaceGlass": "#4D27272A",
+      "light": "#F4F4F5",
+      "lightAlt": "#E4E4E7",
+      "lightSurface": "#FFFFFF",
+      "lightSurfaceGlass": "#B3FFFFFF"
+    },
+    "text": {
+      "darkPrimary": "#FAFAFA",
+      "darkSecondary": "#A1A1AA",
+      "darkMuted": "#71717A",
+      "lightPrimary": "#09090B",
+      "lightSecondary": "#52525B",
+      "lightMuted": "#A1A1AA"
+    },
+    "border": {
+      "dark": "#1AFFFFFF",
+      "darkGlow": "#4DA78BFA",
+      "light": "#4D3B82F6",
+      "lightGlow": "#4D3B82F6"
+    },
+    "status": {
+      "success": "#34D399",
+      "successLight": "#6EE7B7",
+      "warning": "#FBBF24",
+      "warningLight": "#FCD34D",
+      "error": "#F87171",
+      "errorLight": "#FCA5A5"
+    },
+    "_note": "移动端 AppColors 是这份的当前实现；桌面端的 shadcn 语义变量（--background/--foreground/--muted/--border/--primary/--destructive…）是这份的桌面投影。接入后两端的 --primary 应当是同一个 brand.primary。"
+  },
+
+  "radius": {
+    "xs": "4px",
+    "sm": "8px",
+    "md": "12px",
+    "lg": "16px",
+    "xl": "24px",
+    "pill": "9999px"
+  },
+
+  "space": {
+    "none": "0px",
+    "xs": "4px",
+    "sm": "8px",
+    "md": "12px",
+    "lg": "16px",
+    "xl": "24px",
+    "2xl": "32px"
+  },
+
+  "fontSize": {
+    "xs": "12px",
+    "sm": "14px",
+    "base": "16px",
+    "lg": "20px",
+    "xl": "24px",
+    "2xl": "32px"
+  },
+
+  "fontWeight": {
+    "regular": "400",
+    "medium": "500",
+    "semibold": "600",
+    "bold": "700"
+  },
+
+  "duration": {
+    "fast": "100ms",
+    "normal": "200ms",
+    "slow": "300ms"
+  },
+
+  "opacity": {
+    "subtle": "0.1",
+    "muted": "0.3",
+    "strong": "0.6"
+  },
+
+  "breakpoint": {
+    "sm": "640px",
+    "md": "768px",
+    "lg": "1024px",
+    "xl": "1280px"
+  }
+}
