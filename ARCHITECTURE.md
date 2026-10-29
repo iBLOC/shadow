@@ -102,7 +102,7 @@ MainActivity (Kotlin)  ── JNI ──▶  libencephalon.so (Rust)
 | 形态 | 端脑面对外端口 | 叶区 → LLM 指向 | 修在哪 |
 |---|---|---|---|
 | 桌面端 sidecar（进程内嵌） | `127.0.0.1:60080` | `native_lobes.reconfigure` → `:8085`（neuron 自己的 listener） | shadow 仓 `src-tauri/src/cortex_http.rs` |
-| 移动端 App（`libencephalon.so`） | 随机端口 | `point_lobes_at_neuron` → 进程内 neuron | 大脑仓 `point_lobes_at_neuron`（PR #2） |
+| 移动端 App（`libencephalon.so`） | 随机端口 | `point_lobes_at_neuron` → 进程内 neuron | 大脑仓 `point_lobes_at_neuron`（已合并） |
 | 独立大脑（`encephalon-server`） | `:8082` | 同上 | 同上 |
 
 **为什么必须指向 neuron 自己的 listener**：端脑 HTTP 面里合并的那张 neuron 路由是 `neuron::create_router` **重建**的 `ServerState` —— 不是活着的那个实例。更要紧的是叶区的默认端点 `http://localhost:60080` 在移动端与独立大脑上**没有任何东西在听**（端脑面分别是随机端口和 `:8082`），于是叶区发起的 LLM 调用 connection refused，而对话照样有回音 —— 能力静默失效。

@@ -150,12 +150,12 @@
 | 形态 | 端脑面对外端口 | 叶区 → LLM 指向 | 修在哪 |
 |---|---|---|---|
 | 桌面端 sidecar（进程内嵌） | `127.0.0.1:60080` | `native_lobes.reconfigure` → `:8085`（neuron 自己的 listener） | shadow 仓 `src-tauri/src/cortex_http.rs` |
-| 移动端 App（`libencephalon.so`） | 随机端口 | `point_lobes_at_neuron` → 进程内 neuron | 大脑仓 `point_lobes_at_neuron`（PR #2） |
+| 移动端 App（`libencephalon.so`） | 随机端口 | `point_lobes_at_neuron` → 进程内 neuron | 大脑仓 `point_lobes_at_neuron`（**已合并**） |
 | 独立大脑（`encephalon-server`） | `:8082` | 同上 | 同上 |
 
 **为什么必须指向 neuron 自己的 listener**：`neuron::create_router` 每次调用都**重建** `ServerState` —— 合并进端脑 HTTP 面的那张 neuron 路由不是活着的那个实例。更要紧的是叶区的默认端点 `http://localhost:60080` 在移动端与独立大脑上**没有任何东西在听**（端脑面分别是随机端口和 `:8082`），于是叶区发起的 LLM 调用 connection refused，而对话照样有回音 —— 能力静默失效。
 
-⚠️ 移动端与独立大脑的修复在**兄弟仓**（encephalon PR #2），**合并前那条链是断的** —— shadow 的守门员扫不到服务端侧。
+三处现在用同一套逻辑：桌面端 sidecar 自己的 `native_lobes.reconfigure` 循环，移动端与独立大脑走大脑仓的公共函数 `point_lobes_at_neuron`（附两条不变量测试）。shadow 的守门员只扫客户端侧，服务端侧的断点由兄弟仓的测试守住。
 
 ## 项目结构
 

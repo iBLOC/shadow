@@ -91,7 +91,7 @@ BLE 配网、USB 音频路由、相机 / 麦克风 / 文件选择、VAD、唤醒
 | CI 产出的 APK | `libencephalon.so` 不入库，CI 目前**不会**带嵌入式大脑（主功能缺失，会优雅降级） |
 | 去 Material | 未完成，`uses-material-design: true` 仍在 |
 | 真机验证 | **未做**（设备失联） |
-| 叶区 → LLM 端点 | 叶区默认端点是 `http://localhost:60080`，移动端**没有任何东西在听**（端脑面绑随机端口）⇒ 断链。修在**兄弟仓**大脑仓 `point_lobes_at_neuron`（PR #2），**合并前未生效** |
+| 叶区 → LLM 端点 | 叶区默认端点是 `http://localhost:60080`，移动端**没有任何东西在听**（端脑面绑随机端口）⇒ 断链。已由大脑仓的 `point_lobes_at_neuron` 修掉（**已合并**）—— 叶区现在指向进程内 neuron 自己的 listener |
 
 ## 可执行的不变量
 
