@@ -17,6 +17,15 @@ jobs:
   prefrontal-rust:
     name: Prefrontal Rust
     runs-on: ubuntu-latest
+    # 整栈编译 + 链接很慢，给足时间；但别让它无限跑下去 —— 磁盘/内存
+    # 打满时 runner 会被直接掐掉，日志都传不回来（比超时更难查）。
+    timeout-minutes: 60
+    env:
+      # 关掉调试信息：debug info 占 target/ 的大头，去掉后体积能降一大截，
+      # 直接缓解 runner 磁盘写满的问题。
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      CARGO_PROFILE_TEST_DEBUG: '0'
+      CARGO_INCREMENTAL: '0'
     steps:
       - name: Checkout shadow
         uses: actions/checkout@v7
@@ -100,10 +109,31 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq protobuf-compiler
 
+      # runner 磁盘：GitHub 托管的 ubuntu-latest 预装了 dotnet/ghc/boost/
+      # android ndk 等一堆用不上的工具（合计 ~10GB），而本 job 要编整个
+      # iBLOC 栈（datafusion / burn / aws-sdk 全家），target/ 轻松上 10GB。
+      # 2026-10-29 实测就是磁盘写满把 runner 打死：
+      #   "No space left on device" → ld 报 "Bus error, core dumped"
+      # → 整个 job 失败且日志都传不上来。先把没用的预装工具删掉。
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost
+          sudo rm -rf /usr/local/lib/android /opt/hostedtoolcache/CodeSC
+          sudo rm -rf /usr/share/swift /usr/local/share/powershell
+          sudo rm -f /swapfile
+          df -h /home/runner
+
+      # rust-cache 的 workspaces 是**逐行**列表，用逗号分隔会被当成一个
+      # 路径 —— 缓存直接失效（"The cwd: .../a,b,c does not exist!"），
+      # 于是每次都从零重编整栈，又慢又撑爆磁盘。
       - name: Setup Rust
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: prefrontal,synapse,hippocampus,neuron
+          workspaces: |
+            prefrontal
+            synapse
+            hippocampus
+            neuron
 
       - name: Cargo check
         working-directory: prefrontal
@@ -155,6 +185,11 @@ jobs:
     # (audit addendum 2026-09-26 L298-310). Until then this job may fail
     # at boot when no in-process neuron is available.
     runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      CARGO_PROFILE_TEST_DEBUG: '0'
+      CARGO_INCREMENTAL: '0'
     steps:
       - name: Checkout shadow
         uses: actions/checkout@v7
@@ -281,10 +316,29 @@ jobs:
           cache: pnpm
           cache-dependency-path: shadow-desktop/pnpm-lock.yaml
 
+      # runner 磁盘 —— 见 prefrontal-rust job 的同名步骤：预装工具先删掉。
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost
+          sudo rm -rf /usr/local/lib/android /opt/hostedtoolcache/CodeSC
+          sudo rm -rf /usr/share/swift /usr/local/share/powershell
+          sudo rm -f /swapfile
+          df -h /home/runner
+
+      # workspaces 必须逐行写，逗号分隔会让 rust-cache 缓存彻底失效。
       - name: Setup Rust
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: telencephalon,encephalon,synapse,prefrontal,hippocampus,neuron,diencephalon,temporal,occipital
+          workspaces: |
+            telencephalon
+            encephalon
+            synapse
+            prefrontal
+            hippocampus
+            neuron
+            diencephalon
+            temporal
+            occipital
 
       # One process, one port: neuron's OpenAI face at the root, the 端脑
       # face (/shadow/v1/*, /api/telencephalon/*), 海马体 at /hippocampus.
