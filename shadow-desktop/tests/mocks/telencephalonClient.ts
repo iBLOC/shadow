@@ -75,12 +75,14 @@ export const mockCortexClient = {
 };
 
 vi.mock('../../src/lib/telencephalonClient', () => ({
+  composeSystemPrompt: (custom?: string) => (custom ?? '').trim(),
   telencephalonClient: mockCortexClient,
   default: mockCortexClient,
 }));
 
 // Also mock the path relative to src/pages/
 vi.mock('../../../src/lib/telencephalonClient', () => ({
+  composeSystemPrompt: (custom?: string) => (custom ?? '').trim(),
   telencephalonClient: mockCortexClient,
   default: mockCortexClient,
 }));

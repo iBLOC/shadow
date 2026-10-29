@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
-import { telencephalonClient } from '../lib/telencephalonClient';
+import { composeSystemPrompt, telencephalonClient } from '../lib/telencephalonClient';
 import { computeTokenStats } from '../lib/tokenStats';
 import { useConversationStore } from '../stores/conversationStore';
 import { usePromptStore } from '../stores/promptStore';
@@ -252,7 +252,10 @@ export function ConversationPage() {
         try {
           if (!conversationId || attempt > 0) {
             const newConv = await telencephalonClient.createConversation({
-              system: systemPrompt,
+              // 人设随会话创建送进端脑（`composeSystemPrompt` 把
+              // `/no_think` 基线和人设拼在一起）。端脑把它记进会话记录，
+              // 链路上每个叶区都拿得到 —— 直连 neuron 的老路已经没有了。
+              system: composeSystemPrompt(systemPrompt),
             });
             conversationId = newConv.id;
             setSessionId(activeConversationId, conversationId);
@@ -275,7 +278,6 @@ export function ConversationPage() {
           for await (const event of telencephalonClient.streamMessage(
             conversationId,
             { text: input },
-            { system: systemPrompt },
           )) {
             if (event.type === 'delta' && event.delta) {
               accumulated += event.delta;

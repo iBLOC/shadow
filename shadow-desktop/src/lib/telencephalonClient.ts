@@ -1,10 +1,9 @@
-import { isTauri, neuronUrl } from './platform';
-import { invoke } from '@tauri-apps/api/core';
+import { isTauri } from './platform';
 
 const DEFAULT_CORTEX_URL = 'http://127.0.0.1:60080';
 
-// Embedded-neuron bridge constants (Tauri desktop conversation path).
-const NEURON_CHAT_MODEL_FALLBACK = 'qwen3-0.6b';
+// 影的基础人设。走端脑时随会话创建一起送出去（`createConversation({ system })`），
+// 端脑把它记进会话记录 —— 叶区拿得到，模型才真的按这个人设说话。
 const SHADOW_NEURON_SYSTEM =
   "You are Shadow (影), the user's personal AI avatar running locally. " +
   'Reply helpfully and concisely in the language the user writes in. ' +
@@ -454,145 +453,20 @@ export class TelencephalonClient {
   private baseUrl: string;
   private apiKey?: string;
 
-  // ---- embedded-neuron chat bridge (Tauri desktop) ----
-  // The cortex sidecar is gone from the desktop app (replaced by the
-  // in-process encephalon crate), so the /shadow/v1 conversation API no
-  // longer exists there. In Tauri builds the conversation surface talks
-  // to the embedded neuron's OpenAI-compatible /v1/chat/completions
-  // instead, preserving the StreamEvent contract ConversationPage
-  // consumes. Web builds keep targeting a deployed cortex.
-  private neuronHistory = new Map<string, Array<{ role: 'system' | 'user' | 'assistant'; content: string }>>();
-  private neuronModel: string | null = null;
+  // ---- 通信链路：大脑 → 端脑 → 叶区 ----------------------------------
+  //
+  // 桌面对话**不再**直连 neuron。端脑的 HTTP 面由 sidecar 挂在
+  // 127.0.0.1:60080（`src-tauri/src/cortex_http.rs`），形状与独立运行的
+  // 端脑完全一致：会话 / agent 走 `/shadow/v1/*`，叶区是端脑进程内的
+  // native lobe（temporal / prefrontal / parietal）。
+  //
+  // 直连 neuron 的老路（`streamMessageNeuron` + `neuron_infer`）已经删掉 ——
+  // 那条路绕过端脑和叶区，意图路由、工具、flow 全都不在链路上，
+  // 桌面端因此永远收不到 `tool_call` 事件。
 
   constructor(config: Partial<CortexConfig> = {}) {
     this.baseUrl = config.baseUrl ?? DEFAULT_CORTEX_URL;
     this.apiKey = config.apiKey;
-  }
-
-  /** Pick the first downloaded (available) llm model from the embedded
-   *  runtime, falling back to the small default catalog entry. */
-  private async pickNeuronModel(): Promise<string> {
-    if (this.neuronModel) return this.neuronModel;
-    try {
-      const r = await fetch(`${neuronUrl()}/v1/models?engine=llm`);
-      if (r.ok) {
-        const body = await r.json();
-        const available: Array<{ id: string; available?: boolean }> = body.data ?? [];
-        const first = available.find((m) => m.available);
-        if (first) {
-          // /v1/models ids look like `llm/qwen3-0.6b`; the chat API wants
-          // the registered (bare) model id.
-          this.neuronModel = first.id.split('/').pop() || NEURON_CHAT_MODEL_FALLBACK;
-          return this.neuronModel;
-        }
-      }
-    } catch {
-      // runtime not reachable — fall through to the catalog default so
-      // the error surfaces from the chat request itself.
-    }
-    return NEURON_CHAT_MODEL_FALLBACK;
-  }
-
-  private newLocalConversation(opts: { agent?: string; system?: string } = {}): Conversation {
-    const now = new Date().toISOString();
-    return {
-      id: `local-${crypto.randomUUID()}`,
-      agent: opts.agent ?? 'shadow-local',
-      created_at: now,
-      updated_at: now,
-      history: [],
-    };
-  }
-
-  private async *streamMessageNeuron(
-    conversationId: string,
-    req: SendMessageRequest,
-    systemPrompt?: string,
-  ): AsyncGenerator<StreamEvent> {
-    const system = composeSystemPrompt(systemPrompt);
-    const history = this.neuronHistory.get(conversationId) ?? [];
-    // Keep the system entry in sync with the current setting: the prompt
-    // settings page may be edited while a conversation is already open.
-    if (history.length === 0 || history[0].role !== 'system') {
-      history.unshift({ role: 'system' as const, content: system });
-    } else if (history[0].content !== system) {
-      history[0] = { role: 'system' as const, content: system };
-    }
-    history.push({ role: 'user', content: req.text });
-
-    let assistant = '';
-    // In-process inference: the Tauri command dispatches the request
-    // body straight into the embedded encephalon's neuron adapter
-    // pipeline — no loopback HTTP, no CORS. Non-stream by design
-    // (adapter dispatch buffers); the full answer is emitted as one
-    // delta after think-stripping below, which preserves the
-    // streaming-bubble contract ConversationPage consumes.
-    try {
-      const model = await this.pickNeuronModel();
-      const payload = JSON.stringify({ model, messages: history, stream: false, max_tokens: 400 });
-      const resp = await invoke<{ status: number; body: { choices?: Array<{ message?: { content?: string } }>; error?: { message?: string } } }>(
-        'neuron_infer',
-        {
-          path: '/v1/chat/completions',
-          body: Array.from(new TextEncoder().encode(payload)),
-        },
-      );
-      if (resp.status >= 400 || !resp.body) {
-        const msg = resp.body?.error?.message ?? `neuron chat ${resp.status}`;
-        throw new Error(msg);
-      }
-      let delta: string | undefined = resp.body.choices?.[0]?.message?.content;
-      if (delta) {
-        const start = delta.indexOf('<think>');
-        if (start !== -1) {
-          const end = delta.indexOf('</think>', start);
-          delta =
-            end === -1
-              ? delta.slice(0, start)
-              : delta.slice(0, start) + delta.slice(end + '</think>'.length);
-        }
-      }
-      if (delta) {
-        assistant = delta;
-        yield {
-          type: 'delta',
-          delta,
-          agent: 'shadow-local',
-          conversation_id: conversationId,
-          timestamp: Date.now(),
-        };
-      }
-      if (!assistant) {
-        // The model spent its whole budget inside <think>…</think>
-        // (small Qwen3 models do this when the block never closes).
-        // Surface a graceful notice instead of a silent empty reply.
-        const fallback =
-          '（本地模型本次只输出了思考过程，没有给出答案 — 请重试或换个问法。）';
-        assistant = fallback;
-        yield {
-          type: 'delta',
-          delta: fallback,
-          agent: 'shadow-local',
-          conversation_id: conversationId,
-          timestamp: Date.now(),
-        };
-      }
-      history.push({ role: 'assistant', content: assistant });
-      this.neuronHistory.set(conversationId, history);
-      yield {
-        type: 'done',
-        conversation_id: conversationId,
-        state: 'COMPLETED',
-        timestamp: Date.now(),
-      };
-    } catch (e) {
-      yield {
-        type: 'error',
-        conversation_id: conversationId,
-        error: e instanceof Error ? e.message : String(e),
-        timestamp: Date.now(),
-      };
-    }
   }
 
   setBaseUrl(url: string): void {
@@ -622,10 +496,11 @@ export class TelencephalonClient {
 
   async health(): Promise<{ status: string; addr: string }> {
     if (isTauri()) {
-      // No cortex in the desktop app — the embedded neuron is the liveness
-      // surface (drives the header connection indicator).
-      const r = await fetch(`${neuronUrl()}/health`);
-      if (!r.ok) throw new Error(`neuron health ${r.status}: ${r.statusText}`);
+      // 探**端脑**而不是 neuron —— 连通性指示器要反映的是
+      // 「大脑 → 端脑 → 叶区」这条链。端脑的 status 端点同时回报
+      // neuron 是否可达（`neuron_reachable`）和可用模型数。
+      const r = await fetch(`${this.baseUrl}/api/telencephalon/status`);
+      if (!r.ok) throw new Error(`cortex health ${r.status}: ${r.statusText}`);
       return r.json();
     }
     return this.request('/.well-known/agent.json');
@@ -640,7 +515,6 @@ export class TelencephalonClient {
   }
 
   async createConversation(opts: { agent?: string; system?: string } = {}): Promise<Conversation> {
-    if (isTauri()) return this.newLocalConversation(opts);
     return this.request('/shadow/v1/conversations', {
       method: 'POST',
       body: JSON.stringify(opts),
@@ -665,12 +539,7 @@ export class TelencephalonClient {
   async *streamMessage(
     conversationId: string,
     req: SendMessageRequest,
-    opts: { system?: string } = {},
   ): AsyncGenerator<StreamEvent> {
-    if (isTauri()) {
-      yield* this.streamMessageNeuron(conversationId, req, opts.system);
-      return;
-    }
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (this.apiKey) headers['X-Shadow-Key'] = this.apiKey;
     const resp = await fetch(

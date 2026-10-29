@@ -70,11 +70,29 @@ reqwest = { version = "0.12", features = ["json"] }
 # Encephalon (大脑) — embedded top-level wrapper crate. Replaces the
 # old cortex sidecar pattern. Holds the ACP message bus + the diencephalon
 # (data gateway) and (optionally) the telencephalon (agent runtime).
-encephalon = { path = "../../../encephalon" }
+#
+# `default-features = false` turns the `hippocampus` feature OFF on
+# purpose: the hippocampus state is built by
+# `telencephalon::boot::build_app_state` (the 端脑's own boot sequence) and
+# the HTTP face is mounted from **that same** state in `cortex_http.rs`.
+# Two hippocampus instances pointing at the same Lance storage would
+# contend for the same locks — so there is exactly one.
+encephalon = { path = "../../../encephalon", default-features = false, features = [
+    "telencephalon",
+] }
 
-# 进程内海马体的 HTTP 面（`src/hippo_http.rs`）。Tauri 构建里端脑是嵌在
-# 进程内的、**没起 HTTP 面**，前端的记忆客户端打 `{base}/hippocampus/api/*`
-# 够不到它 —— 这一段由 sidecar 补上，端口 60080（前端默认值）。
+# 端脑 (telencephalon) — the agent runtime the desktop's traffic must go
+# through: 大脑 → 端脑 → 叶区. `cortex_http.rs` mounts its HTTP face
+# (shadow API + A2A gateway + agent management) on 127.0.0.1:60080.
+#
+# Same path as `encephalon`'s own dependency (`../telencephalon`) → cargo
+# unifies them into ONE crate. Do NOT switch this to a git source or a
+# different path: two copies of telencephalon means two sets of types
+# (AppState / ConversationStore) that cannot be passed between each other.
+telencephalon = { path = "../../../telencephalon" }
+
+# 进程内海马体的 HTTP 面（`src/cortex_http.rs` 把端脑的 router 合成一台
+# 服务时用它的 router 工厂，挂在 `/hippocampus` 前缀下）。
 # 版本与端脑 / neuron 保持一致（axum 0.8 + tower-http 0.6），避免依赖图分叉。
 hippocampus-server = { path = "../../../hippocampus/hippocampus-server" }
 axum = { version = "0.8", features = ["ws", "multipart"] }

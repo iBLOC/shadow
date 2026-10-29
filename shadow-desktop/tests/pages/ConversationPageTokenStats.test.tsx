@@ -12,6 +12,9 @@ import { useChatDisplayStore } from '../../src/stores/chatDisplayStore';
 // mock must keep every method the import chain touches.
 vi.mock('../../src/lib/telencephalonClient', () => {
   return {
+    // 人设现在随会话创建送进端脑，ConversationPage 会调这个函数。
+    // mock 必须提供它，否则页面在 createConversation 之前就炸了。
+    composeSystemPrompt: (custom?: string) => (custom ?? '').trim(),
     telencephalonClient: {
       setBaseUrl: vi.fn(),
       getBaseUrl: () => 'http://127.0.0.1:60080',

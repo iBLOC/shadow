@@ -1,20 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/model_engine.dart';
 import '../../models/model_providers.dart';
-import '../main_agent/main_agent.dart';
 import '../main_agent/main_agent_tools.dart';
-
-/// 主Agent Provider
-final mainAgentProvider =
-    StateNotifierProvider<MainAgentNotifier, MainAgentState>((ref) {
-      final engine = ref.watch(modelEngineProvider);
-      final customPrompt = ref.watch(customPromptProvider);
-
-      return MainAgentNotifier(
-        engine: engine,
-        customSystemPrompt: customPrompt,
-      );
-    });
 
 /// 自定义提示词 Provider
 final customPromptProvider = StateProvider<String?>((ref) => null);

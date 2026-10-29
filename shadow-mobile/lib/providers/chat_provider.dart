@@ -16,6 +16,8 @@ import '../services/telencephalon/telencephalon_client.dart';
 import 'conversation_mode_provider.dart';
 import 'telencephalon_provider.dart';
 import '../l10n/current_l10n.dart';
+import '../agents/providers/agent_provider.dart';
+import '../agents/main_agent/main_agent_prompt.dart';
 
 /// Chat message model for the UI
 class ChatMessageModel {
@@ -153,6 +155,12 @@ class _CopyWithOmit {
   const _CopyWithOmit();
 }
 
+/// 没有配置人设时的取值。
+///
+/// 具名函数而不是闭包字面量 —— 初始化列表里的 `() => null` 会被 Dart
+/// 当成构造器体（`=>` 在初始化列表里有别的含义），解析直接炸。
+String? noSystemPrompt() => null;
+
 /// Chat notifier
 class ChatNotifier extends StateNotifier<ChatState> {
   static final _log = Logger('ChatNotifier');
@@ -171,6 +179,13 @@ class ChatNotifier extends StateNotifier<ChatState> {
   final LiteRTDownloadService _downloadService = LiteRTDownloadService();
   final ModelsNotifier? _modelsNotifier;
 
+  /// 人设提示词 —— 随**会话创建**送进端脑（`createConversation({ system })`）。
+  ///
+  /// 端脑把它记进会话记录并转发给叶区，模型才真的按这个人设说话。
+  /// 用函数而不是值：提示词设置页改了人设之后，**下一个**会话就用新的，
+  /// 而不必重建整个 ChatNotifier（那会把当前对话冲掉）。
+  final String? Function() _systemPromptProvider;
+
   /// 端脑侧的会话 id（`/shadow/v1/conversations/{id}`）。
   String? _currentSessionId;
 
@@ -183,7 +198,9 @@ class ChatNotifier extends StateNotifier<ChatState> {
     bool skipInit = false,
     bool litertReady = false,
     ModelsNotifier? modelsNotifier,
+    String? Function()? systemPromptProvider,
   }) : _modelsNotifier = modelsNotifier,
+       _systemPromptProvider = systemPromptProvider ?? noSystemPrompt,
        super(const ChatState()) {
     if (!skipInit) {
       Future.microtask(() => _initLiteRT());
@@ -740,8 +757,9 @@ class ChatNotifier extends StateNotifier<ChatState> {
           // 与桌面端同一条链路：桌面端的 `ConversationPage.tsx` 也是
           // `createConversation` + `streamMessage`，人设提示词走
           // `createConversation({ system })`。
-          _currentSessionId ??=
-              (await _telencephalonClient.createConversation()).id;
+          _currentSessionId ??= (await _telencephalonClient.createConversation(
+            systemPrompt: _systemPromptProvider(),
+          )).id;
           if (_currentSessionId != null) {
             state = state.copyWith(sessionId: _currentSessionId);
 
@@ -918,6 +936,10 @@ final chatProvider = StateNotifierProvider<ChatNotifier, ChatState>((ref) {
     ref.watch(litertEngineProvider),
     ref.watch(ttsEngineProvider),
     ref.watch(telencephalonClientProvider),
+    // 人设：提示词设置页存的那份（没设置就用默认人设）。
+    // 用 read 而不是 watch —— 改人设不该重建 ChatNotifier（会把当前对话冲掉）。
+    systemPromptProvider: () =>
+        ref.read(customPromptProvider) ?? MainAgentPrompt.defaultSystemPrompt,
   );
 });
 

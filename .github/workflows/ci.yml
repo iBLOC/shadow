@@ -299,6 +299,13 @@ jobs:
       - name: Cross-client consistency check
         run: node scripts/check-agent-surface.mjs
 
+      # 通信链路：所有通信都要走 大脑 → 端脑 → 叶区。客户端直连推理
+      # （neuron_infer / /v1/chat/completions）或本地直连编排器 = 意图
+      # 路由、工具、flow、人格注入全都不在链路上 —— 桌面端真实发生过
+      # （isTauri() 分支让对话直连 neuron，于是永远收不到 tool_call）。
+      - name: Brain chain check
+        run: node scripts/check-brain-chain.mjs
+
       # 生成物是从属的：改 design-tokens.json 后必须重跑生成器。
       # 这条单独拎出来，让漂移的报错一眼能定位。
       - name: Design token drift check
@@ -308,6 +315,11 @@ jobs:
       # 两端导航都是生成物 —— 改了清单忘了重跑生成器 = 两端导航悄悄分叉。
       - name: Navigation drift check
         run: node scripts/gen_nav.mjs --check
+
+      # logo 几何同理：真相源在 brand/geom.mjs，两端图标与应用内标记都是
+      # 生成物。改了几何忘了重跑 = 应用图标与应用内 logo 悄悄对不上。
+      - name: Brand asset drift check
+        run: node brand/gen-icons.mjs --check
 
       - name: TypeScript check
         working-directory: shadow-desktop

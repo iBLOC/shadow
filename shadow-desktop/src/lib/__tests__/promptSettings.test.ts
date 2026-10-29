@@ -1,12 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// The desktop chat path differs by platform:
-//   - Tauri (desktop app): the conversation runs on the embedded neuron,
-//     so the system prompt has to be part of the local message history.
-//   - Web: the conversation runs on telencephalon, so the prompt has to be
-//     attached to the conversation creation request.
-// Both paths must carry the prompt the user configured on the prompt
-// settings page — otherwise the settings page is a no-op.
+// 桌面的对话**一律**走端脑（Tauri 与 Web 同一条链路）：会话创建 +
+// `/shadow/v1/conversations/{id}/messages:stream`。
+// 人设提示词随会话创建送出去，端脑记进会话记录。
+//
+// 这些用例同时是「不许退回直连 neuron」的反向验证：Tauri 环境下
+// 断言请求打的是端脑的路径，且 `neuron_infer` 一次都没被调用。
 const { invokeMock } = vi.hoisted(() => ({ invokeMock: vi.fn() }));
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -82,60 +81,76 @@ describe('system prompt wiring', () => {
     });
   });
 
-  describe('embedded neuron path (Tauri)', () => {
-    it('puts the persona into the system message of the neuron request', async () => {
+  describe('端脑链路（Tauri 桌面端）', () => {
+    it('Tauri 下开会话仍然打端脑，不回退到本地桩', async () => {
       (window as any).__TAURI_INTERNALS__ = {};
-      // Model catalog unreachable → the client falls back to its default id.
-      mockFetch.mockResolvedValue({ ok: false, status: 503, json: async () => ({}) });
-      invokeMock.mockResolvedValue({
+      mockFetch.mockResolvedValue({
+        ok: true,
         status: 200,
-        body: { choices: [{ message: { content: 'hi' } }] },
+        json: async () => ({
+          id: 'conv-1',
+          agent: 'temporal',
+          created_at: '',
+          updated_at: '',
+          history: [],
+        }),
       });
 
       const { TelencephalonClient } = await import('../telencephalonClient');
       const client = new TelencephalonClient({ baseUrl: 'http://localhost:60080' });
 
-      for await (const _event of client.streamMessage(
-        'conv-1',
-        { text: 'hello' },
-        { system: 'You are terse.' },
-      )) {
-        // drain
-      }
+      const conv = await client.createConversation({ system: 'You are terse.' });
 
-      const call = invokeMock.mock.calls.find((c) => c[0] === 'neuron_infer');
-      expect(call).toBeDefined();
-      const payload = JSON.parse(Buffer.from(call![1].body as number[]).toString('utf8'));
-      expect(payload.messages[0].role).toBe('system');
-      expect(payload.messages[0].content).toContain('You are terse.');
-      expect(payload.messages[0].content).toContain('/no_think');
-      expect(payload.messages[1]).toEqual({ role: 'user', content: 'hello' });
+      expect(conv.id).toBe('conv-1');
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://localhost:60080/shadow/v1/conversations',
+        expect.objectContaining({ method: 'POST' }),
+      );
     });
 
-    it('keeps the system message in sync when the persona changes mid-conversation', async () => {
+    it('Tauri 下消息流走端脑的 messages:stream，绝不直连 neuron', async () => {
       (window as any).__TAURI_INTERNALS__ = {};
-      mockFetch.mockResolvedValue({ ok: false, status: 503, json: async () => ({}) });
-      invokeMock.mockResolvedValue({
+      const encoder = new TextEncoder();
+      const sse = [
+        'data: {"type":"delta","agent":"temporal","delta":"hi"}',
+        '',
+        'data: {"type":"done","conversation_id":"conv-1"}',
+        '',
+        '',
+      ].join('\n');
+      mockFetch.mockResolvedValue({
+        ok: true,
         status: 200,
-        body: { choices: [{ message: { content: 'hi' } }] },
+        body: {
+          getReader: () => {
+            let sent = false;
+            return {
+              read: async () => {
+                if (sent) return { done: true, value: undefined };
+                sent = true;
+                return { done: false, value: encoder.encode(sse) };
+              },
+            };
+          },
+        },
       });
 
       const { TelencephalonClient } = await import('../telencephalonClient');
       const client = new TelencephalonClient({ baseUrl: 'http://localhost:60080' });
 
-      for await (const _e of client.streamMessage('conv-1', { text: 'a' }, { system: 'first' })) {
-        // drain
-      }
-      for await (const _e of client.streamMessage('conv-1', { text: 'b' }, { system: 'second' })) {
-        // drain
+      const deltas: string[] = [];
+      for await (const event of client.streamMessage('conv-1', { text: 'hello' })) {
+        if (event.type === 'delta') deltas.push(event.delta ?? '');
       }
 
-      const calls = invokeMock.mock.calls.filter((c) => c[0] === 'neuron_infer');
-      const last = JSON.parse(
-        Buffer.from(calls[calls.length - 1][1].body as number[]).toString('utf8'),
+      expect(deltas.join('')).toContain('hi');
+      const url = String(mockFetch.mock.calls[0][0]);
+      expect(url).toBe(
+        'http://localhost:60080/shadow/v1/conversations/conv-1/messages:stream',
       );
-      expect(last.messages[0].content).toContain('second');
-      expect(last.messages[0].content).not.toContain('first');
+      // 链路断言：不能出现任何直连 neuron 的迹象。
+      expect(url).not.toContain('/v1/chat/completions');
+      expect(invokeMock).not.toHaveBeenCalled();
     });
   });
 });

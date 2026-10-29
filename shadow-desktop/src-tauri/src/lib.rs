@@ -15,7 +15,7 @@ mod recording;
 mod provider_manager;
 mod global_keys;
 mod logger;
-mod hippo_http;
+mod cortex_http;
 
 use config_manager::{AppConfig, DatabaseConfig, ProviderConfig, SecureAuth};
 use diencephalon::Thalamus;
@@ -50,6 +50,13 @@ struct AppState {
     feishu_mcp: Arc<FeishuMcp>,
     recording_store: Arc<recording::RecordingStore>,
     provider_manager: Arc<encephalon::providers::ProviderManager>,
+    /// 嵌在进程里的大脑本体。
+    ///
+    /// 它只做一件事：**钉住生命周期** —— `Arc<Embedded>` 是 neuron 监听
+    /// （`:8085`）、thalamus 与 ACP 总线的持有者，放掉它就等于把推理
+    /// 后端一起关掉。客户端**不能**直接用它推理：那条路绕过端脑和叶区，
+    /// 桌面端因此收不到 `tool_call`（见 `cortex_http.rs`）。
+    #[allow(dead_code)]
     embedded_stack: Arc<encephalon::Embedded>,
     workflow_state: Arc<tokio::sync::Mutex<WorkflowState>>,
 }
@@ -131,26 +138,27 @@ pub fn run() {
     // encephalon's *external* agent protocol only.
     let stack = tauri::async_runtime::block_on(encephalon::Embedded::boot(
         // Fixed :8085 so loopback metadata reads (models list, health)
-        // keep working; chat itself goes in-process via neuron_infer.
+        // keep working. **Chat does not go there**: it goes through the
+        // telencephalon face mounted below, so the traffic is
+        // 大脑 → 端脑 → 叶区 like it is on mobile.
         encephalon::EmbeddedConfig { neuron_port: 8085 },
     ))
     .expect("boot embedded encephalon");
     let neuron_addr = stack.neuron_addr();
     tracing::info!("encephalon embedded; neuron at {neuron_addr}");
 
-    // 把进程内海马体挂成 HTTP 面 —— Tauri 构建里端脑是嵌在进程内的、
+    // 把端脑挂成 HTTP 面 —— Tauri 构建里端脑是嵌在进程内的、
     // **没有起 HTTP 面**（`Embedded::boot()` 只起了 neuron 的 listener），
-    // 前端的记忆客户端（`{base}/hippocampus/api/*`）够不到它。
-    // 见 `hippo_http.rs`。
-    match stack.hippocampus().cloned() {
-        Some(hippo_state) => {
-            tauri::async_runtime::spawn(async move {
-                hippo_http::serve(hippo_state).await;
-            });
-        }
-        None => tracing::warn!(
-            "embedded hippocampus unavailable — the desktop memory surface stays dark"
-        ),
+    // 前端够不到端脑，桌面对话就只能直连 neuron（绕过端脑和叶区）。
+    //
+    // 这一段把「端脑 + neuron（根）+ 海马体（/hippocampus）」合成一台
+    // 形状与独立端脑完全一致的服务，桌面的通信因此真正走
+    // 大脑 → 端脑 → 叶区。见 `cortex_http.rs`。
+    {
+        let stack = stack.clone();
+        tauri::async_runtime::spawn(async move {
+            cortex_http::serve(&stack).await;
+        });
     }
 
     let thalamus: Arc<diencephalon::Thalamus> = stack.thalamus().clone();
@@ -392,7 +400,6 @@ pub fn run() {
             provider_manager::provider_refresh,
             provider_manager::provider_refresh_all,
             provider_manager::provider_preview_fetch,
-            neuron_infer,
             global_keys::gk_set_bindings,
             global_keys::gk_start_capture,
             global_keys::gk_stop_capture,
@@ -1093,28 +1100,6 @@ async fn recording_events(
     // audio pipeline replaces this in production).
     state.recording_store.tick_synthetic_events(&session_id);
     Ok(state.recording_store.events(&session_id))
-}
-
-/// In-process inference — the chat bridge's primary path. The
-/// frontend sends the OpenAI-compatible request body; it is
-/// dispatched straight into the embedded encephalon's neuron adapter
-/// pipeline (no loopback HTTP, no CORS). Returns
-/// `{ status, body }` where body is the raw OpenAI wire response.
-#[tauri::command]
-async fn neuron_infer(
-    state: State<'_, AppState>,
-    path: String,
-    body: Vec<u8>,
-) -> Result<serde_json::Value, String> {
-    // Only adapter routes are reachable through this command.
-    if path != "/v1/chat/completions" && path != "/v1/messages" {
-        return Err(format!("route not allowed through in-process infer: {path}"));
-    }
-    let (status, bytes) = state.embedded_stack.infer(&path, body).await;
-    let parsed: serde_json::Value = serde_json::from_slice(&bytes).unwrap_or(serde_json::json!({
-        "error": { "message": String::from_utf8_lossy(&bytes) }
-    }));
-    Ok(serde_json::json!({ "status": status, "body": parsed }))
 }
 
 #[tauri::command]
