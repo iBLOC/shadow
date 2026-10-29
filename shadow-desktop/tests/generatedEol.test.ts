@@ -26,11 +26,13 @@ import { dirname, join } from 'node:path';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
-/** 三个会产出/校验生成物的脚本。 */
+/** 会产出/校验生成物的脚本。 */
 const GENERATOR_SCRIPTS = [
   'scripts/gen_tokens.mjs',
   'scripts/gen_nav.mjs',
   'scripts/check-agent-surface.mjs',
+  // brand 的图标生成器有同样的坑（ShadowMark.tsx 曾经硬编码 CRLF）。
+  'brand/gen-icons.mjs',
 ];
 
 /** 生成物清单（路径 → 脚本负责产出它的那个脚本）。 */

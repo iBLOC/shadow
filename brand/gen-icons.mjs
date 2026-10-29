@@ -29,9 +29,10 @@
  */
 
 import { mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createCanvas, drawShapes, encodePng } from './raster.mjs';
+import { normalizeEol } from '../scripts/lib/eol.mjs';
 import {
   ACCENT,
   INK_LIGHT,
@@ -113,12 +114,30 @@ function adaptiveForegroundPng(size) {
   return encodePng(canvas);
 }
 
+/**
+ * 写一个产物；`--check` 模式下不写，只报漂移。
+ *
+ * 文本产物与二进制产物**比对方式不同**：
+ *   - 文本（TSX / SVG）：统一 LF 落盘，比对时归一化行尾。Windows 工作树
+ *     是 CRLF（autocrlf 检出）、CI checkout 是 LF —— 硬编码 CRLF 会变成
+ *     「本地绿 / CI 红」的坑，详见 `scripts/lib/eol.mjs`。
+ *   - 二进制（PNG）：逐字节比。
+ */
 function write(path, data) {
-  const buf = Buffer.isBuffer(data) ? data : Buffer.from(data, 'utf8');
-  const rel = path.replace(ROOT + '\\', '');
+  const rel = relative(ROOT, path).replace(/\\/g, '/');
   mkdirSync(dirname(path), { recursive: true });
+
+  const isText = typeof data === 'string';
+  const text = isText ? normalizeEol(data) : null;
+  const buf = isText ? Buffer.from(text, 'utf8') : data;
+
   const current = existsSync(path) ? readFileSync(path) : null;
-  if (current && current.equals(buf)) return;
+  if (current) {
+    const same = isText
+      ? normalizeEol(current.toString('utf8')) === text
+      : current.equals(buf);
+    if (same) return;
+  }
   if (CHECK) {
     drift += 1;
     console.error(`  ✗ ${rel} 与 brand/geom.mjs 不同步`);
@@ -171,7 +190,7 @@ export function ShadowMark({ size = 24, className = '' }: ShadowMarkProps) {
 `;
 write(
   join(DESKTOP, 'src', 'components', 'brand', 'ShadowMark.tsx'),
-  shadowMarkTsx.split('\n').join('\r\n')
+  shadowMarkTsx
 );
 
 // Tauri 的 1024 源图（`pnpm tauri icon` 的输入）
