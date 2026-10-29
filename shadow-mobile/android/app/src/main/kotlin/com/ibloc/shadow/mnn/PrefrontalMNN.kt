@@ -17,8 +17,21 @@ class PrefrontalMNN {
         private var isModelLoaded = false
         
         init {
-            System.loadLibrary("mnnbridge")
-            Log.i(TAG, "MNN bridge library loaded")
+            try {
+                System.loadLibrary("mnnbridge")
+                Log.i(TAG, "MNN bridge library loaded")
+            } catch (e: UnsatisfiedLinkError) {
+                // 与 EncephalonRuntime / PrefrontalRuntime 同一套降级策略：不重抛。
+                //
+                // 重抛会让类初始化失败，之后每次访问都变成 NoClassDefFoundError ——
+                // 而调用方接的是 UnsatisfiedLinkError，接不住 NoClassDefFoundError，
+                // App 会直接崩。
+                //
+                // 什么时候会 load 失败：libmnnbridge.so 动态依赖 libc++_shared.so
+                // （llvm-readelf -d 实测），而 APK 里只有 arm64-v8a 带了它 ——
+                // x86_64 那份 jniLibs 不完整，load 必然失败。
+                Log.e(TAG, "❌ Failed to load mnnbridge.so: ${e.message}")
+            }
         }
         
         private external fun nativeInitialize(modelPath: String, threadNum: Int, backendType: Int): Boolean

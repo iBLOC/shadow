@@ -372,7 +372,7 @@ class SettingsScreen extends ConsumerWidget {
                         subtitle: l10n.resetEngineDesc,
                         icon: Icons.restart_alt,
                         destructive: true,
-                        onTap: () => _confirmReset(context, ref),
+                        onTap: () => _confirmReset(context),
                       ),
                     ],
                   ),
@@ -386,7 +386,7 @@ class SettingsScreen extends ConsumerWidget {
   }
 
   /// 破坏性操作必须二次确认 —— 原来的「重置引擎」一点就执行。
-  Future<void> _confirmReset(BuildContext context, WidgetRef ref) async {
+  Future<void> _confirmReset(BuildContext context) async {
     final l10n = AppLocalizations.of(context)!;
 
     final confirmed = await showShadDialog<bool>(
