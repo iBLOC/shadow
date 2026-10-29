@@ -56,6 +56,9 @@
 export ANDROID_NDK_HOME=/path/to/android-ndk-r25
 
 # 安装 Rust Android targets
+# 注意：移动端当前只发 arm64-v8a 与 x86_64（2026-10-29 决定，armeabi-v7a
+# 与 x86 暂不做）。下面 armv7 / i686 两行只为「万一要加回来」时备着 ——
+# armv7 还有 cranelift（wasmtime）的阻断，不是装个 target 就能编出来。
 rustup target add aarch64-linux-android
 rustup target add armv7-linux-androideabi
 rustup target add x86_64-linux-android
@@ -79,9 +82,9 @@ cd https://github.com/iBLOC/prefrontal
 
 **输出位置**（在 **shadow-mobile** 仓里，不是 prefrontal 仓）:
 
-- `android/app/src/main/jniLibs/arm64-v8a/libprefrontal_core_lib.so`
-- `android/app/src/main/jniLibs/armeabi-v7a/libprefrontal_core_lib.so`
-- `android/app/src/main/jniLibs/x86_64/libprefrontal_core_lib.so`
+- `android/app/src/main/jniLibs/arm64-v8a/libprefrontal_core_lib.so` ← 当前唯一构建的 ABI
+- `android/app/src/main/jniLibs/armeabi-v7a/libprefrontal_core_lib.so` ← 暂不做
+- `android/app/src/main/jniLibs/x86_64/libprefrontal_core_lib.so` ← 暂不做
 
 > 文件名必须是 `libprefrontal_core_lib.so` —— Kotlin 侧是
 > `System.loadLibrary("prefrontal_core_lib")`，名字对不上就加载不了。
