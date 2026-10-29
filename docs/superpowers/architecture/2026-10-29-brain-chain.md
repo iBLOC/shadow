@@ -224,9 +224,251 @@ $env:PROTOC="$env:USERPROFILE\.cargo\registry\src\index.crates.io-1949cf8c6b5b55
 - **端脑 PR #1 待合并**。合并前，桌面端的人设**到不了模型**（端脑只把 system 记在会话里，
   不往下传）—— 链路的**形状**已经对了（人设确实送进了端脑），但叶区要到 PR 合并后才拿得到。
 - **多轮上下文同理**：桌面端此前靠本地 `neuronHistory` 有多轮；切链路后要等端脑 PR 合并。
-- **真机未验**：设备失联 ⇒ 桌面端 Tauri 起端脑面后的实跑没验过（只做了编译 + 契约测试），
-  移动端同理。
+- **~~真机未验~~（2026-10-30 已验，见 §9）**。
 - **云端供应商还没进叶区**：叶区的 LLM 端点只有一个（`TELENCEPHALON_NEURON_URL`），
   桌面端 provider_manager 配的云端模型怎么选到叶区，是另一个问题。
 - **`/v1/chat/completions` 仍挂在端脑根上**（与独立端脑同形状），叶区默认指向它；
   本轮显式改到了 neuron 的真实监听 `:8085`，但两个面都在，属于已知冗余。
+
+---
+
+## 9. 真机复验（2026-10-30）
+
+设备：小米 MIX 4（`2106118C` / Android 13 / arm64-v8a / Odin + SD835）。
+
+### 9.1 断点精确定位：叶区 → LLM 那一跳
+
+重建了 `libencephalon.so`（`encephalon/scripts/build-android.ps1`，33 min，150.5 MB）
+与含链路改造 Dart 代码的 APK，装到真机后逐段验证：
+
+| 段 | 状态 | 证据 |
+| --- | --- | --- |
+| 大脑（neuron OpenAI 面） | ✅ | `/health` → `{"status":"healthy"}`；`/v1/models` → 25 个模型 |
+| 端脑面 | ✅ | `files/flows` 的 mtime = 点「启动大脑」那一刻；`/.well-known/agent.json`、`/shadow/v1/agents` 均 200，四个 native 叶区都在 |
+| 端脑会话 | ✅ | `POST /shadow/v1/conversations` → 200 + RFC3339 `created_at` |
+| **叶区 → LLM** | ❌ **断** | `messages` 与 `messages:stream` 均 `502`：`Failed to get models: error sending request for url (http://localhost:60080/v1/models)` |
+
+`localhost:60080` 是**桌面 sidecar 的端口**，移动端上没有任何东西监听它。
+
+### 9.2 根因：改了一套存储，调用读的是另一套
+
+`NativeLobeRegistry` 同时持有两份叶区：
+
+| 存储 | 内容 | 谁在用 |
+| --- | --- | --- |
+| `inner` | `Arc<dyn NativeLobe>` | **shadow API**（`build_lobe_client_with` → `native_registry.get()`） |
+| `runtimes` | `LobeRuntime`（带 `openai_base_url`） | `reconfigure` / `point_lobes_at_neuron` |
+
+`point_lobes_at_neuron` 改的是 `runtimes`；而 `LobeClient::NativeWithConfig` 拿到的是 `inner` 里的
+trait 对象，自己读环境变量 `TELENCEPHALON_NEURON_URL`，读不到就退回硬编码的
+`http://localhost:60080` ⇒ **宿主的配置对实际调用路径完全无效**。
+
+⚠️ **桌面端有完全相同的 bug**：`shadow-desktop/src-tauri/src/cortex_http.rs:126` 用的也是
+`state.native_lobes.reconfigure(...)`，改的同样是 `runtimes`。
+
+### 9.3 修法
+
+让**端点跟着 client 走**，而不是让 client 自己去猜：
+
+- `LobeClient` 新增 `NativeAt(lobe, config, url)` 变体，端点由宿主在构造时给
+  （取自 registry 的 runtime，即宿主真正 `reconfigure` 过的那个）。
+- 环境变量只作**兜底**（registry 里没有该叶区的 runtime 时）。
+- 两条回归测试：端点必须真的到达 client；永远不许退回那个死端口。
+
+### 9.4 还差最后一环：移动端怎么给 neuron 配 LLM
+
+修好端点后，neuron 能被正确命中，但 `available_count = 0`（无本地模型）。
+而 **neuron 的所有 LLM 后端都靠环境变量选**（`NEURON_LLM_RUNTIME` /
+`NEURON_REMOTE_BASE_URL` / `NEURON_MODEL_DIRS` …），**App 进程注入不了环境变量**
+（Android 的 zygote 决定）⇒ 需要一条不依赖环境变量的配置通道。
+
+现有 `shadow-mobile/lib/services/model_download_service.dart` 走的是 **LiteRT `.litertlm`**
+（Kotlin 侧 `OpenAIServer.kt` / `MNN`），与 neuron 的 candle / gguf 是**两套引擎**，接不上。
+
+---
+
+## 10. 补上 LLM 供给：程序化注册通道（2026-10-30）
+
+§9.4 留下的问题是「移动端怎么给 neuron 配 LLM」。答案分两半：**通道怎么建**，
+以及**注册进去的东西为什么没生效**——后者踩到了 neuron 上游的一个真 bug。
+
+### 10.1 供给通道：程序化注册，不走环境变量
+
+neuron 的 remote 引擎**只认环境变量**（`NEURON_REMOTE_BASE_URL` /
+`NEURON_REMOTE_MODELS` / `NEURON_REMOTE_API_KEY`，见
+`neuron::server::state::ServerState::new`）。而 Android App 进程的环境变量由
+zygote 决定，**宿主从外部注入不了**（Android 10+ 连 `/proc/<pid>/environ`
+都读不到）⇒ 环境变量路线在移动端是死的。
+
+于是另开一条**程序化**通道（上游 `telencephalon`）：
+
+| 层 | 东西 |
+| --- | --- |
+| `telencephalon::neuron_embed` | `RemoteLlmProvider { base_url, api_key, model }` + `register_remote_llm(state, provider)` —— 把 `neuron::engine::remote::RemoteLlmEngine` 注册进 **`state.engines.llm`**（新派发表），注册键 = 上游模型 id；无默认引擎时同时设为默认 |
+| `telencephalon::neuron_embed` | `NeuronEmbed::register_remote_llm(&self, provider)` —— 委托方法，注册进**活着的那份** neuron 状态 |
+| `encephalon::embedded` | `LlmProvider` + `EmbeddedConfig.llm_provider` + `Embedded::llm_provider()`；`Embedded::boot` 里注册远端引擎 |
+| `encephalon::mobile` | `encephalon_mobile_set_llm_provider(base_url, api_key, model)`（**必须在 `start` 之前**）+ `encephalon_mobile_get_llm_provider()`；JNI 入口 `nativeSetLlmProvider` |
+| `shadow-mobile` | `EncephalonRuntime.kt` / `MainActivity.kt` 的 `com.ibloc.shadow/encephalon_runtime` channel 新增 `"setLlmProvider"`；`encephalon_mobile_service.dart` 的 `setLlmProvider(...)`；`encephalon_mobile_provider.dart` 的 `_applyCloudProvider()`（启动前把本地 SQLite `models` 表里 `source='cloudProvider'` 的那条推给大脑） |
+
+**为什么注册进 `state.engines.llm` 而不是旧的 `llm_registry`**：`/v1/chat/completions`
+的路由挂的是 `adapter_dispatch`（`neuron/src/server/mod.rs` 的 `routes()`），它按
+`state.engines.lookup` 找引擎；旧表只认磁盘上的权重，云端模型没有权重。
+
+**为什么「注册引擎」和「叶区会用它」是两件事**：叶区是按**模型 id** 去请求
+neuron 的 OpenAI 面的，宿主还必须把叶区的默认模型指到那个 id 上
+（`state.native_lobes.set_default_model_for_all_lobes(model)`）。两件事都做了
+才会通；只做一件仍然回 `NO_MODEL_CONFIGURED`。
+
+**端点要含 `/v1`**：neuron 拼的是 `{base_url}/chat/completions`。
+
+### 10.2 真机撞上的第二个坑：neuron 建了**两份** `ServerState`
+
+通道建好、装到真机、供应商也配好了，发消息仍然失败，但**错误变了**：
+
+```text
+502 {"error":{"code":5022,
+  "message":"neuron returned 404 Not Found: {\"error\":{\"type\":\"no_engine_for_model\",\"message\":\"no engine registered for model 'mock-model'\"}}"}}
+```
+
+错误形状很关键：模型 id `mock-model` **到了 neuron**（说明宿主→大脑→叶区→
+neuron 这一段全通），但 neuron's 派发表里**查不到**这个模型。
+
+根因在 neuron 上游：`neuron::run_embedded`（`src/embedded.rs`）把
+`ServerState` 建了**两份**：
+
+```rust
+let state = ServerState::new(config.clone());   // ① 交给 NeuronHandle.state
+let router = create_router(config.clone());      // ② create_router 内部又建了一份
+                                                //    —— 这份才是真正在服务请求的
+```
+
+两份不是同一个实例。于是往 `NeuronHandle.state` 里注册的引擎，**listener
+完全看不见**——请求落到另一份 state 上，只能回 `no_engine_for_model`。
+
+⚠️ **同一类问题的第三个实例**：`NeuronEmbed::router()` 原来调
+`neuron::create_router(self.config.clone())`，那是**第三份** state ⇒
+端脑内嵌的 neuron's OpenAI 面与进程内 `infer()` 各说各话。
+
+### 10.3 修法：只建一份 state，listener 与 router 共用
+
+在 `telencephalon` 侧自己建**一份** `ServerState`，listener 与
+`NeuronEmbed::state` 都用它：
+
+- `neuron_router(state)` —— 复刻 `neuron::create_router` 的路由表 + 宽松 CORS，
+  但由调用方决定用哪份 state；
+- `start_neuron` 不再调 `neuron::run_embedded`，改为自建 state + 自建 router +
+  自建 listener（`NeuronHandle` 的字段全是 pub，可以在 crate 外构造）；
+- `NeuronEmbed::router()` 改用 `self.state`。
+
+副作用：`ServerState::new` 从两次变一次（启动更快、内存更省），端脑内嵌的
+neuron OpenAI 面与进程内 `infer()` 看到同一套注册表。
+
+### 10.4 测试有效性：前两条测试是**真绿假绿**
+
+⚠️ 值得单独记一笔：通道刚建好时写的两条测试
+（`remote_llm_answers_through_the_neuron_route` /
+`remote_llm_round_trips_tool_calls_through_the_neuron_route`）**是绿的**，
+但真机是坏的。原因：它们**自己**建 state、自己建 router
+（`neuron::server::routes().with_state(state)`），**绕开了生产路径**——
+于是 §10.2 那个 bug 对它们完全不可见。
+
+补第三条**走生产路径**的回归测试
+（`remote_llm_is_reachable_through_the_started_neuron_listener`）：
+从 `start_neuron` 起步 → 注册远端引擎 → 打那个 listener ⇒
+这条在 bug 存在时必红。
+
+**反向验证**：把 `start_neuron` 里的 router 改回 `neuron::create_router(...)`
+（= 复现「两份 state」），新测试立刻变红（404 而不是 200）；
+改回来又变绿。
+
+### 10.5 装机验证：全链路跑通（2026-10-30）
+
+设备：小米 MIX 4（`2106118C` / Android 13 / arm64-v8a）。PC 侧跑确定性 mock 上游
+（`shadow-mobile/tool/mock_openai_server.mjs`，`http://192.168.31.147:8899/v1`，
+model id `mock-model`），**mock 记录每一个请求** ⇒ 「人设与多轮有没有真的穿过去」
+是可断言的事实，不是靠猜。
+
+流程：模型管理页添加「云端供应商」（名称 `mock` / Endpoint
+`http://192.168.31.147:8899/v1` / Key `testkey` / 模型名 `mock-model`）→
+设置 → 嵌入式大脑 → 启动大脑。
+
+证据：
+
+| 段 | 结果 | 证据 |
+| --- | --- | --- |
+| 宿主 → 大脑的供给交接 | ✅ | 云端供应商写进本地 SQLite `models` 表（`source='cloudProvider'`），启动时 `_applyCloudProvider()` 推给大脑 |
+| 大脑 → 端脑 | ✅ | 端脑面 `127.0.0.1:38535`：`/.well-known/agent.json` 200、`/shadow/v1/agents` 200（temporal/prefrontal/parietal/occipital 四个 native 叶区齐全） |
+| 端脑 → 叶区 | ✅ | `POST /shadow/v1/conversations/{id}/messages` → **200**，`"reply":"MOCK-OK"` |
+| 叶区 → neuron | ✅ | neuron 面 `127.0.0.1:40315`：`/health` → healthy；错误信息从 `localhost:60080` 断链 → `NO_MODEL_CONFIGURED` → `no_engine_for_model` → **消失** |
+| neuron → 上游 | ✅ | PC 上的 mock 收到了请求，`model` = `mock-model` |
+
+**人设与多轮（上游收到的原始请求）**：
+
+```json
+{"model":"mock-model","messages":[
+  {"role":"system","content":"You are the temporal lobe of Shadow, a personal AI assistant. Reply concisely and helpfully.\n\nECLIPSE-PERSONA-42 你是影子的本地助理，代号 ECLIPSE-7，只用中文简短回答。"},
+  {"role":"user","content":"第一轮：请报上你的代号，并说明你和人设里的设定一致吗？"},
+  {"role":"assistant","content":"MOCK-OK"},
+  {"role":"user","content":"第二轮：请把「ECLIPSE-7」这个代号再说一遍，谢谢。"}
+],"stream":false}
+```
+
+⇒ **人设**（叶区默认 system + 会话创建时带的 system 拼在同一段）与
+**多轮历史**（上一轮的 user + 上一轮的 assistant）都真的穿过了
+大脑 → 端脑 → 叶区 → neuron → 上游的每一跳。
+
+### 10.6 装机时撞到的另外两个缺口（都已修）
+
+这两个都**不是** LLM 供给的问题，是链路本身的洞，值得单独记。
+
+#### (a) 记忆查询意图在没有海马体时把整条消息变成 502
+
+第二轮实测报 `502 / memory returned 404 Not Found: `。根因是**意图路由用
+关键词规则**（`intent.rs` 的 `is_memory_query`：`记得` / `之前` / `上次` /
+`历史` / `回忆`），命中后去打 `{端脑}/hippocampus/api/search` —— 而
+**移动端 profile 不编海马体**（`telencephalon/hippocampus` 没被转发），
+那条路由**根本不存在** ⇒ 404 ⇒ 整条消息失败。
+
+「你还记得上次我说了什么吗」是极常见的问法 ⇒ 移动端只要提到这五个词之一，
+聊天就断。
+
+修法：记忆查询失败时**退回普通对话**（`_generateLitertResponse` 那条路本来
+就是「先端脑、后本地」的形状），让模型用会话历史自己回答。回归测试
+`memory_query_falls_back_to_chat_when_hippocampus_is_absent`（mock 上游只认
+`/v1/chat/completions`，其余路由一律 404 —— 正好复刻「海马体不存在」的
+形状）。
+
+#### (b) 移动端对话页**永远进不了端脑链路**
+
+真机上对话页卡在「初始化中…」，标题是 **LiteRT**。逐层看下来：
+
+- `ChatNotifier` 构造函数无条件调 `_initLiteRT()`，而它**一上来就把
+  `mode` 设成 `ChatMode.litert`**；
+- `chat_screen.dart` 用 `isLitertMode = mode == ChatMode.litert` 决定渲染
+  哪个视图 ⇒ 恒渲染 `PrefrontalChatView`；
+- 而 `PrefrontalChatView` 走的是**前额叶方言**（`/api/sessions`）——
+  「改嵌大脑」之后端脑面上**根本没有这条路由** ⇒ 永远转圈。
+
+更要命的是 `generateResponse` 的守卫：
+
+```dart
+if (state.mode == ChatMode.litert && state.isLitertReady) { ... }
+```
+
+两个条件说的都是**本地** LiteRT 引擎 ⇒ 没装本地模型的设备上
+**一条消息都发不出去**（函数直接返回）；`local_chat_view.dart` 里的输入框
+`enabled` 也是同一个条件 ⇒ **输入框整个是禁用的**。
+
+修法（Dart 侧，不涉及 `.so`）：
+
+- `mode` 只在**本地引擎真的就绪**时才设成 `litert`（移到 `initLitert()`
+  的成功分支）；没有本地模型时保持 `off` = 端脑链路；
+- `generateResponse` / `generateResponseWithAttachments` **总是**走
+  `_generateLitertResponse`（它自己的语义就是「先端脑、后本地」）；
+- `ChatState.canChat` 取代「本地引擎就绪」作为输入框可用的条件。
+
+⚠️ 这条的意义不止是「聊天能用」：它正是「**所有通信都要走 大脑 → 端脑 →
+叶区，两个客户端都需要维持这个链路**」这条规则在移动端 **UI 面**的兑现 ——
+之前移动端那半边在代码上是断的。
+
+

@@ -94,7 +94,7 @@ MainActivity (Kotlin)  ── JNI ──▶  libencephalon.so (Rust)
 1. **客户端不许直连推理。** 桌面端的 `neuron_infer` Tauri 命令已整个拆掉。绕过端脑 = 工具调用、意图路由、人格注入、工作流全部失效，而且**不会报错**。
 2. **海马体只有一份。** 桌面端 `encephalon` 关掉 `hippocampus` feature，状态由端脑的 `build_app_state` 建、路由从**同一个** state 挂出来。两份 Lance 指向同一存储会抢锁。
 3. **`telencephalon` 必须是 path 依赖**，且与 `encephalon` 同目录（`../../../telencephalon`）。两份端脑 = 两套 `AppState` / `ConversationStore` 类型，传不过去。
-4. **叶区要指向活着的那个 neuron。** `neuron::create_router` 每次调用都**重建** `ServerState`，所以装配完必须用 `native_lobes.reconfigure(name, stack.neuron_addr())` 显式改端点。
+4. **叶区要指向活着的那个 neuron，而且端点必须跟着 client 走。** `neuron::create_router` 每次调用都**重建** `ServerState`，所以装配完必须用 `native_lobes.reconfigure(name, stack.neuron_addr())` 显式改端点。⚠️ 但 `reconfigure` 只改 `NativeLobeRegistry` 的 `runtimes`，而 shadow API 走的是另一套 `inner`（`Arc<dyn NativeLobe>`）—— **宿主改完端点、client 仍读硬编码的 `http://localhost:60080`**，于是叶区发起的 LLM 调用 connection refused 而对话照样有回音（2026-10-30 真机定位到的断链，三种形态全中）。修法在端脑仓：新增 `LobeClient::NativeAt(lobe, config, url)` 让端点随 client 传递（`telencephalon/src/a2a/skill_router.rs`），环境变量降级为兜底。
 5. **移动端不许留本地直连编排器。** `MainAgentNotifier`（直接拿 `ModelEngine` 跑 MNN）已删除——留着就可能被重新接上。
 
 ## 三种运行形态，同一条链路
@@ -106,6 +106,30 @@ MainActivity (Kotlin)  ── JNI ──▶  libencephalon.so (Rust)
 | 独立大脑（`encephalon-server`） | `:8082` | 同上 | 同上 |
 
 **为什么必须指向 neuron 自己的 listener**：端脑 HTTP 面里合并的那张 neuron 路由是 `neuron::create_router` **重建**的 `ServerState` —— 不是活着的那个实例。更要紧的是叶区的默认端点 `http://localhost:60080` 在移动端与独立大脑上**没有任何东西在听**（端脑面分别是随机端口和 `:8082`），于是叶区发起的 LLM 调用 connection refused，而对话照样有回音 —— 能力静默失效。
+
+### LLM 供给：叶区要的是一个 OpenAI 兼容端点
+
+叶区发起的 LLM 调用最终落到 neuron's OpenAI 面，而那个面上**有没有模型**是宿主说了算的。三种供给方式：
+
+| 方式 | 怎么做 | 适用 |
+|---|---|---|
+| 本地权重 | neuron 扫模型目录，`/v1/models` 里 `available=true` | 桌面端 / 有权重的环境 |
+| **远端引擎** | `telencephalon::neuron_embed::register_remote_llm` 把一个 OpenAI 兼容端点注册进 `state.engines.llm` | **手机**（环境变量注入不了） |
+| 环境变量 | `NEURON_REMOTE_BASE_URL` / `NEURON_REMOTE_MODELS` | 独立进程、桌面端 |
+
+⚠️ **手机端只能走「远端引擎」**：neuron 的 remote 引擎只认环境变量，而 Android App 进程的环境变量由 zygote 决定、宿主注入不了（Android 10+ 连 `/proc/<pid>/environ` 都读不到）。于是移动端有一条**程序化**通道：
+
+```text
+App 的云端供应商设置 → MethodChannel → JNI → EmbeddedConfig.llm_provider
+   → register_remote_llm（注册进 neuron 派发表）
+   → set_default_model_for_all_lobes（叶区按这个模型 id 请求）
+```
+
+⚠️ **注册引擎 ≠ 叶区会用它**：叶区是**按模型 id** 请求 neuron's OpenAI 面的，宿主还要把叶区的默认模型指过去。两件事都要做，否则叶区只会去 `/v1/models` 里翻本地权重，最后报 `NO_MODEL_CONFIGURED`。
+
+⚠️ **两个仓的 neuron 版本必须一致**：`telencephalon` 与 `encephalon` 各自锁自己的 `Cargo.lock`，`[patch]` 只在各自 workspace 生效 —— 不同版本会出现「telencephalon 自己编得过、encephalon 编不过」的情况（2026-10-30 实测：encephalon 锁在 `401f86c`，那里还没有 `neuron::engine::remote`）。
+
+⚠️ **listener 与 router 必须共用同一份 `ServerState`**：neuron 的 `run_embedded` 把 state 建了**两份**（一份给 `NeuronHandle.state`，另一份在 `create_router` 里、**那份才是真正在服务请求的**）⇒ 往 `NeuronHandle.state` 注册的引擎，listener **完全看不见**（真机表现：`no engine registered for model 'xxx'`）。`telencephalon` 因此自己建一份 state 并让 listener 与 `NeuronEmbed::state` 共用它。
 
 ## 跨端契约（可执行的守门员）
 
