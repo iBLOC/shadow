@@ -31,6 +31,7 @@
 | **两端的值不同源**：桌面端在 localStorage，移动端在 `app_config.json` | — |
 | **没有 agent→客户端通道**：移动端 `tool_call` 事件只打一条日志 | `lib/providers/chat_provider.dart:766-769` |
 | **桌面端有渲染骨架但没有消费方**：`ToolPartRouter` / `ClientToolForm` 存在，全仓无人用 | `src/components/chat/ToolPartRouter.tsx:35`、`src/components/chat/ClientToolForm.tsx:62` |
+| ⚠️ **桌面端 Tauri 构建的对话根本不过端脑** | `src/lib/telencephalonClient.ts:665-673`：`streamMessage` 在 Tauri 下走 `streamMessageNeuron`（直连进程内 neuron）；`createConversation` 走 `newLocalConversation` 本地桩 |
 
 服务端侧同样没有出口：
 
@@ -40,6 +41,23 @@
 - 但端脑**没有 client action 这个概念**：`NodeKind` 十六种里没有 client/ui 一类；`DeviceToolProvider.invoke` 直接 501
 
 > **判定**：服务端不是「没有工具系统」，是**工具系统里没有「作用于客户端」这一类工具**。
+
+### 1.1b ⚠️ 桌面端 Tauri 构建：端脑的 agent 面**完全不在链路上**
+
+这一条比上面所有条目都重，单独拎出来：
+
+| 环节 | Tauri 构建实际走的路 | 后果 |
+|---|---|---|
+| 建会话 | `createConversation` → `newLocalConversation`（本地 UUID 桩） | 没有端脑会话 |
+| 发消息 | `streamMessage` → `streamMessageNeuron` → 进程内 neuron 的 `/v1/chat/completions` | **没有意图路由、没有工具、没有 flow** |
+| 工具事件 | neuron 的 chat completions **不带 tools** | **桌面端压根不会产生 `tool_call` 事件** |
+| 海马体 | `Embedded::boot()` 只起了 neuron 的 listener（`:8085`） | 端脑的 HTTP 面没起 → **前端够不到进程内海马体** |
+
+⇒ 桌面端 Tauri 现在的对话 = **一个 neuron 的薄壳**。端脑这一层在桌面端是「装了但没接线」。
+
+⇒ **推论**：批次 A 在桌面端做不了，不是「客户端还没接 handler」，是**事件根本不会来**。要让「用户向影子要求换个颜色」在桌面端成立，桌面端的对话路径必须改走端脑 —— 这是批次 A 里最大的一个决定（见 §4 批次 A 的「桌面端前置」）。
+
+⇒ 移动端相反：**嵌入式大脑带端脑**（`encephalon-wt-mobile` 的 `mobile` feature 含 `telencephalon`），对话走端脑的 `cortex_router`，`tool_call` 事件**在链路上**（只是客户端只打日志）。**所以批次 A 先在移动端落地是可行的。**
 
 ### 1.2 聊天背景：两端都没有，而且背景层是不透明的
 
@@ -195,23 +213,72 @@ useMemoryStore.getState().setPersona('persona-ada');   // 持久化 + 同步给 
 
 ---
 
+## 3bis. 第二批落地：桌面端「够得到海马体」+「主题色就是记忆」
+
+### 3bis.1 Tauri sidecar 把进程内海马体挂成 HTTP 面
+
+§3.2 的修复在 **web 构建**里直接生效（前端本来就打端脑的 HTTP），但**桌面 Tauri 应用里打不通** —— 见 §1.1b：端脑是进程内嵌的、**没有 HTTP 面**，而海马体虽然就在那个进程里，前端够不到。
+
+修法（新增 `shadow-desktop/src-tauri/src/hippo_http.rs`）：
+
+```
+进程内 hippocampus (AppState)
+   └─ build_router_unit()  →  Router<()>
+        └─ nest("/hippocampus")  →  127.0.0.1:60080/hippocampus/api/*
+```
+
+- 端口 **60080** = 前端 `telencephalonStore.ts` 的 `DEFAULT_BASE_URL` → **前端一行都不用改**
+- 路径前缀 `/hippocampus` 与端脑自己的挂法一致（`telencephalon/src/api/mod.rs:160`）→ **同一套客户端代码两端通用**
+- CORS 放开（WebView 跨源），与 neuron 一致
+- 端口被占用**不算错**：那说明外部已经有一台端脑在跑，前端本来就该连那一台（而且那一台还带完整端脑面）→ 直接跳过
+- **只挂海马体**，不挂端脑其余的面（conversations / flows / agents）—— 那些要等桌面端对话改走端脑
+
+**顺带修好一个既有的坏测试**：`src-tauri/tests/embedded_stack.rs` 用 `neuron_lib`，但 `Cargo.toml` 里从来就没有 `neuron` 这个依赖 → `cargo test` 编不过（**HEAD 就是坏的**，与本轮改动无关）。更妙的是 **`Cargo.lock` 里一直登记着 `axum` / `hippocampus-server` / `neuron` / `tower` / `tower-http`** —— 是 manifest 被削过而锁没跟上。补回依赖后**锁零改动**，两边重新对齐。
+
+### 3bis.2 「主题色也是记忆的一部分」
+
+这是用户拍板的第三条（主题色也是记忆）第一次真正落地：
+
+| 动作 | 实现 |
+|---|---|
+| 用户在设置页改主题色 | `themeStore.setAppearance` → 写一条海马体记忆：`uri = 'preference://theme/accent'`、`dimension = Agent`、`content = '#rrggbb'` |
+| 应用启动 | `App.tsx` → `useThemeStore.getState().hydrateFromMemory()` → 读回并应用 |
+| 读不到（端脑没起 / 离线） | 静默用本地那一份，**不报错** |
+| 记忆里是坏值 | `appearanceMemory.ts` 的 hex 校验拦掉，当作「没记过」 |
+
+**一条稳定 uri，而不是每次新增一条** —— 偏好是「当前值」，不是历史流水。海马体没有 upsert 也没有「按 uri 查」，所以 `HippocampusClient.upsertMemory` 做的是「列出来按 uri 匹配 → 命中 PUT / 没命中 POST」。
+
+**移动端还做不到这一步**：移动端脑不带海马体（§1.6），`HippocampusClient` 在移动端还是空壳。要等「零信任网络里的远端海马体」接通。
+
+### 3bis.3 验证
+
+- `cargo check --tests`（sidecar）→ **exit 0**，顺带修好了 `embedded_stack.rs` 的既有编译失败
+- `cargo test --lib hippo_http` → 前缀挂载形状的单测
+- 桌面 `pnpm exec tsc --noEmit` → **exit 0**
+- 桌面 `pnpm exec vitest run` → **112 文件 / 1139 passed / 2 skipped**（新增 `tests/stores/appearanceMemory.test.ts` 8 例）
+- **`Cargo.lock` 零改动**（依赖条目本来就登记着）
+
+---
+
 ## 4. 路线
 
 ### 批次 A · 外观定制闭环（补上那根线）
+
+**先说桌面端的前置**（§1.1b）：桌面端 Tauri 的对话**不过端脑**，所以 `tool_call` 事件在桌面端**压根不会产生**。批次 A 在桌面端要成立，得先让桌面端的对话走端脑 —— 这是一个**独立的架构决定**（端脑的 chat 路径要能跑本地模型、流式粒度会变、延迟会变）。在那个决定落地之前，**批次 A 先在移动端做**（移动端的端脑在链路上）。
 
 **服务端**（`telencephalon` 是他人 WIP 仓，只读 —— 需要先提 PR 或换落点）：
 - `ToolRegistry` 加一类 `client` 工具，动作是结构化的：`{kind:'setAppearance', payload:{accentSeed}}` / `{kind:'setChatBackground', payload:{imageUri}}`
 - `call_llm` 的请求体加 `tools`，让 LLM 能产出这类动作
 - SSE 的 `tool_call` 事件把 `kind` 透传给客户端
 
-**桌面端**：
-- 把 `ToolPartRouter` / `ClientToolForm` 真正接进 `ConversationPage`（现在是有骨架无消费方）
-- 新增 `client_action` 处理器：`setAppearance` → `themeStore.setAppearance({accentSeed})`
-- 主题色同时**写一条记忆**（`dimension=Agent`，`uri: 'preference://theme/accent'`）→ 这就是「主题色也是记忆的一部分」的落点
-
-**移动端**：
+**移动端**（先落地，链路已通）：
 - `chat_provider.dart:766-769` 的 `tool_call` 分支补成「渲染 + 执行」
-- 执行 → `themeAppearanceProvider` 写主题 + 写记忆
+- 执行 → `themeAppearanceProvider` 写主题 + 写记忆（`dimension=Agent`，uri `preference://theme/accent`）
+- 桌面端的写记忆那一半**已经通了**（§3bis.2）—— 移动端对齐同一个 uri 与同一套语义
+
+**桌面端**（等对话改走端脑）：
+- 把 `ToolPartRouter` / `ClientToolForm` 真正接进 `ConversationPage`（现在是有骨架无消费方）
+- 新增 `client_action` 处理器：`setAppearance` → `themeStore.setAppearance({accentSeed})` → 顺带写记忆
 
 **为什么先做这个**：它是「用户向影子要求换个颜色」这句话唯一能变成真的路。而且它一次打通，后面背景图、人格偏好全是同一根线上的实例。
 
@@ -261,9 +328,10 @@ useMemoryStore.getState().setPersona('persona-ada');   // 持久化 + 同步给 
 
 | 项 | 状态 |
 |---|---|
+| 🔴 **桌面端对话要不要改走端脑** | **新出现的架构分叉**（§1.1b）。不改 → 桌面端永远收不到 `tool_call`，「影子给客户端换主题」在桌面端不成立；改 → 端脑的 chat 路径要能跑本地模型，流式粒度与延迟都会变。**建议先在移动端把批次 A 走通，桌面端这个决定缓一步** |
 | **端脑 `telencephalon` 是他人 WIP 仓（84 dirty）** | 批次 A 的服务端改动**必须走 PR**，不能直接改 |
-| **移动端脑不带海马体** | 移动端人格必须走零信任网络连远端海马体；`HippocampusClient` 在移动端还是空壳（`agent_review_service.dart:189-193` 全 TODO） |
-| **真机验证全部未做** | 设备失联。背景图对比度、玻璃拟态两端差异、「等 WiFi」黑屏修复的真实确认都等着 |
+| **移动端脑不带海马体** | 移动端人格必须走零信任网络连远端海马体；`HippocampusClient` 在移动端还是空壳（`agent_review_service.dart:189-193` 全 TODO）。移动端的「主题色写进记忆」因此**还没做** |
+| **真机验证全部未做** | 设备失联。背景图对比度、玻璃拟态两端差异、「等 WiFi」黑屏修复的真实确认都等着；**新增的 sidecar 海马体 HTTP 面也没在真机/桌面应用里验过** |
 | **CI 缺 `IBLOC_TOKEN` secret** | 本轮的记忆路径修复**还没在 CI 上跑过** |
 | 出图 provider 的 `images/generations` | 要不要扩展 provider 协议，是端脑仓的改动，同样受上面的 PR 约束 |
 | 一个海马体多灵魂的**身份来源** | `tenant_id` 从哪来（设备身份？用户手动选？），等批次 C 一起定 |

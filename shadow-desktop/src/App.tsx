@@ -7,6 +7,7 @@ import { GlobalErrorDialog } from './components/error/GlobalErrorDialog';
 import { ShortcutManager } from './components/ShortcutManager';
 import { installGlobalErrorHandlers } from './lib/errorTriggers';
 import { migrateFromLocalStorage } from './lib/migrateSettings';
+import { useThemeStore } from './stores/themeStore';
 import { TaskBoardPage } from './pages/TaskBoardPage';
 import { ConversationPage } from './pages/ConversationPage';
 import { MCPPage } from './pages/MCPPage';
@@ -38,6 +39,9 @@ function App() {
   useEffect(() => {
     installGlobalErrorHandlers();
     migrateFromLocalStorage();
+    // 「主题色也是记忆的一部分」—— 启动时把影子在海马体里记住的外观偏好
+    // 恢复回来。读不到（端脑没起 / 离线）就继续用本地那一份，不报错。
+    void useThemeStore.getState().hydrateFromMemory();
   }, []);
 
   return (

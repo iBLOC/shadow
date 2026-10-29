@@ -220,6 +220,53 @@ export class HippocampusClient {
   async deleteMemory(id: string): Promise<void> {
     await this.request<unknown>(`/api/memory/${id}`, { method: 'DELETE' });
   }
+
+  /**
+   * 按 uri 找一条记忆。
+   *
+   * 海马体**没有**「按 uri 查」的端点（只有 list / search / 增删改），
+   * 所以只能列出来在客户端匹配。`limit` 有上限 —— 影子自己的偏好条数
+   * 很小，但 `dimension=Agent` 里还塞着巩固器产的洞见，所以要给足。
+   */
+  async findMemoryByUri(
+    uri: string,
+    options: {
+      dimension?: Memory['dimension'];
+      limit?: number;
+      tenantId?: string | null;
+    } = {}
+  ): Promise<Memory | null> {
+    const memories = await this.listMemories({
+      dimension: options.dimension,
+      limit: options.limit ?? 200,
+      tenantId: options.tenantId,
+    });
+    return memories.find((m) => m.uri === uri) ?? null;
+  }
+
+  /**
+   * 按 uri upsert 一条记忆。
+   *
+   * 海马体既没有 upsert 也没有「按 uri 改」，所以：列出来按 uri 匹配，
+   * 命中就 `PUT`、没命中就 `POST`。给「影子记住的偏好」用 —— 那是
+   * **当前值**（一条稳定 uri），不是历史流水。
+   */
+  async upsertMemory(input: {
+    uri: string;
+    content: string;
+    dimension: Memory['dimension'];
+    sessionId?: string;
+    tenantId?: string | null;
+  }): Promise<Memory> {
+    const found = await this.findMemoryByUri(input.uri, {
+      dimension: input.dimension,
+      tenantId: input.tenantId,
+    });
+    if (found) {
+      return this.updateMemory(found.id, { content: input.content });
+    }
+    return this.addMemory(input);
+  }
 }
 
 export const hippocampusClient = new HippocampusClient();

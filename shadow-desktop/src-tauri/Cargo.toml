@@ -72,6 +72,14 @@ reqwest = { version = "0.12", features = ["json"] }
 # (data gateway) and (optionally) the telencephalon (agent runtime).
 encephalon = { path = "../../../encephalon" }
 
+# 进程内海马体的 HTTP 面（`src/hippo_http.rs`）。Tauri 构建里端脑是嵌在
+# 进程内的、**没起 HTTP 面**，前端的记忆客户端打 `{base}/hippocampus/api/*`
+# 够不到它 —— 这一段由 sidecar 补上，端口 60080（前端默认值）。
+# 版本与端脑 / neuron 保持一致（axum 0.8 + tower-http 0.6），避免依赖图分叉。
+hippocampus-server = { path = "../../../hippocampus/hippocampus-server" }
+axum = { version = "0.8", features = ["ws", "multipart"] }
+tower-http = { version = "0.6", features = ["cors", "trace"] }
+
 # Process management
 portpicker = "0.1"
 uuid = { version = "1", features = ["v4"] }
@@ -162,3 +170,9 @@ tauri-plugin-wdio-webdriver = { path = "vendor/tauri-plugin-wdio-webdriver" }
 [dev-dependencies]
 wiremock = "0.6"
 tokio = { version = "1", features = ["macros", "rt", "time"] }
+# `ServiceExt::oneshot` —— 路由挂载形状的单测用它直接打 router。
+tower = { version = "0.5", features = ["util"] }
+# `tests/embedded_stack.rs` 要用 neuron 的嵌入运行时（`neuron_lib` 是
+# neuron 的 [lib] target 名）。**必须和 telencephalon 用同一个源**
+# （同一个 git + branch），否则 cargo 会把 neuron 编成两份，类型对不上。
+neuron = { git = "https://github.com/ibloc/neuron", branch = "main", default-features = false }

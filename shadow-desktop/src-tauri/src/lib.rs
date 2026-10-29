@@ -15,6 +15,7 @@ mod recording;
 mod provider_manager;
 mod global_keys;
 mod logger;
+mod hippo_http;
 
 use config_manager::{AppConfig, DatabaseConfig, ProviderConfig, SecureAuth};
 use diencephalon::Thalamus;
@@ -136,6 +137,22 @@ pub fn run() {
     .expect("boot embedded encephalon");
     let neuron_addr = stack.neuron_addr();
     tracing::info!("encephalon embedded; neuron at {neuron_addr}");
+
+    // 把进程内海马体挂成 HTTP 面 —— Tauri 构建里端脑是嵌在进程内的、
+    // **没有起 HTTP 面**（`Embedded::boot()` 只起了 neuron 的 listener），
+    // 前端的记忆客户端（`{base}/hippocampus/api/*`）够不到它。
+    // 见 `hippo_http.rs`。
+    match stack.hippocampus().cloned() {
+        Some(hippo_state) => {
+            tauri::async_runtime::spawn(async move {
+                hippo_http::serve(hippo_state).await;
+            });
+        }
+        None => tracing::warn!(
+            "embedded hippocampus unavailable — the desktop memory surface stays dark"
+        ),
+    }
+
     let thalamus: Arc<diencephalon::Thalamus> = stack.thalamus().clone();
     // JDM editor (`/jdm-editor` page) calls `jdm_try_run_rule`
     // which delegates to `Thalamus::try_run_graph` — that builds

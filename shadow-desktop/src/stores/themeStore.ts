@@ -6,6 +6,7 @@ import {
   hexToRgb,
   hslTriplet,
 } from '../styles/accent.g';
+import { recallAccent, rememberAccent } from '../lib/appearanceMemory';
 
 type Theme = 'dark' | 'light';
 
@@ -35,7 +36,15 @@ interface ThemeState {
   appearance: Appearance;
   setTheme: (theme: Theme) => void;
   toggleTheme: () => void;
+  /** 改外观。主题色变了会**顺带让影子记住**（写一条海马体记忆）。 */
   setAppearance: (patch: Partial<Appearance>) => void;
+  /**
+   * 从海马体读回影子记住的主题色并应用。
+   *
+   * 「主题色也是记忆的一部分」—— 启动时把影子记住的偏好恢复回来。
+   * 读不到（端脑没起 / 离线）就用本地那一份，不报错。
+   */
+  hydrateFromMemory: () => Promise<void>;
 }
 
 function applyAppearance(appearance: Appearance) {
@@ -93,30 +102,53 @@ function applyTheme(theme: Theme) {
 
 export const useThemeStore = create<ThemeState>()(
   persist(
-    (set, get) => ({
-      theme: 'dark',
-      appearance: DEFAULT_APPEARANCE,
-
-      setTheme: (theme) => {
-        applyTheme(theme);
-        // 明暗变了，主题色的两端色调也要跟着换。
-        applyAppearance(get().appearance);
-        set({ theme });
-      },
-
-      toggleTheme: () => {
-        const newTheme = get().theme === 'dark' ? 'light' : 'dark';
-        applyTheme(newTheme);
-        applyAppearance(get().appearance);
-        set({ theme: newTheme });
-      },
-
-      setAppearance: (patch) => {
-        const appearance = { ...get().appearance, ...patch };
+    (set, get) => {
+      /** 落地一次外观变更（DOM + store）。 */
+      const commit = (appearance: Appearance) => {
         applyAppearance(appearance);
         set({ appearance });
-      },
-    }),
+      };
+
+      return {
+        theme: 'dark',
+        appearance: DEFAULT_APPEARANCE,
+
+        setTheme: (theme) => {
+          applyTheme(theme);
+          // 明暗变了，主题色的两端色调也要跟着换。
+          applyAppearance(get().appearance);
+          set({ theme });
+        },
+
+        toggleTheme: () => {
+          const newTheme = get().theme === 'dark' ? 'light' : 'dark';
+          applyTheme(newTheme);
+          applyAppearance(get().appearance);
+          set({ theme: newTheme });
+        },
+
+        setAppearance: (patch) => {
+          const previous = get().appearance;
+          const next = { ...previous, ...patch };
+          commit(next);
+
+          // 主题色变了 → 让影子记住它（海马体 `dimension=Agent`）。
+          // 写失败不是致命错误：本地值已经是权威的那一份，下次连上再同步。
+          if (next.accentSeed !== previous.accentSeed) {
+            void rememberAccent(next.accentSeed).catch(() => {
+              /* 海马体够不到 —— 下次连上时再补写 */
+            });
+          }
+        },
+
+        hydrateFromMemory: async () => {
+          const seed = await recallAccent().catch(() => null);
+          if (seed && seed !== get().appearance.accentSeed) {
+            commit({ ...get().appearance, accentSeed: seed });
+          }
+        },
+      };
+    },
     {
       name: 'theme-storage',
       onRehydrateStorage: () => (state) => {
