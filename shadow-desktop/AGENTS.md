@@ -286,7 +286,7 @@ The same `src/` produces **two artefacts**:
 - **e2e gap**: `tests/e2e-ui/mcp.spec.ts` is page-smoke only; no test for `add_server / remove_server / builtin_servers` runtime
 
 ### Workflow Studio v1 — R-12/R-13 closure (commit `4023493`)
-- Drag-drop workflow editor; backend lives at `cerebellum/apps/editor` (commit `b4730e2`)
+- Drag-drop workflow editor; backend lives at `telencephalon/apps/editor` (originally `cerebellum/apps/editor`, commit `b4730e2`; moved to the telencephalon on 2026-10-14, after which the `cerebellum` concept was retired)
 - `93f4ef9` — WorkflowStudio syntax + Univer locale/core deps for dev runtime
 - **e2e gap**: zero Playwright/WDIO/tauri-driver spec references Workflow Studio
 
