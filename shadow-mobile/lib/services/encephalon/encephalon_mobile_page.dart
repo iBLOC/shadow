@@ -6,7 +6,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../generated/l10n/app_localizations.dart';
 import 'encephalon_mobile_provider.dart';
-import 'encephalon_mobile_service.dart';
 
 /// Encephalon（大脑）嵌入式运行时管理页面
 ///
@@ -125,23 +124,30 @@ class _EncephalonMobilePageState extends ConsumerState<EncephalonMobilePage> {
               ),
             ],
             const SizedBox(height: 12),
+            // 启动/停止。
+            //
+            // 嵌入式大脑是**默认启动**的（App 一起来就拉起），所以
+            // 「启动大脑」**只在没在跑的时候露出来** —— 它是失败/手动
+            // 停掉之后的**恢复入口**，不是「用这个功能之前要先打开的
+            // 开关」。跑着的时候只给一个「停止大脑」（省资源 / 排障）。
             Row(
               children: [
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: isRunning ? null : () => notifier.start(),
-                    icon: const Icon(Icons.play_arrow),
-                    label: Text(l10n.encephalonStart),
+                if (!isRunning)
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: () => notifier.start(),
+                      icon: const Icon(Icons.play_arrow),
+                      label: Text(l10n.encephalonStart),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: isRunning ? () => notifier.stop() : null,
-                    icon: const Icon(Icons.stop),
-                    label: Text(l10n.encephalonStop),
+                if (isRunning)
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => notifier.stop(),
+                      icon: const Icon(Icons.stop),
+                      label: Text(l10n.encephalonStop),
+                    ),
                   ),
-                ),
               ],
             ),
           ],

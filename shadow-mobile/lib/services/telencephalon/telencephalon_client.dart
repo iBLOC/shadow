@@ -385,6 +385,21 @@ class TelencephalonClient {
   String? _adminToken;
   final http.Client _http;
 
+  /// 端脑就绪门 —— 宿主挂上来（见 `EncephalonMobileNotifier`）。
+  ///
+  /// 嵌入式大脑启动要几秒（还得先把 LLM provider 交给它）；这段时间里
+  /// 端脑 client 还指着没人监听的默认端口 ⇒ 请求会 connection refused。
+  /// 这个门让请求**等大脑就绪**，而不是直接失败。
+  ///
+  /// 约定：返回一个 Future，没就绪就一直等（超时由宿主自己管）；
+  /// **没挂门**（= 用外部端脑）就立即返回，行为跟以前完全一样。
+  Future<void> Function()? readinessGate;
+
+  /// 挂/摘就绪门。
+  void setReadinessGate(Future<void> Function()? gate) {
+    readinessGate = gate;
+  }
+
   TelencephalonClient({
     String? baseUrl,
     String? apiKey,
@@ -412,12 +427,33 @@ class TelencephalonClient {
     return h;
   }
 
-  Uri _u(String path) => Uri.parse('$_baseUrl$path');
+  /// 端脑地址 —— **所有**请求的唯一收口。
+  ///
+  /// 这里 `await` 一下就绪门：门开完再读 `_baseUrl`，拿到的就是刚更新过
+  /// 的端脑面地址（嵌入式大脑起来时 `setBaseUrl` 才会改它）。
+  ///
+  /// 门挂在**拼地址**这一步而不是发请求那一步 —— 因为地址是发请求前
+  /// 拼好的，等晚了拼出来的还是那个没人监听的端口。
+  Future<Uri> _u(String path) async {
+    await _awaitReady();
+    return Uri.parse('$_baseUrl$path');
+  }
+
+  /// 等大脑就绪（没挂门就立即返回）。
+  Future<void> _awaitReady() async {
+    final gate = readinessGate;
+    if (gate == null) return;
+    try {
+      await gate();
+    } catch (_) {
+      // 门自己抛错不该把请求一起带崩 —— 照常发出去，按原来的语义失败。
+    }
+  }
 
   /// Raw GET — returns the decoded JSON body as-is. Use this for endpoints
   /// that answer with a JSON array; [_get] assumes an object body.
   Future<dynamic> _getJson(String path) async {
-    final r = await _http.get(_u(path), headers: _headers());
+    final r = await _http.get(await _u(path), headers: _headers());
     if (r.statusCode != 200) {
       throw TelencephalonException('GET $path → ${r.statusCode}: ${r.body}');
     }
@@ -434,7 +470,7 @@ class TelencephalonClient {
     Map<String, dynamic> body,
   ) async {
     final r = await _http.post(
-      _u(path),
+      await _u(path),
       headers: _headers(jsonBody: true),
       body: jsonEncode(body),
     );
@@ -449,7 +485,7 @@ class TelencephalonClient {
     Map<String, dynamic>? body,
   ]) async {
     final r = await _http.post(
-      _u(path),
+      await _u(path),
       headers: _headers(jsonBody: true),
       body: jsonEncode(body ?? const {}),
     );
@@ -463,7 +499,7 @@ class TelencephalonClient {
     Map<String, dynamic> body,
   ) async {
     final r = await _http.post(
-      _u(path),
+      await _u(path),
       headers: _headers(jsonBody: true, admin: true),
       body: jsonEncode(body),
     );
@@ -474,7 +510,7 @@ class TelencephalonClient {
   }
 
   Future<Map<String, dynamic>> _adminGet(String path) async {
-    final r = await _http.get(_u(path), headers: _headers(admin: true));
+    final r = await _http.get(await _u(path), headers: _headers(admin: true));
     if (r.statusCode != 200) {
       throw TelencephalonException('GET $path → ${r.statusCode}: ${r.body}');
     }
@@ -482,7 +518,7 @@ class TelencephalonClient {
   }
 
   Future<void> _adminDelete(String path) async {
-    final r = await _http.delete(_u(path), headers: _headers(admin: true));
+    final r = await _http.delete(await _u(path), headers: _headers(admin: true));
     if (r.statusCode != 200 && r.statusCode != 204) {
       throw TelencephalonException('DELETE $path → ${r.statusCode}: ${r.body}');
     }
@@ -570,7 +606,7 @@ class TelencephalonClient {
     final headers = _headers(jsonBody: true);
     final request = http.Request(
       'POST',
-      _u(
+      await _u(
         '/shadow/v1/conversations/${Uri.encodeComponent(conversationId)}/messages:stream',
       ),
     );
@@ -612,9 +648,9 @@ class TelencephalonClient {
     if (name != null) query['name'] = name;
     if (tag != null) query['tag'] = tag;
     if (isDraft != null) query['is_draft'] = isDraft.toString();
-    final uri = Uri.parse(
-      '$_baseUrl/api/flows',
-    ).replace(queryParameters: query.isEmpty ? null : query);
+    final uri = (await _u('/api/flows')).replace(
+      queryParameters: query.isEmpty ? null : query,
+    );
     final r = await _http.get(uri, headers: _headers());
     if (r.statusCode != 200)
       throw TelencephalonException('listFlows → ${r.statusCode}');
@@ -822,9 +858,9 @@ class TelencephalonClient {
     final query = <String, String>{};
     if (skill != null) query['skill'] = skill;
     if (q != null) query['q'] = q;
-    final uri = Uri.parse(
-      '$_baseUrl/api/telencephalon/agents/search',
-    ).replace(queryParameters: query.isEmpty ? null : query);
+    final uri = (await _u('/api/telencephalon/agents/search')).replace(
+      queryParameters: query.isEmpty ? null : query,
+    );
     final r = await _http.get(uri, headers: _headers());
     if (r.statusCode != 200) {
       throw TelencephalonException('searchAgents → ${r.statusCode}: ${r.body}');

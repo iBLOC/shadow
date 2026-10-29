@@ -48,18 +48,77 @@ enum EncephalonMobileStatus { stopped, starting, running, stopping, error }
 class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
   static final _log = Logger('EncephalonMobileNotifier');
 
+  /// 启动尝试次数：首次 + 2 次重试。
+  ///
+  /// App 刚起来时端口、SQLite、native 库都可能在「还在就绪途中」，
+  /// 一次失败不该让用户手动再点一次。
+  static const int _maxStartAttempts = 3;
+
+  /// 重试间隔（第一次重试等这么久，第二次翻倍）。
+  static const Duration _retryDelay = Duration(seconds: 2);
+
+  /// 等大脑就绪的上限。
+  ///
+  /// 启动流程自己最多试 3 次（中间还有 2s / 4s 退避），所以这里留够
+  /// 一次完整启动的预算 —— 但**必须有上限**：起不来也不能把用户永远
+  /// 吊在「发送中」。
+  static const Duration _readyTimeout = Duration(seconds: 15);
+
   final EncephalonMobileService _service;
   final Ref<EncephalonMobileState> _ref;
 
+  /// 正在跑的启动流程 —— 用来避免并发 boot 两次。
+  Future<bool>? _startInFlight;
+
+  /// 用户**主动**停过大脑。
+  ///
+  /// 有了这个标记，「等大脑就绪」的门才不会把用户刚停掉的大脑偷偷
+  /// 拉回来 —— 那个语义是用户自己选的，要恢复得他自己点「启动大脑」。
+  bool _stoppedByUser = false;
+
   EncephalonMobileNotifier(this._service, this._ref)
       : super(const EncephalonMobileState()) {
+    // 把「等大脑就绪」的门挂到端脑 client 上。
+    //
+    // 嵌入式大脑启动要几秒，这期间端脑 client 还指着没人监听的默认端口
+    // ⇒ 请求会 connection refused。挂上门之后，**启动期间发出的第一条
+    // 消息会等大脑起来**，而不是直接失败。
+    _ref.read(telencephalonClientProvider).setReadinessGate(waitUntilReady);
     _init();
   }
 
+  /// 等大脑就绪 —— 端脑 client 的就绪门。
+  ///
+  /// 语义：
+  /// - 大脑在跑 ⇒ 立即返回；
+  /// - 大脑没在跑 ⇒ **拉起来再等**（这就是「默认启动，不需要开关」）；
+  /// - 用户主动停过 ⇒ 立即返回（不偷偷把用户刚停掉的大脑拉回来）。
+  ///
+  /// 带上限：起不来就让请求照常失败，别把用户永远吊在这儿。
+  Future<void> waitUntilReady() async {
+    if (_stoppedByUser) return;
+    if (state.status == EncephalonMobileStatus.running) return;
+    try {
+      await ensureStarted().timeout(_readyTimeout);
+    } catch (_) {
+      // 起不来 —— 请求照常发出去，按它本来的语义失败。
+    }
+  }
+
+  /// 初始化：**默认把大脑拉起来**。
+  ///
+  /// 以前这个函数只查状态、查到没在跑就停在那儿 —— 于是用户必须去
+  /// 「我 → 设置 → 嵌入式大脑」点一下「启动大脑」，否则移动端整条
+  /// 「大脑 → 端脑 → 叶区」链路是断的（对话页会一直「初始化中…」，
+  /// 端脑 client 也还指着没人监听的 `:60080`）。
+  ///
+  /// 现在：进程里已经在跑（App 被系统重建后进程还在）就接管它；
+  /// 否则**自动启动**。用户不需要任何开关。
   Future<void> _init() async {
     // 检查运行时是否已经在跑（比如 App 被系统重建后进程还在）。
     try {
       final status = await _service.getStatus();
+      if (!mounted) return;
       if (status['running'] == true) {
         state = state.copyWith(
           status: EncephalonMobileStatus.running,
@@ -70,10 +129,96 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
           '检测到嵌入式大脑已在运行, 端口: ${state.port}, 端脑面: ${state.agentPort}',
         );
         _pointClientsAtAgentSurface(state.agentPort);
+        return;
       }
     } catch (e) {
       _log.fine('初始化检查失败: $e');
     }
+    // 没在跑 —— **默认拉起来**。
+    await ensureStarted();
+  }
+
+  /// 拉起嵌入式大脑（幂等）。
+  ///
+  /// - 已经在跑 ⇒ 直接返回 true；
+  /// - 已经在启动流程里 ⇒ 返回那个流程的结果，**不并发 boot 第二次**
+  ///   （native 侧虽然也幂等，但没必要白跑一趟）。
+  ///
+  /// 这是「默认启动」的唯一入口：App 启动时调它，页面上的按钮也调它。
+  Future<bool> ensureStarted() {
+    if (state.status == EncephalonMobileStatus.running) {
+      return Future<bool>.value(true);
+    }
+    return _startInFlight ??= _startWithRetry().whenComplete(() {
+      _startInFlight = null;
+    });
+  }
+
+  /// 启动流程（带重试）。
+  Future<bool> _startWithRetry() async {
+    for (var attempt = 1; attempt <= _maxStartAttempts; attempt++) {
+      if (!mounted) return false;
+      state = state.copyWith(
+        status: EncephalonMobileStatus.starting,
+        errorMessage: null,
+      );
+
+      try {
+        // 启动前把「宿主配的云端供应商」交给大脑。
+        //
+        // neuron 的 remote 引擎只认环境变量（NEURON_REMOTE_BASE_URL 等），
+        // 而 Android App 进程的环境变量由 zygote 决定、宿主注入不了 ——
+        // 所以只能走这条程序化通道：MethodChannel → JNI → Rust → 注册进
+        // neuron 的派发表。叶区随后会按这个模型 id 去请求 neuron。
+        await _applyCloudProvider();
+
+        final success = await _service.start();
+        if (!mounted) return false;
+        if (success) {
+          final agentPort = _service.agentPort;
+          state = state.copyWith(
+            status: EncephalonMobileStatus.running,
+            port: _service.port,
+            agentPort: agentPort,
+            errorMessage: null,
+          );
+          _log.info(
+            '嵌入式大脑启动成功, 端口: ${state.port}, 端脑面: ${state.agentPort}',
+          );
+          _pointClientsAtAgentSurface(agentPort);
+          return true;
+        }
+        state = state.copyWith(
+          status: EncephalonMobileStatus.error,
+          errorMessage: currentL10n().encephalonStartFailed,
+        );
+      } catch (e, stack) {
+        _log.severe('启动嵌入式大脑失败', e, stack);
+        if (!mounted) return false;
+        state = state.copyWith(
+          status: EncephalonMobileStatus.error,
+          errorMessage: e.toString(),
+        );
+      }
+
+      if (attempt < _maxStartAttempts) {
+        _log.info('嵌入式大脑启动失败（第 $attempt 次）—— 稍后重试');
+        await Future.delayed(_retryDelay * attempt);
+      }
+    }
+    return false;
+  }
+
+  /// 启动嵌入式大脑（页面上「启动大脑」按钮走这条）。
+  ///
+  /// 按钮**只在没在跑的时候出现** —— 大脑默认就在跑，那个按钮是
+  /// 失败/手动停掉之后的恢复入口，不是「用这个功能之前要先打开的开关」。
+  ///
+  /// 点它 = 用户明确要大脑跑起来 ⇒ 解除「用户主动停过」的标记，
+  /// 之后端脑请求又可以自动等它就绪了。
+  Future<bool> start() {
+    _stoppedByUser = false;
+    return ensureStarted();
   }
 
   /// 把 App 里配好的云端供应商推给嵌入式大脑。
@@ -117,58 +262,6 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
     }
   }
 
-  /// 启动嵌入式大脑
-  Future<bool> start() async {
-    if (state.status == EncephalonMobileStatus.running) {
-      _log.warning('嵌入式大脑已在运行中');
-      return true;
-    }
-
-    state = state.copyWith(
-      status: EncephalonMobileStatus.starting,
-      errorMessage: null,
-    );
-
-    try {
-      // 启动前把「宿主配的云端供应商」交给大脑。
-      //
-      // neuron 的 remote 引擎只认环境变量（NEURON_REMOTE_BASE_URL 等），
-      // 而 Android App 进程的环境变量由 zygote 决定、宿主注入不了 ——
-      // 所以只能走这条程序化通道：MethodChannel → JNI → Rust → 注册进
-      // neuron 的派发表。叶区随后会按这个模型 id 去请求 neuron。
-      await _applyCloudProvider();
-
-      final success = await _service.start();
-      if (success) {
-        final agentPort = _service.agentPort;
-        state = state.copyWith(
-          status: EncephalonMobileStatus.running,
-          port: _service.port,
-          agentPort: agentPort,
-          errorMessage: null,
-        );
-        _log.info(
-          '嵌入式大脑启动成功, 端口: ${state.port}, 端脑面: ${state.agentPort}',
-        );
-        _pointClientsAtAgentSurface(agentPort);
-        return true;
-      } else {
-        state = state.copyWith(
-          status: EncephalonMobileStatus.error,
-          errorMessage: currentL10n().encephalonStartFailed,
-        );
-        return false;
-      }
-    } catch (e, stack) {
-      _log.severe('启动嵌入式大脑失败', e, stack);
-      state = state.copyWith(
-        status: EncephalonMobileStatus.error,
-        errorMessage: e.toString(),
-      );
-      return false;
-    }
-  }
-
   /// 停止嵌入式大脑
   Future<bool> stop() async {
     if (state.status == EncephalonMobileStatus.stopped) {
@@ -176,6 +269,8 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
     }
 
     state = state.copyWith(status: EncephalonMobileStatus.stopping);
+    // 用户主动停的 —— 记一笔，免得「等大脑就绪」的门把它偷偷拉回来。
+    _stoppedByUser = true;
 
     try {
       await _service.stop();
@@ -203,6 +298,9 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
   /// 用途：App 被系统重建后进程可能还活着（native 侧仍在跑），
   /// 页面下拉刷新时用它把 UI 状态同步过来。
   Future<void> refreshStatus() async {
+    // 正在启动中就别覆盖状态 —— 启动流程自己会把状态改成 running /
+    // error，被这里抢先写成 stopped 会让 UI 闪一下。
+    if (_startInFlight != null) return;
     try {
       final status = await _service.getStatus();
       if (status['running'] == true) {

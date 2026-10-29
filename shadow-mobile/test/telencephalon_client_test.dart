@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -382,6 +383,104 @@ void main() {
       );
     });
   });
+
+  /// 「等大脑就绪」的就绪门。
+  ///
+  /// 嵌入式大脑启动要几秒，这期间 client 还指着没人监听的默认端口 ⇒
+  /// 请求会 connection refused。门让请求**等大脑就绪**再发出去。
+  ///
+  /// 门挂在**拼地址**这一步（不是发请求那一步）—— 地址是发请求前
+  /// 拼好的，等晚了拼出来的还是那个死端口。
+  group('就绪门（等大脑就绪）', () {
+    test('没挂门时行为不变 —— 请求直接发出去', () async {
+      var requests = 0;
+      final c = TelencephalonClient(
+        baseUrl: 'http://127.0.0.1:60080',
+        client: http_testing.MockClient((request) async {
+          requests++;
+          return http.Response(jsonEncode({'status': 'ok'}), 200);
+        }),
+      );
+      addTearDown(c.dispose);
+
+      final result = await c.health();
+
+      expect(requests, 1);
+      expect(result['status'], 'ok');
+    });
+
+    test('门没开完之前，请求不会发出去', () async {
+      var requests = 0;
+      final c = TelencephalonClient(
+        baseUrl: 'http://127.0.0.1:60080',
+        client: http_testing.MockClient((request) async {
+          requests++;
+          return http.Response(jsonEncode({'status': 'ok'}), 200);
+        }),
+      );
+      addTearDown(c.dispose);
+
+      final gate = Completer<void>();
+      c.setReadinessGate(() => gate.future);
+
+      final pending = c.health();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(requests, 0, reason: '门没开完就发出去 —— 还是那个没人监听的端口');
+
+      gate.complete();
+      final result = await pending;
+
+      expect(requests, 1);
+      expect(result['status'], 'ok');
+    });
+
+    test('门完成后再拼地址 —— 用的是门之后的新地址', () async {
+      final seen = <Uri>[];
+      final c = TelencephalonClient(
+        baseUrl: 'http://127.0.0.1:60080',
+        client: http_testing.MockClient((request) async {
+          seen.add(request.url);
+          return http.Response(jsonEncode({'status': 'ok'}), 200);
+        }),
+      );
+      addTearDown(c.dispose);
+
+      c.setReadinessGate(() async {
+        // 模拟「等大脑起来」：门里把地址换成嵌入式大脑的端脑面。
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        c.setBaseUrl('http://127.0.0.1:41235');
+      });
+
+      await c.health();
+
+      expect(seen, hasLength(1));
+      expect(
+        seen.single.toString(),
+        startsWith('http://127.0.0.1:41235'),
+        reason: '门开完之后拼的地址必须是门之后的那个端脑面',
+      );
+    });
+
+    test('门自己抛错不该把请求带崩', () async {
+      var requests = 0;
+      final c = TelencephalonClient(
+        baseUrl: 'http://127.0.0.1:60080',
+        client: http_testing.MockClient((request) async {
+          requests++;
+          return http.Response(jsonEncode({'status': 'ok'}), 200);
+        }),
+      );
+      addTearDown(c.dispose);
+
+      c.setReadinessGate(() async => throw Exception('门炸了'));
+
+      final result = await c.health();
+
+      expect(requests, 1);
+      expect(result['status'], 'ok');
+    });
+  });
+
 
   // The wire shape below is what telencephalon actually emits — captured
   // from `serde_json::to_value(ConversationTurn)` on the Rust side:

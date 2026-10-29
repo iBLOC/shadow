@@ -8,6 +8,7 @@ import 'providers/theme_provider.dart';
 import 'theme/glass_theme.dart';
 import 'theme/shad_scheme.g.dart';
 import 'services/app_config_service.dart';
+import 'services/encephalon/encephalon_mobile_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,7 +26,27 @@ void main() async {
     debugPrint('[ShadowApp] ModelManager.initializeDefaultModels() failed: $e');
   }
 
-  runApp(const ProviderScope(child: ShadowApp()));
+  // 用 **app 生命周期的 ProviderContainer**（而不是 ProviderScope）——
+  // 这样可以在 provider 树之外、在 runApp 之后触发嵌入式大脑的启动。
+  //
+  // 为什么要 app 生命周期：嵌入式大脑是**默认启动**的（见下面），
+  // 启动这件事必须在 App 一起来就发生，不能等用户去某个页面。
+  final container = ProviderContainer();
+
+  runApp(
+    UncontrolledProviderScope(
+      container: container,
+      child: const ShadowApp(),
+    ),
+  );
+
+  // 嵌入式大脑**默认启动** —— 用户不需要去「我 → 设置 → 嵌入式大脑」
+  // 点「启动大脑」。以前那一步是必须的：不点，整条「大脑 → 端脑 → 叶区」
+  // 链路在移动端就是断的（对话页永远「初始化中…」，端脑 client 也还指着
+  // 没人监听的 `:60080`）。
+  //
+  // 放在 runApp 之后：启动要读本地模型配置（SQLite），别挡住首屏。
+  container.read(encephalonMobileProvider.notifier).ensureStarted();
 }
 
 class ShadowApp extends ConsumerWidget {
