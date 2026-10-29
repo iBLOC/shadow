@@ -90,9 +90,13 @@ jobs:
         run: |
           set -eu
           echo "::add-mask::$IBLOC_TOKEN"
+          # secret 里可能带尾部换行（用 `gh secret set` 从 stdin 灌进去时不会
+          # 自动 trim）—— 直接嵌进 URL 会让凭据失效，报
+          # "Authentication failed"。这里先剥掉所有 CR/LF。
+          TOKEN="$(printf '%s' "$IBLOC_TOKEN" | tr -d '\r\n')"
           mkdir -p "$HOME/.cargo"
           printf '[net]\ngit-fetch-with-cli = true\n' >> "$HOME/.cargo/config.toml"
-          git config --global url."https://x-access-token:${IBLOC_TOKEN}@github.com/".insteadOf "https://github.com/"
+          git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "https://github.com/"
           sudo apt-get update -qq
           sudo apt-get install -y -qq protobuf-compiler
 
@@ -255,9 +259,13 @@ jobs:
         run: |
           set -eu
           echo "::add-mask::$IBLOC_TOKEN"
+          # secret 里可能带尾部换行（用 `gh secret set` 从 stdin 灌进去时不会
+          # 自动 trim）—— 直接嵌进 URL 会让凭据失效，报
+          # "Authentication failed"。这里先剥掉所有 CR/LF。
+          TOKEN="$(printf '%s' "$IBLOC_TOKEN" | tr -d '\r\n')"
           mkdir -p "$HOME/.cargo"
           printf '[net]\ngit-fetch-with-cli = true\n' >> "$HOME/.cargo/config.toml"
-          git config --global url."https://x-access-token:${IBLOC_TOKEN}@github.com/".insteadOf "https://github.com/"
+          git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "https://github.com/"
           sudo apt-get update -qq
           sudo apt-get install -y -qq protobuf-compiler
 
