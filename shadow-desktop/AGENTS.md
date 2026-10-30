@@ -414,6 +414,12 @@ The same `src/` produces **two artefacts**:
     工具**明确失败**而不是默默什么也不做。
   - **端脑今天还不认识 `tools` 这个字段** ⇒ serde 默认忽略未知字段 ⇒ **带上
     无害** ⇒ 客户端可以先发，等端脑接上即生效。
+  - **⚠️ 两条桌面端的路必须给模型看**同一份工具清单**：`pages/ConversationPage.tsx`
+    （现役）与 `lib/aiSdkTelencephalonTransport.ts`（AI SDK 适配器，**今天零消费方**）
+    —— 后者原先**不带** `tools` ⇒ 一旦被接上就是「同一个模型、同一个问题，走哪条路
+    决定模型能不能调 `set_theme`」，而这个差异在界面上**完全看不出来**。
+    现在两条路都是 `toOpenAiTools(desktopClientTools)`（**同一个来源**），
+    并由 `src/lib/__tests__/aiSdkTransportClientTools.test.ts`（3 条）锁住。
 
 **修掉一个真 bug**：`parseHexColor` 对 `#AARRGGBB` 取的是**前** 6 位（把 alpha
 当成了红通道）⇒ `#FF71717A` 会变成 `#FF7171`（蓝通道错了）。新写的测试把它
