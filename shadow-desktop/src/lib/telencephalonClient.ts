@@ -667,10 +667,11 @@ export class TelencephalonClient {
    *
    * Endpoint: `POST /shadow/v1/conversations/{id}/tool-results`
    *
-   * ⚠️ That route is **new** on the telencephalon side. Until the
-   * brain ships it, this throws (404) — callers must catch it and
-   * report "result not delivered" rather than let it take the whole
-   * conversation down.
+   * ⚠️ Callers must still catch this and report "result not
+   * delivered" rather than let it take the whole conversation down.
+   * A 404 here now means the **conversation id** is wrong (or the
+   * brain is an older build that predates this route) — the route
+   * itself has shipped on the telencephalon side.
    */
   async reportToolResult(
     conversationId: string,

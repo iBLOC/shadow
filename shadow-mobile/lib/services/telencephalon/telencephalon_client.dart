@@ -914,9 +914,9 @@ class TelencephalonClient {
   ///
   /// 端点：`POST /shadow/v1/conversations/{id}/tool-results`
   ///
-  /// ⚠️ 端脑侧这条路由是**新增**的。在端脑还没上这个端点之前，这里会
-  /// 抛 `TelencephalonException`（404）—— 调用方要自己兜住，别让
-  /// 「结果回传失败」把整条对话带崩。
+  /// ⚠️ 调用方要自己兜住，别让「结果回传失败」把整条对话带崩。
+  /// 这里的 404 现在表示**会话 id 不对**（或者连的是没这条路由的旧端脑）——
+  /// 这条路由本身在端脑侧**已经上线**了。
   Future<void> reportToolResult(
     String conversationId, {
     required String name,
