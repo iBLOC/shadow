@@ -311,9 +311,8 @@ class SendMessageRequest {
   /// **谁声明什么由设备决定** —— 手机没有窗口可最小化，桌面端没有麦克风
   /// 权限可申请 ⇒ 两端发的清单本来就该不一样。
   ///
-  /// 端脑今天还没接这个字段（`SendMessageRequest` 那边不认识它 ⇒ serde 默认
-  /// 忽略未知字段 ⇒ 带上它**无害**）；等端脑那侧接上，模型才知道 `set_theme`
-  /// 要吃一个 `color`。
+  /// 端脑已经认这个字段了（`SendMessageRequest.tools`）⇒ 它把清单连同
+  /// JSON Schema 一起透传给叶区 ⇒ 模型看得见 `set_theme` 要吃一个 `color`。
   final List<Map<String, dynamic>>? tools;
 
   const SendMessageRequest({

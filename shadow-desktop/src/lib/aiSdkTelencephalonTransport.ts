@@ -202,7 +202,6 @@ export function createTelencephalonChatTransport(options: TelencephalonChatTrans
         agent,
         // **这台设备能跑的工具**告诉模型 —— 端脑透传给 LLM，模型才知道
         // `set_theme` 要吃一个 `color`。
-        // 端脑那边还没接这个字段（serde 忽略未知字段 ⇒ 无害）。
         //
         // ⚠️ 这条路今天**零消费方**（`useTelencephalonChat` 不被引用），
         // 但它一旦被接上，工具清单必须**和 `ConversationPage` 那条路一致**
