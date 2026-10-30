@@ -776,4 +776,81 @@ POST /api/telencephalon/lobes/models
 一次上游调用（= 一次新的 agent 回合），或者在 synapse 里补一条反向结构化通道
 （跨仓协议改动 + 重编 `.so`）⇒ **单独立项**。
 
-验证：`flutter analyze` **0 error**、`flutter test` **300/300 全绿**。
+验证：`flutter analyze` **0 error**、`flutter test` **334/334 全绿**（本节做完时）。
+
+### 10.10 客户端工具的 JSON Schema —— 模型终于看得见工具的签名（2026-10-30）
+
+上一节 §10.9 做完的是「**客户端**接到 `tool_call` 之后干什么」。这一节补的是
+**它前面那一环**：**模型怎么知道 `set_theme` 要吃一个 `color` 还是 `dark`**。
+
+#### 缺的是什么
+
+没有工具签名时，模型只知道「有个叫 `set_theme` 的东西」⇒ 它只能**瞎猜参数**，
+或者干脆不调。
+⇒ 这一环不补，「模型自己让客户端换主题」永远是**看运气**的。
+
+#### 两端各加了一份 `parameters`（JSON Schema）
+
+- 桌面端 `src/lib/clientTools.ts`：`ClientTool.parameters?: ToolParameters`
+  + `toOpenAiTools(registry)`；
+- 移动端 `lib/services/client_tools/client_tool_registry.dart`：
+  `ClientTool.parameters: Map<String, dynamic>?` + `toOpenAiTools(registry)`。
+
+⚠️ **`parameters` 与界面表单的字段声明不是一回事**：后者描述的是**输入框**
+（UI 变体），前者描述的是**参数**（JSON Schema）⇒ 两个都要有，各管各的。
+
+⚠️ **两端同名工具必须导出同样的内容** —— 否则同一个模型在手机上和桌面上行为
+不一样 ⇒ **两端测试各自断言同一份字面量**（桌面
+`src/lib/__tests__/clientTools.test.ts` / 移动
+`test/unit/client_tool_registry_test.dart`）⇒ **任一端漂移则该端测试立刻变红**
+—— 跨仓没有共享运行时，这是唯一可行的保证方式。
+
+`color` 与 `dark` **都不是必填**：给哪个都算一次合法调用；两个都不给时工具
+**明确失败**，不默默什么也不做。
+
+#### 线上契约
+
+客户端随消息发 `tools`（OpenAI function-calling 数组）：
+`[{type:'function', function:{name, description, parameters}}]`。
+**端脑今天还不认识这个字段** ⇒ serde 默认忽略未知字段 ⇒ **带上无害** ⇒
+客户端可以先发，等端脑接上即生效。
+
+#### ⚠️ 端脑那边还差什么（这一节最重要的一句）
+
+**客户端现在发出去的 `tools` 是惰性的** —— 端脑照收不误、只是不用。
+要让「模型自己决定调 `set_theme`」成立，端脑侧还差：
+
+1. `SendMessageRequest` 认 `tools`；
+2. 把它透传给叶区（搭 `synapse` 的 `Message.metadata` 便车 ⇒ **不用改跨仓协议**）；
+3. 叶区的 LLM 请求带 `tools`，并把返回的 `/choices/0/message.tool_calls`
+   翻成 `TelencephalonStreamEvent::ToolCall` ⇒ 命中**客户端**工具时端脑
+   **不执行**、只发事件（执行权在那台设备手上）。
+
+⇒ §10.7 那张状态表的**第 1 行仍然是 ❌**（端脑侧没动），
+但「客户端已经把自己那一半交出去了」。
+
+#### ⚠️ 别把两条路混起来
+
+端脑的**本体工具**（MCP / 海马体图谱）那条路**故意不发 `tool_call` 事件** ——
+那个事件在 shadow SSE 上的含义是「**客户端**去执行这个工具」，发出去会让客户端
+把同一个写操作**再执行一遍**。
+⇒ **客户端工具要发事件、本体工具不发** —— 两条路的语义边界不能糊。
+
+#### ⚠️ 桌面端有两条路，工具清单必须一致
+
+`pages/ConversationPage.tsx`（现役）与 `lib/aiSdkTelencephalonTransport.ts`
+（AI SDK 适配器，**今天零消费方**）。后者原先**不带** `tools` ⇒ 一旦被接上就是
+「同一个模型、同一个问题，**走哪条路决定模型能不能调 `set_theme`**」，而这个
+差异在界面上**完全看不出来**（模型就是没调，用户只会觉得「它这会儿不听指挥」）。
+现在两条路都是 `toOpenAiTools(desktopClientTools)`（**同一个来源**），由
+`src/lib/__tests__/aiSdkTransportClientTools.test.ts` 锁住。
+
+#### 验证
+
+桌面端 `npx tsc --noEmit` **EXIT=0**、`npx vitest run` ⇒
+**115 个测试文件 / 1164 passed / 2 skipped / 0 failed**；
+移动端 `flutter test --concurrency=1` ⇒ **334 全绿**、
+`flutter analyze --no-pub` ⇒ **0 error**（78 issues 与基线逐条一致、零新增）。
+**两端各做一次反向验证**：把 `dark` 的 description 改一个字 ⇒ 该端 schema
+断言**立刻变红**（桌面 `1 failed | 15 passed`、移动 `+8 -1`）⇒ 确认这条测试
+真在断言字面量、不是摆设。
