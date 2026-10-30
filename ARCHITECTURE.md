@@ -13,6 +13,7 @@
 | **大脑** `encephalon` | iBLOC/encephalon | 顶层封装：thalamus（间脑）+ ACP 总线 + 端脑 + **单一** neuron 运行时。桌面端 `Embedded::boot()`；移动端编译成 `libencephalon.so` 跑在 App 进程内。 |
 | **端脑** `telencephalon` | iBLOC/telencephalon | **agent 运行时**：会话、agent 注册表、A2A 网关、WASM host、MCP 管理、意图路由、工具调用、工作流。客户端**唯一**的对话对象。 |
 | **叶区** lobes | iBLOC/{temporal,prefrontal,parietal} | 端脑内的 native lobe。temporal = 对话 / 意图，prefrontal = 任务，parietal = 编排。 |
+| **杏仁核** `amygdala` | iBLOC/amygdala | **独立进程**的叶区：实时情绪判断。主要与 **颞叶**（对话面）和 **海马体**（情绪时间线）通信，作为 native agent 注册进端脑（`POST /telencephalon/lobes/amygdala`）。判定走确定性打分器 —— **亚毫秒，不等模型**；模型精修只在判定已经回到线上之后发生。 |
 | **推理** `neuron` | iBLOC/neuron | **唯一推理实例**，OpenAI 兼容面 `/v1/chat/completions`。**叶区**调它，客户端不调它。 |
 | **记忆** `hippocampus` | iBLOC/hippocampus | 长时记忆，挂在端脑面的 `/hippocampus/api/*` 下。 |
 
@@ -88,6 +89,7 @@ MainActivity (Kotlin)  ── JNI ──▶  libencephalon.so (Rust)
 | `60080` | 端脑 HTTP 面 | 桌面端固定；移动端嵌入式时是随机端口。 |
 | `8085` | neuron | 桌面端固定（loopback 元数据读取依赖它）。 |
 | `8081` | 外部海马体 | 移动端默认指向（桌面端的海马体在进程内，不占这个端口）。 |
+| `9500` | 杏仁核 amygdala | 独立进程叶区；`9501` 是它的 Prometheus。 |
 
 ## 改代码前必读的约束
 
@@ -130,6 +132,49 @@ App 的云端供应商设置 → MethodChannel → JNI → EmbeddedConfig.llm_pr
 ⚠️ **两个仓的 neuron 版本必须一致**：`telencephalon` 与 `encephalon` 各自锁自己的 `Cargo.lock`，`[patch]` 只在各自 workspace 生效 —— 不同版本会出现「telencephalon 自己编得过、encephalon 编不过」的情况（2026-10-30 实测：encephalon 锁在 `401f86c`，那里还没有 `neuron::engine::remote`）。
 
 ⚠️ **listener 与 router 必须共用同一份 `ServerState`**：neuron 的 `run_embedded` 把 state 建了**两份**（一份给 `NeuronHandle.state`，另一份在 `create_router` 里、**那份才是真正在服务请求的**）⇒ 往 `NeuronHandle.state` 注册的引擎，listener **完全看不见**（真机表现：`no engine registered for model 'xxx'`）。`telencephalon` 因此自己建一份 state 并让 listener 与 `NeuronEmbed::state` 共用它。
+
+## 杏仁核（独立进程叶区）
+
+```text
+用户 → 颞叶 temporal ──A2A(emotion_assess)──▶ 杏仁核 amygdala（:9500）
+             ▲                                     │
+             └────notify(心境突变，仅突变时)────────┘
+                                                   │ 情绪时间线 + 心境快照
+                                                   ▼
+                                            海马体 hippocampus
+```
+
+* **拉**：颞叶把刚说完的那句话交给杏仁核问「这轮什么情绪」，**同一轮往返内**拿到
+  `{emotion, confidence, valence, arousal}` —— 确定性打分器，亚毫秒，**不等模型、不等海马体**。
+* **推**：只有心境**突变**（主标签变了，或效价移动超阈值）才回推颞叶，让对话调整语气。
+* **记忆**：每轮判定一条（`dimension=session`，uri `emotion:event:<会话id>:<ts>`），
+  每 N 轮一条心境快照（`dimension=user`，uri `emotion:profile:<用户id>:<ts>`）。
+
+⚠️ **注册路径**：`POST /telencephalon/lobes/{name}`（端脑挂的是这个）。
+`synapse::lobe::register_with_encephalon` 打的是**旧路径** `/encephalon/lobes/{name}` ⇒
+temporal / occipital 的自注册今天应该 404（读代码结论，未在真端脑上跑过）。
+杏仁核**没有**用那个 helper：自己打正确路径，只有正确路径 404 时才回落旧路径。
+
+⚠️ **海马体的 wire 坑**：请求体是 **camelCase**（`tenantId`/`sessionId` —— 发 snake_case 会被
+静默忽略，写进 default 租户）；`dimension` 只能**小写**（`user`/`agent`/`session`/`resources`）；
+`content` 是**字符串**。
+
+⚠️ **按路径依赖 synapse 的新 crate 第一次构建会挂**：新解析拿到 `a2a-client-lf 0.2.9`（拉
+`a2a-lf 0.4.2`），而 synapse 写的是 `a2a-lf 0.3` 的 API ⇒ 图里两个 `a2a` 版本 ⇒ **synapse 自己
+编译不过**。解法：`cargo update -p a2a-client-lf --precise 0.2.5`（杏仁核的 `Cargo.lock` 已钉住）。
+
+### 杏仁核是「可选 agent」
+
+平台里不是每台机器都跑杏仁核。三处都把「它不在」当**正常情况**，而不是错误：
+
+| 谁 | 怎么知道 | 它不在时 |
+|---|---|---|
+| 杏仁核自己 | `AMYGDALA_REGISTER=0` | 进程照常起、REST/A2A 照常服务，只是不进端脑的 agent 注册表 |
+| 颞叶 temporal | `AMYGDALA_URL`（**无默认值**） | 这一轮不带情绪信息，**对话照常**（失败一律降级成 `None`） |
+| 端脑 telencephalon | `TELENCEPHALON_OPTIONAL_AGENTS=amygdala,...` | 回落默认 agent（temporal），响应的 `agent` 字段报出**实际应答**的那个 |
+
+⚠️ **拼错的 agent 名仍然 404** —— 「可选」不能把防拼写错误的能力一起丢掉。
+端脑的回落是**按请求**做的：可选 agent 回来了，下一句话就又发给它。
 
 ## 跨端契约（可执行的守门员）
 
