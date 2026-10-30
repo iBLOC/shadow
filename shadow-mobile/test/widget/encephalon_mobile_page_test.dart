@@ -1,14 +1,20 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shadow_mobile/generated/l10n/app_localizations.dart';
+import 'package:shadow_mobile/providers/brain_model_source_provider.dart';
+import 'package:shadow_mobile/providers/telencephalon_provider.dart';
 import 'package:shadow_mobile/screens/model_management_screen.dart';
+import 'package:shadow_mobile/services/database/app_settings.dart';
 import 'package:shadow_mobile/services/database/database_helper.dart';
 import 'package:shadow_mobile/services/database/model_item.dart';
 import 'package:shadow_mobile/services/database/repositories.dart';
 import 'package:shadow_mobile/services/encephalon/encephalon_mobile_page.dart';
 import 'package:shadow_mobile/services/encephalon/encephalon_mobile_provider.dart';
+import 'package:shadow_mobile/services/telencephalon/telencephalon_client.dart';
 
 import 'test_helper.dart';
 
@@ -51,6 +57,8 @@ void main() {
           return true;
         case 'setLlmProvider':
           return true;
+        case 'setModelRouting':
+          return true;
       }
       return null;
     });
@@ -80,6 +88,12 @@ void main() {
     return ProviderScope(
       overrides: [
         modelRepositoryProvider.overrideWithValue(_FakeModelRepository()),
+        // 设置仓储换成内存版 —— 真库（SQLite）的那次读是**真实文件 I/O**，
+        // 在 `testWidgets` 的 fake-async 区里永远不会完成 ⇒ 自动启动会
+        // 一直卡在「启动中」。
+        appSettingsRepositoryProvider.overrideWithValue(_FakeAppSettings()),
+        // 端脑 client 换成假的 —— 「叶区列表」和「下发路由」不该真发 HTTP。
+        telencephalonClientProvider.overrideWithValue(_FakeTelencephalonClient()),
       ],
       child: const MaterialApp(
         localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -199,6 +213,15 @@ void main() {
       );
 
       final l10n = l10nOf(tester);
+      // 页面底部多了一张「叶区模型路由」卡片 ⇒ 推理卡片被推到屏幕外。
+      // `ListView` 是**懒构建**的 ⇒ 得先滚过去才找得到那个输入框。
+      await tester.dragUntilVisible(
+        find.widgetWithText(TextField, l10n.encephalonInferPrompt),
+        find.byType(ListView),
+        const Offset(0, -250),
+      );
+      await tester.pumpAndSettle();
+
       final promptField =
           find.widgetWithText(TextField, l10n.encephalonInferPrompt);
       expect(tester.widget<TextField>(promptField).enabled, isTrue);
@@ -219,16 +242,136 @@ void main() {
 
       expect(calls.any((c) => c.method == 'stop'), isTrue);
     });
+
+    /// 「大脑模型来源」卡片。
+    ///
+    /// 云端（MiniMax token plan 那类）与本地 neuron 权重是**两条不同的
+    /// 供给链**：云端要注册远端引擎，本地就是 neuron 自己的权重。
+    group('大脑模型来源卡片', () {
+      testWidgets('卡片在，本地权重与云端供应商都列出来', (tester) async {
+        mockChannel(running: false);
+        await tester.pumpWidget(buildPage());
+
+        await pumpUntil(
+          tester,
+          () => brainState(tester).status == EncephalonMobileStatus.running,
+        );
+
+        final l10n = l10nOf(tester);
+        expect(find.text(l10n.encephalonModelSourceTitle), findsOneWidget);
+        expect(find.text(l10n.encephalonModelLocalNeuron), findsOneWidget);
+        expect(find.text('MiniMax'), findsOneWidget);
+      });
+
+      testWidgets('切到本地 neuron 权重 ⇒ 全局默认回落本地，且**不重启**大脑',
+          (tester) async {
+        mockChannel(running: false);
+        await tester.pumpWidget(buildPage());
+
+        await pumpUntil(
+          tester,
+          () => brainState(tester).status == EncephalonMobileStatus.running,
+        );
+        final startsBefore = calls.where((c) => c.method == 'start').length;
+
+        final l10n = l10nOf(tester);
+        await tester.tap(find.text(l10n.encephalonModelLocalNeuron));
+        await tester.pumpAndSettle();
+
+        // 路由是**运行时**的 —— 换来源不用把大脑停掉重来。
+        expect(
+          calls.where((c) => c.method == 'stop'),
+          isEmpty,
+          reason: '停大脑会让正在用的会话断掉 —— 路由是运行时的',
+        );
+        expect(
+          calls.where((c) => c.method == 'start').length,
+          startsBefore,
+        );
+
+        // 交给大脑的那份路由：全局默认 = null（回落本地权重）。
+        final routingCalls =
+            calls.where((c) => c.method == 'setModelRouting').toList();
+        expect(routingCalls, isNotEmpty);
+        final args = routingCalls.last.arguments as Map;
+        final payload = jsonDecode(args['json'] as String) as Map;
+        expect(payload['default_model'], isNull);
+      });
+    });
+
+    /// 「叶区模型路由」卡片 —— 模型使用的**最小单位是叶区**。
+    group('叶区模型路由卡片', () {
+      testWidgets('列出端脑的叶区，每个叶区都有独立的模型下拉框',
+          (tester) async {
+        mockChannel(running: false);
+        await tester.pumpWidget(buildPage());
+
+        await pumpUntil(
+          tester,
+          () => brainState(tester).status == EncephalonMobileStatus.running,
+        );
+        await tester.pumpAndSettle();
+
+        final l10n = l10nOf(tester);
+        expect(find.text(l10n.encephalonLobeRoutingTitle), findsOneWidget);
+        // 叶区列表**从端脑读**，不硬编码。
+        expect(find.text('temporal'), findsOneWidget);
+        expect(find.text('prefrontal'), findsOneWidget);
+        expect(find.text('parietal'), findsOneWidget);
+        // 每个叶区一行 ⇒ 三个下拉框。
+        expect(find.byType(DropdownButton<String>), findsNWidgets(3));
+      });
+    });
   });
+}
+
+/// 假的端脑 client —— 「叶区列表」和「下发路由」两条是纯本地的，
+/// 不该在 widget 测试里真发 HTTP。
+class _FakeTelencephalonClient extends TelencephalonClient {
+  _FakeTelencephalonClient()
+      : super(baseUrl: 'http://127.0.0.1:1');
+
+  @override
+  Future<List<NativeLobeInfo>> listNativeLobes() async => const [
+        NativeLobeInfo(
+          name: 'temporal',
+          openaiBaseUrl: 'http://127.0.0.1:1',
+        ),
+        NativeLobeInfo(
+          name: 'prefrontal',
+          openaiBaseUrl: 'http://127.0.0.1:1',
+        ),
+        NativeLobeInfo(
+          name: 'parietal',
+          openaiBaseUrl: 'http://127.0.0.1:1',
+        ),
+      ];
+
+  @override
+  Future<Map<String, dynamic>> applyLobeModels({
+    required String? defaultModel,
+    required Map<String, String?> lobeModels,
+    List<Map<String, String>> providers = const [],
+  }) async {
+    return {
+      'default_model': defaultModel,
+      'applied': lobeModels,
+    };
+  }
 }
 
 /// 空的模型仓储 —— 自动启动要读它（把云端供应商交给大脑）。
 class _FakeModelRepository implements IModelRepository {
+  final List<ModelItem> models;
+
+  _FakeModelRepository([List<ModelItem>? models])
+      : models = models ?? [_miniMaxModel];
+
   @override
   Future<void> initializeDefaultModels() async {}
 
   @override
-  Future<List<ModelItem>> getAll() async => const [];
+  Future<List<ModelItem>> getAll() async => models;
 
   @override
   Future<List<ModelItem>> getLocalModels() async => const [];
@@ -251,3 +394,36 @@ class _FakeModelRepository implements IModelRepository {
   @override
   Future<void> setModelLoaded(String id, bool isLoaded) async {}
 }
+
+/// 内存版的 App 设置仓储（大脑模型来源）。
+class _FakeAppSettings implements AppSettingsRepository {
+  final Map<String, String> values = {};
+
+  @override
+  Future<String?> get(String key) async => values[key];
+
+  @override
+  Future<void> set(String key, String value) async {
+    values[key] = value;
+  }
+
+  @override
+  Future<void> remove(String key) async {
+    values.remove(key);
+  }
+}
+
+/// 一个云端供应商（像「MiniMax token plan」那种）。
+final ModelItem _miniMaxModel = ModelItem(
+  id: 'cloud_minimax',
+  name: 'MiniMax',
+  path: 'https://api.minimax.io/v1',
+  type: 'text',
+  size: 0,
+  isLoaded: false,
+  isLocal: false,
+  source: ModelSource.cloudProvider,
+  endpoint: 'https://api.minimax.io/v1',
+  apiKey: 'sk-test',
+  model: 'MiniMax-M3',
+);

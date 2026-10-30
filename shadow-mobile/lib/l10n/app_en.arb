@@ -1024,12 +1024,28 @@
   "@encephalonInferRun": {},
   "encephalonInferFailed": "Inference failed",
   "encephalonModelSourceTitle": "Brain model source",
-  "encephalonModelSourceHint": "Switching the model source restarts the embedded brain (the LLM upstream is fixed at boot).",
+  "encephalonModelSourceHint": "Global default: every lobe uses this source. You can override a single lobe under \"Lobe model routing\" below.",
   "encephalonModelLocalNeuron": "Local neuron weights",
   "encephalonModelCloud": "Cloud provider",
   "encephalonModelNoCloudProvider": "No cloud provider configured yet - add one in Model management first.",
   "encephalonModelSourceApplied": "New model source applied",
   "encephalonModelSourceFailed": "Failed to switch the model source",
+  "encephalonLobeRoutingTitle": "Lobe model routing",
+  "encephalonLobeRoutingHint": "A lobe is the smallest unit that picks a model. By default every lobe follows the global source above; you can override a single lobe - e.g. prefrontal on local weights, the region that actually runs tasks on the cloud.",
+  "encephalonLobeRoutingUnavailable": "Could not read the lobe list from the telencephalon - the brain may not be running.",
+  "encephalonLobeRoutingRefresh": "Refresh lobes",
+  "encephalonLobeFollowGlobal": "Follow global",
+  "encephalonLobeRoutingApplied": "Lobe model updated",
+  "encephalonLobeRoutingFailed": "Failed to update the lobe model",
+  "encephalonLobeEffectiveLocal": "Current: local neuron weights",
+  "encephalonLobeEffectiveCloud": "Current: {name}",
+  "@encephalonLobeEffectiveCloud": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "@encephalonInferFailed": {},
   "settingsAppearance": "Appearance",
   "@settingsAppearance": {},

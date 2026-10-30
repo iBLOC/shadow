@@ -1580,7 +1580,8 @@ class AppLocalizationsZh extends AppLocalizations {
   String get encephalonModelSourceTitle => '大脑模型来源';
 
   @override
-  String get encephalonModelSourceHint => '切换模型来源会重启嵌入式大脑（LLM 上游在启动时确定）。';
+  String get encephalonModelSourceHint =>
+      '全局默认：各叶区都用这个来源。也可以在下面的「叶区模型路由」里单独覆盖某个叶区。';
 
   @override
   String get encephalonModelLocalNeuron => '本地 neuron 权重';
@@ -1596,6 +1597,36 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get encephalonModelSourceFailed => '模型来源切换失败';
+
+  @override
+  String get encephalonLobeRoutingTitle => '叶区模型路由';
+
+  @override
+  String get encephalonLobeRoutingHint =>
+      '模型使用的最小单位是叶区。默认各叶区跟随上面的全局来源，可以单独覆盖某一个叶区 —— 比如前额叶用本地、实际执行任务的区域用云端。';
+
+  @override
+  String get encephalonLobeRoutingUnavailable => '读不到端脑的叶区列表 —— 大脑可能没在跑。';
+
+  @override
+  String get encephalonLobeRoutingRefresh => '刷新叶区';
+
+  @override
+  String get encephalonLobeFollowGlobal => '跟随全局';
+
+  @override
+  String get encephalonLobeRoutingApplied => '叶区模型已更新';
+
+  @override
+  String get encephalonLobeRoutingFailed => '叶区模型更新失败';
+
+  @override
+  String get encephalonLobeEffectiveLocal => '当前：本地 neuron 权重';
+
+  @override
+  String encephalonLobeEffectiveCloud(String name) {
+    return '当前：$name';
+  }
 
   @override
   String get settingsAppearance => '外观';

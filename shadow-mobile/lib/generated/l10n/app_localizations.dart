@@ -2975,7 +2975,7 @@ abstract class AppLocalizations {
   /// No description provided for @encephalonModelSourceHint.
   ///
   /// In en, this message translates to:
-  /// **'Switching the model source restarts the embedded brain (the LLM upstream is fixed at boot).'**
+  /// **'Global default: every lobe uses this source. You can override a single lobe under \"Lobe model routing\" below.'**
   String get encephalonModelSourceHint;
 
   /// No description provided for @encephalonModelLocalNeuron.
@@ -3007,6 +3007,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Failed to switch the model source'**
   String get encephalonModelSourceFailed;
+
+  /// No description provided for @encephalonLobeRoutingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Lobe model routing'**
+  String get encephalonLobeRoutingTitle;
+
+  /// No description provided for @encephalonLobeRoutingHint.
+  ///
+  /// In en, this message translates to:
+  /// **'A lobe is the smallest unit that picks a model. By default every lobe follows the global source above; you can override a single lobe - e.g. prefrontal on local weights, the region that actually runs tasks on the cloud.'**
+  String get encephalonLobeRoutingHint;
+
+  /// No description provided for @encephalonLobeRoutingUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not read the lobe list from the telencephalon - the brain may not be running.'**
+  String get encephalonLobeRoutingUnavailable;
+
+  /// No description provided for @encephalonLobeRoutingRefresh.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh lobes'**
+  String get encephalonLobeRoutingRefresh;
+
+  /// No description provided for @encephalonLobeFollowGlobal.
+  ///
+  /// In en, this message translates to:
+  /// **'Follow global'**
+  String get encephalonLobeFollowGlobal;
+
+  /// No description provided for @encephalonLobeRoutingApplied.
+  ///
+  /// In en, this message translates to:
+  /// **'Lobe model updated'**
+  String get encephalonLobeRoutingApplied;
+
+  /// No description provided for @encephalonLobeRoutingFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to update the lobe model'**
+  String get encephalonLobeRoutingFailed;
+
+  /// No description provided for @encephalonLobeEffectiveLocal.
+  ///
+  /// In en, this message translates to:
+  /// **'Current: local neuron weights'**
+  String get encephalonLobeEffectiveLocal;
+
+  /// No description provided for @encephalonLobeEffectiveCloud.
+  ///
+  /// In en, this message translates to:
+  /// **'Current: {name}'**
+  String encephalonLobeEffectiveCloud(String name);
 
   /// No description provided for @settingsAppearance.
   ///

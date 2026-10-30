@@ -98,6 +98,51 @@ class LobeInfo {
   );
 }
 
+/// 端脑的**原生叶区**（native lobe）及其当前生效的默认模型。
+///
+/// 这是「模型使用的最小单位是叶区」在客户端的映射。**叶区列表不硬编码**
+/// —— 从端脑面读：端脑注册了哪些原生叶区就显示哪些。
+///
+/// **只有 native 叶区进这张表**（`LobeKind::Native` 是端脑**进程内**执行、
+/// 由端脑自己发 LLM 请求的那种）：
+/// - **External（外部 A2A）** —— 端脑只把请求**转发**给对端，用什么模型
+///   是对端自己的事 ⇒ **不需要在这里配置模型信息**；
+/// - **Wasm** —— 本质上是**自定义叶区**，有自己的配置 ⇒ **独立配置**；
+/// - **Prompt** —— 端脑用系统提示词执行，不需要模型路由。
+class NativeLobeInfo {
+  final String name;
+
+  /// 这个叶区请求 LLM 用的 OpenAI 兼容端点。
+  final String openaiBaseUrl;
+
+  /// 当前**生效**的默认模型。`null` = 回落本地 neuron 权重。
+  final String? defaultModel;
+
+  /// 叶区是干什么的（来自端脑的 manifest）。
+  ///
+  /// 用户要挑「哪个叶区用云端」时得**认得出**它是哪一块 —— 比如
+  /// prefrontal 是「Task scheduling, flow selection, executive function」
+  /// （任务决策），temporal 是「Conversation / chat」。
+  final String description;
+
+  const NativeLobeInfo({
+    required this.name,
+    required this.openaiBaseUrl,
+    this.defaultModel,
+    this.description = '',
+  });
+
+  factory NativeLobeInfo.fromJson(Map<String, dynamic> json) {
+    final manifest = json['manifest'] as Map<String, dynamic>? ?? const {};
+    return NativeLobeInfo(
+      name: json['name'] as String? ?? '',
+      openaiBaseUrl: json['openai_base_url'] as String? ?? '',
+      defaultModel: json['default_model'] as String?,
+      description: manifest['description'] as String? ?? '',
+    );
+  }
+}
+
 class AgentsResponse {
   final String telencephalonId;
   final String instanceName;
@@ -373,6 +418,86 @@ class FlowRunResult {
       FlowRunResult(outputs: json);
 }
 
+/// 端脑任务 —— temporal lobe 的 `TaskStore` 里的一条记录。
+///
+/// **线上形状**（`telencephalon::lobes::task_store::Task`）有三个坑，
+/// 认错任何一个都会解析出空值：
+/// - `status` / `priority` 是 serde 的**变体名**（PascalCase）：
+///   `Pending` / `InProgress` / `Completed` / `Cancelled` / `Overdue`，
+///   `Low` / `Medium` / `High` / `Urgent`。**不是**小写、也不是 camelCase。
+/// - 时间字段是 **snake_case**：`due_time` / `created_at` / `updated_at`。
+/// - 端脑任务**没有子步骤** —— `steps` 是海马体 `TaskRecord` 的概念，
+///   端脑这边对应的是「确认点」`confirmation_points`。
+class TelencephalonTask {
+  final String id;
+  final String title;
+  final String? description;
+
+  /// `Pending` / `InProgress` / `Completed` / `Cancelled` / `Overdue`
+  final String status;
+
+  /// `Low` / `Medium` / `High` / `Urgent`
+  final String priority;
+  final DateTime? dueTime;
+  final List<String> tags;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
+
+  /// 用户是否确认过这条任务（端脑只有确认过的任务才会被调度）。
+  final bool confirmed;
+  final List<String> confirmationPoints;
+
+  const TelencephalonTask({
+    required this.id,
+    required this.title,
+    this.description,
+    required this.status,
+    required this.priority,
+    this.dueTime,
+    this.tags = const [],
+    this.createdAt,
+    this.updatedAt,
+    this.confirmed = false,
+    this.confirmationPoints = const [],
+  });
+
+  factory TelencephalonTask.fromJson(Map<String, dynamic> json) {
+    DateTime? ts(Object? raw) =>
+        raw == null ? null : DateTime.tryParse(raw.toString());
+
+    List<String> strings(Object? raw) => raw is List
+        ? raw.map((e) => e.toString()).toList()
+        : const <String>[];
+
+    return TelencephalonTask(
+      id: (json['id'] ?? '').toString(),
+      title: (json['title'] ?? '').toString(),
+      description: json['description'] as String?,
+      status: (json['status'] ?? 'Pending').toString(),
+      priority: (json['priority'] ?? 'Medium').toString(),
+      dueTime: ts(json['due_time']),
+      tags: strings(json['tags']),
+      createdAt: ts(json['created_at']),
+      updatedAt: ts(json['updated_at']),
+      confirmed: json['confirmed'] == true,
+      confirmationPoints: strings(json['confirmation_points']),
+    );
+  }
+}
+
+/// 端脑 `TaskStatus` 的线上取值（serde 变体名，PascalCase）。
+///
+/// 服务端反序列化用的是变体名，发小写会被 serde 直接拒掉（400）。
+class TelencephalonTaskStatus {
+  const TelencephalonTaskStatus._();
+
+  static const String pending = 'Pending';
+  static const String inProgress = 'InProgress';
+  static const String completed = 'Completed';
+  static const String cancelled = 'Cancelled';
+  static const String overdue = 'Overdue';
+}
+
 class TelencephalonClient {
   /// 端脑的默认地址 —— 外部 telencephalon 进程（:60080）。
   ///
@@ -531,6 +656,53 @@ class TelencephalonClient {
   Future<AgentsResponse> listAgents() async {
     final json = await _get('/shadow/v1/agents');
     return AgentsResponse.fromJson(json);
+  }
+
+  /// 端脑注册的**原生叶区**清单 + 每个叶区当前生效的默认模型。
+  ///
+  /// **叶区列表不硬编码** —— 从端脑面读，端脑注册了哪些原生叶区就显示
+  /// 哪些。外部 A2A 对端**不需要**配置模型信息（端脑只转发），WASM 是
+  /// **自定义叶区、独立配置** —— 两者都不在这张表里。
+  Future<List<NativeLobeInfo>> listNativeLobes() async {
+    final decoded = await _getJson('/api/telencephalon/lobes/list');
+    final list = decoded is List ? decoded : const [];
+    return list
+        .whereType<Map>()
+        .map((e) => NativeLobeInfo.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
+  }
+
+  /// 一次下发**整份** per-lobe 模型路由。
+  ///
+  /// 请求体与写进大脑槽位的**完全一样**：
+  /// ```json
+  /// {
+  ///   "default_model": "MiniMax-M3",
+  ///   "lobe_models": {"prefrontal": null, "temporal": "MiniMax-M3"},
+  ///   "providers": [{"base_url": "...", "api_key": "...", "model": "..."}]
+  /// }
+  /// ```
+  /// - [defaultModel] —— **全局默认**（`null` = 全体回落本地）；
+  /// - [lobeModels] —— **完整的覆盖集合**：叶区名 → 模型 id，
+  ///   `null` = 该叶区强制本地；**没出现在表里的叶区 = 跟随全局默认**；
+  /// - [providers] —— 要注册进 neuron 派发表的全部远端引擎 ——
+  ///   **注册是运行时的**，所以换模型来源不必重启大脑。
+  ///
+  /// 为什么是整份而不是一条条改：全局默认与 per-lobe 覆盖合在一起才是
+  /// **有效路由**，拆成单条更新就得让调用方自己算优先级 —— 而那份规则
+  /// 必须在大脑和客户端两边一模一样，很容易走偏。
+  Future<Map<String, dynamic>> applyLobeModels({
+    required String? defaultModel,
+    required Map<String, String?> lobeModels,
+    List<Map<String, String>> providers = const [],
+  }) async {
+    return _post('/api/telencephalon/lobes/models', {
+      'default_model': defaultModel,
+      'lobe_models': {
+        for (final entry in lobeModels.entries) entry.key: entry.value,
+      },
+      'providers': providers,
+    });
   }
 
   Future<Map<String, dynamic>> getAgent(String name) =>
@@ -910,6 +1082,96 @@ class TelencephalonClient {
   }
 
   void dispose() => _http.close();
+
+  // ============ Task APIs（端脑 temporal lobe）============
+
+  /// 列出端脑任务（temporal lobe 的 `TaskStore`）。
+  ///
+  /// 这条路由**不需要 admin token**（读是开放的），写才需要。
+  /// 任务存在端脑进程内存里 —— 进程重启就没了。
+  Future<List<TelencephalonTask>> listTasks() async {
+    final decoded = await _getJson('/api/telencephalon/tasks');
+    if (decoded is! List) return const <TelencephalonTask>[];
+    return decoded
+        .whereType<Map<String, dynamic>>()
+        .map(TelencephalonTask.fromJson)
+        .toList();
+  }
+
+  /// 新建一条任务。
+  ///
+  /// [priority] 传小写（`low` / `medium` / `high` / `urgent`）—— 服务端
+  /// `parse_priority` 自己认大小写，写成 `High` 也行，但小写更直观。
+  /// [dueTime] 是自由文本（`parse_due_time` 认 ISO8601 与「明天下午3点」
+  /// 这类中文相对时间），服务端解析失败会回 400。
+  Future<TelencephalonTask> createTask({
+    required String title,
+    String? description,
+    String? dueTime,
+    String? priority,
+    List<String>? tags,
+  }) async {
+    final body = <String, dynamic>{'title': title};
+    if (description != null && description.isNotEmpty) {
+      body['description'] = description;
+    }
+    if (dueTime != null && dueTime.isNotEmpty) body['due_time'] = dueTime;
+    if (priority != null && priority.isNotEmpty) body['priority'] = priority;
+    if (tags != null && tags.isNotEmpty) body['tags'] = tags;
+    final json = await _adminPost('/api/telencephalon/tasks', body);
+    return TelencephalonTask.fromJson(json);
+  }
+
+  /// 改任务状态。
+  ///
+  /// [status] 必须是 serde 的变体名（`Pending` / `InProgress` /
+  /// `Completed` / `Cancelled` / `Overdue`）—— 发小写会被 serde 拒掉。
+  Future<TelencephalonTask> updateTaskStatus(
+    String taskId,
+    String status,
+  ) async {
+    final json = await _adminPost(
+      '/api/telencephalon/tasks/${Uri.encodeComponent(taskId)}/status',
+      {'status': status},
+    );
+    return TelencephalonTask.fromJson(json);
+  }
+
+  /// 确认（或取消确认）一条任务。
+  ///
+  /// **只有 `Pending` 的任务能确认** —— 服务端在别的状态上会回 400
+  /// （`only Pending tasks are confirmable`）。确认时可以顺带改
+  /// 标题 / 截止时间 / 优先级（`modifications`），这是端脑**唯一**能改
+  /// 这些字段的入口。
+  Future<TelencephalonTask> confirmTask(
+    String taskId, {
+    required bool confirmed,
+    String? title,
+    String? dueTime,
+    String? priority,
+  }) async {
+    final modifications = <String, dynamic>{};
+    if (title != null && title.isNotEmpty) modifications['title'] = title;
+    if (dueTime != null && dueTime.isNotEmpty) modifications['due_time'] = dueTime;
+    if (priority != null && priority.isNotEmpty) {
+      modifications['priority'] = priority;
+    }
+    final body = <String, dynamic>{
+      'task_id': taskId,
+      'confirmed': confirmed,
+      if (modifications.isNotEmpty) 'modifications': modifications,
+    };
+    final json = await _adminPost(
+      '/api/telencephalon/tasks/${Uri.encodeComponent(taskId)}/confirm',
+      body,
+    );
+    return TelencephalonTask.fromJson(json);
+  }
+
+  /// 删掉一条任务。
+  Future<void> deleteTask(String taskId) => _adminDelete(
+    '/api/telencephalon/tasks/${Uri.encodeComponent(taskId)}',
+  );
 
 /// Build the telencephalon WebRTC signaling URL for a session.
 /// Endpoint not yet exposed by telencephalon (spec §4 unimplemented).

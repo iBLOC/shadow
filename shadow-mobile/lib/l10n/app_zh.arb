@@ -981,12 +981,28 @@
   "@encephalonInferRun": {},
   "encephalonInferFailed": "推理失败",
   "encephalonModelSourceTitle": "大脑模型来源",
-  "encephalonModelSourceHint": "切换模型来源会重启嵌入式大脑（LLM 上游在启动时确定）。",
+  "encephalonModelSourceHint": "全局默认：各叶区都用这个来源。也可以在下面的「叶区模型路由」里单独覆盖某个叶区。",
   "encephalonModelLocalNeuron": "本地 neuron 权重",
   "encephalonModelCloud": "云端供应商",
   "encephalonModelNoCloudProvider": "还没有配置云端供应商 —— 先去「模型管理」加一个。",
   "encephalonModelSourceApplied": "已应用新的模型来源",
   "encephalonModelSourceFailed": "模型来源切换失败",
+  "encephalonLobeRoutingTitle": "叶区模型路由",
+  "encephalonLobeRoutingHint": "模型使用的最小单位是叶区。默认各叶区跟随上面的全局来源，可以单独覆盖某一个叶区 —— 比如前额叶用本地、实际执行任务的区域用云端。",
+  "encephalonLobeRoutingUnavailable": "读不到端脑的叶区列表 —— 大脑可能没在跑。",
+  "encephalonLobeRoutingRefresh": "刷新叶区",
+  "encephalonLobeFollowGlobal": "跟随全局",
+  "encephalonLobeRoutingApplied": "叶区模型已更新",
+  "encephalonLobeRoutingFailed": "叶区模型更新失败",
+  "encephalonLobeEffectiveLocal": "当前：本地 neuron 权重",
+  "encephalonLobeEffectiveCloud": "当前：{name}",
+  "@encephalonLobeEffectiveCloud": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "@encephalonInferFailed": {},
   "settingsAppearance": "外观",
   "@settingsAppearance": {},

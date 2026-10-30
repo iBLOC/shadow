@@ -81,6 +81,28 @@ class EncephalonMobileService {
     }
   }
 
+  /// 下发**整份模型路由**（全局默认 + 每叶区覆盖）。
+  /// **必须在 [start] 之前调用。**
+  ///
+  /// 一次调用下发整份 —— 「全局默认」与「per-lobe 覆盖」必须一起生效，
+  /// 拆成多次调用就得让每次调用自己算优先级。
+  ///
+  /// [routing] 的形状见 Rust 侧的 `encephalon::embedded::ModelRouting`：
+  /// `providers`（要注册进 neuron 派发表的全部远端引擎）、
+  /// `default_model`（全局默认模型 id，null = 本地）、
+  /// `lobe_models`（per-lobe 覆盖，null = 该叶区强制本地）。
+  Future<bool> setModelRouting(Map<String, dynamic> routing) async {
+    try {
+      final result = await _channel.invokeMethod<bool>('setModelRouting', {
+        'json': jsonEncode(routing),
+      });
+      return result ?? false;
+    } catch (e, stack) {
+      _log.severe('设置模型路由异常', e, stack);
+      return false;
+    }
+  }
+
   /// 启动嵌入式大脑。
   ///
   /// [preferredPort] 是 neuron HTTP 面的期望端口；null / 0 表示随机分配。

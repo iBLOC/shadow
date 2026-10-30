@@ -736,6 +736,22 @@ class MainActivity : FlutterActivity() {
                         }
                     }
 
+                    // 模型路由（全局默认 + 每叶区覆盖）—— 必须在 "start" 之前调用。
+                    //
+                    // 模型使用的最小单位是叶区：全局默认决定「默认各叶区都走
+                    // 本地 / 都走云端」，per-lobe 覆盖决定「某一个叶区单独换
+                    // 一边」。一次调用下发整份路由。
+                    "setModelRouting" -> {
+                        val json = call.argument<String>("json") ?: ""
+                        try {
+                            result.success(
+                                EncephalonRuntime.getInstance().setModelRouting(json)
+                            )
+                        } catch (e: Exception) {
+                            result.success(false)
+                        }
+                    }
+
                     "start" -> {
                         val port = call.argument<Int>("port") ?: 0
                         // App 私有目录 —— 端脑的 flow（工作流）存储要写在那里。

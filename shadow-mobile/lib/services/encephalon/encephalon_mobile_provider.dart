@@ -2,9 +2,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 
 import '../../l10n/current_l10n.dart';
+import '../../providers/brain_model_source_provider.dart';
 import '../../providers/telencephalon_provider.dart';
 import '../../screens/model_management_screen.dart';
-import '../../services/database/model_item.dart';
 import '../telencephalon/telencephalon_client.dart';
 import 'encephalon_mobile_service.dart';
 
@@ -164,13 +164,13 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
       );
 
       try {
-        // 启动前把「宿主配的云端供应商」交给大脑。
+        // 启动前把「宿主选的模型路由」交给大脑。
         //
         // neuron 的 remote 引擎只认环境变量（NEURON_REMOTE_BASE_URL 等），
         // 而 Android App 进程的环境变量由 zygote 决定、宿主注入不了 ——
         // 所以只能走这条程序化通道：MethodChannel → JNI → Rust → 注册进
         // neuron 的派发表。叶区随后会按这个模型 id 去请求 neuron。
-        await _applyCloudProvider();
+        await _applyModelRouting();
 
         final success = await _service.start();
         if (!mounted) return false;
@@ -221,15 +221,22 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
     return ensureStarted();
   }
 
-  /// 把 App 里配好的云端供应商推给嵌入式大脑。
+  /// 把「大脑的模型路由」交给嵌入式大脑（**启动前**）。
   ///
-  /// 取第一个「云端供应商」模型（`ModelSource.cloudProvider`）—— endpoint
-  /// 和 model 都得有，缺一个都跑不起来（neuron 拼的是
-  /// `{endpoint}/chat/completions`，叶区按 model 去请求）。
+  /// 路由有两层（见 `BrainModelRouting`）：
+  /// - **全局默认** —— 各叶区都走本地，还是都走云端；
+  /// - **per-lobe 覆盖** —— 某个叶区单独换一边（前额叶本地、实际执行
+  ///   任务的区域云端、颞叶本地……）。
   ///
-  /// 没配云端供应商时**不报错**：大脑照样起来，只是叶区没有可用模型
+  /// 两层合起来就是「每个叶区用哪个模型」的有效路由，一次性下发。
+  ///
+  /// 远端引擎**可以在运行时注册**（neuron 的派发表能后加引擎），所以
+  /// 这一份只是「下次启动时用的默认值」—— 改路由**不必重启大脑**
+  /// （见 [applyModelRouting] 的第 2 步）。
+  ///
+  /// 没配云端供应商时**不报错**：大脑照样起来，只是叶区没有远端模型可用
   /// （会回 `NO_MODEL_CONFIGURED`），本地权重那条路仍然可用。
-  Future<void> _applyCloudProvider() async {
+  Future<void> _applyModelRouting() async {
     // 等模型列表**首次加载完** —— 第一次读 provider 时列表还是空的
     // （加载是异步的），不等会误判成「用户没配云端供应商」。
     try {
@@ -237,28 +244,107 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
     } catch (e) {
       _log.warning('模型列表加载失败: $e');
     }
+    // 等「用户选了哪个来源」也读完 —— 没选过就是自动。
+    try {
+      await _ref.read(brainModelSourceProvider.notifier).ready;
+    } catch (e) {
+      _log.warning('模型来源设置读取失败: $e');
+    }
+
+    final routing = _ref.read(brainModelSourceProvider).routing;
     final models = _ref.read(modelsProvider).models;
-    ModelItem? cloud;
-    for (final m in models) {
-      if (m.source != ModelSource.cloudProvider) continue;
-      if ((m.endpoint ?? '').trim().isEmpty) continue;
-      if ((m.model ?? '').trim().isEmpty) continue;
-      cloud = m;
-      break;
-    }
-    if (cloud == null) {
-      _log.info('未配置云端供应商 —— 大脑只会有本地权重可用');
-      return;
-    }
-    final ok = await _service.setLlmProvider(
-      baseUrl: (cloud.endpoint ?? '').trim(),
-      apiKey: cloud.apiKey ?? '',
-      model: (cloud.model ?? '').trim(),
-    );
+    final payload = buildModelRoutingPayload(routing: routing, models: models);
+
+    final ok = await _service.setModelRouting(payload);
     if (ok) {
-      _log.info('云端供应商已交给大脑: ${cloud.endpoint} model=${cloud.model}');
+      _log.info(
+        '大脑模型路由已交付: 默认=${payload['default_model']}, '
+        '供应商=${(payload['providers'] as List).length}, '
+        '叶区覆盖=${(payload['lobe_models'] as Map).length}',
+      );
     } else {
-      _log.warning('云端供应商交接失败: ${cloud.endpoint}');
+      _log.warning('大脑模型路由交付失败');
+    }
+  }
+
+  /// 改**全局默认**的模型来源。
+  ///
+  /// **不必重启大脑** —— 远端引擎可以在运行时注册进 neuron 的派发表，
+  /// 叶区的 `default_model` 也能随时改 ⇒ 换来源即时生效。
+  Future<bool> applyModelSource(BrainModelSource source) async {
+    await _ref.read(brainModelSourceProvider.notifier).setSource(source);
+    return applyModelRouting();
+  }
+
+  /// 改**某个叶区**的模型来源（覆盖全局默认）。
+  ///
+  /// 同样**不必重启大脑**。
+  Future<bool> applyLobeOverride(String lobe, BrainModelSource source) async {
+    await _ref
+        .read(brainModelSourceProvider.notifier)
+        .setLobeOverride(lobe, source);
+    return applyModelRouting();
+  }
+
+  /// 把当前路由**落地**（用户改了全局默认或某个叶区）。
+  ///
+  /// 两步：
+  /// 1. **写进 Rust 侧的槽位** —— 大脑下次启动时用它（保证「下次起来
+  ///    也是这份路由」）；
+  /// 2. **立刻打到端脑面** —— 远端引擎可以在运行时注册进 neuron 的派发表、
+  ///    叶区的 `default_model` 也能随时改 ⇒ **不用重启大脑**。
+  ///
+  /// 大脑没在跑时第 2 步打不通，但那不影响正确性：设置已经落库、第 1 步
+  /// 也已经写进槽位，下次启动自然生效。
+  Future<bool> applyModelRouting() async {
+    final routing = _ref.read(brainModelSourceProvider).routing;
+    final models = _ref.read(modelsProvider).models;
+    final payload = buildModelRoutingPayload(routing: routing, models: models);
+
+    // 1) 槽位（下次启动用）。
+    final slotOk = await _service.setModelRouting(payload);
+    if (!slotOk) {
+      _log.warning('模型路由写进大脑槽位失败');
+    }
+
+    // 2) 大脑在跑 ⇒ 立刻生效。
+    if (state.status == EncephalonMobileStatus.running) {
+      return _pushLobeModels(payload);
+    }
+    return slotOk;
+  }
+
+  /// 把路由**整份**打到端脑面。
+  ///
+  /// 下发的形状与写进大脑槽位的**完全一样**（`providers` + `default_model`
+  /// + `lobe_models`）—— 两个面说的是同一件事，就该用同一份 JSON。
+  ///
+  /// ⚠️ **`lobe_models` 只装**显式覆盖**的叶区**。
+  /// 「不在表里」= 跟随全局默认 —— 要是把每个叶区的**有效值**都塞进去，
+  /// 「跟随全局」就被钉死了，改全局默认时那些叶区不会跟着变。
+  Future<bool> _pushLobeModels(Map<String, dynamic> payload) async {
+    final client = _ref.read(telencephalonClientProvider);
+    final lobeModels = <String, String?>{};
+    final rawLobes = payload['lobe_models'];
+    if (rawLobes is Map) {
+      rawLobes.forEach((key, value) {
+        lobeModels['$key'] = value is String ? value : null;
+      });
+    }
+    try {
+      await client.applyLobeModels(
+        defaultModel: payload['default_model'] as String?,
+        lobeModels: lobeModels,
+        // 用**负载里那份**供应商列表 —— 槽位与端脑面必须收到一模一样的。
+        providers: (payload['providers'] as List)
+            .cast<Map<String, String>>()
+            .toList(growable: false),
+      );
+      _log.info('模型路由已下发: 默认=${payload['default_model']}, 覆盖=$lobeModels');
+      return true;
+    } catch (e) {
+      _log.warning('模型路由下发失败: $e');
+      return false;
     }
   }
 

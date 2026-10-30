@@ -1606,7 +1606,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get encephalonModelSourceHint =>
-      'Switching the model source restarts the embedded brain (the LLM upstream is fixed at boot).';
+      'Global default: every lobe uses this source. You can override a single lobe under \"Lobe model routing\" below.';
 
   @override
   String get encephalonModelLocalNeuron => 'Local neuron weights';
@@ -1623,6 +1623,37 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get encephalonModelSourceFailed => 'Failed to switch the model source';
+
+  @override
+  String get encephalonLobeRoutingTitle => 'Lobe model routing';
+
+  @override
+  String get encephalonLobeRoutingHint =>
+      'A lobe is the smallest unit that picks a model. By default every lobe follows the global source above; you can override a single lobe - e.g. prefrontal on local weights, the region that actually runs tasks on the cloud.';
+
+  @override
+  String get encephalonLobeRoutingUnavailable =>
+      'Could not read the lobe list from the telencephalon - the brain may not be running.';
+
+  @override
+  String get encephalonLobeRoutingRefresh => 'Refresh lobes';
+
+  @override
+  String get encephalonLobeFollowGlobal => 'Follow global';
+
+  @override
+  String get encephalonLobeRoutingApplied => 'Lobe model updated';
+
+  @override
+  String get encephalonLobeRoutingFailed => 'Failed to update the lobe model';
+
+  @override
+  String get encephalonLobeEffectiveLocal => 'Current: local neuron weights';
+
+  @override
+  String encephalonLobeEffectiveCloud(String name) {
+    return 'Current: $name';
+  }
 
   @override
   String get settingsAppearance => 'Appearance';

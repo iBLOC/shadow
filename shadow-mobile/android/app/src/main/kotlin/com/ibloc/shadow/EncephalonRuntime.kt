@@ -82,6 +82,7 @@ class EncephalonRuntime {
         apiKey: String,
         model: String,
     ): Int
+    private external fun nativeSetModelRouting(json: String): Int
     private external fun nativeInfer(
         path: String,
         body: ByteArray,
@@ -159,6 +160,50 @@ class EncephalonRuntime {
             false
         } catch (e: Exception) {
             Log.e(TAG, "setLlmProvider failed: ${e.message}", e)
+            false
+        }
+    }
+
+    /**
+     * 设置**模型路由**（全局默认 + 每叶区覆盖）。**必须在 [start] 之前调用。**
+     *
+     * 模型使用的最小单位是**叶区**：全局默认决定「默认各叶区都走本地 /
+     * 都走云端」，per-lobe 覆盖决定「某一个叶区单独换一边」（比如前额叶
+     * 本地、实际执行任务的区域云端）。
+     *
+     * 一次调用下发**整份**路由 —— 「全局默认」与「per-lobe 覆盖」必须
+     * 一起生效，拆成多次调用就得让每次调用自己算优先级。
+     *
+     * @param json 路由 JSON：
+     * ```json
+     * {
+     *   "providers": [{"base_url": "https://.../v1", "api_key": "sk-...", "model": "MiniMax-M3"}],
+     *   "default_model": "MiniMax-M3",
+     *   "lobe_models": {"prefrontal": null, "temporal": "MiniMax-M3"}
+     * }
+     * ```
+     * - `providers` —— 要注册进 neuron 派发表的全部远端引擎；
+     * - `default_model` —— 全局默认模型 id（`null` = 本地）；
+     * - `lobe_models` —— per-lobe 覆盖（`null` = 该叶区强制本地；
+     *   **不在表里** = 跟随全局默认）。
+     *
+     * 空串 = 清空路由（回到「只用本地权重」）。
+     */
+    fun setModelRouting(json: String): Boolean {
+        return try {
+            val rc = nativeSetModelRouting(json)
+            if (rc >= 0) {
+                Log.i(TAG, "✅ model routing set (${json.length} bytes)")
+                true
+            } else {
+                Log.e(TAG, "❌ nativeSetModelRouting returned: $rc")
+                false
+            }
+        } catch (e: UnsatisfiedLinkError) {
+            Log.w(TAG, "Encephalon .so not loaded: ${e.message}")
+            false
+        } catch (e: Exception) {
+            Log.e(TAG, "setModelRouting failed: ${e.message}", e)
             false
         }
     }
