@@ -591,4 +591,109 @@ synapse 的修复，`libencephalon.so` 重编了 4m59s（增量）、
 `remote_llm_round_trips_tool_calls_through_the_neuron_route`），
 所以剩下的是端脑叶区 + 两端客户端的活，不是协议问题。
 
+### 10.8 模型路由：最小单位改成「叶区」（2026-10-30）
+
+§10.1 那条「程序化注册通道」把「云端模型怎么进来」解决了，但**哪个叶区
+用哪个模型**还只有一个全局开关。用户的要求是：
+
+> 模型的使用最小单位是叶区，用户可以决定哪个叶区使用云端或者使用本地。
+> 默认设本地就各叶区都走本地，默认设云端就各叶区都走云端，**单个叶区
+> 可以覆盖**（比如任务决策的前额叶走本地、实际执行任务的区域走云端、
+> 颞叶走本地）。
+
+#### 两条边界（用户纠正过的，别再搞混）
+
+| kind | 走哪条路 | 要不要配模型 |
+| --- | --- | --- |
+| **Native** | 端脑**进程内**执行，端脑自己发 LLM 请求 | ✅ **唯一**被 per-lobe 路由管的 |
+| **External** | 外部 A2A 对端（`a2a`） | ❌ **不需要** —— 端脑只**转发**，用什么模型是对端自己的事 |
+| **Wasm** | `wasm-runtime` | 🔧 **自定义叶区，独立配置** —— 不吃叶区的 `default_model` |
+| **Prompt** | `telencephalon-prompt` | — 端脑用系统提示词执行，不需要模型路由 |
+
+⇒ 路由表**只有 native 叶区**。叶区清单也是**从端脑读**
+（`GET /api/telencephalon/lobes/list`），**不硬编码**叶区名 ⇒ 端脑注册了
+哪些原生叶区就管哪些。
+
+⚠️ **neuron 由大脑内嵌，端脑不重复嵌**：端脑面用的是大脑内嵌的那份
+（`AppState.neuron_state` 取自 `NeuronEmbed::state()`，与 neuron's
+listener 共用同一份状态）⇒ 远端引擎可以**运行时**注册 ⇒ **换模型来源
+不必重启大脑**（§10.1 那条约束在这里被推翻了）。
+
+#### 三层语义（一个键三种含义）
+
+`lobe_models` 是**完整的覆盖集合**，一个键三种含义：
+
+| 写法 | 含义 |
+| --- | --- |
+| **不在表里** | 跟随全局默认 |
+| `Some(id)` | 固定用这个模型 |
+| `null` | 强制回落本地 |
+
+「不在表里」= 跟随全局，**不是**「不动」。
+
+#### ⚠️ 两个自引入的缺陷（都是这轮自己发现并修掉的）
+
+**(a)「跟随全局」名不副实** —— 第一版把全局默认与 per-lobe 覆盖**挤在
+同一个字段**里，改全局默认会把每个叶区都写一遍 ⇒ **谁都不跟随谁**。
+修法：注册表**分成两张表** —— `default_model`（全局默认）+
+`lobe_model_overrides`（覆盖集合）。新 API：`set_global_default_model` /
+`clear_default_model_for_lobe`（清覆盖 ⇒ 回全局）/ `replace_lobe_model_overrides`
+（整份替换）/ `effective_default_model` / `lobe_model_override`。
+
+顺带把两个容易混的动作拆开了：`set_default_model_for_lobe(name, None)`
+= **强制本地**；`clear_default_model_for_lobe(name)` = **别管我，跟全局走**。
+
+**(b) `config["model_id"]` 会静默盖过 per-lobe 路由** —— 叶区调 LLM 的
+取值优先级是
+
+```
+config["model_id"]  >  叶区的 default_model  >  去 /v1/models 自动查找
+```
+
+所以 config 里那个**旧的** `model_id` 会让界面显示「已切到云端」而实际
+还在跑老模型。修法：端点新增 `sync_lobe_model_configs` —— **有覆盖**就
+写 `model_id`，**没有覆盖就把 `model_id` 删掉**（让全局默认说了算）。
+
+#### 端脑面接口
+
+```
+POST /api/telencephalon/lobes/models
+{ "default_model": "MiniMax-M3",
+  "lobe_models": { "prefrontal": null, "temporal": "MiniMax-M3" },
+  "providers": [ { "base_url": "...", "api_key": "...", "model": "..." } ] }
+```
+
+- `default_model` **三态**：字段不出现 = 不动 / `null` = 本地 / `"id"` = 该模型；
+- `lobe_models` = **完整覆盖集合**（不在表里 = 跟随全局）；
+- `providers` = 要注册进 neuron 派发表的全部远端引擎（**运行时**注册）。
+
+⚠️ **客户端下发的必须是「覆盖集合」而不是「全量有效值」** —— 把每个
+叶区的有效值都发下去会把「跟随全局」**钉死**（改全局默认时那些叶区不
+跟着变）。两个面说的是**同一份 JSON**：端脑 HTTP 面与大脑 Rust 槽位的
+字段名统一成 `providers` / `default_model` / `lobe_models`。
+
+#### 验证（2026-10-30）
+
+| 项 | 结果 |
+| --- | --- |
+| 端脑 `cargo test -p telencephalon --lib --no-default-features --features "flow candle"` | **475 passed / 0 failed**（新增 7 条） |
+| 大脑 `cargo check --no-default-features --features mobile --lib` | **通过** |
+| 移动端 `flutter analyze` | **0 error**（78 issues 全是既有风格 info/warning） |
+| 移动端 `flutter test` | **300/300 全绿**（新增 3 条） |
+
+⚠️ **端脑的默认 feature（带 hippocampus）现在编译不过** —— `hippocampus`
+仓有**未提交改动**把 `hippocampus-server` 改挂了（`auth.rs` / `lib.rs`，
+**不是路由的问题**）⇒ 本轮的端脑测试跑的是**移动端那套 feature**
+（hippocampus 关掉）。跑带 hippocampus 的全量测试要先收尾那两个文件。
+
+⚠️ **跨仓提醒**：`telencephalon` 与 `encephalon` 都改了 ⇒ 手机里的
+`libencephalon.so` 变了 ⇒ 要重跑 `encephalon/scripts/build-android.ps1`
++ 重打 APK 装机，per-lobe 路由才会在真机上生效。**本轮没做真机复验
+（手上没设备）**。
+
+⚠️ **还没解决的**：「本地」在移动端仍是个抽象选项 —— neuron 里没有本地
+权重，App 侧也没有本地模型目录（LiteRT 已下线）⇒「这个叶区用本地」
+目前等价于「这个叶区不指定模型 id，去 neuron's `/v1/models` 里翻一个
+`llm/` 前缀的可用模型」，翻不到就报 `NO_MODEL_CONFIGURED`。
+
 
