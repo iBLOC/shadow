@@ -358,7 +358,13 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
       await for (final event in _telencephalonClient.streamMessage(
         sessionId,
-        SendMessageRequest(text: prompt),
+        SendMessageRequest(
+          text: prompt,
+          // **这台设备能跑的工具**告诉模型 —— 端脑透传给 LLM，模型才知道
+          // `set_theme` 要吃一个 `color`。
+          // 端脑那边还没接这个字段（serde 忽略未知字段 ⇒ 无害）。
+          tools: toOpenAiTools(_clientTools),
+        ),
       )) {
         switch (event.type) {
           case 'delta':

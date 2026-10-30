@@ -399,15 +399,32 @@ The same `src/` produces **two artefacts**:
   靛蓝」会退化成「换成默认色」，而且**看不出哪里错了**；② 端脑的 `tool_call` 事件**现在带 `tool_call_id`**
   （uuid）⇒ 两端把它回传，端脑按 id 对上号（老端脑没有才自己合成）；③ 工具在本地跑成了 **≠** 端脑知道了 ⇒ 两端要
   分开显示（否则「本地换了主题、端脑那头模型还在等」会被看成成功）。
+- **客户端工具的 JSON Schema（2026-10-30 补）** —— `ClientTool.parameters`
+  （JSON Schema，独立于 `fields`）+ `toOpenAiTools(registry)` 导出成 OpenAI
+  function-calling 数组，随 `SendMessageRequest.tools` 发给端脑。
+  - **为什么必须有**：没有它，模型只知道有 `set_theme`，**不知道它要一个
+    `color` 还是 `dark`** ⇒ 只能瞎猜，或者干脆不调。
+  - **⚠️ `parameters` 与 `fields` 不是一回事**：`fields` 描述**输入框**（UI
+    变体），`parameters` 描述**参数**（JSON Schema）⇒ 各管各的。
+  - **⚠️ 两端同名工具必须导出同样的内容** ⇒ **两端测试各自断言同一份字面量**
+    （桌面 `src/lib/__tests__/clientTools.test.ts` / 移动
+    `shadow-mobile/test/unit/client_tool_registry_test.dart`）⇒ **任一端漂移
+    则该端测试立刻变红** —— 跨仓没有共享运行时，这是唯一可行的保证方式。
+  - **`color` 与 `dark` 都不是必填** —— 给哪个都算一次合法调用；两个都不给时
+    工具**明确失败**而不是默默什么也不做。
+  - **端脑今天还不认识 `tools` 这个字段** ⇒ serde 默认忽略未知字段 ⇒ **带上
+    无害** ⇒ 客户端可以先发，等端脑接上即生效。
 
 **修掉一个真 bug**：`parseHexColor` 对 `#AARRGGBB` 取的是**前** 6 位（把 alpha
 当成了红通道）⇒ `#FF71717A` 会变成 `#FF7171`（蓝通道错了）。新写的测试把它
 逮住了，已改成 `slice(2)`（丢的是 alpha）。
 
-**验证**：`npx tsc -b` **通过**（TypeScript clean）；`npx vitest run` ⇒
-**114 个测试文件 / 1155 passed / 2 skipped / 0 failed**（新增
-`src/lib/__tests__/clientTools.test.ts` 11 条：参数两种形态、非 JSON 不丢调用、
-数组不当参数表、颜色归一化与「不猜」、注册表查找）。
+**验证**：`npx tsc --noEmit` **EXIT=0**（TypeScript clean）；`npx vitest run` ⇒
+**114 个测试文件 / 1161 passed / 2 skipped / 0 failed**（本轮 **+5** ——
+`src/lib/__tests__/clientTools.test.ts` 现有 16 条：参数两种形态、非 JSON 不丢
+调用、数组不当参数表、颜色归一化与「不猜」、注册表查找，外加 `toOpenAiTools`
+5 条：导出形状 / `set_theme` 的 **schema 字面量（跨端契约）** / 两个都非必填 /
+无 schema 时空参数表 / 空注册表）。
 
 **⚠️ 闭环通了一半**：端脑的**接收端路由已经补上** ——
 `POST /shadow/v1/conversations/{id}/tool-results`（`telencephalon/src/api/shadow.rs`）
@@ -416,3 +433,7 @@ The same `src/` produces **two artefacts**:
 生成的 uuid）⇒ 同一轮里同名工具调两次也分得清。**还差的是叶区 `call_llm` 带
 `tools`** —— native 叶区今天既产生不了工具调用、也接不了工具结果 ⇒
 「模型自己决定调客户端工具」目前**只对外部 A2A 对端成立**。
+⚠️ **客户端这边已经把 `tools` 发过去了（但还是惰性的）** —— 桌面端与移动端
+现在都随消息把**这台设备能跑的客户端工具**（含 JSON Schema）发给端脑
+（`SendMessageRequest.tools`）⇒ **端脑今天还不认识这个字段**（serde 忽略未知
+字段 ⇒ 带上无害）⇒ **端脑那侧接上之前，模型看不见这些工具**。

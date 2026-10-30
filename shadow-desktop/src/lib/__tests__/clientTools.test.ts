@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { ClientToolRegistry, parseHexColor, parseToolArgs } from '../clientTools';
+import {
+  ClientToolRegistry,
+  desktopClientTools,
+  parseHexColor,
+  parseToolArgs,
+  toOpenAiTools,
+} from '../clientTools';
 
 /**
  * 客户端工具注册表 —— **纯逻辑**那几块。
@@ -78,5 +84,73 @@ describe('ClientToolRegistry', () => {
     const registry = new ClientToolRegistry();
     expect(registry.names).toEqual([]);
     expect(registry.supports('set_theme')).toBe(false);
+  });
+});
+
+/**
+ * 客户端工具的 **JSON Schema** —— 发给模型的那一份。
+ *
+ * 没有它，模型只知道有 `set_theme` 这个工具，不知道它要一个 `color` 还是
+ * `dark` ⇒ 只能瞎猜，或者干脆不调。
+ */
+describe('toOpenAiTools', () => {
+  it('导出成 OpenAI 的 function 形状', () => {
+    const tools = toOpenAiTools(desktopClientTools);
+    expect(tools.length).toBeGreaterThan(0);
+    for (const tool of tools) {
+      expect(tool.type).toBe('function');
+      expect(typeof tool.function.name).toBe('string');
+      expect(typeof tool.function.description).toBe('string');
+      expect(tool.function.parameters.type).toBe('object');
+    }
+  });
+
+  /**
+   * ⚠️ **这段字面量是跨端的契约** —— 移动端
+   * `test/unit/client_tool_registry_test.dart` 里有**一模一样**的一份。
+   * 两端发给模型的东西不一样 ⇒ 同一个模型在手机上和桌面上行为不一样
+   * ⇒ 哪一端漂移了，哪一端的这条测试就红。
+   */
+  it('set_theme 的参数声明 —— color 是字符串、dark 是布尔', () => {
+    const tool = toOpenAiTools(desktopClientTools).find(
+      (t) => t.function.name === 'set_theme',
+    );
+    expect(tool).toBeDefined();
+    expect(tool!.function.parameters).toEqual({
+      type: 'object',
+      properties: {
+        color: {
+          type: 'string',
+          description:
+            'Hex colour in #RRGGBB form, e.g. #4F46E5. Use this to change the accent colour.',
+        },
+        dark: {
+          type: 'boolean',
+          description:
+            'true = switch to dark mode, false = switch to light mode. Use this when the user only asks for light/dark.',
+        },
+      },
+    });
+  });
+
+  it('color 和 dark **都不是必填** —— 给哪个都算一次合法调用', () => {
+    const tool = toOpenAiTools(desktopClientTools).find(
+      (t) => t.function.name === 'set_theme',
+    );
+    expect(tool!.function.parameters.required).toBeUndefined();
+  });
+
+  it('没有 parameters 的工具 ⇒ 参数表是空的（不是 undefined）', () => {
+    const registry = new ClientToolRegistry().register({
+      name: 'ping',
+      description: 'x',
+      execute: async () => null,
+    });
+    const tools = toOpenAiTools(registry);
+    expect(tools[0].function.parameters).toEqual({ type: 'object', properties: {} });
+  });
+
+  it('注册表是空的 ⇒ 没有工具可导出', () => {
+    expect(toOpenAiTools(new ClientToolRegistry())).toEqual([]);
   });
 });

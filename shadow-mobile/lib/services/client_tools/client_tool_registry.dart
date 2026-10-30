@@ -25,6 +25,18 @@ class ClientTool {
   /// 但「删掉这条记忆」这种不可逆的动作必须先确认。
   final bool requiresApproval;
 
+  /// 参数的 **JSON Schema** —— **告诉模型这个工具吃什么**。
+  ///
+  /// 没有它，模型只知道有 `set_theme` 这个工具，不知道它要一个 `color`
+  /// 还是 `dark` ⇒ 只能瞎猜，或者干脆不调。
+  ///
+  /// **为什么是 `Map` 而不是一套 Dart 类型**：这份东西**就是 JSON**
+  /// （要塞进发给模型的 `tools` 数组），再包一层类型只会多一次转换。
+  ///
+  /// ⚠️ **两端（手机 / 桌面）的同名工具必须导出同样的内容** ⇒ 不然同一个
+  /// 模型在手机上和桌面上行为不一样。
+  final Map<String, dynamic>? parameters;
+
   /// 真正干活的地方。**抛异常 = 执行失败**（错误会回传给端脑，
   /// 这样模型知道自己这条路走不通，而不是卡在等结果上）。
   final Future<Object?> Function(Map<String, dynamic> args) execute;
@@ -33,6 +45,7 @@ class ClientTool {
     required this.name,
     required this.description,
     this.requiresApproval = false,
+    this.parameters,
     required this.execute,
   });
 }
@@ -184,6 +197,33 @@ Map<String, dynamic> parseToolArgs(Object? raw) {
   return <String, dynamic>{'value': raw};
 }
 
+/// 把注册表导成 OpenAI 的 `tools` 数组 —— **发给模型的那一份**。
+///
+/// 端脑把它透传给 LLM；模型决定调某个工具时，端脑再把 `tool_call` 事件
+/// 发回这台设备 ⇒ 这就是「模型自己让客户端换主题」的**起点**。
+///
+/// ⚠️ **两端（手机 / 桌面）的同名工具必须导出同样的内容** ⇒ 不然同一个模型
+/// 在手机上和桌面上行为不一样。
+///
+/// 没有 `parameters` 的工具 ⇒ 参数表是空的 ⇒ 模型只能不带参数调它 ⇒ 工具
+/// 自己会明确失败（不默默什么也不做）。
+List<Map<String, dynamic>> toOpenAiTools(ClientToolRegistry registry) {
+  return registry.names.map((name) {
+    final tool = registry.lookup(name)!;
+    return <String, dynamic>{
+      'type': 'function',
+      'function': <String, dynamic>{
+        'name': tool.name,
+        'description': tool.description,
+        'parameters': tool.parameters ?? <String, dynamic>{
+          'type': 'object',
+          'properties': <String, dynamic>{},
+        },
+      },
+    };
+  }).toList();
+}
+
 /// 移动端内置的客户端工具。
 ///
 /// 主题色的两端色调由 `app_colors.dart` 的 `deriveAccentTones` 派生
@@ -197,6 +237,29 @@ ClientToolRegistry buildMobileClientTools({
     ClientTool(
       name: 'set_theme',
       description: 'Change the app theme colour',
+      // **参数声明（给模型看的那一份）** —— 没有它，模型不知道这个工具
+      // 要一个 `color` 还是 `dark` ⇒ 只能瞎猜。
+      //
+      // 两个参数都**不是必填**：`color` 和 `dark` 给哪个都算一次合法调用，
+      // 两个都不给时工具**明确失败**（不默默什么也不做）。
+      //
+      // ⚠️ **这段和桌面端 `clientTools.ts` 里的一字不差** —— 两端发给模型的
+      // 东西不一样的话，同一个模型在手机上和桌面上行为就不一样。
+      parameters: <String, dynamic>{
+        'type': 'object',
+        'properties': <String, dynamic>{
+          'color': <String, dynamic>{
+            'type': 'string',
+            'description':
+                'Hex colour in #RRGGBB form, e.g. #4F46E5. Use this to change the accent colour.',
+          },
+          'dark': <String, dynamic>{
+            'type': 'boolean',
+            'description':
+                'true = switch to dark mode, false = switch to light mode. Use this when the user only asks for light/dark.',
+          },
+        },
+      },
       execute: (args) async {
         final color = _parseColor(args['color']);
         if (color != null) {

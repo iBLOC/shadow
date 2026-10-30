@@ -95,9 +95,54 @@ export interface Conversation {
   }>;
 }
 
+/**
+ * 工具参数的 **JSON Schema** —— 模型看得懂的那一份。
+ *
+ * ⚠️ **和界面表单的字段声明不是一回事**：`ClientToolForm` 的 `ToolField`
+ * 描述的是**输入框**（`kind` 是 'text' | 'textarea' | 'number' | 'checkbox'
+ * 这种 UI 变体），JSON Schema 的类型系统是另一套 ⇒ 两边各留一份，别混。
+ */
+export interface ToolParameters {
+  type: 'object';
+  properties: Record<string, ToolParameterProperty>;
+  required?: string[];
+}
+
+export interface ToolParameterProperty {
+  type: 'string' | 'number' | 'boolean';
+  description?: string;
+  enum?: string[];
+}
+
+/**
+ * OpenAI function-calling 的工具形状 —— **发给模型的那一份**。
+ *
+ * 端脑把它透传给 LLM；模型决定调某个工具时，端脑再把 `tool_call` 事件
+ * 发回这台设备。
+ */
+export interface OpenAiTool {
+  type: 'function';
+  function: {
+    name: string;
+    description: string;
+    parameters: ToolParameters;
+  };
+}
+
 export interface SendMessageRequest {
   text: string;
   agent?: string;
+  /**
+   * 这台设备**能跑的客户端工具**（JSON Schema 形状）。
+   *
+   * **谁声明什么由设备决定** —— 手机没有窗口可最小化，桌面端没有麦克风
+   * 权限可申请 ⇒ 两端发的清单本来就该不一样。
+   *
+   * 端脑今天还没接这个字段（`SendMessageRequest` 那边不认识它 ⇒ serde
+   * 默认忽略未知字段 ⇒ 带上它**无害**）；等端脑那侧接上，模型才知道
+   * `set_theme` 要吃一个 `color`。
+   */
+  tools?: OpenAiTool[];
 }
 
 export interface SendMessageResponse {

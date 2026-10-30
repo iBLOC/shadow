@@ -21,7 +21,7 @@ import { ComputerUsePendingModal, type ComputerUseAction } from '../components/c
 import { RecordingPanel } from '../components/recording/RecordingPanel';
 import { isChatBiPayload } from '../lib/chatbi/guards';
 import type { ChatBiPayload } from '../lib/chatbi/guards';
-import { desktopClientTools, parseToolArgs } from '../lib/clientTools';
+import { desktopClientTools, parseToolArgs, toOpenAiTools } from '../lib/clientTools';
 import type { Conversation, ConversationKind, Message, RecordingMode, ToolCallMessage, VisualQaClarification } from '../types';
 import {
   Send,
@@ -380,7 +380,13 @@ export function ConversationPage() {
               : undefined;
           for await (const event of telencephalonClient.streamMessage(
             conversationId,
-            { text: input },
+            {
+              text: input,
+              // **这台设备能跑的工具**告诉模型 —— 端脑透传给 LLM，
+              // 模型才知道 `set_theme` 要吃一个 `color`。
+              // 端脑那边还没接这个字段（serde 忽略未知字段 ⇒ 无害）。
+              tools: toOpenAiTools(desktopClientTools),
+            },
           )) {
             if (event.type === 'delta' && event.delta) {
               accumulated += event.delta;

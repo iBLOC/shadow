@@ -305,11 +305,27 @@ class Conversation {
 class SendMessageRequest {
   final String text;
   final String? agent;
-  const SendMessageRequest({required this.text, this.agent});
+
+  /// 这台设备**能跑的客户端工具**（OpenAI `tools` 数组的形状）。
+  ///
+  /// **谁声明什么由设备决定** —— 手机没有窗口可最小化，桌面端没有麦克风
+  /// 权限可申请 ⇒ 两端发的清单本来就该不一样。
+  ///
+  /// 端脑今天还没接这个字段（`SendMessageRequest` 那边不认识它 ⇒ serde 默认
+  /// 忽略未知字段 ⇒ 带上它**无害**）；等端脑那侧接上，模型才知道 `set_theme`
+  /// 要吃一个 `color`。
+  final List<Map<String, dynamic>>? tools;
+
+  const SendMessageRequest({
+    required this.text,
+    this.agent,
+    this.tools,
+  });
 
   Map<String, dynamic> toJson() => {
     'text': text,
     if (agent != null) 'agent': agent,
+    if (tools != null && tools!.isNotEmpty) 'tools': tools,
   };
 }
 

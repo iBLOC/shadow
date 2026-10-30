@@ -1,5 +1,6 @@
 import { useThemeStore } from '../stores/themeStore';
 import type { ToolField } from '../components/chat/ClientToolForm';
+import type { OpenAiTool, ToolParameters } from './telencephalonClient';
 
 /**
  * **客户端工具** —— 在**用户这台设备上**执行的那一半。
@@ -35,6 +36,17 @@ export interface ClientTool {
 
   /** 表单字段声明（`collectsInput` 为 true 时用）。 */
   fields?: ToolField[];
+
+  /**
+   * 参数的 **JSON Schema** —— **告诉模型这个工具吃什么**。
+   *
+   * 没有它，模型只知道有 `set_theme` 这个工具，不知道它要一个 `color`
+   * 还是 `dark` ⇒ 只能瞎猜，或者干脆不调。
+   *
+   * ⚠️ **和 [fields] 不是一回事**：`fields` 描述的是**输入框**（UI 变体），
+   * 这里描述的是**参数**（JSON Schema）。两个都要有，各管各的。
+   */
+  parameters?: ToolParameters;
 
   /**
    * 真正干活的地方。**抛异常 = 执行失败**（错误会回传给端脑，
@@ -123,6 +135,33 @@ export function parseHexColor(raw: unknown): string | null {
 }
 
 /**
+ * 把注册表导成 OpenAI 的 `tools` 数组 —— **发给模型的那一份**。
+ *
+ * 端脑把它透传给 LLM；模型决定调某个工具时，端脑再把 `tool_call` 事件
+ * 发回这台设备 ⇒ 这就是「模型自己让客户端换主题」的**起点**。
+ *
+ * ⚠️ **两端（桌面端 / 移动端）的同名工具必须导出同样的内容** ⇒ 不然同一个
+ * 模型在手机上和桌面上行为不一样（「模型让手机换主题」换出来的颜色和桌面端
+ * 对不上）。
+ *
+ * 没有 `parameters` 的工具 ⇒ 参数表是空的 ⇒ 模型只能不带参数调它 ⇒ 工具
+ * 自己会明确失败（不默默什么也不做）。
+ */
+export function toOpenAiTools(registry: ClientToolRegistry): OpenAiTool[] {
+  return registry.names.map((name) => {
+    const tool = registry.lookup(name)!;
+    return {
+      type: 'function',
+      function: {
+        name: tool.name,
+        description: tool.description,
+        parameters: tool.parameters ?? { type: 'object', properties: {} },
+      },
+    };
+  });
+}
+
+/**
  * 桌面端内置的客户端工具。
  *
  * 主题色的两端色调由 `styles/accent.g.ts` 的 `deriveAccentTones` 派生
@@ -133,6 +172,26 @@ export const desktopClientTools = new ClientToolRegistry()
   .register({
     name: 'set_theme',
     description: 'Change the app theme colour',
+    // **参数声明（给模型看的那一份）** —— 没有它，模型不知道这个工具
+    // 要一个 `color` 还是 `dark` ⇒ 只能瞎猜。
+    //
+    // 两个参数都**不是必填**：`color` 和 `dark` 给哪个都算一次合法调用，
+    // 两个都不给时工具**明确失败**（不默默什么也不做）。
+    parameters: {
+      type: 'object',
+      properties: {
+        color: {
+          type: 'string',
+          description:
+            'Hex colour in #RRGGBB form, e.g. #4F46E5. Use this to change the accent colour.',
+        },
+        dark: {
+          type: 'boolean',
+          description:
+            'true = switch to dark mode, false = switch to light mode. Use this when the user only asks for light/dark.',
+        },
+      },
+    },
     execute: async (args) => {
       const color = parseHexColor(args.color);
       if (color) {
@@ -155,6 +214,16 @@ export const desktopClientTools = new ClientToolRegistry()
     description: 'Ask the user a question and wait for their answer',
     // 模型反问用户 —— 用户填完，答案回传端脑，模型接着说。
     collectsInput: true,
+    parameters: {
+      type: 'object',
+      properties: {
+        question: {
+          type: 'string',
+          description: 'The question to ask the user.',
+        },
+      },
+      required: ['question'],
+    },
     execute: async (args, ctx) => {
       const question = typeof args.question === 'string' ? args.question : '';
       const raw = ctx.input?.value ?? ctx.input?.answer;

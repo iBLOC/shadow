@@ -59,6 +59,81 @@ void main() {
     });
   });
 
+  /// 客户端工具的 **JSON Schema** —— 发给模型的那一份。
+  ///
+  /// 没有它，模型只知道有 `set_theme` 这个工具，不知道它要一个 `color`
+  /// 还是 `dark` ⇒ 只能瞎猜，或者干脆不调。
+  group('toOpenAiTools', () {
+    ClientToolRegistry mobileRegistry() {
+      return buildMobileClientTools(
+        setAccentColor: (_) async {},
+        setDarkMode: (_) async {},
+      );
+    }
+
+    test('导出成 OpenAI 的 function 形状', () {
+      final tools = toOpenAiTools(mobileRegistry());
+      expect(tools, isNotEmpty);
+      for (final tool in tools) {
+        expect(tool['type'], 'function');
+        final fn = tool['function'] as Map;
+        expect(fn['name'], isA<String>());
+        expect(fn['description'], isA<String>());
+        expect((fn['parameters'] as Map)['type'], 'object');
+      }
+    });
+
+    /// ⚠️ **这段字面量是跨端的契约** —— 桌面端
+    /// `src/lib/__tests__/clientTools.test.ts` 里有**一模一样**的一份。
+    /// 两端发给模型的东西不一样 ⇒ 同一个模型在手机上和桌面上行为不一样
+    /// ⇒ 哪一端漂移了，哪一端的这条测试就红。
+    test('set_theme 的参数声明 —— color 是字符串、dark 是布尔', () {
+      final tools = toOpenAiTools(mobileRegistry());
+      final tool = tools.firstWhere((t) => (t['function'] as Map)['name'] == 'set_theme');
+      final parameters = (tool['function'] as Map)['parameters'] as Map;
+
+      expect(parameters, {
+        'type': 'object',
+        'properties': {
+          'color': {
+            'type': 'string',
+            'description':
+                'Hex colour in #RRGGBB form, e.g. #4F46E5. Use this to change the accent colour.',
+          },
+          'dark': {
+            'type': 'boolean',
+            'description':
+                'true = switch to dark mode, false = switch to light mode. Use this when the user only asks for light/dark.',
+          },
+        },
+      });
+    });
+
+    test('color 和 dark **都不是必填** —— 给哪个都算一次合法调用', () {
+      final tools = toOpenAiTools(mobileRegistry());
+      final tool = tools.firstWhere((t) => (t['function'] as Map)['name'] == 'set_theme');
+      final parameters = (tool['function'] as Map)['parameters'] as Map;
+
+      expect(parameters.containsKey('required'), isFalse);
+    });
+
+    test('没有 parameters 的工具 ⇒ 参数表是空的（不是 undefined）', () {
+      final registry = ClientToolRegistry([
+        ClientTool(name: 'ping', description: 'x', execute: (_) async => null),
+      ]);
+      final tools = toOpenAiTools(registry);
+
+      expect((tools.first['function'] as Map)['parameters'], {
+        'type': 'object',
+        'properties': {},
+      });
+    });
+
+    test('注册表是空的 ⇒ 没有工具可导出', () {
+      expect(toOpenAiTools(ClientToolRegistry()), isEmpty);
+    });
+  });
+
   group('set_theme 的执行契约', () {
     ClientToolRegistry registryWith({
       void Function(Color)? onColor,
