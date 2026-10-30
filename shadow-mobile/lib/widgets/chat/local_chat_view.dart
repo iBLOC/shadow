@@ -170,28 +170,49 @@ class _LocalChatViewState extends ConsumerState<LocalChatView> {
         // Message list
         Expanded(
           child: chatState.messages.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.chat_bubble_outline,
-                        size: 64,
-                        color: isDark
-                            ? AppColors.darkTextSecondary
-                            : AppColors.lightTextSecondary,
+              // 空状态**必须能滚动**。
+              //
+              // 为什么：键盘弹起后消息区（这个 `Expanded`）在**小屏横屏**
+              // 上会被压到 0 高 —— 2026-10-31 真机（RK3566 / Android 11 /
+              // 1280x720）实测报「BOTTOM OVERFLOWED BY 102 PIXELS」。
+              //
+              // 根因：`Center` 给子件的是**松约束**，而原来那个 `Column`
+              // 是 `mainAxisSize: max` ⇒ 它取的是 `maxHeight`（= 0）⇒
+              // 64(图标) + 16(间距) + 22(文字) = 102px 的内容正好溢出 102px，
+              // 图标因此被画到输入栏上面。
+              //
+              // 修法（Flutter 官方那套「可滚动区里居中」的配方）：
+              // `SingleChildScrollView` + `ConstrainedBox(minHeight)` ——
+              // 有空间就居中，没空间就**滚动**，**任何情况下都不溢出**。
+              ? LayoutBuilder(
+                  builder: (context, constraints) => SingleChildScrollView(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: constraints.maxHeight,
                       ),
-                      const SizedBox(height: 16),
-                      Text(
-                        l10n.startConversation,
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(
-                              color: isDark
-                                  ? AppColors.darkTextSecondary
-                                  : AppColors.lightTextSecondary,
-                            ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.chat_bubble_outline,
+                            size: 64,
+                            color: isDark
+                                ? AppColors.darkTextSecondary
+                                : AppColors.lightTextSecondary,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            l10n.startConversation,
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(
+                                  color: isDark
+                                      ? AppColors.darkTextSecondary
+                                      : AppColors.lightTextSecondary,
+                                ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 )
               : ListView.builder(

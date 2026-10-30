@@ -43,7 +43,18 @@ android {
 
     defaultConfig {
         applicationId = "com.ibloc.shadow"
-        minSdk = 31
+        // 最低支持 **Android 11（API 30）**。
+        //
+        // 为什么不是 31：2026-10-31 真机复验时发现，钉在 31 会让
+        // **Android 11 的设备根本装不上**（`INSTALL_FAILED_OLDER_SDK`），
+        // 而那台设备（RK3566）正是目前唯一能跑端脑真机链路的机器。
+        // 实测把 minSdk 降到 30 之后：构建无任何依赖要求 31、整条链
+        // （端脑起得来 → 客户端工具 → 本地执行 → 回传 → 同回合续说）
+        // 在 Android 11 上**全部跑通** ⇒ 用户拍板正式支持 Android 11。
+        //
+        // ⚠️ 代价：API 30 与 31 两档都要覆盖 ⇒ 真机复验的机器不能只留
+        // 一台 Android 12+ 的。
+        minSdk = 30
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
