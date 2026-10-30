@@ -20,6 +20,8 @@ extension ChatStateL10n on ChatState {
     switch (errorMessageL10nKey!) {
       case ChatStateL10nKey.errorGeneric:
         return l10n.errorGeneric(errorMessageArg ?? '');
+      case ChatStateL10nKey.errorAttachmentNotAvailable:
+        return l10n.chatAttachmentNotAvailable;
       default:
         return errorMessage;
     }

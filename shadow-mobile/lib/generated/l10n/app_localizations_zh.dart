@@ -1029,8 +1029,34 @@ class AppLocalizationsZh extends AppLocalizations {
   String get taskTagsField => '标签 (逗号分隔)';
 
   @override
-  String get taskEditPersistenceNote =>
-      'hippocampus 只持久化状态与标签，标题与描述没有对应列，不会保存。';
+  String get taskEditPersistenceNote => '端脑任务：状态随时可改；标题、描述、优先级与标签只在创建时写入。';
+
+  @override
+  String get taskDueTime => '截止时间';
+
+  @override
+  String get taskDueTimeField => '截止时间';
+
+  @override
+  String get taskDueTimeHint => '可留空。支持「明天下午3点」这类相对时间。';
+
+  @override
+  String get taskConfirmationPoints => '确认点';
+
+  @override
+  String get taskNoConfirmationPoints => '此任务暂无确认点';
+
+  @override
+  String get taskConfirmState => '确认状态';
+
+  @override
+  String get taskConfirmed => '已确认';
+
+  @override
+  String get taskAwaitingConfirm => '待确认';
+
+  @override
+  String get taskConfirmAction => '确认任务';
 
   @override
   String get taskOverview => '概览';
@@ -1372,7 +1398,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chatGreeting => '你好，我是Shadow，有什么可以帮你的吗？';
 
   @override
-  String get chatImageNotAvailable => 'LiteRT 图片功能暂时不可用，请等待版本更新';
+  String get chatAttachmentNotAvailable => '端脑链路当前只处理纯文本，图片、文件等附件暂不支持';
 
   @override
   String get chatVoiceModelRequired => '语音功能需要先加载模型';
@@ -1549,6 +1575,27 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get encephalonInferFailed => '推理失败';
+
+  @override
+  String get encephalonModelSourceTitle => '大脑模型来源';
+
+  @override
+  String get encephalonModelSourceHint => '切换模型来源会重启嵌入式大脑（LLM 上游在启动时确定）。';
+
+  @override
+  String get encephalonModelLocalNeuron => '本地 neuron 权重';
+
+  @override
+  String get encephalonModelCloud => '云端供应商';
+
+  @override
+  String get encephalonModelNoCloudProvider => '还没有配置云端供应商 —— 先去「模型管理」加一个。';
+
+  @override
+  String get encephalonModelSourceApplied => '已应用新的模型来源';
+
+  @override
+  String get encephalonModelSourceFailed => '模型来源切换失败';
 
   @override
   String get settingsAppearance => '外观';

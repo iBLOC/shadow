@@ -104,9 +104,18 @@ class GenUIAgentService {
 
   void dispose() {
     _logger.info('Disposing GenUIAgentService');
+    // ⚠️ `_conversation.dispose()` **已经**会 dispose 它持有的
+    // `contentGenerator` 和 `a2uiMessageProcessor`
+    // （见 genui 包的 `GenUiConversation.dispose`）。
+    //
+    // 这里再 dispose 一遍就是**双重释放**：
+    // `A2uiContentGenerator.dispose()` 里的 `_isProcessing.dispose()`
+    // 会抛「A ValueNotifier<bool> was used after being disposed」。
+    //
+    // 这个坑以前一直藏着 —— Agent2UI 压根**进不去**（唯一入口是
+    // 本地模型下载框里的「Use Agent2UI」逃生口）。下载框下线、
+    // 补了常驻入口之后，它第一次真的被 dispose 到。
     _conversation.dispose();
-    _messageProcessor.dispose();
-    _contentGenerator.dispose();
     _surfaceIdsController.close();
     _connectionStatusController.close();
   }

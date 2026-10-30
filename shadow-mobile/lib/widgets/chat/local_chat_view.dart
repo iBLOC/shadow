@@ -86,9 +86,15 @@ class _LocalChatViewState extends ConsumerState<LocalChatView> {
                 ),
                 IconButton(
                   icon: const Icon(Icons.close, size: 18),
-                  onPressed: () {
-                    // This will be handled by the parent
-                  },
+                  // ⚠️ 这里**曾经**是一个**空闭包**（注释写着
+                  // "This will be handled by the parent"）——
+                  // 但父级从来没处理 ⇒ 横幅**关不掉**，它会一直挂在
+                  // 对话页顶上。
+                  //
+                  // `ChatNotifier.clearError()` 之前是**零调用方**的死方法，
+                  // 现在接上了。
+                  onPressed: () =>
+                      ref.read(chatProvider.notifier).clearError(),
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
                   color: AppColors.error,
@@ -270,7 +276,6 @@ class _LocalChatViewState extends ConsumerState<LocalChatView> {
                                 ),
                         ),
                         if (isAssistant &&
-                            chatState.mode == ChatMode.litert &&
                             !isVoice &&
                             !isImage &&
                             !isVideo &&
@@ -315,10 +320,11 @@ class _LocalChatViewState extends ConsumerState<LocalChatView> {
                         return AttachmentChip(
                           type: attachment.type,
                           path: attachment.path ?? '',
-                          onRemove: () {
-                            // TODO: Implement attachment removal
-                            // Issue: Need access to chat state notifier to remove attachment
-                          },
+                          // ⚠️ 这里**曾经**是一个 TODO 空闭包 ——
+                          // 附件选了之后**删不掉**。
+                          onRemove: () => ref
+                              .read(chatProvider.notifier)
+                              .removeAttachment(index),
                         );
                       },
                     ),
@@ -406,9 +412,11 @@ class _LocalChatViewState extends ConsumerState<LocalChatView> {
                           : TextField(
                               controller: widget.promptController,
                               decoration: InputDecoration(
-                                hintText: chatState.canChat
-                                    ? l10n.askSomething
-                                    : l10n.initializing,
+                                // `canChat` 现在恒真（本地 LiteRT 下线后
+                                // 没有「引擎没就绪」这个前置条件了），
+                                // 所以这里**永远**是问句提示，不再有
+                                // 「初始化中…」那种永远转不完的状态。
+                                hintText: l10n.askSomething,
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(24),
                                 ),

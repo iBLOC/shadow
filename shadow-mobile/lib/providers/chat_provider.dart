@@ -1,23 +1,14 @@
-import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
-import 'package:path_provider/path_provider.dart';
-import '../model_manager.dart';
-import '../features/models/screens/model_list_screen.dart';
-import '../litert_engine.dart';
-import '../services/model_download_service.dart';
 import '../tts_engine.dart';
 import '../multimodal/multimodal.dart';
-import '../litert_model.dart';
-import '../screens/model_management_screen.dart';
 import '../services/telencephalon/telencephalon_client.dart';
 import 'conversation_mode_provider.dart';
 import 'telencephalon_provider.dart';
 import '../l10n/current_l10n.dart';
-import '../agents/providers/agent_provider.dart';
 import '../agents/main_agent/main_agent_prompt.dart';
+import '../agents/providers/agent_provider.dart';
 
 /// Chat message model for the UI
 class ChatMessageModel {
@@ -36,96 +27,75 @@ class ChatMessageModel {
 
 enum ChatRole { user, assistant, system }
 
-/// Chat mode enum
-enum ChatMode { off, litert }
-
 /// L10n keys for provider messages (resolved in UI with AppLocalizations).
 enum ChatStateL10nKey {
   modelInfoNotInitialized,
   modelLoaded,
   desktopMode,
   errorGeneric,
-  litertInitializing,
-  litertReady,
-  errorLitertInitFailed,
+
+  /// 带附件发送被拒（端脑链路只处理纯文本）。
+  ///
+  /// 以前这个场景复用的是 `errorGeneric` + `chatImageNotAvailable`
+  /// —— 那条文案写的是「LiteRT 图片功能暂时不可用」，本地 LiteRT
+  /// 下线之后已经不成立了。现在有自己的 key，文案说清楚**为什么**。
+  errorAttachmentNotAvailable,
 }
 
 /// Chat state
 class ChatState {
   final List<ChatMessageModel> messages;
   final bool isLoading;
-  final bool isInitialized;
   final String modelInfo;
   final String? errorMessage;
   final ChatStateL10nKey? modelInfoL10nKey;
   final ChatStateL10nKey? errorMessageL10nKey;
   final String? errorMessageArg;
-  final ChatMode mode;
-  final bool isLitertReady;
   final bool isRecordingAudio;
   final List<MultimodalInput> attachments;
-  final double downloadProgress;
-  final Agent currentAgent;
-  final bool isDownloading;
   final VoiceState voiceState;
-  final bool modelNotFound;
   final String streamingText;
   final String? sessionId;
 
   const ChatState({
     this.messages = const [],
     this.isLoading = false,
-    this.isInitialized = false,
-    this.modelInfo = 'Not initialized',
+    this.modelInfo = 'Telencephalon',
     this.errorMessage,
-    this.modelInfoL10nKey = ChatStateL10nKey.modelInfoNotInitialized,
+    this.modelInfoL10nKey,
     this.errorMessageL10nKey,
     this.errorMessageArg,
-    this.mode = ChatMode.off,
-    this.isLitertReady = false,
     this.isRecordingAudio = false,
     this.attachments = const [],
-    this.downloadProgress = -1.0,
-    this.currentAgent = Agents.chatAgent,
-    this.isDownloading = false,
     this.voiceState = VoiceState.idle,
-    this.modelNotFound = false,
     this.streamingText = '',
     this.sessionId,
   });
 
-  /// 能不能发消息 —— 有没有可用的对话后端。
+  /// 能不能发消息。
   ///
-  /// **端脑链路（`/shadow/v1/*`）不依赖本地模型**：它是网络调用，指向
-  /// 嵌入式大脑的端脑面；本地 LiteRT 只是端脑不通时的**兜底**。
+  /// 移动端**只有端脑一条链路**（`/shadow/v1/*` → 嵌入式大脑 → 端脑 → 叶区），
+  /// 本地 LiteRT 已下线 ⇒ 没有任何「本地引擎就绪」的前置条件。
   ///
-  /// ⚠️ 之前这个条件是 `isInitialized || isLitertReady` —— 两个都是
-  /// **本地引擎**的状态 ⇒ 没装本地模型的设备上**输入框整个是禁用的**，
-  /// 移动端对话页一条消息都发不出去。
-  ///
-  /// `mode == ChatMode.off` = 「没有本地模型，用端脑链路」。
-  bool get canChat => isInitialized || isLitertReady || mode == ChatMode.off;
+  /// ⚠️ 这里**曾经**是 `isInitialized || isLitertReady || mode == ChatMode.off`
+  /// —— 前两个都是**本地引擎**的状态 ⇒ 没装本地模型的设备上**输入框整个
+  /// 是禁用的**，移动端对话页一条消息都发不出去（`425e666` 修过一次）。
+  /// 现在本地引擎没了，这个判据也就没必要了 —— UI 直接看 `isLoading`。
+  bool get canChat => true;
 
   static const _omit = _CopyWithOmit();
 
   ChatState copyWith({
     List<ChatMessageModel>? messages,
     bool? isLoading,
-    bool? isInitialized,
     String? modelInfo,
     Object? errorMessage = _omit,
     ChatStateL10nKey? modelInfoL10nKey,
     Object? errorMessageL10nKey = _omit,
     Object? errorMessageArg = _omit,
-    ChatMode? mode,
-    bool? isLitertReady,
     bool? isRecordingAudio,
     List<MultimodalInput>? attachments,
-    double? downloadProgress,
-    Agent? currentAgent,
-    bool? isDownloading,
     VoiceState? voiceState,
-    bool? modelNotFound,
     String? streamingText,
     String? sessionId,
   }) {
@@ -134,7 +104,6 @@ class ChatState {
     return ChatState(
       messages: messages ?? this.messages,
       isLoading: isLoading ?? this.isLoading,
-      isInitialized: isInitialized ?? this.isInitialized,
       modelInfo: modelInfo ?? this.modelInfo,
       errorMessage: explicitError ? errorMessage as String? : this.errorMessage,
       modelInfoL10nKey: modelInfoL10nKey ?? this.modelInfoL10nKey,
@@ -148,15 +117,9 @@ class ChatState {
           : (identical(errorMessageArg, _omit)
                 ? this.errorMessageArg
                 : errorMessageArg as String?),
-      mode: mode ?? this.mode,
-      isLitertReady: isLitertReady ?? this.isLitertReady,
       isRecordingAudio: isRecordingAudio ?? this.isRecordingAudio,
       attachments: attachments ?? this.attachments,
-      downloadProgress: downloadProgress ?? this.downloadProgress,
-      currentAgent: currentAgent ?? this.currentAgent,
-      isDownloading: isDownloading ?? this.isDownloading,
       voiceState: voiceState ?? this.voiceState,
-      modelNotFound: modelNotFound ?? this.modelNotFound,
       streamingText: streamingText ?? this.streamingText,
       sessionId: sessionId ?? this.sessionId,
     );
@@ -177,7 +140,6 @@ String? noSystemPrompt() => null;
 class ChatNotifier extends StateNotifier<ChatState> {
   static final _log = Logger('ChatNotifier');
 
-  final LitertEngine _litertEngine;
   final TtsEngine _ttsEngine;
 
   /// 端脑 client —— 对话走**端脑方言**（`/shadow/v1/conversations`），
@@ -188,8 +150,6 @@ class ChatNotifier extends StateNotifier<ChatState> {
   /// 「改嵌大脑」之后不存在了：端脑面是 `/shadow/v1/*`。
   final TelencephalonClient _telencephalonClient;
   final MultimodalInputManager _multimodalManager = MultimodalInputManager();
-  final LiteRTDownloadService _downloadService = LiteRTDownloadService();
-  final ModelsNotifier? _modelsNotifier;
 
   /// 人设提示词 —— 随**会话创建**送进端脑（`createConversation({ system })`）。
   ///
@@ -201,350 +161,12 @@ class ChatNotifier extends StateNotifier<ChatState> {
   /// 端脑侧的会话 id（`/shadow/v1/conversations/{id}`）。
   String? _currentSessionId;
 
-  bool _isDownloading = false;
-
   ChatNotifier(
-    this._litertEngine,
     this._ttsEngine,
     this._telencephalonClient, {
-    bool skipInit = false,
-    bool litertReady = false,
-    ModelsNotifier? modelsNotifier,
     String? Function()? systemPromptProvider,
-  }) : _modelsNotifier = modelsNotifier,
-       _systemPromptProvider = systemPromptProvider ?? noSystemPrompt,
-       super(const ChatState()) {
-    if (!skipInit) {
-      Future.microtask(() => _initLiteRT());
-    } else if (litertReady) {
-      state = state.copyWith(isLitertReady: true);
-    }
-  }
-
-  void selectAgent(Agent agent) {
-    _litertEngine.setModel(agent.model);
-    // ML Kit handles model selection automatically
-    state = state.copyWith(
-      currentAgent: agent,
-      isLitertReady: false,
-      isDownloading: false,
-      downloadProgress: -1.0,
-      modelInfo: '${agent.type.displayName}: ${agent.model.displayName}',
-    );
-  }
-
-  Future<void> _initLiteRT() async {
-    final agent = state.currentAgent;
-    state = state.copyWith(
-      // ⚠️ **不要**在这里把 mode 设成 `ChatMode.litert`。
-      //
-      // mode 决定「对话页渲染哪个视图」：
-      // `chat_screen.dart` 里 `isLitertMode = mode == ChatMode.litert`
-      // ⇒ 渲染 `PrefrontalChatView` —— 而那条视图走的是**前额叶方言**
-      // （`/api/sessions`），「改嵌大脑」之后端脑面上**根本没有这条路由**
-      // ⇒ 对话页永远卡在「初始化中…」。
-      //
-      // mode 应当在**本地引擎真的就绪**时才是 litert（见 `initLitert`）；
-      // 没有本地模型时保持 `off` —— 那才是端脑链路（`/shadow/v1/*`）。
-      mode: ChatMode.off,
-      messages: [
-        ...state.messages,
-        ChatMessageModel(
-          'Checking ${agent.model.displayName}...',
-          ChatRole.system,
-        ),
-      ],
-    );
-
-    // 检查模型文件是否存在
-    final modelPath = await _getModelPath(agent.model);
-    final file = File(modelPath);
-    final exists = await file.exists();
-
-    if (!exists) {
-      state = state.copyWith(
-        modelInfo: 'Model not found, ready to download',
-        isLitertReady: false,
-        isDownloading: false,
-        downloadProgress: -1.0,
-        modelNotFound: true,
-      );
-      return;
-    }
-
-    state = state.copyWith(modelNotFound: false);
-
-    // 模型存在，正常初始化
-    await initLitert();
-  }
-
-  /// 获取模型的本地路径
-  Future<String> _getModelPath(LiteRTModel model) async {
-    final appDir = await getApplicationDocumentsDirectory();
-    final modelDir = Directory('${appDir.path}/models');
-    if (!await modelDir.exists()) {
-      await modelDir.create(recursive: true);
-    }
-    return '${modelDir.path}/${model.name}.litertlm';
-  }
-
-  Future<void> downloadModel() async {
-    // 检查是否正在下载，防止重复调用
-    if (_isDownloading) {
-      return;
-    }
-    _isDownloading = true;
-
-    final agent = state.currentAgent;
-    state = state.copyWith(
-      isDownloading: true,
-      downloadProgress: 0.0, // 立即设置为0，让UI正确检测到下载开始
-      messages: [
-        ...state.messages,
-        ChatMessageModel(
-          'Downloading ${agent.model.displayName} (${agent.model.sizeString}) from hf-mirror.com...',
-          ChatRole.system,
-        ),
-      ],
-      modelInfo: 'Downloading...',
-    );
-
-    try {
-      // 获取模型路径和下载URL
-      final modelPath = await _getModelPath(agent.model);
-      final downloadUrl = _getModelDownloadUrl(agent.model.id);
-
-      final path = await _downloadService.downloadModel(
-        modelPath: modelPath,
-        downloadUrl: downloadUrl,
-        onProgress: (progress) {
-          final percent = (progress * 100).toStringAsFixed(1);
-          state = state.copyWith(
-            modelInfo: 'Downloading... $percent%',
-            downloadProgress: progress,
-          );
-        },
-      );
-
-      if (path != null) {
-        state = state.copyWith(
-          modelInfo: 'Download complete, initializing...',
-          downloadProgress: 1.0,
-          messages: [
-            ...state.messages,
-            ChatMessageModel(
-              'Download complete! Initializing engine...',
-              ChatRole.system,
-            ),
-          ],
-        );
-        await initLitert();
-      } else {
-        final error = _downloadService.lastError ?? 'Unknown error';
-        state = state.copyWith(
-          errorMessage: 'Download failed: $error',
-          errorMessageL10nKey: ChatStateL10nKey.errorGeneric,
-          downloadProgress: -1.0,
-          isDownloading: false,
-          messages: [
-            ...state.messages,
-            ChatMessageModel('Download failed: $error', ChatRole.system),
-          ],
-        );
-      }
-    } catch (e) {
-      state = state.copyWith(
-        errorMessage: 'Download error: $e',
-        errorMessageL10nKey: ChatStateL10nKey.errorGeneric,
-        downloadProgress: -1.0,
-        isDownloading: false,
-        messages: [
-          ...state.messages,
-          ChatMessageModel('Download error: $e', ChatRole.system),
-        ],
-      );
-    } finally {
-      // 确保下载锁被释放
-      _isDownloading = false;
-    }
-  }
-
-  /// 获取模型下载URL（优先 ModelScope，其次 HuggingFace）
-  String _getModelDownloadUrl(String modelId) {
-    // 模型ID到下载URL的映射
-    // 优先使用 ModelScope（国内镜像，速度更快）
-    final modelUrls = {
-      'gemma4-e4b':
-          // ModelScope 镜像
-          'https://modelscope.cn/models/litert-community/gemma-4-E2B-it-litert-lm/resolve/master/gemma-4-E2B-it.litertlm',
-      'gemma3-1b':
-          // ModelScope 镜像
-          'https://modelscope.cn/models/litert-community/gemma-3-E2B-it-litert-lm/resolve/master/gemma-3-E2B-it.litertlm',
-    };
-
-    final url = modelUrls[modelId];
-    if (url != null) return url;
-
-    // 备用：HuggingFace 原站
-    return 'https://huggingface.co/litert-community/$modelId/resolve/main/gemma-4-E2B-it.litertlm';
-  }
-
-  Future<void> initLitert() async {
-    final agent = state.currentAgent;
-    state = state.copyWith(
-      modelInfoL10nKey: ChatStateL10nKey.litertInitializing,
-      messages: [
-        ...state.messages,
-        ChatMessageModel(
-          'Initializing ${agent.model.displayName}...',
-          ChatRole.system,
-        ),
-      ],
-    );
-
-    try {
-      _litertEngine.setModel(agent.model);
-      final modelPath = await _getModelPath(agent.model);
-
-      // First call diagnose BEFORE attempting initialize
-      final diagnosis = await _litertEngine.diagnoseModelDirectory(modelPath);
-      final recommendation =
-          diagnosis['recommendation'] as String? ?? 'download';
-
-      // Log diagnostic result
-      // ignore: avoid_print
-      print(
-        'LiteRT Diagnostic: exists=${diagnosis['exists']}, '
-        'dispatchLibraryPresent=${diagnosis['dispatchLibraryPresent']}, '
-        'recommendation=$recommendation, '
-        'files=${diagnosis['modelFiles']}',
-      );
-
-      // If diagnosis says download or wrong-format, bail early
-      if (recommendation == 'download' || recommendation == 'wrong-format') {
-        state = state.copyWith(
-          modelNotFound: true,
-          isLitertReady: false,
-          modelInfo: recommendation == 'download'
-              ? 'No model found, please download'
-              : 'Model format incorrect, please download',
-          errorMessage: recommendation == 'download'
-              ? 'No model found in $modelPath'
-              : 'Model files present but format incorrect',
-          errorMessageL10nKey: ChatStateL10nKey.errorLitertInitFailed,
-          messages: [
-            ...state.messages,
-            ChatMessageModel(
-              recommendation == 'download'
-                  ? 'No model found, downloading required'
-                  : 'Model format incorrect, downloading required',
-              ChatRole.system,
-            ),
-          ],
-        );
-        return;
-      }
-
-      // Try initialize with timeout
-      final success = await _litertEngine
-          .initialize(modelPath: modelPath)
-          .timeout(
-            const Duration(seconds: 15),
-            onTimeout: () {
-              _litertEngine.release();
-              return false;
-            },
-          );
-
-      if (success) {
-        final testResult = await _testLitertEngine();
-        if (testResult) {
-          state = state.copyWith(
-            isLitertReady: true,
-            // 本地引擎真的就绪了 —— 这时（且只有这时）对话页才切到
-            // LiteRT 视图。放在 `_initLiteRT` 里无条件设的话，没装本地
-            // 模型的设备会被推进一条**已经不存在的**前额叶链路。
-            mode: ChatMode.litert,
-            modelInfo: '${agent.model.displayName} ready',
-            modelInfoL10nKey: ChatStateL10nKey.litertReady,
-            messages: [
-              ...state.messages,
-              ChatMessageModel(
-                '${agent.model.displayName} engine ready!',
-                ChatRole.system,
-              ),
-            ],
-          );
-        } else {
-          state = state.copyWith(
-            modelNotFound: true,
-            isLitertReady: false,
-            modelInfo: 'Model test failed, please download',
-            errorMessage: 'Engine initialized but test generation failed',
-            errorMessageL10nKey: ChatStateL10nKey.errorLitertInitFailed,
-          );
-        }
-      } else {
-        final errorMsg = _litertEngine.lastError ?? 'Unknown error';
-        state = state.copyWith(
-          errorMessage: 'Failed to initialize LiteRT engine: $errorMsg',
-          errorMessageL10nKey: ChatStateL10nKey.errorLitertInitFailed,
-          modelNotFound: true,
-          isLitertReady: false,
-        );
-      }
-    } catch (e) {
-      state = state.copyWith(
-        errorMessage: 'Error: ${e.toString()}',
-        errorMessageL10nKey: ChatStateL10nKey.errorGeneric,
-        modelNotFound: true,
-        isLitertReady: false,
-      );
-    }
-  }
-
-  Future<void> runLiteRTDiagnostic() async {
-    final agent = state.currentAgent;
-    try {
-      final modelPath = await _getModelPath(agent.model);
-      final diagnosis = await _litertEngine.diagnoseModelDirectory(modelPath);
-      final recommendation =
-          diagnosis['recommendation'] as String? ?? 'download';
-
-      final message =
-          'LiteRT Diagnostic: '
-          'directory exists=${diagnosis['exists']}, '
-          'dispatch library present=${diagnosis['dispatchLibraryPresent']}, '
-          'recommendation=$recommendation, '
-          'total size=${diagnosis['totalSize']} bytes, '
-          'files=${(diagnosis['modelFiles'] as List?)?.length ?? 0}';
-
-      state = state.copyWith(
-        modelInfo: message,
-        isLitertReady: recommendation == 'ready',
-        modelNotFound: recommendation == 'download',
-        messages: [
-          ...state.messages,
-          ChatMessageModel(message, ChatRole.system),
-        ],
-      );
-    } catch (e) {
-      state = state.copyWith(
-        errorMessage: 'Diagnostic failed: $e',
-        errorMessageL10nKey: ChatStateL10nKey.errorGeneric,
-      );
-    }
-  }
-
-  Future<bool> _testLitertEngine() async {
-    await Future.delayed(const Duration(milliseconds: 100));
-    try {
-      final result = await _litertEngine.generateContent('Hi');
-      return result.isNotEmpty;
-    } catch (_) {
-      return false;
-    }
-  }
+  }) : _systemPromptProvider = systemPromptProvider ?? noSystemPrompt,
+       super(const ChatState());
 
   // Multimodal input methods
   Future<void> pickImage() async {
@@ -621,226 +243,91 @@ class ChatNotifier extends StateNotifier<ChatState> {
     // 那两个条件说的都是**本地** LiteRT 引擎 ⇒ 没装本地模型的设备上
     // **一条消息都发不出去**（函数直接返回，什么都不发生）。
     //
-    // 正确的形状就是 `_generateLitertResponse` 自己已经实现的那个：
-    // **先走端脑（`/shadow/v1/*`），端脑不通才回退到本地模型**
-    // （见那里的 catch 分支）。本地模型是**兜底**，不是前提 ——
+    // 现在本地 LiteRT 已下线，移动端**只有端脑一条链路** ——
     // 「所有通信都要走 大脑 → 端脑 → 叶区」这条规则在移动端也成立。
-    await _generateLitertResponse(prompt, []);
+    await _sendToTelencephalon(prompt);
   }
 
+  /// 带附件的发送。
+  ///
+  /// 端脑那条链路（`/shadow/v1/conversations`）**只处理纯文本** ——
+  /// 本地 LiteRT 已下线，附件没有第二条路可走。
+  ///
+  /// 所以这里**任何**附件都直接明确报错，而不是把消息悄悄丢掉
+  /// （否则用户会以为消息发出去了，其实根本没发）。
   Future<void> generateResponseWithAttachments(
     String prompt,
     List<MultimodalInput> attachments,
   ) async {
     if (state.isLoading) return;
-    final hasImage = attachments.any(
-      (a) =>
-          a.type == MultimodalInputType.image ||
-          a.type == MultimodalInputType.camera,
-    );
-    // 端脑那条路只处理纯文本（见 `_generateLitertResponse` 里的
-    // `attachments.isEmpty` 分支），带图只能走本地引擎。本地引擎没就绪
-    // ⇒ 明确报错，而不是把消息悄悄丢掉。
-    if (hasImage && !(state.mode == ChatMode.litert && state.isLitertReady)) {
+    if (attachments.isNotEmpty) {
       state = state.copyWith(
-        errorMessage: currentL10n().chatImageNotAvailable,
-        errorMessageL10nKey: ChatStateL10nKey.errorGeneric,
+        errorMessage: currentL10n().chatAttachmentNotAvailable,
+        errorMessageL10nKey: ChatStateL10nKey.errorAttachmentNotAvailable,
       );
       return;
     }
-    await _generateLitertResponse(prompt, attachments);
+    await _sendToTelencephalon(prompt);
   }
 
-  Future<void> processAudioSegment(List<double> audioSamples) async {
-    if (state.isLoading) return;
-    if (!state.isLitertReady) return;
-
-    final audioLength = audioSamples.length;
+  /// 真正把一条消息送进「大脑 → 端脑 → 叶区」。
+  ///
+  /// 移动端**只有这一条路**（端脑方言 `/shadow/v1/conversations`）。
+  /// 本地 LiteRT 已下线 ⇒ 这里**没有**第二条路：端脑不通就是不通，
+  /// **直接把错误抛给用户**，不要静默回退 ——
+  /// 静默回退的年代，本地引擎其实**从来没起来过**（`_getModelPath()`
+  /// 给的是文件路径，Kotlin 那边要的是目录），用户看到的只是一条
+  /// 「已就绪」的红横幅和一句永远等不来的回复。
+  Future<void> _sendToTelencephalon(String prompt) async {
     state = state.copyWith(
       messages: [
         ...state.messages,
-        ChatMessageModel('[Voice: $audioLength samples]', ChatRole.user),
-      ],
-    );
-
-    state = state.copyWith(isLoading: true);
-
-    String response;
-    try {
-      if (_litertEngine.isInitialized) {
-        response = await _litertEngine.generateContent('请简短回复: 用户发送了语音消息');
-      } else {
-        response = currentL10n().chatVoiceModelRequired;
-      }
-    } catch (e) {
-      response = currentL10n().chatSorryError(e.toString());
-    }
-
-    state = state.copyWith(
-      messages: [
-        ...state.messages,
-        ChatMessageModel(response, ChatRole.assistant),
-      ],
-      isLoading: false,
-    );
-
-    await _ttsEngine.speak(response);
-  }
-
-  Future<void> processAudioSegmentAndContinue(
-    List<double> audioSamples,
-    Future<void> Function() onComplete,
-  ) async {
-    if (state.isLoading) return;
-    if (!state.isLitertReady) return;
-
-    final audioLength = audioSamples.length;
-    state = state.copyWith(
-      messages: [
-        ...state.messages,
-        ChatMessageModel('[Voice: $audioLength samples]', ChatRole.user),
-      ],
-    );
-
-    state = state.copyWith(isLoading: true, voiceState: VoiceState.processing);
-
-    String response;
-    try {
-      if (_litertEngine.isInitialized) {
-        response = await _litertEngine.generateContent('用户发送了语音消息，请简短回复');
-      } else {
-        response = currentL10n().chatVoiceModelRequired;
-      }
-    } catch (e) {
-      response = currentL10n().chatSorryErrorShort;
-    }
-
-    state = state.copyWith(
-      messages: [
-        ...state.messages,
-        ChatMessageModel(response, ChatRole.assistant),
-      ],
-      isLoading: false,
-      voiceState: VoiceState.speaking,
-    );
-
-    await _ttsEngine.speak(response);
-    state = state.copyWith(voiceState: VoiceState.idle);
-    await onComplete();
-  }
-
-  Future<void> _generateLitertResponse(
-    String prompt,
-    List<MultimodalInput> attachments,
-  ) async {
-    String displayContent = prompt;
-    String? attachmentPath;
-    MultimodalInputType? attachmentType;
-
-    if (attachments.isNotEmpty) {
-      final first = attachments.first;
-      attachmentPath = first.path;
-      attachmentType = first.type;
-      if (prompt.isEmpty) {
-        switch (first.type) {
-          case MultimodalInputType.audio:
-            displayContent = '[Audio]';
-            break;
-          case MultimodalInputType.voice:
-            displayContent = '[Voice]';
-            break;
-          case MultimodalInputType.image:
-          case MultimodalInputType.camera:
-            displayContent = '[Image]';
-            break;
-          case MultimodalInputType.video:
-            displayContent = '[Video]';
-            break;
-          case MultimodalInputType.file:
-            final fileName = first.path?.split('/').last;
-            displayContent = fileName ?? '[File]';
-            break;
-        }
-      }
-    }
-
-    state = state.copyWith(
-      messages: [
-        ...state.messages,
-        ChatMessageModel(
-          displayContent,
-          ChatRole.user,
-          attachmentPath: attachmentPath,
-          attachmentType: attachmentType,
-        ),
+        ChatMessageModel(prompt, ChatRole.user),
       ],
       isLoading: true,
       errorMessage: null,
     );
 
     try {
-      String response = '';
-      bool httpSuccess = false;
-
-      if (attachments.isEmpty) {
-        try {
-          // 端脑（嵌入式大脑）侧的会话 —— `/shadow/v1/conversations`。
-          //
-          // 与桌面端同一条链路：桌面端的 `ConversationPage.tsx` 也是
-          // `createConversation` + `streamMessage`，人设提示词走
-          // `createConversation({ system })`。
-          _currentSessionId ??= (await _telencephalonClient.createConversation(
+      // 端脑（嵌入式大脑）侧的会话 —— `/shadow/v1/conversations`。
+      //
+      // 与桌面端同一条链路：桌面端的 `ConversationPage.tsx` 也是
+      // `createConversation` + `streamMessage`，人设提示词走
+      // `createConversation({ system })`。
+      final sessionId =
+          _currentSessionId ??
+          (await _telencephalonClient.createConversation(
             systemPrompt: _systemPromptProvider(),
           )).id;
-          if (_currentSessionId != null) {
-            state = state.copyWith(sessionId: _currentSessionId);
+      _currentSessionId = sessionId;
+      state = state.copyWith(sessionId: sessionId);
 
-            final buffer = StringBuffer();
-            state = state.copyWith(streamingText: '');
+      final buffer = StringBuffer();
+      state = state.copyWith(streamingText: '');
 
-            await for (final event in _telencephalonClient.streamMessage(
-              _currentSessionId!,
-              SendMessageRequest(text: prompt),
-            )) {
-              switch (event.type) {
-                case 'delta':
-                  final delta = event.delta ?? '';
-                  if (delta.isEmpty) break;
-                  buffer.write(delta);
-                  state = state.copyWith(streamingText: buffer.toString());
-                  break;
-                case 'error':
-                  throw Exception(
-                    event.error ?? currentL10n().chatSorryErrorShort,
-                  );
-                default:
-                  // tool_call / tool_result / route / handoff / step 等
-                  // 进度事件：移动端目前不渲染，先记一条日志。
-                  _log.fine('stream event: ${event.type}');
-              }
-            }
-
-            response = buffer.toString();
-            httpSuccess = response.isNotEmpty;
-          }
-        } catch (e) {
-          _log.warning('端脑对话失败, 回退到本地模型: $e');
-          state = state.copyWith(streamingText: '');
+      await for (final event in _telencephalonClient.streamMessage(
+        sessionId,
+        SendMessageRequest(text: prompt),
+      )) {
+        switch (event.type) {
+          case 'delta':
+            final delta = event.delta ?? '';
+            if (delta.isEmpty) break;
+            buffer.write(delta);
+            state = state.copyWith(streamingText: buffer.toString());
+            break;
+          case 'error':
+            throw Exception(event.error ?? currentL10n().chatSorryErrorShort);
+          default:
+            // tool_call / tool_result / route / handoff / step 等
+            // 进度事件：移动端目前不渲染，先记一条日志。
+            _log.fine('stream event: ${event.type}');
         }
       }
 
-      if (!httpSuccess) {
-        if (attachments.isNotEmpty) {
-          final attachmentData = await _convertAttachmentsToLitertFormat(
-            attachments,
-          );
-          response = await _litertEngine.generateContentWithAttachments(
-            prompt,
-            attachmentData,
-          );
-        } else {
-          response = await _litertEngine.generateContent(prompt);
-        }
+      final response = buffer.toString();
+      if (response.isEmpty) {
+        throw Exception(currentL10n().chatSorryErrorShort);
       }
 
       state = state.copyWith(
@@ -869,43 +356,6 @@ class ChatNotifier extends StateNotifier<ChatState> {
     }
   }
 
-  Future<List<Map<String, dynamic>>> _convertAttachmentsToLitertFormat(
-    List<MultimodalInput> attachments,
-  ) async {
-    final result = <Map<String, dynamic>>[];
-
-    for (final attachment in attachments) {
-      Uint8List? bytes;
-
-      if (attachment.data is Uint8List) {
-        bytes = attachment.data as Uint8List;
-      } else if (attachment.path != null) {
-        final file = File(attachment.path!);
-        if (await file.exists()) {
-          bytes = await file.readAsBytes();
-        }
-      }
-
-      if (bytes != null) {
-        final base64Data = base64Encode(bytes);
-
-        switch (attachment.type) {
-          case MultimodalInputType.audio:
-            result.add({'audio': base64Data, 'mimeType': 'audio/pcm'});
-            break;
-          case MultimodalInputType.image:
-          case MultimodalInputType.camera:
-            result.add({'image': base64Data, 'mimeType': 'image/jpeg'});
-            break;
-          default:
-            break;
-        }
-      }
-    }
-
-    return result;
-  }
-
   Future<void> speakLastResponse() async {
     final lastAssistant = state.messages.lastWhere(
       (m) => m.role == ChatRole.assistant,
@@ -928,34 +378,23 @@ class ChatNotifier extends StateNotifier<ChatState> {
     );
   }
 
-  Future<void> setMode(ChatMode mode) async {
-    if (mode == ChatMode.litert && !state.isLitertReady) {
-      await initLitert();
-    }
-    state = state.copyWith(mode: mode);
-  }
-
+  /// 清空当前对话。
+  ///
+  /// **不再**释放本地引擎（本地 LiteRT 已下线）——以前这里
+  /// `release()` 掉引擎再 `_initLiteRT()` 重来一遍。
+  ///
+  /// 也**不**销毁多模态管理器：它的 `dispose()` 会把录音器关掉，
+  /// 而这个管理器是被复用的 —— 销毁一次之后语音录制就永久失灵了。
+  /// 会话 id 一并清掉，下一条消息在端脑侧开一个**新会话**。
   Future<void> reset() async {
-    await _litertEngine.release();
-    await _multimodalManager.dispose();
+    _currentSessionId = null;
     state = const ChatState();
-    await _initLiteRT();
   }
 
   void clearError() {
     state = state.copyWith(errorMessage: null);
   }
 }
-
-/// Provider for ModelManager (singleton)
-final modelManagerProvider = Provider<ModelManager>((ref) {
-  return ModelManager();
-});
-
-/// Provider for LitertEngine
-final litertEngineProvider = Provider<LitertEngine>((ref) {
-  return LitertEngine();
-});
 
 /// Provider for TtsEngine
 final ttsEngineProvider = Provider<TtsEngine>((ref) {
@@ -965,7 +404,6 @@ final ttsEngineProvider = Provider<TtsEngine>((ref) {
 /// Provider for ChatNotifier
 final chatProvider = StateNotifierProvider<ChatNotifier, ChatState>((ref) {
   return ChatNotifier(
-    ref.watch(litertEngineProvider),
     ref.watch(ttsEngineProvider),
     ref.watch(telencephalonClientProvider),
     // 人设：提示词设置页存的那份（没设置就用默认人设）。
@@ -978,18 +416,4 @@ final chatProvider = StateNotifierProvider<ChatNotifier, ChatState>((ref) {
 /// Provider for MultimodalInputManager
 final multimodalInputManagerProvider = Provider<MultimodalInputManager>((ref) {
   return MultimodalInputManager();
-});
-
-/// Provider for selected model ID
-final selectedModelIdProvider = StateProvider<String?>((ref) => null);
-
-/// Provider for model list (notifies on changes)
-final modelListProvider = Provider<List<ModelItem>>((ref) {
-  final modelManager = ref.watch(modelManagerProvider);
-  return modelManager.models;
-});
-
-/// Provider for available agents
-final availableAgentsProvider = Provider<List<Agent>>((ref) {
-  return Agents.allAgents;
 });

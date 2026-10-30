@@ -7,15 +7,12 @@ import 'package:go_router/go_router.dart';
 import '../generated/l10n/app_localizations.dart';
 import '../providers/chat_provider.dart';
 import '../providers/genui_provider.dart';
-import '../providers/network_provider.dart';
 import '../providers/wake_word_provider.dart';
 import '../services/wake_word_service.dart';
 import '../providers/conversation_mode_provider.dart';
-import '../services/network_service.dart';
 import '../utils/chat_state_l10n.dart';
 import '../widgets/continue_on_desktop_dialog.dart';
 import '../widgets/chat/local_chat_view.dart';
-import '../widgets/chat/prefrontal_chat_view.dart';
 import '../widgets/chat/agent2ui_view.dart';
 import '../widgets/chat/mode_switcher.dart';
 import '../widgets/chat/conversation_mode_switcher.dart';
@@ -33,9 +30,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final TextEditingController _promptController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   ProviderSubscription<AsyncValue<WakeWordEvent>>? _wakeWordSub;
-
-  /// 「等 WiFi」的订阅 —— 连上 WiFi 后自动开始下载模型。
-  StreamSubscription<NetworkType>? _wifiWaitSub;
 
   @override
   void initState() {
@@ -67,7 +61,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   void dispose() {
     _wakeWordSub?.close();
-    _wifiWaitSub?.cancel();
     _promptController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -84,8 +77,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       }
     });
   }
-
-  bool _downloadDialogShown = false;
 
   @override
   Widget build(BuildContext context) {
@@ -127,33 +118,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       }
     });
 
-    final bool modelNotReady =
-        chatState.modelNotFound &&
-        chatState.mode == ChatMode.litert &&
-        !useAgent2UI;
-
-    if (modelNotReady && !_downloadDialogShown) {
-      _downloadDialogShown = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        _showDownloadDialog();
-      });
-    } else if (!modelNotReady && _downloadDialogShown) {
-      _downloadDialogShown = false;
-    }
-
-    final isAgent2UI = chatState.mode == ChatMode.off && useAgent2UI;
-    final isLitertMode = chatState.mode == ChatMode.litert;
+    // 「本地模型没准备好就弹下载框」那一段**整块删掉**了 ——
+    // 移动端本地 LiteRT 已下线，模型不再由客户端下载，
+    // 也没有「模型不存在」这个状态可言。
+    final isAgent2UI = useAgent2UI;
 
     String getModeTitle() {
       if (isAgent2UI) return l10n.agent2UI;
-      if (isLitertMode) return l10n.liteRT;
       return l10n.appTitle;
     }
 
     IconData getModeIcon() {
       if (isAgent2UI) return Icons.psychology;
-      if (isLitertMode) return Icons.smart_toy;
       return Icons.chat_bubble_outline;
     }
 
@@ -170,9 +146,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ],
         ),
         actions: [
-          if ((chatState.isInitialized || chatState.isLitertReady) &&
-              !isAgent2UI &&
-              chatState.sessionId != null)
+          // ⚠️ 这里**曾经**是 `chatState.isInitialized || chatState.isLitertReady`。
+          // 那两个字段说的都是**本地** LiteRT 引擎 ⇒ 在移动端**恒为假**
+          // ⇒ AppBar 右侧三个入口（继续在桌面 / 语音 / 设置）**永远不可见**，
+          // 「设置」页从此进不去。
+          //
+          // 现在判据是 `canChat`（恒真 —— 本地引擎下线后没有前置条件了），
+          // 「继续在桌面」额外要求**已经有会话**（sessionId 在首条消息后才有）。
+          if (!isAgent2UI && chatState.sessionId != null)
             IconButton(
               icon: const Icon(Icons.swap_horiz),
               onPressed: () {
@@ -183,11 +164,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               },
               tooltip: l10n.continueDesktopTitle,
             ),
-          if ((chatState.isInitialized || chatState.isLitertReady) &&
-              !isAgent2UI)
+          if (!isAgent2UI)
             const ModeSwitcher(),
-          if ((chatState.isInitialized || chatState.isLitertReady) &&
-              !isAgent2UI)
+          // Agent2UI（A2A / GenUI）的入口。
+          //
+          // 以前唯一的入口是「本地模型没装好 → 弹下载框 → Use Agent2UI」
+          // 那个逃生口 —— 下载框下线之后就没有入口了，所以补一个常驻按钮，
+          // 不然这个形态会变成**只能进不能出**的死功能。
+          if (!isAgent2UI)
+            IconButton(
+              icon: const Icon(Icons.widgets_outlined),
+              onPressed: () =>
+                  ref.read(useAgent2UIModeProvider.notifier).state = true,
+              tooltip: l10n.agent2UI,
+            ),
+          if (!isAgent2UI)
             IconButton(
               icon: const Icon(Icons.settings),
               onPressed: () =>
@@ -203,8 +194,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           Expanded(
             child: isAgent2UI
                 ? const Agent2UIView()
-                : isLitertMode
-                ? const PrefrontalChatView()
                 : LocalChatView(
                     chatState: chatState,
                     l10n: l10n,
@@ -242,18 +231,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     _promptController.clear();
 
-    if (chatState.mode == ChatMode.litert && chatState.isLitertReady) {
+    if (hasAttachments) {
+      // 端脑链路**只处理纯文本** ⇒ 带附件会明确报错（错误横幅说清楚原因）。
+      // 以前这里是「静默清掉附件、只发文字」—— 用户以为图发出去了，
+      // 其实那张图根本没进对话。
       ref
           .read(chatProvider.notifier)
           .generateResponseWithAttachments(prompt, chatState.attachments);
-    } else {
-      // 清除附件（如果已发送）
-      if (hasAttachments) {
-        ref.read(chatProvider.notifier).clearAttachments();
-      }
-      if (prompt.isNotEmpty) {
-        ref.read(chatProvider.notifier).generateResponse(prompt);
-      }
+      return;
+    }
+
+    if (prompt.isNotEmpty) {
+      ref.read(chatProvider.notifier).generateResponse(prompt);
     }
   }
 
@@ -272,167 +261,5 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         },
       },
     );
-  }
-
-  void _showDownloadDialog() async {
-    if (!mounted) return;
-    final l10n = AppLocalizations.of(context)!;
-    final chatNotifier = ref.read(chatProvider.notifier);
-    final networkService = ref.read(networkServiceProvider);
-    final networkType = await networkService.getNetworkType();
-    // 网络类型是异步查的 —— 返回时这个页面可能已经被关掉了。
-    if (!mounted) return;
-    final chatState = ref.read(chatProvider);
-    final agent = chatState.currentAgent;
-    final modelSize = agent.model.sizeString;
-
-    if (networkType == NetworkType.mobile) {
-      final result = await showDialog<String>(
-        context: context,
-        barrierDismissible: false,
-        builder: (dialogContext) => AlertDialog(
-          title: Text(l10n.mobileNetworkDetected),
-          content: Text(l10n.downloadOnMobile(modelSize)),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop('wifi'),
-              child: Text(l10n.waitForWifi),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop('download'),
-              child: Text(l10n.downloadNow),
-            ),
-          ],
-        ),
-      );
-
-      if (result == 'wifi') {
-        // 「等待 WiFi」= 现在不下载，等连上 WiFi 再自动下载。
-        //
-        // 原来的实现是 `navigator.pop()` —— 弹掉的是**当前路由**。而 /chat
-        // 是路由表的 initialLocation（根导航器上的第一个路由），弹掉之后
-        // 根导航器里就没有任何路由了 → 整个 App 黑屏。
-        //
-        // 「等 WiFi」是一个**推迟**动作，不是「离开」—— 它根本不该导航。
-        _waitForWifiThenDownload();
-        return;
-      }
-    }
-
-    // 上面 await 过一个对话框 —— 页面可能已经被关掉了。
-    if (!mounted) return;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) {
-        return Consumer(
-          builder: (context, ref, child) {
-            final chatState = ref.watch(chatProvider);
-            final progress = chatState.downloadProgress;
-            final isDownloading = progress >= 0 && progress < 1;
-            final isComplete = chatState.isLitertReady;
-            final hasError = chatState.errorMessage != null && !isDownloading;
-            final currentAgent = chatState.currentAgent;
-
-            return AlertDialog(
-              title: Text(
-                '${l10n.downloadNow} ${currentAgent.model.displayName}',
-              ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    networkType == NetworkType.mobile
-                        ? l10n.mobileNetworkDetected
-                        : 'This model (${currentAgent.model.sizeString}) is required for ${currentAgent.type.displayName}. '
-                              'Download from hf-mirror.com (China mirror)?',
-                  ),
-                  const SizedBox(height: 24),
-                  if (isDownloading) ...[
-                    LinearProgressIndicator(value: progress),
-                    const SizedBox(height: 8),
-                    Text('${(progress * 100).toStringAsFixed(1)}%'),
-                  ] else if (isComplete) ...[
-                    const Icon(
-                      Icons.check_circle,
-                      color: Colors.green,
-                      size: 48,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(l10n.downloadComplete),
-                  ] else if (hasError) ...[
-                    const Icon(
-                      Icons.error_outline,
-                      color: Colors.red,
-                      size: 48,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      chatState.errorMessage ?? l10n.downloadFailed,
-                      style: const TextStyle(color: Colors.red),
-                    ),
-                  ] else ...[
-                    const CircularProgressIndicator(),
-                  ],
-                ],
-              ),
-              actions: [
-                if (hasError)
-                  TextButton(
-                    onPressed: () => Navigator.of(dialogContext).pop(),
-                    child: Text(l10n.cancel),
-                  ),
-                if (!isComplete && !isDownloading) ...[
-                  TextButton(
-                    onPressed: () {
-                      ref.read(useAgent2UIModeProvider.notifier).state = true;
-                      ref.read(chatProvider.notifier).setMode(ChatMode.off);
-                      Navigator.of(dialogContext).pop();
-                    },
-                    child: const Text('Use Agent2UI'),
-                  ),
-                  TextButton(
-                    onPressed: () => chatNotifier.downloadModel(),
-                    child: Text(l10n.downloadNow),
-                  ),
-                ],
-                if (isComplete)
-                  TextButton(
-                    onPressed: () => Navigator.of(dialogContext).pop(),
-                    child: Text(l10n.startChatting),
-                  ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
-  /// 「等待 WiFi」—— 现在不下载，**等连上 WiFi 自动开始下载**。
-  ///
-  /// 为什么要有这一段：用户点「等待 WiFi」表达的是「别用流量下载」，
-  /// 不是「离开这个页面」。之前的实现直接 `navigator.pop()` 把当前路由
-  /// 弹掉了 —— /chat 是路由表的 initialLocation，弹掉之后根导航器空了，
-  /// 整个 App 黑屏（真机反馈）。现在改成：留在原地 + 订阅网络变化。
-  ///
-  /// `_downloadDialogShown` 保持 true —— 否则 build 里 `modelNotReady` 会
-  /// 立刻把这个对话框再弹一遍，变成「关掉又弹」的死循环。
-  void _waitForWifiThenDownload() {
-    _wifiWaitSub?.cancel();
-    _wifiWaitSub = ref.read(networkServiceProvider).onNetworkTypeChanged.listen(
-      (type) {
-        if (type != NetworkType.wifi) return;
-        _wifiWaitSub?.cancel();
-        _wifiWaitSub = null;
-        if (!mounted) return;
-        ref.read(chatProvider.notifier).downloadModel();
-      },
-    );
-
-    final l10n = AppLocalizations.of(context)!;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(l10n.waitingForWifiHint)));
   }
 }

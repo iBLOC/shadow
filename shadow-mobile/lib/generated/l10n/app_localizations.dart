@@ -2069,8 +2069,62 @@ abstract class AppLocalizations {
   /// No description provided for @taskEditPersistenceNote.
   ///
   /// In en, this message translates to:
-  /// **'Hippocampus only persists status and tags - title and description have no matching columns and are not saved.'**
+  /// **'Telencephalon task: the status can be changed at any time; the title, description, priority and tags are only written when the task is created.'**
   String get taskEditPersistenceNote;
+
+  /// No description provided for @taskDueTime.
+  ///
+  /// In en, this message translates to:
+  /// **'Due'**
+  String get taskDueTime;
+
+  /// No description provided for @taskDueTimeField.
+  ///
+  /// In en, this message translates to:
+  /// **'Due date'**
+  String get taskDueTimeField;
+
+  /// No description provided for @taskDueTimeHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Optional. Relative times such as \"tomorrow 3pm\" are accepted.'**
+  String get taskDueTimeHint;
+
+  /// No description provided for @taskConfirmationPoints.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirmation points'**
+  String get taskConfirmationPoints;
+
+  /// No description provided for @taskNoConfirmationPoints.
+  ///
+  /// In en, this message translates to:
+  /// **'This task has no confirmation points'**
+  String get taskNoConfirmationPoints;
+
+  /// No description provided for @taskConfirmState.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirmation'**
+  String get taskConfirmState;
+
+  /// No description provided for @taskConfirmed.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirmed'**
+  String get taskConfirmed;
+
+  /// No description provided for @taskAwaitingConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Awaiting confirmation'**
+  String get taskAwaitingConfirm;
+
+  /// No description provided for @taskConfirmAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm task'**
+  String get taskConfirmAction;
 
   /// No description provided for @taskOverview.
   ///
@@ -2624,11 +2678,11 @@ abstract class AppLocalizations {
   /// **'Hello! I am Shadow. How can I help you?'**
   String get chatGreeting;
 
-  /// No description provided for @chatImageNotAvailable.
+  /// No description provided for @chatAttachmentNotAvailable.
   ///
   /// In en, this message translates to:
-  /// **'LiteRT image support is not available yet - please wait for a version update'**
-  String get chatImageNotAvailable;
+  /// **'Only plain text is supported right now - images, files and other attachments are not supported yet'**
+  String get chatAttachmentNotAvailable;
 
   /// No description provided for @chatVoiceModelRequired.
   ///
@@ -2911,6 +2965,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Inference failed'**
   String get encephalonInferFailed;
+
+  /// No description provided for @encephalonModelSourceTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Brain model source'**
+  String get encephalonModelSourceTitle;
+
+  /// No description provided for @encephalonModelSourceHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Switching the model source restarts the embedded brain (the LLM upstream is fixed at boot).'**
+  String get encephalonModelSourceHint;
+
+  /// No description provided for @encephalonModelLocalNeuron.
+  ///
+  /// In en, this message translates to:
+  /// **'Local neuron weights'**
+  String get encephalonModelLocalNeuron;
+
+  /// No description provided for @encephalonModelCloud.
+  ///
+  /// In en, this message translates to:
+  /// **'Cloud provider'**
+  String get encephalonModelCloud;
+
+  /// No description provided for @encephalonModelNoCloudProvider.
+  ///
+  /// In en, this message translates to:
+  /// **'No cloud provider configured yet - add one in Model management first.'**
+  String get encephalonModelNoCloudProvider;
+
+  /// No description provided for @encephalonModelSourceApplied.
+  ///
+  /// In en, this message translates to:
+  /// **'New model source applied'**
+  String get encephalonModelSourceApplied;
+
+  /// No description provided for @encephalonModelSourceFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to switch the model source'**
+  String get encephalonModelSourceFailed;
 
   /// No description provided for @settingsAppearance.
   ///

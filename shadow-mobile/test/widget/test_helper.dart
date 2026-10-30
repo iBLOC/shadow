@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'package:shadow_mobile/generated/l10n/app_localizations.dart';
-import 'package:shadow_mobile/litert_engine.dart';
 import 'package:shadow_mobile/providers/chat_provider.dart';
 import 'package:shadow_mobile/providers/conversation_mode_provider.dart';
 import 'package:shadow_mobile/providers/genui_provider.dart';
@@ -84,8 +83,9 @@ class MockThemeNotifier extends ThemeModeNotifier {
 }
 
 class MockChatNotifier extends ChatNotifier {
-  MockChatNotifier()
-    : super(LitertEngine(), TtsEngine(), TelencephalonClient(), skipInit: true);
+  // 移动端本地 LiteRT 已下线 ⇒ notifier 只剩两个依赖（TTS + 端脑 client）。
+  // 以前是 `(LitertEngine, TtsEngine, TelencephalonClient, skipInit: true)`。
+  MockChatNotifier() : super(TtsEngine(), TelencephalonClient());
 }
 
 class MockConversationModeNotifier extends ConversationModeNotifier {

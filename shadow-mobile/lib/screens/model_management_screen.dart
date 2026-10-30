@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../generated/l10n/app_localizations.dart';
-import '../providers/chat_provider.dart';
 import '../services/database/database_helper.dart';
 import '../services/database/repository_factory.dart';
 import '../services/database/repositories.dart';
 import '../services/database/model_item.dart';
+import '../services/encephalon/encephalon_mobile_provider.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/empty_state.dart';
 import '../theme/app_colors.dart';
@@ -52,11 +52,12 @@ class ModelsState {
     return models.where((m) => m.modelType == typeFilter).toList();
   }
 
-  List<ModelItem> get localModels =>
-      filteredModels.where((m) => m.source == ModelSource.localEngine).toList();
-  List<ModelItem> get internalServiceModels => filteredModels
-      .where((m) => m.source == ModelSource.internalService)
-      .toList();
+  /// 云端供应商模型。
+  ///
+  /// ⚠️ 以前还有 `localModels`（本地引擎模型）和 `internalServiceModels`
+  /// 两个 getter —— 前者对应 LiteRT 本地引擎（已下线，没有本地引擎了），
+  /// 后者**全仓没有任何一处**创建过 `ModelSource.internalService` 的条目
+  /// ⇒ 那个分段永远是空的。两个都删掉。
   List<ModelItem> get cloudModels => filteredModels
       .where((m) => m.source == ModelSource.cloudProvider)
       .toList();
@@ -94,31 +95,6 @@ class ModelsNotifier extends StateNotifier<ModelsState> {
 
   void setTypeFilter(ModelType? type) {
     state = state.copyWith(typeFilter: type);
-  }
-
-  Future<void> addLocalModel(
-    String name,
-    String path,
-    String type,
-    int size, {
-    ModelSource source = ModelSource.localEngine,
-  }) async {
-    try {
-      final model = ModelItem(
-        id: '${source.name}_${DateTime.now().millisecondsSinceEpoch}',
-        name: name,
-        path: path,
-        type: type,
-        size: size,
-        isLoaded: true,
-        isLocal: source == ModelSource.localEngine,
-        source: source,
-      );
-      await _repository.insert(model);
-      await loadModels();
-    } catch (e) {
-      state = state.copyWith(error: e.toString());
-    }
   }
 
   Future<void> addCloudModel(
@@ -167,40 +143,55 @@ class ModelsNotifier extends StateNotifier<ModelsState> {
   }
 }
 
-class _EngineStatusBar extends StatelessWidget {
-  final bool isLitertReady;
-  final String modelName;
-  final String engineName;
-
-  const _EngineStatusBar({
-    required this.isLitertReady,
-    required this.modelName,
-    required this.engineName,
-  });
+/// 嵌入式大脑的状态条。
+///
+/// ⚠️ 这里**曾经**是 `_EngineStatusBar`，显示的是**本地 LiteRT 引擎**：
+/// `isLitertReady` / `currentAgent.model.displayName` /
+/// `mode == ChatMode.litert ? 'LiteRT' : 'MNN'`。
+///
+/// 本地 LiteRT 下线之后：
+///   - `isLitertReady` **恒为假** ⇒ 那根条**永远**显示「引擎未运行」；
+///   - `currentAgent` / `ChatMode` 这两个字段本身都不存在了。
+///
+/// 现在显示的是**真正在跑的那个东西** —— 嵌入式大脑（端脑面 + 推理）。
+/// 它是移动端唯一的推理来源，状态条得说实话。
+class _BrainStatusBar extends ConsumerWidget {
+  const _BrainStatusBar();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final brain = ref.watch(encephalonMobileProvider);
+    final l10n = AppLocalizations.of(context)!;
+
+    final running = brain.status == EncephalonMobileStatus.running;
+    final statusText = switch (brain.status) {
+      EncephalonMobileStatus.running => l10n.encephalonStatusRunning,
+      EncephalonMobileStatus.starting => l10n.encephalonStatusStarting,
+      EncephalonMobileStatus.stopping => l10n.encephalonStatusStopping,
+      EncephalonMobileStatus.error => l10n.encephalonStatusError,
+      EncephalonMobileStatus.stopped => l10n.encephalonStatusStopped,
+    };
+    final color = brain.status == EncephalonMobileStatus.error
+        ? AppColors.error
+        : running
+        ? AppColors.success
+        : AppColors.darkTextSecondary;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: isLitertReady
-            ? AppColors.success.withValues(alpha: 0.1)
-            : AppColors.darkTextSecondary.withValues(alpha: 0.1),
+        color: color.withValues(alpha: 0.1),
         border: Border(
           bottom: BorderSide(
-            color: isLitertReady
-                ? AppColors.success.withValues(alpha: 0.3)
-                : AppColors.darkBorder,
+            color: running ? AppColors.success.withValues(alpha: 0.3) : AppColors.darkBorder,
           ),
         ),
       ),
       child: Row(
         children: [
           Icon(
-            isLitertReady ? Icons.play_circle_filled : Icons.circle_outlined,
-            color: isLitertReady
-                ? AppColors.success
-                : AppColors.darkTextSecondary,
+            running ? Icons.play_circle_filled : Icons.circle_outlined,
+            color: color,
             size: 20,
           ),
           const SizedBox(width: 12),
@@ -209,30 +200,29 @@ class _EngineStatusBar extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  isLitertReady ? AppLocalizations.of(context)!.modelEngineRunning : AppLocalizations.of(context)!.modelEngineStopped,
+                  l10n.settingsEncephalonEmbedded,
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
-                    color: isLitertReady
-                        ? AppColors.success
-                        : AppColors.darkTextSecondary,
+                    color: color,
                   ),
                 ),
-                if (isLitertReady)
-                  Text(
-                    '$engineName • $modelName',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: AppColors.darkTextSecondary,
-                    ),
+                Text(
+                  running && brain.agentPort != null
+                      ? '$statusText • ${l10n.encephalonPort(brain.agentPort!)}'
+                      : statusText,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppColors.darkTextSecondary,
                   ),
+                ),
               ],
             ),
           ),
-          if (isLitertReady)
+          if (running)
             Chip(
               label: Text(
-                engineName,
+                statusText,
                 style: const TextStyle(fontSize: 10, color: Colors.white),
               ),
               backgroundColor: AppColors.success,
@@ -253,39 +243,7 @@ class ModelManagementScreen extends ConsumerStatefulWidget {
       _ModelManagementScreenState();
 }
 
-class _ModelManagementScreenState extends ConsumerState<ModelManagementScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
-  void _addLocalModel(BuildContext context) async {
-    final result = await showDialog<Map<String, String>>(
-      context: context,
-      builder: (_) => const LocalModelConfigDialog(),
-    );
-    if (result != null) {
-      ref
-          .read(modelsProvider.notifier)
-          .addLocalModel(
-            result['name'] ?? 'New Local Model',
-            result['path'] ?? '',
-            'text',
-            int.tryParse(result['size'] ?? '0') ?? 0,
-          );
-    }
-  }
-
+class _ModelManagementScreenState extends ConsumerState<ModelManagementScreen> {
   void _addCloudModel(BuildContext context) async {
     final result = await showDialog<Map<String, String>>(
       context: context,
@@ -306,7 +264,6 @@ class _ModelManagementScreenState extends ConsumerState<ModelManagementScreen>
   @override
   Widget build(BuildContext context) {
     final modelsState = ref.watch(modelsProvider);
-    final chatState = ref.watch(chatProvider);
     final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
@@ -315,182 +272,29 @@ class _ModelManagementScreenState extends ConsumerState<ModelManagementScreen>
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: Text(l10n.models),
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: [
-            Tab(text: l10n.localModels),
-            Tab(text: l10n.modelStore),
-          ],
-        ),
+        // ⚠️ 以前这里是两个 tab：「本地模型」/「模型商店」。
+        //
+        // 「本地模型」那一摊（LiteRT 引擎模型 + 内部服务模型）在本地
+        // LiteRT 下线之后**没有任何东西可显示**：
+        //   - 本地引擎模型：没有本地引擎了，没有引擎会注册模型；
+        //   - 内部服务模型：全仓**没有任何一处**创建 `internalService` 条目。
+        // 而它里面剩下的「云端供应商」分段又和「模型商店」**完全重复**。
+        //
+        // 所以现在只有一个列表：云端供应商模型 —— 移动端唯一还能用的模型
+        // 来源（嵌入式大脑的 `_applyCloudProvider()` 就读它）。
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _showAddModelSheet(context),
-        tooltip: l10n.addModel,
+        onPressed: () => _addCloudModel(context),
+        tooltip: l10n.addCloudModel,
         child: const Icon(Icons.add),
       ),
       body: Column(
         children: [
-          _EngineStatusBar(
-            isLitertReady: chatState.isLitertReady,
-            modelName: chatState.currentAgent.model.displayName,
-            engineName: chatState.mode == ChatMode.litert ? 'LiteRT' : 'MNN',
-          ),
+          const _BrainStatusBar(),
           Expanded(
             child: modelsState.isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : TabBarView(
-                    controller: _tabController,
-                    children: [
-                      _buildLocalModelsTab(context, modelsState),
-                      _buildCloudModelsTab(context, modelsState),
-                    ],
-                  ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// 添加入口：本地模型 / 云端模型。
-  ///
-  /// 空状态提示「点击右下角添加模型」（`modelEmptyHint`）指的就是这个
-  /// 按钮 —— 但 `_addLocalModel` / `_addCloudModel` 之前**定义了却没有任何
-  /// 调用方**，所以那句提示是骗人的：用户点了右下角什么也不会发生，
-  /// 于是「云端供应商」在移动端根本配不出来。这里把入口补上。
-  Future<void> _showAddModelSheet(BuildContext context) async {
-    final l10n = AppLocalizations.of(context)!;
-    final choice = await showModalBottomSheet<String>(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.memory),
-              title: Text(l10n.addLocalModel),
-              onTap: () => Navigator.pop(ctx, 'local'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.cloud),
-              title: Text(l10n.addCloudModel),
-              onTap: () => Navigator.pop(ctx, 'cloud'),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (!context.mounted) return;
-    if (choice == 'local') {
-      _addLocalModel(context);
-    } else if (choice == 'cloud') {
-      _addCloudModel(context);
-    }
-  }
-
-  Widget _buildLocalModelsTab(BuildContext context, ModelsState state) {
-    final localModels = state.localModels;
-    final internalModels = state.internalServiceModels;
-    final cloudModels = state.cloudModels;
-
-    if (localModels.isEmpty && internalModels.isEmpty && cloudModels.isEmpty) {
-      return EmptyState(
-        icon: Icons.model_training,
-        title: AppLocalizations.of(context)!.modelEmpty,
-        description: AppLocalizations.of(context)!.modelEmptyHint,
-      );
-    }
-
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              Text(AppLocalizations.of(context)!.modelTypeLabel, style: TextStyle(fontSize: 13)),
-              const SizedBox(width: 8),
-              SegmentedButton<ModelType?>(
-                segments: [
-                  ButtonSegment(
-                    value: null,
-                    label: Text(AppLocalizations.of(context)!.commonAll, style: TextStyle(fontSize: 11)),
-                  ),
-                  ButtonSegment(
-                    value: ModelType.llm,
-                    label: Text('LLM', style: TextStyle(fontSize: 11)),
-                  ),
-                  ButtonSegment(
-                    value: ModelType.tts,
-                    label: Text('TTS', style: TextStyle(fontSize: 11)),
-                  ),
-                ],
-                selected: {state.typeFilter},
-                onSelectionChanged: (selected) {
-                  ref
-                      .read(modelsProvider.notifier)
-                      .setTypeFilter(selected.first);
-                },
-              ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            children: [
-              if (localModels.isNotEmpty) ...[
-                _buildSectionHeader(context, AppLocalizations.of(context)!.modelLiteRtEngine, Icons.memory),
-                ...localModels.map(
-                  (m) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: _LocalModelCard(model: m),
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ],
-              if (internalModels.isNotEmpty) ...[
-                _buildSectionHeader(context, AppLocalizations.of(context)!.modelInternalService, Icons.cloud_done),
-                ...internalModels.map(
-                  (m) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: _LocalModelCard(model: m),
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ],
-              if (cloudModels.isNotEmpty) ...[
-                _buildSectionHeader(context, AppLocalizations.of(context)!.modelCloudProvider, Icons.cloud),
-                ...cloudModels.map(
-                  (m) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: _LocalModelCard(model: m),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSectionHeader(
-    BuildContext context,
-    String title,
-    IconData icon,
-  ) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        children: [
-          Icon(icon, size: 18, color: AppColors.primary),
-          const SizedBox(width: 8),
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: AppColors.primary,
-            ),
+                : _buildCloudModelsTab(context, modelsState),
           ),
         ],
       ),
@@ -522,85 +326,6 @@ class _ModelManagementScreenState extends ConsumerState<ModelManagementScreen>
                 ),
         ),
       ],
-    );
-  }
-}
-
-class _LocalModelCard extends ConsumerWidget {
-  final ModelItem model;
-
-  const _LocalModelCard({required this.model});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return GlassCard(
-      child: Row(
-        children: [
-          CircleAvatar(
-            backgroundColor: model.isLoaded
-                ? AppColors.success.withValues(alpha: 0.2)
-                : AppColors.darkTextSecondary.withValues(alpha: 0.2),
-            child: Icon(
-              Icons.model_training,
-              color: model.isLoaded
-                  ? AppColors.success
-                  : AppColors.darkTextSecondary,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  model.name,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  '${model.type} • ${(model.size / 1024).toStringAsFixed(1)} MB',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ],
-            ),
-          ),
-          if (model.isLoaded)
-            Chip(
-              label: Text(AppLocalizations.of(context)!.modelLoaded),
-              backgroundColor: Colors.green,
-              labelStyle: TextStyle(color: Colors.white, fontSize: 10),
-            ),
-          IconButton(
-            icon: const Icon(Icons.delete, color: Colors.red),
-            onPressed: () => _confirmDelete(context, ref),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _confirmDelete(BuildContext context, WidgetRef ref) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(AppLocalizations.of(context)!.commonConfirmDelete),
-        content: Text(AppLocalizations.of(context)!.commonDeleteConfirmNamed(model.name)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(AppLocalizations.of(context)!.cancel),
-          ),
-          TextButton(
-            onPressed: () {
-              ref.read(modelsProvider.notifier).deleteModel(model.id);
-              Navigator.pop(context);
-            },
-            child: Text(AppLocalizations.of(context)!.commonDelete, style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -670,85 +395,6 @@ class _CloudModelCard extends ConsumerWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class LocalModelConfigDialog extends StatefulWidget {
-  const LocalModelConfigDialog({super.key});
-
-  @override
-  State<LocalModelConfigDialog> createState() => _LocalModelConfigDialogState();
-}
-
-class _LocalModelConfigDialogState extends State<LocalModelConfigDialog> {
-  final _nameController = TextEditingController();
-  final _pathController = TextEditingController();
-  final _sizeController = TextEditingController();
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _pathController.dispose();
-    _sizeController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(AppLocalizations.of(context)!.modelAddLocalTitle),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: _nameController,
-              decoration: InputDecoration(
-                labelText: AppLocalizations.of(context)!.modelNameField,
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _pathController,
-              decoration: InputDecoration(
-                labelText: AppLocalizations.of(context)!.modelPathField,
-                border: OutlineInputBorder(),
-                hintText: 'assets/models/xxx',
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _sizeController,
-              decoration: InputDecoration(
-                labelText: AppLocalizations.of(context)!.modelSizeField,
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.number,
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text(AppLocalizations.of(context)!.cancel),
-        ),
-        FilledButton(
-          onPressed: () {
-            if (_nameController.text.isNotEmpty &&
-                _pathController.text.isNotEmpty) {
-              Navigator.pop(context, {
-                'name': _nameController.text,
-                'path': _pathController.text,
-                'size': _sizeController.text,
-              });
-            }
-          },
-          child: Text(AppLocalizations.of(context)!.commonAdd),
-        ),
-      ],
     );
   }
 }

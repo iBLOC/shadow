@@ -1046,7 +1046,35 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get taskEditPersistenceNote =>
-      'Hippocampus only persists status and tags - title and description have no matching columns and are not saved.';
+      'Telencephalon task: the status can be changed at any time; the title, description, priority and tags are only written when the task is created.';
+
+  @override
+  String get taskDueTime => 'Due';
+
+  @override
+  String get taskDueTimeField => 'Due date';
+
+  @override
+  String get taskDueTimeHint =>
+      'Optional. Relative times such as \"tomorrow 3pm\" are accepted.';
+
+  @override
+  String get taskConfirmationPoints => 'Confirmation points';
+
+  @override
+  String get taskNoConfirmationPoints => 'This task has no confirmation points';
+
+  @override
+  String get taskConfirmState => 'Confirmation';
+
+  @override
+  String get taskConfirmed => 'Confirmed';
+
+  @override
+  String get taskAwaitingConfirm => 'Awaiting confirmation';
+
+  @override
+  String get taskConfirmAction => 'Confirm task';
 
   @override
   String get taskOverview => 'Overview';
@@ -1393,8 +1421,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatGreeting => 'Hello! I am Shadow. How can I help you?';
 
   @override
-  String get chatImageNotAvailable =>
-      'LiteRT image support is not available yet - please wait for a version update';
+  String get chatAttachmentNotAvailable =>
+      'Only plain text is supported right now - images, files and other attachments are not supported yet';
 
   @override
   String get chatVoiceModelRequired =>
@@ -1572,6 +1600,29 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get encephalonInferFailed => 'Inference failed';
+
+  @override
+  String get encephalonModelSourceTitle => 'Brain model source';
+
+  @override
+  String get encephalonModelSourceHint =>
+      'Switching the model source restarts the embedded brain (the LLM upstream is fixed at boot).';
+
+  @override
+  String get encephalonModelLocalNeuron => 'Local neuron weights';
+
+  @override
+  String get encephalonModelCloud => 'Cloud provider';
+
+  @override
+  String get encephalonModelNoCloudProvider =>
+      'No cloud provider configured yet - add one in Model management first.';
+
+  @override
+  String get encephalonModelSourceApplied => 'New model source applied';
+
+  @override
+  String get encephalonModelSourceFailed => 'Failed to switch the model source';
 
   @override
   String get settingsAppearance => 'Appearance';
