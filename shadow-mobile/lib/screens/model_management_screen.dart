@@ -5,6 +5,17 @@ import '../services/database/database_helper.dart';
 import '../services/database/repository_factory.dart';
 import '../services/database/repositories.dart';
 import '../services/database/model_item.dart';
+// ⚠️ 这里**故意**形成了一个**循环 import**：
+// `model_management_screen.dart` → `encephalon_mobile_provider.dart`
+// → （为了拿 `modelsProvider`）→ `model_management_screen.dart`。
+//
+// 循环的根源是 `modelsProvider` / `ModelsNotifier` / `modelRepositoryProvider`
+// 定义在**这个页面文件**里，而端脑启动时要读它（把云端供应商交给大脑）。
+// Dart 允许循环 import（顶层变量都是惰性初始化），实测编译与运行都正常。
+//
+// 真正的解法是把 `modelsProvider` 挪到独立的 provider 文件，但那会动到
+// 同仓另一条线（任务看板 / 大脑模型来源）正在改的 import ⇒ 这轮先不动，
+// 只把这里记清楚，别让下一个人以为是手滑。
 import '../services/encephalon/encephalon_mobile_provider.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/empty_state.dart';
