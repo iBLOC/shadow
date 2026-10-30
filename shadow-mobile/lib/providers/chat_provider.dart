@@ -1,11 +1,15 @@
+import 'dart:async';
 import 'dart:typed_data';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 import '../tts_engine.dart';
 import '../multimodal/multimodal.dart';
 import '../services/telencephalon/telencephalon_client.dart';
+import '../services/client_tools/client_tool_registry.dart';
 import 'conversation_mode_provider.dart';
 import 'telencephalon_provider.dart';
+import 'theme_provider.dart';
 import '../l10n/current_l10n.dart';
 import '../agents/main_agent/main_agent_prompt.dart';
 import '../agents/providers/agent_provider.dart';
@@ -17,11 +21,18 @@ class ChatMessageModel {
   final String? attachmentPath;
   final MultimodalInputType? attachmentType;
 
+  /// 这条消息其实是**一张工具调用卡片**（不是文字气泡）。
+  ///
+  /// 端脑让客户端干活时（换主题之类），对话流里插入一条 `role=assistant`
+  /// 但 `content` 为空、带着 [toolCall] 的消息 —— UI 渲染成卡片。
+  final ToolCallModel? toolCall;
+
   ChatMessageModel(
     this.content,
     this.role, {
     this.attachmentPath,
     this.attachmentType,
+    this.toolCall,
   });
 }
 
@@ -130,6 +141,19 @@ class _CopyWithOmit {
   const _CopyWithOmit();
 }
 
+/// 等用户点头的一次工具调用。
+class _PendingToolCall {
+  final String sessionId;
+  final ToolCallModel model;
+  final ClientTool tool;
+
+  const _PendingToolCall({
+    required this.sessionId,
+    required this.model,
+    required this.tool,
+  });
+}
+
 /// 没有配置人设时的取值。
 ///
 /// 具名函数而不是闭包字面量 —— 初始化列表里的 `() => null` 会被 Dart
@@ -158,6 +182,25 @@ class ChatNotifier extends StateNotifier<ChatState> {
   /// 而不必重建整个 ChatNotifier（那会把当前对话冲掉）。
   final String? Function() _systemPromptProvider;
 
+  /// 客户端工具注册表 —— 端脑让**这台设备**干的活（换主题之类）。
+  ///
+  /// 与端脑本地工具的分工：端脑本地工具改端脑自己的状态，客户端工具
+  /// 改**用户眼前这台设备**的状态。
+  final ClientToolRegistry _clientTools;
+
+  /// 等用户点头的工具调用（调用 id → 这次调用的上下文）。
+  ///
+  /// 用户点「允许」之后要能接着执行 ⇒ 光有卡片不够，得把
+  /// 「会话 id + 参数 + 工具」一起留着。
+  final Map<String, _PendingToolCall> _pendingToolCalls = {};
+
+  /// 客户端合成调用 id 用的计数器。
+  ///
+  /// 端脑今天**不携带**调用 id ⇒ 客户端自己造一个。
+  /// 用**单调递增**的序号而不是随机串：同一次会话里序号唯一就够，
+  /// 而且卡片按 id 排序时是稳定的（随机串会让卡片顺序看起来乱跳）。
+  int _toolCallCounter = 0;
+
   /// 端脑侧的会话 id（`/shadow/v1/conversations/{id}`）。
   String? _currentSessionId;
 
@@ -165,7 +208,9 @@ class ChatNotifier extends StateNotifier<ChatState> {
     this._ttsEngine,
     this._telencephalonClient, {
     String? Function()? systemPromptProvider,
+    ClientToolRegistry? clientTools,
   }) : _systemPromptProvider = systemPromptProvider ?? noSystemPrompt,
+       _clientTools = clientTools ?? ClientToolRegistry(),
        super(const ChatState());
 
   // Multimodal input methods
@@ -318,9 +363,17 @@ class ChatNotifier extends StateNotifier<ChatState> {
             break;
           case 'error':
             throw Exception(event.error ?? currentL10n().chatSorryErrorShort);
+          case 'tool_call':
+            // 端脑让**这台设备**干活（换主题之类）。
+            //
+            // 这是「模型自己让客户端换主题」这条产品线的客户端一半：
+            // 端脑只负责**点名**（工具名 + 参数），真正干活的是客户端，
+            // 干完再把结果回传端脑，模型才知道主题换好了。
+            await _handleToolCall(sessionId, event);
+            break;
           default:
-            // tool_call / tool_result / route / handoff / step 等
-            // 进度事件：移动端目前不渲染，先记一条日志。
+            // tool_result / route / handoff / step 等进度事件：
+            // 移动端目前不渲染，先记一条日志。
             _log.fine('stream event: ${event.type}');
         }
       }
@@ -354,6 +407,220 @@ class ChatNotifier extends StateNotifier<ChatState> {
         streamingText: '',
       );
     }
+  }
+
+  // ---- 客户端工具（端脑让这台设备干的活）-------------------------------
+
+  /// 处理端脑发来的 `tool_call`。
+  ///
+  /// 端脑只负责**点名**（工具名 + 参数）；真正干活的是这台设备，
+  /// 干完再把结果回传端脑 —— 端脑把它喂回模型，模型才知道
+  /// 「主题已经换好了」，否则模型会一直等一个不来的结果。
+  Future<void> _handleToolCall(String sessionId, StreamEvent event) async {
+    final name = event.name;
+    if (name == null || name.isEmpty) {
+      _log.warning('tool_call event without a name — ignored');
+      return;
+    }
+    final args = event.args ?? <String, dynamic>{};
+
+    // 端脑今天**不携带**调用 id ⇒ 客户端自己合成一个，
+    // 这样「卡片」和「结果回传」能对上号。
+    final callId =
+        event.toolCallId ?? 'client-tool-${_toolCallCounter++}-$name';
+
+    final tool = _clientTools.lookup(name);
+    final model = ToolCallModel(
+      id: callId,
+      name: name,
+      description: tool?.description,
+      args: args,
+    );
+    _upsertToolCall(model);
+
+    if (tool == null) {
+      // 端脑点了一个这台设备不会的活。**明确失败并回传** ——
+      // 闷着不吭声的话，模型会一直等一个永远不来的结果。
+      _upsertToolCall(
+        model.copyWith(
+          status: ToolCallStatus.failed,
+          errorText: 'unsupported tool: $name',
+        ),
+      );
+      unawaited(
+        _reportToolResult(
+          sessionId,
+          callId,
+          name,
+          ok: false,
+          result: <String, dynamic>{'error': 'unsupported tool'},
+        ),
+      );
+      return;
+    }
+
+    if (tool.requiresApproval) {
+      final pending = model.copyWith(
+        status: ToolCallStatus.awaitingApproval,
+      );
+      _pendingToolCalls[callId] = _PendingToolCall(
+        sessionId: sessionId,
+        model: pending,
+        tool: tool,
+      );
+      _upsertToolCall(pending);
+      return;
+    }
+
+    // 执行 + 回传**不阻塞** SSE 读循环 —— 回传是个 HTTP 请求，
+    // 端脑还没上这个端点时会 404；拖着读循环不放会让整条对话卡住。
+    unawaited(
+      _runToolCall(
+        sessionId: sessionId,
+        callId: callId,
+        tool: tool,
+        args: args,
+      ),
+    );
+  }
+
+  /// 执行一个客户端工具，然后把结果回传端脑。
+  Future<void> _runToolCall({
+    required String sessionId,
+    required String callId,
+    required ClientTool tool,
+    required Map<String, dynamic> args,
+  }) async {
+    final current = _toolCallById(callId);
+    if (current != null) {
+      _upsertToolCall(current.copyWith(status: ToolCallStatus.running));
+    }
+
+    final watch = Stopwatch()..start();
+    Object? result;
+    String? errorText;
+    var ok = true;
+    try {
+      result = await tool.execute(args);
+    } catch (e) {
+      ok = false;
+      errorText = e.toString();
+    }
+    final elapsed = watch.elapsedMilliseconds;
+
+    final base =
+        _toolCallById(callId) ??
+        ToolCallModel(id: callId, name: tool.name, args: args);
+    _upsertToolCall(
+      base.copyWith(
+        status: ok ? ToolCallStatus.succeeded : ToolCallStatus.failed,
+        result: result,
+        errorText: errorText,
+        latencyMs: elapsed,
+      ),
+    );
+
+    await _reportToolResult(
+      sessionId,
+      callId,
+      tool.name,
+      ok: ok,
+      result: result ?? <String, dynamic>{'error': errorText},
+    );
+  }
+
+  /// 把执行结果回传端脑。
+  ///
+  /// 回传失败**不能**把整条对话带崩 —— 工具在本地已经做完了，
+  /// 用户看到的结果是真的；只是端脑那头模型还在等。这两件事
+  /// 在卡片上分开显示（[ToolCallModel.reported] /
+  /// [ToolCallModel.reportErrorText]）。
+  Future<void> _reportToolResult(
+    String sessionId,
+    String callId,
+    String name, {
+    required bool ok,
+    required Object? result,
+  }) async {
+    try {
+      await _telencephalonClient.reportToolResult(
+        sessionId,
+        name: name,
+        toolCallId: callId,
+        result: result,
+        ok: ok,
+      );
+      final base =
+          _toolCallById(callId) ?? ToolCallModel(id: callId, name: name);
+      _upsertToolCall(base.copyWith(reported: true));
+    } catch (e) {
+      _log.warning('tool result report failed for $name: $e');
+      final base =
+          _toolCallById(callId) ?? ToolCallModel(id: callId, name: name);
+      _upsertToolCall(
+        base.copyWith(reportErrorText: 'not reported to telencephalon: $e'),
+      );
+    }
+  }
+
+  /// 用户点了「允许」—— 执行这个工具并把结果回传端脑。
+  Future<void> approveToolCall(String callId) async {
+    final pending = _pendingToolCalls.remove(callId);
+    if (pending == null) return;
+    await _runToolCall(
+      sessionId: pending.sessionId,
+      callId: callId,
+      tool: pending.tool,
+      args: pending.model.args,
+    );
+  }
+
+  /// 用户点了「拒绝」—— 把拒绝本身回传端脑，
+  /// 模型才知道这条路走不通（而不是干等着）。
+  Future<void> denyToolCall(String callId) async {
+    final pending = _pendingToolCalls.remove(callId);
+    if (pending == null) return;
+    _upsertToolCall(
+      pending.model.copyWith(
+        status: ToolCallStatus.failed,
+        errorText: 'denied by user',
+      ),
+    );
+    await _reportToolResult(
+      pending.sessionId,
+      callId,
+      pending.tool.name,
+      ok: false,
+      result: <String, dynamic>{'error': 'denied by user'},
+    );
+  }
+
+  /// 把工具调用的最新状态写回对话流里那张卡片。
+  void _upsertToolCall(ToolCallModel model) {
+    final messages = List<ChatMessageModel>.from(state.messages);
+    final index = messages.indexWhere((m) => m.toolCall?.id == model.id);
+    if (index >= 0) {
+      final existing = messages[index];
+      messages[index] = ChatMessageModel(
+        existing.content,
+        existing.role,
+        attachmentPath: existing.attachmentPath,
+        attachmentType: existing.attachmentType,
+        toolCall: model,
+      );
+    } else {
+      messages.add(ChatMessageModel('', ChatRole.assistant, toolCall: model));
+    }
+    state = state.copyWith(messages: messages);
+  }
+
+  /// 按调用 id 找到对话流里那张工具卡片。
+  ToolCallModel? _toolCallById(String id) {
+    for (final message in state.messages) {
+      final call = message.toolCall;
+      if (call != null && call.id == id) return call;
+    }
+    return null;
   }
 
   Future<void> speakLastResponse() async {
@@ -410,6 +677,17 @@ final chatProvider = StateNotifierProvider<ChatNotifier, ChatState>((ref) {
     // 用 read 而不是 watch —— 改人设不该重建 ChatNotifier（会把当前对话冲掉）。
     systemPromptProvider: () =>
         ref.read(customPromptProvider) ?? MainAgentPrompt.defaultSystemPrompt,
+    // 客户端工具 —— 端脑让**这台设备**干的活。
+    //
+    // 主题色 / 明暗走的是**用户的外观偏好** provider，和设置页改的
+    // 是同一份 ⇒ 模型让手机换主题，换完设置页里也是同一个值。
+    clientTools: buildMobileClientTools(
+      setAccentColor: (color) =>
+          ref.read(themeAppearanceProvider.notifier).setAccentColor(color),
+      setDarkMode: (dark) async => ref
+          .read(themeModeProvider.notifier)
+          .setThemeMode(dark ? ThemeMode.dark : ThemeMode.light),
+    ),
   );
 });
 

@@ -8,6 +8,7 @@ import '../../theme/app_colors.dart';
 import '../../multimodal/multimodal.dart';
 import '../../widgets/chat_bubble.dart';
 import 'message_bubbles.dart';
+import 'tool_call_card.dart';
 import 'voice_input_view.dart';
 import 'camera_preview.dart';
 
@@ -235,7 +236,9 @@ class _LocalChatViewState extends ConsumerState<LocalChatView> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
-                          child: isVoice
+                          child: msg.toolCall != null
+                              ? ToolCallCard(call: msg.toolCall!)
+                              : isVoice
                               ? VoiceMessageBubble(
                                   durationMs: null,
                                   onPlay: () => ref
@@ -279,7 +282,8 @@ class _LocalChatViewState extends ConsumerState<LocalChatView> {
                             !isVoice &&
                             !isImage &&
                             !isVideo &&
-                            !isFile)
+                            !isFile &&
+                            msg.toolCall == null)
                           IconButton(
                             icon: const Icon(Icons.volume_up, size: 20),
                             onPressed: widget.onSpeak,

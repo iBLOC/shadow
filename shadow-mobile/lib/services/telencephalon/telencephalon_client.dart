@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
+import '../client_tools/client_tool_registry.dart';
+
 class SessionExport {
   final String sessionId;
   final List<Map<String, dynamic>> messages;
@@ -289,6 +291,31 @@ class StreamEvent {
   final String? error;
   final ClarificationPayload? clarification;
 
+  // ---- 工具事件（tool_call / tool_result）-----------------------------
+  //
+  // 端脑的 SSE 形状（`telencephalon/src/api/shadow.rs`）：
+  //   tool_call   → {type, agent, name, args}
+  //   tool_result → {type, agent, name, result, latency_ms}
+  //
+  // ⚠️ `args` 线上是**字符串**（端脑的 `ToolCall.args` 是 `String`），
+  // 这里解析成 map —— 解析逻辑见 `parseToolArgs`。
+
+  /// 工具名（`tool_call` / `tool_result`）。
+  final String? name;
+
+  /// 工具参数（`tool_call`）。已经归一成 map。
+  final Map<String, dynamic>? args;
+
+  /// 工具结果（`tool_result`）。端脑那边是任意 JSON 值。
+  final Object? result;
+
+  /// 端脑自己执行这个工具花了多久（毫秒）。
+  final int? latencyMs;
+
+  /// 工具调用 id。端脑**今天不携带**（`TelencephalonStreamEvent::ToolCall`
+  /// 里没有这一项）⇒ 消费方要自己合成一个，才能把「结果回传」对上号。
+  final String? toolCallId;
+
   StreamEvent({
     required this.type,
     this.agent,
@@ -298,6 +325,11 @@ class StreamEvent {
     this.timestamp,
     this.error,
     this.clarification,
+    this.name,
+    this.args,
+    this.result,
+    this.latencyMs,
+    this.toolCallId,
   });
 
   factory StreamEvent.fromJson(Map<String, dynamic> json) => StreamEvent(
@@ -317,6 +349,12 @@ class StreamEvent {
             json['clarification'] as Map<String, dynamic>,
           )
         : null,
+    name: json['name'] as String?,
+    // `args` 线上可能是 JSON 文本也可能是对象 —— 两种都要认。
+    args: json['args'] == null ? null : parseToolArgs(json['args']),
+    result: json['result'],
+    latencyMs: (json['latency_ms'] as num?)?.toInt(),
+    toolCallId: json['tool_call_id'] as String?,
   );
 }
 
@@ -768,6 +806,36 @@ class TelencephalonClient {
       req.toJson(),
     );
     return SendMessageResponse.fromJson(json);
+  }
+
+  /// 把**客户端工具**的执行结果回传给端脑。
+  ///
+  /// 端脑的 `tool_call` 事件到达客户端 → 客户端本地执行（换主题之类）
+  /// → 结果回传端脑 → 端脑喂回模型，模型才知道「主题已经换好了」。
+  /// 没有这一步，端脑那边会一直等着这个工具的结果。
+  ///
+  /// 端点：`POST /shadow/v1/conversations/{id}/tool-results`
+  ///
+  /// ⚠️ 端脑侧这条路由是**新增**的。在端脑还没上这个端点之前，这里会
+  /// 抛 `TelencephalonException`（404）—— 调用方要自己兜住，别让
+  /// 「结果回传失败」把整条对话带崩。
+  Future<void> reportToolResult(
+    String conversationId, {
+    required String name,
+    String? toolCallId,
+    required Object? result,
+    bool ok = true,
+  }) async {
+    final body = <String, dynamic>{
+      'name': name,
+      'result': result,
+      'ok': ok,
+    };
+    if (toolCallId != null) body['tool_call_id'] = toolCallId;
+    await _post(
+      '/shadow/v1/conversations/${Uri.encodeComponent(conversationId)}/tool-results',
+      body,
+    );
   }
 
   /// Stream message via SSE. Yields StreamEvent as they arrive.
