@@ -16,11 +16,13 @@ import { VisualQaClarificationChip } from '../components/chat/VisualQaClarificat
 import { ConversationModeSwitcher } from '../components/chat/ConversationModeSwitcher';
 import { FeishuPublishedCard } from '../components/chat/FeishuPublishedCard';
 import { AudioEventChip } from '../components/chat/AudioEventChip';
+import { ToolCallMessageCard } from '../components/chat/ToolCallMessageCard';
 import { ComputerUsePendingModal, type ComputerUseAction } from '../components/computerUse/ComputerUsePendingModal';
 import { RecordingPanel } from '../components/recording/RecordingPanel';
 import { isChatBiPayload } from '../lib/chatbi/guards';
 import type { ChatBiPayload } from '../lib/chatbi/guards';
-import type { Conversation, ConversationKind, Message, RecordingMode, VisualQaClarification } from '../types';
+import { desktopClientTools, parseToolArgs } from '../lib/clientTools';
+import type { Conversation, ConversationKind, Message, RecordingMode, ToolCallMessage, VisualQaClarification } from '../types';
 import {
   Send,
   Plus,
@@ -45,6 +47,15 @@ interface StagedImage {
   id: string;
   dataUrl: string;
   file: File;
+}
+
+/** 一次等用户点头 / 补输入的客户端工具调用。 */
+interface PendingClientTool {
+  /** 端脑侧的会话 id（回传结果要用）。 */
+  telencephalonConversationId: string;
+  /** 本地会话 id（卡片在 store 里的位置）。 */
+  localConversationId: string;
+  call: ToolCallMessage;
 }
 
 function fileToDataUrl(file: File): Promise<string> {
@@ -228,6 +239,98 @@ export function ConversationPage() {
     setStagedImages(prev => prev.filter(img => img.id !== id));
   };
 
+  // ---- 客户端工具（端脑让这台设备干的活）--------------------------------
+  //
+  // 端脑今天**不携带**调用 id ⇒ 客户端自己合成一个。用**单调递增**的
+  // 序号而不是随机串：同一段对话里序号唯一就够，而且卡片顺序稳定
+  // （随机串会让卡片看起来乱跳）。
+  const toolCallSeq = useRef(0);
+  const pendingToolCalls = useRef(new Map<string, PendingClientTool>());
+
+  /** 改工具卡片上的字段 —— 从 store 里读当前值再打补丁，
+   *  免得两次更新（比如「执行中」再「成功」）互相覆盖。 */
+  const patchToolCall = (
+    localConversationId: string,
+    messageId: string,
+    patch: Partial<ToolCallMessage>,
+  ) => {
+    const conv = useConversationStore
+      .getState()
+      .conversations.find(c => c.id === localConversationId);
+    const current = conv?.messages.find(m => m.id === messageId)?.tool_call;
+    if (!current) return;
+    updateMessage(localConversationId, messageId, {
+      tool_call: { ...current, ...patch },
+    });
+  };
+
+  /** 把工具执行结果回传端脑。
+   *
+   *  回传失败**不能**抛出去 —— 工具在本地已经做完了，用户看到的结果
+   *  是真的；只是端脑那头模型还在等。这两件事在卡片上分开显示。 */
+  const reportToolResult = async (
+    pending: PendingClientTool,
+    ok: boolean,
+    result: unknown,
+  ) => {
+    try {
+      await telencephalonClient.reportToolResult(
+        pending.telencephalonConversationId,
+        {
+          name: pending.call.name,
+          toolCallId: pending.call.id,
+          result,
+          ok,
+        },
+      );
+      patchToolCall(pending.localConversationId, pending.call.id, {
+        reported: true,
+      });
+    } catch (err) {
+      patchToolCall(pending.localConversationId, pending.call.id, {
+        reportErrorText: `not reported to telencephalon: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      });
+    }
+  };
+
+  /** 执行一个客户端工具，然后把结果回传端脑。 */
+  const runClientToolCall = async (
+    pending: PendingClientTool,
+    input?: Record<string, unknown>,
+  ) => {
+    const { call } = pending;
+    const tool = desktopClientTools.lookup(call.name);
+    if (!tool) {
+      patchToolCall(pending.localConversationId, call.id, {
+        status: 'failed',
+        errorText: `unsupported tool: ${call.name}`,
+      });
+      await reportToolResult(pending, false, { error: 'unsupported tool' });
+      return;
+    }
+
+    patchToolCall(pending.localConversationId, call.id, { status: 'running' });
+    const startedAt = Date.now();
+    let result: unknown;
+    let errorText: string | undefined;
+    let ok = true;
+    try {
+      result = await tool.execute(call.args, { input });
+    } catch (err) {
+      ok = false;
+      errorText = err instanceof Error ? err.message : String(err);
+    }
+    patchToolCall(pending.localConversationId, call.id, {
+      status: ok ? 'succeeded' : 'failed',
+      result,
+      errorText,
+      latencyMs: Date.now() - startedAt,
+    });
+    await reportToolResult(pending, ok, result ?? { error: errorText });
+  };
+
   const handleSendMessage = async () => {
     if ((!input.trim() && stagedImages.length === 0) || !activeConversationId) return;
 
@@ -338,6 +441,58 @@ export function ConversationPage() {
                 action = { kind: 'keyboard_combo', combo: cu.combo };
               }
               if (action) setPendingCuAction(action);
+            } else if (event.type === 'tool_call' && event.name) {
+              // 端脑让**这台设备**干活（换主题之类）。
+              //
+              // 端脑只负责**点名**（工具名 + 参数）；真正干活的是桌面端，
+              // 干完再把结果回传端脑 —— 端脑把它喂回模型，模型才知道
+              // 「主题已经换好了」，否则模型会一直等一个不来的结果。
+              const tool = desktopClientTools.lookup(event.name);
+              const callId =
+                event.tool_call_id ??
+                `client-tool-${toolCallSeq.current++}-${event.name}`;
+              const call: ToolCallMessage = {
+                id: callId,
+                name: event.name,
+                description: tool?.description,
+                args: parseToolArgs(event.args),
+                status: 'pending',
+              };
+              addMessage(activeConversationId, {
+                id: callId,
+                role: 'assistant',
+                content: '',
+                timestamp: new Date(),
+                tool_call: call,
+              });
+              const pending: PendingClientTool = {
+                telencephalonConversationId: conversationId,
+                localConversationId: activeConversationId,
+                call,
+              };
+              pendingToolCalls.current.set(callId, pending);
+
+              if (!tool) {
+                // 端脑点了一个这台设备不会的活。**明确失败并回传** ——
+                // 闷着不吭声的话，模型会一直等一个永远不来的结果。
+                patchToolCall(activeConversationId, callId, {
+                  status: 'failed',
+                  errorText: `unsupported tool: ${event.name}`,
+                });
+                void reportToolResult(pending, false, {
+                  error: 'unsupported tool',
+                });
+              } else if (tool.requiresApproval) {
+                patchToolCall(activeConversationId, callId, {
+                  status: 'awaiting-approval',
+                });
+              } else if (tool.collectsInput) {
+                patchToolCall(activeConversationId, callId, {
+                  status: 'awaiting-input',
+                });
+              } else {
+                void runClientToolCall(pending);
+              }
             } else if (event.type === 'done') {
               if (accumulated.trim().startsWith('{')) {
                 try {
@@ -602,7 +757,49 @@ export function ConversationPage() {
                         {msg.role === 'user' ? <User size={20} /> : <Bot size={20} />}
                       </div>
                       <div className="flex flex-col gap-1">
-                        {msg.chatbi ? (
+                        {msg.tool_call ? (
+                          <ToolCallMessageCard
+                            call={msg.tool_call}
+                            fields={
+                              desktopClientTools.lookup(msg.tool_call.name)
+                                ?.fields
+                            }
+                            onApprove={() => {
+                              const pending = pendingToolCalls.current.get(
+                                msg.tool_call!.id,
+                              );
+                              if (!pending) return;
+                              pendingToolCalls.current.delete(msg.tool_call!.id);
+                              void runClientToolCall(pending);
+                            }}
+                            onDeny={() => {
+                              const pending = pendingToolCalls.current.get(
+                                msg.tool_call!.id,
+                              );
+                              if (!pending) return;
+                              pendingToolCalls.current.delete(msg.tool_call!.id);
+                              patchToolCall(
+                                pending.localConversationId,
+                                msg.tool_call!.id,
+                                {
+                                  status: 'failed',
+                                  errorText: 'denied by user',
+                                },
+                              );
+                              void reportToolResult(pending, false, {
+                                error: 'denied by user',
+                              });
+                            }}
+                            onSubmitInput={(input) => {
+                              const pending = pendingToolCalls.current.get(
+                                msg.tool_call!.id,
+                              );
+                              if (!pending) return;
+                              pendingToolCalls.current.delete(msg.tool_call!.id);
+                              void runClientToolCall(pending, input);
+                            }}
+                          />
+                        ) : msg.chatbi ? (
                           <ChartCard
                             vizType={msg.chatbi.viz_type}
                             columns={msg.chatbi.columns}

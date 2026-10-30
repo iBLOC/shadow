@@ -587,6 +587,38 @@ export class TelencephalonClient {
     }
   }
 
+  /**
+   * Report a **client-side tool** result back to telencephalon.
+   *
+   * The brain's `tool_call` event arrives here → the desktop runs the
+   * tool (change the theme, …) → the result goes back → telencephalon
+   * feeds it to the model, so the model knows the theme actually
+   * changed. Without this step the brain waits forever for a result
+   * that never arrives.
+   *
+   * Endpoint: `POST /shadow/v1/conversations/{id}/tool-results`
+   *
+   * ⚠️ That route is **new** on the telencephalon side. Until the
+   * brain ships it, this throws (404) — callers must catch it and
+   * report "result not delivered" rather than let it take the whole
+   * conversation down.
+   */
+  async reportToolResult(
+    conversationId: string,
+    req: { name: string; toolCallId?: string; result: unknown; ok?: boolean },
+  ): Promise<void> {
+    const body: Record<string, unknown> = {
+      name: req.name,
+      result: req.result,
+      ok: req.ok ?? true,
+    };
+    if (req.toolCallId) body.tool_call_id = req.toolCallId;
+    await this.request(
+      `/shadow/v1/conversations/${encodeURIComponent(conversationId)}/tool-results`,
+      { method: 'POST', body: JSON.stringify(body) },
+    );
+  }
+
   webrtcSignalingUrl(sessionId: string, modality: string = 'voice'): string {
     return `${this.baseUrl}/api/webrtc/${modality}/sessions/${encodeURIComponent(sessionId)}/ws`;
   }

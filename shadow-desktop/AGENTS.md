@@ -1,6 +1,6 @@
 # PROJECT KNOWLEDGE BASE
 
-**Updated:** 2026-09-25
+**Updated:** 2026-10-30
 **Project:** shadow-desktop (Layer 4 — Interaction)
 **Sprint-2 status:** ✅ MCP management wired through cortex — AgentsPage per-card binding panel + bind modal + 12 new cortexClient methods + 18 i18n keys. 10 AgentsPage + 10 chartbi + 20 lib vitest tests passing. TypeScript clean. **Post-audit-cycle (2026-09-24/25)**: recording mode R1-R4 closed, MCP catalog 5×28 + transport-aware MCPPage, Workflow Studio v1 (R-12/R-13), subsystem management panel client, cortex sidecar replaced with embedded encephalon. Companion E2E assessment: [`../../docs/superpowers/architecture/2026-09-25-e2e-coverage-assessment.md`](../../docs/superpowers/architecture/2026-09-25-e2e-coverage-assessment.md).
 
@@ -367,3 +367,49 @@ The same `src/` produces **two artefacts**:
 - 思维定式编辑能力 — 用户可修改已抽象的流程
 - Resonance 连接测试 — 实际 HTTP 连接检测 + 延迟测量
 - 后端持久化 — lobe 模型绑定保存到 cortex/agent.json
+
+## STATE STATUS (2026-10-30, 客户端工具执行回路)
+
+**Completed** ✅:
+
+- **客户端工具（client tools）—— 端脑让这台设备干的活** ——
+  `src/lib/clientTools.ts` + `src/components/chat/ToolCallMessageCard.tsx`。
+  端脑的工具分两种：**端脑本地工具**（`telencephalon::tools`，改端脑自己的
+  状态）与**客户端工具**（改**用户眼前这台设备**的状态 —— 主题色、明暗、
+  窗口、剪贴板、通知）。**两端各有一份注册表** —— **能做什么由设备决定**：
+  手机没有窗口可最小化，桌面端没有麦克风权限可申请。
+  - `ClientTool`（名字 / 说明 / 要不要用户点头 / `collectsInput` 要不要先收
+    输入 / 字段声明 / 真正干活的 `execute`，**抛异常 = 执行失败**）+
+    `ClientToolRegistry`（工具名 → 工具）+ `parseToolArgs` + `parseHexColor`；
+  - 内置两个工具：`set_theme`（`color` → 换主题色，`dark` → 切明暗）与
+    **`ask_user`**（模型反问用户 —— `collectsInput: true`，先渲染
+    `ClientToolForm` 收答案再执行）。**`ClientToolForm` 那个骨架终于有消费方
+    了**（以前是零消费方）。
+  - 主题色的两端色调由 `styles/accent.g.ts` 的 `deriveAccentTones` 派生
+    （与移动端 `app_colors.dart` **同一套算法**）—— 两端算出来的明暗两端色调
+    必须一致，否则「模型让手机换主题」换出来的颜色和桌面端对不上。
+- **执行回路**（`pages/ConversationPage.tsx`）—— 端脑只负责**点名**（工具名 +
+  参数），真正干活的是这台设备，干完再把结果回传端脑
+  （`telencephalonClient.reportToolResult`）—— 端脑把它喂回模型，模型才知道
+  「主题已经换好了」，否则模型会一直等一个不来的结果。端脑点了一个这台设备
+  不会的活 ⇒ **明确失败并回传**，不闷着不吭声。
+- **⚠️ 认错的代价很具体**（三处都写在代码注释里）：① `args` 线上有两种形态
+  （端脑的 `ToolCall.args` 是 `String` ⇒ 序列化出来是 JSON 文本；有些路径传
+  的是已经拆好的 map）⇒ 拿到字符串还当对象用 ⇒ 参数全是空的，「把主题换成
+  靛蓝」会退化成「换成默认色」，而且**看不出哪里错了**；② 端脑今天**不携带**
+  调用 id ⇒ 客户端自己合成；③ 工具在本地跑成了 **≠** 端脑知道了 ⇒ 两端要
+  分开显示（否则「本地换了主题、端脑那头模型还在等」会被看成成功）。
+
+**修掉一个真 bug**：`parseHexColor` 对 `#AARRGGBB` 取的是**前** 6 位（把 alpha
+当成了红通道）⇒ `#FF71717A` 会变成 `#FF7171`（蓝通道错了）。新写的测试把它
+逮住了，已改成 `slice(2)`（丢的是 alpha）。
+
+**验证**：`npx tsc -b` **通过**（TypeScript clean）；`npx vitest run` ⇒
+**114 个测试文件 / 1155 passed / 2 skipped / 0 failed**（新增
+`src/lib/__tests__/clientTools.test.ts` 11 条：参数两种形态、非 JSON 不丢调用、
+数组不当参数表、颜色归一化与「不猜」、注册表查找）。
+
+**⚠️ 闭环还没通**：客户端把结果回传到
+`POST /shadow/v1/conversations/{id}/tool-results`，而**端脑这条路由还不存在**
+⇒ 回传会 404 ⇒「模型自己让客户端换主题」这件事**还没真跑通**。端脑那侧要补的
+就是这条接收端路由 + 叶区 `call_llm` 带 `tools`。

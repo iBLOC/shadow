@@ -207,6 +207,60 @@ export interface Message {
    *  reply streamed (client-side estimate — see lib/tokenStats.ts).
    *  Rendered under the bubble when the user enables token stats. */
   token_stats?: MessageTokenStats;
+  /** A client-side tool call — the brain asked *this device* to do
+   *  something (change the theme, ask the user a question, …). Rendered
+   *  as a tool card instead of a text bubble. */
+  tool_call?: ToolCallMessage;
+}
+
+/** A client-side tool call's lifecycle. */
+export type ToolCallStatus =
+  /** Just arrived, nothing has run yet. */
+  | 'pending'
+  /** Running right now. */
+  | 'running'
+  /** Waiting for the user to approve before it runs. */
+  | 'awaiting-approval'
+  /** Waiting for the user to fill something in before it runs. */
+  | 'awaiting-input'
+  /** Ran successfully. */
+  | 'succeeded'
+  /** Failed — the tool threw, or the brain asked for something this
+   *  device can't do. */
+  | 'failed';
+
+/** A client-side tool call (the brain named a tool; this device runs it). */
+export interface ToolCallMessage {
+  /**
+   * Call id. The brain carries **no** call id on the wire today
+   * (`TelencephalonStreamEvent::ToolCall` has no such field) ⇒ the
+   * client synthesizes one so the card and the result report line up.
+   */
+  id: string;
+  /** Tool name. */
+  name: string;
+  /** Tool description (from the client-side registry; unknown tools
+   *  have none). */
+  description?: string;
+  /** Tool arguments. */
+  args: Record<string, unknown>;
+  status: ToolCallStatus;
+  /** Execution result (on success). */
+  result?: unknown;
+  /** Failure reason (on failure). */
+  errorText?: string;
+  /** Execution duration (ms). */
+  latencyMs?: number;
+  /**
+   * Whether the result made it back to the brain.
+   *
+   * "Ran locally" and "the brain knows" are **two** things — showing
+   * them as one would hide the case where the theme changed locally
+   * but the model is still waiting for the result.
+   */
+  reported?: boolean;
+  /** Why the result didn't make it back to the brain. */
+  reportErrorText?: string;
 }
 
 export interface MessageTokenStats {
