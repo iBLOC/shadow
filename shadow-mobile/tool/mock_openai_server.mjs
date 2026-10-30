@@ -38,8 +38,32 @@ function argOf(name, fallback) {
 const PORT = Number(argOf('port', '8899'));
 const LOG = argOf('log', '');
 const MODEL = argOf('model', 'mock-model');
+/**
+ * 想让 mock 调**哪个**工具（`--tool set_theme`）。
+ *
+ * 默认仍是 `echo` —— 老用法（验 tool_call 能不能穿过 neuron 的 OpenAI 面）
+ * 一字不变。改成别的工具名时，mock **只在该工具确实被客户端声明过**
+ * 的情况下才调它 ⇒ 客户端的清单才是事实来源。
+ */
+const TOOL = argOf('tool', 'echo');
 
-/** 收到的每一个请求（按顺序）。 */
+/**
+ * 按**客户端声明的 schema** 造这个工具的参数。
+ *
+ * 为什么不能瞎填：客户端工具的 `parameters` 是**客户端自己**的契约
+ * （两端同名工具必须导出同样的内容）⇒ mock 乱填参数，验的就不是
+ * 「客户端能不能把参数原样传下去」，而是「mock 填得对不对」。
+ * ⇒ 从 schema 的 properties 里读出该填哪个键。
+ */
+function argsForTool(declared, name) {
+  const tool = declared.find((t) => t?.function?.name === name);
+  const props = tool?.function?.parameters?.properties ?? {};
+  if (props.color) return { color: '#4F46E5' };
+  if (props.dark) return { dark: true };
+  if (props.text) return { text: 'MOCK-TOOL' };
+  return {};
+}
+
 const received = [];
 
 function lanAddresses() {
@@ -117,6 +141,21 @@ const server = createServer(async (req, res) => {
   const wantsTool = String(lastUser?.content ?? '').includes('!!tool');
 
   if (wantsTool) {
+    // 客户端声明了哪些工具？只有**被声明过**的工具才会被调
+    // （老行为：默认调 `echo`，参数 `{text:'MOCK-TOOL'}`）。
+    const declared = Array.isArray(parsed.tools) ? parsed.tools : [];
+    const declaredNames = declared
+      .map((t) => t?.function?.name)
+      .filter(Boolean);
+    const useDeclared = declaredNames.includes(TOOL);
+    const toolName = useDeclared ? TOOL : 'echo';
+    const toolArgs = useDeclared
+      ? argsForTool(declared, toolName)
+      : { text: 'MOCK-TOOL' };
+    console.log(
+      `[mock] -> tool_call ${toolName} ${JSON.stringify(toolArgs)} ` +
+        `(declared: ${declaredNames.join(',') || 'none'})`,
+    );
     return reply(res, 200, {
       id: 'cmpl-mock-tool',
       object: 'chat.completion',
@@ -133,8 +172,8 @@ const server = createServer(async (req, res) => {
                 id: 'call_mock_1',
                 type: 'function',
                 function: {
-                  name: 'echo',
-                  arguments: JSON.stringify({ text: 'MOCK-TOOL' }),
+                  name: toolName,
+                  arguments: JSON.stringify(toolArgs),
                 },
               },
             ],
