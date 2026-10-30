@@ -3,6 +3,23 @@ import { prefrontalClient } from '../../lib/prefrontalClient';
 import type { Task } from '../../lib/prefrontalClient';
 import { useTaskBoardDataStore } from '../taskBoardDataStore';
 
+/**
+ * 看板的租户不再写死 —— 由身份 store 决定（端脑说你是谁，就是哪个桶）。
+ * 这里把身份 store 换成可控的假身，断言「看板跟着身份走」。
+ */
+const { identityMock } = vi.hoisted(() => ({
+  identityMock: {
+    tenantId: 'default' as string,
+    resolve: vi.fn(async () => identityMock.tenantId),
+  },
+}));
+
+vi.mock('../identityStore', () => ({
+  useIdentityStore: {
+    getState: () => identityMock,
+  },
+}));
+
 vi.mock('../../lib/prefrontalClient', () => ({
   prefrontalClient: {
     listTasks: vi.fn(),
@@ -40,6 +57,7 @@ const TASK: Task = {
 describe('taskBoardDataStore', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    identityMock.tenantId = 'default';
     useTaskBoardDataStore.setState({
       cortexTasks: [],
       isLoadingCortex: false,
@@ -128,5 +146,29 @@ describe('taskBoardDataStore', () => {
       .computeSubtaskProgress(TASK);
 
     expect(progress).toEqual({ completed: 1, total: 2, ratio: 0.5 });
+  });
+
+  it('身份解析出账号人格 ⇒ 看板读那个桶，不再是 default', async () => {
+    identityMock.tenantId = 'persona-ada';
+    vi.mocked(prefrontalClient.listTasks).mockResolvedValue([]);
+
+    await useTaskBoardDataStore.getState().fetchCortexTasks();
+
+    expect(prefrontalClient.listTasks).toHaveBeenCalledWith('persona-ada', {
+      silent: true,
+    });
+  });
+
+  it('删除任务也用当前租户（别删到别人的桶里去）', async () => {
+    identityMock.tenantId = 'persona-ada';
+    useTaskBoardDataStore.setState({ cortexTasks: [TASK] });
+    vi.mocked(prefrontalClient.deleteTask).mockResolvedValue(undefined);
+
+    await useTaskBoardDataStore.getState().deleteCortexTask('task-1');
+
+    expect(prefrontalClient.deleteTask).toHaveBeenCalledWith(
+      'persona-ada',
+      'task-1'
+    );
   });
 });

@@ -26,11 +26,16 @@ interface MemoryState {
   error: string | null;
   currentSessionId: string | null;
   /**
-   * 当前人格 / 租户 id —— `null` = 海马体的默认租户 `"default"`。
+   * 当前人格 / 租户 id —— `null` = 还没定（海马体按默认租户 `"default"` 读）。
    *
    * 它决定「这个助理的记忆」在海马体里的哪一份：将来一个海马体承载多个
    * 灵魂（家庭里只部署一个海马体、每人各有一个助理）时，各助理用各自的
    * tenant id，同一份数据里互不串味，**不用改海马体 schema**。
+   *
+   * ⚠️ **权威是端脑，不是这里** —— 租户由 `stores/identityStore.ts` 问端脑
+   * 「你是谁」之后落进来（`setPersona`）。本字段只是那份答案的**镜像**
+   * （顺带持久化，重开应用时能立刻对上），不是可以随手改的东西 ——
+   * 手改这里会和端脑算出来的桶对不上。
    */
   personaId: string | null;
   addMemory: (input: NewMemoryInput) => Promise<void>;
@@ -176,6 +181,9 @@ export const useMemoryStore = create<MemoryState>()(
       setSession: (sessionId) => set({ currentSessionId: sessionId }),
 
       // 人格 id 同时也是海马体的租户 —— 改它就等于换一副「灵魂的记忆」。
+      //
+      // ⚠️ 正常路径上**只有身份 store 会调它**（端脑说你是谁，就落到哪
+      // 个桶）；这里保留成公开 API，是为了「换一副灵魂」这件事仍可表达。
       setPersona: (personaId) => {
         hippocampusClient.setTenantId(personaId);
         set({ personaId });
@@ -192,11 +200,15 @@ export const useMemoryStore = create<MemoryState>()(
         currentSessionId: state.currentSessionId,
         personaId: state.personaId,
       }),
-      // 持久化的人格要同步给 client —— 否则重开应用后 store 记得是谁，
-      // 海马体那边却还停在默认租户。
-      onRehydrateStorage: () => (state) => {
-        if (state) hippocampusClient.setTenantId(state.personaId);
-      },
+      // ⚠️ **这里刻意不再把持久化的人格写回 client 的租户。**
+      //
+      // 以前这么做是为了「重开应用后 store 记得是谁，海马体那边却还停在
+      // 默认租户」。现在租户的权威是**端脑**（`stores/identityStore.ts`
+      // 问 `GET /shadow/v1/identity`），持久化这份只是端脑答案的镜像 ——
+      // 拿镜像当真相，会在「换了账号」时读到**上一个账号**的桶。
+      //
+      // 身份解析会在启动时（`App.tsx`）把正确的租户落下来，主题色记忆
+      // 之类的读取都排在它后面。
     }
   )
 );

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { prefrontalClient } from '../lib/prefrontalClient';
 import type { Task } from '../lib/prefrontalClient';
+import { useIdentityStore } from './identityStore';
 
 export type TaskDetailTab = 'overview' | 'subtasks' | 'logs' | 'history';
 
@@ -45,8 +46,17 @@ interface TaskBoardDataState {
   };
 }
 
-const DEFAULT_TENANT = 'default';
-
+/**
+ * 看板读写的租户 —— **运行时**决定，不再写死。
+ *
+ * 以前这里是 `const DEFAULT_TENANT = 'default'`：客户端和端脑各写各的，
+ * 于是客户端的任务在 `"default"` 桶、端脑写的记忆在账号人格桶，**两边
+ * 根本不在同一个地方**。
+ *
+ * 现在租户由端脑说了算（`stores/identityStore.ts` 问
+ * `GET /shadow/v1/identity`）—— 有账号就是那个人格，没账号才是
+ * `"default"`（老部署逐字节不变）。
+ */
 export const useTaskBoardDataStore = create<TaskBoardDataState>((set, get) => ({
   cortexTasks: [],
   isLoadingCortex: false,
@@ -57,9 +67,12 @@ export const useTaskBoardDataStore = create<TaskBoardDataState>((set, get) => ({
   async fetchCortexTasks() {
     set({ isLoadingCortex: true, cortexError: null });
     try {
+      // 先把「现在是哪个租户」定下来 —— 身份还没解析出来就读，拿到的是
+      // 兜底桶（切桶之后就是空桶），而看板**不会**自己再刷一次。
+      const tenant = await useIdentityStore.getState().resolve();
       // `silent`: the task board polls this on mount. An unreachable
       // hippocampus must render an inline hint, not a global modal.
-      const tasks = await prefrontalClient.listTasks(DEFAULT_TENANT, {
+      const tasks = await prefrontalClient.listTasks(tenant, {
         silent: true,
       });
       set({ cortexTasks: tasks, isLoadingCortex: false });
@@ -71,7 +84,8 @@ export const useTaskBoardDataStore = create<TaskBoardDataState>((set, get) => ({
 
   async refreshCortexTask(taskId: string) {
     try {
-      const updated = await prefrontalClient.getTask(DEFAULT_TENANT, taskId);
+      const tenant = await useIdentityStore.getState().resolve();
+      const updated = await prefrontalClient.getTask(tenant, taskId);
       set((state) => ({
         cortexTasks: state.cortexTasks.map((t) => (t.task_id === taskId ? updated : t)),
       }));
@@ -86,8 +100,9 @@ export const useTaskBoardDataStore = create<TaskBoardDataState>((set, get) => ({
       throw new Error(`Task ${taskId} not found in cortex cache`);
     }
     try {
+      const tenant = await useIdentityStore.getState().resolve();
       const saved = await prefrontalClient.updateTask(
-        DEFAULT_TENANT,
+        tenant,
         taskId,
         updates
       );
@@ -115,7 +130,8 @@ export const useTaskBoardDataStore = create<TaskBoardDataState>((set, get) => ({
   },
 
   async deleteCortexTask(taskId: string) {
-    await prefrontalClient.deleteTask(DEFAULT_TENANT, taskId);
+    const tenant = await useIdentityStore.getState().resolve();
+    await prefrontalClient.deleteTask(tenant, taskId);
     set((state) => ({
       cortexTasks: state.cortexTasks.filter((t) => t.task_id !== taskId),
       detail:

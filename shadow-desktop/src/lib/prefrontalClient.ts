@@ -602,6 +602,31 @@ export class PrefrontalClient {
     );
   }
 
+  /**
+   * 把一条任务**复制**到另一个租户。
+   *
+   * 海马体的任务键是 `{tenant_id}::{task_id}`（`hippocampus-core/src/task.rs`
+   * 的 `InMemoryTaskBackend::save`）⇒ 用同一个 taskId 换个租户 upsert，
+   * 得到的是**新租户里的新一行**，不是搬家。
+   *
+   * 迁移「`default` 桶 → 账号人格桶」靠的就是它（`lib/tenantMigration.ts`）。
+   * 前端专属字段（title / description / priority / metadata）不带过去 ——
+   * 海马体本来就不存这些列（`updateTask` 里的同一套说明）。
+   */
+  async copyTaskToTenant(
+    fromTenant: string,
+    toTenant: string,
+    taskId: string
+  ): Promise<Task> {
+    const current = await this.getTask(fromTenant, taskId);
+    const body = toTaskRecordWire(current, toTenant);
+    const wire = await this.request<TaskRecordWire>('/hippocampus/api/tasks', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+    return mapTask(wire);
+  }
+
   async listSkills(): Promise<unknown[]> {
     return this.request<unknown[]>('/api/skills');
   }

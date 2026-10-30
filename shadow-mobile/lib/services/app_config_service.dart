@@ -20,6 +20,15 @@ class AppConfigService {
   double? _glassIntensity;
   int? _surfaceOverrideValue;
 
+  // 「`default` 桶 → 账号人格桶」的一次性迁移标记。
+  //
+  // 存的是**搬给谁**（那个人格），但语义是**这台设备已经搬过一次** ——
+  // 换账号也不该把旧桶的遗留数据再搬进新账号（那是上一个账号的东西）。
+  String? _tenantMigrationTarget;
+
+  /// 已经搬过一次？（值 = 搬给谁的人格；null = 没搬过）
+  String? get tenantMigrationTarget => _tenantMigrationTarget;
+
   // 单例
   static final AppConfigService _instance = AppConfigService._internal();
   factory AppConfigService() => _instance;
@@ -69,6 +78,7 @@ class AppConfigService {
         _accentColorValue = config['accentColor'] as int?;
         _glassIntensity = (config['glassIntensity'] as num?)?.toDouble();
         _surfaceOverrideValue = config['surfaceOverride'] as int?;
+        _tenantMigrationTarget = config['tenantMigrationTarget'] as String?;
       }
     } catch (e) {
       // 配置文件读取失败，使用默认值
@@ -78,6 +88,7 @@ class AppConfigService {
       _accentColorValue = null;
       _glassIntensity = null;
       _surfaceOverrideValue = null;
+      _tenantMigrationTarget = null;
     }
   }
 
@@ -95,6 +106,8 @@ final config = {
       if (_glassIntensity != null) 'glassIntensity': _glassIntensity,
       if (_surfaceOverrideValue != null)
         'surfaceOverride': _surfaceOverrideValue,
+      if (_tenantMigrationTarget != null)
+        'tenantMigrationTarget': _tenantMigrationTarget,
     };
       await file.writeAsString(json.encode(config));
     } catch (e) {
@@ -158,6 +171,14 @@ final config = {
   /// 设置对话框 / 面板背景覆盖（ARGB int）。传 null 恢复跟随主题。
   Future<void> setSurfaceOverride(int? value) async {
     _surfaceOverrideValue = value;
+    await _saveConfig();
+  }
+
+  /// 记下「`default` 桶 → 账号人格桶」已经搬过一次（值 = 搬给谁）。
+  ///
+  /// 传 null = 抹掉标记（下次还会再搬）—— 只在明确要重来时才这么做。
+  Future<void> setTenantMigrationTarget(String? target) async {
+    _tenantMigrationTarget = (target == null || target.isEmpty) ? null : target;
     await _saveConfig();
   }
 }

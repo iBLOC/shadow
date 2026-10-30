@@ -4,8 +4,14 @@ import 'package:http/http.dart' as http;
 import '../l10n/current_l10n.dart';
 import 'telencephalon/telencephalon_client.dart';
 
-/// hippocampus 的任务按租户分区。默认租户与桌面端
-/// `taskBoardDataStore` 的 `DEFAULT_TENANT` 保持一致。
+/// hippocampus 的任务按租户分区。
+///
+/// 这是**兜底**租户 —— 「背后没有人」时读写的就是这一桶（海马体自己
+/// 省略租户时也回落 `"default"`）。
+///
+/// 正常路径上租户由**端脑报出的身份**决定（`providers/identity_provider.dart`）：
+/// 有账号就是账号的人格（`persona-xxx`），两端（桌面 / 手机）用同一个
+/// 账号时算出**同一个人格** ⇒ 同一份记忆。
 const String defaultTaskTenantId = 'default';
 
 /// Telencephalon API Client
@@ -35,6 +41,23 @@ class PrefrontalClient {
   /// 端脑地址。
   final String baseUrl;
   final http.Client _client;
+
+  /// 海马体租户 —— 记忆与任务都按它分区。
+  ///
+  /// 以前这里是写死的 `'default'`。现在它由**端脑报出的身份**决定
+  /// （`providers/identity_provider.dart` 问 `GET /shadow/v1/identity`），
+  /// 兜底才是 `'default'`（老部署逐字节不变）。
+  String _tenantId = defaultTaskTenantId;
+
+  /// 当前租户（记忆与任务都按它分区）。
+  String get tenantId => _tenantId;
+
+  /// 换租户 —— 身份解析之后调它。
+  void setTenantId(String? tenantId) {
+    _tenantId = (tenantId == null || tenantId.isEmpty)
+        ? defaultTaskTenantId
+        : tenantId;
+  }
 
   PrefrontalClient({String? baseUrl, http.Client? client})
     : baseUrl = baseUrl ?? defaultBaseUrl,
@@ -264,9 +287,14 @@ class PrefrontalClient {
 
   // ============ Task APIs ============
 
-  /// 获取任务列表
-  Future<List<TaskResponse>> getTasks() async {
-    final data = await _request<List<dynamic>>('GET', '/hippocampus/api/tasks');
+  /// 获取任务列表 —— `GET /api/tasks?tenantId=`
+  /// （省略租户时服务端回落 `"default"`）。
+  Future<List<TaskResponse>> getTasks({String? tenantId}) async {
+    final tenant = tenantId ?? _tenantId;
+    final data = await _request<List<dynamic>>(
+      'GET',
+      '/hippocampus/api/tasks?tenantId=${Uri.encodeComponent(tenant)}',
+    );
     return data.map((t) => TaskResponse.fromJson(t)).toList();
   }
 
@@ -283,11 +311,12 @@ class PrefrontalClient {
   /// 查询单个任务
   Future<TaskResponse> getTask(
     String taskId, {
-    String tenantId = defaultTaskTenantId,
+    String? tenantId,
   }) async {
+    final tenant = tenantId ?? _tenantId;
     return await _request<TaskResponse>(
       'GET',
-      '/hippocampus/api/tasks/$tenantId/$taskId',
+      '/hippocampus/api/tasks/$tenant/$taskId',
       parser: (data) => TaskResponse.fromJson(data),
     );
   }
@@ -299,17 +328,18 @@ class PrefrontalClient {
   /// `prefrontalClient.updateTask` 的行为一致（同样是仅前端字段）。
   Future<TaskResponse> updateTask(
     String taskId, {
-    String tenantId = defaultTaskTenantId,
+    String? tenantId,
     String? title,
     String? description,
     String? priority,
     String? status,
     List<String>? tags,
   }) async {
-    final current = await getTask(taskId, tenantId: tenantId);
+    final tenant = tenantId ?? _tenantId;
+    final current = await getTask(taskId, tenantId: tenant);
     final body = <String, dynamic>{
       'taskId': current.id,
-      'tenantId': tenantId,
+      'tenantId': tenant,
       'source': current.source ?? 'local',
       'targetAgent': current.targetAgent ?? '',
       'status': status ?? current.status,
@@ -319,9 +349,9 @@ class PrefrontalClient {
       'steps': current.steps.map((s) => s.toJson()).toList(),
       // 仅前端字段：hippocampus 的 UpsertTaskRequest 没有这些列，
       // serde 默认忽略未知字段，所以这里带上也不会报错 —— 但也不会被持久化。
-      if (title != null) 'title': title,
-      if (description != null) 'description': description,
-      if (priority != null) 'priority': priority,
+      'title': ?title,
+      'description': ?description,
+      'priority': ?priority,
     };
     return await _request<TaskResponse>(
       'POST',
@@ -334,25 +364,125 @@ class PrefrontalClient {
   /// 删除任务
   Future<void> deleteTask(
     String taskId, {
-    String tenantId = defaultTaskTenantId,
+    String? tenantId,
   }) async {
-    await _request<void>('DELETE', '/hippocampus/api/tasks/$tenantId/$taskId');
+    final tenant = tenantId ?? _tenantId;
+    await _request<void>('DELETE', '/hippocampus/api/tasks/$tenant/$taskId');
+  }
+
+  /// 把一条任务**复制**到另一个租户 —— `POST /hippocampus/api/tasks`。
+  ///
+  /// 海马体的任务键是 `{tenant_id}::{task_id}`
+  /// （`hippocampus-core/src/task.rs` 的 `InMemoryTaskBackend::save`）⇒
+  /// 同一个 taskId 换个租户 upsert，得到的是**新租户里的新一行**，不是搬家。
+  /// 「`default` 桶 → 账号人格桶」的迁移靠的就是它。
+  Future<TaskResponse> copyTaskToTenant({
+    required String taskId,
+    required String fromTenant,
+    required String toTenant,
+  }) async {
+    final current = await getTask(taskId, tenantId: fromTenant);
+    final body = <String, dynamic>{
+      'taskId': current.id,
+      'tenantId': toTenant,
+      'source': current.source ?? 'local',
+      'targetAgent': current.targetAgent ?? '',
+      'status': current.status,
+      'receivedAt': current.createdAt.toIso8601String(),
+      'completedAt': current.completedAt?.toIso8601String(),
+      'tags': current.tags,
+      'steps': current.steps.map((s) => s.toJson()).toList(),
+    };
+    return await _request<TaskResponse>(
+      'POST',
+      '/hippocampus/api/tasks',
+      body: body,
+      parser: (data) => TaskResponse.fromJson(data),
+    );
   }
 
   // ============ Memory APIs ============
 
-  /// 搜索记忆
-  Future<List<MemoryResponse>> searchMemory(String query) async {
+  /// 列出记忆 —— `GET /api/memory?tenantId=&dimension=&limit=`
+  /// （dimension 请求侧**小写**：海马体只认 user/agent/session/resources）。
+  Future<List<MemoryResponse>> listMemories({
+    String? tenantId,
+    String? dimension,
+    int limit = 200,
+  }) async {
+    final tenant = tenantId ?? _tenantId;
+    final query = <String, String>{
+      'tenantId': tenant,
+      if (dimension != null) 'dimension': dimension.toLowerCase(),
+      'limit': '$limit',
+    };
+    final path =
+        '/hippocampus/api/memory?${Uri(queryParameters: query).query}';
+    final data = await _request<List<dynamic>>('GET', path);
+    return data
+        .map((m) => MemoryResponse.fromJson(m as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// 搜索记忆 —— `POST /api/search`（**不是** `GET /api/memory/search`）。
+  ///
+  /// ⚠️ 海马体**没有** `GET /api/memory/search` 这条路由（路由表里搜索是
+  /// `POST /api/search`）⇒ 以前这里打的那条路必然 404。
+  ///
+  /// 响应形状是 `[{memory: {...}, score, source}]` —— 记忆本体在 `memory`
+  /// 里，`score` 在**外层**（桌面端 `lib/hippocampusClient.ts` 的
+  /// `searchMemories` 是同一套形状）。
+  Future<List<MemoryResponse>> searchMemory(
+    String query, {
+    int limit = 20,
+    String? tenantId,
+  }) async {
+    final tenant = tenantId ?? _tenantId;
     final data = await _request<List<dynamic>>(
-      'GET',
-      '/hippocampus/api/memory/search?q=${Uri.encodeComponent(query)}',
+      'POST',
+      '/hippocampus/api/search',
+      body: {'query': query, 'limit': limit, 'tenantId': tenant},
     );
-    return data.map((m) => MemoryResponse.fromJson(m)).toList();
+    return data.map((r) {
+      final raw = r as Map<String, dynamic>;
+      final memory =
+          (raw['memory'] as Map<String, dynamic>?) ?? const <String, dynamic>{};
+      return MemoryResponse.fromJson(memory).copyWith(
+        score: (raw['score'] as num?)?.toDouble(),
+      );
+    }).toList();
   }
 
   /// 添加记忆
   Future<void> addMemory(AddMemoryRequest request) async {
     await _request('POST', '/hippocampus/api/memory', body: request.toJson());
+  }
+
+  /// 复制一条记忆到另一个租户 —— `POST /api/memory`。
+  ///
+  /// ⚠️ 海马体**没有按 uri 的 upsert** —— `POST /api/memory` 永远**追加
+  /// 新行**（`hippocampus-server/src/handlers.rs` 的 `add_memory`），
+  /// 而 `PUT /api/memory/{id}` **不能改 tenant**（只能改 content/dimension）
+  /// ⇒ 换桶只能「复制」。
+  Future<MemoryResponse> copyMemory({
+    required String uri,
+    required String content,
+    required String dimension,
+    String? sessionId,
+    required String tenantId,
+  }) async {
+    final data = await _request<Map<String, dynamic>>(
+      'POST',
+      '/hippocampus/api/memory',
+      body: {
+        'uri': uri,
+        'content': content,
+        'dimension': dimension.toLowerCase(),
+        'sessionId': ?sessionId,
+        'tenantId': tenantId,
+      },
+    );
+    return MemoryResponse.fromJson(data);
   }
 
   // ============ Conversation APIs ============
@@ -1149,7 +1279,12 @@ class CreateTaskRequest {
 
 class MemoryResponse {
   final String id;
+  final String uri;
   final String content;
+
+  /// 海马体的 dimension 响应侧是**枚举全名**（`User` / `Agent` / `Session`
+  /// / `Resources`），请求侧才是小写。
+  final String dimension;
   final DateTime createdAt;
   final double? score;
 
@@ -1157,13 +1292,35 @@ class MemoryResponse {
     required this.id,
     required this.content,
     required this.createdAt,
+    this.uri = '',
+    this.dimension = 'Agent',
     this.score,
   });
+
+  MemoryResponse copyWith({
+    String? id,
+    String? uri,
+    String? content,
+    String? dimension,
+    DateTime? createdAt,
+    double? score,
+  }) {
+    return MemoryResponse(
+      id: id ?? this.id,
+      uri: uri ?? this.uri,
+      content: content ?? this.content,
+      dimension: dimension ?? this.dimension,
+      createdAt: createdAt ?? this.createdAt,
+      score: score ?? this.score,
+    );
+  }
 
   factory MemoryResponse.fromJson(Map<String, dynamic> json) {
     return MemoryResponse(
       id: json['id'] ?? '',
+      uri: json['uri'] ?? '',
       content: json['content'] ?? '',
+      dimension: json['dimension'] ?? 'Agent',
       createdAt: DateTime.parse(
         json['created_at'] ?? DateTime.now().toIso8601String(),
       ),
@@ -1176,10 +1333,30 @@ class AddMemoryRequest {
   final String content;
   final Map<String, String>? metadata;
 
-  AddMemoryRequest({required this.content, this.metadata});
+  /// 海马体要求 uri 与 dimension（dimension 请求侧**小写**）。不给的话
+  /// 服务端直接 400 —— 所以这两个是必填的。
+  final String uri;
+  final String dimension;
+
+  /// 租户 —— 不给就落进服务端默认的 `"default"` 桶。
+  final String? tenantId;
+  final String? sessionId;
+
+  AddMemoryRequest({
+    required this.content,
+    this.metadata,
+    this.uri = 'memory://mobile',
+    this.dimension = 'Agent',
+    this.tenantId,
+    this.sessionId,
+  });
 
   Map<String, dynamic> toJson() => {
+    'uri': uri,
     'content': content,
+    'dimension': dimension.toLowerCase(),
+    if (sessionId != null) 'sessionId': sessionId,
+    if (tenantId != null) 'tenantId': tenantId,
     if (metadata != null) 'metadata': metadata,
   };
 }

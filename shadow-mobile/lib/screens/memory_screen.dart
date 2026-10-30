@@ -96,6 +96,7 @@ class MemoryNotifier extends StateNotifier<MemoryState> {
               (m) => MemoryInfo.fromJson({
                 'id': m.id,
                 'content': m.content,
+                'dimension': m.dimension,
                 'created_at': m.createdAt.toIso8601String(),
                 'score': m.score,
               }),
@@ -122,6 +123,7 @@ class MemoryNotifier extends StateNotifier<MemoryState> {
               (m) => MemoryInfo.fromJson({
                 'id': m.id,
                 'content': m.content,
+                'dimension': m.dimension,
                 'created_at': m.createdAt.toIso8601String(),
                 'score': m.score,
               }),

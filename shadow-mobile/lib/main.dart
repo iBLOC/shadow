@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
+import 'dart:async';
 import 'generated/l10n/app_localizations.dart';
 import 'model_manager.dart';
 import 'router/app_router.dart';
+import 'providers/identity_provider.dart';
 import 'providers/theme_provider.dart';
 import 'theme/glass_theme.dart';
 import 'theme/shad_scheme.g.dart';
@@ -47,6 +49,30 @@ void main() async {
   //
   // 放在 runApp 之后：启动要读本地模型配置（SQLite），别挡住首屏。
   container.read(encephalonMobileProvider.notifier).ensureStarted();
+
+  // 「当前是谁」—— 端脑答的身份决定**读写哪一份记忆**（有账号就是那个
+  // 人格，没账号才是 `"default"`）。端脑 client 自带**就绪门** ⇒ 大脑还没
+  // 起来时这次调用会**等它起来**，不会直接失败。
+  //
+  // 解析完顺手做一次「`default` 桶 → 账号人格桶」的迁移（复制，不删旧行）——
+  // 不阻塞启动，失败也不影响 App（下次还会再试）。
+  unawaited(() async {
+    final identity = container.read(identityProvider.notifier);
+    final tenant = await identity.resolve();
+    final migrated = await identity.migrate();
+    // 只在**真的搬了东西**或**搬的过程中出错**时才说一句 ——
+    // 「跑了但一条都没搬」（比如海马体够不着）不值得刷屏。
+    if (migrated.ran &&
+        (migrated.memoriesCopied > 0 ||
+            migrated.tasksCopied > 0 ||
+            migrated.errors.isNotEmpty)) {
+      debugPrint(
+        '[ShadowApp] 租户迁移 → $tenant：记忆 ${migrated.memoriesCopied} 条、'
+        '任务 ${migrated.tasksCopied} 条'
+        '${migrated.errors.isEmpty ? '' : '（${migrated.errors.length} 条出错，下次还会再试）'}',
+      );
+    }
+  }());
 }
 
 class ShadowApp extends ConsumerWidget {

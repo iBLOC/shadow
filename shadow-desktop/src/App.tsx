@@ -7,7 +7,9 @@ import { GlobalErrorDialog } from './components/error/GlobalErrorDialog';
 import { ShortcutManager } from './components/ShortcutManager';
 import { installGlobalErrorHandlers } from './lib/errorTriggers';
 import { migrateFromLocalStorage } from './lib/migrateSettings';
+import { migrateLegacyTenant } from './lib/tenantMigration';
 import { useThemeStore } from './stores/themeStore';
+import { useIdentityStore } from './stores/identityStore';
 import { TaskBoardPage } from './pages/TaskBoardPage';
 import { ConversationPage } from './pages/ConversationPage';
 import { MCPPage } from './pages/MCPPage';
@@ -39,9 +41,31 @@ function App() {
   useEffect(() => {
     installGlobalErrorHandlers();
     migrateFromLocalStorage();
-    // 「主题色也是记忆的一部分」—— 启动时把影子在海马体里记住的外观偏好
-    // 恢复回来。读不到（端脑没起 / 离线）就继续用本地那一份，不报错。
-    void useThemeStore.getState().hydrateFromMemory();
+    void (async () => {
+      // 顺序是有讲究的：**先定是谁 → 再搬旧记忆 → 最后读记忆**。
+      //
+      // 1. 租户由端脑说了算（`GET /shadow/v1/identity`）：有账号就是那个
+      //    人格，没账号才是 `"default"`（老部署逐字节不变）。
+      // 2. 一次性迁移把 `"default"` 桶里的记忆与任务复制到人格桶。**必须
+      //    在读记忆之前** —— 主题色就住在旧桶里，先读就会读不到，界面
+      //    会「丢」掉用户的主题色。
+      // 3. 主题色记忆的恢复排在迁移之后。
+      const tenant = await useIdentityStore.getState().resolve();
+      try {
+        const migrated = await migrateLegacyTenant(tenant);
+        if (migrated.ran) {
+          console.info(
+            `[identity] 租户迁移 → ${tenant}：记忆 ${migrated.memoriesCopied} 条、任务 ${migrated.tasksCopied} 条` +
+              (migrated.errors.length ? `（${migrated.errors.length} 条出错，下次会再试）` : '')
+          );
+        }
+      } catch (e) {
+        console.warn('[identity] 租户迁移失败:', e);
+      }
+      // 「主题色也是记忆的一部分」—— 启动时把影子在海马体里记住的外观偏好
+      // 恢复回来。读不到（端脑没起 / 离线）就继续用本地那一份，不报错。
+      void useThemeStore.getState().hydrateFromMemory();
+    })();
   }, []);
 
   return (
