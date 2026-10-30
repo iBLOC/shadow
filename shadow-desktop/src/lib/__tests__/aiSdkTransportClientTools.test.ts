@@ -45,6 +45,7 @@ describe('AI SDK 路的客户端工具清单', () => {
     return streamMessage.mock.calls[0][1] as {
       text: string;
       tools?: Array<{ type: string; function: { name: string } }>;
+      await_tool_result?: boolean;
     };
   }
 
@@ -70,5 +71,14 @@ describe('AI SDK 路的客户端工具清单', () => {
       expect(tool.type).toBe('function');
       expect(typeof tool.function.name).toBe('string');
     }
+  });
+
+  it('声明「等结果」—— 端脑才能在同一回合里接着说', async () => {
+    const request = await sendOne('把主题换成靛蓝');
+
+    // 不声明的话，端脑不敢等 —— 那一回合就只剩一张沉默的卡片，
+    // 模型的话要等到**下一回合**才说得出。
+    // ⚠️ 字段名是 snake_case：这个对象被原样 `JSON.stringify` 发出去。
+    expect(request.await_tool_result).toBe(true);
   });
 });

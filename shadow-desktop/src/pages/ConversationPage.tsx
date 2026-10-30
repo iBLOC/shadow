@@ -385,6 +385,10 @@ export function ConversationPage() {
               // **这台设备能跑的工具**告诉模型 —— 端脑透传给 LLM，
               // 模型才知道 `set_theme` 要吃一个 `color`。
               tools: toOpenAiTools(desktopClientTools),
+              // 让端脑**等**这台设备把工具干完 —— 它就能把结果喂回模型，
+              // 在**同一条流**上接着说「主题已经换成靛蓝了」⇒ 用户看到的
+              // 是一个回合，而不是一张沉默的卡片。
+              await_tool_result: true,
             },
           )) {
             if (event.type === 'delta' && event.delta) {

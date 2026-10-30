@@ -18,6 +18,9 @@ class ToolMockClient extends TelencephalonClient {
   /// 每次结果回传的请求体。
   final List<Map<String, dynamic>> reports = [];
 
+  /// 每次发消息的请求体（用来断言「发出去什么」）。
+  final List<SendMessageRequest> requests = [];
+
   /// 模拟端脑还没上这个端点（404）。
   bool reportThrows = false;
 
@@ -43,6 +46,7 @@ class ToolMockClient extends TelencephalonClient {
     String conversationId,
     SendMessageRequest req,
   ) async* {
+    requests.add(req);
     for (final event in events) {
       yield event;
     }
@@ -149,6 +153,20 @@ void main() {
         (client.reports.single['result'] as Map)['applied'],
         'accent',
       );
+    });
+
+    test('发消息时声明「等结果」—— 端脑才能在同一回合里接着说', () async {
+      final client = ToolMockClient([
+        StreamEvent(type: 'delta', delta: '你好'),
+      ]);
+      final notifier = ChatNotifier(MockTts(), client);
+
+      await notifier.generateResponse('换个色');
+
+      // 不声明的话，端脑不敢等 —— 那一回合就只剩一张沉默的卡片，
+      // 模型的话要等到**下一回合**才说得出。
+      expect(client.requests, isNotEmpty);
+      expect(client.requests.single.awaitToolResult, isTrue);
     });
 
     test('args 线上是对象形态时同样认', () async {

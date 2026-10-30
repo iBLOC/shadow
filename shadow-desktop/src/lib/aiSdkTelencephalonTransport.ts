@@ -207,6 +207,8 @@ export function createTelencephalonChatTransport(options: TelencephalonChatTrans
         // 但它一旦被接上，工具清单必须**和 `ConversationPage` 那条路一致**
         // —— 否则「同一个模型、走两条路、模型看得见的工具不一样」。
         tools: toOpenAiTools(desktopClientTools),
+        // 同上：等设备回传 ⇒ 端脑在同一条流上接着说。
+        await_tool_result: true,
       });
 
       const transformer = new TransformStream({

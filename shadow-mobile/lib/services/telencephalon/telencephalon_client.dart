@@ -315,16 +315,31 @@ class SendMessageRequest {
   /// JSON Schema 一起透传给叶区 ⇒ 模型看得见 `set_theme` 要吃一个 `color`。
   final List<Map<String, dynamic>>? tools;
 
+  /// 要不要端脑**等**这台设备的工具结果、并在**同一回合**里接着说？
+  ///
+  /// 端脑点名让设备干活（换主题之类）之后，设备干完把结果回传 —— 那
+  /// 是**另一个** HTTP 请求。端脑若在同一条 SSE 上等这个回传，就能把
+  /// 结果喂回模型，让模型接着说「主题已经换成靛蓝了」⇒ 用户看到的是
+  /// **一个**回合，而不是一张沉默的卡片。
+  ///
+  /// 端脑最多等 60 秒；设备不回答 ⇒ 端脑把这次工具调用当成**失败**，
+  /// 模型据此告诉用户设备没回应（回合照样收尾，不会吊着）。
+  ///
+  /// 老端脑不认识这个字段（serde 忽略未知字段 ⇒ 无害）。
+  final bool awaitToolResult;
+
   const SendMessageRequest({
     required this.text,
     this.agent,
     this.tools,
+    this.awaitToolResult = false,
   });
 
   Map<String, dynamic> toJson() => {
     'text': text,
     if (agent != null) 'agent': agent,
     if (tools != null && tools!.isNotEmpty) 'tools': tools,
+    if (awaitToolResult) 'await_tool_result': true,
   };
 }
 
