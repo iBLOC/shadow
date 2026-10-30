@@ -254,6 +254,17 @@ class SettingsScreen extends ConsumerWidget {
                             subtitle: l10n.settingsResonanceDesc,
                             onTap: () => context.push('/resonance'),
                           ),
+                          const ShadSeparator.horizontal(
+                            margin: EdgeInsets.symmetric(
+                              horizontal: AppTokens.spaceLg,
+                            ),
+                          ),
+                          _NavRow(
+                            icon: Icons.badge_outlined,
+                            title: l10n.identityTitle,
+                            subtitle: l10n.identityTitleDesc,
+                            onTap: () => context.push('/settings/identity'),
+                          ),
                         ],
                       ),
                     ],

@@ -3452,6 +3452,144 @@ abstract class AppLocalizations {
   /// **'Less-used and developer options'**
   String get settingsGroupAdvancedDesc;
 
+  /// No description provided for @identityTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Identity'**
+  String get identityTitle;
+
+  /// No description provided for @identityTitleDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Who this device is, and which memory it reads and writes'**
+  String get identityTitleDesc;
+
+  /// No description provided for @identityCurrentTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Who you are'**
+  String get identityCurrentTitle;
+
+  /// No description provided for @identityCurrentDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'The endbrain decides the tenant — the persona it reports is the memory isolation unit.'**
+  String get identityCurrentDesc;
+
+  /// No description provided for @identityPrincipal.
+  ///
+  /// In en, this message translates to:
+  /// **'Person'**
+  String get identityPrincipal;
+
+  /// No description provided for @identityPersona.
+  ///
+  /// In en, this message translates to:
+  /// **'Persona'**
+  String get identityPersona;
+
+  /// No description provided for @identityDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'Device'**
+  String get identityDevice;
+
+  /// No description provided for @identityTenant.
+  ///
+  /// In en, this message translates to:
+  /// **'Memory bucket'**
+  String get identityTenant;
+
+  /// No description provided for @identityNobody.
+  ///
+  /// In en, this message translates to:
+  /// **'(nobody behind this)'**
+  String get identityNobody;
+
+  /// No description provided for @identityExportTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Export account'**
+  String get identityExportTitle;
+
+  /// No description provided for @identityExportDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Take the account key to another device and import it — both sides become the same person, writing into the same memory.'**
+  String get identityExportDesc;
+
+  /// No description provided for @identityExportAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Export account key'**
+  String get identityExportAction;
+
+  /// No description provided for @identityExportActionDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'The account key IS the identity — whoever holds it is that person.'**
+  String get identityExportActionDesc;
+
+  /// No description provided for @identityExportFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Export failed — the brain may not be running yet.'**
+  String get identityExportFailed;
+
+  /// No description provided for @identityImportTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Import account'**
+  String get identityImportTitle;
+
+  /// No description provided for @identityImportDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Paste an account key exported from another device — this device becomes that person.'**
+  String get identityImportDesc;
+
+  /// No description provided for @identityImportAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Import it'**
+  String get identityImportAction;
+
+  /// No description provided for @identityImportActionDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Import takes effect immediately, no brain restart.'**
+  String get identityImportActionDesc;
+
+  /// No description provided for @identityImportPlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'Account key'**
+  String get identityImportPlaceholder;
+
+  /// No description provided for @identityImportFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Import failed — the key is invalid, or the endbrain refused it.'**
+  String get identityImportFailed;
+
+  /// No description provided for @identityImportDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Imported — this device is that person now.'**
+  String get identityImportDone;
+
+  /// No description provided for @identityCopy.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy'**
+  String get identityCopy;
+
+  /// No description provided for @identityCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'Copied to clipboard'**
+  String get identityCopied;
+
   /// No description provided for @settingsAdvancedLogs.
   ///
   /// In en, this message translates to:

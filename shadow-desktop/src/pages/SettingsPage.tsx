@@ -25,6 +25,7 @@ import {
 } from '../lib/globalKeysClient';
 import { telencephalonClient, type ScanResult, type InstalledWasmList, type AgentSearchResponse, type McpAgentBinding, type McpServerRecord, type ModelProvider } from '../lib/telencephalonClient';
 import { HfTokenSettings } from '../components/business/HfTokenSettings';
+import { IdentityPanel } from '../components/business/IdentityPanel';
 import { UpdateChecker } from '../components/business/UpdateChecker';
 import { VideoSourcesCard } from '../components/business/VideoSourcesCard';
 import { SubsystemPanel } from '../components/business/SubsystemPanel/SubsystemPanel';
@@ -1825,6 +1826,8 @@ function DataSection() {
       </SettingsCard>
 
       <HfTokenSettings onSaved={() => {}} />
+
+      <IdentityPanel />
     </div>
   );
 }

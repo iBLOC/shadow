@@ -227,6 +227,26 @@ class EncephalonMobileService {
     }
   }
 
+  /// 导出账号密钥 —— 拿去另一台设备导入。
+  ///
+  /// ⚠️ **这串东西就是身份本身。** 账号密钥派生出 principal 与默认人格
+  /// ⇒ 持有它的人**就是**那个人（记忆也归那个人）。它像密码管理器的
+  /// 恢复码，有一样的后果。
+  ///
+  /// 导出**不走端脑的 HTTP 面** —— 那张面在 loopback 上，能连上它就
+  /// 意味着「本机任意进程」，把账号密钥放到那儿等于把身份发出去。
+  /// 所以它走宿主自己的通道：MethodChannel → JNI → Rust。
+  ///
+  /// 返回 null = 导出失败（`.so` 没加载、身份目录读不出来、大脑没起来）。
+  Future<String?> exportAccount() async {
+    try {
+      return await _channel.invokeMethod<String>('exportAccount');
+    } catch (e, stack) {
+      _log.severe('导出账号失败', e, stack);
+      return null;
+    }
+  }
+
   /// 释放资源（停止运行时）。
   Future<void> dispose() async {
     await stop();

@@ -1852,6 +1852,83 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsGroupAdvancedDesc => 'Less-used and developer options';
 
   @override
+  String get identityTitle => 'Identity';
+
+  @override
+  String get identityTitleDesc =>
+      'Who this device is, and which memory it reads and writes';
+
+  @override
+  String get identityCurrentTitle => 'Who you are';
+
+  @override
+  String get identityCurrentDesc =>
+      'The endbrain decides the tenant — the persona it reports is the memory isolation unit.';
+
+  @override
+  String get identityPrincipal => 'Person';
+
+  @override
+  String get identityPersona => 'Persona';
+
+  @override
+  String get identityDevice => 'Device';
+
+  @override
+  String get identityTenant => 'Memory bucket';
+
+  @override
+  String get identityNobody => '(nobody behind this)';
+
+  @override
+  String get identityExportTitle => 'Export account';
+
+  @override
+  String get identityExportDesc =>
+      'Take the account key to another device and import it — both sides become the same person, writing into the same memory.';
+
+  @override
+  String get identityExportAction => 'Export account key';
+
+  @override
+  String get identityExportActionDesc =>
+      'The account key IS the identity — whoever holds it is that person.';
+
+  @override
+  String get identityExportFailed =>
+      'Export failed — the brain may not be running yet.';
+
+  @override
+  String get identityImportTitle => 'Import account';
+
+  @override
+  String get identityImportDesc =>
+      'Paste an account key exported from another device — this device becomes that person.';
+
+  @override
+  String get identityImportAction => 'Import it';
+
+  @override
+  String get identityImportActionDesc =>
+      'Import takes effect immediately, no brain restart.';
+
+  @override
+  String get identityImportPlaceholder => 'Account key';
+
+  @override
+  String get identityImportFailed =>
+      'Import failed — the key is invalid, or the endbrain refused it.';
+
+  @override
+  String get identityImportDone => 'Imported — this device is that person now.';
+
+  @override
+  String get identityCopy => 'Copy';
+
+  @override
+  String get identityCopied => 'Copied to clipboard';
+
+  @override
   String get settingsAdvancedLogs => 'Logs';
 
   @override

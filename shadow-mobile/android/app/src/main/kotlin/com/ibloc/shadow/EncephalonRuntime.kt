@@ -89,6 +89,11 @@ class EncephalonRuntime {
         output: ByteArray,
         outputLen: Int,
     ): Int
+    private external fun nativeExportAccount(
+        dataDir: String,
+        output: ByteArray,
+        outputLen: Int,
+    ): Int
 
     // ==================== 状态管理 ====================
 
@@ -322,4 +327,58 @@ class EncephalonRuntime {
      * 推理结果：HTTP 状态码 + 原始响应体。
      */
     data class InferenceResult(val status: Int, val body: ByteArray)
+
+    /**
+     * 导出账号密钥 —— 拿去另一台设备导入。
+     *
+     * ⚠️ **这串东西就是身份本身。** 账号密钥派生出 principal 与默认人格
+     * ⇒ 持有它的人**就是**那个人（记忆也归那个人）。它像密码管理器的
+     * 恢复码，有一样的后果。
+     *
+     * 导出**不走端脑的 HTTP 面** —— 那张面在 loopback 上，能连上它就
+     * 意味着「本机任意进程」，把账号密钥放到那儿等于把身份发出去。
+     *
+     * @param dataDir App 的私有目录（与 [start] 传的是同一个）—— 账号
+     *   身份目录在它下面，端脑写记忆时用的也是那一份。
+     * @return 账号密钥；null = 导出失败。
+     *
+     * ⚠️ **绝不要 log 这个返回值** —— 它是明文的恢复凭据。
+     */
+    fun exportAccount(dataDir: String): String? {
+        return try {
+            var capacity = DEFAULT_BUFFER_BYTES
+            repeat(MAX_INFER_ATTEMPTS) {
+                val output = ByteArray(capacity)
+                val written = try {
+                    nativeExportAccount(dataDir, output, output.size)
+                } catch (e: UnsatisfiedLinkError) {
+                    Log.e(TAG, "Encephalon .so not loaded: ${e.message}")
+                    return null
+                } catch (e: Exception) {
+                    Log.e(TAG, "exportAccount failed: ${e.message}", e)
+                    return null
+                }
+
+                if (written < 0) {
+                    Log.e(TAG, "exportAccount returned error code: $written")
+                    return null
+                }
+                if (written > output.size) {
+                    // 缓冲区不够 —— native 回了需要的大小，按它扩一次再来。
+                    capacity = written
+                    return@repeat
+                }
+                // ⚠️ 不 log 内容。
+                return String(output.copyOf(written), Charsets.UTF_8)
+            }
+            Log.e(TAG, "exportAccount: buffer still too small after $MAX_INFER_ATTEMPTS attempts")
+            null
+        } catch (e: UnsatisfiedLinkError) {
+            Log.w(TAG, "Encephalon .so not loaded: ${e.message}")
+            null
+        } catch (e: Exception) {
+            Log.e(TAG, "exportAccount failed: ${e.message}", e)
+            null
+        }
+    }
 }

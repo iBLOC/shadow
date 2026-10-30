@@ -19,6 +19,7 @@ import '../screens/customer_service_screen.dart';
 import '../screens/group_screen.dart';
 import '../screens/flows_screen.dart';
 import '../screens/discovery_screen.dart';
+import '../screens/identity_screen.dart';
 import '../screens/logs_screen.dart';
 import '../screens/resonance_screen.dart';
 import '../services/prefrontal/prefrontal_mobile_cluster_page.dart';
@@ -50,6 +51,7 @@ class AppRoutes {
   static const String resonance = '/resonance';
   static const String prefrontalEmbedded = '/settings/prefrontal';
   static const String encephalonEmbedded = '/settings/encephalon';
+  static const String identity = '/settings/identity';
 
   // Legacy routes (redirect)
   static const String agents = '/agents';
@@ -254,6 +256,13 @@ final GoRouter appRouter = GoRouter(
       name: 'encephalonEmbedded',
       pageBuilder: (context, state) =>
           _fadePage(state, _wrapInShell(state, const EncephalonMobilePage())),
+    ),
+    // 「当前是谁」—— 账号级身份 + 跨设备搬运（导出/导入）
+    GoRoute(
+      path: AppRoutes.identity,
+      name: 'identity',
+      pageBuilder: (context, state) =>
+          _fadePage(state, _wrapInShell(state, const IdentityScreen())),
     ),
     // Legacy redirects
     GoRoute(

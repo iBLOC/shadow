@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../services/encephalon/encephalon_mobile_provider.dart';
+import '../services/encephalon/encephalon_mobile_service.dart';
 import '../services/identity/tenant_migration.dart';
 import '../services/prefrontal_client.dart';
 import '../services/telencephalon/telencephalon_client.dart';
@@ -95,11 +97,21 @@ class IdentityNotifier extends StateNotifier<IdentityState> {
   final TelencephalonClient _telencephalon;
   final PrefrontalClient _prefrontal;
 
+  /// 嵌入式大脑的服务句柄 —— **导出账号**走它（MethodChannel → JNI）。
+  ///
+  /// ⚠️ 可以是 null：纯 Dart 测试里没有 MethodChannel，导出那条路自然
+  /// 走不通（返回 null），但身份解析与迁移**不依赖**它 ⇒ 两条路互不
+  /// 拖累。
+  final EncephalonMobileService? _service;
+
   /// 正在飞的那一次解析 —— 并发调用共享它。
   Future<String>? _inflight;
 
-  IdentityNotifier(this._telencephalon, this._prefrontal)
-      : super(const IdentityState());
+  IdentityNotifier(
+    this._telencephalon,
+    this._prefrontal, [
+    this._service,
+  ]) : super(const IdentityState());
 
   /// 问端脑「你是谁」，并把结果落到海马体租户上。
   ///
@@ -174,6 +186,49 @@ class IdentityNotifier extends StateNotifier<IdentityState> {
       return TenantMigrationResult(ran: false, errors: ['$e']);
     }
   }
+
+  /// 导出账号密钥 —— 拿去另一台设备导入。
+  ///
+  /// ⚠️ **这串东西就是身份本身。** 持有它的人**就是**那个人 ⇒ 另一台
+  /// 设备导入之后，两端是**同一个人**、写进**同一份记忆**。
+  ///
+  /// 导出**不走端脑的 HTTP 面**（那张面在 loopback 上 ⇒ 能连上就意味着
+  /// 「本机任意进程」）⇒ 走宿主的 JNI 通道。
+  ///
+  /// 失败返回 null（`.so` 没加载、大脑没起来、身份目录读不出来）。
+  /// **不要 log 返回值** —— 它是明文的恢复凭据。
+  Future<String?> exportAccount() async {
+    final service = _service;
+    if (service == null) {
+      return null;
+    }
+    try {
+      return await service.exportAccount();
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+      return null;
+    }
+  }
+
+  /// 导入一个账号 —— 这台设备从此是导出方的那个人。
+  ///
+  /// 交给**端脑**去做（`POST /shadow/v1/identity`）：端脑才是那个持有
+  /// 身份状态的人 —— 它写文件、换掉进程级身份 ⇒ **立即生效**，不用重启
+  /// 大脑。
+  ///
+  /// ⚠️ 导入之后**必须重新解析身份**：租户是端脑说了算的，导入换了人
+  /// ⇒ 人格变了 ⇒ 租户也得跟着变。不重解析的话，这一轮还写在旧桶里。
+  Future<String?> importAccount(String code) async {
+    try {
+      await _telencephalon.importAccount(code);
+      // 强制重问端脑 —— 「我不再 resolved」是错的（端脑确实答了），
+      // 直接用新答案覆盖。
+      await _resolveOnce(identityTimeout);
+      return state.tenantId;    } catch (e) {
+      state = state.copyWith(error: e.toString());
+      return null;
+    }
+  }
 }
 
 final identityProvider =
@@ -181,5 +236,6 @@ final identityProvider =
   return IdentityNotifier(
     ref.watch(telencephalonClientProvider),
     ref.watch(prefrontalClientProvider),
+    ref.watch(encephalonMobileServiceProvider),
   );
 });

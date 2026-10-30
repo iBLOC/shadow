@@ -773,6 +773,38 @@ class MainActivity : FlutterActivity() {
                         }
                     }
 
+                    // 导出账号密钥 —— 拿去另一台设备导入。
+                    //
+                    // ⚠️ **这串东西就是身份本身** —— 持有它的人**就是**那个人
+                    // （记忆也归那个人）。所以导出**不走端脑的 HTTP 面**：
+                    // 那张面在 loopback 上，能连上它就意味着「本机任意
+                    // 进程」，把账号密钥放到那儿等于把身份发出去。
+                    //
+                    // 这里的 dataDir 必须与 "start" 传的是同一个 —— 账号
+                    // 身份目录在它下面，端脑写记忆时用的也是那一份。
+                    "exportAccount" -> {
+                        val dataDir = call.argument<String>("dataDir")
+                            ?: filesDir?.absolutePath
+                            ?: ""
+                        try {
+                            val code = EncephalonRuntime.getInstance().exportAccount(dataDir)
+                            if (code == null) {
+                                result.error(
+                                    "EXPORT_FAILED",
+                                    "the account could not be exported",
+                                    null
+                                )
+                            } else {
+                                // ⚠️ 不 log 内容 —— 它是明文的恢复凭据。
+                                result.success(code)
+                            }
+                        } catch (e: UnsatisfiedLinkError) {
+                            result.error("SO_NOT_LOADED", "Encephalon .so not loaded: ${e.message}", null)
+                        } catch (e: Exception) {
+                            result.error("EXPORT_FAILED", e.message ?: "Unknown error", null)
+                        }
+                    }
+
                     "stop" -> {
                         try {
                             result.success(EncephalonRuntime.getInstance().stop())

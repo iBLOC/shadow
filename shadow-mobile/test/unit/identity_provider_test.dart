@@ -351,4 +351,113 @@ void main() {
       expect(AppConfigService().tenantMigrationTarget, isNull);
     });
   });
+
+  group('账号的导出与导入（跨平台同一个人）', () {
+    test('没有 JNI 通道 ⇒ 导出返回 null，而不是抛异常', () async {
+      final prefrontal = PrefrontalClient(
+        baseUrl: 'http://127.0.0.1:60080',
+        client: http_testing.MockClient((_) async => http.Response('[]', 200)),
+      );
+      final telencephalon = TelencephalonClient(
+        baseUrl: 'http://127.0.0.1:60080',
+        client: http_testing.MockClient(
+          (_) async => http.Response('{"identified": false}', 200),
+        ),
+      );
+
+      // 不注入 service ⇒ 纯 Dart 环境（没有 MethodChannel）。
+      final notifier = IdentityNotifier(telencephalon, prefrontal);
+      final code = await notifier.exportAccount();
+
+      expect(code, isNull);
+    });
+
+    test('导入 ⇒ 端脑换人 ⇒ 租户跟着换（人格变了就得重问）', () async {
+      var asked = 0;
+      var imported = false;
+      final prefrontal = PrefrontalClient(
+        baseUrl: 'http://127.0.0.1:60080',
+        client: http_testing.MockClient((_) async => http.Response('[]', 200)),
+      );
+      final telencephalon = TelencephalonClient(
+        baseUrl: 'http://127.0.0.1:60080',
+        client: http_testing.MockClient((request) async {
+          if (request.method == 'POST' &&
+              request.url.path.endsWith('/shadow/v1/identity')) {
+            imported = true;
+            return http.Response(
+              jsonEncode({
+                'principal': 'principal:bob',
+                'persona': 'persona-bob',
+                'device': 'device-1',
+                'identified': true,
+                'personas': [],
+              }),
+              200,
+            );
+          }
+          asked++;
+          return http.Response(
+            jsonEncode({
+              'principal': imported ? 'principal:bob' : 'principal:alice',
+              'persona': imported ? 'persona-bob' : 'persona-ada',
+              'device': 'device-1',
+              'identified': true,
+              'personas': [],
+            }),
+            200,
+          );
+        }),
+      );
+
+      final notifier = IdentityNotifier(telencephalon, prefrontal);
+      // 先解析一次，拿到旧人格。
+      expect(await notifier.resolve(), 'persona-ada');
+
+      final tenant = await notifier.importAccount('someone-elses-code');
+
+      expect(imported, isTrue);
+      // ⚠️ 关键：导入换了人 ⇒ 人格变了 ⇒ 租户必须跟着换。
+      expect(tenant, 'persona-bob');
+      expect(notifier.state.persona, 'persona-bob');
+      // 租户也要落到海马体 client 上。
+      expect(prefrontal.tenantId, 'persona-bob');
+      // 导入之后**又问了一次**端脑（而不是沿用旧答案）。
+      expect(asked, 2);
+    });
+
+    test('导入失败 ⇒ 租户不变，也不假装成功', () async {
+      final prefrontal = PrefrontalClient(
+        baseUrl: 'http://127.0.0.1:60080',
+        client: http_testing.MockClient((_) async => http.Response('[]', 200)),
+      );
+      final telencephalon = TelencephalonClient(
+        baseUrl: 'http://127.0.0.1:60080',
+        client: http_testing.MockClient((request) async {
+          if (request.method == 'POST') {
+            return http.Response('{"error":"bad code"}', 400);
+          }
+          return http.Response(
+            jsonEncode({
+              'principal': 'principal:alice',
+              'persona': 'persona-ada',
+              'device': 'device-1',
+              'identified': true,
+              'personas': [],
+            }),
+            200,
+          );
+        }),
+      );
+
+      final notifier = IdentityNotifier(telencephalon, prefrontal);
+      await notifier.resolve();
+
+      final tenant = await notifier.importAccount('garbage');
+
+      expect(tenant, isNull);
+      // 旧人格还在（没被失败的操作改掉）。
+      expect(notifier.state.persona, 'persona-ada');
+    });
+  });
 }

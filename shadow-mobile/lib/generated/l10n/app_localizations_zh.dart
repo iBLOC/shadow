@@ -1824,6 +1824,75 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsGroupAdvancedDesc => '不常用与开发者选项';
 
   @override
+  String get identityTitle => '身份';
+
+  @override
+  String get identityTitleDesc => '这台设备是谁，读写哪一份记忆';
+
+  @override
+  String get identityCurrentTitle => '当前是谁';
+
+  @override
+  String get identityCurrentDesc => '租户由端脑说了算 —— 它报出的人格就是记忆的隔离单元。';
+
+  @override
+  String get identityPrincipal => '人';
+
+  @override
+  String get identityPersona => '人格';
+
+  @override
+  String get identityDevice => '设备';
+
+  @override
+  String get identityTenant => '记忆桶';
+
+  @override
+  String get identityNobody => '（背后没有人）';
+
+  @override
+  String get identityExportTitle => '导出账号';
+
+  @override
+  String get identityExportDesc => '把账号密钥拿出来，拿到另一台设备导入 —— 两端就是同一个人、写进同一份记忆。';
+
+  @override
+  String get identityExportAction => '导出账号密钥';
+
+  @override
+  String get identityExportActionDesc => '账号密钥就是身份本身 —— 持有它的人就是那个人。';
+
+  @override
+  String get identityExportFailed => '导出失败 —— 大脑可能还没起来。';
+
+  @override
+  String get identityImportTitle => '导入账号';
+
+  @override
+  String get identityImportDesc => '贴入另一台设备导出的账号密钥 —— 这台设备从此是那个人。';
+
+  @override
+  String get identityImportAction => '导入它';
+
+  @override
+  String get identityImportActionDesc => '导入立即生效，不用重启大脑。';
+
+  @override
+  String get identityImportPlaceholder => '账号密钥';
+
+  @override
+  String get identityImportFailed => '导入失败 —— 密钥不合法，或者端脑拒绝了。';
+
+  @override
+  String get identityImportDone => '导入完成 —— 这台设备现在是那个人了。';
+
+  @override
+  String get identityCopy => '复制';
+
+  @override
+  String get identityCopied => '已复制到剪贴板';
+
+  @override
   String get settingsAdvancedLogs => '日志';
 
   @override
