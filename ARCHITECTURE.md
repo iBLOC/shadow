@@ -136,17 +136,41 @@ App 的云端供应商设置 → MethodChannel → JNI → EmbeddedConfig.llm_pr
 ## 杏仁核（独立进程叶区）
 
 ```text
-用户 → 颞叶 temporal ──A2A(emotion_assess)──▶ 杏仁核 amygdala（:9500）
-             ▲                                     │
-             └────notify(心境突变，仅突变时)────────┘
-                                                   │ 情绪时间线 + 心境快照
-                                                   ▼
-                                            海马体 hippocampus
+用户 → 端脑内嵌的 temporal（影子对话真正在跑的那条路）
+             │  A2A
+             ▼
+          端脑 telencephalon ──REST /emotion/observe（500ms 上限）──▶ 杏仁核 amygdala（:9500）
+             ▲                                                                │
+             │ system prompt 尾部挂一条情绪注记（ambient 信号）              │
+             └──────────────────────────────────────────────────────────────┘
+                                                                          │ 情绪时间线 + 心境快照
+                                                                          ▼
+                                                                       海马体 hippocampus
+
+杏仁核 ──POST /a2a/tasks/send (skill=emotion_affect)──▶ 颞叶 temporal（独立服务，WebRTC/直连那条路）
+          只有心境真的突变时才推；推的是「持续心境」，不是「这一轮的情绪」
 ```
 
-* **拉**：颞叶把刚说完的那句话交给杏仁核问「这轮什么情绪」，**同一轮往返内**拿到
-  `{emotion, confidence, valence, arousal}` —— 确定性打分器，亚毫秒，**不等模型、不等海马体**。
-* **推**：只有心境**突变**（主标签变了，或效价移动超阈值）才回推颞叶，让对话调整语气。
+* **⚠️ 影子对话这条路上没有颞叶仓那个独立服务** —— 端脑内嵌的 `TemporalLobe`
+  才是影子对话真正在跑的实现（`skill_router.rs` 里 `temporal` 走进程内的
+  `LobeClient::NativeAt`）。颞叶仓的 `AMYGDALA_URL` 那条路服务于它自己的
+  WebRTC/直连场景。**别把两者当成同一条路。**
+* **拉（影子对话这一轮）**：端脑按注册表里 name=`amygdala` 的那条记录打
+  `POST {url}/emotion/observe`（body `{"text":"…"}`）⇒
+  `{emotion, confidence, valence, arousal, mood}` —— 确定性打分器，亚毫秒，
+  **不等模型、不等海马体**。注记挂在 persona 尾部 ⇒ 落在 system message 里
+  最靠近用户轮次的位置（`compose_system_prompt` / `llm_messages` / `call_llm`
+  的签名一个都没改）。注记带**两层**信号：**这一句**的判定 + **持续心境**
+  （`mood.dominant` / `mood.streak`）—— 语气该跟的是**心境**，不是单句。
+* **⚠️ 叶区只拿注册表的「只读视图」，不是 `AppState`** —— native 叶区这条路调
+  `handle` 时 `app_state` 是 `None`，而那是**承重**的：`VisualTask` 分支在有
+  `AppState` 时会真的去起摄像头 runner。情绪只需要「谁注册了、在哪」⇒ 给叶区
+  一份 `Arc<LobeCache>`（与端脑注册叶区用的是**同一份**）就够，别的什么都给不了它。
+* **推（心境突变）**：杏仁核只有心境**突变**（主标签变了，或效价移动超阈值）
+  才回推颞叶的 `emotion_affect` skill，让对话调整语气。
+  ⚠️ 回推 payload **必须带 `user_id`** —— synapse 的 `JsonCtx` 把它收在具名字段，
+  少了它每一次技能调用都报 `invalid context: missing field user_id`；
+  而回推是 best-effort 的 ⇒ **这个失败从来没人看见**。
 * **记忆**：每轮判定一条（`dimension=session`，uri `emotion:event:<会话id>:<ts>`），
   每 N 轮一条心境快照（`dimension=user`，uri `emotion:profile:<用户id>:<ts>`）。
 
@@ -181,8 +205,8 @@ temporal / occipital 的自注册今天应该 404（读代码结论，未在真�
 | 谁 | 怎么知道 | 它不在时 |
 |---|---|---|
 | 杏仁核自己 | `AMYGDALA_REGISTER=0` | 不注册、不发布判定；其余照常 |
-| 颞叶 temporal | `AMYGDALA_URL`（**没有默认值**，是「去哪问」而不是「要不要情绪」） | 连不上 / 超时 / 404 —— 一律 `None`，那一轮只是没有情绪信息，**对话照常** |
-| 端脑 telencephalon | agent 注册表 | 点名一个没注册的 agent ⇒ **404**（没注册 = 不存在） |
+| 颞叶 temporal（独立服务） | `AMYGDALA_URL`（**没有默认值**，是「去哪问」而不是「要不要情绪」） | 连不上 / 超时 / 404 —— 一律 `None`，那一轮只是没有情绪信息，**对话照常** |
+| 端脑 telencephalon | agent 注册表（按 name=`amygdala` 找 url） | 没注册 ⇒ 没东西可问 ⇒ 对话照常，**缺情绪不是错误**；点名一个没注册的 agent ⇒ **404**（没注册 = 不存在） |
 
 端脑侧**没有任何「可选 agent」的特殊逻辑** —— 注册表就是事实来源，
 「要不要情绪」由部署方决定，不该由路由器去猜。
