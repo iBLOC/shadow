@@ -73,6 +73,19 @@ class _TaskDetailDialogState extends ConsumerState<TaskDetailDialog>
     }
   }
 
+  /// 确认任务（端脑的核心动作）。
+  Future<void> _confirm() async {
+    try {
+      await ref.read(tasksNotifierProvider.notifier).confirmTask(widget.task.id);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$e')),
+        );
+      }
+    }
+  }
+
   void _openEdit() {
     // 不先 pop 详情弹窗：pop 之后它的 context 就失效了，再拿它去 push
     // 下一个对话框会抛 "Looking up a deactivated widget's ancestor"。
@@ -95,11 +108,7 @@ class _TaskDetailDialogState extends ConsumerState<TaskDetailDialog>
               orElse: () => widget.task,
             );
 
-    final steps = task.steps;
-    final completed =
-        steps.where((s) => s.status == 'completed').length;
-    final total = steps.length;
-    final progress = total > 0 ? completed / total : 0.0;
+    final points = task.confirmationPoints;
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -118,7 +127,7 @@ class _TaskDetailDialogState extends ConsumerState<TaskDetailDialog>
               controller: _tabController,
               tabs: [
                 Tab(text: AppLocalizations.of(context)!.taskOverview),
-                Tab(text: AppLocalizations.of(context)!.taskSubtasks(steps.length)),
+                Tab(text: AppLocalizations.of(context)!.taskConfirmationPoints),
                 Tab(text: AppLocalizations.of(context)!.taskLogs),
               ],
             ),
@@ -126,13 +135,13 @@ class _TaskDetailDialogState extends ConsumerState<TaskDetailDialog>
               child: TabBarView(
                 controller: _tabController,
                 children: [
-                  _buildOverview(task, completed, total, progress),
-                  _buildSubtasks(steps),
+                  _buildOverview(task),
+                  _buildConfirmationPoints(points),
                   _buildLogs(task),
                 ],
               ),
             ),
-            _buildFooter(),
+            _buildFooter(task),
           ],
         ),
       ),
@@ -192,12 +201,8 @@ class _TaskDetailDialogState extends ConsumerState<TaskDetailDialog>
     );
   }
 
-  Widget _buildOverview(
-    TaskInfo task,
-    int completed,
-    int total,
-    double progress,
-  ) {
+  Widget _buildOverview(TaskInfo task) {
+    final l10n = AppLocalizations.of(context)!;
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -217,17 +222,27 @@ class _TaskDetailDialogState extends ConsumerState<TaskDetailDialog>
             ),
             const SizedBox(height: 16),
           ],
-          _InfoRow(label: AppLocalizations.of(context)!.taskStatus, value: task.status),
-          _InfoRow(label: AppLocalizations.of(context)!.taskPriority, value: task.priority),
+          _InfoRow(label: l10n.taskStatus, value: task.status),
+          _InfoRow(label: l10n.taskPriority, value: task.priority),
           _InfoRow(
-            label: AppLocalizations.of(context)!.taskCreatedAt,
+            label: l10n.taskCreatedAt,
             value: _fmtDate(task.createdAt),
           ),
+          if (task.dueTime != null)
+            _InfoRow(
+              label: l10n.taskDueTime,
+              value: _fmtDate(task.dueTime!),
+            ),
           if (task.completedAt != null)
             _InfoRow(
-              label: AppLocalizations.of(context)!.taskCompletedAt,
+              label: l10n.taskCompletedAt,
               value: _fmtDate(task.completedAt!),
             ),
+          _InfoRow(
+            label: l10n.taskConfirmState,
+            value:
+                task.confirmed ? l10n.taskConfirmed : l10n.taskAwaitingConfirm,
+          ),
           if (task.tags.isNotEmpty) ...[
             const SizedBox(height: 8),
             Text(AppLocalizations.of(context)!.taskTags,
@@ -244,36 +259,35 @@ class _TaskDetailDialogState extends ConsumerState<TaskDetailDialog>
                   .toList(),
             ),
           ],
-          if (total > 0) ...[
-            const SizedBox(height: 16),
-            _ProgressBar(
-              completed: completed,
-              total: total,
-              ratio: progress,
-            ),
-          ],
         ],
       ),
     );
   }
 
-  Widget _buildSubtasks(List<SubTaskStep> steps) {
-    if (steps.isEmpty) {
+  /// 确认点 —— 端脑在创建任务时生成的一组「需要确认的事」。
+  ///
+  /// 端脑任务**没有子步骤**（那是海马体 `TaskRecord.steps` 的概念），
+  /// 对应的就是这一组确认点。
+  Widget _buildConfirmationPoints(List<String> points) {
+    final l10n = AppLocalizations.of(context)!;
+    if (points.isEmpty) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(32),
           child: Text(
-            AppLocalizations.of(context)!.taskNoSubtasks,
+            l10n.taskNoConfirmationPoints,
             style: TextStyle(color: Theme.of(context).hintColor),
           ),
         ),
       );
     }
-    final sorted = [...steps]..sort((a, b) => a.order.compareTo(b.order));
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: sorted.length,
-      itemBuilder: (context, index) => _SubTaskRow(step: sorted[index]),
+      itemCount: points.length,
+      itemBuilder: (context, index) => _ConfirmationPointRow(
+        index: index,
+        text: points[index],
+      ),
     );
   }
 
@@ -290,7 +304,7 @@ class _TaskDetailDialogState extends ConsumerState<TaskDetailDialog>
     );
   }
 
-  Widget _buildFooter() {
+  Widget _buildFooter(TaskInfo task) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -305,6 +319,17 @@ class _TaskDetailDialogState extends ConsumerState<TaskDetailDialog>
             onPressed: _delete,
           ),
           const SizedBox(width: 8),
+          // 「确认」是端脑任务的核心动作 —— 只有确认过的任务才会被调度。
+          // 服务端只允许确认 `Pending` 的任务，别的状态会回 400 ⇒ 按钮
+          // 只在「待确认」时露出来。
+          if (task.status == TaskBoardColumn.backlog && !task.confirmed) ...[
+            OutlinedButton.icon(
+              icon: const Icon(Icons.task_alt),
+              label: Text(AppLocalizations.of(context)!.taskConfirmAction),
+              onPressed: _confirm,
+            ),
+            const SizedBox(width: 8),
+          ],
           FilledButton.icon(
             icon: const Icon(Icons.edit_outlined),
             label: Text(AppLocalizations.of(context)!.commonEdit),
@@ -336,16 +361,9 @@ class JsonEncoderPretty {
       'priority': t.priority,
       'description': t.description,
       'tags': t.tags,
-      'steps': t.steps
-          .map((s) => {
-                'step_id': s.stepId,
-                'order': s.order,
-                'status': s.status,
-                'started_at': s.startedAt?.toIso8601String(),
-                'completed_at': s.completedAt?.toIso8601String(),
-                'error': s.error,
-              })
-          .toList(),
+      'confirmed': t.confirmed,
+      'confirmation_points': t.confirmationPoints,
+      'due_time': t.dueTime?.toIso8601String(),
       'created_at': t.createdAt.toIso8601String(),
       'completed_at': t.completedAt?.toIso8601String(),
     };
@@ -399,11 +417,12 @@ class _StatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = {
-      'pending': Colors.orange,
-      'running': Colors.blue,
-      'completed': Colors.green,
-      'failed': Colors.red,
-      'cancelled': Colors.grey,
+      TaskBoardColumn.backlog: Colors.orange,
+      TaskBoardColumn.todo: Colors.blue,
+      TaskBoardColumn.inProgress: Colors.blue,
+      TaskBoardColumn.done: Colors.green,
+      TaskBoardColumn.failed: Colors.red,
+      TaskBoardColumn.cancelled: Colors.grey,
     };
     final color = colors[status] ?? Colors.grey;
     return Chip(
@@ -441,87 +460,14 @@ class _InfoRow extends StatelessWidget {
   }
 }
 
-class _ProgressBar extends StatelessWidget {
-  final int completed;
-  final int total;
-  final double ratio;
-  const _ProgressBar({
-    required this.completed,
-    required this.total,
-    required this.ratio,
-  });
+/// 确认点 —— 端脑在创建任务时生成的一组「需要确认的事」。
+class _ConfirmationPointRow extends StatelessWidget {
+  final int index;
+  final String text;
+  const _ConfirmationPointRow({required this.index, required this.text});
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(AppLocalizations.of(context)!.taskSubtaskProgress,
-                style: TextStyle(fontWeight: FontWeight.bold)),
-            Text('$completed / $total (${(ratio * 100).toInt()}%)'),
-          ],
-        ),
-        const SizedBox(height: 4),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: ratio,
-            minHeight: 8,
-            backgroundColor: Colors.grey.withOpacity(0.2),
-            valueColor: AlwaysStoppedAnimation<Color>(
-              ratio >= 1.0 ? Colors.green : Colors.blue,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _SubTaskRow extends StatelessWidget {
-  final SubTaskStep step;
-  const _SubTaskRow({required this.step});
-
-  IconData _iconForStatus(String s) {
-    switch (s) {
-      case 'completed':
-        return Icons.check_circle;
-      case 'running':
-        return Icons.autorenew;
-      case 'failed':
-        return Icons.error;
-      case 'cancelled':
-        return Icons.cancel;
-      default:
-        return Icons.circle_outlined;
-    }
-  }
-
-  Color _colorForStatus(String s) {
-    switch (s) {
-      case 'completed':
-        return Colors.green;
-      case 'running':
-        return Colors.blue;
-      case 'failed':
-        return Colors.red;
-      case 'cancelled':
-        return Colors.grey;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final color = _colorForStatus(step.status);
-    final duration =
-        step.startedAt != null && step.completedAt != null
-            ? step.completedAt!.difference(step.startedAt!).inSeconds
-            : null;
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
@@ -530,73 +476,18 @@ class _SubTaskRow extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: Colors.grey.withOpacity(0.2)),
       ),
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(_iconForStatus(step.status), color: color, size: 18),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  '#${step.order} ${step.stepId}',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  step.status,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: color,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ],
+          Icon(Icons.check_circle_outline,
+              size: 18, color: Theme.of(context).primaryColor),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              '${index + 1}. $text',
+              style: const TextStyle(fontSize: 13),
+            ),
           ),
-          if (step.startedAt != null || step.completedAt != null || duration != null) ...[
-            const SizedBox(height: 6),
-            Wrap(
-              spacing: 12,
-              children: [
-                if (step.startedAt != null)
-                  Text(AppLocalizations.of(context)!.taskStepStarted(_fmtDate(step.startedAt!)),
-                      style: TextStyle(
-                          fontSize: 11,
-                          color: Theme.of(context).hintColor)),
-                if (step.completedAt != null)
-                  Text(AppLocalizations.of(context)!.taskStepCompleted(_fmtDate(step.completedAt!)),
-                      style: TextStyle(
-                          fontSize: 11,
-                          color: Theme.of(context).hintColor)),
-                if (duration != null)
-                  Text(AppLocalizations.of(context)!.taskStepDuration(duration),
-                      style: TextStyle(
-                          fontSize: 11,
-                          color: Theme.of(context).hintColor)),
-              ],
-            ),
-          ],
-          if (step.error != null && step.error!.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text(
-                step.error!,
-                style: const TextStyle(fontSize: 11, color: Colors.red),
-              ),
-            ),
-          ],
         ],
       ),
     );

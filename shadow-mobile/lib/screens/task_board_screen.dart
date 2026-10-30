@@ -1,42 +1,86 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../services/prefrontal_client.dart';
+import '../providers/telencephalon_provider.dart';
+import '../services/telencephalon/telencephalon_client.dart';
 import '../theme/app_colors.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/task_detail_dialog.dart';
 import '../generated/l10n/app_localizations.dart';
 
+/// 任务看板的数据源是**端脑**（temporal lobe 的 `TaskStore`）。
+///
+/// ⚠️ 这里以前走的是 `PrefrontalClient.getTasks()` —— 前额叶方言的
+/// `/hippocampus/api/tasks`。那条路在手机上**必然失败**，两个原因叠在
+/// 一起：
+/// 1. `PrefrontalClient` 的 baseUrl 恒为 `http://localhost:60080` ——
+///    那是**桌面 sidecar** 的端口，手机上没人监听；
+/// 2. 移动端**不编本地海马体**（记忆走零信任网络上的 hippocampus），
+///    而嵌入式大脑挂的那条面是纯端脑方言（`cortex_router`），
+///    `/hippocampus/api/*` 一条路由都没有。
+///
+/// 现在改走端脑方言（`/api/telencephalon/tasks`）—— 与嵌入式大脑是
+/// 同一套端脑、同一份任务存储。
 final tasksNotifierProvider = StateNotifierProvider<TasksNotifier, TasksState>((
   ref,
 ) {
-  return TasksNotifier(ref.watch(prefrontalClientProvider));
+  return TasksNotifier(ref.watch(telencephalonClientProvider));
 });
 
-/// UI 状态 -> hippocampus `TaskStatus` 的线上取值。
+/// 看板列 id（UI 侧）。
 ///
-/// 服务端只认 pending / running / completed / failed / cancelled，直接把
-/// UI 的 'in-progress' 发过去会被 serde 拒绝。
+/// 端脑的任务状态只有 5 个（`Pending` / `InProgress` / `Completed` /
+/// `Cancelled` / `Overdue`），看板是 6 列 —— 多出来的两列由 Pending 与
+/// Overdue 承载。
+class TaskBoardColumn {
+  const TaskBoardColumn._();
+
+  static const backlog = 'backlog';
+  static const todo = 'todo';
+  static const inProgress = 'in-progress';
+  static const done = 'done';
+  static const failed = 'failed';
+  static const cancelled = 'cancelled';
+}
+
+/// 端脑 `TaskStatus` → 看板列 id。
+String boardColumnOf(String telencephalonStatus) {
+  switch (telencephalonStatus) {
+    case 'InProgress':
+      return TaskBoardColumn.inProgress;
+    case 'Completed':
+      return TaskBoardColumn.done;
+    case 'Cancelled':
+      return TaskBoardColumn.cancelled;
+    case 'Overdue':
+      // 端脑没有 Failed 状态 —— 「逾期」是它唯一的「有问题」状态。
+      return TaskBoardColumn.failed;
+    default:
+      // Pending（含未知值）→ 待规划。
+      return TaskBoardColumn.backlog;
+  }
+}
+
+/// 看板列 id → 端脑 `TaskStatus`（写回服务端时用）。
+///
+/// ⚠️ 发给服务端的是 serde 的**变体名**（PascalCase）—— 发小写会被
+/// serde 直接拒掉（400）。
 String serverStatusOf(String uiStatus) {
   switch (uiStatus.toLowerCase()) {
-    case 'todo':
-    case 'backlog':
-    case 'pending':
-      return 'pending';
     case 'in-progress':
     case 'in_progress':
     case 'running':
-      return 'running';
+      return TelencephalonTaskStatus.inProgress;
     case 'done':
     case 'completed':
-      return 'completed';
+      return TelencephalonTaskStatus.completed;
     case 'failed':
-      return 'failed';
+      return TelencephalonTaskStatus.overdue;
     case 'cancelled':
     case 'canceled':
-      return 'cancelled';
+      return TelencephalonTaskStatus.cancelled;
     default:
-      return 'pending';
+      return TelencephalonTaskStatus.pending;
   }
 }
 
@@ -69,53 +113,34 @@ class TasksState {
 
 enum TaskStatus { pending, todo, inProgress, done }
 
-/// 子任务（步骤）。对应 hippocampus `TaskRecord.steps` 里的一个
-/// `TaskStep` —— 后端以 camelCase 序列化（stepId / startedAt / ...）。
-class SubTaskStep {
-  final String stepId;
-  final int order;
-  final String status;
-  final DateTime? startedAt;
-  final DateTime? completedAt;
-  final String? error;
-
-  SubTaskStep({
-    required this.stepId,
-    this.order = 0,
-    this.status = 'pending',
-    this.startedAt,
-    this.completedAt,
-    this.error,
-  });
-
-  factory SubTaskStep.fromJson(Map<String, dynamic> json) {
-    DateTime? parse(String camel, String snake) {
-      final raw = json[camel] ?? json[snake];
-      if (raw == null) return null;
-      return DateTime.tryParse(raw.toString());
-    }
-
-    return SubTaskStep(
-      stepId: (json['stepId'] ?? json['step_id'] ?? '').toString(),
-      order: (json['order'] as num?)?.toInt() ?? 0,
-      status: (json['status'] ?? 'pending').toString(),
-      startedAt: parse('startedAt', 'started_at'),
-      completedAt: parse('completedAt', 'completed_at'),
-      error: json['error'] as String?,
-    );
-  }
-}
-
+/// 看板上一条任务。
+///
+/// 数据来自端脑的 `TaskStore`，**不是**海马体的 `TaskRecord` —— 所以：
+/// - 没有「子步骤」：那是海马体 `TaskRecord.steps` 的概念。端脑这边对应
+///   的是**确认点**（`confirmation_points`）与**截止时间**（`due_time`）；
+/// - 描述与标题端脑**真的存得住**（海马体那边存不住，upsert 会丢弃）。
 class TaskInfo {
   final String id;
   final String title;
+
+  /// 看板列 id（`backlog` / `in-progress` / `done` / ...）。
   final String status;
+
+  /// 小写：`low` / `medium` / `high` / `urgent`。
   final String priority;
   final String? description;
   final List<String> tags;
-  final List<SubTaskStep> steps;
   final DateTime createdAt;
   final DateTime? completedAt;
+
+  /// 截止时间。端脑据此排程。
+  final DateTime? dueTime;
+
+  /// 用户是否确认过这条任务（只有确认过的任务才会被调度）。
+  final bool confirmed;
+
+  /// 端脑生成的确认点。
+  final List<String> confirmationPoints;
 
   TaskInfo({
     required this.id,
@@ -124,47 +149,41 @@ class TaskInfo {
     this.priority = 'medium',
     this.description,
     this.tags = const [],
-    this.steps = const [],
     required this.createdAt,
     this.completedAt,
+    this.dueTime,
+    this.confirmed = false,
+    this.confirmationPoints = const [],
   });
 
   factory TaskInfo.fromJson(Map<String, dynamic> json) {
-    final rawSteps = json['steps'];
+    DateTime? ts(Object? raw) =>
+        raw == null ? null : DateTime.tryParse(raw.toString());
+
+    List<String> strings(Object? raw) => raw is List
+        ? raw.map((e) => e.toString()).toList()
+        : const <String>[];
+
+    final rawStatus = (json['status'] ?? 'Pending').toString();
     return TaskInfo(
       id: (json['taskId'] ?? json['task_id'] ?? json['id'] ?? '').toString(),
       title: (json['title'] ?? '').toString(),
-      status: (json['status'] ?? 'pending').toString(),
-      priority: (json['priority'] ?? 'medium').toString(),
+      status: boardColumnOf(rawStatus),
+      priority: (json['priority'] ?? 'medium').toString().toLowerCase(),
       description: json['description'] as String?,
-      tags: json['tags'] is List
-          ? (json['tags'] as List).map((e) => e.toString()).toList()
-          : const <String>[],
-      steps: rawSteps is List
-          ? rawSteps
-              .whereType<Map<String, dynamic>>()
-              .map(SubTaskStep.fromJson)
-              .toList()
-          : const <SubTaskStep>[],
-      createdAt: DateTime.tryParse(
-                (json['receivedAt'] ??
-                        json['received_at'] ??
-                        json['created_at'] ??
-                        '')
-                    .toString(),
-              ) ??
-          DateTime.now(),
-      completedAt: json['completedAt'] != null
-          ? DateTime.tryParse(json['completedAt'].toString())
-          : (json['completed_at'] != null
-              ? DateTime.tryParse(json['completed_at'].toString())
-              : null),
+      tags: strings(json['tags']),
+      createdAt:
+          ts(json['created_at']) ?? ts(json['received_at']) ?? DateTime.now(),
+      completedAt: ts(json['completed_at']),
+      dueTime: ts(json['due_time']),
+      confirmed: json['confirmed'] == true,
+      confirmationPoints: strings(json['confirmation_points']),
     );
   }
 }
 
 class TasksNotifier extends StateNotifier<TasksState> {
-  final PrefrontalClient _client;
+  final TelencephalonClient _client;
 
   TasksNotifier(this._client) : super(const TasksState()) {
     loadTasks();
@@ -173,7 +192,7 @@ class TasksNotifier extends StateNotifier<TasksState> {
   Future<void> loadTasks() async {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
-      final tasks = await _client.getTasks();
+      final tasks = await _client.listTasks();
       state = state.copyWith(
         tasks: tasks.map(_toTaskInfo).toList(),
         isLoading: false,
@@ -183,38 +202,66 @@ class TasksNotifier extends StateNotifier<TasksState> {
     }
   }
 
-  /// TaskResponse -> TaskInfo。保留 hippocampus 的 taskId / receivedAt
-  /// 命名，并把子步骤 DAG 一并带过来。
-  TaskInfo _toTaskInfo(TaskResponse t) => TaskInfo(
+  /// 端脑任务 → 看板任务。
+  TaskInfo _toTaskInfo(TelencephalonTask t) => TaskInfo(
         id: t.id,
-        // hippocampus 的 TaskRecord 没有 title 列：客户端建的任务把标题
-        // 放在 payload 里，后端建的可能什么都没有 —— 两种都退回任务 id，
+        // 端脑的 title 是必填的，但老数据可能是空串 —— 退回 id，
         // 免得列表里出现空标题。
         title: t.title.trim().isEmpty ? t.id : t.title,
-        status: _mapStatus(t.status),
-        priority: t.priority ?? 'medium',
+        status: boardColumnOf(t.status),
+        priority: t.priority.toLowerCase(),
         description: t.description,
         tags: t.tags,
-        steps: t.steps
-            .map(
-              (s) => SubTaskStep(
-                stepId: s.stepId,
-                order: s.order,
-                status: s.status,
-                startedAt: s.startedAt,
-                completedAt: s.completedAt,
-                error: s.error,
-              ),
-            )
-            .toList(),
-        createdAt: t.createdAt,
-        completedAt: t.completedAt,
+        createdAt: t.createdAt ?? DateTime.now(),
+        // 端脑没有 completed_at 列 —— 完成时间用最后更新时间近似。
+        completedAt: t.status == TelencephalonTaskStatus.completed
+            ? t.updatedAt
+            : null,
+        dueTime: t.dueTime,
+        confirmed: t.confirmed,
+        confirmationPoints: t.confirmationPoints,
       );
 
-  /// 重新拉取单个任务并就地更新列表。
+  /// 重新拉一次任务并就地更新列表。
+  ///
+  /// 端脑**没有**「按 id 取单条」的 HTTP 端点（`/api/telencephalon/tasks/{id}`
+  /// 只挂了 DELETE）⇒ 只能重拉全量，再从里面挑出这条。
   Future<void> reloadTask(String taskId) async {
     try {
-      final updated = await _client.getTask(taskId);
+      final all = (await _client.listTasks()).map(_toTaskInfo).toList();
+      TaskInfo? found;
+      for (final t in all) {
+        if (t.id == taskId) {
+          found = t;
+          break;
+        }
+      }
+      if (found == null) return;
+      final updated = found;
+      state = state.copyWith(
+        tasks: state.tasks.map((t) => (t.id == taskId ? updated : t)).toList(),
+      );
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+      rethrow;
+    }
+  }
+
+  /// 改任务状态。
+  ///
+  /// 端脑的**状态是随时可改的**（`POST /api/telencephalon/tasks/{id}/status`）——
+  /// 这是它唯一支持「事后修改」的字段。标题 / 描述 / 优先级 / 标签都改不了：
+  /// 描述与标签只在创建时写入，标题与优先级只有**待确认**的任务能通过
+  /// 「确认」端点顺带改（见 [confirmTask]）。
+  Future<void> updateTask(
+    String taskId, {
+    String? status,
+  }) async {
+    try {
+      final updated = await _client.updateTaskStatus(
+        taskId,
+        serverStatusOf(status ?? TaskBoardColumn.backlog),
+      );
       final info = _toTaskInfo(updated);
       state = state.copyWith(
         tasks: state.tasks.map((t) => (t.id == taskId ? info : t)).toList(),
@@ -225,28 +272,13 @@ class TasksNotifier extends StateNotifier<TasksState> {
     }
   }
 
-  /// 更新任务字段。
+  /// 确认一条任务（端脑的核心动作）。
   ///
-  /// title / description / priority 是仅前端字段 —— hippocampus 的
-  /// TaskRecord 没有这些列，upsert 会丢弃它们（与桌面端
-  /// `prefrontalClient.updateTask` 行为一致）。
-  Future<void> updateTask(
-    String taskId, {
-    String? title,
-    String? description,
-    String? priority,
-    String? status,
-    List<String>? tags,
-  }) async {
+  /// **只有 `Pending` 的任务能确认** —— 服务端在别的状态上会回 400
+  /// （`only Pending tasks are confirmable`）。确认之后端脑才会调度它。
+  Future<void> confirmTask(String taskId) async {
     try {
-      final updated = await _client.updateTask(
-        taskId,
-        title: title,
-        description: description,
-        priority: priority,
-        status: status == null ? null : serverStatusOf(status),
-        tags: tags,
-      );
+      final updated = await _client.confirmTask(taskId, confirmed: true);
       final info = _toTaskInfo(updated);
       state = state.copyWith(
         tasks: state.tasks.map((t) => (t.id == taskId ? info : t)).toList(),
@@ -270,65 +302,38 @@ class TasksNotifier extends StateNotifier<TasksState> {
     }
   }
 
-  /// 新建 hippocampus 任务。
+  /// 新建端脑任务。
   ///
-  /// `UpsertTaskRequest` 必填 `taskId` + `targetAgent`，缺一个后端就返回
-  /// 400，所以这里自己生成任务 id，并解析一个可用的目标 agent。标题与
-  /// 优先级放进 `payload`（后端真正持久化的 JSON 列）。
-  Future<void> createTask(String title, String priority) async {
+  /// 任务 id 由端脑自己分配（`task-1` / `task-2` ...），标题与优先级
+  /// 走端脑的正式字段 —— 不再需要像海马体那样把标题塞进 `payload`。
+  /// [dueTime] 是自由文本（ISO8601 或「明天下午3点」这类中文相对时间），
+  /// 端脑解析不了会回 400。
+  ///
+  /// [column] 是**从哪一列加的**。端脑新建出来的任务一律是 `Pending`，
+  /// 所以在别的列上加任务时，建完再把状态挪过去 —— 否则点了「已完成」
+  /// 那列的「+」，任务却落到「待规划」里。
+  Future<void> createTask(
+    String title,
+    String priority, {
+    String? dueTime,
+    String? description,
+    String? column,
+  }) async {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
-      final targetAgent = await _resolveTargetAgent();
-      final taskId = 'mobile-${DateTime.now().microsecondsSinceEpoch}';
-      await _client.createTask(
-        CreateTaskRequest(
-          title: title,
-          priority: priority,
-          taskId: taskId,
-          targetAgent: targetAgent,
-          status: 'pending',
-          payload: {'title': title, 'priority': priority},
-        ),
+      final created = await _client.createTask(
+        title: title,
+        priority: priority,
+        dueTime: dueTime,
+        description: description,
       );
+      final target = column == null ? null : serverStatusOf(column);
+      if (target != null && target != TelencephalonTaskStatus.pending) {
+        await _client.updateTaskStatus(created.id, target);
+      }
       await loadTasks();
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
-    }
-  }
-
-  /// 目标任务 id。后端不校验它是否存在，但派发时需要真实 agent，
-  /// 所以优先取 agent 列表的第一个，拿不到就退回常驻的 prefrontal。
-  Future<String> _resolveTargetAgent() async {
-    try {
-      final agents = await _client.getAgents();
-      if (agents.isNotEmpty) return agents.first.id;
-    } catch (_) {
-      // 列表拿不到就用默认执行器，不阻断新建流程。
-    }
-    return 'prefrontal';
-  }
-
-  String _mapStatus(String status) {
-    switch (status.toLowerCase()) {
-      case 'pending':
-      case 'backlog':
-        return 'backlog';
-      case 'todo':
-        return 'todo';
-      case 'in_progress':
-      case 'in-progress':
-      case 'running':
-        return 'in-progress';
-      case 'done':
-      case 'completed':
-        return 'done';
-      case 'failed':
-        return 'failed';
-      case 'cancelled':
-      case 'canceled':
-        return 'cancelled';
-      default:
-        return 'backlog';
     }
   }
 }
@@ -379,21 +384,37 @@ class TaskBoardScreen extends ConsumerWidget {
   ) {
     final columns = [
       _ColumnConfig(
-        id: 'backlog',
+        id: TaskBoardColumn.backlog,
         title: AppLocalizations.of(context)!.taskStatusBacklog,
         color: AppColors.darkTextSecondary,
       ),
       _ColumnConfig(
-        id: 'todo',
+        id: TaskBoardColumn.todo,
         title: AppLocalizations.of(context)!.taskStatusTodo,
         color: AppColors.primary,
       ),
-      _ColumnConfig(id: 'in-progress', title: AppLocalizations.of(context)!.taskStatusInProgress, color: AppColors.warning),
-      _ColumnConfig(id: 'done', title: AppLocalizations.of(context)!.taskStatusDone, color: AppColors.success),
-      // hippocampus 的 TaskStatus 还有 failed / cancelled。少了这两列，
-      // 失败和已取消的任务在看板上就完全看不见了。
-      _ColumnConfig(id: 'failed', title: AppLocalizations.of(context)!.taskStatusFailed, color: AppColors.error),
-      _ColumnConfig(id: 'cancelled', title: AppLocalizations.of(context)!.taskStatusCancelled, color: AppColors.darkTextSecondary),
+      _ColumnConfig(
+        id: TaskBoardColumn.inProgress,
+        title: AppLocalizations.of(context)!.taskStatusInProgress,
+        color: AppColors.warning,
+      ),
+      _ColumnConfig(
+        id: TaskBoardColumn.done,
+        title: AppLocalizations.of(context)!.taskStatusDone,
+        color: AppColors.success,
+      ),
+      // 端脑的 TaskStatus 里的「逾期」与「已取消」也要有列 ——
+      // 少了这两列，这些任务在看板上就完全看不见了。
+      _ColumnConfig(
+        id: TaskBoardColumn.failed,
+        title: AppLocalizations.of(context)!.taskStatusFailed,
+        color: AppColors.error,
+      ),
+      _ColumnConfig(
+        id: TaskBoardColumn.cancelled,
+        title: AppLocalizations.of(context)!.taskStatusCancelled,
+        color: AppColors.darkTextSecondary,
+      ),
     ];
 
     return ListView.builder(
@@ -413,7 +434,7 @@ class TaskBoardScreen extends ConsumerWidget {
     );
   }
 
-  /// 打开任务详情弹窗。弹窗内可以刷新、看子任务、编辑和删除。
+  /// 打开任务详情弹窗。弹窗内可以刷新、看确认点、确认、编辑和删除。
   void _openTaskDetail(BuildContext context, TaskInfo task) {
     showDialog(
       context: context,
@@ -429,8 +450,13 @@ class TaskBoardScreen extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (context) => _AddTaskDialog(
-        onAdd: (title, priority) {
-          ref.read(tasksNotifierProvider.notifier).createTask(title, priority);
+        onAdd: (title, priority, dueTime) {
+          ref.read(tasksNotifierProvider.notifier).createTask(
+                title,
+                priority,
+                dueTime: dueTime,
+                column: columnId,
+              );
         },
       ),
     );
@@ -605,9 +631,7 @@ class _TaskCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final completed =
-        task.steps.where((s) => s.status == 'completed').length;
-    final total = task.steps.length;
+    final l10n = AppLocalizations.of(context)!;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -633,23 +657,37 @@ class _TaskCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 4),
                   Text(task.priority, style: const TextStyle(fontSize: 12)),
-                  if (total > 0) ...[
+                  if (task.dueTime != null) ...[
                     const SizedBox(width: 8),
-                    Text(
-                      AppLocalizations.of(context)!.taskStepProgress(completed, total),
-                      style: const TextStyle(fontSize: 12),
+                    Icon(
+                      Icons.schedule,
+                      size: 12,
+                      color: Theme.of(context).hintColor,
+                    ),
+                    const SizedBox(width: 2),
+                    // 截止时间可能很长（ISO 时间戳）⇒ 让它可压缩，
+                    // 不然 280 宽的列会被撑爆（RenderFlex overflow）。
+                    Flexible(
+                      child: Text(
+                        _fmtShortDate(task.dueTime!),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Theme.of(context).hintColor,
+                        ),
+                      ),
                     ),
                   ],
                 ],
               ),
-              if (total > 0) ...[
+              if (!task.confirmed) ...[
                 const SizedBox(height: 6),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: total > 0 ? completed / total : 0,
-                    minHeight: 4,
-                    backgroundColor: Colors.grey.withOpacity(0.2),
+                Text(
+                  l10n.taskAwaitingConfirm,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Theme.of(context).hintColor,
                   ),
                 ),
               ],
@@ -676,8 +714,14 @@ class _TaskCard extends StatelessWidget {
   }
 }
 
+/// 短日期：`2026-10-30 15:04`。
+String _fmtShortDate(DateTime d) {
+  String two(int n) => n.toString().padLeft(2, '0');
+  return '${d.year}-${two(d.month)}-${two(d.day)} ${two(d.hour)}:${two(d.minute)}';
+}
+
 class _AddTaskDialog extends StatefulWidget {
-  final Function(String title, String priority) onAdd;
+  final Function(String title, String priority, String? dueTime) onAdd;
 
   const _AddTaskDialog({required this.onAdd});
 
@@ -687,25 +731,28 @@ class _AddTaskDialog extends StatefulWidget {
 
 class _AddTaskDialogState extends State<_AddTaskDialog> {
   final _titleController = TextEditingController();
+  final _dueTimeController = TextEditingController();
   String _priority = 'medium';
 
   @override
   void dispose() {
     _titleController.dispose();
+    _dueTimeController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return AlertDialog(
-      title: Text(AppLocalizations.of(context)!.taskAdd),
+      title: Text(l10n.taskAdd),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           TextField(
             controller: _titleController,
             decoration: InputDecoration(
-              labelText: AppLocalizations.of(context)!.taskTitleField,
+              labelText: l10n.taskTitleField,
               border: OutlineInputBorder(),
             ),
             autofocus: true,
@@ -714,34 +761,48 @@ class _AddTaskDialogState extends State<_AddTaskDialog> {
           DropdownButtonFormField<String>(
             initialValue: _priority,
             decoration: InputDecoration(
-              labelText: AppLocalizations.of(context)!.taskPriority,
+              labelText: l10n.taskPriority,
               border: OutlineInputBorder(),
             ),
             items: [
-              DropdownMenuItem(value: 'low', child: Text(AppLocalizations.of(context)!.priorityLow)),
-              DropdownMenuItem(value: 'medium', child: Text(AppLocalizations.of(context)!.priorityMedium)),
-              DropdownMenuItem(value: 'high', child: Text(AppLocalizations.of(context)!.priorityHigh)),
-              DropdownMenuItem(value: 'urgent', child: Text(AppLocalizations.of(context)!.priorityUrgent)),
+              DropdownMenuItem(value: 'low', child: Text(l10n.priorityLow)),
+              DropdownMenuItem(value: 'medium', child: Text(l10n.priorityMedium)),
+              DropdownMenuItem(value: 'high', child: Text(l10n.priorityHigh)),
+              DropdownMenuItem(value: 'urgent', child: Text(l10n.priorityUrgent)),
             ],
             onChanged: (value) {
               if (value != null) setState(() => _priority = value);
             },
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _dueTimeController,
+            decoration: InputDecoration(
+              labelText: l10n.taskDueTimeField,
+              border: OutlineInputBorder(),
+              helperText: l10n.taskDueTimeHint,
+            ),
           ),
         ],
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: Text(AppLocalizations.of(context)!.cancel),
+          child: Text(l10n.cancel),
         ),
         FilledButton(
           onPressed: () {
             if (_titleController.text.isNotEmpty) {
-              widget.onAdd(_titleController.text, _priority);
+              final due = _dueTimeController.text.trim();
+              widget.onAdd(
+                _titleController.text,
+                _priority,
+                due.isEmpty ? null : due,
+              );
               Navigator.pop(context);
             }
           },
-          child: Text(AppLocalizations.of(context)!.commonAdd),
+          child: Text(l10n.commonAdd),
         ),
       ],
     );

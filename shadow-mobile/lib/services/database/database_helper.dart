@@ -19,7 +19,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 3,
+      version: 4,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -76,6 +76,17 @@ class DatabaseHelper {
         settings TEXT
       )
     ''');
+
+    // App 私有的键值设置。
+    //
+    // 用来存「用户选过、但不属于任何一张表」的东西 —— 比如大脑用哪个
+    // 模型来源（见 `lib/providers/brain_model_source_provider.dart`）。
+    await db.execute('''
+      CREATE TABLE app_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT
+      )
+    ''');
   }
 
   Future<void> _upgradeDB(Database db, int oldVersion, int newVersion) async {
@@ -88,6 +99,14 @@ class DatabaseHelper {
       await db.execute(
         'ALTER TABLE models ADD COLUMN model_type TEXT NOT NULL DEFAULT \'llm\'',
       );
+    }
+    if (oldVersion < 4) {
+      await db.execute('''
+        CREATE TABLE app_settings (
+          key TEXT PRIMARY KEY,
+          value TEXT
+        )
+      ''');
     }
   }
 

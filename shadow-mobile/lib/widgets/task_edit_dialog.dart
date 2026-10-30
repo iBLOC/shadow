@@ -5,9 +5,15 @@ import '../generated/l10n/app_localizations.dart';
 
 /// 任务编辑弹窗。
 ///
-/// 只开放 hippocampus 真正持久化的字段（状态 / 标签）：`TaskRecord`
-/// 没有 title / description / priority 列，upsert 会直接丢弃它们。
-/// 客户端建任务时把标题写进了 `payload`，那才是能存下来的位置。
+/// 端脑的任务**不是所有字段都能改**，这个弹窗只开放它真能持久化的：
+/// - **状态** → `POST /api/telencephalon/tasks/{id}/status`，随时可改；
+/// - 标题 / 描述 / 优先级 / 标签 → **没有更新端点**。标题与优先级只有
+///   「待确认」的任务能靠确认端点顺带改（而且那会把任务标记成已确认），
+///   描述与标签只在**创建**时写入。
+///
+/// （以前这个弹窗开放的是「状态 + 标签」，那是海马体方言的形状 ——
+/// 海马体的 `TaskRecord` 没有 title / description / priority 列，upsert
+/// 会直接丢弃它们。端脑这边换成了「真的存得住」的那一组字段。）
 class TaskEditDialog extends ConsumerStatefulWidget {
   final TaskInfo task;
   const TaskEditDialog({super.key, required this.task});
@@ -17,34 +23,28 @@ class TaskEditDialog extends ConsumerStatefulWidget {
 }
 
 class _TaskEditDialogState extends ConsumerState<TaskEditDialog> {
-  late TextEditingController _tagsController;
   late String _status;
   bool _isSubmitting = false;
   String? _errorMessage;
 
-  /// 后端 `TaskStatus` 的取值集合。
+  /// 端脑 `TaskStatus` 的线上取值（serde 变体名，PascalCase）。
+  ///
+  /// 发小写会被 serde 直接拒掉（400）。
   static const _statuses = [
-    'pending',
-    'running',
-    'completed',
-    'failed',
-    'cancelled',
+    'Pending',
+    'InProgress',
+    'Completed',
+    'Cancelled',
+    'Overdue',
   ];
 
   @override
   void initState() {
     super.initState();
-    _tagsController = TextEditingController(text: widget.task.tags.join(', '));
-    // 看板用的是 UI 状态（backlog / in-progress / done ...），
-    // 下拉框列的是后端状态，先换算再作为初值，否则 Dropdown 会因为
+    // 看板用的是 UI 列 id（backlog / in-progress / done ...），
+    // 下拉框列的是端脑的状态，先换算再作为初值，否则 Dropdown 会因为
     // 找不到匹配的 item 直接断言失败。
     _status = serverStatusOf(widget.task.status);
-  }
-
-  @override
-  void dispose() {
-    _tagsController.dispose();
-    super.dispose();
   }
 
   Future<void> _submit() async {
@@ -53,15 +53,9 @@ class _TaskEditDialogState extends ConsumerState<TaskEditDialog> {
       _errorMessage = null;
     });
     try {
-      final tags = _tagsController.text
-          .split(',')
-          .map((t) => t.trim())
-          .where((t) => t.isNotEmpty)
-          .toList();
       await ref.read(tasksNotifierProvider.notifier).updateTask(
             widget.task.id,
             status: _status,
-            tags: tags,
           );
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
@@ -77,8 +71,9 @@ class _TaskEditDialogState extends ConsumerState<TaskEditDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return AlertDialog(
-      title: Text(AppLocalizations.of(context)!.taskEditTitle),
+      title: Text(l10n.taskEditTitle),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -97,7 +92,7 @@ class _TaskEditDialogState extends ConsumerState<TaskEditDialog> {
             DropdownButtonFormField<String>(
               initialValue: _status,
               decoration: InputDecoration(
-                labelText: AppLocalizations.of(context)!.taskStatus,
+                labelText: l10n.taskStatus,
                 border: OutlineInputBorder(),
               ),
               items: _statuses
@@ -108,16 +103,8 @@ class _TaskEditDialogState extends ConsumerState<TaskEditDialog> {
               },
             ),
             const SizedBox(height: 12),
-            TextField(
-              controller: _tagsController,
-              decoration: InputDecoration(
-                labelText: AppLocalizations.of(context)!.taskTagsField,
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
             Text(
-              AppLocalizations.of(context)!.taskEditPersistenceNote,
+              l10n.taskEditPersistenceNote,
               style: TextStyle(fontSize: 11, color: Theme.of(context).hintColor),
             ),
             if (_errorMessage != null) ...[
@@ -133,7 +120,7 @@ class _TaskEditDialogState extends ConsumerState<TaskEditDialog> {
       actions: [
         TextButton(
           onPressed: _isSubmitting ? null : () => Navigator.pop(context),
-          child: Text(AppLocalizations.of(context)!.cancel),
+          child: Text(l10n.cancel),
         ),
         FilledButton(
           onPressed: _isSubmitting ? null : _submit,
@@ -143,7 +130,7 @@ class _TaskEditDialogState extends ConsumerState<TaskEditDialog> {
                   height: 16,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              : Text(AppLocalizations.of(context)!.commonSave),
+              : Text(l10n.commonSave),
         ),
       ],
     );
