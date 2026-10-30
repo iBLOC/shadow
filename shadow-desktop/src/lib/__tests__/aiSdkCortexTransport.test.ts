@@ -1,97 +1,14 @@
 import { describe, expect, it } from 'vitest';
+import { translateEvent } from '../aiSdkTelencephalonTransport';
 
 // Test the pure translation function directly. We can't easily test the
 // full stream pipeline without telencephalonClient being callable in jsdom,
-// so we re-export the translator for unit tests.
-
-interface StreamEvent {
-  type:
-    | 'delta'
-    | 'done'
-    | 'error'
-    | 'tool_call'
-    | 'tool_result'
-    | 'route'
-    | 'handoff'
-    | 'step';
-  agent?: string;
-  delta?: string;
-  conversation_id?: string;
-  state?: string;
-  timestamp?: number;
-  error?: string;
-  tool_call_id?: string;
-  name?: string;
-  args?: Record<string, unknown>;
-  result?: unknown;
-  supervisor?: string;
-  target?: string;
-  reason?: string;
-  from?: string;
-  to?: string;
-  context_size?: number;
-  step?: string;
-}
-
-type WireChunk = { type: string; [key: string]: unknown };
-
-function translateEvent(event: StreamEvent): WireChunk[] {
-  switch (event.type) {
-    case 'delta':
-      return [{ type: 'text-delta', textDelta: event.delta ?? '' }];
-    case 'tool_call':
-      return [
-        {
-          type: 'tool-input-start',
-          toolCallId: event.tool_call_id,
-          toolName: event.name,
-        },
-        {
-          type: 'tool-input-delta',
-          toolCallId: event.tool_call_id,
-          inputTextDelta: JSON.stringify(event.args ?? {}),
-        },
-        {
-          type: 'tool-input-available',
-          toolCallId: event.tool_call_id,
-          toolName: event.name,
-          input: event.args ?? {},
-        },
-      ];
-    case 'tool_result':
-      return [
-        {
-          type: 'tool-output-available',
-          toolCallId: event.tool_call_id,
-          output: event.result,
-        },
-      ];
-    case 'route':
-      return [
-        {
-          type: 'step-start',
-          stepType: 'route',
-          metadata: { supervisor: event.supervisor, target: event.target, reason: event.reason },
-        },
-      ];
-    case 'handoff':
-      return [
-        {
-          type: 'step-start',
-          stepType: 'handoff',
-          metadata: { from: event.from, to: event.to, contextSize: event.context_size },
-        },
-      ];
-    case 'step':
-      return [{ type: 'step-finish', stepType: event.step }];
-    case 'done':
-      return [{ type: 'step-finish', stepType: 'final' }];
-    case 'error':
-      return [{ type: 'error', errorText: event.error ?? 'Unknown error' }];
-    default:
-      return [];
-  }
-}
+// so the translator is **exported** for unit tests.
+//
+// ⚠️ The test must exercise the **real** translator, not a copy of it.
+// This file used to carry a hand-copied `translateEvent` — which is why
+// the `args` double-encoding bug (the brain sends `args` as JSON *text*)
+// survived: a copy can never catch a regression in the original.
 
 describe('cortex StreamEvent → AI SDK wire chunks', () => {
   it('translates delta to text-delta', () => {
@@ -129,6 +46,27 @@ describe('cortex StreamEvent → AI SDK wire chunks', () => {
       toolCallId: 'call-1',
       toolName: 'getWeather',
       input: { city: 'SF' },
+    });
+  });
+
+  it('normalizes args that arrive as JSON **text** (the wire shape)', () => {
+    // ⚠️ 端脑的 `ToolCall.args` 是 `String` ⇒ 线上 `args` 是一段 JSON 文本，
+    // 不是对象。直接用 `event.args` 的话：`input` 会是一段**字符串**
+    // （工具拿到的参数全是空的），`inputTextDelta` 还会**双重编码**。
+    const chunks = translateEvent({
+      type: 'tool_call',
+      tool_call_id: 'call-1',
+      name: 'set_theme',
+      args: '{"color":"#71717A"}',
+    });
+
+    expect(chunks[2]).toMatchObject({
+      toolCallId: 'call-1',
+      toolName: 'set_theme',
+      input: { color: '#71717A' },
+    });
+    expect(chunks[1]).toMatchObject({
+      inputTextDelta: '{"color":"#71717A"}',
     });
   });
 

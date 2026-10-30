@@ -90,6 +90,18 @@ void main() {
       expect(applied!.toARGB32(), const Color(0xFF71717A).toARGB32());
     });
 
+    test('8 位（ARGB）**丢掉 alpha** —— 与桌面端 `parseHexColor` 一致', () async {
+      Color? applied;
+      final registry = registryWith(onColor: (c) => applied = c);
+
+      await registry.lookup('set_theme')!.execute({'color': '#80717A7A'});
+
+      // 两端必须一样：桌面端把 `#AARRGGBB` 归一成 `#RRGGBB`
+      // （主题色带透明度没有意义 —— 会跟背景混色）。
+      // 以前移动端保留 alpha、桌面端丢掉 ⇒ 同一个颜色两端显示不一样。
+      expect(applied!.toARGB32(), const Color(0xFF717A7A).toARGB32());
+    });
+
     test('`dark` ⇒ 切明暗（不走换色那条路）', () async {
       var darkApplied = false;
       final registry = registryWith(onDark: (d) => darkApplied = d);

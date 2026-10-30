@@ -350,6 +350,12 @@ class ChatNotifier extends StateNotifier<ChatState> {
       final buffer = StringBuffer();
       state = state.copyWith(streamingText: '');
 
+      // 这一轮有没有发生工具调用。
+      //
+      // 端脑让客户端干完活之后**可能不再说话**（这一轮就只有一次工具
+      // 调用）—— 那时候「空回复」不是错误，工具卡片本身就是回复。
+      var toolCallSeen = false;
+
       await for (final event in _telencephalonClient.streamMessage(
         sessionId,
         SendMessageRequest(text: prompt),
@@ -369,6 +375,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
             // 这是「模型自己让客户端换主题」这条产品线的客户端一半：
             // 端脑只负责**点名**（工具名 + 参数），真正干活的是客户端，
             // 干完再把结果回传端脑，模型才知道主题换好了。
+            toolCallSeen = true;
             await _handleToolCall(sessionId, event);
             break;
           default:
@@ -379,20 +386,24 @@ class ChatNotifier extends StateNotifier<ChatState> {
       }
 
       final response = buffer.toString();
-      if (response.isEmpty) {
+      if (response.isEmpty && !toolCallSeen) {
         throw Exception(currentL10n().chatSorryErrorShort);
       }
 
       state = state.copyWith(
         messages: [
           ...state.messages,
-          ChatMessageModel(response, ChatRole.assistant),
+          // 空回复 + 有工具调用 ⇒ 不插一条空气泡（工具卡片已经在了）。
+          if (response.isNotEmpty)
+            ChatMessageModel(response, ChatRole.assistant),
         ],
         isLoading: false,
         attachments: [],
         streamingText: '',
       );
-      await _ttsEngine.speak(response);
+      if (response.isNotEmpty) {
+        await _ttsEngine.speak(response);
+      }
     } catch (e) {
       state = state.copyWith(
         errorMessage: 'Error: $e',
@@ -474,6 +485,9 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
     // 执行 + 回传**不阻塞** SSE 读循环 —— 回传是个 HTTP 请求，
     // 端脑还没上这个端点时会 404；拖着读循环不放会让整条对话卡住。
+    //
+    // 回传是**独立的一条 HTTP 连接**，与 SSE 无关 ⇒ 端脑那头在同一条
+    // 流里等着结果（将来端脑支持了 (c)）时，这个 POST 照样立刻到。
     unawaited(
       _runToolCall(
         sessionId: sessionId,
@@ -597,6 +611,11 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
   /// 把工具调用的最新状态写回对话流里那张卡片。
   void _upsertToolCall(ToolCallModel model) {
+    // ⚠️ 工具是在**后台**跑的（执行 + 回传不阻塞 SSE 读循环）。
+    // 用户在工具跑完之前离开页面 ⇒ notifier 已经被 dispose ⇒
+    // 这时候再写 `state` 会抛「Bad state: Tried to modify a disposed
+    // provider」。所以每次写之前先看一眼自己还在不在。
+    if (!mounted) return;
     final messages = List<ChatMessageModel>.from(state.messages);
     final index = messages.indexWhere((m) => m.toolCall?.id == model.id);
     if (index >= 0) {
@@ -616,6 +635,9 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
   /// 按调用 id 找到对话流里那张工具卡片。
   ToolCallModel? _toolCallById(String id) {
+    // ⚠️ 读 `state` 在 dispose 之后**也会抛**（不只是写）。
+    // 工具在后台跑，用户可能已经离开页面了 ⇒ 先看自己在不在。
+    if (!mounted) return null;
     for (final message in state.messages) {
       final call = message.toolCall;
       if (call != null && call.id == id) return call;

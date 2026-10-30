@@ -21,6 +21,7 @@
  */
 
 import { telencephalonClient, type StreamEvent } from './telencephalonClient';
+import { parseToolArgs } from './clientTools';
 
 export interface TelencephalonChatTransportOptions {
   conversationId: string;
@@ -58,13 +59,25 @@ export interface CortexWireChunk {
 /**
  * Translate a shadow StreamEvent (delta / tool_call / tool_result / route /
  * handoff / done / error / step) into one or more AI SDK wire-format chunks.
+ *
+ * Exported for unit tests — **the test must exercise this function, not a
+ * copy of it**. A copied translator can never catch a regression in the
+ * real one (that is exactly how the `args` double-encoding bug below
+ * survived).
  */
-function translateEvent(event: StreamEvent): CortexWireChunk[] {
+export function translateEvent(event: StreamEvent): CortexWireChunk[] {
   switch (event.type) {
     case 'delta':
       return [{ type: 'text-delta', textDelta: event.delta ?? '' }];
 
-    case 'tool_call':
+    case 'tool_call': {
+      // ⚠️ `args` 线上可能是 JSON **文本**（端脑的 `ToolCall.args` 是
+      // `String`），也可能是已经拆好的对象 ⇒ 两种都要归一成对象。
+      // 直接用 `event.args` 的话：JSON 文本会被**双重编码**
+      // （`inputTextDelta` 变成 `"\"{...}\""`），而 `tool-input-available`
+      // 的 `input` 是一段**字符串**而不是参数表 ⇒ 工具拿到的参数全是空的，
+      // 而且**看不出哪里错了**。
+      const args = parseToolArgs(event.args);
       return [
         {
           type: 'tool-input-start',
@@ -74,15 +87,16 @@ function translateEvent(event: StreamEvent): CortexWireChunk[] {
         {
           type: 'tool-input-delta',
           toolCallId: event.tool_call_id,
-          inputTextDelta: JSON.stringify(event.args ?? {}),
+          inputTextDelta: JSON.stringify(args),
         },
         {
           type: 'tool-input-available',
           toolCallId: event.tool_call_id,
           toolName: event.name,
-          input: event.args ?? {},
+          input: args,
         },
       ];
+    }
 
     case 'tool_result':
       return [

@@ -223,14 +223,18 @@ ClientToolRegistry buildMobileClientTools({
 ///
 /// 认不出的颜色名**不猜** —— 猜错一次，用户看到的主题色就和模型说的
 /// 完全不是一回事，而模型以为自己成功了。
+///
+/// `#AARRGGBB` 的 **alpha 被丢掉**（取前 6 位）：主题色带透明度没有意义
+/// （会跟背景混色），而且桌面端 `parseHexColor` 也是这么处理的 ——
+/// 两端必须一样，否则「模型让手机换主题」换出来的颜色和桌面端对不上。
 Color? _parseColor(Object? raw) {
   if (raw is! String) return null;
   var text = raw.trim();
   if (text.isEmpty) return null;
   if (text.startsWith('#')) text = text.substring(1);
-  if (text.length == 6) text = 'FF$text';
-  if (text.length != 8) return null;
+  if (text.length == 8) text = text.substring(2);
+  if (text.length != 6) return null;
   final value = int.tryParse(text, radix: 16);
   if (value == null) return null;
-  return Color(value);
+  return Color(0xFF000000 | value);
 }
