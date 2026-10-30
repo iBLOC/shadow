@@ -396,8 +396,8 @@ The same `src/` produces **two artefacts**:
 - **⚠️ 认错的代价很具体**（三处都写在代码注释里）：① `args` 线上有两种形态
   （端脑的 `ToolCall.args` 是 `String` ⇒ 序列化出来是 JSON 文本；有些路径传
   的是已经拆好的 map）⇒ 拿到字符串还当对象用 ⇒ 参数全是空的，「把主题换成
-  靛蓝」会退化成「换成默认色」，而且**看不出哪里错了**；② 端脑今天**不携带**
-  调用 id ⇒ 客户端自己合成；③ 工具在本地跑成了 **≠** 端脑知道了 ⇒ 两端要
+  靛蓝」会退化成「换成默认色」，而且**看不出哪里错了**；② 端脑的 `tool_call` 事件**现在带 `tool_call_id`**
+  （uuid）⇒ 两端把它回传，端脑按 id 对上号（老端脑没有才自己合成）；③ 工具在本地跑成了 **≠** 端脑知道了 ⇒ 两端要
   分开显示（否则「本地换了主题、端脑那头模型还在等」会被看成成功）。
 
 **修掉一个真 bug**：`parseHexColor` 对 `#AARRGGBB` 取的是**前** 6 位（把 alpha
@@ -409,7 +409,10 @@ The same `src/` produces **two artefacts**:
 `src/lib/__tests__/clientTools.test.ts` 11 条：参数两种形态、非 JSON 不丢调用、
 数组不当参数表、颜色归一化与「不猜」、注册表查找）。
 
-**⚠️ 闭环还没通**：客户端把结果回传到
-`POST /shadow/v1/conversations/{id}/tool-results`，而**端脑这条路由还不存在**
-⇒ 回传会 404 ⇒「模型自己让客户端换主题」这件事**还没真跑通**。端脑那侧要补的
-就是这条接收端路由 + 叶区 `call_llm` 带 `tools`。
+**⚠️ 闭环通了一半**：端脑的**接收端路由已经补上** ——
+`POST /shadow/v1/conversations/{id}/tool-results`（`telencephalon/src/api/shadow.rs`）
+⇒ 结果**记进会话历史**（agent 角色 + `[tool_result] ` 前缀）⇒ 下一轮模型看得见
+「我调过这个工具、结果是什么」；`tool_call` 事件**现在带 `tool_call_id`**（端脑
+生成的 uuid）⇒ 同一轮里同名工具调两次也分得清。**还差的是叶区 `call_llm` 带
+`tools`** —— native 叶区今天既产生不了工具调用、也接不了工具结果 ⇒
+「模型自己决定调客户端工具」目前**只对外部 A2A 对端成立**。
