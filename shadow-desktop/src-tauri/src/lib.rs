@@ -141,7 +141,15 @@ pub fn run() {
         // keep working. **Chat does not go there**: it goes through the
         // telencephalon face mounted below, so the traffic is
         // 大脑 → 端脑 → 叶区 like it is on mobile.
-        encephalon::EmbeddedConfig { neuron_port: 8085 },
+        encephalon::EmbeddedConfig {
+            neuron_port: 8085,
+            // 桌面端**从不**在这里注册云端 LLM 上游 —— 桌面走的是
+            // `/model/default` 那条 HTTP 面（端脑侧的 lobe 路由），
+            // 不是把引擎塞进 neuron's 派发表。㉔ 条给 `EmbeddedConfig`
+            // 加了这个字段时桌面端漏改 ⇒ 桌面端在 master 上就编译不过
+            // （E0063），本轮顺手补上。
+            llm_provider: None,
+        },
     ))
     .expect("boot embedded encephalon");
     let neuron_addr = stack.neuron_addr();
@@ -317,6 +325,8 @@ pub fn run() {
             ws_reconnect,
             encrypt_value,
             decrypt_value,
+            identity_export,
+            identity_import,
             set_master_key,
             add_model_provider,
             list_model_providers,
@@ -560,6 +570,68 @@ fn encrypt_value(value: String, passphrase: String) -> Result<String, String> {
 #[tauri::command]
 fn decrypt_value(encrypted: String, passphrase: String) -> Result<String, String> {
     crypto::decrypt_value(&encrypted, &passphrase)
+}
+
+/// 账号身份目录 —— 与端脑用的是**同一个**目录。
+///
+/// 端脑在 `cortex_http.rs` 里把自己的身份目录指到这里，所以桌面读到
+/// 的账号和端脑手上的账号是同一个。
+fn desktop_identity_dir() -> Result<std::path::PathBuf, String> {
+    dirs::config_dir()
+        .map(|d| d.join("shadow").join("identity"))
+        .ok_or_else(|| "no config directory on this machine".to_string())
+}
+
+/// 导出账号 —— 拿去另一台设备导入。
+///
+/// ⚠️ **这串东西就是身份本身。** 账号密钥派生出 principal 与默认人格
+/// ⇒  whoever 持有它，**就是**那个人（记忆也归那个人）。
+///
+/// 导出**不经过端脑的 HTTP 面** —— 那张面在 loopback 上，能连上它就
+/// 意味着「本机任意进程」，把账号密钥放到那儿等于把身份发出去。
+#[tauri::command]
+fn identity_export() -> Result<String, String> {
+    let account =
+        telencephalon::security::identity::AccountIdentity::load_or_create(&desktop_identity_dir()?)?;
+    Ok(account.export_account())
+}
+
+/// 导入账号 —— 这台设备从此是导出方的那个人。
+///
+/// **交给端脑去做**（`POST /shadow/v1/identity`），因为端脑才是那个
+/// 持有身份状态的人：它写文件、换掉进程级身份，端脑立刻就知道自己
+/// 是谁了 —— 不用重启大脑。桌面这边不重复写一遍，免得两份身份各说各话。
+///
+/// ⚠️ `shadowKey` 不是可选的装饰：身份端点挂在 shadow 面上，**跟着
+/// `X-Shadow-Key` 一起受保护**（能改「这台机器是谁」的接口不能裸奔）。
+#[tauri::command]
+async fn identity_import(code: String, shadow_key: String) -> Result<serde_json::Value, String> {
+    let url = format!(
+        "http://{}/shadow/v1/identity",
+        crate::cortex_http::DEFAULT_ADDR
+    );
+    let client = reqwest::Client::new();
+    let mut request = client.post(&url).json(&serde_json::json!({ "code": code }));
+    if !shadow_key.trim().is_empty() {
+        request = request.header("X-Shadow-Key", shadow_key.trim());
+    }
+    let resp = request
+        .send()
+        .await
+        .map_err(|e| format!("could not reach the endbrain at {url}: {e}"))?;
+    let status = resp.status();
+    let body: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("the endbrain answered with something unreadable: {e}"))?;
+    if !status.is_success() {
+        let message = body
+            .get("message")
+            .and_then(|m| m.as_str())
+            .unwrap_or(status.as_str());
+        return Err(format!("the endbrain refused the account: {message}"));
+    }
+    Ok(body)
 }
 
 #[tauri::command]

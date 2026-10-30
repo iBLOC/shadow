@@ -145,6 +145,65 @@ class NativeLobeInfo {
   }
 }
 
+/// 端脑答的「当前是谁」。
+///
+/// 三件事分开，因为它们不是一回事：人（principal）、人格（persona =
+/// 记忆的隔离单元）、设备。`identified` 为 false 表示背后**没有人**
+/// —— 这台机器还没账号，请求也没带凭证。
+class TelencephalonIdentity {
+  /// 人，例如 `principal:alice`。
+  final String? principal;
+
+  /// 默认落进哪个人格。
+  final String? persona;
+
+  /// 哪台设备。
+  final String? device;
+
+  /// 背后有没有人。
+  final bool identified;
+
+  /// 这个人此刻能用的空间与角色。
+  final List<IdentityPersona> personas;
+
+  const TelencephalonIdentity({
+    this.principal,
+    this.persona,
+    this.device,
+    this.identified = false,
+    this.personas = const [],
+  });
+
+  factory TelencephalonIdentity.fromJson(Map<String, dynamic> json) {
+    final list = (json['personas'] as List?) ?? const [];
+    return TelencephalonIdentity(
+      principal: json['principal'] as String?,
+      persona: json['persona'] as String?,
+      device: json['device'] as String?,
+      identified: json['identified'] as bool? ?? false,
+      personas: list
+          .whereType<Map<String, dynamic>>()
+          .map(IdentityPersona.fromJson)
+          .toList(),
+    );
+  }
+}
+
+/// 一个可用的空间与它在授权里的角色。
+class IdentityPersona {
+  final String persona;
+  final String role;
+
+  const IdentityPersona({required this.persona, required this.role});
+
+  factory IdentityPersona.fromJson(Map<String, dynamic> json) {
+    return IdentityPersona(
+      persona: json['persona'] as String? ?? '',
+      role: json['role'] as String? ?? '',
+    );
+  }
+}
+
 class AgentsResponse {
   final String telencephalonId;
   final String instanceName;
@@ -312,8 +371,11 @@ class StreamEvent {
   /// 端脑自己执行这个工具花了多久（毫秒）。
   final int? latencyMs;
 
-  /// 工具调用 id。端脑**今天不携带**（`TelencephalonStreamEvent::ToolCall`
-  /// 里没有这一项）⇒ 消费方要自己合成一个，才能把「结果回传」对上号。
+  /// 工具调用 id。端脑**现在带上了** —— `tool_call` 事件里有一个
+  /// `tool_call_id`（端脑生成的 uuid）⇒ 消费方把它回传，端脑就能把
+  /// 「结果」和「哪一次调用」精确对上号。
+  ///
+  /// 拿不到时（老端脑）消费方才自己合成一个。
   final String? toolCallId;
 
   StreamEvent({
@@ -694,6 +756,26 @@ class TelencephalonClient {
   Future<AgentsResponse> listAgents() async {
     final json = await _get('/shadow/v1/agents');
     return AgentsResponse.fromJson(json);
+  }
+
+  /// 当前是谁 —— 人 / 人格 / 设备。
+  ///
+  /// 桌面与手机用**同一个账号**时，这里报出的是**同一个人**、同一个人格
+  /// ⇒ 两端写进同一份记忆。
+  Future<TelencephalonIdentity> getIdentity() async {
+    final json = await _getJson('/shadow/v1/identity');
+    return TelencephalonIdentity.fromJson(json);
+  }
+
+  /// 导入一个账号 —— 这台设备从此是导出方的那个人。
+  ///
+  /// [code] 是另一台设备导出的账号密钥，**它就是身份本身**。
+  /// 端脑写文件、换掉进程级身份 ⇒ 立即生效，不用重启大脑。
+  ///
+  /// 端点跟着 `X-Shadow-Key` 一起受保护（`_headers()` 已经带上）。
+  Future<TelencephalonIdentity> importAccount(String code) async {
+    final json = await _post('/shadow/v1/identity', {'code': code});
+    return TelencephalonIdentity.fromJson(json);
   }
 
   /// 端脑注册的**原生叶区**清单 + 每个叶区当前生效的默认模型。

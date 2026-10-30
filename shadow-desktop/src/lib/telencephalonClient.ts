@@ -53,6 +53,20 @@ export interface LobeInfo {
   config?: Record<string, unknown>;
 }
 
+/**
+ * 端脑答的「当前是谁」。
+ *
+ * 人（principal）、人格（persona = 记忆的隔离单元）、设备 —— 三件事
+ * 分开。`identified` 为 false 表示背后**没有人**。
+ */
+export interface TelencephalonIdentity {
+  principal: string | null;
+  persona: string | null;
+  device: string | null;
+  identified: boolean;
+  personas: { persona: string; role: string }[];
+}
+
 export interface AgentsResponse {
   cortex: {
     id: string;
@@ -123,8 +137,8 @@ export interface StreamEvent {
   /** tool_result payload. */
   result?: unknown;
   latency_ms?: number;
-  /** NOTE: telencephalon's ToolCall event carries no call id today,
-   *  so this stays undefined on the wire; consumers synthesize one. */
+  /** The call id the endbrain puts on a `tool_call` event (a uuid).
+   *  Older endbrains omit it — consumers synthesize one in that case. */
   tool_call_id?: string;
   /** route event. */
   supervisor?: string;
@@ -504,6 +518,16 @@ export class TelencephalonClient {
       return r.json();
     }
     return this.request('/.well-known/agent.json');
+  }
+
+  /**
+   * 当前是谁 —— 人 / 人格 / 设备。
+   *
+   * 端脑答的是「这台机器（或这次请求）属于谁」。`identified` 为 false
+   * 表示背后没有人（机器还没账号、请求也没带凭证）。
+   */
+  async getIdentity(): Promise<TelencephalonIdentity> {
+    return this.request('/shadow/v1/identity');
   }
 
   async listAgents(): Promise<AgentsResponse> {

@@ -115,8 +115,22 @@ pub async fn serve(stack: &Embedded) {
 async fn build_router(stack: &Embedded) -> Result<Router, String> {
     // 端脑自己的 AppState（配置 / lobe 存储 / flow / 会话存储 / 海马体接线）。
     // neuron 传**同一个**嵌入实例 —— 进程内只有一份推理运行时。
+    //
+    // `identity_dir` 指向**账号身份目录**：账号密钥派生 principal 与
+    // 默认人格 ⇒ 这台机器属于哪个人、记忆写进哪个人格，是**这台机器
+    // 自己的**属性（不是每请求的属性），所以放在 boot 期解析一次。
+    let options = telencephalon::boot::BuildOptions {
+        flow_dir: None,
+        identity_dir: dirs::config_dir().map(|dir| {
+            dir.join("shadow")
+                .join("identity")
+                .to_string_lossy()
+                .to_string()
+        }),
+        identity: None,
+    };
     let (state, conv_store, hippocampus_state) =
-        telencephalon::boot::build_app_state(Some(stack.neuron().as_ref()))
+        telencephalon::boot::build_app_state_with(Some(stack.neuron().as_ref()), options)
             .await
             .map_err(|e| format!("build_app_state: {e}"))?;
 

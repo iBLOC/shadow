@@ -47,6 +47,22 @@ void main() {
           );
         }
         
+        if (path == '/shadow/v1/identity') {
+          // GET = 问「当前是谁」；POST = 导入账号。两者答同一个形状。
+          return http.Response(
+            jsonEncode({
+              'principal': 'principal:alice',
+              'persona': 'persona-abc',
+              'device': 'device-xyz',
+              'identified': true,
+              'personas': [
+                {'persona': 'persona-abc', 'role': 'owner'},
+              ],
+            }),
+            200,
+          );
+        }
+
         if (path.startsWith('/api/flows')) {
           return http.Response(jsonEncode([]), 200);
         }
@@ -114,6 +130,28 @@ void main() {
       expect(resp.telencephalonId, 'test-id');
       expect(resp.instanceName, 'test');
       expect(resp.defaultAgent, 'prefrontal');
+    });
+
+    // 「当前是谁」—— 桌面与手机用同一个账号时，这里报出的是同一个人。
+    //
+    // 这个测试要用 group 的 `client`（mock 里已经接了
+    // /shadow/v1/identity），所以放在第一个 group 里。
+    test('getIdentity() reports who is acting', () async {
+      final identity = await client.getIdentity();
+      expect(identity.identified, isTrue);
+      expect(identity.principal, 'principal:alice');
+      expect(identity.persona, 'persona-abc');
+      expect(identity.device, 'device-xyz');
+      expect(identity.personas, hasLength(1));
+      expect(identity.personas.first.persona, 'persona-abc');
+      expect(identity.personas.first.role, 'owner');
+    });
+
+    // 导入账号：端脑立刻换身份 ⇒ 答回来的就是新身份。
+    test('importAccount() posts the code and returns the new identity', () async {
+      final identity = await client.importAccount('the-account-key');
+      expect(identity.identified, isTrue);
+      expect(identity.principal, 'principal:alice');
     });
   });
 
