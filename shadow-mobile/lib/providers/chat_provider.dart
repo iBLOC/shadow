@@ -196,7 +196,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
   /// 客户端合成调用 id 用的计数器。
   ///
-  /// 端脑今天**不携带**调用 id ⇒ 客户端自己造一个。
+  /// 端脑**会带**调用 id（`tool_call_id`，端脑生成的 uuid）⇒ 这个计数器
+  /// 只是**兜底**：端脑没带（老端脑）时客户端自己造一个。
   /// 用**单调递增**的序号而不是随机串：同一次会话里序号唯一就够，
   /// 而且卡片按 id 排序时是稳定的（随机串会让卡片顺序看起来乱跳）。
   int _toolCallCounter = 0;
@@ -444,8 +445,9 @@ class ChatNotifier extends StateNotifier<ChatState> {
     }
     final args = event.args ?? <String, dynamic>{};
 
-    // 端脑今天**不携带**调用 id ⇒ 客户端自己合成一个，
-    // 这样「卡片」和「结果回传」能对上号。
+    // 端脑**带**调用 id（`tool_call_id`）⇒ 直接用端脑那个，
+    // 这样「卡片」和「结果回传」能和端脑那边对上号；
+    // 端脑没带（老端脑）时才自己合成一个兜底。
     final callId =
         event.toolCallId ?? 'client-tool-${_toolCallCounter++}-$name';
 

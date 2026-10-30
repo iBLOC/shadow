@@ -85,7 +85,8 @@ enum ToolCallStatus {
 
 /// 一次工具调用的完整记录 —— 对话流里那张卡片的数据源。
 class ToolCallModel {
-  /// 调用 id。端脑今天**不携带** id ⇒ 客户端自己合成，
+  /// 调用 id。端脑**带** id 时用端脑那个（`tool_call_id`），
+  /// 端脑没带（老端脑）时客户端自己合成一个 ——
   /// 这样「结果回传」和「卡片」才能对上号。
   final String id;
 

@@ -383,8 +383,12 @@ class StreamEvent {
   // ---- 工具事件（tool_call / tool_result）-----------------------------
   //
   // 端脑的 SSE 形状（`telencephalon/src/api/shadow.rs`）：
-  //   tool_call   → {type, agent, name, args}
+  //   tool_call   → {type, agent, name, args, tool_call_id}
   //   tool_result → {type, agent, name, result, latency_ms}
+  //
+  // ⚠️ `tool_call_id` 是端脑生成的 uuid —— 客户端把它**原样回传**，
+  // 端脑才能把结果对回**发起它的那一次调用**（同一个工具在一轮里
+  // 调两次时，按名字匹配会分不清）。
   //
   // ⚠️ `args` 线上是**字符串**（端脑的 `ToolCall.args` 是 `String`），
   // 这里解析成 map —— 解析逻辑见 `parseToolArgs`。
