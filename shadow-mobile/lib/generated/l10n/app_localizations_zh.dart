@@ -1932,6 +1932,24 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsDialogBackgroundDesc => '覆盖对话框与面板的底色。';
 
   @override
+  String get surfaceA2ui => '生成式界面';
+
+  @override
+  String get surfaceIdentity => '身份';
+
+  @override
+  String get agent2uiNoConnection => '未连接到端脑';
+
+  @override
+  String get agent2uiWaiting => '正在连接端脑…';
+
+  @override
+  String get agent2uiNoSurface => '已连接，但端脑这次没有给出界面';
+
+  @override
+  String get agent2uiSurfaceHint => '端脑把界面画出来后会显示在这里';
+
+  @override
   String get ttsEngineRust => 'Rust';
 
   @override

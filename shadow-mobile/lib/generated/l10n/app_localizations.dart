@@ -3668,6 +3668,42 @@ abstract class AppLocalizations {
   /// **'Override the background of dialogs and panels.'**
   String get settingsDialogBackgroundDesc;
 
+  /// No description provided for @surfaceA2ui.
+  ///
+  /// In en, this message translates to:
+  /// **'Generative UI'**
+  String get surfaceA2ui;
+
+  /// No description provided for @surfaceIdentity.
+  ///
+  /// In en, this message translates to:
+  /// **'Identity'**
+  String get surfaceIdentity;
+
+  /// No description provided for @agent2uiNoConnection.
+  ///
+  /// In en, this message translates to:
+  /// **'Not connected to the telencephalon'**
+  String get agent2uiNoConnection;
+
+  /// No description provided for @agent2uiWaiting.
+  ///
+  /// In en, this message translates to:
+  /// **'Connecting to the telencephalon…'**
+  String get agent2uiWaiting;
+
+  /// No description provided for @agent2uiNoSurface.
+  ///
+  /// In en, this message translates to:
+  /// **'Connected, but the telencephalon produced no surface'**
+  String get agent2uiNoSurface;
+
+  /// No description provided for @agent2uiSurfaceHint.
+  ///
+  /// In en, this message translates to:
+  /// **'The surface drawn by the telencephalon will appear here'**
+  String get agent2uiSurfaceHint;
+
   /// No description provided for @ttsEngineRust.
   ///
   /// In en, this message translates to:

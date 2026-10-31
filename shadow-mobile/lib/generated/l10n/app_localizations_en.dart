@@ -1939,7 +1939,8 @@ class AppLocalizationsEn extends AppLocalizations {
       'Override the telencephalon base URL and admin token used by the mobile client.';
 
   @override
-  String get settingsBackendAdminTokenHint => 'leave blank for the embedded brain (fill in for an external one)';
+  String get settingsBackendAdminTokenHint =>
+      'leave blank for the embedded brain (fill in for an external one)';
 
   @override
   String get settingsDangerZone => 'Danger Zone';
@@ -1970,6 +1971,26 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get settingsDialogBackgroundDesc =>
       'Override the background of dialogs and panels.';
+
+  @override
+  String get surfaceA2ui => 'Generative UI';
+
+  @override
+  String get surfaceIdentity => 'Identity';
+
+  @override
+  String get agent2uiNoConnection => 'Not connected to the telencephalon';
+
+  @override
+  String get agent2uiWaiting => 'Connecting to the telencephalon…';
+
+  @override
+  String get agent2uiNoSurface =>
+      'Connected, but the telencephalon produced no surface';
+
+  @override
+  String get agent2uiSurfaceHint =>
+      'The surface drawn by the telencephalon will appear here';
 
   @override
   String get ttsEngineRust => 'Rust';
