@@ -429,15 +429,25 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
       return;
     }
     final url = 'http://127.0.0.1:$agentPort';
-    _ref.read(telencephalonClientProvider).setBaseUrl(url);
+    final client = _ref.read(telencephalonClientProvider);
+    // ⚠️ **先设钥匙，再改地址** —— 端脑面现在要 `X-Shadow-Key` 了。顺序
+    // 反了就有一个「指着新地址、却还没带钥匙」的窗口 ⇒ 那个窗口里的请求
+    // 会被 401 —— 而 401 比 connection refused 难查得多。
+    final key = _service.shadowKey;
+    if (key != null && key.isNotEmpty) {
+      client.setApiKey(key);
+    }
+    client.setBaseUrl(url);
     _log.info('端脑 client 已指向嵌入式大脑: $url');
   }
 
   /// 大脑停掉后把 client 复原到外部端脑。
   void _restoreExternalEndpoint() {
-    _ref
-        .read(telencephalonClientProvider)
-        .setBaseUrl(TelencephalonClient.defaultBaseUrl);
+    final client = _ref.read(telencephalonClientProvider);
+    client.setBaseUrl(TelencephalonClient.defaultBaseUrl);
+    // 外部端脑用的是**它自己**的 key —— 移动端没有为它配置过 ⇒ 空。
+    // （嵌入式端脑的钥匙只对嵌入式端脑有效，别带过去。）
+    client.setApiKey(null);
   }
 
   @override

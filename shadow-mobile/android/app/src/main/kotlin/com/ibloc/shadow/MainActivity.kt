@@ -758,13 +758,28 @@ class MainActivity : FlutterActivity() {
                         // Android 没有 $HOME，进程工作目录是 /（不可写）。
                         val dataDir = call.argument<String>("dataDir")
                             ?: filesDir?.absolutePath
+                        // 端脑面那道门的钥匙 —— 宿主生成，**同一份**同时给端脑
+                        // 和 App 自己的客户端。
+                        //
+                        // ⚠️ 必须在 start **之前**设进去：Rust 侧是在 start 的
+                        // 时候读这个槽位的（跟 LLM 上游那条通道一样）。
+                        //
+                        // ⚠️ 没有它，手机上的端脑面是**敞开**的：同一台设备上
+                        // 任何别的 App 都能 `POST /shadow/v1/identity` ⇒
+                        // **换掉「这台机器是谁」**（记忆改写进另一个人格、
+                        // 而且不报错）。
+                        val shadowKey = ShadowKey.getOrCreate(filesDir)
                         try {
                             val runtime = EncephalonRuntime.getInstance()
+                            runtime.setShadowApiKey(shadowKey)
                             val started = runtime.start(port, dataDir)
                             result.success(mapOf(
                                 "success" to started,
                                 "port" to runtime.getPort(),
-                                "agentPort" to runtime.getAgentPort()
+                                "agentPort" to runtime.getAgentPort(),
+                                // 客户端要靠它给端脑请求带 X-Shadow-Key。
+                                // 同一把，端脑守门、客户端敲门。
+                                "shadowKey" to shadowKey
                             ))
                         } catch (e: UnsatisfiedLinkError) {
                             result.error("SO_NOT_LOADED", "Encephalon .so not loaded: ${e.message}", null)

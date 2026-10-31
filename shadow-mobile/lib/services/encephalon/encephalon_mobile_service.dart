@@ -37,6 +37,13 @@ class EncephalonMobileService {
 
   int? _agentPort;
 
+  /// 端脑面（`/shadow/v1/*`）那道门的钥匙。
+  ///
+  /// **null** = 端脑面是**敞开**的（开发模式；Kotlin 侧没给钥匙 —— 例如
+  /// 跑的是旧 `.so`）。**有值** = 端脑要求每个请求带 `X-Shadow-Key`，
+  /// 客户端必须带上它，否则连自己的大脑都打不动。
+  String? _shadowKey;
+
   EncephalonMobileService({this.preferredPort});
 
   /// neuron HTTP 面（OpenAI 兼容）的端口。没在跑是 null。
@@ -50,6 +57,9 @@ class EncephalonMobileService {
   /// null = 大脑没在跑；0 = 大脑在跑但这条面没起来（此时 App 仍可用
   /// neuron 面做推理，agent 面只能退回外部端脑）。
   int? get agentPort => _agentPort;
+
+  /// 端脑面的钥匙（见 [_shadowKey]）。**不要把它打进日志。**
+  String? get shadowKey => _shadowKey;
 
   /// 运行时是否已启动。
   bool get isRunning => _isRunning;
@@ -133,9 +143,15 @@ class EncephalonMobileService {
 
       _port = result['port'] as int?;
       _agentPort = result['agentPort'] as int?;
+      // 端脑面那道门的钥匙 —— Kotlin 侧生成、同时也递给了端脑。
+      //
+      // ⚠️ **绝不把它打进日志**（它是门闩）。客户端要靠它给每个端脑请求
+      // 带 `X-Shadow-Key` —— 没有它，端脑面会把 App 自己挡在外面。
+      _shadowKey = result['shadowKey'] as String?;
       _isRunning = true;
       _log.info(
-        'Encephalon 嵌入式运行时已启动, 端口: $_port, 端脑面: ${_agentPort ?? 0}',
+        'Encephalon 嵌入式运行时已启动, 端口: $_port, 端脑面: ${_agentPort ?? 0}'
+        '${_shadowKey != null ? ', shadow key: 已设' : ', shadow key: 无'}',
       );
       return true;
     } catch (e, stack) {

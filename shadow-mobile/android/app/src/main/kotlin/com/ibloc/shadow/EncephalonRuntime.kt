@@ -83,6 +83,7 @@ class EncephalonRuntime {
         model: String,
     ): Int
     private external fun nativeSetModelRouting(json: String): Int
+    private external fun nativeSetShadowApiKey(key: String): Int
     private external fun nativeInfer(
         path: String,
         body: ByteArray,
@@ -165,6 +166,48 @@ class EncephalonRuntime {
             false
         } catch (e: Exception) {
             Log.e(TAG, "setLlmProvider failed: ${e.message}", e)
+            false
+        }
+    }
+
+    /**
+     * 设置 **shadow key**（端脑面那道门的钥匙）。**必须在 [start] 之前调用。**
+     *
+     * ## 它解决的是什么
+     *
+     * Android 进程**设不了环境变量**（由 zygote 决定）⇒ 手机上的端脑**没有
+     * 配置文件** ⇒ `telencephalon.shadow.api_key` 取默认 `""` ⇒
+     * 整张 `/shadow/v1/` 面 **全部放行** ⇒ 同一台设备上**任何别的 App** 都能打它，
+     * 包括 `POST /shadow/v1/identity`（导入账号 ⇒ **换掉「这台机器是谁」**）。
+     *
+     * 给了这把钥匙，端脑面就要求每个请求带 `X-Shadow-Key` ⇒ 别的 App
+     * 打不动它。
+     *
+     * ## 为什么是「单独一个入口」而不是 `start` 的参数
+     *
+     * JNI 的 `nativeStart` 签名已经被 Kotlin 侧固定住了
+     * （`nativeStart(preferredPort, dataDir)`），再加参数要动 ABI ⇒ 走
+     * **纯增量**的入口：老版本 Kotlin 调不到就调不到，行为不变（没有 key
+     * ⇒ 端脑面敞开，和今天一模一样）。
+     *
+     * ⚠️ **绝不把 key 打进日志** —— 它是门闩。
+     */
+    fun setShadowApiKey(key: String): Boolean {
+        return try {
+            val rc = nativeSetShadowApiKey(key)
+            if (rc >= 0) {
+                // ⚠️ 只说「设好了」，不说是什么。
+                Log.i(TAG, "✅ shadow key set (端脑面将要求 X-Shadow-Key)")
+                true
+            } else {
+                Log.e(TAG, "❌ nativeSetShadowApiKey returned: $rc")
+                false
+            }
+        } catch (e: UnsatisfiedLinkError) {
+            Log.w(TAG, "Encephalon native method missing — .so not loaded, or an old .so without this method: ${e.message}")
+            false
+        } catch (e: Exception) {
+            Log.e(TAG, "setShadowApiKey failed: ${e.message}", e)
             false
         }
     }

@@ -62,8 +62,15 @@ void main() {
     expect(agentPort ?? 0, greaterThan(0), reason: '端脑面没起来');
 
     // 2) 端脑自报的身份 —— **ground truth**。
+    //
+    // ⚠️ 端脑面**可能**要求 shadow key（`<filesDir>/shadow.key` 存在时）⇒
+    // 这里跟 App 一样把它带上（App 那边是宿主在启动时交给 client 的）。
+    // ⚠️ 端脑面上锁之前这个文件不存在 ⇒ key 为 null ⇒ 照旧按「不带 key」跑
+    // （那时端脑面是敞开的）；上锁之后它自动变成一条真的断言。
+    final key = await readShadowKey();
     final response = await http.get(
       Uri.parse('http://127.0.0.1:$agentPort/shadow/v1/identity'),
+      headers: shadowKeyHeaders(key),
     );
     expect(response.statusCode, 200, reason: '端脑的身份端点答了 ${response.statusCode}');
     final identity = jsonDecode(response.body) as Map<String, dynamic>;
@@ -72,10 +79,6 @@ void main() {
 
     // 3) 走**App 自己那条路**：同一个 client、同一个 notifier ——
     //    客户端的租户必须落在那个人格桶上。
-    //
-    // ⚠️ 端脑面**可能**要求 shadow key（`<filesDir>/shadow.key` 存在时）⇒
-    // 这里跟 App 一样把它带上（App 那边是宿主在启动时交给 client 的）。
-    final key = await readShadowKey();
     final client = TelencephalonClient(baseUrl: 'http://127.0.0.1:$agentPort');
     client.setApiKey(key);
     final prefrontal = PrefrontalClient(baseUrl: 'http://127.0.0.1:60080');
