@@ -61,7 +61,7 @@ let TELENCEPHALON_DIR =
   process.env.SHADOW_TELENCEPHALON_DIR ||
   resolve(REPO, '..', 'telencephalon');
 let TELENCEPHALON_SRC = resolve(TELENCEPHALON_DIR, 'src', 'api', 'providers.rs');
-const DESKTOP_SRC = join(REPO, 'shadow-desktop', 'src');
+let DESKTOP_SRC = join(REPO, 'shadow-desktop', 'src');
 const MOBILE_LIB = join(REPO, 'shadow-mobile', 'lib');
 
 // 端脑的 admin token 头 —— 客户端**必须**带它才能过 providers 那道门。
@@ -251,12 +251,26 @@ function parseServerDoors() {
     e.accepts = e.door ? doorAccepts(e.door) : null;
     e.tableDoor = tableDoor;
   }
-  // ⚠️ **防假绿**：一条门都解析不出来 ⇒ 不是「这张面没有门」，是**解析器坏了**
-  // ⇒ 直接报错（退出码 2），绝不把「没读到」说成「没问题」。
+  // ⚠️ **防假绿**：一条门都解析不出来 ⇒ **不是**「没问题」，而是两种可能之一：
+  //   (a) **门被摘掉了**（有人把门变量置成 `None`，或把 `route_layer` 撤了）
+  //       ⇒ 那是**服务端出事了**，必须报得比「解析器坏了」更响；
+  //   (b) 判据解析器坏了（挂法变了，我不认识）。
+  // ⇒ ⇒ 两种都**退出码 2**（「不知道」≠「没问题」），但**话要说对**。
   if (!entries.some((e) => e.door)) {
+    const neutered = /let\s+\w*door\w*\s*(?::[^=]+)?=\s*None\b/.test(code);
+    const mentions =
+      (code.match(/route_layer/g) ?? []).length +
+      (code.match(/require_(?:admin_token|read_credential|owner_credential|shadow_key)/g) ?? []).length;
+    if (neutered) {
+      throw new Error(
+        `判据源里**一条路由都没挂门**，而且门变量被置成了 \`None\`：${TELENCEPHALON_SRC}\n` +
+          '   ⇒ 这不是「解析器坏了」，是**门被摘掉了** —— 服务端现在这张面**谁都能进**。',
+      );
+    }
     throw new Error(
       `判据源里解析不出任何门（route_layer / require_*）：${TELENCEPHALON_SRC}\n` +
-        '   ⇒ 这不是「这张面没有门」，是判据解析器坏了 ⇒ 别把「没读到」说成「没问题」。',
+        `   ⇒ 门机制字样出现 ${mentions} 次但都不在路由上 ⇒ 这不是「这张面没有门」，\n` +
+        '   ⇒ 是**挂法变了**（我读不懂）或**门被摘了** ⇒ 别把「没读到」说成「没问题」。',
     );
   }
   return entries;
@@ -517,13 +531,58 @@ function classifySurface(code, urlText) {
 }
 
 /**
+ * `headers:` 后面那个值的**完整文本**。
+ *
+ * ⚠️⚠️ **别在第一个逗号处截断**（第一版的错在这儿）：
+ * `headers: { 'Content-Type': 'application/json', ...(await adminHeaders()) }`
+ * ⇒ 截断后只剩 `{ 'Content-Type': 'application/json'` ⇒
+ * ⇒ **`adminHeaders()` 被切掉了** ⇒ ⇒ 一处**明明带了凭据**的调用被**误报成红**
+ * ⇒ ⇒ 而「红」会让人去改**已经改对了**的代码 ⇒ ⇒ 比漏报更坑（它会引入新 bug）。
+ *
+ * ⇒ 所以：对象字面量 ⇒ 按**括号配平**取整个；裸表达式 ⇒ 取到深度 0 的逗号/闭括号。
+ */
+function headerValue(callText) {
+  const m = /\bheaders\s*:\s*/.exec(callText);
+  if (!m) return null;
+  const start = m.index + m[0].length;
+  let i = start;
+  while (i < callText.length && /\s/.test(callText[i])) i++;
+
+  if (callText[i] === '{') {
+    // 括号配平 ⇒ 取整个对象字面量（**含展开** `...(await adminHeaders())`）。
+    let depth = 0;
+    for (let j = i; j < callText.length; j++) {
+      const ch = callText[j];
+      if (ch === '{') depth++;
+      else if (ch === '}') {
+        depth--;
+        if (depth === 0) return callText.slice(start, j + 1);
+      }
+    }
+    return callText.slice(start);
+  }
+
+  let depth = 0;
+  for (let j = i; j < callText.length; j++) {
+    const ch = callText[j];
+    if (ch === '(' || ch === '[' || ch === '{') depth++;
+    else if (ch === ')' || ch === ']' || ch === '}') {
+      if (depth === 0) return callText.slice(start, j);
+      depth--;
+    } else if (ch === ',' && depth === 0) return callText.slice(start, j);
+  }
+  return callText.slice(start);
+}
+
+/**
  * 这个 fetch 有没有带**某一种**凭据？
  *
  * @param {'admin'|'shadow'} kind 要查的凭据种类
  *
- * ⚠️ `headers` 有**两种**写法，都要认：
+ * ⚠️ `headers` 有**三种**写法，都要认：
  *   ① `headers: await adminHeaders()` —— 带值；
- *   ② `{ headers }` —— **简写属性**（值是同名变量）⇒ ②在第一版里被漏掉
+ *   ② `headers: { ...(await adminHeaders()) }` —— **展开**；
+ *   ③ `{ headers }` —— **简写属性**（值是同名变量）⇒ ③在第一版里被漏掉
  *      ⇒ 把两处本来合规的调用**误报成红** ⇒ ⇒ 被 `--self-test` 当场抓住。
  */
 function credentialIn(code, callText, kind) {
@@ -532,10 +591,9 @@ function credentialIn(code, callText, kind) {
       ? new RegExp(`\\b(${ADMIN_GETTER}|${ADMIN_HEADER})\\b`)
       : new RegExp(`\\b(${SHADOW_GETTER}|${SHADOW_HEADER})\\b`);
 
-  // ① `headers: <表达式>` —— 值里直接出现凭据
-  const valued = /\bheaders\s*:\s*([^,}]*)/.exec(callText);
-  if (valued) {
-    const value = valued[1];
+  // ① / ② `headers: <表达式或对象字面量>`
+  const value = headerValue(callText);
+  if (value !== null) {
     if (CRED.test(value)) return { ok: true, how: `直接带 ${kind} 凭据` };
     // 值是一个裸标识符 ⇒ 追它的赋值。
     const ident = /^\s*([A-Za-z_$][A-Za-z0-9_$]*)\s*$/.exec(value);
@@ -549,7 +607,7 @@ function credentialIn(code, callText, kind) {
     return { ok: false, how: `有 headers，但不是 ${kind} 凭据` };
   }
 
-  // ② `{ headers }` —— 简写属性 ⇒ 值是同名变量。
+  // ③ `{ headers }` —— 简写属性 ⇒ 值是同名变量。
   const shorthand = /[{,]\s*headers\s*[,}]/.test(callText);
   if (shorthand) {
     const rhs = findAssignment(code, 'headers');
@@ -759,6 +817,16 @@ const SELF_TEST_CASES = [
     want: 'green',
   },
   {
+    name: '⚠️ 展开写法（...(await adminHeaders()) 在对象字面量里）⇒ 绿（不能被截断误报成红）',
+    code: "const API_BASE = prefrontalUrl();\nawait fetch(`${API_BASE}/models/providers`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(await adminHeaders()) } });",
+    want: 'green',
+  },
+  {
+    name: '⚠️ 展开写法 + 只带 shadow key ⇒ 红（写门只认 admin）',
+    code: "const API_BASE = prefrontalUrl();\nawait fetch(`${API_BASE}/models/providers`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(await shadowHeaders()) } });",
+    want: 'red',
+  },
+  {
     name: '端脑面 + 带的是别的头 ⇒ 红',
     code: "const API_BASE = prefrontalUrl();\nawait fetch(`${API_BASE}/models/providers`, { headers: { 'Content-Type': 'application/json' } });",
     want: 'red',
@@ -843,6 +911,12 @@ function main() {
   if (tIdx !== -1 && args[tIdx + 1]) {
     TELENCEPHALON_DIR = resolve(process.cwd(), args[tIdx + 1]);
     TELENCEPHALON_SRC = resolve(TELENCEPHALON_DIR, 'src', 'api', 'providers.rs');
+  }
+  // `--desktop <path>`：把**被判定方**指到别的 checkout
+  // （反向验证：对着「补头之前」的客户端跑 ⇒ 闸必须报红）。
+  const dIdx = args.indexOf('--desktop');
+  if (dIdx !== -1 && args[dIdx + 1]) {
+    DESKTOP_SRC = resolve(process.cwd(), args[dIdx + 1]);
   }
 
   if (args.includes('--self-test')) {
