@@ -5,7 +5,6 @@ import '../../l10n/current_l10n.dart';
 import '../../providers/brain_model_source_provider.dart';
 import '../../providers/telencephalon_provider.dart';
 import '../../screens/model_management_screen.dart';
-import '../telencephalon/telencephalon_client.dart';
 import 'encephalon_mobile_service.dart';
 
 /// Encephalon 移动端状态
@@ -443,39 +442,25 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
       return;
     }
     final url = 'http://127.0.0.1:$agentPort';
-    final client = _ref.read(telencephalonClientProvider);
-    // ⚠️ **先设钥匙，再改地址** —— 端脑面现在要 `X-Shadow-Key` 了。顺序
-    // 反了就有一个「指着新地址、却还没带钥匙」的窗口 ⇒ 那个窗口里的请求
-    // 会被 401 —— 而 401 比 connection refused 难查得多。
-    final key = _service.shadowKey;
-    if (key != null && key.isNotEmpty) {
-      client.setApiKey(key);
-    }
-    // admin 面那把 token —— 同理，**先设 token 再改地址**。
-    //
-    // ⚠️ 没有它，App 自己的 MCP / agent 管理在手机上就是 401（端脑的 admin
-    // token 取默认 `""` ⇒ 而「没配 token」现在意味着**admin 面关着**）。
-    final adminToken = _service.adminToken;
-    if (adminToken != null && adminToken.isNotEmpty) {
-      // 先把「外部端脑那把」记住（**只记第一次** —— 再记就会把嵌入式端脑
-      // 那把记下来）⇒ 指回外部端脑时放回去。
-      _userAdminToken ??= client.adminToken;
-      client.setAdminToken(adminToken);
-    }
-    client.setBaseUrl(url);
+    // ⚠️ 接管交给 `TelencephalonNotifier`（**唯一的主人**）—— 它管着
+    // 「谁在占着端脑面」这件事 ⇒ ⇒ 配置一改就知道该不该动 client
+    // ⇒ 而以前是这里直接改 client ⇒ 「配置」和「client」两个事实源
+    // ⇒ 内嵌大脑一放手就把用户配的远端地址弄丢了。
+    _ref.read(telencephalonProvider.notifier).takeOverByAgentSurface(
+          url,
+          shadowKey: _service.shadowKey,
+          adminToken: _service.adminToken,
+        );
     _log.info('端脑 client 已指向嵌入式大脑: $url');
   }
 
-  /// 大脑停掉后把 client 复原到外部端脑。
+  /// 大脑停掉后把 client 复原到「**配置里那个端脑**」。
   void _restoreExternalEndpoint() {
-    final client = _ref.read(telencephalonClientProvider);
-    client.setBaseUrl(TelencephalonClient.defaultBaseUrl);
-    // 外部端脑用的是**它自己**的 key —— 移动端没有为它配置过 ⇒ 空。
-    // （嵌入式端脑的钥匙只对嵌入式端脑有效，别带过去。）
-    client.setApiKey(null);
-    // admin token 同理 —— 嵌入式端脑那把**只对嵌入式端脑有效**（两个域）。
-    // ⇒ 放回用户为**外部**端脑配的那把（没配过 ⇒ null）。
-    client.setAdminToken(_userAdminToken);
+    // ⚠️ 复原到**配置里那个**，不是 `TelencephalonClient.defaultBaseUrl`
+    // （那是「没配过」的默认值）⇒ ⇒ 用户配了远端、内嵌大脑一停就被拽回
+    // 本机默认 ⇒ 「配了、存了、重启后却不生效」的同一族坑。
+    _ref.read(telencephalonProvider.notifier).releaseAgentSurface();
+    _log.info('端脑 client 已复原到配置里的端脑');
   }
 
   @override

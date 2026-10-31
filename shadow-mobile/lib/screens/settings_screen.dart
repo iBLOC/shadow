@@ -789,11 +789,20 @@ class _BackendSettingsCardState extends ConsumerState<BackendSettingsCard> {
   Future<void> _hydrate() async {
     final cfg = AppConfigService();
     await cfg.init();
-    final live = ref.read(telencephalonProvider.notifier).client;
+    // ⚠️ 显示「**用户配置的那个**」⇒ **不读 client**。
+    //
+    // 理由：client 会被内嵌大脑**接管**（地址换成 `127.0.0.1:<agentPort>`、
+    // admin token 换成内嵌那把）⇒ ⇒ 读 client 就是显示**内嵌那台**⇒
+    // ⇒ 用户看到「我配的远端地址不见了」⇒ 而他**一点 Save** 就把内嵌的
+    // 地址/token **写进持久化配置** ⇒ ⇒ 用户配的远端**被覆盖掉**
+    // ⇒ 「配了、存了、界面里还显示着、重启后却不生效」⇒ 失败长得像成功。
+    final configuredUrl = cfg.telencephalonBaseUrl ??
+        ref.read(telencephalonProvider).connection.baseUrl;
+    final configuredToken = cfg.telencephalonAdminToken ?? '';
     if (!mounted) return;
     setState(() {
-      _urlCtrl.text = live.baseUrl;
-      _tokenCtrl.text = live.adminToken ?? '';
+      _urlCtrl.text = configuredUrl;
+      _tokenCtrl.text = configuredToken;
       _loaded = true;
     });
   }
@@ -804,9 +813,14 @@ class _BackendSettingsCardState extends ConsumerState<BackendSettingsCard> {
     final token = _tokenCtrl.text.trim();
     await cfg.setTelencephalonBaseUrl(url.isEmpty ? null : url);
     await cfg.setTelencephalonAdminToken(token.isEmpty ? null : token);
-    final notifier = ref.read(telencephalonProvider.notifier);
-    notifier.setBaseUrl(url.isEmpty ? 'http://127.0.0.1:60080' : url);
-    notifier.setAdminToken(token.isEmpty ? null : token);
+    // ⚠️ 改的是「**配置**」⇒
+    // - **记忆面**（`PrefrontalClient`）跟的就是它 ⇒ 立刻生效；
+    // - **端脑面**（client）归**内嵌大脑**管（它在跑 ⇒ 聊天面留在本机
+    //   内嵌那台 ⇒ 不被一条远端地址拽走 ⇒ 不会突然 401）。
+    ref.read(telencephalonProvider.notifier).setConfiguredEndpoint(
+          url.isEmpty ? null : url,
+          token.isEmpty ? null : token,
+        );
     if (!mounted) return;
     setState(() {});
   }

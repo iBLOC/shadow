@@ -40,7 +40,12 @@ class PrefrontalClient {
   static const String defaultBaseUrl = 'http://localhost:60080';
 
   /// 端脑地址。
-  final String baseUrl;
+  ///
+  /// ⚠️ **可变**（以前是 `final`）—— 因为它要跟着**用户配置的那个端脑**
+  /// 走（见 `prefrontalClientProvider`）。⚠️ 但**实例**不能重建 ⇒ 重建
+  /// 会把租户重置回 `default` ⇒ 记忆页就会读到**另一个桶**
+  /// （失败长得像成功）⇒ ⇒ 改地址走 `setBaseUrl`，不换实例。
+  String baseUrl;
   final http.Client _client;
 
   /// 海马体租户 —— 记忆与任务都按它分区。
@@ -63,6 +68,11 @@ class PrefrontalClient {
   PrefrontalClient({String? baseUrl, http.Client? client})
     : baseUrl = baseUrl ?? defaultBaseUrl,
       _client = client ?? http.Client();
+
+  /// 换端脑地址 —— **只换地址，不换实例**（租户要留着）。
+  void setBaseUrl(String url) {
+    baseUrl = url;
+  }
 
   /// 基础请求方法
   Future<T> _request<T>(
@@ -1684,8 +1694,50 @@ class HubNotifier extends StateNotifier<HubState> {
 
 // ============ Provider ============
 
+/// **共享**的那个 prefrontal client —— 端脑地址跟着用户配置走，但**实例
+/// 不换**。
+///
+/// ⚠️ 为什么不每次 `Provider` 重建一个新实例：实例上有**租户**
+/// （`setTenantId` 设的，由端脑报出的身份决定）⇒ 重建 ⇒ 租户被重置回
+/// `default` ⇒ 记忆页读到**另一个桶** ⇒ **失败长得像成功**。
+///
+/// ⇒ 所以：地址用 `setBaseUrl` 改，实例一直留着。
+final sharedPrefrontalClient = PrefrontalClient();
+
 final prefrontalClientProvider = Provider<PrefrontalClient>((ref) {
-  return PrefrontalClient();
+  // ⚠️ 记忆/任务/人格这些面打的是**带海马体的那台端脑** ——
+  // 嵌入式端脑**不带**海马体（mobile profile 压根不编它 ⇒
+  // `/hippocampus/*` 直接 404）⇒ ⇒ 跟着**端脑面**走只会打到一台
+  // **没有海马体**的端脑 ⇒ ⇒ 记忆页永远是空的。
+  //
+  // ⇒ 这里跟的是**用户配置的那个地址**（`telencephalonProvider` 的 state
+  // 里那个）—— ⚠️ **不是** client 实际在用的那个：内嵌大脑启动时会把
+  // client 指向本机端口（`_pointClientsAtAgentSurface`），但**它改的是
+  // client、不是 state** ⇒ ⇒ state 里那个**始终是用户配的那个**。
+  //
+  // ⇒ 终态：「**端脑面 = 本机内嵌那台**」＋「**记忆面 = 配的那台（带海马体）**」
+  // —— 两张面**本来就该指不同的端脑**。
+  //
+  // ⚠️ 而海马体那张面**不在 shadow key 门后面** —— 判据（2026-10-31 复核
+  // `telencephalon/src/api/mod.rs`）：`/hippocampus` 是 `build_full_app` 里
+  // **外层** `nest` 的（`outer.nest("/hippocampus", h)` ⇒ 与端脑 router
+  // **并列** merge），而影子锁那道门在 `shadow::router_with_store` **内部**
+  // （按路由挂）⇒ ⇒ `/hippocampus/*` 不在门后 ⇒ ⇒ 记忆面**不需要钥匙**就能通
+  // ⇒ ⇒ 配了远端地址就**真的**能读到远端的记忆。
+  //
+  // ⚠️ 别和 `hippocampus_public::router` 混：那是**另一组**路由
+  // （`/api/telencephalon/hippocampus/*`），跟本 client 打的
+  // `/hippocampus/api/*` **不是同一条面**。
+  //
+  // ⚠️ 实例必须**共享**（不每次重建）：重建会把租户重置回 `default`
+  // ⇒ 记忆页读到**另一个桶** ⇒ 失败长得像成功。
+  final baseUrl = ref.watch(
+    telencephalonProvider.select((s) => s.connection.baseUrl),
+  );
+  if (sharedPrefrontalClient.baseUrl != baseUrl) {
+    sharedPrefrontalClient.setBaseUrl(baseUrl);
+  }
+  return sharedPrefrontalClient;
 });
 
 /// Provider for management hub state
