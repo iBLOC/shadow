@@ -1067,10 +1067,26 @@ class TelencephalonClient {
   }
 
   Future<List<FlowDefinition>> listDrafts() async {
-    final list = await _get('/api/flows/draft');
-    return ((list['drafts'] as List?) ?? (list as List<dynamic>))
-        .map((e) => FlowDefinition.fromJson(e as Map<String, dynamic>))
-        .toList();
+    // 服务端（telencephalon flow/api/drafts.rs）回的是**裸 JSON 数组**，元素是
+    // DraftFlow = { flow, provenance }（flow 嵌套在内层）—— `_get` 假定对象体，
+    // 对数组 cast 直接抛 ⇒ 这里走 `_getJson`，并容忍两种形状：
+    // 裸数组（现状）/ {"drafts": [...]}（历史写法）；元素外层带 flow 就解包。
+    final dynamic decoded = await _getJson('/api/flows/draft');
+    final List<dynamic> items;
+    if (decoded is List) {
+      items = decoded;
+    } else if (decoded is Map && decoded['drafts'] is List) {
+      items = decoded['drafts'] as List<dynamic>;
+    } else {
+      return const [];
+    }
+    return items.map((e) {
+      final m = e as Map<String, dynamic>;
+      final flow = m['flow'];
+      return FlowDefinition.fromJson(
+        flow is Map<String, dynamic> ? flow : m,
+      );
+    }).toList();
   }
 
   Future<FlowDefinition> promoteDraft(String draftId) async {

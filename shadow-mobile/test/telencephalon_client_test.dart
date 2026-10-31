@@ -112,6 +112,64 @@ void main() {
       expect(flows, isEmpty);
     });
 
+    // 服务端（telencephalon flow/api/drafts.rs）回的是**裸 JSON 数组**，元素是
+    // DraftFlow = { flow, provenance }（嵌套）。旧实现用 `_get`（假定对象体）
+    // 对数组 cast 直接抛 ⇒ 端脑流程页整个进 error 态 —— 这三条钉住三种形状。
+    group('listDrafts()', () {
+      Future<List<FlowDefinition>> draftsOf(Object body) async {
+        final c = TelencephalonClient(
+          baseUrl: 'http://127.0.0.1:60080',
+          client: http_testing.MockClient((request) async {
+            expect(request.url.path, '/api/flows/draft');
+            return http.Response(jsonEncode(body), 200);
+          }),
+        );
+        try {
+          return await c.listDrafts();
+        } finally {
+          c.dispose();
+        }
+      }
+
+      test('parses the bare-array DraftFlow envelope (the real server shape)',
+          () async {
+        final drafts = await draftsOf([
+          {
+            'flow': {
+              'id': 'flow-uuid-1',
+              'name': 'demo-draft',
+              'version': '0.2.0',
+            },
+            'provenance': {'source': 'learner'},
+          },
+        ]);
+        expect(drafts, hasLength(1));
+        expect(drafts.single.id, 'flow-uuid-1');
+        expect(drafts.single.name, 'demo-draft');
+        expect(drafts.single.version, '0.2.0');
+      });
+
+      test('tolerates an empty bare array (what a fresh brain answers)',
+          () async {
+        expect(await draftsOf([]), isEmpty);
+      });
+
+      test('falls back to the legacy {"drafts": [...]} shape', () async {
+        final drafts = await draftsOf({
+          'drafts': [
+            {
+              'id': 'flow-uuid-2',
+              'name': 'legacy-shape',
+              'version': '0.1.0',
+            },
+          ],
+        });
+        expect(drafts, hasLength(1));
+        expect(drafts.single.id, 'flow-uuid-2');
+        expect(drafts.single.name, 'legacy-shape');
+      });
+    });
+
     test('setBaseUrl() updates base URL', () {
       client.setBaseUrl('http://192.168.1.100:60080');
       expect(client.baseUrl, 'http://192.168.1.100:60080');
