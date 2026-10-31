@@ -8,6 +8,8 @@ import 'package:http/http.dart' as http;
 import 'package:integration_test/integration_test.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'shadow_key.dart';
+
 /// 端脑那两份派生的域分隔符 —— 与
 /// `telencephalon::security::identity` 里的常量**逐字节一致**。
 ///
@@ -70,8 +72,24 @@ void main() {
     );
 
     // 2) 问端脑「你是谁」—— 它**自己**的答案。
+    //
+    // ⚠️ 端脑面**可能**要求 shadow key（`<filesDir>/shadow.key` 存在时）⇒
+    // 不带 key 必须被拒，带 key 才通过 —— 这一段在端脑面上锁之前是空的
+    // （那时端脑面是敞开的），上锁之后它自动变成一条真的断言。
+    final shadowKey = await readShadowKey();
+    final identityUrl = 'http://127.0.0.1:$agentPort/shadow/v1/identity';
+    if (shadowKey != null) {
+      final unkeyed = await http.get(Uri.parse(identityUrl));
+      expect(
+        unkeyed.statusCode,
+        anyOf(401, 403),
+        reason: '端脑面要求 shadow key ⇒ 不带 key 必须被拒',
+      );
+    }
+
     final response = await http.get(
-      Uri.parse('http://127.0.0.1:$agentPort/shadow/v1/identity'),
+      Uri.parse(identityUrl),
+      headers: shadowKeyHeaders(shadowKey),
     );
     expect(
       response.statusCode,

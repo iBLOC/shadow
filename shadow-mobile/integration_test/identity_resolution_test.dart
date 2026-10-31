@@ -8,6 +8,8 @@ import 'package:shadow_mobile/providers/identity_provider.dart';
 import 'package:shadow_mobile/services/prefrontal_client.dart';
 import 'package:shadow_mobile/services/telencephalon/telencephalon_client.dart';
 
+import 'shadow_key.dart';
+
 /// 「App 在真机上知不知道自己是谁」—— 这一条只测**客户端这一侧**。
 ///
 /// 端脑那一侧（谁是这个账号）由 `account_export_test.dart` 对账。
@@ -70,7 +72,12 @@ void main() {
 
     // 3) 走**App 自己那条路**：同一个 client、同一个 notifier ——
     //    客户端的租户必须落在那个人格桶上。
+    //
+    // ⚠️ 端脑面**可能**要求 shadow key（`<filesDir>/shadow.key` 存在时）⇒
+    // 这里跟 App 一样把它带上（App 那边是宿主在启动时交给 client 的）。
+    final key = await readShadowKey();
     final client = TelencephalonClient(baseUrl: 'http://127.0.0.1:$agentPort');
+    client.setApiKey(key);
     final prefrontal = PrefrontalClient(baseUrl: 'http://127.0.0.1:60080');
     final notifier = IdentityNotifier(client, prefrontal);
 
