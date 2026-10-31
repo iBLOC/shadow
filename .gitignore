@@ -98,6 +98,14 @@ tmp/
 temp/
 *.tmp
 
+# 端脑在**本仓根目录**被起起来时留下的本地状态目录
+# （`~/.local/share/shadow/{flows,identity}` —— 端脑用 `dirs` 库解析
+#  `$HOME/.local`，而 HOME 恰好是这个仓根时就会长在这儿）。
+# ⚠️ 它里面是**账号身份目录**（`account.key` / `device.id`）
+# ⇒ `*.key` 规则挡住了私钥，但 `device.id` 会变成待提交文件
+# ⇒ 整棵树按「本地状态」忽略掉。
+.local/
+
 # OpenCode
 .opencode/
 

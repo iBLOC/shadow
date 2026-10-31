@@ -535,9 +535,9 @@ The same `src/` produces **two artefacts**:
 - `tsc --noEmit -p tsconfig.json` **EXIT=0**；`eslint`（6 个改动文件）**EXIT=0**；
 - `vite build --outDir dist-a2ui-verify` **EXIT=0**（`✓ built in 19.95s`）
   ⇒ 打完已用可恢复删除清掉；
-- `node scripts/check-agent-surface.mjs` ⇒ **阻断 0 / 提示 2**（⚠️ 那两条提示是
-  **并行会话**新登记的 `a2ui` / `identity` 两个能力的 `labelKey` 在**移动端 ARB**
-  里还没有 ⇒ 守门员自己写的「阶段 2 接入能力清单时补」
+- `node scripts/check-agent-surface.mjs` ⇒ **阻断 0 / 提示 0**（⚠️ 中途**短暂**出现过
+  2 条提示 —— 那是**并行会话**新登记的 `a2ui` / `identity` 两个能力的 `labelKey`
+  在**移动端 ARB** 里还没补上 ⇒ 已被他们的 `5ebd5a4` 补齐
   ⇒ **不是本片引入**：本片**没新增能力、没动任何 labelKey**）。
 - ⚠️ `node scripts/validate-i18n-keys.mjs` **EXIT=1**，但那 **260 条缺失全是
   既有缺口**（`identity` / `computerUse` / `subsystem` / `preview` / `voice` /

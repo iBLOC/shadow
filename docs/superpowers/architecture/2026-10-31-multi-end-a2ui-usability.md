@@ -1,0 +1,926 @@
+# 多端 A2UI 可用性评估
+
+> 2026-10-31 · 承接《三端功能清单对齐审计》（同日）
+> 范围：桌面端（`shadow-desktop`）/ 移动端（`shadow-mobile`）/ 设备端（`shadow-esp32`）/ 服务端（`telencephalon` 及其叶区）
+> 方法：不看文档宣称，只看**代码里真实存在的实现与连线**；所有结论带 `file:line` 证据。
+
+---
+
+## 0. 一句话结论
+
+**A2UI 在这个项目里是「一根接好的水管，中间没有水源」——**
+**⚠️ 这个结论有两半，本轮把下半句修掉了。**
+
+- ✅ **上半句（客户端）本来就是真的**：协议栈、组件目录、界面、入口都齐。
+- ❌ **下半句（服务端）是空的** —— **本轮已补**（§6.3）：
+  端脑现在有一个 A2UI **产出面**（`POST /a2a`，A2A v0.3 JSON-RPC + SSE），
+  能把**真实的内部状态**（任务、已注册叶区）渲染成 A2UI 组件树。
+- ⚠️ **设备端仍然完全零 A2UI**（这一半没动，也不该由这一轮动）。
+- 🟡 **桌面端本轮也补上了**（§6.5）：在 TypeScript 里自写协议栈 + 渲染面
+  + 面板 + 入口 ⇒ **两端现在都能显示同一批服务端画出来的界面**。
+  ⚠️ 但**设备端**（ESP32）仍然是零。
+
+⇒ **今天在移动端，A2UI 第一次能真的显示出东西了**（任务看板 / 叶区列表）。
+⇒ **桌面端也接上了同一张产出面**（§6.5）⇒ 跨端契约的 fixture 现在有**三个**消费者。
+
+⚠️ 另外：那个空态原先还硬写着「Agent2UI 就绪 / 问我任何事」（**假承诺**）——
+**已修**（§6.2）：空态现在按真实连接状态说话，且不再承诺会生成界面。
+
+⚠️ 而且**能进不能出的问题已经修好了**（入口是常驻按钮，不是下载框的逃生口）——
+**这意味着一个进去就出不来、且里面永远空白的入口，现在是可达的**。
+
+⚠️ **本轮自己引入的一个缺口也已经补上**（§6.4）：§6.3 新加的 `/a2a` 端点
+**一开始没落在 shadow key 那道门后面** ⇒ 它是一张**会吐用户数据**
+（任务标题、agent 名）、且**同设备任何别的 App 都能打**（手机上）/
+**局域网可达**（桌面上）的面 ⇒ 现在与 `/shadow/v1/*` **共用同一道门**。
+
+
+---
+
+## 1. 结论速览
+
+| 端 | 客户端实现 | 服务端产出 | 实际可用性 |
+|---|---|---|---|
+| **移动端** | ✅ 完整（协议栈 + 8 个组件 + 界面 + 入口） | ✅ **有**（§6.3：`POST /a2a`） | 🟡 **可用**（任务 / 叶区两个视图） |
+| **桌面端** | 🟡 **有**（§6.5：TS 协议栈 + 4 种组件 + 面板 + 入口） | ✅ **有**（同一个 `POST /a2a`） | 🟡 **可用**（同一批视图，但**只对着录下来的字节验过**，见 §6.5） |
+| **设备端（ESP32）** | ❌ **零** | ❌ 无 | 🔴 **不存在** |
+| **端脑（telencephalon）** | — | ✅ **产出**（`src/a2a/a2ui.rs`） | 🟢 **产出** |
+| **synapse / temporal 等叶区** | — | ❌ 无 | 🔴 **不产出**（视图的**数据源**是端脑自己，不是叶区） |
+
+⚠️ 移动端是 🟡 而不是 🟢：能用了，但**只有两个视图**、界面文案是服务端出的（英文）、
+**还没有 LLM 驱动的「现场画界面」**（§6.3 §未做的事）。
+
+---
+
+## 2. 客户端侧：移动端是唯一有实现的
+
+### 2.1 实现清单（全部实测）
+
+| 文件 | 作用 |
+|---|---|
+| `shadow-mobile/lib/providers/genui_provider.dart` | 4 个 provider：service / 连接状态 / 模式开关 / surface 列表 |
+| `shadow-mobile/lib/services/genui/gen_ui_agent_service.dart` | **核心**：封装 `A2uiMessageProcessor` + `A2uiContentGenerator` + `GenUiConversation` |
+| `shadow-mobile/lib/services/genui/shadow_catalog.dart` | **8 个自定义组件**（见 §2.2） |
+| `shadow-mobile/lib/widgets/chat/agent2ui_view.dart` | 界面：状态条 + surface 渲染区 |
+| `shadow-mobile/lib/widgets/chat/../flutter_genui/chat_widget.dart` | 另一个 GenUI 聊天组件 |
+| `shadow-mobile/lib/providers/mnn_agent_integration.dart` | 把 GenUI service 接到本地 MNN 引擎 |
+
+依赖：`pubspec.yaml:55-56` → `genui: ^0.7.0` + `genui_a2ui: ^0.7.0`（**第三方官方包**）。
+
+### 2.2 组件目录（`shadow_catalog.dart`）
+
+在官方 `CoreCatalogItems` 基础上加了 8 个：
+
+`TaskCard` / `MemoryCard` / `AgentStatusIndicator` / `ProgressStepper` / `NotificationToast` / `ToolCallCard` / `ConversationBubble` / `QuickActionButton`
+
+⚠️ **每个都带完整 widgetBuilder**（卡片、图标、配色、状态分支）⇒
+**组件这一层是真的做完了**，不是占位。
+
+### 2.3 入口与出口
+
+- **入口**：`chat_screen.dart:174-180` —— AppBar 上的 `Icons.widgets_outlined` 常驻按钮，
+  置 `useAgent2UIModeProvider = true`。
+  注释写得很清楚（`chat_screen.dart:169-173`）：
+  > 以前唯一的入口是「本地模型没装好 → 弹下载框 → Use Agent2UI」那个逃生口 —— 下载框下线之后就没有入口了，
+  > 所以补一个常驻按钮，不然这个形态会变成**只能进不能出**的死功能。
+
+  ⇒ ⚠️ **注意措辞**：修的是「进不去」，**没修「进去了是空的」**。
+
+- **出口**：`agent2ui_view.dart:92-97` —— 状态条上的「断开」按钮，置回 `false`。
+  ⇒ 进得出**都通**（这块是真的修好了）。
+
+- **界面**：`agent2ui_view.dart:102-168` —— `surfaceIds` 为空 ⇒ 显示空态（图标 + 一句**按真实连接状态**说的话 + 机制提示，见 §6.2）；
+  非空 ⇒ `ListView.builder` 渲染 `GenUiSurface`。
+
+### 2.4 测试覆盖
+
+`shadow-mobile/test/widget/chat_screen_home_test.dart`：
+- `:72` 「AppBar 右侧的入口都在（设置 / 语音 / Agent2UI）」
+- `:85` 「Agent2UI 是能进能出的（不再是只能进不能出）」
+- `:97` 注释明说 Agent2UI 视图里有 `CircularProgressIndicator`（无限动画）
+
+⚠️ **测试只覆盖「入口在不在、能不能进出」** —— **没有任何测试覆盖「surface 里真的有东西」**。
+⇒ 这正好是缺口所在。
+
+---
+
+## 3. 服务端侧：⚠️ **原来**全链路没有一处产出 A2UI（本轮已补，见 §6.3）
+
+> ⚠️ 这一节记的是**评估当时**的状态。**本轮已经补上了服务端产出面**（§6.3）：
+> 端脑新增 `src/a2a/a2ui.rs` + `src/api/a2ui_gateway.rs`，
+> 能把真实的任务 / 叶区渲染成 A2UI 组件树。
+> 下面这几条证据仍然成立 —— 它们记的是**「为什么当时是空的」**，
+> 以及**「A2UI 真正的载体长什么样」**（协议事实不会因为补了产出面而变）。
+
+这是本次评估**最关键的结论**。
+
+### 3.1 协议要求（A2UI 客户端连什么）
+
+`genui_a2ui` 0.7.0 包内（`pub-cache/.../genui_a2ui-0.7.0/src/a2ui_agent_connector.dart`）：
+
+```dart
+final Uri a2uiExtensionUri = Uri.parse('https://a2ui.org/a2a-extension/a2ui/v0.8');
+...
+authHeaders: {'X-A2A-Extensions': a2uiExtensionUri.toString()},
+```
+
+⇒ A2UI 走 **A2A 协议**，且客户端会带 `X-A2A-Extensions` 头声明 A2UI 扩展。
+
+### 3.2 端脑的 A2A 面：**只做文本**
+
+`telencephalon/src/api/a2a_gateway.rs`：
+- `:13` `POST /a2a/tasks/send`、`:14` `GET /a2a/tasks/{id}`、`:15` `.../cancel`
+- `:133-136` 函数注释（**决定性证据**）：
+  > Translate a v0.1 protocol::Message to a v0.2 schema::Message.
+  > **Extracts the text content from all text parts and joins them with a single space.
+  > Non-text parts (file, data) are dropped.**
+
+⇒ 端脑的 A2A 网关把消息**降维成纯文本**。
+A2UI 的载体是 `data` part / `surface_update` artifact ⇒ **在这条路上会被直接丢掉**。
+
+### 3.3 端脑的 agent card：**没声明 A2UI 扩展**
+
+`telencephalon/src/api/well_known.rs:15-35` 的 `get_telencephalon_agent_card` 返回：
+
+```json
+{ "name", "description", "url", "version", "provider",
+  "capabilities": { "streaming", "push_notifications", "state_transition_history" },
+  "skills": [...], "metadata": {...} }
+```
+
+⚠️ **没有 `capabilities.extensions`**，没有任何 A2UI 声明
+⇒ A2UI 客户端**无从判断对端支持 A2UI**（而它正是靠这个扩展声明来协商的）。
+
+### 3.4 全部叶区：无 A2UI 产出
+
+| 仓 | grep `a2ui\|genui\|surface_update\|dataModel` |
+|---|---|
+| `telencephalon/src/**` | **零命中** |
+| `synapse/src/**` | **零命中** |
+| `temporal/src/**` | **零命中**（只有 "surface" 的英文普通词，如 `speaker.rs` 的 "notification surface"） |
+
+⇒ **没有任何一个叶区会生成 A2UI 的组件树。**
+
+### 3.5 移动端连的地址：`localhost:60080`（在手机上是死端口）
+
+`genui_provider.dart:11`：
+```dart
+const prefrontalUrl = 'http://localhost:60080';
+```
+
+⚠️ **这是桌面 sidecar 的端口**。在手机上：
+- 端脑面端口**每次启动随机分配**（日志：`✅ Encephalon started on port <neuron> (agent surface: <端脑面>)`）；
+- 手机上的 `localhost:60080` **没有任何进程监听**。
+
+⇒ **移动端的 A2UI 服务端地址是写死的、且在真机上必然连不上。**
+（这与本审计 A11 同源：移动端前额叶方言的 baseUrl 恒为 `localhost:60080`，
+`task_board_screen.dart:16-20` 早就为此踩过坑并记录过原因。）
+
+💡 **而且移动端「已经有」正确的那个 client** ——
+`lib/services/telencephalon/telencephalon_client.dart:636-640`：
+```dart
+/// 移动端「改嵌大脑」之后，嵌入式大脑起来时这个地址会被换成 App
+/// 进程内那份端脑的地址（见 `EncephalonMobileNotifier`）。
+static const String defaultBaseUrl = 'http://127.0.0.1:60080';
+```
+⇒ **A2UI 是「另开了一条」写死的地址**，而不是复用这一个会跟随随机端口的 client。
+⇒ 修 U4 **不需要新造轮子**：把 A2UI 接到 `telencephalonClient` 的 baseUrl 上即可。
+
+### 3.6 ⚠️ 端脑 A2A 的 `get_task` / `cancel_task` 也是死的
+
+`telencephalon/src/api/a2a_gateway.rs:109-119`、`:121-132`：
+两个 handler 都直接 `Err((StatusCode::..., ...))` ⇒ **端脑的 A2A 任务查询与取消未实现**。
+
+---
+
+## 4. 桌面端 / 设备端：零
+
+> ⚠️ **这一节记录的是「本轮之前」的状态**（评估当时的快照）。
+> **桌面端那一格已经不成立**（§6.5）—— 现在桌面端有消费面了。
+> **设备端（ESP32）仍然是零**，且**这一轮没动**。
+
+| 目标 | 结果 |
+|---|---|
+| `shadow-desktop/src/**` grep `genui\|a2ui\|agent2ui` | **零命中**（⚠️ 本轮之前；现在有 `a2uiProtocol.ts` / `a2uiClient.ts` / `A2uiSurface.tsx` / `A2uiPanel.tsx`） |
+| `shadow-esp32/**`（C/C++/ino/md）grep `a2ui\|genui` | **零命中**（**仍然成立**） |
+| `agent-surface.json`（能力清单）grep `a2ui\|agent2ui\|genui\|widgets` | **零命中**（⚠️ 本轮之前；现在已登记 `a2ui` 条目） |
+
+⚠️ **A2UI 根本不在能力清单里** —— 它是**清单外的功能**。
+（对照：A1–A11 的问题都是「清单内的能力两端不对等」，A2UI 是「能力清单里压根没有它」。）
+
+⇒ 按本审计 §7 批次 D 的方向（D-2：清单补 `source` 字段、D-4：区分二级入口与无入口），
+**A2UI 需要先被登记进清单**，否则它的存在与否对跨端一致性检查是**不可见的**。
+
+---
+
+## 5. 可用性判定
+
+### 5.1 逐端判定
+
+> ⚠️ 本表是**评估当时**的快照。§6.3（服务端产出）/ §6.4（上锁）/ §6.5（桌面端接入）
+> 之后已经变了 —— **现在的判定见 §1 结论速览**。
+
+| 端 | 判定（评估当时） | 依据 |
+|---|---|---|
+| 移动端 | 🔴 **空壳** | 客户端齐、服务端空；且地址写死 `localhost:60080`（真机连不上） |
+| 桌面端 | 🔴 **不存在** | 零实现　**⚠️ 本轮已补（§6.5）** |
+| 设备端 | 🔴 **不存在** | 零实现　**⚠️ 仍然成立** |
+| 端脑 | 🔴 **不产出** | A2A 只做文本；agent card 不声明扩展；无叶区产出　**⚠️ 本轮已补（§6.3）** |
+
+### 5.2 实际用户能看到的
+
+用户在移动端点那个「组件图标」⇒ 进入 Agent2UI 视图 ⇒
+看到**状态条**（已断开 / 正在连接 / 已连接到 Shadow A2A 服务器）
++ **空态**（原先写死「Agent2UI 就绪 / 问我任何事」，**本轮已改成按真实状态说话**，见 §6.2）
++ 一个无限转圈的进度指示器 ⇒
+**发任何消息都不会有任何 UI 出现**（因为服务端不产出）⇒
+⇒ 退出按钮是唯一能做的事。
+
+⚠️ 这**仍然**是「一个进去就出不来、且里面永远空白的入口」——
+从用户视角，这比没有这个入口更糟：**它承诺了一个不存在的能力**。
+
+✅ **但本轮至少不再「说谎」了**：空态不再自称「就绪」，
+而是按连接状态分别说「连不上端脑」/「正在等待端脑推送界面」/「已连接，但服务端还没有生成任何界面」。
+⇒ **「宣称就绪却永远空白」这个致命项（U0）已消**，
+剩下的是「**诚实地说：这里确实还没有东西**」。
+
+---
+
+## 6. 问题清单（按「能不能让人不再失望」排序）
+
+| # | 问题 | 严重度 | 证据 |
+|---|---|---|---|
+| **U0** | ~~**「Agent2UI 就绪 / 问我任何事」是硬编码的空态文案**~~ —— `ids.isEmpty` 时**无条件**显示，**与真实连接状态、服务端是否产出完全无关** ⇒ 用户被明确告知「就绪」，但永远等不到任何 UI　**✅ 本轮已修（§6.2）** | 🔴 ~~致命~~ → 已消 | `agent2ui_view.dart:105-168`（改前 `:117` `l10n.agent2uiReady`） |
+| **U1** | ~~**端脑不产出 A2UI** —— 全链路零产出~~　**✅ 本轮已修**（§6.3）：端脑新增 A2UI 产出面，把**真实内部状态**渲染成组件树 | 🔴 ~~致命~~ → 已消 | `telencephalon/src/a2a/a2ui.rs`、`src/api/a2ui_gateway.rs` |
+| **U2** | **端脑 A2A 只做文本**，`data` part 被丢弃 ⇒ A2UI 的载体根本传不过来　🟡 **部分修**：**A2UI 这条路不再降维**（新端点直接按 v0.3 解析）；**老的 skill 路由路径仍只做文本**（那是给叶区用的 v0.1 契约，动它要动叶区） | 🟠 → 部分 | `api/a2a_gateway.rs:136`（老路径）、`api/a2ui_gateway.rs`（新路径） |
+| **U3** | ~~**agent card 不声明 A2UI 扩展** ⇒ 客户端无从协商~~　**✅ 本轮已修** | 🟠 ~~高~~ → 已消 | `src/api/well_known.rs`（`capabilities.extensions`） |
+| **U4** | ~~**移动端 A2UI 地址写死 `localhost:60080`** ⇒ 真机上必然连不上~~　**✅ 本轮已修**：改成跟随嵌入式大脑的端脑面端口 | 🟠 ~~高~~ → 已消 | `shadow-mobile/lib/providers/genui_provider.dart` |
+| **U5** | ~~**A2UI 不在能力清单里** ⇒ 跨端一致性检查看不见它~~　**✅ 本轮已修**：登记为第 34 条能力（两端 i18n/ARB 同步） | 🟠 ~~高~~ → 已消 | `agent-surface.json` |
+| **U6** | **桌面端 / 设备端零实现** ⇒ 三端不对等　⚠️ **本轮未动**（桌面端已有等价机制，见 §7 方向 C） | 🟠 高 | §4 |
+| **U7** | **端脑 A2A 的 `get_task` / `cancel_task` 未实现**（直接 Err）　⚠️ 本轮未动 | 🟡 中 | `api/a2a_gateway.rs:109-132` |
+| **U8** | ~~**测试只覆盖入口/出口，不覆盖「surface 里真有东西」**~~　**✅ 本轮已修**：新增 3 类测试 —— 跨端契约 fixture 比对、客户端渲染断言、SSE 字节回放 | 🟡 ~~中~~ → 已消 | `telencephalon/tests/a2ui.rs`、`shadow-mobile/test/widget/a2ui_contract_test.dart`、`a2ui_sse_replay_test.dart` |
+
+### 6.1 U0 为什么排第一
+
+```dart
+// shadow-mobile/lib/widgets/chat/agent2ui_view.dart:103-120
+child: surfaceIds.when(
+  data: (ids) {
+    if (ids.isEmpty) {
+      return Center(
+        child: Column(
+          children: [
+            Icon(Icons.psychology, ...),
+            Text(l10n.agent2uiReady, ...),   // ← 「Agent2UI 就绪」
+            Text(l10n.askMeAnything, ...),  // ← 「问我任何事」
+          ],
+```
+
+⚠️ **判定条件只有 `ids.isEmpty`** —— 它**不检查**：
+- 连接状态（`a2uiConnectionStatusProvider` 的值在这段代码里根本没参与判断）；
+- 服务端是否真的会产出 A2UI。
+
+⇒ 断开时显示「就绪」，服务端不存在时也显示「就绪」。
+⇒ **用户看到的不是「等待」，是「承诺」** —— 这是最伤的一种空态。
+
+⇒ **修 U0 只需要一个条件**：`ids.isEmpty && 连接状态 == disconnected` ⇒ 显示「未连接 / 服务不可用」；
+`连接中` ⇒ 显示 spinner；`connected && ids.isEmpty` ⇒ 才显示「就绪，但服务端没给内容」。
+
+---
+
+### 6.2 U0 的修法与验证（本轮已做）
+
+**修的不是「有没有界面」，是「界面上的字对不对」。**
+服务端产出（U1/U2）是另一件事、另一个量级 ⇒ 本轮只做**零风险、不碰协议**的那一件：
+**让空态说实话**。
+
+### 改了什么
+
+| 文件 | 改动 |
+|---|---|
+| `shadow-mobile/lib/l10n/app_{zh,en}.arb` | 新增 3 条：`agent2uiNoConnection` / `agent2uiWaiting` / `agent2uiSurfaceHint` |
+| `shadow-mobile/lib/widgets/chat/agent2ui_view.dart:105-168` | 空态文案按**真实连接状态**三选一；副标题从「我会为您生成界面」改成只描述机制 |
+| `shadow-mobile/lib/generated/l10n/*.dart` | `flutter gen-l10n` 重新生成 |
+| `shadow-mobile/test/widget/agent2ui_empty_state_test.dart` | **新增** 3 条 widget 测试（此前 0 条覆盖空态） |
+
+### 三个设计决定
+
+1. **空态不复读状态栏。**
+   状态栏（`agent2ui_view.dart:64-100`）已经讲「连上了没」；
+   空态要讲的是「**缺什么**」。
+   ⚠️ 复读不只是啰嗦 —— 它会让**同一句话在屏幕上出现两次**，
+   断言时根本分不清说的是哪一块（**本轮真踩了这个坑**：改完第一版后测试报
+   `Found 2 widgets with text "Connecting to Shadow..."`）。
+   ⇒ 顺带修掉了一个 UI 层面的冗余。
+
+2. **副标题原来那句也是假承诺。**
+   `askMeAnything` = 「问我任何问题，**我会为您生成界面**」——
+   端脑从不产出 A2UI ⇒ 这句话**永远不会兑现** ⇒ 换成
+   `agent2uiSurfaceHint` =「服务端推送的界面会显示在这里」（只描述机制，不承诺结果）。
+
+3. **`agent2uiReady` / `askMeAnything` 两个 key 保留在 arb 里**，
+   但生产代码里**不再引用** ⇒ 它们现在只作为**回归断言的负面目标**存在
+   （测试断言它们**不得**出现在界面上）。
+
+### 验证
+
+| 检查 | 结果 |
+|---|---|
+| 新增 widget 测试 | `flutter test test/widget/agent2ui_empty_state_test.dart` ⇒ **3 passed** |
+| **反向验证** | 把空态改回旧行为（无条件 `l10n.agent2uiReady` + `l10n.askMeAnything`）⇒ **恰好 3 条全红**（`Found 1 widget with text "Agent2UI Ready"` / `means one was found but none were expected`）⇒ 恢复后全绿 ⇒ **这 3 条真的承重**，不是摆设 |
+| 移动端全量单测 | `flutter test --concurrency=1` ⇒ 见文末「验证结果」 |
+| 移动端静态检查 | `flutter analyze --no-pub` ⇒ 见文末「验证结果」 |
+
+⚠️ **§6.2 当时没碰的**（入口按钮、地址、服务端产出、能力清单）——
+**其中四件在本轮（§6.3）做掉了**：
+入口保留、**地址改成跟随真实端口（U4）**、**服务端产出面接上了（U1/U3）**、
+**A2UI 登记进能力清单（U5）**。
+
+---
+
+### 6.3 方向 B 的落地：服务端产出面（本轮已做）
+
+> 这一节记录「把水管接上水源」这件事**具体做了什么**、**按什么契约做的**、
+> **怎么证明它真的通了**。
+
+### 6.3.1 线缆契约（客户端定的，服务端照着做）
+
+⚠️ **A2UI 的协议是第三方包定的**（`genui` / `genui_a2ui` 0.7.0），
+不是本项目自己定的 ⇒ **所有形状都必须对着客户端源码核**，
+否则失败全是**静默**的。
+
+| 项 | 客户端的规矩 | 证据（pub-cache 里的源码） |
+|---|---|---|
+| 请求打哪儿 | JSON-RPC `message/stream` **POST 到给它的那个 URL 本身** | `genui_a2ui/lib/src/a2a/client/sse_transport.dart:52` |
+| 请求头 | `X-A2A-Extensions: https://a2ui.org/a2a-extension/a2ui/v0.8` | `genui_a2ui/lib/src/a2ui_agent_connector.dart:39` |
+| 响应形态 | SSE，每事件 `data: {json}\n\n` | `genui_a2ui/lib/src/a2a/client/sse_parser.dart:29-67` |
+| ⚠️ **必须有 `result`** | 没有 `result` 的 JSON **被静默丢弃** | `sse_parser.dart:45-49` |
+| 事件判别 | `result.kind ∈ {status-update, task-status-update, artifact-update}` | `genui_a2ui/lib/src/a2a/core/events.dart:19-77` |
+| ⚠️ **载荷位置** | A2UI 载荷在 `status.message.parts[]` 里 **`kind:"data"` 的 part** | `genui_a2ui/lib/src/a2ui_agent_connector.dart:182-186`、`:213-216` |
+| A2UI 消息 | `surfaceUpdate` / `dataModelUpdate` / `beginRendering` / `deleteSurface` | `genui/lib/src/model/a2ui_message.dart:19-33` |
+| 组件形状 | `{"id": "...", "component": {"<类型名>": {<属性>}}}` | `genui/lib/src/model/ui_models.dart:174-183` |
+| ⚠️ **目录** | 客户端按 `definition.catalogId ?? standardCatalogId` 找目录 | `genui/lib/src/core/genui_surface.dart:165` |
+| ⚠️ **消息顺序** | `surfaceUpdate` 在根还没设时只**缓存**；`beginRendering` 才触发 `SurfaceAdded` | `genui/lib/src/core/a2ui_message_processor.dart:160-197` |
+
+⇒ **服务端 `beginRendering` 故意不写 `catalogId`** —— 让客户端用自己的默认值，
+两端不必为一个字符串硬耦合。
+
+### 6.3.2 服务端做了什么
+
+| 文件 | 内容 |
+|---|---|
+| `telencephalon/src/a2a/a2ui.rs`（**新增**） | **产出逻辑**：视图解析（metadata / `a2ui:<view>` 文本指令 / 关键词三档）、任务视图渲染、叶区视图渲染、A2A 事件封装。纯函数 ⇒ 可单测。14 条单测 |
+| `telencephalon/src/api/a2ui_gateway.rs`（**新增**） | **HTTP 层**：`POST /a2a` —— A2A v0.3 JSON-RPC 入口，响应是 SSE |
+| `telencephalon/src/api/mod.rs` | 把新 router 挂上去（与 `/a2a/tasks/send` **并存**） |
+| `telencephalon/src/api/well_known.rs` | agent card 加 `capabilities.extensions` 声明 A2UI 扩展（**U3**） |
+| `telencephalon/tests/a2ui.rs`（**新增**） | 集成测试：契约 fixture 比对 + 真起服务器读 SSE |
+
+**端点为什么不放根路径**：根上还有 `/api/telencephalon/*`、`/shadow/v1/*` 一堆路由，
+把 JSON-RPC 塞到根上会让「谁是 A2A 入口」变浑。
+`/a2a` 本来就是 A2A 的地盘（`/a2a/tasks/send` 在那儿），扩展成
+「A2A 的 v0.3 JSON-RPC 入口」是最自然的一步。
+
+**路由不冲突**：axum 0.8.9 / matchit 0.8.4 只在**同一路径重复注册**时报冲突；
+`/a2a` 与 `/a2a/tasks/send` 是两个不同节点
+（仓内同类先例：`src/api/neuron_public.rs:48-53`）。
+
+**视图怎么选**（三档，从最明确到最兜底）：
+
+1. `params.message.metadata.a2ui.view`（对象）或 `metadata.a2uiView`（字符串）——
+   显式指定但**不认识** ⇒ **不猜**，回纯文本；
+2. 文本以 `a2ui:<view>` 开头（便于手测）；
+3. 关键词（中英都认：「任务」「待办」「task」「todo」⇒ 任务看板）。
+
+**当前两个视图**：
+
+- `tasks` —— 端脑 `task_store` 里的真实任务 ⇒ 移动端目录里的 `TaskCard`
+- `agents` —— 端脑 `lobe_cache` 里已注册的叶区 ⇒ `AgentStatusIndicator`
+
+⚠️ **任务要排序**：`TaskStore` 底层是 `HashMap` ⇒ `list_tasks` 的顺序**不确定**
+⇒ 不排的话同一个状态每次渲染顺序都可能变，跨端契约也没法钉死。
+
+### 6.3.3 客户端做了什么
+
+| 文件 | 内容 |
+|---|---|
+| `shadow-mobile/lib/providers/genui_provider.dart` | **U4**：地址不再写死 `localhost:60080`，改成跟随**嵌入式大脑的端脑面端口**（`encephalonMobileProvider` 的 `agentPort`，每次启动随机）⇒ 真机上必然连得上 |
+| `shadow-mobile/lib/services/genui/gen_ui_agent_service.dart` | **配套 bug 修复**：`_onSurfaceAdded` 以前是无条件 `append` ⇒ 同一个 surface 重新 `beginRendering` 会出现**两份一样的界面**；而且它发的是**同一个 List 对象**（`List == List` 是引用比较）⇒ Riverpod 可能判定「值没变」而**不通知** |
+| `agent-surface.json` + 两端 i18n/ARB | **U5**：A2UI 登记进能力清单（33 → 34 条）。它是**清单外功能** ⇒ 对跨端一致性检查完全隐形 |
+| `shadow-mobile/test/widget/a2ui_contract_test.dart`（**新增**） | 跨端契约测试（下面） |
+| `shadow-mobile/test/widget/a2ui_sse_replay_test.dart`（**新增**） | SSE 字节回放测试（下面） |
+
+⚠️ **U4 为什么不用「读 client 的 baseUrl」**：
+`A2uiContentGenerator` 在**构造时**把 URL 焊死（`A2uiAgentConnector.url` 是 final），
+而 `GenUiConversation.contentGenerator` 也是 final ⇒ 只能**整个换掉 service 实例**。
+⇒ provider 用 `watch` 盯着端脑面端口，端口一变就重建 service。
+
+### 6.3.4 怎么证明它真的通了（两道跨端契约）
+
+⚠️ **光看「服务端返回 200」证明不了任何事** —— A2UI 的失败全是静默的：
+没有 `result` ⇒ 静默丢弃；载荷放错位置 ⇒ 静默丢弃；
+组件类型不在客户端目录 ⇒ **只打一条 severe 日志**然后渲染空 `Container`。
+
+⇒ 所以用**一份跨仓 fixture** 把两端钉在一起：
+
+```
+shadow/fixtures/a2ui/tasks_surface.json   ← A2UI 载荷（两端读同一份）
+shadow/fixtures/a2ui/tasks_sse.txt        ← 端脑的真实 SSE 字节
+```
+
+- **端脑侧**（`telencephalon/tests/a2ui.rs`）：断言自己的产出**逐字**等于 fixture；
+  再真起一个服务器、POST 上去、**逐条按客户端的解析规则**读 SSE
+  （`result` 包层 / `kind` / `parts[].kind == "data"` / `final`）。
+- **客户端侧**（`a2ui_contract_test.dart`）：把 fixture 喂给**真的**
+  `A2uiMessageProcessor` + `ShadowCatalog` ⇒ 断言
+  ① surface 真的被加进来、② 每个组件类型**都在客户端目录里**、
+  ③ **渲染出来**（屏幕上能看到任务标题与优先级）。
+- **客户端侧**（`a2ui_sse_replay_test.dart`）：起一个**真的本地 HTTP 服务**
+  把端脑的**原始 SSE 字节**回放出去，让**真的** `GenUIAgentService`
+  （→ content generator → connector → SSE 解析器 → 消息处理器）去连它
+  ⇒ 只要有一个字节不对，surface 就不会出现。
+
+⚠️ 两个 Dart 测试踩过的坑（都记在这儿）：
+① `A2uiMessageProcessor._surfaceUpdates` 是**普通 broadcast** controller
+（没有 `sync: true`）⇒ 事件**异步投递** ⇒ 不 flush 就断言会看到空列表；
+② `flutter test` 的测试框架默认把**所有** HTTP 请求打成 400
+⇒ 真实 socket 测试必须先 `HttpOverrides.global = null`。
+
+### 6.3.5 ⚠️ 这一轮**没做**的（别当成做完了）
+
+| 没做的 | 为什么 | 后果 |
+|---|---|---|
+| **LLM 驱动的「现场画界面」** | 现在的视图是**服务端按固定规则渲染**的，不是模型现场画的 | A2UI 的核心卖点还没兑现；要兑现得让模型产出组件树（工作量最大的那一步） |
+| **界面文案本地化** | 服务端不知道客户端语言 ⇒ 服务端出的 chrome 文案是英文 | 界面里模型/服务端写的字是英文（任务标题等**用户数据**不受影响） |
+| **老的 `/a2a/tasks/send` 保留 data part** | 那是给叶区用的 v0.1 契约，改它要动叶区 | **U2 只在 A2UI 这条路上解决了**（新端点不降维）；老路径仍只做文本 |
+| **桌面端接入** | 桌面端已有等价机制（§7 方向 C） | 桌面端仍然零 A2UI ⇒ 三端仍不对齐 |
+| `tasks/get` / `tasks/cancel`（U7） | 与 A2UI 无关 | 端脑的 A2A 任务查询/取消仍未实现 |
+| 视图数量 | 只做了 2 个 | 移动端目录里另外 6 个组件（MemoryCard / ProgressStepper / NotificationToast / ToolCallCard / ConversationBubble / QuickActionButton）**还没有对应的服务端视图** |
+
+---
+
+### 6.4 第二片：把 `/a2a` 锁进 shadow key 后面（本轮已做）
+
+#### 为什么这是**必须**的，不是「顺手加的」
+
+⚠️ **这是本轮自己引入的缺口**——§6.3 把 `/a2a` 这个端点**新加**出来的时候，
+它**没有**落在 shadow key 那道门后面：
+
+| | 位置 | 有钥匙吗 |
+|---|---|---|
+| `/shadow/v1/*` | `api::shadow::router_with_store` ⇒ `.layer(from_fn_with_state(..., require_shadow_key))`（`src/api/shadow.rs:89-92`） | ✅ 有 |
+| `/a2a` | `api::a2ui_gateway::router` ⇒ **单独 merge**（`src/api/mod.rs:98`） | ❌ **没有** |
+
+而 `/a2a` **不是一张无害的静态面**——它把**任务标题**、**agent 名字**
+渲染成组件树吐出来 ⇒ 它是一张**数据面**。
+
+它的可达范围还都不小：
+
+- **手机上**：端脑面绑 `127.0.0.1`（`encephalon/src/mobile/mod.rs:418`），
+  但 **loopback 不区分进程** ⇒ **同设备上任何别的 App 都能打这个端口**
+  （与当初 `/shadow/v1/*` 上锁的理由**一模一样**）。
+- **桌面上**：默认 `bind.http = "0.0.0.0:60080"`（`src/config/loader.rs:56`）
+  ⇒ **局域网可达**。
+
+⇒ 一张**新开的、会吐用户数据、局域网可达**的面，正是这个仓这几个月一直在
+一道一道关的门。留着它 = 把刚补上的洞又开了。
+
+#### 修法：一份实现，两处用
+
+安全门**抄两份** ⇒ 迟早漂成「一张面锁了、另一张面忘了」，而且**不会报错**。
+⇒ 把 `require_shadow_key` 从 `api::shadow` 抽到**共享模块**
+`telencephalon/src/api/shadow_auth.rs`，`/shadow/v1/*` 与 `/a2a` 共用**同一份实现**：
+
+| 文件 | 改动 |
+|---|---|
+| `telencephalon/src/api/shadow_auth.rs` | **新增** —— 门本体（`require_shadow_key` + `constant_time_eq`）与「为什么要有这道门 / 为什么共用一份」的说明 |
+| `telencephalon/src/api/shadow.rs` | 删掉本地的门、改为 `use crate::api::shadow_auth::require_shadow_key`（`:49`） |
+| `telencephalon/src/api/a2ui_gateway.rs` | `.layer(from_fn_with_state(state.clone(), require_shadow_key))`（`:53-56`） |
+| `telencephalon/src/api/mod.rs` | `pub mod shadow_auth;`（`:31`） |
+
+⚠️ **开发模式的行为一字不变**：`shadow.api_key` 为空 ⇒ 全放行
+（`shadow_auth.rs` 里 `if expected.is_empty() { return Ok(next.run(req).await) }`）
+⇒ 桌面上没配文件的老 setups 不会突然 401。**这一点专门写了测试**
+（`dev_mode_without_a_key_still_serves_a2ui`）——否则「锁了」很容易变成
+「行为变更」而不是「修漏洞」。
+
+#### 客户端：自己造 transport + **钥匙在请求时现读**
+
+⚠️ **默认的 connector 加不了头**：`A2uiAgentConnector` 把请求头**焊死**在
+构造函数里（`genui_a2ui-0.7.0/lib/src/a2ui_agent_connector.dart:36-40`）
+⇒ 外面没法塞 `X-Shadow-Key`。
+⇒ 只能**自己造**：它接受注入（`A2uiAgentConnector({required this.url, A2AClient? client})`
++ `A2uiContentGenerator({required Uri serverUrl, A2uiAgentConnector? connector})`）
+⇒ 新文件 `shadow-mobile/lib/services/genui/shadow_key_sse_transport.dart`。
+
+⚠️ 但 `A2AClient` / `SseTransport` **不在 `genui_a2ui` 的公开 API 里**
+（`lib/genui_a2ui.dart` 只导出 connector 与 content generator）
+⇒ 只能**实现级导入**（`package:genui_a2ui/src/a2a/client/...`），
+已在文件头 `// ignore_for_file: implementation_imports` 并写明理由。
+
+**自己造 transport 最容易漏的两件事**（都有断言钉着）：
+
+1. **`X-A2A-Extensions` 忘了带** ⇒ 服务端认不出这是 A2UI 请求。
+   ⚠️ 它**不能**靠 per-call 头补：`A2AClient.messageStream` 只在
+   `message.extensions != null` 时才加这个头（`a2a_client.dart:191-193`），
+   而 A2UI 的发送路径**不带** extensions ⇒ 只能靠 `authHeaders`。
+2. **`X-Shadow-Key` 忘了带** ⇒ 真机上是 401，而且**界面上什么都不显示**
+   （`A2uiContentGenerator` 的错误只进 `errorStream`）。
+
+**「钥匙在请求时现读」是刻意的设计**，不是偷懒：
+
+> 真实时序是「**地址先到、钥匙后到**」——嵌入式大脑起来 ⇒ 状态里有了
+> `agentPort` ⇒ A2UI 的地址确定了（`providers/genui_provider.dart` 的
+> `a2uiServerUrlProvider`）；**之后**宿主才把钥匙交给端脑 client
+> （`EncephalonMobileNotifier._pointClientsAtAgentSurface`）。
+>
+> 若在**构造时**把钥匙焊死 ⇒ 有一个窗口「指着新地址、却还没带钥匙」
+> ⇒ 请求 401 ⇒ 而 **401 比 connection refused 难查得多**（前者是
+> 「到了但被拒」，后者是「根本没人听」）。
+
+⇒ 所以传下去的是**回调**（`String? Function()? shadowKeyProvider`），
+发请求的那一刻才问「现在的钥匙是几号」。
+
+**钥匙的真相来源**：`TelencephalonClient.apiKey`
+（`shadow-mobile/lib/services/telencephalon/telencephalon_client.dart:674`）
+—— 端脑 client 自己发 `/shadow/v1/*` 时用的就是同一个值（`_headers()` 里的
+`X-Shadow-Key`）⇒ 两边**天然一致**，不会各持一份而漂移。
+
+⚠️ **这把钥匙绝不能进日志**：它**不是**用户凭证、**不出设备**。
+与账号密钥（`identity/account.key` = 身份本身）是两回事。
+
+#### 这一片**没做**的
+
+| 没做的 | 为什么 | 后果 |
+|---|---|---|
+| **移动端为「外部端脑」配 shadow key 的入口** | 移动端切回外部端脑时会把钥匙清成 `null`（`encephalon_mobile_provider.dart:475`）——因为嵌入式那把**只对嵌入式端脑有效** | 外部端脑**自己配了** shadow key 时，移动端 A2UI 会 401（**只影响 A2UI**，其它 `/shadow/v1/*` 调用同样受影响，与本片无关）⇒ 属**既有缺口**，不是本片引入 |
+| **桌面端的 A2UI 客户端** | 桌面端还没有 A2UI 栈（§7 方向 C） | 桌面端不会去调 `/a2a` ⇒ 不受这道门影响 |
+| **admin 面** | `/a2a` 用的是 **shadow key**，不是 admin token | 两把钥匙的域是分开的（见 `boot.rs:73-77` 的注释）——**一把钥匙不能开两把锁** |
+
+
+
+---
+
+## 6.5 第三片：桌面端接入（方向 C 第一片 · 本轮已做）
+
+> ⚠️ 先说**这一片没有照着 §7 方向 C 的建议做** —— 能力清单里写的是
+> 「更划算的是让现有那套渲染（`ToolPartRouter` / `ClientToolForm` /
+> `ToolCallMessageCard`）接受 A2UI 的数据模型，而不是再实现一遍协议栈」。
+> **本片没有这么做**，而是**在 TypeScript 里另写了一份协议栈**。
+> 理由与代价都记在下面 —— 这是一个**偏离**，值得被复核，而不是被默认接受。
+
+### 6.5.1 为什么必须自己写协议栈（这是硬约束，不是选择）
+
+`genui` / `genui_a2ui` 是 **Flutter 包**（Dart），而桌面端是 React/TS + Tauri
+⇒ **进程里没有 Dart 运行时** ⇒ 那套协议栈在桌面端**一行都跑不了**
+（`shadow-desktop/package.json` 里也确实没有 `genui` 依赖）。
+
+⇒ 「再实现一遍协议栈」不是偷懒，是**唯一可行解**。
+清单里那条「更划算」的建议，在「桌面端要**消费** A2UI」这件事上**不成立**。
+
+### 6.5.2 但「为什么不复用现有那套渲染」是**我的判断**，不是硬约束
+
+现有的对话内组件渲染机制吃的是 **AI SDK 的 `UIMessage` part 形状**
+（`ToolPartRouter` 的入参是 `ToolUIPart`），并且它长在**聊天消息列表**里。
+
+而 A2UI 的 surface 是**另一条链路**：
+它有**自己的 surface id**、**自己的组件树**、**自己的请求**
+（`POST {baseUrl}/a2a`），**不是一条聊天消息**。
+
+⇒ 要复用，就得让**聊天消息 store** 学会「有一类东西不是消息」——
+那会把两套模型搅在一起，而搅在一起之后，**「这条消息带的是什么」**这个问题
+会同时有两个答案。
+
+⚠️ **代价要说清楚**：这一片因此多了一份协议栈（~250 行 TS）。
+如果将来 A2UI surface 要**内联进对话流**（像一条消息那样出现在历史里），
+那清单里那条建议就**更划算**了 —— 到那时应该合并，而不是继续维护两份。
+**现在**这两件事的形态差别足够大，分开是更小的风险。
+
+### 6.5.3 这一片做了什么
+
+| 文件 | 作用 |
+|---|---|
+| `shadow-desktop/src/lib/a2uiProtocol.ts`（新） | **纯协议**：SSE 分帧、A2UI 载荷抽取、surface 模型。不碰网络、不碰 React |
+| `shadow-desktop/src/lib/a2uiClient.ts`（新） | `POST {baseUrl}/a2a` + `X-Shadow-Key` + `X-A2A-Extensions` + 流式 SSE 读取 |
+| `shadow-desktop/src/components/chat/A2uiSurface.tsx`（新） | 渲染面：`Column` / `Text` / `TaskCard` / `AgentStatusIndicator` |
+| `shadow-desktop/src/components/chat/A2uiPanel.tsx`（新） | 入口面板：加载 / 空 / 错误 / 就绪 四态 + 视图切换 |
+| `shadow-desktop/src/components/chat/__tests__/a2ui.test.tsx`（新） | **13** 条测试 |
+| `shadow-desktop/src/pages/ConversationPage.tsx`（改） | 一个按钮 + 面板挂载（**只改这一个文件**） |
+| `shadow-desktop/src/i18n/{en-US,zh-CN}.json`（改） | 新增 `a2ui.*` 4 个 key（**放在文件末尾**，避开并行会话正在改的 `surface` 段） |
+| `agent-surface.json`（改） | `a2ui.desktop` 从「零实现」改写成「已落地 + 入口在哪」 |
+
+### 6.5.4 ⚠️ 四个「照抄协议，不自作主张」的地方
+
+1. **两段式语义**：`surfaceUpdate` 只**缓存**组件，`beginRendering` 才**开始渲染**
+   （`genui-0.7.0/lib/src/core/a2ui_message_processor.dart:160-197`）
+   ⇒ 桌面端的 `A2uiSurfaceModel.renderableSurfaces` **只收**收到过
+   `beginRendering` 的 surface ⇒ 不会画出「组件还没到齐」的半成品。
+2. **载荷位置**：`result.status.message.parts[]` 里 `kind === "data"` 的 part
+   ⇒ 与 Dart 那边的解析器**同一套路径**（`sse_parser.dart:45-49`、
+   `a2ui_agent_connector.dart:182-186`）。
+3. **扩展声明走请求头**：`X-A2A-Extensions: https://a2ui.org/a2a-extension/a2ui/v0.8`
+   ⇒ 与移动端自造 transport 时的 `authHeaders` **同一个常量**。
+4. **状态 / 优先级显示**协议原值（`in_progress`、`HIGH`）而**不翻译**
+   ⇒ 移动端也是这么做的（`shadow_catalog.dart:90` 渲染 `priority.toUpperCase()`）
+   ⇒ 两端对**同一个 surface** 的读法不会分叉。
+
+### 6.5.5 ⚠️ 四个「我自己的判断」
+
+1. **视图用 `metadata.a2ui.view` 显式指定**，不靠关键词。
+   端脑认三档（显式 metadata / 文本前缀 / 关键词），
+   而关键词匹配会**被用户文案带偏**（用户说「我的日程」就不命中「任务」）
+   ⇒ 桌面端用最明确的那一档（`telencephalon/src/a2a/a2ui.rs` 的 `resolve_view`）。
+2. **「空」与「失败」分开**。端脑对「这次没有可渲染的视图」的回答是**一段纯文本**
+   （`a2ui_gateway.rs` 的 `text_reply`），**不是错误**
+   ⇒ 面板把它渲染成自己的一个状态（把大脑的原话显示出来），
+   而不是笼统的「无数据」—— 那样会把**大脑说了什么**藏起来。
+3. **未知组件类型降级成占位**，不抛异常
+   ⇒ 新版大脑不能把旧版桌面端**白屏**。
+4. **判环守卫问的是「你是不是我的**祖先**」，不是「我见过你没有」**
+   ⇒ 第一版用的是「全树已见集合」⇒ **同一个组件被引用两次时，第二次会整个消失**
+   （用户会莫名少一块界面）。**已改成祖先路径**（每层一份拷贝）
+   ⇒ 重复引用**照画两次**，自引用仍然被截断（不会爆栈）。
+   ⇒ 这一条是**写测试时才发现的**（`renders a component that is referenced twice, twice`），
+   **不是**读代码时想到的。
+
+### 6.5.6 钥匙：桌面端**没有**新开一条通道
+
+面板的钥匙来自 `telencephalonClient.getApiKey()`
+⇒ **与桌面端现有的 `/shadow/v1/*` 请求用的是同一个值、同一个真相来源**
+⇒ **不会**出现「A2UI 带了钥匙、其它请求没带」这种分叉。
+
+⚠️ **已知的既有缺口（不是这一片引入的）**：桌面端**没有**输入 shadow key 的界面
+（`telencephalonStore` 里有 `connection.apiKey` 且会持久化、rehydrate 时会补设，
+`IdentityPanel.tsx:43` 也在读它，但**没有设置入口**）
+⇒ 若用户只在端脑的 `config.toml` 里配了 `telencephalon.shadow.api_key`、
+而桌面客户端手里没有 ⇒ 面板会 **401**（面板会**明说**「缺少或错误的 shadow key」）。
+⚠️ **这与桌面端其它所有请求的处境完全一样** —— 那一格是**早就欠着的**，不是这一片欠的。
+
+### 6.5.7 跨端契约：桌面端成了**第三个消费者**
+
+`shadow/fixtures/a2ui/tasks_sse.txt`（端脑的**真** SSE 字节）与
+`tasks_surface.json`（规范组件树）现在有**三个**消费者：
+
+- **服务端**（Rust）：产出**逐字**等于 `tasks_surface.json`；
+- **移动端**（Dart）：把同一份字节喂给**真的** `genui` 处理器 + 目录；
+- **桌面端**（TS，本片）：把同一份字节喂给**真的** TS 协议栈，
+  并断言「解析出来的组件树 == 规范 fixture 的组件树」。
+
+⇒ **协议漂移会在这里现形**：任何一端改了线缆，三端至少有一处会红。
+
+### 6.5.8 活体联调（另一台会话补上，2026-10-31 21:55）
+
+`a2ui.live.test.tsx`（4 条）+ `scripts/start-a2ui-live-brain.ps1`（起一台端脑来复跑，带 `-Stop`）
+⇒ **桌面端第一次真的对着活的端脑跑完整条链路**。
+
+它带出四条**只有活体才验得到**的发现 —— 每一条都是「录下来的字节永远验不到」的那类：
+
+1. **门真的在** —— 不带 shadow key ⇒ **401**（fixture 是带钥匙的请求录的，验不到这条）。
+2. ⚠️ **jsdom 的 `AbortSignal` 与 undici 的不是同一个类** ⇒ 面板内部自建的
+   `AbortController` 一交上去，undici 直接拒收（`Expected signal ("AbortSignal {}")
+   to be an instance of AbortSignal`）⇒ **在 jsdom 下**，面板对真端脑的每一次请求
+   都会当场失败 ⇒ 解法是注入一个**丢掉 signal** 的 fetch 适配器。
+   ⚠️ **这个坑仓库里早就记过**（`vitest.config.ts` 的注释写着 `tests/api-contract/**`
+   那个真实 HTTP 探测套件在 jsdom 下「静默退化成空跑」）⇒ **同一块石头**。
+   ⚠️ **生产环境不受影响**：Tauri 的 webview 里 `window.fetch` 与
+   `window.AbortController` **同属一个 realm** ⇒ 不会有这个不匹配。
+3. **端脑的任务排序是（状态 → 优先级 → 标题字典序）** ⇒ **第一张卡不是最新的那条**
+   ⇒ 断言必须**按标题找**，不能按下标找。
+4. **`/a2a` 在任务库为空时也会吐 surface**（`Tasks (0)`）⇒ 纯文本那条分支只在
+   「**视图不认识**」时走 ⇒ ⇒ **「空 / 失败」在协议层其实是三种状态**
+   （有内容 / 有 surface 但空 / 纯文本），桌面端面板目前把它们并成两种
+   ⇒ **值得下一片拆开**。
+
+---
+
+## 7. 三个可选方向（需要拍板）
+
+> ⚠️ **本轮状态**：**方向 B 的第一片已经落地**（§6.3）——
+> 服务端产出面、agent card 扩展声明、移动端地址、跨端契约都有了。
+> **方向 A 因此不再必要**（入口不再通向空白，而是通向真界面）。
+> **第二片也落地了**（§6.4）：`/a2a` 已锁进 shadow key 后面 ⇒ 新开的那张
+> 数据面不再敞开（客户端用**请求时现读**的方式带钥匙，绕开「地址先到、
+> 钥匙后到」的时序窗口）。
+> **第三片落地了方向 C 的第一片**（§6.5）：桌面端有了自己的 A2UI 消费面
+> （TypeScript 协议栈 + 4 种组件的渲染面 + 面板 + 入口按钮）。
+> ⚠️ 但**这一片偏离了方向 C 原本的建议**（没复用现有那套渲染，
+> 而是自己写了协议栈）—— 理由与代价见 §6.5.2，**值得被复核**。
+> 下面保留原文，因为**「为什么是这三片」**仍然是决策记录。
+
+### 方向 A · **先把入口藏起来**（最小、诚实、今天就能做）
+
+把移动端那个常驻按钮**藏起来**（或标成「实验性 · 不可用」），直到服务端能产出。
+
+- ✅ 成本最低（几行）
+- ✅ 立刻消除「宣称就绪却永远空白」的坏体验
+- ⚠️ 但**功能等于没有** ⇒ 已经写好的 8 个组件与协议栈全部闲置
+
+⚠️ **本轮没做方向 A**，因为 §6.3 把服务端产出面接上了 ⇒ 入口现在通向真东西。
+（方向 A 只在「服务端产出面又被拆掉」时才需要重新考虑。）
+
+### 方向 B · **补服务端产出**（把这条链真正接通）
+
+最小可行路径（**注意顺序**）：
+
+1. **端脑 A2A 保留 `data` part**（别再丢）—— `api/a2a_gateway.rs:136` 改掉降维逻辑；
+2. **端脑 agent card 声明 A2UI 扩展** —— `capabilities.extensions` 加
+   `https://a2ui.org/a2a-extension/a2ui/v0.8`；
+3. **某个叶区能产出 A2UI 组件树** —— ⚠️ 这是工作量最大的一步：
+   要么让端脑自己有一个「渲染指令 → A2UI message」的翻译器，要么把 A2UI 消息
+   当成一种 skill 的产物（现有 `skill_router.rs` 那条路）。
+4. **移动端地址改成端脑真实端口** —— 别再写死 `localhost:60080`
+   （对照 A11 修的 `baseUrl` 通道：移动端有 `telencephalonClient`，它的 baseUrl
+   已经会跟随内嵌大脑的随机端口 ⇒ **复用它，不要另开一条**）。
+
+⇒ 顺带把 **U3、U4、U7** 一并解决。
+
+⚠️ **本轮做完的**：第 2、4 步，以及第 1 步的**等价物**（新端点**不经过**那段降维逻辑
+—— 它直接按 A2A v0.3 解析消息，所以 `data` part 天然保留）。
+❌ **第 3 步只做了「规则式」的一小块**：两个视图（任务 / 叶区），
+**还没到「模型现场画界面」**（§6.3 §没做的）。
+
+### 方向 C · **桌面端补齐，做成真正的「多端 A2UI」**
+
+在 B 的基础上，让桌面端也实现 A2UI 消费面（React 侧对应 `genui` 的 Web 版）。
+
+⚠️ **但先问一句**：A2UI 的价值是「**agent 现场画界面**」。
+本项目桌面端已经有 `ToolPartRouter` / `ClientToolForm` / `ToolCallMessageCard`
+这套**对话内组件渲染**机制 ⇒ **它其实已经是 A2UI 的等价物**（只是数据模型不同）。
+
+⇒ **如果要选 C，更划算的路线可能不是「再实现一遍 A2UI」，
+而是「让现有那套渲染机制接受 A2UI 的数据模型」** ——
+这样桌面端立刻就能用，不必等协议栈对齐。
+
+⚠️ **本轮实际走的是另一条路**（§6.5）：**在 TypeScript 里另写了一份协议栈**。
+⚠️ 但这里那句「更划算」的前提要拆开看：
+**「再实现一遍协议栈」在桌面端是硬约束**（`genui_a2ui` 是 Flutter 包，Tauri 没有
+Dart 运行时 ⇒ 不是选择）；
+**「不复用现有那套渲染」才是我的判断**（A2UI surface 不是聊天消息，
+它有自己的 surface id 与组件树）⇒ **代价是多维护一份协议栈**，
+**收益是两种模型不搅在一起**。若将来 A2UI surface 要内联进对话流，
+就该合并而不是继续维护两份。
+
+---
+
+## 8. 需要拍板的问题
+
+> ⚠️ 下面三问里，**第 2、3 问已经不用问了**（本轮做掉了）。留在这里是为了记录
+> 「当时的决策点」与「现在的答案」。
+
+1. **A2UI 这条线还要继续吗？**
+   桌面端已有等价的对话内渲染机制 ⇒ A2UI 在桌面端的增量价值存疑。
+   如果只服务移动端，那它更像是「移动端的 UI 表达能力补齐」，而不是「多端 A2UI」。
+
+   ✅ **本轮已继续**（用户拍板「继续 a2ui」），并且做完了方向 B 的第一片。
+   ⇒ **现在真正开放的问题变成：**
+   - **下一片做哪个？**
+     ① **让模型现场画界面**（A2UI 的核心卖点，工作量最大）；
+     ② **把视图补全**（移动端目录里另外 6 个组件还没有对应的服务端视图）；
+     ③ ~~**桌面端接入**~~ —— ✅ **本轮已做**（§6.5：TS 协议栈 + 渲染面 + 面板 + 入口）；
+     ④ **先上真机验一次**（§附「仍未验证」里的第 ① 条：端脑面在手机上是随机端口，
+     本轮只验了地址**跟随**逻辑，没上真机跑过）。
+   - ⚠️ **我的建议：先 ④** —— 本轮已经把链子接通了，但**一次真机都没有**。
+     真机跑通一次（能看见任务看板）比再写两个视图更能确认这条路是对的；
+     而且真机会暴露「地址跟随」这条逻辑在**实际启动时序**下的问题
+     （嵌入式大脑起来之前，端脑面端口根本不存在）。
+   - 再之后建议 ①（模型现场画界面）—— 但**前提是模型调用链先能为
+     「产出结构化 UI」做约束**，否则它只会画出一堆不合法的组件树。
+
+2. ~~**若继续，先做哪个？** 方向 A（藏入口）还是方向 B（接服务端）？~~
+   ✅ **已定**：方向 B 的第一片（§6.3）。方向 A 不再需要 —— 入口现在通向真界面。
+
+3. ~~**A2UI 要不要进能力清单？**（U5）~~
+   ✅ **已定并已做**：进（清单第 34 条）。
+   ⚠️ **当时的写法是**「桌面端显式声明为**端侧专属**（桌面端零实现，但已有等价机制）」
+   ⇒ **本轮 §6.5 之后已改写**：`a2ui.desktop` 现在写的是
+   「**已落地 + 入口在哪 + 协议栈为什么是 TS 的 + 为什么没复用现有那套渲染**」。
+
+---
+
+## 附：本次评估的证据与方法
+
+- 直接读：`genui_provider.dart` / `gen_ui_agent_service.dart` / `shadow_catalog.dart` /
+  `agent2ui_view.dart` / `chat_screen.dart`（入口段）/ `mnn_agent_integration.dart`
+- 直接读（第三方包）：`pub-cache/.../genui_a2ui-0.7.0/src/a2ui_agent_connector.dart`
+  （A2UI 扩展 URI、`X-A2A-Extensions` 头）、`main.dart:59`（示例服务器 `localhost:10002`）
+- 直接读（服务端）：`telencephalon/src/api/a2a_gateway.rs`、`well_known.rs`、`well_known_router.rs`、
+  `telencephalon/src/a2a/gateway.rs`
+- grep 全仓：`telencephalon/src/**`、`synapse/src/**`、`temporal/src/**` 找 `a2ui|genui|surface_update|dataModel`
+  ⇒ **全部零命中**（这是「服务端不产出」的依据）
+- grep：`shadow-desktop/src/**`、`shadow-esp32/**`、`agent-surface.json` 找 A2UI ⇒ 零命中
+- 查测试：`shadow-mobile/test/**` 找 A2UI ⇒ 只有入口/出口两条 widget 测试
+
+> ⚠️ **本轮未验证**：**没有真的起过 A2UI 会话**（没有 A2UI 服务端可起）——
+> 「可用性」判定基于**代码里链路各段的存在与否**（协议、地址、产出面、扩展声明）。
+> 若选方向 B，验收标准必须是**真机跑通一次 surface 渲染**，
+> 而不是「客户端能连上」。
+
+---
+
+## 附：本轮实测的验证结果（2026-10-31）
+
+### A2UI 空态（§6.2）
+
+| 检查 | 命令 | 结果 |
+|---|---|---|
+| A2UI 空态（新增） | `flutter test test/widget/agent2ui_empty_state_test.dart` | **3 passed** |
+| **反向验证** | 空态还原成旧行为后重跑 | **恰好 3 条全红** ⇒ 恢复后全绿 ⇒ 断言承重 |
+| 移动端全量单测 | `flutter test --concurrency=1` | **370 全绿**（基线 361，+9 = 空态 3 + 契约 2 + SSE 回放 1 + 并行会话的 3） |
+| 移动端静态检查 | `flutter analyze --no-pub` | **0 error / 76 issues**（基线 75，**多出的 1 条是并行会话新文件 `admin_token_test.dart` 的**；本轮改动的文件**零新增**） |
+
+### A2UI 服务端产出面 + 跨端契约（§6.3）
+
+| 检查 | 命令 | 结果 |
+|---|---|---|
+| 端脑模块内单测 | `cargo test --lib a2ui::` | **14 passed** |
+| 端脑集成测试 | `cargo test --test a2ui` | **6 passed** |
+| 跨端契约（载荷） | 端脑产出 **逐字**等于 `fixtures/a2ui/tasks_surface.json` | ✅ 一致 |
+| 跨端契约（渲染） | 客户端把同一份 fixture 喂给**真的**处理器 + 目录 ⇒ **渲染出来** | ✅ **2 passed** |
+| 跨端契约（信封） | 客户端用**真的** A2UI 客户端栈解端脑的**真 SSE 字节** | ✅ **1 passed** |
+| **反向验证**（信封） | 端脑拆掉 `result` 包层（客户端会**静默丢弃**的那种改法） | **Rust 侧恰好 3 条红 + Dart 侧 1 条红** ⇒ 恢复后全绿 ⇒ **两个测试都承重** |
+
+⚠️ **Rust 侧的构建参数**：`cargo test --test a2ui --no-default-features --features "flow"`。
+⚠️ **为什么不用默认 feature**：默认 feature 里含 `hippocampus`（Lance/Arrow/DataFusion，
+几百 MB、编很久），而这个测试根本不需要它。
+⚠️ **测试本身不依赖任何 feature**（用仓里自带的 `build_test_state()`）⇒
+换 feature 组合也能编过（⚠️ 注意：`LobeStore::new()` 这类存储构造函数的签名
+**随 postgres feature 变** ⇒ 自己拼 `AppState::new` 会编不过）。
+
+### 本仓守卫
+
+| 检查 | 结果 |
+|---|---|
+| `node scripts/check-agent-surface.mjs` | **阻断 0 / 提示 0**（能力 33 → **34** 条，A2UI 登记在内） |
+| `node scripts/check-client-tools.mjs` | 阻断 0 / 提示 1（`ask_user` known-gap，与 A2UI 无关） |
+| ⚠️ `scripts/check-jni-surface.mjs` | **阻断 1** —— 但**不是本轮的东西**：那是并行会话新加的守卫，它在报「APK 里那份 `.so` 缺 `nativeSetAdminToken`」（他们改了 Kotlin/Java 侧还没重编 `.so`）。**本轮没碰那条链路。** |
+
+⚠️ **仍未验证**：
+① **真机上**的 A2UI 会话（端脑面在手机上是随机端口）—— ⚠️ 但**端脑那一侧已经验到位了**：`a2ui_is_served_on_the_agent_surface_router_with_the_shadow_key` 用的是 **`telencephalon::boot::cortex_router`** ⇒ **就是**嵌入式端脑起的那张 router（`encephalon/src/mobile/mod.rs:416` 调它）⇒ 「手机上那台大脑真的提供 `/a2a`、而且那道门也在」已在**端脑侧**被证明；**还差的是 App 那一侧**（App 真的把界面画出来）；
+② **LLM 驱动的「现场画界面」**（§6.3 §未做的事）；
+③ 界面文案本地化（服务端出的 chrome 是英文）；
+④ **JNI 宿主直测跑不了**（`encephalon` 仓当前编译不过 ⇒ 并行会话的在飞 WIP）⇒ 断言已写好、Java 单独编译通过 ⇒ 等那个仓编得过就能跑。
+
+### `/a2a` 上锁（§6.4）
+
+| 检查 | 命令 | 结果 |
+|---|---|---|
+| 端脑集成测试 | `cargo test --test a2ui --no-default-features --features "flow"` | **9 passed**（原 6 + 新 3：`a2ui_surface_is_locked_behind_the_shadow_key` / `dev_mode_without_a_key_still_serves_a2ui` / `a2ui_is_served_on_the_agent_surface_router_with_the_shadow_key`） |
+| 移动端新断言 | `flutter test test/widget/a2ui_shadow_key_test.dart` | **1 passed**（钥匙真的带出去了，且是**请求时现读**） |
+| A2UI 全部 Dart 测试 | 空态 3 + 契约 2 + SSE 回放 1 + 钥匙 1 | **7 全绿**（连跑 3 次稳定） |
+| **反向验证（服务端）** | 把 `/a2a` 的 `.layer(require_shadow_key)` 整层拆掉 | **恰好 2 条红** —— `a2ui_surface_is_locked_behind_the_shadow_key`（挂在 `tests/a2ui.rs:408`「不带钥匙必须 401」）与 `a2ui_is_served_on_the_agent_surface_router_with_the_shadow_key` ⇒ **其余 7 条仍绿** ⇒ 有分辨力 |
+| **反向验证（客户端）** | 把 `X-Shadow-Key` 的注入注释掉 | **恰好 1 条红** —— `Expected: 'the-real-key' / Actual: <null>` ⇒ 其余断言仍绿 |
+| **JNI 宿主直测** | `pwsh -File scripts/jni-host-test/run.ps1` | ⚠️ **断言已写好、Java 单独编译通过（EXIT=0），但运行时被阻断** —— `encephalon` 仓当前**编译不过**（`src/mobile/jni.rs:299` 调的 `encephalon_mobile_set_admin_token` 在 `src/mobile/mod.rs` 里**已**定义，但 `jni.rs:20-25` 的 `use super::{…}` **漏了它** ⇒ **并行会话的在飞 WIP**）。**我没动那个文件**（若对方同时补同一行 ⇒ 重复导入 ⇒ 编译错误 ⇒ 反而砸掉他们的构建）⇒ 改用下面那条当证据 |
+| **端脑面 router**（替代证据） | `cargo test --test a2ui` 里的 `a2ui_is_served_on_the_agent_surface_router_with_the_shadow_key` | 用 **`telencephalon::boot::cortex_router`** —— **就是**嵌入式端脑起的那张 router（`encephalon/src/mobile/mod.rs:416` 调它）⇒ ⇒ 「手机上那台大脑真的提供 `/a2a`、而且那道门也在」在**端脑这一侧**被验到，**不需要真机、不需要装 APK** |
+
+⚠️ **为什么「端脑面 router」这条比「只测 `api::build`」更强**：
+`api::build` 与 `cortex_router` 是**两个入口**（后者包着前者、再加会话面）
+⇒ 只测前者，**不能证明端脑面上真的有 `/a2a`、而且那道门也在**。
+
+⚠️ **JNI 宿主直测为什么重要**：它是**唯一**能在**不抢真机**的前提下
+验到「**嵌入式端脑真的提供 `/a2a`**」的地方——它加载**真的** cdylib、
+起**真的**端脑面（`cortex_router`）、打**真的** HTTP。
+（真机那条路本轮**没走**：并行会话正在用设备 + Gradle 会抢锁。）
+
+⚠️ **客户端那条测试踩过的坑**：`flutter test` 多文件并行时曾偶发失败——
+症状是 `A2uiContentGenerator.sendRequest` 抛网络异常。
+根因是**我在客户端读完 SSE 之前就 `dispose()` 了**（transport 的
+http.Client 一关，还在飞的流就报错 ⇒ 变成测试区里的未处理异常）。
+⇒ 改成**回放端脑的真实 SSE 字节**，并用「surface 出现」当
+「这份响应已被消费完」的信号 ⇒ 消费完才 dispose ⇒ 连跑 3 次稳定。
+
+### 桌面端接入（§6.5）
+
+| 检查 | 命令 | 结果 |
+|---|---|---|
+| 桌面端 A2UI 测试 | `pnpm exec vitest run src/components/chat/__tests__/a2ui.test.tsx` | **15 passed**（协议 5 + 客户端 3 + 渲染 4 + 面板 3） |
+| **反向验证 A（两段式语义）** | 让 `surfaceUpdate` 也把 surface 标成可渲染 | **恰好 1 条红** —— `keeps a surface unrenderable until beginRendering arrives`（`expected [ { surfaceId: 'shadow.tasks', …(3) } ] to have a length of +0 but got 1`）⇒ 其余 12 条仍绿 |
+| **反向验证 B（shadow key）** | 客户端不再注入 `X-Shadow-Key` | **恰好 1 条红** —— `expected undefined to be 'the-real-key'` ⇒ 其余 12 条仍绿 |
+| **反向验证 C（载荷抽取路径）** | 把 `result.status.message.parts` 改成 `result.message.parts` | **恰好 6 条红**（依赖抽取的：解析 / 契约比对 / 客户端 / 渲染 / 面板端到端 / 纯文本答案）⇒ **4 条不依赖抽取的仍绿**（两段式语义、deleteSurface、未知组件、401） |
+| **反向验证 D（判环语义）** | 把判环退回「全树已见集合」（**忠实复刻旧写法**） | **恰好 1 条红** —— `renders a component that is referenced twice, twice` ⇒ 其余 14 条仍绿 |
+| 桌面端**全量**单测 | `pnpm exec vitest run` | **1209 passed / 2 skipped / 0 failed**（120 个文件） |
+| 类型检查 | `pnpm exec tsc --noEmit -p tsconfig.json` | **EXIT=0** |
+| ESLint（改动文件） | `pnpm exec eslint <6 个文件>` | **EXIT=0**（`i18next/no-literal-string` 是 error ⇒ 诊断文案必须进 i18n ⇒ 新增 `a2ui.*` 4 个 key） |
+| i18n key 校验 | `node scripts/validate-i18n-keys.mjs` | ⚠️ **EXIT=1**，但**缺的不是本轮的 key**：260 条缺失全部落在 `identity` / `computerUse` / `subsystem` / `preview` / `voice` / `questionnaire` 等**既有缺口**上 ⇒ 本轮用到的 **11 个 key 逐个核对，全部在两份 i18n 里存在** |
+| 生产打包 | `pnpm exec vite build --outDir dist-a2ui-verify --emptyOutDir` | **EXIT=0**（`✓ built in 19.95s`；警告是既有的 chunk 体积与 `tauriSafe` 动静态混用噪声）⇒ 打完已用可恢复删除清掉 |
+| 本仓守卫 | `node scripts/check-agent-surface.mjs` | **阻断 0 / 提示 2**（能力 34 条；`a2ui.desktop` 已改写成「已落地 + 入口在哪」）。⚠️ 那两条提示是**并行会话**新登记的 `a2ui` / `identity` 两个能力的 `labelKey` 在**移动端 ARB** 里还没有 ⇒ 守门员自己写的「阶段 2 接入能力清单时补」⇒ **不是本片引入**（本片**没新增能力、没动任何 labelKey**） |
+
+⚠️ **仍然未验证（这一片欠着的）**：
+① **桌面端从未对着一个活的端脑跑过** —— 测试喂的是**录下来的**端脑字节
+（`fixtures/a2ui/tasks_sse.txt`）。
+⚠️ 但「桌面的端脑真的提供 `/a2a`」这件事**可以静态证明**：
+桌面 sidecar 起的是 `telencephalon::api::build_full_app`（`cortex_http.rs:212`）
+⇒ 它包着 `build_with_conversation_store` ⇒ 而 `api/mod.rs:99` 在那张 router 上
+merge 了 `a2ui_gateway::router` ⇒ **`/a2a` 与那道 shadow key 门都在**。
+⚠️ **还差的是「桌面客户端真的把界面画出来」这一段运行时证据**；
+② 设备端（ESP32）**仍然零 A2UI**；
+③ 界面文案本地化（服务端出的 chrome 仍是英文）—— 桌面端这侧**本地化只覆盖了
+诊断文案**（`a2ui.*` 4 个 key），组件内容是服务端给的原文；
+④ ⚠️ **桌面端没有 shadow key 的输入入口**（既有缺口，§6.5.6）——
+若端脑配了 key 而客户端手里没有 ⇒ 面板 401（**面板会明说**）。
+
+> ✅ **① 已由另一台会话补上（2026-10-31 21:55，入库 `556b7db`）**：
+> 新增 `shadow-desktop/src/components/chat/__tests__/a2ui.live.test.tsx`
+> （**4 条**：真 fetch / 真端脑 / 真 React 渲染）
+> + `scripts/start-a2ui-live-brain.ps1`（起一台端脑来复跑，带 `-Stop`）。
+> ⇒ **上面第 ① 条的缺口已闭合**；桌面端现在**真的**对着活的端脑跑过完整条链路。
+> 它还带出四条**只有活体才验得到**的发现（详见 §6.5.8）。
+
