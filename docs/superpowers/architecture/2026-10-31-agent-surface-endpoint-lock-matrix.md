@@ -90,6 +90,120 @@ node scripts/check-endpoint-matrix.mjs --source C:\Projects\iBLOC\telencephalon
 
 ⇒ 复跑结果：**128 条路由 / 122 条唯一路径，0 条未覆盖**。
 
+> ⚠️⚠️ **这份文档是「机器解析」的** ⇒ 改它的时候有两条硬约束（都是实测踩出来的）：
+>
+> ① **表格的第一格必须是端点** —— 复跑脚本把**每一行**以 `|` 开头的行都当端点行解析
+>    ⇒ 在这里加一张**第一格不是端点**的表（哪怕只是给人看的对照表）⇒
+>    它的第一格会被当成**一条不存在的路由** ⇒ 报成「表里有源码里找不到的东西」。
+>    ⇒ **要放对照表 ⇒ 放基线文档那份**（`…-probe-baseline.md`），别放这里。
+> ② **围栏代码块曾经把解析器搞坏** —— markdown 的行内代码按反引号顺序两两配对，
+>    而围栏的 ``` 里有**相邻**反引号 ⇒ 配不出空 span ⇒ **每加一个围栏，后面所有
+>    反引号的配对就整体错位一格** ⇒ ⇒ 实测：在本文档里加 3 个围栏代码块 ⇒
+>    复跑脚本报「漏了 18 条」，**而源码一个路由都没变** ⇒ **表没坏，是解析器被
+>    文档格式搞坏了**。
+>    ⇒ **已修**（校验器现在先把围栏剥出来单独配对）⇒ 围栏可以随便用。
+>    ⇒ ⚠️ 这是「同一个字符串在两种语言里含义不同」的**孪生兄弟**
+>    （JS 块注释不可嵌套 / Rust 可嵌套，见 ㊺ 条）⇒ **同一个道理：
+>    校验器也得扛得住文档的普通写法**，不然它就成了「一改文档就误报」的东西。
+
+## 二·补·二：「门在，但认任何人」—— 2026-10-31 受控实测抓到的三件事
+
+⚠️ 这三条**不在**第二节那三条「前置事实」里 —— 第二节写的是「admin 面空头能过」
+（那条 ㊻ 已修成 fail-closed）。**这三条是那一档修完之后再实测的，形状不同**：
+第二节那条是「**没配钥匙** ⇒ 空分支」，这三条是「**配了钥匙，但那把钥匙是公开的**
+⇒ 走的是另一个分支」⇒ ⇒ **第二节那条修好了，这三条一个都没动。**
+
+### ① `dev-admin-key` 让 admin 面**认任何 token** ⇒ 默认安装等于没鉴权
+
+`telencephalon/src/security/api_key.rs:27-30`：
+
+```rust
+// In development mode with default key, skip verification
+if expected == "dev-admin-key" { return Ok(()); }
+```
+
+⇒ expected 是那个值时，**连请求头都不看**就放行 ⇒ 任何 token、甚至**完全不带
+`X-Admin-Token`** 都过。⚠️ 而**两个宿主的默认值恰恰就是它**：
+
+- `encephalon/src/a2a_server.rs:53` `standalone_admin_token()` ⇒ `unwrap_or_else(|| "dev-admin-key".to_string())`
+- `shadow-desktop/src-tauri/src/cortex_http.rs` `desktop_admin_token()` ⇒ 同款
+
+⇒ ⇒ **默认安装走不到「没配 ⇒ fail-closed」那一支**（`api_key.rs:23-25`，㊻ 修的那条）
+⇒ **桌面端 + 独立端脑服务器的 admin 面（装 agent / 改 LLM 上游 / 动 MCP）默认等于
+没有鉴权。** ⚠️ 这个后门**还有一条测试钉着**（`api_key.rs:181`
+`admin_keeps_the_dev_bypass_for_the_dev_key`，断言 `headers` 为空也该过）
+⇒ 改它要连测试一起改 ⇒ 而改它**必须同批**把两个宿主的默认凭据换掉
+（桌面端**只有** `issueSubsystemToken` 带 `X-Admin-Token`，
+`shadow-desktop/src/lib/telencephalonClient.ts:1110-1120`；
+**它的 agent 管理请求根本不带那个头**）⇒ 否则桌面端「建 agent」401。
+
+**受控实测**（同一个二进制 `encephalon/target/debug/encephalon-server.exe`，
+唯一变量是 admin token 的取值）：
+
+- **admin token = `dev-admin-key`（默认）** ⇒ 无凭据 **200** ／ 错 token **200** ／
+  空 token **200** ／ 对的 token 200
+- **admin token = 一把真钥匙** ⇒ 无凭据 401 ／ 错 token 401 ／ 空 token 401 ／
+  对的 token 200
+
+⇒ ⚠️ **光靠「不带凭据 ⇒ 401」这种探测看不出这个洞** —— 它测的是空分支，
+而默认路径压根不在空分支上。
+
+### ② `/models/providers` **根本没有门** ⇒ 明文 LLM key 在**正确配置的安装**上照样漏
+
+`src/api/providers.rs:18-23` 的 `api_key` 没有 `skip_serializing`，`list_providers`
+（`:211`）整份序列化，路由（`api/mod.rs:132`）**没挂任何门**。
+
+**实测**（admin + shadow 两道门**都正确配好**的那个实例）：
+`GET /models/providers` ⇒ **200**，body 里明文：
+
+```json
+[{"id":"canary-openai", … ,"api_key":"sk-FAKE-CANARY-LEAK-0001-DO-NOT-USE","models":[]}]
+```
+
+且 `Access-Control-Allow-Origin: *`（`api/mod.rs:188` 的 `CorsLayer::permissive()`）
+⇒ **用户访问的任意网站都能跨域读走**。
+
+⇒ ⇒ **凭据泄露不是「dev 模式才会」，是「那扇门不存在就永远会」** ⇒ ⇒
+**步 3 必须先有步 3a**（把带凭据的路由关进门里），否则步 3 上完它照样漏。
+
+### ③ shadow key 在没配配置文件时是**开发模式** ⇒ ⇒ **步 3 单独做是空操作**
+
+`require_shadow_key`（`src/api/shadow_auth.rs:49`）`expected.is_empty()` ⇒ 全放行；
+而 `boot.rs:116` 的 `TELENCEPHALON_CONFIG` **没有默认路径兜底**（`config/mod.rs` 的
+`env_var` 只查环境变量，查不到就用默认配置）⇒ **不设它 ⇒ shadow key 必为空**
+⇒ 桌面端 `shadow_api_key: None`、独立服务器 `BuildOptions::default()` ⇒ **正是这条路径**。
+
+⇒ ⇒ ⚠️ **步 3 的规格因此要改**：不是「给 127 条路由加门」，而是
+「**给 127 条路由加门，且保证默认安装上钥匙存在**」⇒ 否则那张门在默认安装上
+**永远是开的**（`require_shadow_key` 会给每一个请求放行）。
+
+### ⇒ 静态闸：这类洞「打一发」抓不全，得读源码
+
+①②③ 的形状都是**源码属性**（运行时能测到「认任何 token」，但测不到
+「那把 token 根本不是秘密」—— `dev-admin-key` 是**源码里的字面量**，谁都知道）
+⇒ ⇒ 加了一道**源码级**的闸：
+
+```bash
+node scripts/check-auth-backdoors.mjs
+```
+
+它抓三类：**A** 鉴权函数里「`== "字面量"` ⇒ 直接 `return Ok(…)`」；
+**B** 凭据解析函数的默认凭据是源码字面量；**C** 前端 `?? '字面量'` 的默认凭据。
+
+**当前结果（4 条，位置与上面的实测一一对上）**：
+
+- **A**（放行分支）⇒ `telencephalon/src/security/api_key.rs:28` ——
+  `verify_admin_token` 的 `dev-admin-key` 放行分支
+- **B**（字面量默认凭据）⇒ `encephalon/src/a2a_server.rs:53` ——
+  `standalone_admin_token()` 默认凭据是公开字面量
+- **C**（前端硬编码）⇒ `shadow-desktop/src/lib/telencephalonClient.ts:1112` ——
+  前端默认凭据是公开字面量
+- **C**（前端硬编码）⇒ `shadow-desktop/tests/api-contract/server-check.ts:22` ——
+  **契约测试**里也硬编码了这把钥匙 ⇒ 它被当成「契约」在用
+
+**反向验证**：把后门摘掉的**干净副本** ⇒ **0 条**（真实仓 ⇒ 1 条 [A]）
+⇒ **闸门有分辨力，不是恒绿**。
+
 ## 三、「扩展到整张面」几乎免费 —— 两端都成立
 
 - **移动端**：`TelencephalonClient._headers()`（`shadow-mobile/lib/services/telencephalon/
@@ -244,12 +358,34 @@ WebRTC 浏览器、桌面端自己起的 sidecar、外部端脑进程。⇒ 这�
 |---|---|---|---|
 | **1** | **修 admin 面的空洞**（空头能过）+ **把 admin 鉴权提到 router 层**（加在**合并后**的那个 router 上 ⇒ 见第二节 ④，否则会漏 `thalamus/query` / `thalamus/sensors`）+ 移动端也递一把 admin token | 移动端的 admin 功能**今天就是坏的**（401）⇒ 修完才第一次能用 | 「不带 token ⇒ 401」「带对 token ⇒ 200」「空 token ⇒ 401」 |
 | **2** | 修**地雷**：`PrefrontalClient` 内部自建的 client 改成注入共享 client | 会有一个 401 ⇒ 顺手修 | 移动端 `/api/flows` 仍然通 |
-| **3** | 把锁**从 `/shadow/v1/*` 提到整张面**（A+B 类） | 两端客户端本来就带 key ⇒ 不自锁 | 「同机任意进程打 A 类 ⇒ 401」＋「App 全部功能照旧」 |
+| **3** | 把锁**从 `/shadow/v1/*` 提到整张面**（A+B 类） | 两端客户端本来就带 key ⇒ 不自锁（⚠️ 但见「步 3 的规格已被修正」——**默认安装上那道门是空的**） | 「同机任意进程打 A 类 ⇒ 401」＋「App 全部功能照旧」 |
+| **3a** | **先关带凭据的路由**：`/models/providers` 这类**吐出凭据**的路由挂进门里（并处理 CORS） | 桌面端本来就每请求带 `X-Shadow-Key` ⇒ 不自锁；⚠️ 但**桌面端读回来的 key 会再存回去**（`ProvidersPage.tsx:552`）⇒ **不能简单遮字段** | 「不拿凭据 ⇒ 401」＋「桌面端 provider 页照旧能保存」 |
 | **4** | D 类另立：每台远端 agent 一份凭据（`src/acl/` + `credential_signer.rs`） | 跨机 ⇒ 不能用本机 key | 跨机 A2A 仍然通，且未授权对端被打回 |
 
 ⚠️ **步 3 之前必须先做完步 1**：否则「整张面都要 key」这个决定，会把 admin 那 19 条
 **变成双重门**（shadow key + admin token）⇒ 而移动端没有 admin token ⇒ App 的
 agent/WASM/MCP 管理功能会从「401」变成「401」（没变好，但排查会更难）。
+
+### ⚠️⚠️ 步 3 的规格已被修正（2026-10-31 受控实测）
+
+第二节·补·二那三条把「步 3 = 给 127 条路由加门」这个说法**改掉了**：
+
+1. **步 3a 要排在步 3 前面** —— `/models/providers` **根本没有门** ⇒
+   明文 LLM key 在**两道门都正确配好**的实例上照样漏（实测 200 + 明文）
+   ⇒ ⇒ **步 3 上完它照样漏** ⇒ ⇒ 步 3a 不是「可选的加固」，是**步 3 的必要前置**。
+2. **步 3 还要带一条新动作：保证默认安装上钥匙存在。**
+   `require_shadow_key` 在 expected 为空时**放行一切**（`shadow_auth.rs:49`），
+   而 `TELENCEPHALON_CONFIG` 没有默认路径兜底 ⇒ **不设它 ⇒ 整面敞开**
+   ⇒ ⇒ 只加门不改钥匙 ⇒ **门在默认安装上是装饰**。
+   ⇒ **要定的不是「哪些端点加门」，而是「默认安装上那把钥匙从哪来」**：
+   - 桌面端 / 独立端脑服务器**自己生成一把随机 shadow key 并持久化**（像手机端那样，
+     宿主生成 ⇒ 端脑不发明）；**或**
+   - 端脑侧 shadow key 也改成 **fail-closed**（没配 ⇒ 全 401）——
+     ⚠️ 那就**必须**同时让两个宿主都递一把进来，否则桌面端整片 401。
+   ⇒ ⚠️ **这两条是互斥的工程选择，需要拍板**，不属于「照着做就行」的部分。
+3. **admin 面的残留洞（`dev-admin-key` 认任何 token）也要一起解决** ——
+   它**不在**步 1 的范围里（步 1 修的是「没配 ⇒ 空分支」），而在**宿主默认值**里
+   ⇒ ⇒ 要改的是**两个宿主 + 端脑那一条后门 + 钉着它的那条测试**，跨三个仓。
 
 ## 六、不在本次范围内
 

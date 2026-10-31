@@ -189,8 +189,50 @@ const CLASS_HEADINGS = [
   { marker: '### D 类', cls: 'D' },
 ];
 
+/**
+ * 把**围栏代码块**（``` … ```）从正文里剥出来。
+ *
+ * ## 为什么必须剥（实测踩过的坑）
+ *
+ * markdown 的行内代码是**按反引号顺序两两配对**的 ⇒ 而围栏的 ``` 里有
+ * **相邻**的反引号 ⇒ 正则 `` /`([^`]+)`/g `` 配不出空 span ⇒
+ * ⇒ **每出现一个围栏，后面所有反引号的配对就整体错位一格**
+ * ⇒ ⇒ 判定表里的路径**全都认不出来**（实测：在文档里加了 3 个围栏代码块
+ * ⇒ 复跑脚本报「漏了 18 条」+「表里有 6 条源码里找不到」，
+ * 而源码一个路由都没变 ⇒ **表没坏，是解析器被文档格式搞坏了**）。
+ *
+ * ⇒ 所以：**围栏内容单独收集**（路径 token 一个不丢），**正文**先把围栏抹平
+ * （保留换行 ⇒ 行号不变）再配对。
+ *
+ * ⚠️ 这条坑还有个孪生兄弟：**同一个字符串在两种语言里含义不同**
+ * （JS 块注释不可嵌套、Rust 可嵌套，见 ㊺ 条）—— 同一个道理：
+ * **校验器也得扛得住文档的普通写法**，不然它就成了「一改文档就误报」的东西。
+ */
+function splitFences(text) {
+  const lines = text.split(/\r?\n/);
+  const prose = [];
+  const fences = [];
+  let current = null;
+  for (const line of lines) {
+    if (/^\s*(`{3,})/.test(line)) {
+      if (current === null) {
+        current = [];
+        fences.push(current);
+      } else {
+        current = null;
+      }
+      prose.push(' '.repeat(line.length));
+      continue;
+    }
+    if (current !== null) current.push(line);
+    prose.push(current === null ? line : ' '.repeat(line.length));
+  }
+  return { prose: prose.join('\n'), fences };
+}
+
 function pathsInMatrix() {
-  const lines = readFileSync(MATRIX_PATH, 'utf8').split(/\r?\n/);
+  const raw = readFileSync(MATRIX_PATH, 'utf8');
+  const lines = splitFences(raw).prose.split(/\r?\n/);
   const entries = [];
   let cls = null;
   for (const line of lines) {
@@ -223,12 +265,20 @@ function pathsInMatrix() {
  * `/api/sessions/*` 这类**只在 host 端存在**的路由 ⇒ 它们**不该**被算成「漏了」。
  */
 function mentionedPaths() {
-  const text = readFileSync(MATRIX_PATH, 'utf8');
+  const raw = readFileSync(MATRIX_PATH, 'utf8');
+  const { prose, fences } = splitFences(raw);
   const out = [];
-  for (const m of text.matchAll(/`([^`]+)`/g)) {
-    const token = m[1];
-    if (!token.startsWith('/')) continue;
-    out.push(token);
+  // 正文：反引号顺序配对（围栏已抹平 ⇒ 不会整体错位）
+  for (const m of prose.matchAll(/`([^`]+)`/g)) {
+    if (m[1].startsWith('/')) out.push(m[1]);
+  }
+  // 围栏：**按行各自配对**（行内配对不会跨行 ⇒ 不受整体错位影响）⇒ 路径一个不丢
+  for (const block of fences) {
+    for (const line of block) {
+      for (const m of line.matchAll(/`([^`]+)`/g)) {
+        if (m[1].startsWith('/')) out.push(m[1]);
+      }
+    }
   }
   return out;
 }

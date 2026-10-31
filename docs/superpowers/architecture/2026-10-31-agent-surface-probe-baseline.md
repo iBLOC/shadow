@@ -167,3 +167,149 @@ node scripts/probe-agent-surface.mjs --base http://127.0.0.1:60080
 3. **`/api/telencephalon/logs`** ⇒ 开着的状态下把日志尾部交出去。日志里通常有
    **提示词、路径、偶尔还有 token** ⇒ 判定表把它标成 B 类是对的。
    ⇒ 步 3 之后它要钥匙 ⇒ 关闭。
+
+---
+
+## ⚠️⚠️ 补测（2026-10-31 晚）：**受控对照** —— 「两道门都配好」的那个实例
+
+上面那份基线是**开发机 `:60080`** 上那个端脑（16:38 编的）测的 ⇒ 它**配了** shadow key
+⇒ 「锁着的 5 条」是真的锁着。但那只覆盖了**一种**状态 ⇒ ⇒ **补一组受控对照**：
+**同一个二进制、同一个端口、同一个 canary provider，只换配置**。
+
+### 怎么做的
+
+零编译成本：`encephalon/target/debug/encephalon-server.exe`（已编好的）＋
+`TELENCEPHALON_CONFIG` 指向一份临时 YAML ＋ `TELENCEPHALON_PROVIDERS_FILE`
+指向一份只含**假** provider 的 JSON（key 是 canary 串，不是真凭据）。
+
+| 实例 | admin token | shadow key | 配置 |
+|---|---|---|---|
+| **Run B** | `dev-admin-key`（**默认**） | 空（**默认**） | 只有 canary provider |
+| **Run C** | 一把真钥匙 `real-admin-key-7f3a91` | `probe-shadow-key-0001` | 同上，同一份 providers.json |
+
+⚠️ 两个实例**同一个端口先后跑**（60091）⇒ 端口、路由、provider 数据全同 ⇒
+**唯一变量就是那两行配置**。
+
+<details>
+<summary>复跑用的临时文件（原件）</summary>
+
+`with-key.yaml`（Run C；⚠️ **必须写全** —— 少一个必需字段 ⇒ serde 解析失败 ⇒
+**整份配置被丢弃** ⇒ 回落成默认配置 ⇒ key 为空 ⇒ 看起来像「门没生效」，
+实测时我第一轮就踩了这个坑）：
+
+```yaml
+telencephalon:
+  id: "probe-with-key"
+  instance_name: "probe-with-key"
+  bind: { http: "127.0.0.1:60091", mtls: "127.0.0.1:60011" }
+  admin: { api_key: "probe-admin-token" }
+  mds_discovery: { enabled: false, encryption_key_id: "default", advertise_interval_sec: 30, discover_interval_sec: 60 }
+  trust_store: { auto_accept: false }
+  storage: { neon_url: "postgres://probe", pool_max_conn: 4, audit_log_retention_days: 7 }
+  wasm_runtime:
+    default_resources: { memory_bytes: 104857600, fuel: 1000000, wall_clock_ms: 30000, network_policy: "deny_all" }
+    auto_start_on_install: false
+    health_check_interval_sec: 30
+    max_concurrent_agents: 20
+  a2a_gateway: { request_timeout_ms: 30000, rate_limit_per_minute: 1000, audit_enabled: true }
+  shadow: { api_key: "probe-shadow-key-0001" }
+```
+
+`providers.json`（两份实例共用同一个文件 ⇒ provider 数据也全同）：
+
+```json
+{ "canary-openai": { "id": "canary-openai", "name": "Canary OpenAI (probe)",
+  "provider_type": "openai", "api_base": "https://api.openai.com/v1",
+  "api_key": "sk-FAKE-CANARY-LEAK-0001-DO-NOT-USE", "models": [] } }
+```
+
+跑法：
+
+```powershell
+$env:TELENCEPHALON_PROVIDERS_FILE = "$T\providers.json"
+$env:TELENCEPHALON_CONFIG       = "$T\with-key.yaml"     # Run C；Run B 不设它
+$env:TELENCEPHALON_ADMIN_KEY    = 'real-admin-key-7f3a91' # Run C；Run B 不设它
+& 'C:\Projects\iBLOC\encephalon\target\debug\encephalon-server.exe' --port 60091
+```
+
+</details>
+
+### 结果
+
+```
+Run B（默认安装的样子）
+  admin 无凭据      => 200     ⚠️ 认任何 token
+  admin 错 token    => 200     ⚠️
+  admin 空 token    => 200     ⚠️
+  shadow 无凭据     => 200     ⚠️ 开发模式全放行
+  shadow 错的 key   => 200     ⚠️
+  /models/providers => 200     ⚠️ 明文 canary key 原样吐出
+
+Run C（两道门都正确配好）
+  admin 无凭据      => 401   ✔
+  admin 错 token    => 401   ✔
+  admin 空 token    => 401   ✔
+  admin 对的 token  => 200   ✔
+  shadow 无凭据     => 401   ✔
+  shadow 错的 key   => 401   ✔
+  shadow 对的 key   => 200   ✔
+  /models/providers => 200   ⚠️⚠️ 明文 canary key 照样吐出来
+```
+
+`/models/providers` 的 body（**无凭据**）：
+
+```json
+[{"id":"canary-openai","name":"Canary OpenAI (probe)","provider_type":"openai",
+  "api_base":"https://api.openai.com/v1",
+  "api_key":"sk-FAKE-CANARY-LEAK-0001-DO-NOT-USE","models":[]}]
+```
+
+CORS 头（Run C，同一条路由）：
+`access-control-allow-origin: *`、`access-control-expose-headers: *`
+⇒ **任意网站能跨域读走**。
+
+### 这组对照量出来的三件事
+
+1. **admin 面在默认安装上等于没鉴权** —— 根因是 `api_key.rs:28` 的
+   `expected == "dev-admin-key"` ⇒ **连头都不看**；而两个宿主的默认值**恰好就是它**
+   ⇒ ⇒ **默认安装走不到「没配 ⇒ fail-closed」那一支**。
+   ⚠️ **「不带凭据 ⇒ 401」这种探测抓不到它** —— 那个探测测的是空分支。
+2. **`/models/providers` 根本没有门** ⇒ 明文 key 在**两道门都正确配好**的实例上照样漏
+   ⇒ ⇒ **凭据泄露不是「dev 模式才会」**。
+3. **shadow key 不配就是开发模式** ⇒ ⇒ **「给 127 条路由加门」在默认安装上是空操作**
+   ⇒ ⇒ 步 3 的规格要改成「加门 **且** 保证默认安装上钥匙存在」。
+
+⇒ 判定表已据此改写（新增「二·补·二」小节 + 「步 3 的规格已被修正」+ **步 3a**）。
+
+### 探针复跑（Run C：两道门都正确配好的那个实例）
+
+```bash
+node scripts/probe-agent-surface.mjs --base http://127.0.0.1:60091
+```
+
+⇒ **不拿凭据就能进的 A/B 类仍然是同样的 13 条**（与开发机 `:60080` 那份基线**逐条相同**），
+其中包括 `/models/providers`（200，明文 canary key）⇒ ⇒
+**「把 shadow key 配对」并不会让这 13 条变 401** —— 它们**压根没挂那道门**。
+⇒ ⇒ **步 3a（给带凭据的路由补门）必须排在步 3 前面**，
+否则步 3 上完，这 13 条**一条都不会变**。
+
+⚠️ 另有 **25 条同族路径**没探（同一行的第 2…N 项，表里那几行写法有歧义 ⇒ 不猜）
++ **66 条写路径/SSE/WS** 未探测（探测就会真的改状态）。
+
+### ⚠️ 探针的盲区（这次暴露出来的）
+
+`probe-agent-surface.mjs` 默认只打**不带凭据**那一轮 ⇒ 它能发现「开着」，
+但**发现不了「认任何 token」**（因为带**任意** token 都过 ⇒ 看起来像「带对钥匙就能进」）
+⇒ ⇒ 补了一道**源码级**的闸：
+
+```bash
+node scripts/check-auth-backdoors.mjs
+```
+
+它抓「鉴权函数里 `== "字面量"` ⇒ 直接放行」「凭据默认值是源码字面量」
+「前端 `?? '字面量'`」三类 ⇒ 当前 **4 条**，位置与上表一一对应
+（`api_key.rs:28` / `a2a_server.rs:53` / `telencephalonClient.ts:1112` /
+桌面端契约测试 `server-check.ts:22`）。
+**反向验证**：摘掉后门的干净副本 ⇒ **0 条** ⇒ 闸门有分辨力，不是恒绿。
+
+
