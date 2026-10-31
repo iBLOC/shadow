@@ -838,11 +838,109 @@ GET /api/telencephalon/agents
 #### 6.6.6 还欠的（本轮没做，已记）
 
 1. ⚠️ **服务端出的界面文案仍是英文**（`Tasks (1)` / `HIGH` / `not probed`）
+   ⇒ ⇒ **已在 §6.7 落地**（文案随用户的语言走；**协议值** `HIGH` 仍留英文）
    ⇒ 桌面端与手机端的界面是**中英混排** ⇒ 国际化只做在**客户端诊断文案**上，
    **没做在服务端产出的界面内容**上。
 2. ⚠️ **「空 / 失败」三态**（§6.5.8 ④）仍然并成两种（`Tasks (0)` 现在被当「成功」）。
 3. ⚠️ **设备端（ESP32）仍然零 A2UI**。
 4. ⚠️ **桌面端没有 shadow key 输入入口**（既有缺口，§6.5.6）⇒ 端脑配了 key 而桌面端没有 ⇒ 面板 401（面板会明说）。
+
+### 6.7 界面文案随用户的语言走（2026-11-01）：**端脑说的那句话，改成用户的话**
+
+> 承 §6.6.6 第 1 条（「服务端出的界面文案仍是英文 ⇒ 两端界面中英混排」）
+> ⇒ **本片已把它做掉**（证据见 §6.7.5）。
+
+#### 6.7.1 为什么这一片是**必需**的：界面上的**字**也是端脑产的
+
+A2UI 的设计前提是「**大脑决定屏幕长什么样**」
+（`telencephalon/src/a2a/a2ui.rs` 的模块注释）⇒ 屏幕上的**字**也是大脑产的
+⇒ 那些字理应跟用户说的话是**同一种语言**。
+
+而本片之前，端脑产的字**永远是英文**：
+
+- `Tasks (1)` / `Agents (4)`（标题）
+- `No tasks yet.` / `No agents registered.`（空态那句话）
+- `not probed` / `disabled`（叶区状态旁边那句人话 —— 承 ㉝ 条「诚实性」）
+
+⇒ ⇒ 桌面端（中文 UI）与手机端（中文 UI）**都**是**中英混排**：
+**用户看到的是「任务看板」旁边一个英文的 `Tasks (1)`。**
+
+#### 6.7.2 门形：`Accept-Language`（为什么不是请求体里的 `metadata`）
+
+**走 HTTP 标准头 `Accept-Language`** ⇒ 客户端报「我要哪种语言」，端脑据此产出。
+
+⚠️ **为什么不用请求体里的 `metadata.a2ui.locale`**（那本来更「显式」）：
+**移动端那条路不归客户端管** —— 请求体是 `genui_a2ui` 的 `A2AClient` 造的
+（`genui_a2ui-0.7.0/lib/src/a2a/client/a2a_client.dart`），
+App 只能在 **transport** 这一层插手 ⇒ **能稳定插手的只有请求头**
+⇒ 两端用**同一个机制**，不必「桌面端走 metadata、手机端走头」。
+
+⚠️ **缺省必须是英文**：没有这个头 ⇒ 英文 ⇒ 与本片之前**逐字相同**
+⇒ 跨端契约 fixture（`fixtures/a2ui/tasks_surface.json`）**继续有效**
+⇒ **旧客户端完全不受影响**。
+
+#### 6.7.3 端脑这一侧：新增 `src/a2a/a2ui_i18n.rs`
+
+- `UiLocale { En, Zh }` + `from_accept_language()`
+  （按 `q` 降序挑、`q=0` 丢弃、**不认识的语言落英文 —— 不猜、不机翻**）。
+- 文案目录：标题 / 空态 / **诚实性说明** / 「这里能看什么」的提示。
+- ⚠️ **只翻自由文案**：`status` / `priority` 是 **A2UI 目录里的枚举**
+  （`shadow-mobile/lib/services/genui/shadow_catalog.dart:23-28`）
+  ⇒ 翻了它客户端就**解析不出来** ⇒ **协议值必须留在英文**（详见 §6.7.6）。
+- 接线：`a2ui.rs` 的 `render_tasks` / `render_agents` / `agent_message` /
+  `available_views_hint` 多带一个 `locale`；
+  `api/a2ui_gateway.rs` 从 `HeaderMap` 里读那个头。
+
+#### 6.7.4 两端那一侧：各自报出自己的语言
+
+| 端 | 报什么 | 在哪儿 |
+|---|---|---|
+| 桌面端 | i18next 的 `i18n.language`（`zh-CN` / `en-US`） | `A2uiPanel.tsx` → `a2uiClient.ts` 的 `buildA2uiHeaders` |
+| 移动端 | App 的语言（= 系统语言：`main.dart` 用 `AppLocalizations.supportedLocales` + `basicLocaleListResolution`，**没有 App 内语言开关**） | `ShadowKeySseTransport` 的 `sendStream` |
+
+⚠️ **两端都是「请求时现读」**（与那把钥匙同一个套路）：
+用户换语言 ⇒ 下一次请求就该换语言 ⇒ **构造时取值 ⇒ 界面停在旧语言**。
+
+#### 6.7.5 证据
+
+- **端脑**：`cargo test -p telencephalon --test a2ui` ⇒ **12 passed / 0 failed**
+  （新增 2 条：`the_brain_speaks_the_language_the_client_asked_for` ——
+  **真 HTTP** + **桌面端逐字相同的请求体**；
+  `the_honesty_note_also_follows_the_language` —— 「尚未探活」那一句也跟着语言走）；
+  a2ui 相关内联单测 **25 passed**（新增 8 条头解析 + 1 条渲染）；
+  全量 lib **670 passed / 0 failed**。
+- ⚠️ **反向验证**：把网关那行「读 `Accept-Language`」打断（`from_accept_language(None)`）
+  ⇒ **恰好 2 条红**（那两条新集成测试），其余 10 条仍绿
+  ⇒ **断言有分辨力，不是恒绿**。
+- **桌面端**：`a2ui.test.tsx` ⇒ **19 passed**（新增 3 条：客户端带语言 /
+  没语言时**不带** / 面板把 i18n 的语言交下去）；
+  全量 **124 文件 / 1233 通过 / 0 失败**；`tsc --noEmit` EXIT=0；`eslint` EXIT=0。
+- **移动端**：新增 `test/widget/a2ui_locale_test.dart`
+  （**起真的本地 HTTP 服务**、回放端脑**真实** SSE 字节 ⇒ 断言请求头里的
+  `accept-language`，且**两次请求分别是 en / zh** ⇒ 证明「请求时现读」）；
+  全量 **390 passed**；`flutter analyze` **76 issues（基线持平）**，
+  我改的那 4 个文件**零 issue**。
+
+#### 6.7.6 ⚠️ **不翻协议值**（为什么 `HIGH` / `in_progress` 还在英文）
+
+`TaskCard.status` / `TaskCard.priority` / `AgentStatusIndicator.status`
+是 **A2UI 目录里的枚举取值** ⇒ 客户端按枚举解析
+⇒ **翻了它们界面会解析不出来**
+⇒ ⇒ **协议值留在英文**（两端一致，承 §6.5.5 ④）。
+
+⚠️ 所以中文界面里仍会看到 `HIGH` / `in_progress` —— 那是**协议值**，不是文案。
+⇒ 真要连它们一起翻，得先改 A2UI 目录（两端 + 协议）⇒ **不在本片范围**。
+
+#### 6.7.7 还欠的（本片没做，已记）
+
+1. ⚠️ **协议值仍是英文**（见 §6.7.6）。
+2. ⚠️ **服务端只有中英两种**；其它语言一律落英文（**不猜、不机翻**）。
+3. ⚠️ **移动端真机还没验过这一条** —— 设备上那份 APK 与内嵌端脑都是**旧的**
+   ⇒ 要看到中文界面，必须**重编 `libencephalon.so` + 重打正牌 APK + 安装**
+   （已交棒给设备那条会话）⇒ 端脑侧与客户端侧都已验，**真机那一截还欠**。
+4. ⚠️ **「空 / 失败」三态**（§6.6.6 第 2 条）仍未拆。
+5. ⚠️ **桌面端没有 shadow key 输入入口**（§6.6.6 第 4 条）仍未补。
+6. ⚠️ **设备端（ESP32）仍然零 A2UI**。
 
 ---
 

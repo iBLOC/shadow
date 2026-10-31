@@ -66,6 +66,7 @@ class ShadowKeySseTransport extends SseTransport {
   ShadowKeySseTransport({
     required super.url,
     required this.shadowKeyProvider,
+    this.localeProvider,
     super.client,
   }) : super(
           // ⚠️ `X-A2A-Extensions` 是 **A2UI 协议常量**，客户端默认会带
@@ -84,16 +85,29 @@ class ShadowKeySseTransport extends SseTransport {
   /// 返回 null / 空串 ⇒ **不带**这个头（端脑在开发模式下也放行）。
   final String? Function()? shadowKeyProvider;
 
+  /// 「用户现在用什么语言」—— 发请求的那一刻才调用。
+  ///
+  /// ⚠️ **界面文案随用户的语言走**：端脑在 `Accept-Language` 里挑语言
+  /// （`telencephalon/src/a2a/a2ui_i18n.rs`）⇒ 少了这个头，
+  /// 端脑产出的界面就是**英文**（`Tasks (1)`）⇒ 中英混排。
+  ///
+  /// ⚠️ 和钥匙一样**请求时现读**：系统语言可以在 App 运行时改。
+  final String? Function()? localeProvider;
+
   @override
   Stream<Map<String, Object?>> sendStream(
     Map<String, Object?> request, {
     Map<String, String> headers = const {},
   }) {
     final key = shadowKeyProvider?.call();
+    // ⚠️ **界面文案随用户的语言走** —— 与钥匙同一个套路：请求时现读。
+    final locale = localeProvider?.call();
     return super.sendStream(
       request,
       headers: {
         if (key != null && key.isNotEmpty) 'X-Shadow-Key': key,
+        if (locale != null && locale.isNotEmpty)
+          'Accept-Language': locale,
         // ⚠️ 调用方传的头**优先**（`SseTransport.sendStream` 里
         // `...authHeaders, ...headers` 的展开顺序就是这个意思）。
         ...headers,

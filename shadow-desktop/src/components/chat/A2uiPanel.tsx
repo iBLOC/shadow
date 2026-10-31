@@ -62,7 +62,7 @@ export function A2uiPanel({
   onClose,
   fetchImpl,
 }: A2uiPanelProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [view, setView] = useState<A2uiView>(initialView);
   const [state, setState] = useState<PanelState>({ phase: 'loading' });
   const [reloadToken, setReloadToken] = useState(0);
@@ -73,7 +73,16 @@ export function A2uiPanel({
 
     setState({ phase: 'loading' });
 
-    requestA2uiSurface({ baseUrl, apiKey, view, signal: controller.signal, fetchImpl })
+    requestA2uiSurface({
+      baseUrl,
+      apiKey,
+      view,
+      // ⚠️ **界面文案随用户的语言走** —— 端脑据此产出中文/英文界面
+      // （真相源在服务端：`telencephalon/src/a2a/a2ui_i18n.rs`）。
+      locale: i18n.language,
+      signal: controller.signal,
+      fetchImpl,
+    })
       .then((result) => {
         if (cancelled) return;
         const surface = result.model.renderableSurfaces[0];
@@ -103,7 +112,7 @@ export function A2uiPanel({
       cancelled = true;
       controller.abort();
     };
-  }, [baseUrl, apiKey, view, reloadToken, fetchImpl]);
+  }, [baseUrl, apiKey, view, reloadToken, fetchImpl, i18n.language]);
 
   const refresh = useCallback(() => setReloadToken((n) => n + 1), []);
 

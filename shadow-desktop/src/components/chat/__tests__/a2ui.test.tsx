@@ -172,6 +172,48 @@ describe('A2UI client — desktop', () => {
     expect(result.model.renderableSurfaces).toHaveLength(1);
   });
 
+  it('asks the brain to speak the user language (Accept-Language)', async () => {
+    // ⚠️ The brain draws the screen — *and its words*. The words have
+    // to be in the user's language, so the client reports which one
+    // it wants; the truth source is the server
+    // (`telencephalon/src/a2a/a2ui_i18n.rs`).
+    const calls: Array<{ url: string; init: RequestInit }> = [];
+    const fetchImpl = vi.fn(async (url: unknown, init: RequestInit) => {
+      calls.push({ url: String(url), init });
+      return fakeResponse(SSE_FIXTURE);
+    });
+
+    await requestA2uiSurface({
+      baseUrl: 'http://127.0.0.1:60080',
+      apiKey: 'the-real-key',
+      view: 'tasks',
+      locale: 'zh-CN',
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+
+    const headers = calls[0].init.headers as Record<string, string>;
+    expect(headers['Accept-Language']).toBe('zh-CN');
+  });
+
+  it('omits Accept-Language when nobody asked for a language', async () => {
+    const calls: Array<{ url: string; init: RequestInit }> = [];
+    const fetchImpl = vi.fn(async (url: unknown, init: RequestInit) => {
+      calls.push({ url: String(url), init });
+      return fakeResponse(SSE_FIXTURE);
+    });
+
+    await requestA2uiSurface({
+      baseUrl: 'http://127.0.0.1:60080',
+      view: 'tasks',
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+
+    const headers = calls[0].init.headers as Record<string, string>;
+    // ⚠️ No header ⇒ the brain falls back to English — the very same
+    // bytes it produced before this feature existed.
+    expect(headers['Accept-Language']).toBeUndefined();
+  });
+
   it('omits the shadow key header when the brain runs in dev mode', async () => {
     const calls: Array<{ url: string; init: RequestInit }> = [];
     const fetchImpl = vi.fn(async (url: unknown, init: RequestInit) => {
@@ -358,6 +400,30 @@ describe('A2UI panel — desktop', () => {
     await waitFor(() => expect(screen.getByTestId('a2ui-surface')).toBeInTheDocument());
     expect(screen.getByText('写周报')).toBeInTheDocument();
     expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it('tells the brain which language the interface is in', async () => {
+    // ⚠️ The panel is the one that knows the app language
+    // (i18next) ⇒ it has to hand it to the client, or the brain
+    // keeps answering in English.
+    const calls: Array<{ init: RequestInit }> = [];
+    const fetchImpl = vi.fn(async (_url: unknown, init: RequestInit) => {
+      calls.push({ init });
+      return fakeResponse(SSE_FIXTURE);
+    });
+
+    render(
+      <A2uiPanel
+        baseUrl="http://127.0.0.1:60080"
+        apiKey="the-real-key"
+        fetchImpl={fetchImpl as unknown as typeof fetch}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('a2ui-surface')).toBeInTheDocument());
+    const headers = calls[0].init.headers as Record<string, string>;
+    // `tests/setup.ts` mocks react-i18next with `i18n: { language: 'en' }`.
+    expect(headers['Accept-Language']).toBe('en');
   });
 
   it("shows the brain's plain-text answer when there is no view to draw", async () => {

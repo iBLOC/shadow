@@ -60,6 +60,14 @@ export interface A2uiRequestOptions {
   apiKey?: string;
   /** 要看哪个视图。 */
   view: A2uiView;
+  /**
+   * 用户语言 —— 发成 `Accept-Language`。
+   *
+   * ⚠️ 端脑据此产出**对应语言**的界面文案（`Tasks (1)` / `任务（1）`）
+   * —— 真相源在服务端（`telencephalon/src/a2a/a2ui_i18n.rs`）
+   * ⇒ 客户端只负责报出「我要哪种语言」。
+   */
+  locale?: string;
   /** 取消。 */
   signal?: AbortSignal;
   /** 注入 fetch（测试用）。 */
@@ -129,7 +137,7 @@ export function buildA2uiRequestBody(view: A2uiView): string {
 }
 
 /** 请求头。 */
-export function buildA2uiHeaders(apiKey?: string): Record<string, string> {
+export function buildA2uiHeaders(apiKey?: string, locale?: string): Record<string, string> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     // ⚠️ A2UI 扩展声明 —— 与移动端 transport 的 `authHeaders` 同一个常量
@@ -139,6 +147,10 @@ export function buildA2uiHeaders(apiKey?: string): Record<string, string> {
   // ⚠️ 空 key ⇒ **不带**这个头（开发模式放行）；带上空串反而会被当成
   // 「带了一个空钥匙」⇒ 401。
   if (apiKey) headers['X-Shadow-Key'] = apiKey;
+  // ⚠️ **界面文案随用户的语言走** —— 端脑在 `Accept-Language` 里挑语言
+  // （`telencephalon/src/a2a/a2ui_i18n.rs`）
+  // ⇒ 少了这个头，界面上就是英文（`Tasks (1)`）。
+  if (locale) headers['Accept-Language'] = locale;
   return headers;
 }
 
@@ -151,13 +163,13 @@ export function buildA2uiHeaders(apiKey?: string): Record<string, string> {
 export async function requestA2uiSurface(
   options: A2uiRequestOptions,
 ): Promise<A2uiStreamResult> {
-  const { baseUrl, apiKey, view, signal } = options;
+  const { baseUrl, apiKey, view, signal, locale } = options;
   const fetchImpl = options.fetchImpl ?? fetch;
 
   const url = `${baseUrl.replace(/\/+$/, '')}/a2a`;
   const resp = await fetchImpl(url, {
     method: 'POST',
-    headers: buildA2uiHeaders(apiKey),
+    headers: buildA2uiHeaders(apiKey, locale),
     body: buildA2uiRequestBody(view),
     signal,
   });

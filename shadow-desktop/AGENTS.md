@@ -640,3 +640,31 @@ The same `src/` produces **two artefacts**:
   `not probed`）⇒ 桌面端面板现在中英混排；「空 / 失败」在协议层是**三种**状态
   （有内容 / 有 surface 但空 / 纯文本），面板仍并成两种；**桌面端没有 shadow key
   输入入口**（既有缺口）⇒ 端脑配了 key 而桌面端没有 ⇒ 面板 401（面板会明说）。
+## STATE STATUS (2026-11-01, 界面文案随用户的语言走)
+
+**Completed** ✅:
+
+- **✅ 父仓 `shadow/AGENTS.md` ㋐ 条记整片**（端脑产的界面文案随用户的语言走 ⇒
+  两端界面不再是中英混排）⇒ 端脑那一侧见 `telencephalon/AGENTS.md` ㉟ 条，
+  移动端那一侧见 `shadow-mobile/AGENTS.md` ㋁ 条 ⇒ **本条只记桌面端这一侧的形状**。
+- **✅ 机制**：面板把 i18next 的 `i18n.language`（`zh-CN` / `en-US`）交给客户端
+  ⇒ 客户端发成 `Accept-Language` 头（`src/lib/a2uiClient.ts` 的
+  `buildA2uiHeaders(apiKey, locale)`）⇒ 端脑据此产出中文界面
+  （真相源在服务端：`telencephalon/src/a2a/a2ui_i18n.rs`）。
+  ⚠️ **不碰 `telencephalonClient.ts`**（那个文件此刻被并行会话在飞改动占着）
+  ⇒ 沿用面板原来那条独立通道（与 A2UI 接入那片同一个取舍）。
+- **✅ 测试 + 反向验证**：`src/components/chat/__tests__/a2ui.test.tsx` 新增 **3** 条
+  （① 客户端带 `Accept-Language`；② **没语言时就不带** —— 端脑会落英文，
+  与本功能之前**逐字相同** ⇒ 跨端契约 fixture 继续有效、旧客户端不受影响；
+  ③ **面板把 i18n 的语言交下去** —— `tests/setup.ts` 把 `react-i18next`
+  mock 成 `i18n: { language: 'en' }` ⇒ 断言请求头是 `en`）
+  ⇒ `a2ui.test.tsx` **19 passed**；全量 **124 文件 / 1233 通过 / 6 跳过 / 0 失败**；
+  `tsc --noEmit` EXIT=0；`eslint`（改动的 3 个文件）EXIT=0。
+- **⚠️ 协议值仍在英文**：`TaskCard.status` / `priority` /
+  `AgentStatusIndicator.status` 是 **A2UI 目录里的枚举** ⇒ 翻了客户端就解析不出来
+  ⇒ `HIGH` / `in_progress` 不翻；⚠️ 但两端**显示**是一致的（桌面端徽标带
+  `uppercase` 的 CSS、手机端显式 `toUpperCase()` ⇒ 两边都显示 `HIGH`）。
+- **⚠️ 还欠的**：**移动端真机那一截**（设备上的 APK 与内嵌端脑都是旧的 ⇒ 看不到中文界面）；
+  **协议值仍是英文**；**「空 / 失败」三态**（`Tasks (0)` 现在被当「成功」）仍未拆；
+  **桌面端没有 shadow key 输入入口**（既有缺口）⇒ 端脑配了 key 而桌面端没有 ⇒ 面板 401。
+

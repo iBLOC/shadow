@@ -46,10 +46,16 @@ class GenUIAgentService {
   /// 详见 [ShadowKeySseTransport]。
   ///
   /// 传 null ⇒ 不带这个头（端脑在开发模式下也放行）。
+  /// [localeProvider] 给出用户当前的语言（`Accept-Language`）。
+  ///
+  /// ⚠️ 它是**回调**而不是值 —— 系统语言可以在 App 运行时改
+  /// ⇒ 构造时取值 ⇒ 用户换语言后界面仍是旧语言。
+  /// 详见 [ShadowKeySseTransport]。
   GenUIAgentService({
     required String serverUrl,
     Catalog? catalog,
     String? Function()? shadowKeyProvider,
+    String? Function()? localeProvider,
   }) {
     _logger.info('Initializing GenUIAgentService with server: $serverUrl');
 
@@ -64,6 +70,7 @@ class GenUIAgentService {
     _transport = ShadowKeySseTransport(
       url: serverUrl,
       shadowKeyProvider: shadowKeyProvider,
+      localeProvider: localeProvider,
     );
 
     _contentGenerator = A2uiContentGenerator(

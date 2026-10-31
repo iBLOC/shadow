@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:genui/genui.dart';
 import '../providers/telencephalon_provider.dart';
@@ -75,6 +77,14 @@ final genUIAgentServiceProvider = Provider<GenUIAgentService>((ref) {
     serverUrl: ref.watch(a2uiServerUrlProvider),
     catalog: catalog,
     shadowKeyProvider: () => telencephalonClient.apiKey,
+    // ⚠️ **界面文案随用户的语言走** —— 端脑在 `Accept-Language` 里挑
+    // 语言（`telencephalon/src/a2a/a2ui_i18n.rs`）。
+    //
+    // ⚠️ App 的语言就是**系统语言**：
+    // `main.dart` 用 `AppLocalizations.supportedLocales`（en / zh）
+    // + `basicLocaleListResolution` ⇒ 没有 App 内语言开关，
+    // ⇒ 设备语言就是界面语言。
+    localeProvider: () => PlatformDispatcher.instance.locale.languageCode,
   );
 
   ref.onDispose(() {
