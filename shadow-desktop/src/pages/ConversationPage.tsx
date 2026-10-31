@@ -17,6 +17,7 @@ import { ConversationModeSwitcher } from '../components/chat/ConversationModeSwi
 import { FeishuPublishedCard } from '../components/chat/FeishuPublishedCard';
 import { AudioEventChip } from '../components/chat/AudioEventChip';
 import { ToolCallMessageCard } from '../components/chat/ToolCallMessageCard';
+import { A2uiPanel } from '../components/chat/A2uiPanel';
 import { ComputerUsePendingModal, type ComputerUseAction } from '../components/computerUse/ComputerUsePendingModal';
 import { RecordingPanel } from '../components/recording/RecordingPanel';
 import { isChatBiPayload } from '../lib/chatbi/guards';
@@ -88,6 +89,10 @@ export function ConversationPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showMoveDialog, setShowMoveDialog] = useState(false);
   const [showCreateMenu, setShowCreateMenu] = useState(false);
+  // A2UI panel — the brain draws the screen for us (see `components/chat/A2uiPanel.tsx`).
+  // ⚠️ The panel fetches its own surface from `POST {baseUrl}/a2a`; it is *not*
+  // part of the chat message stream, so it has its own open/close state.
+  const [showA2ui, setShowA2ui] = useState(false);
   const createMenuRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   // R-11 — computer-use preview-before-commit state. Modal lifecycle is
@@ -722,6 +727,24 @@ export function ConversationPage() {
       {/* Main */}
       <main className="flex flex-1 flex-col overflow-hidden bg-background">
         <ConversationModeSwitcher />
+        <div className="flex items-center justify-end gap-2 border-b border-border px-4 py-1.5">
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={<Sparkles size={16} />}
+            onClick={() => setShowA2ui((v) => !v)}
+            data-testid="a2ui-toggle"
+          >
+            {t('surface.a2ui')}
+          </Button>
+        </div>
+        {showA2ui ? (
+          <A2uiPanel
+            baseUrl={telencephalonClient.getBaseUrl()}
+            apiKey={telencephalonClient.getApiKey()}
+            onClose={() => setShowA2ui(false)}
+          />
+        ) : null}
         {activeConversation ? (
           activeConversation.kind === 'audio' || activeConversation.kind === 'video' ? (
             <RecordingPanel

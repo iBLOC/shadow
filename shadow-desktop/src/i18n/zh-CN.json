@@ -1326,6 +1326,7 @@
     "voice": "语音对话",
     "livestream": "直播",
     "customerService": "智能客服",
+    "a2ui": "生成式界面",
     "tasks": "任务",
     "group": "群组",
     "document": "文档",
@@ -1353,5 +1354,11 @@
     "settings": "设置",
     "setup": "初始设置",
     "prefrontalEmbedded": "嵌入式前额叶"
+      },
+  "a2ui": {
+    "missingRoot": "这个界面缺少根节点。",
+    "waitingForRender": "等待界面开始渲染…",
+    "missingComponent": "缺少组件",
+    "unknownComponent": "未知组件"
   }
 }

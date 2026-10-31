@@ -72,6 +72,25 @@
       "desktop": { "route": null, "nav": false },
       "mobile": { "route": "/customer-service", "nav": false, "mode": true }
     },
+    {
+      "id": "a2ui",
+      "group": "converse",
+      "labelKey": "surface.a2ui",
+      "icon": "sparkles",
+      "desktop": {
+        "route": null,
+        "nav": false,
+        "_embeddedIn": "对话页主区顶部的「生成式界面」按钮（data-testid=a2ui-toggle）→ 展开 A2UI 面板 —— 不是独立路由",
+        "_implementation": "2026-10-31 落地方向 C 第一片：桌面端在 TypeScript 里**自写** A2A v0.3 + A2UI 协议栈（shadow-desktop/src/lib/a2uiProtocol.ts + a2uiClient.ts）—— 因为 `genui_a2ui` 是 Flutter 包而 Tauri 没有 Dart 运行时。渲染面（shadow-desktop/src/components/chat/A2uiSurface.tsx）只覆盖端脑实际会发的 4 种组件（Column / Text / TaskCard / AgentStatusIndicator），未知组件类型降级成占位而不是崩掉。⚠️ **没有**复用 ToolPartRouter 那套渲染 —— A2UI surface 不是聊天消息，它有自己的 surface id 与组件树，塞进消息 store 会把两套模型搅在一起。"
+      },
+      "mobile": {
+        "route": null,
+        "nav": false,
+        "secondary": true,
+        "_embeddedIn": "对话页 AppBar 上的「组件」按钮（Icons.widgets_outlined），切换 useAgent2UIModeProvider —— 不是独立路由"
+      },
+      "_note": "A2UI（Agent-to-UI）—— **服务端现场画界面**。⚠️ 2026-10-31 之前它是**清单外功能**（清单 grep A2UI 零命中 ⇒ 对跨端一致性检查完全隐形），现在登记进来。移动端有完整客户端（genui 协议栈 + 8 个自定义组件目录），服务端产出面在端脑 `POST /a2a`（A2A v0.3 JSON-RPC + SSE），跨端契约由 shadow/fixtures/a2ui/tasks_surface.json 钉住。⚠️ 该产出面**在 shadow key 后面**（telencephalon/src/api/a2ui_gateway.rs 挂 api::shadow_auth::require_shadow_key）—— 它吐的是任务标题与 agent 名字这些用户数据，不是无害的静态面。"
+    },
 
     {
       "id": "tasks",

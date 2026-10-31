@@ -1302,6 +1302,7 @@
     "voice": "Voice",
     "livestream": "Livestream",
     "customerService": "Customer service",
+    "a2ui": "Generative UI",
     "tasks": "Tasks",
     "group": "Group",
     "document": "Document",
@@ -1329,5 +1330,11 @@
     "settings": "Settings",
     "setup": "Setup",
     "prefrontalEmbedded": "Embedded prefrontal"
+      },
+  "a2ui": {
+    "missingRoot": "The surface has no root component.",
+    "waitingForRender": "Waiting for the surface to start rendering…",
+    "missingComponent": "Missing component",
+    "unknownComponent": "Unknown component"
   }
 }
