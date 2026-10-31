@@ -1,6 +1,6 @@
 # PROJECT KNOWLEDGE BASE
 
-**Updated:** 2026-10-30
+**Updated:** 2026-10-31 (桌面端 admin 钥匙不再常量 —— 见文末「STATE STATUS (2026-10-31, 桌面端 admin 钥匙不再常量)」)
 **Project:** shadow-desktop (Layer 4 — Interaction)
 **Sprint-2 status:** ✅ MCP management wired through cortex — AgentsPage per-card binding panel + bind modal + 12 new cortexClient methods + 18 i18n keys. 10 AgentsPage + 10 chartbi + 20 lib vitest tests passing. TypeScript clean. **Post-audit-cycle (2026-09-24/25)**: recording mode R1-R4 closed, MCP catalog 5×28 + transport-aware MCPPage, Workflow Studio v1 (R-12/R-13), subsystem management panel client, cortex sidecar replaced with embedded encephalon. Companion E2E assessment: [`../../docs/superpowers/architecture/2026-09-25-e2e-coverage-assessment.md`](../../docs/superpowers/architecture/2026-09-25-e2e-coverage-assessment.md).
 
@@ -443,3 +443,161 @@ The same `src/` produces **two artefacts**:
 现在都随消息把**这台设备能跑的客户端工具**（含 JSON Schema）发给端脑
 （`SendMessageRequest.tools`）⇒ **端脑今天还不认识这个字段**（serde 忽略未知
 字段 ⇒ 带上无害）⇒ **端脑那侧接上之前，模型看不见这些工具**。
+
+---
+
+## STATE STATUS (2026-10-31, A2UI 桌面端接入)
+
+**Completed** ✅:
+
+桌面端现在能消费端脑的 A2UI 产出面（`POST {baseUrl}/a2a`）⇒
+**两端连的是同一张服务端画出来的界面** ⇒ 跨端契约的 fixture
+（`shadow/fixtures/a2ui/`）有了**第三个消费者**。
+
+- **⚠️ 第一件事是把「硬约束」与「我的判断」分开** ——
+  能力清单 `agent-surface.json` 的 `a2ui.desktop` 原先写着
+  「更划算的是让现有那套渲染（`ToolPartRouter` / `ClientToolForm` /
+  `ToolCallMessageCard`）接受 A2UI 的数据模型，而不是再实现一遍协议栈」。
+  **本轮没有照做**，而是**在 TypeScript 里另写了一份协议栈**。拆开看：
+  - **(a)「再实现一遍协议栈」在桌面端是硬约束** —— `genui` / `genui_a2ui` 是
+    **Flutter 包**（Dart），桌面端是 React/TS + Tauri ⇒ **进程里没有 Dart
+    运行时** ⇒ 那套栈在桌面端**一行都跑不了**（`package.json` 里也确实没有
+    `genui` 依赖）⇒ **不是选择**。
+  - **(b)「不复用现有那套渲染」才是我的判断** —— 现有那套吃的是 **AI SDK 的
+    `UIMessage` part 形状**、长在**聊天消息列表**里；而 A2UI surface 是
+    **另一条链路**（自己的 surface id、自己的组件树、自己的 `POST /a2a`
+    请求，**不是一条消息**）⇒ 要复用就得让**消息 store** 学会
+    「有一类东西不是消息」⇒ **代价** = 多维护一份协议栈（~250 行 TS），
+    **收益** = 两种模型不搅在一起。
+  - ⇒ ⚠️ **这一片因此偏离了清单的建议**（清单已改写成如实描述）。
+    **若将来 A2UI surface 要内联进对话流**，那时才该合并，
+    而不是继续维护两份。
+
+- **落地了什么**（`shadow-desktop/`）：
+  - `src/lib/a2uiProtocol.ts`（新）—— **纯协议**：SSE 分帧、A2UI 载荷抽取、
+    surface 模型。**不碰网络、不碰 React**（协议能被单独测）。
+  - `src/lib/a2uiClient.ts`（新）—— `POST {baseUrl}/a2a` + `X-Shadow-Key` +
+    `X-A2A-Extensions` + **流式** SSE 读取。
+  - `src/components/chat/A2uiSurface.tsx`（新）—— 只画端脑**实际会发的 4 种**
+    组件（`Column` / `Text` / `TaskCard` / `AgentStatusIndicator`）；
+    **未知组件类型降级成占位**（新版大脑不能把旧版桌面端白屏）。
+  - `src/components/chat/A2uiPanel.tsx`（新）—— 加载 / 空 / 错误 / 就绪 四态
+    + 视图切换。
+  - `src/pages/ConversationPage.tsx`（改）—— **只改这一个干净文件**
+    （一个按钮 + 面板挂载）。
+  - `src/i18n/{en-US,zh-CN}.json`（改）—— 新增 `a2ui.*` **4 个** key
+    （`i18next/no-literal-string` 是 **error** ⇒ 诊断文案必须进 i18n）。
+    ⚠️ **加在文件末尾**而不是 `surface` 段旁边 —— 那两个文件**正被并行会话改着**
+    ⇒ 追加在末尾 + 用**唯一锚点**编辑 ⇒ 冲突时是**响亮地失败**而不是静默覆盖。
+
+- **⚠️ 四个「照抄协议，不自作主张」**：
+  1. **两段式语义** —— `surfaceUpdate` 只**缓存**、`beginRendering` 才**渲染**
+     ⇒ 不会画出「组件还没到齐」的半成品；
+  2. **载荷位置** —— `result.status.message.parts[]` 里 `kind === "data"` 的 part；
+  3. **扩展声明走请求头** —— `X-A2A-Extensions: https://a2ui.org/a2a-extension/a2ui/v0.8`
+     （与移动端自造 transport 时的 `authHeaders` 同一个常量）；
+  4. **状态 / 优先级显示协议原值而不翻译** —— 移动端也是这么做的
+     ⇒ **两端对同一个 surface 的读法不会分叉**。
+
+- **⚠️ 三个「我的判断」**：
+  1. **视图用 `metadata.a2ui.view` 显式指定**，不靠关键词匹配 ——
+     关键词会被用户文案带偏（用户说「我的日程」就不命中「任务」）；
+  2. **「空」与「失败」分开** —— 端脑对「这次没有可渲染的视图」的回答是
+     **一段纯文本**、**不是错误** ⇒ 面板把**大脑的原话**显示出来，
+     而不是笼统的「无数据」（那样会把大脑说了什么藏起来）；
+  3. **未知组件类型不抛异常**。
+
+- **⚠️ 钥匙没有新开通道** —— 面板的钥匙来自 `telencephalonClient.getApiKey()`
+  ⇒ **与桌面端现有的 `/shadow/v1/*` 请求同源同值** ⇒ 不会出现
+  「A2UI 带了钥匙、其它请求没带」的分叉。
+  ⚠️ **既有缺口（非本片引入）**：桌面端**没有**输入 shadow key 的界面
+  （store 有 `connection.apiKey`、会持久化、rehydrate 时会补设，
+  `IdentityPanel.tsx:43` 在读它，但**没有设置入口**）⇒ 若端脑配了 key 而
+  客户端手里没有 ⇒ 面板 **401**（面板会**明说**）⇒ **这一格对桌面端所有请求
+  都一样**，不是本片欠的。
+
+**验证**：
+
+- 新测试 **15 条**（协议 5 + 客户端 3 + 渲染 4 + 面板 3）**全绿**；
+- **反向验证四连**（每一条都精确对应一处故意破坏，其余断言仍绿）：
+  ① 拆掉 `X-Shadow-Key` 注入 ⇒ **恰好 1 条红**；
+  ② 让 `surfaceUpdate` 也能渲染 ⇒ **恰好 1 条红**；
+  ③ 把载荷路径改成 `result.message.parts` ⇒ **恰好 6 条红**
+  （**4 条不依赖抽取的仍绿**）；
+  ④ 把判环守卫退回「全树已见集合」（**忠实复刻旧写法**）⇒ **恰好 1 条红**
+  ⇒ ⇒ **断言有分辨力、不是整片红**；
+- ⚠️ **第 ④ 处对应一个真缺陷**：第一版的判环用「全树已见集合」
+  ⇒ **同一个组件被引用两次时，第二次会整个消失**（用户莫名少一块界面）
+  ⇒ **已改成祖先路径**（每层一份拷贝）⇒ 重复引用**照画两次**、
+  自引用仍被截断（不会爆栈）⇒ **这条是写测试时才发现的，不是读代码时想到的**；
+- 桌面端**全量** `vitest run` ⇒ **120 个测试文件 / 1209 passed / 2 skipped /
+  0 failed**（基线 119 文件 / 1194 passed，**+1 文件 / +15 条**）；
+- `tsc --noEmit -p tsconfig.json` **EXIT=0**；`eslint`（6 个改动文件）**EXIT=0**；
+- `vite build --outDir dist-a2ui-verify` **EXIT=0**（`✓ built in 19.95s`）
+  ⇒ 打完已用可恢复删除清掉；
+- `node scripts/check-agent-surface.mjs` ⇒ **阻断 0 / 提示 2**（⚠️ 那两条提示是
+  **并行会话**新登记的 `a2ui` / `identity` 两个能力的 `labelKey` 在**移动端 ARB**
+  里还没有 ⇒ 守门员自己写的「阶段 2 接入能力清单时补」
+  ⇒ **不是本片引入**：本片**没新增能力、没动任何 labelKey**）。
+- ⚠️ `node scripts/validate-i18n-keys.mjs` **EXIT=1**，但那 **260 条缺失全是
+  既有缺口**（`identity` / `computerUse` / `subsystem` / `preview` / `voice` /
+  `questionnaire` …）⇒ 本轮用到的 **11 个 key 逐个核对，全部在两份 i18n 里存在**。
+
+⚠️ **还欠的**：
+
+- **桌面端从未对着一个活的端脑跑过** —— 测试喂的是**录下来的**端脑字节
+  （`fixtures/a2ui/tasks_sse.txt`）。
+  ⚠️ 但「桌面的端脑真的提供 `/a2a`」**可静态证明**：桌面 sidecar 起的是
+  `telencephalon::api::build_full_app`（`src-tauri/src/cortex_http.rs:212`）
+  ⇒ 包着 `build_with_conversation_store` ⇒ 而 `telencephalon/src/api/mod.rs:99`
+  在那张 router 上 merge 了 `a2ui_gateway::router` ⇒ **`/a2a` 与那道 shadow
+  key 门都在** ⇒ **还差的是「桌面客户端真的把界面画出来」那段运行时证据**；
+- **设备端（ESP32）仍然零 A2UI**；
+- 界面文案本地化（服务端出的 chrome 仍是英文）—— 桌面端这侧**本地化只覆盖了
+  诊断文案**，组件内容是服务端给的原文。
+
+## STATE STATUS (2026-10-31, 桌面端 admin 钥匙不再常量)
+
+**这一档**：桌面端递给端脑的 admin token **不再是那个常量**。
+
+- **⚠️ 原来的洞（两条叠起来）**：
+  - 端脑有一条后门：`verify_admin_token` 里
+    `if expected == "dev-admin-key" { return Ok(()); }` ⇒ expected 恰好是那个
+    **源码里的字面量**时，**连请求头都不看**就放行；
+  - 而桌面端递进去的 expected **恰好就是** `dev-admin-key`
+    （旧的 `desktop_admin_token()` 的默认值）⇒ ⇒ 桌面端的 admin 面
+    **任何请求都过**；
+  - 再叠加端脑面的 `CorsLayer::permissive()`（任意 origin 可跨域、**能读到
+    响应**）⇒ ⇒ **浏览器里任意一个网站**都能往用户的大脑里插一个它自己写的
+    叶区（`POST /api/telencephalon/admin/agents/create`）＝ 往模型面前插一条
+    自己写的路。
+  - 端脑那一刀在 `telencephalon` 仓（`src/security/api_key.rs`）⇒ 本仓是
+    **另一半**：得有真钥匙可递。
+- **做了什么**：
+  - 新增 `src-tauri/src/admin_token.rs` —— **环境变量 → 持久化文件 → 首次生成
+    一把随机的**（32 字节 ⇒ hex 64 字符）⇒ 每台安装一把自己的、猜不到的；
+    持久化位置 `<配置目录>/shadow/admin.key`；Unix 下 `0600`；
+    **绝不打日志**（只报长度与来源）；进程内用 `OnceLock` 缓存 ⇒ sidecar 与
+    前端命令拿到的**是同一把**；
+  - 新增 Tauri 命令 `get_admin_token` ⇒ 前端拿得到那把钥匙；
+  - 新增 `src/lib/adminToken.ts` —— Tauri 走 sidecar，web 走
+    `localStorage['shadow-admin-token']` ⇒ **拿不到就 `undefined`**；
+  - `telencephalonClient.request()` 统一带上 `X-Admin-Token`；
+  - `issueSubsystemToken` 里那个 `?? 'dev-admin-key'` **字面量删掉**
+    （它打进前端产物 ⇒ 从来不是秘密 ⇒ 而端脑曾对它「认任何人」）。
+- **⚠️ 一条设计取舍**：**没有钥匙就不带那个头**（不塞占位值）⇒ 因为**空的
+  `X-Admin-Token` 在旧实现里与空串 `ct_eq` 相等 ⇒ 等于带对了** ⇒ 宁可不带
+  （端脑回 401 且说人话）。
+- **⚠️ 契约套件跟着改**（`tests/api-contract/*`）：admin token **只从环境变量
+  来**（`SHADOW_TEST_ADMIN_TOKEN`）⇒ 没有就**跳过** admin 类探测并说清原因
+  ⇒ 以前那个字面量默认值让套件在默认安装下**不带凭据也能过** ⇒ 等于没测。
+- **验证**：`cargo check --lib` **EXIT=0**；`tsc --noEmit` **EXIT=0**；
+  全量 `vitest run` ⇒ **121 文件 / 1216 passed / 6 skipped / 0 failed**
+  （基线 120 / 1209 ⇒ **+1 文件 / +7 条**）；端脑侧 `--lib` **617 passed**、
+  端到端 **5 passed**、跨域取证 **2 passed**；项目静态闸
+  `scripts/check-auth-backdoors.mjs` ⇒ **4 → 0**。
+- **⚠️ 还欠的**：`CorsLayer::permissive()` **没收**（这张面同时是 webview 的
+  目标 ⇒ 收它要带 allowlist）；`/models/providers` **仍零鉴权**（端脑仓改成
+  掩码了 ⇒ 密钥不再出网，但「删光供应商」仍可做 ⇒ 加门归 router 层那一档）；
+  独立端脑服务器现在**默认 admin 面关着**（没配 `TELENCEPHALON_ADMIN_KEY`）
+  ⇒ 桌面端若指向它，两边要用**同一个**环境变量。
