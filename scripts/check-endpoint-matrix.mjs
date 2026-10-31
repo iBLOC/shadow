@@ -54,13 +54,14 @@ const MATRIX_PATH = join(
 );
 
 function parseArgs(argv) {
-  const opts = { source: resolve(REPO, '..', 'telencephalon'), why: null };
+  const opts = { source: resolve(REPO, '..', 'telencephalon'), why: null, selfTest: false };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--source') opts.source = resolve(argv[++i]);
     else if (argv[i] === '--why') opts.why = argv[++i];
+    else if (argv[i] === '--self-test') opts.selfTest = true;
     else if (argv[i] === '-h' || argv[i] === '--help') {
       console.log(
-        '用法: node scripts/check-endpoint-matrix.mjs [--source <telencephalon 路径>] [--why <某个路径>]',
+        '用法: node scripts/check-endpoint-matrix.mjs [--source <telencephalon 路径>] [--why <某个路径>] [--self-test]',
       );
       process.exit(0);
     } else {
@@ -150,6 +151,21 @@ function segmentCommonPrefix(a, b) {
 }
 
 /**
+ * 剥掉**方法前缀**。
+ *
+ * 判定表里有两种写法：
+ * - 分级表的「端点」列只有路径（方法在**另一列**）；
+ * - §二那张漂移表的第一列写的是 `GET /api/telencephalon/agents`
+ *   —— **方法在反引号里面**。
+ *
+ * ⚠️ 不剥的话，拿去和源码里的路径（源码只有路径、没有方法）比
+ * ⇒ 必然「表里有、源码里找不到」⇒ **假阳性**。
+ */
+function stripMethod(s) {
+  return s.replace(/^(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)\s+/i, '');
+}
+
+/**
  * 一个单元格里可能藏着好几条路径 ⇒ 生成**候选集**。
  *
  * 形态有两种：
@@ -159,7 +175,7 @@ function segmentCommonPrefix(a, b) {
  * 两种都算上 ⇒ 宁可多算覆盖，也不误报「漏了」。
  */
 function candidatePaths(cell) {
-  const items = [...cell.matchAll(/`([^`]+)`/g)].map((m) => m[1]);
+  const items = [...cell.matchAll(/`([^`]+)`/g)].map((m) => stripMethod(m[1]));
   if (items.length === 0) return [];
   const cands = new Set([items[0]]);
   for (const it of items.slice(1)) {
@@ -252,35 +268,160 @@ function pathsInMatrix() {
     // 主路径（单元格的第一项）—— 「表里多写了」只用主路径来报，
     // 否则会把我**拼出来的候选**（`…/start` + `/stop` ⇒ `…/start/stop`）
     // 也报成漂移 ⇒ 一堆噪音。
-    const primary = [...endpointCell.matchAll(/`([^`]+)`/g)].map((m) => m[1])[0];
+    const primary = [...endpointCell.matchAll(/`([^`]+)`/g)].map((m) => stripMethod(m[1]))[0];
     if (primary) entries.push({ cls, path: primary, primary: true });
   }
   return entries;
 }
 
 /**
- * 整份文档里出现过的**所有**反引号路径 —— 不只是表格里的。
+ * 抽出正文里的**行内代码跨度**（CommonMark 规则）。
+ *
+ * ## 为什么不能用「顺序配对」
+ *
+ * Markdown 的行内代码跨度**可以跨行**，而且闭合串的反引号数必须与开启串
+ * **相等**（CommonMark §6.1）。而 `` /`([^`]+)`/g `` 这种「按顺序两两配对」
+ * 只在「每个跨度都在一行里、且每行反引号成对」时才成立。
+ *
+ * ⚠️ **实测踩到的两种形态**（判定表里都有）：
+ * - 散文里出现 **三个连续反引号**（L100：「而围栏的 ``` 里有…」）
+ *   ⇒ 顺序配对从这里起**整体错一格**；
+ * - **跨行的行内代码**（L209-210：`shadow-mobile/lib/…/telencephalon/`
+ *   换行才闭合）⇒ 顺序配对把跨度接错。
+ *
+ * ⇒ 两种叠加 ⇒ 全文只剩 13 个路径 token（文档明明有几百个）
+ * ⇒ 通配行 `/…/preview/*`、`/api/sessions/*` 永远覆盖不到具体路径
+ * ⇒ 守卫报「漏了 18 条」—— **而源码一个路由都没变** ⇒ **表没坏，是解析器坏了**。
+ *
+ * ## 规则怎么实现
+ *
+ * 扫到一串反引号（长度 N）⇒ 往后找**长度恰为 N**的另一串 ⇒ 它闭合这个跨度
+ * ⇒ 找不到就当普通字符跳过。围栏（```）已被 `splitFences` 抹平 ⇒
+ * 散文里剩下的多反引号串不会误闭合。
+ */
+function inlineSpans(text) {
+  const spans = [];
+  const n = text.length;
+  let i = 0;
+  while (i < n) {
+    if (text[i] !== '`') {
+      i++;
+      continue;
+    }
+    let open = 0;
+    while (i + open < n && text[i + open] === '`') open++;
+    // 往后找**长度恰为 open**的闭合串
+    let j = i + open;
+    let close = -1;
+    while (j < n) {
+      if (text[j] !== '`') {
+        j++;
+        continue;
+      }
+      let len = 0;
+      while (j + len < n && text[j + len] === '`') len++;
+      if (len === open) {
+        close = j;
+        break;
+      }
+      j += len;
+    }
+    if (close === -1) {
+      i += open; // 没有同长度的闭合串 ⇒ 这串反引号是普通文字
+      continue;
+    }
+    spans.push(text.slice(i + open, close));
+    i = close + open;
+  }
+  return spans;
+}
+
+/**
+ * 整份文档里出现过的**所有**路径 —— 不只是表格里的。
  *
  * 因为文档还有散文段落（§「不在移动端那张面上的（host 端才有）」）明确点了
  * `/api/sessions/*` 这类**只在 host 端存在**的路由 ⇒ 它们**不该**被算成「漏了」。
  */
-function mentionedPaths() {
-  const raw = readFileSync(MATRIX_PATH, 'utf8');
+function mentionedPathsIn(raw) {
   const { prose, fences } = splitFences(raw);
   const out = [];
-  // 正文：反引号顺序配对（围栏已抹平 ⇒ 不会整体错位）
-  for (const m of prose.matchAll(/`([^`]+)`/g)) {
-    if (m[1].startsWith('/')) out.push(m[1]);
-  }
-  // 围栏：**按行各自配对**（行内配对不会跨行 ⇒ 不受整体错位影响）⇒ 路径一个不丢
+  const push = (s) => {
+    // 一个跨度里可能塞了**好几条路径**（散文里写 `` `GET /a/b|/c` ``）
+    // ⇒ 拆开，各看各的。
+    for (const part of stripMethod(s.trim()).split('|')) {
+      const t = part.trim();
+      if (t.startsWith('/')) out.push(t);
+    }
+  };
+  // 正文：CommonMark 跨度（跨行也算一个跨度）
+  for (const s of inlineSpans(prose)) push(s);
+  // 围栏：**按行各自解析**（围栏里 markdown 不再解析跨度 ⇒ 一行一行看）
   for (const block of fences) {
     for (const line of block) {
-      for (const m of line.matchAll(/`([^`]+)`/g)) {
-        if (m[1].startsWith('/')) out.push(m[1]);
-      }
+      for (const s of inlineSpans(line)) push(s);
     }
   }
   return out;
+}
+
+function mentionedPaths() {
+  return mentionedPathsIn(readFileSync(MATRIX_PATH, 'utf8'));
+}
+
+// ---------------------------------------------------------------------------
+// 自检（守卫的守卫）
+// ---------------------------------------------------------------------------
+
+/**
+ * 判定表**本身**会被不断改写 ⇒ 解析器必须扛得住文档的普通写法。
+ *
+ * ⚠️ 这不是「测试覆盖率」的自嗨，是**防假绿**：解析器一旦被文档格式带坏
+ * （配对错位 ⇒ token 几乎为 0 ⇒ 通配行失效），
+ * 守卫会**稳定地报一堆假阳性** ⇒ 而「守卫一直是红的」比「没有守卫」更坏
+ * ⇒ 下一个人会以为表坏了 ⇒ **把真行删掉**。
+ *
+ * ⇒ 所以把这三种**实测踩到过**的文档形态钉死：
+ * ① 散文里出现三个连续反引号；
+ * ② 行内代码**跨行**才闭合；
+ * ③ 方法写在反引号里面（`GET /api/…`）。
+ */
+function selfTest() {
+  const SAMPLE = [
+    '普通段落里的 `/api/plain/one` 应当被认出来。',
+    '而围栏的 ``` 里有**相邻**反引号 ⇒ 配不出空 span。',
+    '跨行的行内代码：',
+    '`shadow-mobile/lib/services/telencephalon/',
+    'telencephalon_client.dart:679-687`）在 `_apiKey` 非空时加 `X-Shadow-Key`',
+    '```bash',
+    'curl -X POST http://127.0.0.1:60080/a2a',
+    '```',
+    '| `/api/flows` | `/{id}` | `/executions` | GET | flow | ✅ | 说明 |',
+    '`GET /api/telencephalon/agents` 这一行的方法写在反引号里。',
+  ].join('\n');
+
+  const toks = mentionedPathsIn(SAMPLE);
+  const has = (t) => toks.includes(t);
+  const cases = [
+    ['普通行内代码被认出来', has('/api/plain/one')],
+    ['散文里的 ``` 不破坏后面的配对', has('/api/flows') && has('/executions')],
+    ['表格单元格的路径被认出来', has('/{id}')],
+    ['方法前缀被剥掉', has('/api/telencephalon/agents')],
+    ['跨行跨度不会被当成路径', !toks.some((t) => t.includes('\n'))],
+    ['认出来的 token 数合理（不是 0，也不是全文）', toks.length >= 4 && toks.length <= 12],
+  ];
+
+  console.log('自检：文档形态 → 路径 token');
+  for (const [name, ok] of cases) {
+    console.log(`  ${ok ? '✔' : '✘'} ${name}`);
+  }
+  console.log(`  （认出的 token：${toks.map((t) => JSON.stringify(t)).join(' ')}）`);
+  const failed = cases.filter(([, ok]) => !ok);
+  if (failed.length > 0) {
+    console.error(`\n✘ 自检没过 ${failed.length} 条 —— 解析器被文档格式带坏了。`);
+    return false;
+  }
+  console.log('\n✔ 自检全过。');
+  return true;
 }
 
 /** 一个 token 能不能当「尾巴」用（源码路径以它结尾）？ */
@@ -312,6 +453,11 @@ function coveredByToken(p, token) {
 
 const opts = parseArgs(process.argv.slice(2));
 
+// 自检先行：解析器坏了就别谈覆盖率了（而且自检**不需要**端脑源码在位）。
+if (opts.selfTest) {
+  process.exit(selfTest() ? 0 : 1);
+}
+
 let routes;
 try {
   routes = routesInSource(opts.source);
@@ -336,7 +482,10 @@ const tokens = mentionedPaths();
 const sourcePaths = new Set(routes.map((r) => r.path));
 
 const isCovered = (p) =>
-  matrixPaths.has(p) || tokens.some((t) => coveredByToken(p, t));
+  matrixPaths.has(p) ||
+  // 表里自己的**通配行**（`/…/preview/*`）也该覆盖它下面的一切
+  [...matrixPaths].some((mp) => mp.endsWith('/*') && coveredByToken(p, mp)) ||
+  tokens.some((t) => coveredByToken(p, t));
 
 // `--why`：这条路径是被哪条规则算成覆盖的？（校验器自己也得可被审）
 if (opts.why) {
@@ -350,8 +499,13 @@ if (opts.why) {
 }
 
 const missing = routes.filter((r) => !isCovered(r.path));
+// 「表里有源码里找不到」：**只报主路径**（候选是我拼出来的，报了是噪音），
+// **通配行不算**（`/…/preview/*` 本来就写得比源码粗 ⇒ 故意多覆盖，不是漂移）。
 const extra = [...matrixPaths].filter(
-  (p) => !sourcePaths.has(p) && matrix.some((m) => m.path === p && m.primary),
+  (p) =>
+    !p.endsWith('/*') &&
+    !sourcePaths.has(p) &&
+    matrix.some((m) => m.path === p && m.primary),
 );
 
 console.log(`源码：${opts.source}`);
