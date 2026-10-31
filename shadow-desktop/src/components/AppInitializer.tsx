@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { invoke } from '@tauri-apps/api/core';
 import { isTauri, prefrontalUrl, neuronUrl } from '../lib/platform';
+import { adminHeaders } from '../lib/adminToken';
 
 const NEURON_BASE = prefrontalUrl();
 
@@ -47,8 +48,12 @@ async function hasConfiguredModelsTauri(): Promise<boolean> {
  * Web build: unchanged legacy probe against the deployed cortex/prefrontal.
  */
 async function hasConfiguredModelsWeb(): Promise<boolean> {
+  // ⚠️ `/models/providers` 在端脑那边**正在被放到 admin 门后面** ⇒ 这一发
+  // 必须带钥匙 ⇒ 否则 401 ⇒ ⇒ `hasCloud` 恒为 false ⇒ ⇒ **用户明明配好了
+  // 模型，却被判定成「没配好」⇒ 踢回设置向导** ⇒ ⇒ 那是「失败长得像成功」。
+  const headers = await adminHeaders();
   const [cloudRes, localRes] = await Promise.allSettled([
-    fetch(`${NEURON_BASE}/models/providers`).then((r) => (r.ok ? r.json() : [])),
+    fetch(`${NEURON_BASE}/models/providers`, { headers }).then((r) => (r.ok ? r.json() : [])),
     fetch(`${NEURON_BASE}/v1/models?engine=llm`).then((r) => (r.ok ? r.json() : { data: [] })),
   ]);
   const hasCloud =

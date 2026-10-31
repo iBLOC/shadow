@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import type { ModelProvider } from '../components/business/AddProviderModal/types';
 import { isTauri, prefrontalUrl, neuronUrl } from '../lib/platform';
+import { adminHeaders } from '../lib/adminToken';
 
 // Cortex base — only used by the web build's legacy provider CRUD.
 // The Tauri app has no cortex HTTP server (embedded encephalon instead),
@@ -243,7 +244,14 @@ function CloudProvidersTab() {
 
   const loadProviders = useCallback(async () => {
     try {
-      const response = await fetch(`${API_BASE}/models/providers`);
+      // ⚠️ **必须带 `X-Admin-Token`** —— `/models/providers` 这张面管着用户的
+      // 云端 LLM 密钥、而且能**改这台大脑的上游指向** ⇒ 端脑正在把它放到
+      // admin 门后面（**没配 token ⇒ fail-closed**）。
+      // ⇒ 拿不到钥匙时**就不带那个头**（端脑回 401，说人话）——
+      // 绝不塞一个空值头（空串与空串 `ct_eq` 相等 ⇒ 等于带对了）。
+      const response = await fetch(`${API_BASE}/models/providers`, {
+        headers: await adminHeaders(),
+      });
       if (!response.ok) throw new Error('Failed to load');
       const result = await response.json();
       setProviders(result);
@@ -258,7 +266,10 @@ function CloudProvidersTab() {
 
   const handleDeleteProvider = async (id: string) => {
     try {
-      await fetch(`${API_BASE}/models/providers/${id}`, { method: 'DELETE' });
+      await fetch(`${API_BASE}/models/providers/${id}`, {
+        method: 'DELETE',
+        headers: await adminHeaders(),
+      });
       await loadProviders();
     } catch (e) {
       console.error('Failed to delete provider:', e);
@@ -267,7 +278,10 @@ function CloudProvidersTab() {
 
   const handleDeleteModel = async (providerId: string, modelId: string) => {
     try {
-      await fetch(`${API_BASE}/models/${providerId}/${modelId}`, { method: 'DELETE' });
+      await fetch(`${API_BASE}/models/${providerId}/${modelId}`, {
+        method: 'DELETE',
+        headers: await adminHeaders(),
+      });
       await loadProviders();
     } catch (e) {
       console.error('Failed to delete model:', e);
@@ -278,7 +292,10 @@ function CloudProvidersTab() {
     setTestingConnection(provider.id);
     setConnectionStatus(prev => ({ ...prev, [provider.id]: null }));
     try {
-      const response = await fetch(`${API_BASE}/models/providers/${provider.id}/test`, { method: 'POST' });
+      const response = await fetch(`${API_BASE}/models/providers/${provider.id}/test`, {
+        method: 'POST',
+        headers: await adminHeaders(),
+      });
       setConnectionStatus(prev => ({ ...prev, [provider.id]: response.ok ? 'success' : 'error' }));
     } catch {
       setConnectionStatus(prev => ({ ...prev, [provider.id]: 'error' }));

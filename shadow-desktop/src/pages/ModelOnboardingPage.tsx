@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Cloud, Server, Cpu, ArrowRight, Loader2 } from 'lucide-react';
 import { prefrontalUrl } from '../lib/platform';
+import { adminHeaders } from '../lib/adminToken';
 import { Button } from '../components/ui/button';
 
 const NEURON_BASE = prefrontalUrl();
@@ -20,8 +21,13 @@ export function ModelOnboardingPage() {
 
   useEffect(() => {
     const check = async () => {
+      // ⚠️ `/models/providers` 在端脑那边**正在被放到 admin 门后面**
+      // ⇒ 这一发**必须带钥匙**，否则 ⇒ 401 ⇒ ⇒ `hasCloud` 恒为 false ⇒ ⇒
+      // ⇒ **用户明明配好了模型，却被判定成「没配好」⇒ 踢回设置向导**
+      // ⇒ ⇒ **那是个失败长得像成功的坑**（页面看起来像「你还没配」）。
+      const headers = await adminHeaders();
       const [cloudResult, localResult] = await Promise.allSettled([
-        fetch(`${NEURON_BASE}/models/providers`)
+        fetch(`${NEURON_BASE}/models/providers`, { headers })
           .then(r => r.ok ? r.json() : Promise.reject(r.status))
           .then(d => Array.isArray(d) && d.length > 0),
         fetch(`${NEURON_BASE}/v1/models?engine=llm`)
