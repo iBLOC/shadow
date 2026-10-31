@@ -531,6 +531,24 @@ async function runSelfTest() {
     );
   }
 
+  console.log('探不到目标时必须说「不知道」（退出码 2）：');
+  {
+    // `127.0.0.1:1` —— 几乎肯定没有服务在听 ⇒ 每一发都连不上。
+    // ⚠️ 这条钉的是「**目标不可达时不能报「0 条开着」**」——
+    //    端脑没起 / 端口写错 / 设备离线 ⇒ 全都长这样 ⇒ ⇒
+    //    修之前这一跑会退出 **0**（看着像「这张面没洞」）⇒ ⇒ 恒绿的自检最坏。
+    const child = spawnSync(
+      process.execPath,
+      [fileURLToPath(import.meta.url), '--base', 'http://127.0.0.1:1'],
+      { encoding: 'utf8' },
+    );
+    check(
+      '目标不可达 ⇒ 退出码 2（不是 0「看着像没洞」）',
+      child.status === 2,
+      `status=${child.status} stderr=${(child.stderr ?? '').slice(0, 120)}`,
+    );
+  }
+
   if (failures.length) {
     console.error(`\n自检没过：${failures.length} 条 —— 探针自己不可信，先修探针。`);
     await exitWith(1);
@@ -596,7 +614,26 @@ async function main() {
     (r) => (r.cls === 'A' || r.cls === 'B') && (r.verdict === 'OPEN' || r.verdict === 'REACHED'),
   );
   const skipped = results.filter((r) => r.verdict === 'SKIP');
+  const errored = results.filter((r) => r.verdict === 'ERROR');
   const notProbedSiblings = results.reduce((n, r) => n + r.extraPaths.length, 0);
+
+  // ⚠️⚠️ **第四种病（本轮抓到的，而且是最像「通过」的一种）**：
+  // **目标根本连不上** ⇒ 每一发都是 `ERROR` ⇒ 「不拿凭据就能进」数出来是 **0 条**
+  // ⇒ ⇒ 报告读起来像「这张面干干净净」⇒ ⇒ 而真相是「**探针什么都没探到**」
+  // ⇒ ⇒ ⇒ 端脑没起 / 端口错了 / 设备离线 ⇒ **全都长这样**。
+  // ⇒ ⇒ 所以：**一条都没探到 ⇒ 什么都不知道 ⇒ 退出码 2**（「不知道」≠「没问题」）。
+  const probed = results.filter((r) => r.verdict !== 'SKIP');
+  if (probed.length > 0 && errored.length === probed.length) {
+    console.error('');
+    console.error(
+      `  ⚠️⚠️⚠️ **一条都没探到**（${errored.length}/${probed.length} 发全部连不上：${errored[0]?.note ?? ''}）`,
+    );
+    console.error('     ⇒ 目标不可达（端脑没起 / 端口不对 / 设备离线）⇒');
+    console.error('     ⇒ **「不拿凭据就能进 0 条」不是「这张面没洞」，是「我什么都没探到」**');
+    console.error('     ⇒ 「不知道」≠「没问题」⇒ 退出码 2。');
+    await exitWith(2);
+    return;
+  }
 
   if (opts.json) {
     console.log(
@@ -641,6 +678,9 @@ async function main() {
     }
     console.log('小结：');
     console.log(`  不拿凭据就能进（A/B 类）：${openAb.length} 条`);
+    if (errored.length > 0) {
+      console.log(`  ⚠️ 另有 ${errored.length} 发**探测失败**（连不上）⇒ 那几条什么都不知道，不计入上面。`);
+    }
     for (const r of openAb) console.log(`    ${r.cls}  ${r.path}  (${r.status})`);
     for (const round of extraRounds) {
       const stillOpen = round.results.filter(
