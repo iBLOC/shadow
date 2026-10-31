@@ -596,6 +596,17 @@ The same `src/` produces **two artefacts**:
   （基线 120 / 1209 ⇒ **+1 文件 / +7 条**）；端脑侧 `--lib` **617 passed**、
   端到端 **5 passed**、跨域取证 **2 passed**；项目静态闸
   `scripts/check-auth-backdoors.mjs` ⇒ **4 → 0**。
+- **✅ 反向验证**：去掉客户端的 header 注入 ⇒ **恰好 2 条红**（断言「带上了」
+  +「两个域」），另 2 条（「没有就不带」）仍绿；端脑放回那条后门 ⇒ **恰好 1 条
+  红**（其余 13 条仍绿）；端脑让 providers 的掩码失效 ⇒ **恰好 2 条红**
+  （写回那条仍绿 —— 它测的是回写逻辑，本就不依赖掩码）。
+- **⚠️ 新测试当场抓到一个真 bug**：JS 里 `'   '` 是 **truthy** ⇒ 「
+  `if (adminToken)`」这个判据太松 ⇒ **空白值会被当成一把钥匙发出去** ⇒ ⇒
+  改成「trim 之后还剩东西吗」。
+- **⚠️ 本机跑不了桌面端的 Rust 单测**（既有环境限制，非本档引入）：
+  dev-dependency `neuron` ⇒ `lance` ⇒ `lance-encoding` 的 build script 需要
+  **`protoc`**（本机没有）⇒ ⇒ 改用 `rustc --test` **单编那个模块** ⇒
+  **4 passed** ⇒ ⇒ 至少证明 `#[cfg(test)]` 那段**编得过、跑得过**。
 - **⚠️ 还欠的**：`CorsLayer::permissive()` **没收**（这张面同时是 webview 的
   目标 ⇒ 收它要带 allowlist）；`/models/providers` **仍零鉴权**（端脑仓改成
   掩码了 ⇒ 密钥不再出网，但「删光供应商」仍可做 ⇒ 加门归 router 层那一档）；
