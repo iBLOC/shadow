@@ -574,7 +574,11 @@ export class TelencephalonClient {
     //
     // ⚠️ 拿不到就**不带**那个头 —— 空的 `X-Admin-Token` 在旧实现里与空串
     // `ct_eq` 相等 ⇒ **过**（手机上整个 admin 面就是这么开着的）。
-    const adminToken = await getAdminToken();
+    //
+    // ⚠️ **自己再 trim 一次**（不信任上游模块的输出）：JS 里 `'   '` 是
+    // **truthy** ⇒ ⇒ 空白值会被当成一把钥匙发出去 ⇒ ⇒ 判据是
+    // 「trim 之后还剩东西吗」。
+    const adminToken = (await getAdminToken())?.trim();
     if (adminToken) {
       headers['X-Admin-Token'] = adminToken;
     }

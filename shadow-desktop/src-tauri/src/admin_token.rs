@@ -201,14 +201,24 @@ mod tests {
 
     #[test]
     fn the_stored_token_round_trips() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("admin.key");
+        // ⚠️ 不用 `tempfile` —— 桌面端的 dev-dependencies 里**没有**它
+        // （加它要动 Cargo.toml + lockfile）⇒ 自己造一个唯一目录，测完删掉。
+        let dir = std::env::temp_dir().join(format!(
+            "shadow-admin-token-test-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        std::fs::create_dir_all(&dir).expect("the temp dir must be creatable");
+        let path = dir.join("admin.key");
+
         let token = generate_token();
         write_stored(&path, &token).unwrap();
         assert_eq!(read_stored(&path).as_deref(), Some(token.as_str()));
 
-        // 空文件 ⇒ 不算钥匙。
+        // 空文件 ⇒ 不算钥匙（空串是「没配」，不是「配了一把空的」）。
         std::fs::write(&path, "   \n").unwrap();
         assert_eq!(read_stored(&path), None);
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
