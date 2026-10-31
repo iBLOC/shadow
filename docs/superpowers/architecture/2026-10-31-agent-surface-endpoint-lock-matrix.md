@@ -377,6 +377,77 @@ admin 面收口那一档（端脑 `93121d1` / 独立宿主 `7a15359` / 桌面端
 （`AddProviderModal.tsx` 的三发）也必须同时补 `X-Admin-Token`，
 否则「新增供应商」按钮当场失败。
 
+## 二·补·六：CORS ——「谁都能读」改成「只有这几个 origin 能读」（2026-11-01）
+
+⚠️ **这一节不是「该不该锁」那一类** —— 它是**另一根轴**：**门管「谁能进」，
+CORS 管「谁能把响应读走」** ⇒ ⇒ 两根轴**相乘**，缺一根都不成立。
+
+### ① 那个洞（比「明文 key」更宽）
+
+`api::build_full_app`（**桌面 sidecar 与独立端脑服务器走的那张面**）挂着
+`CorsLayer::permissive()` ⇒ `allow_origin(Any)` ⇒ ⇒ **浏览器里任意一个
+网站**都能跨域 `fetch` 这台大脑**并且读到响应** ⇒ ⇒ 而它跑在**用户的机器上**
+（`127.0.0.1:60080`）。
+
+⇒ 2026-10-31 那笔把 `/models/providers` 的明文 LLM key 换成掩码
+（**关掉了 ③**）⇒ 但 **① 还开着** ⇒ ⇒ 其它读接口（会话 / agent 清单 /
+任务 / trace / `/api/telencephalon/logs`）**仍然是敞着的** ⇒ ⇒ 一个网站就能
+把用户这台大脑的状态读走 ⇒ ⇒ 再叠上「本机端口」这条 ⇒ ⇒ 是一条完整的
+**跨站读取链**。
+
+### ② 现在是什么形状（**白名单**，不是 Any）
+
+* 默认名单 = **宿主自己的 origin**，**每一行都有出处**：
+  * `http://localhost:1420` / `http://127.0.0.1:1420` —— 桌面端 vite dev
+    （`tauri.conf.json` 的 `devUrl`）
+  * `http://localhost:5173` / `http://127.0.0.1:5173` —— **web 构建**的
+    vite dev（`vite.config.web.ts`）⇒ ⇒ **也是 Playwright e2e 的家**
+    （`playwright.config.ts`：`baseURL` + `webServer: pnpm dev:web`）
+  * `http://localhost:4173` / `http://127.0.0.1:4173` —— web 构建的
+    vite preview
+  * `tauri://localhost` —— Tauri v2 自定义协议（macOS/Linux）
+  * `http://tauri.localhost` —— Tauri v2 自定义协议（Windows）
+* 配置 `telencephalon.cors.allowed_origins` + 环境变量
+  `TELENCEPHALON_CORS_ALLOWED_ORIGINS` ⇒ **并集**，不是覆盖。
+* 名单在 **boot 解析完快照进 `AppState`**（与 `admin_token` 同一套路：
+  handler 不去抢进程级环境变量）。
+* methods / headers / expose **仍是 Any** ⇒ 那只影响「能发什么 / 能读哪些
+  响应头」⇒ ⇒ **能不能读这个响应**由 origin 白名单决定 ⇒ ⇒ 兼容性不变、
+  暴露面变小。
+
+⚠️ **漏了 5173/4173 会当场自锁 web 构建与 e2e** —— 这两条不是「顺手加的」，
+是 `vite.config.web.ts` 里写着的端口。
+
+### ③ 三种宿主，三种形状（**别把它们当成一种**）
+
+* **桌面 sidecar**（`shadow-desktop/src-tauri/src/cortex_http.rs` ⇒
+  `build_full_app`）⇒ ⇒ **白名单层就是最外层** ⇒ ⇒ 端脑面 + neuron 面 +
+  海马体面**一起**被它管住。
+* **独立端脑服务器**（`encephalon/src/a2a_server.rs` ⇒
+  `telencephalon_router` + neuron + 海马体）⇒ ⇒ 原来那层
+  `permissive()` 是**最外层** ⇒ ⇒ 现在换成同一张白名单。
+* **手机 / 嵌入式宿主**（`boot::cortex_router`）⇒ ⇒ **根本没有 CORS 层**
+  ⇒ ⇒ 它的请求来自 **Dart**（不是浏览器）⇒ ⇒ **不需要**任何 CORS 允许
+  ⇒ ⇒ 不动它 = 不新增暴露。
+
+⚠️ **外层会覆盖内层** —— tower-http 写响应头用的是 `extend`（后写的赢）
+⇒ ⇒ 所以**最外层那一层才是闸** ⇒ ⇒ 内层留着 permissive 也不影响
+⇒ ⇒ 但仍要收（少一颗地雷）。
+
+### ④ 边界（**CORS 不是访问控制**）
+
+⚠️ **CORS 挡的是「浏览器里的别的网站」这一类攻击者** —— 同机其它进程照样能
+直接打端脑（**不带 Origin 头 ⇒ 根本不进 CORS 这条路**）⇒ ⇒ 那是**门**
+（凭据）的事 ⇒ ⇒ **步 3** 不能因为 CORS 收了就当没那回事。
+
+⚠️ **CORS 挡的是「读」，不是「打」** —— 请求**照样到达服务端**
+⇒ ⇒ 所以 ③ 那道门（掩码）**不能省** ⇒ ⇒ 两条一起才是闭环。
+
+⚠️ **残留**：**neuron 自己那个独立服务器**（`neuron/src/server/mod.rs`
+的 `create_router`）**仍是 permissive**（照 ollama 的做法）⇒ ⇒ 那是
+**另一个产品**（neuron 单跑）的设计 ⇒ ⇒ 要收得连 neuron 仓一起改
+⇒ ⇒ **另开一笔**，别把它悄悄算进这一笔。
+
 ## 三、「扩展到整张面」几乎免费 —— 两端都成立
 
 - **移动端**：`TelencephalonClient._headers()`（`shadow-mobile/lib/services/telencephalon/
