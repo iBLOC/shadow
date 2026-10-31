@@ -175,18 +175,28 @@ final _agentStatusIndicator = CatalogItem(
   dataSchema: S.object(
     properties: {
       'agentName': S.string(description: 'Name of the agent'),
-      'status': S.string(description: 'idle|thinking|executing|error'),
+      'status': S.string(
+        description: 'idle|thinking|executing|error|unknown',
+      ),
       'message': S.string(description: 'Current status message'),
     },
     required: ['agentName'],
   ),
   widgetBuilder: (context) {
     final data = context.data as Map<String, Object?>;
-    final status = data['status'] as String? ?? 'idle';
+    // ⚠️ **缺 status 声明 ≠ 「就绪」** ⇒ 缺省落 `unknown`（灰），
+    // 不落 `idle`（绿）—— 「没说」和「没事」是两件事。
+    // ⚠️ **缺 status 声明 ≠ 「就绪」** ⇒ 缺省落 `unknown`（灰），
+    // 不落 `idle`（绿）—— 「没说」和「没事」是两件事。
+    final status = data['status'] as String? ?? 'unknown';
 
     Color statusColor;
     IconData statusIcon;
     switch (status) {
+      case 'idle':
+        statusColor = Colors.green;
+        statusIcon = Icons.circle;
+        break;
       case 'thinking':
         statusColor = Colors.purple;
         statusIcon = Icons.psychology;
@@ -199,9 +209,22 @@ final _agentStatusIndicator = CatalogItem(
         statusColor = Colors.red;
         statusIcon = Icons.error_outline;
         break;
+      case 'unknown':
+        // ⚠️ **「我们不知道」不是「没事」** ——
+        // 端脑从没探活过的叶区（占位记录）就是这一档。
+        statusColor = Colors.grey;
+        statusIcon = Icons.help_outline;
+        break;
       default:
-        statusColor = Colors.green;
-        statusIcon = Icons.circle;
+        // ⚠️ **不认识的值不许当成「没事」** ——
+        // 以前 default 是绿色 ⇒ 端脑一旦多说一个词，手机上就是一片绿灯
+        // ⇒ 典型的「失败长得像成功」。
+        //
+        // ⚠️ 而且手机这一侧**只显示颜色、不显示 status 文本** ⇒
+        // 颜色就是全部的话 ⇒ 落绿 = 撒谎。
+        // ⇒ 现在 default 与 `unknown` 同档：顶多「看不懂」，绝不「看起来健康」。
+        statusColor = Colors.grey;
+        statusIcon = Icons.help_outline;
     }
 
     return Container(

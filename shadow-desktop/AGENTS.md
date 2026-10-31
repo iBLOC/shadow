@@ -612,3 +612,31 @@ The same `src/` produces **two artefacts**:
   掩码了 ⇒ 密钥不再出网，但「删光供应商」仍可做 ⇒ 加门归 router 层那一档）；
   独立端脑服务器现在**默认 admin 面关着**（没配 `TELENCEPHALON_ADMIN_KEY`）
   ⇒ 桌面端若指向它，两边要用**同一个**环境变量。
+
+## STATE STATUS (2026-11-01, A2UI 真机实测 + 叶区状态不许撒谎)
+
+**Completed** ✅:
+
+桌面端这一侧本轮只动了一处，但它是**同一条链上的一块**：
+
+- **✅ 父仓 `shadow/AGENTS.md` ㋊ 条记整条真机链路**（手机第一次真的把 A2UI
+  界面画出来 ⇒ `scripts/prove-a2ui-on-device.ps1` ⇒ 7 条机器可判 + 截图）
+  ⇒ 端脑那一侧见 `telencephalon/AGENTS.md` ㉝ 条，移动端那一侧见
+  `shadow-mobile/AGENTS.md` ㋀ 条 ⇒ **本条只记桌面端这一侧的形状**。
+- **⚠️⚠️ 修掉一个「失败长得像成功」**：`AgentStatusIndicator` 的 `status`
+  以前**不认识的值一律落回 `idle`**（`A2uiSurface.tsx:255`）⇒ ⇒ 端脑说
+  `unknown`（=「我们从没探活过它」）⇒ 桌面端会画成 `idle`；端脑哪天**多说一个词**
+  ⇒ 同样落成 `idle` ⇒ ⇒ **又一次「失败长得像成功」**。
+  ⇒ **改法**：① `status` 联合类型加 `unknown`；② `AGENT_STATUS_STYLE` 加
+  `unknown`（**虚线框** ⇒ 形状上就与 `idle` 分得开，不靠颜色赌）；
+  ③ **兜底从 `idle` 改成 `unknown`**；④ **缺 `status` 声明 ⇒ 缺省 `unknown`**
+  （「没说」和「没事」是两件事）。
+- **✅ 测试 + 反向验证**：`src/components/chat/__tests__/a2ui.test.tsx` 新增一条
+  （断言**形状**与 `data-status`：三行分别给 `unknown` / 端脑多说的词 / `idle`，
+  外加一行**根本不说 status**）⇒ ⚠️ **反向验证**：把兜底改回 `idle` ⇒
+  **恰好 1 红**，其余 15 条仍绿 ⇒ ⇒ **断言有分辨力，不是恒绿**。
+  ⇒ 全量 `pnpm exec vitest run` ⇒ **124 文件 / 1230 通过 / 6 跳过 / 0 失败**。
+- **⚠️ 还欠的**：**服务端产出的界面文案仍是英文**（`Tasks (1)` / `HIGH` /
+  `not probed`）⇒ 桌面端面板现在中英混排；「空 / 失败」在协议层是**三种**状态
+  （有内容 / 有 surface 但空 / 纯文本），面板仍并成两种；**桌面端没有 shadow key
+  输入入口**（既有缺口）⇒ 端脑配了 key 而桌面端没有 ⇒ 面板 401（面板会明说）。

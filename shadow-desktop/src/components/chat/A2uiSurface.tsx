@@ -54,7 +54,7 @@ interface TaskCardProps extends A2uiProps {
 /** Props of `AgentStatusIndicator` — same catalog item on mobile. */
 interface AgentStatusIndicatorProps extends A2uiProps {
   agentName?: string;
-  status?: 'idle' | 'thinking' | 'executing' | 'error';
+  status?: 'idle' | 'thinking' | 'executing' | 'error' | 'unknown';
   message?: string;
 }
 
@@ -98,6 +98,10 @@ const AGENT_STATUS_STYLE: Record<string, string> = {
   thinking: 'bg-brand/10 text-[hsl(var(--warning))]',
   executing: 'bg-brand/10 text-brand',
   error: 'bg-destructive/10 text-destructive',
+  // ⚠️ **「我们不知道」不是「没事」** —— 端脑从没探活过的叶区（占位记录）就是这一档。
+  // 用虚线边框把它和 `idle` 区分开：桌面端**显示 status 文本**，
+  // 但形状也要能区分（两端的说法必须一致）。
+  unknown: 'bg-muted text-muted-foreground border border-dashed border-muted-foreground',
 };
 
 export interface A2uiSurfaceProps {
@@ -239,7 +243,9 @@ function A2uiNode({
 
     case 'AgentStatusIndicator': {
       const indicator = props as AgentStatusIndicatorProps;
-      const status = indicator.status ?? 'idle';
+      // ⚠️ **缺 status 声明 ≠ 「就绪」** ⇒ 缺省落 `unknown`，不落 `idle`
+      // （「没说」和「没事」是两件事）。
+      const status = indicator.status ?? 'unknown';
       return (
         <div
           className="flex items-center gap-2 rounded-lg border border-border bg-card p-3"
@@ -248,7 +254,7 @@ function A2uiNode({
         >
           <span
             className={`rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wide ${
-              AGENT_STATUS_STYLE[status] ?? AGENT_STATUS_STYLE.idle
+              AGENT_STATUS_STYLE[status] ?? AGENT_STATUS_STYLE.unknown
             }`}
           >
             {status}

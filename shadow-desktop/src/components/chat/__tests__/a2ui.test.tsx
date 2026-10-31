@@ -237,6 +237,70 @@ describe('A2UI surface renderer — desktop', () => {
     );
   });
 
+  it('never paints an unknown agent status as "idle" (unknown ≠ healthy)', () => {
+    // ⚠️ 端脑对「从没被探活过的叶区」报 `unknown`
+    // （`telencephalon/src/a2a/a2ui.rs` 的 `agent_status`）⇒ 客户端
+    // **不许**把它画成 `idle` —— 在手机上是**绿灯**（= 就绪），
+    // 而那 4 条占位叶区**从来没被联系过**。
+    //
+    // ⚠️ 端脑哪天多说一个词（客户端还不认识）⇒ **也不许**落回 idle。
+    const model = new A2uiSurfaceModel();
+    model.applyPayload({
+      surfaceUpdate: {
+        surfaceId: 'shadow.agents',
+        components: [
+          { id: 'root', component: { Column: { children: ['a0', 'a1', 'a2', 'a3'] } } },
+          {
+            id: 'a0',
+            component: {
+              AgentStatusIndicator: {
+                agentName: 'parietal',
+                status: 'unknown',
+                message: 'not probed',
+              },
+            },
+          },
+          {
+            id: 'a1',
+            component: { AgentStatusIndicator: { agentName: 'temporal', status: 'brand-new' } },
+          },
+          {
+            id: 'a2',
+            component: { AgentStatusIndicator: { agentName: 'frontal', status: 'idle' } },
+          },
+          {
+            // ⚠️ **连 status 都没说** ⇒ 更不许当成「就绪」。
+            id: 'a3',
+            component: { AgentStatusIndicator: { agentName: 'occipital' } },
+          },
+        ],
+      },
+    });
+    model.applyPayload({ beginRendering: { surfaceId: 'shadow.agents', root: 'root' } });
+
+    render(<A2uiSurface surface={model.get('shadow.agents')!} />);
+
+    const rows = screen.getAllByTestId('a2ui-agent-status');
+    expect(rows).toHaveLength(4);
+    const badge = (row: HTMLElement): string => row.querySelector('span')?.className ?? '';
+
+    // `unknown` 有自己的一档（虚线框）⇒ 形状上就与 `idle` 分得开
+    expect(rows[0]).toHaveAttribute('data-status', 'unknown');
+    expect(badge(rows[0])).toContain('border-dashed');
+
+    // ⚠️ **端脑多说一个词** ⇒ 也不许落回 `idle` 那档
+    expect(rows[1]).toHaveAttribute('data-status', 'brand-new');
+    expect(badge(rows[1])).toContain('border-dashed');
+
+    // ⚠️ **连 status 都没说** ⇒ 缺省是「不知道」，不是「就绪」
+    expect(rows[3]).toHaveAttribute('data-status', 'unknown');
+    expect(badge(rows[3])).toContain('border-dashed');
+
+    // `idle` 是另一档（没有虚线）⇒ 上面的断言有分辨力，不是恒真
+    expect(rows[2]).toHaveAttribute('data-status', 'idle');
+    expect(badge(rows[2])).not.toContain('border-dashed');
+  });
+
   it('renders a component that is referenced twice, twice', () => {
     // ⚠️ The cycle guard must ask "is this an **ancestor** of me?", not
     // "have I seen this id before?" — a "seen" set would silently swallow the

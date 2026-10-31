@@ -690,6 +690,160 @@ shadow/fixtures/a2ui/tasks_sse.txt        ← 端脑的真实 SSE 字节
    （有内容 / 有 surface 但空 / 纯文本），桌面端面板目前把它们并成两种
    ⇒ **值得下一片拆开**。
 
+### 6.6 真机实测（2026-11-01）：**手机真的把界面画出来了**
+
+> ⚠️ 承 ㊼ 条 ⑦ 说的那句「**还差的是『桌面客户端真的把界面画出来』那段运行时证据**」
+> —— 桌面端那段在 §6.5.8 补上了（另一台会话），**手机那段本轮补上**。
+
+#### 6.6.1 为什么这一片是**必需**的：证据链中间那截一直是空的
+
+到本轮为止，A2UI 这条链的证据是**三段拼起来**的：
+
+| 段 | 证据 | 它证明什么 |
+|---|---|---|
+| 端脑侧 | Rust 单测 + JNI 宿主直测（真 `.so`、真嵌入式端脑） | `/a2a` 真的在吐 surface |
+| 桌面侧 | `a2ui.live.test.tsx`（§6.5.8） | 桌面客户端真的对着**活的**端脑画出了 DOM |
+| 移动侧 | `test/widget/a2ui_*_test.dart` | ⚠️ **喂的是录下来的字节** |
+
+⇒ **中间那截是空的**：没有任何一份证据说明「**手机**真的把界面画出来」。
+录下来的字节证明不了它 —— 真机上还多出三件录下来的字节里没有的东西：
+
+1. **地址**：端脑面端口**每次启动随机分配**
+   （logcat：`✅ Encephalon started on port 42157 (agent surface: 40103)`）；
+2. **钥匙**：`X-Shadow-Key`（手机那把是 Kotlin 侧生成、同时递给端脑的）；
+3. **真机渲染**：Flutter 的 widget 树、目录校验、SSE 逐块解码。
+
+#### 6.6.2 怎么复跑：`scripts/prove-a2ui-on-device.ps1`
+
+**设备**：`ee6b4832`（小米 2106118C / Android 13），装的是 `com.ibloc.shadow`
+（`lastUpdateTime = 2026-11-01 00:06:35`，**晚于** A2UI 那笔 Dart 提交
+`6462ede`（23:49:36）⇒ 装上去的那份**含** A2UI 客户端）。
+
+脚本干的事（**7 条机器可判** + 1 张截图）：
+
+```
+设备：ee6b4832
+端脑面端口：40587
+映射：http://127.0.0.1:40539 ⇒ 设备上的 40587
+钥匙已取到（长度 shadow=43 / admin=43，**不打印**）
+任务已建：A2UI-device-proof-1793464479
+探针 A（无钥匙）⇒ HTTP 401
+探针 B（对钥匙）⇒ HTTP 200  content-type=text/event-stream
+  ✓ 无钥匙 ⇒ 401
+  ✓ 对钥匙 ⇒ 200
+  ✓ 响应是 SSE
+  ✓ 载荷里有 surfaceUpdate
+  ✓ 载荷里有 beginRendering
+  ✓ surface id 是 shadow.tasks
+  ✓ 载荷里有刚建的那条任务
+✓ 探针全过
+驱动界面：进 A2UI → 发 a2ui:tasks
+截图：artifacts/a2ui-device/a2ui-device-proof.png
+⇒ 真机 A2UI 链路成立。
+```
+
+⚠️ **它凭什么能拿到钥匙**：`com.ibloc.shadow` 是 **debuggable** 的
+（`dumpsys package` ⇒ `flags=[ DEBUGGABLE HAS_CODE … ]`）
+⇒ `adb shell run-as com.ibloc.shadow cat files/shadow.key` 可读（43 字符）
+⇒ **钥匙只进 HTTP 头，绝不打印**（与「两把钥匙都只写文件、不打印」那条纪律一致）。
+
+⚠️ **判据为什么是「机器可判」**：断言里带的是**本次运行独有**的任务标题
+（`A2UI-device-proof-<unix秒>`）⇒ 「载荷里有刚建的那条任务」这条断言
+**不可能**被录下来的字节满足 ⇒ 它验的是**活的数据**，不是形状。
+
+#### 6.6.3 真机上的读数：四种组件**全部**验到
+
+截图里能看到（`artifacts/a2ui-device/a2ui-device-proof.png`）：
+
+- 状态栏：**「已连接到 Shadow A2A 服务器」**（绿灯）⇒ 客户端带对了钥匙；
+- `Tasks (1)` ⇒ `Text` 组件（服务端给的标题，**英文**）；
+- 任务卡 `A2UI-device-proof-1793464479` + 描述 + **HIGH** 徽标 ⇒ `TaskCard` 组件；
+- `Agents (4)` 四行 ⇒ `AgentStatusIndicator` 组件（parietal / occipital / prefrontal / temporal）；
+- 整棵树的根 ⇒ `Column` 组件。
+
+⇒ **四种组件在真机上第一次全部验到**（桌面端那侧只画前两种是常态，因为它的
+两个视图分别只用到 `Text` + `TaskCard` / `Text` + `AgentStatusIndicator`）。
+
+⚠️ **另一个只在真机上才看得见的语义**：**同一个 surface 是「就地更新」，不是「再开一个」**。
+第一次请求 `a2ui:tasks` 得到 `Tasks (0)`，第二次请求**没有**开出第二个 `Tasks`，
+而是**同一个位置**换成了 `Tasks (1)` ⇒ A2UI 的「界面被更新」语义在真机上成立
+（端脑给的 surface id 是**按视图稳定**的：`shadow.tasks` / `shadow.agents`）。
+
+#### 6.6.4 ⚠️⚠️ 真机才暴露的两个坑（脚本第一版就卡在这）
+
+1. **App 已经在跑时 `am start` 不会重启它** ⇒ 实测回的是
+   `Warning: Activity not started, intent has been delivered to currently running top-most instance.`
+   ⇒ **不会**有新的「Encephalon started」那行 ⇒ 而 logcat 又被 `-c` 清过
+   ⇒ ⇒ **端口永远读不到** ⇒ 脚本第一版直接卡死在这儿
+   ⇒ ⇒ **必须先 `am force-stop` 再起**（⇒ 端脑重启 ⇒ 端口换新的 ⇒ 必须起完再读）。
+2. **`adb shell input tap` 要 x y 两个坐标**，不是一个 ⇒ 第一版写成单值
+   ⇒ 设备回 `IllegalArgumentException: Argument expected after "480"`。
+   ⇒ ⇒ 脚本的参数改成 `"x,y"` 坐标对。
+
+⇒ **教训**（㋉ 条那条纪律的又一次兑现）：**「跑通了」不等于「脚本能复跑」** ——
+手动点的每一步都可能藏着一个「当时恰好成立」的前提。
+
+#### 6.6.5 ⚠️⚠️ 顺手逮到：「失败长得像成功」的**第二处复发**
+
+真机截图上，`Agents (4)` 那四行是**绿点**。而那四条是端脑启动时**自己种下**的
+**占位**叶区（prefrontal / temporal / parietal / occipital）⇒ 它们
+**从来没被联系过** ⇒ 端脑在**另一张面**说的是实话：
+
+```
+GET /api/telencephalon/agents
+  ⇒ {"name":"parietal", …, "health_status":"unknown", …}
+```
+
+⇒ ⇒ **两张面互相矛盾**：一张说「我们没联系过它」，另一张画**绿灯**
+（绿灯在那套目录里是 `idle` = 「就绪」）。
+
+**根因**：`render_agents` 拿 `enabled` 当「它活着」——
+`enabled` 是**配置**（用户把它开着了没），**不是事实**（它到底活着没）。
+占位记录 `enabled = true`（默认）⇒ 于是报 `idle` ⇒ **绿灯**。
+
+⇒ 这正是 ㋂ 条那条教训（「端脑知道自己有哪些叶区、它们是否健康这件事，
+**有一半是编的**」）在**新面**上的复发 —— 那一档修的是
+`/api/telencephalon/agents` 那张面（`health_status` ⇒ `Unknown`），
+**A2UI 这张面没跟着改**。
+
+⚠️ **手机上尤其糟**：`AgentStatusIndicator` 在手机上**只显示颜色、不显示 status 文本**
+⇒ **颜色就是全部的话** ⇒ 落绿 = 撒谎。
+
+**修（三端一起，单一真相源在服务端）**：
+
+| 位置 | 改动 |
+|---|---|
+| `telencephalon/src/a2a/a2ui.rs:303` | 新增 `agent_status()`：`Healthy` ⇒ `idle`、**`Unknown` ⇒ `unknown`**、`Degraded`/`Failed` ⇒ `error`、`!enabled` ⇒ `error` |
+| 同上 `:319` | 新增 `agent_message()`：`Unknown` ⇒ `"not probed"`（技能列表不该冒充状态） |
+| `shadow-mobile/lib/services/genui/shadow_catalog.dart:208` | 目录加 `unknown` 档（灰 + 问号）；⚠️ **`default` 也落灰**（端脑多说一个词 ⇒ 同样不许落绿） |
+| 同上 `:187` | ⚠️ **缺 `status` 声明 ⇒ 缺省落 `unknown`**，不落 `idle`（「没说」和「没事」是两件事） |
+| `shadow-desktop/src/components/chat/A2uiSurface.tsx:96` | `AGENT_STATUS_STYLE` 加 `unknown`（虚线框，形状上与 `idle` 分得开）；`:255` 的**兜底从 `idle` 改成 `unknown`**；缺省同样落 `unknown` |
+
+⚠️ **「兜底不许落回 `idle`」这一条最要紧** —— 端脑哪天多说一个词，
+客户端**不认识** ⇒ 旧代码会把它画成 `idle` ⇒ 又一次「失败长得像成功」。
+
+**证据（三端各一条 + 反向验证三连）**：
+
+- 端脑侧 `telencephalon/tests/a2ui.rs`：
+  `agents_view_does_not_claim_health_it_never_measured` —— 它**同时**读
+  `/api/telencephalon/agents`（端脑自己那张面）与 `/a2a`（A2UI 那张面）
+  ⇒ 断言「两张面说同一句话」⇒ **10 passed / 0 failed**；
+  ⚠️ **反向验证**：把 `Unknown` 改回 `idle` ⇒ **恰好 1 红**，其余 9 条仍绿，
+  失败信息是人话：「⚠️ 从没被探活过的叶区不许报 idle（绿灯 = 就绪）：["idle","idle","idle","idle"]」；
+- 移动端 `test/widget/a2ui_agent_status_honesty_test.dart`：断言**颜色**（手机只显示颜色）
+  ⇒ ⚠️ **反向验证**：把 `default` 改回绿色 ⇒ 红；把缺省改回 `idle` ⇒ 红（line 130）；
+- 桌面端 `a2ui.test.tsx`：断言**形状**（虚线框）与 `data-status`
+  ⇒ ⚠️ **反向验证**：把兜底改回 `idle` ⇒ **恰好 1 红**，其余 15 条仍绿。
+
+#### 6.6.6 还欠的（本轮没做，已记）
+
+1. ⚠️ **服务端出的界面文案仍是英文**（`Tasks (1)` / `HIGH` / `not probed`）
+   ⇒ 桌面端与手机端的界面是**中英混排** ⇒ 国际化只做在**客户端诊断文案**上，
+   **没做在服务端产出的界面内容**上。
+2. ⚠️ **「空 / 失败」三态**（§6.5.8 ④）仍然并成两种（`Tasks (0)` 现在被当「成功」）。
+3. ⚠️ **设备端（ESP32）仍然零 A2UI**。
+4. ⚠️ **桌面端没有 shadow key 输入入口**（既有缺口，§6.5.6）⇒ 端脑配了 key 而桌面端没有 ⇒ 面板 401（面板会明说）。
+
 ---
 
 ## 7. 三个可选方向（需要拍板）
