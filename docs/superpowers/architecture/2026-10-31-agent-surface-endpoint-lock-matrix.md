@@ -67,6 +67,29 @@ router**（`api::router` 的返回值）上，**而不是每个模块自己的 r
 逐条命中，0 条未覆盖**（文档里有 30 条是**成组写法**，如
 `…/start | /stop`、`…/preview/*` ⇒ 已逐条核对过）。
 
+### ✅ 复跑脚本已入库（2026-10-31）
+
+⚠️ 上面那次校验用的脚本**从来没进过仓** ⇒ 下一个加端点的人**没法复跑** ⇒ 表会**静默过期**
+⇒ 而表过期 = 判定错 = 该锁的没锁。⇒ 现在它在这儿：
+
+```bash
+node scripts/check-endpoint-matrix.mjs --source C:\Projects\iBLOC\telencephalon
+```
+
+它把 `telencephalon/src/api` 与 `src/flow/api/mod.rs` 里的 `.route("…"` 逐条解析出来，
+与本文档比对 ⇒ **漏了就退出码 1**。
+（它认得这三种成组写法：**后缀** `/…/servers` + `/{id}`、**兄弟** `/…/tools` + `/mcp/agents/…`、
+**通配** `/…/preview/*` ⇒ 不会误报。`--why <路径>` 可以问「这条是被哪条规则算覆盖的」。）
+
+**本次复跑抓到 2 条真漂移**（⇒ 已补进表）：
+
+| 漏的 | 出处 | 说明 |
+|---|---|---|
+| `GET /api/telencephalon/agents` | `src/api/agents.rs` | 表里写的是 `/api/telencephalon/agents/list`（**那条也在**，`agents_registry.rs`）⇒ **两条并存**，表漏了后者 |
+| `POST /a2a` | `src/api/a2ui_gateway.rs` | **2026-10-31 新增**的 A2UI 产出面 ⇒ 已归 B 类并标「**已锁**」 |
+
+⇒ 复跑结果：**128 条路由 / 122 条唯一路径，0 条未覆盖**。
+
 ## 三、「扩展到整张面」几乎免费 —— 两端都成立
 
 - **移动端**：`TelencephalonClient._headers()`（`shadow-mobile/lib/services/telencephalon/
@@ -173,7 +196,7 @@ WebRTC 浏览器、桌面端自己起的 sidecar、外部端脑进程。⇒ 这�
 | `/api/telencephalon/thalamus/video/cameras` \| `/clips` \| `/clips/{camera}/{ts_ms}` | GET | thalamus_video | — | **摄像头清单与录像**（隐私） |
 | `/api/telencephalon/hippocampus/admin/config` | GET | hippocampus_public | — | 海马体配置（⚠️ 仅 host 版有） |
 | `/api/telencephalon/neuron/preview/*` | GET | neuron_public | — | 模型/引擎清单 |
-| `/api/telencephalon/agents/list` \| `/registry` \| `/exposed` \| `/search` \| `/discover` \| `/mirror` | GET | agents_registry / agent_management / agent_search | ✅ | 叶区与 agent 清单 |
+| `/api/telencephalon/agents` \| `/list` \| `/registry` \| `/exposed` \| `/search` \| `/discover` \| `/mirror` | GET | agents_registry / agent_management / agent_search | ✅ | 叶区与 agent 清单 |
 | `/api/telencephalon/lobes/capabilities` \| `/manifest` \| `/manifest/{name}` \| `/runtime/{name}` | GET | lobe_manifest / lobe_runtime | — | 叶区能力面 |
 | `/api/telencephalon/lobes/list` | GET | lobe_runtime | ✅ | 叶区清单 |
 | `/api/telencephalon/devices` \| `/{id}` | GET | device | — | 设备清单 |
@@ -184,6 +207,7 @@ WebRTC 浏览器、桌面端自己起的 sidecar、外部端脑进程。⇒ 这�
 | `/api/flows` \| `/{id}` \| `/executions` \| `/traces` \| `/draft` | GET | flow | ✅ | 工作流定义与执行历史 |
 | `/shadow/v1/agents` \| `/{name}` | GET | shadow | ✅ | 叶区元数据（**已锁**） |
 | `/shadow/v1/conversations` \| `/{id}` | GET | shadow | ✅ | **会话历史**（隐私；**已锁**） |
+| `/a2a` | POST | a2ui_gateway | — | **A2UI 产出面**（把**任务标题**、**agent 名字**渲染成界面吐出来 ⇒ 是一张**数据面**，不是静态面）；⚠️ **已锁**（2026-10-31 新增，与 `/shadow/v1/*` **同一道门** ⇒ `api::shadow_auth::require_shadow_key`）；⚠️ 它同时是 **A2A v0.3 的 JSON-RPC 入口** ⇒ 跨机对端最终要**每台一份凭据**（见 D 类） |
 
 ### C 类 —— 该开着（锁了会自锁 / 本机自用）
 
