@@ -1939,7 +1939,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Override the telencephalon base URL and admin token used by the mobile client.';
 
   @override
-  String get settingsBackendAdminTokenHint => 'leave blank for dev mode';
+  String get settingsBackendAdminTokenHint => 'leave blank for the embedded brain (fill in for an external one)';
 
   @override
   String get settingsDangerZone => 'Danger Zone';

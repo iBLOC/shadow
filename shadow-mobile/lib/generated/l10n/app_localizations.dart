@@ -3611,7 +3611,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsBackendAdminTokenHint.
   ///
   /// In en, this message translates to:
-  /// **'leave blank for dev mode'**
+  /// **'leave blank for the embedded brain (fill in for an external one)'**
   String get settingsBackendAdminTokenHint;
 
   /// No description provided for @settingsDangerZone.

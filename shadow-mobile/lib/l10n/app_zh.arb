@@ -1154,7 +1154,7 @@
   "settingsAdvancedLogs": "日志",
   "settingsAdvancedBackend": "端脑后端地址",
   "settingsAdvancedBackendDesc": "覆盖移动端使用的端脑基础地址与管理员令牌。",
-  "settingsBackendAdminTokenHint": "留空则使用开发模式",
+  "settingsBackendAdminTokenHint": "留空则用内嵌端脑那把（外部端脑需自行填写）",
   "settingsDangerZone": "危险操作",
   "settingsDangerZoneDesc": "这些操作不可撤销，请谨慎使用。",
   "resetEngineDesc": "重新初始化引擎",

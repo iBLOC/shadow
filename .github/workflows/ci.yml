@@ -412,6 +412,20 @@ jobs:
       - name: Cross-client consistency check
         run: node scripts/check-agent-surface.mjs
 
+      # JNI 面：Kotlin ↔ 宿主直测的 Java 替身 + jniLibs 里那份 .so 的符号。
+      # ⚠️ 装错 .so ⇒ Kotlin 把 UnsatisfiedLinkError catch 掉 ⇒
+      # 「端脑面上锁」**静默失效**（同设备任意 App 能换掉「这台机器是谁」）。
+      # 干净 checkout 没有 .so（它被 gitignore）⇒ 只报提示、不阻断。
+      - name: JNI surface check
+        run: node scripts/check-jni-surface.mjs
+
+      # APK 产物级：查**真正装进手机**的那份 —— 入口是不是正牌 App
+      # （不是集成测试壳）+ 里面那份 .so 的符号 / 运行时依赖 / 与 jniLibs
+      # 是否同一份。⚠️ jniLibs 对了但 **APK 是旧的** ⇒ 一样是坑。
+      # 干净 checkout 没有 APK ⇒ 只报提示、不阻断。
+      - name: APK surface check
+        run: node scripts/check-apk-surface.mjs
+
       # 通信链路：所有通信都要走 大脑 → 端脑 → 叶区。客户端直连推理
       # （neuron_infer / /v1/chat/completions）或本地直连编排器 = 意图
       # 路由、工具、flow、人格注入全都不在链路上 —— 桌面端真实发生过

@@ -1197,7 +1197,7 @@
   "settingsAdvancedLogs": "Logs",
   "settingsAdvancedBackend": "Telencephalon backend",
   "settingsAdvancedBackendDesc": "Override the telencephalon base URL and admin token used by the mobile client.",
-  "settingsBackendAdminTokenHint": "leave blank for dev mode",
+  "settingsBackendAdminTokenHint": "leave blank for the embedded brain (fill in for an external one)",
   "settingsDangerZone": "Danger Zone",
   "settingsDangerZoneDesc": "These actions cannot be undone. Use with care.",
   "resetEngineDesc": "Reinitialize the engine",

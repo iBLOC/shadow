@@ -1902,7 +1902,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsAdvancedBackendDesc => '覆盖移动端使用的端脑基础地址与管理员令牌。';
 
   @override
-  String get settingsBackendAdminTokenHint => '留空则使用开发模式';
+  String get settingsBackendAdminTokenHint => '留空则用内嵌端脑那把（外部端脑需自行填写）';
 
   @override
   String get settingsDangerZone => '危险操作';
