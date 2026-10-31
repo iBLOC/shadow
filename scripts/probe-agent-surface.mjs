@@ -38,6 +38,22 @@
  * 那一轮就是**空手**去敲。`--key` / `--admin` 是额外的对照轮
  * （「带上钥匙能不能进」），用来验证「锁上了，但 App 自己仍然进得来」。
  *
+ * ## ⚠️ 两轮**必须**用同一套判据（「门」的视角，不是「路由在不在」的视角）
+ *
+ * 旧实现里两轮各判各的：额外轮把「非 401/403」一律标成 `REACHED`
+ * ⇒ ⇒ 额外轮里的 **200 变成了 `REACHED`** ⇒ ⇒ 「额外轮 OPEN: 0」是
+ * **假象**（真相是「全开着」）⇒ ⇒ 读报告的人会被带沟里。
+ *
+ * ⇒ 现在两轮共用 [`classifyDoor`]：**2xx ⇒ `OPEN`**（门开着）、
+ * **401/403 ⇒ `LOCKED`**（门关着）、**其余 ⇒ `REACHED`**
+ * （到了处理函数但请求不合法 ⇒ 门也是开着的）。
+ * ⇒ ⇒ 于是「**带着钥匙仍然进得去**」在报告里一眼能看出来
+ * ⇒ ⇒ 而那正是「门根本不认这把钥匙」的证据。
+ *
+ * ⚠️ `ABSENT`（这条路由不在这个构建里）是**第一轮专属**的结论 ——
+ * 它说的是「构建里有没有这条路由」，与门无关 ⇒ 额外轮不做这个判断
+ * （额外轮里 404 ⇒ `REACHED`：门开着，只是没这个实体）。
+ *
  * ## 防假绿
  *
  * 表解析出 **0 行** ⇒ 直接**报错退出**（不是「通过」）。表被改坏、
@@ -270,6 +286,22 @@ async function statusOf(url, headers) {
 }
 
 /**
+ * 状态码 → **门**的结论。**两轮共用这一份。**
+ *
+ * ⚠️ 判的是「**门**开没开」，不是「这条路由在不在这个构建里」——
+ * 后者是 `ABSENT`，只在第一轮判（见 `probePath` 里的 404 分支）。
+ *
+ * - `OPEN`    —— 门开着（2xx）
+ * - `LOCKED`  —— 门关着（401 / 403）
+ * - `REACHED` —— 到了处理函数但请求不合法（400 / 405 / 404 …）⇒ 门也是开着的
+ */
+function classifyDoor(status) {
+  if (status === 200 || status === 201 || status === 204) return 'OPEN';
+  if (status === 401 || status === 403) return 'LOCKED';
+  return 'REACHED';
+}
+
+/**
  * 探一条路径。
  *
  * 返回 { status, verdict, note }：
@@ -298,32 +330,35 @@ async function probePath(base, row) {
   const url = `${base.replace(/\/$/, '')}${fillTemplate(path)}`;
   const first = await statusOf(url, {});
 
-  if (first.status === 200 || first.status === 201 || first.status === 204) {
-    return { ...row, status: first.status, verdict: 'OPEN', note: '不拿凭据就能进', url };
+  if (first.status === 0) {
+    return { ...row, status: 0, verdict: 'ERROR', note: `连不上：${first.error}`, url };
   }
-  if (first.status === 401 || first.status === 403) {
-    return { ...row, status: first.status, verdict: 'LOCKED', note: '被挡住了', url };
-  }
-  if (first.status === 404 && hasTemplate(path)) {
-    // 分不清「路由不在」还是「门开着但没这个实体」⇒ 拿一个非法 id 再打一次。
-    const badUrl = `${base.replace(/\/$/, '')}${path.replace(/\{[^}]+\}/g, 'not-a-valid-id')}`;
-    const second = await statusOf(badUrl, {});
-    if (second.status === 400 || second.status === 422) {
-      return {
-        ...row,
-        status: first.status,
-        verdict: 'OPEN',
-        note: '非法 id ⇒ 400 ⇒ 路由确实存在 ⇒ 那个 404 是「门开着、只是没这个实体」',
-        url,
-      };
+  if (first.status === 404) {
+    // ⚠️ 404 有两种可能：「路由不在这个构建里」 vs「门开着、只是没这个实体」
+    // ⇒ 分不清就不下结论（`ABSENT` 只在这一轮判）。
+    if (hasTemplate(path)) {
+      // 拿一个非法 id 再打一次。
+      const badUrl = `${base.replace(/\/$/, '')}${path.replace(/\{[^}]+\}/g, 'not-a-valid-id')}`;
+      const second = await statusOf(badUrl, {});
+      if (second.status === 400 || second.status === 422) {
+        return {
+          ...row,
+          status: first.status,
+          verdict: 'OPEN',
+          note: '非法 id ⇒ 400 ⇒ 路由确实存在 ⇒ 那个 404 是「门开着、只是没这个实体」',
+          url,
+        };
+      }
+      return { ...row, status: first.status, verdict: 'ABSENT', note: '这条路由不在这个构建里', url };
     }
     return { ...row, status: first.status, verdict: 'ABSENT', note: '这条路由不在这个构建里', url };
   }
-  if (first.status === 404) {
-    return { ...row, status: first.status, verdict: 'ABSENT', note: '这条路由不在这个构建里', url };
+  const verdict = classifyDoor(first.status);
+  if (verdict === 'OPEN') {
+    return { ...row, status: first.status, verdict, note: '不拿凭据就能进', url };
   }
-  if (first.status === 0) {
-    return { ...row, status: 0, verdict: 'ERROR', note: `连不上：${first.error}`, url };
+  if (verdict === 'LOCKED') {
+    return { ...row, status: first.status, verdict, note: '被挡住了', url };
   }
   return {
     ...row,
@@ -334,11 +369,25 @@ async function probePath(base, row) {
   };
 }
 
-/** 额外的一轮：带上凭据（只对 GET 做 ⇒ 无副作用）。 */
+/**
+ * 额外的一轮：带上凭据（只对 GET 做 ⇒ 无副作用）。
+ *
+ * ⚠️ **与第一轮共用 `classifyDoor`** —— 旧实现这里把 200 标成 `REACHED`
+ * ⇒ ⇒ 「额外轮 OPEN: 0」是假象 ⇒ ⇒ 读报告的人会被带沟里。
+ * ⇒ 现在 200 就是 `OPEN` ⇒ ⇒ 「带着钥匙仍然进得去」一眼可见。
+ *
+ * ⚠️⚠️ **但第一轮说「这个构建里没这条路由」的，额外轮不许算「仍然进得去」**
+ * —— 那种 404 是**框架的 fallback** 回的，不是处理器回的 ⇒ ⇒ 说它是
+ * 「门开着」是**冤枉了门**，也是**冤枉了报表**（把「这条路由不存在」
+ * 混进「门开着」里 ⇒ 数字虚高 ⇒ ⇒ 又是「失败长得像成功」）。
+ */
 async function probeWithCredentials(base, row, headers) {
   const url = `${base.replace(/\/$/, '')}${fillTemplate(row.path)}`;
   const r = await statusOf(url, headers);
-  return { ...row, status: r.status, verdict: r.status === 401 || r.status === 403 ? 'LOCKED' : 'REACHED', url };
+  if (row.verdict === 'ABSENT') {
+    return { ...row, status: r.status, verdict: 'ABSENT', url };
+  }
+  return { ...row, status: r.status, verdict: classifyDoor(r.status), url };
 }
 
 // ---------------------------------------------------------------------------
@@ -407,7 +456,17 @@ async function main() {
           base: opts.base,
           parsedRows: rows.length,
           results,
-          extraRounds,
+          extraRounds: extraRounds.map((round) => ({
+            label: round.label,
+            results: round.results,
+            // ⚠️ **仍然进得去** = `OPEN` + `REACHED`。
+            // ⚠️ 这里**不能**只数 `OPEN` —— 额外轮里 404/400/405 也说明
+            // 「到了处理函数」⇒ 门是开着的（旧实现把它们混在一起，
+            // 于是「额外轮 OPEN: 0」看起来像「全锁上了」，其实全开着）。
+            stillOpen: round.results
+              .filter((r) => r.verdict === 'OPEN' || r.verdict === 'REACHED')
+              .map((r) => ({ cls: r.cls, path: r.path, status: r.status, verdict: r.verdict })),
+          })),
           openAorB: openAb.map((r) => ({ cls: r.cls, path: r.path, status: r.status, verdict: r.verdict })),
           skippedCount: skipped.length,
           notProbedSiblingPaths: notProbedSiblings,
@@ -434,6 +493,17 @@ async function main() {
     console.log('小结：');
     console.log(`  不拿凭据就能进（A/B 类）：${openAb.length} 条`);
     for (const r of openAb) console.log(`    ${r.cls}  ${r.path}  (${r.status})`);
+    for (const round of extraRounds) {
+      const stillOpen = round.results.filter(
+        (r) => r.verdict === 'OPEN' || r.verdict === 'REACHED',
+      );
+      console.log(
+        `  对照轮「${round.label}」：仍然进得去 ${stillOpen.length} 条（OPEN + REACHED）`,
+      );
+      for (const r of stillOpen) {
+        console.log(`      ${r.cls}  ${r.path}  (${r.status} ${r.verdict})`);
+      }
+    }
     console.log(`  未探测：${skipped.length} 条（写路径 / SSE / WS —— 见脚本头部「为什么不探」）`);
     if (notProbedSiblings > 0) {
       console.log(`  ⚠️ 另有 ${notProbedSiblings} 条同族路径（同一行的第 2…N 项）没探 —— 表里那几行写法有歧义，不猜。`);

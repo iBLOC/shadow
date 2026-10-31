@@ -311,5 +311,101 @@ node scripts/check-auth-backdoors.mjs
 （`api_key.rs:28` / `a2a_server.rs:53` / `telencephalonClient.ts:1112` /
 桌面端契约测试 `server-check.ts:22`）。
 **反向验证**：摘掉后门的干净副本 ⇒ **0 条** ⇒ 闸门有分辨力，不是恒绿。
+## ✅ 复测（2026-10-31 22:4x）：admin 面收口之后 —— **数目没变，成分变了**
 
+admin 会话那档（端脑 `93121d1` / 独立宿主 `7a15359` / 桌面端 `aa80e43`）
+落地之后，用**同一个探针**、**同一套配置**（shadow key 与 admin token **都真配好**）
+重测了一遍那张面。
 
+### 怎么做的
+
+```bash
+# 1) 起一台端脑（配置里 shadow key 与 admin token 都真配好；providers 指向 canary 文件）
+$env:TELENCEPHALON_CONFIG       = "$T/with-key.yaml"      # shadow.api_key=probe-shadow-key-0001
+$env:TELENCEPHALON_ADMIN_KEY    = 'probe-admin-token'     # admin.api_key 同值
+$env:TELENCEPHALON_PROVIDERS_FILE = "$T/providers.json"   # 只含假 key 的 canary
+& 'C:\Projects\iBLOC\encephalon\target\debug\encephalon-server.exe' --port 60091
+
+# 2) 三轮探针：不带凭据 / 带 shadow key / 带 admin token
+node scripts/probe-agent-surface.mjs --base http://127.0.0.1:60091 \
+  --key probe-shadow-key-0001 --admin probe-admin-token --json
+```
+
+⚠️ 二进制是 **`--no-default-features --features mobile` 那档**（无 hippocampus）
+⇒ 与第一次测的**全栈**二进制**不是同一个构建** ⇒ 路由集合略有差异（25 条同族
+路径未探、66 条写路径未探，两次一致）⇒ ⇒ 下面比的是**同一张表、同一个探针**
+在**两个时间点**上的结果。
+
+### 量到的三件事
+
+**① 数目没变，成分变了** —— 不拿凭据就能进的 A/B 类**仍然是 13 条**：
+
+- `/models/providers`（200）、`/api/telencephalon/logs`、`/api/telencephalon/status`、
+  `/api/telencephalon/agents`、`/api/telencephalon/lobes/capabilities`、
+  `/api/telencephalon/lobes/list`、`/api/telencephalon/devices`、
+  `/api/telencephalon/video-sources`、`/api/telencephalon/visual-tasks`、
+  `/api/telencephalon/prefrontal/agents`、`/api/flows`、
+  `/api/telencephalon/mcp/servers`、`/api/telencephalon/mcp/servers/{id}/tools`（500）。
+
+⇒ ⚠️ **但 admin 类那几条**（`/api/telencephalon/admin/*`）**从清单里消失了**
+⇒ ⇒ **「13」这个数字本身没变，换的是里面的人** ⇒ ⇒
+**光盯计数会把这次收口完全藏起来** ⇒ ⇒ **报表必须带成分，不带计数**。
+
+**② `/models/providers` 还在清单里，但泄的东西变了** ⇒ **掩码生效了**：
+读接口现在回 `api_key = "********"`（**明文 canary key 不再出网**），
+且客户端把掩码原样写回时**保留原 key**（不洗掉用户密钥）。
+⇒ ⇒ **「明文泄露」这个洞已经关了**；**但这张面仍然零鉴权** ⇒
+**写侧**（增删改 provider、改 LLM 上游指向、删模型）**任何本机进程都能做**
+⇒ ⇒ **步 3a 仍然要做**（把凭据门挂上去），只是**理由从「明文泄露」变成了
+「谁能重配这台大脑的上游」**。
+
+**③ ⚠️⚠️ 决定性的一测：现有两把钥匙都关不住这 13 条**
+
+- 带 **`X-Shadow-Key`**（正确的那把）那一轮：**13 条全部仍然进得去** ⇒
+  **0 条被挡住**；
+- 带 **`X-Admin-Token`**（正确的那把）那一轮：**同样 13 条全部仍然进得去** ⇒
+  **0 条被挡住**。
+
+⇒ ⇒ **这两张 router 上根本没有门** ⇒ ⇒ **加了门也没用**
+（这两把钥匙压根不被读）⇒ ⇒ ⇒ **只有把锁提到 router 层（步 3）才能一次关掉这 13 条**。
+
+⇒ ⇒ ⇒ **步 3 的规格因此收窄了一格**：要定的**不再**是「哪些端点加门」
+（答案是「A+B 类全部」），**也不再**是「用哪把钥匙」（shadow key 与 admin token
+**实测效果完全一样** ⇒ 因为它们现在都没被读）⇒ ⇒ **只剩一件事**：
+**「默认安装上那把钥匙从哪来」** ⇒ ⇒ （手机端已经有答案：**宿主自己生成一把
+随机 key 并持久化** ⇒ 桌面端照抄即可 ⇒ ⇒ 而端脑侧保持
+「没配 ⇒ fail-closed」还是「没配 ⇒ 开发模式」仍是**唯一**需要拍板的点）。
+
+### ⚠️ 一条探针自身的读法陷阱（这次差点读错）——**已修**
+
+额外那两轮（带凭据）的判据**只出两个值**：`LOCKED`（401/403）或 `REACHED`
+（其余一切）⇒ ⇒ **没有 `OPEN`** ⇒ ⇒ **「带 key 那轮 OPEN: 0 条」这句话是
+无意义的**（那个字段压根不存在）⇒ ⇒ **要读的是 `REACHED`**（= 仍进得去）。
+⇒ ⚠️ 记在这里，是因为**「0 条 OPEN」看起来像「全锁上了」** ——
+而它其实说的是「那两项都没出现」⇒ ⇒ **失败长得像成功**的又一例。
+
+✅ **已修（探针 `scripts/probe-agent-surface.mjs`）**：两轮现在**共用同一套判据**
+（`classifyDoor()`：**2xx ⇒ `OPEN`**、401/403 ⇒ `LOCKED`、其余 ⇒ `REACHED`）⇒
+⇒ 额外轮里 **200 就是 `OPEN`** ⇒ ⇒ **「带着钥匙仍然进得去」一眼能看出来**，
+不必再靠「读 `REACHED`」这条暗规则 ⇒ ⇒ JSON 里也补了 `extraRounds[].stillOpen`
+（= `OPEN` + `REACHED`）⇒ ⇒ **机器可读**。
+
+### ✅ 修好之后重测（同一台实例，同一把钥匙）——**结论更锋利了**
+
+| 轮次 | 仍然进得去的条数 | 说明 |
+|---|---|---|
+| 不拿凭据 | **13**（A/B 类） | 基线 |
+| 带正确的 `X-Shadow-Key` | **24** | 13 条 A/B 类**一条都没被挡住** ⇒ 这把钥匙对这 13 条**完全无效** |
+| 带正确的 `X-Admin-Token` | **24** | 同上 ⇒ 这把钥匙也一样**完全无效** |
+
+⇒ ⇒ 24 里那多出来的 11 条，是**本来就该开着**的面（带钥匙才开）⇒ ⇒
+⇒ **两把钥匙开的是不同的面**（这是**第一次**把它们分开量出来）：
+
+- 带 `X-Shadow-Key` 才开：`/shadow/v1/agents`、`/shadow/v1/conversations`、
+  `/.well-known/agent.json`（**shadow 面**）；
+- 带 `X-Admin-Token` 才开：`/api/telencephalon/admin/agents/installed`、
+  `/api/telencephalon/admin/config`（**admin 面**）。
+
+⇒ ⇒ ⇒ **「两个域分开」这件事，第一次有了运行时证据**（不是设计文档里的声明）
+⇒ ⇒ ⇒ 而**那 13 条对两把钥匙都免疫** ⇒ ⇒ ⇒ **步 3 = 在 router 层铺一把门 +
+  定下那把钥匙的来源**（这两件事必须一起做：门铺了但钥匙是空的 ⇒ 等于没锁）。
