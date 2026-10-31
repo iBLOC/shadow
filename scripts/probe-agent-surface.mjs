@@ -74,6 +74,7 @@
  *         2 = 探针自己坏了（表读不出来 / 参数不对）。
  */
 
+import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -101,6 +102,7 @@ function printHelp() {
       '  --admin <token>  额外跑一轮「带 X-Admin-Token」',
       '  --json           输出 JSON',
       '  --strict         A/B 类里有端点不拿凭据就能进 ⇒ 退出码 1',
+      '  --self-test      自检（判据边界 + 判定表 + **退出码**能不能精确送达）',
       '  -h, --help       这段话',
     ].join('\n'),
   );
@@ -113,6 +115,8 @@ function parseArgs(argv) {
     admin: null,
     json: false,
     strict: false,
+    selfTest: false,
+    selfTestExit: null,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -131,6 +135,15 @@ function parseArgs(argv) {
         break;
       case '--strict':
         opts.strict = true;
+        break;
+      case '--self-test':
+        opts.selfTest = true;
+        break;
+      case '--self-test-exit':
+        // ⚠️ **内部用**：自检会拿它**再起一个子进程**，逼那个子进程走
+        // 正式的退出路径 ⇒ 于是「退出码能不能精确送达」是**实测**的，
+        // 不是「我以为 `process.exit(code)` 会把 code 送出去」。
+        opts.selfTestExit = Number(argv[++i]);
         break;
       case '-h':
       case '--help':
@@ -404,15 +417,150 @@ const VERDICT_LABEL = {
   ERROR: '⚠️ 探测失败',
 };
 
+/**
+ * **体面地退出** —— 不要直接 `process.exit()`。
+ *
+ * ⚠️ 为什么：Node 内置的 `fetch`（undici）把连接放进一个**连接池**，
+ * 那些 socket 还挂着 libuv 句柄 ⇒ 强制退出时 Node 去关事件循环 ⇒
+ * libuv 断言炸掉：
+ * `Assertion failed: !(handle->flags & UV_HANDLE_CLOSING), file src\win\async.c`
+ * ⇒ ⇒ 进程带着 **3221226505 / -1073740791**（0xC0000409）退出 ⇒
+ * ⇒ ⇒ **`--strict` 该给的退出码 1 被这个崩溃码盖掉了** ⇒
+ * ⇒ ⇒ CI 里看到的是「探针崩了」，不是「面开着洞」⇒
+ * ⇒ ⇒ **又一个「失败长得像成功」**（而且是探针自己身上的）。
+ *
+ * ⇒ 所以顺序是：**先把连接池关掉 → 再设 `process.exitCode` → 让事件循环自己收尾**。
+ * `process.exitCode` 会原样变成进程的退出码，而事件循环自己收尾时
+ * 不会去强拆还开着的句柄 ⇒ 断言不会炸。
+ *
+ * @param {number} code 想给的退出码
+ */
+async function exitWith(code) {
+  process.exitCode = code;
+  const dispatcher = globalThis[Symbol.for('undici.globalDispatcher.1')];
+  if (dispatcher && typeof dispatcher.close === 'function') {
+    try {
+      await dispatcher.close();
+    } catch {
+      /* 关不掉也无所谓 —— 事件循环会自己收尾，退出码照样是 code */
+    }
+  }
+}
+
+/**
+ * 走一遍**正式的退出路径**，但先造一个「连接池里确实有活连接」的现场。
+ *
+ * ⚠️ 为什么非得造这个现场：崩溃只在「池里还有没关的 socket」时才会发生
+ * ⇒ 只调 `exitWith(code)` 而不碰网络 ⇒ 永远测不出那个崩溃 ⇒
+ * ⇒ 自检会**恒绿** ⇒ ⇒ 恒绿的自检比没有自检更坏。
+ *
+ * ⇒ 所以这里起一个**真的**本地 HTTP 服务，用 `fetch` 打它（连接进池），
+ * 然后走正式退出路径。
+ */
+async function exerciseExitPath(code) {
+  const http = await import('node:http');
+  const server = http.createServer((_req, res) => res.end('ok'));
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const port = server.address().port;
+  try {
+    // 多打几发：确保池里确实留着活着的 socket。
+    for (let i = 0; i < 3; i++) {
+      await fetch(`http://127.0.0.1:${port}/`, { signal: AbortSignal.timeout(5000) });
+    }
+  } catch {
+    /* 探针只关心退出路径 */
+  }
+  await new Promise((resolve) => server.close(resolve));
+  await exitWith(code);
+}
+
+/**
+ * 自检 —— **探针自己也得有守卫**。
+ *
+ * 三组断言：
+ * 1. **判据函数的边界** —— `classifyDoor` 把 200/201/204 判成 OPEN、
+ *    401/403 判成 LOCKED、其余判成 REACHED。
+ * 2. **判定表读得到行** —— 读到 0 行 ⇒ 表坏了 ⇒ 直接红（不假装通过）。
+ * 3. **退出码能不能精确送达** —— **起子进程**实测：`--self-test-exit N`
+ *    那个子进程走正式退出路径 ⇒ 它的退出码必须**恰好**是 N。
+ *    ⚠️ 这一条是**真**的守卫：修好之前，探针退出时会被 libuv 断言炸成
+ *    3221226505 ⇒ 子进程拿到的就不是 N ⇒ 自检变红。
+ */
+async function runSelfTest() {
+  const failures = [];
+  const check = (label, ok, detail) => {
+    if (ok) console.log(`  ✓ ${label}`);
+    else {
+      console.log(`  ✗ ${label}${detail ? ' —— ' + detail : ''}`);
+      failures.push(label);
+    }
+  };
+
+  console.log('判据函数的边界：');
+  check('classifyDoor(200) = OPEN', classifyDoor(200) === 'OPEN');
+  check('classifyDoor(201) = OPEN', classifyDoor(201) === 'OPEN');
+  check('classifyDoor(204) = OPEN', classifyDoor(204) === 'OPEN');
+  check('classifyDoor(401) = LOCKED', classifyDoor(401) === 'LOCKED');
+  check('classifyDoor(403) = LOCKED', classifyDoor(403) === 'LOCKED');
+  check('classifyDoor(404) = REACHED', classifyDoor(404) === 'REACHED');
+  check('classifyDoor(500) = REACHED', classifyDoor(500) === 'REACHED');
+  check('classifyDoor(0) = REACHED（连不上）', classifyDoor(0) === 'REACHED');
+
+  console.log('判定表：');
+  let rows = [];
+  try {
+    rows = parseMatrix();
+  } catch (e) {
+    check('判定表读得到行', false, `读表抛异常：${e?.message ?? e}`);
+  }
+  check(`判定表读得到行（>0）`, rows.length > 0, `读到 ${rows.length} 行`);
+
+  console.log('退出码能不能精确送达（子进程实测）：');
+  for (const code of [0, 1, 2]) {
+    const child = spawnSync(
+      process.execPath,
+      [fileURLToPath(import.meta.url), '--self-test-exit', String(code)],
+      { encoding: 'utf8' },
+    );
+    const stderr = child.stderr ?? '';
+    const libuvBlew = /UV_HANDLE_CLOSING|Assertion failed/.test(stderr);
+    check(
+      `退出码 ${code} 精确送达（没被崩溃盖掉）`,
+      child.status === code && !libuvBlew,
+      `status=${child.status} signal=${child.signal} libuv断言=${libuvBlew}`,
+    );
+  }
+
+  if (failures.length) {
+    console.error(`\n自检没过：${failures.length} 条 —— 探针自己不可信，先修探针。`);
+    await exitWith(1);
+    return;
+  }
+  console.log('\n自检全过。');
+  await exitWith(0);
+}
+
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
+
+  // ⚠️ 这两个必须**在探之前**分出去：自检自己也要走退出路径，
+  // 而 `--self-test-exit` 是自检**自己**用的内部开关。
+  if (opts.selfTestExit !== null) {
+    await exerciseExitPath(opts.selfTestExit);
+    return;
+  }
+  if (opts.selfTest) {
+    await runSelfTest();
+    return;
+  }
 
   let rows;
   try {
     rows = parseMatrix();
   } catch (e) {
     console.error(`读判定表失败：${e?.message ?? e}`);
-    process.exit(2);
+    await exitWith(2);
+    return;
   }
   if (rows.length === 0) {
     // 防假绿：一行都没读到 ⇒ 不是「没问题」，是「探针坏了」。
@@ -420,7 +568,8 @@ async function main() {
       `判定表里读到 0 行（${MATRIX_PATH}）—— 这不是「没发现问题」，是探针坏了。\n` +
         '表结构变了？章节标题改了？先修探针，别把「没读到」说成「没问题」。',
     );
-    process.exit(2);
+    await exitWith(2);
+    return;
   }
 
   const results = [];
@@ -513,12 +662,13 @@ async function main() {
   }
 
   if (opts.strict && openAb.length > 0) {
-    process.exit(1);
+    await exitWith(1);
+    return;
   }
-  process.exit(0);
+  await exitWith(0);
 }
 
-main().catch((e) => {
+main().catch(async (e) => {
   console.error(`探针自己炸了：${e?.stack ?? e}`);
-  process.exit(2);
+  await exitWith(2);
 });
