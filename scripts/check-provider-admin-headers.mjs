@@ -192,6 +192,36 @@ function resolveDoor(text) {
 }
 
 /**
+ * **截掉 `#[cfg(test)] mod tests` 段**（纯函数 ⇒ 自检能直接喂合成样例）。
+ *
+ * ⚠️⚠️ **为什么必须截**（2026-11-01 被并行会话当场指出）：
+ *
+ * 测试夹具里也有 `.route("/api/telencephalon/chat/completions", …)`
+ * （那是**假对端**的 router）⇒ 混进表里 ⇒ ⇒ 同一个 `(方法, 路径)` 出现
+ * **两行、结论相反**（一行说「主人门」、一行说「没有门」）⇒ ⇒
+ * 读的人会以为「**主人门还有一份没挂门的副本**」⇒ ⇒ **那是假的** ⇒ ⇒
+ * 而且哪天有人真调它，那一发会被「（没有门）」那行**误判** ⇒ ⇒ **潜伏的假红**。
+ *
+ * ⇒ ⇒ 这与「注释里也别写那个 route 调用的形状」**同族**：
+ * **闸扫的是原始文本 ⇒ 测试代码与注释都会漏进来** ⇒ ⇒ 两者都要挡。
+ *
+ * ⚠️ 只在 `#[cfg(test)]` **后面跟着 `mod`** 时才截
+ * （`#[cfg(test)]` 标在单个辅助函数上不算 ⇒ 截那里会漏掉后面的真路由）。
+ */
+function stripTestModule(code) {
+  let cut = -1;
+  const cfgRe = /#\[cfg\(test\)\]/g;
+  let cm;
+  while ((cm = cfgRe.exec(code)) !== null) {
+    if (/\bmod\s+[A-Za-z_]/.test(code.slice(cm.index, cm.index + 120))) {
+      cut = cm.index;
+      break;
+    }
+  }
+  return cut === -1 ? code : code.slice(0, cut);
+}
+
+/**
  * 从 `providers.rs` 解析出「**每条路由归哪道门管**」。
  *
  * ⚠️ 解析的是**方法 + 路径 + 门**三元组，不是光路径 ——
@@ -206,7 +236,10 @@ function parseServerDoors() {
     throw new Error(`判据源不存在：${TELENCEPHALON_SRC}`);
   }
   const raw = readFileSync(TELENCEPHALON_SRC, 'utf8');
-  const code = stripComments(raw, { nested: true, rust: true });
+  let code = stripComments(raw, { nested: true, rust: true });
+  // ⚠️ **测试段必须截掉**（见 `stripTestModule` 的注释：测试夹具里的**假对端**
+  // router 也会写出同一个 `(方法, 路径)` ⇒ 混进表里 ⇒ 报告自相矛盾）。
+  code = stripTestModule(code);
 
   // ---- ① 逐条路由（顺带记下每条 `.route(...)` 覆盖的字符区间）----
   const entries = [];
@@ -870,6 +903,28 @@ const SELF_TEST_CASES = [
 
 function runSelfTest() {
   let failed = 0;
+
+  // ⚠️ 判据源里的**测试段**必须被截掉 —— 测试夹具里的**假对端 router**
+  // 也会写出同一个 `(方法, 路径)` ⇒ 混进表里 ⇒ ⇒ 同一个端点出现**两行、
+  // 结论相反**（一行说「主人门」、一行说「没有门」）⇒ ⇒ 报告自相矛盾 ⇒ ⇒
+  // 而且哪天有人真调它，那一发会被「（没有门）」那行**误判** ⇒ 潜伏的假红。
+  {
+    const synth = [
+      'Router::new()',
+      '    .route("/models/providers", get(list_providers).route_layer(read_door))',
+      '#[cfg(test)]',
+      'mod tests {',
+      '    Router::new().route("/api/telencephalon/chat/completions", post(fake_proxy))',
+      '}',
+    ].join('\n');
+    const cut = stripTestModule(synth);
+    const t1 = !cut.includes('/api/telencephalon/chat/completions');
+    if (!t1) failed++;
+    console.log(`  ${t1 ? '✅' : '❌'} 判据源里测试段的假路由被截掉 ⇒ 期望 截掉，实测 ${t1 ? '截掉' : '还在'}`);
+    const t2 = cut.includes('/models/providers');
+    if (!t2) failed++;
+    console.log(`  ${t2 ? '✅' : '❌'} 真路由还在 ⇒ 期望 还在，实测 ${t2 ? '还在' : '被截掉了'}`);
+  }
   for (const c of SELF_TEST_CASES) {
     const code = stripComments(c.code, { nested: false });
     const idx = code.indexOf('fetch(');
