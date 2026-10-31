@@ -93,9 +93,14 @@ class ManagementHubScreen extends ConsumerWidget {
                   _ManagementCard(
                     icon: Icons.account_tree,
                     title: navLabel(l10n, 'surface.flows'),
+                    // ⚠️ 「读不到」**不能**显示成「0 flows」—— 那看起来像
+                    // 「真的没有流程」。端脑没起来 / 钥匙不对 / 地址不对，
+                    // 三种情况都会让这个数取不到 ⇒ 显示「未知」。
                     subtitle: hubState.isLoading
                         ? '...'
-                        : '${hubState.flowCount} flows',
+                        : (hubState.flowError != null
+                              ? l10n.unknown
+                              : '${hubState.flowCount} flows'),
                     onTap: () => context.push('/flows'),
                   ),
                 ],

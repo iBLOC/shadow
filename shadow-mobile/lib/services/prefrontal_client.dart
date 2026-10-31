@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import '../l10n/current_l10n.dart';
+import '../providers/telencephalon_provider.dart';
 import 'telencephalon/telencephalon_client.dart';
 
 /// hippocampus 的任务按租户分区。
@@ -1576,6 +1577,14 @@ class HubState {
   final bool isLoading;
   final String? error;
 
+  /// 流程计数**读不到**的原因 —— 注意它**不是**「流程数是 0」。
+  ///
+  /// ⚠️ **「读不到」不等于「0 条」** —— 端脑没起来、地址指着没人听的端口、
+  /// 钥匙不对，三种情况都会让这个数取不到。把它说成 0 就是**失败长得像
+  /// 成功**（用户会以为「我一条流程都没有」）。非空 ⇒ UI 显示「未知」，
+  /// 不显示一个看起来很像真的数字。
+  final String? flowError;
+
   const HubState({
     this.providerCount = 0,
     this.skillCount = 0,
@@ -1585,6 +1594,7 @@ class HubState {
     this.flowCount = 0,
     this.isLoading = false,
     this.error,
+    this.flowError,
   });
 
   HubState copyWith({
@@ -1596,6 +1606,7 @@ class HubState {
     int? flowCount,
     bool? isLoading,
     String? error,
+    String? flowError,
   }) {
     return HubState(
       providerCount: providerCount ?? this.providerCount,
@@ -1606,6 +1617,7 @@ class HubState {
       flowCount: flowCount ?? this.flowCount,
       isLoading: isLoading ?? this.isLoading,
       error: error,
+      flowError: flowError,
     );
   }
 }
@@ -1641,12 +1653,17 @@ class HubNotifier extends StateNotifier<HubState> {
       final mcpServers = results[3];
       final memories = results[4];
 
-      // 流程计数单独取 —— 端脑不可用时不影响其它计数
+      // 流程计数单独取 —— 端脑不可用时**不影响其它计数**。
+      //
+      // ⚠️ 但**不许把「读不到」说成「0 条」**：端脑没起来 / 地址指着没人听的
+      // 端口 / 钥匙不对，三种情况都会让这个数取不到。取不到就把**原因**记在
+      // `flowError` 里 ⇒ UI 显示「未知」，而不是一个看起来很像真的 0。
       var flowCount = 0;
+      String? flowError;
       try {
         flowCount = (await _telencephalonClient.listFlows()).length;
-      } catch (_) {
-        flowCount = 0;
+      } catch (e) {
+        flowError = e.toString();
       }
 
       state = state.copyWith(
@@ -1657,6 +1674,7 @@ class HubNotifier extends StateNotifier<HubState> {
         memoryCount: memories.length,
         flowCount: flowCount,
         isLoading: false,
+        flowError: flowError,
       );
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
@@ -1673,5 +1691,21 @@ final prefrontalClientProvider = Provider<PrefrontalClient>((ref) {
 /// Provider for management hub state
 final hubNotifierProvider = StateNotifierProvider<HubNotifier, HubState>((ref) {
   final client = ref.watch(prefrontalClientProvider);
-  return HubNotifier(client);
+  // ⚠️ 流程计数走的是**端脑面** ⇒ 必须用**共享那个**端脑 client。
+  //
+  // 自己 new 一个会同时坏两处：
+  // ① **没带 `X-Shadow-Key`** ⇒ 端脑面上锁之后这里直接 401；
+  // ② **地址指着外部端脑**（`http://127.0.0.1:60080`）⇒ 手机上根本没人在
+  //    监听那个端口（嵌入式端脑跑在 App 进程内、端口每次启动都变）。
+  //
+  // 两个毛病叠在一起 ⇒ 流程数**恒为 0**，而 0 又被 `catch` 吞掉 ⇒
+  // 「0 条流程」看起来像「真的没有流程」—— 失败长得像成功。
+  //
+  // 共享那个 client 由 `EncephalonMobileNotifier._pointClientsAtAgentSurface()`
+  // 负责**先递钥匙、再改地址** ⇒ 嵌入式端脑起来之后它就是对的，
+  // 而且端脑面整体上锁之后这条请求**依然通**（它带着钥匙）。
+  return HubNotifier(
+    client,
+    telencephalonClient: ref.watch(telencephalonClientProvider),
+  );
 });
