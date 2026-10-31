@@ -21,8 +21,11 @@
  *
  *   1. **入口是不是正牌 App**：`assets/flutter_assets/kernel_blob.bin` 里
  *      若含 `IntegrationTestWidgetsFlutterBinding` / `package:integration_test`
- *      ⇒ 这是**集成测试壳** ⇒ 装上去**白屏**（入口在等测试驱动）。
- *      反之若含 `package:shadow_mobile/main.dart` ⇒ 正牌入口。
+ *      ⇒ 这是**集成测试壳** ⇒ **当 App 手动启动会白屏**（入口在等测试驱动）。
+ *      ⚠️ 但**测试壳在测试驱动下是能起端脑的**（测试入口不走 `main.dart`，
+ *      直接走 MethodChannel）⇒ ⇒ 端脑面的真机复验**在测试壳上成立**。
+ *      ⇒ 所以「是不是测试壳」不是缺陷，「**把测试壳当 App 装**」才是 ⇒
+ *      ⇒ 用 `--expect test-shell` 显式声明用途 ⇒ 那就不判它错。
  *      ⚠️ release APK 没有 `kernel_blob.bin` ⇒ 判不了 ⇒ 报 warning 并说清怎么查。
  *   2. **APK 里每一份 `libencephalon.so`**（逐 ABI）：是否含全部 JNI 符号
  *      （清单取自 `encephalon/src/mobile/jni.rs`，**不是手抄常量**）。
@@ -35,8 +38,9 @@
  *
  *   node scripts/check-apk-surface.mjs
  *   node scripts/check-apk-surface.mjs --apk path/to/app-debug.apk
+ *   node scripts/check-apk-surface.mjs --expect test-shell   # 这份就是要当集成测试壳用
  *
- * 退出码 0 = 通过；1 = 有阻断问题。
+ * 退出码 0 = 通过；1 = 有阻断问题；2 = 参数错。
  *
  * ## 怎么证明它**有分辨力**（不是恒红）
  *
@@ -91,6 +95,26 @@ function argValue(flag) {
 }
 
 const APK = argValue('--apk') ?? DEFAULT_APK;
+
+/**
+ * 这份 APK 是**拿来当 App 装**的（默认），还是**拿来当集成测试壳**的？
+ *
+ * ⚠️ 这两种用法**不是一回事**（2026-10-31 真机上分别验过）：
+ *   - **测试壳 + 测试驱动**（`flutter test integration_test/…` 或
+ *     `flutter run --target=integration_test/…`）⇒ 测试入口**不走 `main.dart`**，
+ *     直接走 MethodChannel 起端脑 ⇒ **端脑照样起来、钥匙照样递进去**
+ *     ⇒ 端脑面的真机复验**在测试壳上是成立的**；
+ *   - **测试壳 + 手动启动**（`am start` / 装给用户当 App 用）⇒ 入口在**等测试
+ *     驱动** ⇒ 没有驱动 ⇒ **`main()` 根本没跑到起端脑那一步** ⇒ **纯白屏**。
+ *
+ * ⇒ 所以「是不是测试壳」本身**不是缺陷**；缺陷是「**把测试壳当 App 装**」。
+ * ⇒ 用 `--expect test-shell` 显式声明用途 ⇒ 那就不判它错。
+ */
+const EXPECT = argValue('--expect') ?? 'app';
+if (!['app', 'test-shell'].includes(EXPECT)) {
+  console.error(`--expect 只能是 app 或 test-shell（收到：${EXPECT}）`);
+  process.exit(2);
+}
 
 const line = '═'.repeat(72);
 console.log(line);
@@ -228,12 +252,21 @@ try {
       text.includes('IntegrationTestWidgetsFlutterBinding') || text.includes('package:integration_test');
     const hasRealEntry = text.includes('package:shadow_mobile/main.dart');
     if (isShell) {
-      fail(
-        '这个 APK 是**集成测试壳**（`IntegrationTestWidgetsFlutterBinding` / `package:integration_test` 在里面）\n' +
-          '    ⇒ 装上去是**纯白屏**：入口在等测试驱动，`main()` 根本没跑到起端脑那一步。\n' +
-          '    ⇒ 修法：重新构建并指定正牌入口 ⇒ flutter build apk --debug --target=lib/main.dart\n' +
-          '      （或直接 flutter run —— 它默认就是 lib/main.dart）。',
-      );
+      if (EXPECT === 'test-shell') {
+        pass(
+          '这是**集成测试壳**，而本次声明的用途就是 `--expect test-shell` ⇒ 不判错。\n' +
+            '      ⇒ ⚠️ 它**只能**配 `flutter test integration_test/…`（或 `flutter run --target=integration_test/…`）用；\n' +
+            '        **手动 am start / 装给用户当 App 用 ⇒ 纯白屏**（入口在等测试驱动，main() 没跑到起端脑）。',
+        );
+      } else {
+        fail(
+          '这个 APK 是**集成测试壳**（`IntegrationTestWidgetsFlutterBinding` / `package:integration_test` 在里面）\n' +
+            '    ⇒ **当 App 装会纯白屏**：入口在等测试驱动，`main()` 根本没跑到起端脑那一步。\n' +
+            '    ⇒ 修法：重新构建并指定正牌入口 ⇒ flutter build apk --debug --target=lib/main.dart\n' +
+            '      （或直接 flutter run —— 它默认就是 lib/main.dart）。\n' +
+            '    ⇒ 若这份**就是要当集成测试壳用**，加 `--expect test-shell` 显式声明用途即可。',
+        );
+      }
     } else if (hasRealEntry) {
       pass(`正牌入口（kernel blob 里有 package:shadow_mobile/main.dart）`);
     } else {
