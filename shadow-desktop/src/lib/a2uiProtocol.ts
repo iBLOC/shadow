@@ -101,6 +101,35 @@ export interface A2uiSurfaceSnapshot {
   rendered: boolean;
 }
 
+/**
+ * 这个 surface **结构上**是空的吗？
+ *
+ * ## 判据：除 `Column` / `Text` 之外没有别的组件
+ *
+ * 端脑把「没有内容」画成一个**只有文字的 surface**
+ * （`telencephalon/src/a2a/a2ui.rs`：`render_tasks` / `render_agents`
+ * 在列表为空时产出 `root`(Column) + `title`(Text) + `empty`(Text)）
+ * ⇒ 「有没有内容」这件事**在结构上就是可判的**。
+ *
+ * ⚠️ **为什么用结构规则，而不是「认识哪些组件名」的白名单**：
+ * 白名单版本在端脑**加一种新组件**时（`Timeline` / `Chart` / …）
+ * 会把新组件当成「不认识 ⇒ 当作空」⇒ **把有内容的界面说成空的**。
+ * ⇒ 规则反过来写：**除布局与文字之外的东西，都是内容**。
+ *
+ * ⚠️ 这**不是**端脑显式声明的状态（端脑还没那个字段）⇒
+ * 这是客户端的**结构推断**；端脑哪天自己声明了，以端脑为准。
+ */
+export function isStructurallyEmptySurface(
+  surface: A2uiSurfaceSnapshot | undefined,
+): boolean {
+  if (!surface) return true;
+  const components = surface.components ?? [];
+  return !components.some((component) => {
+    const type = Object.keys(component?.component ?? {})[0];
+    return type !== 'Column' && type !== 'Text';
+  });
+}
+
 // ────────────────────────────────────────────────────────────────────
 // SSE 解码
 // ────────────────────────────────────────────────────────────────────

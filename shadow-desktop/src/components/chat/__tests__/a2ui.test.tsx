@@ -9,6 +9,7 @@ import {
   A2UI_EXTENSION_URI,
   A2uiSurfaceModel,
   SseDecoder,
+  isStructurallyEmptySurface,
   type A2uiPayload,
 } from '../../../lib/a2uiProtocol';
 import { A2uiHttpError, requestA2uiSurface } from '../../../lib/a2uiClient';
@@ -137,6 +138,52 @@ describe('A2UI protocol — desktop', () => {
 
     model.applyPayload({ deleteSurface: { surfaceId: 'shadow.tasks' } });
     expect(model.surfaceIds).not.toContain('shadow.tasks');
+  });
+
+  it('tells an empty surface from a surface with content', () => {
+    // ⚠️ 端脑把「没有内容」画成一个**只有文字**的板子
+    // （`telencephalon/src/a2a/a2ui.rs` → `render_tasks` / `render_agents`）
+    // ⇒ 「空」在**结构上**可判。
+    const emptyModel = new A2uiSurfaceModel();
+    emptyModel.applyPayload({
+      surfaceUpdate: {
+        surfaceId: 'shadow.tasks',
+        components: [
+          { id: 'root', component: { Column: { children: ['title', 'empty'] } } },
+          { id: 'title', component: { Text: { text: { literalString: 'Tasks (0)' } } } },
+          {
+            id: 'empty',
+            component: { Text: { text: { literalString: 'No tasks yet.' } } },
+          },
+        ],
+      },
+    });
+    emptyModel.applyPayload({ beginRendering: { surfaceId: 'shadow.tasks', root: 'root' } });
+
+    expect(isStructurallyEmptySurface(emptyModel.get('shadow.tasks'))).toBe(true);
+    // ⚠️ **有内容的那张不是空的** —— 断言有分辨力，不是恒真。
+    expect(
+      isStructurallyEmptySurface(modelFromSse(SSE_FIXTURE).model.get('shadow.tasks')),
+    ).toBe(false);
+  });
+
+  it('never calls a surface with an unknown component type empty', () => {
+    // ⚠️ **规则反过来写**（除布局与文字之外的都是内容），而不是认组件名白名单
+    // ⇒ 端脑加一种新组件（`Timeline` / `Chart` / …）时，
+    // 客户端**不会**把一张有内容的界面说成空的。
+    const model = new A2uiSurfaceModel();
+    model.applyPayload({
+      surfaceUpdate: {
+        surfaceId: 'shadow.future',
+        components: [
+          { id: 'root', component: { Column: { children: ['chart'] } } },
+          { id: 'chart', component: { Timeline: { points: [] } } },
+        ],
+      },
+    });
+    model.applyPayload({ beginRendering: { surfaceId: 'shadow.future', root: 'root' } });
+
+    expect(isStructurallyEmptySurface(model.get('shadow.future'))).toBe(false);
   });
 });
 
@@ -441,9 +488,73 @@ describe('A2UI panel — desktop', () => {
       />,
     );
 
-    await waitFor(() => expect(screen.getByTestId('a2ui-empty')).toBeInTheDocument());
+    // ⚠️ **纯文本是它自己的一档** —— 不再与「什么都没有」并成一种。
+    await waitFor(() => expect(screen.getByTestId('a2ui-text')).toBeInTheDocument());
     expect(screen.getByText('这里能看什么')).toBeInTheDocument();
     expect(screen.queryByTestId('a2ui-error')).not.toBeInTheDocument();
+    // ⚠️ **不许再压一句「暂无数据」** —— 端脑明明说了话（"这里能看什么"）。
+    // 旧版把这两种并成一种 ⇒ 纯文本时先显示「暂无数据」⇒ **假话**。
+    // （`tests/setup.ts` 把 `t(key)` mock 成返回 key 本身。）
+    expect(screen.queryByText('common.noData')).not.toBeInTheDocument();
+  });
+
+  it('says "no data" only when the brain said nothing at all', async () => {
+    // ⚠️ 「暂无数据」**只**属于这一档 —— 端脑连一句话都没说。
+    const fetchImpl = vi.fn(async () => fakeResponse(''));
+
+    render(
+      <A2uiPanel
+        baseUrl="http://127.0.0.1:60080"
+        fetchImpl={fetchImpl as unknown as typeof fetch}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('a2ui-empty')).toBeInTheDocument());
+    expect(screen.getByText('common.noData')).toBeInTheDocument();
+    // ⚠️ 这一档**不是**「纯文本」⇒ 断言有分辨力，不是恒绿。
+    expect(screen.queryByTestId('a2ui-text')).not.toBeInTheDocument();
+  });
+
+  it('tells an empty surface apart from a surface with content', async () => {
+    // ⚠️ 端脑把「没有任务」画成一个**只有文字**的板子
+    // （`telencephalon/src/a2a/a2ui.rs` → `render_tasks`：列表为空时
+    // 产出 `root`(Column) + `title`(Text) + `empty`(Text)）
+    // ⇒ 「空」在**结构上**就是可判的。
+    const emptySurfaceSse =
+      'data: {"result":{"kind":"task-status-update","status":{"state":"working","message":{"kind":"message","role":"agent","parts":[{"kind":"data","data":{"surfaceUpdate":{"surfaceId":"shadow.tasks","components":[{"id":"root","component":{"Column":{"children":["title","empty"],"alignment":"stretch"}}},{"id":"title","component":{"Text":{"text":{"literalString":"Tasks (0)"},"usageHint":"h3"}}},{"id":"empty","component":{"Text":{"text":{"literalString":"No tasks yet."}}}}]}}}]}},"final":false}}\n\n' +
+      'data: {"result":{"kind":"task-status-update","status":{"state":"completed","message":{"kind":"message","role":"agent","parts":[{"kind":"data","data":{"beginRendering":{"surfaceId":"shadow.tasks","root":"root"}}}]}},"final":true}}\n\n';
+
+    const fetchImpl = vi.fn(async () => fakeResponse(emptySurfaceSse));
+
+    render(
+      <A2uiPanel
+        baseUrl="http://127.0.0.1:60080"
+        fetchImpl={fetchImpl as unknown as typeof fetch}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('a2ui-surface')).toBeInTheDocument());
+    // ⚠️ **空**这件事在 DOM 上是**可判的**（不靠眼力）。
+    expect(screen.getByTestId('a2ui-surface')).toHaveAttribute('data-surface-empty', 'true');
+    // 端脑**自己**在空 surface 里说了实话 ⇒ 客户端**不再补一句**概括。
+    expect(screen.getByText('Tasks (0)')).toBeInTheDocument();
+    expect(screen.getByText('No tasks yet.')).toBeInTheDocument();
+    expect(screen.queryByText('common.noData')).not.toBeInTheDocument();
+  });
+
+  it('marks a surface with content as not empty', async () => {
+    const fetchImpl = vi.fn(async () => fakeResponse(SSE_FIXTURE));
+
+    render(
+      <A2uiPanel
+        baseUrl="http://127.0.0.1:60080"
+        fetchImpl={fetchImpl as unknown as typeof fetch}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('a2ui-surface')).toBeInTheDocument());
+    // ⚠️ 断言有分辨力：同一块 DOM，同一个属性，两种取值。
+    expect(screen.getByTestId('a2ui-surface')).toHaveAttribute('data-surface-empty', 'false');
   });
 
   it('shows an error when the brain refuses the request', async () => {

@@ -109,6 +109,25 @@ final surfaceIdsProvider = StreamProvider<List<String>>((ref) {
   return service.surfaceIdsStream;
 });
 
+/// 端脑的**原话** —— 它这次没有画界面，而是回了一段话。
+///
+/// ⚠️ 以前这段话只进日志 ⇒ 手机上**彻底消失** ⇒ 用户只看到一个空面板。
+///
+/// ⚠️ 广播流**不重放** ⇒ 视图要兜底读 `service.lastTextReply`
+/// （回复先到、provider 后订阅时会漏掉那一句）。
+final a2uiTextReplyProvider = StreamProvider<String?>((ref) {
+  final service = ref.watch(genUIAgentServiceProvider);
+  return service.textReplyStream;
+});
+
+/// 端脑这次**为什么失败**（401 / 网络 / A2A 任务失败）。
+///
+/// ⚠️ 以前只存在 service 里（`lastError`）⇒ **从来没有显示过**。
+final a2uiErrorReasonProvider = StreamProvider<String?>((ref) {
+  final service = ref.watch(genUIAgentServiceProvider);
+  return service.errorReasonStream;
+});
+
 /// Provider for GenUiConversation
 final genUiConversationProvider = Provider<GenUiConversation>((ref) {
   final service = ref.watch(genUIAgentServiceProvider);

@@ -1,8 +1,9 @@
 import { useTranslation } from 'react-i18next';
-import type {
-  A2uiComponent,
-  A2uiProps,
-  A2uiSurfaceSnapshot,
+import {
+  isStructurallyEmptySurface,
+  type A2uiComponent,
+  type A2uiProps,
+  type A2uiSurfaceSnapshot,
 } from '../../lib/a2uiProtocol';
 
 /**
@@ -124,7 +125,17 @@ export function A2uiSurface({ surface }: A2uiSurfaceProps) {
   }
 
   return (
-    <div className="flex flex-col gap-3" data-testid="a2ui-surface" data-surface-id={surface.surfaceId}>
+    <div
+      className="flex flex-col gap-3"
+      data-testid="a2ui-surface"
+      data-surface-id={surface.surfaceId}
+      // ⚠️ **「空」也是一种状态** —— 端脑把「没有内容」画成一个只有文字的
+      // surface ⇒ 客户端必须**分得清**「有内容」与「空」
+      // （判据见 `isStructurallyEmptySurface`）。
+      // ⚠️ 界面上两者长得一样 —— 因为**端脑自己已经在空 surface 里说了实话**
+      // （「任务（0）」「还没有任务」）⇒ 客户端**不再补一句**自己的概括。
+      data-surface-empty={isStructurallyEmptySurface(surface) ? 'true' : 'false'}
+    >
       <A2uiNode id={surface.rootId} byId={byId} path={new Set()} />
     </div>
   );

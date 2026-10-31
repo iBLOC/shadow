@@ -22,13 +22,33 @@ class GenUIAgentService {
   final List<String> _surfaceIds = [];
   final _surfaceIdsController = StreamController<List<String>>.broadcast();
 
+  /// 端脑的**原话** —— 它这次没有画界面，而是回了一段话。
+  ///
+  /// ⚠️ 以前这段话**只进了日志**（`_logger.info`）⇒ 在手机上**彻底消失**
+  /// ⇒ 用户看到的是一个空面板，分不清是「没内容」还是「端脑说了话」。
+  final _textReplyController = StreamController<String?>.broadcast();
+
+  /// 端脑这次**为什么失败**（401 / 网络 / A2A 任务失败）。
+  ///
+  /// ⚠️ 以前只存进 [_lastError] ⇒ **从来没有显示过** ⇒
+  /// 界面把「失败」说成「未连接到端脑」（失败长得像没连上）。
+  final _errorReasonController = StreamController<String?>.broadcast();
+
   ConnectionStatus _connectionStatus = ConnectionStatus.disconnected;
   final _connectionStatusController =
       StreamController<ConnectionStatus>.broadcast();
   String? _lastError;
+  String? _lastTextReply;
 
   Stream<List<String>> get surfaceIdsStream => _surfaceIdsController.stream;
   List<String> get surfaceIds => List.unmodifiable(_surfaceIds);
+
+  /// 端脑的原话（最近一次）。
+  Stream<String?> get textReplyStream => _textReplyController.stream;
+  String? get lastTextReply => _lastTextReply;
+
+  /// 端脑这次失败的原因（最近一次）。
+  Stream<String?> get errorReasonStream => _errorReasonController.stream;
 
   Stream<ConnectionStatus> get connectionStatusStream =>
       _connectionStatusController.stream;
@@ -94,12 +114,17 @@ class GenUIAgentService {
   void _setupListeners() {
     _contentGenerator.textResponseStream.listen((text) {
       _logger.info('Text response from agent: $text');
+      // ⚠️ **端脑的原话必须送到界面上** —— 以前只进日志 ⇒ 手机上消失。
+      _lastTextReply = text;
+      _textReplyController.add(text);
       _updateConnectionStatus(ConnectionStatus.connected);
     });
 
     _contentGenerator.errorStream.listen((error) {
       _logger.severe('Error from content generator: ${error.error}');
       _lastError = error.error.toString();
+      // ⚠️ **失败的原因必须送到界面上** —— 以前只存起来，从不显示。
+      _errorReasonController.add(_lastError);
       _updateConnectionStatus(ConnectionStatus.error);
     });
 
@@ -143,6 +168,12 @@ class GenUIAgentService {
   void sendMessage(String text) {
     if (text.trim().isEmpty) return;
     _logger.info('Sending message: $text');
+    // ⚠️ **先把上一轮的结果清掉** —— 否则上一轮的原话 / 失败原因会留在
+    // 界面上 ⇒ 让人以为这一轮端脑又说了那句话 / 又失败了一次。
+    _lastTextReply = null;
+    _textReplyController.add(null);
+    _lastError = null;
+    _errorReasonController.add(null);
     _updateConnectionStatus(ConnectionStatus.connecting);
     // ⚠️ **必须接住这个 future**。
     //
@@ -170,6 +201,7 @@ class GenUIAgentService {
     _logger.info('Disconnecting from A2A server');
     _updateConnectionStatus(ConnectionStatus.disconnected);
     _lastError = null;
+    _errorReasonController.add(null);
   }
 
   void dispose() {
@@ -193,5 +225,7 @@ class GenUIAgentService {
     _transport.close();
     _surfaceIdsController.close();
     _connectionStatusController.close();
+    _textReplyController.close();
+    _errorReasonController.close();
   }
 }

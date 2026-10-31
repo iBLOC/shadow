@@ -4,6 +4,7 @@ import 'package:genui/genui.dart' hide ChatMessage;
 import '../../generated/l10n/app_localizations.dart';
 import '../../providers/genui_provider.dart';
 import '../../theme/app_colors.dart';
+import 'agent2ui_answer_state.dart';
 
 /// Agent2UI View using GenUiConversation
 class Agent2UIView extends ConsumerWidget {
@@ -58,6 +59,14 @@ class Agent2UIView extends ConsumerWidget {
     final surfaceIds = ref.watch(surfaceIdsProvider);
     final connectionStatus = ref.watch(a2uiConnectionStatusProvider);
 
+    // ⚠️ **端脑的原话 / 失败原因** —— 从 service 的广播流来。
+    // ⚠️ 兜底读 `service.lastTextReply` / `service.lastError`：
+    // 广播流**不重放** ⇒ 回复先到、provider 后订阅 ⇒ 会漏掉那一句。
+    final textReply =
+        ref.watch(a2uiTextReplyProvider).valueOrNull ?? service.lastTextReply;
+    final errorReason =
+        ref.watch(a2uiErrorReasonProvider).valueOrNull ?? service.lastError;
+
     return Column(
       children: [
         // Connection status bar
@@ -103,66 +112,13 @@ class Agent2UIView extends ConsumerWidget {
           child: surfaceIds.when(
             data: (ids) {
               if (ids.isEmpty) {
-                // ⚠️ **空态文案必须看真实连接状态** ——
-                // 以前这里只判 `ids.isEmpty` ⇒ 无论**没连上**还是**连上了但服务端
-                // 没产出**，一律显示「Agent2UI 就绪 / 问我任何问题」⇒
-                // 用户被明确告知「就绪」，然后永远等不到任何界面。
-                // ⚠️ 而端脑目前**根本不产出 A2UI**（见
-                // docs/superpowers/architecture/2026-10-31-multi-end-a2ui-usability.md），
-                // 所以「就绪」这句话今天是**假的**。
-                //
-                // 现在按连接状态分三种说法：
-                //   未连接 ⇒ 说实话（连不上）
-                //   连接中 ⇒ 说在等
-                //   已连接但空 ⇒ 说「连上了，但服务端还没给内容」（不是「就绪」）
-                //
-                // ⚠️ 关键：**空态不复读状态栏**。状态栏已经在讲「连上了没」，
-                // 空态要讲的是「**缺什么**」—— 复读不只是啰嗦，
-                // 还会让同一句话在屏幕上出现两次（断言时分不清说的是哪块）。
-                //
-                // ⚠️ 副标题原来那句「问我任何问题，我会为您生成界面」也是
-                // **假承诺** —— 端脑根本不产出 A2UI（见
-                // docs/superpowers/architecture/2026-10-31-multi-end-a2ui-usability.md），
-                // 说了也永远不会兑现 ⇒ 改成只描述机制、不承诺结果。
-                final status = connectionStatus.valueOrNull;
-                final connected = status == ConnectionStatus.connected;
-                final connecting = status == ConnectionStatus.connecting;
-
-                final message = connected
-                    ? l10n.agent2uiNoSurface
-                    : (connecting
-                          ? l10n.agent2uiWaiting
-                          : l10n.agent2uiNoConnection);
-
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        connected
-                            ? Icons.psychology
-                            : (connecting
-                                  ? Icons.wifi_find
-                                  : Icons.cloud_off),
-                        size: 64,
-                        color: AppColors.primary.withValues(alpha: 0.5),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        message,
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(color: AppColors.primary),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        l10n.agent2uiSurfaceHint,
-                        style: TextStyle(
-                          color: AppColors.darkTextMuted,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
+                // ⚠️ **端脑这一次的回答有三种**（外加「失败」）——
+                // 判据全在 `Agent2UIAnswerState` 里（单独一个文件：
+                // 三态的**判定顺序**有讲究，埋在状态栏代码里会被忘掉）。
+                return Agent2UIAnswerState(
+                  status: connectionStatus.valueOrNull,
+                  textReply: textReply,
+                  errorReason: errorReason,
                 );
               }
               // Render surfaces - GenUiSurface takes a GenUiHost and surfaceId
@@ -185,7 +141,7 @@ class Agent2UIView extends ConsumerWidget {
                   Icon(Icons.error_outline, size: 48, color: AppColors.error),
                   const SizedBox(height: 16),
                   Text(
-                    'Connection Error',
+                    l10n.connectionError,
                     style: TextStyle(color: AppColors.error),
                   ),
                   const SizedBox(height: 8),
