@@ -52,6 +52,20 @@ class _IdentityScreenState extends ConsumerState<IdentityScreen> {
   String? _message;
 
   @override
+  void initState() {
+    super.initState();
+    // 打开这一页就**重新问一次**端脑。
+    //
+    // 这一页是「我是谁」的唯一真相出口 —— 启动时那一次解析如果超时了
+    // （大脑冷启动要十几秒，而单次解析有 15 秒上界），页面就会一直显示
+    // 「背后没有人」，而端脑其实答得好好的。⇒ 进来就重问一次。
+    //
+    // ⚠️ 失败**不**降级：`resolve()` 连不上时保持当前租户，不会把已经
+    // 解析出来的身份清掉。
+    ref.read(identityProvider.notifier).resolve(force: true);
+  }
+
+  @override
   void dispose() {
     _importController.dispose();
     super.dispose();

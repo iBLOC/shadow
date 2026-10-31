@@ -183,6 +183,77 @@ void main() {
 
       expect(calls, 1);
     });
+
+    // ⚠️ 下面两条钉的是「**失败之后还有没有下一次**」。
+    //
+    // 原来的写法：全 App 只有 `main.dart` 一处 `resolve()` ⇒ 大脑冷启动
+    // 那一次超时之后，**再也没人问过端脑** ⇒ 身份永远停在「背后没有人」、
+    // 租户永远停在 `default` ⇒ 手机端往 `default` 桶写 ⇒ 两端其实没有
+    // 读写同一份记忆（而且哪儿都不报错）。
+    test('大脑后来才起来 ⇒ 解析自己会重试并切过去（不用谁来再调一次）', () async {
+      var calls = 0;
+      final prefrontal = PrefrontalClient(
+        baseUrl: 'http://127.0.0.1:60080',
+        client: http_testing.MockClient((_) async => http.Response('[]', 200)),
+      );
+      final telencephalon = TelencephalonClient(
+        baseUrl: 'http://127.0.0.1:60080',
+        client: http_testing.MockClient((request) async {
+          calls++;
+          // 前两次连不上（大脑还没起来）⇒ 第三次才答得上来。
+          if (calls < 3) throw Exception('connection refused');
+          return http.Response(
+            jsonEncode({
+              'principal': 'principal:alice',
+              'persona': 'persona-ada',
+              'device': 'device-1',
+              'identified': true,
+              'personas': [],
+            }),
+            200,
+          );
+        }),
+      );
+
+      final notifier = IdentityNotifier(telencephalon, prefrontal);
+      final tenant = await notifier.resolveWithRetry(
+        attempts: 3,
+        pause: Duration.zero,
+      );
+
+      expect(tenant, 'persona-ada');
+      expect(calls, 3);
+      // 关键：租户真的落到海马体 client 上了 —— 不然手机端还在往
+      // `default` 桶写 ⇒ 两端不是同一份记忆。
+      expect(prefrontal.tenantId, 'persona-ada');
+      expect(notifier.state.resolved, isTrue);
+    });
+
+    test('一直连不上 ⇒ 有上界：重试到头仍回退兜底租户', () async {
+      var calls = 0;
+      final prefrontal = PrefrontalClient(
+        baseUrl: 'http://127.0.0.1:60080',
+        client: http_testing.MockClient((_) async => http.Response('[]', 200)),
+      );
+      final telencephalon = TelencephalonClient(
+        baseUrl: 'http://127.0.0.1:60080',
+        client: http_testing.MockClient((request) async {
+          calls++;
+          throw Exception('connection refused');
+        }),
+      );
+
+      final notifier = IdentityNotifier(telencephalon, prefrontal);
+      final tenant = await notifier.resolveWithRetry(
+        attempts: 3,
+        pause: Duration.zero,
+      );
+
+      expect(tenant, 'default');
+      expect(calls, 3, reason: '重试必须有上界，不能无限打端脑');
+      expect(notifier.state.resolved, isFalse);
+      expect(notifier.state.error, isNotNull);
+    });
   });
 
   group('租户迁移（default → 账号人格）', () {

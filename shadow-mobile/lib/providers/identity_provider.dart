@@ -140,6 +140,41 @@ class IdentityNotifier extends StateNotifier<IdentityState> {
     }
   }
 
+  /// 解析身份 —— **大脑没起来就再来一次**。
+  ///
+  /// ## 为什么不能只跑一次
+  ///
+  /// 冷启动时嵌入式大脑要**十几秒**才起得来（抽 Flutter 资源 + 加载
+  /// 150MB 的 `.so` + boot 端脑面），而单次解析有 [identityTimeout]
+  /// （15 秒）的上界 ⇒ **第一次大概率超时**。
+  ///
+  /// ⚠️ 而 [resolve] 失败时**故意不**标记 resolved —— 注释写着「下次还会
+  /// 再试」—— 可**根本没有下次**：全 App 只有 `main.dart` 那一处调用。
+  /// ⇒ 身份永远停在「背后没有人」、租户永远停在 `default` ⇒
+  /// **手机端还在往 `default` 桶写** ⇒ 桌面端读的是账号人格桶 ⇒
+  /// **两端其实没有读写同一份记忆**（而且哪儿都不报错）。
+  ///
+  /// 所以这里把「下次还会再试」**兑现**了：失败就重来（有上界），成功为止。
+  ///
+  /// [attempts] 是总次数（含第一次），[pause] 是两次之间的间隔。
+  /// 上界 = `attempts × timeout` + `attempts × pause`。
+  Future<String> resolveWithRetry({
+    int attempts = 3,
+    Duration timeout = identityTimeout,
+    Duration pause = const Duration(seconds: 5),
+  }) async {
+    var tenant = state.tenantId;
+    for (var attempt = 1; attempt <= attempts; attempt++) {
+      tenant = await resolve(timeout: timeout);
+      // 端脑答了 ⇒ 收工（哪怕它答的是「背后没有人」—— 那也是**答案**）。
+      if (state.resolved) return tenant;
+      if (attempt < attempts) {
+        await Future<void>.delayed(pause);
+      }
+    }
+    return tenant;
+  }
+
   Future<String> _resolveOnce(Duration timeout) async {
     try {
       final identity = await _telencephalon

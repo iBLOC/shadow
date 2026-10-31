@@ -54,11 +54,16 @@ void main() async {
   // 人格，没账号才是 `"default"`）。端脑 client 自带**就绪门** ⇒ 大脑还没
   // 起来时这次调用会**等它起来**，不会直接失败。
   //
+  // ⚠️ 但冷启动时大脑要**十几秒**才起得来（抽资源 + 加载 150MB 的 `.so`），
+  // 而单次解析有 15 秒的上界 ⇒ **第一次大概率超时** ⇒ 所以这里
+  // **失败就再来一次**（有上界）：不然身份永远停在「背后没有人」、租户永远
+  // 停在 `default` ⇒ 手机端往 `default` 桶写 ⇒ **两端没有读写同一份记忆**。
+  //
   // 解析完顺手做一次「`default` 桶 → 账号人格桶」的迁移（复制，不删旧行）——
   // 不阻塞启动，失败也不影响 App（下次还会再试）。
   unawaited(() async {
     final identity = container.read(identityProvider.notifier);
-    final tenant = await identity.resolve();
+    final tenant = await identity.resolveWithRetry();
     final migrated = await identity.migrate();
     // 只在**真的搬了东西**或**搬的过程中出错**时才说一句 ——
     // 「跑了但一条都没搬」（比如海马体够不着）不值得刷屏。
