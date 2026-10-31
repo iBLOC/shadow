@@ -84,6 +84,7 @@ class EncephalonRuntime {
     ): Int
     private external fun nativeSetModelRouting(json: String): Int
     private external fun nativeSetShadowApiKey(key: String): Int
+    private external fun nativeSetAdminToken(token: String): Int
     private external fun nativeInfer(
         path: String,
         body: ByteArray,
@@ -208,6 +209,50 @@ class EncephalonRuntime {
             false
         } catch (e: Exception) {
             Log.e(TAG, "setShadowApiKey failed: ${e.message}", e)
+            false
+        }
+    }
+
+    /**
+     * 设置 admin token —— 「**谁能改这台大脑的配置**」的凭据。
+     *
+     * ## 为什么需要它
+     *
+     * Android 进程**设不了环境变量** ⇒ 手机上的端脑**没有配置文件** ⇒ 它的
+     * admin token 取默认 `""` ⇒ 而端脑的 `verify_admin_token` 在 expected 为
+     * **空串**时，只要求「请求里带 `X-Admin-Token` 这个头」⇒ **空值**的头与
+     * 空串 `ct_eq` 相等 ⇒ **过** ⇒ ⚠️ **2026-10-31 真机证实过**：空的
+     * `X-Admin-Token` 头 ⇒ **200** ⇒ 同设备任何别的 App 都能装 agent、
+     * **改 LLM 上游**、动 MCP。
+     *
+     * 给了这把 token，admin 面就只认它。
+     *
+     * ## 为什么是「单独一个入口」而不是 `start` 的参数
+     *
+     * 和 shadow key 一样：**不动 `nativeStart` 的 ABI** ⇒ 走**纯增量**的
+     * 入口：老版本 Kotlin 调不到就调不到，行为不变（没有 token ⇒ 端脑回落到
+     * 环境变量/配置文件；都没有 ⇒ **admin 面关着**，不是敞开）。
+     *
+     * ⚠️ **它与 shadow key 是两把不同的钥匙** —— 一个是门闩，一个是凭据。
+     *
+     * ⚠️ **绝不把 token 打进日志**。
+     */
+    fun setAdminToken(token: String): Boolean {
+        return try {
+            val rc = nativeSetAdminToken(token)
+            if (rc >= 0) {
+                // ⚠️ 只说「设好了」，不说是什么。
+                Log.i(TAG, "✅ admin token set (admin 面将要求 X-Admin-Token)")
+                true
+            } else {
+                Log.e(TAG, "❌ nativeSetAdminToken returned: $rc")
+                false
+            }
+        } catch (e: UnsatisfiedLinkError) {
+            Log.w(TAG, "Encephalon native method missing — .so not loaded, or an old .so without this method: ${e.message}")
+            false
+        } catch (e: Exception) {
+            Log.e(TAG, "setAdminToken failed: ${e.message}", e)
             false
         }
     }

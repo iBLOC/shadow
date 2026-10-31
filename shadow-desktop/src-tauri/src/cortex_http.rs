@@ -74,6 +74,26 @@ pub const HIPPOCAMPUS_PREFIX: &str = "/hippocampus";
 /// `NativeLobeRegistry::with_temporal()` 注册的。
 const NATIVE_LOBES: [&str; 3] = ["temporal", "prefrontal", "parietal"];
 
+/// 桌面端递给端脑的 admin token。
+///
+/// 端脑侧「没配 token ⇒ admin 面关着」（fail-closed）⇒ 桌面端必须**自己**
+/// 递一把进来，否则「建 agent」这类调用会 401。
+///
+/// 优先级：**环境变量 → 开发后门**。
+///
+/// ⚠️ `dev-admin-key` 是端脑的开发后门（`verify_admin_token` 对它直接放行）
+/// —— 桌面端今天的开发契约就是它（前端 `telencephalonClient.ts` 的
+/// `localStorage['shadow-admin-token'] ?? 'dev-admin-key'`），所以桌面端的
+/// 行为**一字不变**。
+fn desktop_admin_token() -> String {
+    std::env::var("TELENCEPHALON_ADMIN_KEY")
+        .or_else(|_| std::env::var("CORTEX_ADMIN_KEY"))
+        .ok()
+        .map(|k| k.trim().to_string())
+        .filter(|k| !k.is_empty())
+        .unwrap_or_else(|| "dev-admin-key".to_string())
+}
+
 /// 起端脑的 HTTP 面。
 ///
 /// 端脑 + neuron（根）+ 海马体（`/hippocampus`）三张面合成一台服务，
@@ -137,6 +157,26 @@ async fn build_router(stack: &Embedded) -> Result<Router, String> {
         // `build_app_state_with` 读配置**之后**才被 `apply_shadow_api_key`
         // 覆盖的，而 `apply_shadow_api_key` 对 `None` 是**原样返回**（不碰）。
         shadow_api_key: None,
+        // 桌面端**显式**声明 admin token —— 端脑**不再**替宿主发明一把
+        // 开发用的钥匙了（旧的 `dev-admin-key` 回退被端脑删掉了）。
+        //
+        // ⚠️ 为什么桌面端要「显式要一把开发钥匙」：
+        //
+        // * 端脑面绑 `127.0.0.1:60080`（loopback，有测试钉着）⇒ 威胁模型
+        //   是「本机的另一个进程」，不是「网上的谁」；
+        // * 桌面前端**只有** `/api/telencephalon/admin/token` 这一个调用
+        //   会带 `X-Admin-Token`（默认 `dev-admin-key`），**agent 管理那些
+        //   调用根本不带那个头** ⇒ 若端脑侧真的把 admin 面锁上，桌面的
+        //   「建 agent」会 401 ⇒ **今天的桌面端会坏**；
+        // * ⇒ 桌面端于是**自己**把那把钥匙递进去（今天的开发契约 =
+        //   `dev-admin-key`），行为**一字不变**。
+        //
+        // ⚠️ 环境变量优先（`TELENCEPHALON_ADMIN_KEY` / 旧的
+        // `CORTEX_ADMIN_KEY`）—— 今天它就优先，别把它弄反了。
+        //
+        // ⇒ 「桌面端的 admin 面仍然是 loopback + 开发后门」是**已知缺口**，
+        // 下一档再单独定边界（桌面端自己生成一把 + 前端带上）。
+        admin_token: Some(desktop_admin_token()),
     };
     let (state, conv_store, hippocampus_state) =
         telencephalon::boot::build_app_state_with(Some(stack.neuron().as_ref()), options)

@@ -44,6 +44,16 @@ class EncephalonMobileService {
   /// 客户端必须带上它，否则连自己的大脑都打不动。
   String? _shadowKey;
 
+  /// admin 面（「谁能改这台大脑的配置」）的那把 token。
+  ///
+  /// **null** = 端脑没拿到 token ⇒ 端脑回落到环境变量/配置文件；都没有 ⇒
+  /// **admin 面关着**（fail-closed）。**有值** = admin 请求必须带
+  /// `X-Admin-Token`，客户端必须带上它 —— 否则 App 自己的 MCP / agent 管理
+  /// 功能就是 401。
+  ///
+  /// ⚠️ **它与 [_shadowKey] 是两把不同的钥匙** —— 一个是门闩，一个是凭据。
+  String? _adminToken;
+
   EncephalonMobileService({this.preferredPort});
 
   /// neuron HTTP 面（OpenAI 兼容）的端口。没在跑是 null。
@@ -60,6 +70,9 @@ class EncephalonMobileService {
 
   /// 端脑面的钥匙（见 [_shadowKey]）。**不要把它打进日志。**
   String? get shadowKey => _shadowKey;
+
+  /// admin 面的 token（见 [_adminToken]）。**不要把它打进日志。**
+  String? get adminToken => _adminToken;
 
   /// 运行时是否已启动。
   bool get isRunning => _isRunning;
@@ -148,10 +161,16 @@ class EncephalonMobileService {
       // ⚠️ **绝不把它打进日志**（它是门闩）。客户端要靠它给每个端脑请求
       // 带 `X-Shadow-Key` —— 没有它，端脑面会把 App 自己挡在外面。
       _shadowKey = result['shadowKey'] as String?;
+      // admin 面那把 token —— 同样由 Kotlin 侧生成、同时也递给了端脑。
+      //
+      // ⚠️ **绝不把它打进日志**（它是凭据）。客户端要靠它给 admin 请求带
+      // `X-Admin-Token` —— 没有它，App 自己的 MCP / agent 管理就是 401。
+      _adminToken = result['adminToken'] as String?;
       _isRunning = true;
       _log.info(
         'Encephalon 嵌入式运行时已启动, 端口: $_port, 端脑面: ${_agentPort ?? 0}'
-        '${_shadowKey != null ? ', shadow key: 已设' : ', shadow key: 无'}',
+        '${_shadowKey != null ? ', shadow key: 已设' : ', shadow key: 无'}'
+        '${_adminToken != null ? ', admin token: 已设' : ', admin token: 无'}',
       );
       return true;
     } catch (e, stack) {

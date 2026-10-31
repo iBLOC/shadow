@@ -769,9 +769,26 @@ class MainActivity : FlutterActivity() {
                         // **换掉「这台机器是谁」**（记忆改写进另一个人格、
                         // 而且不报错）。
                         val shadowKey = ShadowKey.getOrCreate(filesDir)
+                        // admin 面（「谁能改这台大脑的配置」）的那把 token ——
+                        // 宿主生成，**同一份**同时给端脑和 App 自己的客户端。
+                        //
+                        // ⚠️ 必须在 start **之前**设进去（Rust 侧是在 start 的
+                        // 时候读这个槽位的）。
+                        //
+                        // ⚠️ 没有它，手机上的 admin 面是**敞开**的：端脑的
+                        // admin token 取默认 `""` ⇒ 而 `verify_admin_token`
+                        // 在 expected 为空串时只要求「请求里带 `X-Admin-Token`
+                        // 头」⇒ **空值**的头就能过 ⇒ ⚠️ **2026-10-31 真机
+                        // 证实过**（空头 ⇒ 200）⇒ 同设备任何别的 App 都能装
+                        // agent、**改 LLM 上游**、动 MCP。
+                        //
+                        // ⚠️ **它与 shadow key 是两把不同的钥匙** —— 一个是
+                        // 门闩，一个是凭据。
+                        val adminToken = AdminKey.getOrCreate(filesDir)
                         try {
                             val runtime = EncephalonRuntime.getInstance()
                             runtime.setShadowApiKey(shadowKey)
+                            runtime.setAdminToken(adminToken)
                             val started = runtime.start(port, dataDir)
                             result.success(mapOf(
                                 "success" to started,
@@ -779,7 +796,11 @@ class MainActivity : FlutterActivity() {
                                 "agentPort" to runtime.getAgentPort(),
                                 // 客户端要靠它给端脑请求带 X-Shadow-Key。
                                 // 同一把，端脑守门、客户端敲门。
-                                "shadowKey" to shadowKey
+                                "shadowKey" to shadowKey,
+                                // 同理：客户端要靠它给 admin 请求带
+                                // X-Admin-Token ⇒ **App 自己的** MCP/agent
+                                // 管理功能在手机上才不是 401。
+                                "adminToken" to adminToken
                             ))
                         } catch (e: UnsatisfiedLinkError) {
                             result.error("SO_NOT_LOADED", "Encephalon .so not loaded: ${e.message}", null)

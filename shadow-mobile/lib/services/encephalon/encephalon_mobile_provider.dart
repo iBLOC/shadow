@@ -76,6 +76,20 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
   /// 拉回来 —— 那个语义是用户自己选的，要恢复得他自己点「启动大脑」。
   bool _stoppedByUser = false;
 
+  /// 用户为**外部**端脑配的 admin token。
+  ///
+  /// 嵌入式端脑有**自己**那把（两个域：嵌入式那把只对嵌入式端脑有效）⇒
+  /// 指回外部端脑时要把这把放回去，否则用户在设置页配的 token 会丢。
+  String? _userAdminToken;
+
+  /// 设置 admin token —— 设置页给**外部**端脑配的那把。
+  ///
+  /// 记下来是为了「指回外部端脑」时能放回去。
+  void setAdminToken(String? token) {
+    _userAdminToken = (token == null || token.isEmpty) ? null : token;
+    _ref.read(telencephalonClientProvider).setAdminToken(_userAdminToken);
+  }
+
   EncephalonMobileNotifier(this._service, this._ref)
       : super(const EncephalonMobileState()) {
     // 把「等大脑就绪」的门挂到端脑 client 上。
@@ -437,6 +451,17 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
     if (key != null && key.isNotEmpty) {
       client.setApiKey(key);
     }
+    // admin 面那把 token —— 同理，**先设 token 再改地址**。
+    //
+    // ⚠️ 没有它，App 自己的 MCP / agent 管理在手机上就是 401（端脑的 admin
+    // token 取默认 `""` ⇒ 而「没配 token」现在意味着**admin 面关着**）。
+    final adminToken = _service.adminToken;
+    if (adminToken != null && adminToken.isNotEmpty) {
+      // 先把「外部端脑那把」记住（**只记第一次** —— 再记就会把嵌入式端脑
+      // 那把记下来）⇒ 指回外部端脑时放回去。
+      _userAdminToken ??= client.adminToken;
+      client.setAdminToken(adminToken);
+    }
     client.setBaseUrl(url);
     _log.info('端脑 client 已指向嵌入式大脑: $url');
   }
@@ -448,6 +473,9 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
     // 外部端脑用的是**它自己**的 key —— 移动端没有为它配置过 ⇒ 空。
     // （嵌入式端脑的钥匙只对嵌入式端脑有效，别带过去。）
     client.setApiKey(null);
+    // admin token 同理 —— 嵌入式端脑那把**只对嵌入式端脑有效**（两个域）。
+    // ⇒ 放回用户为**外部**端脑配的那把（没配过 ⇒ null）。
+    client.setAdminToken(_userAdminToken);
   }
 
   @override
