@@ -76,22 +76,17 @@ const NATIVE_LOBES: [&str; 3] = ["temporal", "prefrontal", "parietal"];
 
 /// 桌面端递给端脑的 admin token。
 ///
-/// 端脑侧「没配 token ⇒ admin 面关着」（fail-closed）⇒ 桌面端必须**自己**
-/// 递一把进来，否则「建 agent」这类调用会 401。
+/// ⚠️ **2026-10-31：这不再是那个常量了。**
 ///
-/// 优先级：**环境变量 → 开发后门**。
+/// 旧的实现是「环境变量 ⇒ 缺省 `dev-admin-key`」⇒ 而端脑那边恰好有一条
+/// 「`expected == "dev-admin-key"` ⇒ **认任何人**」的后门（已删）⇒ ⇒
+/// 桌面端的 admin 面**任何请求都过** ⇒ 叠加端脑面的
+/// `CorsLayer::permissive()` ⇒ **任意网站**都能插 agent、读走 LLM 密钥。
 ///
-/// ⚠️ `dev-admin-key` 是端脑的开发后门（`verify_admin_token` 对它直接放行）
-/// —— 桌面端今天的开发契约就是它（前端 `telencephalonClient.ts` 的
-/// `localStorage['shadow-admin-token'] ?? 'dev-admin-key'`），所以桌面端的
-/// 行为**一字不变**。
+/// ⇒ 现在这把钥匙由 [`crate::admin_token`] 负责：**环境变量 → 持久化文件
+/// → 首次生成一把随机的** ⇒ 每台安装一把自己的、猜不到的。
 fn desktop_admin_token() -> String {
-    std::env::var("TELENCEPHALON_ADMIN_KEY")
-        .or_else(|_| std::env::var("CORTEX_ADMIN_KEY"))
-        .ok()
-        .map(|k| k.trim().to_string())
-        .filter(|k| !k.is_empty())
-        .unwrap_or_else(|| "dev-admin-key".to_string())
+    crate::admin_token::admin_token().to_string()
 }
 
 /// 起端脑的 HTTP 面。

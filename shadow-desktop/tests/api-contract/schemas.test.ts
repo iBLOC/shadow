@@ -12,10 +12,10 @@
 
 import { describe, expect, it } from 'vitest';
 import {
-  ADMIN_TOKEN,
   API_BASE_URL,
   authHeaders,
   checkServerReachable,
+  hasAdminToken,
   IS_STRICT,
 } from './server-check';
 
@@ -69,9 +69,13 @@ describe('GET /api/telencephalon/admin/agents/installed', () => {
       ctx.skip(); // server absent — report as skipped, not passed
       return;
     }
+    if (!hasAdminToken) {
+      ctx.skip(); // 没配 admin token ⇒ 这条探测做不了（不是端点不存在）
+      return;
+    }
     const body = await probe<InstalledWasmList>(
       '/api/telencephalon/admin/agents/installed',
-      { headers: { 'X-Admin-Token': ADMIN_TOKEN } },
+      { headers: authHeaders(true) },
     );
     expect(typeof body.count).toBe('number');
     expect(Array.isArray(body.entries)).toBe(true);
@@ -170,11 +174,15 @@ describe('POST /api/telencephalon/admin/token', () => {
       ctx.skip(); // server absent — report as skipped, not passed
       return;
     }
+    if (!hasAdminToken) {
+      ctx.skip(); // 没配 admin token ⇒ 这条探测做不了（不是端点不存在）
+      return;
+    }
     const body = await probe<SubsystemToken>(
       '/api/telencephalon/admin/token',
       {
         method: 'POST',
-        headers: { 'X-Admin-Token': ADMIN_TOKEN },
+        headers: authHeaders(true),
         body: JSON.stringify({ scopes: ['agent.run'] }),
       },
     );

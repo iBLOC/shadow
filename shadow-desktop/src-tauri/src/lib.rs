@@ -16,6 +16,7 @@ mod provider_manager;
 mod global_keys;
 mod logger;
 mod cortex_http;
+mod admin_token;
 
 use config_manager::{AppConfig, DatabaseConfig, ProviderConfig, SecureAuth};
 use diencephalon::Thalamus;
@@ -311,6 +312,9 @@ pub fn run() {
             show_window,
             hide_window,
             minimize_window,
+            // 这台机器的 admin token（端脑面认它）—— 前端要拿它去带
+            // `X-Admin-Token`。⚠️ 别把它打进日志。
+            admin_token::get_admin_token,
             // JDM editor dry-run + publish (registered here —
             // they were defined but never wired before).
             jdm_try_run_rule,

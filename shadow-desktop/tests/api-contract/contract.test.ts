@@ -23,6 +23,7 @@ import {
   authHeaders,
   checkServerReachable,
   endpointsManifest,
+  hasAdminToken,
   IS_STRICT,
 } from './server-check';
 
@@ -109,6 +110,12 @@ describe('API contract: every endpoint in telencephalonClient must respond', () 
     it(label, async (ctx) => {
       if (!serverUp) {
         ctx.skip(); // server absent — report as skipped, not passed
+        return;
+      }
+      // ⚠️ 没配 admin token ⇒ admin 类的探测**做不了** ⇒ 跳过并说清楚，
+      // 别让它变成「一个不带凭据的请求返回 401 ⇒ 看着像通过」。
+      if (ep.needsAdmin && !hasAdminToken) {
+        ctx.skip(); // no admin token configured — the probe cannot be made
         return;
       }
       const headers = authHeaders(ep.needsAdmin);

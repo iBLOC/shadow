@@ -1,4 +1,5 @@
 import { isTauri } from './platform';
+import { getAdminToken } from './adminToken';
 
 const DEFAULT_CORTEX_URL = 'http://127.0.0.1:60080';
 
@@ -561,6 +562,22 @@ export class TelencephalonClient {
     if (this.apiKey) {
       headers['X-Shadow-Key'] = this.apiKey;
     }
+    // ⚠️ **admin 面（建 agent / MCP / 改 LLM 上游…）现在必须真的带上凭据。**
+    //
+    // 端脑原来有一条「`expected == "dev-admin-key"` ⇒ **认任何人**」的后门
+    // （连请求头都不看）⇒ 而桌面端递进去的 expected **恰好就是**那个字面量
+    // ⇒ ⇒ 桌面端的 admin 面**任何请求都过** ⇒ 再叠加端脑面的
+    // `CorsLayer::permissive()` ⇒ **任意网站**都能往用户的大脑里插 agent。
+    //
+    // ⇒ 那把钥匙现在由 sidecar **生成并持久化**（`admin_token.rs`）⇒
+    // ⇒ 前端问它要（`getAdminToken()`）。
+    //
+    // ⚠️ 拿不到就**不带**那个头 —— 空的 `X-Admin-Token` 在旧实现里与空串
+    // `ct_eq` 相等 ⇒ **过**（手机上整个 admin 面就是这么开着的）。
+    const adminToken = await getAdminToken();
+    if (adminToken) {
+      headers['X-Admin-Token'] = adminToken;
+    }
     const resp = await fetch(`${this.baseUrl}${path}`, { ...init, headers });
     if (!resp.ok) {
       const text = await resp.text().catch(() => '');
@@ -1083,20 +1100,19 @@ export class TelencephalonClient {
     ttlSeconds?: number
   ): Promise<SubsystemTokenResponse> => {
     // Telencephalon replaced the legacy `cortex_issue_subsystem_token`
-    // Tauri command with an HTTP admin endpoint. Resolve the admin
-    // token from localStorage (defaulting to `dev-admin-key` in dev)
-    // and forward as `X-Admin-Token`.
-    const adminToken =
-      typeof window !== 'undefined'
-        ? (window.localStorage.getItem('shadow-admin-token') ?? 'dev-admin-key')
-        : 'dev-admin-key';
+    // Tauri command with an HTTP admin endpoint.
+    //
+    // ⚠️ **这里不再有 `?? 'dev-admin-key'`** —— 那个字面量打进前端产物 ⇒
+    // 它从来就不是秘密；而端脑那边曾经有一条「expected 恰好是它 ⇒ **认任何
+    // 人**」的后门 ⇒ ⇒ 等于「谁都能进 admin 面」。
+    //
+    // ⇒ 钥匙由 `request()` 统一带上（它问 sidecar 要：生成 + 持久化的那把）。
     const body: Record<string, unknown> = { scopes };
     if (ttlSeconds !== undefined) body.ttl_seconds = ttlSeconds;
     return this.request<SubsystemTokenResponse>(
       '/api/telencephalon/admin/token',
       {
         method: 'POST',
-        headers: { 'X-Admin-Token': adminToken },
         body: JSON.stringify(body),
       },
     );
