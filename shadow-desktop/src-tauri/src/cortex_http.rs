@@ -128,6 +128,15 @@ async fn build_router(stack: &Embedded) -> Result<Router, String> {
                 .to_string()
         }),
         identity: None,
+        // 桌面端**有配置文件** ⇒ shadow key 从配置文件来（`config.toml` 的
+        // `telencephalon.shadow.api_key`）⇒ 这里传 `None`，语义是
+        // 「不覆盖配置文件」。
+        //
+        // ⚠️ `None` 在端脑里的语义是「**没有** key ⇒ 端脑面敞开」——
+        // 所以这里传 `None` 不会把配置文件的 key 抹掉：配置文件那份是在
+        // `build_app_state_with` 读配置**之后**才被 `apply_shadow_api_key`
+        // 覆盖的，而 `apply_shadow_api_key` 对 `None` 是**原样返回**（不碰）。
+        shadow_api_key: None,
     };
     let (state, conv_store, hippocampus_state) =
         telencephalon::boot::build_app_state_with(Some(stack.neuron().as_ref()), options)
