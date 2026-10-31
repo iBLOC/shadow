@@ -357,7 +357,7 @@ function selfTest() {
       failures.push(`自检用例「${c.name}」：期望 ${c.expect} 条，实际 ${hits.length} 条`);
     }
   }
-  return failures;
+  return { failures, total: cases.length };
 }
 
 // ---------------------------------------------------------------------------
@@ -368,18 +368,18 @@ function main() {
   const opts = parseArgs(process.argv.slice(2));
 
   if (opts.selfTest) {
-    const failures = selfTest();
+    const { failures, total } = selfTest();
     if (failures.length) {
       console.error('❌ 探测器自检失败：');
       for (const f of failures) console.error(`   - ${f}`);
       process.exit(2);
     }
-    console.log(`✅ 探测器自检全过（${cases.length} 只样本）`);
+    console.log(`✅ 探测器自检全过（${total} 只样本）`);
     process.exit(0);
   }
 
   // 探测器先自检 —— 探测器坏了 ⇒ 后面的一切结论都不成立。
-  const stFailures = selfTest();
+  const { failures: stFailures } = selfTest();
   if (stFailures.length) {
     console.error('❌ 探测器自检失败 ⇒ 闸门自己坏了（退出码 2）');
     for (const f of stFailures) console.error(`   - ${f}`);
