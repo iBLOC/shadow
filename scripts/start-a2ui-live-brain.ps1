@@ -8,19 +8,28 @@
 #   ① 端脑**真的**在吐这个形状（不是我们以为的形状）；
 #   ② `/a2a` **真的**在 shadow key 后面（不是「应该」在）。
 #
-# ## ⚠️⚠️ 关于「监听地址」：这个独立宿主**不听** config 的 `bind.http`
+# ## ⚠️⚠️ 关于「监听地址」：独立宿主**不读** config 的 `bind.http`
 #
-# `telencephalon.bind.http: "127.0.0.1:60080"` **对这个二进制无效** ——
-# `C:\Projects\iBLOC\encephalon\src\a2a_server.rs:207` 把监听地址**写死**成
-# `TcpListener::bind(("0.0.0.0", port))` ⇒ 它**永远**绑所有网卡。
+# 端脑 YAML 里那句 `telencephalon.bind.http` 说的是「**端脑面**在哪」，
+# 不是「**这台服务器**暴露到哪」⇒ 混在一起的话，一份端脑配置就能悄悄把
+# 整台 agent 放到局域网上 ⇒ 两条线各管各的。
+#
+# ⇒ 暴露面由**宿主**决定：
+# - **新版**（杏仁核会话 2026-10-31 修的）：**默认绑回环** `127.0.0.1`，
+#   要暴露到局域网必须**显式**写 `--bind 0.0.0.0` 或 `TELENCEPHALON_BIND=0.0.0.0`；
+# - **旧版**：`C:\Projects\iBLOC\encephalon\src\a2a_server.rs:207` 把地址
+#   **写死**成 `TcpListener::bind(("0.0.0.0", port))` ⇒ config 对它无效。
 #
 # ⚠️ **为什么这件事有后果**：端脑面**还有约 30 张 router 敞开**
 # （见 `docs/superpowers/architecture/2026-10-31-agent-surface-endpoint-lock-matrix.md`）
-# ⇒ 起一台独立宿主 = **把那些不拿凭据就能进的端点放到局域网上**。
+# ⇒ 一台绑在 `0.0.0.0` 的端脑 = **把那些不拿凭据就能进的端点放到局域网上**。
 #
-# ⇒ 所以本脚本**必须**在起完之后**报出实际监听地址**，并且**提醒你用完就停**。
-# ⇒ 桌面端自己那条路是安全的：`shadow-desktop/src-tauri/src/cortex_http.rs:63`
-# 绑的是 **127.0.0.1:60080**，还有一条测试钉着「sidecar 必须留在 loopback」。
+# ⇒ 所以本脚本**起完之后会报出实际监听地址**；若不是回环 ⇒ **响亮地提醒**，
+#   并要求验完就停（`-Stop`）。**不要相信配置、只相信实际监听地址**。
+#
+# 对照：桌面端自己的 sidecar 一直是 loopback
+# （`shadow-desktop/src-tauri/src/cortex_http.rs:63` ⇒ `127.0.0.1:60080`，
+# 还有一条测试钉着「the sidecar must stay on loopback」）。
 #
 # ## 两把钥匙是**分开的**
 #
@@ -200,10 +209,13 @@ if ($listen) {
   Write-Output "实际监听：$addrs"
   if ($listen | Where-Object { $_.LocalAddress -ne '127.0.0.1' -and $_.LocalAddress -ne '::1' }) {
     Write-Output ''
-    Write-Output '⚠️⚠️ **这台在局域网里是可达的** —— 独立宿主把监听地址写死成 0.0.0.0'
-    Write-Output '   （encephalon/src/a2a_server.rs:207 ⇒ config 的 bind.http 对它无效），'
-    Write-Output '   而端脑面还有约 30 张 router 敞开 ⇒ **验完立刻停**：'
+    Write-Output '⚠️⚠️ **这台在局域网里是可达的** —— 端脑面还有约 30 张 router 敞开'
+    Write-Output '   （旧版宿主把监听地址写死成 0.0.0.0 ⇒ config 的 bind.http 对它无效；'
+    Write-Output '     新版默认回环，要暴露必须显式 `--bind 0.0.0.0` / `TELENCEPHALON_BIND=0.0.0.0`）'
+    Write-Output '   ⇒ **验完立刻停**：'
     Write-Output "     pwsh -NoProfile -File scripts\start-a2ui-live-brain.ps1 -Stop"
+  } else {
+    Write-Output '（回环绑定 ✓ ⇒ 局域网够不着。）'
   }
 }
 

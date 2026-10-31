@@ -48,9 +48,26 @@
  *
  * 退出码：0 = 没有源码级宽绑定；1 = 抓到了（每条带 file:line）；2 = 闸门自己坏了。
  *
- * ⚠️ **范围**：只扫**端脑面**这条线上的三个仓（端脑 / 大脑 / 桌面端 sidecar）。
- * 兄弟仓（amygdala / temporal 等）各有各的暴露面决策，**不归这道闸** ——
+ * ⚠️ **范围**：默认只扫**端脑面**这条线上的三个仓（端脑 / 大脑 / 桌面端 sidecar）。
+ * 兄弟仓（amygdala / temporal 等）各有各的暴露面决策，**默认不归这道闸** ——
  * 跨仓报警只会让闸门被当成噪音关掉。
+ *
+ * ⚠️ **`--lobes` 是显式加进来的那一档**（2026-10-31）：**叶区服务**
+ * （杏仁核 / 颞叶 / 枕叶 / 顶叶）+ `synapse` 的**库级默认**
+ * （`LobeAppBuilder::new` 的兜底 ⇒ 每一个用 `LobeApp::builder()` 的叶区都继承它）。
+ *
+ * 为什么叶区值得单独一档、而不是并进端脑面那一档 —— **理由不同**：
+ *
+ * * 端脑面**还有一道锁当第二层**（那约 30 张 router 正在上锁，见判定表）
+ *   ⇒ 绑定地址只是「锁的乘数」；
+ * * **叶区面没有任何凭据层** —— 2026-10-31 实测：杏仁核的
+ *   `GET /emotion/state` **不带任何凭据**就回用户的情绪状态
+ *   ⇒ ⇒ 对叶区来说，**绑定地址就是唯一的访问控制**。
+ *
+ * ⇒ 这一档因此**默认关、显式开**：默认只扫端脑面（不替兄弟仓表态），
+ * 要查叶区就显式 `--lobes` ⇒ 「谁该报警」留给跨仓协作去谈；
+ * 而**判据**（只有「默认绑定位置上的通配地址」才算）两边是同一份
+ * ⇒ 不需要两套探测器，也不会出现两套标准。
  */
 
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
@@ -73,6 +90,8 @@ function printHelp() {
       '  --source <dir>   端脑仓根目录（默认 <repo>/../telencephalon）',
       '  --brain <dir>    大脑仓根目录（默认 <repo>/../encephalon）',
       '  --desktop <dir>  桌面端仓根目录（默认 <repo>/shadow-desktop）',
+      '  --lobes         额外扫**叶区**那一档（杏仁核/颞叶/枕叶/顶叶 + synapse 库默认）',
+      '  --lobes-root <dir>  叶区各仓的父目录（默认 <repo>/..）',
       '  --json           输出 JSON',
       '  --self-test      只跑探测器自检',
       '  -h, --help       这段话',
@@ -85,6 +104,8 @@ function parseArgs(argv) {
     source: join(REPO, '..', 'telencephalon'),
     brain: join(REPO, '..', 'encephalon'),
     desktop: join(REPO, 'shadow-desktop'),
+    lobes: false,
+    lobesRoot: join(REPO, '..'),
     json: false,
     selfTest: false,
   };
@@ -99,6 +120,12 @@ function parseArgs(argv) {
         break;
       case '--desktop':
         opts.desktop = resolve(argv[++i]);
+        break;
+      case '--lobes':
+        opts.lobes = true;
+        break;
+      case '--lobes-root':
+        opts.lobesRoot = resolve(argv[++i]);
         break;
       case '--json':
         opts.json = true;
@@ -273,7 +300,7 @@ function walkRust(dir) {
   return out;
 }
 
-function scanFile(absPath, label) {
+function scanFile(absPath, label, displayRoot) {
   let raw;
   try {
     raw = readFileSync(absPath, 'utf8');
@@ -285,7 +312,9 @@ function scanFile(absPath, label) {
   const origLines = raw.split(/\r?\n/);
   const hits = findWildcards(code, 0, lineOf, origLines).map((h) => ({
     ...h,
-    file: `${label}/${relative(label, absPath).replace(/\\/g, '/')}`,
+    // ⚠️ 基准是**那个仓的根目录**，不是标签名 ⇒ 否则路径会渲染成
+    //    `amygdala/../../amygdala/src/...` 这种没法看的东西。
+    file: `${label}/${relative(displayRoot, absPath).replace(/\\/g, '/')}`,
   }));
   return { scanned: 1, hits };
 }
@@ -387,13 +416,28 @@ function main() {
   }
 
   const targets = [
-    { label: 'telencephalon', root: join(opts.source, 'src') },
-    { label: 'encephalon', root: join(opts.brain, 'src') },
-    { label: 'shadow-desktop', root: join(opts.desktop, 'src-tauri', 'src') },
+    { label: 'telencephalon', root: join(opts.source, 'src'), display: opts.source },
+    { label: 'encephalon', root: join(opts.brain, 'src'), display: opts.brain },
+    {
+      label: 'shadow-desktop',
+      root: join(opts.desktop, 'src-tauri', 'src'),
+      display: join(opts.desktop, 'src-tauri', 'src'),
+    },
   ];
+
+  // 叶区那一档：**默认不扫**（兄弟仓各有各的暴露面决策 ⇒ 不替他们表态）。
+  // 显式 `--lobes` 才加进来 —— 而**判据与端脑面是同一份**（同一个探测器）。
+  const LOBE_REPOS = ['amygdala', 'temporal', 'occipital', 'parietal', 'synapse'];
+  if (opts.lobes) {
+    for (const name of LOBE_REPOS) {
+      const repo = join(opts.lobesRoot, name);
+      targets.push({ label: name, root: join(repo, 'src'), display: repo });
+    }
+  }
 
   const hits = [];
   let scanned = 0;
+  let lobeScanned = 0;
   const missing = [];
 
   for (const t of targets) {
@@ -401,9 +445,11 @@ function main() {
       missing.push(t.root);
       continue;
     }
+    const isLobe = LOBE_REPOS.includes(t.label);
     for (const f of walkRust(t.root)) {
-      const r = scanFile(f, t.label);
+      const r = scanFile(f, t.label, t.display);
       scanned += r.scanned;
+      if (isLobe) lobeScanned += r.scanned;
       hits.push(...r.hits);
     }
   }
@@ -412,6 +458,14 @@ function main() {
   if (scanned === 0) {
     console.error('❌ 一个文件都没读到 ⇒ 闸门自己坏了（路径写错 / 仓库挪了家）');
     for (const m of missing) console.error(`   缺失: ${m}`);
+    process.exit(2);
+  }
+
+  // 防假绿（叶区那一档）：**端脑面读到了，不代表叶区读到了** ⇒ 分开算。
+  if (opts.lobes && lobeScanned === 0) {
+    console.error('❌ 显式要了 `--lobes`，却一个叶区文件都没读到 ⇒ 那一档闸门自己坏了');
+    for (const m of missing) console.error(`   缺失: ${m}`);
+    console.error('   （叶区各仓的父目录用 `--lobes-root` 指定，默认 <repo>/..）');
     process.exit(2);
   }
 
@@ -431,6 +485,9 @@ function main() {
   if (hits.length === 0) {
     console.log(`✅ 源码级宽绑定：0 条（扫了 ${scanned} 个 .rs 文件）`);
     console.log('   端脑面的默认暴露面是**回环**；要暴露到局域网必须显式（--bind / 环境变量）。');
+    if (opts.lobes) {
+      console.log('   叶区那一档也在内（--lobes）：默认绑定同样是回环。');
+    }
     process.exit(0);
   }
 
@@ -442,6 +499,9 @@ function main() {
   console.error('');
   console.error('   要暴露到局域网 ⇒ 走配置/命令行（--bind / TELENCEPHALON_BIND），');
   console.error('   不要把通配地址写进源码当默认。');
+  if (!opts.lobes) {
+    console.error('   （叶区那一档默认不扫 ⇒ 要一起查请显式加 `--lobes`。）');
+  }
   console.error(`   确实需要留在源码里 ⇒ 同一行写 \`${MARKER} <理由>\`。`);
   process.exit(1);
 }
