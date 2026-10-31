@@ -19,10 +19,25 @@
  *
  * ## 判据（门 = shadow key 或 admin token，即 providers 读门那一档）
  *
- * - **绿**：调用点带了 admin 或 shadow ⇒ 上锁后照样通。
- * - **条件绿（⚠️）**：只带了 shadow，而 shadow 在桌面端是**可选**的
- *   （用户没配就不带）⇒ ⇒ 没配 shadow 的用户会 401。
- * - **红**：**什么都不带** ⇒ 上锁后必 401。
+ * ⚠️⚠️ **v2（2026-11-01）：判据多问一句「这把钥匙，用户拿得到吗？」**
+ * —— 第一版只问「**这一发带没带凭据**」⇒ ⇒ 「代码里写了 shadow」被当成了
+ * 「这一发真的带了 shadow」⇒ ⇒ 而桌面端那把钥匙**根本不存在**（client 无 setter、
+ * singleton 无实参 ⇒ `this.apiKey` 恒 undefined ⇒ 从来没发出过 `X-Shadow-Key`）
+ * ⇒ ⇒ 有一处被报成「条件绿」⇒ ⇒ **实际上必 401** ⇒ ⇒ **代价被报小了**
+ * ⇒ ⇒ 拍板材料是错的。⇒ ⇒ 现在**按形态**分别定案：
+ *
+ * | 形态 | shadow key | admin token |
+ * |---|---|---|
+ * | ① 桌面·Tauri（本机 sidecar） | never（无 setter、无输入入口） | always（sidecar 生成并持久化） |
+ * | ② 桌面·web（浏览器，无 sidecar） | never | optional（用户放 localStorage） |
+ * | ③ 移动·内嵌端脑 | always（宿主自动生成） | always |
+ *
+ * - **绿**：带的钥匙在该形态下**恒有** ⇒ 上锁后照样通。
+ * - **条件绿（⚠️）**：带的钥匙**用户能配、但可能没配** ⇒ 配了就通。
+ * - **红**：**什么都不带**，或带的钥匙**配不出来**（never）⇒ 上锁后必 401。
+ *
+ * ⚠️ **移动端 ⇄ 外部端脑不算形态** —— 那是**跨机**（判定表 D 类）⇒ 不在
+ * 「本机面上锁」的提问范围里 ⇒ ⇒ 别混进来（混进来会算出一个不存在的洞）。
  *
  * ## ⚠️ 它怎么认出「这一发带没带凭据」
  *
@@ -50,6 +65,14 @@ import { resolve, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { stripComments } from './lib/strip-comments.mjs';
 import { credentialIn } from './lib/credentials.mjs';
+import {
+  desktopShadowReach,
+  desktopAdminReach,
+  mobileEmbeddedReach,
+  ALWAYS,
+  OPTIONAL,
+  NEVER,
+} from './lib/key-reach.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..');
@@ -330,8 +353,108 @@ function scanClientFiles() {
   for (const f of files) {
     const raw = readFileSync(f.path, 'utf8');
     f.text = stripComments(raw, { nested: false });
+    f.rel = relative(REPO, f.path).replace(/\\/g, '/');
   }
   return files;
+}
+
+/**
+ * Kotlin 的注释：块注释 + 行注释（`//` 前引号数为偶数才算真注释）。
+ *
+ * ⚠️ 为什么自己剥：`strip-comments.mjs` 是给 JS 写的（块注释**不可**嵌套），
+ * Kotlin 的语义不同 ⇒ ⇒ 用一个只认「常见形状」的轻量版。
+ */
+function stripKotlinComments(text) {
+  const noBlocks = text.replace(/\/\*[\s\S]*?\*\//g, '');
+  return noBlocks
+    .split('\n')
+    .map((line) => {
+      const i = line.indexOf('//');
+      if (i === -1) return line;
+      const quotes = (line.slice(0, i).match(/"/g) || []).length;
+      if (quotes % 2 === 1) return line;
+      return line.slice(0, i);
+    })
+    .join('\n');
+}
+
+/**
+ * 三种**形态** —— 端脑是同一台，但**客户端拿钥匙的条件不同**。
+ *
+ * ⚠️ 为什么必须有形态：门认 shadow **或** admin ⇒ ⇒ 「这一发带没带凭据」
+ * **不足以**回答「会不会 401」⇒ ⇒ 还得知道「那把钥匙用户拿不拿得到」。
+ *
+ * @param {Array} files scanClientFiles() 的结果（已剥注释）
+ */
+function computeForms(files) {
+  const byRel = (rel) => files.find((f) => f.rel === rel) || null;
+  const clientFile = byRel('shadow-desktop/src/lib/telencephalonClient.ts');
+  const adminFile = byRel('shadow-desktop/src/lib/adminToken.ts');
+  const providerFile = byRel('shadow-mobile/lib/providers/telencephalon_provider.dart');
+  const kotlinPath = join(
+    REPO, 'shadow-mobile', 'android', 'app', 'src', 'main', 'kotlin',
+    'com', 'ibloc', 'shadow', 'MainActivity.kt',
+  );
+  if (!clientFile || !adminFile || !providerFile || !existsSync(kotlinPath)) {
+    throw new Error(
+      '读不到形态判据源（telencephalonClient.ts / adminToken.ts / telencephalon_provider.dart / MainActivity.kt）—— 判据源不可用。',
+    );
+  }
+  const kotlin = stripKotlinComments(readFileSync(kotlinPath, 'utf8'));
+
+  // ⚠️ 桌面端「其它源文件」⇒ **排除** client 自身与 store ——
+  //    store 里那句 `telencephalonClient.setApiKey(...)` 是**接线**，不是**用户入口**
+  //    （用户入口 = 某个组件里能敲进去的地方）。
+  const desktopOthers = files
+    .filter(
+      (f) =>
+        f.kind === 'desktop' &&
+        f.rel !== 'shadow-desktop/src/lib/telencephalonClient.ts' &&
+        f.rel !== 'shadow-desktop/src/stores/telencephalonStore.ts',
+    )
+    .map((f) => f.text);
+
+  const dShadow = desktopShadowReach(clientFile.text, desktopOthers);
+  const dAdminTauri = desktopAdminReach(adminFile.text, 'tauri');
+  const dAdminWeb = desktopAdminReach(adminFile.text, 'web');
+  const m = mobileEmbeddedReach(providerFile.text, kotlin);
+
+  const forms = [
+    {
+      no: '①',
+      title: '桌面端 · Tauri（本机 sidecar 端脑）',
+      client: 'desktop',
+      reach: {
+        shadow: dShadow.reach,
+        shadowHow: dShadow.how,
+        admin: dAdminTauri.reach,
+        adminHow: dAdminTauri.how,
+      },
+    },
+    {
+      no: '②',
+      title: '桌面端 · web（浏览器，没有 sidecar）',
+      client: 'desktop',
+      reach: {
+        shadow: dShadow.reach,
+        shadowHow: dShadow.how + '（web 版同样没有）',
+        admin: dAdminWeb.reach,
+        adminHow: dAdminWeb.how,
+      },
+    },
+    {
+      no: '③',
+      title: '移动端 · 内嵌端脑',
+      client: 'mobile',
+      reach: {
+        shadow: m.shadow.reach,
+        shadowHow: m.shadow.how,
+        admin: m.admin.reach,
+        adminHow: m.admin.how,
+      },
+    },
+  ];
+  return { forms, dShadow, dAdminTauri, dAdminWeb, m };
 }
 
 function analyze() {
@@ -344,6 +467,7 @@ function analyze() {
 
   const dw = desktopWrapperCaps();
   const mw = mobileWrapperCaps();
+  const reach = computeForms(files);
 
   // ⚠️ **一条合并正则扫遍所有路由**（第一版是「每条路由 × 每个文件」各扫一遍
   // ⇒ 92 × 200 次全文扫描 ⇒ 实测跑了几分钟还没完）⇒ ⇒ 现在每个文件只扫一次。
@@ -392,6 +516,7 @@ function analyze() {
         via = ctx.name + '()';
       }
       findings.push({
+        kind: f.kind,
         route: route.path,
         cls: route.cls,
         locked: lockedReason(route.path),
@@ -405,16 +530,36 @@ function analyze() {
       });
     }
   }
-  return { rows, findings, dw, mw, files: files.length };
+  return { rows, findings, dw, mw, forms: reach.forms, reach, files: files.length };
 }
 
-function verdictOf(f) {
+/** 钥匙可达性的档位排序（越大越「够得着」）。 */
+const REACH_RANK = { [ALWAYS]: 2, [OPTIONAL]: 1, [NEVER]: 0 };
+
+/**
+ * 这个调用点在**这个形态**下，上锁之后会不会 401？
+ *
+ * ⚠️ **门认 shadow 或 admin** ⇒ ⇒ **任意一把够得着就通** ⇒ ⇒ 所以取两把里
+ * **更好的那一个**（不是先到先得）⇒ ⇒ 例如「admin 恒有 + shadow 拿不到」
+ * ⇒ ⇒ 仍然是**绿**。
+ */
+function verdictOf(f, form) {
   // ⚠️ **已经有门的面不算红**（不在「步 3」的提问范围里）⇒ ⇒ 否则会拿
   //    「providers 面本来就有门」去吓人 ⇒ ⇒ 而「红」会让人去改已经改对的代码。
   if (f.locked) return 'LOCKED';
-  if (!f.hasCred) return 'RED';
-  if (f.onlyShadow) return 'WARN';
-  return 'GREEN';
+  const admin = f.admin ? form.reach.admin : NEVER;
+  const shadow = f.shadow ? form.reach.shadow : NEVER;
+  const best = REACH_RANK[admin] >= REACH_RANK[shadow] ? admin : shadow;
+  if (best === ALWAYS) return 'GREEN';
+  if (best === OPTIONAL) return 'WARN';
+  return 'RED';
+}
+
+/** 可达性三档的打印样式。 */
+function reachTag(r) {
+  if (r === ALWAYS) return '✅ 恒有  ';
+  if (r === OPTIONAL) return '⚠️ 可配  ';
+  return '❌ 拿不到';
 }
 
 function run() {
@@ -427,10 +572,10 @@ function run() {
     process.exit(2);
   }
 
-  const red = a.findings.filter((f) => verdictOf(f) === 'RED');
-  const warn = a.findings.filter((f) => verdictOf(f) === 'WARN');
+  // ⚠️ **已经有门的面划出范围** ⇒ 它们不在「步 3」的提问里 ⇒ 不计入红绿。
+  const inScope = a.findings.filter((f) => !f.locked);
   const byRoute = new Map();
-  for (const f of a.findings) {
+  for (const f of inScope) {
     if (!byRoute.has(f.route)) byRoute.set(f.route, []);
     byRoute.get(f.route).push(f);
   }
@@ -438,40 +583,73 @@ function run() {
   console.log('A/B 类面 —— 「锁上之后谁会被 401 打断」');
   console.log('  判定表：' + relative(REPO, MATRIX_PATH).replace(/\\/g, '/'));
   console.log('  A/B 类路由 ' + a.rows.length + ' 条；客户端源文件 ' + a.files + ' 个（测试文件不算调用点）');
+  console.log('  调用点 ' + a.findings.length + ' 个（其中 ' + (a.findings.length - inScope.length) + ' 个在**已经有门的面**上 ⇒ 不在这次提问范围里）');
   console.log('  共享封装能力（读实现）：桌面 request() ⇒ admin=' + (a.dw ? a.dw.admin : '?') + ' / shadow=' + (a.dw ? a.dw.shadow : '?') + '；移动端 _headers() ⇒ shadow=' + (a.mw ? a.mw.shadow : '?'));
+  console.log('  ⇒ **按形态分别定案**（同一台端脑，客户端拿钥匙的条件不同）');
   console.log('');
 
-  if (a.findings.length === 0) {
+  if (inScope.length === 0) {
     console.log('（A/B 类里客户端一处都没调 ⇒ 上锁不打断任何调用点）');
   }
-  for (const [route, list] of byRoute) {
-    const v = list.some((f) => verdictOf(f) === 'RED') ? 'RED' : list.some((f) => verdictOf(f) === 'WARN') ? 'WARN' : 'GREEN';
-    console.log('  [' + v + '] ' + route);
-    for (const f of list) {
-      const tag = verdictOf(f) === 'RED' ? '❌ 不带凭据' : verdictOf(f) === 'WARN' ? '⚠️ 只带 shadow' : '✅ 带凭据';
-      console.log('      ' + tag + '  ' + f.file + ':' + f.line + '  （' + f.via + '）');
+
+  let anyRed = 0;
+  let anyWarn = 0;
+  for (const form of a.forms) {
+    // ⚠️⚠️ **形态只对它自己那个客户端的调用点说话** —— 否则移动端的调用点
+    //    会被算进「桌面·Tauri」，桌面端的被算进「移动·内嵌」
+    //    ⇒ ⇒ 报告就自相矛盾了（第一版真犯过这个错）。
+    const scope = inScope.filter((f) => f.kind === form.client);
+    const red = scope.filter((f) => verdictOf(f, form) === 'RED');
+    const warn = scope.filter((f) => verdictOf(f, form) === 'WARN');
+    const green = scope.length - red.length - warn.length;
+    anyRed += red.length;
+    anyWarn += warn.length;
+    console.log('  ── 形态 ' + form.no + '：' + form.title);
+    console.log('     shadow key ：' + reachTag(form.reach.shadow) + '  ' + form.reach.shadowHow);
+    console.log('     admin token：' + reachTag(form.reach.admin) + '  ' + form.reach.adminHow);
+    console.log('     ⇒ 红 ' + red.length + ' / 条件绿 ' + warn.length + ' / 绿 ' + green +
+      '（本形态的 ' + scope.length + ' 个调用点）');
+    if (red.length) {
+      console.log('     ⚠️⚠️ **锁上之后这几处必 401**：');
+      for (const f of red) console.log('        · ' + f.file + ':' + f.line + '  ' + f.route + '  （' + f.via + '）');
     }
+    if (warn.length) {
+      console.log('     ⚠️ **条件 401**（用户还没把那把钥匙配上 ⇒ 一配就通）：');
+      for (const f of warn) console.log('        · ' + f.file + ':' + f.line + '  ' + f.route + '  （' + f.via + '）');
+    }
+    console.log('');
   }
 
-  console.log('');
-  console.log('调用点 ' + a.findings.length + ' 个 ⇒ 红 ' + red.length + ' / 条件绿 ' + warn.length + ' / 绿 ' + (a.findings.length - red.length - warn.length));
-  if (red.length) {
-    console.log('');
-    console.log('⚠️⚠️ **锁上之后这几处会 401**：');
-    for (const f of red) console.log('   · ' + f.file + ':' + f.line + '  ' + f.route + '  （' + f.via + '）');
+  // ── 路线图（只列「不是所有形态都绿」的路线）──
+  const mixed = [];
+  for (const [route, list] of byRoute) {
+    const vs = a.forms.map((form) => {
+      const own = list.filter((f) => f.kind === form.client);
+      if (own.length === 0) return 'GREEN';
+      if (own.some((f) => verdictOf(f, form) === 'RED')) return 'RED';
+      if (own.some((f) => verdictOf(f, form) === 'WARN')) return 'WARN';
+      return 'GREEN';
+    });
+    if (vs.some((v) => v !== 'GREEN')) mixed.push({ route, vs });
   }
-  if (warn.length) {
+  if (mixed.length) {
+    console.log('  ── 路线图（🔴必断 🟡条件断 🟢通；形态顺序 ①桌面·Tauri ②桌面·web ③移动·内嵌）──');
+    for (const m of mixed) {
+      console.log('     ' + m.vs.map((v) => (v === 'RED' ? '🔴' : v === 'WARN' ? '🟡' : '🟢')).join(' ') + '  ' + m.route);
+    }
     console.log('');
-    console.log('⚠️ **只带 shadow（桌面端没配 shadow key 的用户会 401）**：');
-    for (const f of warn) console.log('   · ' + f.file + ':' + f.line + '  ' + f.route + '  （' + f.via + '）');
   }
-  if (red.length) {
-    console.log('');
-    console.log('⇒ ⇒ **先把这几处补上凭据，再谈上锁**（不然就是把客户端自己锁在外面）。');
+
+  if (anyRed > 0) {
+    console.log('⚠️⚠️ **有 ' + anyRed + ' 处必 401** ⇒ ⇒ 上锁之前必须先补凭据（或先补「钥匙输入入口」）。');
+    console.log('⇒ ⇒ 别拿「本来就有门」去吓人：这三条面（providers / admin / shadow）已划出范围。');
     process.exit(1);
   }
-  console.log('');
-  console.log('⇒ A/B 类面**没有**会被 401 打断的调用点 ⇒ 门 = shadow ∪ admin 这档可以上。');
+  if (anyWarn > 0) {
+    console.log('⚠️ 有 ' + anyWarn + ' 处是**条件 401**（用户没把那把钥匙配上就断）⇒ ⇒ 也要补，才谈得上上锁。');
+    process.exit(1);
+  }
+  console.log('⇒ 每一种形态都没有会被 401 打断的调用点 ⇒ 门 = shadow ∪ admin 这档可以上。');
   process.exit(0);
 }
 
@@ -518,6 +696,38 @@ function selfTest() {
   check('桌面 request() 的能力读得到（不写死）', !!dw, dw ? 'admin=' + dw.admin : 'null');
   const mw = mobileWrapperCaps();
   check('移动端 _headers() 的能力读得到（不写死）', !!mw, mw ? 'shadow=' + mw.shadow : 'null');
+
+  // ── 可达性判据（v2）：「这把钥匙，用户拿不拿得到」──
+  const rNoSetter = desktopShadowReach('export class C { setBaseUrl(u: string) {} }', []);
+  check('可达性：client 无 setter ⇒ shadow 拿不到', rNoSetter.reach === NEVER, rNoSetter.reach);
+  const rSetterNoUi = desktopShadowReach('setApiKey(apiKey: string) {}', []);
+  check('可达性：有 setter、**无输入入口** ⇒ 仍拿不到（用户配不出来）', rSetterNoUi.reach === NEVER, rSetterNoUi.reach);
+  const rFull = desktopShadowReach('setApiKey(apiKey: string) {}', ['client.setApiKey(k);']);
+  check('可达性：有 setter + 输入入口 ⇒ 用户能配（optional）', rFull.reach === OPTIONAL, rFull.reach);
+  const rSingleton = desktopShadowReach('export const c = new TelencephalonClient({ apiKey: k });', []);
+  check('可达性：singleton 带 key ⇒ 恒有（always）', rSingleton.reach === ALWAYS, rSingleton.reach);
+
+  const aTauri = desktopAdminReach("invoke<string>('get_admin_token')", 'tauri');
+  check('可达性：Tauri 的 admin token 恒有（sidecar 生成并持久化）', aTauri.reach === ALWAYS, aTauri.reach);
+  const aWeb = desktopAdminReach('window.localStorage.getItem(k)', 'web');
+  check('可达性：web 的 admin token 只是 optional（用户自备）', aWeb.reach === OPTIONAL, aWeb.reach);
+
+  const mReach = mobileEmbeddedReach(
+    '_agentSurfaceOwned = true; _client.setApiKey(shadowKey); _client.setAdminToken(adminToken);',
+    'ShadowKey.getOrCreate(filesDir); AdminKey.getOrCreate(filesDir);',
+  );
+  check('可达性：内嵌端脑两把钥匙都恒有', mReach.shadow.reach === ALWAYS && mReach.admin.reach === ALWAYS);
+
+  // ── 定案：门认 shadow 或 admin ⇒ 取「更好的那把」──
+  const fNothing = { locked: null, admin: false, shadow: false };
+  const fShadowOnly = { locked: null, admin: false, shadow: true };
+  const fAdminOnly = { locked: null, admin: true, shadow: false };
+  check('定案：什么都不带 ⇒ 红', verdictOf(fNothing, { reach: { shadow: ALWAYS, admin: ALWAYS } }) === 'RED');
+  check('定案：只带 shadow、而 shadow 拿不到 ⇒ 红', verdictOf(fShadowOnly, { reach: { shadow: NEVER, admin: NEVER } }) === 'RED');
+  check('定案：只带 shadow、而 shadow 恒有 ⇒ 绿', verdictOf(fShadowOnly, { reach: { shadow: ALWAYS, admin: NEVER } }) === 'GREEN');
+  check('定案：admin 恒有 ⇒ 绿（哪怕 shadow 拿不到）', verdictOf(fAdminOnly, { reach: { shadow: NEVER, admin: ALWAYS } }) === 'GREEN');
+  check('定案：admin 只是可配 ⇒ 条件绿', verdictOf(fAdminOnly, { reach: { shadow: NEVER, admin: OPTIONAL } }) === 'WARN');
+  check('定案：已经有门的面 ⇒ 不算红', verdictOf({ locked: 'x', admin: false, shadow: false }, { reach: { shadow: NEVER, admin: NEVER } }) === 'LOCKED');
 
   console.log(failed ? '❌ 自检有 ' + failed + ' 条红' : '✅ 自检全过');
   process.exit(failed ? 1 : 0);
