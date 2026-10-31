@@ -45,6 +45,28 @@
 ⇒ **本机秘密锁不了它** ⇒ 要的是**每台远端 agent 一份凭据**
 （即仍欠着的「签发侧接线」`src/acl/` + `credential_signer.rs`）。
 
+④ **⚠️ admin 保护的端点并不都在 `/admin/` 路径下。**
+`/api/telencephalon/thalamus/query` 与 `/api/telencephalon/thalamus/sensors`
+（`src/api/thalamus.rs`）**各自在 handler 里校验 `X-Admin-Token`**，但它们的路径
+**不在** `/api/telencephalon/admin/` 前缀下 ⇒ ⇒ **按路径前缀做「admin 面」的判断
+会漏掉这两条** ⇒ ⇒ 「把 admin 鉴权提到 router 层」必须加在**合并之后的那个
+router**（`api::router` 的返回值）上，**而不是每个模块自己的 router 上** ——
+否则逐模块加一遍就会漏。
+
+## 二·补：这张表是怎么验完整性的
+
+表列完后用脚本把源码里 `.route(` 解析出来的**全部唯一路径**逐条与本文档比对
+（`telencephalon/src/api/*.rs` + `telencephalon/src/flow/api/mod.rs`）⇒
+**首轮漏了 8 条**（`PATCH /agents/{name}/config`、`POST /lobes/models`、
+`POST /lobes/reconfigure/{name}`、`POST /thalamus/query`、`POST /flows/{id}/validate`
+、`GET /hippocampus/admin/config`、`GET /thalamus/sensors`、
+`GET /thalamus/video/cameras|clips`）⇒ 其中**三条是写路径** ⇒ **已补进本文档**。
+⇒ **教训**：这种表**必须用脚本对着源码验一遍**，人肉列一定会漏 ⇒ 端点集合是会长的
+（今天 127 条），表会过期。
+⇒ **复验结果**：补完之后再跑一遍 ⇒ **121 条唯一路径（127 条路由条目，差额是同路径多方法），
+逐条命中，0 条未覆盖**（文档里有 30 条是**成组写法**，如
+`…/start | /stop`、`…/preview/*` ⇒ 已逐条核对过）。
+
 ## 三、「扩展到整张面」几乎免费 —— 两端都成立
 
 - **移动端**：`TelencephalonClient._headers()`（`shadow-mobile/lib/services/telencephalon/
@@ -92,6 +114,10 @@ WebRTC 浏览器、桌面端自己起的 sidecar、外部端脑进程。⇒ 这�
 | `/api/telencephalon/admin/visual-tasks` | POST | visual_task_admin | — | 改视觉任务 |
 | `/api/telencephalon/admin/visual-tasks/{id}` | DELETE | visual_task_admin | — | 删视觉任务 |
 | `/api/telencephalon/chat/completions` | POST | providers | — | 直接烧模型 / 拿模型输出 |
+| `/api/telencephalon/agents/{name}/config` | PATCH | agents | ✅ | **改 agent 配置**（部署方用它设 `affect_policy` 那一类开关） |
+| `/api/telencephalon/lobes/models` | POST | lobe_runtime | ✅ | **下发模型路由** ⇒ 注册远端引擎 + 给叶区定模型 |
+| `/api/telencephalon/lobes/reconfigure/{name}` | POST | lobe_runtime | — | **改叶区的 OpenAI base_url** ⇒ 把某个叶区的模型流量引到别处 |
+| `/api/telencephalon/thalamus/query` | POST | thalamus | — | **跑 SQL 查传感器数据**（⚠️ 它**已经**要求 admin token ⇒ 但路径**不在** `/admin/` 下 ⇒ 见第二节 ④） |
 | `/api/telencephalon/prefrontal/dispatch` | POST | prefrontal | — | **执行路径** |
 | `/api/telencephalon/devices/{id}/invoke` | POST | device | — | **控制别的设备** |
 | `/api/telencephalon/devices/{id}/tools` | PUT | device | — | 改别的设备的工具 |
@@ -143,6 +169,9 @@ WebRTC 浏览器、桌面端自己起的 sidecar、外部端脑进程。⇒ 这�
 | `/api/telencephalon/status` | GET | system_status | — | 运行态 |
 | `/api/telencephalon/hippocampus/preview/*` | GET | hippocampus_public | — | **记忆预览**（隐私）；⚠️ 仅 host 版有（`hippocampus` feature） |
 | `/api/telencephalon/thalamus/preview/*` | GET | thalamus_public | — | 传感器数据（隐私） |
+| `/api/telencephalon/thalamus/sensors` | GET | thalamus | — | 传感器清单（⚠️ 已要求 admin token，但路径不在 `/admin/` 下 ⇒ 见第二节 ④） |
+| `/api/telencephalon/thalamus/video/cameras` \| `/clips` \| `/clips/{camera}/{ts_ms}` | GET | thalamus_video | — | **摄像头清单与录像**（隐私） |
+| `/api/telencephalon/hippocampus/admin/config` | GET | hippocampus_public | — | 海马体配置（⚠️ 仅 host 版有） |
 | `/api/telencephalon/neuron/preview/*` | GET | neuron_public | — | 模型/引擎清单 |
 | `/api/telencephalon/agents/list` \| `/registry` \| `/exposed` \| `/search` \| `/discover` \| `/mirror` | GET | agents_registry / agent_management / agent_search | ✅ | 叶区与 agent 清单 |
 | `/api/telencephalon/lobes/capabilities` \| `/manifest` \| `/manifest/{name}` \| `/runtime/{name}` | GET | lobe_manifest / lobe_runtime | — | 叶区能力面 |
@@ -164,6 +193,7 @@ WebRTC 浏览器、桌面端自己起的 sidecar、外部端脑进程。⇒ 这�
 | `/api/webrtc/{modality}/sessions/{session_id}/ws` | GET | webrtc_route | WebSocket —— **浏览器要连**（带不了自定义头） |
 | `/.well-known/agent.json` | GET | well_known_router | 代理发现 |
 | `/wasm/{name}/.well-known/agent.json` | GET | wasm_route | WASM agent 发现 |
+| `/api/flows/{id}/validate` | POST | flow | **纯静态校验**（`flow::compiler::validate::validate`）⇒ 不执行、不改状态 ⇒ 锁它**没有安全收益** |
 
 ### D 类 —— 需要**另一种**机制（跨机 ⇒ 本机秘密锁不了）
 
@@ -188,7 +218,7 @@ WebRTC 浏览器、桌面端自己起的 sidecar、外部端脑进程。⇒ 这�
 
 | 步 | 做什么 | 会不会自锁 | 独立验收 |
 |---|---|---|---|
-| **1** | **修 admin 面的空洞**（空头能过）+ **把 admin 鉴权提到 router 层**（19 条一层管住）+ 移动端也递一把 admin token | 移动端的 admin 功能**今天就是坏的**（401）⇒ 修完才第一次能用 | 「不带 token ⇒ 401」「带对 token ⇒ 200」「空 token ⇒ 401」 |
+| **1** | **修 admin 面的空洞**（空头能过）+ **把 admin 鉴权提到 router 层**（加在**合并后**的那个 router 上 ⇒ 见第二节 ④，否则会漏 `thalamus/query` / `thalamus/sensors`）+ 移动端也递一把 admin token | 移动端的 admin 功能**今天就是坏的**（401）⇒ 修完才第一次能用 | 「不带 token ⇒ 401」「带对 token ⇒ 200」「空 token ⇒ 401」 |
 | **2** | 修**地雷**：`PrefrontalClient` 内部自建的 client 改成注入共享 client | 会有一个 401 ⇒ 顺手修 | 移动端 `/api/flows` 仍然通 |
 | **3** | 把锁**从 `/shadow/v1/*` 提到整张面**（A+B 类） | 两端客户端本来就带 key ⇒ 不自锁 | 「同机任意进程打 A 类 ⇒ 401」＋「App 全部功能照旧」 |
 | **4** | D 类另立：每台远端 agent 一份凭据（`src/acl/` + `credential_signer.rs`） | 跨机 ⇒ 不能用本机 key | 跨机 A2A 仍然通，且未授权对端被打回 |
