@@ -2,11 +2,21 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Cloud, Server, Cpu, ArrowRight, Loader2 } from 'lucide-react';
-import { prefrontalUrl } from '../lib/platform';
+import { prefrontalUrl, neuronUrl } from '../lib/platform';
 import { adminHeaders } from '../lib/adminToken';
 import { Button } from '../components/ui/button';
 
-const NEURON_BASE = prefrontalUrl();
+/**
+ * ⚠️ **两张面，两个 base**（与 `AppInitializer` 同款）：
+ * * `CORTEX_BASE` = **端脑面**（`prefrontalUrl()`）⇒ `/models/providers`；
+ * * `NEURON_BASE` = **neuron 面**（`neuronUrl()`）⇒ `/v1/models`（**本地**模型）。
+ *
+ * ⚠️⚠️ 以前两发都打端脑面 ⇒ ⇒ 端脑面上**没有** `/v1/models` ⇒ ⇒ 恒 404
+ * ⇒ ⇒ `hasLocal` **一直**是 false ⇒ ⇒ ⇒ **本地明明装了模型的用户，
+ * 也会被这一页说成「没配模型」**（失败长得像成功）。
+ */
+const CORTEX_BASE = prefrontalUrl();
+const NEURON_BASE = neuronUrl();
 
 interface ModelCheckResult {
   hasCloud: boolean;
@@ -27,9 +37,10 @@ export function ModelOnboardingPage() {
       // ⇒ ⇒ **那是个失败长得像成功的坑**（页面看起来像「你还没配」）。
       const headers = await adminHeaders();
       const [cloudResult, localResult] = await Promise.allSettled([
-        fetch(`${NEURON_BASE}/models/providers`, { headers })
+        fetch(`${CORTEX_BASE}/models/providers`, { headers })
           .then(r => r.ok ? r.json() : Promise.reject(r.status))
           .then(d => Array.isArray(d) && d.length > 0),
+        // ⚠️ **本地模型在 neuron 面** ⇒ 打 `NEURON_BASE`（= `neuronUrl()`）。
         fetch(`${NEURON_BASE}/v1/models?engine=llm`)
           .then(r => r.ok ? r.json() : Promise.reject(r.status))
           .then(d => (d.data ?? []).some((m: { available?: boolean }) => m.available)),
