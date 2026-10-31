@@ -380,21 +380,26 @@ function mentionedPaths() {
  * 守卫会**稳定地报一堆假阳性** ⇒ 而「守卫一直是红的」比「没有守卫」更坏
  * ⇒ 下一个人会以为表坏了 ⇒ **把真行删掉**。
  *
- * ⇒ 所以把这三种**实测踩到过**的文档形态钉死：
- * ① 散文里出现三个连续反引号；
- * ② 行内代码**跨行**才闭合；
- * ③ 方法写在反引号里面（`GET /api/…`）。
+ * ⇒ 所以把这些**实测踩到过**的文档形态钉死：
+ * ① 散文里出现**孤立的三个反引号**（奇数 ⇒ 配对从此错位）；
+ * ② **成对围栏块**（实测：围栏的 ` ``` ` 也会打偏顺序配对 ⇒ **别信「成对就无害」**）；
+ * ③ 行内代码**跨行**才闭合（实测：这一条**不是**触发器 ⇒ 钉它是为了防回归）；
+ * ④ 方法写在反引号里面（`GET /api/…`）。
  */
 function selfTest() {
   const SAMPLE = [
     '普通段落里的 `/api/plain/one` 应当被认出来。',
     '而围栏的 ``` 里有**相邻**反引号 ⇒ 配不出空 span。',
+    // ↑ 触发器①（奇数个反引号）**紧接着**的路径 ⇒ 它被认出来 ⇒ 配对没被带偏
+    '紧跟孤立三反引号之后的 `/api/after-lone` 应当被认出来。',
     '跨行的行内代码：',
     '`shadow-mobile/lib/services/telencephalon/',
     'telencephalon_client.dart:679-687`）在 `_apiKey` 非空时加 `X-Shadow-Key`',
     '```bash',
     'curl -X POST http://127.0.0.1:60080/a2a',
     '```',
+    // ↑ 触发器②（成对围栏 —— 实测**也**会打偏顺序配对）
+    '紧跟围栏之后的 `/api/after-fence` 应当被认出来。',
     '| `/api/flows` | `/{id}` | `/executions` | GET | flow | ✅ | 说明 |',
     '`GET /api/telencephalon/agents` 这一行的方法写在反引号里。',
   ].join('\n');
@@ -403,11 +408,12 @@ function selfTest() {
   const has = (t) => toks.includes(t);
   const cases = [
     ['普通行内代码被认出来', has('/api/plain/one')],
-    ['散文里的 ``` 不破坏后面的配对', has('/api/flows') && has('/executions')],
+    ['散文里孤立的三个反引号不破坏后面的配对', has('/api/after-lone')],
+    ['成对围栏不破坏后面的配对', has('/api/after-fence')],
     ['表格单元格的路径被认出来', has('/{id}')],
     ['方法前缀被剥掉', has('/api/telencephalon/agents')],
-    ['跨行跨度不会被当成路径', !toks.some((t) => t.includes('\n'))],
-    ['认出来的 token 数合理（不是 0，也不是全文）', toks.length >= 4 && toks.length <= 12],
+    ['跨行跨度不会被当成路径（它本来就不是触发器）', !toks.some((t) => t.includes('\n'))],
+    ['认出来的 token 数合理（不是 0，也不是全文）', toks.length >= 6 && toks.length <= 14],
   ];
 
   console.log('自检：文档形态 → 路径 token');
