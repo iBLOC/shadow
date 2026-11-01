@@ -34,16 +34,19 @@
  *   node scripts/check-door-policy.mjs --source C:\Projects\iBLOC\telencephalon
  *   node scripts/check-door-policy.mjs --self-test
  */
-import { readFileSync, existsSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { mergedModules, routesIn, routesInText, surfaceRoutes } from './lib/telencephalon-routes.mjs';
+// ⚠️ **门型的解析与判定只有一处** —— JS 这份是**镜像**（权威在端脑的
+// `src/api/door.rs`）⇒ ⇒ 镜像与权威还对不对得上，由
+// `scripts/check-door-policy-parity.mjs` 拿 **Rust 自己的用例表**逐条判。
+import { parsePolicy, parsePolicyText, resolveDoor } from './lib/door-policy.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..');
 
-const METHODS = new Set(['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS', '*']);
-const DOORS = new Set(['open', 'read', 'admin', 'owner', 'auto']);
+// ⚠️ 方法表与门型名表在 `scripts/lib/door-policy.mjs`（**一处实现** ⇒ 别再各抄一份）。
 
 function parseArgs(argv) {
   const opts = { source: resolve(REPO, '..', 'telencephalon'), selfTest: false };
@@ -59,90 +62,6 @@ function parseArgs(argv) {
     }
   }
   return opts;
-}
-
-function parsePolicy(policyPath) {
-  return parsePolicyText(readFileSync(policyPath, 'utf8'));
-}
-
-/** 解析门型表的**文本** —— 真实表与自检夹具共用这一条路（同一形状）。 */
-function parsePolicyText(raw) {
-  const entries = [];
-  const errors = [];
-  raw.split(/\r?\n/).forEach((line, i) => {
-    const t = line.trim();
-    if (!t || t.startsWith('#')) return;
-    const parts = t.split(/\s+/);
-    if (parts.length !== 3) {
-      errors.push('line ' + (i + 1) + ': expected 3 fields, got ' + parts.length + ' :: ' + t);
-      return;
-    }
-    const pattern = parts[0];
-    const method = parts[1];
-    const door = parts[2];
-    if (!METHODS.has(method)) {
-      errors.push('line ' + (i + 1) + ': unknown method ' + method);
-      return;
-    }
-    if (!DOORS.has(door)) {
-      errors.push('line ' + (i + 1) + ': unknown door ' + door);
-      return;
-    }
-    const segments = pattern.split('/').filter(Boolean);
-    if (segments.length === 0) {
-      errors.push('line ' + (i + 1) + ': empty path pattern');
-      return;
-    }
-    entries.push({
-      segments,
-      tailWildcard: segments[segments.length - 1] === '*',
-      method: method === '*' ? null : method,
-      door,
-      line: i + 1,
-    });
-  });
-  return { entries, errors };
-}
-
-function matchesPath(e, segs) {
-  if (e.tailWildcard) {
-    const prefix = e.segments.slice(0, -1);
-    if (segs.length < prefix.length) return false;
-    return prefix.every((p, i) => p === '*' || p === segs[i]);
-  }
-  if (segs.length !== e.segments.length) return false;
-  return e.segments.every((p, i) => p === '*' || p === segs[i]);
-}
-
-/** 与端脑 src/api/door.rs 的 more_specific **逐条对齐**。 */
-function moreSpecific(c, cur) {
-  const cl = c.segments.filter((s) => s !== '*').length;
-  const rl = cur.segments.filter((s) => s !== '*').length;
-  if (cl !== rl) return cl > rl;
-  const cw = c.segments.length - cl;
-  const rw = cur.segments.length - rl;
-  if (cw !== rw) return cw < rw;
-  const cm = c.method !== null;
-  const rm = cur.method !== null;
-  if (cm !== rm) return cm;
-  if (c.segments.length !== cur.segments.length) return c.segments.length > cur.segments.length;
-  return c.line < cur.line;
-}
-
-function resolveDoor(path, method, entries) {
-  const segs = path.split('/').filter(Boolean);
-  let best = null;
-  for (const e of entries) {
-    if (e.method !== null && e.method !== method) continue;
-    if (!matchesPath(e, segs)) continue;
-    if (!best || moreSpecific(e, best)) best = e;
-  }
-  if (!best) return { door: 'closed', line: null };
-  let door = best.door;
-  if (door === 'auto') {
-    door = method === 'GET' || method === 'HEAD' ? 'read' : 'admin';
-  }
-  return { door, line: best.line };
 }
 
 function selfTest(sourceRoot) {
