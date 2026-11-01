@@ -238,11 +238,11 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
         .read(chatProvider.notifier)
         .startNewConversation();
     if (!created || !context.mounted) return;
-    // 新会话要出现在列表里 ⇒ 重新拉一次。
-    await ref
-        .read(conversationsNotifierProvider.notifier)
-        .loadConversations();
-    if (!context.mounted) return;
+    // ⚠️ **不重拉列表** —— 草稿**还没进端脑** ⇒ ⇒ 端脑那边**什么都没变**
+    // ⇒ ⇒ 重拉是一次**全量列表拉取**（每条会话带着**完整 history**）⇒ ⇒
+    // 纯浪费；而且它会让「列表里立刻多出一条空会话」变得**看得见**⇒ ⇒
+    // 而那正是要消除的垃圾（端脑**没有删会话的端点** ⇒ ⇒ 空会话一旦建了
+    // 就**永久留着**）。
     context.go(AppRoutes.chat);
   }
 }

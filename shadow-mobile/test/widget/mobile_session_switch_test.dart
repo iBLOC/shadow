@@ -148,7 +148,7 @@ void main() {
       expect(container.read(chatProvider).errorMessage, isNotNull);
     });
 
-    test('startNewConversation：开一条新会话并切过去', () async {
+    test('startNewConversation：开一条**草稿** ⇒ 端脑那边**什么都没多**', () async {
       final client = clientWithHistory();
       final container = ProviderContainer(
         overrides: [
@@ -164,10 +164,21 @@ void main() {
           .startNewConversation();
       expect(ok, isTrue);
 
+      // ⚠️ **契约改了**（2026-11-01）：「新对话」**不在端脑建会话**。
+      // 端脑**没有删会话的端点** ⇒ ⇒ 点了就建 ⇒ 每点一次就多一条
+      // **永久留着、还删不掉**的空会话 ⇒ ⇒ 列表被自己的垃圾填满。
       final state = container.read(chatProvider);
-      expect(state.sessionId, 'conv-new-1');
+      expect(state.sessionId, isNull);
       expect(state.messages, isEmpty);
+      expect(client.createConversationCalls, 0);
+
+      // ⇒ ⇒ 第一条消息才建 —— 而且建出来的那条就是消息落进去的那条。
+      await container
+          .read(chatProvider.notifier)
+          .generateResponse('新会话的第一句');
       expect(client.createConversationCalls, 1);
+      expect(client.lastStreamedConversationId, 'conv-new-1');
+      expect(container.read(chatProvider).sessionId, 'conv-new-1');
     });
 
     testWidgets('从会话列表点开一条历史会话 ⇒ 真的切过去（路由级）', (

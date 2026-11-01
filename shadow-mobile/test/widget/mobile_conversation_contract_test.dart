@@ -500,10 +500,17 @@ void main() {
       expect(conv.history[2].isToolResultTurn, isFalse);
     });
 
-    test('新开会话：真的 POST 建一条（人设随会话带过去）', () async {
+    test('新开会话：**第一条消息**才 POST 建一条（人设随会话带过去）', () async {
       final requests = <http.Request>[];
       final client = liveClient((req) async {
         requests.add(req);
+        if (req.url.path.endsWith('/messages:stream')) {
+          return http.Response(
+            'data: ${jsonEncode({'type': 'delta', 'delta': '好'})}\n\n',
+            200,
+            headers: {'content-type': 'text/event-stream; charset=utf-8'},
+          );
+        }
         return http.Response(
           jsonEncode(
             serverConversation(
@@ -522,19 +529,32 @@ void main() {
         client,
         systemPromptProvider: () => '你是影',
       );
+
+      // ⚠️ 「新对话」**不**建端脑会话（端脑**没有删会话的端点** ⇒ ⇒
+      // 空会话一旦建了就**永久留着、还删不掉** ⇒ ⇒ 客户端不许制造垃圾）
+      // ⇒ ⇒ 零请求。
       final ok = await notifier.startNewConversation();
       expect(ok, isTrue);
+      expect(requests, isEmpty);
+      expect(notifier.state.sessionId, isNull);
+      expect(notifier.state.messages, isEmpty);
 
-      final post = requests.single;
-      expect(post.method, 'POST');
-      expect(post.url.path, '/shadow/v1/conversations');
-      // 人设随会话创建送过去（端脑把它记进会话并转发给叶区）。
+      // ⇒ ⇒ 第一条消息才建 —— 人设**照旧**随会话创建送过去
+      //（端脑把它记进会话并转发给叶区）。
+      await notifier.generateResponse('第一句');
+      final posts = requests
+          .where(
+            (r) =>
+                r.method == 'POST' &&
+                r.url.path == '/shadow/v1/conversations',
+          )
+          .toList();
+      expect(posts.length, 1);
       expect(
-        (jsonDecode(post.body) as Map<String, dynamic>)['system'],
+        (jsonDecode(posts.single.body) as Map<String, dynamic>)['system'],
         '你是影',
       );
       expect(notifier.state.sessionId, 'conv-new');
-      expect(notifier.state.messages, isEmpty);
     });
 
     testWidgets('路由级：带 sessionId 导航 ⇒ 真 client 真的去拉那条会话', (

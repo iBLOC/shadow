@@ -134,7 +134,9 @@ class ChatState {
     List<MultimodalInput>? attachments,
     VoiceState? voiceState,
     String? streamingText,
-    String? sessionId,
+    // ⚠️ 用哨兵才能把它**置空** —— 「草稿会话」（还没在端脑建）就是
+    // 「没有 session id」⇒ ⇒ 而 `sessionId ?? this.sessionId` 永远清不掉。
+    Object? sessionId = _omit,
     Object? activeConversationAgent = _omit,
     Object? failedSwitchSessionId = _omit,
   }) {
@@ -160,7 +162,9 @@ class ChatState {
       attachments: attachments ?? this.attachments,
       voiceState: voiceState ?? this.voiceState,
       streamingText: streamingText ?? this.streamingText,
-      sessionId: sessionId ?? this.sessionId,
+      sessionId: identical(sessionId, _omit)
+          ? this.sessionId
+          : sessionId as String?,
       activeConversationAgent: identical(activeConversationAgent, _omit)
           ? this.activeConversationAgent
           : activeConversationAgent as String?,
@@ -534,37 +538,39 @@ class ChatNotifier extends StateNotifier<ChatState> {
     }
   }
 
-  /// 新开一条端脑会话并切过去（会话列表页的「新对话」）。
+  /// 开一条**新的**会话 —— **草稿**：先只在客户端存在，**真有话说**了才在端脑建。
   ///
-  /// ⚠️ 端脑的会话**没有标题字段**（`Conversation` 只有 id / agent /
-  /// created_at / updated_at / history）⇒ 列表里的标题取自 `agent`
-  /// （叶区名）⇒ ⇒ 「给会话起个名」这件事现在**无处可存**
-  /// ⇒ 不做一个假的输入框（原对话框里那个标题框已撤掉）。
+  /// ⚠️ 为什么不能「点了就建」（2026-11-01 实测端脑的路由表）：
+  /// 端脑的 shadow API **没有删会话的端点**（`telencephalon/src/api/shadow.rs`
+  /// 的路由表只有 list / create / get / messages / messages:stream /
+  /// tool-results / import ⇒ **没有 DELETE**）⇒ ⇒ 每点一次「新对话」就往
+  /// 端脑塞一条**空**会话 ⇒ ⇒ 而空会话会**落盘**（`FilePersistence` 写
+  /// `conversations.json` ⇒ 活过 App 重启）⇒ ⇒ 用户点完「新对话」又返回，
+  /// 那条空会话就**永久留在列表里**，而且**删不掉** ⇒ ⇒ 列表被自己的
+  /// 垃圾填满 ⇒ ⇒ 「管理多个会话」被「新对话」这个按钮堵住。
+  ///
+  /// ✅ 现在：**草稿**只在客户端存在 ⇒ 第一条消息发出时才在端脑建
+  /// （走 `_sendToTelencephalon` 里**已有**的「没有当前会话 ⇒ 先建一条」
+  /// 那条路 ⇒ 人设照旧带上）⇒ ⇒ 点「新对话」又返回 ⇒ 端脑**什么都没多**。
+  ///
+  /// ⚠️ 顺带：草稿**还没有**服务端会话 ⇒ ⇒ 对话页那行「当前会话」不画
+  /// （`sessionId == null`）—— 没有会话可指 ⇒ 等第一条消息把它建出来，
+  /// 那行自己会出现 ⇒ ⇒ 那时标题 = 用户自己说的第一句话。
   Future<bool> startNewConversation() async {
-    try {
-      final conversation = await _telencephalonClient.createConversation(
-        systemPrompt: _systemPromptProvider(),
-      );
-      _currentSessionId = conversation.id;
-      state = state.copyWith(
-        sessionId: conversation.id,
-        activeConversationAgent: conversation.agent,
-        // 新开一条 ⇒ 上一次切会话的失败**作废** ⇒ 闸门打开。
-        failedSwitchSessionId: null,
-        messages: const [],
-        isLoading: false,
-        streamingText: '',
-        errorMessage: null,
-      );
-      return true;
-    } catch (e) {
-      state = state.copyWith(
-        errorMessage: 'Error: $e',
-        errorMessageL10nKey: ChatStateL10nKey.errorGeneric,
-        errorMessageArg: e.toString(),
-      );
-      return false;
-    }
+    // ⚠️ **不在端脑建会话** —— 见上面那段「为什么」。
+    _currentSessionId = null;
+    state = state.copyWith(
+      // 草稿**还没有**服务端会话 ⇒ ⇒ 这两样要**清空**（不是沿用上一条）。
+      sessionId: null,
+      activeConversationAgent: null,
+      // 新开一条 ⇒ 上一次切会话的失败**作废** ⇒ 闸门打开。
+      failedSwitchSessionId: null,
+      messages: const [],
+      isLoading: false,
+      streamingText: '',
+      errorMessage: null,
+    );
+    return true;
   }
 
   /// 端脑的轮次角色 → 客户端的气泡角色。
