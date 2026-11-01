@@ -447,7 +447,14 @@ class ChatNotifier extends StateNotifier<ChatState> {
       _currentSessionId = conversation.id;
       state = state.copyWith(
         sessionId: conversation.id,
-        messages: conversation.history.map(_messageFromTurn).toList(),
+        // ⚠️ **人设轮次不画成气泡** —— 端脑把会话的**人设**存成第一条轮次
+        // （`role=agent` + `[system] ` 前缀）⇒ 它是**配置**，不是对话 ⇒
+        // 原样画出来 ⇒ 用户看到自己的配置原文被当成大脑发言顶在最上面。
+        // 口径与服务端一致：`history_of()` 喂模型时也**只跳人设**。
+        messages: conversation.history
+            .where((t) => !t.isSystemTurn)
+            .map(_messageFromTurn)
+            .toList(),
         isLoading: false,
         streamingText: '',
         errorMessage: null,
@@ -499,7 +506,9 @@ class ChatNotifier extends StateNotifier<ChatState> {
   /// —— **不是** `assistant` ⇒ 只认 `assistant` 的话，
   /// **每一句**助手回复都会被画成「系统消息」气泡。
   ChatMessageModel _messageFromTurn(ConversationTurn turn) => ChatMessageModel(
-    turn.text,
+    // 工具结果那轮带 `[tool_result] ` 前缀 ⇒ 那是**协议内部标记**：
+    // 用户该看见「工具跑过了」，不该看见前缀本身 ⇒ 剥掉。
+    turn.bodyText,
     switch (turn.role) {
       'user' => ChatRole.user,
       'agent' || 'assistant' => ChatRole.assistant,

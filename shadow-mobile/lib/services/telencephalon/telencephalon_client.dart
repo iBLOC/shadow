@@ -236,6 +236,23 @@ class AgentsResponse {
   }
 }
 
+/// 端脑在**轮次文本**里用的机器前缀 —— 服务端用它标记「这条轮次不是人说的」。
+///
+/// 判据源（服务端）：
+/// - `telencephalon/src/api/shadow/conversations.rs`
+///   → `pub const SYSTEM_TURN_PREFIX: &str = "[system] ";`
+/// - `telencephalon/src/api/shadow.rs`
+///   → `pub const TOOL_RESULT_TURN_PREFIX: &str = "[tool_result] ";`
+///
+/// ⚠️ **为什么客户端必须认它们**：端脑把会话的**人设**存成**第一条**轮次
+/// （`role=agent` + `[system] ` 前缀）⇒ 客户端若把 history 原样画成气泡，
+/// 用户就会看到**自己的配置原文**被当成大脑发言顶在最上面。
+///
+/// ⚠️ 服务端喂模型时**只跳人设**（`history_of()`），工具结果**留在**历史里
+/// （模型要读）⇒ ⇒ 客户端也**只跳人设**，工具结果剥掉前缀再显示。
+const String kSystemTurnPrefix = '[system] ';
+const String kToolResultTurnPrefix = '[tool_result] ';
+
 class ConversationTurn {
   final String role;
   final String text;
@@ -255,6 +272,24 @@ class ConversationTurn {
         text: (json['text'] as String?) ?? '',
         timestamp: parseTurnTimestamp(json),
       );
+
+  /// 这条轮次是**人设**（端脑存的第一条 agent 轮次，带 `[system] ` 前缀）。
+  ///
+  /// 它是**配置**，不是对话 ⇒ **不该**被画成消息气泡。
+  bool get isSystemTurn => text.startsWith(kSystemTurnPrefix);
+
+  /// 这条轮次是**客户端工具的结果**（带 `[tool_result] ` 前缀）。
+  ///
+  /// 它**是**这一回合真实发生的事 ⇒ 该给用户看，只是**不该**让用户看见
+  /// 这个协议内部标记。
+  bool get isToolResultTurn => text.startsWith(kToolResultTurnPrefix);
+
+  /// 剥掉机器前缀后的正文。
+  ///
+  /// 人设那类**不剥**（它整条不显示，剥了也没意义）⇒ ⇒ 只有工具结果会真的剥。
+  String get bodyText => isToolResultTurn
+      ? text.substring(kToolResultTurnPrefix.length).trim()
+      : text;
 
   /// 轮次时间戳：优先 `at`（RFC3339），退回 `timestamp`（毫秒整数）。
   static DateTime parseTurnTimestamp(Map<String, dynamic> json) {

@@ -48,12 +48,20 @@ class ConversationInfo {
   final DateTime updatedAt;
   final int messageCount;
 
+  /// 叶区名（端脑的 `agent`）。
+  ///
+  /// ⚠️ 它以前**就是标题** ⇒ 同一个叶区的所有会话长得一模一样 ⇒
+  /// 现在标题让位给「用户第一句话」了 ⇒ ⇒ 叶区名**挪到副标签**，
+  /// 免得这条信息白白丢掉（用户得知道自己这条会话落在哪个叶区上）。
+  final String agent;
+
   ConversationInfo({
     required this.id,
     required this.title,
     required this.createdAt,
     required this.updatedAt,
     this.messageCount = 0,
+    this.agent = '',
   });
 }
 
@@ -75,9 +83,8 @@ class ConversationsNotifier extends StateNotifier<ConversationsState> {
             .map(
               (c) => ConversationInfo(
                 id: c.id,
-                title: c.agent.isNotEmpty
-                    ? c.agent
-                    : currentL10n().conversationNewSession,
+                title: conversationTitleOf(c),
+                agent: c.agent,
                 createdAt: c.createdAt,
                 updatedAt: c.updatedAt,
                 messageCount: c.history.length,
@@ -90,6 +97,39 @@ class ConversationsNotifier extends StateNotifier<ConversationsState> {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
+}
+
+/// 会话标题 = **用户自己说过的第一句话**。
+///
+/// ⚠️ 为什么以前不是这样：端脑的 `Conversation` **没有标题字段**
+/// （只有 `id` / `agent` / `created_at` / `updated_at` / `history`）
+/// ⇒ 列表里能拿到的只有叶区名（`agent`）⇒ ⇒ **同一个叶区的所有会话
+/// 在列表里长得一模一样** ⇒ ⇒ 用户根本分不出哪条是哪条
+/// ⇒ ⇒ 「管理多个会话」这件事在**视觉上**就不成立。
+///
+/// 端脑的 `ConversationView` **带着完整 history** ⇒ ⇒ 标题可以**零成本**
+/// 从第一条 `user` 轮次里取（**不用**额外请求）。
+///
+/// 取不到（空会话 / 历史里没有用户发言）⇒ 退回「新会话」。
+String conversationTitleOf(Conversation c) {
+  for (final turn in c.history) {
+    if (turn.role != 'user') continue;
+    final text = turn.text.trim().replaceAll(RegExp(r'\s+'), ' ');
+    if (text.isEmpty) continue;
+    return truncateConversationTitle(text);
+  }
+  return currentL10n().conversationNewSession;
+}
+
+/// 标题最多这么长 —— 再长就把卡片撑破了。
+///
+/// ⚠️ 用 **runes**（码点）而不是 `length`（UTF-16 码元）计数：
+/// emoji 这类星平面字符占**两个**码元 ⇒ 按码元切会切出半个代理对
+/// ⇒ 渲染成「豆腐块」。
+String truncateConversationTitle(String text, {int max = 30}) {
+  final runes = text.runes.toList();
+  if (runes.length <= max) return text;
+  return '${String.fromCharCodes(runes.take(max))}…';
 }
 
 class ConversationScreen extends ConsumerWidget {
@@ -212,7 +252,7 @@ class _ConversationCard extends StatelessWidget {
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 Text(
-                  _formatTime(context, conversation.updatedAt),
+                  _subtitle(context, conversation),
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],
@@ -226,6 +266,16 @@ class _ConversationCard extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  /// 副标签 = **叶区名 · 时间**。
+  ///
+  /// ⚠️ 叶区名以前是**标题** ⇒ 现在标题是「用户第一句话」了 ⇒ ⇒
+  /// 叶区名必须**挪到这里**，否则这条信息就丢了。
+  String _subtitle(BuildContext context, ConversationInfo conv) {
+    final time = _formatTime(context, conv.updatedAt);
+    if (conv.agent.isEmpty) return time;
+    return '${conv.agent} · $time';
   }
 
   String _formatTime(BuildContext context, DateTime time) {

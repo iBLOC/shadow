@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -64,6 +66,33 @@ Future<void> pumpConversationScreen(
   await tester.pumpAndSettle();
 }
 
+/// 端脑**真的**会回的那份会话 JSON —— 逐字照抄 Rust 那边的 serde 形状。
+///
+/// 判据源：
+/// - `telencephalon/src/api/shadow.rs` 的 `ConversationView`
+///   `{ id, agent, created_at, updated_at, history[] }`
+/// - `telencephalon/src/api/shadow/conversations.rs` 的 `ConversationTurn`
+///   `{ role, text, at }`（`role` 是 serde 的**小写**变体名：`user` / `agent`）
+Map<String, dynamic> _serverConv(
+  String id,
+  String agent,
+  List<Map<String, String>> history,
+) => {
+  'id': id,
+  'agent': agent,
+  'created_at': '2026-11-01T04:23:45.123456789Z',
+  'updated_at': '2026-11-01T05:00:00.987654321Z',
+  'history': history
+      .map(
+        (h) => {
+          'role': h['role'],
+          'text': h['text'],
+          'at': '2026-11-01T04:23:45.123456789Z',
+        },
+      )
+      .toList(),
+};
+
 void main() {
   testSetup();
   group('ConversationScreen Widget Tests', () {
@@ -116,6 +145,93 @@ void main() {
       await pumpConversationScreen(tester, handler: _server('[]'));
 
       expect(find.text(l10nOf(tester).conversationEmpty), findsOneWidget);
+    });
+
+    testWidgets('同一叶区的两条会话 ⇒ 标题是各自的用户第一句话', (
+      WidgetTester tester,
+    ) async {
+      await pumpConversationScreen(
+        tester,
+        handler: _server(
+          jsonEncode([
+            _serverConv('conv-a', 'temporal', const [
+              {'role': 'user', 'text': '帮我把主题换成靛蓝'},
+              {'role': 'agent', 'text': '好，换好了'},
+            ]),
+            _serverConv('conv-b', 'temporal', const [
+              {'role': 'user', 'text': '解释一下海马体'},
+            ]),
+          ]),
+        ),
+      );
+
+      // ⚠️ 这两条**同一个叶区**（temporal）⇒ 标题以前都是「temporal」
+      // ⇒ ⇒ 列表里两行长得**一模一样** ⇒ 用户根本分不出哪条是哪条
+      // ⇒ ⇒ 「管理多个会话」在**视觉上**就不成立。
+      // 现在标题取**用户自己说过的第一句话**。
+      expect(find.text('帮我把主题换成靛蓝'), findsOneWidget);
+      expect(find.text('解释一下海马体'), findsOneWidget);
+      // 叶区名不再占标题位（它挪到副标签去了）。
+      expect(find.text('temporal'), findsNothing);
+      // ⚠️ 但它**没丢** —— 副标签那行还带着它（两条 ⇒ 两处）。
+      expect(find.textContaining('temporal'), findsNWidgets(2));
+    });
+
+    testWidgets('人设那条轮次不进标题（它是配置，不是对话）', (
+      WidgetTester tester,
+    ) async {
+      await pumpConversationScreen(
+        tester,
+        handler: _server(
+          jsonEncode([
+            _serverConv('conv-a', 'temporal', const [
+              {'role': 'agent', 'text': '[system] 你是影'},
+              {'role': 'user', 'text': '你好'},
+            ]),
+          ]),
+        ),
+      );
+
+      expect(find.text('你好'), findsOneWidget);
+      expect(find.textContaining('[system]'), findsNothing);
+    });
+
+    testWidgets('空会话（只有人设）⇒ 标题是「新会话」，叶区名仍在副标签', (
+      WidgetTester tester,
+    ) async {
+      await pumpConversationScreen(
+        tester,
+        handler: _server(
+          jsonEncode([
+            _serverConv('conv-a', 'temporal', const [
+              {'role': 'agent', 'text': '[system] 你是影'},
+            ]),
+          ]),
+        ),
+      );
+
+      expect(find.text(l10nOf(tester).conversationNewSession), findsOneWidget);
+      expect(find.textContaining('[system]'), findsNothing);
+      expect(find.textContaining('temporal'), findsOneWidget);
+    });
+
+    testWidgets('过长的第一句 ⇒ 截断（带省略号），全文不出现', (
+      WidgetTester tester,
+    ) async {
+      final long = '一' * 60;
+      await pumpConversationScreen(
+        tester,
+        handler: _server(
+          jsonEncode([
+            _serverConv('conv-a', 'temporal', [
+              {'role': 'user', 'text': long},
+            ]),
+          ]),
+        ),
+      );
+
+      expect(find.textContaining('…'), findsOneWidget);
+      expect(find.text(long), findsNothing);
     });
 
     testWidgets('读不到 ⇒ **不是**空态（失败要说真话）', (

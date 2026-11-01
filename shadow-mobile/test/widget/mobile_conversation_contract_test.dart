@@ -213,7 +213,7 @@ void main() {
       expect(find.textContaining('错误'), findsNothing);
     });
 
-    testWidgets('读成功 ⇒ 两条会话各占一行（标题取叶区名）', (tester) async {
+    testWidgets('读成功 ⇒ 两条会话各占一行（标题取用户第一句话）', (tester) async {
       await pumpList(tester, (req) async {
         return http.Response(
           jsonEncode([
@@ -226,8 +226,14 @@ void main() {
       });
 
       final l10n = l10nOf(tester);
-      expect(find.text('temporal'), findsOneWidget);
-      expect(find.text('prefrontal'), findsOneWidget);
+      // ⚠️ 标题以前是**叶区名** ⇒ 同一个叶区的所有会话长得一模一样 ⇒
+      // 现在标题取**用户自己说过的第一句话**（端脑的 history 带着完整轮次 ⇒
+      // 零成本）。
+      expect(find.text('第一条问题'), findsOneWidget);
+      expect(find.text('另一条会话的问题'), findsOneWidget);
+      // 叶区名没丢 —— 它在副标签那行。
+      expect(find.textContaining('temporal'), findsOneWidget);
+      expect(find.textContaining('prefrontal'), findsOneWidget);
       expect(find.text(l10n.conversationEmpty), findsNothing);
     });
 
@@ -302,6 +308,86 @@ void main() {
       // SSE 里的 delta 真的变成了气泡。
       expect(notifier.state.messages.last.content, '续上的回复');
       expect(notifier.state.messages.last.role, ChatRole.assistant);
+    });
+
+    test('切会话 ⇒ **人设**那条轮次不变成气泡（它是配置，不是对话）', () async {
+      final client = liveClient((req) async {
+        return http.Response(
+          jsonEncode(
+            serverConversation('conv-a', 'temporal', const [
+              {'role': 'agent', 'text': '[system] 你是影'},
+              {'role': 'user', 'text': '第一条问题'},
+              {'role': 'agent', 'text': '第一条回答'},
+            ]),
+          ),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      });
+
+      final notifier = ChatNotifier(MockTtsEngine(), client);
+      expect(await notifier.switchTo('conv-a'), isTrue);
+
+      // ⚠️ 端脑把会话的**人设**存成**第一条**轮次（`role=agent` +
+      // `[system] ` 前缀）⇒ 原样画出来 ⇒ 用户看到**自己的配置原文**
+      // 被当成大脑发言顶在最上面。
+      // 口径与服务端一致：`history_of()` 喂模型时也**只跳人设**。
+      expect(
+        notifier.state.messages.any((m) => m.content.contains('[system]')),
+        isFalse,
+      );
+      expect(notifier.state.messages.length, 2);
+      expect(notifier.state.messages.first.content, '第一条问题');
+    });
+
+    test('切会话 ⇒ 工具结果那条**剥掉** `[tool_result] ` 前缀（正文留着）', () async {
+      final client = liveClient((req) async {
+        return http.Response(
+          jsonEncode(
+            serverConversation('conv-a', 'temporal', const [
+              {'role': 'user', 'text': '把主题换成靛蓝'},
+              {'role': 'agent', 'text': '[tool_result] set_theme → ok'},
+            ]),
+          ),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      });
+
+      final notifier = ChatNotifier(MockTtsEngine(), client);
+      expect(await notifier.switchTo('conv-a'), isTrue);
+
+      // 用户该看见「工具跑过了」⇒ 但**不该**看见这个协议内部标记。
+      expect(notifier.state.messages.length, 2);
+      expect(notifier.state.messages.last.content, 'set_theme → ok');
+      expect(notifier.state.messages.last.content.contains('[tool_result]'), isFalse);
+    });
+
+    test('方言层：客户端认得端脑那两个机器前缀', () async {
+      final client = liveClient((req) async {
+        return http.Response(
+          jsonEncode(
+            serverConversation('conv-a', 'temporal', const [
+              {'role': 'agent', 'text': '[system] 你是影'},
+              {'role': 'agent', 'text': '[tool_result] set_theme → ok'},
+              {'role': 'user', 'text': '你好'},
+            ]),
+          ),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      });
+
+      final conv = await client.getConversation('conv-a');
+      // 判据源：`telencephalon/src/api/shadow/conversations.rs`
+      //   `SYSTEM_TURN_PREFIX = "[system] "`
+      // `telencephalon/src/api/shadow.rs`
+      //   `TOOL_RESULT_TURN_PREFIX = "[tool_result] "`
+      expect(conv.history[0].isSystemTurn, isTrue);
+      expect(conv.history[1].isToolResultTurn, isTrue);
+      expect(conv.history[1].bodyText, 'set_theme → ok');
+      expect(conv.history[2].isSystemTurn, isFalse);
+      expect(conv.history[2].isToolResultTurn, isFalse);
     });
 
     test('新开会话：真的 POST 建一条（人设随会话带过去）', () async {
