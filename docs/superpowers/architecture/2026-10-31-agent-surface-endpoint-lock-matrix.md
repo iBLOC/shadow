@@ -722,3 +722,93 @@ agent/WASM/MCP 管理功能会从「401」变成「401」（没变好，但排�
 - **桌面端的端脑（:60080）默认也绑 `0.0.0.0`**（`config.telencephalon.bind.http` 的默认值）
   ⇒ 同一类问题。
 - **签发侧接线**（`src/acl/` + `credential_signer.rs`）—— 步 4 才需要。
+
+## 七、客户端调用点 ↔ 端脑路由 —— 一张机器可判的对照表（2026-11-01 补）
+
+**为什么补这一节**：上面那张表是「端点 × 该不该锁」，**没有回答**
+「**客户端实际打的那个路径，端脑上到底有没有**」⇒ ⇒ 两边从来没人对过账
+⇒ ⇒ 客户端打错路径 / 响应形状不对**不会报错** ⇒ ⇒ 用户看到的是「功能坏了」，
+机器一声不吭。
+
+### 7.1 桌面端 `prefrontalClient` 的 29 个调用点（实测分类）
+
+活端脑实测（`127.0.0.1:60080`）：
+
+| 客户端打的路径 | 端脑上的实况 | 实测 |
+|---|---|---|
+| `/api/tasks` | 端脑的任务面在 `/api/telencephalon/tasks` | **404** |
+| `/api/telencephalon/tasks` | 有 | **200** |
+| `/api/agents` | 端脑的 agent 面在 `/api/telencephalon/agents` | **404** |
+| `/api/telencephalon/agents` | 有 | **200** |
+| `/hippocampus/api/tasks?tenantId=…` | 海马体面 nest 在 `/hippocampus` ⇒ **路径对得上** | **200** |
+| `/health` | neuron 根面（outer） | **200** |
+
+⇒ ⇒ **29 个调用点 = 2 aligned + 5 outer + 18 differs + 4 missing**（机器分类见
+`scripts/client-endpoint-map.txt`）。
+
+⚠️ **订正（承 AGENTS.md 的㋟条 ⑦⑧）**：那条「其余 22 个端脑上根本没有这些路由
+⇒ 404」**不准确** ⇒ ⇒ `/hippocampus/api/tasks*`（4 个）与 `/health`
+**路径对得上** ⇒ ⇒ **通的** ⇒ ⇒ 「22 个 404」**多了 6 个** ⇒ ⇒ 任务板今天就能用。
+
+⚠️ **订正「指错服务」这个说法本身**：端脑**确实**提供这些能力（tasks / agents /
+mcp / conversations / sessions）⇒ ⇒ 问题是**路径前缀 + 响应形状**，不是「服务」。
+⇒ 而「换调用面（指向 `prefrontal` 独立仓）」在桌面形态下**不可用** ——
+桌面端 Tauri **只有端脑一个后端**（`cortex_http.rs` 在**进程内**起端脑 HTTP 面于
+60080；旧 cortex sidecar 与 `state.prefrontal` 都已删）⇒ ⇒ `prefrontal` 独立仓的
+默认端口已改成 **18083**（`a8fa54d`）⇒ ⇒ 本机 8082 / 8085 / 18083 **都没人在听**
+⇒ ⇒ **方向已被证据收敛成单方向**：迁到端脑面（路径 + 形状 + 凭据三件事一起迁）。
+
+⚠️ **形状那一层（今天就坏）**：端脑的 `/api/sessions*` 回**裸** JSON，而客户端
+`createSession` / `listSessions` 期望 `{success,data}` **信封** ⇒ ⇒
+`env.success` 是 `undefined` ⇒ ⇒ **必然抛** ⇒ ⇒ 光补凭据也**还是坏**。
+
+### 7.2 闸：`scripts/check-client-endpoint-map.mjs`
+
+**比什么**：客户端侧解析客户端文件里**真的在发**的请求（路径 + 方法）；
+服务端侧 = 端脑**实际合并进 router** 的路由 ＋ 两张 outer 面（neuron 在根、
+hippocampus nest 在 `/hippocampus`）；表侧 = `scripts/client-endpoint-map.txt`。
+
+**判定**（退出码 1）：客户端有调用点、表里没登记 / 表里有客户端已不打的行（表不许过期）/
+表里说服务端有但服务端实际没有 / 表标 `missing` 但服务端其实有同路径的路由（表说谎）。
+标 `missing` 且服务端确实没有 ⇒ 只报告，不失败（需要产品决定，不是机器能判的）。
+防假绿：客户端解析出 0 个调用点 ⇒ 退出码 2。
+
+### 7.3 ⚠️ 顺带逮到：两把旧闸的「判不了」（本节最要紧的一条）
+
+**(a) `check-door-policy.mjs` 的自检从写出来那天起就是红的。** 它的夹具是
+**手搓的字面量**（`method: '*'`），而真实门型表走 `parsePolicy`（把 `'*'`
+归一成 `null` = 任何方法）⇒ ⇒ 两边**形状不同** ⇒ ⇒ 那条 `'*'` 门型在
+`resolveDoor` 里**永远匹配不上**（拿 `'*'` 跟 `'POST'` 比）⇒ ⇒
+`/api/flows/abc/validate` 落到族规则 ⇒ `admin ≠ open` ⇒ ⇒ **红**。
+⇒ ⇒ **HEAD 原版实测 `--self-test` exit=1** ⇒ ⇒ **没人跑它** ⇒ ⇒ 它守的东西没被守。
+⇒ ⇒ **已修**：夹具改成**一张门型表文本**、与真实表**同形**（都过 `parsePolicy`），
+外加一条钉**真实表**的断言。
+
+**(b) 端脑路由抽取的括号配对起点算错 ⇒ ⇒ 链式写法的第二个方法落在 span 之外。**
+`.route(` 的配对若从路径字符串末尾开始数，则 `get(h).post(h2)` 的 `post`
+在 span 外 ⇒ ⇒ 那条路由只被记成 GET ⇒ ⇒ **它的 POST 变体没人查** ⇒ ⇒
+端脑路由数 **126 ⇒ 132**（6 条 POST 变体从前**隐形**）⇒ ⇒ 真表碰巧用族规则覆盖了
+它们（closed 仍 0）⇒ ⇒ **今天没有洞，但闸从前看不见**。
+
+⚠️ **反向验证（承重，合成树）**：门型表只覆盖 `GET /api/demo` 的合成端脑 ⇒
+**新抽取器红**（2 条路由，POST 未覆盖 ⇒ closed 1）、**旧抽取器绿**（只 1 条）⇒ ⇒
+**「从前判不了」被证明**。另：破坏 `moreSpecific` ⇒ **恰好 2 红**；破坏
+`'*'` 归一化 ⇒ **恰好 5 红**；对照表删一行 ⇒ 报「没登记」红。
+
+### 7.4 桌面端两处「说谎」已修
+
+- `shadow-desktop/src/lib/platform.ts`：注释写着「Tauri 默认 8082 / web 用同源」
+  —— 那是 2026-08-16（`7970925`）**之前**的旧契约 ⇒ ⇒ 改成说真话（端脑 60080）。
+- `shadow-desktop/src/lib/__tests__/platform.test.ts`：那条 8082 断言原本是
+  `it.skip` ⇒ ⇒ 没人发现 ⇒ ⇒ 现在钉**真实**契约 ⇒ ⇒ 反向验证（改回 8082）⇒
+  **恰好 2 红**。
+
+**证据**：门闸 self-test **10/10**、主流程 **132 条路由 / 51 条规则 / closed 0**
+⇒ EXIT=0；客户端对照闸 self-test **6/6**、主流程 **29 条登记 ↔ 29 个调用点**
+⇒ EXIT=0；桌面端 `tsc --noEmit` **EXIT=0**、`platform.test.ts` **30 passed**
+（含原先被 `it.skip` 的那条）。
+
+⚠️ **还欠的**：桌面端那 29 个调用点**迁到端脑面**（工作量在桌面端，不在端脑）；
+`prefrontalClient` 这个**类名**与 `prefrontalUrl()` 这个**函数名**都在说谎 ⇒ ⇒
+改名是另一个决定；本节只核了**桌面端**，移动端 `prefrontal_client.dart` 的
+44 个调用点**仍需同样对账**。
