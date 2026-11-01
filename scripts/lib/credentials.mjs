@@ -20,6 +20,34 @@ export const ADMIN_GETTER = 'adminHeaders';
 export const SHADOW_HEADER = 'X-Shadow-Key';
 export const SHADOW_GETTER = 'shadowHeaders|getApiKey|shadowKey';
 
+/**
+ * ⚠️⚠️ **读门的「钥匙构建器」** —— 客户端把「影子锁 ∪ admin token」收进
+ * **一处共享实现**（`readDoorHeaders` / client 的 `readHeaders()`）。
+ *
+ * ⇒ ⇒ 它**同时**递两把（各一把，**拿不到就不带那个头** ⇒ 绝不塞空串）
+ * ⇒ ⇒ 判据上 admin 与 shadow **都算「递了」**
+ * ⇒ ⇒ **拿不拿得到由「可达性」那一半决定**
+ * （Tauri：admin 恒有 ⇒ 绿；web：用户自备 ⇒ 条件绿；桌面影子锁：无处可配 ⇒ 拿不到）。
+ *
+ * ⚠️⚠️ **为什么必须认它**（这条是「假红」的根源）：
+ * 客户端把凭据收进**一处共享实现**之后 ⇒ ⇒ 那一发的文本里
+ * **不再出现** `adminHeaders` / `X-Admin-Token` ⇒ ⇒ 判据若只认旧形状
+ * ⇒ ⇒ **假红**（明明递了两把钥匙却报「必 401」）
+ * ⇒ ⇒ 而「红」比漏报**更坑**：会让人去改**已经改对了**的代码 ⇒ ⇒ 引入新 bug。
+ */
+export const READ_DOOR_BUILDERS = 'readDoorHeaders|readHeaders';
+
+/**
+ * 这一段文本里有没有「读门钥匙构建器」的**调用**？
+ *
+ * ⚠️ 要求带**左括号** ⇒ ⇒ 只认「调用它」⇒ ⇒ 不会把一个**同名变量**
+ * 误判成「递了凭据」。
+ */
+export function hasReadDoorBuilder(text) {
+  if (!text) return false;
+  return new RegExp('\\b(' + READ_DOOR_BUILDERS + ')\\s*\\(').test(text);
+}
+
 /** 在文件里找 `const|let|var <name> = <rhs>` 的 rhs 文本。 */
 export function findAssignment(code, name) {
   // ⚠️ 允许**类型注解**：`const headers: Record<string, string> = {...}`
@@ -125,7 +153,46 @@ export function credentialViaMutation(code, name, kind) {
   return false;
 }
 
+/**
+ * 这一发是不是**走读门钥匙构建器**（⇒ ⇒ **两把都递**）？
+ *
+ * ⚠️ 三种写法都要认（与 `credentialIn` 的三种形状**同形**）：
+ *   ① `headers: await readDoorHeaders(k)` —— 直接调用；
+ *   ② `headers`（简写）⇒ 值来自 `const headers = await this.readHeaders()`；
+ *   ③ `headers: { ...(await readDoorHeaders(k)) }` —— 展开。
+ *
+ * ⚠️⚠️ **为什么这条要单独判、而不是塞进那个正则**：
+ * 客户端把凭据收进**一处共享实现**之后 ⇒ ⇒ 那一发的文本里
+ * **不再出现** `adminHeaders` / `X-Admin-Token` ⇒ ⇒ 只认旧形状的判据
+ * ⇒ ⇒ **假红**（明明递了两把钥匙却报「必 401」）
+ * ⇒ ⇒ 而「红」比漏报**更坑**：会让人去改**已经改对了**的代码。
+ */
+export function readDoorBuilderIn(code, callText) {
+  const value = headerValue(callText);
+  if (value !== null) {
+    if (hasReadDoorBuilder(value)) return true;
+    const ident = /^\s*([A-Za-z_$][A-Za-z0-9_$]*)\s*$/.exec(value);
+    if (ident) {
+      const rhs = findAssignment(code, ident[1]);
+      if (rhs && hasReadDoorBuilder(rhs)) return true;
+    }
+    return false;
+  }
+  const shorthand = /[{,]\s*headers\s*[,}]/.test(callText);
+  if (shorthand) {
+    const rhs = findAssignment(code, 'headers');
+    if (rhs && hasReadDoorBuilder(rhs)) return true;
+  }
+  return false;
+}
+
 export function credentialIn(code, callText, kind) {
+  // ⚠️⚠️ **读门钥匙构建器 ⇒ 两把都递** ⇒ ⇒ admin 与 shadow **都算「递了」**
+  // ⇒ ⇒ 「拿不拿得到」由**可达性**那一半决定（Tauri 恒有 / web 用户自备 /
+  // ⇒ ⇒ ⇒ 桌面影子锁无处可配），**不由**这一发决定。
+  if (readDoorBuilderIn(code, callText)) {
+    return { ok: true, how: '走**读门钥匙构建器**（影子锁 ∪ admin token ⇒ 两把都递）' };
+  }
   const CRED =
     kind === 'admin'
       ? new RegExp('\\b(' + ADMIN_GETTER + '|' + ADMIN_HEADER + ')\\b')

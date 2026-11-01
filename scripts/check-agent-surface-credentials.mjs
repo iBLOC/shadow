@@ -64,7 +64,7 @@ import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { resolve, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { stripComments } from './lib/strip-comments.mjs';
-import { credentialIn } from './lib/credentials.mjs';
+import { credentialIn, hasReadDoorBuilder } from './lib/credentials.mjs';
 import {
   desktopShadowReach,
   desktopAdminReach,
@@ -321,9 +321,15 @@ function desktopWrapperCaps() {
   const i = raw.indexOf('async request<');
   if (i === -1) return null;
   const body = raw.slice(i, i + 2500);
+  // ⚠️⚠️ **别只找头名字面量** —— 客户端把凭据收进**一处共享实现**
+  // （readDoorHeaders）之后 ⇒ ⇒ request() 的实现里**不再出现**
+  // 「X-Shadow-Key」⇒ ⇒ 只认字面量 ⇒ ⇒ **报「它不带影子锁」**
+  // ⇒ ⇒ 而它其实**两把都递** ⇒ ⇒ 那份读数是**假的** ⇒ ⇒ 会让人去改改对的代码。
+  // ⇒ ⇒ 所以：**认「读门钥匙构建器」**（它 ⇒ 两把都递）。
+  const viaBuilder = hasReadDoorBuilder(body);
   return {
-    admin: /X-Admin-Token/.test(body) || /getAdminToken/.test(body),
-    shadow: /X-Shadow-Key/.test(body),
+    admin: viaBuilder || /X-Admin-Token/.test(body) || /getAdminToken/.test(body),
+    shadow: viaBuilder || /X-Shadow-Key/.test(body),
   };
 }
 
@@ -672,6 +678,38 @@ function selfTest() {
   check('凭据识别：X-Admin-Token ⇒ admin', credentialsIn("{ 'X-Admin-Token': t }").admin);
   check('凭据识别：X-Shadow-Key ⇒ shadow', credentialsIn("{ 'X-Shadow-Key': k }").shadow);
   check('凭据识别：空 headers ⇒ 什么都不带', !credentialsIn('headers: {}').admin && !credentialsIn('headers: {}').shadow);
+
+  // ⚠️⚠️ **读门钥匙构建器 ⇒ 两把都递**（2026-11-01 当场抓到的一条**假红**）
+  //
+  // 病：客户端把凭据收进**一处共享实现**（readDoorHeaders）之后 ⇒ ⇒
+  // 那一发的文本里**不再出现** adminHeaders / X-Admin-Token ⇒ ⇒
+  // 只认旧形状的判据 ⇒ ⇒ **假红**（明明递了两把钥匙却报「必 401」）
+  // ⇒ ⇒ 而「红」比漏报**更坑**：会让人去改**已经改对了**的代码。
+  //
+  // ⇒ 所以这条**钉住新形状**：判据必须认「走读门钥匙构建器 ⇒ 两把都递」。
+  const builderSample =
+    "const resp = await fetch(url, { headers: await readDoorHeaders(client.getApiKey()) });";
+  check(
+    '读门钥匙构建器 ⇒ admin **也算递了**（不能报假红）',
+    credentialIn(builderSample, builderSample, 'admin').ok,
+    credentialIn(builderSample, builderSample, 'admin').how,
+  );
+  check(
+    '读门钥匙构建器 ⇒ shadow 也算递了',
+    credentialIn(builderSample, builderSample, 'shadow').ok,
+    credentialIn(builderSample, builderSample, 'shadow').how,
+  );
+  const builderViaVar =
+    "const headers = await this.readHeaders();\nawait fetch(url, { headers });";
+  check(
+    '读门钥匙构建器（经变量）⇒ admin 也算递了',
+    credentialIn(builderViaVar, builderViaVar, 'admin').ok,
+  );
+  check(
+    '⚠️ 同名**变量**不算「递了凭据」（只认**调用**）',
+    !credentialIn('const readHeaders = {};\nawait fetch(url, { headers: readHeaders });',
+      'await fetch(url, { headers: readHeaders });', 'admin').ok,
+  );
 
   const sample = "const r = await fetch(url, { headers: { 'X-Admin-Token': t } });";
   const ctx = findCallContext(buildCallSpans(sample), sample.indexOf('url'));
