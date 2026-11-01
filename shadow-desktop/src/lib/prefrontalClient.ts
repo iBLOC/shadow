@@ -245,6 +245,34 @@ export interface ApiEnvelope<T> {
   error?: string;
 }
 
+/**
+ * 解开响应 —— **端脑的裸体**与**旧方言的信封**两种都认。
+ *
+ * ## 为什么两种都要认
+ *
+ * 这个 client 说的是 **prefrontal 独立仓**时代的方言（`{success,data}` 信封）
+ * ⇒ ⇒ 而它今天打的是**端脑**（`lib/platform.ts` 自己写着：`prefrontalUrl()`
+ * 其实是端脑的地址）⇒ ⇒ 端脑那边**一律返裸体**
+ * ⇒ ⇒ 只认信封 ⇒ ⇒ `env.success` 是 `undefined` ⇒ ⇒ **每一发都抛错**
+ * ⇒ ⇒ 「路径对得上、方法对得上」**不等于**「解析得通」。
+ *
+ * ⚠️ 判别依据是**「顶层对象有没有 success 字段」** ⇒ ⇒ 端脑的
+ * `LlmConfigureResponse` 也有 `success`（那是**业务字段**）⇒ ⇒ 所以判别时
+ * 只看**顶层对象**，不看数组。
+ *
+ * ⚠️ 端脑这一面**压根没有信封**（机器可判 ⇒ `scripts/check-client-dialect.mjs`
+ * ⇒ `scripts/lib/response-shape.mjs`）⇒ ⇒ 这个 helper 是**迁移期**的过渡，
+ * 不是「端脑有两套形状」的证据。
+ */
+export function unwrapEnvelope<T>(body: unknown, failMessage: string): T {
+  if (body && typeof body === 'object' && !Array.isArray(body) && 'success' in (body as Record<string, unknown>)) {
+    const env = body as { success?: boolean; data?: T; error?: string };
+    if (!env.success) throw new Error(env.error || failMessage);
+    return env.data as T;
+  }
+  return body as T;
+}
+
 export type ServiceStatus = 'unknown' | 'checking' | 'healthy' | 'unhealthy' | 'offline';
 
 export interface ServiceInfo {
@@ -273,6 +301,8 @@ type HttpRequestOptions = {
 import { prefrontalUrl } from './platform';
 import { useTelencephalonStore } from '../stores/telencephalonStore';
 import { useErrorDialogStore } from '../stores/errorDialogStore';
+import { readDoorHeaders } from './readDoorHeaders';
+import { adminHeaders } from './adminToken';
 
 export class PrefrontalClient {
   private headers: Record<string, string>;
@@ -292,6 +322,30 @@ export class PrefrontalClient {
     return prefrontalUrl();
   }
 
+  /**
+   * 这一发该递哪几把钥匙（**按门形**分家）。
+   *
+   * - 读（GET/HEAD）⇒ 读门认**两把** ⇒ 影子锁 ∪ admin token；
+   * - 写（其余）⇒ 写门只认 **admin token**。
+   *
+   * ⚠️ 一条规则、一处实现 ⇒ 复用共享实现（`lib/readDoorHeaders.ts` /
+   * `lib/adminToken.ts`）⇒ ⇒ **不另抄一份钥匙逻辑**，也**拿不到就不带那个头**
+   * （绝不塞空串 —— 空串与空串 `ct_eq` 相等 ⇒ 等于把门骗开）。
+   */
+  private async doorHeaders(method: string): Promise<Record<string, string>> {
+    try {
+      if (method === 'GET' || method === 'HEAD') {
+        return await readDoorHeaders(useTelencephalonStore.getState().connection.apiKey);
+      }
+      return await adminHeaders();
+    } catch {
+      // ⚠️ **拿不到就不带那个头** —— 读钥匙本身出错（sidecar 没起来 / 老版本
+      // 没有那个命令）⇒ ⇒ 照样把请求发出去 ⇒ ⇒ 端脑回 401 并说清原因
+      // ⇒ ⇒ 比「因为读不到钥匙就不发请求」好（后者会把网络问题说成别的）。
+      return {};
+    }
+  }
+
   private async request<T>(
     endpoint: string,
     options: HttpRequestOptions = {}
@@ -306,6 +360,13 @@ export class PrefrontalClient {
         headers: {
           ...this.headers,
           ...options.headers,
+          // ⚠️ **端脑的门**：读门 = 影子锁 ∪ admin token；写门 = admin token
+          // ⇒ ⇒ **门认哪几把，客户端就递哪几把**（判据源
+          // `telencephalon/src/api/door_policy.txt` ⇒ 实现
+          // `security/api_key.rs::verify_read_credential`）。
+          // ⇒ ⇒ 之前这个 client **一把钥匙都不带** ⇒ ⇒ 写面（`POST /api/sessions`
+          // 是 admin 门 ⇒ `auto` ⇒ POST ⇒ admin）**必然 401**。
+          ...(await this.doorHeaders(method)),
         },
         body: options.body,
       });
@@ -359,18 +420,16 @@ export class PrefrontalClient {
   }
 
   async createSession(name?: string): Promise<SessionResponse> {
-    const env = await this.request<ApiEnvelope<SessionResponse>>('/api/sessions', {
+    const body = await this.request<unknown>('/api/sessions', {
       method: 'POST',
       body: JSON.stringify({ name }),
     });
-    if (!env.success) throw new Error(env.error || 'createSession failed');
-    return env.data!;
+    return unwrapEnvelope<SessionResponse>(body, 'createSession failed');
   }
 
   async listSessions(): Promise<SessionResponse[]> {
-    const env = await this.request<ApiEnvelope<SessionResponse[]>>('/api/sessions');
-    if (!env.success) throw new Error(env.error || 'listSessions failed');
-    return env.data ?? [];
+    const body = await this.request<unknown>('/api/sessions');
+    return unwrapEnvelope<SessionResponse[]>(body, 'listSessions failed') ?? [];
   }
 
   async getSession(sessionId: string): Promise<SessionResponse> {
@@ -533,9 +592,8 @@ export class PrefrontalClient {
   }
 
   async listAgents(): Promise<Agent[]> {
-    const env = await this.request<ApiEnvelope<Agent[]>>('/api/agents');
-    if (!env.success) throw new Error(env.error || 'listAgents failed');
-    return env.data ?? [];
+    const body = await this.request<unknown>('/api/agents');
+    return unwrapEnvelope<Agent[]>(body, 'listAgents failed') ?? [];
   }
 
   async getAgent(agentId: string): Promise<Agent> {

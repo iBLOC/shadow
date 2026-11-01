@@ -5,6 +5,9 @@ const { telencephalonState } = vi.hoisted(() => ({
 }));
 
 vi.mock('../platform', () => ({
+  // ⚠️ `isTauri` 也要给 —— client 现在会走 `lib/adminToken.ts`（读 admin 钥匙）
+  // ⇒ ⇒ 而 adminToken 判「是不是 Tauri」用的就是它 ⇒ ⇒ 少了它 ⇒ TypeError。
+  isTauri: () => false,
   prefrontalUrl: () => 'http://localhost:8085',
 }));
 

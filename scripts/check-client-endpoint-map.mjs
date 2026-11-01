@@ -39,6 +39,9 @@ import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { surfaceRoutes, routesIn } from './lib/telencephalon-routes.mjs';
+// ⚠️ 路径归一化**共用一份**（scripts/lib/response-shape.mjs）⇒ ⇒ 别再各抄一份
+//    —— 抄一份就会漂（两处对「什么算同一个路径」的判断一旦不同 ⇒ 表与闸各说各话）。
+import { isIdentChar, normalizeClientPath, normalizeDartPath } from './lib/response-shape.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..');
@@ -46,12 +49,7 @@ const MAP_PATH = join(HERE, 'client-endpoint-map.txt');
 const BT = String.fromCharCode(96);
 const D = '$';
 
-/** 标识符字符 / 空白字符 / 裸标识符（三个小工具，顺带避开正则里的反斜杠）。 */
-function isIdentChar(ch) {
-  if (!ch) return false;
-  const c = ch.charCodeAt(0);
-  return (c >= 97 && c <= 122) || (c >= 65 && c <= 90) || (c >= 48 && c <= 57) || c === 95 || c === 36;
-}
+/** 空白字符 / 裸标识符（两个小工具，顺带避开正则里的反斜杠）。 */
 function isSpaceChar(ch) {
   if (!ch) return false;
   const c = ch.charCodeAt(0);
@@ -292,11 +290,6 @@ function pathOf(content) {
   return s;
 }
 
-/** 客户端路径归一化：模板插值 ⇒ {param}；查询串去掉。 */
-function normalizeClientPath(p) {
-  return p.split('?')[0].replace(/\$\{[^}]*\}/g, '{param}');
-}
-
 /** 路由路径归一化：路径参数一律 ⇒ {}（用来比路由，两边同形）。 */
 function normalizeRoutePath(p) {
   return normalizeClientPath(p).replace(/\{[^}]*\}/g, '{}');
@@ -344,37 +337,6 @@ const DART_CALLS = [
   { name: '_adminPost', method: 'POST' },
   { name: '_adminDelete', method: 'DELETE' },
 ];
-
-/** Dart 路径归一化：`$name` / `${…}` ⇒ `{param}`；查询串去掉。 */
-function normalizeDartPath(p) {
-  const q = p.indexOf('?');
-  const s = q >= 0 ? p.slice(0, q) : p;
-  let out = '';
-  let i = 0;
-  while (i < s.length) {
-    if (s[i] === '$' && s[i + 1] === '{') {
-      let depth = 0;
-      let j = i + 1;
-      while (j < s.length) {
-        if (s[j] === '{') depth++;
-        else if (s[j] === '}') { depth--; if (depth === 0) break; }
-        j++;
-      }
-      out += '{param}';
-      i = j + 1;
-      continue;
-    }
-    if (s[i] === '$' && i + 1 < s.length && isIdentChar(s[i + 1])) {
-      out += '{param}';
-      i++;
-      while (i < s.length && isIdentChar(s[i])) i++;
-      continue;
-    }
-    out += s[i];
-    i++;
-  }
-  return out;
-}
 
 /** 取一段文本里的第一个标识符（跳过空白）。 */
 function firstIdent(s) {
