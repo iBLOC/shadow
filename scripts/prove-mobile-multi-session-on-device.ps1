@@ -11,6 +11,9 @@
 #      ⇒ ⇒ 这条量的是「列表不会停在旧值」。
 #      ⇒ ⇒ 排序判据是「**UI 顺序 == 服务端顺序**」（拿服务端给的顺序当基准，
 #         不猜「谁该最前」）⇒ ⇒ 顺带量到服务端自己是不是真按 updated_at 倒序。
+#   5. 点「新对话」⇒ ⇒ 端脑那边**不多**一条会话（草稿不造垃圾）—— 端脑**没有删
+#      会话的端点** ⇒ ⇒ 「新对话」若在端脑建一条空会话 ⇒ ⇒ 空会话还**落盘**
+#      ⇒ ⇒ **永久留在列表里、删不掉** ⇒ ⇒ 列表被自己的垃圾填满。
 #
 # ⚠️ 为什么用「导入会话」端点播种：POST /shadow/v1/conversations/{id}/import
 #    能**直接写好历史** ⇒ ⇒ 不用调模型 ⇒ ⇒ 脚本快、也不依赖任何云端模型。
@@ -418,14 +421,51 @@ if ($serverOk) {
   Note '我们这三条里最新的一条排在最前' '服务端顺序读不出来 ⇒ 判不了'
 }
 
-# ── (7) 收尾：把自己播的会话从设备上清掉 ───────────────────────────────
+# ── (7) 点「新对话」⇒ ⇒ 端脑那边**不许**多一条会话（草稿不造垃圾）──────────
 Say ''
-Say '(7) 收尾：把脚本播的三条会话从设备上清掉'
+Say '(7) 点「新对话」⇒ ⇒ 端脑那边不许多一条会话（草稿不造垃圾）'
+# ⚠️ 判据钉在**端脑那边**（不是界面）：前后各 GET 一次会话列表 ⇒ ⇒ 比 **id 集合**
+#    是否**逐字相同** ⇒ ⇒ 「点新对话 ⇒ 端脑多了一条空会话」这种失败**抓得到**。
+#    ⇒ ⇒ 且这份列表响应里**看得见**我们播的 A/B/C ⇒ ⇒ 探测器**不是瞎的**（正控自带）。
+$script:extraIds = @()
+$idsBefore = @()
+$before = Probe 'GET' '/shadow/v1/conversations' $SH $null
+if ($before.Status -eq 200) {
+  try {
+    foreach ($c in @(ConvertFrom-Json $before.Body)) { $idsBefore += [string]$c.id }
+  } catch { }
+}
+Say ('   点之前端脑那边有 ' + $idsBefore.Count + ' 条')
+$newChat = FindByText '新对话'
+if (-not $newChat) {
+  Note '点「新对话」⇒ 端脑那边不多一条会话' '语义树里找不到「新对话」按钮 ⇒ 判不了'
+} else {
+  Say ('  ▸ 点「新对话」@ ' + $newChat.X + ',' + $newChat.Y)
+  adb -s $Serial shell input tap $newChat.X $newChat.Y | Out-Null
+  Start-Sleep -Seconds 4
+  $idsAfter = @()
+  $after = Probe 'GET' '/shadow/v1/conversations' $SH $null
+  if ($after.Status -eq 200) {
+    try {
+      foreach ($c in @(ConvertFrom-Json $after.Body)) { $idsAfter += [string]$c.id }
+    } catch { }
+  }
+  $added = @($idsAfter | Where-Object { $idsBefore -notcontains $_ })
+  Say ('   点之后端脑那边有 ' + $idsAfter.Count + ' 条；新增：' + $(if ($added.Count) { $added -join ', ' } else { '（无）' }))
+  Check '点「新对话」⇒ 端脑那边**没有**多一条会话（草稿不造垃圾）' ($added.Count -eq 0) ('端脑那边多出了：' + ($added -join ', '))
+  # ⚠️ 收尾要用上：万一**旧行为**多建了一条 ⇒ ⇒ 它**不在** $mine 里 ⇒ ⇒ 得一起删掉，
+  #    否则**留在共享设备上**（端脑又没有删会话的端点 ⇒ ⇒ 删不掉）。
+  $script:extraIds = $added
+}
+
+# ── (8) 收尾：把自己播的会话从设备上清掉 ───────────────────────────────
+Say ''
+Say '(8) 收尾：把脚本播的会话从设备上清掉'
 adb -s $Serial shell am force-stop $Package | Out-Null
 Start-Sleep -Seconds 2
 $storeRel = 'files/shadow/conversations.json'
 $raw = (adb -s $Serial shell ('run-as ' + $Package + ' cat ' + $storeRel) 2>$null | Out-String)
-$mine = @($convA, $convB, $convC)
+$mine = @($convA, $convB, $convC) + @($script:extraIds)
 try {
   $all = ConvertFrom-Json $raw
   $kept = @($all | Where-Object { $mine -notcontains $_.id })
