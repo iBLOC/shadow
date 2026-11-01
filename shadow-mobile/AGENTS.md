@@ -1,3 +1,13 @@
+**Updated:** 2026-11-01 (㋞ **「用户喊停」的效力到**进程结束**为止 —— 而「它又自己起来了」这个现象有**三个**候选，判据要用**守卫自己的日志行**，别用界面** —— 承 ㋟ 条（「用户喊停必须赢」）与 ㋝ 条（多会话），本条记**边界**与**读数判据**。)
+① **✅ 先把边界钉死（读数，不是推测）**：`_stoppedByUser` 在整仓**只有 6 处**（声明 + 3 处守卫 + `stop()` 置 true + `start()` 置 false）⇒ ⇒ **没有任何持久化** ⇒ ⇒ **「用户喊停」的效力到进程结束为止** ⇒ ⇒ App 一重启，标记归零 ⇒ ⇒ 大脑按 `main.dart:57` 的 `ensureStarted()` 自动起来 ⇒ ⇒ **那是 App 的启动契约，不是「偷偷拉回来」** ⇒ ⇒ 把它当缺陷去修之前，先分清是「进程内」还是「跨进程」。
+② **✅ 守卫现在在**漏斗**上（这是它能一次盖住所有入口的原因）**：`_startWithRetry` **顶部**（循环里每次尝试都查）⇒ ⇒ 所有入口都汇进它：`main.dart:57`（启动时）、`initialize()`、就绪门 `waitUntilReady()`、用户的 `start()` ⇒ ⇒ **一处实现 ⇒ 一套语义** ⇒ ⇒ 以前它只挂在就绪门上 ⇒ ⇒ 自动启动那条路不守 ⇒ ⇒ 两个入口两套语义 ⇒ ⇒ 那就是㋟ 条修的那笔（`cccd646`）。
+③ **⚠️⚠️ 「大脑停不掉、约 20 秒后自己回来」⇒ 三个候选，一次测量可分**（2026-11-01 另一条会话在 odin 上实测：16:42:47 stopped ⇒ 16:43:07 started，**19.5 秒**，pid 全程未换）：
+   - **(a) 缺守卫** —— 那次测的 APK 是 `8465c91`，而补守卫的 `cccd646` **不在它里面**（`git merge-base --is-ancestor` 核过）⇒ ⇒ 那个形态确实存在（已修）；
+   - **(b) 误触「启动大脑」** ⇒ ⚠️ `encephalon_mobile_page.dart:502` 的按钮调的是 `notifier.start()` ⇒ 而 `start()` 的第一件事就是 **`_stoppedByUser = false`**（**清掉**标记）⇒ ⇒ **那个按钮一被点，大脑回来就是合法的** ⇒ ⇒ 而真机驱动的坑正好是「坐标被底栏遮住时照样 tap ⇒ 打到别的控件上」⇒ ⇒ 一次走偏的点击就够解释那 19.5 秒；
+   - **(c) 进程重启** ⇒ ⇒ 标记是**内存态** ⇒ ⇒ 新进程 ⇒ 标记归零 ⇒ ⇒ 大脑自动起来是**设计如此**。
+   ⇒ ⇒ **判据用守卫自己的日志行**（机器可判，不用看界面）：**「用户主动停过大脑 —— 放弃启动」** ⇒ 守卫在起作用 ⇒ ⇒ 是 (b)/(c)；**「Encephalon started on port …」** ⇒ ⇒ 守卫没挡住 ⇒ ⇒ 才需要继续查。
+   ⇒ ⇒ 另记两条读数习惯：**App pid** 与**脑的 pid** 分开记（进程换了 ⇒ (c) 直接成立）；**原生侧不可能是拉它回来的** —— `libencephalon.so` 只能由 Dart 经 MethodChannel 的 `start` 启动，Kotlin 侧**没有**自动重启（`PrefrontalRuntimeService` 的 `START_STICKY` 是**前额叶**那套，不是大脑）⇒ ⇒ 拉它回来的**只能**在 Dart 侧。
+④ **⚠️ 还欠的**：② 的守卫有**单测**（`encephalon_mobile_provider_test.dart`），但**真机上「停 ⇒ 停住」这一段还没有端到端证据**（设备在别的会话手上）⇒ ⇒ 真机那次量的到底是 (a)/(b)/(c) 哪一个，要等那次测量回来才写得进账 —— **没量之前不许写「已修好」**。
 **Updated:** 2026-11-01 (㋅ **「客户端读面的凭据集合必须与门形一致」—— 移动端这一侧读面**一把都不递** ⇒ ⇒ 外部端脑形态下读面必然 401；顺带把「影子锁**无处可配**」这个入口补上** —— 父仓 `shadow/AGENTS.md` ㋡ 条记**整片**，本条记**移动端这一侧**的形状与坑。)
 ① **⚠️ 病（读面递不全）**：`TelencephalonClient._headers()`（`lib/services/telencephalon/telencephalon_client.dart`）**只在 `admin: true` 时才带 `X-Admin-Token`** ⇒ ⇒ 读面（`_get` / `_getJson` / `_post`）**只递影子锁** ⇒ ⇒ 而门形是**读门 = 影子锁 ∪ admin token**（判据源 `telencephalon/src/api/door_policy.txt` ⇒ 实现 `security/api_key.rs::verify_read_credential`）⇒ ⇒ **少递一把** ⇒ ⇒ 那台端脑只认另一把时 ⇒ **401** ⇒ ⇒ 而界面把它画成「没有 / 连不上」⇒ ⇒ **失败长得像成功**。⚠️ 而在**外部端脑**形态下影子锁**又是空的**（`releaseAgentSurface()` 主动 `_client.setApiKey(null)`）⇒ ⇒ 读面**一把都不递** ⇒ ⇒ **必然 401**。
 ② **⚠️ 病（同一条规则的**第二个**落点）**：`POST /a2a` 也是**读门**（`telencephalon/src/api/shadow_auth.rs` ⇒ `require_shadow_key` ⇒ 同一个 `verify_read_credential`）⇒ ⇒ 而 A2UI 那条 SSE 路（`lib/services/genui/shadow_key_sse_transport.dart`）**只带 `X-Shadow-Key`** ⇒ ⇒ 它**不走** `_headers()` ⇒ ⇒ 改 client **修不到它** ⇒ ⇒ 「列表读得到、A2UI 连不上」的同族矛盾。
