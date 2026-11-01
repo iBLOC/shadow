@@ -5,7 +5,8 @@ import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { cn } from '../lib/utils';
-import { adminHeaders } from '../lib/adminToken';
+import { readDoorHeaders } from '../lib/readDoorHeaders';
+import { telencephalonClient } from '../lib/telencephalonClient';
 import { useTelencephalonStore } from '../stores/telencephalonStore';
 
 interface CortexStatus {
@@ -47,7 +48,10 @@ export function TelencephalonStatusPage() {
       // 服务端早已改名，旧的 `/api/cortex/*` 路由**根本不存在** ⇒ 这一页
       // 以前一直 404，只是没人注意到（页面把错误显示成一行灰字）。
       const resp = await fetch(`${baseUrl}/api/telencephalon/status`, {
-        headers: await adminHeaders(),
+        // ⚠️ 读门 = **影子锁 ∪ admin token** ⇒ 两把都递。
+        // ⚠️ 这一页打的地址取自 store ⇒ 而 store 的 `setBaseUrl`/`setApiKey`
+        // **同步给 client** ⇒ ⇒ 这里就是 client 那张面 ⇒ 递它的影子锁没跑偏。
+        headers: await readDoorHeaders(telencephalonClient.getApiKey()),
       });
       if (!resp.ok) {
         throw new Error(`HTTP ${resp.status}`);
@@ -66,7 +70,10 @@ export function TelencephalonStatusPage() {
     setError(null);
     try {
       const resp = await fetch(`${baseUrl}/api/telencephalon/logs`, {
-        headers: await adminHeaders(),
+        // ⚠️ 读门 = **影子锁 ∪ admin token** ⇒ 两把都递。
+        // ⚠️ 这一页打的地址取自 store ⇒ 而 store 的 `setBaseUrl`/`setApiKey`
+        // **同步给 client** ⇒ ⇒ 这里就是 client 那张面 ⇒ 递它的影子锁没跑偏。
+        headers: await readDoorHeaders(telencephalonClient.getApiKey()),
       });
       if (!resp.ok) {
         throw new Error(`HTTP ${resp.status}`);

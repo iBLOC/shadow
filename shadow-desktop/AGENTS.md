@@ -904,3 +904,36 @@ The same `src/` produces **two artefacts**:
   ⇒ ⇒ ⇒ **两发同时生效** ⇒ ⇒ 因为探针现在也递 shadow ∪ admin）；
   **桌面端 shadow key 输入入口**仍欠（**不是**上锁的阻塞项）。
 
+
+## STATE STATUS (2026-11-01, 「读面的凭据集合必须与门形一致」—— 桌面端剩下那几处读面递的是**半套钥匙**)
+
+- **⚠️ 病（半套钥匙 ⇒ 同一张面两处互相矛盾）**：桌面端有 **4 处**读面是**裸 fetch**，
+  其中 **3 处只递 `X-Admin-Token`**（`TelencephalonStatusPage.tsx` 的 status/logs
+  + `telencephalonClient.health()` 的 Tauri 分支）⇒ ⇒ 而门形是**读门 = 影子锁 ∪ admin token**
+  ⇒ ⇒ **少递一把** ⇒ ⇒ 在「客户端手里只有影子锁」的形态上（独立端脑服务器 + 那台机器
+  配了 shadow key + 桌面 sidecar 那把 admin token 对不上）⇒ ⇒ 那 3 处 **401**
+  ⇒ ⇒ 而同一张面的另一发（`telencephalonClient.request()`）**读得到**
+  ⇒ ⇒ ⇒ 「列表读得到、状态页读不到」。
+- **✅ 修（一条规则、一处实现）**：新模块 `src/lib/readDoorHeaders.ts`
+  ⇒ `readDoorHeaders(shadowKey?)` ⇒ **影子锁 ∪ admin token**（各一把，**有就带**；
+  **拿不到就不带那个头** ⇒ 绝不塞空串 ⇒ 空串与空串 `ct_eq` 相等 ⇒ 等于把门骗开）
+  ⇒ ⇒ client 的 `readHeaders()` / `request()` / `streamMessage()` 与端脑状态页的
+  status/logs **都走它** ⇒ ⇒ 不再各抄一份。
+- **⚠️⚠️ 一条必须钉住的边界：钥匙只递给它所属的那张面** —— `ModelsPage.tsx` 的读面
+  （`GET /models/providers`）**本轮故意没改** ⇒ 因为它打的地址是 `prefrontalUrl()`
+  （**构建期口径**）⇒ ⇒ 与 client 那张面（用户可配 ⇒ 持久化）**可能不是同一台**
+  ⇒ ⇒ 把 client 的影子锁递过去 = **把一把机器级钥匙递给另一台机器**
+  ⇒ ⇒ ⇒ 要统一得先定「web 形态的地址契约」（**另一个决定**）
+  ⇒ ⇒ 本轮**只修地址明确同源的那几处**（状态页的地址取自 store ⇒ 而 store 的
+  `setBaseUrl`/`setApiKey` **同步给 client** ⇒ ⇒ 那就是 client 那张面）。
+- **✅ 证据（运行时，不是「读代码觉得对」）**：新增 **8 条**
+  （`src/lib/__tests__/readDoorHeaders.test.ts` 7 + `src/pages/__tests__/TelencephalonStatusPage.test.tsx` 1
+  ⇒ 那一页**真的渲染** ⇒ ⇒ 钉的是「它**实际发出去**的请求头」）
+  ⇒ ⇒ `tsc --noEmit` **EXIT=0**；eslint **0 error**（7 条 `any` warning 是既有的）
+  ⇒ ⇒ 三道闸（providers / door-policy / client-endpoint-map）**EXIT=0**
+  ⇒ ⇒ 全量 vitest **1280 passed / 0 failed**（1271 ⇒ +9）。
+- **✅ 反向验证**：把 `readDoorHeaders` 退回「**只递 admin**」⇒ ⇒ **恰好 5 红**
+  （① ② ⑥ ⑦ + 页面那条）⇒ ⇒ 其余 3 条仍绿 ⇒ ⇒ 还原后 **8/8 再绿**。
+- **⚠️ 还欠的**：**Tauri 真机 UI 仍未验**（本轮是单测 + 真渲染）；**`ModelsPage` 的地址契约**
+  （见上）；**web 形态 6 处条件 401**；**桌面端 shadow key 输入入口**仍欠。
+

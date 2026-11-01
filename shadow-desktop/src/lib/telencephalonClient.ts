@@ -1,5 +1,6 @@
 import { isTauri } from './platform';
-import { getAdminToken, adminHeaders } from './adminToken';
+import { adminHeaders } from './adminToken';
+import { readDoorHeaders } from './readDoorHeaders';
 
 const DEFAULT_CORTEX_URL = 'http://127.0.0.1:60080';
 
@@ -575,34 +576,36 @@ export class TelencephalonClient {
     return this.apiKey;
   }
 
+  /**
+   * 读面的**全部**钥匙 —— 影子锁 ∪ admin token。
+   *
+   * ⚠️ **一条规则、一处实现**：客户端递的凭据集合必须与**门形**一致 ——
+   * 门认哪几把，客户端就递哪几把（读门 = **影子锁 ∪ admin token**，
+   * 判据源 `telencephalon/src/api/door_policy.txt` ⇒ 实现
+   * `security/api_key.rs::verify_read_credential`）。
+   *
+   * ⇒ 以前**读面**只递 `X-Admin-Token` ⇒ ⇒ 在「客户端手里只有影子锁」的
+   * 形态上 ⇒ 读面 **401** ⇒ 而同一张面的另一发（走 `request()`）**读得到**
+   * ⇒ ⇒ ⇒ 「列表读得到、状态页读不到」—— 同一个客户端、同一张面，两处矛盾。
+   *
+   * ⚠️ 拿不到就**不带**那个头（绝不塞空串）⇒ 理由见 `lib/readDoorHeaders.ts`。
+   */
+  async readHeaders(): Promise<Record<string, string>> {
+    return readDoorHeaders(this.apiKey);
+  }
+
   private async request<T>(path: string, init?: RequestInit): Promise<T> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       ...((init?.headers as Record<string, string>) ?? {}),
-    };
-    if (this.apiKey) {
-      headers['X-Shadow-Key'] = this.apiKey;
-    }
-    // ⚠️ **admin 面（建 agent / MCP / 改 LLM 上游…）现在必须真的带上凭据。**
-    //
-    // 端脑原来有一条「`expected == "dev-admin-key"` ⇒ **认任何人**」的后门
-    // （连请求头都不看）⇒ 而桌面端递进去的 expected **恰好就是**那个字面量
-    // ⇒ ⇒ 桌面端的 admin 面**任何请求都过** ⇒ 再叠加端脑面的
-    // `CorsLayer::permissive()` ⇒ **任意网站**都能往用户的大脑里插 agent。
-    //
-    // ⇒ 那把钥匙现在由 sidecar **生成并持久化**（`admin_token.rs`）⇒
-    // ⇒ 前端问它要（`getAdminToken()`）。
-    //
-    // ⚠️ 拿不到就**不带**那个头 —— 空的 `X-Admin-Token` 在旧实现里与空串
-    // `ct_eq` 相等 ⇒ **过**（手机上整个 admin 面就是这么开着的）。
-    //
-    // ⚠️ **自己再 trim 一次**（不信任上游模块的输出）：JS 里 `'   '` 是
-    // **truthy** ⇒ ⇒ 空白值会被当成一把钥匙发出去 ⇒ ⇒ 判据是
-    // 「trim 之后还剩东西吗」。
-    const adminToken = (await getAdminToken())?.trim();
-    if (adminToken) {
-      headers['X-Admin-Token'] = adminToken;
-    }
+      // ⚠️ **读面的全部钥匙**（影子锁 ∪ admin token）—— 一条规则、一处实现。
+      //
+      // admin 面那把钥匙的来历（sidecar 生成并持久化 ⇒ 前端问它要
+      // `getAdminToken()`；端脑原来的「`dev-admin-key` 认任何人」后门），
+      // 以及两条不许省的纪律（**空串会把门骗开** / **空白值在 JS 里是 truthy**），
+      // 见 `lib/readDoorHeaders.ts`。
+      ...(await this.readHeaders()),
+      };
     const resp = await fetch(`${this.baseUrl}${path}`, { ...init, headers });
     if (!resp.ok) {
       const text = await resp.text().catch(() => '');
@@ -618,7 +621,9 @@ export class TelencephalonClient {
       // 「大脑 → 端脑 → 叶区」这条链。端脑的 status 端点同时回报
       // neuron 是否可达（`neuron_reachable`）和可用模型数。
       const r = await fetch(`${this.baseUrl}/api/telencephalon/status`, {
-        headers: await adminHeaders(),
+        // ⚠️ 读门 = **影子锁 ∪ admin token** ⇒ 两把都递
+        // （哪把拿不到就不带那个头 ⇒ 端脑回 401 并说清原因）。
+        headers: await this.readHeaders(),
       });
       if (!r.ok) throw new Error(`cortex health ${r.status}: ${r.statusText}`);
       return r.json();
@@ -670,16 +675,15 @@ export class TelencephalonClient {
     conversationId: string,
     req: SendMessageRequest,
   ): AsyncGenerator<StreamEvent> {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (this.apiKey) headers['X-Shadow-Key'] = this.apiKey;
     // ⚠️⚠️ **这条 SSE 路由在 shadow 门后面** ⇒ 端脑的读门 =
     // **shadow ∪ admin**（security::api_key::verify_read_credential）
-    // ⇒ ⇒ 桌面端**递不出 shadow key**（宿主没生成过这把钥匙）⇒ ⇒
-    // 这里必须递 **admin token**，否则端脑一把门关上，桌面的**对话流**
-    // 就全 401（**门掐断主人** —— 自己把自己的大脑锁在外面）。
-    // ⚠️ 拿不到 token ⇒ **不带**那个头（端脑会 401 并说清原因）。
-    const adminToken = (await getAdminToken())?.trim();
-    if (adminToken) headers['X-Admin-Token'] = adminToken;
+    // ⇒ ⇒ 两把都递（哪把拿不到就不带那个头 ⇒ 端脑会 401 并说清原因）。
+    // ⇒ ⇒ 只递 admin 的话，桌面端**递不出 shadow key**时对话流全 401
+    // （**门掐断主人** —— 自己把自己的大脑锁在外面）。
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(await this.readHeaders()),
+    };
     const resp = await fetch(
       `${this.baseUrl}/shadow/v1/conversations/${encodeURIComponent(conversationId)}/messages:stream`,
       { method: 'POST', headers, body: JSON.stringify(req) },
