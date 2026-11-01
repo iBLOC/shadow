@@ -1024,3 +1024,50 @@ shadow key **无处可配** ⇒ ⇒ **web 上任何需要 shadow 的读面必然
 - **桌面端那 29 个 `prefrontalClient` 调用点迁到端脑面**（路径＋形状＋凭据三件事一起迁）。
 - **`POST /api/flows/by-name/{param}/invoke`** ⇒ 端脑补路由 or 产品改口径（现在 404）。
 - **真机复验**仍欠（要重编 `.so` ＋ 重打 APK ＋ 装机）。
+## 十一、端脑的会话面**没有删除、也没有标题**（2026-11-01 实测）
+
+### 11.1 判据源（端脑活仓，2026-11-01 复核）
+
+- 会话路由只有四条（`telencephalon/src/api/shadow.rs:74-77`）：
+  `GET/POST /shadow/v1/conversations` ＋ `GET /shadow/v1/conversations/{id}`
+  ＋ `POST /shadow/v1/conversations/{id}/messages` ⇒ ⇒ **没有 DELETE**。
+- `Conversation`（`telencephalon/src/api/shadow/conversations.rs:148`）只有
+  `id` / `agent` / `created_at` / `updated_at` / `history` ⇒ ⇒ **没有 `title`**
+  （标题只能由客户端从 history 派生）⇒ ⇒ **也没有「废弃」标记**。
+
+⇒ ⇒ 客户端一旦**换一条会话重试**，旧那条就被**永久遗弃**（端脑侧没有删除路径）。
+
+### 11.2 ⚠️ 它是**看得见**的：会跑到移动端的会话列表里
+
+- 桌面端 `shadow-desktop/src/pages/ConversationPage.tsx` 的发送处理器：
+  `if (!conversationId || attempt > 0)` ⇒ ⇒ **重试时新建一条会话**并覆盖 `conversationId`
+  ⇒ ⇒ 上一条被遗弃。
+  ⚠️ 而失败分支自己就会 `conversationId = undefined; continue;` ⇒ ⇒ 那条路已被
+  `!conversationId` 覆盖 ⇒ ⇒ **`attempt > 0` 这一项其实是冗余的**（它从不改变结果）；
+  真正的漏点是「**换新会话重试 ⇒ 旧的被遗弃**」这件事本身。
+- 移动端 `shadow-mobile/lib/screens/conversation_screen.dart` 真的调 `listConversations()`
+  ⇒ ⇒ **桌面端遗弃的会话会出现在移动端的会话列表里** ⇒ ⇒ 用户看得见。
+- ⚠️ 而**全仓没有任何删除路径**（移动端 grep `deleteConversation` ⇒ **0 命中**）⇒ ⇒ **删不掉**。
+
+### 11.3 ✅ 移动端已修（兄弟会话这轮做的）：「第一条消息才建会话」
+
+⚠️ 它改的是**时机**、不是端点 ⇒ ⇒ **端点集合没变** ⇒ ⇒ 对照表不受影响
+⇒ ⇒ **实测**：他们的改动之后，对照闸仍 **168 条登记 ↔ 168 个调用点** ⇒ EXIT=0 ✓。
+
+### 11.4 ⚠️ 这条缺口归**产品决定**（已发问卷；决定之前**不动行为**）
+
+候选：① 端脑加「废弃」软删标记（列表不显示、数据不丢）；② 桌面端重试改为复用同一会话
+（代价：会话真坏时那次重试也会失败）；③ 只记台账 ＋ 上闸，行为不动。
+
+⚠️ **为什么先问而不自己选**：① 要改**端脑的公开接口**（跨仓）；② 是**拿一次回复机会**
+换「不漏会话」；③ 什么都不改但垃圾继续堆 ⇒ ⇒ 三条路的代价不同 ⇒ ⇒ 归产品。
+
+### 11.5 ⚠️ 顺带记一个**全局事件**：共享 master 被 force 过
+
+`origin/master` 被 force-update 回 `6dbacc3` ⇒ ⇒ 十几笔提交（含本会话的）
+**从 origin 上消失过** ⇒ ⇒ **本地 master 全都还在** ⇒ ⇒ 一次普通快进推送全补回。
+
+⇒ ⇒ **实测本会话**：四笔提交（`2897569` / `9ab3561` / `a0a9a0b` / `24f1fe6`）**都在 origin 上**，
+未推送提交为空 ⇒ ⇒ **不用重推、也不用重做**。
+⇒ ⇒ 纪律：**本地 master 是真相**；推之前先 `git merge-base --is-ancestor origin/master HEAD`
+⇒ 是祖先 ⇒ ⇒ 普通 push 就够；不是祖先 ⇒ ⇒ **别硬推** ⇒ ⇒ 先查是谁 force 的、丢了什么。
