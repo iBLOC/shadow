@@ -1071,3 +1071,82 @@ shadow key **无处可配** ⇒ ⇒ **web 上任何需要 shadow 的读面必然
 未推送提交为空 ⇒ ⇒ **不用重推、也不用重做**。
 ⇒ ⇒ 纪律：**本地 master 是真相**；推之前先 `git merge-base --is-ancestor origin/master HEAD`
 ⇒ 是祖先 ⇒ ⇒ 普通 push 就够；不是祖先 ⇒ ⇒ **别硬推** ⇒ ⇒ 先查是谁 force 的、丢了什么。
+---
+
+## 十二、端脑这一面**没有信封** —— 而桌面端有个 client 还在说「旧方言」（2026-11-01 实测）
+
+### 12.1 病：桌面端**两个 client 打同一台端脑**，其中一个说的是**别的服务器**的方言
+
+- `shadow-desktop/src/lib/platform.ts:51` 自己写着：「⚠️ 这个函数叫 prefrontalUrl，
+  但它**不是**「前额叶服务」的地址 —— 端脑把前额叶**内嵌**成自己的一张面
+  （/api/telencephalon/prefrontal/*），而 lib/prefrontalClient.ts 说的是
+  **prefrontal 独立仓**时代的方言（裸 /api/* ＋ {success,data} 信封）
+  ⇒ ⇒ 它今天打的是端脑，但**路径与响应形状都对不上**」。
+- ⇒ ⇒ 于是**同一台端脑**上并存两套方言：
+  `telencephalonClient.ts`（**端脑方言**：裸体）＋ `prefrontalClient.ts`（**旧方言**：信封）。
+- ⇒ ⇒ 「**路径对得上、方法对得上**」**不等于**「**响应形状**对得上」
+  ⇒ ⇒ 而对照表（路径 / 方法两维）**看不见**这一维 ⇒ ⇒ 补机器判据。
+
+### 12.2 ✅ 机器可判的前提：**端脑这一面压根没有 `{success,data}` 信封**
+
+- 探针实测（端脑 **132 条路由**全扫）：src 下**没有任何 struct 同时带 `success` 与 `data`**
+  ⇒ ⇒ 3 个带 `success` 的结构体里，`success` 都是**业务字段**
+  （`LlmConfigureResponse{success,requires_restart,env_vars_set,message}` / `TraceEvent` /
+  `FlowTraceEvent`）⇒ ⇒ 也没有手写的 `json!({ "success": …, "data": … })`
+  ⇒ ⇒ **端脑一律返裸体**。
+- ⇒ ⇒ 这个前提本身**进机器**：`scripts/lib/response-shape.mjs` 的
+  `envelopePremiseInTexts()`。
+  ⚠️ **判错时的方向是保守的**：判成「有信封」⇒ ⇒ 少红（漏报）⇒ ⇒ 可接受；
+  判成「无信封」而其实有 ⇒ ⇒ **假红** ⇒ ⇒ 会让人去改已经改对的代码 ⇒ ⇒ **更坑**。
+
+### 12.3 ✅ 修：桌面端 `prefrontalClient` 认两种形状 ＋ 按门形递钥匙
+
+- **形状**：新 `unwrapEnvelope()` ⇒ ⇒ 裸体与信封**两种都认** ⇒ ⇒ 迁移期换哪边都不炸。
+  三处改用它：`createSession`（`POST /api/sessions`）/ `listSessions`（`GET /api/sessions`）/
+  `listAgents`（`GET /api/agents`）。
+- ⚠️ **顺带修了一条更大的洞**：这个 client 之前**一把钥匙都不带**
+  （`request()` 只带 `Content-Type`）⇒ ⇒ 而 `POST /api/sessions` 是 **admin 门**
+  （`/api/sessions/*` = `auto` ⇒ POST ⇒ admin）⇒ ⇒ **必然 401**
+  ⇒ ⇒ 伴侣模式（`stores/companionModeStore.ts:37` 真的调 `createSession()`）**起不来**。
+- ⇒ ⇒ 现在**按门形递钥匙**：读面递**影子锁 ∪ admin**、写面递 **admin**
+  ⇒ ⇒ 复用共享实现（`lib/readDoorHeaders.ts` / `lib/adminToken.ts`）⇒ ⇒ **不另抄一份**，
+  也**拿不到就不带那个头**（绝不塞空串 —— 空串与空串 `ct_eq` 相等 ⇒ 等于把门骗开）。
+
+### 12.4 ✅ 新闸 `scripts/check-client-dialect.mjs`（形状这一维）
+
+- 判据（**单向**：客户端 → 端脑）：客户端**硬要信封** ＋ 打的**确实是端脑面上真实存在**的
+  那条路由 ＋ 端脑面无信封 ⇒ ⇒ **红**（客户端解析必炸：`env.success` 是 `undefined`）。
+- **路径先于形状**：路径对不上 ⇒ ⇒ **先 404** ⇒ ⇒ 形状轮不到 ⇒ ⇒ 那些只**报告**
+  （归对照表管：missing / outer）。
+- **「两种都认」不算硬要信封** ⇒ ⇒ 用统一解包 helper 的 ⇒ ⇒ 绿。
+- 读数：客户端调用点 **177 个**（桌面 ＋ 移动端**全部源码树**，测试文件不算）
+  ⇒ ⇒ 修完 **红 0 / 报告 5**；修之前是 **红 2**
+  ⇒ ⇒ `prefrontalClient.ts:362`（`POST /api/sessions`）＋ `:371`（`GET /api/sessions`）
+  ⇒ ⇒ 与手工推导**逐条对上**。
+- 自检 **13 条**（含「前提判错时的方向」「两种都认不算」「404 先发生」「裸体不红」）。
+- ⚠️ **顺带收掉一处「各写一份」**：路径归一化（`normalizeClientPath` / `normalizeDartPath` /
+  `isIdentChar`）合并到 `scripts/lib/response-shape.mjs` 一处 ⇒ ⇒ 对照闸读数**逐字未变**
+  （168 条登记 · 98 aligned / 14 outer / 25 differs / 31 missing）⇒ ⇒ 语义等价、零行为变化。
+
+### 12.5 ✅ 反向验证（判据有分辨力 ⇒ 且两把判据**互不耦合**）
+
+- **退回「只认信封」**（缺陷形状）⇒ ⇒ 方言闸**恰好红 2** ＋ 单测**恰好红 2**
+  ⇒ ⇒ 而**凭据那两条保持绿** ⇒ ⇒ 形状与钥匙两把判据**不耦合**（否则一处坏 ⇒ 全红）。
+- **摘掉钥匙** ⇒ ⇒ 单测**恰好红 2**（写面 / 读面）＋ 形状那两条**保持绿**
+  ⇒ ⇒ 方言闸**红 0**（形状与钥匙互不干扰）。
+- 两次都**按字节复原**（`prefrontalClient.ts` 的 sha256 一致：`5B865C58…`）。
+
+### 12.6 ⚠️ 还欠的（**不归本闸**，别拿「闸绿了」当「全好了」）
+
+- ① **伴侣模式仍然断**：WS 地址是 `http://localhost:8082/api/sessions/{id}/ws`
+  （`stores/companionModeStore.ts` 的 `DEFAULT_HOST`）⇒ ⇒ 端脑的 WS 路由是
+  `/api/webrtc/{modality}/sessions/{session_id}/ws` ⇒ ⇒ **主机与路径两处都不对**
+  ⇒ ⇒ 形状与钥匙修好之后它**仍然起不来** ⇒ ⇒ 归**产品决定**（端脑 webrtc 面的用法）。
+- ② `prefrontalClient` 还有 **25 发**打在端脑**压根没有**的路径上（对照表 `differs` /
+  `missing`）⇒ ⇒ 归「迁到端脑面」那笔（路径 ＋ 形状 ＋ 凭据**三件事一起迁**）⇒ ⇒ 未动。
+- ③ **凭据闸的覆盖面**：它只看 `telencephalonClient`（它的读数「客户端调用点 57 个」
+  **不含**这个 client 的 28 发）⇒ ⇒ 本轮给 `prefrontalClient` 递了钥匙，但**没有闸盯它**
+  ⇒ ⇒ 下一笔：把「门形 ⇒ 客户端递哪几把」扩到**每个 client**
+  （共享判据 `scripts/lib/credentials.mjs` 加 `doorHeaders` 这个构建器）。
+- ④ 端脑代理转发时要不要**剥掉** admin 头（下游是 hippocampus / neuron）⇒ ⇒ 端脑侧的事，
+  本轮没动。
