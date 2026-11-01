@@ -77,6 +77,10 @@ final genUIAgentServiceProvider = Provider<GenUIAgentService>((ref) {
     serverUrl: ref.watch(a2uiServerUrlProvider),
     catalog: catalog,
     shadowKeyProvider: () => telencephalonClient.apiKey,
+    // ⚠️ **admin token 也要递** —— `POST /a2a` 的门是**读门**
+    // （影子锁 ∪ admin token）⇒ ⇒ 只递影子锁 ⇒ 外部端脑只认 admin token
+    // 时 ⇒ 401 ⇒ A2UI 那侧把它画成「连不上」。
+    adminTokenProvider: () => telencephalonClient.adminToken,
     // ⚠️ **界面文案随用户的语言走** —— 端脑在 `Accept-Language` 里挑
     // 语言（`telencephalon/src/a2a/a2ui_i18n.rs`）。
     //

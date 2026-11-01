@@ -14,6 +14,7 @@ class AppConfigService {
   String? _modelStoreUrl;
   String? _telencephalonBaseUrl;
   String? _telencephalonAdminToken;
+  String? _telencephalonShadowKey;
 
   // 外观偏好（个人助理的外观是用户自己的）
   int? _accentColorValue;
@@ -47,6 +48,9 @@ class AppConfigService {
   /// Telencephalon admin token — null means do not send `X-Admin-Token`.
   String? get telencephalonAdminToken => _telencephalonAdminToken;
 
+  /// Telencephalon shadow key — null means do not send `X-Shadow-Key`.
+  String? get telencephalonShadowKey => _telencephalonShadowKey;
+
   /// 用户选的主题色（ARGB int）— null 表示用默认中性色。
   int? get accentColorValue => _accentColorValue;
 
@@ -75,6 +79,7 @@ class AppConfigService {
         _modelStoreUrl = config['modelStoreUrl'] as String?;
         _telencephalonBaseUrl = config['telencephalonBaseUrl'] as String?;
         _telencephalonAdminToken = config['telencephalonAdminToken'] as String?;
+        _telencephalonShadowKey = config['telencephalonShadowKey'] as String?;
         _accentColorValue = config['accentColor'] as int?;
         _glassIntensity = (config['glassIntensity'] as num?)?.toDouble();
         _surfaceOverrideValue = config['surfaceOverride'] as int?;
@@ -85,6 +90,7 @@ class AppConfigService {
       _modelStoreUrl = null;
       _telencephalonBaseUrl = null;
       _telencephalonAdminToken = null;
+      _telencephalonShadowKey = null;
       _accentColorValue = null;
       _glassIntensity = null;
       _surfaceOverrideValue = null;
@@ -102,6 +108,8 @@ final config = {
         'telencephalonBaseUrl': _telencephalonBaseUrl,
       if (_telencephalonAdminToken != null)
         'telencephalonAdminToken': _telencephalonAdminToken,
+      if (_telencephalonShadowKey != null)
+        'telencephalonShadowKey': _telencephalonShadowKey,
       if (_accentColorValue != null) 'accentColor': _accentColorValue,
       if (_glassIntensity != null) 'glassIntensity': _glassIntensity,
       if (_surfaceOverrideValue != null)
@@ -153,6 +161,13 @@ final config = {
   /// stop sending the `X-Admin-Token` header.
   Future<void> setTelencephalonAdminToken(String? token) async {
     _telencephalonAdminToken = (token == null || token.isEmpty) ? null : token;
+    await _saveConfig();
+  }
+
+  /// Set telencephalon shadow key (persisted). Pass null/empty to
+  /// stop sending the `X-Shadow-Key` header.
+  Future<void> setTelencephalonShadowKey(String? key) async {
+    _telencephalonShadowKey = (key == null || key.isEmpty) ? null : key;
     await _saveConfig();
   }
 

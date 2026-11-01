@@ -1911,6 +1911,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsBackendAdminTokenHint => '留空则用内嵌端脑那把（外部端脑需自行填写）';
 
   @override
+  String get settingsBackendShadowKeyHint => '外部端脑的影子锁（没有就留空）';
+
+  @override
   String get settingsDangerZone => '危险操作';
 
   @override

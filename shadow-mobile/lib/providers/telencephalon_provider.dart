@@ -79,7 +79,8 @@ class TelencephalonNotifier extends StateNotifier<TelencephalonState> {
                 TelencephalonClient.defaultBaseUrl,
           ),
         )) {
-    // 把存储里的地址与 admin token **真正应用**给 client（不只是 state）。
+    // 把存储里的地址、admin token、影子锁**真正应用**给 client
+    // （不只是 state）。
     final cfg = AppConfigService();
     final url = cfg.telencephalonBaseUrl;
     if (url != null && url.isNotEmpty) {
@@ -88,6 +89,12 @@ class TelencephalonNotifier extends StateNotifier<TelencephalonState> {
     final token = cfg.telencephalonAdminToken;
     if (token != null && token.isNotEmpty) {
       _client.setAdminToken(token);
+    }
+    // ⚠️ **影子锁也要应用** —— 读门 = 影子锁 ∪ admin token ⇒ 少递一把 ⇒
+    // 那台端脑只认另一把时 ⇒ 读面 401 ⇒ 「配了、存了、重启后却不生效」。
+    final shadowKey = cfg.telencephalonShadowKey;
+    if (shadowKey != null && shadowKey.isNotEmpty) {
+      _client.setApiKey(shadowKey);
     }
   }
 
@@ -124,22 +131,48 @@ class TelencephalonNotifier extends StateNotifier<TelencephalonState> {
     _client.setBaseUrl(
       cfg.telencephalonBaseUrl ?? TelencephalonClient.defaultBaseUrl,
     );
-    // 外部端脑用的是**它自己**的钥匙 —— 移动端没为它配过影子锁 ⇒ 空。
+    // ⚠️ 外部端脑用的是**它自己**那把影子锁 ⇒ 放回用户为**外部**端脑配的
+    // 那把（没配过 ⇒ null ⇒ **不带那个头**，绝不塞空串）。
     // （内嵌端脑那把只对内嵌端脑有效，别带过去。）
-    _client.setApiKey(null);
+    _client.setApiKey(cfg.telencephalonShadowKey);
     // admin token 同理 ⇒ 放回用户为**外部**端脑配的那把（没配过 ⇒ null）。
     _client.setAdminToken(cfg.telencephalonAdminToken);
   }
 
-  /// 改「**用户配置的那个端脑**」—— 地址 + admin token。
+  /// 改「**用户配置的那个端脑**」—— 地址 + admin token + 影子锁。
   ///
   /// - **记忆面**（`PrefrontalClient`）跟的是 state 里这个 ⇒ 立刻生效。
   /// - **端脑面**（client）**只在没人接管时**跟着改 ⇒ 内嵌大脑在跑的时候
   ///   改它**不会**把聊天面拽走（聊天面归内嵌大脑管）。
-  void setConfiguredEndpoint(String? url, String? token) {
+  ///
+  /// ⚠️ `token` / `shadowKey` 传 **null = 清空**（与设置页「留空即没有」
+  /// 一致）⇒ 调用方要表达「保持原样」，就**别用这个方法改钥匙**。
+  void setConfiguredEndpoint(String? url, String? token, {String? shadowKey}) {
     final resolved = (url == null || url.isEmpty)
         ? TelencephalonClient.defaultBaseUrl
         : url;
+    state = state.copyWith(
+      connection: TelencephalonConnection(
+        baseUrl: resolved,
+        apiKey: shadowKey,
+      ),
+    );
+    if (!_agentSurfaceOwned) {
+      _client.setBaseUrl(resolved);
+      _client.setAdminToken(token);
+      // ⚠️ 影子锁也要跟着改 —— 读门 = **影子锁 ∪ admin token** ⇒
+      // 少递一把 ⇒ 那台端脑只认另一把时 ⇒ 读面 401。
+      _client.setApiKey(shadowKey);
+    }
+  }
+
+  /// 只改**地址**（钥匙不动）。
+  ///
+  /// ⚠️ 以前它转发 `setConfiguredEndpoint(url, null)` ⇒ 那个 `null` 把
+  /// **admin token 一起清掉**了 ⇒ 「改个地址，钥匙没了」⇒ 读面 401
+  /// ⇒ ⇒ **失败长得像成功**（用户以为自己只是改了地址）。
+  void setBaseUrl(String url) {
+    final resolved = url.isEmpty ? TelencephalonClient.defaultBaseUrl : url;
     state = state.copyWith(
       connection: TelencephalonConnection(
         baseUrl: resolved,
@@ -148,11 +181,8 @@ class TelencephalonNotifier extends StateNotifier<TelencephalonState> {
     );
     if (!_agentSurfaceOwned) {
       _client.setBaseUrl(resolved);
-      _client.setAdminToken(token);
     }
   }
-
-  void setBaseUrl(String url) => setConfiguredEndpoint(url, null);
 
   void setApiKey(String? key) {
     _client.setApiKey(key);

@@ -86,7 +86,10 @@ void main() {
   /// `exists` → `readAsString`）**每个 await 都要一轮**「真实时间让 I/O 落地」
   /// ＋「pump 让续体跑」⇒ ⇒ 少一轮就停在半路 ⇒ 字段还是空的（看着像
   /// 「卡片没渲染」）。
-  Future<void> settleIo(WidgetTester tester, {int rounds = 8}) async {
+  /// ⚠️ 轮数从 8 提到 16：`_save()` 现在落盘**三次**（地址 / admin token /
+  /// 影子锁）⇒ 每一步真实 I/O 的续体都要一轮 ⇒ 8 轮不够 ⇒ 断言会在
+  /// 「还没走到应用那一步」时失败。
+  Future<void> settleIo(WidgetTester tester, {int rounds = 16}) async {
     for (var i = 0; i < rounds; i++) {
       await tester.runAsync(
           () => Future<void>.delayed(const Duration(milliseconds: 5)));
@@ -137,7 +140,9 @@ void main() {
   /// ⇒ 找 `TextField` 会得到「0 个」⇒ 看着像「卡片没渲染出来」。
   String urlFieldText(WidgetTester tester) {
     final fields = find.byType(EditableText);
-    expect(fields, findsNWidgets(2));
+    // ⚠️ 卡片现在有**三个**输入框（地址 / admin token / 影子锁）——
+    // 影子锁那个是端脑面读门的另一半（读门 = 影子锁 ∪ admin token）。
+    expect(fields, findsNWidgets(3));
     return tester.widget<EditableText>(fields.first).controller.text;
   }
 

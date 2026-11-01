@@ -3626,6 +3626,12 @@ abstract class AppLocalizations {
   /// **'leave blank for the embedded brain (fill in for an external one)'**
   String get settingsBackendAdminTokenHint;
 
+  /// No description provided for @settingsBackendShadowKeyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'shadow key of an external telencephalon (leave blank if there is none)'**
+  String get settingsBackendShadowKeyHint;
+
   /// No description provided for @settingsDangerZone.
   ///
   /// In en, this message translates to:

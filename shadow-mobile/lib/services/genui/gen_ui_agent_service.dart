@@ -89,6 +89,12 @@ class GenUIAgentService {
   /// 详见 [ShadowKeySseTransport]。
   ///
   /// 传 null ⇒ 不带这个头（端脑在开发模式下也放行）。
+  /// [adminTokenProvider] 给出端脑面的 admin token（`X-Admin-Token`）。
+  ///
+  /// ⚠️ `POST /a2a` 的门是**读门** = 影子锁 ∪ admin token ⇒ ⇒ 只递影子锁
+  /// ⇒ 在「外部端脑只认 admin token」时 ⇒ 401 ⇒ 界面画成「连不上」。
+  ///
+  /// 传 null ⇒ 不带这个头。
   /// [localeProvider] 给出用户当前的语言（`Accept-Language`）。
   ///
   /// ⚠️ 它是**回调**而不是值 —— 系统语言可以在 App 运行时改
@@ -98,6 +104,7 @@ class GenUIAgentService {
     required String serverUrl,
     Catalog? catalog,
     String? Function()? shadowKeyProvider,
+    String? Function()? adminTokenProvider,
     String? Function()? localeProvider,
   }) {
     _logger.info('Initializing GenUIAgentService with server: $serverUrl');
@@ -113,6 +120,7 @@ class GenUIAgentService {
     _transport = ShadowKeySseTransport(
       url: serverUrl,
       shadowKeyProvider: shadowKeyProvider,
+      adminTokenProvider: adminTokenProvider,
       localeProvider: localeProvider,
     );
 

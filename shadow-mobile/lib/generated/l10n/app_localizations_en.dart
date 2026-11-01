@@ -1949,6 +1949,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'leave blank for the embedded brain (fill in for an external one)';
 
   @override
+  String get settingsBackendShadowKeyHint =>
+      'shadow key of an external telencephalon (leave blank if there is none)';
+
+  @override
   String get settingsDangerZone => 'Danger Zone';
 
   @override

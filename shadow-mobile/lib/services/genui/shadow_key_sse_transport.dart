@@ -66,6 +66,7 @@ class ShadowKeySseTransport extends SseTransport {
   ShadowKeySseTransport({
     required super.url,
     required this.shadowKeyProvider,
+    this.adminTokenProvider,
     this.localeProvider,
     super.client,
   }) : super(
@@ -85,6 +86,16 @@ class ShadowKeySseTransport extends SseTransport {
   /// 返回 null / 空串 ⇒ **不带**这个头（端脑在开发模式下也放行）。
   final String? Function()? shadowKeyProvider;
 
+  /// 「现在的 admin token 是几号」—— 发请求的那一刻才调用。
+  ///
+  /// ⚠️ `POST /a2a` 的门也是**读门**（影子锁 ∪ admin token，
+  /// `telencephalon/src/api/shadow_auth.rs`）⇒ ⇒ 只递影子锁 ⇒ 在
+  /// 「外部端脑只认 admin token」时 ⇒ 401 ⇒ 而 A2UI 那侧把它画成「连不上」。
+  ///
+  /// ⚠️ 返回 null / 空串 ⇒ **不带**这个头（空串与空串 `ct_eq` 相等 ⇒
+  /// 等于把门骗开）。
+  final String? Function()? adminTokenProvider;
+
   /// 「用户现在用什么语言」—— 发请求的那一刻才调用。
   ///
   /// ⚠️ **界面文案随用户的语言走**：端脑在 `Accept-Language` 里挑语言
@@ -100,12 +111,15 @@ class ShadowKeySseTransport extends SseTransport {
     Map<String, String> headers = const {},
   }) {
     final key = shadowKeyProvider?.call();
+    // ⚠️ 读面要递**它手里有的全部钥匙**（门形 = 影子锁 ∪ admin token）。
+    final admin = adminTokenProvider?.call();
     // ⚠️ **界面文案随用户的语言走** —— 与钥匙同一个套路：请求时现读。
     final locale = localeProvider?.call();
     return super.sendStream(
       request,
       headers: {
         if (key != null && key.isNotEmpty) 'X-Shadow-Key': key,
+        if (admin != null && admin.isNotEmpty) 'X-Admin-Token': admin,
         if (locale != null && locale.isNotEmpty)
           'Accept-Language': locale,
         // ⚠️ 调用方传的头**优先**（`SseTransport.sendStream` 里

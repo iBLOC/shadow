@@ -770,6 +770,7 @@ class BackendSettingsCard extends ConsumerStatefulWidget {
 class _BackendSettingsCardState extends ConsumerState<BackendSettingsCard> {
   late TextEditingController _urlCtrl;
   late TextEditingController _tokenCtrl;
+  late TextEditingController _shadowKeyCtrl;
   bool _loaded = false;
 
   @override
@@ -777,12 +778,14 @@ class _BackendSettingsCardState extends ConsumerState<BackendSettingsCard> {
     super.initState();
     _urlCtrl = TextEditingController();
     _tokenCtrl = TextEditingController();
+    _shadowKeyCtrl = TextEditingController();
   }
 
   @override
   void dispose() {
     _urlCtrl.dispose();
     _tokenCtrl.dispose();
+    _shadowKeyCtrl.dispose();
     super.dispose();
   }
 
@@ -799,10 +802,14 @@ class _BackendSettingsCardState extends ConsumerState<BackendSettingsCard> {
     final configuredUrl = cfg.telencephalonBaseUrl ??
         ref.read(telencephalonProvider).connection.baseUrl;
     final configuredToken = cfg.telencephalonAdminToken ?? '';
+    // ⚠️ 影子锁也是「**用户配置的那个**」⇒ 读配置，不读 client
+    // （client 此刻拿着的可能是**内嵌端脑那把**）。
+    final configuredShadowKey = cfg.telencephalonShadowKey ?? '';
     if (!mounted) return;
     setState(() {
       _urlCtrl.text = configuredUrl;
       _tokenCtrl.text = configuredToken;
+      _shadowKeyCtrl.text = configuredShadowKey;
       _loaded = true;
     });
   }
@@ -811,8 +818,10 @@ class _BackendSettingsCardState extends ConsumerState<BackendSettingsCard> {
     final cfg = AppConfigService();
     final url = _urlCtrl.text.trim();
     final token = _tokenCtrl.text.trim();
+    final shadowKey = _shadowKeyCtrl.text.trim();
     await cfg.setTelencephalonBaseUrl(url.isEmpty ? null : url);
     await cfg.setTelencephalonAdminToken(token.isEmpty ? null : token);
+    await cfg.setTelencephalonShadowKey(shadowKey.isEmpty ? null : shadowKey);
     // ⚠️ 改的是「**配置**」⇒
     // - **记忆面**（`PrefrontalClient`）跟的就是它 ⇒ 立刻生效；
     // - **端脑面**（client）归**内嵌大脑**管（它在跑 ⇒ 聊天面留在本机
@@ -820,6 +829,7 @@ class _BackendSettingsCardState extends ConsumerState<BackendSettingsCard> {
     ref.read(telencephalonProvider.notifier).setConfiguredEndpoint(
           url.isEmpty ? null : url,
           token.isEmpty ? null : token,
+          shadowKey: shadowKey.isEmpty ? null : shadowKey,
         );
     if (!mounted) return;
     setState(() {});
@@ -848,6 +858,15 @@ class _BackendSettingsCardState extends ConsumerState<BackendSettingsCard> {
         ShadInput(
           controller: _tokenCtrl,
           placeholder: Text(l10n.settingsBackendAdminTokenHint),
+          obscureText: true,
+        ),
+        const SizedBox(height: AppTokens.spaceMd),
+        // ⚠️ **影子锁**（`X-Shadow-Key`）—— 端脑面的读门是
+        // **影子锁 ∪ admin token** ⇒ 只填地址 + admin token 的话，
+        // 那台端脑只认影子锁时读面照样 401 ⇒ ⇒ 这里必须有个入口。
+        ShadInput(
+          controller: _shadowKeyCtrl,
+          placeholder: Text(l10n.settingsBackendShadowKeyHint),
           obscureText: true,
         ),
         const SizedBox(height: AppTokens.spaceMd),

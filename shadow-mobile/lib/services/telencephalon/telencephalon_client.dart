@@ -676,11 +676,24 @@ class TelencephalonClient {
   String? get adminToken => _adminToken;
   void setAdminToken(String? token) => _adminToken = token;
 
-  Map<String, String> _headers({bool jsonBody = false, bool admin = false}) {
+  /// 这一张面要带的**全部**钥匙。
+  ///
+  /// ⚠️ **一条规则、一处实现**：客户端递的凭据集合必须与**门形**一致 ——
+  /// 门认哪几把，客户端就递哪几把（判据源：
+  /// `telencephalon/src/api/door_policy.txt` ⇒ 读门 = **影子锁 ∪ admin token**，
+  /// 写门 = admin ⇒ 判据实现 `security/api_key.rs::verify_read_credential`）。
+  ///
+  /// ⇒ 以前读面**只递影子锁**（admin 只在写面才带）⇒ ⇒ 在「那台端脑只认
+  /// admin token」时 ⇒ 读面 **401** ⇒ 而界面把它画成「没有 / 连不上」
+  /// ⇒ ⇒ **失败长得像成功**。
+  ///
+  /// ⚠️ **拿不到就不带那个头** —— 绝不塞空串：空串与空串 `ct_eq` 相等
+  /// ⇒ 等于把门骗开（`security/api_key.rs::verify_admin_token`）。
+  Map<String, String> _headers({bool jsonBody = false}) {
     final h = <String, String>{};
     if (jsonBody) h['Content-Type'] = 'application/json';
     if (_apiKey != null && _apiKey!.isNotEmpty) h['X-Shadow-Key'] = _apiKey!;
-    if (admin && _adminToken != null && _adminToken!.isNotEmpty) {
+    if (_adminToken != null && _adminToken!.isNotEmpty) {
       h['X-Admin-Token'] = _adminToken!;
     }
     return h;
@@ -752,7 +765,7 @@ class TelencephalonClient {
   ]) async {
     final r = await _http.post(
       await _u(path),
-      headers: _headers(jsonBody: true, admin: true),
+      headers: _headers(jsonBody: true),
       body: jsonEncode(body ?? const {}),
     );
     if (r.statusCode != 200 && r.statusCode != 204) {
@@ -766,7 +779,7 @@ class TelencephalonClient {
   ) async {
     final r = await _http.post(
       await _u(path),
-      headers: _headers(jsonBody: true, admin: true),
+      headers: _headers(jsonBody: true),
       body: jsonEncode(body),
     );
     if (r.statusCode != 200 && r.statusCode != 201) {
@@ -776,7 +789,7 @@ class TelencephalonClient {
   }
 
   Future<Map<String, dynamic>> _adminGet(String path) async {
-    final r = await _http.get(await _u(path), headers: _headers(admin: true));
+    final r = await _http.get(await _u(path), headers: _headers());
     if (r.statusCode != 200) {
       throw TelencephalonException('GET $path → ${r.statusCode}: ${r.body}');
     }
@@ -784,7 +797,7 @@ class TelencephalonClient {
   }
 
   Future<void> _adminDelete(String path) async {
-    final r = await _http.delete(await _u(path), headers: _headers(admin: true));
+    final r = await _http.delete(await _u(path), headers: _headers());
     if (r.statusCode != 200 && r.statusCode != 204) {
       throw TelencephalonException('DELETE $path → ${r.statusCode}: ${r.body}');
     }
