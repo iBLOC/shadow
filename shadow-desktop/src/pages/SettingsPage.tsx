@@ -8,7 +8,7 @@ import {
   AlertCircle, Boxes, Search, ScanLine, Link2, Unlink, Wand2,
   Sparkles, Settings, Play, Camera, PlugZap, Bluetooth,
 } from 'lucide-react';
-import { safeInvoke } from '../lib/tauriSafe';
+import { safeInvoke, safeInvokeOrThrow } from '../lib/tauriSafe';
 import { isTauri } from '../lib/platform';
 import { useThemeStore } from '../stores/themeStore';
 import { accentPresets, surfaceOverrides } from '../styles/accent.g';
@@ -32,6 +32,7 @@ import { VideoSourcesCard } from '../components/business/VideoSourcesCard';
 import { SubsystemPanel } from '../components/business/SubsystemPanel/SubsystemPanel';
 import { Button, Badge, EmptyState, Modal } from '../components/ui';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { Input } from '../components/ui/input';
 import { cn } from '../lib/utils';
 
 type SettingsSection = 'service' | 'models' | 'video' | 'ui' | 'shortcuts' | 'data' | 'system' | 'subsystem' | 'integrations';
@@ -1832,31 +1833,158 @@ export function ShortcutsSection() {
 // ─── Data Section ─────────────────────────────────────────────────────────────
 
 function DataSection() {
-  const { t } = useTranslation();
   return (
     <div>
-      <SettingsCard
-        title={t('settings.memoryIntegration')}
-        description={t('settings.memoryIntegrationDesc')}
-        icon={<Database size={20} />}
-        footer={
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <HardDrive size={12} />
-            <span>{t('settings.storagePathDefault')}</span>
-          </div>
-        }
-      >
-        <SettingRow label={t('settings.statusLabel')}>
-          <span className="rounded-full bg-green-500/15 px-3 py-0.5 text-xs font-medium text-green-500">
-            {t('settings.connected')}
-          </span>
-        </SettingRow>
-      </SettingsCard>
+      <HippocampusStorageCard />
 
       <HfTokenSettings onSaved={() => {}} />
 
       <IdentityPanel />
     </div>
+  );
+}
+
+/**
+ * Where the hippocampus (long-term memory) keeps its Lance data.
+ *
+ * ⚠️ The path shown here is the **real** one — the desktop asks the
+ * hippocampus itself (the same rule its storage layer uses) instead of
+ * printing a placeholder. The old footer said `~/.hippocampus`, a path
+ * that does not exist on any machine: the interface claimed a location
+ * nothing wrote to.
+ */
+type HippocampusStorage = {
+  /** What the user picked, if anything. */
+  configured: string | null;
+  /** Where the memory actually is (or will be, after a restart). */
+  effective: string;
+  /** The platform default the hippocampus itself resolves to. */
+  defaultRoot: string;
+  /** Whether that directory is on disk right now. */
+  exists: boolean;
+  /** The environment points at a non-local store. */
+  remote: boolean;
+};
+
+export function HippocampusStorageCard() {
+  const { t } = useTranslation();
+  const [info, setInfo] = useState<HippocampusStorage | null>(null);
+  const [draft, setDraft] = useState('');
+  const [unreadable, setUnreadable] = useState(false);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      // ⚠️ `safeInvoke` swallows the error and returns a fallback — that
+      // would turn "cannot read it" into "there is nothing there",
+      // which is exactly the shape this card is fixing.
+      const res = await safeInvokeOrThrow<HippocampusStorage>(
+        'get_hippocampus_storage',
+      );
+      setInfo(res);
+      setDraft(res.configured ?? '');
+      setUnreadable(false);
+      setError('');
+    } catch {
+      setUnreadable(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const save = async (next: string | null) => {
+    setBusy(true);
+    try {
+      const res = await safeInvokeOrThrow<HippocampusStorage>(
+        'set_hippocampus_storage',
+        { dir: next },
+      );
+      setInfo(res);
+      setDraft(res.configured ?? '');
+      setError('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const dirty = info
+    ? draft.trim() === ''
+      ? info.configured !== null
+      : draft.trim() !== info.configured
+    : false;
+
+  return (
+    <SettingsCard
+      title={t('settings.memoryIntegration')}
+      description={t('settings.memoryIntegrationDesc')}
+      icon={<Database size={20} />}
+      footer={
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <HardDrive size={12} />
+          {unreadable ? (
+            <span>{t('settings.hippocampusStorageUnreadable')}</span>
+          ) : info ? (
+            <span className="break-all font-mono" title={info.effective}>
+              {info.effective}
+            </span>
+          ) : (
+            <span>…</span>
+          )}
+        </div>
+      }
+    >
+      <SettingRow label={t('settings.statusLabel')}>
+        <span className="rounded-full bg-green-500/15 px-3 py-0.5 text-xs font-medium text-green-500">
+          {t('settings.connected')}
+        </span>
+      </SettingRow>
+
+      <SettingRow
+        label={t('settings.storagePath')}
+        description={t('settings.hippocampusStorageHint')}
+      >
+        <div className="flex w-full items-center gap-2">
+          <Input
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder={info?.defaultRoot ?? ''}
+            disabled={unreadable || busy}
+            className="font-mono text-xs"
+            data-testid="hippocampus-storage-path"
+          />
+          <Button
+            size="sm"
+            onClick={() => void save(draft.trim() === '' ? null : draft.trim())}
+            disabled={!dirty || busy}
+            data-testid="hippocampus-storage-save"
+          >
+            {t('common.save')}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => void save(null)}
+            disabled={busy || (info?.configured ?? null) === null}
+            data-testid="hippocampus-storage-reset"
+          >
+            {t('settings.reset')}
+          </Button>
+        </div>
+      </SettingRow>
+      {error && (
+        <p
+          className="mt-2 text-sm text-destructive"
+          data-testid="hippocampus-storage-error"
+        >
+          {t('common.error')}: {error}
+        </p>
+      )}
+    </SettingsCard>
   );
 }
 

@@ -163,10 +163,17 @@ pub fn run() {
     // 这一段把「端脑 + neuron（根）+ 海马体（/hippocampus）」合成一台
     // 形状与独立端脑完全一致的服务，桌面的通信因此真正走
     // 大脑 → 端脑 → 叶区。见 `cortex_http.rs`。
+    // The desktop settings page can point the hippocampus at another
+    // directory (config.json -> hippocampus_data_dir). The endbrain
+    // builds its hippocampus state at **boot**, so reading it once here
+    // is enough; a changed setting needs a desktop restart.
+    let secure_auth = Arc::new(SecureAuth::new());
+    let hippocampus_data_dir =
+        tauri::async_runtime::block_on(secure_auth.get_hippocampus_data_dir());
     {
         let stack = stack.clone();
         tauri::async_runtime::spawn(async move {
-            cortex_http::serve(&stack).await;
+            cortex_http::serve(&stack, hippocampus_data_dir).await;
         });
     }
 
@@ -185,7 +192,7 @@ pub fn run() {
         thalamus: thalamus.clone(),
         ws_client: Arc::new(MtlsWebSocketClient::new()),
         model_storage: Arc::new(EncryptedStorage::new()),
-        secure_auth: Arc::new(SecureAuth::new()),
+        secure_auth: secure_auth.clone(),
         opencode_manager: Arc::new(OpenCodeManager::new()),
         worktree_manager: Arc::new(WorktreeManager::new()),
         result_manager: Arc::new(
@@ -346,6 +353,8 @@ pub fn run() {
             get_provider_config,
             update_setup_step,
             get_setup_step,
+            get_hippocampus_storage,
+            set_hippocampus_storage,
             mark_setup_complete,
             opencode_launch,
             opencode_check_installed,
@@ -920,6 +929,88 @@ async fn update_setup_step(
 #[tauri::command]
 async fn get_setup_step(state: State<'_, AppState>) -> Result<String, String> {
     Ok(state.secure_auth.get_setup_step().await)
+}
+
+/// Where the hippocampus (long-term memory) keeps its Lance data.
+///
+/// ⚠️ The paths come from the **hippocampus itself** (the same rule its
+/// storage layer uses), not from a guess made here: a host that
+/// advertises a path nothing writes to is exactly the "failure that
+/// looks like success" shape.
+#[tauri::command]
+async fn get_hippocampus_storage(
+    state: State<'_, AppState>,
+) -> Result<serde_json::Value, String> {
+    let configured = state.secure_auth.get_hippocampus_data_dir().await;
+    Ok(hippocampus_storage_view(configured))
+}
+
+/// Point the hippocampus at another directory.
+///
+/// ⚠️ This **switches stores** — it does not move anything: the old
+/// store stays where it is. The settings page says so out loud.
+///
+/// ⚠️ The path is checked **now** (absolute, creatable, writable): a
+/// path that only fails at boot would fail long after the user said
+/// "yes" — and the desktop would come up with a broken brain.
+#[tauri::command]
+async fn set_hippocampus_storage(
+    state: State<'_, AppState>,
+    dir: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let normalized = match dir {
+        None => None,
+        Some(raw) => {
+            let trimmed = raw.trim();
+            if trimmed.is_empty() {
+                None
+            } else {
+                let path = std::path::PathBuf::from(trimmed);
+                if !path.is_absolute() {
+                    return Err(format!("{trimmed} is not an absolute path"));
+                }
+                std::fs::create_dir_all(&path)
+                    .map_err(|e| format!("could not create {trimmed}: {e}"))?;
+                // Writability is proven by writing, not by asking.
+                let probe = path.join(".shadow-write-probe");
+                std::fs::write(&probe, b"")
+                    .map_err(|e| format!("{trimmed} is not writable: {e}"))?;
+                let _ = std::fs::remove_file(&probe);
+                Some(trimmed.to_string())
+            }
+        }
+    };
+    state.secure_auth.save_hippocampus_data_dir(normalized).await?;
+    Ok(hippocampus_storage_view(
+        state.secure_auth.get_hippocampus_data_dir().await,
+    ))
+}
+
+/// The storage view the settings page renders.
+///
+/// "effective" is where the memory **actually** is right now: the
+/// configured root when the user picked one (it wins over the
+/// environment), otherwise whatever the environment names, otherwise the
+/// platform default. "remote" means the environment points at a
+/// non-local store — the memory then lives off this machine, and the UI
+/// must not claim otherwise.
+fn hippocampus_storage_view(configured: Option<String>) -> serde_json::Value {
+    let default_root = hippocampus_server::default_storage_root();
+    let env_root = hippocampus_server::effective_storage_root();
+    // ⚠️ Computed **before** the move below: the environment root is
+    // still needed to answer "is the store off this machine?".
+    let remote = env_root.is_none() && configured.is_none();
+    let effective = configured
+        .clone()
+        .or_else(|| env_root.as_ref().map(|p| p.to_string_lossy().to_string()))
+        .unwrap_or_else(|| default_root.to_string_lossy().to_string());
+    serde_json::json!({
+        "configured": configured,
+        "effective": effective,
+        "defaultRoot": default_root.to_string_lossy(),
+        "exists": std::path::Path::new(&effective).exists(),
+        "remote": remote,
+    })
 }
 
 #[tauri::command]

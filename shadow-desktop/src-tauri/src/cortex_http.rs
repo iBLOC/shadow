@@ -93,8 +93,8 @@ fn desktop_admin_token() -> String {
 ///
 /// 端脑 + neuron（根）+ 海马体（`/hippocampus`）三张面合成一台服务，
 /// 形状与独立运行的端脑**完全一致**。
-pub async fn serve(stack: &Embedded) {
-    let app = match build_router(stack).await {
+pub async fn serve(stack: &Embedded, hippocampus_data_dir: Option<String>) {
+    let app = match build_router(stack, hippocampus_data_dir).await {
         Ok(app) => app,
         Err(e) => {
             tracing::error!("cortex http: building the telencephalon surface failed ({e})");
@@ -127,7 +127,10 @@ pub async fn serve(stack: &Embedded) {
 ///
 /// `neuron` 挂在**根**上，和端脑自己的 `build_full_app` 一个形状 ——
 /// 前端和叶区看到的路径完全一致。
-async fn build_router(stack: &Embedded) -> Result<Router, String> {
+async fn build_router(
+    stack: &Embedded,
+    hippocampus_data_dir: Option<String>,
+) -> Result<Router, String> {
     // 端脑自己的 AppState（配置 / lobe 存储 / flow / 会话存储 / 海马体接线）。
     // neuron 传**同一个**嵌入实例 —— 进程内只有一份推理运行时。
     //
@@ -173,9 +176,11 @@ async fn build_router(stack: &Embedded) -> Result<Router, String> {
         // 海马体（本地长期记忆）的存储根 —— **None = 桌面端仍走环境变量**
         // （`LANCE_URI` / `HIPPOCAMPUS_DATA_DIR` ⇒ `%APPDATA%\shadow\lance`）。
         //
-        // ⚠️ 桌面的落点**没有**变成「宿主显式给的目录」：那等于**换一批数据**
-        // （不是迁移）⇒ ⇒ 行为一字不变。
-        hippocampus_data_dir: None,
+        // 桌面设置页可以指一个目录（config.json 的 hippocampus_data_dir）
+        // ⇒ ⇒ 显式根**赢过**环境变量：拥有这份数据的宿主说了算。
+        //
+        // ⚠️ 换根 = **换一批数据**，不是迁移：原来那份留在原处。
+        hippocampus_data_dir,
         // 会话存储文件：None = 桌面走海马体（Lance）。
         conversation_store_file: None,
         // 桌面端**显式**声明 admin token —— 端脑**不再**替宿主发明一把

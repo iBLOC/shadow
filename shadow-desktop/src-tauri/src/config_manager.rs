@@ -12,6 +12,16 @@ pub struct AppConfig {
     pub setup_complete: bool,
     pub setup_step: String,
     pub provider_config: ProviderConfig,
+    /// Where the hippocampus (long-term memory) keeps its Lance data.
+    ///
+    /// None = use the hippocampus default (the platform data dir). A path
+    /// here **wins** over LANCE_URI / HIPPOCAMPUS_DATA_DIR: the host that
+    /// owns the data says where it goes.
+    ///
+    /// ⚠️ Changing this **switches stores** — it does not move anything.
+    /// The old store stays where it is. The settings page has to say so.
+    #[serde(default)]
+    pub hippocampus_data_dir: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -57,6 +67,7 @@ impl ConfigManager {
                 setup_complete: false,
                 setup_step: String::new(),
                 provider_config: ProviderConfig::default(),
+                hippocampus_data_dir: None,
             }
         };
 
@@ -82,6 +93,10 @@ impl ConfigManager {
     pub fn update_db_config(&mut self, db_type: String, db_config: DatabaseConfig) {
         self.config.db_type = db_type;
         self.config.db_config = db_config;
+    }
+
+    pub fn update_hippocampus_data_dir(&mut self, dir: Option<String>) {
+        self.config.hippocampus_data_dir = dir;
     }
 
     pub fn mark_setup_complete(&mut self) {
@@ -159,6 +174,18 @@ impl SecureAuth {
         config.config.provider_config.clone()
     }
 
+    /// The hippocampus storage root the user picked, if any.
+    pub async fn get_hippocampus_data_dir(&self) -> Option<String> {
+        let config = self.config.lock().await;
+        config.get_config().hippocampus_data_dir.clone()
+    }
+
+    pub async fn save_hippocampus_data_dir(&self, dir: Option<String>) -> Result<(), String> {
+        let mut config = self.config.lock().await;
+        config.update_hippocampus_data_dir(dir);
+        config.save()
+    }
+
     pub async fn update_setup_step(&self, step: &str) -> Result<(), String> {
         let mut config = self.config.lock().await;
         config.config.setup_step = step.to_string();
@@ -188,6 +215,28 @@ mod tests {
         assert!(config.db_type.is_empty());
         assert!(!config.setup_complete);
         assert!(config.provider_config.provider_type.is_empty());
+        assert!(config.hippocampus_data_dir.is_none());
+    }
+
+    #[test]
+    fn an_old_config_file_without_the_storage_field_still_loads() {
+        // The field was added later. An existing config.json must keep
+        // working (serde default) — otherwise every existing install
+        // would lose its settings on upgrade.
+        let old = r#"{"password_hash":"abc","db_type":"lance","db_config":{},"setup_complete":true,"setup_step":"done","provider_config":{}}"#;
+        let config: AppConfig = serde_json::from_str(old).unwrap();
+        assert!(config.hippocampus_data_dir.is_none());
+        assert_eq!(config.password_hash, "abc");
+    }
+
+    #[test]
+    fn the_storage_field_round_trips() {
+        let mut config = AppConfig::default();
+        config.update_hippocampus_data_dir(Some("D:/memory".to_string()));
+        let json = serde_json::to_string(&config).unwrap();
+        assert!(json.contains("D:/memory"), "{json}");
+        let back: AppConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.hippocampus_data_dir.as_deref(), Some("D:/memory"));
     }
 
     #[test]
@@ -231,6 +280,7 @@ mod tests {
             setup_complete: true,
             setup_step: "complete".to_string(),
             provider_config: ProviderConfig::default(),
+            hippocampus_data_dir: None,
         };
         let json = serde_json::to_string(&config).unwrap();
         assert!(json.contains("abc123"));
