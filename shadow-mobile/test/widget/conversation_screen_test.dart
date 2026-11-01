@@ -2,12 +2,14 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shadow_mobile/generated/l10n/app_localizations.dart';
 import 'package:shadow_mobile/providers/telencephalon_provider.dart';
+import 'package:shadow_mobile/router/app_router.dart';
 import 'package:shadow_mobile/screens/conversation_screen.dart';
 import 'package:shadow_mobile/services/telencephalon/telencephalon_client.dart';
 import 'test_helper.dart';
@@ -95,6 +97,83 @@ Map<String, dynamic> _serverConv(
 
 void main() {
   testSetup();
+    testWidgets('从会话页 push 出去再退回 ⇒ 列表必须**重新拉过**', (
+      WidgetTester tester,
+    ) async {
+      // ⚠️ 这条量的是「**退回**列表」这条路径 —— 列表页是**从对话页 push
+      // 上去**的 ⇒ ⇒ 退回时它**仍然挂载** ⇒ ⇒ `initState` **不会重跑**
+      // ⇒ ⇒ 只在 `initState` 拉 ⇒ ⇒ 列表会**停在旧值**。
+      // ⇒ ⇒ 2026-11-01 真机实测逮到这条（设备上退回列表后新会话不出现）。
+      var gets = 0;
+      final router = GoRouter(
+        initialLocation: '/conversations',
+        observers: [appRouteObserver],
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (context, state) => const Scaffold(body: Text('chat')),
+          ),
+          GoRoute(
+            path: '/conversations',
+            builder: (context, state) => const ConversationScreen(),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+
+      final container = ProviderContainer(
+        overrides: [
+          telencephalonClientProvider.overrideWithValue(
+            TelencephalonClient(
+              baseUrl: 'http://127.0.0.1:60080',
+              client: MockClient((req) async {
+                if (req.method == 'GET') gets++;
+                return http.Response(
+                  jsonEncode([
+                    _serverConv('conv-a', 'temporal', const [
+                      {'role': 'user', 'text': '第一条问题'},
+                    ]),
+                  ]),
+                  200,
+                  headers: {'content-type': 'application/json; charset=utf-8'},
+                );
+              }),
+            ),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp.router(
+            localizationsDelegates: const [
+              AppLocalizations.delegate,
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            supportedLocales: const [Locale('en')],
+            locale: const Locale('en'),
+            routerConfig: router,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(gets, 1);
+
+      // 点一条会话 ⇒ **push** 到对话页（列表页仍然挂载，只是被盖住）。
+      await tester.tap(find.text('第一条问题'));
+      await tester.pumpAndSettle();
+      expect(gets, 1, reason: '被盖住的时候不必重拉');
+
+      // 退回列表 ⇒ 必须**重新拉一次** ⇒ ⇒ 否则列表停在旧值。
+      router.pop();
+      await tester.pumpAndSettle();
+      expect(gets, 2, reason: '退回列表必须重新拉一次');
+    });
   group('ConversationScreen Widget Tests', () {
     testWidgets('renders conversation screen with scaffold', (
       WidgetTester tester,

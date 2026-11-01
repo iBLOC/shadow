@@ -138,7 +138,55 @@ class ConversationScreen extends ConsumerStatefulWidget {
   ConsumerState<ConversationScreen> createState() => _ConversationScreenState();
 }
 
-class _ConversationScreenState extends ConsumerState<ConversationScreen> {
+class _ConversationScreenState extends ConsumerState<ConversationScreen>
+    with RouteAware {
+  /// 本页所在的路由（用来订阅路由观察器）。
+  Route<dynamic>? _route;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route != null && route != _route) {
+      if (_route != null) appRouteObserver.unsubscribe(this);
+      _route = route;
+      appRouteObserver.subscribe(this, route);
+    }
+  }
+
+  @override
+  void dispose() {
+    if (_route != null) {
+      appRouteObserver.unsubscribe(this);
+      _route = null;
+    }
+    super.dispose();
+  }
+
+  /// **退回**到这一页 ⇒ ⇒ 它又被露出来了 ⇒ ⇒ 端脑那边可能已经变了
+  /// ⇒ ⇒ 数据会**陈旧** ⇒ ⇒ 重拉。
+  ///
+  /// ⚠️ 为什么 `initState` 不够：列表页是**从对话页 push 上去**的
+  /// ⇒ ⇒ 退回时那一页**仍然挂载** ⇒ ⇒ `initState` **不会重跑**
+  /// ⇒ ⇒ 只在 `initState` 拉 ⇒ ⇒ 「进入即刷新」只对**新建**列表页成立
+  /// ⇒ ⇒ 2026-11-01 真机实测：退回列表后新会话**不出现**（列表停在旧值）。
+  @override
+  void didPopNext() {
+    super.didPopNext();
+    _refreshConversations();
+  }
+
+  /// 拉一次列表。
+  ///
+  /// ⚠️ 必须**下一帧**再拉：Riverpod **不许在 widget 构建期改 provider**
+  /// ⇒ ⇒ `didPopNext` 是在 Navigator 处理 pop 时回调的（可能就在帧里）
+  /// ⇒ ⇒ 改 provider 会被判成「构建期改 provider」⇒ ⇒ 等下一帧。
+  void _refreshConversations() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(conversationsNotifierProvider.notifier).loadConversations();
+    });
+  }
   /// ⚠️ **进入即刷新** —— 会话列表是「**最近会话**」⇒ ⇒ 它得反映**此刻**
   /// 端脑那边的情况 ⇒ ⇒ 消息数、按 `updated_at` 的排序都得是新的。
   ///
@@ -153,10 +201,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      ref.read(conversationsNotifierProvider.notifier).loadConversations();
-    });
+    _refreshConversations();
   }
 
   @override

@@ -85,10 +85,22 @@ CustomTransitionPage<void> _fadePage(GoRouterState state, Widget child) {
   );
 }
 
+/// 路由观察器 —— 让「被盖住的页面」知道自己**又露出来了**。
+///
+/// ⚠️ 为什么需要它：会话列表页是**从对话页 push 上去**的（点某条会话）
+/// ⇒ ⇒ 退回时那一页**仍然挂载**（只是被盖住）⇒ ⇒ `initState` **不会重跑**
+/// ⇒ ⇒ 「进入即刷新」只对「**新建**列表页」成立 ⇒ ⇒ 退回时列表会**停在旧值**
+/// ⇒ ⇒ 2026-11-01 真机实测逮到（`scripts/prove-mobile-multi-session-on-device.ps1`
+/// 那条「退回列表后新会话立刻出现」红）⇒ ⇒ ⇒ `didPopNext` 就是
+/// 「我又变成当前路由了」那个信号。
+final RouteObserver<ModalRoute<void>> appRouteObserver =
+    RouteObserver<ModalRoute<void>>();
+
 /// GoRouter configuration for Shadow Mobile
 final GoRouter appRouter = GoRouter(
   initialLocation: AppRoutes.chat,
   debugLogDiagnostics: true,
+  observers: [appRouteObserver],
   routes: [
     // Chat (default tab)
     GoRoute(
