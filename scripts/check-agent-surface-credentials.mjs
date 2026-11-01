@@ -441,6 +441,16 @@ function computeForms(files) {
       no: '②',
       title: '桌面端 · web（浏览器，没有 sidecar）',
       client: 'desktop',
+      // ⚠️⚠️ **条件 401 在这个形态上是「固有」的** ⇒ ⇒ 不该让闸红。
+      //
+      // 依据（用户 2026-11-01 11:00 拍板）：**web 版暂不做「放钥匙入口」**，
+      // 接受现契约 ⇒ ⇒ 而 web 没有 sidecar ⇒ shadow key **无处可配** ⇒ ⇒
+      // 任何需要 shadow 的读面在 web 上**必然**是「条件 401」⇒ ⇒
+      // 那是**形态的属性**，不是某个调用点新冒出来的缺口 ⇒ ⇒ 只报告，不阻断。
+      //
+      // ⚠️ 形态 ① / ③ 的钥匙**恒有** ⇒ ⇒ 那里出现「条件 401」就是**真缺陷**
+      // ⇒ ⇒ 仍然红（这把闸不许放过它）。
+      acceptedWarn: true,
       reach: {
         shadow: dShadow.reach,
         shadowHow: dShadow.how + '（web 版同样没有）',
@@ -568,6 +578,24 @@ function reachTag(r) {
   return '❌ 拿不到';
 }
 
+/**
+ * 这把闸**该不该红** ⇒ ⇒ **一处判据**（自检能钉住它）。
+ *
+ * - **必 401** ⇒ 永远红（那是真缺陷）。
+ * - **条件 401**，落在**钥匙恒有**的形态（① / ③）⇒ 红（那里不该有条件 401）。
+ * - **条件 401**，落在**已接受契约**的形态（② 桌面·web）⇒ **只报告**（形态固有）。
+ *
+ * ⚠️ 为什么要分这一刀：用户 2026-11-01 11:00 拍板「web 版暂不做放钥匙入口」，
+ * 接受现契约 ⇒ ⇒ 而 web 的 shadow key **无处可配** ⇒ ⇒ 条件 401 是**形态的固有属性**
+ * ⇒ ⇒ 若还让它红 ⇒ ⇒ 这把闸**恒红** ⇒ ⇒ **恒红的闸等于没有闸**（没人看 ⇒ 回归抓不到）。
+ */
+function exitVerdict(anyRed, anyWarn, anyWarnAccepted) {
+  if (anyRed > 0) return 'RED';
+  if (anyWarn > 0) return 'RED';
+  if (anyWarnAccepted > 0) return 'WARN_ONLY';
+  return 'GREEN';
+}
+
 function run() {
   let a;
   try {
@@ -599,7 +627,8 @@ function run() {
   }
 
   let anyRed = 0;
-  let anyWarn = 0;
+  let anyWarn = 0;          // 会**阻断**的条件 401（形态的钥匙恒有 ⇒ 那就是真缺陷）
+  let anyWarnAccepted = 0;  // 已接受契约的形态上的条件 401（只报告，不阻断）
   for (const form of a.forms) {
     // ⚠️⚠️ **形态只对它自己那个客户端的调用点说话** —— 否则移动端的调用点
     //    会被算进「桌面·Tauri」，桌面端的被算进「移动·内嵌」
@@ -609,7 +638,8 @@ function run() {
     const warn = scope.filter((f) => verdictOf(f, form) === 'WARN');
     const green = scope.length - red.length - warn.length;
     anyRed += red.length;
-    anyWarn += warn.length;
+    if (form.acceptedWarn === true) anyWarnAccepted += warn.length;
+    else anyWarn += warn.length;
     console.log('  ── 形态 ' + form.no + '：' + form.title);
     console.log('     shadow key ：' + reachTag(form.reach.shadow) + '  ' + form.reach.shadowHow);
     console.log('     admin token：' + reachTag(form.reach.admin) + '  ' + form.reach.adminHow);
@@ -620,7 +650,8 @@ function run() {
       for (const f of red) console.log('        · ' + f.file + ':' + f.line + '  ' + f.route + '  （' + f.via + '）');
     }
     if (warn.length) {
-      console.log('     ⚠️ **条件 401**（用户还没把那把钥匙配上 ⇒ 一配就通）：');
+      console.log('     ⚠️ **条件 401**（用户还没把那把钥匙配上 ⇒ 一配就通）' +
+        (form.acceptedWarn === true ? '　【已接受契约 ⇒ 只报告，不阻断】' : ' ') + '：');
       for (const f of warn) console.log('        · ' + f.file + ':' + f.line + '  ' + f.route + '  （' + f.via + '）');
     }
     console.log('');
@@ -646,16 +677,21 @@ function run() {
     console.log('');
   }
 
-  if (anyRed > 0) {
-    console.log('⚠️⚠️ **有 ' + anyRed + ' 处必 401** ⇒ ⇒ 上锁之前必须先补凭据（或先补「钥匙输入入口」）。');
-    console.log('⇒ ⇒ 别拿「本来就有门」去吓人：这三条面（providers / admin / shadow）已划出范围。');
+  const verdict = exitVerdict(anyRed, anyWarn, anyWarnAccepted);
+  if (verdict === 'RED') {
+    if (anyRed > 0) {
+      console.log('⚠️⚠️ **有 ' + anyRed + ' 处必 401** ⇒ ⇒ 上锁之前必须先补凭据（或先补「钥匙输入入口」）。');
+      console.log('⇒ ⇒ 别拿「本来就有门」去吓人：这三条面（providers / admin / shadow）已划出范围。');
+    } else {
+      console.log('⚠️ 有 ' + anyWarn + ' 处是**条件 401**（用户没把那把钥匙配上就断）⇒ ⇒ 也要补，才谈得上上锁。');
+    }
     process.exit(1);
   }
-  if (anyWarn > 0) {
-    console.log('⚠️ 有 ' + anyWarn + ' 处是**条件 401**（用户没把那把钥匙配上就断）⇒ ⇒ 也要补，才谈得上上锁。');
-    process.exit(1);
+  if (verdict === 'WARN_ONLY') {
+    console.log('⚠️ 有 ' + anyWarnAccepted + ' 处是**条件 401**，但落在**已接受契约**的形态上（桌面·web：用户 2026-11-01 拍板「web 版暂不做放钥匙入口」）');
+    console.log('⇒ ⇒ **恒红的闸等于没有闸** ⇒ ⇒ 这一类只报告、不阻断；形态 ① / ③ 的钥匙恒有 ⇒ 那边的条件 401 仍然是红。');
   }
-  console.log('⇒ 每一种形态都没有会被 401 打断的调用点 ⇒ 门 = shadow ∪ admin 这档可以上。');
+  console.log('⇒ 每一种形态都没有**必 401**的调用点 ⇒ 门 = shadow ∪ admin 这档可以上。');
   process.exit(0);
 }
 
@@ -766,6 +802,11 @@ function selfTest() {
   check('定案：admin 恒有 ⇒ 绿（哪怕 shadow 拿不到）', verdictOf(fAdminOnly, { reach: { shadow: NEVER, admin: ALWAYS } }) === 'GREEN');
   check('定案：admin 只是可配 ⇒ 条件绿', verdictOf(fAdminOnly, { reach: { shadow: NEVER, admin: OPTIONAL } }) === 'WARN');
   check('定案：已经有门的面 ⇒ 不算红', verdictOf({ locked: 'x', admin: false, shadow: false }, { reach: { shadow: NEVER, admin: NEVER } }) === 'LOCKED');
+  check('退出定案：必 401 ⇒ 红', exitVerdict(1, 0, 0) === 'RED');
+  check('退出定案：条件 401 落在未接受形态 ⇒ 红', exitVerdict(0, 1, 0) === 'RED');
+  check('退出定案：条件 401 只落在已接受形态 ⇒ 只报告', exitVerdict(0, 0, 1) === 'WARN_ONLY');
+  check('退出定案：全绿 ⇒ 绿', exitVerdict(0, 0, 0) === 'GREEN');
+  check('退出定案：必 401 优先于已接受契约', exitVerdict(1, 0, 5) === 'RED');
 
   console.log(failed ? '❌ 自检有 ' + failed + ' 条红' : '✅ 自检全过');
   process.exit(failed ? 1 : 0);
