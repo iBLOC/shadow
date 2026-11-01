@@ -23,6 +23,10 @@
 # ⇒ 一旦大脑回来，A2UI 地址又指回内嵌端脑 ⇒ 请求变成 200 ⇒ **验不到失败态**。
 # ⇒ 所以脚本的顺序是：**先把话打好 → 再停大脑 → 立刻发**。
 #
+# ⚠️ **这条赛跑已经被产品修掉了**（移动端 `cccd646`「用户喊停必须赢」）：
+# ⇒ 「用户主动停过」这道门现在**守在自动启动那条路的顶部** ⇒ ⇒ 大脑不该再自己起来
+# ⇒ ⇒ 窗口不再有上限。⚠️ 但**旧 APK 上仍然会**（8465c91 早于 cccd646）⇒ ⇒ 脚本仍按「要快」写。
+#
 # ## ⚠️ 元素怎么找：不是按像素猜，是**按文字**找
 #
 # 踩过的坑（都真跑过）：
@@ -66,9 +70,35 @@ function DumpNodes() {
   adb -s $Serial shell uiautomator dump /sdcard/ui_probe.xml 2>$null | Out-Null
   Start-Sleep -Milliseconds 450
   adb -s $Serial pull /sdcard/ui_probe.xml $uiLocal 2>&1 | Out-Null
-  if (-not (Test-Path $uiLocal)) { return @() }
-  try { $x = [xml](Get-Content $uiLocal -Raw) } catch { return @() }
+  if (-not (Test-Path $uiLocal)) { $script:lastDumpPackage = ''; return @() }
+  try { $x = [xml](Get-Content $uiLocal -Raw) } catch { $script:lastDumpPackage = ''; return @() }
+  $root = $x.SelectSingleNode('//node')
+  if ($root) { $script:lastDumpPackage = $root.package } else { $script:lastDumpPackage = '' }
   return @($x.SelectNodes('//node'))
+}
+
+# 上一棵语义树的前台包（'' = 没 dump 出来）
+$script:lastDumpPackage = ''
+
+# ⚠️⚠️ **屏幕不一定在 App 上** —— 实测（2026-11-01 17:27）：MIUI 把通知面板
+#    （还带一个「送你一份音乐好礼」的推广弹窗）拉了下来 ⇒ 语义树里
+#    package 变成 `com.android.systemui` ⇒ ⇒ 找什么都是空 ⇒
+#    ⇒ 脚本会误报成「App 没有那个按钮」⇒ ⇒ **失败长得像「App 缺功能」**。
+#    ⇒ 所以：**找元素之前先确认前台是 App**，不是就直接说清楚。
+function EnsureAppForeground {
+  for ($i = 0; $i -lt 6; $i++) {
+    $null = DumpNodes
+    if ($script:lastDumpPackage -eq $Package) { return $true }
+    Write-Host ('  ▸ 屏幕不在 App 上（当前前台：' + $script:lastDumpPackage + '）⇒ 收掉系统面板并拉起 App')
+    # ⚠️ BACK 只在「屏幕不是 App」时按 ⇒ 它被通知面板吃掉 ⇒ 不会误退路由。
+    adb -s $Serial shell input keyevent KEYCODE_BACK | Out-Null
+    Start-Sleep -Milliseconds 600
+    adb -s $Serial shell cmd statusbar collapse 2>$null | Out-Null
+    adb -s $Serial shell input keyevent KEYCODE_WAKEUP | Out-Null
+    adb -s $Serial shell am start -n ($Package + '/' + $Activity) | Out-Null
+    Start-Sleep -Seconds 3
+  }
+  return $false
 }
 
 function NodeText($n) {
@@ -108,38 +138,83 @@ function TapText([string]$needle) {
   return $hit
 }
 
-function TapTextByScrolling([string]$needle, [int]$maxTries = 12) {
+function TapTextByScrolling([string]$needle, [int]$maxTries = 18) {
+  $misses = 0
   for ($i = 0; $i -lt $maxTries; $i++) {
     $hit = FindByText $needle
-    if ($hit -and $hit.Clickable -eq 'true') {
-      Write-Host ('  ▸ 点「' + $needle + '」@ ' + $hit.X + ',' + $hit.Y + '（滚了 ' + $i + ' 次）')
-      adb -s $Serial shell input tap $hit.X $hit.Y | Out-Null
-      Start-Sleep -Seconds 3
-      return $hit
+    if ($hit) {
+      if ($hit.Y -ge 120 -and $hit.Y -le 1850) {
+        Write-Host ('  ▸ 点「' + $needle + '」@ ' + $hit.X + ',' + $hit.Y + '（滚了 ' + $i + ' 次）')
+        adb -s $Serial shell input tap $hit.X $hit.Y | Out-Null
+        Start-Sleep -Seconds 3
+        return $hit
+      }
+      # ⚠️ 被底栏挡住（y > 1850）⇒ 往上挪 400（内容上滚 ⇒ y 变小）带进安全区。
+      #    ⚠️ 不做这一步就会**点到底栏的「我」标签** ⇒ 页面根本没进去 ⇒
+      #    ⇒ 「停止大脑」压根不出现 ⇒ **失败长得像「App 没有那个按钮」**。
+      Write-Host ('  ▸ 「' + $needle + '」@ y=' + $hit.Y + ' 被底栏挡住 ⇒ 往上挪 400')
+      adb -s $Serial shell input swipe 540 1700 540 1300 400 | Out-Null
+      Start-Sleep -Milliseconds 1000
+      $misses = 0
+      continue
     }
-    adb -s $Serial shell input swipe 540 1700 540 1000 800 | Out-Null
+    # 没找到 ⇒ 往上滑（看更下面的内容）；连续 3 次还没找到 ⇒ 往回滑（起点可能在下方）。
+    $misses++
+    if ($misses -ge 3) {
+      adb -s $Serial shell input swipe 540 1000 540 1700 600 | Out-Null
+      $misses = 0
+    } else {
+      adb -s $Serial shell input swipe 540 1700 540 1000 800 | Out-Null
+    }
     Start-Sleep -Milliseconds 900
   }
-  throw ('滚到底也没找到「' + $needle + '」')
+  throw ('滚来滚去也没找到「' + $needle + '」')
 }
 
 # 打开「组件」（Agent2UI）页：它在**对话页**顶栏，语义标签就叫 Agent2UI。
 # ⚠️ 「嵌入式大脑」页是压在对话分支上的另一条路由 ⇒ 找之前先退回去。
-function OpenA2uiPage() {
+function OpenA2uiPage([switch]$BackFirst) {
+  # ⚠️⚠️⚠️ **绝不能用 BACK 退回对话页** —— 实测（2026-11-01 17:18）：
+  #    从「嵌入式大脑」页连按两次 BACK ⇒ **Activity 被弹掉**：
+  #      `Activity com.ibloc.shadow/.MainActivity onDestroy took 182ms`
+  #      `[FBP-Android] onDetachedFromEngine`
+  #    ⇒ 引擎没了 ⇒ **新 Dart isolate** ⇒ `main()` 重跑 ⇒
+  #    ⇒ `main.dart:57 ensureStarted()` ⇒ ⇒⇒ **大脑自己回来**（实测 15.4 秒后）
+  #    ⇒ 因为「用户喊过停」那个标记是**内存里的实例字段** ⇒ 新 isolate ⇒ 归零。
+  #    ⇒ 脚本自己的 `am start` 兜底又把 App 拉起来 ⇒ 整个窗口作废。
+  #    ⇒ **改走底栏第 1 个标签（「对话」）**：只切 tab、不弹 Activity ⇒ isolate 存活。
+  if ($BackFirst) {
+    # ⚠️⚠️ **只退一层**（嵌入式大脑页 → 对话页）。
+    #    实测（2026-11-01 17:31）：退**两层**会**把 Activity 弹掉** ⇒
+    #    `Activity onDestroy` ⇒ `[FBP-Android] onDetachedFromEngine` ⇒
+    #    ⇒ **新 Dart isolate** ⇒ ⇒ `main()` 重跑 ⇒ ⇒ 大脑自己回来。
+    #    ⇒ 而「嵌入式大脑」页是**压在对话页之上的路由** ⇒ 切底栏 tab 弹不掉它
+    #    （实测点了 7 次都没用）⇒ ⇒ 只能 BACK **一层**。
+    adb -s $Serial shell input keyevent KEYCODE_BACK | Out-Null
+    Start-Sleep -Milliseconds 900
+  }
+  # ⚠️ **先把屏幕确认成 App 的** —— 否则找不到「Agent2UI」会被误读成「App 没这个入口」。
+  if (-not (EnsureAppForeground)) {
+    throw ('屏幕不在 App 上（当前前台：' + $script:lastDumpPackage + '）⇒ 不是 App 缺那个入口')
+  }
   for ($i = 0; $i -lt 6; $i++) {
     $hit = FindByText 'Agent2UI'
     if ($hit -and $hit.Clickable -eq 'true') {
       Write-Host ('  ▸ 点「Agent2UI」@ ' + $hit.X + ',' + $hit.Y)
       adb -s $Serial shell input tap $hit.X $hit.Y | Out-Null
-      Start-Sleep -Seconds 3
+      Start-Sleep -Milliseconds 1500
       return $true
     }
+    # ⚠️ 找不到「Agent2UI」⇒ 退**一层**（脑页 → 对话页）。
+    #    ⚠️ **只退一层** —— 退两层会把 Activity 弹掉 ⇒ isolate 重跑 ⇒ 大脑自己回来。
     adb -s $Serial shell input keyevent KEYCODE_BACK | Out-Null
-    Start-Sleep -Seconds 2
+    Start-Sleep -Milliseconds 900
     $focus = (adb -s $Serial shell dumpsys window 2>$null | Select-String -Pattern 'mCurrentFocus' | Select-Object -First 1)
     if (-not $focus -or $focus.Line -notmatch 'com\.ibloc\.shadow') {
+      # ⚠️ App 不在前台 ⇒ 只能 `am start` ⇒ **这会重建引擎** ⇒ 前提判据会红。
       adb -s $Serial shell am start -n ($Package + '/' + $Activity) | Out-Null
       Start-Sleep -Seconds 4
+      if (-not (EnsureAppForeground)) { throw 'App 拉不起来（屏幕被系统面板占着？）' }
     }
   }
   return $false
@@ -165,7 +240,39 @@ function FindEditBox() {
   return $null
 }
 
+# ⚠️ **语义树要等 Flutter 把它建起来** —— 路由刚 push 完就 dump，
+#    EditText 可能还没进树 ⇒ 「找不到输入框」⇒ 脚本在这里崩掉，
+#    而崩点离真正的问题（没抢到那 19.5 秒的窗口）很远 ⇒ **报错会指错方向**。
+function FindEditBoxWait([int]$tries = 6) {
+  for ($i = 0; $i -lt $tries; $i++) {
+    $et = FindEditBox
+    if ($et) { return $et }
+    Start-Sleep -Milliseconds 700
+  }
+  return $null
+}
+
 # 输入框右侧那个**没有文字**的按钮 = 发送键。
+# ⚠️ **一次 dump 同时拿输入框与发送键** —— 分两次找要多花 1.5 秒，
+#    而「大脑停后自己回来」的窗口只有 ~17~19 秒（实测 17.3 / 19.3 / 19.5）。
+function FindComposer() {
+  $nodes = DumpNodes
+  $et = $null
+  foreach ($n in $nodes) { if ($n.class -eq 'android.widget.EditText') { $et = $n; break } }
+  if (-not $et) { return $null }
+  $e = CenterOf $et.bounds
+  $best = $null; $bestDx = 99999
+  foreach ($n in $nodes) {
+    if ($n.class -ne 'android.widget.Button') { continue }
+    $c = CenterOf $n.bounds
+    if (-not $c) { continue }
+    if ([Math]::Abs($c[1] - $e[1]) -gt 80) { continue }
+    $dx = $c[0] - $e[0]
+    if ($dx -gt 0 -and $dx -lt $bestDx) { $bestDx = $dx; $best = [pscustomobject]@{ X = $c[0]; Y = $c[1] } }
+  }
+  return [pscustomobject]@{ Et = $et; Send = $best }
+}
+
 function FindSendButton() {
   $nodes = DumpNodes
   $et = $null
@@ -185,14 +292,14 @@ function FindSendButton() {
 }
 
 function TypeMessage([string]$msg) {
-  $et = FindEditBox
+  $et = FindEditBoxWait
   if (-not $et) { throw '页面上找不到输入框' }
   $c = CenterOf $et.bounds
   Write-Host ('  ▸ 点输入框 @ ' + $c[0] + ',' + $c[1])
   adb -s $Serial shell input tap $c[0] $c[1] | Out-Null
-  Start-Sleep -Seconds 2
+  Start-Sleep -Milliseconds 900
   adb -s $Serial shell input text $msg | Out-Null
-  Start-Sleep -Seconds 2
+  Start-Sleep -Milliseconds 900
 }
 
 function CountRed([string]$path) {
@@ -261,6 +368,26 @@ Say ('隧道：设备 127.0.0.1:60080 ⇒ 宿主 127.0.0.1:' + $StubPort)
 adb -s $Serial shell am force-stop $Package | Out-Null
 Start-Sleep -Seconds 2
 adb -s $Serial logcat -c
+# ⚠️ **必须边跑边抓 logcat** —— 脚本自己每次 `uiautomator dump` 都会刷一屏
+#    AndroidRuntime 日志 ⇒ 缓冲区几秒就被冲掉 ⇒ 跑完再 `logcat -d` 读到的
+#    是**残缺的时间线** ⇒ ⇒ 「大脑自己回来了吗」这条前提判据会读到**假象**。
+#    ⇒ 改成**全程开着**一个后台抓取（写文件），跑完再从文件里读时间线。
+$logcatFile = Join-Path $OutDir 'logcat-live.txt'
+Remove-Item $logcatFile -Force -ErrorAction SilentlyContinue
+$logcatProc = Start-Process -FilePath 'adb' -ArgumentList @('-s', $Serial, 'logcat', '-v', 'time') -RedirectStandardOutput $logcatFile -PassThru -NoNewWindow
+Say ('logcat 抓取已开（pid ' + $logcatProc.Id + ' ⇒ ' + $logcatFile + '）')
+# ⚠️ **进程 pid 采样放后台 job** —— 同步采样每次 `adb shell pidof` 要 0.2~0.5 秒
+#    ⇒ 放在主流程里会**吃光「大脑停后自己回来」那 19 秒的窗口** ⇒ ⇒ 后台跑。
+$pidLog = Join-Path $OutDir 'pid-samples.txt'
+Remove-Item $pidLog -Force -ErrorAction SilentlyContinue
+$pidJob = Start-Job -ScriptBlock {
+  param($serial, $path)
+  while ($true) {
+    $p = (adb -s $serial shell pidof com.ibloc.shadow 2>$null | Out-String).Trim()
+    Add-Content -Path $path -Value ((Get-Date -Format 'HH:mm:ss.fff') + ' ' + $p)
+    Start-Sleep -Milliseconds 400
+  }
+} -ArgumentList $Serial, $pidLog
 adb -s $Serial shell am start -n ($Package + '/' + $Activity) | Out-Null
 
 $agentPort = $null
@@ -283,6 +410,12 @@ if (-not $SkipUi) {
   if (-not (OpenA2uiPage)) { throw '进不去 Agent2UI 页' }
   TypeMessage $Message
   Shot '01-typed' | Out-Null
+  # ⚠️ **「发之前」的基线必须在这里取** —— CountRed 要遍历 6 万多个像素（好几秒），
+  #    而「大脑停后 ~20 秒自己回来」这个窗口很窄 ⇒ 放在停脑之后会把窗口吃光。
+  $before = Shot '03-a2ui-before'
+  $rb = CountRed $before
+  $redBefore = $rb.Red
+  Say ('发之前，内容区红色像素：' + $redBefore + ' / ' + $rb.Total)
 }
 
 # ── 6. 停掉内嵌大脑 ─────────────────────────────────────────────
@@ -297,15 +430,22 @@ if (-not $SkipStopBrain -and $agentPort) {
   Start-Sleep -Seconds 1
   # 确认真的在设置页（特征行「外观」），不在就再来一次。
   $onSettings = $false
-  for ($i = 0; $i -lt 4; $i++) {
+  for ($i = 0; $i -lt 6; $i++) {
     if (FindByText '外观') { $onSettings = $true; break }
+    if ($i -ge 2) {
+      # 设置页会**记住上次的滚动位置** ⇒ 起点可能在页面中段/底部，
+      # 而「外观」是**顶部**特征行 ⇒ 往回滑到顶再看。
+      adb -s $Serial shell input swipe 540 1000 540 1800 400 | Out-Null
+      Start-Sleep -Milliseconds 900
+      continue
+    }
     CloseKeyboard | Out-Null
     TapText '第 4 个标签' | Out-Null
     Start-Sleep -Seconds 2
   }
   if (-not $onSettings) { throw '切不到设置页' }
   TapTextByScrolling '嵌入式大脑' | Out-Null
-  try { TapText '停止大脑' | Out-Null } catch { Say ('⚠️ 找不到「停止大脑」按钮：' + $_.Exception.Message) }
+  try { TapTextByScrolling '停止大脑' | Out-Null } catch { Say ('⚠️ 找不到「停止大脑」按钮：' + $_.Exception.Message) }
   Start-Sleep -Seconds 3
   Shot '02-brain-stopped' | Out-Null
   # ⚠️ 判据取 **Kotlin 侧**那行（'Encephalon stopped'）：
@@ -316,15 +456,27 @@ if (-not $SkipStopBrain -and $agentPort) {
 }
 
 # ── 7. 立刻回到 A2UI 页 ⇒ 发送（地址已退回外部端脑 ⇒ 401）──────
-$redBefore = -1; $redAfter = -1
 if (-not $SkipUi) {
-  Say '回「组件」页并发送（**要快**：大脑约 20 秒后自己回来）'
-  if (-not (OpenA2uiPage)) { throw '回不去 Agent2UI 页' }
-  $before = Shot '03-a2ui-before'
-  $rb = CountRed $before
-  $redBefore = $rb.Red
-  Say ('发之前，内容区红色像素：' + $redBefore + ' / ' + $rb.Total)
-  TypeMessage $Message
+  Say '回「组件」页并发送（**要快**：大脑十几秒后自己回来）'
+  if (-not (OpenA2uiPage -BackFirst)) { throw '回不去 Agent2UI 页' }
+  # ⚠️ **一次 dump 同时拿输入框与发送键** —— 分两次找要多花 1.5 秒，
+  #    而「大脑停后自己回来」的窗口只有 ~17~19 秒（实测 17.3 / 19.3 / 19.5）。
+  # ⚠️ 实测：切页回来输入框**不留字** ⇒ ⇒ 直接打。
+  $composer = $null
+  for ($i = 0; $i -lt 6; $i++) {
+    $composer = FindComposer
+    if ($composer -and $composer.Send) { break }
+    Start-Sleep -Milliseconds 700
+  }
+  if (-not $composer -or -not $composer.Send) { throw '找不到输入框/发送键' }
+  $c = CenterOf $composer.Et.bounds
+  Write-Host ('  ▸ 点输入框 @ ' + $c[0] + ',' + $c[1])
+  adb -s $Serial shell input tap $c[0] $c[1] | Out-Null
+  Start-Sleep -Milliseconds 700
+  adb -s $Serial shell input text $Message | Out-Null
+  Start-Sleep -Milliseconds 900
+  # ⚠️⚠️ **打字之后才取发送键** —— 点输入框会**弹起键盘** ⇒ 输入框被顶上去
+  #    （实测 2080 → 1372）⇒ ⇒ 打字前取的坐标会点在**键盘**上 ⇒ 消息根本发不出去。
   $send = FindSendButton
   if (-not $send) { throw '找不到发送键' }
   Write-Host ('  ▸ 点发送 @ ' + $send.X + ',' + $send.Y)
@@ -356,7 +508,63 @@ Say ('桩收到 /a2a：App 的请求 ' + $appHit + '（' + $appHits + ' 条，�
 
 # ── 9. 判据（机器可判）─────────────────────────────────────────
 $brainAbsent = (-not $agentPort)
+# ⚠️ **前提也要判**：停脑到发送之间，大脑要是自己回来了 ⇒ 地址又指回内嵌端脑
+#    ⇒ 请求变成 200 ⇒ 失败态**验不到** ⇒ ⇒ 不钉住这一条，其余判据会「因为失败而绿」。
+# ⚠️ **从「全程抓取的文件」读，而不是 `logcat -d`** —— 缓冲区被 dump 冲掉了 ⇒
+#    前提判据读到的可能是**残缺时间线** ⇒ ⇒ 「假象」当「事实」。
+$logLines = @()
+if (Test-Path $logcatFile) { $logLines = @(Get-Content $logcatFile -ErrorAction SilentlyContinue) }
+if ($logLines.Count -eq 0) { $logLines = @(adb -s $Serial logcat -d -v time 2>$null) }
+$stopIdx = -1
+for ($i = 0; $i -lt $logLines.Count; $i++) { if ($logLines[$i] -match 'Encephalon stopped') { $stopIdx = $i } }
+$brainCameBack = $false
+if ($stopIdx -ge 0) {
+  for ($i = $stopIdx + 1; $i -lt $logLines.Count; $i++) {
+    if ($logLines[$i] -match 'Encephalon started') { $brainCameBack = $true; break }
+  }
+}
+Say ('停脑之后大脑自己回来了吗：' + $brainCameBack)
+# ⚠️ **前提：Flutter 引擎没被重建** —— `onAttachedToEngine` 每出现一次 = 一个新 isolate
+#    ⇒ `main()` 重跑 ⇒ 「用户喊过停」的内存标记归零 ⇒ 大脑自己回来。
+$attachCount = 0
+foreach ($l in $logLines) { if ($l -match 'onAttachedToEngine') { $attachCount++ } }
+$engineRecreated = ($attachCount -gt 1)
+Say ('Flutter 引擎 attach 次数：' + $attachCount + '（>1 ⇒ Activity 被重建过 ⇒ isolate 重跑）')
+
+Say ''
+Say '── 根因取证（进程 pid + 事件时间线）────────────────────────'
+if (Test-Path $pidLog) {
+  $samples = @(Get-Content $pidLog -ErrorAction SilentlyContinue)
+  $changes = @(); $lastPid = $null
+  foreach ($s in $samples) {
+    $parts = $s -split '\s+', 2
+    if ($parts.Count -lt 2) { continue }
+    $curPid = $parts[1].Trim()
+    if ($curPid -ne $lastPid) { $changes += $s; $lastPid = $curPid }
+  }
+  Say ('pid 采样 ' + $samples.Count + ' 次，变化 ' + $changes.Count + ' 次：')
+  foreach ($c in $changes) { Say ('  ' + $c) }
+}
+Say '事件时间线（Encephalon / 进程生死 / Dart 守卫）：'
+foreach ($l in $logLines) {
+  if ($l -match 'Encephalon started|Encephalon stopped|Start proc|Killing|has died|Fatal signal|FATAL|放弃启动|叫停|嵌入式大脑已停止|嵌入式大脑启动成功') {
+    Say ('  ' + ($l -replace '\s+', ' ').Trim())
+  }
+}
+# ⚠️ **不许只钉「有红色」** —— 界面可能因为别的原因变红。
+#    ⇒ 钉住**决定性的那行字**：「HTTP 401」（协议值，不翻译）。
+$texts = @()
+foreach ($n in (DumpNodes)) {
+  $t = $n.text
+  if (-not $t) { $t = $n.'content-desc' }
+  if ($t) { $texts += ($t -replace '\s+', ' ') }
+}
+$saw401 = $false
+foreach ($t in $texts) { if ($t -match 'HTTP 401') { $saw401 = $true; Say ('  ▸ 界面文字：' + $t) } }
 $checks = [ordered]@{
+  '停脑之后大脑没有自己回来'    = (-not $brainCameBack)
+  'App 的引擎没有被重建'        = (-not $engineRecreated)
+  '界面说真话：出现 HTTP 401'   = $saw401
   '内嵌大脑不在跑 ⇒ 退回外部端脑' = ($brainStopped -or $brainAbsent)
   'App 的请求打到了外部端脑'    = $appHit
   'App 的请求**没带**影子锁'    = $appHitWithoutKey
@@ -371,6 +579,9 @@ foreach ($c in $checks.GetEnumerator()) {
 if ($failed.Count -gt 0) { Say ('没过：' + $failed.Count + ' 条') } else { Say '全过' }
 
 # ── 10. 收尾：撤隧道、停桩、还原无障碍设置 ───────────────────────
+# ⚠️ 收尾：先把后台抓取与采样停掉（否则文件一直涨、job 一直跑）。
+try { if ($logcatProc) { Stop-Process -Id $logcatProc.Id -Force -ErrorAction SilentlyContinue } } catch { }
+try { if ($pidJob) { Stop-Job $pidJob -ErrorAction SilentlyContinue; Remove-Job $pidJob -Force -ErrorAction SilentlyContinue } } catch { }
 adb -s $Serial reverse --remove 'tcp:60080' 2>$null | Out-Null
 try { Stop-Process -Id $stub.Id -Force -ErrorAction SilentlyContinue } catch { }
 if ($a11yBefore) {

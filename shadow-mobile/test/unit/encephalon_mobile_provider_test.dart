@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +9,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:shadow_mobile/providers/brain_model_source_provider.dart';
 import 'package:shadow_mobile/providers/telencephalon_provider.dart';
 import 'package:shadow_mobile/screens/model_management_screen.dart';
+import 'package:shadow_mobile/services/app_config_service.dart';
 import 'package:shadow_mobile/services/database/app_settings.dart';
 import 'package:shadow_mobile/services/database/model_item.dart';
 import 'package:shadow_mobile/services/database/repositories.dart';
@@ -413,6 +415,103 @@ void main() {
       );
     });
   });
+  /// 「用户喊停」必须**跨 isolate** 也要赢。
+  ///
+  /// 真机实测（2026-11-01 17:18）：从「嵌入式大脑」页连按两次 BACK ⇒
+  /// **Activity 被弹掉**（logcat: Activity onDestroy ⇒ onDetachedFromEngine）
+  /// ⇒ ⇒ **新 Dart isolate** ⇒ ⇒ main() 重跑 ⇒ ⇒ main.dart:57
+  /// ensureStarted() ⇒ ⇒ **15.4 秒后大脑自己回来了** ⇒ ⇒ 而「用户喊过停」
+  /// 那个标记原先只是**内存里的实例字段** ⇒ ⇒ 新 isolate ⇒ **归零**。
+  ///
+  /// ⇒ 所以「用户喊停」必须**落盘** ⇒ ⇒ 跨 isolate 也要赢。
+  group('「用户喊停」跨 isolate 也要赢', () {
+    late Directory tmpDir;
+    late File cfgFile;
+
+    setUp(() async {
+      tmpDir = await Directory.systemTemp.createTemp('shadow-cfg');
+      cfgFile = File('${tmpDir.path}/app_config.json');
+      AppConfigService.configFileOverride = () async => cfgFile;
+    });
+
+    tearDown(() async {
+      // ⚠️ **必须把标记抹回去** —— AppConfigService 是**单例** ⇒
+      //    标记留着会污染后面的用例（它们默认期望「没喊停过」）。
+      await AppConfigService().setBrainStoppedByUser(false);
+      AppConfigService.configFileOverride = null;
+      if (tmpDir.existsSync()) tmpDir.deleteSync(recursive: true);
+    });
+
+    test('配置里记着「用户喊停过」⇒ 新的 isolate 不自动拉起大脑', () async {
+      mockChannel(running: false);
+      await cfgFile.writeAsString(jsonEncode({'brainStoppedByUser': true}));
+      await AppConfigService().init();
+
+      final container = makeContainer();
+      final notifier = container.read(encephalonMobileProvider.notifier);
+
+      // 给自动启动留出机会（它本来会立刻 getStatus → start）。
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+
+      expect(
+        calls.any((c) => c.method == 'start'),
+        isFalse,
+        reason: '用户喊过停 ⇒ 新的 isolate 也不该自己把大脑拉回来',
+      );
+
+      // 连显式的自动入口也不行 —— 只有用户点「启动大脑」才能恢复。
+      await notifier.ensureStarted();
+      expect(
+        calls.any((c) => c.method == 'start'),
+        isFalse,
+        reason: '「用户喊停」必须赢 —— 自动入口不许违背用户的意愿',
+      );
+    });
+
+    test('stop() 会把「用户喊停」落盘', () async {
+      mockChannel(running: false);
+      await AppConfigService().init();
+
+      final container = makeContainer();
+      final notifier = container.read(encephalonMobileProvider.notifier);
+      await _waitUntil(
+        () => container.read(encephalonMobileProvider).status ==
+            EncephalonMobileStatus.running,
+      );
+
+      await notifier.stop();
+
+      final saved = jsonDecode(await cfgFile.readAsString()) as Map;
+      expect(
+        saved['brainStoppedByUser'],
+        isTrue,
+        reason: '「用户喊停」是持久偏好 —— 跨 isolate 也要赢',
+      );
+    });
+
+    test('start()（用户点「启动大脑」）会抹掉「用户喊停」', () async {
+      mockChannel(running: false);
+      await AppConfigService().init();
+
+      final container = makeContainer();
+      final notifier = container.read(encephalonMobileProvider.notifier);
+      await _waitUntil(
+        () => container.read(encephalonMobileProvider).status ==
+            EncephalonMobileStatus.running,
+      );
+
+      await notifier.stop();
+      await notifier.start();
+
+      final saved = jsonDecode(await cfgFile.readAsString()) as Map;
+      expect(
+        saved['brainStoppedByUser'],
+        isNull,
+        reason: '用户明确要大脑跑起来 ⇒ 标记要抹掉 ⇒ 下次启动 App 照旧默认拉起',
+      );
+    });
+  });
+
   /// 「大脑模型路由」—— **全局默认**（本地 / 云端）+ **每个叶区单独覆盖**。
   ///
   /// 关键约束：**远端引擎可以在运行时注册**（neuron 的派发表可以后加

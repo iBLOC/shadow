@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 
+import '../app_config_service.dart';
 import '../../l10n/current_l10n.dart';
 import '../../providers/brain_model_source_provider.dart';
 import '../../providers/telencephalon_provider.dart';
@@ -91,6 +92,14 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
 
   EncephalonMobileNotifier(this._service, this._ref)
       : super(const EncephalonMobileState()) {
+    // ⚠️ **「用户喊过停」是持久偏好，不是会话状态** ⇒ 从配置里读。
+    //
+    // 为什么必须落盘：那个标记原先只是**内存里的实例字段** ⇒ 而 Activity
+    // 被重建（新 Dart isolate）时它就**归零** ⇒ ⇒ 大脑会自己回来
+    // （真机实测 2026-11-01 17:18：BACK 退到底弹掉 Activity ⇒
+    // onDetachedFromEngine ⇒ 新 isolate ⇒ main() 重跑 ⇒ 15.4 秒后大脑自己起来）。
+    // ⇒ 「用户喊停必须赢」⇒ 赢到底 ⇒ 跨 isolate 也要赢。
+    _stoppedByUser = AppConfigService().brainStoppedByUser;
     // 把「等大脑就绪」的门挂到端脑 client 上。
     //
     // 嵌入式大脑启动要几秒，这期间端脑 client 还指着没人监听的默认端口
@@ -148,6 +157,11 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
       _log.fine('初始化检查失败: $e');
     }
     // 没在跑 —— **默认拉起来**。
+    // ⚠️ 但「用户喊过停」优先：用户说过停 ⇒ 就**别自己拉起来** ⇒ 等他点「启动大脑」。
+    if (_stoppedByUser) {
+      _log.info('用户之前喊停过大脑 —— 不自动启动（等用户点「启动大脑」）');
+      return;
+    }
     await ensureStarted();
   }
 
@@ -255,8 +269,11 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
   ///
   /// 点它 = 用户明确要大脑跑起来 ⇒ 解除「用户主动停过」的标记，
   /// 之后端脑请求又可以自动等它就绪了。
-  Future<bool> start() {
+  Future<bool> start() async {
     _stoppedByUser = false;
+    // ⚠️ **落盘**：用户明确要大脑跑起来 ⇒ 抹掉「喊停过」的标记 ⇒
+    //    下次启动 App 也就照旧默认拉起来。
+    await AppConfigService().setBrainStoppedByUser(false);
     return ensureStarted();
   }
 
@@ -396,6 +413,9 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
     state = state.copyWith(status: EncephalonMobileStatus.stopping);
     // 用户主动停的 —— 记一笔，免得「等大脑就绪」的门把它偷偷拉回来。
     _stoppedByUser = true;
+    // ⚠️ **落盘**：「用户喊停」是**持久偏好** ⇒ 跨 isolate 也要赢
+    //    （真机实测：Activity 重建 ⇒ 新 isolate ⇒ 内存标记归零 ⇒ 大脑自己回来）。
+    await AppConfigService().setBrainStoppedByUser(true);
 
     try {
       await _service.stop();

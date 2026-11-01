@@ -16,6 +16,12 @@ class AppConfigService {
   String? _telencephalonAdminToken;
   String? _telencephalonShadowKey;
 
+  // 「用户主动停过大脑」—— **持久偏好**，不是会话状态。
+  //
+  // 为什么必须落盘：那个标记若只活在内存里 ⇒ Activity 被重建（新 Dart
+  // isolate）它就归零 ⇒ ⇒ 大脑会自己回来 ⇒ ⇒「用户喊停」就没赢。
+  bool _brainStoppedByUser = false;
+
   // 外观偏好（个人助理的外观是用户自己的）
   int? _accentColorValue;
   double? _glassIntensity;
@@ -51,6 +57,11 @@ class AppConfigService {
   /// Telencephalon shadow key — null means do not send `X-Shadow-Key`.
   String? get telencephalonShadowKey => _telencephalonShadowKey;
 
+  /// 用户主动停过大脑？
+  ///
+  /// true = 别自动拉起来（等用户点「启动大脑」）；false = 从没喊停过。
+  bool get brainStoppedByUser => _brainStoppedByUser;
+
   /// 用户选的主题色（ARGB int）— null 表示用默认中性色。
   int? get accentColorValue => _accentColorValue;
 
@@ -80,6 +91,7 @@ class AppConfigService {
         _telencephalonBaseUrl = config['telencephalonBaseUrl'] as String?;
         _telencephalonAdminToken = config['telencephalonAdminToken'] as String?;
         _telencephalonShadowKey = config['telencephalonShadowKey'] as String?;
+        _brainStoppedByUser = config['brainStoppedByUser'] == true;
         _accentColorValue = config['accentColor'] as int?;
         _glassIntensity = (config['glassIntensity'] as num?)?.toDouble();
         _surfaceOverrideValue = config['surfaceOverride'] as int?;
@@ -91,6 +103,7 @@ class AppConfigService {
       _telencephalonBaseUrl = null;
       _telencephalonAdminToken = null;
       _telencephalonShadowKey = null;
+      _brainStoppedByUser = false;
       _accentColorValue = null;
       _glassIntensity = null;
       _surfaceOverrideValue = null;
@@ -110,6 +123,7 @@ final config = {
         'telencephalonAdminToken': _telencephalonAdminToken,
       if (_telencephalonShadowKey != null)
         'telencephalonShadowKey': _telencephalonShadowKey,
+      if (_brainStoppedByUser) 'brainStoppedByUser': true,
       if (_accentColorValue != null) 'accentColor': _accentColorValue,
       if (_glassIntensity != null) 'glassIntensity': _glassIntensity,
       if (_surfaceOverrideValue != null)
@@ -168,6 +182,15 @@ final config = {
   /// stop sending the `X-Shadow-Key` header.
   Future<void> setTelencephalonShadowKey(String? key) async {
     _telencephalonShadowKey = (key == null || key.isEmpty) ? null : key;
+    await _saveConfig();
+  }
+
+  /// 记下「用户主动停过大脑」（持久）。
+  ///
+  /// true = 别自动拉起来（等用户点「启动大脑」）；false = 抹掉标记
+  /// ⇒ 恢复「默认启动」。
+  Future<void> setBrainStoppedByUser(bool value) async {
+    _brainStoppedByUser = value;
     await _saveConfig();
   }
 
