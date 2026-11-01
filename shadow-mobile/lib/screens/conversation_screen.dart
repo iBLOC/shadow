@@ -110,27 +110,10 @@ class ConversationsNotifier extends StateNotifier<ConversationsState> {
 /// 端脑的 `ConversationView` **带着完整 history** ⇒ ⇒ 标题可以**零成本**
 /// 从第一条 `user` 轮次里取（**不用**额外请求）。
 ///
-/// 取不到（空会话 / 历史里没有用户发言）⇒ 退回「新会话」。
-String conversationTitleOf(Conversation c) {
-  for (final turn in c.history) {
-    if (turn.role != 'user') continue;
-    final text = turn.text.trim().replaceAll(RegExp(r'\s+'), ' ');
-    if (text.isEmpty) continue;
-    return truncateConversationTitle(text);
-  }
-  return currentL10n().conversationNewSession;
-}
-
-/// 标题最多这么长 —— 再长就把卡片撑破了。
-///
-/// ⚠️ 用 **runes**（码点）而不是 `length`（UTF-16 码元）计数：
-/// emoji 这类星平面字符占**两个**码元 ⇒ 按码元切会切出半个代理对
-/// ⇒ 渲染成「豆腐块」。
-String truncateConversationTitle(String text, {int max = 30}) {
-  final runes = text.runes.toList();
-  if (runes.length <= max) return text;
-  return '${String.fromCharCodes(runes.take(max))}…';
-}
+/// ⚠️ 派生的**规则只有一份**（`lib/utils/conversation_title.dart`）——
+/// 对话页也用它 ⇒ ⇒ 列表页与对话页显示的标题**不会分叉**。
+String conversationTitleOf(Conversation c) =>
+    c.derivedTitle ?? currentL10n().conversationNewSession;
 
 class ConversationScreen extends ConsumerWidget {
   const ConversationScreen({super.key});

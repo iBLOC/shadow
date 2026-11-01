@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../generated/l10n/app_localizations.dart';
 import '../../providers/chat_provider.dart';
+import '../../utils/conversation_title.dart';
 import '../../providers/conversation_mode_provider.dart';
 import '../../utils/chat_state_l10n.dart';
 import '../../theme/app_colors.dart';
@@ -50,6 +51,29 @@ class LocalChatView extends ConsumerStatefulWidget {
 }
 
 class _LocalChatViewState extends ConsumerState<LocalChatView> {
+  /// 当前会话那行字：**标题 · 叶区名**。
+  ///
+  /// ⚠️ 标题 = **第一条用户发言**（`deriveConversationTitle`）⇒ ⇒
+  /// 它就是**屏幕上**这条会话的话题 ⇒ ⇒ 规则只有一份
+  /// （`lib/utils/conversation_title.dart`）⇒ ⇒ 列表页与对话页**不会分叉**。
+  String _conversationLabel(ChatState state, AppLocalizations l10n) {
+    final title = _firstUserMessage(state.messages);
+    final agent = state.activeConversationAgent;
+    final head = title ?? l10n.conversationNewSession;
+    if (agent == null || agent.isEmpty) return head;
+    return '$head · $agent';
+  }
+
+  /// 第一条**用户**发言 —— 会话的标题就是它。
+  String? _firstUserMessage(List<ChatMessageModel> messages) {
+    for (final m in messages) {
+      if (m.role != ChatRole.user) continue;
+      final title = deriveConversationTitle(m.content);
+      if (title != null) return title;
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final chatState = widget.chatState;
@@ -99,6 +123,49 @@ class _LocalChatViewState extends ConsumerState<LocalChatView> {
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
                   color: AppColors.error,
+                ),
+              ],
+            ),
+          ),
+        // 当前是**哪条会话**。
+        //
+        // ⚠️ 端脑的会话**没有标题字段** ⇒ 标题是客户端**派生**的 ⇒ ⇒
+        // 多会话里唯一的身份线索就是它 ⇒ ⇒ 不显示它 ⇒ 用户根本不知道
+        // 自己在哪条会话里 ⇒ ⇒ 「消息落到哪条会话」成了一件**用户猜**的事。
+        //
+        // ✅ 关键：标题从 ~state.messages~（**屏幕上真正显示的那些消息**）
+        // 派生 ⇒ ⇒ 而不是另存一份 ⇒ ⇒ 界面显示的这条，与「下一条消息会
+        // 落进去的那条」，**必然是同一条** ⇒ ⇒ 不变量是**结构上**成立的。
+        //
+        // ⚠️ 切会话失败时这里显示的**仍然是旧那条**（失败就不换）⇒ ⇒
+        // 用户看得见自己还在哪儿 ⇒ ⇒ 而输入框同时被禁用（~canChat~）
+        // ⇒ ⇒ 在他明确承认之前，不会有消息落进**别的**会话。
+        if (chatState.sessionId != null)
+          Padding(
+            key: const ValueKey('active-conversation'),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.forum_outlined,
+                  size: 14,
+                  color: isDark
+                      ? AppColors.darkTextSecondary
+                      : AppColors.lightTextSecondary,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    _conversationLabel(chatState, l10n),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isDark
+                          ? AppColors.darkTextSecondary
+                          : AppColors.lightTextSecondary,
+                    ),
+                  ),
                 ),
               ],
             ),

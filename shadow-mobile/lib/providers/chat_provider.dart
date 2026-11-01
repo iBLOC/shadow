@@ -68,6 +68,21 @@ class ChatState {
   final String streamingText;
   final String? sessionId;
 
+  /// 当前会话的**叶区名**（端脑的 ~agent~）。
+  ///
+  /// ⚠️ 它只是**副标签** —— 会话的「身份」是标题（从
+  /// ~messages~ 派生，见 ~lib/utils/conversation_title.dart~），
+  /// 端脑那份数据里**没有标题字段**。
+  final String? activeConversationAgent;
+
+  /// **切会话失败**时记下打不开的是**哪一条**（会话 id）。
+  ///
+  /// ⚠️ 它同时是**闸门**：非空 ⇒ ~canChat~ 为假 ⇒ ⇒ 切失败之后
+  /// **不许再往别的会话里写消息** ⇒ ⇒ 否则用户以为自己在 B、
+  /// 消息却落进 A ⇒ ⇒ **消息落错会话**（它看起来是成功的 ⇒ 比
+  /// 「发不出去」严重得多）。
+  final String? failedSwitchSessionId;
+
   const ChatState({
     this.messages = const [],
     this.isLoading = false,
@@ -81,6 +96,8 @@ class ChatState {
     this.voiceState = VoiceState.idle,
     this.streamingText = '',
     this.sessionId,
+    this.activeConversationAgent,
+    this.failedSwitchSessionId,
   });
 
   /// 能不能发消息。
@@ -91,8 +108,17 @@ class ChatState {
   /// ⚠️ 这里**曾经**是 `isInitialized || isLitertReady || mode == ChatMode.off`
   /// —— 前两个都是**本地引擎**的状态 ⇒ 没装本地模型的设备上**输入框整个
   /// 是禁用的**，移动端对话页一条消息都发不出去（`425e666` 修过一次）。
-  /// 现在本地引擎没了，这个判据也就没必要了 —— UI 直接看 `isLoading`。
-  bool get canChat => true;
+  /// ⇒ ⇒ **别再拿「本地引擎状态」当可用性判据**。
+  ///
+  /// ✅ 现在只剩**一个**前置条件：**当前会话的身份是确定的**
+  /// ⇒ ⇒ 判据 = 「上一次切会话**没有失败**」。
+  ///
+  /// ⚠️ 为什么切失败就不许写：切失败 ⇒ **没有换会话**（界面上的还是
+  /// 上一条）⇒ ⇒ 而用户以为他已经换过去了 ⇒ ⇒ 再写下去，消息会落进
+  /// **另一条**会话 ⇒ ⇒ **消息落错会话**（它看起来是成功的）。
+  /// ⇒ ⇒ 用户明确「关掉错误横幅」= 接受留在当前这条 ⇒ 那时闸门打开
+  /// （见 `clearError()`）。
+  bool get canChat => failedSwitchSessionId == null;
 
   static const _omit = _CopyWithOmit();
 
@@ -109,6 +135,8 @@ class ChatState {
     VoiceState? voiceState,
     String? streamingText,
     String? sessionId,
+    Object? activeConversationAgent = _omit,
+    Object? failedSwitchSessionId = _omit,
   }) {
     final explicitError = !identical(errorMessage, _omit);
     final clearError = explicitError && errorMessage == null;
@@ -133,6 +161,12 @@ class ChatState {
       voiceState: voiceState ?? this.voiceState,
       streamingText: streamingText ?? this.streamingText,
       sessionId: sessionId ?? this.sessionId,
+      activeConversationAgent: identical(activeConversationAgent, _omit)
+          ? this.activeConversationAgent
+          : activeConversationAgent as String?,
+      failedSwitchSessionId: identical(failedSwitchSessionId, _omit)
+          ? this.failedSwitchSessionId
+          : failedSwitchSessionId as String?,
     );
   }
 }
@@ -325,6 +359,14 @@ class ChatNotifier extends StateNotifier<ChatState> {
   /// 给的是文件路径，Kotlin 那边要的是目录），用户看到的只是一条
   /// 「已就绪」的红横幅和一句永远等不来的回复。
   Future<void> _sendToTelencephalon(String prompt) async {
+    // ⚠️ **闸门（漏斗就在这儿）**：上一次切会话失败了 ⇒ 现在**不知道自己在
+    // 哪条会话里** ⇒ ⇒ 不许写 ⇒ ⇒ 否则用户以为自己在 B、消息却落进 A
+    // ⇒ ⇒ **消息落错会话**（它看起来是成功的）。
+    // ⚠️ 原来的错误横幅**留着**（它已经说明了为什么）⇒ 别用新文案盖掉它。
+    // ⚠️ 这一层是**兜底**：界面本来就用 ~canChat~ 把输入框禁了 ⇒
+    // ⇒ 但守卫放在**漏斗**上 ⇒ 所有入口都归它管（一条规则、一处实现）。
+    if (state.failedSwitchSessionId != null) return;
+
     state = state.copyWith(
       messages: [
         ...state.messages,
@@ -340,13 +382,23 @@ class ChatNotifier extends StateNotifier<ChatState> {
       // 与桌面端同一条链路：桌面端的 `ConversationPage.tsx` 也是
       // `createConversation` + `streamMessage`，人设提示词走
       // `createConversation({ system })`。
-      final sessionId =
-          _currentSessionId ??
-          (await _telencephalonClient.createConversation(
-            systemPrompt: _systemPromptProvider(),
-          )).id;
+      String sessionId;
+      String? createdAgent;
+      final existing = _currentSessionId;
+      if (existing != null) {
+        sessionId = existing;
+      } else {
+        final created = await _telencephalonClient.createConversation(
+          systemPrompt: _systemPromptProvider(),
+        );
+        sessionId = created.id;
+        createdAgent = created.agent;
+      }
       _currentSessionId = sessionId;
       state = state.copyWith(sessionId: sessionId);
+      if (createdAgent != null) {
+        state = state.copyWith(activeConversationAgent: createdAgent);
+      }
 
       final buffer = StringBuffer();
       state = state.copyWith(streamingText: '');
@@ -447,6 +499,12 @@ class ChatNotifier extends StateNotifier<ChatState> {
       _currentSessionId = conversation.id;
       state = state.copyWith(
         sessionId: conversation.id,
+        // 当前会话的**叶区名**（副标签）。会话的「身份」是标题 ——
+        // 标题从 ~state.messages~ 派生（屏幕上真正显示的那些消息）⇒ ⇒
+        // 界面显示的这条，与下一条消息会落进去的那条，**必然是同一条**。
+        activeConversationAgent: conversation.agent,
+        // 切成功了 ⇒ 上一次的失败**作废** ⇒ 闸门打开。
+        failedSwitchSessionId: null,
         // ⚠️ **人设轮次不画成气泡** —— 端脑把会话的**人设**存成第一条轮次
         // （`role=agent` + `[system] ` 前缀）⇒ 它是**配置**，不是对话 ⇒
         // 原样画出来 ⇒ 用户看到自己的配置原文被当成大脑发言顶在最上面。
@@ -465,6 +523,12 @@ class ChatNotifier extends StateNotifier<ChatState> {
         errorMessage: 'Error: $e',
         errorMessageL10nKey: ChatStateL10nKey.errorGeneric,
         errorMessageArg: e.toString(),
+        // ⚠️ **不换会话**（当前会话原样留着）⇒ ⇒ 但**记下打不开的是哪条**
+        // ⇒ ⇒ ~canChat~ 变假 ⇒ ⇒ 切失败之后**不许再往别的会话里写**
+        // ⇒ ⇒ 否则用户以为自己在 B、消息却落进 A ⇒ **消息落错会话**。
+        // ⚠️ 界面同时显示的仍是**当前**那条（标题从 ~state.messages~ 派生）
+        // ⇒ ⇒ 用户看得见自己还在哪儿 ⇒ ⇒ 这不是「静默」，是「说真话」。
+        failedSwitchSessionId: sessionId,
       );
       return false;
     }
@@ -484,6 +548,9 @@ class ChatNotifier extends StateNotifier<ChatState> {
       _currentSessionId = conversation.id;
       state = state.copyWith(
         sessionId: conversation.id,
+        activeConversationAgent: conversation.agent,
+        // 新开一条 ⇒ 上一次切会话的失败**作废** ⇒ 闸门打开。
+        failedSwitchSessionId: null,
         messages: const [],
         isLoading: false,
         streamingText: '',
@@ -778,7 +845,13 @@ class ChatNotifier extends StateNotifier<ChatState> {
   }
 
   void clearError() {
-    state = state.copyWith(errorMessage: null);
+    state = state.copyWith(
+      errorMessage: null,
+      // ⚠️ 关掉横幅 = 用户明确接受「我就留在当前这条会话里」⇒ ⇒ 闸门打开
+      // ⇒ ⇒ 这时候界面必须**显示当前会话**（标题从 ~state.messages~ 派生）
+      // ⇒ ⇒ 「消息落到哪条会话」依然不靠猜。
+      failedSwitchSessionId: null,
+    );
   }
 }
 

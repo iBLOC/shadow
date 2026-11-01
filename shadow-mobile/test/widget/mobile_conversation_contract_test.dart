@@ -363,6 +363,116 @@ void main() {
       expect(notifier.state.messages.last.content.contains('[tool_result]'), isFalse);
     });
 
+    test('切会话失败 ⇒ **不换会话** ＋ **闸门关上** ＋ 错误说真话', () async {
+      final client = liveClient((req) async {
+        if (req.url.path == '/shadow/v1/conversations/conv-missing') {
+          return http.Response(
+            jsonEncode({
+              'error': {'code': 4040, 'message': 'conversation not found'},
+            }),
+            404,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        }
+        return http.Response(
+          jsonEncode(serverConversation('conv-a', 'temporal', _historyA)),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      });
+
+      final notifier = ChatNotifier(MockTtsEngine(), client);
+      // 先切到一条**能打开**的会话。
+      expect(await notifier.switchTo('conv-a'), isTrue);
+      expect(notifier.state.activeConversationAgent, 'temporal');
+      expect(notifier.state.canChat, isTrue);
+
+      // 再切一条**打不开**的。
+      expect(await notifier.switchTo('conv-missing'), isFalse);
+
+      // ⚠️ **没有换会话** —— 当前会话还是原来那条（界面显示的没变）。
+      expect(notifier.state.activeConversationAgent, 'temporal');
+      expect(notifier.state.messages.length, 2);
+      expect(notifier.state.messages.first.content, '第一条问题');
+      // ⚠️ **闸门关上** ⇒ 不许再往别的会话里写（否则消息落错会话）。
+      expect(notifier.state.canChat, isFalse);
+      expect(notifier.state.failedSwitchSessionId, 'conv-missing');
+      // 错误说真话（真实状态码看得见）。
+      expect(notifier.state.errorMessage, contains('404'));
+    });
+
+    test('切会话失败 ⇒ 再发消息**一条都不发出去**（不许落进别的会话）', () async {
+      final requests = <http.Request>[];
+      final client = liveClient((req) async {
+        requests.add(req);
+        if (req.url.path == '/shadow/v1/conversations/conv-missing') {
+          return http.Response(
+            jsonEncode({'error': {'code': 4040}}),
+            404,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        }
+        if (req.url.path.endsWith(':stream')) {
+          return http.Response(
+            'data: {"type":"delta","delta":"这条回复不该出现"}\n',
+            200,
+            headers: {'content-type': 'text/event-stream; charset=utf-8'},
+          );
+        }
+        return http.Response(
+          jsonEncode(serverConversation('conv-a', 'temporal', _historyA)),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      });
+
+      final notifier = ChatNotifier(MockTtsEngine(), client);
+      await notifier.switchTo('conv-a');
+      await notifier.switchTo('conv-missing'); // 失败
+      requests.clear();
+
+      await notifier.generateResponse('这条消息绝不能落进别的会话');
+
+      // ⚠️ 一条请求都不该发出去（连 SSE 都不该发）。
+      expect(requests.where((r) => r.url.path.endsWith(':stream')), isEmpty);
+      // 界面上也不该多出这条用户消息（它根本没发出去）。
+      expect(
+        notifier.state.messages.any(
+          (m) => m.content.contains('绝不能落进'),
+        ),
+        isFalse,
+      );
+    });
+
+    test('关掉错误横幅 ⇒ 闸门重新打开（用户明确接受留在当前这条）', () async {
+      final client = liveClient((req) async {
+        if (req.url.path == '/shadow/v1/conversations/conv-missing') {
+          return http.Response(
+            jsonEncode({'error': {'code': 4040}}),
+            404,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        }
+        return http.Response(
+          jsonEncode(serverConversation('conv-a', 'temporal', _historyA)),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      });
+
+      final notifier = ChatNotifier(MockTtsEngine(), client);
+      await notifier.switchTo('conv-a');
+      await notifier.switchTo('conv-missing');
+      expect(notifier.state.canChat, isFalse);
+
+      notifier.clearError();
+
+      expect(notifier.state.canChat, isTrue);
+      expect(notifier.state.failedSwitchSessionId, isNull);
+      // 而当前会话**没变** ⇒ 用户知道自己还在哪条。
+      expect(notifier.state.activeConversationAgent, 'temporal');
+    });
+
     test('方言层：客户端认得端脑那两个机器前缀', () async {
       final client = liveClient((req) async {
         return http.Response(

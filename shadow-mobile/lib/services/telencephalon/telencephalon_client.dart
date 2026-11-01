@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../client_tools/client_tool_registry.dart';
+import '../../utils/conversation_title.dart';
 
 class SessionExport {
   final String sessionId;
@@ -335,6 +336,20 @@ class Conversation {
         .map((e) => ConversationTurn.fromJson(e as Map<String, dynamic>))
         .toList(),
   );
+
+  /// 从端脑那份数据里派生的**可读标题**。
+  ///
+  /// 规则与实现见 `lib/utils/conversation_title.dart`（**唯一**一份）。
+  ///
+  /// 返回 `null` ⇒ 用户还没说过话（空会话）⇒ 由调用方决定回退文案。
+  String? get derivedTitle {
+    for (final turn in history) {
+      if (turn.role != 'user') continue;
+      final title = deriveConversationTitle(turn.text);
+      if (title != null) return title;
+    }
+    return null;
+  }
 }
 
 class SendMessageRequest {
