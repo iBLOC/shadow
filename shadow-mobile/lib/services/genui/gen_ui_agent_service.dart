@@ -3,6 +3,13 @@ import 'package:genui/genui.dart';
 import 'package:genui_a2ui/genui_a2ui.dart';
 import 'package:logging/logging.dart';
 
+// ⚠️ **实现级导入**：上游**不导出**异常类型
+// （`lib/genui_a2ui.dart` 只导出 connector 与 content generator）
+// ⇒ 而我们要**按类型**读出 HTTP 状态码
+// （那是**协议值**，不翻译 ⇒ 承「协议值留在英文」那条）。
+// ignore_for_file: implementation_imports
+import 'package:genui_a2ui/src/a2a/client/a2a_exception.dart';
+
 import 'shadow_key_sse_transport.dart';
 
 /// Connection status for A2A server
@@ -186,15 +193,54 @@ class GenUIAgentService {
     // `dispose()` 会关掉 transport 的 http.Client ⇒ 那个还在飞的流被中止
     // ⇒ `A2AException.network` ⇒ 一路冒到这里。
     //
-    // ⚠️ **接住它不会丢信息**：同一个错误**已经**通过
-    // `contentGenerator.errorStream` → `ContentGeneratorError` 走过了
-    // （`_setupListeners` 里已经记进 `_lastError` 并把状态置成 `error`
-    // ⇒ 界面看得到）⇒ 这条 future 只是**同一条错误的第二个出口**。
+    // ⚠️⚠️ **接住它不只是「别炸」—— 它是 HTTP 层失败的**唯一**出口**：
+    // `contentGenerator.errorStream` **只**报 A2A 的**任务状态**失败
+    // （`genui_a2ui-0.7.0/lib/src/a2ui_agent_connector.dart:164-173`）
+    // ⇒ 而 **HTTP 层**的失败（401 / 404 / 500 / 连接被拒）
+    // **不会**进那条流
+    // ⇒ 以前这里只打一行 warning ⇒ 状态停在 `connecting`
+    // ⇒ ⇒ **失败长得像「还在连」**。
+    // ⇒ 现在这条 future 也**如实上报**（见 [_reportFailure]）。
     _conversation
         .sendRequest(UserMessage.text(text))
         .catchError((Object error, StackTrace stackTrace) {
-      _logger.warning('A2UI 请求失败: $error');
+      _reportFailure(error);
     });
+  }
+
+  /// 把一次失败（**任何来源**）如实报出去。
+  ///
+  /// ⚠️ 为什么要单独一个方法：`errorStream` **只**报 A2A 的**任务状态**失败
+  /// （`a2ui_agent_connector.dart:164-173`）⇒ **HTTP 层**的失败
+  /// （401 / 404 / 500 / 连接被拒）走的是**异常**那条路 ⇒
+  /// 以前只在 `sendMessage` 里打一行 warning ⇒ 界面停在「正在连接端脑…」
+  /// ⇒ ⇒ **失败长得像「还在连」**。
+  void _reportFailure(Object error) {
+    final reason = _describeFailure(error);
+    _logger.warning('A2UI 失败: $reason');
+    _lastError = reason;
+    // ⚠️ dispose 之后这条流可能已经关了 ⇒ 加之前先看一眼。
+    if (!_errorReasonController.isClosed) {
+      _errorReasonController.add(reason);
+    }
+    _updateConnectionStatus(ConnectionStatus.error);
+  }
+
+  /// 把一次失败翻成一句**能给人看**的话。
+  ///
+  /// ⚠️ **状态码是协议值**（`HTTP 401`）⇒ 留在原样，**不翻译**
+  /// （承「协议值不翻」那条：两端对同一个协议值要说同一句话）。
+  static String _describeFailure(Object error) {
+    if (error is A2AHttpException) {
+      final reason = error.reason?.trim();
+      final head = 'HTTP ${error.statusCode}';
+      return (reason == null || reason.isEmpty) ? head : '$head $reason';
+    }
+    if (error is A2ANetworkException) {
+      final message = error.message.trim();
+      return message.isEmpty ? 'network error' : message;
+    }
+    return error.toString();
   }
 
   void disconnect() {

@@ -168,7 +168,69 @@ void main() {
     service.dispose();
     await server.close(force: true);
   });
+
+  test('端脑在 **HTTP 层**拒了（401）⇒ 原因也要到界面上', () async {
+    // ⚠️ **这一条是上一片漏掉的另一半** —— 「失败说真话」只覆盖了
+    // A2A 的**任务状态**失败（`errorStream` 只报那个）；
+    // 而 **HTTP 层**的失败（401 / 404 / 500 / 连接被拒）
+    // **根本不会**进那条流（上游只 catch `FormatException`，
+    // `a2ui_agent_connector.dart:228`）⇒ ⇒ 以前只打一行 warning
+    // ⇒ 状态停在 `connecting` ⇒ ⇒ **失败长得像「还在连」**。
+    HttpOverrides.global = null;
+
+    final server = await _fakeBrainStatus(401, 'unauthorized');
+    final service = GenUIAgentService(
+      serverUrl: 'http://${server.address.address}:${server.port}/a2a',
+      catalog: ShadowCatalog.create(),
+    );
+
+    final reasons = <String>[];
+    final subscription = service.errorReasonStream.listen((reason) {
+      if (reason != null) reasons.add(reason);
+    });
+
+    service.sendMessage('我的任务');
+    await _waitUntil(() => reasons.isNotEmpty);
+
+    // ✅ 真实原因上屏（含状态码 ⇒ 用户看得懂发生了什么）。
+    expect(reasons.first, contains('401'));
+    // ✅ 状态必须变成「失败」，而不是停在「正在连接」。
+    expect(service.connectionStatus, ConnectionStatus.error);
+
+    await subscription.cancel();
+    service.dispose();
+    await server.close(force: true);
+  });
+
+  test('端脑**连不上** ⇒ 原因也要到界面上', () async {
+    HttpOverrides.global = null;
+
+    // 一个**没人听**的端口（先起再关 ⇒ 拿到一个确定没人听的端口号）。
+    final dead = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    final deadPort = dead.port;
+    await dead.close(force: true);
+
+    final service = GenUIAgentService(
+      serverUrl: 'http://127.0.0.1:$deadPort/a2a',
+      catalog: ShadowCatalog.create(),
+    );
+
+    final reasons = <String>[];
+    final subscription = service.errorReasonStream.listen((reason) {
+      if (reason != null) reasons.add(reason);
+    });
+
+    service.sendMessage('我的任务');
+    await _waitUntil(() => reasons.isNotEmpty);
+
+    expect(reasons.first, isNotEmpty);
+    expect(service.connectionStatus, ConnectionStatus.error);
+
+    await subscription.cancel();
+    service.dispose();
+  });
 }
+
 
 /// 等到 [predicate] 成立（上限 10 秒）。
 Future<void> _waitUntil(bool Function() predicate) async {
@@ -177,6 +239,18 @@ Future<void> _waitUntil(bool Function() predicate) async {
     await Future<void>.delayed(const Duration(milliseconds: 50));
   }
   throw StateError('等待超时（10 秒）');
+}
+
+
+/// 起一个只会回指定状态码的假端脑（模拟 **HTTP 层**的拒绝）。
+Future<HttpServer> _fakeBrainStatus(int status, String body) async {
+  final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+  server.listen((request) async {
+    request.response.statusCode = status;
+    request.response.write(body);
+    await request.response.close();
+  });
+  return server;
 }
 
 /// 起一个只会说 SSE 的假端脑。
