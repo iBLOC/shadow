@@ -694,3 +694,69 @@ The same `src/` produces **two artefacts**:
     ⇒ **英文界面里也是中文** ⇒ 既有小瑕疵（i18n 文件当时在飞 ⇒ 没动）。
   - **⚠️ 还欠的**：**移动端真机那一截**；**「空」仍是客户端的结构推断**
     （端脑还没显式声明状态）；**桌面端没有 shadow key 输入入口**。
+
+## STATE STATUS (2026-11-01, 「读不到」不许长得像「没有」—— 桌面端三态收进一份实现)
+
+**Completed** ✅:
+
+- **⚠️ 病（三处，同一个病：「问不到」被折成「没有」）**：
+  - `pages/SettingsPage.tsx` 两处 `fetchProviders` 的 `catch { setProviders([]) }`
+    ⇒ ⇒ 供应商列表**读不到**时界面显示「**暂无模型供应商**」⇒ ⇒ 用户于是去
+    **重复配置已经配好的东西**⇒ ⇒ 而真正的原因（门关着 / 端脑没起）
+    **一个字都没人告诉他**；
+  - 同文件 `InternalAgentCard` 的**模型下拉** ⇒ ⇒ 读不到时只剩「不设默认模型」
+    一个选项 ⇒ ⇒ 等于告诉用户「你没模型」；
+  - `pages/ModelOnboardingPage.tsx` ⇒ ⇒ 云那半 401（门关着）⇒ ⇒ 这一页说
+    「**你没配模型**」⇒ ⇒ 而 `AppInitializer` 那一处**已经修好了**（不踢）
+    ⇒ ⇒ **同一个病、两处症状**⇒ ⇒ 而用户看到的恰恰是**没好的那一处**
+    （onboarding 页就是「说没配」的那张脸）。
+- **✅ 修（一份实现，多处调用）**：新模块 `src/lib/modelConfigProbe.ts`
+  ⇒ ⇒ 三态判定（`configured` / `not-configured` / `unknown`）+ 两发探测
+  （`probeCloudProviders` / `probeLocalModels`）+ 列表三态
+  （`providerListState`：`ready` / `empty` / `unreadable`）
+  ⇒ ⇒ **`AppInitializer` 与 `ModelOnboardingPage` 现在共用它**
+  ⇒ ⇒（以前各抄一份 ⇒ ⇒ 改了一边忘了另一边 ⇒ ⇒ 一个病两处症状）。
+  - ⚠️ **`combineModelConfig` 是「搬运」不是「改判」**：与 `AppInitializer`
+    修复前的行为**逐条等价**（云那半问到了才算「没配」；本地那半只在「有」
+    时加分 —— 本地读不到 ≠ 用户没配）⇒ ⇒ **Tauri 路径也改走它**（本地那半
+    原来自己打 neuron 面，现在也走共享探测 ⇒ ⇒ 「本地模型在哪张面」只写一次）。
+  - ⚠️ **唯一一处比旧代码更严**：云那半 **200 但 body 形状不对**（端脑回的是
+    `Json<Vec<ProviderView>>` ＝ 数组；拿到别的形状 ⇒ 这一发**没问对**）
+    ⇒ ⇒ 旧写法当成「确认空」（＝确认没配）⇒ ⇒ 现在归「**问不到**」
+    ⇒ ⇒ 免得一个版本不匹配的部署**把用户踢回向导**。
+- **✅ 界面**：onboarding 页新增 `unknown` 分支（「连不上端脑」＋「稍后配置」
+  ⇒ ⇒ **不放也不拒**）；设置页供应商列表三态（`unreadable` ⇒ 「读不到供应商
+  列表」＋原因提示，**不用**「暂无模型供应商」）＋ 底部计数三态；内部代理卡片
+  的模型下拉在读不到时**禁用**并显示读不到的原因（**不许**只剩「不设默认模型」）。
+- **⚠️ 一条可复用的工程事实（本轮当场踩到并验掉）**：**模块加载时求值**会引入
+  隐性耦合 —— 新模块若在**导入时**就调 `prefrontalUrl()` / `neuronUrl()`
+  ⇒ ⇒ 那些对 `platform` 做**部分 mock** 的既有测试（只给 `isTauri` /
+  `prefrontalUrl`）**直接加载失败**（vitest：No "neuronUrl" export is defined）
+  ⇒ ⇒ ⇒ 改成**函数里惰性求值** ⇒ ⇒ 导入本模块不再碰 `platform` ⇒ ⇒ 老测试照旧
+  ⇒ ⇒ **「新模块在加载时碰了谁」是一条要付的税**。
+- **⚠️ 另一条：机器闸判不判得了，取决于「形状」**：闸
+  `scripts/check-provider-admin-headers.mjs` 要在**同一个文件里**找到
+  ① base 的赋值 ② 凭据的来源 ⇒ ⇒ 把 base 做成**形参** ⇒ ⇒ 闸**判不了**
+  （判不了 ≠ 没问题 ⇒ ⇒ 闸会报红）⇒ ⇒ ⇒ 所以共享模块**自己拥有**两张面与
+  凭据（`adminHeaders()` 只在这一处出现）⇒ ⇒ 闸直接判绿：「headers（简写）
+  —— 它来自 admin 凭据」⇒ ⇒ **闸绿 8 / 红 0 / 判不了 0**。
+- **✅ 证据**：`tsc --noEmit` EXIT=0；新 `src/lib/__tests__/modelConfigProbe.test.ts`
+  **21 条**；`AppInitializer.test.tsx` **6 条**（重构后逐条仍绿 ⇒ 证明等价）；
+  `ModelOnboardingPage.test.tsx` **3 ⇒ 6 条**（新 3 条钉「问不到 ≠ 没配」）；
+  `tests/e2e/settings-lifecycle.test.tsx` **20 条**（加载失败那条已修）。
+  ⚠️ **反向验证**：把 `combineModelConfig` 的「问不到 ⇒ unknown」翻回病灶
+  （⇒ `not-configured`）⇒ ⇒ **恰好 6 红**（模块 ③⑤ / onboarding ④⑥ /
+  AppInitializer ①①b），其余 25 条纹丝不动；再把「形状不对 ⇒ 问不到」那条
+  拆掉 ⇒ ⇒ **恰好 2 红**（模块 ⑥ / onboarding ⑥）⇒ ⇒ 断言钉在真东西上、不是恒绿。
+- **⚠️ 全量回归里的 1 条 flaky（既有，非本轮引入）**：
+  `tests/e2e/conversation-lifecycle.test.tsx` 的「shows select or create message
+  when no active conversation」—— 它 `await` 动态 import 之后**同步**断言
+  （**没有 `waitFor`**）⇒ ⇒ 全量并发高负载时 import 还没解析完就断言 ⇒ ⇒
+  偶发红；⇒ ⇒ 单跑 **18/18 全绿** ⇒ ⇒ 与本轮改动零交集（`ConversationPage`
+  不碰本轮任何文件）。
+- **⚠️ 还欠的**：**web 形态 6 处条件 401**（没有 sidecar ⇒ admin token 要用户
+  自备 `localStorage`）⇒ ⇒ 「web 放钥匙的入口」是**另一个决定**；
+  **桌面端 shadow key 输入入口**仍然欠着（但它**不是**上锁的阻塞项）；
+  **真机 UI 未验**（本轮只有单测与机器闸）；**「形状不对」这条更严的判定**
+  对 `AppInitializer` 也是新的（以前非数组 ＝「确认空」）⇒ ⇒ 行为**收紧**了
+  一点点（方向：宁可说「问不到」，也不说「你没配」）。
