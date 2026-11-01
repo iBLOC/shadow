@@ -926,14 +926,20 @@ The same `src/` produces **two artefacts**:
   ⇒ ⇒ ⇒ 要统一得先定「web 形态的地址契约」（**另一个决定**）
   ⇒ ⇒ 本轮**只修地址明确同源的那几处**（状态页的地址取自 store ⇒ 而 store 的
   `setBaseUrl`/`setApiKey` **同步给 client** ⇒ ⇒ 那就是 client 那张面）。
-- **✅ 证据（运行时，不是「读代码觉得对」）**：新增 **8 条**
-  （`src/lib/__tests__/readDoorHeaders.test.ts` 7 + `src/pages/__tests__/TelencephalonStatusPage.test.tsx` 1
+- **✅ 证据（运行时，不是「读代码觉得对」）**：新增 **9 条**
+  （`src/lib/__tests__/readDoorHeaders.test.ts` 7 + `src/pages/__tests__/TelencephalonStatusPage.test.tsx` **2**
   ⇒ 那一页**真的渲染** ⇒ ⇒ 钉的是「它**实际发出去**的请求头」）
   ⇒ ⇒ `tsc --noEmit` **EXIT=0**；eslint **0 error**（7 条 `any` warning 是既有的）
   ⇒ ⇒ 三道闸（providers / door-policy / client-endpoint-map）**EXIT=0**
-  ⇒ ⇒ 全量 vitest **1280 passed / 0 failed**（1271 ⇒ +9）。
+  ⇒ ⇒ 全量 vitest **1281 passed / 0 failed**（1271 ⇒ +10）。
 - **✅ 反向验证**：把 `readDoorHeaders` 退回「**只递 admin**」⇒ ⇒ **恰好 5 红**
-  （① ② ⑥ ⑦ + 页面那条）⇒ ⇒ 其余 3 条仍绿 ⇒ ⇒ 还原后 **8/8 再绿**。
+  （① ② ⑥ ⑦ + 页面那条）⇒ ⇒ 其余 4 条仍绿 ⇒ ⇒ 还原后 **9/9 再绿**。
+- **⚠️⚠️ 一条从兄弟会话借来的纪律（「读不到」不许长得像「没有」）**：页面那条**不许只钉
+  「发出去的头」** ⇒ ⇒ 只钉请求头 ⇒ ⇒ **页面走失败分支也照样绿** ⇒ ⇒ 「因为失败而绿」
+  = 恒绿 ⇒ ⇒ 现在它**同时**钉两件事：① 响应被解析并**画出来了**（模型 id 出现在页面上）；
+  ⇒ ⇒ ② 读失败时页面**说真话**（显示 `HTTP 401`、且**不**画成有数据）⇒ ⇒
+  ⇒ ⇒ 反向验证：把成功路径的响应改成失败 ⇒ ⇒ 页面那条**恰好 1 红**
+  ⇒ ⇒ ⇒ 它不再能「因为失败而绿」。
 - **⚠️ 还欠的**：**Tauri 真机 UI 仍未验**（本轮是单测 + 真渲染）；**`ModelsPage` 的地址契约**
   （见上）；**web 形态 6 处条件 401**；**桌面端 shadow key 输入入口**仍欠。
 

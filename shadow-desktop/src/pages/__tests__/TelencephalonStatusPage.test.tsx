@@ -10,7 +10,7 @@
  * **同步给 client** ⇒ ⇒ 所以它就是 client 那张面 ⇒ 递 client 的影子锁没跑偏。
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 
 const adminState = vi.hoisted(() => ({ token: undefined as string | undefined }));
 
@@ -55,7 +55,7 @@ afterEach(() => {
 });
 
 describe('端脑状态页：读请求递两把钥匙', () => {
-  it('status 这一发递影子锁 + admin token', async () => {
+  it('status 这一发递影子锁 + admin token，**而且页面真的把数据画出来了**', async () => {
     adminState.token = 'admin-1';
     const fetchMock = vi.fn(async (_input: unknown, _init?: RequestInit) => ({
       ok: true,
@@ -63,9 +63,11 @@ describe('端脑状态页：读请求递两把钥匙', () => {
       json: async () => ({
         neuron_reachable: true,
         actual_models_count: 1,
-        available_models: [],
+        available_models: [
+          { id: 'MOCK-MODEL-UNIQUE', engine: 'mock-engine', available: true },
+        ],
         info: null,
-        hint: '',
+        hint: 'MOCK-HINT-UNIQUE',
       }),
       text: async () => '',
     }));
@@ -81,5 +83,32 @@ describe('端脑状态页：读请求递两把钥匙', () => {
     expect(url).toContain('/api/telencephalon/status');
     expect(credsOf(headers)).toEqual(['X-Admin-Token', 'X-Shadow-Key']);
     expect(headers['X-Shadow-Key']).toBe('sk-store');
+
+    // ⚠️⚠️ **这一条不许省**：只钉「发出去的头」⇒ ⇒ **页面走失败分支也照样绿**
+    // ⇒ ⇒ 「因为失败而绿」的测试 = 恒绿 ⇒ ⇒ 必须**证明响应被解析并画出来了**
+    // ⇒ ⇒ 否则这一页哪天开始 401，这条测试**照样全绿**。
+    // ⚠️ 钉**模型 id**（列表里逐条渲染的字段）⇒ ⇒ 它出现 ⇒ ⇒ 响应被解析并画出来了。
+    expect(await screen.findByText('MOCK-MODEL-UNIQUE')).toBeTruthy();
+  });
+
+  it('读失败时页面**说真话**（显示错误），不是「看起来一切正常」', async () => {
+    // ⚠️ 兄弟会话 2026-11-01 的教训：「读不到」不许长得像「没有」
+    // ⇒ ⇒ 失败路径要**显式造出来**再断言 ⇒ ⇒ 否则它会因为「失败被当成功」而绿。
+    adminState.token = 'admin-1';
+    const fetchMock = vi.fn(async (_input: unknown, _init?: RequestInit) => ({
+      ok: false,
+      status: 401,
+      statusText: 'Unauthorized',
+      json: async () => ({ error: 'shadow key required' }),
+      text: async () => 'shadow key required',
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<TelencephalonStatusPage />);
+
+    // ⇒ 页面必须把失败**说出来**（HTTP 401）。
+    expect(await screen.findByText(/HTTP 401/)).toBeTruthy();
+    // ⇒ 且**不许**把失败画成「有数据」。
+    expect(screen.queryByText('MOCK-MODEL-UNIQUE')).toBeNull();
   });
 });
