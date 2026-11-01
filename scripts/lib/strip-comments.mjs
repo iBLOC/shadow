@@ -160,7 +160,7 @@ export function stripTestModules(src) {
 }
 
 /** 跳过字符串字面量（返回它后面的下标）。 */
-function skipString(src, i) {
+export function skipString(src, i) {
   const n = src.length;
   i += 1;
   while (i < n) {
@@ -172,7 +172,7 @@ function skipString(src, i) {
 }
 
 /** 跳过字符字面量**或**生命周期标记（Rust 的 `'` 不是引号 ⇒ 两者要分开）。 */
-function skipCharOrLifetime(src, i) {
+export function skipCharOrLifetime(src, i) {
   const n = src.length;
   if (src[i + 1] === '\\') {
     let j = i + 2;
@@ -202,17 +202,28 @@ function nextBrace(src, from) {
   return -1;
 }
 
-/** 花括号配对（跳过字符串/字符字面量 ⇒ 里面的括号不算）。 */
-function matchBrace(src, open) {
+/**
+ * 配对（跳过字符串/字符字面量 ⇒ 里面的括号不算）。
+ *
+ * 支持 `{`/`}`、`(`/`)`、`[`/`]`。
+ *
+ * ⚠️ **一处实现** —— 公布地址闸与 `stripTestModules` 共用这一份
+ * ⇒ ⇒ 别在闸里再抄一份括号扫描器（抄的那份迟早与这份漂）。
+ */
+export function matchDelim(src, open) {
   const n = src.length;
+  const openCh = src[open];
+  const closeCh =
+    openCh === '{' ? '}' : openCh === '(' ? ')' : openCh === '[' ? ']' : null;
+  if (!closeCh) return -1;
   let depth = 0;
   let i = open;
   while (i < n) {
     const ch = src[i];
     if (ch === '"') { i = skipString(src, i); continue; }
     if (ch === "'") { i = skipCharOrLifetime(src, i); continue; }
-    if (ch === '{') { depth += 1; i += 1; continue; }
-    if (ch === '}') {
+    if (ch === openCh) { depth += 1; i += 1; continue; }
+    if (ch === closeCh) {
       depth -= 1;
       if (depth === 0) return i;
       i += 1;
@@ -221,6 +232,11 @@ function matchBrace(src, open) {
     i += 1;
   }
   return -1;
+}
+
+/** 花括号配对（跳过字符串/字符字面量 ⇒ 里面的括号不算）。 */
+export function matchBrace(src, open) {
+  return matchDelim(src, open);
 }
 
 /**
