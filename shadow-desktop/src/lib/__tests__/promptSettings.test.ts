@@ -150,7 +150,14 @@ describe('system prompt wiring', () => {
       );
       // 链路断言：不能出现任何直连 neuron 的迹象。
       expect(url).not.toContain('/v1/chat/completions');
-      expect(invokeMock).not.toHaveBeenCalled();
+      // ⚠️⚠️ **允许一次「取凭据」的 invoke** —— SSE 这条路由在 shadow 门后面，
+      // 而桌面端**递不出 shadow key**（宿主没生成过那把钥匙）⇒ ⇒ 它得问宿主
+      // 要 admin token（`get_admin_token`）⇒ ⇒ 否则端脑一把门关上，对话就 401。
+      //
+      // ⇒ 断言钉的是「**对话不许走 Tauri 命令**」（不许有别的 invoke），
+      // **不是**「一次 invoke 都不许有」—— 那是**机制**，不是**意图**。
+      const invokedCommands = invokeMock.mock.calls.map((c) => c[0]);
+      expect(invokedCommands.filter((c) => c !== 'get_admin_token')).toEqual([]);
     });
   });
 });
