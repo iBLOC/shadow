@@ -46,8 +46,16 @@ void testSetup() {
 
   tearDownAll(() async {
     AppConfigService.configFileOverride = null;
-    if (cfgDir.existsSync()) {
-      cfgDir.deleteSync(recursive: true);
+    // ⚠️ **删不掉就算了** —— 落盘是**不阻塞**的 ⇒ ⇒ 可能还有一次写入正在飞
+    //    ⇒ ⇒ Windows 上那个文件正被占着 ⇒ ⇒ deleteSync 抛
+    //    PathAccessException ⇒ ⇒ 那样「清理」就变成了「测试失败」
+    //    ⇒ ⇒ systemTemp 里留一个几十字节的目录，不值得让测试红。
+    try {
+      if (cfgDir.existsSync()) {
+        cfgDir.deleteSync(recursive: true);
+      }
+    } catch (_) {
+      // 留着吧。
     }
   });
 }

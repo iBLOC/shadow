@@ -507,12 +507,7 @@ void main() {
 
       // ⚠️ **落盘是不阻塞的**（不许挡住用户那一下 ⇒ 见 _persistBrainStoppedByUser）
       //    ⇒ ⇒ 这里要**等它落**，不能假设它已经写完了。
-      await _waitUntil(
-        () =>
-            cfgFile.existsSync() &&
-            (jsonDecode(cfgFile.readAsStringSync()) as Map)['brainStoppedByUser'] ==
-                true,
-      );
+      await _waitUntil(() => _stopFlagPresent(cfgFile, present: true));
 
       final saved = jsonDecode(await cfgFile.readAsString()) as Map;
       expect(
@@ -537,12 +532,7 @@ void main() {
       await notifier.start();
 
       // ⚠️ 落盘是**排队**的 ⇒ ⇒ 「停 ⇒ 启」两次写入有先后 ⇒ ⇒ 等第二次落完。
-      await _waitUntil(
-        () =>
-            cfgFile.existsSync() &&
-            !(jsonDecode(cfgFile.readAsStringSync()) as Map)
-                .containsKey('brainStoppedByUser'),
-      );
+      await _waitUntil(() => _stopFlagPresent(cfgFile, present: false));
 
       final saved = jsonDecode(await cfgFile.readAsString()) as Map;
       expect(
@@ -710,6 +700,28 @@ void main() {
       );
     });
   });
+}
+
+/// 配置里「用户喊停」标记在不在 —— **半截写入也不炸**。
+///
+/// 落盘是**不阻塞**的 ⇒ ⇒ 读的时候可能正赶上**写了一半** ⇒ ⇒ jsonDecode
+/// 会抛 FormatException ⇒ ⇒ 「等条件成立」自己就红了 ⇒ ⇒ **解析失败当作
+/// 「还没落好」**（继续等）。
+bool _stopFlagPresent(File f, {required bool present}) {
+  if (!f.existsSync()) return false;
+  String text;
+  try {
+    text = f.readAsStringSync();
+  } catch (_) {
+    return false;
+  }
+  Map<String, dynamic> map;
+  try {
+    map = jsonDecode(text) as Map<String, dynamic>;
+  } catch (_) {
+    return false; // 半截写入 ⇒ 还没落好
+  }
+  return map.containsKey('brainStoppedByUser') == present;
 }
 
 /// 轮询等条件成立（最多 [timeout]）。
