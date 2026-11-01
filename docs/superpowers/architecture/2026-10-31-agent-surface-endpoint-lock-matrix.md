@@ -665,6 +665,57 @@ agent/WASM/MCP 管理功能会从「401」变成「401」（没变好，但排�
 ⇒ ⇒ ⚠️ **别把「先补 shadow key 输入入口」当阻塞项** —— 那 6 处要的是**拿得到**的凭据，而桌面端 Tauri 的 admin token **恒有** ⇒ ⇒ 改调用点就够了。
 ⇒ ⇒ ⚠️ **web 版**要不要给一个「放钥匙」的入口（现在只能手改 `localStorage`）⇒ ⇒ 另一个决定。
 
+### ④ 桌面形态：那把钥匙**以前根本不存在** ⇒ ⇒ 门是装饰（2026-11-01 补）
+
+承 §五·补 ③ —— ③ 算的是「**客户端**会不会被打断」⇒ ⇒ **没算「服务端那边钥匙在不在」**
+⇒ ⇒ 而那正是桌面端的病根。
+
+**⚠️ 桌面端那把 shadow key 从来不存在**（逐条核过活仓 HEAD，2026-11-01）：
+
+* `shadow-desktop/src-tauri/src/cortex_http.rs` 传的是 `shadow_api_key: None`，
+  旁边的注释写着「桌面端**有配置文件** ⇒ shadow key 从配置文件来（`config.toml`）」；
+* **桌面端仓里没有任何 `config.toml`**（glob 零命中），**也没有任何代码**去设
+  `TELENCEPHALON_CONFIG` / `CORTEX_CONFIG`；
+* 而端脑**只**从那个环境变量读配置（`telencephalon/src/boot.rs:127` ⇒ 读不到就用
+  默认配置）⇒ ⇒ `telencephalon.shadow.api_key` 取默认**空串**；
+* 空串 ⇒ `require_shadow_key` **放行一切**⇒ ⇒ **`/shadow/v1/*` 与 `POST /a2a`
+  在桌面默认安装上一直是敞开的**（同机任意进程都能打 ⇒ 包括
+  `POST /shadow/v1/identity` ⇒ **换掉「这台机器是谁」**）。
+
+⇒ ⇒ **这条订正了账本上两处过期读数**：㊳ / ㊱ 条那句「这与桌面不一样：桌面端有
+配置文件、有 key ⇒ 那张面受保护」—— 桌面端**没有** key ⇒ 那张面**一直开着**；
+§五·补 ③ 里「桌面端 · Tauri：shadow key **拿不到**（无 setter、无输入入口）」——
+前半句对（客户端确实递不出 shadow key），**但漏了「服务端那边也没有」** ⇒ ⇒
+两端**都没有** ⇒ ⇒ 那道门在桌面上**从来不是门，是装饰**。
+
+**✅ 修（两端一起，缺一半就是自锁）**：
+
+* **端脑**：读门统一成 **shadow ∪ admin**（`security::api_key::verify_read_credential`
+  —— **一条规则一处实现**；providers 与 shadow 两道门都走它）⇒ ⇒ admin 是**更强**的
+  钥匙 ⇒ 不增加暴露面；admin 那一支**仍然 fail-closed**；shadow 那一支**保留**
+  「空 expected ⇒ 放行」的开发模式（**不许**改成 fail-closed —— 桌面/web 的
+  「有没有配好模型」探测没有钥匙 ⇒ fail-closed ⇒ 探测全 401 ⇒ 用户明明配好了
+  却被踢回设置向导）。
+* **桌面宿主**：把**自己那把 admin token** 同时当 shadow key 递进去 ⇒ ⇒
+  `shadow.api_key` 非空 ⇒ 开发模式关掉 ⇒ **门是真的** ⇒ ⇒ **不为它另造一把
+  没人递的钥匙**（那只是多一把秘密、多一处要配的地方，还要前端在第一次请求前
+  就拿到它 ⇒ 竞态）。
+* **桌面前端两处补 admin token**：`/a2a`（`a2uiClient.ts`）与**对话 SSE**
+  （`telencephalonClient.ts` 的 `streamMessage`）—— ⚠️ 这两处**只**递
+  `X-Shadow-Key`，而桌面端递不出 shadow key ⇒ ⇒ 不补 ⇒ 门一关就全 401
+  ⇒ ⇒ **门掐断主人**（自己把自己的大脑锁在外面）。
+
+⇒ ⇒ **代价 = 0**：桌面端 Tauri 的 admin token **恒有**（sidecar 生成并持久化）
+⇒ ⇒ 读门认它 ⇒ ⇒ 客户端**不需要**新的凭据来源 ⇒ ⇒ 步 3 在桌面形态上的代价
+**仍然是 0**，而且这次那道 shadow 门**不再是装饰**。
+
+**✅ 证据**：端脑 `tests/shadow_key` **6 passed**（新增 3 条：宿主 admin token
+也能开 / 错 token 不开 / 没配 admin token 不开 ⇒ 全是真 HTTP）；端脑 lib
+`security::api_key` **19 passed**（含 5 条新断言）；桌面端 `tsc --noEmit`
+**EXIT=0**、vitest **34 passed**；五道闸全绿；⚠️ **反向验证**（把 shadow 门退回
+「shadow only」＝修复前的形状）⇒ ⇒ 「宿主 admin token 也能开」那条**当场变红**
+⇒ ⇒ 断言钉在真东西上、不是恒绿。
+
 ## 六、不在本次范围内
 
 - **neuron 面绑 `0.0.0.0`**（同网段可达）—— 那是**绑定地址**问题，不是鉴权问题 ⇒ 另一档。
