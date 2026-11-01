@@ -74,20 +74,44 @@ void main() {
     });
   }
 
-  setUpAll(() {
+  /// 整个文件的**配置落盘目标** —— 单测里没有 `path_provider` 的平台实现
+  /// ⇒ 真去调会抛 MissingPluginException ⇒ ⇒ 落盘静默失败。
+  late Directory globalCfgDir;
+  late File globalCfgFile;
+
+  setUpAll(() async {
     // 自动启动会先读模型列表（把云端供应商交给大脑）⇒ 得有个能用的
     // sqflite 实现，否则 `ready` 会失败（被上层兜住，但状态会走错分支）。
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
+
+    globalCfgDir = await Directory.systemTemp.createTemp('shadow-cfg-all');
+    globalCfgFile = File('${globalCfgDir.path}/app_config.json');
+    AppConfigService.configFileOverride = () async => globalCfgFile;
   });
 
-  setUp(() {
+  setUp(() async {
     calls = <MethodCall>[];
+
+    // ⚠️⚠️ **「用户喊停」住在 AppConfigService 这个**单例**上** ⇒ `stop()`
+    //    会把它置上 ⇒ ⇒ **不复位就会污染后面的用例**：它们默认期望「没喊停过」
+    //    ⇒ 大脑永远起不来 ⇒ ⇒ 用例在「条件在 10s 内没成立」上红
+    //    ⇒ ⇒ **失败长得像「实现坏了」**（其实是上一条用例的残留）。
+    //    ⇒ 每个用例开始前都抹回 false。
+    AppConfigService.configFileOverride = () async => globalCfgFile;
+    await AppConfigService().setBrainStoppedByUser(false);
   });
 
   tearDown(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, null);
+  });
+
+  tearDownAll(() async {
+    AppConfigService.configFileOverride = null;
+    if (globalCfgDir.existsSync()) {
+      globalCfgDir.deleteSync(recursive: true);
+    }
   });
 
   /// 造一个 notifier + 它的容器。返回容器，方便读状态与销毁。
