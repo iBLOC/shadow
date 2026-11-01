@@ -51,6 +51,11 @@ import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { resolve, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { stripComments, makeLineIndex } from './lib/strip-comments.mjs';
+// ⚠️⚠️ **判据只有一处** —— 头名、取钥匙的入口、「这一发带没带凭据」全从
+// `scripts/lib/credentials.mjs` 来 ⇒ ⇒ **本文件不再抄一份** ⇒ ⇒ 抄一次就会
+// 漂一次 ⇒ ⇒ 漂了就会出**假红**（明明递了钥匙却报「必 401」）⇒ ⇒ 而「红」
+// 比漏报更坑：会让人去改**已经改对**的代码 ⇒ ⇒ 引入新 bug。
+import { findAssignment, canPassDoor } from './lib/credentials.mjs';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
 const REPO = resolve(HERE, '..');
@@ -64,15 +69,12 @@ let TELENCEPHALON_SRC = resolve(TELENCEPHALON_DIR, 'src', 'api', 'providers.rs')
 let DESKTOP_SRC = join(REPO, 'shadow-desktop', 'src');
 const MOBILE_LIB = join(REPO, 'shadow-mobile', 'lib');
 
-// 端脑的 admin token 头 —— 客户端**必须**带它才能过 providers 那道门。
-const ADMIN_HEADER = 'X-Admin-Token';
-// 客户端取那把钥匙的统一入口（`src/lib/adminToken.ts`）。
-const ADMIN_GETTER = 'adminHeaders';
-// shadow key 头 —— 读门认它（或 admin token）。
-// ⚠️ 桌面端把 shadow key 叫 `apiKey`（store 里的 `connection.apiKey`）⇒
-// 判据里两个名字都得认，否则「带了 shadow key 的读请求」会被误报成红。
-const SHADOW_HEADER = 'X-Shadow-Key';
-const SHADOW_GETTER = 'shadowHeaders|getApiKey|shadowKey';
+// ⚠️ **头名 / 取钥匙的入口 / 「这一发带没带凭据」** —— 一律从
+// `scripts/lib/credentials.mjs` 来（端脑的 admin token 头 = `X-Admin-Token`；
+// 客户端取那把钥匙的入口 = `adminHeaders`；shadow key 头 = `X-Shadow-Key`，
+// 而桌面端把它叫 `apiKey` ⇒ 判据里两个名字都得认，否则「带了 shadow key
+// 的读请求」会被误报成红）。
+// ⇒ ⇒ **本文件不再抄一份** ⇒ ⇒ 抄一次就会漂一次 ⇒ ⇒ 漂了就会出**假红**。
 
 function printHelp() {
   console.log(`
@@ -516,34 +518,6 @@ function baseVar(urlText) {
   return m ? m[1] : null;
 }
 
-/** 在文件里找 `const|let|var <name> = <rhs>` 的 rhs 文本。 */
-function findAssignment(code, name) {
-  const re = new RegExp(`\\b(?:const|let|var)\\s+${name.replace(/[$]/g, '\\$')}\\s*=\\s*`, 'g');
-  const m = re.exec(code);
-  if (!m) return null;
-  let i = m.index + m[0].length;
-  let depth = 0;
-  let inStr = null;
-  while (i < code.length) {
-    const ch = code[i];
-    if (inStr) {
-      if (ch === '\\') { i += 2; continue; }
-      if (ch === inStr) inStr = null;
-      i++;
-      continue;
-    }
-    if (ch === '"' || ch === "'" || ch === '`') { inStr = ch; i++; continue; }
-    if (ch === '(' || ch === '{' || ch === '[') depth++;
-    else if (ch === ')' || ch === '}' || ch === ']') {
-      if (depth === 0) break;
-      depth--;
-    } else if (ch === ';' && depth === 0) break;
-    else if (ch === '\n' && depth === 0) break;
-    i++;
-  }
-  return code.slice(m.index + m[0].length, i);
-}
-
 /** 这份代码打的是**哪张面**？ */
 function classifySurface(code, urlText) {
   const base = baseVar(urlText);
@@ -570,120 +544,6 @@ function classifySurface(code, urlText) {
     };
   }
   return { surface: 'UNKNOWN', reason: `${base} 的来源认不出来` };
-}
-
-/**
- * `headers:` 后面那个值的**完整文本**。
- *
- * ⚠️⚠️ **别在第一个逗号处截断**（第一版的错在这儿）：
- * `headers: { 'Content-Type': 'application/json', ...(await adminHeaders()) }`
- * ⇒ 截断后只剩 `{ 'Content-Type': 'application/json'` ⇒
- * ⇒ **`adminHeaders()` 被切掉了** ⇒ ⇒ 一处**明明带了凭据**的调用被**误报成红**
- * ⇒ ⇒ 而「红」会让人去改**已经改对了**的代码 ⇒ ⇒ 比漏报更坑（它会引入新 bug）。
- *
- * ⇒ 所以：对象字面量 ⇒ 按**括号配平**取整个；裸表达式 ⇒ 取到深度 0 的逗号/闭括号。
- */
-function headerValue(callText) {
-  const m = /\bheaders\s*:\s*/.exec(callText);
-  if (!m) return null;
-  const start = m.index + m[0].length;
-  let i = start;
-  while (i < callText.length && /\s/.test(callText[i])) i++;
-
-  if (callText[i] === '{') {
-    // 括号配平 ⇒ 取整个对象字面量（**含展开** `...(await adminHeaders())`）。
-    let depth = 0;
-    for (let j = i; j < callText.length; j++) {
-      const ch = callText[j];
-      if (ch === '{') depth++;
-      else if (ch === '}') {
-        depth--;
-        if (depth === 0) return callText.slice(start, j + 1);
-      }
-    }
-    return callText.slice(start);
-  }
-
-  let depth = 0;
-  for (let j = i; j < callText.length; j++) {
-    const ch = callText[j];
-    if (ch === '(' || ch === '[' || ch === '{') depth++;
-    else if (ch === ')' || ch === ']' || ch === '}') {
-      if (depth === 0) return callText.slice(start, j);
-      depth--;
-    } else if (ch === ',' && depth === 0) return callText.slice(start, j);
-  }
-  return callText.slice(start);
-}
-
-/**
- * 这个 fetch 有没有带**某一种**凭据？
- *
- * @param {'admin'|'shadow'} kind 要查的凭据种类
- *
- * ⚠️ `headers` 有**三种**写法，都要认：
- *   ① `headers: await adminHeaders()` —— 带值；
- *   ② `headers: { ...(await adminHeaders()) }` —— **展开**；
- *   ③ `{ headers }` —— **简写属性**（值是同名变量）⇒ ③在第一版里被漏掉
- *      ⇒ 把两处本来合规的调用**误报成红** ⇒ ⇒ 被 `--self-test` 当场抓住。
- */
-function credentialIn(code, callText, kind) {
-  const CRED =
-    kind === 'admin'
-      ? new RegExp(`\\b(${ADMIN_GETTER}|${ADMIN_HEADER})\\b`)
-      : new RegExp(`\\b(${SHADOW_GETTER}|${SHADOW_HEADER})\\b`);
-
-  // ① / ② `headers: <表达式或对象字面量>`
-  const value = headerValue(callText);
-  if (value !== null) {
-    if (CRED.test(value)) return { ok: true, how: `直接带 ${kind} 凭据` };
-    // 值是一个裸标识符 ⇒ 追它的赋值。
-    const ident = /^\s*([A-Za-z_$][A-Za-z0-9_$]*)\s*$/.exec(value);
-    if (ident) {
-      const rhs = findAssignment(code, ident[1]);
-      if (rhs && CRED.test(rhs)) {
-        return { ok: true, how: `headers = ${ident[1]}（它来自 ${kind} 凭据）` };
-      }
-      return { ok: false, how: `headers = ${ident[1]}，但它不带 ${kind} 凭据` };
-    }
-    return { ok: false, how: `有 headers，但不是 ${kind} 凭据` };
-  }
-
-  // ③ `{ headers }` —— 简写属性 ⇒ 值是同名变量。
-  const shorthand = /[{,]\s*headers\s*[,}]/.test(callText);
-  if (shorthand) {
-    const rhs = findAssignment(code, 'headers');
-    if (rhs && CRED.test(rhs)) {
-      return { ok: true, how: `headers（简写）—— 它来自 ${kind} 凭据` };
-    }
-    return { ok: false, how: `headers（简写）—— 但它不带 ${kind} 凭据` };
-  }
-
-  return { ok: false, how: '这个请求**根本没带 headers**' };
-}
-
-/**
- * 这一发**能不能过**这道门？
- *
- * ⚠️ 门认**好几把**钥匙时（读门 = shadow **或** admin）⇒ 有**任意一把**就行。
- *
- * @param {string[]} accepts 这道门认的钥匙（`shadow` / `admin` / `internal`）
- */
-function canPassDoor(code, callText, accepts) {
-  const clientCanHold = accepts.filter((k) => k !== 'internal');
-  if (clientCanHold.length === 0) {
-    return {
-      ok: false,
-      how: '这道门只认端脑进程内的内部凭据 ⇒ 客户端根本过不了（也不该过）',
-    };
-  }
-  const tried = [];
-  for (const kind of clientCanHold) {
-    const r = credentialIn(code, callText, kind);
-    if (r.ok) return { ok: true, how: `${r.how}（这道门认 ${clientCanHold.join(' 或 ')}）` };
-    tried.push(`${kind}：${r.how}`);
-  }
-  return { ok: false, how: `没有这道门认的凭据 —— ${tried.join('；')}` };
 }
 
 /* ------------------------------------------------------------------ *
@@ -911,6 +771,25 @@ const SELF_TEST_CASES = [
   {
     name: '主人面（内部凭据）+ 客户端带 admin ⇒ 绿',
     code: "const API_BASE = prefrontalUrl();\nawait fetch(`${API_BASE}/api/telencephalon/chat/completions`, { method: 'POST', headers: await adminHeaders() });",
+    want: 'green',
+  },
+  {
+    // ⚠️ **这一条钉的是「共享实现比本地副本多出来的那一部分」** ——
+    // 本地副本的 findAssignment **不认 TypeScript 类型注解** ⇒ ⇒ 这一条会红。
+    name: '共享判据：TypeScript 类型注解的赋值也能追到凭据 ⇒ 绿',
+    code: "const API_BASE = prefrontalUrl();\nconst headers: Record<string, string> = await adminHeaders();\nawait fetch(`${API_BASE}/models/providers`, { headers });",
+    want: 'green',
+  },
+  {
+    // ⚠️ 本地副本**没有** credentialViaMutation ⇒ ⇒ 认不出「赋值之后才塞凭据」。
+    name: '共享判据：赋值之后才被塞进凭据（SSE 形状）⇒ 绿',
+    code: "const API_BASE = prefrontalUrl();\nconst headers = { 'Content-Type': 'application/json' };\nif (token) headers['X-Admin-Token'] = token;\nawait fetch(`${API_BASE}/models/providers`, { method: 'POST', headers, body: '{}' });",
+    want: 'green',
+  },
+  {
+    // ⚠️ 本地副本**不认**「读门钥匙构建器」⇒ ⇒ 这一条会红。
+    name: '共享判据：走读门钥匙构建器（readDoorHeaders）⇒ 绿（那道门认 shadow 或 admin）',
+    code: "const API_BASE = prefrontalUrl();\nawait fetch(`${API_BASE}/models/providers`, { headers: await readDoorHeaders(k) });",
     want: 'green',
   },
 ];
