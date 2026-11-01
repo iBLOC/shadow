@@ -448,8 +448,10 @@ if (-not $SkipStopBrain -and $agentPort) {
   try { TapTextByScrolling '停止大脑' | Out-Null } catch { Say ('⚠️ 找不到「停止大脑」按钮：' + $_.Exception.Message) }
   Start-Sleep -Seconds 3
   Shot '02-brain-stopped' | Out-Null
-  # ⚠️ 判据取 **Kotlin 侧**那行（'Encephalon stopped'）：
-  #    Dart 侧那句 '嵌入式大脑已停止' 走 package:logging ⇒ **不进 logcat**。
+  # ⚠️ 判据取 **Kotlin 侧**那行（'Encephalon stopped'）。
+  #    ⚠️ 旧注释说「Dart 侧那句走 package:logging ⇒ 不进 logcat」—— **那是错的**
+  #    （真机实测：Dart 的 print **会**进 logcat 的 flutter 标签）⇒ ⇒ 但 Kotlin
+  #    那行更直接 ⇒ ⇒ 仍然用它当判据（多一条证据不坏事）。
   $stopLine = (adb -s $Serial logcat -d 2>$null | Select-String -Pattern 'Encephalon stopped' | Select-Object -Last 1)
   if ($stopLine) { $brainStopped = $true; Say ('大脑已停：' + $stopLine.Line) }
   else { Say '⚠️ logcat 里没看到 Encephalon stopped ⇒ 大脑可能还在跑' }
@@ -524,12 +526,32 @@ if ($stopIdx -ge 0) {
   }
 }
 Say ('停脑之后大脑自己回来了吗：' + $brainCameBack)
-# ⚠️ **前提：Flutter 引擎没被重建** —— `onAttachedToEngine` 每出现一次 = 一个新 isolate
-#    ⇒ `main()` 重跑 ⇒ 「用户喊过停」的内存标记归零 ⇒ 大脑自己回来。
+# ⚠️⚠️ **「引擎没被重建」不再是前提，而是「更强的形态」** ——
+#    以前判据是「引擎不许被重建」（因为重建 ⇒ 内存标记归零 ⇒ 大脑自己回来
+#    ⇒ ⇒ 那一轮被污染 ⇒ ⇒ 整轮作废）。
+#    ⇒ ⇒ 但「用户喊停」**落盘**之后（ba462ed），重建**不再**意味着大脑会回来
+#    ⇒ ⇒ 于是判据反过来：**若引擎重建过，就必须同时拿出两样东西**
+#      ① 新 isolate **真的跑起来了**（attach 之后还有 Dart 侧的行 ⇒ 不是空转）
+#      ② 大脑**仍然没有**自己回来
+#    ⇒ ⇒ 这才是「跨 isolate 也要赢」的真证明 ⇒ ⇒ 比「没重建」更强。
 $attachCount = 0
-foreach ($l in $logLines) { if ($l -match 'onAttachedToEngine') { $attachCount++ } }
+$lastAttachIdx = -1
+for ($i = 0; $i -lt $logLines.Count; $i++) {
+  if ($logLines[$i] -match 'onAttachedToEngine') { $attachCount++; $lastAttachIdx = $i }
+}
 $engineRecreated = ($attachCount -gt 1)
+# ⚠️ **别拿「租户迁移」那行当 main() 的判据** —— 它**只在真要迁移时**才打
+#    ⇒ ⇒ 第二次启动若不需要迁移 ⇒ 它不出现 ⇒ ⇒ 拿它当判据会**误判**。
+#    ⇒ ⇒ 用「最后一次 attach 之后还有没有 Dart 侧的行」⇒ 那才是「Dart 跑过了」。
+$dartAfterRebuild = 0
+if ($lastAttachIdx -ge 0) {
+  for ($i = $lastAttachIdx + 1; $i -lt $logLines.Count; $i++) {
+    if ($logLines[$i] -match 'I/flutter') { $dartAfterRebuild++ }
+  }
+}
 Say ('Flutter 引擎 attach 次数：' + $attachCount + '（>1 ⇒ Activity 被重建过 ⇒ isolate 重跑）')
+Say ('最后一次 attach 之后的 Dart 行数：' + $dartAfterRebuild + '（≥1 ⇒ 新 isolate 真的跑起来了）')
+$isolateWon = ((-not $engineRecreated) -or (($dartAfterRebuild -ge 1) -and (-not $brainCameBack)))
 
 Say ''
 Say '── 根因取证（进程 pid + 事件时间线）────────────────────────'
@@ -563,7 +585,7 @@ $saw401 = $false
 foreach ($t in $texts) { if ($t -match 'HTTP 401') { $saw401 = $true; Say ('  ▸ 界面文字：' + $t) } }
 $checks = [ordered]@{
   '停脑之后大脑没有自己回来'    = (-not $brainCameBack)
-  'App 的引擎没有被重建'        = (-not $engineRecreated)
+  '跨 isolate 也要赢（重建过 ⇒ 新 isolate 跑起来了 ⇒ 大脑仍没回来）' = $isolateWon
   '界面说真话：出现 HTTP 401'   = $saw401
   '内嵌大脑不在跑 ⇒ 退回外部端脑' = ($brainStopped -or $brainAbsent)
   'App 的请求打到了外部端脑'    = $appHit
