@@ -37,7 +37,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { stripRustComments, mergedModules, routesIn, surfaceRoutes } from './lib/telencephalon-routes.mjs';
+import { mergedModules, routesIn, routesInText, surfaceRoutes } from './lib/telencephalon-routes.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..');
@@ -179,6 +179,20 @@ function selfTest(sourceRoot) {
   check('精确的 GET 赢过族', resolveDoor('/api/telencephalon/agents', 'GET', E).door === 'read');
   check('没进门型表 ⇒ closed', resolveDoor('/nope', 'GET', E).door === 'closed');
   check('tail 通配也匹配零段', resolveDoor('/api/flows', 'GET', E).door === 'read');
+
+  // 判据：**注释掉的** .route 不算「这条路由存在」⇒ ⇒ 否则有人把一段路由
+  // 注释掉，闸还会以为它在 ⇒ ⇒ 门型表就多了一条「源码里没有的路由」。
+  const commented = routesInText(
+    [
+      'fn r() -> Router {',
+      '    Router::new()',
+      '        .route("/api/live", get(h))',
+      '        // .route("/api/dead", get(h2))',
+      '}',
+    ].join('\n'),
+    '<selftest>',
+  );
+  check('注释掉的 .route 不算路由', commented.length === 1 && commented[0].path === '/api/live');
 
   // 再钉一次**真实表** —— 上面那组只验逻辑，这里验表本身没写歪。
   const policyPath = join(sourceRoot, 'src', 'api', 'door_policy.txt');

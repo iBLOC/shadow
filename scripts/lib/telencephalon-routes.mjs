@@ -31,26 +31,14 @@
  */
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-
-/** Rust 的注释：块注释 + 行注释（引号数为奇数才算真注释）。 */
-export function stripRustComments(text) {
-  const noBlocks = text.replace(/\/\*[\s\S]*?\*\//g, '');
-  return noBlocks
-    .split('\n')
-    .map((line) => {
-      const i = line.indexOf('//');
-      if (i === -1) return line;
-      const quotes = (line.slice(0, i).match(/"/g) || []).length;
-      if (quotes % 2 === 1) return line;
-      return line.slice(0, i);
-    })
-    .join('\n');
-}
+import { stripComments } from './strip-comments.mjs';
 
 /** api/mod.rs 里**真正 merge 进来**的模块名。 */
 export function mergedModules(sourceRoot) {
   const modRs = readFileSync(join(sourceRoot, 'src', 'api', 'mod.rs'), 'utf8');
-  const clean = stripRustComments(modRs);
+  // ⚠️ 剥注释用的是**共享实现**（scripts/lib/strip-comments.mjs，Rust 词法：
+  // 块注释可嵌套、' 是生命周期不是引号）⇒ ⇒ 别在本文件里再抄一份。
+  const clean = stripComments(modRs, { nested: true, rust: true });
   const mods = new Set();
   const re = /\.merge\(\s*([a-z0-9_]+)::/g;
   let m;
@@ -61,11 +49,22 @@ export function mergedModules(sourceRoot) {
 /** 一批 .rs 里的 .route("…")（路径 + **全部**方法）。 */
 export function routesIn(file) {
   if (!existsSync(file)) return [];
-  const text = readFileSync(file, 'utf8');
+  return routesInText(readFileSync(file, 'utf8'), file);
+}
+
+/**
+ * 一份源码文本里的 .route("…")（路径 + **全部**方法）。
+ *
+ * ⚠️ **剥注释**（共享实现，抹成空格 ⇒ 长度与行号不变）⇒ ⇒ 注释掉的
+ * .route(...) **不算**「这条路由存在」⇒ ⇒ 否则有人把一段路由注释掉，
+ * 闸还会以为它在 ⇒ ⇒ 门型表就多了一条「源码里没有的路由」。
+ */
+export function routesInText(text, file = '<memory>') {
+  const clean = stripComments(text, { nested: true, rust: true });
   const out = [];
   const re = /\.route\(\s*"([^"]+)"/g;
   let m;
-  while ((m = re.exec(text)) !== null) {
+  while ((m = re.exec(clean)) !== null) {
     const path = m[1];
     // ⚠️ 括号配对**必须从 .route( 的那个左括号开始数** ——
     // ⚠️ 若从路径字符串末尾开始，链式写法（get(h).post(h2)）的**第二个方法**
@@ -76,15 +75,15 @@ export function routesIn(file) {
     let i = m.index + '.route'.length;
     let depth = 0;
     let end = text.length;
-    for (; i < text.length; i++) {
-      const c = text[i];
+    for (; i < clean.length; i++) {
+      const c = clean[i];
       if (c === '(') depth++;
       else if (c === ')') {
         depth--;
         if (depth === 0) { end = i; break; }
       }
     }
-    const call = text.slice(m.index, end + 1);
+    const call = clean.slice(m.index, end + 1);
     const methods = new Set();
     const mre = /\b(get|post|put|delete|patch|head)\s*\(/g;
     let x;
