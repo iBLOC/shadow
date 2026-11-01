@@ -943,3 +943,30 @@ The same `src/` produces **two artefacts**:
 - **⚠️ 还欠的**：**Tauri 真机 UI 仍未验**（本轮是单测 + 真渲染）；**`ModelsPage` 的地址契约**
   （见上）；**web 形态 6 处条件 401**；**桌面端 shadow key 输入入口**仍欠。
 
+
+## STATE STATUS (2026-11-01, 「海马体存在哪」—— 那句 `~/.hippocampus` 是**假地址**，现在换成**真路径 + 可编辑入口**)
+
+- **⚠️ 病（界面在撒谎）**：设置页「记忆集成」卡片的页脚**写死** `~/.hippocampus`
+  （`i18n/*.json` 的 `settings.storagePathDefault`）⇒ ⇒ 而真实落点是 `%APPDATA%\shadow\lance`
+  ⇒ ⇒ `~/.hippocampus` **在任何机器上都不存在** ⇒ ⇒ 「界面说一个地方、盘上是另一个地方」。
+- **✅ 修（三层）**：
+  - **默认根收成一处实现**（海马体仓）：`DatabaseConfig::default_local_root()` ＋
+    `local_root()`（从 `file://` URI 反解；远端 URI ⇒ None）＋ server 的
+    `default_storage_root()` / `effective_storage_root()` ⇒ ⇒ 桌面端**读海马体自己那套规则**
+    （自己算一份 ⇒ 两份实现、迟早漂 ⇒ 漂了 ⇒ 界面报的路径没有任何东西往那儿写）。
+  - **配置层**：`AppConfig.hippocampus_data_dir: Option<String>`（**`#[serde(default)]`**
+    ⇒ 旧 `config.json` 仍读得了）＋ 两个 Tauri 命令（`get_hippocampus_storage` /
+    `set_hippocampus_storage`）⇒ ⇒ 保存时**当场**校验（绝对路径 / 能建 / **能写**）。
+  - **端脑那一跳**：`cortex_http::serve(stack, hippocampus_data_dir)` ⇒ ⇒
+    `BuildOptions.hippocampus_data_dir` ⇒ ⇒ **显式根赢过** `LANCE_URI` / `HIPPOCAMPUS_DATA_DIR`。
+- **⚠️ 诚实性（三条都写进界面）**：**(a) 换存储位置 = 换一批数据，不是迁移**（原来那份留在原处）；
+  **(b) 重启桌面端后生效**（端脑在 boot 期建海马体）；**(c)「读不到」不许长得像「没有」**
+  ⇒ ⇒ 用 `safeInvokeOrThrow`（`safeInvoke` 吞错返回 fallback ⇒ 会把「读不到」画成「空」）。
+- **✅ 证据**：前端 **4 条真渲染测试全绿**（`src/pages/__tests__/HippocampusStorageCard.test.tsx`：
+  真路径出现 / 那句假地址**不**出现 / 读不到时说真话 / 保存失败说出来）
+  ⇒ ⇒ **反向验证三处各恰好 1 红**（写死假地址 ⇒ 恰好 1 红；吞掉「读不到」⇒ 恰好 1 红；
+  吞掉「保存失败」⇒ 恰好 1 红）⇒ ⇒ 还原后 4/4 再绿；`tsc --noEmit` **EXIT=0**；
+  桌面 `cargo check` **EXIT=0**（35 个既有 warning）。
+- **⚠️ 还欠的**：**桌面 `config.json` 的路径 ⇒ 端脑 `BuildOptions` 那一跳**只有 3 行直白代码、
+  **没有自动化断言**；**「打开文件夹」按钮没做**（要 dialog 插件 ⇒ 新依赖 ⇒ 不做）；
+  **桌面端真机 UI 未验**（本轮是单测 + 真渲染）；**旧数据要不要迁移**是另一个决定。
