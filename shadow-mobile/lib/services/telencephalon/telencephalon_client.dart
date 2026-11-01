@@ -739,13 +739,20 @@ class TelencephalonClient {
     return jsonDecode(r.body) as Map<String, dynamic>;
   }
 
-  Future<void> _postExpectEmpty(
+  /// POST expecting **no body** — the admin variant of the empty-body POST.
+
+  /// ⚠ 2026-11-01（步 3）：POST /api/flows/draft/{id}/reject 落进了端脑的
+  /// **写门（admin token）** ⇒ 走这一档。
+  ///
+  /// ⚠ _post 不带 admin ⇒ 门一上就 401 ⇒ 「失败长得像成功」
+  /// —— 用户看到的是「驳回草稿失败」，真因是「没带钥匙」。
+  Future<void> _adminPostExpectEmpty(
     String path, [
     Map<String, dynamic>? body,
   ]) async {
     final r = await _http.post(
       await _u(path),
-      headers: _headers(jsonBody: true),
+      headers: _headers(jsonBody: true, admin: true),
       body: jsonEncode(body ?? const {}),
     );
     if (r.statusCode != 200 && r.statusCode != 204) {
@@ -850,7 +857,7 @@ class TelencephalonClient {
     required Map<String, String?> lobeModels,
     List<Map<String, String>> providers = const [],
   }) async {
-    return _post('/api/telencephalon/lobes/models', {
+    return _adminPost('/api/telencephalon/lobes/models', {
       'default_model': defaultModel,
       'lobe_models': {
         for (final entry in lobeModels.entries) entry.key: entry.value,
@@ -1017,7 +1024,7 @@ class TelencephalonClient {
   }
 
   Future<FlowDefinition> createFlow(FlowDefinition flow) async {
-    final json = await _post('/api/flows', flow.raw);
+    final json = await _adminPost('/api/flows', flow.raw);
     return FlowDefinition.fromJson(json);
   }
 
@@ -1039,7 +1046,7 @@ class TelencephalonClient {
         : await _resolveFlowIdByName(flowIdOrName);
     final body = <String, dynamic>{'inputs': inputs};
     if (sessionId != null) body['session_id'] = sessionId;
-    final json = await _post(
+    final json = await _adminPost(
       '/api/flows/${Uri.encodeComponent(resolvedId)}/run',
       body,
     );
@@ -1090,21 +1097,21 @@ class TelencephalonClient {
   }
 
   Future<FlowDefinition> promoteDraft(String draftId) async {
-    final json = await _post(
+    final json = await _adminPost(
       '/api/flows/draft/${Uri.encodeComponent(draftId)}/promote',
       const {},
     );
     return FlowDefinition.fromJson(json);
   }
 
-  Future<void> rejectDraft(String draftId) => _postExpectEmpty(
+  Future<void> rejectDraft(String draftId) => _adminPostExpectEmpty(
     '/api/flows/draft/${Uri.encodeComponent(draftId)}/reject',
   );
 
   // ---- MCP Management API ----
 
   Future<List<Map<String, dynamic>>> listMcpServers() async {
-    final json = await _get('/api/telencephalon/mcp/servers');
+    final json = await _adminGet('/api/telencephalon/mcp/servers');
     return (json['servers'] as List<dynamic>?)
             ?.map((e) => Map<String, dynamic>.from(e as Map))
             .toList() ??
@@ -1112,11 +1119,11 @@ class TelencephalonClient {
   }
 
   Future<Map<String, dynamic>> getMcpServer(String id) async {
-    return await _get('/api/telencephalon/mcp/servers/${Uri.encodeComponent(id)}');
+    return await _adminGet('/api/telencephalon/mcp/servers/${Uri.encodeComponent(id)}');
   }
 
   Future<List<Map<String, dynamic>>> getMcpServerTools(String id) async {
-    final json = await _get(
+    final json = await _adminGet(
       '/api/telencephalon/mcp/servers/${Uri.encodeComponent(id)}/tools',
     );
     return (json as List<dynamic>)
@@ -1127,7 +1134,7 @@ class TelencephalonClient {
   Future<List<Map<String, dynamic>>> listMcpServersForAgent(
     String agentName,
   ) async {
-    final json = await _get(
+    final json = await _adminGet(
       '/api/telencephalon/mcp/agents/${Uri.encodeComponent(agentName)}/servers',
     );
     return (json['bindings'] as List<dynamic>?)
@@ -1137,7 +1144,7 @@ class TelencephalonClient {
   }
 
   Future<List<Map<String, dynamic>>> getAgentMcpTools(String agentName) async {
-    final json = await _get(
+    final json = await _adminGet(
       '/api/telencephalon/mcp/agents/${Uri.encodeComponent(agentName)}/tools',
     );
     return (json as List<dynamic>)
@@ -1212,11 +1219,11 @@ class TelencephalonClient {
   // ---- Agent Management API ----
 
   Future<Map<String, dynamic>> scanExternalAgents() async {
-    return await _post('/api/telencephalon/agents/scan', const {});
+    return await _adminPost('/api/telencephalon/agents/scan', const {});
   }
 
   Future<Map<String, dynamic>> syncExternalAgent(String providerId) async {
-    return await _post(
+    return await _adminPost(
       '/api/telencephalon/agents/sync/${Uri.encodeComponent(providerId)}',
       const {},
     );
