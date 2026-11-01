@@ -40,6 +40,14 @@
  *
  * ⚠️ **不许静默跳过**：服务端源码读不出来 ⇒ ⇒ **判不了** ⇒ 退出码 **2**（不许当绿）。
  *
+ * ## ⚠️ **这把闸不进 CI**（理由要写清，否则下个会话会踩）
+ *
+ * 它的**真值源在端脑仓**（`telencephalon`）⇒ ⇒ 而 CI 的 `desktop-build` job
+ * 只 checkout **本仓** ⇒ ⇒ 在 CI 里端脑源码**读不出来** ⇒ ⇒ 闸会**判不了**
+ * ⇒ ⇒ 退出码 2 ⇒ ⇒ **CI 会红**，而那条红是「环境缺料」，**不是**「口径漂了」
+ * ⇒ ⇒ ⇒ **别把它加进 CI**（与 `check-conversation-prefix.mjs` 同理 —— 它也没进）。
+ * ⇒ ⇒ 本地跑：`node scripts/check-a2ui-session-identity.mjs --source C:\\Projects\\iBLOC\\telencephalon`。
+ *
  * ## 用法
  *
  *   node scripts/check-a2ui-session-identity.mjs
