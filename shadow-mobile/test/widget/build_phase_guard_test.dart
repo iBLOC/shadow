@@ -17,7 +17,9 @@ import 'test_helper.dart';
 /// 这里钉住三件事：
 ///  1. build 里打一条日志 ⇒ **不得**把 App 打断（这是真机那一条）；
 ///  2. 推迟 ≠ 丢弃 ⇒ 那条日志最终仍要进面板；
-///  3. 不在 build 期的日志 ⇒ **当场**进面板（不拖泥带水）。
+///  3. 不在 build 期的日志 ⇒ 也是**推迟**写进去的（写入一律推迟，
+///     不猜当前是不是 build 期 —— phase 判据在 warm-up 那次构建上
+///     实测失效，见 `build_phase_guard.dart` 的注释）。
 void main() {
   testSetup();
 
@@ -80,7 +82,7 @@ void main() {
     );
   });
 
-  testWidgets('不在 build 期的日志，当场就进面板', (tester) async {
+  testWidgets('不在 build 期的日志，也是**推迟**写进去的', (tester) async {
     final container = ProviderContainer();
     addTearDown(container.dispose);
     final sub = wireDartLoggingIntoLogPanel(container);
@@ -95,11 +97,28 @@ void main() {
 
     Logger('BuildPhaseProbe').info('build 之外的日志');
 
-    final logs = container.read(logServiceProvider).logs;
+    // 写入是**推迟**的 ⇒ 此刻还没进面板。
+    // ⚠️ 这条断言钉的是「一律推迟」这个语义 —— 第一版按 phase 判据
+    // 只在 build 期推迟，第二版改成一律推迟（微任务）⇒ 语义变了，
+    // 断言也跟着变（不是把判据放松，是把**意图**写清楚）。
     expect(
-      logs.any((e) => e.message.contains('build 之外的日志')),
+      container
+          .read(logServiceProvider)
+          .logs
+          .any((e) => e.message.contains('build 之外的日志')),
+      isFalse,
+      reason: '写入一律推迟到微任务 ⇒ 此刻不该已经在面板里',
+    );
+
+    await tester.pump();
+
+    expect(
+      container
+          .read(logServiceProvider)
+          .logs
+          .any((e) => e.message.contains('build 之外的日志')),
       isTrue,
-      reason: '不在 build 期 ⇒ 同步写入，不该被推迟',
+      reason: '推迟 ≠ 丢弃：这条必须最终出现在面板里',
     );
   });
 }
