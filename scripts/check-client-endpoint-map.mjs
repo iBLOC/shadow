@@ -332,8 +332,176 @@ function findAssign(text, name, before, literals) {
 }
 
 /** 一个客户端文件里**真的在发**的请求（路径 + 方法）。 */
+/** Dart 客户端的调用名 ⇒ 方法（`_request` 的方法是第一个参数，单独处理）。 */
+const DART_CALLS = [
+  { name: '_request', method: null },
+  { name: '_get', method: 'GET' },
+  { name: '_post', method: 'POST' },
+  { name: '_put', method: 'PUT' },
+  { name: '_delete', method: 'DELETE' },
+  { name: '_patch', method: 'PATCH' },
+  { name: '_adminGet', method: 'GET' },
+  { name: '_adminPost', method: 'POST' },
+  { name: '_adminDelete', method: 'DELETE' },
+];
+
+/** Dart 路径归一化：`$name` / `${…}` ⇒ `{param}`；查询串去掉。 */
+function normalizeDartPath(p) {
+  const q = p.indexOf('?');
+  const s = q >= 0 ? p.slice(0, q) : p;
+  let out = '';
+  let i = 0;
+  while (i < s.length) {
+    if (s[i] === '$' && s[i + 1] === '{') {
+      let depth = 0;
+      let j = i + 1;
+      while (j < s.length) {
+        if (s[j] === '{') depth++;
+        else if (s[j] === '}') { depth--; if (depth === 0) break; }
+        j++;
+      }
+      out += '{param}';
+      i = j + 1;
+      continue;
+    }
+    if (s[i] === '$' && i + 1 < s.length && isIdentChar(s[i + 1])) {
+      out += '{param}';
+      i++;
+      while (i < s.length && isIdentChar(s[i])) i++;
+      continue;
+    }
+    out += s[i];
+    i++;
+  }
+  return out;
+}
+
+/** 取一段文本里的第一个标识符（跳过空白）。 */
+function firstIdent(s) {
+  let i = 0;
+  while (i < s.length && isSpaceChar(s[i])) i++;
+  if (i >= s.length || !isIdentChar(s[i])) return null;
+  const start = i;
+  while (i < s.length && isIdentChar(s[i])) i++;
+  return s.slice(start, i);
+}
+
+/** Dart 的赋值形态：`final path = …` / `var path = …` / `String path = …`。 */
+function findDartAssign(text, name, before, literals) {
+  const kws = ['final', 'var', 'const', 'late', 'String'];
+  let found = -1;
+  let from = 0;
+  for (;;) {
+    const at = text.indexOf(name, from);
+    if (at < 0 || at >= before) break;
+    from = at + name.length;
+    let k = at + name.length;
+    while (k < text.length && isSpaceChar(text[k])) k++;
+    if (text[k] !== '=' || text[k + 1] === '=') continue;
+    // 往前读一个词：只有关键字 / 类型名才算「声明」
+    let j = at - 1;
+    while (j >= 0 && isSpaceChar(text[j])) j--;
+    const wordEnd = j + 1;
+    while (j >= 0 && isIdentChar(text[j])) j--;
+    const word = text.slice(j + 1, wordEnd);
+    if (kws.indexOf(word) < 0) continue;
+    found = k + 1;
+  }
+  if (found < 0) return null;
+  for (const l of literals) {
+    if (l.start > found && l.start < before) return l;
+  }
+  return null;
+}
+
+/** 跳过空白与逗号后取第一个标识符（`_request('GET', path)` 的第二个参数）。 */
+function firstIdentAfterComma(s) {
+  let i = 0;
+  while (i < s.length && (isSpaceChar(s[i]) || s[i] === ',')) i++;
+  if (i >= s.length || !isIdentChar(s[i])) return null;
+  const start = i;
+  while (i < s.length && isIdentChar(s[i])) i++;
+  return s.slice(start, i);
+}
+
+/** 一个 Dart 客户端文件里**真的在发**的请求。 */
+function extractDartCallSites(text) {
+  const scanned = scanSource(text);
+  const literals = scanned.literals;
+  const mask = scanned.mask;
+  const sites = [];
+  for (const call of DART_CALLS) {
+    let from = 0;
+    for (;;) {
+      const at = text.indexOf(call.name, from);
+      if (at < 0) break;
+      from = at + call.name.length;
+      if (mask[at]) continue;
+      const prev = at > 0 ? text[at - 1] : ' ';
+      if (isIdentChar(prev)) continue;
+      let i = from;
+      while (i < text.length && isSpaceChar(text[i])) i++;
+      if (text[i] === '<') {
+        let depth = 0;
+        while (i < text.length) {
+          if (text[i] === '<') depth++;
+          else if (text[i] === '>') { depth--; if (depth === 0) { i++; break; } }
+          i++;
+        }
+        while (i < text.length && isSpaceChar(text[i])) i++;
+      }
+      if (text[i] !== '(') continue;
+      const open = i;
+      const close = matchParen(text, open, mask);
+      const span = text.slice(open, close + 1);
+      const lits = literals.filter((l) => l.start > open && l.start < close);
+      if (lits.length === 0) continue;
+      let method = call.method;
+      let pathLit = lits[0];
+      if (call.method === null) {
+        // `_request('GET', 'path')` ⇒ 第一个是方法，第二个是路径
+        method = lits[0].content.trim().toUpperCase();
+        if (!/^[A-Z]+$/.test(method)) continue;
+        const rest = text.slice(lits[0].end + 1, close);
+        const restLits = literals.filter((l) => l.start > lits[0].end && l.start < close);
+        if (restLits.length > 0 && restLits[0].content.indexOf('/') === 0) {
+          pathLit = restLits[0];
+        } else {
+          // 变量形态：`_request('GET', path)`
+          const ident = firstIdentAfterComma(rest);
+          if (!ident) continue;
+          const found = findDartAssign(text, ident, at, literals);
+          if (!found) continue;
+          pathLit = found;
+        }
+      } else if (pathLit.content.indexOf('/') !== 0) {
+        const ident = firstIdent(span.slice(1));
+        if (!ident) continue;
+        const found = findDartAssign(text, ident, at, literals);
+        if (!found) continue;
+        pathLit = found;
+      }
+      const p = normalizeDartPath(pathLit.content);
+      if (p.indexOf('/') !== 0) continue;
+      sites.push({ method: method, path: p });
+    }
+  }
+  const seen = new Set();
+  return sites.filter((s) => {
+    const k = s.method + ' ' + s.path;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
+/** 客户端文件（TS / Dart）里**真的在发**的请求。 */
 function extractCallSites(file) {
   const text = readFileSync(file, 'utf8');
+  if (file.endsWith('.dart')) return extractDartCallSites(text);
+  return extractTsCallSites(text);
+}
+function extractTsCallSites(text) {
   const scanned = scanSource(text);
   const literals = scanned.literals;
   const mask = scanned.mask;
@@ -482,6 +650,26 @@ function selfTest() {
   check('字面量抽得出（含模板）', lit.length === 5);
   check('模板里的 base 前缀被剥掉', pathOf(D + '{this.getBaseUrl()}/hippocampus/api/tasks') === '/hippocampus/api/tasks');
   check('非路径字面量不误判', pathOf(D + '{this.getBaseUrl()}' + D + '{endpoint}') === null);
+
+  // ⚠️⚠️ **Dart 侧**（移动端两个客户端）—— 夹具必须与真实输入**同形**：
+  //   ① 直接字面量 ② $name 插值 ③ **变量形态**（先 final path = … 再 _request(… path)）
+  // ⇒ ③ 这一支漏了 ⇒ ⇒ 那个调用点**凭空消失** ⇒ ⇒ 表看起来像「客户端改了」。
+  const dartSnippet = [
+    "class C {",
+    "  Future<void> a() async {",
+    "    await _request<List<dynamic>>('GET', '/api/providers');",
+    "    await _request('DELETE', '/api/providers/$name');",
+    "    final path =",
+    "      '/hippocampus/api/memory?x=1';",
+    "    await _request<List<dynamic>>('GET', path);",
+    "  }",
+    "}",
+  ].join(String.fromCharCode(10));
+  const dartSites = extractDartCallSites(dartSnippet);
+  check('Dart：抽得出调用点', dartSites.length === 3);
+  check('Dart：$name 插值 ⇒ {param}', dartSites.some((s) => s.method === 'DELETE' && s.path === '/api/providers/{param}'));
+  check('Dart：变量形态的路径 ⇒ 查回声明', dartSites.some((s) => s.method === 'GET' && s.path === '/hippocampus/api/memory'));
+  check('Dart：查询串去掉', dartSites.every((s) => s.path.indexOf('?') < 0));
 
   console.log(failed ? '❌ 自检有 ' + failed + ' 条红' : '✅ 自检全过');
   process.exit(failed ? 1 : 0);
