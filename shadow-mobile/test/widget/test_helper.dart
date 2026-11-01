@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,6 +11,7 @@ import 'package:shadow_mobile/providers/conversation_mode_provider.dart';
 import 'package:shadow_mobile/providers/genui_provider.dart';
 import 'package:shadow_mobile/providers/service_provider.dart';
 import 'package:shadow_mobile/providers/theme_provider.dart';
+import 'package:shadow_mobile/services/app_config_service.dart';
 import 'package:shadow_mobile/services/telencephalon/telencephalon_client.dart';
 import 'package:shadow_mobile/theme/app_tokens.g.dart';
 import 'package:shadow_mobile/theme/shad_scheme.g.dart';
@@ -18,6 +21,34 @@ void testSetup() {
   setUpAll(() {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
+  });
+
+  // ⚠️⚠️ **「用户喊停」住在 AppConfigService 这个**单例**上** ⇒ 一条用例调了
+  //    `stop()` ⇒ ⇒ 它就把标记置上了 ⇒ ⇒ **后面的用例全被污染**（它们默认
+  //    期望「没喊停过」⇒ 大脑起不来 ⇒ ⇒ 在「条件在 Ns 内没成立」上红 ⇒ ⇒
+  //    **失败长得像实现坏了**）⇒ ⇒ 每个用例前都抹回 false。
+  //
+  //    ⚠️ 落盘目标也指向**临时文件** —— 单测里没有 `path_provider` 的平台实现
+  //    ⇒ 真去调会抛 MissingPluginException ⇒ ⇒ 落盘**静默失败**（那正好是
+  //    「配了不生效」那一族的病）。
+  late Directory cfgDir;
+  late File cfgFile;
+
+  setUpAll(() async {
+    cfgDir = await Directory.systemTemp.createTemp('shadow-cfg-widget');
+    cfgFile = File('${cfgDir.path}/app_config.json');
+  });
+
+  setUp(() async {
+    AppConfigService.configFileOverride = () async => cfgFile;
+    await AppConfigService().setBrainStoppedByUser(false);
+  });
+
+  tearDownAll(() async {
+    AppConfigService.configFileOverride = null;
+    if (cfgDir.existsSync()) {
+      cfgDir.deleteSync(recursive: true);
+    }
   });
 }
 

@@ -76,6 +76,12 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
   /// 拉回来 —— 那个语义是用户自己选的，要恢复得他自己点「启动大脑」。
   bool _stoppedByUser = false;
 
+  /// 落盘「用户喊过停」的**队列**。
+  ///
+  /// 为什么是队列：连着「停 ⇒ 启」两次写入 ⇒ ⇒ 谁后落盘谁赢 ⇒ ⇒ 顺序反了
+  /// ⇒ 标记就停在错的一边 ⇒ ⇒ 用一条队列保证顺序。
+  Future<void> _persistQueue = Future<void>.value();
+
   /// 用户为**外部**端脑配的 admin token。
   ///
   /// 嵌入式端脑有**自己**那把（两个域：嵌入式那把只对嵌入式端脑有效）⇒
@@ -271,9 +277,10 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
   /// 之后端脑请求又可以自动等它就绪了。
   Future<bool> start() async {
     _stoppedByUser = false;
-    // ⚠️ **落盘**：用户明确要大脑跑起来 ⇒ 抹掉「喊停过」的标记 ⇒
-    //    下次启动 App 也就照旧默认拉起来。
-    await AppConfigService().setBrainStoppedByUser(false);
+    // ⚠️ **落盘不许挡用户的路**：用户点了「启动大脑」⇒ ⇒ 大脑必须**立刻**开始起
+    //    ⇒ ⇒ 落盘是**记账**，不是前置条件 ⇒ ⇒ 慢盘/通道卡住都不能挡住他。
+    //    ⇒ ⇒ 只排队、不 await（理由见 [_persistBrainStoppedByUser]）。
+    _persistBrainStoppedByUser(false);
     return ensureStarted();
   }
 
@@ -415,7 +422,9 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
     _stoppedByUser = true;
     // ⚠️ **落盘**：「用户喊停」是**持久偏好** ⇒ 跨 isolate 也要赢
     //    （真机实测：Activity 重建 ⇒ 新 isolate ⇒ 内存标记归零 ⇒ 大脑自己回来）。
-    await AppConfigService().setBrainStoppedByUser(true);
+    //    ⚠️ 但它**不许挡用户的路** ⇒ ⇒ 只排队、不 await
+    //    （理由见 [_persistBrainStoppedByUser]）。
+    _persistBrainStoppedByUser(true);
 
     try {
       await _service.stop();
@@ -431,6 +440,26 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
       );
       return false;
     }
+  }
+
+  /// 把「用户喊过停」落盘 —— **有序、不阻塞、失败只记日志**。
+  ///
+  /// ⚠️ **为什么不能 `await`**：落盘要走平台通道（`path_provider`）⇒ ⇒ 慢盘 /
+  ///    通道卡住 ⇒ ⇒ 用户的「停止大脑」「启动大脑」会被**拖住**⇒ ⇒ 大脑还在跑、
+  ///    界面却在转圈 ⇒ ⇒ **失败长得像成功**。
+  ///    ⚠️ 这不是推测 —— widget 测试就是这么红的：`点「停止大脑」会调 native 的 stop`
+  ///    ⇒ `Expected: true / Actual: false` ⇒ 因为 `stop()` 还没轮到 native
+  ///    就卡在落盘上了（widget 测试的 fake-async 区里，平台通道**永不返回**）。
+  ///
+  /// ⇒ 所以：**记账不许挡路** ⇒ 内存标记立刻改（守卫马上生效）⇒ 落盘只排队。
+  void _persistBrainStoppedByUser(bool value) {
+    _persistQueue = _persistQueue.then((_) async {
+      try {
+        await AppConfigService().setBrainStoppedByUser(value);
+      } catch (e) {
+        _log.warning('落盘「用户喊停」失败: $e');
+      }
+    });
   }
 
   /// 健康检查

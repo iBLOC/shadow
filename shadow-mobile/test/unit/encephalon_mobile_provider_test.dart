@@ -505,6 +505,15 @@ void main() {
 
       await notifier.stop();
 
+      // ⚠️ **落盘是不阻塞的**（不许挡住用户那一下 ⇒ 见 _persistBrainStoppedByUser）
+      //    ⇒ ⇒ 这里要**等它落**，不能假设它已经写完了。
+      await _waitUntil(
+        () =>
+            cfgFile.existsSync() &&
+            (jsonDecode(cfgFile.readAsStringSync()) as Map)['brainStoppedByUser'] ==
+                true,
+      );
+
       final saved = jsonDecode(await cfgFile.readAsString()) as Map;
       expect(
         saved['brainStoppedByUser'],
@@ -526,6 +535,14 @@ void main() {
 
       await notifier.stop();
       await notifier.start();
+
+      // ⚠️ 落盘是**排队**的 ⇒ ⇒ 「停 ⇒ 启」两次写入有先后 ⇒ ⇒ 等第二次落完。
+      await _waitUntil(
+        () =>
+            cfgFile.existsSync() &&
+            !(jsonDecode(cfgFile.readAsStringSync()) as Map)
+                .containsKey('brainStoppedByUser'),
+      );
 
       final saved = jsonDecode(await cfgFile.readAsString()) as Map;
       expect(
