@@ -1092,5 +1092,6 @@
         "type": "String"
       }
     }
-  }
+  },
+  "askAgent2UI": "Ask the telencephalon to draw..."
 }
