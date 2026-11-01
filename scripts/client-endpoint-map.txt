@@ -1,0 +1,49 @@
+# 客户端调用点 → 端脑路由 对照表（机器可读）
+#
+# 格式：<客户端文件> <METHOD> <客户端路径> <状态> <面> <服务端方法> <服务端路径>
+#
+#   客户端文件 —— 相对仓根
+#   METHOD      —— 客户端用的方法
+#   客户端路径  —— **归一化**后的路径（${…} ⇒ {param}，查询串去掉）
+#   状态：
+#     aligned —— 服务端**原样**有这条路径，方法也对得上 ⇒ 客户端今天就该能用
+#     outer   —— 落在 outer 面（neuron 在根 / hippocampus nest 在 /hippocampus）
+#                ⇒ 路径对得上，且**不在门后**（门只罩端脑自己那张面）
+#     differs —— 服务端**有**这项能力，但路径或方法不同 ⇒ 需要迁移
+#     missing —— 服务端**没有**这项能力 ⇒ 需要产品决定（不阻断，留在视野里）
+#   面         —— telencephalon / hippocampus / neuron / none
+#   服务端方法 —— 服务端那条路由的方法（- = 没有对应面）
+#   服务端路径 —— 服务端那条路由的路径（- = 没有对应面）
+#
+# ⚠️ 本表由 scripts/check-client-endpoint-map.mjs 盯着：
+#   客户端新增调用点而没登记 ⇒ 红；端脑改了路由而表没改 ⇒ 红；表里有过期行 ⇒ 红。
+
+shadow-desktop/src/lib/prefrontalClient.ts GET /health outer neuron GET /health
+shadow-desktop/src/lib/prefrontalClient.ts GET /api/sessions differs telencephalon GET /api/sessions
+shadow-desktop/src/lib/prefrontalClient.ts POST /api/sessions differs telencephalon POST /api/sessions
+shadow-desktop/src/lib/prefrontalClient.ts GET /api/sessions/{param} aligned telencephalon GET /api/sessions/{session_id}
+shadow-desktop/src/lib/prefrontalClient.ts DELETE /api/sessions/{param} differs telencephalon POST /api/sessions/{session_id}/close
+shadow-desktop/src/lib/prefrontalClient.ts POST /api/sessions/{param}/messages aligned telencephalon POST /api/sessions/{session_id}/messages
+shadow-desktop/src/lib/prefrontalClient.ts GET /api/sessions/{param}/export missing none - -
+shadow-desktop/src/lib/prefrontalClient.ts GET /api/sessions/{param}/migrate differs telencephalon POST /shadow/v1/conversations/{id}/import
+shadow-desktop/src/lib/prefrontalClient.ts POST /api/sessions/import differs telencephalon POST /shadow/v1/conversations/{id}/import
+shadow-desktop/src/lib/prefrontalClient.ts POST /api/sessions/{param}/process differs telencephalon POST /shadow/v1/conversations/{id}/messages
+shadow-desktop/src/lib/prefrontalClient.ts POST /api/sessions/{param}/stream differs telencephalon POST /shadow/v1/conversations/{id}/messages:stream
+shadow-desktop/src/lib/prefrontalClient.ts GET /api/a2a/peers missing none - -
+shadow-desktop/src/lib/prefrontalClient.ts POST /api/a2a/peers missing none - -
+shadow-desktop/src/lib/prefrontalClient.ts POST /api/a2a/delegate differs telencephalon POST /api/telencephalon/prefrontal/dispatch
+shadow-desktop/src/lib/prefrontalClient.ts GET /api/a2a/peers/{param}/tasks/{param} differs telencephalon GET /a2a/tasks/{id}
+shadow-desktop/src/lib/prefrontalClient.ts DELETE /api/a2a/peers/{param}/tasks/{param}/cancel differs telencephalon POST /a2a/tasks/{id}/cancel
+shadow-desktop/src/lib/prefrontalClient.ts GET /api/providers differs telencephalon GET /models/providers
+shadow-desktop/src/lib/prefrontalClient.ts POST /api/providers differs telencephalon POST /models/providers
+shadow-desktop/src/lib/prefrontalClient.ts DELETE /api/providers/{param} differs telencephalon DELETE /models/providers/{id}
+shadow-desktop/src/lib/prefrontalClient.ts GET /api/model-providers differs telencephalon GET /models/providers
+shadow-desktop/src/lib/prefrontalClient.ts GET /api/agents differs telencephalon GET /api/telencephalon/agents
+shadow-desktop/src/lib/prefrontalClient.ts GET /api/agents/{param} differs telencephalon GET /shadow/v1/agents/{name}
+shadow-desktop/src/lib/prefrontalClient.ts GET /hippocampus/api/tasks outer hippocampus GET /hippocampus/api/tasks
+shadow-desktop/src/lib/prefrontalClient.ts POST /hippocampus/api/tasks outer hippocampus POST /hippocampus/api/tasks
+shadow-desktop/src/lib/prefrontalClient.ts GET /hippocampus/api/tasks/{param}/{param} outer hippocampus GET /hippocampus/api/tasks/{tenant_id}/{task_id}
+shadow-desktop/src/lib/prefrontalClient.ts DELETE /hippocampus/api/tasks/{param}/{param} outer hippocampus DELETE /hippocampus/api/tasks/{tenant_id}/{task_id}
+shadow-desktop/src/lib/prefrontalClient.ts GET /api/skills missing none - -
+shadow-desktop/src/lib/prefrontalClient.ts GET /api/mcp/servers differs telencephalon GET /api/telencephalon/mcp/servers
+shadow-desktop/src/lib/prefrontalClient.ts GET /api/conversations differs telencephalon GET /shadow/v1/conversations

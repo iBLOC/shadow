@@ -217,12 +217,14 @@ describe('platform', () => {
       expect(prefrontalUrl()).toBe('https://prefrontal.example.com');
     });
 
-    it.skip('falls back to localhost:8082 on Tauri', async () => {
+    it('falls back to the telencephalon address on Tauri', async () => {
       (window as any).__TAURI__ = {};
       vi.stubEnv('VITE_PREFRONTAL_URL', '');
       vi.resetModules();
       const { prefrontalUrl } = await import('../platform');
-      expect(prefrontalUrl()).toBe('http://localhost:8082');
+      // ⚠️ 这条以前是 it.skip（断言 8082）—— 契约早就改成端脑 60080 了，
+      // 而断言被**跳过** ⇒ ⇒ 没人发现 ⇒ ⇒ 现在钉**真实**契约。
+      expect(prefrontalUrl()).toBe('http://localhost:60080');
     });
 
     it('falls back to cortex default on web', async () => {

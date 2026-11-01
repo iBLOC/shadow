@@ -46,13 +46,22 @@ export const detectPlatform = (): Platform => {
 };
 
 /**
- * URL of the Prefrontal backend the UI should talk to.
- * - Tauri: defaults to `http://localhost:8082` (embedded service in dev,
- *   remote in prod). Overridable via `VITE_PREFRONTAL_URL` at build time
- *   or via in-app Settings.
- * - Web: defaults to the same origin of the deployed site (`""` for
- *   same-origin requests). Set `VITE_PREFRONTAL_URL=https://my-server`
- *   to talk to a remote Prefrontal from the web version.
+ * 端脑（telencephalon）的地址 —— 桌面端**唯一**的后端。
+ *
+ * ⚠️ 这个函数叫 prefrontalUrl，但它**不是**「前额叶服务」的地址 ——
+ * 端脑把前额叶**内嵌**成自己的一张面（/api/telencephalon/prefrontal/*），
+ * 而 lib/prefrontalClient.ts 说的是 **prefrontal 独立仓**时代的方言
+ * （裸 /api/* + {success,data} 信封）⇒ ⇒ 它今天打的是端脑，但**路径与
+ * 响应形状都对不上** ⇒ ⇒ 逐条对照见 scripts/client-endpoint-map.txt
+ * （node scripts/check-client-endpoint-map.mjs 盯着那张表不许过期）。
+ *
+ * - 默认 http://localhost:60080 —— Tauri 形态下是 cortex_http.rs 在
+ *   **进程内**起的端脑 HTTP 面；web 形态下**没有** sidecar，需要自己代理。
+ * - 构建期用 VITE_PREFRONTAL_URL 覆盖。
+ *
+ * ⚠️ 旧注释写着「Tauri 默认 8082 / web 用同源」—— 那是从 2026-08-16
+ * (7970925) 之前的旧契约留下来的，**今天不成立**；而 platform.test.ts
+ * 里对应的那条断言被 it.skip 掉了 ⇒ ⇒ 没人发现 ⇒ ⇒ 现在两处都钉真实契约。
  */
 export const prefrontalUrl = (): string => {
   if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_PREFRONTAL_URL) {

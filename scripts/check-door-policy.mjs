@@ -34,9 +34,10 @@
  *   node scripts/check-door-policy.mjs --source C:\Projects\iBLOC\telencephalon
  *   node scripts/check-door-policy.mjs --self-test
  */
-import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { stripRustComments, mergedModules, routesIn, surfaceRoutes } from './lib/telencephalon-routes.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..');
@@ -60,87 +61,12 @@ function parseArgs(argv) {
   return opts;
 }
 
-/** Rust 的注释：块注释 + 行注释（引号数为奇数才算真注释）。 */
-function stripRustComments(text) {
-  const noBlocks = text.replace(/\/\*[\s\S]*?\*\//g, '');
-  return noBlocks
-    .split('\n')
-    .map((line) => {
-      const i = line.indexOf('//');
-      if (i === -1) return line;
-      const quotes = (line.slice(0, i).match(/"/g) || []).length;
-      if (quotes % 2 === 1) return line;
-      return line.slice(0, i);
-    })
-    .join('\n');
-}
-
-/** api/mod.rs 里**真正 merge 进来**的模块名。 */
-function mergedModules(sourceRoot) {
-  const modRs = readFileSync(join(sourceRoot, 'src', 'api', 'mod.rs'), 'utf8');
-  const clean = stripRustComments(modRs);
-  const mods = new Set();
-  const re = /\.merge\(\s*([a-z0-9_]+)::/g;
-  let m;
-  while ((m = re.exec(clean)) !== null) mods.add(m[1]);
-  return [...mods];
-}
-
-/** 一批 .rs 里的 .route("…")（路径 + **全部**方法）。 */
-function routesIn(file) {
-  if (!existsSync(file)) return [];
-  const text = readFileSync(file, 'utf8');
-  const out = [];
-  const re = /\.route\(\s*"([^"]+)"/g;
-  let m;
-  while ((m = re.exec(text)) !== null) {
-    const path = m[1];
-    let i = m.index + m[0].length - 1;
-    let depth = 0;
-    let end = text.length;
-    for (; i < text.length; i++) {
-      const c = text[i];
-      if (c === '(') depth++;
-      else if (c === ')') {
-        depth--;
-        if (depth === 0) { end = i; break; }
-      }
-    }
-    const call = text.slice(m.index, end + 1);
-    const methods = new Set();
-    const mre = /\b(get|post|put|delete|patch|head)\s*\(/g;
-    let x;
-    while ((x = mre.exec(call)) !== null) methods.add(x[1].toUpperCase());
-    if (methods.size === 0) methods.add('GET');
-    for (const method of methods) {
-      out.push({ path, method, file: file });
-    }
-  }
-  return out;
-}
-
-function surfaceRoutes(sourceRoot) {
-  const out = [];
-  for (const mod of mergedModules(sourceRoot)) {
-    out.push(...routesIn(join(sourceRoot, 'src', 'api', mod + '.rs')));
-  }
-  const flowDir = join(sourceRoot, 'src', 'flow', 'api');
-  if (existsSync(flowDir)) {
-    for (const e of readdirSync(flowDir)) {
-      if (e.endsWith('.rs')) out.push(...routesIn(join(flowDir, e)));
-    }
-  }
-  const seen = new Set();
-  return out.filter((r) => {
-    const k = r.method + ' ' + r.path;
-    if (seen.has(k)) return false;
-    seen.add(k);
-    return true;
-  });
-}
-
 function parsePolicy(policyPath) {
-  const raw = readFileSync(policyPath, 'utf8');
+  return parsePolicyText(readFileSync(policyPath, 'utf8'));
+}
+
+/** 解析门型表的**文本** —— 真实表与自检夹具共用这一条路（同一形状）。 */
+function parsePolicyText(raw) {
   const entries = [];
   const errors = [];
   raw.split(/\r?\n/).forEach((line, i) => {
@@ -219,20 +145,33 @@ function resolveDoor(path, method, entries) {
   return { door, line: best.line };
 }
 
-function selfTest() {
+function selfTest(sourceRoot) {
   let failed = 0;
   const check = (name, ok) => {
     if (!ok) failed++;
     console.log('  ' + (ok ? '✅' : '❌') + ' ' + name);
   };
   console.log('判据自检：');
-  const E = [
-    { segments: ['api', 'flows'], tailWildcard: false, method: 'POST', door: 'admin', line: 1 },
-    { segments: ['api', 'flows', '*'], tailWildcard: true, method: null, door: 'auto', line: 2 },
-    { segments: ['api', 'flows', '*', 'validate'], tailWildcard: false, method: '*', door: 'open', line: 3 },
-    { segments: ['api', 'telencephalon', 'agents'], tailWildcard: false, method: 'GET', door: 'read', line: 4 },
-    { segments: ['api', 'telencephalon', 'agents', '*'], tailWildcard: true, method: null, door: 'auto', line: 5 },
-  ];
+
+  // ⚠️ 夹具**就是一张门型表文本** ⇒ 与真实表**同形**（都过 parsePolicy）
+  // ⇒ ⇒ 断言钉的是真实请求会走的那条路。
+  //
+  // ⚠️ 旧版的夹具是**手搓的字面量**（method: '*'）⇒ 而 parsePolicy 把 '*'
+  // 归一成 null（= 任何方法）⇒ ⇒ 两边**形状不同** ⇒ 那条 '*' 门型在
+  // resolveDoor 里**永远匹配不上**（拿 '*' 跟 'POST' 比）⇒ ⇒
+  // ⇒ /api/flows/abc/validate 落到族规则 ⇒ admin ≠ open ⇒
+  // ⇒ **这条自检从写出来那天起就是红的**（2026-11-01 实测：HEAD 原版
+  // --self-test exit=1）⇒ ⇒ 没人跑它 ⇒ ⇒ 它守的东西没被守。
+  const fixture = [
+    '/api/flows POST admin',
+    '/api/flows/* * auto',
+    '/api/flows/*/validate * open',
+    '/api/telencephalon/agents GET read',
+    '/api/telencephalon/agents/* * auto',
+  ].join('\n');
+  const { entries: E, errors: fixtureErrors } = parsePolicyText(fixture);
+  check('夹具本身解析零错', fixtureErrors.length === 0);
+
   check('精确路径赢过前缀', resolveDoor('/api/flows', 'POST', E).door === 'admin');
   check('validate（更具体）赢过族', resolveDoor('/api/flows/abc/validate', 'POST', E).door === 'open');
   check('族里的写 ⇒ admin（auto 派生）', resolveDoor('/api/flows/abc/run', 'POST', E).door === 'admin');
@@ -240,13 +179,27 @@ function selfTest() {
   check('精确的 GET 赢过族', resolveDoor('/api/telencephalon/agents', 'GET', E).door === 'read');
   check('没进门型表 ⇒ closed', resolveDoor('/nope', 'GET', E).door === 'closed');
   check('tail 通配也匹配零段', resolveDoor('/api/flows', 'GET', E).door === 'read');
+
+  // 再钉一次**真实表** —— 上面那组只验逻辑，这里验表本身没写歪。
+  const policyPath = join(sourceRoot, 'src', 'api', 'door_policy.txt');
+  if (existsSync(policyPath)) {
+    const { entries: real, errors: realErrors } = parsePolicy(policyPath);
+    check('真实表解析零错', realErrors.length === 0);
+    check(
+      '真实表：/api/flows/{id}/validate ⇒ open（表里显式开口的那条）',
+      resolveDoor('/api/flows/abc/validate', 'POST', real).door === 'open',
+    );
+  } else {
+    check('读得到真实门型表', false);
+  }
+
   console.log(failed ? '❌ 自检有 ' + failed + ' 条红' : '✅ 自检全过');
   process.exit(failed ? 1 : 0);
 }
 
 const opts = parseArgs(process.argv.slice(2));
 if (opts.selfTest) {
-  selfTest();
+  selfTest(opts.source);
 } else {
   const policyPath = join(opts.source, 'src', 'api', 'door_policy.txt');
   if (!existsSync(policyPath)) {
