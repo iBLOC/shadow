@@ -70,9 +70,20 @@ class ConversationsNotifier extends StateNotifier<ConversationsState> {
   /// 跟对话本身是同一份数据。
   final TelencephalonClient _client;
 
-  ConversationsNotifier(this._client) : super(const ConversationsState()) {
-    loadConversations();
-  }
+  /// ⚠️ **构造时不再自动拉**。
+  ///
+  /// 以前这个拉取在**构造函数**里 ⇒ ⇒ 它只在**第一次**进列表时发生
+  /// ⇒ ⇒ 而 `conversationsNotifierProvider` **不是** autoDispose ⇒ ⇒
+  /// notifier 一直活着 ⇒ ⇒ 聊完天再回到列表，界面上的**消息数**与
+  /// **排序**（按 `updated_at`）**停在旧值** ⇒ ⇒ 刚聊过的那条会话
+  /// **不在最上面** ⇒ ⇒ 「最近会话」不是「最近会话」。
+  ///
+  /// ⇒ 现在由**列表页每次进入时**拉一次（见 `ConversationScreen.initState`）。
+  ///
+  /// ⚠️ 初始态是 **loading**（不是空列表）⇒ ⇒ 第一帧画的是**转圈**，
+  /// 不是「**暂无会话**」⇒ ⇒ 不闪一帧「真的没有」的样子。
+  ConversationsNotifier(this._client)
+    : super(const ConversationsState(isLoading: true));
 
   Future<void> loadConversations() async {
     state = state.copyWith(isLoading: true, error: null);
@@ -87,7 +98,12 @@ class ConversationsNotifier extends StateNotifier<ConversationsState> {
                 agent: c.agent,
                 createdAt: c.createdAt,
                 updatedAt: c.updatedAt,
-                messageCount: c.history.length,
+                // ⚠️ **人设那条不算消息** —— 端脑把它存成会话的**第一条**轮次
+                // ⇒ ⇒ 对话页**不画**它（它是配置，不是对话）⇒ ⇒ 列表里的
+                // 条数也要跟对话页**一致** ⇒ ⇒ 否则用户数出来对不上。
+                messageCount: c.history
+                    .where((t) => !t.isSystemTurn)
+                    .length,
               ),
             )
             .toList(),
@@ -115,11 +131,37 @@ class ConversationsNotifier extends StateNotifier<ConversationsState> {
 String conversationTitleOf(Conversation c) =>
     c.derivedTitle ?? currentL10n().conversationNewSession;
 
-class ConversationScreen extends ConsumerWidget {
+class ConversationScreen extends ConsumerStatefulWidget {
   const ConversationScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ConversationScreen> createState() => _ConversationScreenState();
+}
+
+class _ConversationScreenState extends ConsumerState<ConversationScreen> {
+  /// ⚠️ **进入即刷新** —— 会话列表是「**最近会话**」⇒ ⇒ 它得反映**此刻**
+  /// 端脑那边的情况 ⇒ ⇒ 消息数、按 `updated_at` 的排序都得是新的。
+  ///
+  /// ⚠️ 以前是**陈旧的**：拉取在 notifier 的**构造函数**里 ⇒ ⇒ 只在第一次
+  /// 进列表时发生 ⇒ ⇒ 聊完天回到列表，排序还停在旧位置 ⇒ ⇒ 刚聊过的那条
+  /// **不在最上面**。
+  ///
+  /// ⚠️ 为什么**下一帧**再拉，不能在 `initState` 里直接拉：Riverpod
+  /// **不许在 widget 构建期改 provider**（`_debugCanModifyProviders` 直接
+  /// 抛错）⇒ ⇒ 只能等下一帧。
+  /// ⇒ ⇒ 而「一帧的假空态」由**初始态 = loading** 挡掉（见 notifier）。
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(conversationsNotifierProvider.notifier).loadConversations();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ref = this.ref;
     final convState = ref.watch(conversationsNotifierProvider);
 
     return Scaffold(

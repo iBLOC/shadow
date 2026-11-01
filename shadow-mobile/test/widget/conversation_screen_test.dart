@@ -234,6 +234,94 @@ void main() {
       expect(find.text(long), findsNothing);
     });
 
+    testWidgets('进入会话列表 ⇒ 真的重新拉一次（不显示陈旧数据）', (
+      WidgetTester tester,
+    ) async {
+      var gets = 0;
+      final container = ProviderContainer(
+        overrides: [
+          telencephalonClientProvider.overrideWithValue(
+            TelencephalonClient(
+              baseUrl: 'http://127.0.0.1:60080',
+              client: MockClient((req) async {
+                gets++;
+                return http.Response(
+                  '[]',
+                  200,
+                  headers: {
+                    'content-type': 'application/json; charset=utf-8',
+                  },
+                );
+              }),
+            ),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      Widget screen() => UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+          ],
+          supportedLocales: const [Locale('en')],
+          locale: const Locale('en'),
+          home: const ConversationScreen(),
+        ),
+      );
+
+      await tester.pumpWidget(screen());
+      await tester.pumpAndSettle();
+      expect(gets, 1);
+
+      // 离开列表（模拟去对话页）。
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpAndSettle();
+
+      // 再进列表 ⇒ ⚠️ **同一个 notifier 还在**（provider 不是 autoDispose）
+      // ⇒ ⇒ 它手里的数据是**陈旧的** ⇒ ⇒ 除非**重新拉一次**。
+      await tester.pumpWidget(screen());
+      await tester.pumpAndSettle();
+      expect(gets, 2);
+    });
+
+    testWidgets('消息数**不含**人设那条（与对话页一致）', (
+      WidgetTester tester,
+    ) async {
+      await pumpConversationScreen(
+        tester,
+        handler: _server(
+          jsonEncode([
+            _serverConv('conv-a', 'temporal', const [
+              {'role': 'agent', 'text': '[system] 你是影'},
+              {'role': 'user', 'text': '第一条问题'},
+              {'role': 'agent', 'text': '第一条回答'},
+            ]),
+          ]),
+        ),
+      );
+
+      // 对话页**不画**人设那条 ⇒ ⇒ 列表里的条数也**不含**它
+      // ⇒ ⇒ 2 条（用户 1 + 回答 1），**不是** 3。
+      expect(
+        find.descendant(
+          of: find.byType(CircleAvatar),
+          matching: find.text('2'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byType(CircleAvatar),
+          matching: find.text('3'),
+        ),
+        findsNothing,
+      );
+    });
+
     testWidgets('读不到 ⇒ **不是**空态（失败要说真话）', (
       WidgetTester tester,
     ) async {
