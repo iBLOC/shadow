@@ -431,6 +431,8 @@
   "taskSubtaskProgress": "子任务进度",
   "logsTab": "日志",
   "logsBackend": "后端",
+  "logsApp": "应用",
+  "logsDevice": "本机组件",
   "logsAllLevels": "所有级别",
   "logsExport": "导出日志",
   "logsPanelClearAll": "清空日志",

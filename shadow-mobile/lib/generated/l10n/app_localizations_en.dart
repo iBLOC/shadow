@@ -1107,6 +1107,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get logsBackend => 'Backend';
 
   @override
+  String get logsApp => 'App';
+
+  @override
+  String get logsDevice => 'Device components';
+
+  @override
   String get logsAllLevels => 'All levels';
 
   @override

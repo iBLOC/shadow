@@ -1089,6 +1089,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get logsBackend => '后端';
 
   @override
+  String get logsApp => '应用';
+
+  @override
+  String get logsDevice => '本机组件';
+
+  @override
   String get logsAllLevels => '所有级别';
 
   @override

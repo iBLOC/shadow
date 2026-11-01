@@ -45,7 +45,6 @@ class MainActivity : FlutterActivity() {
     
     private var nsdManager: NsdManager? = null
     private val discoveredServices = ConcurrentHashMap<String, NsdServiceInfo>()
-    private var logcatReader: LogcatReader? = null
     
     private var litertEngine: LitertEngine? = null
     private var ttsManager: TtsManager? = null
@@ -124,16 +123,19 @@ class MainActivity : FlutterActivity() {
     private fun setupLogcatChannel(flutterEngine: FlutterEngine) {
         EventChannel(flutterEngine.dartExecutor.binaryMessenger, LOG_CHANNEL).setStreamHandler(
             object : EventChannel.StreamHandler {
+                // 原先这里起 `Runtime.exec("logcat …")` 回读自己的日志 ——
+                // MIUI 对 app uid 的 logcat 是彻底封锁的（挂死且零输出），
+                // 面板因此永远空白。现在订阅进程内的 AppLog（写入端抄送），
+                // onListen 先回放存量再实时跟随。通道名沿用 `mnn_logs`
+                // —— 两侧（Kotlin/Dart）约定一致即可，改名没有额外收益。
                 override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
-                    logcatReader = LogcatReader()
-                    logcatReader?.startReading { entry ->
+                    AppLog.subscribe(replay = true) { entry ->
                         events?.success(entry)
                     }
                 }
 
                 override fun onCancel(arguments: Any?) {
-                    logcatReader?.stopReading()
-                    logcatReader = null
+                    AppLog.unsubscribe()
                 }
             }
         )
@@ -150,7 +152,7 @@ class MainActivity : FlutterActivity() {
 
     private fun registerEngineService(port: Int) {
         val manager = nsdManager ?: run {
-            android.util.Log.w("MainActivity", "NsdManager unavailable; engine not advertised")
+            AppLog.w("MainActivity", "NsdManager unavailable; engine not advertised")
             return
         }
         if (engineRegistrationListener != null) return
@@ -174,16 +176,16 @@ class MainActivity : FlutterActivity() {
         val listener = object : NsdManager.RegistrationListener {
             override fun onServiceRegistered(serviceInfo: NsdServiceInfo) {
                 engineRegisteredName = serviceInfo.serviceName
-                android.util.Log.i("MainActivity", "Engine advertised as ${serviceInfo.serviceName}")
+                AppLog.i("MainActivity", "Engine advertised as ${serviceInfo.serviceName}")
             }
             override fun onRegistrationFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
-                android.util.Log.e("MainActivity", "Engine registration failed: $errorCode")
+                AppLog.e("MainActivity", "Engine registration failed: $errorCode")
             }
             override fun onServiceUnregistered(arg0: NsdServiceInfo) {
-                android.util.Log.i("MainActivity", "Engine unregistered")
+                AppLog.i("MainActivity", "Engine unregistered")
             }
             override fun onUnregistrationFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
-                android.util.Log.w("MainActivity", "Engine unregistration failed: $errorCode")
+                AppLog.w("MainActivity", "Engine unregistration failed: $errorCode")
             }
         }
 
@@ -191,7 +193,7 @@ class MainActivity : FlutterActivity() {
             manager.registerService(serviceInfo, NsdManager.PROTOCOL_DNS_SD, listener)
             engineRegistrationListener = listener
         } catch (e: Exception) {
-            android.util.Log.e("MainActivity", "registerService threw", e)
+            AppLog.e("MainActivity", "registerService threw", e)
         }
     }
 
@@ -201,7 +203,7 @@ class MainActivity : FlutterActivity() {
         try {
             manager.unregisterService(listener)
         } catch (e: Exception) {
-            android.util.Log.w("MainActivity", "unregisterService threw", e)
+            AppLog.w("MainActivity", "unregisterService threw", e)
         }
         engineRegistrationListener = null
         engineRegisteredName = null

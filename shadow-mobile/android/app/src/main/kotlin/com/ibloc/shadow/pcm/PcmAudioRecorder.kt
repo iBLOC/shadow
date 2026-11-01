@@ -24,6 +24,7 @@ import android.media.MediaRecorder
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import com.ibloc.shadow.AppLog
 import io.flutter.plugin.common.EventChannel
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.atomic.AtomicBoolean
@@ -60,13 +61,13 @@ class PcmAudioRecorder(private val context: Context) {
     @SuppressLint("MissingPermission")
     suspend fun startRecording(): Boolean = withContext(Dispatchers.IO) {
         if (isRecording.get()) {
-            Log.w(TAG, "Already recording")
+            AppLog.w(TAG, "Already recording")
             return@withContext false
         }
 
         val minBufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT)
         if (minBufferSize == AudioRecord.ERROR || minBufferSize == AudioRecord.ERROR_BAD_VALUE) {
-            Log.e(TAG, "Invalid buffer size: $minBufferSize")
+            AppLog.e(TAG, "Invalid buffer size: $minBufferSize")
             return@withContext false
         }
 
@@ -80,7 +81,7 @@ class PcmAudioRecorder(private val context: Context) {
             )
 
             if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
-                Log.e(TAG, "AudioRecord failed to initialize")
+                AppLog.e(TAG, "AudioRecord failed to initialize")
                 audioRecord?.release()
                 audioRecord = null
                 return@withContext false
@@ -91,14 +92,14 @@ class PcmAudioRecorder(private val context: Context) {
             isRecording.set(true)
             recordingStartTime = System.currentTimeMillis()
 
-            Log.d(TAG, "Recording started")
+            AppLog.d(TAG, "Recording started")
 
             // Start recording loop in background
             launchRecordingLoop(minBufferSize)
 
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to start recording", e)
+            AppLog.e(TAG, "Failed to start recording", e)
             audioRecord?.release()
             audioRecord = null
             false
@@ -111,7 +112,7 @@ class PcmAudioRecorder(private val context: Context) {
         while (isRecording.get()) {
             val elapsed = System.currentTimeMillis() - recordingStartTime
             if (elapsed >= MAX_DURATION_MS) {
-                Log.d(TAG, "Max duration reached ($MAX_DURATION_MS ms)")
+                AppLog.d(TAG, "Max duration reached ($MAX_DURATION_MS ms)")
                 break
             }
 
@@ -134,21 +135,21 @@ class PcmAudioRecorder(private val context: Context) {
      */
     fun stopRecording(): ByteArray? {
         if (!isRecording.getAndSet(false)) {
-            Log.w(TAG, "Not recording")
+            AppLog.w(TAG, "Not recording")
             return null
         }
 
         try {
             audioRecord?.stop()
         } catch (e: Exception) {
-            Log.e(TAG, "Error stopping recorder", e)
+            AppLog.e(TAG, "Error stopping recorder", e)
         }
 
         audioRecord?.release()
         audioRecord = null
 
         val recordedBytes = audioStream.toByteArray()
-        Log.d(TAG, "Recording stopped. Recorded ${recordedBytes.size} bytes (${recordedBytes.size / 2} samples)")
+        AppLog.d(TAG, "Recording stopped. Recorded ${recordedBytes.size} bytes (${recordedBytes.size / 2} samples)")
 
         return recordedBytes
     }
@@ -169,7 +170,7 @@ class PcmAudioRecorder(private val context: Context) {
         audioRecord = null
         audioStream.reset()
 
-        Log.d(TAG, "Recording cancelled")
+        AppLog.d(TAG, "Recording cancelled")
     }
 
     /**

@@ -4,6 +4,7 @@ import android.content.Context
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.util.Log
+import com.ibloc.shadow.AppLog
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.util.Locale
@@ -22,7 +23,7 @@ class TtsManager(private val context: Context) : TextToSpeech.OnInitListener {
     
     override fun onInit(status: Int) {
         isInitialized = status == TextToSpeech.SUCCESS
-        Log.d("TtsManager", "onInit: isInitialized=$isInitialized, status=$status")
+        AppLog.d("TtsManager", "onInit: isInitialized=$isInitialized, status=$status")
         if (isInitialized) {
             tts?.language = Locale.CHINA
             tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
@@ -36,12 +37,12 @@ class TtsManager(private val context: Context) : TextToSpeech.OnInitListener {
                 
                 override fun onError(utteranceId: String?) {
                     _isSpeaking.value = false
-                    Log.e("TtsManager", "onError: utteranceId=$utteranceId")
+                    AppLog.e("TtsManager", "onError: utteranceId=$utteranceId")
                 }
                 
                 override fun onError(utteranceId: String?, errorCode: Int) {
                     _isSpeaking.value = false
-                    Log.e("TtsManager", "onError: utteranceId=$utteranceId, errorCode=$errorCode")
+                    AppLog.e("TtsManager", "onError: utteranceId=$utteranceId, errorCode=$errorCode")
                 }
             })
             pendingText?.let { speak(it); pendingText = null }
@@ -49,13 +50,13 @@ class TtsManager(private val context: Context) : TextToSpeech.OnInitListener {
     }
     
     fun speak(text: String, lang: String = "zh-CN") {
-        Log.d("TtsManager", "speak called: text length=${text.length}, isInitialized=$isInitialized")
+        AppLog.d("TtsManager", "speak called: text length=${text.length}, isInitialized=$isInitialized")
         if (text.isBlank()) {
-            Log.w("TtsManager", "speak: text is blank")
+            AppLog.w("TtsManager", "speak: text is blank")
             return
         }
         if (!isInitialized) {
-            Log.w("TtsManager", "speak: not initialized, queueing text")
+            AppLog.w("TtsManager", "speak: not initialized, queueing text")
             pendingText = text
             return
         }
@@ -68,7 +69,7 @@ class TtsManager(private val context: Context) : TextToSpeech.OnInitListener {
         
         tts?.language = locale
         tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "tts_${System.currentTimeMillis()}")
-        Log.d("TtsManager", "speak: tts.speak called")
+        AppLog.d("TtsManager", "speak: tts.speak called")
     }
     
     fun stop() {

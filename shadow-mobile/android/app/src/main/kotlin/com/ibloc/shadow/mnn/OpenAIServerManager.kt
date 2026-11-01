@@ -2,6 +2,7 @@ package com.ibloc.shadow.mnn
 
 import android.content.Context
 import android.util.Log
+import com.ibloc.shadow.AppLog
 
 class OpenAIServerManager {
     companion object {
@@ -14,7 +15,7 @@ class OpenAIServerManager {
         fun startServer(context: Context, port: Int = DEFAULT_PORT): Boolean {
             return try {
                 if (server?.isRunning() == true) {
-                    Log.w(TAG, "Server already running")
+                    AppLog.w(TAG, "Server already running")
                     return true
                 }
 
@@ -23,14 +24,14 @@ class OpenAIServerManager {
                 }
                 if (newServer.start()) {
                     server = newServer
-                    Log.i(TAG, "API Server started on port $port")
+                    AppLog.i(TAG, "API Server started on port $port")
                     true
                 } else {
-                    Log.e(TAG, "Server failed to start on port $port")
+                    AppLog.e(TAG, "Server failed to start on port $port")
                     false
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to start server: ${e.message}")
+                AppLog.e(TAG, "Failed to start server: ${e.message}")
                 false
             }
         }
@@ -39,9 +40,9 @@ class OpenAIServerManager {
             try {
                 server?.stop()
                 server = null
-                Log.i(TAG, "API Server stopped")
+                AppLog.i(TAG, "API Server stopped")
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to stop server: ${e.message}")
+                AppLog.e(TAG, "Failed to stop server: ${e.message}")
             }
         }
 

@@ -33,31 +33,43 @@ class _LogPanelSectionState extends ConsumerState<LogPanelSection> {
 
   final ScrollController _scrollController = ScrollController();
   final GlobalKey<ShadSonnerState> _sonnerKey = GlobalKey<ShadSonnerState>();
+  ProviderSubscription<int?>? _prefrontalPortSub;
   bool _disposed = false;
 
   @override
   void initState() {
     super.initState();
+    // The agent log stream (`/api/logs/stream`) is served by the legacy
+    // embedded Prefrontal only — Telencephalon has no such route. That
+    // runtime is off by default, so the port is null at first frame and
+    // only becomes known if the user starts it later; reading the port
+    // once (as this used to do) meant the panel would never attach.
+    // listenManual keeps following the provider instead.
+    _prefrontalPortSub = ref.listenManual<int?>(
+      prefrontalMobilePortProvider,
+      (previous, next) => _attachPrefrontal(next),
+      fireImmediately: true,
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_disposed) return;
-      final notifier = ref.read(logServiceProvider.notifier);
-      // The agent log stream (`/api/logs/stream`) is served by Prefrontal
-      // only — Telencephalon has no such route. The desktop no longer runs
-      // a standalone Prefrontal (it embeds Encephalon), so the only live
-      // source on this device is the in-process embedded Prefrontal, whose
-      // port is only known after it starts. Stream from it when it is up;
-      // otherwise there is simply nothing to attach to.
-      final embeddedPort = ref.read(prefrontalMobilePortProvider);
-      if (embeddedPort != null) {
-        notifier.connectPrefrontal('http://127.0.0.1:$embeddedPort');
-      }
-      notifier.connectMnn();
+      ref.read(logServiceProvider.notifier).connectMnn();
     });
+  }
+
+  void _attachPrefrontal(int? port) {
+    if (_disposed) return;
+    final notifier = ref.read(logServiceProvider.notifier);
+    if (port != null && port > 0) {
+      notifier.connectPrefrontal('http://127.0.0.1:$port');
+    } else {
+      notifier.disconnectPrefrontal();
+    }
   }
 
   @override
   void dispose() {
     _disposed = true;
+    _prefrontalPortSub?.close();
     _scrollController.dispose();
     super.dispose();
   }
@@ -79,7 +91,8 @@ class _LogPanelSectionState extends ConsumerState<LogPanelSection> {
 
   String _sourceLabel(AppLocalizations l10n, String value) {
     return switch (value) {
-      'mnn' => 'MNN',
+      'app' => l10n.logsApp,
+      'mnn' => l10n.logsDevice,
       'prefrontal' => l10n.logsBackend,
       _ => l10n.commonAll,
     };
@@ -128,7 +141,8 @@ class _LogPanelSectionState extends ConsumerState<LogPanelSection> {
                       Text(_sourceLabel(l10n, value)),
                   options: [
                     ShadOption(value: _all, child: Text(l10n.commonAll)),
-                    ShadOption(value: 'mnn', child: const Text('MNN')),
+                    ShadOption(value: 'app', child: Text(l10n.logsApp)),
+                    ShadOption(value: 'mnn', child: Text(l10n.logsDevice)),
                     ShadOption(
                       value: 'prefrontal',
                       child: Text(l10n.logsBackend),
@@ -263,8 +277,11 @@ class _LogEntryTile extends StatelessWidget {
         children: [
           Icon(_getLevelIcon(), size: 14, color: color),
           const SizedBox(width: 4),
+          // 真实 tag（logcat 的 tag / 后端流的 target），不是写死的源类型 ——
+          // logcat 名单现在覆盖 EncephalonRuntime / flutter / MainActivity，
+          // 一律标成「MNN」会把端脑的启动日志冒名成推理引擎的。
           Text(
-            log.source == LogSource.mnn ? '[MNN]' : '[Pre]',
+            '[${log.tag.isNotEmpty ? log.tag : log.source.name}]',
             style: theme.textTheme.small.copyWith(
               fontSize: AppTokens.fontSizeXs,
               color: theme.colorScheme.mutedForeground,

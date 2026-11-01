@@ -17,13 +17,13 @@ class PrefrontalAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
-        Log.d(TAG, "PrefrontalAccessibilityService connected")
+        AppLog.d(TAG, "PrefrontalAccessibilityService connected")
     }
 
     override fun onDestroy() {
         super.onDestroy()
         instance = null
-        Log.d(TAG, "PrefrontalAccessibilityService destroyed")
+        AppLog.d(TAG, "PrefrontalAccessibilityService destroyed")
     }
 
     fun performTap(x: Float, y: Float): Boolean {

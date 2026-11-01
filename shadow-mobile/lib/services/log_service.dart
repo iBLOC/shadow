@@ -1,10 +1,15 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-enum LogSource { mnn, prefrontal }
+/// 日志来源。`mnn` 的语义已经泛化为「本机组件（EventChannel，宿主侧
+/// AppLog 抄送，通道名沿用 mnn_logs）」；`app` 是 Dart 侧 package:logging
+/// 的记录（各 Notifier / Service 的运行时日志）；`prefrontal` 是遗留
+/// Prefrontal 的 SSE 流。
+enum LogSource { mnn, app, prefrontal }
 
 enum LogLevel { debug, info, warning, error }
 
@@ -129,6 +134,28 @@ class LogService extends StateNotifier<LogState> {
     ));
   }
 
+  /// 接住 Dart 侧 package:logging 的记录（`Logger.root.onRecord`）。
+  ///
+  /// App 里几十个 Notifier / Service 都在用 `Logger('…')` 打运行时日志
+  /// （大脑启动、模型路由、错误降级…），但 logging 包默认没有监听者 ——
+  /// 这些日志此前哪儿也不去。这里把它们领进日志面板。
+  void addDartLog(String loggerName, String level, String message, [String? error]) {
+    addLog(LogEntry(
+      timestamp: DateTime.now(),
+      source: LogSource.app,
+      level: switch (level) {
+        'FINE' || 'FINER' || 'FINEST' => LogLevel.debug,
+        'WARNING' => LogLevel.warning,
+        'SEVERE' => LogLevel.error,
+        _ => LogLevel.info,
+      },
+      tag: loggerName,
+      message: error != null
+          ? '$message ($error)'
+          : message,
+    ));
+  }
+
   void clearLogs() {
     state = state.copyWith(logs: []);
   }
@@ -165,6 +192,11 @@ class LogService extends StateNotifier<LogState> {
   }
 
   void connectPrefrontal(String baseUrl) {
+    // 同一地址且还连着 ⇒ 不拆重连（面板每次展开都会重新挂上来）。
+    final current = _prefrontalStream;
+    if (current != null && current.baseUrl == baseUrl && current.isConnected) {
+      return;
+    }
     disconnectPrefrontal();
     _prefrontalStream = PrefrontalLogStream(baseUrl: baseUrl, onLog: addLog);
     _prefrontalStream?.connect();
@@ -175,8 +207,13 @@ class LogService extends StateNotifier<LogState> {
     _prefrontalStream = null;
   }
 
+  /// 幂等：流是进程级的（本进程 logcat），面板只是观察者。
+  ///
+  /// 设置页的「高级 → 日志」折叠区每次展开都会重建面板并调一次这里；
+  /// 宿主侧 onListen 会先回放最近一段存量 —— 若每次都拆掉重连，
+  /// 同一批存量就会被重复塞进列表。
   void connectMnn() {
-    disconnectMnn();
+    if (_mnnStream != null) return;
     _mnnStream = MnnLogStream(onLog: addLog);
     _mnnStream?.connect();
   }
@@ -195,7 +232,9 @@ class PrefrontalLogStream {
   final void Function(LogEntry) onLog;
   Socket? _socket;
   bool _isConnected = false;
-  List<int> _buffer = [];
+
+  /// 未消费的字节 —— 只保留**不完整的尾行**（跨 TCP 段的 SSE 帧不被丢）。
+  String _pending = '';
 
   PrefrontalLogStream({required this.baseUrl, required this.onLog});
 
@@ -212,8 +251,7 @@ class PrefrontalLogStream {
 
       _socket!.listen(
         (data) {
-          _buffer.addAll(data);
-          _processBuffer();
+          consume(utf8.decode(data, allowMalformed: true));
         },
         onError: (error) {
           debugPrint('PrefrontalLogStream error: $error');
@@ -239,86 +277,38 @@ class PrefrontalLogStream {
     }
   }
 
-  void _processBuffer() {
-    final str = String.fromCharCodes(_buffer);
-    final lines = str.split('\n');
-    for (var i = 0; i < lines.length - 1; i++) {
-      final line = lines[i];
-      if (line.startsWith('data:')) {
-        final jsonStr = line.substring(5).trim();
-        if (jsonStr.isNotEmpty) {
-          try {
-            final json = _parseJson(jsonStr);
-            if (json.isNotEmpty) {
-              final entry = LogEntry.fromJson(json, LogSource.prefrontal);
-              onLog(entry);
-            }
-          } catch (e) {
-            debugPrint('Failed to parse log entry: $e');
-          }
-        }
+  /// 喂入**一段**新到的字节：消费缓冲里的完整行，不完整的尾行留在
+  /// [_pending] 等下一段（跨 TCP 段的 SSE 帧不被丢）。`data:` 行按真
+  /// JSON 解码（手写解析器不认转义引号 —— message 里带 `\"` 就解析成垃圾）。
+  @visibleForTesting
+  void consume(String chunk) {
+    var input = _pending + chunk;
+    // HTTP/1.1 响应头剥离 —— 幂等：缓冲以 "HTTP/" 开头才剥（剥完不再以它
+    // 开头，天然不重复）；没有头的流（异常但可能）也照常工作。
+    if (input.startsWith('HTTP/')) {
+      final headerEnd = input.indexOf('\r\n\r\n');
+      if (headerEnd == -1) {
+        _pending = input; // 头还没到齐，整段留着
+        return;
       }
+      input = input.substring(headerEnd + 4);
     }
-    final lastLine = lines.last;
-    if (!lastLine.startsWith('data:')) {
-      _buffer = [];
-    } else {
-      _buffer = [];
-    }
-  }
-
-  Map<String, dynamic> _parseJson(String jsonStr) {
-    try {
-      final result = <String, dynamic>{};
-      var i = 0;
-      if (jsonStr.isEmpty || jsonStr[0] != '{') return result;
-      i++;
-      while (i < jsonStr.length && jsonStr[i] != '}') {
-        while (i < jsonStr.length && (jsonStr[i] == ' ' || jsonStr[i] == ',')) {
-          i++;
+    final lines = input.split('\n');
+    // split 的最后一段要么是空串（行完整）要么是不完整的尾行 —— 留给下一段。
+    _pending = lines.removeLast();
+    for (final rawLine in lines) {
+      final line = rawLine.endsWith('\r') ? rawLine.substring(0, rawLine.length - 1) : rawLine;
+      if (!line.startsWith('data:')) continue; // event:/注释/空行
+      final jsonStr = line.substring(5).trim();
+      if (jsonStr.isEmpty) continue;
+      try {
+        final json = jsonDecode(jsonStr);
+        if (json is Map<String, dynamic>) {
+          onLog(LogEntry.fromJson(json, LogSource.prefrontal));
         }
-        if (i >= jsonStr.length || jsonStr[i] == '}') break;
-        final keyEnd = jsonStr.indexOf(':', i);
-        if (keyEnd == -1) break;
-        var key = jsonStr.substring(i, keyEnd).trim();
-        if (key.startsWith('"') && key.endsWith('"')) {
-          key = key.substring(1, key.length - 1);
-          i = keyEnd + 1;
-          while (i < jsonStr.length && jsonStr[i] == ' ') {
-            i++;
-          }
-          dynamic value;
-          if (i < jsonStr.length && jsonStr[i] == '"') {
-            i++;
-            final valueEnd = jsonStr.indexOf('"', i);
-            value = jsonStr.substring(i, valueEnd);
-            i = valueEnd + 1;
-          } else {
-            final valueEnd = jsonStr.indexOf(RegExp(r'[,}]'), i);
-            final rawValue = valueEnd == -1
-                ? jsonStr.substring(i).trim()
-                : jsonStr.substring(i, valueEnd).trim();
-            if (rawValue == 'null') {
-              value = null;
-            } else if (rawValue == 'true') {
-              value = true;
-            } else if (rawValue == 'false') {
-              value = false;
-            } else if (double.tryParse(rawValue) != null) {
-              value = double.parse(rawValue);
-            } else {
-              value = rawValue;
-            }
-            i = valueEnd == -1 ? jsonStr.length : valueEnd;
-          }
-          result[key] = value;
-        } else {
-          i = keyEnd + 1;
-        }
+      } catch (e) {
+        debugPrint('Failed to parse log entry: $e');
       }
-      return result;
-    } catch (e) {
-      return {};
     }
   }
 

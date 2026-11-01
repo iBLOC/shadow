@@ -18,6 +18,7 @@ import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.os.Build
 import android.util.Log
+import com.ibloc.shadow.AppLog
 
 class UsbAudioRouter(private val context: Context) {
 
@@ -36,7 +37,7 @@ class UsbAudioRouter(private val context: Context) {
                 "isUsb" to isUsb,
             ))
         }
-        Log.d(TAG, "listSinks: ${out.size} output devices")
+        AppLog.d(TAG, "listSinks: ${out.size} output devices")
         return out
     }
 
@@ -47,6 +48,6 @@ class UsbAudioRouter(private val context: Context) {
         // requestAudioFocus to actually activate the route.
         am.requestAudioFocus(null, AudioManager.STREAM_MUSIC,
                              AudioManager.AUDIOFOCUS_GAIN)
-        Log.i(TAG, "routeTo: deviceId=$deviceId, set MODE_NORMAL + speakerphoneOff")
+        AppLog.i(TAG, "routeTo: deviceId=$deviceId, set MODE_NORMAL + speakerphoneOff")
     }
 }

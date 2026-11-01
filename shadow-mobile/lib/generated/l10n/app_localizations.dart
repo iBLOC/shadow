@@ -2186,6 +2186,18 @@ abstract class AppLocalizations {
   /// **'Backend'**
   String get logsBackend;
 
+  /// No description provided for @logsApp.
+  ///
+  /// In en, this message translates to:
+  /// **'App'**
+  String get logsApp;
+
+  /// No description provided for @logsDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'Device components'**
+  String get logsDevice;
+
   /// No description provided for @logsAllLevels.
   ///
   /// In en, this message translates to:

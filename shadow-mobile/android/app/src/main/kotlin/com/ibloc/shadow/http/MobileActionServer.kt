@@ -1,6 +1,7 @@
 package com.ibloc.shadow.http
 
 import android.util.Log
+import com.ibloc.shadow.AppLog
 import fi.iki.elonen.NanoHTTPD
 import com.ibloc.shadow.PrefrontalAccessibilityService
 import org.json.JSONObject
@@ -14,7 +15,7 @@ class MobileActionServer(
         val uri = session.uri
         val method = session.method
 
-        Log.d(TAG, "$method $uri")
+        AppLog.d(TAG, "$method $uri")
 
         return when {
             uri == "/api/mobile/action" && method == Method.POST -> handleMobileAction(session)
@@ -29,7 +30,7 @@ class MobileActionServer(
             session.parseBody(files)
 
             val requestBody = files["postData"] ?: files["postData-1"] ?: "{}"
-            Log.d(TAG, "Request body: $requestBody")
+            AppLog.d(TAG, "Request body: $requestBody")
 
             val json = JSONObject(requestBody)
             val action = json.optString("action", "")
@@ -125,7 +126,7 @@ class MobileActionServer(
 
             return result
         } catch (e: Exception) {
-            Log.e(TAG, "Error handling mobile action", e)
+            AppLog.e(TAG, "Error handling mobile action", e)
             return jsonResponse(false, "", e.message ?: "Unknown error")
         }
     }
@@ -186,11 +187,11 @@ class MobileActionServer(
                 if (instance == null) {
                     instance = MobileActionServer(port)
                     instance?.start()
-                    Log.i(TAG, "Server started on port $port")
+                    AppLog.i(TAG, "Server started on port $port")
                 }
                 true
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to start server", e)
+                AppLog.e(TAG, "Failed to start server", e)
                 false
             }
         }
@@ -198,7 +199,7 @@ class MobileActionServer(
         fun stop() {
             instance?.stop()
             instance = null
-            Log.i(TAG, "Server stopped")
+            AppLog.i(TAG, "Server stopped")
         }
     }
 }

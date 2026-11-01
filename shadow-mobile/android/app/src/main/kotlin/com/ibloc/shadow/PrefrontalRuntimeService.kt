@@ -79,11 +79,11 @@ class PrefrontalRuntimeService : Service() {
     override fun onCreate() {
         super.onCreate()
         instance = this
-        Log.d(TAG, "PrefrontalRuntimeService created")
+        AppLog.d(TAG, "PrefrontalRuntimeService created")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Log.d(TAG, "PrefrontalRuntimeService onStartCommand")
+        AppLog.d(TAG, "PrefrontalRuntimeService onStartCommand")
         if (!isStarted) {
             startPrefrontal()
         }
@@ -96,7 +96,7 @@ class PrefrontalRuntimeService : Service() {
     }
 
     override fun onDestroy() {
-        Log.d(TAG, "PrefrontalRuntimeService destroyed")
+        AppLog.d(TAG, "PrefrontalRuntimeService destroyed")
         stopPrefrontal()
         instance = null
         methodChannel?.setMethodCallHandler(null)
@@ -107,20 +107,20 @@ class PrefrontalRuntimeService : Service() {
     private fun startPrefrontal() {
         if (isStarted) return
 
-        Log.i(TAG, "Starting Prefrontal runtime on port $DEFAULT_PORT")
+        AppLog.i(TAG, "Starting Prefrontal runtime on port $DEFAULT_PORT")
         val success = runtime.start(DEFAULT_PORT)
 
         if (success) {
             isStarted = true
             setupMethodChannel()
         } else {
-            Log.e(TAG, "Failed to start Prefrontal runtime")
+            AppLog.e(TAG, "Failed to start Prefrontal runtime")
         }
     }
 
     private fun stopPrefrontal() {
         if (!isStarted) return
-        Log.i(TAG, "Stopping Prefrontal runtime")
+        AppLog.i(TAG, "Stopping Prefrontal runtime")
         runtime.stop()
         isStarted = false
     }
@@ -132,7 +132,7 @@ class PrefrontalRuntimeService : Service() {
 
         // 暂时使用一个简单的 broadcast 方式
         // 在实际使用中, Flutter Engine 会创建 BinaryMessenger, 我们需要将 channel 绑定到它
-        Log.d(TAG, "MethodChannel setup deferred to Flutter engine integration")
+        AppLog.d(TAG, "MethodChannel setup deferred to Flutter engine integration")
     }
 
     /**
@@ -145,7 +145,7 @@ class PrefrontalRuntimeService : Service() {
         methodChannel?.setMethodCallHandler { call, result ->
             handleMethodCall(call, result)
         }
-        Log.d(TAG, "MethodChannel registered: $CHANNEL_NAME")
+        AppLog.d(TAG, "MethodChannel registered: $CHANNEL_NAME")
     }
 
     /**

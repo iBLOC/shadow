@@ -3,6 +3,7 @@ package com.ibloc.shadow.litert
 import android.content.Context
 import android.util.Log
 import android.util.Base64
+import com.ibloc.shadow.AppLog
 import com.google.ai.edge.litertlm.Backend
 import com.google.ai.edge.litertlm.Content
 import com.google.ai.edge.litertlm.Contents
@@ -69,7 +70,7 @@ class LitertEngine(private val context: Context) {
         val diagnosis = diagnoseModelDirectory(modelPath)
         if (diagnosis["dispatchLibraryPresent"] != true) {
             val recommendation = diagnosis["recommendation"] as? String ?: "download"
-            Log.w("LitertEngine", "No dispatch library found, recommendation: $recommendation")
+            AppLog.w("LitertEngine", "No dispatch library found, recommendation: $recommendation")
             _lastError.value = "No dispatch library found in $modelPath"
             _isLoading.value = false
             return false
@@ -91,10 +92,10 @@ class LitertEngine(private val context: Context) {
 
             _isInitialized.value = true
             _isLoading.value = false
-            Log.d("LitertEngine", "Initialized LiteRT engine with model: $modelPath")
+            AppLog.d("LitertEngine", "Initialized LiteRT engine with model: $modelPath")
             return true
         } catch (e: Exception) {
-            Log.e("LitertEngine", "Initialization failed", e)
+            AppLog.e("LitertEngine", "Initialization failed", e)
             _lastError.value = e.message ?: "Unknown error"
             _isLoading.value = false
             return false
@@ -110,7 +111,7 @@ class LitertEngine(private val context: Context) {
         val diagnosis = diagnoseModelDirectory(modelPath)
         if (diagnosis["dispatchLibraryPresent"] != true) {
             val recommendation = diagnosis["recommendation"] as? String ?: "download"
-            Log.w("LitertEngine", "No dispatch library found, recommendation: $recommendation")
+            AppLog.w("LitertEngine", "No dispatch library found, recommendation: $recommendation")
             _lastError.value = "No dispatch library found in $modelPath"
             _isLoading.value = false
             return false
@@ -133,10 +134,10 @@ class LitertEngine(private val context: Context) {
                 conversation = engine!!.createConversation()
 
                 _isInitialized.value = true
-                Log.d("LitertEngine", "Initialized LiteRT engine with model: $modelPath")
+                AppLog.d("LitertEngine", "Initialized LiteRT engine with model: $modelPath")
                 true
             } catch (e: Exception) {
-                Log.e("LitertEngine", "Initialization failed", e)
+                AppLog.e("LitertEngine", "Initialization failed", e)
                 _lastError.value = e.message ?: "Unknown error"
                 false
             }
@@ -149,7 +150,7 @@ class LitertEngine(private val context: Context) {
             if (_lastError.value == null) {
                 _lastError.value = "Initialization timed out after ${elapsed}ms"
             }
-            Log.w("LitertEngine", "initializeWithTimeout timed out after ${elapsed}ms")
+            AppLog.w("LitertEngine", "initializeWithTimeout timed out after ${elapsed}ms")
         }
 
         return success
@@ -205,7 +206,7 @@ class LitertEngine(private val context: Context) {
             val response = conversation!!.sendMessage(prompt)
             return response.toString()
         } catch (e: Exception) {
-            Log.e("LitertEngine", "Generation failed", e)
+            AppLog.e("LitertEngine", "Generation failed", e)
             _lastError.value = e.message
             return ""
         }
@@ -232,7 +233,7 @@ class LitertEngine(private val context: Context) {
             _responseText.value = responseStr
             return responseStr
         } catch (e: Exception) {
-            Log.e("LitertEngine", "Generation failed", e)
+            AppLog.e("LitertEngine", "Generation failed", e)
             _lastError.value = e.message
             return ""
         } finally {

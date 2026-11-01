@@ -474,6 +474,8 @@
   "taskSubtaskProgress": "Subtask progress",
   "logsTab": "Logs",
   "logsBackend": "Backend",
+  "logsApp": "App",
+  "logsDevice": "Device components",
   "logsAllLevels": "All levels",
   "logsExport": "Export logs",
   "logsPanelClearAll": "Clear all",

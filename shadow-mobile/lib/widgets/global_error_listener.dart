@@ -6,6 +6,7 @@ import '../providers/error_dialog_provider.dart';
 import '../providers/log_provider.dart';
 import '../services/log_service.dart';
 import '../utils/error_formatter.dart';
+import '../utils/build_phase_guard.dart';
 
 /// Mounts above the [MaterialApp] and shows a modal [AlertDialog] whenever
 /// the [errorDialogProvider] has a current error. Listens to provider
@@ -32,11 +33,30 @@ class _GlobalErrorListenerState extends ConsumerState<GlobalErrorListener> {
     ref.listen<ErrorDialogState>(errorDialogProvider, (prev, next) {
       if (next.current != null && prev?.current?.id != next.current!.id) {
         final current = next.current!;
-        ref.read(logServiceProvider.notifier).addClientError(
+        // ⚠️ 这条写入**不能**发生在 build 期。
+        //
+        // `ref.listen` 的回调会在 provider 状态变化时**同步**触发 ——
+        // 而那次变化可能正好发生在某一帧的 build 里（错误上报后
+        // `GlobalErrorListener` 重建，监听在 build 里重新注册）。
+        // 此时改 `logServiceProvider` ⇒ Riverpod 抛
+        // "Tried to modify a provider while the widget tree was building."
+        // ⇒ 整个 App 打断（2026-11-01 真机踩到过）。
+        //
+        // ⇒ 把写入挪到 build 期之外；弹窗那半本来就有 post-frame 防护。
+        final logNotifier = ref.read(logServiceProvider.notifier);
+        runOutsideBuild(() {
+          if (!mounted) return;
+          try {
+            logNotifier.addClientError(
               tag: _tagForSource(current.source),
               message: _summarize(current),
               stack: current.stack,
             );
+          } catch (e) {
+            // ignore: avoid_print
+            print('log panel write failed: $e');
+          }
+        });
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
           _showErrorDialog(context, ref, current);

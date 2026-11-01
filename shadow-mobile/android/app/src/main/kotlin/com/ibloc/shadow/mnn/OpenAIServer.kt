@@ -2,6 +2,7 @@ package com.ibloc.shadow.mnn
 
 import android.content.Context
 import android.util.Log
+import com.ibloc.shadow.AppLog
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.io.PrintWriter
@@ -44,23 +45,23 @@ class OpenAIServer(private val context: Context) {
             isRunning = true
             
             thread {
-                Log.i(TAG, "OpenAI-compatible server started on port $port")
+                AppLog.i(TAG, "OpenAI-compatible server started on port $port")
                 while (isRunning) {
                     try {
                         val client = serverSocket!!.accept()
                         executor.execute { handleClient(client) }
                     } catch (e: Exception) {
                         if (isRunning) {
-                            Log.e(TAG, "Error accepting connection", e)
+                            AppLog.e(TAG, "Error accepting connection", e)
                         }
                     }
                 }
             }
             
-            Log.i(TAG, "Server started successfully on http://localhost:$port")
+            AppLog.i(TAG, "Server started successfully on http://localhost:$port")
             return true
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to start server", e)
+            AppLog.e(TAG, "Failed to start server", e)
             isRunning = false
             return false
         }
@@ -71,10 +72,10 @@ class OpenAIServer(private val context: Context) {
         try {
             serverSocket?.close()
         } catch (e: Exception) {
-            Log.e(TAG, "Error closing server", e)
+            AppLog.e(TAG, "Error closing server", e)
         }
         executor.shutdown()
-        Log.i(TAG, "Server stopped")
+        AppLog.i(TAG, "Server stopped")
     }
     
     private fun handleClient(client: Socket) {
@@ -139,12 +140,12 @@ class OpenAIServer(private val context: Context) {
             }
             
         } catch (e: Exception) {
-            Log.e(TAG, "Error handling client", e)
+            AppLog.e(TAG, "Error handling client", e)
         } finally {
             try {
                 client.close()
             } catch (e: Exception) {
-                Log.e(TAG, "Error closing client", e)
+                AppLog.e(TAG, "Error closing client", e)
             }
         }
     }
@@ -196,7 +197,7 @@ class OpenAIServer(private val context: Context) {
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error processing chat completion", e)
+            AppLog.e(TAG, "Error processing chat completion", e)
             sendError(writer, 500, "Internal Server Error", """{"error": {"message": "${e.message}", "type": "server_error"}}""")
         }
     }
@@ -226,7 +227,7 @@ class OpenAIServer(private val context: Context) {
             writer.print("data: $doneData\r\n\r\n")
             writer.flush()
         } catch (e: Exception) {
-            Log.e(TAG, "Error in stream handling", e)
+            AppLog.e(TAG, "Error in stream handling", e)
         }
     }
 
@@ -285,7 +286,7 @@ class OpenAIServer(private val context: Context) {
             )
             sendJson(writer, 200, embeddingResponse.toString())
         } catch (e: Exception) {
-            Log.e(TAG, "Error processing embeddings", e)
+            AppLog.e(TAG, "Error processing embeddings", e)
             sendError(writer, 500, "Internal Server Error", """{"error": {"message": "${e.message}", "type": "server_error"}}""")
         }
     }

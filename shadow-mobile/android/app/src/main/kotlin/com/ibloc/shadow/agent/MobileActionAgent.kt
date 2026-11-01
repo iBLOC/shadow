@@ -1,6 +1,7 @@
 package com.ibloc.shadow.agent
 
 import android.util.Log
+import com.ibloc.shadow.AppLog
 import com.ibloc.shadow.PrefrontalAccessibilityService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -84,7 +85,7 @@ class MobileActionAgent(
                 A2AResponse(success = false, content = "", error = "HTTP ${response.code}: $body")
             }
         } catch (e: Exception) {
-            Log.e(TAG, "A2A request failed", e)
+            AppLog.e(TAG, "A2A request failed", e)
             A2AResponse(success = false, content = "", error = e.message)
         }
     }
@@ -183,7 +184,7 @@ class MobileActionAgent(
             }
             result
         } catch (e: Exception) {
-            Log.e(TAG, "Action execution failed: $action", e)
+            AppLog.e(TAG, "Action execution failed: $action", e)
             A2AResponse(success = false, content = "", error = e.message)
         }
     }

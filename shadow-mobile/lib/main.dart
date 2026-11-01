@@ -7,6 +7,7 @@ import 'model_manager.dart';
 import 'router/app_router.dart';
 import 'providers/identity_provider.dart';
 import 'providers/theme_provider.dart';
+import 'providers/log_provider.dart';
 import 'theme/glass_theme.dart';
 import 'theme/shad_scheme.g.dart';
 import 'services/app_config_service.dart';
@@ -34,6 +35,11 @@ void main() async {
   // 为什么要 app 生命周期：嵌入式大脑是**默认启动**的（见下面），
   // 启动这件事必须在 App 一起来就发生，不能等用户去某个页面。
   final container = ProviderContainer();
+
+  // Dart 侧运行时日志（package:logging）默认没有监听者 —— 各 Notifier
+  // 打的「大脑启动 / 模型路由 / 错误降级」此前哪儿也不去。接到日志面板
+  // （设置 → 高级 → 日志），与宿主侧 AppLog 的桥（EventChannel）互补。
+  wireDartLoggingIntoLogPanel(container);
 
   runApp(
     UncontrolledProviderScope(

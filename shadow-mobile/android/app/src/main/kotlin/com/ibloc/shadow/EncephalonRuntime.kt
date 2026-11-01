@@ -47,7 +47,7 @@ class EncephalonRuntime {
         init {
             try {
                 System.loadLibrary(LIBRARY_NAME)
-                Log.d(TAG, "✅ Encephalon .so loaded successfully")
+                AppLog.d(TAG, "✅ Encephalon .so loaded successfully")
             } catch (e: UnsatisfiedLinkError) {
                 // 这里不重抛。重抛会让类初始化失败，之后每次访问都变成
                 // NoClassDefFoundError —— 而调用方接的是 UnsatisfiedLinkError，
@@ -55,7 +55,7 @@ class EncephalonRuntime {
                 // 不重抛的话，.so 缺失会以 UnsatisfiedLinkError 的形式
                 // 从下面的 native 调用点冒出来，正好落进调用方的错误处理：
                 // 优雅降级，而不是崩溃。
-                Log.e(TAG, "❌ Failed to load $LIBRARY_NAME.so: ${e.message}")
+                AppLog.e(TAG, "❌ Failed to load $LIBRARY_NAME.so: ${e.message}")
             }
         }
 
@@ -130,10 +130,10 @@ class EncephalonRuntime {
         return try {
             nativeHealthCheck() == 1
         } catch (e: UnsatisfiedLinkError) {
-            Log.w(TAG, "Encephalon native method missing — .so not loaded, or an old .so without this method: ${e.message}")
+            AppLog.w(TAG, "Encephalon native method missing — .so not loaded, or an old .so without this method: ${e.message}")
             false
         } catch (e: Exception) {
-            Log.w(TAG, "Health check failed: ${e.message}")
+            AppLog.w(TAG, "Health check failed: ${e.message}")
             false
         }
     }
@@ -156,17 +156,17 @@ class EncephalonRuntime {
         return try {
             val rc = nativeSetLlmProvider(baseUrl, apiKey, model)
             if (rc >= 0) {
-                Log.i(TAG, "✅ LLM provider set: $baseUrl model=$model")
+                AppLog.i(TAG, "✅ LLM provider set: $baseUrl model=$model")
                 true
             } else {
-                Log.e(TAG, "❌ nativeSetLlmProvider returned: $rc")
+                AppLog.e(TAG, "❌ nativeSetLlmProvider returned: $rc")
                 false
             }
         } catch (e: UnsatisfiedLinkError) {
-            Log.w(TAG, "Encephalon native method missing — .so not loaded, or an old .so without this method: ${e.message}")
+            AppLog.w(TAG, "Encephalon native method missing — .so not loaded, or an old .so without this method: ${e.message}")
             false
         } catch (e: Exception) {
-            Log.e(TAG, "setLlmProvider failed: ${e.message}", e)
+            AppLog.e(TAG, "setLlmProvider failed: ${e.message}", e)
             false
         }
     }
@@ -198,17 +198,17 @@ class EncephalonRuntime {
             val rc = nativeSetShadowApiKey(key)
             if (rc >= 0) {
                 // ⚠️ 只说「设好了」，不说是什么。
-                Log.i(TAG, "✅ shadow key set (端脑面将要求 X-Shadow-Key)")
+                AppLog.i(TAG, "✅ shadow key set (端脑面将要求 X-Shadow-Key)")
                 true
             } else {
-                Log.e(TAG, "❌ nativeSetShadowApiKey returned: $rc")
+                AppLog.e(TAG, "❌ nativeSetShadowApiKey returned: $rc")
                 false
             }
         } catch (e: UnsatisfiedLinkError) {
-            Log.w(TAG, "Encephalon native method missing — .so not loaded, or an old .so without this method: ${e.message}")
+            AppLog.w(TAG, "Encephalon native method missing — .so not loaded, or an old .so without this method: ${e.message}")
             false
         } catch (e: Exception) {
-            Log.e(TAG, "setShadowApiKey failed: ${e.message}", e)
+            AppLog.e(TAG, "setShadowApiKey failed: ${e.message}", e)
             false
         }
     }
@@ -242,17 +242,17 @@ class EncephalonRuntime {
             val rc = nativeSetAdminToken(token)
             if (rc >= 0) {
                 // ⚠️ 只说「设好了」，不说是什么。
-                Log.i(TAG, "✅ admin token set (admin 面将要求 X-Admin-Token)")
+                AppLog.i(TAG, "✅ admin token set (admin 面将要求 X-Admin-Token)")
                 true
             } else {
-                Log.e(TAG, "❌ nativeSetAdminToken returned: $rc")
+                AppLog.e(TAG, "❌ nativeSetAdminToken returned: $rc")
                 false
             }
         } catch (e: UnsatisfiedLinkError) {
-            Log.w(TAG, "Encephalon native method missing — .so not loaded, or an old .so without this method: ${e.message}")
+            AppLog.w(TAG, "Encephalon native method missing — .so not loaded, or an old .so without this method: ${e.message}")
             false
         } catch (e: Exception) {
-            Log.e(TAG, "setAdminToken failed: ${e.message}", e)
+            AppLog.e(TAG, "setAdminToken failed: ${e.message}", e)
             false
         }
     }
@@ -286,17 +286,17 @@ class EncephalonRuntime {
         return try {
             val rc = nativeSetModelRouting(json)
             if (rc >= 0) {
-                Log.i(TAG, "✅ model routing set (${json.length} bytes)")
+                AppLog.i(TAG, "✅ model routing set (${json.length} bytes)")
                 true
             } else {
-                Log.e(TAG, "❌ nativeSetModelRouting returned: $rc")
+                AppLog.e(TAG, "❌ nativeSetModelRouting returned: $rc")
                 false
             }
         } catch (e: UnsatisfiedLinkError) {
-            Log.w(TAG, "Encephalon native method missing — .so not loaded, or an old .so without this method: ${e.message}")
+            AppLog.w(TAG, "Encephalon native method missing — .so not loaded, or an old .so without this method: ${e.message}")
             false
         } catch (e: Exception) {
-            Log.e(TAG, "setModelRouting failed: ${e.message}", e)
+            AppLog.e(TAG, "setModelRouting failed: ${e.message}", e)
             false
         }
     }
@@ -323,21 +323,21 @@ class EncephalonRuntime {
                 } catch (e: UnsatisfiedLinkError) {
                     0
                 }
-                Log.i(
+                AppLog.i(
                     TAG,
                     "✅ Encephalon started on port $port " +
                         "(agent surface: ${if (currentAgentPort > 0) currentAgentPort else "unavailable"})"
                 )
                 true
             } else {
-                Log.e(TAG, "❌ Failed to start Encephalon, returned: $port")
+                AppLog.e(TAG, "❌ Failed to start Encephalon, returned: $port")
                 false
             }
         } catch (e: UnsatisfiedLinkError) {
-            Log.e(TAG, "❌ Encephalon native method missing — .so not loaded, or an old .so without this method: ${e.message}")
+            AppLog.e(TAG, "❌ Encephalon native method missing — .so not loaded, or an old .so without this method: ${e.message}")
             false
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Exception starting Encephalon: ${e.message}", e)
+            AppLog.e(TAG, "❌ Exception starting Encephalon: ${e.message}", e)
             false
         }
     }
@@ -349,13 +349,13 @@ class EncephalonRuntime {
             isRunning = false
             currentPort = 0
             currentAgentPort = 0
-            Log.i(TAG, "Encephalon stopped, result: $result")
+            AppLog.i(TAG, "Encephalon stopped, result: $result")
             result == 0
         } catch (e: UnsatisfiedLinkError) {
-            Log.w(TAG, "Encephalon native method missing — .so not loaded, or an old .so without this method: ${e.message}")
+            AppLog.w(TAG, "Encephalon native method missing — .so not loaded, or an old .so without this method: ${e.message}")
             false
         } catch (e: Exception) {
-            Log.w(TAG, "Error stopping Encephalon: ${e.message}")
+            AppLog.w(TAG, "Error stopping Encephalon: ${e.message}")
             false
         }
     }
@@ -379,15 +379,15 @@ class EncephalonRuntime {
             val written = try {
                 nativeInfer(path, body, output, output.size)
             } catch (e: UnsatisfiedLinkError) {
-                Log.e(TAG, "Encephalon native method missing — .so not loaded, or an old .so without this method: ${e.message}")
+                AppLog.e(TAG, "Encephalon native method missing — .so not loaded, or an old .so without this method: ${e.message}")
                 return null
             } catch (e: Exception) {
-                Log.e(TAG, "infer failed: ${e.message}", e)
+                AppLog.e(TAG, "infer failed: ${e.message}", e)
                 return null
             }
 
             if (written < 0) {
-                Log.e(TAG, "infer returned error code: $written")
+                AppLog.e(TAG, "infer returned error code: $written")
                 return null
             }
             if (written > output.size) {
@@ -396,7 +396,7 @@ class EncephalonRuntime {
                 return@repeat
             }
             if (written < 4) {
-                Log.e(TAG, "infer wrote $written bytes, expected >= 4 (status prefix)")
+                AppLog.e(TAG, "infer wrote $written bytes, expected >= 4 (status prefix)")
                 return null
             }
 
@@ -407,7 +407,7 @@ class EncephalonRuntime {
             val payload = output.copyOfRange(4, written)
             return InferenceResult(status, payload)
         }
-        Log.e(TAG, "infer: buffer still too small after $MAX_INFER_ATTEMPTS attempts")
+        AppLog.e(TAG, "infer: buffer still too small after $MAX_INFER_ATTEMPTS attempts")
         return null
     }
 
@@ -440,15 +440,15 @@ class EncephalonRuntime {
                 val written = try {
                     nativeExportAccount(dataDir, output, output.size)
                 } catch (e: UnsatisfiedLinkError) {
-                    Log.e(TAG, "Encephalon native method missing — .so not loaded, or an old .so without this method: ${e.message}")
+                    AppLog.e(TAG, "Encephalon native method missing — .so not loaded, or an old .so without this method: ${e.message}")
                     return null
                 } catch (e: Exception) {
-                    Log.e(TAG, "exportAccount failed: ${e.message}", e)
+                    AppLog.e(TAG, "exportAccount failed: ${e.message}", e)
                     return null
                 }
 
                 if (written < 0) {
-                    Log.e(TAG, "exportAccount returned error code: $written")
+                    AppLog.e(TAG, "exportAccount returned error code: $written")
                     return null
                 }
                 if (written > output.size) {
@@ -459,13 +459,13 @@ class EncephalonRuntime {
                 // ⚠️ 不 log 内容。
                 return String(output.copyOf(written), Charsets.UTF_8)
             }
-            Log.e(TAG, "exportAccount: buffer still too small after $MAX_INFER_ATTEMPTS attempts")
+            AppLog.e(TAG, "exportAccount: buffer still too small after $MAX_INFER_ATTEMPTS attempts")
             null
         } catch (e: UnsatisfiedLinkError) {
-            Log.w(TAG, "Encephalon native method missing — .so not loaded, or an old .so without this method: ${e.message}")
+            AppLog.w(TAG, "Encephalon native method missing — .so not loaded, or an old .so without this method: ${e.message}")
             null
         } catch (e: Exception) {
-            Log.e(TAG, "exportAccount failed: ${e.message}", e)
+            AppLog.e(TAG, "exportAccount failed: ${e.message}", e)
             null
         }
     }

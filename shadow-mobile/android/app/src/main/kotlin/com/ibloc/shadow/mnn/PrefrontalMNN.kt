@@ -1,6 +1,7 @@
 package com.ibloc.shadow.mnn
 
 import android.util.Log
+import com.ibloc.shadow.AppLog
 
 class PrefrontalMNN {
     
@@ -19,7 +20,7 @@ class PrefrontalMNN {
         init {
             try {
                 System.loadLibrary("mnnbridge")
-                Log.i(TAG, "MNN bridge library loaded")
+                AppLog.i(TAG, "MNN bridge library loaded")
             } catch (e: UnsatisfiedLinkError) {
                 // 与 EncephalonRuntime / PrefrontalRuntime 同一套降级策略：不重抛。
                 //
@@ -30,7 +31,7 @@ class PrefrontalMNN {
                 // 什么时候会 load 失败：libmnnbridge.so 动态依赖 libc++_shared.so
                 // （llvm-readelf -d 实测），而 APK 里只有 arm64-v8a 带了它 ——
                 // x86_64 那份 jniLibs 不完整，load 必然失败。
-                Log.e(TAG, "❌ Failed to load mnnbridge.so: ${e.message}")
+                AppLog.e(TAG, "❌ Failed to load mnnbridge.so: ${e.message}")
             }
         }
         
@@ -43,28 +44,28 @@ class PrefrontalMNN {
         @Synchronized
         fun initialize(modelPath: String, threadNum: Int = 4, backendType: Int = BACKEND_CPU): Boolean {
             if (isInitialized) {
-                Log.w(TAG, "MNN already initialized")
+                AppLog.w(TAG, "MNN already initialized")
                 return true
             }
             val result = nativeInitialize(modelPath, threadNum, backendType)
             isInitialized = result
-            Log.i(TAG, "MNN initialized: $result")
+            AppLog.i(TAG, "MNN initialized: $result")
             return result
         }
         
         @Synchronized
         fun loadModel(configPath: String): Boolean {
             if (!isInitialized) {
-                Log.e(TAG, "MNN not initialized")
+                AppLog.e(TAG, "MNN not initialized")
                 return false
             }
             if (isModelLoaded) {
-                Log.w(TAG, "Model already loaded")
+                AppLog.w(TAG, "Model already loaded")
                 return true
             }
             val result = nativeLoadModel(configPath)
             isModelLoaded = result
-            Log.i(TAG, "Model loaded: $result")
+            AppLog.i(TAG, "Model loaded: $result")
             return result
         }
         
@@ -84,7 +85,7 @@ class PrefrontalMNN {
             nativeRelease()
             isInitialized = false
             isModelLoaded = false
-            Log.i(TAG, "MNN released")
+            AppLog.i(TAG, "MNN released")
         }
         
         fun isInitialized(): Boolean = isInitialized
