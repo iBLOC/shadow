@@ -120,6 +120,110 @@ export function stripComments(src, { nested, rust }) {
 }
 
 /**
+ * 抹掉 `#[cfg(test)]` 块 —— **测试代码不进产物** ⇒ 它里面的字面量
+ * **不是**「源码默认值」。
+ *
+ * ⚠️ 为什么必须做：Rust 的单元测试**住在同一个文件里** ⇒ 闸扫
+ * 「源码级宽绑定」时会把测试里的 `parse_bind("0.0.0.0:…")`
+ * 这类**调用**算进去 ⇒ ⇒ 假红 ⇒ ⇒ 「闸红了」会被归错因
+ * （本仓已踩：synapse `src/net/bind.rs` 的测试让闸多报 5 条 ⇒
+ * 「9 条红」一度被说成「14 条红」）。
+ *
+ * 做法：找到 `#[cfg(...)]`（**内含 test**）之后的第一对花括号，
+ * **整块抹成空格**（保留换行 ⇒ 行号不变 ⇒ 报出的行号仍对得上原文件）。
+ *
+ * ⚠️ 只抹**块**：`#[cfg(test)] let x = …;` 这种没有花括号 ⇒ 不抹
+ * （它是行内语句，仍会被正常扫描）。
+ */
+export function stripTestModules(src) {
+  const ranges = [];
+  const re = /#\[cfg\(([^)]*)\)\]/g;
+  let m;
+  while ((m = re.exec(src)) !== null) {
+    if (!/\btest\b/.test(m[1])) continue;
+    const open = nextBrace(src, m.index + m[0].length);
+    if (open < 0) continue;
+    const close = matchBrace(src, open);
+    if (close < 0) continue;
+    ranges.push([m.index, close + 1]);
+    re.lastIndex = close + 1;
+  }
+  if (ranges.length === 0) return src;
+  let out = '';
+  let pos = 0;
+  for (const [a, b] of ranges) {
+    out += src.slice(pos, a);
+    out += src.slice(a, b).replace(/[^\n]/g, ' ');
+    pos = b;
+  }
+  return out + src.slice(pos);
+}
+
+/** 跳过字符串字面量（返回它后面的下标）。 */
+function skipString(src, i) {
+  const n = src.length;
+  i += 1;
+  while (i < n) {
+    if (src[i] === '\\') { i += 2; continue; }
+    if (src[i] === '"') return i + 1;
+    i += 1;
+  }
+  return n;
+}
+
+/** 跳过字符字面量**或**生命周期标记（Rust 的 `'` 不是引号 ⇒ 两者要分开）。 */
+function skipCharOrLifetime(src, i) {
+  const n = src.length;
+  if (src[i + 1] === '\\') {
+    let j = i + 2;
+    while (j < n) {
+      if (src[j] === '\\') { j += 2; continue; }
+      if (src[j] === "'") return j + 1;
+      j += 1;
+    }
+    return n;
+  }
+  if (src[i + 2] === "'") return i + 3;
+  return i + 1;
+}
+
+/** 从 `from` 起找下一个花括号；先遇到 `;` ⇒ 不是块（返回 -1）。 */
+function nextBrace(src, from) {
+  const n = src.length;
+  let i = from;
+  while (i < n) {
+    const ch = src[i];
+    if (ch === '"') { i = skipString(src, i); continue; }
+    if (ch === "'") { i = skipCharOrLifetime(src, i); continue; }
+    if (ch === '{') return i;
+    if (ch === ';') return -1;
+    i += 1;
+  }
+  return -1;
+}
+
+/** 花括号配对（跳过字符串/字符字面量 ⇒ 里面的括号不算）。 */
+function matchBrace(src, open) {
+  const n = src.length;
+  let depth = 0;
+  let i = open;
+  while (i < n) {
+    const ch = src[i];
+    if (ch === '"') { i = skipString(src, i); continue; }
+    if (ch === "'") { i = skipCharOrLifetime(src, i); continue; }
+    if (ch === '{') { depth += 1; i += 1; continue; }
+    if (ch === '}') {
+      depth -= 1;
+      if (depth === 0) return i;
+      i += 1;
+      continue;
+    }
+    i += 1;
+  }
+  return -1;
+}
+
+/**
  * 行号换算：给「代码里的偏移」找「原文件里的行号」。
  */
 export function makeLineIndex(code) {

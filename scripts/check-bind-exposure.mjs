@@ -73,7 +73,7 @@
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { dirname, join, resolve, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { stripComments, makeLineIndex } from './lib/strip-comments.mjs';
+import { stripComments, makeLineIndex, stripTestModules } from './lib/strip-comments.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..');
@@ -194,7 +194,13 @@ function isBindPosition(code, idx) {
   const before = rawBefore.replace(/[\s"']+$/, '');
 
   // A: 在 bind(...) 的实参里。
-  if (/bind\s*\($/.test(before)) return true;
+  // ⚠️⚠️ **只认「真叫 bind 的那个函数」** —— `parse_bind(` 是**解析器**，
+  // 不是绑定 ⇒ 早先的 `/bind\s*\($/` 会把 `parse_bind("0.0.0.0:…")`
+  // 算成宽绑定 ⇒ ⇒ 假红（本仓已踩：synapse `src/net/bind.rs` 的测试
+  // 让闸多报 5 条 ⇒ 「9 条红」一度被说成「14 条红」）。
+  // ⇒ 判据：bind 前面**不能**紧跟标识符字符（`_`/字母/数字）
+  // ⇒ ⇒ `parse_bind(`/`parse_bind_http(` 不算、`::bind(`/`.bind(` 算。
+  if (/(?:^|[^A-Za-z0-9_])bind\s*\($/.test(before)) return true;
   if (/\bbind\s*\([^)]*$/.test(before)) return true;
 
   // C: 兜底值。
@@ -307,7 +313,8 @@ function scanFile(absPath, label, displayRoot) {
   } catch {
     return { scanned: 0, hits: [] };
   }
-  const code = stripComments(raw, { nested: true, rust: true });
+  // ⚠️ **测试模块不进产物** ⇒ 它里面的字面量不是「源码默认值」⇒ 抹掉再扫。
+  const code = stripTestModules(stripComments(raw, { nested: true, rust: true }));
   const lineOf = makeLineIndex(code);
   const origLines = raw.split(/\r?\n/);
   const hits = findWildcards(code, 0, lineOf, origLines).map((h) => ({
@@ -375,11 +382,28 @@ function selfTest() {
       src: 'let a = x.unwrap_or_else(|| "0.0.0.0:60080".to_string());',
       expect: 1,
     },
+    {
+      // ⚠️ **解析器调用 ≠ 绑定调用** —— 这条样本钉的就是「9 条 vs 14 条」那个坑。
+      name: '解析器调用 parse_bind（不该抓）',
+      src: 'let t = parse_bind("0.0.0.0:60080", 60080);',
+      expect: 0,
+    },
+    {
+      // ⚠️ **测试代码不进产物** ⇒ 它里面的真绑定也不是「源码默认值」。
+      name: 'cfg(test) 模块里的真绑定（不该抓）',
+      src: '#[cfg(test)]\nmod tests {\n    #[test]\n    fn wide() {\n        let l = TcpListener::bind(("0.0.0.0", 0)).unwrap();\n    }\n}\nlet x = 1;',
+      expect: 0,
+    },
+    {
+      name: 'cfg(test) 之外的真绑定（该抓到）',
+      src: '#[cfg(not(test))]\nfn serve() {\n    let l = TcpListener::bind(("0.0.0.0", 8080)).unwrap();\n}\nlet x = 1;',
+      expect: 1,
+    },
   ];
 
   const failures = [];
   for (const c of cases) {
-    const code = stripComments(c.src, { nested: true, rust: true });
+    const code = stripTestModules(stripComments(c.src, { nested: true, rust: true }));
     const lineOf = makeLineIndex(code);
     const hits = findWildcards(code, 0, lineOf, c.src.split(/\r?\n/));
     if (hits.length !== c.expect) {
