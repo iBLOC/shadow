@@ -157,7 +157,13 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
   /// - 已经在启动流程里 ⇒ 返回那个流程的结果，**不并发 boot 第二次**
   ///   （native 侧虽然也幂等，但没必要白跑一趟）。
   ///
-  /// 这是「默认启动」的唯一入口：App 启动时调它，页面上的按钮也调它。
+  /// 这是「默认启动」的唯一入口：App 启动时调它，页面上的按钮走 start()
+  /// （它会先解除「用户停过」这个标记）。
+  ///
+  /// ⚠️ **「用户主动停过 ⇒ 不许自动拉起」这条规则实现在 [_startWithRetry] 的
+  /// 顶部**（**一处实现**）—— 以前它只挂在「就绪门」（waitUntilReady）上，
+  /// 而自动启动这条路径不守 ⇒ ⇒ 两个入口两套语义 ⇒ ⇒ 用户刚停掉的大脑
+  /// 会被偷偷拉回来 ⇒ ⇒ 而且没人会发现（界面只写「已停止」）。
   Future<bool> ensureStarted() {
     if (state.status == EncephalonMobileStatus.running) {
       return Future<bool>.value(true);
@@ -171,6 +177,11 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
   Future<bool> _startWithRetry() async {
     for (var attempt = 1; attempt <= _maxStartAttempts; attempt++) {
       if (!mounted) return false;
+      // ⚠️ 用户在等的时候喊停 ⇒ 这一轮就别开始了。
+      if (_stoppedByUser) {
+        _log.info('用户主动停过大脑 —— 放弃启动');
+        return false;
+      }
       state = state.copyWith(
         status: EncephalonMobileStatus.starting,
         errorMessage: null,
@@ -187,6 +198,21 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
 
         final success = await _service.start();
         if (!mounted) return false;
+        // ⚠️⚠️ **启动途中用户喊停** —— native 那次 boot 可能**已经在跑**了
+        // （冷启动要十几秒：抽 Flutter 资源 + 加载 150MB 的 so + boot 端脑面）
+        // ⇒ ⇒ 这时候「停」必须赢 ⇒ ⇒ 把刚起来的脑关掉
+        // ⇒ ⇒ 否则界面说「已停止」而大脑其实在跑 ⇒ ⇒ 「失败长得像成功」。
+        if (_stoppedByUser) {
+          _log.info('启动途中用户叫停 —— 关掉刚启动的大脑');
+          try {
+            await _service.stop();
+          } catch (e) {
+            _log.warning('关掉刚启动的大脑失败: $e');
+          }
+          state = const EncephalonMobileState();
+          _restoreExternalEndpoint();
+          return false;
+        }
         if (success) {
           final agentPort = _service.agentPort;
           state = state.copyWith(

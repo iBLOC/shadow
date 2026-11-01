@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/services.dart';
@@ -37,6 +38,7 @@ void main() {
     bool running = false,
     bool startOk = true,
     int failFirstStarts = 0,
+    Completer<void>? startGate,
   }) {
     var starts = 0;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
@@ -52,6 +54,9 @@ void main() {
           };
         case 'start':
           starts += 1;
+          // ⚠️ startGate 用来模拟「native boot 要十几秒」⇒ ⇒ 这段时间里
+          //    用户完全可以喊停 ⇒ ⇒ 那时「停」必须赢（见下面的用例）。
+          if (startGate != null) await startGate.future;
           if (starts <= failFirstStarts) {
             return {'success': false, 'port': 0};
           }
@@ -208,7 +213,10 @@ void main() {
       expect(container.read(encephalonMobileProvider).status,
           EncephalonMobileStatus.stopped);
 
-      await notifier.ensureStarted();
+      // ⚠️ 这里**必须走 start()**（= 用户点「启动大脑」），不能走 ensureStarted()
+      //    —— 「用户喊停」之后，自动启动入口不许违背用户的意愿
+      //    （这条规则现在只有一处实现，见 ensureStarted 里的守卫）。
+      await notifier.start();
       expect(container.read(encephalonMobileProvider).status,
           EncephalonMobileStatus.running);
     });
@@ -298,6 +306,113 @@ void main() {
     });
   });
 
+  /// **「用户喊停」必须赢** —— 用户点了「停止大脑」，大脑就不该再起来。
+  ///
+  /// 以前这条规则**只有一半**：就绪门（waitUntilReady）守着「用户停过」，
+  /// 而 ensureStarted 自己不守 ⇒ ⇒ 两个入口、两套语义 ⇒ ⇒ 迟早有一个入口
+  /// 把用户刚停掉的大脑偷偷拉回来 ⇒ ⇒ 而且没人会发现（界面只写「已停止」）。
+  ///
+  /// ⚠️ 另外一条同族的：**启动途中**用户喊停 —— native 那次 boot 可能已经
+  /// 在跑了（冷启动要十几秒）⇒ ⇒ 这时「停」必须赢 ⇒ ⇒ 否则界面说「已停止」
+  /// 而大脑其实在跑 ⇒ ⇒ 「失败长得像成功」。
+  group('「用户喊停」必须赢', () {
+    test('用户停过之后，自动启动入口不再拉起它', () async {
+      mockChannel(running: false);
+
+      final container = makeContainer();
+      final notifier = container.read(encephalonMobileProvider.notifier);
+
+      await _waitUntil(
+        () => container.read(encephalonMobileProvider).status ==
+            EncephalonMobileStatus.running,
+      );
+      await notifier.stop();
+
+      final startsBefore = calls.where((c) => c.method == 'start').length;
+
+      await notifier.ensureStarted();
+
+      expect(
+        calls.where((c) => c.method == 'start').length,
+        startsBefore,
+        reason: '「用户喊停」必须赢 —— 自动入口不许把它偷偷拉回来',
+      );
+      expect(container.read(encephalonMobileProvider).status,
+          EncephalonMobileStatus.stopped);
+    });
+
+    test('但用户自己点「启动大脑」仍然能拉起来', () async {
+      mockChannel(running: false);
+
+      final container = makeContainer();
+      final notifier = container.read(encephalonMobileProvider.notifier);
+
+      await _waitUntil(
+        () => container.read(encephalonMobileProvider).status ==
+            EncephalonMobileStatus.running,
+      );
+      await notifier.stop();
+      await notifier.start();
+
+      expect(container.read(encephalonMobileProvider).status,
+          EncephalonMobileStatus.running);
+      expect(
+        calls.where((c) => c.method == 'start').length,
+        greaterThanOrEqualTo(2),
+        reason: '用户点「启动大脑」⇒ 真的要再启动一次',
+      );
+    });
+
+    test('启动途中用户喊停 ⇒ 刚起来的脑必须被关掉', () async {
+      final gate = Completer<void>();
+      mockChannel(running: false, startGate: gate);
+
+      final container = makeContainer();
+      final notifier = container.read(encephalonMobileProvider.notifier);
+
+      // 等启动流程真的进了 native start（卡在那道门后面）。
+      await _waitUntil(() => calls.any((c) => c.method == 'start'));
+
+      // 用户在启动途中喊停（native 那次 boot 要十几秒，这段时间完全现实）。
+      await notifier.stop();
+      final stopsAfterUserStop =
+          calls.where((c) => c.method == 'stop').length;
+
+      // native boot 终于完成 ⇒ 大脑其实已经起来了。
+      gate.complete();
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+
+      expect(
+        calls.where((c) => c.method == 'stop').length,
+        greaterThan(stopsAfterUserStop),
+        reason: '用户在启动途中喊停 ⇒ 刚起来的大脑必须被关掉 —— 否则界面说「已停止」而大脑在跑',
+      );
+      expect(container.read(encephalonMobileProvider).status,
+          EncephalonMobileStatus.stopped);
+    });
+
+    test('用户喊停后，重试链不再继续启动', () async {
+      mockChannel(running: false, failFirstStarts: 1);
+
+      final container = makeContainer();
+      final notifier = container.read(encephalonMobileProvider.notifier);
+
+      // 第一次 start 失败 ⇒ 进入 2 秒退避。
+      await _waitUntil(() => calls.any((c) => c.method == 'start'));
+      await notifier.stop();
+
+      final startsAtStop = calls.where((c) => c.method == 'start').length;
+
+      // 等过退避窗口（2s）⇒ 旧实现会在这时再试一次。
+      await Future<void>.delayed(const Duration(seconds: 3));
+
+      expect(
+        calls.where((c) => c.method == 'start').length,
+        startsAtStop,
+        reason: '用户喊停后不该还在重试启动 —— 否则「停」只是把大脑推迟了几秒',
+      );
+    });
+  });
   /// 「大脑模型路由」—— **全局默认**（本地 / 云端）+ **每个叶区单独覆盖**。
   ///
   /// 关键约束：**远端引擎可以在运行时注册**（neuron 的派发表可以后加
