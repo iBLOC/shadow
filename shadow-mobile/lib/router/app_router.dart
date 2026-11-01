@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../providers/chat_provider.dart';
+import '../utils/build_phase_guard.dart';
 import '../screens/chat_screen.dart';
 import '../screens/model_management_screen.dart';
 import '../screens/settings_screen.dart';
@@ -91,8 +94,27 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: AppRoutes.chat,
       name: 'chat',
-      pageBuilder: (context, state) =>
-          _fadePage(state, _wrapInShell(state, const ChatScreen())),
+      pageBuilder: (context, state) {
+        // 「从会话列表点开某条历史会话」⇒ **真的切过去**。
+        //
+        // ⚠️ 以前这里把 `extra` 带过来就**丢掉**（pageBuilder 压根不读
+        // `state.extra`）⇒ ⇒ 点开哪条会话看到的都是当前那条
+        // ⇒ 「点了一下像切了会话，实际没切」。
+        //
+        // ⚠️ 切换**必须**发生在 build 期之外 —— pageBuilder 是在 build 里
+        // 跑的，此时改 provider 会被 Riverpod 判成「在 widget 树构建期间
+        // 改 provider」⇒ 整个 App 打断（2026-11-01 真机实证，
+        // 见 `lib/utils/build_phase_guard.dart`）。
+        final extra = state.extra as Map<String, dynamic>?;
+        final sessionId = extra?['sessionId'] as String?;
+        if (sessionId != null && sessionId.isNotEmpty) {
+          final container = ProviderScope.containerOf(context, listen: false);
+          runOutsideBuild(() {
+            container.read(chatProvider.notifier).switchTo(sessionId);
+          });
+        }
+        return _fadePage(state, _wrapInShell(state, const ChatScreen()));
+      },
     ),
     // Tasks tab
     GoRoute(

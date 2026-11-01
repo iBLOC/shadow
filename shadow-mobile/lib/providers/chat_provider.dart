@@ -430,6 +430,83 @@ class ChatNotifier extends StateNotifier<ChatState> {
     }
   }
 
+  /// 切到**已有的**端脑会话，并把它的历史装进当前对话流。
+  ///
+  /// ⚠️ 为什么以前切不了：移动端只有**一条**会话（`_currentSessionId`）
+  /// ⇒ 会话列表页点开任何一条历史会话，**看到的还是当前那条**
+  /// ⇒ 「点了一下像切了会话，实际没切」⇒ **失败长得像成功**。
+  /// 而且那个 `sessionId` 是 `context.push(..., extra: {...})` 带过去的，
+  /// 路由**压根没读**（⇒ 带过去就丢了）。
+  ///
+  /// 现在：`_currentSessionId` 指向它 + 历史消息填进 `messages`
+  /// ⇒ 下一条消息**续在它上面**（端脑那边也是同一个会话 id）。
+  Future<bool> switchTo(String sessionId) async {
+    if (sessionId.isEmpty) return false;
+    try {
+      final conversation = await _telencephalonClient.getConversation(sessionId);
+      _currentSessionId = conversation.id;
+      state = state.copyWith(
+        sessionId: conversation.id,
+        messages: conversation.history.map(_messageFromTurn).toList(),
+        isLoading: false,
+        streamingText: '',
+        errorMessage: null,
+      );
+      return true;
+    } catch (e) {
+      state = state.copyWith(
+        errorMessage: 'Error: $e',
+        errorMessageL10nKey: ChatStateL10nKey.errorGeneric,
+        errorMessageArg: e.toString(),
+      );
+      return false;
+    }
+  }
+
+  /// 新开一条端脑会话并切过去（会话列表页的「新对话」）。
+  ///
+  /// ⚠️ 端脑的会话**没有标题字段**（`Conversation` 只有 id / agent /
+  /// created_at / updated_at / history）⇒ 列表里的标题取自 `agent`
+  /// （叶区名）⇒ ⇒ 「给会话起个名」这件事现在**无处可存**
+  /// ⇒ 不做一个假的输入框（原对话框里那个标题框已撤掉）。
+  Future<bool> startNewConversation() async {
+    try {
+      final conversation = await _telencephalonClient.createConversation(
+        systemPrompt: _systemPromptProvider(),
+      );
+      _currentSessionId = conversation.id;
+      state = state.copyWith(
+        sessionId: conversation.id,
+        messages: const [],
+        isLoading: false,
+        streamingText: '',
+        errorMessage: null,
+      );
+      return true;
+    } catch (e) {
+      state = state.copyWith(
+        errorMessage: 'Error: $e',
+        errorMessageL10nKey: ChatStateL10nKey.errorGeneric,
+        errorMessageArg: e.toString(),
+      );
+      return false;
+    }
+  }
+
+  /// 端脑的轮次角色 → 客户端的气泡角色。
+  ///
+  /// ⚠️ 线上是 `TurnRole` 的小写名：**`user` / `agent`**
+  /// —— **不是** `assistant` ⇒ 只认 `assistant` 的话，
+  /// **每一句**助手回复都会被画成「系统消息」气泡。
+  ChatMessageModel _messageFromTurn(ConversationTurn turn) => ChatMessageModel(
+    turn.text,
+    switch (turn.role) {
+      'user' => ChatRole.user,
+      'agent' || 'assistant' => ChatRole.assistant,
+      _ => ChatRole.system,
+    },
+  );
+
   // ---- 客户端工具（端脑让这台设备干的活）-------------------------------
 
   /// 处理端脑发来的 `tool_call`。

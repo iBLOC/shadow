@@ -153,6 +153,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           //
           // 现在判据是 `canChat`（恒真 —— 本地引擎下线后没有前置条件了），
           // 「继续在桌面」额外要求**已经有会话**（sessionId 在首条消息后才有）。
+          // 会话列表（多会话）。
+          //
+          // 以前移动端**只有一条会话** ⇒ 这个入口也就没有意义；
+          // 现在能切会话了 ⇒ 入口补上
+          //（否则「会话管理」那页在 UI 上**没有任何入口** ⇒ 用户进不去）。
+          if (!isAgent2UI)
+            IconButton(
+              icon: const Icon(Icons.history),
+              onPressed: () => context.push(AppRoutes.conversation),
+              tooltip: l10n.conversationManagement,
+            ),
           if (!isAgent2UI && chatState.sessionId != null)
             IconButton(
               icon: const Icon(Icons.swap_horiz),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../router/app_router.dart';
+import '../providers/chat_provider.dart';
 import '../providers/telencephalon_provider.dart';
 import '../services/telencephalon/telencephalon_client.dart';
 import '../widgets/glass_card.dart';
@@ -122,7 +123,7 @@ class ConversationScreen extends ConsumerWidget {
             )
           : _buildConversationList(context, ref, convState),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _startNewConversation(context),
+        onPressed: () => _startNewConversation(context, ref),
         icon: const Icon(Icons.add),
         label: Text(AppLocalizations.of(context)!.conversationNewChat),
       ),
@@ -149,29 +150,27 @@ class ConversationScreen extends ConsumerWidget {
     );
   }
 
-  void _startNewConversation(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(AppLocalizations.of(context)!.conversationNewChat),
-        content: TextField(
-          decoration: InputDecoration(
-            labelText: AppLocalizations.of(context)!.conversationTitleField,
-            border: OutlineInputBorder(),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(AppLocalizations.of(context)!.cancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(AppLocalizations.of(context)!.conversationCreate),
-          ),
-        ],
-      ),
-    );
+  /// 「新对话」⇒ **真的**开一条端脑会话并切过去。
+  ///
+  /// ⚠️ 以前这里弹一个对话框，里面有个**标题输入框** ⇒ 但端脑的会话
+  /// **没有标题字段**（`Conversation` 只有 id / agent / created_at /
+  /// updated_at / history）⇒ 那个输入框**无处可存**
+  /// ⇒ 而「创建」按钮只是 `Navigator.pop`
+  /// ⇒ **什么也没创建** ⇒ 「按了创建像新建了会话，实际没建」
+  /// ⇒ **失败长得像成功**。
+  ///
+  /// 现在：直接建 + 切 + 跳到对话页 ⇒ 会话真的多了一条。
+  Future<void> _startNewConversation(BuildContext context, WidgetRef ref) async {
+    final created = await ref
+        .read(chatProvider.notifier)
+        .startNewConversation();
+    if (!created || !context.mounted) return;
+    // 新会话要出现在列表里 ⇒ 重新拉一次。
+    await ref
+        .read(conversationsNotifierProvider.notifier)
+        .loadConversations();
+    if (!context.mounted) return;
+    context.go(AppRoutes.chat);
   }
 }
 
