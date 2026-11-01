@@ -60,6 +60,47 @@ struct AppState {
     #[allow(dead_code)]
     embedded_stack: Arc<encephalon::Embedded>,
     workflow_state: Arc<tokio::sync::Mutex<WorkflowState>>,
+    /// What this launch decided to do with the hippocampus storage root.
+    ///
+    /// The settings page reads it so it can say **where the memory really
+    /// is right now** — and say it when the configured root turned out to
+    /// be unusable (a drive that was unplugged after the setting was saved).
+    hippocampus_boot: HippocampusBoot,
+}
+
+/// What **this launch** does with the hippocampus storage root.
+///
+/// ⚠️ The save-time check only proves the path worked **at that moment**.
+/// A drive that gets unplugged afterwards must not take the desktop down
+/// with it: the endbrain panics when it cannot create the root, and a
+/// panic inside the spawned HTTP-face task leaves the frontend staring at
+/// "the brain is unreachable" — the real reason ("your configured path is
+/// gone") swapped for another one.
+#[derive(Clone, Debug)]
+enum HippocampusBoot {
+    /// The user picked nothing — the platform default is in use.
+    Default,
+    /// The user's root is in use.
+    Using(String),
+    /// The user's root is unusable; the default root is in use instead.
+    Degraded { reason: String },
+}
+
+/// Whether a hippocampus storage root can actually be used right now.
+///
+/// ⚠️ One implementation, two callers: the settings page (before saving)
+/// and the boot path (before handing the root to the endbrain). A second
+/// copy of this rule would let the page promise something the boot does
+/// not deliver.
+fn probe_storage_root(path: &std::path::Path) -> Result<(), String> {
+    std::fs::create_dir_all(path)
+        .map_err(|e| format!("could not create {}: {e}", path.display()))?;
+    // Writability is proven by writing, not by asking.
+    let probe = path.join(".shadow-write-probe");
+    std::fs::write(&probe, b"")
+        .map_err(|e| format!("{} is not writable: {e}", path.display()))?;
+    let _ = std::fs::remove_file(&probe);
+    Ok(())
 }
 
 struct WorkflowState {
@@ -168,8 +209,33 @@ pub fn run() {
     // builds its hippocampus state at **boot**, so reading it once here
     // is enough; a changed setting needs a desktop restart.
     let secure_auth = Arc::new(SecureAuth::new());
-    let hippocampus_data_dir =
+    let configured_root =
         tauri::async_runtime::block_on(secure_auth.get_hippocampus_data_dir());
+    // ⚠️ The configured root is probed **now**, not just when it was saved:
+    // a path that worked yesterday may be gone today (an unplugged drive).
+    // Handing an unusable root to the endbrain would panic the HTTP-face
+    // task ⇒ ⇒ the frontend would read "the brain is unreachable" ⇒ ⇒
+    // the real reason swapped for another one.
+    let (hippocampus_data_dir, hippocampus_boot) = match configured_root.clone() {
+        Some(root) => match probe_storage_root(std::path::Path::new(&root)) {
+            Ok(()) => (Some(root.clone()), HippocampusBoot::Using(root)),
+            Err(reason) => {
+                // ⚠️ Rust has **no** adjacent-string-literal concatenation
+                // (unlike C) ⇒ ⇒ a continued `"…" \` + `"…"` pair is a
+                // syntax error ⇒ ⇒ concat! it is.
+                tracing::error!(
+                    concat!(
+                        "hippocampus storage root {} is unusable ({}); ",
+                        "falling back to the default root"
+                    ),
+                    root,
+                    reason
+                );
+                (None, HippocampusBoot::Degraded { reason })
+            }
+        },
+        None => (None, HippocampusBoot::Default),
+    };
     {
         let stack = stack.clone();
         tauri::async_runtime::spawn(async move {
@@ -241,6 +307,7 @@ pub fn run() {
         // lists are fetched per provider and refreshed every 10 min.
         provider_manager: Arc::new(provider_manager::new_manager()),
         embedded_stack: embedded_stack.clone(),
+        hippocampus_boot: hippocampus_boot.clone(),
         workflow_state: Arc::new(tokio::sync::Mutex::new(WorkflowState {
             approved_tasks: std::collections::HashMap::new(),
             rejected_tasks: std::collections::HashMap::new(),
@@ -942,7 +1009,7 @@ async fn get_hippocampus_storage(
     state: State<'_, AppState>,
 ) -> Result<serde_json::Value, String> {
     let configured = state.secure_auth.get_hippocampus_data_dir().await;
-    Ok(hippocampus_storage_view(configured))
+    Ok(hippocampus_storage_view(configured, &state.hippocampus_boot))
 }
 
 /// Point the hippocampus at another directory.
@@ -969,13 +1036,10 @@ async fn set_hippocampus_storage(
                 if !path.is_absolute() {
                     return Err(format!("{trimmed} is not an absolute path"));
                 }
-                std::fs::create_dir_all(&path)
-                    .map_err(|e| format!("could not create {trimmed}: {e}"))?;
-                // Writability is proven by writing, not by asking.
-                let probe = path.join(".shadow-write-probe");
-                std::fs::write(&probe, b"")
-                    .map_err(|e| format!("{trimmed} is not writable: {e}"))?;
-                let _ = std::fs::remove_file(&probe);
+                // ⚠️ The same probe the boot path uses — one rule, two
+                // callers. A second copy could promise something the boot
+                // does not deliver.
+                probe_storage_root(&path)?;
                 Some(trimmed.to_string())
             }
         }
@@ -983,6 +1047,7 @@ async fn set_hippocampus_storage(
     state.secure_auth.save_hippocampus_data_dir(normalized).await?;
     Ok(hippocampus_storage_view(
         state.secure_auth.get_hippocampus_data_dir().await,
+        &state.hippocampus_boot,
     ))
 }
 
@@ -994,22 +1059,40 @@ async fn set_hippocampus_storage(
 /// platform default. "remote" means the environment points at a
 /// non-local store — the memory then lives off this machine, and the UI
 /// must not claim otherwise.
-fn hippocampus_storage_view(configured: Option<String>) -> serde_json::Value {
+fn hippocampus_storage_view(
+    configured: Option<String>,
+    boot: &HippocampusBoot,
+) -> serde_json::Value {
     let default_root = hippocampus_server::default_storage_root();
     let env_root = hippocampus_server::effective_storage_root();
     // ⚠️ Computed **before** the move below: the environment root is
     // still needed to answer "is the store off this machine?".
     let remote = env_root.is_none() && configured.is_none();
-    let effective = configured
-        .clone()
-        .or_else(|| env_root.as_ref().map(|p| p.to_string_lossy().to_string()))
-        .unwrap_or_else(|| default_root.to_string_lossy().to_string());
+    // "effective" is where the memory **actually is in this launch** —
+    // not what the user configured. Those differ in two cases: the setting
+    // changed and needs a restart, or the configured root turned out to
+    // be unusable and the boot fell back to the default.
+    let effective = match boot {
+        HippocampusBoot::Using(root) => root.clone(),
+        HippocampusBoot::Degraded { .. } | HippocampusBoot::Default => env_root
+            .as_ref()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|| default_root.to_string_lossy().to_string()),
+    };
+    let (degraded, degraded_reason) = match boot {
+        HippocampusBoot::Degraded { reason } => (true, Some(reason.clone())),
+        _ => (false, None),
+    };
+    let pending_restart = configured.as_deref() != Some(effective.as_str());
     serde_json::json!({
         "configured": configured,
         "effective": effective,
         "defaultRoot": default_root.to_string_lossy(),
         "exists": std::path::Path::new(&effective).exists(),
         "remote": remote,
+        "degraded": degraded,
+        "degradedReason": degraded_reason,
+        "pendingRestart": pending_restart,
     })
 }
 

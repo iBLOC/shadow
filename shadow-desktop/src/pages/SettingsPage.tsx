@@ -1864,6 +1864,12 @@ type HippocampusStorage = {
   exists: boolean;
   /** The environment points at a non-local store. */
   remote: boolean;
+  /** The configured root turned out to be unusable at boot. */
+  degraded: boolean;
+  /** Why it was unusable (technical detail). */
+  degradedReason: string | null;
+  /** The setting differs from what this launch is using. */
+  pendingRestart: boolean;
 };
 
 export function HippocampusStorageCard() {
@@ -1976,6 +1982,23 @@ export function HippocampusStorageCard() {
           </Button>
         </div>
       </SettingRow>
+      {info?.degraded && (
+        <p
+          className="mt-2 text-sm text-destructive"
+          data-testid="hippocampus-storage-degraded"
+        >
+          {t('settings.hippocampusStorageDegraded')}
+          {info.degradedReason ? `: ${info.degradedReason}` : ''}
+        </p>
+      )}
+      {info?.pendingRestart && !info.degraded && (
+        <p
+          className="mt-2 text-xs text-muted-foreground"
+          data-testid="hippocampus-storage-pending"
+        >
+          {t('settings.hippocampusStoragePending')}
+        </p>
+      )}
       {error && (
         <p
           className="mt-2 text-sm text-destructive"

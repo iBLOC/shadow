@@ -20,6 +20,10 @@ const storageState = vi.hoisted(() => ({
   setShouldFail: false,
   configured: null as string | null,
   saved: [] as (string | null)[],
+  degraded: false,
+  degradedReason: null as string | null,
+  /** The root this launch actually uses (overrides the configured one). */
+  effectiveOverride: null as string | null,
 }));
 
 vi.mock('react-i18next', () => ({
@@ -31,12 +35,19 @@ vi.mock('../../lib/tauriSafe', () => ({
   safeInvokeOrThrow: async (cmd: string, args?: Record<string, unknown>) => {
     if (cmd === 'get_hippocampus_storage') {
       if (storageState.getShouldFail) throw new Error('read failed');
+      const effective =
+        storageState.effectiveOverride ?? storageState.configured ?? REAL_PATH;
       return {
         configured: storageState.configured,
-        effective: storageState.configured ?? REAL_PATH,
+        effective,
         defaultRoot: REAL_PATH,
         exists: true,
         remote: false,
+        degraded: storageState.degraded,
+        degradedReason: storageState.degradedReason,
+        pendingRestart:
+          storageState.configured !== null &&
+          storageState.configured !== effective,
       };
     }
     if (cmd === 'set_hippocampus_storage') {
@@ -63,6 +74,9 @@ beforeEach(() => {
   storageState.setShouldFail = false;
   storageState.configured = null;
   storageState.saved = [];
+  storageState.degraded = false;
+  storageState.degradedReason = null;
+  storageState.effectiveOverride = null;
 });
 
 describe('设置页：海马体存储位置', () => {
@@ -92,6 +106,34 @@ describe('设置页：海马体存储位置', () => {
     fireEvent.change(input, { target: { value: 'D:\\memory' } });
     fireEvent.click(screen.getByText('common.save'));
     await waitFor(() => expect(storageState.saved).toEqual(['D:\\memory']));
+  });
+
+  it('存储位置不可用时说出**真实原因**，不是装作没事', async () => {
+    storageState.configured = 'D:\\gone';
+    storageState.effectiveOverride = REAL_PATH;
+    storageState.degraded = true;
+    storageState.degradedReason = 'could not create D:\\gone: not found';
+    render(<HippocampusStorageCard />);
+    const banner = await screen.findByTestId('hippocampus-storage-degraded');
+    expect(banner.textContent).toContain('could not create D:\\gone');
+    // ⚠️ 降级时显示的是**真正在用的那个**（默认位置），
+    // 而不是那个已经坏掉的路径。
+    expect(await screen.findByText(REAL_PATH)).toBeTruthy();
+  });
+
+  it('改了设置但还没重启 ⇒ 提示重启后生效', async () => {
+    storageState.configured = 'D:\\memory';
+    storageState.effectiveOverride = REAL_PATH;
+    render(<HippocampusStorageCard />);
+    expect(
+      await screen.findByTestId('hippocampus-storage-pending'),
+    ).toBeTruthy();
+  });
+
+  it('没改过设置 ⇒ 不显示「重启后生效」', async () => {
+    render(<HippocampusStorageCard />);
+    await screen.findByText(REAL_PATH);
+    expect(screen.queryByTestId('hippocampus-storage-pending')).toBeNull();
   });
 
   it('保存失败要把错误**说出来**，不是静默', async () => {

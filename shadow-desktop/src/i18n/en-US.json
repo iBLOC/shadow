@@ -847,6 +847,8 @@
     "storagePath": "Storage Path",
     "hippocampusStorageHint": "Pointing this elsewhere means a NEW store: the old one stays where it is, nothing is moved. Takes effect after you restart the desktop app.",
     "hippocampusStorageUnreadable": "Cannot read the current storage location (this setting is desktop-only).",
+    "hippocampusStorageDegraded": "The storage location you picked is not usable right now; the data still goes to the default location: ",
+    "hippocampusStoragePending": "Takes effect after you restart the desktop app.",
     "aiCapabilities": "AI Capabilities",
     "aiCapabilitiesDesc": "Configure AI agent settings",
     "defaultModel": "Default Model",
