@@ -38,9 +38,10 @@
  * ① **打不错面**：以前本地模型那一发曾经打到了端脑面（端脑面上没有
  *    `/v1/models` ⇒ 恒 404）⇒ ⇒ 而「一张面一个 base」这件事**只在一个
  *    模块里写**，就不可能被另一个调用点带歪；
- * ② **凭据只注入一次**：`adminHeaders()` 只在这一处出现 ⇒ ⇒
- *    ⇒ 「这一发到底带没带钥匙」**不需要靠人读代码**来判断 ⇒ ⇒
- *    ⇒ 机器闸（`scripts/check-provider-admin-headers.mjs`）也能直接判。
+ * ② **凭据只注入一次**：`adminHeaders()` 与那把 shadow key 都只在这一处出现
+ *    ⇒ ⇒ 「这一发到底带没带钥匙」**不需要靠人读代码**来判断 ⇒ ⇒
+ *    ⇒ 机器闸（`scripts/check-provider-admin-headers.mjs`）也能直接判
+ *    ⇒ ⇒ （闸认得 `getApiKey` / `shadowKey` 这两个名字 ⇒ ⇒ 判得到）。
  *
  * ⚠️ ②是关键：闸靠「**在同一个文件里**找到 base 的赋值 + 追到凭据的来源」
  * ⇒ ⇒ 做成形参 ⇒ ⇒ 闸**判不了**（判不了 ≠ 没问题 ⇒ ⇒ 闸会报红）⇒ ⇒
@@ -49,6 +50,7 @@
 
 import { prefrontalUrl, neuronUrl } from './platform';
 import { adminHeaders } from './adminToken';
+import { telencephalonClient } from './telencephalonClient';
 
 /**
  * ⚠️ **两张面，两个 base**（与 AppInitializer 同款）：
@@ -139,12 +141,16 @@ export function combineModelConfig(
 /**
  * 读供应商列表（**端脑面** `/models/providers`）。
  *
- * ⚠️ 这一发**必须带 admin 凭据** ⇒ 它在读门（shadow ∪ admin）后面 ⇒
+ * ⚠️ 这一发**必须带凭据** ⇒ 它在读门（shadow ∪ admin）后面 ⇒
  * ⇒ 没带 ⇒ 401。⇒ ⇒ 拿不到钥匙时**就不带那个头**（端脑回 401，说人话）⇒ ⇒
  * ⇒ 绝不塞一个空值头（空串与空串 `ct_eq` 相等 ⇒ 等于带对了）。
  *
- * ⚠️ **刻意不发 `X-Shadow-Key`**：读门认的是 **shadow ∪ admin**，
- * admin 是**另一把**钥匙 ⇒ 这一发带 admin 就够 ⇒ ⇒ 不多递一把。
+ * ⚠️ **两把都递（读门 = shadow ∪ admin）** —— 不是二选一：
+ * 端脑认哪几把，客户端就递哪几把 ⇒ ⇒ 少递一把 ⇒ 就会在「只有那把对得上」
+ * 的形态下被挡 ⇒ ⇒ 症状是「**读不到**」被显示成「**没有**」。
+ *
+ * ⚠️ shadow key 的**唯一出处**是 client（`telencephalonClient.getApiKey()`）
+ * ⇒ ⇒ 与发请求的那个 client 是**同一把** ⇒ ⇒ 不会「列表用一把、探针用另一把」。
  *
  * ⚠️ **没有形参**（base 与凭据都在本模块里）⇒ ⇒ 机器闸能在**同一个文件**里
  * ⇒ ⇒ 追到「base 是端脑面」+「headers 来自 adminHeaders()」⇒ ⇒ 判得准。
@@ -154,8 +160,29 @@ export async function probeCloudProviders(): Promise<ProviderProbeResult> {
     // ⚠️ base **在函数里**求值（理由见上面那段注释）⇒ ⇒ 机器闸仍然能在
     // ⇒ ⇒ **同一个文件**里追到「base = prefrontalUrl()」。
     const CORTEX_BASE = prefrontalUrl();
-    const headers = await adminHeaders();
-    const resp = await fetch(`${CORTEX_BASE}/models/providers`, { headers });
+    // ⚠️ **读门 = shadow ∪ admin ⇒ 两把都递**（**不是**二选一）。
+    //
+    // ⚠️⚠️ 以前这里**刻意只递 admin**（注释写着「admin 是另一把钥匙 ⇒
+    // 这一发带 admin 就够 ⇒ 不多递一把」）⇒ ⇒ **那个前提只在「客户端手里
+    // 握有 admin token」时成立** ⇒ ⇒ 而在「独立端脑服务器 + 那台机器配了
+    // shadow key + 桌面端填了 shadow key」这个形态上，桌面 sidecar 那把
+    // admin token **对不上**（端脑的 admin 面 fail-closed ⇒ 只认
+    // `TELENCEPHALON_ADMIN_KEY`）⇒ ⇒ 读面只剩 **shadow** 那把
+    // ⇒ ⇒ **列表读得到、探针读不到** ⇒ ⇒ ⇒ 同一个客户端、同一张面，
+    // 两处给出互相矛盾的说法。
+    //
+    // ⇒ ⇒ 规则：**客户端读面的凭据集合必须与门形一致** ⇒ 门认哪几把，
+    // 客户端就递哪几把 ⇒ ⇒ 少递一把 ⇒ 就会在「只有那把对得上」的形态下
+    // 被挡 ⇒ ⇒ 而症状是「读不到」伪装成「没有」。
+    const shadowKey = telencephalonClient.getApiKey();
+    const resp = await fetch(`${CORTEX_BASE}/models/providers`, {
+      headers: {
+        ...(await adminHeaders()),
+        // ⚠️ **拿不到就不带这个头** —— 绝不能塞空串
+        // （空串与空串相等 ⇒ 等于带对了 ⇒ 反而把门骗开）。
+        ...(shadowKey ? { 'X-Shadow-Key': shadowKey } : {}),
+      },
+    });
     // ⚠️ **不 ok ⇒ 问不到**（401 = 门关着 / 钥匙不对；5xx = 端脑坏了）
     // ⇒ ⇒ **不许**当成「空列表」。
     if (!resp.ok) return { known: false, count: 0 };
