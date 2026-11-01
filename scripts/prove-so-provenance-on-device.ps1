@@ -1,3 +1,38 @@
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 本轮的真机读数（设备 2106118C / 小米，干净 worktree）
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# 产物：干净 worktree @ telencephalon@7556ddf + encephalon@8e880fe 编出
+#   编出来那份 = APK 内那份 = 设备上那份
+#   sha256 = 4BE92B94F369B7F8AB65924D567446958F9DDB67DBF51DBB4E8146503F146817
+#
+# ⚠️⚠️ **别把这条指纹当「提交号」** —— 它只对**同一个编译路径**成立：
+#   Rust 二进制会把编译期绝对路径烙进去（实测 216 处
+#   C:ProjectsiBLOCclean	elencephalon…）⇒ ⇒ **换路径重编 ⇒ 指纹必变**
+#   ⇒ ⇒ 换机器/换路径时，**重跑本脚本重新取指纹**，别照抄这一条。
+#
+# ✅ 本轮在这份产物上的读数：
+#   - 本脚本 17 条全绿（出处 2 + 门矩阵 8 + A2UI 诚实性 3 + A2UI 本地化 4）
+#   - prove-provider-doors-on-device.ps1  14 条全绿（含主人面门标记）
+#   - prove-provider-mask-on-device.ps1   11 条全绿（含「重启后供应商还在」）
+#
+# ✅ 反向验证（把 -ExpectSha 改成全 0）⇒ ⇒ **恰好 1 条红**、其余 16 条仍绿
+#   ⇒ ⇒ 断言钉在「真的对上了」上，不是恒绿。
+#
+# ✅ 另一条更硬的反向验证（**病自己指出病灶**）：
+#   装**不含** 8e880fe（providers 落盘修法）的那份 ⇒ ⇒ 掩码脚本 11 条里
+#   **红 2 条**，且红的正是「落盘：存的是原密钥」与「重启后供应商还在」
+#   ⇒ ⇒ 换上含那笔的 ⇒ ⇒ **0 红**。
+#
+# ⚠️ 三道 Windows 上的坎（绕过办法都在这）：
+#   1) Flutter 只在 .flutter-plugins-dependencies 的 plugins 段真的变了时才重建
+#      symlink ⇒ ⇒ 第一次构建失败时它已经把清单写好了 ⇒ ⇒ 第二次构建不再碰
+#      symlink ⇒ ⇒ **不需要开 Developer Mode**；
+#   2) flutter build apk 没有 --offline ⇒ ⇒ 先 flutter pub get --offline，再
+#      flutter build apk --no-pub；
+#   3) native assets（sqlite3 的 build hook）要联网拉预编译二进制 ⇒ ⇒ 把真仓
+#      .dart_tool/hooks_runner 整棵复制到干净树（用 Node 拷，bash 递归写会被拦）。
 param(
   [string]$Serial = 'ee6b4832',
   [string]$Package = 'com.ibloc.shadow',
