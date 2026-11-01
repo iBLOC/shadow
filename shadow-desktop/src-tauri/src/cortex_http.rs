@@ -143,15 +143,39 @@ async fn build_router(stack: &Embedded) -> Result<Router, String> {
                 .to_string()
         }),
         identity: None,
-        // 桌面端**有配置文件** ⇒ shadow key 从配置文件来（`config.toml` 的
-        // `telencephalon.shadow.api_key`）⇒ 这里传 `None`，语义是
-        // 「不覆盖配置文件」。
+        // ⚠️⚠️⚠️ **这把钥匙以前根本不存在** —— 旧注释写的是
+        // 「桌面端**有配置文件** ⇒ shadow key 从配置文件来（`config.toml`）」，
+        // ⇒ ⇒ **那句话是假的**（2026-11-01 当场核过）：
         //
-        // ⚠️ `None` 在端脑里的语义是「**没有** key ⇒ 端脑面敞开」——
-        // 所以这里传 `None` 不会把配置文件的 key 抹掉：配置文件那份是在
-        // `build_app_state_with` 读配置**之后**才被 `apply_shadow_api_key`
-        // 覆盖的，而 `apply_shadow_api_key` 对 `None` 是**原样返回**（不碰）。
-        shadow_api_key: None,
+        // * 桌面端仓里**没有任何 `config.toml`**（glob 零命中）；
+        // * **也没有任何代码**去设 `TELENCEPHALON_CONFIG` / `CORTEX_CONFIG`
+        //   ⇒ 而端脑**只**从那个环境变量读配置（`telencephalon/src/boot.rs:127`
+        //   ⇒ 读不到就用默认配置）⇒ ⇒ `shadow.api_key` 取默认**空串**；
+        // * 空串 ⇒ `require_shadow_key` **放行一切** ⇒ ⇒
+        //   **`/shadow/v1/*` 与 `POST /a2a` 在桌面默认安装上一直是敞开的**
+        //   （同机任意进程都能打 ⇒ 包括 `POST /shadow/v1/identity`
+        //   ⇒ **换掉「这台机器是谁」**）。
+        //
+        // ⇒⇒⇒ 现在把**宿主这把 admin token** 同时当 shadow key 递进去：
+        //
+        // * **为什么复用 admin token**：这台桌面端**只有一把宿主钥匙**
+        //   （`admin_token.rs` 生成并持久化）⇒ 而端脑的**读门 =
+        //   shadow ∪ admin**（`security::api_key::verify_read_credential`）
+        //   ⇒ ⇒ **递什么值都不改变「谁能进」** —— 决定权在**客户端递哪把钥匙**，
+        //   不在这个值 ⇒ ⇒ **不为它另造一把没人递的钥匙**（那只是「多一把
+        //   秘密、多一处要配的地方」，还要前端在第一次请求前就拿到它 ⇒ 竞态）。
+        // * **admin 那一支是 fail-closed**（没配 admin token ⇒ 不放行）
+        //   ⇒ ⇒ 独立端脑服务器那种形态**不受影响**。
+        // * ⚠️ 桌面前端的 `X-Shadow-Key` **仍然递不出来**（它没有 shadow key）
+        //   ⇒ ⇒ 它走的是 **admin 那一支** ⇒ ⇒ 端脑侧与前端侧**必须同时**改，
+        //   否则桌面端会**把自己锁在外面**（门掐断主人）。
+        shadow_api_key: Some(desktop_admin_token()),
+        // 海马体（本地长期记忆）的存储根 —— **None = 桌面端仍走环境变量**
+        // （`LANCE_URI` / `HIPPOCAMPUS_DATA_DIR` ⇒ `%APPDATA%\shadow\lance`）。
+        //
+        // ⚠️ 桌面的落点**没有**变成「宿主显式给的目录」：那等于**换一批数据**
+        // （不是迁移）⇒ ⇒ 行为一字不变。
+        hippocampus_data_dir: None,
         // 桌面端**显式**声明 admin token —— 端脑**不再**替宿主发明一把
         // 开发用的钥匙了（旧的 `dev-admin-key` 回退被端脑删掉了）。
         //

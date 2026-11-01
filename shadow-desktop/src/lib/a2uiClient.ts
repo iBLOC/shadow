@@ -37,6 +37,7 @@ import {
   extractJsonRpcError,
   extractTextParts,
 } from './a2uiProtocol';
+import { adminHeaders } from './adminToken';
 
 /** 端脑拒绝了这个请求（HTTP 层）。 */
 export class A2uiHttpError extends Error {
@@ -169,7 +170,12 @@ export async function requestA2uiSurface(
   const url = `${baseUrl.replace(/\/+$/, '')}/a2a`;
   const resp = await fetchImpl(url, {
     method: 'POST',
-    headers: buildA2uiHeaders(apiKey, locale),
+    // ⚠️ **`/a2a` 在 shadow 门后面，而端脑的读门 = shadow ∪ admin**
+    // （`security::api_key::verify_read_credential`）⇒ ⇒ 桌面端**没有**
+    // shadow key（宿主没生成过）⇒ ⇒ 这里必须递 **admin token**，
+    // 否则端脑一把门关上，桌面端的 A2UI 面板就全 401（门掐断主人）。
+    // ⚠️ 拿不到 token ⇒ **不带**那个头（端脑会 401 并说清原因）。
+    headers: { ...buildA2uiHeaders(apiKey, locale), ...(await adminHeaders()) },
     body: buildA2uiRequestBody(view),
     signal,
   });

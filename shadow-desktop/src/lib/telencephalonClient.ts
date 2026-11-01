@@ -651,6 +651,14 @@ export class TelencephalonClient {
   ): AsyncGenerator<StreamEvent> {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (this.apiKey) headers['X-Shadow-Key'] = this.apiKey;
+    // ⚠️⚠️ **这条 SSE 路由在 shadow 门后面** ⇒ 端脑的读门 =
+    // **shadow ∪ admin**（security::api_key::verify_read_credential）
+    // ⇒ ⇒ 桌面端**递不出 shadow key**（宿主没生成过这把钥匙）⇒ ⇒
+    // 这里必须递 **admin token**，否则端脑一把门关上，桌面的**对话流**
+    // 就全 401（**门掐断主人** —— 自己把自己的大脑锁在外面）。
+    // ⚠️ 拿不到 token ⇒ **不带**那个头（端脑会 401 并说清原因）。
+    const adminToken = (await getAdminToken())?.trim();
+    if (adminToken) headers['X-Admin-Token'] = adminToken;
     const resp = await fetch(
       `${this.baseUrl}/shadow/v1/conversations/${encodeURIComponent(conversationId)}/messages:stream`,
       { method: 'POST', headers, body: JSON.stringify(req) },
