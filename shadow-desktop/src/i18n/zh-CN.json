@@ -1188,7 +1188,7 @@
     "noModelWarning": "⚠️ 没有已注册的 LLM 模型",
     "neuronInfo": "Neuron 详细信息",
     "connectionError": "无法连接到 Cortex",
-    "connectionHint": "Cortex 应该在 localhost:60080 运行。如果未运行，请检查 Tauri 是否正确启动了 cortex sidecar。",
+    "connectionHint": "端脑应该在 {{url}} 运行。如果未运行，请检查 Tauri 是否正确启动了 cortex sidecar。",
     "lines": "行",
     "noLogs": "暂无日志"
   },

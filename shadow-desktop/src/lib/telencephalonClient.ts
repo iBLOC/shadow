@@ -550,8 +550,29 @@ export class TelencephalonClient {
     this.baseUrl = url;
   }
 
+  /**
+   * 设置端脑的 shadow key（`X-Shadow-Key`）。
+   *
+   * ⚠️ **必须和 store 同步** —— `setBaseUrl` 一直有同步，`setApiKey` 之前只改了
+   * store ⇒ client 永远拿不到 key ⇒ 所有走 `request()` 的请求**都不带** header
+   * ⇒ 一旦端脑配了 `shadow.api_key`（非开发模式），客户端全量 401。
+   */
+  setApiKey(apiKey: string): void {
+    this.apiKey = apiKey || undefined;
+  }
+
   getBaseUrl(): string {
     return this.baseUrl;
+  }
+
+  /**
+   * 当前带出去的 shadow key（`undefined` = 不带 header = 开发模式）。
+   *
+   * 主要给测试与调试用 —— 之前没有 getter ⇒ 「client 到底有没有拿到 key」
+   * 这件事**无法从外部观察**，只能靠猜。
+   */
+  getApiKey(): string | undefined {
+    return this.apiKey;
   }
 
   private async request<T>(path: string, init?: RequestInit): Promise<T> {

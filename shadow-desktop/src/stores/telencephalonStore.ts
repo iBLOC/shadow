@@ -69,6 +69,11 @@ export const useTelencephalonStore = create<CortexState>()(
       },
 
       setApiKey: (apiKey) => {
+        // ⚠️ **必须同步给 client** —— 否则 store 里有 key、client 里没有
+        // ⇒ 所有走 `telencephalonClient.request()` 的请求都不带 `X-Shadow-Key`
+        // ⇒ 端脑一旦开了 `shadow.api_key`（非开发模式），客户端全量 401。
+        // （`setBaseUrl` 一直有同步，`setApiKey` 之前漏了。）
+        telencephalonClient.setApiKey(apiKey);
         set((state) => ({ connection: { ...state.connection, apiKey } }));
       },
 
@@ -139,6 +144,16 @@ export const useTelencephalonStore = create<CortexState>()(
     {
       name: 'shadow-cortex-store',
       partialize: (state) => ({ connection: state.connection }),
+      // ⚠️ **恢复持久化状态时必须同步给 client** ——
+      // `persist` 只把 `connection` 灌回 store，**不会**调 `setBaseUrl`/`setApiKey`
+      // ⇒ client 永远停在构造时的默认值（`http://127.0.0.1:60080`、无 key）
+      // ⇒ 用户改过地址或配过 key 的话，**重启后全部失效**，
+      // 而 store 里看着是对的（最迷惑的那种坏法）。
+      onRehydrateStorage: () => (state) => {
+        if (!state) return;
+        telencephalonClient.setBaseUrl(state.connection.baseUrl);
+        telencephalonClient.setApiKey(state.connection.apiKey);
+      },
     },
   ),
 );

@@ -6,6 +6,7 @@ import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { cn } from '../lib/utils';
 import { adminHeaders } from '../lib/adminToken';
+import { useTelencephalonStore } from '../stores/telencephalonStore';
 
 interface CortexStatus {
   neuron_reachable: boolean;
@@ -25,10 +26,13 @@ interface CortexLogs {
   lines: string[];
 }
 
-const CORTEX_URL = 'http://localhost:60080';
-
 export function TelencephalonStatusPage() {
   const { t } = useTranslation();
+  // ⚠️ **不要写死 `localhost:60080`** —— 端脑地址在设置里可改（`setBaseUrl`），
+  // 写死会让这一页与其它所有页面**行为分叉**：用户改完地址，这页还打老地址。
+  // ⚠️ 但也别把「端口会变」当理由 —— 桌面端 sidecar 的默认端口**就是** 60080
+  // （`src-tauri/src/cortex_http.rs` `DEFAULT_ADDR`，有测试钉住）。
+  const baseUrl = useTelencephalonStore((s) => s.connection.baseUrl);
   const [status, setStatus] = useState<CortexStatus | null>(null);
   const [logs, setLogs] = useState<CortexLogs | null>(null);
   const [loading, setLoading] = useState(false);
@@ -39,7 +43,10 @@ export function TelencephalonStatusPage() {
     setLoading(true);
     setError(null);
     try {
-      const resp = await fetch(`${CORTEX_URL}/api/cortex/status`, {
+      // ⚠️ 路径前缀是 `/api/telencephalon/*`（**不是** `/api/cortex/*`）——
+      // 服务端早已改名，旧的 `/api/cortex/*` 路由**根本不存在** ⇒ 这一页
+      // 以前一直 404，只是没人注意到（页面把错误显示成一行灰字）。
+      const resp = await fetch(`${baseUrl}/api/telencephalon/status`, {
         headers: await adminHeaders(),
       });
       if (!resp.ok) {
@@ -52,13 +59,13 @@ export function TelencephalonStatusPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [baseUrl]);
 
   const fetchLogs = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const resp = await fetch(`${CORTEX_URL}/api/cortex/logs`, {
+      const resp = await fetch(`${baseUrl}/api/telencephalon/logs`, {
         headers: await adminHeaders(),
       });
       if (!resp.ok) {
@@ -71,7 +78,7 @@ export function TelencephalonStatusPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [baseUrl]);
 
   useEffect(() => {
     fetchStatus();
@@ -145,7 +152,11 @@ export function TelencephalonStatusPage() {
               </div>
               <div className="text-xs text-muted-foreground">{error}</div>
               <div className="text-xs text-muted-foreground mt-1">
-                {t('cortexStatus.connectionHint', 'Cortex 应该在 localhost:60080 运行。如果未运行，请检查 Tauri 是否正确启动了 cortex sidecar。')}
+                {t(
+                  'cortexStatus.connectionHint',
+                  '端脑应该在 {{url}} 运行。如果未运行，请检查 Tauri 是否正确启动了 cortex sidecar。',
+                  { url: baseUrl }
+                )}
               </div>
             </div>
           </CardContent>
