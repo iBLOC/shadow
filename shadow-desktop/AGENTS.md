@@ -1,6 +1,6 @@
 # PROJECT KNOWLEDGE BASE
 
-**Updated:** 2026-10-31 (桌面端 admin 钥匙不再常量 —— 见文末「STATE STATUS (2026-10-31, 桌面端 admin 钥匙不再常量)」)
+**Updated:** 2026-11-01 (桌面端那把 shadow key 真的能用了 + 探针与列表递同一套钥匙 —— 见文末「STATE STATUS (2026-11-01, 桌面端那把 shadow key 真的能用了 —— 探针与列表终于递同一套钥匙)」)
 **Project:** shadow-desktop (Layer 4 — Interaction)
 **Sprint-2 status:** ✅ MCP management wired through cortex — AgentsPage per-card binding panel + bind modal + 12 new cortexClient methods + 18 i18n keys. 10 AgentsPage + 10 chartbi + 20 lib vitest tests passing. TypeScript clean. **Post-audit-cycle (2026-09-24/25)**: recording mode R1-R4 closed, MCP catalog 5×28 + transport-aware MCPPage, Workflow Studio v1 (R-12/R-13), subsystem management panel client, cortex sidecar replaced with embedded encephalon. Companion E2E assessment: [`../../docs/superpowers/architecture/2026-09-25-e2e-coverage-assessment.md`](../../docs/superpowers/architecture/2026-09-25-e2e-coverage-assessment.md).
 
@@ -815,3 +815,48 @@ The same `src/` produces **two artefacts**:
 - **⚠️ 一条可复用的判据**：**同一个端点、客户端有两发读它** ⇒ ⇒ 先核「两发带的凭据集合
   是不是同一个」⇒ ⇒ **不是的话，先出现的矛盾是「一处说读到了、另一处说读不到」**
   ⇒ ⇒ 而不是「都读不到」⇒ ⇒ ⇒ 而这种矛盾**单测很难发现**（两条路各自都绿）。
+## STATE STATUS (2026-11-01, 桌面端那把 shadow key 真的能用了 —— 探针与列表终于递同一套钥匙)
+
+- **✅ 病（一个客户端、同一张面，两处互相矛盾）**：`/models/providers` 这张面在端脑那边是
+  **读门（shadow ∪ admin）**，而客户端有**两发**读它：
+  - **列表**（`SettingsPage` → `telencephalonClient.listProviders()` → `request()`）⇒ **shadow ∪ admin 两把都递**；
+  - **探针**（`modelConfigProbe.probeCloudProviders()` ⇒ 裸 fetch）⇒ 以前**只递 admin**。
+
+  ⇒ ⇒ 于是在「**独立端脑服务器** + 那台机器**配了 shadow key** + 桌面端**填了 shadow key**」
+  这一个形态上（端脑的 admin 面 **fail-closed** ⇒ 桌面 sidecar 那把 admin token **对不上**
+  ⇒ ⇒ 读面只剩 **shadow** 那把）⇒ ⇒ **列表读得到、探针读不到**
+  ⇒ ⇒ ⇒ `AppInitializer` 与 onboarding 那一格说「**问不到端脑**」
+  ⇒ ⇒ **而设置页那一格明明列出了供应商** ⇒ ⇒ ⇒ **同一个客户端、同一张面，两处互相矛盾**。
+- **⚠️ 根因是一句写进注释的假前提**：「读门认的是 shadow ∪ admin，admin 是**另一把**钥匙
+  ⇒ 这一发带 admin 就够 ⇒ 不多递一把」⇒ ⇒ **那个前提只在「客户端手里握有 admin token」时成立**。
+- **✅ 修（一条规则）**：**客户端读面的凭据集合必须与门形一致** ⇒ 门认哪几把，客户端就递哪几把
+  ⇒ ⇒ 探针现在把 `telencephalonClient.getApiKey()` 那把**一并递上**
+  ⇒ ⇒ 拿不到就**不带那个头**（绝不塞空串：空串与空串相等 ⇒ 等于带对了 ⇒ 反而把门骗开）
+  ⇒ ⇒ 顺带把「shadow key 的唯一出处」钉成 client（与发请求的那个 client 是**同一把**）
+  ⇒ ⇒ 「列表用一把、探针用另一把」结构上不可能。
+- **✅ 顺带把「那把 shadow key 真的能用了」补齐（`7e45429`）**：
+  - `telencephalonClient` 补 `setApiKey()` / `getApiKey()`（之前**没有 getter** ⇒
+    「client 到底有没有拿到 key」**无法从外部观察**，只能靠猜）；
+  - `telencephalonStore.setApiKey` 现在**同步给 client**（以前只改 store ⇒ client 永远拿不到 key
+    ⇒ 端脑一开 `shadow.api_key` ⇒ 客户端**全量 401**）；
+  - `telencephalonStore` 补 `onRehydrateStorage` ⇒ 重启后把 baseUrl 与 apiKey **推回 client**
+    （`persist` 只灌 store ⇒ 用户改完地址**重启后又打回默认**，而 store 里看着是对的）；
+  - `TelencephalonStatusPage` 不再写死 `localhost:60080`（改读 store），路径前缀从**根本不存在的**
+    `/api/cortex/*` 改成 `/api/telencephalon/*`（服务端 `system_status.rs:6-7` ⇒ 那一页以前一直 404）；
+  - zh-CN 的 `cortexStatus.connectionHint` 改成插值 `{{url}}` ⇒ 否则中文界面会告诉用户一个**写死的端口**。
+- **⚠️⚠️ 一条被实测钉住的读数：「HEAD 编译不过」** —— 在 `7e45429` 之前，
+  `ConversationPage.tsx` 调用 `telencephalonClient.getApiKey()`，而 client 类**没有那个方法**
+  ⇒ ⇒ **实测**（把旧 client 文件放回去跑 `tsc --noEmit`）⇒ **3 条 TS2339**
+  ⇒ ⇒ ⇒ **桌面端在那一版 HEAD 上根本编译不过** ⇒ ⇒ 「getter 还没入库」不只是「少个方法」，
+  是**整个桌面端构建是断的** ⇒ ⇒ ⇒ **凡是说「HEAD 缺 X」的读数，都要先问「那 HEAD 编译过吗」**。
+- **✅ 证据 + 反向验证**：探针单测 **21 ⇒ 24 passed**（新增 3 条）；store 单测**新增 5 条**；
+  `tsc --noEmit` EXIT=0；全量 vitest **1262 ⇒ 1265 passed / 0 failed**；
+  闸 `scripts/check-provider-admin-headers.mjs` ⇒ **绿 8 / 红 0 / 判不了 0**、EXIT=0，
+  且它现在把探针那一发报成「**直接带 shadow 凭据（这道门认 shadow 或 admin）**」⇒ ⇒ 机器闸看得见两把钥匙了；
+  ⚠️ 反向验证：拆掉 shadow key 那一把 ⇒ **恰好 2 红**；拆掉 `setApiKey` 的同步 ⇒ **恰好 2 红**；
+  拆掉 `onRehydrateStorage` ⇒ **恰好 2 红**；其余纹丝不动。
+- **⚠️ 还欠的**：**桌面端没有「输入 shadow key」的入口** ⇒ ⇒ setter 有、但**没有 UI 调用方**
+  ⇒ ⇒ 「配了能生效、但**无处可配**」⇒ ⇒ 那个入口仍欠；
+  **en-US.json 没有根级 `cortexStatus`** ⇒ 英文界面落回代码里的默认值（那句默认值是**中文**）；
+  **web 形态的 6 处条件 401**（web 没有 sidecar ⇒ admin token 要用户自备）。
+
