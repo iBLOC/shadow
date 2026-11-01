@@ -760,3 +760,29 @@ The same `src/` produces **two artefacts**:
   **真机 UI 未验**（本轮只有单测与机器闸）；**「形状不对」这条更严的判定**
   对 `AppInitializer` 也是新的（以前非数组 ＝「确认空」）⇒ ⇒ 行为**收紧**了
   一点点（方向：宁可说「问不到」，也不说「你没配」）。
+
+## STATE STATUS (2026-11-01, 真浏览器那一发 —— 「看起来对不对」只有眼睛能钉)
+
+- **✅ 上一条欠的「真机 UI 未验」，本轮换成「真浏览器已验」**：新 Playwright spec
+  `tests/e2e-ui/three-state-providers.spec.ts`（4 条）⇒ ⇒ 真 Chromium + **构建产物**
+  ⇒ ⇒ **4 passed / 10.3 秒** ⇒ ⇒ 三档各钉在 `data-state` 上（`unreadable` /
+  `empty` / `ready`），**不钉文案**（文案随语言走 ⇒ ⇒ 默认 zh-CN）。
+- **⚠️ 为什么是「构建产物」而不是 dev server**：本机被别人会话的编译占满
+  （4 cargo + 4 rustc、load 99%）⇒ ⇒ vite 逐模块 transform 把浏览器**饿死**
+  （首屏 `GET /` 实测 **38.4 秒**；`/settings` 的 `load` **180 秒**没等到
+  ⇒ ⇒ 失败截图**全白**）⇒ ⇒ ⇒ 改跑**静态预览**（`vite build --config
+  vite.config.web.ts` 约 24 秒 ⇒ ⇒ 浏览器只下一个 bundle ⇒ ⇒ 页面**秒开**）
+  ⇒ ⇒ ⇒ 为此 `playwright.config.ts` 加了三个环境变量（`SHADOW_E2E_BASE_URL`
+  / `SHADOW_E2E_SERVER_URL` / `SHADOW_E2E_SERVER_CMD`）⇒ ⇒ **dev server 与
+  构建产物两条路都能跑**（默认仍是 dev server ⇒ ⇒ 不影响既有 spec）。
+- **⚠️ 断言要比**决定性字段**：④ 原本比两档的整块 `innerText` ⇒ ⇒ 提示语不同就能
+  蒙过去 ⇒ ⇒ 改成比**标题那一行**（`innerText` 的第一行）⇒ ⇒ ⇒ 断言这才钉在「用户
+  第一眼看到的那句话」上。
+- **✅ 反向验证（在真浏览器里做）**：把「空档」的标题换成「读不到档」的标题 ⇒ ⇒
+  **恰好 2 红**（② ④），① ③ 绿 ⇒ ⇒ 还原后 **4/4 再绿** ⇒ ⇒ 断言钉在真东西上、不是恒绿。
+- **✅ 其余**：`tsc --noEmit` EXIT=0；定向 vitest **33 条**；全量 vitest __VITEST__；
+  **七道闸全 EXIT=0**。
+- **⚠️ 还欠的**：**Tauri 真机 UI 仍未验**（本轮是真浏览器 + 构建产物，不是桌面真机）；
+  **web 形态 6 处条件 401**（web 版没有 sidecar ⇒ admin token 要用户自备 `localStorage`）
+  ⇒ ⇒ 「web 放钥匙的入口」是**另一个决定**；**桌面端 shadow key 输入入口**仍欠（**不是**
+  上锁的阻塞项）。
