@@ -1,27 +1,34 @@
 import { useEffect, useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { invoke } from '@tauri-apps/api/core';
-import { isTauri, prefrontalUrl, neuronUrl } from '../lib/platform';
-import { adminHeaders } from '../lib/adminToken';
+import { isTauri } from '../lib/platform';
+// ⚠️⚠️ **「有没有配好模型」这个判定现在只有一份实现。**
+// ⇒ ⇒ 这一页以前**自己抄了一份**（hasConfiguredModelsTauri / ...Web）⇒ ⇒
+// ⇒ ⇒ 于是「改了一边忘了另一边」⇒ ⇒ 同一个病、两处症状。
+// ⇒ ⇒ 现在两处都把「探到的原始结果」喂给同一个 combineModelConfig。
+import {
+  combineModelConfig,
+  probeCloudProviders,
+  probeLocalModels,
+  type ModelConfigState,
+  type ProviderProbeResult,
+  type LocalModelProbeResult,
+} from '../lib/modelConfigProbe';
 
 /**
- * ⚠️ **两个 base，两张面 —— 以前这里只写了一个，而名字在说谎。**
+ * ⚠️ **两张面，两个 base —— 现在由 lib/modelConfigProbe.ts 自己拥有。**
  *
- * * `CORTEX_BASE` = **端脑面**（`prefrontalUrl()`）⇒ 上面的路由
- *   （`/models/providers`、`/api/telencephalon/*`）在这儿；
- * * `NEURON_BASE` = **neuron 面**（`neuronUrl()`）⇒ **本地模型**的路由
- *   （`/v1/models`、`/v1/info`）在这儿。
+ * * **端脑面**（prefrontalUrl()）⇒ /models/providers（云供应商在这张面上）；
+ * * **neuron 面**（neuronUrl()）⇒ /v1/models（**本地**模型在这张面上）。
  *
- * ⚠️⚠️ **旧代码把本地模型那一发也打到了端脑面**（变量叫 `NEURON_BASE`，
- * 内容却是 `prefrontalUrl()`）⇒ ⇒ 端脑面上**根本没有** `/v1/models`
- * （neuron 自己的 router 只在 `build_full_app` 里 merge 到根；嵌入式端脑面
- * `cortex_router` 上只有 `/api/telencephalon/neuron/preview/models`）
- * ⇒ ⇒ 那一发恒 **404** ⇒ ⇒ `hasLocal` **一直**是 false ⇒ ⇒
- * ⇒ 「有没有配好模型」**完全**取决于「云那半」⇒ ⇒ 而云那半一旦上锁 ⇒
+ * ⚠️⚠️ **旧代码把本地模型那一发也打到了端脑面**（变量叫 NEURON_BASE，
+ * 内容却是 prefrontalUrl()）⇒ ⇒ 端脑面上**根本没有** /v1/models
+ * ⇒ ⇒ 那一发恒 **404** ⇒ ⇒ hasLocal **一直**是 false ⇒ ⇒
+ * ⇒ 「有没有配好模型」**完全**取决于「云那半」⇒ ⇒ 而云那半一旦上锁 ⇒ ⇒
  * ⇒ **必然**把用户踢回向导（见下面的三态判定）。
+ *
+ * ⇒ ⇒ 现在这两个 base **只在一个模块里** ⇒ ⇒ 打不错面。
  */
-const CORTEX_BASE = prefrontalUrl();
-const NEURON_BASE = neuronUrl();
 
 // Paths that should be accessible even without models
 const MODEL_SETUP_PATHS = ['/models', '/models/download', '/providers', '/setup'];
@@ -48,7 +55,8 @@ interface AppInitializerProps {
  * ⇒ ⇒ 现在：**只有「确认没配」才说「没配」**；问不到 ⇒ `unknown` ⇒
  * ⇒ **不踢**（宁可让用户自己逛，也别断言他没配好）。
  */
-type ModelConfigState = 'configured' | 'not-configured' | 'unknown';
+// ⚠️ **三态的类型定义搬走了** ⇒ ⇒ 它的**唯一**定义在
+// ⇒ ⇒ lib/modelConfigProbe.ts ⇒ ⇒ 这一份判定**不许**再抄第二遍。
 
 /**
  * Tauri mode: the cortex sidecar is gone (replaced by the in-process
@@ -70,17 +78,24 @@ async function hasConfiguredModelsTauri(): Promise<ModelConfigState> {
       const legacy = await invoke<{ api_key?: string | null }>('get_provider_config');
       return managed || Boolean(legacy?.api_key);
     })(),
-    fetch(`${neuronUrl()}/v1/models?engine=llm`)
-      .then((r) => (r.ok ? r.json() : { data: [] }))
-      .catch(() => ({ data: [] })),
+    // ⚠️ 本地那半**也走共享探测** ⇒ ⇒ 「本地模型在哪张面」这件事
+    // ⇒ ⇒ **只在一个模块里** ⇒ ⇒ 打不错面（以前这里打错过面 ⇒ 恒 404）。
+    probeLocalModels(),
   ]);
-  const hasCloud = cloudRes.status === 'fulfilled' && cloudRes.value === true;
-  const hasLocal =
-    localRes.status === 'fulfilled' &&
-    (localRes.value.data ?? []).some((m: { available?: boolean }) => m.available);
-  if (hasCloud || hasLocal) return 'configured';
-  // ⚠️ `invoke` 抛了 ⇒ **问不到**（不是「没配」）。
-  return cloudRes.status === 'fulfilled' ? 'not-configured' : 'unknown';
+  // ⚠️ **判定搬进共享模块了** ⇒ ⇒ 这里只负责「把两发探到的原始结果喂给它」。
+  // ⚠️ **等价性**：旧写法是「有云或有本地 ⇒ configured；invoke 成功 ⇒
+  // ⇒ not-configured；invoke 抛了 ⇒ unknown」⇒ ⇒ 与 combineModelConfig
+  // ⇒ ⇒ （cloud.known = invoke 有没有成功；cloud.count = 有没有云供应商）
+  // ⇒ ⇒ **逐条等价**。
+  const cloud: ProviderProbeResult = {
+    known: cloudRes.status === 'fulfilled',
+    count: cloudRes.status === 'fulfilled' && cloudRes.value === true ? 1 : 0,
+  };
+  const local: LocalModelProbeResult =
+    localRes.status === 'fulfilled'
+      ? localRes.value
+      : { known: false, available: false };
+  return combineModelConfig(cloud, local);
 }
 
 /**
@@ -94,25 +109,11 @@ async function hasConfiguredModelsWeb(): Promise<ModelConfigState> {
   // ⚠️ `/models/providers` 在端脑那边**被放到了 admin 门后面** ⇒ 这一发
   // 必须带钥匙 ⇒ 拿不到钥匙 ⇒ 401 ⇒ ⇒ 而 401 是「**问不到**」，
   // 不是「没配」（见上面 `ModelConfigState` 的说明）。
-  const headers = await adminHeaders();
-  const [cloudRes, localRes] = await Promise.allSettled([
-    fetch(`${CORTEX_BASE}/models/providers`, { headers }).then((r) => {
-      if (!r.ok) return { known: false, count: 0 };
-      return r.json().then((d) => ({ known: true, count: Array.isArray(d) ? d.length : 0 }));
-    }),
-    // ⚠️ **本地模型在 neuron 面** ⇒ 打 `NEURON_BASE`（= `neuronUrl()`），
-    // 不是端脑面（端脑面上没有 `/v1/models` ⇒ 恒 404 ⇒ `hasLocal` 恒 false）。
-    fetch(`${NEURON_BASE}/v1/models?engine=llm`).then((r) => (r.ok ? r.json() : { data: [] })),
+  const [cloud, local] = await Promise.all([
+    probeCloudProviders(),
+    probeLocalModels(),
   ]);
-  const hasCloud =
-    cloudRes.status === 'fulfilled' && cloudRes.value.known && cloudRes.value.count > 0;
-  const cloudKnown = cloudRes.status === 'fulfilled' && cloudRes.value.known;
-  const hasLocal =
-    localRes.status === 'fulfilled' &&
-    (localRes.value.data ?? []).some((m: { available?: boolean }) => m.available);
-  if (hasCloud || hasLocal) return 'configured';
-  // ⚠️ **问不到 ⇒ 不能说「没配好」** ⇒ 只在**确认**没配的时候才这么说。
-  return cloudKnown ? 'not-configured' : 'unknown';
+  return combineModelConfig(cloud, local);
 }
 
 export function AppInitializer({ children }: AppInitializerProps) {

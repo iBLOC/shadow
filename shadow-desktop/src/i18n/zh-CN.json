@@ -512,7 +512,9 @@
       "running": "运行中",
       "stopped": "已停止",
       "error": "错误"
-    }
+    },
+    "providersUnreadable": "读不到供应商列表",
+    "providersUnreadableHint": "模型列表读不到，默认模型未改动。"
   },
   "mcp": {
     "title": "MCP 服务器",
@@ -880,7 +882,10 @@
       "desc": "在助手回复下方展示本轮回复的 Token 总量与生成速度",
       "label": "显示 Token 速度",
       "help": "开启后，对话页每条助手回复下方会显示总 token 与每秒速度"
-    }
+    },
+    "providersUnreadable": "读不到供应商列表",
+    "providersUnreadableHint": "端脑可能连不上，或那扇门关着（需要 admin 钥匙）。这不代表你没有配置供应商。",
+    "providersCountUnknown": "供应商数量未知"
   },
   "resonance": {
     "title": "共鸣",
@@ -1132,7 +1137,9 @@
     "localDesc": "完全在本地设备运行，无需联网或 API 密钥。推荐 Gemma 4 E4B。",
     "recommended": "推荐",
     "skipForNow": "稍后配置",
-    "checking": "检查模型配置…"
+    "checking": "检查模型配置…",
+    "unreachableTitle": "连不上端脑",
+    "unreachableHint": "读不到端脑的模型配置 —— 它可能没起来，或那扇门关着。这不代表你没有配置模型。"
   },
   "update": {
     "title": "有可用更新",

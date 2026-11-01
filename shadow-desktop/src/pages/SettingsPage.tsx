@@ -24,6 +24,7 @@ import {
   onGlobalKeyCapture,
 } from '../lib/globalKeysClient';
 import { telencephalonClient, type ScanResult, type InstalledWasmList, type AgentSearchResponse, type McpAgentBinding, type McpServerRecord, type ModelProvider } from '../lib/telencephalonClient';
+import { providerListState, type ProviderListState } from '../lib/modelConfigProbe';
 import { HfTokenSettings } from '../components/business/HfTokenSettings';
 import { IdentityPanel } from '../components/business/IdentityPanel';
 import { UpdateChecker } from '../components/business/UpdateChecker';
@@ -243,13 +244,20 @@ function ServiceAndAgentsSection() {
   const [wasmError, setWasmError] = useState<string | null>(null);
   const [uninstallingWasm, setUninstallingWasm] = useState<string | null>(null);
   const [providers, setProviders] = useState<ModelProvider[]>([]);
+  // ⚠️ **「读不到」不是「没有」** ⇒ ⇒ 供应商列表读失败时**不许**把它
+  // ⇒ ⇒ 显示成空 ⇒ ⇒（以前 `catch { setProviders([]) }` ⇒ ⇒ 界面说
+  // ⇒ ⇒ 「一个供应商都没有」⇒ ⇒ 用户于是去**重复配置已经配好的东西**
+  // ⇒ ⇒ 而真正的原因（门关着 / 端脑没起）**一个字都没人告诉他**）。
+  const [providersState, setProvidersState] = useState<ProviderListState>('ready');
 
   const fetchProviders = useCallback(async () => {
     try {
       const result = await telencephalonClient.listProviders();
       setProviders(result);
+      setProvidersState('ready');
     } catch {
       setProviders([]);
+      setProvidersState('unreadable');
     }
   }, []);
 
@@ -582,6 +590,7 @@ function ServiceAndAgentsSection() {
                   onOpenMcpBind={openBindModal}
                   onModelChange={handleModelChange}
                   providers={providers}
+                  providersUnreadable={providersState === 'unreadable'}
                 />
               ))}
             </div>
@@ -774,6 +783,7 @@ function ServiceAndAgentsSection() {
                 onOpenMcpBind={openBindModal}
                 onModelChange={handleModelChange}
                 providers={providers}
+                providersUnreadable={providersState === 'unreadable'}
               />
             ))}
           </div>
@@ -1034,6 +1044,7 @@ function McpBindModal({
 
 function InternalAgentCard({
   lobe, showUnlink, mcpBindings, onUnbindMcp, onOpenMcpBind, onModelChange, providers,
+  providersUnreadable,
 }: {
   lobe: import('../lib/telencephalonClient').LobeInfo;
   showUnlink?: boolean;
@@ -1042,6 +1053,10 @@ function InternalAgentCard({
   onOpenMcpBind?: (agentName: string) => void;
   onModelChange?: (agentName: string, modelId: string) => void;
   providers?: import('../lib/telencephalonClient').ModelProvider[];
+  // ⚠️ **「读不到」不是「没有」** ⇒ ⇒ 供应商列表读失败时 ⇒ ⇒ 这个下拉
+  // ⇒ ⇒ 不许只剩下「不设默认模型」一个选项（那等于在告诉用户「你没模型」）
+  // ⇒ ⇒ 而真正的原因（门关着 / 端脑没起）一个字都没人告诉他。
+  providersUnreadable?: boolean;
 }) {
   const { t } = useTranslation();
   const healthy = lobe.health_status === 'healthy';
@@ -1094,22 +1109,32 @@ function InternalAgentCard({
         </div>
       )}
       {onModelChange && providers && (
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs text-muted-foreground">{t('agents.defaultModel')}:</span>
           <select
             className="flex-1 rounded-md border border-border bg-popover px-2 py-1 text-xs text-popover-foreground"
             value={config?.model_id as string || ''}
             onChange={(e) => onModelChange(lobe.name, e.target.value)}
+            disabled={providersUnreadable}
           >
-            <option value="">{t('agents.noDefaultModel')}</option>
-            {providers.map((p) => (
-              <optgroup key={p.id} label={p.name}>
-                {p.models.map((m) => (
-                  <option key={m.id} value={m.id}>{m.name}</option>
+            {providersUnreadable ? (
+              <option value="">{t('agents.providersUnreadable')}</option>
+            ) : (
+              <>
+                <option value="">{t('agents.noDefaultModel')}</option>
+                {providers.map((p) => (
+                  <optgroup key={p.id} label={p.name}>
+                    {p.models.map((m) => (
+                      <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
+                  </optgroup>
                 ))}
-              </optgroup>
-            ))}
+              </>
+            )}
           </select>
+          {providersUnreadable && (
+            <span className="text-xs text-muted-foreground">{t('agents.providersUnreadableHint')}</span>
+          )}
         </div>
       )}
       {mcpBindings && onUnbindMcp && onOpenMcpBind ? (
@@ -1838,14 +1863,20 @@ function ModelsSection() {
   const { t } = useTranslation();
   const [providers, setProviders] = useState<ModelProvider[]>([]);
   const [loading, setLoading] = useState(false);
+  // ⚠️ **「读不到」不是「没有」** ⇒ ⇒ 这一处的 `catch { setProviders([]) }`
+  // ⇒ ⇒ 以前把「门关着 / 端脑没起」显示成「暂无模型供应商」⇒ ⇒
+  // ⇒ ⇒ 用户看见「没有」⇒ ⇒ 去**重新配一遍** ⇒ ⇒ 而真正的原因没人说。
+  const [providersState, setProvidersState] = useState<ProviderListState>('ready');
 
   const fetchProviders = useCallback(async () => {
     setLoading(true);
     try {
       const result = await telencephalonClient.listProviders();
       setProviders(result);
+      setProvidersState('ready');
     } catch {
       setProviders([]);
+      setProvidersState('unreadable');
     } finally {
       setLoading(false);
     }
@@ -1854,6 +1885,10 @@ function ModelsSection() {
   useEffect(() => {
     void fetchProviders();
   }, [fetchProviders]);
+
+  // ⚠️ **三态**：读到了（可能为空）/ 读到了但是空的 / 读不到
+  // ⇒ ⇒ 「读不到」**不许**落到「暂无模型供应商」那张皮上。
+  const listState = providerListState(providers, providersState === 'unreadable');
 
   return (
     <div>
@@ -1864,7 +1899,10 @@ function ModelsSection() {
         footer={
           <div className="flex items-center justify-between">
             <div className="text-xs text-muted-foreground">
-              {t('settings.providersCount', { count: providers.length })}
+
+              {providersState === 'unreadable'
+                ? t('settings.providersCountUnknown')
+                : t('settings.providersCount', { count: providers.length })}
             </div>
             <Button
               size="sm"
@@ -1878,7 +1916,16 @@ function ModelsSection() {
           </div>
         }
       >
-        {providers.length === 0 ? (
+        {listState === 'unreadable' ? (
+          // ⚠️⚠️ **「读不到」不是「没有」** ⇒ ⇒ 这一格**不许**显示
+          // ⚠️⚠️ 「暂无模型供应商」⇒ ⇒ 那会让用户去**重复配置已经配好的东西**
+          // ⚠️⚠️ ⇒ ⇒ 而真正的原因（门关着 / 端脑没起）**一个字都没人告诉他**。
+          <div className="flex flex-col items-center gap-2 py-8 text-center">
+            <AlertCircle size={32} className="text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">{t('settings.providersUnreadable')}</p>
+            <p className="text-xs text-muted-foreground">{t('settings.providersUnreadableHint')}</p>
+          </div>
+        ) : listState === 'empty' ? (
           <div className="flex flex-col items-center gap-2 py-8 text-center">
             <Cpu size={32} className="text-muted-foreground" />
             <p className="text-sm text-muted-foreground">{t('settings.noProviders')}</p>

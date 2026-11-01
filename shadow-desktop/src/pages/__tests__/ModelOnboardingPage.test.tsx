@@ -16,13 +16,14 @@
  * ① **本地模型那一发打的是 neuron 面**（不是端脑面）；
  * ② **本地有模型 ⇒ 这一页会放人走**（`navigate('/')`）。
  *
- * ⚠️ **已知缺口（不在这个文件里）**：云那半 401（端脑把 providers 面放到
- * admin 门后面、而 web 部署没有 admin token）⇒ 这一页会说「没配模型」。
- * ⇒ ⇒ 那需要**三态 + 一句新文案** ⇒ 而 i18n 文件**正被另一个会话在飞**
- * ⇒ ⇒ ⇒ 故不在此处改动（见 AGENTS.md）。
+ * ✅ **那个缺口已经补上了（2026-11-01）**：云那半 401（门关着 / 端脑没起）
+ * ⇒ ⇒ 这一页现在**说真话**：显示「连不上端脑」⇒ ⇒ **不是**「你没配模型」
+ * ⇒ ⇒ ⇒ 判定搬进了 lib/modelConfigProbe.ts（三态的**唯一**实现）
+ * ⇒ ⇒ ⇒ 与 AppInitializer 共用 ⇒ ⇒ 改一处两边一起好。
+ * ⇒ ⇒ ⇒ 详见下面断言④⑤⑥。
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 
 const navigateMock = vi.fn();
 
@@ -102,5 +103,41 @@ describe('ModelOnboardingPage —— 探测打去了哪张面', () => {
     ];
     render(<ModelOnboardingPage />);
     await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/', { replace: true }));
+  });
+
+  // ⚠️⚠️ 下面三条是**三态**的分辨力：问不到 ≠ 没配。
+  it('④ 云那半问不到（401）⇒ 这一页说「连不上端脑」，**不是**「没配模型」', async () => {
+    replies = [
+      ['http://cortex.test/models/providers', { status: 401 }],
+      ['http://neuron.test/v1/models', { status: 404 }],
+    ];
+    render(<ModelOnboardingPage />);
+    await waitFor(() => expect(screen.getByText('onboarding.unreachableTitle')).toBeTruthy());
+    // ⚠️ 「没配模型」那张皮**不许**出现 ⇒ ⇒ 否则用户会去重复配置已经配好的东西。
+    expect(screen.queryByText('onboarding.title')).toBeNull();
+    // ⚠️ 问不到 ⇒ **不放人走**（也不该断言「你没配」）⇒ ⇒ 用户自己决定去哪儿。
+    expect(navigateMock).not.toHaveBeenCalledWith('/', { replace: true });
+  });
+
+  it('⑤ 云那半**确认**是空的 ⇒ 仍然显示「没配模型」（引导不能丢）', async () => {
+    replies = [
+      ['http://cortex.test/models/providers', { status: 200, body: [] }],
+      ['http://neuron.test/v1/models', { status: 200, body: { data: [] } }],
+    ];
+    render(<ModelOnboardingPage />);
+    await waitFor(() => expect(screen.getByText('onboarding.title')).toBeTruthy());
+    expect(screen.queryByText('onboarding.unreachableTitle')).toBeNull();
+    expect(navigateMock).not.toHaveBeenCalledWith('/', { replace: true });
+  });
+
+  it('⑥ 云那半 200 但**形状不对** ⇒ 也是「问不到」（不许说「没配」）', async () => {
+    // ⚠️ 端脑回的是数组 ⇒ ⇒ 拿到对象 ⇒ ⇒ 说明没问对 ⇒ ⇒ 归「问不到」。
+    replies = [
+      ['http://cortex.test/models/providers', { status: 200, body: { error: 'nope' } }],
+      ['http://neuron.test/v1/models', { status: 200, body: { data: [] } }],
+    ];
+    render(<ModelOnboardingPage />);
+    await waitFor(() => expect(screen.getByText('onboarding.unreachableTitle')).toBeTruthy());
+    expect(screen.queryByText('onboarding.title')).toBeNull();
   });
 });

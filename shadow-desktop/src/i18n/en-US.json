@@ -512,7 +512,9 @@
       "running": "Running",
       "stopped": "Stopped",
       "error": "Error"
-    }
+    },
+    "providersUnreadable": "Cannot read the provider list",
+    "providersUnreadableHint": "The model list could not be read. The default model was not changed."
   },
   "mcp": {
     "title": "MCP Servers",
@@ -874,7 +876,10 @@
       "desc": "Show total tokens and generation speed under assistant replies",
       "label": "Show token speed",
       "help": "When enabled, every assistant reply shows total tokens and tokens/sec."
-    }
+    },
+    "providersUnreadable": "Cannot read the provider list",
+    "providersUnreadableHint": "The brain may be unreachable, or its door may be locked (an admin key is required). This does not mean you have no providers.",
+    "providersCountUnknown": "Provider count unknown"
   },
   "resonance": {
     "title": "Resonance",
@@ -1126,7 +1131,9 @@
     "localDesc": "Runs entirely on your device, no internet or API key required. Recommended: Gemma 4 E4B.",
     "recommended": "Recommended",
     "skipForNow": "Configure Later",
-    "checking": "Checking model configuration…"
+    "checking": "Checking model configuration…",
+    "unreachableTitle": "Cannot reach the brain",
+    "unreachableHint": "Could not read the model configuration from the brain — it may be unreachable, or its door may be locked. This does not mean you have not configured a model."
   },
   "update": {
     "title": "Update Available",
