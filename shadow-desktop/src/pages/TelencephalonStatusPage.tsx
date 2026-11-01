@@ -5,6 +5,7 @@ import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { cn } from '../lib/utils';
+import { adminHeaders } from '../lib/adminToken';
 
 interface CortexStatus {
   neuron_reachable: boolean;
@@ -38,7 +39,9 @@ export function TelencephalonStatusPage() {
     setLoading(true);
     setError(null);
     try {
-      const resp = await fetch(`${CORTEX_URL}/api/cortex/status`);
+      const resp = await fetch(`${CORTEX_URL}/api/cortex/status`, {
+        headers: await adminHeaders(),
+      });
       if (!resp.ok) {
         throw new Error(`HTTP ${resp.status}`);
       }
@@ -55,7 +58,9 @@ export function TelencephalonStatusPage() {
     setLoading(true);
     setError(null);
     try {
-      const resp = await fetch(`${CORTEX_URL}/api/cortex/logs`);
+      const resp = await fetch(`${CORTEX_URL}/api/cortex/logs`, {
+        headers: await adminHeaders(),
+      });
       if (!resp.ok) {
         throw new Error(`HTTP ${resp.status}`);
       }

@@ -1,5 +1,5 @@
 import { isTauri } from './platform';
-import { getAdminToken } from './adminToken';
+import { getAdminToken, adminHeaders } from './adminToken';
 
 const DEFAULT_CORTEX_URL = 'http://127.0.0.1:60080';
 
@@ -596,7 +596,9 @@ export class TelencephalonClient {
       // 探**端脑**而不是 neuron —— 连通性指示器要反映的是
       // 「大脑 → 端脑 → 叶区」这条链。端脑的 status 端点同时回报
       // neuron 是否可达（`neuron_reachable`）和可用模型数。
-      const r = await fetch(`${this.baseUrl}/api/telencephalon/status`);
+      const r = await fetch(`${this.baseUrl}/api/telencephalon/status`, {
+        headers: await adminHeaders(),
+      });
       if (!r.ok) throw new Error(`cortex health ${r.status}: ${r.statusText}`);
       return r.json();
     }
@@ -782,7 +784,10 @@ export class TelencephalonClient {
   async rejectDraft(draftId: string): Promise<void> {
     await fetch(`${this.baseUrl}/api/flows/draft/${encodeURIComponent(draftId)}/reject`, {
       method: 'POST',
-      headers: this.apiKey ? { 'X-Shadow-Key': this.apiKey } : {},
+      headers: {
+        ...(await adminHeaders()),
+        ...(this.apiKey ? { 'X-Shadow-Key': this.apiKey } : {}),
+      },
     });
   }
 
@@ -973,6 +978,7 @@ export class TelencephalonClient {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(await adminHeaders()),
       },
       body: JSON.stringify({ text, voice }),
     });
@@ -1027,6 +1033,7 @@ export class TelencephalonClient {
       headers: {
         'Content-Type': 'application/json',
         ...headers,
+        ...(await adminHeaders()),
       },
       body: JSON.stringify(snapshot),
     });
