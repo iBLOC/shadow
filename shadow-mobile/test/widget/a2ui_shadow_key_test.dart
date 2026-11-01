@@ -75,7 +75,12 @@ void main() {
     // 「客户端已消费完这份响应」的信号 —— 每份响应都会带来一次
     // `beginRendering` ⇒ 一次 `SurfaceAdded` ⇒ 一次 surface 列表更新。
     var surfacesSeen = 0;
-    final subscription = service.surfaceIdsStream.listen((_) {
+    // ⚠️ **只把非空的更新算作「端脑这次画了界面」** ——
+    // 空列表 = 「这一轮开始了，上一轮被清掉」（`sendMessage` 会先清空）
+    // ⇒ 拿它当「响应消费完了」会**提前 dispose** ⇒ 在飞的流报错 ⇒ 偶发红。
+    // （判据见 `a2ui_surface_reset_test.dart`）
+    final subscription = service.surfaceIdsStream.listen((ids) {
+      if (ids.isEmpty) return;
       surfacesSeen++;
     });
 

@@ -62,6 +62,22 @@ class GenUIAgentService {
   ConnectionStatus get connectionStatus => _connectionStatus;
   String? get lastError => _lastError;
 
+  /// 往广播流里发一条 —— **已经关了就当作没这回事**。
+  ///
+  /// ⚠️ 为什么需要它：
+  /// `dispose()` 会关掉 transport 的 `http.Client`（⇒ **在飞的请求当场断**）
+  /// ⇒ 那次失败**在 dispose 之后**才回来 ⇒ ⇒ 它要往**已经关掉**的流里写
+  /// ⇒ ⇒ 「Bad state: Cannot add new events after calling close」
+  /// ⇒ ⇒ **未处理异常** ⇒ 真机上就是「App 崩了」
+  /// —— 而它崩在一条**已经在收尾**的链路上（用户只是离开了 A2UI 面板）。
+  ///
+  /// ⚠️ 以前只有 `_reportFailure` 一处带了 `isClosed` 判断
+  /// ⇒ 四个广播流里**其余**的迟到事件照样炸 ⇒ ⇒ 这里收成**一条规则、一处实现**。
+  void _emit<T>(StreamController<T> controller, T value) {
+    if (controller.isClosed) return;
+    controller.add(value);
+  }
+
   GenUiConversation get conversation => _conversation;
   A2uiMessageProcessor get messageProcessor => _messageProcessor;
 
@@ -123,7 +139,7 @@ class GenUIAgentService {
       _logger.info('Text response from agent: $text');
       // ⚠️ **端脑的原话必须送到界面上** —— 以前只进日志 ⇒ 手机上消失。
       _lastTextReply = text;
-      _textReplyController.add(text);
+      _emit(_textReplyController, text);
       _updateConnectionStatus(ConnectionStatus.connected);
     });
 
@@ -131,7 +147,7 @@ class GenUIAgentService {
       _logger.severe('Error from content generator: ${error.error}');
       _lastError = error.error.toString();
       // ⚠️ **失败的原因必须送到界面上** —— 以前只存起来，从不显示。
-      _errorReasonController.add(_lastError);
+      _emit(_errorReasonController, _lastError);
       _updateConnectionStatus(ConnectionStatus.error);
     });
 
@@ -145,7 +161,7 @@ class GenUIAgentService {
   void _updateConnectionStatus(ConnectionStatus status) {
     if (_connectionStatus != status) {
       _connectionStatus = status;
-      _connectionStatusController.add(status);
+      _emit(_connectionStatusController, status);
     }
   }
 
@@ -163,13 +179,13 @@ class GenUIAgentService {
     if (!_surfaceIds.contains(update.surfaceId)) {
       _surfaceIds.add(update.surfaceId);
     }
-    _surfaceIdsController.add(List.of(_surfaceIds));
+    _emit(_surfaceIdsController, List.of(_surfaceIds));
   }
 
   void _onSurfaceDeleted(SurfaceRemoved update) {
     _logger.info('Surface deleted: ${update.surfaceId}');
     _surfaceIds.remove(update.surfaceId);
-    _surfaceIdsController.add(List.of(_surfaceIds));
+    _emit(_surfaceIdsController, List.of(_surfaceIds));
   }
 
   void sendMessage(String text) {
@@ -178,16 +194,16 @@ class GenUIAgentService {
     // ⚠️ **先把上一轮的结果清掉** —— 否则上一轮的原话 / 失败原因会留在
     // 界面上 ⇒ 让人以为这一轮端脑又说了那句话 / 又失败了一次。
     _lastTextReply = null;
-    _textReplyController.add(null);
+    _emit(_textReplyController, null);
     _lastError = null;
-    _errorReasonController.add(null);
+    _emit(_errorReasonController, null);
     // ⚠️ **上一轮的 surface 也要清掉** —— **一次请求 = 一次回答**。
     //
     // 否则端脑这次回**纯文本**（它不画界面）时，界面还在渲染**上一轮**的
     // surface ⇒ ⇒ 端脑的原话又被**盖住**了 ⇒ 同一个病（话上不了屏）。
     if (_surfaceIds.isNotEmpty) {
       _surfaceIds.clear();
-      _surfaceIdsController.add(List.of(_surfaceIds));
+      _emit(_surfaceIdsController, List.of(_surfaceIds));
     }
     _updateConnectionStatus(ConnectionStatus.connecting);
     // ⚠️ **必须接住这个 future**。
@@ -227,10 +243,8 @@ class GenUIAgentService {
     final reason = _describeFailure(error);
     _logger.warning('A2UI 失败: $reason');
     _lastError = reason;
-    // ⚠️ dispose 之后这条流可能已经关了 ⇒ 加之前先看一眼。
-    if (!_errorReasonController.isClosed) {
-      _errorReasonController.add(reason);
-    }
+    // ⚠️ dispose 之后这条流可能已经关了 ⇒ [_emit] 会自动跳过。
+    _emit(_errorReasonController, reason);
     _updateConnectionStatus(ConnectionStatus.error);
   }
 
@@ -255,7 +269,7 @@ class GenUIAgentService {
     _logger.info('Disconnecting from A2A server');
     _updateConnectionStatus(ConnectionStatus.disconnected);
     _lastError = null;
-    _errorReasonController.add(null);
+    _emit(_errorReasonController, null);
   }
 
   void dispose() {
