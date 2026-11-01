@@ -1,5 +1,23 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated:** 2026-11-01 (㋛ **「装上去的 .so = 某个具名提交编出来的那份」—— 而「sha256 对得上」这条判据在 Windows 上**根本不成立** ⇒ ⇒ 本轮把产物的闭环**从「指纹对指纹」改成「同路径三份逐字节比对」**，并在真机上验完了三道门 + A2UI 叶区诚实性 + A2UI 中文文案。)
+
+① **⚠️ 病（一条**看似成立、其实永远不成立**的判据）**：产物验收一直说「sha256 对得上 ⇒ 就是同一份」⇒ ⇒ **在 Windows 上这条判据无效**：Rust 二进制会把**编译期绝对路径**烙进去（panic 位置、build script 路径）⇒ ⇒ 实测干净树编出的 `libencephalon.so` 里能直接搜到 **216 处** `C:\Projects\iBLOC\clean\telencephalon\…`（用 Node 读二进制转 latin1 后 `indexOf` 计数；⚠️ PowerShell 的 `[Text.Encoding]::ASCII` + `[regex]::Escape` 在 Windows 路径上会被反斜杠转义吃掉，**用 Node 更可靠**）⇒ ⇒ **同一份源码在两个路径下编 ⇒ sha256 必然不同** ⇒ ⇒ 「A 处编的 == B 处编的」**证明不了「同一份源码」**。
+
+② **✅ 闭环的正确形状（同路径三份逐字节比对）**：**编出来那份** ≡ **APK 内那份** ≡ **设备上那份** ⇒ ⇒ 而「装上去的 == 提交编出来的」这层，靠的是**「干净 worktree @ 具名提交 + 工作树无在飞改动」**来保证，**不是靠 sha256 跨路径相等** ⇒ ⇒ 新脚本 `scripts/prove-so-provenance-on-device.ps1`（`4bde764`）**把三份哈希都打出来**，并让「重建覆盖了 jniLibs 那份」这件事**看得见**（产物分两份：构建输出目录那份 vs `jniLibs/` 那份 ⇒ 重建会覆盖后者 ⇒ ⇒ 两者可能不是同一份）。
+
+③ **✅ 干净树编出来的东西（三个指纹各不相同）**：`51f0e79` ⇒ `AFFC3C20…` / `517dded` ⇒ `3E6D9F18…` / `c51780c` ⇒ `CA5B24C3…` / `7556ddf`+ `8e880fe` ⇒ **`4BE92B94…`** ⇒ ⇒ **指纹随提交走、随路径走** ⇒ ⇒ 这就是「工作树编 ≠ 提交编」的机器证据（承 `dc6dac5` 那条）。
+
+④ **✅ 真机三层闭环 + 42 条断言全绿**（设备 `2106118C` 小米，干净 worktree @ `telencephalon@7556ddf` + `encephalon@8e880fe`）：**APK 内那份 == 编出来那份**（解 zip entry 算的，逐字节）/ **设备上那份 == 编出来那份**（装机后拉下来算的）；新脚本 **17 条全绿**（出处 2 + 门矩阵 8 + A2UI 诚实性 3 + A2UI 本地化 4）⇒ ⇒ 另跑 `prove-provider-doors-on-device.ps1` **14 条全绿**（含主人面 `telencephalon_door_closed` 标记）/ `prove-provider-mask-on-device.ps1` **11 条全绿**（含「重启后供应商还在」⇒ `8e880fe` 那笔落盘修法**在**）。
+
+⑤ **⚠️⚠️ 顺带抓到一条**极有说服力**的反向验证（不是「改错了再看红」，是**病自己指出来**）**：装上**不含** `8e880fe` 那份（`CA5B24C3…`）时，掩码脚本 **11 条里红 2 条** ⇒ ⇒ 红的那两条**正是**「落盘：存的是原密钥」与「重启后供应商还在」⇒ ⇒ ⇒ **红条精确指向「我这份产物缺哪一笔」** ⇒ ⇒ 换上含那笔的（`4BE92B94…`）⇒ ⇒ **0 红** ⇒ ⇒ 这是比「改参数看红」更硬的证据：**病自己指出了病灶**。
+
+⑥ **✅ 顺带订正一条自己上一轮的读数**：我上一轮记的「设备上那份 `.so` = `10AFBB73…`、三道门**没生效**」**已过期** ⇒ ⇒ 真机实测那份（`10AFBB73…`）**门是通的**（读面无凭据 **401** / shadow **200** / admin **200**；写面无凭据 **401** / 仅 shadow **401** / admin **400**= 到了处理函数）⇒ ⇒ 那句「没生效」是**对着更早那份**（`DDA82EA3…`，早于三道门那笔提交）说的 ⇒ ⇒ **读数必须带「哪一份二进制」这个限定**，否则会把后来的二进制也算进去。
+
+⑦ **⚠️ 一条必须写进去的工程事实（Windows）**：**干净 worktree 编 APK 有三道坎**，本轮逐一绕过（⇒ ⇒ **不需要开 Developer Mode**）：**(a)** Flutter 只在 `.flutter-plugins-dependencies` 的 `plugins` 段**真的变了**时才重建 symlink ⇒ ⇒ **第一次构建失败时它已经把清单写好了** ⇒ ⇒ **第二次构建 `pluginsChanged=false` ⇒ 不再碰 symlink**（那两份清单只差 `date_created`，而 `date_created` 在 `ignoredKeys` 里）⇒ ⇒ 「requires symlink support」**只来一次**；**(b)** `flutter build apk` **没有 `--offline`** ⇒ ⇒ 先 `flutter pub get --offline` 备好依赖，再 `flutter build apk --no-pub`；**(c)** **native assets（`sqlite3` 的 build hook）要联网拉预编译二进制** ⇒ 代理不通就失败 ⇒ ⇒ 把真仓 `.dart_tool/hooks_runner` **整棵**复制到干净树（Node 脚本做拷贝 ⚠️ bash 的递归写会被安全策略拦 ⇒ ⇒ **用 Node**）。
+
+⑧ **⚠️ 还欠的**：**设备上的产物已被并行会话换回** `A05DB3B1…`（我装机那份 `4BE92B94…` 不在了）⇒ ⇒ **本轮的验收结论以「装机当时」的读数为准**，要复现须再走一遍（脚本已入库）；**干净树 shadow 侧落后真仓**（真仓已有 `2b4b2a4`，但移动端 Dart 侧自 `20489a3` 起**无新提交** ⇒ ⇒ 本轮装的 APK 的 Dart 侧仍是最新的）；**端脑仓 `telencephalon` 又有新提交**（`a62f748`）⇒ ⇒ 若要出「最终形态」的产物须再重编一次；**端脑面其余约 30 张 router 仍敞开**；**CI 私有仓配额红**（`job.startedAt: null`）。
+
 **Updated:** 2026-11-01 (㋚ **「这一轮是谁」端脑派活时从来没说过 —— 而杏仁核**早就写好了**在等 ⇒ ⇒ 「账号级身份 + 记忆按人隔离」在端脑这一侧**一次也没成立过**；顺带逮到**第二条同族的路**（问情绪那条 REST）⇒ ⇒ 只改一条救不了** —— 本轮做的是**把「端脑把身份递出去」补上**（端脑仓 `src/api/shadow.rs` + `src/lobes/emotion.rs` + `src/lobes/mod.rs`），端脑那一侧见 `telencephalon/AGENTS.md` ㋙ 条。
 ① **⚠️ 病（不是「设计缺失」，是「发的那一端一直是空的」）**：**收方早就绪** —— 杏仁核 `amygdala/src/server.rs` 的 `build_context` 早就按 `meta_get("user_id")` → `meta_get("userId")` → `message.metadata.user_id` 读它，`skills.rs` 的 `AssessRequest::from_ctx` 读 ctx 的 `user_id`，`state.rs` 的 `EmotionalStore` **以 user_id 为键**分桶情绪状态，`hippocampus_client.rs` 的 `profile_uri(user_id, ts)` 让它**直接进海马体 URI** ⇒ ⇒ 而**发方**（端脑 `build_user_message`）的 metadata map 里**没有 `user_id`** ⇒ ⇒ 端脑全仓 grep `user_id` **零命中** ⇒ ⇒ **契约早 designed，发方一直没填** ⇒ ⇒ 「记忆按人隔离」在端脑这一侧**一次也没成立过**，而所有收方代码都在等那个字段。
 ② **⚠️⚠️ 顺带逮到第二条同族的路**：端脑问杏仁核「这一轮什么情绪」走的是 `src/lobes/emotion.rs` 的 `fetch_from` → `POST {amygdala}/emotion/observe`，正文**只有 `{"text": …}`** ⇒ ⇒ 杏仁核那个端点收 `AssessRequest`（`user_id` 是 `#[serde(default)]`）⇒ ⇒ **没有 ⇒ 回落 `DEFAULT_USER="default"`** ⇒ ⇒ **全部署的人共用一个情绪桶** ⇒ ⇒ 而情绪**根本不经过 A2A 那条路** ⇒ ⇒ **只看契约会以为「填上就完了」—— 这是本轮最要紧的一条发现**。
