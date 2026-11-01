@@ -46,20 +46,109 @@ const MAP_PATH = join(HERE, 'client-endpoint-map.txt');
 const BT = String.fromCharCode(96);
 const D = '$';
 
+/** 标识符字符 / 空白字符 / 裸标识符（三个小工具，顺带避开正则里的反斜杠）。 */
+function isIdentChar(ch) {
+  if (!ch) return false;
+  const c = ch.charCodeAt(0);
+  return (c >= 97 && c <= 122) || (c >= 65 && c <= 90) || (c >= 48 && c <= 57) || c === 95 || c === 36;
+}
+function isSpaceChar(ch) {
+  if (!ch) return false;
+  const c = ch.charCodeAt(0);
+  return c === 32 || c === 9 || c === 10 || c === 13;
+}
+function isBareIdent(s) {
+  if (!s) return false;
+  const f = s.charCodeAt(0);
+  if (!((f >= 97 && f <= 122) || (f >= 65 && f <= 90) || f === 95 || f === 36)) return false;
+  for (let i = 1; i < s.length; i++) if (!isIdentChar(s[i])) return false;
+  return true;
+}
+
+/**
+ * 往前找 const/let/var <name> = <初始化表达式> ⇒ 返回初始化表达式的文本。
+ *
+ * ⚠️ 启发式：只看「文本上最后一次声明」，不判作用域
+ * ⇒ ⇒ 同一个名字在两个函数里含义不同时会认错
+ * ⇒ ⇒ 但本仓客户端里查询串变量只有一个名字（qs），不踩这个坑。
+ */
+function findDeclaration(text, name, before) {
+  const limit = before < 0 ? text.length : before;
+  let found = -1;
+  let i = 0;
+  const kws = ['const', 'let', 'var'];
+  while (i < limit) {
+    let matched = false;
+    for (let ki = 0; ki < kws.length; ki++) {
+      const kw = kws[ki];
+      if (!text.startsWith(kw, i)) continue;
+      if (isIdentChar(i > 0 ? text[i - 1] : ' ')) continue;
+      let j = i + kw.length;
+      while (j < limit && isSpaceChar(text[j])) j++;
+      if (!text.startsWith(name, j)) continue;
+      if (isIdentChar(text[j + name.length] || ' ')) continue;
+      let k = j + name.length;
+      while (k < limit && isSpaceChar(text[k])) k++;
+      if (text[k] !== '=' || text[k + 1] === '=') continue;
+      found = k + 1;
+      matched = true;
+      break;
+    }
+    if (matched) { i = found; continue; }
+    i++;
+  }
+  if (found < 0) return null;
+  const semi = text.indexOf(';', found);
+  return text.slice(found, semi < 0 || semi > limit ? limit : semi);
+}
+
+/**
+ * 一个**裸标识符**动态段是不是查询串（标识符单独出现的那种形态）。
+ *
+ * ⚠️ 为什么单独立一条规则（2026-11-01 实测）：
+ * 桌面端有两处查询串**不写在模板字面量里**：
+ *   const qs = limit ? (问号 limit=…) : '';   ⇒ 声明里有问号
+ *   const qs = params.toString();             ⇒ URLSearchParams 的 toString()
+ * 而模板处写的是**裸标识符**（既不是调用、也不是问号判断）
+ * ⇒ ⇒ 老规则只看「动态段里有没有问号」⇒ 认不出
+ * ⇒ ⇒ 把它当成路径参数 ⇒ 路径变成 /…/tail/{param} ⇒ 与服务端路由对不上。
+ *
+ * ⇒ ⇒ 判据：把标识符**解析回它的声明** ⇒ 声明里带问号 ⇒ 查询串；
+ * 声明是 <URLSearchParams>.toString() ⇒ 也是查询串；
+ * 解析不出来 ⇒ **保守当成路径参数**（宁可假红，不要假绿）。
+ */
+function isQueryStringIdent(text, name, before) {
+  const decl = findDeclaration(text, name, before);
+  if (decl === null) return false;
+  if (decl.indexOf('?') >= 0) return true;
+  const marker = '.toString()';
+  const at = decl.indexOf(marker);
+  if (at >= 0) {
+    const recv = decl.slice(0, at).trim();
+    if (recv && recv.indexOf('.') < 0 && recv.indexOf('(') < 0) {
+      const recvDecl = findDeclaration(text, recv, before);
+      if (recvDecl && recvDecl.indexOf('URLSearchParams') >= 0) return true;
+    }
+  }
+  return false;
+}
+
 function parseArgs(argv) {
   const opts = {
     source: resolve(REPO, '..', 'telencephalon'),
     neuron: resolve(REPO, '..', 'neuron'),
     hippocampus: resolve(REPO, '..', 'hippocampus'),
     selfTest: false,
+    dump: null,
   };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--source') opts.source = resolve(argv[++i]);
     else if (argv[i] === '--neuron') opts.neuron = resolve(argv[++i]);
     else if (argv[i] === '--hippocampus') opts.hippocampus = resolve(argv[++i]);
     else if (argv[i] === '--self-test') opts.selfTest = true;
+    else if (argv[i] === '--dump') opts.dump = argv[++i];
     else if (argv[i] === '-h' || argv[i] === '--help') {
-      console.log('用法: node scripts/check-client-endpoint-map.mjs [--source <端脑>] [--neuron <neuron 仓>] [--hippocampus <海马体仓>] [--self-test]');
+      console.log('用法: node scripts/check-client-endpoint-map.mjs [--source <端脑>] [--neuron <neuron 仓>] [--hippocampus <海马体仓>] [--self-test] [--dump <客户端文件>]');
       process.exit(0);
     } else {
       console.error('不认识的参数: ' + argv[i]);
@@ -72,6 +161,72 @@ function parseArgs(argv) {
 // ---------------------------------------------------------------------------
 // 客户端侧：解析「真的在发的请求」
 // ---------------------------------------------------------------------------
+
+/** 跳过一个简单引号字符串（' 或 "）⇒ 返回结束引号之后的下标。 */
+function skipSimpleString(text, i) {
+  const quote = text[i];
+  let j = i + 1;
+  while (j < text.length) {
+    const ch = text[j];
+    if (ch === '\\') { j += 2; continue; }
+    if (ch === quote) return j + 1;
+    j++;
+  }
+  return text.length;
+}
+
+/**
+ * 扫一个模板字面量 ⇒ ⇒ **动态段**（${…}）不许把内容原样抄进来。
+ *
+ * ⚠️ 为什么要专门扫：模板里可以**再嵌模板**
+ * （`/api/flows${qs ? \`?${qs}\` : ''}`）⇒ ⇒ 朴素的「遇到反引号就结束」
+ * 会把后面整段源码吞成字面量 ⇒ ⇒ 路径变成垃圾（`/api/flows${qs `）
+ * ⇒ ⇒ 一半调用点的路径**凭空错掉**（2026-11-01 实测）。
+ *
+ * 动态段的处理规则：
+ * - **开头**的那个动态段 = base（${this.getBaseUrl()}）⇒ ⇒ 丢掉；
+ * - 含 `?` 的动态段 = 查询串 ⇒ ⇒ 丢掉；
+ * - 其余 = 路径参数 ⇒ ⇒ 记成 `{param}`。
+ */
+function scanTemplate(text, start) {
+  let content = '';
+  let i = start + 1;
+  let atStart = true;
+  while (i < text.length) {
+    const ch = text[i];
+    if (ch === '\\') { content += text[i + 1] === undefined ? '' : text[i + 1]; i += 2; atStart = false; continue; }
+    if (ch === BT) return { end: i, content: content };
+    if (ch === '$' && text[i + 1] === '{') {
+      const region = scanBalancedRegion(text, i + 1);
+      const raw = text.slice(i, region.end + 1);
+      const expr = raw.slice(2, raw.length - 1).trim();
+      const isQuery = isBareIdent(expr) && isQueryStringIdent(text, expr, start);
+      if (!atStart && raw.indexOf('?') < 0 && !isQuery) content += '{param}';
+      i = region.end + 1;
+      atStart = false;
+      continue;
+    }
+    content += ch;
+    atStart = false;
+    i++;
+  }
+  return { end: text.length - 1, content: content };
+}
+
+/** 从 '{' 开始按花括号深度找配对的 '}'（跳过里面的字符串与嵌套模板）。 */
+function scanBalancedRegion(text, open) {
+  let depth = 0;
+  let i = open;
+  while (i < text.length) {
+    const ch = text[i];
+    if (ch === "'" || ch === '"') { i = skipSimpleString(text, i); continue; }
+    if (ch === BT) { const t = scanTemplate(text, i); i = t.end + 1; continue; }
+    if (ch === '{') depth++;
+    else if (ch === '}') { depth--; if (depth === 0) return { end: i }; }
+    i++;
+  }
+  return { end: text.length - 1 };
+}
 
 /** 扫一遍源码：抽出字符串字面量（' / " / 模板）＋ 标出「注释与字面量」的位置。 */
 function scanSource(text) {
@@ -97,7 +252,7 @@ function scanSource(text) {
       i = stop;
       continue;
     }
-    if (c === "'" || c === '"' || c === BT) {
+    if (c === "'" || c === '"') {
       const quote = c;
       let j = i + 1;
       let content = '';
@@ -111,6 +266,13 @@ function scanSource(text) {
       for (let k = i; k <= j && k < mask.length; k++) mask[k] = 1;
       literals.push({ start: i, end: j, quote: quote, content: content });
       i = j + 1;
+      continue;
+    }
+    if (c === BT) {
+      const tpl = scanTemplate(text, i);
+      for (let k = i; k <= tpl.end && k < mask.length; k++) mask[k] = 1;
+      literals.push({ start: i, end: tpl.end, quote: BT, content: tpl.content });
+      i = tpl.end + 1;
       continue;
     }
     i++;
@@ -332,6 +494,15 @@ function selfTest() {
 const opts = parseArgs(process.argv.slice(2));
 if (opts.selfTest) {
   selfTest();
+} else if (opts.dump) {
+  // --dump：让抽取器**自证**（2026-11-01 教训：数出来的条数必须能自己看）
+  const full = resolve(REPO, opts.dump);
+  if (!existsSync(full)) { console.error('文件不存在: ' + full); process.exit(2); }
+  const sites = extractCallSites(full);
+  if (sites.length === 0) { console.error('抽出 0 个调用点 —— 抽取器坏了，不是「没有」。'); process.exit(2); }
+  console.log(opts.dump + ' ⇒ ' + sites.length + ' 个调用点');
+  for (const s of sites) console.log('  ' + s.method + ' ' + s.path);
+  process.exit(0);
 } else {
   if (!existsSync(MAP_PATH)) {
     console.error('读不到对照表: ' + MAP_PATH);

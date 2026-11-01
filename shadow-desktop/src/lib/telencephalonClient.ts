@@ -78,23 +78,96 @@ export interface AgentsResponse {
   agents: LobeInfo[];
 }
 
+/**
+ * 端脑在**轮次文本**里用的机器前缀 —— 服务端用它标记「这条轮次不是人说的」。
+ *
+ * 判据源（服务端）：
+ * - `telencephalon/src/api/shadow/conversations.rs` → `SYSTEM_TURN_PREFIX = "[system] "`
+ * - `telencephalon/src/api/shadow.rs` → `TOOL_RESULT_TURN_PREFIX = "[tool_result] "`
+ *
+ * ⚠️ **为什么客户端必须认它们**：端脑把会话的**人设**存成**第一条**轮次
+ * （role=agent + `[system] ` 前缀）⇒ 客户端若把 history 原样画成气泡，
+ * 用户就会看到**自己的配置原文**被当成大脑发言顶在最上面。
+ *
+ * ⚠️ 服务端喂模型时**只跳人设**（`history_of()`），工具结果**留在**历史里
+ * （模型要读）⇒ ⇒ 客户端也**只跳人设**，工具结果剥掉前缀再显示。
+ *
+ * ⚠️ 移动端同一口径在
+ * `shadow-mobile/lib/services/telencephalon/telencephalon_client.dart`
+ * （`kSystemTurnPrefix` / `kToolResultTurnPrefix`）⇒ 两端**同一套判据**。
+ */
+export const SYSTEM_TURN_PREFIX = '[system] ';
+export const TOOL_RESULT_TURN_PREFIX = '[tool_result] ';
+
+/** 会话里的一条轮次（**线上形状**，不是画出来的东西）。 */
+export interface ConversationTurn {
+  role: 'user' | 'agent';
+  text: string;
+  /**
+   * 端脑的 `ConversationTurn` 序列化成 `at: DateTime<Utc>`，
+   * 所以线上字段是 **`at`**（RFC3339 字符串）—— 不是 `timestamp`。
+   */
+  at: string;
+  /**
+   * 旧的前额叶方言把时间放在 `timestamp`（毫秒整数）。
+   * ⚠️ 端脑那一条**不填**它 ⇒ 用它算时间会得到 NaN ⇒ 界面出现「Invalid Date」。
+   */
+  timestamp?: number;
+}
+
+/** 这条轮次是**人设**（端脑存的第一条 agent 轮次，带 `[system] ` 前缀）。 */
+export function isSystemTurn(turn: ConversationTurn): boolean {
+  return turn.text.startsWith(SYSTEM_TURN_PREFIX);
+}
+
+/** 这条轮次是**客户端工具的结果**（带 `[tool_result] ` 前缀）。 */
+export function isToolResultTurn(turn: ConversationTurn): boolean {
+  return turn.text.startsWith(TOOL_RESULT_TURN_PREFIX);
+}
+
+/**
+ * 剥掉机器前缀后的正文。
+ *
+ * 人设那类**不剥**（它整条不显示，剥了也没意义）⇒ ⇒ 只有工具结果会真的剥。
+ */
+export function bodyText(turn: ConversationTurn): string {
+  return isToolResultTurn(turn)
+    ? turn.text.slice(TOOL_RESULT_TURN_PREFIX.length).trim()
+    : turn.text;
+}
+
+/**
+ * 轮次时间戳（毫秒）—— 优先 `at`（RFC3339），退回 `timestamp`（毫秒整数）。
+ *
+ * ⚠️ 两种方言都认：只认一个的话，另一边读出来是 undefined
+ * ⇒ 拿它排序 / 显示时间 ⇒ NaN ⇒ 界面出现「Invalid Date」。
+ */
+export function turnTimestamp(turn: ConversationTurn): number {
+  if (turn.at) {
+    const parsed = Date.parse(turn.at);
+    if (!Number.isNaN(parsed)) return parsed;
+  }
+  return turn.timestamp ?? 0;
+}
+
+/**
+ * **可以画给人看的轮次** —— 人设那条被跳过（它是**配置**，不是对话），
+ * 工具结果剥掉前缀后保留（它是这一回合**真实发生**的事）。
+ */
+export function displayableTurns(
+  history: readonly ConversationTurn[],
+): Array<{ role: 'user' | 'agent'; text: string; at: string }> {
+  return history
+    .filter((t) => !isSystemTurn(t))
+    .map((t) => ({ role: t.role, text: bodyText(t), at: t.at }));
+}
+
 export interface Conversation {
   id: string;
   agent: string;
   created_at: string;
   updated_at: string;
-  history: Array<{
-    role: 'user' | 'agent';
-    text: string;
-    /**
-     * telencephalon's `ConversationTurn` serializes `at: DateTime<Utc>`,
-     * so the field on the wire is **`at`** (an RFC3339 string) — not
-     * `timestamp`. It used to be declared as `timestamp: number` here,
-     * which never matched the server and would have broken anyone who
-     * started reading the turns.
-     */
-    at: string;
-  }>;
+  history: ConversationTurn[];
 }
 
 /**
