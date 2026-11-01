@@ -19,7 +19,11 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 
 // ⚠️ 两张面：端脑面（云供应商）/ neuron 面（本地模型）。
 vi.mock('../platform', () => ({
-  prefrontalUrl: () => 'http://cortex.test',
+  // ⚠️⚠️ **故意与 client 的地址不同** —— platform 的 `prefrontalUrl()` 是
+  // 「**写死**的那个地址」（localhost:60080），而这一发现在打的是
+  // **client 的地址**（用户可配）⇒ ⇒ 两者必须**不同**，否则断言恒绿、
+  // ⇒ ⇒ 钉不住「到底用的哪个」。
+  prefrontalUrl: () => 'http://platform-default.test',
   neuronUrl: () => 'http://neuron.test',
 }));
 
@@ -38,6 +42,9 @@ const shadowKeyState = vi.hoisted(() => ({ key: undefined as string | undefined 
 vi.mock('../telencephalonClient', () => ({
   telencephalonClient: {
     getApiKey: () => shadowKeyState.key,
+    // ⚠️ **地址也取自 client**（这一发与「列表」必须打**同一台**端脑）⇒ ⇒
+    // ⚠️ 这里给一个**与 platform 的写死值不同**的地址 ⇒ ⇒ 断言才咬得住。
+    getBaseUrl: () => 'http://cortex.test',
   },
 }));
 
@@ -157,6 +164,22 @@ describe('probeCloudProviders —— 「问不到」与「确认空」必须分�
     const urls = fetchMock.mock.calls.map((c) => String(c[0]));
     expect(urls.some((u) => u.startsWith('http://cortex.test/models/providers'))).toBe(true);
     expect(urls.some((u) => u.startsWith('http://neuron.test'))).toBe(false);
+  });
+
+  it('⑧ 这一发打的是 **client 的地址**（不是 platform 的写死值）—— 否则两发不是同一台端脑', async () => {
+    // ⚠️⚠️ 这一条钉的是「**同一张面**」的**后半句**：地址。
+    // ⇒ ⇒ 「列表」走 `telencephalonClient.request()` ⇒ ⇒ 打的是 client 的地址
+    // ⇒ ⇒ （用户可在设置里改 ⇒ 持久化 ⇒ 重启后复原）
+    // ⇒ ⇒ 而这一发以前打 `prefrontalUrl()`（写死 localhost:60080）
+    // ⇒ ⇒ ⇒ 用户改过地址之后 ⇒ **列表打新地址、探针打老地址**
+    // ⇒ ⇒ ⇒ 于是「列表读到了、探针说问不到」—— 同一个病，换了个面。
+    // ⚠️ 上面的 mock 让 platform 的地址（platform-default.test）与 client 的
+    // 地址（cortex.test）**故意不同** ⇒ ⇒ 这条断言才咬得住「用的到底是哪个」。
+    const fetchMock = stubFetch([['/models/providers', { status: 200, body: [] }]]);
+    await probeCloudProviders();
+    const urls = fetchMock.mock.calls.map((c) => String(c[0]));
+    expect(urls[0]).toBe('http://cortex.test/models/providers');
+    expect(urls[0]).not.toContain('platform-default.test');
   });
 });
 

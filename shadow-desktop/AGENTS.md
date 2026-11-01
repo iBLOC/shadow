@@ -807,11 +807,12 @@ The same `src/` produces **two artefacts**:
 - **✅ 修法（一条规则）**：**客户端读面的凭据集合必须与门形一致** ⇒ ⇒ 读门 = shadow ∪ admin
   ⇒ ⇒ ⇒ 客户端读面就递 **shadow ∪ admin**（**不是**二选一）⇒ ⇒ ⇒ 于是「列表能读、探针读不到」
   这件事**结构上不可能**发生。
-- **⚠️ 修它要一个口子，而那个口子正在别人手上**：`modelConfigProbe.ts` 要拿到 shadow key
-  ⇒ ⇒ 需要 `telencephalonClient.getApiKey()` ⇒ ⇒ **HEAD 里还没有**（只有私有的
-  `this.apiKey` 与 `setApiKey`）⇒ ⇒ 而 **`getApiKey()` 正是并行会话在飞加的那一个**
-  ⇒ ⇒ ⇒ **本轮不自己动**（改它要改在飞文件 `telencephalonClient.ts`）⇒ ⇒ ⇒
-  ⇒ ⇒ ⇒ **已把口径交给持有那个 getter 的会话**（跨会话回信）。
+- **✅ 那个口子开了（`7e45429` → `8781373`）**：`getApiKey()` 已入库 ⇒ ⇒ store → client
+  的同步也入库了 ⇒ ⇒ ⇒ **这个矛盾从那一刻起是「活的」**（在那之前客户端**根本递不出**
+  shadow key ⇒ ⇒ 两发都只递 admin ⇒ ⇒ **一致** ⇒ ⇒ 矛盾**不活**）
+  ⇒ ⇒ ⇒ 探针那笔修复合入 `8781373`（探针递 **shadow ∪ admin**）⇒ ⇒ ⇒ 已在活仓 HEAD 上复验。
+  ⚠️ **订正上一句**：HEAD 上**连 `setApiKey` 都没有**（不只是缺 `getApiKey`）⇒ ⇒
+  当时那句「只有私有的 `this.apiKey` 与 `setApiKey`」**不成立** ⇒ ⇒ ⇒ 以本条为准。
 - **⚠️ 一条可复用的判据**：**同一个端点、客户端有两发读它** ⇒ ⇒ 先核「两发带的凭据集合
   是不是同一个」⇒ ⇒ **不是的话，先出现的矛盾是「一处说读到了、另一处说读不到」**
   ⇒ ⇒ 而不是「都读不到」⇒ ⇒ ⇒ 而这种矛盾**单测很难发现**（两条路各自都绿）。
@@ -859,4 +860,47 @@ The same `src/` produces **two artefacts**:
   ⇒ ⇒ 「配了能生效、但**无处可配**」⇒ ⇒ 那个入口仍欠；
   **en-US.json 没有根级 `cortexStatus`** ⇒ 英文界面落回代码里的默认值（那句默认值是**中文**）；
   **web 形态的 6 处条件 401**（web 没有 sidecar ⇒ admin token 要用户自备）。
+
+## STATE STATUS (2026-11-01, 「同一张面」有**两个字**：**钥匙**与**地址** —— 钥匙已补齐，**地址还在分叉**)
+
+- **⚠️ 病（同一个病，换了个面）**：客户端**两发**读 `/models/providers`（读门 = shadow ∪ admin），
+  「同一张面」这件事其实有**两个**条件：**同一个地址** + **同一套钥匙**。
+  ⇒ ⇒ **钥匙**那一半已由 `8781373` 补齐（探针递 shadow ∪ admin）⇒ ⇒ **地址**那一半还分叉：
+  * **列表**（`telencephalonClient.listProviders()`）⇒ 打 **client 的地址**
+    （`store.connection.baseUrl` ⇒ 用户可配 ⇒ 持久化 ⇒ 重启复原 ⇒ `7e45429` 之后才不是写死的）；
+  * **探针**（`modelConfigProbe.probeCloudProviders()`）⇒ 以前打 **`prefrontalUrl()`**
+    ⇒ ⇒ 那是 platform 里**写死**的 `localhost:60080`（`platform.ts:57-63`）。
+  ⇒ ⇒ ⇒ 用户改过端脑地址之后 ⇒ ⇒ **列表打新地址、探针打老地址** ⇒ ⇒
+  ⇒ ⇒ ⇒ 「列表读到了、探针说问不到端脑」—— **自相矛盾，只是这次错的是地址**。
+  ⇒ ⇒ ⇒ 而**探针那半只在 web 形态跑**（Tauri 形态走 `invoke('provider_list')`）
+  ⇒ ⇒ ⇒ ⇒ ⇒ **web 形态下这个分叉是常态**（web 没有 sidecar ⇒ 地址只能用户自己配）
+  ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ **而 web 形态恰恰是 shadow key 最要紧的那个形态**。
+- **✅ 修（一条规则，两件事）**：**两发读同一张面 ⇒ 必须同一个地址、同一套凭据**
+  ⇒ ⇒ 探针的 base 改成 `telencephalonClient.getBaseUrl()`（= 列表那一发的地址）
+  ⇒ ⇒ ⇒ 「同一张面」从此不是口号，而是**结构上的同一**。
+- **⚠️ 一条通用代价：「判不了」必须当红** —— 机器闸 `check-provider-admin-headers.mjs`
+  的 `classifySurface()` 原来只认 `prefrontalUrl()` / `store.connection.baseUrl`
+  ⇒ ⇒ **新的形状它认不出来** ⇒ ⇒ ⇒ 闸当场报「**判不了**」（红 ⇒ EXIT=1）
+  ⇒ ⇒ ⇒ ⇒ 这条规矩又生效了一次：形状变了而闸没跟上 ⇒ **闸报红是对的**
+  ⇒ ⇒ ⇒ ⇒ 修法是**升级闸**（不是让它猜）：多认 `telencephalonClient.getBaseUrl()`
+  ⇒ ⇒ ⇒ ⇒ + `--self-test` 里加一条钉它 ⇒ ⇒ ⇒ ⇒ 回到 **绿 8 / 红 0 / 判不了 0 / EXIT=0**。
+- **✅ 新增证据（运行时，不是「读代码觉得对」）**：新文件
+  `shadow-desktop/src/lib/__tests__/readDoorCredentials.test.ts`（**5 条**）
+  ⇒ ⇒ **真 client + 真 probe**（只替换传输层 fetch 与两把钥匙的来源 ⇒ ⇒ 路径/请求头/解析全是生产代码在跑）
+  ⇒ ⇒ **stub 就是那道门**（读门 = shadow ∪ admin ⇒ 有任一把就放行 ⇒ 一把都没有就 401）
+  ⇒ ⇒ ⇒ ① **只有 shadow key** ⇒ 两发都过得去（**这正是曾经坏掉的那个形态**）
+  ⇒ ⇒ ⇒ ② 只有 admin token ⇒ 两发也都过得去
+  ⇒ ⇒ ⇒ ③ 两把都没有 ⇒ **两发一起失败**，而探针说的是「**问不到**」（`known:false`）不是「没有」
+  ⇒ ⇒ ⇒ ④ 两发递的是**同一个钥匙集合**
+  ⇒ ⇒ ⇒ ⑤ 两发打的是**同一个地址**
+- **✅ 反向验证（断言钉在真东西上、不是恒绿）**：把探针退回「**只递 admin**」⇒ ⇒ **恰好 2 红**（① ④）
+  ⇒ ⇒ 退回「**写死地址**」⇒ ⇒ **恰好 1 红**（⑤）⇒ ⇒ ⇒ 还原后 **5/5 再绿**。
+- **✅ 其余证据**：`tsc --noEmit` EXIT=0；全量 vitest **127 文件(+1 跳过) / 1271 通过 / 6 跳过 / 0 失败**
+  （基线 1265 ⇒ +6：跨会话 5 + 探针地址 1）；真浏览器 E2E **4 passed (8.5s)**（构建产物那条路）；
+  **七道闸全 EXIT=0**。
+- **⚠️ 还欠的**：**Tauri 真机 UI 仍未验**（本轮是真浏览器 + 构建产物）；
+  **web 形态 6 处条件 401**（web 没有 sidecar ⇒ admin token 要用户自备 `localStorage`）
+  ⇒ ⇒ 「web 放钥匙的入口」是**另一个决定**（⚠️ 一旦落地 ⇒ ⇒ 钥匙进 store → client
+  ⇒ ⇒ ⇒ **两发同时生效** ⇒ ⇒ 因为探针现在也递 shadow ∪ admin）；
+  **桌面端 shadow key 输入入口**仍欠（**不是**上锁的阻塞项）。
 

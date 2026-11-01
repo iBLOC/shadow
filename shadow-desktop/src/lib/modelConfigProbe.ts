@@ -48,15 +48,24 @@
  * ⇒ ⇒ 所以这里**不用形参**。
  */
 
-import { prefrontalUrl, neuronUrl } from './platform';
+import { neuronUrl } from './platform';
 import { adminHeaders } from './adminToken';
 import { telencephalonClient } from './telencephalonClient';
 
 /**
  * ⚠️ **两张面，两个 base**（与 AppInitializer 同款）：
  *
- * * 端脑面（prefrontalUrl()）⇒ /models/providers（云供应商在这张面上）；
+ * * 端脑面（**client 的地址** ⇒ `telencephalonClient.getBaseUrl()`）
+ *   ⇒ /models/providers（云供应商在这张面上）；
  * * neuron 面（neuronUrl()）⇒ /v1/models（**本地**模型在这张面上）。
+ *
+ * ⚠️⚠️ **端脑面的 base 取自 client（不是 platform 的写死值）** ——
+ * 「列表」那一发走的是 `telencephalonClient.request()` ⇒ ⇒ 它打的是
+ * **client 的地址**（用户可在设置里改 ⇒ 持久化在 store 里 ⇒ 重启后复原）。
+ * ⇒ ⇒ 而这一发以前打的是 `prefrontalUrl()`（**写死** `localhost:60080`）
+ * ⇒ ⇒ ⇒ **用户改过地址之后，两发打的根本不是同一台端脑**
+ * ⇒ ⇒ ⇒ 于是「列表读到了、探针说问不到」—— **同一个病，换了个面**。
+ * ⇒ ⇒ ⇒ 现在两发**同一个地址、同一套凭据** ⇒ ⇒ 结构上不可能再分叉。
  *
  * ⚠️⚠️ 以前两发都打端脑面 ⇒ ⇒ 端脑面上**没有** /v1/models ⇒ ⇒ 恒 404
  * ⇒ ⇒ hasLocal **一直**是 false ⇒ ⇒ ⇒ **本地明明装了模型的用户，
@@ -65,10 +74,10 @@ import { telencephalonClient } from './telencephalonClient';
  * ⇒ ⇒ 现在 base **只在一个模块里** ⇒ ⇒ 打不错面。
  *
  * ⚠️⚠️ **base 是「函数里」求值的，不是模块加载时求值的** —— 这不是随手写的：
- * ⇒ ⇒ 模块加载时就调 prefrontalUrl()/neuronUrl() ⇒ ⇒ **导入这个模块**
- * ⇒ ⇒ 就等于**立刻要求** platform 模块的那两个导出都在 ⇒ ⇒ 而既有测试里
- * ⇒ ⇒ 有对 platform 的**部分 mock**（只给 isTauri / prefrontalUrl）
- * ⇒ ⇒ ⇒ 那些测试**直接加载失败**（vitest：No "neuronUrl" export is defined）
+ * ⇒ ⇒ 模块加载时就调 platform 的导出 ⇒ ⇒ **导入这个模块**就等于**立刻要求**
+ * ⇒ ⇒ platform 模块的那些导出都在 ⇒ ⇒ 而既有测试里有对 platform 的
+ * ⇒ ⇒ **部分 mock**（只给 isTauri / prefrontalUrl）⇒ ⇒ ⇒ 那些测试
+ * ⇒ ⇒ **直接加载失败**（vitest：No "neuronUrl" export is defined）
  * ⇒ ⇒ ⇒ 惰性求值 ⇒ ⇒ 导入本模块不再碰 platform ⇒ ⇒ 老测试照旧。
  */
 
@@ -153,13 +162,20 @@ export function combineModelConfig(
  * ⇒ ⇒ 与发请求的那个 client 是**同一把** ⇒ ⇒ 不会「列表用一把、探针用另一把」。
  *
  * ⚠️ **没有形参**（base 与凭据都在本模块里）⇒ ⇒ 机器闸能在**同一个文件**里
- * ⇒ ⇒ 追到「base 是端脑面」+「headers 来自 adminHeaders()」⇒ ⇒ 判得准。
+ * ⇒ ⇒ 追到「base 是端脑面」+「headers 来自 adminHeaders() / getApiKey()」
+ * ⇒ ⇒ 判得准（闸认得 `getApiKey` 这个名字 ⇒ ⇒ 也认得 client 的地址）。
  */
 export async function probeCloudProviders(): Promise<ProviderProbeResult> {
   try {
     // ⚠️ base **在函数里**求值（理由见上面那段注释）⇒ ⇒ 机器闸仍然能在
-    // ⇒ ⇒ **同一个文件**里追到「base = prefrontalUrl()」。
-    const CORTEX_BASE = prefrontalUrl();
+    // ⇒ ⇒ **同一个文件**里追到「base = client 的地址」。
+    //
+    // ⚠️⚠️ **取的是 client 的地址，不是 platform 的写死值** ——
+    // ⇒ ⇒ 「列表」那一发走 `telencephalonClient.request()` ⇒ ⇒ 打的是
+    // ⇒ ⇒ **client 的地址**（用户改过就改过）⇒ ⇒ 而这一发以前打
+    // ⇒ ⇒ `prefrontalUrl()`（写死 localhost:60080）⇒ ⇒ ⇒ **两发不是同一台**
+    // ⇒ ⇒ ⇒ 「列表读到了、探针说问不到」⇒ ⇒ ⇒ 同一个病，换了个面。
+    const CORTEX_BASE = telencephalonClient.getBaseUrl();
     // ⚠️ **读门 = shadow ∪ admin ⇒ 两把都递**（**不是**二选一）。
     //
     // ⚠️⚠️ 以前这里**刻意只递 admin**（注释写着「admin 是另一把钥匙 ⇒

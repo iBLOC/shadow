@@ -42,6 +42,16 @@ vi.mock('../../lib/platform', () => ({
   neuronUrl: () => 'http://neuron.test',
 }));
 
+// ⚠️⚠️ 端脑面的 base 现在取自 **client**（用户可配的地址）—— 这一发与
+// 「列表」必须打**同一台**端脑 ⇒ ⇒ 这里把 client 的地址给成 `cortex.test`
+// ⇒ ⇒ 「两张面用两个**可区分**的地址」这个设计才继续成立。
+vi.mock('../../lib/telencephalonClient', () => ({
+  telencephalonClient: {
+    getBaseUrl: () => 'http://cortex.test',
+    getApiKey: () => undefined,
+  },
+}));
+
 import { AppInitializer } from '../AppInitializer';
 
 type Reply = { status: number; body?: unknown };

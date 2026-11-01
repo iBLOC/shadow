@@ -557,8 +557,17 @@ function classifySurface(code, urlText) {
   }
   if (/neuronUrl\s*\(/.test(rhs)) return { surface: 'NEURON', reason: `${base} = neuronUrl()` };
   if (/prefrontalUrl\s*\(/.test(rhs)) return { surface: 'TELE', reason: `${base} = prefrontalUrl()` };
-  if (/connection\.baseUrl|useTelencephalonStore|telencephalonStore/.test(rhs)) {
-    return { surface: 'TELE', reason: `${base} = 端脑面（store.connection.baseUrl）` };
+  // ⚠️ **端脑面的地址有三个合法出处** ⇒ ⇒ 认得出来才判得准：
+  // * `prefrontalUrl()` —— platform 的**兜底**地址（写死）；
+  // * `store.connection.baseUrl` —— 用户在设置里改的（**运行时真相**）；
+  // * `telencephalonClient.getBaseUrl()` —— **client 手里那个**
+  //   （store 复原时推给它的 ⇒ ⇒ 与「列表」那一发**同一个地址**）。
+  // ⇒ ⇒ 「列表」与「探针」必须打**同一台**端脑 ⇒ ⇒ 第三种形状也得认。
+  if (/connection\.baseUrl|useTelencephalonStore|telencephalonStore|telencephalonClient/.test(rhs)) {
+    return {
+      surface: 'TELE',
+      reason: `${base} = 端脑面（store.connection.baseUrl / telencephalonClient.getBaseUrl()）`,
+    };
   }
   return { surface: 'UNKNOWN', reason: `${base} 的来源认不出来` };
 }
@@ -892,6 +901,11 @@ const SELF_TEST_CASES = [
   {
     name: '带插值段的路径 + 带 adminHeaders() ⇒ 绿',
     code: "const baseUrl = useTelencephalonStore((s) => s.connection.baseUrl);\nawait fetch(`${baseUrl}/models/providers/${providerId}/fetch-models`, { method: 'POST', headers: await adminHeaders() });",
+    want: 'green',
+  },
+  {
+    name: '端脑面 + base 来自 client（telencephalonClient.getBaseUrl()）⇒ 绿（闸认得这个形状）',
+    code: "const API_BASE = telencephalonClient.getBaseUrl();\nawait fetch(\`\${API_BASE}/models/providers\`, { headers: await adminHeaders() });",
     want: 'green',
   },
   {
