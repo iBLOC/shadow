@@ -181,6 +181,14 @@ class GenUIAgentService {
     _textReplyController.add(null);
     _lastError = null;
     _errorReasonController.add(null);
+    // ⚠️ **上一轮的 surface 也要清掉** —— **一次请求 = 一次回答**。
+    //
+    // 否则端脑这次回**纯文本**（它不画界面）时，界面还在渲染**上一轮**的
+    // surface ⇒ ⇒ 端脑的原话又被**盖住**了 ⇒ 同一个病（话上不了屏）。
+    if (_surfaceIds.isNotEmpty) {
+      _surfaceIds.clear();
+      _surfaceIdsController.add(List.of(_surfaceIds));
+    }
     _updateConnectionStatus(ConnectionStatus.connecting);
     // ⚠️ **必须接住这个 future**。
     //

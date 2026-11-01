@@ -106,8 +106,28 @@ final useAgent2UIModeProvider = StateProvider<bool>((ref) => false);
 /// Provider for surface IDs from GenUIAgentService
 final surfaceIdsProvider = StreamProvider<List<String>>((ref) {
   final service = ref.watch(genUIAgentServiceProvider);
-  return service.surfaceIdsStream;
+  // ⚠️ **必须先把「现在的列表」给出去** —— 理由见 [_surfaceIdsWithCurrent]。
+  return _surfaceIdsWithCurrent(service);
 });
+
+/// 端脑的 surface 列表 —— **先给一次「现在的」**，再跟直播流。
+///
+/// ⚠️ **这是真机逮到的坑（第五片自己没兑现的那一半）**：
+///
+/// `surfaceIdsStream` 是**广播流** ⇒ 它只在**有 surface 增删**时才发事件
+/// ⇒ 而端脑**回纯文本**（它这次不画界面，而是说话）时
+/// **一个 surface 都不会有** ⇒ ⇒ 订阅它的 `StreamProvider`
+/// **永远停在 `loading`** ⇒ ⇒ 视图里那条 `loading:` 分支
+/// 只剩一个**永远转圈的圈** ⇒ ⇒ 端脑的原话 / 失败原因
+/// **永远轮不到渲染** ⇒ ⇒ 用户看到的是「一直在转」，
+/// 而端脑**明明说了话**。
+///
+/// ⇒ 「现在的列表」就是**空**（还没画过界面）⇒ 先给出去
+/// ⇒ provider 立刻进 `data` ⇒ ⇒ 视图走到答案块 ⇒ 原话上屏。
+Stream<List<String>> _surfaceIdsWithCurrent(GenUIAgentService service) async* {
+  yield service.surfaceIds;
+  yield* service.surfaceIdsStream;
+}
 
 /// 端脑的**原话** —— 它这次没有画界面，而是回了一段话。
 ///
