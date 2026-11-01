@@ -1,4 +1,4 @@
-# iBLOC dev firewall bootstrap — one-time admin script.
+﻿# iBLOC dev firewall bootstrap — one-time admin script.
 #
 # Windows Firewall prompts on every freshly-compiled binary because
 # each `cargo build` produces a new exe hash. Path-based rules are

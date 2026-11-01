@@ -545,3 +545,25 @@ jobs:
       - name: Flutter test
         working-directory: shadow-mobile
         run: flutter test
+
+  ps1-portability:
+    name: PS1 Portability (Windows PowerShell 5.1)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # 本仓的 `.ps1` 都带中文注释 ⇒ ⇒ 必须是 **UTF-8 with BOM**。
+      # 否则 Windows PowerShell 5.1（Windows 的**默认** shell）按 ANSI 读
+      # ⇒ ⇒ 双字节解码把 0x0A 当尾字节吃掉 ⇒ ⇒ **换行消失**
+      # ⇒ ⇒ 注释行与下一行合并 ⇒ ⇒ `#` 把真正的代码吞掉
+      # ⇒ ⇒ **解析期就报错** ⇒ ⇒ 脚本连跑都跑不起来（报错是乱码，
+      # 看着像「脚本自己写错了」）。
+      #
+      # ⚠️ 判据只能用 **5.1 的解析器** ⇒ Linux runner 上判不了
+      # ⇒ ⇒ 单独一个 windows job，而不是挂在 ubuntu 的 desktop-build 里。
+      - name: Gate self-test
+        run: node scripts/check-ps1-portability.mjs --self-test
+
+      - name: PS1 portability check
+        run: node scripts/check-ps1-portability.mjs

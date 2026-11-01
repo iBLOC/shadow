@@ -1,4 +1,4 @@
-# 真机证明：**providers 那三道门在设备上真的关着**（读=shadow∪admin / 写=admin / 主人=内部凭据∪admin）。
+﻿# 真机证明：**providers 那三道门在设备上真的关着**（读=shadow∪admin / 写=admin / 主人=内部凭据∪admin）。
 #
 # ## 这条脚本补的是什么洞
 #

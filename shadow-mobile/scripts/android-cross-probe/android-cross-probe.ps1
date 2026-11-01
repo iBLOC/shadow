@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     验证一个 Rust crate 能否交叉编译到 Android (aarch64-linux-android)。
 
