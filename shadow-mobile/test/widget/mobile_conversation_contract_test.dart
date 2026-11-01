@@ -7,6 +7,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shadow_mobile/generated/l10n/app_localizations.dart';
+import 'package:shadow_mobile/providers/chat_provider.dart';
+import 'package:shadow_mobile/router/app_router.dart';
+import 'package:shadow_mobile/tts_engine.dart';
 import 'package:shadow_mobile/providers/telencephalon_provider.dart';
 import 'package:shadow_mobile/screens/conversation_screen.dart';
 import 'package:shadow_mobile/services/telencephalon/telencephalon_client.dart';
@@ -49,6 +52,12 @@ const _historyA = [
   {'role': 'agent', 'text': '第一条回答'},
 ];
 
+
+/// TTS 不打真接口（测试里没有平台通道）。
+class MockTtsEngine extends TtsEngine {
+  @override
+  Future<void> speak(String text, {String lang = 'zh-CN'}) async {}
+}
 const _historyB = [
   {'role': 'user', 'text': '另一条会话的问题'},
 ];
@@ -242,6 +251,148 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(gets, 2);
+    });
+  });
+
+  group('切会话 / 新开会话（真 client + 真 HTTP）', () {
+    test('切会话：拉的是**那条**会话，下一条消息**续在它上面**（不新建）', () async {
+      final requests = <http.Request>[];
+      final client = liveClient((req) async {
+        requests.add(req);
+        if (req.url.path.endsWith(':stream')) {
+          return http.Response(
+            'data: {"type":"delta","delta":"续上的回复"}\n'
+            'data: {"type":"done","conversation_id":"conv-a"}\n',
+            200,
+            headers: {'content-type': 'text/event-stream; charset=utf-8'},
+          );
+        }
+        return http.Response(
+          jsonEncode(serverConversation('conv-a', 'temporal', _historyA)),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      });
+
+      final notifier = ChatNotifier(MockTtsEngine(), client);
+      final ok = await notifier.switchTo('conv-a');
+      expect(ok, isTrue);
+
+      // 拉的是**那条**会话（路径带 id），历史照端脑那份形状装进来。
+      expect(requests.single.url.path, '/shadow/v1/conversations/conv-a');
+      expect(notifier.state.sessionId, 'conv-a');
+      expect(notifier.state.messages.length, 2);
+      expect(notifier.state.messages[0].role, ChatRole.user);
+      expect(notifier.state.messages[1].role, ChatRole.assistant);
+      expect(notifier.state.messages[1].content, '第一条回答');
+
+      // 下一条消息**续在它上面** ⇒ 不新建会话。
+      await notifier.generateResponse('继续');
+      final stream = requests.lastWhere((r) => r.url.path.endsWith(':stream'));
+      expect(
+        stream.url.path,
+        '/shadow/v1/conversations/conv-a/messages:stream',
+      );
+      expect(
+        requests.where(
+          (r) => r.method == 'POST' && r.url.path == '/shadow/v1/conversations',
+        ),
+        isEmpty,
+      );
+      // SSE 里的 delta 真的变成了气泡。
+      expect(notifier.state.messages.last.content, '续上的回复');
+      expect(notifier.state.messages.last.role, ChatRole.assistant);
+    });
+
+    test('新开会话：真的 POST 建一条（人设随会话带过去）', () async {
+      final requests = <http.Request>[];
+      final client = liveClient((req) async {
+        requests.add(req);
+        return http.Response(
+          jsonEncode(
+            serverConversation(
+              'conv-new',
+              'temporal',
+              const <Map<String, String>>[],
+            ),
+          ),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      });
+
+      final notifier = ChatNotifier(
+        MockTtsEngine(),
+        client,
+        systemPromptProvider: () => '你是影',
+      );
+      final ok = await notifier.startNewConversation();
+      expect(ok, isTrue);
+
+      final post = requests.single;
+      expect(post.method, 'POST');
+      expect(post.url.path, '/shadow/v1/conversations');
+      // 人设随会话创建送过去（端脑把它记进会话并转发给叶区）。
+      expect(
+        (jsonDecode(post.body) as Map<String, dynamic>)['system'],
+        '你是影',
+      );
+      expect(notifier.state.sessionId, 'conv-new');
+      expect(notifier.state.messages, isEmpty);
+    });
+
+    testWidgets('路由级：带 sessionId 导航 ⇒ 真 client 真的去拉那条会话', (
+      tester,
+    ) async {
+      final requests = <http.Request>[];
+      final client = liveClient((req) async {
+        requests.add(req);
+        return http.Response(
+          jsonEncode(serverConversation('conv-a', 'temporal', _historyA)),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      });
+      final container = ProviderContainer(
+        overrides: [
+          telencephalonClientProvider.overrideWithValue(client),
+          chatProvider.overrideWith(
+            (ref) => ChatNotifier(MockTtsEngine(), client),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp.router(
+            routerConfig: appRouter,
+            localizationsDelegates: const [
+              AppLocalizations.delegate,
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            supportedLocales: const [Locale('zh')],
+          ),
+        ),
+      );
+      await tester.pump();
+
+      appRouter.go(AppRoutes.chat, extra: {'sessionId': 'conv-a'});
+      await tester.pump();
+      await tester.pump();
+
+      expect(container.read(chatProvider).sessionId, 'conv-a');
+      expect(container.read(chatProvider).messages.length, 2);
+      expect(
+        requests
+            .firstWhere((r) => r.url.path.contains('/conversations/conv-a'))
+            .url
+            .path,
+        '/shadow/v1/conversations/conv-a',
+      );
     });
   });
 }
