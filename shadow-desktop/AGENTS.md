@@ -786,3 +786,32 @@ The same `src/` produces **two artefacts**:
   **web 形态 6 处条件 401**（web 版没有 sidecar ⇒ admin token 要用户自备 `localStorage`）
   ⇒ ⇒ 「web 放钥匙的入口」是**另一个决定**；**桌面端 shadow key 输入入口**仍欠（**不是**
   上锁的阻塞项）。
+
+## STATE STATUS (2026-11-01, 探针与列表读的是**同一张面**，却递了**不同的钥匙**)
+
+- **⚠️ 病（自相矛盾）**：客户端有**两发**读 `/models/providers`（读门 = shadow ∪ admin）：
+  ① **列表**（`SettingsPage` → `telencephalonClient.listProviders()` → `request()`）
+     ⇒ ⇒ **shadow ∪ admin 两把都递**（`telencephalonClient.ts`：`if (this.apiKey) headers['X-Shadow-Key'] = …`
+     ＋ `X-Admin-Token`）⇒ ⇒ ⇒ **读门认哪把都能过**；
+  ② **探针**（`modelConfigProbe.probeCloudProviders()`）⇒ ⇒ **只递 admin**
+     （`adminHeaders()`）⇒ ⇒ ⇒ **shadow key 它拿不到**。
+  ⇒ ⇒ 于是在「**独立端脑服务器** + 那台机器**配了 shadow key** + 桌面端**填了 shadow key**」
+  这一个形态上（端脑的 admin 面是 **fail-closed** 的 ⇒ 桌面 sidecar 那把 admin token
+  **对不上** ⇒ ⇒ 读面只剩 **shadow** 那把）⇒ ⇒ **列表读得到、探针读不到** ⇒ ⇒
+  ⇒ ⇒ **`AppInitializer` 与 onboarding 那一格会说「问不到端脑」** ⇒ ⇒ **而设置页那一格
+  明明列出了供应商** ⇒ ⇒ ⇒ **同一个客户端、同一个端脑，两处给出互相矛盾的说法**。
+- **⚠️ 根因是上一轮那条决策的前提不成立**：探针里写着「**刻意不发 `X-Shadow-Key`**：
+  读门认的是 shadow ∪ admin，admin 是另一把钥匙 ⇒ 这一发带 admin 就够」⇒ ⇒
+  **「带 admin 就够」只在「客户端手里有 admin token」时成立** ⇒ ⇒ 而独立端脑服务器形态
+  **没有**（端脑只认 `TELENCEPHALON_ADMIN_KEY`，且 fail-closed）⇒ ⇒ ⇒ **前提是假的**。
+- **✅ 修法（一条规则）**：**客户端读面的凭据集合必须与门形一致** ⇒ ⇒ 读门 = shadow ∪ admin
+  ⇒ ⇒ ⇒ 客户端读面就递 **shadow ∪ admin**（**不是**二选一）⇒ ⇒ ⇒ 于是「列表能读、探针读不到」
+  这件事**结构上不可能**发生。
+- **⚠️ 修它要一个口子，而那个口子正在别人手上**：`modelConfigProbe.ts` 要拿到 shadow key
+  ⇒ ⇒ 需要 `telencephalonClient.getApiKey()` ⇒ ⇒ **HEAD 里还没有**（只有私有的
+  `this.apiKey` 与 `setApiKey`）⇒ ⇒ 而 **`getApiKey()` 正是并行会话在飞加的那一个**
+  ⇒ ⇒ ⇒ **本轮不自己动**（改它要改在飞文件 `telencephalonClient.ts`）⇒ ⇒ ⇒
+  ⇒ ⇒ ⇒ **已把口径交给持有那个 getter 的会话**（跨会话回信）。
+- **⚠️ 一条可复用的判据**：**同一个端点、客户端有两发读它** ⇒ ⇒ 先核「两发带的凭据集合
+  是不是同一个」⇒ ⇒ **不是的话，先出现的矛盾是「一处说读到了、另一处说读不到」**
+  ⇒ ⇒ 而不是「都读不到」⇒ ⇒ ⇒ 而这种矛盾**单测很难发现**（两条路各自都绿）。
