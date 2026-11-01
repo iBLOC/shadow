@@ -6,6 +6,7 @@ import '../providers/chat_provider.dart';
 import '../providers/telencephalon_provider.dart';
 import '../services/telencephalon/telencephalon_client.dart';
 import '../widgets/glass_card.dart';
+import '../widgets/glass_button.dart';
 import '../widgets/empty_state.dart';
 import '../theme/app_colors.dart';
 import '../generated/l10n/app_localizations.dart';
@@ -115,6 +116,13 @@ class ConversationScreen extends ConsumerWidget {
       ),
       body: convState.isLoading
           ? const Center(child: CircularProgressIndicator())
+          : convState.error != null
+          ? _ConversationLoadError(
+              error: convState.error!,
+              onRetry: () => ref
+                  .read(conversationsNotifierProvider.notifier)
+                  .loadConversations(),
+            )
           : convState.conversations.isEmpty
           ? EmptyState(
               icon: Icons.chat_bubble_outline,
@@ -233,5 +241,63 @@ class _ConversationCard extends StatelessWidget {
     } else {
       return '${time.month}/${time.day}/${time.year}';
     }
+  }
+}
+
+/// 列表**读不到**时的样子。
+///
+/// ⚠️ 为什么不能拿「空态」顶替：
+/// - 空态说的是「**真的没有**会话」⇒ 用户该去新建一条；
+/// - 读失败说的是「**问不到**」⇒ 用户该去看端脑 / 配钥匙。
+///
+/// 把失败画成「暂无会话」⇒ 用户以为自己的会话没了 ⇒
+/// **失败长得像成功** —— 而且它**不报错**，没人会发现。
+///
+/// 同族的坑：A2UI 那面「空 surface / 纯文本 / 失败」曾经也被并成两种
+///（见 a2ui_answer_state.dart 的三态判定）。同一个病，两处。
+class _ConversationLoadError extends StatelessWidget {
+  /// 真实原因（端脑回的状态码 + 正文，或连接错误）。
+  final String error;
+  final VoidCallback onRetry;
+
+  const _ConversationLoadError({required this.error, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark
+        ? AppColors.darkTextSecondary
+        : AppColors.lightTextSecondary;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.cloud_off,
+              size: 56,
+              color: textColor.withValues(alpha: 0.6),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              l10n.errorGeneric(error),
+              textAlign: TextAlign.center,
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(color: textColor),
+            ),
+            const SizedBox(height: 20),
+            GlassButton(
+              label: l10n.commonRefresh,
+              icon: Icons.refresh,
+              onPressed: onRetry,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
