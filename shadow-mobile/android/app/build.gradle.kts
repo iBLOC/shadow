@@ -25,11 +25,22 @@ android {
     // 但那个运行时根本不存在，表现为功能整个消失。
     //
     // libencephalon.so 只构建 arm64-v8a 与 x86_64 两份，所以 APK 也只声明
-    // 这两个 ABI。**armeabi-v7a 暂不做**（2026-10-29 决定）—— 背景：Lance
-    // 的阻断已消除（telencephalon 把 hippocampus 改成 optional），但还有
-    // 第二个阻断 cranelift-codegen（wasmtime 的代码生成器）：
+    // 这两个 ABI。**armeabi-v7a 暂不做**（2026-10-29 决定）—— 背景：阻断
+    // 是 cranelift-codegen（wasmtime 的代码生成器）：
     // "no supported isa found for arch `armv7`"。见 encephalon 仓
     // scripts/README.md。
+    //
+    // ⚠️ 2026-11-01 记一笔差点成真的事：`mobile` feature **试过**带上
+    // hippocampus（用户拍板：手机上的会话要落在本机，不能随 App 重启
+    // 消失），真机实测**被平台挡住**了 —— Lance 发布文件靠 `fs::hard_link`，
+    // 而 Android 的 SELinux **不允许 App 在自己的数据目录里建硬链接**
+    // ⇒ ⇒ 端脑直接起不来 ⇒ ⇒ 移动端改用**文件版**会话存储（端脑侧见
+    // telencephalon/AGENTS.md ㋞ 条）⇒ ⇒ `mobile` 不带 hippocampus，
+    // .so 也就留在 159 MB。
+    // ⇒ ⇒ 若将来要恢复 hippocampus，armv7 就会多一个阻断：上游
+    // lance-core 的 32 位 ARM SIMD 探针（它的 `#[cfg]` 只有 aarch64 /
+    // x86_64 / loongarch64 三支，没有 `target_arch = "arm"` ⇒ 32 位 ARM
+    // 上闭包体被编译掉、返回 `()` 而不是 `SimdSupport`）。
     val supportedAbis = listOf("arm64-v8a", "x86_64")
 
     compileOptions {

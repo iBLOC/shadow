@@ -176,6 +176,8 @@ async fn build_router(stack: &Embedded) -> Result<Router, String> {
         // ⚠️ 桌面的落点**没有**变成「宿主显式给的目录」：那等于**换一批数据**
         // （不是迁移）⇒ ⇒ 行为一字不变。
         hippocampus_data_dir: None,
+        // 会话存储文件：None = 桌面走海马体（Lance）。
+        conversation_store_file: None,
         // 桌面端**显式**声明 admin token —— 端脑**不再**替宿主发明一把
         // 开发用的钥匙了（旧的 `dev-admin-key` 回退被端脑删掉了）。
         //
