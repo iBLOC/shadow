@@ -552,7 +552,7 @@ The same `src/` produces **two artefacts**:
   ⇒ 包着 `build_with_conversation_store` ⇒ 而 `telencephalon/src/api/mod.rs:99`
   在那张 router 上 merge 了 `a2ui_gateway::router` ⇒ **`/a2a` 与那道 shadow
   key 门都在** ⇒ **还差的是「桌面客户端真的把界面画出来」那段运行时证据**；
-- **设备端（ESP32）仍然零 A2UI**；
+- **设备端（ESP32）零 A2UI** ⇒ ⇒ **已定：不是欠账**（ESP32 只是**输入设备**，2026-11-01 用户定）；
 - 界面文案本地化（服务端出的 chrome 仍是英文）—— 桌面端这侧**本地化只覆盖了
   诊断文案**，组件内容是服务端给的原文。
 
