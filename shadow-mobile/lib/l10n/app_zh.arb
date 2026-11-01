@@ -430,7 +430,7 @@
   "taskNoSubtasks": "此任务暂无子任务",
   "taskSubtaskProgress": "子任务进度",
   "logsTab": "日志",
-  "logsBackend": "后端",
+  "logsClient": "客户端",
   "logsApp": "应用",
   "logsDevice": "本机组件",
   "logsAllLevels": "所有级别",
@@ -525,10 +525,6 @@
       }
     }
   },
-  "settingsPrefrontalEmbedded": "嵌入式 Prefrontal",
-  "@settingsPrefrontalEmbedded": {},
-  "settingsPrefrontalEmbeddedDesc": "管理嵌入在本 App 里的 Prefrontal 运行时",
-  "@settingsPrefrontalEmbeddedDesc": {},
   "settingsEncephalonEmbedded": "嵌入式大脑",
   "@settingsEncephalonEmbedded": {},
   "settingsEncephalonEmbeddedDesc": "管理嵌入在本 App 里的 Encephalon 大脑运行时（推理 + 端脑面）",
@@ -657,132 +653,6 @@
   "@cameraFlip": {},
   "cameraClose": "关闭",
   "@cameraClose": {},
-  "prefrontalEmbeddedTitle": "Prefrontal 嵌入式运行时 (NDK)",
-  "@prefrontalEmbeddedTitle": {},
-  "prefrontalEmbeddedRuntime": "嵌入式运行时",
-  "@prefrontalEmbeddedRuntime": {},
-  "prefrontalPort": "端口: {port}",
-  "@prefrontalPort": {
-    "placeholders": {
-      "port": {
-        "type": "int"
-      }
-    }
-  },
-  "prefrontalStart": "启动",
-  "@prefrontalStart": {},
-  "prefrontalStop": "停止",
-  "@prefrontalStop": {},
-  "prefrontalAgentsCount": "智能体 ({count})",
-  "@prefrontalAgentsCount": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "prefrontalRefresh": "刷新",
-  "@prefrontalRefresh": {},
-  "prefrontalStartFirst": "请先启动服务",
-  "@prefrontalStartFirst": {},
-  "prefrontalNoAgentsHint": "暂无智能体, 添加一个吧:",
-  "@prefrontalNoAgentsHint": {},
-  "prefrontalAddSampleAgent": "添加示例智能体",
-  "@prefrontalAddSampleAgent": {},
-  "prefrontalInvokeTitle": "调用智能体 (JNI)",
-  "@prefrontalInvokeTitle": {},
-  "prefrontalInput": "输入",
-  "@prefrontalInput": {},
-  "prefrontalInputHint": "输入要发送给智能体的内容...",
-  "@prefrontalInputHint": {},
-  "prefrontalInvoke": "调用 (JNI)",
-  "@prefrontalInvoke": {},
-  "prefrontalNoOutput": "(无输出)",
-  "@prefrontalNoOutput": {},
-  "prefrontalAboutTitle": "关于 NDK 嵌入方式",
-  "@prefrontalAboutTitle": {},
-  "prefrontalAboutLine1": "- Prefrontal 作为 .so 嵌入在 App 进程内",
-  "@prefrontalAboutLine1": {},
-  "prefrontalAboutLine2": "- 通过 JNI 与 Kotlin Service 通信",
-  "@prefrontalAboutLine2": {},
-  "prefrontalAboutLine3": "- 通过 localhost HTTP 与 Prefrontal 通信",
-  "@prefrontalAboutLine3": {},
-  "prefrontalAboutLine4": "- 服务生命周期与 App 绑定",
-  "@prefrontalAboutLine4": {},
-  "prefrontalAboutLine5": "- 不需要外部进程, 不会被杀",
-  "@prefrontalAboutLine5": {},
-  "prefrontalAboutArchitecture": "架构:",
-  "@prefrontalAboutArchitecture": {},
-  "prefrontalStartSuccess": "嵌入式运行时启动成功",
-  "@prefrontalStartSuccess": {},
-  "prefrontalStartFailed": "启动失败",
-  "@prefrontalStartFailed": {},
-  "prefrontalStartError": "启动异常: {error}",
-  "@prefrontalStartError": {
-    "placeholders": {
-      "error": {
-        "type": "String"
-      }
-    }
-  },
-  "prefrontalStopSuccess": "嵌入式运行时已停止",
-  "@prefrontalStopSuccess": {},
-  "prefrontalStopFailed": "停止失败",
-  "@prefrontalStopFailed": {},
-  "prefrontalStopError": "停止异常: {error}",
-  "@prefrontalStopError": {
-    "placeholders": {
-      "error": {
-        "type": "String"
-      }
-    }
-  },
-  "prefrontalAddSuccess": "添加成功",
-  "@prefrontalAddSuccess": {},
-  "prefrontalAddFailed": "添加失败",
-  "@prefrontalAddFailed": {},
-  "prefrontalAddError": "添加异常: {error}",
-  "@prefrontalAddError": {
-    "placeholders": {
-      "error": {
-        "type": "String"
-      }
-    }
-  },
-  "prefrontalInvokeSuccess": "JNI 调用成功",
-  "@prefrontalInvokeSuccess": {},
-  "prefrontalInvokeFailed": "调用失败",
-  "@prefrontalInvokeFailed": {},
-  "prefrontalInvokeError": "调用异常: {error}",
-  "@prefrontalInvokeError": {
-    "placeholders": {
-      "error": {
-        "type": "String"
-      }
-    }
-  },
-  "prefrontalStatusStopped": "已停止",
-  "@prefrontalStatusStopped": {},
-  "prefrontalStatusStarting": "启动中...",
-  "@prefrontalStatusStarting": {},
-  "prefrontalStatusRunning": "运行中",
-  "@prefrontalStatusRunning": {},
-  "prefrontalStatusStopping": "停止中...",
-  "@prefrontalStatusStopping": {},
-  "prefrontalStatusError": "错误",
-  "@prefrontalStatusError": {},
-  "prefrontalSampleAgentName": "示例智能体",
-  "@prefrontalSampleAgentName": {},
-  "prefrontalSampleAgentDesc": "通过 JNI 注册的示例智能体",
-  "@prefrontalSampleAgentDesc": {},
-  "prefrontalErrorPrefix": "错误: {error}",
-  "@prefrontalErrorPrefix": {
-    "placeholders": {
-      "error": {
-        "type": "String"
-      }
-    }
-  },
   "chatGreeting": "你好，我是Shadow，有什么可以帮你的吗？",
   "@chatGreeting": {},
   "chatAttachmentNotAvailable": "端脑链路当前只处理纯文本，图片、文件等附件暂不支持",
@@ -1075,7 +945,6 @@
   "surfaceTelencephalon": "端脑",
   "surfaceSettings": "设置",
   "surfaceSetup": "初始设置",
-  "surfacePrefrontalEmbedded": "嵌入式前额叶",
   "navSectionConverse": "对话与表达",
   "navSectionWork": "任务与产出",
   "navSectionCapability": "能力",
@@ -1115,7 +984,6 @@
   "@surfaceTelencephalon": {},
   "@surfaceSettings": {},
   "@surfaceSetup": {},
-  "@surfacePrefrontalEmbedded": {},
   "@navSectionConverse": {},
   "@navSectionWork": {},
   "@navSectionCapability": {},
@@ -1174,7 +1042,6 @@
   "agent2uiNoSurface": "已连接，但端脑这次没有给出界面",
   "agent2uiSurfaceHint": "端脑把界面画出来后会显示在这里",
   "ttsEngineRust": "Rust",
-  "settingsAdvancedLegacy": "遗留运行时",
   "logsExported": "日志已导出到 {path}",
   "@logsExported": {
     "placeholders": {

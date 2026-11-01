@@ -6,7 +6,6 @@ import 'package:shadow_mobile/generated/l10n/app_localizations.dart';
 import 'package:shadow_mobile/providers/log_provider.dart';
 import 'package:shadow_mobile/screens/settings_screen.dart';
 import 'package:shadow_mobile/services/log_service.dart';
-import 'package:shadow_mobile/services/prefrontal/prefrontal_mobile_provider.dart';
 import 'package:shadow_mobile/widgets/log_panel_section.dart';
 import 'package:shadow_mobile/widgets/settings/settings_row.dart';
 
@@ -44,7 +43,6 @@ void main() {
         overrides: [
           ...getTestOverrides(),
           logServiceProvider.overrideWith((ref) => _MockLogService()),
-          prefrontalMobilePortProvider.overrideWithValue(null),
           // 内存是异步读的；加载态用的是不定进度条（永远在动），
           // `pumpAndSettle` 会因此超时。测试里直接给一个确定值。
           systemMemoryProvider.overrideWith(
@@ -108,10 +106,14 @@ void main() {
       // 三个折叠标题在
       expect(find.text(l10n.settingsAdvancedLogs), findsOneWidget);
       expect(find.text(l10n.settingsAdvancedBackend), findsOneWidget);
-      expect(find.text(l10n.settingsAdvancedLegacy), findsOneWidget);
       // 但折叠区里的内容不在（后端表单只有展开后才渲染）
       expect(find.text(l10n.commonSave), findsNothing);
-      expect(find.text(l10n.settingsPrefrontalEmbedded), findsNothing);
+      // 旧入口整条删除 ⇒ 那两个标题不该再出现。
+      // ⚠️ 这里用**字面量**而不是 l10nOf —— 那些键随旧入口一起删了，
+      //    用 l10nOf 反而要留着死键。测试跑的 locale 是 supportedLocales 的
+      //    第一个 ⇒ zh。
+      expect(find.text('遗留运行时'), findsNothing);
+      expect(find.text('嵌入式 Prefrontal'), findsNothing);
     });
 
     testWidgets('折叠时日志面板不会被构建（不会偷偷连日志流）', (WidgetTester tester) async {
@@ -224,16 +226,14 @@ void main() {
       expect(find.text(l10n.settingsEncephalonEmbeddedDesc), findsOneWidget);
     });
 
-    testWidgets('嵌入式 Prefrontal 入口在「遗留运行时」折叠里', (WidgetTester tester) async {
+    testWidgets('旧的嵌入式 Prefrontal 入口已经彻底删除', (WidgetTester tester) async {
       await pumpSettings(tester);
 
-      final l10n = l10nOf(tester);
-      // 默认折叠 → 入口行不可见
-      expect(find.text(l10n.settingsPrefrontalEmbedded), findsNothing);
-
-      await tapVisible(tester, find.text(l10n.settingsAdvancedLegacy));
-
-      expect(find.text(l10n.settingsPrefrontalEmbedded), findsOneWidget);
+      // 「遗留运行时」折叠区整体没了 ⇒ 「嵌入式 Prefrontal」那行再也点不到。
+      // ⚠️ 用**字面量**而不是 l10n 键钉 —— 那些键随旧入口一起删了；
+      // 这里要钉的是「那两行字不许再出现在设置页里」。
+      expect(find.text('遗留运行时'), findsNothing);
+      expect(find.text('嵌入式 Prefrontal'), findsNothing);
     });
 
     testWidgets('设备发现 / 端脑流程 / Resonance 入口都在', (WidgetTester tester) async {

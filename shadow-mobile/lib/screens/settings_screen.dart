@@ -328,42 +328,6 @@ class SettingsScreen extends ConsumerWidget {
                           ],
                         ),
                       ),
-                      const ShadSeparator.horizontal(
-                        margin: EdgeInsets.symmetric(
-                          horizontal: AppTokens.spaceLg,
-                        ),
-                      ),
-                      // 折叠标题是「遗留运行时」，真正的入口行在展开后 ——
-                      // 两者文案不能重复，否则同一个字符串在树上出现两次。
-                      SettingsDisclosure(
-                        title: l10n.settingsAdvancedLegacy,
-                        icon: Icons.history,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const ShadSeparator.horizontal(
-                              margin: EdgeInsets.symmetric(
-                                horizontal: AppTokens.spaceLg,
-                              ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.only(
-                                left: AppTokens.spaceLg,
-                                right: AppTokens.spaceLg,
-                                bottom: AppTokens.spaceLg,
-                              ),
-                              child: _NavRow(
-                                icon: Icons.psychology,
-                                title: l10n.settingsPrefrontalEmbedded,
-                                subtitle: l10n.settingsPrefrontalEmbeddedDesc,
-                                onTap: () =>
-                                    context.push('/settings/prefrontal'),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
                     ],
                   ),
                 ],

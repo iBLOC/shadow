@@ -10,7 +10,7 @@ import 'package:logging/logging.dart';
 /// 同一套大脑（thalamus + ACP 总线 + telencephalon + 单一 neuron），
 /// 只是跑在 Android App 进程内（libencephalon.so），而不是外部进程。
 ///
-/// 与 `PrefrontalMobileService` 的关键差别：**推理不走 HTTP**。
+/// **推理不走 HTTP** —— 这是它与更早那套内嵌运行时最大的差别。
 /// `infer` 把 OpenAI 兼容请求体直接送进 neuron 的进程内 adapter 管线，
 /// 返回 (HTTP 状态码, 响应体) —— 没有 socket、没有 CORS、不用等端口就绪。
 ///

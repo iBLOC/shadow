@@ -10,7 +10,7 @@ import android.util.Log
  * 同一套 `Embedded`（thalamus + ACP 总线 + telencephalon + 单一 neuron），
  * 只是跑在 Android App 进程里，而不是跑成外部进程。
  *
- * 与 `PrefrontalRuntime` 的关键差别：**推理不走 HTTP**。
+ * **推理不走 HTTP** —— 这是它与更早那套内嵌运行时最大的差别。
  * `nativeInfer` 把 OpenAI 兼容请求体直接送进 neuron 的进程内 adapter 管线，
  * 返回 4 字节大端 HTTP 状态码 + 响应体 —— 没有 socket、没有 CORS、
  * 不用等本地端口就绪。neuron 自己仍然会起一个 127.0.0.1 的 HTTP 面
@@ -27,7 +27,7 @@ import android.util.Log
  *   Embedded → thalamus + ACP 总线 + telencephalon + 单一 neuron
  * ```
  *
- * 错误处理策略与 `PrefrontalRuntime` 一致：`.so` 缺失时**不重抛**，
+ * 错误处理策略与另一套内嵌运行时一致：`.so` 缺失时**不重抛**，
  * 让每个调用点自己降级，而不是让 App 直接崩。
  */
 class EncephalonRuntime {

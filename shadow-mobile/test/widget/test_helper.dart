@@ -61,25 +61,18 @@ void testSetup() {
 }
 
 final mockServiceInfos = [
+  // ⚠️ **只有一行** —— 手机上真正在跑的只有**内嵌大脑**。
+  // 以前这里摆的是桌面拓扑三件套（Resonance:8080 / Prefrontal:8082 /
+  // Hippocampus:8081）—— 那三个在手机上**一个都不存在**（真服务的 provider
+  // 早就改成只探内嵌大脑了，见 service_provider_test.dart 那条回归）。
+  // 夹具摆着一套**假拓扑**，页面就会渲染出根本不存在的服务行 ⇒ ⇒
+  // 「界面上有服务，机器上没有」—— 失败长得像成功。
   ServiceInfo(
-    name: 'resonance',
-    displayName: 'Resonance',
-    host: 'localhost',
-    port: 8080,
-    status: ServiceStatus.healthy,
-  ),
-  ServiceInfo(
-    name: 'prefrontal',
-    displayName: 'Prefrontal',
-    host: 'localhost',
-    port: 8082,
-    status: ServiceStatus.healthy,
-  ),
-  ServiceInfo(
-    name: 'hippocampus',
-    displayName: 'Hippocampus',
-    host: 'localhost',
-    port: 8081,
+    name: 'encephalon',
+    displayName: 'Encephalon',
+    host: '127.0.0.1',
+    port: 40771,
+    path: '/health',
     status: ServiceStatus.healthy,
   ),
 ];

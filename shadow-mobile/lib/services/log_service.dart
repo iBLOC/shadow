@@ -1,15 +1,17 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// 日志来源。`mnn` 的语义已经泛化为「本机组件（EventChannel，宿主侧
 /// AppLog 抄送，通道名沿用 mnn_logs）」；`app` 是 Dart 侧 package:logging
-/// 的记录（各 Notifier / Service 的运行时日志）；`prefrontal` 是遗留
-/// Prefrontal 的 SSE 流。
-enum LogSource { mnn, app, prefrontal }
+/// 的记录（各 Notifier / Service 的运行时日志）；`client` 是**客户端
+/// 错误**（全局错误监听器 `global_error_listener.dart`）。
+///
+/// ⚠️ **它以前叫 `prefrontal`** —— 那时它装的是遗留嵌入式 Prefrontal 的
+/// SSE 流；那个运行时随「嵌入式 Prefrontal」整条删除 ⇒ ⇒ 那一路没有了 ⇒
+/// ⇒ 这个来源现在**只**装客户端错误 ⇒ ⇒ 名字得跟内容对上。
+enum LogSource { mnn, app, client }
 
 enum LogLevel { debug, info, warning, error }
 
@@ -28,32 +30,6 @@ class LogEntry {
     required this.message,
   });
 
-  factory LogEntry.fromJson(Map<String, dynamic> json, LogSource source) {
-    return LogEntry(
-      timestamp: DateTime.parse(json['timestamp'] as String),
-      source: source,
-      level: _parseLevel(json['level'] as String? ?? 'info'),
-      tag: json['target'] as String? ?? json['tag'] as String? ?? '',
-      message: json['message'] as String,
-    );
-  }
-
-  static LogLevel _parseLevel(String level) {
-    switch (level.toUpperCase()) {
-      case 'DEBUG':
-        return LogLevel.debug;
-      case 'INFO':
-        return LogLevel.info;
-      case 'WARN':
-      case 'WARNING':
-        return LogLevel.warning;
-      case 'ERROR':
-      case 'SEVERE':
-        return LogLevel.error;
-      default:
-        return LogLevel.info;
-    }
-  }
 
   Map<String, dynamic> toJson() => {
     'timestamp': timestamp.toIso8601String(),
@@ -111,7 +87,6 @@ class LogService extends StateNotifier<LogState> {
 
   @override
   void dispose() {
-    disconnectPrefrontal();
     disconnectMnn();
     super.dispose();
   }
@@ -127,7 +102,7 @@ class LogService extends StateNotifier<LogState> {
   void addClientError({required String tag, required String message, String? stack}) {
     addLog(LogEntry(
       timestamp: DateTime.now(),
-      source: LogSource.prefrontal,
+      source: LogSource.client,
       level: LogLevel.error,
       tag: tag,
       message: stack != null ? '$message\n$stack' : message,
@@ -191,22 +166,6 @@ class LogService extends StateNotifier<LogState> {
     return buffer.toString();
   }
 
-  void connectPrefrontal(String baseUrl) {
-    // 同一地址且还连着 ⇒ 不拆重连（面板每次展开都会重新挂上来）。
-    final current = _prefrontalStream;
-    if (current != null && current.baseUrl == baseUrl && current.isConnected) {
-      return;
-    }
-    disconnectPrefrontal();
-    _prefrontalStream = PrefrontalLogStream(baseUrl: baseUrl, onLog: addLog);
-    _prefrontalStream?.connect();
-  }
-
-  void disconnectPrefrontal() {
-    _prefrontalStream?.disconnect();
-    _prefrontalStream = null;
-  }
-
   /// 幂等：流是进程级的（本进程 logcat），面板只是观察者。
   ///
   /// 设置页的「高级 → 日志」折叠区每次展开都会重建面板并调一次这里；
@@ -223,102 +182,7 @@ class LogService extends StateNotifier<LogState> {
     _mnnStream = null;
   }
 
-  PrefrontalLogStream? _prefrontalStream;
   MnnLogStream? _mnnStream;
-}
-
-class PrefrontalLogStream {
-  final String baseUrl;
-  final void Function(LogEntry) onLog;
-  Socket? _socket;
-  bool _isConnected = false;
-
-  /// 未消费的字节 —— 只保留**不完整的尾行**（跨 TCP 段的 SSE 帧不被丢）。
-  String _pending = '';
-
-  PrefrontalLogStream({required this.baseUrl, required this.onLog});
-
-  Future<void> connect() async {
-    if (_isConnected) return;
-
-    try {
-      final uri = Uri.parse('$baseUrl/api/logs/stream');
-      final host = uri.host;
-      final port = uri.port;
-
-      _socket = await Socket.connect(host, port);
-      _isConnected = true;
-
-      _socket!.listen(
-        (data) {
-          consume(utf8.decode(data, allowMalformed: true));
-        },
-        onError: (error) {
-          debugPrint('PrefrontalLogStream error: $error');
-          _isConnected = false;
-        },
-        onDone: () {
-          _isConnected = false;
-        },
-      );
-
-      final request =
-          'GET /api/logs/stream HTTP/1.1\r\n'
-          'Host: $host:$port\r\n'
-          'Accept: text/event-stream\r\n'
-          'Cache-Control: no-cache\r\n'
-          'Connection: keep-alive\r\n'
-          '\r\n';
-      _socket!.write(request);
-      await _socket!.flush();
-    } catch (e) {
-      debugPrint('PrefrontalLogStream connection error: $e');
-      _isConnected = false;
-    }
-  }
-
-  /// 喂入**一段**新到的字节：消费缓冲里的完整行，不完整的尾行留在
-  /// [_pending] 等下一段（跨 TCP 段的 SSE 帧不被丢）。`data:` 行按真
-  /// JSON 解码（手写解析器不认转义引号 —— message 里带 `\"` 就解析成垃圾）。
-  @visibleForTesting
-  void consume(String chunk) {
-    var input = _pending + chunk;
-    // HTTP/1.1 响应头剥离 —— 幂等：缓冲以 "HTTP/" 开头才剥（剥完不再以它
-    // 开头，天然不重复）；没有头的流（异常但可能）也照常工作。
-    if (input.startsWith('HTTP/')) {
-      final headerEnd = input.indexOf('\r\n\r\n');
-      if (headerEnd == -1) {
-        _pending = input; // 头还没到齐，整段留着
-        return;
-      }
-      input = input.substring(headerEnd + 4);
-    }
-    final lines = input.split('\n');
-    // split 的最后一段要么是空串（行完整）要么是不完整的尾行 —— 留给下一段。
-    _pending = lines.removeLast();
-    for (final rawLine in lines) {
-      final line = rawLine.endsWith('\r') ? rawLine.substring(0, rawLine.length - 1) : rawLine;
-      if (!line.startsWith('data:')) continue; // event:/注释/空行
-      final jsonStr = line.substring(5).trim();
-      if (jsonStr.isEmpty) continue;
-      try {
-        final json = jsonDecode(jsonStr);
-        if (json is Map<String, dynamic>) {
-          onLog(LogEntry.fromJson(json, LogSource.prefrontal));
-        }
-      } catch (e) {
-        debugPrint('Failed to parse log entry: $e');
-      }
-    }
-  }
-
-  void disconnect() {
-    _socket?.destroy();
-    _socket = null;
-    _isConnected = false;
-  }
-
-  bool get isConnected => _isConnected;
 }
 
 class MnnLogStream {

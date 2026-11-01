@@ -302,15 +302,6 @@
       "icon": "rocket",
       "desktop": { "route": "/setup", "nav": false },
       "mobile": { "route": null, "nav": false, "_orphan": "setup_wizard_screen.dart 存在但没有路由 —— 待接线" }
-    },
-    {
-      "id": "prefrontal-embedded",
-      "group": "ops",
-      "labelKey": "surface.prefrontalEmbedded",
-      "icon": "psychology",
-      "desktop": { "route": null, "nav": false },
-      "mobile": { "route": "/settings/prefrontal", "nav": false },
-      "_legacy": "旧的嵌入式前额叶支线（只跑一个 lobe，不是大脑）。已被「改嵌大脑」取代，待决定退役还是保留。"
     }
   ],
 

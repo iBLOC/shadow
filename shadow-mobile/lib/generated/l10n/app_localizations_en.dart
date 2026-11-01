@@ -1104,7 +1104,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get logsTab => 'Logs';
 
   @override
-  String get logsBackend => 'Backend';
+  String get logsClient => 'Client';
 
   @override
   String get logsApp => 'App';
@@ -1180,12 +1180,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get settingsPrefrontalEmbedded => 'Embedded Prefrontal';
-
   @override
-  String get settingsPrefrontalEmbeddedDesc =>
-      'Manage the Prefrontal runtime embedded in this app';
-
   @override
   String get settingsEncephalonEmbedded => 'Embedded Brain';
 
@@ -1281,11 +1276,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cameraClose => 'Close';
 
   @override
-  String get prefrontalEmbeddedTitle => 'Prefrontal Embedded Runtime (NDK)';
-
   @override
-  String get prefrontalEmbeddedRuntime => 'Embedded runtime';
-
   @override
   String prefrontalPort(int port) {
     return 'Port: $port';
@@ -1813,8 +1804,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get surfaceSetup => 'Setup';
 
   @override
-  String get surfacePrefrontalEmbedded => 'Embedded prefrontal';
-
   @override
   String get navSectionConverse => 'Converse';
 

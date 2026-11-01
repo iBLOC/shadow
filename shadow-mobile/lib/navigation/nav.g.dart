@@ -164,8 +164,6 @@ String navLabel(AppLocalizations l10n, String labelKey) {
       return l10n.surfaceModelSettings;
     case 'surface.models':
       return l10n.surfaceModels;
-    case 'surface.prefrontalEmbedded':
-      return l10n.surfacePrefrontalEmbedded;
     case 'surface.previews':
       return l10n.surfacePreviews;
     case 'surface.promptSettings':

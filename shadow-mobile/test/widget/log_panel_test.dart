@@ -6,7 +6,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:logging/logging.dart';
 import 'package:shadow_mobile/generated/l10n/app_localizations.dart';
 import 'package:shadow_mobile/providers/log_provider.dart';
-import 'package:shadow_mobile/services/prefrontal/prefrontal_mobile_provider.dart';
 import 'package:shadow_mobile/widgets/log_panel_section.dart';
 
 import 'test_helper.dart';
@@ -78,7 +77,6 @@ void main() {
       ProviderScope(
         overrides: [
           ...getTestOverrides(),
-          prefrontalMobilePortProvider.overrideWithValue(null),
         ],
         child: withShadTheme(
           MaterialApp(
@@ -203,7 +201,6 @@ void main() {
       ProviderScope(
         overrides: [
           ...getTestOverrides(),
-          prefrontalMobilePortProvider.overrideWithValue(null),
         ],
         child: withShadTheme(
           MaterialApp(

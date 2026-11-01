@@ -473,7 +473,7 @@
   "taskNoSubtasks": "This task has no subtasks",
   "taskSubtaskProgress": "Subtask progress",
   "logsTab": "Logs",
-  "logsBackend": "Backend",
+  "logsClient": "Client",
   "logsApp": "App",
   "logsDevice": "Device components",
   "logsAllLevels": "All levels",
@@ -568,10 +568,6 @@
       }
     }
   },
-  "settingsPrefrontalEmbedded": "Embedded Prefrontal",
-  "@settingsPrefrontalEmbedded": {},
-  "settingsPrefrontalEmbeddedDesc": "Manage the Prefrontal runtime embedded in this app",
-  "@settingsPrefrontalEmbeddedDesc": {},
   "settingsEncephalonEmbedded": "Embedded Brain",
   "@settingsEncephalonEmbedded": {},
   "settingsEncephalonEmbeddedDesc": "Manage the Encephalon brain runtime embedded in this app (inference + telencephalon agent surface)",
@@ -700,132 +696,6 @@
   "@cameraFlip": {},
   "cameraClose": "Close",
   "@cameraClose": {},
-  "prefrontalEmbeddedTitle": "Prefrontal Embedded Runtime (NDK)",
-  "@prefrontalEmbeddedTitle": {},
-  "prefrontalEmbeddedRuntime": "Embedded runtime",
-  "@prefrontalEmbeddedRuntime": {},
-  "prefrontalPort": "Port: {port}",
-  "@prefrontalPort": {
-    "placeholders": {
-      "port": {
-        "type": "int"
-      }
-    }
-  },
-  "prefrontalStart": "Start",
-  "@prefrontalStart": {},
-  "prefrontalStop": "Stop",
-  "@prefrontalStop": {},
-  "prefrontalAgentsCount": "Agents ({count})",
-  "@prefrontalAgentsCount": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "prefrontalRefresh": "Refresh",
-  "@prefrontalRefresh": {},
-  "prefrontalStartFirst": "Start the service first",
-  "@prefrontalStartFirst": {},
-  "prefrontalNoAgentsHint": "No agents yet - add one:",
-  "@prefrontalNoAgentsHint": {},
-  "prefrontalAddSampleAgent": "Add sample agent",
-  "@prefrontalAddSampleAgent": {},
-  "prefrontalInvokeTitle": "Invoke agent (JNI)",
-  "@prefrontalInvokeTitle": {},
-  "prefrontalInput": "Input",
-  "@prefrontalInput": {},
-  "prefrontalInputHint": "Type what to send to the agent...",
-  "@prefrontalInputHint": {},
-  "prefrontalInvoke": "Invoke (JNI)",
-  "@prefrontalInvoke": {},
-  "prefrontalNoOutput": "(no output)",
-  "@prefrontalNoOutput": {},
-  "prefrontalAboutTitle": "About the NDK embedding",
-  "@prefrontalAboutTitle": {},
-  "prefrontalAboutLine1": "- Prefrontal is embedded in the app process as a .so",
-  "@prefrontalAboutLine1": {},
-  "prefrontalAboutLine2": "- Talks to the Kotlin service over JNI",
-  "@prefrontalAboutLine2": {},
-  "prefrontalAboutLine3": "- Talks to Prefrontal over localhost HTTP",
-  "@prefrontalAboutLine3": {},
-  "prefrontalAboutLine4": "- Service lifetime is bound to the app",
-  "@prefrontalAboutLine4": {},
-  "prefrontalAboutLine5": "- No external process, so it is not killed",
-  "@prefrontalAboutLine5": {},
-  "prefrontalAboutArchitecture": "Architecture:",
-  "@prefrontalAboutArchitecture": {},
-  "prefrontalStartSuccess": "Embedded runtime started",
-  "@prefrontalStartSuccess": {},
-  "prefrontalStartFailed": "Start failed",
-  "@prefrontalStartFailed": {},
-  "prefrontalStartError": "Start error: {error}",
-  "@prefrontalStartError": {
-    "placeholders": {
-      "error": {
-        "type": "String"
-      }
-    }
-  },
-  "prefrontalStopSuccess": "Embedded runtime stopped",
-  "@prefrontalStopSuccess": {},
-  "prefrontalStopFailed": "Stop failed",
-  "@prefrontalStopFailed": {},
-  "prefrontalStopError": "Stop error: {error}",
-  "@prefrontalStopError": {
-    "placeholders": {
-      "error": {
-        "type": "String"
-      }
-    }
-  },
-  "prefrontalAddSuccess": "Added",
-  "@prefrontalAddSuccess": {},
-  "prefrontalAddFailed": "Add failed",
-  "@prefrontalAddFailed": {},
-  "prefrontalAddError": "Add error: {error}",
-  "@prefrontalAddError": {
-    "placeholders": {
-      "error": {
-        "type": "String"
-      }
-    }
-  },
-  "prefrontalInvokeSuccess": "JNI call succeeded",
-  "@prefrontalInvokeSuccess": {},
-  "prefrontalInvokeFailed": "Call failed",
-  "@prefrontalInvokeFailed": {},
-  "prefrontalInvokeError": "Call error: {error}",
-  "@prefrontalInvokeError": {
-    "placeholders": {
-      "error": {
-        "type": "String"
-      }
-    }
-  },
-  "prefrontalStatusStopped": "Stopped",
-  "@prefrontalStatusStopped": {},
-  "prefrontalStatusStarting": "Starting...",
-  "@prefrontalStatusStarting": {},
-  "prefrontalStatusRunning": "Running",
-  "@prefrontalStatusRunning": {},
-  "prefrontalStatusStopping": "Stopping...",
-  "@prefrontalStatusStopping": {},
-  "prefrontalStatusError": "Error",
-  "@prefrontalStatusError": {},
-  "prefrontalSampleAgentName": "Sample agent",
-  "@prefrontalSampleAgentName": {},
-  "prefrontalSampleAgentDesc": "Sample agent registered over JNI",
-  "@prefrontalSampleAgentDesc": {},
-  "prefrontalErrorPrefix": "Error: {error}",
-  "@prefrontalErrorPrefix": {
-    "placeholders": {
-      "error": {
-        "type": "String"
-      }
-    }
-  },
   "chatGreeting": "Hello! I am Shadow. How can I help you?",
   "@chatGreeting": {},
   "chatAttachmentNotAvailable": "Only plain text is supported right now - images, files and other attachments are not supported yet",
@@ -1118,7 +988,6 @@
   "surfaceTelencephalon": "Telencephalon",
   "surfaceSettings": "Settings",
   "surfaceSetup": "Setup",
-  "surfacePrefrontalEmbedded": "Embedded prefrontal",
   "navSectionConverse": "Converse",
   "navSectionWork": "Work",
   "navSectionCapability": "Capabilities",
@@ -1158,7 +1027,6 @@
   "@surfaceTelencephalon": {},
   "@surfaceSettings": {},
   "@surfaceSetup": {},
-  "@surfacePrefrontalEmbedded": {},
   "@navSectionConverse": {},
   "@navSectionWork": {},
   "@navSectionCapability": {},
@@ -1217,7 +1085,6 @@
   "agent2uiNoSurface": "Connected, but the telencephalon produced no surface",
   "agent2uiSurfaceHint": "The surface drawn by the telencephalon will appear here",
   "ttsEngineRust": "Rust",
-  "settingsAdvancedLegacy": "Legacy runtime",
   "logsExported": "Logs exported to {path}",
   "@logsExported": {
     "placeholders": {

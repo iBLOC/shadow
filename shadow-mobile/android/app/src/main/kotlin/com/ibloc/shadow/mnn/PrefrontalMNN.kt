@@ -22,7 +22,7 @@ class PrefrontalMNN {
                 System.loadLibrary("mnnbridge")
                 AppLog.i(TAG, "MNN bridge library loaded")
             } catch (e: UnsatisfiedLinkError) {
-                // 与 EncephalonRuntime / PrefrontalRuntime 同一套降级策略：不重抛。
+                // 与 EncephalonRuntime 同一套降级策略：不重抛。
                 //
                 // 重抛会让类初始化失败，之后每次访问都变成 NoClassDefFoundError ——
                 // 而调用方接的是 UnsatisfiedLinkError，接不住 NoClassDefFoundError，

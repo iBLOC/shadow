@@ -2180,11 +2180,11 @@ abstract class AppLocalizations {
   /// **'Logs'**
   String get logsTab;
 
-  /// No description provided for @logsBackend.
+  /// No description provided for @logsClient.
   ///
   /// In en, this message translates to:
-  /// **'Backend'**
-  String get logsBackend;
+  /// **'Client'**
+  String get logsClient;
 
   /// No description provided for @logsApp.
   ///
@@ -2287,18 +2287,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Usage: {percent}%'**
   String settingsMemUsage(String percent);
-
-  /// No description provided for @settingsPrefrontalEmbedded.
-  ///
-  /// In en, this message translates to:
-  /// **'Embedded Prefrontal'**
-  String get settingsPrefrontalEmbedded;
-
-  /// No description provided for @settingsPrefrontalEmbeddedDesc.
-  ///
-  /// In en, this message translates to:
-  /// **'Manage the Prefrontal runtime embedded in this app'**
-  String get settingsPrefrontalEmbeddedDesc;
 
   /// No description provided for @settingsEncephalonEmbedded.
   ///
@@ -2431,18 +2419,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Close'**
   String get cameraClose;
-
-  /// No description provided for @prefrontalEmbeddedTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Prefrontal Embedded Runtime (NDK)'**
-  String get prefrontalEmbeddedTitle;
-
-  /// No description provided for @prefrontalEmbeddedRuntime.
-  ///
-  /// In en, this message translates to:
-  /// **'Embedded runtime'**
-  String get prefrontalEmbeddedRuntime;
 
   /// No description provided for @prefrontalPort.
   ///
@@ -3373,12 +3349,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Setup'**
   String get surfaceSetup;
-
-  /// No description provided for @surfacePrefrontalEmbedded.
-  ///
-  /// In en, this message translates to:
-  /// **'Embedded prefrontal'**
-  String get surfacePrefrontalEmbedded;
 
   /// No description provided for @navSectionConverse.
   ///

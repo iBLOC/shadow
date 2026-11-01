@@ -14,7 +14,7 @@ import 'encephalon_mobile_provider.dart';
 
 /// Encephalon（大脑）嵌入式运行时管理页面
 ///
-/// 与 [PrefrontalMobilePage] 同构，但反映「大脑」的语义：
+/// 与更早那套内嵌运行时的管理页同构，但反映「大脑」的语义：
 /// - 大脑跑在 App 进程内（`libencephalon.so`），不是外部进程；
 /// - 推理走**进程内**通道（`nativeInfer` 直接进 neuron's adapter
 ///   管线），没有 socket、没有 CORS；

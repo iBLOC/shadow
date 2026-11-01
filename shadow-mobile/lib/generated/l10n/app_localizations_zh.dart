@@ -1086,7 +1086,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get logsTab => '日志';
 
   @override
-  String get logsBackend => '后端';
+  String get logsClient => '客户端';
 
   @override
   String get logsApp => '应用';
@@ -1162,11 +1162,7 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get settingsPrefrontalEmbedded => '嵌入式 Prefrontal';
-
   @override
-  String get settingsPrefrontalEmbeddedDesc => '管理嵌入在本 App 里的 Prefrontal 运行时';
-
   @override
   String get settingsEncephalonEmbedded => '嵌入式大脑';
 
@@ -1261,11 +1257,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get cameraClose => '关闭';
 
   @override
-  String get prefrontalEmbeddedTitle => 'Prefrontal 嵌入式运行时 (NDK)';
-
   @override
-  String get prefrontalEmbeddedRuntime => '嵌入式运行时';
-
   @override
   String prefrontalPort(int port) {
     return '端口: $port';
@@ -1785,8 +1777,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get surfaceSetup => '初始设置';
 
   @override
-  String get surfacePrefrontalEmbedded => '嵌入式前额叶';
-
   @override
   String get navSectionConverse => '对话与表达';
 

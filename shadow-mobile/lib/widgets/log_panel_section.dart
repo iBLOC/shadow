@@ -8,7 +8,6 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import '../generated/l10n/app_localizations.dart';
 import '../providers/log_provider.dart';
 import '../services/log_service.dart';
-import '../services/prefrontal/prefrontal_mobile_provider.dart';
 import '../theme/app_tokens.g.dart';
 import 'glass_card.dart';
 
@@ -33,43 +32,20 @@ class _LogPanelSectionState extends ConsumerState<LogPanelSection> {
 
   final ScrollController _scrollController = ScrollController();
   final GlobalKey<ShadSonnerState> _sonnerKey = GlobalKey<ShadSonnerState>();
-  ProviderSubscription<int?>? _prefrontalPortSub;
   bool _disposed = false;
 
   @override
   void initState() {
     super.initState();
-    // The agent log stream (`/api/logs/stream`) is served by the legacy
-    // embedded Prefrontal only — Telencephalon has no such route. That
-    // runtime is off by default, so the port is null at first frame and
-    // only becomes known if the user starts it later; reading the port
-    // once (as this used to do) meant the panel would never attach.
-    // listenManual keeps following the provider instead.
-    _prefrontalPortSub = ref.listenManual<int?>(
-      prefrontalMobilePortProvider,
-      (previous, next) => _attachPrefrontal(next),
-      fireImmediately: true,
-    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_disposed) return;
       ref.read(logServiceProvider.notifier).connectMnn();
     });
   }
 
-  void _attachPrefrontal(int? port) {
-    if (_disposed) return;
-    final notifier = ref.read(logServiceProvider.notifier);
-    if (port != null && port > 0) {
-      notifier.connectPrefrontal('http://127.0.0.1:$port');
-    } else {
-      notifier.disconnectPrefrontal();
-    }
-  }
-
   @override
   void dispose() {
     _disposed = true;
-    _prefrontalPortSub?.close();
     _scrollController.dispose();
     super.dispose();
   }
@@ -93,7 +69,7 @@ class _LogPanelSectionState extends ConsumerState<LogPanelSection> {
     return switch (value) {
       'app' => l10n.logsApp,
       'mnn' => l10n.logsDevice,
-      'prefrontal' => l10n.logsBackend,
+      'client' => l10n.logsClient,
       _ => l10n.commonAll,
     };
   }
@@ -144,8 +120,8 @@ class _LogPanelSectionState extends ConsumerState<LogPanelSection> {
                     ShadOption(value: 'app', child: Text(l10n.logsApp)),
                     ShadOption(value: 'mnn', child: Text(l10n.logsDevice)),
                     ShadOption(
-                      value: 'prefrontal',
-                      child: Text(l10n.logsBackend),
+                      value: 'client',
+                      child: Text(l10n.logsClient),
                     ),
                   ],
                   onChanged: (value) {

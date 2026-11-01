@@ -59,10 +59,6 @@
                 android:resource="@xml/accessibility_config" />
         </service>
 
-        <!-- Prefrontal 嵌入式运行时服务: 启动 NDK .so, 提供 MethodChannel -->
-        <service
-            android:name="com.ibloc.shadow.PrefrontalRuntimeService"
-            android:exported="false" />
         <!-- v2.8 — InCallService: detects phone calls and routes
              call audio to shadow-esp32 USB Audio or wired earphone.
              Requires BIND_INCALL_SERVICE and telecom.xml meta-data.
