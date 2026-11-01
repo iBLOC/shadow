@@ -9,20 +9,25 @@
  * 而本仓的闸要能在**不编 Rust** 的前提下回答「这条路由归哪扇门」
  * ⇒ ⇒ 所以有一份 **JS 镜像**（`scripts/lib/door-policy.mjs`）。
  *
- * ⚠️⚠️ **两份实现迟早会漂** ⇒ ⇒ 而漂了之后：
- * · 端脑的闸会**判错门型** ⇒ ⇒ 可能把一条**该关的路由报成「已覆盖」**
- *   （⇒ 「新增路由默认关」这条规矩就废了）⇒ ⇒ 或者反过来报一堆假红。
+ * ⚠️⚠️ **两份实现迟早会漂** ⇒ ⇒ 而漂了之后端脑的闸会**判错门型**
+ * （可能把一条**该关的路由**报成「已覆盖」⇒ 「新增路由默认关」这条规矩就废了）。
  * ⇒ ⇒ **各写一份不是问题，「没人判它俩一不一致」才是问题。**
  *
- * ## 怎么判
+ * ## 两条腿
  *
- * 端脑的 Rust **自己带一份用例表**（`door.rs` 的 `mod tests` 里那些
- * `door_of(path, method) == Door::X` 断言）⇒ ⇒ 那份表就是**语义规格**
- * ⇒ ⇒ 本闸把那 N 条用例**逐条**喂给 JS 镜像 ⇒ ⇒ **不一致就红**。
+ * ① **权威用例**（机器抽出来的）：Rust 自己的 `mod tests` 里那些
+ *    `door_of(path, method) == Door::X` 断言 ⇒ ⇒ 那是**语义规格**
+ *    ⇒ ⇒ 本闸把它们**逐条**喂给 JS 镜像 ⇒ ⇒ 不一致就红。
+ * ② **规格用例**（转写 + 带锚点）：⚠️ 权威那 27 条**没覆盖到全部分支**
+ *    （实测：削弱「方法写死的更具体」与「尾通配匹配零段」⇒ 那 27 条**一条都不红**
+ *    ⇒ ⇒ 也就是说它守不住那两支）⇒ ⇒ 所以补一组**规格用例**：
+ *    期望值从权威的**源码/文档**转写 ⇒ ⇒ 每条都带一个 `anchor`
+ *    （权威源码里必须**仍然存在**的那段文字/代码）⇒ ⇒ 权威一改
+ *    ⇒ ⇒ anchor 对不上 ⇒ ⇒ **判不了** ⇒ ⇒ 逼人重新转写
+ *    ⇒ ⇒ 规格用例不会悄悄腐掉。
  *
- * ⚠️ **不许静默跳过**：若 Rust 里的 `door_of(` 调用数 ≠ 抽出的用例数
- * ⇒ ⇒ 说明有调用没抽出来（形状变了）⇒ ⇒ **判不了** ⇒ ⇒ 退出码 2
- * （不许当绿）。
+ * ⚠️ **不许静默跳过**：Rust 里的 `door_of(` 调用数 ≠ 抽出的用例数 ⇒ ⇒
+ * **判不了** ⇒ ⇒ 退出码 2（不许当绿）。
  *
  * ## 用法
  *
@@ -48,12 +53,66 @@ const DOOR_NAMES = {
 };
 
 /**
+ * 规格用例 —— **算法**的分支（权威自己那批用例没覆盖到的那些）。
+ *
+ * ⚠️ `table: null` ⇒ 用**真实表**；给字符串 ⇒ 用这张**合成表**。
+ * ⚠️ `anchor` ⇒ 权威源码里必须仍然存在的那段文字/代码
+ * ⇒ ⇒ 权威一改 ⇒ ⇒ 对不上 ⇒ ⇒ **判不了** ⇒ ⇒ 逼人重新转写期望值。
+ */
+const SPEC_CASES = [
+  {
+    name: '方法写死的规则赢过方法通配的（字面段 / 通配段 / 段数都相同时）',
+    table: ['/p GET read', '/p * admin'].join('\n'),
+    path: '/p',
+    method: 'GET',
+    expect: 'read',
+    anchor: '方法写死的',
+    why: 'door.rs 的 more_specific 文档：顺序 = 字面段多的 ⇒ 通配段少的 ⇒ 方法写死的 ⇒ 段数多的 ⇒ 文件里靠前的',
+  },
+  {
+    name: '尾通配「可以为零段」⇒ /shadow/v1 命中 /shadow/v1/*',
+    table: null,
+    path: '/shadow/v1',
+    method: 'GET',
+    expect: 'read',
+    anchor: 'if path.len() < prefix.len()',
+    why: 'door.rs 的 matches_path：只要求 path.len() >= prefix.len() ⇒ 零段也算命中',
+  },
+  {
+    name: 'auto 派生：GET ⇒ read',
+    table: ['/q * auto'].join('\n'),
+    path: '/q',
+    method: 'GET',
+    expect: 'read',
+    anchor: 'if method == Method::GET || method == Method::HEAD',
+    why: 'door.rs 的 resolve：Auto ⇒ GET/HEAD 给 read，其余给 admin',
+  },
+  {
+    name: 'auto 派生：POST ⇒ admin',
+    table: ['/q * auto'].join('\n'),
+    path: '/q',
+    method: 'POST',
+    expect: 'admin',
+    anchor: 'if method == Method::GET || method == Method::HEAD',
+    why: '同上',
+  },
+  {
+    name: '一条都没匹配上 ⇒ closed',
+    table: ['/z * admin'].join('\n'),
+    path: '/nope',
+    method: 'GET',
+    expect: 'closed',
+    anchor: 'None => (Door::Closed, None)',
+    why: 'door.rs 的 resolve：一条都没匹配上 ⇒ Closed',
+  },
+];
+
+/**
  * 从 Rust 源码里抽出**它自己的用例表**。
  *
  * @returns {{cases: {path: string, method: string, expect: string, line: number}[], calls: number, missed: number}}
  */
 export function extractCases(rustText) {
-  // ⚠️ 只看测试模块（权威的用例表在那儿）⇒ ⇒ 别把实现里的调用也算进去。
   const modIdx = rustText.indexOf('mod tests');
   const block = modIdx === -1 ? rustText : rustText.slice(modIdx);
   const cases = [];
@@ -63,8 +122,6 @@ export function extractCases(rustText) {
     const line = block.slice(0, m.index).split('\n').length;
     cases.push({ path: m[1], method: m[2], expect: m[3], line });
   }
-  // ⚠️ **所有** `door_of(` 调用（去掉那个 helper 自己的定义）
-  // ⇒ ⇒ 抽出来的条数必须等于它 ⇒ ⇒ 不等 ⇒ 有调用被静默跳过 ⇒ ⇒ 判不了。
   const occurrences = [...block.matchAll(/door_of\s*\(/g)];
   const calls = occurrences.filter((o) => {
     const before = block.slice(Math.max(0, o.index - 8), o.index);
@@ -86,6 +143,28 @@ export function compareCases(cases, entries) {
     if (got !== want) mismatches.push({ ...c, want, got });
   }
   return mismatches;
+}
+
+/**
+ * 规格用例 —— 逐条比 + 逐条查锚点。
+ *
+ * @returns {{mismatches: object[], missingAnchors: object[]}}
+ */
+export function checkSpecCases(rustText, realEntries) {
+  const mismatches = [];
+  const missingAnchors = [];
+  for (const spec of SPEC_CASES) {
+    if (!rustText.includes(spec.anchor)) {
+      missingAnchors.push(spec);
+      continue;
+    }
+    const entries = spec.table === null ? realEntries : parsePolicyText(spec.table).entries;
+    const got = resolveDoor(spec.path, spec.method, entries).door;
+    if (got !== spec.expect) {
+      mismatches.push({ ...spec, want: spec.expect, got });
+    }
+  }
+  return { mismatches, missingAnchors };
 }
 
 function selfTest() {
@@ -136,17 +215,29 @@ function selfTest() {
   const ex2 = extractCases(rustWithOpaque);
   check('抽不出来的调用 ⇒ 判不了（missed > 0）', ex2.missed > 0);
 
+  // 规格用例的机器：锚点缺失 ⇒ 判不了；期望不符 ⇒ 不一致。
+  const specWithAnchor = checkSpecCases('方法写死的' + 'if path.len() < prefix.len()' + 'if method == Method::GET || method == Method::HEAD' + 'None => (Door::Closed, None)', realEntriesSelfTest());
+  check('规格用例：锚点都在 ⇒ 没有 missingAnchors', specWithAnchor.missingAnchors.length === 0);
+  check('规格用例：锚点齐了就不该报不一致', specWithAnchor.mismatches.length === 0, specWithAnchor.mismatches.map((m) => m.name).join(' | '));
+  const specMissing = checkSpecCases('方法写死的', realEntriesSelfTest());
+  check('规格用例：锚点缺了 ⇒ 判不了（missingAnchors > 0）', specMissing.missingAnchors.length > 0);
+
   // 再钉一次**真实文件** —— 上面那组只验逻辑，这里验真表真用例。
   const src = resolve(REPO, '..', 'telencephalon');
   const doorRs = join(src, 'src', 'api', 'door.rs');
   const policyTxt = join(src, 'src', 'api', 'door_policy.txt');
   if (existsSync(doorRs) && existsSync(policyTxt)) {
-    const real = extractCases(readFileSync(doorRs, 'utf8'));
-    const entries = parsePolicyText(readFileSync(policyTxt, 'utf8')).entries;
+    const rustText = readFileSync(doorRs, 'utf8');
+    const { entries, errors } = parsePolicyText(readFileSync(policyTxt, 'utf8'));
+    const real = extractCases(rustText);
     const mism = compareCases(real.cases, entries);
+    const spec = checkSpecCases(rustText, entries);
+    check('真实表解析零错', errors.length === 0);
     check('真实用例表：用例数 > 0', real.cases.length > 0, String(real.cases.length));
     check('真实用例表：镜像与权威逐条一致', mism.length === 0, mism.map((m) => m.path + ' ' + m.method).join(', '));
     check('真实用例表：没有抽不出来的调用', real.missed === 0, String(real.missed));
+    check('真实规格用例：锚点都在', spec.missingAnchors.length === 0, spec.missingAnchors.map((s) => s.name).join(' | '));
+    check('真实规格用例：逐条一致', spec.mismatches.length === 0, spec.mismatches.map((m) => m.name + ' ⇒ ' + m.got).join(' | '));
   } else {
     check('读得到真实门型表与 door.rs', false);
   }
@@ -155,13 +246,18 @@ function selfTest() {
   process.exit(failed ? 1 : 0);
 }
 
+/** 自检里用的「真实表」替身 —— 规格用例里有一条要用真实表（/shadow/v1）。 */
+function realEntriesSelfTest() {
+  return parsePolicyText(['/shadow/v1/* * read', '/p GET read', '/p * admin', '/q * auto', '/z * admin'].join('\n')).entries;
+}
+
 function main() {
   const argv = process.argv.slice(2);
   let source = resolve(REPO, '..', 'telencephalon');
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--source') source = resolve(argv[++i]);
     else if (argv[i] === '--self-test') return selfTest();
-    else if (argv[i] === '-h' || argv[i] === '--help') {
+    else if (argv[i] === '-h' || argv[i] == '--help') {
       console.log('用法: node scripts/check-door-policy-parity.mjs [--source <telencephalon 路径>] [--self-test]');
       process.exit(0);
     } else {
@@ -185,7 +281,8 @@ function main() {
     process.exit(2);
   }
 
-  const { cases, calls, missed } = extractCases(readFileSync(doorRs, 'utf8'));
+  const rustText = readFileSync(doorRs, 'utf8');
+  const { cases, calls, missed } = extractCases(rustText);
   console.log('跨语言一致性 —— JS 镜像 vs 端脑 Rust 权威');
   console.log('  权威：' + doorRs + '（mod tests 的用例表）');
   console.log('  镜像：scripts/lib/door-policy.mjs');
@@ -203,13 +300,25 @@ function main() {
     process.exit(2);
   }
 
+  const spec = checkSpecCases(rustText, entries);
+  if (spec.missingAnchors.length > 0) {
+    console.error('⚠️ 规格用例的**锚点**在权威源码里对不上 ⇒ 判不了 ⇒ 退出码 2。');
+    console.error('   （权威改了 ⇒ 重新转写期望值，别让规格用例悄悄腐掉）');
+    for (const s of spec.missingAnchors) console.error('  ✘ ' + s.name + ' ⇒ 锚点：' + s.anchor);
+    process.exit(2);
+  }
+
   const mismatches = compareCases(cases, entries);
   for (const m of mismatches) {
-    console.log('  ❌ ' + m.method.padEnd(7) + m.path + ' ⇒ 期望 ' + m.want + '，镜像算出 ' + m.got + '（door.rs 第 ' + m.line + ' 行附近）');
+    console.log('  ❌ 权威用例 ' + m.method.padEnd(7) + m.path + ' ⇒ 期望 ' + m.want + '，镜像算出 ' + m.got + '（door.rs 第 ' + m.line + ' 行附近）');
+  }
+  for (const m of spec.mismatches) {
+    console.log('  ❌ 规格用例 ' + m.name + ' ⇒ 期望 ' + m.want + '，镜像算出 ' + m.got);
   }
   console.log('');
-  console.log('  用例 ' + cases.length + ' 条 ⇒ 一致 ' + (cases.length - mismatches.length) + ' / 不一致 ' + mismatches.length);
-  if (mismatches.length > 0) {
+  console.log('  权威用例 ' + cases.length + ' 条 ⇒ 一致 ' + (cases.length - mismatches.length) + ' / 不一致 ' + mismatches.length);
+  console.log('  规格用例 ' + SPEC_CASES.length + ' 条 ⇒ 一致 ' + (SPEC_CASES.length - spec.mismatches.length) + ' / 不一致 ' + spec.mismatches.length);
+  if (mismatches.length > 0 || spec.mismatches.length > 0) {
     console.log('');
     console.log('❌ JS 镜像与 Rust 权威对不上 ⇒ ⇒ 端脑的闸可能判错门型 ⇒ ⇒ 改镜像，别改权威。');
     process.exit(1);
