@@ -108,6 +108,9 @@ function SettingsSidebar({
           return (
             <button
               key={section.id}
+              // ⚠️ **状态可判** ⇒ ⇒ 侧栏按钮也要语言无关的锚点
+              // ⇒ ⇒ （文案随语言走 ⇒ ⇒ 用文案定位会脆）
+              data-testid={`settings-section-${section.id}`}
               onClick={() => onSelect(section.id)}
               className={cn(
                 'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
@@ -1898,8 +1901,11 @@ function ModelsSection() {
         icon={<Cpu size={20} />}
         footer={
           <div className="flex items-center justify-between">
-            <div className="text-xs text-muted-foreground">
-
+            <div
+              data-testid="provider-count"
+              data-state={providersState === 'unreadable' ? 'unknown' : 'known'}
+              className="text-xs text-muted-foreground"
+            >
               {providersState === 'unreadable'
                 ? t('settings.providersCountUnknown')
                 : t('settings.providersCount', { count: providers.length })}
@@ -1920,19 +1926,33 @@ function ModelsSection() {
           // ⚠️⚠️ **「读不到」不是「没有」** ⇒ ⇒ 这一格**不许**显示
           // ⚠️⚠️ 「暂无模型供应商」⇒ ⇒ 那会让用户去**重复配置已经配好的东西**
           // ⚠️⚠️ ⇒ ⇒ 而真正的原因（门关着 / 端脑没起）**一个字都没人告诉他**。
-          <div className="flex flex-col items-center gap-2 py-8 text-center">
+          // ⚠️ **状态可判**（机器不看文案）⇒ ⇒ data-state 写死**这一档**
+          // ⇒ ⇒ 它**不可能**与走出来的分支走偏 ⇒ ⇒ 而文案会随语言变。
+          <div
+            data-testid="provider-list-state"
+            data-state="unreadable"
+            className="flex flex-col items-center gap-2 py-8 text-center"
+          >
             <AlertCircle size={32} className="text-muted-foreground" />
             <p className="text-sm text-muted-foreground">{t('settings.providersUnreadable')}</p>
             <p className="text-xs text-muted-foreground">{t('settings.providersUnreadableHint')}</p>
           </div>
         ) : listState === 'empty' ? (
-          <div className="flex flex-col items-center gap-2 py-8 text-center">
+          <div
+            data-testid="provider-list-state"
+            data-state="empty"
+            className="flex flex-col items-center gap-2 py-8 text-center"
+          >
             <Cpu size={32} className="text-muted-foreground" />
             <p className="text-sm text-muted-foreground">{t('settings.noProviders')}</p>
             <p className="text-xs text-muted-foreground">{t('settings.addProviderHint')}</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+          <div
+            data-testid="provider-list-state"
+            data-state="ready"
+            className="grid grid-cols-1 gap-2 md:grid-cols-2"
+          >
             {providers.map((provider) => (
               <div
                 key={provider.id}
