@@ -128,21 +128,33 @@ Turso 里存**指针**，不存材料：
 
 ---
 
-## 6. 需要拍板的两件事
+## 6. 已拍板（2026-11-02）
 
-### ① 密钥的「主人」是谁？
+### ① 主人：**默认主人** —— 谁写谁主
 
-今天有**两个大脑进程**：桌面端内嵌的（`telencephalon_http.rs`）＋ Android App 内嵌的（`encephalon` 的 `mobile` feature）⇒ ⇒ 两把各自的钥匙环 ⇒ ⇒ **桌面端配好的 key，手机上那份大脑解不开**（引用看得见，明文取不到）。
+用户拍板：「密钥一般是单主人的，可以使用默认主人」⇒ ⇒ 规则落成：
 
-- **(a) 单主人**：指定一台大脑是密钥宿主，其他设备通过主人面解析（新增一条 owner 门后的内部面）⇒ 最干净，但要加一条端脑↔端脑内部协议
-- **(b) 每设备一份**：Turso 按 device_id 分槽，密钥各存各的 ⇒ 「两端用同一张面改同一份配置」**只在非密钥项上成立** ⇒ 必须写进台账，不能假装
-- **(c) 共享主密钥**：一把主密钥进各设备的钥匙环，密钥材料用 `db-keystore` 加密后放 Turso ⇒ 材料仍只有一份，但「导出的主密钥」本身需要用户确认
+* **谁写谁主** —— 写入这把密钥的大脑**就是**主人，主人 id 记进引用（`owner` 字段）
+  ⇒ ⇒ 用户**不需要配置**主人 ⇒ ⇒ 「默认主人」= 第一次写下它的那台大脑；
+* **非主人不硬取** —— 另一台大脑拿到引用时**诚实报错**（`SecretError::NotOwner`），
+  **不猜、不跨设备硬取、更不退回数据库里的明文** ⇒ ⇒ 跨设备解析留给主人面那条
+  内部协议（P5）；
+* **仓库种类也要对** —— 引用里记 `vendor`，本机凭据仓库对不上就报错
+  （`SecretError::VendorMismatch`）。
 
-⇒ ⇒ 我倾向 **(a)**（最符合「大脑负责路由和分发」），退而求其次 (c)。
+⚠️ 这条同时把「单主人」方案的**实现成本**压到最低：**不需要新增任何配置项** ——
+主人身份是**数据**（引用里的 owner），不是**配置**。
 
-### ② 存量明文怎么擦？
+### ② 存量明文：**迁移完就删**
 
-不可逆 ⇒ ⇒ 需要确认：**迁移完直接擦掉** `providers.json` / Turso 旧行 / `config.json` 里的明文，还是**先备份一份再擦**（建议：备份到用户目录 + 明确告知备份文件本身仍是明文）。
+用户拍板：「存量明文转移到密钥管理后删除即可」⇒ ⇒ 落地顺序是**硬约束**：
+
+1. 写进凭据仓库；
+2. **立刻回读并逐字节校验**（`Secrets::store_secret_as` 里**强制**，不一致就删掉
+   刚写的并报错）；
+3. **只有拿到引用**，调用方才允许删掉源处的明文。
+
+⇒ ⇒ 「写失败却把原件删了」**不可能发生** ⇒ ⇒ **没有引用 = 没有删除许可**。
 
 ---
 
@@ -152,7 +164,8 @@ Turso 里存**指针**，不存材料：
 |---|---|---|
 | P0 | **报告式闸**（只报、**不拦**）：扫端脑的 secret 写路径，命中「明文 secret 落库 / 落文件」⇒ ⇒ 打印位置与来源 | 闸能报出今天那几处明文落点；因为不拦截 ⇒ ⇒ **今天就能上，不依赖任何拍板** |
 | P0' | **拦截式闸**（改写即失败）：写库前命中 secret 键且值不是引用 ⇒ 直接报错 | ⚠️ **必须与 P2 同批落地** —— 在引用式存储存在之前就拦截 ⇒ ⇒ 供应商 key **无处可放**（配置面直接瘫）⇒ ⇒ 顺序错了就把「更安全」做成「不能用」 |
-| P1 | 大脑加 `SecretStore` trait ＋ `BuildOptions.secret_store`；实现 `KeyringSecretStore`（keyring-core ＋ 按 target 的 store）＋ `InMemorySecretStore`（测试） | `cargo test --lib` 绿；反向验证（拆掉 store ⇒ 恰好红） |
+| P1 | **核心已落**（2026-11-02）：端脑 `src/secret_store/` —— `SecretStore` trait ＋ `SecretRef`/`SecretEnvelope`（`$secret` 壳）＋ 默认主人判定 ＋ 迁移（回读校验后才给删除许可）＋ `InMemorySecretStore`；**零新依赖**（不碰 Cargo.toml / Cargo.lock） | 7 条单测全过（经探针跑端脑那份源码）；反向验证：写坏的 store ⇒ 拿不到引用 ⇒ 没有删除许可 |
+| P1b | **keyring 适配器**（待依赖窗口）：`src/secret_store/keyring.rs` ＋ `BuildOptions.secret_store` ＋ Cargo.toml 的 `keyring-core` 与按 target 的 store crate | 端脑内真跑一次往返；⚠️ 端脑的 `Cargo.lock` 此刻有并行会话在改 ⇒ ⇒ **那一步要等窗口** |
 | P2 | 配置中心支持引用式 secret（`config_entry` 加 `secret_ref` 列，或值改成引用对象）；provider 写入改「写钥匙环 ＋ 存引用」 | 真 HTTP 复验：Turso 里 grep 不到 `sk-` |
 | P3 | 存量迁移（**幂等 ＋ 回滚标记**，照抄桌面端 providers 一次性导入那套） | 迁移后旧文件里没有明文；重复跑不炸 |
 | P4 | 两端客户端：界面不再显示明文；桌面端 admin token / Turso 令牌进钥匙环；Android 侧补 Kotlin `ndk_context` 初始化 ＋ jniLibs | 真机：Keystore / 凭据管理器里能看到条目 |
@@ -163,6 +176,50 @@ Turso 里存**指针**，不存材料：
 ⚠️⚠️ **落地窗口（2026-11-02 实测）**：P1/P2 的四个落点 —— `src/boot.rs`、`src/config_center/mod.rs`、`src/config_center/store.rs`、`src/api/providers.rs` —— **在端脑仓的工作树里此刻全是 `M`（并行会话在飞）** ⇒ ⇒ **现在动它们就是覆盖在飞工作** ⇒ ⇒ 动手前必须先确认那批改动已经落地。
 
 ⚠️ **别把「更安全」做成「不能用」**：拦截式闸（P0'）在引用式存储（P2）之前上线，会让供应商 key **无处可放** ⇒ ⇒ 配置面直接瘫 ⇒ ⇒ 顺序是硬约束，不是风格问题。
+
+---
+
+## 7.5 本轮已落地与证据（2026-11-02）
+
+### ✅ 已落地的代码
+
+**端脑**（`C:\Projects\iBLOC\telencephalon`）：`src/secret_store/mod.rs`
+
+* `SecretStore` trait（`async_trait`，dyn-safe）、`SecretRef` ＋ `SecretEnvelope`（键名 `$secret`）
+* `Secrets` 门面：`store_secret` / `store_secret_as` / `resolve` / `delete`
+* `InMemorySecretStore`（测试与本地开发）
+* `SecretError`：`NotFound` / `NotOwner` / `VendorMismatch` / `Store`
+* ⚠️ **零新依赖** —— 端脑的 `serde_json` 是**可选依赖** ⇒ ⇒ 模块只用 `serde`
+  （JSON 形状由 `SecretEnvelope` 定，序列化交给调用方）
+
+### ✅ 运行时证据（不是编译推断）
+
+**探针**（`shadow/.local/keyring-probe/`，已被 `.gitignore` 忽略 ⇒ 不进仓）：
+它用 `#[path]` **直接引入端脑那份源码** ⇒ ⇒ 探针里跑通的单测**就是**端脑的单测；
+并把端脑的 trait 接到**真的** Windows 凭据管理器。
+
+读数（`cargo run -- write` / `-- cleanup` ＋ Windows 自带的 `cmdkey /list` 当**独立证人**）：
+
+| 步骤 | 结果 |
+|---|---|
+| 写入 ＋ **回读校验** | ✓ 通过（`store_secret_as` 内部强制） |
+| 写进数据库的 JSON | `{"$secret":{"owner":…,"handle":…,"hint":"4f7c","updated_at":…,"vendor":…}}` ⇒ ⇒ **不含材料** ✓ |
+| 取回 | 24 字节，与写入一致 ✓ |
+| 另一台大脑来取 | `NotOwner` 诚实报错 ✓（材料不出现在报错文本里） |
+| `cmdkey /list`（独立证人） | 真的出现 `LegacyGeneric:target=probe-1.io.ibloc.shadow.brain / Type: Generic / User: probe-1` ⇒ ⇒ **密钥真的在 Windows 凭据管理器里** ✓ |
+| 删除 ＋ 再取 | `NotFound` ✓ |
+| `cmdkey /list`（删除后） | 该条目**已消失** ✓ |
+
+### ✅ 探针提前抓出的两个 bug（都在**接线之前**）
+
+1. **`spawn_blocking` 的 `'static` 约束**（E0521）—— 借用过来的 `&[u8]` 必须
+   **先拷成拥有所有权的 `Vec`** ⇒ ⇒ 否则编译期就挂。
+2. **错误归类** —— `keyring_core::Error::NoEntry`（「这条不存在／已删」）必须
+   翻译成 `SecretError::NotFound` ⇒ ⇒ 归成通用 `Store` 错误的话，「删掉了没」
+   会被误判成「还在」⇒ ⇒ 迁移流程会**拒绝**删源处明文（安全那一侧是好的），
+   但「已清理」的报告会**说谎**。
+
+⇒ ⇒ 这就是「**先在探针上真跑一遍**」的价值：两个 bug 都在**接线之前**被抓住。
 
 ---
 
@@ -187,7 +244,14 @@ Turso 里存**指针**，不存材料：
 
 ## 9. 边界
 
-- **本轮没有改任何代码** —— 这是评估，不是实现；等 §6 两个决定拍板再动
-- 端脑仓此刻有并行会话在飞（`telencephalon/src/api/providers.rs` 等 30+ 文件）⇒ ⇒ 真要动手，**先确认没人正在改同一批文件**
+- ✅ **§6 两个决定已拍板（2026-11-02）** ⇒ ⇒ 默认主人 ＋ 迁移完即删 ⇒ ⇒
+  核心代码已落地（见 §7.5）
+- ⚠️ **接线仍未做** —— `BuildOptions.secret_store`、配置中心的引用式 secret、
+  provider 改「写钥匙环 ＋ 存引用」这三件事都还没动 ⇒ ⇒ 它们要碰端脑那四个落点
+  （`src/boot.rs`、`src/config_center/mod.rs`、`src/config_center/store.rs`、
+  `src/api/providers.rs`），而那四个文件在工作树里此刻**全是 `M`**（并行会话在飞）
+  ⇒ ⇒ **现在动就是覆盖在飞工作** ⇒ ⇒ 等窗口
+- ⚠️ **keyring 适配器还没进端脑** —— 它要 `keyring-core` 依赖 ⇒ ⇒ 而端脑的
+  `Cargo.lock` 此刻也在别人的在飞改动里 ⇒ ⇒ 先在探针里跑通（§7.5），等窗口再搬
 - 桌面端 exe 在这台机器链不出来 ⇒ ⇒ 桌面端那条链**无法真机验证**
 - 「端脑 `/v1/*` 不过门」那笔旧账仍在这笔之外，未动
