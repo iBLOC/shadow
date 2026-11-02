@@ -127,63 +127,17 @@ class PrefrontalClient {
     }
   }
 
-  // ============ Provider APIs ============
-
-  /// 获取所有Provider
-  Future<List<ProviderResponse>> getProviders() async {
-    final data = await _request<List<dynamic>>('GET', '/api/providers');
-    return data.map((p) => ProviderResponse.fromJson(p)).toList();
-  }
-
-  // ============ Skill APIs ============
-
-  /// 获取所有Skill
-  Future<List<SkillResponse>> getSkills() async {
-    final data = await _request<List<dynamic>>('GET', '/api/skills');
-    return data.map((s) => SkillResponse.fromJson(s)).toList();
-  }
-
-  // ============ Agent APIs ============
-
-  /// 获取所有Agent
-  Future<List<AgentResponse>> getAgents() async {
-    final data = await _request<List<dynamic>>('GET', '/api/agents');
-    return data.map((a) => AgentResponse.fromJson(a)).toList();
-  }
-
-  /// 创建Agent
-  Future<AgentResponse> createAgent(CreateAgentRequest request) async {
-    return await _request<AgentResponse>(
-      'POST',
-      '/api/agents',
-      body: request.toJson(),
-      parser: (data) => AgentResponse.fromJson(data),
-    );
-  }
-
-  /// 获取单个Agent
-  Future<AgentResponse> getAgent(String agentId) async {
-    return await _request<AgentResponse>(
-      'GET',
-      '/api/agents/$agentId',
-      parser: (data) => AgentResponse.fromJson(data),
-    );
-  }
-
-  /// 删除Agent
-  Future<void> deleteAgent(String agentId) async {
-    await _request('DELETE', '/api/agents/$agentId');
-  }
-
-  /// 更新Agent模型
-  Future<AgentResponse> updateAgentModel(String agentId, String model) async {
-    return await _request<AgentResponse>(
-      'PUT',
-      '/api/agents/$agentId/model',
-      body: {'model': model},
-      parser: (data) => AgentResponse.fromJson(data),
-    );
-  }
+  // ⚠️ **前额叶方言的这一族已经删掉了**（2026-11-03）。
+  //
+  // `/api/providers`、`/api/skills`、`/api/agents` 这一族是**旧方言** ——
+  // 端脑**没有**这些路由（旧路径在端脑那边一律 **404**）⇒ ⇒ 界面把它画成
+  // 「一个都没有」⇒ ⇒ **失败长得像成功**。
+  //
+  // ⇒ 现在的真相源（端脑面）：
+  // - 供应商 ⇒ `GET /models/providers`（`TelencephalonClient.listProviders`）
+  // - 叶区/agent ⇒ `GET /shadow/v1/agents`（`listAgents`）
+  // - MCP ⇒ `GET /api/telencephalon/mcp/servers`（`listMcpServers`）
+  // - 技能 ⇒ 端脑**没有**「技能登记表」这张面 ⇒ 那个数**未定义**（不是 0）
 
   // ============ Task APIs ============
 
@@ -465,14 +419,6 @@ class PrefrontalClient {
     }
   }
 
-  // ============ MCP APIs ============
-
-  /// 获取MCP服务器列表
-  Future<List<MCPServerResponse>> getMCPServers() async {
-    final data = await _request<List<dynamic>>('GET', '/api/mcp/servers');
-    return data.map((s) => MCPServerResponse.fromJson(s)).toList();
-  }
-
   // ============ Session APIs ============
 
   Future<SessionResponse> createSession({String? name}) async {
@@ -678,129 +624,6 @@ class UpdateProviderRequest {
     if (baseUrl != null) 'base_url': baseUrl,
     if (model != null) 'model': model,
     if (enabled != null) 'enabled': enabled,
-  };
-}
-
-class ProviderResponse {
-  final String name;
-  final String type;
-  final String model;
-  final String? baseUrl;
-  final bool enabled;
-  final DateTime? createdAt;
-
-  ProviderResponse({
-    required this.name,
-    required this.type,
-    required this.model,
-    this.baseUrl,
-    required this.enabled,
-    this.createdAt,
-  });
-
-  factory ProviderResponse.fromJson(Map<String, dynamic> json) {
-    return ProviderResponse(
-      name: json['name'] ?? '',
-      type: json['type'] ?? '',
-      model: json['model'] ?? '',
-      baseUrl: json['base_url'],
-      enabled: json['enabled'] ?? true,
-      createdAt: json['created_at'] != null
-          ? DateTime.parse(json['created_at'])
-          : null,
-    );
-  }
-}
-
-class SkillResponse {
-  final String name;
-  final String description;
-  final Map<String, dynamic> inputSchema;
-  final bool enabled;
-
-  SkillResponse({
-    required this.name,
-    required this.description,
-    required this.inputSchema,
-    required this.enabled,
-  });
-
-  factory SkillResponse.fromJson(Map<String, dynamic> json) {
-    return SkillResponse(
-      name: json['name'] ?? '',
-      description: json['description'] ?? '',
-      inputSchema: json['input_schema'] ?? {},
-      enabled: json['enabled'] ?? true,
-    );
-  }
-}
-
-class AgentResponse {
-  final String id;
-  final String name;
-  final String? description;
-  final String model;
-  final List<String> skills;
-  final List<String> mcpServers;
-  final DateTime createdAt;
-  final bool isOnline;
-  final bool isDefault;
-
-  AgentResponse({
-    required this.id,
-    required this.name,
-    this.description,
-    required this.model,
-    required this.skills,
-    required this.mcpServers,
-    required this.createdAt,
-    required this.isOnline,
-    required this.isDefault,
-  });
-
-  factory AgentResponse.fromJson(Map<String, dynamic> json) {
-    return AgentResponse(
-      id: json['id'] ?? '',
-      name: json['name'] ?? '',
-      description: json['description'],
-      model: json['model'] ?? '',
-      skills:
-          (json['skills'] as List<dynamic>?)
-              ?.map((e) => e as String)
-              .toList() ??
-          [],
-      mcpServers:
-          (json['mcp_servers'] as List<dynamic>?)
-              ?.map((e) => e as String)
-              .toList() ??
-          [],
-      createdAt: DateTime.parse(
-        json['created_at'] ?? DateTime.now().toIso8601String(),
-      ),
-      isOnline: json['is_online'] ?? false,
-      isDefault: json['is_default'] ?? false,
-    );
-  }
-}
-
-class CreateAgentRequest {
-  final String name;
-  final String? description;
-  final String model;
-  final List<String>? skills;
-
-  CreateAgentRequest({
-    required this.name,
-    this.description,
-    required this.model,
-    this.skills,
-  });
-
-  Map<String, dynamic> toJson() => {
-    'name': name,
-    if (description != null) 'description': description,
-    'model': model,
-    if (skills != null) 'skills': skills,
   };
 }
 
@@ -1140,32 +963,6 @@ class MessageResponse {
   }
 }
 
-class MCPServerResponse {
-  final String name;
-  final String command;
-  final List<String> args;
-  final Map<String, String> env;
-  final bool enabled;
-
-  MCPServerResponse({
-    required this.name,
-    required this.command,
-    required this.args,
-    required this.env,
-    required this.enabled,
-  });
-
-  factory MCPServerResponse.fromJson(Map<String, dynamic> json) {
-    return MCPServerResponse(
-      name: json['name'] ?? '',
-      command: json['command'] ?? '',
-      args: List<String>.from(json['args'] ?? []),
-      env: Map<String, String>.from(json['env'] ?? {}),
-      enabled: json['enabled'] ?? true,
-    );
-  }
-}
-
 class AddMCPServerRequest {
   final String name;
   final String command;
@@ -1308,6 +1105,16 @@ class HubState {
   /// 不显示一个看起来很像真的数字。
   final String? flowError;
 
+  /// 其余几项计数**各自**读不到的原因（语义同 [flowError]）。
+  ///
+  /// ⚠️ **逐项**记，不是「一个 error 管全部」—— 一张卡读不到**不能**把别的卡
+  /// 的数也拖成未知（以前是一个 `Future.wait` ⇒ 一条 404 拖垮五张卡）。
+  final String? providerError;
+  final String? skillError;
+  final String? agentError;
+  final String? mcpError;
+  final String? memoryError;
+
   const HubState({
     this.providerCount = 0,
     this.skillCount = 0,
@@ -1318,6 +1125,11 @@ class HubState {
     this.isLoading = false,
     this.error,
     this.flowError,
+    this.providerError,
+    this.skillError,
+    this.agentError,
+    this.mcpError,
+    this.memoryError,
   });
 
   HubState copyWith({
@@ -1330,6 +1142,11 @@ class HubState {
     bool? isLoading,
     String? error,
     String? flowError,
+    String? providerError,
+    String? skillError,
+    String? agentError,
+    String? mcpError,
+    String? memoryError,
   }) {
     return HubState(
       providerCount: providerCount ?? this.providerCount,
@@ -1341,8 +1158,23 @@ class HubState {
       isLoading: isLoading ?? this.isLoading,
       error: error,
       flowError: flowError,
+      providerError: providerError,
+      skillError: skillError,
+      agentError: agentError,
+      mcpError: mcpError,
+      memoryError: memoryError,
     );
   }
+}
+
+/// 一个计数 ＋ 它**读不到的原因**。
+///
+/// ⚠️ [error] 非空 ⇒ 这个数**未定义**（不是 0）⇒ ⇒ 界面显示「未知」。
+class _Count {
+  final int value;
+  final String? error;
+
+  const _Count(this.value, this.error);
 }
 
 /// Hub notifier that fetches counts from Prefrontal API
@@ -1358,50 +1190,64 @@ class HubNotifier extends StateNotifier<HubState> {
     loadAllCounts();
   }
 
+  /// 取一个计数 —— 取不到就**把原因记下来**，绝不用 0 冒充。
+  ///
+  /// ⚠️ 「读不到」≠「0 条」：端脑没起来 / 地址指着没人听的端口 / 钥匙不对，
+  /// 三种情况都会让这个数取不到 ⇒ ⇒ 把它说成 0 就是**失败长得像成功**。
+  Future<_Count> _count(Future<int> Function() f) async {
+    try {
+      return _Count(await f(), null);
+    } catch (e) {
+      return _Count(0, e.toString());
+    }
+  }
+
   Future<void> loadAllCounts() async {
     state = state.copyWith(isLoading: true, error: null);
-    try {
-      // Fetch all counts in parallel
-      final results = await Future.wait([
-        _client.getProviders(),
-        _client.getSkills(),
-        _client.getAgents(),
-        _client.getMCPServers(),
-        _client.searchMemory(''),
-      ]);
 
-      final providers = results[0];
-      final skills = results[1];
-      final agents = results[2];
-      final mcpServers = results[3];
-      final memories = results[4];
+    // ⚠️ **逐项**取、**逐项**记错 —— 以前是一个
+    // `Future.wait([...])` ⇒ ⇒ 其中任何一条失败，整个 wait 抛掉 ⇒ ⇒
+    // **五张卡的数一个都拿不到** ⇒ ⇒ 管理中枢**整体是哑的**。
+    //
+    // ⚠️ 而那五条里有**四条**是**旧方言**（端脑**没有**这些路由 ⇒ 一律 404）：
+    // `/api/providers`、`/api/skills`、`/api/agents`、`/api/mcp/servers`。
+    //
+    // 现在：端脑面取（`/models/providers`、`/shadow/v1/agents`、
+    // `/api/telencephalon/mcp/servers`），记忆面取（`/hippocampus/api/search`）
+    // ⇒ ⇒ 读不到的那**一项**显示「未知」，其余照常显示。
+    final results = await Future.wait([
+      _count(() async => (await _telencephalonClient.listProviders()).length),
+      _count(() async => (await _telencephalonClient.listAgents()).agents.length),
+      _count(() async => (await _telencephalonClient.listMcpServers()).length),
+      _count(() async => (await _client.searchMemory('')).length),
+      _count(() async => (await _telencephalonClient.listFlows()).length),
+    ]);
+    final providers = results[0];
+    final agents = results[1];
+    final mcpServers = results[2];
+    final memories = results[3];
+    final flows = results[4];
 
-      // 流程计数单独取 —— 端脑不可用时**不影响其它计数**。
-      //
-      // ⚠️ 但**不许把「读不到」说成「0 条」**：端脑没起来 / 地址指着没人听的
-      // 端口 / 钥匙不对，三种情况都会让这个数取不到。取不到就把**原因**记在
-      // `flowError` 里 ⇒ UI 显示「未知」，而不是一个看起来很像真的 0。
-      var flowCount = 0;
-      String? flowError;
-      try {
-        flowCount = (await _telencephalonClient.listFlows()).length;
-      } catch (e) {
-        flowError = e.toString();
-      }
+    // ⚠️ 技能数**未定义**（不是 0）：端脑**没有**「技能登记表」这张面 ——
+    // `skills` 只是叶区上的**标签**（`GET /shadow/v1/agents` 里每个叶区带一串）
+    // ⇒ ⇒ 「有多少个技能」这个问题在端脑那边**没有答案** ⇒ ⇒ 显示「未知」。
+    const skills = _Count(0, '端脑没有「技能登记表」这张面（skills 只是叶区上的标签）');
 
-      state = state.copyWith(
-        providerCount: providers.length,
-        skillCount: skills.length,
-        agentCount: agents.length,
-        mcpServerCount: mcpServers.length,
-        memoryCount: memories.length,
-        flowCount: flowCount,
-        isLoading: false,
-        flowError: flowError,
-      );
-    } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
-    }
+    state = state.copyWith(
+      providerCount: providers.value,
+      skillCount: skills.value,
+      agentCount: agents.value,
+      mcpServerCount: mcpServers.value,
+      memoryCount: memories.value,
+      flowCount: flows.value,
+      isLoading: false,
+      providerError: providers.error,
+      skillError: skills.error,
+      agentError: agents.error,
+      mcpError: mcpServers.error,
+      memoryError: memories.error,
+      flowError: flows.error,
+    );
   }
 }
 

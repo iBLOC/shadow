@@ -3,7 +3,7 @@ import 'agent_repository.dart';
 import 'skill_repository.dart';
 import 'mcp_server_repository.dart';
 import 'model_repository.dart';
-import '../prefrontal_client.dart';
+import '../telencephalon/telencephalon_client.dart';
 
 /// Repository factory for creating repository instances
 /// Switch between SQLite (current) and Neon (future) based on configuration
@@ -25,11 +25,12 @@ class RepositoryFactory {
   /// Get Neon connection string
   static String? get neonConnectionString => _neonConnectionString;
 
-  static IAgentRepository createAgentRepository(PrefrontalClient client) {
+  /// 叶区（agent）的仓储 —— 真相源是**端脑面**（不是前额叶方言）。
+  static IAgentRepository createAgentRepository(TelencephalonClient client) {
     if (_useNeon) {
       throw UnimplementedError('Neon repository not yet implemented');
     }
-    return PrefrontalAgentRepository(client: client);
+    return TelencephalonAgentRepository(client: client);
   }
 
   /// Create Skill repository instance

@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import '../prefrontal_client.dart';
+import '../telencephalon/telencephalon_client.dart';
 
 class AgentSettings {
   final String id;
@@ -29,17 +29,30 @@ class AgentSettings {
     this.soul,
   });
 
-  factory AgentSettings.fromAgentResponse(AgentResponse response) {
+  /// 从**端脑的叶区记录**建一个 agent 设置。
+  ///
+  /// ⚠️ 判据源：`telencephalon/src/api/shadow.rs` → `lobe_to_json`
+  /// （端脑 `/shadow/v1/agents` 的每一项）。
+  factory AgentSettings.fromLobe(LobeInfo lobe, {String? defaultAgent}) {
+    final config = lobe.config;
+    final model =
+        (config['model_name'] as String?) ?? (config['model'] as String?) ?? '';
     return AgentSettings(
-      id: response.id,
-      name: response.name,
-      description: response.description,
-      model: response.model,
-      skills: response.skills,
-      mcpServers: response.mcpServers,
-      isEnabled: response.isOnline,
-      isOnline: response.isOnline,
-      isDefault: response.isDefault,
+      // ⚠️ 端脑以**名字**为键 ⇒ ⇒ id 就是名字（不是另编一个 uuid）。
+      id: lobe.name,
+      name: lobe.name,
+      description: lobe.agentCard.description.isEmpty
+          ? null
+          : lobe.agentCard.description,
+      model: model,
+      skills: lobe.skills,
+      // ⚠️ MCP 绑定**不在**端脑的叶区记录里 ⇒ ⇒ 这里**不填**。
+      // 「没填」是「这张面没给」⇒ ⇒ 界面那排芯片干脆不画（不画 ≠ 说 0）。
+      mcpServers: const [],
+      isEnabled: lobe.enabled,
+      isOnline: lobe.healthStatus == 'healthy',
+      isDefault: defaultAgent != null && defaultAgent == lobe.name,
+      settings: config.isEmpty ? null : config,
     );
   }
 

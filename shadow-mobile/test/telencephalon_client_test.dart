@@ -674,4 +674,87 @@ void main() {
           1793236862066);
     });
   });
+
+  // ⚠️ 归档 / 取回 / 删除 —— 端脑 2026-11-02 新增的三个端点。
+  // 判据源：`telencephalon/src/api/shadow.rs` 的路由 +
+  // `telencephalon/src/api/door_policy.txt`（写门 = admin token）。
+  group('conversation archive / delete', () {
+    late List<http.Request> seen;
+
+    setUp(() {
+      seen = [];
+    });
+
+    TelencephalonClient clientOn(http.Client mock) => TelencephalonClient(
+      baseUrl: 'http://127.0.0.1:60080',
+      adminToken: 'admin-token',
+      client: mock,
+    );
+
+    test('archiveConversation 打的是 /archive，带 admin token，返回带 archived', () async {
+      final mock = http_testing.MockClient((request) async {
+        seen.add(request);
+        return http.Response(
+          jsonEncode({
+            'id': 'conv-1',
+            'agent': 'temporal',
+            'created_at': '2026-11-02T00:00:00Z',
+            'updated_at': '2026-11-02T00:00:00Z',
+            'history': [],
+            'archived': true,
+          }),
+          200,
+        );
+      });
+      final c = clientOn(mock);
+
+      final conv = await c.archiveConversation('conv-1');
+
+      expect(conv.archived, isTrue, reason: 'the archived flag must be read back');
+      expect(seen.single.method, 'POST');
+      expect(
+        seen.single.url.path,
+        '/shadow/v1/conversations/conv-1/archive',
+      );
+      expect(
+        seen.single.headers['X-Admin-Token'],
+        'admin-token',
+        reason: 'the write door only opens for the admin token',
+      );
+      c.dispose();
+    });
+
+    test('deleteConversation 打的是 DELETE 同一条路径', () async {
+      final mock = http_testing.MockClient((request) async {
+        seen.add(request);
+        return http.Response(jsonEncode({'deleted': true, 'id': 'conv-1'}), 200);
+      });
+      final c = clientOn(mock);
+
+      await c.deleteConversation('conv-1');
+
+      expect(seen.single.method, 'DELETE');
+      expect(seen.single.url.path, '/shadow/v1/conversations/conv-1');
+      c.dispose();
+    });
+
+    test('listConversations 默认不打归档参数，归档箱才打', () async {
+      final mock = http_testing.MockClient((request) async {
+        seen.add(request);
+        return http.Response(jsonEncode([]), 200);
+      });
+      final c = clientOn(mock);
+
+      await c.listConversations();
+      expect(
+        seen.single.url.queryParameters.containsKey('archived_only'),
+        isFalse,
+        reason: 'the default list must be the live conversations only',
+      );
+
+      await c.listConversations(archivedOnly: true);
+      expect(seen.last.url.queryParameters['archived_only'], 'true');
+      c.dispose();
+    });
+  });
 }

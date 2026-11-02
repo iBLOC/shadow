@@ -47,9 +47,13 @@ class ManagementHubScreen extends ConsumerWidget {
                   _ManagementCard(
                     icon: Icons.business,
                     title: l10n.providers,
+                    // ⚠️ **「读不到」不能显示成「0」** —— 端脑没起来 / 钥匙不对 /
+                    地址不对，三种情况都会让这个数取不到 ⇒ ⇒ 显示「未知」。
                     subtitle: hubState.isLoading
                         ? '...'
-                        : '${hubState.providerCount} active',
+                        : (hubState.providerError != null
+                              ? l10n.unknown
+                              : '${hubState.providerCount} active'),
                     onTap: () => context.push('/manage/providers'),
                   ),
                   _ManagementCard(
@@ -61,33 +65,49 @@ class ManagementHubScreen extends ConsumerWidget {
                   _ManagementCard(
                     icon: Icons.integration_instructions,
                     title: l10n.mcp,
+                    // ⚠️ **「读不到」不能显示成「0」** —— 端脑没起来 / 钥匙不对 /
+                    地址不对，三种情况都会让这个数取不到 ⇒ ⇒ 显示「未知」。
                     subtitle: hubState.isLoading
                         ? '...'
-                        : '${hubState.mcpServerCount} servers',
+                        : (hubState.mcpError != null
+                              ? l10n.unknown
+                              : '${hubState.mcpServerCount} servers'),
                     onTap: () => context.push('/manage/mcp'),
                   ),
                   _ManagementCard(
                     icon: Icons.psychology,
                     title: l10n.skills,
+                    // ⚠️ **「读不到」不能显示成「0」** —— 端脑没起来 / 钥匙不对 /
+                    地址不对，三种情况都会让这个数取不到 ⇒ ⇒ 显示「未知」。
                     subtitle: hubState.isLoading
                         ? '...'
-                        : '${hubState.skillCount} active',
+                        : (hubState.skillError != null
+                              ? l10n.unknown
+                              : '${hubState.skillCount} active'),
                     onTap: () => context.push('/manage/skills'),
                   ),
                   _ManagementCard(
                     icon: Icons.smart_toy,
                     title: l10n.agents,
+                    // ⚠️ **「读不到」不能显示成「0」** —— 端脑没起来 / 钥匙不对 /
+                    地址不对，三种情况都会让这个数取不到 ⇒ ⇒ 显示「未知」。
                     subtitle: hubState.isLoading
                         ? '...'
-                        : '${hubState.agentCount} online',
+                        : (hubState.agentError != null
+                              ? l10n.unknown
+                              : '${hubState.agentCount} online'),
                     onTap: () => context.push('/manage/agents'),
                   ),
                   _ManagementCard(
                     icon: Icons.memory,
                     title: l10n.memory,
+                    // ⚠️ **「读不到」不能显示成「0」** —— 端脑没起来 / 钥匙不对 /
+                    地址不对，三种情况都会让这个数取不到 ⇒ ⇒ 显示「未知」。
                     subtitle: hubState.isLoading
                         ? '...'
-                        : '${hubState.memoryCount} docs',
+                        : (hubState.memoryError != null
+                              ? l10n.unknown
+                              : '${hubState.memoryCount} docs'),
                     onTap: () => context.push('/manage/memory'),
                   ),
                   _ManagementCard(

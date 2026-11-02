@@ -80,6 +80,20 @@ class LobeInfo {
   final AgentCard agentCard;
   final String healthStatus;
 
+  /// 端脑给这个叶区存的**配置袋**（服务端判据：
+  /// `telencephalon/src/api/shadow.rs` → `lobe_to_json` → `"config": l.config`）。
+  ///
+  /// ⚠️ 这是「**改单个叶区**」唯一能落笔的地方 ——
+  /// 端脑的 `PATCH /api/telencephalon/agents/{name}/config` 会把这里的键
+  /// **合并**进去（服务端：`update_lobe_config`）⇒ ⇒ 界面上的「设置」必须写进
+  /// 这个袋 ⇒ 不然点完「保存」什么也没发生 ⇒ **失败长得像成功**。
+  ///
+  /// ⚠️ 别拿它当「模型路由」：端脑的模型路由是**整份下发**
+  /// （`POST /api/telencephalon/lobes/models`）⇒ 单叶区改模型没有诚实的做法
+  /// （把各叶区的**有效值**回填会把「跟随全局默认」钉死）⇒ ⇒ 这一袋只装
+  /// 叶区自己的配置。
+  final Map<String, dynamic> config;
+
   LobeInfo({
     required this.name,
     required this.kind,
@@ -88,6 +102,7 @@ class LobeInfo {
     required this.skills,
     required this.agentCard,
     required this.healthStatus,
+    this.config = const {},
   });
 
   factory LobeInfo.fromJson(Map<String, dynamic> json) => LobeInfo(
@@ -98,6 +113,11 @@ class LobeInfo {
     skills: ((json['skills'] as List?)?.cast<String>()) ?? const [],
     agentCard: AgentCard.fromJson(json['agent_card'] as Map<String, dynamic>),
     healthStatus: (json['health_status'] as String?) ?? 'unknown',
+    config:
+        (json['config'] as Map<String, dynamic>?)?.map(
+          (k, v) => MapEntry(k, v),
+        ) ??
+        const {},
   );
 }
 
@@ -319,12 +339,19 @@ class Conversation {
   final DateTime updatedAt;
   final List<ConversationTurn> history;
 
+  /// 归档 —— **软标记**（可恢复）：会话还在，只是默认不再出现在列表里。
+  ///
+  /// ⚠️ 服务端判据源：`telencephalon/src/api/shadow/conversations.rs`
+  /// → `pub archived: bool`（`#[serde(default)]` ⇒ 老数据读得了）。
+  final bool archived;
+
   Conversation({
     required this.id,
     required this.agent,
     required this.createdAt,
     required this.updatedAt,
     required this.history,
+    this.archived = false,
   });
 
   factory Conversation.fromJson(Map<String, dynamic> json) => Conversation(
@@ -335,6 +362,7 @@ class Conversation {
     history: ((json['history'] as List?) ?? const [])
         .map((e) => ConversationTurn.fromJson(e as Map<String, dynamic>))
         .toList(),
+    archived: (json['archived'] as bool?) ?? false,
   );
 
   /// 从端脑那份数据里派生的**可读标题**。
@@ -853,6 +881,29 @@ class TelencephalonClient {
     }
   }
 
+  /// PATCH —— 端脑**改单个叶区**用的动词。
+  ///
+  /// ⚠️ **门型**：`/api/telencephalon/agents/*` 在门型表里是 `auto`
+  /// ⇒ ⇒ **按方法派生**（判据：`telencephalon/src/api/door.rs` → 「`auto` 是
+  /// **按方法派生**：GET/HEAD ⇒ `read`；其余 ⇒ `admin`」）⇒ ⇒ **PATCH 落 admin 门**
+  /// ⇒ ⇒ 必须带 admin 钥匙。
+  ///
+  /// ⇒ `_headers()` 本来就**两把都带**（影子锁 + admin token）⇒ 这一档直接用它。
+  Future<Map<String, dynamic>> _patch(
+    String path,
+    Map<String, dynamic> body,
+  ) async {
+    final r = await _http.patch(
+      await _u(path),
+      headers: _headers(jsonBody: true),
+      body: jsonEncode(body),
+    );
+    if (r.statusCode != 200) {
+      throw TelencephalonException('PATCH $path → ${r.statusCode}: ${r.body}');
+    }
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
   /// Probe telencephalon: GET /.well-known/agent.json
   Future<Map<String, dynamic>> health() => _get('/.well-known/agent.json');
 
@@ -932,6 +983,23 @@ class TelencephalonClient {
   Future<Map<String, dynamic>> getAgent(String name) =>
       _get('/shadow/v1/agents/${Uri.encodeComponent(name)}');
 
+  /// 改**单个叶区**的配置袋 —— 端脑面
+  /// `PATCH /api/telencephalon/agents/{name}/config`。
+  ///
+  /// ⚠️ 服务端是**合并**语义（`update_lobe_config`：新键覆盖旧键，其余原样留着）
+  /// ⇒ ⇒ 只传要改的那几个键就行，**不要**把整个袋回传（会把没改的键也写一遍）。
+  ///
+  /// ⚠️ 门是 **admin**（见 `_patch` 的门型说明）⇒ 没带 admin 钥匙 ⇒ 401。
+  Future<Map<String, dynamic>> patchAgentConfig(
+    String name,
+    Map<String, dynamic> config,
+  ) async {
+    return _patch(
+      '/api/telencephalon/agents/${Uri.encodeComponent(name)}/config',
+      {'config': config},
+    );
+  }
+
   Future<Conversation> createConversation({
     String? agent,
     String? systemPrompt,
@@ -950,13 +1018,65 @@ class TelencephalonClient {
     return Conversation.fromJson(json);
   }
 
-  Future<List<Conversation>> listConversations() async {
+  /// 列出会话。
+  ///
+  /// ⚠️ **默认只列未归档的** —— 归档是软标记，默认列表里不该再看见它
+  /// （这正是归档的意义）。`archivedOnly: true` ⇒ ⇒ 只列归档的那批
+  /// （归档箱）；`includeArchived: true` ⇒ ⇒ 两批都列。
+  ///
+  /// 判据源：`telencephalon/src/api/shadow.rs` → `ListConversationsQuery`。
+  Future<List<Conversation>> listConversations({
+    bool includeArchived = false,
+    bool archivedOnly = false,
+  }) async {
     // This endpoint answers with a JSON array, so it must not go through
     // [_get] (which casts the body to a Map).
-    final json = await _getJson('/shadow/v1/conversations');
+    final params = <String, String>{};
+    if (includeArchived) params['include_archived'] = 'true';
+    if (archivedOnly) params['archived_only'] = 'true';
+    final query = params.isEmpty ? '' : '?${Uri(queryParameters: params).query}';
+    final json = await _getJson('/shadow/v1/conversations$query');
     return (json as List<dynamic>)
         .map((e) => Conversation.fromJson(e as Map<String, dynamic>))
         .toList();
+  }
+
+  /// **归档**一条会话（软标记 —— 会话还在，只是不在默认列表里）。
+  ///
+  /// 端点：`POST /shadow/v1/conversations/{id}/archive`
+  Future<Conversation> archiveConversation(String id) async {
+    final json = await _adminPost(
+      '/shadow/v1/conversations/${Uri.encodeComponent(id)}/archive',
+      <String, dynamic>{},
+    );
+    return Conversation.fromJson(json);
+  }
+
+  /// 把归档的会话**取回**默认列表。
+  ///
+  /// 端点：`POST /shadow/v1/conversations/{id}/unarchive`
+  Future<Conversation> unarchiveConversation(String id) async {
+    final json = await _adminPost(
+      '/shadow/v1/conversations/${Uri.encodeComponent(id)}/unarchive',
+      <String, dynamic>{},
+    );
+    return Conversation.fromJson(json);
+  }
+
+  /// **物理**删除一条会话。
+  ///
+  /// ⚠️ 它连**海马体里的那份**一起删 —— 会话行 + 它的全部消息。
+  /// ⚠️ 端脑的会话**本来就存在海马体**（`LancePersistence` →
+  /// `hippocampus_core::session::SessionManager`）⇒ ⇒ 删会话 = 删海马体那一份。
+  /// ⚠️ **删不掉的是记忆条目**：海马体抽出来的记忆 uri 是
+  /// `hippocampus://session/memories/<uuid>.md` ⇒ ⇒ 里面**没有会话 id**
+  /// ⇒ ⇒ 没有键可按 ⇒ ⇒ 它们留着。
+  ///
+  /// 端点：`DELETE /shadow/v1/conversations/{id}`
+  Future<void> deleteConversation(String id) async {
+    await _adminDelete(
+      '/shadow/v1/conversations/${Uri.encodeComponent(id)}',
+    );
   }
 
   Future<Conversation> importSessionAsConversation({
@@ -1573,6 +1693,13 @@ class BrainProvider {
   final List<BrainModel> models;
   final String? lastError;
   final String? lastRefreshedAt;
+  ///
+  /// **内置供应商**（neuron）—— 大脑自带的那个**本地模型**供应商。
+  ///
+  /// ⚠️ 它在注册表里**只读**（读视图里合成，不在存储里）⇒ ⇒ 界面据此不给
+  /// 「启停 / 选模型 / 编辑 / 删除」—— 那些动作**写不进去** ⇒ ⇒ 按下去只会
+  /// 拿到 400（大脑那边明确拒），界面不能给用户一个必然失败的按钮。
+  final bool builtin;
 
   const BrainProvider({
     required this.id,
@@ -1585,6 +1712,7 @@ class BrainProvider {
     this.models = const [],
     this.lastError,
     this.lastRefreshedAt,
+    this.builtin = false,
   });
 
   factory BrainProvider.fromJson(Map<String, dynamic> json) {
@@ -1606,6 +1734,9 @@ class BrainProvider {
           .toList(),
       lastError: json['last_error'] as String?,
       lastRefreshedAt: json['last_refreshed_at'] as String?,
+      // ⚠️ 大脑那边的内置条目会自报家门（`builtin: true`）⇒ ⇒ 老数据没这个
+      // 字段时按「不是内置」处理（**不**把普通供应商误判成内置）。
+      builtin: json['builtin'] as bool? ?? false,
     );
   }
 

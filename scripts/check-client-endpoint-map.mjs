@@ -710,6 +710,27 @@ function selfTest() {
   check('Dart：变量形态的路径 ⇒ 查回声明', dartSites.some((s) => s.method === 'GET' && s.path === '/hippocampus/api/memory'));
   check('Dart：查询串去掉', dartSites.every((s) => s.path.indexOf('?') < 0));
 
+  // ⚠️ 2026-11-03：钉住「**PATCH** 也抽得出」——
+  // 端脑的「改单个叶区配置」走的是 PATCH
+  // （`PATCH /api/telencephalon/agents/{name}/config`）
+  // ⇒ ⇒ 抽取器不认 PATCH ⇒ ⇒ 那个调用点**凭空消失**
+  // ⇒ ⇒ 表看起来像「客户端没改」⇒ ⇒ 闸说「全对」而其实**看不见它**。
+  const patchSnippet = [
+    'class C {',
+    '  Future<void> a() async {',
+    "    await _patch('/api/telencephalon/agents/$name/config', {'config': {}});",
+    '  }',
+    '}',
+  ].join(String.fromCharCode(10));
+  const patchSites = extractDartCallSites(patchSnippet);
+  check('Dart：PATCH 调用点抽得出', patchSites.length === 1);
+  check(
+    'Dart：PATCH 路径 ⇒ {param}',
+    patchSites.some(
+      (s) => s.method === 'PATCH' && s.path === '/api/telencephalon/agents/{param}/config',
+    ),
+  );
+
   // ⚠️ 2026-11-02：钉住「客户端文件是**自己发现**的」——
   // 原来闸只扫表里登记过的文件 ⇒ ⇒ 新写的客户端文件**永远漏报**。
   const discovered = discoverClientFiles();

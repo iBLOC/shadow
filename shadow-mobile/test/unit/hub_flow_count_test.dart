@@ -12,12 +12,25 @@ import 'package:shadow_mobile/services/telencephalon/telencephalon_client.dart';
 ///
 /// 它**记得自己被叫过几次** —— 这样「hub 到底有没有把共享那个 client 递进来」
 /// 是能被直接断言的，而不是靠「本机 60080 上碰巧没人监听」来撞出一个 0。
+///
+/// ⚠️ 2026-11-03：hub 现在**一次取五项**（供应商 / 叶区 / MCP / 记忆 / 流程）
+/// ⇒ ⇒ 假 client 必须**把五项都桩上** —— 少桩一项 ⇒ 那一项**打真网络**
+/// ⇒ ⇒ 测试结果取决于本机 60080 上有谁在监听 ⇒ ⇒ 假红假绿都有
+/// （实测：单跑绿、全量跑红，就是这么来的 —— 断的是同一条断言，
+/// 根因却是「那一项打到了真网络」）。
 class _FakeTelencephalonClient extends TelencephalonClient {
-  _FakeTelencephalonClient(this._flows, {this.failWith});
+  _FakeTelencephalonClient(this._flows, {this.failWith, this.failProviders});
 
   final List<FlowMeta> _flows;
+
+  /// 整个 client 都失败（模拟「端脑没起来」）。
   final Object? failWith;
+
+  /// **只有**供应商这一项失败（模拟「就这一项读不到」）。
+  final Object? failProviders;
+
   int calls = 0;
+  int providerCalls = 0;
 
   @override
   Future<List<FlowMeta>> listFlows({
@@ -28,6 +41,33 @@ class _FakeTelencephalonClient extends TelencephalonClient {
     calls++;
     if (failWith != null) throw failWith!;
     return _flows;
+  }
+
+  @override
+  Future<List<BrainProvider>> listProviders() async {
+    providerCalls++;
+    if (failWith != null) throw failWith!;
+    if (failProviders != null) throw failProviders!;
+    return const [];
+  }
+
+  @override
+  Future<AgentsResponse> listAgents() async {
+    calls++;
+    if (failWith != null) throw failWith!;
+    return AgentsResponse(
+      telencephalonId: 't',
+      instanceName: 'i',
+      defaultAgent: '',
+      agents: const [],
+    );
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> listMcpServers() async {
+    calls++;
+    if (failWith != null) throw failWith!;
+    return const [];
   }
 }
 
@@ -92,24 +132,36 @@ void main() {
     });
 
     test('发出去的流程请求带着 X-Shadow-Key ⇒ 端脑面上锁后依然通', () async {
-      String? seenPath;
-      String? seenKey;
+      final seenPaths = <String>[];
+      final seenKeys = <String?>[];
       final client = TelencephalonClient(
         baseUrl: 'http://endbrain.test',
         apiKey: 'the-shadow-key',
         client: http_testing.MockClient((request) async {
-          seenPath = request.url.path;
-          seenKey = request.headers['X-Shadow-Key'];
-          return http.Response(jsonEncode(<Map<String, dynamic>>[]), 200);
+          seenPaths.add(request.url.path);
+          seenKeys.add(request.headers['X-Shadow-Key']);
+          if (request.url.path == '/shadow/v1/agents') {
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'telencephalon': <String, dynamic>{},
+                'agents': <dynamic>[],
+              }),
+              200,
+            );
+          }
+          return http.Response(jsonEncode(<dynamic>[]), 200);
         }),
       );
       final container = _containerWith(client);
 
       await container.read(hubNotifierProvider.notifier).loadAllCounts();
 
-      expect(seenPath, '/api/flows');
+      // ⚠️ hub 一次取五项 ⇒ ⇒ 不能断言「最后一条是 /api/flows」
+      // ⇒ ⇒ 断言「**其中一条**是 /api/flows」。
+      final idx = seenPaths.indexOf('/api/flows');
+      expect(idx, greaterThanOrEqualTo(0), reason: '流程数必须真的去问端脑');
       expect(
-        seenKey,
+        seenKeys[idx],
         'the-shadow-key',
         reason: '没带钥匙 ⇒ 端脑面上锁之后这一格直接 401',
       );
@@ -132,6 +184,77 @@ void main() {
         contains('401'),
         reason: '读不到就必须留下原因 ⇒ UI 显示「未知」而不是「0 条流程」',
       );
+    });
+  });
+
+  group('管理中枢的每一项各自记错（一张卡读不到 ≠ 别的卡也读不到）', () {
+    test('就供应商这一项失败 ⇒ 只有供应商是未知，其余照常', () async {
+      final fake = _FakeTelencephalonClient(
+        [_flow('f1', 'A')],
+        failProviders: TelencephalonException('GET /models/providers → 401'),
+      );
+      final container = _containerWith(fake);
+
+      await container.read(hubNotifierProvider.notifier).loadAllCounts();
+
+      final state = container.read(hubNotifierProvider);
+      expect(
+        state.providerError,
+        contains('401'),
+        reason: '这一项读不到 ⇒ 原因得留下',
+      );
+      expect(state.agentError, isNull);
+      expect(state.mcpError, isNull);
+      expect(state.memoryError, isNull);
+      expect(state.flowError, isNull);
+      expect(state.flowCount, 1, reason: '别的项不该被这一项拖成未知');
+    });
+
+    test('技能数是「未知」而不是 0 —— 端脑没有技能登记表这张面', () async {
+      final container = _containerWith(_FakeTelencephalonClient(const []));
+
+      await container.read(hubNotifierProvider.notifier).loadAllCounts();
+
+      final state = container.read(hubNotifierProvider);
+      expect(
+        state.skillError,
+        isNotNull,
+        reason: '端脑没有「技能登记表」⇒ 这个数未定义 ⇒ 不能显示成「0 个技能」',
+      );
+    });
+
+    test('hub 打的是端脑面，不是前额叶旧方言', () async {
+      final seenPaths = <String>[];
+      final client = TelencephalonClient(
+        baseUrl: 'http://endbrain.test',
+        apiKey: 'k',
+        client: http_testing.MockClient((request) async {
+          seenPaths.add(request.url.path);
+          if (request.url.path == '/shadow/v1/agents') {
+            return http.Response(
+              jsonEncode(<String, dynamic>{
+                'telencephalon': <String, dynamic>{},
+                'agents': <dynamic>[],
+              }),
+              200,
+            );
+          }
+          return http.Response(jsonEncode(<dynamic>[]), 200);
+        }),
+      );
+      final container = _containerWith(client);
+
+      await container.read(hubNotifierProvider.notifier).loadAllCounts();
+
+      expect(seenPaths, contains('/models/providers'));
+      expect(seenPaths, contains('/shadow/v1/agents'));
+      expect(seenPaths, contains('/api/telencephalon/mcp/servers'));
+      expect(seenPaths, contains('/api/flows'));
+      // ⚠️ 旧方言那几条在端脑上**一律 404** ⇒ ⇒ 打它们 = 拿不到。
+      expect(seenPaths, isNot(contains('/api/providers')));
+      expect(seenPaths, isNot(contains('/api/agents')));
+      expect(seenPaths, isNot(contains('/api/skills')));
+      expect(seenPaths, isNot(contains('/api/mcp/servers')));
     });
   });
 }

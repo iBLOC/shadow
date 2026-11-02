@@ -5,14 +5,17 @@ import '../services/database/database_helper.dart';
 import '../services/database/repository_factory.dart';
 import '../services/database/repositories.dart';
 import '../services/database/agent_settings.dart';
-import '../services/prefrontal_client.dart';
+import '../providers/telencephalon_provider.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/empty_state.dart';
 import '../theme/app_colors.dart';
 import 'soul_screen.dart';
 
 final agentRepositoryProvider = Provider<IAgentRepository>((ref) {
-  final client = ref.watch(prefrontalClientProvider);
+  // ⚠️ 真相源是**端脑面**（叶区登记表）⇒ ⇒ 地址跟着端脑走（内嵌大脑、远端
+  // 端脑都自动对）⇒ ⇒ 不再走前额叶方言（那条路端脑**没有** ⇒ 404 ⇒
+  // 列表永远是空的 ⇒ 失败长得像成功）。
+  final client = ref.watch(telencephalonClientProvider);
   return RepositoryFactory.createAgentRepository(client);
 });
 
@@ -212,12 +215,16 @@ class _AgentCard extends ConsumerWidget {
                   ],
                 ),
               ),
-              Switch(
-                value: agent.isEnabled,
-                onChanged: (value) {
-                  ref.read(agentsProvider.notifier).toggleAgent(agent.id);
-                },
-                activeThumbColor: AppColors.primary,
+              // ⚠️ **端脑没有「启停叶区」这张面** ⇒ ⇒ 这个开关**不能拨**。
+              // 以前它是「拨了→没反应→弹回」，看着像「保存失败」；现在它
+              // **明摆着不能拨**，并把原因写在提示里。
+              Tooltip(
+                message: '端脑暂不支持启停叶区',
+                child: Switch(
+                  value: agent.isEnabled,
+                  onChanged: null,
+                  activeThumbColor: AppColors.primary,
+                ),
               ),
             ],
           ),
