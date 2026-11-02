@@ -531,6 +531,7 @@ WebRTC 浏览器、桌面端自己起的 sidecar、外部端脑进程。⇒ 这�
 | `/models/providers/{id}/test` | POST | providers | — | 测 provider（外连 + 带 key） |
 | `/models/providers/preview` | POST | providers | — | **无状态**预览模型列表（外连，**不落盘、不进列表**）⇒ 「测试并获取模型」按钮 |
 | `/models/{provider_id}/{model_id}` | DELETE | providers | — | 删模型 |
+| `/api/telencephalon/config/{section}/{key}` | PUT,DELETE | config_api | — | **改/删这台大脑的配置**（端脑 / 丘脑 / neuron / 云端供应商 / MCP 的运行数据与配置都在 Turso 里 ⇒ 不在海马体里）⇒ ⚠️ 回包里的秘密项是**掩码**；⚠️ 仅带 Turso 的构建有这张面 |
 | `/api/telencephalon/voice/synthesize` | POST | voice | — | 烧 TTS |
 | `/api/telencephalon/voice/transcribe` | POST | voice | — | 烧 STT |
 | `/api/telencephalon/agents/scan` | POST | agent_management | ✅ | 扫网段 ⇒ 探测内网 |
@@ -563,6 +564,7 @@ WebRTC 浏览器、桌面端自己起的 sidecar、外部端脑进程。⇒ 这�
 | `/api/telencephalon/video-sources` \| `/{id}` | GET | video_source | — | 视频源清单 |
 | `/api/telencephalon/visual-tasks` \| `/{id}` | GET | visual_task_admin | — | 视觉任务 |
 | `/models/providers` | GET | providers | — | **provider 配置（含 api_key）** |
+| `/api/telencephalon/config` \| `/{section}` \| `/{section}/{key}` | GET | config_api | — | **这台大脑的全部配置**（配置中心 = Turso）⇒ ⚠️ 秘密项回包是掩码 ***（不是明文）⇒ 读门拿到的是「配置长什么样」而不是「钥匙是什么」；⚠️ 仅带 Turso 的构建有这张面 |
 | `/api/telencephalon/prefrontal/agents` | GET | prefrontal | — | 前额叶 agent 清单 |
 | `/api/flows` \| `/{id}` \| `/executions` \| `/traces` \| `/draft` | GET | flow | ✅ | 工作流定义与执行历史 |
 | `/shadow/v1/agents` \| `/{name}` | GET | shadow | ✅ | 叶区元数据（**已锁**） |
