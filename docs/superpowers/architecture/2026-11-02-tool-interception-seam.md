@@ -471,3 +471,81 @@ async fn post(&self, call: &InterceptCall, result: &mut Value) {
 - `post` 结果改写（洗明文密钥，接㋷ 条那三道闸）。
 - `mutates` / `requires_confirmation` / `exposure` 三个能力字段（P0 只做了 `user_only` 与 `destructive`）。
 
+---
+
+## 10. P1-a：会话语义 + 设备 HTTP 路由入闸（2026-11-02 第二轮）
+
+### 10.1 起点：不是「继续做 P1」，而是问一句「P0 的承诺在真实链路上成立吗」
+
+答案是：**不成立**。
+
+**洞**：`api/device.rs` 的 `POST /api/telencephalon/devices/{id}/invoke` **直接**调 `router.invoke_tool(...)` ⇒ ⇒ **完全绕过 `ToolRegistry::dispatch`** ⇒ ⇒ P0 的 gate **管不到它**。
+
+⚠️ 而那条路由的门型是 `auto`（POST ⇒ **admin**）⇒ ⇒ **持 admin token 就能代设备执行特权工具** —— 恰恰是 `user_only` 声明要防的那件事。
+
+⚠️ 今天没出事只是因为 `DeviceToolRouter::invoke_tool` 返回 `InvokeUnimplemented`（data-channel 还没接线）⇒ ⇒ **等那条通道接上，它就是一个现成的后门**。
+
+⚠️⚠️ **更难看的是：闸也看不见它** —— 闸（当时）只枚举**出站**能力调用点 ⇒ ⇒ 一条**入站**的代执行路由对它完全隐形 ⇒ ⇒ 「闸绿了」当时**不代表**没有后门。
+
+### 10.2 `user_only` 的语义被改对了（不是「加了检查」，是「读对了那句话」）
+
+`mcp/device_router.rs` 的原注释写的是：
+
+> Privileged tools (e.g., `system.reboot`) require a **user-flagged session** before they are invoked.
+
+⇒ ⇒ 判定依据是**会话**，**不是身份层级**。⇒ ⇒ P0 的「`Principal::Model` 拒、admin 放行」**读错了那句话**。
+
+⇒ ⇒ 本轮改成：
+
+- `ToolCapabilities` 加 `session_id: Option<String>`（这个工具只认哪个 session）；
+- `InterceptCall` 加 `session_id: Option<String>`（本次调用处在哪个 session）；
+- 判定：`user_only` ⇒ ⇒ **调用方的 session 必须与工具声明的 session 一致**，否则拒；
+- ⇒ ⇒ **admin/owner 也绕不过**（admin token 不是万能钥匙）；
+- ⚠️ 代价：**MCP 侧今天没有 session 通道** ⇒ ⇒ MCP 声明的 `user_only` 工具对所有人不可用（P1 的欠账）。
+
+⚠️⚠️ 实现时踩了一个**极易漏**的坑：拦截点里原本有一句早退「非模型就放行」⇒ ⇒ 它把**整个会话判定跳过了** ⇒ ⇒ admin 照样能绕。⇒ ⇒ 是**两条断言恰好红**抓出来的 ⇒ ⇒ 判据已写成「会话判定对**所有** principal 生效；只有 `destructive` 才是模型专属」。
+
+### 10.3 设备 HTTP 路由入闸
+
+`api/device.rs` 的 handler 现在**自己**过 gate：
+
+- session 从 HTTP 头 `x-shadow-session` 取（**没有这个头 ⇒ 特权工具一律被拒** ⇒ fail-closed）；
+- 工具名从 `req.params.name` 取；
+- 被拒 ⇒ ⇒ **403 + `denied_by: "tool-interception"`**。
+
+### 10.4 闸长出了新的一类检查（检查 6）
+
+**入站的代执行路由**（`.route("…/invoke…")`）必须**自己**过 gate ⇒ ⇒ 因为它不经过 `ToolRegistry` ⇒ ⇒ 拦截点不会自动罩住它。
+
+⇒ ⇒ 自检加了 2 只样本（认得出 `/invoke` 路由 / 普通路由不算）。
+⇒ ⇒ **反向验证**：把设备路由的 gate 拆掉 ⇒ ⇒ 闸**恰好红 1 条**（精确点名 `src/api/device.rs:69 (/api/telencephalon/devices/{id}/invoke)`）⇒ ⇒ 还原 ⇒ EXIT=0。
+
+### 10.5 真实 HTTP 链路的运行时证据（新集成测试）
+
+`telencephalon/tests/device_tool_policy.rs` ⇒ 起**真的 axum server + 真 socket**，用真的 `reqwest` 打过去：
+
+| 场景 | 期望 | 实测 |
+|---|---|---|
+| `user_only` 工具，**不带** session | 403（被策略拒，**不是** 501） | ✅ 403 + `denied_by: tool-interception` |
+| `user_only` 工具，**带对** session | 过了闸 ⇒ 走到 `invoke_tool` ⇒ 501（data-channel 未接线） | ✅ 501（**403 就说明闸误杀**） |
+| 普通工具（`user_only: false`） | 不被策略拦 ⇒ 501 | ✅ 501 |
+
+⇒ ⇒ 这是**运行时证据**，不是单测的推断：真 socket、真 axum、真 handler 链、真 reqwest。
+
+### 10.6 读数
+
+| 读数 | 结果 |
+|---|---|
+| 端脑 `cargo test --lib` | **798 passed / 3 failed**（那 3 条仍是并行会话的 `config_center` 半成品） |
+| 端脑 `cargo test --test device_tool_policy` | **3 passed / 0 failed** |
+| 端脑 `cargo test --lib tools::intercept` | **8 passed / 0 failed**（P0 时是 6 条） |
+| 闸自检 | **14 条全过** |
+| 闸 | **EXIT=0**（扫 203 个 `.rs`；已知缺口 5 条） |
+
+### 10.7 这一轮暴露的东西（值得单列）
+
+⚠️ **「闸只扫出站」就会漏掉入站的后门** —— 而入站那种（HTTP 代执行）**比出站更直接**（连模型都不用经过）。
+⚠️ **语义要读原注释** —— 「需要用户标记的会话」被读成「admin 放行」就是一个可绕过的实现。
+⚠️ **早退语句会吃掉整段判定** —— 「非模型就放行」放在会话判定**之前**，等于把安全检查关了。
+
+

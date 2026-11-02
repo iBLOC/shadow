@@ -34,6 +34,9 @@
  * 5. **认领与调用必须同一套命名** —— provider 的 `describe`（声明）与
  *    `invoke`（调用）若**都解析名字**，必须用同一个前缀 ⇒ ⇒ 否则
  *    「声明了但调的不是它」。
+ * 6. **入站的代执行路由必须自己过 gate** —— 像
+ *    `POST /api/telencephalon/devices/{id}/invoke` 这种**不经过**
+ *    `ToolRegistry` 的路由 ⇒ ⇒ 拦截点不会自动罩住它 ⇒ ⇒ 必须自己判。
  *
  * ## 覆盖模型（两类能力调用点，处理方式不同）
  *
@@ -41,6 +44,8 @@
  *   ⇒ ⇒ 罩不罩得住**只看检查 1**（dispatch 里还有没有 gate）。
  * - **绕过 dispatch 直发的**（出站 A2A：`tasks/send`）
  *   ⇒ ⇒ 必须附近有 gate 调用，或落在已知缺口清单里。
+ * - **入站的代执行路由**（`…/invoke`）⇒ ⇒ 拦截点**不会**自动罩住它
+ *   ⇒ ⇒ 它必须**自己**过 gate（检查 6）。
  *
  * ## 已知缺口清单（P1 的活，不是「修好了」的证明）
  *
@@ -235,6 +240,29 @@ function providerImplRanges(stripped) {
   return ranges;
 }
 
+/**
+ * 入站的「**代执行工具**」路由 —— 例如
+ * `POST /api/telencephalon/devices/{id}/invoke`。
+ *
+ * ⚠️ 为什么单列一类：它们**不经过** `ToolRegistry::dispatch` ⇒ ⇒
+ * 拦截点**不会**自动罩住它们 ⇒ ⇒ 每一个都必须**自己**过 gate。
+ *
+ * ⇒ ⇒ 这类洞是**闸自己**曾经看不见的（2026-11-02 实测：设备那条路由
+ * 就是这么溜过去的 ⇒ ⇒ 闸加了这一类）。
+ */
+const INBOUND_EXEC_RE = /\.route\(\s*"([^"]*\/invoke[^"]*)"/g;
+
+function findInboundExecRoutes(stripped) {
+  const out = [];
+  INBOUND_EXEC_RE.lastIndex = 0;
+  let m;
+  while ((m = INBOUND_EXEC_RE.exec(stripped)) !== null) {
+    const line = stripped.slice(0, m.index).split('\n').length;
+    out.push({ path: m[1], line });
+  }
+  return out;
+}
+
 function collectGateLines(stripped) {
   const lines = stripped.split('\n');
   const out = [];
@@ -406,6 +434,21 @@ function runGate(sourceRoot) {
     }
   }
 
+  // ── 检查 6：入站的代执行路由必须**自己**过 gate ──────────────
+  for (const [file, stripped] of strippedByFile) {
+    const rel = relative(sourceRoot, file).replace(/\\/g, '/');
+    const routes = findInboundExecRoutes(stripped);
+    if (routes.length === 0) continue;
+    if (collectGateLines(stripped).length > 0) continue;
+    if (gapFiles.has(rel)) continue;
+    for (const r of routes) {
+      violations.push(
+        '入站的代执行路由没有过 gate: ' + rel + ':' + r.line + ' (' + r.path +
+          ') —— 它不经过 ToolRegistry ⇒ ⇒ 拦截点不会自动罩住它'
+      );
+    }
+  }
+
   // ── 检查 3 ────────────────────────────────────────────────
   const mcpServer = join(srcRoot, 'mcp', 'server.rs');
   if (!existsSync(mcpServer)) {
@@ -464,6 +507,13 @@ function selfTest() {
 
   const s6 = strip('let body = json!({ "jsonrpc": "2.0", "method": "tasks/send", "params": {} });\n');
   check('样本6：识别出 JSON-RPC tasks/send 调用点', findCallSites(s6).some((x) => x.kind === 'a2a-tasks-send-jsonrpc'));
+
+  const s9 = strip('.route(\n  "/api/telencephalon/devices/{id}/invoke",\n  post(invoke_device_tool_handler),\n)\n');
+  const r9 = findInboundExecRoutes(s9);
+  check('样本9：认得出入站的代执行路由', r9.length === 1 && r9[0].path.includes('/invoke'));
+
+  const s10 = strip('.route("/api/telencephalon/devices/{id}", get(get_device_handler))\n');
+  check('样本10：普通路由不算代执行路由', findInboundExecRoutes(s10).length === 0);
 
   const bad = checkSerdeDefaults('pub struct McpToolSummary {\n  pub user_only: bool,\n}');
   check('样本7：认得出缺 #[serde(default)] 的字段', !bad.ok);
