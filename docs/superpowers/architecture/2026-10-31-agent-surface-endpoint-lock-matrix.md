@@ -357,6 +357,7 @@ admin 面收口那一档（端脑 `93121d1` / 独立宿主 `7a15359` / 桌面端
 | 组 | 路由 | 钥匙 | 为什么是这把 |
 |---|---|---|---|
 | **读** | `GET /models/providers` | shadow key **或** admin token | 读的是「这台大脑自己的配置」⇒ shadow 域；回吐的**只有掩码** ⇒ 不泄密；而 shadow key 在桌面端是**可选**的 ⇒ 没配时这个域本来就开着（既有语义）⇒ 「有没有配好模型」的探测**不会**因为门而误判成「没配好」 |
+| **读** | `GET /models/providers/presets` | shadow key **或** admin token | 「这台大脑支持哪些上游」= **能力清单**（目录里**没有密钥**）⇒ 两个客户端都要读（桌面端选预设、移动端选预设）⇒ ⇒ 目录只有**一份**（`synapse::providers::catalog`）⇒ ⇒ 两端**不可能漂** |
 | **写** | 其余 `/models/**` | admin token | 「**谁能重配这台大脑的上游**」⇒ admin 域；shadow key **开不了**它（两个域是分开的） |
 | **主人** | `POST /api/telencephalon/chat/completions` | **进程内内部凭据**（`X-Brain-Internal`）或 admin token | 唯一的合法调用者是端脑自己（实测：桌面端/移动端**一条都不调它**）⇒ 主人必须能过；外人拿不到那把钥匙 |
 
@@ -528,6 +529,7 @@ WebRTC 浏览器、桌面端自己起的 sidecar、外部端脑进程。⇒ 这�
 | `/models/providers/{id}/auto-match` | POST | providers | — | 自动匹配模型 |
 | `/models/providers/{id}/fetch-models` | POST | providers | — | 拉模型列表（外连） |
 | `/models/providers/{id}/test` | POST | providers | — | 测 provider（外连 + 带 key） |
+| `/models/providers/preview` | POST | providers | — | **无状态**预览模型列表（外连，**不落盘、不进列表**）⇒ 「测试并获取模型」按钮 |
 | `/models/{provider_id}/{model_id}` | DELETE | providers | — | 删模型 |
 | `/api/telencephalon/voice/synthesize` | POST | voice | — | 烧 TTS |
 | `/api/telencephalon/voice/transcribe` | POST | voice | — | 烧 STT |

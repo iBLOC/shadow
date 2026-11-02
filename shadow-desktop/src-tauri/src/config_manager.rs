@@ -232,7 +232,10 @@ mod tests {
     #[test]
     fn the_storage_field_round_trips() {
         let mut config = AppConfig::default();
-        config.update_hippocampus_data_dir(Some("D:/memory".to_string()));
+        // ⚠️ update_hippocampus_data_dir 是 **ConfigManager** 的方法（不是
+        // AppConfig 的）⇒ ⇒ 这条测试从 684be0f（2026-11-02 00:05）起就**编不过**
+        // ⇒ ⇒ 桌面端的 cargo test --lib 一直跑不起来（没人跑过）。
+        config.hippocampus_data_dir = Some("D:/memory".to_string());
         let json = serde_json::to_string(&config).unwrap();
         assert!(json.contains("D:/memory"), "{json}");
         let back: AppConfig = serde_json::from_str(&json).unwrap();
