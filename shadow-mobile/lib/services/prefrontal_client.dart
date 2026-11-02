@@ -135,82 +135,11 @@ class PrefrontalClient {
     return data.map((p) => ProviderResponse.fromJson(p)).toList();
   }
 
-  /// 添加Provider
-  Future<ProviderResponse> addProvider(AddProviderRequest request) async {
-    return await _request<ProviderResponse>(
-      'POST',
-      '/api/providers',
-      body: request.toJson(),
-      parser: (data) => ProviderResponse.fromJson(data),
-    );
-  }
-
-  /// 更新Provider
-  Future<ProviderResponse> updateProvider(
-    String name,
-    UpdateProviderRequest request,
-  ) async {
-    return await _request<ProviderResponse>(
-      'PUT',
-      '/api/providers/$name',
-      body: request.toJson(),
-      parser: (data) => ProviderResponse.fromJson(data),
-    );
-  }
-
-  /// 删除Provider
-  Future<void> deleteProvider(String name) async {
-    await _request('DELETE', '/api/providers/$name');
-  }
-
-  /// 设置默认Provider
-  Future<void> setDefaultProvider(String name) async {
-    await _request('PUT', '/api/providers/default', body: {'name': name});
-  }
-
   // ============ Skill APIs ============
 
   /// 获取所有Skill
   Future<List<SkillResponse>> getSkills() async {
     final data = await _request<List<dynamic>>('GET', '/api/skills');
-    return data.map((s) => SkillResponse.fromJson(s)).toList();
-  }
-
-  /// 获取Skill详情
-  Future<SkillResponse> getSkill(String name) async {
-    return await _request<SkillResponse>(
-      'GET',
-      '/api/skills/$name',
-      parser: (data) => SkillResponse.fromJson(data),
-    );
-  }
-
-  /// 切换Skill启用状态
-  Future<List<SkillResponse>> toggleSkill(String name, bool enabled) async {
-    final data = await _request<List<dynamic>>(
-      'PUT',
-      '/api/skills/$name',
-      body: {'enabled': enabled},
-    );
-    return data.map((s) => SkillResponse.fromJson(s)).toList();
-  }
-
-  /// 添加自定义Skill
-  Future<List<SkillResponse>> addCustomSkill(
-    String name,
-    String description,
-  ) async {
-    final data = await _request<List<dynamic>>(
-      'POST',
-      '/api/skills',
-      body: {'name': name, 'description': description},
-    );
-    return data.map((s) => SkillResponse.fromJson(s)).toList();
-  }
-
-  /// 删除自定义Skill
-  Future<List<SkillResponse>> deleteCustomSkill(String name) async {
-    final data = await _request<List<dynamic>>('DELETE', '/api/skills/$name');
     return data.map((s) => SkillResponse.fromJson(s)).toList();
   }
 
@@ -252,46 +181,6 @@ class PrefrontalClient {
       'PUT',
       '/api/agents/$agentId/model',
       body: {'model': model},
-      parser: (data) => AgentResponse.fromJson(data),
-    );
-  }
-
-  /// Agent添加Skill
-  Future<AgentResponse> addAgentSkill(String agentId, String skill) async {
-    return await _request<AgentResponse>(
-      'POST',
-      '/api/agents/$agentId/skills',
-      body: {'skill': skill},
-      parser: (data) => AgentResponse.fromJson(data),
-    );
-  }
-
-  /// Agent移除Skill
-  Future<AgentResponse> removeAgentSkill(String agentId, String skill) async {
-    return await _request<AgentResponse>(
-      'DELETE',
-      '/api/agents/$agentId/skills',
-      body: {'skill': skill},
-      parser: (data) => AgentResponse.fromJson(data),
-    );
-  }
-
-  /// Agent添加MCP Server
-  Future<AgentResponse> addAgentMcp(String agentId, String server) async {
-    return await _request<AgentResponse>(
-      'POST',
-      '/api/agents/$agentId/mcps',
-      body: {'server': server},
-      parser: (data) => AgentResponse.fromJson(data),
-    );
-  }
-
-  /// Agent移除MCP Server
-  Future<AgentResponse> removeAgentMcp(String agentId, String server) async {
-    return await _request<AgentResponse>(
-      'DELETE',
-      '/api/agents/$agentId/mcps',
-      body: {'server': server},
       parser: (data) => AgentResponse.fromJson(data),
     );
   }
@@ -498,28 +387,6 @@ class PrefrontalClient {
 
   // ============ Conversation APIs ============
 
-  /// 获取会话列表
-  Future<List<ConversationResponse>> getConversations() async {
-    final data = await _request<List<dynamic>>('GET', '/api/conversations');
-    return data.map((c) => ConversationResponse.fromJson(c)).toList();
-  }
-
-  /// 获取会话消息
-  Future<List<MessageResponse>> getConversationMessages(
-    String sessionId,
-  ) async {
-    final data = await _request<List<dynamic>>(
-      'GET',
-      '/api/conversations/$sessionId/messages',
-    );
-    return data.map((m) => MessageResponse.fromJson(m)).toList();
-  }
-
-  /// 删除会话
-  Future<void> deleteSession(String sessionId) async {
-    await _request('DELETE', '/hippocampus/api/sessions/$sessionId');
-  }
-
   // ============ Soul APIs ============
 
   /// 获取Soul
@@ -606,34 +473,6 @@ class PrefrontalClient {
     return data.map((s) => MCPServerResponse.fromJson(s)).toList();
   }
 
-  /// 添加MCP服务器
-  Future<MCPServerResponse> addMCPServer(AddMCPServerRequest request) async {
-    return await _request<MCPServerResponse>(
-      'POST',
-      '/api/mcp/servers',
-      body: request.toJson(),
-      parser: (data) => MCPServerResponse.fromJson(data),
-    );
-  }
-
-  /// 删除MCP服务器
-  Future<void> deleteMCPServer(String name) async {
-    await _request('DELETE', '/api/mcp/servers/$name');
-  }
-
-  /// 切换MCP服务器启用状态
-  Future<List<MCPServerResponse>> toggleMCPServer(
-    String name,
-    bool enabled,
-  ) async {
-    final data = await _request<List<dynamic>>(
-      'PUT',
-      '/api/mcp/servers/$name',
-      body: {'enabled': enabled},
-    );
-    return data.map((s) => MCPServerResponse.fromJson(s)).toList();
-  }
-
   // ============ Session APIs ============
 
   Future<SessionResponse> createSession({String? name}) async {
@@ -652,132 +491,6 @@ class PrefrontalClient {
       '/hippocampus/api/sessions',
     );
     return data.map((s) => s.toString()).toList();
-  }
-
-  Future<SessionResponse?> getSession(String sessionId) async {
-    try {
-      final data = await _request<Map<String, dynamic>>(
-        'GET',
-        '/hippocampus/api/sessions/$sessionId',
-      );
-      if (data['success'] == true && data['data'] != null) {
-        return SessionResponse.fromJson(data['data']);
-      }
-      return null;
-    } catch (e) {
-      return null;
-    }
-  }
-
-  Future<bool> addSessionMessage({
-    required String sessionId,
-    required String role,
-    required String content,
-  }) async {
-    await _request(
-      'POST',
-      '/hippocampus/api/sessions/$sessionId/messages',
-      body: {'role': role, 'content': content},
-    );
-    return true;
-  }
-
-  Future<ProcessResponse> processMessage({
-    required String sessionId,
-    required String message,
-    bool useTools = false,
-  }) async {
-    final data = await _request<Map<String, dynamic>>(
-      'POST',
-      '/hippocampus/api/sessions/$sessionId/process',
-      body: {'message': message, 'use_tools': useTools},
-    );
-    if (data['success'] == true && data['data'] != null) {
-      return ProcessResponse.fromJson(data['data']);
-    }
-    throw PrefrontalApiException(data['error']?.toString() ?? 'Unknown error');
-  }
-
-  Stream<String> processMessageStream({
-    required String sessionId,
-    required String message,
-    bool useTools = false,
-  }) async* {
-    final uri = Uri.parse('$baseUrl/api/sessions/$sessionId/stream');
-    final requestHeaders = {'Content-Type': 'application/json'};
-
-    final client = http.Client();
-    try {
-      final request = http.Request('POST', uri);
-      request.headers.addAll(requestHeaders);
-      request.body = json.encode({'message': message, 'use_tools': useTools});
-
-      final response = await client.send(request);
-
-      if (response.statusCode != 200) {
-        throw PrefrontalApiException('Stream error: ${response.statusCode}');
-      }
-
-      String buffer = '';
-      await for (final bytes in response.stream) {
-        buffer += utf8.decode(bytes);
-        final lines = buffer.split('\n');
-        buffer = lines.removeLast();
-        for (final line in lines) {
-          if (line.startsWith('data: ')) {
-            final data = line.substring(6);
-            if (data.isNotEmpty) {
-              yield data;
-            }
-          }
-        }
-      }
-    } finally {
-      client.close();
-    }
-  }
-
-  Future<String> chatCompletions({
-    String? model,
-    required List<Map<String, dynamic>> messages,
-    bool stream = false,
-    bool useTools = false,
-  }) async {
-    final uri = Uri.parse('$baseUrl/api/chat/completions');
-    final requestHeaders = {'Content-Type': 'application/json'};
-
-    final body = <String, dynamic>{
-      'model': ?model,
-      'messages': messages,
-      'stream': stream,
-      'use_tools': useTools,
-    };
-
-    final response = await _client.post(
-      uri,
-      headers: requestHeaders,
-      body: json.encode(body),
-    );
-
-    if (response.statusCode != 200) {
-      throw PrefrontalApiException(
-        'Chat completions error: ${response.statusCode}',
-      );
-    }
-
-    final data = json.decode(response.body) as Map<String, dynamic>;
-    final choices = data['choices'] as List<dynamic>?;
-    if (choices == null || choices.isEmpty) {
-      throw PrefrontalApiException('No response choices');
-    }
-
-    final firstChoice = choices.first as Map<String, dynamic>;
-    final message = firstChoice['message'] as Map<String, dynamic>?;
-    if (message == null) {
-      throw PrefrontalApiException('No message in response');
-    }
-
-    return message['content'] as String? ?? '';
   }
 
   Stream<String> chatCompletionsStream({

@@ -138,6 +138,7 @@ function parseArgs(argv) {
     hippocampus: resolve(REPO, '..', 'hippocampus'),
     selfTest: false,
     dump: null,
+    discover: false,
   };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--source') opts.source = resolve(argv[++i]);
@@ -145,6 +146,7 @@ function parseArgs(argv) {
     else if (argv[i] === '--hippocampus') opts.hippocampus = resolve(argv[++i]);
     else if (argv[i] === '--self-test') opts.selfTest = true;
     else if (argv[i] === '--dump') opts.dump = argv[++i];
+    else if (argv[i] === '--discover') opts.discover = true;
     else if (argv[i] === '-h' || argv[i] === '--help') {
       console.log('用法: node scripts/check-client-endpoint-map.mjs [--source <端脑>] [--neuron <neuron 仓>] [--hippocampus <海马体仓>] [--self-test] [--dump <客户端文件>]');
       process.exit(0);
@@ -336,6 +338,12 @@ const DART_CALLS = [
   { name: '_adminGet', method: 'GET' },
   { name: '_adminPost', method: 'POST' },
   { name: '_adminDelete', method: 'DELETE' },
+  // ⚠️ 2026-11-02：公共 `request` / `requestList` 也是**真的在发**的形态
+  // （移动端 `group_service.dart` 直接调 `client.request('POST', '/api/group/join')`）
+  // ⇒ ⇒ 不认它们 ⇒ ⇒ 那批调用点**永远漏报**（闸说「客户端的每个调用点都在表里」，
+  // 而它压根没看见过它们）。
+  { name: 'request', method: null },
+  { name: 'requestList', method: null },
 ];
 
 /** 取一段文本里的第一个标识符（跳过空白）。 */
@@ -547,6 +555,75 @@ function parseMap(text) {
 }
 
 // ---------------------------------------------------------------------------
+// 客户端侧：**自己发现**，不靠表里的登记
+// ---------------------------------------------------------------------------
+
+/**
+ * 客户端源码树 —— 表里的文件只是「已登记的」，**不是全部**。
+ *
+ * ⚠️ 2026-11-02 实测：闸原来用 `rows.map(r => r.file)` 决定扫哪些文件
+ * ⇒ ⇒ **只扫表里登记过的** ⇒ ⇒ 一个**新写的**客户端文件（移动端
+ * `services/group_service.dart`）**永远看不见** ⇒ ⇒ 「客户端的每个调用点
+ * 都在表里」这句话**只在已登记的文件内成立** ⇒ ⇒ **漏报**。
+ */
+// ⚠️ 2026-11-02：**发现范围目前只覆盖移动端**（shadow-mobile/lib 全树）⇒ ⇒
+// 桌面端仍只扫「表里登记过的文件」⇒ ⇒ 桌面端**还有漏报**（实测 ≈35 条：
+// discoveryClient / hippocampusClient / openaiClient / ModelsPage /
+// certificateStore / resonanceStore 等）⇒ ⇒ 桌面端此刻有 200+ 文件在飞
+// ⇒ ⇒ 现在给它们登记 = **给在飞改动埋雷**（对方一改 ⇒ 表立刻过期 ⇒ 闸红）
+// ⇒ ⇒ **待桌面端那批改动落地后再扩扫** ⇒ ⇒ 这里**如实标注**，不装作「全绿」。
+//
+// ⚠️ 另：抽取器只认**几种调用形态**（Dart：_request 家族 + request /
+// requestList）⇒ ⇒ 直接用 http.get / http.post 发的**仍会漏**。
+const CLIENT_ROOTS = ['shadow-mobile/lib'];
+
+/** 测试文件不算客户端（它们的 fetch 是断言，不是产品发出去的请求）。 */
+function isTestClientFile(rel) {
+  return (
+    rel.includes('/__tests__/') ||
+    rel.includes('/test/') ||
+    rel.includes('/tests/') ||
+    rel.includes('.test.') ||
+    rel.includes('.spec.') ||
+    rel.endsWith('_test.dart')
+  );
+}
+
+function walkClientFiles(dir, out = []) {
+  if (!existsSync(dir)) return out;
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry);
+    const st = statSync(full);
+    if (st.isDirectory()) walkClientFiles(full, out);
+    else if (/\.(dart|ts|tsx)$/.test(entry)) out.push(full);
+  }
+  return out;
+}
+
+/**
+ * 发现**所有**真的在发请求的客户端文件（相对仓根）。
+ *
+ * ⚠️ 判据 = 「这个文件里抽得出调用点」⇒ ⇒ 本地 SQLite / 纯 UI 文件不算。
+ */
+function discoverClientFiles() {
+  const found = new Set();
+  for (const root of CLIENT_ROOTS) {
+    for (const full of walkClientFiles(join(REPO, root))) {
+      const rel = full.slice(REPO.length + 1).replace(/\\/g, '/');
+      if (isTestClientFile(rel)) continue;
+      let sites;
+      try {
+        sites = extractCallSites(full);
+      } catch (e) {
+        continue;
+      }
+      if (sites.length > 0) found.add(rel);
+    }
+  }
+  return [...found].sort();
+}
+
+// ---------------------------------------------------------------------------
 // 服务端侧：三张面
 // ---------------------------------------------------------------------------
 
@@ -633,6 +710,15 @@ function selfTest() {
   check('Dart：变量形态的路径 ⇒ 查回声明', dartSites.some((s) => s.method === 'GET' && s.path === '/hippocampus/api/memory'));
   check('Dart：查询串去掉', dartSites.every((s) => s.path.indexOf('?') < 0));
 
+  // ⚠️ 2026-11-02：钉住「客户端文件是**自己发现**的」——
+  // 原来闸只扫表里登记过的文件 ⇒ ⇒ 新写的客户端文件**永远漏报**。
+  const discovered = discoverClientFiles();
+  const groupService = 'shadow-mobile/lib/services/group_service.dart';
+  check('客户端文件能被自己发现（不止表里登记的那些）', discovered.length > 2);
+  check('移动端 group_service 也在被发现的范围里', discovered.indexOf(groupService) >= 0);
+  const groupSites = extractCallSites(join(REPO, groupService));
+  check('group_service 的调用点抽得出（否则闸看不见它们）', groupSites.length > 0);
+
   console.log(failed ? '❌ 自检有 ' + failed + ' 条红' : '✅ 自检全过');
   process.exit(failed ? 1 : 0);
 }
@@ -644,6 +730,11 @@ function selfTest() {
 const opts = parseArgs(process.argv.slice(2));
 if (opts.selfTest) {
   selfTest();
+} else if (opts.discover) {
+  // --discover：**自己发现**客户端文件 ⇒ 看看「表里没登记的」还有谁
+  const files = discoverClientFiles();
+  console.log('发现 ' + files.length + ' 个客户端文件：');
+  for (const f of files) console.log('  ' + f);
 } else if (opts.dump) {
   // --dump：让抽取器**自证**（2026-11-01 教训：数出来的条数必须能自己看）
   const full = resolve(REPO, opts.dump);
@@ -671,7 +762,10 @@ if (opts.selfTest) {
     process.exit(2);
   }
 
-  const files = [...new Set(rows.map((r) => r.file))];
+  // ⚠️ 2026-11-02：**不只扫表里登记的文件** —— 表里没有的新客户端文件
+  // （例如移动端 `services/group_service.dart`）必须自己被发现 ⇒ ⇒ 否则
+  // 「客户端的每个调用点都在表里」是**假话**（漏报）。
+  const files = [...new Set([...rows.map((r) => r.file), ...discoverClientFiles()])];
   const extracted = new Map();
   let totalSites = 0;
   for (const f of files) {
