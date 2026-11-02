@@ -150,7 +150,8 @@ Turso 里存**指针**，不存材料：
 
 | 阶段 | 做什么 | 验收 |
 |---|---|---|
-| P0 | **闸**：禁止明文 secret 进 Turso / 进文件（写库前命中 secret 键且值不是引用 ⇒ 直接报错；源码级扫描明文 `api_key` 赋值） | 闸红绿可复现；故意写回明文 ⇒ 恰好红 |
+| P0 | **报告式闸**（只报、**不拦**）：扫端脑的 secret 写路径，命中「明文 secret 落库 / 落文件」⇒ ⇒ 打印位置与来源 | 闸能报出今天那几处明文落点；因为不拦截 ⇒ ⇒ **今天就能上，不依赖任何拍板** |
+| P0' | **拦截式闸**（改写即失败）：写库前命中 secret 键且值不是引用 ⇒ 直接报错 | ⚠️ **必须与 P2 同批落地** —— 在引用式存储存在之前就拦截 ⇒ ⇒ 供应商 key **无处可放**（配置面直接瘫）⇒ ⇒ 顺序错了就把「更安全」做成「不能用」 |
 | P1 | 大脑加 `SecretStore` trait ＋ `BuildOptions.secret_store`；实现 `KeyringSecretStore`（keyring-core ＋ 按 target 的 store）＋ `InMemorySecretStore`（测试） | `cargo test --lib` 绿；反向验证（拆掉 store ⇒ 恰好红） |
 | P2 | 配置中心支持引用式 secret（`config_entry` 加 `secret_ref` 列，或值改成引用对象）；provider 写入改「写钥匙环 ＋ 存引用」 | 真 HTTP 复验：Turso 里 grep 不到 `sk-` |
 | P3 | 存量迁移（**幂等 ＋ 回滚标记**，照抄桌面端 providers 一次性导入那套） | 迁移后旧文件里没有明文；重复跑不炸 |
@@ -158,6 +159,10 @@ Turso 里存**指针**，不存材料：
 | P5 | 反向验证 ＋ 真机复验 | 「把写库路径改回明文 ⇒ 恰好红」 |
 
 ⚠️ **P1 的落点**：`telencephalon/src/boot.rs` 的 `BuildOptions`（已有 `flow_dir` / `identity_dir` / `hippocampus_data_dir` / `conversation_store_file` / `control_plane` 这类「宿主注入」字段）⇒ ⇒ **`secret_store` 加在同一处**；桌面端 `telencephalon_http.rs:145` 与 Android 的 boot 各自注入自己的 store。
+
+⚠️⚠️ **落地窗口（2026-11-02 实测）**：P1/P2 的四个落点 —— `src/boot.rs`、`src/config_center/mod.rs`、`src/config_center/store.rs`、`src/api/providers.rs` —— **在端脑仓的工作树里此刻全是 `M`（并行会话在飞）** ⇒ ⇒ **现在动它们就是覆盖在飞工作** ⇒ ⇒ 动手前必须先确认那批改动已经落地。
+
+⚠️ **别把「更安全」做成「不能用」**：拦截式闸（P0'）在引用式存储（P2）之前上线，会让供应商 key **无处可放** ⇒ ⇒ 配置面直接瘫 ⇒ ⇒ 顺序是硬约束，不是风格问题。
 
 ---
 
