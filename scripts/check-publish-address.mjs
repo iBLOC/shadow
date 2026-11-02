@@ -439,35 +439,60 @@ function resolveBinding(bindings, name, useOffset) {
 }
 
 /**
- * 一段文字里的 URL 文本 —— **顺着一层局部绑定**追下去。
+ * 把一层层包装剥掉 ⇒ ⇒ 剩下的若**只**是一个标识符 ⇒ 那就是「这个值」。
  *
- * ⚠️ 追的是**发布体的数据流**，不是「名字里有没有 url」⇒ ⇒
- * 客户端地址（hippocampus_url 之类）**不会**被误当成公布地址。
+ * ⚠️ **为什么要剥包装**：发布体里那个字段常常是
+ * Some(placeholder_url.clone()) / &url / Box::new(x) ⇒ ⇒
+ * 值的**名字**裹在包装里 ⇒ ⇒ 不剥就找不到它。
  */
-function collectUrlsFromRegion(code, bindings, region, depth, seen) {
+function valueIdentifierOf(expr) {
+  let s = expr.trim();
+  for (;;) {
+    let m = /^(?:&|\*)\s*(.+)$/.exec(s);
+    if (m) {
+      s = m[1].trim();
+      continue;
+    }
+    m = /^(?:Some|None|Box::new|Arc::new|Rc::new)\s*\((.*)\)$/.exec(s);
+    if (m) {
+      s = m[1].trim();
+      continue;
+    }
+    m = /^(.*)\.(?:clone|to_owned|to_string|into|as_str|as_ref|as_deref)\s*\(\s*\)$/.exec(s);
+    if (m) {
+      s = m[1].trim();
+      continue;
+    }
+    break;
+  }
+  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(s) ? s : null;
+}
+
+/**
+ * 一段文字里的 URL 文本 —— **顺着「值」追**（不是顺着每个标识符追）。
+ *
+ * ⚠️⚠️ **为什么必须顺着「值」追**：发布体里那个实参常是 &url ⇒ ⇒ 它的
+ * 绑定是 format!("http://{}/api/a2a", bind_addr) ⇒ ⇒ bind_addr 是
+ * **格式化参数**、不是那个公布的地址 ⇒ ⇒ 顺着**每个标识符**追 ⇒ ⇒ 会把
+ * bind_addr 的绑定（里面恰好另有**一个** URL）也算成「公布的地址」
+ * ⇒ ⇒ **假阳性**（实测：枕叶的 unwrap_or_else(|_| "http://localhost:8085")
+ * 被算成了「公布地址」—— 它其实是**神经元服务**的地址）。
+ *
+ * ⇒ ⇒ 顺着「值」追：包装剥掉 ⇒ 剩下一个标识符 ⇒ 追它的绑定 ⇒ **不再往里
+ * 追标识符** ⇒ ⇒ 格式化参数不会被误当成公布的地址。
+ */
+function publishedUrlsIn(code, bindings, region, depth, seen) {
   const out = [];
   for (const u of urlTextsIn(code, region.start, region.end)) out.push(u);
   if (depth <= 0) return out;
-  const idRe = /[A-Za-z_][A-Za-z0-9_]*/g;
-  idRe.lastIndex = region.start;
-  let m;
-  while ((m = idRe.exec(code)) !== null) {
-    if (m.index >= region.end) break;
-    const name = m[0];
-    if (seen.has(name)) continue;
-    const b = resolveBinding(bindings, name, m.index);
-    if (!b) continue;
-    seen.add(name);
-    out.push(
-      ...collectUrlsFromRegion(
-        code,
-        bindings,
-        { start: b.exprStart, end: b.exprEnd },
-        depth - 1,
-        seen,
-      ),
-    );
-  }
+  const name = valueIdentifierOf(code.slice(region.start, region.end));
+  if (!name || seen.has(name)) return out;
+  const b = resolveBinding(bindings, name, region.start);
+  if (!b) return out;
+  seen.add(name);
+  out.push(
+    ...publishedUrlsIn(code, bindings, { start: b.exprStart, end: b.exprEnd }, depth - 1, seen),
+  );
   return out;
 }
 
@@ -480,7 +505,7 @@ function findHandwrittenPublishedUrls(code, lineOf, origLines) {
   const bindings = buildBindings(code);
   for (const body of findPublishBodies(code)) {
     for (const region of publishRegions(code, body.bodyStart, body.bodyEnd, body.isCall)) {
-      for (const u of collectUrlsFromRegion(code, bindings, region, 2, new Set())) {
+      for (const u of publishedUrlsIn(code, bindings, region, 3, new Set())) {
         // 通配主机归 R1 管 ⇒ 别报两次。
         if (WIDE_HOSTS.has(u.host)) continue;
         let bad = null;
@@ -607,6 +632,14 @@ function selfTest() {
       name: '通配主机当地址（该抓到）',
       src: 'let x = "http://0.0.0.0:9500";',
       expect: 1,
+    },
+    {
+      // ⚠️⚠️ **这条钉的是「顺着每个标识符追」的假阳性**：发布体的实参是
+      // 「变量」⇒ 那个变量的绑定里有个**格式化参数**指向**别的**地址
+      // ⇒ ⇒ 顺着每个标识符追 ⇒ ⇒ 那个别的地址被算成了「公布的地址」。
+      name: '发布体的值经格式化参数指向别的地址（不该抓）',
+      src: 'let neuron_url = std::env::var("NEURON_URL").unwrap_or_else(|_| "http://localhost:8085".into());\nlet bind_addr = neuron_url;\nlet url = format!("http://{}/api/a2a", bind_addr);\nlet card = AgentCard::new("occipital", "desc", &url, "0.1.0");',
+      expect: 0,
     },
     {
       // ⚠️ **这条钉的是判据原型踩过的坑**：客户端回退地址**不是**公布地址。
