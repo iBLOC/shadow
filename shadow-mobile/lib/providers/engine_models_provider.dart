@@ -4,6 +4,10 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
+import '../services/app_config_service.dart';
+import '../services/telencephalon/telencephalon_client.dart';
+import 'telencephalon_provider.dart';
+
 /// Phase of a model download task, as reported by 前额叶.
 enum ModelDownloadPhase {
   pending,
@@ -141,18 +145,43 @@ class EngineModelsState {
 }
 
 class EngineModelsNotifier extends StateNotifier<EngineModelsState> {
-  final String _baseUrl;
+  /// 显式给定的大脑地址（测试用）。
+  final String? _baseUrl;
+
+  /// 动态取大脑地址的回调 —— 生产路径走它。
+  ///
+  /// ⚠️ **为什么不能把它定在构造那一刻**：端脑面的地址会变（内嵌大脑接管
+  /// ⇒ 随机端口；用户改配置 ⇒ 换一台）⇒ 而 client 对象**恒定**
+  /// （`telencephalonClientProvider` 返回同一个单例）⇒ ⇒ 若在构造时把
+  /// 地址**读死**，用户改完设置这一半还在打老地址 ⇒ 「供应商来自新大脑、
+  /// 本地模型来自老机器」—— 同一个页面两张脸。
+  final String Function()? _baseUrlFn;
+
   final http.Client _client;
 
-  EngineModelsNotifier({String? baseUrl, http.Client? client})
-    : _baseUrl = (baseUrl ?? _deriveBaseUrl()).replaceAll(RegExp(r'/+$'), ''),
-      _client = client ?? http.Client(),
-      super(const EngineModelsState());
+  EngineModelsNotifier({
+    String? baseUrl,
+    String Function()? baseUrlFn,
+    http.Client? client,
+  })  : _baseUrl = baseUrl,
+        _baseUrlFn = baseUrlFn,
+        _client = client ?? http.Client(),
+        super(const EngineModelsState());
 
+  /// 当前的大脑地址 —— **现取**，不是构造时定死。
+  String _base() {
+    final raw = _baseUrl ?? _baseUrlFn?.call() ?? _deriveBaseUrl();
+    return raw.replaceAll(RegExp(r'/+$'), '');
+  }
+
+  /// 这一半正在打的大脑地址（给界面与测试看）。
+  String get baseUrl => _base();
+
+  /// 没给地址时的回退 —— 与 `telencephalonProvider` 的初始值**同源**
+  /// （用户配了地址就用配的，没配才用回环默认值）。
   static String _deriveBaseUrl() {
-    // Telencephalon is the single platform entry point (port 60080).
-    // Neuron is embedded at root: /v1/models, /v1/chat/completions, etc.
-    return 'http://localhost:60080';
+    return AppConfigService().telencephalonBaseUrl ??
+        TelencephalonClient.defaultBaseUrl;
   }
 
   Future<void> refresh() async {
@@ -168,7 +197,7 @@ class EngineModelsNotifier extends StateNotifier<EngineModelsState> {
 
   Future<List<EngineModel>> _listLoaded() async {
     // Neuron is embedded in telencephalon at root: /v1/models
-    final r = await _client.get(Uri.parse('$_baseUrl/v1/models'));
+    final r = await _client.get(Uri.parse('${_base()}/v1/models'));
     if (r.statusCode == 404) return const [];
     if (r.statusCode >= 400) {
       throw HttpException(r.statusCode, r.body);
@@ -197,7 +226,7 @@ class EngineModelsNotifier extends StateNotifier<EngineModelsState> {
   }) async {
     // Neuron's POST /v1/models/pull returns { job_id, status }.
     final r = await _client.post(
-      Uri.parse('$_baseUrl/v1/models/pull'),
+      Uri.parse('${_base()}/v1/models/pull'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
         'id': modelId ?? '',
@@ -216,7 +245,7 @@ class EngineModelsNotifier extends StateNotifier<EngineModelsState> {
   }
 
   Future<ModelDownloadTask> pollDownload(String taskId) async {
-    final r = await _client.get(Uri.parse('$_baseUrl/v1/models/pull/$taskId'));
+    final r = await _client.get(Uri.parse('${_base()}/v1/models/pull/$taskId'));
     if (r.statusCode == 404) {
       throw HttpException(404, 'task $taskId not found');
     }
@@ -230,7 +259,7 @@ class EngineModelsNotifier extends StateNotifier<EngineModelsState> {
   Future<void> releaseModel(String modelId) async {
     // Neuron's DELETE /v1/models/all/{id} removes a downloaded model.
     final r = await _client.delete(
-      Uri.parse('$_baseUrl/v1/models/all/$modelId'),
+      Uri.parse('${_base()}/v1/models/all/$modelId'),
     );
     if (r.statusCode >= 400) {
       throw HttpException(r.statusCode, r.body);
@@ -242,7 +271,7 @@ class EngineModelsNotifier extends StateNotifier<EngineModelsState> {
 
   Future<void> loadModel(String modelId) async {
     final r = await _client.post(
-      Uri.parse('$_baseUrl/v1/models/$modelId/load'),
+      Uri.parse('${_base()}/v1/models/$modelId/load'),
     );
     if (r.statusCode >= 400) {
       throw HttpException(r.statusCode, r.body);
@@ -260,12 +289,16 @@ class HttpException implements Exception {
   String toString() => 'HTTP $statusCode: $body';
 }
 
+/// 本地模型面（neuron's `/v1/models*`）—— **端脑面**的一张面。
+///
+/// ⚠️ 地址**不许写死**（以前写死 `http://localhost:60080`）⇒ ⇒ ① 内嵌大脑
+/// 接管时端脑面在**随机端口**上 ⇒ 这一半打错；② 用户把大脑配到远端 ⇒
+/// 这一半还在打本机 ⇒ 「供应商来自新大脑、本地模型来自老机器」。
+///
+/// ⇒ ⇒ 跟**端脑面的真相源**走（与桌面的 `telencephalonClient.getBaseUrl()`
+/// 同构）：client 对象恒定、地址可变 ⇒ ⇒ 用**回调**现取，不能构造时定死。
 final engineModelsProvider =
     StateNotifierProvider<EngineModelsNotifier, EngineModelsState>((ref) {
-      final baseUrl = ref.watch(prefrontalBaseUrlProvider);
-      return EngineModelsNotifier(baseUrl: baseUrl);
+      final client = ref.read(telencephalonClientProvider);
+      return EngineModelsNotifier(baseUrlFn: () => client.baseUrl);
     });
-
-final prefrontalBaseUrlProvider = StateProvider<String>(
-  (ref) => 'http://localhost:60080',
-);
