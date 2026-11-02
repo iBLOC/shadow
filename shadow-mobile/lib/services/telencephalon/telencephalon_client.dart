@@ -1451,6 +1451,215 @@ class TelencephalonClient {
       '$_baseUrl/api/webrtc/$modality/sessions/${Uri.encodeComponent(sessionId)}/ws',
     );
   }
+
+  // ============ 云供应商（**大脑是唯一提供方**）============
+
+  /// 读**大脑自己**的供应商清单（端脑面 `GET /models/providers`）。
+  ///
+  /// ⚠️ **大脑是唯一提供方**（2026-11-02 的架构决定）：桌面端与手机端读
+  /// **同一张表** ⇒ ⇒ 两端看到的、配置的、**推理用的**全是同一份数据。
+  ///
+  /// ⚠️ 旧路径 `/api/providers` 是**前额叶方言**，端脑**不提供** ⇒ 404 ⇒
+  /// ⇒ 界面把它画成「还没有供应商」⇒ ⇒ **失败长得像成功**。
+  Future<List<BrainProvider>> listProviders() async {
+    final data = await _getJson('/models/providers');
+    if (data is! List) {
+      throw TelencephalonException(
+        'GET /models/providers → 形状不对：${data.runtimeType}',
+      );
+    }
+    return data
+        .cast<Map<String, dynamic>>()
+        .map(BrainProvider.fromJson)
+        .toList();
+  }
+
+  /// 读**预设目录**（端脑面 `GET /models/providers/presets`）。
+  ///
+  /// ⚠️ 权威在 `synapse::providers::catalog` ⇒ ⇒ 手机**不必硬编码**一份
+  /// 供应商清单（硬编码那份**已经漂了**：`qwen` 的地址与目录不同、少了 8 个）。
+  Future<List<ProviderPreset>> listProviderPresets() async {
+    final data = await _getJson('/models/providers/presets');
+    if (data is! List) {
+      throw TelencephalonException(
+        'GET /models/providers/presets → 形状不对：${data.runtimeType}',
+      );
+    }
+    return data
+        .cast<Map<String, dynamic>>()
+        .map(ProviderPreset.fromJson)
+        .toList();
+  }
+
+  /// 加一个供应商。
+  ///
+  /// ⚠️ 给了 [presetId] 就**只需要 API key**（base URL + API 标准由大脑的
+  /// 目录给）⇒ ⇒ 这正是桌面端那套交互 ⇒ ⇒ 两端现在**打同一个接口**。
+  Future<BrainProvider> addProvider({
+    String? presetId,
+    String? name,
+    String? baseUrl,
+    String? apiKey,
+  }) async {
+    final body = <String, dynamic>{};
+    if (presetId != null) body['preset_id'] = presetId;
+    if (name != null) body['name'] = name;
+    if (baseUrl != null) body['api_base'] = baseUrl;
+    if (apiKey != null) body['api_key'] = apiKey;
+    return BrainProvider.fromJson(await _post('/models/providers', body));
+  }
+
+  /// 改一个供应商（启停 / 选模型 / 换 key / 改定义）。
+  Future<BrainProvider> updateProvider(
+    String id, {
+    bool? enabled,
+    String? selectedModel,
+    String? apiKey,
+    String? name,
+    String? baseUrl,
+  }) async {
+    final body = <String, dynamic>{};
+    if (enabled != null) body['enabled'] = enabled;
+    if (selectedModel != null) body['selected_model'] = selectedModel;
+    if (apiKey != null) body['api_key'] = apiKey;
+    if (name != null) body['name'] = name;
+    if (baseUrl != null) body['api_base'] = baseUrl;
+    return BrainProvider.fromJson(
+      await _put('/models/providers/${Uri.encodeComponent(id)}', body),
+    );
+  }
+
+  /// 删一个供应商。
+  Future<void> deleteProvider(String id) async {
+    final r = await _http.delete(
+      await _u('/models/providers/${Uri.encodeComponent(id)}'),
+      headers: _headers(),
+    );
+    if (r.statusCode != 204 && r.statusCode != 200) {
+      throw TelencephalonException(
+        'DELETE /models/providers/$id → ${r.statusCode}: ${r.body}',
+      );
+    }
+  }
+
+  /// PUT —— 这张面**没有**现成的 PUT helper（端脑的写面大多是 POST）。
+  Future<Map<String, dynamic>> _put(
+    String path,
+    Map<String, dynamic> body,
+  ) async {
+    final r = await _http.put(
+      await _u(path),
+      headers: _headers(jsonBody: true),
+      body: jsonEncode(body),
+    );
+    if (r.statusCode != 200) {
+      throw TelencephalonException('PUT $path → ${r.statusCode}: ${r.body}');
+    }
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+}
+
+/// 大脑提供的一条**已配置**供应商（端脑面 `/models/providers` 的读模型）。
+///
+/// ⚠️ 字段名**跟大脑对齐**（不是两端各抄一套）⇒ ⇒ 两端读**同一份数据**。
+class BrainProvider {
+  final String id;
+  final String name;
+  final String baseUrl;
+  final String apiStandard;
+  final bool enabled;
+  final String? selectedModel;
+  final String? presetId;
+  final List<BrainModel> models;
+  final String? lastError;
+  final String? lastRefreshedAt;
+
+  const BrainProvider({
+    required this.id,
+    required this.name,
+    required this.baseUrl,
+    required this.apiStandard,
+    required this.enabled,
+    this.selectedModel,
+    this.presetId,
+    this.models = const [],
+    this.lastError,
+    this.lastRefreshedAt,
+  });
+
+  factory BrainProvider.fromJson(Map<String, dynamic> json) {
+    final providerType = (json['provider_type'] as String?) ?? '';
+    return BrainProvider(
+      id: (json['id'] as String?) ?? '',
+      name: (json['name'] as String?) ?? '',
+      // ⚠️ `base_url` 是大脑给的别名；`api_base` 是它自己的老字段 ⇒ 两个都读。
+      baseUrl:
+          (json['base_url'] as String?) ?? (json['api_base'] as String?) ?? '',
+      apiStandard:
+          (json['api_standard'] as String?) ?? _deriveStandard(providerType),
+      enabled: json['enabled'] as bool? ?? true,
+      selectedModel: json['selected_model'] as String?,
+      presetId: json['preset_id'] as String?,
+      models: ((json['models'] as List?) ?? const [])
+          .cast<Map<String, dynamic>>()
+          .map(BrainModel.fromJson)
+          .toList(),
+      lastError: json['last_error'] as String?,
+      lastRefreshedAt: json['last_refreshed_at'] as String?,
+    );
+  }
+
+  /// 大脑没给标准时，按它自己的 `provider_type` 派生（存量里是
+  /// `openai_compatible` 这种自由文本）。
+  static String _deriveStandard(String providerType) {
+    final t = providerType.toLowerCase();
+    return (t.contains('claude') || t.contains('anthropic'))
+        ? 'claude'
+        : 'openai';
+  }
+}
+
+/// 大脑给的**模型列表**里的一条。
+class BrainModel {
+  final String id;
+  final String name;
+
+  const BrainModel({required this.id, required this.name});
+
+  factory BrainModel.fromJson(Map<String, dynamic> json) => BrainModel(
+    id: (json['id'] as String?) ?? (json['model_id'] as String?) ?? '',
+    name: (json['name'] as String?) ?? (json['id'] as String?) ?? '',
+  );
+}
+
+/// 大脑给的**预设目录**里的一条（端脑面 `/models/providers/presets`）。
+///
+/// ⚠️ 权威在 `synapse::providers::catalog` ⇒ ⇒ 客户端**只读**它，不自己抄。
+class ProviderPreset {
+  final String id;
+  final String name;
+  final String baseUrl;
+  final String apiStandard;
+  final String? defaultModel;
+  final bool requiresKey;
+
+  const ProviderPreset({
+    required this.id,
+    required this.name,
+    required this.baseUrl,
+    required this.apiStandard,
+    this.defaultModel,
+    required this.requiresKey,
+  });
+
+  factory ProviderPreset.fromJson(Map<String, dynamic> json) => ProviderPreset(
+    id: (json['id'] as String?) ?? '',
+    name: (json['name'] as String?) ?? '',
+    baseUrl: (json['base_url'] as String?) ?? '',
+    apiStandard: (json['api_standard'] as String?) ?? 'openai',
+    defaultModel: json['default_model'] as String?,
+    requiresKey: json['requires_key'] as bool? ?? true,
+  );
 }
 
 class TelencephalonException implements Exception {

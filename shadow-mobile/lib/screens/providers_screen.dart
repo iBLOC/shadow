@@ -1,170 +1,165 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../services/prefrontal_client.dart';
+import '../providers/telencephalon_provider.dart';
+import '../services/telencephalon/telencephalon_client.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/empty_state.dart';
 import '../theme/app_colors.dart';
 import '../generated/l10n/app_localizations.dart';
 
-/// Provider类型定义
-enum ProviderType {
-  xiaomiMimo('Xiaomi MiMo', 'https://api.xiaomimimo.com/v1', 'mimo-v2.5-pro'),
-  openai('OpenAI', 'https://api.openai.com/v1', 'gpt-4o'),
-  anthropic(
-    'Anthropic',
-    'https://api.anthropic.com',
-    'claude-sonnet-4-20250514',
-  ),
-  ollama('Ollama', 'http://localhost:11434', 'llama3'),
-  groq('Groq', 'https://api.groq.com/openai/v1', 'llama-3.3-70b-versatile'),
-  deepseek('DeepSeek', 'https://api.deepseek.com', 'deepseek-chat'),
-  minimax('MiniMax', 'https://api.minimax.chat/v1', 'MiniMax-Text-01'),
-  qwen('Qwen', 'https://dashscope.aliyuncs.com/api/v1', 'qwen-plus'),
-  moonshot('Moonshot', 'https://api.moonshot.cn/v1', 'moonshot-v1-8k'),
-  zhipuai('Zhipu AI', 'https://open.bigmodel.cn/api/paas/v4', 'glm-4'),
-  local('Local model', 'http://localhost:8080', 'local-model');
-
-  final String displayName;
-  final String defaultBaseUrl;
-  final String defaultModel;
-
-  const ProviderType(this.displayName, this.defaultBaseUrl, this.defaultModel);
-
-  /// 本地化后的显示名。
-  ///
-  /// 枚举的字段是编译期常量，拿不到 BuildContext，所以本地化放在这里做：
-  /// 品牌名（OpenAI / Ollama…）两种语言一样，只有通义千问、智谱 AI 和
-  /// 「本地模型」这种描述性名字需要翻译。
-  String localizedDisplayName(AppLocalizations l10n) {
-    switch (this) {
-      case ProviderType.qwen:
-        return l10n.providerQwen;
-      case ProviderType.zhipuai:
-        return l10n.providerZhipu;
-      case ProviderType.local:
-        return l10n.providerLocalModel;
-      default:
-        return displayName;
-    }
-  }
-}
-
-/// Provider信息模型 - 使用后端返回的格式
-class ProviderInfo {
-  final String name;
-  final ProviderType type;
-  final String? apiKey;
-  final String? baseUrl;
-  final String? model;
-  final bool enabled;
-
-  ProviderInfo({
-    required this.name,
-    required this.type,
-    this.apiKey,
-    this.baseUrl,
-    this.model,
-    this.enabled = true,
-  });
-
-  String get displayName => type.displayName;
-  String get effectiveBaseUrl => baseUrl ?? type.defaultBaseUrl;
-  String get effectiveModel => model ?? type.defaultModel;
-
-  factory ProviderInfo.fromResponse(ProviderResponse resp) {
-    return ProviderInfo(
-      name: resp.name,
-      type: ProviderType.values.firstWhere(
-        (t) => t.name == resp.type,
-        orElse: () => ProviderType.openai,
-      ),
-      apiKey: null,
-      baseUrl: resp.baseUrl,
-      model: resp.model,
-      enabled: resp.enabled,
-    );
-  }
-}
-
-/// Provider状态
+/// 供应商页的状态 —— ⚠️ **「读不到」与「真的没有」必须分开**。
+///
+/// ⚠️ 旧实现只有两态（loading / 「有就画列表、没就画空态」）⇒ ⇒ 端脑回
+/// 404 / 401 时 `error` 被记下、列表为空 ⇒ 界面画成「还没有供应商」⇒ ⇒
+/// **失败长得像成功**（用户去查自己的 key，而真因是「没连上大脑」）。
+///
+/// ⇒ 现在是三态：**读得到有** / **读得到空** / **读不到**。
 class ProvidersState {
-  final List<ProviderInfo> providers;
+  final List<BrainProvider> providers;
+  final List<ProviderPreset> presets;
   final bool isLoading;
+  final bool isLoadingPresets;
+  /// **读不到**的原因（连不上 / 被门挡住 / 形状不对）。
   final String? error;
+  /// **预设目录读不到**的原因（⇒ 只能自定义添加）。
+  final String? presetError;
 
   const ProvidersState({
     this.providers = const [],
+    this.presets = const [],
     this.isLoading = false,
+    this.isLoadingPresets = false,
     this.error,
+    this.presetError,
   });
 
   ProvidersState copyWith({
-    List<ProviderInfo>? providers,
+    List<BrainProvider>? providers,
+    List<ProviderPreset>? presets,
     bool? isLoading,
+    bool? isLoadingPresets,
     String? error,
+    String? presetError,
+    bool clearError = false,
+    bool clearPresetError = false,
   }) {
     return ProvidersState(
       providers: providers ?? this.providers,
+      presets: presets ?? this.presets,
       isLoading: isLoading ?? this.isLoading,
-      error: error,
+      isLoadingPresets: isLoadingPresets ?? this.isLoadingPresets,
+      // ⚠️ 旧实现写的是 `error: error` ⇒ **每次 copyWith 都把错误清空** ⇒
+      // ⇒ 就算界面想渲染错误也拿不到 ⇒ 这里改成「不传就保留」。
+      error: clearError ? null : (error ?? this.error),
+      presetError: clearPresetError ? null : (presetError ?? this.presetError),
     );
   }
 }
 
-/// Providers Notifier
+/// 供应商数据源 —— ⚠️ **大脑是唯一提供方**（2026-11-02 的架构决定）。
+///
+/// ⚠️ 旧实现打的是**前额叶方言** `/api/providers` ⇒ ⇒ 端脑**不提供**那条
+/// 路由（实测：`GET /api/providers` ⇒ 404，而 `GET /models/providers`
+/// ⇒ 200）⇒ ⇒ 界面永远画成「还没有供应商」。
+///
+/// ⇒ 现在打**端脑方言**：清单、预设目录、增删改，全是**大脑那一份** ⇒ ⇒
+/// 与桌面端**同一套接口、同一份数据**。
 class ProvidersNotifier extends StateNotifier<ProvidersState> {
-  final PrefrontalClient _client;
+  final TelencephalonClient _client;
 
   ProvidersNotifier(this._client) : super(const ProvidersState()) {
     loadProviders();
+    loadPresets();
   }
 
-  /// 公开入口：刷新按钮等 UI 需要触发重新拉取。
-  /// 之前是私有的 `_loadProviders()`，只有同文件的 UI 能调 —— 换文件就断。
+  /// 读供应商清单（**大脑的那份**）。
   Future<void> loadProviders() async {
-    state = state.copyWith(isLoading: true);
+    state = state.copyWith(isLoading: true, clearError: true);
     try {
-      final resp = await _client.getProviders();
-      final providers = resp.map((r) => ProviderInfo.fromResponse(r)).toList();
+      final providers = await _client.listProviders();
       state = state.copyWith(providers: providers, isLoading: false);
     } catch (e) {
+      // ⚠️ **读不到 ≠ 没有** —— 原因必须留着给界面说真话。
       state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
 
-  Future<void> addProvider(
-    ProviderType type,
-    String apiKey, {
+  /// 读**预设目录**（大脑给的权威清单）⇒ ⇒ 手机不再硬编码一份。
+  Future<void> loadPresets() async {
+    state = state.copyWith(isLoadingPresets: true, clearPresetError: true);
+    try {
+      final presets = await _client.listProviderPresets();
+      state = state.copyWith(presets: presets, isLoadingPresets: false);
+    } catch (e) {
+      state = state.copyWith(isLoadingPresets: false, presetError: e.toString());
+    }
+  }
+
+  /// 加一个供应商：给了 [presetId] 就**只需要 API key**（base URL 与 API
+  /// 标准由大脑的目录给）。
+  Future<void> addProvider({
+    String? presetId,
+    String? name,
     String? baseUrl,
-    String? model,
+    String? apiKey,
   }) async {
     try {
-      final req = AddProviderRequest(
-        type: type.name,
-        apiKey: apiKey,
+      await _client.addProvider(
+        presetId: presetId,
+        name: name,
         baseUrl: baseUrl,
-        model: model,
+        apiKey: apiKey,
       );
-      await _client.addProvider(req);
       await loadProviders();
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
   }
 
-  Future<void> removeProvider(String name) async {
+  /// 删一个供应商。
+  Future<void> removeProvider(String id) async {
     try {
-      await _client.deleteProvider(name);
+      await _client.deleteProvider(id);
       await loadProviders();
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }
   }
 
-  Future<void> toggleProvider(String name, bool enabled) async {
+  /// 启用 / 停用。
+  Future<void> toggleProvider(String id, bool enabled) async {
     try {
-      final req = UpdateProviderRequest(enabled: enabled);
-      await _client.updateProvider(name, req);
+      await _client.updateProvider(id, enabled: enabled);
+      await loadProviders();
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+    }
+  }
+
+  /// 改一条供应商（编辑时**只换 key**）。
+  Future<void> updateProvider(
+    String id, {
+    String? apiKey,
+    String? name,
+    String? baseUrl,
+  }) async {
+    try {
+      await _client.updateProvider(
+        id,
+        apiKey: apiKey,
+        name: name,
+        baseUrl: baseUrl,
+      );
+      await loadProviders();
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+    }
+  }
+
+  /// 选模型（模型列表由大脑拉）。
+  Future<void> selectModel(String id, String modelId) async {
+    try {
+      await _client.updateProvider(id, selectedModel: modelId);
       await loadProviders();
     } catch (e) {
       state = state.copyWith(error: e.toString());
@@ -172,10 +167,9 @@ class ProvidersNotifier extends StateNotifier<ProvidersState> {
   }
 }
 
-/// Provider
 final providersNotifierProvider =
     StateNotifierProvider<ProvidersNotifier, ProvidersState>((ref) {
-      final client = ref.watch(prefrontalClientProvider);
+      final client = ref.watch(telencephalonClientProvider);
       return ProvidersNotifier(client);
     });
 
@@ -201,36 +195,53 @@ class ProvidersScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: providersState.isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : providersState.providers.isEmpty
-          ? EmptyState(
-              icon: Icons.cloud_off,
-              title: AppLocalizations.of(context)!.providersEmpty,
-              description: AppLocalizations.of(context)!.providersEmptyHint,
-              buttonLabel: AppLocalizations.of(context)!.providersAdd,
-              onButtonPressed: () => _showAddProviderDialog(context, ref),
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: providersState.providers.length,
-              itemBuilder: (context, index) {
-                final provider = providersState.providers[index];
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: _ProviderCard(provider: provider),
-                );
-              },
-            ),
+      body: _buildBody(context, ref, providersState),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showAddProviderDialog(context, ref),
+        onPressed: () => _showAddProviderSheet(context, ref),
         icon: const Icon(Icons.add),
         label: Text(AppLocalizations.of(context)!.commonAdd),
       ),
     );
   }
 
-  void _showAddProviderDialog(BuildContext context, WidgetRef ref) {
+  /// ⚠️ **三态互斥**：读不到 ⇒ 只画「读不到」；读得到但空 ⇒ 画空态。
+  ///
+  /// ⚠️ 这条互斥是承重的：一旦「读不到」时还画空态文案 ⇒ 用户看到的仍是
+  /// 「还没有供应商」⇒ ⇒ 失败长得像成功（这项目的老病）。
+  Widget _buildBody(BuildContext context, WidgetRef ref, ProvidersState s) {
+    if (s.isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (s.error != null) {
+      return _UnreadableState(
+        error: s.error!,
+        onRetry: () =>
+            ref.read(providersNotifierProvider.notifier).loadProviders(),
+      );
+    }
+    if (s.providers.isEmpty) {
+      return EmptyState(
+        icon: Icons.cloud_off,
+        title: AppLocalizations.of(context)!.providersEmpty,
+        description: AppLocalizations.of(context)!.providersEmptyHint,
+        buttonLabel: AppLocalizations.of(context)!.providersAdd,
+        onButtonPressed: () => _showAddProviderSheet(context, ref),
+      );
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: s.providers.length,
+      itemBuilder: (context, index) {
+        final provider = s.providers[index];
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: _ProviderCard(provider: provider),
+        );
+      },
+    );
+  }
+
+  void _showAddProviderSheet(BuildContext context, WidgetRef ref) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -239,20 +250,59 @@ class ProvidersScreen extends ConsumerWidget {
   }
 }
 
+/// 「**读不到**」这一态 —— ⚠️ 绝不画成「还没有供应商」。
+class _UnreadableState extends StatelessWidget {
+  final String error;
+  final VoidCallback onRetry;
+
+  const _UnreadableState({required this.error, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.cloud_off, size: 48, color: AppColors.error),
+            const SizedBox(height: 16),
+            Text(
+              l10n.commonErrorDetail(error),
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh),
+              label: Text(l10n.commonRefresh),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _ProviderCard extends ConsumerWidget {
-  final ProviderInfo provider;
+  final BrainProvider provider;
 
   const _ProviderCard({required this.provider});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final model = provider.selectedModel ??
+        (provider.models.isNotEmpty ? provider.models.first.id : null);
     return GlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              _ProviderIcon(type: provider.type),
+              _ProviderIcon(presetId: provider.presetId),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -262,8 +312,15 @@ class _ProviderCard extends ConsumerWidget {
                       provider.name,
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
+                    if (provider.baseUrl.isNotEmpty)
+                      Text(
+                        provider.baseUrl,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
                     Text(
-                      provider.effectiveModel,
+                      '${provider.apiStandard} · ${model ?? '—'}',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ],
@@ -274,16 +331,39 @@ class _ProviderCard extends ConsumerWidget {
                 onChanged: (value) {
                   ref
                       .read(providersNotifierProvider.notifier)
-                      .toggleProvider(provider.name, value);
+                      .toggleProvider(provider.id, value);
                 },
               ),
             ],
           ),
-          if (provider.apiKey != null && provider.apiKey!.isNotEmpty) ...[
+          // ⚠️ 大脑那边拉模型列表失败 ⇒ **说出来**（别让用户以为配好了）。
+          if (provider.lastError != null) ...[
             const SizedBox(height: 8),
             Text(
-              'API Key: ${provider.apiKey!.substring(0, 8)}...',
-              style: Theme.of(context).textTheme.bodySmall,
+              l10n.commonErrorDetail(provider.lastError!),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: AppColors.error),
+            ),
+          ],
+          if (provider.models.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: provider.models
+                  .map(
+                    (m) => ChoiceChip(
+                      label: Text(m.id),
+                      selected: provider.selectedModel == m.id,
+                      onSelected: (_) {
+                        ref
+                            .read(providersNotifierProvider.notifier)
+                            .selectModel(provider.id, m.id);
+                      },
+                    ),
+                  )
+                  .toList(),
             ),
           ],
           const SizedBox(height: 12),
@@ -293,13 +373,16 @@ class _ProviderCard extends ConsumerWidget {
               TextButton.icon(
                 onPressed: () => _showEditDialog(context, ref, provider),
                 icon: const Icon(Icons.edit, size: 18),
-                label: Text(AppLocalizations.of(context)!.commonEdit),
+                label: Text(l10n.commonEdit),
               ),
               const SizedBox(width: 8),
               TextButton.icon(
                 onPressed: () => _confirmDelete(context, ref, provider),
                 icon: Icon(Icons.delete, size: 18, color: AppColors.error),
-                label: Text(AppLocalizations.of(context)!.commonDelete, style: TextStyle(color: AppColors.error)),
+                label: Text(
+                  l10n.commonDelete,
+                  style: TextStyle(color: AppColors.error),
+                ),
               ),
             ],
           ),
@@ -311,7 +394,7 @@ class _ProviderCard extends ConsumerWidget {
   void _showEditDialog(
     BuildContext context,
     WidgetRef ref,
-    ProviderInfo provider,
+    BrainProvider provider,
   ) {
     showModalBottomSheet(
       context: context,
@@ -323,26 +406,30 @@ class _ProviderCard extends ConsumerWidget {
   void _confirmDelete(
     BuildContext context,
     WidgetRef ref,
-    ProviderInfo provider,
+    BrainProvider provider,
   ) {
+    final l10n = AppLocalizations.of(context)!;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(AppLocalizations.of(context)!.commonConfirmDelete),
-        content: Text(AppLocalizations.of(context)!.commonDeleteConfirmNamed(provider.name)),
+        title: Text(l10n.commonConfirmDelete),
+        content: Text(l10n.commonDeleteConfirmNamed(provider.name)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(AppLocalizations.of(context)!.cancel),
+            child: Text(l10n.cancel),
           ),
           TextButton(
             onPressed: () {
               ref
                   .read(providersNotifierProvider.notifier)
-                  .removeProvider(provider.name);
+                  .removeProvider(provider.id);
               Navigator.pop(context);
             },
-            child: Text(AppLocalizations.of(context)!.commonDelete, style: TextStyle(color: AppColors.error)),
+            child: Text(
+              l10n.commonDelete,
+              style: TextStyle(color: AppColors.error),
+            ),
           ),
         ],
       ),
@@ -350,77 +437,48 @@ class _ProviderCard extends ConsumerWidget {
   }
 }
 
+/// 供应商图标 —— ⚠️ **只按预设 id 画**，不再认一份硬编码的类型枚举。
+///
+/// （旧实现有一份 11 条的 `ProviderType` 枚举 ⇒ 那份**已经漂了**：`qwen`
+/// 的地址与大脑的目录不同、少了 8 个供应商 ⇒ ⇒ 枚举降级成纯图标映射。）
 class _ProviderIcon extends StatelessWidget {
-  final ProviderType type;
+  final String? presetId;
 
-  const _ProviderIcon({required this.type});
+  const _ProviderIcon({this.presetId});
 
   @override
   Widget build(BuildContext context) {
-    IconData icon;
-    Color color;
-
-    switch (type) {
-      case ProviderType.xiaomiMimo:
-        icon = Icons.phone_android;
-        color = Colors.orange;
-        break;
-      case ProviderType.openai:
-        icon = Icons.psychology;
-        color = Colors.green;
-        break;
-      case ProviderType.anthropic:
-        icon = Icons.psychology_alt;
-        color = Colors.orange;
-        break;
-      case ProviderType.ollama:
-        icon = Icons.computer;
-        color = Colors.purple;
-        break;
-      case ProviderType.groq:
-        icon = Icons.bolt;
-        color = Colors.blue;
-        break;
-      case ProviderType.deepseek:
-        icon = Icons.water_drop;
-        color = Colors.cyan;
-        break;
-      case ProviderType.minimax:
-        icon = Icons.voice_chat;
-        color = Colors.red;
-        break;
-      case ProviderType.qwen:
-        icon = Icons.smart_toy;
-        color = Colors.blueGrey;
-        break;
-      case ProviderType.moonshot:
-        icon = Icons.rocket_launch;
-        color = Colors.indigo;
-        break;
-      case ProviderType.zhipuai:
-        icon = Icons.star;
-        color = Colors.amber;
-        break;
-      case ProviderType.local:
-        icon = Icons.storage;
-        color = Colors.grey;
-        break;
-    }
-
+    final id = presetId ?? '';
+    final icon = switch (id) {
+      'openai' => Icons.psychology,
+      'anthropic' => Icons.psychology_alt,
+      'ollama' || 'local' => Icons.computer,
+      'groq' => Icons.bolt,
+      'deepseek' => Icons.water_drop,
+      'minimax' || 'minimax-abab' => Icons.voice_chat,
+      'qwen' => Icons.smart_toy,
+      'moonshot' => Icons.rocket_launch,
+      'zhipuai' => Icons.star,
+      'xiaomi-mimo' => Icons.phone_android,
+      _ => Icons.cloud,
+    };
     return Container(
       width: 48,
       height: 48,
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
+        color: Colors.blue.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Icon(icon, color: color),
+      child: Icon(icon, color: Colors.blue),
     );
   }
 }
 
+/// 「自定义」在下拉里的哨兵值（`null` 不能当下拉项的值）。
+const String _kCustom = '__custom__';
+
 class _AddProviderSheet extends ConsumerStatefulWidget {
-  final ProviderInfo? editProvider;
+  final BrainProvider? editProvider;
 
   const _AddProviderSheet({this.editProvider});
 
@@ -429,38 +487,37 @@ class _AddProviderSheet extends ConsumerStatefulWidget {
 }
 
 class _AddProviderSheetState extends ConsumerState<_AddProviderSheet> {
-  late ProviderType _selectedType;
+  String _selectedPresetId = _kCustom;
   final _apiKeyController = TextEditingController();
+  final _nameController = TextEditingController();
   final _baseUrlController = TextEditingController();
-  final _modelController = TextEditingController();
 
   bool get isEditing => widget.editProvider != null;
+  bool get isCustom => _selectedPresetId == _kCustom;
 
   @override
   void initState() {
     super.initState();
     if (isEditing) {
-      _selectedType = widget.editProvider!.type;
-      _apiKeyController.text = widget.editProvider!.apiKey ?? '';
-      _baseUrlController.text = widget.editProvider!.effectiveBaseUrl;
-      _modelController.text = widget.editProvider!.effectiveModel;
-    } else {
-      _selectedType = ProviderType.openai;
-      _baseUrlController.text = ProviderType.openai.defaultBaseUrl;
-      _modelController.text = ProviderType.openai.defaultModel;
+      _nameController.text = widget.editProvider!.name;
+      _baseUrlController.text = widget.editProvider!.baseUrl;
     }
   }
 
   @override
   void dispose() {
     _apiKeyController.dispose();
+    _nameController.dispose();
     _baseUrlController.dispose();
-    _modelController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final state = ref.watch(providersNotifierProvider);
+    final presets = state.presets;
+
     return Padding(
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
@@ -472,38 +529,72 @@ class _AddProviderSheetState extends ConsumerState<_AddProviderSheet> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              isEditing ? AppLocalizations.of(context)!.providersEditTitle : AppLocalizations.of(context)!.providersAdd,
+              isEditing ? l10n.providersEditTitle : l10n.providersAdd,
               style: Theme.of(context).textTheme.headlineSmall,
             ),
             const SizedBox(height: 24),
 
-            // Provider类型选择
-            DropdownButtonFormField<ProviderType>(
-              initialValue: _selectedType,
-              decoration: InputDecoration(
-                labelText: AppLocalizations.of(context)!.commonProvider,
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.cloud),
+            // ⚠️ 编辑时**只改 key** —— 预设的 base URL 与标准是**大脑的目录**
+            // 给的（改了就不一致了）。
+            if (!isEditing) ...[
+              DropdownButtonFormField<String>(
+                initialValue: _selectedPresetId,
+                decoration: InputDecoration(
+                  labelText: l10n.commonProvider,
+                  border: OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.cloud),
+                ),
+                items: [
+                  ...presets.map(
+                    (p) => DropdownMenuItem(
+                      value: p.id,
+                      child: Text(p.name),
+                    ),
+                  ),
+                  DropdownMenuItem(value: _kCustom, child: Text(l10n.commonProvider)),
+                ],
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() => _selectedPresetId = value);
+                  }
+                },
               ),
-              items: ProviderType.values.map((type) {
-                return DropdownMenuItem(
-                  value: type,
-                  child: Text(type.localizedDisplayName(AppLocalizations.of(context)!)),
-                );
-              }).toList(),
-              onChanged: (value) {
-                if (value != null) {
-                  setState(() {
-                    _selectedType = value;
-                    _baseUrlController.text = value.defaultBaseUrl;
-                    _modelController.text = value.defaultModel;
-                  });
-                }
-              },
-            ),
-            const SizedBox(height: 16),
+              const SizedBox(height: 16),
+            ],
 
-            // API Key
+            // ⚠️ 目录读不到 ⇒ **说出来**（否则用户以为「没有供应商可选」）。
+            if (state.presetError != null) ...[
+              Text(
+                l10n.commonErrorDetail(state.presetError!),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: AppColors.error),
+              ),
+              const SizedBox(height: 16),
+            ],
+
+            if (isCustom && !isEditing) ...[
+              TextField(
+                controller: _nameController,
+                decoration: InputDecoration(
+                  labelText: l10n.commonProvider,
+                  border: OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.label),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _baseUrlController,
+                decoration: InputDecoration(
+                  labelText: l10n.commonApiAddress,
+                  border: const OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.link),
+                  hintText: 'https://api.example.com/v1',
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+
             TextField(
               controller: _apiKeyController,
               decoration: const InputDecoration(
@@ -514,40 +605,16 @@ class _AddProviderSheetState extends ConsumerState<_AddProviderSheet> {
               ),
               obscureText: true,
             ),
-            const SizedBox(height: 16),
-
-            // Base URL (可选)
-            TextField(
-              controller: _baseUrlController,
-              decoration: InputDecoration(
-                labelText: AppLocalizations.of(context)!.commonApiAddress,
-                border: const OutlineInputBorder(),
-                prefixIcon: const Icon(Icons.link),
-                hintText: _selectedType.defaultBaseUrl,
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Model (可选)
-            TextField(
-              controller: _modelController,
-              decoration: InputDecoration(
-                labelText: AppLocalizations.of(context)!.commonModel,
-                border: const OutlineInputBorder(),
-                prefixIcon: const Icon(Icons.model_training),
-                hintText: _selectedType.defaultModel,
-              ),
-            ),
             const SizedBox(height: 24),
 
             FilledButton(
               onPressed: _submit,
-              child: Text(isEditing ? AppLocalizations.of(context)!.commonSave : AppLocalizations.of(context)!.commonAdd),
+              child: Text(isEditing ? l10n.commonSave : l10n.commonAdd),
             ),
             const SizedBox(height: 8),
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: Text(AppLocalizations.of(context)!.cancel),
+              child: Text(l10n.cancel),
             ),
           ],
         ),
@@ -556,24 +623,57 @@ class _AddProviderSheetState extends ConsumerState<_AddProviderSheet> {
   }
 
   void _submit() {
-    if (_apiKeyController.text.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context)!.providersApiKeyRequired)));
+    final l10n = AppLocalizations.of(context)!;
+    final notifier = ref.read(providersNotifierProvider.notifier);
+    final key = _apiKeyController.text.trim();
+
+    if (isEditing) {
+      // 编辑 = **只换 key**（掩码写回时大脑会保留原 key）。
+      notifier.updateProvider(
+        widget.editProvider!.id,
+        apiKey: key.isEmpty ? null : key,
+      );
+      Navigator.pop(context);
       return;
     }
 
-    ref
-        .read(providersNotifierProvider.notifier)
-        .addProvider(
-          _selectedType,
-          _apiKeyController.text,
-          baseUrl: _baseUrlController.text.isEmpty
-              ? null
-              : _baseUrlController.text,
-          model: _modelController.text.isEmpty ? null : _modelController.text,
-        );
+    if (isCustom) {
+      final name = _nameController.text.trim();
+      if (name.isEmpty) {
+        _toast(l10n.providersApiKeyRequired);
+        return;
+      }
+      notifier.addProvider(
+        name: name,
+        baseUrl: _baseUrlController.text.trim(),
+        apiKey: key.isEmpty ? null : key,
+      );
+      Navigator.pop(context);
+      return;
+    }
 
+    // 预设：要 key 的预设**必须**给 key（大脑那边也会再拒一次）。
+    ProviderPreset? preset;
+    for (final p in ref.read(providersNotifierProvider).presets) {
+      if (p.id == _selectedPresetId) {
+        preset = p;
+        break;
+      }
+    }
+    if (preset != null && preset.requiresKey && key.isEmpty) {
+      _toast(l10n.providersApiKeyRequired);
+      return;
+    }
+    notifier.addProvider(
+      presetId: _selectedPresetId,
+      apiKey: key.isEmpty ? null : key,
+    );
     Navigator.pop(context);
+  }
+
+  void _toast(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 }
