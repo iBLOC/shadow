@@ -106,7 +106,7 @@
       "labelKey": "surface.group",
       "icon": "users",
       "desktop": { "route": "/group", "nav": true },
-      "mobile": { "route": "/group", "nav": false, "secondary": true }
+      "mobile": { "route": null, "nav": false, "secondary": true, "_retired": "2026-11-03：移动端入口已下线 —— 端脑**没有** group 这个概念（`/api/group/*` 一律 404）⇒ ⇒ 客户端不再给一个必然失败的入口。代码留档在 shadow-mobile/lib/screens/group_screen.dart ＋ services/group_service.dart ⇒ ⇒ 要恢复 revert 即可。⚠️ 桌面端那面**不受影响**：GroupPage 是纯本地能力，不打服务端。" }
     },
     {
       "id": "document",
@@ -370,7 +370,7 @@
           "id": "capability",
           "labelKey": "nav.tab.capability",
           "container": "/manage",
-          "alsoRoutes": ["/group", "/flows"]
+          "alsoRoutes": ["/flows"]
         },
         {
           "id": "me",

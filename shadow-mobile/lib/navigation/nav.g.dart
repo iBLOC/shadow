@@ -67,7 +67,7 @@ const mobileNavTabs = <NavTab>[
     route: '/manage',
     icon: Icons.auto_awesome,
     kind: 'container',
-    alsoRoutes: ['/group', '/flows'],
+    alsoRoutes: ['/flows'],
   ),
   NavTab(
     id: 'me',
