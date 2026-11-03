@@ -162,11 +162,27 @@ export const KNOWN_DEBT = [
   },
 ];
 
-/** 扫描的根。 */
+/**
+ * 扫描的根。
+ *
+ * ⚠️⚠️ **「端脑」不止一个仓**（2026-11-03 补）：端脑在 2026-10 的重构后
+ * 变成了 **pure library**（`dc53fcb refactor: pure library — standalone binary
+ * removed, boot moves to encephalon`）⇒ ⇒ **真正把它跑起来的是 `encephalon`**
+ * （那里 spawn 了广播循环、递了 admin token）⇒ ⇒ 只扫 `telencephalon/src`
+ * ＝ **只扫了库，没扫宿主** ⇒ ⇒ 宿主里的落盘点一个都看不见。
+ *
+ * ⇒ ⇒ 现在扫 **5 个仓**：端脑库 + 端脑宿主 + 前额叶 + 桌面端 + 移动端。
+ * ⚠️ 这三个新仓在 2026-11-03 加入时实测**零命中** ⇒ ⇒ 覆盖面扩大而**不引入假红**。
+ */
 export function scanRoots(sourceArg, extraRoots = []) {
   const endbrain = sourceArg ?? resolve(REPO, '..', 'telencephalon');
+  const sibling = (name) => resolve(REPO, '..', name);
   return [
     { repo: 'telencephalon', root: endbrain, sub: 'src' },
+    // ⚠️ **端脑的宿主**（端脑改成 pure library 之后，它才是真正跑起来的那一个）。
+    { repo: 'encephalon', root: sibling('encephalon'), sub: 'src' },
+    // ⚠️ 前额叶：叶区侧的那一半（它自己也有存储面）。
+    { repo: 'prefrontal', root: sibling('prefrontal'), sub: 'src' },
     { repo: 'desktop', root: join(REPO, 'shadow-desktop'), sub: 'src' },
     { repo: 'desktop', root: join(REPO, 'shadow-desktop'), sub: 'src-tauri/src' },
     { repo: 'mobile', root: join(REPO, 'shadow-mobile'), sub: 'lib' },
@@ -392,6 +408,32 @@ fn log_msg() { tracing::info!("admin token set by the host"); }
   check('探测器：密钥进日志 ⇒ 抓得到', lPos.length === 1, '抓 ' + lPos.length + ' 处');
   check('探测器：孪生（日志只记长度）⇒ 不报', lTwinLen.length === 0, '报 ' + lTwinLen.length + ' 处');
   check('探测器：孪生（日志文案提到 token）⇒ 不报', lTwinMsg.length === 0, '报 ' + lTwinMsg.length + ' 处');
+
+  // --- 广播面（TXT 记录）---
+  // ⚠️ **样本必须自带结构体定义**（探测器要靠类型传递闭包认「这个值是密钥」）
+  //    ⇒ ⇒ 少定义 ⇒ ⇒ 探测器因「找不到对象」而红 ⇒ ⇒ 那是**假通过**，不是「抓到了」。
+  const rustBroadcast = `
+struct DiscoveredPeer {
+    name: String,
+    admin_token: Option<String>,
+}
+fn advertise(txt_records: &mut HashMap<String, String>, peer: &DiscoveredPeer) {
+    txt_records.insert("admin_token".to_string(), peer.admin_token.clone().unwrap_or_default());
+}
+fn advertise_version(txt_records: &mut HashMap<String, String>, version: &str) {
+    txt_records.insert("version".to_string(), version.to_string());
+}
+`;
+  const bPos = detectSecretPersistence(rustBroadcast, { path: 'x.rs' }).findings;
+  const bTwin = detectSecretPersistence(
+    rustBroadcast.replace(
+      'txt_records.insert("admin_token".to_string(), peer.admin_token.clone().unwrap_or_default());',
+      'txt_records.insert("instance_type".to_string(), "telencephalon".to_string());',
+    ),
+    { path: 'x.rs' },
+  ).findings;
+  check('探测器：密钥进 mDNS TXT 记录 ⇒ 抓得到（广播面）', bPos.length === 1, '抓 ' + bPos.length + ' 处');
+  check('探测器：孪生（TXT 里放的是非密钥属性）⇒ 不报', bTwin.length === 0, '报 ' + bTwin.length + ' 处');
 
   const ok = results.filter((r) => r.ok).length;
   const lines = results.map((r) => (r.ok ? '  ✔ ' : '  ✘ ') + r.name + '  —— ' + r.why);

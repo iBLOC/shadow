@@ -113,6 +113,19 @@ export const SINKS = [
   //    ⇒ ⇒ 若按类型判 ⇒ ⇒ 每条计数日志都会误报 ⇒ ⇒ 闸会被当噪音关掉。
   { kind: 'log', langs: ['rust'], re: /\b(?:tracing::)?(?:trace|debug|info|warn|error)!\s*\(/g, valueArg: 0, nameOnly: true },
   { kind: 'log', langs: ['rust'], re: /\b(?:e?println|dbg)!\s*\(/g, valueArg: 0, nameOnly: true },
+  // ---- 「广播」面 ---------------------------------------------------
+  // ⚠️⚠️ **为什么这一族单独算「摊开」**：落盘 ⇒ 只有拿到盘的人能读；
+  //    广播 ⇒ **同网段谁都读得到**（mDNS TXT 是**明文组播**）⇒ ⇒
+  //    一把 admin token 进了 TXT ⇒ ⇒ **局域网里任何一台机器都拿到了它**。
+  //
+  // ⚠️⚠️ **判据只认 TXT 记录，不认 HTTP 头**（2026-11-03 实测踩出来的）：
+  //    「把凭据放进发往**已知对端**的 HTTP 头」是**正常的鉴权写法**
+  //    （端脑的 test_harness、前额叶打 Anthropic 上游都这样）⇒ ⇒
+  //    若一并判红 ⇒ ⇒ **每个客户端都会变成红** ⇒ ⇒ ⇒ **闸被当噪音关掉**
+  //    ⇒ ⇒ **那比漏报更坑**（这是本闸的第一纪律）。
+  //    ⇒ ⇒ 所以「跨机传播」只抓**广播容器**（TXT 记录）——
+  //    它是**明文组播**给同网段所有人的 ⇒ ⇒ 与「发给一个已知对端」不是一回事。
+  { kind: 'broadcast', langs: ['rust'], re: /\b(?:txt|txt_records|properties|props)\s*(?:\.|\b)\s*(?:insert|extend)\s*\(/g, valueArg: 1 },
 ];
 
 /** 「这个函数**有能力**写密钥」的判据 —— 参数里带 secret 标记 ⇒ 写入的就是材料。 */
