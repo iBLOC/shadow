@@ -9,7 +9,6 @@ import '../providers/telencephalon_provider.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/empty_state.dart';
 import '../theme/app_colors.dart';
-import 'soul_screen.dart';
 
 final agentRepositoryProvider = Provider<IAgentRepository>((ref) {
   // ⚠️ 真相源是**端脑面**（叶区登记表）⇒ ⇒ 地址跟着端脑走（内嵌大脑、远端
@@ -285,12 +284,10 @@ class _AgentCard extends ConsumerWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              if (agent.id == 'main-agent' || agent.id == 'chat')
-                TextButton.icon(
-                  onPressed: () => _showSoulSettings(context),
-                  icon: const Icon(Icons.person),
-                  label: const Text('Soul'),
-                ),
+              // ⚠️ 2026-11-03：**Soul 入口已下线** —— 端脑**没有** soul 这个
+              //    概念（`/api/soul/*` 一律 404）⇒ ⇒ 界面不该给一个必然
+              //    失败的按钮。代码留档在 `screens/soul_screen.dart` ＋
+              //    `services/soul_service.dart` ⇒ ⇒ 要恢复 revert 本次提交即可。
               TextButton.icon(
                 onPressed: () => _showSettingsDialog(context, ref),
                 icon: const Icon(Icons.settings),
@@ -327,12 +324,6 @@ class _AgentCard extends ConsumerWidget {
     );
   }
 
-  void _showSoulSettings(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const SoulScreen()),
-    );
-  }
 }
 
 class _AgentSettingsDialog extends ConsumerStatefulWidget {

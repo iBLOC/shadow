@@ -19,7 +19,6 @@ import '../screens/prompt_settings_screen.dart';
 import '../screens/voice_conversation_screen.dart';
 import '../screens/livestream_screen.dart';
 import '../screens/customer_service_screen.dart';
-import '../screens/group_screen.dart';
 import '../screens/flows_screen.dart';
 import '../screens/discovery_screen.dart';
 import '../screens/identity_screen.dart';
@@ -46,7 +45,9 @@ class AppRoutes {
   static const String voice = '/voice';
   static const String liveStream = '/livestream';
   static const String customerService = '/customer-service';
-  static const String group = '/group';
+  // ⚠️ 2026-11-03：**Group 入口已下线** —— 端脑没有 group 概念
+  // （`/api/group/*` 一律 404）⇒ ⇒ 代码留档在 `screens/group_screen.dart`
+  // ＋ `services/group_service.dart` ⇒ ⇒ 要恢复 revert 本次提交即可。
   static const String flows = '/flows';
   static const String discovery = '/discovery';
   static const String logs = '/logs';
@@ -240,13 +241,8 @@ final GoRouter appRouter = GoRouter(
         _wrapInShell(state, const CustomerServiceScreen()),
       ),
     ),
-    // Group
-    GoRoute(
-      path: AppRoutes.group,
-      name: 'group',
-      pageBuilder: (context, state) =>
-          _fadePage(state, _wrapInShell(state, const GroupScreen())),
-    ),
+    // ⚠️ 2026-11-03：Group 路由已下线（理由见 `AppRoutes` 处的说明）——
+    // 端脑没有 group 概念 ⇒ ⇒ 不再挂这条会打 404 的路。
     // Flows
     GoRoute(
       path: AppRoutes.flows,
