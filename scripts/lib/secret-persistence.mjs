@@ -63,7 +63,23 @@ export const SECRET_NAME_RE =
  * ⚠️ 必须在 `SECRET_NAME_RE` **之前**判 —— 因为 `secret_ref` 里也有 "secret"，
  * 先判名字就会把**正确的**引用式实现判成违规 ⇒ ⇒ 假红比漏报更坑。
  */
-export const SECRET_REF_RE = /\$secret|secret_?ref|SecretRef|SecretEnvelope|secret_store|secretStore/i;
+export const SECRET_REF_RE =
+  /\$secret|secret_?ref|SecretRef|SecretEnvelope|secret_store|secretStore|store_secret_as|seal_api_key|secret_envelope_json/i;
+
+/**
+ * **密钥仓库**（`Secrets` / `SecretStore`）—— 它装的是**引用**，不是材料。
+ *
+ * ⚠️⚠️ **为什么必须豁免**（2026-11-03 实测）：端脑的配置中心把凭据
+ * **密封**成引用再入库 ⇒ ⇒ 写库那个值的来路是「`self.secrets`（仓库）」
+ * ⇒ ⇒ 名字级判定会看到 "secret" ⇒ ⇒ **判红** ⇒ ⇒ 但库里存的是
+ * ⇒ ⇒ **引用** ⇒ ⇒ ⇒ **假红** ⇒ ⇒ 而假红比漏报更坑（闸会被当噪音关掉）。
+ *
+ * ⚠️ **豁免要窄**：只豁免「**仓库**」这个词形 ⇒ ⇒ `secret_store` /
+ * `secrets` / `SecretStore` / `Secrets` ⇒ ⇒ 而 `api_key` / `admin_token`
+ * ⇒ ⇒ **照旧判红**（那才是材料）。
+ */
+export const SECRET_STORE_RE =
+  /(?:^|[^A-Za-z0-9])(?:secret_?store|secretStore|SecretStore|Secrets|secrets)(?:[^A-Za-z0-9]|$)/;
 
 /**
  * **掩码** —— 写掩码不是写材料。
@@ -629,6 +645,10 @@ function traceValue(text, ctx, fn, depth, visited, chain = []) {
     //    ⇒ `IssuedCredential`（存的是 jti/principal/kid，**不是材料**）不判红；
     //    ⇒ 而它若真的带密钥字段 ⇒ ⇒ **类型规则**会抓（字段闭包）⇒ ⇒ 不漏。
     if (/^[A-Z]/.test(ident) && /[a-z]/.test(ident)) continue;
+    // ⚠️⚠️ **密钥仓库本身不是材料**（2026-11-03）—— 它装的是**引用**。
+    // ⇒ ⇒ 不豁免 ⇒ ⇒ 端脑配置中心那条「密封后入库」会被判成明文落盘
+    // ⇒ ⇒ ⇒ **假红** ⇒ ⇒ 而假红比漏报更坑（闸会被当噪音关掉）。
+    if (SECRET_STORE_RE.test(ident)) continue;
     chain.push(`名字 ${ident}`);
     return { kind: 'secret', via: 'name', detail: ident };
   }
@@ -642,6 +662,10 @@ function traceValue(text, ctx, fn, depth, visited, chain = []) {
   while ((nm = nameRe.exec(text)) !== null) {
     const ident = identAt(text, nm.index);
     if (ident && exempt(ident)) continue;
+    // ⚠️⚠️ **密钥仓库本身不是材料**（2026-11-03）—— 见 `SECRET_STORE_RE`。
+    // ⇒ ⇒ 「`secrets`（仓库）」不该判红 ⇒ ⇒ 否则端脑那条「密封后入库」
+    // ⇒ ⇒ ⇒ 变成**假红** ⇒ ⇒ 而假红比漏报更坑。
+    if (ident && SECRET_STORE_RE.test(ident)) continue;
     chain.push(`名字 ${nm[0].trim()}`);
     return { kind: 'secret', via: 'name', detail: nm[0].trim() };
   }
@@ -661,6 +685,10 @@ function traceValue(text, ctx, fn, depth, visited, chain = []) {
     if (t.isField) {
       const field = ctx.findField(t.name, fn);
       if (field) {
+        // ⚠️⚠️ **密钥仓库本身不是材料**（2026-11-03）—— 它装的是**引用**。
+        // ⇒ ⇒ 「`self.secrets`（仓库）」不该判红 ⇒ ⇒ 否则端脑那条
+        // ⇒ ⇒ 「密封后入库」会变成**假红** ⇒ ⇒ 而假红比漏报更坑。
+        if (SECRET_STORE_RE.test(field.name)) continue;
         if (SECRET_NAME_RE.test(field.name)) {
           chain.push(`字段名 ${field.name}`);
           return { kind: 'secret', via: 'field-name', detail: `${field.name}: ${field.type}` };

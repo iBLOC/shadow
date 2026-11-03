@@ -435,6 +435,49 @@ fn advertise_version(txt_records: &mut HashMap<String, String>, version: &str) {
   check('探测器：密钥进 mDNS TXT 记录 ⇒ 抓得到（广播面）', bPos.length === 1, '抓 ' + bPos.length + ' 处');
   check('探测器：孪生（TXT 里放的是非密钥属性）⇒ 不报', bTwin.length === 0, '报 ' + bTwin.length + ' 处');
 
+  // --- 密钥仓库豁免（2026-11-03）---
+  // ⚠️ **豁免「仓库」这个概念** —— 它装的是**引用**不是材料。
+  // ⇒ ⇒ 而**豁免太宽** ⇒ ⇒ 闸变瞎 ⇒ ⇒ 那比漏报更坑 ⇒ ⇒ 必须有孪生。
+  //
+  // ⚠️ **正样本取自真代码的形状**（`match (secret, &self.secrets)`）——
+  // ⇒ ⇒ 值来自**仓库** ⇒ ⇒ 库里存的是**引用** ⇒ ⇒ 不该判红。
+  // ⚠️ **正样本与真代码同形**（`match (secret, &self.secrets)`）——
+  // ⇒ ⇒ 值来自**仓库** ⇒ ⇒ 库里存的是**引用** ⇒ ⇒ 不该判红。
+  const rustStore = `
+struct ConfigCenter {
+    secrets: Option<Secrets>,
+}
+fn write_it() {
+    // ⚠️ 值来自**仓库** ⇒ ⇒ 库里存的是**引用** ⇒ ⇒ 不该判红。
+    let stored = match &self.secrets {
+        Some(secrets) => {
+            let reference = secrets.store_secret_as(b"s3cret", "k").await.unwrap();
+            Json::Object(serde_json::to_value(reference.envelope()).unwrap().as_object().cloned().unwrap())
+        }
+        None => Json::Null,
+    };
+    conn.execute("INSERT INTO t (v) VALUES (?1)", params![stored]);
+}
+`;
+  const sStore = detectSecretPersistence(rustStore, { path: 'x.rs' }).findings;
+  // ⚠️ **孪生**：同样的形状，但值来自**真密钥** ⇒ ⇒ 必须**照旧判红**。
+  const rustStoreTwin = `
+struct ProviderEntry {
+    id: String,
+    api_key: Option<String>,
+}
+struct ConfigCenter {
+    providers: HashMap<String, ProviderEntry>,
+}
+fn write_it(centre: &ConfigCenter) {
+    let stored = centre.providers.get("x").map(|p| p.api_key.clone());
+    conn.execute("INSERT INTO t (v) VALUES (?1)", params![stored]);
+}
+`;
+  const sStoreTwin = detectSecretPersistence(rustStoreTwin, { path: 'x.rs' }).findings;
+  check('探测器：值来自「密钥仓库」⇒ 不报（仓库装的是引用）', sStore.length === 0, '报 ' + sStore.length + ' 处');
+  check('探测器：孪生（同样的形状，但值来自真密钥）⇒ 照旧报', sStoreTwin.length >= 1, '报 ' + sStoreTwin.length + ' 处');
+
   const ok = results.filter((r) => r.ok).length;
   const lines = results.map((r) => (r.ok ? '  ✔ ' : '  ✘ ') + r.name + '  —— ' + r.why);
   console.log(lines.join('\n'));
