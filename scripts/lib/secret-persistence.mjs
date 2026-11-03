@@ -73,6 +73,14 @@ export const SECRET_REF_RE = /\$secret|secret_?ref|SecretRef|SecretEnvelope|secr
  */
 export const MASK_RE = /\*{3,}|MASKED|REDACTED|REDACT/i;
 
+/**
+ * 「密钥形状」的环境变量名（`OPENAI_API_KEY` / `*_SECRET` / `*_TOKEN` …）。
+ *
+ * ⚠️ 必须是**全大写**的形状 ⇒ ⇒ `apiKey` / `api_key` 这类**字段名**不算
+ *    （字段名在类型规则里管）⇒ ⇒ 两套判据不打架。
+ */
+const ENV_NAME_SRC = '[A-Z][A-Z0-9_]*(?:API_KEY|SECRET|TOKEN|PASSWORD|PRIVATE_KEY|CREDENTIAL)[A-Z0-9_]*';
+
 /** 落盘点：写进哪儿算「落盘」。 */
 export const SINKS = [
   // Rust：文件
@@ -90,6 +98,21 @@ export const SINKS = [
   { kind: 'kv', langs: ['dart'], re: /\bsetString\s*\(/g, valueArg: 1 },
   // Kotlin：SharedPreferences
   { kind: 'kv', langs: ['kotlin'], re: /\bputString\s*\(/g, valueArg: 1 },
+  // ---- 三个「不是落盘、但同样会把密钥摊开」的面 ------------------
+  // ⚠️ **进程环境变量** —— Linux 的 `/proc/<pid>/environ`、子进程继承、
+  //    崩溃转储都读得到 ⇒ ⇒ 端脑今天就在往 `OPENAI_API_KEY` 里塞真 key。
+  { kind: 'process-env', langs: ['rust'], re: new RegExp('\\bset_var\\s*\\(\\s*"' + ENV_NAME_SRC + '"\\s*,\\s*', 'g'), valueFrom: 'afterMatch' },
+  { kind: 'process-env', langs: ['rust'], re: new RegExp('\\bpush\\s*\\(\\s*\\(\\s*"' + ENV_NAME_SRC + '"\\s*\\.into\\(\\)\\s*,\\s*', 'g'), valueFrom: 'afterMatch' },
+  { kind: 'process-env', langs: ['rust'], re: new RegExp('\\.envs?\\s*\\(\\s*"' + ENV_NAME_SRC + '"\\s*,\\s*', 'g'), valueFrom: 'afterMatch' },
+  // ⚠️ **命令行参数** —— 同用户的进程列表直接可见（`ps aux`）。
+  { kind: 'process-args', langs: ['rust'], re: /\.(?:arg|args)\s*\(/g, valueArg: 0 },
+  // ⚠️ **日志/标准输出** —— 设计稿 §5 说「任何日志不落 key（今天有规矩）」，
+  //    但**规矩没有闸** ⇒ ⇒ 这里补上。
+  //    ⚠️ 日志这一族用**名字级**判定（不看类型）⇒ ⇒ 因为
+  //    `tracing::info!(count = providers.len())` 里的 `providers` 是**密钥型**
+  //    ⇒ ⇒ 若按类型判 ⇒ ⇒ 每条计数日志都会误报 ⇒ ⇒ 闸会被当噪音关掉。
+  { kind: 'log', langs: ['rust'], re: /\b(?:tracing::)?(?:trace|debug|info|warn|error)!\s*\(/g, valueArg: 0, nameOnly: true },
+  { kind: 'log', langs: ['rust'], re: /\b(?:e?println|dbg)!\s*\(/g, valueArg: 0, nameOnly: true },
 ];
 
 /** 「这个函数**有能力**写密钥」的判据 —— 参数里带 secret 标记 ⇒ 写入的就是材料。 */
@@ -390,6 +413,61 @@ function findMatchScrutinee(scope, ident) {
     re.lastIndex = end;
   }
   return null;
+}
+
+/**
+ * 把**字符串字面量**抹成空格（长度不变）⇒ ⇒ 只在「代码」上找东西。
+ *
+ * ⚠️ 为什么日志这一族必须先剥：日志**文案**里出现的 "token" 是给人看的字，
+ *    不是「被记下来的值」⇒ ⇒ 不剥 ⇒ ⇒ 每条提到密钥的文案都会被判成泄漏
+ *    ⇒ ⇒ 闸会被当噪音关掉。
+ */
+export function stripStringLiterals(text) {
+  let out = '';
+  let i = 0;
+  while (i < text.length) {
+    const ch = text[i];
+    if (ch === '"' || ch === "'" || ch === '`') {
+      const quote = ch;
+      out += ' ';
+      i++;
+      while (i < text.length) {
+        if (text[i] === '\\') {
+          out += '  ';
+          i += 2;
+          continue;
+        }
+        if (text[i] === quote) {
+          out += ' ';
+          i++;
+          break;
+        }
+        out += text[i] === '\n' ? '\n' : ' ';
+        i++;
+      }
+      continue;
+    }
+    out += ch;
+    i++;
+  }
+  return out;
+}
+
+/**
+ * 这个标识符是不是**只被取了个元数据**（长度 / 计数 / 空不空）？
+ *
+ * ⚠️ 「记长度」不是泄漏 ⇒ ⇒ 不该报。
+ */
+const METADATA_METHODS = ['len', 'count', 'is_empty', 'chars', 'iter', 'into_iter', 'keys', 'values'];
+
+/** 名字里的「计数/用量」成分 ⇒ ⇒ `token_count` / `prompt_len` 不是密钥。 */
+const METADATA_WORDS = new Set(['count', 'len', 'size', 'usage', 'num', 'number', 'total', 'prompt', 'completion']);
+
+function isMetadataUse(text, ident) {
+  const re = new RegExp(
+    '\\b' + ident.replace(/\$/g, '\\$') + '\\s*\\.\\s*(?:' + METADATA_METHODS.join('|') + ')\\s*\\(',
+  );
+  return re.test(text);
 }
 
 /** 标识符（跳过方法名与关键字）。 */
@@ -723,24 +801,58 @@ export function detectSecretPersistence(code, opts = {}) {
     const re = new RegExp(sink.re.source, 'g');
     let m;
     while ((m = re.exec(src)) !== null) {
-      const open = src.indexOf('(', m.index + m[0].length - 1);
-      if (open < 0) continue;
-      const close = matchDelim(src, open);
-      if (close < 0) continue;
-      const args = splitTopLevel(src.slice(open + 1, close));
+      // ⚠️ **回找**最后一个 '(' ⇒ ⇒ 兼容「正则不以 '(' 结尾」的那几族
+      //    （进程环境变量那族的匹配到**逗号**为止 ⇒ ⇒ 向前 indexOf 会找到
+      //    **下一个** '('（甚至找不到 ⇒ ⇒ 整条被跳过 ⇒ ⇒ 假绿））。
+      const open = src.lastIndexOf('(', m.index + m[0].length);
       let valueText;
-      if (sink.kind === 'db') {
-        // ⚠️ SQL 语句里有逗号 ⇒ ⇒ 按逗号切参数会切碎 ⇒ ⇒ **只认 `params![…]`**。
-        const paramsArg = args.find((a) => /^\s*params!/.test(a));
-        valueText = paramsArg ?? args.slice(1).join(', ');
+      if (sink.valueFrom === 'afterMatch') {
+        // ⚠️ 这一族的「值」在**匹配之后**（名字字面量已被吃掉）⇒ ⇒ **不能靠括号配平**
+        //    （括号在匹配**之前** ⇒ ⇒ 配平切出来是空的 ⇒ ⇒ 假绿）⇒ ⇒ 按**语句结束**切。
+        const from = m.index + m[0].length;
+        let to = from;
+        while (to < src.length && src[to] !== ';' && src[to] !== '\n') to++;
+        valueText = src.slice(from, to);
       } else {
-        valueText = args.slice(sink.valueArg ?? 0).join(', ');
+        if (open < 0 || open < m.index) continue;
+        const close = matchDelim(src, open);
+        if (close < 0) continue;
+        const args = splitTopLevel(src.slice(open + 1, close));
+        if (sink.kind === 'db') {
+        // ⚠️ SQL 语句里有逗号 ⇒ ⇒ 按逗号切参数会切碎 ⇒ ⇒ **只认 `params![…]`**。
+          const paramsArg = args.find((a) => /^\s*params!/.test(a));
+          valueText = paramsArg ?? args.slice(1).join(', ');
+        } else {
+          valueText = args.slice(sink.valueArg ?? 0).join(', ');
+        }
       }
       if (!valueText.trim()) continue;
 
       const fn = ctx.enclosingFn(m.index);
       const chain = [];
-      const hit = traceValue(valueText, ctx, fn, 0, new Set(), chain);
+      let hit;
+      if (sink.nameOnly) {
+        // ⚠️ **名字级**判定：只看「这个表达式里有没有**密钥名**」。
+        //    （不看类型 ⇒ ⇒ 计数类日志里的 providers 是密钥型但**不是密钥材料**）
+        // ⚠️ 先剥**字符串字面量** ⇒ ⇒ 日志**文案**里的 token 字样不算值。
+        const codeOnly = stripStringLiterals(valueText);
+        // ⚠️ 日志这一族要**连字段名一起看**（`?e.api_key` 的 `api_key` 前面有 `.`
+        //    ⇒ ⇒ 普通的 identifiers() 会跳过它 ⇒ ⇒ 看不见 ⇒ ⇒ 用「全部词」）。
+        const allWords = codeOnly.match(/[A-Za-z_][\w]*/g) ?? [];
+        const hitIdent = allWords.find(
+          (id) =>
+            isSecretIdentifier(id) &&
+            !isMetadataUse(codeOnly, id) &&
+            // ⚠️ `token_count` / `prompt_len` 这类**计数名**不是密钥
+            !splitComponents(id).some((c) => METADATA_WORDS.has(c.toLowerCase())),
+        );
+        if (hitIdent) {
+          chain.push(`名字 ${hitIdent}`);
+          hit = { kind: 'secret', via: 'name', detail: hitIdent };
+        }
+      } else {
+        hit = traceValue(valueText, ctx, fn, 0, new Set(), chain);
+      }
       if (!hit || hit.kind !== 'secret') continue;
 
       findings.push({
@@ -797,8 +909,8 @@ export function detectPlaintextSecretReads(code, opts = {}) {
     const re = new RegExp(sink.re.source, 'g');
     let m;
     while ((m = re.exec(src)) !== null) {
-      const open = src.indexOf('(', m.index + m[0].length - 1);
-      if (open < 0) continue;
+      const open = src.lastIndexOf('(', m.index + m[0].length);
+      if (open < 0 || open < m.index) continue;
       const close = matchDelim(src, open);
       if (close < 0) continue;
       const args = splitTopLevel(src.slice(open + 1, close));

@@ -22,6 +22,9 @@
  * ② **从明文存储里读密钥** —— 读面证明**那张明文表是活的**（web 版的
  *    `localStorage['shadow-admin-token']` 没有任何代码写它 ⇒ ⇒ 写盘点抓不到
  *    ⇒ ⇒ 读盘点才抓得到）。
+ * ②' **另外三个「不是落盘、但同样摊开」的面** —— **进程环境变量**（子进程继承 /
+ *    `/proc/<pid>/environ` / 崩溃转储）、**命令行参数**（`ps` 同用户可见）、
+ *    **日志**（设计稿 §5 写着「任何日志不落 key」，但**规矩没有闸** ⇒ ⇒ 这里补上）。
  * ③ **债务不许变多** —— 下面那张**债务清单**是今天的实测盘点；
  *    清单之外的新落盘点 ⇒ ⇒ **闸红**。
  * ④ **债务还了要销账** —— 清单里的某一处被修好之后 ⇒ ⇒ 那个文件不再有
@@ -84,6 +87,14 @@ export const KNOWN_DEBT = [
     count: 1,
     why: 'LLM 配置整份落盘（请求体里就有 api_key）',
     when: 'P2（改成只写引用式密钥引用）',
+  },
+  {
+    repo: 'telencephalon',
+    file: 'src/api/llm_configure.rs',
+    kind: 'process-env',
+    count: 4,
+    why: 'api_key 被塞进**进程环境变量**（OPENAI / ANTHROPIC / MIMO / DEEPSEEK_API_KEY）—— 子进程继承、/proc/<pid>/environ、崩溃转储都读得到',
+    when: 'P2/P4（子进程改由大脑解析密钥后注入，不再走环境变量）',
   },
   {
     repo: 'telencephalon',
@@ -347,6 +358,40 @@ impl ProviderStore {
     e5.ok === false && e5.fresh.length === 1,
     JSON.stringify(e5),
   );
+
+  // --- 新增的三个面（进程环境变量 / 命令行 / 日志）---
+  const rustEnv = `
+struct LlmConfigureRequest { api_key: Option<String> }
+fn derive(req: &LlmConfigureRequest) {
+    let key = req.api_key.clone().unwrap_or_default();
+    std::env::set_var("OPENAI_API_KEY", key);
+}
+`;
+  const rustEnvTwin = `
+fn derive2() { std::env::set_var("NEURON_LLM_RUNTIME", "openai"); }
+`;
+  const rustLog = `
+struct ProviderEntry { api_key: Option<String> }
+fn log_it(e: &ProviderEntry) { tracing::info!(?e.api_key, "saved"); }
+`;
+  const rustLogTwinLen = `
+fn log_len(token: &str) { tracing::info!(len = token.len(), "desktop admin token: set by {source}"); }
+`;
+  const rustLogTwinMsg = `
+fn log_msg() { tracing::info!("admin token set by the host"); }
+`;
+
+  const ePos = detectSecretPersistence(rustEnv, { path: 'x.rs' }).findings;
+  const eTwin = detectSecretPersistence(rustEnvTwin, { path: 'x.rs' }).findings;
+  const lPos = detectSecretPersistence(rustLog, { path: 'x.rs' }).findings;
+  const lTwinLen = detectSecretPersistence(rustLogTwinLen, { path: 'x.rs' }).findings;
+  const lTwinMsg = detectSecretPersistence(rustLogTwinMsg, { path: 'x.rs' }).findings;
+
+  check('探测器：密钥进进程环境变量 ⇒ 抓得到', ePos.length === 1, '抓 ' + ePos.length + ' 处');
+  check('探测器：孪生（环境变量名不是密钥形状）⇒ 不报', eTwin.length === 0, '报 ' + eTwin.length + ' 处');
+  check('探测器：密钥进日志 ⇒ 抓得到', lPos.length === 1, '抓 ' + lPos.length + ' 处');
+  check('探测器：孪生（日志只记长度）⇒ 不报', lTwinLen.length === 0, '报 ' + lTwinLen.length + ' 处');
+  check('探测器：孪生（日志文案提到 token）⇒ 不报', lTwinMsg.length === 0, '报 ' + lTwinMsg.length + ' 处');
 
   const ok = results.filter((r) => r.ok).length;
   const lines = results.map((r) => (r.ok ? '  ✔ ' : '  ✘ ') + r.name + '  —— ' + r.why);
