@@ -80,21 +80,19 @@ export const KNOWN_DEBT = [
     why: '供应商表整份落盘（含 api_key 明文）—— 读面只给掩码，落盘不掩码',
     when: 'P2（provider 改写成引用式：盘上只留 {"$secret":…}）',
   },
-  {
-    repo: 'telencephalon',
-    file: 'src/api/llm_configure.rs',
-    kind: 'file',
-    count: 1,
-    why: 'LLM 配置整份落盘（请求体里就有 api_key）',
-    when: 'P2（改成只写引用式密钥引用）',
-  },
+  // ✅ **已销账（2026-11-03）**：`src/api/llm_configure.rs` 那条 `file`
+  //    ⇒ ⇒ 端脑把落盘那份改成「**不含任何材料**的记录」（材料进密钥仓库，
+  //    盘上只留一个引用）⇒ ⇒ 命中归零 ⇒ ⇒ ⇒ **这条债真的还掉了**
+  //    ⇒ ⇒ （不是「探测器报得少了」⇒ ⇒ 端脑那条 `file` 命中确实没了）。
+  //    ⇒ ⇒ 顺带发现：那份文件**从来没有人读**（全工作区 grep 过）⇒ ⇒
+  //    ⇒ ⇒ 里面的明文一直是**纯粹的泄漏** ⇒ ⇒ 现在那份记录只剩「配置成什么样」。
   {
     repo: 'telencephalon',
     file: 'src/api/llm_configure.rs',
     kind: 'process-env',
     count: 4,
     why: 'api_key 被塞进**进程环境变量**（OPENAI / ANTHROPIC / MIMO / DEEPSEEK_API_KEY）—— 子进程继承、/proc/<pid>/environ、崩溃转储都读得到',
-    when: 'P2/P4（子进程改由大脑解析密钥后注入，不再走环境变量）',
+    when: 'P2/P4（子进程改由大脑解析密钥后注入，不再走环境变量）—— ⚠️ 2026-11-03 实测：它的**唯一**消费者是 `api/llm_description.rs`（调用时读）⇒ ⇒ 所以不是死路；但环境变量**活不过进程**（重启反而带走这把 key）⇒ ⇒ 且 `neuron_embed.rs` 的模块文档写明「环境变量那条路在手机上走不通」（Android 10+ 连 /proc/<pid>/environ 都读不到）⇒ ⇒ ⇒ 真正让叶区跑起来的是 **provider → register_remote_llm** 那条程序化通道',
   },
   {
     repo: 'telencephalon',
@@ -160,6 +158,27 @@ export const KNOWN_DEBT = [
     why: 'app 私有目录的 JSON 里存着 admin token ＋ shadow key（**Android 无安全存储**）',
     when: 'P2d（android-native-keyring-store）',
   },
+  // ---- synapse（2026-11-03 补进覆盖面）-------------------------------
+  // ⚠️⚠️ **为什么补它**：端脑的 `Cargo.toml` 里是 `synapse = { path = "../synapse" }`
+  // ⇒ ⇒ **它被编译进端脑** ⇒ ⇒ 而闸只扫 `telencephalon/src` ⇒ ⇒
+  // ⇒ ⇒ **它那两套 provider 存储**（明文 / 加密）**一个都看不见** ⇒ ⇒
+  // ⇒ ⇒ 这跟「库仓 ≠ 宿主仓」是**同一个病**：**编译进去的仓也要扫**。
+  {
+    repo: 'synapse',
+    file: 'src/providers/config/store.rs',
+    kind: 'file',
+    count: 1,
+    why: '**明文**那套 FileStore 把整份 ProviderConfig（含 api_key）写盘',
+    when: 'P2（改成引用式 / 或者干脆删掉这套明文存储）—— ⚠️ 2026-11-03 实测：端脑今天用 `ProviderManager::builder()` ⇒ ⇒ 默认是 **InMemoryStore** ⇒ ⇒ **这条今天没有活路径**；但它是**公开 API**，谁调谁中招',
+  },
+  {
+    repo: 'synapse',
+    file: 'src/providers/config/encrypted_store.rs',
+    kind: 'file',
+    count: 1,
+    why: '⚠️ **已知假红**：写出去的是**密文**（`encryptor.encrypt(&json)`）⇒ ⇒ 不是材料；但探测器的链追到了「password」⇒ ⇒ 它证明不了 ⇒ ⇒ 登记在册',
+    when: '—— ⚠️⚠️ **另有一笔真问题，闸抓不到**：`with_data_dir` 用的默认密码是 `sha256("synapse-default-key")`（**源码里的常量**）⇒ ⇒ ⇒ 「加密」可被任何人还原 ⇒ ⇒ ⇒ 那条路要么换成真钥匙环，要么别用',
+  },
 ];
 
 /**
@@ -183,6 +202,10 @@ export function scanRoots(sourceArg, extraRoots = []) {
     { repo: 'encephalon', root: sibling('encephalon'), sub: 'src' },
     // ⚠️ 前额叶：叶区侧的那一半（它自己也有存储面）。
     { repo: 'prefrontal', root: sibling('prefrontal'), sub: 'src' },
+    // ⚠️⚠️ **synapse 是被编译进端脑的那一个**（`synapse = { path = "../synapse" }`）
+    //    ⇒ ⇒ 它那两套 provider 存储（明文 / 加密）也必须进覆盖面
+    //    ⇒ ⇒ 否则「编译进去的仓」就是**扫不到的洞**。
+    { repo: 'synapse', root: sibling('synapse'), sub: 'src' },
     { repo: 'desktop', root: join(REPO, 'shadow-desktop'), sub: 'src' },
     { repo: 'desktop', root: join(REPO, 'shadow-desktop'), sub: 'src-tauri/src' },
     { repo: 'mobile', root: join(REPO, 'shadow-mobile'), sub: 'lib' },
@@ -285,7 +308,7 @@ function report(findings, verdict, filesRead, missing) {
   }
   if (verdict.stale.length) {
     lines.push('');
-    lines.push('🟡 **债务清单过期**（还了债要销账 / 新增了一处同类的）���');
+    lines.push('🟡 **债务清单过期**（还了债要销账 / 新增了一处同类的）');
     for (const s of verdict.stale) {
       lines.push(`   · ${s.key}：清单记 ${s.expected} 处，现在 ${s.actual} 处`);
     }
