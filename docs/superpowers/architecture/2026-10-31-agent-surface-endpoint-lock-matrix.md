@@ -499,11 +499,12 @@ WebRTC 浏览器、桌面端自己起的 sidecar、外部端脑进程。⇒ 这�
 | `/api/telencephalon/agents/{name}/config` | PATCH | agents | ✅ | **改 agent 配置**（部署方用它设 `affect_policy` 那一类开关） |
 | `/api/telencephalon/lobes/models` | POST | lobe_runtime | ✅ | **下发模型路由** ⇒ 注册远端引擎 + 给叶区定模型 |
 | `/api/telencephalon/lobes/reconfigure/{name}` | POST | lobe_runtime | — | **改叶区的 OpenAI base_url** ⇒ 把某个叶区的模型流量引到别处 |
+| `/api/telencephalon/lobes/placement/{name}` | POST | lobe_runtime | — | **改叶区摆放**（`local` \| `remote`）—— remote 需带对端 A2A url（2026-11-04 补录：`src/api/lobe_runtime.rs`） |
 | `/api/telencephalon/thalamus/query` | POST | thalamus | — | **跑 SQL 查传感器数据**（⚠️ 它**已经**要求 admin token ⇒ 但路径**不在** `/admin/` 下 ⇒ 见第二节 ④） |
 | `/api/telencephalon/prefrontal/dispatch` | POST | prefrontal | — | **执行路径** |
-| `/api/telencephalon/devices/{id}/invoke` | POST | device | — | **控制别的设备** |
-| `/api/telencephalon/devices/{id}/tools` | PUT | device | — | 改别的设备的工具 |
-| `/api/telencephalon/devices/{id}` | DELETE | device | — | 删设备 |
+| ~~`/api/telencephalon/devices/{id}/invoke`~~ | POST | ~~device~~ | — | **已下线**（2026-11-03 随「设备 MCP server」整条下线；下线前它就是「每个入口都要自己记得加闸」的反面样本） |
+| ~~`/api/telencephalon/devices/{id}/tools`~~ | PUT | ~~device~~ | — | **已下线**（同上） |
+| ~~`/api/telencephalon/devices/{id}`~~ | DELETE | ~~device~~ | — | **已下线**（同上） |
 | `/api/telencephalon/thalamus/manage/sensors` | POST | thalamus_public | — | 改传感器配置 |
 | `/api/telencephalon/thalamus/manage/sensors/{name}` | DELETE | thalamus_public | — | 删传感器 |
 | `/api/telencephalon/thalamus/manage/sensors/{name}/config` | PUT | thalamus_public | — | 改传感器配置 |
@@ -560,7 +561,7 @@ WebRTC 浏览器、桌面端自己起的 sidecar、外部端脑进程。⇒ 这�
 | `/api/telencephalon/agents` \| `/list` \| `/registry` \| `/exposed` \| `/search` \| `/discover` \| `/mirror` | GET | agents_registry / agent_management / agent_search | ✅ | 叶区与 agent 清单 |
 | `/api/telencephalon/lobes/capabilities` \| `/manifest` \| `/manifest/{name}` \| `/runtime/{name}` | GET | lobe_manifest / lobe_runtime | — | 叶区能力面 |
 | `/api/telencephalon/lobes/list` | GET | lobe_runtime | ✅ | 叶区清单 |
-| `/api/telencephalon/devices` \| `/{id}` | GET | device | — | 设备清单 |
+| ~~`/api/telencephalon/devices` \| `/{id}`~~ | GET | ~~device~~ | — | **已下线**（2026-11-03 端脑仓下线「设备 MCP server」整条路：`src/api/device.rs` 删除 ⇒ 这张面不复存在） |
 | `/api/telencephalon/video-sources` \| `/{id}` | GET | video_source | — | 视频源清单 |
 | `/api/telencephalon/visual-tasks` \| `/{id}` | GET | visual_task_admin | — | 视觉任务 |
 | `/models/providers` | GET | providers | — | **provider 配置（含 api_key）** |

@@ -27,24 +27,24 @@
 React 前端 (WebView)
    │  HTTP  端脑方言
    ▼
-127.0.0.1:60080  端脑 HTTP 面 (cortex_http.rs)
+127.0.0.1:60080  端脑 HTTP 面 (telencephalon_http.rs)
    │
    ├── /shadow/v1/*            会话 / agent
    ├── /api/telencephalon/*    管理面：状态 / provider / MCP / 任务 / 语音 / thalamus 预览
    ├── /hippocampus/api/*      海马体（长时记忆）
-   └── /v1/chat/completions    neuron 的 OpenAI 兼容面（叶区用）
+   └── /v1/chat/completions    neuron 的 OpenAI 兼容面（挂在脑面根；叶区也指这里）
    │
    ▼
 端脑内部：叶区 temporal / prefrontal / parietal (native lobe)
    │
    ▼
-neuron  127.0.0.1:8085   ← 唯一推理实例
+neuron（router-only，**没有自己的端口**）← 唯一推理实例，经脑面上的 /v1/* 进出
 ```
 
 装配代码在两个地方：
 
-- `shadow-desktop/src-tauri/src/lib.rs` —— `encephalon::Embedded::boot(EmbeddedConfig { neuron_port: 8085 })`，`Embedded` 只负责**钉住生命周期**。
-- `shadow-desktop/src-tauri/src/cortex_http.rs` —— `telencephalon::boot::build_app_state(...)` + `telencephalon::api::build_full_app(...)`，把端脑 + neuron + 海马体合成一台**形状与独立端脑完全一致**的服务。
+- `shadow-desktop/src-tauri/src/lib.rs` —— `encephalon::Embedded::boot(...)`，`Embedded` 只负责**钉住生命周期**（2026-11-03 起 neuron 改成 **router-only**：不再自己监听一个口、`neuron_port` 字段已删，推理面由统一入口挂在脑面上）。
+- `shadow-desktop/src-tauri/src/telencephalon_http.rs` —— `telencephalon::boot::build_app_state(...)` + `telencephalon::api::build_full_app(...)`，把端脑 + neuron + 海马体合成一台**形状与独立端脑完全一致**的服务，挂 `127.0.0.1:60080`。
 
 前端 `DEFAULT_BASE_URL = http://127.0.0.1:60080`，**一行都不用改**就换掉了旧的直连路径。
 
@@ -57,11 +57,13 @@ Flutter UI (Dart)
 MainActivity (Kotlin)  ── JNI ──▶  libencephalon.so (Rust)
                                           │
                                           ├── 大脑（thalamus + ACP 总线）
-                                          ├── 端脑 cortex_router  127.0.0.1:0（随机端口）
-                                          └── neuron
+                                          │     └── neuron（router-only：OpenAI 面挂在脑面上，没有第二个端口）
+                                          └── 脑面（端脑方言）  127.0.0.1:0（随机端口）
 ```
 
-端脑面端口由 `cortex_router` 绑 `127.0.0.1:0` 随机分配，JNI 通过 `nativeGetAgentPort` 取回；Dart 侧 `EncephalonMobileService.start()` 拿到 `{port, agentPort}` 后，把 `TelencephalonClient` 指向 `http://127.0.0.1:$agentPort`。端脑面没起来时，client **保持**指向外部端脑 `:60080`（指向一个没人监听的端口比指向外部端脑更糟）。
+端脑面端口由 `start_agent_surface` 绑 `127.0.0.1:0` 随机分配（端脑方言与 neuron 的 OpenAI 面**同一张面、同一个端口**——neuron 改成 router-only 后没有第二个端口了），JNI 通过 `nativeGetAgentPort` 取回；Dart 侧 `EncephalonMobileService.start()` 拿到 `{port, agentPort}`（两个值相同——字段保留兼容）后，把 `TelencephalonClient` 指向 `http://127.0.0.1:$agentPort`。端脑面没起来时，client **保持**指向外部端脑 `:60080`（指向一个没人监听的端口比指向外部端脑更糟）。
+
+**零信任客户端模式**（显式配置才启用）：宿主调 `setZitiClient(identity, service, …)` 后，手机**不跑自己的大脑**——本地起的是零信任代理，报给 Dart 的端口就是代理的端口 ⇒ Dart 侧零改动，对话与 agent 管理全部落到远端大脑；没配身份 ⇒ 行为与今天一模一样（本地大脑照旧）。
 
 ## 协议
 
@@ -103,7 +105,7 @@ MainActivity (Kotlin)  ── JNI ──▶  libencephalon.so (Rust)
 
 | 形态 | 端脑面对外端口 | 叶区 → LLM 指向 | 修在哪 |
 |---|---|---|---|
-| 桌面端 sidecar（进程内嵌） | `127.0.0.1:60080` | `native_lobes.reconfigure` → `:8085`（neuron 自己的 listener） | shadow 仓 `src-tauri/src/cortex_http.rs` |
+| 桌面端 sidecar（进程内嵌） | `127.0.0.1:60080` | `native_lobes.reconfigure` → `:8085`（neuron 自己的 listener） | shadow 仓 `src-tauri/src/telencephalon_http.rs` |
 | 移动端 App（`libencephalon.so`） | 随机端口 | `point_lobes_at_neuron` → 进程内 neuron | 大脑仓 `point_lobes_at_neuron`（已合并） |
 | 独立大脑（`encephalon-server`） | `:8082` | 同上 | 同上 |
 

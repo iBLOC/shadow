@@ -16,11 +16,17 @@
 │                                          │            │
 │                                          ├── 大脑      │
 │                                          │    thalamus + ACP 总线
-│                                          ├── 端脑 cortex_router 127.0.0.1:0
-│                                          │    └── 叶区 temporal / prefrontal / parietal
-│                                          └── 单一 neuron │
+│                                          │    └── neuron（router-only：OpenAI 面挂在脑面上）
+│                                          └── 脑面（端脑方言） 127.0.0.1:0
+│                                               └── 叶区 temporal / prefrontal / parietal
 └──────────────────────────────────────────────────────┘
 ```
+
+> ⚠️ 端脑面由 `start_agent_surface` 绑 `127.0.0.1:0` 随机端口；neuron 是
+> router-only，它的 OpenAI 面挂在**同一张**脑面上 ⇒ 只有**一个**端口
+> （`port == agentPort`）。宿主显式调 `setZitiClient(...)` 后进入
+> **零信任客户端模式**：本地不起大脑，那个端口上是零信任代理，
+> 一切落到远端大脑。
 
 ## 三条数据通路
 

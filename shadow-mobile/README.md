@@ -81,12 +81,11 @@ Kotlin EncephalonRuntime
    │  JNI
    ▼
 libencephalon.so（Rust）
-   → 大脑（thalamus + ACP 总线）
-   → 端脑 cortex_router  127.0.0.1:0（随机端口）
-   → 单一 neuron
+   → 大脑（thalamus + ACP 总线；neuron router-only，OpenAI 面挂在脑面上）
+   → 脑面（端脑方言）  127.0.0.1:0（随机端口）
 ```
 
-`start()` 返回 `{port, agentPort}`；端脑面端口随机分配，Dart 侧随即把 `TelencephalonClient` 指向 `http://127.0.0.1:$agentPort`。端脑面没起来时，client **保持**指向外部端脑 `:60080`（指向一个没人监听的端口比指向外部端脑更糟）。
+`start()` 返回 `{port, agentPort}`（两个值相同——neuron 改成 router-only 后只有**一个**端口）；Dart 侧随即把 `TelencephalonClient` 指向 `http://127.0.0.1:$agentPort`。端脑面没起来时，client **保持**指向外部端脑 `:60080`（指向一个没人监听的端口比指向外部端脑更糟）。宿主显式调 `setZitiClient(...)` 后进入**零信任客户端模式**：本地不起大脑，那个端口上是零信任代理，一切落到远端大脑。
 
 ## 已知边界
 
@@ -104,7 +103,7 @@ libencephalon.so（Rust）
 | `flutter analyze --no-fatal-infos --no-fatal-warnings` | 静态检查 |
 | `flutter test` | 单元 + widget 测试 |
 | `flutter build apk --release --split-per-abi` | 按 ABI 打包 |
-| `bash scripts/check-cortex-residue.sh` | 旧 `cortex` 命名残留检查 |
+| `node scripts/check-cortex-residue.mjs` | 过时命名残留检查（词级 ＋ 兼容契约豁免清单 ＋ `--self-test`） |
 
 ## 约定
 
