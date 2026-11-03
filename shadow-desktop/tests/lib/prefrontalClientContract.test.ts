@@ -4,15 +4,15 @@ vi.mock('../../src/lib/platform', () => ({
   prefrontalUrl: () => 'http://localhost:8085',
 }));
 
-const cortexState: { connection: { baseUrl: string } } = {
+const telencephalonState: { connection: { baseUrl: string } } = {
   connection: { baseUrl: 'http://localhost:8085' },
 };
 
 vi.mock('../../src/stores/telencephalonStore', () => ({
   useTelencephalonStore: {
     getState: () => ({
-      connection: cortexState.connection,
-      setBaseUrl: (url: string) => { cortexState.connection.baseUrl = url; },
+      connection: telencephalonState.connection,
+      setBaseUrl: (url: string) => { telencephalonState.connection.baseUrl = url; },
     }),
   },
 }));
@@ -47,7 +47,7 @@ describe('PrefrontalClient contract tests', () => {
   let PrefrontalClient: typeof import('../../src/lib/prefrontalClient').PrefrontalClient;
 
   beforeEach(async () => {
-    cortexState.connection.baseUrl = 'http://localhost:8085';
+    telencephalonState.connection.baseUrl = 'http://localhost:8085';
     mockFetch = vi.fn();
     globalThis.fetch = mockFetch;
     const mod = await import('../../src/lib/prefrontalClient');

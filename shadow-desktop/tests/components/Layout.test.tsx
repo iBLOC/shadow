@@ -9,13 +9,13 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-const { resonanceState, cortexState } = vi.hoisted(() => {
+const { resonanceState, telencephalonState } = vi.hoisted(() => {
   return {
     resonanceState: {
       pendingTasks: [] as unknown[],
       connectionStatus: 'disconnected' as 'connected' | 'connecting' | 'disconnected',
     },
-    cortexState: {
+    telencephalonState: {
       status: 'stopped' as 'stopped' | 'starting' | 'running' | 'unreachable' | 'error',
     },
   };
@@ -27,8 +27,8 @@ vi.mock('../../src/stores/resonanceStore', () => ({
 }));
 
 vi.mock('../../src/stores/telencephalonStore', () => ({
-  useTelencephalonStore: (selector?: (s: typeof cortexState) => unknown) =>
-    selector ? selector(cortexState) : cortexState,
+  useTelencephalonStore: (selector?: (s: typeof telencephalonState) => unknown) =>
+    selector ? selector(telencephalonState) : telencephalonState,
 }));
 
 import { Layout } from '../../src/components/Layout';
@@ -57,7 +57,7 @@ describe('Layout', () => {
   beforeEach(() => {
     resonanceState.pendingTasks = [];
     resonanceState.connectionStatus = 'disconnected';
-    cortexState.status = 'stopped';
+    telencephalonState.status = 'stopped';
   });
 
   describe('brand header', () => {
@@ -149,42 +149,42 @@ describe('Layout', () => {
   });
 
   describe('connection indicator', () => {
-    it('shows disconnected label when cortex is stopped', () => {
-      cortexState.status = 'stopped';
+    it('shows disconnected label when telencephalon is stopped', () => {
+      telencephalonState.status = 'stopped';
       resonanceState.connectionStatus = 'disconnected';
       renderLayout();
       expect(screen.getByText(/common\.status\.disconnected/i)).toBeInTheDocument();
     });
 
-    it('shows disconnected label when cortex is unreachable', () => {
-      cortexState.status = 'unreachable';
+    it('shows disconnected label when telencephalon is unreachable', () => {
+      telencephalonState.status = 'unreachable';
       resonanceState.connectionStatus = 'disconnected';
       renderLayout();
       expect(screen.getByText(/common\.status\.disconnected/i)).toBeInTheDocument();
     });
 
-    it('shows connecting label when cortex is starting', () => {
-      cortexState.status = 'starting';
+    it('shows connecting label when telencephalon is starting', () => {
+      telencephalonState.status = 'starting';
       renderLayout();
       expect(screen.getByText(/common\.status\.connecting/i)).toBeInTheDocument();
     });
 
-    it('shows connecting label when cortex running and resonance connecting', () => {
-      cortexState.status = 'running';
+    it('shows connecting label when telencephalon running and resonance connecting', () => {
+      telencephalonState.status = 'running';
       resonanceState.connectionStatus = 'connecting';
       renderLayout();
       expect(screen.getByText(/common\.status\.connecting/i)).toBeInTheDocument();
     });
 
-    it('shows connected label when cortex running and resonance connected', () => {
-      cortexState.status = 'running';
+    it('shows connected label when telencephalon running and resonance connected', () => {
+      telencephalonState.status = 'running';
       resonanceState.connectionStatus = 'connected';
       renderLayout();
       expect(screen.getByText(/common\.status\.connected/i)).toBeInTheDocument();
     });
 
     it('applies green-500 to connection dot when fully connected', () => {
-      cortexState.status = 'running';
+      telencephalonState.status = 'running';
       resonanceState.connectionStatus = 'connected';
       const { container } = renderLayout();
       const dot = container.querySelector('[class*="bg-green-500"]');
@@ -192,14 +192,14 @@ describe('Layout', () => {
     });
 
     it('applies yellow-500 animate-pulse when connecting', () => {
-      cortexState.status = 'starting';
+      telencephalonState.status = 'starting';
       const { container } = renderLayout();
       const dot = container.querySelector('[class*="bg-yellow-500"]');
       expect(dot).toBeDefined();
     });
 
-    it('applies muted-foreground to connection dot when cortex stopped', () => {
-      cortexState.status = 'stopped';
+    it('applies muted-foreground to connection dot when telencephalon stopped', () => {
+      telencephalonState.status = 'stopped';
       const { container } = renderLayout();
       const dot = container.querySelector('[class*="bg-muted-foreground"]');
       expect(dot).toBeDefined();

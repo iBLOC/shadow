@@ -42,7 +42,7 @@ const setup = (async () => {
   if (!r.reachable) {
     console.warn(
       `\n[schemas] telencephalon not reachable on ${API_BASE_URL}; skipping shape tests. ` +
-        `reason: ${r.reason}\n  set SHADOW_CORTEX_URL or start the server.\n`,
+        `reason: ${r.reason}\n  set SHADOW_TELENCEPHALON_URL or start the server.\n`,
     );
   }
 })();
@@ -211,7 +211,7 @@ describe('GET /health', () => {
   }, 15_000);
 });
 
-interface CortexStatusResponse {
+interface TelencephalonStatusResponse {
   // Fields emitted by telencephalon's health endpoint; we only assert
   // shape, not specific keys, so server-side additions don't break us.
   [k: string]: unknown;
@@ -224,7 +224,7 @@ describe('TelencephalonStatusPage lives /api/telencephalon/status|logs', () => {
       ctx.skip(); // server absent — report as skipped, not passed
       return;
     }
-    const body = await probe<CortexStatusResponse>('/api/telencephalon/status');
+    const body = await probe<TelencephalonStatusResponse>('/api/telencephalon/status');
     expect(typeof body).toBe('object');
   }, 15_000);
 
@@ -234,7 +234,7 @@ describe('TelencephalonStatusPage lives /api/telencephalon/status|logs', () => {
       ctx.skip(); // server absent — report as skipped, not passed
       return;
     }
-    const body = await probe<CortexStatusResponse>('/api/telencephalon/logs');
+    const body = await probe<TelencephalonStatusResponse>('/api/telencephalon/logs');
     expect(typeof body).toBe('object');
   }, 15_000);
 });

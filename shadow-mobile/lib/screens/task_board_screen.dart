@@ -1,11 +1,14 @@
 import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../providers/telencephalon_provider.dart';
 import '../services/telencephalon/telencephalon_client.dart';
 import '../theme/app_colors.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/task_detail_dialog.dart';
+import '../widgets/responsive.dart';
 import '../generated/l10n/app_localizations.dart';
 
 /// 任务看板的数据源是**端脑**（temporal lobe 的 `TaskStore`）。
@@ -160,9 +163,8 @@ class TaskInfo {
     DateTime? ts(Object? raw) =>
         raw == null ? null : DateTime.tryParse(raw.toString());
 
-    List<String> strings(Object? raw) => raw is List
-        ? raw.map((e) => e.toString()).toList()
-        : const <String>[];
+    List<String> strings(Object? raw) =>
+        raw is List ? raw.map((e) => e.toString()).toList() : const <String>[];
 
     final rawStatus = (json['status'] ?? 'Pending').toString();
     return TaskInfo(
@@ -204,23 +206,23 @@ class TasksNotifier extends StateNotifier<TasksState> {
 
   /// 端脑任务 → 看板任务。
   TaskInfo _toTaskInfo(TelencephalonTask t) => TaskInfo(
-        id: t.id,
-        // 端脑的 title 是必填的，但老数据可能是空串 —— 退回 id，
-        // 免得列表里出现空标题。
-        title: t.title.trim().isEmpty ? t.id : t.title,
-        status: boardColumnOf(t.status),
-        priority: t.priority.toLowerCase(),
-        description: t.description,
-        tags: t.tags,
-        createdAt: t.createdAt ?? DateTime.now(),
-        // 端脑没有 completed_at 列 —— 完成时间用最后更新时间近似。
-        completedAt: t.status == TelencephalonTaskStatus.completed
-            ? t.updatedAt
-            : null,
-        dueTime: t.dueTime,
-        confirmed: t.confirmed,
-        confirmationPoints: t.confirmationPoints,
-      );
+    id: t.id,
+    // 端脑的 title 是必填的，但老数据可能是空串 —— 退回 id，
+    // 免得列表里出现空标题。
+    title: t.title.trim().isEmpty ? t.id : t.title,
+    status: boardColumnOf(t.status),
+    priority: t.priority.toLowerCase(),
+    description: t.description,
+    tags: t.tags,
+    createdAt: t.createdAt ?? DateTime.now(),
+    // 端脑没有 completed_at 列 —— 完成时间用最后更新时间近似。
+    completedAt: t.status == TelencephalonTaskStatus.completed
+        ? t.updatedAt
+        : null,
+    dueTime: t.dueTime,
+    confirmed: t.confirmed,
+    confirmationPoints: t.confirmationPoints,
+  );
 
   /// 重新拉一次任务并就地更新列表。
   ///
@@ -253,10 +255,7 @@ class TasksNotifier extends StateNotifier<TasksState> {
   /// 这是它唯一支持「事后修改」的字段。标题 / 描述 / 优先级 / 标签都改不了：
   /// 描述与标签只在创建时写入，标题与优先级只有**待确认**的任务能通过
   /// 「确认」端点顺带改（见 [confirmTask]）。
-  Future<void> updateTask(
-    String taskId, {
-    String? status,
-  }) async {
+  Future<void> updateTask(String taskId, {String? status}) async {
     try {
       final updated = await _client.updateTaskStatus(
         taskId,
@@ -417,20 +416,27 @@ class TaskBoardScreen extends ConsumerWidget {
       ),
     ];
 
-    return ListView.builder(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.all(16),
-      itemCount: columns.length,
-      itemBuilder: (context, index) {
-        final column = columns[index];
-        final columnTasks = state.byStatus(column.id);
-        return _KanbanColumn(
-          column: column,
-          tasks: columnTasks,
-          onAddTask: () => _showAddTaskDialog(context, ref, column.id),
-          onTaskTap: (task) => _openTaskDetail(context, task),
-        );
-      },
+    // 折叠屏展开后整板限宽居中（与聊天同一形状）—— 列仍 280 宽、
+    // 内部横滚：700dp 展开屏可见约 2.3 列，比拉满整屏好看。
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: kContentMaxWidth),
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.all(16),
+          itemCount: columns.length,
+          itemBuilder: (context, index) {
+            final column = columns[index];
+            final columnTasks = state.byStatus(column.id);
+            return _KanbanColumn(
+              column: column,
+              tasks: columnTasks,
+              onAddTask: () => _showAddTaskDialog(context, ref, column.id),
+              onTaskTap: (task) => _openTaskDetail(context, task),
+            );
+          },
+        ),
+      ),
     );
   }
 
@@ -451,12 +457,9 @@ class TaskBoardScreen extends ConsumerWidget {
       context: context,
       builder: (context) => _AddTaskDialog(
         onAdd: (title, priority, dueTime) {
-          ref.read(tasksNotifierProvider.notifier).createTask(
-                title,
-                priority,
-                dueTime: dueTime,
-                column: columnId,
-              );
+          ref
+              .read(tasksNotifierProvider.notifier)
+              .createTask(title, priority, dueTime: dueTime, column: columnId);
         },
       ),
     );
@@ -502,7 +505,10 @@ class _TaskErrorBanner extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          TextButton(onPressed: onRetry, child: Text(AppLocalizations.of(context)!.taskRetry)),
+          TextButton(
+            onPressed: onRetry,
+            child: Text(AppLocalizations.of(context)!.taskRetry),
+          ),
         ],
       ),
     );
@@ -766,9 +772,15 @@ class _AddTaskDialogState extends State<_AddTaskDialog> {
             ),
             items: [
               DropdownMenuItem(value: 'low', child: Text(l10n.priorityLow)),
-              DropdownMenuItem(value: 'medium', child: Text(l10n.priorityMedium)),
+              DropdownMenuItem(
+                value: 'medium',
+                child: Text(l10n.priorityMedium),
+              ),
               DropdownMenuItem(value: 'high', child: Text(l10n.priorityHigh)),
-              DropdownMenuItem(value: 'urgent', child: Text(l10n.priorityUrgent)),
+              DropdownMenuItem(
+                value: 'urgent',
+                child: Text(l10n.priorityUrgent),
+              ),
             ],
             onChanged: (value) {
               if (value != null) setState(() => _priority = value);

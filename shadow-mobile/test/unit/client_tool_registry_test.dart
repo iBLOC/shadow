@@ -68,6 +68,9 @@ void main() {
       return buildMobileClientTools(
         setAccentColor: (_) async {},
         setDarkMode: (_) async {},
+        // ⚠️ 「取 surface」那一半在**另一个文件**里测（带真实 fixture）
+        // ⇒ 这里给个空壳就够（这份只关心 `set_theme` 的形状）。
+        fetchSurfaceEvents: (_) async => const [],
       );
     }
 
@@ -142,6 +145,7 @@ void main() {
       return buildMobileClientTools(
         setAccentColor: (c) async => onColor?.call(c),
         setDarkMode: (d) async => onDark?.call(d),
+        fetchSurfaceEvents: (_) async => const [],
       );
     }
 

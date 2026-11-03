@@ -48,7 +48,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tracing-appender = "0.2"
 tokio = { version = "1", features = ["full"] }
 
-# Cortex / Telencephalon is no longer spawned as a sidecar binary.
+# The endbrain (telencephalon) is no longer spawned as a sidecar binary.
 # Shadow-Desktop is a thin client that talks to telencephalon via
 # /shadow/v1/* and /api/telencephalon/* HTTP when needed.
 # (DEPRECATED 2026-09-22: replaced by embedded `encephalon` crate.)
@@ -73,21 +73,25 @@ dirs = "5"
 reqwest = { version = "0.12", features = ["json"] }
 
 # Encephalon (大脑) — embedded top-level wrapper crate. Replaces the
-# old cortex sidecar pattern. Holds the ACP message bus + the diencephalon
+# old sidecar pattern. Holds the ACP message bus + the diencephalon
 # (data gateway) and (optionally) the telencephalon (agent runtime).
 #
 # `default-features = false` turns the `hippocampus` feature OFF on
 # purpose: the hippocampus state is built by
 # `telencephalon::boot::build_app_state` (the 端脑's own boot sequence) and
-# the HTTP face is mounted from **that same** state in `cortex_http.rs`.
+# the HTTP face is mounted from **that same** state in `telencephalon_http.rs`.
 # Two hippocampus instances pointing at the same Lance storage would
 # contend for the same locks — so there is exactly one.
 encephalon = { path = "../../../encephalon", default-features = false, features = [
     "telencephalon",
+    # 零信任面（OpenZiti dark service）—— 见 §encephalon::ziti§。
+    # ⚠️ **编译进 ≠ 会开** —— 运行时还要配 §ZITI_IDENTITY§ ⇒ ⇒ 没配
+    # ⇒ 桌面端行为与今天**一模一样**。
+    "ziti",
 ] }
 
 # 端脑 (telencephalon) — the agent runtime the desktop's traffic must go
-# through: 大脑 → 端脑 → 叶区. `cortex_http.rs` mounts its HTTP face
+# through: 大脑 → 端脑 → 叶区. `telencephalon_http.rs` mounts its HTTP face
 # (shadow API + A2A gateway + agent management) on 127.0.0.1:60080.
 #
 # Same path as `encephalon`'s own dependency (`../telencephalon`) → cargo
@@ -102,7 +106,7 @@ encephalon = { path = "../../../encephalon", default-features = false, features 
 # survives a change to telencephalon's own default feature list.
 telencephalon = { path = "../../../telencephalon", features = ["hippocampus"] }
 
-# 进程内海马体的 HTTP 面（`src/cortex_http.rs` 把端脑的 router 合成一台
+# 进程内海马体的 HTTP 面（`src/telencephalon_http.rs` 把端脑的 router 合成一台
 # 服务时用它的 router 工厂，挂在 `/hippocampus` 前缀下）。
 # 版本与端脑 / neuron 保持一致（axum 0.8 + tower-http 0.6），避免依赖图分叉。
 hippocampus-server = { path = "../../../hippocampus/hippocampus-server" }

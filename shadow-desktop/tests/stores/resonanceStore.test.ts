@@ -2,12 +2,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { useResonanceStore } from '../../src/stores/resonanceStore';
 import type { DiscoveredService, TaskPush } from '../../src/stores/resonanceStore';
 
-const { mockSafeInvoke, cortexStatusRef, cortexConnectionRef, hasResonanceRef } = vi.hoisted(() => {
+const { mockSafeInvoke, telencephalonStatusRef, telencephalonConnectionRef, hasResonanceRef } = vi.hoisted(() => {
   const mockSafeInvoke = vi.fn();
-  const cortexStatusRef = { value: 'stopped' };
-  const cortexConnectionRef = { value: { baseUrl: 'http://127.0.0.1:60080', apiKey: '' } };
+  const telencephalonStatusRef = { value: 'stopped' };
+  const telencephalonConnectionRef = { value: { baseUrl: 'http://127.0.0.1:60080', apiKey: '' } };
   const hasResonanceRef = { value: false };
-  return { mockSafeInvoke, cortexStatusRef, cortexConnectionRef, hasResonanceRef };
+  return { mockSafeInvoke, telencephalonStatusRef, telencephalonConnectionRef, hasResonanceRef };
 });
 
 vi.mock('../../src/lib/tauriSafe', () => ({
@@ -17,8 +17,8 @@ vi.mock('../../src/lib/tauriSafe', () => ({
 vi.mock('../../src/stores/telencephalonStore', () => ({
   useTelencephalonStore: {
     getState: () => ({
-      status: cortexStatusRef.value,
-      connection: cortexConnectionRef.value,
+      status: telencephalonStatusRef.value,
+      connection: telencephalonConnectionRef.value,
       hasConfiguredResonance: () => hasResonanceRef.value,
     }),
   },
@@ -60,7 +60,7 @@ describe('ResonanceStore', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockSafeInvoke.mockReset();
-    cortexStatusRef.value = 'stopped';
+    telencephalonStatusRef.value = 'stopped';
     hasResonanceRef.value = false;
     useResonanceStore.setState({
       discoveredServices: [],
@@ -91,7 +91,7 @@ describe('ResonanceStore', () => {
 
   describe('discoverServices', () => {
     it('returns early with error when no resonance configured', async () => {
-      cortexStatusRef.value = 'stopped';
+      telencephalonStatusRef.value = 'stopped';
       const { discoverServices } = useResonanceStore.getState();
       await discoverServices();
       const state = useResonanceStore.getState();
@@ -100,8 +100,8 @@ describe('ResonanceStore', () => {
       expect(mockSafeInvoke).not.toHaveBeenCalled();
     });
 
-    it('populates discoveredServices on success when cortex is running', async () => {
-      cortexStatusRef.value = 'running';
+    it('populates discoveredServices on success when telencephalon is running', async () => {
+      telencephalonStatusRef.value = 'running';
       hasResonanceRef.value = true;
       mockSafeInvoke.mockResolvedValueOnce([sampleService]);
       const { discoverServices } = useResonanceStore.getState();
@@ -113,7 +113,7 @@ describe('ResonanceStore', () => {
     });
 
     it('stores empty array when service returns null', async () => {
-      cortexStatusRef.value = 'running';
+      telencephalonStatusRef.value = 'running';
       hasResonanceRef.value = true;
       mockSafeInvoke.mockResolvedValueOnce(null);
       const { discoverServices } = useResonanceStore.getState();
@@ -124,7 +124,7 @@ describe('ResonanceStore', () => {
     });
 
     it('sets error on failure', async () => {
-      cortexStatusRef.value = 'running';
+      telencephalonStatusRef.value = 'running';
       hasResonanceRef.value = true;
       mockSafeInvoke.mockRejectedValueOnce(new Error('Network unreachable'));
       const { discoverServices } = useResonanceStore.getState();
@@ -135,17 +135,17 @@ describe('ResonanceStore', () => {
   });
 
   describe('connect', () => {
-    it('sets error when cortex is not running', async () => {
-      cortexStatusRef.value = 'stopped';
+    it('sets error when telencephalon is not running', async () => {
+      telencephalonStatusRef.value = 'stopped';
       const { connect } = useResonanceStore.getState();
       await connect();
       const state = useResonanceStore.getState();
-      expect(state.error).toMatch(/cortex must be running/i);
+      expect(state.error).toMatch(/telencephalon must be running/i);
       expect(state.connectionStatus).toBe('error');
     });
 
-    it('sets error when no resonance configured even with cortex running', async () => {
-      cortexStatusRef.value = 'running';
+    it('sets error when no resonance configured even with telencephalon running', async () => {
+      telencephalonStatusRef.value = 'running';
       const { connect } = useResonanceStore.getState();
       await connect();
       const state = useResonanceStore.getState();
@@ -153,10 +153,10 @@ describe('ResonanceStore', () => {
       expect(state.connectionStatus).toBe('error');
     });
 
-    it('connects successfully through cortex A2A gateway', async () => {
+    it('connects successfully through telencephalon A2A gateway', async () => {
       hasResonanceRef.value = true;
-      cortexStatusRef.value = 'running';
-      cortexConnectionRef.value = { baseUrl: "http://127.0.0.1:60080", apiKey: "" };
+      telencephalonStatusRef.value = 'running';
+      telencephalonConnectionRef.value = { baseUrl: "http://127.0.0.1:60080", apiKey: "" };
       const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
         new Response('{}', { status: 200 }),
       );
@@ -167,9 +167,9 @@ describe('ResonanceStore', () => {
       expect(state.connectionStatus).toBe('connected');
     });
 
-    it('sets error when cortex A2A gateway is not reachable', async () => {
+    it('sets error when telencephalon A2A gateway is not reachable', async () => {
       hasResonanceRef.value = true;
-      cortexStatusRef.value = 'running';
+      telencephalonStatusRef.value = 'running';
       vi.spyOn(globalThis, 'fetch').mockResolvedValue(
         new Response('not found', { status: 404 }),
       );
@@ -311,7 +311,7 @@ describe('ResonanceStore', () => {
 
   describe('handleDisconnect', () => {
     it('marks disconnected when primary not configured', async () => {
-      cortexStatusRef.value = 'stopped';
+      telencephalonStatusRef.value = 'stopped';
       const { handleDisconnect } = useResonanceStore.getState();
       await handleDisconnect();
       const state = useResonanceStore.getState();

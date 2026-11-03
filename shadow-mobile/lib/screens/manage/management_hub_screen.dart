@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../generated/l10n/app_localizations.dart';
 import '../../navigation/nav.g.dart';
 import '../../theme/app_colors.dart';
@@ -38,17 +39,21 @@ class ManagementHubScreen extends ConsumerWidget {
                 ref.read(hubNotifierProvider.notifier).loadAllCounts(),
             child: Padding(
               padding: const EdgeInsets.all(16),
-              child: GridView.count(
-                crossAxisCount: 2,
-                mainAxisSpacing: 16,
-                crossAxisSpacing: 16,
-                childAspectRatio: 1.2,
+              // maxCrossAxisExtent 而非固定 crossAxisCount：手机上仍是
+              // 2 列（≈390dp 宽），折叠屏展开（≈700dp）自动变 3 列。
+              child: GridView(
+                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                  maxCrossAxisExtent: 260,
+                  mainAxisSpacing: 16,
+                  crossAxisSpacing: 16,
+                  childAspectRatio: 1.2,
+                ),
                 children: [
                   _ManagementCard(
                     icon: Icons.business,
                     title: l10n.providers,
                     // ⚠️ **「读不到」不能显示成「0」** —— 端脑没起来 / 钥匙不对 /
-                    地址不对，三种情况都会让这个数取不到 ⇒ ⇒ 显示「未知」。
+                    // 地址不对，三种情况都会让这个数取不到 ⇒ ⇒ 显示「未知」。
                     subtitle: hubState.isLoading
                         ? '...'
                         : (hubState.providerError != null
@@ -66,7 +71,7 @@ class ManagementHubScreen extends ConsumerWidget {
                     icon: Icons.integration_instructions,
                     title: l10n.mcp,
                     // ⚠️ **「读不到」不能显示成「0」** —— 端脑没起来 / 钥匙不对 /
-                    地址不对，三种情况都会让这个数取不到 ⇒ ⇒ 显示「未知」。
+                    // 地址不对，三种情况都会让这个数取不到 ⇒ ⇒ 显示「未知」。
                     subtitle: hubState.isLoading
                         ? '...'
                         : (hubState.mcpError != null
@@ -78,7 +83,7 @@ class ManagementHubScreen extends ConsumerWidget {
                     icon: Icons.psychology,
                     title: l10n.skills,
                     // ⚠️ **「读不到」不能显示成「0」** —— 端脑没起来 / 钥匙不对 /
-                    地址不对，三种情况都会让这个数取不到 ⇒ ⇒ 显示「未知」。
+                    // 地址不对，三种情况都会让这个数取不到 ⇒ ⇒ 显示「未知」。
                     subtitle: hubState.isLoading
                         ? '...'
                         : (hubState.skillError != null
@@ -90,7 +95,7 @@ class ManagementHubScreen extends ConsumerWidget {
                     icon: Icons.smart_toy,
                     title: l10n.agents,
                     // ⚠️ **「读不到」不能显示成「0」** —— 端脑没起来 / 钥匙不对 /
-                    地址不对，三种情况都会让这个数取不到 ⇒ ⇒ 显示「未知」。
+                    // 地址不对，三种情况都会让这个数取不到 ⇒ ⇒ 显示「未知」。
                     subtitle: hubState.isLoading
                         ? '...'
                         : (hubState.agentError != null
@@ -102,7 +107,7 @@ class ManagementHubScreen extends ConsumerWidget {
                     icon: Icons.memory,
                     title: l10n.memory,
                     // ⚠️ **「读不到」不能显示成「0」** —— 端脑没起来 / 钥匙不对 /
-                    地址不对，三种情况都会让这个数取不到 ⇒ ⇒ 显示「未知」。
+                    // 地址不对，三种情况都会让这个数取不到 ⇒ ⇒ 显示「未知」。
                     subtitle: hubState.isLoading
                         ? '...'
                         : (hubState.memoryError != null
@@ -158,9 +163,8 @@ class _ManagementCard extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             title,
-            style: Theme.of(
-              context,
-            ).textTheme.titleLarge?.copyWith(fontSize: 16),
+            style: Theme.of(context).textTheme.titleLarge
+                ?.copyWith(fontSize: 16),
           ),
           const SizedBox(height: 4),
           Text(subtitle, style: Theme.of(context).textTheme.bodySmall),

@@ -14,7 +14,7 @@ import { platform } from 'node:process';
 import { PrefrontalClient } from '../prefrontalClient';
 import { existsSync } from 'node:fs';
 
-// Mirror the P0-A fix in `tests/e2e-ui/global-setup.ts`: cortex/telencephalon
+// Mirror the P0-A fix in `tests/e2e-ui/global-setup.ts`: 端脑
 // hardcoded a Linux path that broke on Windows. Same pattern here for
 // prefrontal — env override > platform default. When the binary is not built,
 // the suite `describe.skip`s itself instead of throwing beforeAll.

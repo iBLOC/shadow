@@ -19,18 +19,24 @@ interface VideoSourceState {
   sync: SyncState;
   lastSyncAt?: number;
 
-  refreshFromCortex: () => Promise<void>;
+  refreshFromTelencephalon: () => Promise<void>;
   addFromAvailable: (deviceId: string) => Promise<void>;
   setActive: (id: string) => Promise<void>;
   remove: (id: string) => Promise<void>;
 }
 
-function pushToCortex(catalog: Map<string, VideoSource>, activeId: string | null) {
+function pushToTelencephalon(catalog: Map<string, VideoSource>, activeId: string | null) {
   const sources = Array.from(catalog.values());
   const snapshot: TelencephalonVideoSourcesSnapshot = {
     sources,
     activeId,
-    device: { platform: 'web', hostname: location?.hostname ?? 'browser', cortexVersion: 'unknown' },
+    // ⚠️ **字段名必须和服务端的 DTO 对齐（camelCase）** —— 服务端的
+    // `DeviceBlock` 早已改名（`telencephalon_version` ⇒ DTO 改成 camelCase
+    // 之后就是 `telencephalonVersion`）⇒ ⇒ 以前这里发的是 `cortexVersion`
+    // ⇒ ⇒ 服务端反序列化**整个 `device` 块失败** ⇒ ⇒ 整个 PUT bodies 被拒
+    // （422）⇒ ⇒ 而下面的 `.catch(() => {})` 把错误吞了 ⇒ ⇒ **失败长得像成功**
+    // （界面说「已与端脑同步」，其实一条都没写进去）。
+    device: { platform: 'web', hostname: location?.hostname ?? 'browser', telencephalonVersion: 'unknown' },
   };
   // fire-and-forget push; UI stays optimistic
   telencephalonClient
@@ -47,7 +53,7 @@ export const useVideoSourceStore = create<VideoSourceState>()(
       available: new Map(),
       sync: 'idle',
 
-      refreshFromCortex: async () => {
+      refreshFromTelencephalon: async () => {
         set({ sync: 'pushing' });
         try {
           const snapshot = await telencephalonClient.listVideoSources();
@@ -90,7 +96,7 @@ export const useVideoSourceStore = create<VideoSourceState>()(
           newSource.active = true;
         }
         set({ catalog: nextCatalog, activeId });
-        pushToCortex(nextCatalog, activeId);
+        pushToTelencephalon(nextCatalog, activeId);
       },
 
       setActive: async (id: string) => {
@@ -100,7 +106,7 @@ export const useVideoSourceStore = create<VideoSourceState>()(
           src.updatedAt = new Date().toISOString();
         }
         set({ catalog: nextCatalog, activeId: id });
-        pushToCortex(nextCatalog, id);
+        pushToTelencephalon(nextCatalog, id);
       },
 
       remove: async (id: string) => {
@@ -109,7 +115,7 @@ export const useVideoSourceStore = create<VideoSourceState>()(
         if (toRemove) nextCatalog.delete(toRemove.deviceId);
         const activeId = get().activeId === id ? null : get().activeId;
         set({ catalog: nextCatalog, activeId });
-        pushToCortex(nextCatalog, activeId);
+        pushToTelencephalon(nextCatalog, activeId);
       },
     }),
     {

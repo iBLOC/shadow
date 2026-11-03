@@ -109,7 +109,7 @@ lib/services/encephalon/encephalon_mobile_page.dart      ← 设置 → 嵌入�
 | 闸 | 管什么 |
 |---|---|
 | `scripts/check-jni-surface.mjs`（父仓） | JNI 入口两边逐字对齐 + 每个 ABI 的 `.so` 符号与依赖 |
-| `scripts/check-cortex-residue.sh`（本仓） | 旧嵌入式 Prefrontal 运行时**不许回来**（标识符级 + `.so` 存在性），带 `--self-test` |
+| `scripts/check-cortex-residue.mjs`（本仓） | 旧嵌入式 Prefrontal 运行时**不许回来**（标识符级 + `.so` 存在性），带 `--self-test` |
 
 ---
 

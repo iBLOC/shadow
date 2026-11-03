@@ -482,4 +482,94 @@ void main() {
       expect(client.reports.single['tool_call_id'], 'brain-call-1');
     });
   });
+
+  group('A2UI 内联那条路（show_a2ui_surface）', () {
+    /// 一个「画出界面」的客户端工具 —— 返回的就是**契约里那个形状**。
+    ClientToolRegistry a2uiTool(List<Map<String, dynamic>> executed) {
+      return ClientToolRegistry([
+        ClientTool(
+          name: 'show_a2ui_surface',
+          description: 'Show the user a generated interface in the conversation',
+          execute: (args) async {
+            executed.add(args);
+            return <String, dynamic>{
+              'report': '已展开「任务看板」。',
+              'a2ui_events': [
+                <String, Object?>{
+                  'result': <String, Object?>{
+                    'kind': 'task-status-update',
+                    'status': <String, Object?>{
+                      'message': <String, Object?>{
+                        'parts': <Object?>[
+                          <String, Object?>{
+                            'kind': 'data',
+                            'data': <String, Object?>{
+                              'beginRendering': <String, Object?>{
+                                'surfaceId': 'shadow.tasks',
+                                'root': 'root',
+                              },
+                            },
+                          },
+                        ],
+                      },
+                    },
+                  },
+                },
+              ],
+            };
+          },
+        ),
+      ]);
+    }
+
+    test('执行完 ⇒ 卡片上带着 surface id（界面那一半）', () async {
+      final executed = <Map<String, dynamic>>[];
+      final client = ToolMockClient([
+        StreamEvent(
+          type: 'tool_call',
+          name: 'show_a2ui_surface',
+          args: parseToolArgs('{"view":"tasks"}'),
+        ),
+      ]);
+      final notifier = ChatNotifier(
+        MockTts(),
+        client,
+        clientTools: a2uiTool(executed),
+      );
+
+      await notifier.generateResponse('给我看看任务');
+      await waitForSettled(notifier);
+
+      final call = lastToolCall(notifier)!;
+      expect(call.status, ToolCallStatus.succeeded);
+      expect(executed.single['view'], 'tasks');
+      // ⚠️ **界面那一半** —— 消息里要靠它画出那块界面。
+      expect(call.a2uiSurfaceIds, <String>['shadow.tasks']);
+    });
+
+    test('回传端脑的**只有 report**（组件树不进模型上下文）', () async {
+      final executed = <Map<String, dynamic>>[];
+      final client = ToolMockClient([
+        StreamEvent(
+          type: 'tool_call',
+          name: 'show_a2ui_surface',
+          args: parseToolArgs('{"view":"tasks"}'),
+        ),
+      ]);
+      final notifier = ChatNotifier(
+        MockTts(),
+        client,
+        clientTools: a2uiTool(executed),
+      );
+
+      await notifier.generateResponse('给我看看任务');
+      await waitForSettled(notifier);
+
+      expect(client.reports, hasLength(1));
+      final reported = client.reports.single['result'] as Map;
+      // ⚠️ **只带 report** —— 模型上下文里不该有一棵组件树。
+      expect(reported, <String, Object?>{'report': '已展开「任务看板」。'});
+      expect(reported.containsKey('a2ui_events'), isFalse);
+    });
+  });
 }

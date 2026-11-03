@@ -19,6 +19,7 @@ import com.ibloc.shadow.tts.TtsManager
 import com.ibloc.shadow.http.MobileActionServer
 import com.ibloc.shadow.provision.BleProvisioningService
 import com.ibloc.shadow.audio.UsbAudioRouter
+import com.ibloc.shadow.device.DeviceDataBridge
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -40,7 +41,7 @@ class MainActivity : FlutterActivity() {
     private val BLE_PROVISION_CHANNEL = "com.ibloc.shadow/ble_provision"
     private val USB_AUDIO_CHANNEL = "com.ibloc.shadow/usb_audio"
     private val ENCEPHALON_CHANNEL = "com.ibloc.shadow/encephalon_runtime"
-
+    private val DEVICE_DATA_CHANNEL = "com.ibloc.shadow/device_data"
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     
     private var nsdManager: NsdManager? = null
@@ -52,6 +53,10 @@ class MainActivity : FlutterActivity() {
     private var usbAudioRouter: UsbAudioRouter? = null
     private var bleProvisioner: BleProvisioningService? = null
 
+    // 设备数据桥（日历 / 联系人 / 短信 / 相册）——
+    // ⚠️ 之所以留一个字段，是为了让 `onRequestPermissionsResult`
+    // 能把**异步的权限申请结果**转回去（申请权限是弹窗，系统回调才到）。
+    private var deviceDataBridge: DeviceDataBridge? = null
     private var engineRegistrationListener: NsdManager.RegistrationListener? = null
     private var engineRegisteredName: String? = null
     
@@ -72,6 +77,7 @@ class MainActivity : FlutterActivity() {
         setupHttpServerChannel(flutterEngine)
         setupEngineChannel(flutterEngine)
         setupEncephalonRuntimeChannel(flutterEngine)
+        setupDeviceDataChannel(flutterEngine)
         setupBleProvisionChannel(flutterEngine)
         setupUsbAudioChannel(flutterEngine)
     }
@@ -106,12 +112,46 @@ class MainActivity : FlutterActivity() {
                 }
                 "globalAction" -> {
                     val action = call.argument<String>("action") ?: "back"
-                    val id = when(action) {
+                    // ⚠️ **六个动作都要认** —— Dart 侧的 GlobalAction 枚举列了
+                    // back / home / recents / notifications / quick_settings / power_dialog
+                    // ⇒ ⇒ 以前这里只认 back 与 home ⇒ ⇒ 其余**静悄悄地**变成了
+                    // 「back」（模型要「最近任务」却收到两个「返回」—— 比失败更糟）。
+                    // ⇒ ⇒ wire 名用 **snake_case**（与 Dart 侧显式对齐）。
+                    val id = when (action) {
                         "back" -> android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK
                         "home" -> android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_HOME
-                        else -> android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK
+                        "recents" -> android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_RECENTS
+                        "notifications" -> android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS
+                        "quick_settings" -> android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_QUICK_SETTINGS
+                        "power_dialog" -> android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_POWER_DIALOG
+                        else -> -1
                     }
-                    result.success(PrefrontalAccessibilityService.instance?.performGlobalActionById(id) ?: false)
+                    if (id < 0) {
+                        // ⚠️ 认不出来的动作 ⇒ **明确失败**，别静悄悄变成「返回」。
+                        result.success(false)
+                    } else {
+                        result.success(PrefrontalAccessibilityService.instance?.performGlobalActionById(id) ?: false)
+                    }
+                }
+                "readScreen" -> {
+                    // ⚠️ **读屏**（可访问性树）—— 只读，不碰任何输入。
+                    //
+                    // ⚠️ MethodChannel 的 handler 跑在**平台主线程**上 ⇒ ⇒
+                    // 这里访问无障碍服务是安全的（见 android/AGENTS.md 那条
+                    // 「无障碍实例只能在主线程访问」的规矩）。
+                    //
+                    // null = 服务没连上 / 没有可读的前台窗口 ⇒ ⇒ Dart 侧据此
+                    // 报「无障碍服务未开启」，而不是回一段空白。
+                    result.success(PrefrontalAccessibilityService.instance?.readScreenContent())
+                }
+                "setDeviceActionsAllowed" -> {
+                    // ⚠️ **把「手机操作」那一档推给原生侧** ⇒ ⇒
+                    // 原生那两个平行面（HTTP `/api/mobile/action`、A2A 的
+                    // `executeAction`）据此决定放不放行 ⇒ ⇒ 否则它们绕开闸。
+                    //
+                    // ⚠️ 认不出来 / 不是 true ⇒ ⇒ 按**拒绝**处理（fail-closed）。
+                    DeviceActionGate.setAllowed(call.argument<Boolean>("allowed") == true)
+                    result.success(true)
                 }
                 "findAndClickByText" -> result.success(PrefrontalAccessibilityService.instance?.findAndClickByText(call.argument<String>("text") ?: "") ?: false)
                 else -> result.notImplemented()
@@ -556,6 +596,40 @@ class MainActivity : FlutterActivity() {
         } catch (e: Exception) {
             result.success(null)
         }
+    }
+
+    /// 设备数据通道（`com.ibloc.shadow/device_data`）——
+    ///
+    /// 读日历 / 写日历 / 读联系人 / 读短信 / 读相册**元数据**。
+    ///
+    /// ⚠️ 桥自己**再查一遍**权限 —— Dart 说「有权限」不算数 ⇒ ⇒
+    /// 原生这里才是真的那道门（Dart 侧逻辑出 bug 也拦得住）。
+    ///
+    /// ⚠️ 桥拿 `applicationContext`（内容查询不依赖 Activity 生命周期），
+    /// 只有**申请权限**需要 Activity（系统弹窗要宿主 Activity）。
+    private fun setupDeviceDataChannel(flutterEngine: FlutterEngine) {
+        val bridge = DeviceDataBridge(applicationContext, this)
+        deviceDataBridge = bridge
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, DEVICE_DATA_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                bridge.handle(call, result)
+            }
+    }
+
+    /// 系统权限申请的回调 —— **异步**的那一半。
+    ///
+    /// ⚠️ 申请权限要弹系统框，用户在别的界面上点 ⇒ ⇒ 原生那边必须等
+    /// 这个回调才敢答复 Dart ⇒ ⇒ 没有它，`requestPermission` 会永远挂着。
+    ///
+    /// ⚠️ 桥按 requestCode 自己判断是不是它的（不是它的就原样放过）
+    /// ⇒ ⇒ Flutter 插件那条回调链不受影响。
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        deviceDataBridge?.onRequestPermissionsResult(requestCode, grantResults)
     }
 
     private fun setupEncephalonRuntimeChannel(flutterEngine: FlutterEngine) {

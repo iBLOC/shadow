@@ -20,6 +20,8 @@
  *   4. 桌面端 sidecar 不得再暴露直连推理的 Tauri 命令。
  *   5. 移动端对话必须走 `TelencephalonClient`（端脑方言）。
  *   6. 移动端不得保留本地直连推理的对话编排器。
+ *   7. 客户端**不许知道 neuron's 地址**（只有一个入口：大脑那张面）。
+ *   8. 「一张面」必须真的只有一张（本地模型那一半走大脑）。
  *
  * 用法：node scripts/check-brain-chain.mjs
  * 退出码 0 = 通过；1 = 有阻断问题。
@@ -48,6 +50,18 @@ const SCAN_ROOTS = [
   { dir: join(ROOT, 'shadow-desktop', 'src-tauri', 'src'), exts: ['.rs'] },
   { dir: join(ROOT, 'shadow-mobile', 'lib'), exts: ['.dart'] },
 ];
+
+/**
+ * **兄弟仓** —— 「大脑那张面」是一条**跨仓**契约（三个宿主分处三个仓）⇒ ⇒
+ * 只扫本仓就看不见「另两个宿主还各拼各的」这件事。
+ *
+ * ⚠️ **存在才扫** —— `shadow` 单独 clone 时兄弟仓不在 ⇒ ⇒ 跳过 ⇒ ⇒ 闸不会
+ * 因为「仓库没检出来」而假红（那不是代码问题，是环境问题）。
+ */
+const SIBLING_ROOTS = [
+  { dir: join(ROOT, '..', 'telencephalon'), exts: ['.rs'] },
+  { dir: join(ROOT, '..', 'encephalon'), exts: ['.rs'] },
+].filter((r) => existsSync(r.dir));
 
 function walk(dir, exts, out = []) {
   if (!existsSync(dir)) return out;
@@ -133,7 +147,7 @@ function rule(id, why, match) {
  * @param {string[]} needFiles  必须存在
  * @param {string[]} needIn     { file, pattern } —— 文件里必须出现的内容
  */
-function requireRule(id, why, needFiles, needIn) {
+function requireRule(id, why, needFiles, needIn, mustNotIn = []) {
   for (const f of needFiles) {
     if (!existsSync(join(ROOT, f))) {
       findings.push({ id, file: f, why: `${why}（文件缺失）` });
@@ -149,6 +163,18 @@ function requireRule(id, why, needFiles, needIn) {
     }
     if (!pattern.test(text)) {
       findings.push({ id, file, why: `${why}（没找到 ${pattern}）` });
+    }
+  }
+  // ⚠️ **必须不含** —— 「不许出现的东西」也要能钉住 ⇒ ⇒ 否则
+  // 「删干净了」和「从来没删过」长得一模一样。
+  for (const { file, pattern } of mustNotIn) {
+    const text = code.get(file);
+    if (text === undefined) {
+      findings.push({ id, file, why: `${why}（文件不存在）` });
+      continue;
+    }
+    if (pattern.test(text)) {
+      findings.push({ id, file, why: `${why}（不该出现的 ${pattern} 还在）` });
     }
   }
 }
@@ -183,16 +209,16 @@ rule(
 // 只挂海马体是不够的：那样桌面对话仍然够不到端脑。
 requireRule(
   'desktop-sidecar-mounts-cortex',
-  '桌面端 sidecar 没有把端脑的 HTTP 面挂起来',
-  ['shadow-desktop/src-tauri/src/cortex_http.rs'],
+  '桌面端没有把端脑的 HTTP 面挂起来',
+  ['shadow-desktop/src-tauri/src/telencephalon_http.rs'],
   [
     {
-      file: 'shadow-desktop/src-tauri/src/cortex_http.rs',
-      pattern: /build_full_app|build_with_conversation_store/,
+      file: 'shadow-desktop/src-tauri/src/telencephalon_http.rs',
+      pattern: /surface::build_brain_face/,
     },
     {
-      file: 'shadow-desktop/src-tauri/src/cortex_http.rs',
-      pattern: /hippocampus/,
+      file: 'shadow-desktop/src-tauri/src/telencephalon_http.rs',
+      pattern: /FaceContent::Full/,
     },
   ],
 );
@@ -240,6 +266,184 @@ rule(
   '移动端还留着本地直连推理的对话编排器（MainAgentNotifier）—— 可以绕过端脑',
   (file, text) => file.startsWith('shadow-mobile/lib/') && text.includes('MainAgentNotifier'),
 );
+
+// ── 7. 客户端不许知道 neuron's 地址 ──────────────────────────────────────
+//
+// 用户拍板（2026-11-02）：「**坚持嵌入式，所有的入口都在大脑，由大脑负责
+// 路由和分发**」⇒ ⇒ 客户端**只有一个**后端地址（大脑那张面）⇒ ⇒
+// 直连 neuron's 自己的 listener 是**绕过大脑的入口** ⇒ ⇒ 大脑那一侧
+// 看不见「谁在管本地模型」⇒ ⇒ 这条入口必须消失。
+//
+// ⚠️ **作用域**：只管**桌面端客户端**（`shadow-desktop/src/`）⇒ ⇒
+// ① `src-tauri/` 里的 `127.0.0.1:8085` 是 neuron's **真实监听地址**
+// （叶区的 LLM 端点要指过去）⇒ ⇒ 服务端合法，不判；
+// ② 移动端的 `8083` / `8085` 是**它自己内嵌**的运行时（同样属于
+// 「坚持嵌入式」这一形态）⇒ ⇒ 合法，不判。
+//
+// ⚠️ **只判代码行** ⇒ ⇒ 注释里写「以前是 neuronUrl()」是**史证**，
+// 恰恰是好事 ⇒ ⇒ 不判红。
+const noNeuronAddress = (file, text) =>
+  file.startsWith('shadow-desktop/src/') &&
+  (text.includes('neuronUrl') ||
+    text.includes('VITE_NEURON_URL') ||
+    /localhost:808[35]\b/.test(text) ||
+    /127\.0\.0\.1:808[35]\b/.test(text));
+
+rule(
+  'desktop-no-neuron-address',
+  "桌面端客户端知道了 neuron's 地址 —— 那是绕过大脑的第二个入口",
+  noNeuronAddress,
+);
+
+// ── 8. 「一张面」必须真的只有一张 ────────────────────────────────────────
+//
+// ⚠️ 「不许知道第二个地址」只钉住**不许出现什么** ⇒ ⇒ 还差一条
+// 「**必须**从大脑那张面取地址」⇒ ⇒ 两边合起来才完整：
+// ① 不许有第二个地址；② 本地模型那一半**必须**走大脑。
+//
+// ⚠️ 为什么点名这三个文件：它们是**本地模型那一半**的全部调用点 ⇒ ⇒
+// 「本地模型走大脑」这条决定只能落在这里。
+const brainBaseFromClient = (text) =>
+  /telencephalonClient\.getBaseUrl\(\)/.test(text);
+
+requireRule(
+  'desktop-single-brain-face',
+  '桌面端客户端没有把「大脑那张面」收成一张（本地模型那一半必须走大脑）',
+  [],
+  [
+    {
+      file: 'shadow-desktop/src/lib/modelConfigProbe.ts',
+      pattern: /telencephalonClient\.getBaseUrl\(\)/,
+    },
+    {
+      file: 'shadow-desktop/src/pages/ModelsPage.tsx',
+      pattern: /telencephalonClient\.getBaseUrl\(\)/,
+    },
+    {
+      file:
+        'shadow-desktop/src/components/business/LocalEnginePanel/LocalEnginePanel.tsx',
+      pattern: /telencephalonClient\.getBaseUrl\(\)/,
+    },
+  ],
+  [
+    {
+      file: 'shadow-desktop/src/lib/platform.ts',
+      pattern: /export const neuronUrl/,
+    },
+  ],
+);
+
+// ── 9. 「大脑那张面」必须只有一个组装入口 ────────────────────────────────
+//
+// ⚠️ 2026-11-03：桌面端 / 移动端 / 独立服务器以前**各拼各的**同一张面 ⇒ ⇒
+// 形状一样但**代码有三份** ⇒ ⇒ 迟早漂 ⇒ ⇒ 而且「门罩住谁」在三处各不相同
+// ⇒ ⇒ 「neuron 面 / 海马体面在门外」没人说得清是**设计**还是**巧合**。
+//
+// ⇒ 现在收成大脑仓的 `surface::build_brain_face` ⇒ ⇒ 三个宿主都必须调它。
+//
+// ⚠️ **兄弟仓存在才要求** —— `shadow` 单独 clone 时那两仓不在 ⇒ ⇒ 跳过 ⇒ ⇒
+// 闸不会因为「仓库没检出来」而假红（那是环境问题，不是代码问题）。
+const BRAIN_FACE_ENTRY = /surface::build_brain_face/;
+const unifiedEntryFiles = [
+  { file: 'shadow-desktop/src-tauri/src/telencephalon_http.rs' },
+  { file: '../encephalon/src/mobile/mod.rs' },
+  { file: '../encephalon/src/a2a_server.rs' },
+].filter(({ file }) => code.has(file));
+
+requireRule(
+  'single-brain-face-entrypoint',
+  '「大脑那张面」不是从统一入口组装的 —— 三个宿主各拼各的 ⇒ 迟早漂',
+  [],
+  unifiedEntryFiles.map(({ file }) => ({ file, pattern: BRAIN_FACE_ENTRY })),
+);
+
+// ── 自检：证明这道闸**有分辨力**，不是恒绿 ────────────────────────────────
+//
+// ⚠️ 自检必须包含**正控**（干净代码 ⇒ 不判红）**和反控**（有残留 ⇒
+// 判红）⇒ ⇒ 只测「反控」的闸会给人「恒绿」的错觉。
+if (process.argv.includes('--self-test')) {
+  const F = 'shadow-desktop/src/lib/probe.ts';
+  const cases = [
+    {
+      name: '代码行里有 neuronUrl() ⇒ 判红',
+      got: noNeuronAddress(F, codeLines('const b = neuronUrl();')),
+      want: true,
+    },
+    {
+      name: '注释里提到 neuronUrl() ⇒ 不判红（史证是好事）',
+      got: noNeuronAddress(F, codeLines('// 以前是 neuronUrl()\nconst b = 1;')),
+      want: false,
+    },
+    {
+      name: '代码行里有 VITE_NEURON_URL ⇒ 判红',
+      got: noNeuronAddress(F, codeLines("const u = import.meta.env.VITE_NEURON_URL;")),
+      want: true,
+    },
+    {
+      name: "写死 neuron's 端口 8085 ⇒ 判红",
+      got: noNeuronAddress(F, codeLines("const b = 'http://localhost:8085';")),
+      want: true,
+    },
+    {
+      name: "写死 neuron's 端口 8083 ⇒ 判红",
+      got: noNeuronAddress(F, codeLines("const b = 'http://127.0.0.1:8083';")),
+      want: true,
+    },
+    {
+      name: '走大脑的干净代码 ⇒ 不判红（正控）',
+      got: noNeuronAddress(F, codeLines('const b = brainBase();\nawait fetch(`${b}/v1/models`);')),
+      want: false,
+    },
+    {
+      name: "Rust 侧（服务端）的 8085 ⇒ 不判红（作用域限定）",
+      got: noNeuronAddress(
+        'shadow-desktop/src-tauri/src/telencephalon_http.rs',
+        codeLines("let addr = '127.0.0.1:8085';"),
+      ),
+      want: false,
+    },
+    {
+      name: '本地模型那一半必须从 client 取 base ⇒ 缺了就判红',
+      got: brainBaseFromClient(codeLines('const b = someOtherUrl();')),
+      want: false,
+    },
+    {
+      name: '本地模型那一半从 client 取 base ⇒ 不判红（正控）',
+      got: brainBaseFromClient(codeLines('const b = telencephalonClient.getBaseUrl();')),
+      want: true,
+    },
+    {
+      name: '宿主调统一入口 ⇒ 不判红（正控）',
+      got: BRAIN_FACE_ENTRY.test(
+        codeLines('let f = encephalon::surface::build_brain_face(opts, n, c);'),
+      ),
+      want: true,
+    },
+    {
+      name: '宿主又自己拼端脑面 ⇒ 判红',
+      got: BRAIN_FACE_ENTRY.test(
+        codeLines('let app = telencephalon::api::build_full_app(s, c, n, h);'),
+      ),
+      want: false,
+    },
+  ];
+  let fails = 0;
+  console.log('─'.repeat(72));
+  console.log('通信链路闸 —— 自检');
+  console.log('─'.repeat(72));
+  for (const c of cases) {
+    const ok = c.got === c.want;
+    if (!ok) fails++;
+    console.log(`  ${ok ? '✓' : '✗'} ${c.name}`);
+  }
+  console.log('─'.repeat(72));
+  if (fails === 0) {
+    console.log(`✓ 自检全绿（${cases.length} 条）`);
+    process.exit(0);
+  }
+  console.error(`✗ 自检 ${fails} / ${cases.length} 条红`);
+  process.exit(1);
+}
 
 // ── 报告 ──────────────────────────────────────────────────────────────────
 

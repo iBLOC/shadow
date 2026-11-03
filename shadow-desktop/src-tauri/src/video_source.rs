@@ -5,16 +5,24 @@
 //! the React UI surface a "press a button to find cameras" affordance
 //! and a "push my current list into thalamus" action.
 //!
-//! Wire shape: matches Spec #1's `cortex_video_sources` table — same
-//! JSON the webview already emits. The Rust side now writes each
-//! source directly into the in-process `diencephalon::Thalamus`
-//! (no ETag dance, no HTTP). cortex's old `device.cortex_version`
-//! field is kept in the wire shape for backwards compatibility but
-//! is populated with the diencephalon version.
+//! Wire shape: the same JSON the webview emits (Spec #1's
+//! video-source shape). The Rust side writes each source directly into
+//! the in-process `diencephalon::Thalamus` (no ETag dance, no HTTP).
+//!
+//! ⚠️ **camelCase**：与端脑的 `video_sources` DTO、桌面端的 TS 类型
+//!    `TelencephalonVideoSourcesSnapshot` **说同一种话**。
+//!    历史上端脑那边漏过一次 `rename_all` ⇒ 客户端 PUT 被静默 422 ⇒
+//!    而客户端是 `.catch(() => {})` ⇒ **失败长得像成功**。
+//!
+//! ⚠️ 这四个 Tauri command（`enumerate_uvc` / `probe_capabilities` /
+//!    `push_thalamus` / `sync_health`）**当前在前端没有任何调用点**
+//!    —— 桌面端走的是 HTTP `/api/telencephalon/video-sources`。
+//!    ⇒ 这条路是**待清理的死路径**，别再往它上面加功能。
 
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct VideoSource {
     pub id: String,
     pub device_id: String,
@@ -30,14 +38,16 @@ pub struct VideoSource {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct DeviceBlock {
     pub platform: String,
     pub hostname: String,
-    pub cortex_version: String,
+    pub telencephalon_version: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct CortexVideoSourcesSnapshot {
+#[serde(rename_all = "camelCase")]
+pub struct TelencephalonVideoSourcesSnapshot {
     pub sources: Vec<VideoSource>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub active_id: Option<String>,
@@ -47,7 +57,7 @@ pub struct CortexVideoSourcesSnapshot {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PushResult {
-    pub snapshot: CortexVideoSourcesSnapshot,
+    pub snapshot: TelencephalonVideoSourcesSnapshot,
     pub etag: String,
 }
 
@@ -135,7 +145,7 @@ pub async fn probe_capabilities(_device_id: String) -> Result<SourceCapabilities
 #[tauri::command]
 pub async fn push_thalamus(
     state: tauri::State<'_, crate::AppState>,
-    snapshot: CortexVideoSourcesSnapshot,
+    snapshot: TelencephalonVideoSourcesSnapshot,
 ) -> Result<PushResult, CommandError> {
     // In-process: write each VideoSource into the diencephalon::Thalamus
     // camera registry, no HTTP, no ETag. The webview-side snapshot
@@ -163,7 +173,7 @@ pub async fn push_thalamus(
 
 #[tauri::command]
 pub async fn sync_health() -> Result<SyncHealth, CommandError> {
-    // No remote cortex to sync with; report the in-process state.
+    // No remote endbrain to sync with; report the in-process state.
     // (Kept as a Tauri command for frontend compatibility — the
     // webview's `reachable` field now reflects whether the in-process
     // bus has subscribers.)
@@ -185,11 +195,11 @@ fn chrono_now_millis() -> i64 {
 
 #[cfg(test)]
 mod tests {
-    use super::{CortexVideoSourcesSnapshot, VideoSource};
+    use super::{TelencephalonVideoSourcesSnapshot, VideoSource};
 
     #[test]
     fn push_thalamus_snapshot_round_trip() {
-        let snap = CortexVideoSourcesSnapshot {
+        let snap = TelencephalonVideoSourcesSnapshot {
             sources: vec![VideoSource {
                 id: "cam-0".into(),
                 device_id: "dev-0".into(),
@@ -206,7 +216,7 @@ mod tests {
             device: None,
         };
         let json = serde_json::to_string(&snap).unwrap();
-        let back: CortexVideoSourcesSnapshot = serde_json::from_str(&json).unwrap();
+        let back: TelencephalonVideoSourcesSnapshot = serde_json::from_str(&json).unwrap();
         assert_eq!(back.sources.len(), 1);
         assert_eq!(back.sources[0].id, "cam-0");
         assert_eq!(back.active_id.as_deref(), Some("cam-0"));

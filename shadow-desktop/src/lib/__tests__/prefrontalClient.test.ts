@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi, afterEach } from 'vitest';
 
-const { cortexState } = vi.hoisted(() => ({
-  cortexState: { connection: { baseUrl: 'http://localhost:8085' } },
+const { telencephalonState } = vi.hoisted(() => ({
+  telencephalonState: { connection: { baseUrl: 'http://localhost:8085' } },
 }));
 
 vi.mock('../platform', () => ({
@@ -18,8 +18,8 @@ vi.mock('../telencephalonClient', () => ({
 vi.mock('../../stores/telencephalonStore', () => ({
   useTelencephalonStore: {
     getState: () => ({
-      connection: cortexState.connection,
-      setBaseUrl: (url: string) => { cortexState.connection.baseUrl = url; },
+      connection: telencephalonState.connection,
+      setBaseUrl: (url: string) => { telencephalonState.connection.baseUrl = url; },
     }),
   },
 }));
@@ -28,7 +28,7 @@ describe('prefrontalClient', () => {
   let mockFetch: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    cortexState.connection.baseUrl = 'http://localhost:8085';
+    telencephalonState.connection.baseUrl = 'http://localhost:8085';
     mockFetch = vi.fn();
     global.fetch = mockFetch;
   });
@@ -37,7 +37,7 @@ describe('prefrontalClient', () => {
     vi.restoreAllMocks();
   });
 
-  describe('cortex-aware baseUrl', () => {
+  describe('telencephalon-aware baseUrl', () => {
     it('accepts custom baseUrl override', async () => {
       const { PrefrontalClient } = await import('../prefrontalClient');
       const client = new PrefrontalClient('http://custom:9090');
@@ -53,7 +53,7 @@ describe('prefrontalClient', () => {
       );
     });
 
-    it('falls back to platform prefrontalUrl when no cortex override', async () => {
+    it('falls back to platform prefrontalUrl when no telencephalon override', async () => {
       const { PrefrontalClient } = await import('../prefrontalClient');
       const client = new PrefrontalClient();
       mockFetch.mockResolvedValue({

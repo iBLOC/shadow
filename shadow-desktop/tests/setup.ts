@@ -34,6 +34,13 @@ vi.mock('@tauri-apps/api/core', () => ({
 }));
 
 vi.mock('react-i18next', () => ({
+  // ⚠️ **补上 `initReactI18next`** —— 真实的 `react-i18next` 导出它，
+  // 而 `src/i18n/index.ts` 在**模块加载时**就要 `.use(initReactI18next)`。
+  // 少了它 ⇒ 任何 import 了 `src/i18n` 的模块在测试里直接抛
+  // 「No "initReactI18next" export is defined on the "react-i18next" mock」。
+  //
+  // 形状照 i18next 的第三方模块约定（`type: '3rdParty'` + `init`）。
+  initReactI18next: { type: '3rdParty', init: () => {} },
   useTranslation: () => ({
     t: (key: string, opts?: unknown) => {
       // i18next has two second-argument shapes:

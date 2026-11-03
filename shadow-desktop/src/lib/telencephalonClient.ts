@@ -2,7 +2,7 @@ import { isTauri } from './platform';
 import { adminHeaders } from './adminToken';
 import { readDoorHeaders } from './readDoorHeaders';
 
-const DEFAULT_CORTEX_URL = 'http://127.0.0.1:60080';
+const DEFAULT_TELEENCEPHALON_URL = 'http://127.0.0.1:60080';
 
 // 影的基础人设。走端脑时随会话创建一起送出去（`createConversation({ system })`），
 // 端脑把它记进会话记录 —— 叶区拿得到，模型才真的按这个人设说话。
@@ -27,7 +27,7 @@ export function composeSystemPrompt(custom?: string): string {
   return persona ? `${SHADOW_NEURON_SYSTEM}\n\n${persona}` : SHADOW_NEURON_SYSTEM;
 }
 
-export interface CortexConfig {
+export interface TelencephalonConfig {
   baseUrl: string;
   apiKey?: string;
 }
@@ -70,7 +70,7 @@ export interface TelencephalonIdentity {
 }
 
 export interface AgentsResponse {
-  cortex: {
+  telencephalon: {
     id: string;
     instance_name: string;
     default_agent: string;
@@ -168,6 +168,13 @@ export interface Conversation {
   created_at: string;
   updated_at: string;
   history: ConversationTurn[];
+  /**
+   * 归档 —— **软标记**（可恢复）：会话还在，只是默认不再出现在列表里。
+   *
+   * ⚠️ **可选**：端脑老数据（还没这个字段时落下的）没有这个键 ⇒ ⇒ 读不到
+   * 就当「没归档」。
+   */
+  archived?: boolean;
 }
 
 /**
@@ -490,7 +497,7 @@ export interface DiscoveryResult {
   count: number;
 }
 
-// Video source types (Spec #1 — cortex_video_sources table)
+// Video source types (Spec #1 — telencephalon_video_sources table)
 export interface VideoSource {
   id: string;
   deviceId: string;
@@ -507,7 +514,7 @@ export interface VideoSource {
 export interface DeviceBlock {
   platform: string;
   hostname: string;
-  cortexVersion: string;
+  telencephalonVersion: string;
 }
 
 export interface TelencephalonVideoSourcesSnapshot {
@@ -607,7 +614,7 @@ export class TelencephalonClient {
   // ---- 通信链路：大脑 → 端脑 → 叶区 ----------------------------------
   //
   // 桌面对话**不再**直连 neuron。端脑的 HTTP 面由 sidecar 挂在
-  // 127.0.0.1:60080（`src-tauri/src/cortex_http.rs`），形状与独立运行的
+  // 127.0.0.1:60080（`src-tauri/src/telencephalon_http.rs`），形状与独立运行的
   // 端脑完全一致：会话 / agent 走 `/shadow/v1/*`，叶区是端脑进程内的
   // native lobe（temporal / prefrontal / parietal）。
   //
@@ -615,8 +622,8 @@ export class TelencephalonClient {
   // 那条路绕过端脑和叶区，意图路由、工具、flow 全都不在链路上，
   // 桌面端因此永远收不到 `tool_call` 事件。
 
-  constructor(config: Partial<CortexConfig> = {}) {
-    this.baseUrl = config.baseUrl ?? DEFAULT_CORTEX_URL;
+  constructor(config: Partial<TelencephalonConfig> = {}) {
+    this.baseUrl = config.baseUrl ?? DEFAULT_TELEENCEPHALON_URL;
     this.apiKey = config.apiKey;
   }
 
@@ -682,7 +689,7 @@ export class TelencephalonClient {
     const resp = await fetch(`${this.baseUrl}${path}`, { ...init, headers });
     if (!resp.ok) {
       const text = await resp.text().catch(() => '');
-      throw new Error(`cortex ${resp.status}: ${text || resp.statusText}`);
+      throw new Error(`telencephalon ${resp.status}: ${text || resp.statusText}`);
     }
     if (resp.status === 204) return undefined as T;
     return resp.json() as Promise<T>;
@@ -698,7 +705,7 @@ export class TelencephalonClient {
         // （哪把拿不到就不带那个头 ⇒ 端脑回 401 并说清原因）。
         headers: await this.readHeaders(),
       });
-      if (!r.ok) throw new Error(`cortex health ${r.status}: ${r.statusText}`);
+      if (!r.ok) throw new Error(`telencephalon health ${r.status}: ${r.statusText}`);
       return r.json();
     }
     return this.request('/.well-known/agent.json');
@@ -733,8 +740,55 @@ export class TelencephalonClient {
     return this.request(`/shadow/v1/conversations/${encodeURIComponent(id)}`);
   }
 
-  async listConversations(): Promise<Conversation[]> {
-    return this.request('/shadow/v1/conversations');
+  /**
+   * 列会话。
+   *
+   * ⚠️ **默认只列未归档的** —— 归档过的会话不在默认列表里（这正是「归档」
+   * 的意义）⇒ ⇒ 归档箱要**显式问**：`archivedOnly: true`。
+   */
+  async listConversations(
+    opts: { includeArchived?: boolean; archivedOnly?: boolean } = {},
+  ): Promise<Conversation[]> {
+    const params = new URLSearchParams();
+    if (opts.includeArchived) params.set('include_archived', 'true');
+    if (opts.archivedOnly) params.set('archived_only', 'true');
+    const query = params.toString();
+    const path = '/shadow/v1/conversations' + (query ? '?' + query : '');
+    return this.request(path);
+  }
+
+  /**
+   * 归档（软）—— 会话还在，只是离开默认列表。
+   *
+   * ⚠️ **写门（admin token）**：归档/删除改状态、删数据 ⇒ ⇒ 不在读门后面
+   * （判据源 `telencephalon/src/api/door_policy.txt`）⇒ ⇒ 拿不到 admin
+   * token 就没有这把钥匙 ⇒ 端脑回 401 并说清原因（不是静默失败）。
+   */
+  async archiveConversation(id: string): Promise<Conversation> {
+    return this.request(`/shadow/v1/conversations/${encodeURIComponent(id)}/archive`, {
+      method: 'POST',
+      headers: await adminHeaders(),
+    });
+  }
+
+  /** 取消归档 —— 把会话放回默认列表。 */
+  async unarchiveConversation(id: string): Promise<Conversation> {
+    return this.request(`/shadow/v1/conversations/${encodeURIComponent(id)}/unarchive`, {
+      method: 'POST',
+      headers: await adminHeaders(),
+    });
+  }
+
+  /**
+   * **物理删除**一个会话 —— 连带删掉海马体里的那份（会话行 + 全部消息）。
+   *
+   * ⚠️ 不可逆 ⇒ ⇒ 界面上要先跟用户确认。
+   */
+  async deleteConversation(id: string): Promise<{ deleted: boolean; id: string }> {
+    return this.request(`/shadow/v1/conversations/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers: await adminHeaders(),
+    });
   }
 
   async sendMessage(conversationId: string, req: SendMessageRequest): Promise<SendMessageResponse> {
@@ -762,7 +816,7 @@ export class TelencephalonClient {
       { method: 'POST', headers, body: JSON.stringify(req) },
     );
     if (!resp.ok || !resp.body) {
-      let errorMsg = `cortex stream ${resp.status}: ${resp.statusText}`;
+      let errorMsg = `telencephalon stream ${resp.status}: ${resp.statusText}`;
       try {
         const errorBody = await resp.text();
         if (errorBody) {
@@ -951,6 +1005,8 @@ export class TelencephalonClient {
     return this.request<DiscoveryResult>('/api/telencephalon/agents/discover');
   }
 
+  // ⚠️ **旧的路径是 `/api/cortex/admin/agents/install`** —— 服务端早已改名，
+  // 那个路由**根本不存在** ⇒ ⇒ 还在用旧路径的老脚本会 404 ⇒ ⇒ 以这里为准。
   async listInstalledWasm(): Promise<InstalledWasmList> {
     return this.request<InstalledWasmList>('/api/telencephalon/admin/agents/installed');
   }
@@ -1216,7 +1272,7 @@ export class TelencephalonClient {
     scopes: string[],
     ttlSeconds?: number
   ): Promise<SubsystemTokenResponse> => {
-    // Telencephalon replaced the legacy `cortex_issue_subsystem_token`
+    // Telencephalon replaced the legacy subsystem-token sidecar command
     // Tauri command with an HTTP admin endpoint.
     //
     // ⚠️ **这里不再有 `?? 'dev-admin-key'`** —— 那个字面量打进前端产物 ⇒

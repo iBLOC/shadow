@@ -19,14 +19,14 @@ vi.mock('../../src/stores/themeStore', () => ({
 vi.mock('../../src/stores/telencephalonStore', () => {
   const refreshStatus = vi.fn();
   const refreshLobes = vi.fn();
-  const startCortex = vi.fn();
-  const stopCortex = vi.fn();
+  const startTelencephalon = vi.fn();
+  const stopTelencephalon = vi.fn();
   const setBaseUrl = vi.fn();
   const setApiKey = vi.fn();
   const state: Record<string, unknown> = {
     status: 'running',
     connection: { baseUrl: 'http://127.0.0.1:60080', apiKey: '' },
-    cortexId: 'cortex-test',
+    telencephalonId: 'telencephalon-test',
     defaultAgent: 'temporal',
     lobes: [
       { name: 'temporal', kind: 'native', url: 'http://temporal:60080', enabled: true, skills: ['routing:prefrontal'], agent_card: { name: 'temporal', description: '', version: '0.1', url: '', metadata: { input_modalities: ['text'], output_modalities: ['text'], capabilities: [] } }, health_status: 'healthy' },
@@ -37,8 +37,8 @@ vi.mock('../../src/stores/telencephalonStore', () => {
     supervisor: { enabled: true, restartCount: 0 },
     refreshStatus,
     refreshLobes,
-    startCortex,
-    stopCortex,
+    startTelencephalon,
+    stopTelencephalon,
     setBaseUrl,
     setApiKey,
   };
@@ -118,7 +118,7 @@ describe('SettingsPage', () => {
 
     // After the 2026-09 service-area refactor, the section's visible heading
     // is `services.supervisor` (the supervisor subsection is the always-on
-    // entry point when cortex is running). `settings.cortexStatus` is no
+    // entry point when telencephalon is running). `settings.telencephalonStatus` is no
     // longer rendered. There are two renderings of this key (heading + form
     // label) so use `getAllByText` and assert presence.
     await waitFor(() => {

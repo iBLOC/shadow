@@ -412,6 +412,25 @@ jobs:
       - name: Cross-client consistency check
         run: node scripts/check-agent-surface.mjs
 
+      # 移动端无障碍通道的契约闸 —— Dart ↔ Kotlin 两端必须逐字对齐。
+      # ⚠️ 这条通道**跨两种语言**（Dart 调方法通道 / Kotlin 处理）⇒ ⇒
+      # 没有编译器会告诉你对不上 ⇒ ⇒ 而对不上的后果是**静悄悄**的：
+      # 方法名对不上 ⇒ notImplemented；参数名对不上 ⇒ 坐标读成 0 ⇒ ⇒
+      # **点到了屏幕左上角**；取值对不上 ⇒ 「最近任务」变成「返回」。
+      # ⇒ ⇒ 本仓真的发生过（㌇ 条 ⑧）⇒ ⇒ 所以要有闸。
+      - name: Mobile a11y contract check
+        run: node scripts/check-mobile-a11y-contract.mjs
+
+      # Cortex 残留闸 —— 「Cortex 是过时概念应该删除」这条线的守门人。
+      # ⚠️ 旧的两道 .sh 闸有三个洞：只看**标识符**（界面那句「启动 Cortex」
+      #    根本不在判据里）／**没进 CI**（绿不绿没人知道）／**Windows 上跑不了**
+      #    （本机 WSL 无发行版 ⇒「有闸」只能靠人记着）。⇒ 重写成 Node。
+      # ⚠️ 判据：活代码里出现 cortex = 残留（红）；兼容契约（路由路径 /
+      #    cortex-status、4 个旧环境变量别名、真实 PG 表名、mDNS 旧键、
+      #    A2A 信封字段、兼容 shim 模块名…）必须逐条登记在豁免表里。
+      - name: Cortex residue check
+        run: node scripts/check-cortex-residue.mjs
+
       # JNI 面：Kotlin ↔ 宿主直测的 Java 替身 + jniLibs 里那份 .so 的符号。
       # ⚠️ 装错 .so ⇒ Kotlin 把 UnsatisfiedLinkError catch 掉 ⇒
       # 「端脑面上锁」**静默失效**（同设备任意 App 能换掉「这台机器是谁」）。
@@ -545,6 +564,22 @@ jobs:
       - name: Flutter test
         working-directory: shadow-mobile
         run: flutter test
+
+      # Android 模块的 **JVM 单测**（2026-11-03 建）—— Kotlin 侧的纯逻辑
+      # 在这里跑。此前 Android 模块**一个单测都没有** ⇒ ⇒ Kotlin 的纯逻辑
+      # 只靠「编译通过」担保 ⇒ ⇒ 而「编译通过」证明不了**边界值**。
+      #
+      # ⚠️ `local.properties` 是 **gitignore** 的（本地绝对路径，不能进仓）
+      #    ⇒ ⇒ CI 上要自己生成：`flutter.sdk` 从 `FLUTTER_ROOT` 取（没有就
+      #    从 `which flutter` 反推两级），`sdk.dir` 从 `ANDROID_HOME` 取。
+      # ⚠️ 这一步会拉 `androidx.test:runner`（`integration_test` 的传递依赖，
+      #    而且是**动态版本** `1.2+`）⇒ ⇒ 必须**联网** ⇒ ⇒ 不能加 --offline。
+      - name: Android unit test
+        working-directory: shadow-mobile/android
+        run: |
+          FLUTTER_SDK="${FLUTTER_ROOT:-$(dirname "$(dirname "$(readlink -f "$(command -v flutter)")")")}"
+          printf 'sdk.dir=%s\nflutter.sdk=%s\n' "$ANDROID_HOME" "$FLUTTER_SDK" > local.properties
+          ./gradlew :app:testDebugUnitTest
 
   ps1-portability:
     name: PS1 Portability (Windows PowerShell 5.1)

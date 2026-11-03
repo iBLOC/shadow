@@ -17,7 +17,7 @@
 │    │      └── 端脑 telencephalon                       │
 │    │             └── 叶区 temporal / prefrontal / parietal │
 │    │                    └── neuron  127.0.0.1:8085    │
-│    └── cortex_http.rs —— 端脑 HTTP 面  :60080          │
+│    └── telencephalon_http.rs —— 端脑 HTTP 面  :60080    │
 └────────────────────────────────────────────────────────┘
 ```
 
@@ -26,7 +26,7 @@
 1. `src-tauri/src/lib.rs` → `encephalon::Embedded::boot(EmbeddedConfig { neuron_port: 8085 })`
    - `Embedded` 持有 thalamus、ACP 总线、端脑，以及**唯一**的 neuron 实例。
    - 它只负责**钉住生命周期**：`AppState.embedded_stack` 标了 `#[allow(dead_code)]` —— 客户端**不允许**拿它直接推理。
-2. 后台任务里 `cortex_http::serve(&stack)` 起端脑的 HTTP 面：
+2. 后台任务里 `telencephalon_http::serve(&stack)` 起端脑的 HTTP 面：
    - `telencephalon::boot::build_app_state(Some(stack.neuron().as_ref()))` —— 端脑自己的 `AppState` / 会话存储 / 海马体状态；
    - `state.native_lobes.reconfigure(name, stack.neuron_addr())` —— 把三个叶区的 LLM 端点改到 `:8085`；
    - `telencephalon::api::build_full_app(state, conv_store, Some(neuron.router()), Some(hippocampus.router()))`；

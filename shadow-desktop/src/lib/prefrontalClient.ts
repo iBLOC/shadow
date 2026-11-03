@@ -301,6 +301,7 @@ type HttpRequestOptions = {
 import { prefrontalUrl } from './platform';
 import { useTelencephalonStore } from '../stores/telencephalonStore';
 import { useErrorDialogStore } from '../stores/errorDialogStore';
+import { isIntentionalAbort } from './abort';
 import { readDoorHeaders } from './readDoorHeaders';
 import { adminHeaders } from './adminToken';
 
@@ -317,8 +318,8 @@ export class PrefrontalClient {
   }
 
   private getBaseUrl(): string {
-    const cortexBase = useTelencephalonStore.getState().connection.baseUrl;
-    if (cortexBase) return cortexBase;
+    const telencephalonBase = useTelencephalonStore.getState().connection.baseUrl;
+    if (telencephalonBase) return telencephalonBase;
     return prefrontalUrl();
   }
 
@@ -371,6 +372,10 @@ export class PrefrontalClient {
         body: options.body,
       });
     } catch (err) {
+      // ⚠️ **自己叫停的取消不许报成「网络故障」**（判据见 `lib/abort.ts`）
+      if (isIntentionalAbort(err)) {
+        throw err;
+      }
       const message = err instanceof Error ? err.message : String(err);
       const stack = err instanceof Error ? err.stack : undefined;
       if (!options.silent) {

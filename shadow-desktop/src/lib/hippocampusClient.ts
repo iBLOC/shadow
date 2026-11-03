@@ -1,5 +1,6 @@
 import type { Memory, SearchResult } from '../types';
 import { prefrontalUrl } from './platform';
+import { readDoorHeaders } from './readDoorHeaders';
 import { useTelencephalonStore } from '../stores/telencephalonStore';
 
 /**
@@ -116,7 +117,18 @@ export class HippocampusClient {
     const url = `${this.getBaseUrl()}/hippocampus${endpoint}`;
     const response = await fetch(url, {
       method: init.method ?? 'GET',
-      headers: { 'Content-Type': 'application/json' },
+      // ⚠️ **门罩住整张面**（2026-11-03）⇒ ⇒ `/hippocampus/*` 现在也在门型表
+      // 管辖内 ⇒ ⇒ 不递钥匙就是 401 ⇒ ⇒ 这里必须带读门的**全部**钥匙
+      // （影子锁 ∪ admin token）—— 判据源 `lib/readDoorHeaders.ts`。
+      //
+      // ⚠️ 写操作（upsert / DELETE）落**写门**（只认 admin token）⇒ ⇒
+      // 那把钥匙也在这一组里 ⇒ ⇒ 读写都过。
+      headers: {
+        'Content-Type': 'application/json',
+        ...(await readDoorHeaders(
+          useTelencephalonStore.getState().connection.apiKey,
+        )),
+      },
       body: init.body === undefined ? undefined : JSON.stringify(init.body),
     });
 
@@ -133,7 +145,24 @@ export class HippocampusClient {
       );
     }
 
-    return response.json() as Promise<T>;
+    // ⚠️ **别让「服务端回的不是 JSON」变成一句 JS 语法错**。
+    //
+    // 2026-11-02 实测：海马体在存储出错时回的是 **HTTP 200 + 纯文本**
+    // （「Storage error: lance scan stream: ... No field named tenant_id ...」）
+    // ⇒ ⇒ `response.json()` 抛
+    // `Unexpected token 'S', "Storage er"... is not valid JSON`
+    // ⇒ ⇒ 用户看到的是**一句 JS 语法错**，而真正的理由（盘上的数据集
+    // 是旧版写的、缺一列）**被换掉了** ⇒ ⇒ **失败长得像成功**。
+    //
+    // ⇒ 现在：先读文本 ⇒ 是 JSON 就解析 ⇒ 不是 ⇒ **把服务端那句话原样说出来**。
+    const text = await response.text();
+    try {
+      return JSON.parse(text) as T;
+    } catch (parseError) {
+      // 空 body 也落在这里（`JSON.parse('')` 同样会抛）⇒ 保持「失败就是失败」。
+      const detail = text.trim() ? text.slice(0, 300) : String(parseError);
+      throw new Error(`服务端回的不是 JSON（HTTP ${response.status}）：${detail}`);
+    }
   }
 
   /** 列出记忆 —— `GET /api/memory`（支持 tenantId / dimension / limit 过滤）。 */

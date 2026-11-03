@@ -18,8 +18,8 @@ test.describe('Video Sources Card', () => {
   });
 
   test('shows empty state when no video sources configured', async ({ page }) => {
-    // Mock cortex API to return empty video sources
-    await page.route('**/api/cortex/video-sources', (route) => {
+    // Mock 端脑 API to return empty video sources
+    await page.route('**/api/telencephalon/video-sources', (route) => {
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -37,8 +37,8 @@ test.describe('Video Sources Card', () => {
   });
 
   test('displays video source when configured', async ({ page }) => {
-    // Mock cortex API to return one video source
-    await page.route('**/api/cortex/video-sources', (route) => {
+    // Mock 端脑 API to return one video source
+    await page.route('**/api/telencephalon/video-sources', (route) => {
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -58,7 +58,7 @@ test.describe('Video Sources Card', () => {
             },
           ],
           activeId: 'vsrc_test',
-          device: { platform: 'linux', hostname: 'test-host', cortexVersion: '0.1.0' },
+          device: { platform: 'linux', hostname: 'test-host', telencephalonVersion: '0.1.0' },
         }),
       });
     });

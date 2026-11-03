@@ -1,6 +1,16 @@
 import 'dart:convert';
 import 'dart:ui' show Color;
+// ⚠️ `TargetPlatform` 在 **package:flutter/foundation.dart** 里
+// ⇒ ⇒ `dart:ui` **不导出**它（那里只有 `Color`）。
+import 'package:flutter/foundation.dart' show TargetPlatform;
 
+import '../../generated/l10n/app_localizations.dart';
+import '../../l10n/current_l10n.dart';
+import '../genui/a2ui_surface_events.dart';
+import '../capabilities/accessibility_ops.dart';
+import '../capabilities/capability.dart';
+import '../capabilities/capability_tools.dart';
+import '../capabilities/device_data_channel.dart';
 /// **客户端工具** —— 在**用户这台设备上**执行的那一半。
 ///
 /// 端脑的 `tool_call` SSE 事件带着工具名和参数。工具分两种：
@@ -37,6 +47,19 @@ class ClientTool {
   /// 模型在手机上和桌面上行为不一样。
   final Map<String, dynamic>? parameters;
 
+  /// 这个工具要**哪一档设备能力**才能跑（可空）。
+  ///
+  /// ⚠️ 普通工具（`set_theme` 之类）**没有**能力这一说 ⇒ ⇒ 所以可空。
+  /// 能力这一层是「**用户配的是能力、不是工具名**」那件事的落点
+  /// （见 `capabilities/capability.dart`）⇒ ⇒ 同一个能力下的读 / 写工具
+  /// 共享同一档授权 ⇒ ⇒ 授权语义对用户是稳定的。
+  ///
+  /// ⚠️ **2026-11-03**：这个字段是 `services/capabilities/capability_tools.dart`
+  /// （设备能力工具：日历 / 联系人 / 短信 / 相册）需要的 —— 那个文件把
+  /// `capability: Capability.xxx` 传进来 ⇒ ⇒ 而这里原来**没有**这个参数
+  /// ⇒ ⇒ `dart analyze` 报 `undefined_named_parameter`。
+  final Capability? capability;
+
   /// 真正干活的地方。**抛异常 = 执行失败**（错误会回传给端脑，
   /// 这样模型知道自己这条路走不通，而不是卡在等结果上）。
   final Future<Object?> Function(Map<String, dynamic> args) execute;
@@ -46,6 +69,7 @@ class ClientTool {
     required this.description,
     this.requiresApproval = false,
     this.parameters,
+    this.capability,
     required this.execute,
   });
 }
@@ -96,6 +120,15 @@ class ToolCallModel {
   /// 工具说明（来自客户端注册表；未知工具没有）。
   final String? description;
 
+  /// 这个调用要的是**哪一档设备能力**（可空）。
+  ///
+  /// ⚠️ 只有能力工具（读日历 / 写日历 / 联系人 / 短信 / 相册）有
+  /// ⇒ ⇒ 普通工具（`set_theme`）是 null。
+  ///
+  /// ⚠️ 授权卡片靠它把 `calendar_read_events` 翻成「读取日历」——
+  /// 用户点头前看到的必须是**人话**，不是工具名。
+  final Capability? capability;
+
   /// 工具参数。
   final Map<String, dynamic> args;
 
@@ -110,6 +143,15 @@ class ToolCallModel {
   /// 执行耗时（毫秒）。
   final int? latencyMs;
 
+  /// 这次调用**画出来**的 surface（内联渲染用）。
+  ///
+  /// ⚠️ 它是**界面**那一半 —— 模型那一半只有 `report`（见
+  /// [pickReportPayload]）⇒ ⇒ 组件树不进模型上下文。
+  ///
+  /// ⚠️ 只有**画得出**的 surface 才会进来（`beginRendering` 才有根组件）
+  /// ⇒ ⇒ 只有 `surfaceUpdate` 的那些**不进来** ⇒ ⇒ 不画半成品。
+  final List<String> a2uiSurfaceIds;
+
   /// 结果**有没有成功回传给端脑**。
   ///
   /// 这是两件事：工具在本地跑成了 ≠ 端脑知道了。两端要分开显示，
@@ -123,6 +165,7 @@ class ToolCallModel {
     required this.id,
     required this.name,
     this.description,
+    this.capability,
     this.args = const {},
     this.status = ToolCallStatus.pending,
     this.result,
@@ -130,10 +173,12 @@ class ToolCallModel {
     this.latencyMs,
     this.reported = false,
     this.reportErrorText,
+    this.a2uiSurfaceIds = const [],
   });
 
   ToolCallModel copyWith({
     String? description,
+    Capability? capability,
     Map<String, dynamic>? args,
     ToolCallStatus? status,
     Object? result,
@@ -141,11 +186,13 @@ class ToolCallModel {
     int? latencyMs,
     bool? reported,
     String? reportErrorText,
+    List<String>? a2uiSurfaceIds,
   }) {
     return ToolCallModel(
       id: id,
       name: name,
       description: description ?? this.description,
+      capability: capability ?? this.capability,
       args: args ?? this.args,
       status: status ?? this.status,
       result: result ?? this.result,
@@ -153,6 +200,7 @@ class ToolCallModel {
       latencyMs: latencyMs ?? this.latencyMs,
       reported: reported ?? this.reported,
       reportErrorText: reportErrorText ?? this.reportErrorText,
+      a2uiSurfaceIds: a2uiSurfaceIds ?? this.a2uiSurfaceIds,
     );
   }
 }
@@ -208,8 +256,21 @@ Map<String, dynamic> parseToolArgs(Object? raw) {
 ///
 /// 没有 `parameters` 的工具 ⇒ 参数表是空的 ⇒ 模型只能不带参数调它 ⇒ 工具
 /// 自己会明确失败（不默默什么也不做）。
-List<Map<String, dynamic>> toOpenAiTools(ClientToolRegistry registry) {
-  return registry.names.map((name) {
+List<Map<String, dynamic>> toOpenAiTools(
+  ClientToolRegistry registry, {
+  /// **要排除的工具名** —— 它们**不出现在**发给模型的那一份里。
+  ///
+  /// ⚠️ **为什么需要**：用户把某个能力设成「彻底关闭」⇒ ⇒ 那个能力对
+  /// 模型**不存在** ⇒ ⇒ 模型**不该**在 `tools` 数组里看见它
+  /// ⇒ ⇒ 否则模型会浪费回合去调一个必然被拒的工具。
+  ///
+  /// ⚠️ **可选带默认值** ⇒ ⇒ 旧的调用点 `toOpenAiTools(registry)` 不受影响
+  /// ⇒ ⇒ 跨端闸与兄弟的既有测试都照旧跑。
+  Set<String> excludedNames = const {},
+}) {
+  return registry.names
+      .where((name) => !excludedNames.contains(name))
+      .map((name) {
     final tool = registry.lookup(name)!;
     return <String, dynamic>{
       'type': 'function',
@@ -225,6 +286,93 @@ List<Map<String, dynamic>> toOpenAiTools(ClientToolRegistry registry) {
   }).toList();
 }
 
+/// 「档位 = 彻底关闭」的那些能力，对应的**工具名**。
+///
+/// ⚠️ **为什么按能力挑、而不是让调用方按工具名挑**：用户配的是**能力**
+/// ⇒ ⇒ 同一个能力下的读 / 写工具共享同一档 ⇒ ⇒ 过滤也必须按能力走
+/// ⇒ ⇒ 否则「关了读日历」可能只挡住读、却漏了写。
+///
+/// ⚠️ 普通工具（`set_theme` 之类）**没有**能力 ⇒ ⇒ 永远不在这个集合里
+/// ⇒ ⇒ 「彻底关闭日历」不会误伤换主题。
+Set<String> disabledCapabilityToolNames(
+  ClientToolRegistry registry,
+  AuthorizationMode Function(Capability capability) modeFor,
+) {
+  final out = <String>{};
+  for (final name in registry.names) {
+    final capability = registry.lookup(name)?.capability;
+    if (capability == null) continue;
+    if (modeFor(capability) == AuthorizationMode.disabled) out.add(name);
+  }
+  return out;
+}
+
+/// 「**这个平台压根没有**」的那些能力，对应的工具名。
+///
+/// ⚠️ iOS 没有公开的短信读取 API ⇒ ⇒ 短信这个能力在 iOS 上**不存在**
+/// ⇒ ⇒ 那个工具**不该**出现在发给模型的 `tools` 数组里
+/// ⇒ ⇒ 否则模型会调一个**注定失败**的工具 ⇒ ⇒ 白白浪费一个回合
+/// ⇒ ⇒ 而且用户看到的是「报错」而不是「这平台没有这能力」。
+///
+/// ⚠️ 这一条与「用户关掉了某个能力」**语义不同**（一个是平台没有，
+/// 一个是用户不让用）⇒ ⇒ 但对模型来说**效果一样**（都看不见）
+/// ⇒ ⇒ 于是两件事都归到「不该给模型看」这一类。
+Set<String> unsupportedCapabilityToolNames(
+  ClientToolRegistry registry, {
+  TargetPlatform? platform,
+}) {
+  final out = <String>{};
+  for (final name in registry.names) {
+    final capability = registry.lookup(name)?.capability;
+    if (capability == null) continue;
+    if (!capabilitySupportedOn(capability, platform: platform)) out.add(name);
+  }
+  return out;
+}
+
+/// 取 surface 的**原始事件** —— 注入进来的。
+///
+/// ⚠️ **为什么注入**：工具这一层不该自己去碰端脑的地址 / 钥匙
+/// ⇒ ⇒ 真相源是 [GenUIAgentService]（它已经在用既有传输与凭据）
+/// ⇒ ⇒ 单测里换成喂 fixture 的假 fetcher 就行。
+typedef A2uiSurfaceEventFetcher =
+    Future<List<Map<String, Object?>>> Function(String view);
+
+/// 一份工具结果有**两个读者**：**界面**（要整棵组件树）与**模型**（要一句话）。
+///
+/// ⚠️ 把组件树原样喂回模型 ⇒ 模型上下文被一堆 JSON 淹了 ⇒ ⇒
+/// 这里只把 `report` 那一句交出去 ⇒ ⇒ 界面那份仍然完整。
+///
+/// ⚠️ 没有 `report` 的工具**原样回传**（别把别人的结果改形状）。
+///
+/// ⚠️ **与桌面端 `pickReportPayload` 同一处规则**
+/// （`shadow-desktop/src/lib/clientTools.ts:100-108`）
+/// ⇒ ⇒ 两端给模型看的东西一样。
+Object? pickReportPayload(Object? result) {
+  if (result is Map) {
+    final report = result['report'];
+    if (report is String && report.trim().isNotEmpty) {
+      return <String, Object?>{'report': report};
+    }
+  }
+  return result;
+}
+
+/// 工具结果里带的 surface id —— 内联渲染用。
+///
+/// ⚠️ **只有 `beginRendering` 才算数** ⇒ 只有 `surfaceUpdate` 那些
+/// ⇒ 组件还在缓存里 ⇒ 画不出东西 ⇒ ⇒ 不画半成品。
+List<String> a2uiSurfaceIdsFromToolResult(Object? result) {
+  if (result is! Map) return const [];
+  final events = result['a2ui_events'];
+  if (events is! List) return const [];
+  final maps = <Map<String, Object?>>[];
+  for (final event in events) {
+    if (event is Map) maps.add(Map<String, Object?>.from(event));
+  }
+  return a2uiRenderableSurfaceIdsFromEvents(maps);
+}
+
 /// 移动端内置的客户端工具。
 ///
 /// 主题色的两端色调由 `app_colors.dart` 的 `deriveAccentTones` 派生
@@ -233,7 +381,30 @@ List<Map<String, dynamic>> toOpenAiTools(ClientToolRegistry registry) {
 ClientToolRegistry buildMobileClientTools({
   required Future<void> Function(Color color) setAccentColor,
   required Future<void> Function(bool dark) setDarkMode,
+  // ⚠️ **必填** —— 没有它就没有 `show_a2ui_surface` 这个工具
+  // ⇒ ⇒ 两端发给模型的 `tools` 数组会**不一样**
+  // ⇒ ⇒ 同一个模型在手机上叫不出它 ⇒ ⇒ 「两端一致」就破了。
+  required A2uiSurfaceEventFetcher fetchSurfaceEvents,
+  // ⚠️ **给模型看的那句话走真的 l10n** —— 默认取**当前语言**
+  // （`currentL10n()`：设备语言就是界面语言）。
+  // ⇒ 注入是为了**测**：单测要能钉住「英文系统里那句话**就是英文**」
+  // ⇒ ⇒ 不然「硬编码中文」在中文机器上**测不出来**。
+  AppLocalizations Function()? l10nProvider,
+  // 设备数据通道（读日历 / 写日历 / 联系人 / 短信 / 相册）——
+  // ⚠️ **可注入**是为了单测能塞一个假通道进来 ⇒ ⇒ 单测不必真的连原生层。
+  DeviceDataChannel deviceDataChannel = const DeviceDataChannel(),
+  // 无障碍那一层（读屏 / 点击 / 滑动）——
+  // ⚠️ **同样可注入**：否则单测只能测到「服务没开 ⇒ 失败」，
+  // ⇒ ⇒ 测不到「服务已开 ⇒ 真的会去点」那条正路径。
+  AccessibilityOps? accessibilityOps,
 }) {
+  final l10n = l10nProvider ?? currentL10n;
+  // 能力工具的**执行器** —— 工具定义在下面（必须是**字面量**形式，
+  // 跨端对齐闸要看得见），干活的那一半在 `capabilities/capability_tools.dart`。
+  final capabilityTools = CapabilityTools(
+    channel: deviceDataChannel,
+    accessibility: accessibilityOps,
+  );
   return ClientToolRegistry([
     ClientTool(
       name: 'set_theme',
@@ -279,6 +450,342 @@ ClientToolRegistry buildMobileClientTools({
           'set_theme expects "color" (#RRGGBB) or "dark" (bool)',
         );
       },
+    ),
+    ClientTool(
+      // ⚠️ **工具名与桌面端逐字一致** —— 两端发给模型的 `tools` 数组
+      // 里必须**有同一个名字** ⇒ ⇒ 不然同一个模型在手机上叫不出它。
+      name: 'show_a2ui_surface',
+      // ⚠️ **这段描述与桌面端一字不差**
+      // （`shadow-desktop/src/lib/clientTools.ts` 的同名工具）
+      // ⇒ 两端发给模型的东西不一样 ⇒ 同一个模型在两端行为不一样。
+      description:
+          'Show the user a generated interface inside the conversation (task board or agent list). Use it when the user asks to SEE their tasks or agents instead of listing them as text.',
+      // ⚠️ **参数声明（给模型看的那一份）** —— 没有它，模型不知道这个工具
+      // 要一个 `view` ⇒ 只能瞎猜，或者干脆不调。
+      parameters: <String, dynamic>{
+        'type': 'object',
+        'properties': <String, dynamic>{
+          'view': <String, dynamic>{
+            'type': 'string',
+            // ⚠️ **不要写 `<String>[` —— 跨端闸 `scripts/check-client-tools.mjs`
+            // 的正则只认「键后面直接跟 `[`」**
+            // （`'?enum'?\s*:\s*\[([^\]]*)\]`）
+            // ⇒ 带上类型参数 ⇒ 闸**看不见这个键**
+            // ⇒ ⇒ 两端明明一样，闸却报「不一致」。
+            // ⇒ ⇒ Dart 的 `Map<String, dynamic>` 里字面量本来就不需要类型标注。
+            'enum': ['tasks', 'agents'],
+            'description':
+                "Which interface to draw: 'tasks' = the task board, 'agents' = the registered agent list.",
+          },
+        },
+        // ⚠️ 同上 —— `required` 也**不能**带 `<String>`。
+        'required': ['view'],
+      },
+      execute: (args) async {
+        // ⚠️ **认不出的 view 当 tasks** —— 模型偶尔会瞎填；
+        // 宁可画错一块看板，也不要让这一轮失败。
+        // （与桌面端逐字一致 ⇒ 两端对模型说同一件事。）
+        final view = args['view'] == 'agents' ? 'agents' : 'tasks';
+        final events = await fetchSurfaceEvents(view);
+        // ⚠️ **契约**：`{report, a2ui_events}` ——
+        // `a2ui_events` 是端脑 `POST /a2a` 发的**同一批事件**
+        // （逐字同形）⇒ ⇒ 两端吃的是同一份字节；
+        // `report` 是给模型看的那**一句** ⇒ ⇒ 回传端脑时**只带它**
+        // （见 [pickReportPayload]）⇒ ⇒ 模型上下文里没有组件树。
+        return <String, dynamic>{
+          // ⚠️ **走真的 l10n** —— 这句话**用户也看得见**
+          //（画在那次工具调用下面）⇒ ⇒ 不能硬编码中文。
+          // ⚠️ `currentL10n()` 是**拿不到 BuildContext 时**取当前语言的那一套
+          //（`lib/l10n/current_l10n.dart`）—— 工具执行器正好是那种地方。
+          'report': a2uiSurfaceReport(
+            view: view,
+            events: events,
+            l10n: l10n(),
+          ),
+          'a2ui_events': events,
+        };
+      },
+    ),
+
+    // ── 设备能力工具 ─────────────────────────────────────────
+    //
+    // ⚠️ **这五个是「手机独有」的** —— 桌面端没有手机上的日历 / 联系人 /
+    // 短信 / 相册 ⇒ ⇒ 跨端对齐闸（`scripts/check-client-tools.mjs`）里
+    // 登记成「桌面端缺失 = 已接受的产品差异」。
+    //
+    // ⚠️ **`requiresApproval` 一律 false** —— 授权闸**不在工具上**，
+    // 而在**档位**上（见 `capability_policy_provider`）：
+    // 「每次询问」⇒ 这一档要出 Allow / Deny 卡片；「完全访问」⇒ 直接跑。
+    // ⇒ ⇒ 档位是**运行时**可改的 ⇒ ⇒ 把它钉在工具上就不对了。
+    ClientTool(
+      name: 'calendar_read_events',
+      description:
+          'Read calendar events on this phone within a time range. Use when the user asks what is on their calendar, whether they are free at a certain time, or when their next meeting is.',
+      capability: Capability.calendarRead,
+      parameters: <String, dynamic>{
+        'type': 'object',
+        'properties': <String, dynamic>{
+          'from': <String, dynamic>{
+            'type': 'string',
+            'description':
+                'Start of the range as an ISO-8601 local date-time, e.g. 2026-11-02T09:00:00. Defaults to now.',
+          },
+          'to': <String, dynamic>{
+            'type': 'string',
+            'description':
+                'End of the range as an ISO-8601 local date-time. Defaults to 7 days from the start.',
+          },
+          'limit': <String, dynamic>{
+            'type': 'integer',
+            'description': 'Maximum number of events to return. Defaults to 50.',
+          },
+        },
+      },
+      execute: (args) => capabilityTools.readCalendar(args),
+    ),
+    ClientTool(
+      name: 'calendar_write_event',
+      description:
+          'Create or update an event in the calendar on this phone. Use when the user asks to schedule a meeting, add a reminder, or block a time slot.',
+      capability: Capability.calendarWrite,
+      parameters: <String, dynamic>{
+        'type': 'object',
+        'properties': <String, dynamic>{
+          'title': <String, dynamic>{
+            'type': 'string',
+            'description': 'Event title.',
+          },
+          'start': <String, dynamic>{
+            'type': 'string',
+            'description':
+                'Start time as an ISO-8601 local date-time, e.g. 2026-11-02T14:00:00.',
+          },
+          'end': <String, dynamic>{
+            'type': 'string',
+            'description':
+                'End time as an ISO-8601 local date-time. Defaults to one hour after the start.',
+          },
+          'description': <String, dynamic>{
+            'type': 'string',
+            'description': 'Optional event body.',
+          },
+          'location': <String, dynamic>{
+            'type': 'string',
+            'description': 'Optional location.',
+          },
+          'event_id': <String, dynamic>{
+            'type': 'string',
+            'description':
+                'Existing event id to update. Omit to create a new event.',
+          },
+        },
+        'required': ['title', 'start'],
+      },
+      execute: (args) => capabilityTools.writeCalendar(args),
+    ),
+    ClientTool(
+      name: 'contacts_search',
+      description:
+          "Search the contacts stored on this phone by name. Use when the user asks for someone's phone number, email address, or how to reach a person.",
+      capability: Capability.contacts,
+      parameters: <String, dynamic>{
+        'type': 'object',
+        'properties': <String, dynamic>{
+          'query': <String, dynamic>{
+            'type': 'string',
+            'description':
+                'Name fragment to search for. Omit to list the first contacts.',
+          },
+          'limit': <String, dynamic>{
+            'type': 'integer',
+            'description': 'Maximum number of contacts to return. Defaults to 50.',
+          },
+        },
+      },
+      execute: (args) => capabilityTools.readContacts(args),
+    ),
+    ClientTool(
+      name: 'sms_read_messages',
+      description:
+          'Read the most recent SMS messages on this phone. Use when the user asks about their messages, whether someone replied, or what a message said.',
+      capability: Capability.sms,
+      parameters: <String, dynamic>{
+        'type': 'object',
+        'properties': <String, dynamic>{
+          'limit': <String, dynamic>{
+            'type': 'integer',
+            'description': 'Maximum number of messages to return. Defaults to 30.',
+          },
+        },
+      },
+      execute: (args) => capabilityTools.readSms(args),
+    ),
+    ClientTool(
+      name: 'photos_list_recent',
+      description:
+          'List recent photos on this phone (title, date, size only). Use when the user asks about their pictures or screenshots.',
+      capability: Capability.photos,
+      parameters: <String, dynamic>{
+        'type': 'object',
+        'properties': <String, dynamic>{
+          'limit': <String, dynamic>{
+            'type': 'integer',
+            'description': 'Maximum number of photos to return. Defaults to 30.',
+          },
+        },
+      },
+      execute: (args) => capabilityTools.readPhotos(args),
+    ),
+
+    // ── 手机操作（mobile use）────────────────────────────────
+    //
+    // ⚠️ **移动端对标桌面端 computer-use 的那一条腿** ——
+    // 「读日历 / 写日历 / 联系人 / 短信 / 相册」是**读这台手机的数据**，
+    // 而这一族是「**操作这台手机**」（能点「确认支付」、能打字发消息）
+    // ⇒ ⇒ 风险面高一个量级 ⇒ ⇒ 它有自己的能力与授权档。
+    //
+    // ⚠️ 底座是 Android 的**无障碍服务**（AccessibilityService）
+    // ⇒ ⇒ 走 `com.ibloc.shadow/accessibility` 那条通道
+    // ⇒ ⇒ 而无障碍服务**不能**由程序弹窗申请 ⇒ ⇒ 用户得在系统设置里开
+    // ⇒ ⇒ 那一层由设置页的「无障碍服务」状态行负责。
+    ClientTool(
+      name: 'mobile_read_screen',
+      description:
+          'Read what is currently on this phone screen as an accessibility tree (the visible text and control labels). Call it before tapping so you know what is actually on screen.',
+      capability: Capability.mobileUse,
+      parameters: <String, dynamic>{
+        'type': 'object',
+        'properties': <String, dynamic>{},
+      },
+      execute: (args) => capabilityTools.readScreen(args),
+    ),
+    ClientTool(
+      name: 'mobile_tap',
+      description:
+          'Tap one point on this phone screen. Use it to press a button or a field. Prefer mobile_find_and_click when the target shows visible text, because coordinates break as soon as the layout shifts.',
+      capability: Capability.mobileUse,
+      parameters: <String, dynamic>{
+        'type': 'object',
+        'properties': <String, dynamic>{
+          'x': <String, dynamic>{
+            'type': 'integer',
+            'description':
+                'X coordinate in screen pixels, measured from the left edge.',
+          },
+          'y': <String, dynamic>{
+            'type': 'integer',
+            'description':
+                'Y coordinate in screen pixels, measured from the top edge.',
+          },
+        },
+        'required': ['x', 'y'],
+      },
+      execute: (args) => capabilityTools.tap(args),
+    ),
+    ClientTool(
+      name: 'mobile_long_press',
+      description:
+          'Press and hold one point on this phone screen. Use it for long-press menus and drag handles.',
+      capability: Capability.mobileUse,
+      parameters: <String, dynamic>{
+        'type': 'object',
+        'properties': <String, dynamic>{
+          'x': <String, dynamic>{
+            'type': 'integer',
+            'description':
+                'X coordinate in screen pixels, measured from the left edge.',
+          },
+          'y': <String, dynamic>{
+            'type': 'integer',
+            'description':
+                'Y coordinate in screen pixels, measured from the top edge.',
+          },
+        },
+        'required': ['x', 'y'],
+      },
+      execute: (args) => capabilityTools.longPress(args),
+    ),
+    ClientTool(
+      name: 'mobile_swipe',
+      description:
+          'Swipe on this phone screen from one point to another. Use it to scroll a list or swipe a page.',
+      capability: Capability.mobileUse,
+      parameters: <String, dynamic>{
+        'type': 'object',
+        'properties': <String, dynamic>{
+          'x1': <String, dynamic>{
+            'type': 'integer',
+            'description': 'Start X coordinate in screen pixels.',
+          },
+          'y1': <String, dynamic>{
+            'type': 'integer',
+            'description': 'Start Y coordinate in screen pixels.',
+          },
+          'x2': <String, dynamic>{
+            'type': 'integer',
+            'description': 'End X coordinate in screen pixels.',
+          },
+          'y2': <String, dynamic>{
+            'type': 'integer',
+            'description': 'End Y coordinate in screen pixels.',
+          },
+          'duration_ms': <String, dynamic>{
+            'type': 'integer',
+            'description':
+                'How long the swipe lasts, in milliseconds. Defaults to 300.',
+          },
+        },
+        'required': ['x1', 'y1', 'x2', 'y2'],
+      },
+      execute: (args) => capabilityTools.swipe(args),
+    ),
+    ClientTool(
+      name: 'mobile_find_and_click',
+      description:
+          'Find a control on the current screen by its visible text and click it. More reliable than coordinates because it survives layout changes.',
+      capability: Capability.mobileUse,
+      parameters: <String, dynamic>{
+        'type': 'object',
+        'properties': <String, dynamic>{
+          'text': <String, dynamic>{
+            'type': 'string',
+            'description':
+                'The visible text of the control to click, e.g. 确定 or Send.',
+          },
+        },
+        'required': ['text'],
+      },
+      execute: (args) => capabilityTools.findAndClick(args),
+    ),
+    ClientTool(
+      name: 'mobile_global_action',
+      description:
+          'Trigger a system-wide navigation action on this phone: go back, go home, open the recent-apps list, pull down the notification shade, or open the power menu.',
+      capability: Capability.mobileUse,
+      parameters: <String, dynamic>{
+        'type': 'object',
+        'properties': <String, dynamic>{
+          'action': <String, dynamic>{
+            'type': 'string',
+            // ⚠️ **不要写 `<String>[`** —— 跨端闸 `scripts/check-client-tools.mjs`
+            // 的正则只认「键后面直接跟 `[`」
+            // （`'?enum'?\s*:\s*\[([^\]]*)\]`）
+            // ⇒ 带上类型参数 ⇒ 闸**看不见这个键**
+            // ⇒ ⇒ 两端明明一样，闸却报「不一致」。
+            'enum': [
+              'back',
+              'home',
+              'recents',
+              'notifications',
+              'quick_settings',
+              'power_dialog',
+            ],
+            'description': 'Which system action to trigger.',
+          },
+        },
+        'required': ['action'],
+      },
+      execute: (args) => capabilityTools.globalAction(args),
     ),
   ]);
 }

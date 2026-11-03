@@ -26,6 +26,16 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCalendarsUsageDescription</key>
+	<string>读取你手机上的日历事件</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>读取并修改你手机上的日历事件</string>
+	<key>NSCalendarsWriteOnlyAccessUsageDescription</key>
+	<string>在你手机上的日历里添加或修改日程</string>
+	<key>NSContactsUsageDescription</key>
+	<string>读取你手机上的联系人</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>读取你手机相册里的图片信息</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

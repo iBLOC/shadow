@@ -34,7 +34,7 @@ vi.mock('../../src/stores/telencephalonStore', () => {
   const state = {
     status: 'running',
     connection: { baseUrl: 'http://127.0.0.1:60080', apiKey: '' },
-    cortexId: 'cortex-test',
+    telencephalonId: 'telencephalon-test',
     defaultAgent: 'temporal',
     lobes: [
       { name: 'temporal', kind: 'native', url: 'http://temporal:60080', enabled: true, skills: ['routing:prefrontal'], agent_card: { name: 'temporal', description: '', version: '0.1', url: '', metadata: { input_modalities: ['text'], output_modalities: ['text'], capabilities: [] } }, health_status: 'healthy' },
@@ -47,8 +47,8 @@ vi.mock('../../src/stores/telencephalonStore', () => {
     refreshStatus: mockRefreshStatus,
     refreshLobes: mockRefreshLobes,
     refreshFlows: vi.fn(),
-    startCortex: vi.fn(),
-    stopCortex: vi.fn(),
+    startTelencephalon: vi.fn(),
+    stopTelencephalon: vi.fn(),
     setBaseUrl: vi.fn(),
     setApiKey: vi.fn(),
   };
@@ -137,7 +137,7 @@ describe('Settings Flow E2E', () => {
  });
  });
 
-  it('renders cortex status section with both lobes', async () => {
+  it('renders telencephalon status section with both lobes', async () => {
   renderWithRouter(<SettingsPage />);
 
   await waitFor(() => {
@@ -236,7 +236,7 @@ describe('Settings Flow E2E', () => {
     });
   });
 
-  it('calls cortex refresh on mount', async () => {
+  it('calls telencephalon refresh on mount', async () => {
     renderWithRouter(<SettingsPage />);
 
     await waitFor(() => {

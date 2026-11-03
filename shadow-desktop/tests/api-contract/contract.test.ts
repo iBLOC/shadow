@@ -89,7 +89,7 @@ describe('API contract: every endpoint in telencephalonClient must respond', () 
       console.warn(
         `\n[contract] telencephalon not reachable on ${API_BASE_URL}; ` +
           `endpoint probes will skip. Reason: ${r.reason ?? 'no status'}.\n` +
-          `  Start telencephalon or set SHADOW_CORTEX_URL to run probes.\n`,
+          `  Start telencephalon or set SHADOW_TELENCEPHALON_URL to run probes.\n`,
       );
     }
   }, 10_000);

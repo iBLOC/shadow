@@ -31,35 +31,38 @@
  *
  * ⇒ ⇒ 现在**一份实现、多处调用** ⇒ ⇒ 改一处两边一起好。
  *
- * ## 为什么「两张面」和「凭据」都由本模块自己拥有（而不是形参）
+ * ## 地址和凭据都由本模块自己拥有（而不是形参）
  *
  * ⚠️ **两条好处，都是硬要求**：
  *
- * ① **打不错面**：以前本地模型那一发曾经打到了端脑面（端脑面上没有
- *    `/v1/models` ⇒ 恒 404）⇒ ⇒ 而「一张面一个 base」这件事**只在一个
- *    模块里写**，就不可能被另一个调用点带歪；
+ * ① **打不错地址**：两发探测（云供应商 ＋ 本地模型）必须打**同一台**端脑
+ *    ⇒ ⇒ 而「base 在哪儿算」这件事**只在一个模块里写**，就不可能被另一个
+ *    调用点带歪；
  * ② **凭据只注入一次**：`adminHeaders()` 与那把 shadow key 都只在这一处出现
  *    ⇒ ⇒ 「这一发到底带没带钥匙」**不需要靠人读代码**来判断 ⇒ ⇒
- *    ⇒ 机器闸（`scripts/check-provider-admin-headers.mjs`）也能直接判
+ *    ⇒ ⇒ 机器闸（`scripts/check-provider-admin-headers.mjs`）也能直接判
  *    ⇒ ⇒ （闸认得 `getApiKey` / `shadowKey` 这两个名字 ⇒ ⇒ 判得到）。
- *
- * ⚠️ ②是关键：闸靠「**在同一个文件里**找到 base 的赋值 + 追到凭据的来源」
- * ⇒ ⇒ 做成形参 ⇒ ⇒ 闸**判不了**（判不了 ≠ 没问题 ⇒ ⇒ 闸会报红）⇒ ⇒
- * ⇒ ⇒ 所以这里**不用形参**。
  */
 
-import { neuronUrl } from './platform';
 import { adminHeaders } from './adminToken';
 import { telencephalonClient } from './telencephalonClient';
 
 /**
- * ⚠️ **两张面，两个 base**（与 AppInitializer 同款）：
+ * ⚠️ **一张面，一个 base**（2026-11-02 起）。
  *
- * * 端脑面（**client 的地址** ⇒ `telencephalonClient.getBaseUrl()`）
- *   ⇒ /models/providers（云供应商在这张面上）；
- * * neuron 面（neuronUrl()）⇒ /v1/models（**本地**模型在这张面上）。
+ * ⇒ ⇒ 两发探测（云供应商 `/models/providers` ＋ 本地模型 `/v1/models`）
+ * ⇒ ⇒ 打的是**同一个地址** —— `telencephalonClient.getBaseUrl()`。
  *
- * ⚠️⚠️ **端脑面的 base 取自 client（不是 platform 的写死值）** ——
+ * ⚠️⚠️ **为什么本地模型也走大脑那张面**（以前打的是 neuron's 自己的端口）：
+ *
+ * * neuron's route table 被端脑挂在**根**上（`telencephalon/src/api/mod.rs`
+ *   的 `build_full_app` ⇒ `outer.merge(neuron_router)`）⇒ ⇒ 端脑面上
+ *   **本来就有** `/v1/models` ⇒ ⇒ 客户端不需要第二个地址。
+ * * 用户拍板：「**坚持嵌入式，所有的入口都在大脑，由大脑负责路由和分发**」
+ *   ⇒ ⇒ 直连 neuron 是**绕过大脑的入口** ⇒ ⇒ 大脑那一侧看不见「谁在管
+ *   本地模型」⇒ ⇒ `platform.neuronUrl()` 已删（2026-11-02）。
+ *
+ * ⚠️⚠️ **base 取自 client（不是 platform 的写死值）** ——
  * 「列表」那一发走的是 `telencephalonClient.request()` ⇒ ⇒ 它打的是
  * **client 的地址**（用户可在设置里改 ⇒ 持久化在 store 里 ⇒ 重启后复原）。
  * ⇒ ⇒ 而这一发以前打的是 `prefrontalUrl()`（**写死** `localhost:60080`）
@@ -67,17 +70,10 @@ import { telencephalonClient } from './telencephalonClient';
  * ⇒ ⇒ ⇒ 于是「列表读到了、探针说问不到」—— **同一个病，换了个面**。
  * ⇒ ⇒ ⇒ 现在两发**同一个地址、同一套凭据** ⇒ ⇒ 结构上不可能再分叉。
  *
- * ⚠️⚠️ 以前两发都打端脑面 ⇒ ⇒ 端脑面上**没有** /v1/models ⇒ ⇒ 恒 404
- * ⇒ ⇒ hasLocal **一直**是 false ⇒ ⇒ ⇒ **本地明明装了模型的用户，
- * 也会被这一页说成「没配模型」**（失败长得像成功）。
- *
- * ⇒ ⇒ 现在 base **只在一个模块里** ⇒ ⇒ 打不错面。
- *
- * ⚠️⚠️ **base 是「函数里」求值的，不是模块加载时求值的** —— 这不是随手写的：
- * ⇒ ⇒ 模块加载时就调 platform 的导出 ⇒ ⇒ **导入这个模块**就等于**立刻要求**
- * ⇒ ⇒ platform 模块的那些导出都在 ⇒ ⇒ 而既有测试里有对 platform 的
- * ⇒ ⇒ **部分 mock**（只给 isTauri / prefrontalUrl）⇒ ⇒ ⇒ 那些测试
- * ⇒ ⇒ **直接加载失败**（vitest：No "neuronUrl" export is defined）
+ * ⚠️ **base 是「函数里」求值的，不是模块加载时求值的** —— 这不是随手写的：
+ * ⇒ ⇒ 模块加载时就求值 ⇒ ⇒ **导入这个模块**就等于**立刻要求** platform
+ * ⇒ ⇒ 的那些导出都在 ⇒ ⇒ 而既有测试里有对 platform 的**部分 mock**
+ * ⇒ ⇒ （只给 isTauri / prefrontalUrl）⇒ ⇒ ⇒ 那些测试**直接加载失败**
  * ⇒ ⇒ ⇒ 惰性求值 ⇒ ⇒ 导入本模块不再碰 platform ⇒ ⇒ 老测试照旧。
  */
 
@@ -107,7 +103,7 @@ export interface ProviderProbeResult {
 }
 
 /**
- * 一次「读本地模型列表」（**neuron 面** `/v1/models`）的原始结果。
+ * 一次「读本地模型列表」（**大脑面** `/v1/models`）的原始结果。
  *
  * ⚠️ `available` 才是「本地有没有**可用**模型」；`known` 只表示这一发
  * **有没有成功**。⚠️ **本地那半读不到时，`available` 恒 false** ——
@@ -175,7 +171,7 @@ export async function probeCloudProviders(): Promise<ProviderProbeResult> {
     // ⇒ ⇒ **client 的地址**（用户改过就改过）⇒ ⇒ 而这一发以前打
     // ⇒ ⇒ `prefrontalUrl()`（写死 localhost:60080）⇒ ⇒ ⇒ **两发不是同一台**
     // ⇒ ⇒ ⇒ 「列表读到了、探针说问不到」⇒ ⇒ ⇒ 同一个病，换了个面。
-    const CORTEX_BASE = telencephalonClient.getBaseUrl();
+    const TELEENCEPHALON_BASE = telencephalonClient.getBaseUrl();
     // ⚠️ **读门 = shadow ∪ admin ⇒ 两把都递**（**不是**二选一）。
     //
     // ⚠️⚠️ 以前这里**刻意只递 admin**（注释写着「admin 是另一把钥匙 ⇒
@@ -191,7 +187,7 @@ export async function probeCloudProviders(): Promise<ProviderProbeResult> {
     // 客户端就递哪几把 ⇒ ⇒ 少递一把 ⇒ 就会在「只有那把对得上」的形态下
     // 被挡 ⇒ ⇒ 而症状是「读不到」伪装成「没有」。
     const shadowKey = telencephalonClient.getApiKey();
-    const resp = await fetch(`${CORTEX_BASE}/models/providers`, {
+    const resp = await fetch(`${TELEENCEPHALON_BASE}/models/providers`, {
       headers: {
         ...(await adminHeaders()),
         // ⚠️ **拿不到就不带这个头** —— 绝不能塞空串
@@ -217,20 +213,24 @@ export async function probeCloudProviders(): Promise<ProviderProbeResult> {
 }
 
 /**
- * 读本地模型列表（**neuron 面** `/v1/models`）。
+ * 读本地模型列表（**大脑那张面** `/v1/models`）。
  *
- * ⚠️ **本地模型在 neuron 面，不在端脑面** ⇒ 端脑面上根本没有 `/v1/models`
- * ⇒ ⇒ 以前打错面 ⇒ ⇒ 恒 404 ⇒ ⇒ `hasLocal` 恒 false ⇒ ⇒
- * ⇒ ⇒ 「本地明明装了模型的用户，也会被说成没配」。
+ * ⚠️ **本地模型的路由由大脑转发**（neuron's route table 挂在端脑面的根上）
+ * ⇒ ⇒ 客户端**不需要**知道 neuron's 端口 ⇒ ⇒ 这一发与云那半**同一个地址**。
  *
  * ⚠️ **这一发失败（404 / 网络错）⇒ `available: false`** ⇒ ⇒
- * ⇒ 「现在没有可用的本地模型」⇒ ⇒ **不是**「用户什么都没配」
+ * 「现在没有可用的本地模型」⇒ ⇒ **不是**「用户什么都没配」
  * ⇒ ⇒ 所以它**不参与**「有没有配好」的结论。
  */
 export async function probeLocalModels(): Promise<LocalModelProbeResult> {
   try {
-    const NEURON_BASE = neuronUrl();
-    const resp = await fetch(`${NEURON_BASE}/v1/models?engine=llm`);
+    // ⚠️ **同一个 base**（与云那半同一个函数求值）⇒ ⇒ 两发**同一台**端脑。
+    const BRAIN_BASE = telencephalonClient.getBaseUrl();
+    const resp = await fetch(`${BRAIN_BASE}/v1/models?engine=llm`, {
+        // ⚠️ **门罩住整张面**（2026-11-03）⇒ ⇒ `/v1/*` 也在门型表管辖内
+        // ⇒ ⇒ 不递钥匙就是 401 ⇒ ⇒ 「有没有配好模型」的探测会**假失败**。
+        headers: await telencephalonClient.readHeaders(),
+      });
     if (!resp.ok) return { known: false, available: false };
     const data = await resp.json();
     const list = (data?.data ?? []) as Array<{ available?: boolean }>;

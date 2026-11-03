@@ -172,6 +172,12 @@ export interface Conversation {
   messages: Message[];
   createdAt: Date;
   updatedAt: Date;
+  /**
+   * 归档 —— **软标记**（可恢复）：会话还在，只是离开默认列表。
+   *
+   * ⚠️ 老数据（localStorage 里早于这个字段的）没有它 ⇒ ⇒ 读不到就是没归档。
+   */
+  archived?: boolean;
   /** Media modality. Drives main-pane rendering and the sidebar icon.
    *  - 'text'  → chat composer + AI stream (existing ConversationPage path)
    *  - 'audio' → RecordingPanel with `recording_start { mode: 'audio' }`
@@ -200,7 +206,7 @@ export interface Message {
    *  has just been published to Feishu via document_publish_feishu. */
   feishu_published?: FeishuPublished;
   /** Audio event chip (BC-01..05 baby-cry monitoring). Surfaced
-   *  when the cortex SSE stream emits an audio_event for this
+   *  when the telencephalon SSE stream emits an audio_event for this
    *  conversation. */
   audio_event?: AudioEventMessage;
   /** Token volume + generation speed measured while this assistant

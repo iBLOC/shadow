@@ -131,10 +131,10 @@ export const useResonanceStore = create<ResonanceState>()(
       },
 
       connect: async () => {
-        const cortexStatus = useTelencephalonStore.getState().status;
-        if (cortexStatus !== 'running') {
+        const telencephalonStatus = useTelencephalonStore.getState().status;
+        if (telencephalonStatus !== 'running') {
           set({
-            error: 'Cortex must be running to connect to Resonance',
+            error: 'Telencephalon must be running to connect to Resonance',
             connectionStatus: 'error',
           });
           return;
@@ -154,7 +154,7 @@ export const useResonanceStore = create<ResonanceState>()(
           const endpoint = `${getA2aEndpoint()}/health`;
           const resp = await fetch(endpoint);
           if (!resp.ok) {
-            throw new Error(`cortex A2A gateway not reachable: ${resp.status}`);
+            throw new Error(`telencephalon A2A gateway not reachable: ${resp.status}`);
           }
 
           set({ connectionStatus: 'connected' });
@@ -170,7 +170,7 @@ export const useResonanceStore = create<ResonanceState>()(
 
       sendMessage: async (message) => {
         if (get().connectionStatus !== 'connected') {
-          set({ error: 'Not connected to Resonance (via cortex A2A gateway)' });
+          set({ error: 'Not connected to Resonance (via telencephalon A2A gateway)' });
           return;
         }
         try {

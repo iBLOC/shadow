@@ -34,7 +34,7 @@ vi.mock('../../lib/telencephalonClient', () => ({
 // ⚠️ store —— 这一页的地址取自它。
 vi.mock('../../stores/telencephalonStore', () => ({
   useTelencephalonStore: (sel: (s: unknown) => unknown) =>
-    sel({ connection: { baseUrl: 'http://cortex.test', apiKey: 'sk-store' } }),
+    sel({ connection: { baseUrl: 'http://telencephalon.test', apiKey: 'sk-store' } }),
 }));
 
 import { TelencephalonStatusPage } from '../TelencephalonStatusPage';

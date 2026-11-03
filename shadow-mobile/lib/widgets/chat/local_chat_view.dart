@@ -8,6 +8,7 @@ import '../../utils/chat_state_l10n.dart';
 import '../../theme/app_colors.dart';
 import '../../multimodal/multimodal.dart';
 import '../../widgets/chat_bubble.dart';
+import 'a2ui_inline_block.dart';
 import 'message_bubbles.dart';
 import 'tool_call_card.dart';
 import 'voice_input_view.dart';
@@ -325,7 +326,17 @@ class _LocalChatViewState extends ConsumerState<LocalChatView> {
                       children: [
                         Expanded(
                           child: msg.toolCall != null
-                              ? ToolCallCard(call: msg.toolCall!)
+                              ? Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    ToolCallCard(call: msg.toolCall!),
+                                    // ⚠️ **界面画在这条消息里** —— 不是顶部面板、
+                                    // 不是另一个页面。
+                                    // ⇒ 模型点名要的那块界面，就画在**它被点名的
+                                    // 那一句话下面** ⇒ ⇒ 「对话里内联」。
+                                    A2uiInlineBlock(call: msg.toolCall!),
+                                  ],
+                                )
                               : isVoice
                               ? VoiceMessageBubble(
                                   durationMs: null,

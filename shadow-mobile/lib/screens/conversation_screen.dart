@@ -22,21 +22,30 @@ class ConversationsState {
   final bool isLoading;
   final String? error;
 
+  /// **归档箱**开着吗？
+  ///
+  /// ⚠️ 默认 **false** ⇒ ⇒ 列表只显示**未归档**的会话（归档是软标记，
+  /// 默认不该再看见它）⇒ ⇒ 开着时只显示**归档**的那批。
+  final bool showArchived;
+
   const ConversationsState({
     this.conversations = const [],
     this.isLoading = false,
     this.error,
+    this.showArchived = false,
   });
 
   ConversationsState copyWith({
     List<ConversationInfo>? conversations,
     bool? isLoading,
     String? error,
+    bool? showArchived,
   }) {
     return ConversationsState(
       conversations: conversations ?? this.conversations,
       isLoading: isLoading ?? this.isLoading,
       error: error,
+      showArchived: showArchived ?? this.showArchived,
     );
   }
 }
@@ -55,6 +64,9 @@ class ConversationInfo {
   /// 免得这条信息白白丢掉（用户得知道自己这条会话落在哪个叶区上）。
   final String agent;
 
+  /// 归档标记（服务端说的，客户端不自己猜）。
+  final bool archived;
+
   ConversationInfo({
     required this.id,
     required this.title,
@@ -62,6 +74,7 @@ class ConversationInfo {
     required this.updatedAt,
     this.messageCount = 0,
     this.agent = '',
+    this.archived = false,
   });
 }
 
@@ -88,7 +101,11 @@ class ConversationsNotifier extends StateNotifier<ConversationsState> {
   Future<void> loadConversations() async {
     state = state.copyWith(isLoading: true, error: null);
     try {
-      final conversations = await _client.listConversations();
+      // ⚠️ 归档箱开着 ⇒ ⇒ 只列**归档**的那批；否则只列**未归档**的。
+      // ⇒ ⇒ 两批**互斥**，用户不会在两个地方看到同一条会话。
+      final conversations = await _client.listConversations(
+        archivedOnly: state.showArchived,
+      );
       state = state.copyWith(
         conversations: conversations
             .map(
@@ -104,6 +121,7 @@ class ConversationsNotifier extends StateNotifier<ConversationsState> {
                 messageCount: c.history
                     .where((t) => !t.isSystemTurn)
                     .length,
+                archived: c.archived,
               ),
             )
             .toList(),
@@ -112,6 +130,30 @@ class ConversationsNotifier extends StateNotifier<ConversationsState> {
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
+  }
+
+  /// 开关**归档箱** —— 切完立刻重拉（两边是**互斥**的两批会话）。
+  Future<void> toggleArchiveBox() async {
+    state = state.copyWith(showArchived: !state.showArchived);
+    await loadConversations();
+  }
+
+  /// **归档**一条会话 —— 软标记：会话还在，只是不在默认列表里。
+  Future<void> archive(String id) async {
+    await _client.archiveConversation(id);
+    await loadConversations();
+  }
+
+  /// 把归档的会话**取回**默认列表。
+  Future<void> unarchive(String id) async {
+    await _client.unarchiveConversation(id);
+    await loadConversations();
+  }
+
+  /// **物理**删除一条会话（连海马体里的那份一起删）。
+  Future<void> delete(String id) async {
+    await _client.deleteConversation(id);
+    await loadConversations();
   }
 }
 
@@ -216,6 +258,19 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
         elevation: 0,
         title: Text(AppLocalizations.of(context)!.conversationManagement),
         actions: [
+          // ⚠️ **归档箱开关** —— 归档是软标记，默认列表看不见它
+          // ⇒ ⇒ 用户得有一个地方能把它翻出来（否则「归档」= 藏没了）。
+          IconButton(
+            icon: Icon(
+              convState.showArchived
+                  ? Icons.unarchive_outlined
+                  : Icons.archive_outlined,
+            ),
+            tooltip: AppLocalizations.of(context)!.conversationArchiveBox,
+            onPressed: () => ref
+                .read(conversationsNotifierProvider.notifier)
+                .toggleArchiveBox(),
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () => ref
@@ -235,9 +290,15 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
             )
           : convState.conversations.isEmpty
           ? EmptyState(
-              icon: Icons.chat_bubble_outline,
-              title: AppLocalizations.of(context)!.conversationEmpty,
-              description: AppLocalizations.of(context)!.conversationEmptyHint,
+              icon: convState.showArchived
+                  ? Icons.archive_outlined
+                  : Icons.chat_bubble_outline,
+              title: convState.showArchived
+                  ? AppLocalizations.of(context)!.conversationArchiveBoxEmpty
+                  : AppLocalizations.of(context)!.conversationEmpty,
+              description: convState.showArchived
+                  ? null
+                  : AppLocalizations.of(context)!.conversationEmptyHint,
             )
           : _buildConversationList(context, ref, convState),
       floatingActionButton: FloatingActionButton.extended(
@@ -262,10 +323,93 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
           padding: const EdgeInsets.only(bottom: 12),
           child: _ConversationCard(
             conversation: conv,
+            onArchive: () => _runAction(
+              context,
+              ref,
+              () => ref
+                  .read(conversationsNotifierProvider.notifier)
+                  .archive(conv.id),
+            ),
+            onUnarchive: () => _runAction(
+              context,
+              ref,
+              () => ref
+                  .read(conversationsNotifierProvider.notifier)
+                  .unarchive(conv.id),
+            ),
+            onDelete: () => _confirmDelete(context, ref, conv),
           ),
         );
       },
     );
+  }
+
+  /// 跑一个会改状态的动作 —— **失败要说真话**。
+  ///
+  /// ⚠️ 归档 / 取回 / 删除都在端脑的**写门**后面（admin token）⇒ ⇒
+  /// 没钥匙时端脑回 401 ⇒ ⇒ 静默吞掉 = 用户以为归档了、实际没归档
+  /// ⇒ ⇒ **失败长得像成功**。
+  Future<void> _runAction(
+    BuildContext context,
+    WidgetRef ref,
+    Future<void> Function() action,
+  ) async {
+    try {
+      await action();
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            AppLocalizations.of(context)!
+                .conversationActionFailed(e.toString()),
+          ),
+        ),
+      );
+    }
+  }
+
+  /// 删除前**问一句** —— 这是不可逆的操作（真删，含海马体里那份）。
+  Future<void> _confirmDelete(
+    BuildContext context,
+    WidgetRef ref,
+    ConversationInfo conv,
+  ) async {
+    final l10n = AppLocalizations.of(context)!;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.commonDeleteConfirmNamed(conv.title)),
+        content: Text(l10n.conversationDeleteBody),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(l10n.commonCancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(l10n.commonDelete),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    // ⚠️ showDialog 之后 **context 可能已经没了** ⇒ ⇒ 用之前先问一句。
+    if (!context.mounted) return;
+    await _runAction(context, ref, () async {
+      try {
+        await ref
+            .read(conversationsNotifierProvider.notifier)
+            .delete(conv.id);
+      } catch (e) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(l10n.commonDeleteFailed(e.toString())),
+          ),
+        );
+      }
+    });
   }
 
   /// 「新对话」⇒ **真的**开一条端脑会话并切过去。
@@ -294,11 +438,20 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
 
 class _ConversationCard extends StatelessWidget {
   final ConversationInfo conversation;
+  final VoidCallback onArchive;
+  final VoidCallback onUnarchive;
+  final VoidCallback onDelete;
 
-  const _ConversationCard({required this.conversation});
+  const _ConversationCard({
+    required this.conversation,
+    required this.onArchive,
+    required this.onUnarchive,
+    required this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return GlassCard(
       onTap: () {
         context.push(AppRoutes.chat, extra: {'sessionId': conversation.id});
@@ -325,14 +478,58 @@ class _ConversationCard extends StatelessWidget {
                   _subtitle(context, conversation),
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
+                // ⚠️ 归档标记**摆出来** —— 否则用户进归档箱也不知道
+                // 哪些是归档的（而默认列表里它们直接消失 ⇒ 像是丢了）。
+                if (conversation.archived)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      l10n.conversationArchivedBadge,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
-          // 端脑（`/shadow/v1/conversations`）**没有删除会话的端点** ——
-          // 桌面端也没提供这个操作（`telencephalonClient.ts` 只有
-          // create / get / list）。留着一个必然 404 的删除按钮不如不留；
-          // 真要删除，得先在端脑侧把「删会话」这个语义定下来
-          // （删掉，还是只 close）。
+          // ⚠️ 端脑现在**有**这三个端点了（2026-11-02）：
+          // `POST /shadow/v1/conversations/{id}/archive` /
+          // `.../unarchive` / `DELETE /shadow/v1/conversations/{id}`
+          // ⇒ ⇒ 以前那条「端脑没有删除会话的端点 ⇒ 按钮必然 404 ⇒
+          // 不如不留」的注释已经过期 ⇒ ⇒ 那个洞现在补上了。
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (value) {
+              switch (value) {
+                case 'archive':
+                  onArchive();
+                  break;
+                case 'unarchive':
+                  onUnarchive();
+                  break;
+                case 'delete':
+                  onDelete();
+                  break;
+              }
+            },
+            itemBuilder: (context) => [
+              if (!conversation.archived)
+                PopupMenuItem(
+                  value: 'archive',
+                  child: Text(l10n.conversationArchive),
+                ),
+              if (conversation.archived)
+                PopupMenuItem(
+                  value: 'unarchive',
+                  child: Text(l10n.conversationUnarchive),
+                ),
+              PopupMenuItem(
+                value: 'delete',
+                child: Text(l10n.commonDelete),
+              ),
+            ],
+          ),
         ],
       ),
     );

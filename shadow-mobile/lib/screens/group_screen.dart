@@ -1,9 +1,12 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+
 import '../services/group_service.dart';
+import '../services/prefrontal_client.dart';
 
 class GroupScreen extends ConsumerStatefulWidget {
   const GroupScreen({super.key});
@@ -24,9 +27,8 @@ class _GroupScreenState extends ConsumerState<GroupScreen> {
 
   Future<void> _createGroup() async {
     if (_pinController.text.length != 6) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('PIN must be 6 digits')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('PIN must be 6 digits')));
       return;
     }
 
@@ -40,9 +42,8 @@ class _GroupScreenState extends ConsumerState<GroupScreen> {
 
   Future<void> _joinGroup() async {
     if (_pinController.text.length != 6) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('PIN must be 6 digits')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('PIN must be 6 digits')));
       return;
     }
 
@@ -105,9 +106,8 @@ class _GroupScreenState extends ConsumerState<GroupScreen> {
           const SizedBox(height: 8),
           Text(
             'Enter 6-digit PIN to join existing group or create new one',
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
+            style: Theme.of(context).textTheme.bodyMedium
+                ?.copyWith(color: Colors.grey),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 32),
@@ -313,7 +313,10 @@ class _GroupScreenState extends ConsumerState<GroupScreen> {
 final groupServiceProvider =
     StateNotifierProvider<GroupServiceNotifier, GroupServiceState>((ref) {
       return GroupServiceNotifier(
-        service: GroupService(),
+        // ⚠️ 用**共享** client（跟随「配置里那个端脑」）—— 裸
+        // `PrefrontalClient()` 是个没人管 baseUrl 的孤儿实例，永远打
+        // 写死的 `localhost:60080`，手机上必败。
+        service: GroupService(client: ref.read(prefrontalClientProvider)),
         deviceName: 'Shadow Mobile',
         pubkey: '',
       );

@@ -10,6 +10,7 @@ import 'package:shadow_mobile/providers/service_provider.dart';
 import 'package:shadow_mobile/providers/theme_provider.dart';
 import 'package:shadow_mobile/screens/chat_screen.dart';
 import 'package:shadow_mobile/widgets/chat_bubble.dart';
+
 import 'test_helper.dart';
 
 /// 移动端首页（`/` 路由 = 对话页）的回归测试。
@@ -82,9 +83,7 @@ void main() {
       expect(find.byIcon(Icons.widgets_outlined), findsOneWidget);
     });
 
-    testWidgets('Agent2UI 是能进能出的（不再是只能进不能出）', (
-      WidgetTester tester,
-    ) async {
+    testWidgets('Agent2UI 是能进能出的（不再是只能进不能出）', (WidgetTester tester) async {
       await pumpChat(tester);
 
       // 以前唯一的入口是「本地模型没装好 → 下载框 → Use Agent2UI」，
@@ -101,8 +100,11 @@ void main() {
       }
 
       expect(container.read(useAgent2UIModeProvider), isTrue);
-      // 进了 Agent2UI 之后，AppBar 上的其它入口让位。
-      expect(find.byIcon(Icons.settings), findsNothing);
+      // ⚠️ **同页共存** ⇒ AppBar 上的其它入口**不让位**了
+      //（以前是二选一 ⇒ 对话整块被顶掉 ⇒ 入口也跟着让位）。
+      expect(find.byIcon(Icons.settings), findsOneWidget);
+      // ⚠️ 而且**对话还在** ⇒ 这才是「共存」而不是「换页」。
+      expect(find.text(l10nOf(tester).askSomething), findsOneWidget);
     });
 
     testWidgets('进首页不会弹本地模型下载框', (WidgetTester tester) async {
@@ -114,9 +116,7 @@ void main() {
       expect(find.text(l10n.mobileNetworkDetected), findsNothing);
     });
 
-    testWidgets('干净的首页：没有红色横幅，也没有红色 system 气泡', (
-      WidgetTester tester,
-    ) async {
+    testWidgets('干净的首页：没有红色横幅，也没有红色 system 气泡', (WidgetTester tester) async {
       await pumpChat(tester);
 
       // 红色横幅（本地引擎初始化失败时的那根）。
@@ -125,9 +125,7 @@ void main() {
       expect(find.byType(MessageBubble), findsNothing);
     });
 
-    testWidgets('输入框可用：提示是「问点什么」而不是「初始化中…」', (
-      WidgetTester tester,
-    ) async {
+    testWidgets('输入框可用：提示是「问点什么」而不是「初始化中…」', (WidgetTester tester) async {
       await pumpChat(tester);
 
       final l10n = l10nOf(tester);
@@ -138,9 +136,7 @@ void main() {
     testWidgets('错误横幅能被 × 关掉', (WidgetTester tester) async {
       await pumpChat(
         tester,
-        overrides: [
-          chatProvider.overrideWith((ref) => _ErrorChatNotifier()),
-        ],
+        overrides: [chatProvider.overrideWith((ref) => _ErrorChatNotifier())],
       );
 
       // 横幅在。

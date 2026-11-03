@@ -15,7 +15,7 @@ export async function stateReset(flags: ResetFlags = {}): Promise<void> {
     re_seed_default_lobes: true,
     ...flags,
   };
-  const resp = await fetch('http://localhost:60080/api/cortex/admin/test/reset', {
+  const resp = await fetch('http://localhost:60080/api/telencephalon/admin/test/reset', {
     method: 'POST',
     headers: {
       'X-Admin-Token': process.env.SHADOW_TEST_ADMIN_TOKEN ?? '',

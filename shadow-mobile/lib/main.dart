@@ -5,6 +5,7 @@ import 'dart:async';
 import 'generated/l10n/app_localizations.dart';
 import 'model_manager.dart';
 import 'router/app_router.dart';
+import 'providers/capability_policy_provider.dart';
 import 'providers/identity_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/log_provider.dart';
@@ -55,6 +56,16 @@ void main() async {
   //
   // 放在 runApp 之后：启动要读本地模型配置（SQLite），别挡住首屏。
   container.read(encephalonMobileProvider.notifier).ensureStarted();
+
+  // 「手机操作」那道闸的**原生侧**状态 ⇒ ⇒ 启动时必须推一次。
+  //
+  // ⚠️ 为什么不能只在设置页推：原生侧那两个平行面（HTTP / A2A）默认是
+  // **拒绝**的 ⇒ ⇒ 用户上次配的是「完全访问」时，不推的话原生那条腿
+  // 会一直被拒 ⇒ ⇒ 「用户明明放开了却用不了」。
+  //
+  // ⚠️ 读一下 notifier 就等于让它**恢复一次**（构造即 `_restore()`）
+  // ⇒ ⇒ 恢复完顺带就把闸推过去了。
+  container.read(capabilityPolicyProvider.notifier);
 
   // 「当前是谁」—— 端脑答的身份决定**读写哪一份记忆**（有账号就是那个
   // 人格，没账号才是 `"default"`）。端脑 client 自带**就绪门** ⇒ 大脑还没

@@ -269,7 +269,22 @@
   "conversationNewChat": "新对话",
   "conversationTitleField": "对话标题",
   "conversationCreate": "创建",
+  "conversationArchive": "归档",
+  "conversationUnarchive": "取消归档",
+  "conversationArchiveBox": "归档箱",
+  "conversationArchiveBoxEmpty": "没有已归档的会话",
+  "conversationArchivedBadge": "已归档",
+  "conversationDeleteBody": "这会连海马体里的那份一起删掉（会话与它的全部消息），不可撤销。",
+  "conversationActionFailed": "操作失败：{error}",
+  "@conversationActionFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "commonConfirmDelete": "确认删除",
+  "commonCancel": "取消",
   "commonDelete": "删除",
   "discoveryTitle": "设备发现",
   "discoveryScanning": "正在扫描网络设备...",
@@ -341,6 +356,8 @@
   "providerQwen": "通义千问",
   "providerZhipu": "智谱AI",
   "providerLocalModel": "本地模型",
+  "providerBuiltin": "内置",
+  "providerModelNotDownloaded": "未下载",
   "providersTitle": "大模型服务提供商",
   "providersEmpty": "暂未配置提供商",
   "providersEmptyHint": "点击右下角添加第一个提供商",
@@ -1050,5 +1067,141 @@
       }
     }
   },
-  "askAgent2UI": "让端脑画界面..."
+  "askAgent2UI": "让端脑画界面...",
+  "a2uiSurfaceReportTasks": "已展开「任务看板」。",
+  "a2uiSurfaceReportAgents": "已展开「Agent 列表」。",
+  "a2uiSurfaceReportNoSurface": "端脑这次没有画界面。",
+  "a2uiSurfaceReportNoSurfaceSaid": "端脑这次没有画界面，它说：{words}",
+  "@a2uiSurfaceReportNoSurfaceSaid": {
+    "placeholders": {
+      "words": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsGroupCapabilities": "能力授权",
+  "settingsGroupCapabilitiesDesc": "模型能读这台手机上的哪些东西，由你逐项决定",
+  "capabilityCalendarRead": "读取日历",
+  "capabilityCalendarWrite": "写入日历",
+  "capabilityContacts": "读取联系人",
+  "capabilitySms": "读取短信",
+  "capabilityPhotos": "读取相册",
+  "capabilityAuthAsk": "每次询问",
+  "capabilityAuthFull": "完全访问",
+  "capabilityAuthDisabled": "彻底关闭",
+  "capabilityAuthAskDesc": "每次调用前都先问你",
+  "capabilityAuthFullDesc": "不再逐次询问",
+  "capabilityAuthDisabledDesc": "模型看不到这个能力",
+  "capabilitySystemGranted": "系统权限已授予",
+  "capabilitySystemMissing": "系统权限未授予",
+  "capabilityRejectedDisabled": "这个能力已在设置中关闭",
+  "capabilityUnsupportedPlatform": "当前平台不支持这个能力",
+  "capabilityMobileUse": "手机操作",
+  "capabilityRequestMobileUse": "要操作这台手机",
+  "capabilityRequestMobileReadScreen": "要读取这台手机当前屏幕上的内容",
+  "capabilityRequestMobileTap": "要点这台手机屏幕上的一个位置",
+  "capabilityRequestMobileLongPress": "要长按这台手机屏幕上的一个位置",
+  "capabilityRequestMobileSwipe": "要在这台手机屏幕上滑动",
+  "capabilityRequestMobileFindAndClick": "要点这台手机屏幕上某个文字的控件",
+  "capabilityRequestMobileGlobalAction": "要在这台手机上触发一个系统动作",
+  "capabilityArgMobilePoint": "位置 {x}, {y}",
+  "@capabilityArgMobilePoint": {
+    "placeholders": {
+      "x": { "type": "String" },
+      "y": { "type": "String" }
+    }
+  },
+  "capabilityArgMobileSwipe": "从 {x1}, {y1} 滑到 {x2}, {y2}",
+  "@capabilityArgMobileSwipe": {
+    "placeholders": {
+      "x1": { "type": "String" },
+      "y1": { "type": "String" },
+      "x2": { "type": "String" },
+      "y2": { "type": "String" }
+    }
+  },
+  "capabilityArgMobileText": "文字「{text}」",
+  "@capabilityArgMobileText": {
+    "placeholders": {
+      "text": { "type": "String" }
+    }
+  },
+  "capabilityArgMobileAction": "动作：{action}",
+  "@capabilityArgMobileAction": {
+    "placeholders": {
+      "action": { "type": "String" }
+    }
+  },
+  "capabilityServiceGranted": "无障碍服务已开启",
+  "capabilityServiceMissing": "无障碍服务未开启",
+  "capabilityGrantService": "去开启",
+  "toolCallAllow": "允许",
+  "toolCallDeny": "拒绝",
+  "capabilityRequestCalendarRead": "要读取你手机上的日历事件",
+  "capabilityRequestCalendarWrite": "要往你手机上的日历里写一条日程",
+  "capabilityRequestContacts": "要读取你手机上的联系人",
+  "capabilityRequestSms": "要读取你手机上的短信",
+  "capabilityRequestPhotos": "要读取你手机上相册的图片信息",
+  "capabilityArgTimeRange": "时间范围 {from} ~ {to}",
+  "@capabilityArgTimeRange": {
+    "placeholders": {
+      "from": {
+        "type": "String"
+      },
+      "to": {
+        "type": "String"
+      }
+    }
+  },
+  "capabilityArgTimeRangeDefault": "接下来 7 天",
+  "capabilityArgTitle": "标题「{title}」",
+  "@capabilityArgTitle": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "capabilityArgStartAt": "{time} 开始",
+  "@capabilityArgStartAt": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "capabilityArgKeyword": "姓名包含「{query}」",
+  "@capabilityArgKeyword": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "capabilityArgContactsHead": "通讯录前 {count} 条",
+  "@capabilityArgContactsHead": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "capabilityArgRecentSms": "最近 {count} 条短信",
+  "@capabilityArgRecentSms": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "capabilityArgRecentPhotos": "最近 {count} 张图片",
+  "@capabilityArgRecentPhotos": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "capabilityGrantSystemPermission": "去授权"
 }
+

@@ -21,14 +21,12 @@ export function DiscoveryPage() {
   const { t } = useTranslation();
   const {
     devices,
-    cortexInstances,
     activeNode,
     isScanning,
     lastScan,
     error,
     startScan,
     refreshDevices,
-    discoverCortexInstances,
     setActiveNode,
     addManualDevice,
     removeDevice,
@@ -50,13 +48,11 @@ export function DiscoveryPage() {
 
   useEffect(() => {
     void refreshDevices();
-    void discoverCortexInstances();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleStartScan = async () => {
     await startScan();
     await refreshDevices();
-    await discoverCortexInstances();
   };
 
   const handleDetails = (device: DiscoveredDevice) => {
@@ -128,32 +124,6 @@ export function DiscoveryPage() {
         </div>
       )}
 
-      {cortexInstances.length > 0 && (
-        <div className="rounded-md border border-primary/30 bg-primary/5 p-4">
-          <div className="mb-2 flex items-center gap-2">
-            <CheckCircle2 size={16} className="text-primary" />
-            <h2 className="text-sm font-semibold text-foreground">
-              {t('discovery.cortexInstances') || 'Cortex Instances'}
-            </h2>
-          </div>
-          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-            {cortexInstances.map((cortex) => (
-              <div
-                key={`${cortex.host}:${cortex.port}`}
-                className="flex items-center justify-between rounded-md border border-border bg-background/50 p-2"
-              >
-                <div className="flex flex-col">
-                  <span className="text-sm font-medium text-foreground">{cortex.name}</span>
-                  <span className="font-mono text-xs text-muted-foreground">
-                    {cortex.host}:{cortex.port}
-                  </span>
-                </div>
-                <code className="text-xs text-muted-foreground">{t('discovery.cortexDefaultPort') || '60080'}</code>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       <div className="flex-1 overflow-y-auto">
         {devices.length === 0 ? (

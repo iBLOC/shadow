@@ -15,10 +15,12 @@ mod recording;
 mod provider_manager;
 mod global_keys;
 mod logger;
-mod cortex_http;
+mod telencephalon_http;
 mod admin_token;
+mod brain_face;
 
 use config_manager::{AppConfig, DatabaseConfig, ProviderConfig, SecureAuth};
+use brain_face::{BrainFaceHandle, BrainFaceStatus};
 use diencephalon::Thalamus;
 use encephalon::{AcpEnvelope, AgentId, Encephalon};
 use model_store::{EncryptedStorage, ModelProvider};
@@ -56,7 +58,7 @@ struct AppState {
     /// 它只做一件事：**钉住生命周期** —— `Arc<Embedded>` 是 neuron 监听
     /// （`:8085`）、thalamus 与 ACP 总线的持有者，放掉它就等于把推理
     /// 后端一起关掉。客户端**不能**直接用它推理：那条路绕过端脑和叶区，
-    /// 桌面端因此收不到 `tool_call`（见 `cortex_http.rs`）。
+    /// 桌面端因此收不到 `tool_call`（见 `telencephalon_http.rs`）。
     #[allow(dead_code)]
     embedded_stack: Arc<encephalon::Embedded>,
     workflow_state: Arc<tokio::sync::Mutex<WorkflowState>>,
@@ -66,6 +68,15 @@ struct AppState {
     /// is right now** — and say it when the configured root turned out to
     /// be unusable (a drive that was unplugged after the setting was saved).
     hippocampus_boot: HippocampusBoot,
+    /// The endbrain face (127.0.0.1:60080) — is **this app's** brain up?
+    ///
+    /// ⚠️ The frontend only ever talks to 60080 ⇒ ⇒ when this app's own
+    /// face cannot bind that port, the frontend keeps talking to
+    /// **whoever is on it** ⇒ ⇒ the user's conversation runs in a
+    /// **stranger's brain** (wrong identity, wrong memory, wrong lobes)
+    /// ⇒ ⇒ and the only thing the UI shows is the stranger's error.
+    /// This handle is how the UI finds out and says so.
+    brain_face: BrainFaceHandle,
 }
 
 /// What **this launch** does with the hippocampus storage root.
@@ -179,23 +190,27 @@ pub fn run() {
     // shadow ↔ encephalon is process-internal by design; A2A is the
     // encephalon's *external* agent protocol only.
     let stack = tauri::async_runtime::block_on(encephalon::Embedded::boot(
-        // Fixed :8085 so loopback metadata reads (models list, health)
-        // keep working. **Chat does not go there**: it goes through the
-        // telencephalon face mounted below, so the traffic is
-        // 大脑 → 端脑 → 叶区 like it is on mobile.
+        // ⚠️ **不再有 :8085**（2026-11-03）—— neuron 改成 **router-only**
+        // （它不再自己监听一个口）⇒ ⇒ 桌面的推理面由**统一入口**挂在
+        // **脑面**（:60080）上 ⇒ ⇒ 流量是 大脑 → 端脑 → 叶区，与移动端一致。
         encephalon::EmbeddedConfig {
-            neuron_port: 8085,
             // 桌面端**从不**在这里注册云端 LLM 上游 —— 桌面走的是
             // `/model/default` 那条 HTTP 面（端脑侧的 lobe 路由），
-            // 不是把引擎塞进 neuron's 派发表。㉔ 条给 `EmbeddedConfig`
-            // 加了这个字段时桌面端漏改 ⇒ 桌面端在 master 上就编译不过
-            // （E0063），本轮顺手补上。
+            // 不是把引擎塞进 neuron's 派发表。
+            //
+            // ⚠️ **不再有 `neuron_port`**（2026-11-03）—— neuron 改成了
+            // **router-only**（不再自己监听一个口，推理走大脑那张面）⇒ ⇒
+            // 那个字段被删了 ⇒ ⇒ 桌面端还写它就编不过（E0560）⇒ ⇒ 这里
+            // 去掉它。neuron 的面由**统一入口**挂在脑面上（见
+            // `telencephalon_http.rs`）。
             llm_provider: None,
         },
     ))
     .expect("boot embedded encephalon");
-    let neuron_addr = stack.neuron_addr();
-    tracing::info!("encephalon embedded; neuron at {neuron_addr}");
+    // ⚠️ **不再问 neuron 的监听地址**（2026-11-03）—— router-only 形态下
+    // neuron **没有**独立 listener（那个方法已被删掉 ⇒ ⇒ 桌面端还调它就
+    // 编不过，E0599）⇒ ⇒ 推理面由**统一入口**挂在脑面上。
+    tracing::info!("encephalon embedded; the neuron face is mounted on the brain face");
 
     // 把端脑挂成 HTTP 面 —— Tauri 构建里端脑是嵌在进程内的、
     // **没有起 HTTP 面**（`Embedded::boot()` 只起了 neuron 的 listener），
@@ -203,7 +218,7 @@ pub fn run() {
     //
     // 这一段把「端脑 + neuron（根）+ 海马体（/hippocampus）」合成一台
     // 形状与独立端脑完全一致的服务，桌面的通信因此真正走
-    // 大脑 → 端脑 → 叶区。见 `cortex_http.rs`。
+    // 大脑 → 端脑 → 叶区。见 `telencephalon_http.rs`。
     // The desktop settings page can point the hippocampus at another
     // directory (config.json -> hippocampus_data_dir). The endbrain
     // builds its hippocampus state at **boot**, so reading it once here
@@ -236,10 +251,19 @@ pub fn run() {
         },
         None => (None, HippocampusBoot::Default),
     };
+    // The endbrain face's status handle — written by the boot path, read
+    // by the UI.
+    //
+    // ⚠️ Why it exists: when this app's own face cannot bind 60080, the
+    // frontend still talks to 60080 ⇒ ⇒ it talks to **whoever holds that
+    // port** ⇒ ⇒ the conversation runs in a stranger's brain and the UI
+    // shows the stranger's error. The handle is how the UI learns that.
+    let brain_face = BrainFaceHandle::new(telencephalon_http::DEFAULT_ADDR.to_string());
     {
         let stack = stack.clone();
+        let face = brain_face.clone();
         tauri::async_runtime::spawn(async move {
-            cortex_http::serve(&stack, hippocampus_data_dir).await;
+            telencephalon_http::serve(&stack, hippocampus_data_dir, face).await;
         });
     }
 
@@ -308,6 +332,7 @@ pub fn run() {
         provider_manager: Arc::new(provider_manager::new_manager()),
         embedded_stack: embedded_stack.clone(),
         hippocampus_boot: hippocampus_boot.clone(),
+        brain_face: brain_face.clone(),
         workflow_state: Arc::new(tokio::sync::Mutex::new(WorkflowState {
             approved_tasks: std::collections::HashMap::new(),
             rejected_tasks: std::collections::HashMap::new(),
@@ -364,7 +389,7 @@ pub fn run() {
 
             let app_handle = app.handle().clone();
             // In-process encephalon is already initialised; nothing
-            // async to spawn here. (The old cortex sidecar spawn is
+            // async to spawn here. (The old sidecar spawn is
             // gone — see commit f200f93 for the deletion history.)
             let _ = app_handle;
 
@@ -422,6 +447,7 @@ pub fn run() {
             get_setup_step,
             get_hippocampus_storage,
             set_hippocampus_storage,
+            get_brain_face_status,
             mark_setup_complete,
             opencode_launch,
             opencode_check_installed,
@@ -654,7 +680,7 @@ fn decrypt_value(encrypted: String, passphrase: String) -> Result<String, String
 
 /// 账号身份目录 —— 与端脑用的是**同一个**目录。
 ///
-/// 端脑在 `cortex_http.rs` 里把自己的身份目录指到这里，所以桌面读到
+/// 端脑在 `telencephalon_http.rs` 里把自己的身份目录指到这里，所以桌面读到
 /// 的账号和端脑手上的账号是同一个。
 fn desktop_identity_dir() -> Result<std::path::PathBuf, String> {
     dirs::config_dir()
@@ -688,7 +714,7 @@ fn identity_export() -> Result<String, String> {
 async fn identity_import(code: String, shadow_key: String) -> Result<serde_json::Value, String> {
     let url = format!(
         "http://{}/shadow/v1/identity",
-        crate::cortex_http::DEFAULT_ADDR
+        crate::telencephalon_http::DEFAULT_ADDR
     );
     let client = reqwest::Client::new();
     let mut request = client.post(&url).json(&serde_json::json!({ "code": code }));
@@ -1002,6 +1028,17 @@ async fn get_setup_step(state: State<'_, AppState>) -> Result<String, String> {
 ///
 /// ⚠️ The paths come from the **hippocampus itself** (the same rule its
 /// storage layer uses), not from a guess made here: a host that
+/// Is **this app's** endbrain face (127.0.0.1:60080) up right now?
+///
+/// ⚠️ `owned = false` ⇒ the frontend's requests to 60080 are landing on
+/// **somebody else's** endbrain ⇒ ⇒ the UI has to say that out loud
+/// instead of letting the user hit "Failed to get models: error sending
+/// request for url (...)" and wonder what that URL even is.
+#[tauri::command]
+fn get_brain_face_status(state: State<'_, AppState>) -> BrainFaceStatus {
+    state.brain_face.status()
+}
+
 /// advertises a path nothing writes to is exactly the "failure that
 /// looks like success" shape.
 #[tauri::command]
@@ -1197,7 +1234,7 @@ async fn workflow_start_planning(
     task_title: String,
     task_description: String,
 ) -> Result<WorkflowPlan, String> {
-    // state.prefrontal was removed when the cortex sidecar was
+    // state.prefrontal was removed when the old sidecar was
     // replaced by the embedded encephalon (commit be50b7f). Until the
     // planner is re-wired to the encephalon ACP bus, return a stub
     // plan derived from the task description so the workflow command
@@ -1524,7 +1561,7 @@ async fn document_feishu_enabled(state: State<'_, AppState>) -> Result<bool, Str
 mod tests {
     use super::*;
 
-    // CortexManager was removed when the cortex sidecar was replaced by
+    // CortexManager was removed when the old sidecar was replaced by
     // the embedded encephalon (commit be50b7f). The old
     // test_cortex_manager_initial_state asserted the sidecar's stopped
     // state; the replacement contract is that AppState always carries a

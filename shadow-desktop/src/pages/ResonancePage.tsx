@@ -256,7 +256,7 @@ export function ResonancePage() {
           </div>
           <div className="grid grid-cols-3 gap-3 text-xs text-muted-foreground mb-3">
             <div className="flex items-center gap-1"><Monitor size={12} /> {t('resonance.clientVersion')}: shadow-desktop</div>
-            <div className="flex items-center gap-1"><Cpu size={12} /> {t('resonance.kernelVersion')}: cortex</div>
+            <div className="flex items-center gap-1"><Cpu size={12} /> {t('resonance.kernelVersion')}: telencephalon</div>
             <div className="flex items-center gap-1"><Activity size={12} /> {t('resonance.capabilities')}: llm, task-dispatch</div>
           </div>
 

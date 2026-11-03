@@ -10,16 +10,24 @@ import {
   Trash, Package, RefreshCw, X, Loader2, AlertCircle, Ban, KeyRound
 } from 'lucide-react';
 import type { ModelProvider } from '../components/business/AddProviderModal/types';
-import { isTauri, prefrontalUrl, neuronUrl } from '../lib/platform';
+import { isTauri } from '../lib/platform';
+import { telencephalonClient } from '../lib/telencephalonClient';
 import { adminHeaders } from '../lib/adminToken';
 
-// Cortex base — only used by the web build's legacy provider CRUD.
-// The Tauri app has no cortex HTTP server (embedded encephalon instead),
-// so its provider management lives in ProvidersPage / provider_* commands.
-const API_BASE = prefrontalUrl();
-// neuron inference runtime — model management (/v1/models*) talks to it
-// directly since the cortex sidecar proxy is gone.
-const NEURON_BASE = neuronUrl();
+// ⚠️⚠️ **一张面，一个地址**（2026-11-02 起）。
+//
+// 这一页原来有**两个**后端地址：
+//   * `API_BASE`   = `prefrontalUrl()` —— 大脑那张面（供应商 CRUD）；
+//   * `NEURON_BASE` = `neuronUrl()`   —— **neuron 自己的端口**（本地模型）。
+//
+// ⇒ ⇒ 现在**只有一个**：大脑那张面。本地模型那一半也走大脑 —— neuron's
+// route table 被端脑挂在**根**上 ⇒ ⇒ `/v1/models` 在大脑面上本来就有
+// ⇒ ⇒ 用户拍板：「**坚持嵌入式，所有的入口都在大脑，由大脑负责路由和分发**」。
+//
+// ⚠️ **base 在「函数里」求值**，不在模块加载时 —— 用户改了大脑地址
+// （store 的 `connection.baseUrl`）⇒ ⇒ 这一页必须跟着改 ⇒ ⇒ 而模块级的
+// 常量在 import 时就定死了 ⇒ ⇒ 改完设置，这一页还在打老地址 ⇒ ⇒
+// 「供应商来自新大脑、本地模型来自老机器」—— 同一个页面两张脸。
 
 // Complete list of supported cloud providers
 const CLOUD_PROVIDER_TYPES: ProviderTypeOption[] = [
@@ -201,7 +209,7 @@ export function ModelsPage() {
 }
 
 /**
- * Tauri mode: the cortex `/models/providers` CRUD this tab used is gone
+ * Tauri mode: the telencephalon `/models/providers` CRUD this tab used is gone
  * (sidecar replaced by the embedded encephalon). Cloud provider management
  * — including preset picking, API keys and per-provider model fetching —
  * lives in ProvidersPage now.
@@ -249,7 +257,8 @@ function CloudProvidersTab() {
       // admin 门后面（**没配 token ⇒ fail-closed**）。
       // ⇒ 拿不到钥匙时**就不带那个头**（端脑回 401，说人话）——
       // 绝不塞一个空值头（空串与空串 `ct_eq` 相等 ⇒ 等于带对了）。
-      const response = await fetch(`${API_BASE}/models/providers`, {
+      const BRAIN_BASE = telencephalonClient.getBaseUrl();
+      const response = await fetch(`${BRAIN_BASE}/models/providers`, {
         headers: await adminHeaders(),
       });
       if (!response.ok) throw new Error('Failed to load');
@@ -266,7 +275,8 @@ function CloudProvidersTab() {
 
   const handleDeleteProvider = async (id: string) => {
     try {
-      await fetch(`${API_BASE}/models/providers/${id}`, {
+      const BRAIN_BASE = telencephalonClient.getBaseUrl();
+      await fetch(`${BRAIN_BASE}/models/providers/${id}`, {
         method: 'DELETE',
         headers: await adminHeaders(),
       });
@@ -278,7 +288,8 @@ function CloudProvidersTab() {
 
   const handleDeleteModel = async (providerId: string, modelId: string) => {
     try {
-      await fetch(`${API_BASE}/models/${providerId}/${modelId}`, {
+      const BRAIN_BASE = telencephalonClient.getBaseUrl();
+      await fetch(`${BRAIN_BASE}/models/${providerId}/${modelId}`, {
         method: 'DELETE',
         headers: await adminHeaders(),
       });
@@ -292,7 +303,8 @@ function CloudProvidersTab() {
     setTestingConnection(provider.id);
     setConnectionStatus(prev => ({ ...prev, [provider.id]: null }));
     try {
-      const response = await fetch(`${API_BASE}/models/providers/${provider.id}/test`, {
+      const BRAIN_BASE = telencephalonClient.getBaseUrl();
+      const response = await fetch(`${BRAIN_BASE}/models/providers/${provider.id}/test`, {
         method: 'POST',
         headers: await adminHeaders(),
       });
@@ -460,7 +472,12 @@ function LocalEngineTab() {
     setLoading(true);
     setError(null);
     try {
-      const r = await fetch(`${NEURON_BASE}/v1/models?engine=${activeType}`);
+      const BRAIN_BASE = telencephalonClient.getBaseUrl();
+      const r = await fetch(`${BRAIN_BASE}/v1/models?engine=${activeType}`, {
+        // ⚠️ **门罩住整张面**（2026-11-03）⇒ ⇒ `/v1/*` 现在也在门型表管辖内
+        // ⇒ ⇒ 不递钥匙就是 401 ⇒ ⇒ 带读门的全部钥匙（影子锁 ∪ admin token）。
+        headers: await telencephalonClient.readHeaders(),
+      });
       if (r.status === 404) { setModels([]); return; }
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const body = await r.json();
@@ -485,7 +502,15 @@ function LocalEngineTab() {
       const bareId = modelId.startsWith(`${engine}/`)
         ? modelId.slice(engine.length + 1)
         : modelId;
-      const r = await fetch(`${NEURON_BASE}/v1/models/${engine}/${encodeURIComponent(bareId)}`, { method: 'DELETE' });
+      const BRAIN_BASE = telencephalonClient.getBaseUrl();
+      const r = await fetch(
+        `${BRAIN_BASE}/v1/models/${engine}/${encodeURIComponent(bareId)}`,
+        {
+          method: 'DELETE',
+          // ⚠️ 删模型是**写操作** ⇒ ⇒ 落写门（admin）⇒ ⇒ 必须带 admin token。
+          headers: await telencephalonClient.readHeaders(),
+        },
+      );
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       await load();
     } catch (e) {
@@ -499,7 +524,10 @@ function LocalEngineTab() {
   // when neuron isn't running instead of erroring every interval.
   const refreshJobs = useCallback(async (): Promise<boolean> => {
     try {
-      const r = await fetch(`${NEURON_BASE}/v1/models/pull`);
+      const BRAIN_BASE = telencephalonClient.getBaseUrl();
+      const r = await fetch(`${BRAIN_BASE}/v1/models/pull`, {
+        headers: await telencephalonClient.readHeaders(),
+      });
       if (!r.ok) return false;
       const body = await r.json();
       const list: ModelDownloadTask[] = body.data ?? [];
@@ -586,7 +614,11 @@ function LocalEngineTab() {
 
   const cancelJob = async (jobId: string) => {
     try {
-      await fetch(`${NEURON_BASE}/v1/models/pull/${jobId}`, { method: 'DELETE' });
+      const BRAIN_BASE = telencephalonClient.getBaseUrl();
+      await fetch(`${BRAIN_BASE}/v1/models/pull/${jobId}`, {
+          method: 'DELETE',
+          headers: await telencephalonClient.readHeaders(),
+        });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -745,9 +777,14 @@ function LocalEngineTab() {
             const target = downloadTarget;
             setDownloadTarget(null);
             try {
-              const r = await fetch(`${NEURON_BASE}/v1/models/pull`, {
+              const BRAIN_BASE = telencephalonClient.getBaseUrl();
+              const r = await fetch(`${BRAIN_BASE}/v1/models/pull`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                // ⚠️ 触发下载是**写操作** ⇒ ⇒ 落写门（admin）⇒ ⇒ 带 admin token。
+                headers: {
+                  'Content-Type': 'application/json',
+                  ...(await telencephalonClient.readHeaders()),
+                },
                 body: JSON.stringify({
                   id: target.id.split('/').pop() || target.id,
                   engine: target.engine,

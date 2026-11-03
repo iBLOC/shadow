@@ -6,15 +6,15 @@ import android.util.Log
  * Encephalon（大脑）嵌入式运行时
  *
  * 与桌面端 `shadow-desktop/src-tauri/src/lib.rs` 的
- * `encephalon::Embedded::boot(EmbeddedConfig { neuron_port: 8085 })` **同源**：
+ * `encephalon::Embedded::boot(EmbeddedConfig { llm_provider: None })` **同源**：
  * 同一套 `Embedded`（thalamus + ACP 总线 + telencephalon + 单一 neuron），
  * 只是跑在 Android App 进程里，而不是跑成外部进程。
  *
  * **推理不走 HTTP** —— 这是它与更早那套内嵌运行时最大的差别。
  * `nativeInfer` 把 OpenAI 兼容请求体直接送进 neuron 的进程内 adapter 管线，
  * 返回 4 字节大端 HTTP 状态码 + 响应体 —— 没有 socket、没有 CORS、
- * 不用等本地端口就绪。neuron 自己仍然会起一个 127.0.0.1 的 HTTP 面
- * （OpenAI 兼容），那是给同进程的其它组件用的。
+ * 不用等本地端口就绪。neuron 现在是 **router-only**（自己不监听），
+ * 它的 OpenAI 兼容面由**统一入口**挂在脑面上（移动端 = agentPort 那个口）。
  *
  * 通信架构：
  * ```
@@ -85,6 +85,12 @@ class EncephalonRuntime {
     private external fun nativeSetModelRouting(json: String): Int
     private external fun nativeSetShadowApiKey(key: String): Int
     private external fun nativeSetAdminToken(token: String): Int
+    private external fun nativeSetZitiClient(
+        identityPath: String,
+        service: String,
+        shadowKey: String,
+        adminToken: String,
+    ): Int
     private external fun nativeInfer(
         path: String,
         body: ByteArray,
@@ -237,6 +243,54 @@ class EncephalonRuntime {
      *
      * ⚠️ **绝不把 token 打进日志**。
      */
+    /**
+     * 让这台手机变成**零信任客户端** —— 它**不跑自己的大脑**，而是经零信任网
+     * 访问**别的**设备上的大脑。
+     *
+     * ## 它换掉了什么
+     *
+     * 本地起的不再是「端脑那张面」，而是**零信任本地代理** ⇒ ⇒ 报给 Dart 的
+     * `agentPort` **就是代理的端口** ⇒ ⇒ **Dart 侧零改动**（它照旧打
+     * `http://127.0.0.1:<agentPort>`）。
+     *
+     * ## ⚠️ 必须在 [start] **之前**调
+     *
+     * 跟 shadow key / admin token 一样 —— 这是**纯增量**的入口：老版本宿主
+     * 调不到就调不到，行为不变（没设 ⇒ 手机照旧跑自己的大脑）。
+     *
+     * ## ⚠️ 为什么还要带门型凭据
+     *
+     * Rust ziti SDK **不暴露对端身份** ⇒ ⇒ 「进了网络」**不能**替代应用层
+     * 凭据 ⇒ ⇒ 授权仍然留在 HTTP 层 ⇒ ⇒ `shadowKey` / `adminToken` 是
+     * **远端**大脑那把钥匙。
+     *
+     * ⚠️ **绝不把 key / token 打进日志**。
+     */
+    fun setZitiClient(
+        identityPath: String,
+        service: String = "",
+        shadowKey: String = "",
+        adminToken: String = "",
+    ): Boolean {
+        return try {
+            val rc = nativeSetZitiClient(identityPath, service, shadowKey, adminToken)
+            if (rc >= 0) {
+                // ⚠️ 只说「设好了」，不说是什么（路径与钥匙都是秘密）。
+                AppLog.i(TAG, "✅ zero-trust client configured (手机将经零信任网访问远端大脑)")
+                true
+            } else {
+                AppLog.e(TAG, "❌ nativeSetZitiClient returned: $rc")
+                false
+            }
+        } catch (e: UnsatisfiedLinkError) {
+            AppLog.w(TAG, "Encephalon native method missing — .so not loaded, or an old .so without this method: ${e.message}")
+            false
+        } catch (e: Exception) {
+            AppLog.e(TAG, "❌ nativeSetZitiClient failed: ${e.message}")
+            false
+        }
+    }
+
     fun setAdminToken(token: String): Boolean {
         return try {
             val rc = nativeSetAdminToken(token)

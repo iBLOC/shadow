@@ -1,4 +1,20 @@
 import { useThemeStore } from '../stores/themeStore';
+// ⚠️ **为什么 lib 层要 i18n** ——
+// ① `show_a2ui_surface` 的 `report` 那一句**用户看得见**（结果卡片会渲染它）
+//    ⇒ ⇒ 它必须走**真的** i18n（`src/i18n/*.json`）
+//    ⇒ ⇒ 不能在 lib 里另抄一份字典（两份迟早漂 ⇒ 漂了就是「英文用户看到中文」）；
+// ② 这个文件本来就直接用**全局 store**（`useThemeStore`）
+//    ⇒ ⇒ 拿全局 i18n 实例是同一层级的依赖，不是破例。
+//
+// ⚠️ **为什么 import 的是 `../i18n/core` 而不是 `../i18n`** ——
+// `../i18n` 那一侧带 **React 绑定**（`initReactI18next`）⇒ ⇒ lib 被拖上 React
+// ⇒ ⇒ 而测试里 **35 个文件各自 mock 了一份 react-i18next**（多数**没有**
+// `initReactI18next`）⇒ ⇒ 谁 import 谁炸（模块加载即失败）。
+// `core` 是**同一个实例**、只是不带 React（见 `src/i18n/core.ts` 的文件头）。
+import { ensureI18n } from '../i18n/core';
+import { telencephalonClient } from './telencephalonClient';
+import { requestA2uiSurface } from './a2uiClient';
+import { buildSurfaceFromEvents } from './a2uiProtocol';
 import type { ToolField } from '../components/chat/ClientToolForm';
 import type { OpenAiTool, ToolParameters } from './telencephalonClient';
 
@@ -84,6 +100,24 @@ export class ClientToolRegistry {
   get names(): string[] {
     return [...this.tools.keys()];
   }
+}
+
+/**
+ * 一份工具结果有**两个读者**：**界面**（要整棵组件树）与**模型**（要一句话）。
+ *
+ * ⚠️ 把组件树原样喂回模型 ⇒ 模型上下文被一堆 JSON 淹了 ⇒ ⇒
+ * 这里只把 `report` 那一句交出去 ⇒ ⇒ 界面那份仍然完整。
+ *
+ * ⚠️ 没有 `report` 的工具**原样回传**（别把别人的结果改形状）。
+ */
+export function pickReportPayload(result: unknown): unknown {
+  if (result && typeof result === 'object' && !Array.isArray(result)) {
+    const report = (result as { report?: unknown }).report;
+    if (typeof report === 'string' && report.trim() !== '') {
+      return { report };
+    }
+  }
+  return result;
 }
 
 /**
@@ -229,5 +263,70 @@ export const desktopClientTools = new ClientToolRegistry()
       const raw = ctx.input?.value ?? ctx.input?.answer;
       const answer = typeof raw === 'string' ? raw : '';
       return { question, answer };
+    },
+  })
+  .register({
+    name: 'show_a2ui_surface',
+    description:
+      'Show the user a generated interface inside the conversation (task board or agent list). Use it when the user asks to SEE their tasks or agents instead of listing them as text.',
+    // ⚠️ **参数声明要给模型看** —— 没有它，模型不知道要一个 `view`
+    // ⇒ 只能瞎猜，或者干脆不调。
+    parameters: {
+      type: 'object',
+      properties: {
+        view: {
+          type: 'string',
+          enum: ['tasks', 'agents'],
+          description:
+            "Which interface to draw: 'tasks' = the task board, 'agents' = the registered agent list.",
+        },
+      },
+      required: ['view'],
+    },
+    execute: async (args) => {
+      // ⚠️ **确保 i18n 已初始化** —— 否则 `t()` 会退化成**返回 key**
+      // （界面看着有字，其实全是 `a2ui.surfaceDrawn` 这种占位串）。
+      const i18n = ensureI18n();
+      // ⚠️ **认不出的 view 当 tasks** —— 模型偶尔会瞎填；
+      // 宁可画错一块看板，也不要让这一轮失败。
+      const view = args.view === 'agents' ? 'agents' : 'tasks';
+      const result = await requestA2uiSurface({
+        baseUrl: telencephalonClient.getBaseUrl(),
+        apiKey: telencephalonClient.getApiKey(),
+        view,
+        // ⚠️ **界面文案随用户的语言走** —— 端脑据此挑中文/英文界面
+        // （真相源在服务端：`telencephalon/src/a2a/a2ui_i18n.rs`）。
+        locale: i18n.language,
+      });
+
+      // ⚠️ **判据是「画出来没有」，不是「有没有事件」** ——
+      // 端脑只回纯文本时**也有事件**（那条 text 事件）⇒
+      // 拿「事件数 > 0」当判据 ⇒ 「没画界面」会被说成「已展开」
+      // ⇒ ⇒ **失败长得像成功**。
+      //
+      // 「画出来没有」由**协议层**判（`buildSurfaceFromEvents` ⇒ 有没有收到
+      // `beginRendering`）⇒ ⇒ 与面板那条路**同一套判据**（一处实现）。
+      const surface = buildSurfaceFromEvents(result.events);
+      const words = result.texts.join(' ').trim();
+
+      if (!surface) {
+        // ⚠️ **没画出来 ⇒ 如实说** —— 端脑这次回的是纯文本
+        // （「这里能看什么」）⇒ ⇒ 那就把**它自己的话**带给模型，
+        // 别假装画出来了（界面不许说谎，工具结果也不许）。
+        return {
+          report: words
+            ? i18n.t('a2ui.surfaceNotDrawn', { words })
+            : i18n.t('a2ui.surfaceNotDrawnSilent'),
+          // ⚠️ **没画出来 ⇒ 事件那一半是空的**（不是「半张界面」）。
+          a2ui_events: [],
+        };
+      }
+
+      const label = i18n.t(view === 'agents' ? 'a2ui.labelAgents' : 'a2ui.labelTasks');
+      return {
+        report: i18n.t('a2ui.surfaceDrawn', { label }),
+        // ⚠️ **事件那一半给界面，`report` 那一半给模型**（见 pickReportPayload）。
+        a2ui_events: result.events,
+      };
     },
   });

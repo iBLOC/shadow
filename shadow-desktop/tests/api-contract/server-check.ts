@@ -17,7 +17,7 @@ import { dirname, resolve } from 'node:path';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export const API_BASE_URL =
-  process.env.SHADOW_CORTEX_URL ?? 'http://127.0.0.1:60080';
+  process.env.SHADOW_TELENCEPHALON_URL ?? 'http://127.0.0.1:60080';
 /**
  * 这台端脑的 admin token —— **只从环境变量来**。
  *
@@ -104,7 +104,7 @@ export function reportAndGuard(
   const summary =
     `telencephalon not reachable on ${API_BASE_URL} (${reach.reason ?? 'no status'}); ` +
     `skipping ${ctx.describeName}. ` +
-    `Start telencephalon or set SHADOW_CORTEX_URL before re-running; ` +
+    `Start telencephalon or set SHADOW_TELENCEPHALON_URL before re-running; ` +
     `use RUN_API_TESTS=force-fail to escalate to a hard failure.`;
   if (IS_STRICT) {
     console.error(`\n[api-contract] STRICT mode: ${summary}\n`);

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+
 import '../services/telencephalon/telencephalon_client.dart';
+import 'responsive.dart';
 import 'visual_qa_clarification_chip.dart';
 
 class ChatMessage {
@@ -21,8 +23,11 @@ class ChatMessage {
   factory ChatMessage.assistantWithClarification(
     String content,
     ClarificationPayload clarification,
-  ) =>
-      ChatMessage._(content, MessageRole.assistant, clarification: clarification);
+  ) => ChatMessage._(
+    content,
+    MessageRole.assistant,
+    clarification: clarification,
+  );
 }
 
 enum MessageRole { user, assistant, system }
@@ -47,7 +52,7 @@ class MessageBubble extends StatelessWidget {
         alignment: Alignment.centerLeft,
         child: ConstrainedBox(
           constraints: BoxConstraints(
-            maxWidth: MediaQuery.of(context).size.width * 0.9,
+            maxWidth: cappedBubbleWidth(context, fraction: 0.9, cap: 560),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -58,9 +63,7 @@ class MessageBubble extends StatelessWidget {
                   margin: const EdgeInsets.symmetric(vertical: 4),
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .surfaceContainerHighest
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest
                         .withValues(alpha: 0.5),
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -87,7 +90,7 @@ class MessageBubble extends StatelessWidget {
         margin: const EdgeInsets.symmetric(vertical: 4),
         padding: const EdgeInsets.all(12),
         constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.75,
+          maxWidth: cappedBubbleWidth(context, fraction: 0.75, cap: 480),
         ),
         decoration: BoxDecoration(
           color: isUser

@@ -614,7 +614,34 @@ class AppLocalizationsEn extends AppLocalizations {
   String get conversationCreate => 'Create';
 
   @override
+  String get conversationArchive => 'Archive';
+
+  @override
+  String get conversationUnarchive => 'Unarchive';
+
+  @override
+  String get conversationArchiveBox => 'Archive box';
+
+  @override
+  String get conversationArchiveBoxEmpty => 'No archived conversations';
+
+  @override
+  String get conversationArchivedBadge => 'Archived';
+
+  @override
+  String get conversationDeleteBody =>
+      'This also deletes the copy in the hippocampus (the session and every message in it). It cannot be undone.';
+
+  @override
+  String conversationActionFailed(String error) {
+    return 'Action failed: $error';
+  }
+
+  @override
   String get commonConfirmDelete => 'Confirm Delete';
+
+  @override
+  String get commonCancel => 'Cancel';
 
   @override
   String get commonDelete => 'Delete';
@@ -830,6 +857,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get providerLocalModel => 'Local model';
+
+  @override
+  String get providerBuiltin => 'Built-in';
+
+  @override
+  String get providerModelNotDownloaded => 'Not downloaded';
 
   @override
   String get providersTitle => 'Model Providers';
@@ -1180,8 +1213,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  @override
-  @override
   String get settingsEncephalonEmbedded => 'Embedded Brain';
 
   @override
@@ -1274,145 +1305,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cameraClose => 'Close';
-
-  @override
-  @override
-  @override
-  String prefrontalPort(int port) {
-    return 'Port: $port';
-  }
-
-  @override
-  String get prefrontalStart => 'Start';
-
-  @override
-  String get prefrontalStop => 'Stop';
-
-  @override
-  String prefrontalAgentsCount(int count) {
-    return 'Agents ($count)';
-  }
-
-  @override
-  String get prefrontalRefresh => 'Refresh';
-
-  @override
-  String get prefrontalStartFirst => 'Start the service first';
-
-  @override
-  String get prefrontalNoAgentsHint => 'No agents yet - add one:';
-
-  @override
-  String get prefrontalAddSampleAgent => 'Add sample agent';
-
-  @override
-  String get prefrontalInvokeTitle => 'Invoke agent (JNI)';
-
-  @override
-  String get prefrontalInput => 'Input';
-
-  @override
-  String get prefrontalInputHint => 'Type what to send to the agent...';
-
-  @override
-  String get prefrontalInvoke => 'Invoke (JNI)';
-
-  @override
-  String get prefrontalNoOutput => '(no output)';
-
-  @override
-  String get prefrontalAboutTitle => 'About the NDK embedding';
-
-  @override
-  String get prefrontalAboutLine1 =>
-      '- Prefrontal is embedded in the app process as a .so';
-
-  @override
-  String get prefrontalAboutLine2 => '- Talks to the Kotlin service over JNI';
-
-  @override
-  String get prefrontalAboutLine3 =>
-      '- Talks to Prefrontal over localhost HTTP';
-
-  @override
-  String get prefrontalAboutLine4 => '- Service lifetime is bound to the app';
-
-  @override
-  String get prefrontalAboutLine5 =>
-      '- No external process, so it is not killed';
-
-  @override
-  String get prefrontalAboutArchitecture => 'Architecture:';
-
-  @override
-  String get prefrontalStartSuccess => 'Embedded runtime started';
-
-  @override
-  String get prefrontalStartFailed => 'Start failed';
-
-  @override
-  String prefrontalStartError(String error) {
-    return 'Start error: $error';
-  }
-
-  @override
-  String get prefrontalStopSuccess => 'Embedded runtime stopped';
-
-  @override
-  String get prefrontalStopFailed => 'Stop failed';
-
-  @override
-  String prefrontalStopError(String error) {
-    return 'Stop error: $error';
-  }
-
-  @override
-  String get prefrontalAddSuccess => 'Added';
-
-  @override
-  String get prefrontalAddFailed => 'Add failed';
-
-  @override
-  String prefrontalAddError(String error) {
-    return 'Add error: $error';
-  }
-
-  @override
-  String get prefrontalInvokeSuccess => 'JNI call succeeded';
-
-  @override
-  String get prefrontalInvokeFailed => 'Call failed';
-
-  @override
-  String prefrontalInvokeError(String error) {
-    return 'Call error: $error';
-  }
-
-  @override
-  String get prefrontalStatusStopped => 'Stopped';
-
-  @override
-  String get prefrontalStatusStarting => 'Starting...';
-
-  @override
-  String get prefrontalStatusRunning => 'Running';
-
-  @override
-  String get prefrontalStatusStopping => 'Stopping...';
-
-  @override
-  String get prefrontalStatusError => 'Error';
-
-  @override
-  String get prefrontalSampleAgentName => 'Sample agent';
-
-  @override
-  String get prefrontalSampleAgentDesc => 'Sample agent registered over JNI';
-
-  @override
-  String prefrontalErrorPrefix(String error) {
-    return 'Error: $error';
-  }
 
   @override
   String get chatGreeting => 'Hello! I am Shadow. How can I help you?';
@@ -1804,7 +1696,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get surfaceSetup => 'Setup';
 
   @override
-  @override
   String get navSectionConverse => 'Converse';
 
   @override
@@ -1995,10 +1886,202 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ttsEngineRust => 'Rust';
 
   @override
-  String get settingsAdvancedLegacy => 'Legacy runtime';
-
-  @override
   String logsExported(String path) {
     return 'Logs exported to $path';
   }
+
+  @override
+  String get askAgent2UI => 'Ask the telencephalon to draw...';
+
+  @override
+  String get a2uiSurfaceReportTasks => 'Expanded the task board.';
+
+  @override
+  String get a2uiSurfaceReportAgents => 'Expanded the agent list.';
+
+  @override
+  String get a2uiSurfaceReportNoSurface =>
+      'The telencephalon did not draw an interface this time.';
+
+  @override
+  String a2uiSurfaceReportNoSurfaceSaid(String words) {
+    return 'The telencephalon did not draw an interface this time. It said: $words';
+  }
+
+  @override
+  String get settingsGroupCapabilities => 'Capabilities';
+
+  @override
+  String get settingsGroupCapabilitiesDesc =>
+      'You decide what the model may read on this phone, item by item';
+
+  @override
+  String get capabilityCalendarRead => 'Read calendar';
+
+  @override
+  String get capabilityCalendarWrite => 'Write calendar';
+
+  @override
+  String get capabilityContacts => 'Read contacts';
+
+  @override
+  String get capabilitySms => 'Read SMS';
+
+  @override
+  String get capabilityPhotos => 'Read photos';
+
+  @override
+  String get capabilityAuthAsk => 'Ask every time';
+
+  @override
+  String get capabilityAuthFull => 'Full access';
+
+  @override
+  String get capabilityAuthDisabled => 'Disabled';
+
+  @override
+  String get capabilityAuthAskDesc => 'Ask before every call';
+
+  @override
+  String get capabilityAuthFullDesc => 'No per-call prompt';
+
+  @override
+  String get capabilityAuthDisabledDesc =>
+      'The model cannot see this capability';
+
+  @override
+  String get capabilitySystemGranted => 'System permission granted';
+
+  @override
+  String get capabilitySystemMissing => 'System permission not granted';
+
+  @override
+  String get capabilityRejectedDisabled =>
+      'This capability has been disabled in settings';
+
+  @override
+  String get capabilityUnsupportedPlatform => 'Not supported on this platform';
+
+  @override
+  String get capabilityMobileUse => 'Phone control';
+
+  @override
+  String get capabilityRequestMobileUse => 'to control this phone';
+
+  @override
+  String get capabilityRequestMobileReadScreen =>
+      'to read what is currently on this phone screen';
+
+  @override
+  String get capabilityRequestMobileTap =>
+      'to tap a point on this phone screen';
+
+  @override
+  String get capabilityRequestMobileLongPress =>
+      'to press and hold a point on this phone screen';
+
+  @override
+  String get capabilityRequestMobileSwipe => 'to swipe on this phone screen';
+
+  @override
+  String get capabilityRequestMobileFindAndClick =>
+      'to click a control on this phone screen by its text';
+
+  @override
+  String get capabilityRequestMobileGlobalAction =>
+      'to trigger a system action on this phone';
+
+  @override
+  String capabilityArgMobilePoint(String x, String y) {
+    return 'at $x, $y';
+  }
+
+  @override
+  String capabilityArgMobileSwipe(String x1, String y1, String x2, String y2) {
+    return 'from $x1, $y1 to $x2, $y2';
+  }
+
+  @override
+  String capabilityArgMobileText(String text) {
+    return 'text \"$text\"';
+  }
+
+  @override
+  String capabilityArgMobileAction(String action) {
+    return 'action: $action';
+  }
+
+  @override
+  String get capabilityServiceGranted => 'Accessibility service enabled';
+
+  @override
+  String get capabilityServiceMissing => 'Accessibility service not enabled';
+
+  @override
+  String get capabilityGrantService => 'Enable';
+
+  @override
+  String get toolCallAllow => 'Allow';
+
+  @override
+  String get toolCallDeny => 'Deny';
+
+  @override
+  String get capabilityRequestCalendarRead =>
+      'Read calendar events on this phone';
+
+  @override
+  String get capabilityRequestCalendarWrite =>
+      'Write an event to the calendar on this phone';
+
+  @override
+  String get capabilityRequestContacts => 'Read the contacts on this phone';
+
+  @override
+  String get capabilityRequestSms => 'Read the SMS messages on this phone';
+
+  @override
+  String get capabilityRequestPhotos =>
+      'Read photo information from this phone';
+
+  @override
+  String capabilityArgTimeRange(String from, String to) {
+    return '$from ~ $to';
+  }
+
+  @override
+  String get capabilityArgTimeRangeDefault => 'the next 7 days';
+
+  @override
+  String capabilityArgTitle(String title) {
+    return 'Title “$title”';
+  }
+
+  @override
+  String capabilityArgStartAt(String time) {
+    return 'starting $time';
+  }
+
+  @override
+  String capabilityArgKeyword(String query) {
+    return 'name contains “$query”';
+  }
+
+  @override
+  String capabilityArgContactsHead(String count) {
+    return 'the first $count contacts';
+  }
+
+  @override
+  String capabilityArgRecentSms(String count) {
+    return 'the most recent $count messages';
+  }
+
+  @override
+  String capabilityArgRecentPhotos(String count) {
+    return 'the most recent $count photos';
+  }
+
+  @override
+  String get capabilityGrantSystemPermission => 'Grant';
 }

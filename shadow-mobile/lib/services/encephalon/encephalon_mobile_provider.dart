@@ -6,6 +6,7 @@ import '../../l10n/current_l10n.dart';
 import '../../providers/brain_model_source_provider.dart';
 import '../../providers/telencephalon_provider.dart';
 import '../../screens/model_management_screen.dart';
+import '../../tts_engine.dart';
 import 'encephalon_mobile_service.dart';
 
 /// Encephalon 移动端状态
@@ -97,7 +98,10 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
   }
 
   EncephalonMobileNotifier(this._service, this._ref)
-      : super(const EncephalonMobileState()) {
+    : super(const EncephalonMobileState()) {
+    // 把 Rust TTS 的端口钩子挂上 —— 闭包每次调用**现读** `_service.port`
+    // ⇒ 启动 / 重启换端口后自动跟，不需要每条启动路径都来同步一次。
+    TtsEngine.runtimeNeuronPort = () => _service.port;
     // ⚠️ **「用户喊过停」是持久偏好，不是会话状态** ⇒ 从配置里读。
     //
     // 为什么必须落盘：那个标记原先只是**内存里的实例字段** ⇒ 而 Activity
@@ -153,9 +157,7 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
           port: status['port'] as int?,
           agentPort: status['agentPort'] as int?,
         );
-        _log.info(
-          '检测到嵌入式大脑已在运行, 端口: ${state.port}, 端脑面: ${state.agentPort}',
-        );
+        _log.info('检测到嵌入式大脑已在运行, 端口: ${state.port}, 端脑面: ${state.agentPort}');
         _pointClientsAtAgentSurface(state.agentPort);
         return;
       }
@@ -241,9 +243,7 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
             agentPort: agentPort,
             errorMessage: null,
           );
-          _log.info(
-            '嵌入式大脑启动成功, 端口: ${state.port}, 端脑面: ${state.agentPort}',
-          );
+          _log.info('嵌入式大脑启动成功, 端口: ${state.port}, 端脑面: ${state.agentPort}');
           _pointClientsAtAgentSurface(agentPort);
           return true;
         }
@@ -521,7 +521,9 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
     // 「谁在占着端脑面」这件事 ⇒ ⇒ 配置一改就知道该不该动 client
     // ⇒ 而以前是这里直接改 client ⇒ 「配置」和「client」两个事实源
     // ⇒ 内嵌大脑一放手就把用户配的远端地址弄丢了。
-    _ref.read(telencephalonProvider.notifier).takeOverByAgentSurface(
+    _ref
+        .read(telencephalonProvider.notifier)
+        .takeOverByAgentSurface(
           url,
           shadowKey: _service.shadowKey,
           adminToken: _service.adminToken,
@@ -546,16 +548,20 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
 }
 
 /// 默认服务实例 Provider
-final encephalonMobileServiceProvider = Provider<EncephalonMobileService>((ref) {
+final encephalonMobileServiceProvider = Provider<EncephalonMobileService>((
+  ref,
+) {
   return EncephalonMobileService();
 });
 
 /// Encephalon 移动端 Provider
 final encephalonMobileProvider =
-    StateNotifierProvider<EncephalonMobileNotifier, EncephalonMobileState>((ref) {
-  final service = ref.watch(encephalonMobileServiceProvider);
-  return EncephalonMobileNotifier(service, ref);
-});
+    StateNotifierProvider<EncephalonMobileNotifier, EncephalonMobileState>((
+      ref,
+    ) {
+      final service = ref.watch(encephalonMobileServiceProvider);
+      return EncephalonMobileNotifier(service, ref);
+    });
 
 /// 运行时状态 Provider
 final encephalonMobileStatusProvider = Provider<EncephalonMobileStatus>((ref) {

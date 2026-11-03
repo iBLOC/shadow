@@ -10,11 +10,11 @@ test.describe('Visual QA Clarification Chip', () => {
     await page.waitForLoadState('networkidle');
   });
 
-  test('当 cortex 返回 clarification event 时,UI 显示候选 chip', async ({ page }) => {
+  test('当端脑返回 clarification event 时,UI 显示候选 chip', async ({ page }) => {
     await page.route('**/shadow/v1/conversations/*/messages:stream', async (route) => {
       const sseBody = [
         'data: {"type":"delta","agent":"temporal","delta":"[visual_qa] 请选择摄像头"}\n\n',
-        'data: {"type":"clarification","agent":"temporal","clarification":{"kind":"vsrc_pick","candidates":[{"source_id":"vsrc_a","device_label":"Logitech BRIO","host_label":"this-cortex"},{"source_id":"vsrc_b","device_label":"MacBook Camera","host_label":"ibloc-mbp"}]}}\n\n',
+        'data: {"type":"clarification","agent":"temporal","clarification":{"kind":"vsrc_pick","candidates":[{"source_id":"vsrc_a","device_label":"Logitech BRIO","host_label":"this-telencephalon"},{"source_id":"vsrc_b","device_label":"MacBook Camera","host_label":"ibloc-mbp"}]}}\n\n',
         'data: {"type":"done","conversation_id":"conv-test","agent":"temporal","state":"COMPLETED","timestamp":1700000000}\n\n',
       ].join('');
       await route.fulfill({
@@ -44,7 +44,7 @@ test.describe('Visual QA Clarification Chip', () => {
       streamCallCount += 1;
       if (streamCallCount === 1) {
         const sseBody = [
-          'data: {"type":"clarification","agent":"temporal","clarification":{"kind":"vsrc_pick","candidates":[{"source_id":"vsrc_a","device_label":"Logitech BRIO","host_label":"this-cortex"}]}}\n\n',
+          'data: {"type":"clarification","agent":"temporal","clarification":{"kind":"vsrc_pick","candidates":[{"source_id":"vsrc_a","device_label":"Logitech BRIO","host_label":"this-telencephalon"}]}}\n\n',
           'data: {"type":"done","conversation_id":"conv-test","agent":"temporal","state":"COMPLETED","timestamp":1700000000}\n\n',
         ].join('');
         await route.fulfill({

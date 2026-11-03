@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../generated/l10n/app_localizations.dart';
 import '../../providers/chat_provider.dart';
+import '../../services/capabilities/capability_i18n.dart';
 import '../../services/client_tools/client_tool_registry.dart';
+import '../responsive.dart';
 
 /// 一次**客户端工具调用**的卡片。
 ///
@@ -12,9 +15,10 @@ import '../../services/client_tools/client_tool_registry.dart';
 /// 「本地执行成功」和「结果已回传端脑」是**两件事**，卡片分开显示 ——
 /// 本地换好了主题但端脑那头没收到，模型还在等，用户得知道这件事。
 ///
-/// 文案用英文硬编码，与同目录的 `message_bubbles.dart` 一致
-/// （附件气泡那些也是硬编码英文）—— 不去动 `app_*.arb`，
-/// 免得和正在改同一批 l10n 文件的并行会话打架。
+/// ⚠️ **授权那两颗按钮走 l10n**（2026-11-03 设备能力授权）——
+/// 它们是「每次询问」档位下用户**唯一**的授权入口 ⇒ ⇒ 硬编码英文
+/// 会让中文用户在最需要看懂的一屏上看到英文。
+/// （其余文案仍是英文硬编码，与同目录的 `message_bubbles.dart` 一致。）
 class ToolCallCard extends ConsumerWidget {
   final ToolCallModel call;
 
@@ -24,6 +28,7 @@ class ToolCallCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final l10n = AppLocalizations.of(context)!;
 
     return Align(
       alignment: Alignment.centerLeft,
@@ -31,7 +36,7 @@ class ToolCallCard extends ConsumerWidget {
         margin: const EdgeInsets.symmetric(vertical: 4),
         padding: const EdgeInsets.all(12),
         constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.9,
+          maxWidth: cappedBubbleWidth(context, fraction: 0.9, cap: 520),
         ),
         decoration: BoxDecoration(
           color: scheme.surfaceContainerHighest.withValues(alpha: 0.6),
@@ -48,13 +53,19 @@ class ToolCallCard extends ConsumerWidget {
           children: [
             Row(
               children: [
-                Icon(_iconFor(call.status), size: 18, color: _accentFor(context)),
+                Icon(
+                  _iconFor(call.status),
+                  size: 18,
+                  color: _accentFor(context),
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    call.name,
+                    _title(l10n),
                     style: TextStyle(
-                      fontFamily: 'monospace',
+                      // ⚠️ 能力工具用**正文字体** —— 中文标签套等宽字体很难看；
+                      // 普通工具仍是等宽（那是命令名，等宽才对）。
+                      fontFamily: call.capability == null ? 'monospace' : null,
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                       color: scheme.onSurface,
@@ -64,28 +75,40 @@ class ToolCallCard extends ConsumerWidget {
                 _StatusChip(status: call.status),
               ],
             ),
-            if (call.description != null && call.description!.isNotEmpty) ...[
+            if (_description(l10n) != null) ...[
               const SizedBox(height: 4),
               Text(
-                call.description!,
+                _description(l10n)!,
                 style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
               ),
             ],
-            if (call.args.isNotEmpty) ...[
+            // ⚠️ 能力工具的参数**说人话**（时间范围 / 标题 / 关键词…）；
+            // 普通工具仍按 `key: value` 摊出来（那是命令的原始形状）。
+            if (call.capability != null) ...[
+              if (_summary(l10n).isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  _summary(l10n),
+                  style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+                ),
+              ],
+            ] else if (call.args.isNotEmpty) ...[
               const SizedBox(height: 6),
-              ...call.args.entries.take(4).map(
-                (entry) => Padding(
-                  padding: const EdgeInsets.only(bottom: 2),
-                  child: Text(
-                    '${entry.key}: ${_formatValue(entry.value)}',
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      fontSize: 12,
-                      color: scheme.onSurfaceVariant,
+              ...call.args.entries
+                  .take(4)
+                  .map(
+                    (entry) => Padding(
+                      padding: const EdgeInsets.only(bottom: 2),
+                      child: Text(
+                        '${entry.key}: ${_formatValue(entry.value)}',
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          fontSize: 12,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ),
             ],
             if (call.errorText != null) ...[
               const SizedBox(height: 6),
@@ -109,15 +132,16 @@ class ToolCallCard extends ConsumerWidget {
               Row(
                 children: [
                   FilledButton(
-                    onPressed: () =>
-                        ref.read(chatProvider.notifier).approveToolCall(call.id),
-                    child: const Text('Allow'),
+                    onPressed: () => ref
+                        .read(chatProvider.notifier)
+                        .approveToolCall(call.id),
+                    child: Text(l10n.toolCallAllow),
                   ),
                   const SizedBox(width: 8),
                   OutlinedButton(
                     onPressed: () =>
                         ref.read(chatProvider.notifier).denyToolCall(call.id),
-                    child: const Text('Deny'),
+                    child: Text(l10n.toolCallDeny),
                   ),
                 ],
               ),
@@ -154,8 +178,43 @@ class ToolCallCard extends ConsumerWidget {
     return null;
   }
 
-  Color _accentFor(BuildContext context) {
-    switch (call.status) {
+  /// 卡片标题 —— 能力工具显示**人话**，普通工具显示命令名。
+  ///
+  /// ⚠️ 用户点头前看到的那个字符串 ⇒ ⇒ 「读取日历」远比
+  /// `calendar_read_events` 有用（后者只有写工具的人才看得懂）。
+  String _title(AppLocalizations l10n) {
+    final capability = call.capability;
+    if (capability == null) return call.name;
+    return capabilityLabel(l10n, capability);
+  }
+
+  /// 卡片说明 —— 能力工具说「模型想做什么」；
+  /// 普通工具沿用注册表里那一句（那是**给模型**的说明）。
+  String? _description(AppLocalizations l10n) {
+    final capability = call.capability;
+    if (capability != null) {
+      // ⚠️ 带**工具名** ⇒ ⇒ 「手机操作」那一族六个工具能各说各的话
+      // ⇒ ⇒ 否则用户在「允许」那颗按钮前面只看到一句含糊的「要操作这台手机」。
+      return capabilityRequestText(l10n, capability, toolName: call.name);
+    }
+    final description = call.description;
+    if (description == null || description.isEmpty) return null;
+    return description;
+  }
+
+  /// 能力工具的参数摘要。
+  String _summary(AppLocalizations l10n) {
+    final capability = call.capability;
+    if (capability == null) return '';
+    return capabilityArgsSummary(
+      l10n,
+      capability,
+      call.args,
+      toolName: call.name,
+    );
+  }
+
+  Color _accentFor(BuildContext context) {    switch (call.status) {
       case ToolCallStatus.failed:
         return Theme.of(context).colorScheme.error;
       case ToolCallStatus.succeeded:
@@ -211,10 +270,7 @@ class _StatusChip extends StatelessWidget {
         color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(999),
       ),
-      child: Text(
-        label,
-        style: TextStyle(fontSize: 11, color: color),
-      ),
+      child: Text(label, style: TextStyle(fontSize: 11, color: color)),
     );
   }
 }

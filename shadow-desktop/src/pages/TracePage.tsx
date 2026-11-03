@@ -15,6 +15,7 @@ import {
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { cn } from '../lib/utils';
+import { useTelencephalonStore } from '../stores/telencephalonStore';
 
 interface TraceEvent {
   event_type: string;
@@ -34,6 +35,18 @@ interface TraceNode {
   expanded: boolean;
 }
 
+/**
+ * 把端脑的 HTTP 基址换成 WebSocket 基址。
+ *
+ * `http://host:port` → `ws://host:port`；`https://` → `wss://`。
+ * ⚠️ 端脑地址在设置里可改 ⇒ 这里**不能**写死 `ws://localhost:60080`
+ * （写死 ⇒ 用户改完地址，这页连的还是老地址，与其它页面行为分叉）。
+ */
+function toWebSocketUrl(httpBase: string): string {
+  const base = httpBase.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:');
+  return `${base.replace(/\/+$/, '')}/api/trace/stream`;
+}
+
 export function TracePage() {
   const [traces, setTraces] = useState<TraceEvent[]>([]);
   const [nodes, setNodes] = useState<Map<string, TraceNode>>(new Map());
@@ -42,11 +55,12 @@ export function TracePage() {
   const [filter, setFilter] = useState<'all' | 'success' | 'error'>('all');
   const wsRef = useRef<WebSocket | null>(null);
   const tracesEndRef = useRef<HTMLDivElement>(null);
+  const baseUrl = useTelencephalonStore((s) => s.connection.baseUrl);
 
   const connectWebSocket = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
-    const ws = new WebSocket(`ws://localhost:60080/api/trace/stream`);
+    const ws = new WebSocket(toWebSocketUrl(baseUrl));
     wsRef.current = ws;
 
     ws.onopen = () => {
@@ -91,7 +105,7 @@ export function TracePage() {
     ws.onerror = (error) => {
       console.error('Trace WebSocket error:', error);
     };
-  }, [isPaused]);
+  }, [isPaused, baseUrl]);
 
   useEffect(() => {
     connectWebSocket();

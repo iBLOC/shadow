@@ -37,7 +37,7 @@ describe('telencephalonStore — encephalon-backed supervisor mapping', () => {
   beforeEach(() => {
     mockSafeInvoke.mockReset();
     mockHealth.mockReset();
-    mockHealth.mockResolvedValue({ id: 'cortex-test' });
+    mockHealth.mockResolvedValue({ id: 'telencephalon-test' });
   });
 
   it('starts with supervisor enabled and restart_count 0', async () => {
@@ -48,7 +48,7 @@ describe('telencephalonStore — encephalon-backed supervisor mapping', () => {
   });
 
   it('refreshStatus maps encephalon_status.telencephalon_attached → supervisor.enabled', async () => {
-    mockHealth.mockResolvedValueOnce({ id: 'cortex-test' });
+    mockHealth.mockResolvedValueOnce({ id: 'telencephalon-test' });
     mockSafeInvoke.mockResolvedValueOnce({
       bus_receivers: 1,
       thalamus_sensor_count: 0,
@@ -64,7 +64,7 @@ describe('telencephalonStore — encephalon-backed supervisor mapping', () => {
   });
 
   it('refreshStatus keeps previous supervisor state when telencephalon is attached', async () => {
-    mockHealth.mockResolvedValueOnce({ id: 'cortex-test' });
+    mockHealth.mockResolvedValueOnce({ id: 'telencephalon-test' });
     mockSafeInvoke.mockResolvedValueOnce({
       bus_receivers: 2,
       thalamus_sensor_count: 3,
@@ -80,7 +80,7 @@ describe('telencephalonStore — encephalon-backed supervisor mapping', () => {
   });
 
   it('refreshStatus tolerates Tauri unavailable (web build) — keeps previous state', async () => {
-    mockHealth.mockResolvedValueOnce({ id: 'cortex-test' });
+    mockHealth.mockResolvedValueOnce({ id: 'telencephalon-test' });
     mockSafeInvoke.mockResolvedValueOnce(null);
     const { useTelencephalonStore } = await import('../../src/stores/telencephalonStore');
     useTelencephalonStore.setState({

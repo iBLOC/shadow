@@ -3,5 +3,5 @@ export const TEST_CONFIG = {
   // self-skip via test.skip(!TEST_CONFIG.MIMO_API_KEY) when it is unset.
   MIMO_API_KEY: process.env.MIMO_API_KEY ?? '',
   MIMO_API_BASE: 'https://api.xiaomimimo.com/v1',
-  CORTEX_URL: process.env.SHADOW_CORTEX_URL ?? 'http://localhost:60080',
+  TELENCEPHALON_URL: process.env.SHADOW_TELENCEPHALON_URL ?? 'http://localhost:60080',
 };

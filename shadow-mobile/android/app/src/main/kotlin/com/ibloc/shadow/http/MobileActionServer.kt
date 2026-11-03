@@ -2,6 +2,7 @@ package com.ibloc.shadow.http
 
 import android.util.Log
 import com.ibloc.shadow.AppLog
+import com.ibloc.shadow.DeviceActionGate
 import fi.iki.elonen.NanoHTTPD
 import com.ibloc.shadow.PrefrontalAccessibilityService
 import org.json.JSONObject
@@ -25,6 +26,13 @@ class MobileActionServer(
     }
 
     private fun handleMobileAction(session: IHTTPSession): Response {
+        // ⚠️ **设备动作闸** —— 这张脸**不经过** Dart 侧的能力闸
+        // ⇒ ⇒ 原生侧自己认那道闸 ⇒ ⇒ 否则「闸建好了」这句话在这条腿上是假的。
+        //
+        // ⚠️ 放在**最前面**：未授权的调用方连动作词表都不该看到。
+        if (!DeviceActionGate.isAllowed()) {
+            return jsonResponse(false, "", DeviceActionGate.DENIED_MESSAGE)
+        }
         try {
             val files = mutableMapOf<String, String>()
             session.parseBody(files)
@@ -95,7 +103,9 @@ class MobileActionServer(
                     }
                 }
                 "read_screen" -> {
-                    val text = readScreenContent(accessibilityService)
+                    // ⚠️ 树遍历的真相源在服务那一层（PrefrontalAccessibilityService.readScreenContent）
+                    // ⇒ ⇒ 这里不再留第二份拷贝 —— 两份必然漂移 ⇒ ⇒ 与模型工具 / A2A 动作族读同一棵树。
+                    val text = accessibilityService.readScreenContent() ?: "Cannot access screen"
                     jsonResponse(true, text)
                 }
                 "get_current_app" -> {
@@ -131,37 +141,11 @@ class MobileActionServer(
         }
     }
 
-    private fun readScreenContent(service: PrefrontalAccessibilityService): String {
-        val root = service.rootInActiveWindow ?: return "Cannot access screen"
-        val sb = StringBuilder()
-        appendNodesToString(root, sb, 0)
-        root.recycle()
-        return sb.toString()
-    }
-
-    private fun appendNodesToString(
-        node: android.view.accessibility.AccessibilityNodeInfo,
-        sb: StringBuilder,
-        depth: Int
-    ) {
-        val indent = "  ".repeat(depth)
-        val text = node.text?.toString()
-        val contentDesc = node.contentDescription?.toString()
-        val className = node.className?.toString()
-
-        if (!text.isNullOrEmpty() || !contentDesc.isNullOrEmpty()) {
-            sb.appendLine("$indent[$className]")
-            if (!text.isNullOrEmpty()) sb.appendLine("$indent  text: $text")
-            if (!contentDesc.isNullOrEmpty()) sb.appendLine("$indent  desc: $contentDesc")
-        }
-
-        for (i in 0 until node.childCount) {
-            node.getChild(i)?.let { child ->
-                appendNodesToString(child, sb, depth + 1)
-                child.recycle()
-            }
-        }
-    }
+    /// ⚠️ 树遍历**不在这一层**了 —— 真相源是 `PrefrontalAccessibilityService.readScreenContent`。
+    ///
+    /// ⚠️ **为什么**：读屏有三处消费者（模型工具通道 / A2A 动作族 / 这个 HTTP 面）
+    /// ⇒ ⇒ 每一份拷贝都是一处会漂移的地方 ⇒ ⇒ 真相源只留一份，三边都调它。
+    ///
 
     private fun jsonResponse(success: Boolean, content: String, error: String? = null): Response {
         val json = JSONObject().apply {

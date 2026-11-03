@@ -1,13 +1,13 @@
 import { vi } from 'vitest';
 
 // Global mock for telencephalonClient to prevent actual HTTP requests in tests
-export const mockCortexClient = {
+export const mockTelencephalonClient = {
   // Health & Status
-  health: vi.fn().mockResolvedValue({ id: 'cortex-test', status: 'ok' }),
+  health: vi.fn().mockResolvedValue({ id: 'telencephalon-test', status: 'ok' }),
   
   // Agents
   listAgents: vi.fn().mockResolvedValue({
-    cortex: { id: 'cortex-test', instance_name: 'test', default_agent: 'temporal' },
+    telencephalon: { id: 'telencephalon-test', instance_name: 'test', default_agent: 'temporal' },
     agents: [],
   }),
   scanExternalAgents: vi.fn().mockResolvedValue({ scanned_at: new Date().toISOString(), hosts: [], detected: [] }),
@@ -48,6 +48,23 @@ export const mockCortexClient = {
     history: [],
   }),
   listConversations: vi.fn().mockResolvedValue([]),
+  archiveConversation: vi.fn().mockResolvedValue({
+    id: 'test-conv',
+    agent: 'temporal',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    history: [],
+    archived: true,
+  }),
+  unarchiveConversation: vi.fn().mockResolvedValue({
+    id: 'test-conv',
+    agent: 'temporal',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    history: [],
+    archived: false,
+  }),
+  deleteConversation: vi.fn().mockResolvedValue({ deleted: true, id: 'test-conv' }),
   sendMessage: vi.fn().mockResolvedValue({
     conversation_id: 'test-conv',
     agent: 'temporal',
@@ -76,15 +93,15 @@ export const mockCortexClient = {
 
 vi.mock('../../src/lib/telencephalonClient', () => ({
   composeSystemPrompt: (custom?: string) => (custom ?? '').trim(),
-  telencephalonClient: mockCortexClient,
-  default: mockCortexClient,
+  telencephalonClient: mockTelencephalonClient,
+  default: mockTelencephalonClient,
 }));
 
 // Also mock the path relative to src/pages/
 vi.mock('../../../src/lib/telencephalonClient', () => ({
   composeSystemPrompt: (custom?: string) => (custom ?? '').trim(),
-  telencephalonClient: mockCortexClient,
-  default: mockCortexClient,
+  telencephalonClient: mockTelencephalonClient,
+  default: mockTelencephalonClient,
 }));
 
 // Mock telencephalonStore to use the correct port
@@ -93,7 +110,7 @@ vi.mock('../../src/stores/telencephalonStore', () => ({
     const state = {
       status: 'running',
       connection: { baseUrl: 'http://127.0.0.1:60080', apiKey: '' },
-      cortexId: 'cortex-test',
+      telencephalonId: 'telencephalon-test',
       defaultAgent: 'temporal',
       lobes: [],
       flows: [],
@@ -102,8 +119,8 @@ vi.mock('../../src/stores/telencephalonStore', () => ({
       refreshStatus: vi.fn().mockResolvedValue(undefined),
       refreshLobes: vi.fn().mockResolvedValue(undefined),
       refreshFlows: vi.fn().mockResolvedValue(undefined),
-      startCortex: vi.fn().mockResolvedValue(undefined),
-      stopCortex: vi.fn().mockResolvedValue(undefined),
+      startTelencephalon: vi.fn().mockResolvedValue(undefined),
+      stopTelencephalon: vi.fn().mockResolvedValue(undefined),
       setBaseUrl: vi.fn(),
       setApiKey: vi.fn(),
     };

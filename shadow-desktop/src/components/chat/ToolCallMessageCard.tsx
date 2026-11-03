@@ -1,4 +1,5 @@
 import { ToolPartRouter } from './ToolPartRouter';
+import { A2uiToolSurface, a2uiEvents, a2uiReport } from './A2uiToolSurface';
 import type { ToolField } from './ClientToolForm';
 import type { ToolUIPart } from './toolPartTypes';
 import type { ToolCallMessage } from '../../types';
@@ -15,7 +16,17 @@ import type { ToolCallMessage } from '../../types';
  * set of tool cards, we translate the brain's `tool_call` event into
  * the shape those components expect.
  */
-export function toToolUIPart(call: ToolCallMessage): ToolUIPart {
+export function toToolUIPart(
+  call: ToolCallMessage,
+  /**
+   * 覆盖「结果」那一份。
+   *
+   * ⚠️ **为什么要能覆盖**：原始执行结果里可能有**不该给人看的原始字节**
+   * （A2UI 事件 JSON）⇒ ⇒ 「界面要显示的那份」与「执行结果」**不是同一件事**。
+   * 用 `{ value }` 包一层 ⇒ ⇒ 「没传」与「传了 undefined」能分开。
+   */
+  output?: { value: unknown },
+): ToolUIPart {
   const base = {
     type: 'tool-toolCall',
     toolCallId: call.id,
@@ -35,7 +46,11 @@ export function toToolUIPart(call: ToolCallMessage): ToolUIPart {
     case 'awaiting-input':
       return { ...base, state: 'input-available' };
     case 'succeeded':
-      return { ...base, state: 'output-available', output: call.result };
+      return {
+        ...base,
+        state: 'output-available',
+        output: output ? output.value : call.result,
+      };
     case 'failed':
       return { ...base, state: 'output-error', errorText: call.errorText };
   }
@@ -63,10 +78,20 @@ export function ToolCallMessageCard({
   onDeny,
   onSubmitInput,
 }: ToolCallMessageCardProps) {
+  // ⚠️ **A2UI 内联** —— 工具结果里带了 A2UI 事件 ⇒ ⇒ 界面就画在**这条消息里**
+  // （不是顶部面板、不是另一个页面）⇒ ⇒ 用户往回翻还能看见它。
+  const inlineEvents = a2uiEvents(call.result);
+
+  // ⚠️ **结果卡片只显示 `report` 那一句** —— 事件那一半**已经画成界面**了；
+  // 再把原始 JSON 一并甩出来 ⇒ 用户看到的是一坨协议字节（而不是人话）。
+  const report = a2uiReport(call.result);
+  const displayOutput = inlineEvents && report ? { value: report } : undefined;
+
   return (
     <div className="flex flex-col gap-1">
+      {inlineEvents ? <A2uiToolSurface events={inlineEvents} /> : null}
       <ToolPartRouter
-        part={toToolUIPart(call)}
+        part={toToolUIPart(call, displayOutput)}
         toolName={call.name}
         input={call.args}
         fields={fields}

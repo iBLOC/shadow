@@ -39,6 +39,22 @@ interface ModelSummary {
   display_name?: string;
   context_length?: number;
   created_at?: number;
+  /**
+   * 能力（llm / asr / tts / embedding / vision / rerank / ocr）。
+   *
+   * ⚠️ 内置条目（neuron 目录）的模型**横跨七种能力** ⇒ ⇒ 不带它，界面分不出
+   * ⚠️ 「这条是聊天模型还是语音模型」。
+   */
+  capability?: string;
+  /**
+   * 盘上真的有吗？
+   *
+   * ⚠️ 内置条目里「目录里有、但**还没下载**」的模型也列出来 ⇒ ⇒ 不带这个
+   * ⚠️ 标记 ⇒ ⇒ 界面会把「选了也跑不起来」的模型当成能用的。
+   *
+   * ⚠️ 没有这个字段 ＝ **不知道** ⇒ ⇒ 按「可用」处理。
+   */
+  available?: boolean;
 }
 
 interface ProviderEntry {
@@ -54,6 +70,14 @@ interface ProviderEntry {
   models: ModelSummary[];
   last_refreshed_at?: string;
   last_error?: string;
+  /**
+   * 内置供应商（neuron）—— 大脑自带的那个**本地模型**供应商。
+   *
+   * ⚠️ 它在注册表里**只读**（读视图里合成，不在存储里）⇒ ⇒ 界面据此不给
+   * 「启停 / 选模型 / 编辑 / 删除」—— 那些动作**写不进去** ⇒ ⇒ 按下去只会
+   * 拿到 400（大脑那边明确拒），界面不能给用户一个必然失败的按钮。
+   */
+  builtin?: boolean;
 }
 
 interface CustomFormData {
@@ -74,6 +98,22 @@ function StandardBadge({ standard }: { standard: ApiStandard }) {
       )}
     >
       {standard === 'claude' ? 'Claude' : 'OpenAI'}
+    </span>
+  );
+}
+
+/**
+ * 「内置」徽章 —— 大脑自带的供应商（neuron）**自报家门**用的。
+ *
+ * ⚠️ 为什么要有它：内置条目**不是用户的配置**，它是**大脑的一部分**
+ * ⇒ ⇒ 界面上必须**一眼看出**「这条不是你能改的东西」⇒ ⇒ 否则用户会去
+ * 点它 ⇒ ⇒ 拿到 400 ⇒ ⇒ 「功能坏了」。
+ */
+function BuiltinBadge() {
+  const { t } = useTranslation();
+  return (
+    <span className="rounded bg-sky-500/10 px-1.5 py-0.5 text-[10px] font-medium text-sky-600">
+      {t('providers.builtinBadge') || '内置'}
     </span>
   );
 }
@@ -646,7 +686,9 @@ export function ProvidersPage() {
               const effectiveModel =
                 provider.selected_model ||
                 provider.default_model ||
-                provider.models[0]?.id ||
+                (provider.builtin
+                  ? provider.models.find((m) => m.available !== false)?.id
+                  : provider.models[0]?.id) ||
                 '';
               return (
                 <div
@@ -667,33 +709,36 @@ export function ProvidersPage() {
                         <div className="flex items-center gap-2">
                           <h3 className="font-medium text-foreground">{provider.name}</h3>
                           <StandardBadge standard={provider.api_standard} />
+                          {provider.builtin && <BuiltinBadge />}
                         </div>
                         <p className="max-w-[220px] truncate text-xs text-muted-foreground">
                           {provider.base_url}
                         </p>
                       </div>
                     </div>
-                    <button
-                      onClick={() =>
-                        runAction(() =>
-                          invoke('provider_set_enabled', {
-                            id: provider.id,
-                            enabled: !provider.enabled,
-                          })
-                        )
-                      }
-                      className={cn(
-                        'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
-                        provider.enabled ? 'bg-primary' : 'bg-muted'
-                      )}
-                    >
-                      <span
+                    {!provider.builtin && (
+                      <button
+                        onClick={() =>
+                          runAction(() =>
+                            invoke('provider_set_enabled', {
+                              id: provider.id,
+                              enabled: !provider.enabled,
+                            })
+                          )
+                        }
                         className={cn(
-                          'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
-                          provider.enabled ? 'translate-x-6' : 'translate-x-1'
+                          'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
+                          provider.enabled ? 'bg-primary' : 'bg-muted'
                         )}
-                      />
-                    </button>
+                      >
+                        <span
+                          className={cn(
+                            'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
+                            provider.enabled ? 'translate-x-6' : 'translate-x-1'
+                          )}
+                        />
+                      </button>
+                    )}
                   </div>
 
                   {provider.api_key && (
@@ -709,39 +754,88 @@ export function ProvidersPage() {
                       {t('providers.model') || '模型'}
                       <span className="ml-2 font-normal">
                         {provider.models.length > 0
-                          ? `${provider.models.length} 个可用`
+                          ? provider.builtin
+                            ? t('providers.modelsDownloaded', {
+                                downloaded: provider.models.filter(
+                                  (m) => m.available !== false
+                                ).length,
+                                total: provider.models.length,
+                              })
+                            : `${provider.models.length} 个可用`
                           : '尚未获取'}
                       </span>
                     </label>
-                    <select
-                      value={effectiveModel}
-                      onChange={(e) =>
-                        runAction(() =>
-                          invoke('provider_select_model', {
-                            id: provider.id,
-                            modelId: e.target.value || null,
-                          })
-                        )
-                      }
-                      className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
-                      disabled={provider.models.length === 0}
-                    >
-                      {provider.models.length === 0 && (
-                        <option value="">{provider.default_model || '点击下方刷新获取模型'}</option>
-                      )}
-                      {provider.models.map((m) => (
-                        <option key={m.id} value={m.id}>
-                          {m.display_name || m.id}
-                          {formatContext(m.context_length) && ` · ${formatContext(m.context_length)}`}
-                        </option>
-                      ))}
-                    </select>
-                    <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                      <Clock size={11} />
-                      <span>
-                        {t('providers.lastRefresh') || '上次更新'}: {formatTime(provider.last_refreshed_at)}
-                      </span>
-                    </div>
+                    {provider.builtin ? (
+                      // ⚠️ 内置条目（neuron）的模型**可以选** —— 选哪个本地模型
+                      // ⇒ ⇒ 由大脑那边**记住**（它在注册表里是只读的条目 ⇒ ⇒
+                      // ⇒ ⇒ 但「选中哪个模型」这件事**允许写**）。
+                      //
+                      // ⚠️⚠️ **没下载的不能选** ⇒ ⇒ 选了也跑不起来 ⇒ ⇒ 那是
+                      // ⇒ ⇒ 「失败长得像成功」⇒ ⇒ 大脑那边也会拒（400）⇒ ⇒
+                      // ⇒ ⇒ 界面不该给一个必然失败的选择。
+                      <select
+                        value={effectiveModel}
+                        onChange={(e) =>
+                          runAction(() =>
+                            invoke('provider_select_model', {
+                              id: provider.id,
+                              modelId: e.target.value || null,
+                            })
+                          )
+                        }
+                        className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                        disabled={provider.models.length === 0}
+                      >
+                        {provider.models.length === 0 && (
+                          <option value="">
+                            {t('providers.builtinNoModels') || '还没有本地模型'}
+                          </option>
+                        )}
+                        {provider.models.map((m) => (
+                          <option key={m.id} value={m.id} disabled={m.available === false}>
+                            {m.capability ? `${m.capability} · ` : ''}
+                            {m.display_name || m.id}
+                            {m.available === false
+                              ? ` · ${t('providers.modelNotDownloaded') || '未下载'}`
+                              : ''}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <select
+                        value={effectiveModel}
+                        onChange={(e) =>
+                          runAction(() =>
+                            invoke('provider_select_model', {
+                              id: provider.id,
+                              modelId: e.target.value || null,
+                            })
+                          )
+                        }
+                        className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                        disabled={provider.models.length === 0}
+                      >
+                        {provider.models.length === 0 && (
+                          <option value="">{provider.default_model || '点击下方刷新获取模型'}</option>
+                        )}
+                        {provider.models.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.display_name || m.id}
+                            {formatContext(m.context_length) && ` · ${formatContext(m.context_length)}`}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    {!provider.builtin && (
+                      // ⚠️ 内置条目的模型清单是**活的**（neuron 下载完就有）
+                      // ⇒ ⇒ 没有「上次更新」这回事 ⇒ ⇒ 不显示一个永远「—」的行。
+                      <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                        <Clock size={11} />
+                        <span>
+                          {t('providers.lastRefresh') || '上次更新'}: {formatTime(provider.last_refreshed_at)}
+                        </span>
+                      </div>
+                    )}
                     {provider.last_error && (
                       <div className="mt-1.5 flex items-start gap-1.5 text-[11px] text-red-500">
                         <AlertCircle size={11} className="mt-0.5 shrink-0" />
@@ -766,17 +860,21 @@ export function ProvidersPage() {
                     >
                       {t('providers.refreshModels') || '刷新模型'}
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={() => openEdit(provider)}>
-                      {t('common.edit') || '编辑'}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-red-500 hover:text-red-600"
-                      onClick={() => runAction(() => invoke('provider_remove', { id: provider.id }))}
-                    >
-                      {t('common.delete') || '删除'}
-                    </Button>
+                    {!provider.builtin && (
+                      <>
+                        <Button variant="ghost" size="sm" onClick={() => openEdit(provider)}>
+                          {t('common.edit') || '编辑'}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-500 hover:text-red-600"
+                          onClick={() => runAction(() => invoke('provider_remove', { id: provider.id }))}
+                        >
+                          {t('common.delete') || '删除'}
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </div>
               );

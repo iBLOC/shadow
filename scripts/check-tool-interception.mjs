@@ -34,9 +34,12 @@
  * 5. **认领与调用必须同一套命名** —— provider 的 `describe`（声明）与
  *    `invoke`（调用）若**都解析名字**，必须用同一个前缀 ⇒ ⇒ 否则
  *    「声明了但调的不是它」。
- * 6. **入站的代执行路由必须自己过 gate** —— 像
- *    `POST /api/telencephalon/devices/{id}/invoke` 这种**不经过**
- *    `ToolRegistry` 的路由 ⇒ ⇒ 拦截点不会自动罩住它 ⇒ ⇒ 必须自己判。
+ * 6. **入站的代执行路由必须自己过 gate** —— 凡是**不经过**
+ *    `ToolRegistry` 的「代执行」路由 ⇒ ⇒ 拦截点不会自动罩住它 ⇒ ⇒
+ *    必须自己判。
+ *    ⚠️ 曾经唯一的实例是设备那条 invoke 路由 ⇒ ⇒ **本轮已整条下线**
+ *    （见 AGENTS.md ㌉ 条）⇒ ⇒ 但**规则留着** —— 下一个入站代执行
+ *    路由照样会掉进同一个坑 ⇒ ⇒ 检查 6 照样得跑。
  *
  * ## 覆盖模型（两类能力调用点，处理方式不同）
  *
@@ -241,14 +244,17 @@ function providerImplRanges(stripped) {
 }
 
 /**
- * 入站的「**代执行工具**」路由 —— 例如
- * `POST /api/telencephalon/devices/{id}/invoke`。
+ * 入站的「**代执行工具**」路由 —— 路径里带 invoke 的那种。
  *
  * ⚠️ 为什么单列一类：它们**不经过** `ToolRegistry::dispatch` ⇒ ⇒
  * 拦截点**不会**自动罩住它们 ⇒ ⇒ 每一个都必须**自己**过 gate。
  *
  * ⇒ ⇒ 这类洞是**闸自己**曾经看不见的（2026-11-02 实测：设备那条路由
  * 就是这么溜过去的 ⇒ ⇒ 闸加了这一类）。
+ *
+ * ⚠️ 那个实例**本轮已随整条设备路下线**（见 AGENTS.md ㌉ 条）⇒ ⇒
+ * **这一类判据必须留着** —— 它现在报 0 条，**不等于**它没用了 ⇒ ⇒
+ * 下一个入站代执行路由会直接掉进同一个坑。
  */
 const INBOUND_EXEC_RE = /\.route\(\s*"([^"]*\/invoke[^"]*)"/g;
 
@@ -327,12 +333,16 @@ function checkAnnotationsRead(stripped) {
  * 检查 5：认领与调用必须同一套命名。
  *
  * ⚠️ 只有**双方都解析名字**时才要求一致 ——
- * `DeviceToolProvider::invoke` 今天根本不解析名字（直接返回 not-wired）⇒ ⇒
+ * 一个 provider 的 `invoke` 根本不解析名字（直接返回 not-wired）⇒ ⇒
  * 那不是「不一致」，那是「还没接线」。
+ *
+ * ⚠️ 默认清单只列**今天还活着**的那个 provider（`mcp:`）—— 设备那条
+ * （`device:` ⇒ `DeviceToolProvider`）本轮下线了 ⇒ ⇒ 从默认清单里摘掉。
+ * ⚠️ 但「检查器认得这一对」这件事**没被削弱** —— 自检样本 8c 显式传
+ * `[['device:', 'DeviceToolProvider']]` ⇒ ⇒ 判据本身照样被钉住。
  */
 function checkNamingConsistency(stripped, pairs = [
   ['mcp:', 'McpToolProvider'],
-  ['device:', 'DeviceToolProvider'],
 ]) {
   const problems = [];
   for (const [prefix, provider] of pairs) {

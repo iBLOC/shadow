@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { composeSystemPrompt, telencephalonClient } from '../lib/telencephalonClient';
+import { deleteConversationEverywhere, setConversationArchived } from '../lib/conversationLifecycle';
 import { computeTokenStats } from '../lib/tokenStats';
 import { useConversationStore } from '../stores/conversationStore';
 import { usePromptStore } from '../stores/promptStore';
@@ -18,16 +19,24 @@ import { FeishuPublishedCard } from '../components/chat/FeishuPublishedCard';
 import { AudioEventChip } from '../components/chat/AudioEventChip';
 import { ToolCallMessageCard } from '../components/chat/ToolCallMessageCard';
 import { A2uiPanel } from '../components/chat/A2uiPanel';
+import { BrainFaceBanner } from '../components/chat/BrainFaceBanner';
 import { ComputerUsePendingModal, type ComputerUseAction } from '../components/computerUse/ComputerUsePendingModal';
 import { RecordingPanel } from '../components/recording/RecordingPanel';
 import { isChatBiPayload } from '../lib/chatbi/guards';
 import type { ChatBiPayload } from '../lib/chatbi/guards';
-import { desktopClientTools, parseToolArgs, toOpenAiTools } from '../lib/clientTools';
+import {
+  desktopClientTools,
+  parseToolArgs,
+  pickReportPayload,
+  toOpenAiTools,
+} from '../lib/clientTools';
 import type { Conversation, ConversationKind, Message, RecordingMode, ToolCallMessage, VisualQaClarification } from '../types';
 import {
   Send,
   Plus,
   Trash2,
+  Archive,
+  ArchiveRestore,
   Bot,
   User,
   Search,
@@ -74,7 +83,6 @@ export function ConversationPage() {
     conversations,
     activeConversationId,
     addConversation,
-    removeConversation,
     updateConversation,
     setActiveConversation,
     addMessage,
@@ -85,6 +93,10 @@ export function ConversationPage() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  // ⚠️ 归档箱开关：默认**只列没归档的**（与端脑那侧默认列表同一口径）。
+  const [showArchived, setShowArchived] = useState(false);
+  // ⚠️ 动作失败时的**原话**（不说真话 = 界面骗人）。
+  const [lifecycleError, setLifecycleError] = useState<string | null>(null);
   const [stagedImages, setStagedImages] = useState<StagedImage[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showMoveDialog, setShowMoveDialog] = useState(false);
@@ -334,7 +346,13 @@ export function ConversationPage() {
       errorText,
       latencyMs: Date.now() - startedAt,
     });
-    await reportToolResult(pending, ok, result ?? { error: errorText });
+    // ⚠️ **回给端脑的只有 `report` 那一句** —— 组件树是**给界面**的，
+    // 原样喂回模型 ⇒ 模型上下文被一堆 JSON 淹了。
+    await reportToolResult(
+      pending,
+      ok,
+      ok ? pickReportPayload(result) : { error: errorText },
+    );
   };
 
   const handleSendMessage = async () => {
@@ -521,7 +539,7 @@ export function ConversationPage() {
               }
               break;
             } else if (event.type === 'error') {
-              throw new Error(event.error || 'cortex stream error');
+              throw new Error(event.error || 'telencephalon stream error');
             }
           }
 
@@ -598,8 +616,31 @@ export function ConversationPage() {
     }
   };
 
-  const filteredConversations = conversations.filter(c =>
-    c.title.toLowerCase().includes(searchQuery.toLowerCase())
+  /** 归档 / 取消归档 —— 端脑先动，本地后动（详见 lib/conversationLifecycle.ts）。 */
+  const handleArchive = async (conv: Conversation, archived: boolean) => {
+    setLifecycleError(null);
+    const outcome = await setConversationArchived(conv.id, archived);
+    if (!outcome.ok) {
+      setLifecycleError(outcome.error || t('conversation.archiveFailed'));
+    }
+  };
+
+  /** 删除 —— 不可逆 ⇒ ⇒ 先跟用户确认。 */
+  const handleDelete = async (conv: Conversation) => {
+    if (!window.confirm(t('conversation.deleteConfirm'))) return;
+    setLifecycleError(null);
+    const outcome = await deleteConversationEverywhere(conv.id);
+    if (!outcome.ok) {
+      setLifecycleError(outcome.error || t('conversation.deleteFailed'));
+    }
+  };
+
+  // ⚠️ 归档箱：默认**只列没归档的** ⇒ ⇒ 与端脑那侧的默认列表同一口径
+  // （两端都把「归档过的」藏起来，用户得显式去翻归档箱才看得到）。
+  const filteredConversations = conversations.filter(
+    (c) =>
+      (showArchived ? !!c.archived : !c.archived) &&
+      c.title.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   return (
@@ -607,7 +648,19 @@ export function ConversationPage() {
       {/* Sidebar */}
       <aside className="flex w-[280px] flex-shrink-0 flex-col border-r border-border bg-card">
         <div className="flex items-center justify-between border-b border-border p-4">
-          <h3 className="text-sm font-semibold text-foreground">{t('conversation.title')}</h3>
+          <div className="flex items-center gap-1">
+            <h3 className="text-sm font-semibold text-foreground">
+              {showArchived ? t('conversation.archiveBox') : t('conversation.title')}
+            </h3>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={showArchived ? <ArchiveRestore size={16} /> : <Archive size={16} />}
+              onClick={() => setShowArchived((v) => !v)}
+              aria-label={t('conversation.archiveBox')}
+              data-testid="conversation-archive-box-toggle"
+            />
+          </div>
           <div className="relative" ref={createMenuRef}>
             <Button
               variant="ghost"
@@ -675,9 +728,26 @@ export function ConversationPage() {
           />
         </div>
 
+        {lifecycleError ? (
+          <div
+            className="mx-2 mb-1 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+            data-testid="conversation-lifecycle-error"
+          >
+            {lifecycleError}
+          </div>
+        ) : null}
+
         <div className="flex-1 overflow-y-auto p-2">
           {filteredConversations.length === 0 ? (
-            <EmptyState icon={<MessageSquare size={24} />} title={t('conversation.noConversations')} size="sm" />
+            <EmptyState
+              icon={<MessageSquare size={24} />}
+              title={
+                showArchived
+                  ? t('conversation.archiveBoxEmpty')
+                  : t('conversation.noConversations')
+              }
+              size="sm"
+            />
           ) : (
             filteredConversations.map((conv) => {
               const kind = conv.kind ?? 'text';
@@ -705,14 +775,37 @@ export function ConversationPage() {
                     <MessageSquare size={16} className="flex-shrink-0 text-muted-foreground" />
                   )}
                   <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                    <span className="truncate text-sm font-medium text-foreground">{conv.title}</span>
+                    <span className="truncate text-sm font-medium text-foreground">
+                      {conv.title}
+                      {conv.archived ? (
+                        <span className="ml-2 text-[10px] uppercase tracking-wide text-muted-foreground">
+                          {t('conversation.archivedBadge')}
+                        </span>
+                      ) : null}
+                    </span>
                     <span className="text-xs text-muted-foreground">{meta}</span>
                   </div>
                   <Button
                     size="icon"
                     variant="ghost"
                     className="opacity-0 group-hover:opacity-100"
-                    onClick={(e) => { e.stopPropagation(); removeConversation(conv.id); }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void handleArchive(conv, !conv.archived);
+                    }}
+                    aria-label={conv.archived ? t('conversation.unarchive') : t('conversation.archive')}
+                    data-testid={'conversation-archive-' + conv.id}
+                  >
+                    {conv.archived ? <ArchiveRestore size={14} /> : <Archive size={14} />}
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="opacity-0 group-hover:opacity-100"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void handleDelete(conv);
+                    }}
                     aria-label={t('common.delete')}
                   >
                     <Trash2 size={14} />
@@ -727,6 +820,9 @@ export function ConversationPage() {
       {/* Main */}
       <main className="flex flex-1 flex-col overflow-hidden bg-background">
         <ConversationModeSwitcher />
+        {/* Says it out loud when this app's own endbrain face is not the
+            one answering on 60080 — see src/lib/brainFace.ts. */}
+        <BrainFaceBanner />
         <div className="flex items-center justify-end gap-2 border-b border-border px-4 py-1.5">
           <Button
             variant="ghost"

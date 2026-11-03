@@ -312,7 +312,22 @@
   "conversationNewChat": "New Chat",
   "conversationTitleField": "Chat title",
   "conversationCreate": "Create",
+  "conversationArchive": "Archive",
+  "conversationUnarchive": "Unarchive",
+  "conversationArchiveBox": "Archive box",
+  "conversationArchiveBoxEmpty": "No archived conversations",
+  "conversationArchivedBadge": "Archived",
+  "conversationDeleteBody": "This also deletes the copy in the hippocampus (the session and every message in it). It cannot be undone.",
+  "conversationActionFailed": "Action failed: {error}",
+  "@conversationActionFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "commonConfirmDelete": "Confirm Delete",
+  "commonCancel": "Cancel",
   "commonDelete": "Delete",
   "discoveryTitle": "Device Discovery",
   "discoveryScanning": "Scanning for devices...",
@@ -384,6 +399,8 @@
   "providerQwen": "Qwen",
   "providerZhipu": "Zhipu AI",
   "providerLocalModel": "Local model",
+  "providerBuiltin": "Built-in",
+  "providerModelNotDownloaded": "Not downloaded",
   "providersTitle": "Model Providers",
   "providersEmpty": "No providers configured",
   "providersEmptyHint": "Tap the button below to add your first provider",
@@ -1093,5 +1110,141 @@
       }
     }
   },
-  "askAgent2UI": "Ask the telencephalon to draw..."
+  "askAgent2UI": "Ask the telencephalon to draw...",
+  "a2uiSurfaceReportTasks": "Expanded the task board.",
+  "a2uiSurfaceReportAgents": "Expanded the agent list.",
+  "a2uiSurfaceReportNoSurface": "The telencephalon did not draw an interface this time.",
+  "a2uiSurfaceReportNoSurfaceSaid": "The telencephalon did not draw an interface this time. It said: {words}",
+  "@a2uiSurfaceReportNoSurfaceSaid": {
+    "placeholders": {
+      "words": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsGroupCapabilities": "Capabilities",
+  "settingsGroupCapabilitiesDesc": "You decide what the model may read on this phone, item by item",
+  "capabilityCalendarRead": "Read calendar",
+  "capabilityCalendarWrite": "Write calendar",
+  "capabilityContacts": "Read contacts",
+  "capabilitySms": "Read SMS",
+  "capabilityPhotos": "Read photos",
+  "capabilityAuthAsk": "Ask every time",
+  "capabilityAuthFull": "Full access",
+  "capabilityAuthDisabled": "Disabled",
+  "capabilityAuthAskDesc": "Ask before every call",
+  "capabilityAuthFullDesc": "No per-call prompt",
+  "capabilityAuthDisabledDesc": "The model cannot see this capability",
+  "capabilitySystemGranted": "System permission granted",
+  "capabilitySystemMissing": "System permission not granted",
+  "capabilityRejectedDisabled": "This capability has been disabled in settings",
+  "capabilityUnsupportedPlatform": "Not supported on this platform",
+  "capabilityMobileUse": "Phone control",
+  "capabilityRequestMobileUse": "to control this phone",
+  "capabilityRequestMobileReadScreen": "to read what is currently on this phone screen",
+  "capabilityRequestMobileTap": "to tap a point on this phone screen",
+  "capabilityRequestMobileLongPress": "to press and hold a point on this phone screen",
+  "capabilityRequestMobileSwipe": "to swipe on this phone screen",
+  "capabilityRequestMobileFindAndClick": "to click a control on this phone screen by its text",
+  "capabilityRequestMobileGlobalAction": "to trigger a system action on this phone",
+  "capabilityArgMobilePoint": "at {x}, {y}",
+  "@capabilityArgMobilePoint": {
+    "placeholders": {
+      "x": { "type": "String" },
+      "y": { "type": "String" }
+    }
+  },
+  "capabilityArgMobileSwipe": "from {x1}, {y1} to {x2}, {y2}",
+  "@capabilityArgMobileSwipe": {
+    "placeholders": {
+      "x1": { "type": "String" },
+      "y1": { "type": "String" },
+      "x2": { "type": "String" },
+      "y2": { "type": "String" }
+    }
+  },
+  "capabilityArgMobileText": "text \"{text}\"",
+  "@capabilityArgMobileText": {
+    "placeholders": {
+      "text": { "type": "String" }
+    }
+  },
+  "capabilityArgMobileAction": "action: {action}",
+  "@capabilityArgMobileAction": {
+    "placeholders": {
+      "action": { "type": "String" }
+    }
+  },
+  "capabilityServiceGranted": "Accessibility service enabled",
+  "capabilityServiceMissing": "Accessibility service not enabled",
+  "capabilityGrantService": "Enable",
+  "toolCallAllow": "Allow",
+  "toolCallDeny": "Deny",
+  "capabilityRequestCalendarRead": "Read calendar events on this phone",
+  "capabilityRequestCalendarWrite": "Write an event to the calendar on this phone",
+  "capabilityRequestContacts": "Read the contacts on this phone",
+  "capabilityRequestSms": "Read the SMS messages on this phone",
+  "capabilityRequestPhotos": "Read photo information from this phone",
+  "capabilityArgTimeRange": "{from} ~ {to}",
+  "@capabilityArgTimeRange": {
+    "placeholders": {
+      "from": {
+        "type": "String"
+      },
+      "to": {
+        "type": "String"
+      }
+    }
+  },
+  "capabilityArgTimeRangeDefault": "the next 7 days",
+  "capabilityArgTitle": "Title “{title}”",
+  "@capabilityArgTitle": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "capabilityArgStartAt": "starting {time}",
+  "@capabilityArgStartAt": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "capabilityArgKeyword": "name contains “{query}”",
+  "@capabilityArgKeyword": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "capabilityArgContactsHead": "the first {count} contacts",
+  "@capabilityArgContactsHead": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "capabilityArgRecentSms": "the most recent {count} messages",
+  "@capabilityArgRecentSms": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "capabilityArgRecentPhotos": "the most recent {count} photos",
+  "@capabilityArgRecentPhotos": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "capabilityGrantSystemPermission": "Grant"
 }
+

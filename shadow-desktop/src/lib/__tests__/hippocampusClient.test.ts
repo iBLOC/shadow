@@ -61,6 +61,33 @@ describe('hippocampusClient', () => {
     expect(init.method).toBe('GET');
   });
 
+  it('服务端回的不是 JSON（200 + 纯文本）⇒ 说真话，不许抛一句 JS 语法错', async () => {
+    // 2026-11-02 实测到的真实形状：海马体存储出错时回 200 + 纯文本。
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      json: () =>
+        Promise.reject(
+          new SyntaxError('Unexpected token \'S\', "Storage er"... is not valid JSON'),
+        ),
+      text: () =>
+        Promise.resolve(
+          'Storage error: lance scan stream: Invalid user input: Schema error: No field named tenant_id',
+        ),
+    });
+    const { hippocampusClient } = await import('../hippocampusClient');
+
+    const err = await hippocampusClient
+      .listMemories()
+      .then(() => null)
+      .catch((e: unknown) => e as Error);
+
+    expect(err).toBeTruthy();
+    expect(err!.message).toContain('Storage error');
+    expect(err!.message).not.toContain('Unexpected token');
+  });
+
   it('搜索走 POST /hippocampus/api/search（不是 GET /api/memory/search）', async () => {
     mockFetch.mockResolvedValue(jsonResponse([]));
     const { hippocampusClient } = await import('../hippocampusClient');

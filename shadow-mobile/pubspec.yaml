@@ -65,6 +65,10 @@ dev_dependencies:
     sdk: flutter
   integration_test:
     sdk: flutter
+  # ⚠️ 真机集成测试的**主机侧驱动**（`test_driver/`）要它
+  # ⇒ ⇒ 它是 SDK 包、只在主机上跑 ⇒ ⇒ 不进发布产物 ⇒ ⇒ 放 dev 依赖。
+  flutter_driver:
+    sdk: flutter
   flutter_lints: ^6.0.0
   flutter_localization_linter: ^1.0.2
   sqflite_common_ffi: ^2.3.0

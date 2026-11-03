@@ -76,6 +76,7 @@ export type StreamChunk = {
 }
 
 import { useErrorDialogStore } from '../stores/errorDialogStore';
+import { isIntentionalAbort } from './abort';
 
 export class OpenAIClient {
   private baseUrl: string;
@@ -106,6 +107,10 @@ export class OpenAIClient {
         },
       });
     } catch (err) {
+      // ⚠️ **自己叫停的取消不许报成「网络故障」**（判据见 `lib/abort.ts`）
+      if (isIntentionalAbort(err, options.signal)) {
+        throw err;
+      }
       const message = err instanceof Error ? err.message : String(err);
       const stack = err instanceof Error ? err.stack : undefined;
       useErrorDialogStore.getState().show({

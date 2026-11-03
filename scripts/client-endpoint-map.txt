@@ -58,6 +58,9 @@ shadow-desktop/src/lib/telencephalonClient.ts GET /shadow/v1/conversations align
 shadow-desktop/src/lib/telencephalonClient.ts POST /shadow/v1/conversations/{param}/messages aligned telencephalon POST /shadow/v1/conversations/{id}/messages
 shadow-desktop/src/lib/telencephalonClient.ts POST /shadow/v1/conversations/{param}/messages:stream aligned telencephalon POST /shadow/v1/conversations/{id}/messages:stream
 shadow-desktop/src/lib/telencephalonClient.ts POST /shadow/v1/conversations/{param}/tool-results aligned telencephalon POST /shadow/v1/conversations/{id}/tool-results
+shadow-desktop/src/lib/telencephalonClient.ts POST /shadow/v1/conversations/{param}/archive aligned telencephalon POST /shadow/v1/conversations/{id}/archive
+shadow-desktop/src/lib/telencephalonClient.ts POST /shadow/v1/conversations/{param}/unarchive aligned telencephalon POST /shadow/v1/conversations/{id}/unarchive
+shadow-desktop/src/lib/telencephalonClient.ts DELETE /shadow/v1/conversations/{param} aligned telencephalon DELETE /shadow/v1/conversations/{id}
 shadow-desktop/src/lib/telencephalonClient.ts GET /api/flows aligned telencephalon GET /api/flows
 shadow-desktop/src/lib/telencephalonClient.ts GET /api/flows/{param} aligned telencephalon GET /api/flows/{id}
 shadow-desktop/src/lib/telencephalonClient.ts POST /api/flows aligned telencephalon POST /api/flows

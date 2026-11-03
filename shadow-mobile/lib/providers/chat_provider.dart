@@ -7,12 +7,21 @@ import '../tts_engine.dart';
 import '../multimodal/multimodal.dart';
 import '../services/telencephalon/telencephalon_client.dart';
 import '../services/client_tools/client_tool_registry.dart';
+import '../services/capabilities/capability.dart';
+import 'capability_policy_provider.dart';
 import 'conversation_mode_provider.dart';
+import 'genui_provider.dart';
 import 'telencephalon_provider.dart';
 import 'theme_provider.dart';
 import '../l10n/current_l10n.dart';
 import '../agents/main_agent/main_agent_prompt.dart';
 import '../agents/providers/agent_provider.dart';
+
+/// 兜底的档位：**每次询问**。
+///
+/// ⚠️ 策略提供者没注入时用它 ⇒ ⇒ 默认最保守（fail-closed）。
+AuthorizationMode alwaysAskCapability(Capability capability) =>
+    AuthorizationMode.askEveryTime;
 
 /// Chat message model for the UI
 class ChatMessageModel {
@@ -226,6 +235,13 @@ class ChatNotifier extends StateNotifier<ChatState> {
   /// 改**用户眼前这台设备**的状态。
   final ClientToolRegistry _clientTools;
 
+  /// 某个能力**当前**的授权档位（每次询问 / 完全访问）。
+  ///
+  /// ⚠️ 用**函数**而不是值 —— 档位是运行时可改的（用户在设置里改）
+  /// ⇒ ⇒ 每次工具调用时才读 ⇒ ⇒ 改完立刻生效，不用重建 ChatNotifier。
+  ///
+  /// ⚠️ 没注入 ⇒ 一律「每次询问」（fail-closed）。
+  final AuthorizationMode Function(Capability capability) _capabilityModeFor;
   /// 等用户点头的工具调用（调用 id → 这次调用的上下文）。
   ///
   /// 用户点「允许」之后要能接着执行 ⇒ 光有卡片不够，得把
@@ -248,8 +264,11 @@ class ChatNotifier extends StateNotifier<ChatState> {
     this._telencephalonClient, {
     String? Function()? systemPromptProvider,
     ClientToolRegistry? clientTools,
+    // 能力档位的读取口 —— 注入是为了**运行时**能改档位。
+    AuthorizationMode Function(Capability capability)? capabilityModeFor,
   }) : _systemPromptProvider = systemPromptProvider ?? noSystemPrompt,
        _clientTools = clientTools ?? ClientToolRegistry(),
+       _capabilityModeFor = capabilityModeFor ?? alwaysAskCapability,
        super(const ChatState());
 
   // Multimodal input methods
@@ -419,7 +438,13 @@ class ChatNotifier extends StateNotifier<ChatState> {
           text: prompt,
           // **这台设备能跑的工具**告诉模型 —— 端脑透传给 LLM，模型才知道
           // `set_theme` 要吃一个 `color`。
-          tools: toOpenAiTools(_clientTools),
+          // ⚠️ **「彻底关闭」的能力不进这个数组** ⇒ ⇒ 模型**看不见**它
+          // ⇒ ⇒ 既省了模型的回合，也断掉了「模型反复调一个必然被拒的
+          // 工具」这条路。
+          tools: toOpenAiTools(
+            _clientTools,
+            excludedNames: _disabledCapabilityToolNames(),
+          ),
           // 让端脑**等**这台设备把工具干完 —— 它就能把结果喂回模型，
           // 在**同一条流**上接着说「主题已经换成靛蓝了」⇒ 用户看到的
           // 是一个回合，而不是一张沉默的卡片。
@@ -615,6 +640,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
       id: callId,
       name: name,
       description: tool?.description,
+      // ⚠️ 带上能力 ⇒ ⇒ 授权卡片能把 `calendar_read_events` 翻成「读取日历」。
+      capability: tool?.capability,
       args: args,
     );
     _upsertToolCall(model);
@@ -640,7 +667,40 @@ class ChatNotifier extends StateNotifier<ChatState> {
       return;
     }
 
-    if (tool.requiresApproval) {
+    // ⚠️ 「彻底关闭」这一档 ⇒ ⇒ **绝不执行**。
+    //
+    // 这一档的语义是「这个能力对模型**不存在**」⇒ ⇒ 但模型可能**缓存过**
+    // 工具表、或者干脆幻觉出这个名字 ⇒ ⇒ 客户端必须**明确拒绝并回传**
+    // ⇒ ⇒ 模型知道这条路走不通（而不是等一个永远不来的结果）。
+    //
+    // ⚠️ 这是**双保险**：第一道保险是「这个工具压根不在发给模型的
+    // `tools` 数组里」（见 `_disabledCapabilityToolNames`）⇒ ⇒ 模型正常
+    // 情况下根本叫不出它 ⇒ ⇒ 走到这一格说明它**绕过了**第一道。
+    final capability = tool.capability;
+    if (capability != null &&
+        _capabilityModeFor(capability) == AuthorizationMode.disabled) {
+      _upsertToolCall(
+        model.copyWith(
+          status: ToolCallStatus.failed,
+          errorText: currentL10n().capabilityRejectedDisabled,
+        ),
+      );
+      unawaited(
+        _reportToolResult(
+          sessionId,
+          callId,
+          name,
+          ok: false,
+          result: <String, dynamic>{
+            'error': 'capability disabled',
+            'capability': capability.wire,
+          },
+        ),
+      );
+      return;
+    }
+
+    if (_needsApproval(tool)) {
       final pending = model.copyWith(
         status: ToolCallStatus.awaitingApproval,
       );
@@ -666,6 +726,39 @@ class ChatNotifier extends StateNotifier<ChatState> {
         args: args,
       ),
     );
+  }
+
+  /// 这个工具**要不要先问用户**。
+  ///
+  /// 两道闸：
+  /// 1. 工具自己声明的 `requiresApproval`（普通工具用）；
+  /// 2. **能力档位** —— 带能力的工具看用户配的那一档：
+  ///    「每次询问」⇒ 要点头；「完全访问」⇒ 直接跑。
+  ///
+  /// ⚠️ 档位是**运行时**读的（用户随时能在设置里改）⇒ ⇒ 不能在
+  /// 工具注册那一刻就定下来 ⇒ ⇒ 所以这件事**不能**只靠
+  /// `ClientTool.requiresApproval` 那个注册期字段来表达。
+  bool _needsApproval(ClientTool tool) {
+    if (tool.requiresApproval) return true;
+    final capability = tool.capability;
+    if (capability == null) return false;
+    return _capabilityModeFor(capability) == AuthorizationMode.askEveryTime;
+  }
+
+  /// 当前档位下「彻底关闭」的那些能力，对应的工具名。
+  ///
+  /// ⚠️ **每次发送时重算** —— 档位是运行时可改的（用户随时能在设置里改）
+  /// ⇒ ⇒ 用户一改档位，下一条消息发给模型的 `tools` 数组就跟着变
+  /// ⇒ ⇒ 不用重建 ChatNotifier（那会把整段对话冲掉）。
+  Set<String> _disabledCapabilityToolNames() {
+    return {
+      // 用户说「彻底关闭」的那些能力。
+      ...disabledCapabilityToolNames(_clientTools, _capabilityModeFor),
+      // ⚠️ **平台压根没有**的那些能力（iOS 上的短信）——
+      // 效果与「彻底关闭」一样（模型看不见），但**原因不同**
+      // ⇒ ⇒ 两者都要算进去，否则模型会调一个注定失败的工具。
+      ...unsupportedCapabilityToolNames(_clientTools),
+    };
   }
 
   /// 执行一个客户端工具，然后把结果回传端脑。
@@ -701,6 +794,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
         result: result,
         errorText: errorText,
         latencyMs: elapsed,
+        // ⚠️ **界面那一半** —— surface id 从工具结果里取
+        // ⇒ ⇒ 消息里画的就是**这次调用**画出来的那块界面
+        // ⇒ ⇒ 不是另开一块面板。
+        a2uiSurfaceIds: a2uiSurfaceIdsFromToolResult(result),
       ),
     );
 
@@ -709,7 +806,11 @@ class ChatNotifier extends StateNotifier<ChatState> {
       callId,
       tool.name,
       ok: ok,
-      result: result ?? <String, dynamic>{'error': errorText},
+      // ⚠️ **模型那一半只有 `report`** —— 组件树不进模型上下文
+      // （见 `pickReportPayload`）⇒ ⇒ 与桌面端同一条规则。
+      result: pickReportPayload(
+        result ?? <String, dynamic>{'error': errorText},
+      ),
     );
   }
 
@@ -885,7 +986,19 @@ final chatProvider = StateNotifierProvider<ChatNotifier, ChatState>((ref) {
       setDarkMode: (dark) async => ref
           .read(themeModeProvider.notifier)
           .setThemeMode(dark ? ThemeMode.dark : ThemeMode.light),
+      // ⚠️ **取 surface 走既有那条 A2UI 通道** —— 端脑面的地址 / 影子锁 /
+      // admin token / 语言**已经**在那个 transport 里配好了
+      // ⇒ ⇒ 这里不另写一套 HTTP。
+      //
+      // ⚠️ **用 `read` 而不是 `watch`**：地址变了整个 provider 会重建
+      // ⇒ ⇒ `watch` 会把**整段对话**冲掉（那是对话的状态，不是地址的）。
+      fetchSurfaceEvents: (view) =>
+          ref.read(genUIAgentServiceProvider).fetchSurfaceEvents(view),
     ),
+    // ⚠️ **档位在调用时才读** —— 用户随时能在设置里改档位
+    // ⇒ ⇒ 改完立刻生效，不需要重建 ChatNotifier（那会把对话冲掉）。
+    capabilityModeFor: (capability) =>
+        ref.read(capabilityPolicyProvider).modeFor(capability),
   );
 });
 

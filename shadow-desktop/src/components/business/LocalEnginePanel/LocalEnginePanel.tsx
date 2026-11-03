@@ -5,9 +5,15 @@ import {
   Cpu, CheckCircle, XCircle, Download, Brain, Mic, Ear,
   Trash, Package, RefreshCw, X, Loader2, AlertCircle, Ban, KeyRound
 } from 'lucide-react';
-import { prefrontalUrl } from '../../../lib/platform';
+import { telencephalonClient } from '../../../lib/telencephalonClient';
 
-const API_BASE = prefrontalUrl();
+// ⚠️ **一张面，一个地址**（2026-11-02 起）——
+// 本地模型（`/v1/models*`）由**大脑那张面**转发（neuron's route table
+// 挂在端脑面的根上）⇒ ⇒ 客户端**不需要**知道 neuron's 端口。
+//
+// ⚠️ **base 在「函数里」求值** —— 用户改了大脑地址（store 的
+// `connection.baseUrl`）⇒ ⇒ 这一页必须跟着改 ⇒ ⇒ 模块级常量在 import
+// 时就定死了 ⇒ ⇒ 改完设置，这一页还在打老地址。
 
 type ModelType = 'llm' | 'tts' | 'asr' | 'rerank' | 'embedding' | 'vision';
 
@@ -81,7 +87,12 @@ export function LocalEnginePanel() {
     setLoading(true);
     setError(null);
     try {
-      const r = await fetch(`${API_BASE}/v1/models?engine=${activeType}`);
+      const BRAIN_BASE = telencephalonClient.getBaseUrl();
+      const r = await fetch(`${BRAIN_BASE}/v1/models?engine=${activeType}`, {
+        // ⚠️ **门罩住整张面**（2026-11-03）⇒ ⇒ `/v1/*` 现在也在门型表管辖内
+        // ⇒ ⇒ 不递钥匙就是 401 ⇒ ⇒ 带读门的全部钥匙（影子锁 ∪ admin token）。
+        headers: await telencephalonClient.readHeaders(),
+      });
       if (r.status === 404) { setModels([]); return; }
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const body = await r.json();
@@ -106,7 +117,15 @@ export function LocalEnginePanel() {
       const bareId = modelId.startsWith(`${engine}/`)
         ? modelId.slice(engine.length + 1)
         : modelId;
-      const r = await fetch(`${API_BASE}/v1/models/${engine}/${encodeURIComponent(bareId)}`, { method: 'DELETE' });
+      const BRAIN_BASE = telencephalonClient.getBaseUrl();
+      const r = await fetch(
+        `${BRAIN_BASE}/v1/models/${engine}/${encodeURIComponent(bareId)}`,
+        {
+          method: 'DELETE',
+          // ⚠️ 删模型是**写操作** ⇒ ⇒ 落写门（admin）⇒ ⇒ 必须带 admin token。
+          headers: await telencephalonClient.readHeaders(),
+        },
+      );
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       await load();
     } catch (e) {
@@ -118,7 +137,10 @@ export function LocalEnginePanel() {
   // captures a friendly model label the first time we see a job.
   const refreshJobs = useCallback(async () => {
     try {
-      const r = await fetch(`${API_BASE}/v1/models/pull`);
+      const BRAIN_BASE = telencephalonClient.getBaseUrl();
+      const r = await fetch(`${BRAIN_BASE}/v1/models/pull`, {
+        headers: await telencephalonClient.readHeaders(),
+      });
       if (!r.ok) return;
       const body = await r.json();
       const list: ModelDownloadTask[] = body.data ?? [];
@@ -177,7 +199,12 @@ export function LocalEnginePanel() {
 
   const cancelJob = async (jobId: string) => {
     try {
-      await fetch(`${API_BASE}/v1/models/pull/${jobId}`, { method: 'DELETE' });
+      const BRAIN_BASE = telencephalonClient.getBaseUrl();
+      await fetch(`${BRAIN_BASE}/v1/models/pull/${jobId}`, {
+        method: 'DELETE',
+        // ⚠️ 取消下载是**写操作** ⇒ ⇒ 落写门（admin）⇒ ⇒ 必须带 admin token。
+        headers: await telencephalonClient.readHeaders(),
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -321,9 +348,14 @@ export function LocalEnginePanel() {
             const target = downloadTarget;
             setDownloadTarget(null);
             try {
-              const r = await fetch(`${API_BASE}/v1/models/pull`, {
+              const BRAIN_BASE = telencephalonClient.getBaseUrl();
+              const r = await fetch(`${BRAIN_BASE}/v1/models/pull`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                // ⚠️ 触发下载是**写操作** ⇒ ⇒ 落写门（admin）⇒ ⇒ 带 admin token。
+                headers: {
+                  'Content-Type': 'application/json',
+                  ...(await telencephalonClient.readHeaders()),
+                },
                 body: JSON.stringify({
                   id: target.id.split('/').pop() || target.id,
                   engine: target.engine,

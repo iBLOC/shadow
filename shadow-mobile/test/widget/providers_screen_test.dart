@@ -204,5 +204,101 @@ void main() {
       expect(find.text('openai · gpt-4o'), findsOneWidget);
       expect(find.byType(Switch), findsOneWidget);
     });
+
+    // ⚠️ 内置供应商（neuron）**只读** ⇒ ⇒ 启停/编辑/删除**都写不进去**
+    // ⇒ ⇒ 界面不能给这些按钮（给一个必然 400 的按钮 = 把「大脑拒了」
+    // 包装成「界面坏了」）。
+    //
+    // ⚠️ 断言用「**恰好一个**」而不是「至少一个」⇒ ⇒ 这样才能同时钉住
+    // 「普通条目还在」（正控）与「内置条目的不在」。
+    testWidgets('⚠️ 内置条目没有启停/编辑/删除；但**模型可以选**（没下载的不能选）', (
+      WidgetTester tester,
+    ) async {
+      final puts = <String>[];
+      final notifier = ProvidersNotifier(
+        clientReturning((req) {
+          if (req.url.path.endsWith('/presets')) {
+            return http.Response(jsonEncode(<Object>[]), 200);
+          }
+          if (req.method == 'PUT') {
+            puts.add('${req.method} ${req.url.path} ${req.body}');
+            return http.Response(jsonEncode({'id': 'builtin-neuron'}), 200);
+          }
+          return http.Response(
+            jsonEncode([
+              {
+                'id': 'builtin-neuron',
+                'name': '本地 neuron（内置）',
+                'base_url': 'http://127.0.0.1:60080/v1',
+                'api_standard': 'openai',
+                'enabled': true,
+                'builtin': true,
+                'models': [
+                  {
+                    'id': 'qwen3-0.6b',
+                    'name': 'qwen3-0.6b',
+                    'capabilities': ['llm'],
+                    'available': true,
+                  },
+                  {
+                    'id': 'not-downloaded-yet',
+                    'name': 'not-downloaded-yet',
+                    'capabilities': ['llm'],
+                    'available': false,
+                  },
+                ],
+              },
+              {
+                'id': 'prov-1',
+                'name': 'OpenAI',
+                'base_url': 'https://api.openai.com/v1',
+                'api_standard': 'openai',
+                'enabled': true,
+                'preset_id': 'openai',
+                'models': [
+                  {'id': 'gpt-4o', 'name': 'GPT-4o'},
+                ],
+              },
+            ]),
+            200,
+            // ⚠️ 必须给 content-type ⇒ ⇒ 否则 http 包按 **latin1** 构造 ⇒ ⇒
+            // ⇒ body 里有中文就**构造失败**（不是解码问题）。
+            headers: {'content-type': 'application/json'},
+          );
+        }),
+      );
+      await pumpWidgetForTest(tester, app(notifier));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Built-in'), findsOneWidget, reason: '内置条目要有徽章');
+      // ⚠️ 只有**普通条目**有启停开关 ⇒ ⇒ 恰好一个。
+      expect(find.byType(Switch), findsOneWidget);
+      expect(find.text('Edit'), findsOneWidget, reason: '编辑按钮只剩普通条目那份');
+      expect(find.text('Delete'), findsOneWidget, reason: '删除按钮只剩普通条目那份');
+      // ⚠️ 内置条目的模型要**带能力**列出来（目录横跨七种能力）。
+      expect(find.text('llm · qwen3-0.6b'), findsOneWidget);
+      // ⚠️⚠️ **没下载的**要点出来（否则用户以为它能跑）。
+      expect(
+        find.text('llm · not-downloaded-yet · Not downloaded'),
+        findsOneWidget,
+        reason: '没下载的模型必须标出来',
+      );
+      // ⚠️ **已下载的可以选**（用户拍板：内置条目也能记 selected_model）。
+      final okChip = tester.widget<ChoiceChip>(
+        find.widgetWithText(ChoiceChip, 'llm · qwen3-0.6b'),
+      );
+      expect(okChip.onSelected, isNotNull, reason: '已下载的本地模型必须可选');
+      // ⚠️ **没下载的不能选**（选了也跑不起来 ⇒ ⇒ 大脑那边会拒 400）。
+      final badChip = tester.widget<ChoiceChip>(
+        find.widgetWithText(ChoiceChip, 'llm · not-downloaded-yet · Not downloaded'),
+      );
+      expect(badChip.onSelected, isNull, reason: '没下载的模型不许选');
+      // ⚠️ 选一个 ⇒ ⇒ 真的让大脑记住（PUT /models/providers/{id}）。
+      await tester.tap(find.widgetWithText(ChoiceChip, 'llm · qwen3-0.6b'));
+      await tester.pumpAndSettle();
+      expect(puts.length, 1, reason: '选中本地模型必须写回大脑');
+      expect(puts.first, contains('/models/providers/builtin-neuron'));
+      expect(puts.first, contains('qwen3-0.6b'));
+    });
   });
 }

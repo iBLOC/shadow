@@ -46,7 +46,7 @@ shadow-desktop/
 ├── src-tauri/              Rust sidecar
 │   └── src/
 │       ├── lib.rs            启动：boot 嵌入式大脑 + 起端脑 HTTP 面
-│       ├── cortex_http.rs    端脑 + neuron + 海马体 合成一台服务（:60080）
+│       ├── telencephalon_http.rs  端脑 + neuron + 海马体 合成一台服务（:60080）
 │       ├── computer_use.rs   宿主 RPA（鼠标 / 键盘 / Windows UI Automation）
 │       ├── provider_manager.rs / model_store.rs   模型与供应商
 │       ├── mcp_catalog.rs / feishu_mcp/            MCP 目录与飞书 MCP

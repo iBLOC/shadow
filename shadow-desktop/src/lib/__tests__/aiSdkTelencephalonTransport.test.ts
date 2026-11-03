@@ -10,7 +10,7 @@ import { translateEvent } from '../aiSdkTelencephalonTransport';
 // the `args` double-encoding bug (the brain sends `args` as JSON *text*)
 // survived: a copy can never catch a regression in the original.
 
-describe('cortex StreamEvent → AI SDK wire chunks', () => {
+describe('telencephalon StreamEvent → AI SDK wire chunks', () => {
   it('translates delta to text-delta', () => {
     expect(translateEvent({ type: 'delta', delta: 'Hello' })).toEqual([
       { type: 'text-delta', textDelta: 'Hello' },
@@ -164,7 +164,7 @@ describe('createTelencephalonChatTransport API surface', () => {
     expect(typeof transport.reconnectToStream).toBe('function');
   });
 
-  it('reconnectToStream resolves to null (cortex does not resume streams)', async () => {
+  it('reconnectToStream resolves to null (telencephalon does not resume streams)', async () => {
     const { createTelencephalonChatTransport } = await import(
       '../aiSdkTelencephalonTransport'
     );

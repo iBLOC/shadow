@@ -44,7 +44,7 @@ class _FakeTelencephalonClient extends TelencephalonClient {
   }
 
   @override
-  Future<List<BrainProvider>> listProviders() async {
+  Future<List<RegisteredProvider>> listProviders() async {
     providerCalls++;
     if (failWith != null) throw failWith!;
     if (failProviders != null) throw failProviders!;

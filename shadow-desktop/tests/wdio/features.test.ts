@@ -1,7 +1,7 @@
 import { browser, expect } from '@wdio/globals';
 import { TEST_CONFIG } from './config';
 
-const CORTEX_URL = 'http://localhost:60080';
+const TELENCEPHALON_URL = 'http://localhost:60080';
 
 describe('Shadow Desktop - 供应商管理', () => {
   before(async () => {
@@ -17,8 +17,8 @@ describe('Shadow Desktop - 供应商管理', () => {
     expect(url).toBeTruthy();
   });
 
-  it('应该检查 Cortex API 供应商列表', async () => {
-    await browser.url(`${CORTEX_URL}/models/providers`);
+  it('应该检查端脑 API 供应商列表', async () => {
+    await browser.url(`${TELENCEPHALON_URL}/models/providers`);
     const body = await browser.$('body');
     const text = await body.getText();
     expect(text).toBeTruthy();
@@ -27,14 +27,14 @@ describe('Shadow Desktop - 供应商管理', () => {
 
 describe('Shadow Desktop - 智能体模型配置', () => {
   it('应该获取智能体配置', async () => {
-    await browser.url(`${CORTEX_URL}/api/cortex/agents`);
+    await browser.url(`${TELENCEPHALON_URL}/api/telencephalon/agents`);
     const body = await browser.$('body');
     const text = await body.getText();
     expect(text).toContain('lobes');
   });
 
   it('应该包含 required_capabilities', async () => {
-    await browser.url(`${CORTEX_URL}/api/cortex/agents`);
+    await browser.url(`${TELENCEPHALON_URL}/api/telencephalon/agents`);
     const body = await browser.$('body');
     const text = await body.getText();
     expect(text).toContain('required_capabilities');
@@ -43,14 +43,14 @@ describe('Shadow Desktop - 智能体模型配置', () => {
 
 describe('Shadow Desktop - 对话 API', () => {
   it('应该创建对话', async () => {
-    await browser.url(`${CORTEX_URL}/shadow/v1/conversations`);
+    await browser.url(`${TELENCEPHALON_URL}/shadow/v1/conversations`);
     const body = await browser.$('body');
     const text = await body.getText();
     expect(text).toBeTruthy();
   });
 
   it('应该获取对话列表', async () => {
-    await browser.url(`${CORTEX_URL}/shadow/v1/conversations`);
+    await browser.url(`${TELENCEPHALON_URL}/shadow/v1/conversations`);
     const body = await browser.$('body');
     const text = await body.getText();
     expect(text).toBeTruthy();
@@ -59,7 +59,7 @@ describe('Shadow Desktop - 对话 API', () => {
 
 describe('Shadow Desktop - 模型列表', () => {
   it('应该获取本地模型列表', async () => {
-    await browser.url(`${CORTEX_URL}/v1/models`);
+    await browser.url(`${TELENCEPHALON_URL}/v1/models`);
     const body = await browser.$('body');
     const text = await body.getText();
     expect(text).toBeTruthy();
@@ -90,7 +90,7 @@ describe('Shadow Desktop - MCP 管理', () => {
   });
 
   it('应该获取 MCP 服务器列表', async () => {
-    await browser.url(`${CORTEX_URL}/api/cortex/mcp/servers`);
+    await browser.url(`${TELENCEPHALON_URL}/api/telencephalon/mcp/servers`);
     const body = await browser.$('body');
     const text = await body.getText();
     expect(text).toBeTruthy();
@@ -109,7 +109,7 @@ describe('Shadow Desktop - 记忆功能', () => {
   });
 
   it('应该获取记忆列表', async () => {
-    await browser.url(`${CORTEX_URL}/hippocampus/api/memory`);
+    await browser.url(`${TELENCEPHALON_URL}/hippocampus/api/memory`);
     const body = await browser.$('body');
     const text = await body.getText();
     expect(text).toBeTruthy();
@@ -142,35 +142,35 @@ describe('Shadow Desktop - 共鸣管理', () => {
 
 describe('Shadow Desktop - 智能体调度 (prefrontal)', () => {
   it('应该列出可调度的智能体', async () => {
-    await browser.url(`${CORTEX_URL}/api/cortex/prefrontal/agents`);
+    await browser.url(`${TELENCEPHALON_URL}/api/telencephalon/prefrontal/agents`);
     const body = await browser.$('body');
     const text = await body.getText();
     expect(text).toContain('dispatchable_via');
   });
 
   it('应该包含 temporal lobe', async () => {
-    await browser.url(`${CORTEX_URL}/api/cortex/prefrontal/agents`);
+    await browser.url(`${TELENCEPHALON_URL}/api/telencephalon/prefrontal/agents`);
     const body = await browser.$('body');
     const text = await body.getText();
     expect(text).toContain('temporal');
   });
 
   it('应该返回 lobe runtime 信息', async () => {
-    await browser.url(`${CORTEX_URL}/api/cortex/lobes/runtime/temporal`);
+    await browser.url(`${TELENCEPHALON_URL}/api/telencephalon/lobes/runtime/temporal`);
     const body = await browser.$('body');
     const text = await body.getText();
     expect(text).toContain('openai_base_url');
   });
 
   it('应该接受 lobe 重新配置', async () => {
-    await browser.url(`${CORTEX_URL}/api/cortex/lobes/reconfigure/temporal`);
+    await browser.url(`${TELENCEPHALON_URL}/api/telencephalon/lobes/reconfigure/temporal`);
     const body = await browser.$('body');
     const text = await body.getText();
     expect(text).toBeTruthy();
   });
 
   it('应该列出 lobe capabilities', async () => {
-    await browser.url(`${CORTEX_URL}/api/cortex/lobes/capabilities`);
+    await browser.url(`${TELENCEPHALON_URL}/api/telencephalon/lobes/capabilities`);
     const body = await browser.$('body');
     const text = await body.getText();
     expect(text).toContain('llm');
@@ -179,7 +179,7 @@ describe('Shadow Desktop - 智能体调度 (prefrontal)', () => {
   });
 
   it('应该列出 lobe manifests', async () => {
-    await browser.url(`${CORTEX_URL}/api/cortex/lobes/manifest`);
+    await browser.url(`${TELENCEPHALON_URL}/api/telencephalon/lobes/manifest`);
     const body = await browser.$('body');
     const text = await body.getText();
     expect(text).toContain('temporal');
@@ -189,7 +189,7 @@ describe('Shadow Desktop - 智能体调度 (prefrontal)', () => {
 
 describe('Shadow Desktop - 外部 Agent (tiangong) A2A 调度', () => {
   it('应该通过 prefrontal/agents 看到外部 agent', async () => {
-    await browser.url(`${CORTEX_URL}/api/cortex/prefrontal/agents`);
+    await browser.url(`${TELENCEPHALON_URL}/api/telencephalon/prefrontal/agents`);
     const body = await browser.$('body');
     const text = await body.getText();
     // tiangong-agent may or may not be registered, but the endpoint should respond
@@ -197,7 +197,7 @@ describe('Shadow Desktop - 外部 Agent (tiangong) A2A 调度', () => {
   });
 
   it('prefrontal/dispatch 应该接受 agent 字段', async () => {
-    await browser.url(`${CORTEX_URL}/api/cortex/prefrontal/dispatch`);
+    await browser.url(`${TELENCEPHALON_URL}/api/telencephalon/prefrontal/dispatch`);
     const body = await browser.$('body');
     const text = await body.getText();
     expect(text).toBeTruthy();

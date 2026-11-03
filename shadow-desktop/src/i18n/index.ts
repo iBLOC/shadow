@@ -1,39 +1,24 @@
-import i18n from 'i18next';
+/**
+ * i18n 的 **React 那一侧** —— app 启动时 `import "./i18n"` 走的就是这里。
+ *
+ * ⚠️ **为什么 React 绑定在这、而内核在 `core.ts`**：见 `core.ts` 的文件头
+ * （一句话：lib 层要用 i18n，但**不该**被 React 绑住）。
+ *
+ * ⚠️ **顺序**：`use()` 必须在 `init()` **之前** —— i18next v24 的 `use()`
+ * 只是把模块塞进队列，**真正调 `module.init()` 的是 `init()`**
+ * ⇒ 顺序反了 ⇒ `useTranslation()` 拿不到实例
+ * ⇒ 界面全是 key，**而且不报错**。
+ */
+import i18n, { ensureI18n } from './core';
 import { initReactI18next } from 'react-i18next';
-import zhCN from './zh-CN.json';
-import enUS from './en-US.json';
 
-const resources = {
-  'zh-CN': { translation: zhCN },
-  'en-US': { translation: enUS },
-};
+i18n.use(initReactI18next);
+ensureI18n();
 
-const missingKeys: string[] = [];
-
-i18n
-  .use(initReactI18next)
-  .init({
-    resources,
-    lng: 'zh-CN',
-    fallbackLng: 'en-US',
-    interpolation: {
-      escapeValue: false,
-    },
-    missingKeyHandler: (lng, ns, key) => {
-      const fullKey = `${ns}:${key}`;
-      if (!missingKeys.includes(fullKey)) {
-        missingKeys.push(fullKey);
-        console.error(`[i18next] Missing translation key: "${key}" (language: ${lng})`);
-      }
-    },
-  });
-
-export function getMissingTranslationKeys(): string[] {
-  return [...missingKeys];
-}
-
-export function clearMissingTranslationKeys(): void {
-  missingKeys.length = 0;
-}
-
+export {
+  getMissingTranslationKeys,
+  clearMissingTranslationKeys,
+  resources,
+  i18nOptions,
+} from './core';
 export default i18n;

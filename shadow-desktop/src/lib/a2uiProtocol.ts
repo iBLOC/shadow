@@ -409,3 +409,25 @@ export class A2uiSurfaceModel {
     return out;
   }
 }
+
+/**
+ * 从一组 A2A 事件建出**第一块可渲染的 surface**（没有就 `null`）。
+ *
+ * ## 为什么要有这个函数
+ *
+ * A2UI 的事件现在有**两条消费路径**：
+ *
+ * ① 「面板」那条 —— `A2uiPanel` 自己解析 `/a2a` 的事件；
+ * ② 「**对话里内联**」那条 —— 客户端工具 `show_a2ui_surface`
+ *    （模型在对话中点名要界面 ⇒ 设备取回 surface ⇒ 画在**消息里**）。
+ *
+ * ⇒ 两边吃的是**同一批事件** ⇒ ⇒ 「事件 → snapshot」这件事
+ * **只该有一处实现** ⇒ ⇒ 两边都调它 ⇒ ⇒ 免得「面板对、内联不对」。
+ */
+export function buildSurfaceFromEvents(
+  events: readonly unknown[],
+): A2uiSurfaceSnapshot | null {
+  const model = new A2uiSurfaceModel();
+  for (const event of events) model.applyEvent(event);
+  return model.renderableSurfaces[0] ?? null;
+}

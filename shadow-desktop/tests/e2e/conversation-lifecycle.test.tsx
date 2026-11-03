@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, beforeAll, type Mock } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { useConversationStore } from '../../src/stores/conversationStore';
 import { useAgentStore } from '../../src/stores/agentStore';
@@ -17,12 +17,18 @@ vi.mock('../../src/stores/agentStore', () => ({
   useAgentStore: vi.fn(),
 }));
 
+// ⚠️ 生命周期模块（src/lib/conversationLifecycle.ts）用 zustand 的 `getState()`
+// 读会话 ⇒ ⇒ 这个 mock 也得带 getState（不然页面一删就炸）。
+const storeStateRef: { current: Record<string, unknown> | null } = { current: null };
+(useConversationStore as unknown as Mock & { getState: () => unknown }).getState = () =>
+  storeStateRef.current;
+
 const mockAddConversation = vi.fn();
 const mockRemoveConversation = vi.fn();
 const mockSetActiveConversation = vi.fn();
 
 function createMockConversationStore(overrides: Record<string, unknown> = {}) {
-  return {
+  const store = {
     conversations: [],
     activeConversationId: null,
     addConversation: mockAddConversation,
@@ -34,6 +40,9 @@ function createMockConversationStore(overrides: Record<string, unknown> = {}) {
     clearConversations: vi.fn(),
     ...overrides,
   };
+  // 生命周期模块走的是 getState() ⇒ ⇒ 这里得指向**当前这份**。
+  storeStateRef.current = store;
+  return store;
 }
 
 function createMockAgentStore(overrides: Record<string, unknown> = {}) {
@@ -237,12 +246,18 @@ describe('Conversation Lifecycle E2E', () => {
           activeConversationId: null,
         })
       );
+      // ⚠️ 删除是**不可逆**的 ⇒ ⇒ 页面要先跟用户确认（jsdom 的 confirm 是
+      // 「未实现」⇒ 返回 undefined ⇒ 不确认就不删）。
+      vi.stubGlobal('confirm', vi.fn(() => true));
       await renderPage();
       const deleteBtns = screen.getAllByRole('button', { name: /delete/i });
       expect(deleteBtns.length).toBe(1);
       if (deleteBtns[0]) {
         fireEvent.click(deleteBtns[0]);
-        expect(mockRemoveConversation).toHaveBeenCalledWith('conv-5');
+        // ⚠️ 删除现在**异步**（先问端脑、再动本地）⇒ ⇒ 得等它跑完。
+        await waitFor(() =>
+          expect(mockRemoveConversation).toHaveBeenCalledWith('conv-5')
+        );
       }
     });
   });

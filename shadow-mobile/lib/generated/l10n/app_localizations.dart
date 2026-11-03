@@ -1214,11 +1214,59 @@ abstract class AppLocalizations {
   /// **'Create'**
   String get conversationCreate;
 
+  /// No description provided for @conversationArchive.
+  ///
+  /// In en, this message translates to:
+  /// **'Archive'**
+  String get conversationArchive;
+
+  /// No description provided for @conversationUnarchive.
+  ///
+  /// In en, this message translates to:
+  /// **'Unarchive'**
+  String get conversationUnarchive;
+
+  /// No description provided for @conversationArchiveBox.
+  ///
+  /// In en, this message translates to:
+  /// **'Archive box'**
+  String get conversationArchiveBox;
+
+  /// No description provided for @conversationArchiveBoxEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No archived conversations'**
+  String get conversationArchiveBoxEmpty;
+
+  /// No description provided for @conversationArchivedBadge.
+  ///
+  /// In en, this message translates to:
+  /// **'Archived'**
+  String get conversationArchivedBadge;
+
+  /// No description provided for @conversationDeleteBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This also deletes the copy in the hippocampus (the session and every message in it). It cannot be undone.'**
+  String get conversationDeleteBody;
+
+  /// No description provided for @conversationActionFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Action failed: {error}'**
+  String conversationActionFailed(String error);
+
   /// No description provided for @commonConfirmDelete.
   ///
   /// In en, this message translates to:
   /// **'Confirm Delete'**
   String get commonConfirmDelete;
+
+  /// No description provided for @commonCancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get commonCancel;
 
   /// No description provided for @commonDelete.
   ///
@@ -1645,6 +1693,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Local model'**
   String get providerLocalModel;
+
+  /// No description provided for @providerBuiltin.
+  ///
+  /// In en, this message translates to:
+  /// **'Built-in'**
+  String get providerBuiltin;
+
+  /// No description provided for @providerModelNotDownloaded.
+  ///
+  /// In en, this message translates to:
+  /// **'Not downloaded'**
+  String get providerModelNotDownloaded;
 
   /// No description provided for @providersTitle.
   ///
@@ -2419,246 +2479,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Close'**
   String get cameraClose;
-
-  /// No description provided for @prefrontalPort.
-  ///
-  /// In en, this message translates to:
-  /// **'Port: {port}'**
-  String prefrontalPort(int port);
-
-  /// No description provided for @prefrontalStart.
-  ///
-  /// In en, this message translates to:
-  /// **'Start'**
-  String get prefrontalStart;
-
-  /// No description provided for @prefrontalStop.
-  ///
-  /// In en, this message translates to:
-  /// **'Stop'**
-  String get prefrontalStop;
-
-  /// No description provided for @prefrontalAgentsCount.
-  ///
-  /// In en, this message translates to:
-  /// **'Agents ({count})'**
-  String prefrontalAgentsCount(int count);
-
-  /// No description provided for @prefrontalRefresh.
-  ///
-  /// In en, this message translates to:
-  /// **'Refresh'**
-  String get prefrontalRefresh;
-
-  /// No description provided for @prefrontalStartFirst.
-  ///
-  /// In en, this message translates to:
-  /// **'Start the service first'**
-  String get prefrontalStartFirst;
-
-  /// No description provided for @prefrontalNoAgentsHint.
-  ///
-  /// In en, this message translates to:
-  /// **'No agents yet - add one:'**
-  String get prefrontalNoAgentsHint;
-
-  /// No description provided for @prefrontalAddSampleAgent.
-  ///
-  /// In en, this message translates to:
-  /// **'Add sample agent'**
-  String get prefrontalAddSampleAgent;
-
-  /// No description provided for @prefrontalInvokeTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Invoke agent (JNI)'**
-  String get prefrontalInvokeTitle;
-
-  /// No description provided for @prefrontalInput.
-  ///
-  /// In en, this message translates to:
-  /// **'Input'**
-  String get prefrontalInput;
-
-  /// No description provided for @prefrontalInputHint.
-  ///
-  /// In en, this message translates to:
-  /// **'Type what to send to the agent...'**
-  String get prefrontalInputHint;
-
-  /// No description provided for @prefrontalInvoke.
-  ///
-  /// In en, this message translates to:
-  /// **'Invoke (JNI)'**
-  String get prefrontalInvoke;
-
-  /// No description provided for @prefrontalNoOutput.
-  ///
-  /// In en, this message translates to:
-  /// **'(no output)'**
-  String get prefrontalNoOutput;
-
-  /// No description provided for @prefrontalAboutTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'About the NDK embedding'**
-  String get prefrontalAboutTitle;
-
-  /// No description provided for @prefrontalAboutLine1.
-  ///
-  /// In en, this message translates to:
-  /// **'- Prefrontal is embedded in the app process as a .so'**
-  String get prefrontalAboutLine1;
-
-  /// No description provided for @prefrontalAboutLine2.
-  ///
-  /// In en, this message translates to:
-  /// **'- Talks to the Kotlin service over JNI'**
-  String get prefrontalAboutLine2;
-
-  /// No description provided for @prefrontalAboutLine3.
-  ///
-  /// In en, this message translates to:
-  /// **'- Talks to Prefrontal over localhost HTTP'**
-  String get prefrontalAboutLine3;
-
-  /// No description provided for @prefrontalAboutLine4.
-  ///
-  /// In en, this message translates to:
-  /// **'- Service lifetime is bound to the app'**
-  String get prefrontalAboutLine4;
-
-  /// No description provided for @prefrontalAboutLine5.
-  ///
-  /// In en, this message translates to:
-  /// **'- No external process, so it is not killed'**
-  String get prefrontalAboutLine5;
-
-  /// No description provided for @prefrontalAboutArchitecture.
-  ///
-  /// In en, this message translates to:
-  /// **'Architecture:'**
-  String get prefrontalAboutArchitecture;
-
-  /// No description provided for @prefrontalStartSuccess.
-  ///
-  /// In en, this message translates to:
-  /// **'Embedded runtime started'**
-  String get prefrontalStartSuccess;
-
-  /// No description provided for @prefrontalStartFailed.
-  ///
-  /// In en, this message translates to:
-  /// **'Start failed'**
-  String get prefrontalStartFailed;
-
-  /// No description provided for @prefrontalStartError.
-  ///
-  /// In en, this message translates to:
-  /// **'Start error: {error}'**
-  String prefrontalStartError(String error);
-
-  /// No description provided for @prefrontalStopSuccess.
-  ///
-  /// In en, this message translates to:
-  /// **'Embedded runtime stopped'**
-  String get prefrontalStopSuccess;
-
-  /// No description provided for @prefrontalStopFailed.
-  ///
-  /// In en, this message translates to:
-  /// **'Stop failed'**
-  String get prefrontalStopFailed;
-
-  /// No description provided for @prefrontalStopError.
-  ///
-  /// In en, this message translates to:
-  /// **'Stop error: {error}'**
-  String prefrontalStopError(String error);
-
-  /// No description provided for @prefrontalAddSuccess.
-  ///
-  /// In en, this message translates to:
-  /// **'Added'**
-  String get prefrontalAddSuccess;
-
-  /// No description provided for @prefrontalAddFailed.
-  ///
-  /// In en, this message translates to:
-  /// **'Add failed'**
-  String get prefrontalAddFailed;
-
-  /// No description provided for @prefrontalAddError.
-  ///
-  /// In en, this message translates to:
-  /// **'Add error: {error}'**
-  String prefrontalAddError(String error);
-
-  /// No description provided for @prefrontalInvokeSuccess.
-  ///
-  /// In en, this message translates to:
-  /// **'JNI call succeeded'**
-  String get prefrontalInvokeSuccess;
-
-  /// No description provided for @prefrontalInvokeFailed.
-  ///
-  /// In en, this message translates to:
-  /// **'Call failed'**
-  String get prefrontalInvokeFailed;
-
-  /// No description provided for @prefrontalInvokeError.
-  ///
-  /// In en, this message translates to:
-  /// **'Call error: {error}'**
-  String prefrontalInvokeError(String error);
-
-  /// No description provided for @prefrontalStatusStopped.
-  ///
-  /// In en, this message translates to:
-  /// **'Stopped'**
-  String get prefrontalStatusStopped;
-
-  /// No description provided for @prefrontalStatusStarting.
-  ///
-  /// In en, this message translates to:
-  /// **'Starting...'**
-  String get prefrontalStatusStarting;
-
-  /// No description provided for @prefrontalStatusRunning.
-  ///
-  /// In en, this message translates to:
-  /// **'Running'**
-  String get prefrontalStatusRunning;
-
-  /// No description provided for @prefrontalStatusStopping.
-  ///
-  /// In en, this message translates to:
-  /// **'Stopping...'**
-  String get prefrontalStatusStopping;
-
-  /// No description provided for @prefrontalStatusError.
-  ///
-  /// In en, this message translates to:
-  /// **'Error'**
-  String get prefrontalStatusError;
-
-  /// No description provided for @prefrontalSampleAgentName.
-  ///
-  /// In en, this message translates to:
-  /// **'Sample agent'**
-  String get prefrontalSampleAgentName;
-
-  /// No description provided for @prefrontalSampleAgentDesc.
-  ///
-  /// In en, this message translates to:
-  /// **'Sample agent registered over JNI'**
-  String get prefrontalSampleAgentDesc;
-
-  /// No description provided for @prefrontalErrorPrefix.
-  ///
-  /// In en, this message translates to:
-  /// **'Error: {error}'**
-  String prefrontalErrorPrefix(String error);
 
   /// No description provided for @chatGreeting.
   ///
@@ -3698,17 +3518,329 @@ abstract class AppLocalizations {
   /// **'Rust'**
   String get ttsEngineRust;
 
-  /// No description provided for @settingsAdvancedLegacy.
-  ///
-  /// In en, this message translates to:
-  /// **'Legacy runtime'**
-  String get settingsAdvancedLegacy;
-
   /// No description provided for @logsExported.
   ///
   /// In en, this message translates to:
   /// **'Logs exported to {path}'**
   String logsExported(String path);
+
+  /// No description provided for @askAgent2UI.
+  ///
+  /// In en, this message translates to:
+  /// **'Ask the telencephalon to draw...'**
+  String get askAgent2UI;
+
+  /// No description provided for @a2uiSurfaceReportTasks.
+  ///
+  /// In en, this message translates to:
+  /// **'Expanded the task board.'**
+  String get a2uiSurfaceReportTasks;
+
+  /// No description provided for @a2uiSurfaceReportAgents.
+  ///
+  /// In en, this message translates to:
+  /// **'Expanded the agent list.'**
+  String get a2uiSurfaceReportAgents;
+
+  /// No description provided for @a2uiSurfaceReportNoSurface.
+  ///
+  /// In en, this message translates to:
+  /// **'The telencephalon did not draw an interface this time.'**
+  String get a2uiSurfaceReportNoSurface;
+
+  /// No description provided for @a2uiSurfaceReportNoSurfaceSaid.
+  ///
+  /// In en, this message translates to:
+  /// **'The telencephalon did not draw an interface this time. It said: {words}'**
+  String a2uiSurfaceReportNoSurfaceSaid(String words);
+
+  /// No description provided for @settingsGroupCapabilities.
+  ///
+  /// In en, this message translates to:
+  /// **'Capabilities'**
+  String get settingsGroupCapabilities;
+
+  /// No description provided for @settingsGroupCapabilitiesDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'You decide what the model may read on this phone, item by item'**
+  String get settingsGroupCapabilitiesDesc;
+
+  /// No description provided for @capabilityCalendarRead.
+  ///
+  /// In en, this message translates to:
+  /// **'Read calendar'**
+  String get capabilityCalendarRead;
+
+  /// No description provided for @capabilityCalendarWrite.
+  ///
+  /// In en, this message translates to:
+  /// **'Write calendar'**
+  String get capabilityCalendarWrite;
+
+  /// No description provided for @capabilityContacts.
+  ///
+  /// In en, this message translates to:
+  /// **'Read contacts'**
+  String get capabilityContacts;
+
+  /// No description provided for @capabilitySms.
+  ///
+  /// In en, this message translates to:
+  /// **'Read SMS'**
+  String get capabilitySms;
+
+  /// No description provided for @capabilityPhotos.
+  ///
+  /// In en, this message translates to:
+  /// **'Read photos'**
+  String get capabilityPhotos;
+
+  /// No description provided for @capabilityAuthAsk.
+  ///
+  /// In en, this message translates to:
+  /// **'Ask every time'**
+  String get capabilityAuthAsk;
+
+  /// No description provided for @capabilityAuthFull.
+  ///
+  /// In en, this message translates to:
+  /// **'Full access'**
+  String get capabilityAuthFull;
+
+  /// No description provided for @capabilityAuthDisabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Disabled'**
+  String get capabilityAuthDisabled;
+
+  /// No description provided for @capabilityAuthAskDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Ask before every call'**
+  String get capabilityAuthAskDesc;
+
+  /// No description provided for @capabilityAuthFullDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'No per-call prompt'**
+  String get capabilityAuthFullDesc;
+
+  /// No description provided for @capabilityAuthDisabledDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'The model cannot see this capability'**
+  String get capabilityAuthDisabledDesc;
+
+  /// No description provided for @capabilitySystemGranted.
+  ///
+  /// In en, this message translates to:
+  /// **'System permission granted'**
+  String get capabilitySystemGranted;
+
+  /// No description provided for @capabilitySystemMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'System permission not granted'**
+  String get capabilitySystemMissing;
+
+  /// No description provided for @capabilityRejectedDisabled.
+  ///
+  /// In en, this message translates to:
+  /// **'This capability has been disabled in settings'**
+  String get capabilityRejectedDisabled;
+
+  /// No description provided for @capabilityUnsupportedPlatform.
+  ///
+  /// In en, this message translates to:
+  /// **'Not supported on this platform'**
+  String get capabilityUnsupportedPlatform;
+
+  /// No description provided for @capabilityMobileUse.
+  ///
+  /// In en, this message translates to:
+  /// **'Phone control'**
+  String get capabilityMobileUse;
+
+  /// No description provided for @capabilityRequestMobileUse.
+  ///
+  /// In en, this message translates to:
+  /// **'to control this phone'**
+  String get capabilityRequestMobileUse;
+
+  /// No description provided for @capabilityRequestMobileReadScreen.
+  ///
+  /// In en, this message translates to:
+  /// **'to read what is currently on this phone screen'**
+  String get capabilityRequestMobileReadScreen;
+
+  /// No description provided for @capabilityRequestMobileTap.
+  ///
+  /// In en, this message translates to:
+  /// **'to tap a point on this phone screen'**
+  String get capabilityRequestMobileTap;
+
+  /// No description provided for @capabilityRequestMobileLongPress.
+  ///
+  /// In en, this message translates to:
+  /// **'to press and hold a point on this phone screen'**
+  String get capabilityRequestMobileLongPress;
+
+  /// No description provided for @capabilityRequestMobileSwipe.
+  ///
+  /// In en, this message translates to:
+  /// **'to swipe on this phone screen'**
+  String get capabilityRequestMobileSwipe;
+
+  /// No description provided for @capabilityRequestMobileFindAndClick.
+  ///
+  /// In en, this message translates to:
+  /// **'to click a control on this phone screen by its text'**
+  String get capabilityRequestMobileFindAndClick;
+
+  /// No description provided for @capabilityRequestMobileGlobalAction.
+  ///
+  /// In en, this message translates to:
+  /// **'to trigger a system action on this phone'**
+  String get capabilityRequestMobileGlobalAction;
+
+  /// No description provided for @capabilityArgMobilePoint.
+  ///
+  /// In en, this message translates to:
+  /// **'at {x}, {y}'**
+  String capabilityArgMobilePoint(String x, String y);
+
+  /// No description provided for @capabilityArgMobileSwipe.
+  ///
+  /// In en, this message translates to:
+  /// **'from {x1}, {y1} to {x2}, {y2}'**
+  String capabilityArgMobileSwipe(String x1, String y1, String x2, String y2);
+
+  /// No description provided for @capabilityArgMobileText.
+  ///
+  /// In en, this message translates to:
+  /// **'text \"{text}\"'**
+  String capabilityArgMobileText(String text);
+
+  /// No description provided for @capabilityArgMobileAction.
+  ///
+  /// In en, this message translates to:
+  /// **'action: {action}'**
+  String capabilityArgMobileAction(String action);
+
+  /// No description provided for @capabilityServiceGranted.
+  ///
+  /// In en, this message translates to:
+  /// **'Accessibility service enabled'**
+  String get capabilityServiceGranted;
+
+  /// No description provided for @capabilityServiceMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'Accessibility service not enabled'**
+  String get capabilityServiceMissing;
+
+  /// No description provided for @capabilityGrantService.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable'**
+  String get capabilityGrantService;
+
+  /// No description provided for @toolCallAllow.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow'**
+  String get toolCallAllow;
+
+  /// No description provided for @toolCallDeny.
+  ///
+  /// In en, this message translates to:
+  /// **'Deny'**
+  String get toolCallDeny;
+
+  /// No description provided for @capabilityRequestCalendarRead.
+  ///
+  /// In en, this message translates to:
+  /// **'Read calendar events on this phone'**
+  String get capabilityRequestCalendarRead;
+
+  /// No description provided for @capabilityRequestCalendarWrite.
+  ///
+  /// In en, this message translates to:
+  /// **'Write an event to the calendar on this phone'**
+  String get capabilityRequestCalendarWrite;
+
+  /// No description provided for @capabilityRequestContacts.
+  ///
+  /// In en, this message translates to:
+  /// **'Read the contacts on this phone'**
+  String get capabilityRequestContacts;
+
+  /// No description provided for @capabilityRequestSms.
+  ///
+  /// In en, this message translates to:
+  /// **'Read the SMS messages on this phone'**
+  String get capabilityRequestSms;
+
+  /// No description provided for @capabilityRequestPhotos.
+  ///
+  /// In en, this message translates to:
+  /// **'Read photo information from this phone'**
+  String get capabilityRequestPhotos;
+
+  /// No description provided for @capabilityArgTimeRange.
+  ///
+  /// In en, this message translates to:
+  /// **'{from} ~ {to}'**
+  String capabilityArgTimeRange(String from, String to);
+
+  /// No description provided for @capabilityArgTimeRangeDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'the next 7 days'**
+  String get capabilityArgTimeRangeDefault;
+
+  /// No description provided for @capabilityArgTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Title “{title}”'**
+  String capabilityArgTitle(String title);
+
+  /// No description provided for @capabilityArgStartAt.
+  ///
+  /// In en, this message translates to:
+  /// **'starting {time}'**
+  String capabilityArgStartAt(String time);
+
+  /// No description provided for @capabilityArgKeyword.
+  ///
+  /// In en, this message translates to:
+  /// **'name contains “{query}”'**
+  String capabilityArgKeyword(String query);
+
+  /// No description provided for @capabilityArgContactsHead.
+  ///
+  /// In en, this message translates to:
+  /// **'the first {count} contacts'**
+  String capabilityArgContactsHead(String count);
+
+  /// No description provided for @capabilityArgRecentSms.
+  ///
+  /// In en, this message translates to:
+  /// **'the most recent {count} messages'**
+  String capabilityArgRecentSms(String count);
+
+  /// No description provided for @capabilityArgRecentPhotos.
+  ///
+  /// In en, this message translates to:
+  /// **'the most recent {count} photos'**
+  String capabilityArgRecentPhotos(String count);
+
+  /// No description provided for @capabilityGrantSystemPermission.
+  ///
+  /// In en, this message translates to:
+  /// **'Grant'**
+  String get capabilityGrantSystemPermission;
 }
 
 class _AppLocalizationsDelegate

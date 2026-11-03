@@ -2,28 +2,28 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { telencephalonClient, type LobeInfo, type FlowMeta } from '../lib/telencephalonClient';
 
-export type CortexStatus = 'stopped' | 'starting' | 'running' | 'stopping' | 'unreachable' | 'error';
+export type TelencephalonStatus = 'stopped' | 'starting' | 'running' | 'stopping' | 'unreachable' | 'error';
 
-export interface CortexConnection {
+export interface TelencephalonConnection {
   baseUrl: string;
   apiKey: string;
 }
 
-export interface CortexSupervisorInfo {
+export interface TelencephalonSupervisorInfo {
   enabled: boolean;
   restartCount: number;
 }
 
-interface CortexState {
-  connection: CortexConnection;
-  status: CortexStatus;
-  cortexId: string | null;
+interface TelencephalonState {
+  connection: TelencephalonConnection;
+  status: TelencephalonStatus;
+  telencephalonId: string | null;
   defaultAgent: string | null;
   lobes: LobeInfo[];
   flows: FlowMeta[];
   lastCheck: Date | null;
   error: string | null;
-  supervisor: CortexSupervisorInfo;
+  supervisor: TelencephalonSupervisorInfo;
 
   setBaseUrl: (url: string) => void;
   setApiKey: (key: string) => void;
@@ -33,6 +33,21 @@ interface CortexState {
 }
 
 const DEFAULT_BASE_URL = 'http://127.0.0.1:60080';
+
+// ⚠️ **持久化键改名** —— 旧键名 `shadow-cortex-store` 是**历史拼写**，
+// 但它是**存储键**（不是概念）⇒ ⇒ 直接改名会让用户已配置的端脑地址 /
+// 影子锁**静默丢失**（失败长得像成功）⇒ ⇒ 这里读旧键、搬一次、再用新键。
+const STORE_KEY = 'shadow-telencephalon-store';
+const LEGACY_STORE_KEY = 'shadow-cortex-store';
+try {
+  if (typeof localStorage !== 'undefined'
+    && !localStorage.getItem(STORE_KEY)
+    && localStorage.getItem(LEGACY_STORE_KEY)) {
+    localStorage.setItem(STORE_KEY, localStorage.getItem(LEGACY_STORE_KEY) as string);
+  }
+} catch {
+  /* localStorage 不可用（隐私模式 / 非浏览器）⇒ 忽略 */
+}
 
 /** Response shape from the embedded `encephalon_status` Tauri command
  *  (`src-tauri/src/lib.rs::encephalon_status`). The supervisor-style
@@ -47,7 +62,7 @@ interface EncephalonStatus {
   telencephalon_attached: boolean;
 }
 
-export const useTelencephalonStore = create<CortexState>()(
+export const useTelencephalonStore = create<TelencephalonState>()(
   persist(
     (set, get) => ({
       connection: {
@@ -55,7 +70,7 @@ export const useTelencephalonStore = create<CortexState>()(
         apiKey: '',
       },
       status: 'stopped',
-      cortexId: null,
+      telencephalonId: null,
       defaultAgent: null,
       lobes: [],
       flows: [],
@@ -83,7 +98,7 @@ export const useTelencephalonStore = create<CortexState>()(
           const resp = await telencephalonClient.health();
           set({
             status: 'running',
-            cortexId: (resp as { id?: string }).id ?? 'cortex',
+            telencephalonId: (resp as { id?: string }).id ?? 'telencephalon',
             error: null,
             lastCheck: new Date(),
           });
@@ -96,7 +111,7 @@ export const useTelencephalonStore = create<CortexState>()(
         }
         // Probe the in-process encephalon (Tauri-only; on the web
         // build the invoke returns null and we keep the previous
-        // value). Replaces the legacy `cortex_status` sidecar call —
+        // value). Replaces the legacy sidecar status call —
         // encephalon has no `supervision_enabled`/`restart_count`
         // fields, so we map `telencephalon_attached` onto
         // `supervisor.enabled`.
@@ -121,8 +136,8 @@ export const useTelencephalonStore = create<CortexState>()(
           const resp = await telencephalonClient.listAgents();
           set({
             lobes: resp.agents,
-            cortexId: resp.cortex?.id ?? get().cortexId,
-            defaultAgent: resp.cortex?.default_agent ?? get().defaultAgent,
+            telencephalonId: resp.telencephalon?.id ?? get().telencephalonId,
+            defaultAgent: resp.telencephalon?.default_agent ?? get().defaultAgent,
             lastCheck: new Date(),
             error: null,
           });
@@ -142,7 +157,7 @@ export const useTelencephalonStore = create<CortexState>()(
       },
     }),
     {
-      name: 'shadow-cortex-store',
+      name: STORE_KEY,
       partialize: (state) => ({ connection: state.connection }),
       // ⚠️ **恢复持久化状态时必须同步给 client** ——
       // `persist` 只把 `connection` 灌回 store，**不会**调 `setBaseUrl`/`setApiKey`
@@ -158,6 +173,6 @@ export const useTelencephalonStore = create<CortexState>()(
   ),
 );
 
-export function useCortexConnected(): boolean {
+export function useTelencephalonConnected(): boolean {
   return useTelencephalonStore((s) => s.status === 'running');
 }

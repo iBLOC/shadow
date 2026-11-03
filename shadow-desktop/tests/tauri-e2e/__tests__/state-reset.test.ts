@@ -8,7 +8,7 @@ describe('stateReset', () => {
     process.env.SHADOW_TEST_ADMIN_TOKEN = 'test-token';
   });
 
-  it('POSTs to cortex admin endpoint with defaults', async () => {
+  it('POSTs to telencephalon admin endpoint with defaults', async () => {
     const mock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -20,7 +20,7 @@ describe('stateReset', () => {
 
     expect(mock).toHaveBeenCalledTimes(1);
     const [url, opts] = mock.mock.calls[0];
-    expect(url).toBe('http://localhost:60080/api/cortex/admin/test/reset');
+    expect(url).toBe('http://localhost:60080/api/telencephalon/admin/test/reset');
     expect(opts.method).toBe('POST');
     expect(opts.headers['X-Admin-Token']).toBe('test-token');
     const body = JSON.parse(opts.body);
@@ -46,7 +46,7 @@ describe('stateReset', () => {
     expect(body.conversations).toBe(true);
   });
 
-  it('throws when cortex returns non-ok', async () => {
+  it('throws when telencephalon returns non-ok', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: false, status: 500, text: () => Promise.resolve('boom'),
     }));

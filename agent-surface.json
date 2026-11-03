@@ -6,8 +6,9 @@
     "structureCheckedBy": "scripts/check-agent-surface.mjs（CI 的 Cross-client consistency check 步骤）",
     "why": "桌面端与移动端是**同一个 agent 的两个终端**。同一个 agent 能力不应该在两端有两个名字、两套入口语义、两种视觉。这一份是「能力 → 两端入口」的唯一映射表，两端的导航从它生成，而不是各自硬编码一份页面清单。",
     "consumers": {
-      "shadow-desktop": "src/lib/agentSurface.ts 读取本文件 → 侧边栏分组 / 路由守卫 / 能力可用性",
-      "shadow-mobile": "lib/services/agent_surface.dart 读取本文件 → 底部 tab / 管理台卡片"
+      "_note": "本文件目前**只**驱动导航生成 —— 运行时能力可用性还没有消费方（见 docs/superpowers/architecture/2026-10-31-three-surface-alignment-audit.md §2.2 / §6）。",
+      "shadow-desktop": "scripts/lib/nav.mjs → shadow-desktop/src/navigation/nav.g.ts（侧栏分组 / 对话形态切换器）",
+      "shadow-mobile": "scripts/lib/nav.mjs → shadow-mobile/lib/navigation/nav.g.dart（底部 tab / 对话形态切换条）"
     },
     "groups": {
       "converse": "对话与表达",
@@ -87,7 +88,7 @@
         "route": null,
         "nav": false,
         "secondary": true,
-        "_embeddedIn": "对话页 AppBar 上的「组件」按钮（Icons.widgets_outlined），切换 useAgent2UIModeProvider —— 不是独立路由"
+        "_embeddedIn": "对话页 AppBar 上的「组件」按钮（Icons.widgets_outlined），切换 useAgent2UIModeProvider ⇒ **同页共存**：展开的是对话页**上面的一块 A2UI 面板**（对话永远在下面）—— 不是独立路由、也不是「顶掉对话的形态」"
       },
       "_note": "A2UI（Agent-to-UI）—— **服务端现场画界面**。⚠️ 2026-10-31 之前它是**清单外功能**（清单 grep A2UI 零命中 ⇒ 对跨端一致性检查完全隐形），现在登记进来。移动端有完整客户端（genui 协议栈 + 8 个自定义组件目录），服务端产出面在端脑 `POST /a2a`（A2A v0.3 JSON-RPC + SSE），跨端契约由 shadow/fixtures/a2ui/tasks_surface.json 钉住。⚠️ 该产出面**在 shadow key 后面**（telencephalon/src/api/a2ui_gateway.rs 挂 api::shadow_auth::require_shadow_key）—— 它吐的是任务标题与 agent 名字这些用户数据，不是无害的静态面。"
     },
@@ -294,6 +295,15 @@
       "icon": "settings",
       "desktop": { "route": "/settings", "nav": false },
       "mobile": { "route": "/settings", "nav": true }
+    },
+    {
+      "id": "identity",
+      "group": "ops",
+      "labelKey": "surface.identity",
+      "icon": "badge",
+      "desktop": { "route": null, "nav": false, "secondary": true, "_embeddedIn": "设置 → 数据组里的 IdentityPanel 面板（无独立路由）" },
+      "mobile": { "route": "/settings/identity", "nav": false, "secondary": true },
+      "_note": "「这台机器是谁」—— 账号级身份 + 跨设备搬运（导出/导入）。两端都在设置面内，但**形态不同**：桌面端是数据组里的一个面板，移动端是独立路由页。"
     },
     {
       "id": "setup",

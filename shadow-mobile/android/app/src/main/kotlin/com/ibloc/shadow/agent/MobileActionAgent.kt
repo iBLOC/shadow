@@ -2,6 +2,7 @@ package com.ibloc.shadow.agent
 
 import android.util.Log
 import com.ibloc.shadow.AppLog
+import com.ibloc.shadow.DeviceActionGate
 import com.ibloc.shadow.PrefrontalAccessibilityService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -91,6 +92,15 @@ class MobileActionAgent(
     }
 
     suspend fun executeAction(action: String, params: Map<String, Any>): A2AResponse = withContext(Dispatchers.IO) {
+        // ⚠️ **设备动作闸**（与 HTTP 那张脸同一个）—— 这条腿也**不经过**
+        // Dart 侧的能力闸 ⇒ ⇒ 原生侧自己认 ⇒ ⇒ 闸才是真的。
+        if (!DeviceActionGate.isAllowed()) {
+            return@withContext A2AResponse(
+                success = false,
+                content = "",
+                error = DeviceActionGate.DENIED_MESSAGE
+            )
+        }
         val accessibilityService = PrefrontalAccessibilityService.instance
 
         if (accessibilityService == null) {
@@ -153,7 +163,9 @@ class MobileActionAgent(
                     }
                 }
                 "read_screen" -> {
-                    val text = readScreenContent(accessibilityService)
+                    // ⚠️ 树遍历已经**下沉到服务**（PrefrontalAccessibilityService）
+                    // ⇒ ⇒ 这里只调用它 ⇒ ⇒ 不会与「模型工具」那条路各有一份拷贝。
+                    val text = accessibilityService.readScreenContent() ?: "Cannot access screen"
                     successResult(text)
                 }
                 "get_current_app" -> {
@@ -219,34 +231,6 @@ class MobileActionAgent(
             }
         } catch (e: Exception) {
             A2AResponse(success = true, content = body)
-        }
-    }
-
-    private fun readScreenContent(service: PrefrontalAccessibilityService): String {
-        val root = service.rootInActiveWindow ?: return "Cannot access screen"
-        val sb = StringBuilder()
-        appendNodesToString(root, sb, 0)
-        root.recycle()
-        return sb.toString()
-    }
-
-    private fun appendNodesToString(node: android.view.accessibility.AccessibilityNodeInfo, sb: StringBuilder, depth: Int) {
-        val indent = "  ".repeat(depth)
-        val text = node.text?.toString()
-        val contentDesc = node.contentDescription?.toString()
-        val className = node.className?.toString()
-
-        if (!text.isNullOrEmpty() || !contentDesc.isNullOrEmpty()) {
-            sb.appendLine("$indent[$className]")
-            if (!text.isNullOrEmpty()) sb.appendLine("$indent  text: $text")
-            if (!contentDesc.isNullOrEmpty()) sb.appendLine("$indent  desc: $contentDesc")
-        }
-
-        for (i in 0 until node.childCount) {
-            node.getChild(i)?.let { child ->
-                appendNodesToString(child, sb, depth + 1)
-                child.recycle()
-            }
         }
     }
 

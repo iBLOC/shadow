@@ -1581,7 +1581,7 @@ class TelencephalonClient {
   ///
   /// ⚠️ 旧路径 `/api/providers` 是**前额叶方言**，端脑**不提供** ⇒ 404 ⇒
   /// ⇒ 界面把它画成「还没有供应商」⇒ ⇒ **失败长得像成功**。
-  Future<List<BrainProvider>> listProviders() async {
+  Future<List<RegisteredProvider>> listProviders() async {
     final data = await _getJson('/models/providers');
     if (data is! List) {
       throw TelencephalonException(
@@ -1590,7 +1590,7 @@ class TelencephalonClient {
     }
     return data
         .cast<Map<String, dynamic>>()
-        .map(BrainProvider.fromJson)
+        .map(RegisteredProvider.fromJson)
         .toList();
   }
 
@@ -1615,7 +1615,7 @@ class TelencephalonClient {
   ///
   /// ⚠️ 给了 [presetId] 就**只需要 API key**（base URL + API 标准由大脑的
   /// 目录给）⇒ ⇒ 这正是桌面端那套交互 ⇒ ⇒ 两端现在**打同一个接口**。
-  Future<BrainProvider> addProvider({
+  Future<RegisteredProvider> addProvider({
     String? presetId,
     String? name,
     String? baseUrl,
@@ -1626,11 +1626,11 @@ class TelencephalonClient {
     if (name != null) body['name'] = name;
     if (baseUrl != null) body['api_base'] = baseUrl;
     if (apiKey != null) body['api_key'] = apiKey;
-    return BrainProvider.fromJson(await _post('/models/providers', body));
+    return RegisteredProvider.fromJson(await _post('/models/providers', body));
   }
 
   /// 改一个供应商（启停 / 选模型 / 换 key / 改定义）。
-  Future<BrainProvider> updateProvider(
+  Future<RegisteredProvider> updateProvider(
     String id, {
     bool? enabled,
     String? selectedModel,
@@ -1644,7 +1644,7 @@ class TelencephalonClient {
     if (apiKey != null) body['api_key'] = apiKey;
     if (name != null) body['name'] = name;
     if (baseUrl != null) body['api_base'] = baseUrl;
-    return BrainProvider.fromJson(
+    return RegisteredProvider.fromJson(
       await _put('/models/providers/${Uri.encodeComponent(id)}', body),
     );
   }
@@ -1682,7 +1682,7 @@ class TelencephalonClient {
 /// 大脑提供的一条**已配置**供应商（端脑面 `/models/providers` 的读模型）。
 ///
 /// ⚠️ 字段名**跟大脑对齐**（不是两端各抄一套）⇒ ⇒ 两端读**同一份数据**。
-class BrainProvider {
+class RegisteredProvider {
   final String id;
   final String name;
   final String baseUrl;
@@ -1690,7 +1690,7 @@ class BrainProvider {
   final bool enabled;
   final String? selectedModel;
   final String? presetId;
-  final List<BrainModel> models;
+  final List<RegisteredModel> models;
   final String? lastError;
   final String? lastRefreshedAt;
   ///
@@ -1701,7 +1701,7 @@ class BrainProvider {
   /// 拿到 400（大脑那边明确拒），界面不能给用户一个必然失败的按钮。
   final bool builtin;
 
-  const BrainProvider({
+  const RegisteredProvider({
     required this.id,
     required this.name,
     required this.baseUrl,
@@ -1715,9 +1715,9 @@ class BrainProvider {
     this.builtin = false,
   });
 
-  factory BrainProvider.fromJson(Map<String, dynamic> json) {
+  factory RegisteredProvider.fromJson(Map<String, dynamic> json) {
     final providerType = (json['provider_type'] as String?) ?? '';
-    return BrainProvider(
+    return RegisteredProvider(
       id: (json['id'] as String?) ?? '',
       name: (json['name'] as String?) ?? '',
       // ⚠️ `base_url` 是大脑给的别名；`api_base` 是它自己的老字段 ⇒ 两个都读。
@@ -1730,7 +1730,7 @@ class BrainProvider {
       presetId: json['preset_id'] as String?,
       models: ((json['models'] as List?) ?? const [])
           .cast<Map<String, dynamic>>()
-          .map(BrainModel.fromJson)
+          .map(RegisteredModel.fromJson)
           .toList(),
       lastError: json['last_error'] as String?,
       lastRefreshedAt: json['last_refreshed_at'] as String?,
@@ -1751,16 +1751,44 @@ class BrainProvider {
 }
 
 /// 大脑给的**模型列表**里的一条。
-class BrainModel {
+class RegisteredModel {
   final String id;
   final String name;
 
-  const BrainModel({required this.id, required this.name});
+  /// **能力**（llm / asr / tts / embedding / vision / rerank / ocr）。
+  ///
+  /// ⚠️ 内置条目（neuron 目录）的模型**横跨七种能力** ⇒ ⇒ 不带它 ⇒ ⇒ 界面
+  /// ⇒ ⇒ 分不出「这条是聊天模型还是语音模型」。
+  final String? capability;
 
-  factory BrainModel.fromJson(Map<String, dynamic> json) => BrainModel(
+  /// **盘上真的有吗** —— 没下载 ⇒ 选了也跑不起来 ⇒ ⇒ 界面**不许选**它。
+  ///
+  /// ⚠️ 没有这个字段 ＝ **不知道** ⇒ ⇒ 按「可用」处理。
+  final bool? available;
+
+  const RegisteredModel({
+    required this.id,
+    required this.name,
+    this.capability,
+    this.available,
+  });
+
+  factory RegisteredModel.fromJson(Map<String, dynamic> json) => RegisteredModel(
     id: (json['id'] as String?) ?? (json['model_id'] as String?) ?? '',
     name: (json['name'] as String?) ?? (json['id'] as String?) ?? '',
+    capability: _firstCapability(json),
+    available: json['available'] as bool?,
   );
+
+  /// 从大脑给的 capabilities 数组里取**第一个**能力（没有 ⇒ null）。
+  static String? _firstCapability(Map<String, dynamic> json) {
+    final caps = json['capabilities'];
+    if (caps is! List) return null;
+    for (final c in caps) {
+      if (c is String && c.isNotEmpty) return c;
+    }
+    return null;
+  }
 }
 
 /// 大脑给的**预设目录**里的一条（端脑面 `/models/providers/presets`）。

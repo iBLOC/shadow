@@ -1,8 +1,8 @@
 import { test, expect, Page } from '@playwright/test';
 import { TEST_CONFIG } from './config';
-import { isCortexReachable } from './global-setup';
+import { isTelencephalonReachable } from './global-setup';
 
-const CORTEX_URL = TEST_CONFIG.CORTEX_URL;
+const TELENCEPHALON_URL = TEST_CONFIG.TELENCEPHALON_URL;
 const FULL_STACK = process.env.SHADOW_FULL_STACK === '1';
 
 async function setupSetupComplete(page: Page) {
@@ -18,9 +18,9 @@ test.describe('Business Flow UI: Task Creation End-to-End', () => {
   });
 
   test('UI: 创建对话 → 发送任务创建请求 → 验证响应', async ({ page }) => {
-    test.skip(!await isCortexReachable(), 'telencephalon not reachable on :60080');
+    test.skip(!await isTelencephalonReachable(), 'telencephalon not reachable on :60080');
     // 1. 通过 UI API 创建对话
-    const conv = await page.request.post(`${CORTEX_URL}/shadow/v1/conversations`, {
+    const conv = await page.request.post(`${TELENCEPHALON_URL}/shadow/v1/conversations`, {
       data: {},
     });
     expect(conv.ok()).toBeTruthy();
@@ -30,7 +30,7 @@ test.describe('Business Flow UI: Task Creation End-to-End', () => {
 
     // 2. 发送任务创建消息
     const sendRes = await page.request.post(
-      `${CORTEX_URL}/shadow/v1/conversations/${convData.id}/messages`,
+      `${TELENCEPHALON_URL}/shadow/v1/conversations/${convData.id}/messages`,
       { data: { text: '帮我创建任务下午三点我要和客户开会' } }
     );
 
@@ -52,10 +52,10 @@ test.describe('Business Flow UI: Task Creation End-to-End', () => {
   });
 
   test('UI: 验证设置页面 lobe 配置立即生效', async ({ page }) => {
-    test.skip(!await isCortexReachable(), 'telencephalon not reachable on :60080');
+    test.skip(!await isTelencephalonReachable(), 'telencephalon not reachable on :60080');
     // 1. 设置默认模型
     const setRes = await page.request.patch(
-      `${CORTEX_URL}/api/cortex/agents/temporal/config`,
+      `${TELENCEPHALON_URL}/api/telencephalon/agents/temporal/config`,
       {
         data: { config: { model_id: 'mimo-v2-flash' } },
         headers: { 'X-Admin-Key': 'dev-admin-key' },
@@ -64,11 +64,11 @@ test.describe('Business Flow UI: Task Creation End-to-End', () => {
     expect(setRes.ok()).toBeTruthy();
 
     // 2. 发送消息
-    const conv = await page.request.post(`${CORTEX_URL}/shadow/v1/conversations`, { data: {} });
+    const conv = await page.request.post(`${TELENCEPHALON_URL}/shadow/v1/conversations`, { data: {} });
     const convData = await conv.json();
 
     const sendRes = await page.request.post(
-      `${CORTEX_URL}/shadow/v1/conversations/${convData.id}/messages`,
+      `${TELENCEPHALON_URL}/shadow/v1/conversations/${convData.id}/messages`,
       { data: { text: 'hello' } }
     );
 
@@ -80,13 +80,13 @@ test.describe('Business Flow UI: Task Creation End-to-End', () => {
 
   test('UI: 多轮对话验证 history 累积', async ({ page }) => {
     // 1. 创建对话
-    const conv = await page.request.post(`${CORTEX_URL}/shadow/v1/conversations`, { data: {} });
+    const conv = await page.request.post(`${TELENCEPHALON_URL}/shadow/v1/conversations`, { data: {} });
     const convData = await conv.json();
 
     // 2. 发送 3 条消息
     for (const msg of ['first', 'second', 'third']) {
       const res = await page.request.post(
-        `${CORTEX_URL}/shadow/v1/conversations/${convData.id}/messages`,
+        `${TELENCEPHALON_URL}/shadow/v1/conversations/${convData.id}/messages`,
         { data: { text: msg } }
       );
       if (!res.ok()) break;
@@ -94,7 +94,7 @@ test.describe('Business Flow UI: Task Creation End-to-End', () => {
 
     // 3. 验证 history
     const getRes = await page.request.get(
-      `${CORTEX_URL}/shadow/v1/conversations/${convData.id}`
+      `${TELENCEPHALON_URL}/shadow/v1/conversations/${convData.id}`
     );
     expect(getRes.ok()).toBeTruthy();
     const data = await getRes.json();
@@ -130,7 +130,7 @@ test.describe('Business Flow UI: Task Creation End-to-End', () => {
   test('UI: lobe 配置 PATCH 验证', async ({ page }) => {
     // 通过 UI 的 request 上配置 lobe
     const patchRes = await page.request.patch(
-      `${CORTEX_URL}/api/cortex/agents/temporal/config`,
+      `${TELENCEPHALON_URL}/api/telencephalon/agents/temporal/config`,
       {
         data: { config: { model_id: 'test-model-ui' } },
         headers: { 'X-Admin-Key': 'dev-admin-key' },
@@ -142,9 +142,9 @@ test.describe('Business Flow UI: Task Creation End-to-End', () => {
   });
 
   test('UI: 验证 prefrontal 端点响应', async ({ page }) => {
-    test.skip(!await isCortexReachable(), 'telencephalon not reachable on :60080');
+    test.skip(!await isTelencephalonReachable(), 'telencephalon not reachable on :60080');
     // prefrontal/agents 端点
-    const agentsRes = await page.request.get(`${CORTEX_URL}/api/cortex/prefrontal/agents`);
+    const agentsRes = await page.request.get(`${TELENCEPHALON_URL}/api/telencephalon/prefrontal/agents`);
     expect(agentsRes.ok()).toBeTruthy();
     const agents = await agentsRes.json();
     expect(Array.isArray(agents)).toBeTruthy();
@@ -152,8 +152,8 @@ test.describe('Business Flow UI: Task Creation End-to-End', () => {
   });
 
   test('UI: 验证 lobe capabilities 端点', async ({ page }) => {
-    test.skip(!await isCortexReachable(), 'telencephalon not reachable on :60080');
-    const capsRes = await page.request.get(`${CORTEX_URL}/api/cortex/lobes/capabilities`);
+    test.skip(!await isTelencephalonReachable(), 'telencephalon not reachable on :60080');
+    const capsRes = await page.request.get(`${TELENCEPHALON_URL}/api/telencephalon/lobes/capabilities`);
     expect(capsRes.ok()).toBeTruthy();
     const caps = await capsRes.json();
     expect(caps.capabilities).toBeTruthy();
@@ -161,9 +161,9 @@ test.describe('Business Flow UI: Task Creation End-to-End', () => {
   });
 
   test('UI: 验证 prefrontal dispatch 响应', async ({ page }) => {
-    test.skip(!await isCortexReachable(), 'telencephalon not reachable on :60080');
+    test.skip(!await isTelencephalonReachable(), 'telencephalon not reachable on :60080');
     const dispatchRes = await page.request.post(
-      `${CORTEX_URL}/api/cortex/prefrontal/dispatch`,
+      `${TELENCEPHALON_URL}/api/telencephalon/prefrontal/dispatch`,
       {
         data: {
           agent: 'temporal',
@@ -178,10 +178,10 @@ test.describe('Business Flow UI: Task Creation End-to-End', () => {
   });
 
   test('UI: 验证错误响应格式', async ({ page }) => {
-    test.skip(!await isCortexReachable(), 'telencephalon not reachable on :60080');
+    test.skip(!await isTelencephalonReachable(), 'telencephalon not reachable on :60080');
     // 故意使用不存在的会话
     const res = await page.request.post(
-      `${CORTEX_URL}/shadow/v1/conversations/non-existent-id/messages`,
+      `${TELENCEPHALON_URL}/shadow/v1/conversations/non-existent-id/messages`,
       { data: { text: 'test' } }
     );
     expect(res.status()).toBe(404);

@@ -3,6 +3,23 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
 
+    <!-- 设备能力（2026-11-03）—— 日历 / 联系人 / 短信 / 相册。
+         ⚠️ 每一项**单独声明、单独申请**：Android 的日历权限分
+         READ_CALENDAR（读）与 WRITE_CALENDAR（写），而
+         permission_handler 的 calendarFullAccess 把两者**捆在一起**
+         ⇒ ⇒ 用户只批「读」就会顺带拿到「写」⇒ ⇒ 本项目的
+         「按能力分档」就废了 ⇒ ⇒ 这里改走自建原生申请
+         （`device/DeviceDataBridge.kt`）。
+         ⚠️ 相册在 Android 13（API 33）起换成了 READ_MEDIA_IMAGES；
+         旧系统用 READ_EXTERNAL_STORAGE（限 API 32）。
+         ⚠️ **声明 ≠ 授予** —— 运行期仍然要用户在系统弹窗里逐项批。 -->
+    <uses-permission android:name="android.permission.READ_CALENDAR"/>
+    <uses-permission android:name="android.permission.WRITE_CALENDAR"/>
+    <uses-permission android:name="android.permission.READ_CONTACTS"/>
+    <uses-permission android:name="android.permission.READ_SMS"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+                     android:maxSdkVersion="32"/>
     <!-- v2.5 — BLE provisioning of shadow-esp32 ("shadow-esp32 setup"
          peripheral advertising 12345678-0001... service). Android
          12+ requires runtime BLUETOOTH_SCAN/CONNECT permissions;

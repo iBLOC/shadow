@@ -11,15 +11,15 @@ interface TaskDetailState {
 }
 
 interface TaskBoardDataState {
-  cortexTasks: Task[];
-  isLoadingCortex: boolean;
-  cortexError: string | null;
+  hippocampusTasks: Task[];
+  isLoadingHippocampus: boolean;
+  hippocampusError: string | null;
 
   detail: TaskDetailState;
 
-  fetchCortexTasks: () => Promise<void>;
-  refreshCortexTask: (taskId: string) => Promise<void>;
-  updateCortexTask: (
+  fetchHippocampusTasks: () => Promise<void>;
+  refreshHippocampusTask: (taskId: string) => Promise<void>;
+  updateHippocampusTask: (
     taskId: string,
     updates: Partial<
       Pick<
@@ -33,7 +33,7 @@ interface TaskBoardDataState {
       >
     >,
   ) => Promise<void>;
-  deleteCortexTask: (taskId: string) => Promise<void>;
+  deleteHippocampusTask: (taskId: string) => Promise<void>;
 
   openTaskDetail: (taskId: string, tab?: TaskDetailTab) => void;
   closeTaskDetail: () => void;
@@ -58,14 +58,14 @@ interface TaskBoardDataState {
  * `"default"`（老部署逐字节不变）。
  */
 export const useTaskBoardDataStore = create<TaskBoardDataState>((set, get) => ({
-  cortexTasks: [],
-  isLoadingCortex: false,
-  cortexError: null,
+  hippocampusTasks: [],
+  isLoadingHippocampus: false,
+  hippocampusError: null,
 
   detail: { taskId: null, activeTab: 'overview' },
 
-  async fetchCortexTasks() {
-    set({ isLoadingCortex: true, cortexError: null });
+  async fetchHippocampusTasks() {
+    set({ isLoadingHippocampus: true, hippocampusError: null });
     try {
       // 先把「现在是哪个租户」定下来 —— 身份还没解析出来就读，拿到的是
       // 兜底桶（切桶之后就是空桶），而看板**不会**自己再刷一次。
@@ -75,29 +75,29 @@ export const useTaskBoardDataStore = create<TaskBoardDataState>((set, get) => ({
       const tasks = await prefrontalClient.listTasks(tenant, {
         silent: true,
       });
-      set({ cortexTasks: tasks, isLoadingCortex: false });
+      set({ hippocampusTasks: tasks, isLoadingHippocampus: false });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      set({ cortexError: msg, isLoadingCortex: false });
+      set({ hippocampusError: msg, isLoadingHippocampus: false });
     }
   },
 
-  async refreshCortexTask(taskId: string) {
+  async refreshHippocampusTask(taskId: string) {
     try {
       const tenant = await useIdentityStore.getState().resolve();
       const updated = await prefrontalClient.getTask(tenant, taskId);
       set((state) => ({
-        cortexTasks: state.cortexTasks.map((t) => (t.task_id === taskId ? updated : t)),
+        hippocampusTasks: state.hippocampusTasks.map((t) => (t.task_id === taskId ? updated : t)),
       }));
     } catch (e) {
-      console.warn(`[taskBoard] refreshCortexTask(${taskId}) failed:`, e);
+      console.warn(`[taskBoard] refreshHippocampusTask(${taskId}) failed:`, e);
     }
   },
 
-  async updateCortexTask(taskId, updates) {
-    const optimistic = get().cortexTasks.find((t) => t.task_id === taskId);
+  async updateHippocampusTask(taskId, updates) {
+    const optimistic = get().hippocampusTasks.find((t) => t.task_id === taskId);
     if (!optimistic) {
-      throw new Error(`Task ${taskId} not found in cortex cache`);
+      throw new Error(`Task ${taskId} not found in hippocampus cache`);
     }
     try {
       const tenant = await useIdentityStore.getState().resolve();
@@ -122,18 +122,18 @@ export const useTaskBoardDataStore = create<TaskBoardDataState>((set, get) => ({
         ...(updates.metadata !== undefined ? { metadata: updates.metadata } : {}),
       };
       set((state) => ({
-        cortexTasks: state.cortexTasks.map((t) => (t.task_id === taskId ? updated : t)),
+        hippocampusTasks: state.hippocampusTasks.map((t) => (t.task_id === taskId ? updated : t)),
       }));
     } catch (e) {
       throw e instanceof Error ? e : new Error(String(e));
     }
   },
 
-  async deleteCortexTask(taskId: string) {
+  async deleteHippocampusTask(taskId: string) {
     const tenant = await useIdentityStore.getState().resolve();
     await prefrontalClient.deleteTask(tenant, taskId);
     set((state) => ({
-      cortexTasks: state.cortexTasks.filter((t) => t.task_id !== taskId),
+      hippocampusTasks: state.hippocampusTasks.filter((t) => t.task_id !== taskId),
       detail:
         state.detail.taskId === taskId
           ? { taskId: null, activeTab: 'overview' }

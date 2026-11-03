@@ -128,6 +128,8 @@ String navLabel(AppLocalizations l10n, String labelKey) {
       return l10n.navTabMe;
     case 'nav.tab.tasks':
       return l10n.navTabTasks;
+    case 'surface.a2ui':
+      return l10n.surfaceA2ui;
     case 'surface.agents':
       return l10n.surfaceAgents;
     case 'surface.chat':
@@ -146,6 +148,8 @@ String navLabel(AppLocalizations l10n, String labelKey) {
       return l10n.surfaceFlows;
     case 'surface.group':
       return l10n.surfaceGroup;
+    case 'surface.identity':
+      return l10n.surfaceIdentity;
     case 'surface.jdmEditor':
       return l10n.surfaceJdmEditor;
     case 'surface.livestream':

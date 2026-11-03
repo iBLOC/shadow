@@ -1,6 +1,8 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../generated/l10n/app_localizations.dart';
 import '../providers/telencephalon_provider.dart';
 import '../services/session_transfer_service.dart';
@@ -152,7 +154,16 @@ class ContinueDesktopNotifier extends StateNotifier<ContinueDesktopState> {
 
 final sessionTransferServiceProvider = Provider<SessionTransferService>((ref) {
   final telencephalon = ref.watch(telencephalonClientProvider);
-  return SessionTransferService(telencephalon: telencephalon);
+  // ⚠️ export 说的是 **prefrontal 方言**（`/api/sessions/*`）—— 嵌入式
+  // 端脑面上**没有**这条路由（真机实测 404，2026-11-01）⇒ 地址必须跟
+  // 「**配置里那个端脑**」走（与记忆面同一事实源），**不能**写死
+  // `localhost:60080`（桌面 sidecar 的端口，手机上永远没人监听）。
+  // `state.connection` 在内嵌大脑接管期间仍指配置值 —— 正是这里要的。
+  final connection = ref.watch(telencephalonProvider).connection;
+  return SessionTransferService(
+    baseUrl: connection.baseUrl,
+    telencephalon: telencephalon,
+  );
 });
 
 final continueDesktopProvider =
@@ -570,9 +581,8 @@ class _ErrorView extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             l10n.continueDesktopError(error),
-            style: Theme.of(
-              context,
-            ).textTheme.titleMedium?.copyWith(color: AppColors.error),
+            style: Theme.of(context).textTheme.titleMedium
+                ?.copyWith(color: AppColors.error),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 24),
@@ -604,8 +614,13 @@ Future<void> showContinueOnDesktopDialog(
       return ProviderScope(
         overrides: [
           continueDesktopProvider.overrideWith(
-            (ref) =>
-                ContinueDesktopNotifier(SessionTransferService(), sessionId),
+            // ⚠️ 用**带真实配置**的 service（含配置端点 + 真 client），
+            // 别再裸 `SessionTransferService()` —— 那个的 export 永远打
+            // 写死的 `localhost:60080`（手机上必败）。
+            (ref) => ContinueDesktopNotifier(
+              ref.read(sessionTransferServiceProvider),
+              sessionId,
+            ),
           ),
         ],
         child: Builder(

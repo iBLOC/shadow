@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
 import '../generated/l10n/app_localizations.dart';
 import '../navigation/nav.g.dart';
 import '../theme/app_colors.dart';
 import 'glass_bottom_nav.dart';
+import 'responsive.dart';
 
 class MainShell extends StatefulWidget {
   final Widget child;
@@ -67,18 +69,38 @@ class _MainShellState extends State<MainShell> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final navItems = _navItems(context);
+    final selectedIndex = _getSelectedIndex();
+    final content = Container(
+      decoration: BoxDecoration(
+        gradient: isDark ? AppColors.darkGradient : AppColors.lightGradient,
+      ),
+      child: widget.child,
+    );
+
+    // 折叠屏展开 / 平板（≥ 600dp）：侧边栏取代底部导航。
+    // Galaxy Z Fold5 展开逻辑宽 ≈ 700dp（medium 档），走到这里。
+    if (isWideScreen(context)) {
+      return Scaffold(
+        body: Row(
+          children: [
+            GlassNavRail(
+              currentIndex: selectedIndex,
+              onTap: (index) => _onDestinationSelected(context, index),
+              items: navItems,
+            ),
+            Expanded(child: content),
+          ],
+        ),
+      );
+    }
 
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: isDark ? AppColors.darkGradient : AppColors.lightGradient,
-        ),
-        child: widget.child,
-      ),
+      body: content,
       bottomNavigationBar: GlassBottomNav(
-        currentIndex: _getSelectedIndex(),
+        currentIndex: selectedIndex,
         onTap: (index) => _onDestinationSelected(context, index),
-        items: _navItems(context),
+        items: navItems,
       ),
     );
   }

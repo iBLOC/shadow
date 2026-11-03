@@ -40,7 +40,6 @@ vi.mock('../adminToken', () => ({
 vi.mock('../platform', () => ({
   isTauri: () => false,
   prefrontalUrl: () => 'http://platform-default.test',
-  neuronUrl: () => 'http://neuron.test',
 }));
 
 import { telencephalonClient } from '../telencephalonClient';

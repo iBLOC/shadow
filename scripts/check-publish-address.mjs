@@ -40,6 +40,17 @@
  * CORS 名单 / LLM 的 base_url / 客户端回退地址）**不是**公布地址 ⇒ ⇒
  * 判据越界就会变成噪音 ⇒ ⇒ 闸会被当成噪音关掉。
  *
+ * ### R2b 主机名不许是「标签」（位置无关）
+ *
+ * 一个把**人读的标签**当主机名的地址 ⇒ ⇒ **不是可连接的地址**
+ * ——「ibloc-desktop (this device)」不是主机名 ⇒ ⇒
+ * `http://ibloc-desktop (this device):60080` 连解析都过不去。
+ *
+ * ⇒ ⇒ 标签（`host_label` / `label` / `display_name` …）只配给人看；
+ * ⇒ ⇒ 要连别人 ⇒ ⇒ 得用**对方公布出来的**那个地址。
+ *
+ * ⚠️ **位置无关**（同 R1）：这种地址出现在哪儿都是编的。
+ *
  * ### R3 正向锚点（判据自己也要有牙齿）
  *
  * 已知的发布点必须**走共享解析器** ⇒ ⇒ 锚点对不上 ⇒ **判不了**（退出码 2）
@@ -53,7 +64,7 @@
  * ## 防假绿
  *
  * * **一个文件都没读到 ⇒ 退出码 2**，不是 0。
- * * 探测器先跑 --self-test（10 只样本）⇒ 探测器坏了 ⇒ 退出码 2。
+ * * 探测器先跑 --self-test（16 只样本）⇒ 探测器坏了 ⇒ 退出码 2。
  * * 锚点对不上 ⇒ 退出码 2（**判不了**，不许当绿）。
  *
  * ## 用法
@@ -98,6 +109,22 @@ const PUBLISH_FIELDS = ['url', 'public_url', 'published_url', 'reachable_url', '
 
 /** 通配主机 —— 「不是一个可连接的地址」。 */
 const WIDE_HOSTS = new Set(['0.0.0.0', '::', '[::]']);
+
+/**
+ * 「标签」的名字 —— **人读的标签**，不是主机名。
+ *
+ * ⚠️ `instance_name` **不在**这里：它经 `{name}.local` 变成 mDNS 名
+ * ⇒ ⇒ 那是**主机名**（共享解析器 `resolve_public_http` 就这么干的）。
+ */
+const LABEL_HOST_NAMES = new Set([
+  'host_label',
+  'device_label',
+  'display_name',
+  'display_label',
+  'friendly_name',
+  'nickname',
+  'label',
+]);
 
 /** 叶区各仓（--lobes 那一档）。 */
 const LOBE_REPOS = ['amygdala', 'temporal', 'occipital', 'parietal'];
@@ -303,6 +330,97 @@ function findWideHostUrls(code, lineOf, origLines) {
   return hits;
 }
 
+/** 宏调用（format! / println! / write! …）—— 位置占位符的值从它的参数表里取。 */
+const MACRO_RE = /\b(format|println|eprintln|write|format_args)!\s*\(/g;
+
+/** 离 `offset` 最近、且把它包在参数表里的那个宏调用。 */
+function findEnclosingMacro(code, offset) {
+  MACRO_RE.lastIndex = 0;
+  let best = null;
+  let m;
+  while ((m = MACRO_RE.exec(code)) !== null) {
+    if (m.index >= offset) break;
+    const open = m.index + m[0].length - 1;
+    const close = matchDelim(code, open);
+    if (close < 0) continue;
+    if (open < offset && offset <= close) {
+      best = { bodyStart: open + 1, bodyEnd: close };
+    }
+  }
+  return best;
+}
+
+/** 表达式最后那个路径段的名字。 */
+function lastPathSegment(expr) {
+  const m = /([A-Za-z_][A-Za-z0-9_]*)\s*$/.exec(expr.trim());
+  return m ? m[1] : null;
+}
+
+/** 这个表达式是不是「一个标签」？ */
+function isLabelExpression(expr) {
+  const name = lastPathSegment(expr);
+  return name ? LABEL_HOST_NAMES.has(name.toLowerCase()) : false;
+}
+
+/**
+ * R2b —— 主机名是**一个标签** ⇒ ⇒ 那个地址不是可连接的地址。
+ *
+ * ⚠️ 两种形状都要认：
+ * * 命名占位符 `{host_label}` —— Rust **隐式捕获**那个变量 ⇒ ⇒ 主机名就是它；
+ * * 位置占位符 `{}` —— 主机名来自宏的**值参数** ⇒ ⇒ 顺着参数表找。
+ */
+function findLabelHostUrls(code, lineOf, origLines) {
+  const hits = [];
+  const seen = new Set();
+  URL_SCHEME_RE.lastIndex = 0;
+  let m;
+  while ((m = URL_SCHEME_RE.exec(code)) !== null) {
+    const u = parseUrlAt(code, m.index);
+    if (!u) continue;
+    // 只管主机是**占位符**的 —— 字面主机名是别的规则管的事。
+    if (!u.host.includes('{')) continue;
+
+    let label = null;
+    const named = /\{([A-Za-z_][A-Za-z0-9_]*)\}/.exec(u.host);
+    if (named && LABEL_HOST_NAMES.has(named[1].toLowerCase())) {
+      label = named[1];
+    }
+
+    // 位置占位符 {} ⇒ ⇒ 主机名来自宏的**值参数**。
+    if (!label && u.host.includes('{}')) {
+      const macro = findEnclosingMacro(code, u.start);
+      if (macro) {
+        const args = splitTopLevel(code, macro.bodyStart, macro.bodyEnd);
+        if (args.length >= 2) {
+          // 位置序号 = 格式串里在这个 URL **之前**出现了几个 {}。
+          const before = code.slice(args[0][0], Math.max(args[0][0], u.start));
+          const idx = (before.match(/\{\}/g) || []).length;
+          const valueArg = args[1 + idx];
+          if (valueArg && isLabelExpression(code.slice(valueArg[0], valueArg[1]))) {
+            label = lastPathSegment(code.slice(valueArg[0], valueArg[1]));
+          }
+        }
+      }
+    }
+    if (!label) continue;
+
+    const line = lineOf(u.start);
+    if (escaped(origLines, line)) continue;
+    const key = line + '|label-host';
+    if (seen.has(key)) continue;
+    seen.add(key);
+    hits.push({
+      kind: 'label-host',
+      what:
+        'URL 的主机名是**一个标签**（' +
+        label +
+        '）—— 标签是给人看的，不是主机名 ⇒ ⇒ 那个地址连不上',
+      line,
+      text: (origLines[line - 1] ?? '').trim().slice(0, 160),
+    });
+  }
+  return hits;
+}
 /** 按顶层逗号切一段文字（括号/字符串里的逗号不算）。 */
 function splitTopLevel(code, start, end) {
   const parts = [];
@@ -592,6 +710,7 @@ function scanFile(absPath, label, displayRoot) {
   const origLines = raw.split(/\r?\n/);
   const hits = [
     ...findWideHostUrls(code, lineOf, origLines),
+    ...findLabelHostUrls(code, lineOf, origLines),
     ...findHandwrittenPublishedUrls(code, lineOf, origLines),
   ].map((h) => ({
     ...h,
@@ -610,6 +729,7 @@ function detectAll(src) {
   const origLines = src.split(/\r?\n/);
   return [
     ...findWideHostUrls(code, lineOf, origLines),
+    ...findLabelHostUrls(code, lineOf, origLines),
     ...findHandwrittenPublishedUrls(code, lineOf, origLines),
   ];
 }
@@ -680,6 +800,30 @@ function selfTest() {
     {
       name: '通配主机不在 URL 里（不该抓）',
       src: 'if host == "0.0.0.0" { warn!("wide"); }',
+      expect: 0,
+    },
+    {
+      // ⚠️ **这条钉的是「位置占位符」那一支** —— 主机名来自宏的**值参数**，
+      // 而那个值是一个**标签** ⇒ ⇒ 那个地址不是可连接的地址。
+      name: '主机名是标签（该抓到）',
+      src: 'let url = format!("http://{}:60080", self.host_label);',
+      expect: 1,
+    },
+    {
+      // ⚠️ **这条钉的是「命名占位符」那一支** —— Rust 隐式捕获那个变量。
+      name: '主机名是命名占位符的标签（该抓到）',
+      src: 'let url = format!("http://{host_label}:60080");',
+      expect: 1,
+    },
+    {
+      name: '主机名是派生来的（不该抓）',
+      src: 'let url = format!("http://{bind}");',
+      expect: 0,
+    },
+    {
+      // ⚠️ `instance_name` 经 `{name}.local` 变成 mDNS 名 ⇒ ⇒ 那是**主机名**。
+      name: 'mDNS 名（不该抓）',
+      src: 'let url = format!("http://{name}.local:{port}");',
       expect: 0,
     },
   ];

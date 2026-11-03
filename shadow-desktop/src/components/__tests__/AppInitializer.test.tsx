@@ -38,16 +38,15 @@ vi.mock('react-router-dom', () => ({
 // ⚠️ 两张面用两个**可区分**的地址 ⇒ 测试能一眼看出「那一发打去了哪张面」。
 vi.mock('../../lib/platform', () => ({
   isTauri: () => false,
-  prefrontalUrl: () => 'http://cortex.test',
-  neuronUrl: () => 'http://neuron.test',
+  prefrontalUrl: () => 'http://telencephalon.test',
 }));
 
 // ⚠️⚠️ 端脑面的 base 现在取自 **client**（用户可配的地址）—— 这一发与
-// 「列表」必须打**同一台**端脑 ⇒ ⇒ 这里把 client 的地址给成 `cortex.test`
+// 「列表」必须打**同一台**端脑 ⇒ ⇒ 这里把 client 的地址给成 `telencephalon.test`
 // ⇒ ⇒ 「两张面用两个**可区分**的地址」这个设计才继续成立。
 vi.mock('../../lib/telencephalonClient', () => ({
   telencephalonClient: {
-    getBaseUrl: () => 'http://cortex.test',
+    getBaseUrl: () => 'http://telencephalon.test',
     getApiKey: () => undefined,
   },
 }));
@@ -63,7 +62,7 @@ type Reply = { status: number; body?: unknown };
  * （`'/v1/models'`）⇒ ⇒ 「本地模型那一发打去了哪张面」**测不出来**
  * ⇒ ⇒ 断言⑤（云问不到 + 本地有模型 ⇒ 不踢）在**base 打错**时**照样绿**
  * ⇒ ⇒ 断言没有分辨力（这是反向验证当场抓到的）。
- * ⇒ ⇒ 现在：`neuron.test` 的 `/v1/models` 回 200，`cortex.test` 的**同一条
+ * ⇒ ⇒ 现在：`neuron.test` 的 `/v1/models` 回 200，`telencephalon.test` 的**同一条
  * 路由**回 404 —— **端脑面上确实没有它**（实测：telencephalon 的 api 目录里
  * 零个 `/v1` 路由；neuron 自己的 router 只在 `build_full_app` 里 merge 到根）。
  */
@@ -110,8 +109,8 @@ describe('AppInitializer —— 「有没有配好模型」', () => {
   it('① 问不到（云那半 401）⇒ **不**把用户踢回 /onboarding', async () => {
     // ⚠️ 这就是**门一上之后 web 部署的常态**：没有 admin token ⇒ 401。
     replies = [
-      ['http://cortex.test/models/providers', { status: 401 }],
-      ['http://neuron.test/v1/models', { status: 404 }],
+      ['http://telencephalon.test/models/providers', { status: 401 }],
+      ['http://telencephalon.test/v1/models', { status: 404 }],
     ];
     renderInit();
     await settled();
@@ -130,8 +129,8 @@ describe('AppInitializer —— 「有没有配好模型」', () => {
 
   it('② 确认没配（云 200 且空 + 本地 200 且空）⇒ 仍然踢回 /onboarding（引导不能丢）', async () => {
     replies = [
-      ['http://cortex.test/models/providers', { status: 200, body: [] }],
-      ['http://neuron.test/v1/models', { status: 200, body: { data: [] } }],
+      ['http://telencephalon.test/models/providers', { status: 200, body: [] }],
+      ['http://telencephalon.test/v1/models', { status: 200, body: { data: [] } }],
     ];
     renderInit();
     await settled();
@@ -140,34 +139,34 @@ describe('AppInitializer —— 「有没有配好模型」', () => {
 
   it('③ 配好了（云 200 且非空）⇒ 不踢', async () => {
     replies = [
-      ['http://cortex.test/models/providers', { status: 200, body: [{ id: 'p1' }] }],
-      ['http://neuron.test/v1/models', { status: 200, body: { data: [] } }],
+      ['http://telencephalon.test/models/providers', { status: 200, body: [{ id: 'p1' }] }],
+      ['http://telencephalon.test/v1/models', { status: 200, body: { data: [] } }],
     ];
     renderInit();
     await settled();
     expect(navigateMock).not.toHaveBeenCalledWith('/onboarding', { replace: true });
   });
 
-  it('④ 本地模型在 neuron 面（**不是**端脑面）—— 端脑面上没有 /v1/models', async () => {
+  it('④ 本地模型那一发也打**大脑那张面**（neuron 路由挂在端脑面的根上）', async () => {
     replies = [
-      ['http://cortex.test/models/providers', { status: 401 }],
-      ['http://neuron.test/v1/models', { status: 200, body: { data: [{ available: true }] } }],
+      ['http://telencephalon.test/models/providers', { status: 401 }],
+      ['http://telencephalon.test/v1/models', { status: 200, body: { data: [{ available: true }] } }],
     ];
     renderInit();
     await settled();
 
     const urls = fetchMock.mock.calls.map((c) => String(c[0]));
-    expect(urls.some((u) => u.startsWith('http://neuron.test/v1/models'))).toBe(true);
-    expect(urls.some((u) => u.startsWith('http://cortex.test/v1/models'))).toBe(false);
+    expect(urls.some((u) => u.startsWith('http://telencephalon.test/v1/models'))).toBe(true);
+    expect(urls.some((u) => u.startsWith('http://neuron.test'))).toBe(false);
     // ⚠️ 云那半打的是**端脑面**（providers 面在端脑上）。
-    expect(urls.some((u) => u.startsWith('http://cortex.test/models/providers'))).toBe(true);
+    expect(urls.some((u) => u.startsWith('http://telencephalon.test/models/providers'))).toBe(true);
   });
 
   it('⑤ 云问不到、但本地有模型 ⇒ 算「配好了」⇒ 不踢', async () => {
     // ⚠️ 这一条在**修 base 之前**是做不到的：本地那发恒 404 ⇒ hasLocal 恒 false。
     replies = [
-      ['http://cortex.test/models/providers', { status: 401 }],
-      ['http://neuron.test/v1/models', { status: 200, body: { data: [{ available: true }] } }],
+      ['http://telencephalon.test/models/providers', { status: 401 }],
+      ['http://telencephalon.test/v1/models', { status: 200, body: { data: [{ available: true }] } }],
     ];
     renderInit();
     await settled();

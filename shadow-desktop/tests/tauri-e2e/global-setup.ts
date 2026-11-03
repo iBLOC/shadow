@@ -4,11 +4,11 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 
 // Same P0-A fix as e2e-ui/global-setup.ts: cross-platform default. The Tauri shell
-// itself spawns `cortex` via `src-tauri/src/cortex_manager.rs` (or, post-be50b7f,
+// itself spawns the embedded brain (the old sidecar manager was removed in be50b7f)
 // the embedded encephalon), but we still need a per-platform test data dir here.
 const TEST_DIR = process.env.SHADOW_TAURI_TEST_DIR ?? join(tmpdir(), 'shadow-tauri-test');
 const VITE_PORT = 1420;
-const CORTEX_PORT = 60080;
+const TELENCEPHALON_PORT = 60080;
 const WEBDRIVER_PORT = 4445;
 const READY_TIMEOUT_MS = 90_000;
 const POLL_INTERVAL_MS = 500;
@@ -30,19 +30,19 @@ export async function setup(): Promise<void> {
   mkdirSync(TEST_DIR, { recursive: true });
   mkdirSync(join(TEST_DIR, 'lance'), { recursive: true });
 
-  const cortexYaml = [
+  const telencephalonYaml = [
     'LANCE_URI: "file://' + TEST_DIR + '/lance"',
     '',
   ].join('\n');
-  writeFileSync(join(TEST_DIR, 'cortex.yaml'), cortexYaml, 'utf8');
+  writeFileSync(join(TEST_DIR, 'telencephalon.yaml'), telencephalonYaml, 'utf8');
 
   console.log('[tauri-setup] spawning pnpm tauri dev');
   const child = spawn('pnpm', ['tauri', 'dev'], {
     cwd: process.cwd(),
     env: {
       ...process.env,
-      SHADOW_CORTEX_CONFIG: join(TEST_DIR, 'cortex.yaml'),
-      CORTEX_PORT: String(CORTEX_PORT),
+      SHADOW_TELENCEPHALON_CONFIG: join(TEST_DIR, 'telencephalon.yaml'),
+      TELENCEPHALON_PORT: String(TELENCEPHALON_PORT),
       LANCE_URI: 'file://' + TEST_DIR + '/lance',
       TAURI_WEBDRIVER_PORT: String(WEBDRIVER_PORT),
       TAURI_TEST_NO_SINGLE_INSTANCE: '1',
@@ -62,7 +62,7 @@ export async function setup(): Promise<void> {
 async function waitAllReady(): Promise<void> {
   await Promise.all([
     waitForUrl(`http://localhost:${VITE_PORT}`, 'vite'),
-    waitForUrl(`http://localhost:${CORTEX_PORT}/health`, 'cortex'),
+    waitForUrl(`http://localhost:${TELENCEPHALON_PORT}/health`, 'telencephalon'),
     waitForUrl(`http://localhost:${WEBDRIVER_PORT}/status`, 'webdriver'),
   ]);
 }

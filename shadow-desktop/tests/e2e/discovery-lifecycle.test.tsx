@@ -55,7 +55,6 @@ const mockClearError = vi.fn();
 function createMockDiscoveryStore(overrides: Record<string, unknown> = {}) {
   return {
     devices: [],
-    cortexInstances: [],
     activeNode: null,
     isScanning: false,
     lastScan: null,
@@ -63,7 +62,6 @@ function createMockDiscoveryStore(overrides: Record<string, unknown> = {}) {
     startScan: mockStartScan,
     stopScan: vi.fn(),
     refreshDevices: mockRefreshDevices,
-    discoverCortexInstances: vi.fn().mockResolvedValue(undefined),
     setActiveNode: mockSetActiveNode,
     addManualDevice: mockAddManualDevice,
     removeDevice: mockRemoveDevice,

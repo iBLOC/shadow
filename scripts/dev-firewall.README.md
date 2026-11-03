@@ -28,7 +28,7 @@ powershell -ExecutionPolicy Bypass -File C:\Projects\iBLOC\shadow\scripts\dev-fi
 
 | 端口 | 服务 |
 |---|---|
-| 60080 | telencephalon (cortex gateway) |
+| 60080 | telencephalon（端脑网关） |
 | 8085 | neuron embedded (Tauri) |
 | 18082 | prefrontal serve |
 | 19082 | parietal-server (behavior stub) |

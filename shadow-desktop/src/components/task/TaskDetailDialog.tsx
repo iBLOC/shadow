@@ -242,7 +242,7 @@ export function TaskDetailDialog({
   const { t } = useTranslation();
   const activeTab = useTaskBoardDataStore((s) => s.detail.activeTab);
   const setDetailTab = useTaskBoardDataStore((s) => s.setDetailTab);
-  const refreshCortexTask = useTaskBoardDataStore((s) => s.refreshCortexTask);
+  const refreshHippocampusTask = useTaskBoardDataStore((s) => s.refreshHippocampusTask);
   const computeSubtaskProgress = useTaskBoardDataStore(
     (s) => s.computeSubtaskProgress,
   );
@@ -250,9 +250,9 @@ export function TaskDetailDialog({
 
   useEffect(() => {
     if (open && task?.task_id) {
-      void refreshCortexTask(task.task_id);
+      void refreshHippocampusTask(task.task_id);
     }
-  }, [open, task?.task_id, refreshCortexTask]);
+  }, [open, task?.task_id, refreshHippocampusTask]);
 
   if (!task) return null;
 
@@ -262,7 +262,7 @@ export function TaskDetailDialog({
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      await refreshCortexTask(task.task_id);
+      await refreshHippocampusTask(task.task_id);
     } finally {
       setIsRefreshing(false);
     }

@@ -121,28 +121,32 @@ class _AnswerBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 64, color: iconColor.withValues(alpha: 0.5)),
-          const SizedBox(height: 16),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.titleMedium
-                ?.copyWith(color: messageColor),
-          ),
-          if (hint != null) ...[
-            const SizedBox(height: 8),
+      // ⚠️ **必须能滚** —— 容器矮的时候（手机同页共存、键盘弹起、
+      // 横屏）这块内容比容器高 ⇒ ⇒ 不滚就是**溢出**：
+      // 内容被画到输入栏上面（与 `chat_screen_small_screen_test.dart`
+      // 钉的那一族是同一个病 ⇒ 这里根治，不靠「面板够高」这种运气）。
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 64, color: iconColor.withValues(alpha: 0.5)),
+            const SizedBox(height: 16),
             Text(
-              hint!,
-              style: TextStyle(
-                color: AppColors.darkTextMuted,
-                fontSize: 14,
-              ),
+              message,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium
+                  ?.copyWith(color: messageColor),
             ),
+            if (hint != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                hint!,
+                style: TextStyle(color: AppColors.darkTextMuted, fontSize: 14),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }

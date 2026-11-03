@@ -24,7 +24,6 @@ vi.mock('../platform', () => ({
   // **client 的地址**（用户可配）⇒ ⇒ 两者必须**不同**，否则断言恒绿、
   // ⇒ ⇒ 钉不住「到底用的哪个」。
   prefrontalUrl: () => 'http://platform-default.test',
-  neuronUrl: () => 'http://neuron.test',
 }));
 
 // ⚠️ 那把钥匙（admin）—— 有没有都**不影响**判定（没带 ⇒ 401 ⇒ 问不到）。
@@ -44,7 +43,7 @@ vi.mock('../telencephalonClient', () => ({
     getApiKey: () => shadowKeyState.key,
     // ⚠️ **地址也取自 client**（这一发与「列表」必须打**同一台**端脑）⇒ ⇒
     // ⚠️ 这里给一个**与 platform 的写死值不同**的地址 ⇒ ⇒ 断言才咬得住。
-    getBaseUrl: () => 'http://cortex.test',
+    getBaseUrl: () => 'http://telencephalon.test',
   },
 }));
 
@@ -118,23 +117,23 @@ describe('combineModelConfig —— 只有「确认没配」才说没配', () =>
 describe('probeCloudProviders —— 「问不到」与「确认空」必须分开', () => {
   it('① 200 + 非空数组 ⇒ known:true 且 count 正确', async () => {
     stubFetch([
-      ['http://cortex.test/models/providers', { status: 200, body: [{ id: 'a' }, { id: 'b' }] }],
+      ['http://telencephalon.test/models/providers', { status: 200, body: [{ id: 'a' }, { id: 'b' }] }],
     ]);
     await expect(probeCloudProviders()).resolves.toEqual({ known: true, count: 2 });
   });
 
   it('② 200 + 空数组 ⇒ known:true, count:0（**确认空**）', async () => {
-    stubFetch([['http://cortex.test/models/providers', { status: 200, body: [] }]]);
+    stubFetch([['http://telencephalon.test/models/providers', { status: 200, body: [] }]]);
     await expect(probeCloudProviders()).resolves.toEqual({ known: true, count: 0 });
   });
 
   it('③ 401（门关着 / 钥匙不对）⇒ known:false（问不到）', async () => {
-    stubFetch([['http://cortex.test/models/providers', { status: 401 }]]);
+    stubFetch([['http://telencephalon.test/models/providers', { status: 401 }]]);
     await expect(probeCloudProviders()).resolves.toEqual({ known: false, count: 0 });
   });
 
   it('④ 5xx（端脑坏了）⇒ known:false', async () => {
-    stubFetch([['http://cortex.test/models/providers', { status: 500 }]]);
+    stubFetch([['http://telencephalon.test/models/providers', { status: 500 }]]);
     await expect(probeCloudProviders()).resolves.toEqual({ known: false, count: 0 });
   });
 
@@ -153,7 +152,7 @@ describe('probeCloudProviders —— 「问不到」与「确认空」必须分�
     // ⇒ ⇒ 说明这一发**没问对**（代理的 HTML 错误页 / 版本不匹配）
     // ⇒ ⇒ 归「问不到」⇒ ⇒ 旧写法会把它当成「确认空」⇒ ⇒ 会踢人。
     stubFetch([
-      ['http://cortex.test/models/providers', { status: 200, body: { error: 'nope' } }],
+      ['http://telencephalon.test/models/providers', { status: 200, body: { error: 'nope' } }],
     ]);
     await expect(probeCloudProviders()).resolves.toEqual({ known: false, count: 0 });
   });
@@ -162,7 +161,7 @@ describe('probeCloudProviders —— 「问不到」与「确认空」必须分�
     const fetchMock = stubFetch([['/models/providers', { status: 200, body: [] }]]);
     await probeCloudProviders();
     const urls = fetchMock.mock.calls.map((c) => String(c[0]));
-    expect(urls.some((u) => u.startsWith('http://cortex.test/models/providers'))).toBe(true);
+    expect(urls.some((u) => u.startsWith('http://telencephalon.test/models/providers'))).toBe(true);
     expect(urls.some((u) => u.startsWith('http://neuron.test'))).toBe(false);
   });
 
@@ -174,11 +173,11 @@ describe('probeCloudProviders —— 「问不到」与「确认空」必须分�
     // ⇒ ⇒ ⇒ 用户改过地址之后 ⇒ **列表打新地址、探针打老地址**
     // ⇒ ⇒ ⇒ 于是「列表读到了、探针说问不到」—— 同一个病，换了个面。
     // ⚠️ 上面的 mock 让 platform 的地址（platform-default.test）与 client 的
-    // 地址（cortex.test）**故意不同** ⇒ ⇒ 这条断言才咬得住「用的到底是哪个」。
+    // 地址（telencephalon.test）**故意不同** ⇒ ⇒ 这条断言才咬得住「用的到底是哪个」。
     const fetchMock = stubFetch([['/models/providers', { status: 200, body: [] }]]);
     await probeCloudProviders();
     const urls = fetchMock.mock.calls.map((c) => String(c[0]));
-    expect(urls[0]).toBe('http://cortex.test/models/providers');
+    expect(urls[0]).toBe('http://telencephalon.test/models/providers');
     expect(urls[0]).not.toContain('platform-default.test');
   });
 });
@@ -235,19 +234,19 @@ describe('probeCloudProviders —— 读面的凭据集合必须与门形一致�
     ).toEqual(expect.arrayContaining(['X-Admin-Token', 'X-Shadow-Key']));
   });
 });
-describe('probeLocalModels —— 本地那半在 neuron 面', () => {
+describe('probeLocalModels —— 本地那半走大脑那张面', () => {
   it('① 200 + 有 available:true ⇒ available:true', async () => {
-    stubFetch([['http://neuron.test/v1/models', { status: 200, body: { data: [{ available: true }] } }]]);
+    stubFetch([['http://telencephalon.test/v1/models', { status: 200, body: { data: [{ available: true }] } }]]);
     await expect(probeLocalModels()).resolves.toEqual({ known: true, available: true });
   });
 
   it('② 200 + 没有可用的 ⇒ available:false（**不是**「用户什么都没配」）', async () => {
-    stubFetch([['http://neuron.test/v1/models', { status: 200, body: { data: [{ available: false }] } }]]);
+    stubFetch([['http://telencephalon.test/v1/models', { status: 200, body: { data: [{ available: false }] } }]]);
     await expect(probeLocalModels()).resolves.toEqual({ known: true, available: false });
   });
 
   it('③ 404（打错了面）⇒ known:false', async () => {
-    stubFetch([['http://neuron.test/v1/models', { status: 404 }]]);
+    stubFetch([['http://telencephalon.test/v1/models', { status: 404 }]]);
     await expect(probeLocalModels()).resolves.toEqual({ known: false, available: false });
   });
 
@@ -261,12 +260,43 @@ describe('probeLocalModels —— 本地那半在 neuron 面', () => {
     await expect(probeLocalModels()).resolves.toEqual({ known: false, available: false });
   });
 
-  it('⑤ 这一发打的是 **neuron 面**（端脑面上没有 /v1/models）', async () => {
+  it('⑤ 这一发打的是 **大脑那张面**（client 的地址）—— 不是 neuron 端口', async () => {
     const fetchMock = stubFetch([['/v1/models', { status: 200, body: { data: [] } }]]);
     await probeLocalModels();
     const urls = fetchMock.mock.calls.map((c) => String(c[0]));
-    expect(urls.some((u) => u.startsWith('http://neuron.test/v1/models'))).toBe(true);
-    expect(urls.some((u) => u.startsWith('http://cortex.test'))).toBe(false);
+    expect(urls.some((u) => u.startsWith('http://telencephalon.test/v1/models'))).toBe(true);
+    expect(urls.some((u) => u.startsWith('http://neuron.test'))).toBe(false);
+  });
+});
+
+describe('一张面，一个 base —— 两发必须打同一台端脑', () => {
+  it('① 本地那发与云那发打的是**同一个地址**', async () => {
+    // ⚠️⚠️ 这一条钉的是「**一张面**」：两发必须落在同一台端脑 ⇒ ⇒
+    // ⇒ ⇒ 用户改了大脑地址时两发一起改 ⇒ ⇒ 不会「一半新、一半旧」。
+    const fetchMock = stubFetch([
+      ['/models/providers', { status: 200, body: [] }],
+      ['/v1/models', { status: 200, body: { data: [] } }],
+    ]);
+    await probeCloudProviders();
+    await probeLocalModels();
+    const urls = fetchMock.mock.calls.map((c) => String(c[0]));
+    expect(urls.length).toBe(2);
+    expect(urls[0]).toBe('http://telencephalon.test/models/providers');
+    expect(urls[1]).toBe('http://telencephalon.test/v1/models?engine=llm');
+    // ⇒ ⇒ 两发**同一个 host** ⇒ ⇒ 不是「两台端脑」。
+    expect(new Set(urls.map((u) => new URL(u).host)).size).toBe(1);
+  });
+
+  it('② 两发都不打 neuron 端口（客户端不许知道第二个后端地址）', async () => {
+    const fetchMock = stubFetch([
+      ['/models/providers', { status: 200, body: [] }],
+      ['/v1/models', { status: 200, body: { data: [] } }],
+    ]);
+    await probeCloudProviders();
+    await probeLocalModels();
+    const urls = fetchMock.mock.calls.map((c) => String(c[0]));
+    expect(urls.some((u) => u.includes(':8085') || u.includes(':8083'))).toBe(false);
+    expect(urls.some((u) => u.startsWith('http://neuron.test'))).toBe(false);
   });
 });
 

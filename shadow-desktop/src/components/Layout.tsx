@@ -18,7 +18,7 @@ import { cn } from '../lib/utils';
 export function Layout() {
   const { t } = useTranslation();
   const { pendingTasks } = useResonanceStore();
-  const cortexStatus = useTelencephalonStore((s) => s.status);
+  const telencephalonStatus = useTelencephalonStore((s) => s.status);
   const resonanceStatus = useResonanceStore((s) => s.connectionStatus);
 
   /** 可折叠段默认收起 —— 能力与「更多」是低频，不该占常驻位置 */
@@ -27,17 +27,17 @@ export function Layout() {
   const toggle = (id: string) =>
     setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
 
-  const getCortexIndicator = () => {
-    if (cortexStatus === 'running' && resonanceStatus === 'connected') {
+  const getTelencephalonIndicator = () => {
+    if (telencephalonStatus === 'running' && resonanceStatus === 'connected') {
       return { dot: 'bg-green-500', label: t('common.status.connected') };
     }
-    if (cortexStatus === 'running' && resonanceStatus === 'connecting') {
+    if (telencephalonStatus === 'running' && resonanceStatus === 'connecting') {
       return { dot: 'bg-yellow-500 animate-pulse', label: t('common.status.connecting') };
     }
-    if (cortexStatus === 'starting') {
+    if (telencephalonStatus === 'starting') {
       return { dot: 'bg-yellow-500 animate-pulse', label: t('common.status.connecting') };
     }
-    if (cortexStatus === 'unreachable') {
+    if (telencephalonStatus === 'unreachable') {
       return { dot: 'bg-red-500', label: t('common.status.disconnected') };
     }
     return { dot: 'bg-muted-foreground', label: t('common.status.disconnected') };
@@ -81,7 +81,7 @@ export function Layout() {
         {/* Footer */}
         <div className="mt-auto flex flex-col gap-2 border-t border-border pt-4">
           {(() => {
-            const indicator = getCortexIndicator();
+            const indicator = getTelencephalonIndicator();
             return (
               <div className="flex items-center gap-3 rounded-md border border-border bg-muted/50 px-4 py-3 max-lg:hidden">
                 <div className={cn('h-2.5 w-2.5 flex-shrink-0 rounded-full', indicator.dot)} />

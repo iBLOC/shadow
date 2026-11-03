@@ -1,0 +1,530 @@
+import 'dart:ui' show FlutterView, PlatformDispatcher, Size;
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:integration_test/integration_test.dart';
+import 'package:shadow_mobile/services/accessibility_controller.dart';
+import 'package:shadow_mobile/services/capabilities/accessibility_ops.dart';
+import 'package:shadow_mobile/services/capabilities/capability_tools.dart';
+
+/// 树里一个**带坐标的条目**（文字 ＋ 它的屏幕中心）。
+///
+/// ⚠️ 坐标是**屏幕像素** ⇒ ⇒ 与 `dispatchGesture` 用的**同一个坐标系**
+/// ⇒ ⇒ 模型从树里读到的坐标**直接就能拿去点**。
+class _Label {
+  const _Label(this.text, this.cx, this.cy);
+
+  final String text;
+  final double cx;
+  final double cy;
+}
+
+/// **真机上的「手机操作」** —— 这一族能力此前**只有编译级证据**。
+///
+/// ## 要证明的是什么
+///
+/// 「手机操作」这六个工具走的路是：Dart → **方法通道** → Kotlin → 无障碍服务
+/// ⇒ ⇒ 中间**每一层都可能静悄悄失败**（方法名对不上 ⇒ notImplemented；
+/// 参数名对不上 ⇒ 坐标读成 0 ⇒ 点到了屏幕左上角）⇒ ⇒ 而**单测测不到它**
+/// （单测走的是抽象层 `AccessibilityOps`）⇒ ⇒ 只能**在真机上**验。
+///
+/// ## ⚠️⚠️ 为什么结论要**我们自己报**（而不是交给框架）
+///
+/// ⚠️ `integration_test` 的结果通道（`failureMethodsDetails`）**只收
+/// `testWidgets` 的失败** ⇒ ⇒ 我们这些**普通 `test()`** 的失败它**看不见**
+/// ⇒ ⇒ `flutter drive` 的驱动会因此报「All tests passed」、退出码是 **0**
+/// ⇒ ⇒ **实测过**：真机上明明有一条用例红了（日志里有 `[E]`），驱动仍然说
+/// 「All tests passed.」⇒ ⇒ **那就是「失败长得像成功」的最纯形态**
+/// ⇒ ⇒ 所以这里**自己记一份失败清单**，由**驱动脚本**按这份清单判成败
+/// ⇒ ⇒ 没有清单 ⇒ 驱动**一律判失败**（fail-closed）。
+///
+/// ## 为什么用 `test()` 而不是 `testWidgets()`
+///
+/// ⚠️ 无障碍服务开着 ⇒ ⇒ Flutter 引擎会**自己打开语义树** ⇒ ⇒ 引擎持有的
+/// 那个 `SemanticsHandle` 没人能 dispose ⇒ ⇒ `testWidgets` 收尾时的
+/// 「A SemanticsHandle was active at the end of the test」会**必然报错**
+/// ⇒ ⇒ 而那报错**与被测代码无关**（是设备状态造成的）⇒ ⇒
+/// ⇒ 这组用例只需要调平台通道、不需要 widget 树 ⇒ ⇒ 改用普通 `test()`
+/// ⇒ ⇒ 不走框架的 handle 校验 ⇒ ⇒ 失败就只可能是**真的**失败。
+///
+/// ## ⚠️ 一个决定所有断言的前提：**自己的 App 读不到自己的窗口**
+///
+/// Android 无障碍框架**不会把宿主自己的窗口**交给它自己绑定的服务
+/// ⇒ ⇒ `rootInActiveWindow` 返回 null ⇒ ⇒ 读屏必然是**空树**
+/// ⇒ ⇒ **手势也会落在那个「前台窗口」上** ⇒ ⇒ 我们自己的 app 在前台时，
+/// 手势点在我们自己的界面上，而我们也**读不到**结果
+/// ⇒ ⇒ 所以真机验证必须**让别的 App 在前台**（验证脚本里按 HOME 切桌面）。
+///
+/// ## 为什么是「等」而不是「断言」
+///
+/// ⚠️ 无障碍服务是**系统设置里的开关**，**不能程序化授予** ⇒ ⇒ 装完 app
+/// 之后它一定是关的 ⇒ ⇒ 「先装好 → 再开开关 → 再跑用例」这个顺序在
+/// 自动化里做不到 ⇒ ⇒ 所以这里**轮询等** ⇒ ⇒ 开关可以在**用例运行期间**
+/// 被打开（人手点，或者主机侧 `adb shell settings put` 代开）⇒ ⇒
+/// 60 秒内没等到 ⇒ ⇒ **明确失败**（静悄悄跳过 = 假装验过）。
+///
+/// ## 这组用例**不覆盖**什么
+///
+/// ⚠️ **截断分支没被触发** —— 要触发它需要一棵 > 20 000 字符的树
+/// ⇒ ⇒ 日常屏幕上造不出来 ⇒ ⇒ 截断的三道闸由 **JVM 单测**
+/// （`ScreenBudgetTest`，7 条）覆盖 ⇒ ⇒ 这里只钉「**不误报**」。
+/// ⚠️ **tap / longPress 只证明了「手势被派发」**，没证明「点到了想要的东西」
+/// ⇒ ⇒ 后者要一个稳定的文本目标 ⇒ ⇒ 那是 `findAndClick` 的活（见下）。
+void main() {
+  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+
+  /// **失败清单** —— 为什么自己记一份：见文件头那段。
+  final List<String> failures = <String>[];
+
+  /// 跑一条检查 ⇒ ⇒ 失败**记下来**并**再抛一次**
+  /// ⇒ ⇒ 记下来 ⇒ 驱动脚本能看见；再抛一次 ⇒ 日志里那条用例仍然是红的。
+  Future<void> check(String name, Future<void> Function() body) async {
+    try {
+      await body();
+    } catch (error) {
+      failures.add(name);
+      rethrow;
+    }
+  }
+
+  /// 等无障碍服务被开启（最多 [seconds] 秒）。
+  Future<bool> waitForAccessibility(int seconds) async {
+    for (var i = 0; i < seconds * 2; i++) {
+      if (await AccessibilityController.isEnabled) return true;
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+    }
+    return false;
+  }
+
+  /// 读屏并**重试到真的读到**（最多 [attempts] 次）。
+  ///
+  /// ⚠️ **为什么要重试**：app 刚起来的那一瞬间，前台窗口里一个节点都
+  /// 没有（真机实测）⇒ ⇒ 第一读拿到的是空 ⇒ ⇒ 原生侧现在会明确回 null
+  /// （「读不到」而不是「屏幕是空的」）⇒ ⇒ 这里重试直到窗口挂好。
+  Future<String?> readTreeWithRetry(int attempts) async {
+    String? tree;
+    for (var i = 0; i < attempts; i++) {
+      tree = await AccessibilityController.readScreen();
+      if (tree != null && tree.trim().isNotEmpty) return tree;
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+    }
+    return tree;
+  }
+
+  /// 从树里取出**所有带文字的条目**（`text: xxx` 那一行）。
+  ///
+  /// ⚠️ 为什么**按行取**而不是按节点取：树是文本，没有结构化 API
+  /// ⇒ ⇒ 而「按文字点击」要的就是**文字** ⇒ ⇒ 这就够用。
+  List<String> extractTexts(String tree) {
+    final out = <String>[];
+    for (final line in tree.split('\n')) {
+      final match = RegExp(r'text:\s*(.+)$').firstMatch(line.trim());
+      if (match != null) {
+        final value = match.group(1)!.trim();
+        if (value.isNotEmpty && !out.contains(value)) out.add(value);
+      }
+    }
+    return out;
+  }
+
+  /// 从树里取出**带坐标的条目**（文字 ＋ 它的屏幕中心）。
+  ///
+  /// ⚠️ 树里 `bounds:` 行**紧跟**在同节点的 `text:` / `desc:` 行后面
+  /// ⇒ ⇒ 所以「记住最近一个标签，遇到 bounds 就配对」即可。
+  ///
+  /// ⚠️ 这条是**「模型怎么知道该点哪」**的答案：没有坐标，模型看得见
+  /// 「WLAN」也**不知道它在哪** ⇒ ⇒ 只能瞎点 ⇒ ⇒ 点按那条能力等于没有。
+  List<_Label> extractLabels(String tree) {
+    final out = <_Label>[];
+    String? pending;
+    for (final line in tree.split('\n')) {
+      final trimmed = line.trim();
+      final label =
+          RegExp(r'^(?:text|desc):\s*(.+)$').firstMatch(trimmed);
+      if (label != null) {
+        pending = label.group(1)!.trim();
+        continue;
+      }
+      final box =
+          RegExp(r'^bounds:\s*(-?\d+),(-?\d+),(-?\d+),(-?\d+)$')
+              .firstMatch(trimmed);
+      if (box != null && pending != null) {
+        final left = int.parse(box.group(1)!);
+        final top = int.parse(box.group(2)!);
+        final right = int.parse(box.group(3)!);
+        final bottom = int.parse(box.group(4)!);
+        if (right > left && bottom > top) {
+          out.add(_Label(pending, (left + right) / 2, (bottom + top) / 2));
+        }
+        pending = null;
+      }
+    }
+    return out;
+  }
+
+  /// 树里所有**标签**（`text:` / `desc:` 的值）。
+  List<String> labelsOf(String tree) {
+    final out = <String>[];
+    for (final line in tree.split('\n')) {
+      final match =
+          RegExp(r'^(?:text|desc):\s*(.+)$').firstMatch(line.trim());
+      if (match != null) {
+        final value = match.group(1)!.trim();
+        if (value.isNotEmpty) out.add(value);
+      }
+    }
+    return out;
+  }
+
+  /// 树里的**节点数**。
+  int nodeCount(String tree) {
+    return RegExp(r'\[([A-Za-z0-9_.]+)\]').allMatches(tree).length;
+  }
+
+  /// 树的**结构签名** —— 只看**节点类型的分布**，不看文本。
+  ///
+  /// ⚠️ 为什么不看文本：桌面上有**时钟**在走 ⇒ ⇒ 同一棵树的文本自己就会变
+  /// ⇒ ⇒ 「文本不等」不等于「界面变了」⇒ ⇒ 那会把「**什么都没发生**」
+  /// 判成「变了」（假绿）⇒ ⇒ 只信结构。
+  String structureSignature(String tree) {
+    final counts = <String, int>{};
+    for (final match in RegExp(r'\[([A-Za-z0-9_.]+)\]').allMatches(tree)) {
+      final name = match.group(1)!;
+      counts[name] = (counts[name] ?? 0) + 1;
+    }
+    final names = counts.keys.toList()..sort();
+    final parts = <String>[];
+    for (final name in names) {
+      parts.add('$name=${counts[name]}');
+    }
+    return parts.join(',');
+  }
+
+  /// 界面是不是「**实质变了**」。
+  ///
+  /// ⚠️⚠️ 判据必须**够狠** —— 上一版只比「结构签名是否不同」
+  /// ⇒ ⇒ 结果**只差一个 LinearLayout** 也算「变了」
+  /// ⇒ ⇒ **滑动手势根本没生效也判过了**（那也是「失败长得像成功」！）
+  /// ⇒ ⇒ 现在要求：**节点数**差得够多，**或** 树的**体量**差得够多。
+  bool materiallyChanged(String before, String after) {
+    if (structureSignature(before) != structureSignature(after)) return true;
+    if ((nodeCount(before) - nodeCount(after)).abs() > 5) return true;
+    if ((before.length - after.length).abs() > 300) return true;
+    // ⚠️⚠️ **最后一招，也是最要紧的一招**：**标签集合**差得够多。
+    // ⇒ ⇒ 为什么需要它：真机上**两个不同的页面可能节点类型分布完全一样**
+    //   （设置列表 → 它的子页面，两边都是「一列 TextView」）
+    // ⇒ ⇒ 而长度差也可能不够 300 ⇒ ⇒ 前面三条都会**漏判**
+    // ⇒ ⇒ ⇒ 结果「界面明明变了，却判成没变」⇒ ⇒ **假失败**。
+    // ⇒ ⇒ 而「时钟自己走」只改**一个**标签 ⇒ ⇒ 差 1~2 个不算 ⇒ ⇒ 不会假绿。
+    final a = labelsOf(before).toSet();
+    final b = labelsOf(after).toSet();
+    final diff = a.difference(b).length + b.difference(a).length;
+    return diff >= 3;
+  }
+
+  /// 读屏并**重试到「界面变了」**（最多 [attempts] 次）。
+  ///
+  /// ⚠️ **为什么要轮询**：手势派发出去之后，系统要**一点时间**才把新窗口
+  /// 挂上来 ⇒ ⇒ 第一读很可能还是旧的那棵 ⇒ ⇒ 只读一次会误判。
+  Future<String?> readTreeUntilChanged(String before, int attempts) async {
+    for (var i = 0; i < attempts; i++) {
+      final tree = await AccessibilityController.readScreen();
+      if (tree != null && tree.trim().isNotEmpty && materiallyChanged(before, tree)) {
+        return tree;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+    }
+    return null;
+  }
+
+  test('无障碍服务开着 ⇒ 读屏能拿到真树的文本', () async {
+    await check('读屏 ⇒ 拿到真树的文本', () async {
+      final enabled = await waitForAccessibility(60);
+      expect(
+        enabled,
+        isTrue,
+        reason:
+            '无障碍服务没开 ⇒ ⇒ 请在系统设置里开启「影」的无障碍服务'
+            '（或主机侧代开：adb shell settings put secure '
+            'enabled_accessibility_services '
+            'com.ibloc.shadow/com.ibloc.shadow.PrefrontalAccessibilityService '
+            '&& adb shell settings put secure accessibility_enabled 1）',
+      );
+
+      final tree = await readTreeWithRetry(60);
+      expect(tree, isNotNull, reason: '读屏返回 null ⇒ 服务没连上或没有可读窗口');
+      expect((tree ?? '').trim(), isNotEmpty, reason: '读到了一棵空树');
+
+      // ⚠️ **截断标记不该出现在一棵正常树上** —— 误报比漏报更坑
+      // （模型会以为「这一屏被截了」⇒ ⇒ 于是不敢做判断）。
+      expect(tree!.trimRight().endsWith(kScreenTruncationMarker), isFalse);
+
+      // 打印树的头部，好肉眼核对「读到的确实是一棵树」。
+      final head = tree.length > 300 ? tree.substring(0, 300) : tree;
+      // ignore: avoid_print
+      print('--- SCREEN TREE (${tree.length} chars) ---\n$head');
+    });
+  }, timeout: const Timeout(Duration(minutes: 3)));
+
+  test('工具层那条路 ⇒ truncated 字段是 false（正常屏不误报）', () async {
+    await check('工具层 ⇒ truncated 为 false', () async {
+      final tools = CapabilityTools();
+      Map<String, dynamic>? map;
+      for (var i = 0; i < 30; i++) {
+        final res = await tools.readScreen(<String, dynamic>{});
+        if (res is Map<String, dynamic>) {
+          final screen = res['screen'];
+          if (screen is String && screen.trim().isNotEmpty) {
+            map = res;
+            break;
+          }
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+      }
+      expect(map, isNotNull, reason: '工具层始终没读到屏');
+      expect(map!['truncated'], isFalse);
+      expect(map['screen'], isA<String>());
+      expect((map['screen'] as String).trim(), isNotEmpty);
+    });
+  }, timeout: const Timeout(Duration(minutes: 3)));
+
+  test('全局动作：通知栏 ⇒ 界面大幅变了 ⇒ 返回 ⇒ 又回到原界面', () async {
+    await check('全局动作 ⇒ 落地且可逆', () async {
+      final tools = CapabilityTools();
+      expect(await waitForAccessibility(60), isTrue, reason: '无障碍服务没开');
+
+      final base = await readTreeWithRetry(60);
+      expect(base, isNotNull, reason: '读不到前台窗口');
+      final baseSignature = structureSignature(base!);
+
+      // ① 「通知栏」⇒ ⇒ 界面必须**大幅**变掉（不是差一个节点那种）
+      await tools.globalAction(<String, dynamic>{'action': 'notifications'});
+      final shade = await readTreeUntilChanged(base, 40);
+      expect(
+        shade,
+        isNotNull,
+        reason: '按了「通知栏」之后 **界面没有实质变化** ⇒ ⇒ 全局动作很可能没落地',
+      );
+      // ignore: avoid_print
+      print('--- SIGNATURE (notifications) ---\nbase=$baseSignature'
+          '\nshade=${structureSignature(shade!)}'
+          '\nbaseNodes=${nodeCount(base)}'
+          '\nshadeNodes=${nodeCount(shade)}');
+
+      // ② 「返回」⇒ ⇒ 必须**离开通知栏**（⇒ 证明它可逆，不是乱按）
+      // ⚠️⚠️ **不能**断言「回到原界面」—— 真机上**证伪**过这条假设：
+      // 从通知栏「返回」之后落到的是**另一个**界面（三星上不保证回到
+      // 拉下通知栏之前那一屏）⇒ ⇒ ⇒ 断言**设备真正做到的事**
+      // （通知栏被关掉了），而不是**我想象的**事。
+      await tools.globalAction(<String, dynamic>{'action': 'back'});
+      final back = await readTreeUntilChanged(shade, 40);
+      expect(
+        back,
+        isNotNull,
+        reason: '按了「返回」之后界面没有实质变化 ⇒ ⇒ 收不回去',
+      );
+      expect(
+        structureSignature(back!),
+        isNot(structureSignature(shade)),
+        reason: '返回之后结构跟通知栏一模一样 ⇒ ⇒ 通知栏根本没关掉',
+      );
+      // ignore: avoid_print
+      print('--- SIGNATURE (back) ---\nshade=${structureSignature(shade)}'
+          '\nback=${structureSignature(back)}');
+    });
+  }, timeout: const Timeout(Duration(minutes: 4)));
+
+  test('滑动手势：从顶边下拉 ⇒ 界面大幅变了（通知栏被拉下来了）', () async {
+    await check('滑动手势 ⇒ 落地', () async {
+      final tools = CapabilityTools();
+      expect(await waitForAccessibility(60), isTrue, reason: '无障碍服务没开');
+
+      final FlutterView view = PlatformDispatcher.instance.views.first;
+      final Size size = view.physicalSize;
+      final double cx = size.width / 2;
+
+      final base = await readTreeWithRetry(60);
+      expect(base, isNotNull, reason: '读不到前台窗口');
+
+      // ① 从**顶边**往下拉 ⇒ ⇒ 通知栏
+      await tools.swipe(<String, dynamic>{
+        'x1': cx,
+        'y1': 4,
+        'x2': cx,
+        'y2': size.height * 0.6,
+        'duration_ms': 500,
+      });
+      final shade = await readTreeUntilChanged(base!, 40);
+      expect(
+        shade,
+        isNotNull,
+        reason: '从顶边下拉之后 **界面没有实质变化** ⇒ ⇒ 滑动手势很可能没落地',
+      );
+      // ignore: avoid_print
+      print('--- SIGNATURE (swipe) ---\nbase=${structureSignature(base)}'
+          '\nshade=${structureSignature(shade!)}'
+          '\nbaseNodes=${nodeCount(base)}'
+          '\nshadeNodes=${nodeCount(shade)}');
+
+      // 收尾：把通知栏收回去（不断言 —— 收不回去也不影响本条的结论）
+      await tools.globalAction(<String, dynamic>{'action': 'back'});
+    });
+  }, timeout: const Timeout(Duration(minutes: 4)));
+
+  test('点按 / 长按：手势被派发出去了（**只证明派发**）', () async {
+    await check('点按 / 长按 ⇒ 派发成功', () async {
+      final tools = CapabilityTools();
+      expect(await waitForAccessibility(60), isTrue, reason: '无障碍服务没开');
+
+      final FlutterView view = PlatformDispatcher.instance.views.first;
+      final Size size = view.physicalSize;
+
+      // ⚠️ 这里**故意不比对界面**：点在桌面空白处可能正好命中一个图标
+      // ⇒ ⇒ 界面变不变**取决于运气** ⇒ ⇒ 只钉「手势被派发」这一层。
+      // ⚠️ 而且工具层在「没派发出去」时会**抛错** ⇒ ⇒ 能走到这里就说明派发出去了。
+      final tapped = await tools.tap(<String, dynamic>{
+        'x': size.width / 2,
+        'y': size.height / 2,
+      });
+      expect(tapped, isA<Map<String, dynamic>>());
+      expect((tapped as Map<String, dynamic>)['tapped'], isTrue);
+
+      final pressed = await tools.longPress(<String, dynamic>{
+        'x': size.width / 2,
+        'y': size.height / 2,
+      });
+      expect(pressed, isA<Map<String, dynamic>>());
+      expect((pressed as Map<String, dynamic>)['longPressed'], isTrue);
+
+      // 收尾：把设备带回桌面（长按可能在桌面弹了个菜单）
+      await tools.globalAction(<String, dynamic>{'action': 'back'});
+      await tools.globalAction(<String, dynamic>{'action': 'home'});
+    });
+  }, timeout: const Timeout(Duration(minutes: 3)));
+
+  test('按文字点一个**不存在的**文本 ⇒ 必须**明确失败**（不能静悄悄说点了）', () async {
+    await check('按文字点不存在的文本 ⇒ 必须报错', () async {
+      final tools = CapabilityTools();
+      expect(await waitForAccessibility(60), isTrue, reason: '无障碍服务没开');
+
+      // ⚠️ 先确认**确实有可读窗口** ⇒ ⇒ 否则「找不到文本」这个理由就不成立
+      // ⇒ ⇒ 失败原因会被「窗口都没了」顶包（那就是另一种失败了）。
+      expect(await readTreeWithRetry(30), isNotNull, reason: '读不到前台窗口');
+
+      // ⚠️ 用一个**不可能存在**的文本 ⇒ ⇒ 正常路径必然找不到
+      // ⇒ ⇒ 工具层必须抛错 ⇒ ⇒ 「失败长得像成功」那一族被堵住。
+      var threw = false;
+      try {
+        await tools.findAndClick(<String, dynamic>{
+          'text': '__shadow_mobile_use_no_such_text_9d3f__',
+        });
+      } catch (_) {
+        threw = true;
+      }
+      expect(
+        threw,
+        isTrue,
+        reason: '找不到那个文本却**没报错** ⇒ ⇒ 模型会以为「点了」',
+      );
+    });
+  }, timeout: const Timeout(Duration(minutes: 3)));
+
+  test('按文字点一个**真的存在**的条目 ⇒ 界面真的变了（**正路径**）', () async {
+    await check('按文字点击 ⇒ 真的点到了', () async {
+      final tools = CapabilityTools();
+      expect(await waitForAccessibility(60), isTrue, reason: '无障碍服务没开');
+
+      final tree = await readTreeWithRetry(60);
+      expect(tree, isNotNull, reason: '读不到前台窗口');
+      final candidates = extractTexts(tree!);
+      expect(candidates, isNotEmpty, reason: '树里一个带文字的条目都没有 ⇒ ⇒ 没东西可点');
+
+      // ⚠️ **逐个试**：不是每个带文字的节点都对应一个**可点**的目标
+      // ⇒ ⇒ 所以只要**有一个**点出了界面变化，这条能力就成立。
+      var clicked = false;
+      for (final text in candidates.take(12)) {
+        try {
+          await tools.findAndClick(<String, dynamic>{'text': text});
+        } catch (_) {
+          continue; // 这一条不是可点目标 ⇒ ⇒ 试下一个
+        }
+        final after = await readTreeUntilChanged(tree, 12);
+        if (after != null) {
+          clicked = true;
+          // ignore: avoid_print
+          print('--- FIND AND CLICK --- text=$text nodes '
+              '${nodeCount(tree)} -> ${nodeCount(after)}');
+          break;
+        }
+      }
+      expect(
+        clicked,
+        isTrue,
+        reason: '挨个试了 12 个带文字的条目，没有一个点出了界面变化 ⇒ ⇒ 「按文字点击」在真机上不成立',
+      );
+    });
+  }, timeout: const Timeout(Duration(minutes: 4)));
+
+  test('从树里读出坐标 ⇒ 点它 ⇒ 界面真的变了（**闭环**）', () async {
+    await check('读坐标 ⇒ 点 ⇒ 界面变了', () async {
+      final tools = CapabilityTools();
+      expect(await waitForAccessibility(60), isTrue, reason: '无障碍服务没开');
+
+      final tree = await readTreeWithRetry(60);
+      expect(tree, isNotNull, reason: '读不到前台窗口');
+      final labels = extractLabels(tree!);
+      expect(
+        labels,
+        isNotEmpty,
+        reason: '树里一个带坐标的条目都没有 ⇒ ⇒ 模型没法定位目标',
+      );
+
+      // ⚠️ **逐个试**：不是每个带文字的条目都点得动 ⇒ ⇒ 只要**有一个**
+      // 点出了实质变化，这条「读坐标 → 点」的路就算成立。
+      var hit = false;
+      for (final label in labels.take(12)) {
+        await tools.tap(<String, dynamic>{'x': label.cx, 'y': label.cy});
+        String? after;
+        for (var i = 0; i < 12; i++) {
+          final current = await AccessibilityController.readScreen();
+          if (current != null && current.trim().isNotEmpty) {
+            after = current;
+            if (materiallyChanged(tree, current)) break;
+          }
+          await Future<void>.delayed(const Duration(milliseconds: 400));
+        }
+        // ignore: avoid_print
+        print('--- TAP TRY --- label=${label.text} at ${label.cx},${label.cy}'
+            ' afterLen=${after?.length ?? -1}'
+            ' afterSig=${after == null ? 'null' : structureSignature(after)}');
+        if (after != null && materiallyChanged(tree, after)) {
+          hit = true;
+          // ignore: avoid_print
+          print('--- TAP BY COORD --- label=${label.text} at '
+              '${label.cx},${label.cy} nodes '
+              '${nodeCount(tree)} -> ${nodeCount(after)}');
+          break;
+        }
+      }
+      expect(
+        hit,
+        isTrue,
+        reason: '从树里读出的坐标挨个点了一遍，没有一个点出了界面变化 ⇒ ⇒ 「读坐标 → 点」这条路不成立',
+      );
+    });
+  }, timeout: const Timeout(Duration(minutes: 4)));
+
+  test('【结论】把这次的真机验证结果**如实**报给驱动脚本', () async {
+    // ⚠️⚠️ **这条是给驱动脚本看的** —— 它**看不见**上面那些普通 `test()`
+    // 的失败 ⇒ ⇒ 只看我们**自己报的**结论 ⇒ ⇒ 所以这里必须**如实**写
+    // ⇒ ⇒ 一条都没过 ⇒ ⇒ 就写 FAIL ⇒ ⇒ 驱动据此退出码非 0。
+    final String verdict = failures.isEmpty ? 'PASS' : 'FAIL';
+    final Map<String, dynamic> report = <String, dynamic>{
+      'shadow_verdict': verdict,
+      'shadow_failures': failures,
+    };
+    IntegrationTestWidgetsFlutterBinding.instance.reportData = report;
+    // ignore: avoid_print
+    print('--- VERDICT --- $verdict failures=$failures');
+    expect(failures, isEmpty, reason: '有检查没过：${failures.join(' | ')}');
+  });
+}

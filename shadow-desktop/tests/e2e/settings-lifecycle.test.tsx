@@ -13,6 +13,22 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('../../src/lib/tauriSafe', () => ({
   safeInvoke: vi.fn(() => Promise.resolve(null)),
+  // ⚠️ 存储卡片读的是**后端给的真路径**（不是那句写死的假地址）⇒ ⇒
+  // 这里要递一份真形状 ⇒ 否则卡片只能画「读不到」。
+  safeInvokeOrThrow: vi.fn(async (cmd: string) =>
+    cmd === 'get_hippocampus_storage'
+      ? {
+          configured: null,
+          effective: 'C:\\Users\\tester\\AppData\\Roaming\\shadow\\lance',
+          defaultRoot: 'C:\\Users\\tester\\AppData\\Roaming\\shadow\\lance',
+          exists: true,
+          remote: false,
+          degraded: false,
+          degradedReason: null,
+          pendingRestart: false,
+        }
+      : null,
+  ),
 }));
 
 vi.mock('../../src/lib/platform', () => ({
@@ -42,7 +58,7 @@ vi.mock('../../src/stores/telencephalonStore', () => {
   const state: Record<string, unknown> = {
     status: 'running',
     connection: { baseUrl: 'http://127.0.0.1:60080', apiKey: '' },
-    cortexId: 'cortex-test',
+    telencephalonId: 'telencephalon-test',
     defaultAgent: 'temporal',
     lobes: [
       { name: 'temporal', kind: 'native', url: 'http://temporal:60080', enabled: true, skills: ['routing:prefrontal'], agent_card: { name: 'temporal', description: '', version: '0.1', url: '', metadata: { input_modalities: ['text'], output_modalities: ['text'], capabilities: [] } }, health_status: 'healthy' },
@@ -53,8 +69,8 @@ vi.mock('../../src/stores/telencephalonStore', () => {
     supervisor: { enabled: true, restartCount: 0 },
     refreshStatus: vi.fn(),
     refreshLobes: vi.fn(),
-    startCortex: vi.fn(),
-    stopCortex: vi.fn(),
+    startTelencephalon: vi.fn(),
+    stopTelencephalon: vi.fn(),
     setBaseUrl: vi.fn(),
     setApiKey: vi.fn(),
   };
@@ -126,11 +142,11 @@ describe('SettingsPage Lifecycle E2E', () => {
   });
 
   describe('Empty state', () => {
-    it('renders cortex status section', async () => {
+    it('renders telencephalon status section', async () => {
       renderWithRouter();
       await screen.findByText('settings.title');
       // 2026-09 service-area refactor: supervisor heading replaces
-      // the older `settings.cortexStatus` title.
+      // the older `settings.telencephalonStatus` title.
       expect(screen.getAllByText('services.supervisor')[0]).toBeInTheDocument();
     });
 
@@ -196,7 +212,7 @@ describe('SettingsPage Lifecycle E2E', () => {
       expect(allText).toContain('native');
     });
 
-    it('renders refresh button for cortex', async () => {
+    it('renders refresh button for telencephalon', async () => {
       renderWithRouter();
       await screen.findByText('settings.title');
       const refreshBtn = screen.getAllByRole('button').find(
@@ -288,14 +304,20 @@ describe('SettingsPage Lifecycle E2E', () => {
       });
     });
 
-    it('renders storage path', async () => {
+    it('renders the REAL storage path — and the fake address never comes back', async () => {
       renderWithRouter();
       await screen.findByText('settings.title');
       const dataButton = screen.getByRole('button', { name: /settings.section.data/i });
       fireEvent.click(dataButton);
+      // ⚠️ 那句 `settings.storagePathDefault`（内容是 `~/.hippocampus`）——
+      // 一个**任何机器上都不存在**的地址 —— 已经从界面和 i18n 里删掉了。
+      // ⇒ ⇒ 这条断言钉的是「**显示真路径**」＋「**假地址不许回来**」。
       await waitFor(() => {
-        expect(screen.getByText('settings.storagePathDefault')).toBeInTheDocument();
+        expect(
+          screen.getByText('C:\\Users\\tester\\AppData\\Roaming\\shadow\\lance'),
+        ).toBeInTheDocument();
       });
+      expect(screen.queryByText('settings.storagePathDefault')).not.toBeInTheDocument();
     });
   });
 

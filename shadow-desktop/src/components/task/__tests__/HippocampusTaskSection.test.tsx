@@ -3,7 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { prefrontalClient } from '../../../lib/prefrontalClient';
 import type { Task } from '../../../lib/prefrontalClient';
 import { useTaskBoardDataStore } from '../../../stores/taskBoardDataStore';
-import { CortexTaskSection } from '../CortexTaskSection';
+import { HippocampusTaskSection } from '../HippocampusTaskSection';
 
 vi.mock('../../../lib/prefrontalClient', () => ({
   prefrontalClient: {
@@ -29,13 +29,13 @@ const TASK: Task = {
   ],
 };
 
-describe('CortexTaskSection', () => {
+describe('HippocampusTaskSection', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useTaskBoardDataStore.setState({
-      cortexTasks: [],
-      isLoadingCortex: false,
-      cortexError: null,
+      hippocampusTasks: [],
+      isLoadingHippocampus: false,
+      hippocampusError: null,
       detail: { taskId: null, activeTab: 'overview' },
     });
     vi.mocked(prefrontalClient.listTasks).mockResolvedValue([TASK]);
@@ -43,21 +43,21 @@ describe('CortexTaskSection', () => {
   });
 
   it('renders the task id when the backend has no title column', async () => {
-    render(<CortexTaskSection />);
+    render(<HippocampusTaskSection />);
 
     await waitFor(() => {
       expect(screen.getByText('task-1')).toBeTruthy();
     });
-    expect(screen.getByTestId('cortex-task-section')).toBeTruthy();
+    expect(screen.getByTestId('hippocampus-task-section')).toBeTruthy();
   });
 
   it('renders the status and the subtask progress', async () => {
-    render(<CortexTaskSection />);
+    render(<HippocampusTaskSection />);
 
     await waitFor(() => {
       expect(screen.getByText('running')).toBeTruthy();
     });
-    const section = screen.getByTestId('cortex-task-section');
+    const section = screen.getByTestId('hippocampus-task-section');
     expect(section.textContent).toContain('1/2');
     expect(screen.getByText('prefrontal')).toBeTruthy();
   });
@@ -67,7 +67,7 @@ describe('CortexTaskSection', () => {
       new Error('fetch failed')
     );
 
-    render(<CortexTaskSection />);
+    render(<HippocampusTaskSection />);
 
     await waitFor(() => {
       expect(screen.getByRole('alert')).toBeTruthy();
@@ -78,7 +78,7 @@ describe('CortexTaskSection', () => {
   it('renders nothing when the backend has no records', async () => {
     vi.mocked(prefrontalClient.listTasks).mockResolvedValue([]);
 
-    const { container } = render(<CortexTaskSection />);
+    const { container } = render(<HippocampusTaskSection />);
 
     await waitFor(() => {
       expect(prefrontalClient.listTasks).toHaveBeenCalled();
@@ -87,7 +87,7 @@ describe('CortexTaskSection', () => {
   });
 
   it('opens the detail dialog for the clicked task', async () => {
-    render(<CortexTaskSection />);
+    render(<HippocampusTaskSection />);
 
     await waitFor(() => {
       expect(screen.getByText('task-1')).toBeTruthy();

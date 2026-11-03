@@ -1,5 +1,6 @@
 import { isDebugModeEnabled } from '../config/debug';
 import { useErrorDialogStore } from '../stores/errorDialogStore';
+import { isIntentionalAbort, requestSignal } from './abort';
 
 let installed = false;
 let originalFetch: typeof window.fetch | null = null;
@@ -106,6 +107,15 @@ export function installHttpErrorInterceptor(): void {
       }
       return response;
     } catch (err) {
+      // ⚠️ **自己叫停的取消不许报成「网络故障」** ——
+      // 组件卸载（A2UI 面板收起 / 切页）/ 用户取消模型下载
+      // ⇒ ⇒ 这一发以 `AbortError` 结束 ⇒ ⇒ **那不是故障**
+      // ⇒ ⇒ 不弹框（弹了只会训练用户忽略弹框 ⇒ 真故障也就没人看了）。
+      // ⚠️ **真断网照样弹** —— 浏览器里那是 `TypeError: Failed to fetch`，
+      //    不是 `AbortError` ⇒ ⇒ 本判据只认「取消」那一种形状。
+      if (isIntentionalAbort(err, requestSignal(input, init))) {
+        throw err;
+      }
       const message = err instanceof Error ? err.message : String(err);
       const stack = err instanceof Error ? err.stack : undefined;
       useErrorDialogStore.getState().show({

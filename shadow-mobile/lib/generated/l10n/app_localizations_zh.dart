@@ -603,7 +603,33 @@ class AppLocalizationsZh extends AppLocalizations {
   String get conversationCreate => '创建';
 
   @override
+  String get conversationArchive => '归档';
+
+  @override
+  String get conversationUnarchive => '取消归档';
+
+  @override
+  String get conversationArchiveBox => '归档箱';
+
+  @override
+  String get conversationArchiveBoxEmpty => '没有已归档的会话';
+
+  @override
+  String get conversationArchivedBadge => '已归档';
+
+  @override
+  String get conversationDeleteBody => '这会连海马体里的那份一起删掉（会话与它的全部消息），不可撤销。';
+
+  @override
+  String conversationActionFailed(String error) {
+    return '操作失败：$error';
+  }
+
+  @override
   String get commonConfirmDelete => '确认删除';
+
+  @override
+  String get commonCancel => '取消';
 
   @override
   String get commonDelete => '删除';
@@ -817,6 +843,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get providerLocalModel => '本地模型';
+
+  @override
+  String get providerBuiltin => '内置';
+
+  @override
+  String get providerModelNotDownloaded => '未下载';
 
   @override
   String get providersTitle => '大模型服务提供商';
@@ -1162,8 +1194,6 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  @override
-  @override
   String get settingsEncephalonEmbedded => '嵌入式大脑';
 
   @override
@@ -1255,142 +1285,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get cameraClose => '关闭';
-
-  @override
-  @override
-  @override
-  String prefrontalPort(int port) {
-    return '端口: $port';
-  }
-
-  @override
-  String get prefrontalStart => '启动';
-
-  @override
-  String get prefrontalStop => '停止';
-
-  @override
-  String prefrontalAgentsCount(int count) {
-    return '智能体 ($count)';
-  }
-
-  @override
-  String get prefrontalRefresh => '刷新';
-
-  @override
-  String get prefrontalStartFirst => '请先启动服务';
-
-  @override
-  String get prefrontalNoAgentsHint => '暂无智能体, 添加一个吧:';
-
-  @override
-  String get prefrontalAddSampleAgent => '添加示例智能体';
-
-  @override
-  String get prefrontalInvokeTitle => '调用智能体 (JNI)';
-
-  @override
-  String get prefrontalInput => '输入';
-
-  @override
-  String get prefrontalInputHint => '输入要发送给智能体的内容...';
-
-  @override
-  String get prefrontalInvoke => '调用 (JNI)';
-
-  @override
-  String get prefrontalNoOutput => '(无输出)';
-
-  @override
-  String get prefrontalAboutTitle => '关于 NDK 嵌入方式';
-
-  @override
-  String get prefrontalAboutLine1 => '- Prefrontal 作为 .so 嵌入在 App 进程内';
-
-  @override
-  String get prefrontalAboutLine2 => '- 通过 JNI 与 Kotlin Service 通信';
-
-  @override
-  String get prefrontalAboutLine3 => '- 通过 localhost HTTP 与 Prefrontal 通信';
-
-  @override
-  String get prefrontalAboutLine4 => '- 服务生命周期与 App 绑定';
-
-  @override
-  String get prefrontalAboutLine5 => '- 不需要外部进程, 不会被杀';
-
-  @override
-  String get prefrontalAboutArchitecture => '架构:';
-
-  @override
-  String get prefrontalStartSuccess => '嵌入式运行时启动成功';
-
-  @override
-  String get prefrontalStartFailed => '启动失败';
-
-  @override
-  String prefrontalStartError(String error) {
-    return '启动异常: $error';
-  }
-
-  @override
-  String get prefrontalStopSuccess => '嵌入式运行时已停止';
-
-  @override
-  String get prefrontalStopFailed => '停止失败';
-
-  @override
-  String prefrontalStopError(String error) {
-    return '停止异常: $error';
-  }
-
-  @override
-  String get prefrontalAddSuccess => '添加成功';
-
-  @override
-  String get prefrontalAddFailed => '添加失败';
-
-  @override
-  String prefrontalAddError(String error) {
-    return '添加异常: $error';
-  }
-
-  @override
-  String get prefrontalInvokeSuccess => 'JNI 调用成功';
-
-  @override
-  String get prefrontalInvokeFailed => '调用失败';
-
-  @override
-  String prefrontalInvokeError(String error) {
-    return '调用异常: $error';
-  }
-
-  @override
-  String get prefrontalStatusStopped => '已停止';
-
-  @override
-  String get prefrontalStatusStarting => '启动中...';
-
-  @override
-  String get prefrontalStatusRunning => '运行中';
-
-  @override
-  String get prefrontalStatusStopping => '停止中...';
-
-  @override
-  String get prefrontalStatusError => '错误';
-
-  @override
-  String get prefrontalSampleAgentName => '示例智能体';
-
-  @override
-  String get prefrontalSampleAgentDesc => '通过 JNI 注册的示例智能体';
-
-  @override
-  String prefrontalErrorPrefix(String error) {
-    return '错误: $error';
-  }
 
   @override
   String get chatGreeting => '你好，我是Shadow，有什么可以帮你的吗？';
@@ -1777,7 +1671,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get surfaceSetup => '初始设置';
 
   @override
-  @override
   String get navSectionConverse => '对话与表达';
 
   @override
@@ -1952,10 +1845,190 @@ class AppLocalizationsZh extends AppLocalizations {
   String get ttsEngineRust => 'Rust';
 
   @override
-  String get settingsAdvancedLegacy => '遗留运行时';
-
-  @override
   String logsExported(String path) {
     return '日志已导出到 $path';
   }
+
+  @override
+  String get askAgent2UI => '让端脑画界面...';
+
+  @override
+  String get a2uiSurfaceReportTasks => '已展开「任务看板」。';
+
+  @override
+  String get a2uiSurfaceReportAgents => '已展开「Agent 列表」。';
+
+  @override
+  String get a2uiSurfaceReportNoSurface => '端脑这次没有画界面。';
+
+  @override
+  String a2uiSurfaceReportNoSurfaceSaid(String words) {
+    return '端脑这次没有画界面，它说：$words';
+  }
+
+  @override
+  String get settingsGroupCapabilities => '能力授权';
+
+  @override
+  String get settingsGroupCapabilitiesDesc => '模型能读这台手机上的哪些东西，由你逐项决定';
+
+  @override
+  String get capabilityCalendarRead => '读取日历';
+
+  @override
+  String get capabilityCalendarWrite => '写入日历';
+
+  @override
+  String get capabilityContacts => '读取联系人';
+
+  @override
+  String get capabilitySms => '读取短信';
+
+  @override
+  String get capabilityPhotos => '读取相册';
+
+  @override
+  String get capabilityAuthAsk => '每次询问';
+
+  @override
+  String get capabilityAuthFull => '完全访问';
+
+  @override
+  String get capabilityAuthDisabled => '彻底关闭';
+
+  @override
+  String get capabilityAuthAskDesc => '每次调用前都先问你';
+
+  @override
+  String get capabilityAuthFullDesc => '不再逐次询问';
+
+  @override
+  String get capabilityAuthDisabledDesc => '模型看不到这个能力';
+
+  @override
+  String get capabilitySystemGranted => '系统权限已授予';
+
+  @override
+  String get capabilitySystemMissing => '系统权限未授予';
+
+  @override
+  String get capabilityRejectedDisabled => '这个能力已在设置中关闭';
+
+  @override
+  String get capabilityUnsupportedPlatform => '当前平台不支持这个能力';
+
+  @override
+  String get capabilityMobileUse => '手机操作';
+
+  @override
+  String get capabilityRequestMobileUse => '要操作这台手机';
+
+  @override
+  String get capabilityRequestMobileReadScreen => '要读取这台手机当前屏幕上的内容';
+
+  @override
+  String get capabilityRequestMobileTap => '要点这台手机屏幕上的一个位置';
+
+  @override
+  String get capabilityRequestMobileLongPress => '要长按这台手机屏幕上的一个位置';
+
+  @override
+  String get capabilityRequestMobileSwipe => '要在这台手机屏幕上滑动';
+
+  @override
+  String get capabilityRequestMobileFindAndClick => '要点这台手机屏幕上某个文字的控件';
+
+  @override
+  String get capabilityRequestMobileGlobalAction => '要在这台手机上触发一个系统动作';
+
+  @override
+  String capabilityArgMobilePoint(String x, String y) {
+    return '位置 $x, $y';
+  }
+
+  @override
+  String capabilityArgMobileSwipe(String x1, String y1, String x2, String y2) {
+    return '从 $x1, $y1 滑到 $x2, $y2';
+  }
+
+  @override
+  String capabilityArgMobileText(String text) {
+    return '文字「$text」';
+  }
+
+  @override
+  String capabilityArgMobileAction(String action) {
+    return '动作：$action';
+  }
+
+  @override
+  String get capabilityServiceGranted => '无障碍服务已开启';
+
+  @override
+  String get capabilityServiceMissing => '无障碍服务未开启';
+
+  @override
+  String get capabilityGrantService => '去开启';
+
+  @override
+  String get toolCallAllow => '允许';
+
+  @override
+  String get toolCallDeny => '拒绝';
+
+  @override
+  String get capabilityRequestCalendarRead => '要读取你手机上的日历事件';
+
+  @override
+  String get capabilityRequestCalendarWrite => '要往你手机上的日历里写一条日程';
+
+  @override
+  String get capabilityRequestContacts => '要读取你手机上的联系人';
+
+  @override
+  String get capabilityRequestSms => '要读取你手机上的短信';
+
+  @override
+  String get capabilityRequestPhotos => '要读取你手机上相册的图片信息';
+
+  @override
+  String capabilityArgTimeRange(String from, String to) {
+    return '时间范围 $from ~ $to';
+  }
+
+  @override
+  String get capabilityArgTimeRangeDefault => '接下来 7 天';
+
+  @override
+  String capabilityArgTitle(String title) {
+    return '标题「$title」';
+  }
+
+  @override
+  String capabilityArgStartAt(String time) {
+    return '$time 开始';
+  }
+
+  @override
+  String capabilityArgKeyword(String query) {
+    return '姓名包含「$query」';
+  }
+
+  @override
+  String capabilityArgContactsHead(String count) {
+    return '通讯录前 $count 条';
+  }
+
+  @override
+  String capabilityArgRecentSms(String count) {
+    return '最近 $count 条短信';
+  }
+
+  @override
+  String capabilityArgRecentPhotos(String count) {
+    return '最近 $count 张图片';
+  }
+
+  @override
+  String get capabilityGrantSystemPermission => '去授权';
 }

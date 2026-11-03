@@ -168,4 +168,14 @@ dependencies {
     implementation("com.google.ai.edge.litertlm:litertlm-android:0.13.1")
     implementation("org.nanohttpd:nanohttpd:2.3.1")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
+    // ⚠️ **Android 模块的第一个 JVM 单测位**（2026-11-03 建）。
+    //
+    // 为什么建：Android 模块此前**一个单测都没有** ⇒ ⇒ Kotlin 侧的纯逻辑
+    // 完全没被钉住 ⇒ ⇒ 「ScreenBudget」那种刻意不碰 Android 类型的类
+    // 明明可以单测，却只能靠编译通过来担保。
+    //
+    // ⚠️ **版本钉在 4.12**：本机 gradle 缓存里就是 4.12 ⇒ ⇒ `--offline` 能跑
+    // ⇒ ⇒ CI 与本地都不会因为拉不动依赖而红。（4.13.2 是更新版本，但拉它要联网。）
+    testImplementation("junit:junit:4.12")
 }

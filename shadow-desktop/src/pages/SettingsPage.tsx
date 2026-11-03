@@ -224,13 +224,13 @@ function ServiceAndAgentsSection() {
   const {
     agents, addAgent, removeAgent, updateAgent,
   } = useAgentStore();
-  const cortexStatus = useTelencephalonStore((s) => s.status);
-  const cortexLobes = useTelencephalonStore((s) => s.lobes);
+  const telencephalonStatus = useTelencephalonStore((s) => s.status);
+  const telencephalonLobes = useTelencephalonStore((s) => s.lobes);
   const refreshStatus = useTelencephalonStore((s) => s.refreshStatus);
   const refreshLobes = useTelencephalonStore((s) => s.refreshLobes);
   const supervisor = useTelencephalonStore((s) => s.supervisor);
 
-  const isRunning = cortexStatus === 'running';
+  const isRunning = telencephalonStatus === 'running';
 
   const [expanded, setExpanded] = useState<Record<AgentSection, boolean>>({
     internal: true,
@@ -269,16 +269,16 @@ function ServiceAndAgentsSection() {
     void fetchProviders();
   }, [fetchProviders]);
 
-  const refreshCortex = useCallback(async () => {
+  const refreshTelencephalon = useCallback(async () => {
     await refreshStatus();
     await refreshLobes();
   }, [refreshStatus, refreshLobes]);
 
   useEffect(() => {
-    void refreshCortex();
-    const id = setInterval(refreshCortex, 5000);
+    void refreshTelencephalon();
+    const id = setInterval(refreshTelencephalon, 5000);
     return () => clearInterval(id);
-  }, [refreshCortex]);
+  }, [refreshTelencephalon]);
 
   const handleScan = useCallback(async () => {
     setScanning(true);
@@ -298,13 +298,13 @@ function ServiceAndAgentsSection() {
     setSyncingId(providerId);
     try {
       await telencephalonClient.syncExternalAgent(providerId);
-      await refreshCortex();
+      await refreshTelencephalon();
     } catch (e) {
       setScanError(e instanceof Error ? e.message : String(e));
     } finally {
       setSyncingId(null);
     }
-  }, [refreshCortex]);
+  }, [refreshTelencephalon]);
 
   const loadInstalledWasm = useCallback(async () => {
     setLoadingWasm(true);
@@ -323,11 +323,11 @@ function ServiceAndAgentsSection() {
   const handleModelChange = useCallback(async (agentName: string, modelId: string) => {
     try {
       await telencephalonClient.updateLobeConfig(agentName, { model_id: modelId });
-      await refreshCortex();
+      await refreshTelencephalon();
     } catch (e) {
       console.error('Failed to update model config:', e);
     }
-  }, [refreshCortex]);
+  }, [refreshTelencephalon]);
 
   const [searchInput, setSearchInput] = useState('');
   const [skillInput, setSkillInput] = useState('');
@@ -361,13 +361,13 @@ function ServiceAndAgentsSection() {
     setUninstallingWasm(key);
     try {
       await telencephalonClient.deleteWasm(name, version);
-      await Promise.all([loadInstalledWasm(), refreshCortex()]);
+      await Promise.all([loadInstalledWasm(), refreshTelencephalon()]);
     } catch (e) {
       setWasmError(e instanceof Error ? e.message : String(e));
     } finally {
       setUninstallingWasm(null);
     }
-  }, [loadInstalledWasm, refreshCortex]);
+  }, [loadInstalledWasm, refreshTelencephalon]);
 
   useEffect(() => {
     if (isRunning) {
@@ -375,8 +375,8 @@ function ServiceAndAgentsSection() {
     }
   }, [isRunning, loadInstalledWasm]);
 
-  const internalLobes = useMemo(() => cortexLobes.filter((l) => l.kind === 'native' || l.kind === 'wasm'), [cortexLobes]);
-  const externalLobes = useMemo(() => cortexLobes.filter((l) => l.kind === 'external'), [cortexLobes]);
+  const internalLobes = useMemo(() => telencephalonLobes.filter((l) => l.kind === 'native' || l.kind === 'wasm'), [telencephalonLobes]);
+  const externalLobes = useMemo(() => telencephalonLobes.filter((l) => l.kind === 'external'), [telencephalonLobes]);
   const [mcpBindingsByAgent, setMcpBindingsByAgent] = useState<Record<string, McpAgentBinding[]>>({});
   const [mcpBindError, setMcpBindError] = useState<string | null>(null);
   const [bindModalAgent, setBindModalAgent] = useState<string | null>(null);
@@ -463,7 +463,7 @@ function ServiceAndAgentsSection() {
       <AgentNameSettings />
       <WakeWordSettings />
 
-      {/* Cortex supervisor (auto-restart on crash) */}
+      {/* 端脑 supervisor（崩溃自动重启） */}
       <div className="rounded-lg border border-border bg-card p-4">
         <div className="mb-2 flex items-center gap-2">
           <Shield size={16} className="text-muted-foreground" />
@@ -600,7 +600,7 @@ function ServiceAndAgentsSection() {
             </div>
           )
         ) : (
-          <EmptyState icon={<Server size={48} />} title={t('agents.startCortexHint')} size="sm" />
+          <EmptyState icon={<Server size={48} />} title={t('agents.startTelencephalonHint')} size="sm" />
         )}
       </SectionCard>
 
@@ -659,7 +659,7 @@ function ServiceAndAgentsSection() {
         }
       >
         {!isRunning ? (
-          <EmptyState icon={<Server size={48} />} title={t('agents.startCortexHint')} size="sm" />
+          <EmptyState icon={<Server size={48} />} title={t('agents.startTelencephalonHint')} size="sm" />
         ) : wasmError ? (
           <div className="flex items-start gap-2 rounded-md border border-red-500/30 bg-red-500/10 p-2 text-sm text-red-500">
             <AlertCircle size={14} />

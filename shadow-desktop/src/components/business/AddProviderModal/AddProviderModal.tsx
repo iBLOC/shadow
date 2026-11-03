@@ -2,10 +2,9 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Modal, Button } from '../../ui';
 import { ProviderForm } from '../ProviderForm';
+import { useTelencephalonStore } from '../../../stores/telencephalonStore';
 import { adminHeaders } from '../../../lib/adminToken';
 import type { AddProviderModalProps, ProviderFormData } from './types';
-
-const API_BASE = 'http://localhost:60080';
 
 export function AddProviderModal({
   isOpen,
@@ -16,6 +15,10 @@ export function AddProviderModal({
   defaultApiBase = {},
 }: AddProviderModalProps) {
   const { t } = useTranslation();
+  // ⚠️ **不要写死 `localhost:60080`** —— 端脑地址在设置里可改（`setBaseUrl`）。
+  // 写死会让「新增提供商」与其它所有页面**行为分叉**：用户改完地址，
+  // 这里还在往老地址发请求 ⇒ 报「连接失败」，而用户明明改对了。
+  const baseUrl = useTelencephalonStore((s) => s.connection.baseUrl);
   const [formData, setFormData] = useState<ProviderFormData>({
     name: '',
     provider_type: providerTypes?.[0]?.id || 'openai',
@@ -48,16 +51,13 @@ export function AddProviderModal({
       } else {
         const providerId = `${formData.provider_type}-${Date.now()}`;
         
-        const response = await fetch(`${API_BASE}/models/providers`, {
+        const response = await fetch(`${baseUrl}/models/providers`, {
           method: 'POST',
           // ⚠️ **必须带 `X-Admin-Token`** —— 「新增供应商」是**写路由**
           // （端脑的 providers 面：写路由在 admin 门后面，没配 token ⇒
           // fail-closed 401 ⇒ 这个按钮会直接失败，而且报的是「新增失败」，
           // 不会告诉用户「少了一把钥匙」）。
-          // ⚠️ 展开写在**前**：凭据闸（`check-provider-admin-headers.mjs`）
-          // 认的是「headers 的值里出现 adminHeaders()」⇒ 展开写在后面会被
-          // 它的正则截断在第一个逗号处 ⇒ 认不出 ⇒ 误报成红。
-          headers: { ...(await adminHeaders()), 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...(await adminHeaders()) },
           body: JSON.stringify({
             id: providerId,
             name: formData.name,
@@ -74,7 +74,7 @@ export function AddProviderModal({
         }
 
         try {
-          const fetchModelsResponse = await fetch(`${API_BASE}/models/providers/${providerId}/fetch-models`, {
+          const fetchModelsResponse = await fetch(`${baseUrl}/models/providers/${providerId}/fetch-models`, {
             method: 'POST',
             // ⚠️ 同上：写路由 ⇒ 必须带 admin token。
             headers: await adminHeaders(),
@@ -111,7 +111,7 @@ export function AddProviderModal({
     
     if (autoMatch && fetchedProviderId) {
       try {
-        const response = await fetch(`${API_BASE}/models/providers/${fetchedProviderId}/auto-match`, {
+        const response = await fetch(`${baseUrl}/models/providers/${fetchedProviderId}/auto-match`, {
           method: 'POST',
           // ⚠️ 同上：写路由 ⇒ 必须带 admin token。
           headers: await adminHeaders(),

@@ -26,8 +26,7 @@ vi.mock('../adminToken', () => ({
 // ⚠️ platform —— client 会 import 它的 `isTauri`（health 的 Tauri 分支要真）。
 vi.mock('../platform', () => ({
   isTauri: () => true,
-  prefrontalUrl: () => 'http://cortex.test',
-  neuronUrl: () => 'http://neuron.test',
+  prefrontalUrl: () => 'http://telencephalon.test',
 }));
 
 import { readDoorHeaders } from '../readDoorHeaders';
@@ -49,7 +48,7 @@ function headersOf(fetchMock: ReturnType<typeof vi.fn>, n = 0): Record<string, s
 beforeEach(() => {
   adminState.token = undefined;
   telencephalonClient.setApiKey('');
-  telencephalonClient.setBaseUrl('http://cortex.test');
+  telencephalonClient.setBaseUrl('http://telencephalon.test');
 });
 
 afterEach(() => {

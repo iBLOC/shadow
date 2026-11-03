@@ -56,11 +56,11 @@ describe('ResonanceStore', () => {
   });
 
   describe('connect', () => {
-    it('sets error when cortex is not running', async () => {
+    it('sets error when telencephalon is not running', async () => {
       const { connect } = useResonanceStore.getState();
       await connect();
       const state = useResonanceStore.getState();
-      expect(state.error).toMatch(/cortex must be running/i);
+      expect(state.error).toMatch(/telencephalon must be running/i);
       expect(state.connectionStatus).toBe('error');
     });
   });

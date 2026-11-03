@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Static analysis pass over the cortex client source that extracts every
+ * Static analysis pass over the telencephalon client source that extracts every
  * HTTP endpoint the desktop client depends on. Output is committed at
  * `tests/api-contract/endpoints.json`.
  *

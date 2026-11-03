@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Mic, MicOff, Loader2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { telencephalonClient } from '@/lib/telencephalonClient';
 
 interface VoiceButtonProps {
   onTranscription: (text: string) => void;
@@ -81,28 +82,14 @@ export function VoiceButton({ onTranscription, onError, disabled, className }: V
         new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
       );
 
-      // Bug #17 fix: telencephalon's route is mounted at
-      // /api/telencephalon/voice/transcribe, not /api/cortex/voice/transcribe.
-      // The cortex rename chain (cortex→encephalon→telencephalon) only
-      // updated server-side routes; this client-side call was missed.
-      // Hardcoded here so the inline voice UX works without touching the
-      // 17+ other /api/cortex/* callers in telencephalonClient.ts (which all still
-      // 404 on telencephalon but are not user-visible failures).
-      const response = await fetch('/api/telencephalon/voice/transcribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          audio: base64Audio,
-          format: 'webm',
-          language: 'zh',
-        }),
-      });
+      // ⚠️ **走 `telencephalonClient`，不要裸 fetch 相对路径** ——
+      // 端脑的路由是 `/api/telencephalon/voice/transcribe`（**不是** `/api/cortex/*`）；
+      // 而相对路径 `/api/telencephalon/...` 打的是**前端自己的源**（同源），
+      // 不是端脑 ⇒ 在 Tauri 里必然失败。
+      // 走 client 还顺带拿到两件事：① 可配置的 `baseUrl` ② `X-Shadow-Key`。
+      // （`telencephalonClient.transcribeAudio` 已经封装好了这条路。）
+      const result = await telencephalonClient.transcribeAudio(base64Audio, 'webm', 'zh');
 
-      if (!response.ok) {
-        throw new Error(`Transcription failed: ${response.statusText}`);
-      }
-
-      const result = await response.json();
       if (result.text) {
         onTranscription(result.text);
       } else {

@@ -1,8 +1,8 @@
 import { test, expect } from '@playwright/test';
 import { TEST_CONFIG } from './config';
-import { isCortexReachable } from './global-setup';
+import { isTelencephalonReachable } from './global-setup';
 
-const CORTEX_URL = TEST_CONFIG.CORTEX_URL;
+const TELENCEPHALON_URL = TEST_CONFIG.TELENCEPHALON_URL;
 const FULL_STACK = process.env.SHADOW_FULL_STACK === '1';
 
 test.describe('Complete E2E: Conversation Flow', () => {
@@ -14,9 +14,9 @@ test.describe('Complete E2E: Conversation Flow', () => {
   });
 
   test('发送消息并验证响应', async ({ page }) => {
-    test.skip(!await isCortexReachable(), 'telencephalon not reachable on :60080');
+    test.skip(!await isTelencephalonReachable(), 'telencephalon not reachable on :60080');
     // 1. 创建对话
-    const createConvResponse = await page.request.post(`${CORTEX_URL}/shadow/v1/conversations`, {
+    const createConvResponse = await page.request.post(`${TELENCEPHALON_URL}/shadow/v1/conversations`, {
       data: {},
     });
     expect(createConvResponse.ok()).toBeTruthy();
@@ -25,7 +25,7 @@ test.describe('Complete E2E: Conversation Flow', () => {
 
     // 2. 发送消息
     const sendResponse = await page.request.post(
-      `${CORTEX_URL}/shadow/v1/conversations/${conv.id}/messages:stream`,
+      `${TELENCEPHALON_URL}/shadow/v1/conversations/${conv.id}/messages:stream`,
       { data: { text: '你好' } }
     );
 
@@ -57,9 +57,9 @@ test.describe('Complete E2E: Conversation Flow', () => {
   });
 
   test('验证所有 lobe 可达性', async ({ page }) => {
-    test.skip(!await isCortexReachable(), 'telencephalon not reachable on :60080');
+    test.skip(!await isTelencephalonReachable(), 'telencephalon not reachable on :60080');
     // 获取所有 lobe
-    const agentsResponse = await page.request.get(`${CORTEX_URL}/api/cortex/agents`);
+    const agentsResponse = await page.request.get(`${TELENCEPHALON_URL}/api/telencephalon/agents`);
     expect(agentsResponse.ok()).toBeTruthy();
     const agents = await agentsResponse.json();
 
@@ -84,9 +84,9 @@ test.describe('Complete E2E: Conversation Flow', () => {
   });
 
   test('验证错误处理 - lobe 不可达', async ({ page }) => {
-    test.skip(!await isCortexReachable(), 'telencephalon not reachable on :60080');
+    test.skip(!await isTelencephalonReachable(), 'telencephalon not reachable on :60080');
     // 创建对话
-    const createConvResponse = await page.request.post(`${CORTEX_URL}/shadow/v1/conversations`, {
+    const createConvResponse = await page.request.post(`${TELENCEPHALON_URL}/shadow/v1/conversations`, {
       data: {},
     });
     expect(createConvResponse.ok()).toBeTruthy();
@@ -94,7 +94,7 @@ test.describe('Complete E2E: Conversation Flow', () => {
 
     // 发送消息到可能不可达的 lobe
     const sendResponse = await page.request.post(
-      `${CORTEX_URL}/shadow/v1/conversations/${conv.id}/messages:stream`,
+      `${TELENCEPHALON_URL}/shadow/v1/conversations/${conv.id}/messages:stream`,
       { data: { text: '测试消息' } }
     );
 
@@ -117,7 +117,7 @@ test.describe('Complete E2E: Conversation Flow', () => {
   });
 
   test('验证对话页面错误显示', async ({ page }) => {
-    test.skip(!await isCortexReachable(), 'telencephalon not reachable on :60080');
+    test.skip(!await isTelencephalonReachable(), 'telencephalon not reachable on :60080');
     await page.goto('/conversation');
     await page.waitForLoadState('networkidle');
 

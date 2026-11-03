@@ -85,7 +85,7 @@ afterEach(() => {
 });
 
 describe('ttsService — Web Speech fallback', () => {
-  it('uses OpenAI path when cortex TTS succeeds', async () => {
+  it('uses OpenAI path when telencephalon TTS succeeds', async () => {
     mockSpeech.mockResolvedValue(new Blob(['mp3-data'], { type: 'audio/mpeg' }));
 
     const { ttsService } = await import('../tts');
@@ -95,7 +95,7 @@ describe('ttsService — Web Speech fallback', () => {
     expect(mockSpeechSynthesis.speak).not.toHaveBeenCalled();
   });
 
-  it('falls back to Web Speech when cortex returns STRUCT_ERROR|5030|', async () => {
+  it('falls back to Web Speech when telencephalon returns STRUCT_ERROR|5030|', async () => {
     const structErrBody =
       'STRUCT_ERROR|5030|{"code":5030,"hint":"configure_model","message":"LLM_NOT_REGISTERED","user_message":"驱动模型未配置","options":[]}|';
     mockSpeech.mockRejectedValue(new Error(`HTTP 400: ${structErrBody}`));
@@ -109,7 +109,7 @@ describe('ttsService — Web Speech fallback', () => {
     expect(mockSpeechSynthesis.speak).toHaveBeenCalledOnce();
   });
 
-  it('falls back to Web Speech when cortex returns HTTP 404 (TTS not registered)', async () => {
+  it('falls back to Web Speech when telencephalon returns HTTP 404 (TTS not registered)', async () => {
     mockSpeech.mockRejectedValue(new Error('HTTP 404: Not Found'));
 
     const { ttsService } = await import('../tts');

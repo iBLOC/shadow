@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:genui/genui.dart';
 import 'package:genui_a2ui/genui_a2ui.dart';
+import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
 
 // ⚠️ **实现级导入**：上游**不导出**异常类型
@@ -10,6 +11,7 @@ import 'package:logging/logging.dart';
 // ignore_for_file: implementation_imports
 import 'package:genui_a2ui/src/a2a/client/a2a_exception.dart';
 
+import 'a2ui_surface_events.dart';
 import 'shadow_key_sse_transport.dart';
 
 /// Connection status for A2A server
@@ -106,6 +108,7 @@ class GenUIAgentService {
     String? Function()? shadowKeyProvider,
     String? Function()? adminTokenProvider,
     String? Function()? localeProvider,
+    http.Client? client,
   }) {
     _logger.info('Initializing GenUIAgentService with server: $serverUrl');
 
@@ -122,6 +125,9 @@ class GenUIAgentService {
       shadowKeyProvider: shadowKeyProvider,
       adminTokenProvider: adminTokenProvider,
       localeProvider: localeProvider,
+      // ⚠️ **注入的 client 由本服务负责关**（`dispose()` 会关 transport
+      // ⇒ transport 会关它的 client）⇒ ⇒ 调用方别再关一次。
+      client: client,
     );
 
     _contentGenerator = A2uiContentGenerator(
@@ -238,6 +244,94 @@ class GenUIAgentService {
         .catchError((Object error, StackTrace stackTrace) {
       _reportFailure(error);
     });
+  }
+
+  /// 按视图取 surface 的**原始 A2A 事件**。
+  ///
+  /// ## 它做两件事（两件都要，缺一件界面就是空的）
+  ///
+  /// ① **取回原始事件** —— 端脑 `POST /a2a` 的每一行 SSE 去掉
+  ///    `data: ` 前缀就是一条事件（`{"result":{…}}` 那个对象）。
+  ///    ⇒ 客户端工具 `show_a2ui_surface` 要的就是这一份**逐字同形**的东西
+  ///    ⇒ ⇒ 两端吃的是**同一批字节**（fixture `fixtures/a2ui/tasks_sse.txt`）。
+  ///
+  /// ② **喂进 processor** —— A2UI 的界面不是「HTTP 回来的」，
+  ///    而是「**事件喂进 processor 之后才存在**」的
+  ///    （`A2uiMessageProcessor.handleMessage` ⇒ `BeginRendering`
+  ///    才设根组件 ⇒ `GenUiSurface` 才有东西可画）
+  ///    ⇒ ⇒ 不喂 ⇒ surface 不存在 ⇒ ⇒ 内联渲染画出来是**空白**。
+  ///
+  /// ## 为什么复用既有传输
+  ///
+  /// 端脑面的地址 / 影子锁 / admin token / 语言**已经**在
+  /// [ShadowKeySseTransport] 里配好了（钥匙还是**请求时现读**的）
+  /// ⇒ ⇒ 这里直接用它 ⇒ ⇒ **不另写一套 HTTP**
+  /// （另写一套 ⇒ 两份地址两份钥匙 ⇒ 迟早一边 401）。
+  Future<List<Map<String, Object?>>> fetchSurfaceEvents(String view) async {
+    final events = <Map<String, Object?>>[];
+    await for (final event in _transport.sendStream(_viewRequest(view))) {
+      // ⚠️ **把 `result` 信封包回去** —— 上游的 SSE 解析器**只吐内层**
+      // （`sse_parser.dart:45-49`：`yield result as Map<String, Object?>`）
+      // ⇒ 而契约要的是**端脑发出来的那条事件本身**
+      // （`{"result":{…}}` 那个对象）
+      // ⇒ ⇒ 这里包回去 ⇒ 出来的 JSON 与端脑发的**逐字同形**
+      // ⇒ ⇒ 两端的用例断言的是同一个 fixture。
+      events.add(<String, Object?>{'result': event});
+    }
+    ingestSurfaceEvents(events);
+    return events;
+  }
+
+  /// 把一批**原始 A2A 事件**喂进 processor —— surface 才存在。
+  ///
+  /// ⚠️ **为什么必须喂**：A2UI 的界面不是「HTTP 回来的」，
+  /// 而是「事件喂进 [A2uiMessageProcessor] 之后**才存在**」的
+  /// ⇒ ⇒ 不喂 ⇒ `GenUiSurface` 拿不到定义 ⇒ 画出来是**空白**
+  /// ⇒ ⇒ 「工具成功了、界面却是空的」—— 失败长得像成功。
+  ///
+  /// ⚠️ **解不了的载荷不许把整批带崩** —— 一条坏载荷只丢它自己
+  /// ⇒ ⇒ 其余的照常画。
+  void ingestSurfaceEvents(List<Map<String, Object?>> events) {
+    for (final payload in a2uiPayloadsFromEvents(events)) {
+      try {
+        _messageProcessor.handleMessage(A2uiMessage.fromJson(payload));
+      } catch (error) {
+        _logger.warning('A2UI 载荷解不了，跳过这一条：$error');
+      }
+    }
+  }
+
+  /// 「我要看哪个视图」的那次请求体。
+  ///
+  /// ⚠️ **与桌面端 `buildA2uiRequestBody` 同一处形状**
+  /// （`shadow-desktop/src/lib/a2uiClient.ts:131-148`）
+  /// ⇒ ⇒ 两端问端脑的方式一样。
+  ///
+  /// ⚠️ 视图名**同时**写在两处（`metadata.a2ui.view` 与
+  /// `parts[].text` 的 `a2ui:<view>`）—— 端脑两处都认
+  /// （`telencephalon/src/a2a/a2ui.rs:118-149`）
+  /// ⇒ ⇒ 写一处就够；写两处是为了**手测 / curl** 也能用同一句话。
+  Map<String, Object?> _viewRequest(String view) {
+    return <String, Object?>{
+      'jsonrpc': '2.0',
+      'method': 'message/stream',
+      'params': <String, Object?>{
+        'configuration': null,
+        'metadata': null,
+        'message': <String, Object?>{
+          'kind': 'message',
+          'messageId': 'shadow-view-${DateTime.now().microsecondsSinceEpoch}',
+          'role': 'user',
+          'parts': <Object?>[
+            <String, Object?>{'kind': 'text', 'text': 'a2ui:$view'},
+          ],
+          'metadata': <String, Object?>{
+            'a2ui': <String, Object?>{'view': view},
+          },
+        },
+      },
+      'id': 1,
+    };
   }
 
   /// 把一次失败（**任何来源**）如实报出去。

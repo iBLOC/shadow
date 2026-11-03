@@ -1,8 +1,8 @@
 // R-01 — audio event notification chip rendered inside
-// ConversationPage when the cortex SSE stream emits an
+// ConversationPage when the telencephalon SSE stream emits an
 // `audio_event`. Pairs with the BC-01..05 baby-cry monitoring scenario
 // (diencephalon audio pipeline → Notification → ACP → 颞叶 →
-// ConversationPage). Until the cortex-side audio classification
+// ConversationPage). Until the telencephalon-side audio classification
 // pipeline is wired end-to-end, this component renders when the
 // type lands; no live data flows today but the surface is in place.
 //

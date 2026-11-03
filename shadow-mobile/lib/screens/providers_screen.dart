@@ -15,7 +15,7 @@ import '../generated/l10n/app_localizations.dart';
 ///
 /// ⇒ 现在是三态：**读得到有** / **读得到空** / **读不到**。
 class ProvidersState {
-  final List<BrainProvider> providers;
+  final List<RegisteredProvider> providers;
   final List<ProviderPreset> presets;
   final bool isLoading;
   final bool isLoadingPresets;
@@ -34,7 +34,7 @@ class ProvidersState {
   });
 
   ProvidersState copyWith({
-    List<BrainProvider>? providers,
+    List<RegisteredProvider>? providers,
     List<ProviderPreset>? presets,
     bool? isLoading,
     bool? isLoadingPresets,
@@ -287,7 +287,7 @@ class _UnreadableState extends StatelessWidget {
 }
 
 class _ProviderCard extends ConsumerWidget {
-  final BrainProvider provider;
+  final RegisteredProvider provider;
 
   const _ProviderCard({required this.provider});
 
@@ -308,9 +308,35 @@ class _ProviderCard extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      provider.name,
-                      style: Theme.of(context).textTheme.titleMedium,
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            provider.name,
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                        ),
+                        // ⚠️ 「内置」徽章 —— 大脑自带的条目**自报家门**用的
+                        // ⇒ ⇒ 用户一眼能看出「这条不是你能改的东西」。
+                        if (provider.builtin) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              l10n.providerBuiltin,
+                              style: Theme.of(context).textTheme.labelSmall
+                                  ?.copyWith(color: Colors.blue),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                     if (provider.baseUrl.isNotEmpty)
                       Text(
@@ -326,14 +352,17 @@ class _ProviderCard extends ConsumerWidget {
                   ],
                 ),
               ),
-              Switch(
-                value: provider.enabled,
-                onChanged: (value) {
-                  ref
-                      .read(providersNotifierProvider.notifier)
-                      .toggleProvider(provider.id, value);
-                },
-              ),
+              // ⚠️ 内置条目恒为启用（它是**大脑的一部分**）⇒ ⇒ 不给开关
+              // （按下去 = 写一条只读条目 ⇒ ⇒ 大脑那边会拒）。
+              if (!provider.builtin)
+                Switch(
+                  value: provider.enabled,
+                  onChanged: (value) {
+                    ref
+                        .read(providersNotifierProvider.notifier)
+                        .toggleProvider(provider.id, value);
+                  },
+                ),
             ],
           ),
           // ⚠️ 大脑那边拉模型列表失败 ⇒ **说出来**（别让用户以为配好了）。
@@ -354,38 +383,55 @@ class _ProviderCard extends ConsumerWidget {
               children: provider.models
                   .map(
                     (m) => ChoiceChip(
-                      label: Text(m.id),
+                      // ⚠️ 能力 ＋ 「还没下载」的标记 ⇒ ⇒ 用户一眼能分出
+                      // ⇒ ⇒ 「这条是聊天模型」与「这条还没下载、选了跑不起来」。
+                      label: Text(
+                        [
+                          if (m.capability != null) m.capability!,
+                          m.id,
+                          if (m.available == false) l10n.providerModelNotDownloaded,
+                        ].join(' · '),
+                      ),
                       selected: provider.selectedModel == m.id,
-                      onSelected: (_) {
-                        ref
-                            .read(providersNotifierProvider.notifier)
-                            .selectModel(provider.id, m.id);
-                      },
+                      // ⚠️ 内置条目（neuron）的模型**可以选** —— 「选中哪个本地
+                      // ⇒ ⇒ 模型」这件事由大脑那边**记住** ⇒ ⇒ 但**没下载的
+                      // ⇒ ⇒ 不能选**（选了也跑不起来 ⇒ ⇒ 大脑那边会拒 400）。
+                      onSelected: m.available == false
+                          ? null
+                          : (_) {
+                              ref
+                                  .read(providersNotifierProvider.notifier)
+                                  .selectModel(provider.id, m.id);
+                            },
                     ),
                   )
                   .toList(),
             ),
           ],
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              TextButton.icon(
-                onPressed: () => _showEditDialog(context, ref, provider),
-                icon: const Icon(Icons.edit, size: 18),
-                label: Text(l10n.commonEdit),
-              ),
-              const SizedBox(width: 8),
-              TextButton.icon(
-                onPressed: () => _confirmDelete(context, ref, provider),
-                icon: Icon(Icons.delete, size: 18, color: AppColors.error),
-                label: Text(
-                  l10n.commonDelete,
-                  style: TextStyle(color: AppColors.error),
+          // ⚠️ 内置条目（neuron）**不可编辑/删除**（注册表里只读 ⇒ ⇒ 按了
+          // 只会拿到 400）⇒ ⇒ 界面不给这两个按钮。
+          if (!provider.builtin) ...[
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton.icon(
+                  onPressed: () => _showEditDialog(context, ref, provider),
+                  icon: const Icon(Icons.edit, size: 18),
+                  label: Text(l10n.commonEdit),
                 ),
-              ),
-            ],
-          ),
+                const SizedBox(width: 8),
+                TextButton.icon(
+                  onPressed: () => _confirmDelete(context, ref, provider),
+                  icon: Icon(Icons.delete, size: 18, color: AppColors.error),
+                  label: Text(
+                    l10n.commonDelete,
+                    style: TextStyle(color: AppColors.error),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -394,7 +440,7 @@ class _ProviderCard extends ConsumerWidget {
   void _showEditDialog(
     BuildContext context,
     WidgetRef ref,
-    BrainProvider provider,
+    RegisteredProvider provider,
   ) {
     showModalBottomSheet(
       context: context,
@@ -406,7 +452,7 @@ class _ProviderCard extends ConsumerWidget {
   void _confirmDelete(
     BuildContext context,
     WidgetRef ref,
-    BrainProvider provider,
+    RegisteredProvider provider,
   ) {
     final l10n = AppLocalizations.of(context)!;
     showDialog(
@@ -478,7 +524,7 @@ class _ProviderIcon extends StatelessWidget {
 const String _kCustom = '__custom__';
 
 class _AddProviderSheet extends ConsumerStatefulWidget {
-  final BrainProvider? editProvider;
+  final RegisteredProvider? editProvider;
 
   const _AddProviderSheet({this.editProvider});
 

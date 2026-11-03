@@ -13,9 +13,10 @@ import '../providers/conversation_mode_provider.dart';
 import '../utils/chat_state_l10n.dart';
 import '../widgets/continue_on_desktop_dialog.dart';
 import '../widgets/chat/local_chat_view.dart';
-import '../widgets/chat/agent2ui_view.dart';
+import '../widgets/chat/agent2ui_panel.dart';
 import '../widgets/chat/mode_switcher.dart';
 import '../widgets/chat/conversation_mode_switcher.dart';
+import '../widgets/responsive.dart';
 import '../theme/app_colors.dart';
 import '../router/app_router.dart';
 
@@ -123,15 +124,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     // 也没有「模型不存在」这个状态可言。
     final isAgent2UI = useAgent2UI;
 
-    String getModeTitle() {
-      if (isAgent2UI) return l10n.agent2UI;
-      return l10n.appTitle;
-    }
+    // ⚠️ **同页共存** ⇒ 这一页**永远是对话页** ⇒ 标题/图标不再跟着 A2UI 变
+    //（A2UI 有自己的面板头 ⇒ 不必借整页的标题说「你现在在 Agent2UI」）。
+    String getModeTitle() => l10n.appTitle;
 
-    IconData getModeIcon() {
-      if (isAgent2UI) return Icons.psychology;
-      return Icons.chat_bubble_outline;
-    }
+    IconData getModeIcon() => Icons.chat_bubble_outline;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -158,13 +155,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           // 以前移动端**只有一条会话** ⇒ 这个入口也就没有意义；
           // 现在能切会话了 ⇒ 入口补上
           //（否则「会话管理」那页在 UI 上**没有任何入口** ⇒ 用户进不去）。
-          if (!isAgent2UI)
-            IconButton(
-              icon: const Icon(Icons.history),
-              onPressed: () => context.push(AppRoutes.conversation),
-              tooltip: l10n.conversationManagement,
-            ),
-          if (!isAgent2UI && chatState.sessionId != null)
+          // ⚠️ **同页共存** ⇒ 对话的这些入口**永远**在
+          //（以前在 A2UI 形态下它们让位 ⇒ ⇒ 因为对话整块被顶掉了）。
+          IconButton(
+            icon: const Icon(Icons.history),
+            onPressed: () => context.push(AppRoutes.conversation),
+            tooltip: l10n.conversationManagement,
+          ),
+          if (chatState.sessionId != null)
             IconButton(
               icon: const Icon(Icons.swap_horiz),
               onPressed: () {
@@ -175,59 +173,79 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               },
               tooltip: l10n.continueDesktopTitle,
             ),
-          if (!isAgent2UI)
-            const ModeSwitcher(),
+          const ModeSwitcher(),
           // Agent2UI（A2A / GenUI）的入口。
           //
           // 以前唯一的入口是「本地模型没装好 → 弹下载框 → Use Agent2UI」
           // 那个逃生口 —— 下载框下线之后就没有入口了，所以补一个常驻按钮，
           // 不然这个形态会变成**只能进不能出**的死功能。
-          if (!isAgent2UI)
-            IconButton(
-              icon: const Icon(Icons.widgets_outlined),
-              onPressed: () =>
-                  ref.read(useAgent2UIModeProvider.notifier).state = true,
-              tooltip: l10n.agent2UI,
-            ),
-          if (!isAgent2UI)
-            IconButton(
-              icon: const Icon(Icons.settings),
-              onPressed: () =>
-                  _showSettings(context, chatState.displayModelInfo(l10n)),
-              tooltip: l10n.settings,
-            ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // 对话形态（对话 / 语音 / 直播 / 客服）是对话的方式，不是并列 tab
-          const ConversationModeSwitcher(),
-          Expanded(
-            child: isAgent2UI
-                ? const Agent2UIView()
-                : LocalChatView(
-                    chatState: chatState,
-                    l10n: l10n,
-                    isDark: isDark,
-                    scrollController: _scrollController,
-                    promptController: _promptController,
-                    onSendMessage: _sendMessage,
-                    onSpeak: () =>
-                        ref.read(chatProvider.notifier).speakLastResponse(),
-                    onPickImage: () =>
-                        ref.read(chatProvider.notifier).pickImage(),
-                    onCaptureImage: () =>
-                        ref.read(chatProvider.notifier).captureImage(),
-                    onPickFile: () =>
-                        ref.read(chatProvider.notifier).pickFile(),
-                    onStartAudioRecording: () =>
-                        ref.read(chatProvider.notifier).startAudioRecording(),
-                    onStopAudioRecording: () =>
-                        ref.read(chatProvider.notifier).stopAudioRecording(),
-                    onStopAndSend: _stopRecordingAndSend,
-                  ),
+          //
+          // ⚠️ **同页共存** ⇒ 它是「上面多一块面板」，**不是**「换一页」
+          // ⇒ ⇒ 这个按钮**常驻**且是**开关**（实心＝面板在）
+          // ⇒ ⇒ 用户随时能收起来，对话一秒都不耽误。
+          IconButton(
+            icon: Icon(isAgent2UI ? Icons.widgets : Icons.widgets_outlined),
+            onPressed: () =>
+                ref.read(useAgent2UIModeProvider.notifier).state = !isAgent2UI,
+            tooltip: l10n.agent2UI,
+          ),
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () =>
+                _showSettings(context, chatState.displayModelInfo(l10n)),
+            tooltip: l10n.settings,
           ),
         ],
+      ),
+      // 折叠屏展开后屏宽 ≈ 700dp：内容限宽居中，不拉满整屏
+      //（列表、输入条、形态切换器一起收进 kContentMaxWidth）。
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: kContentMaxWidth),
+          child: Column(
+            children: [
+              // 对话形态（对话 / 语音 / 直播 / 客服）是对话的方式，不是并列 tab
+              const ConversationModeSwitcher(),
+              // ⚠️ **同页共存**：A2UI 面板在**上面**，**对话永远在下面**
+              // ⇒ ⇒ 打开面板**不会**把对话换掉（以前是二选一 ⇒ 对话整块消失）。
+              // ⚠️ 高度封顶 42%（并夹在 180–420dp 之间）
+              // ⇒ ⇒ 小屏也不会把对话挤没、大屏也不会让面板吃掉整页。
+              if (isAgent2UI)
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: (MediaQuery.sizeOf(context).height * 0.42)
+                        .clamp(180.0, 420.0),
+                  ),
+                  child: const Agent2UIPanel(),
+                ),
+              Expanded(
+                child: LocalChatView(
+                  chatState: chatState,
+                  l10n: l10n,
+                  isDark: isDark,
+                  scrollController: _scrollController,
+                  promptController: _promptController,
+                  onSendMessage: _sendMessage,
+                  onSpeak: () =>
+                      ref.read(chatProvider.notifier).speakLastResponse(),
+                  onPickImage: () =>
+                      ref.read(chatProvider.notifier).pickImage(),
+                  onCaptureImage: () =>
+                      ref.read(chatProvider.notifier).captureImage(),
+                  onPickFile: () =>
+                      ref.read(chatProvider.notifier).pickFile(),
+                  onStartAudioRecording: () => ref
+                      .read(chatProvider.notifier)
+                      .startAudioRecording(),
+                  onStopAudioRecording: () => ref
+                      .read(chatProvider.notifier)
+                      .stopAudioRecording(),
+                  onStopAndSend: _stopRecordingAndSend,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

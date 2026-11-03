@@ -5,11 +5,11 @@ import { openaiClient } from './openaiClient';
  *
  * 架构 (synapse-first + multi-engine fallback):
  *
- * 1. **主路径** — OpenAI 兼容 `/v1/audio/speech` (cortex → neuron TTS 模型)
+ * 1. **主路径** — OpenAI 兼容 `/v1/audio/speech` (端脑 → neuron TTS 模型)
  * 2. **Fallback 路径 (兜底)** — W3C Web Speech API (`window.speechSynthesis`)
  *    仅当 temporal lobe (Agent) 未配置 TTS 模型时启用:
- *    - cortex 返回 `STRUCT_ERROR|5030|...` (LLM_NOT_REGISTERED)
- *    - cortex 返回 404 (TTS capability not registered)
+ *    - 端脑 返回 `STRUCT_ERROR|5030|...` (LLM_NOT_REGISTERED)
+ *    - 端脑 返回 404 (TTS capability not registered)
  *    - 检测到 STRUCT_ERROR 字符串
  *    其他错误 (网络失败、超时、401/500) 不降级，保留上层错误处理逻辑。
  *
@@ -17,7 +17,7 @@ import { openaiClient } from './openaiClient';
  *
  * **使用范围限制**: 本服务仅用于对话界面 (`ConversationPage`) 朗读 Agent
  * 返回内容。**陪伴模式 (WebRTC / Companion Mode)** 不绑定 TTS — 它走
- * cortex 的 WebRTC → Opus RTP 通道，要求 cortex 端必须实际有 TTS 模型，
+ * 端脑的 WebRTC → Opus RTP 通道，要求端脑端必须实际有 TTS 模型，
  * 否则无法启动。
  *
  * 自动播放策略：受用户偏好控制（localStorage `shadow.tts.enabled`）
@@ -34,7 +34,7 @@ export interface TtsOptions {
   lang?: string;
   /**
    * 启用 Web Speech API fallback (默认 true)。仅当 temporal lobe agent
-   * 没有配置 TTS 模型时 (cortex 返回 5030/404) 自动降级。
+   * 没有配置 TTS 模型时 (端脑返回 5030/404) 自动降级。
    * 设为 false 可以强制只在主路径播放。
    */
   allowFallback?: boolean;
@@ -79,13 +79,13 @@ function pickWebSpeechVoice(lang: string): SpeechSynthesisVoice | null {
  * 是否因为 "temporal lobe 没配置 TTS 模型" 而失败 — 这种情况下应降级到
  * Web Speech API。判定规则:
  * - HTTP 404: TTS 能力未注册
- * - HTTP 503: 服务不可用 (cortex LLM 未配置也走 503)
+ * - HTTP 503: 服务不可用 (端脑 LLM 未配置也走 503)
  * - 错误消息包含 STRUCT_ERROR|5030| 或 NoRegisteredModel
  */
 function isModelNotRegisteredError(err: unknown): boolean {
   if (!(err instanceof Error)) return false;
   const msg = err.message;
-  // STRUCT_ERROR 字符串前缀 — cortex 的统一错误格式
+  // STRUCT_ERROR 字符串前缀 — 端脑的统一错误格式
   if (msg.includes('STRUCT_ERROR|5030|')) return true;
   if (msg.includes('STRUCT_ERROR|5020|')) return true;
   if (msg.includes('STRUCT_ERROR|5031|')) return true;
@@ -190,7 +190,7 @@ export const ttsService = {
         throw openaiErr;
       }
       console.warn(
-        '[tts] TTS model not registered on cortex; falling back to Web Speech API.',
+        '[tts] TTS model not registered on telencephalon; falling back to Web Speech API.',
       );
     }
 

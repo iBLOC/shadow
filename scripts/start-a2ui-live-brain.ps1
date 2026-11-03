@@ -28,7 +28,7 @@
 #   并要求验完就停（`-Stop`）。**不要相信配置、只相信实际监听地址**。
 #
 # 对照：桌面端自己的 sidecar 一直是 loopback
-# （`shadow-desktop/src-tauri/src/cortex_http.rs:63` ⇒ `127.0.0.1:60080`，
+# （`shadow-desktop/src-tauri/src/telencephalon_http.rs:63` ⇒ `127.0.0.1:60080`，
 # 还有一条测试钉着「the sidecar must stay on loopback」）。
 #
 # ## 两把钥匙是**分开的**
@@ -65,7 +65,12 @@
 # ⚠️ **没设那三个环境变量 ⇒ 整组跳过**（不是失败）⇒ 常规 `vitest run` 不受影响。
 param(
   [string]$Exe = '',
-  [int]$Port = 60080,
+  # ⚠️ **默认端口不是 60080** —— 60080 是**桌面端自己**的端脑面
+  # （`shadow-desktop/src-tauri/src/telencephalon_http.rs:63`）⇒ ⇒ 台架去抢它
+  # ⇒ ⇒ **桌面端的大脑当场缺席** ⇒ ⇒ 前端改连**这台台架脑** ⇒ ⇒ 用户的对话
+  # 跑进了**陌生的大脑**（2026-11-02 那次真事故就是这个形状）。
+  # ⇒ ⇒ 台架用**自己的**端口 ⇒ ⇒ 两边互不抢。
+  [int]$Port = 60091,
   [string]$ProofDir = 'C:\Projects\iBLOC\encephalon\target\a2ui-proof',
   [switch]$Stop
 )
@@ -76,15 +81,25 @@ $utf8 = New-Object System.Text.UTF8Encoding($false)
 
 # ── -Stop：把还活着的实例停掉（**验完就要停** —— 它在局域网里是敞着的）──
 if ($Stop) {
-  $listeners = Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue
-  if (-not $listeners) {
-    Write-Output "端口 $Port 上没有在听的实例。"
+  # ⚠️ **只停这个脚本自己起的那一个** —— 绝不按端口乱杀。
+  #   旧实现是「端口上在听的统统杀」⇒ ⇒ 那正好可能是**用户的桌面端**
+  #   （它的端脑面就在 :60080）⇒ ⇒ 一句 -Stop 会**杀掉桌面端**。
+  $pidFile = Join-Path $ProofDir 'server.pid'
+  if (-not (Test-Path $pidFile)) {
+    Write-Output "没有本脚本起过的实例记录（$pidFile）—— 什么都不停。"
+    Write-Output '（端口上别的进程不是本脚本起的，不归它停。）'
     exit 0
   }
-  foreach ($l in $listeners) {
-    Write-Output "stopping pid=$($l.OwningProcess) (listening on $($l.LocalAddress):$($l.LocalPort))"
-    Stop-Process -Id $l.OwningProcess -Force -ErrorAction SilentlyContinue
+  $startedPid = [int](Get-Content $pidFile -Raw).Trim()
+  $proc = Get-Process -Id $startedPid -ErrorAction SilentlyContinue
+  if (-not $proc) {
+    Write-Output "pid=$startedPid 已经不在了。"
+    Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
+    exit 0
   }
+  Write-Output "stopping pid=$startedPid (本脚本起的那个)"
+  Stop-Process -Id $startedPid -Force -ErrorAction SilentlyContinue
+  Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
   Write-Output '已停。'
   exit 0
 }
@@ -99,6 +114,20 @@ if (-not $Exe) {
 }
 if (-not $Exe -or -not (Test-Path $Exe)) {
   throw "找不到端脑二进制。编法：cargo build --bin encephalon-server --no-default-features --features `"telencephalon hippocampus`" -j 1（产物在 target\debug\deps\）"
+}
+
+# ⚠️ **端口上已经有东西 ⇒ 报出是谁，然后拒绝起** —— 不抢、不杀。
+#   旧实现是「端口上在听的统统杀掉」⇒ ⇒ 那可能是**用户的桌面端**。
+$occupied = Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue
+if ($occupied) {
+  foreach ($o in $occupied) {
+    $owner = Get-Process -Id $o.OwningProcess -ErrorAction SilentlyContinue
+    $who = if ($owner) { "$($owner.ProcessName) (pid=$($o.OwningProcess))" } else { "pid=$($o.OwningProcess)" }
+    Write-Output "端口 $Port 已经被占用：$who"
+  }
+  Write-Output '不抢、不杀。换个端口：-Port <别的端口>'
+  Write-Output '（并让测试指过去：$env:SHADOW_TELENCEPHALON_URL = "http://127.0.0.1:<端口>"）'
+  exit 3
 }
 Write-Output ("binary: {0}（{1:N1} MB @ {2}）" -f $Exe, ((Get-Item $Exe).Length / 1MB), (Get-Item $Exe).LastWriteTime)
 
@@ -162,13 +191,6 @@ telencephalon:
 "@
 [System.IO.File]::WriteAllText((Join-Path $ProofDir 'config.yaml'), $config, $utf8)
 
-# 旧实例先停（它占着端口）
-$old = Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue
-if ($old) {
-  foreach ($o in $old) { Stop-Process -Id $o.OwningProcess -Force -ErrorAction SilentlyContinue }
-  Start-Sleep -Seconds 2
-}
-
 $env:TELENCEPHALON_ADMIN_KEY    = $adminKey
 $env:TELENCEPHALON_SHADOW_KEY   = $shadowKey
 $env:TELENCEPHALON_CONFIG       = Join-Path $ProofDir 'config.yaml'
@@ -184,8 +206,10 @@ $env:EMBEDDING_MODEL            = 'text-embedding-3-small'
 $stamp = Get-Date -Format 'HHmmss'
 $err = Join-Path $ProofDir "server-$stamp.err.log"
 $out = Join-Path $ProofDir "server-$stamp.out.log"
-Start-Process $Exe -ArgumentList '--port', "$Port" -WorkingDirectory $repo `
-  -RedirectStandardError $err -RedirectStandardOutput $out -WindowStyle Hidden
+$started = Start-Process $Exe -ArgumentList '--port', "$Port" -WorkingDirectory $repo `
+  -RedirectStandardError $err -RedirectStandardOutput $out -WindowStyle Hidden -PassThru
+# 记下**自己起的那个**的 pid ⇒ `-Stop` 只停它（绝不按端口乱杀）。
+[System.IO.File]::WriteAllText((Join-Path $ProofDir 'server.pid'), "$($started.Id)", $utf8)
 
 for ($i = 0; $i -lt 60; $i++) {
   Start-Sleep -Seconds 2
@@ -221,6 +245,7 @@ if ($listen) {
 
 Write-Output ''
 Write-Output '接着跑活体联调：'
+Write-Output "  `$env:SHADOW_TELENCEPHALON_URL = 'http://127.0.0.1:$Port'   # api-contract 套件认这个"
 Write-Output "  `$env:A2UI_LIVE_URL         = 'http://127.0.0.1:$Port'"
 Write-Output "  `$env:A2UI_LIVE_KEY         = (Get-Content '$ProofDir\shadow.key' -Raw).Trim()"
 Write-Output "  `$env:A2UI_LIVE_ADMIN_TOKEN = (Get-Content '$ProofDir\admin.key' -Raw).Trim()"

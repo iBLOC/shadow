@@ -88,6 +88,16 @@ export interface A2uiStreamResult {
    * 同时把「有一条没读懂」说出来。
    */
   errors: string[];
+  /**
+   * **原始的 A2A 事件**（逐条，已解析成对象）。
+   *
+   * ⚠️ 为什么把它带出来：A2UI 的事件现在有**两条消费路径** ——
+   * ① 「面板」那条（`A2uiPanel` 自己解析）；
+   * ② 「**对话里内联**」那条（客户端工具 `show_a2ui_surface`）。
+   * ⇒ ⇒ 两边吃的是**同一批事件** ⇒ ⇒ 事件必须是**一份**，
+   * 不能两端各去各的（各去各的 ⇒ 迟早一边多一个字段）。
+   */
+  events: unknown[];
 }
 
 /** 造一个消息 id（UUID）。`crypto.randomUUID` 不可用时有兜底。 */
@@ -188,6 +198,8 @@ export async function requestA2uiSurface(
   const model = new A2uiSurfaceModel();
   const texts: string[] = [];
   const errors: string[] = [];
+  // ⚠️ **原始事件** —— 「对话里内联」那条路要的就是这一份字节。
+  const events: unknown[] = [];
   const decoder = new SseDecoder();
 
   const handleEvent = (data: string) => {
@@ -198,6 +210,9 @@ export async function requestA2uiSurface(
       errors.push(`有一条 SSE 事件不是合法 JSON：${(e as Error).message}`);
       return;
     }
+    // ⚠️ **收下原始事件**（解析后的对象）—— 面板那条路用 `model`，
+    // 「对话里内联」那条路用这一份 ⇒ ⇒ 两边**同一批事件**。
+    events.push(json);
     const rpcError = extractJsonRpcError(json);
     if (rpcError) {
       errors.push(rpcError);
@@ -245,5 +260,5 @@ export async function requestA2uiSurface(
 
   for (const event of decoder.flush()) handleEvent(event);
 
-  return { model, texts, errors };
+  return { model, texts, errors, events };
 }

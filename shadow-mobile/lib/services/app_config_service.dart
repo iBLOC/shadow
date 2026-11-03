@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
+import 'capabilities/capability.dart';
 
 /// 应用配置服务
 /// 支持存储和读取可配置的参数，如模型下载服务器地址
@@ -33,8 +34,20 @@ class AppConfigService {
   // 换账号也不该把旧桶的遗留数据再搬进新账号（那是上一个账号的东西）。
   String? _tenantMigrationTarget;
 
+  // 能力授权（每个能力一档：每次询问 / 完全访问）。
+  //
+  // 空 = 一个都没显式配过 = 全走默认档（每次询问）⇒ ⇒
+  // 配置文件里**没有**这个键，与「配成空」是同一件事。
+  Map<String, String> _capabilityModes = {};
+
   /// 已经搬过一次？（值 = 搬给谁的人格；null = 没搬过）
   String? get tenantMigrationTarget => _tenantMigrationTarget;
+
+  /// 能力授权档位（能力 wire → 档位 wire）。
+  ///
+  /// 返回的是**防御性副本** —— 调用方改它不会影响仓库。
+  Map<String, String> get capabilityModes =>
+      Map.unmodifiable(_capabilityModes);
 
   // 单例
   static final AppConfigService _instance = AppConfigService._internal();
@@ -96,6 +109,7 @@ class AppConfigService {
         _glassIntensity = (config['glassIntensity'] as num?)?.toDouble();
         _surfaceOverrideValue = config['surfaceOverride'] as int?;
         _tenantMigrationTarget = config['tenantMigrationTarget'] as String?;
+        _capabilityModes = CapabilityPolicyStore.read(config);
       }
     } catch (e) {
       // 配置文件读取失败，使用默认值
@@ -108,6 +122,9 @@ class AppConfigService {
       _glassIntensity = null;
       _surfaceOverrideValue = null;
       _tenantMigrationTarget = null;
+      // ⚠️ 读失败 ⇒ 授权档位回到「什么都没配」⇒ ⇒ 全部按
+      // 「每次询问」处理 ⇒ ⇒ **绝不会因为文件坏了就放宽授权**。
+      _capabilityModes = {};
     }
   }
 
@@ -131,6 +148,8 @@ final config = {
       if (_tenantMigrationTarget != null)
         'tenantMigrationTarget': _tenantMigrationTarget,
     };
+      // ⚠️ 能力授权：**空 map 不写** ⇒ ⇒ 配置文件里不留空壳。
+      CapabilityPolicyStore.write(_capabilityModes, config);
       await file.writeAsString(json.encode(config));
     } catch (e) {
       // 配置保存失败，忽略错误
@@ -217,6 +236,14 @@ final config = {
   /// 传 null = 抹掉标记（下次还会再搬）—— 只在明确要重来时才这么做。
   Future<void> setTenantMigrationTarget(String? target) async {
     _tenantMigrationTarget = (target == null || target.isEmpty) ? null : target;
+    await _saveConfig();
+  }
+
+  /// 记下「能力 → 授权档位」（持久）。
+  ///
+  /// 空 map = 回到「什么都没配」= 全部按「每次询问」处理。
+  Future<void> setCapabilityModes(Map<String, String> modes) async {
+    _capabilityModes = Map<String, String>.from(modes);
     await _saveConfig();
   }
 }

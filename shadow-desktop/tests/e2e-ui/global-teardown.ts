@@ -8,8 +8,8 @@ import { join } from 'path';
 const TEST_DATA_DIR = process.env.SHADOW_TEST_DATA_DIR ?? join(tmpdir(), 'shadow-test-data');
 
 async function globalTeardown() {
-  if (process.env.CORTEX_REUSE === 'true') {
-    console.log('[global-teardown] Cortex was reused, keeping it running');
+  if (process.env.TELENCEPHALON_REUSE === 'true') {
+    console.log('[global-teardown] 端脑 was reused, keeping it running');
     return;
   }
 

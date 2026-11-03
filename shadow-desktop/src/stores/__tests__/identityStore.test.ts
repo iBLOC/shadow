@@ -181,7 +181,7 @@ describe('identityStore', () => {
   it('端脑答非 2xx 时当失败处理（不把错误当身份）', async () => {
     const { telencephalonClient } = await import('../../lib/telencephalonClient');
     vi.mocked(telencephalonClient.getIdentity).mockRejectedValue(
-      new Error('cortex 503: Service Unavailable')
+      new Error('telencephalon 503: Service Unavailable')
     );
     const { useIdentityStore } = await import('../identityStore');
 

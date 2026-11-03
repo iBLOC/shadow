@@ -18,8 +18,8 @@
 ④ **✅ 单测（13 条）**：`cargo test --lib provider_manager` ⇒ **13 passed / 0 failed**（9 条纯函数：base_url 别名 / api_base 回落 / api_standard 派生 / 大脑说的赢过派生的 / 旧数据没 enabled ⇒ 默认启用 / 没 key ⇒ None 而不是空串 / 默认模型来自目录 / 旧配置导入带真 key / 列表形状不对 ⇒ 报错而不是空列表；**4 条对着「假大脑」跑真链路**：大脑的原话进错误 / 非 JSON 的回带出大脑原话 / 按预设加**只发 key**（不自己编 base_url 与模型列表）/ 大脑不在要说「连不上大脑」）⇒ ⇒ ⚠️ **反向验证**：把「大脑原话」那段退回原样 ⇒ ⇒ **恰好 1 条红** ⇒ ⇒ 断言承重、不是恒绿。
 ⑤ **⚠️⚠️ 顺带修掉一处「桌面端单测一直没人跑过」**：`src-tauri/src/config_manager.rs:235`（`684be0f`，今天 00:05）把 `ConfigManager` 的 `update_hippocampus_data_dir` 当成 `AppConfig` 的方法调 ⇒ ⇒ **`cargo test --lib` 整个编不过** ⇒ ⇒ 改 1 行（直接设字段）才跑得出上面这些 ⇒ ⇒ **教训**：仓库里「有测试」不等于「测试跑得起来」。
 ⑤ **⚠️ 还欠的**：**桌面端那 10 分钟周期刷新仍挂在旧的本地管理器上**（`src-tauri/src/lib.rs:297-302`，**在飞文件** ⇒ ⇒ 本轮没碰）⇒ ⇒ 它刷的是**没人读**的那份 ⇒ ⇒ 周期刷新要搬进端脑；**`ProviderCard.tsx:68` 用 `model.enabled` 判状态，而 `ModelSummary` 没有这个字段** ⇒ ⇒ 徽章恒为 offline（界面在说谎，未处理）；**真机 UI 未验**。
-**Updated:** 2026-11-01 (桌面端那把 shadow key 真的能用了 + 探针与列表递同一套钥匙 —— 见文末「STATE STATUS (2026-11-01, 桌面端那把 shadow key 真的能用了 —— 探针与列表终于递同一套钥匙)」)
-**Project:** shadow-desktop (Layer 4 — Interaction)
+
+**Updated:** 2026-11-02 (Cortex 清干净 ＋ **收尾**：闸升级成「白名单 ＋ 上下文限定」＋ video-sources 三方归一 —— 见文末「STATE STATUS (2026-11-02, Cortex 清干净的**收尾** —— 闸从「词级白名单」升级成「白名单 ＋ 上下文限定」，顺带修掉 video-sources 的三方三种写法)」)**Project:** shadow-desktop (Layer 4 — Interaction)
 **Sprint-2 status:** ✅ MCP management wired through cortex — AgentsPage per-card binding panel + bind modal + 12 new cortexClient methods + 18 i18n keys. 10 AgentsPage + 10 chartbi + 20 lib vitest tests passing. TypeScript clean. **Post-audit-cycle (2026-09-24/25)**: recording mode R1-R4 closed, MCP catalog 5×28 + transport-aware MCPPage, Workflow Studio v1 (R-12/R-13), subsystem management panel client, cortex sidecar replaced with embedded encephalon. Companion E2E assessment: [`../../docs/superpowers/architecture/2026-09-25-e2e-coverage-assessment.md`](../../docs/superpowers/architecture/2026-09-25-e2e-coverage-assessment.md).
 
 ## ARCHITECTURAL ROLE
@@ -685,6 +685,37 @@ The same `src/` produces **two artefacts**:
 - **⚠️ 还欠的**：**移动端真机那一截**（设备上的 APK 与内嵌端脑都是旧的 ⇒ 看不到中文界面）；
   **协议值仍是英文**；**「空 / 失败」三态**（`Tasks (0)` 现在被当「成功」）仍未拆；
   **桌面端没有 shadow key 输入入口**（既有缺口）⇒ 端脑配了 key 而桌面端没有 ⇒ 面板 401。
+- **⚠️⚠️ 2026-11-02 订正（本机真机实测：这台机器上的端脑**不认** `Accept-Language`）**：
+  「端脑据此产出中文界面」这句话**只验到源码与单测**，**没验到运行** ⇒ ⇒
+  2026-11-02 从**活着的**端脑上打 `POST http://127.0.0.1:60080/a2a`（带 `Accept-Language: zh-CN`）
+  ⇒ ⇒ 端脑**仍回英文**（`Tasks (0)` / `No tasks yet.`）⇒ ⇒ 真因是**本机跑的是旧构建**：
+  进程 `encephalon-server.exe`（`iBLOC/encephalon` 这个**宿主仓**编出来的 —— 它用 `../telencephalon`
+  作 path 依赖，所以**端脑源码真相源仍是 `telencephalon`**）**构建于 2026-10-31 23:28**
+  ⇒ ⇒ 早于「界面文案随语言走」那笔提交（`telencephalon` 的 `c51780c`，**2026-11-01 01:33**）
+  ⇒ ⇒ **代码是对的，跑的是旧的** ⇒ ⇒ 本条上面那句「端脑据此产出中文界面」**在本机不成立**
+  ⇒ ⇒ （面板显示英文看板 ＋ 中文界面 ⇒ 界面不自洽，而且**没人报错**）。
+  ⚠️ **所以「还欠的」要加上本机这一截**：不只移动端，**桌面端本机**也欠 ——
+  要把端脑**重新编一遍**（编 `iBLOC/encephalon` ⇒ 它 path 依赖 `../telencephalon`）才能验。
+- **✅ 把「真端脑 ↔ 客户端」这条链做成**打包时**自动复验**（新 `tests/api-contract/a2ui-live.test.ts`）：
+  `pnpm test:api`（= `pnpm prebuild` 的一部分）⇒ ⇒ 打**活端脑**，而且**用客户端自己的
+  `requestA2uiSurface()`** 打（不是在探针里另抄一份）⇒ ⇒ 验的是整条真实链路：
+  请求头 ⇒ SSE 解码 ⇒ 协议解析 ⇒ 能不能画出一块界面。
+  ⚠️ **硬断言**：协议层问题必须为 0 ＋ 事件非空 ＋ 能建出**可渲染**的 surface
+  （端脑改了信封 ⇒ 这里立刻红 ⇒ 而不是界面上静悄悄地变成一块空白）。
+  ⚠️ **软断言（只警告，不卡打包）**：① 端脑回的文案**不是中文** ⇒ ⇒ **它在喊「我是旧构建」**
+  （本机实测就是它喊的：`title="Tasks (0)"`）；② 活端脑的事件**形状**与冻结的 fixture
+  不一致 ⇒ ⇒ fixture 该重新抓了（**不是**客户端的锅 ⇒ 不该卡死打包）。
+  ⇒ ⇒ **反向验证：拆掉协议层 ⇒ 恰好 2 红**（形状那条仍绿）⇒ ⇒ 有分辨力。
+- **⚠️⚠️ 顺带发现：这台机器上**桌面端打不出包**（不是本轮引入的）**：
+  `pnpm prebuild` → `pnpm test:api` ⇒ ⇒ 既有 api-contract 套件对着**这台旧端脑**有 **4 条红**
+  （`GET /api/telencephalon/thalamus/preview/sensors` 与 `…/sensors/{name}/stats` 两条 **503**
+  ＋ `GET /api/telencephalon/video-sources` ＋ 同一条的 schema 断言）
+  ⇒ ⇒ **端脑版本问题**，不是桌面端代码问题 ⇒ ⇒ 要把端脑**重新编一遍**才能打包。
+  ⚠️ **顺带确认了两件事**：① 端脑**有** `tools` 透传 ＋ `await_tool_result` 那条路
+  （`telencephalon/src/api/shadow.rs:402/470/642/1302`）⇒ ⇒ 桌面端发的 `tools` 能到模型；
+  ② ⚠️ 但 `shadow.rs:402` 有个**硬约束**：客户端工具**必须走流式端点**
+  （否则端脑直接回 400 `client tools require the streaming endpoint`）
+  ⇒ ⇒ 桌面端 `ConversationPage.tsx:398` 走的正是 `telencephalonClient.streamMessage(...)` ⇒ ⇒ 满足。
 
 ## STATE STATUS (2026-11-01, 「空 / 失败」三态)
 
@@ -1009,3 +1040,245 @@ The same `src/` produces **two artefacts**:
 - **⚠️ 还欠的**：**桌面端真机 UI 未验**；**后端 Rust 单测未跑出绿灯**（本机 cargo 锁被并行会话
   占着、且桌面 lib test 的**链接**阶段极慢 ⇒ 本轮改用 `cargo check` 验证编译 ⇒ 测试随代码提交、
   待 CI 或下一轮跑）；**迁移**是另一个决定。
+
+## STATE STATUS (2026-11-02, 「模型在对话里点名要界面」—— surface 内联在消息里)
+
+- **⚠️ 病（「有事件」不等于「画出来了」）**：客户端工具 `show_a2ui_surface` 执行完要回两样东西 ——
+  **给界面**的事件 ＋ **给模型**的一句话 ⇒ ⇒ 判据一开始写成「事件数 > 0」
+  ⇒ ⇒ 而端脑**只回纯文本**时**也有事件**（那条 text 事件）⇒ ⇒
+  「没画界面」被说成「**已展开**」⇒ ⇒ **失败长得像成功**。
+- **✅ 修（判据收进协议层）**：`buildSurfaceFromEvents()`（`src/lib/a2uiProtocol.ts`）
+  ⇒ 「有没有收到 `beginRendering`」才是「画出来没有」⇒ ⇒ 与面板那条路**同一套判据**（一处实现）。
+- **✅ 界面那一半与模型那一半分开**：`pickReportPayload()` ⇒ 只有 `report` 那一句进模型上下文；
+  事件**不进**（组件树进模型上下文 ⇒ 上下文被一堆 JSON 淹了）。
+- **✅ 结果卡片不甩原始 JSON**：`ToolOutputCard` 会把对象 `JSON.stringify` 出来 ⇒ ⇒
+  把整个结果丢进去 ⇒ 用户看到的是**一坨协议字节** ⇒ ⇒ 卡片只显示 `report` 那句人话
+  （界面那一半**已经画成图**了）。
+- **✅ `report` 走真 i18n**：它**用户看得见** ⇒ ⇒ 中英两端各一份词条
+  （`a2ui.surfaceDrawn` / `surfaceNotDrawn` / `surfaceNotDrawnSilent` / `labelTasks` / `labelAgents`）
+  ⇒ ⇒ 用例钉「两端都在、且**不是副本**」。
+- **⚠️⚠️ 顺带量到的一处病（lib 层不该被 React 绑住）**：为了让 lib 里的工具能拿到 i18n，
+  `clientTools.ts` import 了 `../i18n` ⇒ ⇒ 而那一侧带 **React 绑定**（`initReactI18next`）
+  ⇒ ⇒ **测试里 35 个文件各自 mock 了一份 `react-i18next`**（多数**没有** `initReactI18next`）
+  ⇒ ⇒ **谁 import 谁炸**（模块加载即失败）⇒ ⇒ 全量 vitest **3 个套件直接挂掉**。
+- **✅ 修（i18n 拆成「内核」＋「React 绑定」）**：新 `src/i18n/core.ts`
+  （实例 + 词条 + 配置 + `ensureI18n()`）⇒ ⇒ `src/i18n/index.ts` 只留 **React 绑定**
+  （`use()` → `init()`）⇒ ⇒ **同一个实例**（`i18next` 的默认导出是单例）
+  ⇒ ⇒ lib import `core` ⇒ ⇒ **不再拖 React**。
+  ⚠️ **顺序不能反**：i18next v24 的 `use()` 只是**排队**（`i18next.js:1954`），
+  真正调 `module.init(instance)` 的是 **`init()`**（`i18next.js:1834`）
+  ⇒ ⇒ 反了 ⇒ `useTranslation()` 拿不到实例 ⇒ ⇒ **界面全是 key、而且不报错**。
+- **✅ 两端 `report` 的措辞对齐 ＋ **机器钉住**：`report` 是**给模型看的那一句**
+  ⇒ ⇒ 两端措辞不一样 ⇒ ⇒ 同一个模型在手机上和桌面上**读到的是两句话** ⇒ ⇒ 那也是漂移
+  ⇒ ⇒ 桌面端文案改成与移动端**逐字相同**，并且桌面端用例**直接读移动端的 arb** 比对
+  （中英各 4 句）⇒ ⇒ 任何一边改措辞 ⇒ 那条立刻红（**不是人工对齐一次就算**）。
+  ⚠️ **坑**：i18next 的 `t(key, opts, lng)` **第三个参数不是语言**（是 defaultValue）
+  ⇒ ⇒ 传了也还是中文 ⇒ ⇒ 断言会「看着像绿、其实比的是中文」⇒ ⇒ 切语言用 `getFixedT('en-US')`。
+- **✅ 证据 + 反向验证**：新增 **11 条**（工具 8 ＋ 内联渲染 3）⇒ ⇒ 相关 6 个文件 **43 passed**；
+  `tsc --noEmit` **EXIT=0**；⚠️ **反向验证三处各恰好 1 红**（判据退回「事件数 > 0」⇒ **恰好 1 红**；
+  事件那一半不过滤 ⇒ **恰好 1 红**；卡片回退到原始结果 ⇒ **恰好 1 红**）＋ 措辞那条 **恰好 1 红**
+  ⇒ ⇒ 有分辨力、不是恒绿。
+- **⚠️ 还欠的**：**桌面端真机 UI 未验**（本轮是单测 ＋ 真渲染 ＋ 闸）；
+  **端脑零改动**（走已有的 `tools` 透传 ＋ `tool_call` ＋ `await_tool_result` 管道 ⇒ 不新增协议
+  ⇒ ⇒ `ConversationPage.tsx:404` 已经把 `tools` 发出去、`:408` 已经开了 `await_tool_result: true`）。
+- **✅ 移动端那份已落地**（并行会话做的）：同一份契约（执行结果 = `{ report, a2ui_events }`，
+  事件与 `fixtures/a2ui/tasks_sse.txt` **逐字同形**）⇒ ⇒ 全量 `flutter test` **507 passed / 0 failed**
+  ⇒ ⇒ 跨端闸 `scripts/check-client-tools.mjs` **阻断 0 项**（`enum` / `required` / description 三处对齐）。
+  ⚠️ **移动端那条「桌面端 report 写死中文 / 判据用事件数」的提醒是过期读数** ——
+  它读的是本会话**修之前**的桌面快照 ⇒ ⇒ 桌面端**已本地化**（真 i18n，中英两端）＋ **判据已是 `beginRendering`**。
+
+
+## STATE STATUS (2026-11-02, Cortex 清干净 —— 旧名按语义分家 ＋ 闸从「有闸」变成「机器可判」)
+
+**Updated:** 2026-11-02 (Cortex 是过时概念，清理它以免与新方案（端脑 / telencephalon）混淆 —— 详见根 `AGENTS.md` 同日 ㋮ 条)
+
+- **⚠️ 病（一个旧名指两样东西）**：「Cortex」同时指着**端脑进程/服务状态**与**海马体任务**
+  （`tasks.cortexTasks` 的**值**本来就写着「海马体任务」，**键名**却还在说 Cortex）⇒ ⇒ 改名**按语义分家**，
+  不能一刀切 ⇒ ⇒ 端脑族 ⇒ `telencephalon*`（界面文案统一「端脑」）／海马体任务族 ⇒ `hippocampus*`。
+- **✅ 桌面端源码侧（32 个文件）**：i18n 中英（**zh 48 个含 Cortex 的键 / en 34 个**全部改掉，
+  另**补上英文缺失的整段** `telencephalonStatus.*` —— 此前英文下整段回落**中文默认值**）＋ store（7 个字段/方法）
+  ＋ lib ＋ pages ＋ components ＋ **`CortexTaskSection.tsx` ⇒ `HippocampusTaskSection.tsx`**（组件名 ＋ testid）
+  ＋ 传输层类型（`CortexWireChunk` ⇒ `TelencephalonWireChunk` 等）＋ `src-tauri` 的
+  **`cortex_http.rs` ⇒ `telencephalon_http.rs`**（模块 ＋ tracing 前缀 ＋ 6 处引用 ＋ `Cargo.toml` 注释）。
+- **✅ 顺带清掉的三处「界面在说谎」**：① `discover_cortex` 这个 Tauri 命令**压根没注册** ⇒ 「Cortex 实例」
+  那段 UI **永远空** ⇒ 整段删了；② `AgentsResponse.cortex` 是**过期字段**（服务端 `shadow.rs:288` 早就返回
+  `"telencephalon"`）⇒ 客户端 `resp.cortex?.id` **永远是 undefined** ⇒ 改读 `resp.telencephalon?.…`；
+  ③ 两个**假落点**：`/api/cortex/admin/agents/install`（真路径是 `/api/telencephalon/admin/agents/install`）
+  与 `~/.shadow/cortex/llm-config.json`（**Rust 侧压根没人读它**）⇒ 改成真路径 ＋ 把旧名写进注释当**历史对照**。
+- **⚠️⚠️ 顺带量到的真病（video-sources 的 wire 是坏的）**：桌面端发 camelCase、服务端 DTO 是 snake_case
+  ⇒ ⇒ `device` 块整体反序列化失败 ⇒ ⇒ PUT body 被拒（**422**）⇒ ⇒ 而客户端 `.catch(() => {})` 吞掉 ⇒ ⇒
+  **失败长得像成功** ⇒ ⇒ 服务端 DTO 加 `#[serde(rename_all = "camelCase")]`（**服务端惯例本就是 camelCase**，
+  见 `hippo_store.rs:193` ＋ `api/neuron_public.rs:27`；`hippo_store.rs:175-183` 记着「`rename_all` **曾经漏过一次**」）
+  ＋ 客户端 `cortexVersion` ⇒ `telencephalonVersion`。
+- **⚠️⚠️ 旧的 `scripts/check-cortex-residue.sh` 是「有闸」三个字的空壳**：**① 只看标识符** ⇒ 界面那句
+  「启动 Cortex」**不在判据里**；**② 没进 CI** ⇒ 绿不绿没人知道；**③ 是 `.sh`** ⇒ 这台 Windows 机器**跑不了**
+  （本机 WSL 无发行版）⇒ ⇒ **重写成 Node**（`scripts/lib/cortex-residue.mjs` **一处实现** ＋ 本目录薄壳）
+  ⇒ ⇒ **词级判据** ＋ **兼容契约豁免清单**（token + 理由，**逐条登记**）＋ **防腐烂检查**（登记的 token 必须
+  真的还在仓库里出现过，否则**退出码 2** = 判不了）＋ `--self-test`（4 条）＋ **接进 CI**。
+  本目录现登记 **17 个 token / 40 处**豁免：旧环境变量别名（`CORTEX_ADMIN_KEY` 等）、旧 localStorage 键
+  （`cortex_url`/`cortex_api_key` —— 改了旧 API key 就**擦不掉**）、旧持久化键（`shadow-cortex-store`）、
+  真 PG 表名（`cortex_video_sources`）、wire 字段（`cortex_version`）、历史注释里的**被删类型名**
+  （`CortexManager`）、旧路由（`/api/cortex/*` —— 保留当**历史对照**）、内部路由 `/cortex-status`。
+- **✅ 顺带修好一道一直红的闸**：`scripts/check-brain-chain.mjs` 的 `desktop-sidecar-mounts-cortex` 规则
+  **要求** `src-tauri/src/telencephalon_http.rs` 存在 ⇒ ⇒ 文件还叫 `cortex_http.rs` 时，这道闸**一直是红的**
+  （`requireRule` 对缺文件是**阻断项**）⇒ ⇒ 本轮改名 ⇒ ⇒ **阻断 0 项 / EXIT=0**。
+- **✅ 读数**：`tsc --noEmit` **EXIT=0**；全量 vitest **1334 passed / 1 failed**（唯一那条红是**基线红**：
+  `tests/e2e/settings-lifecycle.test.tsx > Memory integration > renders storage path` —— 别人在飞地删了
+  `settings.storagePathDefault` 键，**不是本轮引入**）；本目录闸 **0 残留 / EXIT=0**；**闸的反向验证**：
+  真范围里种一次残留 ⇒ **恰好 1 红 / EXIT=1** ⇒ 删掉 ⇒ **0 红 / EXIT=0**；`src-tauri` `cargo check` **EXIT=0**
+  （反向验证：模块名改回旧名 ⇒ **EXIT=101**，`error[E0583]: file not found for module cortex_http`）。
+- **⚠️ 还欠的**：**真机 UI 未验**；**supervisor 徽章在撒谎**（`supervisor.enabled` 实为「端脑已挂载」，界面却写
+  「监督器已启用」；`restartCount` **任何地方都不写** ⇒ 永远 0；`supervisorHelp` 描述的是**一个已被 `be50b7f`
+  删掉的 respawn 机制**）⇒ ⇒ 本轮**只改措辞、没改语义** ⇒ ⇒ 那是另一个决定；**一批改名后仍是死键**
+  （`agents.telencephalonStatus` 等无调用点）；**locale 大量既有缺键**（`identity.*`/`preview.*`/`voice.*`…）。
+
+## STATE STATUS (2026-11-02, 「端口被占了，凭什么不告诉你」—— 端脑面抢占 ＋ 自愈 ＋ 说真话)
+
+- **⚠️ 事故（02:57）**：用户报「错误: Failed to get models: error sending request for url
+  (http://127.0.0.1:56334/v1/models)」。
+- **✅ 真因（三段取证）**：
+  - **(a)** 桌面端自己的端脑面**没起来** —— 启动日志
+    `target/debug/logs/shadow.2026-11-01.log:214`：
+    `bind 127.0.0.1:60080 failed (…只允许使用一次。 (os error 10048))`
+    ⇒ 占着 60080 的是一台**独立端脑服务器**（`encephalon-server.exe --port 60080`）。
+  - **(b)** 旧代码只 warn 一句就**放弃** ⇒ ⇒ 前端**照常**连 60080 ⇒ ⇒ 连上的是**别人的端脑**。
+  - **(c)** 那台独立端脑的叶区指向**它自己的临时端口 neuron**
+    （`encephalon/src/a2a_server.rs:122` 的 `neuron_port: 0` ⇒ `point_lobes_at_neuron`
+    ⇒ **56334**）⇒ ⇒ 那颗 neuron 已经不在了 ⇒ ⇒ `get_available_model`
+    （`telencephalon/src/lobes/mod.rs:445`）打 `/v1/models` 被拒 ⇒ ⇒ 端脑把那句
+    transport 错误**原样**吐给界面。
+  - ⇒ ⇒ **用户不是在跟自己的大脑说话** —— 他跟一台残留的独立端脑说话，
+    而那台还在跟一颗死掉的 neuron 说话。
+- **✅ 修（一处实现，两个动作）**：新 `src-tauri/src/brain_face.rs`
+  （`BrainFaceStatus` ＋ `BrainFaceHandle` ＋ `classify_bind_error` ＋ `bind_until_owned`）：
+  - **(a) 自愈**：绑不上 ⇒ 记下**真实原因** ⇒ **每 3s 重试** ⇒ 占的人一走就接管
+    ⇒ ⇒ 桌面端从此**拥有** 60080（前端不再可能连到陌生的大脑）。
+  - **(b) 说真话**：Tauri 命令 `get_brain_face_status` 暴露状态 ⇒ 前端
+    `src/components/chat/BrainFaceBanner.tsx` 在 `conflict`/`failed` 时出**红字横幅**
+    （带系统错误原文）⇒ 「现在连的不是这个 App 的大脑」摆到明面上。
+- **✅ 顺带修的（客户端那一半）**：`src/lib/hippocampusClient.ts` 的响应解析改成
+  「先读文本 ⇒ 是 JSON 就解析 ⇒ 不是 ⇒ **把服务端那句话原样说出来**」
+  ⇒ ⇒ 不再抛「Unexpected token ''S'', "Storage er"... is not valid JSON」
+  （= 用户上一条报的那句），而是显示真正的理由
+  （「服务端回的不是 JSON（HTTP 200）：Storage error: … No field named tenant_id」）。
+- **✅ 证据 + 反向验证**：
+  - **独立验证台**（`%TEMP%\brain-face-check`，用 `#[path]` **直接引入真模块**）：
+    占住端口 ⇒ `conflict / owned=false / error=Some("…os error 10048")`（系统错误原文）
+    ⇒ 占的人一走 ⇒ `listening / owned=true` ⇒ **接管成功**（`SELF-HEAL OK`）。
+    **反向验证**：削弱①（失败时不说 conflict）⇒ **恰好 1 条断言红**；
+    削弱②（接管后不说 listening）⇒ **恰好 1 条断言红**；还原 ⇒ EXIT=0。
+  - 前端横幅 **6 条真渲染测试**全绿 ⇒ 削弱「横幅永远不出现」⇒ **恰好 3 红**、
+    「不渲染真实原因」⇒ **恰好 1 红**、还原 ⇒ 6/6 再绿。
+  - 海马体客户端 **13 条**全绿 ⇒ 退回**真旧代码**（`response.json()` 且没有 catch）
+    ⇒ **恰好 1 红**。
+  - `cargo check --lib` **EXIT=0**（35 个既有 warning，零新增）；
+    `tsc --noEmit` 我的三个文件**零红**（其余红在并行会话在飞的文件里）。
+  - **全量 vitest：138 文件 / 1335 passed / 0 failed / 5 skipped** ⇒ ⇒ 顺带把
+    **上一轮留下的**一条过期断言收了（`tests/e2e/settings-lifecycle.test.tsx` 还在等
+    `settings.storagePathDefault` —— 那个键早就删了 ⇒ ⇒ 现在改成钉
+    「**显示真路径** ＋ **假地址不许回来**」）。
+- **⚠️ 还欠的**：
+  - **(a)** 桌面端 **exe 没能重新链出来** —— 两个原因叠着：① `link.exe` 连撞
+    **LNK1102 内存不足**（这台机器同时有别人的 cargo 在编，峰值 4.5GB+）；
+    ② **海马体仓有在飞的改动把编译搞挂了**
+    （`hippocampus-storage/src/lance/temporal_dataset.rs:193/194/208` 的
+    `replace('\'', ''')` 转义被改坏 ⇒ ⇒ 桌面端依赖它 ⇒ ⇒ 链不出来）
+    ⇒ ⇒ 「App 进程内自愈 ＋ 真机横幅」等这两样都清了再验（**不是我的改动挡着**）。
+    ⚠️ **用户现在跑的还是 02:54 那个旧 exe**（它的端脑面**绑得上** 60080 ⇒ ⇒
+    「Failed to get models」已经好了）⇒ ⇒ **新代码要等重链才生效**。
+  - **(b)** **服务端**那一半没改：海马体的 handler 仍把 `Err` 映射成 **200 + 纯文本**
+    ⇒ 应改成 4xx/5xx ＋ JSON 错误体（第三仓改动 ＋ 重链）。
+  - **(c)** **schema 迁移**没做：盘上那份 `memory.lance` 是旧版写的、缺 `tenant_id` 列
+    ⇒ ⇒ 海马体仓**故意**不做自动迁移（`schema_guard.rs` 模块注释：「rule 10」）⇒ ⇒
+    「迁移（保留旧记忆）」还是「重灌（丢旧记忆）」**要用户拍板**。
+- **✅ 顺带把「地址归属」定下来（台架脚本那一半）**：`scripts/start-a2ui-live-brain.ps1`
+  的**默认端口就是桌面端端脑面的 60080** ⇒ ⇒ 它是**故意**抢同一个端口 ⇒ ⇒
+  这就是本次事故的**根** ⇒ ⇒ 三处改动：
+  ① **默认端口改 60091**（台架用自己那份，**别抢**）；
+  ② **端口已被占 ⇒ 报出是谁（进程名 ＋ pid）并拒绝起**（退出码 3）
+  —— 旧实现是「端口上在听的统统杀掉」⇒ ⇒ 那可能是**用户的桌面端**；
+  ③ **`-Stop` 只停这个脚本自己起的那个**（记 pid 文件）⇒ ⇒ 旧实现按端口杀
+  ⇒ ⇒ 一句 `-Stop` 会**杀掉用户的桌面端**。
+  ⇒ ⇒ **真机验证**：`-Port 60080` ⇒ 「端口 60080 已经被占用：shadow-desktop
+  (pid=51308)」＋「不抢、不杀」＋ **EXIT=3**，桌面端**毫发无损**；
+  `-Stop -Port 60080` ⇒ 「没有本脚本起过的实例记录 —— 什么都不停」＋
+  桌面端**仍在**。
+
+## STATE STATUS (2026-11-02, Cortex 清干净的**收尾** —— 闸从「词级白名单」升级成「白名单 ＋ 上下文限定」，顺带修掉 video-sources 的三方三种写法)
+
+- **✅ 闸读数**：桌面端主流程 **0 处残留 / EXIT=0**（491 个文件）；自检 **5 条全绿**
+  （本轮新增第 ⑤ 条「`history` 类豁免的**上下文限定**必须生效」）。
+- **⚠️⚠️ 判据升级（豁免分两类）**：`contract`（真契约 ⇒ 任何位置豁免）＋ `history`
+  （史证 ⇒ **只在注释 / 文档行**豁免，出现在代码行 ⇒ 判红）⇒ ⇒ 桌面端那 7 条
+  「只在注释里出现的旧名」（`CORTEX_CONFIG` / `cortex_configure_llm` / `.shadow/cortex` /
+  `\`cortex\`` / `cortexVersion` / `CortexManager` / `test_cortex_manager_initial_state`）
+  全部降级为 `history` ⇒ ⇒ **注释里的改名史合法、代码里的旧名判红** ⇒ ⇒ 而
+  `cortex_url` / `cortex_api_key` / `shadow-cortex-store` / `cortex-status` / `api/cortex`
+  **落在代码行**（localStorage 键、路由、e2e 里「断言旧路由不存在」）⇒ ⇒ 留 `contract`。
+- **⚠️ 顺带订正一处假话**：桌面端那条 `cortex_video_sources` 的理由原写「真实 PG 表名 ——
+  改了查不到数据」⇒ ⇒ **实测是假话**（该表早已 RENAME，B2d 后数据在海马体）⇒ ⇒ 已删
+  （随 `src-tauri/src/video_source.rs` 的注释改写一并消失，闸的防腐烂判据随即报「已腐烂」
+  ⇒ ⇒ **这条机制当场证明自己有用**）。
+- **⚠️⚠️ 顺带修掉一处真 wire 不匹配（video-sources 三方三种写法）**：端脑 DTO 说 snake_case、
+  桌面端 TS 说 camelCase、桌面端 Rust 壳又说 `cortex_version` ⇒ ⇒ **桌面端 PUT 一直 422**
+  （serde 静默丢字段 ⇒ 整块 `device` 反序列化失败）⇒ ⇒ 而客户端是 `.catch(() => {})`
+  ⇒ ⇒ **失败长得像成功**；**GET 侧**桌面端读 `activeId`、服务端回 `active_id`
+  ⇒ ⇒ 活动源恒为 undefined ⇒ ⇒ 目录看着永远是空的。
+  - 改法：端脑三个 DTO 加 `#[serde(rename_all = "camelCase")]` ＋ `Option` 字段补 `default`；
+    **桌面端 Rust 壳**（`src-tauri/src/video_source.rs`）的 `cortex_version` ⇒
+    `telencephalon_version`，三个 DTO 一并加 camelCase。
+- **⚠️⚠️ 顺带发现一条死路径**：`src-tauri/src/video_source.rs` 那 4 个 Tauri command
+  （`enumerate_uvc` / `probe_capabilities` / `push_thalamus` / `sync_health`）
+  **在前端一个调用点都没有** —— 桌面端走的是 HTTP `/api/telencephalon/video-sources`
+  ⇒ ⇒ 本轮只改名 ＋ 把注释改成说实话（它原注释说「保留 `device.cortex_version` 以兼容旧
+  wire」⇒ ⇒ **它根本不过 HTTP** ⇒ ⇒ 那是句空话）⇒ ⇒ **删它**是另一笔（牵动在飞的
+  `src-tauri/src/lib.rs`）。
+- **✅ 证据 + 反向验证**：`tsc --noEmit` **EXIT=0**；闸 **0 处 / EXIT=0**；**反向验证**：
+  在 `src/` 种一次普通残留 ⇒ ⇒ **恰好 1 红** ⇒ ⇒ 撤掉 ⇒ ⇒ **0 红**（正控）。
+- **⚠️ 还欠的**：**两端真机 UI 都未验**；桌面端 `src-tauri` 的 `cargo check` 本轮**跑不了**
+  —— 被**海马体仓的在飞改动**挡住（`hippocampus-storage` 编不过 ⇒ 端脑编不过 ⇒ 桌面端也编不过）
+  ⇒ ⇒ ⚠️ 端脑那条「只关 hippocampus feature」的绕法**对桌面端不适用**（本仓**直接依赖**
+  `hippocampus-server` ＋ **显式开** `features = ["hippocampus"]`）⇒ ⇒ 本轮用**独立 serde 小台**
+  验掉了 serde 语义（桌面端 Rust 壳那三个 DTO 与端脑的**逐字同形** ⇒ ⇒ 已被覆盖）＋ grep 确认
+  `DeviceBlock` **只在 `video_source.rs` 里出现** ⇒ ⇒ 改名**无其它引用面**
+  ⇒ ⇒ ⚠️ 但**编译器没证过**（桌面端**绕不过**：本仓**直接依赖** `hippocampus-server` ＋ **显式开** `features = ["hippocampus"]` ⇒ ⇒ 端脑那条「只关 hippocampus feature」的路**对桌面端不适用** ⇒ ⇒ 端脑那边已用这条路证过（lib ＋ test cfg 各 `EXIT=0` ＋ 3 条 wire 单测**真跑通过**），桌面端只能等海马体仓那笔收尾）；⚠️ **2026-11-02 更新：欠因换了一个，欠账本身还在** —— 海马体仓那 3 个语法错**已被那个会话修好**（`hippocampus-storage/src/lance/temporal_dataset.rs` 现在是 `replace('\'', "''")`）⇒ ⇒ 端脑 `cargo check --all-targets` 本轮 **`CARGO_EXIT=0`**（端脑那 14 个「编不过的集成测试文件」本轮清零，详见父仓 ㋵ 条）⇒ ⇒ 但**桌面端 `cargo check` 仍红**：端脑 `BuildOptions` **被并行会话新加了 `control_plane` 字段**（未提交）⇒ ⇒ 桌面端 `src/telencephalon_http.rs:145` 的初始化少这个字段 ⇒ ⇒ **`E0063 missing field control_plane`** ⇒ ⇒ **`CARGO_EXIT=101`**。⚠️ 那个文件是**未跟踪的新文件**（并行会话刚创建）⇒ ⇒ **在飞** ⇒ ⇒ **不碰**（碰了就是覆盖在飞工作）⇒ ⇒ 也**不能**用 `paths` 覆盖绕开（端脑 HEAD 没有 `control_plane`，但那个在飞文件用的 `build_app_state_with` / `build_full_app` 也可能是新 API ⇒ ⇒ 覆盖只会把「一个错」换成「一大片错」）⇒ ⇒ 桌面端 Rust 侧本轮只有**降级证据**：① 桌面端 `video_source.rs` 的三个 DTO 字段名与 camelCase 约定**与端脑那份逐项一致**（唯一差别：时间字段 `String` vs `DateTime<Utc>`，serde 层面同为 ISO8601 文本 ⇒ 方向兼容）② `telencephalon_version` **全仓无外部引用点** ⇒ ⇒ **改名本身的编译风险为零** ⇒ ⇒ 但**编译器仍然没证过**（等并行会话接上 `control_plane`）；**全量 vitest** 本轮未重跑（本轮只动 Rust 壳 ＋ 闸脚本，不碰 TS 源码）。
+
+## STATE STATUS (2026-11-02, 客户端收成一张面 —— 「所有的入口都在大脑」)
+
+- **✅ 用户拍板**：「**坚持嵌入式，所有的入口都在大脑，由大脑负责路由和分发**」⇒ ⇒ 本仓的
+  客户端**只有一个**后端地址（大脑那张面）⇒ ⇒ `src/lib/platform.ts` 的 `neuronUrl()`
+  （`VITE_NEURON_URL` / `:8085` / `:8083`）**删掉**（留一段历史注释说明它为什么没了）。
+- **⚠️⚠️ 订正一个假前提（它还写在三处测试里）**：旧断言说「端脑面上**没有** `/v1/models`，
+  本地模型只可能走 neuron 自己的端口」⇒ ⇒ **那是错的** —— 端脑**把 neuron's route table 挂在
+  根上**（`telencephalon/src/api/mod.rs` 的 `build_full_app` ⇒ `outer.merge(neuron_router)`）
+  ⇒ ⇒ 脑面上**本来就有** `/v1/models`。
+  - **运行时实测**（2026-11-02，桌面端 pid 51308 活着）：`GET 60080/v1/models?engine=llm`
+    ⇒ **200 / total=13 / available=4**，与 `GET 8085/v1/models?engine=llm` **逐项相同**
+    ⇒ ⇒ 同一份 registry ⇒ ⇒ 「绕过去看的是另一份清单」这个担心**不成立**。
+- **✅ 改了什么**：
+  - `src/lib/modelConfigProbe.ts`：两发探测（`/models/providers` ＋ `/v1/models`）**同一个 base**
+    （`telencephalonClient.getBaseUrl()`）⇒ ⇒ 「同一张面」从注释变成**结构**。
+  - `src/pages/ModelsPage.tsx` ＋ `src/components/business/LocalEnginePanel/LocalEnginePanel.tsx`：
+    14 处 base 全部改成**函数内**的 `const BRAIN_BASE = telencephalonClient.getBaseUrl();`
+    ⇒ ⇒ ⚠️ **模块级常量在 import 时就定死** ⇒ ⇒ 用户改了设置里的地址，这两页还在打老地址
+    ⇒ ⇒ 「供应商来自新大脑、本地模型来自老机器」—— 同一个页面两张脸。
+  - `src/components/AppInitializer.tsx`：那段「两张面，两个 base」的注释**订正**成「一张面」。
+- **⚠️⚠️ 顺带修掉一处「我的改法把闸判失效了」**：providers 凭据闸靠「URL 里第一个
+  `${标识符}` ⇒ 追它的赋值」判「这一发打的是哪张面」⇒ ⇒ 我第一版写成 `${brainBase()}`（**带括号**）
+  ⇒ ⇒ 闸退到第二个插值 `${id}` 上 ⇒ ⇒ 4 处「**判不了**」（= 判不了 ≠ 没问题）⇒ ⇒ **没有改闸**，
+  而是**把代码改回仓库既有惯例** ⇒ ⇒ 闸恢复 **绿 8 / 红 0 / 判不了 0**。
+- **✅ 闸长到 8 条 ＋ 自检**（`scripts/check-brain-chain.mjs`）：⑦「客户端不许知道 neuron's 地址」
+  （代码行里有 `neuronUrl` / `VITE_NEURON_URL` / `:8085` / `:8083` ⇒ 判红；**注释里提到 ⇒ 不判红**）
+  ＋ ⑧「本地模型那一半必须从 client 取 base」（且 `platform.ts` 不得再导出 `neuronUrl`）
+  ⇒ ⇒ `--self-test` **9 条全绿**（含正控）⇒ ⇒ **反向验证**：真范围种一次残留 ⇒ **恰好 1 红 /
+  EXIT=1**；同一 token 挪到注释行 ⇒ **0 红 / EXIT=0**；删掉 ⇒ **0 红**。
+- **⚠️⚠️ 顺带量到一个真缺口（本轮没改）**：脑面上的 **`/v1/*` 不过门** ⇒ ⇒ 实测
+  `GET 60080/v1/models`（**不带任何钥匙**）→ **200**，而 `GET 60080/models/providers` → **401**
+  ⇒ ⇒ neuron's OpenAI 兼容面（含 **`/v1/chat/completions` = 推理面**）在脑的端口上**敞开**
+  ⇒ ⇒ 桌面上是 loopback（威胁模型 = 本机进程）⇒ ⇒ 但独立端脑 `--bind 0.0.0.0` 时等于把推理面敞开
+  ⇒ ⇒ 那是**端脑仓门型表**的范围 ⇒ ⇒ 本轮没改，登记在此。
+- **✅ 验证**：`tsc --noEmit` **EXIT=0**；全量 vitest **140 文件 / 1351 通过 / 0 失败 / 5 跳过**；
+  脑链闸 **EXIT=0**（442 文件）；凭据闸 **EXIT=0**；其余 10 道客户端闸全绿。
+- **⚠️ 还欠的**：本轮改动**未提交**（共享工作树混有他人在飞的改名 sweep）；**两端真机 UI 未验**
+  （这一轮是静态闸 ＋ 单测 ＋ 活机 HTTP 取证）；「本地模型那一族」的其余部分（5 份硬编码供应商表
+  ＋ 移动端 SQLite 模型库）还没统一。

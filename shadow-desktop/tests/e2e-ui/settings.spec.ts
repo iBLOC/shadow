@@ -14,9 +14,9 @@ test.describe('Settings Page', () => {
     await expect(page.getByRole('heading', { name: '设置' })).toBeVisible();
   });
 
-  test('显示 Cortex 状态', async ({ page }) => {
-    const cortexSection = page.getByRole('heading', { name: /Cortex/ });
-    await expect(cortexSection).toBeVisible();
+  test('显示端脑状态', async ({ page }) => {
+    const telencephalonSection = page.getByRole('heading', { name: /端脑/ });
+    await expect(telencephalonSection).toBeVisible();
   });
 
   test('显示语言设置', async ({ page }) => {

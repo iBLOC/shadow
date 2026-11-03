@@ -200,7 +200,7 @@ export class WebRtcCompanion {
 
       this.ws.addEventListener('error', () => {
         if (isFallback) {
-          this.error.value = 'Signaling connection error: both cortex and fallback failed';
+          this.error.value = 'Signaling connection error: both telencephalon and fallback failed';
         } else {
           this.error.value = 'Signaling connection error';
         }
@@ -217,7 +217,7 @@ export class WebRtcCompanion {
 
     this.ws?.addEventListener('error', () => {
       if (!this.usedFallback.value && fallbackUrl) {
-        console.log('[WebRTC] Cortex signaling failed, trying fallback:', fallbackUrl);
+        console.log('[WebRTC] Telencephalon signaling failed, trying fallback:', fallbackUrl);
         tryConnect(fallbackUrl, true);
       }
     });

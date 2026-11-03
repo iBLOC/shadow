@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Sparkles, Server, Loader2, AlertCircle, CheckCircle2, Download } from 'lucide-react';
 import { Button, Input, Label } from './ui';
-import { safeInvoke } from '../lib/tauriSafe';
 import {
   Dialog,
   DialogContent,
@@ -104,26 +103,20 @@ export function ModelSetupDialog({ open, onClose, userMessage, onConfigured }: M
     setStep('testing');
     setError(null);
     try {
-      // LLM configuration is persisted by the desktop-side
-      // Tauri shell to ~/.shadow/cortex/llm-config.json and
-      // re-applied on telencephalon boot. The Tauri command
-      // `cortex_configure_llm` is currently unimplemented
-      // (TODO: wire to telencephalon /api/telencephalon/admin/llm);
-      // surface its absence as an error so the dialog does not
-      // silently pretend to save.
-      const result = await safeInvoke<{ success: boolean; message?: string }>(
-        'cortex_configure_llm',
-        {
-          provider: selected,
-          apiKey: apiKey || null,
-          baseUrl: baseUrl || null,
-        },
-      );
-      if (!result || !result.success) {
-        throw new Error(result?.message || 'configure failed (command missing)');
-      }
+      // ⚠️ **该能力尚未实现** —— Rust 侧**没有** `cortex_configure_llm`
+      // 这个 Tauri 命令（`src-tauri/src/lib.rs` 的 `invoke_handler!` 里
+      // 压根没注册）⇒ ⇒ 以前那次 invoke 是**死调用**；端脑也**没有**
+      // `/api/telencephalon/admin/llm` 这个接口 ⇒ ⇒ 这里**不假装保存成功**
+      // （失败长得像成功 ⇒ 用户白等一轮才发现没配成）⇒ ⇒ 如实说「尚未实现」。
+      //
+      // ⚠️ 旧的落点 `~/.shadow/cortex/llm-config.json` **已不生效** ——
+      // `src-tauri/src/**` 里**没有任何一处**读它 ⇒ ⇒ 「下次启动会自动加载」
+      // 曾经是界面在**撒谎**（说了一个不存在的落点）。
+      throw new Error('该能力尚未实现：端脑还没有「配置 LLM」的接口。');
       setStep('success');
-      // 配置持久化到 ~/.shadow/cortex/llm-config.json 后，下次 cortex 启动会自动加载
+      // ⚠️ 旧的落点 `~/.shadow/cortex/llm-config.json` **已不生效**（Rust 侧
+      // 没有读它的地方）⇒ ⇒ 这一支只有等端脑真的接上
+      // `/api/telencephalon/admin/llm` 之后才该走通。
       setTimeout(() => {
         onConfigured();
         handleClose();
@@ -221,7 +214,7 @@ export function ModelSetupDialog({ open, onClose, userMessage, onConfigured }: M
               <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
                 <div className="font-medium text-foreground">{t('modelSetup.localModelTitle', '本地模型')}</div>
                 <div className="mt-1 text-xs text-muted-foreground">
-                  {t('modelSetup.localModelDesc', '点击保存后，cortex 会自动从 ModelScope 下载模型权重（约 700MB），完成后即可使用。')}
+                  {t('modelSetup.localModelDesc', '点击保存后，端脑会自动从 ModelScope 下载模型权重（约 700MB），完成后即可使用。')}
                 </div>
               </div>
             )}

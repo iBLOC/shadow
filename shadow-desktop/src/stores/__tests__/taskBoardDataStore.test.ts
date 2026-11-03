@@ -59,9 +59,9 @@ describe('taskBoardDataStore', () => {
     vi.clearAllMocks();
     identityMock.tenantId = 'default';
     useTaskBoardDataStore.setState({
-      cortexTasks: [],
-      isLoadingCortex: false,
-      cortexError: null,
+      hippocampusTasks: [],
+      isLoadingHippocampus: false,
+      hippocampusError: null,
       detail: { taskId: null, activeTab: 'overview' },
     });
   });
@@ -69,14 +69,14 @@ describe('taskBoardDataStore', () => {
   it('lists tasks in the default tenant without raising the global error dialog', async () => {
     vi.mocked(prefrontalClient.listTasks).mockResolvedValue([TASK]);
 
-    await useTaskBoardDataStore.getState().fetchCortexTasks();
+    await useTaskBoardDataStore.getState().fetchHippocampusTasks();
 
     expect(prefrontalClient.listTasks).toHaveBeenCalledWith('default', {
       silent: true,
     });
-    expect(useTaskBoardDataStore.getState().cortexTasks).toEqual([TASK]);
-    expect(useTaskBoardDataStore.getState().cortexError).toBeNull();
-    expect(useTaskBoardDataStore.getState().isLoadingCortex).toBe(false);
+    expect(useTaskBoardDataStore.getState().hippocampusTasks).toEqual([TASK]);
+    expect(useTaskBoardDataStore.getState().hippocampusError).toBeNull();
+    expect(useTaskBoardDataStore.getState().isLoadingHippocampus).toBe(false);
   });
 
   it('records a failed listing inline instead of throwing', async () => {
@@ -84,15 +84,15 @@ describe('taskBoardDataStore', () => {
       new Error('fetch failed')
     );
 
-    await useTaskBoardDataStore.getState().fetchCortexTasks();
+    await useTaskBoardDataStore.getState().fetchHippocampusTasks();
 
-    expect(useTaskBoardDataStore.getState().cortexError).toBe('fetch failed');
-    expect(useTaskBoardDataStore.getState().isLoadingCortex).toBe(false);
-    expect(useTaskBoardDataStore.getState().cortexTasks).toEqual([]);
+    expect(useTaskBoardDataStore.getState().hippocampusError).toBe('fetch failed');
+    expect(useTaskBoardDataStore.getState().isLoadingHippocampus).toBe(false);
+    expect(useTaskBoardDataStore.getState().hippocampusTasks).toEqual([]);
   });
 
   it('keeps frontend-only fields the backend drops on upsert', async () => {
-    useTaskBoardDataStore.setState({ cortexTasks: [TASK] });
+    useTaskBoardDataStore.setState({ hippocampusTasks: [TASK] });
     // hippocampus has no title/description/priority columns, so the
     // upsert response never carries them back.
     vi.mocked(prefrontalClient.updateTask).mockResolvedValue({
@@ -100,14 +100,14 @@ describe('taskBoardDataStore', () => {
       status: 'completed',
     });
 
-    await useTaskBoardDataStore.getState().updateCortexTask('task-1', {
+    await useTaskBoardDataStore.getState().updateHippocampusTask('task-1', {
       title: '写周报',
       description: '每周总结',
       priority: 'high',
       status: 'completed',
     });
 
-    const updated = useTaskBoardDataStore.getState().cortexTasks[0];
+    const updated = useTaskBoardDataStore.getState().hippocampusTasks[0];
     expect(updated.status).toBe('completed');
     expect(updated.title).toBe('写周报');
     expect(updated.description).toBe('每周总结');
@@ -116,7 +116,7 @@ describe('taskBoardDataStore', () => {
 
   it('refuses to update a task that is not in the cache', async () => {
     await expect(
-      useTaskBoardDataStore.getState().updateCortexTask('missing', {
+      useTaskBoardDataStore.getState().updateHippocampusTask('missing', {
         status: 'completed',
       })
     ).rejects.toThrow(/not found/);
@@ -125,18 +125,18 @@ describe('taskBoardDataStore', () => {
 
   it('removes a deleted task and closes its detail view', async () => {
     useTaskBoardDataStore.setState({
-      cortexTasks: [TASK],
+      hippocampusTasks: [TASK],
       detail: { taskId: 'task-1', activeTab: 'overview' },
     });
     vi.mocked(prefrontalClient.deleteTask).mockResolvedValue(undefined);
 
-    await useTaskBoardDataStore.getState().deleteCortexTask('task-1');
+    await useTaskBoardDataStore.getState().deleteHippocampusTask('task-1');
 
     expect(prefrontalClient.deleteTask).toHaveBeenCalledWith(
       'default',
       'task-1'
     );
-    expect(useTaskBoardDataStore.getState().cortexTasks).toEqual([]);
+    expect(useTaskBoardDataStore.getState().hippocampusTasks).toEqual([]);
     expect(useTaskBoardDataStore.getState().detail.taskId).toBeNull();
   });
 
@@ -152,7 +152,7 @@ describe('taskBoardDataStore', () => {
     identityMock.tenantId = 'persona-ada';
     vi.mocked(prefrontalClient.listTasks).mockResolvedValue([]);
 
-    await useTaskBoardDataStore.getState().fetchCortexTasks();
+    await useTaskBoardDataStore.getState().fetchHippocampusTasks();
 
     expect(prefrontalClient.listTasks).toHaveBeenCalledWith('persona-ada', {
       silent: true,
@@ -161,10 +161,10 @@ describe('taskBoardDataStore', () => {
 
   it('删除任务也用当前租户（别删到别人的桶里去）', async () => {
     identityMock.tenantId = 'persona-ada';
-    useTaskBoardDataStore.setState({ cortexTasks: [TASK] });
+    useTaskBoardDataStore.setState({ hippocampusTasks: [TASK] });
     vi.mocked(prefrontalClient.deleteTask).mockResolvedValue(undefined);
 
-    await useTaskBoardDataStore.getState().deleteCortexTask('task-1');
+    await useTaskBoardDataStore.getState().deleteHippocampusTask('task-1');
 
     expect(prefrontalClient.deleteTask).toHaveBeenCalledWith(
       'persona-ada',

@@ -1,6 +1,8 @@
 import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:crypto/crypto.dart';
+
 import 'prefrontal_client.dart';
 
 enum GroupState { idle, creating, joining, inGroup, error }
@@ -305,7 +307,10 @@ class GroupServiceNotifier extends StateNotifier<GroupServiceState> {
 final groupServiceProvider =
     StateNotifierProvider<GroupServiceNotifier, GroupServiceState>((ref) {
       return GroupServiceNotifier(
-        service: GroupService(),
+        // ⚠️ 用**共享** client（跟随「配置里那个端脑」）—— 裸
+        // `PrefrontalClient()` 是个没人管 baseUrl 的孤儿实例，永远打
+        // 写死的 `localhost:60080`，手机上必败。
+        service: GroupService(client: ref.read(prefrontalClientProvider)),
         deviceName: 'Shadow Mobile',
         pubkey: '',
       );

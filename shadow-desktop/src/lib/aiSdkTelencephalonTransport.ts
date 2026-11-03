@@ -1,7 +1,7 @@
 /**
  * AI SDK ChatTransport adapter for telencephalonClient.
  *
- * Bridges shadow-desktop's existing cortex SSE streaming to the
+ * Bridges shadow-desktop's existing telencephalon SSE streaming to the
  * Vercel AI SDK's ChatTransport interface. Lets `useChat` consume
  * `/shadow/v1/conversations/{id}/messages:stream` without rewriting
  * the existing SSE pipeline.
@@ -25,7 +25,7 @@ import { desktopClientTools, parseToolArgs, toOpenAiTools } from './clientTools'
 
 export interface TelencephalonChatTransportOptions {
   conversationId: string;
-  /** Optional agent override. When omitted, cortex uses its default routing. */
+  /** Optional agent override. When omitted, telencephalon uses its default routing. */
   agent?: string;
 }
 
@@ -33,13 +33,13 @@ export interface TelencephalonChatTransportOptions {
  * Map shadow desktop StreamEvent → AI SDK UIMessage stream chunk.
  * AI SDK `streamText` produces data the wire-protocol understands.
  */
-interface CortexTransportCallbacks {
-  onChunk: (chunk: CortexWireChunk) => void;
+interface TelencephalonTransportCallbacks {
+  onChunk: (chunk: TelencephalonWireChunk) => void;
   onError: (error: unknown) => void;
   onDone: () => void;
 }
 
-export interface CortexWireChunk {
+export interface TelencephalonWireChunk {
   type:
     | 'text-delta'
     | 'reasoning-delta'
@@ -65,7 +65,7 @@ export interface CortexWireChunk {
  * real one (that is exactly how the `args` double-encoding bug below
  * survived).
  */
-export function translateEvent(event: StreamEvent): CortexWireChunk[] {
+export function translateEvent(event: StreamEvent): TelencephalonWireChunk[] {
   switch (event.type) {
     case 'delta':
       return [{ type: 'text-delta', textDelta: event.delta ?? '' }];
@@ -145,7 +145,7 @@ export function translateEvent(event: StreamEvent): CortexWireChunk[] {
  */
 function subscribe(
   iterator: AsyncGenerator<StreamEvent>,
-  cbs: CortexTransportCallbacks,
+  cbs: TelencephalonTransportCallbacks,
 ): () => void {
   let cancelled = false;
   (async () => {
@@ -261,7 +261,7 @@ export function createTelencephalonChatTransport(options: TelencephalonChatTrans
   };
 }
 
-function emptyReadableStream(): ReadableStream<CortexWireChunk> {
+function emptyReadableStream(): ReadableStream<TelencephalonWireChunk> {
   return new ReadableStream({
     start(controller) {
       controller.close();
@@ -282,4 +282,4 @@ function extractTextFromMessage(message: unknown): string {
   return '';
 }
 
-export type CortexChatTransport = ReturnType<typeof createTelencephalonChatTransport>;
+export type TelencephalonChatTransport = ReturnType<typeof createTelencephalonChatTransport>;

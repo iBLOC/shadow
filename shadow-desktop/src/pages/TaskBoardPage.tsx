@@ -4,7 +4,7 @@ import { useTaskBoardStore } from '../stores/taskBoardStore';
 import { useAgentStore } from '../stores/agentStore';
 import { useResonanceStore } from '../stores/resonanceStore';
 import { Button, Badge } from '../components/ui';
-import { CortexTaskSection } from '../components/task/CortexTaskSection';
+import { HippocampusTaskSection } from '../components/task/HippocampusTaskSection';
 import {
   Plus,
   Trash2,
@@ -380,7 +380,7 @@ export function TaskBoardPage() {
         </div>
       )}
 
-      <CortexTaskSection />
+      <HippocampusTaskSection />
     </div>
   );
 }

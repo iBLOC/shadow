@@ -19,7 +19,7 @@ describe('Tauri startup smoke', () => {
     expect(hasTauri).toBe(true);
   });
 
-  it('reaches cortex at :60080/health', async () => {
+  it('reaches telencephalon at :60080/health', async () => {
     const ok = await browser.execute(async () => {
       const r = await fetch('http://localhost:60080/health');
       return r.ok;

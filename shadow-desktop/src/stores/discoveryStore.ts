@@ -3,15 +3,9 @@ import { persist } from 'zustand/middleware';
 import type { DiscoveredDevice } from '../lib/discoveryClient';
 import { safeInvoke } from '../lib/tauriSafe';
 
-export interface DiscoveredCortex {
-  name: string;
-  host: string;
-  port: number;
-}
 
 interface DiscoveryState {
   devices: DiscoveredDevice[];
-  cortexInstances: DiscoveredCortex[];
   activeNode: DiscoveredDevice | null;
   isScanning: boolean;
   lastScan: Date | null;
@@ -20,7 +14,6 @@ interface DiscoveryState {
   startScan: () => Promise<void>;
   stopScan: () => Promise<void>;
   refreshDevices: () => Promise<void>;
-  discoverCortexInstances: () => Promise<void>;
   setActiveNode: (device: DiscoveredDevice | null) => void;
   addManualDevice: (device: Omit<DiscoveredDevice, 'id' | 'lastSeen'>) => void;
   removeDevice: (id: string) => void;
@@ -33,7 +26,6 @@ export const useDiscoveryStore = create<DiscoveryState>()(
   persist(
     (set) => ({
       devices: [],
-      cortexInstances: [],
       activeNode: null,
       isScanning: false,
       lastScan: null,
@@ -69,22 +61,6 @@ export const useDiscoveryStore = create<DiscoveryState>()(
         }
       },
 
-      discoverCortexInstances: async () => {
-        set({ isScanning: true, error: null });
-        try {
-          const instances = await safeInvoke<DiscoveredCortex[]>('discover_cortex');
-          set({
-            cortexInstances: instances ?? [],
-            lastScan: new Date(),
-          });
-        } catch (e) {
-          set({
-            error: e instanceof Error ? e.message : String(e),
-          });
-        } finally {
-          set({ isScanning: false });
-        }
-      },
 
       setActiveNode: (device: DiscoveredDevice | null) => {
         set({ activeNode: device });
@@ -121,7 +97,6 @@ export const useDiscoveryStore = create<DiscoveryState>()(
       name: STORAGE_KEY,
       partialize: (state) => ({
         devices: state.devices,
-        cortexInstances: state.cortexInstances,
         activeNode: state.activeNode,
       }),
     }

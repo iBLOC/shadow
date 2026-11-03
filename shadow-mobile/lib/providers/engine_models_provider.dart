@@ -144,6 +144,64 @@ class EngineModelsState {
   }
 }
 
+/// 带上**全部**钥匙的 `http.Client` —— 这一半（`/v1/models*`）用的是**裸**
+
+/// `http.Client`，而门现在罩住**整张面**（含 neuron's `/v1/*`）⇒ ⇒ 不递钥匙
+
+/// 就是 401 ⇒ ⇒ 钥匙必须与**门形**一致（读门 = 影子锁 ∪ admin token）。
+
+///
+
+/// ⚠️ **一条规则、一处实现** —— 判据源 `telencephalon/src/api/door_policy.txt`
+
+/// ⇒ 实现 `telencephalon::api::door`。
+
+///
+
+/// ⚠️ **拿不到就不带那个头** —— 绝不塞空串（空串会把门骗开）。
+
+class _DoorClient extends http.BaseClient {
+
+_DoorClient(this._inner);
+
+
+
+final http.Client _inner;
+
+
+
+Map<String, String> _doorHeaders() {
+
+  final cfg = AppConfigService();
+
+  final h = <String, String>{};
+
+  final shadow = cfg.telencephalonShadowKey?.trim();
+
+  if (shadow != null && shadow.isNotEmpty) h['X-Shadow-Key'] = shadow;
+
+  final admin = cfg.telencephalonAdminToken?.trim();
+
+  if (admin != null && admin.isNotEmpty) h['X-Admin-Token'] = admin;
+
+  return h;
+
+}
+
+
+
+@override
+
+Future<http.StreamedResponse> send(http.BaseRequest request) {
+
+  request.headers.addAll(_doorHeaders());
+
+  return _inner.send(request);
+
+}
+
+}
+
 class EngineModelsNotifier extends StateNotifier<EngineModelsState> {
   /// 显式给定的大脑地址（测试用）。
   final String? _baseUrl;
@@ -165,7 +223,7 @@ class EngineModelsNotifier extends StateNotifier<EngineModelsState> {
     http.Client? client,
   })  : _baseUrl = baseUrl,
         _baseUrlFn = baseUrlFn,
-        _client = client ?? http.Client(),
+        _client = client ?? _DoorClient(http.Client()),
         super(const EngineModelsState());
 
   /// 当前的大脑地址 —— **现取**，不是构造时定死。
@@ -174,7 +232,7 @@ class EngineModelsNotifier extends StateNotifier<EngineModelsState> {
     return raw.replaceAll(RegExp(r'/+$'), '');
   }
 
-  /// 这一半正在打的大脑地址（给界面与测试看）。
+/// 这一半正在打的大脑地址（给界面与测试看）。
   String get baseUrl => _base();
 
   /// 没给地址时的回退 —— 与 `telencephalonProvider` 的初始值**同源**

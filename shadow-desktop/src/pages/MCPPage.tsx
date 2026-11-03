@@ -38,7 +38,7 @@ const EMPTY_FORM: FormState = {
 
 export function MCPPage() {
   const { t } = useTranslation();
-  const cortexStatus = useTelencephalonStore((s) => s.status);
+  const telencephalonStatus = useTelencephalonStore((s) => s.status);
   const [servers, setServers] = useState<McpServerRecord[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -80,7 +80,7 @@ export function MCPPage() {
   const [form, setForm] = useState<ServerForm>(emptyForm);
 
   const loadServers = async () => {
-    if (cortexStatus !== 'running') { setServers([]); return; }
+    if (telencephalonStatus !== 'running') { setServers([]); return; }
     setLoading(true); setError(null);
     try {
       const list = await telencephalonClient.listMcpServers();
@@ -97,7 +97,7 @@ export function MCPPage() {
     } catch { setToolsCache((m) => ({ ...m, [id]: [] })); }
   };
 
-  const isRunning = cortexStatus === 'running';
+  const isRunning = telencephalonStatus === 'running';
 
   return (
     <div className="flex flex-col gap-6">
@@ -120,7 +120,7 @@ export function MCPPage() {
 
       {!isRunning ? (
         <EmptyState icon={<Server size={48} />}
-          title={t('agents.startCortexHint') || t('mcp.noServers')} size="sm" />
+          title={t('agents.startTelencephalonHint') || t('mcp.noServers')} size="sm" />
       ) : error ? (
         <div className="flex items-start gap-2 rounded-md border border-red-500/30 bg-red-500/10 p-2 text-sm text-red-500">
           <AlertCircle size={14} /><span>{error}</span>

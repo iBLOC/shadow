@@ -16,8 +16,8 @@ interface HfTokenInfo {
 /**
  * Lets the user enter (or clear) the HuggingFace auth token used
  * by the neuron runtime for gated-model downloads. The token is
- * forwarded as `HF_TOKEN` to the cortex sidecar on its next start;
- * the manager signals `running: true` if cortex is already up so
+ * forwarded as `HF_TOKEN` to the telencephalon on its next start;
+ * the manager signals `running: true` if the telencephalon is already up so
  * the UI can offer a one-click restart.
  */
 export function HfTokenSettings({ onSaved }: { onSaved?: () => void }) {

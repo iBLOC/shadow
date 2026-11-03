@@ -14,6 +14,7 @@ import '../widgets/glass_app_bar.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/log_panel_section.dart';
 import '../widgets/settings/appearance_section.dart';
+import '../widgets/settings/capability_grants_section.dart';
 import '../widgets/settings/service_status_block.dart';
 import '../widgets/settings/settings_row.dart';
 import '../widgets/settings/tts_settings_group.dart';
@@ -105,6 +106,7 @@ class SystemMemoryInfo {
 /// ② 语音与辅助  TTS（1 组 2 项）· 无障碍
 /// ③ 运行时      内存 · 服务状态 · 模型仓库
 /// ④ 连接        设备发现 · 端脑流程 · 嵌入式大脑 · Resonance
+/// ⑤ 能力授权    日历读/写 · 联系人 · 短信 · 相册（每项独立一档）
 /// ⚙ 高级（折叠） 嵌入式 Prefrontal（遗留）· 日志 · 后端地址
 /// ⚠ 危险操作     重置引擎（独立成块，二次确认）
 /// ```
@@ -266,6 +268,29 @@ class SettingsScreen extends ConsumerWidget {
                             onTap: () => context.push('/settings/identity'),
                           ),
                         ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+
+              // ── ⑤ 能力授权 ───────────────────────────────────────
+              //
+              // ⚠️ **每一项独立** —— 日历的读与写是两个不同的风险面
+              //（读 = 外泄，写 = 副作用）⇒ ⇒ 分开配。
+              //
+              // ⚠️ 这一层是**应用层**（每次询问 / 完全访问）；
+              // 系统层（Android 的 READ_CALENDAR 等）由用户在系统弹窗里批
+              // ⇒ ⇒ 两层串联 ⇒ ⇒ 界面上把系统权限状态一起显示出来。
+              _Section(
+                children: [
+                  SettingsGroup(
+                    title: l10n.settingsGroupCapabilities,
+                    icon: Icons.shield_outlined,
+                    description: l10n.settingsGroupCapabilitiesDesc,
+                    children: [
+                      SettingsBlock(
+                        children: const [CapabilityGrantsSection()],
                       ),
                     ],
                   ),

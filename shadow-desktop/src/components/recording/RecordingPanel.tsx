@@ -4,7 +4,7 @@
 // event stream, summary report) for an audio/video conversation. The active
 // session entry from the conversation store is the source of truth for the
 // sidebar item; backend bookkeeping (events, report) is fetched on demand from
-// the cortex recording_store via `recording_*` Tauri commands.
+// the telencephalon recording_store via `recording_*` Tauri commands.
 //
 // start/stop results are written back through `onSessionChange` so the parent
 // page can sync the conversation store entry (timestart, endedAt, wallclock).

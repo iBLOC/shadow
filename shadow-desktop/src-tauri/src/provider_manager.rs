@@ -218,6 +218,19 @@ fn entry_from_brain(raw: &Value) -> Result<ProviderEntry, String> {
                         .map(str::to_string),
                     context_length: None,
                     created_at: None,
+                    // ⚠️ **能力**（llm / asr / tts / …）—— 内置条目（neuron 目录）
+                    // ⇒ ⇒ 的模型**横跨七种能力** ⇒ ⇒ 不透传 ⇒ ⇒ 界面分不出
+                    // ⇒ ⇒ 「这条是聊天模型还是语音模型」。
+                    capability: m
+                        .get("capabilities")
+                        .and_then(|v| v.as_array())
+                        .and_then(|a| a.first())
+                        .and_then(|v| v.as_str())
+                        .map(str::to_string),
+                    // ⚠️ **盘上真的有吗** ⇒ ⇒ 内置条目里「目录里有、但还没下载」
+                    // ⇒ ⇒ 的模型也列出来 ⇒ ⇒ 不透传 ⇒ ⇒ 界面会把「选了也跑不
+                    // ⇒ ⇒ 起来」的模型当成能用的 ⇒ ⇒ 「失败长得像成功」。
+                    available: m.get("available").and_then(|v| v.as_bool()),
                 })
                 .collect()
         })
@@ -237,6 +250,8 @@ fn entry_from_brain(raw: &Value) -> Result<ProviderEntry, String> {
             .and_then(|v| v.as_str())
             .map(str::to_string),
         enabled: raw.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true),
+        // ⚠️ 内置供应商（neuron）⇒ ⇒ 界面据此不给「编辑 / 删除」按钮。
+        builtin: raw.get("builtin").and_then(|v| v.as_bool()).unwrap_or(false),
         selected_model: raw
             .get("selected_model")
             .and_then(|v| v.as_str())
@@ -680,6 +695,8 @@ mod tests {
             api_standard: ApiStandard::OpenAi,
             api_key: Some("sk-real-secret".into()),
             enabled: false,
+            // ⚠️ 存量条目**不是**内置条目（内置的只有大脑读视图里那个 neuron）。
+            builtin: false,
             selected_model: Some("qwen-plus".into()),
             default_model: Some("qwen-plus".into()),
             models: vec![],

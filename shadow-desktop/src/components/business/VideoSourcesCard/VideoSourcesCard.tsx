@@ -86,7 +86,7 @@ export function VideoSourcesCard() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => state.refreshFromCortex()}
+            onClick={() => state.refreshFromTelencephalon()}
             disabled={state.sync === 'pushing'}
           >
             <RefreshCw className="h-4 w-4 mr-1" />

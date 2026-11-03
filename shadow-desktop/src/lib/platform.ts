@@ -55,9 +55,14 @@ export const detectPlatform = (): Platform => {
  * 响应形状都对不上** ⇒ ⇒ 逐条对照见 scripts/client-endpoint-map.txt
  * （node scripts/check-client-endpoint-map.mjs 盯着那张表不许过期）。
  *
- * - 默认 http://localhost:60080 —— Tauri 形态下是 cortex_http.rs 在
+ * - 默认 http://localhost:60080 —— Tauri 形态下是端脑 HTTP 面在
  *   **进程内**起的端脑 HTTP 面；web 形态下**没有** sidecar，需要自己代理。
  * - 构建期用 VITE_PREFRONTAL_URL 覆盖。
+ *
+ * ⚠️ **它不是「客户端的大脑地址」** —— 客户端的那一个地址是
+ * `telencephalonClient.getBaseUrl()`（用户可在设置里改 ⇒ 持久化）。
+ * ⇒ ⇒ 本函数只服务**旧前额叶方言**的客户端（`lib/prefrontalClient.ts`）
+ * ⇒ ⇒ 以及「没有 store 时的兜底」。
  *
  * ⚠️ 旧注释写着「Tauri 默认 8082 / web 用同源」—— 那是从 2026-08-16
  * (7970925) 之前的旧契约留下来的，**今天不成立**；而 platform.test.ts
@@ -67,25 +72,30 @@ export const prefrontalUrl = (): string => {
   if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_PREFRONTAL_URL) {
     return import.meta.env.VITE_PREFRONTAL_URL as string;
   }
-  // Always use cortex URL regardless of environment
+  // Always use the telencephalon URL regardless of environment
   return 'http://localhost:60080';
 };
 
 /**
- * URL of the neuron inference runtime the UI should talk to for model
- * management (`/v1/models*`: list / pull / release).
+ * ⚠️ 这里**曾经**有过**第二个后端地址** —— `neuronUrl()`
+ * （`VITE_NEURON_URL` / `localhost:8085` / `localhost:8083`）—— 客户端拿它
+ * 直连 neuron's 自己的 listener 做模型管理（`/v1/models*`）。
  *
- * The desktop app embeds neuron in-process via `run_embedded()` on :8085
- * (spawned in the Tauri setup hook), so Tauri builds always have a local
- * runtime. The web build has no embedded engine — it targets a standalone
- * neuron on the default :8083. Both overridable with `VITE_NEURON_URL`.
+ * ⚠️⚠️ **2026-11-02 删掉**（用户拍板：「**坚持嵌入式，所有的入口都在大脑，
+ * 由大脑负责路由和分发**」）：
+ *
+ * * **它本来就不必要** —— neuron's route table 已经被端脑挂在**根**上
+ *   （`telencephalon/src/api/mod.rs` 的 `build_full_app` ⇒
+ *   `outer.merge(neuron_router)`）⇒ ⇒ 端脑那张面**自己就有**
+ *   `/v1/models` / `/v1/models/pull` ⇒ ⇒ 客户端只要**一个**地址就够。
+ * * **它是一条绕过大脑的入口** —— 直连 neuron ⇒ ⇒ 大脑**不知道** ⇒ ⇒
+ *   「谁在读模型列表 / 谁在删模型 / 谁在拉模型」在大脑那一侧**不可见**。
+ * * **它是漂移源** —— 用户在设置里改了大脑地址 ⇒ ⇒ 这一半还在打 8085
+ *   ⇒ ⇒ 「供应商来自新大脑、本地模型来自老机器」—— 同一个页面两张脸。
+ *
+ * ⇒ ⇒ 桌面端**只有一个**大脑地址：`telencephalonClient.getBaseUrl()`
+ * （= store 的 `connection.baseUrl`：用户可配、持久化、重启后复原）。
  */
-export const neuronUrl = (): string => {
-  if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_NEURON_URL) {
-    return import.meta.env.VITE_NEURON_URL as string;
-  }
-  return isTauri() ? 'http://localhost:8085' : 'http://localhost:8083';
-};
 
 /**
  * Whether a given OS-level feature is available.

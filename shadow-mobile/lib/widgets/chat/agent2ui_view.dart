@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:genui/genui.dart' hide ChatMessage;
+
 import '../../generated/l10n/app_localizations.dart';
 import '../../providers/genui_provider.dart';
 import '../../theme/app_colors.dart';
+import '../responsive.dart';
 import 'agent2ui_answer_state.dart';
 
 /// Agent2UI View using GenUiConversation
@@ -67,99 +69,111 @@ class Agent2UIView extends ConsumerWidget {
     final errorReason =
         ref.watch(a2uiErrorReasonProvider).valueOrNull ?? service.lastError;
 
-    return Column(
-      children: [
-        // Connection status bar
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: _getStatusColor(connectionStatus).withValues(alpha: 0.1),
-            border: Border(
-              bottom: BorderSide(
-                color: _getStatusColor(connectionStatus).withValues(alpha: 0.3),
-              ),
-            ),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                _getStatusIcon(connectionStatus),
-                color: _getStatusColor(connectionStatus),
-                size: 20,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  _getStatusText(connectionStatus, l10n),
-                  style: TextStyle(
-                    color: _getStatusColor(connectionStatus),
-                    fontSize: 12,
+    // 折叠屏展开后内容限宽居中（状态栏 / 表面区 / 输入条一起收进
+    // kContentMaxWidth），与 LocalChatView 同一形状。
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: kContentMaxWidth),
+        child: Column(
+          children: [
+            // Connection status bar
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: _getStatusColor(connectionStatus).withValues(alpha: 0.1),
+                border: Border(
+                  bottom: BorderSide(
+                    color: _getStatusColor(connectionStatus)
+                        .withValues(alpha: 0.3),
                   ),
                 ),
               ),
-              TextButton(
-                onPressed: () {
-                  ref.read(useAgent2UIModeProvider.notifier).state = false;
-                },
-                child: Text(l10n.disconnect),
-              ),
-            ],
-          ),
-        ),
-        // GenUI Surface area
-        Expanded(
-          child: surfaceIds.when(
-            data: (ids) {
-              if (ids.isEmpty) {
-                // ⚠️ **端脑这一次的回答有三种**（外加「失败」）——
-                // 判据全在 `Agent2UIAnswerState` 里（单独一个文件：
-                // 三态的**判定顺序**有讲究，埋在状态栏代码里会被忘掉）。
-                return Agent2UIAnswerState(
-                  status: connectionStatus.valueOrNull,
-                  textReply: textReply,
-                  errorReason: errorReason,
-                );
-              }
-              // Render surfaces - GenUiSurface takes a GenUiHost and surfaceId
-              return ListView.builder(
-                itemCount: ids.length,
-                itemBuilder: (context, index) {
-                  final surfaceId = ids[index];
-                  return GenUiSurface(
-                    host: service.messageProcessor,
-                    surfaceId: surfaceId,
-                  );
-                },
-              );
-            },
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (err, stack) => Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+              child: Row(
                 children: [
-                  Icon(Icons.error_outline, size: 48, color: AppColors.error),
-                  const SizedBox(height: 16),
-                  Text(
-                    l10n.connectionError,
-                    style: TextStyle(color: AppColors.error),
+                  Icon(
+                    _getStatusIcon(connectionStatus),
+                    color: _getStatusColor(connectionStatus),
+                    size: 20,
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    err.toString(),
-                    style: TextStyle(
-                      color: AppColors.darkTextMuted,
-                      fontSize: 12,
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _getStatusText(connectionStatus, l10n),
+                      style: TextStyle(
+                        color: _getStatusColor(connectionStatus),
+                        fontSize: 12,
+                      ),
                     ),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      ref.read(useAgent2UIModeProvider.notifier).state = false;
+                    },
+                    child: Text(l10n.disconnect),
                   ),
                 ],
               ),
             ),
-          ),
+            // GenUI Surface area
+            Expanded(
+              child: surfaceIds.when(
+                data: (ids) {
+                  if (ids.isEmpty) {
+                    // ⚠️ **端脑这一次的回答有三种**（外加「失败」）——
+                    // 判据全在 `Agent2UIAnswerState` 里（单独一个文件：
+                    // 三态的**判定顺序**有讲究，埋在状态栏代码里会被忘掉）。
+                    return Agent2UIAnswerState(
+                      status: connectionStatus.valueOrNull,
+                      textReply: textReply,
+                      errorReason: errorReason,
+                    );
+                  }
+                  // Render surfaces - GenUiSurface takes a GenUiHost and surfaceId
+                  return ListView.builder(
+                    itemCount: ids.length,
+                    itemBuilder: (context, index) {
+                      final surfaceId = ids[index];
+                      return GenUiSurface(
+                        host: service.messageProcessor,
+                        surfaceId: surfaceId,
+                      );
+                    },
+                  );
+                },
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (err, stack) => Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.error_outline,
+                        size: 48,
+                        color: AppColors.error,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        l10n.connectionError,
+                        style: TextStyle(color: AppColors.error),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        err.toString(),
+                        style: TextStyle(
+                          color: AppColors.darkTextMuted,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            // Agent2UI input bar
+            Agent2UIInputBar(service: service),
+          ],
         ),
-        // Agent2UI input bar
-        Agent2UIInputBar(service: service),
-      ],
+      ),
     );
   }
 }
@@ -220,7 +234,10 @@ class _Agent2UIInputBarState extends ConsumerState<Agent2UIInputBar> {
               child: TextField(
                 controller: _controller,
                 decoration: InputDecoration(
-                  hintText: AppLocalizations.of(context)!.askSomething,
+                  // ⚠️ **不能与对话那个输入框用同一句占位文案** ——
+                  // 同页共存 ⇒ 两个输入框同屏 ⇒ 一模一样的「问点什么」
+                  // ⇒ 用户分不清在跟谁说话 ⇒ ⇒ 这里说清是**跟端脑画界面**。
+                  hintText: AppLocalizations.of(context)!.askAgent2UI,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(24),
                   ),

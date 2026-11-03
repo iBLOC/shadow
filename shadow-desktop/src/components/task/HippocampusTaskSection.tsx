@@ -30,17 +30,17 @@ const STATUS_VARIANT: Record<
  * such column, so the server never returns one. The list falls back to
  * the task id rather than rendering a blank row.
  */
-export function CortexTaskSection() {
+export function HippocampusTaskSection() {
   const { t } = useTranslation();
-  const cortexTasks = useTaskBoardDataStore((s) => s.cortexTasks);
-  const isLoadingCortex = useTaskBoardDataStore((s) => s.isLoadingCortex);
-  const cortexError = useTaskBoardDataStore((s) => s.cortexError);
+  const hippocampusTasks = useTaskBoardDataStore((s) => s.hippocampusTasks);
+  const isLoadingHippocampus = useTaskBoardDataStore((s) => s.isLoadingHippocampus);
+  const hippocampusError = useTaskBoardDataStore((s) => s.hippocampusError);
   const detailTaskId = useTaskBoardDataStore((s) => s.detail.taskId);
-  const fetchCortexTasks = useTaskBoardDataStore((s) => s.fetchCortexTasks);
+  const fetchHippocampusTasks = useTaskBoardDataStore((s) => s.fetchHippocampusTasks);
   const openTaskDetail = useTaskBoardDataStore((s) => s.openTaskDetail);
   const closeTaskDetail = useTaskBoardDataStore((s) => s.closeTaskDetail);
-  const updateCortexTask = useTaskBoardDataStore((s) => s.updateCortexTask);
-  const deleteCortexTask = useTaskBoardDataStore((s) => s.deleteCortexTask);
+  const updateHippocampusTask = useTaskBoardDataStore((s) => s.updateHippocampusTask);
+  const deleteHippocampusTask = useTaskBoardDataStore((s) => s.deleteHippocampusTask);
   const computeSubtaskProgress = useTaskBoardDataStore(
     (s) => s.computeSubtaskProgress
   );
@@ -50,11 +50,11 @@ export function CortexTaskSection() {
   const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
-    void fetchCortexTasks();
-  }, [fetchCortexTasks]);
+    void fetchHippocampusTasks();
+  }, [fetchHippocampusTasks]);
 
   const selectedTask = detailTaskId
-    ? cortexTasks.find((task) => task.task_id === detailTaskId) ?? null
+    ? hippocampusTasks.find((task) => task.task_id === detailTaskId) ?? null
     : null;
 
   const handleSave = async (updates: {
@@ -68,7 +68,7 @@ export function CortexTaskSection() {
     setIsSaving(true);
     setSaveError(null);
     try {
-      await updateCortexTask(editingTask.task_id, updates);
+      await updateHippocampusTask(editingTask.task_id, updates);
       setEditingTask(null);
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : String(e));
@@ -79,23 +79,23 @@ export function CortexTaskSection() {
 
   // Nothing to show while the backend is reachable but has no records —
   // the local kanban columns stay the primary board in that case.
-  if (!isLoadingCortex && !cortexError && cortexTasks.length === 0) {
+  if (!isLoadingHippocampus && !hippocampusError && hippocampusTasks.length === 0) {
     return null;
   }
 
   return (
     <section
       className="flex-shrink-0 rounded-lg border border-border bg-card p-4"
-      data-testid="cortex-task-section"
+      data-testid="hippocampus-task-section"
     >
       <div className="mb-3 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-semibold text-foreground">
-            {t('tasks.cortexTasks')}
+            {t('tasks.hippocampusTasks')}
           </h3>
-          {cortexTasks.length > 0 && (
+          {hippocampusTasks.length > 0 && (
             <Badge variant="secondary" size="sm">
-              {cortexTasks.length}
+              {hippocampusTasks.length}
             </Badge>
           )}
         </div>
@@ -103,26 +103,26 @@ export function CortexTaskSection() {
           size="sm"
           variant="ghost"
           icon={<RefreshCw size={14} />}
-          onClick={() => void fetchCortexTasks()}
-          disabled={isLoadingCortex}
+          onClick={() => void fetchHippocampusTasks()}
+          disabled={isLoadingHippocampus}
         >
           {t('common.refresh')}
         </Button>
       </div>
 
-      {cortexError && (
+      {hippocampusError && (
         <p className="mb-2 text-xs text-destructive" role="alert">
-          {t('tasks.cortexTasksError', '无法读取 hippocampus 任务：')}{' '}
-          {cortexError}
+          {t('tasks.hippocampusTasksError', '无法读取 hippocampus 任务：')}{' '}
+          {hippocampusError}
         </p>
       )}
 
-      {isLoadingCortex && cortexTasks.length === 0 && (
+      {isLoadingHippocampus && hippocampusTasks.length === 0 && (
         <p className="text-xs text-muted-foreground">{t('common.loading')}</p>
       )}
 
       <div className="flex max-h-48 flex-col gap-2 overflow-y-auto">
-        {cortexTasks.map((task) => {
+        {hippocampusTasks.map((task) => {
           const { completed, total } = computeSubtaskProgress(task);
           return (
             <button
@@ -162,7 +162,7 @@ export function CortexTaskSection() {
         onClose={closeTaskDetail}
         onEdit={(task) => setEditingTask(task)}
         onDelete={async (task) => {
-          await deleteCortexTask(task.task_id);
+          await deleteHippocampusTask(task.task_id);
           closeTaskDetail();
         }}
       />

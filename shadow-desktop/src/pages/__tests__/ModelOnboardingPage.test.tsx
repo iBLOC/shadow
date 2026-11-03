@@ -39,16 +39,15 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('../../lib/platform', () => ({
   isTauri: () => false,
-  prefrontalUrl: () => 'http://cortex.test',
-  neuronUrl: () => 'http://neuron.test',
+  prefrontalUrl: () => 'http://telencephalon.test',
 }));
 
 // ⚠️⚠️ 端脑面的 base 现在取自 **client**（用户可配的地址）—— 这一发与
-// 「列表」必须打**同一台**端脑 ⇒ ⇒ 这里把 client 的地址给成 `cortex.test`
+// 「列表」必须打**同一台**端脑 ⇒ ⇒ 这里把 client 的地址给成 `telencephalon.test`
 // ⇒ ⇒ 「两张面用两个**可区分**的地址」这个设计才继续成立。
 vi.mock('../../lib/telencephalonClient', () => ({
   telencephalonClient: {
-    getBaseUrl: () => 'http://cortex.test',
+    getBaseUrl: () => 'http://telencephalon.test',
     getApiKey: () => undefined,
   },
 }));
@@ -83,24 +82,24 @@ afterEach(() => {
 });
 
 describe('ModelOnboardingPage —— 探测打去了哪张面', () => {
-  it('① 本地模型那一发打的是 **neuron 面**（端脑面上没有 /v1/models）', async () => {
+  it('① 本地模型那一发打的是 **大脑那张面**（neuron 路由由端脑转发）', async () => {
     replies = [
-      ['http://cortex.test/models/providers', { status: 401 }],
-      ['http://neuron.test/v1/models', { status: 200, body: { data: [] } }],
+      ['http://telencephalon.test/models/providers', { status: 401 }],
+      ['http://telencephalon.test/v1/models', { status: 200, body: { data: [] } }],
     ];
     render(<ModelOnboardingPage />);
     await waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(2));
 
     const urls = fetchMock.mock.calls.map((c) => String(c[0]));
-    expect(urls.some((u) => u.startsWith('http://neuron.test/v1/models'))).toBe(true);
-    expect(urls.some((u) => u.startsWith('http://cortex.test/v1/models'))).toBe(false);
-    expect(urls.some((u) => u.startsWith('http://cortex.test/models/providers'))).toBe(true);
+    expect(urls.some((u) => u.startsWith('http://telencephalon.test/v1/models'))).toBe(true);
+    expect(urls.some((u) => u.startsWith('http://neuron.test'))).toBe(false);
+    expect(urls.some((u) => u.startsWith('http://telencephalon.test/models/providers'))).toBe(true);
   });
 
   it('② 本地明明有模型 ⇒ 这一页**放人走**（navigate("/")），别把人留在这儿', async () => {
     replies = [
-      ['http://cortex.test/models/providers', { status: 401 }],
-      ['http://neuron.test/v1/models', { status: 200, body: { data: [{ available: true }] } }],
+      ['http://telencephalon.test/models/providers', { status: 401 }],
+      ['http://telencephalon.test/v1/models', { status: 200, body: { data: [{ available: true }] } }],
     ];
     render(<ModelOnboardingPage />);
     await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/', { replace: true }));
@@ -108,8 +107,8 @@ describe('ModelOnboardingPage —— 探测打去了哪张面', () => {
 
   it('③ 云那半问到了（有供应商）⇒ 也放人走', async () => {
     replies = [
-      ['http://cortex.test/models/providers', { status: 200, body: [{ id: 'p1' }] }],
-      ['http://neuron.test/v1/models', { status: 200, body: { data: [] } }],
+      ['http://telencephalon.test/models/providers', { status: 200, body: [{ id: 'p1' }] }],
+      ['http://telencephalon.test/v1/models', { status: 200, body: { data: [] } }],
     ];
     render(<ModelOnboardingPage />);
     await waitFor(() => expect(navigateMock).toHaveBeenCalledWith('/', { replace: true }));
@@ -118,8 +117,8 @@ describe('ModelOnboardingPage —— 探测打去了哪张面', () => {
   // ⚠️⚠️ 下面三条是**三态**的分辨力：问不到 ≠ 没配。
   it('④ 云那半问不到（401）⇒ 这一页说「连不上端脑」，**不是**「没配模型」', async () => {
     replies = [
-      ['http://cortex.test/models/providers', { status: 401 }],
-      ['http://neuron.test/v1/models', { status: 404 }],
+      ['http://telencephalon.test/models/providers', { status: 401 }],
+      ['http://telencephalon.test/v1/models', { status: 404 }],
     ];
     render(<ModelOnboardingPage />);
     await waitFor(() => expect(screen.getByText('onboarding.unreachableTitle')).toBeTruthy());
@@ -131,8 +130,8 @@ describe('ModelOnboardingPage —— 探测打去了哪张面', () => {
 
   it('⑤ 云那半**确认**是空的 ⇒ 仍然显示「没配模型」（引导不能丢）', async () => {
     replies = [
-      ['http://cortex.test/models/providers', { status: 200, body: [] }],
-      ['http://neuron.test/v1/models', { status: 200, body: { data: [] } }],
+      ['http://telencephalon.test/models/providers', { status: 200, body: [] }],
+      ['http://telencephalon.test/v1/models', { status: 200, body: { data: [] } }],
     ];
     render(<ModelOnboardingPage />);
     await waitFor(() => expect(screen.getByText('onboarding.title')).toBeTruthy());
@@ -143,8 +142,8 @@ describe('ModelOnboardingPage —— 探测打去了哪张面', () => {
   it('⑥ 云那半 200 但**形状不对** ⇒ 也是「问不到」（不许说「没配」）', async () => {
     // ⚠️ 端脑回的是数组 ⇒ ⇒ 拿到对象 ⇒ ⇒ 说明没问对 ⇒ ⇒ 归「问不到」。
     replies = [
-      ['http://cortex.test/models/providers', { status: 200, body: { error: 'nope' } }],
-      ['http://neuron.test/v1/models', { status: 200, body: { data: [] } }],
+      ['http://telencephalon.test/models/providers', { status: 200, body: { error: 'nope' } }],
+      ['http://telencephalon.test/v1/models', { status: 200, body: { data: [] } }],
     ];
     render(<ModelOnboardingPage />);
     await waitFor(() => expect(screen.getByText('onboarding.unreachableTitle')).toBeTruthy());

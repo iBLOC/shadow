@@ -16,7 +16,7 @@
  */
 import { beforeEach, describe, expect, it, vi, afterEach } from 'vitest';
 
-const cortexState = vi.hoisted(() => ({
+const telencephalonState = vi.hoisted(() => ({
   connection: { baseUrl: 'http://localhost:60080', apiKey: 'shadow-key-1' },
 }));
 
@@ -36,8 +36,8 @@ vi.mock('../adminToken', () => ({
 vi.mock('../../stores/telencephalonStore', () => ({
   useTelencephalonStore: {
     getState: () => ({
-      connection: cortexState.connection,
-      setBaseUrl: (url: string) => { cortexState.connection.baseUrl = url; },
+      connection: telencephalonState.connection,
+      setBaseUrl: (url: string) => { telencephalonState.connection.baseUrl = url; },
     }),
   },
 }));
@@ -66,8 +66,8 @@ describe('prefrontalClient 方言（端脑返裸体）', () => {
   let mockFetch: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    cortexState.connection.baseUrl = 'http://localhost:60080';
-    cortexState.connection.apiKey = 'shadow-key-1';
+    telencephalonState.connection.baseUrl = 'http://localhost:60080';
+    telencephalonState.connection.apiKey = 'shadow-key-1';
     adminState.token = 'admin-key-1';
     mockFetch = vi.fn();
     global.fetch = mockFetch;
@@ -134,7 +134,7 @@ describe('prefrontalClient 方言（端脑返裸体）', () => {
 
   it('拿不到钥匙就不带那个头（绝不塞空串 / 空白值）', async () => {
     adminState.token = undefined;
-    cortexState.connection.apiKey = '   ';
+    telencephalonState.connection.apiKey = '   ';
     mockFetch.mockResolvedValue(okBody({ id: 's1' }));
     const { PrefrontalClient } = await import('../prefrontalClient');
     const client = new PrefrontalClient();

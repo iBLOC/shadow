@@ -16,18 +16,17 @@ import {
 } from '../lib/modelConfigProbe';
 
 /**
- * ⚠️ **两张面，两个 base —— 现在由 lib/modelConfigProbe.ts 自己拥有。**
+ * ⚠️ **一张面，一个 base —— 由 lib/modelConfigProbe.ts 自己拥有。**
  *
- * * **端脑面**（prefrontalUrl()）⇒ /models/providers（云供应商在这张面上）；
- * * **neuron 面**（neuronUrl()）⇒ /v1/models（**本地**模型在这张面上）。
+ * * **大脑那张面**（`telencephalonClient.getBaseUrl()`）⇒ 两发都在它上面：
+ *   `/models/providers`（云供应商）＋ `/v1/models`（本地模型 —— neuron's
+ *   route table 被端脑挂在**根**上，由端脑转发）。
  *
- * ⚠️⚠️ **旧代码把本地模型那一发也打到了端脑面**（变量叫 NEURON_BASE，
- * 内容却是 prefrontalUrl()）⇒ ⇒ 端脑面上**根本没有** /v1/models
- * ⇒ ⇒ 那一发恒 **404** ⇒ ⇒ hasLocal **一直**是 false ⇒ ⇒
- * ⇒ 「有没有配好模型」**完全**取决于「云那半」⇒ ⇒ 而云那半一旦上锁 ⇒ ⇒
- * ⇒ **必然**把用户踢回向导（见下面的三态判定）。
+ * ⚠️⚠️ **旧代码把本地模型那一发打到了另一个后端**（neuron 自己的端口）
+ * ⇒ ⇒ 用户改了大脑地址 ⇒ ⇒ 两发打两台 ⇒ ⇒ 「列表读到了、探针说问不到」
+ * ⇒ ⇒ 而且大脑那一侧看不见「谁在管本地模型」⇒ ⇒ 现在两发**同一台**。
  *
- * ⇒ ⇒ 现在这两个 base **只在一个模块里** ⇒ ⇒ 打不错面。
+ * ⇒ ⇒ 这个 base **只在一个模块里** ⇒ ⇒ 打不错面。
  */
 
 // Paths that should be accessible even without models
@@ -59,7 +58,7 @@ interface AppInitializerProps {
 // ⇒ ⇒ lib/modelConfigProbe.ts ⇒ ⇒ 这一份判定**不许**再抄第二遍。
 
 /**
- * Tauri mode: the cortex sidecar is gone (replaced by the in-process
+ * Tauri mode: the telencephalon sidecar is gone (replaced by the in-process
  * encephalon crate), so there is no `:60080/models/providers` to probe.
  * "Cloud configured" = the provider manager (ProvidersPage) has an enabled
  * entry with a key or a fetched model list, or the setup wizard's legacy
@@ -99,7 +98,7 @@ async function hasConfiguredModelsTauri(): Promise<ModelConfigState> {
 }
 
 /**
- * Web build: probe the deployed cortex (端脑面) for cloud providers and the
+ * Web build: probe the deployed telencephalon (端脑面) for cloud providers and the
  * neuron surface for local models.
  *
  * ⚠️ **两张面，两个 base** —— `/models/providers` 在**端脑面**，

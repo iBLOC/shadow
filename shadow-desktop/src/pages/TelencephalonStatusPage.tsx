@@ -9,7 +9,7 @@ import { readDoorHeaders } from '../lib/readDoorHeaders';
 import { telencephalonClient } from '../lib/telencephalonClient';
 import { useTelencephalonStore } from '../stores/telencephalonStore';
 
-interface CortexStatus {
+interface TelencephalonStatus {
   neuron_reachable: boolean;
   actual_models_count: number;
   available_models: Array<{
@@ -21,7 +21,7 @@ interface CortexStatus {
   hint: string;
 }
 
-interface CortexLogs {
+interface TelencephalonLogs {
   log_path: string;
   line_count: number;
   lines: string[];
@@ -32,10 +32,10 @@ export function TelencephalonStatusPage() {
   // ⚠️ **不要写死 `localhost:60080`** —— 端脑地址在设置里可改（`setBaseUrl`），
   // 写死会让这一页与其它所有页面**行为分叉**：用户改完地址，这页还打老地址。
   // ⚠️ 但也别把「端口会变」当理由 —— 桌面端 sidecar 的默认端口**就是** 60080
-  // （`src-tauri/src/cortex_http.rs` `DEFAULT_ADDR`，有测试钉住）。
+  // （`src-tauri/src/telencephalon_http.rs` `DEFAULT_ADDR`，有测试钉住）。
   const baseUrl = useTelencephalonStore((s) => s.connection.baseUrl);
-  const [status, setStatus] = useState<CortexStatus | null>(null);
-  const [logs, setLogs] = useState<CortexLogs | null>(null);
+  const [status, setStatus] = useState<TelencephalonStatus | null>(null);
+  const [logs, setLogs] = useState<TelencephalonLogs | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'status' | 'logs'>('status');
@@ -105,10 +105,10 @@ export function TelencephalonStatusPage() {
         <div>
           <h1 className="text-2xl font-semibold text-foreground flex items-center gap-2">
             <Server size={20} />
-            {t('cortexStatus.title', 'Cortex 内部状态')}
+            {t('telencephalonStatus.title', '端脑内部状态')}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {t('cortexStatus.subtitle', '查看 cortex 服务、neuron 推理引擎和 lobe 的运行状态')}
+            {t('telencephalonStatus.subtitle', '查看端脑服务、neuron 推理引擎和叶区的运行状态')}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -134,7 +134,7 @@ export function TelencephalonStatusPage() {
               : 'text-muted-foreground hover:text-foreground'
           )}
         >
-          {t('cortexStatus.tabStatus', '状态')}
+          {t('telencephalonStatus.tabStatus', '状态')}
         </button>
         <button
           onClick={() => setActiveTab('logs')}
@@ -145,7 +145,7 @@ export function TelencephalonStatusPage() {
               : 'text-muted-foreground hover:text-foreground'
           )}
         >
-          {t('cortexStatus.tabLogs', '日志')}
+          {t('telencephalonStatus.tabLogs', '日志')}
         </button>
       </div>
 
@@ -155,13 +155,13 @@ export function TelencephalonStatusPage() {
             <AlertCircle className="text-red-500" size={20} />
             <div>
               <div className="text-sm font-medium text-foreground">
-                {t('cortexStatus.connectionError', '无法连接到 Cortex')}
+                {t('telencephalonStatus.connectionError', '无法连接到端脑')}
               </div>
               <div className="text-xs text-muted-foreground">{error}</div>
               <div className="text-xs text-muted-foreground mt-1">
                 {t(
-                  'cortexStatus.connectionHint',
-                  '端脑应该在 {{url}} 运行。如果未运行，请检查 Tauri 是否正确启动了 cortex sidecar。',
+                  'telencephalonStatus.connectionHint',
+                  '端脑应该在 {{url}} 运行。如果未运行，请检查 Tauri 是否正确启动了端脑的 HTTP 面。',
                   { url: baseUrl }
                 )}
               </div>
@@ -177,13 +177,13 @@ export function TelencephalonStatusPage() {
               <div className="flex items-center gap-2 mb-3">
                 <Cpu size={18} className="text-muted-foreground" />
                 <h2 className="text-sm font-medium text-foreground">
-                  {t('cortexStatus.neuronSection', 'Neuron 推理引擎')}
+                  {t('telencephalonStatus.neuronSection', 'Neuron 推理引擎')}
                 </h2>
               </div>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">
-                    {t('cortexStatus.neuronReachable', '可访问')}
+                    {t('telencephalonStatus.neuronReachable', '可访问')}
                   </span>
                   {status.neuron_reachable ? (
                     <Badge variant="default" className="bg-green-500/20 text-green-500">
@@ -193,13 +193,13 @@ export function TelencephalonStatusPage() {
                   ) : (
                     <Badge variant="destructive">
                       <AlertCircle size={12} className="mr-1" />
-                      {t('cortexStatus.unreachable', '不可达')}
+                      {t('telencephalonStatus.unreachable', '不可达')}
                     </Badge>
                   )}
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">
-                    {t('cortexStatus.actualModels', '已注册模型数')}
+                    {t('telencephalonStatus.actualModels', '已注册模型数')}
                   </span>
                   <span className="text-sm font-medium text-foreground">
                     {status.actual_models_count}
@@ -207,7 +207,7 @@ export function TelencephalonStatusPage() {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">
-                    {t('cortexStatus.availableModels', '可用模型数')}
+                    {t('telencephalonStatus.availableModels', '可用模型数')}
                   </span>
                   <span className="text-sm font-medium text-foreground">
                     {status.available_models.length}
@@ -217,7 +217,7 @@ export function TelencephalonStatusPage() {
               {status.actual_models_count === 0 && (
                 <div className="mt-3 p-3 rounded-md bg-yellow-500/10 border border-yellow-500/30">
                   <div className="text-sm font-medium text-yellow-600">
-                    {t('cortexStatus.noModelWarning', '⚠️ 没有已注册的 LLM 模型')}
+                    {t('telencephalonStatus.noModelWarning', '⚠️ 没有已注册的 LLM 模型')}
                   </div>
                   <div className="text-xs text-muted-foreground mt-1">
                     {status.hint}
@@ -231,7 +231,7 @@ export function TelencephalonStatusPage() {
             <Card>
               <CardContent className="p-4">
                 <h2 className="text-sm font-medium text-foreground mb-3">
-                  {t('cortexStatus.availableModelsList', '可用模型')}
+                  {t('telencephalonStatus.availableModelsList', '可用模型')}
                 </h2>
                 <div className="space-y-1">
                   {status.available_models.map((m) => (
@@ -254,7 +254,7 @@ export function TelencephalonStatusPage() {
             <Card className="md:col-span-2">
               <CardContent className="p-4">
                 <h2 className="text-sm font-medium text-foreground mb-3">
-                  {t('cortexStatus.neuronInfo', 'Neuron 详细信息')}
+                  {t('telencephalonStatus.neuronInfo', 'Neuron 详细信息')}
                 </h2>
                 <pre className="text-xs font-mono bg-muted/30 p-3 rounded-md overflow-x-auto">
                   {JSON.stringify(status.info, null, 2)}
@@ -275,7 +275,7 @@ export function TelencephalonStatusPage() {
               </span>
               {logs && (
                 <Badge variant="secondary">
-                  {logs.line_count} {t('cortexStatus.lines', '行')}
+                  {logs.line_count} {t('telencephalonStatus.lines', '行')}
                 </Badge>
               )}
             </div>
@@ -290,7 +290,7 @@ export function TelencephalonStatusPage() {
               ))}
               {(!logs || logs.lines.length === 0) && (
                 <div className="text-center text-muted-foreground py-8">
-                  {t('cortexStatus.noLogs', '暂无日志')}
+                  {t('telencephalonStatus.noLogs', '暂无日志')}
                 </div>
               )}
             </div>
