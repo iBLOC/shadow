@@ -4,6 +4,11 @@ version = "0.1.0"
 description = "Shadow Desktop - AI Agent Executor"
 authors = ["Shadow Team"]
 edition = "2021"
+# The hippocampus stack behind this app (hippocampus-server -> hippocampus-storage)
+# now runs lance 14, whose rust-version is "1.94.0" => ⇒ anything lower is a promise
+# this manifest cannot keep. Kept in step with hippocampus / telencephalon /
+# encephalon, which all declare the same floor.
+rust-version = "1.94"
 
 [workspace]
 members = ["."]
