@@ -2,7 +2,8 @@
 name = "shadow-benchmark"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+# MSRV 统一地板：全 iBLOC Rust 项目钉在 1.94（lance 14 的 rust-version = 1.94.0）。
+rust-version = "1.94"
 license = "Apache-2.0"
 description = "Shadow agent benchmark harness — suites, agent adapters (shadow-desktop / iBLOC-encephalon / shadow-neuron / openclaw / pi / dsh), scorers, pass^k runner and comparison reports"
 
