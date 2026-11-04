@@ -48,6 +48,9 @@ vi.mock('../../lib/telencephalonClient', () => ({
   telencephalonClient: {
     getBaseUrl: () => 'http://telencephalon.test',
     getApiKey: () => undefined,
+    // ⚠️ 本地模型那发走 readHeaders()（门罩整张面）⇒ mock 缺了它
+    // ⇒ TypeError 被 catch 吞掉 ⇒ 一发都没发出去 ⇒ 断言全红。
+    readHeaders: async () => ({}),
   },
 }));
 

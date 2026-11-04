@@ -44,6 +44,10 @@ vi.mock('../telencephalonClient', () => ({
     // ⚠️ **地址也取自 client**（这一发与「列表」必须打**同一台**端脑）⇒ ⇒
     // ⚠️ 这里给一个**与 platform 的写死值不同**的地址 ⇒ ⇒ 断言才咬得住。
     getBaseUrl: () => 'http://telencephalon.test',
+    // ⚠️ **本地那发现在走 readHeaders()**（2026-11-03 门罩整张面 ⇒
+    // `/v1/*` 也要凭据）⇒ ⇒ mock 缺了它就是 TypeError ⇒ 被 catch 吞掉
+    // ⇒ ⇒ 一发都没发出去 ⇒ 断言全红。stub fetch 不看 headers ⇒ 给空对象即可。
+    readHeaders: async () => ({}),
   },
 }));
 
