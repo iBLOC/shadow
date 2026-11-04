@@ -3,8 +3,7 @@
 #
 # 桌面端这条链（telencephalon + hippocampus + prefrontal + neuron/candle
 # + lance/datafusion）的对象模块数量已经越线 ⇒ ⇒ 撞上的是 **cdylib**
-# （encephalon 的 .so、桌面端自己的 .so）⇒ ⇒ 可执行文件是 rustc 自己
-# 链 rlib，不受影响 ⇒ ⇒ 所以桌面端 exe 本身不会因此链不出来。
+# （encephalon 的 .so、桌面端自己的 .so）⇒ ⇒ 所以 /DEBUG 要留着。
 #
 # 2026-11-04 实测：把 neuron 从旧 revision（311127d）切到 HEAD 之后
 #   （candle 一并前移到 0.11，模块变多）第一次出现这个错误 ⇒ ⇒ 属于
@@ -17,3 +16,28 @@
 # ⚠️ 加了 rustflags ⇒ ⇒ 依赖指纹变了 ⇒ ⇒ 第一次会全量重编一遍。
 [target.x86_64-pc-windows-msvc]
 rustflags = ["-C", "link-arg=/DEBUG"]
+
+# ⚠️⚠️ 2026-11-04：/DEBUG 解了 LNK1140，却换来 LNK1103「调试信息损坏」。
+#
+# 真因**不是** lance 编坏了，也**不是**磁盘满，而是**内存**：
+#   - 这台机器只有 15.9 GB 物理内存；
+#   - debug=2（默认 full）让 MSVC 链接器把**所有**依赖的调试信息合并进
+#     **一个** PDB ⇒ ⇒ 桌面端那次链接产出了 4.3 GB 的 encephalon.pdb；
+#   - link.exe 自己就吃掉 8.3 GB 工作集 ⇒ ⇒ 加上 rustc/cargo 之后系统
+#     空闲内存只剩 **0.7 GB** ⇒ ⇒ PDB 写到一半被截断 ⇒ ⇒ 链接器回读时
+#     报 `fatal error LNK1103: 调试信息损坏；请重新编译模块`
+#     （落在 liblance 的某个 cgu 对象上——那只是**第一个**读到坏块的地方，
+#      并不是 lance 本身有毛病）。
+#
+# ⇒ ⇒ 对策：**把调试信息降级到 line-tables-only**（只留行号表与调用栈，
+#     不留变量类型）⇒ ⇒ PDB 体积掉一个数量级 ⇒ ⇒ 链接器的内存需求随之
+#     掉一个数量级 ⇒ ⇒ LNK1103 与 LNK1140 一并缓解。
+#
+# 代价（明写，别当成没有代价）：断点仍可打、调用栈仍可看，**但看不到局部
+#   变量与结构体字段的值** ⇒ ⇒ 调 Rust 内部逻辑时要看值的话，得临时改回
+#   `debug = 2`（再全量重编一次）。
+#
+# ⚠️ 改 profile 会让**所有**依赖的指纹变 ⇒ ⇒ 第一次必然全量重编。
+#    好消息：debug 信息是 rlib 的大头 ⇒ ⇒ 这一轮编出来的产物反而更小。
+[profile.dev]
+debug = "line-tables-only"
