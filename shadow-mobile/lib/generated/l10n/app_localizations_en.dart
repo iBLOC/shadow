@@ -896,6 +896,24 @@ class AppLocalizationsEn extends AppLocalizations {
   String get providersApiKeyRequired => 'Please enter an API key';
 
   @override
+  String get providersNameRequired => 'Please enter a provider name';
+
+  @override
+  String get providersStandard => 'API standard';
+
+  @override
+  String get providersPreviewModels => 'Preview models';
+
+  @override
+  String get providersSelectModel => 'Select model';
+
+  @override
+  String get providersRefreshModels => 'Refresh models';
+
+  @override
+  String get providersModelsNotFetched => 'Not fetched yet';
+
+  @override
   String get resonanceNotConnected => 'Not connected';
 
   @override

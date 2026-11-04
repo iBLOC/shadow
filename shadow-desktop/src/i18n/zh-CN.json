@@ -767,6 +767,19 @@
     "telencephalonStatusDesc": "查看端脑内核和智能体状态",
     "endpoint": "端点地址",
     "telencephalonEndpointDesc": "端脑服务的访问地址",
+    "zitiClient": {
+      "title": "零信任客户端（切到远端大脑）",
+      "badgeOn": "客户端模式",
+      "badgeOff": "本地大脑",
+      "desc": "开启后，本应用经零信任网访问另一台设备上的大脑（60080 上是本地代理）；关闭时使用本机 sidecar。身份文件由 openziti enrollment 生成。",
+      "enable": "经零信任网访问远端大脑",
+      "identityPath": "身份文件路径",
+      "identityPathPlaceholder": "例如 C:\\Users\\me\\.openziti\\identities\\desktop.json",
+      "service": "服务名",
+      "servicePlaceholder": "例如 shadow-brain",
+      "savedHint": "已保存 —— 重启应用后生效",
+      "secretsHint": "凭据不在这里填：影子锁 / admin token 仍走环境变量 ZITI_CLIENT_SHADOW_KEY / ZITI_CLIENT_ADMIN_TOKEN；这份配置不含任何秘密。"
+    },
     "status": "运行状态",
     "wakeWords": "唤醒词",
     "wakeWordsDesc": "长对话模式下使用的唤醒关键词",
@@ -1293,7 +1306,16 @@
     "builtinBadge": "内置",
     "builtinNoModels": "还没有本地模型",
     "modelNotDownloaded": "未下载",
-    "modelsDownloaded": "已下载 {{downloaded}} / 共 {{total}}"
+    "modelsDownloaded": "已下载 {{downloaded}} / 共 {{total}}",
+    "externalTools": "外部工具",
+    "externalToolsTitle": "外部工具的模型配置",
+    "externalToolsHint": "读取本机 opencode / Claude Code / Codex 的配置装载进来，或把供应商写回那些工具",
+    "externalToolsEmpty": "本机没有找到已安装的外部工具（opencode / Claude Code / Codex）",
+    "importFromTool": "导入",
+    "exportToTool": "导出",
+    "exportHint": "把这条供应商的密钥写进本机外部工具自己的凭据文件（会先备份）",
+    "exportPick": "选择目标（工具 + 字段）",
+    "exportConfirm": "写回"
   },
   "shortcuts": {
     "title": "快捷键",

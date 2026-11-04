@@ -29,6 +29,7 @@ import { HfTokenSettings } from '../components/business/HfTokenSettings';
 import { IdentityPanel } from '../components/business/IdentityPanel';
 import { UpdateChecker } from '../components/business/UpdateChecker';
 import { VideoSourcesCard } from '../components/business/VideoSourcesCard';
+import { ZitiClientCard } from '../components/settings/ZitiClientCard';
 import { SubsystemPanel } from '../components/business/SubsystemPanel/SubsystemPanel';
 import { Button, Badge, EmptyState, Modal } from '../components/ui';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
@@ -462,6 +463,9 @@ function ServiceAndAgentsSection() {
       {/* Agent Name & Wake Word Settings */}
       <AgentNameSettings />
       <WakeWordSettings />
+
+      {/* 「切到远端大脑」的开关（零信任客户端模式，重启后生效） */}
+      <ZitiClientCard />
 
       {/* 端脑 supervisor（崩溃自动重启） */}
       <div className="rounded-lg border border-border bg-card p-4">

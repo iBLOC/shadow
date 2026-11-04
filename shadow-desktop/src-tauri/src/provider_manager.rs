@@ -36,7 +36,7 @@ use crate::AppState;
 // ============================================================================
 
 /// 大脑面的地址 —— 与端脑宿主（`telencephalon_http::DEFAULT_ADDR`）同一处。
-fn brain_base() -> String {
+pub(crate) fn brain_base() -> String {
     format!("http://{}", crate::telencephalon_http::DEFAULT_ADDR)
 }
 
@@ -44,7 +44,7 @@ fn brain_base() -> String {
 ///
 /// ⚠️ 端脑的门型：读门 = shadow ∪ admin，写门 = admin ⇒ ⇒ 递 admin 一把
 /// 就够 ⇒ ⇒ 绝不塞空串（空串与空串相等 ⇒ 等于把门骗开）。
-fn brain_headers() -> HeaderMap {
+pub(crate) fn brain_headers() -> HeaderMap {
     let mut headers = HeaderMap::new();
     let token = crate::admin_token::admin_token().to_string();
     // ⚠️ **递不出去就不递**（fail-closed）⇒ ⇒ 绝不用空串冒充一把钥匙
@@ -55,7 +55,7 @@ fn brain_headers() -> HeaderMap {
     headers
 }
 
-fn brain_client() -> reqwest::Client {
+pub(crate) fn brain_client() -> reqwest::Client {
     reqwest::Client::builder()
         .timeout(Duration::from_secs(20))
         .build()
@@ -98,7 +98,7 @@ async fn brain_get(base: &str, path: &str) -> Result<Value, String> {
     })
 }
 
-async fn brain_post(base: &str, path: &str, body: Value) -> Result<Value, String> {
+pub(crate) async fn brain_post(base: &str, path: &str, body: Value) -> Result<Value, String> {
     let resp = brain_client()
         .post(format!("{}{}", base, path))
         .headers(brain_headers())
@@ -117,6 +117,37 @@ async fn brain_post(base: &str, path: &str, body: Value) -> Result<Value, String
         // ⚠️ **大脑的原话要带出来** —— 只说「形状不对」的话，用户看到的是
         // 一句没有信息量的错 ⇒ ⇒ 真原因（schema 过期 / 存储错误…）被换掉了。
         format!("大脑回的形状不对：{}（大脑原话：{}）", e, text.trim())
+    })
+}
+
+/// **向大脑要一份「会带材料」的响应** —— ⚠️ **解析失败时绝不带原文**。
+///
+/// ⚠️⚠️ **为什么不能复用 `brain_post`**：它在解析失败时会把**响应原文**
+/// 放进错误串（「大脑的原话要带出来」）⇒ ⇒ 而这一路的原文**就是材料**
+/// ⇒ ⇒ 材料会漏进错误信息（进而进日志）⇒ ⇒ ⇒ 所以这一族单独走：
+/// **失败只说「形状不对」，不带原文**。
+///
+/// ⚠️ **而「大脑回了错误状态」那条路仍然带原文** —— 那一路的请求体是空的
+/// ⇒ ⇒ 大脑的错误响应里**不可能有材料** ⇒ ⇒ 保留原话是有信息量的。
+pub(crate) async fn brain_post_secret(
+    base: &str,
+    path: &str,
+    body: Value,
+) -> Result<Value, String> {
+    let resp = brain_client()
+        .post(format!("{}{}", base, path))
+        .headers(brain_headers())
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| format!("连不上大脑（{}）：{}", base, e))?;
+    if !resp.status().is_success() {
+        return Err(brain_error(resp).await);
+    }
+    let text = resp.text().await.map_err(|e| e.to_string())?;
+    serde_json::from_str(&text).map_err(|e| {
+        // ⚠️⚠️ **这里绝不带原文** —— 原文就是材料。
+        format!("大脑回的形状不对（材料不在错误里）：{e}")
     })
 }
 
@@ -163,7 +194,7 @@ async fn brain_delete(base: &str, path: &str) -> Result<(), String> {
 ///
 /// ⚠️ **纯函数**（不碰网络）⇒ ⇒ 单测能直接钉它 ⇒ ⇒ 「两边字段名对不上」
 /// 这类漂移会在编译/测试期就暴露，而不是界面上少一块。
-fn entry_from_brain(raw: &Value) -> Result<ProviderEntry, String> {
+pub(crate) fn entry_from_brain(raw: &Value) -> Result<ProviderEntry, String> {
     let id = raw
         .get("id")
         .and_then(|v| v.as_str())

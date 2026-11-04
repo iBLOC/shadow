@@ -97,22 +97,34 @@ class ProvidersNotifier extends StateNotifier<ProvidersState> {
 
   /// 加一个供应商：给了 [presetId] 就**只需要 API key**（base URL 与 API
   /// 标准由大脑的目录给）。
-  Future<void> addProvider({
+  ///
+  /// ⚠️ [providerType]（接口标准）**不能省** —— 大脑对「没给标准」的兜底是
+  /// OpenAi ⇒ ⇒ 手机上加的自定义供应商**一律** openai 标准 ⇒ ⇒ 加 Claude
+  /// 协议的端点必坏 ⇒ ⇒ 而界面看不出异常 ⇒ ⇒ 失败长得像成功。
+  /// ⇒ ⇒ 桌面端 provider_add_custom 一直带这个字段 ⇒ ⇒ 两端对齐。
+  ///
+  /// ⚠️ **返回刚落好的那一条** ⇒ ⇒ 调用方能紧接着写 selected_model ⇒ ⇒
+  /// 与桌面端「加完就选中预览的模型」是同一条链路。
+  Future<RegisteredProvider?> addProvider({
     String? presetId,
     String? name,
     String? baseUrl,
+    String? providerType,
     String? apiKey,
   }) async {
     try {
-      await _client.addProvider(
+      final created = await _client.addProvider(
         presetId: presetId,
         name: name,
         baseUrl: baseUrl,
+        providerType: providerType,
         apiKey: apiKey,
       );
       await loadProviders();
+      return created;
     } catch (e) {
       state = state.copyWith(error: e.toString());
+      return null;
     }
   }
 
@@ -136,12 +148,17 @@ class ProvidersNotifier extends StateNotifier<ProvidersState> {
     }
   }
 
-  /// 改一条供应商（编辑时**只换 key**）。
+  /// 改一条供应商。
+  ///
+  /// ⚠️ **预设**供应商只许换 key（定义由大脑的目录给 ⇒ ⇒ 改了就不一致）⇒ ⇒
+  /// 界面据此不给那几栏（桌面端 provider_update_custom 是同一条规则）。
+  /// ⚠️ **自定义**供应商可以改定义（名字 / 地址 / 接口标准）。
   Future<void> updateProvider(
     String id, {
     String? apiKey,
     String? name,
     String? baseUrl,
+    String? providerType,
   }) async {
     try {
       await _client.updateProvider(
@@ -149,6 +166,7 @@ class ProvidersNotifier extends StateNotifier<ProvidersState> {
         apiKey: apiKey,
         name: name,
         baseUrl: baseUrl,
+        providerType: providerType,
       );
       await loadProviders();
     } catch (e) {
@@ -160,6 +178,43 @@ class ProvidersNotifier extends StateNotifier<ProvidersState> {
   Future<void> selectModel(String id, String modelId) async {
     try {
       await _client.updateProvider(id, selectedModel: modelId);
+      await loadProviders();
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+    }
+  }
+
+  /// 「测试并获取模型」—— **无状态**预览（大脑面 POST /models/providers/preview）。
+  ///
+  /// ⚠️ 与桌面端 provider_preview_fetch **同一个端点** ⇒ ⇒ 两端「添加前
+  /// 看看这个供应商有哪些模型」是同一件事 ⇒ ⇒ 不可能漂。
+  ///
+  /// ⚠️ **无状态** ⇒ 不落盘、不进列表 ⇒ ⇒ 预览失败不会把供应商搞坏。
+  /// ⚠️ 错误**抛给调用方**（由它决定怎么显示）⇒ ⇒ 不在这里写全局 error。
+  Future<List<RegisteredModel>> previewModels({
+    String? presetId,
+    String? baseUrl,
+    String? apiStandard,
+    String? apiKey,
+  }) async {
+    return _client.previewProviderModels(
+      presetId: presetId,
+      baseUrl: baseUrl,
+      apiStandard: apiStandard,
+      apiKey: apiKey,
+    );
+  }
+
+  /// 拉模型列表并**落盘**（大脑面 POST /models/providers/{id}/fetch-models）。
+  ///
+  /// ⚠️ 与桌面端 provider_refresh **同一个端点** ⇒ ⇒ 模型列表的**真相只有一份**
+  /// ⇒ ⇒ 手机上刷新了，桌面端也看得到（反之亦然）。
+  ///
+  /// ⚠️ 以前手机上**根本没有这条** ⇒ ⇒ 新加的供应商模型区永远是「—」⇒ ⇒
+  /// ⇒ 同一份数据、两个界面显示不一样。
+  Future<void> refreshModels(String id) async {
+    try {
+      await _client.fetchProviderModels(id);
       await loadProviders();
     } catch (e) {
       state = state.copyWith(error: e.toString());
@@ -346,7 +401,11 @@ class _ProviderCard extends ConsumerWidget {
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     Text(
-                      '${provider.apiStandard} · ${model ?? '—'}',
+                      // ⚠️ 没拉到模型时**说清楚是「还没拉」而不是「没有」** ⇒ ⇒
+                      // ⇒ 否则用户以为配好了（而推理会失败）⇒ ⇒ 失败长得像成功。
+                      provider.models.isEmpty
+                          ? '${provider.apiStandard} · ${l10n.providersModelsNotFetched}'
+                          : '${provider.apiStandard} · ${model ?? '—'}',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ],
@@ -408,6 +467,22 @@ class _ProviderCard extends ConsumerWidget {
                   .toList(),
             ),
           ],
+          // ⚠️ **刷新模型**（大脑面 POST /models/providers/{id}/fetch-models）
+          // ⇒ ⇒ 与桌面端 provider_refresh **同一个端点** ⇒ ⇒ 两端看到的模型
+          // ⇒ ⇒ 列表是同一份（以前手机上没这条 ⇒ ⇒ 永远是「尚未获取」）。
+          const SizedBox(height: 4),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: () {
+                ref
+                    .read(providersNotifierProvider.notifier)
+                    .refreshModels(provider.id);
+              },
+              icon: const Icon(Icons.refresh, size: 18),
+              label: Text(l10n.providersRefreshModels),
+            ),
+          ),
           // ⚠️ 内置条目（neuron）**不可编辑/删除**（注册表里只读 ⇒ ⇒ 按了
           // 只会拿到 400）⇒ ⇒ 界面不给这两个按钮。
           if (!provider.builtin) ...[
@@ -538,15 +613,46 @@ class _AddProviderSheetState extends ConsumerState<_AddProviderSheet> {
   final _nameController = TextEditingController();
   final _baseUrlController = TextEditingController();
 
+  /// **接口标准**（openai / claude）—— ⚠️ 自定义供应商**必须**能选它 ⇒ ⇒
+  /// 大脑对「没给标准」的兜底是 OpenAi ⇒ ⇒ 不选就等于偷偷选了 openai ⇒ ⇒
+  /// 加 Claude 协议的端点必坏 ⇒ ⇒ 而界面看不出异常（失败长得像成功）。
+  String _apiStandard = 'openai';
+
+  /// 「测试并获取模型」的预览结果（**无状态** ⇒ 不落盘）。
+  List<RegisteredModel> _previewModels = const [];
+  bool _previewing = false;
+  String? _previewError;
+
+  /// 预览里选中的模型 —— 加完就写进 selected_model（与桌面端同一条链路）。
+  String? _selectedModelId;
+
   bool get isEditing => widget.editProvider != null;
   bool get isCustom => _selectedPresetId == _kCustom;
+
+  /// 编辑的是**预设**供应商 ⇒ ⇒ 定义由大脑的目录给 ⇒ ⇒ 只许换 key
+  /// （桌面端 provider_update_custom 是同一条规则 ⇒ ⇒ 两端一致）。
+  bool get _editingPreset =>
+      isEditing && widget.editProvider!.presetId != null;
+
+  /// 要不要显示「定义」那几栏（名字 / 地址 / 接口标准）。
+  ///
+  /// * 新增自定义 ⇒ 要
+  /// * 编辑**自定义**供应商 ⇒ 要（桌面端允许改定义）
+  /// * 编辑**预设**供应商 ⇒ **不要**（改了就不一致）
+  bool get _showDefinition {
+    if (!isEditing) return isCustom;
+    return widget.editProvider!.presetId == null;
+  }
 
   @override
   void initState() {
     super.initState();
     if (isEditing) {
-      _nameController.text = widget.editProvider!.name;
-      _baseUrlController.text = widget.editProvider!.baseUrl;
+      final p = widget.editProvider!;
+      _nameController.text = p.name;
+      _baseUrlController.text = p.baseUrl;
+      _apiStandard = p.apiStandard;
+      _selectedModelId = p.selectedModel;
     }
   }
 
@@ -619,11 +725,11 @@ class _AddProviderSheetState extends ConsumerState<_AddProviderSheet> {
               const SizedBox(height: 16),
             ],
 
-            if (isCustom && !isEditing) ...[
+            if (_showDefinition) ...[
               TextField(
                 controller: _nameController,
                 decoration: InputDecoration(
-                  labelText: l10n.commonProvider,
+                  labelText: l10n.commonName,
                   border: OutlineInputBorder(),
                   prefixIcon: const Icon(Icons.label),
                 ),
@@ -639,6 +745,26 @@ class _AddProviderSheetState extends ConsumerState<_AddProviderSheet> {
                 ),
               ),
               const SizedBox(height: 16),
+              // ⚠️ **接口标准** —— 少了它 ⇒ ⇒ 大脑兜底成 openai ⇒ ⇒ 加
+              // ⇒ ⇒ Claude 协议的端点必坏 ⇒ ⇒ 而界面看不出异常。
+              DropdownButtonFormField<String>(
+                initialValue: _apiStandard,
+                decoration: InputDecoration(
+                  labelText: l10n.providersStandard,
+                  border: OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.rule),
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'openai', child: Text('OpenAI')),
+                  DropdownMenuItem(value: 'claude', child: Text('Claude')),
+                ],
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() => _apiStandard = value);
+                  }
+                },
+              ),
+              const SizedBox(height: 16),
             ],
 
             TextField(
@@ -651,6 +777,62 @@ class _AddProviderSheetState extends ConsumerState<_AddProviderSheet> {
               ),
               obscureText: true,
             ),
+            const SizedBox(height: 16),
+
+            // ⚠️ 「测试并获取模型」—— 与桌面端 **同一个端点**
+            // ⇒ ⇒ 两端「添加前看看有哪些模型」是同一件事 ⇒ ⇒ 不可能漂。
+            // ⚠️ **无状态** ⇒ ⇒ 预览失败不会把供应商搞坏。
+            if (!isEditing) ...[
+              OutlinedButton.icon(
+                onPressed: _previewing ? null : _doPreview,
+                icon: _previewing
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.search, size: 18),
+                label: Text(l10n.providersPreviewModels),
+              ),
+              if (_previewError != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  l10n.commonErrorDetail(_previewError!),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: AppColors.error),
+                ),
+              ],
+              if (_previewModels.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  initialValue: _selectedModelId,
+                  decoration: InputDecoration(
+                    labelText: l10n.providersSelectModel,
+                    border: OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.model_training),
+                  ),
+                  items: _previewModels
+                      .map(
+                        (m) => DropdownMenuItem(
+                          value: m.id,
+                          child: Text(
+                            [
+                              if (m.capability != null) m.capability!,
+                              m.id,
+                            ].join(' · '),
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    if (value != null) {
+                      setState(() => _selectedModelId = value);
+                    }
+                  },
+                ),
+              ],
+            ],
             const SizedBox(height: 24),
 
             FilledButton(
@@ -668,53 +850,115 @@ class _AddProviderSheetState extends ConsumerState<_AddProviderSheet> {
     );
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     final l10n = AppLocalizations.of(context)!;
     final notifier = ref.read(providersNotifierProvider.notifier);
     final key = _apiKeyController.text.trim();
 
     if (isEditing) {
-      // 编辑 = **只换 key**（掩码写回时大脑会保留原 key）。
-      notifier.updateProvider(
-        widget.editProvider!.id,
-        apiKey: key.isEmpty ? null : key,
-      );
+      // ⚠️ **预设**供应商 = **只换 key**（掩码写回时大脑会保留原 key；定义
+      // ⇒ ⇒ 由大脑的目录给 ⇒ ⇒ 改了就不一致 ⇒ ⇒ 界面不给那几栏）。
+      // ⚠️ **自定义**供应商可以改定义（名字 / 地址 / 接口标准）—— 与桌面端
+      // ⇒ ⇒ provider_update_custom 同一条规则。
+      if (_editingPreset) {
+        notifier.updateProvider(
+          widget.editProvider!.id,
+          apiKey: key.isEmpty ? null : key,
+        );
+      } else {
+        notifier.updateProvider(
+          widget.editProvider!.id,
+          name: _nameController.text.trim(),
+          baseUrl: _baseUrlController.text.trim(),
+          providerType: _apiStandard,
+          apiKey: key.isEmpty ? null : key,
+        );
+      }
       Navigator.pop(context);
       return;
     }
 
+    final selectedModel = _selectedModelId;
+
     if (isCustom) {
       final name = _nameController.text.trim();
       if (name.isEmpty) {
-        _toast(l10n.providersApiKeyRequired);
+        // ⚠️ **说清楚缺的是名字**（旧代码在这里说「请输入 API Key」⇒ ⇒
+        // ⇒ 指错了地方 ⇒ ⇒ 用户去填 key ⇒ ⇒ 还是失败）。
+        _toast(l10n.providersNameRequired);
         return;
       }
-      notifier.addProvider(
+      final created = await notifier.addProvider(
         name: name,
         baseUrl: _baseUrlController.text.trim(),
+        providerType: _apiStandard,
         apiKey: key.isEmpty ? null : key,
       );
+      if (!mounted) return;
+      if (created != null && selectedModel != null && selectedModel.isNotEmpty) {
+        await notifier.selectModel(created.id, selectedModel);
+        if (!mounted) return;
+      }
       Navigator.pop(context);
       return;
     }
 
     // 预设：要 key 的预设**必须**给 key（大脑那边也会再拒一次）。
-    ProviderPreset? preset;
-    for (final p in ref.read(providersNotifierProvider).presets) {
-      if (p.id == _selectedPresetId) {
-        preset = p;
-        break;
-      }
-    }
+    final preset = _presetFor(_selectedPresetId);
     if (preset != null && preset.requiresKey && key.isEmpty) {
       _toast(l10n.providersApiKeyRequired);
       return;
     }
-    notifier.addProvider(
+    final created = await notifier.addProvider(
       presetId: _selectedPresetId,
       apiKey: key.isEmpty ? null : key,
     );
+    if (!mounted) return;
+    if (created != null && selectedModel != null && selectedModel.isNotEmpty) {
+      await notifier.selectModel(created.id, selectedModel);
+      if (!mounted) return;
+    }
     Navigator.pop(context);
+  }
+
+  /// 目录里按 id 找一条预设（找不到 ⇒ null）。
+  ProviderPreset? _presetFor(String id) {
+    for (final p in ref.read(providersNotifierProvider).presets) {
+      if (p.id == id) return p;
+    }
+    return null;
+  }
+
+  /// 「测试并获取模型」—— **无状态**预览（大脑面 POST /models/providers/preview）。
+  Future<void> _doPreview() async {
+    final notifier = ref.read(providersNotifierProvider.notifier);
+    final key = _apiKeyController.text.trim();
+    final preset = isCustom ? null : _presetFor(_selectedPresetId);
+    setState(() {
+      _previewing = true;
+      _previewError = null;
+      _previewModels = const [];
+    });
+    try {
+      final models = await notifier.previewModels(
+        presetId: preset?.id,
+        baseUrl: isCustom ? _baseUrlController.text.trim() : null,
+        apiStandard: isCustom ? _apiStandard : preset?.apiStandard,
+        apiKey: key.isEmpty ? null : key,
+      );
+      if (!mounted) return;
+      setState(() {
+        _previewModels = models;
+        _selectedModelId = models.isNotEmpty && models.first.id.isNotEmpty
+            ? models.first.id
+            : null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _previewError = e.toString());
+    } finally {
+      if (mounted) setState(() => _previewing = false);
+    }
   }
 
   void _toast(String message) {

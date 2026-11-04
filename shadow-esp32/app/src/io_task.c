@@ -227,7 +227,7 @@ static int tool_event_danmaku(const char *args, char *result, size_t cap)
     text[len] = '\0';
 
     /* Log + acknowledge. v2.4 just records; a future commit
-     * posts the text to cortex's A2A endpoint so the LLM can
+     * posts the text to the 端脑's A2A endpoint so the LLM can
      * treat it as a user utterance and respond through the
      * existing dialog_task WebRTC path. */
     LOG_INF("danmaku: %s", text);
@@ -638,7 +638,7 @@ static void register_v1_tools(void)
                            "(OCR result or chat message) from the "
                            "phone to shadow-esp32. The text is logged "
                            "and triggers the LED heartbeat; a future "
-                           "commit will forward it to cortex as a "
+                           "commit will forward it to the 端脑 as a "
                            "user-utterance event so the LLM can "
                            "respond to it.",
             .input_schema_json =

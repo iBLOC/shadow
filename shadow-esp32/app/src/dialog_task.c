@@ -5,7 +5,7 @@
  * Scope of v1 (this file):
  *   - Wait for Wi-Fi (`shadow_net_wifi_up`)
  *   - Generate a UUID v4 session id
- *   - Open a WebSocket signaling channel to cortex's
+ *   - Open a WebSocket signaling channel to the 端脑's
  *     `/api/webrtc/voice/sessions/{id}/ws` endpoint
  *   - Build a syntactically valid SDP offer (audio + opus +
  *     DTLS fingerprint placeholder + ICE credentials) and send
@@ -57,11 +57,11 @@
 
 LOG_MODULE_REGISTER(shadow_dialog, CONFIG_SHADOW_ESP32_LOG_LEVEL);
 
-#ifndef CONFIG_SHADOW_CORTEX_HOST
-#define CONFIG_SHADOW_CORTEX_HOST "cortex.local"
+#ifndef CONFIG_SHADOW_TELENCEPHALON_HOST
+#define CONFIG_SHADOW_TELENCEPHALON_HOST "telencephalon.local"
 #endif
-#ifndef CONFIG_SHADOW_CORTEX_PORT
-#define CONFIG_SHADOW_CORTEX_PORT 60080
+#ifndef CONFIG_SHADOW_TELENCEPHALON_PORT
+#define CONFIG_SHADOW_TELENCEPHALON_PORT 60080
 #endif
 #ifndef CONFIG_SHADOW_MODALITY
 #define CONFIG_SHADOW_MODALITY "voice"
@@ -105,7 +105,7 @@ static void random_ice_credentials(char ufrag[16], char pwd[40])
 static size_t build_sdp_offer(char *out, size_t cap, const char *ufrag,
                               const char *pwd)
 {
-    /* The DTLS fingerprint below is a placeholder. cortex forwards
+    /* The DTLS fingerprint below is a placeholder. The 端脑 forwards
      * the offer to temporal lobe, whose `WebRtcAnswerSkill`
      * (webrtc-rs) uses the fingerprint to negotiate DTLS. The real
      * fingerprint is generated when we ship a DTLS stack — for v1
@@ -138,7 +138,7 @@ static size_t build_offer_json(char *out, size_t cap, const char *session_id,
                                 const char *sdp, const char *ufrag,
                                 const char *pwd)
 {
-    /* cortex's `SignalingMessage::Offer` shape (serde):
+    /* The 端脑's `SignalingMessage::Offer` shape (serde):
      *   { "type": "offer", "session_id": "...", "modality": "voice", "sdp": "..." }
      *
      * We hand-craft the JSON to keep this translation unit free of
@@ -200,8 +200,8 @@ static void dialog_task_fn(void *p1, void *p2, void *p3)
         return;
     }
 
-    int ws = shadow_ws_connect(CONFIG_SHADOW_CORTEX_HOST,
-                                CONFIG_SHADOW_CORTEX_PORT, path);
+    int ws = shadow_ws_connect(CONFIG_SHADOW_TELENCEPHALON_HOST,
+                                CONFIG_SHADOW_TELENCEPHALON_PORT, path);
     if (ws < 0) {
         LOG_ERR("ws connect failed: %d", ws);
         return;
@@ -234,8 +234,8 @@ static void dialog_task_fn(void *p1, void *p2, void *p3)
     }
     LOG_INF("offer sent (%zu bytes)", offer_len);
 
-    /* Read the cortex reply. We expect: Connected + Answer
-     * (cortex forwards to temporal lobe and writes back the
+    /* Read the 端脑 reply. We expect: Connected + Answer
+     * (the 端脑 forwards to temporal lobe and writes back the
      * Answer SDP). For v1, drain up to 4 KiB and log. */
     char buf[4096];
     int got = shadow_ws_recv_text(ws, buf, sizeof(buf) - 1);
@@ -253,7 +253,7 @@ static void dialog_task_fn(void *p1, void *p2, void *p3)
 
     char echoed_id[40] = { 0 };
     if (parse_session_id_field(buf, got, echoed_id, sizeof(echoed_id)) == 0) {
-        LOG_INF("cortex echoed session_id=%s", echoed_id);
+        LOG_INF("端脑 echoed session_id=%s", echoed_id);
     }
 
     /* Send Disconnected and close. */
@@ -295,7 +295,7 @@ static void dialog_task_fn(void *p1, void *p2, void *p3)
     });
 
     /* Parse SDP answer to get remote endpoint (temporal lobe).
-     * cortex forwards temporal lobe's SDP answer which contains:
+     * the 端脑 forwards temporal lobe's SDP answer which contains:
      *   c=IN IP4 <remote_ip>
      *   m=audio <remote_port> ... */
     char remote_ip[64] = { 0 };

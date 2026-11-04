@@ -13,11 +13,13 @@ mod computer_use;
 mod worktree_manager;
 mod recording;
 mod provider_manager;
+mod external_tools;
 mod global_keys;
 mod logger;
 mod telencephalon_http;
 mod admin_token;
 mod brain_face;
+mod ziti_client_config;
 
 use config_manager::{AppConfig, DatabaseConfig, ProviderConfig, SecureAuth};
 use brain_face::{BrainFaceHandle, BrainFaceStatus};
@@ -259,6 +261,10 @@ pub fn run() {
     // port** ⇒ ⇒ the conversation runs in a stranger's brain and the UI
     // shows the stranger's error. The handle is how the UI learns that.
     let brain_face = BrainFaceHandle::new(telencephalon_http::DEFAULT_ADDR.to_string());
+    // ⚠️ **「切到远端大脑」的开关** —— 必须在 `serve` 之前应用：
+    // 60080 上坐谁（本地大脑面 / 零信任代理）是 serve 启动时定死的。
+    // 设置页那份配置完整 ⇒ 显式 setter 生效（赢过 env）；否则 env 照旧。
+    ziti_client_config::apply_at_startup();
     {
         let stack = stack.clone();
         let face = brain_face.clone();
@@ -414,6 +420,9 @@ pub fn run() {
             // 这台机器的 admin token（端脑面认它）—— 前端要拿它去带
             // `X-Admin-Token`。⚠️ 别把它打进日志。
             admin_token::get_admin_token,
+            // 「切到远端大脑」的开关（零信任客户端模式，重启后生效）。
+            ziti_client_config::ziti_client_get_config,
+            ziti_client_config::ziti_client_set_config,
             // JDM editor dry-run + publish (registered here —
             // they were defined but never wired before).
             jdm_try_run_rule,
@@ -515,6 +524,11 @@ pub fn run() {
             provider_manager::provider_select_model,
             provider_manager::provider_refresh,
             provider_manager::provider_refresh_all,
+            // 「外部工具的模型配置」—— 读 opencode / Claude Code / Codex 的
+            // 配置装载进大脑，以及把大脑里的供应商写回那些工具。
+            external_tools::external_tools_scan,
+            external_tools::external_tools_import,
+            external_tools::external_tools_export,
             provider_manager::provider_preview_fetch,
             global_keys::gk_set_bindings,
             global_keys::gk_start_capture,

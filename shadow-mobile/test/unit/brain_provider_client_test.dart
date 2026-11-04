@@ -285,4 +285,136 @@ void main() {
     expect(legacy.models.first.capability, isNull);
     expect(legacy.models.first.available, isNull);
   });
+
+  // ═══════════════════════════════════════════════════════════════════
+  // 与桌面端**逐项对齐**（2026-11-04）—— 桌面端 provider_manager.rs 的
+  // provider_add_custom / provider_update_custom / provider_preview_fetch
+  // / provider_refresh 打的是**同样这几个端点**、**同样这几个字段**。
+  // ═══════════════════════════════════════════════════════════════════
+
+  // ⚠️⚠️ **provider_type 不能省** —— 大脑对「没给标准」的兜底是 OpenAi
+  // ⇒ ⇒ 手机上加的自定义供应商**一律** openai 标准 ⇒ ⇒ 加 Claude 协议的
+  // ⇒ ⇒ 端点必坏 ⇒ ⇒ 而读回来的 api_standard 也是 openai ⇒ ⇒ 界面看不出
+  // ⇒ ⇒ 异常 ⇒ ⇒ **失败长得像成功**。
+  test('⚠️ 自定义添加**必须**带 provider_type（少了它 ⇒ 大脑兜底成 openai）', () async {
+    Map<String, dynamic>? body;
+    final client = clientReturning((req) {
+      body = jsonDecode(req.body) as Map<String, dynamic>;
+      return http.Response(
+        jsonEncode({
+          'id': 'prov-3',
+          'name': 'Mine',
+          'provider_type': 'claude',
+          'api_standard': 'claude',
+        }),
+        201,
+      );
+    });
+
+    final created = await client.addProvider(
+      name: 'Mine',
+      baseUrl: 'https://api.example.com',
+      providerType: 'claude',
+      apiKey: 'sk-y',
+    );
+
+    expect(body!['provider_type'], 'claude', reason: '少了它 ⇒ 大脑一律当 openai');
+    expect(body!['name'], 'Mine');
+    expect(body!['api_base'], 'https://api.example.com');
+    expect(body!['api_key'], 'sk-y');
+    expect(created.apiStandard, 'claude');
+  });
+
+  test('改定义时也能改 provider_type（否则「界面说一个、盘上是另一个」）', () async {
+    Map<String, dynamic>? body;
+    var method = '';
+    final client = clientReturning((req) {
+      method = req.method;
+      body = jsonDecode(req.body) as Map<String, dynamic>;
+      return http.Response(jsonEncode({'id': 'prov-1'}), 200);
+    });
+
+    await client.updateProvider(
+      'prov-1',
+      name: 'Renamed',
+      baseUrl: 'https://gw.example.com/v1',
+      providerType: 'claude',
+    );
+
+    expect(method, 'PUT');
+    expect(body!['provider_type'], 'claude');
+    expect(body!['name'], 'Renamed');
+    expect(body!['api_base'], 'https://gw.example.com/v1');
+  });
+
+  test('预览模型打的是 POST /models/providers/preview（与桌面端同一个端点）', () async {
+    Map<String, dynamic>? body;
+    var method = '';
+    var path = '';
+    final client = clientReturning((req) {
+      method = req.method;
+      path = req.url.path;
+      body = jsonDecode(req.body) as Map<String, dynamic>;
+      return http.Response(
+        jsonEncode({
+          'models': [
+            {'id': 'gpt-4o', 'display_name': 'GPT-4o', 'capability': 'llm'},
+          ],
+          'count': 1,
+        }),
+        200,
+      );
+    });
+
+    final models = await client.previewProviderModels(
+      presetId: 'openai',
+      apiStandard: 'openai',
+      apiKey: 'sk-z',
+    );
+
+    expect(method, 'POST');
+    expect(path, '/models/providers/preview');
+    expect(body!['preset_id'], 'openai');
+    expect(body!['api_standard'], 'openai');
+    expect(body!['api_key'], 'sk-z');
+    // ⚠️ preview 回的是**目录那份**形状（display_name / capability）⇒ ⇒
+    // ⇒ 只认 name / capabilities[] 的话，这两项会**静默丢成 null**。
+    expect(models.first.id, 'gpt-4o');
+    expect(models.first.name, 'GPT-4o');
+    expect(models.first.capability, 'llm');
+  });
+
+  test('刷新模型打的是 POST /models/providers/{id}/fetch-models（与桌面端同一个端点）', () async {
+    var method = '';
+    var path = '';
+    final client = clientReturning((req) {
+      method = req.method;
+      path = req.url.path;
+      return http.Response(
+        jsonEncode({
+          'models': [
+            {
+              'id': 'gpt-4o',
+              'name': 'GPT-4o',
+              'capabilities': ['llm'],
+              'available': true,
+            },
+          ],
+          'count': 1,
+        }),
+        200,
+      );
+    });
+
+    final models = await client.fetchProviderModels('prov-1');
+
+    expect(method, 'POST');
+    expect(path, '/models/providers/prov-1/fetch-models');
+    // ⚠️ fetch-models 回的是**大脑自己那份**形状（name / capabilities[]）⇒ ⇒
+    // ⇒ 两种形状都得能读。
+    expect(models.first.id, 'gpt-4o');
+    expect(models.first.name, 'GPT-4o');
+    expect(models.first.capability, 'llm');
+    expect(models.first.available, isTrue);
+  });
 }

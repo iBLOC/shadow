@@ -204,6 +204,26 @@ function formatContext(len?: number): string {
   return `${len} ctx`;
 }
 
+/**
+ * 外部工具（opencode / Claude Code / Codex）里的一条供应商。
+ *
+ * ⚠️ **只有长度，没有材料** —— 扫描这条路的返回**绝不含** api key
+ * ⇒ ⇒ 材料只走「读文件 → 直接交给大脑」与「大脑 → 明文 → 直接写文件」
+ * ⇒ ⇒ 两条路，**从不上桌**。
+ */
+interface ExternalProviderPreview {
+  tool: string;
+  tool_display: string;
+  /** 外部那个 id（opencode: minimax-cn；codex: OPENAI_API_KEY）。 */
+  source_id: string;
+  /** ⚠️ **只报长度** ⇒ ⇒ 材料不进界面、不进日志。 */
+  key_len: number | null;
+  base_url: string | null;
+  /** 协议族（openai / anthropic）。 */
+  provider: string;
+  /** 材料来自哪个文件的哪个字段（**不含材料**）。 */
+  origin: string;
+}
 export function ProvidersPage() {
   const { t } = useTranslation();
   const [presets, setPresets] = useState<ProviderPreset[]>([]);
@@ -269,6 +289,17 @@ export function ProvidersPage() {
 
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
 
+  // 外部工具（opencode / Claude Code / Codex）—— ⚠️ **本机文件** ⇒ ⇒
+  // ⇒ ⇒ 只有桌面端读得到（大脑可能在手机上）⇒ ⇒ 这块是**桌面端独有**的。
+  const [externalOpen, setExternalOpen] = useState(false);
+  const [externalItems, setExternalItems] = useState<ExternalProviderPreview[]>([]);
+  const [externalBusy, setExternalBusy] = useState<string | null>(null);
+  const [externalMsg, setExternalMsg] = useState<string | null>(null);
+  /** 正在往哪个外部工具导出（null ＝ 没在导出）。 */
+  const [exportTarget, setExportTarget] = useState<ProviderEntry | null>(null);
+  /** 导出目标：`${tool}|${source_id}`。 */
+  const [exportChoice, setExportChoice] = useState('');
+
   const loadAll = useCallback(async () => {
     try {
       const [p, list] = await Promise.all([
@@ -287,8 +318,11 @@ export function ProvidersPage() {
 
   useEffect(() => {
     loadAll();
-    // The Rust side refreshes model lists from each provider's /models
-    // endpoint every 10 min; the UI just re-reads the cache periodically.
+    // ⚠️ 这里只是**重读**大脑那份缓存（每分钟一次）。
+    // ⚠️ 旧注释写的是「Rust 侧每 10 分钟去各家的 /models 拉一遍」—— **那是假的**：
+    // ⇒ ⇒ provider_manager.rs 里**没有任何定时器**（provider_refresh /
+    // ⇒ ⇒ provider_refresh_all 只在**用户点按钮**时调用）⇒ ⇒ 模型列表要靠
+    // ⇒ ⇒ 那个「刷新」按钮才更新 ⇒ ⇒ 注释得说真话，否则会以为它自己在动。
     const timer = setInterval(loadAll, 60_000);
     return () => clearInterval(timer);
   }, [loadAll]);
@@ -613,6 +647,57 @@ export function ProvidersPage() {
     setRefreshingId(null);
   };
 
+  const scanExternal = useCallback(async () => {
+    try {
+      setExternalBusy('scan');
+      const items = await invoke<ExternalProviderPreview[]>('external_tools_scan');
+      setExternalItems(items);
+      setExternalMsg(null);
+    } catch (err) {
+      setExternalMsg(err instanceof Error ? err.message : String(err));
+    } finally {
+      setExternalBusy(null);
+    }
+  }, []);
+
+  const importExternal = async (tool: string, sourceId: string) => {
+    setExternalBusy(`${tool}|${sourceId}`);
+    setExternalMsg(null);
+    try {
+      await invoke('external_tools_import', { tool, sourceId });
+      setExternalMsg(`已导入 ${tool} / ${sourceId}`);
+      await loadAll();
+      await scanExternal();
+    } catch (err) {
+      setExternalMsg(err instanceof Error ? err.message : String(err));
+    } finally {
+      setExternalBusy(null);
+    }
+  };
+
+  const exportExternal = async () => {
+    if (!exportTarget || !exportChoice) return;
+    const [tool, sourceId] = exportChoice.split('|');
+    setExternalBusy('export');
+    setExternalMsg(null);
+    try {
+      const report = await invoke<{
+        tool: string;
+        changed: string[];
+        written: string;
+        backup: string | null;
+      }>('external_tools_export', { tool, sourceId, providerId: exportTarget.id });
+      setExternalMsg(
+        `已写回 ${report.written}（改动 ${report.changed.join('、') || '无'}）` +
+          (report.backup ? `；备份 ${report.backup}` : '')
+      );
+      setExportTarget(null);
+    } catch (err) {
+      setExternalMsg(err instanceof Error ? err.message : String(err));
+    } finally {
+      setExternalBusy(null);
+    }
+  };
   const availablePresets = presets.filter(
     (p) => !providers.some((prov) => prov.preset_id === p.id)
   );
@@ -634,6 +719,17 @@ export function ProvidersPage() {
           </div>
         </div>
         <div className="flex gap-3">
+          <Button
+            variant="ghost"
+            icon={<Link size={16} />}
+            onClick={() => {
+              const next = !externalOpen;
+              setExternalOpen(next);
+              if (next) scanExternal();
+            }}
+          >
+            {t('providers.externalTools') || '外部工具'}
+          </Button>
           <Button
             variant="ghost"
             icon={<RefreshCw size={16} />}
@@ -667,6 +763,72 @@ export function ProvidersPage() {
         </div>
       )}
 
+      {externalOpen && (
+        <div className="rounded-lg border border-border bg-background p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="font-medium text-foreground">
+                {t('providers.externalToolsTitle') || '外部工具的模型配置'}
+              </h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {t('providers.externalToolsHint') ||
+                  '读取本机 opencode / Claude Code / Codex 的配置装载进来，或把供应商写回那些工具'}
+              </p>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<RefreshCw size={14} />}
+              onClick={() => scanExternal()}
+              disabled={externalBusy === 'scan'}
+            >
+              {t('common.refresh') || '刷新'}
+            </Button>
+          </div>
+          {externalMsg && (
+            <p className="mt-2 text-xs text-muted-foreground">{externalMsg}</p>
+          )}
+          {externalItems.length > 0 ? (
+            <div className="mt-3 flex flex-col gap-2">
+              {externalItems.map((item) => (
+                <div
+                  key={`${item.tool}|${item.source_id}`}
+                  className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm text-foreground">
+                      {item.tool_display} · {item.source_id}
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        {item.provider}
+                      </span>
+                    </p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {item.base_url || '（没有 base URL ⇒ 用大脑的预设目录）'} · key {item.key_len ?? 0} 位
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={externalBusy !== null}
+                    onClick={() => importExternal(item.tool, item.source_id)}
+                  >
+                    {externalBusy === `${item.tool}|${item.source_id}` ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      t('providers.importFromTool') || '导入'
+                    )}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-3 text-xs text-muted-foreground">
+              {t('providers.externalToolsEmpty') ||
+                '本机没有找到已安装的外部工具（opencode / Claude Code / Codex）'}
+            </p>
+          )}
+        </div>
+      )}
       <div className="flex-1 overflow-y-auto">
         {isLoading ? (
           <div className="flex h-full items-center justify-center">
@@ -862,7 +1024,19 @@ export function ProvidersPage() {
                     </Button>
                     {!provider.builtin && (
                       <>
-                        <Button variant="ghost" size="sm" onClick={() => openEdit(provider)}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          icon={<Link size={14} />}
+                          onClick={() => {
+                            setExportTarget(provider);
+                            setExportChoice('');
+                            if (!externalOpen) setExternalOpen(true);
+                            if (externalItems.length === 0) scanExternal();
+                          }}
+                        >
+                          {t('providers.exportToTool') || '导出'}
+                        </Button>                        <Button variant="ghost" size="sm" onClick={() => openEdit(provider)}>
                           {t('common.edit') || '编辑'}
                         </Button>
                         <Button
@@ -883,6 +1057,52 @@ export function ProvidersPage() {
         )}
       </div>
 
+      {/* ---- 导出到外部工具 ---- */}
+      <Modal
+        isOpen={exportTarget !== null}
+        onClose={() => setExportTarget(null)}
+        title={t('providers.exportToTool') || '导出到外部工具'}
+        description={
+          t('providers.exportHint') ||
+          '把这条供应商的密钥写进本机外部工具自己的凭据文件（会先备份）'
+        }
+      >
+        <div className="flex flex-col gap-4">
+          <select
+            className="h-9 w-full rounded-md border border-border bg-background px-2 text-sm text-foreground"
+            value={exportChoice}
+            onChange={(e) => setExportChoice(e.target.value)}
+          >
+            <option value="">
+              {t('providers.exportPick') || '选择目标（工具 + 字段）'}
+            </option>
+            {externalItems.map((item) => (
+              <option
+                key={`${item.tool}|${item.source_id}`}
+                value={`${item.tool}|${item.source_id}`}
+              >
+                {item.tool_display} · {item.source_id}
+              </option>
+            ))}
+          </select>
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setExportTarget(null)}>
+              {t('common.cancel') || '取消'}
+            </Button>
+            <Button
+              variant="primary"
+              disabled={!exportChoice || externalBusy === 'export'}
+              onClick={() => exportExternal()}
+            >
+              {externalBusy === 'export' ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                t('providers.exportConfirm') || '写回'
+              )}
+            </Button>
+          </div>
+        </div>
+      </Modal>
       {/* ---- add modal: preset (key only) / custom (everything) ---- */}
       <Modal
         isOpen={showAddModal}

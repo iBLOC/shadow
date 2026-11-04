@@ -1,0 +1,19 @@
+# MSVC 链接器在「模块太多」时，报 LNK1140：
+#   LNK1140: too many modules for program; use /DEBUG to remove references
+#
+# 桌面端这条链（telencephalon + hippocampus + prefrontal + neuron/candle
+# + lance/datafusion）的对象模块数量已经越线 ⇒ ⇒ 撞上的是 **cdylib**
+# （encephalon 的 .so、桌面端自己的 .so）⇒ ⇒ 可执行文件是 rustc 自己
+# 链 rlib，不受影响 ⇒ ⇒ 所以桌面端 exe 本身不会因此链不出来。
+#
+# 2026-11-04 实测：把 neuron 从旧 revision（311127d）切到 HEAD 之后
+#   （candle 一并前移到 0.11，模块变多）第一次出现这个错误 ⇒ ⇒ 属于
+#   「依赖前移」带来的必然结果，不是代码写错。
+#
+# ⇒ ⇒ 解法就是 LNK1140 自己提示的那条：给链接器加 /DEBUG（去掉未引用的
+#    引用记录）。放在**仓根**的 .cargo/ 下 ⇒ ⇒ 因为 cargo 是按「当前目录
+#    及其祖先」找配置的 ⇒ ⇒ 从 shadow/ 任何子目录发起都能吃到。
+#
+# ⚠️ 加了 rustflags ⇒ ⇒ 依赖指纹变了 ⇒ ⇒ 第一次会全量重编一遍。
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "link-arg=/DEBUG"]

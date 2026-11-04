@@ -159,6 +159,13 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
         );
         _log.info('检测到嵌入式大脑已在运行, 端口: ${state.port}, 端脑面: ${state.agentPort}');
         _pointClientsAtAgentSurface(state.agentPort);
+        // ⚠️⚠️ **接管 ≠ 配置继承** —— 那颗大脑是在**上一次**的路由下起来的
+        // ⇒ ⇒ 它的 neuron 派发表里**没有**现在选的远端引擎
+        // ⇒ ⇒ 只把路由写进「下次启动才读」的槽位**不够**
+        // ⇒ ⇒ 接管后的第一条消息必报
+        //     「neuron returned 404: no engine registered for model 'xxx'」
+        // ⇒ ⇒ 真机 2026-11-04 实测（App 的 Dart 侧重启过、原生大脑一直在跑）。
+        await _applyModelRouting();
         return;
       }
     } catch (e) {
@@ -216,7 +223,7 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
         // 而 Android App 进程的环境变量由 zygote 决定、宿主注入不了 ——
         // 所以只能走这条程序化通道：MethodChannel → JNI → Rust → 注册进
         // neuron 的派发表。叶区随后会按这个模型 id 去请求 neuron。
-        await _applyModelRouting();
+        final payload = await _applyModelRouting();
 
         final success = await _service.start();
         if (!mounted) return false;
@@ -245,6 +252,11 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
           );
           _log.info('嵌入式大脑启动成功, 端口: ${state.port}, 端脑面: ${state.agentPort}');
           _pointClientsAtAgentSurface(agentPort);
+          // ⚠️⚠️ **起完必须再下发一次路由** —— 那颗大脑可能是**早就在跑**的
+          // ⇒ ⇒ 「启动时读槽位」那条路根本没走 ⇒ ⇒ 它的 neuron 派发表里
+          // 没有**现在**选的远端引擎 ⇒ ⇒ 第一条消息必报
+          // 「no engine registered for model 'xxx'」（真机 2026-11-04 实证）。
+          if (payload != null) await _pushLobeModels(payload);
           return true;
         }
         state = state.copyWith(
@@ -299,7 +311,7 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
   ///
   /// 没配云端供应商时**不报错**：大脑照样起来，只是叶区没有远端模型可用
   /// （会回 `NO_MODEL_CONFIGURED`），本地权重那条路仍然可用。
-  Future<void> _applyModelRouting() async {
+  Future<Map<String, dynamic>?> _applyModelRouting() async {
     // 等模型列表**首次加载完** —— 第一次读 provider 时列表还是空的
     // （加载是异步的），不等会误判成「用户没配云端供应商」。
     try {
@@ -328,6 +340,21 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
     } else {
       _log.warning('大脑模型路由交付失败');
     }
+
+    // ⚠️⚠️ **槽位只是「下次启动用」** —— 大脑**已经在跑**的时候没人读它
+    // ⇒ ⇒ 必须再往端脑面下发一次（远端引擎可以运行时注册进派发表）
+    // ⇒ ⇒ 否则接管一颗已经在跑的大脑时，第一条消息必然报
+    //     「no engine registered for model 'xxx'」（真机 2026-11-04 实证）。
+    //
+    // ⚠️ **闸门用「端脑面在不在」（agentPort != null），不用
+    //    `state.status == running`** —— 原生那颗大脑可能是**上一个
+    //    Activity** 留下的（原生进程还活着、Dart 侧却是新 isolate）
+    // ⇒ ⇒ 那时 Dart 侧的状态位还停在「没起来」⇒ ⇒ 用状态位判会把
+    //    「该下发」的那一次判成「不用下发」（真机 2026-11-04 实测踩到）。
+    if (state.agentPort != null) {
+      await _pushLobeModels(payload);
+    }
+    return payload;
   }
 
   /// 改**全局默认**的模型来源。

@@ -58,7 +58,7 @@ timeout_secs = 300
 # The Shadow-Desktop APP itself (full-stack functional test through the
 # wdio WebDriver surface): requires `pnpm tauri dev` running. The
 # instruction flows through AppInitializer -> ConversationPage ->
-# cortexClient bridge -> embedded neuron, and the reply is read back
+# 端脑 client bridge -> embedded neuron, and the reply is read back
 # from the rendered DOM.
 [[agent]]
 adapter = "shadow-desktop"

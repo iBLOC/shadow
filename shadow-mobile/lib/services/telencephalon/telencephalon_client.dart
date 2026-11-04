@@ -1615,21 +1615,34 @@ class TelencephalonClient {
   ///
   /// ⚠️ 给了 [presetId] 就**只需要 API key**（base URL + API 标准由大脑的
   /// 目录给）⇒ ⇒ 这正是桌面端那套交互 ⇒ ⇒ 两端现在**打同一个接口**。
+  ///
+  /// ⚠️⚠️ **[providerType] 不能省**（2026-11-04 补齐）—— 大脑对「没给标准」
+  /// 的兜底是 OpenAi（telencephalon/src/api/providers.rs 的 add_provider）
+  /// ⇒ ⇒ 手机上加的自定义供应商**一律**是 openai 标准 ⇒ ⇒ 加一个 Claude
+  /// 协议的端点 ⇒ ⇒ 大脑按 OpenAI 格式发 ⇒ ⇒ 400/401 ⇒ ⇒ 而读回来的
+  /// api_standard 也是 openai ⇒ ⇒ **界面看不出异常** ⇒ ⇒ 失败长得像成功。
+  /// ⇒ ⇒ 桌面端 provider_add_custom 一直带这个字段 ⇒ ⇒ 两端对齐。
   Future<RegisteredProvider> addProvider({
     String? presetId,
     String? name,
     String? baseUrl,
+    String? providerType,
     String? apiKey,
   }) async {
     final body = <String, dynamic>{};
     if (presetId != null) body['preset_id'] = presetId;
     if (name != null) body['name'] = name;
     if (baseUrl != null) body['api_base'] = baseUrl;
+    if (providerType != null) body['provider_type'] = providerType;
     if (apiKey != null) body['api_key'] = apiKey;
     return RegisteredProvider.fromJson(await _post('/models/providers', body));
   }
 
   /// 改一个供应商（启停 / 选模型 / 换 key / 改定义）。
+  ///
+  /// ⚠️ [providerType] 与 addProvider 同理 —— 少了它 ⇒ ⇒ 大脑那条
+  /// provider_type 不会被改 ⇒ ⇒ 「界面说一个标准、盘上是另一个」⇒ ⇒
+  /// 改不动的那种不一致。
   Future<RegisteredProvider> updateProvider(
     String id, {
     bool? enabled,
@@ -1637,6 +1650,7 @@ class TelencephalonClient {
     String? apiKey,
     String? name,
     String? baseUrl,
+    String? providerType,
   }) async {
     final body = <String, dynamic>{};
     if (enabled != null) body['enabled'] = enabled;
@@ -1644,6 +1658,7 @@ class TelencephalonClient {
     if (apiKey != null) body['api_key'] = apiKey;
     if (name != null) body['name'] = name;
     if (baseUrl != null) body['api_base'] = baseUrl;
+    if (providerType != null) body['provider_type'] = providerType;
     return RegisteredProvider.fromJson(
       await _put('/models/providers/${Uri.encodeComponent(id)}', body),
     );
@@ -1660,6 +1675,54 @@ class TelencephalonClient {
         'DELETE /models/providers/$id → ${r.statusCode}: ${r.body}',
       );
     }
+  }
+
+  /// 「测试并获取模型」—— **无状态**预览（大脑面 POST /models/providers/preview）。
+  ///
+  /// ⚠️ 与桌面端 provider_preview_fetch **同一个端点** ⇒ ⇒ 两端「添加前
+  /// 看看这个供应商有哪些模型」是同一件事 ⇒ ⇒ 不可能漂。
+  ///
+  /// ⚠️ **无状态** ⇒ 不落盘、不进列表 ⇒ ⇒ 预览失败不会把供应商搞坏。
+  Future<List<RegisteredModel>> previewProviderModels({
+    String? presetId,
+    String? baseUrl,
+    String? apiStandard,
+    String? apiKey,
+  }) async {
+    final body = <String, dynamic>{};
+    if (presetId != null) body['preset_id'] = presetId;
+    if (baseUrl != null) body['api_base'] = baseUrl;
+    if (apiStandard != null) body['api_standard'] = apiStandard;
+    if (apiKey != null) body['api_key'] = apiKey;
+    final data = await _post('/models/providers/preview', body);
+    return _modelsFrom(data);
+  }
+
+  /// 拉模型列表并**落盘**（大脑面 POST /models/providers/{id}/fetch-models）。
+  ///
+  /// ⚠️ 与桌面端 provider_refresh **同一个端点** ⇒ ⇒ 模型列表的**真相只有一份**
+  /// ⇒ ⇒ 手机上刷新了，桌面端也看得到（反之亦然）。
+  Future<List<RegisteredModel>> fetchProviderModels(String id) async {
+    final data = await _post(
+      '/models/providers/${Uri.encodeComponent(id)}/fetch-models',
+      const <String, dynamic>{},
+    );
+    return _modelsFrom(data);
+  }
+
+  /// 大脑两个模型端点的**形状不一样** ⇒ ⇒ 一个解析器吃两种。
+  ///
+  /// * preview ⇒ synapse 目录那份 ModelSummary（display_name / capability）
+  /// * fetch-models ⇒ 大脑自己的 ModelInfo（name / capabilities[]）
+  ///
+  /// ⚠️ 只认一种 ⇒ ⇒ 另一半的「显示名」与「能力」会**静默丢成 null**
+  /// ⇒ ⇒ 界面上分不出「这条是聊天模型还是语音模型」。
+  static List<RegisteredModel> _modelsFrom(Map<String, dynamic> data) {
+    final raw = (data['models'] as List?) ?? const [];
+    return raw
+        .cast<Map<String, dynamic>>()
+        .map(RegisteredModel.fromJson)
+        .toList();
   }
 
   /// PUT —— 这张面**没有**现成的 PUT helper（端脑的写面大多是 POST）。
@@ -1775,13 +1838,26 @@ class RegisteredModel {
 
   factory RegisteredModel.fromJson(Map<String, dynamic> json) => RegisteredModel(
     id: (json['id'] as String?) ?? (json['model_id'] as String?) ?? '',
-    name: (json['name'] as String?) ?? (json['id'] as String?) ?? '',
+    // ⚠️ **两种形状各有一个「显示名」字段名** ⇒ ⇒ 两个都读：
+    //   * 大脑自己的 ModelInfo ⇒ name
+    //   * synapse 目录那份 ModelSummary（preview 端点回的就是它）⇒ display_name
+    // 只认一种 ⇒ ⇒ 另一半的显示名**静默退化成 id**。
+    name:
+        (json['name'] as String?) ??
+        (json['display_name'] as String?) ??
+        (json['id'] as String?) ??
+        '',
     capability: _firstCapability(json),
     available: json['available'] as bool?,
   );
 
-  /// 从大脑给的 capabilities 数组里取**第一个**能力（没有 ⇒ null）。
+  /// 取**第一个**能力（没有 ⇒ null）。
+  ///
+  /// ⚠️ 两种形状：synapse 目录那份是**单个** capability（字符串），大脑自己
+  /// 那份是 capabilities 数组 ⇒ ⇒ 两个都读。
   static String? _firstCapability(Map<String, dynamic> json) {
+    final single = json['capability'];
+    if (single is String && single.isNotEmpty) return single;
     final caps = json['capabilities'];
     if (caps is! List) return null;
     for (final c in caps) {

@@ -124,6 +124,12 @@ artifacts/
 benchmark/.mimosa/
 **/.mimosa/
 
+# OpenZiti 身份文件 —— scripts/openziti-provision.ps1 生成
+# => 里面有**私钥**（*.key.pem 已被上面的 *.key 规则挡住一半，
+#    但 identity.json 里的身份元数据 + ca.pem 也都不该入库）
+# => 整棵树忽略掉；需要时跑一次脚本即可。
+.ziti/
+
 # zcode local state
 .zcode/
 

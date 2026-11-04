@@ -766,6 +766,19 @@
     "telencephalonStatusDesc": "View the Telencephalon kernel and lobe status",
     "endpoint": "Endpoint URL",
     "telencephalonEndpointDesc": "Telencephalon service access URL",
+    "zitiClient": {
+      "title": "Zero-trust client (switch to remote brain)",
+      "badgeOn": "Client mode",
+      "badgeOff": "Local brain",
+      "desc": "When enabled, this app reaches a brain on another device over the zero-trust network (port 60080 serves a local proxy); when disabled, the local sidecar is used. The identity file comes from openziti enrollment.",
+      "enable": "Reach the remote brain over the zero-trust network",
+      "identityPath": "Identity file path",
+      "identityPathPlaceholder": "e.g. C:\\Users\\me\\.openziti\\identities\\desktop.json",
+      "service": "Service name",
+      "servicePlaceholder": "e.g. shadow-brain",
+      "savedHint": "Saved — takes effect after app restart",
+      "secretsHint": "No credentials here: shadow key / admin token stay in environment variables ZITI_CLIENT_SHADOW_KEY / ZITI_CLIENT_ADMIN_TOKEN; this config contains no secrets."
+    },
     "status": "Runtime Status",
     "wakeWords": "Wake Words",
     "wakeWordsDesc": "Wake keywords for long conversation mode",
@@ -1287,7 +1300,16 @@
     "builtinBadge": "Built-in",
     "builtinNoModels": "No local models yet",
     "modelNotDownloaded": "Not downloaded",
-    "modelsDownloaded": "{{downloaded}} / {{total}} downloaded"
+    "modelsDownloaded": "{{downloaded}} / {{total}} downloaded",
+    "externalTools": "External tools",
+    "externalToolsTitle": "Model config of external tools",
+    "externalToolsHint": "Read opencode / Claude Code / Codex config from this machine, or write a provider back into those tools",
+    "externalToolsEmpty": "No installed external tool found on this machine (opencode / Claude Code / Codex)",
+    "importFromTool": "Import",
+    "exportToTool": "Export",
+    "exportHint": "Write this provider's key into the external tool's own credential file (it is backed up first)",
+    "exportPick": "Pick a target (tool + field)",
+    "exportConfirm": "Write back"
   },
   "shortcuts": {
     "title": "Shortcuts",

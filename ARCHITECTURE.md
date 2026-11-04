@@ -135,6 +135,49 @@ App 的云端供应商设置 → MethodChannel → JNI → EmbeddedConfig.llm_pr
 
 ⚠️ **listener 与 router 必须共用同一份 `ServerState`**：neuron 的 `run_embedded` 把 state 建了**两份**（一份给 `NeuronHandle.state`，另一份在 `create_router` 里、**那份才是真正在服务请求的**）⇒ 往 `NeuronHandle.state` 注册的引擎，listener **完全看不见**（真机表现：`no engine registered for model 'xxx'`）。`telencephalon` 因此自己建一份 state 并让 listener 与 `NeuronEmbed::state` 共用它。
 
+## 分布式计算：大脑是**一组模块**，不是一个进程
+
+> **2026-11-04** —— 叶区与海马体都可以**放在别的受信设备上**；本地那个关掉，远端顶上。
+
+大脑由三类模块组成，其中两类已经可以**放置**：
+
+| 模块 | 切远端的机制 | 远端地址长什么样 |
+|---|---|---|
+| **叶区**（颞叶 / 顶叶 / 枕叶 / 前额叶 …） | `telencephalon/src/lobe_placement.rs` 的放置表（`local ⇄ remote`） | 对端的 A2A 端点：`/_zt/<service>/a2a/tasks/send` |
+| **海马体**（长时记忆） | `synapse/src/hippo_target.rs` 的**显式覆盖** | `http://127.0.0.1:<代理口>/_zt/<service>/hippocampus` |
+| neuron 模型 | **当前随叶区同机**（还没有独立放置） | —— |
+
+### 「关掉本地叶区」的语义 ＝ 从 native 注册表里**拿不到**它
+
+⇒ ⇒ 现成的 HTTP A2A 回落自动接管（`skill_router` → `LobeClient::Http`；`prefrontal` → `target.reachable_url()`，**公布地址优先于监听地址**）⇒ ⇒ **dispatch 逻辑一行不用改**。
+
+⚠️ **放置表与注册表分开存**：注册表说「本地有哪些」，放置表说「它们在哪儿」⇒ ⇒ 「本地还剩几个叶区」这个分布式计算最需要的视图不会被混掉。
+
+### 海马体的地址规则只有一份
+
+`显式覆盖 › HIPPOCAMPUS_HOST › ${TELENCEPHALON_PUBLIC_URL}/hippocampus › 本机`（`synapse/src/hippo_target.rs`）⇒ ⇒ 端脑（`hippo_store` / `hippo_mirror` / `flow::learner`）、前额叶、桌面端、移动端**全走这一条** ⇒ ⇒ 谁也不许自己抄一遍优先级。
+
+⚠️ **「显式覆盖」这一档存在的原因**：**Android 进程设不了环境变量** ⇒ ⇒ 移动端只能走 setter（`setHippocampusBaseUrl` / `setZitiClient` / `setZitiServer`）。
+
+### ⚠️ **海马体只有一份** —— 「两个大脑各连同一个 rustfs」与本文档上面第 2 条约束直接冲突
+
+Lance 数据集是**单写者**；`local_s3_sync` 是**单向备份**（远端被本地覆盖），**不是共享存储** ⇒ ⇒ 两个 hippocampus 实例指向同一个 rustfs ⇒ ⇒ **谁后写谁覆盖**，而且**不报错**。
+
+⇒ ⇒ **正确形态：一个海马体服务 ＋ `tenant_id` 区分各 agent**（`hippocampus/hippocampus-storage/src/lance/config.rs` 的 `StorageMode` 注释自己写着这一句）⇒ ⇒ 「多台设备共享记忆」＝ **那些设备不跑本地海马体**，记忆读写走那一个。
+
+### 四个产品场景
+
+| 场景 | 形态 | 走到的机制 |
+|---|---|---|
+| 一 · 手机性能不够 | 手机**不启动大脑**，直接用 PC 的 | 零信任**客户端**模式（手机起代理，Dart 侧零改动） |
+| 二 · 手机性能一般 | 手机只留颞叶 / 顶叶 / 海马体 | 叶区放置（其余标 `remote`）＋ 海马体指向 PC（**按上面那条改成「只跑一个海马体」**） |
+| 三 · 手机性能过剩 | 手机跑整颗大脑，**PC 反过来**用它的 | 零信任**服务端**模式（手机发布脑面，走 `encephalon/src/ziti.rs` 的**唯一** serve） |
+| 四 · 多台备用机 | 主力机留颞叶 / 前额叶 / 海马体；备用机起顶叶 / 枕叶 ＋ 模型 | 叶区放置（顶叶 / 枕叶在备用机）＋ 海马体指向主力机 |
+
+⚠️ **证据等级**：两条放置腿都有**承载级**读数（生产**同一条**代码路径在 loopback 上真跑）；**真网级**（真的 controller ＋ edge router）仍**一次都没跑过** ⇒ ⇒ 4 条 `#[ignore]` 已备好。
+
+⇒ ⇒ **仍然欠着**：① 手机身份文件分发 UI；② 两端「大脑来源」的可点开关（Rust 侧机制齐了，UI 没有入口）；③ neuron 模型还没有独立放置（当前「叶区 ＋ 模型」绑在一台机器上）。
+
 ## 杏仁核（独立进程叶区）
 
 ```text

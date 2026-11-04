@@ -147,6 +147,17 @@ jobs:
         working-directory: prefrontal
         run: cargo clippy --manifest-path Cargo.toml -- -D warnings
 
+      # ⚠️⚠️ **neuron 必须保持「candle-free 可编译」** ⇒ ⇒ 端脑
+      #    (telencephalon) 与桌面端都用 `default-features = false` 消费它
+      #    ⇒ ⇒ 那是 router-only 的构建 ⇒ ⇒ neuron 的 candle 一旦漏成
+      #    「假可选」，这两个消费者就编不过（2026-11-04 实测：92 个编译
+      #    错误，其中 71 个集中在 `src/mage_vl/`）。
+      # ⇒ ⇒ 这条把那个不变量钉在 CI 上：谁把 candle 依赖漏回非可选，
+      # ⇒ ⇒ 这里当场红，而不是等到端脑/桌面端编不过才发现。
+      - name: Neuron candle-free check (router-only consumers)
+        working-directory: neuron
+        run: cargo check --manifest-path Cargo.toml --no-default-features --all-targets
+
   desktop-test:
     name: Desktop Tests
     runs-on: ubuntu-latest
@@ -224,6 +235,18 @@ jobs:
           repository: iBLOC/telencephalon
           path: telencephalon
           token: ${{ secrets.IBLOC_TOKEN }}
+      # 「外部工具的模型配置」接线闸 —— 桌面端 ⇄ 端脑 ⇄ 界面 三处对齐。
+      # ⚠️ 它盯的不只是「有没有接上」，而是**材料纪律**：明文密钥会不会
+      #    漏到界面 / 漏进错误串（进而进日志）/ 被写进 OAuth 令牌槽。
+      # ⚠️⚠️ **必须放在这个 job** ⇒ ⇒ 它要读**兄弟仓**（端脑的 providers
+      #    源码）⇒ ⇒ desktop-build 那个 job 只 checkout 本仓 ⇒ ⇒ 放那儿
+      #    ⇒ ⇒ 源读不到 ⇒ ⇒ 闸按「退出码 2」阻断 ⇒ ⇒ 而 desktop-e2e 把
+      #    兄弟仓检出在**工作区根之内** ⇒ ⇒ 闸认本地/CI 那两种布局。
+      - name: External tools wiring check
+        run: node scripts/check-external-tools.mjs
+
+      - name: External tools wiring check (self-test)
+        run: node scripts/check-external-tools.mjs --self-test
 
       # The standalone 端脑 server binary lives in `encephalon`
       # (`encephalon-server`); `telencephalon` itself is a pure library
@@ -421,6 +444,19 @@ jobs:
       - name: Mobile a11y contract check
         run: node scripts/check-mobile-a11y-contract.mjs
 
+      # 两端供应商面**逐项对齐**闸 —— 「供应商都是大脑提供的」这句话的守门人。
+      # ⚠️ 桌面端与移动端打的是**同一张端脑表** ⇒ ⇒ 两端必须发**同一组字段**、
+      # 打**同一组端点** ⇒ ⇒ 而「少发一个字段」的后果是**静默降级**：大脑对
+      # 「没给接口标准」的兜底是 OpenAI ⇒ ⇒ 手机上加的自定义供应商一律 openai
+      # ⇒ ⇒ 加 Claude 协议的端点必坏、而界面看不出异常（失败长得像成功）。
+      # ⇒ ⇒ 判据**逐个函数体**看（不是「文件里出现过就算」）⇒ ⇒ 反向验证
+      # ⇒ ⇒ 把 add 那条路弄坏、update 那条路留着 ⇒ ⇒ 闸照样红。
+      - name: Provider parity check
+        run: node scripts/check-provider-parity.mjs
+
+      - name: Provider parity check (self-test)
+        run: node scripts/check-provider-parity.mjs --self-test
+
       # Cortex 残留闸 —— 「Cortex 是过时概念应该删除」这条线的守门人。
       # ⚠️ 旧的两道 .sh 闸有三个洞：只看**标识符**（界面那句「启动 Cortex」
       #    根本不在判据里）／**没进 CI**（绿不绿没人知道）／**Windows 上跑不了**
@@ -602,3 +638,153 @@ jobs:
 
       - name: PS1 portability check
         run: node scripts/check-ps1-portability.mjs
+
+  # ── 跨仓 Cortex 残留闸 ─────────────────────────────────────────────
+  # ⚠️ iBLOC 这套栈是**十几个独立 git 仓** ⇒ 闸只住在 shadow 仓的话，
+  #    **另外那些仓没人盯**（2026-11 实测：prefrontal 的 tool 描述里还写着
+  #    「Execute a registered workflow in Cortex」—— **LLM 读得到的那一行**）。
+  # ⇒ 这个 job checkout 所有受管仓 ⇒ 跑 `scripts/check-cortex-residue-all.mjs`。
+  #
+  # ⚠️ 判据（算法）只有一份（scripts/lib/cortex-residue.mjs）⇒ 各仓只提供
+  #    **数据**（扫哪些目录 + 哪些 token 是真契约）⇒ 不会「一份实现两处写」。
+  # ⚠️ 仓清单是**自动发现**的（扫工作区根下带 .git 的目录）⇒ 新仓自动纳入。
+  # ⚠️ 未登记的仓 ⇒ **阻断**（「有闸但漏了仓」比「没有闸」更危险）。
+  cortex-residue-stack:
+    name: Cortex residue (cross-repo)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # 所有兄弟仓都是**私有**仓 ⇒ 默认 GITHUB_TOKEN 拿不到 ⇒ 必须用 PAT。
+      IBLOC_TOKEN: ${{ secrets.IBLOC_TOKEN }}
+    steps:
+      - name: Require cross-repo token
+        run: |
+          if [ -z "$IBLOC_TOKEN" ]; then
+            echo "::error::secrets.IBLOC_TOKEN is not configured."
+            echo "::error::The cross-repo Cortex gate checks out every sibling"
+            echo "::error::repo (they are private). Add a PAT with read access"
+            echo "::error::to those repos as the IBLOC_TOKEN repository secret."
+            exit 1
+          fi
+
+      # ⚠️ 各兄弟仓 checkout 到**子目录**（不是 ../<repo>）⇒
+      #    因为 actions/checkout 拒绝 GITHUB_WORKSPACE 之外的路径。
+      #    ⇒ 工作区根下就会有多份 .git ⇒ 闸的自动发现正好认它们。
+      - name: Checkout shadow
+        uses: actions/checkout@v7
+
+      # ⚠️ 这份清单**必须与 scripts/lib/cortex-registry.mjs 算出来的 CI_CHECKOUT 一致**
+      #    ⇒ 由 `node scripts/check-cortex-residue-all.mjs` 的「CI 清单对账」自动核对
+      #    ⇒ YAML 少检一个仓 ⇒ **闸自己报红**（而不是 CI 悄悄少扫一半 ⇒ 假绿）。
+      #
+      # ⚠️ 为什么不能用「照注册表机械补全」：三个仓**根本检不出来**（2026-11-04 用
+      #    **已认证**的 gh api repos/iBLOC/<name> 逐个查过）：
+      #      · ibloc-hr-agent      —— 没有 origin（纯本地仓）；
+      #      · ibloc-hr-tools      —— origin 指向 gitee.com；
+      #      · telencephalon-verify —— origin 指向 iBLOC/telencephalon（它是端脑的 clone）。
+      #    ⇒ 无 token 时的 404 **不能当判据**（私有仓也是 404）⇒ 必须认证后查。
+      #
+      # ⚠️ telencephalon / encephalon **不在这里**：它们各自仓里有自己的 cortex-residue
+      #    job（telencephalon/.github/workflows/ci.yml、encephalon/.github/workflows/ci.yml）
+      #    ⇒ 不重复检出（encephalon 的闸还要 import 端脑仓里的引擎副本）。
+      - name: Checkout agent-memory-benchmark
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/agent-memory-benchmark
+          path: agent-memory-benchmark
+          token: ${{ secrets.IBLOC_TOKEN }}
+
+      - name: Checkout amygdala
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/amygdala
+          path: amygdala
+          token: ${{ secrets.IBLOC_TOKEN }}
+
+      - name: Checkout diencephalon
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/diencephalon
+          path: diencephalon
+          token: ${{ secrets.IBLOC_TOKEN }}
+
+      - name: Checkout hengjian
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/hengjian
+          path: hengjian
+          token: ${{ secrets.IBLOC_TOKEN }}
+
+      - name: Checkout hippocampus
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/hippocampus
+          path: hippocampus
+          token: ${{ secrets.IBLOC_TOKEN }}
+
+      - name: Checkout lance-graph
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/lance-graph
+          path: lance-graph
+          token: ${{ secrets.IBLOC_TOKEN }}
+
+      - name: Checkout neuron
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/neuron
+          path: neuron
+          token: ${{ secrets.IBLOC_TOKEN }}
+
+      - name: Checkout occipital
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/occipital
+          path: occipital
+          token: ${{ secrets.IBLOC_TOKEN }}
+
+      - name: Checkout parietal
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/parietal
+          path: parietal
+          token: ${{ secrets.IBLOC_TOKEN }}
+
+      - name: Checkout prefrontal
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/prefrontal
+          path: prefrontal
+          token: ${{ secrets.IBLOC_TOKEN }}
+
+      - name: Checkout resonance
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/resonance
+          path: resonance
+          token: ${{ secrets.IBLOC_TOKEN }}
+
+      - name: Checkout synapse
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/synapse
+          path: synapse
+          token: ${{ secrets.IBLOC_TOKEN }}
+
+      - name: Checkout temporal
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/temporal
+          path: temporal
+          token: ${{ secrets.IBLOC_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - name: Cross-repo Cortex residue check
+        run: node scripts/check-cortex-residue-all.mjs
+
+      - name: Cross-repo Cortex residue check (self-test)
+        run: node scripts/check-cortex-residue-all.mjs --self-test

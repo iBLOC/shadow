@@ -3,7 +3,7 @@
 //!
 //! This is functional testing disguised as a benchmark entry: the
 //! instruction flows through the actual product stack — AppInitializer
-//! guard, ConversationPage, the cortexClient bridge, the embedded
+//! guard, ConversationPage, the 端脑 client bridge, the embedded
 //! neuron — and the reply is read back from the rendered DOM. A
 //! failure here is an app bug, not an engine statistic.
 //!

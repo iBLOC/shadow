@@ -60,7 +60,8 @@
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { join, resolve, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { detectSecretPersistence, detectPlaintextSecretReads } from './lib/secret-persistence.mjs';
+import { detectSecretPersistence, detectPlaintextSecretReads, stripStringLiterals } from './lib/secret-persistence.mjs';
+import { stripComments, matchBrace } from './lib/strip-comments.mjs';
 
 const HERE = fileURLToPath(import.meta.url).replace(/[\\/][^\\/]*$/, '');
 const REPO = resolve(HERE, '..');
@@ -115,7 +116,14 @@ export const KNOWN_DEBT = [
     file: 'src/security/credential_signer.rs',
     kind: 'file-read',
     count: 1,
-    why: '从盘上读那份私钥 PEM（写的对面）',
+    // ⚠️⚠️ **盲区登记**（2026-11-04）—— 探测器**追不到**它：
+    //    读的那一行是 `std::fs::read_to_string(path)` ⇒ ⇒ 值链里只有
+    //    一个 `&Path` 参数 ⇒ ⇒ 没有密钥名 ⇒ ⇒ 追踪断在这里。
+    //    ⇒ ⇒ **债是真的**（私钥明文在盘上且被读）⇒ ⇒ **不能销账**。
+    //    ⇒ ⇒ 它**不是**销账；一旦探测器能抓到，闸会照常提示销账。
+    //    ⇒ ⇒ 前面那条 `file`（写）**仍然被抓到** ⇒ ⇒ 债没被放过。
+    blind: true,
+    why: '从盘上读那份私钥 PEM（写的对面）—— ⚠️ 探测器追不到（追踪断在 &Path 参数）⇒ ⇒ 登记为盲区',
     when: 'P2b（同上）',
   },
   {
@@ -170,6 +178,15 @@ export const KNOWN_DEBT = [
     count: 1,
     why: '**明文**那套 FileStore 把整份 ProviderConfig（含 api_key）写盘',
     when: 'P2（改成引用式 / 或者干脆删掉这套明文存储）—— ⚠️ 2026-11-03 实测：端脑今天用 `ProviderManager::builder()` ⇒ ⇒ 默认是 **InMemoryStore** ⇒ ⇒ **这条今天没有活路径**；但它是**公开 API**，谁调谁中招',
+  },
+  {
+    repo: 'synapse',
+    file: 'src/providers/import/mod.rs',
+    kind: 'file',
+    count: 1,
+    why: '**导出**：把凭据写进**另一个工具的凭据文件**（opencode 的 auth.json / Claude Code 的 settings.json / Codex 的 auth.json）⇒ ⇒ 那份文件**本来就是明文凭据文件**（对方自己的格式）⇒ ⇒ 目标正确 ⇒ ⇒ **故意保留**；⚠️ 参数名 `credential_doc` **必须写实** —— 闸是**名字级**追踪 ⇒ ⇒ 叫 `value` 的话 ⇒ ⇒ 这条路径对闸**隐形** ⇒ ⇒ ⇒ 改名前先想清楚它在写什么',
+    when: '等对方的凭据文件支持 OS 钥匙环 / 或导出改成写**引用式**（`{"$secret":…}`）⇒ ⇒ 那时这条就能销账',
+    onStale: '⚠️ 这条是**导出** —— 现在**看不见**它了 ⇒ ⇒ 请确认是**真的**移除了导出，而不是**把参数名改回 `value` 让它对闸隐形**了（闸靠名字级追踪 ⇒ ⇒ 隐形 ⇒ ⇒ 登记条目过期 ⇒ ⇒ 闸会红）',
   },
   {
     repo: 'synapse',
@@ -276,12 +293,23 @@ export function evaluate(findings, debt) {
     if (!debtKeys.has(k)) fresh.push({ key: k, count: n });
   }
   const stale = [];
+  const blind = [];
   for (const d of debt) {
     const k = `${d.repo}|${d.file}|${d.kind}`;
     const actual = counts.get(k) ?? 0;
+    // ⚠️⚠️ **盲区登记** —— 探测器**追不到**这条债（追踪断在某个参数上，
+    //    例如「从盘上读一个 `&Path` 指向的私钥」⇒ ⇒ 值链里没有密钥名）
+    // ⇒ ⇒ 它**确实存在**，只是当前判据看不见 ⇒ ⇒ **不能**因为「抓不到」
+    // ⇒ ⇒ 就报「债还了」⇒ ⇒ 那会让闸**逼你销掉一条真债**。
+    // ⚠️⚠️ **但只要探测器一旦能抓到了 ⇒ ⇒ 照常报过期** ⇒ ⇒
+    // ⇒ ⇒ 「盲区」**不是永久免检** ⇒ ⇒ 它只是「现在看不见」。
+    if (d.blind && actual === 0) {
+      blind.push(k);
+      continue;
+    }
     if (actual !== d.count) stale.push({ key: k, expected: d.count, actual });
   }
-  return { fresh, stale, ok: fresh.length === 0 && stale.length === 0 };
+  return { fresh, stale, blind, ok: fresh.length === 0 && stale.length === 0 };
 }
 
 // ---------------------------------------------------------------------------
@@ -305,13 +333,22 @@ function report(findings, verdict, filesRead, missing) {
         if (x.chain?.length) lines.push(`         链：${x.chain.join(' → ')}`);
       }
     }
+    lines.push('   （新落盘点要么是**真泄漏**（⇒ ⇒ 修掉），要么是**导出**（写进另一个工具的凭据文件）⇒ ⇒ 那就登记进 KNOWN_DEBT（写清 why / when）⇒ ⇒ **别让它隐形**。）');
   }
   if (verdict.stale.length) {
     lines.push('');
     lines.push('🟡 **债务清单过期**（还了债要销账 / 新增了一处同类的）');
     for (const s of verdict.stale) {
       lines.push(`   · ${s.key}：清单记 ${s.expected} 处，现在 ${s.actual} 处`);
+      const entry = KNOWN_DEBT.find((d) => `${d.repo}|${d.file}|${d.kind}` === s.key);
+      if (entry?.onStale) lines.push(`     ${entry.onStale}`);
     }
+  }
+  if (verdict.blind?.length) {
+    lines.push('');
+    lines.push(`ℹ️ **探测器盲区登记**（${verdict.blind.length} 条）—— 债确实在，但当前判据追不到：`);
+    for (const k of verdict.blind) lines.push(`   · ${k}`);
+    lines.push('   （它们**不是**销账；一旦探测器能抓到，闸会照常提示销账。）');
   }
   if (verdict.ok) {
     lines.push('');
@@ -365,6 +402,61 @@ impl ProviderStore {
   check('探测器：孪生（写引用式）⇒ 不报', dRef.length === 0, '报 ' + dRef.length + ' 处');
   check('探测器：孪生（写掩码）⇒ 不报', dMask.length === 0, '报 ' + dMask.length + ' 处');
 
+  // ⚠️⚠️ **导出路径必须「可见」**（2026-11-04 实证）——
+  // ⇒ ⇒ 密钥材料被塞进 `serde_json::Value` 之后 ⇒ ⇒ **名字级的追踪就断了**
+  // ⇒ ⇒ 那条落盘点对闸是**隐形的** ⇒ ⇒ ⇒ 「写回外部工具的凭据文件」漏报。
+  // ⇒ ⇒ 解法**不是**加一条宽规则（实测会命中 10 处 ⇒ ⇒ 全是噪音 ⇒ ⇒
+  // ⇒ ⇒ 登记清单会越滚越大）⇒ ⇒ 而是**让参数名写实**（`credential_doc`）
+  // ⇒ ⇒ ⇒ 闸现有的追踪就能看见它。
+  const exportSrc = [
+    'fn write_json_atomic(path: &Path, credential_doc: &serde_json::Value) {',
+    '    let content = serde_json::to_string_pretty(credential_doc).unwrap();',
+    '    std::fs::write(path, content).unwrap();',
+    '}',
+  ].join('\n');
+  const dExport = detectSecretPersistence(exportSrc, { path: 'x.rs' }).findings;
+  check(
+    '导出：凭据文档落盘 ⇒ 闸看得见（不是隐形）',
+    dExport.length === 1 && dExport[0].kind === 'file',
+    '抓 ' + dExport.length + ' 处：' + JSON.stringify(dExport.map((x) => x.kind + ':' + x.detail)),
+  );
+
+  // ⚠️ **孪生 1**：写一份**普通** JSON 文档（不是凭据文档）⇒ ⇒ 不报。
+  // ⇒ ⇒ 仓库里有一堆天然孪生（会话存储 / A2A 存储 / wasm 注册表）⇒ ⇒
+  // ⇒ ⇒ 它们写的是普通文档 ⇒ ⇒ 不该被「导出」这条判据扫到。
+  // ⚠️ **同时也是「命名是契约」的证据** —— 参数叫 `value` ⇒ ⇒ 隐形 ⇒ ⇒
+  // ⇒ ⇒ 所以**改名 ⇒ ⇒ 闸的登记条目过期 ⇒ ⇒ 闸会红**（不是默默放过）。
+  const plainDocSrc = [
+    'fn write_json_atomic(path: &Path, value: &serde_json::Value) {',
+    '    let content = serde_json::to_string_pretty(value).unwrap();',
+    '    std::fs::write(path, content).unwrap();',
+    '}',
+  ].join('\n');
+  const dPlainDoc = detectSecretPersistence(plainDocSrc, { path: 'x.rs' }).findings;
+  check(
+    '孪生 1：写**普通** JSON 文档 ⇒ 不报（命名是契约 ⇒ 改名 ⇒ 闸红）',
+    dPlainDoc.length === 0,
+    '报 ' + dPlainDoc.length + ' 处',
+  );
+
+  // ⚠️ **孪生 2**：写**引用式**密钥 ⇒ ⇒ 不报（那是安全形状）。
+  const exportRefSrc = [
+    'fn write_json_atomic(path: &Path, secret_ref: &str) {',
+    '    std::fs::write(path, secret_ref).unwrap();',
+    '}',
+  ].join('\n');
+  const dExportRef = detectSecretPersistence(exportRefSrc, { path: 'x.rs' }).findings;
+  check('孪生 2：导出**引用式**密钥 ⇒ 不报', dExportRef.length === 0, '报 ' + dExportRef.length + ' 处');
+
+  // ⚠️ **孪生 3**：写**掩码** ⇒ ⇒ 不报（掩码不是材料）。
+  const exportMaskSrc = [
+    'fn write_json_atomic(path: &Path, api_key: &str) {',
+    '    std::fs::write(path, MASKED_API_KEY).unwrap();',
+    '}',
+  ].join('\n');
+  const dExportMask = detectSecretPersistence(exportMaskSrc, { path: 'x.rs' }).findings;
+  check('孪生 3：写**掩码** ⇒ 不报', dExportMask.length === 0, '报 ' + dExportMask.length + ' 处');
+
   // --- 闸门层 ---
   const f = (repo, file, kind) => ({ repo, file, kind, line: 1, via: 'name', detail: 'x' });
   const e1 = evaluate([f('r', 'a.rs', 'file')], [{ repo: 'r', file: 'a.rs', kind: 'file', count: 1 }]);
@@ -396,6 +488,100 @@ impl ProviderStore {
     '闸门：空清单 ＋ 有命中 ⇒ 红',
     e5.ok === false && e5.fresh.length === 1,
     JSON.stringify(e5),
+  );
+
+  // ⚠️⚠️ **Rust raw string 的三处修复 —— 逐处钉桩**（2026-11-04 实证）
+  // ⇒ ⇒ 「raw string」不是普通字符串：它的引号**不配对**，里面还可以有
+  // ⇒ ⇒ 「//」与「{」「}」⇒ ⇒ 不认它 ⇒ ⇒ 后面所有引号/括号全部错位 ⇒ ⇒
+  // ⇒ ⇒ ① 注释误判 ② 字符串误判 ③ **测试模块的抹除范围错** ⇒ ⇒
+  // ⇒ ⇒ 第 ③ 条最狠：它让**测试夹具里的假密钥**被当成真落盘点（假红）。
+  // ⚠️ **三处各钉一条** —— 每条都有**自己专属的失效形态** ⇒ ⇒ 少一处，
+  //    那一条就红（已用「只关掉那一处」的退化副本逐条实测过）。
+  const rawSlash = 'let t = r#"url = "http://x" // note"#;\n';
+  const keptRaw = stripComments(rawSlash, { nested: true, rust: true });
+  check(
+    '修复①（stripComments）：raw string 里的「//」不是行注释 ⇒ 内容原样保留',
+    keptRaw.includes('http://x'),
+    JSON.stringify(keptRaw),
+  );
+
+  // ⚠️⚠️ **引号数必须是「奇数」** —— 这是这条钉桩**能不能算数**的关键
+  //    （2026-11-04 实测）：**偶数**个引号时 ⇒ ⇒ 退化版把 raw string 里的
+  //    引号**两两配对** ⇒ ⇒ 括号配平**仍然正确** ⇒ ⇒ **钉桩会假绿**
+  //    ⇒ ⇒ 这里放 **3 个**（奇数）⇒ ⇒ 少一处修复 ⇒ ⇒ 配平直接崩（返回 -1）。
+  const braceSrc = 'fn f() {\n    let t = r#"{"a":"b"#;\n}\n';
+  const closeIdx = matchBrace(braceSrc, braceSrc.indexOf('{'));
+  check(
+    '修复②（skipString）：raw string 里的「{」不参与配平 ⇒ 配到函数末尾',
+    closeIdx >= 0 && closeIdx === braceSrc.lastIndexOf('}'),
+    'close=' + closeIdx + ' last=' + braceSrc.lastIndexOf('}'),
+  );
+
+  const litSrc = 'let t = r#"{"api_key":"sk-x"}"#;';
+  const blanked = stripStringLiterals(litSrc);
+  check(
+    '修复③（stripStringLiterals）：raw string 整段抹掉 ⇒ 里面的 api_key 不是代码名',
+    !blanked.includes('api_key'),
+    JSON.stringify(blanked),
+  );
+
+  // ⚠️⚠️ **端到端那一条** —— 三处修复**合起来**才守得住的路（2026-11-04 实证）。
+  // ⇒ ⇒ 形状取自真实文件：**telencephalon/src/config/loader.rs** 的测试里有一段
+  // ⇒ ⇒ 带 URL 的多行 YAML raw string（里面有 api_key: "secret"）⇒ ⇒
+  // ⇒ ⇒ 退化后 ⇒ ⇒ ① raw string 里的「//」被当行注释 ⇒ ⇒ 引号全错位
+  // ⇒ ⇒ ② 测试模块抹不干净 ⇒ ⇒ ③ 夹具里的假密钥被当成真落盘点 ⇒ ⇒ **假红**。
+  const yamlFixture = [
+    'fn main() {}',
+    '#[cfg(test)]',
+    'mod tests {',
+    '    #[test]',
+    '    fn loads_minimal_config() {',
+    '        let yaml = r#"',
+    '  neon_url: "postgres://test"',
+    '"#;',
+    '        let api_key = "sk-not-real";',
+    '        std::fs::write(&auth, &api_key).unwrap();',
+    '    }',
+    '}',
+  ].join('\n');
+  const yamlFindings = detectSecretPersistence(yamlFixture, { path: 'x.rs' }).findings.concat(
+    detectPlaintextSecretReads(yamlFixture, { path: 'x.rs' }).findings,
+  );
+  check(
+    '端到端：测试夹具里 raw string 的假密钥 ⇒ 不判红（真实文件形状）',
+    yamlFindings.length === 0,
+    '报 ' + yamlFindings.length + ' 处：' + JSON.stringify(yamlFindings.map((x) => x.line + ':' + x.kind + ':' + x.detail)),
+  );
+
+  // ⚠️⚠️ **盲区登记**（2026-11-04）—— 探测器**追不到**的那条债。
+  // ⇒ ⇒ 「追不到」**不等于**「债还了」⇒ ⇒ 闸不能逼人销掉一条真债。
+  const e6 = evaluate([], [
+    { repo: 'r', file: 'a.rs', kind: 'file-read', count: 1, blind: true },
+  ]);
+  check(
+    '闸门：盲区登记且探测器追不到 ⇒ 绿（**不是**销账）',
+    e6.ok === true && e6.blind.length === 1 && e6.stale.length === 0,
+    JSON.stringify(e6),
+  );
+
+  const e7 = evaluate(
+    [f('r', 'a.rs', 'file-read')],
+    [{ repo: 'r', file: 'a.rs', kind: 'file-read', count: 2, blind: true }],
+  );
+  check(
+    '闸门：盲区登记但**数量对不上** ⇒ 仍红（盲区只豁免「追不到」）',
+    e7.ok === false && e7.stale.length === 1 && e7.stale[0].actual === 1,
+    JSON.stringify(e7),
+  );
+
+  const e8 = evaluate(
+    [f('r', 'a.rs', 'file-read')],
+    [{ repo: 'r', file: 'a.rs', kind: 'file-read', count: 1, blind: true }],
+  );
+  check(
+    '闸门：盲区登记但探测器**抓到了**且数量对得上 ⇒ 绿',
+    e8.ok === true && e8.stale.length === 0,
+    JSON.stringify(e8),
   );
 
   // --- 新增的三个面（进程环境变量 / 命令行 / 日志）---

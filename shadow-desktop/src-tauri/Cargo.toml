@@ -187,13 +187,11 @@ windows = { version = "0.61", features = [
     "Win32_UI_WindowsAndMessaging",
 ] }
 
-# ziti-sdk override: pull the iBLOC fork instead of crates.io so
-# the `webpki-roots` reqwest feature req is dropped (the fork
-# substitutes `rustls` TLS roots). Without this patch, cargo can't
-# resolve `reqwest` because the upstream ziti-sdk 0.3.0 requires a
-# feature that doesn't exist in reqwest 0.13.x.
+# 2026-11-04: the `ziti-sdk` override was removed — that crate left the
+# dependency graph when the transport became our own OpenZiti v2
+# implementation (`synapse/src/transport/ziti/v2/`). Left in place, cargo
+# records it as `[[patch.unused]]` in Cargo.lock.
 [patch.crates-io]
-ziti-sdk = { git = "https://github.com/iBLOC/ziti-rust", branch = "master" }
 # Vendored copy of tauri-plugin-wdio-webdriver 1.4.0 with
 # tauri default-features = false — see vendor/*/Cargo.toml for why
 # (cargo-test binaries died at load via muda's common-controls-v6
@@ -206,6 +204,9 @@ tokio = { version = "1", features = ["macros", "rt", "time"] }
 # `ServiceExt::oneshot` —— 路由挂载形状的单测用它直接打 router。
 tower = { version = "0.5", features = ["util"] }
 # `tests/embedded_stack.rs` 要用 neuron 的嵌入运行时（`neuron_lib` 是
-# neuron 的 [lib] target 名）。**必须和 telencephalon 用同一个源**
-# （同一个 git + branch），否则 cargo 会把 neuron 编成两份，类型对不上。
-neuron = { git = "https://github.com/ibloc/neuron", branch = "main", default-features = false }
+# neuron 的 [lib] target 名）。**必须和 telencephalon 用同一个源**，
+# 否则 cargo 会把 neuron 编成两份，类型对不上。
+# ⚠️ 2026-11-04：那个「同一个源」现在是**本地路径依赖** `../../../neuron`
+#    （端脑那份也刚切过来）⇒ ⇒ 钉 git rev 走不通：neuron HEAD 有嵌套的
+#    path 依赖（synapse-privacy）⇒ ⇒ 从 cargo 的 git checkout 里解析必然失败。
+neuron = { path = "../../../neuron", default-features = false }

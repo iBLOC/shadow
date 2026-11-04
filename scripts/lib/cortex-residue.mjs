@@ -19,6 +19,10 @@
  * ⇒ 所以重写成 Node：**跨平台可跑、词级判据、进 CI**。
  *
  *
+ * ⚠️ **这里的判据被多个仓共用**（shadow 仓 + telencephalon 仓 + 各下游仓）。
+ *    各仓各自独立 git 仓 ⇒ 不能 import 同一份 ⇒ 只能复制。
+ *    ⇒ 副本一致性由 **副本一致性门**（cortex-residue-parity）护：两份不字节相同 ⇒ 判红。
+ *
  * ── 判据（一句话）────────────────────────────────────────────────
  * 活代码里出现「cortex」这个词 = 残留（红）。
  * **唯一例外**：出现在**兼容契约**里的字面量（数据库表名、线上信封字段、
@@ -33,6 +37,10 @@
  *     （改名链注释、迁移史、README 的变更记录……）
  *     ⇒ **只在注释 / 文档行**豁免；出现在**代码行** ⇒ 判红。
  *
+ * ⚠️ **本文件是 `shadow` 仓 `scripts/lib/cortex-residue.mjs` 的副本** ——
+ *    两个仓是**各自独立的 git 仓** ⇒ 没法 import 同一份 ⇒ 只能复制。
+ *    ⇒ **改判据时两边一起改**，否则两边会漂（漂了 ⇒ 一边的闸绿了、另一边的闸
+ *    还在按旧判据跑 ⇒ 「有闸」变成「有闸，但两把不一样」）。
  * ⚠️ 为什么要分两类：混在一张表里，闸就会**放过真残留**。
  *   典型：PG 表名 `cortex_lobes` 出现在「改名史注释」里合法（那是史证），
  *   但它出现在**活 SQL** 里就是「改名没做完」（那是残留）。
@@ -122,6 +130,31 @@ export function listTextFiles(dir, { excludeDirs = [], excludeFiles = [], base }
 }
 
 /**
+ * 这个**文件**是不是「文档文件」？
+ *
+ * ⚠️ 为什么要有这一层：Markdown 的**续行**不以任何标记开头
+ * （例：CHANGELOG.md 里那行 `cortex::visual_task`).` 是上一条 bullet 的续行）
+ * ⇒ `isDocLine` 判不出它是文档行 ⇒ `history` 类豁免在它身上**不生效**
+ * ⇒ 闸会误报「残留」。
+ * ⇒ 而**文档文件里的每一行都是文档行**（README / CHANGELOG 记的就是历史）
+ * ⇒ 所以按**文件**再判一次。
+ *
+ * ⚠️ 这不会放过真残留：`residual` 的判定与「是不是文档行」**无关**
+ *    （它只看剔掉豁免 token 之后还剩不剩 cortex）⇒
+ *    未登记的旧名在文档文件里**照样判红**。
+ *
+ * @param {string} file
+ * @returns {boolean}
+ */
+const DOC_FILE_EXTENSIONS = new Set(['.md', '.markdown', '.mdx']);
+
+export function isDocFile(file) {
+  const i = (file || '').lastIndexOf('.');
+  if (i < 0) return false;
+  return DOC_FILE_EXTENSIONS.has((file || '').slice(i).toLowerCase());
+}
+
+/**
  * 这一行是不是「注释 / 文档行」？
  *
  * ⚠️ 为什么要单独判这一层：豁免分两类（见文件头）——
@@ -165,10 +198,11 @@ export function isDocLine(line) {
  *
  * @param {string} line
  * @param {{token:string, reason:string, kind?:'contract'|'history'}[]} allowed
+ * @param {boolean} [docFile] 这个文件是不是**文档文件**（.md / .mdx）⇒ 里面每一行都算文档行
  * @returns {{residual:boolean, matched:string[], leftover:string, doc:boolean}}
  */
-export function classifyLine(line, allowed) {
-  const doc = isDocLine(line);
+export function classifyLine(line, allowed, docFile = false) {
+  const doc = isDocLine(line) || docFile;
   let rest = line;
   const matched = [];
   for (const a of allowed) {
@@ -203,7 +237,7 @@ export function scanCorpus(files, allowed) {
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       if (!CORTEX_RE.test(line)) continue;
-      const r = classifyLine(line, allowed);
+      const r = classifyLine(line, allowed, isDocFile(file));
       // ⚠️ 「腐烂」看的是**这个 token 在仓库里还找不找得到**，不是「这一行有没有被豁免」。
       //    `history` 类只在**文档行**算数 —— 它出现在代码行就是真残留（会被判红）。
       for (const a of allowed) {
@@ -277,8 +311,15 @@ export function runGate(o) {
   } = o;
 
   const files = [];
+  const emptyTargets = [];
   for (const d of scanDirs) {
-    files.push(...listTextFiles(join(root, d), { excludeDirs, excludeFiles }));
+    const got = listTextFiles(join(root, d), { excludeDirs, excludeFiles });
+    // ⚠️ **扫描目标指不到任何文件** ⇒ 判据对着空气跑 ⇒ 「✓ 残留 0 处」是**假绿**
+    //    ⇒ 这一格是「判不了」，不是「干净」⇒ 退出码 2（见下面的分支）。
+    //    ⚠️ 真事：2026-11-04 实测 lance-graph 的 scanDirs 写的两个目录**都不存在**
+    //    ⇒ 闸一路绿了整整一轮，而它 69 个 Rust 文件 + 60 个 Python 文件从没被看过。
+    if (got.length === 0) emptyTargets.push(d);
+    files.push(...got);
   }
   for (const f of scanFiles) {
     try {
@@ -301,6 +342,18 @@ export function runGate(o) {
   say(`Cortex 残留闸 —— ${label}`);
   say('═'.repeat(72));
 
+  // ⚠️ 这一格排在「豁免腐烂」**前面** —— 扫描目标是空的 ⇒ seenTokens 必然是空的
+  //    ⇒ 每条豁免都会被误报成「腐烂」⇒ 先报更根本的那个问题。
+  if (emptyTargets.length > 0) {
+    say('');
+    say('✗ 扫描目标指不到任何文件（判据对着空气跑 ⇒ 「干净」是**假的**）:');
+    for (const d of emptyTargets) say('  · ' + d);
+    say('');
+    say('  ⇒ 目录名写错了 / 仓改名了 / 那个目录在**干净 checkout** 里根本不存在。');
+    say('  ⇒ 这一格是「判不了」，不是「干净」 ⇒ 退出码 2。');
+    return { code: 2, out: out.join('\n'), residual, exempted, rotten, scannedFiles: files.length, emptyTargets };
+  }
+
   if (rotten.length > 0) {
     say('');
     say('✗ 豁免条目已腐烂（登记的 token 在仓库里已经找不到了）:');
@@ -308,7 +361,9 @@ export function runGate(o) {
     say('');
     say('  ⇒ 这些豁免已经不再对应任何真实存在的东西 ⇒ 删掉它们（或改对 token）。');
     say('  ⇒ 这一格是「判不了」，不是「干净」 ⇒ 退出码 2。');
-    return { code: 2, out: out.join('\n'), residual, exempted, rotten };
+    // ⚠️ `scannedFiles` 暴露给上层（跨仓入口）⇒ 它要能判「假绿」：
+    //    扫了 **0 个文件** = 判据对着空目录跑 ⇒ 那不是「干净」，是「没判」。
+    return { code: 2, out: out.join('\n'), residual, exempted, rotten, scannedFiles: files.length };
   }
 
   if (exempted.length > 0) {
@@ -345,12 +400,12 @@ export function runGate(o) {
     }
     say('');
     say('  ⇒ 要么改名，要么——如果它其实是**兼容契约**——登记进 allowed（token + 理由）。');
-    return { code: 1, out: out.join('\n'), residual, exempted, rotten };
+    return { code: 1, out: out.join('\n'), residual, exempted, rotten, scannedFiles: files.length };
   }
 
   say('');
   say(`✓ 残留 0 处（扫了 ${files.length} 个文件 / ${scanDirs.length + scanFiles.length} 个目标）`);
-  return { code: 0, out: out.join('\n'), residual, exempted, rotten };
+  return { code: 0, out: out.join('\n'), residual, exempted, rotten, scannedFiles: files.length };
 }
 
 /**

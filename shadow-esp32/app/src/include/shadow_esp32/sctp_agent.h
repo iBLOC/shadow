@@ -9,7 +9,7 @@
  * Protocol) for shadow-esp32.
  *
  * The data channel carries JSON-RPC 2.0 frames between the
- * device and cortex::mcp::device_router. v1 of this module
+ * device and telencephalon::mcp::device_router. v1 of this module
  * implements the **on-the-wire format** but defers the actual
  * SCTP/UDP transport to a follow-up commit. The dialog_task
  * can call `shadow_sctp_pack` / `shadow_sctp_unpack` to format

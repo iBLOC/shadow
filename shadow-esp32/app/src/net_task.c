@@ -16,7 +16,7 @@
  *
  * Out of scope (handled elsewhere):
  *   - WebSocket signaling client -> dialog_task (ADR-0002 v2 §4.3)
- *   - DNS-SD browse to locate cortex -> follow-up commit
+ *   - DNS-SD browse to locate the 端脑 -> follow-up commit
  *   - DTLS-SRTP media transport -> dialog_task + libsrtp (ADR-0002 v2 §后续动作 #3)
  */
 

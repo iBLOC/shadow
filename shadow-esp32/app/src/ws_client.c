@@ -2,7 +2,7 @@
 
 /* Minimal RFC 6455 WebSocket client. v1 supports text frames only
  * (the dialog_task only needs text frames to carry
- * `SignalingMessage` JSON between the device and cortex). Pings
+ * `SignalingMessage` JSON between the device and the 端脑). Pings
  * are answered with pongs; everything else is best-effort.
  *
  * Out of scope (follow-up commits):

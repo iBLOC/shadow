@@ -16,7 +16,7 @@
  * ⚠️ **零信任不解决应用层授权** —— 「进了零信任网络」**不等于**「能读大脑」
  * ⇒ ⇒ 影子锁 / admin token 仍然是必须的。
  *
- * ## 九条规则
+ * ## 十一条规则
  *
  *   1. **零信任的 serve 只允许有一处** —— 必须在 `encephalon/src/ziti.rs` 里。
  *      任何第二处 serve 都是**绕过那层闸**的入口 ⇒ ⇒ 「不支持的端点会挂到
@@ -29,8 +29,11 @@
  *      能力**缺** ⇒ ⇒ 它**必须**被列进「不支持清单」（否则它会挂到超时）；
  *      能力**在** ⇒ ⇒ 它**必须不在**清单里（否则清单已过期，在骗人）。
  *      ⇒ ⇒ **双向**才守得住 —— 只查一边就会出现「清单过期还说不可用」。
- *   4. **移动端不得起零信任面** —— 手机上没有 ziti 身份文件，也不该在手机
- *      上网面（本地那一张只对自己有用）。
+ *   4. ★ **移动端起零信任面必须「显式 + 唯一入口」** —— 旧规则是「移动端
+ *      **不得**起零信任面」（理由：手机上没有 ziti 身份文件）⇒ ⇒ **场景三
+ *      要求手机能发布大脑**（PC 反过来用手机的脑子，PC 功耗更高）⇒ ⇒ 旧规则
+ *      已过时 ⇒ ⇒ 改成三条**形状**判据：自己不许 serve、必须有显式入口、
+ *      不许读环境变量（Android 设不了环境变量，读了就是**假配置**）。
  *   5. **双面挂载不许只接一半** —— 独立服务器与桌面端**都**要接 ⇒ ⇒ 否则
  *      「哪些宿主有零信任面」就变成一件没人说得清的事。
  *   6. ★ **501 里的替代路径必须真的存在** —— 「这条端点不支持，请改走 X」
@@ -49,6 +52,13 @@
  *   9. ★ **客户端模式必须有承载级运行时实证** —— 只有编译级证据
  *      ⇒ ⇒ 「编得过」会被当成「跑得通」⇒ ⇒ 钉住那个**可注入上游的
  *      接缝** ＋ loopback 上真跑的那条测试。
+ *  10. ★ **海马体远端必须有承载级运行时实证** —— 场景四「备用机用主力机的
+ *      海马体」是分布式计算的地基 ⇒ ⇒ 四环都要在：规则住在**共享 crate**、
+ *      端脑客户端**真的**走它、移动端有**显式**入口、有一条 loopback 上
+ *      真跑的测试。
+ *  11. ★ **叶区放置必须有承载级运行时实证** —— 「关掉本地叶区、用受信设备
+ *      的同名叶区顶上」⇒ ⇒ 「dispatch 逻辑一行不用改」这件事，只有**真跑过
+ *      一次**才算数。
  *
  * 用法：node scripts/check-ziti-face.mjs
  * 退出码：0 = 通过；1 = 有阻断问题；2 = 读不到源文件（**不是**通过）。
@@ -244,12 +254,35 @@ export function serveCallSites(file, content) {
   return out;
 }
 
-/** `spawn_if_configured` 的函数体里有没有过 `guard(`。 */
+/**
+ * 零信任面**唯一**那处 serve 有没有过 `guard(`。
+ *
+ * ⚠️ **2026-11-04 改写** —— 原来只看 `spawn_if_configured` 的函数体
+ * ⇒ ⇒ 而 serve 已被抽到 `spawn_with`（移动端也走它：Android 进程**设不了**
+ * 环境变量 ⇒ ⇒ `ZITI_IDENTITY` 那条路在手机上根本走不通）⇒ ⇒ 判据必须
+ * 跟着改 ⇒ ⇒ 否则「抽取」这件事本身会把闸变成恒绿。
+ *
+ * ⇒ ⇒ 现在的判据：**每一个**含 serve 调用的函数体里都必须有 `guard(`
+ * ⇒ ⇒ 且至少要有**一处** serve（不然是「没有 serve」，不是「guard 用对了」）。
+ */
 export function spawnUsesGuard(content) {
-  const at = content.indexOf('pub fn spawn_if_configured');
-  if (at < 0) return false;
-  const body = content.slice(at, at + 2000);
-  return /guard\s*\(/.test(body);
+  const lines = content.split('\n');
+  let sawServe = false;
+  for (let i = 0; i < lines.length; i++) {
+    if (!/(?:transport::)?ziti::serve\s*\(/.test(lines[i])) continue;
+    sawServe = true;
+    // 往回找最近的函数头 —— serve 必须和 guard 在**同一个函数**里。
+    let start = 0;
+    for (let j = i; j >= 0; j--) {
+      if (/^\s*(pub\s+)?(async\s+)?fn\s/.test(lines[j])) {
+        start = j;
+        break;
+      }
+    }
+    const body = lines.slice(start, i + 1).join('\n');
+    if (!/guard\s*\(/.test(body)) return false;
+  }
+  return sawServe;
 }
 
 /** 这段源码里有没有「起零信任面」的调用。 */
@@ -328,6 +361,47 @@ export function auditClientEvidence(parts) {
   const hasRuntimeTest = marker >= 0 && /spawn_client_proxy_with/.test(tail);
   if (hasSeam && !hasRuntimeTest) missing.push('runtime-test');
   return { missing, hasSeam, hasRuntimeTest };
+}
+
+/**
+ * 海马体远放的**证据链** —— 四样都要在。
+ *
+ * ⚠️ **为什么要这条** —— 场景四「备用机用主力机的海马体」是分布式计算
+ * 的地基 ⇒ ⇒ 光有 setter 不算数 ⇒ ⇒ 要是「备用机的记忆**静悄悄地**写进
+ * 本机」⇒ ⇒ 记忆不一致**长得像成功**。
+ *
+ * ⇒ ⇒ 四环：① 规则住在**共享 crate**（一份优先级，谁也不许自己抄）
+ * ② 端脑的客户端**真的**走那条规则 ③ 移动端有**显式**入口（Android 设不了
+ * 环境变量）④ 有一条在 loopback 上真跑的测试。
+ */
+export function auditHippocampusRemote(parts) {
+  const missing = [];
+  if (!/pub fn set_base_url/.test(parts.targetSrc || '')) missing.push('shared-rule');
+  if (!/hippo_target::resolve\(\)/.test(parts.storeSrc || '')) missing.push('client-uses-rule');
+  if (!/hippocampus_base_url/.test(parts.mobileSrc || '')) missing.push('mobile-entry');
+  const t = parts.testSrc || '';
+  if (!(/set_base_url/.test(t) && /upsert_memory/.test(t) && /AtomicUsize/.test(t))) {
+    missing.push('runtime-evidence');
+  }
+  return missing;
+}
+
+/**
+ * 叶区放置的**证据链** —— 「关掉本地叶区、用受信设备的同名叶区顶上」。
+ *
+ * ⚠️ **为什么要这条** —— 「关掉本地叶区」的语义 = 从 native 注册表里
+ * **拿不到**它 ⇒ ⇒ 现成的 HTTP A2A 回落自动接管 ⇒ ⇒ **dispatch 逻辑一行
+ * 不用改** ⇒ ⇒ 但「不用改」这件事只有**真跑过一次**才算数 ⇒ ⇒ 否则
+ * 「切远端」可能切了个寂寞（本地叶区还在，回落从来没被触发过）。
+ */
+export function auditLobePlacement(parts) {
+  const missing = [];
+  if (!/pub fn remote/.test(parts.placementSrc || '')) missing.push('placement-mode');
+  if (!/placements/.test(parts.registrySrc || '')) missing.push('registry-table');
+  if (!/a_lobe_placed_remotely_is_called_over_the_wire/.test(parts.routerSrc || '')) {
+    missing.push('runtime-evidence');
+  }
+  return missing;
 }
 
 // ── 跑规则 ─────────────────────────────────────────────────────────────────
@@ -539,17 +613,84 @@ function main() {
     });
   }
 
-  // ── 规则 4：移动端不得起零信任面 ───────────────────────────────────────
-  for (const p of F.mobile) {
-    const c = readFileSync(p, 'utf8');
-    if (mentionsZitiSpawn(c)) {
-      findings.push({
-        rule: 'R4',
-        where: rel(p),
-        what: '移动端起了零信任面 ⇒ ⇒ 手机上没有 ziti 身份文件，也不该在手机上网面',
-        why: '本地那张面只对自己有用',
-      });
-    }
+  // ── 规则 4：移动端起零信任面必须「显式 + 唯一入口」 ────────────────────
+  //
+  // ⚠️ **2026-11-04 改写** —— 旧规则是「移动端**不得**起零信任面」，理由是
+  // 「手机上没有 ziti 身份文件」⇒ ⇒ **场景三要求手机能发布大脑**（PC 反过来
+  // 用手机的脑子，PC 功耗更高）⇒ ⇒ 旧规则已经**过时** ⇒ ⇒ 改成三条**形状**
+  // 判据：
+  //   (a) 移动端**不许自己** serve ⇒ ⇒ 必须请 `encephalon/src/ziti.rs` 那
+  //       **唯一**一处 ⇒ ⇒ 否则「不支持 ⇒ 明确 501」那层闸在手机上会漏；
+  //   (b) 必须有**显式**的配置入口（setter）⇒ ⇒ 「这台手机要不要网面」是
+  //       **显式**决定，不是构建产物的副作用；
+  //   (c) 移动端**不许**读 `ZITI_IDENTITY` 环境变量 ⇒ ⇒ Android 进程**设不了**
+  //       环境变量 ⇒ ⇒ 那条路在手机上根本走不通 ⇒ ⇒ 读了就是**假配置**。
+  const mobileSrcAll = F.mobile.map((p) => readFileSync(p, 'utf8')).join('\n');
+  for (const c of serveCallSites('移动端', mobileSrcAll)) {
+    findings.push({
+      rule: 'R4',
+      where: '移动端:' + c.line,
+      what: '移动端**自己** serve 了零信任面 ⇒ ⇒ 绕过了「不支持 ⇒ 明确 501」那层闸',
+      why: c.text,
+    });
+  }
+  if (!/set_ziti_server|set_server_options|setZitiServer/.test(mobileSrcAll)) {
+    findings.push({
+      rule: 'R4',
+      where: rel(join(ENCEPH, 'src', 'mobile', 'mod.rs')),
+      what: '移动端**没有**显式的零信任发布入口 ⇒ ⇒ 「这台手机要不要网面」成了构建产物的副作用',
+      why: '场景三要求手机能发布大脑，但必须是显式决定',
+    });
+  }
+  if (/ZITI_IDENTITY/.test(mobileSrcAll)) {
+    findings.push({
+      rule: 'R4',
+      where: rel(join(ENCEPH, 'src', 'mobile', 'mod.rs')),
+      what: '移动端读了 `ZITI_IDENTITY` 环境变量 ⇒ ⇒ Android 进程**设不了**环境变量 ⇒ ⇒ 那是**假配置**',
+      why: '移动端只能走显式 setter',
+    });
+  }
+
+  // ── 规则 10：海马体远端必须有承载级运行时实证 ────────────────────────
+  const hippoAudit = auditHippocampusRemote({
+    targetSrc: readIfExists(join(SYNAPSE, 'src', 'hippo_target.rs')),
+    storeSrc: readIfExists(join(TELENCEPH, 'src', 'hippo_store.rs')),
+    mobileSrc: readIfExists(join(ENCEPH, 'src', 'mobile', 'mod.rs')),
+    testSrc: readIfExists(join(TELENCEPH, 'tests', 'hippo_remote_placement.rs')),
+  });
+  const hippoWhy = {
+    'shared-rule': '「海马体在哪儿」这条规则**不在共享 crate** ⇒ ⇒ 端脑 / 前额叶 / 桌面端 / 移动端会各抄一份 ⇒ ⇒ 迟早跑偏',
+    'client-uses-rule': '端脑的 hippo 客户端**没有**走那条统一规则 ⇒ ⇒ 显式覆盖对它无效 ⇒ ⇒ 「远端海马体」形同虚设',
+    'mobile-entry': '移动端**没有**显式的海马体地址入口 ⇒ ⇒ Android 设不了环境变量 ⇒ ⇒ 手机**只能**用本机海马体 ⇒ ⇒ 场景四做不到',
+    'runtime-evidence': '海马体远端**没有**承载级运行时实证 ⇒ ⇒ 只有编译级证据 ⇒ ⇒ 「备用机的记忆静悄悄地写进本机」长得像成功',
+  };
+  for (const m of hippoAudit) {
+    findings.push({
+      rule: 'R10',
+      where: rel(join(TELENCEPH, 'src', 'hippo_store.rs')),
+      what: hippoWhy[m] || '海马体远端的证据链缺一环',
+      why: '场景四「备用机用主力机的海马体」是分布式计算的地基',
+    });
+  }
+
+  // ── 规则 11：叶区放置必须有承载级运行时实证 ──────────────────────────
+  const lobeAudit = auditLobePlacement({
+    placementSrc: readIfExists(join(TELENCEPH, 'src', 'lobe_placement.rs')),
+    registrySrc: readIfExists(join(TELENCEPH, 'src', 'lobes', 'mod.rs')),
+    routerSrc: readIfExists(join(TELENCEPH, 'src', 'a2a', 'skill_router.rs')),
+  });
+  const lobeWhy = {
+    'placement-mode': '叶区放置**没有**「远端」这一档 ⇒ ⇒ 「关掉本地叶区、用别的设备的同名叶区顶上」无路可走',
+    'registry-table': 'native 注册表**没有**放置表 ⇒ ⇒ 「本地还剩几个叶区」这个视图会被混掉',
+    'runtime-evidence': '叶区放置**没有**承载级运行时实证 ⇒ ⇒ 「切远端」可能切了个寂寞（回落从没被触发过）',
+  };
+  for (const m of lobeAudit) {
+    findings.push({
+      rule: 'R11',
+      where: rel(join(TELENCEPH, 'src', 'lobe_placement.rs')),
+      what: lobeWhy[m] || '叶区放置的证据链缺一环',
+      why: '「dispatch 逻辑一行不用改」只有真跑过一次才算数',
+    });
   }
 
   // ── 规则 5：双面挂载不许只接一半 ───────────────────────────────────────
@@ -629,8 +770,20 @@ if (process.argv.includes('--self-test')) {
   ].join('\n');
   check('能从 ziti.rs 里抽出清单', JSON.stringify(extractUnsupported(zitiSample)) === JSON.stringify(['/a2a']));
   check('抽不到清单 ⇒ 返回 null（不是空数组）', extractUnsupported('fn nothing() {}') === null);
-  check('spawn 走 guard ⇒ 判绿', spawnUsesGuard('pub fn spawn_if_configured(r: axum::Router) { let r = guard(r); }'));
-  check('spawn 没过 guard ⇒ 判红', !spawnUsesGuard('pub fn spawn_if_configured(r: axum::Router) { let r = r; }'));
+  // ⚠️ **样例跟着新判据改** —— 判据现在要求「文件里有 serve，且 serve 所在
+  // 函数套了 guard」⇒ ⇒ 只写 `guard(` 而没有 serve 那不算数。
+  check(
+    'spawn 走 guard ⇒ 判绿',
+    spawnUsesGuard(
+      ['pub fn spawn_with(r: axum::Router) {', '  let r = guard(r);', '  ziti::serve(r, a, b).await', '}'].join('\n'),
+    ),
+  );
+  check(
+    'spawn 没过 guard ⇒ 判红',
+    !spawnUsesGuard(
+      ['pub fn spawn_with(r: axum::Router) {', '  let r = r;', '  ziti::serve(r, a, b).await', '}'].join('\n'),
+    ),
+  );
   check('serve 调用点被认出', serveCallSites('a.rs', 'synapse::transport::ziti::serve(router, a, b)').length === 1);
   check('普通调用不算 serve', serveCallSites('a.rs', 'foo::serve(router)').length === 0);
 
@@ -722,12 +875,71 @@ if (process.argv.includes('--self-test')) {
     auditClientEvidence({ clientSrc: 'pub async fn spawn_client_proxy_with() {}' }).missing.includes('runtime-test'),
   );
 
+  // ⚠️ **R2 的新形状** —— serve 被抽到 `spawn_with` 之后，判据也得跟着改。
+  check(
+    'serve 与 guard 在同一个函数里 ⇒ 守得住（正控）',
+    spawnUsesGuard(
+      ['pub fn spawn_with(router: axum::Router) {', '  let r = guard(router);', '  ziti::serve(r, a, b).await', '}'].join('\n'),
+    ),
+  );
+  check(
+    'serve 在一个**没套** guard 的函数里 ⇒ 判出来（反控）',
+    !spawnUsesGuard(
+      ['pub fn spawn_with(router: axum::Router) {', '  ziti::serve(router, a, b).await', '}'].join('\n'),
+    ),
+  );
+  check(
+    '文件里一处 serve 都没有 ⇒ 那不是「guard 用对了」（反控）',
+    !spawnUsesGuard('pub fn nothing() {}'),
+  );
+
+  // ⚠️ 海马体远放这一族 —— 「只有编译级证据」。
+  const goodHippo = {
+    targetSrc: 'pub fn set_base_url(url: Option<String>) {}',
+    storeSrc: 'synapse::hippo_target::resolve()',
+    mobileSrc: 'pub fn encephalon_mobile_set_hippocampus_base_url(url: &str) -> i32 {}',
+    testSrc: 'set_base_url ... upsert_memory ... AtomicUsize',
+  };
+  check('海马体远端：四环齐 ⇒ 不判红', auditHippocampusRemote(goodHippo).length === 0);
+  check(
+    '海马体远端：规则不在共享 crate ⇒ 判出来（反控）',
+    auditHippocampusRemote({ ...goodHippo, targetSrc: 'x' }).includes('shared-rule'),
+  );
+  check(
+    '海马体远端：客户端不走那条规则 ⇒ 判出来（反控）',
+    auditHippocampusRemote({ ...goodHippo, storeSrc: 'x' }).includes('client-uses-rule'),
+  );
+  check(
+    '海马体远端：移动端没有显式入口 ⇒ 判出来（反控）',
+    auditHippocampusRemote({ ...goodHippo, mobileSrc: 'x' }).includes('mobile-entry'),
+  );
+  check(
+    '海马体远端：没有承载级实证 ⇒ 判出来（反控）',
+    auditHippocampusRemote({ ...goodHippo, testSrc: 'x' }).includes('runtime-evidence'),
+  );
+
+  // ⚠️ 叶区放置这一族 —— 「切远端切了个寂寞」。
+  const goodLobe = {
+    placementSrc: 'pub fn remote(...) {}',
+    registrySrc: 'placements',
+    routerSrc: 'async fn a_lobe_placed_remotely_is_called_over_the_wire() {}',
+  };
+  check('叶区放置：三环齐 ⇒ 不判红', auditLobePlacement(goodLobe).length === 0);
+  check(
+    '叶区放置：没有远端这一档 ⇒ 判出来（反控）',
+    auditLobePlacement({ ...goodLobe, placementSrc: 'x' }).includes('placement-mode'),
+  );
+  check(
+    '叶区放置：没有承载级实证 ⇒ 判出来（反控）',
+    auditLobePlacement({ ...goodLobe, routerSrc: 'x' }).includes('runtime-evidence'),
+  );
+
   console.log('─'.repeat(72));
   if (fails === 0) {
-    console.log('✓ 自检全绿（39 条）');
+    console.log('✓ 自检全绿（50 条）');
     process.exit(0);
   }
-  console.error('✗ 自检 ' + fails + ' / 39 条红');
+  console.error('✗ 自检 ' + fails + ' / 50 条红');
   process.exit(1);
 }
 
@@ -742,10 +954,12 @@ if (warnings.length > 0) {
 }
 if (findings.length === 0) {
   console.log('  · 零信任面：serve 唯一 · 经 guard · 清单与承载能力对账一致');
-  console.log('  · 移动端不网面 · 独立服务器与桌面端都接');
+  console.log('  · 移动端网面须显式 · 独立服务器与桌面端都接');
   console.log('  · 501 的替代路径都真的存在');
   console.log('  · 客户端：WS 客户端 ＋ 本地代理 ＋ 逐帧转发 · 桌面端与移动端都接');
   console.log('  · 客户端模式：接缝 ＋ 承载级运行时实证');
+  console.log('  · 海马体远端：共享规则 ＋ 移动端入口 ＋ 承载级运行时实证');
+  console.log('  · 叶区放置：远端这一档 ＋ 承载级运行时实证');
   console.log('─'.repeat(72));
   console.log('阻断 0 项');
   process.exit(0);

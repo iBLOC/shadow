@@ -881,6 +881,24 @@ class AppLocalizationsZh extends AppLocalizations {
   String get providersApiKeyRequired => '请输入 API Key';
 
   @override
+  String get providersNameRequired => '请输入提供商名称';
+
+  @override
+  String get providersStandard => '接口标准';
+
+  @override
+  String get providersPreviewModels => '预览模型';
+
+  @override
+  String get providersSelectModel => '选择模型';
+
+  @override
+  String get providersRefreshModels => '刷新模型';
+
+  @override
+  String get providersModelsNotFetched => '尚未获取';
+
+  @override
   String get resonanceNotConnected => '未连接';
 
   @override

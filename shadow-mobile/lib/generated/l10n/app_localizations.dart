@@ -1766,6 +1766,42 @@ abstract class AppLocalizations {
   /// **'Please enter an API key'**
   String get providersApiKeyRequired;
 
+  /// No description provided for @providersNameRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Please enter a provider name'**
+  String get providersNameRequired;
+
+  /// No description provided for @providersStandard.
+  ///
+  /// In en, this message translates to:
+  /// **'API standard'**
+  String get providersStandard;
+
+  /// No description provided for @providersPreviewModels.
+  ///
+  /// In en, this message translates to:
+  /// **'Preview models'**
+  String get providersPreviewModels;
+
+  /// No description provided for @providersSelectModel.
+  ///
+  /// In en, this message translates to:
+  /// **'Select model'**
+  String get providersSelectModel;
+
+  /// No description provided for @providersRefreshModels.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh models'**
+  String get providersRefreshModels;
+
+  /// No description provided for @providersModelsNotFetched.
+  ///
+  /// In en, this message translates to:
+  /// **'Not fetched yet'**
+  String get providersModelsNotFetched;
+
   /// No description provided for @resonanceNotConnected.
   ///
   /// In en, this message translates to:

@@ -73,7 +73,7 @@ Shadow 平台的端侧(Layer 4)目前由 **Shadow-Desktop**(Tauri + React)和 **
 
 #### Wire protocol(ADR-0002 v2)
 
-| 路径 | Wire | Cortex 后端 | 跨端一致 | 决策 |
+| 路径 | Wire | 端脑后端 | 跨端一致 | 决策 |
 |---|---|---|---|---|
 | **A ◀ CHOSEN** | **WebRTC**(同 desktop / mobile)| **0 改动**(`webrtc_route` 现成)| ✅ 三端统一 | ✅ **采纳** |
 | B(已推翻 v1)| WebSocket + Opus + `xiaozhi_bridge`(v1 原案)| 新增 800-1500 LOC bridge | ❌ 分叉 | ❌ 被用户推翻 |
@@ -87,7 +87,7 @@ Shadow 平台的端侧(Layer 4)目前由 **Shadow-Desktop**(Tauri + React)和 **
 - 这意味着 Zephyr + Rust on Xtensa 需要自行维护 LLVM/Rust fork + Zephyr out-of-tree patches,工程风险极大,本项目不采纳。
 - **Rust on ESP32-S3 在 2026-08 实际可行的栈** 是 `esp-hal 1.x`(已 vendor-backed by Espressif;v1.0.0 stable 2025-10,v1.1.2 在 2026-08)+ Embassy 异步 Runtime + `esp-radio`(Wi-Fi + BLE)。但**它失去 Zephyr**。
 - **WASM on Xtensa ESP32 不可用**:wasmtime / wasmer / wazero 官方 tier-1 均无 Xtensa target;WAMR Xtensa 后端是 fork 状态。验证了 **ESP32 是 thin client** 设计 —— 所有 agent 逻辑必须在 server。
-- **Wire protocol 选择**:shadow-desktop / mobile 已用 WebRTC 与 cortex 通信,ESP32 **复用**同一通路 → 跨端协议一致,不引入新协议。
+- **Wire protocol 选择**:shadow-desktop / mobile 已用 WebRTC 与端脑通信,ESP32 **复用**同一通路 → 跨端协议一致,不引入新协议。
 - **决策接受的语言代价**:shadow-esp32 将是 Shadow 平台**唯一**的非 Rust 端(其它全 Rust)。
 
 完整论述、引用、版本号、外设覆盖矩阵、风险点:见 [`docs/RESEARCH.md`](docs/RESEARCH.md);决策与后果:见 [`docs/adr/0001-stack-choice-zephyr-c.md`](docs/adr/0001-stack-choice-zephyr-c.md) + [`docs/adr/0002-shadow-esp32-implementation-architecture.md`](docs/adr/0002-shadow-esp32-implementation-architecture.md)。
@@ -171,14 +171,14 @@ west debug
                          │  │         │         │  │                   │  │
                          │  │ ┌───────┴───────┐ │  │                   │  │
                          │  │ │ ASR + LLM    │ │  │                   │  │
-                         │  │ │ (cortex/LiteRT│ │  │                   │  │
+                         │  │ │ (端脑/LiteRT │ │  │                   │  │
                          │  │ │  via network) │ │  │                   │  │
                          │  │ └───────┬───────┘ │  │                   │  │
                          │  │         │         │  │                   │  │
                          │  │ ┌───────┴───────┐ │  │                   │  │
                          │  │ │ TTS          │ │  │                   │  │
                          │  │ │ (Android TTS │ │  │                   │  │
-                         │  │ │  / cortex)   │ │  │                   │  │
+                         │  │ │  / 端脑)     │ │  │                   │  │
                          │  │ └───────┬───────┘ │  │                   │  │
                          │  │         │         │  │                   │  │
                          │  │ ┌───────┴───────┐ │  │                   │  │
@@ -243,14 +243,14 @@ west debug
 
 ```
 ┌──────────────────────┐                                         ┌──────────────────────────────────┐
-│ shadow-esp32         │                                         │ cortex                            │
+│ shadow-esp32         │                                         │ 端脑                              │
 │ (Zephyr dialog_task) │                                         │                                  │
 │                      │                                         │  ┌────────────────────────────┐  │
 │  mDNS _shadow._tcp ──┼── mDNS query (net_task) ───────────────▶│  │ mds_discovery               │  │
 │                      │  ◀──── instance_name + port ─────────── │  └─────────────┬──────────────┘  │
 │                      │                                         │                ▼                  │
 │ ┌──────────────────┐ │  ─── WebSocket signaling ────────────▶ │  ┌────────────────────────────┐  │
-│ │ RTCPeerConnection │ │   GET /api/webrtc/voice/sessions/{id}/ws│ │ cortex::webrtc_route (现成) │  │
+│ │ RTCPeerConnection │ │   GET /api/webrtc/voice/sessions/{id}/ws│ │ 端脑 webrtc_route (现成)     │  │
 │ │  ├─ audio Opus/SRTP│ │   SDP offer/answer + ICE candidates    │ │  ModalityRouter → temporal   │  │
 │ │  └─ DC "mcp"      │ │                                         │ │  rtp_relay (per-dir SRTP)    │  │
 │ └──────────────────┘ │  ◀═══ DTLS-SRTP over UDP ════════════   │ └─────────────┬──────────────┘  │
@@ -265,7 +265,7 @@ west debug
 └──────────────────────┘                                         └──────────────────────────────────┘
 ```
 
-**Wire protocol**:WebRTC(同 shadow-desktop `webrtcCompanion.ts` + shadow-mobile `webrtc_companion.dart`)。**Audio transceiver**:Opus/SRTP/DTLS。**Data channel "mcp"**:SCTP-over-DTLS,承载 MCP JSON-RPC 2.0(esp32 ↔ cortex::mcp device_router,新增 ~1500 LOC Rust)。
+**Wire protocol**:WebRTC(同 shadow-desktop `webrtcCompanion.ts` + shadow-mobile `webrtc_companion.dart`)。**Audio transceiver**:Opus/SRTP/DTLS。**Data channel "mcp"**:SCTP-over-DTLS,承载 MCP JSON-RPC 2.0(esp32 ↔ 端脑的 mcp device_router,新增 ~1500 LOC Rust)。
 
 > 完整 wire format + 5 个 dialog 状态机 + 4 个 Zephyr task 优先级 + 9 项后续动作见 [`docs/adr/0002-shadow-esp32-implementation-architecture.md`](docs/adr/0002-shadow-esp32-implementation-architecture.md)。
 
@@ -274,7 +274,7 @@ west debug
 完整任务分解见 ADR-0002 §"后续动作"9 项。当前进度:
 
 1. ✅ 路径 D 调研 / ✅ ADR-0001(调研) / ✅ ADR-0002 v1(superseded)/ ✅ ADR-0002 v2(WebRTC 复用)
-2. ✅ **cortex Data Channel + device_router + api::device**(Rust,~600 LOC)— 2026-08-16 落地;`POST /invoke` 暂返 501 + `InvokeUnimplemented`(详见 `docs/implementation-notes/2026-08-16-cortex-data-channel-device-router.md`)
+2. ✅ **端脑 Data Channel + device_router + api::device**(Rust,~600 LOC)— 2026-08-16 落地;`POST /invoke` 暂返 501 + `InvokeUnimplemented`(详见 `docs/implementation-notes/2026-08-16-cortex-data-channel-device-router.md`)
 3. ✅ **shadow-esp32 Zephyr scaffold**(west.yml + 顶层 CMakeLists/prj.conf + app/ + 4 task 占位 + devcontainer)— 2026-08-16 落地
 4. 🟡 **dialog_task v1 WebSocket signaling** + SDP offer 生成 + state machine(v1 子任务落地:ws_client + UUID + SDP) — 2026-08-16;DTLS/SRTP/Opus/ICE-lite 留后续
 4a.1. ✅ **libopus 集成** — 2026-08-16;west.yml + Zephyr module 包装;audio.h 公共 API

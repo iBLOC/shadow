@@ -91,6 +91,11 @@ class EncephalonRuntime {
         shadowKey: String,
         adminToken: String,
     ): Int
+    private external fun nativeSetHippocampusBaseUrl(baseUrl: String): Int
+    private external fun nativeSetZitiServer(
+        identityPath: String,
+        service: String,
+    ): Int
     private external fun nativeInfer(
         path: String,
         body: ByteArray,
@@ -287,6 +292,82 @@ class EncephalonRuntime {
             false
         } catch (e: Exception) {
             AppLog.e(TAG, "❌ nativeSetZitiClient failed: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * 指定海马体在哪儿 —— **远端海马体**。
+     *
+     * ## 它换掉了什么
+     *
+     * 备用机上**不跑**海马体 ⇒ ⇒ 它的记忆读写要走到主力机那**一个** ⇒ ⇒
+     * 这里给一个地址即可（空的 ⇒ ⇒ 回到默认那条路）。
+     *
+     * ## ⚠️ 地址可以带**零信任代理前缀**
+     *
+     * `http://127.0.0.1:<代理口>/_zt/<service>/hippocampus`
+     * ⇒ ⇒ 代理按服务名路由并**去掉前缀** ⇒ ⇒ 上游收到 `/hippocampus/api/...`。
+     *
+     * ## ⚠️ 必须在 [start] **之前**调
+     *
+     * ⚠️ 地址**不是秘密**（凭据才是）⇒ ⇒ 但仍不打进日志 —— 少一处日志就少一处
+     * 泄漏面。
+     */
+    fun setHippocampusBaseUrl(baseUrl: String): Boolean {
+        return try {
+            val rc = nativeSetHippocampusBaseUrl(baseUrl)
+            if (rc >= 0) {
+                AppLog.i(TAG, "✅ hippocampus target set (记忆将走远端海马体)")
+                true
+            } else {
+                AppLog.e(TAG, "❌ nativeSetHippocampusBaseUrl returned: $rc")
+                false
+            }
+        } catch (e: UnsatisfiedLinkError) {
+            AppLog.w(TAG, "Encephalon native method missing — .so not loaded, or an old .so without this method: ${e.message}")
+            false
+        } catch (e: Exception) {
+            AppLog.e(TAG, "❌ nativeSetHippocampusBaseUrl failed: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * 让这台手机**发布**自己的大脑 —— 别的设备（PC）可以反过来用它的脑子。
+     *
+     * ## 它换掉了什么
+     *
+     * 本地回环面**照旧起**（手机自己要用）⇒ ⇒ 发布**不是**替换本地面，
+     * 是**多开一张零信任面** ⇒ ⇒ 走**唯一**那处 serve ⇒ ⇒ 「不支持 ⇒ 明确
+     * 501」那层闸在手机上**也在**。
+     *
+     * ## ⚠️ 必须在 [start] **之前**调
+     *
+     * ⚠️ `identityPath` 指向 App 私有目录里的 ziti 身份文件（enrollment 的产物）
+     * ⇒ ⇒ **没有身份文件就发布不了**。
+     *
+     * ⚠️ **身份路径是秘密** ⇒ ⇒ 绝不打进日志。
+     */
+    fun setZitiServer(
+        identityPath: String,
+        service: String = "",
+    ): Boolean {
+        return try {
+            val rc = nativeSetZitiServer(identityPath, service)
+            if (rc >= 0) {
+                // ⚠️ 只说「设好了」，不说是什么（身份路径是秘密）。
+                AppLog.i(TAG, "✅ zero-trust server configured (这台手机将向零信任网发布大脑)")
+                true
+            } else {
+                AppLog.e(TAG, "❌ nativeSetZitiServer returned: $rc")
+                false
+            }
+        } catch (e: UnsatisfiedLinkError) {
+            AppLog.w(TAG, "Encephalon native method missing — .so not loaded, or an old .so without this method: ${e.message}")
+            false
+        } catch (e: Exception) {
+            AppLog.e(TAG, "❌ nativeSetZitiServer failed: ${e.message}")
             false
         }
     }

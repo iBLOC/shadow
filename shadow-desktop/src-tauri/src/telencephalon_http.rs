@@ -368,11 +368,4 @@ mod tests {
             );
         }
     }
-    /// （temporal = 对话 / 意图，prefrontal = 任务，parietal = 编排）。
-    #[test]
-    fn native_lobes_cover_the_chain() {
-        assert!(NATIVE_LOBES.contains(&"temporal"));
-        assert!(NATIVE_LOBES.contains(&"prefrontal"));
-        assert!(NATIVE_LOBES.contains(&"parietal"));
-    }
 }

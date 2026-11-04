@@ -301,4 +301,104 @@ void main() {
       expect(puts.first, contains('qwen3-0.6b'));
     });
   });
+
+  // ═══════════════════════════════════════════════════════════════════
+  // 与桌面端**逐项对齐**（2026-11-04）—— 桌面端那套表单有「接口标准」下拉
+  // ⇒ ⇒ 手机上没有 ⇒ ⇒ 加 Claude 协议的端点必坏而界面看不出异常。
+  // ═══════════════════════════════════════════════════════════════════
+  group('自定义供应商的「接口标准」（与桌面端对齐）', () {
+    testWidgets('⚠️ 自定义表单有「接口标准」下拉，且提交时带上 provider_type', (
+      WidgetTester tester,
+    ) async {
+      final posted = <Map<String, dynamic>>[];
+      final notifier = ProvidersNotifier(
+        clientReturning((req) {
+          if (req.url.path.endsWith('/presets')) {
+            return http.Response(jsonEncode(<Object>[]), 200);
+          }
+          if (req.method == 'POST' && req.url.path == '/models/providers') {
+            posted.add(jsonDecode(req.body) as Map<String, dynamic>);
+            return http.Response(
+              jsonEncode({
+                'id': 'prov-new',
+                'name': 'Mine',
+                'provider_type': 'claude',
+                'api_standard': 'claude',
+                'enabled': true,
+              }),
+              201,
+            );
+          }
+          return http.Response(jsonEncode(<Object>[]), 200);
+        }),
+      );
+      await pumpWidgetForTest(tester, app(notifier));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byType(FloatingActionButton));
+      await tester.pumpAndSettle();
+
+      // ⚠️ 默认那一档就是「自定义」⇒ ⇒ 「接口标准」这栏**必须在**。
+      expect(find.text('API standard'), findsOneWidget);
+
+      // 填名字与地址（表单里的 TextField 顺序：名字 → 地址 → API Key）。
+      final fields = find.byType(TextField);
+      await tester.enterText(fields.at(0), 'Mine');
+      await tester.enterText(fields.at(1), 'https://api.example.com');
+      await tester.pumpAndSettle();
+
+      // 把「接口标准」从 OpenAI 改成 Claude。
+      final standard = find.byType(DropdownButtonFormField<String>).at(1);
+      await tester.ensureVisible(standard);
+      await tester.pumpAndSettle();
+      await tester.tap(standard);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Claude').last);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Add'));
+      await tester.pumpAndSettle();
+
+      expect(posted.length, 1, reason: '必须真的写给大脑');
+      expect(
+        posted.single['provider_type'],
+        'claude',
+        reason: '⚠️ 少了 provider_type ⇒ ⇒ 大脑兜底成 openai ⇒ ⇒ 加 Claude 端点必坏而界面看不出异常（失败长得像成功）',
+      );
+      expect(posted.single['name'], 'Mine');
+      expect(posted.single['api_base'], 'https://api.example.com');
+    });
+
+    testWidgets('✅ 名字为空 ⇒ 说的是「请输入提供商名称」（不是「请输入 API Key」）', (
+      WidgetTester tester,
+    ) async {
+      final posted = <Map<String, dynamic>>[];
+      final notifier = ProvidersNotifier(
+        clientReturning((req) {
+          if (req.url.path.endsWith('/presets')) {
+            return http.Response(jsonEncode(<Object>[]), 200);
+          }
+          if (req.method == 'POST' && req.url.path == '/models/providers') {
+            posted.add(jsonDecode(req.body) as Map<String, dynamic>);
+            return http.Response(jsonEncode({'id': 'prov-new'}), 201);
+          }
+          return http.Response(jsonEncode(<Object>[]), 200);
+        }),
+      );
+      await pumpWidgetForTest(tester, app(notifier));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byType(FloatingActionButton));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Add'));
+      await tester.pumpAndSettle();
+
+      expect(posted, isEmpty, reason: '名字为空 ⇒ ⇒ 不该写给大脑');
+      expect(
+        find.text('Please enter a provider name'),
+        findsOneWidget,
+        reason: '⚠️ 旧代码在这里说「请输入 API Key」⇒ ⇒ 指错了地方 ⇒ ⇒ 用户去填 key ⇒ ⇒ 还是失败',
+      );
+    });
+  });
 }

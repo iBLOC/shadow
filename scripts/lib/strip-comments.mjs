@@ -63,6 +63,19 @@ export function stripComments(src, { nested, rust }) {
       }
       continue;
     }
+    if (ch === 'r' && rust) {
+      // ⚠️⚠️ **Rust 的 raw string**（r"..." / r#"..."#）—— 引号**不配对**
+      // ⇒ ⇒ 不认识它 ⇒ ⇒ 从第一个 `"` 一路吞到下一个 `"` ⇒ ⇒
+      // ⇒ ⇒ **后面所有的引号全部错位** ⇒ ⇒ 注释误判 ＋ 字符串误判
+      // ⇒ ⇒ 连带 `stripTestModules` 找错花括号 ⇒ ⇒ **整个测试模块没被抹掉**
+      // ⇒ ⇒ 那就是「测试里的假密钥被判成真落盘点」⇒ ⇒ 假红。
+      const rawEnd = rawStringEnd(src, i);
+      if (rawEnd >= 0) {
+        out += src.slice(i, rawEnd);
+        i = rawEnd;
+        continue;
+      }
+    }
     if (ch === '"') {
       // 字符串字面量：原样保留，但**跳过**里面的注释符号
       out += ch;
@@ -159,9 +172,63 @@ export function stripTestModules(src) {
   return out + src.slice(pos);
 }
 
-/** 跳过字符串字面量（返回它后面的下标）。 */
+/**
+ * **Rust 的 raw string** 结束位置（`r"..."` / `r#"..."#` / `br"..."`）。
+ *
+ * @param {string} src 源码
+ * @param {number} i  **指向 `r`**（不是引号）
+ * @returns {number} 结束后的下标；**不是** raw string ⇒ ⇒ -1
+ *
+ * ⚠️ **为什么必须有它** —— raw string 里的 `"` **不配对** ⇒ ⇒ 不认识它 ⇒ ⇒
+ * 从第一个引号一路吞到下一个引号 ⇒ ⇒ **后面所有引号全部错位** ⇒ ⇒
+ * 注释误判 ＋ 字符串误判 ⇒ ⇒ 连带 `stripTestModules` 找错花括号。
+ * ⚠️ **字节串**（br"..."）也要认 ⇒ ⇒ `r` 前面那个 `b` 不算标识符字符。
+ */
+export function rawStringEnd(src, i) {
+  const n = src.length;
+  let h = i + 1;
+  let hashes = 0;
+  while (h < n && src[h] === '#') { hashes++; h++; }
+  // raw string 的**开始**必须是 `"` ⇒ ⇒ 否则它不是 raw string。
+  if (h >= n || src[h] !== '"') return -1;
+
+  // 从那个 `"` 往后找**结束**：`"` ＋ 同样多的 `#`。
+  let q = h + 1;
+  for (;;) {
+    q = src.indexOf('"', q);
+    if (q < 0) return -1;
+    let c = q + 1;
+    let seen = 0;
+    while (c < n && src[c] === '#') { seen++; c++; }
+    if (seen >= hashes) return c;
+    q += 1;
+  }
+}
+
+/**
+ * 跳过字符串字面量（返回它后面的下标）。
+ *
+ * ⚠️ **raw string 要先判** —— 它的引号不配对 ⇒ ⇒ 按普通串处理 ⇒ ⇒
+ * 会一路吞到下一个引号 ⇒ ⇒ 后面全错位。
+ */
 export function skipString(src, i) {
   const n = src.length;
+  // i 指向开头的 `"` ⇒ ⇒ **向前**看是不是 raw string 的引号。
+  let h = i - 1;
+  let hashes = 0;
+  while (h >= 0 && src[h] === '#') { hashes++; h--; }
+  if (h >= 0 && src[h] === 'r') {
+    // ⚠️ `r` 前面不能是标识符字符（`foo_r"..."` 不是 raw string）。
+    let ok = h === 0 || !/[A-Za-z0-9_]/.test(src[h - 1]);
+    // ⚠️ **字节串** `br"..."` ⇒ ⇒ `r` 前面那个 `b` 不算标识符字符。
+    if (!ok && h >= 2 && src[h - 1] === 'b') {
+      ok = h === 2 || !/[A-Za-z0-9_]/.test(src[h - 2]);
+    }
+    if (ok) {
+      const end = rawStringEnd(src, h);
+      if (end >= 0) return end;
+    }
+  }
   i += 1;
   while (i < n) {
     if (src[i] === '\\') { i += 2; continue; }

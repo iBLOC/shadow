@@ -39,7 +39,13 @@
  * ③ 日志、崩溃转储、core dump 里的泄漏；
  * ④ **已经写出去的历史数据**（闸只管代码，不管盘上已有的）。
  */
-import { stripComments, stripTestModules, matchDelim, makeLineIndex } from './strip-comments.mjs';
+import {
+  stripComments,
+  stripTestModules,
+  matchDelim,
+  makeLineIndex,
+  rawStringEnd,
+} from './strip-comments.mjs';
 
 // ---------------------------------------------------------------------------
 // 判据表
@@ -456,6 +462,17 @@ export function stripStringLiterals(text) {
   let i = 0;
   while (i < text.length) {
     const ch = text[i];
+    // ⚠️⚠️ **Rust 的 raw string 也是字符串字面量** ⇒ ⇒ 一样要抹成空格。
+    // ⇒ ⇒ 不认识它 ⇒ ⇒ 它里面的 `"api_key"` 会被当成**代码里的名字**
+    // ⇒ ⇒ ⇒ 假红（那只是一段 JSON 文本，不是落盘的材料）。
+    if (ch === 'r') {
+      const end = rawStringEnd(text, i);
+      if (end >= 0) {
+        out += text.slice(i, end).replace(/[^\n]/g, ' ');
+        i = end;
+        continue;
+      }
+    }
     if (ch === '"' || ch === "'" || ch === '`') {
       const quote = ch;
       out += ' ';
@@ -935,7 +952,13 @@ export function detectSecretPersistence(code, opts = {}) {
  */
 export function detectPlaintextSecretReads(code, opts = {}) {
   const lang = opts.lang || guessLang(opts.path || '');
-  const src = stripComments(code, { nested: lang === 'rust', rust: lang === 'rust' });
+  let src = stripComments(code, { nested: lang === 'rust', rust: lang === 'rust' });
+  // ⚠️⚠️ **测试模块要抹掉** —— 测试夹具里的 read_to_string
+  // ⇒ ⇒ 会被判成「从明文存储里读密钥」⇒ ⇒ **假红**。
+  // ⚠️ **写面那一族（detectSecretPersistence）早就抹了** ⇒ ⇒
+  // ⇒ ⇒ **两族口径必须一致** ⇒ ⇒ 否则「写面不报、读面报」⇒ ⇒
+  // ⇒ ⇒ 同一个文件一半绿一半红 ⇒ ⇒ 看着像「真问题」⇒ ⇒ 其实不是。
+  if (lang === 'rust') src = stripTestModules(src);
   const lineOf = makeLineIndex(src);
   const ctx = buildContext(src, lang);
   const findings = [];

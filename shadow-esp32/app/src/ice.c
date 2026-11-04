@@ -5,7 +5,7 @@
  * v1 enumerates host candidates from the local network
  * interfaces and renders them as an SDP `a=candidate:` fragment.
  * The existing dialog_task signaling path can embed this
- * fragment in the SDP offer it sends to cortex, which forwards
+ * fragment in the SDP offer it sends to the 端脑, which forwards
  * to the temporal lobe (controlling agent).
  *
  * Real STUN connectivity-check answering and trickle-ICE push
