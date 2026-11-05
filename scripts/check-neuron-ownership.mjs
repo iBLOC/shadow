@@ -68,9 +68,11 @@ import {
   RUNTIME_MARKERS,
   classifyArtifactRole,
   evaluateArtifacts,
+  judgeFeatureParse,
   listFiles,
   parseFeatureTree,
   scanFileMarkers,
+  stripAnsi,
   withRestoredLock,
 } from './lib/neuron-invariant-scan.mjs';
 
@@ -340,18 +342,16 @@ function collectArtifacts() {
  */
 function cargoTreeFeatures(manifestPath, pkg) {
   const tree = ['tree', '-e', 'features', '-i', pkg, '--manifest-path', manifestPath];
-  const run = (args, timeout) => spawnSync('cargo', args, { encoding: 'utf8', timeout, cwd: ROOT });
+  // ⚠️ **必须把颜色关掉** ⇒ ⇒ CI 的 workflow 全局设了 CARGO_TERM_COLOR=always
+  //    ⇒ ⇒ cargo tree 的树线会带 ANSI ⇒ ⇒ 解析器的正则一条都匹配不上 ⇒ ⇒
+  //    ⇒ ⇒ 「解析成功但一个 feature 都没解析出来」⇒ ⇒ N9 假红 ＋ N7/N11 假绿。
+  //    ⇒ ⇒ 这里关掉颜色（**输入确定化**），lib 里再剥一次（防御 ＋ 判据可测）。
+  const env = { ...process.env, CARGO_TERM_COLOR: 'never' };
+  const run = (args, timeout) => spawnSync('cargo', args, { encoding: 'utf8', timeout, cwd: ROOT, env });
   const interpret = (res) => {
     if (res.error) return { ok: false, reason: 'cargo 跑不起来：' + res.error.message, stderr: '' };
-    if (res.status === 0) {
-      const { pkgFeatures } = parseFeatureTree(res.stdout || '');
-      const set = pkgFeatures.get(pkg);
-      return { ok: true, notInGraph: false, features: set ? [...set] : [] };
-    }
-    const err = (res.stderr || '').trim();
-    // 「这个包不在图里」⇒ ⇒ 那就没有这条边 ⇒ ⇒ 谈不上开了什么 feature
-    if (/did not match any packages/.test(err)) return { ok: true, notInGraph: true, features: [] };
-    return { ok: false, reason: 'cargo tree 退出码 ' + res.status + '：' + err.split('\n')[0], stderr: err };
+    // ⚠️ 判定的三态、以及「解析失败 ⇒ 判不了」都在 lib 的纯函数里 ⇒ ⇒ 自检能喂夹具
+    return judgeFeatureParse({ status: res.status, stdout: res.stdout || '', stderr: res.stderr || '', pkg });
   };
 
   let lastReason = '';
@@ -682,6 +682,21 @@ export function evaluate(ctx) {
   for (const r of RULES) findings.push(...r.check(ctx));
   return findings;
 }
+
+// ── 夹具：cargo tree 的**真实输出**（生产者 = cargo 自己） ──────────────
+//
+// ⚠️ 为什么用夹具而不是真跑 cargo：自检必须**快**且**不依赖兄弟仓在位**。
+// ⚠️ 为什么夹具必须是「真输出」：ANSI 那个坑只有真 cargo 才造得出来
+// ⇒ ⇒ 手抄一份「带颜色的样子」极可能抄错 ⇒ ⇒ 抓真输出最省事。
+// ⚠️ 两份夹具的差别**只有颜色** ⇒ ⇒ 剥掉 ANSI 之后必须逐字相同。
+const FIXTURE_PLAIN = join(ROOT, 'scripts', 'cargo-tree-features.fixture.txt');
+const FIXTURE_COLORED = join(ROOT, 'scripts', 'cargo-tree-features.colored.fixture.txt');
+const fixturePlain = () => readFileSync(FIXTURE_PLAIN, 'utf8');
+const fixtureColored = () => readFileSync(FIXTURE_COLORED, 'utf8');
+
+/** 把 feature 集压成可比对的形状（Map ⇒ 排序后的数组）。 */
+const featureDigest = (pkgFeatures) =>
+  JSON.stringify([...pkgFeatures].map(([k, v]) => [k, [...v].sort()]));
 
 // ── 自检：每条规则都要能被造出来 ─────────────────────────────────────────
 
@@ -1075,6 +1090,98 @@ function selfTest() {
           ? []
           : [{ id: 'MECH', file: lock, why: '锁文件没有被逐字节还原 ⇒ ⇒ 闸自己改了工作树' }];
       },
+    },
+    // ── 解析层（cargo tree 的输出形状） ──────────────────────────────
+    // ⚠️ 这一层曾经**零自检覆盖** ⇒ ⇒ 于是「解析器对 ANSI 是瞎的」没人发现
+    // ⇒ ⇒ 本机全绿、CI 假红 ＋ 假绿。现在每一层都有孪生。
+    {
+      name: '解析层孪生：剥掉 ANSI ⇒ 与无色输出逐字相同（颜色只是外观）',
+      id: 'PARSE',
+      want: 0,
+      run: () =>
+        stripAnsi(fixtureColored()) === fixturePlain()
+          ? []
+          : [{ id: 'PARSE', file: 'cargo tree', why: '剥掉 ANSI 之后与无色输出不逐字相同 ⇒ ⇒ 颜色不只改了外观' }],
+    },
+    {
+      name: '解析层孪生：带 ANSI 的输出 ⇒ 判出与无色输出同一个结论',
+      id: 'PARSE',
+      want: 0,
+      run: () =>
+        featureDigest(parseFeatureTree(fixtureColored()).pkgFeatures) ===
+        featureDigest(parseFeatureTree(fixturePlain()).pkgFeatures)
+          ? []
+          : [{ id: 'PARSE', file: 'cargo tree', why: '带色与无色输出判出了不同的结论 ⇒ ⇒ 解析器对 ANSI 是瞎的' }],
+    },
+    {
+      name: '解析层孪生：无色夹具里 neuron 确实带着 candle（夹具本身没坏）',
+      id: 'PARSE',
+      want: 0,
+      run: () => {
+        const set = parseFeatureTree(fixturePlain()).pkgFeatures.get('neuron');
+        return set && set.has('candle')
+          ? []
+          : [{ id: 'PARSE', file: 'cargo tree', why: '夹具里 neuron 没有 candle ⇒ ⇒ 夹具本身坏了' }];
+      },
+    },
+    {
+      name: '解析层孪生：输出形状变了（一个包都没解析出来）⇒ ⇒ 判不了，不许当成「没有 feature」',
+      id: 'PARSE',
+      want: 0,
+      run: () => {
+        // 树前缀换掉 ⇒ ⇒ 正则匹配不上 ⇒ ⇒ 但 feature 行还在 ⇒ ⇒ 这就是「形状变了」
+        const broken = fixturePlain().replace(/[├└]── /g, '|-- ');
+        const r = judgeFeatureParse({ status: 0, stdout: broken, stderr: '', pkg: 'neuron' });
+        return r.ok === false
+          ? []
+          : [{ id: 'PARSE', file: 'cargo tree', why: '啥也没解析出来却报「判得了且没有 feature」⇒ ⇒ 那会变成假红／假绿' }];
+      },
+    },
+    {
+      name: '解析层孪生：正常输出 ⇒ 判得了，且 neuron 带着 candle',
+      id: 'PARSE',
+      want: 0,
+      run: () => {
+        const r = judgeFeatureParse({ status: 0, stdout: fixturePlain(), stderr: '', pkg: 'neuron' });
+        return r.ok && r.features.includes('candle')
+          ? []
+          : [{ id: 'PARSE', file: 'cargo tree', why: '正常输出却判不出 candle' }];
+      },
+    },
+    {
+      name: '解析层孪生：包不在图里 ⇒ ⇒ notInGraph（不是「没有 feature」）',
+      id: 'PARSE',
+      want: 0,
+      run: () => {
+        const r = judgeFeatureParse({
+          status: 101,
+          stdout: '',
+          stderr: 'error: package ID specification ' + "'neuron'" + ' did not match any packages',
+          pkg: 'neuron',
+        });
+        return r.ok && r.notInGraph
+          ? []
+          : [{ id: 'PARSE', file: 'cargo tree', why: '「不在图里」没被认出来' }];
+      },
+    },
+    {
+      name: 'N9 孪生：解析层判不了 ⇒ ⇒ 不红（未覆盖会打印）',
+      id: 'N9',
+      want: 0,
+      run: () =>
+        evaluate({
+          code: new Map(baseCode),
+          manifests: new Map(baseManifests),
+          featureGraph: [
+            {
+              label: 'encephalon → neuron',
+              ok: false,
+              kind: 'brain-candle',
+              reason: 'cargo tree 成功，但输出里的 feature 行一个都没解析出来',
+            },
+          ],
+          artifacts: [],
+        }),
     },
   ];
 

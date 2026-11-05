@@ -1,0 +1,33 @@
+neuron v0.1.0 (<IBLOC>\neuron)
+[2m└──[0m telencephalon v0.3.0 (<IBLOC>\telencephalon)
+[2m [0m   [2m└──[0m encephalon v0.1.0 (<IBLOC>\encephalon)
+[2m [0m   [2m [0m   [2m[35m├──[0m encephalon feature "candle"
+[2m [0m   [2m [0m   [2m[35m│[0m   [2m[35m├──[0m encephalon feature "default" (command-line)
+[2m [0m   [2m [0m   [2m[35m│[0m   [2m[35m└──[0m encephalon feature "telencephalon"
+[2m [0m   [2m [0m   [2m[35m│[0m   [2m[35m [0m   [2m[35m├──[0m encephalon feature "candle" [33m[2m(*)[39m[22m
+[2m [0m   [2m [0m   [2m[35m│[0m   [2m[35m [0m   [2m[35m├──[0m encephalon feature "default" (command-line)
+[2m [0m   [2m [0m   [2m[35m│[0m   [2m[35m [0m   [2m[35m├──[0m encephalon feature "dm-rules"
+[2m [0m   [2m [0m   [2m[35m│[0m   [2m[35m [0m   [2m[35m│[0m   [2m[35m└──[0m encephalon feature "default" (command-line)
+[2m [0m   [2m [0m   [2m[35m│[0m   [2m[35m [0m   [2m[35m├──[0m encephalon feature "hippocampus"
+[2m [0m   [2m [0m   [2m[35m│[0m   [2m[35m [0m   [2m[35m│[0m   [2m[35m└──[0m encephalon feature "default" (command-line)
+[2m [0m   [2m [0m   [2m[35m│[0m   [2m[35m [0m   [2m[35m└──[0m encephalon feature "telencephalon" [33m[2m(*)[39m[22m
+[2m [0m   [2m [0m   [2m[35m├──[0m encephalon feature "default" (command-line)
+[2m [0m   [2m [0m   [2m[35m├──[0m encephalon feature "dm-rules" [33m[2m(*)[39m[22m
+[2m [0m   [2m [0m   [2m[35m├──[0m encephalon feature "hippocampus" [33m[2m(*)[39m[22m
+[2m [0m   [2m [0m   [2m[35m└──[0m encephalon feature "telencephalon" [33m[2m(*)[39m[22m
+[2m [0m   [2m[35m├──[0m telencephalon feature "candle"
+[2m [0m   [2m[35m│[0m   [2m[35m└──[0m encephalon feature "candle" [33m[2m(*)[39m[22m
+[2m [0m   [2m[35m├──[0m telencephalon feature "dm-rules"
+[2m [0m   [2m[35m│[0m   [2m[35m└──[0m encephalon feature "dm-rules" [33m[2m(*)[39m[22m
+[2m [0m   [2m[35m├──[0m telencephalon feature "flow"
+[2m [0m   [2m[35m│[0m   [2m[35m└──[0m encephalon feature "telencephalon" [33m[2m(*)[39m[22m
+[2m [0m   [2m[35m├──[0m telencephalon feature "hippocampus"
+[2m [0m   [2m[35m│[0m   [2m[35m└──[0m encephalon feature "hippocampus" [33m[2m(*)[39m[22m
+[2m [0m   [2m[35m├──[0m telencephalon feature "libsql"
+[2m [0m   [2m[35m│[0m   [2m[35m└──[0m telencephalon feature "turso"
+[2m [0m   [2m[35m│[0m   [2m[35m [0m   [2m[35m└──[0m encephalon feature "telencephalon" [33m[2m(*)[39m[22m
+[2m [0m   [2m[35m├──[0m telencephalon feature "signing"
+[2m [0m   [2m[35m│[0m   [2m[35m└──[0m telencephalon feature "turso" [33m[2m(*)[39m[22m
+[2m [0m   [2m[35m└──[0m telencephalon feature "turso" [33m[2m(*)[39m[22m
+[2m[35m└──[0m neuron feature "candle"
+[2m[35m [0m   [2m[35m└──[0m telencephalon feature "candle" [33m[2m(*)[39m[22m

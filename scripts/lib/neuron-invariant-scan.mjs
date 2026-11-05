@@ -150,16 +150,36 @@ export function evaluateArtifacts(artifacts, markers = RUNTIME_MARKERS) {
 }
 
 /**
+ * 剥掉 ANSI 转义序列。
+ *
+ * ⚠️ **为什么必须有这一层**（实测 2026-11-05，真 CI 上那条红的根因）：
+ *   cargo 在 CARGO_TERM_COLOR=always 时会给树线**加颜色** ⇒ ⇒ 输出行长这样：
+ *     ESC[2m ESC[0m   ESC[2m ESC[0m   ESC[2mESC[35m├──ESC[0m neuron feature "candle"
+ *   ⇒ ⇒ 「行首是空白 ＋ 树前缀」这个前提**不成立** ⇒ ⇒ 正则一条都匹配不上。
+ *   ⇒ ⇒ 而 CI 的 workflow **全局**设了 CARGO_TERM_COLOR: always
+ *   ⇒ ⇒ 于是本机（无色）解析得对、CI（有色）解析出**空集**。
+ *   ⇒ ⇒ 空集 ⇒ ⇒ N9 判「脑侧 neuron 没有 candle」⇒ ⇒ **假红**（挡路的那个红）；
+ *   ⇒ ⇒ 同时 N7/N11 的解析层**恒不触发** ⇒ ⇒ **假绿**（更隐蔽：没人看见）。
+ *   ⇒ ⇒ 所以「颜色是外观」这句话必须**逐字可证**：剥掉之后与无色输出逐字相同
+ *   ⇒ ⇒ （实测确实相同 ⇒ ⇒ 夹具 scripts/cargo-tree-features[.colored].fixture.txt）。
+ */
+export function stripAnsi(text) {
+  return String(text).replace(/\u001B\[[0-9;?]*[ -/]*[@-~]/g, '');
+}
+
+/**
  * 解析 cargo tree -e features -i pkg 的输出。
  *
  * 返回 { pkgFeatures: Map<包名, Set<feature>> }。
  *
  * ⚠️ 语义：输出里每一行 pkg feature "X" 表示**包 pkg 的 feature X 被打开了**
  * ⇒ ⇒ 于是「neuron 带 candle」= 那个包里 candle 这个 feature 是开的。
+ *
+ * ⚠️ **先剥 ANSI** ⇒ ⇒ 有色输出与无色输出判出同一个结论（见 stripAnsi 的注释）。
  */
 export function parseFeatureTree(text) {
   const pkgFeatures = new Map();
-  const lines = String(text).split(/\r?\n/);
+  const lines = stripAnsi(text).split(/\r?\n/);
   const addFeature = (pkg, feat) => {
     if (!pkgFeatures.has(pkg)) pkgFeatures.set(pkg, new Set());
     pkgFeatures.get(pkg).add(feat);
@@ -176,6 +196,50 @@ export function parseFeatureTree(text) {
     }
   }
   return { pkgFeatures };
+}
+
+/**
+ * 把「一次 cargo tree 的结果」判成「这个包身上开了哪些 feature」。
+ *
+ * ⚠️ **纯函数** ⇒ ⇒ 自检可以喂夹具 ⇒ ⇒ 不必真跑 cargo 就能判这条判据有没有分辨力。
+ *
+ * ⚠️ **三态**（不是两态）：
+ *   · ok ＋ features    ⇒ ⇒ 判得了
+ *   · ok ＋ notInGraph  ⇒ ⇒ 那个包压根不在图里 ⇒ ⇒ 没有这条边
+ *   · ✗                 ⇒ ⇒ **判不了**（未覆盖）⇒ ⇒ 不许当成「没问题」
+ *
+ * ⚠️ **「输出里明明有 feature 行，却一个包都没解析出来」⇒ ⇒ 判不了**
+ *   ⇒ ⇒ 绝不能当成「这个包真的没有 feature」⇒ ⇒ 那会让 N9 假红，
+ *   ⇒ ⇒ 同时让 N7/N11 的解析层恒不触发（假绿）⇒ ⇒ 两头都在骗人。
+ */
+export function judgeFeatureParse({ status, stdout = '', stderr = '', pkg }) {
+  const err = String(stderr || '').trim();
+  if (status === 0) {
+    const { pkgFeatures } = parseFeatureTree(stdout);
+    // ⚠️ 解析器一个包都没解析出来 ⇒ ⇒ 那不是「没有 feature」，是「没解析出来」
+    if (pkgFeatures.size === 0 && /feature "/.test(stripAnsi(stdout))) {
+      return {
+        ok: false,
+        notInGraph: false,
+        features: [],
+        reason: 'cargo tree 成功，但输出里的 feature 行一个都没解析出来（输出形状变了？）',
+        stderr: err,
+      };
+    }
+    const set = pkgFeatures.get(pkg);
+    return { ok: true, notInGraph: false, features: set ? [...set] : [], reason: '', stderr: err };
+  }
+  // 「这个包不在图里」⇒ ⇒ 那就没有这条边 ⇒ ⇒ 谈不上开了什么 feature
+  if (/did not match any packages/.test(err)) {
+    return { ok: true, notInGraph: true, features: [], reason: '', stderr: err };
+  }
+  return {
+    ok: false,
+    notInGraph: false,
+    features: [],
+    reason: 'cargo tree 退出码 ' + status + '：' + err.split('\n')[0],
+    stderr: err,
+  };
 }
 
 /**

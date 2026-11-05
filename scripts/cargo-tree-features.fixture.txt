@@ -1,0 +1,33 @@
+neuron v0.1.0 (<IBLOC>\neuron)
+└── telencephalon v0.3.0 (<IBLOC>\telencephalon)
+    └── encephalon v0.1.0 (<IBLOC>\encephalon)
+        ├── encephalon feature "candle"
+        │   ├── encephalon feature "default" (command-line)
+        │   └── encephalon feature "telencephalon"
+        │       ├── encephalon feature "candle" (*)
+        │       ├── encephalon feature "default" (command-line)
+        │       ├── encephalon feature "dm-rules"
+        │       │   └── encephalon feature "default" (command-line)
+        │       ├── encephalon feature "hippocampus"
+        │       │   └── encephalon feature "default" (command-line)
+        │       └── encephalon feature "telencephalon" (*)
+        ├── encephalon feature "default" (command-line)
+        ├── encephalon feature "dm-rules" (*)
+        ├── encephalon feature "hippocampus" (*)
+        └── encephalon feature "telencephalon" (*)
+    ├── telencephalon feature "candle"
+    │   └── encephalon feature "candle" (*)
+    ├── telencephalon feature "dm-rules"
+    │   └── encephalon feature "dm-rules" (*)
+    ├── telencephalon feature "flow"
+    │   └── encephalon feature "telencephalon" (*)
+    ├── telencephalon feature "hippocampus"
+    │   └── encephalon feature "hippocampus" (*)
+    ├── telencephalon feature "libsql"
+    │   └── telencephalon feature "turso"
+    │       └── encephalon feature "telencephalon" (*)
+    ├── telencephalon feature "signing"
+    │   └── telencephalon feature "turso" (*)
+    └── telencephalon feature "turso" (*)
+└── neuron feature "candle"
+    └── telencephalon feature "candle" (*)
