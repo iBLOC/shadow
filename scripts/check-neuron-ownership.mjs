@@ -679,6 +679,27 @@ const RULES = [
       return findings;
     },
   },
+  {
+    id: 'N12',
+    why: '叶区的 manifest 里不许出现**别的**推理运行时依赖（burn / voxcpm-rs）—— 叶区不推理，连依赖边都不许有',
+    check(ctx) {
+      const findings = [];
+      for (const repo of LEAF_REPOS) {
+        const raw = ctx.manifests.get(repo);
+        if (raw === undefined) continue;
+        for (const line of manifestCode(raw).split('\n')) {
+          // ⚠️ 只认**依赖行**（`burn = { … }`）⇒ ⇒ 注释里提到不算。
+          if (!/^(burn|burn-core|burn-nn|burn-tensor|voxcpm-rs)\s*=\s*\{/.test(line.trim())) continue;
+          findings.push({
+            id: 'N12',
+            file: repo + '/Cargo.toml',
+            why: '叶区不许依赖推理运行时（burn / voxcpm-rs）⇒ ⇒ 「叶区不推理」必须是结构事实 —— 那条链会经 burn-store 把上游缺陷拖进每个宿主（真机实测：burn-store 0.20.1 的 pytorch 模块自相矛盾 ⇒ 桌面端 src-tauri 编不过）',
+          });
+        }
+      }
+      return findings;
+    },
+  },
 ];
 
 export function evaluate(ctx) {
@@ -878,6 +899,46 @@ function selfTest() {
           featureGraph: [{ label: 'prefrontal → neuron', ok: false, reason: 'cargo 跑不起来', kind: 'leaf-no-neuron', features: [] }],
           artifacts: [],
         }),
+    },
+    {
+      name: 'N12 正向：叶区 manifest 里有 burn 依赖行 ⇒ 红',
+      id: 'N12',
+      want: 1,
+      run: () => {
+        const manifests = new Map(baseManifests);
+        manifests.set('prefrontal', '[dependencies]\nburn = { version = "0.20", default-features = false, features = ["ndarray"] }');
+        return evaluate({ code: new Map(baseCode), manifests });
+      },
+    },
+    {
+      name: 'N12 正向：叶区 manifest 里有 voxcpm-rs 依赖行 ⇒ 红',
+      id: 'N12',
+      want: 1,
+      run: () => {
+        const manifests = new Map(baseManifests);
+        manifests.set('prefrontal', '[dependencies]\nvoxcpm-rs = { version = "0.5", default-features = false, features = ["wgpu"] }');
+        return evaluate({ code: new Map(baseCode), manifests });
+      },
+    },
+    {
+      name: 'N12 孪生：叶区 manifest 里只是注释提到 burn ⇒ 不红',
+      id: 'N12',
+      want: 0,
+      run: () => {
+        const manifests = new Map(baseManifests);
+        manifests.set('prefrontal', '# 以前是 burn = { version = "0.20" }\n[dependencies]\nearshot = "1"');
+        return evaluate({ code: new Map(baseCode), manifests });
+      },
+    },
+    {
+      name: 'N12 孪生：大脑仓有 burn 依赖行 ⇒ 不红（只有叶区受约束）',
+      id: 'N12',
+      want: 0,
+      run: () => {
+        const manifests = new Map(baseManifests);
+        manifests.set('telencephalon', '[dependencies]\nburn = { version = "0.20" }');
+        return evaluate({ code: new Map(baseCode), manifests });
+      },
     },
     {
       name: 'N4 孪生：feature 定义行（neuron = []）⇒ 不红',
