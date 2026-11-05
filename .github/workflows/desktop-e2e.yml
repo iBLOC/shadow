@@ -45,6 +45,15 @@ jobs:
       CARGO_PROFILE_DEV_DEBUG: '0'
       CARGO_PROFILE_TEST_DEBUG: '0'
       CARGO_INCREMENTAL: '0'
+      # ⚠️⚠️ **尺子要钉住** —— 与 `ci.yml` 的 `prefrontal-rust` job
+      #    **同一把**（1.99.0）。
+      #    ⇒ ⇒ 为什么两处必须一致：这个 workflow 也编 **Rust**（端脑
+      #    server，`cargo build --bin encephalon-server`）⇒ ⇒ 它也用同一套 path 依赖
+      #    （prefrontal / synapse / hippocampus / neuron）⇒ ⇒ 两个 job 用不同版本编
+      #    同一套依赖，就会出现「**这里编过、那里编不过**」的
+      #    尺子漂移（一个用 1.96、一个用 1.99）。
+      #    ⚡️ 版本号与 `ci.yml` **必须相同** ⇒ ⇒ 两处同步手改。
+      RUST_TOOLCHAIN: '1.99.0'
     steps:
       - name: Checkout shadow
         uses: actions/checkout@v7
@@ -97,6 +106,17 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: ${{ steps.stack.outputs.workspaces }}
+
+      # ⚠️⚠️ 同 `ci.yml`：被钉住的版本**必须显式装**（`RUST_TOOLCHAIN`
+      #    只是指定，runner 预装的 stable 里未必有那个精确版本）
+      #    ⇒ ⇒ 不装就会在编译那一步报 "toolchain '1.99.0' is not
+      #    installed"。⇒ ⇒ 同样把版本**打出来**（尺子漂了必须看得见）。
+      - name: Install pinned Rust toolchain
+        run: |
+          set -eu
+          rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal
+          rustc --version
+          cargo --version
 
       # 两道跨仓闸 —— 放在长编译**之前** ⇒ ⇒ 便宜地先判一次「依赖图还成不成立」。
       - name: External tools wiring check

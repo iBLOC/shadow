@@ -51,6 +51,12 @@ env:
   CARGO_PROFILE_DEV_DEBUG: '0'
   CARGO_PROFILE_RELEASE_DEBUG: '0'
   CARGO_INCREMENTAL: '0'
+  # ⚠️⚠️ **尺子要钉住** —— 与 `ci.yml` / `desktop-e2e.yml` **同一把**（1.99.0）。
+  #    ⇒ ⇒ 为什么这个 workflow 也要钉：它真的**编**桌面端（`pnpm tauri build`，
+  #    三个平台）⇒ ⇒ 它与 CI 判的那套 lint 用的是**同一套 path
+  #    依赖**⇒ ⇒ 不钉就是「这里编过、那里编不过」的尺子漂移。
+  #    ⚡️ 版本号与另两个 workflow **必须相同** ⇒ ⇒ 三处同步手改。
+  RUST_TOOLCHAIN: '1.99.0'
 
 jobs:
   # ---------------------------------------------------------------------
@@ -200,6 +206,20 @@ jobs:
         with:
           workspaces: |
             shadow/shadow-desktop/src-tauri
+
+      # ⚠️⚠️ 同 `ci.yml`：被钉住的版本**必须显式装**。
+      #    ⚡️ **三个平台都要装**（Linux / macOS / Windows）⇒ ⇒ 只装一个平台
+      #    ⇒ ⇒ 另两个平台会在「编了半小时之后」才报
+      #    "toolchain '1.99.0' is not installed"⇒ ⇒ 它们不参与「同一把尺子」。
+      #    ⚡️ `shell: bash` ⇒ ⇒ 三个平台都有 bash（Windows 的 runner 也有）⇒ ⇒ 一段
+      #    脚本跨平台通用。
+      - name: Install pinned Rust toolchain
+        shell: bash
+        run: |
+          set -eu
+          rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal
+          rustc --version
+          cargo --version
 
       # lance-encoding's build script compiles .proto files with prost —
       # it needs protoc, which the runner image does not guarantee.

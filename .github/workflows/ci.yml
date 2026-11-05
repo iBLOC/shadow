@@ -26,6 +26,21 @@ jobs:
       CARGO_PROFILE_DEV_DEBUG: '0'
       CARGO_PROFILE_TEST_DEBUG: '0'
       CARGO_INCREMENTAL: '0'
+      # ⚠️⚠️ **尺子要钉住** —— CI 用的本来是 runner 预装的 stable（**不 pin**）
+      #    ⇒ ⇒ **尺子的刻度会随 Rust 发版漂移**：新版本会把某个 lint 从
+      #    pedantic/allow **提升为 warn-by-default** ⇒ ⇒ 同一份代码昨天绿、
+      #    今天红，而**红的原因不在代码**。
+      #    ⇒ ⇒ 实测（2026-11-05 真 CI run 42009927423）：CI 的 clippy 是
+      #    **1.99.0**（提示链接逐字 `rust-clippy/rust-1.99.0/`）⇒ ⇒ 同一份
+      #    代码本地 1.96 量 `-D warnings` 是 EXIT=0，CI 那把尺子报了 15 条
+      #    `clippy::double_must_use` ＋ 1 条 `useless_borrows_in_formatting`。
+      #    ⇒ ⇒ **钉住 1.99.0**（＝CI 现在这把尺子）⇒ ⇒ 本次 pin **零行为变化**
+      #    （不是升级、不是降级）⇒ ⇒ 只是把「漂移」冻结在今天的刻度上。
+      #    ⇒ ⇒ 代价要说清：**新 lint 不会再自动冒出来** ⇒ ⇒ 想看新 lint 得
+      #    手动抬这个版本号（那是另一个决定，另记）。
+      #    ⇒ ⇒ **不引第三方 action**（如 `dtolnay/rust-toolchain`）⇒ ⇒ 少一个
+      #    供应链面；runner 自带 rustup ⇒ ⇒ 直接用它装。
+      RUST_TOOLCHAIN: '1.99.0'
     steps:
       - name: Checkout shadow
         uses: actions/checkout@v7
@@ -157,6 +172,24 @@ jobs:
             hippocampus
             neuron
             ziti-rust
+
+      # ⚠️⚠️ 2026-11-05：**把尺子钉住，并且让它可见**。
+      #    上面的 `RUST_TOOLCHAIN` 只是**指定**版本 —— runner 预装的 stable
+      #    里**未必**有那个精确版本 ⇒ ⇒ 必须显式装（否则 cargo 会直接报
+      #    "toolchain '1.99.0' is not installed"）。
+      #    ⇒ ⇒ **用 runner 自带的 rustup**，不引第三方 action ⇒ ⇒ 少一个供应链面。
+      #    ⇒ ⇒ `--profile minimal` 只装要用的部分 ⇒ ⇒ 省时间省磁盘（这个 job
+      #    的磁盘本来就被 target/ 撑到过 —— 见上面 Free disk space）。
+      #    ⇒ ⇒ **必须打出来**：cargo 成功时不印版本 ⇒ ⇒ 尺子漂了（日志里只有
+      #    clippy 提示链接里的版本号）没人会发现 ⇒ ⇒ 这里把 rustc/clippy 的
+      #    版本**逐字印进日志** ⇒ ⇒ 下次尺子变了，一眼能看见。
+      - name: Install pinned Rust toolchain
+        run: |
+          set -eu
+          rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal --component clippy
+          rustc --version
+          cargo --version
+          cargo clippy --version
 
       - name: Cargo check
         working-directory: prefrontal
@@ -399,6 +432,20 @@ jobs:
       # 闸自己的自检（6 条用例，含**真实事故夹具** ＋ 孪生用例）。
       - name: E2E credential shape check (self-test)
         run: node scripts/check-e2e-credential-shape.mjs --self-test
+
+      # 「Rust 工具链钉住」门 —— CI 跑 cargo 的 job 是不是**真的**把尺子钉住了。
+      # ⚠️ 为什么要钉：runner 预装的 stable 随 Rust 发版漂移 ⇒ ⇒ **尺子的刻度会变**
+      #    ⇒ ⇒ 同一份代码昨天绿、今天红，而**红的原因不在代码**。
+      #    ⇒ ⇒ 真实读数：CI 的 clippy 是 1.99.0、本地是 1.96.0 ⇒ ⇒ 同一份代码本地零
+      #    lint、CI 报 15 条 `clippy::double_must_use`（那条 lint 在 1.96 上还在 pedantic ⇒ ⇒ **本地量不出来**）。
+      # ⚡️ 这道门还判**假钉**（钉了版本却没装 ⇒ ⇒ runner 上没那个版本 ⇒ ⇒ cargo 直接报
+      #    "toolchain '1.99.0' is not installed"）与**跨 workflow 版本漂移**（三个 workflow 用不同刻度 ⇒ ⇒ 尺子不一致）。
+      - name: Rust toolchain pin check
+        run: node scripts/check-rust-toolchain-pin.mjs
+
+      # 门自己的自检（7 条用例，含「假钉」与「跨 workflow 漂移」两个事故夹具 ＋ 孪生用例）。
+      - name: Rust toolchain pin check (self-test)
+        run: node scripts/check-rust-toolchain-pin.mjs --self-test
 
       # 生成物是从属的：改 design-tokens.json 后必须重跑生成器。
       # 这条单独拎出来，让漂移的报错一眼能定位。
