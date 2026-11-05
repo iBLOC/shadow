@@ -1,8 +1,9 @@
-gradle-wrapper.jar
+# v2.9 — gradle wrapper 三件套**入库**：CI 的 mobile-test 跑
+# `./gradlew :app:testDebugUnitTest`，wrapper 不入库它永远 exit 127
+# （「构建工具本身也是被测链路的一部分」）。.gradle/ 与 local.properties
+# 仍然忽略（那是本机的缓存与机器路径）。
 /.gradle
 /captures/
-/gradlew
-/gradlew.bat
 /local.properties
 GeneratedPluginRegistrant.java
 .cxx/

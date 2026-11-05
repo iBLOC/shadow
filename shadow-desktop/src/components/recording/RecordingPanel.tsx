@@ -22,6 +22,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import type { Conversation, RecordingMode } from '../../types';
+import { notifyIfWindowHidden } from '../../lib/notify';
 
 interface BackendRecordingSession {
   id: string;
@@ -157,12 +158,18 @@ export function RecordingPanel({ session, onSessionChange }: RecordingPanelProps
         sessionId: session.id,
       });
       setReport(r);
+      // v2.9 — 后台通知：窗口可能正藏在托盘（全局热键/蓝牙遥控停的录制），
+      // 报告好了要让用户知道。可见时这里天然是 no-op（不打扰）。
+      void notifyIfWindowHidden(
+        t('recording.notifyDoneTitle'),
+        t('recording.notifyDoneBody'),
+      );
     } catch (e) {
       setError(String(e));
     } finally {
       setBusy(false);
     }
-  }, [live, onSessionChange, session.id]);
+  }, [live, onSessionChange, session.id, t]);
 
   const elapsed = session.recordingWallclockStartMs
     ? Date.now() - session.recordingWallclockStartMs

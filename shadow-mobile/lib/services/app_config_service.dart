@@ -23,6 +23,13 @@ class AppConfigService {
   // isolate）它就归零 ⇒ ⇒ 大脑会自己回来 ⇒ ⇒「用户喊停」就没赢。
   bool _brainStoppedByUser = false;
 
+  // 「后台常驻」（前台服务保活）—— **持久偏好**，默认开。
+  //
+  // 客户端要求「支持后台运行」：端脑与本地引擎都活在 App 进程里，
+  // 默认就该在前台服务的保护下常驻；关掉它的人是明确不要后台的
+  // ⇒ 存 false，其余（键缺失 / 值异常）一律回到默认 true。
+  bool _backgroundKeepAlive = true;
+
   // 外观偏好（个人助理的外观是用户自己的）
   int? _accentColorValue;
   double? _glassIntensity;
@@ -75,6 +82,9 @@ class AppConfigService {
   /// true = 别自动拉起来（等用户点「启动大脑」）；false = 从没喊停过。
   bool get brainStoppedByUser => _brainStoppedByUser;
 
+  /// 后台常驻（前台服务保活）开着吗？默认开。
+  bool get backgroundKeepAlive => _backgroundKeepAlive;
+
   /// 用户选的主题色（ARGB int）— null 表示用默认中性色。
   int? get accentColorValue => _accentColorValue;
 
@@ -105,6 +115,10 @@ class AppConfigService {
         _telencephalonAdminToken = config['telencephalonAdminToken'] as String?;
         _telencephalonShadowKey = config['telencephalonShadowKey'] as String?;
         _brainStoppedByUser = config['brainStoppedByUser'] == true;
+        // ⚠️ 只有**显式 false** 才算关 —— 键缺失 / 值异常（旧文件没这键）
+        // 一律回到默认 true（与字段初始值同源，别让损坏文件悄悄关掉常驻）。
+        final keepAlive = config['backgroundKeepAlive'];
+        _backgroundKeepAlive = keepAlive is bool ? keepAlive : true;
         _accentColorValue = config['accentColor'] as int?;
         _glassIntensity = (config['glassIntensity'] as num?)?.toDouble();
         _surfaceOverrideValue = config['surfaceOverride'] as int?;
@@ -118,6 +132,7 @@ class AppConfigService {
       _telencephalonAdminToken = null;
       _telencephalonShadowKey = null;
       _brainStoppedByUser = false;
+      _backgroundKeepAlive = true;
       _accentColorValue = null;
       _glassIntensity = null;
       _surfaceOverrideValue = null;
@@ -141,6 +156,9 @@ final config = {
       if (_telencephalonShadowKey != null)
         'telencephalonShadowKey': _telencephalonShadowKey,
       if (_brainStoppedByUser) 'brainStoppedByUser': true,
+      // 默认 true 的键只在**关**时落盘（与上面 brainStoppedByUser 同一
+      // 套「只写非默认」的规矩，配置文件里不留默认壳）。
+      if (!_backgroundKeepAlive) 'backgroundKeepAlive': false,
       if (_accentColorValue != null) 'accentColor': _accentColorValue,
       if (_glassIntensity != null) 'glassIntensity': _glassIntensity,
       if (_surfaceOverrideValue != null)
@@ -210,6 +228,12 @@ final config = {
   /// ⇒ 恢复「默认启动」。
   Future<void> setBrainStoppedByUser(bool value) async {
     _brainStoppedByUser = value;
+    await _saveConfig();
+  }
+
+  /// 记下「后台常驻」开关（持久）。关 ⇒ 前台服务停掉、也不再自动拉起。
+  Future<void> setBackgroundKeepAlive(bool value) async {
+    _backgroundKeepAlive = value;
     await _saveConfig();
   }
 

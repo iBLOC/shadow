@@ -144,6 +144,15 @@ chrono = { version = "0.4", features = ["serde"] }
 thiserror = "1"
 tauri-plugin-store = "2.4.4"
 tauri-plugin-updater = "2.10.1"
+# v2.9 — 后台运行补齐：① 开机自启（托盘常驻从「关窗后」延展到「开机即驻」）；
+#        ② 系统通知（窗口藏在托盘时，长任务结果仍有出口）。
+#        ⚠️ **版本是按「tauri 家族钉在 2.11」倒推的**：插件 2.7.0（autostart）/
+#        2.5.0+（notification）要 tauri ^2.12 ⇒ 与本仓 tauri ~2.11 +
+#        tauri-build ~2.6 直接冲突（cargo 解析当场红）。2.5.0 / 2.3.0 要的是
+#        tauri ^2.6 ⇒ 兼容。crate 与 npm 两头对齐
+#        （npm 侧见 package.json 的 @tauri-apps/plugin-autostart / -notification）。
+tauri-plugin-autostart = "2.5.0"
+tauri-plugin-notification = "2.3.0"
 
 # Local git for per-task result versioning (WS-01..WS-05 in
 # shadow/docs/superpowers/scenarios/2026-09-23-external-agent-website-development-scenario.md)

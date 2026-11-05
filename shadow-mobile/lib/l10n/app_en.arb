@@ -1251,6 +1251,18 @@
       }
     }
   },
-  "capabilityGrantSystemPermission": "Grant"
+  "capabilityGrantSystemPermission": "Grant",
+  "backgroundKeepAlive": "Keep running in background",
+  "backgroundKeepAliveHint": "Keeps the on-device brain and engines alive while backgrounded (shows a persistent notification)",
+  "backgroundServiceStatus": "Foreground service",
+  "backgroundServiceOn": "Running",
+  "backgroundServiceOff": "Not running",
+  "backgroundServiceTitle": "Shadow is running",
+  "backgroundServiceText": "Brain and local engines stay alive in the background",
+  "backgroundStop": "Stop",
+  "batteryOptimization": "Battery optimization exemption",
+  "batteryOptimizationExempt": "Exempted — background running is reliable",
+  "batteryOptimizationAsk": "Not exempted yet (needed on aggressive systems like MIUI)",
+  "batteryOptimizationRequest": "Request"
 }
 

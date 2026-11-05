@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'generated/l10n/app_localizations.dart';
 import 'model_manager.dart';
 import 'router/app_router.dart';
@@ -12,6 +13,7 @@ import 'providers/log_provider.dart';
 import 'theme/glass_theme.dart';
 import 'theme/shad_scheme.g.dart';
 import 'services/app_config_service.dart';
+import 'services/background/background_run_provider.dart';
 import 'services/encephalon/encephalon_mobile_provider.dart';
 
 void main() async {
@@ -22,6 +24,17 @@ void main() async {
     await AppConfigService().init();
   } catch (e) {
     debugPrint('[ShadowApp] AppConfigService.init() failed: $e');
+  }
+
+  // 后台常驻的通信端口必须在 runApp 之前接好（插件要求早于服务启动）——
+  // 背景 isolate 的 started / heartbeat / stopped 事件都走它进设置页。
+  // ⚠️ 只在 Android 上接：iOS 侧未开工，别的平台没有这个通道。
+  try {
+    if (Platform.isAndroid) {
+      FlutterForegroundTaskBridge.initCommunicationPort();
+    }
+  } catch (e) {
+    debugPrint('[ShadowApp] background communication port init failed: $e');
   }
 
   try {

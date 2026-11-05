@@ -3877,6 +3877,78 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Grant'**
   String get capabilityGrantSystemPermission;
+
+  /// No description provided for @backgroundKeepAlive.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep running in background'**
+  String get backgroundKeepAlive;
+
+  /// No description provided for @backgroundKeepAliveHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Keeps the on-device brain and engines alive while backgrounded (shows a persistent notification)'**
+  String get backgroundKeepAliveHint;
+
+  /// No description provided for @backgroundServiceStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Foreground service'**
+  String get backgroundServiceStatus;
+
+  /// No description provided for @backgroundServiceOn.
+  ///
+  /// In en, this message translates to:
+  /// **'Running'**
+  String get backgroundServiceOn;
+
+  /// No description provided for @backgroundServiceOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Not running'**
+  String get backgroundServiceOff;
+
+  /// No description provided for @backgroundServiceTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Shadow is running'**
+  String get backgroundServiceTitle;
+
+  /// No description provided for @backgroundServiceText.
+  ///
+  /// In en, this message translates to:
+  /// **'Brain and local engines stay alive in the background'**
+  String get backgroundServiceText;
+
+  /// No description provided for @backgroundStop.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop'**
+  String get backgroundStop;
+
+  /// No description provided for @batteryOptimization.
+  ///
+  /// In en, this message translates to:
+  /// **'Battery optimization exemption'**
+  String get batteryOptimization;
+
+  /// No description provided for @batteryOptimizationExempt.
+  ///
+  /// In en, this message translates to:
+  /// **'Exempted — background running is reliable'**
+  String get batteryOptimizationExempt;
+
+  /// No description provided for @batteryOptimizationAsk.
+  ///
+  /// In en, this message translates to:
+  /// **'Not exempted yet (needed on aggressive systems like MIUI)'**
+  String get batteryOptimizationAsk;
+
+  /// No description provided for @batteryOptimizationRequest.
+  ///
+  /// In en, this message translates to:
+  /// **'Request'**
+  String get batteryOptimizationRequest;
 }
 
 class _AppLocalizationsDelegate

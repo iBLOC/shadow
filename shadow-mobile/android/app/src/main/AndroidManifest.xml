@@ -35,6 +35,18 @@
     <!-- No special permissions needed — Android routes USB Audio IN -->
     <!-- to AudioRecord automatically when USB Audio device is preferred -->
 
+    <!-- v2.9 — 后台常驻（前台服务保活）。
+         客户端要求「支持后台运行」：端脑（libencephalon.so）与 MNN 引擎
+         都活在 App 进程里，一切后台/息屏进程就可能被系统掐掉。
+         前台服务 + 常驻通知是 Android 的标准保活契约。
+         ⚠️ targetSdk 34+ 前台服务必须带类型 ⇒ dataSync（与 manifest 里
+         service 的 foregroundServiceType 对应）。
+         ⚠️ POST_NOTIFICATIONS（Android 13+）运行期经插件 API 逐次申请 ——
+         声明在此只是让合并后的包声明了它；「声明 ≠ 授予」（承上面那条）。 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+
     <application
         android:label="@string/app_name"
         android:name="${applicationName}"
@@ -99,6 +111,14 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <!-- v2.9 — flutter_foreground_task 的前台服务宿主。
+             ⚠️ 不设 stopWithTask ⇒ 用户划掉任务，服务仍在（「常驻」语义）；
+             要停走设置里的开关或常驻通知上的「停止」按钮。 -->
+        <service
+            android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
+            android:foregroundServiceType="dataSync"
+            android:exported="false"/>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

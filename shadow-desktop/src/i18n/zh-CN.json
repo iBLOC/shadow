@@ -780,6 +780,15 @@
       "savedHint": "已保存 —— 重启应用后生效",
       "secretsHint": "凭据不在这里填：影子锁 / admin token 仍走环境变量 ZITI_CLIENT_SHADOW_KEY / ZITI_CLIENT_ADMIN_TOKEN；这份配置不含任何秘密。"
     },
+    "backgroundRun": {
+      "title": "后台常驻",
+      "badgeOn": "自启已开",
+      "badgeOff": "自启未开",
+      "desc": "关窗后 Shadow 已会驻留托盘；打开自启后，登录系统时也会自动拉起。窗口藏在托盘期间，录制结束与连接断开会以系统通知提醒。",
+      "enable": "登录系统时自动启动 Shadow",
+      "webHint": "此能力仅在桌面应用内可用。",
+      "notifyHint": "窗口藏在托盘期间，录制结束、连接断开都会以系统通知提醒你。"
+    },
     "status": "运行状态",
     "wakeWords": "唤醒词",
     "wakeWordsDesc": "长对话模式下使用的唤醒关键词",
@@ -1262,7 +1271,9 @@
     "viewReport": "查看报告",
     "generatingReport": "正在生成总结报告…",
     "audioDescription": "VAD + 说话人区分 + ASR。事件与总结存储于海马体。",
-    "videoDescription": "在音频管线之上叠加 mage-vl 视觉理解。事件与总结存储于海马体。"
+    "videoDescription": "在音频管线之上叠加 mage-vl 视觉理解。事件与总结存储于海马体。",
+    "notifyDoneTitle": "录制已结束",
+    "notifyDoneBody": "总结报告已生成。"
   },
   "providers": {
     "title": "大模型服务提供商",
@@ -1412,5 +1423,9 @@
     "surfaceNotDrawnSilent": "端脑这次没有画界面。",
     "labelTasks": "任务看板",
     "labelAgents": "Agent 列表"
+  },
+  "notifications": {
+    "wsDisconnectedTitle": "连接已断开",
+    "wsDisconnectedBody": "Shadow 在后台运行期间，mTLS 连接断了。"
   }
 }

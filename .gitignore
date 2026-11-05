@@ -29,6 +29,10 @@ Cargo.lock
 *.aab
 .gradle/
 *.jar
+# ⚠️ gradle wrapper 的 jar **要入库**（v2.9 销债）—— CI 的 mobile-test 跑
+#    `./gradlew :app:testDebugUnitTest`，wrapper 不入库它永远 exit 127。
+#    （上面那条 `*.jar` 是防构建产物；例外只开 wrapper 这一个文件。）
+!shadow-mobile/android/gradle/wrapper/gradle-wrapper.jar
 *.class
 *.dex
 *.jks

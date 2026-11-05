@@ -1208,6 +1208,18 @@
       }
     }
   },
-  "capabilityGrantSystemPermission": "去授权"
+  "capabilityGrantSystemPermission": "去授权",
+  "backgroundKeepAlive": "后台常驻",
+  "backgroundKeepAliveHint": "切到后台或息屏时，端脑与本地引擎继续运行（显示常驻通知）",
+  "backgroundServiceStatus": "前台服务",
+  "backgroundServiceOn": "运行中",
+  "backgroundServiceOff": "未运行",
+  "backgroundServiceTitle": "Shadow 正在后台运行",
+  "backgroundServiceText": "端脑与本地引擎保持可用",
+  "backgroundStop": "停止",
+  "batteryOptimization": "电池优化白名单",
+  "batteryOptimizationExempt": "已在白名单 —— 后台运行有保障",
+  "batteryOptimizationAsk": "未加入白名单（MIUI 等系统需要）",
+  "batteryOptimizationRequest": "去申请"
 }
 

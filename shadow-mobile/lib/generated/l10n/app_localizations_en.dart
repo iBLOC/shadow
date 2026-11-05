@@ -2102,4 +2102,44 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get capabilityGrantSystemPermission => 'Grant';
+
+  @override
+  String get backgroundKeepAlive => 'Keep running in background';
+
+  @override
+  String get backgroundKeepAliveHint =>
+      'Keeps the on-device brain and engines alive while backgrounded (shows a persistent notification)';
+
+  @override
+  String get backgroundServiceStatus => 'Foreground service';
+
+  @override
+  String get backgroundServiceOn => 'Running';
+
+  @override
+  String get backgroundServiceOff => 'Not running';
+
+  @override
+  String get backgroundServiceTitle => 'Shadow is running';
+
+  @override
+  String get backgroundServiceText =>
+      'Brain and local engines stay alive in the background';
+
+  @override
+  String get backgroundStop => 'Stop';
+
+  @override
+  String get batteryOptimization => 'Battery optimization exemption';
+
+  @override
+  String get batteryOptimizationExempt =>
+      'Exempted — background running is reliable';
+
+  @override
+  String get batteryOptimizationAsk =>
+      'Not exempted yet (needed on aggressive systems like MIUI)';
+
+  @override
+  String get batteryOptimizationRequest => 'Request';
 }

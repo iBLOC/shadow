@@ -8,6 +8,10 @@ import { ShortcutManager } from './components/ShortcutManager';
 import { installGlobalErrorHandlers } from './lib/errorTriggers';
 import { migrateFromLocalStorage } from './lib/migrateSettings';
 import { migrateLegacyTenant } from './lib/tenantMigration';
+import { isTauri } from './lib/platform';
+import { safeEventListen } from './lib/tauriSafe';
+import { notifyIfWindowHidden } from './lib/notify';
+import { useTranslation } from 'react-i18next';
 import { useThemeStore } from './stores/themeStore';
 import { useIdentityStore } from './stores/identityStore';
 import { TaskBoardPage } from './pages/TaskBoardPage';
@@ -38,6 +42,7 @@ import { PromptSettingsPage } from './pages/PromptSettingsPage';
 import './App.css';
 
 function App() {
+  const { t } = useTranslation();
   useEffect(() => {
     installGlobalErrorHandlers();
     migrateFromLocalStorage();
@@ -67,6 +72,29 @@ function App() {
       void useThemeStore.getState().hydrateFromMemory();
     })();
   }, []);
+
+  // v2.9 — 后台通知：mTLS 连接**断在后台**（窗口藏在托盘）时给用户一个出口。
+  // ⚠️ 现有事件（ws_connected / ws_disconnected，ws_client.rs 发的）此前在
+  // 前端**零监听** ⇒ 断了没人知道；这里只补「藏着的窗口」这一格 ——
+  // 可见时用户正看着界面，弹通知是打扰（notifyIfWindowHidden 里拦）。
+  // web 构建没有这条事件链 ⇒ isTauri() 拦掉。
+  // 独立 effect（不跟启动迁移挤一个）：语言切换重挂这条监听是便宜的，
+  // 重跑迁移不是。
+  useEffect(() => {
+    if (!isTauri()) return;
+    let unlisten: (() => void) | null = null;
+    void safeEventListen<void>('ws_disconnected', () => {
+      void notifyIfWindowHidden(
+        t('notifications.wsDisconnectedTitle'),
+        t('notifications.wsDisconnectedBody'),
+      );
+    }).then((fn) => {
+      unlisten = fn;
+    });
+    return () => {
+      unlisten?.();
+    };
+  }, [t]);
 
   return (
     <BrowserRouter>

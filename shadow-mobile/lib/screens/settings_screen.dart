@@ -14,6 +14,7 @@ import '../widgets/glass_app_bar.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/log_panel_section.dart';
 import '../widgets/settings/appearance_section.dart';
+import '../widgets/settings/background_run_settings_group.dart';
 import '../widgets/settings/capability_grants_section.dart';
 import '../widgets/settings/service_status_block.dart';
 import '../widgets/settings/settings_row.dart';
@@ -197,6 +198,13 @@ class SettingsScreen extends ConsumerWidget {
                         ),
                       ),
                       const ServiceStatusBlock(),
+                      const ShadSeparator.horizontal(
+                        margin: EdgeInsets.symmetric(
+                          horizontal: AppTokens.spaceLg,
+                        ),
+                      ),
+                      // v2.9 — 后台常驻（前台服务保活）。
+                      const BackgroundRunSettingsGroup(),
                       const ShadSeparator.horizontal(
                         margin: EdgeInsets.symmetric(
                           horizontal: AppTokens.spaceLg,

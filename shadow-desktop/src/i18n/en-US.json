@@ -779,6 +779,15 @@
       "savedHint": "Saved — takes effect after app restart",
       "secretsHint": "No credentials here: shadow key / admin token stay in environment variables ZITI_CLIENT_SHADOW_KEY / ZITI_CLIENT_ADMIN_TOKEN; this config contains no secrets."
     },
+    "backgroundRun": {
+      "title": "Background running",
+      "badgeOn": "Autostart on",
+      "badgeOff": "Autostart off",
+      "desc": "Shadow already keeps running in the tray when the window is closed. Turning on autostart also brings it up at login. While hidden in the tray, finished recordings and dropped connections surface as system notifications.",
+      "enable": "Start Shadow automatically at login",
+      "webHint": "Available only in the desktop app.",
+      "notifyHint": "While hidden in the tray, you still get system notifications for finished recordings and dropped connections."
+    },
     "status": "Runtime Status",
     "wakeWords": "Wake Words",
     "wakeWordsDesc": "Wake keywords for long conversation mode",
@@ -1256,7 +1265,9 @@
     "viewReport": "View report",
     "generatingReport": "Generating summary report…",
     "audioDescription": "VAD + speaker diarization + ASR. Events and summary land in Hippocampus.",
-    "videoDescription": "Audio pipeline plus mage-vl visual understanding. Events and summary land in Hippocampus."
+    "videoDescription": "Audio pipeline plus mage-vl visual understanding. Events and summary land in Hippocampus.",
+    "notifyDoneTitle": "Recording finished",
+    "notifyDoneBody": "The summary report is ready."
   },
   "providers": {
     "title": "LLM Providers",
@@ -1406,5 +1417,9 @@
     "surfaceNotDrawnSilent": "The telencephalon did not draw an interface this time.",
     "labelTasks": "task board",
     "labelAgents": "agent list"
+  },
+  "notifications": {
+    "wsDisconnectedTitle": "Connection lost",
+    "wsDisconnectedBody": "The mTLS connection dropped while Shadow runs in the background."
   }
 }

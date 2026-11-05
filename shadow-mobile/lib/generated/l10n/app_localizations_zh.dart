@@ -2049,4 +2049,40 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get capabilityGrantSystemPermission => '去授权';
+
+  @override
+  String get backgroundKeepAlive => '后台常驻';
+
+  @override
+  String get backgroundKeepAliveHint => '切到后台或息屏时，端脑与本地引擎继续运行（显示常驻通知）';
+
+  @override
+  String get backgroundServiceStatus => '前台服务';
+
+  @override
+  String get backgroundServiceOn => '运行中';
+
+  @override
+  String get backgroundServiceOff => '未运行';
+
+  @override
+  String get backgroundServiceTitle => 'Shadow 正在后台运行';
+
+  @override
+  String get backgroundServiceText => '端脑与本地引擎保持可用';
+
+  @override
+  String get backgroundStop => '停止';
+
+  @override
+  String get batteryOptimization => '电池优化白名单';
+
+  @override
+  String get batteryOptimizationExempt => '已在白名单 —— 后台运行有保障';
+
+  @override
+  String get batteryOptimizationAsk => '未加入白名单（MIUI 等系统需要）';
+
+  @override
+  String get batteryOptimizationRequest => '去申请';
 }

@@ -579,6 +579,12 @@ jobs:
         working-directory: shadow-mobile
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
+      # v2.9 — 「后台常驻面」闸：manifest 的 FGS 权限/服务、pubspec 依赖、
+      # Dart 侧 start/stop 接线 —— 三处少一处就是「写着常驻、其实不常驻」，
+      # 且失败模式都静默 ⇒ 文本层判形状（判据见 scripts/lib/mobile-background-service.mjs）。
+      - name: Mobile background-service contract check
+        run: node scripts/check-mobile-background-service.mjs
+
   mobile-test:
     name: Mobile Test
     runs-on: ubuntu-latest

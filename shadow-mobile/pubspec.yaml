@@ -47,6 +47,14 @@ dependencies:
   vad: ^0.0.5
   permission_handler: ^11.3.1
 
+  # v2.9 — 后台常驻（Android 前台服务）。
+  # 客户端要求「支持后台运行」：App 进程里嵌着端脑（libencephalon.so）
+  # 与 MNN 引擎（NSD 广播），一切后台/息屏就被系统按后台进程掐。
+  # 前台服务 + 常驻通知是 Android 的标准保活契约。
+  # ⚠️ 插件要求 Kotlin 2.2.20+ / Gradle 8.11.1+ —— 本仓恰好都是
+  # （android/settings.gradle.kts 的 kotlin 2.2.20 + wrapper 8.14）。
+  flutter_foreground_task: ^11.0.3
+
   flutter_ai_toolkit: ^1.0.0
   crypto: ^3.0.3
   qr_flutter: ^4.1.0

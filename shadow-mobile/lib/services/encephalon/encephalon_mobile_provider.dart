@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 
 import '../app_config_service.dart';
+import '../background/background_run_provider.dart';
 import '../../l10n/current_l10n.dart';
 import '../../providers/brain_model_source_provider.dart';
 import '../../providers/telencephalon_provider.dart';
@@ -252,6 +255,11 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
           );
           _log.info('嵌入式大脑启动成功, 端口: ${state.port}, 端脑面: ${state.agentPort}');
           _pointClientsAtAgentSurface(agentPort);
+          // 后台常驻 —— 大脑起来了，前台服务跟着拉起（开关开着才拉）。
+          // ⚠️ unawaited：保活是增强，失败不许把「启动成功」拖成红。
+          unawaited(
+            _ref.read(backgroundRunProvider.notifier).ensureRunningIfEnabled(),
+          );
           // ⚠️⚠️ **起完必须再下发一次路由** —— 那颗大脑可能是**早就在跑**的
           // ⇒ ⇒ 「启动时读槽位」那条路根本没走 ⇒ ⇒ 它的 neuron 派发表里
           // 没有**现在**选的远端引擎 ⇒ ⇒ 第一条消息必报

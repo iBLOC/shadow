@@ -46,6 +46,8 @@
     "@tanstack/ai": "^0.40.0",
     "@tanstack/ai-client": "^0.20.0",
     "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-autostart": "^2.5.0",
+    "@tauri-apps/plugin-notification": "^2.3.0",
     "@tauri-apps/plugin-opener": "^2",
     "dmn-js": "^17.12.3",
     "@univerjs/core": "0.6.10",

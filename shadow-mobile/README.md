@@ -87,6 +87,17 @@ libencephalon.so（Rust）
 
 `start()` 返回 `{port, agentPort}`（两个值相同——neuron 改成 router-only 后只有**一个**端口）；Dart 侧随即把 `TelencephalonClient` 指向 `http://127.0.0.1:$agentPort`。端脑面没起来时，client **保持**指向外部端脑 `:60080`（指向一个没人监听的端口比指向外部端脑更糟）。宿主显式调 `setZitiClient(...)` 后进入**零信任客户端模式**：本地不起大脑，那个端口上是零信任代理，一切落到远端大脑。
 
+## 后台运行
+
+「客户端需要支持后台运行」（v2.9）：Android **前台服务**（`flutter_foreground_task ^11`）保活 App 进程 —— 端脑（`libencephalon.so`）、MNN 引擎（NSD 广播）、BLE、USB 音频都活在进程里，进程活着它们就都活着。
+
+- 常驻通知「Shadow 正在后台运行」＋ 通知上的「停止」按钮；**划掉任务服务仍在**（`stopWithTask: false`，常驻语义）。
+- 开关在 设置 → 运行时 → **后台常驻**（`AppConfigService.backgroundKeepAlive`，默认开）；端脑启动成功后自动拉起（`backgroundRunProvider.ensureRunningIfEnabled`）。
+- targetSdk 34+ 前台服务必须带类型：manifest 的 `foregroundServiceType="dataSync"` 与 Dart `startService(serviceTypes: [ForegroundServiceTypes.dataSync])` **两处对齐**（`node ../scripts/check-mobile-background-service.mjs` 盯着这三处不许漂）。
+- Android 13+ 通知权限与电池优化白名单在设置里逐项申请（MIUI 等厂商系统不进白名单，前台服务也保不住）。
+- ⚠️ Android 15+ 对 **dataSync** 前台服务有每 24 小时 6 小时的运行预算，超预算系统会停服务（插件的 `allowAutoRestart` 会拉回来）。真要全天候再换 `mediaPlayback` / `connectedDevice` 类型（那两档无预算）。
+- **iOS 上本功能无效** —— `ios/` 未开工（无 `UIBackgroundModes`），插件在 iOS 侧传默认选项、不起前台服务。
+
 ## 已知边界
 
 - **`PrefrontalClient` 说的是旧方言** —— 路径是 `/api/sessions`、`/api/agents`、`/api/skills`、`/api/soul/*`、`/api/mcp/servers`、`/hippocampus/api/*`，与端脑方言**没有交集**。灵魂 / 任务 / 记忆 / 提供商 / 技能 / MCP / agent 列表这些页面仍走它，而嵌入式大脑**不提供**这些概念（记忆按设计走零信任网络上的海马体，不在移动端本地）。把 client 指向嵌入式大脑只会把「连接被拒」换成「404」，更难排查。

@@ -30,6 +30,7 @@ import { IdentityPanel } from '../components/business/IdentityPanel';
 import { UpdateChecker } from '../components/business/UpdateChecker';
 import { VideoSourcesCard } from '../components/business/VideoSourcesCard';
 import { ZitiClientCard } from '../components/settings/ZitiClientCard';
+import { BackgroundRunCard } from '../components/settings/BackgroundRunCard';
 import { SubsystemPanel } from '../components/business/SubsystemPanel/SubsystemPanel';
 import { Button, Badge, EmptyState, Modal } from '../components/ui';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
@@ -466,6 +467,9 @@ function ServiceAndAgentsSection() {
 
       {/* 「切到远端大脑」的开关（零信任客户端模式，重启后生效） */}
       <ZitiClientCard />
+
+      {/* v2.9 — 后台常驻：开机自启开关（托盘常驻是既有行为，这里补齐自启） */}
+      <BackgroundRunCard />
 
       {/* 端脑 supervisor（崩溃自动重启） */}
       <div className="rounded-lg border border-border bg-card p-4">

@@ -370,6 +370,15 @@ pub fn run() {
         .plugin(tauri_plugin_wdio_webdriver::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        // v2.9 — 后台运行补齐：开机自启（macOS 用 LaunchAgent，参数留空 =
+        // 就是启动 App 本体）＋ 系统通知（窗口藏在托盘时给长任务留个出口）。
+        // ⚠️ 通知插件的 default 权限集已进 capabilities/default.json；
+        // 自启只是「登录时拉起」，不改变关窗进托盘的现有语义。
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            Some(vec![]),
+        ))
+        .plugin(tauri_plugin_notification::init())
         .manage(app_state)
         .manage(global_keys_state.clone())
         .setup(move |app| {
