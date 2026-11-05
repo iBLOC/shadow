@@ -187,7 +187,13 @@ wasmtime = { version = "20", default-features = false, features = [
 # can act on apps without an A2A endpoint. Guarded by
 # SHADOW_COMPUTER_USE_ENABLED=1 at startup; no production path flips
 # this on automatically. See src/computer_use.rs for the safety model.
-enigo = { version = "0.6", default-features = false, features = ["serde"] }
+# ⚠️ `x11rb` 必须显式开：`default-features = false` 把 enigo 的默认
+#    后端也关掉了，而 enigo 0.6 在 Linux 上**强制**要求四选一
+#    （wayland / x11rb / xdo / libei_*）⇒ ⇒ 少了它就是
+#    `compile_error!("either feature wayland, x11rb, xdo, libei_tokio
+#    or libei_smol must be enabled …")` ⇒ ⇒ ⚠️ macOS / Windows 不受影响
+#    （它们的平台后端是内建的，x11rb 依赖只在 Linux 门控下才编）。
+enigo = { version = "0.6", default-features = false, features = ["serde", "x11rb"] }
 xcap = "0.9"
 
 # Windows UI Automation — element-based computer-use (find button by
