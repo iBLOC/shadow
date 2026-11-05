@@ -181,11 +181,35 @@ jobs:
 
       # lance-encoding's build script compiles .proto files with prost —
       # it needs protoc, which the runner image does not guarantee.
-      - name: Install protoc (Linux)
-        if: matrix.os == 'ubuntu-latest'
+      # ⚠️⚠️ **三个平台都要装**：只装 Linux ⇒ ⇒ macOS 那格会死在
+      #    "failed to run custom build command for `lance-encoding v14.0.2`
+      #    / Could not find `protoc`" —— 而那是在**编了半小时之后**才炸
+      #    （lance 家族在依赖图里很深 ⇒ ⇒ 炸得晚 ⇒ ⇒ 看起来像「编不过」）。
+      - name: Install protoc
+        shell: bash
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq protobuf-compiler
+          set -e
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq protobuf-compiler
+          elif [ "$RUNNER_OS" = "macOS" ]; then
+            brew install protobuf
+          else
+            choco install protoc -y --no-progress
+          fi
+          protoc --version
+
+      # macOS runner 的空闲磁盘很小（~14 GB）⇒ ⇒ 整栈编译（lance +
+      # datafusion + candle 的 target/ 轻松上 10 GB）⇒ ⇒ 编到一半就
+      # "No space left on device"。模拟器 runtime 对 Tauri 构建毫无用处
+      # ⇒ ⇒ 先拿掉。
+      - name: Free disk space (macOS)
+        if: matrix.os == 'macos-latest'
+        shell: bash
+        run: |
+          sudo rm -rf /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.simruntime || true
+          sudo rm -rf /Applications/Xcode.app/Contents/Developer/Platforms/AppleTVOS.platform/Developer/SDKs/AppleTVOS.simruntime || true
+          df -h /Users/runner
 
       - name: Setup Tauri dependencies (Linux)
         if: matrix.os == 'ubuntu-latest'
