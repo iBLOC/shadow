@@ -476,6 +476,84 @@ export function selfTest() {
     JSON.stringify(rtNoFlagV.map((v) => v.msg))
   );
 
+  // ⚠️⚠️ **R8 围栏不配对** —— 这是「假绿」的来源：围栏没闭合 ⇒ ⇒ 后面
+  //    的条目被整条吞掉 ⇒ ⇒ 计数少了却报「零违规」。
+  const UNCLOSED = [
+'**Updated**: 2026-11-05 (㌁ **「新条目」** —— 本条记测试夹具。)',
+'> 信封：epoch=2026-11-05 | authority=measured | scope=project | source=fixture | status=active | supersedes=none',
+'',
+'```bash',
+'echo 这一行之后的条目都会被吞掉',
+'',
+'**Updated**: 2026-11-06 (㌂ **「被吞掉的条目」** —— 本条记测试夹具。)',
+'',
+  ].join('\n');
+  const unclosedSurface = { id: 'fence', kind: 'md-updated', text: UNCLOSED, cutoff: CUTOFF };
+  const unclosedV = judgeSurface(unclosedSurface, {}).violations;
+  check(
+    'R8 正向：围栏不配对 ⇒ ⇒ 恰好红这一条',
+    unclosedV.length === 1 && unclosedV[0].rule === 'R8',
+    JSON.stringify(unclosedV.map((v) => v.msg))
+  );
+  check(
+    'R8 连带：围栏不配对 ⇒ ⇒ 之后的条目确实被吞掉（条目数变少 ⇒ ⇒ 计数不可信）',
+    analyzeSurface(unclosedSurface).entries.length === 1,
+    JSON.stringify(analyzeSurface(unclosedSurface).entries.map((e) => e.title))
+  );
+  const closedV = judgeSurface(
+    { id: 'fence', kind: 'md-updated', text: UNCLOSED + '```\n', cutoff: CUTOFF },
+    {}
+  ).violations;
+  check(
+    '孪生：围栏配对 ⇒ ⇒ 不红（且被围栏包住的条目不算条目）',
+    closedV.length === 0,
+    JSON.stringify(closedV.map((v) => v.msg))
+  );
+
+  // ⚠️⚠️ **R9 带圈指针** —— 「没有编号体系」的面里，「承+带圈符号」永远解析不到
+  //    ⇒ ⇒ 直接红（不是存量债）⇒ ⇒ 写反面例子要用带圈范围之外的占位符。
+  const nosymText = [
+    '<!-- mem-append-reason: 运行时写的来源记录 -->',
+    '### 某条记忆（2026-11-05）',
+    '正文里「承㋱那条」这种写法在记忆层解析不到。',
+    '',
+  ].join('\n');
+  const nosymSurface = (text) => ({
+    id: 'nosym',
+    kind: 'md-heading',
+    text: text,
+    cutoff: CUTOFF,
+    runtimeProvenance: true,
+    noSymbolSystem: true,
+  });
+  const nosymV = judgeSurface(nosymSurface(nosymText), {}).violations;
+  check(
+    'R9 正向：没有编号体系的面里出现「承+带圈符号」⇒ ⇒ 恰好红这一条',
+    nosymV.length === 1 && nosymV[0].rule === 'R9',
+    JSON.stringify(nosymV.map((v) => v.msg))
+  );
+  const placeholderText = [
+    '<!-- mem-append-reason: 运行时写的来源记录 -->',
+    '### 某条记忆（2026-11-05）',
+    '正文里「承〈某符号〉那条」这种写法在记忆层解析不到。',
+    '',
+  ].join('\n');
+  const placeholderV = judgeSurface(nosymSurface(placeholderText), {}).violations;
+  check(
+    'R9 孪生：占位符（带圈范围之外）⇒ ⇒ 不判红',
+    placeholderV.length === 0,
+    JSON.stringify(placeholderV.map((v) => v.msg))
+  );
+  const notNoSymV = judgeSurface(
+    { id: 'nosym', kind: 'md-heading', text: nosymText, cutoff: CUTOFF, runtimeProvenance: true },
+    {}
+  ).violations;
+  check(
+    'R9 孪生：没声明 noSymbolSystem 的面 ⇒ ⇒ 仍按悬空债判（不是全局放松）',
+    notNoSymV.length === 1 && notNoSymV[0].rule === 'R5',
+    JSON.stringify(notNoSymV.map((v) => v.msg))
+  );
+
   // 真面基线
   const dm = debtMap();
   let realViolations = [];
@@ -495,6 +573,7 @@ export function selfTest() {
           text: r.text,
           cutoff: s.cutoff,
           runtimeProvenance: s.runtimeProvenance,
+          noSymbolSystem: s.noSymbolSystem,
           extraSymbols: dom.union,
           domainSymbols: dom.own,
         },
@@ -561,6 +640,7 @@ function main(argv) {
         //    信封的面（user-memory）会按「必须有信封」判 ⇒ ⇒ 那条规则在该面上
         //    **做不到** ⇒ ⇒ 2026-11-05 实测踩到过一次。
         runtimeProvenance: s.runtimeProvenance,
+        noSymbolSystem: s.noSymbolSystem,
         extraSymbols: dom.union,
         domainSymbols: dom.own,
       },
@@ -577,6 +657,7 @@ function main(argv) {
       debt: dm[s.id] || {},
       details: {
         dangling: res.analysis.details.dangling.slice(0, 20),
+        bandedPointer: res.analysis.details.bandedPointer.slice(0, 20),
         positional: res.analysis.details.positional.slice(0, 20),
         noDate: res.analysis.details.noDate.slice(0, 20),
         noEnvelope: res.analysis.details.noEnvelope.slice(0, 20),

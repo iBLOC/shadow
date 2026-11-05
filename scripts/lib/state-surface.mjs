@@ -60,8 +60,50 @@ const RE_POSITIONAL_REF =
  */
 const RE_QUALIFIER = /父仓|跨仓|主仓|本仓|另一面|对面/;
 
-/** 代码围栏（三反引号）⇒ ⇒ 围栏里的「### 」不是条目。 */
-const RE_FENCE = /^\s*\x60\x60\x60/;
+/**
+ * 代码围栏（三反引号）⇒ ⇒ 围栏里的「### 」不是条目。
+ *
+ * ⚠️⚠️ **判据必须认「整行只有围栏标记」** —— 2026-11-05 实测踩到：记忆层第 2164 行
+ *    是一句**以 ``` 开头的散文**（「``` ⇒ ⇒ 没有结论 ⇒ 判失败」）⇒ ⇒ 旧判据
+ *    （只看「行首有没有 ```」）把它当成**围栏开头** ⇒ ⇒ 后面所有围栏的**奇偶性
+ *    整体错位** ⇒ ⇒ 第 2208/2215 那对本来配对的围栏被算成「没闭合」⇒ ⇒
+ *    **221 行连同它们之间的条目被整段吞掉** ⇒ ⇒ 闸少算条目、少算悬空指针，
+ *    却报「零违规」⇒ ⇒ 典型的**假绿**。
+ *
+ * ⇒ ⇒ 所以：围栏行 = 三个反引号 ＋ 可选的**无空格**信息串（bash / rust / powershell）
+ *    ＋ 可选行尾空白。带空格、带散文 ⇒ ⇒ 一律是正文，不是围栏。
+ */
+const RE_FENCE = /^\s*\x60\x60\x60[ \t]*[A-Za-z0-9_+.-]*[ \t]*$/;
+
+/**
+ * 扫代码围栏的状态。
+ *
+ * ⚠️⚠️ **为什么要单独扫**：围栏**不配对**时 ⇒ ⇒ 后面所有 `### ` 都会被当成围栏内容
+ *    ⇒ ⇒ **条目被静默吞掉** ⇒ ⇒ 计数少了、悬空指针少了 ⇒ ⇒ 闸会报「零违规」
+ *    ⇒ ⇒ 那是**假绿**（2026-11-05 实测踩到：记忆层里一个没闭合的 ``` 把后面
+ *    两条新记忆整条吞掉了 ⇒ ⇒ 闸少算了它们的悬空引用）。
+ *
+ * @param {string[]} lines
+ * @returns {{total:number, unclosed:boolean, openedAt:number|null}}
+ */
+export function scanFenceState(lines) {
+  // ⚠️ **逐行掩码** ⇒ ⇒ 切条目与判据共用**同一份**实现 ⇒ ⇒ 两处不许漂移
+  //    （两个实现漂移过一次：切条目按自己的开关算、判据按另一份算）。
+  const inFenceAt = [];
+  let inFence = false;
+  let openedAt = null;
+  let openedText = null;
+  let total = 0;
+  for (let i = 0; i < lines.length; i++) {
+    inFenceAt.push(inFence);
+    if (!RE_FENCE.test(lines[i])) continue;
+    total++;
+    inFence = !inFence;
+    openedAt = inFence ? i + 1 : null;
+    if (inFence) openedText = String(lines[i]).trim();
+  }
+  return { total: total, unclosed: inFence, openedAt: openedAt, openedText: openedText, inFenceAt: inFenceAt };
+}
 
 /**
  * 账本条目的两种开头形状（**父仓与子仓写法不一样** ⇒ ⇒ 两种都要认）：
@@ -136,13 +178,10 @@ export function titleOf(head) {
 export function splitEntries(text, kind) {
   const lines = String(text || '').split(/\r?\n/);
   const starts = [];
-  let inFence = false;
+  const fenceState = scanFenceState(lines);
   for (let i = 0; i < lines.length; i++) {
-    if (RE_FENCE.test(lines[i])) {
-      inFence = !inFence;
-      continue;
-    }
-    if (inFence) continue;
+    if (RE_FENCE.test(lines[i])) continue;
+    if (fenceState.inFenceAt[i]) continue;
     if (kind === 'md-updated') {
       const m = lines[i].match(RE_UPDATED);
       if (m) starts.push({ line: i, date: m[1], head: lines[i] });
@@ -211,6 +250,7 @@ export function analyzeSurface(surface) {
 
   const counts = {
     'dangling-symbol-ref': 0,
+    'banded-pointer': 0,
     'positional-ref': 0,
     'entry-without-date': 0,
     'no-envelope-new': 0,
@@ -225,6 +265,7 @@ export function analyzeSurface(surface) {
   };
   const details = {
     dangling: [],
+    bandedPointer: [],
     positional: [],
     noDate: [],
     noEnvelope: [],
@@ -290,8 +331,19 @@ export function analyzeSurface(surface) {
     while ((m = RE_INHERIT_REF.exec(e.body)) !== null) {
       const sym = m[1];
       if (!symbols.has(sym)) {
-        counts['dangling-symbol-ref']++;
-        details.dangling.push({ from: e.title, sym });
+        // ⚠️⚠️ **两档分开** —— 在**没有编号体系**的面（记忆层 / 用户偏好面），
+        //    「承+带圈符号」不是「可能指错」，而是**永远解析不到** ⇒ ⇒ 它不是
+        //    「存量债」而是**形状本身不该出现** ⇒ ⇒ 单列一档（R9，直接红）。
+        //    ⇒ ⇒ 顺带堵住一个自指的坑：**写教训时拿真的带圈符号当反面例子**，
+        //    会让记忆层的悬空引用**每写一条教训就多几处**（实测 1 → 4）。
+        if (surface.noSymbolSystem) {
+          counts['banded-pointer']++;
+          details.bandedPointer.push({ from: e.title, sym: sym, date: e.date });
+        } else {
+          counts['dangling-symbol-ref']++;
+          // ⚠️ **带上日期** —— 判据必须分清「存量债」与「新增即错」（cutoff 前后）
+          details.dangling.push({ from: e.title, sym: sym, date: e.date });
+        }
         continue;
       }
       // ⚠️⚠️ **歧义引用** —— 这个标记**自己面有、跨面也有** ⇒ ⇒ 不带限定词
@@ -365,7 +417,23 @@ export function analyzeSurface(surface) {
     }
   }
 
-  return { entries, symbols: Array.from(symbols), ownSymbols: Array.from(own), counts, details };
+  // ⚠️ 围栏状态**必须一起带出来** ⇒ ⇒ 不配对时要在判据里红（否则是假绿）
+  const fenceLines = String(text).split(/\r?\n/);
+  const fences = scanFenceState(fenceLines);
+  // ⚠️ **被吞掉的第一条** —— 报错要能指到「哪一条没被看见」，否则修不了
+  let swallowedFirst = null;
+  if (fences.unclosed && fences.openedAt) {
+    for (let i = fences.openedAt; i < fenceLines.length; i++) {
+      const m = fenceLines[i].match(/^\s*(#{1,6}\s+.+|\*\*Updated:?\*{1,2}:?\s*\d{4}-\d{2}-\d{2}.*)$/);
+      if (m) {
+        swallowedFirst = { line: i + 1, head: m[1].trim().slice(0, 60) };
+        break;
+      }
+    }
+  }
+  fences.swallowedFirst = swallowedFirst;
+  fences.swallowedLines = fences.openedAt ? fenceLines.length - fences.openedAt : 0;
+  return { entries, symbols: Array.from(symbols), ownSymbols: Array.from(own), counts, details, fences };
 }
 
 /**
@@ -378,6 +446,32 @@ export function judgeSurface(surface, debt) {
   const v = [];
   const a = analyzeSurface(surface);
   const id = surface.id;
+
+  // ⚠️⚠️ **R8 围栏不配对** —— 2026-11-05 实测踩到：一个没闭合的代码围栏把后面
+  //    两条新记忆**整条吞掉** ⇒ ⇒ 闸少算了它们的悬空引用 ⇒ ⇒ 却报「零违规」
+  //    ⇒ ⇒ 典型的**假绿** ⇒ ⇒ 现在它必须红。
+  if (a.fences.unclosed) {
+    v.push({
+      rule: 'R8',
+      msg:
+        '状态面 ' +
+        id +
+        '：代码围栏不配对（第 ' +
+        a.fences.openedAt +
+        ' 行「' +
+        (a.fences.openedText || '?') +
+        '」没有闭合，后面还有 ' +
+        a.fences.swallowedLines +
+        ' 行被当成围栏内容 ⇒ ⇒ **所有条目都被吞掉** ⇒ ⇒ 计数不可信（条目少了、悬空指针也少了）⇒ ⇒ 闸红' +
+        (a.fences.swallowedFirst
+          ? ' ⇒ ⇒ 第一条被吞掉的是第 ' +
+            a.fences.swallowedFirst.line +
+            ' 行「' +
+            a.fences.swallowedFirst.head +
+            '」'
+          : ''),
+    });
+  }
 
   for (const t of a.details.noEnvelope) {
     v.push({
@@ -411,6 +505,22 @@ export function judgeSurface(surface, debt) {
         '）⇒ ⇒ 「承' + x.sym + '」解析出**多条** ⇒ ⇒ 引用是歧义的',
     });
   }
+  // ⚠️⚠️ **R9 带圈指针** —— 「没有编号体系」的面里，这个指针形状**永远解析不到**
+  //    ⇒ ⇒ 不许出现 ⇒ ⇒ 写反面例子要用**带圈范围之外**的占位符（例如 承〈某符号〉）。
+  for (const x of a.details.bandedPointer) {
+    v.push({
+      rule: 'R9',
+      msg:
+        '状态面 ' +
+        id +
+        '：条目「' +
+        x.from +
+        '」里出现「承' +
+        x.sym +
+        '」⇒ ⇒ 这个面**没有编号体系** ⇒ ⇒ 这个指针**永远解析不到** ⇒ ⇒ 写反面例子请用**带圈范围之外**的占位符（例如 承〈某符号〉）⇒ ⇒ 闸红',
+    });
+  }
+
   const d = debt || {};
   for (const kind of DEBT_KINDS) {
     const actual = a.counts[kind] || 0;
