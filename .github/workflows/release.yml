@@ -287,7 +287,11 @@ jobs:
           #    后者）⇒ ⇒ ⇒ ⇒ macOS / Windows **不需要**（走 CoreGraphics /
           #    Windows Graphics Capture）⇒ ⇒ ⇒ ⇒ 只有 Linux 这一格要。
           #    `libssl-dev`：app 用了 native-tls ⇒ ⇒ 一起装上省一轮。
-          sudo apt-get install -y libwebkit2gtk-4.1-dev librsvg2-dev patchelf libgtk-3-dev libayatana-appindicator3-dev libpipewire-0.3-dev libspa-0.2-dev libssl-dev
+          # ⚠️⚠️ `libgbm-dev` 也不能少：整条依赖链编完之后，**链接期**要
+          #    `-lgbm`（Graphics Buffer Manager，屏幕捕获/EGL 那条路）
+          #    ⇒ ⇒ 少它就是 rust-lld "unable to find library -lgbm"
+          #    ⇒ ⇒ 而这已经是要出包的最后一步 ⇒ ⇒ 前面 40 分钟全白编。
+          sudo apt-get install -y libwebkit2gtk-4.1-dev librsvg2-dev patchelf libgtk-3-dev libayatana-appindicator3-dev libpipewire-0.3-dev libspa-0.2-dev libssl-dev libgbm-dev
         shell: bash
 
       - name: Setup Tauri dependencies (macOS)
