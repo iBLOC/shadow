@@ -89,11 +89,21 @@ jobs:
             exit 1
           fi
 
+      # ⚠️⚠️ 兄弟仓**钉死 commit**，不跟默认分支 ——
+      #    默认分支是「别人正在改的东西」⇒ ⇒ 它的在飞改动会直接打掉你的
+      #    发布 ⇒ ⇒ 而且同一个 tag 两次发布会得到**不同的二进制**。
+      #    升级钉版是一件**有意的**事：改这一处的 SHA + 跑一次发布。
+      #    （顺带把「发布产物不可复现」那一格也闭上了。）
+      #    钉版清单（2026-11-05）：
+      #      telencephalon ecc5f9e0 · encephalon 9027e3d · diencephalon 7d1f596
+      #      synapse 28979f9 · prefrontal e62af06 · hippocampus ae6b73a
+      #      neuron b6926ac · ziti-rust 2403c57
       - name: Checkout telencephalon
         uses: actions/checkout@v7
         with:
           repository: iBLOC/telencephalon
           path: telencephalon
+          ref: ecc5f9e0276f45ff2170d3334623a61d4193c074
           token: ${{ secrets.IBLOC_TOKEN }}
 
       - name: Checkout encephalon
@@ -101,6 +111,7 @@ jobs:
         with:
           repository: iBLOC/encephalon
           path: encephalon
+          ref: 9027e3dd17cb74643a476e3d31e1eb7b8507b976
           token: ${{ secrets.IBLOC_TOKEN }}
 
       - name: Checkout diencephalon
@@ -108,6 +119,7 @@ jobs:
         with:
           repository: iBLOC/diencephalon
           path: diencephalon
+          ref: 7d1f596ce1495d21562c65236f300880e53a5d4c
           token: ${{ secrets.IBLOC_TOKEN }}
 
       - name: Checkout synapse
@@ -115,6 +127,7 @@ jobs:
         with:
           repository: iBLOC/synapse
           path: synapse
+          ref: 28979f93368bfeb9c71fee05c6aeb03ede393954
           token: ${{ secrets.IBLOC_TOKEN }}
 
       - name: Checkout prefrontal
@@ -122,6 +135,7 @@ jobs:
         with:
           repository: iBLOC/prefrontal
           path: prefrontal
+          ref: e62af06068173a0c6650bab7d0eb803300d332db
           token: ${{ secrets.IBLOC_TOKEN }}
 
       - name: Checkout hippocampus
@@ -129,6 +143,7 @@ jobs:
         with:
           repository: iBLOC/hippocampus
           path: hippocampus
+          ref: ae6b73aa74506ec9c7e07d965df4c45960f58650
           token: ${{ secrets.IBLOC_TOKEN }}
 
       - name: Checkout neuron
@@ -136,6 +151,7 @@ jobs:
         with:
           repository: iBLOC/neuron
           path: neuron
+          ref: b6926acfe2c51ab7d4c85f5021c4eeb7b8a59654
           token: ${{ secrets.IBLOC_TOKEN }}
 
       # ziti-rust holds synapse's `ziti-v2` crate. Cargo reads the manifest
@@ -146,6 +162,7 @@ jobs:
         with:
           repository: iBLOC/ziti-rust
           path: ziti-rust
+          ref: 2403c576d2f154df9354470bb260e7e941f20733
           token: ${{ secrets.IBLOC_TOKEN }}
 
       - name: Setup pnpm
@@ -264,6 +281,16 @@ jobs:
       - name: Install dependencies
         working-directory: shadow/shadow-desktop
         run: pnpm install --frozen-lockfile
+
+      # ⚠️ 锁必须**先**被核一遍，而且要**在编之前**。
+      #    没有这一道，锁过期这件事会在**编了 40 分钟之后**才炸（而且炸在
+      #    某个第三方 crate 的编译错上，看起来像「上游坏了」）⇒ ⇒ 这一道
+      #    把它提前到**几分钟**、并且指向**真正的原因**（锁与清单不一致）。
+      - name: Check the desktop lock is up to date
+        shell: bash
+        run: |
+          cargo metadata --locked --manifest-path shadow/shadow-desktop/src-tauri/Cargo.toml > /dev/null
+          echo "::notice::Desktop lock verified — the build below will use exactly these versions."
 
       - name: Build Tauri
         working-directory: shadow/shadow-desktop

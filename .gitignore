@@ -16,6 +16,13 @@ vite.config.d.ts
 # Rust build outputs
 target/
 Cargo.lock
+# ⚠️ 桌面端的锁**要入库**（其余 Rust 仓的锁照旧忽略）——
+#    桌面端是**发布产物**：没有锁 ⇒ ⇒ CI 每次都重新解析 crates.io ⇒ ⇒
+#    上游一发布新版依赖就会把发布打掉（实测：a2a 家族发了 0.5.x ⇒ ⇒
+#    synapse 的 `a2a::A2AError` 形状变了 ⇒ ⇒ 整条桌面端构建死在
+#    "could not compile `synapse`"）⇒ ⇒ ⇒ 而且同一个 tag 两次发布会得到
+#    **不同的二进制** ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ 钉住 ⇒ ⇒ 发布才可复现。
+!shadow-desktop/src-tauri/Cargo.lock
 
 # Android
 *.apk
