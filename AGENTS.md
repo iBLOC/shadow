@@ -1,5 +1,28 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-05 (㍄ **「Desktop Tests 那两条红里，有一条**不是过期测试** —— 是**真缺陷**：ziti 客户端配置的**读回**断了（producer 回 snake_case，界面读 camelCase）」** —— 承㍀条那笔「Desktop Tests 红在 vitest」的盘点，本条记**取证链**、**根因（两端键名不对称）**、**修法**、**判据与反向验证**、**分级读数**，以及**仍然欠着的**。)
+> 信封：epoch=2026-11-05 | authority=measured | scope=project | source=真机实测（shadow `dfaff31`：真 CI run 42012757207 的「Desktop Tests」步骤结论 ＋ 本地全量 vitest ＋ 反向验证：把归一拿掉）| status=active | supersedes=none
+① **⚠️⚠️ 最要紧的一条：那条红**不是过期测试，是真缺陷** —— 「读到的配置渲染出来（开 ⇒ badgeOn ＋ 回填）」在真 CI 上红 ⇒ ⇒ 看着像「组件坏了」，其实是**接口两端说的不是同一种话**。
+② **⚠️ 根因（一句话）：producer 回 snake_case、界面读 camelCase，而这条不对称只坏在**读**的那一侧** —— Rust 侧 `ZitiClientConfig { identity_path }` 用 serde 的**默认字段名**序列化 ⇒ ⇒ Tauri 命令的**回包**是 snake_case；**实参**方向恰好相反（JS 传 camelCase ⇒ Tauri 自动映射到 Rust 的 snake_case）⇒ ⇒ ⇒ 所以**保存**方向是通的（测试 ② 钉着的那条），**读回**方向直接读 `cfg.identityPath` ⇒ ⇒ 拿到 `undefined` ⇒ ⇒ **用户存过的身份文件路径在设置页回填不出来**。
+③ **⚠️⚠️ 而且不止回填**：**保存**的回包同样没归一 ⇒ ⇒ 存完那一瞬输入框**被清空** ⇒ ⇒ ⇒ 用户看着像「保存没生效」（而保存其实成功了）⇒ ⇒ ⇒ 「读」与「写」两条路都要归一，漏一条就留一个坑。
+④ **✅ 修法** —— 在 `zitiClientConfig.ts` 里**显式**归一（读、写两条路都归一；producer 的 snake_case 与界面自己的 camelCase **都认**）⇒ ⇒ ⚠️ 落盘的 `ziti-client.json` **不动**（仍是 snake_case）⇒ ⇒ 老配置照常读得到 ⇒ ⇒ ⇒ 不为了「让界面好看」去改用户的持久化格式。
+⑤ **✅ 判据（＋3 条 ＋ 夹具与姿势各改一处）** —— ❶ ① 的**夹具**从 camelCase 改成**producer 的真实形状**（snake_case）⇒ ⇒ 「拿手抄的 camelCase 当夹具 ＝ 测『夹具自己』，不是测『真链路』」；❷ ① 的**姿势**从 `rerender` 改成**重新挂载** ⇒ ⇒ 组件是「挂载时读一次配置」，rerender 不会重跑那个 effect ⇒ ⇒ 用 rerender 等「回填」**根本等不到** ⇒ ⇒ ⇒ 这条测试从引入起就红 ⇒ ⇒ **掩盖了那个真缺陷**；❸ ＋三条**库层**判据（读回归一 / 保存回包归一 / camelCase 也认）。
+⑥ **✅ 反向验证（把归一拿掉）** —— **恰好 3 条变红**（① 回填 / ①b 库层读 / ①c 库层写）⇒ ⇒ ①d（camelCase 防御分支）与 ②③④ 仍绿 ⇒ ⇒ **有分辨力、且不误报**；还原后 **SHA256 逐字一致**。
+⑦ **✅ 顺带一条过期测试** —— `ProvidersPageBuiltin` 那条正对照测试的按钮计数 4 → 5：「导出到外部工具」是 `ae76841`（外部工具接线）加进来的 ⇒ ⇒ **测试过期，不是回归** ⇒ ⇒ 计数改对，并把多出来的是哪一个**写进注释**（否则下一个人不知道）。
+⑧ **✅ 分级读数** —— **判据级**：反向验证 3/7 红（其余绿）；**本机级**：全量 vitest **142 个文件 / 1363 passed / 0 failed**（1368 条，5 条 skip；改之前 CI 上是 2 failed / 1365）＋ `tsc --noEmit` EXIT=0；**真机级**：run `42012757207` 的「Desktop Tests」= **success** ✅（vitest 那一步 success）⇒ ⇒ **那个红 job 第一次绿**。
+⑨ **⚠️ 仍然欠着** —— ① **Playwright E2E 那几步至今仍未跑过**（一直被 N9／构建挡在前面）⇒ ⇒ 这一轮它才第一次真跑（读数待取）；② `temporal`/`occipital` 两个 feature 图目标在 CI 上仍**未覆盖**（crates.io 索引更新失败）⇒ ⇒ 判不了，不是没问题；③ **Mobile Test** 仍红（Android 单测，不在本轮范围）；④ 桌面端 Rust 侧**在 CI 上仍不被编译**（见 ㍃ 条 ⑧②）。
+⑩ **⚠️ 圈码**：本条占 **U+3404（㍄）**（插入前数过本地 ＋ 提交前 fetch 了远端：75 条、圈码无重复、最大码位 U+3403 ⇒ ⇒ 下一个空闲 U+3404 ✔）。
+**Updated**: 2026-11-05 (㍃ **「桌面端 Rust 侧在 CI 上零覆盖 —— 因为本仓检在**工作区根**，而桌面端 crate 的 path 依赖要落在**工作区根之外**」** —— 承㍀条那笔「桌面端 Rust 侧 CI 零覆盖 / 检出布局不对」的债，本条记**根因（相对路径的基准）**、**修法**、**本地同形复现**、**真机读数**，以及**仍然欠着的**。)
+> 信封：epoch=2026-11-05 | authority=measured | scope=project | source=真机实测（shadow `e849505`：真 CI run 42012157443 的「Neuron ownership check」逐字日志 ＋ 本地同形模拟：用 junction 造出 CI 布局后跑同一条 cargo tree）| status=active | supersedes=none
+① **⚠️ 根因（一句话）：`shadow-desktop/src-tauri` 是**自己的 workspace 根**（`[workspace] members = ["."]`），它的 path 依赖是 `../../../{encephalon,synapse,neuron}`** ⇒ ⇒ 而 CI 把本仓检在**工作区根** ⇒ ⇒ `../../../` 落到**工作区之外** ⇒ ⇒ `cargo tree` 报「failed to load manifest for workspace member `.../shadow-desktop/src-tauri/.`」⇒ ⇒ 那两个 feature 图目标恒为「未覆盖」。
+② **⚠️ 后果：桌面端那条链的解析层**在 CI 上从来没判过** —— N7（脑侧不许有 local-models）与 N9（脑内嵌 neuron 必须带 candle）的**链顶**那一格，在 CI 上是空的 ⇒ ⇒ 「链顶带 candle」这条判据在真机上从来没被问过。
+③ **✅ 修法一处** —— 本仓检到 `<workspace>/shadow` ⇒ ⇒ `../../../` 正好落在工作区根（兄弟仓在的地方）⇒ ⇒ 桌面端 Rust 侧的 path 依赖落地。
+④ **⚠️⚠️ 路径基准有**两种**，不是都跟 working-directory 走** —— ❶ `working-directory: shadow/shadow-desktop`（3 处）；❷ **相对 `GITHUB_WORKSPACE` 的**：`cache-dependency-path`（setup-node 的 pnpm 缓存键 —— 路径不对它**直接报 No file matched**）＋ upload-artifact 的两处 `path` ⇒ ⇒ **一处漏了就红** ⇒ ⇒ ⇒ 这次三处一起改（改完把 job 块里所有 `shadow-desktop` 引用**一次查全**）。
+⑤ **✅ 本地同形复现（junction 造 CI 布局）** —— 造 `<workspace>/{shadow,<兄弟仓>}`（兄弟仓用 junction、shadow 是真拷）⇒ ⇒ 同一条 `cargo tree -e features -i neuron` 在**旧布局**与**新布局**下各跑一遍 ⇒ ⇒ **旧布局 ✅（`neuron feature "candle"`）／新布局 ✅（同样有 candle）** ⇒ ⇒ 布局修法成立；⚠️ 头一次模拟**红**了 ⇒ ⇒ 根因是**我的副本不忠实**（漏了 `vendor/` 那个 path 依赖、又漏了 `ziti-rust` —— `synapse` 的 path 依赖指着 `../ziti-rust/crates/ziti-v2`）⇒ ⇒ ⇒ 「副本不忠实会伪装成布局错」这条教训**又应验了一次** ⇒ ⇒ ⇒ 补齐后同一处就绿了 ⇒ ⇒ ⇒ **顺带钉住一条：那个 job 的检出清单必须含 `ziti-rust`**（CI 里已有 ✔）。
+⑥ **✅ 真机读数** —— run `42012157443` 的 desktop-e2e job：**「External tools wiring check」success ✅、「Neuron ownership check」success ✅**（⇒ ⇒ 检出移到子目录后**没有把任何一步弄红**）⇒ ⇒ 那道闸的覆盖面：**feature 图 5/9 → 7/9** ⇒ ⇒ `shadow-desktop → hippocampus-server ⇒ default`、`shadow-desktop → neuron ⇒ candle` **两个目标从「未覆盖」变成「可判」** ⇒ ⇒ 且结论与本机一致 ⇒ ⇒ ⇒ **桌面端那条链的解析层在 CI 上第一次真的判过了** ⇒ ⇒ 阻断 0 项。
+⑦ **✅ 本地闸** —— YAML 闸零违规（3 workflow）＋ 自检 27/27；external-tools 闸零违规；治理闸零违规（36 闸 / 存量债 37）。
+⑧ **⚠️ 仍然欠着** —— ① `temporal → neuron` / `occipital → neuron` 在 CI 上仍**未覆盖**（cargo tree 退出码 101：Updating crates.io index ⇒ ⇒ 冷缓存下索引更新失败）⇒ ⇒ **判不了，不是没问题**；② **桌面端 Rust 侧在 CI 上仍然只被「解析」不被「编译」** —— 真要编它得补 webkit2gtk 等系统依赖（还没做）；③ **Prefrontal Rust 的 clippy 那一格**在真机上是红的（CI 的 clippy 比本地新 ⇒ ⇒ 「尺子会变」）⇒ ⇒ 已与并行会话达成「**先修新 lint、再 pin 工具链**」的顺序共识（反过来的话会把证据埋掉）。
+⑨ **⚠️ 圈码**：本条占 **U+3403（㍃）**（插入前数过本地 ＋ 提交前 fetch 了远端：75 条、圈码无重复、最大码位 U+3402 ⇒ ⇒ 下一个空闲 U+3403 ✔）。
 **Updated**: 2026-11-05 (㍂ **「真 CI 上 Desktop E2E 红在 N9 —— 根因不是『脑侧 neuron 没有 candle』，是**解析器对 ANSI 是瞎的**；而同一根因还让 N7/N11 的解析层变成**假绿**」** —— 承㍀条那笔「Desktop E2E 红在 N9 ⇒ ⇒ 图不完整 ⇒ ⇒ 疑似假红」的盘点，本条记**根因（三个字：ANSI）**、**取证链**、**修法三刀**、**判据与反向验证**、**分级读数**，以及**仍然欠着的**。)
 > 信封：epoch=2026-11-05 | authority=measured | scope=project | source=真机实测（shadow `80aa552`：真 CI run 42011342885 的「Neuron ownership check」步骤结论 ＋ 本地同形复现（平级副本退化成 CI 的形状）＋ A/B 三档读数 ＋ 提交进 index 的字节核对）| status=active | supersedes=none
 ① **⚠️⚠️ 最要紧的一条：那盏红不是「脑侧 neuron 真的没有 candle」，是**解析器对 ANSI 是瞎的** —— CI 日志里 `· encephalon → neuron ⇒ （无 feature）`，本机同一条是 `⇒ candle` ⇒ ⇒ 差别**不在依赖图，在颜色**。
