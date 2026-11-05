@@ -199,6 +199,49 @@ export function parseFeatureTree(text) {
 }
 
 /**
+ * 从 cargo 的 stderr 里挑出**真正的错误行**。
+ *
+ * ⚠️ **为什么不能直接取第一行**（实测 2026-11-05，真 CI 上那两条「未覆盖」）：
+ *   cargo 的 stderr 前几行是**进度输出**，不是错误：
+ *     "        Updating crates.io index"
+ *     "     Downloading crates ..."
+ *   ⇒ ⇒ 旧写法 err.split('\n')[0] ⇒ ⇒ 报告里印的是「Updating crates.io index」
+ *   ⇒ ⇒ **没有一句能让人行动的话** ⇒ ⇒ 「判不了」必须说得清为什么判不了。
+ *   ⇒ ⇒ 真正的错误行以 error: / error[code]: 开头（且**带 ANSI 颜色**）⇒ ⇒ 先剥色再找。
+ */
+export function pickCargoError(stderr) {
+  const lines = stripAnsi(stderr || '')
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const errLine = lines.find((l) => /^error(\[[^\]]+\])?:/.test(l)) || lines.find((l) => /^failed\b/i.test(l));
+  return errLine || lines[0] || '（cargo 没有留下可读的错误输出）';
+}
+
+/**
+ * cargo 的 stderr 是不是在说「**锁文件挡住了我**」？
+ *
+ * ⚠️ **三种措辞都要认**（实测 2026-11-05，真 CI 上 temporal / occipital 那两条「未覆盖」）：
+ *   ① "cannot update the lock file … because --locked was passed"（锁过期）
+ *   ② "the lock file … needs to be updated but --locked was passed"    （锁过期）
+ *   ③ "cannot create the lock file … because --locked was passed"（**锁压根不存在**）
+ *
+ * ⚠️ **旧代码只认 ①②** ⇒ ⇒ ③（**没有锁**）落到「判不了」⇒ ⇒ 闸设计好的
+ * 「临时放行锁」兜底**从来没触发过**⇒ ⇒ 真 CI 上覆盖面从 11/9 掉到 7/9。
+ *
+ * ⚠️ 真 root cause 在**仓那侧**：temporal / occipital 是 10 个仓里唯二
+ * **不把 Cargo.lock 入库**的 ⇒ ⇒ CI 的干净检出里没有锁 ⇒ ⇒ --locked 必然失败。
+ */
+export function isStaleLockError(stderr) {
+  const text = stripAnsi(stderr || '');
+  return (
+    /cannot (?:update|create) the lock file/.test(text) ||
+    /lock file[^\n]*needs to be updated/.test(text) ||
+    /needs to be updated but --locked was passed/.test(text)
+  );
+}
+
+/**
  * 把「一次 cargo tree 的结果」判成「这个包身上开了哪些 feature」。
  *
  * ⚠️ **纯函数** ⇒ ⇒ 自检可以喂夹具 ⇒ ⇒ 不必真跑 cargo 就能判这条判据有没有分辨力。
@@ -237,7 +280,8 @@ export function judgeFeatureParse({ status, stdout = '', stderr = '', pkg }) {
     ok: false,
     notInGraph: false,
     features: [],
-    reason: 'cargo tree 退出码 ' + status + '：' + err.split('\n')[0],
+    // ⚠️ 原因取**真正的错误行** ⇒ ⇒ 「判不了」要说清为什么判不了
+    reason: 'cargo tree 退出码 ' + status + '：' + pickCargoError(err),
     stderr: err,
   };
 }

@@ -109,6 +109,8 @@ export const NO_READING_IN_WIRED = {
     '「自检：N/N」）' +
     '⇒ ⇒ ⚠️ cortex-residue / cortex-residue-all 已于 2026-11-05 补上读数' +
     '（实测两个闸的自检都印「自检：5/5 条全绿」）⇒ ⇒ 已从本清单销账' +
+    '⇒ ⇒ ⚠️ neuron-ownership 已于 2026-11-05 补上读数' +
+    '（自检末尾印「自检：N/N 条全绿」）⇒ ⇒ 已从本清单销账' +
     '⇒ ⇒ ⚠️ ps1-portability 已于 2026-11-05 补上读数' +
     '（自检末尾印「自检：4/4」）⇒ ⇒ 已从本清单销账',
   gates: [
@@ -117,7 +119,6 @@ export const NO_READING_IN_WIRED = {
     'brain-chain',
     'jni-surface',
     'mobile-a11y-contract',
-    'neuron-ownership',
   ],
 };
 

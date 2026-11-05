@@ -68,6 +68,7 @@ import {
   RUNTIME_MARKERS,
   classifyArtifactRole,
   evaluateArtifacts,
+  isStaleLockError,
   judgeFeatureParse,
   listFiles,
   parseFeatureTree,
@@ -363,11 +364,14 @@ function cargoTreeFeatures(manifestPath, pkg) {
     const parsed = interpret(run(attempt.args, attempt.timeout));
     if (parsed.ok) return parsed;
     lastReason = parsed.reason;
-    staleLock = /cannot update the lock file|lock file needs to be updated/.test(parsed.stderr || '');
+    // ⚠️ **任何一次**尝试被锁挡住 ⇒ ⇒ 都要走兜底 ⇒ ⇒ 不能被后一次尝试覆盖掉
+    //    （真 CI 上就是这里：旧正则只认「cannot update」⇒ ⇒ 「cannot create」
+    //      —— 也就是**压根没有锁**的那两个仓 —— 永远等不到兜底 ⇒ ⇒ 覆盖面 7/9）
+    staleLock = staleLock || isStaleLockError(parsed.stderr || '');
   }
   if (!staleLock) return { ok: false, reason: lastReason };
 
-  // 锁过期 ⇒ ⇒ 临时允许 cargo 最小更新锁 ⇒ ⇒ 跑完立刻逐字节还原
+  // 锁过期 / 压根没有锁 ⇒ ⇒ 临时允许 cargo 更新锁 ⇒ ⇒ 跑完立刻逐字节还原
   return withRestoredLock(manifestPath, () => {
     for (const attempt of [
       { args: ['--offline', ...tree], timeout: 120000 },
@@ -377,7 +381,7 @@ function cargoTreeFeatures(manifestPath, pkg) {
       if (parsed.ok) return parsed;
       lastReason = parsed.reason;
     }
-    return { ok: false, reason: lastReason };
+    return { ok: false, reason: '放行锁之后仍然失败：' + lastReason };
   });
 }
 
@@ -693,6 +697,15 @@ const FIXTURE_PLAIN = join(ROOT, 'scripts', 'cargo-tree-features.fixture.txt');
 const FIXTURE_COLORED = join(ROOT, 'scripts', 'cargo-tree-features.colored.fixture.txt');
 const fixturePlain = () => readFileSync(FIXTURE_PLAIN, 'utf8');
 const fixtureColored = () => readFileSync(FIXTURE_COLORED, 'utf8');
+
+// ⚠️ **两份 cargo 的错误输出**（同样是**真输出**，不是手抄）：
+//   · 无锁夹具 —— 真 CI 上 temporal / occipital 那两条「未覆盖」的真实 stderr
+//     （形状：进度行「Updating crates.io index」在**前**，真正的 error 行在**后**）
+//   · 冷缓存夹具 —— 干净 CI runner 上第一次尝试（--offline --locked）的真实 stderr
+const FIXTURE_LOCKLESS = join(ROOT, 'scripts', 'cargo-tree-lockless.fixture.txt');
+const FIXTURE_OFFLINE_COLD = join(ROOT, 'scripts', 'cargo-tree-offline-cold.fixture.txt');
+const fixtureLockless = () => readFileSync(FIXTURE_LOCKLESS, 'utf8');
+const fixtureOfflineCold = () => readFileSync(FIXTURE_OFFLINE_COLD, 'utf8');
 
 /** 把 feature 集压成可比对的形状（Map ⇒ 排序后的数组）。 */
 const featureDigest = (pkgFeatures) =>
@@ -1165,6 +1178,76 @@ function selfTest() {
       },
     },
     {
+      name: '解析层孪生：cargo 的 stderr 带进度行 ⇒ ⇒ 原因取真正的 error 行',
+      id: 'PARSE',
+      want: 0,
+      run: () => {
+        // ⚠️ 真 CI 上那两条「未覆盖」印的就是进度行（「Updating crates.io index」）
+        // ⇒ ⇒ 报告里没有一句能让人行动的话 ⇒ ⇒ 「判不了」必须说得清为什么判不了。
+        // ⚠️ 夹具 = **真 cargo 的 stderr**（生产者自己，不是手抄）⇒ ⇒ 手抄极可能
+        //    把反引号抄成方括号 ⇒ ⇒ 那就变成「测夹具自己」而不是「测真链路」。
+        const r = judgeFeatureParse({ status: 101, stdout: '', stderr: fixtureOfflineCold(), pkg: 'neuron' });
+        return r.reason.includes('no matching package named')
+          ? []
+          : [{ id: 'PARSE', file: 'cargo tree', why: '「判不了」的原因不是真正的错误行 ⇒ ⇒ 报告里没一句能行动的话' }];
+      },
+    },
+    {
+      name: '解析层孪生：带 ANSI 的 error 行 ⇒ ⇒ 剥掉颜色再取',
+      id: 'PARSE',
+      want: 0,
+      run: () => {
+        const stderr =
+          '\u001b[1m\u001b[91merror\u001b[0m: failed to load manifest for workspace member [x/.]\n';
+        const r = judgeFeatureParse({ status: 101, stdout: '', stderr, pkg: 'neuron' });
+        return r.reason.includes('failed to load manifest') && !r.reason.includes('\u001b')
+          ? []
+          : [{ id: 'PARSE', file: 'cargo tree', why: '带 ANSI 的错误行没被剥色 ⇒ ⇒ 报告里塞满了转义符' }];
+      },
+    },
+    {
+      name: '解析层孪生：进度行在前、error 行在后 ⇒ ⇒ 原因取真正的 error 行',
+      id: 'PARSE',
+      want: 0,
+      run: () => {
+        // ⚠️ 这就是真 CI 上那两条「未覆盖」的形状：stderr 第一行是进度行
+        //    （「Updating crates.io index」）⇒ ⇒ 旧写法取第一行 ⇒ ⇒ 报告里
+        //    只有一句「Updating crates.io index」⇒ ⇒ 没有一句能让人行动的话。
+        const r = judgeFeatureParse({ status: 101, stdout: '', stderr: fixtureLockless(), pkg: 'neuron' });
+        return r.reason.includes('cannot create the lock file') && !r.reason.includes('Updating crates.io index')
+          ? []
+          : [{ id: 'PARSE', file: 'cargo tree', why: '「判不了」的原因不是真正的错误行 ⇒ ⇒ 报告里没一句能行动的话' }];
+      },
+    },
+    {
+      name: '解析层孪生：压根没有锁（cannot create the lock file）⇒ ⇒ 兜底会被触发',
+      id: 'PARSE',
+      want: 0,
+      run: () =>
+        isStaleLockError(fixtureLockless())
+          ? []
+          : [{ id: 'PARSE', file: 'cargo tree', why: '认不出「没有锁 + --locked」⇒ ⇒ 兜底不触发 ⇒ ⇒ 那个仓压根判不了' }],
+    },
+    {
+      name: '解析层孪生：锁过期（cannot update the lock file）⇒ ⇒ 兜底也会被触发',
+      id: 'PARSE',
+      want: 0,
+      run: () =>
+        isStaleLockError('error: cannot update the lock file /x/Cargo.lock because --locked was passed to prevent this')
+          ? []
+          : [{ id: 'PARSE', file: 'cargo tree', why: '认不出「锁过期」⇒ ⇒ 兜底不触发' }],
+    },
+    {
+      name: '解析层孪生：不是锁的问题（缓存冷）⇒ ⇒ 不许触发兜底',
+      id: 'PARSE',
+      want: 0,
+      run: () =>
+        // ⚠️ 这里断言的是**否定命题** ⇒ ⇒ 极性要反过来：判成「锁挡住了」才算红
+        isStaleLockError(fixtureOfflineCold())
+          ? [{ id: 'PARSE', file: 'cargo tree', why: '把「缓存冷」误当成「锁挡住」⇒ ⇒ 会白跑一轮兜底' }]
+          : [],
+    },
+    {
       name: 'N9 孪生：解析层判不了 ⇒ ⇒ 不红（未覆盖会打印）',
       id: 'N9',
       want: 0,
@@ -1200,10 +1283,11 @@ function selfTest() {
   }
   console.log('─'.repeat(72));
   if (fails === 0) {
-    console.log(`✓ 自检全绿（${cases.length} 条）`);
+    // ⚠️ 必须印**可数读数**（N/N）⇒ ⇒ 否则治理闸判「读数不可比」（D3 那条债）
+    console.log(`✓ 自检：${cases.length}/${cases.length} 条全绿`);
     process.exit(0);
   }
-  console.error(`✗ 自检 ${fails} / ${cases.length} 条红`);
+  console.error(`✗ 自检：${fails}/${cases.length} 条红`);
   process.exit(1);
 }
 
