@@ -1,5 +1,16 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-05 (㎐ **「两笔拍板 ＋ 一批残留的审稿结论」** —— 用户拍板「叶区的本地推理不加回来」＋「残留先逐个审」，本条记**两笔决定**、**synapse 那批的结论**、**encephalon 那批的结论（反向验证）**、**补上的承载级证据**、**分级读数**，以及**仍然欠着的**。)
+> 信封：epoch=2026-11-05 | authority=user | scope=project | source=用户拍板（2026-11-05 两问两答）＋ 真机实测（synapse 编译级/承载级 ＋ encephalon 编译级 ＋ 零信任面闸红→绿 ＋ JNI 宿主测试） | status=active | supersedes=none
+① **✅ 用户拍板一：前额叶的本地推理能力「不加回来」** ⇒ ⇒ 叶区只吃大脑那张面 ⇒ ⇒ 而这条**已经由闸守着**（N1：任何叶区在自己体内实例化运行时 ⇒ ⇒ 红）⇒ ⇒ 所以「不加回来」不是一句承诺，是**一条会红的判据** ⇒ ⇒ 那笔「待拍板」销账。
+② **✅ 用户拍板二：synapse / encephalon 的未提交残留 ⇒ ⇒ 先逐个审**（不是盲提，也不是不动）⇒ ⇒ 审完的结论分两仓，见下面③④。
+③ **✅ synapse 那批是完整的** —— 5 个文件：外部工具的模型配置（把 opencode / Claude Code / Codex 各自的「哪个供应商 ＋ 哪把 key」读成**同一种**形状，也能写回）⇒ ⇒ `cargo check --features ziti --all-targets` EXIT=0 ＋ `cargo test --lib` **361 passed / 0 failed**（含本模块自己的 5 条：形状一致、写回只碰那一个键、材料不进调试输出、oauth 条目跳过）⇒ ⇒ 顺带修掉它带来的一处 clippy 警告（可折叠的 if → let 链）与它整片新文件的 fmt 差异 ⇒ ⇒ 已提交并推送。
+④ **✅ encephalon 那批也是完整的，而且 shadow 仓里已提交的闸在等它** —— 8 个文件：v2 传输层收尾 ＋ **场景三**「手机发布自己的大脑」＋ **场景四**「远端海马体」的 JNI 入口 ⇒ ⇒ **反向验证**：把 encephalon 退回 HEAD ⇒ ⇒ shadow 的 `check-ziti-face.mjs` **红 1 条**（R10：移动端没有显式的海马体地址入口 ⇒ ⇒ 场景四做不到）⇒ ⇒ 装回去 ⇒ ⇒ 绿 ⇒ ⇒ ⇒ ⇒ 即「已提交的闸**要求**这批残留」⇒ ⇒ 它不是半成品，是**欠账**。
+⑤ **✅ 补上承载级证据（原先只有编译级）** —— 那两个新 JNI 入口（`nativeSetHippocampusBaseUrl` / `nativeSetZitiServer`）**原本没有任何测试调用**⇒ ⇒ 加进 JNI 宿主测试（`JniHostTest.java`）：设了要**立刻清掉**（不许把覆盖留给后面的断言）＋ 符号不存在时**显式判红**（而不是让 UnsatisfiedLinkError 把后面的断言全带走）。
+⑥ **✅ 顺带补的一条 CI 覆盖** —— encephalon 的 CI **不编 mobile feature** ⇒ ⇒ `src/mobile/`（含那两个新 native 方法）**在 CI 上谁都不编** ⇒ ⇒ 它们会烂掉也没人知道 ⇒ ⇒ 已加一步 `cargo build --no-default-features --features mobile --lib`（与 JNI 宿主测试脚本同一姿势）⇒ ⇒ YAML 闸对 encephalon 零违规。
+⑦ **✅ 分级读数** —— **编译级**：synapse `cargo check --features ziti --all-targets` EXIT=0；encephalon 同款 EXIT=0（6m11s）；**承载级**：synapse `cargo test --lib` 361/361；JNI 宿主测试 **48/48 全绿**（含我新加的 3 条：远端海马体地址 ×2 ＋ 发布自己的大脑；顺带修掉一条**过期断言**——neuron 面与端脑面 2026-11-03 起已并成一张面，那条断言从那天起就一直红，本地脚本不在 CI ⇒ ⇒ 没人看见）；**真机级**：shadow 的 `check-ziti-face.mjs` 零违规 ＋ **反向验证红→绿**（退回 HEAD ⇒ R10 红 ⇒ 装回 ⇒ 绿）；**格式级**：我新增的部分 **rustfmt 零差异**（那三个文件在 HEAD 就脏 ⇒ ⇒ 既有债没动）。
+⑧ **⚠️ 仍然欠着** —— ① **CI 仍红**（账号计费/额度，八个 job 全 refused）⇒ ⇒ 这些新接的 step 仍没在 CI 上真跑过；② **synapse 有一处既有 clippy error**：`src/thought/scheduler.rs:59` 的 `never_loop`（那个 for 每轮都 return ⇒ ⇒ 从不循环，且缩进是乱的、像一次坏补丁）⇒ ⇒ 它让整仓 `cargo clippy` 直接 error ⇒ ⇒ 但 CI 没有 clippy 步骤 ⇒ ⇒ 这次没动它 ⇒ ⇒ **它是真缺陷，要单独修**（语义待定）；③ 桌面端新二进制已在磁盘上，用户进程仍跑旧 exe ⇒ ⇒ 重启后才是新版本；④ 手机本地推理仍未验；⑤ **P1b 真钥匙环**仍不存在；⑥ CI 里 neuron checkout 未钉 sha ⇒ ⇒ 待拍板。
+
 **Updated**: 2026-11-05 (㎏ **「闸也必须守纪律 —— 34 道闸里只有 14 道接进 CI ⇒ ⇒ 一盏绿的 CI 只覆盖了 14 道」** —— 用户原话「继续」，本条记**病（实测数据）**、**五条纪律**、**两条设计决定**、**存量债的放行规则**、**顺带逮到并修掉的三条真缺陷**、**分级读数**，以及**仍然欠着的**。)
 > 信封：epoch=2026-11-05 | authority=measured | scope=project | source=真机实测（闸纪律自检 13/13 ＋ 逐道量 35 道闸 ＋ 债对账零漂移 ＋ 修掉三条真缺陷） | status=active | supersedes=none
 ① **✅ 病：一盏绿的 CI 只覆盖了 14 道闸** —— 实测全仓 **34 道闸**（＋本闸＝35）⇒ ⇒ 只有 **14 道接进 ci.yml** ⇒ ⇒ 另外 **20 道「有闸但没人跑」**⇒ ⇒ 只有 **7 道**的自检印可数读数（N/N）⇒ ⇒ **7 道根本没有 --self-test**（传了也只是跑一次正常检查 ⇒ ⇒ **恒绿的自检**）⇒ ⇒ **3 道**自检退出码 2（本机判不了：cargo 工具链 / 兄弟仓在位）⇒ ⇒ 只有 24 道有「退出码 2」这一档 ⇒ ⇒ ⇒ 病根不是「闸写得不好」，是「**没有一道闸在管闸**」。
@@ -1603,8 +1614,8 @@ export TAURI_TEST_NO_SINGLE_INSTANCE="1"
 E2E / CI：
 
 ```bash
-export SHADOW_CORTEX_BIN="<path>/telencephalon"   # 外部端脑二进制
-export SHADOW_CORTEX_CWD="<path>"                  # 它的工作目录
+export SHADOW_TELENCEPHALON_BIN="<path>/telencephalon"   # 外部端脑二进制
+export SHADOW_TELENCEPHALON_CWD="<path>"                  # 它的工作目录
 export SHADOW_FULL_STACK="1"                       # 打开硬断言（软跳过 → 真跑）
 ```
 
