@@ -1,6 +1,6 @@
 import { FullConfig } from '@playwright/test';
 import { spawn } from 'child_process';
-import { mkdirSync, rmSync, existsSync } from 'fs';
+import { mkdirSync, rmSync, existsSync, openSync, closeSync, readFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { platform } from 'process';
@@ -63,23 +63,62 @@ function isLoopbackUrl(url: string): boolean {
   }
 }
 
+/**
+ * 端脑的存活端点 —— **两条都探**。
+ *
+ * ⚠️ 实测 2026-11-05：端脑 server 自己那面是 `/healthz`
+ *（`encephalon/src/a2a_server.rs`：`.route("/healthz", get(healthz))`）
+ * ⇒ ⇒ 而 neuron 的 `/health` 是被 `build_full_app` **merge 在根上**的
+ *（`neuron/src/server/mod.rs`：`.route("/health", get(health_handler))`）
+ * ⇒ ⇒ 两张面都在根上。
+ * ⚠️ 探针的职责是「**服务起来了没有**」⇒ ⇒ 不是「某个路径在不在」⇒ ⇒
+ * 任何一条 200 都算起来 ⇒ ⇒ 免得因为路径漂移把「起来了」误判成「没起来」。
+ */
+const HEALTH_PATHS = ['/health', '/healthz'];
+
 async function isTelencephalonRunning(): Promise<boolean> {
   if (!isLoopbackUrl(TELENCEPHALON_URL)) return false;
-  try {
-    const res = await fetch(`${TELENCEPHALON_URL}/health`);
-    return res.ok;
-  } catch {
-    return false;
+  for (const p of HEALTH_PATHS) {
+    try {
+      const res = await fetch(`${TELENCEPHALON_URL}${p}`);
+      if (res.ok) return true;
+    } catch {
+      // 连接还没起来 ⇒ ⇒ 换下一条路径 / 下一轮再试
+    }
   }
+  return false;
 }
 
-async function waitForTelencephalon(timeout = 15000): Promise<boolean> {
+/**
+ * 等待端脑就绪的时限（毫秒）。
+ *
+ * ⚠️ 原来是 **15 秒** —— 那是在「本地已经热了」的前提下定的 ⇒ ⇒
+ * CI 上是**冷启动**（datafusion / lance / wasmtime 初始化）⇒ ⇒ 15 秒
+ * 大概率不够 ⇒ ⇒ 而「不够」和「崩了」在 `stdio: ignore` 下长得一模一样。
+ * ⇒ ⇒ 现在默认 60 秒，CI 上再用环境变量放到 120 秒。
+ */
+const START_TIMEOUT_MS = Number(process.env.SHADOW_TELENCEPHALON_START_TIMEOUT_MS ?? 60000);
+
+async function waitForTelencephalon(timeout = START_TIMEOUT_MS): Promise<boolean> {
   const start = Date.now();
   while (Date.now() - start < timeout) {
     if (await isTelencephalonRunning()) return true;
     await new Promise(r => setTimeout(r, 500));
   }
   return false;
+}
+
+/** 读日志文件的最后 n 行（读不到就返回空数组）。 */
+function readLogTail(path: string, n: number): string[] {
+  try {
+    if (!existsSync(path)) return [];
+    const lines = readFileSync(path, 'utf8')
+      .split(/\r?\n/)
+      .filter((l) => l.trim().length > 0);
+    return lines.slice(-n);
+  } catch {
+    return [];
+  }
 }
 
 async function globalSetup(_config: FullConfig) {
@@ -102,19 +141,55 @@ async function globalSetup(_config: FullConfig) {
   console.log(`[global-setup] 端脑 cwd:    ${TELENCEPHALON_CWD}`);
 
   console.log('[global-setup] Starting the 端脑 server (encephalon-server)...');
+  // ⚠️⚠️ **必须把它的输出落盘** —— 原来 `stdio: 'ignore'` ⇒ ⇒ server 崩了/超时了
+  //    **一个字都留不下** ⇒ ⇒ 「起不来」连一句原因都没有 ⇒ ⇒ 判不了。
+  const serverLogPath = join(TEST_DATA_DIR, 'telencephalon-server.log');
+  const logFd = openSync(serverLogPath, 'a');
+  let exited: { code: number | null; signal: string | null } | null = null;
+  // ⚠️⚠️ **必须接住 spawn 的 'error' 事件** —— 二进制不存在（ENOENT）时，
+  //    child process 会发一个 'error'；**没有 handler 就是未处理异常**
+  //    ⇒ ⇒ 直接把整个 Playwright 跑**崩掉**（一个测试都跑不了）
+  //    ⇒ ⇒ 那是「端脑没起来」被放大成「整场测试没了」。
+  //    （本地实测：`Error: spawn ...encephalon-server.exe ENOENT` ⇒ 进程直接挂。）
+  let spawnError: { code?: string; message: string } | null = null;
   const telencephalon = spawn(TELENCEPHALON_BIN, ['--port', telencephalonPort()], {
     cwd: TELENCEPHALON_CWD,
     env: {
       ...process.env,
       LANCE_URI: `file://${TEST_DATA_DIR}/lance`,
     },
-    stdio: 'ignore',
+    stdio: ['ignore', logFd, logFd],
     detached: true,
+  });
+  telencephalon.on('error', (err) => {
+    spawnError = { code: (err as NodeJS.ErrnoException).code, message: err.message };
+  });
+  telencephalon.on('exit', (code, signal) => {
+    exited = { code, signal };
   });
   telencephalon.unref();
 
   const ready = await waitForTelencephalon();
   if (!ready) {
+    closeSync(logFd);
+    // ⚠️ **把它的日志尾巴打出来** ⇒ ⇒ 「判不了」必须说得清为什么判不了
+    const tail = readLogTail(serverLogPath, 40);
+    console.warn(`  server 日志：${serverLogPath}`);
+    if (spawnError) {
+      console.warn(`  server **起不来**（spawn 失败）：${spawnError.message}`);
+      console.warn(`  ⇒ ⇒ 二进制不在那儿？${TELENCEPHALON_BIN}`);
+    } else if (exited) {
+      console.warn(`  server 已退出：code=${exited.code} signal=${exited.signal}`);
+    } else {
+      console.warn('  server 还活着（没退出）⇒ ⇒ 多半是**启动慢**（冷启动要跑 datafusion/lance）⇒ ⇒ 时限不够');
+    }
+    if (tail.length) {
+      console.warn('  ── 日志尾部 ──');
+      for (const line of tail) console.warn('    | ' + line);
+      console.warn('  ── 尾部结束 ──');
+    } else {
+      console.warn('  （日志是空的 ⇒ ⇒ 它连一行都没打印 ⇒ ⇒ 多半是**进程根本没起来**）');
+    }
     // Fail-soft (was hard exit). The server has been observed to bind its
     // in-process neuron but never reach the HTTP listener on :60080 (see
     // e2e-coverage-assessment addendum, 2026-09-26). On Windows this means

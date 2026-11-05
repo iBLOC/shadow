@@ -461,12 +461,28 @@ jobs:
         working-directory: shadow/shadow-desktop
         run: pnpm exec playwright install --with-deps chromium
 
+      # ⚠️ **E2E 要走「构建产物」那条路** —— playwright.config.ts 自己的文档就写着：
+      #    dev server 要逐模块 transform ⇒ ⇒ 在被编译占满的机器上首屏 38 秒、
+      #    「/settings」的 load 事件 180 秒都没等到 ⇒ ⇒ 页面全白 ⇒ ⇒ 页面类断言必红。
+      #    构建产物那条路浏览器只下一个 bundle ⇒ ⇒ 页面秒开（要先构建一次）。
+      - name: Build the web bundle for E2E
+        working-directory: shadow/shadow-desktop
+        run: pnpm exec vite build --config vite.config.web.ts --mode web
+
       - name: Run Playwright E2E against the 端脑 server
         working-directory: shadow/shadow-desktop
         env:
           SHADOW_TELENCEPHALON_BIN: ${{ github.workspace }}/encephalon/target/debug/encephalon-server
           SHADOW_TELENCEPHALON_CWD: ${{ github.workspace }}/encephalon
           SHADOW_FULL_STACK: '1'
+          # ⚠️ 端脑在 CI 上是**冷启动**（datafusion / lance / wasmtime 初始化）
+          #    ⇒ ⇒ 本地那个 15 秒的时限在这儿不够 ⇒ ⇒ 而「不够」和「崩了」
+          #    在 stdio: ignore 下长得一模一样 ⇒ ⇒ 这里给 120 秒。
+          SHADOW_TELENCEPHALON_START_TIMEOUT_MS: '120000'
+          # ⚠️ baseURL 与 webServer 必须**一起**换（playwright.config.ts 的注释）
+          SHADOW_E2E_SERVER_CMD: pnpm preview:web
+          SHADOW_E2E_SERVER_URL: http://127.0.0.1:4173
+          SHADOW_E2E_BASE_URL: http://127.0.0.1:4173
         run: |
           xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
             pnpm exec playwright test --reporter=github \
