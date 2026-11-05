@@ -1,5 +1,21 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-05 (㍀ **「真 CI 上那个红不是债清单过期 —— 是销账判据没学会『判不了』」** —— 承㎙条那笔「元闸在真机上红了却本地复现不出来」的欠账，本条记**日志里逐字的那一行**、**根因（一句话）**、**修法两处**、**本地同形复现（A/B/C 三档）**、**分级读数**，以及**仍然欠着的**。)
+> 信封：epoch=2026-11-05 | authority=measured | scope=project | source=真机实测（真 CI run 42002098658 / job 127159739708 的「Gate discipline check」日志逐字；本地同形复现：把 powershell.exe 从 PATH 摘掉 ⇒ ⇒ ps1 自检退 2 ⇒ ⇒ 修前 ❌ 共 1 条违规（与 CI 日志逐字相同）／修后 ✅ 零违规／修后＋ps1 重新登记 ✅ 零违规＋「销账跳过」⇒ ⇒ 孪生自检 22/22） | status=active | supersedes=none
+① **✅ 日志里逐字的那一行** —— 真 CI 那个 job 的「Gate discipline check」步骤（09:25:44 启动、约 1 秒后红 ⇒ ⇒ **不是** 120s 超时）印的是：
+   `❌ [debt-stale] 债清单里登记了「ps1-portability」的「no-reading-in-wired」缺口 ⇒ ⇒ 但它已经不存在了 ⇒ ⇒ 要销账`
+   `❌ 共 1 条违规（另有存量债 37 条）`
+   ⇒ ⇒ **只有这一条** ⇒ ⇒ 且与本机读数对得上（本机 38 条 / CI 37 条 ＋ 1 条 stale）⇒ ⇒ **根因在本仓的判据里，不在 CI**。
+② **⚠️ 根因（一句话）：销账判据没有尊重「判不了」** —— ps1-portability 的判据是 **Windows PowerShell 5.1 的解析器** ⇒ ⇒ ubuntu runner 上没有 powershell.exe ⇒ ⇒ 它的自检**退出 2（判不了）**⇒ ⇒ 按 D2 规则**不产生**「自检不印可数读数」那个缺口 ⇒ ⇒ 而本机（Windows）它退出 0 且确实不印 ⇒ ⇒ 那个缺口**本机存在、CI 上不存在**⇒ ⇒ 「清单不许过期」的销账判据把它当成「已修好」⇒ ⇒ 红。
+   ⚠️ ⇒ ⇒ 这**不是**「债清单过期」，而是**判据自己有环境依赖**：项目自己的原则「判不了 ≠ 没问题」被用在了**判定**上，却**没用在销账**上 ⇒ ⇒ **缺口「这轮没出现」≠「缺口已修好」**。
+③ **✅ 修法两处** —— ❶ `scripts/lib/gate-discipline.mjs`：新增纯函数 `unjudgedGates(inventory)`（退出码 2 与超时都算判不了；没量的闸不算）⇒ ⇒ `compareDebt` 收 `opts.unjudgedGates` ⇒ ⇒ **判不了的闸，它的缺口不许据此销账**（只记 `skippedStale` 并打印「⚠ [销账跳过] … 不销账」⇒ ⇒ 放行 ≠ 看不见）；❷ `scripts/check-ps1-portability.mjs`：自检末尾补可数读数「自检：4/4」⇒ ⇒ 那条缺口**真修好了**⇒ ⇒ 债清单里销账（存量债 **38 → 37**）。
+④ **✅ 判据：5 条孪生（正向会红 ＋ 不许误报）** —— 「判不了的闸 ⇒ ⇒ 不判 stale」「孪生：判得了的闸 ⇒ ⇒ 仍然判 stale（要销账）」「判不了的闸 ⇒ ⇒ 不产生 missing」「unjudgedGates 的形状」「孪生：跳过的只能是判不了的那一个」⇒ ⇒ 治理闸自检 **22/22**。
+⑤ **✅ 本地同形复现（此前「复现不出来」的那格补上了）** —— 造法：把 shadow 的跟踪文件复制到**与 shadow 平级**的目录 ⇒ ⇒ `../<兄弟仓>` 仍解析到真兄弟仓（`external-tools` 的自检要读端脑源，副本缺了就崩）⇒ ⇒ 再把 `System32\WindowsPowerShell\v1.0` 从 PATH 里摘掉 ⇒ ⇒ ps1 自检退 2 ⇒ ⇒ **与 ubuntu runner 同条件**。
+   **A/B/C 三档（同一目录、同条件，只差那 4 个文件）**：**A 修前** ❌ **共 1 条违规**（**与真 CI 日志逐字相同**）／**B 修后** ✅ **零违规**（存量债 37）／**C 修后 ＋ 把 ps1 重新登记回清单** ✅ 零违规 ＋「⚠ [销账跳过] ps1-portability」⇒ ⇒ **根因修法单独成立**（不是靠「销掉那条债」蒙过去的）。
+⑥ **✅ 分级读数** —— **判据级**：治理闸自检 22/22；**本机级**：`check-gate-discipline --scope=wired` EXIT=0（36 道闸 / 17 道 wired / 存量债 37）；**本机级++**：A/B/C 三档（同上）；**真机级**：真 CI run 42002098658 的日志（红的那一条逐字读数）；**真机级++**：修复推送后的新 run 的元闸读数（**待补**）。
+⑦ **⚠️ 仍然欠着** —— ① **修复在真 CI 上还没验过**（推送后的新 run 要看「Gate discipline check」这格转绿；⚠️ 每个新 push 会取消前一个在跑的 run ⇒ ⇒ 别边推边等）；② **那 26 条 deprecated 的协议迁移债**（承㎚条）仍未动 ⇒ ⇒ prefrontal 的 `-D warnings` 仍收不回；③ **CI 的 clippy 口径仍没在真 CI 上真跑过**（Prefrontal Rust job 死在 `Free disk space`）；④ **闸纪律存量债仍有 37 条**；⑤ **探针仍不是闸**；⑥ **桌面端 Rust 侧仍 CI 零覆盖**；⑦ ⚠️ 本轮**没有**验证「元闸的债清单在本机与 CI 上逐条对得上」—— 只验了那一条 stale。
+⑧ **⚠️ 圈码**：本条占 **U+3400（㍀）**（插入前数过**远端**：U+339A（㎚）／U+3399（㎙）／U+3398（㎘）已被占用 ⇒ ⇒ 下一个空闲是 U+3400 ⇒ ⇒ 提交前又 fetch 了一次远端 ✔）。
+⑨ **⚠️ 一条跨会话的教训** —— 并行会话发来一条「`check-cortex-residue-all.mjs` 现在 EXIT=1、telencephalon 与本仓引擎副本字节不同、要把新引擎同步过去」的提醒 ⇒ ⇒ **实测与事实不符**：两仓 `origin/master` 的引擎 blob **同为 `7bf7c7de…`**（工作树 SHA256 也同为 `4B933994…` / 26417 字节）⇒ ⇒ 那条提醒是**过期状态**（telencephalon 的 `2454e46 fix(gate): 引擎副本同步` 已修好）⇒ ⇒ ⇒ **跨会话消息里的事实要重新取证**，别照着改。
 **Updated**: 2026-11-05 (㎚ **「lint 存量不是一条线 —— 32 条机械债清零之后，剩下的 26 条是另一笔账」** —— 承㎙条那个「clippy 口径还没在真 CI 上真跑过」的欠账，本条记**这一刀的读数**、**两条从「恒绿」变成「真会红」的判据**、**三处「死代码」藏着的功能缺口**、**反向验证**，以及**仍然欠着的**。)
 > 信封：epoch=2026-11-05 | authority=measured | scope=project | source=真机实测（prefrontal `e62af06`：`cargo clippy --offline --all-targets -- -D warnings` ⇒ **非 deprecated 条数 0**（EXIT=101 只剩 26 条 deprecated）＋ `cargo test --offline` ⇒ EXIT=0 / **356 passed / 0 failed**（329 单测 ＋ 27 集成）＋ `--features acp` EXIT=0 ＋ `--features mobile` EXIT=0 ＋ 反向验证（退回去 ⇒ **恰好 2 条判据变红** ⇒ 还原 ⇒ 两文件 SHA256 逐字一致 80FE1DD1…9F87 / 9D0DA9A5…4F21）） | status=active | supersedes=none
 ① **✅ 这一刀的读数：62 → 26** —— 上一批（`56f77b1`）之后 prefrontal 还有 **62 条**真 warning（`-D warnings` 口径）⇒ ⇒ 本批清掉的是「非 deprecated」的**全部 32 条** ⇒ ⇒ 剩下的 **26 条全是** `synapse::` 的 deprecated 标记 ⇒ ⇒ **「非 deprecated 条数」现在是 0**（量法：`-- -D warnings` ⇒ rustc 参数变了 ⇒ cargo 缓存失效 ⇒ **真跑**，不是缓存命中的假绿）。
