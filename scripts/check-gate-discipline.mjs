@@ -68,7 +68,24 @@ import { KNOWN_DEBT } from './lib/gate-discipline-registry.mjs';
 
 const REPO_ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const SCRIPTS_DIR = join(REPO_ROOT, 'scripts');
-const CI_FILE = join(REPO_ROOT, '.github', 'workflows', 'ci.yml');
+const WORKFLOWS_DIR = join(REPO_ROOT, '.github', 'workflows');
+
+/**
+ * 仓里**所有** workflow 的正文（**不止 ci.yml**）⇒ ⇒ 「闸接进 CI」＝
+ * 接进**任何一个** workflow。
+ * ⚠️ 2026-11-05：为了「长任务不被 push 取消」而新加了一个独立 workflow
+ *    （desktop-e2e.yml）⇒ ⇒ 若这里只认 ci.yml ⇒ ⇒ 那些只接在新 workflow
+ *    里的闸会被判成「有闸但没人跑」⇒ ⇒ **假红**。
+ */
+function readWorkflowTexts() {
+  if (!existsSync(WORKFLOWS_DIR)) return [];
+  const out = [];
+  for (const f of readdirSync(WORKFLOWS_DIR).sort()) {
+    if (!f.endsWith('.yml') && !f.endsWith('.yaml')) continue;
+    out.push(readFileSync(join(WORKFLOWS_DIR, f), 'utf8'));
+  }
+  return out;
+}
 
 function parseArgs(argv) {
   const opts = { selfTest: false, audit: false, json: false, scope: 'all', timeout: 120000 };
@@ -281,8 +298,9 @@ function main() {
   const opts = parseArgs(process.argv.slice(2));
   if (opts.selfTest) selfTest();
 
-  if (!existsSync(SCRIPTS_DIR) || !existsSync(CI_FILE)) {
-    console.error('❌ 读不到 scripts/ 或 ci.yml ⇒ ⇒ 判不了 ≠ 没问题');
+  const workflowTexts = readWorkflowTexts();
+  if (!existsSync(SCRIPTS_DIR) || workflowTexts.length === 0) {
+    console.error('❌ 读不到 scripts/ 或 .github/workflows/ 下的 workflow ⇒ ⇒ 判不了 ≠ 没问题');
     process.exit(2);
   }
 
@@ -292,8 +310,7 @@ function main() {
     process.exit(2);
   }
 
-  const ciText = readFileSync(CI_FILE, 'utf8');
-  const wired = wiredGateNames(ciText);
+  const wired = wiredGateNames(workflowTexts.join('\n'));
 
   const findings = [];
   const statuses = [];

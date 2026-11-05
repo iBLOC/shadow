@@ -44,7 +44,7 @@ export const RULES = {
   'no-self-test': '闸必须支持 --self-test ⇒ ⇒ 否则它证明不了自己会红',
   'self-test-broken': '闸的 --self-test 必须绿 ⇒ ⇒ 红了就是「闸自己坏了」',
   'no-reading-in-wired': '接进 CI 的闸，其自检必须印出可数读数（N/N）⇒ ⇒ 否则「读数不可比」',
-  'not-wired-into-ci': '闸必须接进 .github/workflows/ci.yml ⇒ ⇒ 否则「有闸但没人跑」',
+  'not-wired-into-ci': '闸必须接进 .github/workflows/ 下的某个 workflow ⇒ ⇒ 否则「有闸但没人跑」',
   'no-cannot-judge-exit': '闸必须能以退出码 2 表达「判不了」⇒ ⇒ 否则「源没读全」与「真有问题」分不开',
 };
 
@@ -202,7 +202,7 @@ export function classifyGate(facts, options) {
   if (!facts.wired) {
     push(
       'not-wired-into-ci',
-      '闸「' + name + '」没有接进 .github/workflows/ci.yml ⇒ ⇒ 有闸但没人跑',
+      '闸「' + name + '」没有接进 .github/workflows/ 下的任何一个 workflow ⇒ ⇒ 有闸但没人跑',
     );
   }
   if (!facts.hasCannotJudgeExit) {
