@@ -239,6 +239,17 @@ function fixtureSurface() {
   return { id: 'fixture', kind: 'md-updated', text: FIXTURE, cutoff: CUTOFF };
 }
 
+/** runtime 来源面的夹具 —— 写入器是运行时的记忆工具（只产 mem-append-reason 注释）。 */
+const RT_FIXTURE = [
+  '<!-- mem-append-reason: 运行时记忆工具写的来源记录 -->',
+  '### 新偏好（2026-11-05）',
+  '这条偏好由运行时的记忆工具写入。',
+  '',
+].join('\n');
+
+/** 同样的一条，但**没有** runtime 来源注释 ⇒ ⇒ 两者都没有 ⇒ ⇒ 必须红。 */
+const RT_FIXTURE_BARE = ['### 新偏好（2026-11-05）', '这条偏好没有来源记录。', ''].join('\n');
+
 export function selfTest() {
   const NL = String.fromCharCode(10);
   const results = [];
@@ -433,6 +444,38 @@ export function selfTest() {
     JSON.stringify(twin3V.map((v) => v.msg))
   );
 
+  // ⚠️⚠️ **runtime 来源面** —— 写入器根本不产信封（实测：记忆工具对 user 面
+  //    只有 read/search/append）⇒ ⇒ 它盖的 `mem-append-reason` 注释**就是**来源
+  //    ⇒ ⇒ 判据认「信封 **或** runtime 注释」⇒ ⇒ 两者都没有才红。
+  const rtSurface = (text) => ({
+    id: 'rt',
+    kind: 'md-heading',
+    text: text,
+    cutoff: CUTOFF,
+    runtimeProvenance: true,
+  });
+  const rtV = judgeSurface(rtSurface(RT_FIXTURE), {}).violations;
+  check(
+    'runtimeProvenance 面：条目只有 runtime 来源注释、没有信封 ⇒ ⇒ 不判红（按写入器自己的形状判来源）',
+    rtV.length === 0,
+    JSON.stringify(rtV.map((v) => v.msg))
+  );
+  const rtBareV = judgeSurface(rtSurface(RT_FIXTURE_BARE), {}).violations;
+  check(
+    'runtimeProvenance 面：既没信封也没 runtime 注释 ⇒ ⇒ 恰好红这一条（R1）',
+    rtBareV.length === 1 && rtBareV[0].rule === 'R1',
+    JSON.stringify(rtBareV.map((v) => v.msg))
+  );
+  const rtNoFlagV = judgeSurface(
+    { id: 'rt', kind: 'md-heading', text: RT_FIXTURE_BARE, cutoff: CUTOFF },
+    {}
+  ).violations;
+  check(
+    '孪生：没声明 runtimeProvenance 的面 ⇒ ⇒ 仍然硬要信封 ⇒ ⇒ 同样红这一条（不是全局放松）',
+    rtNoFlagV.length === 1 && rtNoFlagV[0].rule === 'R1',
+    JSON.stringify(rtNoFlagV.map((v) => v.msg))
+  );
+
   // 真面基线
   const dm = debtMap();
   let realViolations = [];
@@ -451,6 +494,7 @@ export function selfTest() {
           kind: s.kind,
           text: r.text,
           cutoff: s.cutoff,
+          runtimeProvenance: s.runtimeProvenance,
           extraSymbols: dom.union,
           domainSymbols: dom.own,
         },
@@ -513,6 +557,10 @@ function main(argv) {
         kind: s.kind,
         text: r.text,
         cutoff: s.cutoff,
+        // ⚠️ **runtimeProvenance 必须一起传下去** —— 少了它 ⇒ ⇒ 写入器根本不产
+        //    信封的面（user-memory）会按「必须有信封」判 ⇒ ⇒ 那条规则在该面上
+        //    **做不到** ⇒ ⇒ 2026-11-05 实测踩到过一次。
+        runtimeProvenance: s.runtimeProvenance,
         extraSymbols: dom.union,
         domainSymbols: dom.own,
       },

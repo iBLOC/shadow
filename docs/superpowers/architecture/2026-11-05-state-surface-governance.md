@@ -137,3 +137,34 @@ but drops its source becomes confidently uncorrectable, strictly worse than empt
 7. **跨面撤销**没有语义；
 8. **跨设备同步来的状态**本机闸看不见；
 9. 本轮**没提交**。
+
+## 七、按**写入器自己的来源形状**判（2026-11-05 追加）
+
+这一节是给**撤销通道**那条线补的，源于一次真机撞墙。
+
+**撞墙的事实**：运行时的记忆工具对 user 面**只支持 read/search/append**
+（user:edit 与 user:write 均 INVALID_OPERATION）⇒ ⇒ 它**不会**给用户偏好
+生成六字段信封 ⇒ ⇒ 于是本闸的 R1「新条目必须带信封」在这个面上
+**按默认写法根本做不到** ⇒ ⇒ 一条做不到的规则，就是一条永远红的规则。
+
+**修法（不是放松，是换形状）**：
+
+| 面 | 写入器 | 来源凭据 | 判据 |
+|---|---|---|---|
+| project/desktop/mobile-ledger | 人/agent 手写 | 六字段信封里的 source | 必须带信封 |
+| agent-memory / user-memory | 运行时的记忆工具 | `<!-- mem-append-reason: … -->` 注释（**机器生成、不会忘**） | **信封 或 runtime 注释**，两者都没有才红 |
+
+⚠️ 这个改动**不是全局放松**：面清单里没声明 `runtimeProvenance` 的面
+（三个仓内账本）**仍然硬要信封**（自检里有对应的孪生用例钉住）。
+
+⚠️ 而且 runtime 注释其实是**更强**的来源保证：它是机器生成的，
+不像手写信封那样会忘。
+
+**本节同时更新第六节的「仍然欠着」**：
+
+- 第 5 条「用户偏好没有撤销通道」⇒ ⇒ **已还**（见 docs/superpowers/architecture/2026-11-05-preference-revocation.md）；
+- 第 9 条「本轮没提交」⇒ ⇒ **已提交**（`421f338`）；
+- 新欠：① 运行时**不支持** user 面的 edit/write ⇒ ⇒ 原条目永远留在文件里
+  （要真正物理删除需产品侧给记忆子系统加 delete/update）；
+  ② agent 记忆层的**悬空引用**计数会单调增长（1 → 4）⇒ ⇒ 真解是禁止在记忆层用带圈引用。
+

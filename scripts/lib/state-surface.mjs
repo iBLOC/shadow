@@ -193,6 +193,15 @@ export function analyzeSurface(surface) {
   const text = surface.text || '';
   const cutoff = surface.cutoff || null;
   const entries = splitEntries(text, surface.kind);
+  // ⚠️⚠️ **runtime 来源注释是「上一行」而不是「本条目体内」** —— 运行时的记忆工具
+  //    把 `<!-- mem-append-reason: … -->` 写在**标题行的前一行** ⇒ ⇒ 而条目是从
+  //    标题行开始的 ⇒ ⇒ 那条注释落在**上一条**的 body 末尾 ⇒ ⇒ 必须按「标题行
+  //    的前一行」去找，否则会**张冠李戴**（把上一条的理由算成这一条的）。
+  const allLines = text.split(/\r?\n/);
+  for (const e of entries) {
+    const prev = e.line >= 2 ? allLines[e.line - 2] : '';
+    e.ownComment = /^\s*<!--\s*mem-append-reason:/.test(prev) ? prev.trim() : '';
+  }
   const own = new Set();
   for (const e of entries) for (const s of e.symbols) own.add(s);
   const domain = new Set(surface.domainSymbols || []);
@@ -269,7 +278,9 @@ export function analyzeSurface(surface) {
       details.withoutEnvelope.push(e.title);
     }
     const map = envAll.env || {};
-    if (!map.source) {
+    // ⚠️ **runtime 的 mem-append-reason 注释本身就是来源记录** ⇒ ⇒ 它在哪个面
+    //    出现都算来源 ⇒ ⇒ 不必「只有信封里的 source 才算来源」。
+    if (!map.source && !e.ownComment) {
       counts['entry-without-source']++;
       details.withoutSource.push(e.title);
     }
@@ -306,8 +317,16 @@ export function analyzeSurface(surface) {
     if (!isNew) continue;
 
     if (!hasEnvelope) {
-      counts['no-envelope-new']++;
-      details.noEnvelope.push(e.title);
+      // ⚠️⚠️ **有些面的写入器根本不产信封** —— 2026-11-05 实测：运行时的记忆工具
+      //    对 user 面只有 read/search/append ⇒ ⇒ 它给每条条目盖的是
+      //    `<!-- mem-append-reason: … -->` 注释（**机器生成**、不会忘）⇒ ⇒
+      //    那种面认「信封 **或** runtime 注释」⇒ ⇒ **两者都没有才红**。
+      //    ⇒ ⇒ 这不是放松，是**按每个写入器自己的来源形状**判（同一纪律的另一面）。
+      const okByRuntime = !!(surface.runtimeProvenance && e.ownComment);
+      if (!okByRuntime) {
+        counts['no-envelope-new']++;
+        details.noEnvelope.push(e.title);
+      }
       continue;
     }
     if (envAll.count > 1) {

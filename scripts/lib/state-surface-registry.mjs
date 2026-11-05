@@ -91,7 +91,8 @@ export const SURFACES = [
     judge: true,
     cutoff: CUTOFF,
     dataRel: 'memory/user.md',
-    why: '用户级偏好 ⇒ ⇒ 论文点名的 authority lapse（撤回后仍被执行）就发生在这里 ⇒ ⇒ 今天只有一条，且**没有撤销通道**',
+    runtimeProvenance: true,
+    why: '用户级偏好 ⇒ ⇒ 论文点名的 authority lapse（撤回后仍被执行）就发生在这里 ⇒ ⇒ 今天只有一条，且**没有撤销通道**。⚠️ runtimeProvenance=true ⇒ ⇒ 这个面的**写入器是运行时的记忆工具**（实测只支持 read/search/append）⇒ ⇒ 它给每条条目盖 `<!-- mem-append-reason: … -->` 注释（机器生成、不会忘）⇒ ⇒ 那个注释**就是**这个面的来源记录 ⇒ ⇒ 判据认「信封 **或** runtime 注释」⇒ ⇒ 两者都没有才红（2026-11-05 加：硬套信封会让这条规则**在该面上做不到**）',
   },
   {
     id: 'revocation-ledger',
