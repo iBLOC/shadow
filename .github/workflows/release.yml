@@ -215,7 +215,11 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libgtk-3-dev libayatana-appindicator3-dev
+          # ⚠️ **不能同时装 `libappindicator3-dev` 与 `libayatana-appindicator3-dev`**：
+          #    后者明确 Conflicts 前者 ⇒ ⇒ apt 直接报
+          #    "Unable to satisfy dependencies. Reached two conflicting assignments"
+          #    ⇒ ⇒ ⇒ 装 `libayatana-appindicator3-dev` 就够（它是替代品）。
+          sudo apt-get install -y libwebkit2gtk-4.1-dev librsvg2-dev patchelf libgtk-3-dev libayatana-appindicator3-dev
         shell: bash
 
       - name: Setup Tauri dependencies (macOS)
@@ -385,6 +389,22 @@ jobs:
       - name: Flutter pub get
         working-directory: shadow/shadow-mobile
         run: flutter pub get
+
+      # 两件前置，缺一不可：
+      # ① **许可证**：不接受 ⇒ ⇒ Gradle 直接报
+      #    "LicenceNotAcceptedException: Failed to install the following
+      #    Android SDK packages as some licences have not been accepted"。
+      # ② **NDK**：app 的 build.gradle 钉死了 `ndkVersion = "30.0.14904198"`
+      #    ⇒ ⇒ runner 镜像里没有这个版本 ⇒ ⇒ 得自己装（否则 Gradle 去下载
+      #    那个版本，而下载也要先有许可证）。
+      - name: Accept Android SDK licenses and install the pinned NDK
+        shell: bash
+        run: |
+          set -e
+          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/tools/bin:$PATH"
+          yes | timeout 180 sdkmanager --licenses > /dev/null 2>&1 || true
+          sdkmanager "ndk;30.0.14904198" "platform-tools" > /dev/null
+          sdkmanager --list_installed 2>/dev/null | grep -E "ndk;|platform-tools" || true
 
       - name: Build APK
         working-directory: shadow/shadow-mobile
