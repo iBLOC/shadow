@@ -23,7 +23,7 @@ mod ziti_client_config;
 
 use config_manager::{AppConfig, DatabaseConfig, ProviderConfig, SecureAuth};
 use brain_face::{BrainFaceHandle, BrainFaceStatus};
-use diencephalon::Thalamus;
+use encephalon::diencephalon::Thalamus;
 use encephalon::{AcpEnvelope, AgentId, Encephalon};
 use model_store::{EncryptedStorage, ModelProvider};
 use opencode_manager::OpenCodeManager;
@@ -273,7 +273,7 @@ pub fn run() {
         });
     }
 
-    let thalamus: Arc<diencephalon::Thalamus> = stack.thalamus().clone();
+    let thalamus: Arc<encephalon::diencephalon::Thalamus> = stack.thalamus().clone();
     // JDM editor (`/jdm-editor` page) calls `jdm_try_run_rule`
     // which delegates to `Thalamus::try_run_graph` — that builds
     // a fresh ZenRuleEngine per call (no global state needed on
@@ -573,7 +573,7 @@ fn jdm_try_run_rule(
     graph: serde_json::Value,
     input: serde_json::Value,
 ) -> Result<serde_json::Value, String> {
-    diencephalon::Thalamus::try_run_graph(graph, &input)
+    encephalon::diencephalon::Thalamus::try_run_graph(graph, &input)
         .map(|o| serde_json::to_value(o).map_err(|e| e.to_string()))
         .map_err(|e| e.to_string())?
 }
@@ -712,7 +712,7 @@ fn desktop_identity_dir() -> Result<std::path::PathBuf, String> {
 #[tauri::command]
 fn identity_export() -> Result<String, String> {
     let account =
-        telencephalon::security::identity::AccountIdentity::load_or_create(&desktop_identity_dir()?)?;
+        encephalon::telencephalon::security::identity::AccountIdentity::load_or_create(&desktop_identity_dir()?)?;
     Ok(account.export_account())
 }
 
@@ -1114,8 +1114,8 @@ fn hippocampus_storage_view(
     configured: Option<String>,
     boot: &HippocampusBoot,
 ) -> serde_json::Value {
-    let default_root = hippocampus_server::default_storage_root();
-    let env_root = hippocampus_server::effective_storage_root();
+    let default_root = encephalon::hippocampus_server::default_storage_root();
+    let env_root = encephalon::hippocampus_server::effective_storage_root();
     // ⚠️ Computed **before** the move below: the environment root is
     // still needed to answer "is the store off this machine?".
     let remote = env_root.is_none() && configured.is_none();

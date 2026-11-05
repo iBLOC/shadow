@@ -7,7 +7,7 @@
 //!
 //! Wire shape: the same JSON the webview emits (Spec #1's
 //! video-source shape). The Rust side writes each source directly into
-//! the in-process `diencephalon::Thalamus` (no ETag dance, no HTTP).
+//! the in-process `encephalon::diencephalon::Thalamus` (no ETag dance, no HTTP).
 //!
 //! ⚠️ **camelCase**：与端脑的 `video_sources` DTO、桌面端的 TS 类型
 //!    `TelencephalonVideoSourcesSnapshot` **说同一种话**。
@@ -147,7 +147,7 @@ pub async fn push_thalamus(
     state: tauri::State<'_, crate::AppState>,
     snapshot: TelencephalonVideoSourcesSnapshot,
 ) -> Result<PushResult, CommandError> {
-    // In-process: write each VideoSource into the diencephalon::Thalamus
+    // In-process: write each VideoSource into the encephalon::diencephalon::Thalamus
     // camera registry, no HTTP, no ETag. The webview-side snapshot
     // is now the local cache; the diencephalon is the authoritative
     // store.

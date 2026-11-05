@@ -81,16 +81,18 @@
 
 ## 海马体只有一份
 
-`Cargo.toml` 里 `encephalon` 是 `default-features = false, features = ["telencephalon"]` —— **刻意**关掉 `hippocampus` feature。海马体状态由 `telencephalon::boot::build_app_state` 建，路由从**同一个** state 挂出来。两份 Lance 指向同一存储会互相抢锁。
+`Cargo.toml` 里 `encephalon` 是 `default-features = false, features = ["telencephalon", "hippocampus", "ziti"]` —— `hippocampus` **显式**要回来（2026-11-05 之前是端脑那条直连边带的，现在由大脑转发 `telencephalon/hippocampus` ＋ `dep:hippocampus-server`）。海马体状态由 `telencephalon::boot::build_app_state` 建，路由从**同一个** state 挂出来。两份 Lance 指向同一存储会互相抢锁。
+
+⚠️ 2026-11-05：桌面端**不再直连**端脑 / 间脑 / 海马体 —— 三个都是 `encephalon` 的 re-export（`encephalon::telencephalon::…` / `encephalon::diencephalon::…` / `encephalon::hippocampus_server::…`）⇒ ⇒ 依赖图上「大脑 → 端脑」是**唯一**一条边 ⇒ ⇒ 端脑的 feature 集合**完全由大脑决定** ⇒ ⇒ 桌面端不会再偷偷打开端脑的 default feature。
 
 ## 依赖约束
 
 | 依赖 | 形式 | 为什么 |
 |---|---|---|
-| `telencephalon` | `path = "../../../telencephalon"` | 必须与 `encephalon` 的依赖**同源同路径**。两份端脑 = 两套 `AppState` / `ConversationStore` 类型，传不过去。 |
-| `encephalon` | `path = "../../../encephalon"`，`default-features = false` | 关掉 hippocampus feature（见上）。 |
-| `hippocampus-server` | `path = "../../../hippocampus/hippocampus-server"` | 端脑面合成时要用它的 router 工厂。 |
-| `neuron` | git（仅 dev-dependency） | 测试要用嵌入运行时；**必须与端脑用同一个 git 源 + branch**，否则 cargo 编出两份 neuron，类型对不上。 |
+| `encephalon`（大脑） | `path = "../../../encephalon"`，`default-features = false`，`features = ["telencephalon", "hippocampus", "ziti"]` | **唯一**一条进大脑内部的边。端脑 / 间脑 / 海马体都从它 re-export 出来 ⇒ ⇒ 同一个 path ⇒ ⇒ cargo unify 成**一个** crate ⇒ ⇒ 两套 `AppState` / `ConversationStore` 类型传不过去的问题不会发生。 |
+| `neuron` | `path = "../../../neuron"`，`default-features = false`（**仅 dev-dependency**） | 测试要用嵌入运行时；**必须与端脑同源同路径**，否则 cargo 编出两份 neuron，类型对不上。 |
+
+⚠️ 2026-11-05 **删掉的三条直连边**：`telencephalon` / `diencephalon` / `hippocampus-server` —— 它们与 `encephalon` 里的那些是**同一个 path**，所以两条边并不会产生第二份代码，但会让「**谁决定 feature**」变模糊（端脑的 default 被桌面端那条边全打开）。⇒ ⇒ 要用端脑的 API 一律写 `encephalon::telencephalon::…`。
 
 ## 可执行的不变量
 

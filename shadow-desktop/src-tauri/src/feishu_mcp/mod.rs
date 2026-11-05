@@ -19,7 +19,7 @@
 //!
 //! `FeishuMcp::mcp_server()` returns a
 //! `synapse::mcp::SimpleMcpServer` with the tools registered below.
-//! Any host (the Tauri backend, a stand-alone `diencephalon::M CP`
+//! Any host (the Tauri backend, a stand-alone `diencephalon::MCP`
 //! server, or a peer `telencephalon` instance over A2A) can mount
 //! it.
 //!

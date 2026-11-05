@@ -15,7 +15,7 @@
 //!
 //! ## 挂载形状
 //!
-//! 和独立运行的端脑**完全一致**（`telencephalon::api::build_full_app`）：
+//! 和独立运行的端脑**完全一致**（`encephalon::telencephalon::api::build_full_app`）：
 //!
 //! ```text
 //! 127.0.0.1:60080
@@ -48,13 +48,15 @@
 //!
 //! ## 海马体只有一份
 //!
-//! 海马体状态由 `telencephalon::boot::build_app_state_with` 建，路由由
-//! `telencephalon::boot::build_hippocampus_router` 从**同一个**状态挂出来
+//! 海马体状态由 `encephalon::telencephalon::boot::build_app_state_with` 建，路由由
+//! `encephalon::telencephalon::boot::build_hippocampus_router` 从**同一个**状态挂出来
 //! ⇒ ⇒ 两份 Lance 指向同一份存储会互相抢锁 ⇒ ⇒ 只留一份。
 //!
-//! 端脑侧的 `hippocampus` feature 在桌面端是**开着的**（`Cargo.toml` 里
-//! 显式写了 `features = ["hippocampus"]`）—— 否则没有那份状态，桌面端就没有
-//! `/hippocampus` 面可挂。
+//! 端脑侧的 `hippocampus` feature 在桌面端是**开着的** —— 但**不是**桌面端
+//! 自己写 `features = ["hippocampus"]`（那条边 2026-11-05 已删）⇒ ⇒ 现在是
+//! `Cargo.toml` 里**大脑**的 `features` 显式列了 `"hippocampus"` ⇒ ⇒ 由大脑
+//! 转发 `telencephalon/hippocampus` + `dep:hippocampus-server` ⇒ ⇒ 否则没有
+//! 那份状态，桌面端就没有 `/hippocampus` 面可挂。
 
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::time::Duration;
@@ -221,7 +223,7 @@ async fn build_face(
     // 默认人格 ⇒ 这台机器属于哪个人、记忆写进哪个人格，是**这台机器
     // 自己的**属性（不是每请求的属性），所以放在 boot 期解析一次。
 
-    let options = telencephalon::boot::BuildOptions {
+    let options = encephalon::telencephalon::boot::BuildOptions {
         flow_dir: None,
         identity_dir: dirs::config_dir().map(|dir| {
             dir.join("shadow")
@@ -278,7 +280,7 @@ async fn build_face(
     // ⚠️ **门罩住「合并后」的最外层** ⇒ ⇒ neuron 面与 /hippocampus 面**也在**
     // 门型表管辖内 ⇒ ⇒ 它们不再是「同机任何进程都能直连」的后门。
     //
-    // ⚠️ **海马体路由由端脑挂**（`telencephalon::boot::build_hippocampus_router`）
+    // ⚠️ **海马体路由由端脑挂**（`encephalon::telencephalon::boot::build_hippocampus_router`）
     // ⇒ ⇒ 桌面端**不再**自己摸 `hippocampus_server` ⇒ ⇒ 也就不会与端脑
     // 各挂一份形状不同的面。
     //
@@ -359,7 +361,7 @@ mod tests {
     /// 被打到的是**注册表里有没有它** ⇒ ⇒ 断言必须对着真相源。
     #[test]
     fn native_lobes_cover_the_chain() {
-        let lobes = telencephalon::lobes::NativeLobeRegistry::with_temporal();
+        let lobes = encephalon::telencephalon::lobes::NativeLobeRegistry::with_temporal();
         let names: Vec<String> = lobes.all_manifests().into_iter().map(|m| m.name).collect();
         for expected in ["temporal", "prefrontal", "parietal"] {
             assert!(

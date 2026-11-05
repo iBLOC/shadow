@@ -76,40 +76,36 @@ reqwest = { version = "0.12", features = ["json"] }
 # old sidecar pattern. Holds the ACP message bus + the diencephalon
 # (data gateway) and (optionally) the telencephalon (agent runtime).
 #
-# `default-features = false` turns the `hippocampus` feature OFF on
-# purpose: the hippocampus state is built by
-# `telencephalon::boot::build_app_state` (the 端脑's own boot sequence) and
-# the HTTP face is mounted from **that same** state in `telencephalon_http.rs`.
+# ⚠️ 2026-11-05：**桌面端只依赖大脑** —— 端脑 / 间脑 / 海马体一律走
+# `encephalon::…`（大脑 re-export 了它们）⇒ ⇒ 依赖图上「大脑 → 端脑」是
+# **唯一**一条边 ⇒ ⇒ 端脑的 feature 集合**完全由大脑决定**。
+# `default-features = false` 仍然要写：它关掉的是大脑的 `dm-rules`
+# （桌面端不用 GoRules ⇒ grep 零命中）⇒ ⇒ 而 `hippocampus` 由下面
+# **显式**要回来 ⇒ ⇒ 桌面端要的本地海马体一点没少。
 # Two hippocampus instances pointing at the same Lance storage would
 # contend for the same locks — so there is exactly one.
 encephalon = { path = "../../../encephalon", default-features = false, features = [
     "telencephalon",
+# 进程内海马体（2026-11-05 改成**向大脑显式要**）—— 桌面端挂海马体 HTTP 面
+# 与存储根路径 ⇒ ⇒ 大脑的 `hippocampus` feature 会转发
+# `telencephalon/hippocampus` + `dep:hippocampus-server` ⇒ ⇒ **同一个包实例**
+# ⇒ ⇒ 不会出现「两个 hippocampus 争同一把 Lance 锁」。
+"hippocampus",
     # 零信任面（OpenZiti dark service）—— 见 §encephalon::ziti§。
     # ⚠️ **编译进 ≠ 会开** —— 运行时还要配 §ZITI_IDENTITY§ ⇒ ⇒ 没配
     # ⇒ 桌面端行为与今天**一模一样**。
     "ziti",
 ] }
 
-# 端脑 (telencephalon) — the agent runtime the desktop's traffic must go
-# through: 大脑 → 端脑 → 叶区. `telencephalon_http.rs` mounts its HTTP face
-# (shadow API + A2A gateway + agent management) on 127.0.0.1:60080.
-#
-# Same path as `encephalon`'s own dependency (`../telencephalon`) → cargo
-# unifies them into ONE crate. Do NOT switch this to a git source or a
-# different path: two copies of telencephalon means two sets of types
-# (AppState / ConversationStore) that cannot be passed between each other.
-#
-# `features = ["hippocampus"]` is written out **explicitly** (default
-# features stay on): the desktop mounts the hippocampus HTTP face from the
-# state `telencephalon::boot::build_app_state` hands back, and that state
-# only exists when the feature is on. Naming it here means the requirement
-# survives a change to telencephalon's own default feature list.
-telencephalon = { path = "../../../telencephalon", features = ["hippocampus"] }
+# ⚠️ 2026-11-05：**端脑不再被直连** —— 桌面端只依赖**大脑**（encephalon）。
+# 端脑的 API 一律走 `encephalon::telencephalon::…`（大脑 re-export 了它）
+# ⇒ ⇒ 依赖图上「大脑 → 端脑」是**唯一**一条边 ⇒ ⇒ 端脑的 feature 集合
+# 完全由大脑决定 ⇒ ⇒ 桌面端不能再偷偷把端脑的 default feature 全打开。
+# ⚠️ 别改回直连：同一个 path ⇒ ⇒ cargo 会 unify 成**一个** crate ⇒ ⇒
+# 但两条边会让**谁决定 feature** 变模糊 ⇒ ⇒ 那是本轮要消灭的东西。
 
-# 进程内海马体的 HTTP 面（`src/telencephalon_http.rs` 把端脑的 router 合成一台
-# 服务时用它的 router 工厂，挂在 `/hippocampus` 前缀下）。
-# 版本与端脑 / neuron 保持一致（axum 0.8 + tower-http 0.6），避免依赖图分叉。
-hippocampus-server = { path = "../../../hippocampus/hippocampus-server" }
+# ⚠️ 2026-11-05：海马体也不直连 —— 走 `encephalon::hippocampus_server::…`
+# ⇒ ⇒ 「桌面端不再自己摸 hippocampus_server」这条注释里的方向，现在**真的**做到了。
 axum = { version = "0.8", features = ["ws", "multipart"] }
 tower-http = { version = "0.6", features = ["cors", "trace"] }
 
@@ -156,11 +152,8 @@ wasmtime = { version = "20", default-features = false, features = [
     "wat",
 ] }
 
-# Encephalon (top-level wrapper crate) embeds both telencephalon and
-# diencephalon. shadow-desktop depends on it directly so we can
-# construct FeishuMcp with a real diencephalon::Thalamus + open-lark
-# backend at startup — same wiring as the unit tests in feishu_mcp/mod.rs.
-diencephalon = { path = "../../../diencephalon" }
+# ⚠️ 2026-11-05：间脑也不直连 —— 走 `encephalon::diencephalon::…`
+# ⇒ ⇒ FeishuMcp 那个真实 Thalamus 照样拿得到（同一个包实例 ⇒ 类型一致）。
 
 # Computer-use (RPA) — drives the host's mouse + keyboard so an agent
 # can act on apps without an A2A endpoint. Guarded by
