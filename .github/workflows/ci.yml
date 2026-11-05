@@ -242,6 +242,18 @@ jobs:
       #    源码）⇒ ⇒ desktop-build 那个 job 只 checkout 本仓 ⇒ ⇒ 放那儿
       #    ⇒ ⇒ 源读不到 ⇒ ⇒ 闸按「退出码 2」阻断 ⇒ ⇒ 而 desktop-e2e 把
       #    兄弟仓检出在**工作区根之内** ⇒ ⇒ 闸认本地/CI 那两种布局。
+      # ⚠️ 2026-11-05：synapse 的 OpenZiti **v2** 线路层抽到了
+      # iBLOC/ziti-rust 的**第二个 crate**（ziti-v2）⇒ ⇒ 而 telencephalon 的
+      # synapse 依赖**无条件**开着 ziti ⇒ ⇒ ⇒ 任何**解析依赖图**的动作
+      # （cargo fmt / check / test / clippy / doc）⇒ ⇒ ⇒ 都需要这个兄弟仓在位
+      # （path 依赖 ../ziti-rust/crates/ziti-v2）。
+      - name: Checkout ziti-rust
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/ziti-rust
+          path: ziti-rust
+          token: ${{ secrets.IBLOC_TOKEN }}
+
       - name: External tools wiring check
         run: node scripts/check-external-tools.mjs
 
