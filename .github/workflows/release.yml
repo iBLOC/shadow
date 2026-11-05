@@ -195,8 +195,12 @@ jobs:
           elif [ "$RUNNER_OS" = "macOS" ]; then
             brew install protobuf
           else
-            choco install protoc -y --no-progress
+            # ⚠️ 两个包名都试：Chocolatey 上 protoc 的包名在不同版本里
+            #    叫 `protoc` / `google.Protobuf` ⇒ ⇒ 试错比赌一个强。
+            choco install protoc -y --no-progress || choco install google.Protobuf -y --no-progress
           fi
+          # 装没装上当场看得见 —— 这一步是「编了半小时之后才炸」的那类
+          # 故障的正面解法：把缺的东西提前钉住。
           protoc --version
 
       # macOS runner 的空闲磁盘很小（~14 GB）⇒ ⇒ 整栈编译（lance +
