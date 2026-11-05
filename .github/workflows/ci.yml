@@ -883,6 +883,17 @@ jobs:
           path: temporal
           token: ${{ secrets.IBLOC_TOKEN }}
 
+      # ⚠️ 2026-11-05：ziti-rust（v2 线路层那个仓）接进跨仓闸的检出清单 ⇒ ⇒
+      #    它之前是「CI 上检不出 ⇒ 那一格是缺口」⇒ ⇒ 现在这一格真的会被判。
+      #    ⚠️ 清单必须与 scripts/lib/cortex-registry.mjs 算出来的 CI_CHECKOUT
+      #    **逐字一致** ⇒ ⇒ 否则 check-cortex-residue-all.mjs 自己会报红。
+      - name: Checkout ziti-rust
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/ziti-rust
+          path: ziti-rust
+          token: ${{ secrets.IBLOC_TOKEN }}
+
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:

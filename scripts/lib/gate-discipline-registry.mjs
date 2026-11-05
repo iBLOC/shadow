@@ -22,11 +22,12 @@ export const NO_SELF_TEST = {
   reason:
     '历史闸（或别的工作线上的闸）⇒ ⇒ 当年就没写自检 ⇒ ⇒ 传了 --self-test ' +
     '也只是跑一次正常检查 ⇒ ⇒ **恒绿的自检**（看着有自检，其实证明不了任何事）' +
-    '⇒ ⇒ 其中 auth-backdoors / msrv-floor / ziti-v2-wire 连「跑一次正常检查」' +
+    '⇒ ⇒ 其中 auth-backdoors / msrv-floor 连「跑一次正常检查」' +
     '都做不到（自检退出码 2 ⇒ ⇒ 本机判不了）',
   when:
-    '各自下次被改动时补上（增量纪律）⇒ ⇒ msrv-floor 与 ziti-v2-wire 先补' +
-    '（它们在 CI 上也缺工具链 ⇒ ⇒ 要先想清楚「判不了」那档怎么报）',
+    '各自下次被改动时补上（增量纪律）⇒ ⇒ msrv-floor 先补' +
+    '（它在 CI 上也缺工具链 ⇒ ⇒ 要先想清楚「判不了」那档怎么报）' +
+    '⇒ ⇒ ⚠️ ziti-v2-wire 已于 2026-11-05 补上自检（13/13）⇒ ⇒ 已从本清单销账',
   gates: [
     'agent-surface',
     'apk-surface',
@@ -34,7 +35,6 @@ export const NO_SELF_TEST = {
     'cross-client',
     'jni-surface',
     'msrv-floor',
-    'ziti-v2-wire',
   ],
 };
 

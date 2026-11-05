@@ -13,7 +13,7 @@
 | 层 | 状态 | 证据 |
 |---|---|---|
 | 控制器 API（认证 / 服务 / 策略 / 身份） | ✅ 通 | ```cargo run --example ziti_doctor``` ⇒ 200 OK，能看到 service 与 edge router |
-| edge router 数据面（线路协议） | ✅ 通 | **自建的 v2 线路层**（```synapse/src/transport/ziti/v2/```）⇒ 真网握手 ＋ Connect ＋ Bind ＋ 数据回环全通 |
+| edge router 数据面（线路协议） | ✅ 通 | **自建的 v2 线路层**（```ziti-rust/crates/ziti-v2/src/```）⇒ 真网握手 ＋ Connect ＋ Bind ＋ 数据回环全通 |
 | Shadow 的真网端到端测试（5 条 ```#[ignore]```） | ✅ **全绿** | ```cargo test --features ziti --lib transport::ziti::live_tests -- --ignored``` ⇒ **5 passed / 0 failed** |
 
 ⇒ ⇒ 2026-11-04 这一轮把线路层**从第三方 ziti-sdk（说的是 v1 协议）换成自建的 v2 实现**，
@@ -122,7 +122,7 @@ cargo run --offline --manifest-path C:\Projects\iBLOC\synapse\Cargo.toml --featu
 ## 5. ✅ 三个阻塞点已全部解开（附最终规格）
 
 2026-11-04：**三个阻塞全部解开** —— 办法是**把线路层自己写一遍**
-（```synapse/src/transport/ziti/v2/```，七个文件），第三方 ```ziti-sdk``` 依赖**已彻底移除**。
+（```ziti-rust/crates/ziti-v2/src/```，七个文件），第三方 ```ziti-sdk``` 依赖**已彻底移除**。
 
 ### 阻塞 A / B：v1 的工具 ＋ v1 的协议 ⇒ ⇒ 换成自建的 v2 实现
 
@@ -302,7 +302,7 @@ cargo run --offline --manifest-path C:\Projects\iBLOC\synapse\Cargo.toml --featu
 | ```synapse/examples/ziti_raw_probe.rs``` | 裸 TLS 探针：把字节摊开 ＋ ALPN 候选对照 |
 | ```synapse/src/transport/ziti/live_tests.rs``` | 5 条真网测试（4 条原有 + 1 条整链 e2e） |
 | ```synapse/src/transport/ziti/mod.rs``` | 传输层总入口（**v2 自建实现**，第三方 ziti-sdk 已彻底移除） |
-| ```synapse/src/transport/ziti/v2/``` | **v2 线路层**（七个文件：帧 / 常量 / 身份 / 控制器 / 通道 / 流 / 上下文） |
+| ```ziti-rust/crates/ziti-v2/src/``` | **v2 线路层**（七个文件：帧 / 常量 / 身份 / 控制器 / 通道 / 流 / 上下文） |
 | ```synapse/examples/ziti_v2_prod.rs``` | 生产路径逐段体检（listen → dial → accept → 数据回环） |
 | ```synapse/examples/ziti_v2_brain.rs``` | 起「真的大脑面」当那 4 条测试的对面 |
 | ```scripts/check-ziti-v2-wire.mjs``` | **v2 线路规格守门员**（六条规则：常量 / 三条不变量 / 背压对称 / 真网入口 / ziti-sdk 不许回来） |

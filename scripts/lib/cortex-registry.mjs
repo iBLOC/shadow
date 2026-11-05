@@ -608,29 +608,24 @@ export const REGISTRY = {
   },
 
   'ziti-rust': {
-    // ⚠️ 2026-11-05 新仓（v2 线路层抽成 crates/ziti-v2 时建）⇒ ⇒ 本机有、
-    //    origin 也有（iBLOC/ziti-rust）⇒ ⇒ 但 shadow 的 cortex-residue-stack
-    //    job **还没检出它** ⇒ ⇒ CI 上这一格是**缺口**（不是干净）⇒ ⇒
-    //    显式登记，别让它以「未登记」的形式阻断整道闸。
-    scanDirs: ['src', 'crates', 'tests', 'examples'],
-    scanFiles: ['README.md', 'ARCHITECTURE.md', 'Cargo.toml'],
+    // ⚠️ 2026-11-05：本仓的 v1（`ziti-sdk` 根包）**已删** ⇒ ⇒ 现在只剩
+    //    `crates/ziti-v2` ⇒ ⇒ 扫描目标从 ['src','crates','tests','examples']
+    //    变成 ['crates']。
+    //    ⚠️ 这不是「随手改一下」—— 删 v1 之前的那三个目录**已经不存在**⇒ ⇒
+    //    闸会按设计报「扫描目标指不到任何文件 ⇒ 判不了（退出码 2）」⇒ ⇒
+    //    跨仓闸当场变红。**指针过期就是缺陷**，不是「顺手清理」。
+    scanDirs: ['crates'],
+    scanFiles: ['README.md', 'ARCHITECTURE.md', 'Cargo.toml', 'NOTICE', 'LICENSE'],
     excludeDirs: [...COMMON_EXCLUDE_DIRS],
     excludeFiles: [...COMMON_EXCLUDE_FILES],
-    allowed: [
-      {
-        token: 'cortex',
-        kind: 'history',
-        reason:
-          'Cargo.toml 注释里的**旧产品名**（「cortex pulls this via」）—— 那是**改名史**' +
-          '（旧名 cortex ⇒ ⇒ 现在叫端脑 / 影子）⇒ ⇒ 只在注释 / 文档行豁免' +
-          '⇒ ⇒ 出现在**代码行**照样判红。',
-      },
-    ],
-    ciCheckout: false,
-    ciReason:
-      '2026-11-05 新建仓（iBLOC/ziti-rust）⇒ ⇒ 有 origin，但 shadow 的 ' +
-      'cortex-residue-stack job 还没检出它 ⇒ ⇒ CI 上这一格是缺口 ⇒ ⇒ ' +
-      '什么时候接：给那个 job 补一步 checkout，并把本行的 ciCheckout 改成 true。',
+    // ⚠️ 2026-11-05：原先登记的 `cortex`（旧产品名）豁免**已销账** ——
+    //    v1 删掉后，那个「Cargo.toml 注释里的旧产品名」**整条不存在了**⇒ ⇒
+    //    留着它就是「登记了却已修好 ⇒ ⇒ 闸会报豁免条目腐烂（退出码 2）」⇒ ⇒
+    //    豁免必须**跟着事实**走（NOTICE 也重写过，不再提旧产品名）。
+    allowed: [],
+    // ✅ 2026-11-05：接进 CI（cortex-residue-stack job 补了 checkout 步骤）⇒ ⇒
+    //    本仓不再是「CI 上检不出」的那一格 ⇒ ⇒ 缺口销账。
+    ciCheckout: true,
   },
 };
 
