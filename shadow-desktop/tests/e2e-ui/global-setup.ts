@@ -54,6 +54,22 @@ const TELENCEPHALON_BIN = defaultTelencephalonBin();
 const TELENCEPHALON_CWD = defaultTelencephalonCwd();
 const TEST_DATA_DIR = process.env.SHADOW_TEST_DATA_DIR ?? join(tmpdir(), 'shadow-test-data');
 
+// ⚠️⚠️ **端脑的服务端日志必须活过 teardown**（2026-11-05 真机实测）——
+//   日志原本写在 `TEST_DATA_DIR/telencephalon-server.log` ⇒ ⇒ 而
+//   `global-teardown.ts` 会 `rmSync(TEST_DATA_DIR, {recursive:true})`
+//   ⇒ ⇒ **日志在 workflow 上传之前就被删掉了** ⇒ ⇒ artifact 里只有各条
+//   spec 的 error-context.md，**没有服务端日志** ⇒ ⇒ ⇒ 「端脑为什么那样答」
+//   在 CI 上**判不了** ⇒ ⇒ 修法：日志写在 `TEST_DATA_DIR` **之外**。
+const LOG_DIR = process.env.SHADOW_E2E_LOG_DIR ?? join(tmpdir(), 'shadow-e2e-logs');
+const SERVER_LOG_PATH = join(LOG_DIR, 'telencephalon-server.log');
+
+// ⚠️ **admin 钥匙只有一把、只有一处来源** —— 端脑那侧只认环境变量
+//   `TELENCEPHALON_ADMIN_KEY`（`encephalon/src/a2a_server.rs` 的
+//   `standalone_admin_token()`）⇒ ⇒ **没配就是没配** ⇒ ⇒ 端脑侧
+//   **fail-closed**（2026-10-31 起不再发明 `dev-admin-key`）⇒ ⇒ ⇒
+//   客户端那侧必须带**同一个值**（头名只认 `x-admin-token`）。
+const ADMIN_KEY = process.env.SHADOW_E2E_ADMIN_KEY ?? '';
+
 function isLoopbackUrl(url: string): boolean {
   try {
     const { hostname } = new URL(url);
@@ -139,11 +155,14 @@ async function globalSetup(_config: FullConfig) {
   console.log(`[global-setup] Test data dir: ${TEST_DATA_DIR}`);
   console.log(`[global-setup] 端脑 binary: ${TELENCEPHALON_BIN}`);
   console.log(`[global-setup] 端脑 cwd:    ${TELENCEPHALON_CWD}`);
+  console.log(`[global-setup] server 日志：${SERVER_LOG_PATH}`);
+  console.log(`[global-setup] admin 面：${ADMIN_KEY ? '配了钥匙（开着）' : '没配钥匙（fail-closed 关着）'}`);
 
   console.log('[global-setup] Starting the 端脑 server (encephalon-server)...');
   // ⚠️⚠️ **必须把它的输出落盘** —— 原来 `stdio: 'ignore'` ⇒ ⇒ server 崩了/超时了
   //    **一个字都留不下** ⇒ ⇒ 「起不来」连一句原因都没有 ⇒ ⇒ 判不了。
-  const serverLogPath = join(TEST_DATA_DIR, 'telencephalon-server.log');
+  const serverLogPath = SERVER_LOG_PATH;
+  mkdirSync(LOG_DIR, { recursive: true });
   const logFd = openSync(serverLogPath, 'a');
   let exited: { code: number | null; signal: string | null } | null = null;
   // ⚠️⚠️ **必须接住 spawn 的 'error' 事件** —— 二进制不存在（ENOENT）时，
@@ -157,6 +176,10 @@ async function globalSetup(_config: FullConfig) {
     env: {
       ...process.env,
       LANCE_URI: `file://${TEST_DATA_DIR}/lance`,
+      // ⚠️ **配了 admin 钥匙 ⇒ shadow 读门也跟着关上** ——
+      //   `standalone_shadow_key()` 回落 admin token ⇒ ⇒ 于是
+      //   `/shadow/v1/*` 也需要凭据 ⇒ ⇒ 客户端那侧必须同时带上。
+      ...(ADMIN_KEY ? { TELENCEPHALON_ADMIN_KEY: ADMIN_KEY } : {}),
     },
     stdio: ['ignore', logFd, logFd],
     detached: true,

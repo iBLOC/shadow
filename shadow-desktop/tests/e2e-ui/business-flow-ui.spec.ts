@@ -58,7 +58,11 @@ test.describe('Business Flow UI: Task Creation End-to-End', () => {
       `${TELENCEPHALON_URL}/api/telencephalon/agents/temporal/config`,
       {
         data: { config: { model_id: 'mimo-v2-flash' } },
-        headers: { 'X-Admin-Key': 'dev-admin-key' },
+        // ⚠️ **凭据不再手写在这个请求上** —— 端脑只认 `x-admin-token`
+        //    （`telencephalon/src/security/api_key.rs`），而 `X-Admin-Key`
+        //    **不是那扇门** ⇒ ⇒ 2026-11-05 真机实测：这条 PATCH 401。
+        // ⇒ ⇒ 钥匙由 `playwright.config.ts` 的 `extraHTTPHeaders` 统一带
+        //    （头名与钥匙**只有一处** ⇒ ⇒ 不会漂）。
       }
     );
     expect(setRes.ok()).toBeTruthy();
@@ -133,7 +137,8 @@ test.describe('Business Flow UI: Task Creation End-to-End', () => {
       `${TELENCEPHALON_URL}/api/telencephalon/agents/temporal/config`,
       {
         data: { config: { model_id: 'test-model-ui' } },
-        headers: { 'X-Admin-Key': 'dev-admin-key' },
+        // ⚠️ 同上：`X-Admin-Key` 不是端脑那扇门 ⇒ ⇒ 凭据统一在
+        //    `playwright.config.ts` 的 `extraHTTPHeaders` 里。
       }
     );
     expect(patchRes.ok()).toBeTruthy();

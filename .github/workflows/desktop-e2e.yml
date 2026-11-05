@@ -143,6 +143,13 @@ jobs:
           SHADOW_E2E_SERVER_CMD: pnpm preview:web
           SHADOW_E2E_SERVER_URL: http://127.0.0.1:4173
           SHADOW_E2E_BASE_URL: http://127.0.0.1:4173
+          # ⚠️ **admin 钥匙：端脑的 admin 面 fail-closed**（2026-11-05 真机实测）
+          #    —— 独立 server 的 admin 钥匙**默认是空** ⇒ ⇒ 配一把才开得了。
+          # ⇒ ⇒ 这把钥匙**同一个值**喂两端：服务端（global-setup 转成
+          #    `TELENCEPHALON_ADMIN_KEY`）＋ 客户端（`playwright.config.ts` 的
+          #    `extraHTTPHeaders`）⇒ ⇒ 头名与钥匙**只有一处** ⇒ ⇒ 不会漂。
+          # ⇒ ⇒ 这是**回环上的测试凭据**，不是产品密钥。
+          SHADOW_E2E_ADMIN_KEY: e2e-loopback-admin-key
         run: |
           xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
             pnpm exec playwright test --reporter=github \
@@ -165,17 +172,19 @@ jobs:
           path: shadow/shadow-desktop/test-results
           retention-days: 7
 
-      # ⚠️⚠️ **端脑的服务端日志必须进产物** —— global-setup 把它写在
-      #    `TEST_DATA_DIR/telencephalon-server.log`（CI 上是 /tmp/shadow-test-data/）
-      #    ⇒ ⇒ 而上面那个 artifact 只传 `shadow-desktop/test-results` ⇒ ⇒
-      #    ⇒ **日志压根没上传**（2026-11-05 真机实测：产物里只有各条 spec 的
-      #    error-context.md，没有服务端日志）⇒ ⇒ ⇒ 「端脑为什么那样答」
-      #    在 CI 上**仍然判不了** ⇒ ⇒ 这一步就是补那个洞。
+      # ⚠️⚠️ **端脑的服务端日志必须进产物** —— 2026-11-05 真机实测：
+      #    日志原本写在 `TEST_DATA_DIR/telencephalon-server.log` ⇒ ⇒ 而
+      #    `global-teardown.ts` 会 `rmSync(TEST_DATA_DIR, {recursive:true})`
+      #    ⇒ ⇒ **日志在上传之前就被删掉了** ⇒ ⇒ artifact 里只有各条 spec 的
+      #    error-context.md，**没有服务端日志** ⇒ ⇒ ⇒ 「端脑为什么那样答」
+      #    在 CI 上**判不了**。
+      # ⇒ ⇒ 修法两处：日志写到 `TEST_DATA_DIR` **之外**（teardown 删不到它）
+      #    ＋ 这里的 path 跟着改（CI 上是 /tmp/shadow-e2e-logs/）。
       - name: Upload the 端脑 server log on failure
         if: failure()
         uses: actions/upload-artifact@v7
         with:
           name: telencephalon-server-log
-          path: /tmp/shadow-test-data/telencephalon-server.log
+          path: /tmp/shadow-e2e-logs/telencephalon-server.log
           retention-days: 7
           if-no-files-found: ignore

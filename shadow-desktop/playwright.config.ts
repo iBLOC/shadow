@@ -32,6 +32,22 @@ export default defineConfig({
     baseURL,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
+    // ⚠️ **端脑的门要凭据**（2026-11-05 真机实测）—— E2E 里那两条 lobe 配置
+    //    PATCH 之所以 401，是**头名与钥匙两处都错**：spec 发的是 `X-Admin-Key`，
+    //    而端脑只认 `x-admin-token`（`telencephalon/src/security/api_key.rs`）；
+    //    且独立 server 的 admin 钥匙**默认是空** ⇒ ⇒ 端脑侧 **fail-closed**。
+    // ⇒ ⇒ 这里把**同一把**钥匙同时给 admin 面与 shadow 读门（端脑那侧
+    //    `standalone_shadow_key()` 回落 admin token ⇒ ⇒ 配了 admin 钥匙之后
+    //    shadow 读门就**关上了** ⇒ ⇒ 客户端必须带上凭据）。
+    // ⇒ ⇒ 没配 `SHADOW_E2E_ADMIN_KEY` 时**一个头都不加** ⇒ ⇒ 本地行为不变。
+    // ⇒ ⇒ 实测（本地探针）：`extraHTTPHeaders` **会**覆盖 `page.request`
+    //    ⇒ ⇒ 一处配置就够，不必在每个调用点手写头。
+    ...(process.env.SHADOW_E2E_ADMIN_KEY
+      ? {
+          'x-admin-token': process.env.SHADOW_E2E_ADMIN_KEY,
+          'x-shadow-key': process.env.SHADOW_E2E_ADMIN_KEY,
+        }
+      : {}),
   },
   projects: [
     {

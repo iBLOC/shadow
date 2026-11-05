@@ -62,13 +62,24 @@ test.describe('End-to-End: Conversation to Task Scheduling', () => {
 
     const temporal = agents.lobes.find((l: { name: string }) => l.name === 'temporal');
     expect(temporal).toBeTruthy();
-    expect(temporal.url).toContain('temporal');
     expect(temporal.config).toBeTruthy();
 
     const prefrontal = agents.lobes.find((l: { name: string }) => l.name === 'prefrontal');
     expect(prefrontal).toBeTruthy();
-    expect(prefrontal.url).toContain('prefrontal');
     expect(prefrontal.config).toBeTruthy();
+
+    // ⚠️⚠️ **地址是可选的** —— 端脑对「内置占位 lobe」**故意不留地址**
+    //   （`telencephalon/src/registry/store.rs`：占位记录**没有地址**
+    //   ⇒ ⇒ 空着（说真话）⇒ ⇒ 而不是编一个 `.local:8082`），而
+    //   `api/agents.rs` 的 `lobe_to_json` 原样输出 `"url": l.url`
+    //   ⇒ ⇒ **独立 server 上 `temporal.url` 恒为 null** ⇒ ⇒
+    //   ⇒ ⇒ 2026-11-05 真机实测：老断言 `expect(temporal.url).toContain('temporal')`
+    //   ⇒ ⇒ **编码了一个过期前提**（以为内置 lobe 一定有地址）⇒ ⇒
+    //   ⇒ ⇒ 改成可判的形态：**要么 null（说真话），要么是一串指向自己的地址**。
+    for (const lobe of [temporal, prefrontal]) {
+      expect(lobe.url === null || typeof lobe.url === 'string').toBe(true);
+      if (lobe.url !== null) expect(lobe.url).toContain(lobe.name);
+    }
 
     const discoverResponse = await page.request.get(`${TELENCEPHALON_URL}/api/telencephalon/agents/discover`);
     expect(discoverResponse.ok()).toBeTruthy();
