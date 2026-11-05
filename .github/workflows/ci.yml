@@ -156,6 +156,7 @@ jobs:
             synapse
             hippocampus
             neuron
+            ziti-rust
 
       - name: Cargo check
         working-directory: prefrontal
@@ -173,9 +174,13 @@ jobs:
       #    ⇒ ⇒ 现在它挡**真缺陷**（error）⇒ ⇒ 防线真的生效；warning 存量
       #    **登记为债**（AGENTS.md U+3394 条有清单与逐仓销账计划）⇒ ⇒
       #    清零之后把口径收回 `-D warnings`（分阶段收紧，不是一步到位）。
-      #    ⚠️ 加 `--all-targets` ⇒ ⇒ 否则 examples / tests / benches
-      #    **根本不被编** ⇒ ⇒ 那一层是**零覆盖** —— 本轮就抓到：synapse 的
-      #    8 个 example 走 feature 门，不声明 required-features 就编不过。
+      # ⚠️ 加 `--all-targets` ⇒ ⇒ 把 **benches** 也拉进编译面
+      #    （`cargo test` 本来就编 tests 与 examples ⇒ ⇒ 真正零覆盖的
+      #    是 benches；而 synapse 在这个 job 里**一个 cargo 步骤都没有** ⇒ ⇒
+      #    它那一整层 —— 15 个 example ＋ 22 个集成测试 —— 从来没被编过
+      #    —— 本轮就抓到：8 个 example 走 feature 门，不声明
+      #    required-features 就编不过 ⇒ ⇒ 那 8 段 required-features 就是
+      #    这么补上的）。
       - name: Cargo clippy
         working-directory: prefrontal
         run: cargo clippy --manifest-path Cargo.toml --all-targets
@@ -420,6 +425,7 @@ jobs:
             diencephalon
             temporal
             occipital
+            ziti-rust
 
       # neuron's 归属：「全局唯一 neuron，由大脑直接管理」——
       # ⚠️ 这道闸**跨兄弟仓**（端脑 / 大脑 / 前额叶 / 海马体 / neuron / 叶区…）
@@ -630,7 +636,14 @@ jobs:
         working-directory: shadow-desktop
         run: pnpm exec tsc --noEmit
 
-      - name: Build Tauri
+      # ⚠️ 名字叫「Build Tauri」，但 `pnpm build` = `tsc -b && vite build`
+      #    ⇒ ⇒ **只编前端，不碰 cargo** ⇒ ⇒ **桌面端 Rust 侧（src-tauri）
+      #    在 CI 上零覆盖** ⇒ ⇒ 它的三个 path 依赖（encephalon / synapse /
+      #    neuron，指向 `../../../`）在 CI 上从未被解析过 ⇒ ⇒ 而在
+      #    「本仓检在 GITHUB_WORKSPACE 根」这个布局下它们**根本指不到**
+      #    ⇒ ⇒ 要补这块覆盖，得先把本仓检出到 `path: shadow`（release.yml
+      #    踩的是同一个坑）—— 本轮只把名字改对，覆盖另记。
+      - name: Build web frontend (Tauri Rust side is NOT built here)
         working-directory: shadow-desktop
         run: pnpm build
 
