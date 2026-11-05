@@ -1,9 +1,10 @@
 import { FullConfig } from '@playwright/test';
 import { spawn } from 'child_process';
-import { mkdirSync, rmSync, existsSync, openSync, closeSync, readFileSync } from 'fs';
+import { mkdirSync, rmSync, existsSync, openSync, closeSync, readFileSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
-import { join } from 'path';
+import { join, dirname } from 'path';
 import { platform } from 'process';
+import { fileURLToPath } from 'url';
 
 // The standalone 端脑 binary was renamed in the 2026-09 rename chain.
 // 端脑 binary then moved again: `telencephalon` became a **pure library**
@@ -69,6 +70,90 @@ const SERVER_LOG_PATH = join(LOG_DIR, 'telencephalon-server.log');
 //   **fail-closed**（2026-10-31 起不再发明 `dev-admin-key`）⇒ ⇒ ⇒
 //   客户端那侧必须带**同一个值**（头名只认 `x-admin-token`）。
 const ADMIN_KEY = process.env.SHADOW_E2E_ADMIN_KEY ?? '';
+
+// ⚠️⚠️ **「健康绿 ≠ 推理面可用」必须在 setup 里量出来**（2026-11-05 真机实测）：
+//   `/healthz` 200 而推理链路 502（逐字 `neuron call failed`）⇒ ⇒ 「门绿」冒充「链绿」。
+//   修法两件套（零新增产品面、零真模型）：
+//   ① 起一个回环 mock OpenAI 上游（同目录 `mock-llm-server.mjs`），用 neuron 自带的
+//      `NEURON_REMOTE_*` 注册通道（`neuron/src/server/state.rs`）把 `test-model-ui`
+//      注册成「代理到 mock」的引擎 ⇒ ⇒ CI 干净 runner 上推理面有货；
+//   ② 端脑 health 就绪后**再探推理面**（POST /v1/chat/completions ⇒
+//      端脑 → 叶区 → neuron → mock 全链）⇒ ⇒ 探针读数当场可见，
+//      不用等 spec 各自红再解析 trace。
+const MOCK_ENABLED = process.env.SHADOW_E2E_MOCK_LLM !== '0';
+const MOCK_PORT = process.env.SHADOW_E2E_MOCK_LLM_PORT ?? '18099';
+const MOCK_LOG_PATH = process.env.SHADOW_E2E_MOCK_LLM_LOG ?? join(tmpdir(), 'shadow-e2e-mock-llm.log');
+const MOCK_PID_PATH = join(LOG_DIR, 'shadow-e2e-mock.pid');
+const E2E_DIR = dirname(fileURLToPath(import.meta.url));
+const MOCK_SERVER_SCRIPT = join(E2E_DIR, 'mock-llm-server.mjs');
+// 与 spec 断言对齐：business-flow-ui（FULL_STACK）要 reply 含「任务」；
+// conversation-flow（FULL_STACK）要含中文字符或 hello ⇒ ⇒ 一条文本全满足。
+const MOCK_MODEL_ID = 'test-model-ui';
+const MOCK_REPLY = '任务已创建（mock）：hello 你好';
+
+function startMockLlmServer(): void {
+  if (!MOCK_ENABLED) {
+    console.log('[global-setup] mock LLM disabled (SHADOW_E2E_MOCK_LLM=0)');
+    return;
+  }
+  try { mkdirSync(LOG_DIR, { recursive: true }); } catch { /* 目录已存在 */ }
+  let child: ReturnType<typeof spawn>;
+  try {
+    child = spawn(process.execPath, [MOCK_SERVER_SCRIPT], {
+      env: { ...process.env, MOCK_PORT, MOCK_LOG_PATH, MOCK_MODEL_ID, MOCK_REPLY },
+      stdio: 'ignore',
+      detached: true,
+    });
+  } catch (err) {
+    console.warn(`[global-setup] mock LLM spawn failed: ${(err as Error).message}`);
+    return;
+  }
+  child.on('error', (err) => {
+    console.warn(`[global-setup] mock LLM failed: ${err.message}`);
+  });
+  try { writeFileSync(MOCK_PID_PATH, String(child.pid ?? '')); } catch { /* 收尾少一把钥匙而已 */ }
+  child.unref();
+  console.log(`[global-setup] mock LLM upstream: 127.0.0.1:${MOCK_PORT} (model ${MOCK_MODEL_ID})`);
+}
+
+/**
+ * ⚠️ **推理面就绪探针** —— 打的是**推理链路本身**（不是 /healthz）：
+ *   POST /v1/chat/completions → 端脑（owner 门）→ 叶区 → neuron → mock 上游。
+ *   200 且 choices[0].message.content 非空 ⇒ 链路通；其余 ⇒ 把最后读数报出来。
+ */
+async function probeInferenceFace(timeoutMs = 30000): Promise<{ ok: boolean; detail: string }> {
+  const start = Date.now();
+  let last = '';
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const res = await fetch(`${TELENCEPHALON_URL}/v1/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          // owner 门认进程内内部凭据 ∪ admin token ⇒ 探针从外部打，用 admin 钥匙。
+          ...(ADMIN_KEY ? { 'x-admin-token': ADMIN_KEY } : {}),
+        },
+        body: JSON.stringify({ model: MOCK_MODEL_ID, messages: [{ role: 'user', content: 'ping' }] }),
+      });
+      const text = await res.text();
+      last = `${res.status} ${text.slice(0, 160).replace(/\s+/g, ' ')}`;
+      if (res.ok) {
+        try {
+          const body = JSON.parse(text) as { choices?: Array<{ message?: { content?: string } }> };
+          const content = body.choices?.[0]?.message?.content ?? '';
+          if (content.length > 0) {
+            return { ok: true, detail: `200 content="${content.slice(0, 60)}" (${Date.now() - start}ms)` };
+          }
+          last = '200 但 choices[0].message.content 为空';
+        } catch { /* 非 JSON ⇒ 按最后一轮读数重试 */ }
+      }
+    } catch (e) {
+      last = `THROW ${(e as Error).message}`;
+    }
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  return { ok: false, detail: last || 'no response' };
+}
 
 function isLoopbackUrl(url: string): boolean {
   try {
@@ -140,6 +225,11 @@ function readLogTail(path: string, n: number): string[] {
 async function globalSetup(_config: FullConfig) {
   if (await isTelencephalonRunning()) {
     console.log('[global-setup] 端脑 already running, reusing it');
+    startMockLlmServer();
+    // ⚠️ reuse 的进程递不进 env ⇒ 推理面探针只报读数、不拦路。
+    const probe = await probeInferenceFace(15000);
+    if (probe.ok) console.log(`[global-setup] 推理面就绪：${probe.detail}`);
+    else console.warn(`[global-setup] ⚠️ 推理面未就绪（reuse 模式只报不拦）：${probe.detail}`);
     globalThis.__SHADOW_TELENCEPHALON_AVAILABLE__ = true;
     return;
   }
@@ -158,6 +248,7 @@ async function globalSetup(_config: FullConfig) {
   console.log(`[global-setup] server 日志：${SERVER_LOG_PATH}`);
   console.log(`[global-setup] admin 面：${ADMIN_KEY ? '配了钥匙（开着）' : '没配钥匙（fail-closed 关着）'}`);
 
+  startMockLlmServer();
   console.log('[global-setup] Starting the 端脑 server (encephalon-server)...');
   // ⚠️⚠️ **必须把它的输出落盘** —— 原来 `stdio: 'ignore'` ⇒ ⇒ server 崩了/超时了
   //    **一个字都留不下** ⇒ ⇒ 「起不来」连一句原因都没有 ⇒ ⇒ 判不了。
@@ -180,6 +271,14 @@ async function globalSetup(_config: FullConfig) {
       //   `standalone_shadow_key()` 回落 admin token ⇒ ⇒ 于是
       //   `/shadow/v1/*` 也需要凭据 ⇒ ⇒ 客户端那侧必须同时带上。
       ...(ADMIN_KEY ? { TELENCEPHALON_ADMIN_KEY: ADMIN_KEY } : {}),
+      // ⚠️ **CI 干净 runner 上一个引擎都没有** ⇒ `no_engine_for_model`。
+      //    neuron 自带 `NEURON_REMOTE_*` 注册通道（`neuron/src/server/state.rs`）：
+    //    每个 id 注册成一个「代理到远端」的引擎 ⇒ ⇒ `test-model-ui` 有引擎，
+      //    真上游是上面起的回环 mock（`startMockLlmServer`）。
+      ...(MOCK_ENABLED ? {
+        NEURON_REMOTE_BASE_URL: `http://127.0.0.1:${MOCK_PORT}/v1`,
+        NEURON_REMOTE_MODELS: MOCK_MODEL_ID,
+      } : {}),
     },
     stdio: ['ignore', logFd, logFd],
     detached: true,
@@ -229,6 +328,15 @@ async function globalSetup(_config: FullConfig) {
   }
   console.log('[global-setup] 端脑 server started');
   globalThis.__SHADOW_TELENCEPHALON_AVAILABLE__ = true;
+
+  // ⚠️ **推理面探针（承「健康绿 ≠ 推理面可用」）**——health 就绪 ≠ 链路通。
+  //    不挡路：链路没通时 spec 在真实断言上红（trace 记录），但读数当场可见。
+  const inference = await probeInferenceFace();
+  if (inference.ok) {
+    console.log(`[global-setup] 推理面就绪：${inference.detail}`);
+  } else {
+    console.warn(`[global-setup] ⚠️ 推理面未就绪（不拦路）：${inference.detail}`);
+  }
 }
 
 // Re-export so specs can `import { isTelencephalonReachable } from '../e2e-ui/global-setup'`.
