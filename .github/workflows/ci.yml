@@ -498,6 +498,20 @@ jobs:
       - name: Navigation drift check
         run: node scripts/gen_nav.mjs --check
 
+      # 「状态面治理」闸 —— **持久状态的生命周期治理**（arXiv:2606.30306）。
+      # ⚠️ 本仓最强的另一半（上面 30 道 check-*）**全建在源码上**，
+      #    而**状态面**（账本 / 记忆 / 用户偏好）**一条闸都没有**。
+      # ⇒ ⇒ 这道闸盯的是：新条目**有没有信封**（授权 epoch / 来源 /
+      #    取代链 ⇒ ⇒ 论文那个 required ablation 的最小落法）、
+      #    来源指针**能不能解析**、取代链**断没断**、存量债务**有没有变多**、
+      #    以及仓里**有没有未登记的状态面**。
+      # ⚠️ 只读仓内的面 ⇒ ⇒ CI 里可跑（本地记忆面在 CI 不存在 ⇒ ⇒ 明确报「未覆盖」）。
+      - name: State surface governance check
+        run: node scripts/check-state-surface.mjs
+
+      - name: State surface governance check (self-test)
+        run: node scripts/check-state-surface.mjs --self-test
+
       # logo 几何同理：真相源在 brand/geom.mjs，两端图标与应用内标记都是
       # 生成物。改了几何忘了重跑 = 应用图标与应用内 logo 悄悄对不上。
       - name: Brand asset drift check
