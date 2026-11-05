@@ -604,6 +604,19 @@ jobs:
           java-version: '17'
           distribution: temurin
 
+      # ⚠️ gradle 一步要配 Android SDK：不接受许可证 ⇒ Gradle 报
+      #    "LicenceNotAcceptedException: ndk;30.0.14904198"（mobile-test
+      #    第一次真跑就栽在这 —— 以前 wrapper 不入库，根本没跑到过这）。
+      #    与 release.yml 的 Mobile APK job 同一款（那里早修过）。
+      - name: Accept Android SDK licenses and install the pinned NDK
+        shell: bash
+        run: |
+          set -e
+          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/tools/bin:$PATH"
+          yes | timeout 180 sdkmanager --licenses > /dev/null 2>&1 || true
+          sdkmanager "ndk;30.0.14904198" "platform-tools" > /dev/null
+          sdkmanager --list_installed 2>/dev/null | grep -E "ndk;|platform-tools" || true
+
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
@@ -900,6 +913,16 @@ jobs:
 
       - name: OpenZiti v2 wire spec check (self-test)
         run: node scripts/check-ziti-v2-wire.mjs --self-test
+
+      # ⚠️ 2026-11-06：零信任面闸接进 CI（此前一直「有闸但没人跑」——纪律闸
+      #    的 not-wired-into-ci 存量债）——它判的四个位置（encephalon /
+      #    telencephalon / synapse / shadow-desktop）这个 job 都在 ⇒ ⇒ 放在
+      #    只 checkout 了 shadow 的 job 会「判不了」⇒ ⇒ 绿灯但什么都没查。
+      - name: Zero-trust face check
+        run: node scripts/check-ziti-face.mjs
+
+      - name: Zero-trust face check (self-test)
+        run: node scripts/check-ziti-face.mjs --self-test
 
       # ⚠️ 2026-11-05：workflow 的 YAML 也得有人管 ⇒ ⇒ 这个 job 正好把所有
       #    兄弟仓都检出到工作区子目录 ⇒ ⇒ 顺手把它们的 workflow 也过一遍

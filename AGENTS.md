@@ -1,5 +1,21 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-06 (㎬ **「OpenZiti v2 真网线收口 —— 5 条 #[ignore] 在真路由器上全绿，v1 SDK 的叙事从手册里退场」** —— 承 ㎩ 条那笔（同一天的工作面），本条记**真网 5 条逐条读数**、**闸与手册收口**、**warning 清零**、**todo 快照过时的教训**，以及**仍然欠着的**。）
+
+> 信封：epoch=2026-11-06 | authority=measured | scope=project | source=真机实测（真网 `cargo test --offline --features ziti --lib -- --ignored --nocapture` ⇒ **5 passed; 0 failed; finished in 6.48s**，EXIT=0；synapse lib **371 passed / 0 failed** / EXIT=0 / 0 warning；`check-ziti-v2-wire.mjs` ＋ `check-ziti-face.mjs` 阻断 0 项）| status=active | supersedes=none
+
+① **✅ 真网 5 条逐条读数（quickstart router @ 192.168.31.170 在线，ping 0% loss；client/host 身份在 shadow/.ziti/）** —— ❶ `live_http_request_response`：HTTP 200＋体 `{"ok":true,"surface":"shadow-brain"}`；❷ `live_websocket_upgrade`：握手 **101**（5 秒无帧＝通道静默但活）；❸ `live_sse_stream`：200＋`text/event-stream`＋两块**分帧**到达（tick-0 / tick-1）；❹ `live_proxy_end_to_end`：本地代理 ⇒ 经代理 200；❺ `live_overlay_end_to_end`：**自宿主＋自客户端一条命令**（宿主走生产 `serve` 入口）HTTP/WS/SSE/代理四格全绿 ⇒ ⇒ 整链结论不靠对面真大脑在场。⚠️ SSE 那条要 `ZITI_TEST_CONVERSATION`，对面是 example 假面时**任意 id 都行** ⇒ 给 `e2e` 就能全跑不跳过。
+
+② **✅ 闸与手册收口** —— ❶ 两道闸早就在（`check-ziti-v2-wire.mjs` 钉协议常量/不变量/真网实证入口，覆盖 manifest 55/锁 22/源码 19；`check-ziti-face.mjs` 十一条规则）⇒ 复跑全绿阻断 0；❷ `docs/concepts/ziti.md` 的 SDK caveat 整段（vendor fork 第三方 ziti-sdk）**改写为 v2 自建叙事**（`../ziti-rust` crates/ziti-v2 path 依赖＋guard rails＋真网跑法＋读数）；❸ synapse `AGENTS.md` 依赖行与模块段同步改写＋头部条目（提交 `4cbd7a4` 已推）。ziti-sdk 残留扫描：正式仓 Cargo.toml **零依赖行**（全是删除史注释），Cargo.lock 零命中。
+
+③ **✅ warning 清零（本线 3 处）** —— live_tests.rs 两处多余 `mut`（`body.collect()` 消费 self）＋一处未用 import `Message as AxumMessage`；修后 lib 测试 371/0 复跑通过。events/tools 的 3 个 dead_code warning 不在本线改动面，未动。
+
+④ **⚠️ 教训：开工先对状态，别信 todo 快照** —— 快照停在「ConnectV2 in_progress」，实际 v2 线早已推进到 ziti-rust 独立仓＋synapse 门面接线＋真网实证入口建好（15 轮没写 todo）⇒ ⇒ **第一动作是读仓的现状（log/文档锚点），不是按快照继续写代码**；这轮的活只剩「跑真网＋收口文档」。
+
+⑤ **⚠️ 仍然欠着** —— ① shadow-desktop 侧 `ziti_client` 的真网联调（开关→重启→60080 上真是代理的真机读数）；② 本地零信任代理的前端切换实测；③ ziti-rust 仓自己的 CI 面（当前无 workflow）；④ `.local/patch-probe/` 这个含 ziti-sdk 0.3 的探针目录是临时物，待清理拍板。
+
+⑥ **⚠️ 圈码**：本条占 **U+33AC（㎬）** —— 插入前 fetch 远端（`git show origin/master:AGENTS.md` 解析 **84 个码位**两两不同 / dups=0、数值最大 **U+33AB**＝并行会话的 ㎫ 条）⇒ 空闲 ✔ ⇒ 顺延取 U+33AC，字符用 `String.fromCodePoint(0x33AC)` 生成。
+
 **Updated**: 2026-11-06 (㎫ **「『CI 上没有推理引擎』收口了 —— mock 通道 CI 首秀承重，红退到 spec 的状态污染那一层，修掉后 CI 30/1 只剩兄弟仓一格」** —— 承 ㎪ 条之前我那条（㎨，mock 三件套），本条记**CI 首秀承重读数**、**洋葱第二层**、**同状态 A/B**、**CI 级红→绿对账链**、**㌚⑥销账**、**占位竞态再上演**，以及**仍然欠着的**。）
 
 > 信封：epoch=2026-11-06 | authority=measured | scope=project | source=真机实测（desktop-e2e 三轮对账：42074569869 mock 首秀＝setup 推理面就绪 200/16ms＋server log 逐字 registered remote；42079173218＝**30 passed / 1 failed (21.2s)**，唯一失败＝❼信封 id＝兄弟仓缺口；并行会话 42077895340＝29/2；本地同状态 A/B＝改前 1 failed / 9 passed（与 CI 逐字同形）→ 改后 10 passed EXIT=0；码位闸 95 条零违规）| status=active | supersedes=none
@@ -30,7 +46,7 @@
 
 ⑦ **✅ 分级读数** —— **判据级**：新闸自检 8/8 ＋ 演练红→绿（SHA256 一致）＋ 纪律闸 41 道零违规 ＋ YAML 闸 5 文件零违规 ＋ 账本圈码（远端 82 条 / dups=0 / max U+33A9 ⇒ 本条取 U+33AA 空闲 ✔）；**移动端**：`flutter analyze --no-fatal-infos --no-fatal-warnings`（= CI 那把尺）我的文件**零问题**（存量 79 条 info/warning 未动）＋ `flutter test` **605 全过**；**桌面端（编译级）**：`cargo check --all-targets` **Finished**（37 条 warning 全是存量 unused import，逐条不在本轮改动面）＋ `tsc --noEmit` 干净；**桌面端（测试级）**：vitest 全量 **1369 passed / 5 skipped**（含新 `BackgroundRunCard` 4 条 ＋ `ZitiClientCard` 回归 9 条 ＋ `HippocampusStorageCard` 7 条）＋ eslint 我引入的那条 exhaustive-deps **已修**（SettingsPage 的 5 条 error 在 HEAD 上逐字复现 ⇒ 存量，未动）。
 
-⑧ **⚠️ 仍然欠着** —— ① **真机读数今天空着**：小米测试机（ee6b4832）不在位；在场的是 MI MAX 2（**API 25 < minSdk 30**，装不上）与三星 Fold5（**别人的日用机**，纪律禁碰）⇒ 待设备在位跑：`adb shell pidof com.ibloc.shadow`（切后台＋息屏 10 分钟后进程仍在）／`dumpsys activity services | grep -i shadow`（见 foreground service）／划掉任务后服务仍在；② Android 15+ 对 **dataSync** 有每 24h 6h 运行预算 ⇒ 全天候常驻要换 `mediaPlayback`/`connectedDevice` 类型（无预算档）⇒ 已写进 README，待真机观察再拍板；③ **iOS 整体未开工**（无 `UIBackgroundModes`）⇒ 本功能在 iOS 无效，那一格是另一刀；④ 桌面端自启开关只在设置页 ⇒ 托盘菜单没有这项；⑤ 桌面端 Rust 侧 warning 存量（37 条）未动。
+⑧ **⚠️ 仍然欠着** —— ① **真机读数今天空着**：小米测试机（ee6b4832）不在位；在场的是 MI MAX 2（**API 25 < minSdk 30**，装不上）与三星 Fold5（**别人的日用机**，纪律禁碰）⇒ 待设备在位跑：`adb shell pidof com.ibloc.shadow`（切后台＋息屏 10 分钟后进程仍在）／`dumpsys activity services | grep -i shadow`（见 foreground service）／划掉任务后服务仍在；② Android 15+ 对 **dataSync** 有每 24h 6h 运行预算 ⇒ 全天候常驻要换 `mediaPlayback`/`connectedDevice` 类型（无预算档）⇒ 已写进 README，待真机观察再拍板；③ **iOS 整体未开工**（无 `UIBackgroundModes`）⇒ 本功能在 iOS 无效，那一格是另一刀；④ 桌面端自启开关只在设置页 ⇒ 托盘菜单没有这项；⑤ 桌面端 Rust 侧 warning 存量（37 条）未动；⑥ **mobile-test 首跑（销债后）暴露两件**：❶ `gradlew` 从 Windows 提交丢了可执行位 ⇒ CI 上 `Permission denied`（exit 126）⇒ `git update-index --chmod=+x` 补上；❷ gradle 一步要 Android SDK：许可证没接受 ⇒ `LicenceNotAcceptedException: ndk;30.0.14904198` ⇒ 已补一步（与 release.yml 的 Mobile APK job 同款）；❸ `backend_settings_card_test.dart` 的「Save 把地址落进持久化配置」在 CI 红过一次（`settleIo` 定 16×5ms 轮，CI 慢 ⇒ 保存后的「端脑面跟着走」没走到）⇒ **复跑绿** ＋ 本机（含本轮改动）绿 ⇒ **时序 flake，存量**（并行会话的测试，未动它 —— 等它下次红再修成「轮询直到跟上」）；⑦ **Mimosa 扫描器两轮都没拿到完整结论（scanner_enobufs）** ⇒ 提交走了兼容策略 ⇒ **项目安全性这一格本轮没有读数**。
 
 ⑨ **⚠️ 圈码**：本条占 **U+33AA（㎪）** —— 插入前 fetch 了**远端**（fetch 直连绕过 127.0.0.1 代理；`git show origin/master:AGENTS.md` 解析 **82 条**、身份码位两两不同 / dups=0、数值最大 **U+33A9**）⇒ 空闲 ✔ ⇒ 字符用 `String.fromCodePoint(0x33AA)` 生成（**只认原始码位，不信注解**）⇒ U+33A9 已被并行会话占用（ASR 转写那条）⇒ 我让到 U+33AA。
 
