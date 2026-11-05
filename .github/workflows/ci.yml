@@ -166,14 +166,19 @@ jobs:
         working-directory: prefrontal
         run: cargo test --manifest-path Cargo.toml
 
-      # ⚠️⚠️ 2026-11-05：口径从「`-D warnings`」改成「**只挡 error**」——
-      #    因为实测 **`-D warnings` 下每一个仓都红**（prefrontal 132 条 /
-      #    telencephalon 256 / neuron 192 / synapse 145 / encephalon 6 条）
-      #    ⇒ ⇒ **这道 step 从来没有绿过** ⇒ ⇒ 红久了没人看 ⇒ ⇒ 整条 lint
-      #    防线静默失效（**比没有更坏**：它给人「已经 lint 过了」的错觉）。
-      #    ⇒ ⇒ 现在它挡**真缺陷**（error）⇒ ⇒ 防线真的生效；warning 存量
-      #    **登记为债**（AGENTS.md U+3394 条有清单与逐仓销账计划）⇒ ⇒
-      #    清零之后把口径收回 `-D warnings`（分阶段收紧，不是一步到位）。
+      # ⚠️⚠️ 2026-11-05：**prefrontal 这一步把口径收回了 `-D warnings`**。
+      #    之前是「只挡 error」—— 当时 `-D warnings` 下**每一个仓都红**
+      #    （prefrontal 132 条 / telencephalon 256 / neuron 192 / synapse 145 /
+      #    encephalon 6 条）⇒ ⇒ 这道 step 从来没有绿过 ⇒ ⇒ 红久了没人看
+      #    ⇒ ⇒ 整条 lint 防线静默失效（**比没有更坏**：它给人「已经 lint 过了」
+      #    的错觉）。
+      #    ⇒ ⇒ **分阶段收紧**：prefrontal 先清零（132 → 62 → 26 → **0**）⇒ ⇒
+      #    先收回它；**其余四仓仍按「只挡 error」**（它们还红着）。
+      # ⚠️⚠️ **这一步现在是真正的防线** —— 本地
+      #    `cargo clippy --offline --all-targets -- -D warnings` ⇒ EXIT=0 / 零 lint
+      #    ⇒ ⇒ 但 **CI 的 Rust 是 runner 预装 stable（没有 pin）** ⇒ ⇒
+      #    若 CI 的 clippy 比本地 1.96 新 ⇒ ⇒ 可能冒出新 lint ⇒ ⇒
+      #    那正是收紧循环该有的样子（**可见的红**，不是恒绿）。
       # ⚠️ 加 `--all-targets` ⇒ ⇒ 把 **benches** 也拉进编译面
       #    （`cargo test` 本来就编 tests 与 examples ⇒ ⇒ 真正零覆盖的
       #    是 benches；而 synapse 在这个 job 里**一个 cargo 步骤都没有** ⇒ ⇒
@@ -183,7 +188,7 @@ jobs:
       #    这么补上的）。
       - name: Cargo clippy
         working-directory: prefrontal
-        run: cargo clippy --manifest-path Cargo.toml --all-targets
+        run: cargo clippy --manifest-path Cargo.toml --all-targets -- -D warnings
 
       # ⚠️ 2026-11-05：synapse 也要有 —— 它是「叶区那条链」上最底层的
       #    传输与协议仓（v2 线路层的调用方）⇒ ⇒ 它的 lint 红了没人知道。
@@ -191,6 +196,8 @@ jobs:
       #    门的 example 会被 cargo **跳过** ⇒ ⇒ 不需要编 ziti-v2 ⇒ ⇒
       #    但**仍需要 ziti-rust 在位**（cargo 连 optional 的 path 依赖也要
       #    读 manifest）⇒ ⇒ 靠上面那步 Checkout ziti-rust。
+      # ⚠️ **synapse 这步仍是「只挡 error」** —— 它还有 145 条 warning 存量
+      #    ⇒ ⇒ 分阶段收紧：谁先清零，谁先收回口径（prefrontal 已收回，见上）。
       - name: Cargo clippy (synapse)
         working-directory: synapse
         run: cargo clippy --manifest-path Cargo.toml --all-targets
