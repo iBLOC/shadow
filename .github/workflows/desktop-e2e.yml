@@ -192,3 +192,27 @@ jobs:
           #    **判不了**却看不出来 ⇒ ⇒ 正是「**有防线 ≠ 防线生效**」。
           # ⇒ ⇒ 改成 `error` ⇒ ⇒ 日志路径再漂一次就**当场变红**（而不是又一次静默绿）。
           if-no-files-found: error
+
+      # ⚠️⚠️ **trace 就是请求级取证通道** —— Playwright 的 trace 逐行记着每个请求的
+      #    方法 ＋ URL ＋ 状态码 ＋ **请求头** ⇒ ⇒ 「端脑那扇门到底**有没有**收到凭据」
+      #    **不必**等端脑加请求级日志就能判 ⇒ ⇒ 这道闸把它变成**会红的读数**。
+      #    ⇒ ⇒ 真实事故：仓里那份 config 把两个头 spread 到 `use` 的顶层 ⇒ ⇒ Playwright
+      #    **静默忽略** ⇒ ⇒ 那一轮打向端脑的请求**一条都没带凭据**、**全部 401** ⇒ ⇒
+      #    每一条红都是它的下游 ⇒ ⇒ 这道闸就是为了让下一次**当场变红**。
+      # ⚠️ `if: always()` ⇒ ⇒ Playwright 红了它照样跑 ⇒ ⇒ 它的读数就是**诊断**：
+      #    「凭据到位了（绿）⇒ ⇒ 剩下的红是别的」／「连凭据都没发出去（红）」。
+      - name: E2E trace credential check
+        if: always()
+        run: |
+          set -eu
+          OUT="$RUNNER_TEMP/e2e-traces"
+          mkdir -p "$OUT"
+          n=0
+          for z in $(find shadow/shadow-desktop/test-results -name 'trace.zip' 2>/dev/null); do
+            d="$OUT/$(echo "$z" | tr '/' '_')"
+            mkdir -p "$d"
+            unzip -o -q "$z" -d "$d"
+            n=$((n+1))
+          done
+          echo "trace.zip 个数：$n"
+          node shadow/scripts/check-e2e-trace-credentials.mjs --dir "$OUT"
