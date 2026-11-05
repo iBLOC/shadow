@@ -274,18 +274,28 @@ function mkFinding(kind, line, message, extra) {
   return f;
 }
 
-/** 跳过块标量（竖线 / 大于号）的内容行。 */
+/**
+ * 跳过块标量（竖线 / 大于号）的内容行，**并把内容带回来**。
+ * ⚠️ 为什么内容要带回来（2026-11-05 狗粮实测）：块标量是 CI 里
+ * `run: |` 的常见形态 ⇒ ⇒ 只保留结构的话，取不到 run 的正文
+ * ⇒ ⇒ 「这道闸有没有接进 CI」就查不准 ⇒ ⇒ **假阳性**。
+ */
 function skipBlockContent(lines, i, parentIndent) {
+  const parts = [];
+  let contentIndent = null;
   while (i < lines.length) {
     if (isBlankLine(lines[i])) {
+      parts.push('');
       i += 1;
       continue;
     }
     const ind = leadingIndent(lines[i]);
     if (ind.indent <= parentIndent) break;
+    if (contentIndent === null) contentIndent = ind.indent;
+    parts.push(lines[i].slice(Math.min(contentIndent, lines[i].length)).trimEnd());
     i += 1;
   }
-  return i;
+  return { next: i, content: parts.join('\n') };
 }
 
 function nextSignificantLine(lines, i) {
@@ -430,7 +440,13 @@ function parseMapping(lines, i, indent, path, ctx, pending) {
         i = child.next;
       }
     } else if (value.kind === 'block') {
-      i = skipBlockContent(lines, i, indent);
+      const block = skipBlockContent(lines, i, indent);
+      entry.value = { type: 'block-scalar', value: block.content };
+      i = block.next;
+    } else {
+      // ⚠️ 标量值要**留得下来**（2026-11-05 狗粮实测）：否则结构在、字面没了
+      //    ⇒ ⇒ 「从 ci.yml 里取 run 的正文」就取不到 ⇒ ⇒ 查不准 ⇒ ⇒ 假阳性。
+      entry.value = { type: 'scalar', value: valueText };
     }
   }
 

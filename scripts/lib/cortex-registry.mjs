@@ -606,6 +606,32 @@ export const REGISTRY = {
       },
     ],
   },
+
+  'ziti-rust': {
+    // ⚠️ 2026-11-05 新仓（v2 线路层抽成 crates/ziti-v2 时建）⇒ ⇒ 本机有、
+    //    origin 也有（iBLOC/ziti-rust）⇒ ⇒ 但 shadow 的 cortex-residue-stack
+    //    job **还没检出它** ⇒ ⇒ CI 上这一格是**缺口**（不是干净）⇒ ⇒
+    //    显式登记，别让它以「未登记」的形式阻断整道闸。
+    scanDirs: ['src', 'crates', 'tests', 'examples'],
+    scanFiles: ['README.md', 'ARCHITECTURE.md', 'Cargo.toml'],
+    excludeDirs: [...COMMON_EXCLUDE_DIRS],
+    excludeFiles: [...COMMON_EXCLUDE_FILES],
+    allowed: [
+      {
+        token: 'cortex',
+        kind: 'history',
+        reason:
+          'Cargo.toml 注释里的**旧产品名**（「cortex pulls this via」）—— 那是**改名史**' +
+          '（旧名 cortex ⇒ ⇒ 现在叫端脑 / 影子）⇒ ⇒ 只在注释 / 文档行豁免' +
+          '⇒ ⇒ 出现在**代码行**照样判红。',
+      },
+    ],
+    ciCheckout: false,
+    ciReason:
+      '2026-11-05 新建仓（iBLOC/ziti-rust）⇒ ⇒ 有 origin，但 shadow 的 ' +
+      'cortex-residue-stack job 还没检出它 ⇒ ⇒ CI 上这一格是缺口 ⇒ ⇒ ' +
+      '什么时候接：给那个 job 补一步 checkout，并把本行的 ciCheckout 改成 true。',
+  },
 };
 
 /** 已经在跑自己那道闸的仓（由它们自己的薄壳 + 自己的 CI 负责） */

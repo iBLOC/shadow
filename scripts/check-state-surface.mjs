@@ -154,7 +154,7 @@ export function findUnregistered(root, declared) {
       if (e.isDirectory()) {
         if (SKIP.has(e.name)) continue;
         // ⚠️⚠️⚠️ **「里面带 .git 的目录」要整棵跳过** —— 两种布局都靠它
-        //    （2026-11-05 实测踩到，本仓与 cortex-residue 注册表同一个坑）：
+        //    （2026-11-05 实测踩到，本仓与跨仓残留注册表同一个坑）：
         //      ① **CI**：actions/checkout 把**兄弟仓**检到**工作区根之内**
         //         （checkout 拒绝工作区之外的路径）⇒ ⇒ 那些仓**就在本仓根下**
         //         ⇒ ⇒ 而本机那 6 个兄弟仓**每个都有 AGENTS.md**

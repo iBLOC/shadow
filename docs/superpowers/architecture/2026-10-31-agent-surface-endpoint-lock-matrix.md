@@ -530,6 +530,7 @@ WebRTC 浏览器、桌面端自己起的 sidecar、外部端脑进程。⇒ 这�
 | `/models/providers/{id}/auto-match` | POST | providers | — | 自动匹配模型 |
 | `/models/providers/{id}/fetch-models` | POST | providers | — | 拉模型列表（外连） |
 | `/models/providers/{id}/test` | POST | providers | — | 测 provider（外连 + 带 key） |
+| `/models/providers/{id}/reveal` | POST | providers | — | **只有 admin 能开**（`admin_door`）⇒ 回吐 provider 的**真实密钥** ⇒ ⇒ 「导出到另一个工具的凭据文件」这条路 ⇒ ⇒ **必须锁**（2026-11-05 补录：`src/api/providers.rs`） |
 | `/models/providers/preview` | POST | providers | — | **无状态**预览模型列表（外连，**不落盘、不进列表**）⇒ 「测试并获取模型」按钮 |
 | `/models/{provider_id}/{model_id}` | DELETE | providers | — | 删模型 |
 | `/api/telencephalon/config/{section}/{key}` | PUT,DELETE | config_api | — | **改/删这台大脑的配置**（端脑 / 丘脑 / neuron / 云端供应商 / MCP 的运行数据与配置都在 Turso 里 ⇒ 不在海马体里）⇒ ⚠️ 回包里的秘密项是**掩码**；⚠️ 仅带 Turso 的构建有这张面 |

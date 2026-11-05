@@ -891,3 +891,19 @@ jobs:
 
       - name: Cross-repo workflow YAML check (self-test)
         run: node scripts/check-yaml-valid.mjs --self-test
+
+      # ── 闸的治理闸 ──────────────────────────────────────────────
+      # ⚠️ 2026-11-05 实测：全仓 35 道闸里**只有 14 道接进了 CI** ⇒ ⇒
+      #    另外 20 道「有闸但没人跑」⇒ ⇒ 一盏绿的 CI 只覆盖了 14 道 ⇒ ⇒
+      #    「闸也必须守纪律」被收成一道闸（自检 / 可数读数 / 接进 CI /
+      #    有「判不了」这一档）⇒ ⇒ 存量缺口登记在 lib/gate-discipline-registry.mjs。
+      #
+      # ⚠️ 放在这个 job 里，是因为它**已经把所有兄弟仓检出到工作区**⇒ ⇒
+      #    那些要兄弟仓在位的闸（cortex-residue-all / neuron-ownership）
+      #    在这里才判得了 ⇒ ⇒ 放在只 checkout 了 shadow 的 job 里 ⇒ ⇒
+      #    它们只会「判不了」（绿灯但什么都没查）。
+      - name: Gate discipline check
+        run: node scripts/check-gate-discipline.mjs --scope=wired
+
+      - name: Gate discipline check (self-test)
+        run: node scripts/check-gate-discipline.mjs --self-test
