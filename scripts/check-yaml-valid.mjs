@@ -428,6 +428,38 @@ function selfTest() {
     { clean: true },
   );
 
+  // ⚠️ Y14 的孪生用例：少一个开括号的表达式 ⇒ ⇒ Y4 与真解析器都看不见它
+  //    ⇒ ⇒ 必须单独判（2026-11-05 本仓自己踩到过这一行）。
+  const BROKEN_EXPR_WORKFLOW = [
+    'name: CI',
+    'on:',
+    '  push:',
+    '    branches: [main]',
+    'jobs:',
+    '  build:',
+    '    runs-on: ubuntu-latest',
+    '    steps:',
+    '      - name: Checkout',
+    '        uses: actions/checkout@v7',
+    '        with:',
+    '          token: $' + '{ secrets.IBLOC_TOKEN }}',
+  ].join('\n');
+  add('少一个开括号的表达式 ⇒ 必红（Y4 与真解析器都看不见它）', BROKEN_EXPR_WORKFLOW, {
+    must: ['malformed-expression'],
+  });
+  add('孪生：完整的表达式 ⇒ 必须干净', BROKEN_EXPR_WORKFLOW.replace(
+    '$' + '{ secrets.IBLOC_TOKEN }}',
+    '$' + '{{ secrets.IBLOC_TOKEN }}',
+  ), { clean: true });
+  add('孪生：**表达式嵌在更长字符串里** ⇒ 必须干净（不许误报）', BROKEN_EXPR_WORKFLOW.replace(
+    '$' + '{ secrets.IBLOC_TOKEN }}',
+    '$' + '{{ github.workspace }}/encephalon',
+  ), { clean: true });
+  add('孪生：shell 正文里的 ${VAR} 与 secrets 字样 ⇒ 必须干净', BROKEN_EXPR_WORKFLOW.replace(
+    '$' + '{ secrets.IBLOC_TOKEN }}',
+    'echo "${HOME} and secrets.X"',
+  ), { clean: true });
+
   let bad = 0;
   for (const c of cases) {
     const scan = scanYamlText(c.yaml, { workflow: true });
@@ -516,6 +548,30 @@ function drill(files) {
     ok: broken.code === 1 && brokenKinds.includes('plain-scalar-colon'),
     detail: 'exit=' + broken.code + ' kinds=' + JSON.stringify(brokenKinds),
   });
+
+  // ⚠️ 第二段退化：注入「少一个开括号的表达式」（Y14）⇒ ⇒ 必须红。
+  //    退化只发生在**副本**里 ⇒ ⇒ 真文件一个字不动（末尾有 SHA256 核对）。
+  const exprRe = /\$\{\{[^}]*\}\}/;
+  if (exprRe.test(original)) {
+    const brokenExprText = original.replace(exprRe, '$' + '{ secrets.IBLOC_TOKEN }}');
+    writeFileSync(copyPath, brokenExprText, 'utf8');
+    const brokenExpr = scanCopy();
+    const brokenExprKinds =
+      brokenExpr.data && brokenExpr.data.perFile
+        ? brokenExpr.data.perFile.flatMap((f) => f.findings.map((x) => x.kind))
+        : [];
+    steps.push({
+      name: '副本注入少一个开括号的表达式 ⇒ 必须红（且抓到 malformed-expression）',
+      ok: brokenExpr.code === 1 && brokenExprKinds.includes('malformed-expression'),
+      detail: 'exit=' + brokenExpr.code + ' kinds=' + JSON.stringify(brokenExprKinds),
+    });
+  } else {
+    steps.push({
+      name: '副本注入少一个开括号的表达式 ⇒ 这份 workflow 里没有表达式 ⇒ 跳过',
+      ok: true,
+      detail: 'skipped',
+    });
+  }
 
   writeFileSync(copyPath, original, 'utf8');
   const restored = scanCopy();

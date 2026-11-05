@@ -83,16 +83,19 @@ export const NO_CANNOT_JUDGE_EXIT = {
     '要外网的）⇒ ⇒ 必须有退出码 2 那一档' +
     '⇒ ⇒ ⚠️ cortex-residue / cortex-residue-all 已于 2026-11-05 补上那一档' +
     '（引擎的「判不了」现在会一路传出来：豁免条目腐烂 / 扫描目标指不到文件' +
-    '⇒ ⇒ 退出码 2，不再伪装成「有问题」）⇒ ⇒ 已从本清单销账',
+    '⇒ ⇒ 退出码 2，不再伪装成「有问题」）⇒ ⇒ 已从本清单销账' +
+    '⇒ ⇒ ⚠️ client-dialect / provider-admin-headers 同日销账：逐条量过 ——' +
+    '它们的 process.exit(main()) 里 main() **确实 return 2** ⇒ ⇒ 那一档本来就有' +
+    '⇒ ⇒ 是治理闸的**源码形状启发**（只认字面 exit(2)）把它误判成没有' +
+    '⇒ ⇒ 治理闸已补「2 能到达 exit」的形状（exit 的参数是某个函数、且那个函数 return 2）' +
+    '⇒ ⇒ 剩下 6 条是**真债**（实测：它们的 exit 只能取 0 / 1）⇒ ⇒ 本清单不装假债',
   gates: [
     'agent-surface',
     'brain-chain',
-    'client-dialect',
     'client-tools',
     'cross-client',
     'jni-surface',
     'neuron-ownership',
-    'provider-admin-headers',
   ],
 };
 

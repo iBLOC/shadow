@@ -178,6 +178,32 @@ function selfTest() {
     return cmp.stale.length === 0 && cmp.missing.length === 0;
   });
 
+  add(
+    '退出码经 main() 传递、且 main() 能返回 2 ⇒ ⇒ 不许误判成「没有那一档」',
+    () => {
+      const src = 'function main() {\n  if (!ok) return 2;\n  return 0;\n}\nprocess.exit(main());';
+      return sourceShape(src).hasCannotJudgeExit === true;
+    },
+  );
+  add(
+    '孪生：main() 只能返回 0/1 ⇒ ⇒ 仍然要报「没有那一档」',
+    () => {
+      const src = 'function main() {\n  return failed > 0 ? 1 : 0;\n}\nprocess.exit(main());';
+      return sourceShape(src).hasCannotJudgeExit === false;
+    },
+  );
+  add(
+    '孪生：字面 exit(2) ⇒ ⇒ 认得出来',
+    () => sourceShape("process.exit(2);").hasCannotJudgeExit === true,
+  );
+  add(
+    '函数体里有字符串花括号 ⇒ ⇒ 仍要认得出 return 2（朴素配平会被带偏）',
+    () => {
+      const src = 'function main() {\n  const s = "{ not a brace }";\n  if (!ok) return 2;\n  return 0;\n}\nprocess.exit(main());';
+      return sourceShape(src).hasCannotJudgeExit === true;
+    },
+  );
+
   let bad = 0;
   for (const c of cases) {
     let ok = false;

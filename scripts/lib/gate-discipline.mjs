@@ -62,8 +62,73 @@ export function sourceShape(source) {
   const text = String(source || '');
   return {
     hasSelfTestFlag: text.includes('--self-test'),
-    hasCannotJudgeExit: /exit\(2\)/.test(text),
+    hasCannotJudgeExit: /exit\(2\)/.test(text) || exitCanReachTwo(text),
   };
+}
+
+/**
+ * 「2 能不能到达 exit」—— 比「字面 exit(2)」更准的形状。
+ *
+ * ⚠️ 为什么需要它（2026-11-05 逐条实测）：有的闸写成 `process.exit(main())`
+ *    ⇒ ⇒ 而 main() 里 `return 2` ⇒ ⇒ **它确实能以退出码 2 表达「判不了」**
+ *    ⇒ ⇒ 而只看字面 `exit(2)` 会把它误判成「没有那一档」
+ *    ⇒ ⇒ 债清单里就多了一条**假债**（实测 8 条 D5 债里有 2 条是这种）。
+ *
+ * ⚠️ 判法是**保守**的：只在「exit 的参数是某个**函数名**」且
+ *    「那个函数在本文件里确实 `return 2`」时才认 ⇒ ⇒ 认不准就继续报
+ *    ⇒ ⇒ **宁可多报一条债，也不假绿**。
+ */
+function exitCanReachTwo(text) {
+  const re = /exit\(\s*([A-Za-z_$][\w$]*)/g;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const body = functionBody(text, m[1]);
+    if (body && /\breturn\s+2\b/.test(body)) return true;
+  }
+  return false;
+}
+
+/**
+ * 取某个具名函数的函数体 ⇒ ⇒ 找不到就返回 null。
+ *
+ * ⚠️ **必须跳过字符串与注释再配平花括号**（2026-11-05 实测踩到）：
+ *    朴素的计数会被**字符串里的花括号**带偏 ⇒ ⇒ 函数体提前截断 ⇒ ⇒
+ *    里面的 `return 2` 看不见 ⇒ ⇒ 把「有那一档」误判成「没有」⇒ ⇒ 假债。
+ */
+function functionBody(text, name) {
+  const at = text.search(new RegExp('function\\s+' + name + '\\s*\\('));
+  if (at < 0) return null;
+  const open = text.indexOf('{', at);
+  if (open < 0) return null;
+  let depth = 0;
+  let quote = null;
+  for (let i = open; i < text.length; i++) {
+    const ch = text[i];
+    if (quote) {
+      if (ch === '\\') { i += 1; continue; }
+      if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === '"' || ch === "'" || ch === '`') { quote = ch; continue; }
+    if (ch === '/' && text[i + 1] === '/') {
+      const nl = text.indexOf('\n', i);
+      if (nl < 0) break;
+      i = nl;
+      continue;
+    }
+    if (ch === '/' && text[i + 1] === '*') {
+      const end = text.indexOf('*/', i);
+      if (end < 0) break;
+      i = end + 1;
+      continue;
+    }
+    if (ch === '{') depth += 1;
+    else if (ch === '}') {
+      depth -= 1;
+      if (depth === 0) return text.slice(open + 1, i);
+    }
+  }
+  return null;
 }
 
 /** 从 ci.yml 里取出所有 step 的 run 正文（用自家 YAML 闸的解析器 ⇒ 狗粮）。 */

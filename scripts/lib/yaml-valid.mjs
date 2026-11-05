@@ -30,6 +30,9 @@
  *   Y11 job-missing-steps     job 有 runs-on 却没有 steps
  *   Y12 step-missing-action   step 既没有 uses 也没有 run
  *   Y13 step-both-actions     step 同时有 uses 和 run（GitHub 不允许）
+ *   Y14 malformed-expression 表达式的**形状**坏了（少一个花括号）——
+                             YAML 合法 ⇒ ⇒ 真解析器说「好」、Y4 也不报
+                             ⇒ ⇒ 必须单独判（否则 secret 的值变成垃圾）
  *
  * ## 为什么 Y1 只在「纯量」上报
  *
@@ -42,6 +45,63 @@
 
 export const EXPR_OPEN = '$' + '{{';
 export const EXPR_CLOSE = '}}';
+
+/** GitHub 的**上下文路径**（`secrets.` / `github.` / …）—— 值里出现它 ⇒ ⇒ 那一格**应该是表达式**。 */
+export const GHA_CONTEXTS = [
+  'secrets.',
+  'github.',
+  'matrix.',
+  'needs.',
+  'inputs.',
+  'runner.',
+  'vars.',
+  'env.',
+];
+
+/** 这个值是不是一个**完整**的表达式（`${{ … }}`）？ */
+export function isCompleteExpression(value) {
+  const v = String(value || '').trim().replace(/^["']/, '').replace(/["']$/, '').trim();
+  if (!v.startsWith(EXPR_OPEN)) return false;
+  if (!v.endsWith(EXPR_CLOSE)) return false;
+  return v.length >= EXPR_OPEN.length + EXPR_CLOSE.length;
+}
+
+/**
+ * Y14：表达式的**形状**坏了（少一个开括号 / 少一个闭括号）。
+ *
+ * ⚠️ 为什么需要这一条（2026-11-05 真机实测，**本仓自己踩到**）：
+ *   `token: ${ secrets.IBLOC_TOKEN }}` —— **少了一个 `{`** ⇒ ⇒
+ *   · YAML **合法** ⇒ ⇒ 真解析器说「好」；
+ *   · Y4 只数 `${{` 与 `}}` 的个数 ⇒ ⇒ 这里那个 `}}` 没有配对的 `${{`
+ *     ⇒ ⇒ Y4 也**不报**（它只报「有开没闭」）；
+ *   ⇒ ⇒ **没有任何闸能抓到它** ⇒ ⇒ 而后果是：那个 secret 的**值变成
+ *     一段普通字符串** ⇒ ⇒ CI 的 checkout 拿错凭据 ⇒ ⇒ job 挂。
+ *
+ * ⚠️ 判法（宁可漏报也不误报）：
+ *   · 只看**以 `$` 开头**的值（它显然是想写表达式）；
+ *   · 且值里**碰到了上下文路径**（`secrets.` / `github.` / …）；
+ *   · 且它**不是**完整的 `${{ … }}` ⇒ ⇒ 才报。
+ *   ⇒ shell 正文里的 `secrets.` 字样（`run: echo "…secrets.X…"`）**不报**。
+ */
+export function checkExpressionShape(value) {
+  const v = String(value || '').trim().replace(/^["']/, '').replace(/["']$/, '').trim();
+  // ⚠️ 只有「**整格就是表达式**」才查 ⇒ ⇒ 嵌在更长字符串里的表达式
+  //    （`${{ github.workspace }}/encephalon`）是**合法**的 ⇒ ⇒ 不许误报；
+  //    shell 正文（`run: echo "${HOME} …"`）压根不以 `$` 开头 ⇒ ⇒ 天然出局。
+  if (!v.startsWith('$')) return null;
+  if (!GHA_CONTEXTS.some((c) => v.includes(c))) return null;
+  // ① 坏的开括号：「$ {」但不是「$ {{」⇒ ⇒ 那一格会被当成一段普通字符串
+  if (v.startsWith('$' + '{') && !v.startsWith(EXPR_OPEN)) {
+    return { kind: 'malformed-expression', value: v };
+  }
+  // ② 表达式没闭合：开标记比闭标记多（`${{ secrets.X }` 少一个 `}`）
+  const openers = countOccurrences(v, EXPR_OPEN);
+  const closers = countOccurrences(v, EXPR_CLOSE);
+  if (openers > closers) {
+    return { kind: 'malformed-expression', value: v };
+  }
+  return null;
+}
 
 /** 判「这是不是语法级错误」的一组（要与外部解析器的结论对齐 ⇒ 差分测试用）。 */
 export const SYNTAX_KINDS = new Set([
@@ -447,6 +507,19 @@ function parseMapping(lines, i, indent, path, ctx, pending) {
       // ⚠️ 标量值要**留得下来**（2026-11-05 狗粮实测）：否则结构在、字面没了
       //    ⇒ ⇒ 「从 ci.yml 里取 run 的正文」就取不到 ⇒ ⇒ 查不准 ⇒ ⇒ 假阳性。
       entry.value = { type: 'scalar', value: valueText };
+      // ⚠️ Y14：表达式的**形状**（不是配平）—— 「少一个开括号」那种
+      //    ⇒ ⇒ Y4 与真解析器都看不见 ⇒ ⇒ 必须单独判。
+      const badExpr = checkExpressionShape(valueText);
+      if (badExpr) {
+        ctx.findings.push(
+          mkFinding(
+            'malformed-expression',
+            lineNo,
+            '表达式的形状坏了（GitHub 会把它当成一段普通字符串）⇒ ⇒ 值：' + badExpr.value,
+            { key, value: badExpr.value },
+          ),
+        );
+      }
     }
   }
 
