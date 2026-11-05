@@ -120,7 +120,7 @@ encephalon = { path = "../../../encephalon", default-features = false, features 
 # ⇒ ⇒ 不会出现「两个 hippocampus 争同一把 Lance 锁」。
 "hippocampus",
     # 零信任面（OpenZiti dark service）—— 见 §encephalon::ziti§。
-    # ⚠️ **编译进 ≠ 会开** —— 运行时还要配 §ZITI_IDENTITY§ ⇒ ⇒ 没配
+    # ⚠️ **编译进 ≠ 会开** —— 运行时还要配 §ZITI_HOST_IDENTITY§ ⇒ ⇒ 没配
     # ⇒ 桌面端行为与今天**一模一样**。
     "ziti",
 ] }

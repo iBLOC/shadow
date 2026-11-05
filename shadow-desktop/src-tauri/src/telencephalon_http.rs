@@ -168,8 +168,20 @@ pub async fn serve(stack: &Embedded, hippocampus_data_dir: Option<String>, face:
     );
     // ⚠️ **双面挂载**（2026-11-03）—— 见 `encephalon::ziti` 的模块文档。
     // ⇒ ⇒ 回环 TCP 面留着（端脑自环回 + 前端 + SSE/WS），另起一张零信任面
-    // ⇒ ⇒ 没配 `ZITI_IDENTITY` ⇒ **不起** ⇒ ⇒ 桌面端行为与今天**一模一样**。
-    encephalon::ziti::spawn_if_configured(brain_face.router.clone());
+    // ⇒ ⇒ 没配 `ZITI_HOST_IDENTITY` ⇒ **不起** ⇒ ⇒ 桌面端行为与今天**一模一样**。
+    //
+    // ⚠️ **状态要被看见** —— 「这张面起没起」此前**只有一行日志**
+    // ⇒ ⇒ 现在句柄带状态（`starting` / `ready` / `failed(原因)`）。
+    match encephalon::ziti::spawn_if_configured(brain_face.router.clone()) {
+        Some(face) => tracing::info!(
+            service = %face.options().service_name,
+            identity_source = %face.options().identity_source.as_str(),
+            "零信任面已启动（terminator 就绪后可 dial）"
+        ),
+        None => tracing::info!(
+            "零信任面未配置（没配 ZITI_HOST_IDENTITY）—— 行为与今天一致"
+        ),
+    }
 
     if let Err(e) = axum::serve(listener, brain_face.router).await {
         tracing::error!("telencephalon http server stopped: {e}");

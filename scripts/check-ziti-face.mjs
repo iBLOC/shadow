@@ -249,7 +249,12 @@ export function auditCapabilities(routes, unsupported, caps) {
 export function serveCallSites(file, content) {
   const out = [];
   content.split('\n').forEach((line, i) => {
-    if (/(?:transport::)?ziti::serve\s*\(/.test(line)) out.push({ file, line: i + 1, text: line.trim() });
+    // ⚠️ `serve_with_ready` **也算** serve —— 它是同一个入口的「带就绪信号」
+    // 那个形状（2026-11-05：`serve` 建好监听器后一直跑到永远 ⇒ ⇒ 拿不到
+    // 「已经 bind 好了」的信号 ⇒ ⇒ 换成了 `serve_with_ready`）。
+    if (/(?:transport::)?ziti::serve(?:_with_ready)?\s*\(/.test(line)) {
+      out.push({ file, line: i + 1, text: line.trim() });
+    }
   });
   return out;
 }
@@ -269,7 +274,7 @@ export function spawnUsesGuard(content) {
   const lines = content.split('\n');
   let sawServe = false;
   for (let i = 0; i < lines.length; i++) {
-    if (!/(?:transport::)?ziti::serve\s*\(/.test(lines[i])) continue;
+    if (!/(?:transport::)?ziti::serve(?:_with_ready)?\s*\(/.test(lines[i])) continue;
     sawServe = true;
     // 往回找最近的函数头 —— serve 必须和 guard 在**同一个函数**里。
     let start = 0;
@@ -287,7 +292,20 @@ export function spawnUsesGuard(content) {
 
 /** 这段源码里有没有「起零信任面」的调用。 */
 export function mentionsZitiSpawn(content) {
-  return /ziti::spawn_if_configured|ziti::serve/.test(content);
+  // ⚠️ **两种起面的形状**（2026-11-05）——
+  // ① 直接 spawn：`spawn_if_configured` / `spawn_with` / `serve`；
+  // ② **造句柄 + start**：生产形态（独立端脑服务器）要把句柄塞进
+  //    `/healthz` 那个状态 ⇒ ⇒ 所以它是「先造句柄、后起面」。
+  //
+  // ⇒ ⇒ 只认「造了句柄」**不够** —— 那可能是个从没被 `start` 的句柄
+  // ⇒ ⇒ 所以「句柄」与「start」必须**同时**出现。
+  const spawns =
+    /ziti::spawn_if_configured/.test(content) ||
+    /ziti::spawn_with/.test(content) ||
+    /ziti::serve/.test(content);
+  const handles =
+    /ziti::ZitiFaceHandle/.test(content) && /\.start\s*\(/.test(content);
+  return spawns || handles;
 }
 
 /**
@@ -786,6 +804,50 @@ if (process.argv.includes('--self-test')) {
   );
   check('serve 调用点被认出', serveCallSites('a.rs', 'synapse::transport::ziti::serve(router, a, b)').length === 1);
   check('普通调用不算 serve', serveCallSites('a.rs', 'foo::serve(router)').length === 0);
+  // ⚠️ **`serve_with_ready` 也是 serve**（2026-11-05）—— 它是同一个入口的
+  // 「带就绪信号」那个形状 ⇒ ⇒ 判据不认它 ⇒ ⇒ 「唯一 serve 入口」会变成
+  // 「零个 serve 入口」⇒ ⇒ 而那不是「通过」，是「看不见」。
+  check(
+    'serve_with_ready 也算 serve 调用点',
+    serveCallSites('a.rs', 'synapse::transport::ziti::serve_with_ready(router, a, b, c)').length === 1,
+  );
+  check(
+    'serve_with_ready 走 guard ⇒ 判绿',
+    spawnUsesGuard(
+      [
+        'pub fn start(&self, router: axum::Router) {',
+        '  let router = guard(router);',
+        '  ziti::serve_with_ready(router, a, b, c).await',
+        '}',
+      ].join('\n'),
+    ),
+  );
+  check(
+    'serve_with_ready 没过 guard ⇒ 判红（反控）',
+    !spawnUsesGuard(
+      [
+        'pub fn start(&self, router: axum::Router) {',
+        '  let router = router;',
+        '  ziti::serve_with_ready(router, a, b, c).await',
+        '}',
+      ].join('\n'),
+    ),
+  );
+  // ⚠️ **宿主侧的新形状** —— 「造句柄 + start」也是起面。
+  check(
+    '宿主：造句柄 + start ⇒ 认得它起了零信任面',
+    mentionsZitiSpawn(
+      ['let face = ziti::ZitiFaceHandle::new(&opts);', 'face.start(app.clone());'].join('\n'),
+    ),
+  );
+  check(
+    '宿主：只造句柄、从不 start ⇒ 判红（反控）',
+    !mentionsZitiSpawn('let face = ziti::ZitiFaceHandle::new(&opts);'),
+  );
+  check(
+    '宿主：spawn_if_configured ⇒ 认得',
+    mentionsZitiSpawn('ziti::spawn_if_configured(router);'),
+  );
 
   // ⚠️ 替代路径这一族 —— 「501 指的路」是不是真的存在。
   const fbSample = [
