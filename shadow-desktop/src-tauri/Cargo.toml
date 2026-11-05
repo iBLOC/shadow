@@ -18,7 +18,22 @@ name = "shadow_desktop_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2", features = [] }
+# ⚠️⚠️ Tauri 的 **Rust crate 与 npm 包必须同 major/minor** —— 而两个生态
+#    的发版节奏**不同步** ⇒ ⇒ 「Rust 侧写 `2`、npm 侧写 `^2`」= 两边各取
+#    各自的最新 ⇒ ⇒ ⇒ 结果 Rust 取到 2.12.5 而 npm 停在 2.11.0 ⇒ ⇒ ⇒
+#    ⇒ ⇒ Tauri CLI **直接拒绝构建**：
+#      "Found version mismatched Tauri packages … tauri (v2.12.5) :
+#       @tauri-apps/api (v2.11.0)"
+#    ⇒ ⇒ ⇒ 而 npm 那一侧是**钉死的**（pnpm-lock.yaml 入库 ＋
+#    ⇒ ⇒ ⇒ `--frozen-lockfile`）⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ 所以
+#    ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ Rust 侧必须**向 npm 侧对齐**，而不是反过来。
+#    锚点（本机实测编过的那一组，从 target/debug/deps/*.d 里读出来的）：
+#      tauri 2.11.2 ↔ @tauri-apps/api 2.11.0 ✔ 同 minor
+#      tauri-plugin-opener 2.5.4 ↔ @tauri-apps/plugin-opener 2.5.4 ✔ 逐字相同
+#      tauri-build 2.6.2
+#    ⇒ ⇒ ⇒ 升 npm 侧要动 package.json ＋ pnpm-lock（TS 侧跟着变）⇒ ⇒ ⇒
+#    ⇒ ⇒ ⇒ 降 Rust 侧只动这三行 ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ 所以走后者。
+tauri-build = { version = "~2.6", features = [] }
 
 [dependencies]
 # default-features = false ONLY to drop "common-controls-v6": it makes
@@ -28,7 +43,7 @@ tauri-build = { version = "2", features = [] }
 # with STATUS_ENTRYPOINT_NOT_FOUND (0xc0000139). The feature only gates
 # muda's About-dialog helper, which we don't use. Everything else from
 # the default list is re-added verbatim.
-tauri = { version = "2", default-features = false, features = [
+tauri = { version = "~2.11", default-features = false, features = [
     "wry",
     "compression",
     "dynamic-acl",
@@ -38,7 +53,7 @@ tauri = { version = "2", default-features = false, features = [
     "image-png",
     "unstable",
 ] }
-tauri-plugin-opener = "2"
+tauri-plugin-opener = "~2.5"
 tauri-plugin-single-instance = "2"
 tauri-plugin-wdio-webdriver = "1.3"
 serde = { version = "1", features = ["derive"] }
