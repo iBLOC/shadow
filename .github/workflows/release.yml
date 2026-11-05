@@ -240,7 +240,15 @@ jobs:
           #    后者明确 Conflicts 前者 ⇒ ⇒ apt 直接报
           #    "Unable to satisfy dependencies. Reached two conflicting assignments"
           #    ⇒ ⇒ ⇒ 装 `libayatana-appindicator3-dev` 就够（它是替代品）。
-          sudo apt-get install -y libwebkit2gtk-4.1-dev librsvg2-dev patchelf libgtk-3-dev libayatana-appindicator3-dev
+          #
+          # ⚠️⚠️ `libspa-0.2-dev` 也不能少：屏幕捕获那层是
+          #    `xcap → pipewire → libspa → libspa-sys` ⇒ ⇒ 而 `libspa-sys`
+          #    的 build script 要 **pkg-config 找 libspa-0.2** ⇒ ⇒ 少它就
+          #    "failed to run custom build command for `libspa-sys v0.10.1`"
+          #    ⇒ ⇒ ⇒ 而 macOS / Windows **不需要**它（走 CoreGraphics /
+          #    Windows Graphics Capture）⇒ ⇒ ⇒ ⇒ 只有 Linux 这一格要。
+          #    `libssl-dev`：app 用了 native-tls ⇒ ⇒ 一起装上省一轮。
+          sudo apt-get install -y libwebkit2gtk-4.1-dev librsvg2-dev patchelf libgtk-3-dev libayatana-appindicator3-dev libspa-0.2-dev libssl-dev
         shell: bash
 
       - name: Setup Tauri dependencies (macOS)
