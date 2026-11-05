@@ -81,3 +81,18 @@ export async function setZitiClientConfig(
   // ⚠️ 回包也要归一 —— 否则存完那一瞬输入框会被清空（producer 回 snake_case）。
   return normalizeConfig(saved);
 }
+
+/**
+ * 这一次启动**实际在用**的模式 —— 60080 上坐的是不是零信任代理。
+ *
+ * ⚠️ 它与「保存的配置」可以不一致，而且**两个方向**都会：
+ * · 保存只落盘、**重启才生效** ⇒ 刚存完：配置已开，运行中仍是本地大脑；
+ * · 环境变量（`ZITI_CLIENT_IDENTITY`）也能打开客户端模式 ⇒ 配置关着，运行中却是客户端。
+ * ⇒ ⇒ 徽章必须读**这个**，不能读勾选框（勾一下徽章就跟着变 = 界面在撒谎）。
+ *
+ * web 构建拿不到 ⇒ `null` ——「判不了」，**不是**「本地大脑」。
+ */
+export async function getZitiClientRuntimeMode(): Promise<boolean | null> {
+  const mode = await safeInvoke<boolean>('ziti_client_runtime_mode');
+  return typeof mode === 'boolean' ? mode : null;
+}

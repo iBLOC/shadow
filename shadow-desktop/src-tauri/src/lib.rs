@@ -423,6 +423,8 @@ pub fn run() {
             // 「切到远端大脑」的开关（零信任客户端模式，重启后生效）。
             ziti_client_config::ziti_client_get_config,
             ziti_client_config::ziti_client_set_config,
+            // 这次启动**实际在用**的模式（设置页徽章读它，不读勾选框）。
+            ziti_client_config::ziti_client_runtime_mode,
             // JDM editor dry-run + publish (registered here —
             // they were defined but never wired before).
             jdm_try_run_rule,

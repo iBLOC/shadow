@@ -24,6 +24,7 @@ import { Globe } from 'lucide-react';
 import { Badge, Button, Input, Label } from '../ui';
 import {
   getZitiClientConfig,
+  getZitiClientRuntimeMode,
   setZitiClientConfig,
   type ZitiClientConfig as ZitiClientConfigValue,
 } from '../../lib/zitiClientConfig';
@@ -35,24 +36,31 @@ export function ZitiClientCard() {
     identityPath: '',
     service: '',
   });
+  // ⚠️ 徽章读的是**这次启动实际在用**的模式，不是勾选框 ——
+  // 勾选框是「下次启动要什么」，徽章是「现在是什么」；两者不同步时
+  // （刚存完未重启 / 环境变量打开的）徽章跟着勾选框变 = 界面在撒谎。
+  // null = 判不了（web 构建）⇒ 不出徽章。
+  const [runtimeClientMode, setRuntimeClientMode] = useState<boolean | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // ⚠️ 加载错与保存错**分开**：加载失败 ⇒ 表没法渲染；保存失败 ⇒ 表必须
+  // **留着**让用户改了重试（共用一个状态时，报错会把整张表藏掉）。
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    getZitiClientConfig()
-      .then((cfg) => {
+    Promise.all([getZitiClientConfig(), getZitiClientRuntimeMode()])
+      .then(([cfg, mode]) => {
         if (!cancelled) {
           setConfig(cfg);
+          setRuntimeClientMode(mode);
           setLoaded(true);
         }
       })
       .catch((e) => {
-        // 非 Tauri 环境（web 预览）拿不到命令 ⇒ 明确说「不可用」，
-        // 不把表渲染成「可交互但永远存不上」的样子。
-        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+        if (!cancelled) setLoadError(e instanceof Error ? e.message : String(e));
       });
     return () => {
       cancelled = true;
@@ -61,14 +69,14 @@ export function ZitiClientCard() {
 
   const handleSave = useCallback(async () => {
     setSaving(true);
-    setError(null);
+    setSaveError(null);
     setSaved(false);
     try {
       const next = await setZitiClientConfig(config);
       setConfig(next);
       setSaved(true);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setSaveError(e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
     }
@@ -79,16 +87,24 @@ export function ZitiClientCard() {
       <div className="mb-2 flex items-center gap-2">
         <Globe size={16} className="text-muted-foreground" />
         <h3 className="text-sm font-semibold text-foreground">{t('settings.zitiClient.title')}</h3>
-        <Badge variant={config.enabled ? 'success' : 'secondary'} size="sm">
-          {config.enabled
-            ? t('settings.zitiClient.badgeOn')
-            : t('settings.zitiClient.badgeOff')}
-        </Badge>
+        {runtimeClientMode !== null && (
+          <Badge
+            variant={runtimeClientMode ? 'success' : 'secondary'}
+            size="sm"
+            data-testid="ziti-client-runtime-badge"
+          >
+            {runtimeClientMode
+              ? t('settings.zitiClient.badgeOn')
+              : t('settings.zitiClient.badgeOff')}
+          </Badge>
+        )}
       </div>
       <p className="text-xs text-muted-foreground">{t('settings.zitiClient.desc')}</p>
 
-      {error ? (
-        <p className="mt-2 text-xs text-destructive" data-testid="ziti-client-error">{error}</p>
+      {loadError ? (
+        <p className="mt-2 text-xs text-destructive" data-testid="ziti-client-load-error">
+          {loadError}
+        </p>
       ) : (
         loaded && (
           <div className="mt-3 space-y-3">
@@ -137,6 +153,11 @@ export function ZitiClientCard() {
                 </span>
               )}
             </div>
+            {saveError && (
+              <p className="text-xs text-destructive" data-testid="ziti-client-error">
+                {saveError}
+              </p>
+            )}
             <p className="text-xs text-muted-foreground">
               {t('settings.zitiClient.secretsHint')}
             </p>

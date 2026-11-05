@@ -1,13 +1,18 @@
 // @vitest-environment jsdom
 /**
- * 「切到远端大脑」卡片 —— 四条钉死：
+ * 「切到远端大脑」卡片 —— 六条钉死：
  *
- * ① 读到的配置渲染出来（badge 状态 / 输入框回填）；
+ * ① 读到的配置回填出来（输入框 / 勾选框）；
  * ② 保存 ⇒ 命令带着 **camelCase** 实参发出去（`identityPath`，
  *    不是 Rust 的 `identity_path` —— 命名漂了 Tauri 会按默认值收）；
  * ③ Rust 侧**明确拒绝**（开着但字段不全）⇒ 错误要**说出来**，
  *    不是静悄悄吞掉（吞了就是「点了保存没反应」）；
- * ④ web 构建（命令不可用）⇒ 表照常渲染、保存**明确报**不可用。
+ * ④ web 构建（命令不可用）⇒ 表照常渲染、保存**明确报**不可用；
+ * ⑤ 徽章读**这次启动实际在用的模式**，不读勾选框（勾选框是「下次启动
+ *    要什么」）—— 勾一下徽章就变 / 环境变量开的客户端模式显示成「本地」
+ *    ⇒ 都是界面在撒谎；
+ * ⑥ 保存失败 ⇒ 表**留着**能改了重试（加载错与保存错曾共用一个状态，
+ *    一报错整张表就被藏掉）。
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
@@ -18,6 +23,8 @@ const invokeState = vi.hoisted(() => ({
   // ⇒ ⇒ 拿 camelCase 当夹具 = 测「夹具自己」，不是测「真链路」
   // ⇒ ⇒ （真链路：Rust 的 identity_path → serde 默认字段名 → JSON 就是 snake_case）
   stored: { enabled: false, identity_path: '', service: '' } as Record<string, unknown>,
+  // 这次启动实际在用的模式（`ziti_client_runtime_mode`）；null = web 构建判不了。
+  runtimeMode: false as boolean | null,
   invokeCalls: [] as Array<{ cmd: string; args?: Record<string, unknown> }>,
   failNextSaveWith: null as string | null,
 }));
@@ -31,6 +38,7 @@ vi.mock('react-i18next', () => ({
 vi.mock('../../../lib/tauriSafe', () => ({
   safeInvoke: async (cmd: string) => {
     if (cmd === 'ziti_client_get_config') return invokeState.stored;
+    if (cmd === 'ziti_client_runtime_mode') return invokeState.runtimeMode;
     throw new Error('unexpected command: ' + cmd);
   },
   safeInvokeOrThrow: async (cmd: string, args?: Record<string, unknown>) => {
@@ -62,17 +70,17 @@ import {
 
 beforeEach(() => {
   invokeState.stored = { enabled: false, identity_path: '', service: '' };
+  invokeState.runtimeMode = false;
   invokeState.invokeCalls = [];
   invokeState.failNextSaveWith = null;
 });
 
 describe('ZitiClientCard —— 「切到远端大脑」的开关', () => {
-  it('① 读到的配置渲染出来（关 ⇒ badgeOff；开 ⇒ badgeOn ＋ 回填）', async () => {
+  it('① 读到的配置回填出来（关 ⇒ 未勾；开 ⇒ 勾上 ＋ 两个输入框回填）', async () => {
     const { unmount } = render(<ZitiClientCard />);
     await waitFor(() =>
       expect(screen.getByTestId('ziti-client-enabled')).not.toBeChecked(),
     );
-    expect(screen.getByText('settings.zitiClient.badgeOff')).toBeTruthy();
 
     invokeState.stored = {
       enabled: true,
@@ -91,7 +99,7 @@ describe('ZitiClientCard —— 「切到远端大脑」的开关', () => {
       );
     });
     expect(screen.getByTestId('ziti-service')).toHaveProperty('value', 'shadow-brain');
-    expect(screen.getByText('settings.zitiClient.badgeOn')).toBeTruthy();
+    expect(screen.getByTestId('ziti-client-enabled')).toBeChecked();
   });
 
   // ⚠️⚠️ **库层**那两条才是真链路的形状：producer（Rust/serde）回的是 **snake_case**
@@ -185,5 +193,60 @@ describe('ZitiClientCard —— 「切到远端大脑」的开关', () => {
         'not available in the web build',
       ),
     );
+  });
+
+  it('⑤ 徽章读运行时模式、不读勾选框（含环境变量开的客户端模式 / web 构建判不了）', async () => {
+    const user = userEvent.setup();
+
+    // (a) 运行中是本地大脑 ⇒ 「本地」；勾上勾选框（还没存、更没重启）⇒ 徽章**不许跟着变**。
+    const first = render(<ZitiClientCard />);
+    await waitFor(() =>
+      expect(screen.getByTestId('ziti-client-runtime-badge').textContent).toBe(
+        'settings.zitiClient.badgeOff',
+      ),
+    );
+    await user.click(screen.getByTestId('ziti-client-enabled'));
+    expect(screen.getByTestId('ziti-client-enabled')).toBeChecked();
+    expect(screen.getByTestId('ziti-client-runtime-badge').textContent).toBe(
+      'settings.zitiClient.badgeOff',
+    );
+    first.unmount();
+
+    // (b) 配置关着、但环境变量把客户端模式打开了 ⇒ 运行中**就是**客户端 ⇒ 徽章说「客户端」。
+    invokeState.runtimeMode = true;
+    const second = render(<ZitiClientCard />);
+    await waitFor(() =>
+      expect(screen.getByTestId('ziti-client-runtime-badge').textContent).toBe(
+        'settings.zitiClient.badgeOn',
+      ),
+    );
+    expect(screen.getByTestId('ziti-client-enabled')).not.toBeChecked();
+    second.unmount();
+
+    // (c) web 构建判不了（null）⇒ **不出徽章**（「判不了」不许说成「本地」）。
+    invokeState.runtimeMode = null;
+    render(<ZitiClientCard />);
+    await waitFor(() => screen.getByTestId('ziti-client-enabled'));
+    expect(screen.queryByTestId('ziti-client-runtime-badge')).toBeNull();
+  });
+
+  it('⑥ 保存失败 ⇒ 表留着：改了能重试，重试成功后错误消失', async () => {
+    const user = userEvent.setup();
+    render(<ZitiClientCard />);
+    await waitFor(() => screen.getByTestId('ziti-client-enabled'));
+
+    // 第一次：开了但字段不全 ⇒ Rust 拒绝。
+    invokeState.failNextSaveWith = '启用零信任客户端需要同时填写身份文件路径与服务名';
+    await user.click(screen.getByTestId('ziti-client-enabled'));
+    await user.click(screen.getByTestId('ziti-client-save'));
+    await waitFor(() => screen.getByTestId('ziti-client-error'));
+
+    // ⚠️ 表必须还在 —— 用户得能把缺的字段补上（以前这里整张表被藏掉）。
+    await user.type(screen.getByTestId('ziti-identity-path'), '/home/u/id.json');
+    await user.type(screen.getByTestId('ziti-service'), 'shadow-brain');
+    await user.click(screen.getByTestId('ziti-client-save'));
+
+    await waitFor(() => expect(screen.getByTestId('ziti-client-saved')).toBeTruthy());
+    expect(screen.queryByTestId('ziti-client-error')).toBeNull();
   });
 });

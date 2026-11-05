@@ -156,9 +156,35 @@ pub fn ziti_client_set_config(
     Ok(cfg)
 }
 
+/// 这一次启动**实际在用**的模式 —— 60080 上坐的是不是零信任代理。
+///
+/// ⚠️ 它与「保存的配置」可以不一致，而且**两个方向**都会：保存只落盘、
+/// 重启才生效（刚存完：配置已开、运行中仍是本地大脑）；环境变量也能打开
+/// 客户端模式（配置关着、运行中却是客户端）⇒ ⇒ 设置页的徽章必须读**这个**，
+/// 不能读勾选框。
+///
+/// ⚠️ 判据与 [`crate::telencephalon_http::serve`] 启动时用的是**同一个**
+/// （`is_client_mode()`）；运行中的保存不调 `set_options` ⇒ ⇒ 这里答的
+/// 就是「启动那一刻定下的」。
+#[tauri::command]
+pub fn ziti_client_runtime_mode() -> bool {
+    encephalon::ziti_client::is_client_mode()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// ⚠️⚠️ 下面三条测试都改 `encephalon::ziti_client` 的**进程级单例**
+    /// ⇒ ⇒ 而 `cargo test` 默认**多线程并行** ⇒ ⇒ 不排队就互相踩：
+    /// 一条刚 `set_options(Some)`，另一条正好断言 `None` ⇒ ⇒ 随机红。
+    /// 实测（2026-11-05，未加锁）：测试二进制连跑 200 次挂 **27 次**（13.5%）。
+    /// ⇒ ⇒ 用一把锁让它们排队（中毒的锁照样拿——前一条 panic 不该连坐后面）。
+    static SINGLETON_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    fn lock_singleton() -> std::sync::MutexGuard<'static, ()> {
+        SINGLETON_LOCK.lock().unwrap_or_else(|e| e.into_inner())
+    }
 
     fn temp_path(tag: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!(
@@ -211,6 +237,7 @@ mod tests {
         // ⚠️ 这条钉的是「字段不全 ⇒ 回落 env，**不半生效**」。
         // set_options 影响的是进程级单例；这里先清掉，再喂一份不完整的
         // 配置 ⇒ 断言它**仍然**是 None（没被设置）。
+        let _guard = lock_singleton();
         encephalon::ziti_client::set_options(None);
         let path = temp_path("incomplete");
         save_to(
@@ -229,6 +256,7 @@ mod tests {
 
     #[test]
     fn complete_config_sets_options_explicitly() {
+        let _guard = lock_singleton();
         encephalon::ziti_client::set_options(None);
         let path = temp_path("complete");
         save_to(
@@ -253,6 +281,7 @@ mod tests {
     #[test]
     fn disabled_config_never_sets_options() {
         // 关着 ⇒ 文件即使存在也不生效（回落 env）。
+        let _guard = lock_singleton();
         encephalon::ziti_client::set_options(None);
         let path = temp_path("disabled");
         save_to(
@@ -267,5 +296,21 @@ mod tests {
         apply_at_startup_with(&path);
         assert!(encephalon::ziti_client::explicit_options().is_none());
         std::fs::remove_dir_all(path.parent().unwrap()).unwrap();
+    }
+
+    #[test]
+    fn runtime_mode_reports_the_same_switch_serve_uses() {
+        // ⚠️ 设置页的徽章读的就是它 ⇒ ⇒ 它必须与 serve 启动时的判据
+        // （`is_client_mode()`：显式 setter **或** 环境变量）一致。
+        let _guard = lock_singleton();
+        encephalon::ziti_client::set_options(Some(
+            encephalon::ziti_client::ClientOptions::new("/tmp/id.json", "shadow-brain"),
+        ));
+        assert!(ziti_client_runtime_mode(), "显式配置了 ⇒ 运行时就是客户端");
+        encephalon::ziti_client::set_options(None);
+        // 环境变量也能打开它 ⇒ ⇒ 只有这台机器没配那个变量时，才能断言「本地」。
+        if std::env::var_os(encephalon::ziti_client::ENV_IDENTITY).is_none() {
+            assert!(!ziti_client_runtime_mode(), "什么都没配 ⇒ 运行时是本地大脑");
+        }
     }
 }
