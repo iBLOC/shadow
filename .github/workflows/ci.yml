@@ -259,6 +259,8 @@ jobs:
     steps:
       - name: Checkout shadow
         uses: actions/checkout@v7
+        with:
+          path: shadow
 
       - name: Require cross-repo token
         env:
@@ -310,10 +312,10 @@ jobs:
           token: ${{ secrets.IBLOC_TOKEN }}
 
       - name: External tools wiring check
-        run: node scripts/check-external-tools.mjs
+        run: node shadow/scripts/check-external-tools.mjs
 
       - name: External tools wiring check (self-test)
-        run: node scripts/check-external-tools.mjs --self-test
+        run: node shadow/scripts/check-external-tools.mjs --self-test
 
       # The standalone 端脑 server binary lives in `encephalon`
       # (`encephalon-server`); `telencephalon` itself is a pure library
@@ -404,7 +406,7 @@ jobs:
         with:
           node-version: '24'
           cache: pnpm
-          cache-dependency-path: shadow-desktop/pnpm-lock.yaml
+          cache-dependency-path: shadow/shadow-desktop/pnpm-lock.yaml
 
       # runner 磁盘 —— 见 prefrontal-rust job 的同名步骤：预装工具先删掉。
       - name: Free disk space
@@ -443,7 +445,7 @@ jobs:
       # （谁在脑侧那条链上开了 local-models 或 candle）／产物层
       # （编译出来的二进制里到底装了几套运行时）。
       - name: Neuron ownership check
-        run: node scripts/check-neuron-ownership.mjs
+        run: node shadow/scripts/check-neuron-ownership.mjs
 
       # One process, one port: neuron's OpenAI face at the root, the 端脑
       # face (/shadow/v1/*, /api/telencephalon/*), 海马体 at /hippocampus.
@@ -452,15 +454,15 @@ jobs:
         run: cargo build --manifest-path Cargo.toml --bin encephalon-server
 
       - name: Install dependencies
-        working-directory: shadow-desktop
+        working-directory: shadow/shadow-desktop
         run: pnpm install --frozen-lockfile
 
       - name: Install Playwright browsers
-        working-directory: shadow-desktop
+        working-directory: shadow/shadow-desktop
         run: pnpm exec playwright install --with-deps chromium
 
       - name: Run Playwright E2E against the 端脑 server
-        working-directory: shadow-desktop
+        working-directory: shadow/shadow-desktop
         env:
           SHADOW_TELENCEPHALON_BIN: ${{ github.workspace }}/encephalon/target/debug/encephalon-server
           SHADOW_TELENCEPHALON_CWD: ${{ github.workspace }}/encephalon
@@ -476,7 +478,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: playwright-report
-          path: shadow-desktop/playwright-report
+          path: shadow/shadow-desktop/playwright-report
           retention-days: 7
 
       - name: Upload test results on failure
@@ -484,7 +486,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: playwright-test-results
-          path: shadow-desktop/test-results
+          path: shadow/shadow-desktop/test-results
           retention-days: 7
 
   desktop-build:
