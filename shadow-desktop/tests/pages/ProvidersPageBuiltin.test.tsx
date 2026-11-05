@@ -153,7 +153,9 @@ describe('ProvidersPage built-in provider card', () => {
     expect(within(card).getByText('common.edit')).toBeInTheDocument();
     expect(within(card).getByText('common.delete')).toBeInTheDocument();
     expect(card.querySelector('select')).not.toBeNull();
-    // 启停开关 + 刷新 + 编辑 + 删除。
-    expect(within(card).getAllByRole('button')).toHaveLength(4);
+    // 启停开关 + 刷新 + **导出到外部工具** + 编辑 + 删除。
+    // ⚠️ 「导出」是 ae76841（外部工具接线）加进来的 ⇒ ⇒ 这条正对照测试的计数
+    //    从 4 变 5 ⇒ ⇒ **数得对，但要说清多出来的是哪一个**（否则下一个人不知道）。
+    expect(within(card).getAllByRole('button')).toHaveLength(5);
   });
 });

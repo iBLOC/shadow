@@ -14,7 +14,10 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 const invokeState = vi.hoisted(() => ({
-  stored: { enabled: false, identityPath: '', service: '' },
+  // ⚠️ **producer（Rust/serde）回的就是 snake_case** ⇒ ⇒ 夹具照抄真实形状
+  // ⇒ ⇒ 拿 camelCase 当夹具 = 测「夹具自己」，不是测「真链路」
+  // ⇒ ⇒ （真链路：Rust 的 identity_path → serde 默认字段名 → JSON 就是 snake_case）
+  stored: { enabled: false, identity_path: '', service: '' } as Record<string, unknown>,
   invokeCalls: [] as Array<{ cmd: string; args?: Record<string, unknown> }>,
   failNextSaveWith: null as string | null,
 }));
@@ -38,9 +41,10 @@ vi.mock('../../../lib/tauriSafe', () => ({
         invokeState.failNextSaveWith = null;
         throw new Error(msg);
       }
+      // ⚠️ 保存的**回包**也是 producer 的形状（snake_case）⇒ ⇒ 归一不归一差在这儿
       invokeState.stored = {
         enabled: Boolean(args?.enabled),
-        identityPath: String(args?.identityPath ?? ''),
+        identity_path: String(args?.identityPath ?? ''),
         service: String(args?.service ?? ''),
       };
       return invokeState.stored;
@@ -50,17 +54,21 @@ vi.mock('../../../lib/tauriSafe', () => ({
 }));
 
 import { ZitiClientCard } from '../ZitiClientCard';
-import { DEFAULT_ZITI_CLIENT_CONFIG } from '../../../lib/zitiClientConfig';
+import {
+  DEFAULT_ZITI_CLIENT_CONFIG,
+  getZitiClientConfig,
+  setZitiClientConfig,
+} from '../../../lib/zitiClientConfig';
 
 beforeEach(() => {
-  invokeState.stored = { ...DEFAULT_ZITI_CLIENT_CONFIG };
+  invokeState.stored = { enabled: false, identity_path: '', service: '' };
   invokeState.invokeCalls = [];
   invokeState.failNextSaveWith = null;
 });
 
 describe('ZitiClientCard —— 「切到远端大脑」的开关', () => {
   it('① 读到的配置渲染出来（关 ⇒ badgeOff；开 ⇒ badgeOn ＋ 回填）', async () => {
-    const { rerender } = render(<ZitiClientCard />);
+    const { unmount } = render(<ZitiClientCard />);
     await waitFor(() =>
       expect(screen.getByTestId('ziti-client-enabled')).not.toBeChecked(),
     );
@@ -68,10 +76,14 @@ describe('ZitiClientCard —— 「切到远端大脑」的开关', () => {
 
     invokeState.stored = {
       enabled: true,
-      identityPath: '/home/u/id.json',
+      identity_path: '/home/u/id.json',
       service: 'shadow-brain',
     };
-    rerender(<ZitiClientCard />);
+    // ⚠️ **重新挂载**（不是 rerender）—— 组件是「挂载时读一次配置」
+    // ⇒ ⇒ rerender 不会重跑那个 effect ⇒ ⇒ 用 rerender 等「回填」根本等不到
+    // ⇒ ⇒ ⇒ 这条测试曾经一直红，而它要钉的行为是对的 ⇒ ⇒ 夹具的姿势也得对。
+    unmount();
+    render(<ZitiClientCard />);
     await waitFor(() => {
       expect(screen.getByTestId('ziti-identity-path')).toHaveProperty(
         'value',
@@ -80,6 +92,41 @@ describe('ZitiClientCard —— 「切到远端大脑」的开关', () => {
     });
     expect(screen.getByTestId('ziti-service')).toHaveProperty('value', 'shadow-brain');
     expect(screen.getByText('settings.zitiClient.badgeOn')).toBeTruthy();
+  });
+
+  // ⚠️⚠️ **库层**那两条才是真链路的形状：producer（Rust/serde）回的是 **snake_case**
+  // ⇒ ⇒ 读与写**两条路**都要归一 ⇒ ⇒ 不然「读到的配置回填不出来」「存完被清空」。
+  it('①b 库层：producer 回 snake_case ⇒ ⇒ 读回来是 camelCase（而且有值）', async () => {
+    invokeState.stored = {
+      enabled: true,
+      identity_path: '/home/u/id.json',
+      service: 'shadow-brain',
+    };
+    const read = await getZitiClientConfig();
+    expect(read.enabled).toBe(true);
+    expect(read.identityPath).toBe('/home/u/id.json');
+    expect(read.service).toBe('shadow-brain');
+  });
+
+  it('①c 库层：保存的回包也是 snake_case ⇒ ⇒ 归一后仍带值（不然存完输入框被清空）', async () => {
+    const written = await setZitiClientConfig({
+      enabled: true,
+      identityPath: '/home/u/id.json',
+      service: 'shadow-brain',
+    });
+    expect(written.identityPath).toBe('/home/u/id.json');
+    expect(written.service).toBe('shadow-brain');
+    expect(written.enabled).toBe(true);
+  });
+
+  it('①d 库层：producer 回 camelCase（界面自己的形状）⇒ ⇒ 也认（两种拼写都收）', async () => {
+    invokeState.stored = {
+      ...DEFAULT_ZITI_CLIENT_CONFIG,
+      enabled: true,
+      identityPath: '/home/u/camel.json',
+    };
+    const read = await getZitiClientConfig();
+    expect(read.identityPath).toBe('/home/u/camel.json');
   });
 
   it('② 保存 ⇒ 命令带 camelCase 实参发出去 ＋ 「重启后生效」说出来', async () => {

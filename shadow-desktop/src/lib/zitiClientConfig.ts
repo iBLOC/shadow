@@ -31,14 +31,38 @@ export const DEFAULT_ZITI_CLIENT_CONFIG: ZitiClientConfig = {
   service: '',
 };
 
+/**
+ * ⚠️ **producer 回的是 snake_case，界面这一侧用 camelCase** —— 两端必须在这里对齐。
+ *
+ * · Rust 侧 ZitiClientConfig { identity_path } 用 serde 的**默认字段名**序列化
+ *   ⇒ ⇒ Tauri 命令的**回包**是 {"enabled":…,"identity_path":…,"service":…}（snake_case）。
+ * · **实参**方向恰好相反：JS 传 camelCase、Tauri 自动映射到 Rust 的 snake_case
+ *   ⇒ ⇒ 所以**保存**方向是通的（那正是测试 ② 钉着的地方）。
+ * · ⇒ ⇒ **读回**方向曾经直接读 cfg.identityPath ⇒ ⇒ 拿到的是 undefined
+ *   ⇒ ⇒ 用户存过的身份文件路径在设置页**回填不出来**；
+ *   ⇒ ⇒ 而**保存**的回包同样没归一 ⇒ ⇒ 存完那一瞬输入框**被清空**
+ *   ⇒ ⇒ ⇒ 用户看着像「保存没生效」。
+ * ⇒ ⇒ 所以这里**显式**归一：producer 的 snake_case 与界面自己的 camelCase 都认。
+ *
+ * ⚠️ 落盘的 ziti-client.json **不动**（仍是 snake_case）⇒ ⇒ 老配置照常读得到。
+ */
+function normalizeConfig(raw: unknown): ZitiClientConfig {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  return {
+    enabled: Boolean(r.enabled),
+    identityPath: String(r.identityPath ?? r.identity_path ?? ''),
+    service: String(r.service ?? ''),
+  };
+}
+
 /** 读当前配置（web 构建回落默认值 ⇒ 表照常渲染，保存时会明确报不可用）。 */
 export async function getZitiClientConfig(): Promise<ZitiClientConfig> {
-  const cfg = await safeInvoke<ZitiClientConfig>(
+  const cfg = await safeInvoke<unknown>(
     'ziti_client_get_config',
     undefined,
     DEFAULT_ZITI_CLIENT_CONFIG,
   );
-  return cfg ?? DEFAULT_ZITI_CLIENT_CONFIG;
+  return normalizeConfig(cfg);
 }
 
 /**
@@ -49,9 +73,11 @@ export async function getZitiClientConfig(): Promise<ZitiClientConfig> {
 export async function setZitiClientConfig(
   config: ZitiClientConfig,
 ): Promise<ZitiClientConfig> {
-  return safeInvokeOrThrow<ZitiClientConfig>('ziti_client_set_config', {
+  const saved = await safeInvokeOrThrow<unknown>('ziti_client_set_config', {
     enabled: config.enabled,
     identityPath: config.identityPath,
     service: config.service,
   });
+  // ⚠️ 回包也要归一 —— 否则存完那一瞬输入框会被清空（producer 回 snake_case）。
+  return normalizeConfig(saved);
 }
