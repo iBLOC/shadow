@@ -164,3 +164,18 @@ jobs:
           name: playwright-test-results
           path: shadow/shadow-desktop/test-results
           retention-days: 7
+
+      # ⚠️⚠️ **端脑的服务端日志必须进产物** —— global-setup 把它写在
+      #    `TEST_DATA_DIR/telencephalon-server.log`（CI 上是 /tmp/shadow-test-data/）
+      #    ⇒ ⇒ 而上面那个 artifact 只传 `shadow-desktop/test-results` ⇒ ⇒
+      #    ⇒ **日志压根没上传**（2026-11-05 真机实测：产物里只有各条 spec 的
+      #    error-context.md，没有服务端日志）⇒ ⇒ ⇒ 「端脑为什么那样答」
+      #    在 CI 上**仍然判不了** ⇒ ⇒ 这一步就是补那个洞。
+      - name: Upload the 端脑 server log on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: telencephalon-server-log
+          path: /tmp/shadow-test-data/telencephalon-server.log
+          retention-days: 7
+          if-no-files-found: ignore

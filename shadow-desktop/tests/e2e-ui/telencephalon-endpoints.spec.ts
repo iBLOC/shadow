@@ -19,9 +19,19 @@ import { isTelencephalonReachable } from './global-setup';
 const BASE = TEST_CONFIG.TELENCEPHALON_URL;
 
 test.describe('Telencephalon endpoint smoke', () => {
-  test('GET /health returns 200 with a non-empty body', async ({ request }) => {
+  // ⚠️⚠️ 2026-11-05 真机实测：这一条原来打 `/health` ⇒ ⇒ 真 CI 上**红了**
+  //    —— 而**端脑是起来了的**（同一份 spec 里 `/.well-known/agent.json`
+  //    那条是绿的，`global-setup` 的健康探针也过了）⇒ ⇒ ⇒ **是路由名不对**：
+  //    独立端脑 server 的启动横幅逐字写着
+  //      `GET  {addr}/healthz  — liveness`
+  //    （`/health` 是**内嵌 neuron 面**上的路由 ⇒ 独立 server 不挂它）
+  //    ⇒ ⇒ 探针改成「先 /healthz，再回落 /health」⇒ ⇒ 两张面都判得到。
+  test('GET /healthz returns 200 with a non-empty body', async ({ request }) => {
     test.skip(!await isTelencephalonReachable(), 'telencephalon not reachable on :60080');
-    const res = await request.get(`${BASE}/health`);
+    let res = await request.get(`${BASE}/healthz`);
+    if (res.status() === 404) {
+      res = await request.get(`${BASE}/health`);
+    }
     expect(res.status()).toBe(200);
     const body = await res.text();
     expect(body.length).toBeGreaterThan(0);
