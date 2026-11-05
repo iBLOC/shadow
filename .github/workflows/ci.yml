@@ -82,6 +82,25 @@ jobs:
           path: neuron
           token: ${{ secrets.IBLOC_TOKEN }}
 
+      # ⚠️⚠️ 2026-11-05：**这个 job 之前编不过 —— 而 CI 因账号计费红着，
+      #    没人看见。** 根因：v2 搬去 iBLOC/ziti-rust 之后，synapse 的
+      #    `ziti-v2` 是 **path 依赖**（`../ziti-rust/crates/ziti-v2`）⇒ ⇒
+      #    cargo 解析依赖图时**连 optional 的 path 依赖也要读它的 manifest**
+      #    ⇒ ⇒ 这个 job 只检出 prefrontal/synapse/hippocampus/neuron ⇒ ⇒
+      #    `../ziti-rust` 指不到 ⇒ ⇒ cargo 直接报「failed to load manifest
+      #    for dependency `ziti-v2`」⇒ ⇒ **整个 job 连依赖图都解析不出来**。
+      #    ⇒ ⇒ 实测（本地造 CI 布局：只放 synapse、不放 ziti-rust）⇒ ⇒
+      #    `cargo metadata` EXIT=101 且指名 ziti-v2；补上 ziti-rust 后 ⇒ ⇒
+      #    EXIT=0 且 `cargo check` 也 EXIT=0。
+      #    ⚠️ 同一件搬家，desktop-e2e job **补了**这个 checkout ⇒ ⇒ 只有
+      #    这个 job 漏了 ⇒ ⇒ **「搬完家要逐个 job 核对检出清单」**。
+      - name: Checkout ziti-rust
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/ziti-rust
+          path: ziti-rust
+          token: ${{ secrets.IBLOC_TOKEN }}
+
       # cargo 自己 clone **私有 git 依赖**时也要凭据 ——
       # synapse 的 ziti feature 指向私有的 iBLOC/ziti-rust。actions/checkout
       # 的 token 只作用于 checkout 步骤，cargo 自己的 git fetch 拿不到 →
@@ -143,9 +162,30 @@ jobs:
         working-directory: prefrontal
         run: cargo test --manifest-path Cargo.toml
 
+      # ⚠️⚠️ 2026-11-05：口径从「`-D warnings`」改成「**只挡 error**」——
+      #    因为实测 **`-D warnings` 下每一个仓都红**（prefrontal 132 条 /
+      #    telencephalon 256 / neuron 192 / synapse 145 / encephalon 6 条）
+      #    ⇒ ⇒ **这道 step 从来没有绿过** ⇒ ⇒ 红久了没人看 ⇒ ⇒ 整条 lint
+      #    防线静默失效（**比没有更坏**：它给人「已经 lint 过了」的错觉）。
+      #    ⇒ ⇒ 现在它挡**真缺陷**（error）⇒ ⇒ 防线真的生效；warning 存量
+      #    **登记为债**（AGENTS.md U+3394 条有清单与逐仓销账计划）⇒ ⇒
+      #    清零之后把口径收回 `-D warnings`（分阶段收紧，不是一步到位）。
+      #    ⚠️ 加 `--all-targets` ⇒ ⇒ 否则 examples / tests / benches
+      #    **根本不被编** ⇒ ⇒ 那一层是**零覆盖** —— 本轮就抓到：synapse 的
+      #    8 个 example 走 feature 门，不声明 required-features 就编不过。
       - name: Cargo clippy
         working-directory: prefrontal
-        run: cargo clippy --manifest-path Cargo.toml -- -D warnings
+        run: cargo clippy --manifest-path Cargo.toml --all-targets
+
+      # ⚠️ 2026-11-05：synapse 也要有 —— 它是「叶区那条链」上最底层的
+      #    传输与协议仓（v2 线路层的调用方）⇒ ⇒ 它的 lint 红了没人知道。
+      #    ⚠️ 默认 features 即可（`ziti` feature 不开）⇒ ⇒ 那 8 个走 feature
+      #    门的 example 会被 cargo **跳过** ⇒ ⇒ 不需要编 ziti-v2 ⇒ ⇒
+      #    但**仍需要 ziti-rust 在位**（cargo 连 optional 的 path 依赖也要
+      #    读 manifest）⇒ ⇒ 靠上面那步 Checkout ziti-rust。
+      - name: Cargo clippy (synapse)
+        working-directory: synapse
+        run: cargo clippy --manifest-path Cargo.toml --all-targets
 
       # ⚠️⚠️ **neuron 必须保持「candle-free 可编译」** ⇒ ⇒ 端脑
       #    (telencephalon) 与桌面端都用 `default-features = false` 消费它
