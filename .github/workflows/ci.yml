@@ -615,6 +615,25 @@ jobs:
       - name: Workflow YAML check
         run: node scripts/check-yaml-valid.mjs
 
+  # ── 账本圈码闸 ─────────────────────────────────────────────────────
+  # ⚠️ 账本里的「圈码」是**条目的身份证** ⇒ ⇒ 撞号 ⇒ ⇒ 引用变歧义 ⇒ ⇒
+  #    连累别的闸红（2026-11-05 真机事故：两条都写 U+33A0）。
+  # ⚠️ **注解与真实码位不符**是同一族的第二种形态（实测五条：注解写
+  #    U+340x，字符其实是 U+334x）⇒ ⇒ 「已登记」不等于「已修好」。
+  ledger-codepoints:
+    name: Ledger codepoints (账本圈码)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout shadow
+        uses: actions/checkout@v7
+
+      - name: Gate self-test
+        run: node scripts/check-ledger-codepoints.mjs --self-test
+
+      - name: Ledger codepoint check
+        run: node scripts/check-ledger-codepoints.mjs
+
   # ── 跨仓 Cortex 残留闸 ─────────────────────────────────────────────
   # ⚠️ iBLOC 这套栈是**十几个独立 git 仓** ⇒ 闸只住在 shadow 仓的话，
   #    **另外那些仓没人盯**（2026-11 实测：prefrontal 的 tool 描述里还写着
