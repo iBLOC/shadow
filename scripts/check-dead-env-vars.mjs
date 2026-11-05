@@ -48,7 +48,15 @@ const EXCLUDE_DIRS = [
   'node_modules', '.git', 'target', 'dist', 'build', 'out',
   'docs', 'playwright-report', 'test-results', 'reports', 'runs-task7-traj',
 ];
-const EXCLUDE_FILES = ['pnpm-lock.yaml', 'package-lock.json', 'pubspec.lock', '.metadata'];
+const EXCLUDE_FILES = [
+  'pnpm-lock.yaml', 'package-lock.json', 'pubspec.lock', '.metadata',
+  // ⚠️ 闸**自己**的两个文件 —— 它们**必然**含有它要认的那些形状
+  //    （文档里的示例：`export NAME=…` / `NAME: value`）⇒ ⇒ 自己扫自己
+  //    ⇒ ⇒ 会把自己的**文档**判成「设了没人读的环境变量」⇒ ⇒ 白报。
+  //    ⇒ ⇒ 与残留闸同一套做法（它也排除自己的文件：闸当然知道那个词）。
+  'scripts/check-dead-env-vars.mjs',
+  'scripts/lib/dead-env-vars.mjs',
+];
 
 /**
  * 真契约 —— **有读者，但读者在本仓之外**（别的仓 / 别的进程 / 运行时自己）。
@@ -211,7 +219,13 @@ const ALLOWED = [
 function listTrackedFiles() {
   let out;
   try {
-    const res = spawnSync('git', ['ls-files', '-z'], {
+    // ⚠️ **--cached --others --exclude-standard**（2026-11-05 实测踩到）：
+    //    只用 `git ls-files` ⇒ ⇒ 只看**已提交**的文件 ⇒ ⇒ **新写的代码在提交前
+    //    闸根本看不见**（本轮实测：闸自己就是在提交那一刻才开始看见自己）
+    //    ⇒ ⇒ 那个「提交前先跑一遍闸」的用法**根本不成立** ⇒ ⇒ 闸是恒绿的。
+    //    ⇒ ⇒ 加上 --others（未跟踪但**未被忽略**）⇒ ⇒ 提交前也能判。
+    //    ⇒ ⇒ --exclude-standard 保证 .gitignore 里的本地目录（.local/ 等）不进范围。
+    const res = spawnSync('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard'], {
       cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024,
     });
     if (res.status !== 0 || !res.stdout) {
