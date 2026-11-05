@@ -73,6 +73,11 @@ jobs:
       - name: Require cross-repo token
         env:
           IBLOC_TOKEN: ${{ secrets.IBLOC_TOKEN }}
+        # ⚠️ 必须显式指定 bash：windows-latest 的默认 shell 是 **PowerShell**，
+        #    而下面这段是 POSIX 语法 ⇒ ⇒ 在 Windows 上会被 PowerShell 解析成
+        #    别的命令 ⇒ ⇒ ⇒ **报一个跟 token 毫无关系的错**（实测：Windows
+        #    那格就死在这一步，而 ubuntu / macOS 两格过了）。
+        shell: bash
         run: |
           if [ -z "$IBLOC_TOKEN" ]; then
             echo "::error::secrets.IBLOC_TOKEN is not configured."
