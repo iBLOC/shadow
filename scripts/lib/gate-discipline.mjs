@@ -250,7 +250,31 @@ export function classifyGate(facts, options) {
  * ⚠️ 这就是「存量债」纪律的落点：**放行 ≠ 看不见** ⇒ ⇒ 存量缺口照样打印，
  *    只是不把闸判红 ⇒ ⇒ 而**没登记的新缺口**直接红（不许悄悄长出来）。
  */
-export function splitDebt(findings, registered) {
+/**
+ * 闸的自检**判不了**的那些闸 ⇒ ⇒ 它们的缺口「这轮没出现」**不能**当成
+ * 「缺口已修好」⇒ ⇒ **不许据此销账**。
+ *
+ * ⚠️ 为什么（2026-11-05 真 CI 实测 run 42002098658）：ps1-portability 在
+ *    ubuntu runner 上自检退出码 2（没有 powershell.exe ⇒ ⇒ 判不了）⇒ ⇒ 按
+ *    D2 规则它**不产生**「自检不印可数读数」那个缺口 ⇒ ⇒ 而本机（Windows）
+ *    它退出 0 且确实不印 ⇒ ⇒ 那个缺口**本机存在、CI 上不存在**⇒ ⇒
+ *    「清单不许过期」的销账判据把它判成 stale ⇒ ⇒ **真 CI 上元闸红**。
+ * ⇒ ⇒ 根因不是「债清单过期」，而是**销账判据没有尊重「判不了」**
+ *    ⇒ ⇒ 「判不了 ≠ 没问题」这条原则必须**同时**用在**判定**与**销账**两处。
+ *
+ * @param {Array<{gate:string, measured?:boolean, selfTestExit?:number|string}>} inventory
+ * @returns {string[]} 判不了的闸名
+ */
+export function unjudgedGates(inventory) {
+  const out = [];
+  for (const row of inventory || []) {
+    if (!row || !row.measured) continue;
+    if (row.selfTestExit === 2 || row.selfTestExit === 'TIMEOUT') out.push(row.gate);
+  }
+  return out;
+}
+
+export function splitDebt(findings, registered, opts) {
   const reg = registered || {};
   const tolerated = [];
   const unregistered = [];
@@ -262,11 +286,17 @@ export function splitDebt(findings, registered) {
       unregistered.push(f);
     }
   }
-  const cmp = compareDebt(findings, reg);
-  return { tolerated, unregistered, stale: cmp.stale, missing: cmp.missing };
+  const cmp = compareDebt(findings, reg, opts);
+  return {
+    tolerated,
+    unregistered,
+    stale: cmp.stale,
+    missing: cmp.missing,
+    skippedStale: cmp.skippedStale,
+  };
 }
 
-export function compareDebt(findings, registered) {
+export function compareDebt(findings, registered, opts) {
   const actual = new Map();
   for (const f of findings) {
     if (!actual.has(f.kind)) actual.set(f.kind, new Set());
@@ -274,16 +304,26 @@ export function compareDebt(findings, registered) {
   }
   const stale = [];
   const missing = [];
+  const skippedStale = [];
+  const unjudged = new Set((opts && opts.unjudgedGates) || []);
   const kinds = new Set([...actual.keys(), ...Object.keys(registered || {})]);
   for (const kind of kinds) {
     const got = actual.get(kind) || new Set();
     const want = new Set((registered && registered[kind] && registered[kind].gates) || []);
     for (const gate of want) {
-      if (!got.has(gate)) stale.push({ kind, gate });
+      if (got.has(gate)) continue;
+      // ⚠️「判不了 ≠ 没问题」必须**同时**用在判定与销账两处 ⇒ ⇒
+      //    闸的自检**判不了**（退出码 2 / 超时）⇒ ⇒ 它的缺口这轮「没出现」
+      //    **不能**当成「缺口已修好」⇒ ⇒ 不销账（只记 skippedStale 并打印）。
+      if (unjudged.has(gate)) {
+        skippedStale.push({ kind, gate });
+        continue;
+      }
+      stale.push({ kind, gate });
     }
     for (const gate of got) {
       if (!want.has(gate)) missing.push({ kind, gate });
     }
   }
-  return { stale, missing };
+  return { stale, missing, skippedStale };
 }

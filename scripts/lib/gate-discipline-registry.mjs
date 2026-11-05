@@ -108,7 +108,9 @@ export const NO_READING_IN_WIRED = {
     '各自下次被改动时补一行 N/N 读数（改动最小的做法：自检末尾打印 ' +
     '「自检：N/N」）' +
     '⇒ ⇒ ⚠️ cortex-residue / cortex-residue-all 已于 2026-11-05 补上读数' +
-    '（实测两个闸的自检都印「自检：5/5 条全绿」）⇒ ⇒ 已从本清单销账',
+    '（实测两个闸的自检都印「自检：5/5 条全绿」）⇒ ⇒ 已从本清单销账' +
+    '⇒ ⇒ ⚠️ ps1-portability 已于 2026-11-05 补上读数' +
+    '（自检末尾印「自检：4/4」）⇒ ⇒ 已从本清单销账',
   gates: [
     'agent-surface',
     'apk-surface',
@@ -116,7 +118,6 @@ export const NO_READING_IN_WIRED = {
     'jni-surface',
     'mobile-a11y-contract',
     'neuron-ownership',
-    'ps1-portability',
   ],
 };
 

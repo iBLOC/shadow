@@ -150,6 +150,9 @@ function selfTest() {
     console.error('❌ 自检没过 ⇒ 闸门自己不可信');
     process.exit(1);
   }
+  // ⚠️ 必须印**可数读数**（N/N）⇒ ⇒ 否则治理闸的 D3 会判「读数不可比」
+  //    ⇒ ⇒ 而本闸是**接进 CI 的**（PS1 Portability job）⇒ ⇒ 那条缺口是真的。
+  console.log('  自检：' + (checks.length - bad) + '/' + checks.length);
   console.log('✅ 自检通过');
   process.exit(0);
 }

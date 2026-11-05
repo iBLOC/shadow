@@ -56,10 +56,12 @@ import { fileURLToPath } from 'node:url';
 import {
   RULES,
   classifyGate,
+  compareDebt,
   countReading,
   gateNameFromFile,
   sourceShape,
   splitDebt,
+  unjudgedGates,
   wiredGateNames,
 } from './lib/gate-discipline.mjs';
 import { KNOWN_DEBT } from './lib/gate-discipline-registry.mjs';
@@ -204,6 +206,36 @@ function selfTest() {
     },
   );
 
+  add('判不了的闸 ⇒ ⇒ 登记在册的缺口**不许**判 stale（判不了 ≠ 没问题）', () => {
+    const cmp = compareDebt([], { 'no-reading-in-wired': { gates: ['x'] } }, {
+      unjudgedGates: ['x'],
+    });
+    return cmp.stale.length === 0 && cmp.skippedStale.length === 1;
+  });
+  add('孪生：判得了的闸 ⇒ ⇒ 登记在册却已修好的缺口**仍然**判 stale（要销账）', () => {
+    const cmp = compareDebt([], { 'no-reading-in-wired': { gates: ['x'] } });
+    return cmp.stale.length === 1 && cmp.skippedStale.length === 0;
+  });
+  add('判不了的闸 ⇒ ⇒ 不产生 missing（新增即错不该被环境触发）', () => {
+    const cmp = compareDebt([], {}, { unjudgedGates: ['x'] });
+    return cmp.missing.length === 0 && cmp.stale.length === 0;
+  });
+  add('unjudgedGates：退出码 2 与超时都算判不了；没量的闸不算', () => {
+    const got = unjudgedGates([
+      { gate: 'a', measured: true, selfTestExit: 2 },
+      { gate: 'b', measured: true, selfTestExit: 'TIMEOUT' },
+      { gate: 'c', measured: true, selfTestExit: 0 },
+      { gate: 'd', measured: false, selfTestExit: 2 },
+    ]);
+    return got.length === 2 && got[0] === 'a' && got[1] === 'b';
+  });
+  add('孪生：判得了的闸 ⇒ ⇒ 它的缺口消失仍然要销账（不许被「跳过」吞掉）', () => {
+    const cmp = splitDebt([], { 'no-reading-in-wired': { gates: ['x'] } }, {
+      unjudgedGates: ['other'],
+    });
+    return cmp.stale.length === 1 && (cmp.skippedStale || []).length === 0;
+  });
+
   let bad = 0;
   for (const c of cases) {
     let ok = false;
@@ -307,7 +339,16 @@ function main() {
 
   // 债对账（只对**与环境无关**的缺口 ⇒ ⇒ 本机与 CI 结论一致）
   // ⚠️ **登记在册 ⇒ ⇒ 放行（但仍然打印）**；**没登记 ⇒ ⇒ 红**。
-  const debt = splitDebt(findings, KNOWN_DEBT);
+  //
+  // ⚠️⚠️ 2026-11-05 真 CI 实测（run 42002098658）：这一步原本**红**了 ⇒ ⇒
+  //    根因不是「债清单过期」，而是**销账判据没尊重「判不了」**：
+  //    ps1-portability 在 ubuntu runner 上自检退出 2（没有 powershell.exe）
+  //    ⇒ ⇒ 按 D2 不产生「自检不印可数读数」那个缺口 ⇒ ⇒ 而本机（Windows）
+  //    它退出 0 且确实不印 ⇒ ⇒ 那个缺口**本机有、CI 上没有**
+  //    ⇒ ⇒ 销账判据把它判成 stale ⇒ ⇒ 真 CI 上元闸红（只红这一条）。
+  // ⇒ ⇒ 修法：**判不了的闸，它的缺口不许据此销账**（只记 skippedStale 并打印）。
+  const unjudged = unjudgedGates(inventory);
+  const debt = splitDebt(findings, KNOWN_DEBT, { unjudgedGates: unjudged });
   for (const s of debt.stale) {
     findings.push({
       kind: 'debt-stale',
@@ -337,6 +378,8 @@ function main() {
           wired: [...wired],
           findings,
           statuses,
+          skippedStale: debt.skippedStale || [],
+          unjudgedGates: unjudged,
           inventory,
         },
         null,
@@ -371,6 +414,13 @@ function main() {
     );
     for (const s of statuses) {
       console.log('⚠ ' + s.message);
+    }
+    for (const s of debt.skippedStale || []) {
+      console.log(
+        '⚠ [销账跳过] 闸「' + s.gate + '」登记在册的「' + s.kind + '」缺口这轮**没出现**' +
+          '⇒ ⇒ 但它的自检**判不了**（退出码 2 / 超时）⇒ ⇒ 「判不了 ≠ 没问题」' +
+          '⇒ ⇒ **不销账**（等判得了的那天再销）',
+      );
     }
     for (const f of debt.tolerated) {
       console.log('⚠ [存量债] [' + f.kind + '] ' + f.message);
