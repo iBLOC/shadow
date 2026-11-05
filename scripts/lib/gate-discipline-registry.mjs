@@ -47,7 +47,9 @@ export const NOT_WIRED_INTO_CI = {
   when:
     '逐个评估工具链依赖后接：先接纯文本闸（client-tools / secret-plaintext / ' +
     'door-policy 这类几十毫秒的），再处理要工具链的 ⇒ ⇒ ' +
-    '接的时候同时补可数读数（否则会从「没接 CI」变成「接了但读数不可比」）',
+    '接的时候同时补可数读数（否则会从「没接 CI」变成「接了但读数不可比」）' +
+    '⇒ ⇒ ⚠️ ziti-v2-wire 已于 2026-11-05 接进 cortex-residue-stack job' +
+    '（那个 job 已检出 synapse ＋ ziti-rust ⇒ ⇒ 它才判得了）⇒ ⇒ 已从本清单销账',
   gates: [
     'a2ui-session-identity',
     'agent-surface-credentials',
@@ -68,7 +70,6 @@ export const NOT_WIRED_INTO_CI = {
     'secret-plaintext',
     'tool-interception',
     'ziti-face',
-    'ziti-v2-wire',
   ],
 };
 
