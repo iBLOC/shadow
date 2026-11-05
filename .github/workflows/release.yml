@@ -162,11 +162,15 @@ jobs:
 
       - name: Free disk space (Linux)
         if: matrix.os == 'ubuntu-latest'
+        # ⚠️ 每一刀都要 `|| true`：GitHub 的 bash 是 `-e` 模式 ⇒ ⇒ 任何一条
+        #    rm 失败（目录不存在 / swapfile 正在用 / 权限不够）⇒ ⇒ **整个
+        #    step 就红了** —— 而这一步的**目的**只是「尽量腾出磁盘」，
+        #    「腾不出来」不该阻断发布。
         run: |
-          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost
-          sudo rm -rf /usr/local/lib/android /opt/hostedtoolcache/CodeSC
-          sudo rm -rf /usr/local/share/swift /usr/local/share/powershell
-          sudo rm -f /swapfile
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost || true
+          sudo rm -rf /usr/local/lib/android /opt/hostedtoolcache/CodeSC || true
+          sudo rm -rf /usr/local/share/swift /usr/local/share/powershell || true
+          sudo rm -f /swapfile || true
           df -h /home/runner
 
       - name: Setup Rust
@@ -360,7 +364,14 @@ jobs:
 
       - name: Build APK
         working-directory: shadow/shadow-mobile
-        run: flutter build apk --release --split-per-abi
+        # ⚠️ **不能**加 `--split-per-abi`：AGP 里「ndk abiFilters」与
+        #    「splits abi filters」**互斥** —— 同时给会报
+        #    "Conflicting configuration : 'arm64-v8a,x86_64' in ndk abiFilters
+        #    cannot be present when splits abi filters are set"。
+        #    而本 app 的 Gradle **自己**钉了 abiFilters（arm64-v8a / x86_64，
+        #    排掉 armeabi-v7a）⇒ ⇒ 不拆包反而**正是它的本意**：
+        #    出一个含那两种 ABI 的通用 APK。
+        run: flutter build apk --release
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7

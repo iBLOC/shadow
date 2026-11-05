@@ -136,10 +136,13 @@ jobs:
       # → 整个 job 失败且日志都传不上来。先把没用的预装工具删掉。
       - name: Free disk space
         run: |
-          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost
-          sudo rm -rf /usr/local/lib/android /opt/hostedtoolcache/CodeSC
-          sudo rm -rf /usr/share/swift /usr/local/share/powershell
-          sudo rm -f /swapfile
+          # ⚠️ 每一刀都 `|| true`：GitHub 的 bash 是 `-e` 模式 ⇒ ⇒ 任何一条
+          #    rm 失败 ⇒ ⇒ **整个 step 就红了** —— 而这一步的目的只是
+          #    「尽量腾出磁盘」⇒ ⇒ 「腾不出来」不该阻断 CI。
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost || true
+          sudo rm -rf /usr/local/lib/android /opt/hostedtoolcache/CodeSC || true
+          sudo rm -rf /usr/share/swift /usr/local/share/powershell || true
+          sudo rm -f /swapfile || true
           df -h /home/runner
 
       # rust-cache 的 workspaces 是**逐行**列表，用逗号分隔会被当成一个
@@ -394,10 +397,13 @@ jobs:
       # runner 磁盘 —— 见 prefrontal-rust job 的同名步骤：预装工具先删掉。
       - name: Free disk space
         run: |
-          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost
-          sudo rm -rf /usr/local/lib/android /opt/hostedtoolcache/CodeSC
-          sudo rm -rf /usr/share/swift /usr/local/share/powershell
-          sudo rm -f /swapfile
+          # ⚠️ 每一刀都 `|| true`：GitHub 的 bash 是 `-e` 模式 ⇒ ⇒ 任何一条
+          #    rm 失败 ⇒ ⇒ **整个 step 就红了** —— 而这一步的目的只是
+          #    「尽量腾出磁盘」⇒ ⇒ 「腾不出来」不该阻断 CI。
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost || true
+          sudo rm -rf /usr/local/lib/android /opt/hostedtoolcache/CodeSC || true
+          sudo rm -rf /usr/share/swift /usr/local/share/powershell || true
+          sudo rm -f /swapfile || true
           df -h /home/runner
 
       # workspaces 必须逐行写，逗号分隔会让 rust-cache 缓存彻底失效。
