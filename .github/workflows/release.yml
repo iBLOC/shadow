@@ -56,7 +56,10 @@ env:
   #    三个平台）⇒ ⇒ 它与 CI 判的那套 lint 用的是**同一套 path
   #    依赖**⇒ ⇒ 不钉就是「这里编过、那里编不过」的尺子漂移。
   #    ⚡️ 版本号与另两个 workflow **必须相同** ⇒ ⇒ 三处同步手改。
-  RUST_TOOLCHAIN: '1.99.0'
+  # ⚠️⚠️ **变量名必须是 `RUSTUP_TOOLCHAIN`**（带 `UP`）—— 不是 `RUST_TOOLCHAIN`！
+  #    ⚡️ **真机实测（2026-11-05）**：写错名字 ⇒ ⇒ rustup 完全无视 ⇒ ⇒ 装了、全绿、
+  #    而实际用的是 stable。
+  RUSTUP_TOOLCHAIN: '1.99.0'
 
 jobs:
   # ---------------------------------------------------------------------
@@ -217,9 +220,17 @@ jobs:
         shell: bash
         run: |
           set -eu
-          rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal
+          rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal
+          rustup default "$RUSTUP_TOOLCHAIN"
           rustc --version
           cargo --version
+          # ⚠️⚠️ 断言它真的生效了（装了不等于用了）。
+          active="$(rustup show active-toolchain)"
+          echo "active toolchain: $active"
+          case "$active" in
+            "$RUSTUP_TOOLCHAIN"*) echo "✅ pinned toolchain is active" ;;
+            *) echo "::error::pinned toolchain is NOT active (active=$active, pinned=$RUSTUP_TOOLCHAIN)"; exit 1 ;;
+          esac
 
       # lance-encoding's build script compiles .proto files with prost —
       # it needs protoc, which the runner image does not guarantee.

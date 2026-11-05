@@ -40,7 +40,14 @@ jobs:
       #    手动抬这个版本号（那是另一个决定，另记）。
       #    ⇒ ⇒ **不引第三方 action**（如 `dtolnay/rust-toolchain`）⇒ ⇒ 少一个
       #    供应链面；runner 自带 rustup ⇒ ⇒ 直接用它装。
-      RUST_TOOLCHAIN: '1.99.0'
+      # ⚠️⚠️ **变量名必须是 `RUSTUP_TOOLCHAIN`**（带 `UP`）—— 不是 `RUST_TOOLCHAIN`！
+      #    ⚠️ **真机实测（2026-11-05）**：我最后写的是 `RUST_TOOLCHAIN`（没有 `UP`）⇒ ⇒
+      #    **rustup 完全无视它**⇒ ⇒ 本地量到 `rustc 1.96.0`（= stable）⇒ ⇒ CI 上量到
+      #    `rustc 1.99.1`（而不是装好的 1.99.0）⇒ ⇒ **装了不等于用了**⇒ ⇒ 这就是**假钉**。
+      #    ⚠️ 正确名字的行为（本机三段对照）：只设 `RUSTUP_TOOLCHAIN` ⇒ ⇒ `rustc 1.99.0`
+      #    （且 `rustup show active-toolchain` 逐字报 "overridden by environment variable
+      #    RUSTUP_TOOLCHAIN"）⇒ ⇒ 只设 `RUST_TOOLCHAIN` ⇒ ⇒ 回到 stable ⇒ ⇒ 两个都设 ⇒ ⇒ `RUSTUP_TOOLCHAIN` 赢。
+      RUSTUP_TOOLCHAIN: '1.99.0'
     steps:
       - name: Checkout shadow
         uses: actions/checkout@v7
@@ -186,10 +193,20 @@ jobs:
       - name: Install pinned Rust toolchain
         run: |
           set -eu
-          rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal --component clippy
+          rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal --component clippy
+          rustup default "$RUSTUP_TOOLCHAIN"
           rustc --version
           cargo --version
           cargo clippy --version
+          # ⚠️⚠️ **必须断言它真的生效了** —— 装了不等于用了。
+          #    ⇒ ⇒ 上一轮就是这个坑（变量名写错一个字母 ⇒ ⇒ 装了、全绿、而实际用的是 stable）。
+          #    ⇒ ⇒ 这一步不看版本号就不能放行。
+          active="$(rustup show active-toolchain)"
+          echo "active toolchain: $active"
+          case "$active" in
+            "$RUSTUP_TOOLCHAIN"*) echo "✅ pinned toolchain is active" ;;
+            *) echo "::error::pinned toolchain is NOT active (active=$active, pinned=$RUSTUP_TOOLCHAIN)"; exit 1 ;;
+          esac
 
       - name: Cargo check
         working-directory: prefrontal

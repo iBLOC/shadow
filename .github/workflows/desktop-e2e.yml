@@ -53,7 +53,10 @@ jobs:
       #    同一套依赖，就会出现「**这里编过、那里编不过**」的
       #    尺子漂移（一个用 1.96、一个用 1.99）。
       #    ⚡️ 版本号与 `ci.yml` **必须相同** ⇒ ⇒ 两处同步手改。
-      RUST_TOOLCHAIN: '1.99.0'
+      # ⚠️⚠️ **变量名必须是 `RUSTUP_TOOLCHAIN`**（带 `UP`）—— 不是 `RUST_TOOLCHAIN`！
+      #    ⚡️ **真机实测（2026-11-05）**：写错名字 ⇒ ⇒ rustup 完全无视 ⇒ ⇒ 装了 1.99.0、
+      #    全绿、而实际用的是 stable（那天是 1.99.1）⇒ ⇒ **装了不等于用了**。
+      RUSTUP_TOOLCHAIN: '1.99.0'
     steps:
       - name: Checkout shadow
         uses: actions/checkout@v7
@@ -114,9 +117,17 @@ jobs:
       - name: Install pinned Rust toolchain
         run: |
           set -eu
-          rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal
+          rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal
+          rustup default "$RUSTUP_TOOLCHAIN"
           rustc --version
           cargo --version
+          # ⚠️⚠️ 断言它真的生效了（装了不等于用了）。
+          active="$(rustup show active-toolchain)"
+          echo "active toolchain: $active"
+          case "$active" in
+            "$RUSTUP_TOOLCHAIN"*) echo "✅ pinned toolchain is active" ;;
+            *) echo "::error::pinned toolchain is NOT active (active=$active, pinned=$RUSTUP_TOOLCHAIN)"; exit 1 ;;
+          esac
 
       # 两道跨仓闸 —— 放在长编译**之前** ⇒ ⇒ 便宜地先判一次「依赖图还成不成立」。
       - name: External tools wiring check

@@ -4,31 +4,34 @@
  *
  * ## 守什么
  *
- * CI 跑 cargo 的 job ⇒ ⇒ **必须显式钉一个精确版本**（`RUST_TOOLCHAIN: '1.99.0'`
- * ＋ `rustup toolchain install`）⇒ ⇒ 否则尺子会随 Rust 发版漂移。
+ * CI 跑 cargo 的 job ⇒ ⇒ **必须显式钉一个精确版本**，而且**钉的那把必须真的被用上**。
  *
- * ⚠️ **漂移的后果不是「变红」那么简单** —— 2026-11-05 真机实测（真 CI
- * run 42009927423）：CI 的 clippy 是 **1.99.0**，本地是 **1.96.0** ⇒ ⇒ 同一份
- * 代码本地 `-D warnings` 零 lint，CI 那把尺子报了 **15 条**
- * `clippy::double_must_use` ⇒ ⇒ 而 1.96 上那条 lint **还在 pedantic**
- * ⇒ ⇒ **本地量不出来** ⇒ ⇒ 「本地全绿」根本不构成「CI 会绿」的证据。
+ * ⚠️⚠️ **「装了」不等于「用了」** —— 2026-11-05 真机实测（真 CI run 42038977857）：
+ * workflow 写着 `rustup toolchain install "$RUST_TOOLCHAIN"` ⇒ ⇒ 安装步骤逐字报
+ * `1.99.0-x86_64-unknown-linux-gnu installed` ⇒ ⇒ **但同一段日志里**
+ * `rustc --version` 打的是 **`1.99.1`**（runner 的 stable）⇒ ⇒ **钉的那把从没被用过**。
+ * ⇒ ⇒ 根因：**变量名写错** —— rustup 认的是 **`RUSTUP_TOOLCHAIN`**（带 `UP`），
+ * 而 `RUST_TOOLCHAIN`（少个 `UP`）**rustup 完全无视** ⇒ ⇒ 本机三段对照逐字：
+ * 只设 `RUSTUP_TOOLCHAIN` ⇒ ⇒ `rustc 1.99.0` ＋ `rustup show active-toolchain` 报
+ * 「overridden by environment variable RUSTUP_TOOLCHAIN」；只设 `RUST_TOOLCHAIN` ⇒ ⇒
+ * 回到 stable；两个都设 ⇒ ⇒ `RUSTUP_TOOLCHAIN` 赢。
  *
- * ⇒ ⇒ 判据是**结构**的：凡是有 cargo 步骤的 job ⇒ ⇒ 必须能看见
- * 「钉住了哪个版本」⇒ ⇒ 钉住的位置有两个（env 与 install 步骤）⇒ ⇒
- * 两者**必须一致**（env 写 A、装 B ⇒ ⇒ 装的那把根本没被用上 ⇒ ⇒
- * **钉了等于没钉**）⇒ ⇒ 那是**假钉** ⇒ ⇒ 红。
+ * ⚠️ **而那一轮 CI 是全绿的** ⇒ ⇒ **「绿」并不证明「钉住了」** ⇒ ⇒ 所以判据不能只看
+ * 「有没有写版本号」，还要看 ❶ **变量名对不对** ❷ **有没有断言 active toolchain**。
+ *
+ * ## 三种坏法（都要红）
+ *
+ * · **变量名错**（`RUST_TOOLCHAIN` 少了 `UP`）⇒ ⇒ 装而不�� ⇒ ⇒ 红；
+ * · **没装**（钉了版本却没 `rustup toolchain install`）⇒ ⇒ runner 上未必有那个版本
+ *   ⇒ ⇒ cargo 直接报 "toolchain '1.99.0' is not installed" ⇒ ⇒ 红；
+ * · **没断言**（没有 `rustup show active-toolchain` 的核对）⇒ ⇒ 假钉查不出来 ⇒ ⇒ 红；
+ *   ⇒ ⇒ 这是**上一轮那个洞**：闸说绿、CI 说绿、而尺子压根没被换。
  *
  * ## 防假绿
  *
- * · **注释是噪声** —— 判据前先剥注释（复用 `strip-comments.mjs`）⇒ ⇒ 注释里
- *   提到 `RUST_TOOLCHAIN` 不误报；
- * · **版本必须精确** —— `stable` / `nightly` / `beta` **不算钉住**
- *   （那正是漂移的来源）⇒ ⇒ 红；
- * · **跨 workflow 必须同版本** —— 两处用不同刻度 ⇒ ⇒ 「这里编过、那里编不过」
- *   ⇒ ⇒ 红；
- * · **不许只钉一半** —— 有 `RUST_TOOLCHAIN` 但**没有** install 步骤
- *   ⇒ ⇒ runner 上大概率没那个版本 ⇒ ⇒ cargo 直接报
- *   "toolchain '1.99.0' is not installed" ⇒ ⇒ 红。
+ * · **注释是噪声** —— 判据前先剥 YAML 注释 ⇒ ⇒ 注释里提到变量名不误报；
+ * · **版本必须精确** —— `stable` / `nightly` / `beta` **不算钉住**（那正是漂移的来源）；
+ * · **跨 workflow 必须同版本** —— 两处用不同刻度 ⇒ ⇒ 「这里编过、那里编不过」⇒ ⇒ 红。
  */
 
 /** 精确版本号：`1.99.0` 这种；**不接受** channel 词。 */
@@ -36,6 +39,12 @@ export const EXACT_VERSION = /^\d+\.\d+\.\d+$/;
 
 /** 会被判成「没钉」的 channel 词。 */
 export const CHANNEL_WORDS = ['stable', 'nightly', 'beta', 'master', 'main'];
+
+/** rustup **真正认**的环境变量名（带 `UP`）。 */
+export const RUSTUP_ENV = 'RUSTUP_TOOLCHAIN';
+
+/** **错的名字** —— rustup 会完全无视它 ⇒ ⇒ 装了等于没装。 */
+export const WRONG_ENV_NAMES = ['RUST_TOOLCHAIN'];
 
 /** 一个 job 里「跑 cargo」的证据。 */
 export const CARGO_MARKERS = ['cargo '];
@@ -45,21 +54,32 @@ function lineOf(text, index) {
 }
 
 /**
- * 从 workflow 文本里抽出「钉住的版本」与「装工具链的步骤」。
+ * 从 workflow 文本里抽出「钉住的版本」与「装/断言的证据」。
  * @param {string} text **已剥注释**的 workflow 正文
- * @returns {{versions: Array<string>, installs: number, cargoJobs: number}}
+ * @returns {{versions: Array<string>, wrongEnv: Array<string>, installs: number,
+ *          asserts: number, cargoJobs: number}}
  */
 export function scanToolchainPinning(text) {
   const body = String(text || '');
   const versions = [];
-  const installs = [];
-
-  const envRe = /RUST_TOOLCHAIN\s*:\s*['"]?([^'"\s#]+)['"]?/g;
+  const wrongEnv = [];
   let m;
+
+  const envRe = new RegExp(RUSTUP_ENV + "\\s*:\\s*['\"]?([^'\"\\s#]+)['\"]?", 'g');
   while ((m = envRe.exec(body)) !== null) versions.push(m[1]);
 
+  for (const wrong of WRONG_ENV_NAMES) {
+    const re = new RegExp(wrong + "\\s*:", 'g');
+    while ((m = re.exec(body)) !== null) wrongEnv.push(wrong);
+  }
+
   const installRe = /rustup\s+toolchain\s+install/g;
-  while ((m = installRe.exec(body)) !== null) installs.push(m[0]);
+  let installs = 0;
+  while ((m = installRe.exec(body)) !== null) installs += 1;
+
+  const assertRe = /rustup\s+show\s+active-toolchain/g;
+  let asserts = 0;
+  while ((m = assertRe.exec(body)) !== null) asserts += 1;
 
   const jobRe = /^ {2}([A-Za-z0-9_-]+):\s*$/gm;
   const jobs = [];
@@ -71,7 +91,7 @@ export function scanToolchainPinning(text) {
     if (CARGO_MARKERS.some((c) => block.includes(c))) cargoJobs += 1;
   }
 
-  return { versions, installs: installs.length, cargoJobs };
+  return { versions, wrongEnv, installs, asserts, cargoJobs };
 }
 
 /**
@@ -87,21 +107,36 @@ export function findToolchainPinIssues(text, label) {
 
   if (scan.cargoJobs === 0) return issues; // 根本不跑 cargo ⇒ 不归这道闸管
 
+  if (scan.wrongEnv.length > 0) {
+    issues.push({
+      kind: 'wrong-env-name',
+      file: label,
+      detail: '用了变量 `' + scan.wrongEnv[0] + '` —— rustup 认的是 `' + RUSTUP_ENV + '`（带 UP）⇒ ⇒ 装了等于没装',
+    });
+    // ⇒ ⇒ **直接返回**：错名字已经足够说明「钉住了是假的」⇒ ⇒ 不再叠加别的理由
+    //     （否则同一个洞会报两条 ⇒ ⇒ 报数虚高 ⇒ ⇒ 读数不可比）。
+    return issues;
+  }
+
   if (scan.versions.length === 0) {
-    issues.push({ kind: 'not-pinned', file: label, detail: '有 cargo 步骤，却没有 RUST_TOOLCHAIN' });
+    issues.push({ kind: 'not-pinned', file: label, detail: '有 cargo 步骤，却没有 `' + RUSTUP_ENV + '`' });
     return issues;
   }
 
   for (const v of scan.versions) {
     if (CHANNEL_WORDS.includes(v)) {
-      issues.push({ kind: 'channel-not-version', file: label, detail: "RUST_TOOLCHAIN: '" + v + "' 是 channel 词，不是精确版本" });
+      issues.push({ kind: 'channel-not-version', file: label, detail: RUSTUP_ENV + ': ' + v + ' 是 channel 词，不是精确版本' });
     } else if (!EXACT_VERSION.test(v)) {
-      issues.push({ kind: 'not-exact-version', file: label, detail: "RUST_TOOLCHAIN: '" + v + "' 不是精确版本号" });
+      issues.push({ kind: 'not-exact-version', file: label, detail: RUSTUP_ENV + ': ' + v + ' 不是精确版本号' });
     }
   }
 
   if (scan.installs === 0) {
     issues.push({ kind: 'no-install-step', file: label, detail: '钉了版本却没有 `rustup toolchain install` 步骤 ⇒ ⇒ runner 上未必有那个版本' });
+  }
+
+  if (scan.asserts === 0) {
+    issues.push({ kind: 'no-active-assertion', file: label, detail: '没有 `rustup show active-toolchain` 的核对 ⇒ ⇒ **假钉查不出来**（装了不等于用了）' });
   }
 
   return issues;
@@ -124,7 +159,7 @@ export function findCrossWorkflowIssues(files) {
     }
   }
   if (seen.size > 1) {
-    const desc = Array.from(seen.entries()).map(([v, files2]) => v + ' (' + files2.join(', ') + ')').join('  ｜  ');
+    const desc = Array.from(seen.entries()).map(([v, f2]) => v + ' (' + f2.join(', ') + ')').join('  ｜  ');
     issues.push({ kind: 'version-drift-between-workflows', file: '(跨 workflow)', detail: '不同 workflow 钉了不同版本 ⇒ ⇒ 同一套依赖用两把尺子：' + desc });
   }
   return issues;
