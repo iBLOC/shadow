@@ -686,6 +686,34 @@ jobs:
       - name: PS1 portability check
         run: node scripts/check-ps1-portability.mjs
 
+  # ── YAML 合法性闸 ──────────────────────────────────────────────────
+  # ⚠️ 2026-11-05：兄弟仓 telencephalon 的 workflow 曾因为 step 名里带冒号
+  # （「Cargo check (router-only: …)」却**没加引号**）⇒ ⇒ YAML 解析直接报错
+  # ⇒ ⇒ **整个 workflow 起不来**（GitHub 连 job 都进不去）⇒ ⇒ 而 CI 因账号
+  # 额度本来就红 ⇒ ⇒ 没人看见 ⇒ ⇒ 病根不是「那行写错了」，是「CI 的 YAML
+  # 从来没有被任何东西解析过」⇒ ⇒ 于是它被收成一道闸。
+  yaml-validity:
+    name: YAML validity (workflows)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout shadow
+        uses: actions/checkout@v7
+
+      # ⚠️ 真解析器（PyYAML）只用于**差分交叉验证**（扫描器与它结论不一致
+      #    ⇒ ⇒ 红）⇒ ⇒ 装不上也不影响闸本身跑（扫描器是零依赖的）
+      #    ⇒ ⇒ 装了就多一路证据 ⇒ ⇒ 所以这一步允许失败。
+      - name: Install YAML parser for cross-check
+        continue-on-error: true
+        run: |
+          python3 -m pip install --quiet --disable-pip-version-check --user pyyaml             || pip3 install --quiet --disable-pip-version-check --user pyyaml             || echo 'no PyYAML ⇒ 只跑扫描器（不做差分交叉验证）'
+
+      - name: Gate self-test
+        run: node scripts/check-yaml-valid.mjs --self-test
+
+      - name: Workflow YAML check
+        run: node scripts/check-yaml-valid.mjs
+
   # ── 跨仓 Cortex 残留闸 ─────────────────────────────────────────────
   # ⚠️ iBLOC 这套栈是**十几个独立 git 仓** ⇒ 闸只住在 shadow 仓的话，
   #    **另外那些仓没人盯**（2026-11 实测：prefrontal 的 tool 描述里还写着
@@ -835,3 +863,14 @@ jobs:
 
       - name: Cross-repo Cortex residue check (self-test)
         run: node scripts/check-cortex-residue-all.mjs --self-test
+
+      # ⚠️ 2026-11-05：workflow 的 YAML 也得有人管 ⇒ ⇒ 这个 job 正好把所有
+      #    兄弟仓都检出到工作区子目录 ⇒ ⇒ 顺手把它们的 workflow 也过一遍
+      #    ⇒ ⇒ 实测第一天就抓到兄弟仓一条真缺陷（重复键 ⇒ GitHub 拒绝整个
+      #    workflow）⇒ ⇒ 而 YAML 解析器对重复键是**静默放过**的 ⇒ ⇒ 所以
+      #    光「拿解析器过一遍」不够。
+      - name: Cross-repo workflow YAML check
+        run: node scripts/check-yaml-valid.mjs --root=.
+
+      - name: Cross-repo workflow YAML check (self-test)
+        run: node scripts/check-yaml-valid.mjs --self-test
