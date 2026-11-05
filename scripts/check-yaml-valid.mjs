@@ -60,7 +60,7 @@ import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSy
 import { tmpdir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { scanYamlText, SYNTAX_KINDS } from './lib/yaml-valid.mjs';
+import { scanYamlText, SYNTAX_KINDS, coverageVerdict } from './lib/yaml-valid.mjs';
 
 const REPO_ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 
@@ -444,7 +444,18 @@ function selfTest() {
     if (!ok) bad += 1;
   }
 
-  console.log('  判据自检：' + (cases.length - bad) + '/' + cases.length);
+  const covCases = [
+    ['覆盖面对账：0 个文件 ⇒ ⇒ 必须判「判不了」（不是绿）', coverageVerdict(0).ok === false],
+    ['孪生：扫到文件 ⇒ ⇒ 判「可以判」', coverageVerdict(3).ok === true],
+  ];
+  for (const [name, ok] of covCases) {
+    console.log((ok ? '  [PASS] ' : '  [FAIL] ') + name);
+    if (!ok) bad += 1;
+  }
+  // ⚠️ 分母要含**全部**用例（2026-11-05 自查踩到：新增的覆盖面对账用例
+  //    没进分母 ⇒ ⇒ 印成 21/21 而实际 23 条 ⇒ ⇒ 「量异常前先量总数」）。
+  const total = cases.length + covCases.length;
+  console.log('  判据自检：' + (total - bad) + '/' + total);
   if (bad > 0) {
     console.error('❌ 自检没过 ⇒ 闸门自己不可信');
     process.exit(1);
@@ -521,6 +532,20 @@ function drill(files) {
     detail: before.slice(0, 16) + ' vs ' + after.slice(0, 16),
   });
 
+  // ⚠️ 「绿灯但什么都没查」的那一档：空目录 ⇒ ⇒ 必须判「判不了」（退出码 2）
+  const emptyDir = mkdtempSync(join(tmpdir(), 'yamldrill-empty-'));
+  const emptyRes = spawnSync(
+    process.execPath,
+    [fileURLToPath(import.meta.url), '--json', '--root=' + emptyDir],
+    { encoding: 'utf8', timeout: 120000 },
+  );
+  steps.push({
+    name: '空目录 ⇒ 必须判「判不了」（退出码 2），不是绿',
+    ok: emptyRes.status === 2,
+    detail: 'exit=' + emptyRes.status,
+  });
+  rmSync(emptyDir, { recursive: true, force: true });
+
   rmSync(dir, { recursive: true, force: true });
 
   let bad = 0;
@@ -560,6 +585,16 @@ function main() {
     }
   }
   const files = opts.files.length > 0 ? opts.files.slice().sort() : listWorkflowFiles(repos);
+
+  // ⚠️ **零文件 ⇒ ⇒ 退出码 2（判不了），不是绿** ⇒ ⇒ 否则就是
+  //    「绿灯但什么都没查」（2026-11-05 同族坑：检出失败 / 路径写错 ⇒ ⇒
+  //    闸扫到 0 个文件却报「零违规」）。
+  const coverage = coverageVerdict(files.length);
+  if (!coverage.ok) {
+    console.error('❌ ' + coverage.reason);
+    console.error('   扫了 ' + repos.length + ' 个仓、0 个 workflow ⇒ ⇒ 退出码 2');
+    process.exit(2);
+  }
 
   if (opts.selfTest) {
     selfTest();

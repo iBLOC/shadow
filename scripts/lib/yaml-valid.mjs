@@ -52,6 +52,26 @@ export const SYNTAX_KINDS = new Set([
   'unexpected-indent',
 ]);
 
+/**
+ * 覆盖面对账：**扫到 0 个文件 ⇒ ⇒ 判不了（退出码 2）**，不是绿。
+ *
+ * ⚠️ 为什么（2026-11-05 实测，同族坑）：一个 job 只 checkout 了一个仓
+ * ⇒ ⇒ 跨仓判据**零覆盖** ⇒ ⇒ 而闸照样报「零违规」⇒ ⇒
+ * 「**绿灯但什么都没查**」是最坏的假绿 ⇒ ⇒ 所以「没扫到东西」必须与
+ * 「扫到东西且没问题」**分开报**。
+ */
+export function coverageVerdict(fileCount) {
+  if (!Number.isFinite(fileCount) || fileCount <= 0) {
+    return {
+      ok: false,
+      reason:
+        '一个 workflow 文件都没扫到 ⇒ ⇒ 判不了（不是绿）⇒ ⇒ ' +
+        '否则就成了「绿灯但什么都没查」',
+    };
+  }
+  return { ok: true, reason: '扫到 ' + fileCount + ' 个 workflow' };
+}
+
 export function isBlankLine(line) {
   return line.trim().length === 0;
 }
