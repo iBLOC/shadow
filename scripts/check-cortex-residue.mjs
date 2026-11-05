@@ -19,6 +19,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { runGate, runSelfTest } from './lib/cortex-residue.mjs';
+import { checkTopLevelCoverage, renderCoverage } from './lib/coverage-reconciliation.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -42,7 +43,10 @@ const ROOT_OPTS = {
   // ⇒ ⇒ 现在显式纳入（shadow-desktop / shadow-mobile 由各自的薄壳负责）。
   scanDirs: ['scripts', 'benchmark/src', 'benchmark/tests', 'benchmark/tools', 'benchmark/suites',
              'shadow-esp32/app', 'shadow-esp32/tools'],
-  scanFiles: ['agent-surface.json', 'benchmark/README.md', 'shadow-esp32/README.md'],
+  // ⚠️ 2026-11-05：仓根的两个**面向用户**的文档纳入扫描（实测旧词 0 命中 ⇒ ⇒ 纳入是安全的）
+  //    ⇒ ⇒ 以后谁往里面写旧名，闸会当场报出来（而不是「没人看」）。
+  scanFiles: ['agent-surface.json', 'benchmark/README.md', 'shadow-esp32/README.md',
+             'README.md', 'ARCHITECTURE.md'],
   excludeDirs: [
     'node_modules', '.git', 'target', 'dist', 'build', 'docs',
     // ⚠️ benchmark/ 下有 **100+ 个 reports*/runs*/target*** 目录（评测产物）
@@ -81,6 +85,73 @@ const ROOT_OPTS = {
     'check-cortex-residue-all.mjs',
     'cortex-registry.mjs',
   ],
+  /**
+   * 顶层对账的登记（每个顶层条目必须三选一：被扫 / 被排除 / 被登记）。
+   * ⚠️ 两档：**skip** = 刻意不扫（别人家的闸管 / 账本 / 工具目录）
+   *    **debt** = **没人判的存量缺口**（放行但**必须打印** —— 登记不是认可）
+   */
+  allowedTopDirs: [
+    {
+      dir: 'shadow-desktop',
+      kind: 'skip',
+      reason: '由**桌面端自己的闸**管（shadow-desktop/scripts/check-cortex-residue.mjs）⇒ ⇒ 仓根不重复扫它。',
+    },
+    {
+      dir: 'shadow-mobile',
+      kind: 'skip',
+      reason: '由**移动端自己的闸**管（shadow-mobile/scripts/check-cortex-residue.mjs）⇒ ⇒ 仓根不重复扫它。',
+    },
+    {
+      dir: 'AGENTS.md',
+      kind: 'skip',
+      reason: '**项目账本**（知识库：大量记录旧产品名的改名史 ⇒ ⇒ 那是史证，不是活代码）。',
+    },
+    {
+      dir: '.gitignore',
+      kind: 'skip',
+      reason: '版本控制配置（不含业务字面量）。',
+    },
+    {
+      dir: '.github',
+      kind: 'debt',
+      reason:
+        '**词级闸不覆盖 CI 配置**（2026-11-05 实测：ci.yml 里有 25 处旧词，' +
+        '但它们全是**闸自己的说明文字与 step 名** ⇒ ⇒ 要纳入扫描就得先给词级闸' +
+        '补一档「闸自己说明文字」的豁免 ⇒ ⇒ 什么时候修：补那档豁免（或把 step 名' +
+        '改成中性名）⇒ ⇒ **注意**：CI 配置里的**环境变量**由**死变量闸**覆盖' +
+        '（它用 git ls-files 扫全仓 ⇒ ⇒ .github/ 在它的范围内）。',
+    },
+    {
+      dir: 'brand',
+      kind: 'debt',
+      reason: '**没人判**：品牌资产（图标 / 几何 / 配色）⇒ ⇒ 什么时候修：加进扫描范围（排除二进制即可）。',
+    },
+    {
+      dir: 'fixtures',
+      kind: 'debt',
+      reason: '**没人判**：测试夹具目录 ⇒ ⇒ 什么时候修：加进扫描范围。',
+    },
+    {
+      dir: 'state',
+      kind: 'debt',
+      reason: '**没人判**：本地状态目录（运行期产物）⇒ ⇒ 什么时候修：加进扫描范围或登记成刻意不扫。',
+    },
+    {
+      dir: 'artifacts',
+      kind: 'debt',
+      reason: '**没人判**：本地产物目录 ⇒ ⇒ 什么时候修：同上。',
+    },
+    {
+      dir: 'design-tokens.json',
+      kind: 'debt',
+      reason: '**没人判**：设计令牌（颜色 / 间距）⇒ ⇒ 什么时候修：加进扫描范围。',
+    },
+    {
+      dir: 'debug.log',
+      kind: 'debt',
+      reason: '**没人判**：本地日志（未跟踪）⇒ ⇒ 什么时候修：把它挪出仓根或加进排除清单。',
+    },
+  ],
   allowed: [
     {
       token: 'desktop-no-cortex-bypass',
@@ -97,6 +168,13 @@ const ROOT_OPTS = {
     {
       token: 'cortex-status',
       reason: '桌面端路由路径 /cortex-status（内部 URL，不出现在界面上）。能力清单正在被别的会话改，本轮不动它。',
+    },
+    {
+      token: 'cortex-residue',
+      reason:
+        '**闸名本身带旧产品名**（check-cortex-residue.mjs / check-cortex-residue-all.mjs）' +
+        '⇒ ⇒ 改闸名会同时打断 CI step、债清单、账本里的引用 ⇒ ⇒ **真契约**' +
+        '⇒ ⇒（cortex-residue-all 是它的子串 ⇒ ⇒ 一条就够）。',
     },
     {
       token: '2026-08-16-cortex-data-channel-device-router.md',
@@ -137,6 +215,32 @@ let failed = 0;
   const r = runGate(ROOT_OPTS);
   console.log(r.out);
   if (r.code !== 0) failed++;
+}
+
+// ③ 顶层对账 —— 「残留 0 处」只对**被扫的那些文件**成立
+//    ⇒ ⇒ 每个顶层条目必须三选一被交代（扫 / 排除 / 登记）
+//    ⇒ ⇒ 都没交代 ⇒ ⇒ 「0 处」在那一格是**空话** ⇒ ⇒ 阻断。
+{
+  console.log('');
+  console.log('▶ 顶层对账（仓根范围的覆盖面）');
+  const cov = checkTopLevelCoverage({
+    root: ROOT,
+    label: 'shadow（仓根）',
+    scanDirs: ROOT_OPTS.scanDirs,
+    scanFiles: ROOT_OPTS.scanFiles,
+    excludeDirs: ROOT_OPTS.excludeDirs,
+    excludeFiles: ROOT_OPTS.excludeFiles,
+    allowedTopDirs: ROOT_OPTS.allowedTopDirs,
+  });
+  for (const l of renderCoverage(cov)) console.log(l);
+  if (cov.gaps.length > 0) {
+    failed++;
+    console.error('  ✗ 顶层对账有 ' + cov.gaps.length + ' 处缺口 ⇒ ⇒ 「残留 0 处」在那几处是空话。');
+  }
+  if (cov.stale.length > 0) {
+    failed++;
+    console.error('  ✗ 顶层登记已过期 ⇒ ⇒ 要销账。');
+  }
 }
 
 // ② 两个子项目（各自的薄壳）

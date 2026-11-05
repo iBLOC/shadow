@@ -809,7 +809,10 @@ No errors, no warnings — only style-level info issues (deprecated `value` / `a
 
 ```bash
 # Optional — only needed when targeting a specific telencephalon / prefrontal in dev
-export TELE_ULR="http://localhost:60080"        # default in production: discovered via mDNS (port unified 2026-09, was :8443)
+# ⚠️ 2026-11-05：这里**曾经**是一个拼错的端脑地址变量（TELE_ULR —— TELE_URL 的字母换位）
+#    ⇒ ⇒ 而且**全仓没有任何读者**：移动端的端脑地址走应用配置文件里的 telencephalonBaseUrl
+#    （lib/services/app_config_service.dart ⇒ 默认 http://127.0.0.1:60080）
+#    ⇒ ⇒ 它**不是**环境变量 ⇒ ⇒ 已删（生产默认走 mDNS 发现；端口 2026-09 统一为 :60080，此前是 :8443）
 export PREFRONTAL_HOST="http://localhost:8082"     # fallback only — `dacbe83` removed automatic fallback
 
 # Model download defaults

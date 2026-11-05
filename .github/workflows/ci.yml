@@ -403,8 +403,8 @@ jobs:
       - name: Run Playwright E2E against the 端脑 server
         working-directory: shadow-desktop
         env:
-          SHADOW_CORTEX_BIN: ${{ github.workspace }}/encephalon/target/debug/encephalon-server
-          SHADOW_CORTEX_CWD: ${{ github.workspace }}/encephalon
+          SHADOW_TELENCEPHALON_BIN: ${{ github.workspace }}/encephalon/target/debug/encephalon-server
+          SHADOW_TELENCEPHALON_CWD: ${{ github.workspace }}/encephalon
           SHADOW_FULL_STACK: '1'
         run: |
           xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
@@ -561,6 +561,19 @@ jobs:
 
       - name: Preference revocation check (self-test)
         run: node scripts/check-preference-revocation.mjs --self-test
+
+      # ── 死环境变量闸 ──────────────────────────────────────────
+      # ⚠️ 2026-11-05 实测：CI 的 e2e step 设了两个环境变量指向端脑二进制，
+      #    但读取端在改名链里**已经换成了新名字** ⇒ ⇒ 那两个变量**一个读者都没有**
+      #    ⇒ ⇒ CI 里的端脑二进制 override **从未生效** ⇒ ⇒ 而失败长得像成功
+      #    （e2e 静默 skip ⇒ 绿灯但什么都没测）。
+      # ⇒ ⇒ 这道闸盯「设了没人读」与「改名链漂移」两族 —— 它们是
+      #    **词级残留闸抓不到的一族**（新名字里没有旧产品名那个词）。
+      - name: Dead env vars check
+        run: node scripts/check-dead-env-vars.mjs
+
+      - name: Dead env vars check (self-test)
+        run: node scripts/check-dead-env-vars.mjs --self-test
 
       # logo 几何同理：真相源在 brand/geom.mjs，两端图标与应用内标记都是
       # 生成物。改了几何忘了重跑 = 应用图标与应用内 logo 悄悄对不上。

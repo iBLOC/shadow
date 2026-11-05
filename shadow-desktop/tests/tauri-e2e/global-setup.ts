@@ -39,10 +39,13 @@ export async function setup(): Promise<void> {
   console.log('[tauri-setup] spawning pnpm tauri dev');
   const child = spawn('pnpm', ['tauri', 'dev'], {
     cwd: process.cwd(),
+    // ⚠️ 2026-11-05：这里**曾经**设过 TELENCEPHALON_PORT ⇒ ⇒ 但**全栈没有任何读者**：
+    //    桌面端的端脑端口是写死的 127.0.0.1:60080（telencephalon_http.rs:72），
+    //    而 TELE_PORT / CORTEX_PORT 只在 logger.rs 里被**打印**、不控制绑定
+    //    ⇒ ⇒ 那个 override **从未生效过** ⇒ ⇒ 失败被默认值掩盖 ⇒ ⇒ 已删。
     env: {
       ...process.env,
-      SHADOW_TELENCEPHALON_CONFIG: join(TEST_DIR, 'telencephalon.yaml'),
-      TELENCEPHALON_PORT: String(TELENCEPHALON_PORT),
+      TELENCEPHALON_CONFIG: join(TEST_DIR, 'telencephalon.yaml'),
       LANCE_URI: 'file://' + TEST_DIR + '/lance',
       TAURI_WEBDRIVER_PORT: String(WEBDRIVER_PORT),
       TAURI_TEST_NO_SINGLE_INSTANCE: '1',
