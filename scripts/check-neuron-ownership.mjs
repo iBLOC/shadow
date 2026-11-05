@@ -56,7 +56,7 @@
  * 退出码 0 = 通过；1 = 有阻断问题。
  */
 
-import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync, statSync, mkdirSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative, extname } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -67,6 +67,7 @@ import {
   listFiles,
   parseFeatureTree,
   scanFileMarkers,
+  withRestoredLock,
 } from './lib/neuron-invariant-scan.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -290,23 +291,20 @@ function collectArtifacts() {
 /**
  * 跑一次 cargo tree -e features -i pkg，解析出「那个包身上开了哪些 feature」。
  *
- * ⚠️ 先试 --offline（本机 registry 缓存是热的，而且本机代理指向死代理 ⇒ ⇒ 走网络
- * 会卡）⇒ ⇒ 失败再试联网那一次（CI 上缓存是冷的 ⇒ ⇒ --offline 必然失败）。
- * ⚠️ 两次都带 --locked ⇒ ⇒ **绝不改工作树**（lock 不会被重写）。
+ * ⚠️ **三段式**（每一段都比上一段更「敢」）：
+ * ① --offline --locked —— 本机 registry 缓存是热的，而且本机代理指向死代理
+ *    ⇒ ⇒ 走网络会卡；--locked ⇒ ⇒ 绝不改工作树。
+ * ② --locked（联网）—— CI 上缓存是冷的 ⇒ ⇒ --offline 必然失败。
+ * ③ **锁过期时**：临时允许 cargo 最小更新锁（跑完逐字节还原）⇒ ⇒ 解析层不
+ *    因为「某个仓的锁没跟上」而失效。⚠️ 实测正是这么发现的：某个仓的锁缺一个
+ *    path 依赖 ⇒ ⇒ --locked 拒绝 ⇒ ⇒ 那个仓的 feature 图**判不了** ⇒ ⇒
+ *    而判不了 ≠ 没问题 ⇒ ⇒ 那是一盏「没查却绿」的灯。
  */
 function cargoTreeFeatures(manifestPath, pkg) {
-  const base = ['tree', '--locked', '-e', 'features', '-i', pkg, '--manifest-path', manifestPath];
-  const attempts = [
-    { args: ['--offline', ...base], timeout: 60000 },
-    { args: base, timeout: 300000 },
-  ];
-  let lastReason = '';
-  for (const attempt of attempts) {
-    const res = spawnSync('cargo', attempt.args, { encoding: 'utf8', timeout: attempt.timeout, cwd: ROOT });
-    if (res.error) {
-      lastReason = 'cargo 跑不起来：' + res.error.message;
-      continue;
-    }
+  const tree = ['tree', '-e', 'features', '-i', pkg, '--manifest-path', manifestPath];
+  const run = (args, timeout) => spawnSync('cargo', args, { encoding: 'utf8', timeout, cwd: ROOT });
+  const interpret = (res) => {
+    if (res.error) return { ok: false, reason: 'cargo 跑不起来：' + res.error.message, stderr: '' };
     if (res.status === 0) {
       const { pkgFeatures } = parseFeatureTree(res.stdout || '');
       const set = pkgFeatures.get(pkg);
@@ -315,9 +313,34 @@ function cargoTreeFeatures(manifestPath, pkg) {
     const err = (res.stderr || '').trim();
     // 「这个包不在图里」⇒ ⇒ 那就没有这条边 ⇒ ⇒ 谈不上开了什么 feature
     if (/did not match any packages/.test(err)) return { ok: true, notInGraph: true, features: [] };
-    lastReason = 'cargo tree 退出码 ' + res.status + '：' + err.split('\n')[0];
+    return { ok: false, reason: 'cargo tree 退出码 ' + res.status + '：' + err.split('\n')[0], stderr: err };
+  };
+
+  let lastReason = '';
+  let staleLock = false;
+  for (const attempt of [
+    { args: ['--offline', '--locked', ...tree], timeout: 60000 },
+    { args: ['--locked', ...tree], timeout: 300000 },
+  ]) {
+    const parsed = interpret(run(attempt.args, attempt.timeout));
+    if (parsed.ok) return parsed;
+    lastReason = parsed.reason;
+    staleLock = /cannot update the lock file|lock file needs to be updated/.test(parsed.stderr || '');
   }
-  return { ok: false, reason: lastReason };
+  if (!staleLock) return { ok: false, reason: lastReason };
+
+  // 锁过期 ⇒ ⇒ 临时允许 cargo 最小更新锁 ⇒ ⇒ 跑完立刻逐字节还原
+  return withRestoredLock(manifestPath, () => {
+    for (const attempt of [
+      { args: ['--offline', ...tree], timeout: 120000 },
+      { args: tree, timeout: 300000 },
+    ]) {
+      const parsed = interpret(run(attempt.args, attempt.timeout));
+      if (parsed.ok) return parsed;
+      lastReason = parsed.reason;
+    }
+    return { ok: false, reason: lastReason };
+  });
 }
 
 /**
@@ -871,6 +894,27 @@ function selfTest() {
         const manifests = new Map(baseManifests);
         manifests.set('telencephalon', '[features]\ncandle = ["neuron/candle"]');
         return evaluate({ code: new Map(baseCode), manifests, featureGraph: [], artifacts: [] });
+      },
+    },
+    {
+      // 机制自检（不是规则）：临时允许 cargo 更新锁 ⇒ ⇒ 跑完必须**逐字节还原**
+      // ⇒ ⇒ 否则这道闸自己就把工作树改了 ⇒ ⇒ 那它比它要防的事更糟。
+      name: '机制：临时更新锁之后必须逐字节还原（工作树不被改）',
+      id: 'MECH',
+      want: 0,
+      run: () => {
+        const dir = join(ROOT, '.local', 'lock-probe');
+        mkdirSync(dir, { recursive: true });
+        const lock = join(dir, 'Cargo.lock');
+        const original = 'name = "demo"\nversion = "0.1.0"\n';
+        writeFileSync(lock, original, 'utf8');
+        withRestoredLock(join(dir, 'Cargo.toml'), () => {
+          writeFileSync(lock, 'name = "demo"\nversion = "0.9.9"\n', 'utf8');
+        });
+        const after = readFileSync(lock, 'utf8');
+        return after === original
+          ? []
+          : [{ id: 'MECH', file: lock, why: '锁文件没有被逐字节还原 ⇒ ⇒ 闸自己改了工作树' }];
       },
     },
   ];

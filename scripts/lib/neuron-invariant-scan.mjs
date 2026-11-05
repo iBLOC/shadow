@@ -20,7 +20,17 @@
  * · evaluateArtifacts(artifacts) —— 产物层判定（纯，可被自检喂夹具）
  */
 
-import { openSync, readSync, closeSync, readdirSync, existsSync } from 'node:fs';
+import {
+  openSync,
+  readSync,
+  closeSync,
+  readdirSync,
+  existsSync,
+  readFileSync,
+  writeFileSync,
+  unlinkSync,
+} from 'node:fs';
+import { dirname, join } from 'node:path';
 
 /**
  * neuron 运行时的**字节痕迹**。
@@ -166,6 +176,37 @@ export function parseFeatureTree(text) {
     }
   }
   return { pkgFeatures };
+}
+
+/**
+ * 在**不改工作树**的前提下，让 cargo 去解析一次依赖图。
+ *
+ * ⚠️ 为什么需要这一层：cargo 的 `--locked` 会在「manifest 与锁不一致」时
+ * **直接拒绝** ⇒ ⇒ 解析层当场失效（实测：某个仓的 Cargo.lock 缺一个 path 依赖
+ * ⇒ ⇒ `cargo tree --locked` 报「cannot update the lock file」⇒ ⇒ 那个仓的
+ * feature 图**判不了**）。
+ * 而解析层是**唯一**能看见「谁开了 local-models / candle」的那一层 ⇒ ⇒ 不能丢。
+ *
+ * 做法：先**逐字节**备份锁 ⇒ ⇒ 允许 cargo 最小更新锁（cargo 只补缺失项，
+ * 不升级已有项）⇒ ⇒ 立刻**逐字节还原** ⇒ ⇒ 工作树前后**完全一致**。
+ *
+ * ⚠️ 还原必须逐字节 ⇒ ⇒ 不能用「重新生成」⇒ ⇒ 否则 cargo 可能顺手把
+ * 版本号也改了 ⇒ ⇒ 那就不是还原，是改写。
+ */
+export function withRestoredLock(manifestPath, fn) {
+  const lockPath = join(dirname(manifestPath), 'Cargo.lock');
+  const hadLock = existsSync(lockPath);
+  const backup = hadLock ? readFileSync(lockPath) : null;
+  try {
+    return fn();
+  } finally {
+    if (hadLock) {
+      writeFileSync(lockPath, backup);
+    } else if (existsSync(lockPath)) {
+      // 原来没有锁、cargo 建了一个 ⇒ ⇒ 还原 = 把它拿掉
+      unlinkSync(lockPath);
+    }
+  }
 }
 
 /** 列一个目录里满足条件的文件（只一层）。 */
