@@ -80,14 +80,15 @@ export const NO_CANNOT_JUDGE_EXIT = {
     '⇒ ⇒ 「没查到」与「查过且没问题」长得一模一样',
   when:
     '各自下次被改动时补：凡是「可能读不全」的闸（要 cargo / 要兄弟仓 / ' +
-    '要外网的）⇒ ⇒ 必须有退出码 2 那一档',
+    '要外网的）⇒ ⇒ 必须有退出码 2 那一档' +
+    '⇒ ⇒ ⚠️ cortex-residue / cortex-residue-all 已于 2026-11-05 补上那一档' +
+    '（引擎的「判不了」现在会一路传出来：豁免条目腐烂 / 扫描目标指不到文件' +
+    '⇒ ⇒ 退出码 2，不再伪装成「有问题」）⇒ ⇒ 已从本清单销账',
   gates: [
     'agent-surface',
     'brain-chain',
     'client-dialect',
     'client-tools',
-    'cortex-residue-all',
-    'cortex-residue',
     'cross-client',
     'jni-surface',
     'neuron-ownership',
@@ -102,13 +103,13 @@ export const NO_READING_IN_WIRED = {
     '⇒ ⇒ 但它们当年只打印逐条 PASS/FAIL ⇒ ⇒ 看不出「跑了多少条」',
   when:
     '各自下次被改动时补一行 N/N 读数（改动最小的做法：自检末尾打印 ' +
-    '「自检：N/N」）',
+    '「自检：N/N」）' +
+    '⇒ ⇒ ⚠️ cortex-residue / cortex-residue-all 已于 2026-11-05 补上读数' +
+    '（实测两个闸的自检都印「自检：5/5 条全绿」）⇒ ⇒ 已从本清单销账',
   gates: [
     'agent-surface',
     'apk-surface',
     'brain-chain',
-    'cortex-residue-all',
-    'cortex-residue',
     'jni-surface',
     'mobile-a11y-contract',
     'neuron-ownership',

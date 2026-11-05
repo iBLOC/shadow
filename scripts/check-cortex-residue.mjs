@@ -87,11 +87,9 @@ const ROOT_OPTS = {
   ],
   excludeFiles: [
     'debug.log',                // 本地日志（**未跟踪** ⇒ ⇒ 不是交付物）
-    // ⚠️ **闸自检留下的探针文件** —— 自检在仓根造它来证明判据会红 ⇒ ⇒
-    //    删掉失败时它会留在仓根 ⇒ ⇒ 而顶层对账会把它当成「没人判的顶层条目」
-    //    ⇒ ⇒ 显式排除（真解是让自检把探针写进系统临时目录 ⇒ ⇒ 那是共享引擎的
-    //    改动 ⇒ ⇒ 两份副本要一起改 ⇒ ⇒ 记在债里）。
-    '.cortex-self-test-probe.tmp',
+    // ⚠️ 2026-11-05：原先排除的 `.cortex-self-test-probe.tmp` **已销账** ——
+    //    自检的探针现在写进**系统临时目录**（共享引擎的改动 ⇒ ⇒ 两份副本一起改）
+    //    ⇒ ⇒ 仓根再也不会出现那个文件 ⇒ ⇒ 留着那条排除就是「登记了却已修好」。
     'check-cortex-residue.mjs',  // 闸自己
     'cortex-residue.mjs',         // 引擎自己（它当然知道这个词）
     // ⚠️ 跨仓闸的两个文件 —— 它们**当然**知道这个词（它们就是守这个概念的）
@@ -225,6 +223,9 @@ if (process.argv.includes('--self-test')) {
 }
 
 let failed = 0;
+// ⚠️ **「判不了」（退出码 2）与「真有问题」（退出码 1）必须分开** ——
+//    分不开的话，批量跑闸的清单里「判不了」长得跟「通过」一模一样。
+let cannotJudge = 0;
 
 // ① 根仓自己
 {
@@ -233,7 +234,12 @@ let failed = 0;
   console.log('  （仓根脚本与能力清单）');
   const r = runGate(ROOT_OPTS);
   console.log(r.out);
-  if (r.code !== 0) failed++;
+  if (r.code === 2) {
+    cannotJudge++;
+    console.error('  ✗ 这一格是「判不了」（退出码 2）⇒ ⇒ 不是「有问题」，但也不能算通过。');
+  } else if (r.code !== 0) {
+    failed++;
+  }
 }
 
 // ③ 顶层对账 —— 「残留 0 处」只对**被扫的那些文件**成立
@@ -274,7 +280,10 @@ for (const p of SUB) {
   });
   if (res.stdout) process.stdout.write(res.stdout);
   if (res.stderr) process.stderr.write(res.stderr);
-  if (res.status !== 0) {
+  if (res.status === 2) {
+    cannotJudge++;
+    console.error('  ✗ ' + p.script + ' 退出码 2 ⇒ ⇒ 那一格是「判不了」，不是「有问题」。');
+  } else if (res.status !== 0) {
     failed++;
     console.error('  ✗ ' + p.script + ' 退出码 ' + res.status);
   }
@@ -282,10 +291,16 @@ for (const p of SUB) {
 
 console.log('');
 console.log(line);
-if (failed === 0) {
+if (failed === 0 && cannotJudge === 0) {
   console.log('全部 ' + (SUB.length + 1) + ' 个范围通过。');
+} else if (failed === 0) {
+  console.error(cannotJudge + ' / ' + (SUB.length + 1) + ' 个范围是「判不了」（退出码 2）⇒ ⇒ 不是「有问题」。');
 } else {
   console.error(failed + ' / ' + (SUB.length + 1) + ' 个范围有阻断问题。');
 }
 console.log(line);
-process.exit(failed > 0 ? 1 : 0);
+// ⚠️ 退出码三态：0 通过 / 1 有问题 / **2 判不了**
+//    ⇒ ⇒ 「判不了」不许长得跟「通过」一模一样。
+if (failed > 0) process.exit(1);
+if (cannotJudge > 0) process.exit(2);
+process.exit(0);

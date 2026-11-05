@@ -21,7 +21,10 @@
  *
  * ⚠️ **这里的判据被多个仓共用**（shadow 仓 + telencephalon 仓 + 各下游仓）。
  *    各仓各自独立 git 仓 ⇒ 不能 import 同一份 ⇒ 只能复制。
- *    ⇒ 副本一致性由 **副本一致性门**（cortex-residue-parity）护：两份不字节相同 ⇒ 判红。
+ *    ⇒ 副本一致性由**跨仓闸的判据 ④**护（`scripts/check-cortex-residue-all.mjs`
+ *      的「引擎副本一致性」：两份不字节相同 ⇒ 判红）。
+ *    ⚠️ 2026-11-05 实测：这里写的那个「副本一致性门（cortex-residue-parity）」
+ *      **根本不存在** ⇒ ⇒ 两份漂了没人知道 ⇒ ⇒ 现在这一格才真的存在。
  *
  * ── 判据（一句话）────────────────────────────────────────────────
  * 活代码里出现「cortex」这个词 = 残留（红）。
@@ -58,6 +61,7 @@
  */
 
 import { readdirSync, readFileSync, statSync, writeFileSync, unlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, relative, sep } from 'node:path';
 
 /** 「cortex」这个词（大小写不敏感）—— 判据的本体。 */
@@ -422,6 +426,70 @@ export function runGate(o) {
  * @param {object} o 同 runGate，外加 allowed
  * @returns {{code:number, out:string}}
  */
+/**
+ * 自检用的**样本上限** —— 自检要证明的是「判据有分辨力」，**不是**「把仓扫一遍」。
+ *
+ * ⚠️ 为什么要有上限：早先版本对**每个仓整棵递归扫**（跨仓闸一次要过 17 个兄弟仓，
+ *    本仓还带着 benchmark/reports）⇒ ⇒ 单次 84 秒 ⇒ ⇒ 而闸纪律闸的 per-gate
+ *    超时是 120 秒 ⇒ ⇒ **只剩 36 秒余量** ⇒ ⇒ 「有时红有时绿」⇒ ⇒
+ *    **慢本身就是缺陷**（它让判据看起来不稳定）。
+ */
+const SELF_TEST_SAMPLE = 200;
+
+/** 自检探针的序号（同一个进程里要造多个探针 ⇒ ⇒ 文件名不能重复）。 */
+let probeSeq = 0;
+
+/** 探针的路径 —— **系统临时目录**，不是被扫的仓。 */
+function makeProbePath() {
+  probeSeq += 1;
+  return join(tmpdir(), 'cortex-residue-selftest-' + process.pid + '-' + probeSeq + '.tmp');
+}
+
+/**
+ * 自检要扫的**真实文件**（有界）。
+ *   · 闸给了 scanDirs / scanFiles ⇒ ⇒ 用它配置的范围（那才是它真正判的东西）；
+ *   · 没给（跨仓闸那种「逐仓跑一遍」）⇒ ⇒ 只取**仓根下的文件**（不递归）
+ *     ⇒ ⇒ 不会变成「把 17 个仓整棵扫一遍」。
+ */
+function collectSelfTestFiles(o) {
+  const { root, scanDirs = [], scanFiles = [], excludeDirs = [], excludeFiles = [] } = o;
+  const files = [];
+  const push = (p) => {
+    if (files.length < SELF_TEST_SAMPLE) files.push(p);
+  };
+  if (scanDirs.length > 0 || scanFiles.length > 0) {
+    for (const d of scanDirs) {
+      for (const p of listTextFiles(join(root, d), { excludeDirs, excludeFiles })) push(p);
+    }
+    for (const f of scanFiles) {
+      try {
+        const buf = readFileSync(join(root, f));
+        if (!looksBinary(buf)) push(join(root, f));
+      } catch {
+        /* 没有这个文件就当没有 */
+      }
+    }
+    return files;
+  }
+  let entries = [];
+  try {
+    entries = readdirSync(root, { withFileTypes: true });
+  } catch {
+    return files;
+  }
+  for (const e of entries) {
+    if (!e.isFile()) continue;
+    if (excludeFiles.some((x) => !x.includes('/') && x === e.name)) continue;
+    try {
+      const buf = readFileSync(join(root, e.name));
+      if (!looksBinary(buf)) push(join(root, e.name));
+    } catch {
+      /* 读不到就跳过 */
+    }
+  }
+  return files;
+}
+
 export function runSelfTest(o) {
   const { allowed = [], root, label = '（自检）' } = o;
   const lines = [];
@@ -434,18 +502,25 @@ export function runSelfTest(o) {
 
   // ① 造一次残留，扫真实文件
   {
-    const probe = join(root, '.cortex-self-test-probe.tmp');
-    // ⚠️ 用 writeFileSync 写、用 unlinkSync 删。删不掉也不影响主流程（下一轮会覆盖）。
-    writeFileSync(probe, 'const label = "Cortex 内核状态";\n', 'utf8');
-    const files = listTextFiles(root, {
-      excludeDirs: ['node_modules', '.git', 'target', 'dist', 'build', 'docs'],
-      excludeFiles: [],
-    }).filter((f) => !f.endsWith(sep + '.cortex-self-test-probe.tmp'));
+    // ⚠️ 探针写进**系统临时目录** —— 不写在被扫的仓里：
+    //    ① 跨仓自检要给**每个兄弟仓**各造一个探针 ⇒ ⇒ 写进仓里就是给别人的
+    //       工作区拉垃圾（Windows 上 unlink 偶尔失败 ⇒ ⇒ 删不掉就留在那）；
+    //    ② 留在仓根会被「顶层对账」当成「没人判的顶层条目」⇒ ⇒ 自己制造假缺口。
+    const probe = makeProbePath();
+    try {
+      writeFileSync(probe, 'const label = "Cortex 内核状态";\n', 'utf8');
+    } catch (err) {
+      // ⚠️ 造不出探针 ⇒ ⇒ 证明不了「判据会红」⇒ ⇒ **判不了**（退出码 2），
+      //    绝不能当成「通过」—— 那正是最典型的「绿灯但什么都没查」。
+      say('· ① 造不出探针（' + (err && err.code ? err.code : '未知错误') + '）⇒ ⇒ 本机判不了');
+      return { code: 2, out: lines.join('\n') };
+    }
+    const files = collectSelfTestFiles(o);
     const r = scanCorpus([...files, probe], allowed);
     const caught = r.residual.some((x) => x.file === probe);
-    try { unlinkSync(probe); } catch { /* 沙箱里可能删不掉，无妨 */ }
+    try { unlinkSync(probe); } catch { /* 临时目录里删不掉也无妨 */ }
     if (caught) {
-      say('✓ ① 造出来的残留被抓到了');
+      say('✓ ① 造出来的残留被抓到了（' + files.length + ' 个真实文件 ＋ 探针）');
     } else {
       say('✗ ① 造出来的残留没被抓到 ⇒ 这道闸是恒绿的');
       fails++;
@@ -518,10 +593,12 @@ export function runSelfTest(o) {
   }
 
   say('');
+  // ⚠️ 读数必须是 **N/N**（可数）⇒ ⇒ 否则闸纪律闸判「读数不可比」。
+  const total = 5; // ①②③④⑤
   if (fails === 0) {
-    say('✓ 自检全绿（5 条）');
+    say('✓ 自检：' + total + '/' + total + ' 条全绿');
     return { code: 0, out: lines.join('\n') };
   }
-  say(`✗ 自检 ${fails} 条红`);
+  say('✗ 自检：' + (total - fails) + '/' + total + ' 条红');
   return { code: 1, out: lines.join('\n') };
 }

@@ -149,6 +149,52 @@ let ciExtra = [];
   }
 }
 
+// ── 判据 ④：引擎副本一致性（两份必须字节相同）──────────────────────
+// ⚠️ `scripts/lib/cortex-residue.mjs` 在 shadow 与端脑仓**各有一份**
+//    ⇒ ⇒ 「判据只有一份」的前提是「两份不会漂」⇒ ⇒ 这一格就是那个门。
+//    ⚠️ 之前**没有任何闸判这件事**（引擎注释里写的「副本一致性门」并不存在）
+//    ⇒ ⇒ 两份漂了没人知道 ⇒ ⇒ 两个仓各判各的。
+let cannotJudge = 0;
+const parityGaps = [];
+let parityChecked = 0;
+{
+  const ENGINE_REL = join('scripts', 'lib', 'cortex-residue.mjs');
+  const mine = join(SHADOW_ROOT, ENGINE_REL);
+  let mineBuf = null;
+  try { mineBuf = readFileSync(mine); } catch { /* 本仓那份读不到 */ }
+  console.log('');
+  console.log('▶ 判据 ④：引擎副本一致性（shadow ↔ 各兄弟仓的 scripts/lib/cortex-residue.mjs）');
+  if (!mineBuf) {
+    console.error('  ✗ 本仓的引擎副本读不到 ⇒ ⇒ 判不了');
+    cannotJudge++;
+  } else {
+    for (const name of SELF_OWNED) {
+      if (name === 'shadow') continue;
+      const p = found.get(name);
+      if (!p) {
+        console.log('  · ' + name.padEnd(24) + '未检出 ⇒ ⇒ 本轮没判到（这一格在 CI 上是空的）');
+        continue;
+      }
+      let other = null;
+      try { other = readFileSync(join(p, ENGINE_REL)); } catch { other = null; }
+      if (!other) {
+        console.log('  · ' + name.padEnd(24) + '仓里没有这份引擎 ⇒ ⇒ 它不跑这道闸（不判）');
+        continue;
+      }
+      parityChecked++;
+      if (other.equals(mineBuf)) {
+        console.log('  ✓ ' + name.padEnd(24) + '字节相同（' + other.length + ' 字节）');
+      } else {
+        console.error('  ✗ ' + name.padEnd(24) + '与本仓**字节不同** ⇒ ⇒ 两个仓各判各的（判据会漂）');
+        parityGaps.push(name);
+      }
+    }
+    if (parityChecked === 0) {
+      console.log('  · 本轮没有可比对的副本（兄弟仓都没检出）⇒ ⇒ 这一格没判到');
+    }
+  }
+}
+
 // ── 判据 ②：登记在册却没检出的仓 ────────────────────────────────────
 const missingRegistered = Object.keys(REGISTRY).filter((n) => !found.has(n));
 const localOnlyMissing = missingRegistered.filter((n) => LOCAL_ONLY[n]);
@@ -177,6 +223,7 @@ if (process.argv.includes('--self-test')) {
   console.log('');
   console.log('▶ 自检（判据有没有分辨力）');
   let failed = 0;
+  let tested = 0;
   // ① shadow 仓根（它自己有闸，但这里也要证明引擎可用）
   {
     const r = runSelfTest({
@@ -204,16 +251,18 @@ if (process.argv.includes('--self-test')) {
     });
     const ok = res.code === 0;
     console.log((ok ? '✓' : '✗') + ' 自检 —— ' + r.name + (ok ? '' : ' （红）'));
+    tested++;
     if (!ok) {
       failed++;
       console.log(res.out);
     }
   }
   console.log('');
+  // ⚠️ 读数必须是 **N/N**（可数）⇒ ⇒ 否则闸纪律闸判「读数不可比」。
   if (failed === 0) {
-    console.log('✓ 自检全绿');
+    console.log('✓ 自检：' + tested + '/' + tested + ' 仓全绿');
   } else {
-    console.error('✗ 自检 ' + failed + ' 项红');
+    console.error('✗ 自检：' + (tested - failed) + '/' + tested + ' 项红');
   }
   console.log(line);
   process.exit(failed > 0 ? 1 : 0);
@@ -316,7 +365,14 @@ for (const r of repos) {
     console.error('  ⇒ 查 lib/cortex-registry.mjs 里这个仓的 scanDirs ⇒ 目录名写错了 / 仓改名了。');
     failed++;
   }
-  if (res.code !== 0) failed++;
+  // ⚠️ 退出码 2 = **判不了**（豁免条目腐烂 / 扫描目标指不到文件）
+  //    ⇒ ⇒ 那是「环境缺」，不是「有问题」⇒ ⇒ 必须与真正的失败分开。
+  if (res.code === 2) {
+    cannotJudge++;
+    console.error('  ⇒ ' + r.name + ' 这一格是「判不了」（退出码 2）⇒ ⇒ 不是「有问题」，但也不能算通过。');
+  } else if (res.code !== 0) {
+    failed++;
+  }
 }
 
 console.log('');
@@ -347,7 +403,7 @@ if (configGaps.length > 0) {
 
 console.log('');
 console.log(line);
-if (failed === 0 && unregistered.length === 0 && ciMissing.length === 0 && ciRequiredMissing.length === 0 && configGaps.length === 0) {
+if (failed === 0 && unregistered.length === 0 && ciMissing.length === 0 && ciRequiredMissing.length === 0 && configGaps.length === 0 && parityGaps.length === 0 && cannotJudge === 0) {
   console.log('✓ 全绿（扫了 ' + checked + ' 个仓 / ' + [...scanned.values()].reduce((a, b) => a + b, 0) + ' 个文件）');
   if (unregistered.length === 0) {
     console.log('  （未登记的仓数为 0 ⇒ 没有看得见的缺口。）');
@@ -366,9 +422,20 @@ if (failed === 0 && unregistered.length === 0 && ciMissing.length === 0 && ciReq
   if (configGaps.length > 0) {
     console.error('✗ 另有 ' + configGaps.length + ' 处配置缺口 ⇒ 判据没覆盖到 ⇒ 阻断。');
   }
+  if (parityGaps.length > 0) {
+    console.error('✗ 另有 ' + parityGaps.length + ' 个仓的引擎副本与本仓字节不同 ⇒ 判据会漂 ⇒ 阻断。');
+  }
+  if (cannotJudge > 0) {
+    console.error('✗ 另有 ' + cannotJudge + ' 个仓是「判不了」（退出码 2）⇒ ⇒ 不是「有问题」。');
+  }
 }
 console.log(line);
-process.exit(
+// ⚠️ 退出码三态：0 通过 / 1 有问题 / **2 判不了**
+//    ⇒ ⇒ 「判不了」在批量跑闸的清单里**长得跟「通过」一模一样** ⇒ ⇒ 必须分得开。
+const blocked =
   failed > 0 || unregistered.length > 0 || ciMissing.length > 0 ||
-  (IS_CI && ciRequiredMissing.length > 0) || configGaps.length > 0 ? 1 : 0
-);
+  (IS_CI && ciRequiredMissing.length > 0) || configGaps.length > 0 ||
+  parityGaps.length > 0;
+if (blocked) process.exit(1);
+if (cannotJudge > 0) process.exit(2);
+process.exit(0);
