@@ -494,15 +494,39 @@ export class PrefrontalClient {
     });
   }
 
+  /**
+   * 读对端的一个任务。
+   *
+   * ⚠️ **回包形状 = 平台的 `protocol::Task`**（`{id, status:{state, message, timestamp}}`）
+   * —— **不是** `{task_id, state, result}`。服务端 `get_a2a_task` 把对端 `tasks/get`
+   * 的结果**原样转述** ⇒ ⇒ 字段名跟着平台走：`state` 是**大写**的
+   * （`COMPLETED` / `CANCELED` / …），文本在 `status.message` 里。
+   *
+   * ⚠️ 以前这里声明的是 `{task_id, state, result?:{text}}` —— 服务端**从来不这么回**
+   * ⇒ ⇒ 声明与实现不符 ⇒ ⇒ 谁按那个声明写代码，谁拿到的就是 undefined。
+   */
   async getA2ATask(peerId: string, taskId: string): Promise<{
-    task_id: string;
-    state: string;
-    result?: { text: string };
+    id: string;
+    status: {
+      state: string;
+      message?: string;
+      timestamp?: number;
+    };
+    history?: unknown[];
+    metadata?: Record<string, unknown>;
   }> {
     return this.request(`/api/a2a/peers/${peerId}/tasks/${taskId}`);
   }
 
-  async cancelA2ATask(peerId: string, taskId: string): Promise<{ success: boolean }> {
+  /**
+   * 取消对端的一个任务。
+   *
+   * ⚠️ 服务端 `cancel_a2a_task` 回的是 **`null`**（它把 `()` 序列化了）
+   * ⇒ ⇒ **没有** `success` 字段 ⇒ ⇒ 这里如实声明 `null`。
+   * ⚠️ 顺带记一笔：服务端把对端 `tasks/cancel` 的 `{"ok":true}` **丢掉了**
+   * ⇒ ⇒ 「让代理别丢回包」是一笔独立的欠项，不在本次改动里。
+   */
+  async cancelA2ATask(peerId: string, taskId: string): Promise<null> {
     return this.request(`/api/a2a/peers/${peerId}/tasks/${taskId}/cancel`, {
       method: 'DELETE',
     });

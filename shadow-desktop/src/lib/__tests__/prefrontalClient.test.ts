@@ -155,10 +155,14 @@ describe('prefrontalClient', () => {
         status: 200,
         statusText: 'OK',
         headers: new Map([['content-type', 'application/json']]),
+        // ⚠️ 夹具必须是**服务端真回包**的形状：平台的 `protocol::Task`
+        //    ⇒ `{id, status:{state, message, timestamp}}`（`state` **大写**）。
+        // ⚠️ 以前这里手抄的是 `{task_id, state, result:{text}}` —— 服务端**不这么回**
+        //    ⇒ ⇒ 那测的是「夹具自己」，不是真链路。
         json: async () => ({
-          task_id: 'task-789',
-          state: 'completed',
-          result: { text: 'Task result' },
+          id: 'task-789',
+          status: { state: 'COMPLETED', message: 'Task result', timestamp: 1793870000 },
+          history: [],
         }),
       });
 
@@ -169,8 +173,9 @@ describe('prefrontalClient', () => {
         'http://localhost:8085/api/a2a/peers/peer-uuid/tasks/task-789',
         expect.objectContaining({ method: 'GET' })
       );
-      expect(result.task_id).toBe('task-789');
-      expect(result.state).toBe('completed');
+      expect(result.id).toBe('task-789');
+      expect(result.status.state).toBe('COMPLETED');
+      expect(result.status.message).toBe('Task result');
     });
 
     it('cancelA2ATask sends DELETE /api/a2a/peers/{peer_id}/tasks/{task_id}/cancel', async () => {
@@ -179,16 +184,19 @@ describe('prefrontalClient', () => {
         status: 200,
         statusText: 'OK',
         headers: new Map([['content-type', 'application/json']]),
-        json: async () => ({ success: true }),
+        // ⚠️ 服务端回的是 **`null`**（`cancel_a2a_task` 序列化 `()`）
+        //    ⇒ ⇒ **不是** `{success:true}`。
+        json: async () => null,
       });
 
       const { prefrontalClient } = await import('../prefrontalClient');
-      await prefrontalClient.cancelA2ATask('peer-uuid', 'task-789');
+      const result = await prefrontalClient.cancelA2ATask('peer-uuid', 'task-789');
 
       expect(mockFetch).toHaveBeenCalledWith(
         'http://localhost:8085/api/a2a/peers/peer-uuid/tasks/task-789/cancel',
         expect.objectContaining({ method: 'DELETE' })
       );
+      expect(result).toBeNull();
     });
   });
 });
