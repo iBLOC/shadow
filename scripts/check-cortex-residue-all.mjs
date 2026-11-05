@@ -36,6 +36,7 @@
  *
  * 用法（从 shadow 仓根跑）：
  *   node scripts/check-cortex-residue-all.mjs             # 主流程
+ *   node scripts/check-cortex-residue-all.mjs --as-subscope  # 作为根仓闸的子范围（兄弟仓没检出 ⇒ 不阻断）
  *   node scripts/check-cortex-residue-all.mjs --self-test # 自检
  *
  * 退出码：0 = 全绿 / 1 = 有残留或覆盖缺口 / 2 = 判不了（豁免条目腐烂 / 引擎缺失）
@@ -60,6 +61,20 @@ const ROOT = dirname(fileURLToPath(import.meta.url));
 
 /** 在 CI 上跑？（GitHub Actions / 通用 CI 环境变量） */
 const IS_CI = process.env.GITHUB_ACTIONS === 'true' || process.env.CI === 'true';
+/**
+ * ⚠️ **本轮是「根仓闸的一个子范围」吗？**（--as-subscope）
+ *
+ * ⚠️ **为什么要有这一档（2026-11-05 真 CI 首跑实测）** —— 根仓闸把跨仓闸当作
+ *    **第四个范围** spawn 进来 ⇒ ⇒ 而 Desktop Build 那个 job **只检出本仓**
+ *    ⇒ ⇒ 登记在册的兄弟仓在那里全是「没检出」⇒ ⇒ 判据 ② 判它们为**阻断**
+ *    ⇒ ⇒ 那个 job **永远红**（实测：它红在「Cortex residue check」这一步，
+ *    而闸自己的三个范围全绿 —— 残留 0 处）。
+ * ⇒ ⇒ 而「兄弟仓没检出」是**环境问题**，不是代码问题 ⇒ ⇒ 跟本仓既有的
+ *    「存在才扫」写法一致（见 check-brain-chain.mjs）⇒ ⇒ 子范围这一档**不阻断**。
+ * ⇒ ⇒ 而**专门的**跨仓 job（cortex-residue-stack）直接跑本脚本 ⇒ ⇒ 没有这个
+ *    标记 ⇒ ⇒ 那里「检出清单少一个仓」仍然**阻断**（那才是真缺口）。
+ */
+const AS_SUBSCOPE = process.argv.includes('--as-subscope');
 
 const line = '='.repeat(72);
 console.log(line);
@@ -215,12 +230,18 @@ if (missingRegistered.length > 0) {
     console.log('  · ' + n.padEnd(24) + 'CI 检不出（' + LOCAL_ONLY[n] + '）');
   }
   for (const n of ciRequiredMissing) {
-    console.log('  · ' + n.padEnd(24) + '✗ **没检出** ⇒ 它的残留本闸看不见');
+    console.log('  · ' + n.padEnd(24) + (AS_SUBSCOPE
+      ? '**没检出**（本 job 没检出兄弟仓 ⇒ 这一格在本 job 里**没覆盖**）'
+      : '✗ **没检出** ⇒ 它的残留本闸看不见'));
   }
-  if (ciRequiredMissing.length > 0 && IS_CI) {
+  if (ciRequiredMissing.length > 0 && IS_CI && !AS_SUBSCOPE) {
     console.log('');
     console.log('  ⇒ ⚠️ 在 CI 上：检出清单是**确定的** ⇒ 没检出 = ci.yml 少 checkout 了一个仓');
     console.log('    ⇒ 这一格**阻断**（退出码 1）：CI 悄悄少扫一半，比没有闸更危险。');
+  } else if (ciRequiredMissing.length > 0 && AS_SUBSCOPE) {
+    console.log('');
+    console.log('  ⇒ 本轮是**根仓闸的一个子范围** ⇒ ⇒ 这个 job 没检出兄弟仓是**环境问题**（不是代码问题）');
+    console.log('    ⇒ ⇒ 这一格在本 job 里**没覆盖** ⇒ ⇒ 跨仓那一格由 cortex-residue-stack job 负责 ⇒ ⇒ **不阻断**。');
   } else if (ciRequiredMissing.length > 0) {
     console.log('');
     console.log('  ⇒ 本地没 clone 这些仓 ⇒ 本闸这一次**没覆盖**它们（这一项本地不阻断；CI 上会阻断）。');
@@ -411,8 +432,10 @@ if (configGaps.length > 0) {
 
 console.log('');
 console.log(line);
-if (failed === 0 && unregistered.length === 0 && ciMissing.length === 0 && ciRequiredMissing.length === 0 && configGaps.length === 0 && parityGaps.length === 0 && cannotJudge === 0) {
-  console.log('✓ 全绿（扫了 ' + checked + ' 个仓 / ' + [...scanned.values()].reduce((a, b) => a + b, 0) + ' 个文件）');
+if (failed === 0 && unregistered.length === 0 && ciMissing.length === 0 && (AS_SUBSCOPE || ciRequiredMissing.length === 0) && configGaps.length === 0 && parityGaps.length === 0 && cannotJudge === 0) {
+  console.log(AS_SUBSCOPE && checked === 0
+    ? '✓ 本轮**没覆盖跨仓**（这个 job 没检出兄弟仓 ⇒ 扫了 0 个仓）⇒ ⇒ 这一格由 cortex-residue-stack job 负责 ⇒ ⇒ **不是「全绿」，是「没判」**。'
+    : '✓ 全绿（扫了 ' + checked + ' 个仓 / ' + [...scanned.values()].reduce((a, b) => a + b, 0) + ' 个文件）');
   if (unregistered.length === 0) {
     console.log('  （未登记的仓数为 0 ⇒ 没有看得见的缺口。）');
   }
@@ -424,7 +447,7 @@ if (failed === 0 && unregistered.length === 0 && ciMissing.length === 0 && ciReq
   if (ciMissing.length > 0) {
     console.error('✗ ci.yml 的 cortex-residue-stack job 少 checkout 了 ' + ciMissing.length + ' 个仓 ⇒ CI 上没人判它们 ⇒ 阻断。');
   }
-  if (ciRequiredMissing.length > 0 && IS_CI) {
+  if (ciRequiredMissing.length > 0 && IS_CI && !AS_SUBSCOPE) {
     console.error('✗ 另有 ' + ciRequiredMissing.length + ' 个登记在册的仓在 CI 上没检出 ⇒ 覆盖缺口 ⇒ 阻断。');
   }
   if (configGaps.length > 0) {
@@ -442,7 +465,7 @@ console.log(line);
 //    ⇒ ⇒ 「判不了」在批量跑闸的清单里**长得跟「通过」一模一样** ⇒ ⇒ 必须分得开。
 const blocked =
   failed > 0 || unregistered.length > 0 || ciMissing.length > 0 ||
-  (IS_CI && ciRequiredMissing.length > 0) || configGaps.length > 0 ||
+  (IS_CI && !AS_SUBSCOPE && ciRequiredMissing.length > 0) || configGaps.length > 0 ||
   parityGaps.length > 0;
 if (blocked) process.exit(1);
 if (cannotJudge > 0) process.exit(2);

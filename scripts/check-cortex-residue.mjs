@@ -30,7 +30,9 @@ const SUB = [
   //    ⇒ 另外那些仓没人盯（2026-11 实测：prefrontal 的 tool 描述里还写着
   //    「Execute a registered workflow in Cortex」—— **LLM 读得到的那一行**）。
   // ⇒ ⇒ 这一项把**所有兄弟仓**也纳管进来（判据只有一份 ⇒ 各仓只提供数据）。
-  { script: 'scripts/check-cortex-residue-all.mjs', what: '跨仓（工作区里所有 iBLOC 仓）' },
+  // ⚠️ --as-subscope ⇒ ⇒ 跨仓闸在「兄弟仓没检出」时**不阻断**（那个 job 只检出本仓
+  //    ⇒ ⇒ 那是环境问题）⇒ ⇒ 跨仓那一格由 cortex-residue-stack job 负责。
+  { script: 'scripts/check-cortex-residue-all.mjs', what: '跨仓（工作区里所有 iBLOC 仓）', args: ['--as-subscope'] },
 ];
 
 /** 根仓自己的范围：脚本目录 ＋ 能力清单 ＋ fixtures */
@@ -273,7 +275,7 @@ for (const p of SUB) {
   console.log('');
   console.log('▶ ' + p.script);
   console.log('  （' + p.what + '）');
-  const res = spawnSync(process.execPath, [join(ROOT, p.script)], {
+  const res = spawnSync(process.execPath, [join(ROOT, p.script), ...(p.args || [])], {
     cwd: ROOT,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
