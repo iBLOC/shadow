@@ -41,10 +41,30 @@ export function pathOf(url) {
   return m ? m[1] : p;
 }
 
-function hasCredential(headers) {
+/**
+ * 凭据头的**名字集合** ⇒ ⇒ 支持**两种** headers 形状。
+ *
+ * ⚠️⚠️ **这里曾有一个把闸读成「恒红」的 bug（2026-11-05 真机实测）**
+ * ⇒ ⇒ 真实 trace 里 `request.headers` 是**数组**：`[{name,value}, …]`
+ * ⇒ ⇒ 而旧写法用 `Object.keys(headers)` ⇒ ⇒ 对数组取到的是**下标**
+ *      （`'0','1',…`）⇒ ⇒ `x-admin-token` **永远匹配不上**
+ * ⇒ ⇒ ⇒ **R1 恒红**（假红）⇒ ⇒ 而自检夹具恰好用了**对象**形状
+ *      （`{'x-admin-token':…}`）⇒ ⇒ **夹具形状 ≠ 真实面形状**
+ * ⇒ ⇒ ⇒ **自检绿、真机红** ⇒ ⇒ 「闸说绿 ≠ 事情成了」的反面：
+ *      **「闸说红」也 ≠「事情没成」** ⇒ ⇒ 夹具必须用**真实面的形状**。
+ */
+export function credentialHeaderNames(headers) {
   const h = headers || {};
-  const keys = Object.keys(h).map((k) => k.toLowerCase());
-  return CREDENTIAL_HEADERS.some((n) => keys.includes(n));
+  if (Array.isArray(h)) {
+    return h.map((x) => String((x && x.name) || '').toLowerCase());
+  }
+  return Object.keys(h).map((k) => k.toLowerCase());
+}
+
+/** 这条请求**带没带**凭据头。 */
+export function hasCredential(headers) {
+  const names = credentialHeaderNames(headers);
+  return CREDENTIAL_HEADERS.some((n) => names.includes(n));
 }
 
 /**

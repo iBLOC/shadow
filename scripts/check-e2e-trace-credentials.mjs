@@ -82,10 +82,24 @@ function selfTest() {
     else { fail += 1; console.log(`  [FAIL] ${name} ${detail}`); }
   };
 
+  // ⚠️⚠️ **夹具必须用「真实面的形状」** —— 真实 trace 里 `request.headers` 是
+  //    **数组** `[{name,value},…]`（2026-11-05 真机实测逐字读到）⇒ ⇒ 旧夹具用
+  //    **对象**形状 ⇒ ⇒ **夹具形状 ≠ 真实面形状** ⇒ ⇒ 自检绿、真机红（**假红**）
+  //    ⇒ ⇒ 这条「形状纪律」本身就是承重判据，不是洁癖。
+  const hdrArr = (o) => Object.entries(o).map(([name, value]) => ({ name, value }));
   const snap = (method, url, status, headers) =>
-    JSON.stringify({ snapshot: { request: { method, url, headers }, response: { status } } });
+    JSON.stringify({ snapshot: { request: { method, url, headers: hdrArr(headers) }, response: { status } } });
   const BRAIN = 'http://127.0.0.1:60080';
   const KEY = { 'x-admin-token': 'k', 'x-shadow-key': 'k' };
+
+  // ✅ **正控**：真实面形状（数组）＋ 带凭据 ⇒ ⇒ 零违规
+  //    （旧闸在这里会红 ⇒ ⇒ 这条夹具**承重**：它能被那道修复证伪）
+  // ✅ 兼容：有的工具写**对象** ⇒ ⇒ 也必须认
+  const objectShape = JSON.stringify({
+    snapshot: { request: { method: 'GET', url: BRAIN + '/shadow/v1/agents', headers: KEY }, response: { status: 200 } },
+  });
+  // ⚠️ 只带**非凭据**头 ⇒ ⇒ 仍红（「有头」≠「带凭据」）
+  const otherHeader = snap('GET', BRAIN + '/shadow/v1/agents', 401, { 'content-type': 'application/json' });
 
   // ✅ 正确形状：带凭据、答 200
   const good = [
@@ -124,6 +138,9 @@ function selfTest() {
   check('无凭据但 200 ⇒ 仍红（形状 bug 不靠状态码暴露）', violationsOf(s).length === 1, String(violationsOf(s).length));
   check('带凭据却被答 401 ⇒ 仍红（门另有规则）', violationsOf(w).length === 1, String(violationsOf(w).length));
   check('别的面 / 被 mock 的 401 ⇒ 不误报', violationsOf(u).length === 0, JSON.stringify(violationsOf(u)));
+  check('正控：真实面形状（数组）＋ 带凭据 ⇒ 零违规', violationsOf(g).length === 0, JSON.stringify(violationsOf(g)));
+  check('兼容：对象形状也认', violationsOf(judgeNetworkText(objectShape)).length === 0, JSON.stringify(violationsOf(judgeNetworkText(objectShape))));
+  check('只带非凭据头 ⇒ 仍红（缺凭据 ＋ 401）', violationsOf(judgeNetworkText(otherHeader)).length === 2, String(violationsOf(judgeNetworkText(otherHeader)).length));
 
   console.log(`  判据自检：${pass}/${pass + fail}`);
   return fail === 0;
