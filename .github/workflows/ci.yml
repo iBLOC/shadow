@@ -240,18 +240,16 @@ jobs:
         working-directory: shadow-desktop
         run: pnpm exec vitest run
 
-  desktop-e2e:
-    name: Desktop E2E (Playwright + 端脑)
-    # Promotes the soft-skip Playwright specs (e2e-conversation-flow,
-    # e2e-task-scheduling, business-flow-ui) to a real CI run against the
-    # 端脑 server binary built alongside this job (`encephalon-server`).
-    #
-    # NOTE (P0-D, 2026-09-27): Real-green depends on the telencephalon
-    # neuron_handle.shutdown hang bug being fixed
-    # (audit addendum 2026-09-26 L298-310). Until then this job may fail
-    # at boot when no in-process neuron is available.
+  brain-gates:
+    name: Brain gates (跨仓闸)
+    # ⚠️ 2026-11-05：**重型的那一半搬走了** —— 端脑 server 的冷编（实测 13 分 39 秒）
+    #   ＋ Playwright 现在在**独立的 workflow**（desktop-e2e.yml）里 ⇒ ⇒ 因为主
+    #   workflow 的 `cancel-in-progress: true` 会把那个长 job 砍在半路 ⇒ ⇒
+    #   「Run Playwright E2E」这一步从来没跑过（连续 5 个 run 全部 cancelled）。
+    #   ⇒ ⇒ 本 job 只留**快的跨仓闸** ⇒ ⇒ 每次 push 仍然判得到「neuron 归属」
+    #   与「外部工具接线」⇒ ⇒ 覆盖面没丢（快的判据还在每次 push 里跑）。
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
     env:
       CARGO_PROFILE_DEV_DEBUG: '0'
       CARGO_PROFILE_TEST_DEBUG: '0'
@@ -262,249 +260,38 @@ jobs:
         with:
           path: shadow
 
-      - name: Require cross-repo token
-        env:
-          IBLOC_TOKEN: ${{ secrets.IBLOC_TOKEN }}
-        run: |
-          if [ -z "$IBLOC_TOKEN" ]; then
-            echo "::error::secrets.IBLOC_TOKEN is not configured."
-            echo "::error::The iBLOC stack is a local-path workspace. telencephalon,"
-            echo "::error::prefrontal, hippocampus, diencephalon, temporal and"
-            echo "::error::occipital are private siblings and cannot be checked out"
-            echo "::error::with the default GITHUB_TOKEN, which is scoped to"
-            echo "::error::iBLOC/shadow only. Add a PAT with read access to those"
-            echo "::error::repos as the IBLOC_TOKEN repository secret."
-            exit 1
-          fi
-
-      # telencephalon's transitive `path` dep closure (comments stripped):
-      #   synapse                              -> (leaf)
-      #   neuron                               -> (leaf)
-      #   hippocampus/{core,storage,server}    -> neuron, synapse
-      #   diencephalon                         -> synapse
-      #   temporal                             -> synapse, hippocampus-core
-      #   occipital                            -> synapse, hippocampus-core
-      #   prefrontal                          -> synapse, hippocampus-core
-      #   telencephalon                        -> all of the above
-      - name: Checkout telencephalon
-        uses: actions/checkout@v7
+      # ⚠️ 检出清单**只有这一份**（在 composite action 里）⇒ ⇒ 本 job 与
+      #    desktop-e2e.yml 的重型 job 不会漂移。
+      - name: Checkout the iBLOC stack
+        id: stack
+        uses: ./shadow/.github/actions/ibloc-siblings
         with:
-          repository: iBLOC/telencephalon
-          path: telencephalon
           token: ${{ secrets.IBLOC_TOKEN }}
+
+      # ⚠️ rust-cache **不能**放进 composite action ⇒ ⇒ composite 没有 post 步 ⇒ ⇒
+      #    真正「存缓存」的那一步不会跑 ⇒ ⇒ 缓存永远存不下来 ⇒ ⇒ 所以它留在
+      #    job 层；`workspaces` 由 composite 输出 ⇒ ⇒ 检出清单仍然只有一份。
+      - name: Setup Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ${{ steps.stack.outputs.workspaces }}
+
       # 「外部工具的模型配置」接线闸 —— 桌面端 ⇄ 端脑 ⇄ 界面 三处对齐。
-      # ⚠️ 它盯的不只是「有没有接上」，而是**材料纪律**：明文密钥会不会
-      #    漏到界面 / 漏进错误串（进而进日志）/ 被写进 OAuth 令牌槽。
-      # ⚠️⚠️ **必须放在这个 job** ⇒ ⇒ 它要读**兄弟仓**（端脑的 providers
-      #    源码）⇒ ⇒ desktop-build 那个 job 只 checkout 本仓 ⇒ ⇒ 放那儿
-      #    ⇒ ⇒ 源读不到 ⇒ ⇒ 闸按「退出码 2」阻断 ⇒ ⇒ 而 desktop-e2e 把
-      #    兄弟仓检出在**工作区根之内** ⇒ ⇒ 闸认本地/CI 那两种布局。
-      # ⚠️ 2026-11-05：synapse 的 OpenZiti **v2** 线路层抽到了
-      # iBLOC/ziti-rust 的**第二个 crate**（ziti-v2）⇒ ⇒ 而 telencephalon 的
-      # synapse 依赖**无条件**开着 ziti ⇒ ⇒ ⇒ 任何**解析依赖图**的动作
-      # （cargo fmt / check / test / clippy / doc）⇒ ⇒ ⇒ 都需要这个兄弟仓在位
-      # （path 依赖 ../ziti-rust/crates/ziti-v2）。
-      - name: Checkout ziti-rust
-        uses: actions/checkout@v7
-        with:
-          repository: iBLOC/ziti-rust
-          path: ziti-rust
-          token: ${{ secrets.IBLOC_TOKEN }}
-
+      # ⚠️ 它不只盯「有没有接上」，而是**材料纪律**：明文密钥会不会漏到界面 /
+      #    漏进错误串（进而进日志）/ 被写进 OAuth 令牌槽。
+      # ⚠️⚠️ **必须在本 job** ⇒ ⇒ 它要读**兄弟仓**（端脑的 providers 源码）
+      #    ⇒ ⇒ 只 checkout 本仓的 job 里源读不到 ⇒ ⇒ 闸按「退出码 2」阻断。
       - name: External tools wiring check
         run: node shadow/scripts/check-external-tools.mjs
 
       - name: External tools wiring check (self-test)
         run: node shadow/scripts/check-external-tools.mjs --self-test
 
-      # The standalone 端脑 server binary lives in `encephalon`
-      # (`encephalon-server`); `telencephalon` itself is a pure library
-      # since the 2026-10 merge, so there is no `telencephalon` binary to
-      # build any more. `encephalon`'s path deps point at the siblings
-      # checked out below, so one more checkout completes the closure.
-      - name: Checkout encephalon
-        uses: actions/checkout@v7
-        with:
-          repository: iBLOC/encephalon
-          path: encephalon
-          token: ${{ secrets.IBLOC_TOKEN }}
-
-      - name: Checkout synapse
-        uses: actions/checkout@v7
-        with:
-          repository: iBLOC/synapse
-          path: synapse
-          token: ${{ secrets.IBLOC_TOKEN }}
-
-      - name: Checkout prefrontal
-        uses: actions/checkout@v7
-        with:
-          repository: iBLOC/prefrontal
-          path: prefrontal
-          token: ${{ secrets.IBLOC_TOKEN }}
-
-      - name: Checkout hippocampus
-        uses: actions/checkout@v7
-        with:
-          repository: iBLOC/hippocampus
-          path: hippocampus
-          token: ${{ secrets.IBLOC_TOKEN }}
-
-      - name: Checkout neuron
-        uses: actions/checkout@v7
-        with:
-          repository: iBLOC/neuron
-          path: neuron
-          token: ${{ secrets.IBLOC_TOKEN }}
-
-      - name: Checkout diencephalon
-        uses: actions/checkout@v7
-        with:
-          repository: iBLOC/diencephalon
-          path: diencephalon
-          token: ${{ secrets.IBLOC_TOKEN }}
-
-      - name: Checkout temporal
-        uses: actions/checkout@v7
-        with:
-          repository: iBLOC/temporal
-          path: temporal
-          token: ${{ secrets.IBLOC_TOKEN }}
-
-      - name: Checkout occipital
-        uses: actions/checkout@v7
-        with:
-          repository: iBLOC/occipital
-          path: occipital
-          token: ${{ secrets.IBLOC_TOKEN }}
-
-      # 见上面 prefrontal-rust job 的同名步骤 —— 端脑 server 的构建链同样要
-      # 私有 git 依赖的凭据（ziti-sdk）与 protoc（lance-encoding）。
-      - name: Prepare Rust dependencies
-        env:
-          IBLOC_TOKEN: ${{ secrets.IBLOC_TOKEN }}
-        run: |
-          set -eu
-          echo "::add-mask::$IBLOC_TOKEN"
-          # secret 里可能带尾部换行（用 `gh secret set` 从 stdin 灌进去时不会
-          # 自动 trim）—— 直接嵌进 URL 会让凭据失效，报
-          # "Authentication failed"。这里先剥掉所有 CR/LF。
-          TOKEN="$(printf '%s' "$IBLOC_TOKEN" | tr -d '\r\n')"
-          mkdir -p "$HOME/.cargo"
-          printf '[net]\ngit-fetch-with-cli = true\n' >> "$HOME/.cargo/config.toml"
-          git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "https://github.com/"
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq protobuf-compiler
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
-        with:
-          version: 10.31.0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: '24'
-          cache: pnpm
-          cache-dependency-path: shadow/shadow-desktop/pnpm-lock.yaml
-
-      # runner 磁盘 —— 见 prefrontal-rust job 的同名步骤：预装工具先删掉。
-      - name: Free disk space
-        run: |
-          # ⚠️ 每一刀都 `|| true`：GitHub 的 bash 是 `-e` 模式 ⇒ ⇒ 任何一条
-          #    rm 失败 ⇒ ⇒ **整个 step 就红了** —— 而这一步的目的只是
-          #    「尽量腾出磁盘」⇒ ⇒ 「腾不出来」不该阻断 CI。
-          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost || true
-          sudo rm -rf /usr/local/lib/android /opt/hostedtoolcache/CodeSC || true
-          sudo rm -rf /usr/share/swift /usr/local/share/powershell || true
-          sudo rm -f /swapfile || true
-          df -h /home/runner
-
-      # workspaces 必须逐行写，逗号分隔会让 rust-cache 缓存彻底失效。
-      - name: Setup Rust
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: |
-            telencephalon
-            encephalon
-            synapse
-            prefrontal
-            hippocampus
-            neuron
-            diencephalon
-            temporal
-            occipital
-            ziti-rust
-
-      # neuron's 归属：「全局唯一 neuron，由大脑直接管理」——
-      # ⚠️ 这道闸**跨兄弟仓**（端脑 / 大脑 / 前额叶 / 海马体 / neuron / 叶区…）
-      #    ⇒ ⇒ 它只有在这个 job 里有意义（这里 checkout 了全套仓）
-      #    ⇒ ⇒ 放在只 checkout 了 shadow 自己那份的 job 里 ⇒ ⇒ 跨仓判据
-      #    **全都没覆盖** ⇒ ⇒ 那是一盏「绿灯但什么都没查」的灯。
-      # 判据分三层：源码层（谁在自己体内实例化运行时）／feature 图层
-      # （谁在脑侧那条链上开了 local-models 或 candle）／产物层
-      # （编译出来的二进制里到底装了几套运行时）。
+      # neuron's 归属：「全局唯一 neuron，由大脑直接管理」—— 判据分三层：
+      # 源码层（谁在自己体内实例化运行时）／feature 图层（谁在脑侧那条链上开了
+      # local-models 或 candle）／产物层（编译出来的二进制里装了几套运行时）。
       - name: Neuron ownership check
         run: node shadow/scripts/check-neuron-ownership.mjs
-
-      # One process, one port: neuron's OpenAI face at the root, the 端脑
-      # face (/shadow/v1/*, /api/telencephalon/*), 海马体 at /hippocampus.
-      - name: Build the 端脑 server
-        working-directory: encephalon
-        run: cargo build --manifest-path Cargo.toml --bin encephalon-server
-
-      - name: Install dependencies
-        working-directory: shadow/shadow-desktop
-        run: pnpm install --frozen-lockfile
-
-      - name: Install Playwright browsers
-        working-directory: shadow/shadow-desktop
-        run: pnpm exec playwright install --with-deps chromium
-
-      # ⚠️ **E2E 要走「构建产物」那条路** —— playwright.config.ts 自己的文档就写着：
-      #    dev server 要逐模块 transform ⇒ ⇒ 在被编译占满的机器上首屏 38 秒、
-      #    「/settings」的 load 事件 180 秒都没等到 ⇒ ⇒ 页面全白 ⇒ ⇒ 页面类断言必红。
-      #    构建产物那条路浏览器只下一个 bundle ⇒ ⇒ 页面秒开（要先构建一次）。
-      - name: Build the web bundle for E2E
-        working-directory: shadow/shadow-desktop
-        run: pnpm exec vite build --config vite.config.web.ts --mode web
-
-      - name: Run Playwright E2E against the 端脑 server
-        working-directory: shadow/shadow-desktop
-        env:
-          SHADOW_TELENCEPHALON_BIN: ${{ github.workspace }}/encephalon/target/debug/encephalon-server
-          SHADOW_TELENCEPHALON_CWD: ${{ github.workspace }}/encephalon
-          SHADOW_FULL_STACK: '1'
-          # ⚠️ 端脑在 CI 上是**冷启动**（datafusion / lance / wasmtime 初始化）
-          #    ⇒ ⇒ 本地那个 15 秒的时限在这儿不够 ⇒ ⇒ 而「不够」和「崩了」
-          #    在 stdio: ignore 下长得一模一样 ⇒ ⇒ 这里给 120 秒。
-          SHADOW_TELENCEPHALON_START_TIMEOUT_MS: '120000'
-          # ⚠️ baseURL 与 webServer 必须**一起**换（playwright.config.ts 的注释）
-          SHADOW_E2E_SERVER_CMD: pnpm preview:web
-          SHADOW_E2E_SERVER_URL: http://127.0.0.1:4173
-          SHADOW_E2E_BASE_URL: http://127.0.0.1:4173
-        run: |
-          xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
-            pnpm exec playwright test --reporter=github \
-              e2e-conversation-flow e2e-task-scheduling business-flow-ui \
-              telencephalon-endpoints
-
-      - name: Upload Playwright report on failure
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: playwright-report
-          path: shadow/shadow-desktop/playwright-report
-          retention-days: 7
-
-      - name: Upload test results on failure
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: playwright-test-results
-          path: shadow/shadow-desktop/test-results
-          retention-days: 7
-
   desktop-build:
     name: Desktop Build
     runs-on: ubuntu-latest

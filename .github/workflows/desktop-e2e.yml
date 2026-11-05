@@ -1,0 +1,166 @@
+name: Desktop E2E
+
+# ⚠️⚠️ **这个 workflow 单独成文件，是因为它跑不完**（2026-11-05 真机实测）：
+#   「Desktop E2E」那个 job 要**冷编端脑 server 全链**（candle / datafusion /
+#   lance / wasmtime）⇒ ⇒ 实测 **13 分 39 秒**（run 42013193864 的
+#   「Build the 端脑 server」一步）⇒ ⇒ 而 CI 主 workflow 的 concurrency 是
+#   `cancel-in-progress: true` ⇒ ⇒ **每次 push 都把它砍掉** ⇒ ⇒ ⇒
+#   「Run Playwright E2E」这一步**从来没跑过**（2026-11-05 连续 5 个 run
+#   全部 cancelled 在编端脑那一半）。
+#   ⇒ ⇒ 修法：**长任务不进 push 流水线** ⇒ ⇒ 它有自己的 workflow、自己的并发
+#   组、`cancel-in-progress: false` ⇒ ⇒ 没人能取消它 ⇒ ⇒ 它能跑完。
+#
+# ⚠️ **为什么没有 `push:` 触发**：这个 job 一次 ~17 分钟 ⇒ ⇒ 在「每 2–4 分钟
+#   一次 push」的协作节奏下，push 触发 ⇒ ⇒ 一个 run 永远在跑、另一个永远排队
+#   ⇒ ⇒ 排队那个还会被下一次 push 顶掉 ⇒ ⇒ **手动触发会被推挤掉**。
+#   ⇒ ⇒ 所以触发只有两个：**手动**（workflow_dispatch）与**夜间定时**（schedule）。
+#
+# ⚠️ **为什么缓存救不了它**（2026-11-05 实测）：rust-cache 的缓存路径是**十个
+#   仓的整个 target 树**（日志逐字：`.../encephalon/target` 等 10 条）⇒ ⇒ 本机
+#   同款 target **32 GB** ⇒ ⇒ **远超 GitHub 单个缓存 10 GB 的上限** ⇒ ⇒
+#   就算把 `cache-on-failure` 打开也存不进去 ⇒ ⇒ ⇒ 「把 E2E 压到 3 分钟内」
+#   这条路**不成立** ⇒ ⇒ 能走的只有「让它跑完」这一条。
+
+on:
+  workflow_dispatch:
+  schedule:
+    # UTC 19:37 ＝ 北京 03:37 ⇒ ⇒ 避开整点（整点的 runner 最挤）。
+    - cron: '37 19 * * *'
+
+concurrency:
+  group: desktop-e2e
+  # ⚠️ **false 是这个 workflow 存在的全部理由** ⇒ ⇒ 改回 true ⇒ ⇒
+  #    「Playwright 从来没跑过」立刻回来。
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  desktop-e2e:
+    name: Desktop E2E (Playwright + 端脑)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      CARGO_PROFILE_TEST_DEBUG: '0'
+      CARGO_INCREMENTAL: '0'
+    steps:
+      - name: Checkout shadow
+        uses: actions/checkout@v7
+        with:
+          path: shadow
+
+      # ⚠️ 检出清单**只有这一份**（在 composite action 里）⇒ ⇒ 与 ci.yml 的
+      #    跨仓闸 job 不会漂移。
+      - name: Checkout the iBLOC stack
+        id: stack
+        uses: ./shadow/.github/actions/ibloc-siblings
+        with:
+          token: ${{ secrets.IBLOC_TOKEN }}
+
+      # protoc 只有**编**的时候要（lance-encoding 的 build script）⇒ ⇒
+      # 跨仓闸那个 job 不需要它 ⇒ ⇒ 它留在本 workflow，不进 composite。
+      - name: Install protobuf-compiler
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq protobuf-compiler
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10.31.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: shadow/shadow-desktop/pnpm-lock.yaml
+
+      # runner 磁盘 —— 预装工具先删掉。
+      - name: Free disk space
+        run: |
+          # ⚠️ 每一刀都 `|| true`：GitHub 的 bash 是 `-e` 模式 ⇒ ⇒ 任何一条
+          #    rm 失败 ⇒ ⇒ **整个 step 就红了** —— 而这一步的目的只是
+          #    「尽量腾出磁盘」⇒ ⇒ 「腾不出来」不该阻断 CI。
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost || true
+          sudo rm -rf /usr/local/lib/android /opt/hostedtoolcache/CodeSC || true
+          sudo rm -rf /usr/share/swift /usr/local/share/powershell || true
+          sudo rm -f /swapfile || true
+          df -h /home/runner
+
+      # ⚠️ rust-cache 留在 job 层（composite **没有 post 步** ⇒ ⇒ 真正存缓存的
+      #    那一步不会跑 ⇒ ⇒ 缓存永远存不下来）⇒ ⇒ `workspaces` 由 composite 输出
+      #    ⇒ ⇒ 检出清单仍然只有一份。
+      - name: Setup Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ${{ steps.stack.outputs.workspaces }}
+
+      # 两道跨仓闸 —— 放在长编译**之前** ⇒ ⇒ 便宜地先判一次「依赖图还成不成立」。
+      - name: External tools wiring check
+        run: node shadow/scripts/check-external-tools.mjs
+
+      - name: External tools wiring check (self-test)
+        run: node shadow/scripts/check-external-tools.mjs --self-test
+
+      - name: Neuron ownership check
+        run: node shadow/scripts/check-neuron-ownership.mjs
+
+      # One process, one port: neuron's OpenAI face at the root, the 端脑
+      # face (/shadow/v1/*, /api/telencephalon/*), 海马体 at /hippocampus.
+      - name: Build the 端脑 server
+        working-directory: encephalon
+        run: cargo build --manifest-path Cargo.toml --bin encephalon-server
+
+      - name: Install dependencies
+        working-directory: shadow/shadow-desktop
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        working-directory: shadow/shadow-desktop
+        run: pnpm exec playwright install --with-deps chromium
+
+      # ⚠️ **E2E 要走「构建产物」那条路** —— playwright.config.ts 自己的文档就写着：
+      #    dev server 要逐模块 transform ⇒ ⇒ 在被编译占满的机器上首屏 38 秒、
+      #    「/settings」的 load 事件 180 秒都没等到 ⇒ ⇒ 页面全白 ⇒ ⇒ 页面类断言必红。
+      - name: Build the web bundle for E2E
+        working-directory: shadow/shadow-desktop
+        run: pnpm exec vite build --config vite.config.web.ts --mode web
+
+      - name: Run Playwright E2E against the 端脑 server
+        working-directory: shadow/shadow-desktop
+        env:
+          SHADOW_TELENCEPHALON_BIN: ${{ github.workspace }}/encephalon/target/debug/encephalon-server
+          SHADOW_TELENCEPHALON_CWD: ${{ github.workspace }}/encephalon
+          SHADOW_FULL_STACK: '1'
+          # ⚠️ 端脑在 CI 上是**冷启动**（datafusion / lance / wasmtime 初始化）
+          #    ⇒ ⇒ 本地那个 15 秒的时限在这儿不够 ⇒ ⇒ 而「不够」和「崩了」
+          #    在 stdio: ignore 下长得一模一样 ⇒ ⇒ 这里给 120 秒。
+          SHADOW_TELENCEPHALON_START_TIMEOUT_MS: '120000'
+          # ⚠️ baseURL 与 webServer 必须**一起**换（playwright.config.ts 的注释）
+          SHADOW_E2E_SERVER_CMD: pnpm preview:web
+          SHADOW_E2E_SERVER_URL: http://127.0.0.1:4173
+          SHADOW_E2E_BASE_URL: http://127.0.0.1:4173
+        run: |
+          xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
+            pnpm exec playwright test --reporter=github \
+              e2e-conversation-flow e2e-task-scheduling business-flow-ui \
+              telencephalon-endpoints
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: shadow/shadow-desktop/playwright-report
+          retention-days: 7
+
+      - name: Upload test results on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-test-results
+          path: shadow/shadow-desktop/test-results
+          retention-days: 7

@@ -1,0 +1,136 @@
+name: Checkout the iBLOC stack
+description: >
+  把 iBLOC 栈的 10 个私有兄弟仓检到工作区根，并把 Rust 侧的私有依赖凭证配好。
+  ⚠️ **检出清单只有这一份** —— ci.yml 的跨仓闸 job 与 desktop-e2e.yml 的
+  重型 job 都调它 ⇒ ⇒ 两边不会漂移（以前「改一处要改两处」的老问题消失）。
+  ⚠️ 本仓自己（shadow）**不在这里**：本地 action 必须先有仓才能被引用 ⇒ ⇒
+  「checkout shadow」留在各 job 的第一步。
+
+inputs:
+  token:
+    description: 跨私有仓的 PAT（iBLOC_TOKEN）
+    required: true
+
+outputs:
+  workspaces:
+    description: 十个兄弟仓的目录名（换行分隔）⇒ 给 rust-cache 的 workspaces 用
+    value: |
+      telencephalon
+      encephalon
+      synapse
+      prefrontal
+      hippocampus
+      neuron
+      diencephalon
+      temporal
+      occipital
+      ziti-rust
+
+runs:
+  using: composite
+  steps:
+    - name: Require cross-repo token
+      shell: bash
+      env:
+        IBLOC_TOKEN: ${{ inputs.token }}
+      run: |
+        if [ -z "$IBLOC_TOKEN" ]; then
+          echo "::error::secrets.IBLOC_TOKEN is not configured."
+          echo "::error::The iBLOC stack is a local-path workspace. telencephalon,"
+          echo "::error::prefrontal, hippocampus, diencephalon, temporal and"
+          echo "::error::occipital are private siblings and cannot be checked out"
+          echo "::error::with the default GITHUB_TOKEN, which is scoped to"
+          echo "::error::iBLOC/shadow only. Add a PAT with read access to those"
+          echo "::error::repos as the IBLOC_TOKEN repository secret."
+          exit 1
+        fi
+
+    - name: Checkout telencephalon
+      uses: actions/checkout@v7
+      with:
+        repository: iBLOC/telencephalon
+        path: telencephalon
+        token: ${{ inputs.token }}
+
+    - name: Checkout encephalon
+      uses: actions/checkout@v7
+      with:
+        repository: iBLOC/encephalon
+        path: encephalon
+        token: ${{ inputs.token }}
+
+    - name: Checkout synapse
+      uses: actions/checkout@v7
+      with:
+        repository: iBLOC/synapse
+        path: synapse
+        token: ${{ inputs.token }}
+
+    - name: Checkout prefrontal
+      uses: actions/checkout@v7
+      with:
+        repository: iBLOC/prefrontal
+        path: prefrontal
+        token: ${{ inputs.token }}
+
+    - name: Checkout hippocampus
+      uses: actions/checkout@v7
+      with:
+        repository: iBLOC/hippocampus
+        path: hippocampus
+        token: ${{ inputs.token }}
+
+    - name: Checkout neuron
+      uses: actions/checkout@v7
+      with:
+        repository: iBLOC/neuron
+        path: neuron
+        token: ${{ inputs.token }}
+
+    - name: Checkout diencephalon
+      uses: actions/checkout@v7
+      with:
+        repository: iBLOC/diencephalon
+        path: diencephalon
+        token: ${{ inputs.token }}
+
+    - name: Checkout temporal
+      uses: actions/checkout@v7
+      with:
+        repository: iBLOC/temporal
+        path: temporal
+        token: ${{ inputs.token }}
+
+    - name: Checkout occipital
+      uses: actions/checkout@v7
+      with:
+        repository: iBLOC/occipital
+        path: occipital
+        token: ${{ inputs.token }}
+
+    # ⚠️ 2026-11-05：synapse 的 OpenZiti **v2** 线路层抽到了 iBLOC/ziti-rust 的
+    # **第二个 crate**（ziti-v2）⇒ ⇒ 而端脑的 synapse 依赖**无条件**开着 ziti
+    # ⇒ ⇒ ⇒ 任何**解析依赖图**的动作（cargo fmt / check / test / clippy / doc）
+    # ⇒ ⇒ ⇒ 都需要这个兄弟仓在位（path 依赖 ../ziti-rust/crates/ziti-v2）
+    # ⇒ ⇒ 漏掉它 ⇒ ⇒ cargo 直接报 manifest 读不到 ⇒ ⇒ 闸判不了。
+    - name: Checkout ziti-rust
+      uses: actions/checkout@v7
+      with:
+        repository: iBLOC/ziti-rust
+        path: ziti-rust
+        token: ${{ inputs.token }}
+
+    # 端脑 server 的构建链同样要私有 git 依赖的凭据（ziti-sdk）。
+    - name: Prepare Rust credentials
+      shell: bash
+      env:
+        IBLOC_TOKEN: ${{ inputs.token }}
+      run: |
+        set -eu
+        echo "::add-mask::$IBLOC_TOKEN"
+        # secret 里可能带尾部换行（用 `gh secret set` 从 stdin 灌进去时不会
+        # 自动 trim）—— 直接嵌进 URL 会让凭据失效，报 "Authentication failed"。
+        TOKEN="$(printf '%s' "$IBLOC_TOKEN" | tr -d '\r\n')"
+        mkdir -p "$HOME/.cargo"
+        printf '[net]\ngit-fetch-with-cli = true\n' >> "$HOME/.cargo/config.toml"
+        git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "https://github.com/"
