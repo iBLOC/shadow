@@ -500,6 +500,14 @@ jobs:
       - name: Brain chain check
         run: node scripts/check-brain-chain.mjs
 
+      # neuron's 归属：「全局唯一 neuron，由大脑直接管理」—— 消费者自己
+      # 实例化一个（run_embedded / CandleLlmRuntime / create_router）⇒ ⇒
+      # 就是第二个 neuron ⇒ ⇒ 同一批模型被**重复占用**（实测：本机一个游离
+      # neuron_server 与脑面内嵌的那个登记同一批 38 个模型）。
+      # ⚠️ 这道闸扫**兄弟仓**（存在才扫）⇒ ⇒ 本 job 已 checkout 全部相关仓。
+      - name: Neuron ownership check
+        run: node scripts/check-neuron-ownership.mjs
+
       # 生成物是从属的：改 design-tokens.json 后必须重跑生成器。
       # 这条单独拎出来，让漂移的报错一眼能定位。
       - name: Design token drift check
