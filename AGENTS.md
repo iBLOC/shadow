@@ -18,6 +18,18 @@
 
 ⚠️ **④ E2E 第四轮（run 42035720624，head `a7fda3d`＝并行会话那个 config 形状修法）—— 19 红 ⇒ ⇒ **4 红**，而 「❶❸（admin PATCH 那两条）不见了」** ⇒ ⇒ **形状修对了** ⇒ ⇒ 剩下 4 条各自定性：**❹ prefrontal dispatch**（环境缺口：CI 没起前额叶）／**❷ history 累积**（**本轮判完了**，见下）／**❺ 发送消息**（环境缺口：没有 LLM 上游）／**❼ 信封 id**（兄弟仓缺口：独立 server 无配置入口）⇒ ⇒ **19 → 4，且消失的正是那两条 admin 面** ⇒ ⇒ **承重**：那个形状是那批 401 的唯一根因；
 
+
+
+⚠️ **⑥ 那 4 条红逐字定性（trace 响应体，全部读到体）—— 而其中一条**推翻了我上一轮的分类**：
+
+**❷ history** ⇒ `POST …/messages` ⇒ **502**，体逐字 `{"error":{"code":5022,"message":"neuron call failed: error sending request for url (http://127.0.0.1:40957/v1/chat/completions)"}}` ⇒ ⇒ **neuron 没起**；
+
+**❺ 发送消息** ⇒ `POST …/messages:stream` ⇒ **200**，但 SSE 体是 `event: error / data: {"type":"error","agent":"temporal","error":"neuron call failed: error sending request for url (http://127.0.0.1:40957/v1/chat/completions)"}` ⇒ ⇒ **同一条根因**（neuron 没起）⇒ ⇒ ⚠️ **注意「200 但体里是 error」——只看状态码会把它读成绿的**；
+
+**❹ prefrontal dispatch** ⇒ `POST /api/telencephalon/prefrontal/dispatch` ⇒ **502**，体逐字 `"neuron returned 404 Not Found: {\"error\":{\"type\":\"no_engine_for_model\",\"message\":\"no engine registered for model test-model-ui\"}}"` ⇒ ⇒ ⇒ ⇒ **⚠️⚠️ 我上一轮把它归成「环境缺口：CI 没起前额叶」——那是错的** ⇒ ⇒ **前额叶在**（它回了「neuron returned 404」）⇒ ⇒ 真因是 **neuron 上没有那个模型的引擎**（`no engine registered for model`）⇒ ⇒ **仍然是环境缺口，但缺的不是前额叶，是「模型引擎」** ⇒ ⇒ ⇒ ⇒ **教训：「前额叶没起」与「前额叶起了但没模型」在状态码上都是 502 ⇒ ⇒ 只有读响应体才分得开**；
+
+**❼ 信封 key** ⇒ `GET /shadow/v1/agents` ⇒ **200**，体逐字 `{"telencephalon":{"id":"","instance_name":"","default_agent":"temporal"},…,"agents":[{"name":"temporal","kind":"native","url":null,…}]}` ⇒ ⇒ **id 仍空**（兄弟仓缺口：独立 server 无配置入口）✔ 与上一轮同判。
+
 ⚠️ **⑤ ❷ 判完了（本轮最有价值的一条）—— 判据＝ Playwright trace 的响应体**（run 42035720624 的 `playwright-test-results` 产物里 4 个 `trace.zip` ⇒ ⇒ 解 `0-trace.network` 逐条读方法/URL/状态码/请求头/响应体）⇒ ⇒ **三个 POST 全部 502**（**不是 401** ⇒ ⇒ **门开了**）⇒ ⇒ 逐字：**`POST /shadow/v1/conversations` ⇒ 200**（真 id `5108b74f-86be-49b7-94eb-1bc2319d7e98`，`history: []`）／**`POST …/messages` ⇒ 502**／**`GET …/conversations/{id}` ⇒ 200**（history 仍 `[]`）⇒ ⇒ 而 502 的响应体逐字：**`{"error":{"code":5022,"message":"neuron call failed: error sending request for url (http://127.0.0.1:40957/v1/chat/completions)"}}`** ⇒ ⇒ ⇒ ⇒ **history=0 的直接原因是「那三个 POST 全部 502」⇒ ⇒ 消息压根没写进去 ⇒ ⇒ 不是 history 存储缺陷** ⇒ ⇒ 而 502 的原因逐字是**「neuron call failed」⇒ ⇒ CI 上 neuron 压根没起**（连接被拒）⇒ ⇒ ⇒ ⇒ **❷ = 环境缺口（neuron 没起）**，**不是**端脑的产品缺陷 ⇒ ⇒ **判完了**（不再是「判不了」）⇒ ⇒ ⚠️ **推论**：这条红**必须留着**（它诚实地报告「CI 上没有推理上游」）⇒ ⇒ 要它转绿只有两条路：**在 CI 上起 neuron**（重）**或** 把 spec 明确标成「需要 neuron」⇒ ⇒ **待拍板**。
 
 prefrontal CI run **42037933238**（on `4b7f898`）**5 个 job 全红** ⇒ ⇒ ⚠️ **那是既有债**（它在我改之前就红：run 42033492800 on `90c5753` 也红）⇒ ⇒ **判据不足 ⇒ 「既有的红」与「我引入的红」还分不开** ⇒ ⇒ **待下一轮用 step 级读数分**。**编译级（本地，两把尺子都量）**：prefrontal `cargo +1.99.0 clippy --all-targets -- -D warnings` ⇒ **EXIT=0**（**这就是 CI 那把尺子**）；`cargo +1.99.0 test` ⇒ **EXIT=0**（doctest 段逐字 `running 0 tests` ⇒ ⇒ 原失败那条**已不再被编译**）。
