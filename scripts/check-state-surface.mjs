@@ -140,7 +140,13 @@ const STATE_FILE_RE = /^(AGENTS|AGENT|MEMORY|KNOWLEDGE|LEDGER)([-_.].*)?\.md$/i;
 export function findUnregistered(root, declared) {
   const known = new Set(declared.map((d) => d.replace(/\\/g, '/')));
   const found = [];
-  const SKIP = new Set(['node_modules', 'target', '.git', 'dist', 'build', '.local', 'benchmark', '.dart_tool']);
+  // ⚠️⚠️ **`artifacts/` 也在 SKIP 里** —— 它是 **.gitignore 忽略的产物目录**
+  //    （`.gitignore` 第 121 行）⇒ ⇒ 仓里不可能有**入库的**状态面放在那儿
+  //    ⇒ ⇒ 而「把账本副本放进去当草稿」这类**临时产物**不该被当成新状态面
+  //    （2026-11-05 实测踩到：并行会话的 `artifacts/agents-remote.md` ⇒ ⇒ 判红
+  //    ⇒ ⇒ 连累本闸的自检 ⇒ ⇒ 再连累纪律闸两条 ⇒ ⇒ **一条根因、两个读数**）。
+  // ⇒ ⇒ 判据仍然是「**入库的**才算仓里的」⇒ ⇒ 别处新增的 AGENTS.md 照样被抓。
+  const SKIP = new Set(['node_modules', 'target', '.git', 'dist', 'build', '.local', 'benchmark', '.dart_tool', 'artifacts']);
   const walk = (dir, depth) => {
     if (depth > 5) return;
     let entries;
@@ -399,6 +405,14 @@ export function selfTest() {
     writeFileSync(join(tmp, 'NOTES.md'), '随便一个文档\n', 'utf8');
     const found3 = findUnregistered(tmp, ['AGENTS.md']);
     check('R6 边界：不是状态面名字的文件不报', found3.length === 0, JSON.stringify(found3));
+
+    // ⚠️ **gitignore 的产物目录整棵跳过** —— `artifacts/` 不会被入库 ⇒ ⇒
+    //    里面的 AGENTS.md 是**草稿副本**，不是新状态面 ⇒ ⇒ 不该报。
+    const artDir = join(tmp, 'artifacts');
+    mkdirSync(artDir, { recursive: true });
+    writeFileSync(join(artDir, 'AGENTS.md'), '**Updated**: 2026-11-05 (㋰ **「x」**)\n', 'utf8');
+    const found6 = findUnregistered(tmp, ['AGENTS.md']);
+    check('R6 边界：**产物目录（artifacts/）整棵跳过**', found6.length === 0, JSON.stringify(found6));
 
     // ⚠️⚠️ **CI 布局陷阱**：兄弟仓被 checkout 到**仓根之内** ⇒ ⇒ 每个兄弟仓
     //    都有自己的 AGENTS.md ⇒ ⇒ 不排除就会在 CI 里**误报 6 个仓**。
