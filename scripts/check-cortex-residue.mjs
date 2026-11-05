@@ -42,11 +42,17 @@ const ROOT_OPTS = {
   //    ⇒ 它们**不在**旧清单里 ⇒ 闸报「全绿」而它们其实没人看。
   // ⇒ ⇒ 现在显式纳入（shadow-desktop / shadow-mobile 由各自的薄壳负责）。
   scanDirs: ['scripts', 'benchmark/src', 'benchmark/tests', 'benchmark/tools', 'benchmark/suites',
-             'shadow-esp32/app', 'shadow-esp32/tools'],
+             'shadow-esp32/app', 'shadow-esp32/tools',
+             // ⚠️ 2026-11-05：这些目录原先登记成「没人判」的**存量缺口**
+             //    ⇒ ⇒ 实测它们**旧词 0 命中** ⇒ ⇒ 于是**直接纳入扫描**（比登记债更彻底）。
+             //    · .github —— CI 配置（**最该判的活配置**）⇒ ⇒ 纳入后，闸自己的
+             //      说明文字 / step 名 / job 名要**逐条登记豁免**（见 allowed）。
+             //    · brand / fixtures / state —— 品牌资产 / 测试夹具 / 撤销账本。
+             '.github', 'brand', 'fixtures', 'state'],
   // ⚠️ 2026-11-05：仓根的两个**面向用户**的文档纳入扫描（实测旧词 0 命中 ⇒ ⇒ 纳入是安全的）
   //    ⇒ ⇒ 以后谁往里面写旧名，闸会当场报出来（而不是「没人看」）。
   scanFiles: ['agent-surface.json', 'benchmark/README.md', 'shadow-esp32/README.md',
-             'README.md', 'ARCHITECTURE.md'],
+             'README.md', 'ARCHITECTURE.md', 'design-tokens.json'],
   excludeDirs: [
     'node_modules', '.git', 'target', 'dist', 'build', 'docs',
     // ⚠️ benchmark/ 下有 **100+ 个 reports*/runs*/target*** 目录（评测产物）
@@ -76,8 +82,16 @@ const ROOT_OPTS = {
     'reports-tb-mimo', 'reports-tb-native', 'reports-tb-native-v2', 'reports-tb-plan',
     'reports-tool-loop-v13', 'reports-traced-release', 'reports-traced-smoke', 'reports-usage-check',
     'runs-task7-traj', 'runs-tau2-v3-traj', 'target-prior', 'target-scorer', 'target-trace',
+    // ⚠️ 本地草稿区（**未跟踪** ⇒ ⇒ 不是交付物 ⇒ ⇒ 不判）
+    'artifacts',
   ],
   excludeFiles: [
+    'debug.log',                // 本地日志（**未跟踪** ⇒ ⇒ 不是交付物）
+    // ⚠️ **闸自检留下的探针文件** —— 自检在仓根造它来证明判据会红 ⇒ ⇒
+    //    删掉失败时它会留在仓根 ⇒ ⇒ 而顶层对账会把它当成「没人判的顶层条目」
+    //    ⇒ ⇒ 显式排除（真解是让自检把探针写进系统临时目录 ⇒ ⇒ 那是共享引擎的
+    //    改动 ⇒ ⇒ 两份副本要一起改 ⇒ ⇒ 记在债里）。
+    '.cortex-self-test-probe.tmp',
     'check-cortex-residue.mjs',  // 闸自己
     'cortex-residue.mjs',         // 引擎自己（它当然知道这个词）
     // ⚠️ 跨仓闸的两个文件 —— 它们**当然**知道这个词（它们就是守这个概念的）
@@ -111,48 +125,53 @@ const ROOT_OPTS = {
       kind: 'skip',
       reason: '版本控制配置（不含业务字面量）。',
     },
-    {
-      dir: '.github',
-      kind: 'debt',
-      reason:
-        '**词级闸不覆盖 CI 配置**（2026-11-05 实测：ci.yml 里有 25 处旧词，' +
-        '但它们全是**闸自己的说明文字与 step 名** ⇒ ⇒ 要纳入扫描就得先给词级闸' +
-        '补一档「闸自己说明文字」的豁免 ⇒ ⇒ 什么时候修：补那档豁免（或把 step 名' +
-        '改成中性名）⇒ ⇒ **注意**：CI 配置里的**环境变量**由**死变量闸**覆盖' +
-        '（它用 git ls-files 扫全仓 ⇒ ⇒ .github/ 在它的范围内）。',
-    },
-    {
-      dir: 'brand',
-      kind: 'debt',
-      reason: '**没人判**：品牌资产（图标 / 几何 / 配色）⇒ ⇒ 什么时候修：加进扫描范围（排除二进制即可）。',
-    },
-    {
-      dir: 'fixtures',
-      kind: 'debt',
-      reason: '**没人判**：测试夹具目录 ⇒ ⇒ 什么时候修：加进扫描范围。',
-    },
-    {
-      dir: 'state',
-      kind: 'debt',
-      reason: '**没人判**：本地状态目录（运行期产物）⇒ ⇒ 什么时候修：加进扫描范围或登记成刻意不扫。',
-    },
-    {
-      dir: 'artifacts',
-      kind: 'debt',
-      reason: '**没人判**：本地产物目录 ⇒ ⇒ 什么时候修：同上。',
-    },
-    {
-      dir: 'design-tokens.json',
-      kind: 'debt',
-      reason: '**没人判**：设计令牌（颜色 / 间距）⇒ ⇒ 什么时候修：加进扫描范围。',
-    },
-    {
-      dir: 'debug.log',
-      kind: 'debt',
-      reason: '**没人判**：本地日志（未跟踪）⇒ ⇒ 什么时候修：把它挪出仓根或加进排除清单。',
-    },
   ],
   allowed: [
+    {
+      token: 'Cortex 残留闸',
+      kind: 'history',
+      reason: '**闸自己的说明文字**（CI 里那道闸 step 的注释）⇒ ⇒ 只在注释 / 文档行豁免 ⇒ ⇒ 出现在代码行照样判红。',
+    },
+    {
+      token: 'Cortex 是过时概念应该删除',
+      kind: 'history',
+      reason: '**用户拍板的原话**，记在闸的注释里 ⇒ ⇒ 史证。',
+    },
+    {
+      token: '启动 Cortex',
+      kind: 'history',
+      reason: '**闸的注释里举例**（界面那句旧文案）⇒ ⇒ 史证。',
+    },
+    {
+      token: 'cortex = 残留',
+      kind: 'history',
+      reason: '**闸的注释里描述判据本身** ⇒ ⇒ 史证。',
+    },
+    {
+      token: 'Execute a registered workflow in Cortex',
+      kind: 'history',
+      reason: '**闸的注释里引用的兄弟仓真缺陷**（LLM 读得到的那一行）⇒ ⇒ 史证。',
+    },
+    {
+      token: 'cortex-registry',
+      kind: 'contract',
+      reason: '**注册表文件名**（真契约：改了会断掉 ci.yml 与账本里的引用）⇒ ⇒ 任何位置都豁免。',
+    },
+    {
+      token: 'Cortex residue check',
+      kind: 'contract',
+      reason: '**CI 的 step 名**（真契约：改了会打断 CI 历史与账本里的引用）⇒ ⇒ 任何位置都豁免。',
+    },
+    {
+      token: 'Cortex residue (cross-repo)',
+      kind: 'contract',
+      reason: '**CI 的 job 名**（真契约：改了会打断 CI 历史与账本里的引用）。',
+    },
+    {
+      token: 'cross-repo Cortex gate',
+      kind: 'contract',
+      reason: '**CI 里 run: 块的错误消息字符串**（真契约：那是用户能看到的报错文案）。',
+    },
     {
       token: 'desktop-no-cortex-bypass',
       reason: '闸的**规则 ID**（check-brain-chain.mjs）—— docs/superpowers/architecture/2026-10-29-brain-chain.md 逐条列了它们 ⇒ 改 ID 就等于让那份历史文档失效（历史文档不许改）。',
