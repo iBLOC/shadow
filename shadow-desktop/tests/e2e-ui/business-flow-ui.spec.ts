@@ -57,7 +57,13 @@ test.describe('Business Flow UI: Task Creation End-to-End', () => {
     const setRes = await page.request.patch(
       `${TELENCEPHALON_URL}/api/telencephalon/agents/temporal/config`,
       {
-        data: { config: { model_id: 'mimo-v2-flash' } },
+        // ⚠️ 模型名用 mock 通道注册的 `test-model-ui`（global-setup ⇒ NEURON_REMOTE_*）。
+        //    这条 PATCH 测的是「管理面收下配置」（`{"status":"ok"}`），名字本身无所谓；
+        //    但 **端脑状态跨测试持久**：曾硬编码 `mimo-v2-flash` ⇒ 后续 history 测试发消息
+        //    ⇒ neuron `no_engine_for_model: 'mimo-v2-flash'` ⇒ 502 ⇒ history 恒 0
+        //    （CI run 42074569869 与本地污染状态复跑逐字同形，均已归档）。
+        //    与下方 `lobe 配置 PATCH 验证` 那条（同样 PATCH `test-model-ui`）同形状。
+        data: { config: { model_id: 'test-model-ui' } },
         // ⚠️ **凭据不再手写在这个请求上** —— 端脑只认 `x-admin-token`
         //    （`telencephalon/src/security/api_key.rs`），而 `X-Admin-Key`
         //    **不是那扇门** ⇒ ⇒ 2026-11-05 真机实测：这条 PATCH 401。
