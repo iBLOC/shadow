@@ -123,12 +123,17 @@ function readCiCheckoutList() {
 let ciList = null;
 let ciMissing = [];
 let ciExtra = [];
+let ciSelfOwned = [];
 {
   ciList = readCiCheckoutList();
   const want = new Set(CI_CHECKOUT);
   const got = new Set(ciList || []);
   ciMissing = CI_CHECKOUT.filter((n) => !got.has(n));
-  ciExtra = [...got].filter((n) => !want.has(n));
+  // ⚠️ **SELF_OWNED 的仓不是「多检」** —— 它们自己管自己的残留，
+  //    但**判据 ④（引擎副本一致性）要比对它们的引擎副本** ⇒ ⇒ 必须检出。
+  //    ⇒ ⇒ 把它剔出「多检」（否则会报一条**假的**漂移）⇒ ⇒ 但要**打印出来**。
+  ciExtra = [...got].filter((n) => !want.has(n) && !SELF_OWNED.has(n));
+  ciSelfOwned = [...got].filter((n) => SELF_OWNED.has(n) && n !== 'shadow');
   console.log('');
   console.log('▶ CI 清单对账（ci.yml 的 cortex-residue-stack job ↔ 注册表）');
   if (ciList === null) {
@@ -137,6 +142,9 @@ let ciExtra = [];
     console.log('  ci.yml 检出 ' + ciList.length + ' 个仓 / 注册表要求 ' + CI_CHECKOUT.length + ' 个');
     for (const n of CI_CHECKOUT) {
       console.log('    ' + (got.has(n) ? '✓' : '✗') + ' ' + n);
+    }
+    if (ciSelfOwned.length > 0) {
+      console.log('  · 另检出 SELF_OWNED 的仓（判据 ④ 要比对引擎副本，**不被本闸扫描**）：' + ciSelfOwned.join(', '));
     }
     if (ciExtra.length > 0) {
       console.log('  ✗ ci.yml 多检了：' + ciExtra.join(', ') + '  ⇒ 注册表里没有它们 ⇒ 多检无害但说明两边漂了。');

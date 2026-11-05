@@ -829,9 +829,11 @@ jobs:
       #      · telencephalon-verify —— origin 指向 iBLOC/telencephalon（它是端脑的 clone）。
       #    ⇒ 无 token 时的 404 **不能当判据**（私有仓也是 404）⇒ 必须认证后查。
       #
-      # ⚠️ telencephalon / encephalon **不在这里**：它们各自仓里有自己的 cortex-residue
-      #    job（telencephalon/.github/workflows/ci.yml、encephalon/.github/workflows/ci.yml）
-      #    ⇒ 不重复检出（encephalon 的闸还要 import 端脑仓里的引擎副本）。
+      # ⚠️ encephalon **不在这里**：它自己仓里有自己的 cortex-residue job
+      #    ⇒ ⇒ 不重复检出（它的闸还要 import 端脑仓里的引擎副本）。
+      # ⚠️ 2026-11-05：telencephalon **现在要检出** —— 跨仓闸的**判据 ④**
+      #    （引擎副本一致性）要比对 shadow 与端脑仓那两份 cortex-residue.mjs
+      #    ⇒ ⇒ 不检出 ⇒ ⇒ 那一格在 CI 上是空的（绿灯但什么都没查）。
       - name: Checkout agent-memory-benchmark
         uses: actions/checkout@v7
         with:
@@ -914,6 +916,16 @@ jobs:
         with:
           repository: iBLOC/synapse
           path: synapse
+          token: ${{ secrets.IBLOC_TOKEN }}
+
+      # ⚠️ telencephalon 只为**判据 ④**（引擎副本一致性）而检出 ⇒ ⇒
+      #    它**不被本闸扫描**（SELF_OWNED ⇒ ⇒ 自己的闸管自己的残留）
+      #    ⇒ ⇒ 检出它只为**比对两份引擎副本** ⇒ ⇒ 那一格才不是空的。
+      - name: Checkout telencephalon
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/telencephalon
+          path: telencephalon
           token: ${{ secrets.IBLOC_TOKEN }}
 
       - name: Checkout temporal
