@@ -172,12 +172,21 @@ pub async fn serve(stack: &Embedded, hippocampus_data_dir: Option<String>, face:
     //
     // ⚠️ **状态要被看见** —— 「这张面起没起」此前**只有一行日志**
     // ⇒ ⇒ 现在句柄带状态（`starting` / `ready` / `failed(原因)`）。
-    match encephalon::ziti::spawn_if_configured(brain_face.router.clone()) {
-        Some(face) => tracing::info!(
-            service = %face.options().service_name,
-            identity_source = %face.options().identity_source.as_str(),
-            "零信任面已启动（terminator 就绪后可 dial）"
-        ),
+    // ⚠️ 先取 options、再 spawn：`spawn_if_configured` 返回的是
+    //    `Option<JoinHandle<()>>`（所有平台都一样）——句柄上没有 `.options()`。
+    //    这一行此前的 `face.options().identity_source` **从来没有编译过**：
+    //    encephalon 的 `ZitiOptions` 里没有 `identity_source` 这个字段，
+    //    而桌面端的 lib 此前只在 Windows 上编过（2026-09），这行是
+    //    2026-11-03 加的 ⇒ ⇒ 第一台真的编到它的机器就是 CI 的 Windows。
+    match encephalon::ziti::options_from_env() {
+        Some(opts) => {
+            let _face = encephalon::ziti::spawn_with(brain_face.router.clone(), &opts);
+            tracing::info!(
+                service = %opts.service_name,
+                identity_path = %opts.identity_path,
+                "零信任面已启动（terminator 就绪后可 dial）"
+            );
+        }
         None => tracing::info!(
             "零信任面未配置（没配 ZITI_HOST_IDENTITY）—— 行为与今天一致"
         ),

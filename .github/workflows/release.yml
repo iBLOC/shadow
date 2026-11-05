@@ -111,7 +111,7 @@ jobs:
       #    钉版清单（2026-11-05）：
       #      telencephalon ecc5f9e0 · encephalon 9027e3d · diencephalon 7d1f596
       #      synapse 28979f9 · prefrontal e62af06 · hippocampus ae6b73a
-      #      neuron b6926ac · ziti-rust 2403c57
+      #      neuron c14b77f · ziti-rust 2403c57   (neuron 含 macOS 内存探针修复)
       - name: Checkout telencephalon
         uses: actions/checkout@v7
         with:
@@ -165,7 +165,7 @@ jobs:
         with:
           repository: iBLOC/neuron
           path: neuron
-          ref: b6926acfe2c51ab7d4c85f5021c4eeb7b8a59654
+          ref: c14b77fd65bdb290ba113c558022b5d7f8308cfe
           token: ${{ secrets.IBLOC_TOKEN }}
 
       # ziti-rust holds synapse's `ziti-v2` crate. Cargo reads the manifest
