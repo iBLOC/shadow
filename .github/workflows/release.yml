@@ -59,7 +59,12 @@ jobs:
   desktop:
     name: Tauri Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 90
+    # ⚠️ 整栈编译（lance + datafusion + candle + burn + 三个 ML 后端）实测
+    #    **单平台就要 50 分钟以上**（还没到打包那一步）⇒ ⇒ ⇒ 而打包（AppImage
+    #    要下 linuxdeploy、msi 要 WiX）还要再加 ⇒ ⇒ ⇒ ⇒ ⇒ 90 分钟不够，
+    #    而「超时被杀」和「编不过」在日志里长得**几乎一样** ⇒ ⇒ ⇒ ⇒
+    #    ⇒ ⇒ ⇒ 给足。
+    timeout-minutes: 150
     strategy:
       fail-fast: false
       matrix:
