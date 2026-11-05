@@ -167,6 +167,10 @@ function listWorkflowFiles(repos) {
   const pathspecs = [
     ':(glob)**/.github/workflows/*.yml',
     ':(glob)**/.github/workflows/*.yaml',
+    // ⚠️ composite action 也是 YAML ⇒ ⇒ 写坏了 ⇒ ⇒ 调用它的 job 起不来。
+    //    ⇒ ⇒ 必须一起判（否则是「绿灯什么都没查」）。
+    ':(glob)**/.github/actions/**/action.yml',
+    ':(glob)**/.github/actions/**/action.yaml',
   ];
   for (const repo of repos) {
     const invocations = [
@@ -251,13 +255,31 @@ function parseWithParser(parser, absPath) {
   }
 }
 
+/**
+ * 这个 YAML 文件是 **workflow** 还是 **composite action**？
+ * ⚠️ **先看路径，再看内容** —— 路径是权威（.github/workflows/ vs
+ *    .github/actions/<name>/action.yml）⇒ ⇒ 一个缺了 `on:` 的 workflow
+ *    仍然按 workflow 判（否则「缺 on」那条判据会自己失效）。
+ * ⚠️ 内容兜底是为了**演练副本**：drill 把文件拷进临时目录（名字叫
+ *    workflow.yml）⇒ ⇒ 那时路径已经不能说明身份了。
+ */
+function fileKind(absPath, text) {
+  const norm = String(absPath).replace(/\\/g, '/');
+  if (norm.includes('/.github/workflows/')) return 'workflow';
+  if (norm.includes('/.github/actions/')) return 'composite';
+  if (/^\s*on\s*:/m.test(text) && /^\s*jobs\s*:/m.test(text)) return 'workflow';
+  if (/^\s*runs\s*:/m.test(text)) return 'composite';
+  return 'workflow';
+}
+
 /** 扫一批文件，并与真解析器对账。 */
 function checkFiles(files, parser) {
   const perFile = [];
   let total = 0;
   for (const abs of files) {
     const text = readFileSync(abs, 'utf8');
-    const scan = scanYamlText(text, { workflow: true });
+    const kind = fileKind(abs, text);
+    const scan = scanYamlText(text, kind === 'composite' ? { composite: true } : { workflow: true });
     const findings = scan.findings.slice();
     const parserResult = parser ? parseWithParser(parser, abs) : null;
     if (parserResult) {
@@ -276,7 +298,7 @@ function checkFiles(files, parser) {
         });
       }
     }
-    perFile.push({ path: abs, findings, parser: parserResult, stats: scan.stats });
+    perFile.push({ path: abs, kind, findings, parser: parserResult, stats: scan.stats });
     total += findings.length;
   }
   return { perFile, total };
@@ -315,7 +337,7 @@ const REAL_INCIDENT = [
 
 function selfTest() {
   const cases = [];
-  const add = (name, yaml, expect) => cases.push({ name, yaml, expect });
+  const add = (name, yaml, expect, opts) => cases.push({ name, yaml, expect, opts });
 
   add(
     '真实事故形状（step 名带冒号却没加引号）',
@@ -460,9 +482,35 @@ function selfTest() {
     'echo "${HOME} and secrets.X"',
   ), { clean: true });
 
+  // ── composite action 的形状（2026-11-05 加：长任务搬进独立 workflow ⇒ ⇒
+  //    顺带引入了 composite action ⇒ ⇒ 它也得被 YAML 闸管着）
+  const BASE_COMPOSITE = [
+    'name: Checkout the stack',
+    'description: >',
+    '  检出清单',
+    'inputs:',
+    '  token:',
+    '    required: true',
+    'runs:',
+    '  using: composite',
+    '  steps:',
+    '    - name: Checkout one',
+    '      uses: actions/checkout@v7',
+    '      with:',
+    '        repository: iBLOC/neuron',
+    '    - name: Say hi',
+    '      shell: bash',
+    '      run: echo hi',
+  ].join('\n');
+  add('composite action：形状合法 ⇒ 必须干净', BASE_COMPOSITE, { clean: true }, { composite: true });
+  add('孪生：composite 缺 runs ⇒ ⇒ 必红', BASE_COMPOSITE.replace('runs:\n', 'rungs:\n'), { must: ['composite-missing-runs'] }, { composite: true });
+  add('孪生：composite 缺 steps ⇒ ⇒ 必红', BASE_COMPOSITE.replace('  steps:\n', '  stepz:\n'), { must: ['composite-missing-steps'] }, { composite: true });
+  add('孪生：composite 缺 using ⇒ ⇒ 必红', BASE_COMPOSITE.replace('  using: composite\n', ''), { must: ['composite-missing-using'] }, { composite: true });
+  add('孪生：composite 的 run 步缺 shell ⇒ ⇒ 必红', BASE_COMPOSITE.replace('      shell: bash\n', ''), { must: ['composite-run-missing-shell'] }, { composite: true });
+
   let bad = 0;
   for (const c of cases) {
-    const scan = scanYamlText(c.yaml, { workflow: true });
+    const scan = scanYamlText(c.yaml, c.opts || { workflow: true });
     const kinds = scan.findings.map((f) => f.kind);
     let ok = true;
     if (c.expect.clean) {
@@ -690,7 +738,13 @@ function main() {
     );
   } else if (opts.audit) {
     console.log('扫描根：' + roots.join(', '));
-    console.log('仓：' + repos.length + ' 个 ｜ workflow 文件：' + result.perFile.length + ' 个');
+    console.log(
+      '仓：' + repos.length + ' 个 ｜ YAML 文件：' + result.perFile.length + ' 个（workflow ' +
+        result.perFile.filter((f) => f.kind !== 'composite').length +
+        ' / composite action ' +
+        result.perFile.filter((f) => f.kind === 'composite').length +
+        '）',
+    );
     console.log('真解析器：' + (parser ? parser.label : '无（只跑扫描器，未做差分交叉验证）'));
     console.log('违规合计：' + result.total);
     for (const f of result.perFile) {
@@ -711,7 +765,7 @@ function main() {
         repos.length +
         ' 个仓 / ' +
         result.perFile.length +
-        ' 个 workflow ｜ 真解析器：' +
+        ' 个 YAML 文件（workflow + composite action）｜ 真解析器：' +
         (parser ? parser.label : '无（未做差分交叉验证）'),
     );
     for (const f of result.perFile) {
@@ -730,7 +784,7 @@ function main() {
       }
     }
     if (result.total === 0) {
-      console.log('✅ 零违规（' + result.perFile.length + ' 个 workflow 全过）');
+      console.log('✅ 零违规（' + result.perFile.length + ' 个 YAML 文件全过）');
     } else {
       console.log('❌ 共 ' + result.total + ' 条违规');
     }

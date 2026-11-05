@@ -685,9 +685,59 @@ export function checkWorkflowShape(doc, findings) {
 }
 
 /**
+ * composite action 形状检查（GH Actions 的硬性要求）。
+ * ⚠️ 形状与 workflow 完全不同 ⇒ ⇒ 不能拿 workflow 的判据套上来（那会把
+ *    每个 composite 都判红 ⇒ ⇒ 假红比不判更坏）。
+ */
+export function checkCompositeShape(doc, findings) {
+  if (!doc || doc.type !== 'map') {
+    findings.push(mkFinding('composite-not-map', 1, 'composite action 顶层不是映射（GitHub 无法识别）'));
+    return;
+  }
+  const keys = mapKeys(doc);
+  if (!keys.has('runs')) {
+    findings.push(mkFinding('composite-missing-runs', 1, 'composite action 顶层没有 runs（GitHub 必报错）'));
+    return;
+  }
+  const runsEntry = doc.entries.find((e) => e.key === 'runs');
+  const runs = runsEntry && runsEntry.value;
+  if (!runs || runs.type !== 'map') return;
+  const rkeys = mapKeys(runs);
+  if (!rkeys.has('using')) {
+    findings.push(mkFinding('composite-missing-using', runsEntry.line, 'composite action 的 runs 没有 using（GitHub 必报错）'));
+  }
+  if (!rkeys.has('steps')) {
+    findings.push(mkFinding('composite-missing-steps', runsEntry.line, 'composite action 的 runs 没有 steps'));
+    return;
+  }
+  const stepsEntry = runs.entries.find((e) => e.key === 'steps');
+  const steps = stepsEntry && stepsEntry.value;
+  if (!steps || steps.type !== 'seq') return;
+  if (steps.items.length === 0) {
+    findings.push(mkFinding('composite-empty-steps', stepsEntry.line, 'composite action 的 steps 是空的'));
+  }
+  for (const item of steps.items) {
+    const skeys = mapKeys(item.node);
+    const hasUses = skeys.has('uses');
+    const hasRun = skeys.has('run');
+    if (!hasUses && !hasRun) {
+      findings.push(mkFinding('step-missing-action', item.line, 'step 既没有 uses 也没有 run（GitHub 必报错）'));
+    }
+    if (hasUses && hasRun) {
+      findings.push(mkFinding('step-both-actions', item.line, 'step 同时有 uses 和 run（GitHub 不允许）'));
+    }
+    if (hasRun && !skeys.has('shell')) {
+      findings.push(mkFinding('composite-run-missing-shell', item.line, 'composite 的 run 步没有 shell（GitHub 必报错）'));
+    }
+  }
+}
+
+/**
  * 主入口：把一段 YAML 文本扫成「结构 + 违规清单」。
  * @param {string} text
- * @param {{workflow?: boolean}} [opts] workflow=true 时额外做 GH Actions 形状检查
+ * @param {{workflow?: boolean, composite?: boolean}} [opts]
+ *   workflow=true 时做 GH Actions **workflow** 形状检查；
+ *   composite=true 时做 GH Actions **composite action** 形状检查
  */
 export function scanYamlText(text, opts) {
   const options = opts || {};
@@ -713,6 +763,9 @@ export function scanYamlText(text, opts) {
 
   if (options.workflow) {
     checkWorkflowShape(doc, findings);
+  }
+  if (options.composite) {
+    checkCompositeShape(doc, findings);
   }
 
   return {
