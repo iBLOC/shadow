@@ -40,12 +40,18 @@ export default defineConfig({
     //    `standalone_shadow_key()` 回落 admin token ⇒ ⇒ 配了 admin 钥匙之后
     //    shadow 读门就**关上了** ⇒ ⇒ 客户端必须带上凭据）。
     // ⇒ ⇒ 没配 `SHADOW_E2E_ADMIN_KEY` 时**一个头都不加** ⇒ ⇒ 本地行为不变。
-    // ⇒ ⇒ 实测（本地探针）：`extraHTTPHeaders` **会**覆盖 `page.request`
+    // ⇒ ⇒ ⚠️ **这两个头必须嵌在 `extraHTTPHeaders` 里面** —— 2026-11-05 真机实测：
+    //    spread 到 `use` 的**顶层**会被 Playwright **静默忽略**（既不报错也不告警，
+    //    测试照样 pass ⇒ ⇒ 头一个都发不出去 ⇒ ⇒ 端脑那扇门一律 401）。
+    // ⇒ ⇒ 实测（Playwright 1.62.1，用本地回显服务器量到的**请求头**）：
+    //    正确嵌套时 `page.request` / `request` fixture / `page.goto` **都带上了**
     //    ⇒ ⇒ 一处配置就够，不必在每个调用点手写头。
     ...(process.env.SHADOW_E2E_ADMIN_KEY
       ? {
-          'x-admin-token': process.env.SHADOW_E2E_ADMIN_KEY,
-          'x-shadow-key': process.env.SHADOW_E2E_ADMIN_KEY,
+          extraHTTPHeaders: {
+            'x-admin-token': process.env.SHADOW_E2E_ADMIN_KEY,
+            'x-shadow-key': process.env.SHADOW_E2E_ADMIN_KEY,
+          },
         }
       : {}),
   },

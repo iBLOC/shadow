@@ -187,4 +187,8 @@ jobs:
           name: telencephalon-server-log
           path: /tmp/shadow-e2e-logs/telencephalon-server.log
           retention-days: 7
-          if-no-files-found: ignore
+          # ⚠️ **不许再静默** —— 2026-11-05 真机实测：这里原本写的是 `ignore`
+          #    ⇒ ⇒ 「什么都没传」被判成**绿** ⇒ ⇒ 「端脑为什么那样答」在 CI 上
+          #    **判不了**却看不出来 ⇒ ⇒ 正是「**有防线 ≠ 防线生效**」。
+          # ⇒ ⇒ 改成 `error` ⇒ ⇒ 日志路径再漂一次就**当场变红**（而不是又一次静默绿）。
+          if-no-files-found: error

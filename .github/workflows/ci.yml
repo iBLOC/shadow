@@ -389,6 +389,17 @@ jobs:
       - name: Neuron ownership check (self-test)
         run: node scripts/check-neuron-ownership.mjs --self-test
 
+      # 「E2E 凭据头形状」闸 —— 端脑那几扇门在 CI 上是不是**真的**拿到了凭据。
+      # ⚠️ 这个形状错了**不会报错**：把两个头 spread 到 `use` 的顶层 ⇒ ⇒
+      #    Playwright **既不报错也不告警**（测试照样 pass）⇒ ⇒ 一个头都发不出去
+      #    ⇒ ⇒ 端脑那扇门一律 401 ⇒ ⇒ 那批红**长得像**鉴权失败，其实是形状错了。
+      - name: E2E credential shape check
+        run: node scripts/check-e2e-credential-shape.mjs
+
+      # 闸自己的自检（6 条用例，含**真实事故夹具** ＋ 孪生用例）。
+      - name: E2E credential shape check (self-test)
+        run: node scripts/check-e2e-credential-shape.mjs --self-test
+
       # 生成物是从属的：改 design-tokens.json 后必须重跑生成器。
       # 这条单独拎出来，让漂移的报错一眼能定位。
       - name: Design token drift check
