@@ -49,6 +49,10 @@
  *      里不许带。⇒ ⇒ 手机 APK 里若同时装了「带运行时的脑」与「带运行时的叶区」，
  *      那就是一个进程两套运行时。
  *   N9 脑内嵌的 neuron 必须带着推理后端（candle）—— 否则脑是空壳。
+ *   N10 **叶区的 manifest 里不许出现 neuron 依赖行** —— 叶区是「叶」
+ *      ⇒ ⇒ 推理能力归大脑 ⇒ ⇒ 「不推理」必须是**结构事实**，不是「默认关」。
+ *   N11 **叶区解析后的依赖图里不许有 neuron** —— 认**解析后的图**，不认
+ *      manifest 的字面 ⇒ ⇒ 防的是**传递边**（N10 看不见的那些）。
  *
  * 用法：node scripts/check-neuron-ownership.mjs
  *       node scripts/check-neuron-ownership.mjs --no-cargo   （跳过 feature 图）
@@ -105,6 +109,25 @@ const CONSUMER_REPOS = [
   { repo: 'occipital', dirs: ['src'] },
   { repo: 'amygdala', dirs: ['src'] },
   { repo: 'hippocampus', dirs: ['hippocampus-core/src', 'hippocampus-server/src'] },
+];
+
+/**
+ * **叶区**（lobe）—— 结构上**没有推理能力**的那些仓。
+ *
+ * ⚠️ 与「消费者」的区别：消费者是「不许实例化运行时」，叶区是
+ * **「连 neuron 这个 crate 都不许依赖」** ⇒ ⇒ 前者是行为约束，后者是
+ * 结构约束 ⇒ ⇒ 后者更强 ⇒ ⇒ 所以这两层判据（N10 声明层 / N11 解析层）要单列。
+ *
+ * ⚠️ hippocampus **不在**这个名单里 —— 它有两种形态（见 CONSUMER_REPOS
+ * 的注释），独立托管那侧**允许**自己嵌一个 neuron。
+ */
+const LEAF_REPOS = [
+  'prefrontal',
+  'diencephalon',
+  'temporal',
+  'parietal',
+  'occipital',
+  'amygdala',
 ];
 
 /** 本仓内的消费者。 */
@@ -189,6 +212,21 @@ function repoRoot(name) {
   const inside = join(ROOT, name);
   if (existsSync(inside)) return inside;
   return null;
+}
+
+/**
+ * 某个仓的 manifest 在哪 —— **认两种布局**（本机工作区之外 / CI 工作区之内）。
+ *
+ * ⚠️ shadow-desktop 特判：它的 manifest 在 `shadow-desktop/src-tauri/` 下面，
+ * 不是仓根。
+ */
+function manifestPathOf(repo) {
+  if (repo === 'shadow-desktop') {
+    const p = join(ROOT, 'shadow-desktop', 'src-tauri', 'Cargo.toml');
+    return existsSync(p) ? p : null;
+  }
+  const root = repoRoot(repo);
+  return root ? join(root, 'Cargo.toml') : null;
 }
 
 /** 收集要判的代码（键 = 仓内相对路径，跨仓统一以仓名开头）。 */
@@ -370,10 +408,24 @@ function collectFeatureGraph(manifests) {
     const root = repoRoot('encephalon');
     if (root) push('encephalon', join(root, 'Cargo.toml'), 'neuron', 'brain-candle');
   }
+  // 消费者：图里不许出现 candle ⇒ ⇒ 叶区不在自己体内拖一份推理后端
+  // ⚠️ shadow-desktop 是**链顶宿主**（它持有脑内嵌的那一个 neuron）⇒ ⇒
+  //    它的图里本来就该带 candle ⇒ ⇒ 这里**必须排除**（否则假红）。
   for (const [repo, raw] of manifests) {
     if (OWNERS.has(repo)) continue;
+    if (repo === 'shadow-desktop') continue;
     if (!/^neuron\s*=\s*\{/m.test(manifestCode(raw))) continue;
-    push(repo, join(IBLOC, repo, 'Cargo.toml'), 'neuron', 'consumer-no-candle');
+    const mp = manifestPathOf(repo);
+    if (!mp) continue;
+    push(repo, mp, 'neuron', 'consumer-no-candle');
+  }
+  // 叶区：解析后的依赖图里**不许出现 neuron** ⇒ ⇒ 防传递边
+  // ⚠️ 目标**不许**按「manifest 里有没有 neuron 行」来挑 ⇒ ⇒ 否则
+  //    「那条边被删了」＝「这一层判据自己死了」⇒ ⇒ 那正是假绿最隐蔽的形态。
+  for (const repo of LEAF_REPOS) {
+    const mp = manifestPathOf(repo);
+    if (!mp) continue;
+    push(repo, mp, 'neuron', 'leaf-no-neuron');
   }
   const out = [];
   for (const t of targets) {
@@ -582,6 +634,47 @@ const RULES = [
       return findings;
     },
   },
+  {
+    id: 'N10',
+    why: '叶区的 manifest 里不许有 neuron 依赖行 —— 叶区是「叶」，推理能力归大脑',
+    check(ctx) {
+      const findings = [];
+      for (const repo of LEAF_REPOS) {
+        const raw = ctx.manifests.get(repo);
+        if (raw === undefined) continue;
+        for (const line of manifestCode(raw).split('\n')) {
+          // ⚠️ 只认**依赖行**（`neuron = { … }`），不认 feature 定义行
+          // （`neuron = []`）⇒ ⇒ 后者不是一条依赖边。
+          if (!/^(neuron|neuron_lib)\s*=\s*\{/.test(line.trim())) continue;
+          findings.push({
+            id: 'N10',
+            file: repo + '/Cargo.toml',
+            why: '叶区不许依赖 neuron ⇒ ⇒ 「叶区不推理」必须是结构事实（连依赖边都不许有），不是「默认关」',
+          });
+        }
+      }
+      return findings;
+    },
+  },
+  {
+    id: 'N11',
+    why: '叶区**解析后**的依赖图里不许有 neuron —— 认解析后的图，不认 manifest 的字面',
+    check(ctx) {
+      const findings = [];
+      for (const g of ctx.featureGraph || []) {
+        // ⚠️ 解析失败 = **未覆盖**，不等于违规 ⇒ ⇒ 覆盖情况会在主流程里打印
+        if (!g.ok) continue;
+        if (g.kind !== 'leaf-no-neuron') continue;
+        if (g.notInGraph) continue;
+        findings.push({
+          id: 'N11',
+          file: g.label,
+          why: '叶区的解析后依赖图里出现了 neuron ⇒ ⇒ 叶区拖了一份推理运行时进来（可能是传递边，N10 看不见）',
+        });
+      }
+      return findings;
+    },
+  },
 ];
 
 export function evaluate(ctx) {
@@ -599,7 +692,7 @@ function selfTest() {
     ['encephalon/src/surface.rs', 'crate::point_lobes_at_neuron(&lobes, &base);'],
   ]);
   const baseManifests = new Map([
-    ['prefrontal', '[dependencies]\nneuron = { path = "../neuron", default-features = false }'],
+    ['prefrontal', '[dependencies]\nhippocampus-core = { path = "../hippocampus/hippocampus-core" }'],
   ]);
   const cases = [
     {
@@ -691,6 +784,72 @@ function selfTest() {
         manifests.set('prefrontal', '[dependencies]\nneuron = { path = "../neuron" }');
         return evaluate({ code: new Map(baseCode), manifests });
       },
+    },
+    {
+      name: 'N10 正向：叶区 manifest 里有 neuron 依赖行 ⇒ 红',
+      id: 'N10',
+      want: 1,
+      run: () => {
+        const manifests = new Map(baseManifests);
+        manifests.set('prefrontal', '[dependencies]\nneuron = { path = "../neuron", default-features = false }');
+        return evaluate({ code: new Map(baseCode), manifests });
+      },
+    },
+    {
+      name: 'N10 孪生：大脑仓（telencephalon）有 neuron 依赖行 ⇒ 不红',
+      id: 'N10',
+      want: 0,
+      run: () => {
+        const manifests = new Map(baseManifests);
+        manifests.set('telencephalon', '[dependencies]\nneuron = { path = "../neuron", default-features = false }\n[features]\ncandle = ["neuron/candle"]');
+        return evaluate({ code: new Map(baseCode), manifests });
+      },
+    },
+    {
+      name: 'N10 孪生：叶区 manifest 里只是注释提到 neuron ⇒ 不红',
+      id: 'N10',
+      want: 0,
+      run: () => {
+        const manifests = new Map(baseManifests);
+        manifests.set('prefrontal', '# 以前是 neuron = { path = "../neuron" }\n[dependencies]\nhippocampus-core = { path = "../hippocampus/hippocampus-core" }');
+        return evaluate({ code: new Map(baseCode), manifests });
+      },
+    },
+    {
+      name: 'N11 正向：叶区的解析后依赖图里出现 neuron ⇒ 红',
+      id: 'N11',
+      want: 1,
+      run: () =>
+        evaluate({
+          code: new Map(baseCode),
+          manifests: new Map(baseManifests),
+          featureGraph: [{ label: 'prefrontal → neuron', ok: true, kind: 'leaf-no-neuron', features: ['candle'], notInGraph: false }],
+          artifacts: [],
+        }),
+    },
+    {
+      name: 'N11 孪生：叶区的图里没有 neuron ⇒ 不红',
+      id: 'N11',
+      want: 0,
+      run: () =>
+        evaluate({
+          code: new Map(baseCode),
+          manifests: new Map(baseManifests),
+          featureGraph: [{ label: 'prefrontal → neuron', ok: true, kind: 'leaf-no-neuron', features: [], notInGraph: true }],
+          artifacts: [],
+        }),
+    },
+    {
+      name: 'N11 未覆盖：图解析失败 ⇒ 不红（覆盖情况会打印）',
+      id: 'N11',
+      want: 0,
+      run: () =>
+        evaluate({
+          code: new Map(baseCode),
+          manifests: new Map(baseManifests),
+          featureGraph: [{ label: 'prefrontal → neuron', ok: false, reason: 'cargo 跑不起来', kind: 'leaf-no-neuron', features: [] }],
+          artifacts: [],
+        }),
     },
     {
       name: 'N4 孪生：feature 定义行（neuron = []）⇒ 不红',
@@ -991,6 +1150,7 @@ if (process.argv.includes('--self-test')) {
   if (findings.length === 0) {
     console.log('  · 消费者不实例化 neuron ｜ 桌面端交出脑内嵌的那一个 ｜ 叶区指向脑面');
     console.log('  · 脑侧 feature 图里没有 local-models ｜ 产物里只有一套运行时');
+    console.log('  · 叶区既没有 neuron 依赖行（N10）｜ 解析后的依赖图里也没有 neuron（N11）');
     console.log('─'.repeat(72));
     console.log('阻断 0 项');
     process.exit(0);
