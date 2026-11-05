@@ -104,6 +104,24 @@ jobs:
           path: neuron
           token: ${{ secrets.IBLOC_TOKEN }}
 
+      # ⚠️ 2026-11-06：零信任面闸（check-ziti-face）要判 **encephalon /
+      #    telencephalon** 两个位置的接线 ⇒ ⇒ 这个 job 之前没检出它们 ⇒ ⇒
+      #    CI 上闸以退出码 2「判不了」（真跑即红 —— 而它接进 CI 的那天
+      #    本地是绿的：本机布局判的是工作区**之外**的兄弟仓）。
+      - name: Checkout encephalon
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/encephalon
+          path: encephalon
+          token: ${{ secrets.IBLOC_TOKEN }}
+
+      - name: Checkout telencephalon
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/telencephalon
+          path: telencephalon
+          token: ${{ secrets.IBLOC_TOKEN }}
+
       # ⚠️⚠️ 2026-11-05：**这个 job 之前编不过 —— 而 CI 因账号计费红着，
       #    没人看见。** 根因：v2 搬去 iBLOC/ziti-rust 之后，synapse 的
       #    `ziti-v2` 是 **path 依赖**（`../ziti-rust/crates/ziti-v2`）⇒ ⇒
