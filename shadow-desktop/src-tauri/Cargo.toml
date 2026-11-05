@@ -54,6 +54,19 @@ tauri = { version = "~2.11", default-features = false, features = [
     "unstable",
 ] }
 tauri-plugin-opener = "~2.5"
+# ⚠️⚠️ **Tauri 家族必须整族钉在同一条 minor 线上** —— 而 tauri 自己对这些
+#    辅助 crate 用的是 **caret** 要求（`tauri-macros = "2.6.3"` 实际允许
+#    2.7.x）⇒ ⇒ ⇒ cargo 会把它们**统一到 2.7 那一线**（那是配 tauri 2.12 的）
+#    ⇒ ⇒ ⇒ ⇒ 而 `tauri` 自己停在 2.11 ⇒ ⇒ ⇒ ⇒ ⇒ 那条 proc-macro
+#    （`tauri_macros::do_menu_item!`）会吐出一个 **2.12 才有的**错误变体
+#    ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ 而 2.11 的 `tauri::error::Error` 里**没有**它 ⇒ ⇒ ⇒ ⇒
+#    ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ **tauri 自己编不过**：
+#      error[E0599]: no variant … named `UnexpectedMenuKind` found for enum
+#      `error::Error`  →  could not compile `tauri` (lib)
+#    ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒
+#    ⇒ ⇒ ⇒ ⇒ ⇒ 这里把 `tauri-macros` **提成直接依赖** ⇒ ⇒ 只为**钉住那一族**
+#    ⇒ ⇒ ⇒ （它本来就在依赖图里 ⇒ ⇒ 不增加任何编译量）。
+tauri-macros = "~2.6"
 tauri-plugin-single-instance = "2"
 tauri-plugin-wdio-webdriver = "1.3"
 serde = { version = "1", features = ["derive"] }
