@@ -94,6 +94,15 @@ export const SURFACES = [
     why: '用户级偏好 ⇒ ⇒ 论文点名的 authority lapse（撤回后仍被执行）就发生在这里 ⇒ ⇒ 今天只有一条，且**没有撤销通道**',
   },
   {
+    id: 'revocation-ledger',
+    label: '撤销账本（state/revocation-ledger.json）',
+    scope: 'repo',
+    rel: 'state/revocation-ledger.json',
+    kind: 'json-ledger',
+    judge: false,
+    why: '用户偏好的撤销记录（论文 §9.6 的 deletion ledger）⇒ ⇒ **由 check-preference-revocation.mjs 专判**（信封 / 权限 / 目标 / 防 lapse / 传播）⇒ ⇒ 本闸只登记',
+  },
+  {
     id: 'session-archive',
     label: '会话档案',
     scope: 'local',
@@ -188,9 +197,9 @@ export const KNOWN_DEBT = [
   {
     surface: 'agent-memory',
     kind: 'dangling-symbol-ref',
-    count: 1,
-    why: '一条记忆（「Flutter 真机集成测试：退出码会撒谎」）里写「承㋱」⇒ ⇒ 但记忆层**没有带圈编号体系** ⇒ ⇒ 这个符号在本面解析不到 ⇒ ⇒ 它是**从账本那边抄过来的编号**⇒ ⇒ 读者无法定位',
-    when: 'P1（改成那条记忆的标题引用；或给记忆层也建编号体系）',
+    count: 4,
+    why: '同一条记忆（「Flutter 真机集成测试：退出码会撒谎」）里出现「承㋱」×3 ＋「承㋤」×1 ⇒ ⇒ 但记忆层**没有带圈编号体系** ⇒ ⇒ 这些符号在本面解析不到 ⇒ ⇒ 它们是**从账本那边抄过来的编号**⇒ ⇒ 读者无法定位。⚠️ **2026-11-05 实测：计数从 1 涨到 4** ⇒ ⇒ 成因是**记忆层每次提到账本条目就顺手抄它的带圈编号** ⇒ ⇒ 这个计数会**单调增长** ⇒ ⇒ 靠「登记」堵不住 ⇒ ⇒ 真解是**禁止在记忆层用带圈引用**（或给记忆层也建编号体系）',
+    when: 'P1（两条路：① 记忆层改用**条目标题**引用，不再抄带圈编号 ⇒ ⇒ 一条判据根治；② 给记忆层也建编号体系 ⇒ ⇒ 但记忆是跨项目的、账本编号是项目内的 ⇒ ⇒ 跨层抄编号本身就是错的 ⇒ ⇒ 走 ①）—— ⚠️ 本轮**只登记不追溯改**：这 4 处里有「承㋱」，而 ㋱ 在父仓**被两条条目占用**（历史撞号）⇒ ⇒ 要改成标题引用得先解开那个歧义 ⇒ ⇒ 与「duplicate-marker」那笔债一起还',
   },
   {
     surface: 'agent-memory',

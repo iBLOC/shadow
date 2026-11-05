@@ -1,0 +1,18 @@
+{
+  "schema": "ibloc/revocation-ledger@1",
+  "note": "用户偏好的撤销账本（deletion ledger）—— arXiv:2606.30306 §9.6 的最小落法。每条记录一次撤回：谁授权、什么时候、来源是什么、为什么。账本只追加：撤销记录不许被抹掉，要恢复就另写一条 restore。",
+  "entries": [
+    {
+      "id": "rev-0001",
+      "target": { "surface": "user-memory", "key": "撤销通道演练偏好" },
+      "action": "revoke",
+      "epoch": "2026-11-05",
+      "authority": "user",
+      "scope": "user",
+      "source": "2026-11-05 撤销通道闸的真机演练：写入后立即撤回",
+      "status": "active",
+      "supersedes": "none",
+      "reason": "演练条目：验证「撤了必须生效 + 必须有来源 + 必须传播」三道判据在真实面上会红会绿"
+    }
+  ]
+}

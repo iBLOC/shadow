@@ -512,6 +512,19 @@ jobs:
       - name: State surface governance check (self-test)
         run: node scripts/check-state-surface.mjs --self-test
 
+      # 「用户偏好撤销通道」闸 —— **authority lapse 的机械形态**
+      # （arXiv:2606.30306 §2.5：用户撤回了偏好，agent 仍照做）。
+      # ⇒ ⇒ 它盯的是：撤了**有没有真的生效**（V4）、生效了**有没有来源**
+      #    （V5）、派生副本**有没有传播**（V6）、**谁授权的**（V2）。
+      # ⚠️ CI 里没有用户记忆面 ⇒ ⇒ V3/V4/V5/V6 那几条**明确报「本轮未覆盖」**
+      #    （不假装绿）⇒ ⇒ CI 守的是**账本自身**（V1/V2/V7）＋ 自检里的
+      #    **完整生命周期演练**（每一步该红的地方都红）。
+      - name: Preference revocation check
+        run: node scripts/check-preference-revocation.mjs
+
+      - name: Preference revocation check (self-test)
+        run: node scripts/check-preference-revocation.mjs --self-test
+
       # logo 几何同理：真相源在 brand/geom.mjs，两端图标与应用内标记都是
       # 生成物。改了几何忘了重跑 = 应用图标与应用内 logo 悄悄对不上。
       - name: Brand asset drift check

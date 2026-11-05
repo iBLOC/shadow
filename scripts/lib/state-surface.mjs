@@ -169,6 +169,10 @@ export function splitEntries(text, kind) {
       index: k,
       line: from + 1,
       date: starts[k].date,
+      // ⛔⛔ **head 是加法字段**（2026-11-05）⇒ ⇒ 撤销通道的判据要读**标题行原文**
+      //    （判撤销形态的尾部锚点）⇒ ⇒ 下面的判据只认标题的**形状**
+      //    ⇒ ⇒ 不认关键词（正文里提一句「已撤回」不算撤回）。
+      head: starts[k].head,
       title: titleOf(starts[k].head),
       symbols,
       body,
