@@ -4,6 +4,12 @@ Shadow 的**桌面端**：Tauri 2 + React 19 的外壳，Rust sidecar 在**同�
 
 桌面端与移动端是同一个 agent 的两个终端 —— 通信链路完全一致：**大脑 → 端脑 → 叶区**。
 
+## ⬇️ 下载
+
+安装包在**本仓**的 [Releases 页面](https://github.com/iBLOC/shadow/releases/latest)：
+Windows `*.msi` ／ macOS `*.dmg` ／ Linux `*.deb` `*.AppImage` `*.rpm`。
+桌面端的自动更新也从这个页面取 `latest.json`。
+
 ## 技术栈
 
 | 领域 | 选型 |

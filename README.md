@@ -1,10 +1,27 @@
-[![CI](https://github.com/ibloc/shadow/actions/workflows/ci.yml/badge.svg)](https://github.com/ibloc/shadow/actions/workflows/ci.yml)
+[![CI](https://github.com/iBLOC/shadow/actions/workflows/ci.yml/badge.svg)](https://github.com/iBLOC/shadow/actions/workflows/ci.yml)
 
 # Shadow (影) — 每个人的影子 / A Personal Agent for Everyone
 
 Shadow 是跑在**用户自己设备上**的个人助理（AI 影子）。桌面端与移动端是**同一个 agent 的两个终端**：共享同一套大脑、同一套端脑、同一份设计语言。
 
 > Canonical project knowledge base: **[`AGENTS.md`](AGENTS.md)**（持续更新）。本 README 只做落地页摘要；细节以 `AGENTS.md` 与 [`docs/superpowers/architecture/`](docs/superpowers/architecture/) 为准。
+
+## ⬇️ 下载 / Download
+
+**一个仓库，一个下载入口** —— 桌面端、移动端、浏览器版都在本仓的
+[Releases 页面](https://github.com/iBLOC/shadow/releases/latest)。
+
+| 平台 | 文件 | 说明 |
+|---|---|---|
+| Windows | `*.msi` | 安装包（推荐） |
+| macOS | `*.dmg` | Apple Silicon / Intel 通用 |
+| Linux | `*.deb` · `*.AppImage` · `*.rpm` | 依发行版挑 |
+| Android | `*.apk` | 按 ABI 分包 |
+| 浏览器 | `shadow-web.zip` | 免安装，解压即用 |
+
+发布由 [`.github/workflows/release.yml`](.github/workflows/release.yml) 在 `v*` 标签上触发：三个桌面平台的 Tauri 包 ＋ Android APK ＋ 网页版**一起挂到同一个 Release** 上。桌面端的自动更新也从这个页面取 `latest.json`。
+
+> 源码与全部客户端都在本仓：`shadow-desktop/`（Tauri 2 + React 19）、`shadow-mobile/`（Flutter）、`shadow-esp32/`（Zephyr 边缘端）。
 
 ## 🔗 通信链路 —— 所有通信都走 大脑 → 端脑 → 叶区
 

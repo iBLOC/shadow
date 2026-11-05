@@ -1,25 +1,147 @@
 name: Release
 
+# One repo, one download surface.
+#
+# Everything a user can install is published as an asset of a **GitHub
+# Release** on this repository: the Tauri bundles (Windows / macOS / Linux),
+# the Android APK, and the web build. Workflow *artifacts* are not a
+# distribution channel — they expire (5 days by default) and need a
+# signed-in account, so they cannot be the thing users download.
+#
+# ── Layout ────────────────────────────────────────────────────────────
+# The iBLOC stack is a multi-repo local-path workspace: every crate
+# resolves its siblings via `path = "../<repo>"`. Two consequences:
+#
+#   1. `actions/checkout` refuses any path *outside* GITHUB_WORKSPACE, so
+#      the siblings must be checked out into workspace sub-directories.
+#   2. The desktop app's own path deps are spelled `../../../<repo>`
+#      (relative to `shadow-desktop/src-tauri/`). That only lands inside
+#      the workspace if **this repo is itself nested** — hence
+#      `path: shadow` below. With shadow at the workspace root, those
+#      deps would point one level above the workspace and cargo would
+#      fail to load the manifests.
+#
+# The closure this job needs (transitive `path` deps, comments stripped):
+#   synapse, diencephalon, hippocampus, neuron, prefrontal,
+#   telencephalon, encephalon, ziti-rust
+
 on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to publish under (e.g. v0.1.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
+env:
+  CARGO_TERM_COLOR: always
+  # The dependency tree (lance + datafusion + candle) produces multi-GB
+  # debug artifacts; the hosted runner runs out of disk before it can link
+  # them ("No space left on device").
+  CARGO_PROFILE_DEV_DEBUG: '0'
+  CARGO_PROFILE_RELEASE_DEBUG: '0'
+  CARGO_INCREMENTAL: '0'
+
 jobs:
-  desktop-tauri:
+  # ---------------------------------------------------------------------
+  # Desktop: Tauri bundles for the three desktop platforms.
+  # ---------------------------------------------------------------------
+  desktop:
     name: Tauri Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Checkout shadow
+        uses: actions/checkout@v7
+        with:
+          path: shadow
+
+      - name: Require cross-repo token
+        env:
+          IBLOC_TOKEN: ${{ secrets.IBLOC_TOKEN }}
+        run: |
+          if [ -z "$IBLOC_TOKEN" ]; then
+            echo "::error::secrets.IBLOC_TOKEN is not configured."
+            echo "::error::The iBLOC stack is a local-path workspace. telencephalon,"
+            echo "::error::prefrontal, hippocampus, diencephalon, neuron, synapse,"
+            echo "::error::encephalon and ziti-rust are private siblings and cannot"
+            echo "::error::be checked out with the default GITHUB_TOKEN, which is"
+            echo "::error::scoped to iBLOC/shadow only."
+            exit 1
+          fi
+
+      - name: Checkout telencephalon
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/telencephalon
+          path: telencephalon
+          token: ${{ secrets.IBLOC_TOKEN }}
+
+      - name: Checkout encephalon
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/encephalon
+          path: encephalon
+          token: ${{ secrets.IBLOC_TOKEN }}
+
+      - name: Checkout diencephalon
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/diencephalon
+          path: diencephalon
+          token: ${{ secrets.IBLOC_TOKEN }}
+
+      - name: Checkout synapse
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/synapse
+          path: synapse
+          token: ${{ secrets.IBLOC_TOKEN }}
+
+      - name: Checkout prefrontal
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/prefrontal
+          path: prefrontal
+          token: ${{ secrets.IBLOC_TOKEN }}
+
+      - name: Checkout hippocampus
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/hippocampus
+          path: hippocampus
+          token: ${{ secrets.IBLOC_TOKEN }}
+
+      - name: Checkout neuron
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/neuron
+          path: neuron
+          token: ${{ secrets.IBLOC_TOKEN }}
+
+      # ziti-rust holds synapse's `ziti-v2` crate. Cargo reads the manifest
+      # of an **optional** path dependency too, so it must be in place for
+      # the dependency graph to resolve at all.
+      - name: Checkout ziti-rust
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/ziti-rust
+          path: ziti-rust
+          token: ${{ secrets.IBLOC_TOKEN }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -31,11 +153,30 @@ jobs:
         with:
           node-version: '20'
           cache: pnpm
+          cache-dependency-path: shadow/shadow-desktop/pnpm-lock.yaml
+
+      - name: Free disk space (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost
+          sudo rm -rf /usr/local/lib/android /opt/hostedtoolcache/CodeSC
+          sudo rm -rf /usr/local/share/swift /usr/local/share/powershell
+          sudo rm -f /swapfile
+          df -h /home/runner
 
       - name: Setup Rust
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinz/rust-cache@v2
         with:
-          workspaces: ./shadow-desktop/src-tauri
+          workspaces: |
+            shadow/shadow-desktop/src-tauri
+
+      # lance-encoding's build script compiles .proto files with prost —
+      # it needs protoc, which the runner image does not guarantee.
+      - name: Install protoc (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq protobuf-compiler
 
       - name: Setup Tauri dependencies (Linux)
         if: matrix.os == 'ubuntu-latest'
@@ -44,12 +185,47 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libgtk-3-dev libayatana-appindicator3-dev
         shell: bash
 
+      - name: Setup Tauri dependencies (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          brew install libomp
+        shell: bash
+
+      # The auto-updater needs the *public* key compiled into the binary and
+      # the *private* key to sign the artifacts. The private key only ever
+      # exists as a repository secret. When they are absent the release
+      # still ships — it just ships without updater artifacts, and says so.
+      - name: Configure updater signing
+        id: updater
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          TAURI_UPDATER_PUBKEY: ${{ vars.TAURI_UPDATER_PUBKEY }}
+        run: |
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ] || [ -z "$TAURI_UPDATER_PUBKEY" ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No updater signing key configured — shipping without updater artifacts."
+            exit 0
+          fi
+          echo "enabled=true" >> "$GITHUB_OUTPUT"
+          node -e '
+            const fs = require("fs");
+            const p = "shadow/shadow-desktop/src-tauri/tauri.conf.json";
+            const c = JSON.parse(fs.readFileSync(p, "utf8"));
+            c.bundle.createUpdaterArtifacts = true;
+            c.plugins.updater.pubkey = process.env.TAURI_UPDATER_PUBKEY;
+            fs.writeFileSync(p, JSON.stringify(c, null, 2) + "\n");
+          '
+          echo "TAURI_SIGNING_PRIVATE_KEY=$TAURI_SIGNING_PRIVATE_KEY" >> "$GITHUB_ENV"
+          echo "TAURI_SIGNING_PRIVATE_KEY_PASSWORD=$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" >> "$GITHUB_ENV"
+
       - name: Install dependencies
-        working-directory: shadow-desktop
+        working-directory: shadow/shadow-desktop
         run: pnpm install --frozen-lockfile
 
       - name: Build Tauri
-        working-directory: shadow-desktop
+        working-directory: shadow/shadow-desktop
         run: pnpm tauri build
 
       - name: Upload artifact
@@ -57,18 +233,27 @@ jobs:
         with:
           name: tauri-bundle-${{ matrix.os }}
           path: |
-            shadow-desktop/src-tauri/target/release/bundle/**
+            shadow/shadow-desktop/src-tauri/target/release/bundle/**
           retention-days: 5
 
-  web-pwa:
+  # ---------------------------------------------------------------------
+  # Web: the PWA build. Attached to the release as a zip, and deployed to
+  # GitHub Pages when Pages is enabled for this repository.
+  # ---------------------------------------------------------------------
+  web:
     name: Web PWA
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       pages: write
       id-token: write
+    outputs:
+      pages_enabled: ${{ steps.pages.outputs.enabled }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Checkout shadow
+        uses: actions/checkout@v7
+        with:
+          path: shadow
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -80,29 +265,65 @@ jobs:
         with:
           node-version: '20'
           cache: pnpm
+          cache-dependency-path: shadow/shadow-desktop/pnpm-lock.yaml
 
       - name: Install dependencies
-        working-directory: shadow-desktop
+        working-directory: shadow/shadow-desktop
         run: pnpm install --frozen-lockfile
 
       - name: Build web
-        working-directory: shadow-desktop
+        working-directory: shadow/shadow-desktop
         run: pnpm build:web
 
+      - name: Package web build
+        run: |
+          mkdir -p dist-pkg/shadow-web
+          cp -r shadow/shadow-desktop/dist-web/. dist-pkg/shadow-web/
+          (cd dist-pkg && zip -qr shadow-web.zip shadow-web)
+
       - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-pwa
+          path: |
+            dist-pkg/shadow-web.zip
+          retention-days: 5
+
+      # Pages is a convenience mirror, not the distribution channel. If it
+      # is not enabled for this repository the deploy is skipped — the
+      # release still carries the web build.
+      - name: Detect Pages
+        id: pages
+        shell: bash
+        run: |
+          if gh api "repos/${GITHUB_REPOSITORY}/pages" >/dev/null 2>&1; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::GitHub Pages is not enabled for this repository — skipping the Pages deploy."
+          fi
+
+      - name: Upload GitHub Pages artifact
+        if: steps.pages.outputs.enabled == 'true'
         uses: actions/upload-pages-artifact@v3
         with:
-          path: shadow-desktop/dist-web
+          path: shadow/shadow-desktop/dist-web
 
       - name: Deploy to GitHub Pages
+        if: steps.pages.outputs.enabled == 'true'
         uses: actions/deploy-pages@v4
 
-  mobile-apk:
+  # ---------------------------------------------------------------------
+  # Mobile: the Android APK.
+  # ---------------------------------------------------------------------
+  mobile:
     name: Mobile APK
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Checkout shadow
+        uses: actions/checkout@v7
+        with:
+          path: shadow
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -113,23 +334,23 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.47.8'
+          flutter-version: '3.11'
           channel: stable
 
       - name: Cache Flutter pub
         uses: actions/cache@v4
         with:
           path: ~/.pub-cache
-          key: ${{ runner.os }}-flutter-pub-${{ hashFiles('shadow-mobile/pubspec.yaml') }}
+          key: ${{ runner.os }}-flutter-pub-${{ hashFiles('shadow/shadow-mobile/pubspec.yaml') }}
           restore-keys: |
             ${{ runner.os }}-flutter-pub-
 
       - name: Flutter pub get
-        working-directory: shadow-mobile
+        working-directory: shadow/shadow-mobile
         run: flutter pub get
 
       - name: Build APK
-        working-directory: shadow-mobile
+        working-directory: shadow/shadow-mobile
         run: flutter build apk --release --split-per-abi
 
       - name: Upload artifact
@@ -137,5 +358,131 @@ jobs:
         with:
           name: mobile-apk
           path: |
-            shadow-mobile/build/app/outputs/flutter-apk/**
+            shadow/shadow-mobile/build/app/outputs/flutter-apk/**
           retention-days: 5
+
+  # ---------------------------------------------------------------------
+  # Publish: everything above becomes one GitHub Release — the single
+  # download surface for users.
+  # ---------------------------------------------------------------------
+  publish:
+    name: Publish Release
+    runs-on: ubuntu-latest
+    needs: [desktop, web, mobile]
+    steps:
+      - name: Checkout shadow
+        uses: actions/checkout@v7
+        with:
+          path: shadow
+
+      - name: Resolve tag
+        id: tag
+        shell: bash
+        env:
+          DISPATCH_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          if [ -n "$DISPATCH_TAG" ]; then
+            tag="$DISPATCH_TAG"
+          else
+            tag="${GITHUB_REF_NAME}"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "RELEASE_TAG=$tag" >> "$GITHUB_ENV"
+
+      # A release whose installer says 0.2.0 while the tag says v0.1.0 is
+      # the kind of thing that is only discovered by a user. Fail here.
+      - name: Check tag matches the bundled version
+        shell: bash
+        run: |
+          set -euo pipefail
+          want="$(node -p "require('./shadow/shadow-desktop/src-tauri/tauri.conf.json').version")"
+          got="${RELEASE_TAG#v}"
+          if [ "$want" != "$got" ]; then
+            echo "::error::Tag $RELEASE_TAG does not match tauri.conf.json version $want"
+            exit 1
+          fi
+          echo "Tag $RELEASE_TAG matches tauri.conf.json version $want"
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Collect release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+          find dist -type f | while read -r f; do
+            base="$(basename "$f")"
+            # Bundlers emit several files with the same basename across
+            # platforms (e.g. `latest.json`); keep them apart.
+            case "$base" in
+              *.msi|*.exe|*.dmg|*.deb|*.AppImage|*.rpm|*.app.tar.gz|*.apk|*.aab|*.zip|*.sig|latest.json)
+                target="release-assets/$base"
+                n=1
+                while [ -e "$target" ]; do
+                  target="release-assets/${base%.*}-$n.${base##*.}"
+                  n=$((n+1))
+                done
+                cp "$f" "$target"
+                ;;
+            esac
+          done
+          echo "--- assets ---"
+          ls -la release-assets/
+          # An empty release is worse than a failed one: the tag exists, the
+          # page looks fine, and there is nothing to download.
+          if [ -z "$(ls -A release-assets)" ]; then
+            echo "::error::No release assets were collected — refusing to publish an empty release."
+            exit 1
+          fi
+
+      - name: Write release notes
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          cat > notes.md <<'EOF'
+          ## 下载
+
+          | 平台 | 文件 |
+          |---|---|
+          | Windows | `*.msi`（安装包）／ `*.exe`（便携版） |
+          | macOS | `*.dmg` ／ `*.app.tar.gz` |
+          | Linux | `*.deb` ／ `*.AppImage` ／ `*.rpm` |
+          | Android | `*.apk`（按 ABI 分包） |
+          | 浏览器 | `shadow-web.zip`（免安装） |
+
+          桌面端内置自动更新：它从本仓的 Releases 页面取 `latest.json`。
+          EOF
+          # Auto-generated notes say what changed; the table above says how
+          # to install. Keep both — but never let one silently replace the
+          # other, so the generated part is fetched explicitly.
+          auto="$(gh api --method POST "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+            -f tag_name="$RELEASE_TAG" --jq .body 2>/dev/null || true)"
+          if [ -n "$auto" ]; then
+            { cat notes.md; printf '\n---\n\n%s\n' "$auto"; } > notes-final.md
+          else
+            cp notes.md notes-final.md
+          fi
+
+      - name: Create or update the GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" release-assets/* --clobber
+            gh release edit "$RELEASE_TAG" --title "Shadow $RELEASE_TAG" --notes-file notes-final.md
+          else
+            gh release create "$RELEASE_TAG" release-assets/* \
+              --title "Shadow $RELEASE_TAG" \
+              --notes-file notes-final.md
+          fi
