@@ -69,9 +69,19 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join, relative, extname } from 'node:path';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const ENCEPH = join(ROOT, '..', 'encephalon');
-const TELENCEPH = join(ROOT, '..', 'telencephalon');
-const SYNAPSE = join(ROOT, '..', 'synapse');
+// ⚠️ **两种布局都要认**（2026-11-06 CI 首跑 run 42137603583 实测：只认布局 A
+//    ⇒ CI 上 exit 2「读不到 ⇒ 判不了」⇒ 红的是**布局层**不是判据层）：
+//    · A（本机）：兄弟仓在 shadow 仓**之外**（`../<name>`）
+//    · B（CI）：兄弟仓被 checkout 到 shadow 仓根**之下**（`<name>` 子目录）
+//    与 check-ziti-v2-wire.mjs 的 findRepoPath 同款（那份先落地，抄它）。
+function sibling(name) {
+  const a = join(ROOT, '..', name);
+  if (existsSync(a)) return a;
+  return join(ROOT, name);
+}
+const ENCEPH = sibling('encephalon');
+const TELENCEPH = sibling('telencephalon');
+const SYNAPSE = sibling('synapse');
 const DESKTOP_RS = join(ROOT, 'shadow-desktop', 'src-tauri', 'src');
 
 const SKIP_DIRS = new Set(['node_modules', 'target', 'build', '.git', 'dist', 'Pods']);
