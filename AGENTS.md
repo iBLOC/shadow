@@ -1,5 +1,21 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-06 (㎱ **「prefrontal dispatch 401 判了 —— 端脑自调用 skill 执行链没递自己的钥匙，测试绿生产红的形状成因找到，施工图留给 telencephalon」** —— 承 ㎫ 条⑦④（「prefrontal dispatch 401 待判」那笔），本条记**逐字取证链**、**根因五环**、**两个症状为什么一绿一红**、**修复施工图与安全约束**，以及**为什么本刀不修**。）
+
+> 信封：epoch=2026-11-06 | authority=measured | scope=project | source=真机取证（CI run 42079173218 Desktop E2E job 日志逐字 401 响应体；telencephalon src 静态五环：door_policy.txt:118／self_call_headers 双钥匙设计／skill_router.rs 8 处 handle 尾参 None／api/prefrontal.rs:163 None／lobes/mod.rs:3206 测试传 Some(state)；intent.rs 关键词表全中文；telencephalon 工作树 5 M＝并行会话活跃；远端账本插入前 fetch 重核）| status=active | supersedes=none
+
+① **401 的逐字证据（「疑似」变「实测」）** —— run 42079173218 job 日志逐字：`Task create error: {"error":{"code":5022,"message":"prefrontal returned 401 Unauthorized: {\"error\":\"telencephalon_door_closed\",\"door\":\"admin\",\"path\":\"/api/telencephalon/prefrontal/dispatch\",\"policy_line\":118,\"detail\":\"这台端脑面的这一扇门要凭据：读门认 shadow key 或 admin token，写门认 admin token\"}"}}` ⇒ ⇒ 401 不是 prefrontal 独立进程的门，是**端脑自己的门拦了端脑自己的回环调用**——「内部转发没递 admin 钥匙」的疑点方向判对。
+
+② **根因五环** —— ❶ `door_policy.txt:118`：`/api/telencephalon/prefrontal/dispatch * * admin`（写门只认 admin token）；❷ 正确姿势在 `lobes/mod.rs::self_call_headers`：两把钥匙（`x-brain-internal` 过主人门＋`x-admin-token` 过读/写门），注释明写「app_state 为 None 时**不带**——那时 URL 可能指向远端 ⇒ 把钥匙寄给别人」；❸ `self_admin_token = app_state.map(|s| s.admin_token.as_ref())` ⇒ 钥匙有无**完全取决于 app_state**；❹ 生产路径 native temporal handle 尾参**全 None**：`a2a/skill_router.rs` 8 处（76/85/95/119/145/171）＋`api/prefrontal.rs:163`（dispatch 端点 native 路径）；❺ 对照：测试自己传 `Some(state)`（`lobes/mod.rs:3206`）⇒ ⇒ **测试绿、生产红**的形状成因——self-test 过从来不等于生产链过。
+
+③ **⚠️ 两个症状为什么一绿一红（同一缺陷、不同链）** —— dispatch 测试（`create_task:{json}` 显式格式）绿：`extract_task_request` 的关键词表**全是中文**（创建任务/添加任务/提醒我/记住/安排/约/会议/开会）⇒ 全英文 json 不命中 ⇒ intent 落默认 Chat ⇒ 走模型链正常回 reply ⇒ 200；task-create 消息链红：自然语言「帮我创建任务下午三点…」命中 TaskCreate ⇒ 进 skill 执行链 ⇒ 无钥匙 ⇒ 401。⇒ ⇒ **「显式格式绕过了带病链」不等于链没病**——绿测试可能只是没走到病的那一格。
+
+④ **修复施工图（留给 telencephalon 侧，本刀不落码）** —— dispatch/skill_router 的调用点在**能证明目标是自调用**时传 `Some(app_state)`：`api/prefrontal.rs` 的 neuron_url 本来就是 `self_call_base_url()` 生成的 ⇒ 该点可安全传；skill_router 各点逐一核 URL 来源后再传。**安全约束不能松**：None 时不带钥匙是防「寄钥匙给远端」的设计，不是 bug。修复后预期：task-create 消息链拿到真 reply（200），显式 dispatch 行为不变。
+
+⑤ **⚠️ 为什么本刀不修** —— 全部调用点在 telencephalon；fetch 该仓工作树 **5 个 M**（Cargo.lock／lobe_runtime／api/mod／providers／state＝并行会话活跃）⇒ 「不碰 telencephalon」纪律仍成立 ⇒ 本刀只归因＋登记施工图。⇒ ⇒ ㎫ 条⑦④从「待判」销为「**已判＋有施工图待修**」。
+
+⑥ **⚠️ 圈码**：本条占 **U+33B1（㎱）** —— 插入前 fetch 远端重核（占位声明不锁位，插入即占），码位闸＋CI Ledger codepoints 双层钉住。
+
 **Updated**: 2026-11-06 (㎰ **「守门人自己先改姓 —— cortex-residue 全族改名 legacy-residue 收口，shadow CI 10/10 全绿承重」** —— 承 ㎯ 条（同一天的 CI 面：那条的账户计费门外红本轮在 encephalon 上又一次），起于用户问「cortex 概念已过时废弃为什么你经常提到」⇒ 排查发现最刺眼的残留不在产品代码而在守门人自己身上：闸脚本文件名／CI job 名／step 名／输出横幅天天念旧名。本条记**改名范围与不改名清单**、**自检抓人（夹具不是命名）**、**telencephalon 三路注记（判据放松一格登记在案）**、**5 条 history 短语逐字保留**、**销 4 条过期豁免**、**分级读数**，以及**仍然欠着的**。）
 
 > 信封：epoch=2026-11-06 | authority=measured | scope=project | source=真机实测（判据级：根闸 ROOT_EXIT=0（4 范围 16 仓/1875 文件）、跨仓闸 CROSS_EXIT=0、self-test 全绿（5/5、16/16 仓、desktop 5/5、mobile 全绿）、encephalon 闸 EXIT=0＋self-test 5/5、YAML 闸 5 文件全过、纪律闸 41 道 0 违规（存量债 35）；CI 级：shadow run 42154344322（on a12e096）＝ success **10/10 job 全绿**、Legacy residue (cross-repo) 1m36s ✓、step 名 Cross-repo Legacy residue check 与 telencephalon 旧名注记逐字在日志；encephalon run 42154379026＝账户计费门外红（5 job 未启动 2-3s，与 42072168519/42028022490 同因＝存量）；远端账本今日 8 条 dups=0 max U+33AF）| status=active | supersedes=none
