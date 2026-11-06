@@ -1,5 +1,25 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-07 (㎶ **「模型管理『新增』重做 —— 旧 FAB 是往没人读的死表写字（失败长得像成功），现在云端指向供应商页自动获取、自持模型走 ZCode 风格表单＋内置注册表智能配置」** —— 承 ㎵ 条（同一天同仓的相邻面），本条记**病根取证**、**表单与注册表**、**落盘链路**、**在飞碰撞与归因**、**分级读数**，以及**仍然欠着的**。)
+
+> 信封：epoch=2026-11-07 | authority=measured | scope=project | source=真机实测（known_models 16 条＋model_metadata 6 条＋表单 widget 4 条全绿；analyze 本轮文件零问题；全套唯一红 = encephalon_page_credential_probe（stash 实验归因在飞线）；新 apk 115.9MB 装上 ee6b4832 pid 23543；远端账本 92 条 dups=0 max U+33B4 ⇒ 本条取 U+33B6 空闲 ✔）| status=active | supersedes=none
+
+① **✅ 病根（用户一句话点破，取证坐实）**：模型管理页的 FAB 开 4 字段「添加云端模型」对话框 ⇒ 写进本地 sqflite `models` 表 ⇒ 而运行时链路（大脑路由）**只读大脑的 `/models/providers`** ⇒ 用户手填的云端模型在对话里永远用不上 ⇒ **失败长得像成功**。⇒ 全仓盘点 `modelsProvider` 的消费者：只有本页自己 ＋ main.dart 的 `ModelManager` 播种（往同一张死表塞 `local_placeholder`）—— 那张表没有**任何**读取方。
+
+② **✅ 重做后的分工**（用户点名的需求逐条落位）：❶ **云端模型** → 顶部引导卡跳供应商页（`/manage/providers`）——「云端模型在添加云供应商的时候自动获取支持的模型」这条链路本来就在（preview ＋ fetch-models，两端同源）；本刀顺手把移动端对齐桌面体感：**key 停顿 800ms 自动预览**（此前要点「预览模型」）。❷ **自持模型** → FAB 开 `SelfHostedModelSheet`：模型 ID/显示名/接入点（ollama/vLLM/llama.cpp/LM Studio 快捷 chips）/API Key/**上下文窗口**/**最大输出 Token**/**输入类型**（文本/图片/音频/视频 chips）/**模型能力**/**推理等级（从低到高，2~4 档）**/**推理参数映射**（JSON 快照）/高级配置 —— 用户点名的 ZCode 字段**全覆盖**。
+
+③ **✅ 智能配置 = 内置注册表＋探测兜底**：`known_models.dart` 按**家族**匹配（OpenAI/Anthropic/Google/DeepSeek/Qwen/GLM/Kimi/Llama/Mistral，关键词＋精确两档，ollama 的 `name:tag` 剥 tag 再比对）；推理参数映射按 **apiStandard 分形**——OpenAI 系 `reasoning_effort`、Claude 原生 `thinking.budget_tokens`、开关型（Qwen3/GLM/Kimi）`enable_thinking`/`thinking.type`，档位越界回空 map（fail-closed）。未命中 ⇒ 「从接入点探测」复用大脑的无状态 preview 端点选 ID 回填。⇒ **选型依据**：注册表放客户端内置而非 synapse/telencephalon 目录 —— 不动兄弟仓，避开并行会话的跨仓工作面（用户拍板过移动端先行）。
+
+④ **✅ 落盘链路（大脑是唯一数据源＋客户端只补参数）**：提交 = `addProvider`（custom，openai 标准，⚠️ providerType **必须显式给**——大脑对缺省的兜底是 openai，写了 Claude 协议端点必坏）→ `updateProvider(selected_model)` 直选手填 ID（桌面端手动 fallback 同一条路）→ 元数据落**本地新表 `model_metadata`**（v4→v5 迁移；键=**模型 ID 字符串**不是供应商条目 id —— 参数长在模型身上不长在接入点上；孤儿容忍；坏 JSON 行解析失败按「没有」处理不抛进渲染）。
+
+⑤ **✅ 死代码销账**：`CloudModelConfigDialog` 与 `addCloudModel` 写链整刀删除；`capabilityLabel` 独立成 `capability_labels.dart`（**改名 `catalogCapabilityLabel`** —— 仓里已有 `Capability` 枚举版的 `capability_i18n.dart`，撞名会让同时 import 两边的文件编译红）；main.dart 的 `ModelManager` 播种删了。
+
+⑥ **⚠️⚠️ 在飞碰撞与归因（本刀最贵的一条）**：全套测试唯一红 = `encephalon_page_credential_probe_test.dart`（目录 401 页面不红屏）。**stash 实验**：把工作树退回 HEAD ⇒ 该测试**连加载都不过**（它 import 的页面 API 在 HEAD 上不存在）⇒ 测试是 11-02 提交的、页面正被并行会话在飞改 ⇒ **红属于在飞迭代线，不是本刀**（本刀没碰那个页面）。⇒ 本轮另见两处环境病：构建前 **`GeneratedPluginRegistrant.java` 残留 `integration_test`**（dev 依赖，release 不带）⇒ javac 红 ⇒ 删掉重新生成即过；**`sqlite3.dll` 被残留 flutter_tester 锁**（挂起的测试进程）⇒ 杀进程解锁。⇒ ⚠️ 与 ㎪ 条同族的教训：**共享文件无法按 hunk 拆提交** —— 本刀按路径提交**携带了**并行会话的在飞改动（目录卡方向 / providers sheet / arb 与生成 l10n 的主题键 / 目录注入版测试），提交信息里逐字列明，不静默扫库。
+
+⑦ **✅ 分级读数** —— **判据级**：known_models 16 条（匹配规则/映射形状/档位名/fail-closed）＋ model_metadata 6 条（往返/upsert/坏 JSON/孤儿）＋ 表单 widget 4 条（智能配置徽章/未命中不装懂/探测回填/提交链三连）**全绿**；**静态**：analyze 本轮文件零问题（存量 info/warning 未动）；**真机级**：新 apk **115.9MB** 装上 ee6b4832（pid 23543，无线 adb 192.168.31.85:5555）⇒ UI 级验收因手机锁屏（指纹）留待用户解锁手测；**账本**：远端 92 条 dups=0 max U+33B4 ⇒ 本条 U+33B6 空闲 ✔（⚠️ 插入时本地已被并行会话抢先占走 ㎵ ⇒ 顺延）。
+
+⑧ **⚠️ 仍然欠着** —— ① **推理参数注入发消息链路**（按映射改写请求体）——元数据本轮只落库＋显示，那是另一刀；② 桌面端同款表单对齐（桌面已有自动预览＋手动 fallback，字段扩展同款做一轮）；③ **真机 UI 验收**：解锁后走一遍（新增自持模型 → 供应商页出现 custom provider ＋选中模型 → 模型卡元数据徽章；云端路径：加 preset → 自动预览出列表）；④ 探测端点返回的 `context_length` 尚未回填进表单（大脑 preview 的 ModelSummary 有此字段，接上即多一分智能）；⑤ encephalon_page_credential_probe 的红归在飞线，等它落地后复跑。
+
 **Updated**: 2026-11-07 (㎵ **「移动端页面结构收口第一段＋死代码收刀 —— 能力 tab 首卡「默认模型」落地、agents 页收口成唯一 agent 面、7800 行死代码出仓；删除前逐符号复核抓到 4 个假孤儿」** —— 起于用户三个结构性判断（agent 面重复／大脑流程与能力页重复／无处设默认模型）＋「重新审视移动端页面结构、排查老死代码」，本条记**排查坐实**、**两刀内容**、**假孤儿教训**、**读数与归因**，以及**欠项清单更新（刀三施工图七件套）**。）
 
 > 信封：epoch=2026-11-07 | authority=measured | scope=project | source=真机实测（提交 be9f1a0＝54 文件 +674/−7810；flutter analyze **0 error**、本刀文件零问题（61 条存量 info/warning 未动）；agents_screen_test **7/7**（新增 3 条）；全量 **629 passed / 2 failed**——1 条本刀 pending Timer 已修、1 条并行在飞 401 测试隔离复现同挂；纪律闸本刀引入的 1 条契约违规已修，余 3 闸 self-test 红均非本刀；fetch 远端账本 104 条 distinct 65 max U+33B4）| status=active | supersedes=none
