@@ -49,7 +49,9 @@ export const NOT_WIRED_INTO_CI = {
     'door-policy 这类几十毫秒的），再处理要工具链的 ⇒ ⇒ ' +
     '接的时候同时补可数读数（否则会从「没接 CI」变成「接了但读数不可比」）' +
     '⇒ ⇒ ⚠️ ziti-v2-wire 已于 2026-11-05 接进 cortex-residue-stack job' +
-    '（那个 job 已检出 synapse ＋ ziti-rust ⇒ ⇒ 它才判得了）⇒ ⇒ 已从本清单销账',
+    '（那个 job 已检出 synapse ＋ ziti-rust ⇒ ⇒ 它才判得了）⇒ ⇒ 已从本清单销账' +
+    '⇒ ⇒ ⚠️ ziti-face 已于 2026-11-06 接进同一 job' +
+    '（纯文本闸、两个布局都判得了 ⇒ ⇒ 本地闸 EXIT=0 ＋ self-test 50/50 后推）⇒ ⇒ 已从本清单销账',
   gates: [
     'a2ui-session-identity',
     'agent-surface-credentials',
@@ -69,7 +71,6 @@ export const NOT_WIRED_INTO_CI = {
     'publish-address',
     'secret-plaintext',
     'tool-interception',
-    'ziti-face',
   ],
 };
 

@@ -998,7 +998,7 @@ if (process.argv.includes('--self-test')) {
 
   console.log('─'.repeat(72));
   if (fails === 0) {
-    console.log('✓ 自检全绿（50 条）');
+    console.log('✓ 自检：50/50 条全绿');
     process.exit(0);
   }
   console.error('✗ 自检 ' + fails + ' / 50 条红');
