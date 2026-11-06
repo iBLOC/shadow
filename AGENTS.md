@@ -1,5 +1,23 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-06 (㎯ **「ziti-rust 的 CI 五轮红真相＝账户计费把 job 挡在门外（门外红），真正能修的红只有 doctest 三条；Release 线顺带收口」** —— 承 ㎬ 条⑤③（ziti-rust CI 面那笔欠项），本条记**门外红的逐字取证**、**快照过时第三个 Case**、**doctest 缩进块跨仓复现**、**本地 +1.99.0 基线**、**Release 收口**，以及**仍然欠着的**。)
+
+> 信封：epoch=2026-11-06 | authority=measured | scope=project | source=真机实测（ziti-rust 本地 +1.99.0 基线：clippy --workspace --all-targets -D warnings **绿** 32.48s / lib **13 passed 0 failed** / doctest 改前 **0 passed 3 failed** → 改后**绿**；CI run 42021334129 与 42145959071 逐字 annotation 同因「payments have failed or spending limit」job 未启动 2s 无日志；Release **42081188427 ＝ success 1h24m20s**；远端账本 98 条 / distinct 86 / max U+33AD，33AE 空着让给并行会话 ⇒ 本条取 U+33AF）| status=active | supersedes=none
+
+① **⚠️⚠️ ziti-rust 的红从来不是代码红（门外红）** —— 五轮全 failure、每轮 2–4 秒、`--log-failed` 报 `log not found` ⇒ **job 从未启动**。逐字 annotation：「The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the Billing & plans section」。⇒ ⇒ **「红得快 ≠ 红在代码」——4 秒的红是「门外红」，先看 annotation 再拉日志**。而 shadow 仓同 org 的 run 昨晚今早都正常跑（Release 42081188427 success 1h24m / CI 42140873784 10/10 全绿）⇒ 同账户不同命运 ⇒ 堵点只能去 **Billing & plans**（账户主人动作），我这侧拉日志与点火都到头了。
+
+② **⚠️ 账本快照过时的第三个 Case** —— ㎬ 条⑤③写「ziti-rust 当前无 workflow」：实际 **6824686（v1 删除那一刀）就建了 integration.yml** 且形状健康（build / test --lib / test --doc / clippy -D warnings 全 `--workspace`，注释记了 v1 删除的改 workspace 理由与「真网验证移交 synapse」的决定）。⇒ ⇒ **开工先读仓的现状——账本快照只是提示，不是事实**（第一 Case＝todo 快照停在 ConnectV2，第二 Case＝`ziti_client` 真网联调）。
+
+③ **✅ 真正能修的红＝doctest 3 条（跨仓第二个 Case）** —— `//!` 文档注释里的**四空格缩进块**被 rustdoc 当可编译 Rust：`expected item, found 03`（wire.rs line 8 的十六进制回读）/ `missing fn or struct`（channel.rs line 8 与 wire.rs line 16 的帧布局）⇒ 三处协议示意块改 ```text fence：**记录仍在、不再编译**。修法 `b38a72b` 已推（f081ff0..b38a72b）。与 shadow 仓「文档裸代码块会被编译 ⇒ 反面教材标 text」同一课的跨仓复现 ⇒ **这条纪律跨仓成立**。
+
+④ **✅ 本地 +1.99.0 基线（先对尺子再点火）** —— workflow 用 `dtolnay/rust-toolchain@stable`，本机默认 stable 是 **1.96.0**（老于 runner 的 stable）⇒ 按命名工具链量 CI 同款尺子：`cargo +1.99.0 clippy --workspace --all-targets -- -D warnings` **绿**（32.48s Finished）；`cargo +1.99.0 test --workspace --lib` **13 passed 0 failed**；`--doc` 改前 3 failed → 改后绿。⇒ ⇒ 账户一恢复，下一轮 run 应全绿——**剩下的红都修完了，账户是唯一堵点**。
+
+⑤ **✅ Release 线收口（㎩ 条⑥①②销账）** —— **42081188427（v0.1.0 push，libgbm-dev 修复轮）＝ success，1h24m20s** ⇒ bundle 出了、Linux 链接过了；42061583360 的 failure 终态明确＝烧在 libgbm 缺失，被修复轮覆盖 ⇒ 「Release run 未终态」与「bundle 未出」两笔都清。
+
+⑥ **⚠️ 仍然欠着** —— ① **ziti-rust CI 绿读数待账户恢复**（Billing & plans 是用户动作；恢复后 push 或 workflow_dispatch 即收读数）；② shadow 系欠项不变（❼信封 id / prefrontal dispatch 401 / 真机读数待设备在位 / 沙盒 `ztiface-b-sandbox/` 删除待用户 / `.local/patch-probe/` 拍板 / `backend_shadow_key_entry_test` 同型定长轮债）。
+
+⑦ **⚠️ 圈码**：本条占 **U+33AF（㎯）** —— 插入前 fetch 远端（98 条 / distinct 86 / max **U+33AD**）；U+33AE 空着但并行会话已声明「下一个 33AE」⇒ **让位**（占位声明不锁位，但让位零成本、碰撞有成本）⇒ 插入后复跑码位闸钉住。
+
 **Updated**: 2026-11-06 (㎭ **「CI 首跑红的两种『时间形态』各收一口 —— ziti-face 红在布局（判不了）补双布局解析，backend_settings_card 红在时序（来不及）把定长轮换成轮询直到跟上」** —— 承 ㎬ 条（ziti-face 接进 CI 那一刀）与 ㎪ 条⑧⑥③（backend_settings_card flake 预登记的「等它下次红」），本条记**两刀的根因与修法**、**布局 B 沙盒演练**、**改前演练与 CI 同形**、**链尾语义取证**，以及**仍然欠着的**。)
 
 > 信封：epoch=2026-11-06 | authority=measured | scope=project | source=真机实测（布局 B 沙盒演练 **B_EXIT=1 且 UNREAD_LINES=0**（原 exit 2「读不到⇒判不了」→ 现在只剩内容缺类）；改前演练 **+1 -2**、测试 2 红在 line 192「端脑面跟着走」＝与 CI run 42137603583 同形 → 轮询版 **+3 All tests passed** EXIT=0；dart analyze 单文件 No issues；闸族 face EXIT=0 阻断 0 / self-test 50/50 / yaml 5 文件零违规 / 纪律闸 41 道 0 违规存量债 35；远端账本 97 条 / distinct 85 / max U+33AC；**CI run 42140873784（on b2dade2）＝ success 10/10 job 全绿**——face step 逐字「阻断 0 项」＋self-test「50/50 条全绿」（上轮 42137603583 同 step exit 2 ⇒ 两轮唯一差异＝本刀 ⇒ CI 级承重；ci.yml 全链首次全绿））| status=active | supersedes=none
