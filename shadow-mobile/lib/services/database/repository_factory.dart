@@ -2,7 +2,6 @@ import 'repositories.dart';
 import 'agent_repository.dart';
 import 'skill_repository.dart';
 import 'mcp_server_repository.dart';
-import 'model_repository.dart';
 import '../telencephalon/telencephalon_client.dart';
 
 /// Repository factory for creating repository instances
@@ -50,15 +49,6 @@ class RepositoryFactory {
     }
     return SqliteMCPServerRepository();
   }
-
-  /// Create Model repository instance
-  static IModelRepository createModelRepository() {
-    if (_useNeon) {
-      // TODO: Return NeonModelRepository when implemented
-      throw UnimplementedError('Neon repository not yet implemented');
-    }
-    return SqliteModelRepository();
-  }
 }
 
 /// Future Neon repository implementations (not yet implemented)
@@ -67,4 +57,3 @@ class RepositoryFactory {
 // class NeonAgentRepository implements IAgentRepository { ... }
 // class NeonSkillRepository implements ISkillRepository { ... }
 // class NeonMCPServerRepository implements IMCPServerRepository { ... }
-// class NeonModelRepository implements IModelRepository { ... }

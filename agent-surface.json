@@ -164,7 +164,7 @@
       "labelKey": "surface.modelSettings",
       "icon": "sliders",
       "desktop": { "route": null, "nav": false },
-      "mobile": { "route": "/settings/model", "nav": false }
+      "mobile": { "route": null, "nav": false }
     },
     {
       "id": "providers",

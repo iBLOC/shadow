@@ -15,6 +15,13 @@ class AgentSettings {
   final Map<String, dynamic>? settings;
   final String? soul;
 
+  /// 叶区种类（端脑登记表自报：`native` ／ prompt agent）。
+  ///
+  /// ⚠️ 模型覆盖（`POST /api/telencephalon/lobes/models` 的 lobe_models）
+  /// 按**原生叶区名**路由 ⇒ ⇒ 界面只给原生叶区出「模型覆盖」下拉，
+  /// prompt agent 不给一个静默无效的选项。
+  final String kind;
+
   const AgentSettings({
     required this.id,
     required this.name,
@@ -27,7 +34,11 @@ class AgentSettings {
     this.isDefault = false,
     this.settings,
     this.soul,
+    this.kind = 'native',
   });
+
+  /// 是否原生叶区（能吃模型路由的那类）。
+  bool get isNativeLobe => kind == 'native';
 
   /// 从**端脑的叶区记录**建一个 agent 设置。
   ///
@@ -53,6 +64,7 @@ class AgentSettings {
       isOnline: lobe.healthStatus == 'healthy',
       isDefault: defaultAgent != null && defaultAgent == lobe.name,
       settings: config.isEmpty ? null : config,
+      kind: lobe.kind,
     );
   }
 

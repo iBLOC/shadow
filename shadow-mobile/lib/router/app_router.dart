@@ -14,7 +14,6 @@ import '../screens/conversation_screen.dart';
 import '../screens/memory_screen.dart';
 import '../screens/agents_screen.dart';
 import '../screens/manage/management_hub_screen.dart';
-import '../screens/model_settings_screen.dart';
 import '../screens/prompt_settings_screen.dart';
 import '../screens/voice_conversation_screen.dart';
 import '../screens/livestream_screen.dart';
@@ -40,7 +39,6 @@ class AppRoutes {
   static const String manageAgents = '/manage/agents';
   static const String manageMemory = '/manage/memory';
   static const String settings = '/settings';
-  static const String modelSettings = '/settings/model';
   static const String promptSettings = '/settings/prompt';
   static const String voice = '/voice';
   static const String liveStream = '/livestream';
@@ -198,13 +196,6 @@ final GoRouter appRouter = GoRouter(
           ),
         );
       },
-    ),
-    // Model settings
-    GoRoute(
-      path: AppRoutes.modelSettings,
-      name: 'modelSettings',
-      pageBuilder: (context, state) =>
-          _fadePage(state, _wrapInShell(state, const ModelSettingsScreen())),
     ),
     // Prompt settings
     GoRoute(
