@@ -1,5 +1,24 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-06 (㎳ **「❼ 信封 id 收口在本仓 —— 「独立 server 无配置入口」旧判断错了，boot 的 TELENCEPHALON_CONFIG 入口一翻就有；本机 A/B 红→绿，CI 级等 run 42207936903」** —— 承 ㌲ 条③（三轮 30/1 钉死的 ❼）与 ㎫ 条⑥的「本仓改不了」，本条记**旧判断推翻的取证链**、**修法两件**、**本机 A/B＋反控**、**探针两坑**，以及**仍然欠着的**。）
+
+> 信封：epoch=2026-11-06 | authority=measured | scope=project | source=真机实测（本机 A/B：A 组无配置 :60183 ⇒ 信封 id=[]（逐字复刻 CI 三轮红形状）；B 组配 YAML :60184 ⇒ id=[e2e-telencephalon]＋无钥匙打读门 **401**（门不变）；静态链：desktop-e2e.yml 启动步／encephalon-server.rs main／a2a_server.rs:196 → surface.rs:144 → telencephalon boot.rs:235；CI run 42207936903 已点火待收）| status=active | supersedes=none
+
+① **⚠️⚠️ 旧判断推翻（「独立 server 无配置入口」不成立）** —— 取证链四环：❶ CI 起的 server **不是 telencephalon 的二进制**：desktop-e2e.yml 启动步＝`working-directory: encephalon`＋`cargo build --bin encephalon-server`（telencephalon 是库形态嵌进去，global-setup 注释自己写着「telencephalon became a pure library」）；❷ `encephalon-server.rs` 的 main 只认 `--port/--neuron-port/--bind`，看似无配置入口 ⇒ 这是旧判断的来源；❸ 但 boot 链再往里一层：`a2a_server.rs:196` `build_brain_face(BuildOptions{..Default::default()})` → `surface.rs:144` → `telencephalon::boot::build_app_state_with` → **boot.rs:235 读环境变量 `TELENCEPHALON_CONFIG`**（别名 CORTEX_CONFIG）：有 ⇒ `load_from_file`（YAML＋`${VAR}` 展开）⇒ `telencephalon.id` 从文件来；没有/路径不存在/解析失败 ⇒ 落 `TelencephalonConfig::default()` ⇒ id=""；❹ spec:57 `toBeTruthy()` 直读信封 ⇒ ⇒ 三轮红的完整成因链闭合：**CI spawn env 没带这个变量 ⇒ 每轮 default ⇒ 空串**。⇒ ⇒ 「本仓改不了」错在只翻了二进制的参数面、没翻宿主的 boot 链。
+
+② **✅ 修法＝本仓两件（f0aaa72，+62，workflow 零改动）** —— ❶ committed `shadow-desktop/tests/e2e-ui/telencephalon-e2e-config.yaml`（52 行）：**逐字段贴 Default、只多 `id: e2e-telencephalon`** —— schema 除 cors／bind.public_http 外全字段必填（serde 无 `#[serde(default)]`）⇒ 最小 YAML 不能删段；少一段 ⇒ missing field ⇒ 端脑退回 default ⇒ id 变回空串红回来；❷ `global-setup.ts` spawn 前设 `process.env.TELENCEPHALON_CONFIG`（spawn 的 env 本来就 spread `process.env` ⇒ server 自动拿到；沿用 HIPPOCAMPUS_DATA_DIR 的注入范式，本地 CI 两面同修）。**安全判据已核**：`apply_shadow_api_key`/`resolve_admin_token`（boot.rs:692/775）宿主递进的非空钥匙**无条件覆盖**配置文件 ⇒ CI 的门（SHADOW_E2E_ADMIN_KEY）不受配置文件影响。
+
+③ **✅ 本机级 A/B＋反控（spawn 本地二进制，CI 同款钥匙）** —— A 组（无配置，:60183）＝**信封 id=[]**，与 CI 三轮红逐字同形 ⇒ 缺口成因在本机复刻；B 组（配 YAML，:60184）＝**id=[e2e-telencephalon]**（只可能来自配置文件——default 只能是空串）＋**反控：不带钥匙打读门＝401** ⇒ 配置文件没有顺手开门。⇒ 红→绿本机级闭环。
+
+④ **⚠️ 探针两坑（Windows 本机复刻 CI 形态时）** —— ❶ LANCE_URI 给了 `file:///C:/...` 正斜杠形态 ⇒ 海马体起手即 panic（`os error 123`，逐字：failed to create the hippocampus storage root `/C:/Users/.../lance`）：hippocampus-server lib.rs:138 的规范形态是 `format!("file://{}", path)` **朴素拼** ⇒ Windows 合法形态＝`file://C:\...`（反斜杠、无第三道斜杠）；global-setup 的本地默认 TEST_DATA_DIR 恰好是反斜杠 ⇒ 本地 E2E 从没炸过——形态对错全看拼法；❷ 不带 LANCE_URI 默认 `file:///memory.lance` 也 panic ⇒ 探针循环必须带 `$p.HasExited` 早退（否则死等跑满被外层超时杀、还留孤儿进程）。⇒ 修探针后 75 秒内一轮拿读数。
+
+⑤ **⌚ CI 级待收** —— run 42207936903（on f0aaa72）已点火；判据＝`telencephalon-endpoints.spec.ts:57` 绿 ⇒ 预期 31/0 全绿（其余 30 条本就绿）。若红在别处，按剥洋葱逐层归因（不预设是本刀引入）。
+
+⑥ **⚠️ 仍然欠着** —— ① 401 施工图（㌱ 条④）待 telencephalon 空出；② ziti-rust／encephalon CI 账户计费门外红（存量）；③ mobile 真机读数／沙盒与探针目录拍板（存量）；④ ❼ 本刀 CI 级读数（⑤）。
+
+⑦ **⚠️ 圈码**：本条占 **U+33B3（㎳）** —— 插入前 fetch 远端重核（11 条 distinct 11 dups=0 max U+33B2）⇒ 空闲 ✔ ⇒ 顺延取 U+33B3，插入后复跑码位闸钉住。
+
+
 **Updated**: 2026-11-06 (㎲ **「desktop-e2e 补读数：三轮 30/1 逐字同形钉死 ❼ 是稳定缺口、mock 修复与改名刀在 E2E 全链承重；push 不跑 E2E 是设计不是假绿」** —— 本条记**触发器形状**、**schedule 轮归档**、**dispatch 补读数**，以及**仍然欠着的**。）
 
 > 信封：epoch=2026-11-06 | authority=measured | scope=project | source=真机读数（schedule run 42137637025＝30 passed / 1 failed（16m21s）唯一失败 telencephalon-endpoints.spec.ts:57 信封 id=""；desktop-e2e.yml 触发器＝workflow_dispatch＋schedule cron 37 19 * * *，**push 不触发**；dispatch run 42187625132 on 今日 master（含改名刀 a12e096＋账本两刀）＝ 30 passed / 1 failed（29m11s）唯一失败同格逐字同形；ziti-rust 再 dispatch 42187362973 仍 5s 计费门外红）| status=active | supersedes=none
