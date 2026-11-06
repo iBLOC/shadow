@@ -2,7 +2,7 @@
 /**
  * 移动端残留闸 —— **两组判据**
  *
- * ⚠️ 判据（算法）不在这里 ⇒ 在 shadow/scripts/lib/cortex-residue.mjs（**一处实现**）
+ * ⚠️ 判据（算法）不在这里 ⇒ 在 shadow/scripts/lib/legacy-residue.mjs（**一处实现**）
  *    这里只提供**数据**：扫哪些目录 ＋ 哪些 token 属兼容契约、可以豁免。
  *
  * ── 两组判据（**判据不同，范围也不同**）─────────────────────────
@@ -30,8 +30,8 @@
  *      根本不在判据里。
  *
  * 用法（从 shadow-mobile 根跑）：
- *   node scripts/check-cortex-residue.mjs             # 主流程
- *   node scripts/check-cortex-residue.mjs --self-test # 自检：判据有没有分辨力
+ *   node scripts/check-legacy-residue.mjs             # 主流程
+ *   node scripts/check-legacy-residue.mjs --self-test # 自检：判据有没有分辨力
  *
  * 退出码：0 = 干净 / 1 = 有残留 / 2 = 判不了（豁免条目腐烂）
  */
@@ -39,7 +39,7 @@
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { existsSync, readdirSync } from 'node:fs';
-import { runGate, runSelfTest, listTextFiles, scanPatterns } from '../../scripts/lib/cortex-residue.mjs';
+import { runGate, runSelfTest, listTextFiles, scanPatterns } from '../../scripts/lib/legacy-residue.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -49,10 +49,9 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
  *    没出现 ⇒ 报「豁免条目已腐烂」并以退出码 2 结束。
  */
 const ALLOWED = [
-  {
-    token: 'check-cortex-residue',
-    reason: '闸自己的文件名 —— 文档里提到这道闸就是在提到它自己。',
-  },
+  // ⚠️ 2026-11-06 改名刀销账：旧 token check-cortex-residue（闸自己的旧文件名）
+  //    —— 闸与引用它的 README 脚本表同步改姓 legacy-residue ⇒ 旧名不再出现
+  //    ⇒ 留着就是「登记了却已修好」的腐烂豁免。
   {
     token: "'cortex'",
     reason: "旧端脑的 AgentsResponse 信封旧键：客户端优先读 'telencephalon'，读不到才回退 'cortex'（旧端脑还在跑时要兼容）。",
@@ -98,7 +97,7 @@ const OPTS = {
     '.cxx', '.mimosa',
   ],
   excludeFiles: [
-    'check-cortex-residue.mjs',
+    'check-legacy-residue.mjs',  // 闸自己（2026-11-06 改名刀改姓）：它当然知道「cortex」这个词
     'pubspec.lock',
     '.flutter-plugins',
     '.flutter-plugins-dependencies',
@@ -179,9 +178,9 @@ if (process.argv.includes('--self-test')) {
   process.exit(code);
 }
 
-const cortex = runGate(OPTS);
-console.log(cortex.out);
+const wordGate = runGate(OPTS);
+console.log(wordGate.out);
 console.log('');
 const pre = checkPrefrontal();
 console.log(pre.out);
-process.exit(cortex.code === 0 && pre.code === 0 ? 0 : (cortex.code === 2 || pre.code === 2 ? 2 : 1));
+process.exit(wordGate.code === 0 && pre.code === 0 ? 0 : (wordGate.code === 2 || pre.code === 2 ? 2 : 1));

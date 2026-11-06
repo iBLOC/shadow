@@ -126,7 +126,7 @@ jobs:
       #    它判的四个位置（encephalon / telencephalon / synapse /
       #    shadow-desktop）这里全在（前三个由上面的 checkout 提供，
       #    shadow-desktop 在 shadow 仓自身）。首跑（run 42137603583）红在
-      #    cortex-residue-stack job：闸判的是 `../<repo>` 布局 ⇒ CI 上兄弟
+      #    跨仓 stack job（今 legacy-residue-stack；时名 cortex-residue-stack）：闸判的是 `../<repo>` 布局 ⇒ CI 上兄弟
       #    仓在 shadow 仓根**之下** ⇒ exit 2「判不了」⇒ 红的是**布局层**
       #    不是判据层（闸已补双布局解析，与 ziti-v2-wire 同款）。
       - name: Zero-trust face check
@@ -432,8 +432,10 @@ jobs:
       # ⚠️ 判据：活代码里出现 cortex = 残留（红）；兼容契约（路由路径 /
       #    cortex-status、4 个旧环境变量别名、真实 PG 表名、mDNS 旧键、
       #    A2A 信封字段、兼容 shim 模块名…）必须逐条登记在豁免表里。
-      - name: Cortex residue check
-        run: node scripts/check-cortex-residue.mjs
+      # ⚠️ 2026-11-06 改名刀：闸与 step 由 check-cortex-residue.mjs 一族改姓为
+      #    legacy-residue ⇒ 上面注释里的旧词是判据对象与史证，不是闸名。
+      - name: Legacy residue check
+        run: node scripts/check-legacy-residue.mjs
 
       # JNI 面：Kotlin ↔ 宿主直测的 Java 替身 + jniLibs 里那份 .so 的符号。
       # ⚠️ 装错 .so ⇒ Kotlin 把 UnsatisfiedLinkError catch 掉 ⇒
@@ -759,18 +761,19 @@ jobs:
       - name: Ledger codepoint check
         run: node scripts/check-ledger-codepoints.mjs
 
-  # ── 跨仓 Cortex 残留闸 ─────────────────────────────────────────────
+  # ── 跨仓 Legacy residue 闸（2026-11-06 改名前：Cortex 残留闸）──────
   # ⚠️ iBLOC 这套栈是**十几个独立 git 仓** ⇒ 闸只住在 shadow 仓的话，
   #    **另外那些仓没人盯**（2026-11 实测：prefrontal 的 tool 描述里还写着
   #    「Execute a registered workflow in Cortex」—— **LLM 读得到的那一行**）。
-  # ⇒ 这个 job checkout 所有受管仓 ⇒ 跑 `scripts/check-cortex-residue-all.mjs`。
+  # ⇒ 这个 job checkout 所有受管仓 ⇒ 跑 `scripts/check-legacy-residue-all.mjs`
+  #    （2026-11-06 改名前：check-cortex-residue-all.mjs）。
   #
-  # ⚠️ 判据（算法）只有一份（scripts/lib/cortex-residue.mjs）⇒ 各仓只提供
+  # ⚠️ 判据（算法）只有一份（shadow 侧今名 scripts/lib/legacy-residue.mjs；telencephalon 副本仍叫 cortex-residue.mjs）⇒ 各仓只提供
   #    **数据**（扫哪些目录 + 哪些 token 是真契约）⇒ 不会「一份实现两处写」。
   # ⚠️ 仓清单是**自动发现**的（扫工作区根下带 .git 的目录）⇒ 新仓自动纳入。
   # ⚠️ 未登记的仓 ⇒ **阻断**（「有闸但漏了仓」比「没有闸」更危险）。
-  cortex-residue-stack:
-    name: Cortex residue (cross-repo)
+  legacy-residue-stack:
+    name: Legacy residue (cross-repo)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -781,7 +784,7 @@ jobs:
         run: |
           if [ -z "$IBLOC_TOKEN" ]; then
             echo "::error::secrets.IBLOC_TOKEN is not configured."
-            echo "::error::The cross-repo Cortex gate checks out every sibling"
+            echo "::error::The cross-repo legacy residue gate checks out every sibling"
             echo "::error::repo (they are private). Add a PAT with read access"
             echo "::error::to those repos as the IBLOC_TOKEN repository secret."
             exit 1
@@ -793,8 +796,8 @@ jobs:
       - name: Checkout shadow
         uses: actions/checkout@v7
 
-      # ⚠️ 这份清单**必须与 scripts/lib/cortex-registry.mjs 算出来的 CI_CHECKOUT 一致**
-      #    ⇒ 由 `node scripts/check-cortex-residue-all.mjs` 的「CI 清单对账」自动核对
+      # ⚠️ 这份清单**必须与 scripts/lib/legacy-registry.mjs 算出来的 CI_CHECKOUT 一致**
+      #    ⇒ 由 `node scripts/check-legacy-residue-all.mjs` 的「CI 清单对账」自动核对
       #    ⇒ YAML 少检一个仓 ⇒ **闸自己报红**（而不是 CI 悄悄少扫一半 ⇒ 假绿）。
       #
       # ⚠️ 为什么不能用「照注册表机械补全」：三个仓**根本检不出来**（2026-11-04 用
@@ -804,10 +807,12 @@ jobs:
       #      · telencephalon-verify —— origin 指向 iBLOC/telencephalon（它是端脑的 clone）。
       #    ⇒ 无 token 时的 404 **不能当判据**（私有仓也是 404）⇒ 必须认证后查。
       #
-      # ⚠️ encephalon **不在这里**：它自己仓里有自己的 cortex-residue job
-      #    ⇒ ⇒ 不重复检出（它的闸还要 import 端脑仓里的引擎副本）。
+      # ⚠️ encephalon **不在这里**：它自己仓里有自己的残留闸 job
+      #    （2026-11-06 改名前叫 cortex-residue job）⇒ ⇒ 不重复检出
+      #    （它的闸还要 import 端脑仓里的引擎副本）。
       # ⚠️ 2026-11-05：telencephalon **现在要检出** —— 跨仓闸的**判据 ④**
-      #    （引擎副本一致性）要比对 shadow 与端脑仓那两份 cortex-residue.mjs
+      #    （引擎副本一致性）要比对引擎副本（shadow 侧今名 legacy-residue.mjs、
+      #    端脑侧仍叫 cortex-residue.mjs）
       #    ⇒ ⇒ 不检出 ⇒ ⇒ 那一格在 CI 上是空的（绿灯但什么都没查）。
       - name: Checkout agent-memory-benchmark
         uses: actions/checkout@v7
@@ -912,8 +917,8 @@ jobs:
 
       # ⚠️ 2026-11-05：ziti-rust（v2 线路层那个仓）接进跨仓闸的检出清单 ⇒ ⇒
       #    它之前是「CI 上检不出 ⇒ 那一格是缺口」⇒ ⇒ 现在这一格真的会被判。
-      #    ⚠️ 清单必须与 scripts/lib/cortex-registry.mjs 算出来的 CI_CHECKOUT
-      #    **逐字一致** ⇒ ⇒ 否则 check-cortex-residue-all.mjs 自己会报红。
+      #    ⚠️ 清单必须与 scripts/lib/legacy-registry.mjs 算出来的 CI_CHECKOUT
+      #    **逐字一致** ⇒ ⇒ 否则 check-legacy-residue-all.mjs 自己会报红。
       - name: Checkout ziti-rust
         uses: actions/checkout@v7
         with:
@@ -926,11 +931,11 @@ jobs:
         with:
           node-version: '24'
 
-      - name: Cross-repo Cortex residue check
-        run: node scripts/check-cortex-residue-all.mjs
+      - name: Cross-repo Legacy residue check
+        run: node scripts/check-legacy-residue-all.mjs
 
-      - name: Cross-repo Cortex residue check (self-test)
-        run: node scripts/check-cortex-residue-all.mjs --self-test
+      - name: Cross-repo Legacy residue check (self-test)
+        run: node scripts/check-legacy-residue-all.mjs --self-test
 
       # ⚠️ 2026-11-05：v2 线路规格闸接进 CI —— 它要 **synapse ＋ ziti-rust**
       #    两个仓同时在位（v2 的**实现**住在 ziti-rust/crates/ziti-v2 ⇒ ⇒ 真网
@@ -963,7 +968,7 @@ jobs:
       #    有「判不了」这一档）⇒ ⇒ 存量缺口登记在 lib/gate-discipline-registry.mjs。
       #
       # ⚠️ 放在这个 job 里，是因为它**已经把所有兄弟仓检出到工作区**⇒ ⇒
-      #    那些要兄弟仓在位的闸（cortex-residue-all / neuron-ownership）
+      #    那些要兄弟仓在位的闸（legacy-residue-all / neuron-ownership）
       #    在这里才判得了 ⇒ ⇒ 放在只 checkout 了 shadow 的 job 里 ⇒ ⇒
       #    它们只会「判不了」（绿灯但什么都没查）。
       - name: Gate discipline check

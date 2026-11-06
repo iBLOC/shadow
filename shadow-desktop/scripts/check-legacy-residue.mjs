@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * 桌面端 Cortex 残留闸 —— 薄壳
+ * 桌面端 Legacy residue 闸 —— 薄壳
  *
- * ⚠️ 判据（算法）不在这里 ⇒ 在 `shadow/scripts/lib/cortex-residue.mjs`（**一处实现**）
+ * ⚠️ 判据（算法）不在这里 ⇒ 在 `shadow/scripts/lib/legacy-residue.mjs`（**一处实现**）
  *    这里只提供**数据**：扫哪些目录 ＋ 哪些 token 属兼容契约、可以豁免。
  *
  * 为什么要有这道闸：用户拍板「Cortex 是过时概念应该删除」「清理 cortex 避免与
@@ -10,15 +10,15 @@
  * ⇒ 界面那句「启动 Cortex」根本不在判据里 ⇒ 闸一路绿、界面还在说 Cortex。
  *
  * 用法（从 shadow-desktop 根跑）：
- *   node scripts/check-cortex-residue.mjs             # 主流程
- *   node scripts/check-cortex-residue.mjs --self-test # 自检：判据有没有分辨力
+ *   node scripts/check-legacy-residue.mjs             # 主流程
+ *   node scripts/check-legacy-residue.mjs --self-test # 自检：判据有没有分辨力
  *
  * 退出码：0 = 干净 / 1 = 有残留 / 2 = 判不了（豁免条目腐烂）
  */
 
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { runGate, runSelfTest } from '../../scripts/lib/cortex-residue.mjs';
+import { runGate, runSelfTest } from '../../scripts/lib/legacy-residue.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -91,10 +91,9 @@ const ALLOWED = [
     kind: 'history',
     reason: '**改名史注释**里的**被删掉的测试名** —— 同上。',
   },
-  {
-    token: 'check-cortex-residue',
-    reason: '闸自己的文件名 —— 文档里提到这道闸就是在提到它自己。',
-  },
+  // ⚠️ 2026-11-06 改名刀销账：旧 token check-cortex-residue（闸自己的旧文件名）
+  //    —— 闸与引用它的 ui-smoke.sh 注释同步改姓 legacy-residue ⇒ 旧名不再出现
+  //    ⇒ 留着就是「登记了却已修好」的腐烂豁免。
   {
     token: 'cortex-status',
     reason: '路由路径 /cortex-status（内部 URL，不出现在界面上）。能力清单 agent-surface.json 正在被别的会话改，本轮不动它。',
@@ -116,7 +115,7 @@ const OPTS = {
   ],
   excludeFiles: [
     'AGENTS.md',                 // 台账：**要记得历史** —— 历史里出现旧名字是对的
-    'check-cortex-residue.mjs',  // 闸自己：它当然知道「cortex」这个词
+    'check-legacy-residue.mjs',  // 闸自己（2026-11-06 改名刀改姓）：它当然知道「cortex」这个词
     'pnpm-lock.yaml',
     'package-lock.json',
   ],

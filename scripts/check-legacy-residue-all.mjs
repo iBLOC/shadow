@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
- * Cortex 残留闸 —— **跨仓入口**（一个入口扫全部 iBLOC 仓）
+ * Legacy residue 闸 —— **跨仓入口**（一个入口扫全部 iBLOC 仓）
  *
- * ⚠️ 判据（算法）不在这里 ⇒ 在 `./lib/cortex-residue.mjs`（唯一一份）。
- *    每个仓的数据在 `./lib/cortex-registry.mjs`。
+ * ⚠️ 判据（算法）不在这里 ⇒ 在 `./lib/legacy-residue.mjs`（唯一一份）。
+ *    每个仓的数据在 `./lib/legacy-registry.mjs`。
  *
  * ── 为什么要有这道闸（2026-11 的实测教训）────────────────────────────
  * 用户拍板：「Cortex 是过时概念应该删除」。
@@ -30,14 +30,14 @@
  *      闸一路绿了整整一轮 —— 而它 69 个 Rust 文件 + 60 个 Python 文件从没被看过。）
  * ② **缺仓**：登记在册的仓**没检出** ⇒ 它的残留本闸看不见。
  *    ⇒ CI 上（检出清单是确定的）⇒ **阻断**；本地 ⇒ 明确列出来（看得见的缺口）。
- * ③ **CI 清单对账**：shadow 的 ci.yml 里 cortex-residue-stack 这个 job checkout 了
+ * ③ **CI 清单对账**：shadow 的 ci.yml 里 legacy-residue-stack 这个 job checkout 了
  *    哪些仓 ⇒ 与注册表算出来的 CI_CHECKOUT **必须一致**
  *    ⇒ YAML 少检一个仓 ⇒ **闸自己报红**（而不是 CI 悄悄少扫一半）。
  *
  * 用法（从 shadow 仓根跑）：
- *   node scripts/check-cortex-residue-all.mjs             # 主流程
- *   node scripts/check-cortex-residue-all.mjs --as-subscope  # 作为根仓闸的子范围（兄弟仓没检出 ⇒ 不阻断）
- *   node scripts/check-cortex-residue-all.mjs --self-test # 自检
+ *   node scripts/check-legacy-residue-all.mjs             # 主流程
+ *   node scripts/check-legacy-residue-all.mjs --as-subscope  # 作为根仓闸的子范围（兄弟仓没检出 ⇒ 不阻断）
+ *   node scripts/check-legacy-residue-all.mjs --self-test # 自检
  *
  * 退出码：0 = 全绿 / 1 = 有残留或覆盖缺口 / 2 = 判不了（豁免条目腐烂 / 引擎缺失）
  */
@@ -45,7 +45,7 @@
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative, sep } from 'node:path';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { runGate, runSelfTest, listTextFiles } from './lib/cortex-residue.mjs';
+import { runGate, runSelfTest, listTextFiles } from './lib/legacy-residue.mjs';
 import {
   REGISTRY,
   SELF_OWNED,
@@ -55,7 +55,7 @@ import {
   CI_CHECKOUT,
   LOCAL_ONLY,
   COMMON_EXCLUDE_DIRS,
-} from './lib/cortex-registry.mjs';
+} from './lib/legacy-registry.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 
@@ -71,14 +71,14 @@ const IS_CI = process.env.GITHUB_ACTIONS === 'true' || process.env.CI === 'true'
  *    而闸自己的三个范围全绿 —— 残留 0 处）。
  * ⇒ ⇒ 而「兄弟仓没检出」是**环境问题**，不是代码问题 ⇒ ⇒ 跟本仓既有的
  *    「存在才扫」写法一致（见 check-brain-chain.mjs）⇒ ⇒ 子范围这一档**不阻断**。
- * ⇒ ⇒ 而**专门的**跨仓 job（cortex-residue-stack）直接跑本脚本 ⇒ ⇒ 没有这个
+ * ⇒ ⇒ 而**专门的**跨仓 job（legacy-residue-stack）直接跑本脚本 ⇒ ⇒ 没有这个
  *    标记 ⇒ ⇒ 那里「检出清单少一个仓」仍然**阻断**（那才是真缺口）。
  */
 const AS_SUBSCOPE = process.argv.includes('--as-subscope');
 
 const line = '='.repeat(72);
 console.log(line);
-console.log('Cortex 残留闸 —— 跨仓入口');
+console.log('Legacy residue 闸 —— 跨仓入口');
 console.log(line);
 
 // ⚠️ 兄弟仓在两个可能的位置（本地 = shadow 的兄弟目录；CI = shadow 仓根之下）
@@ -103,7 +103,7 @@ if (unregistered.length > 0) {
   console.log('');
   console.log('✗ 未登记的仓（它们的 cortex 残留**本闸看不见** —— 这是**缺口**，不是干净）：');
   for (const r of unregistered) {
-    console.log('  · ' + r.name + '  ⇒ 要么在 lib/cortex-registry.mjs 里登记，要么它本来就干净（那就写进注释里说明）。');
+    console.log('  · ' + r.name + '  ⇒ 要么在 lib/legacy-registry.mjs 里登记，要么它本来就干净（那就写进注释里说明）。');
   }
   console.log('');
   console.log('  ⇒ ⚠️ 这一格**阻断**（退出码 1）：「有闸但漏了仓」比「没有闸」更危险');
@@ -112,7 +112,7 @@ if (unregistered.length > 0) {
 
 // ── 判据 ③：CI 清单对账（YAML 与注册表必须一致）──────────────────────
 /**
- * 读 shadow 仓 ci.yml 里 `cortex-residue-stack` 这一个 job 的 checkout 清单。
+ * 读 shadow 仓 ci.yml 里 `legacy-residue-stack` 这一个 job 的 checkout 清单。
  * ⚠️ 只认这一个 job —— 别的 job 也 checkout 兄弟仓（desktop-e2e 那个 job 就 checkout 了 9 个）
  *    ⇒ 把整份 YAML 的 repository: 都算进来会**误判成对不上**。
  * @returns {string[]|null} 仓名列表；null = 找不到这个 job
@@ -122,7 +122,7 @@ function readCiCheckoutList() {
   if (!existsSync(ymlPath)) return null;
   const src = readFileSync(ymlPath, 'utf8');
   const lines = src.split(/\r?\n/);
-  const start = lines.findIndex((l) => /^ {2}cortex-residue-stack:\s*$/.test(l));
+  const start = lines.findIndex((l) => /^ {2}legacy-residue-stack:\s*$/.test(l));
   if (start < 0) return null;
   const names = new Set();
   for (let i = start + 1; i < lines.length; i++) {
@@ -150,9 +150,9 @@ let ciSelfOwned = [];
   ciExtra = [...got].filter((n) => !want.has(n) && !SELF_OWNED.has(n));
   ciSelfOwned = [...got].filter((n) => SELF_OWNED.has(n) && n !== 'shadow');
   console.log('');
-  console.log('▶ CI 清单对账（ci.yml 的 cortex-residue-stack job ↔ 注册表）');
+  console.log('▶ CI 清单对账（ci.yml 的 legacy-residue-stack job ↔ 注册表）');
   if (ciList === null) {
-    console.log('  ⚠️ 在 ci.yml 里找不到 cortex-residue-stack 这个 job ⇒ 对不了账。');
+    console.log('  ⚠️ 在 ci.yml 里找不到 legacy-residue-stack 这个 job ⇒ 对不了账。');
   } else {
     console.log('  ci.yml 检出 ' + ciList.length + ' 个仓 / 注册表要求 ' + CI_CHECKOUT.length + ' 个');
     for (const n of CI_CHECKOUT) {
@@ -167,26 +167,31 @@ let ciSelfOwned = [];
     if (ciMissing.length > 0) {
       console.log('  ✗ ci.yml **少检了**：' + ciMissing.join(', '));
       console.log('    ⇒ 这些仓的残留在 CI 上**没人判** ⇒ 阻断。');
-      console.log('    ⇒ 修法：在 ci.yml 的 cortex-residue-stack job 里补 checkout 步骤。');
+      console.log('    ⇒ 修法：在 ci.yml 的 legacy-residue-stack job 里补 checkout 步骤。');
     }
   }
 }
 
-// ── 判据 ④：引擎副本一致性（两份必须字节相同）──────────────────────
-// ⚠️ `scripts/lib/cortex-residue.mjs` 在 shadow 与端脑仓**各有一份**
-//    ⇒ ⇒ 「判据只有一份」的前提是「两份不会漂」⇒ ⇒ 这一格就是那个门。
+// ── 判据 ④：引擎副本一致性（同名两份必须字节相同）──────────────────
+// ⚠️ 这份引擎在 shadow 与端脑仓**各有一份**（独立 git 仓 ⇒ 只能复制）。
+//    2026-11-06 改名刀：本仓那份改姓 scripts/lib/legacy-residue.mjs；
+//    telencephalon 的副本保持旧名 scripts/lib/cortex-residue.mjs（本刀不动
+//    那个独立仓）⇒ ⇒ 新名对得上的才做字节比对；新名对不上但旧名存在的 ⇒
+//    打印注记（不比对、不阻断）⇒ ⇒ **下次改判据时必须人工同步 telencephalon**。
 //    ⚠️ 之前**没有任何闸判这件事**（引擎注释里写的「副本一致性门」并不存在）
 //    ⇒ ⇒ 两份漂了没人知道 ⇒ ⇒ 两个仓各判各的。
 let cannotJudge = 0;
 const parityGaps = [];
 let parityChecked = 0;
 {
-  const ENGINE_REL = join('scripts', 'lib', 'cortex-residue.mjs');
+  const ENGINE_REL = join('scripts', 'lib', 'legacy-residue.mjs');
+  // ⚠️ 2026-11-06 改名刀前的旧名（telencephalon 副本仍在用 ⇒ 见下面的三路分支）
+  const OTHER_LEGACY_REL = join('scripts', 'lib', 'cortex-residue.mjs');
   const mine = join(SHADOW_ROOT, ENGINE_REL);
   let mineBuf = null;
   try { mineBuf = readFileSync(mine); } catch { /* 本仓那份读不到 */ }
   console.log('');
-  console.log('▶ 判据 ④：引擎副本一致性（shadow ↔ 各兄弟仓的 scripts/lib/cortex-residue.mjs）');
+  console.log('▶ 判据 ④：引擎副本一致性（shadow 的 scripts/lib/legacy-residue.mjs ↔ 各兄弟仓同名副本）');
   if (!mineBuf) {
     console.error('  ✗ 本仓的引擎副本读不到 ⇒ ⇒ 判不了');
     cannotJudge++;
@@ -199,9 +204,21 @@ let parityChecked = 0;
         continue;
       }
       let other = null;
+      let otherIsOldName = false;
       try { other = readFileSync(join(p, ENGINE_REL)); } catch { other = null; }
       if (!other) {
+        // ⚠️ 2026-11-06 改名刀：本仓引擎已改姓 legacy-residue.mjs；telencephalon
+        //    的副本保持旧名 cortex-residue.mjs（本刀不动那个独立仓）⇒
+        //    新名读不到时试旧名：有 ⇒ 打印注记（不比对、不阻断）；
+        //    旧名也没有 ⇒ 它真的没有这份引擎。
+        try { other = readFileSync(join(p, OTHER_LEGACY_REL)); otherIsOldName = true; } catch { other = null; }
+      }
+      if (!other) {
         console.log('  · ' + name.padEnd(24) + '仓里没有这份引擎 ⇒ ⇒ 它不跑这道闸（不判）');
+        continue;
+      }
+      if (otherIsOldName) {
+        console.log('  · ' + name.padEnd(24) + '仍是改名前的旧名副本 scripts/lib/cortex-residue.mjs（' + other.length + ' 字节）⇒ 未随 2026-11-06 改名刀改姓 ⇒ 只打印注记、不做字节比对 ⇒ 下次改判据必须人工同步该仓');
         continue;
       }
       parityChecked++;
@@ -213,7 +230,7 @@ let parityChecked = 0;
       }
     }
     if (parityChecked === 0) {
-      console.log('  · 本轮没有可比对的副本（兄弟仓都没检出）⇒ ⇒ 这一格没判到');
+      console.log('  · 本轮没有做同名比对的副本（兄弟仓未检出 / 或仍持改名前的旧名副本 ⇒ 已逐仓打印注记）⇒ ⇒ 这一格没判到');
     }
   }
 }
@@ -241,7 +258,7 @@ if (missingRegistered.length > 0) {
   } else if (ciRequiredMissing.length > 0 && AS_SUBSCOPE) {
     console.log('');
     console.log('  ⇒ 本轮是**根仓闸的一个子范围** ⇒ ⇒ 这个 job 没检出兄弟仓是**环境问题**（不是代码问题）');
-    console.log('    ⇒ ⇒ 这一格在本 job 里**没覆盖** ⇒ ⇒ 跨仓那一格由 cortex-residue-stack job 负责 ⇒ ⇒ **不阻断**。');
+    console.log('    ⇒ ⇒ 这一格在本 job 里**没覆盖** ⇒ ⇒ 跨仓那一格由 legacy-residue-stack job 负责 ⇒ ⇒ **不阻断**。');
   } else if (ciRequiredMissing.length > 0) {
     console.log('');
     console.log('  ⇒ 本地没 clone 这些仓 ⇒ 本闸这一次**没覆盖**它们（这一项本地不阻断；CI 上会阻断）。');
@@ -259,7 +276,8 @@ if (process.argv.includes('--self-test')) {
       root: SHADOW_ROOT,
       label: 'shadow（仓根）',
       allowed: [
-        { token: '__cortex_selftest_probe__', reason: '自检用的假 token' },
+        // ⚠️ 假 token 是自检夹具（判据本体的测试件），不是守门人自己的命名 ⇒ 不随改名刀改姓
+      { token: '__cortex_selftest_probe__', reason: '自检用的假 token' },
       ],
     });
     console.log(r.out);
@@ -275,7 +293,8 @@ if (process.argv.includes('--self-test')) {
       label: r.name,
       allowed: [
         ...(cfg.allowed || []),
-        { token: '__cortex_selftest_probe__', reason: '自检用的假 token' },
+        // ⚠️ 假 token 是自检夹具（判据本体的测试件），不是守门人自己的命名 ⇒ 不随改名刀改姓
+      { token: '__cortex_selftest_probe__', reason: '自检用的假 token' },
       ],
     });
     const ok = res.code === 0;
@@ -349,10 +368,21 @@ const configGaps = [];
 for (const r of repos) {
   if (SELF_OWNED.has(r.name)) {
     // ⚠️ 标成「自有闸」但**闸文件不在** ⇒ 它的覆盖是**假装的** ⇒ 阻断。
-    const own = join(r.path, 'scripts', 'check-cortex-residue.mjs');
-    if (!existsSync(own)) {
-      console.error('✗ ' + r.name + ' —— 标成「自有闸」但仓里没有 scripts/check-cortex-residue.mjs ⇒ 没人判它 ⇒ 阻断。');
-      failed++;
+    // ⚠️ 双名接受（2026-11-06 改名刀）：自有闸的新姓是 check-legacy-residue.mjs；
+    //    telencephalon 的闸保持旧名 check-cortex-residue.mjs（本刀不动那个独立仓）
+    //    ⇒ 新名在 ⇒ 用新名；旧名在 ⇒ 打「独立仓未随本刀改」注并按旧名交代；
+    //    两个都不在 ⇒ 才是「没人判」⇒ 阻断。
+    const ownNew = join(r.path, 'scripts', 'check-legacy-residue.mjs');
+    const ownOld = join(r.path, 'scripts', 'check-cortex-residue.mjs');
+    let own = ownNew;
+    if (!existsSync(ownNew)) {
+      if (existsSync(ownOld)) {
+        own = ownOld;
+        console.log('· ' + r.name + ' —— 自有闸仍是改名前的旧名 scripts/check-cortex-residue.mjs（独立仓未随本刀改）');
+      } else {
+        console.error('✗ ' + r.name + ' —— 标成「自有闸」但仓里既没有 scripts/check-legacy-residue.mjs 也没有旧名 scripts/check-cortex-residue.mjs ⇒ 没人判它 ⇒ 阻断。');
+        failed++;
+      }
     }
     console.log('');
     console.log('· ' + r.name + ' —— 跳过（自有闸：' + relative(SHADOW_ROOT, own) + '）');
@@ -391,7 +421,7 @@ for (const r of repos) {
     vacuous.push(r.name);
     console.error('');
     console.error('✗ ' + r.name + ' —— **扫了 0 个文件** ⇒ 判据对着空气跑 ⇒ 「✓ 残留 0 处」是**假绿** ⇒ 阻断。');
-    console.error('  ⇒ 查 lib/cortex-registry.mjs 里这个仓的 scanDirs ⇒ 目录名写错了 / 仓改名了。');
+    console.error('  ⇒ 查 lib/legacy-registry.mjs 里这个仓的 scanDirs ⇒ 目录名写错了 / 仓改名了。');
     failed++;
   }
   // ⚠️ 退出码 2 = **判不了**（豁免条目腐烂 / 扫描目标指不到文件）
@@ -434,7 +464,7 @@ console.log('');
 console.log(line);
 if (failed === 0 && unregistered.length === 0 && ciMissing.length === 0 && (AS_SUBSCOPE || ciRequiredMissing.length === 0) && configGaps.length === 0 && parityGaps.length === 0 && cannotJudge === 0) {
   console.log(AS_SUBSCOPE && checked === 0
-    ? '✓ 本轮**没覆盖跨仓**（这个 job 没检出兄弟仓 ⇒ 扫了 0 个仓）⇒ ⇒ 这一格由 cortex-residue-stack job 负责 ⇒ ⇒ **不是「全绿」，是「没判」**。'
+    ? '✓ 本轮**没覆盖跨仓**（这个 job 没检出兄弟仓 ⇒ 扫了 0 个仓）⇒ ⇒ 这一格由 legacy-residue-stack job 负责 ⇒ ⇒ **不是「全绿」，是「没判」**。'
     : '✓ 全绿（扫了 ' + checked + ' 个仓 / ' + [...scanned.values()].reduce((a, b) => a + b, 0) + ' 个文件）');
   if (unregistered.length === 0) {
     console.log('  （未登记的仓数为 0 ⇒ 没有看得见的缺口。）');
@@ -445,7 +475,7 @@ if (failed === 0 && unregistered.length === 0 && ciMissing.length === 0 && (AS_S
     console.error('✗ 另有 ' + unregistered.length + ' 个仓未登记 ⇒ 它们的残留本闸看不见（见上面清单）⇒ 阻断。');
   }
   if (ciMissing.length > 0) {
-    console.error('✗ ci.yml 的 cortex-residue-stack job 少 checkout 了 ' + ciMissing.length + ' 个仓 ⇒ CI 上没人判它们 ⇒ 阻断。');
+    console.error('✗ ci.yml 的 legacy-residue-stack job 少 checkout 了 ' + ciMissing.length + ' 个仓 ⇒ CI 上没人判它们 ⇒ 阻断。');
   }
   if (ciRequiredMissing.length > 0 && IS_CI && !AS_SUBSCOPE) {
     console.error('✗ 另有 ' + ciRequiredMissing.length + ' 个登记在册的仓在 CI 上没检出 ⇒ 覆盖缺口 ⇒ 阻断。');

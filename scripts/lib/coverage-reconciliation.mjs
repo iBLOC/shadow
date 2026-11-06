@@ -35,8 +35,9 @@
  *
  * ## 为什么是一份实现、两处用
  *
- * 跨仓入口（check-cortex-residue-all.mjs）原本自己内联了一份「顶层必须交代」
- * ⇒ ⇒ 仓根（check-cortex-residue.mjs）**没有** ⇒ ⇒ 两边结论会不一致。
+ * 跨仓入口（check-legacy-residue-all.mjs；2026-11-06 改名前叫
+ * check-cortex-residue-all.mjs）原本自己内联了一份「顶层必须交代」
+ * ⇒ ⇒ 仓根（check-legacy-residue.mjs）**没有** ⇒ ⇒ 两边结论会不一致。
  * ⇒ ⇒ 现在共用本库 ⇒ ⇒ 一处改，两处生效。
  *
  * ⚠️ 本文件**不含任何业务判断** —— 它只管覆盖面。

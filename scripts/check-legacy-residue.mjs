@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 /**
- * Cortex 残留闸 —— **统一入口**（shadow 仓）
+ * Legacy residue 闸 —— **统一入口**（shadow 仓）
  *
  * 三个范围各有自己的**数据**（扫哪些目录 ＋ 哪些 token 豁免）⇒ 但**判据只有一处**
- * （`scripts/lib/cortex-residue.mjs`）⇒ 三边不会漂。
+ * （`scripts/lib/legacy-residue.mjs`）⇒ 三边不会漂。
  *
- * ⚠️ 第四个范围是**跨仓**的（scripts/check-cortex-residue-all.mjs）——
+ * ⚠️ 第四个范围是**跨仓**的（scripts/check-legacy-residue-all.mjs）——
  *    iBLOC 这套栈是十几个独立 git 仓 ⇒ 只守本仓 ⇒ 另外那些仓没人盯。
  *
  * 用法（从 shadow 仓根跑）：
- *   node scripts/check-cortex-residue.mjs             # 主流程
- *   node scripts/check-cortex-residue.mjs --self-test # 自检
+ *   node scripts/check-legacy-residue.mjs             # 主流程
+ *   node scripts/check-legacy-residue.mjs --self-test # 自检
  *
  * 退出码：0 = 三边都干净 / 1 = 有残留 / 2 = 判不了（豁免条目腐烂）
  */
@@ -18,21 +18,21 @@
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { runGate, runSelfTest } from './lib/cortex-residue.mjs';
+import { runGate, runSelfTest } from './lib/legacy-residue.mjs';
 import { checkTopLevelCoverage, renderCoverage } from './lib/coverage-reconciliation.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 const SUB = [
-  { script: 'shadow-desktop/scripts/check-cortex-residue.mjs', what: '桌面端（src / src-tauri / tests / scripts）' },
-  { script: 'shadow-mobile/scripts/check-cortex-residue.mjs', what: '移动端（lib / test / android / scripts）' },
+  { script: 'shadow-desktop/scripts/check-legacy-residue.mjs', what: '桌面端（src / src-tauri / tests / scripts）' },
+  { script: 'shadow-mobile/scripts/check-legacy-residue.mjs', what: '移动端（lib / test / android / scripts）' },
   // ⚠️ **跨仓闸** —— iBLOC 这套栈是十几个独立 git 仓 ⇒ 只守 shadow 仓
   //    ⇒ 另外那些仓没人盯（2026-11 实测：prefrontal 的 tool 描述里还写着
   //    「Execute a registered workflow in Cortex」—— **LLM 读得到的那一行**）。
   // ⇒ ⇒ 这一项把**所有兄弟仓**也纳管进来（判据只有一份 ⇒ 各仓只提供数据）。
   // ⚠️ --as-subscope ⇒ ⇒ 跨仓闸在「兄弟仓没检出」时**不阻断**（那个 job 只检出本仓
-  //    ⇒ ⇒ 那是环境问题）⇒ ⇒ 跨仓那一格由 cortex-residue-stack job 负责。
-  { script: 'scripts/check-cortex-residue-all.mjs', what: '跨仓（工作区里所有 iBLOC 仓）', args: ['--as-subscope'] },
+  //    ⇒ ⇒ 那是环境问题）⇒ ⇒ 跨仓那一格由 legacy-residue-stack job 负责。
+  { script: 'scripts/check-legacy-residue-all.mjs', what: '跨仓（工作区里所有 iBLOC 仓）', args: ['--as-subscope'] },
 ];
 
 /** 根仓自己的范围：脚本目录 ＋ 能力清单 ＋ fixtures */
@@ -92,12 +92,14 @@ const ROOT_OPTS = {
     // ⚠️ 2026-11-05：原先排除的 `.cortex-self-test-probe.tmp` **已销账** ——
     //    自检的探针现在写进**系统临时目录**（共享引擎的改动 ⇒ ⇒ 两份副本一起改）
     //    ⇒ ⇒ 仓根再也不会出现那个文件 ⇒ ⇒ 留着那条排除就是「登记了却已修好」。
-    'check-cortex-residue.mjs',  // 闸自己
-    'cortex-residue.mjs',         // 引擎自己（它当然知道这个词）
+    'check-legacy-residue.mjs',  // 闸自己
+    'legacy-residue.mjs',         // 引擎自己（它当然知道这个词）
     // ⚠️ 跨仓闸的两个文件 —— 它们**当然**知道这个词（它们就是守这个概念的）
     //    ⇒ 必须显式排除，否则闸会把自己判红。
-    'check-cortex-residue-all.mjs',
-    'cortex-registry.mjs',
+    // ⚠️ 2026-11-06 改名刀：这四个文件由旧名（check-cortex-residue*.mjs /
+    //    cortex-registry.mjs）改姓为 legacy-residue / legacy-registry，排除名单同步换新名。
+    'check-legacy-residue-all.mjs',
+    'legacy-registry.mjs',
   ],
   /**
    * 顶层对账的登记（每个顶层条目必须三选一：被扫 / 被排除 / 被登记）。
@@ -108,12 +110,12 @@ const ROOT_OPTS = {
     {
       dir: 'shadow-desktop',
       kind: 'skip',
-      reason: '由**桌面端自己的闸**管（shadow-desktop/scripts/check-cortex-residue.mjs）⇒ ⇒ 仓根不重复扫它。',
+      reason: '由**桌面端自己的闸**管（shadow-desktop/scripts/check-legacy-residue.mjs）⇒ ⇒ 仓根不重复扫它。',
     },
     {
       dir: 'shadow-mobile',
       kind: 'skip',
-      reason: '由**移动端自己的闸**管（shadow-mobile/scripts/check-cortex-residue.mjs）⇒ ⇒ 仓根不重复扫它。',
+      reason: '由**移动端自己的闸**管（shadow-mobile/scripts/check-legacy-residue.mjs）⇒ ⇒ 仓根不重复扫它。',
     },
     {
       dir: 'AGENTS.md',
@@ -152,26 +154,10 @@ const ROOT_OPTS = {
       kind: 'history',
       reason: '**闸的注释里引用的兄弟仓真缺陷**（LLM 读得到的那一行）⇒ ⇒ 史证。',
     },
-    {
-      token: 'cortex-registry',
-      kind: 'contract',
-      reason: '**注册表文件名**（真契约：改了会断掉 ci.yml 与账本里的引用）⇒ ⇒ 任何位置都豁免。',
-    },
-    {
-      token: 'Cortex residue check',
-      kind: 'contract',
-      reason: '**CI 的 step 名**（真契约：改了会打断 CI 历史与账本里的引用）⇒ ⇒ 任何位置都豁免。',
-    },
-    {
-      token: 'Cortex residue (cross-repo)',
-      kind: 'contract',
-      reason: '**CI 的 job 名**（真契约：改了会打断 CI 历史与账本里的引用）。',
-    },
-    {
-      token: 'cross-repo Cortex gate',
-      kind: 'contract',
-      reason: '**CI 里 run: 块的错误消息字符串**（真契约：那是用户能看到的报错文案）。',
-    },
+    // ⚠️ 2026-11-06 改名刀销账四条豁免：cortex-registry / Cortex residue check /
+    //    Cortex residue (cross-repo) / cross-repo Cortex gate —— 闸文件名、CI step 名、
+    //    job 名、run: 块错误文案已全部改姓，这四条在扫描面不再出现；
+    //    留着就是「登记了却已修好」的腐烂豁免。
     {
       token: 'desktop-no-cortex-bypass',
       reason: '闸的**规则 ID**（check-brain-chain.mjs）—— docs/superpowers/architecture/2026-10-29-brain-chain.md 逐条列了它们 ⇒ 改 ID 就等于让那份历史文档失效（历史文档不许改）。',
@@ -191,9 +177,9 @@ const ROOT_OPTS = {
     {
       token: 'cortex-residue',
       reason:
-        '**闸名本身带旧产品名**（check-cortex-residue.mjs / check-cortex-residue-all.mjs）' +
-        '⇒ ⇒ 改闸名会同时打断 CI step、债清单、账本里的引用 ⇒ ⇒ **真契约**' +
-        '⇒ ⇒（cortex-residue-all 是它的子串 ⇒ ⇒ 一条就够）。',
+        '**旧闸名的字面引用**（2026-11-06 改名刀把 check-cortex-residue.mjs / check-cortex-residue-all.mjs' +
+        '改姓为 legacy-residue，闸名 / CI job / step / 横幅同步改）⇒ ⇒ 改名谱系注与 CI 说明注释里' +
+        '逐字保留旧名原文（史证 + 引用兼容）⇒ ⇒ 本 token 因此在扫描面仍有出现 ⇒ ⇒ **真契约**。',
     },
     {
       token: '2026-08-16-cortex-data-channel-device-router.md',
@@ -215,7 +201,7 @@ const ROOT_OPTS = {
 
 const line = '═'.repeat(72);
 console.log(line);
-console.log('Cortex 残留闸 —— 统一入口');
+console.log('Legacy residue 闸 —— 统一入口');
 console.log(line);
 
 if (process.argv.includes('--self-test')) {

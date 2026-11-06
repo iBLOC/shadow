@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 「Cortex 残留」闸 —— **共用引擎**（一处实现）
+ * 「Legacy residue」闸 —— **共用引擎**（一处实现）
  *
  * ── 为什么要有这道闸 ──────────────────────────────────────────────
  * 用户拍板：「Cortex 是过时概念应该删除」「清理 cortex 避免与新方案
@@ -21,7 +21,7 @@
  *
  * ⚠️ **这里的判据被多个仓共用**（shadow 仓 + telencephalon 仓 + 各下游仓）。
  *    各仓各自独立 git 仓 ⇒ 不能 import 同一份 ⇒ 只能复制。
- *    ⇒ 副本一致性由**跨仓闸的判据 ④**护（`scripts/check-cortex-residue-all.mjs`
+ *    ⇒ 副本一致性由**跨仓闸的判据 ④**护（`scripts/check-legacy-residue-all.mjs`
  *      的「引擎副本一致性」：两份不字节相同 ⇒ 判红）。
  *    ⚠️ 2026-11-05 实测：这里写的那个「副本一致性门（cortex-residue-parity）」
  *      **根本不存在** ⇒ ⇒ 两份漂了没人知道 ⇒ ⇒ 现在这一格才真的存在。
@@ -40,10 +40,13 @@
  *     （改名链注释、迁移史、README 的变更记录……）
  *     ⇒ **只在注释 / 文档行**豁免；出现在**代码行** ⇒ 判红。
  *
- * ⚠️ **本文件是 `shadow` 仓 `scripts/lib/cortex-residue.mjs` 的副本** ——
+ * ⚠️ **本文件是 `shadow` 仓的判据引擎**（2026-11-06 改名刀由
+ *    `cortex-residue.mjs` 改姓为 `legacy-residue.mjs`；telencephalon 侧的副本
+ *    `scripts/lib/cortex-residue.mjs` **保持旧名**，跨仓闸对它如实打印注记）——
  *    两个仓是**各自独立的 git 仓** ⇒ 没法 import 同一份 ⇒ 只能复制。
- *    ⇒ **改判据时两边一起改**，否则两边会漂（漂了 ⇒ 一边的闸绿了、另一边的闸
- *    还在按旧判据跑 ⇒ 「有闸」变成「有闸，但两把不一样」）。
+ *    ⇒ **下次改判据时必须人工同步 telencephalon 副本**，否则两边会漂
+ *    （漂了 ⇒ 一边的闸绿了、另一边的闸还在按旧判据跑 ⇒ 「有闸」变成
+ *    「有闸，但两把不一样」）。
  * ⚠️ 为什么要分两类：混在一张表里，闸就会**放过真残留**。
  *   典型：PG 表名 `cortex_lobes` 出现在「改名史注释」里合法（那是史证），
  *   但它出现在**活 SQL** 里就是「改名没做完」（那是残留）。
@@ -343,7 +346,7 @@ export function runGate(o) {
   const say = (s = '') => out.push(s);
 
   say('═'.repeat(72));
-  say(`Cortex 残留闸 —— ${label}`);
+  say(`Legacy residue 闸 —— ${label}`);
   say('═'.repeat(72));
 
   // ⚠️ 这一格排在「豁免腐烂」**前面** —— 扫描目标是空的 ⇒ seenTokens 必然是空的
@@ -442,7 +445,7 @@ let probeSeq = 0;
 /** 探针的路径 —— **系统临时目录**，不是被扫的仓。 */
 function makeProbePath() {
   probeSeq += 1;
-  return join(tmpdir(), 'cortex-residue-selftest-' + process.pid + '-' + probeSeq + '.tmp');
+  return join(tmpdir(), 'legacy-residue-selftest-' + process.pid + '-' + probeSeq + '.tmp');
 }
 
 /**
@@ -497,7 +500,7 @@ export function runSelfTest(o) {
   let fails = 0;
 
   say('─'.repeat(72));
-  say(`Cortex 残留闸 —— 自检（${label}）`);
+  say(`Legacy residue 闸 —— 自检（${label}）`);
   say('─'.repeat(72));
 
   // ① 造一次残留，扫真实文件
@@ -565,6 +568,8 @@ export function runSelfTest(o) {
 
   // ④ 豁免 token 不存在时必须报「腐烂」
   {
+    // ⚠️ 假 token 是**自检夹具**（判据本体的测试件），不是守门人自己的命名
+    //    ⇒ 2026-11-06 改名刀不改它的姓（与 telencephalon 副本逐字一致）。
     const fake = [{ token: '__cortex_never_exists_9d1f__', reason: '自检用的假 token' }];
     const r = classifyLine('const x = 1;', fake);
     const seen = new Set();
@@ -580,6 +585,8 @@ export function runSelfTest(o) {
 
   // ⑤ `history` 类的豁免**只对注释 / 文档行**生效 ——
   //    出现在代码行必须判红（那才是「改名没做完」的真残留）
+  //    ⚠️ 探针 token 必须含 cortex —— 它是**合成残留夹具**（不含 cortex 就测不出
+  //    「代码行判红」⇒ ⑤ 恒红），不是守门人自己的命名 ⇒ 改名刀不改它的姓。
   {
     const fake = [{ token: '__cortex_history_probe__', kind: 'history', reason: '自检用的假史证 token' }];
     const codeLine = classifyLine('const t = "__cortex_history_probe__";', fake);

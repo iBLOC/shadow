@@ -9,7 +9,7 @@
 # hand-maintained. The previous hardcoded list had silently rotted: it still
 # pointed at the deleted UniverSheet, at the pre-rename client / store /
 # status-page identifiers (that family is now covered by
-# scripts/check-cortex-residue.mjs), at the removed RecordingPage and at a
+# scripts/check-legacy-residue.mjs), at the removed RecordingPage and at a
 # chat/ComputerUsePendingModal that actually lives under
 # components/computerUse — so the script could not pass anymore, and it was
 # never wired into CI. Discovery removes that whole class of drift.

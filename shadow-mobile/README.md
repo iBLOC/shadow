@@ -114,7 +114,7 @@ libencephalon.so（Rust）
 | `flutter analyze --no-fatal-infos --no-fatal-warnings` | 静态检查 |
 | `flutter test` | 单元 + widget 测试 |
 | `flutter build apk --release --split-per-abi` | 按 ABI 打包 |
-| `node scripts/check-cortex-residue.mjs` | 过时命名残留检查（词级 ＋ 兼容契约豁免清单 ＋ `--self-test`） |
+| `node scripts/check-legacy-residue.mjs` | 过时命名残留检查（词级 ＋ 兼容契约豁免清单 ＋ `--self-test`） |
 
 ## 约定
 

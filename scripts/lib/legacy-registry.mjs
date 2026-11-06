@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * Cortex 残留闸 —— **跨仓注册表**（数据）
+ * Legacy residue 闸 —— **跨仓注册表**（数据）
  *
- * ⚠️ 判据（算法）不在这里 ⇒ 在 `./cortex-residue.mjs`（唯一一份）。
+ * ⚠️ 判据（算法）不在这里 ⇒ 在 `./legacy-residue.mjs`（唯一一份）。
  *    这里只有**数据**：每个仓扫哪些目录、哪些 token 是真契约 / 史证。
  *
  * ── 为什么要有跨仓这一层 ──────────────────────────────────────────
@@ -323,12 +323,14 @@ export const TELEPHALON_LEGACY_TESTS = [
  * 各仓的数据。
  *
  * ⚠️ 键是**仓名**（自动发现时的目录名）⇒ 少写一个就是「这个仓没人盯」⇒
- *    入口会打印**没登记的仓**清单（见 check-cortex-residue-all.mjs）⇒ 漏了能一眼看出。
+ *    入口会打印**没登记的仓**清单（见 check-legacy-residue-all.mjs）⇒ 漏了能一眼看出。
  */
 export const REGISTRY = {
   // ── 已经在跑自己那道闸的仓 ⇒ 由它们自己负责（避免同一仓被扫两遍）────
-  // shadow / shadow-desktop / shadow-mobile / telencephalon / encephalon：
-  // 各自仓里有 scripts/check-cortex-residue.mjs（薄壳）⇒ 本表不重复登记。
+  // shadow / shadow-desktop / shadow-mobile / encephalon：各自仓里有
+  // scripts/check-legacy-residue.mjs（薄壳；2026-11-06 改名刀由
+  // check-cortex-residue.mjs 改姓）⇒ 本表不重复登记。
+  // telencephalon：仍用旧名 scripts/check-cortex-residue.mjs（独立仓未随本刀改）。
 
   amygdala: {
     scanDirs: ['src', 'tests', 'scripts'],
@@ -623,7 +625,8 @@ export const REGISTRY = {
     //    留着它就是「登记了却已修好 ⇒ ⇒ 闸会报豁免条目腐烂（退出码 2）」⇒ ⇒
     //    豁免必须**跟着事实**走（NOTICE 也重写过，不再提旧产品名）。
     allowed: [],
-    // ✅ 2026-11-05：接进 CI（cortex-residue-stack job 补了 checkout 步骤）⇒ ⇒
+    // ✅ 2026-11-05：接进 CI（跨仓 stack job 补了 checkout 步骤；该 job 当时叫
+    //    cortex-residue-stack，2026-11-06 改名刀改姓 legacy-residue-stack）⇒ ⇒
     //    本仓不再是「CI 上检不出」的那一格 ⇒ ⇒ 缺口销账。
     ciCheckout: true,
   },
@@ -659,9 +662,10 @@ export const LOCAL_ONLY = Object.fromEntries(
  * ⚠️ 这是**唯一一份**清单 ⇒ shadow 的 ci.yml 里的 checkout 步骤与它对账
  *    （见 check-cortex-residue-all.mjs 的「CI 清单对账」那一段）⇒
  *    **YAML 少检一个仓 ⇒ 闸自己报红**（而不是 CI 悄悄少扫一半）。
- * ⚠️ SELF_OWNED 的三个仓**不在这里** —— 它们各自的仓里有自己的 cortex-residue
- *    job（2026-11-04 实测：telencephalon/.github/workflows/ci.yml:711 与
- *    encephalon/.github/workflows/ci.yml:491 各有一个）⇒ 不重复检出。
+ * ⚠️ SELF_OWNED 的三个仓**不在这里** —— 它们各自的仓里有自己的残留闸 job
+ *    （2026-11-04 实测：telencephalon/.github/workflows/ci.yml:711 与
+ *    encephalon/.github/workflows/ci.yml:491 各有一个；job 与闸文件在
+ *    2026-11-06 改名刀由 cortex-residue 改姓 legacy-residue）⇒ 不重复检出。
  */
 export const CI_CHECKOUT = Object.keys(REGISTRY)
   .filter((n) => !SELF_OWNED.has(n) && REGISTRY[n].ciCheckout !== false)
