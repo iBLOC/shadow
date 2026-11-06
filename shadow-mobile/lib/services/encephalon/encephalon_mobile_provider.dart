@@ -8,7 +8,6 @@ import '../background/background_run_provider.dart';
 import '../../l10n/current_l10n.dart';
 import '../../providers/brain_model_source_provider.dart';
 import '../../providers/telencephalon_provider.dart';
-import '../../screens/model_management_screen.dart';
 import '../../tts_engine.dart';
 import 'encephalon_mobile_service.dart';
 
@@ -91,6 +90,9 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
   /// 嵌入式端脑有**自己**那把（两个域：嵌入式那把只对嵌入式端脑有效）⇒
   /// 指回外部端脑时要把这把放回去，否则用户在设置页配的 token 会丢。
   String? _userAdminToken;
+
+  /// 端脑面就绪轮询在跑的标记 —— 防止 refreshStatus 连发把轮询叠罗汉。
+  bool _agentSurfaceWaitInFlight = false;
 
   /// 设置 admin token —— 设置页给**外部**端脑配的那把。
   ///
@@ -226,7 +228,7 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
         // 而 Android App 进程的环境变量由 zygote 决定、宿主注入不了 ——
         // 所以只能走这条程序化通道：MethodChannel → JNI → Rust → 注册进
         // neuron 的派发表。叶区随后会按这个模型 id 去请求 neuron。
-        final payload = await _applyModelRouting();
+        await _applyModelRouting();
 
         final success = await _service.start();
         if (!mounted) return false;
@@ -260,11 +262,15 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
           unawaited(
             _ref.read(backgroundRunProvider.notifier).ensureRunningIfEnabled(),
           );
-          // ⚠️⚠️ **起完必须再下发一次路由** —— 那颗大脑可能是**早就在跑**的
-          // ⇒ ⇒ 「启动时读槽位」那条路根本没走 ⇒ ⇒ 它的 neuron 派发表里
-          // 没有**现在**选的远端引擎 ⇒ ⇒ 第一条消息必报
-          // 「no engine registered for model 'xxx'」（真机 2026-11-04 实证）。
-          if (payload != null) await _pushLobeModels(payload);
+          // ⚠️⚠️ **起完必须再下发一次路由，且要拿「新目录」重算** ——
+          // ❶ 那颗大脑可能是**早就在跑**的 ⇒ 「启动时读槽位」那条路没走
+          // ⇒ 派发表里没有现在选的引擎（真机 2026-11-04 实证）；
+          // ❷ 上面那份 payload 是 start **前**算的 —— 那时 client 还指着
+          // 没人监听的地方 ⇒ 供应商目录读了个空（失败还被缓存进
+          // brainProviderOptionsProvider）⇒ 拿它下发 = 注册了个寂寞。
+          // 接管刚把 client 指到大脑并作废了缓存 ⇒ 走 _applyModelRouting
+          // 重读目录（DeepSeek 就回来了）、重写槽位、打到大脑。
+          await _applyModelRouting();
           return true;
         }
         state = state.copyWith(
@@ -320,23 +326,26 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
   /// 没配云端供应商时**不报错**：大脑照样起来，只是叶区没有远端模型可用
   /// （会回 `NO_MODEL_CONFIGURED`），本地权重那条路仍然可用。
   Future<Map<String, dynamic>?> _applyModelRouting() async {
-    // 等模型列表**首次加载完** —— 第一次读 provider 时列表还是空的
-    // （加载是异步的），不等会误判成「用户没配云端供应商」。
-    try {
-      await _ref.read(modelsProvider.notifier).ready;
-    } catch (e) {
-      _log.warning('模型列表加载失败: $e');
-    }
-    // 等「用户选了哪个来源」也读完 —— 没选过就是自动。
+    // 等「用户选了哪个来源」读完 —— 没选过就是自动。
     try {
       await _ref.read(brainModelSourceProvider.notifier).ready;
     } catch (e) {
       _log.warning('模型来源设置读取失败: $e');
     }
 
+    // ⚠️ **直读大脑的供应商目录**（2026-11-06「大脑是唯一数据源」刀 ——
+    // App 本地不再镜像供应商）。启动链不许被目录拉取失败挡住：大脑照样
+    // 起来，只是这一次没有远端模型可注册；失败要在日志里说真话。
+    List<BrainModelOption> options;
+    try {
+      options = await _ref.read(brainProviderOptionsProvider.future);
+    } catch (e) {
+      _log.warning('大脑供应商目录读取失败，本次启动不注册远端模型: $e');
+      options = const [];
+    }
+
     final routing = _ref.read(brainModelSourceProvider).routing;
-    final models = _ref.read(modelsProvider).models;
-    final payload = buildModelRoutingPayload(routing: routing, models: models);
+    final payload = buildModelRoutingPayload(routing: routing, options: options);
 
     final ok = await _service.setModelRouting(payload);
     if (ok) {
@@ -396,8 +405,17 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
   /// 也已经写进槽位，下次启动自然生效。
   Future<bool> applyModelRouting() async {
     final routing = _ref.read(brainModelSourceProvider).routing;
-    final models = _ref.read(modelsProvider).models;
-    final payload = buildModelRoutingPayload(routing: routing, models: models);
+    // ⚠️ 直读大脑的供应商目录（2026-11-06「大脑是唯一数据源」刀）。
+    // 读不到 = 落地失败 = 如实报 false（UI 会说「下发失败」），不许静默
+    // 拿空目录把用户已配的路由盖掉。
+    List<BrainModelOption> options;
+    try {
+      options = await _ref.read(brainProviderOptionsProvider.future);
+    } catch (e) {
+      _log.warning('大脑供应商目录读取失败，路由未下发: $e');
+      return false;
+    }
+    final payload = buildModelRoutingPayload(routing: routing, options: options);
 
     // 1) 槽位（下次启动用）。
     final slotOk = await _service.setModelRouting(payload);
@@ -546,9 +564,16 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
   /// 「连接被拒」换成「404」，反而更难排查。
   void _pointClientsAtAgentSurface(int? agentPort) {
     if (agentPort == null || agentPort <= 0) {
-      // 端脑面没起来 —— 保持指向外部端脑。指向一个没人监听的端口
-      // 比指向外部端脑更糟：所有调用都会 connection refused。
-      _log.warning('端脑面未启动, 客户端保持指向外部端脑');
+      // ⚠️⚠️ 端脑面这会儿还没起来 —— **不能**再「保持指向外部端脑」了事。
+      // native `start()` 回来时端脑面经常还在 boot 途中（agentPort==0），
+      // 而这条分支以前直接 return ⇒ 之后没人补跑 ⇒ client 永远停在外部
+      // 端脑 / 默认 :60080 ⇒ 大脑页整页 401 / connection refused
+      // （真机 2026-11-06 实证：干净重启后大脑页红屏，uri=127.0.0.1:60080）。
+      // 指向一个没人监听的端口比指向外部端脑更糟：所有调用都会
+      // connection refused ⇒ ⇒ 改成后台轮询等就绪再接管（unawaited，
+      // 失败不许拖垮主流程），一处实现覆盖全部调用点。
+      _log.warning('端脑面未启动（agentPort=$agentPort）—— 后台轮询等就绪再接管');
+      _waitForAgentSurfaceAndTakeOver();
       return;
     }
     final url = 'http://127.0.0.1:$agentPort';
@@ -556,14 +581,80 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
     // 「谁在占着端脑面」这件事 ⇒ ⇒ 配置一改就知道该不该动 client
     // ⇒ 而以前是这里直接改 client ⇒ 「配置」和「client」两个事实源
     // ⇒ 内嵌大脑一放手就把用户配的远端地址弄丢了。
+    final shadowKey = _service.shadowKey;
+    final adminToken = _service.adminToken;
+    // ⚠️ 钥匙为空 = client 指到了大脑但**打不开门**（HTTP 面 401）。
+    // 不打断接管（指针照旧），但日志要说真话，别让 401 没名没姓。
+    if (shadowKey == null || shadowKey.isEmpty) {
+      _log.warning('端脑面已指向嵌入式大脑，但 shadow key 为空 ⇒ HTTP 面将 401');
+    }
     _ref
         .read(telencephalonProvider.notifier)
         .takeOverByAgentSurface(
           url,
-          shadowKey: _service.shadowKey,
-          adminToken: _service.adminToken,
+          shadowKey: shadowKey,
+          adminToken: adminToken,
         );
-    _log.info('端脑 client 已指向嵌入式大脑: $url');
+    // ⚠️⚠️ **client 的上游换人了 ⇒ 目录缓存必须作废** ——
+    // `brainProviderOptionsProvider` 是直读 client 的 FutureProvider，
+    // 而接管是**原位改 baseUrl**（同一个 client 对象）⇒ Riverpod 不认为
+    // 依赖变过 ⇒ 之前指向 60080 时读失败的缓存会**永远**留着 ⇒ 路由
+    // payload 永远空 providers ⇒ 第一条消息必报 no_engine_for_model。
+    // 作废后下一次读 = 从大脑拿真目录（钥匙与指针此刻都已就位）。
+    _ref.invalidate(brainProviderOptionsProvider);
+    _log.info('端脑 client 已指向嵌入式大脑: $url（供应商目录缓存已作废）');
+  }
+
+  /// 轮询等端脑面（agent surface）就绪，拿到端口后把 client 接管过去。
+  ///
+  /// - 每 2s 问一次 `getStatus()`，最多 15 次（30s 预算 —— 冷启动要加载
+  ///   150MB 的 so 再 boot 端脑面，真机要十几秒，预算必须盖得住）；
+  /// - 期间用户喊停 ⇒ 立刻放弃 —— 那时停脑流程会把 client 复原到外部
+  ///   端脑（[_restoreExternalEndpoint]），轮询不许再抢；
+  /// - 超时只打日志：下一次 refreshStatus / 重启大脑会再触发。
+  Future<void> _waitForAgentSurfaceAndTakeOver() async {
+    if (_agentSurfaceWaitInFlight) return; // 已有轮询在跑，别叠罗汉。
+    _agentSurfaceWaitInFlight = true;
+    try {
+      for (var i = 1; i <= 15; i++) {
+        await Future<void>.delayed(const Duration(seconds: 2));
+        if (!mounted) return;
+        if (_stoppedByUser || state.status == EncephalonMobileStatus.stopped) {
+          _log.info('等待端脑面期间大脑已停 —— 放弃接管轮询');
+          return;
+        }
+        try {
+          final status = await _service.getStatus();
+          final ap = status['agentPort'] as int?;
+          if (status['running'] == true && ap != null && ap > 0) {
+            if (!mounted) return;
+            state = state.copyWith(
+              status: EncephalonMobileStatus.running,
+              port: status['port'] as int?,
+              agentPort: ap,
+              errorMessage: null,
+            );
+            _log.info('端脑面就绪: $ap（第 $i 次轮询）—— 接管端脑 client');
+            _pointClientsAtAgentSurface(ap);
+            // ⚠️⚠️ **迟到的接管 ⇒ 早前的路由下发多半打在没人监听的旧指针上**
+            // ⇒ 接管后必须补一发（重读目录 + 重写槽位 + 打到大脑），
+            // 否则第一条消息必报 no_engine_for_model。unawaited 语义：
+            // 失败只记日志，不许把「接管成功」拖成红。
+            try {
+              await _applyModelRouting();
+            } catch (e) {
+              _log.warning('接管后补发模型路由失败: $e');
+            }
+            return;
+          }
+        } catch (e) {
+          _log.fine('轮询端脑面就绪失败（第 $i 次）: $e');
+        }
+      }
+      _log.warning('端脑面 30s 内未就绪 —— client 保持指向外部端脑（下次刷新/重启会再试）');
+    } finally {
+      _agentSurfaceWaitInFlight = false;
+    }
   }
 
   /// 大脑停掉后把 client 复原到「**配置里那个端脑**」。
@@ -572,6 +663,9 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
     // （那是「没配过」的默认值）⇒ ⇒ 用户配了远端、内嵌大脑一停就被拽回
     // 本机默认 ⇒ 「配了、存了、重启后却不生效」的同一族坑。
     _ref.read(telencephalonProvider.notifier).releaseAgentSurface();
+    // 同接管一族：client 的上游换回「配置那个」⇒ 目录缓存作废，
+    // 下一次读按当前指针拿数据（大脑是唯一数据源，缓存不许跨上游幸存）。
+    _ref.invalidate(brainProviderOptionsProvider);
     _log.info('端脑 client 已复原到配置里的端脑');
   }
 

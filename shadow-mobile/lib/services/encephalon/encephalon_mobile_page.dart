@@ -7,8 +7,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../generated/l10n/app_localizations.dart';
 import '../../providers/brain_model_source_provider.dart';
 import '../../providers/telencephalon_provider.dart';
-import '../../screens/model_management_screen.dart';
-import '../../services/database/model_item.dart';
 import '../../services/telencephalon/telencephalon_client.dart';
 import 'encephalon_mobile_provider.dart';
 
@@ -113,25 +111,21 @@ class _EncephalonMobilePageState extends ConsumerState<EncephalonMobilePage> {
   /// 上游，决定了「叶区 → LLM」那一跳通不通：
   /// - **本地 neuron 权重** —— 不指定模型 id，叶区从 neuron 的本地模型
   ///   目录里挑；
-  /// - **云端供应商**（如 MiniMax token plan）—— 注册一条远端引擎。
+  /// - **云端供应商**（如 DeepSeek）—— 注册一条远端引擎。
   ///
   /// 这是**全局默认** —— 各个叶区默认都用它；单个叶区要换一边，去下面
   /// 的「叶区模型路由」。
+  ///
+  /// ⚠️ 选项**直读大脑**的供应商目录（2026-11-06「大脑是唯一数据源」刀，
+  /// App 本地不再镜像供应商表）：loading / error 都要说真话，不许静默
+  /// 空列表装作「没有云供应商」。
   Widget _buildModelSourceCard(
     BuildContext context,
     AppLocalizations l10n,
     EncephalonMobileNotifier notifier,
   ) {
     final sourceState = ref.watch(brainModelSourceProvider);
-    final models = ref.watch(modelsProvider).models;
-    final cloudModels = models
-        .where((m) => m.source == ModelSource.cloudProvider)
-        .toList();
-
-    // 实际在用的是哪个 —— 用户没显式选过时是「自动」（第一个可用的云端
-    // 供应商，没有就是本地权重）。
-    final effective = BrainModelSource.resolve(sourceState.source, models);
-    final selected = effective?.id ?? BrainModelSource.local;
+    final optionsAsync = ref.watch(brainProviderOptionsProvider);
 
     return Card(
       child: Padding(
@@ -149,48 +143,141 @@ class _EncephalonMobilePageState extends ConsumerState<EncephalonMobilePage> {
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 8),
-            RadioGroup<String>(
-              groupValue: selected,
-              onChanged: (value) {
-                if (value == null) return;
-                if (value == BrainModelSource.local) {
-                  _applySource(notifier, l10n, BrainModelSource.localSource);
-                } else {
-                  _applySource(
-                    notifier,
-                    l10n,
-                    BrainModelSource.cloud(value),
-                  );
-                }
-              },
-              child: Column(
-                children: [
-                  RadioListTile<String>(
-                    value: BrainModelSource.local,
-                    title: Text(l10n.encephalonModelLocalNeuron),
-                  ),
-                  for (final m in cloudModels)
-                    RadioListTile<String>(
-                      value: m.id,
-                      title: Text(m.name),
-                      subtitle: Text(
-                        '${m.endpoint ?? ''} · ${m.model ?? ''}',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ),
-                ],
+            optionsAsync.when(
+              data: (options) => _buildModelSourceChoices(
+                context,
+                l10n,
+                notifier,
+                sourceState,
+                options,
               ),
-            ),
-            if (cloudModels.isEmpty) ...[
-              const SizedBox(height: 8),
-              Text(
-                l10n.encephalonModelNoCloudProvider,
+              loading: () => const Padding(
+                padding: EdgeInsets.all(12),
+                child: Center(child: CircularProgressIndicator()),
+              ),
+              error: (_, _) => Text(
+                l10n.encephalonModelOptionsUnavailable,
                 style: Theme.of(context).textTheme.bodySmall,
               ),
-            ],
+            ),
           ],
         ),
       ),
+    );
+  }
+
+  /// 模型来源的选择列表。
+  ///
+  /// 选项已在 [usableBrainOptions] 里过滤成「能当对话上游」的那部分
+  ///（模态是大脑目录给的**固定内容**，asr / tts / embedding 等选了必坏
+  /// ⇒ 界面不给一个必然失败的选项），并按模态分组：**文本模型 / 视觉
+  /// 模型**（用户的语言，不出现缩写）。
+  Widget _buildModelSourceChoices(
+    BuildContext context,
+    AppLocalizations l10n,
+    EncephalonMobileNotifier notifier,
+    BrainModelSourceState sourceState,
+    List<BrainModelOption> options,
+  ) {
+    final textOptions = [
+      for (final o in options)
+        if (o.chatCategory == ModelChatCategory.text) o,
+    ];
+    final visionOptions = [
+      for (final o in options)
+        if (o.chatCategory == ModelChatCategory.vision) o,
+    ];
+
+    // 实际在用的是哪个 —— 用户没显式选过时是「自动」（第一条可对话
+    // 选项，没有就是本地权重）。resolve 与下发链用**同一份**选项列表。
+    final effective = BrainModelSource.resolve(sourceState.source, options);
+    final selected = effective?.id ?? BrainModelSource.local;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        RadioGroup<String>(
+          groupValue: selected,
+          onChanged: (value) {
+            if (value == null) return;
+            if (value == BrainModelSource.local) {
+              _applySource(notifier, l10n, BrainModelSource.localSource);
+            } else {
+              _applySource(
+                notifier,
+                l10n,
+                BrainModelSource.cloud(value),
+              );
+            }
+          },
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              RadioListTile<String>(
+                value: BrainModelSource.local,
+                title: Text(l10n.encephalonModelLocalNeuron),
+              ),
+              // ── 文本模型（对话）──────────────────────────
+              if (textOptions.isNotEmpty) ...[
+                Padding(
+                  padding: const EdgeInsets.only(
+                    left: 16,
+                    top: 8,
+                    bottom: 4,
+                  ),
+                  child: Text(
+                    l10n.modelCategoryText,
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                  ),
+                ),
+                for (final o in textOptions)
+                  RadioListTile<String>(
+                    value: o.id,
+                    title: Text(o.name),
+                    subtitle: Text(
+                      '${o.baseUrl} · ${o.model}',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+              ],
+              // ── 视觉模型（文本 + 图像输入）───────────────
+              if (visionOptions.isNotEmpty) ...[
+                Padding(
+                  padding: const EdgeInsets.only(
+                    left: 16,
+                    top: 8,
+                    bottom: 4,
+                  ),
+                  child: Text(
+                    l10n.modelCategoryVision,
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                  ),
+                ),
+                for (final o in visionOptions)
+                  RadioListTile<String>(
+                    value: o.id,
+                    title: Text(o.name),
+                    subtitle: Text(
+                      '${o.baseUrl} · ${o.model}',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+              ],
+            ],
+          ),
+        ),
+        if (options.isEmpty) ...[
+          const SizedBox(height: 8),
+          Text(
+            l10n.encephalonModelNoCloudProvider,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+      ],
     );
   }
 
@@ -208,10 +295,11 @@ class _EncephalonMobilePageState extends ConsumerState<EncephalonMobilePage> {
     EncephalonMobileNotifier notifier,
   ) {
     final sourceState = ref.watch(brainModelSourceProvider);
-    final models = ref.watch(modelsProvider).models;
-    final cloudModels = models
-        .where((m) => m.source == ModelSource.cloudProvider)
-        .toList();
+    // 与全局默认同一份来源：直读大脑的供应商目录（usableBrainOptions
+    // 已过滤成可对话选项）—— 叶区覆盖选了 asr/tts 必坏，界面不给这个
+    // 选项（2026-11-06「大脑是唯一数据源」刀）。
+    final optionsAsync = ref.watch(brainProviderOptionsProvider);
+    final options = optionsAsync.value ?? const <BrainModelOption>[];
 
     return Card(
       child: Padding(
@@ -239,6 +327,26 @@ class _EncephalonMobilePageState extends ConsumerState<EncephalonMobilePage> {
               l10n.encephalonLobeRoutingHint,
               style: Theme.of(context).textTheme.bodySmall,
             ),
+            // 选项目录的状态要说真话：读不到时下拉框只剩「跟随全局 / 本地」，
+            // 不许静默装作「没有云供应商」。
+            optionsAsync.when(
+              data: (_) => const SizedBox.shrink(),
+              loading: () => const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: SizedBox(
+                  height: 16,
+                  width: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+              error: (_, _) => Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  l10n.encephalonModelOptionsUnavailable,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+            ),
             const SizedBox(height: 12),
             FutureBuilder<List<NativeLobeInfo>>(
               future: _lobesFuture,
@@ -264,7 +372,7 @@ class _EncephalonMobilePageState extends ConsumerState<EncephalonMobilePage> {
                         l10n,
                         lobe,
                         sourceState,
-                        cloudModels,
+                        options,
                         notifier,
                       ),
                   ],
@@ -283,7 +391,7 @@ class _EncephalonMobilePageState extends ConsumerState<EncephalonMobilePage> {
     AppLocalizations l10n,
     NativeLobeInfo lobe,
     BrainModelSourceState sourceState,
-    List<ModelItem> cloudModels,
+    List<BrainModelOption> options,
     EncephalonMobileNotifier notifier,
   ) {
     // 有覆盖 = 覆盖的值；没有覆盖 = 跟随全局默认。
@@ -296,7 +404,7 @@ class _EncephalonMobilePageState extends ConsumerState<EncephalonMobilePage> {
     final selectable = <String>{
       _followGlobalValue,
       BrainModelSource.local,
-      for (final m in cloudModels) BrainModelSource.cloud(m.id).raw ?? '',
+      for (final o in options) BrainModelSource.cloud(o.id).raw ?? '',
     };
     final currentValue =
         selectable.contains(rawValue) ? rawValue : _followGlobalValue;
@@ -306,7 +414,7 @@ class _EncephalonMobilePageState extends ConsumerState<EncephalonMobilePage> {
     final effective = effectiveLobeSource(
       routing: sourceState.routing,
       lobe: lobe.name,
-      models: cloudModels,
+      options: options,
     );
 
     return Padding(
@@ -330,7 +438,7 @@ class _EncephalonMobilePageState extends ConsumerState<EncephalonMobilePage> {
                     overflow: TextOverflow.ellipsis,
                   ),
                 Text(
-                  _effectiveText(l10n, effective, cloudModels),
+                  _effectiveText(l10n, effective, options),
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],
@@ -349,10 +457,10 @@ class _EncephalonMobilePageState extends ConsumerState<EncephalonMobilePage> {
                 value: BrainModelSource.local,
                 child: Text(l10n.encephalonModelLocalNeuron),
               ),
-              for (final m in cloudModels)
+              for (final o in options)
                 DropdownMenuItem(
-                  value: BrainModelSource.cloud(m.id).raw,
-                  child: Text(m.name),
+                  value: BrainModelSource.cloud(o.id).raw,
+                  child: Text(o.name),
                 ),
             ],
             onChanged: (value) {
@@ -372,21 +480,18 @@ class _EncephalonMobilePageState extends ConsumerState<EncephalonMobilePage> {
   String _effectiveText(
     AppLocalizations l10n,
     BrainModelSource effective,
-    List<ModelItem> cloudModels,
+    List<BrainModelOption> options,
   ) {
     if (effective.isLocal) return l10n.encephalonLobeEffectiveLocal;
     final id = effective.cloudModelId;
     if (id == null) {
-      // 「自动」= 第一个可用的云端供应商。
-      for (final m in cloudModels) {
-        if (BrainModelSource.isUsable(m)) {
-          return l10n.encephalonLobeEffectiveCloud(m.name);
-        }
-      }
-      return l10n.encephalonLobeEffectiveLocal;
+      // 「自动」= 第一条可对话选项（options 已过滤 ⇒ 直接取第一条）。
+      return options.isEmpty
+          ? l10n.encephalonLobeEffectiveLocal
+          : l10n.encephalonLobeEffectiveCloud(options.first.name);
     }
-    for (final m in cloudModels) {
-      if (m.id == id) return l10n.encephalonLobeEffectiveCloud(m.name);
+    for (final o in options) {
+      if (o.id == id) return l10n.encephalonLobeEffectiveCloud(o.name);
     }
     return l10n.encephalonLobeEffectiveLocal;
   }

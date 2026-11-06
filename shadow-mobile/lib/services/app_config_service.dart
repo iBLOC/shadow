@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:path_provider/path_provider.dart';
+
 import 'capabilities/capability.dart';
 
 /// 应用配置服务
@@ -35,6 +37,9 @@ class AppConfigService {
   double? _glassIntensity;
   int? _surfaceOverrideValue;
 
+  // 聊天页背景图（落盘路径）。只存路径不存字节 —— 图跟着设备走。
+  String? _chatBackgroundPath;
+
   // 「`default` 桶 → 账号人格桶」的一次性迁移标记。
   //
   // 存的是**搬给谁**（那个人格），但语义是**这台设备已经搬过一次** ——
@@ -53,8 +58,7 @@ class AppConfigService {
   /// 能力授权档位（能力 wire → 档位 wire）。
   ///
   /// 返回的是**防御性副本** —— 调用方改它不会影响仓库。
-  Map<String, String> get capabilityModes =>
-      Map.unmodifiable(_capabilityModes);
+  Map<String, String> get capabilityModes => Map.unmodifiable(_capabilityModes);
 
   // 单例
   static final AppConfigService _instance = AppConfigService._internal();
@@ -94,6 +98,9 @@ class AppConfigService {
   /// 对话框 / 面板背景覆盖（ARGB int）— null 表示跟随主题。
   int? get surfaceOverrideValue => _surfaceOverrideValue;
 
+  /// 聊天页背景图（落盘路径）— null 表示用默认渐变底。
+  String? get chatBackgroundPath => _chatBackgroundPath;
+
   /// 初始化配置服务
   ///
   /// Always (re)reads the config file. The settings screen hydrates through
@@ -122,6 +129,7 @@ class AppConfigService {
         _accentColorValue = config['accentColor'] as int?;
         _glassIntensity = (config['glassIntensity'] as num?)?.toDouble();
         _surfaceOverrideValue = config['surfaceOverride'] as int?;
+        _chatBackgroundPath = config['chatBackgroundPath'] as String?;
         _tenantMigrationTarget = config['tenantMigrationTarget'] as String?;
         _capabilityModes = CapabilityPolicyStore.read(config);
       }
@@ -136,6 +144,7 @@ class AppConfigService {
       _accentColorValue = null;
       _glassIntensity = null;
       _surfaceOverrideValue = null;
+      _chatBackgroundPath = null;
       _tenantMigrationTarget = null;
       // ⚠️ 读失败 ⇒ 授权档位回到「什么都没配」⇒ ⇒ 全部按
       // 「每次询问」处理 ⇒ ⇒ **绝不会因为文件坏了就放宽授权**。
@@ -147,25 +156,27 @@ class AppConfigService {
   Future<void> _saveConfig() async {
     try {
       final file = await _getConfigFile();
-final config = {
-      if (_modelStoreUrl != null) 'modelStoreUrl': _modelStoreUrl,
-      if (_telencephalonBaseUrl != null)
-        'telencephalonBaseUrl': _telencephalonBaseUrl,
-      if (_telencephalonAdminToken != null)
-        'telencephalonAdminToken': _telencephalonAdminToken,
-      if (_telencephalonShadowKey != null)
-        'telencephalonShadowKey': _telencephalonShadowKey,
-      if (_brainStoppedByUser) 'brainStoppedByUser': true,
-      // 默认 true 的键只在**关**时落盘（与上面 brainStoppedByUser 同一
-      // 套「只写非默认」的规矩，配置文件里不留默认壳）。
-      if (!_backgroundKeepAlive) 'backgroundKeepAlive': false,
-      if (_accentColorValue != null) 'accentColor': _accentColorValue,
-      if (_glassIntensity != null) 'glassIntensity': _glassIntensity,
-      if (_surfaceOverrideValue != null)
-        'surfaceOverride': _surfaceOverrideValue,
-      if (_tenantMigrationTarget != null)
-        'tenantMigrationTarget': _tenantMigrationTarget,
-    };
+      final config = {
+        if (_modelStoreUrl != null) 'modelStoreUrl': _modelStoreUrl,
+        if (_telencephalonBaseUrl != null)
+          'telencephalonBaseUrl': _telencephalonBaseUrl,
+        if (_telencephalonAdminToken != null)
+          'telencephalonAdminToken': _telencephalonAdminToken,
+        if (_telencephalonShadowKey != null)
+          'telencephalonShadowKey': _telencephalonShadowKey,
+        if (_brainStoppedByUser) 'brainStoppedByUser': true,
+        // 默认 true 的键只在**关**时落盘（与上面 brainStoppedByUser 同一
+        // 套「只写非默认」的规矩，配置文件里不留默认壳）。
+        if (!_backgroundKeepAlive) 'backgroundKeepAlive': false,
+        if (_accentColorValue != null) 'accentColor': _accentColorValue,
+        if (_glassIntensity != null) 'glassIntensity': _glassIntensity,
+        if (_surfaceOverrideValue != null)
+          'surfaceOverride': _surfaceOverrideValue,
+        if (_chatBackgroundPath != null)
+          'chatBackgroundPath': _chatBackgroundPath,
+        if (_tenantMigrationTarget != null)
+          'tenantMigrationTarget': _tenantMigrationTarget,
+      };
       // ⚠️ 能力授权：**空 map 不写** ⇒ ⇒ 配置文件里不留空壳。
       CapabilityPolicyStore.write(_capabilityModes, config);
       await file.writeAsString(json.encode(config));
@@ -252,6 +263,12 @@ final config = {
   /// 设置对话框 / 面板背景覆盖（ARGB int）。传 null 恢复跟随主题。
   Future<void> setSurfaceOverride(int? value) async {
     _surfaceOverrideValue = value;
+    await _saveConfig();
+  }
+
+  /// 设置聊天背景图路径。传 null / 空串恢复默认渐变底（不落空壳）。
+  Future<void> setChatBackgroundPath(String? value) async {
+    _chatBackgroundPath = (value == null || value.isEmpty) ? null : value;
     await _saveConfig();
   }
 

@@ -4,7 +4,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:shadow_mobile/generated/l10n/app_localizations.dart';
+import 'package:shadow_mobile/providers/brain_model_source_provider.dart';
+import 'package:shadow_mobile/providers/telencephalon_provider.dart';
 import 'package:shadow_mobile/screens/model_management_screen.dart';
+import 'package:shadow_mobile/services/database/app_settings.dart';
+import 'package:shadow_mobile/services/telencephalon/telencephalon_client.dart';
 import 'test_helper.dart';
 
 /// 模型管理页的 widget 测试。
@@ -51,6 +55,19 @@ void main() {
   Future<void> pumpModels(WidgetTester tester) async {
     await tester.pumpWidget(
       ProviderScope(
+        overrides: [
+          // ⚠️ 大脑供应商目录直读大脑（2026-11-06「大脑是唯一数据源」刀）
+          // ⇒ 注入空目录：启动链不再真发 HTTP（fake-async 里 socket 的
+          // Timer 会挂到测试结束，`!timersPending` 直接红）。
+          brainProviderOptionsProvider.overrideWith(
+            (ref) => Future.value(const <BrainModelOption>[]),
+          ),
+          // 设置仓储换内存版 —— 真库的读是真实文件 I/O，fake-async 里
+          // 永远不会完成。
+          appSettingsRepositoryProvider.overrideWithValue(_FakeAppSettings()),
+          // 端脑 client 换假的 —— 下发路由不该真发 HTTP。
+          telencephalonClientProvider.overrideWithValue(_FakeTelencephalonClient()),
+        ],
         child: MaterialApp(
           localizationsDelegates: const [
             AppLocalizations.delegate,
@@ -106,4 +123,60 @@ void main() {
     });
 
     });
+}
+
+/// 空目录的端脑假 client —— 页面启动链不该在测试里真发 HTTP。
+class _FakeTelencephalonClient extends TelencephalonClient {
+  _FakeTelencephalonClient()
+      : super(baseUrl: 'http://127.0.0.1:1');
+
+  @override
+  Future<List<RegisteredProvider>> listProviders() async => const [];
+
+  @override
+  Future<List<NativeLobeInfo>> listNativeLobes() async => const [
+        NativeLobeInfo(
+          name: 'temporal',
+          openaiBaseUrl: 'http://127.0.0.1:1',
+        ),
+        NativeLobeInfo(
+          name: 'prefrontal',
+          openaiBaseUrl: 'http://127.0.0.1:1',
+        ),
+        NativeLobeInfo(
+          name: 'parietal',
+          openaiBaseUrl: 'http://127.0.0.1:1',
+        ),
+      ];
+
+  @override
+  Future<Map<String, dynamic>> applyLobeModels({
+    required String? defaultModel,
+    required Map<String, String?> lobeModels,
+    List<Map<String, String>> providers = const [],
+  }) async {
+    return {
+      'default_model': defaultModel,
+      'applied': lobeModels,
+    };
+  }
+}
+
+/// 内存版的 App 设置仓储（真库的读是真实文件 I/O，fake-async 里
+/// 永远不会完成）。
+class _FakeAppSettings implements AppSettingsRepository {
+  final Map<String, String> values = {};
+
+  @override
+  Future<String?> get(String key) async => values[key];
+
+  @override
+  Future<void> set(String key, String value) async {
+    values[key] = value;
+  }
+
+  @override
+  Future<void> remove(String key) async {
+    values.remove(key);
+  }
 }

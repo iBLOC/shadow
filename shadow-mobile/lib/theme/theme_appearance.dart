@@ -28,10 +28,17 @@ class ThemeAppearance {
   /// 对话框 / 浮层的背景覆盖。null = 跟随当前主题的表面色。
   final Color? surfaceOverride;
 
+  /// 聊天页背景图的落盘路径。null = 用默认渐变底。
+  ///
+  /// 只存路径不存字节：图跟着设备走（清缓存 / 换机就没了），
+  /// 渲染端对「文件不在」要能退回默认，不许把聊天页画崩。
+  final String? chatBackgroundPath;
+
   const ThemeAppearance({
     this.accentSeed = AppTokens.accentSeed,
     this.glassIntensity = 1.0,
     this.surfaceOverride,
+    this.chatBackgroundPath,
   });
 
   ThemeAppearance copyWith({
@@ -39,6 +46,8 @@ class ThemeAppearance {
     double? glassIntensity,
     Color? surfaceOverride,
     bool clearSurfaceOverride = false,
+    String? chatBackgroundPath,
+    bool clearChatBackgroundPath = false,
   }) {
     return ThemeAppearance(
       accentSeed: accentSeed ?? this.accentSeed,
@@ -46,6 +55,9 @@ class ThemeAppearance {
       surfaceOverride: clearSurfaceOverride
           ? null
           : (surfaceOverride ?? this.surfaceOverride),
+      chatBackgroundPath: clearChatBackgroundPath
+          ? null
+          : (chatBackgroundPath ?? this.chatBackgroundPath),
     );
   }
 
@@ -54,10 +66,15 @@ class ThemeAppearance {
     if (other is! ThemeAppearance) return false;
     return other.accentSeed == accentSeed &&
         other.glassIntensity == glassIntensity &&
-        other.surfaceOverride == surfaceOverride;
+        other.surfaceOverride == surfaceOverride &&
+        other.chatBackgroundPath == chatBackgroundPath;
   }
 
   @override
-  int get hashCode =>
-      Object.hash(accentSeed, glassIntensity, surfaceOverride);
+  int get hashCode => Object.hash(
+    accentSeed,
+    glassIntensity,
+    surfaceOverride,
+    chatBackgroundPath,
+  );
 }

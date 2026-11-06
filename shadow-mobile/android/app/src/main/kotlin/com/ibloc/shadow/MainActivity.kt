@@ -791,7 +791,14 @@ class MainActivity : FlutterActivity() {
                                 "running" to runtime.isRunning(),
                                 "port" to runtime.getPort(),
                                 "agentPort" to runtime.getAgentPort(),
-                                "healthy" to runtime.isHealthy()
+                                "healthy" to runtime.isHealthy(),
+                                // ⚠️ 钥匙跟运行态一起回 —— isolate 重建后走「接管」
+                                // 路径的新 isolate 没跑过 "start"（大脑一直在跑），
+                                // 客户端的 X-Shadow-Key / X-Admin-Token 只能从
+                                // 这里拿。getOrCreate 幂等：同一份，端脑守门、
+                                // 客户端敲门（安全语义见 "start" 分支注释）。
+                                "shadowKey" to ShadowKey.getOrCreate(filesDir),
+                                "adminToken" to AdminKey.getOrCreate(filesDir)
                             ))
                         } catch (e: Exception) {
                             result.success(mapOf(

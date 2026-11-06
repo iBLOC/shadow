@@ -143,11 +143,12 @@ void main() {
       await pumpSettings(tester);
 
       final l10n = l10nOf(tester);
-      await tapVisible(tester, find.text(l10n.settingsDialogBackground));
+      await tapVisible(tester, find.text(l10n.settingsBackground));
 
-      // 弹层里的选项用的是 SettingsRow（不依赖 Material），不是 InkWell ——
-      // InkWell 在没有 Material 祖先时会直接断言失败。
+      // 合并弹层：对话框底色的色块行（SettingsRow，不依赖 Material）与
+      // 聊天背景图的操作行同层可见。
       expect(find.text(l10n.settingsSurfaceInk), findsOneWidget);
+      expect(find.text(l10n.settingsChatBackgroundPick), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });

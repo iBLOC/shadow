@@ -60,6 +60,7 @@ class ThemeAppearanceNotifier extends StateNotifier<ThemeAppearance> {
         surfaceOverride: _config.surfaceOverrideValue == null
             ? null
             : Color(_config.surfaceOverrideValue!),
+        chatBackgroundPath: _config.chatBackgroundPath,
       );
     } catch (e) {
       // 读配置失败就用默认值 —— 外观不该因为配置文件坏了就进不去 App
@@ -97,5 +98,14 @@ class ThemeAppearanceNotifier extends StateNotifier<ThemeAppearance> {
         ? state.copyWith(clearSurfaceOverride: true)
         : state.copyWith(surfaceOverride: color);
     await _config.setSurfaceOverride(color?.toARGB32());
+  }
+
+  /// 设置聊天背景图（落盘路径）。null / 空串 = 恢复默认渐变底。
+  Future<void> setChatBackgroundPath(String? path) async {
+    final next = (path == null || path.isEmpty) ? null : path;
+    state = next == null
+        ? state.copyWith(clearChatBackgroundPath: true)
+        : state.copyWith(chatBackgroundPath: next);
+    await _config.setChatBackgroundPath(next);
   }
 }

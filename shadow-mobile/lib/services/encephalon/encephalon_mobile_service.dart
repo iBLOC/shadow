@@ -218,7 +218,17 @@ class EncephalonMobileService {
       final result = await _channel.invokeMethod<Map<dynamic, dynamic>>(
         'getStatus',
       );
-      return Map<String, dynamic>.from(result ?? {});
+      final status = Map<String, dynamic>.from(result ?? {});
+      // ⚠️ 钥匙跟运行态一起恢复 —— isolate 重建后接管大脑的那条路径
+      // （_init → getStatus）不会经过 [start]，而大脑一直在跑 ⇒ 新
+      // isolate 的两把钥匙是 null ⇒ client 打自己的大脑 401（真机
+      // 2026-11-06 实证：大脑页红屏 TelencephalonException 401）。
+      // 宿主在没跑时不回钥匙 ⇒ 这两个判空就是「不覆盖」。
+      final sk = status['shadowKey'] as String?;
+      if (sk != null && sk.isNotEmpty) _shadowKey = sk;
+      final at = status['adminToken'] as String?;
+      if (at != null && at.isNotEmpty) _adminToken = at;
+      return status;
     } catch (e) {
       _log.warning('获取状态失败: $e');
       return {

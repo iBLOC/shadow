@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +11,7 @@ import '../providers/genui_provider.dart';
 import '../providers/wake_word_provider.dart';
 import '../services/wake_word_service.dart';
 import '../providers/conversation_mode_provider.dart';
+import '../providers/theme_provider.dart';
 import '../utils/chat_state_l10n.dart';
 import '../widgets/continue_on_desktop_dialog.dart';
 import '../widgets/chat/local_chat_view.dart';
@@ -85,6 +87,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final l10n = AppLocalizations.of(context)!;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final useAgent2UI = ref.watch(useAgent2UIModeProvider);
+    // 聊天背景图 —— 设置里选的图；null = 用默认渐变底。
+    final bgPath = ref.watch(themeAppearanceProvider).chatBackgroundPath;
 
     ref.listen(chatProvider, (previous, next) {
       if (previous?.messages.length != next.messages.length) {
@@ -199,53 +203,78 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       ),
       // 折叠屏展开后屏宽 ≈ 700dp：内容限宽居中，不拉满整屏
       //（列表、输入条、形态切换器一起收进 kContentMaxWidth）。
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: kContentMaxWidth),
-          child: Column(
-            children: [
-              // 对话形态（对话 / 语音 / 直播 / 客服）是对话的方式，不是并列 tab
-              const ConversationModeSwitcher(),
-              // ⚠️ **同页共存**：A2UI 面板在**上面**，**对话永远在下面**
-              // ⇒ ⇒ 打开面板**不会**把对话换掉（以前是二选一 ⇒ 对话整块消失）。
-              // ⚠️ 高度封顶 42%（并夹在 180–420dp 之间）
-              // ⇒ ⇒ 小屏也不会把对话挤没、大屏也不会让面板吃掉整页。
-              if (isAgent2UI)
-                ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxHeight: (MediaQuery.sizeOf(context).height * 0.42)
-                        .clamp(180.0, 420.0),
-                  ),
-                  child: const Agent2UIPanel(),
-                ),
-              Expanded(
-                child: LocalChatView(
-                  chatState: chatState,
-                  l10n: l10n,
-                  isDark: isDark,
-                  scrollController: _scrollController,
-                  promptController: _promptController,
-                  onSendMessage: _sendMessage,
-                  onSpeak: () =>
-                      ref.read(chatProvider.notifier).speakLastResponse(),
-                  onPickImage: () =>
-                      ref.read(chatProvider.notifier).pickImage(),
-                  onCaptureImage: () =>
-                      ref.read(chatProvider.notifier).captureImage(),
-                  onPickFile: () =>
-                      ref.read(chatProvider.notifier).pickFile(),
-                  onStartAudioRecording: () => ref
-                      .read(chatProvider.notifier)
-                      .startAudioRecording(),
-                  onStopAudioRecording: () => ref
-                      .read(chatProvider.notifier)
-                      .stopAudioRecording(),
-                  onStopAndSend: _stopRecordingAndSend,
-                ),
+      //
+      // 聊天背景图：设置里选的图铺在整页内容底下（Stack 最底层），
+      // 上面罩一层主题底色的半透明遮罩 —— 图片看得见，文字也可读。
+      // 图片文件不在了（清缓存 / 换机）→ errorBuilder 退回空，
+      // 「图没了」自然落回默认渐变，不许把聊天页画崩。
+      body: Stack(
+        children: [
+          if (bgPath != null) ...[
+            Positioned.fill(
+              child: Image.file(
+                File(bgPath),
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => const SizedBox.shrink(),
               ),
-            ],
+            ),
+            Positioned.fill(
+              child: ColoredBox(
+                color:
+                    (isDark
+                            ? AppColors.darkBackground
+                            : AppColors.lightBackground)
+                        .withValues(alpha: 0.72),
+              ),
+            ),
+          ],
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: kContentMaxWidth),
+              child: Column(
+                children: [
+                  // 对话形态（对话 / 语音 / 直播 / 客服）是对话的方式，不是并列 tab
+                  const ConversationModeSwitcher(),
+                  // ⚠️ **同页共存**：A2UI 面板在**上面**，**对话永远在下面**
+                  // ⇒ ⇒ 打开面板**不会**把对话换掉（以前是二选一 ⇒ 对话整块消失）。
+                  // ⚠️ 高度封顶 42%（并夹在 180–420dp 之间）
+                  // ⇒ ⇒ 小屏也不会把对话挤没、大屏也不会让面板吃掉整页。
+                  if (isAgent2UI)
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxHeight: (MediaQuery.sizeOf(context).height * 0.42)
+                            .clamp(180.0, 420.0),
+                      ),
+                      child: const Agent2UIPanel(),
+                    ),
+                  Expanded(
+                    child: LocalChatView(
+                      chatState: chatState,
+                      l10n: l10n,
+                      isDark: isDark,
+                      scrollController: _scrollController,
+                      promptController: _promptController,
+                      onSendMessage: _sendMessage,
+                      onSpeak: () =>
+                          ref.read(chatProvider.notifier).speakLastResponse(),
+                      onPickImage: () =>
+                          ref.read(chatProvider.notifier).pickImage(),
+                      onCaptureImage: () =>
+                          ref.read(chatProvider.notifier).captureImage(),
+                      onPickFile: () =>
+                          ref.read(chatProvider.notifier).pickFile(),
+                      onStartAudioRecording: () =>
+                          ref.read(chatProvider.notifier).startAudioRecording(),
+                      onStopAudioRecording: () =>
+                          ref.read(chatProvider.notifier).stopAudioRecording(),
+                      onStopAndSend: _stopRecordingAndSend,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

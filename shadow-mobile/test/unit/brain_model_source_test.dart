@@ -1,96 +1,141 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shadow_mobile/providers/brain_model_source_provider.dart';
-import 'package:shadow_mobile/services/database/model_item.dart';
+import 'package:shadow_mobile/services/telencephalon/telencephalon_client.dart';
 
-/// 「大脑模型来源」的解析规则。
+/// 「大脑模型来源」的解析规则（2026-11-06「大脑是唯一数据源」刀）。
 ///
-/// 这条规则决定了大脑启动时用哪个 LLM 上游：
+/// 数据源 = **大脑的供应商目录**（`GET /models/providers` 的读视图，
+/// 不带 key）；路由 payload 的 providers 条目**不带 api_key** —— 端脑
+/// 按 id 从自己的商店解析。这条规则决定大脑启动时用哪个 LLM 上游：
 /// - **本地 neuron 权重** —— 不注册远端引擎；
 /// - **云端供应商** —— 注册一条远端引擎，叶区按那个模型 id 去请求。
 void main() {
-  ModelItem cloud({
-    String id = 'cloud_minimax',
-    String endpoint = 'https://api.minimax.io/v1',
-    String model = 'MiniMax-M3',
+  /// 大脑目录里的一条供应商（默认 = 一条可对话的 DeepSeek 形状）。
+  RegisteredProvider provider({
+    String id = 'deepseek',
+    String name = 'DeepSeek',
+    String baseUrl = 'https://api.deepseek.com/v1',
+    String? selectedModel = 'deepseek-chat',
+    List<RegisteredModel> models = const [
+      RegisteredModel(
+        id: 'deepseek-chat',
+        name: 'DeepSeek Chat',
+        capability: 'llm',
+      ),
+    ],
+    bool builtin = false,
   }) {
-    return ModelItem(
+    return RegisteredProvider(
       id: id,
-      name: id,
-      path: endpoint,
-      type: 'text',
-      size: 0,
-      isLoaded: false,
-      isLocal: false,
-      source: ModelSource.cloudProvider,
-      endpoint: endpoint,
-      apiKey: 'sk-test',
-      model: model,
+      name: name,
+      baseUrl: baseUrl,
+      apiStandard: 'openai',
+      enabled: true,
+      selectedModel: selectedModel,
+      models: models,
+      builtin: builtin,
     );
   }
 
-  ModelItem localWeight({String id = 'local_gguf'}) {
-    return ModelItem(
-      id: id,
-      name: id,
-      path: 'assets/models/$id',
-      type: 'text',
-      size: 0,
-      isLoaded: false,
-      isLocal: true,
-      source: ModelSource.localEngine,
-    );
-  }
+  group('usableBrainOptions（大脑目录 → 可对话选项）', () {
+    test('正常供应商在列，视图带 id/模型/地址', () {
+      final options = usableBrainOptions([provider()]);
+      expect(options, hasLength(1));
+      expect(options.first.id, 'deepseek');
+      expect(options.first.model, 'deepseek-chat');
+      expect(options.first.baseUrl, 'https://api.deepseek.com/v1');
+    });
+
+    test('内置条目（neuron）不进 —— 本地权重在大脑页是独立选项', () {
+      final options = usableBrainOptions([
+        provider(id: 'neuron', name: 'neuron', builtin: true),
+      ]);
+      expect(options, isEmpty);
+    });
+
+    test('没选模型 / 缺地址 ⇒ 不给（失败长得像成功要避免）', () {
+      expect(usableBrainOptions([provider(selectedModel: null)]), isEmpty);
+      expect(usableBrainOptions([provider(baseUrl: '')]), isEmpty);
+    });
+
+    test('⚠️ asr/tts 不能当对话上游 ⇒ 不给（同时收紧注册面）', () {
+      final tts = provider(
+        id: 'ds-tts',
+        selectedModel: 'tts-1',
+        models: const [
+          RegisteredModel(id: 'tts-1', name: 'TTS', capability: 'tts'),
+        ],
+      );
+      expect(
+        usableBrainOptions([tts]),
+        isEmpty,
+        reason: '把 tts 端点当 chat 端点打的引擎，本就不该注册进 llm 派发表',
+      );
+    });
+
+    test('capability=vision 归视觉组；目录没给标注时按文本处理', () {
+      final vision = provider(
+        id: 'gpt4o',
+        selectedModel: 'gpt-4o',
+        models: const [
+          RegisteredModel(id: 'gpt-4o', name: 'GPT-4o', capability: 'vision'),
+        ],
+      );
+      final options = usableBrainOptions([vision, provider()]);
+      expect(options[0].chatCategory, ModelChatCategory.vision);
+      expect(options[1].chatCategory, ModelChatCategory.text);
+    });
+  });
 
   group('BrainModelSource.resolve', () {
     test('显式选本地 ⇒ 不用任何云端供应商', () {
       final resolved = BrainModelSource.resolve(
         BrainModelSource.localSource,
-        [cloud()],
+        usableBrainOptions([provider()]),
       );
       expect(resolved, isNull);
     });
 
     test('显式选某个云端 ⇒ 就是它', () {
-      final models = [
-        cloud(id: 'a'),
-        cloud(id: 'b', endpoint: 'https://b.invalid/v1', model: 'b-model'),
-      ];
+      final options = usableBrainOptions([
+        provider(id: 'a'),
+        provider(
+          id: 'b',
+          baseUrl: 'https://b.invalid/v1',
+          selectedModel: 'b-model',
+          models: const [
+            RegisteredModel(id: 'b-model', name: 'B', capability: 'llm'),
+          ],
+        ),
+      ]);
       final resolved = BrainModelSource.resolve(
         BrainModelSource.cloud('b'),
-        models,
+        options,
       );
       expect(resolved?.id, 'b');
-      expect(resolved?.endpoint, 'https://b.invalid/v1');
+      expect(resolved?.model, 'b-model');
     });
 
     test('显式选的那个被删了 ⇒ 退回本地权重，不悄悄换一个供应商', () {
       final resolved = BrainModelSource.resolve(
         BrainModelSource.cloud('gone'),
-        [cloud(id: 'a')],
+        usableBrainOptions([provider(id: 'a')]),
       );
       expect(resolved, isNull, reason: '用户选的就是它 —— 换一个供应商是擅自做主');
     });
 
-    test('缺 endpoint 或 model 的云端供应商不算数', () {
-      final resolved = BrainModelSource.resolve(
-        BrainModelSource.cloud('broken'),
-        [cloud(id: 'broken', endpoint: '')],
-      );
-      expect(resolved, isNull);
-    });
-
-    test('没选过（自动）⇒ 第一个可用的云端供应商', () {
+    test('没选过（自动）⇒ 第一个可对话选项', () {
       final resolved = BrainModelSource.resolve(
         const BrainModelSource.auto(),
-        [localWeight(), cloud(id: 'a')],
+        usableBrainOptions([provider(id: 'a')]),
       );
       expect(resolved?.id, 'a');
     });
 
-    test('没选过（自动）且一个云端都没有 ⇒ 本地权重', () {
+    test('没选过（自动）且没有可对话选项 ⇒ 本地权重', () {
       final resolved = BrainModelSource.resolve(
         const BrainModelSource.auto(),
-        [localWeight()],
+        usableBrainOptions([provider(id: 'neuron', builtin: true)]),
       );
       expect(resolved, isNull);
     });
@@ -150,7 +195,8 @@ void main() {
           'prefrontal': BrainModelSource.localSource,
           'temporal': BrainModelSource.cloud('cloud_b'),
         },
-      );      final decoded = BrainModelRouting.decode(routing.encode());
+      );
+      final decoded = BrainModelRouting.decode(routing.encode());
       expect(decoded.defaultSource.cloudModelId, 'cloud_a');
       expect(decoded.lobeOverrides['prefrontal']?.isLocal, isTrue);
       expect(decoded.lobeOverrides['temporal']?.cloudModelId, 'cloud_b');
@@ -165,50 +211,67 @@ void main() {
 
   /// 路由 → 大脑要的负载。
   group('buildModelRoutingPayload', () {
-    test('全局默认「自动」⇒ 第一个可用的云端供应商', () {
+    test('⚠️ providers 条目带 id/base_url/model 且**不带 api_key**', () {
       final payload = buildModelRoutingPayload(
         routing: const BrainModelRouting(),
-        models: [localWeight(), cloud(id: 'a')],
+        options: usableBrainOptions([provider(id: 'deepseek')]),
       );
-      expect(payload['default_model'], 'MiniMax-M3');
-      expect((payload['providers'] as List).length, 1);
+      final providers = payload['providers'] as List;
+      expect(providers, hasLength(1));
+      final entry = providers.first as Map;
+      expect(entry['id'], 'deepseek');
+      expect(entry['base_url'], 'https://api.deepseek.com/v1');
+      expect(entry['model'], 'deepseek-chat');
+      expect(
+        entry.containsKey('api_key'),
+        isFalse,
+        reason: '供应商材料不出大脑 —— 端脑按 id 从自己的商店解析',
+      );
     });
 
-    test('全局默认「本地」⇒ default_model 为 null（回落本地权重）', () {
+    test('全局默认「自动」⇒ 第一个可对话选项的上游模型 id', () {
+      final payload = buildModelRoutingPayload(
+        routing: const BrainModelRouting(),
+        options: usableBrainOptions([provider(id: 'deepseek')]),
+      );
+      expect(payload['default_model'], 'deepseek-chat');
+    });
+
+    test('全局默认「本地」⇒ default_model 为 null，云端引擎照样注册', () {
       final payload = buildModelRoutingPayload(
         routing: const BrainModelRouting(
           defaultSource: BrainModelSource.localSource,
         ),
-        models: [cloud()],
+        options: usableBrainOptions([provider()]),
       );
       expect(payload['default_model'], isNull);
       // 云端引擎**照样注册** —— 否则某个叶区想单独用云端就不行了。
       expect((payload['providers'] as List).length, 1);
     });
 
-    test('per-lobe 覆盖：写的是**上游模型 id**，不是 App 里的记录 id', () {
+    test('per-lobe 覆盖：写的是**上游模型 id**，不是供应商 id；null = 强制本地', () {
       final payload = buildModelRoutingPayload(
         routing: BrainModelRouting(
           defaultSource: BrainModelSource.localSource,
           lobeOverrides: {
             'prefrontal': BrainModelSource.localSource,
-            'temporal': BrainModelSource.cloud('cloud_minimax'),
+            'temporal': BrainModelSource.cloud('deepseek'),
           },
         ),
-        models: [cloud()],
+        options: usableBrainOptions([provider()]),
       );
       final lobes = payload['lobe_models'] as Map;
       expect(lobes['prefrontal'], isNull, reason: 'null = 该叶区强制本地');
-      expect(lobes['temporal'], 'MiniMax-M3');
+      expect(lobes['temporal'], 'deepseek-chat');
     });
 
     test('**只装显式覆盖**的叶区 —— 没点名的不能被钉死', () {
       final payload = buildModelRoutingPayload(
         routing: BrainModelRouting(
-          defaultSource: BrainModelSource.cloud('a'),
+          defaultSource: BrainModelSource.cloud('deepseek'),
           lobeOverrides: {'prefrontal': BrainModelSource.localSource},
         ),
-        models: [cloud(id: 'a')],
+        options: usableBrainOptions([provider()]),
       );
       final lobes = payload['lobe_models'] as Map;
       expect(lobes.keys.toSet(), {'prefrontal'});
@@ -217,16 +280,16 @@ void main() {
         isFalse,
         reason: '没被覆盖的叶区必须能跟着全局默认变（不能发全量有效值）',
       );
-      expect(payload['default_model'], 'MiniMax-M3');
+      expect(payload['default_model'], 'deepseek-chat');
     });
 
     test('覆盖指向的供应商被删了 ⇒ 那个覆盖作废 ⇒ 回到跟随全局', () {
       final payload = buildModelRoutingPayload(
         routing: BrainModelRouting(
-          defaultSource: BrainModelSource.cloud('a'),
+          defaultSource: BrainModelSource.cloud('deepseek'),
           lobeOverrides: {'temporal': BrainModelSource.cloud('gone')},
         ),
-        models: [cloud(id: 'a')],
+        options: usableBrainOptions([provider()]),
       );
       final lobes = payload['lobe_models'] as Map;
       expect(
@@ -234,7 +297,7 @@ void main() {
         isFalse,
         reason: '供应商没了 ⇒ 覆盖作废 ⇒ 回到跟随全局默认',
       );
-      expect(payload['default_model'], 'MiniMax-M3');
+      expect(payload['default_model'], 'deepseek-chat');
     });
   });
 
@@ -242,14 +305,15 @@ void main() {
   group('effectiveLobeSource', () {
     test('覆盖赢过全局默认', () {
       final routing = BrainModelRouting(
-        defaultSource: BrainModelSource.cloud('a'),
+        defaultSource: BrainModelSource.cloud('deepseek'),
         lobeOverrides: {'prefrontal': BrainModelSource.localSource},
       );
+      final options = usableBrainOptions([provider()]);
       expect(
         effectiveLobeSource(
           routing: routing,
           lobe: 'prefrontal',
-          models: [cloud(id: 'a')],
+          options: options,
         ).isLocal,
         isTrue,
       );
@@ -257,24 +321,24 @@ void main() {
         effectiveLobeSource(
           routing: routing,
           lobe: 'temporal',
-          models: [cloud(id: 'a')],
+          options: options,
         ).cloudModelId,
-        'a',
+        'deepseek',
       );
     });
 
     test('覆盖指向的供应商被删了 ⇒ 回到全局默认', () {
       final routing = BrainModelRouting(
-        defaultSource: BrainModelSource.cloud('a'),
+        defaultSource: BrainModelSource.cloud('deepseek'),
         lobeOverrides: {'temporal': BrainModelSource.cloud('gone')},
       );
       expect(
         effectiveLobeSource(
           routing: routing,
           lobe: 'temporal',
-          models: [cloud(id: 'a')],
+          options: usableBrainOptions([provider()]),
         ).cloudModelId,
-        'a',
+        'deepseek',
         reason: '供应商没了 ⇒ 那个覆盖作废',
       );
     });
@@ -282,18 +346,18 @@ void main() {
 
   /// 「全局默认 + per-lobe 覆盖」合成**有效路由**。
   group('effectiveLobeModels', () {
-    test('覆盖赢过全局默认', () {
+    test('覆盖赢过全局默认；每个叶区都有一个明确的值', () {
       final effective = effectiveLobeModels(
         routing: BrainModelRouting(
-          defaultSource: BrainModelSource.cloud('a'),
+          defaultSource: BrainModelSource.cloud('deepseek'),
           lobeOverrides: {'prefrontal': BrainModelSource.localSource},
         ),
         lobes: ['temporal', 'prefrontal', 'parietal'],
-        models: [cloud(id: 'a')],
+        options: usableBrainOptions([provider()]),
       );
       expect(effective['prefrontal'], isNull);
-      expect(effective['temporal'], 'MiniMax-M3');
-      expect(effective['parietal'], 'MiniMax-M3');
+      expect(effective['temporal'], 'deepseek-chat');
+      expect(effective['parietal'], 'deepseek-chat');
     });
   });
 }

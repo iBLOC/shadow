@@ -7,11 +7,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shadow_mobile/generated/l10n/app_localizations.dart';
 import 'package:shadow_mobile/providers/brain_model_source_provider.dart';
 import 'package:shadow_mobile/providers/telencephalon_provider.dart';
-import 'package:shadow_mobile/screens/model_management_screen.dart';
 import 'package:shadow_mobile/services/database/app_settings.dart';
 import 'package:shadow_mobile/services/database/database_helper.dart';
-import 'package:shadow_mobile/services/database/model_item.dart';
-import 'package:shadow_mobile/services/database/repositories.dart';
 import 'package:shadow_mobile/services/encephalon/encephalon_mobile_page.dart';
 import 'package:shadow_mobile/services/encephalon/encephalon_mobile_provider.dart';
 import 'package:shadow_mobile/services/telencephalon/telencephalon_client.dart';
@@ -24,9 +21,9 @@ import 'test_helper.dart';
 /// 「启动大脑」**只在没在跑的时候出现**（它是失败/手动停掉之后的恢复
 /// 入口，不是常驻开关）；端口显示；推理卡片随运行态启用。
 ///
-/// 走 MethodChannel mock —— 不需要真机，也不需要 libencephalon.so：
-/// 这里验的是 Dart 侧的 UI 行为。JNI 符号本身由 Rust 仓的
-/// `scripts/jni-host-test/` 覆盖。
+/// 「大脑模型来源」卡片**直读大脑的供应商目录**（2026-11-06「大脑是唯一
+/// 数据源」刀）—— 测试用 FutureProvider 覆盖注入目录，不真发 HTTP。
+/// 走 MethodChannel mock —— 不需要真机，也不需要 libencephalon.so。
 void main() {
   testSetup();
 
@@ -69,13 +66,9 @@ void main() {
   });
 
   setUpAll(() async {
-    // 在**真异步**区把本地库打开一次。
-    //
-    // 自动启动要先读模型列表（把云端供应商交给大脑），而那份列表要等
-    // 数据库 —— sqflite ffi 的开库是**真实文件 I/O**，在 `testWidgets`
-    // 的 fake-async 区里永远不会完成 ⇒ 自动启动会一直卡在「启动中」。
-    // 这里先打开一次，之后 `DatabaseHelper.instance.database` 直接返回
-    // 缓存的实例，fake-async 区里也能立刻完成。
+    // 在**真异步**区把本地库打开一次（sqflite ffi 的开库是真实文件
+    // I/O，fake-async 区里永远不会完成）。之后 DatabaseHelper.instance
+    // 直接返回缓存的实例。
     await DatabaseHelper.instance.database;
   });
 
@@ -84,13 +77,16 @@ void main() {
         .setMockMethodCallHandler(channel, null);
   });
 
-  Widget buildPage() {
+  // [providers] 注入「大脑供应商目录」—— 大脑页直读大脑（FutureProvider
+  // 覆盖 ⇒ 不真发 HTTP，也不碰 providersNotifierProvider 的自动加载链）。
+  Widget buildPage({List<RegisteredProvider>? providers}) {
     return ProviderScope(
       overrides: [
-        modelRepositoryProvider.overrideWithValue(_FakeModelRepository()),
+        brainProviderOptionsProvider.overrideWith(
+          (ref) => Future.value(usableBrainOptions(providers ?? const [])),
+        ),
         // 设置仓储换成内存版 —— 真库（SQLite）的那次读是**真实文件 I/O**，
-        // 在 `testWidgets` 的 fake-async 区里永远不会完成 ⇒ 自动启动会
-        // 一直卡在「启动中」。
+        // 在 fake-async 区里永远不会完成 ⇒ 自动启动会一直卡在「启动中」。
         appSettingsRepositoryProvider.overrideWithValue(_FakeAppSettings()),
         // 端脑 client 换成假的 —— 「叶区列表」和「下发路由」不该真发 HTTP。
         telencephalonClientProvider.overrideWithValue(_FakeTelencephalonClient()),
@@ -103,6 +99,27 @@ void main() {
     );
   }
 
+  /// 大脑目录里的一条供应商（DeepSeek 形状；capability 决定分组）。
+  RegisteredProvider brainProvider({
+    String id = 'deepseek',
+    String name = 'DeepSeek',
+    String baseUrl = 'https://api.deepseek.com/v1',
+    String model = 'deepseek-chat',
+    String? capability = 'llm',
+  }) {
+    return RegisteredProvider(
+      id: id,
+      name: name,
+      baseUrl: baseUrl,
+      apiStandard: 'openai',
+      enabled: true,
+      selectedModel: model,
+      models: [
+        RegisteredModel(id: model, name: model, capability: capability),
+      ],
+    );
+  }
+
   /// 读页面所在容器里的嵌入式大脑状态。
   EncephalonMobileState brainState(WidgetTester tester) {
     final ctx = tester.element(find.byType(EncephalonMobilePage));
@@ -111,7 +128,7 @@ void main() {
 
   /// 等到条件成立。
   ///
-  /// 自动启动要走 MethodChannel + SQLite（都是真的异步）⇒ `pumpAndSettle`
+  /// 自动启动要走 MethodChannel + SQLite（都是真的异步）⇒ pumpAndSettle
   /// 会在它们还没完成时就认为「没有待处理的帧」而提前返回。所以这里自己
   /// 一边 pump 一边等条件。
   Future<void> pumpUntil(
@@ -214,7 +231,7 @@ void main() {
 
       final l10n = l10nOf(tester);
       // 页面底部多了一张「叶区模型路由」卡片 ⇒ 推理卡片被推到屏幕外。
-      // `ListView` 是**懒构建**的 ⇒ 得先滚过去才找得到那个输入框。
+      // ListView 是**懒构建**的 ⇒ 得先滚过去才找得到那个输入框。
       await tester.dragUntilVisible(
         find.widgetWithText(TextField, l10n.encephalonInferPrompt),
         find.byType(ListView),
@@ -243,14 +260,21 @@ void main() {
       expect(calls.any((c) => c.method == 'stop'), isTrue);
     });
 
-    /// 「大脑模型来源」卡片。
+    /// 「大脑模型来源」卡片 —— **直读大脑目录**（没有本地镜像这一层）。
     ///
-    /// 云端（MiniMax token plan 那类）与本地 neuron 权重是**两条不同的
-    /// 供给链**：云端要注册远端引擎，本地就是 neuron 自己的权重。
+    /// 云端供应商与本地 neuron 权重是**两条不同的供给链**：云端要注册
+    /// 远端引擎，本地就是 neuron 自己的权重。
     group('大脑模型来源卡片', () {
       testWidgets('卡片在，本地权重与云端供应商都列出来', (tester) async {
         mockChannel(running: false);
-        await tester.pumpWidget(buildPage());
+        await tester.pumpWidget(buildPage(providers: [
+          brainProvider(
+            id: 'minimax',
+            name: 'MiniMax',
+            baseUrl: 'https://api.minimax.io/v1',
+            model: 'MiniMax-M3',
+          ),
+        ]));
 
         await pumpUntil(
           tester,
@@ -299,6 +323,171 @@ void main() {
       });
     });
 
+    /// ⚠️ 按类型分组（用户语言：文本/视觉；不给必坏的选项）——
+    /// 本轮 bug 的回归面：能力页添加的供应商必须出现在大脑页可选
+    /// （现在直读大脑目录 —— App 侧没有镜像表这一层了）。
+    group('模型来源按类型分组', () {
+      testWidgets('⚠️ 大脑目录里的 DeepSeek 出现在「文本模型」组（本轮 bug 回归）',
+          (tester) async {
+        mockChannel(running: false);
+        await tester.pumpWidget(buildPage(providers: [
+          brainProvider(id: 'deepseek', name: 'DeepSeek'),
+        ]));
+
+        await pumpUntil(
+          tester,
+          () => brainState(tester).status == EncephalonMobileStatus.running,
+        );
+
+        // ListView 懒构建 ⇒ 先滚到目标。
+        await tester.dragUntilVisible(
+          find.text('DeepSeek'),
+          find.byType(ListView),
+          const Offset(0, -250),
+        );
+        await tester.pumpAndSettle();
+
+        final l10n = l10nOf(tester);
+        expect(
+          find.text(l10n.modelCategoryText),
+          findsOneWidget,
+          reason: 'capability=llm ⇒ 归「文本模型」组（用户语言，不出现缩写）',
+        );
+        expect(find.text('DeepSeek'), findsOneWidget);
+      });
+
+      testWidgets('视觉模型单独一组；组头只在非空时出现', (tester) async {
+        mockChannel(running: false);
+        await tester.pumpWidget(buildPage(providers: [
+          brainProvider(
+            id: 'openai-gpt4o',
+            name: 'OpenAI',
+            baseUrl: 'https://api.openai.com/v1',
+            model: 'gpt-4o',
+            capability: 'vision',
+          ),
+        ]));
+
+        await pumpUntil(
+          tester,
+          () => brainState(tester).status == EncephalonMobileStatus.running,
+        );
+        await tester.dragUntilVisible(
+          find.text('OpenAI'),
+          find.byType(ListView),
+          const Offset(0, -250),
+        );
+        await tester.pumpAndSettle();
+
+        final l10n = l10nOf(tester);
+        expect(find.text(l10n.modelCategoryVision), findsOneWidget);
+        expect(find.text('OpenAI'), findsOneWidget);
+        expect(
+          find.text(l10n.modelCategoryText),
+          findsNothing,
+          reason: '没内容不画空组 —— 空组头也是失败长得像成功',
+        );
+      });
+
+      testWidgets('⚠️ asr/tts 不能当对话上游 ⇒ 选择器不给（正控：同页文本模型在）',
+          (tester) async {
+        mockChannel(running: false);
+        await tester.pumpWidget(buildPage(providers: [
+          brainProvider(
+            id: 'ds-tts',
+            name: 'DeepSeek TTS',
+            model: 'tts-1',
+            capability: 'tts',
+          ),
+          brainProvider(id: 'ds-llm', name: 'DeepSeek'),
+        ]));
+
+        await pumpUntil(
+          tester,
+          () => brainState(tester).status == EncephalonMobileStatus.running,
+        );
+        await tester.dragUntilVisible(
+          find.text('DeepSeek'),
+          find.byType(ListView),
+          const Offset(0, -250),
+        );
+        await tester.pumpAndSettle();
+
+        // 正控：同一份目录里文本模型在 ⇒ 页面与卡片都加载正常。
+        expect(find.text('DeepSeek'), findsOneWidget);
+        expect(
+          find.text('DeepSeek TTS'),
+          findsNothing,
+          reason: '选 tts 当 LLM 上游必坏 ⇒ 界面不给必然失败的选项',
+        );
+      });
+
+      testWidgets('⚠️ 选大脑目录里的 DeepSeek ⇒ 下发 default_model 与 providers（不带 key），不重启大脑',
+          (tester) async {
+        mockChannel(running: false);
+        await tester.pumpWidget(buildPage(providers: [
+          brainProvider(id: 'deepseek', name: 'DeepSeek'),
+        ]));
+
+        await pumpUntil(
+          tester,
+          () => brainState(tester).status == EncephalonMobileStatus.running,
+        );
+
+        // 页面打开时「自动」可能已落在第一条可用云端上（即 DeepSeek
+        // 自己）⇒ RadioListTile 对已选中项不触发 onChanged。先切到本地
+        // 权重再切回 DeepSeek —— 造出一次真实的「换模型」动作。
+        final l10n = l10nOf(tester);
+        await tester.tap(find.text(l10n.encephalonModelLocalNeuron));
+        await tester.pumpAndSettle();
+
+        final startsBefore = calls.where((c) => c.method == 'start').length;
+
+        await tester.dragUntilVisible(
+          find.text('DeepSeek'),
+          find.byType(ListView),
+          const Offset(0, -250),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('DeepSeek'));
+        await tester.pumpAndSettle();
+
+        final routingCalls =
+            calls.where((c) => c.method == 'setModelRouting').toList();
+        expect(routingCalls, isNotEmpty);
+        final args = routingCalls.last.arguments as Map;
+        final payload = jsonDecode(args['json'] as String) as Map;
+        // ⚠️ default_model 是**上游模型 id**（neuron 拿它去供应商 API
+        // 发请求），不是供应商 id —— 与下发链同一语义。
+        expect(
+          payload['default_model'],
+          'deepseek-chat',
+          reason: '能力页添加的模型必须真的能被选为 agent 默认模型',
+        );
+        // ⚠️ providers 条目带 id/base_url/model，**不带 api_key** ——
+        // 供应商材料不出大脑，端脑按 id 从自己的商店解析。
+        final providers = payload['providers'] as List;
+        expect(providers, isNotEmpty);
+        final entry = providers.first as Map;
+        expect(entry['id'], 'deepseek');
+        expect(entry['model'], 'deepseek-chat');
+        expect(
+          entry.containsKey('api_key'),
+          isFalse,
+          reason: 'key 不出大脑 —— 请求体与日志里不再出现明文 key',
+        );
+        expect(
+          calls.where((c) => c.method == 'stop'),
+          isEmpty,
+          reason: '路由是运行时的 ⇒ 换模型不重启大脑',
+        );
+        expect(
+          calls.where((c) => c.method == 'start').length,
+          startsBefore,
+        );
+      });
+    });
+
     /// 「叶区模型路由」卡片 —— 模型使用的**最小单位是叶区**。
     group('叶区模型路由卡片', () {
       testWidgets('列出端脑的叶区，每个叶区都有独立的模型下拉框',
@@ -325,11 +514,14 @@ void main() {
   });
 }
 
-/// 假的端脑 client —— 「叶区列表」和「下发路由」两条是纯本地的，
-/// 不该在 widget 测试里真发 HTTP。
+/// 假的端脑 client —— 「叶区列表」「下发路由」「供应商目录」三条都是
+/// 纯本地/覆盖注入的，不该在 widget 测试里真发 HTTP。
 class _FakeTelencephalonClient extends TelencephalonClient {
   _FakeTelencephalonClient()
       : super(baseUrl: 'http://127.0.0.1:1');
+
+  @override
+  Future<List<RegisteredProvider>> listProviders() async => const [];
 
   @override
   Future<List<NativeLobeInfo>> listNativeLobes() async => const [
@@ -360,41 +552,6 @@ class _FakeTelencephalonClient extends TelencephalonClient {
   }
 }
 
-/// 空的模型仓储 —— 自动启动要读它（把云端供应商交给大脑）。
-class _FakeModelRepository implements IModelRepository {
-  final List<ModelItem> models;
-
-  _FakeModelRepository([List<ModelItem>? models])
-      : models = models ?? [_miniMaxModel];
-
-  @override
-  Future<void> initializeDefaultModels() async {}
-
-  @override
-  Future<List<ModelItem>> getAll() async => models;
-
-  @override
-  Future<List<ModelItem>> getLocalModels() async => const [];
-
-  @override
-  Future<List<ModelItem>> getCloudModels() async => const [];
-
-  @override
-  Future<ModelItem?> getById(String id) async => null;
-
-  @override
-  Future<void> insert(ModelItem item) async {}
-
-  @override
-  Future<void> update(ModelItem item) async {}
-
-  @override
-  Future<void> delete(String id) async {}
-
-  @override
-  Future<void> setModelLoaded(String id, bool isLoaded) async {}
-}
-
 /// 内存版的 App 设置仓储（大脑模型来源）。
 class _FakeAppSettings implements AppSettingsRepository {
   final Map<String, String> values = {};
@@ -412,18 +569,3 @@ class _FakeAppSettings implements AppSettingsRepository {
     values.remove(key);
   }
 }
-
-/// 一个云端供应商（像「MiniMax token plan」那种）。
-final ModelItem _miniMaxModel = ModelItem(
-  id: 'cloud_minimax',
-  name: 'MiniMax',
-  path: 'https://api.minimax.io/v1',
-  type: 'text',
-  size: 0,
-  isLoaded: false,
-  isLocal: false,
-  source: ModelSource.cloudProvider,
-  endpoint: 'https://api.minimax.io/v1',
-  apiKey: 'sk-test',
-  model: 'MiniMax-M3',
-);

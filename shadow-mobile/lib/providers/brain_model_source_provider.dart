@@ -3,7 +3,43 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../services/database/app_settings.dart';
-import '../services/database/model_item.dart';
+import '../services/telencephalon/telencephalon_client.dart';
+import 'telencephalon_provider.dart';
+
+/// 大脑供应商目录里的一条**可对话**选项。
+///
+/// ⚠️ **这是大脑侧数据的读视图，不是本地副本**（2026-11-06「大脑是唯一
+/// 数据源」刀）：供应商与 key 都住在端脑的 ProviderStore 里，客户端只在
+/// 要展示 / 下发路由时读一份**轻量视图**（id + 地址 + 模型 id），
+/// **不带 key** —— 供应商材料不出大脑。
+class BrainModelOption {
+  /// 供应商 id（大脑目录里的 key —— 路由 payload 的 `providers[].id`，
+  /// 端脑按它解析 api key）。
+  final String id;
+
+  final String name;
+
+  /// 上游模型 id（供应商**选中**的那条 —— neuron 侧的注册名，也是叶区
+  /// 请求时用的名字）。
+  final String model;
+
+  final String baseUrl;
+
+  /// 大脑目录给这条模型的能力标注（llm / vision / tts …；null = 目录
+  /// 没给 —— 按文本处理，与旧链路「type 缺省 = text」一致）。
+  final String? capability;
+
+  const BrainModelOption({
+    required this.id,
+    required this.name,
+    required this.model,
+    required this.baseUrl,
+    this.capability,
+  });
+
+  /// 分组（用户语言：文本模型 / 视觉模型）。null = 不能当对话上游。
+  ModelChatCategory? get chatCategory => chatCategoryOf(capability);
+}
 
 /// 大脑的模型来源（**单个**取值）。
 ///
@@ -19,7 +55,7 @@ class BrainModelSource {
   /// 「本地 neuron 权重」。
   static const String local = 'local';
 
-  /// 云端供应商前缀，后面跟模型 id：`cloud:cloud_1735...`。
+  /// 云端供应商前缀，后面跟**供应商 id**：`cloud:deepseek`。
   static const String cloudPrefix = 'cloud:';
 
   /// 持久化用的设置键 —— **老键**（只有一个全局来源）。
@@ -41,9 +77,9 @@ class BrainModelSource {
   /// 本地 neuron 权重。
   static const BrainModelSource localSource = BrainModelSource(local);
 
-  /// 某个云端供应商。
-  factory BrainModelSource.cloud(String modelId) =>
-      BrainModelSource('$cloudPrefix$modelId');
+  /// 某个云端供应商（[providerId] = 大脑目录里的供应商 id）。
+  factory BrainModelSource.cloud(String providerId) =>
+      BrainModelSource('$cloudPrefix$providerId');
 
   /// 从持久化的字符串还原。
   factory BrainModelSource.parse(String? raw) => BrainModelSource(raw);
@@ -54,7 +90,7 @@ class BrainModelSource {
   /// 显式选了本地权重。
   bool get isLocal => raw == local;
 
-  /// 显式选了某个云端供应商 —— 返回**App 里的**模型 id；
+  /// 显式选了某个云端供应商 —— 返回**大脑目录里的**供应商 id；
   /// 不是云端来源时返回 null。
   String? get cloudModelId {
     final value = raw;
@@ -63,41 +99,33 @@ class BrainModelSource {
     return id.isEmpty ? null : id;
   }
 
-  /// 解析出「这次启动该用哪个云端模型」。
+  /// 解析出「这次启动该用哪个云端供应商」。
   ///
   /// - 显式选了某个云端供应商 → 就是它；
   /// - 显式选了本地权重 → null（不注册远端引擎）；
-  /// - **用户还没选过（自动）** → 第一个 endpoint + model 都齐的云端
-  ///   供应商；一个都没有 → null（纯本地权重）。
+  /// - **用户还没选过（自动）** → 第一条可对话选项；一条都没有 → null
+  ///   （纯本地权重）。
   ///
   /// 「自动」这一档是为了**不破坏既有行为**：以前 App 一起来就用「第一个
   /// 云端供应商」，用户没选过的时候不该突然变成本地权重。
-  static ModelItem? resolve(BrainModelSource source, List<ModelItem> models) {
+  ///
+  /// ⚠️ [options] 是**已过滤**的可对话选项（见 [usableBrainOptions]）——
+  /// 这里不再各自判 usable（一个过滤点，页面与下发链共用）。
+  static BrainModelOption? resolve(
+    BrainModelSource source,
+    List<BrainModelOption> options,
+  ) {
     final explicitId = source.cloudModelId;
     if (explicitId != null) {
-      for (final m in models) {
-        if (m.id == explicitId && isUsable(m)) return m;
+      for (final o in options) {
+        if (o.id == explicitId) return o;
       }
-      // 选的那个模型被删了 / 缺 endpoint 或 model ⇒ 退回本地权重，
+      // 选的那个供应商被删了 / 没选模型 ⇒ 退回本地权重，
       // 而不是悄悄换一个供应商（用户选的就是它）。
       return null;
     }
     if (source.isLocal) return null;
-    for (final m in models) {
-      if (isUsable(m)) return m;
-    }
-    return null;
-  }
-
-  /// 能不能当 LLM 上游用。
-  ///
-  /// endpoint 与 model 都得有 —— neuron 拼的是 `{endpoint}/chat/completions`，
-  /// 叶区按 model 去请求，缺一个都跑不起来。
-  static bool isUsable(ModelItem m) {
-    if (m.source != ModelSource.cloudProvider) return false;
-    if ((m.endpoint ?? '').trim().isEmpty) return false;
-    if ((m.model ?? '').trim().isEmpty) return false;
-    return true;
+    return options.isEmpty ? null : options.first;
   }
 
   @override
@@ -219,20 +247,105 @@ class BrainModelRouting {
       'BrainModelRouting(default: $defaultSource, lobes: $lobeOverrides)';
 }
 
+/// 大脑页「模型来源」选择器的**分组**。
+///
+/// 用户语言（产品要求）：不出现 llm/vlm 这种缩写 —— 文本模型 / 视觉模型。
+/// **模态是每个模型的固定内容**（大脑目录的 capability 标注），
+/// 系统提供默认值，客户端不做「这个模型支不支持视觉」的编辑入口。
+enum ModelChatCategory {
+  /// 文本模型（纯文本输入的对话模型）。
+  text,
+
+  /// 视觉模型（文本 + 图像输入）。
+  vision,
+}
+
+/// 把大脑目录的能力标注（capability 原值）归到选择器分组。
+///
+/// 返回 null = **不能当对话上游**（asr / tts / embedding / rerank / ocr）
+/// ⇒ 大脑页的模型来源选择器**不显示**它 —— 选它当 LLM 上游必坏，
+/// 界面不给一个必然失败的选项。
+ModelChatCategory? chatCategoryOf(String? capability) {
+  switch (capability) {
+    case 'vision':
+      return ModelChatCategory.vision;
+    case 'llm':
+    case 'text':
+    case '':
+    case null:
+      return ModelChatCategory.text;
+    default:
+      // asr / tts / embedding / rerank / ocr —— 不是对话上游。
+      return null;
+  }
+}
+
+/// 大脑供应商目录里**能当对话上游**的那部分选项。
+///
+/// 页面与路由下发链共用**同一个过滤点**（2026-11-06「大脑是唯一数据源」
+/// 刀）：直读大脑的 `/models/providers`，不经过 App 本地的任何镜像表。
+///
+/// 过滤规则：
+/// - 内置条目（neuron）**不进** —— 「本地权重」在大脑页是独立选项；
+/// - **没选模型 / 缺地址** ⇒ 跑不起来 ⇒ 不给（失败长得像成功要避免）；
+/// - 能力不是对话类（asr / tts / …）⇒ 不给。⚠️ 这同时收紧了**注册面**：
+///   这类条目不再注册进 neuron 的 **llm** 派发表（把 tts 端点当 chat
+///   端点打的坏引擎，本就不该注册）。
+///
+/// ⚠️ **enabled 语义与旧链路一致**：启停状态不进过滤（已知边界，与镜像
+/// 时代相同 —— 禁用后的供应商在大脑页仍可见可选）。
+List<BrainModelOption> usableBrainOptions(List<RegisteredProvider> providers) {
+  final options = <BrainModelOption>[];
+  for (final p in providers) {
+    if (p.builtin) continue;
+    final model = (p.selectedModel ?? '').trim();
+    final endpoint = p.baseUrl.trim();
+    if (model.isEmpty || endpoint.isEmpty) continue;
+    // capability 取**选中那条**的标注（目录没回模型列表时 = null）。
+    String? capability;
+    for (final m in p.models) {
+      if (m.id == model) {
+        capability = m.capability;
+        break;
+      }
+    }
+    if (chatCategoryOf(capability) == null) continue;
+    options.add(BrainModelOption(
+      id: p.id,
+      name: p.name,
+      model: model,
+      baseUrl: endpoint,
+      capability: capability,
+    ));
+  }
+  return options;
+}
+
+/// 大脑供应商目录的**可对话**选项（直读大脑）。
+///
+/// ⚠️ **FutureProvider 直读，不 watch `providersNotifierProvider`** ——
+/// 那个 notifier 构造即自动联网加载，watch 它等于在本页触发整条联网
+/// 初始化链（Riverpod「构建中改 provider」违规的根源，见 models_screen
+/// 的教训）。这里只要一小块数据：自己读，失败在 AsyncValue 里说真话。
+final brainProviderOptionsProvider =
+    FutureProvider<List<BrainModelOption>>((ref) async {
+  final client = ref.watch(telencephalonClientProvider);
+  final providers = await client.listProviders();
+  return usableBrainOptions(providers);
+});
+
 /// 某个来源对应的**上游模型 id**（`null` = 本地 / 供应商被删了）。
 ///
-/// **⚠️ 两套 id 别混**：App 的 `models` 表里 `id` 是本地记录 id
-/// （`cloud_1735…`），`model` 才是**上游**的模型 id —— 后者才是
-/// neuron 侧的注册名、也是叶区请求时用的名字。
-String? upstreamModelIdOf(BrainModelSource source, List<ModelItem> models) {
+/// **⚠️ 两套 id 别混**：来源的 `cloudModelId` 是**大脑目录里的供应商 id**
+/// （`cloud:deepseek`），[BrainModelOption.model] 才是**上游**的模型 id ——
+/// 后者才是 neuron 侧的注册名、也是叶区请求时用的名字。
+String? upstreamModelIdOf(BrainModelSource source, List<BrainModelOption> options) {
   final id = source.cloudModelId;
   if (id == null) return null;
-  for (final m in models) {
-    if (m.id == id && BrainModelSource.isUsable(m)) {
-      return (m.model ?? '').trim();
-    }
+  for (final o in options) {
+    if (o.id == id) return o.model;
   }
-  // 指向的供应商被删了 / 缺 endpoint 或 model ⇒ 回落本地，
+  // 指向的供应商被删了 / 没选模型 ⇒ 回落本地，
   // 而不是悄悄换一个供应商（用户选的就是它）。
   return null;
 }
@@ -240,16 +353,13 @@ String? upstreamModelIdOf(BrainModelSource source, List<ModelItem> models) {
 /// 某个来源**实际生效**的上游模型 id。
 ///
 /// 与 [upstreamModelIdOf] 的区别只在「自动」这一档：全局默认是「自动」
-/// 时 = **第一个可用的云端供应商**（老行为：以前 App 一起来就用第一个
-/// 云端供应商，不破坏兼容）。per-lobe 覆盖不会是「自动」。
-String? effectiveModelIdOf(BrainModelSource source, List<ModelItem> models) {
+/// 时 = **第一条可对话选项**（老行为：以前 App 一起来就用第一个云端
+/// 供应商，不破坏兼容）。per-lobe 覆盖不会是「自动」。
+String? effectiveModelIdOf(BrainModelSource source, List<BrainModelOption> options) {
   if (source.isAuto) {
-    for (final m in models) {
-      if (BrainModelSource.isUsable(m)) return (m.model ?? '').trim();
-    }
-    return null;
+    return options.isEmpty ? null : options.first.model;
   }
-  return upstreamModelIdOf(source, models);
+  return upstreamModelIdOf(source, options);
 }
 
 /// 某个叶区**实际生效**的来源（覆盖优先于全局默认）。
@@ -261,12 +371,12 @@ String? effectiveModelIdOf(BrainModelSource source, List<ModelItem> models) {
 BrainModelSource effectiveLobeSource({
   required BrainModelRouting routing,
   required String lobe,
-  required List<ModelItem> models,
+  required List<BrainModelOption> options,
 }) {
   final override = routing.lobeOverrides[lobe];
   if (override == null || override.isAuto) return routing.defaultSource;
   if (override.isLocal) return override;
-  if (upstreamModelIdOf(override, models) == null) return routing.defaultSource;
+  if (upstreamModelIdOf(override, options) == null) return routing.defaultSource;
   return override;
 }
 
@@ -281,7 +391,7 @@ BrainModelSource effectiveLobeSource({
 Map<String, String?> effectiveLobeModels({
   required BrainModelRouting routing,
   required List<String> lobes,
-  required List<ModelItem> models,
+  required List<BrainModelOption> options,
 }) {
   return {
     for (final lobe in lobes)
@@ -289,27 +399,11 @@ Map<String, String?> effectiveLobeModels({
         effectiveLobeSource(
           routing: routing,
           lobe: lobe,
-          models: models,
+          options: options,
         ),
-        models,
+        options,
       ),
   };
-}
-
-/// 所有可用的云端供应商 —— 要注册进 neuron 派发表的那些。
-///
-/// **注册全部**（而不是只注册被选中的那一个）—— 因为不同叶区可以用不同
-/// 来源：这一整份注册进去，任何叶区想切到哪条都行。
-List<Map<String, String>> usableCloudProviders(List<ModelItem> models) {
-  return [
-    for (final m in models)
-      if (BrainModelSource.isUsable(m))
-        {
-          'base_url': (m.endpoint ?? '').trim(),
-          'api_key': m.apiKey ?? '',
-          'model': (m.model ?? '').trim(),
-        },
-  ];
 }
 
 /// 构造交给大脑的模型路由 JSON。
@@ -318,23 +412,30 @@ List<Map<String, String>> usableCloudProviders(List<ModelItem> models) {
 /// `POST /api/telencephalon/lobes/models` 一一对应：
 /// ```json
 /// {
-///   "providers": [{"base_url": "...", "api_key": "...", "model": "..."}],
-///   "default_model": "MiniMax-M3",
-///   "lobe_models": {"prefrontal": null, "temporal": "MiniMax-M3"}
+///   "providers": [{"id": "deepseek", "base_url": "...", "model": "..."}],
+///   "default_model": "deepseek-chat",
+///   "lobe_models": {"prefrontal": null, "temporal": "deepseek-chat"}
 /// }
 /// ```
+///
+/// ⚠️⚠️ **`providers` 条目不带 `api_key`**（2026-11-06「大脑是唯一数据源」
+/// 刀）：端脑按 `id` 从自己的供应商目录解析 key —— 供应商材料不出大脑，
+/// 请求体与日志里不再出现明文 key。
 ///
 /// ⚠️ **`lobe_models` 只装显式覆盖的叶区。**
 /// 「不在表里」= 跟随全局默认 —— 要是把每个叶区的**有效值**都塞进去，
 /// 「跟随全局」就被钉死了，改全局默认时那些叶区不会跟着变。
 Map<String, dynamic> buildModelRoutingPayload({
   required BrainModelRouting routing,
-  required List<ModelItem> models,
+  required List<BrainModelOption> options,
 }) {
-  final providers = usableCloudProviders(models);
+  final providers = [
+    for (final o in options)
+      {'id': o.id, 'base_url': o.baseUrl, 'model': o.model},
+  ];
 
-  // 全局默认：auto ⇒ 第一个可用的云端供应商（老行为，不破坏兼容）。
-  final defaultModel = effectiveModelIdOf(routing.defaultSource, models);
+  // 全局默认：auto ⇒ 第一条可对话选项（老行为，不破坏兼容）。
+  final defaultModel = effectiveModelIdOf(routing.defaultSource, options);
 
   // per-lobe 覆盖：值是上游模型 id；`null` = 该叶区强制本地。
   final lobeModels = <String, dynamic>{};
@@ -345,7 +446,7 @@ Map<String, dynamic> buildModelRoutingPayload({
       lobeModels[entry.key] = null; // 强制本地
       continue;
     }
-    final id = upstreamModelIdOf(source, models);
+    final id = upstreamModelIdOf(source, options);
     // 供应商被删了 ⇒ 那个覆盖作废 ⇒ 回到跟随全局默认（跟界面显示一致）。
     if (id == null) continue;
     lobeModels[entry.key] = id;
