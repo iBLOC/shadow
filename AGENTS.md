@@ -1,5 +1,17 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-06 (㎴ **「❼ CI 级收口读数——run 42207936903＝success，Playwright 逐字 `31 passed (17.1s)`，三轮 30/1 形状终结」** —— 承 ㎳ 条⑤的「⌚ CI 级待收」，本条记**终态读数**、**唯一差异归因**，以及**欠项清单更新**。）
+
+> 信封：epoch=2026-11-06 | authority=measured | scope=project | source=真机读数（gh run view 42207936903：status=completed conclusion=success；job 日志逐字 `31 passed (17.1s)`，telencephalon-endpoints 在执行清单，无 failed/flaky；对照基线＝42079173218／42137637025／42187625132 三轮 30 passed / 1 failed）| status=active | supersedes=none
+
+① **✅ 终态读数（逐字）** —— Desktop E2E job（id 127859134384）＝**success**；`Run Playwright E2E` step 收尾逐字：`31 passed (17.1s)`＋`##[notice] 31 passed`；`telencephalon-endpoints` 出现在执行清单；**零 failed／零 flaky** ⇒ `telencephalon-endpoints.spec.ts:57` 的 `toBeTruthy()` 绿 ⇒ 信封 `telencephalon.id=[e2e-telencephalon]` 在 CI 上真实生效——global-setup 注入 `TELENCEPHALON_CONFIG` → 端脑 boot `load_from_file` → config 直读信封这条链**在 CI 的干净 runner 上承重**。
+
+② **✅ 唯一差异归因（对照三轮基线）** —— 三轮红（42079173218／42137637025／42187625132）逐字同形＝`30 passed / 1 failed`、唯一失败恒为 spec:57 信封 id=""；本轮 `31 passed / 0 failed`，两轮之间落地的差异只有 f0aaa72（+62：config YAML＋global-setup 注入）⇒ **31−30 的那一条正是钉了三轮的 ❼** ⇒ CI 级收口成立，❼ 从欠项清单销账。
+
+③ **⚠️ 欠项清单更新** —— ① ~~❼ 信封 id~~ **已收口（判据级＋本机级＋CI 级三级齐）**；② 401 施工图（㌱ 条④）待 telencephalon 工作树空出（存量，5 M 占用持续）；③ ziti-rust／encephalon CI 账户计费门外红（存量，堵点 Billing & plans）；④ mobile 真机读数／沙盒与探针目录拍板（存量）；⑤ **新登记**：码位闸的「条目合并盲区」——闸判 dups/mismatch 但判不了「行首锚被吞 ⇒ 条目并体」（㎳ 条插入事故实测：闸绿而计数 102≠应 103），加固＝给闸加一条目计数/缝合处判据，独立小刀待做。
+
+④ **⚠️ 圈码**：本条占 **U+33B4（㎴）** —— 插入前 fetch 远端重核（12 条 distinct 12 dups=0 max U+33B3）⇒ 空闲 ✔ ⇒ 顺延取 U+33B4，插入后复跑码位闸＋**条目计数**（行首锚计应＝103+1）双钉住。
+
 **Updated**: 2026-11-06 (㎳ **「❼ 信封 id 收口在本仓 —— 「独立 server 无配置入口」旧判断错了，boot 的 TELENCEPHALON_CONFIG 入口一翻就有；本机 A/B 红→绿，CI 级等 run 42207936903」** —— 承 ㌲ 条③（三轮 30/1 钉死的 ❼）与 ㎫ 条⑥的「本仓改不了」，本条记**旧判断推翻的取证链**、**修法两件**、**本机 A/B＋反控**、**探针两坑**，以及**仍然欠着的**。）
 
 > 信封：epoch=2026-11-06 | authority=measured | scope=project | source=真机实测（本机 A/B：A 组无配置 :60183 ⇒ 信封 id=[]（逐字复刻 CI 三轮红形状）；B 组配 YAML :60184 ⇒ id=[e2e-telencephalon]＋无钥匙打读门 **401**（门不变）；静态链：desktop-e2e.yml 启动步／encephalon-server.rs main／a2a_server.rs:196 → surface.rs:144 → telencephalon boot.rs:235；CI run 42207936903 已点火待收）| status=active | supersedes=none
