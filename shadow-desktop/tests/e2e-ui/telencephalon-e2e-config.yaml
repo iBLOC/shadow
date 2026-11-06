@@ -1,0 +1,52 @@
+# ⚠️ **这份文件是 E2E 的端脑配置** —— `global-setup.ts` 在 spawn 端脑 server 前
+# 把本文件路径塞进环境变量 `TELENCEPHALON_CONFIG`；端脑 boot 读这个变量
+# （telencephalon/src/boot.rs 的 `build_app_state_with`，别名 CORTEX_CONFIG）：
+# 有 ⇒ load_from_file 读进来；没有/路径不存在/解析失败 ⇒ 落
+# `TelencephalonConfig::default()` ⇒ `telencephalon.id` 是**空串**。
+#
+# ⚠️⚠️ **这份文件存在的唯一职责：给信封一个非空 id**（❼：/shadow/v1/agents
+#   的 telencephalon.id 曾恒 ""，telencephalon-endpoints.spec.ts 的
+#   `toBeTruthy()` 三轮连续红——default 派生的空串直读进信封）。
+#
+# ⚠️⚠️ **除 id 外每个字段都必须与 Default 同值** —— 多改任何一个字段都可能
+#   改变 E2E 端脑的行为（门/存储/发现面）。门的钥匙不受这里影响：
+#   shadow/admin 钥匙由 BuildOptions（宿主递进）优先覆盖配置文件
+#   （boot.rs 的 apply_shadow_api_key / resolve_admin_token）。
+#
+# ⚠️ **字段不能删**：除 cors 与 bind.public_http 外全部必填（没有
+#   #[serde(default)] ⇒ 少一段就 missing field ⇒ 端脑退回 default ⇒
+#   id 变回空串 ⇒ 红回来）。新增 schema 字段时这份文件要跟着补。
+telencephalon:
+  id: 'e2e-telencephalon'
+  instance_name: ''
+  bind:
+    http: ''
+    mtls: ''
+  admin:
+    api_key: ''
+  shadow:
+    api_key: ''
+  mds_discovery:
+    enabled: false
+    encryption_key_id: ''
+    advertise_interval_sec: 0
+    discover_interval_sec: 0
+  trust_store:
+    auto_accept: false
+  storage:
+    neon_url: ''
+    pool_max_conn: 0
+    audit_log_retention_days: 0
+  wasm_runtime:
+    default_resources:
+      memory_bytes: 0
+      fuel: 0
+      wall_clock_ms: 0
+      network_policy: ''
+    auto_start_on_install: false
+    health_check_interval_sec: 0
+    max_concurrent_agents: 0
+  a2a_gateway:
+    request_timeout_ms: 0
+    rate_limit_per_minute: 0
+    audit_enabled: false

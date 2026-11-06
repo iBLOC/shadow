@@ -247,6 +247,16 @@ async function globalSetup(_config: FullConfig) {
   console.log(`[global-setup] 端脑 cwd:    ${TELENCEPHALON_CWD}`);
   console.log(`[global-setup] server 日志：${SERVER_LOG_PATH}`);
   console.log(`[global-setup] admin 面：${ADMIN_KEY ? '配了钥匙（开着）' : '没配钥匙（fail-closed 关着）'}`);
+  // ⚠️⚠️ **信封 id 的唯一注入口**（❼，2026-11-06 收口）：端脑 boot 读环境变量
+  //   `TELENCEPHALON_CONFIG`（telencephalon/src/boot.rs 的 build_app_state_with；
+  //   旧别名 CORTEX_CONFIG 不再喂）⇒ 没配 ⇒ 落 TelencephalonConfig::default()
+  //   ⇒ telencephalon.id 是空串 ⇒ /shadow/v1/agents 信封里 id 恒 "" ⇒
+  //   telencephalon-endpoints.spec.ts 的 toBeTruthy() 恒红（CI 三轮 30/1 钉死）。
+  //   ⇒ ⇒ spawn 前把同目录的配置文件递进去（env spread 会带上它）；文件里
+  //   除 id 外逐字段贴 Default ⇒ 行为与「没有配置」完全同形，只有 id 变非空。
+  const telConfigPath = join(E2E_DIR, 'telencephalon-e2e-config.yaml');
+  process.env.TELENCEPHALON_CONFIG = telConfigPath;
+  console.log(`[global-setup] 端脑配置：${telConfigPath}`);
 
   startMockLlmServer();
   console.log('[global-setup] Starting the 端脑 server (encephalon-server)...');
