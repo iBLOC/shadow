@@ -79,22 +79,41 @@ void main() {
     return raw;
   }
 
-  /// 把**真实 I/O 的 await 链**走完。
+  /// 轮询谓词用的读法：文件还没落盘（`_save()` 那条链还没跑到）时返回
+  /// **null** 而不是抛 —— 轮询谓词要表达的是「**还没跟上**」，不是「炸了」。
+  Future<Map<String, dynamic>?> tryReadConfig(WidgetTester tester) async {
+    Map<String, dynamic>? raw;
+    await tester.runAsync(() async {
+      final file = File('${tmpDir.path}/app_config.json');
+      if (!await file.exists()) return;
+      raw = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+    });
+    return raw;
+  }
+
+  /// 轮询直到谓词满足 —— **而不是数固定轮数**。
   ///
-  /// ⚠️ 为什么不能只 `runAsync` 一次：真实 I/O 的每一次 `await` 的续体都排在
-  /// **假时钟**的微任务队列里 ⇒ ⇒ 一条 `init()` 链（`_getConfigFile` →
-  /// `exists` → `readAsString`）**每个 await 都要一轮**「真实时间让 I/O 落地」
-  /// ＋「pump 让续体跑」⇒ ⇒ 少一轮就停在半路 ⇒ 字段还是空的（看着像
-  /// 「卡片没渲染」）。
-  /// ⚠️ 轮数从 8 提到 16：`_save()` 现在落盘**三次**（地址 / admin token /
-  /// 影子锁）⇒ 每一步真实 I/O 的续体都要一轮 ⇒ 8 轮不够 ⇒ 断言会在
-  /// 「还没走到应用那一步」时失败。
-  Future<void> settleIo(WidgetTester tester, {int rounds = 16}) async {
-    for (var i = 0; i < rounds; i++) {
+  /// ⚠️ 为什么不再用定长轮（原 16×5ms）：CI 机器慢 ⇒ 每轮 5ms 的真实时间
+  /// 里 I/O 未必落地 ⇒「这台机器 16 轮够、那台不够」⇒ 时序 flake（CI run
+  /// 42137603583 的 mobile-test 就红在这：Save 后「端脑面跟着走」没走到；
+  /// 本机快，复跑绿 ⇒ 典型形状）。⇒ 改成「**轮询直到跟上**」：每轮给一轮
+  /// 真实时间＋一次 pump，谓词满足即停 ⇒ 机器慢只影响**等多久**，
+  /// 不影响**等不等得到**。超时才红 ⇒ 红 = 链真的没走到谓词那一步，
+  /// 不是「轮数差一轮」的假红。
+  Future<void> settleUntil(
+    WidgetTester tester,
+    Future<bool> Function() ready, {
+    required String label,
+    int maxRounds = 600,
+  }) async {
+    for (var i = 0; i < maxRounds; i++) {
       await tester.runAsync(
           () => Future<void>.delayed(const Duration(milliseconds: 5)));
       await tester.pump();
+      if (await ready()) return;
     }
+    fail('settleUntil($label): $maxRounds 轮 × 5ms 后仍未跟上 —— '
+        '不是「轮数不够」（轮询没有轮数这个轴），是链真的没走到谓词那一步');
   }
 
   ProviderContainer newContainer() {
@@ -110,6 +129,7 @@ void main() {
   Future<ProviderContainer> pumpCard(
     WidgetTester tester, {
     ProviderContainer? container,
+    required Future<bool> Function() until,
   }) async {
     final c = container ?? newContainer();
     await tester.pumpWidget(
@@ -131,8 +151,9 @@ void main() {
     );
     // 帧 1 ⇒ post-frame ⇒ `_hydrate()` 起跑（它 `await cfg.init()` ⇒ 真实 I/O）。
     await tester.pump();
-    // 把那条 await 链走完 ⇒ 输入框拿到「配置里那个」。
-    await settleIo(tester);
+    // 轮询到 hydrate 真完成（调用方给「输入框拿到配置里那个」的谓词）
+    // ⇒ 不数固定轮数（CI 慢机器上定长轮 = 时序 flake，见 settleUntil 注释）。
+    await settleUntil(tester, until, label: 'hydrate');
     return c;
   }
 
@@ -167,7 +188,13 @@ void main() {
           adminToken: 'embedded-admin-token',
         );
 
-    await pumpCard(tester, container: container);
+    await pumpCard(
+      tester,
+      container: container,
+      until: () async =>
+          urlFieldText(tester) == 'http://192.168.1.50:60080' &&
+          tokenFieldText(tester) == 'external-token',
+    );
 
     // ⇒ 卡片显示的必须是**配置那个**（不是 127.0.0.1:43210）。
     expect(urlFieldText(tester), 'http://192.168.1.50:60080');
@@ -177,16 +204,40 @@ void main() {
   testWidgets('Save 把地址落进持久化配置，并让端脑面（没人接管时）跟着走',
       (tester) async {
     await storeEndpoint(tester);
-    final container = await pumpCard(tester);
+    // 空配置 ⇒ hydrate 后地址字段拿到的是「client 此刻的默认」
+    // （`cfg.telencephalonBaseUrl ?? default`）⇒ 谓词用它当「已跟上」标志。
+    final container = await pumpCard(
+      tester,
+      until: () async => urlFieldText(tester) == 'http://127.0.0.1:60080',
+    );
 
-    await tester.enterText(find.byType(EditableText).first, 'http://10.0.0.9:60080');
+    await tester.enterText(
+        find.byType(EditableText).first, 'http://10.0.0.9:60080');
     await tester.enterText(find.byType(EditableText).at(1), 'tok-xyz');
     await tester.tap(find.byType(ShadButton));
     await tester.pump();
-    // `_save()` 里的落盘是真实 I/O ⇒ 把那条链走完。
-    await settleIo(tester);
 
-    // 落盘了。
+    // `_save()` 是真实 I/O ⇒ 轮询到「**端脑面跟上**」（链尾标志：
+    // `setConfiguredEndpoint` 在三次落盘**之后**才更新面 ⇒ 面跟上 =
+    // 全链走完）＋落盘完整。没人接管 ⇒ 面跟着配置走。
+    Future<bool> savedAndFollowed() async {
+      if (container.read(telencephalonClientProvider).baseUrl !=
+          'http://10.0.0.9:60080') {
+        return false;
+      }
+      if (container.read(telencephalonProvider).connection.baseUrl !=
+          'http://10.0.0.9:60080') {
+        return false;
+      }
+      final raw = await tryReadConfig(tester);
+      return raw != null &&
+          raw['telencephalonBaseUrl'] == 'http://10.0.0.9:60080' &&
+          raw['telencephalonAdminToken'] == 'tok-xyz';
+    }
+
+    await settleUntil(tester, savedAndFollowed, label: 'save');
+
+    // 落盘了（轮询已确认；最终断言再读一遍作为凭证）。
     final raw = await readConfig(tester);
     expect(raw['telencephalonBaseUrl'], 'http://10.0.0.9:60080');
     expect(raw['telencephalonAdminToken'], 'tok-xyz');
@@ -210,13 +261,32 @@ void main() {
           adminToken: 'embedded-admin-token',
         );
 
-    await pumpCard(tester, container: container);
+    await pumpCard(
+      tester,
+      container: container,
+      until: () async => urlFieldText(tester) == 'http://192.168.1.50:60080',
+    );
 
     // 只改地址，不碰 token ⇒ Save 不该凭空多出 token。
-    await tester.enterText(find.byType(EditableText).first, 'http://10.0.0.9:60080');
+    await tester.enterText(
+        find.byType(EditableText).first, 'http://10.0.0.9:60080');
     await tester.tap(find.byType(ShadButton));
     await tester.pump();
-    await settleIo(tester);
+
+    // 链尾标志：state 面（记忆面）**无条件**跟配置走（`setConfiguredEndpoint`
+    // 的 `copyWith` 在接管判断**之外**）⇒ 它跟上 = 全链走完；端脑面（client）
+    // 被**内嵌接管** ⇒ **不该**跟 ⇒ 谓词不判它。
+    Future<bool> savedAndFollowed() async {
+      if (container.read(telencephalonProvider).connection.baseUrl !=
+          'http://10.0.0.9:60080') {
+        return false;
+      }
+      final raw = await tryReadConfig(tester);
+      return raw != null &&
+          raw['telencephalonBaseUrl'] == 'http://10.0.0.9:60080';
+    }
+
+    await settleUntil(tester, savedAndFollowed, label: 'save-no-token');
 
     final raw = await readConfig(tester);
     expect(raw['telencephalonBaseUrl'], 'http://10.0.0.9:60080');

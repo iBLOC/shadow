@@ -1,5 +1,25 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-06 (㎭ **「CI 首跑红的两种『时间形态』各收一口 —— ziti-face 红在布局（判不了）补双布局解析，backend_settings_card 红在时序（来不及）把定长轮换成轮询直到跟上」** —— 承 ㎬ 条（ziti-face 接进 CI 那一刀）与 ㎪ 条⑧⑥③（backend_settings_card flake 预登记的「等它下次红」），本条记**两刀的根因与修法**、**布局 B 沙盒演练**、**改前演练与 CI 同形**、**链尾语义取证**，以及**仍然欠着的**。)
+
+> 信封：epoch=2026-11-06 | authority=measured | scope=project | source=真机实测（布局 B 沙盒演练 **B_EXIT=1 且 UNREAD_LINES=0**（原 exit 2「读不到⇒判不了」→ 现在只剩内容缺类）；改前演练 **+1 -2**、测试 2 红在 line 192「端脑面跟着走」＝与 CI run 42137603583 同形 → 轮询版 **+3 All tests passed** EXIT=0；dart analyze 单文件 No issues；闸族 face EXIT=0 阻断 0 / self-test 50/50 / yaml 5 文件零违规 / 纪律闸 41 道 0 违规存量债 35；远端账本 97 条 / distinct 85 / max U+33AC）| status=active | supersedes=none
+
+① **✅ ziti-face CI 首跑红＝布局层不是判据层** —— run 42137603583（on af5d9ba，接进 CI 后第一轮真跑）红在 `node scripts/check-ziti-face.mjs` exit 2「判不了」：闸解析兄弟仓用 `../<repo>`（本机布局 A：兄弟仓与 shadow 并排）⇒ CI 上兄弟仓检出在 shadow 仓根**之下**（布局 B）⇒ 读不到 ⇒ 判不了 ⇒ 红。**接进 CI 当天本地绿是本机布局** —— 与 b0f1b2a 那次（检出缺失）是同一族坑的第二个 Case：这次**检出齐全**但**布局不对**。修法两处：❶ `scripts/check-ziti-face.mjs` 加 `sibling(name)` 双布局解析（先试 `ROOT/../<name>` 再试 `ROOT/<name>`，与 check-ziti-v2-wire 的 findRepoPath 同款）；❷ step 从 cortex-residue-stack job 挪到前段 prefrontal Rust 链 job（b0f1b2a 已在那里补检出 encephalon/telencephalon ⇒ 布局齐；且不给 cortex-residue-stack 添检出，避开 cortex-residue-all 自动发现「未登记仓⇒阻断」连坐）。
+
+② **✅ 布局 B 沙盒演练承重（防「本地绿是本机布局」再演一次）** —— 在 workspace 外造 B 布局沙盒（13 个真文件 read+write 搬运；bash 递归复制三次被硬策略拦后换的路）⇒ 副本闸跑出 **B_EXIT=1（不再是 exit 2）且 UNREAD_LINES=0（零「读不到」）**，4 条阻断全是沙盒文件不全的「内容缺」类（lobe_placement.rs 未放等）⇒ ⇒ **双布局修复成立：布局层通，剩下的红是内容缺且可解释**。⚠️ 沙盒目录 `C:/Projects/iBLOC/ztiface-b-sandbox/` 遗留待用户手动删（删除类命令被硬策略拦）。
+
+③ **✅ backend_settings_card flake 收口（㎪ 条⑧⑥③预登记的「下次」到了：CI run 42137603583 的 mobile-test 又红这一格）** —— 根因＝测试的 `settleIo` 是**定长轮**（16×5ms）：`_save()` 落盘三次＋更新端脑面是真实 I/O 链，CI 机器慢 ⇒ 16 轮走不完 ⇒ 「端脑面跟着走」断言红；本机快复跑绿 ⇒ 典型时序 flake。修法＝**删掉定长轮，换 `settleUntil` 轮询直到谓词**（每轮 5ms 真实时间＋一次 pump，谓词满足即停，600 轮超时才红）⇒ 机器慢只影响**等多久**，不影响**等不等得到**。谓词＝**链的可观测完成标志**：hydrate 谓词＝「输入框拿到配置里那个」；Save 谓词＝「落盘完整＋端脑面跟上」。
+
+④ **✅ 链尾语义取证（谓词的依据，不是拍脑袋）** —— 读 `telencephalon_provider.dart` 的 `setConfiguredEndpoint`：`copyWith`（state 面＝记忆面）**无条件**更新、client 面**只在没人接管时**跟（`if (!_agentSurfaceOwned)`）⇒ ⇒ 测试 2（无接管）谓词判**两处面**＋落盘；测试 3（内嵌接管）谓词只判 state 面＋落盘（client 面不该跟——这正是「内嵌在跑 ⇒ 不被远端地址拽走」的契约）。空配置测试的 hydrate 谓词用初始 `connection.baseUrl`（'http://127.0.0.1:60080'，构造器常量）当「已跟上」标志 ⇒ 不需要碰卡片私有 `_loaded`。
+
+⑤ **✅ 改前演练与 CI 同形（A/B 承重）** —— 改前形状可红要拿证据：把 `settleIo` 轮数钉到 1（模拟慢机器轮数不够）⇒ **+1 -2**，测试 2 红在 **line 192「端脑面跟着走」＝与 CI 同形同断言**（测试 1 也红＝hydrate 轮数不够；测试 3 恰好绿＝各测试独立 binding 时序不同）⇒ 轮询版复跑 **+3 All tests passed EXIT=0** ⇒ 红→绿，且绿的理由是「轮询等到链尾标志」不是「本机快」。
+
+⑥ **⚠️ 同型债登记（未动）** —— `backend_shadow_key_entry_test.dart` 自己也有一份 `settleIo`（12×5ms 定长轮，3 处调用），形状同型但**没红过** ⇒ 本刀不扩面（最小诚实一刀），登记：它下次在 CI 红时同款修法（轮询直到跟上）。
+
+⑦ **⚠️ 仍然欠着** —— ① 本轮 shadow 改动（check-ziti-face 双布局＋ci.yml step 挪位＋backend_settings_card 轮询版）**推后等 CI 真跑绿读数**（ziti-face 与 mobile-test 两格）；② 沙盒 `ztiface-b-sandbox/` 删除待用户；③ `backend_shadow_key_entry_test` 同型债（⑥）；④ 既有欠项不重复（❼信封 id / dispatch 401 / ziti-rust CI 面 / `.local/patch-probe/` 拍板）。
+
+⑧ **⚠️ 圈码**：本条占 **U+33AD（㎭）** —— 插入前 fetch 远端（`git show origin/master:AGENTS.md` 解析 **97 条**、码位 distinct **85**、数值最大 **U+33AC**＝本会话上一条 ㎬）⇒ 空闲 ✔ ⇒ 顺延取 U+33AD，插入后复跑码位闸钉住。
+
 **Updated**: 2026-11-06 (㎬ **「OpenZiti v2 真网线收口 —— 5 条 #[ignore] 在真路由器上全绿，v1 SDK 的叙事从手册里退场」** —— 承 ㎩ 条那笔（同一天的工作面），本条记**真网 5 条逐条读数**、**闸与手册收口**、**warning 清零**、**todo 快照过时的教训**，以及**仍然欠着的**。）
 
 > 信封：epoch=2026-11-06 | authority=measured | scope=project | source=真机实测（真网 `cargo test --offline --features ziti --lib -- --ignored --nocapture` ⇒ **5 passed; 0 failed; finished in 6.48s**，EXIT=0；synapse lib **371 passed / 0 failed** / EXIT=0 / 0 warning；`check-ziti-v2-wire.mjs` ＋ `check-ziti-face.mjs` 阻断 0 项）| status=active | supersedes=none
