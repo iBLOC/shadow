@@ -401,6 +401,18 @@
   "providerLocalModel": "Local model",
   "providerBuiltin": "Built-in",
   "providerModelNotDownloaded": "Not downloaded",
+  "modelCategoryText": "Text models",
+  "modelCategoryVision": "Vision models",
+  "modelCatalogTitle": "Supported models",
+  "modelCatalogHint": "Models the embedded brain supports; local models marked \"not downloaded\" cannot run yet.",
+  "modelCatalogEmpty": "Catalog not fetched yet",
+  "capLlm": "Text",
+  "capVision": "Vision",
+  "capAsr": "Speech recognition",
+  "capTts": "Speech synthesis",
+  "capEmbedding": "Embedding",
+  "capRerank": "Rerank",
+  "capOcr": "OCR",
   "providersTitle": "Model Providers",
   "providersEmpty": "No providers configured",
   "providersEmptyHint": "Tap the button below to add your first provider",
@@ -925,6 +937,8 @@
   "encephalonModelNoCloudProvider": "No cloud provider configured yet - add one in Model management first.",
   "encephalonModelSourceApplied": "New model source applied",
   "encephalonModelSourceFailed": "Failed to switch the model source",
+  "encephalonModelOptionsUnavailable": "Could not read the provider catalog from the brain - it may not be running.",
+  "@encephalonModelOptionsUnavailable": {},
   "encephalonLobeRoutingTitle": "Lobe model routing",
   "encephalonLobeRoutingHint": "A lobe is the smallest unit that picks a model. By default every lobe follows the global source above; you can override a single lobe - e.g. prefrontal on local weights, the region that actually runs tasks on the cloud.",
   "encephalonLobeRoutingUnavailable": "Could not read the lobe list from the telencephalon - the brain may not be running.",
@@ -1101,6 +1115,26 @@
   "settingsThemeModeLight": "Light",
   "settingsThemeModeDark": "Dark",
   "settingsDialogBackgroundDesc": "Override the background of dialogs and panels.",
+  "settingsBackground": "Background",
+  "settingsBackgroundDesc": "Chat wallpaper and dialog backdrop color.",
+  "settingsAccentCustom": "Custom",
+  "settingsAccentCustomPick": "Custom color…",
+  "settingsAccentHue": "Hue",
+  "settingsAccentSat": "Saturation",
+  "settingsAccentLight": "Lightness",
+  "settingsAccentApply": "Apply",
+  "settingsChatBackground": "Chat background",
+  "settingsChatBackgroundDesc": "Pick a background image for the chat page.",
+  "settingsChatBackgroundPick": "Choose image",
+  "settingsChatBackgroundClear": "Clear",
+  "settingsChatBackgroundFailed": "Failed to set background: {error}",
+  "@settingsChatBackgroundFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "surfaceA2ui": "Generative UI",
   "surfaceIdentity": "Identity",
   "agent2uiNoConnection": "Not connected to the telencephalon",
@@ -1156,29 +1190,45 @@
   "capabilityArgMobilePoint": "at {x}, {y}",
   "@capabilityArgMobilePoint": {
     "placeholders": {
-      "x": { "type": "String" },
-      "y": { "type": "String" }
+      "x": {
+        "type": "String"
+      },
+      "y": {
+        "type": "String"
+      }
     }
   },
   "capabilityArgMobileSwipe": "from {x1}, {y1} to {x2}, {y2}",
   "@capabilityArgMobileSwipe": {
     "placeholders": {
-      "x1": { "type": "String" },
-      "y1": { "type": "String" },
-      "x2": { "type": "String" },
-      "y2": { "type": "String" }
+      "x1": {
+        "type": "String"
+      },
+      "y1": {
+        "type": "String"
+      },
+      "x2": {
+        "type": "String"
+      },
+      "y2": {
+        "type": "String"
+      }
     }
   },
   "capabilityArgMobileText": "text \"{text}\"",
   "@capabilityArgMobileText": {
     "placeholders": {
-      "text": { "type": "String" }
+      "text": {
+        "type": "String"
+      }
     }
   },
   "capabilityArgMobileAction": "action: {action}",
   "@capabilityArgMobileAction": {
     "placeholders": {
-      "action": { "type": "String" }
+      "action": {
+        "type": "String"
+      }
     }
   },
   "capabilityServiceGranted": "Accessibility service enabled",
@@ -1263,6 +1313,35 @@
   "batteryOptimization": "Battery optimization exemption",
   "batteryOptimizationExempt": "Exempted — background running is reliable",
   "batteryOptimizationAsk": "Not exempted yet (needed on aggressive systems like MIUI)",
-  "batteryOptimizationRequest": "Request"
+  "batteryOptimizationRequest": "Request",
+  "selfHostedAdd": "Add self-hosted model",
+  "selfHostedTitle": "Add self-hosted model",
+  "selfHostedModelId": "Model ID",
+  "selfHostedModelIdRequired": "Model ID is required",
+  "selfHostedDisplayName": "Display name (optional)",
+  "selfHostedEndpoint": "Endpoint (OpenAI-compatible base URL)",
+  "selfHostedEndpointRequired": "Endpoint is required",
+  "selfHostedApiKeyOptional": "API key (optional)",
+  "selfHostedContextWindow": "Context window",
+  "selfHostedMaxOutput": "Max output tokens",
+  "selfHostedInputTypes": "Input types",
+  "selfHostedCapabilities": "Capabilities",
+  "selfHostedReasoningLevels": "Reasoning effort levels (low to high)",
+  "selfHostedReasoningOff": "Not supported",
+  "selfHostedAdvanced": "Advanced",
+  "selfHostedReasoningMapping": "Reasoning parameter mapping",
+  "selfHostedReasoningMappingHint": "JSON snapshot: standard × level → request body params",
+  "selfHostedAdvancedConfig": "Advanced config (JSON)",
+  "selfHostedProbe": "Probe models from endpoint",
+  "selfHostedProbeEmpty": "Endpoint returned no models",
+  "selfHostedProbePick": "Pick a model ID",
+  "selfHostedSubmit": "Add",
+  "selfHostedSaving": "Adding…",
+  "smartConfigBadge": "Smart config",
+  "inputTypeText": "Text",
+  "inputTypeImage": "Image",
+  "inputTypeAudio": "Audio",
+  "inputTypeVideo": "Video",
+  "cloudGuideTitle": "Cloud models live with providers",
+  "cloudGuideDesc": "Add a cloud provider and its supported models are fetched automatically."
 }
-

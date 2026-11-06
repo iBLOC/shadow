@@ -4,7 +4,6 @@ import 'package:shadcn_ui/shadcn_ui.dart';
 import 'dart:async';
 import 'dart:io' show Platform;
 import 'generated/l10n/app_localizations.dart';
-import 'model_manager.dart';
 import 'router/app_router.dart';
 import 'providers/capability_policy_provider.dart';
 import 'providers/identity_provider.dart';
@@ -37,11 +36,10 @@ void main() async {
     debugPrint('[ShadowApp] background communication port init failed: $e');
   }
 
-  try {
-    ModelManager().initializeDefaultModels();
-  } catch (e) {
-    debugPrint('[ShadowApp] ModelManager.initializeDefaultModels() failed: $e');
-  }
+  // ⚠️ v2.10：`ModelManager().initializeDefaultModels()` 那笔启动播种
+  // **删了** —— 它往 sqflite `models` 表塞 `local_placeholder` 行，而
+  // 那张表在「大脑是唯一数据源」之后**没有任何读取方**（模型管理页的
+  // 列表已改为直读大脑供应商目录）。播种 = 往死表里写字。
 
   // 用 **app 生命周期的 ProviderContainer**（而不是 ProviderScope）——
   // 这样可以在 provider 树之外、在 runApp 之后触发嵌入式大脑的启动。

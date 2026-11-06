@@ -1,5 +1,23 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-07 (㎵ **「移动端页面结构收口第一段＋死代码收刀 —— 能力 tab 首卡「默认模型」落地、agents 页收口成唯一 agent 面、7800 行死代码出仓；删除前逐符号复核抓到 4 个假孤儿」** —— 起于用户三个结构性判断（agent 面重复／大脑流程与能力页重复／无处设默认模型）＋「重新审视移动端页面结构、排查老死代码」，本条记**排查坐实**、**两刀内容**、**假孤儿教训**、**读数与归因**，以及**欠项清单更新（刀三施工图七件套）**。）
+
+> 信封：epoch=2026-11-07 | authority=measured | scope=project | source=真机实测（提交 be9f1a0＝54 文件 +674/−7810；flutter analyze **0 error**、本刀文件零问题（61 条存量 info/warning 未动）；agents_screen_test **7/7**（新增 3 条）；全量 **629 passed / 2 failed**——1 条本刀 pending Timer 已修、1 条并行在飞 401 测试隔离复现同挂；纪律闸本刀引入的 1 条契约违规已修，余 3 闸 self-test 红均非本刀；fetch 远端账本 104 条 distinct 65 max U+33B4）| status=active | supersedes=none
+
+① **三处结构病全坐实（证据链）** —— ❶ agent 面分裂：`/manage/agents`（agents_screen.dart）是只读列表＋恒灰启停开关（端脑没有「启停叶区」面）＋**假设置对话框**（展示原始 settings 键值对、「保存」只是把**没改过**的 map 原样回写＝写了个寂寞）；真正能用的 per-lobe 模型路由埋在 `/settings/encephalon` 这个排障页里。❷ 模型流程三处重叠：供应商页 per-provider selected_model／大脑页全局默认＋叶区覆盖／模型管理页在飞 self-hosted 表单又复制一条 addProvider 流（providers_screen.dart 与 self_hosted_model_sheet.dart 打同一端点）。❸ 「无处设默认模型」：唯一的全局默认选择器叫「大脑模型来源」且埋在排障页。⇒ ⇒ 桌面端对标物＝SettingsPage 的 per-agent「默认模型」下拉（SettingsPage.tsx:1134）。
+
+② **✅ 刀二（页面结构第一段，全干净文件，用户拍板方案 A＋分两刀）** —— ❶ 新建 `widgets/brain/default_model_card.dart`：全局默认模型卡**直读大脑目录**（复用 brainProviderOptionsProvider/usableBrainOptions/BrainModelSource.resolve，文本/视觉分组），写入走 `encephalonMobileProvider.applyModelSource` **同一条链**；l10n 全复用现有键 ⇒ **零 arb 改动**（arb 有并行会话在飞）。❷ management_hub 网格上方插全宽首卡（刷新同时 invalidate 目录）⇒ 默认模型收到**能力 tab 落地首屏**。❸ agents_screen 收口：原生叶区行内「模型覆盖」下拉（复用大脑页同一套哨兵值/effectiveLobeSource/applyLobeOverride；`AgentSettings` 增 **kind** 字段，只给原生叶区出下拉——路由负载按原生叶区名下发，prompt agent 不给静默无效的选项）；删假对话框与恒灰开关（删掉比灰着诚实）。
+
+③ **⚠️⚠️ 假孤儿教训（删除前逐符号 grep 复核承重）** —— 探索报告判的「零引用」有 **3 个是假的**：`chat_bubble.dart`（里面是 **ChatMessage/MessageBubble** 两个类，没有叫 ChatBubble 的类 ⇒ 按类名找漏了；local_chat_view.dart 真在用）、`mode_provider.dart`（live/customer_service/voice 三屏在用）、`service_provider.dart`（设置页 ServiceStatusBlock 在用）⇒ 全保留 ⇒ 不复核就删=**断编译**。⇒ ⇒ **教训：探索阶段的「零引用」是提示，执行刀必须自己再 grep 一遍**；visual_qa_clarification_chip 也随 chat_bubble 一起保了命。
+
+④ **✅ 刀一（死代码收刀：33 文件＋3 目录，−7810 行）** —— LiteRT/MNN 本地引擎退役＋prefrontal 退役的孤儿面：litert_model/mnn_engine/model_config(根)/model_manager/mnn_agent_integration/models 三件/model_settings_screen＋死路由＋死测试/error 孤岛四件/model_binding_prompt 对/skill_executor/agent_review_service/engine_service/mobile_action_agent 目录/a2a_server（**client·message 保留**——shadow_key_sse_transport 在用）/flutter_genui chat_widget/camera_preview_widget/settings_sheet/setup_wizard_screen/provisioning_screen/features 两目录/model_repository/model_item＋零引用 Kotlin 两个（PrefrontalMNN/MobileActionAgent；OpenAIServer*/MobileActionServer 被脏 MainActivity 注册⇒留刀三）。agent_provider 只留 customPromptProvider，死 providers 唯一消费者链连 **main_agent_tools** 一起退役。契约同步：agent-surface.json 的 model-settings 面移动端路由→null（那张面从未有 UI 入口）。
+
+⑤ **✅ 读数与归因** —— analyze：0 error、本刀文件零问题；agents_screen_test **7/7**（新增：原生叶区有下拉/prompt agent 无/切换真走 setModelRouting＋SnackBar；首跑红＝**pending Timer**——点选下拉构造真 notifier ⇒ 启动假失败 ⇒ 2s/4s 退避 Timer 挂到测试退出，10s pump 冲干净即绿＝大脑页测试 startFails 分支同款）；全量 **629/2**：另 1 条 `encephalon_page_credential_probe` 401 **挂死 10 分钟超时**＝并行会话在飞测试自身（隔离复现同挂，不经本刀任何文件）；纪律闸：本刀引入的 1 条（契约路由声明）已修，余 **3 闸 self-test 红**＝桌面 accent.g.ts 在飞漂移＋apk-surface 构建态＋state-surface 账本 dangling-ref 存量，**均非本刀**。⚠️ Mimosa 扫描器两轮 scanner_enobufs 没拿到完整结论 ⇒ 提交走兼容策略 ⇒ **项目安全性这一格本轮没有读数**（与 ㎪ 条⑦⑥同型）。
+
+⑥ **⚠️ 欠项清单更新（刀三施工图七件套——全被并行会话在飞文件占住，等批次落地即做）** —— ❶ 大脑页删两张模型卡瘦身为**运行时**（状态/启停/探针）＋设置页入口改名并考虑挪高级组；❷ self-hosted 表单与供应商页 addProvider **归一**（一条添加流）；❸ settings 删 ModelStoreBlock＋app_config_service 的 modelStoreUrl 死机械（settings_screen_test 脏需同批）；❹ l10n 死键清扫（探索已列 ~90 键）；❺ Kotlin engine/http_server/NSD 块＋mnn_logs 通道审计；❻ database_helper 的 models 死表＋RepositoryFactory.configure()；❼ litert_provider＋customer_service/voice 两屏的「换大脑」设计决定。**另登记两笔**：⑧ main_agent_prompt.dart（活文件）提示词还在指挥模型「委托 MobileActionAgent」——那个类本刀删了（删除前它就从未接线）⇒ 提示词改写归设计决定；⑨ 在飞 401 测试挂死与 3 闸红归并行会话/存量，不代修。
+
+⑦ **⚠️ 圈码**：本条占 **U+33B5（㎵）** —— 插入前 fetch 远端（fetch 撞 127.0.0.1:7897 没开的代理 ⇒ 调用级 `-c http.https://github.com.proxy=` 直连后重核：104 条、distinct 65、max U+33B4）⇒ 空闲 ✔ ⇒ 顺延取 U+33B5，插入后复跑码位闸＋**条目计数**（行首锚计应＝104+1=105）双钉住。
+
 **Updated**: 2026-11-06 (㎴ **「❼ CI 级收口读数——run 42207936903＝success，Playwright 逐字 `31 passed (17.1s)`，三轮 30/1 形状终结」** —— 承 ㎳ 条⑤的「⌚ CI 级待收」，本条记**终态读数**、**唯一差异归因**，以及**欠项清单更新**。）
 
 > 信封：epoch=2026-11-06 | authority=measured | scope=project | source=真机读数（gh run view 42207936903：status=completed conclusion=success；job 日志逐字 `31 passed (17.1s)`，telencephalon-endpoints 在执行清单，无 failed/flaky；对照基线＝42079173218／42137637025／42187625132 三轮 30 passed / 1 failed）| status=active | supersedes=none

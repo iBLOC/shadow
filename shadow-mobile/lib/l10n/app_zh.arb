@@ -358,6 +358,18 @@
   "providerLocalModel": "本地模型",
   "providerBuiltin": "内置",
   "providerModelNotDownloaded": "未下载",
+  "modelCategoryText": "文本模型",
+  "modelCategoryVision": "视觉模型",
+  "modelCatalogTitle": "支持的模型",
+  "modelCatalogHint": "内嵌大脑支持的模型目录；标着「未下载」的本地模型选了也跑不起来。",
+  "modelCatalogEmpty": "目录尚未获取",
+  "capLlm": "文本",
+  "capVision": "视觉",
+  "capAsr": "语音识别",
+  "capTts": "语音合成",
+  "capEmbedding": "向量",
+  "capRerank": "重排",
+  "capOcr": "文字识别",
   "providersTitle": "大模型服务提供商",
   "providersEmpty": "暂未配置提供商",
   "providersEmptyHint": "点击右下角添加第一个提供商",
@@ -882,6 +894,8 @@
   "encephalonModelNoCloudProvider": "还没有配置云端供应商 —— 先去「模型管理」加一个。",
   "encephalonModelSourceApplied": "已应用新的模型来源",
   "encephalonModelSourceFailed": "模型来源切换失败",
+  "encephalonModelOptionsUnavailable": "读不到大脑的供应商目录 —— 大脑可能没在跑。",
+  "@encephalonModelOptionsUnavailable": {},
   "encephalonLobeRoutingTitle": "叶区模型路由",
   "encephalonLobeRoutingHint": "模型使用的最小单位是叶区。默认各叶区跟随上面的全局来源，可以单独覆盖某一个叶区 —— 比如前额叶用本地、实际执行任务的区域用云端。",
   "encephalonLobeRoutingUnavailable": "读不到端脑的叶区列表 —— 大脑可能没在跑。",
@@ -1058,6 +1072,19 @@
   "settingsThemeModeLight": "浅色",
   "settingsThemeModeDark": "深色",
   "settingsDialogBackgroundDesc": "覆盖对话框与面板的底色。",
+  "settingsBackground": "背景",
+  "settingsBackgroundDesc": "聊天页背景图与对话框底色。",
+  "settingsAccentCustom": "自定义",
+  "settingsAccentCustomPick": "自定义色号…",
+  "settingsAccentHue": "色相",
+  "settingsAccentSat": "饱和度",
+  "settingsAccentLight": "亮度",
+  "settingsAccentApply": "应用",
+  "settingsChatBackground": "聊天背景",
+  "settingsChatBackgroundDesc": "为聊天页选一张背景图。",
+  "settingsChatBackgroundPick": "选择图片",
+  "settingsChatBackgroundClear": "清除",
+  "settingsChatBackgroundFailed": "设置背景失败：{error}",
   "surfaceA2ui": "生成式界面",
   "surfaceIdentity": "身份",
   "agent2uiNoConnection": "未连接到端脑",
@@ -1113,29 +1140,45 @@
   "capabilityArgMobilePoint": "位置 {x}, {y}",
   "@capabilityArgMobilePoint": {
     "placeholders": {
-      "x": { "type": "String" },
-      "y": { "type": "String" }
+      "x": {
+        "type": "String"
+      },
+      "y": {
+        "type": "String"
+      }
     }
   },
   "capabilityArgMobileSwipe": "从 {x1}, {y1} 滑到 {x2}, {y2}",
   "@capabilityArgMobileSwipe": {
     "placeholders": {
-      "x1": { "type": "String" },
-      "y1": { "type": "String" },
-      "x2": { "type": "String" },
-      "y2": { "type": "String" }
+      "x1": {
+        "type": "String"
+      },
+      "y1": {
+        "type": "String"
+      },
+      "x2": {
+        "type": "String"
+      },
+      "y2": {
+        "type": "String"
+      }
     }
   },
   "capabilityArgMobileText": "文字「{text}」",
   "@capabilityArgMobileText": {
     "placeholders": {
-      "text": { "type": "String" }
+      "text": {
+        "type": "String"
+      }
     }
   },
   "capabilityArgMobileAction": "动作：{action}",
   "@capabilityArgMobileAction": {
     "placeholders": {
-      "action": { "type": "String" }
+      "action": {
+        "type": "String"
+      }
     }
   },
   "capabilityServiceGranted": "无障碍服务已开启",
@@ -1220,6 +1263,35 @@
   "batteryOptimization": "电池优化白名单",
   "batteryOptimizationExempt": "已在白名单 —— 后台运行有保障",
   "batteryOptimizationAsk": "未加入白名单（MIUI 等系统需要）",
-  "batteryOptimizationRequest": "去申请"
+  "batteryOptimizationRequest": "去申请",
+  "selfHostedAdd": "添加自持模型",
+  "selfHostedTitle": "添加自持模型",
+  "selfHostedModelId": "模型 ID",
+  "selfHostedModelIdRequired": "模型 ID 必填",
+  "selfHostedDisplayName": "显示名（可选）",
+  "selfHostedEndpoint": "接入点（OpenAI 兼容地址）",
+  "selfHostedEndpointRequired": "接入点必填",
+  "selfHostedApiKeyOptional": "API Key（可选）",
+  "selfHostedContextWindow": "上下文窗口",
+  "selfHostedMaxOutput": "最大输出 Token",
+  "selfHostedInputTypes": "输入类型",
+  "selfHostedCapabilities": "模型能力",
+  "selfHostedReasoningLevels": "推理等级（从低到高）",
+  "selfHostedReasoningOff": "不支持",
+  "selfHostedAdvanced": "高级配置",
+  "selfHostedReasoningMapping": "推理参数映射",
+  "selfHostedReasoningMappingHint": "JSON 快照：标准 × 档位 → 请求体参数",
+  "selfHostedAdvancedConfig": "高级配置（JSON）",
+  "selfHostedProbe": "从接入点探测模型",
+  "selfHostedProbeEmpty": "接入点没有返回模型",
+  "selfHostedProbePick": "选择模型 ID",
+  "selfHostedSubmit": "添加",
+  "selfHostedSaving": "添加中…",
+  "smartConfigBadge": "已智能配置",
+  "inputTypeText": "文本",
+  "inputTypeImage": "图片",
+  "inputTypeAudio": "音频",
+  "inputTypeVideo": "视频",
+  "cloudGuideTitle": "云端模型在供应商页",
+  "cloudGuideDesc": "添加云供应商后，其支持的模型自动获取，无需手填。"
 }
-

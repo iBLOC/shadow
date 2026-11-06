@@ -1,156 +1,390 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
 import '../generated/l10n/app_localizations.dart';
-import '../services/database/database_helper.dart';
-import '../services/database/repository_factory.dart';
-import '../services/database/repositories.dart';
-import '../services/database/model_item.dart';
-// ⚠️ 这里**故意**形成了一个**循环 import**：
-// `model_management_screen.dart` → `encephalon_mobile_provider.dart`
-// → （为了拿 `modelsProvider`）→ `model_management_screen.dart`。
-//
-// 循环的根源是 `modelsProvider` / `ModelsNotifier` / `modelRepositoryProvider`
-// 定义在**这个页面文件**里，而端脑启动时要读它（把云端供应商交给大脑）。
-// Dart 允许循环 import（顶层变量都是惰性初始化），实测编译与运行都正常。
-//
-// 真正的解法是把 `modelsProvider` 挪到独立的 provider 文件，但那会动到
-// 同仓另一条线（任务看板 / 大脑模型来源）正在改的 import ⇒ 这轮先不动，
-// 只把这里记清楚，别让下一个人以为是手滑。
+import '../providers/model_metadata_provider.dart';
+import '../services/database/model_metadata.dart';
+import '../providers/telencephalon_provider.dart';
+import '../router/app_router.dart';
 import '../services/encephalon/encephalon_mobile_provider.dart';
-import '../widgets/glass_card.dart';
-import '../widgets/empty_state.dart';
+import '../services/telencephalon/telencephalon_client.dart'
+    show RegisteredModel, RegisteredProvider;
 import '../theme/app_colors.dart';
+import '../widgets/glass_card.dart';
+import '../widgets/models/capability_labels.dart';
+import '../widgets/models/self_hosted_model_sheet.dart';
 
-final modelRepositoryProvider = Provider<IModelRepository>((ref) {
-  return RepositoryFactory.createModelRepository();
-});
+/// 模型管理页。
+///
+/// ## 这一页现在是什么（v2.10「新增流重做」刀）
+///
+/// **列表 = 大脑供应商目录**（`GET /models/providers`，云端＋自持同源）
+/// —— 大脑是唯一数据源；本页只是它的读视图 ＋ 元数据徽章。
+///
+/// ## 旧病根（为什么那套「添加云端模型」没了）
+///
+/// 以前这里的 FAB 开一个 4 字段的「添加云端模型」对话框，写进本地
+/// sqflite `models` 表 —— 而运行时链路（大脑路由）**根本不读那张表**
+/// ⇒ 用户加的「云端模型」在对话里永远用不上 ⇒ **失败长得像成功**。
+/// 现在的分工：
+///   · **云端模型** → 供应商页（`/manage/providers`）加供应商，模型
+///     **自动获取**（preview ＋ fetch-models，两端同源）；
+///   · **自持模型** → FAB 开 [SelfHostedModelSheet] 手动添加
+///     （ZCode 风格字段＋智能配置），落大脑 custom provider ＋ 本地
+///     元数据表。
+class ModelManagementScreen extends ConsumerStatefulWidget {
+  const ModelManagementScreen({super.key});
 
-final modelsProvider = StateNotifierProvider<ModelsNotifier, ModelsState>((
-  ref,
-) {
-  return ModelsNotifier(ref.watch(modelRepositoryProvider));
-});
+  @override
+  ConsumerState<ModelManagementScreen> createState() =>
+      _ModelManagementScreenState();
+}
 
-class ModelsState {
-  final List<ModelItem> models;
-  final bool isLoading;
-  final String? error;
-  final ModelType? typeFilter;
+class _ModelManagementScreenState extends ConsumerState<ModelManagementScreen> {
+  /// 目录卡的自刷新信号（表单成功关闭后 +1，卡片据此重读大脑目录）。
+  int _catalogVersion = 0;
 
-  const ModelsState({
-    this.models = const [],
-    this.isLoading = false,
-    this.error,
-    this.typeFilter,
-  });
+  @override
+  void initState() {
+    super.initState();
+    // ⚠️ 不许在 initState 的同步栈里碰 provider/网络 —— 排微任务
+    // （与 _ProvidersCatalogCard 同一条规矩）。
+    Future.microtask(() {
+      if (!mounted) return;
+      ref.read(modelMetadataProvider.notifier).load();
+    });
+  }
 
-  ModelsState copyWith({
-    List<ModelItem>? models,
-    bool? isLoading,
-    String? error,
-    ModelType? typeFilter,
-  }) {
-    return ModelsState(
-      models: models ?? this.models,
-      isLoading: isLoading ?? this.isLoading,
-      error: error,
-      typeFilter: typeFilter ?? this.typeFilter,
+  Future<void> _addSelfHosted() async {
+    final ok = await SelfHostedModelSheet.show(context);
+    if (ok == true && mounted) {
+      setState(() => _catalogVersion += 1);
+      await ref.read(modelMetadataProvider.notifier).load();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        title: Text(l10n.models),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _addSelfHosted,
+        tooltip: l10n.selfHostedAdd,
+        child: const Icon(Icons.add),
+      ),
+      body: Column(
+        children: [
+          const _BrainStatusBar(),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                // 云端路径的引导卡 —— 「云端模型在添加云供应商的时候
+                // 自动获取」这句话就是这张卡（用户在模型管理页里再也
+                // 不该看到一个手填 endpoint 的云端表单）。
+                const _CloudGuideCard(),
+                const SizedBox(height: 12),
+                _ProvidersCatalogCard(version: _catalogVersion),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 云端引导卡 —— 跳供应商页（模型在那里自动获取）。
+class _CloudGuideCard extends StatelessWidget {
+  const _CloudGuideCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return GlassCard(
+      child: InkWell(
+        onTap: () => context.push(AppRoutes.manageProviders),
+        child: Row(
+          children: [
+            CircleAvatar(
+              backgroundColor: AppColors.primary.withValues(alpha: 0.2),
+              child: Icon(Icons.cloud_outlined, color: AppColors.primary),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    l10n.cloudGuideTitle,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    l10n.cloudGuideDesc,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 大脑供应商目录卡 —— **全部**供应商（内置 neuron ＋ 云端 ＋ 自持）
+/// 的模型列表，一页看完。
+///
+/// ⚠️ **不 watch providersNotifierProvider** —— 那份 provider 构造即
+/// 自动联网加载，而它的加载链会动 encephalonMobileProvider 的状态 ⇒
+/// 在一个没先挂起大脑面的全新 ProviderScope 里首次进本页，就是
+/// 「provider 初始化期间修改了别的 provider」的 Riverpod 违规
+/// （models_screen_test 四连红就是这么来的）。这张卡**自己读、自己
+/// 刷新、失败自己说原因**，不把供应商管理页的初始化时序带进这一页。
+///
+/// ⚠️ **不在这里逐供应商 fetch-models** —— 刷新按钮只重读目录；「拉取
+/// 模型列表并落盘」是供应商页的职责（那里有 key 的语境）。两页一个
+/// 端点（fetch-models），不重复造轮子。
+class _ProvidersCatalogCard extends ConsumerStatefulWidget {
+  /// 外部刷新信号：值变化 ⇒ 重读大脑目录。
+  final int version;
+
+  const _ProvidersCatalogCard({required this.version});
+
+  @override
+  ConsumerState<_ProvidersCatalogCard> createState() =>
+      _ProvidersCatalogCardState();
+}
+
+class _ProvidersCatalogCardState extends ConsumerState<_ProvidersCatalogCard> {
+  List<RegisteredProvider>? _providers;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    // ⚠️ 不许在 initState 的**同步栈**里碰 client —— 就绪门的第一跳是
+    // 同步链：waitUntilReady → ensureStarted → _startWithRetry 的
+    // 「state = starting」在任何 await 之前就执行 ⇒ 在 widget 树构建中
+    // 改 provider 的 Riverpod 违规。排进微任务，构建完成后这条链才走。
+    Future.microtask(_reload);
+  }
+
+  @override
+  void didUpdateWidget(covariant _ProvidersCatalogCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.version != widget.version) {
+      Future.microtask(_reload);
+    }
+  }
+
+  Future<void> _reload() async {
+    try {
+      final providers =
+          await ref.read(telencephalonClientProvider).listProviders();
+      if (!mounted) return;
+      setState(() {
+        _error = null;
+        _providers = providers;
+      });
+    } catch (e) {
+      // ⚠️ **读不到 ≠ 没有** —— 原因必须留给界面说真话。
+      if (!mounted) return;
+      setState(() => _error = e.toString());
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final metadata = ref.watch(modelMetadataProvider).byModelId;
+    final providers = _providers ?? const <RegisteredProvider>[];
+
+    return GlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.inventory_2_outlined,
+                  size: 20, color: AppColors.primary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  l10n.modelCatalogTitle,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.refresh, size: 20),
+                tooltip: l10n.providersRefreshModels,
+                onPressed: _reload,
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            l10n.modelCatalogHint,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 8),
+          if (_error != null)
+            Text(
+              _error!,
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(color: Theme.of(context).colorScheme.error),
+            )
+          else if (providers.isEmpty)
+            Text(
+              l10n.modelCatalogEmpty,
+              style: Theme.of(context).textTheme.bodySmall,
+            )
+          else
+            ...[
+              for (final p in providers) ...[
+                Padding(
+                  padding: const EdgeInsets.only(top: 6, bottom: 2),
+                  child: Row(
+                    children: [
+                      Icon(
+                        p.builtin
+                            ? Icons.memory
+                            : p.presetId == null
+                            ? Icons.dns
+                            : Icons.cloud,
+                        size: 14,
+                        color: AppColors.darkTextSecondary,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          p.name,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (p.selectedModel != null)
+                        Text(
+                          p.selectedModel!,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                fontFamily: 'monospace',
+                                color: AppColors.primary,
+                              ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                    ],
+                  ),
+                ),
+                for (final m in p.models)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 3),
+                    child: _ModelRow(model: m, metadata: metadata[m.id]),
+                  ),
+                if (p.models.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 3),
+                    child: Text(
+                      l10n.modelCatalogEmpty,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+              ],
+            ],
+        ],
+      ),
+    );
+  }
+}
+
+/// 目录里的一条模型 ＋ 元数据徽章（上下文窗口 / 输入类型）。
+///
+/// ⚠️ 元数据**查不到就什么都不加** —— 它是「智能配置」落在本地的补充
+/// 信息，不是目录的必需字段；缺了不渲染假值。
+class _ModelRow extends StatelessWidget {
+  final RegisteredModel model;
+  final ModelMetadata? metadata;
+
+  const _ModelRow({required this.model, this.metadata});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            [
+              model.name,
+              if (model.capability != null)
+                catalogCapabilityLabel(l10n, model.capability),
+            ].join(' · '),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        if (metadata?.contextWindow != null)
+          _badge(
+            context,
+            '${(metadata!.contextWindow! / 1000).toStringAsFixed(0)}K',
+          ),
+        if (metadata != null && metadata!.inputTypes.length > 1)
+          _badge(context, metadata!.inputTypes.join('/')),
+        if (model.available == false)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: Colors.orange.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              l10n.providerModelNotDownloaded,
+              style: theme.textTheme.labelSmall?.copyWith(color: Colors.orange),
+            ),
+          ),
+      ],
     );
   }
 
-  List<ModelItem> get filteredModels {
-    if (typeFilter == null) return models;
-    return models.where((m) => m.modelType == typeFilter).toList();
-  }
-
-  /// 云端供应商模型。
-  ///
-  /// ⚠️ 以前还有 `localModels`（本地引擎模型）和 `internalServiceModels`
-  /// 两个 getter —— 前者对应 LiteRT 本地引擎（已下线，没有本地引擎了），
-  /// 后者**全仓没有任何一处**创建过 `ModelSource.internalService` 的条目
-  /// ⇒ 那个分段永远是空的。两个都删掉。
-  List<ModelItem> get cloudModels => filteredModels
-      .where((m) => m.source == ModelSource.cloudProvider)
-      .toList();
-}
-
-class ModelsNotifier extends StateNotifier<ModelsState> {
-  final IModelRepository _repository;
-
-  /// 首次加载完成。
-  ///
-  /// 宿主（嵌入式大脑启动）**必须等它** —— 第一次读 provider 时模型列表
-  /// 还是空的（加载是异步的：开库 → 扫本地模型 → 查表）。不等的话会
-  /// 读到空列表，误判成「用户没配云端供应商」。
-  late final Future<void> ready;
-
-  ModelsNotifier(this._repository) : super(const ModelsState()) {
-    ready = _init();
-  }
-
-  Future<void> _init() async {
-    await DatabaseHelper.instance.database;
-    await _repository.initializeDefaultModels();
-    await loadModels();
-  }
-
-  Future<void> loadModels() async {
-    state = state.copyWith(isLoading: true, error: null);
-    try {
-      final models = await _repository.getAll();
-      state = state.copyWith(models: models, isLoading: false);
-    } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
-    }
-  }
-
-  void setTypeFilter(ModelType? type) {
-    state = state.copyWith(typeFilter: type);
-  }
-
-  Future<void> addCloudModel(
-    String name,
-    String endpoint, {
-    String? apiKey,
-    String? model,
-  }) async {
-    try {
-      final m = ModelItem(
-        id: 'cloud_${DateTime.now().millisecondsSinceEpoch}',
-        name: name,
-        path: endpoint,
-        type: 'text',
-        size: 0,
-        isLoaded: false,
-        isLocal: false,
-        source: ModelSource.cloudProvider,
-        endpoint: endpoint,
-        apiKey: apiKey,
-        model: model,
-      );
-      await _repository.insert(m);
-      await loadModels();
-    } catch (e) {
-      state = state.copyWith(error: e.toString());
-    }
-  }
-
-  Future<void> deleteModel(String id) async {
-    try {
-      await _repository.delete(id);
-      await loadModels();
-    } catch (e) {
-      state = state.copyWith(error: e.toString());
-    }
-  }
-
-  Future<void> setModelLoaded(String id, bool isLoaded) async {
-    try {
-      await _repository.setModelLoaded(id, isLoaded);
-      await loadModels();
-    } catch (e) {
-      state = state.copyWith(error: e.toString());
-    }
+  Widget _badge(BuildContext context, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest
+              .withValues(alpha: 0.5),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Text(
+          text,
+          style: Theme.of(
+            context,
+          ).textTheme.labelSmall?.copyWith(fontFamily: 'monospace'),
+        ),
+      ),
+    );
   }
 }
 
@@ -242,261 +476,6 @@ class _BrainStatusBar extends ConsumerWidget {
             ),
         ],
       ),
-    );
-  }
-}
-
-class ModelManagementScreen extends ConsumerStatefulWidget {
-  const ModelManagementScreen({super.key});
-
-  @override
-  ConsumerState<ModelManagementScreen> createState() =>
-      _ModelManagementScreenState();
-}
-
-class _ModelManagementScreenState extends ConsumerState<ModelManagementScreen> {
-  void _addCloudModel(BuildContext context) async {
-    final result = await showDialog<Map<String, String>>(
-      context: context,
-      builder: (_) => const CloudModelConfigDialog(),
-    );
-    if (result != null) {
-      ref
-          .read(modelsProvider.notifier)
-          .addCloudModel(
-            result['name'] ?? 'New Cloud Model',
-            result['endpoint'] ?? '',
-            apiKey: result['apiKey'],
-            model: result['model'],
-          );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final modelsState = ref.watch(modelsProvider);
-    final l10n = AppLocalizations.of(context)!;
-
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: Text(l10n.models),
-        // ⚠️ 以前这里是两个 tab：「本地模型」/「模型商店」。
-        //
-        // 「本地模型」那一摊（LiteRT 引擎模型 + 内部服务模型）在本地
-        // LiteRT 下线之后**没有任何东西可显示**：
-        //   - 本地引擎模型：没有本地引擎了，没有引擎会注册模型；
-        //   - 内部服务模型：全仓**没有任何一处**创建 `internalService` 条目。
-        // 而它里面剩下的「云端供应商」分段又和「模型商店」**完全重复**。
-        //
-        // 所以现在只有一个列表：云端供应商模型 —— 移动端唯一还能用的模型
-        // 来源（嵌入式大脑的 `_applyCloudProvider()` 就读它）。
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _addCloudModel(context),
-        tooltip: l10n.addCloudModel,
-        child: const Icon(Icons.add),
-      ),
-      body: Column(
-        children: [
-          const _BrainStatusBar(),
-          Expanded(
-            child: modelsState.isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _buildCloudModelsTab(context, modelsState),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCloudModelsTab(BuildContext context, ModelsState state) {
-    final cloudModels = state.cloudModels;
-
-    return Column(
-      children: [
-        Expanded(
-          child: cloudModels.isEmpty
-              ? EmptyState(
-                  icon: Icons.cloud,
-                  title: AppLocalizations.of(context)!.modelNoCloudModels,
-                  description: AppLocalizations.of(context)!.modelNoCloudModelsHint,
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: cloudModels.length,
-                  itemBuilder: (context, index) {
-                    final model = cloudModels[index];
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _CloudModelCard(model: model),
-                    );
-                  },
-                ),
-        ),
-      ],
-    );
-  }
-}
-
-class _CloudModelCard extends ConsumerWidget {
-  final ModelItem model;
-
-  const _CloudModelCard({required this.model});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return GlassCard(
-      child: Row(
-        children: [
-          CircleAvatar(
-            backgroundColor: AppColors.primary.withValues(alpha: 0.2),
-            child: Icon(Icons.cloud, color: AppColors.primary),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  model.name,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  model.endpoint ?? '',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(fontFamily: 'monospace'),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.delete, color: Colors.red),
-            onPressed: () => _confirmDelete(context, ref),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _confirmDelete(BuildContext context, WidgetRef ref) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(AppLocalizations.of(context)!.commonConfirmDelete),
-        content: Text(AppLocalizations.of(context)!.commonDeleteConfirmNamed(model.name)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(AppLocalizations.of(context)!.cancel),
-          ),
-          TextButton(
-            onPressed: () {
-              ref.read(modelsProvider.notifier).deleteModel(model.id);
-              Navigator.pop(context);
-            },
-            child: Text(AppLocalizations.of(context)!.commonDelete, style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class CloudModelConfigDialog extends StatefulWidget {
-  const CloudModelConfigDialog({super.key});
-
-  @override
-  State<CloudModelConfigDialog> createState() => _CloudModelConfigDialogState();
-}
-
-class _CloudModelConfigDialogState extends State<CloudModelConfigDialog> {
-  final _nameController = TextEditingController();
-  final _endpointController = TextEditingController();
-  final _apiKeyController = TextEditingController();
-  final _modelController = TextEditingController();
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _endpointController.dispose();
-    _apiKeyController.dispose();
-    _modelController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(AppLocalizations.of(context)!.modelAddCloudTitle),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: _nameController,
-              decoration: InputDecoration(
-                labelText: AppLocalizations.of(context)!.commonName,
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _endpointController,
-              decoration: const InputDecoration(
-                labelText: 'API Endpoint',
-                border: OutlineInputBorder(),
-                hintText: 'https://api.openai.com/v1',
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _apiKeyController,
-              decoration: InputDecoration(
-                labelText: AppLocalizations.of(context)!.commonApiKeyOptional,
-                border: OutlineInputBorder(),
-              ),
-              obscureText: true,
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _modelController,
-              decoration: InputDecoration(
-                labelText: AppLocalizations.of(context)!.modelNameOptional,
-                border: OutlineInputBorder(),
-                hintText: 'gpt-4',
-              ),
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text(AppLocalizations.of(context)!.cancel),
-        ),
-        FilledButton(
-          onPressed: () {
-            if (_nameController.text.isNotEmpty &&
-                _endpointController.text.isNotEmpty) {
-              Navigator.pop(context, {
-                'name': _nameController.text,
-                'endpoint': _endpointController.text,
-                'apiKey': _apiKeyController.text,
-                'model': _modelController.text,
-              });
-            }
-          },
-          child: Text(AppLocalizations.of(context)!.commonAdd),
-        ),
-      ],
     );
   }
 }

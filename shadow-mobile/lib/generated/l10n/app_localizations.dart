@@ -1706,6 +1706,78 @@ abstract class AppLocalizations {
   /// **'Not downloaded'**
   String get providerModelNotDownloaded;
 
+  /// No description provided for @modelCategoryText.
+  ///
+  /// In en, this message translates to:
+  /// **'Text models'**
+  String get modelCategoryText;
+
+  /// No description provided for @modelCategoryVision.
+  ///
+  /// In en, this message translates to:
+  /// **'Vision models'**
+  String get modelCategoryVision;
+
+  /// No description provided for @modelCatalogTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Supported models'**
+  String get modelCatalogTitle;
+
+  /// No description provided for @modelCatalogHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Models the embedded brain supports; local models marked \"not downloaded\" cannot run yet.'**
+  String get modelCatalogHint;
+
+  /// No description provided for @modelCatalogEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Catalog not fetched yet'**
+  String get modelCatalogEmpty;
+
+  /// No description provided for @capLlm.
+  ///
+  /// In en, this message translates to:
+  /// **'Text'**
+  String get capLlm;
+
+  /// No description provided for @capVision.
+  ///
+  /// In en, this message translates to:
+  /// **'Vision'**
+  String get capVision;
+
+  /// No description provided for @capAsr.
+  ///
+  /// In en, this message translates to:
+  /// **'Speech recognition'**
+  String get capAsr;
+
+  /// No description provided for @capTts.
+  ///
+  /// In en, this message translates to:
+  /// **'Speech synthesis'**
+  String get capTts;
+
+  /// No description provided for @capEmbedding.
+  ///
+  /// In en, this message translates to:
+  /// **'Embedding'**
+  String get capEmbedding;
+
+  /// No description provided for @capRerank.
+  ///
+  /// In en, this message translates to:
+  /// **'Rerank'**
+  String get capRerank;
+
+  /// No description provided for @capOcr.
+  ///
+  /// In en, this message translates to:
+  /// **'OCR'**
+  String get capOcr;
+
   /// No description provided for @providersTitle.
   ///
   /// In en, this message translates to:
@@ -2852,6 +2924,12 @@ abstract class AppLocalizations {
   /// **'Failed to switch the model source'**
   String get encephalonModelSourceFailed;
 
+  /// No description provided for @encephalonModelOptionsUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not read the provider catalog from the brain - it may not be running.'**
+  String get encephalonModelOptionsUnavailable;
+
   /// No description provided for @encephalonLobeRoutingTitle.
   ///
   /// In en, this message translates to:
@@ -3512,6 +3590,84 @@ abstract class AppLocalizations {
   /// **'Override the background of dialogs and panels.'**
   String get settingsDialogBackgroundDesc;
 
+  /// No description provided for @settingsBackground.
+  ///
+  /// In en, this message translates to:
+  /// **'Background'**
+  String get settingsBackground;
+
+  /// No description provided for @settingsBackgroundDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat wallpaper and dialog backdrop color.'**
+  String get settingsBackgroundDesc;
+
+  /// No description provided for @settingsAccentCustom.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom'**
+  String get settingsAccentCustom;
+
+  /// No description provided for @settingsAccentCustomPick.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom color…'**
+  String get settingsAccentCustomPick;
+
+  /// No description provided for @settingsAccentHue.
+  ///
+  /// In en, this message translates to:
+  /// **'Hue'**
+  String get settingsAccentHue;
+
+  /// No description provided for @settingsAccentSat.
+  ///
+  /// In en, this message translates to:
+  /// **'Saturation'**
+  String get settingsAccentSat;
+
+  /// No description provided for @settingsAccentLight.
+  ///
+  /// In en, this message translates to:
+  /// **'Lightness'**
+  String get settingsAccentLight;
+
+  /// No description provided for @settingsAccentApply.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply'**
+  String get settingsAccentApply;
+
+  /// No description provided for @settingsChatBackground.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat background'**
+  String get settingsChatBackground;
+
+  /// No description provided for @settingsChatBackgroundDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick a background image for the chat page.'**
+  String get settingsChatBackgroundDesc;
+
+  /// No description provided for @settingsChatBackgroundPick.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose image'**
+  String get settingsChatBackgroundPick;
+
+  /// No description provided for @settingsChatBackgroundClear.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear'**
+  String get settingsChatBackgroundClear;
+
+  /// No description provided for @settingsChatBackgroundFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to set background: {error}'**
+  String settingsChatBackgroundFailed(String error);
+
   /// No description provided for @surfaceA2ui.
   ///
   /// In en, this message translates to:
@@ -3949,6 +4105,186 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Request'**
   String get batteryOptimizationRequest;
+
+  /// No description provided for @selfHostedAdd.
+  ///
+  /// In en, this message translates to:
+  /// **'Add self-hosted model'**
+  String get selfHostedAdd;
+
+  /// No description provided for @selfHostedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Add self-hosted model'**
+  String get selfHostedTitle;
+
+  /// No description provided for @selfHostedModelId.
+  ///
+  /// In en, this message translates to:
+  /// **'Model ID'**
+  String get selfHostedModelId;
+
+  /// No description provided for @selfHostedModelIdRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Model ID is required'**
+  String get selfHostedModelIdRequired;
+
+  /// No description provided for @selfHostedDisplayName.
+  ///
+  /// In en, this message translates to:
+  /// **'Display name (optional)'**
+  String get selfHostedDisplayName;
+
+  /// No description provided for @selfHostedEndpoint.
+  ///
+  /// In en, this message translates to:
+  /// **'Endpoint (OpenAI-compatible base URL)'**
+  String get selfHostedEndpoint;
+
+  /// No description provided for @selfHostedEndpointRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Endpoint is required'**
+  String get selfHostedEndpointRequired;
+
+  /// No description provided for @selfHostedApiKeyOptional.
+  ///
+  /// In en, this message translates to:
+  /// **'API key (optional)'**
+  String get selfHostedApiKeyOptional;
+
+  /// No description provided for @selfHostedContextWindow.
+  ///
+  /// In en, this message translates to:
+  /// **'Context window'**
+  String get selfHostedContextWindow;
+
+  /// No description provided for @selfHostedMaxOutput.
+  ///
+  /// In en, this message translates to:
+  /// **'Max output tokens'**
+  String get selfHostedMaxOutput;
+
+  /// No description provided for @selfHostedInputTypes.
+  ///
+  /// In en, this message translates to:
+  /// **'Input types'**
+  String get selfHostedInputTypes;
+
+  /// No description provided for @selfHostedCapabilities.
+  ///
+  /// In en, this message translates to:
+  /// **'Capabilities'**
+  String get selfHostedCapabilities;
+
+  /// No description provided for @selfHostedReasoningLevels.
+  ///
+  /// In en, this message translates to:
+  /// **'Reasoning effort levels (low to high)'**
+  String get selfHostedReasoningLevels;
+
+  /// No description provided for @selfHostedReasoningOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Not supported'**
+  String get selfHostedReasoningOff;
+
+  /// No description provided for @selfHostedAdvanced.
+  ///
+  /// In en, this message translates to:
+  /// **'Advanced'**
+  String get selfHostedAdvanced;
+
+  /// No description provided for @selfHostedReasoningMapping.
+  ///
+  /// In en, this message translates to:
+  /// **'Reasoning parameter mapping'**
+  String get selfHostedReasoningMapping;
+
+  /// No description provided for @selfHostedReasoningMappingHint.
+  ///
+  /// In en, this message translates to:
+  /// **'JSON snapshot: standard × level → request body params'**
+  String get selfHostedReasoningMappingHint;
+
+  /// No description provided for @selfHostedAdvancedConfig.
+  ///
+  /// In en, this message translates to:
+  /// **'Advanced config (JSON)'**
+  String get selfHostedAdvancedConfig;
+
+  /// No description provided for @selfHostedProbe.
+  ///
+  /// In en, this message translates to:
+  /// **'Probe models from endpoint'**
+  String get selfHostedProbe;
+
+  /// No description provided for @selfHostedProbeEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Endpoint returned no models'**
+  String get selfHostedProbeEmpty;
+
+  /// No description provided for @selfHostedProbePick.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick a model ID'**
+  String get selfHostedProbePick;
+
+  /// No description provided for @selfHostedSubmit.
+  ///
+  /// In en, this message translates to:
+  /// **'Add'**
+  String get selfHostedSubmit;
+
+  /// No description provided for @selfHostedSaving.
+  ///
+  /// In en, this message translates to:
+  /// **'Adding…'**
+  String get selfHostedSaving;
+
+  /// No description provided for @smartConfigBadge.
+  ///
+  /// In en, this message translates to:
+  /// **'Smart config'**
+  String get smartConfigBadge;
+
+  /// No description provided for @inputTypeText.
+  ///
+  /// In en, this message translates to:
+  /// **'Text'**
+  String get inputTypeText;
+
+  /// No description provided for @inputTypeImage.
+  ///
+  /// In en, this message translates to:
+  /// **'Image'**
+  String get inputTypeImage;
+
+  /// No description provided for @inputTypeAudio.
+  ///
+  /// In en, this message translates to:
+  /// **'Audio'**
+  String get inputTypeAudio;
+
+  /// No description provided for @inputTypeVideo.
+  ///
+  /// In en, this message translates to:
+  /// **'Video'**
+  String get inputTypeVideo;
+
+  /// No description provided for @cloudGuideTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Cloud models live with providers'**
+  String get cloudGuideTitle;
+
+  /// No description provided for @cloudGuideDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a cloud provider and its supported models are fetched automatically.'**
+  String get cloudGuideDesc;
 }
 
 class _AppLocalizationsDelegate

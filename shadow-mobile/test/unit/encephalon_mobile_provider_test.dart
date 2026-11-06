@@ -8,11 +8,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:shadow_mobile/providers/brain_model_source_provider.dart';
 import 'package:shadow_mobile/providers/telencephalon_provider.dart';
-import 'package:shadow_mobile/screens/model_management_screen.dart';
 import 'package:shadow_mobile/services/app_config_service.dart';
 import 'package:shadow_mobile/services/database/app_settings.dart';
-import 'package:shadow_mobile/services/database/model_item.dart';
-import 'package:shadow_mobile/services/database/repositories.dart';
 import 'package:shadow_mobile/services/encephalon/encephalon_mobile_provider.dart';
 import 'package:shadow_mobile/services/telencephalon/telencephalon_client.dart';
 
@@ -80,8 +77,9 @@ void main() {
   late File globalCfgFile;
 
   setUpAll(() async {
-    // 自动启动会先读模型列表（把云端供应商交给大脑）⇒ 得有个能用的
-    // sqflite 实现，否则 `ready` 会失败（被上层兜住，但状态会走错分支）。
+    // ⚠️ sqflite FFI —— 启动链不再读本地模型表（v2.10 之后大脑是唯一
+    // 数据源），但任何残余的库读（迁移路径等）也得有个能用的实现，
+    // 不能 MissingPluginException。开着无害，防的是那种漂移。
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
 
@@ -116,14 +114,20 @@ void main() {
 
   /// 造一个 notifier + 它的容器。返回容器，方便读状态与销毁。
   ProviderContainer makeContainer({
-    List<ModelItem> models = const [],
+    // 大脑供应商目录（2026-11-06「大脑是唯一数据源」刀）：路由用的目录
+    // **直读大脑**，不再来自本地镜像表 ⇒ 测试从这里注入。
+    // ⚠️ v2.10：`modelRepositoryProvider`（本地镜像表的注入点）已随
+    // 「模型管理页直读大脑目录」整刀删除 —— 那个 override 不复存在。
+    List<BrainModelOption> catalog = const [],
     AppSettingsRepository? settings,
     TelencephalonClient? telencephalonClient,
   }) {
     final container = ProviderContainer(
       overrides: [
-        // 模型仓储换成空的 —— 测试里不需要真库，也不需要默认模型。
-        modelRepositoryProvider.overrideWithValue(_FakeModelRepository(models)),
+        // 大脑供应商目录注入固定值 —— 不发 HTTP、时序确定。
+        brainProviderOptionsProvider.overrideWith(
+          (ref) => Future.value(List<BrainModelOption>.of(catalog)),
+        ),
         // 设置仓储一律换成内存版。
         //
         // ⚠️ **不能碰真库**：`flutter test` 会**并行**跑多个测试文件，而
@@ -560,7 +564,7 @@ void main() {
     test('没选过时：自动用第一个可用的云端供应商', () async {
       mockChannel(running: false);
 
-      final container = makeContainer(models: [_cloudModel()]);
+      final container = makeContainer(catalog: [_miniMax]);
       container.read(encephalonMobileProvider.notifier);
 
       await _waitUntil(
@@ -573,7 +577,11 @@ void main() {
       expect(payload!['default_model'], 'MiniMax-M3');
       final providers = payload['providers'] as List;
       expect(providers.length, 1);
-      expect((providers.first as Map)['base_url'], 'https://api.minimax.io/v1');
+      final entry = providers.first as Map;
+      expect(entry['base_url'], 'https://api.minimax.io/v1');
+      // ⚠️ 目录是读视图 —— payload 条目**不带 api_key**（端脑按 id 解析）。
+      expect(entry['id'], 'cloud_minimax');
+      expect(entry.containsKey('api_key'), isFalse);
     });
 
     test('显式选本地 neuron ⇒ 全局默认回落本地', () async {
@@ -581,7 +589,7 @@ void main() {
       final settings = _FakeAppSettings();
 
       final container = makeContainer(
-        models: [_cloudModel()],
+        catalog: [_miniMax],
         settings: settings,
       );
       final notifier = container.read(encephalonMobileProvider.notifier);
@@ -609,13 +617,14 @@ void main() {
       final settings = _FakeAppSettings();
 
       final container = makeContainer(
-        models: [
-          _cloudModel(),
-          _cloudModel(
+        catalog: [
+          _miniMax,
+          const BrainModelOption(
             id: 'cloud_other',
             name: 'Other',
-            endpoint: 'https://example.invalid/v1',
             model: 'other-model',
+            baseUrl: 'https://example.invalid/v1',
+            capability: 'llm',
           ),
         ],
         settings: settings,
@@ -640,7 +649,7 @@ void main() {
       final client = _FakeTelencephalonClient();
 
       final container = makeContainer(
-        models: [_cloudModel()],
+        catalog: [_miniMax],
         telencephalonClient: client,
       );
       final notifier = container.read(encephalonMobileProvider.notifier);
@@ -675,7 +684,7 @@ void main() {
       final client = _FakeTelencephalonClient();
 
       final container = makeContainer(
-        models: [_cloudModel()],
+        catalog: [_miniMax],
         telencephalonClient: client,
       );
       final notifier = container.read(encephalonMobileProvider.notifier);
@@ -773,48 +782,6 @@ class _FakeTelencephalonClient extends TelencephalonClient {
   }
 }
 
-/// 空的模型仓储 —— 自动启动要读它（把云端供应商交给大脑），测试里
-/// 只需要「就绪且是空的」。
-class _FakeModelRepository implements IModelRepository {
-  final List<ModelItem> models;
-
-  _FakeModelRepository([this.models = const []]);
-
-  @override
-  Future<void> initializeDefaultModels() async {}
-
-  @override
-  Future<List<ModelItem>> getAll() async => models;
-
-  @override
-  Future<List<ModelItem>> getLocalModels() async =>
-      models.where((m) => m.isLocal).toList();
-
-  @override
-  Future<List<ModelItem>> getCloudModels() async =>
-      models.where((m) => !m.isLocal).toList();
-
-  @override
-  Future<ModelItem?> getById(String id) async {
-    for (final m in models) {
-      if (m.id == id) return m;
-    }
-    return null;
-  }
-
-  @override
-  Future<void> insert(ModelItem item) async {}
-
-  @override
-  Future<void> update(ModelItem item) async {}
-
-  @override
-  Future<void> delete(String id) async {}
-
-  @override
-  Future<void> setModelLoaded(String id, bool isLoaded) async {}
-}
-
 /// 内存版的 App 设置仓储 —— 真库（SQLite）会跨用例串状态。
 class _FakeAppSettings implements AppSettingsRepository {
   final Map<String, String> values = {};
@@ -833,24 +800,12 @@ class _FakeAppSettings implements AppSettingsRepository {
   }
 }
 
-/// 一个云端供应商（像「MiniMax token plan」那种）。
-ModelItem _cloudModel({
-  String id = 'cloud_minimax',
-  String name = 'MiniMax',
-  String endpoint = 'https://api.minimax.io/v1',
-  String model = 'MiniMax-M3',
-}) {
-  return ModelItem(
-    id: id,
-    name: name,
-    path: endpoint,
-    type: 'text',
-    size: 0,
-    isLoaded: false,
-    isLocal: false,
-    source: ModelSource.cloudProvider,
-    endpoint: endpoint,
-    apiKey: 'sk-test',
-    model: model,
-  );
-}
+/// 大脑目录里的一条云端供应商（像「MiniMax token plan」那种）——
+/// **读视图形状**：没有 key 字段，key 住在大脑的商店里。
+const BrainModelOption _miniMax = BrainModelOption(
+  id: 'cloud_minimax',
+  name: 'MiniMax',
+  model: 'MiniMax-M3',
+  baseUrl: 'https://api.minimax.io/v1',
+  capability: 'llm',
+);

@@ -851,6 +851,42 @@ class AppLocalizationsZh extends AppLocalizations {
   String get providerModelNotDownloaded => '未下载';
 
   @override
+  String get modelCategoryText => '文本模型';
+
+  @override
+  String get modelCategoryVision => '视觉模型';
+
+  @override
+  String get modelCatalogTitle => '支持的模型';
+
+  @override
+  String get modelCatalogHint => '内嵌大脑支持的模型目录；标着「未下载」的本地模型选了也跑不起来。';
+
+  @override
+  String get modelCatalogEmpty => '目录尚未获取';
+
+  @override
+  String get capLlm => '文本';
+
+  @override
+  String get capVision => '视觉';
+
+  @override
+  String get capAsr => '语音识别';
+
+  @override
+  String get capTts => '语音合成';
+
+  @override
+  String get capEmbedding => '向量';
+
+  @override
+  String get capRerank => '重排';
+
+  @override
+  String get capOcr => '文字识别';
+
+  @override
   String get providersTitle => '大模型服务提供商';
 
   @override
@@ -1509,6 +1545,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get encephalonModelSourceFailed => '模型来源切换失败';
 
   @override
+  String get encephalonModelOptionsUnavailable => '读不到大脑的供应商目录 —— 大脑可能没在跑。';
+
+  @override
   String get encephalonLobeRoutingTitle => '叶区模型路由';
 
   @override
@@ -1842,6 +1881,47 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsDialogBackgroundDesc => '覆盖对话框与面板的底色。';
 
   @override
+  String get settingsBackground => '背景';
+
+  @override
+  String get settingsBackgroundDesc => '聊天页背景图与对话框底色。';
+
+  @override
+  String get settingsAccentCustom => '自定义';
+
+  @override
+  String get settingsAccentCustomPick => '自定义色号…';
+
+  @override
+  String get settingsAccentHue => '色相';
+
+  @override
+  String get settingsAccentSat => '饱和度';
+
+  @override
+  String get settingsAccentLight => '亮度';
+
+  @override
+  String get settingsAccentApply => '应用';
+
+  @override
+  String get settingsChatBackground => '聊天背景';
+
+  @override
+  String get settingsChatBackgroundDesc => '为聊天页选一张背景图。';
+
+  @override
+  String get settingsChatBackgroundPick => '选择图片';
+
+  @override
+  String get settingsChatBackgroundClear => '清除';
+
+  @override
+  String settingsChatBackgroundFailed(String error) {
+    return '设置背景失败：$error';
+  }
+
+  @override
   String get surfaceA2ui => '生成式界面';
 
   @override
@@ -2085,4 +2165,94 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get batteryOptimizationRequest => '去申请';
+
+  @override
+  String get selfHostedAdd => '添加自持模型';
+
+  @override
+  String get selfHostedTitle => '添加自持模型';
+
+  @override
+  String get selfHostedModelId => '模型 ID';
+
+  @override
+  String get selfHostedModelIdRequired => '模型 ID 必填';
+
+  @override
+  String get selfHostedDisplayName => '显示名（可选）';
+
+  @override
+  String get selfHostedEndpoint => '接入点（OpenAI 兼容地址）';
+
+  @override
+  String get selfHostedEndpointRequired => '接入点必填';
+
+  @override
+  String get selfHostedApiKeyOptional => 'API Key（可选）';
+
+  @override
+  String get selfHostedContextWindow => '上下文窗口';
+
+  @override
+  String get selfHostedMaxOutput => '最大输出 Token';
+
+  @override
+  String get selfHostedInputTypes => '输入类型';
+
+  @override
+  String get selfHostedCapabilities => '模型能力';
+
+  @override
+  String get selfHostedReasoningLevels => '推理等级（从低到高）';
+
+  @override
+  String get selfHostedReasoningOff => '不支持';
+
+  @override
+  String get selfHostedAdvanced => '高级配置';
+
+  @override
+  String get selfHostedReasoningMapping => '推理参数映射';
+
+  @override
+  String get selfHostedReasoningMappingHint => 'JSON 快照：标准 × 档位 → 请求体参数';
+
+  @override
+  String get selfHostedAdvancedConfig => '高级配置（JSON）';
+
+  @override
+  String get selfHostedProbe => '从接入点探测模型';
+
+  @override
+  String get selfHostedProbeEmpty => '接入点没有返回模型';
+
+  @override
+  String get selfHostedProbePick => '选择模型 ID';
+
+  @override
+  String get selfHostedSubmit => '添加';
+
+  @override
+  String get selfHostedSaving => '添加中…';
+
+  @override
+  String get smartConfigBadge => '已智能配置';
+
+  @override
+  String get inputTypeText => '文本';
+
+  @override
+  String get inputTypeImage => '图片';
+
+  @override
+  String get inputTypeAudio => '音频';
+
+  @override
+  String get inputTypeVideo => '视频';
+
+  @override
+  String get cloudGuideTitle => '云端模型在供应商页';
+
+  @override
+  String get cloudGuideDesc => '添加云供应商后，其支持的模型自动获取，无需手填。';
 }

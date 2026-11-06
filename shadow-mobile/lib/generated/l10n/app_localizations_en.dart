@@ -865,6 +865,43 @@ class AppLocalizationsEn extends AppLocalizations {
   String get providerModelNotDownloaded => 'Not downloaded';
 
   @override
+  String get modelCategoryText => 'Text models';
+
+  @override
+  String get modelCategoryVision => 'Vision models';
+
+  @override
+  String get modelCatalogTitle => 'Supported models';
+
+  @override
+  String get modelCatalogHint =>
+      'Models the embedded brain supports; local models marked \"not downloaded\" cannot run yet.';
+
+  @override
+  String get modelCatalogEmpty => 'Catalog not fetched yet';
+
+  @override
+  String get capLlm => 'Text';
+
+  @override
+  String get capVision => 'Vision';
+
+  @override
+  String get capAsr => 'Speech recognition';
+
+  @override
+  String get capTts => 'Speech synthesis';
+
+  @override
+  String get capEmbedding => 'Embedding';
+
+  @override
+  String get capRerank => 'Rerank';
+
+  @override
+  String get capOcr => 'OCR';
+
+  @override
   String get providersTitle => 'Model Providers';
 
   @override
@@ -1532,6 +1569,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get encephalonModelSourceFailed => 'Failed to switch the model source';
 
   @override
+  String get encephalonModelOptionsUnavailable =>
+      'Could not read the provider catalog from the brain - it may not be running.';
+
+  @override
   String get encephalonLobeRoutingTitle => 'Lobe model routing';
 
   @override
@@ -1881,6 +1922,49 @@ class AppLocalizationsEn extends AppLocalizations {
       'Override the background of dialogs and panels.';
 
   @override
+  String get settingsBackground => 'Background';
+
+  @override
+  String get settingsBackgroundDesc =>
+      'Chat wallpaper and dialog backdrop color.';
+
+  @override
+  String get settingsAccentCustom => 'Custom';
+
+  @override
+  String get settingsAccentCustomPick => 'Custom color…';
+
+  @override
+  String get settingsAccentHue => 'Hue';
+
+  @override
+  String get settingsAccentSat => 'Saturation';
+
+  @override
+  String get settingsAccentLight => 'Lightness';
+
+  @override
+  String get settingsAccentApply => 'Apply';
+
+  @override
+  String get settingsChatBackground => 'Chat background';
+
+  @override
+  String get settingsChatBackgroundDesc =>
+      'Pick a background image for the chat page.';
+
+  @override
+  String get settingsChatBackgroundPick => 'Choose image';
+
+  @override
+  String get settingsChatBackgroundClear => 'Clear';
+
+  @override
+  String settingsChatBackgroundFailed(String error) {
+    return 'Failed to set background: $error';
+  }
+
+  @override
   String get surfaceA2ui => 'Generative UI';
 
   @override
@@ -2142,4 +2226,97 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get batteryOptimizationRequest => 'Request';
+
+  @override
+  String get selfHostedAdd => 'Add self-hosted model';
+
+  @override
+  String get selfHostedTitle => 'Add self-hosted model';
+
+  @override
+  String get selfHostedModelId => 'Model ID';
+
+  @override
+  String get selfHostedModelIdRequired => 'Model ID is required';
+
+  @override
+  String get selfHostedDisplayName => 'Display name (optional)';
+
+  @override
+  String get selfHostedEndpoint => 'Endpoint (OpenAI-compatible base URL)';
+
+  @override
+  String get selfHostedEndpointRequired => 'Endpoint is required';
+
+  @override
+  String get selfHostedApiKeyOptional => 'API key (optional)';
+
+  @override
+  String get selfHostedContextWindow => 'Context window';
+
+  @override
+  String get selfHostedMaxOutput => 'Max output tokens';
+
+  @override
+  String get selfHostedInputTypes => 'Input types';
+
+  @override
+  String get selfHostedCapabilities => 'Capabilities';
+
+  @override
+  String get selfHostedReasoningLevels =>
+      'Reasoning effort levels (low to high)';
+
+  @override
+  String get selfHostedReasoningOff => 'Not supported';
+
+  @override
+  String get selfHostedAdvanced => 'Advanced';
+
+  @override
+  String get selfHostedReasoningMapping => 'Reasoning parameter mapping';
+
+  @override
+  String get selfHostedReasoningMappingHint =>
+      'JSON snapshot: standard × level → request body params';
+
+  @override
+  String get selfHostedAdvancedConfig => 'Advanced config (JSON)';
+
+  @override
+  String get selfHostedProbe => 'Probe models from endpoint';
+
+  @override
+  String get selfHostedProbeEmpty => 'Endpoint returned no models';
+
+  @override
+  String get selfHostedProbePick => 'Pick a model ID';
+
+  @override
+  String get selfHostedSubmit => 'Add';
+
+  @override
+  String get selfHostedSaving => 'Adding…';
+
+  @override
+  String get smartConfigBadge => 'Smart config';
+
+  @override
+  String get inputTypeText => 'Text';
+
+  @override
+  String get inputTypeImage => 'Image';
+
+  @override
+  String get inputTypeAudio => 'Audio';
+
+  @override
+  String get inputTypeVideo => 'Video';
+
+  @override
+  String get cloudGuideTitle => 'Cloud models live with providers';
+
+  @override
+  String get cloudGuideDesc =>
+      'Add a cloud provider and its supported models are fetched automatically.';
 }

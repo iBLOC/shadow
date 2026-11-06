@@ -19,7 +19,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 4,
+      version: 5,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -87,6 +87,35 @@ class DatabaseHelper {
         value TEXT
       )
     ''');
+
+    await _createModelMetadata(db);
+  }
+
+  /// 模型元数据表（v5）—— 「智能配置」的落点。
+  ///
+  /// ⚠️ **键是模型 ID 字符串，不是供应商条目 id** —— 大脑目录里同一只
+  /// 模型可以从不同供应商摸到，参数长在**模型**身上，不长在接入点上。
+  /// 孤儿容忍：大脑侧删了供应商，这行留着（下次同名模型再进来还能用）。
+  ///
+  /// ⚠️ JSON 列（input_types / capabilities / reasoning_param_mapping /
+  /// advanced_config）解析失败 ⇒ 整行按「没有元数据」处理 —— 绝不抛进
+  /// 列表渲染（repository 里兜）。
+  Future<void> _createModelMetadata(Database db) async {
+    await db.execute('''
+      CREATE TABLE model_metadata (
+        model_id TEXT PRIMARY KEY,
+        display_name TEXT,
+        context_window INTEGER,
+        max_output_tokens INTEGER,
+        input_types TEXT,
+        capabilities TEXT,
+        reasoning_levels INTEGER NOT NULL DEFAULT 0,
+        reasoning_param_mapping TEXT,
+        advanced_config TEXT,
+        source TEXT NOT NULL DEFAULT 'smart_config',
+        updated_at TEXT
+      )
+    ''');
   }
 
   Future<void> _upgradeDB(Database db, int oldVersion, int newVersion) async {
@@ -107,6 +136,9 @@ class DatabaseHelper {
           value TEXT
         )
       ''');
+    }
+    if (oldVersion < 5) {
+      await _createModelMetadata(db);
     }
   }
 

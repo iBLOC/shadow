@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/telencephalon_provider.dart';
@@ -457,8 +459,10 @@ class _ProviderCard extends ConsumerWidget {
                       // ⇒ ⇒ 不能选**（选了也跑不起来 ⇒ ⇒ 大脑那边会拒 400）。
                       onSelected: m.available == false
                           ? null
-                          : (_) {
-                              ref
+                          : (_) async {
+                              // 换选模型 ⇒ 大脑自己记住（ProviderStore 是唯一
+                              // 数据源，App 侧没有本地镜像表要跟着换）。
+                              await ref
                                   .read(providersNotifierProvider.notifier)
                                   .selectModel(provider.id, m.id);
                             },
@@ -541,11 +545,12 @@ class _ProviderCard extends ConsumerWidget {
             child: Text(l10n.cancel),
           ),
           TextButton(
-            onPressed: () {
-              ref
+            onPressed: () async {
+              // 删除只走大脑 —— 大脑页读的就是大脑，没有本地镜像要清。
+              await ref
                   .read(providersNotifierProvider.notifier)
                   .removeProvider(provider.id);
-              Navigator.pop(context);
+              if (context.mounted) Navigator.pop(context);
             },
             child: Text(
               l10n.commonDelete,
@@ -556,6 +561,7 @@ class _ProviderCard extends ConsumerWidget {
       ),
     );
   }
+
 }
 
 /// 供应商图标 —— ⚠️ **只按预设 id 画**，不再认一份硬编码的类型枚举。
@@ -654,10 +660,32 @@ class _AddProviderSheetState extends ConsumerState<_AddProviderSheet> {
       _apiStandard = p.apiStandard;
       _selectedModelId = p.selectedModel;
     }
+    // v2.10 —— key 停顿后**自动预览**（与桌面端 scheduleAutoFetch 同一
+    // 体感）：云端模型的「自动获取」不该要求用户再点一次按钮。手动的
+    // 「测试并获取模型」按钮保留（自动预览失败 / 换 key 后重试的出口）。
+    _apiKeyController.addListener(_scheduleAutoPreview);
+  }
+
+  /// key 输入的去抖 —— 停顿 800ms 才预览（打字途中的半截 key 不发请求）。
+  Timer? _autoPreviewDebounce;
+
+  void _scheduleAutoPreview() {
+    _autoPreviewDebounce?.cancel();
+    final key = _apiKeyController.text.trim();
+    if (key.isEmpty) return;
+    // 自定义供应商还要有 base URL 才探得动。
+    if (isCustom && _baseUrlController.text.trim().isEmpty) return;
+    _autoPreviewDebounce = Timer(const Duration(milliseconds: 800), () {
+      if (!mounted) return;
+      if (_previewing) return;
+      _doPreview();
+    });
   }
 
   @override
   void dispose() {
+    _autoPreviewDebounce?.cancel();
+    _apiKeyController.removeListener(_scheduleAutoPreview);
     _apiKeyController.dispose();
     _nameController.dispose();
     _baseUrlController.dispose();
@@ -874,6 +902,7 @@ class _AddProviderSheetState extends ConsumerState<_AddProviderSheet> {
           apiKey: key.isEmpty ? null : key,
         );
       }
+      if (!mounted) return;
       Navigator.pop(context);
       return;
     }
