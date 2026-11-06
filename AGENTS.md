@@ -1,5 +1,27 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-06 (㎰ **「守门人自己先改姓 —— cortex-residue 全族改名 legacy-residue 收口，shadow CI 10/10 全绿承重」** —— 承 ㎯ 条（同一天的 CI 面：那条的账户计费门外红本轮在 encephalon 上又一次），起于用户问「cortex 概念已过时废弃为什么你经常提到」⇒ 排查发现最刺眼的残留不在产品代码而在守门人自己身上：闸脚本文件名／CI job 名／step 名／输出横幅天天念旧名。本条记**改名范围与不改名清单**、**自检抓人（夹具不是命名）**、**telencephalon 三路注记（判据放松一格登记在案）**、**5 条 history 短语逐字保留**、**销 4 条过期豁免**、**分级读数**，以及**仍然欠着的**。）
+
+> 信封：epoch=2026-11-06 | authority=measured | scope=project | source=真机实测（判据级：根闸 ROOT_EXIT=0（4 范围 16 仓/1875 文件）、跨仓闸 CROSS_EXIT=0、self-test 全绿（5/5、16/16 仓、desktop 5/5、mobile 全绿）、encephalon 闸 EXIT=0＋self-test 5/5、YAML 闸 5 文件全过、纪律闸 41 道 0 违规（存量债 35）；CI 级：shadow run 42154344322（on a12e096）＝ success **10/10 job 全绿**、Legacy residue (cross-repo) 1m36s ✓、step 名 Cross-repo Legacy residue check 与 telencephalon 旧名注记逐字在日志；encephalon run 42154379026＝账户计费门外红（5 job 未启动 2-3s，与 42072168519/42028022490 同因＝存量）；远端账本今日 8 条 dups=0 max U+33AF）| status=active | supersedes=none
+
+① **改名范围（6+1 文件＋两仓 CI＋接线面）** —— shadow 5 处 rename：`scripts/lib/cortex-residue.mjs`→`legacy-residue.mjs`（引擎）、`scripts/lib/cortex-registry.mjs`→`legacy-registry.mjs`（注册表）、根壳 `check-cortex-residue.mjs`→`check-legacy-residue.mjs`、跨仓闸 `check-cortex-residue-all.mjs` 同款、desktop/mobile 薄壳各一；＋shadow ci.yml 14 处（job id `legacy-residue-stack`、job name `Legacy residue (cross-repo)`、两 step 名、run 命令、横幅注）、encephalon ci.yml 3 处（job id `legacy-residue`、name `Legacy residue`、step/run——闸文件已改名不改 run 会文件不存在）、disc-registry 3 处注解、mobile README 脚本表、ui-smoke.sh 注释。提交 shadow `a12e096`（11 files，6 rename R076-R096）＋encephalon `756a386`（2 files）。
+
+② **⚠️ 不改名清单（真契约不动，改了就断协议）** —— CORTEX_ADMIN_KEY、cortex-status 路由、信封旧键、token 列表、brain-chain 规则 ID、docs/ 史证区、telencephalon 整仓。⇒ 判据：**「守门人命名」与「协议契约 token」分开**——前者天天出现在人眼前该改姓，后者有真实对端在读不能动。
+
+③ **✅ 自检抓人（写闸的人先被闸抓住）** —— 第一批把 self-test 探针的假 token 也改了姓（`__legacy_history_probe__` 等）⇒ self-test 4/5 红 ⇒ 根因：**不含 cortex 的探针测不出「代码行判红」**——探针假 token 是**判据夹具**不是守门人命名 ⇒ 改回 cortex 形式＋补夹具说明注释。⇒ ⇒ 教训：**改名刀动手前，先分清每个旧名字出现是因为它是对象、还是因为它是探针/锚点**——夹具改姓会让判据自己瞎掉。
+
+④ **⚠️ telencephalon 三路注记（判据放松一格，登记在案）** —— 独立仓整仓不碰 ⇒ 跨仓闸改三路分支：新名副本在→**字节比对**（原判据）；旧名副本在→**只打印注记不比对不阻断**（CI 逐字：`仍是改名前的旧名副本 scripts/lib/cortex-residue.mjs（26417 字节）⇒ 未随 2026-11-06 改名刀改姓 ⇒ 只打印注记 ⇒ 下次改判据必须人工同步该仓`）；都没有→「没有这份引擎」。自有闸存在性双名接受（CI 逐字：`自有闸仍是改名前的旧名 scripts/check-cortex-residue.mjs（独立仓未随本刀改）`）。⇒ ⇒ **同名字节比对那一格自本刀起在 CI 上空转**（telencephalon 未检出新名）——判据放松是真实代价，换的是「CI 不因我不碰的仓而红」。
+
+⑤ **5 条 history 短语逐字保留（防腐烂载体）** —— ci.yml 注释里的旧断言原文（`Cortex 残留闸`＋`Cortex 是过时概念应该删除`／`启动 Cortex`／`cortex = 残留`／`Execute a registered workflow in Cortex`）一字不动——那是「旧概念残留该被抓住」的测试期望载体，改了字面锚就没了。
+
+⑥ **销 4 条过期豁免＋豁免面收敛** —— 根闸删 4 条 contract 豁免（扫描面已不再出现：cortex-registry／Cortex residue check／Cortex residue (cross-repo)／cross-repo Cortex gate）；`cortex-residue` 条目**保留**改 reason（载体＝谱系注＋跨仓闸/引擎注释，以小写文件名形式被保留 token 覆盖）；desktop/mobile 壳删 `check-cortex-residue` 条目；encephalon 删 `cortex-residue.mjs` 排除条目。⇒ 豁免防腐烂纪律保持：登记的 token 必须还在扫描面出现，否则退出码 2。
+
+⑦ **分级读数** —— **判据级**：根闸 ROOT_EXIT=0（16 仓/1875 文件 4 范围与基线一致）／跨仓闸 CROSS_EXIT=0／self-test 5/5＋16/16 仓＋desktop 5/5＋mobile 全绿＋encephalon 5/5／YAML 闸 5 文件全过／纪律闸 41 道 0 违规（存量债 35）；**CI 级**：shadow run 42154344322（on a12e096）＝**success 10/10 job**，`Legacy residue (cross-repo)` job 1m36s ✓，新 step 名与旧名注记逐字在日志（见④）；encephalon run 42154379026＝**计费门外红**（5 job「not started because recent account payments have failed」，2-3s，同因存量；job 名清单里已见 `Legacy residue`＝改名在 CI 定义面生效）⇒ **门外红 ≠ 判据红**，如实登记。
+
+⑧ **⚠️ 仍然欠着** —— ① telencephalon 引擎副本自本刀起不被字节比对（④），待那仓改姓时三路分支自动恢复比对（届时人工同步）；② encephalon CI 计费门外红待账户恢复（存量，与本刀无关）；③ 既有欠项不重复（❼ 信封 id／ziti-rust CI 面／mobile 真机读数等）。
+
+⑨ **⚠️ 圈码**：本条占 **U+33B0（㎰）** —— 插入前 fetch 远端（`git show origin/master:AGENTS.md` 解析今日 8 条、码位 distinct 8 dups=0、数值最大 **U+33AF**＝并行会话 ㎯ 条）⇒ 空闲 ✔ ⇒ 顺延取 U+33B0，字符 `String.fromCodePoint(0x33B0)` 生成（只认原始码位），插入后复跑码位闸钉住。
+
 **Updated**: 2026-11-06 (㎯ **「ziti-rust 的 CI 五轮红真相＝账户计费把 job 挡在门外（门外红），真正能修的红只有 doctest 三条；Release 线顺带收口」** —— 承 ㎬ 条⑤③（ziti-rust CI 面那笔欠项），本条记**门外红的逐字取证**、**快照过时第三个 Case**、**doctest 缩进块跨仓复现**、**本地 +1.99.0 基线**、**Release 收口**，以及**仍然欠着的**。)
 
 > 信封：epoch=2026-11-06 | authority=measured | scope=project | source=真机实测（ziti-rust 本地 +1.99.0 基线：clippy --workspace --all-targets -D warnings **绿** 32.48s / lib **13 passed 0 failed** / doctest 改前 **0 passed 3 failed** → 改后**绿**；CI run 42021334129 与 42145959071 逐字 annotation 同因「payments have failed or spending limit」job 未启动 2s 无日志；Release **42081188427 ＝ success 1h24m20s**；远端账本 98 条 / distinct 86 / max U+33AD，33AE 空着让给并行会话 ⇒ 本条取 U+33AF）| status=active | supersedes=none
