@@ -2,7 +2,7 @@
 
 **Updated**: 2026-11-06 (㎭ **「CI 首跑红的两种『时间形态』各收一口 —— ziti-face 红在布局（判不了）补双布局解析，backend_settings_card 红在时序（来不及）把定长轮换成轮询直到跟上」** —— 承 ㎬ 条（ziti-face 接进 CI 那一刀）与 ㎪ 条⑧⑥③（backend_settings_card flake 预登记的「等它下次红」），本条记**两刀的根因与修法**、**布局 B 沙盒演练**、**改前演练与 CI 同形**、**链尾语义取证**，以及**仍然欠着的**。)
 
-> 信封：epoch=2026-11-06 | authority=measured | scope=project | source=真机实测（布局 B 沙盒演练 **B_EXIT=1 且 UNREAD_LINES=0**（原 exit 2「读不到⇒判不了」→ 现在只剩内容缺类）；改前演练 **+1 -2**、测试 2 红在 line 192「端脑面跟着走」＝与 CI run 42137603583 同形 → 轮询版 **+3 All tests passed** EXIT=0；dart analyze 单文件 No issues；闸族 face EXIT=0 阻断 0 / self-test 50/50 / yaml 5 文件零违规 / 纪律闸 41 道 0 违规存量债 35；远端账本 97 条 / distinct 85 / max U+33AC）| status=active | supersedes=none
+> 信封：epoch=2026-11-06 | authority=measured | scope=project | source=真机实测（布局 B 沙盒演练 **B_EXIT=1 且 UNREAD_LINES=0**（原 exit 2「读不到⇒判不了」→ 现在只剩内容缺类）；改前演练 **+1 -2**、测试 2 红在 line 192「端脑面跟着走」＝与 CI run 42137603583 同形 → 轮询版 **+3 All tests passed** EXIT=0；dart analyze 单文件 No issues；闸族 face EXIT=0 阻断 0 / self-test 50/50 / yaml 5 文件零违规 / 纪律闸 41 道 0 违规存量债 35；远端账本 97 条 / distinct 85 / max U+33AC；**CI run 42140873784（on b2dade2）＝ success 10/10 job 全绿**——face step 逐字「阻断 0 项」＋self-test「50/50 条全绿」（上轮 42137603583 同 step exit 2 ⇒ 两轮唯一差异＝本刀 ⇒ CI 级承重；ci.yml 全链首次全绿））| status=active | supersedes=none
 
 ① **✅ ziti-face CI 首跑红＝布局层不是判据层** —— run 42137603583（on af5d9ba，接进 CI 后第一轮真跑）红在 `node scripts/check-ziti-face.mjs` exit 2「判不了」：闸解析兄弟仓用 `../<repo>`（本机布局 A：兄弟仓与 shadow 并排）⇒ CI 上兄弟仓检出在 shadow 仓根**之下**（布局 B）⇒ 读不到 ⇒ 判不了 ⇒ 红。**接进 CI 当天本地绿是本机布局** —— 与 b0f1b2a 那次（检出缺失）是同一族坑的第二个 Case：这次**检出齐全**但**布局不对**。修法两处：❶ `scripts/check-ziti-face.mjs` 加 `sibling(name)` 双布局解析（先试 `ROOT/../<name>` 再试 `ROOT/<name>`，与 check-ziti-v2-wire 的 findRepoPath 同款）；❷ step 从 cortex-residue-stack job 挪到前段 prefrontal Rust 链 job（b0f1b2a 已在那里补检出 encephalon/telencephalon ⇒ 布局齐；且不给 cortex-residue-stack 添检出，避开 cortex-residue-all 自动发现「未登记仓⇒阻断」连坐）。
 
@@ -16,7 +16,7 @@
 
 ⑥ **⚠️ 同型债登记（未动）** —— `backend_shadow_key_entry_test.dart` 自己也有一份 `settleIo`（12×5ms 定长轮，3 处调用），形状同型但**没红过** ⇒ 本刀不扩面（最小诚实一刀），登记：它下次在 CI 红时同款修法（轮询直到跟上）。
 
-⑦ **⚠️ 仍然欠着** —— ① 本轮 shadow 改动（check-ziti-face 双布局＋ci.yml step 挪位＋backend_settings_card 轮询版）**推后等 CI 真跑绿读数**（ziti-face 与 mobile-test 两格）；② 沙盒 `ztiface-b-sandbox/` 删除待用户；③ `backend_shadow_key_entry_test` 同型债（⑥）；④ 既有欠项不重复（❼信封 id / dispatch 401 / ziti-rust CI 面 / `.local/patch-probe/` 拍板）。
+⑦ **⚠️ 仍然欠着** —— ① ~~推后等 CI 真跑绿读数~~ **已收（插入当天）：run 42140873784（on b2dade2）＝ success，10/10 job 全 ✓**——Zero-trust face check（新位置）逐字「阻断 0 项」＋ self-test「50/50 条全绿」，上轮同 step exit 2 ⇒ 两轮唯一差异＝b2dade2 ⇒ **布局修复 CI 级承重**；Mobile Test 7m57s 全过（Flutter test ＋ Android unit test 双 success，上轮 Android unit 因 Flutter test 挂而 skipped）⇒ 轮询版 CI 级过、**flake 正式收口**；ci.yml 全链首次全绿（守候读数由并行会话送达，本人 gh 复核 run 级 10/10 ＋ job 日志逐字）；② 沙盒 `ztiface-b-sandbox/` 删除待用户；③ `backend_shadow_key_entry_test` 同型债（⑥）；④ 既有欠项不重复（❼信封 id / dispatch 401 / ziti-rust CI 面 / `.local/patch-probe/` 拍板）。
 
 ⑧ **⚠️ 圈码**：本条占 **U+33AD（㎭）** —— 插入前 fetch 远端（`git show origin/master:AGENTS.md` 解析 **97 条**、码位 distinct **85**、数值最大 **U+33AC**＝本会话上一条 ㎬）⇒ 空闲 ✔ ⇒ 顺延取 U+33AD，插入后复跑码位闸钉住。
 
