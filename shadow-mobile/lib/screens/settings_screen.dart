@@ -103,7 +103,7 @@ class SystemMemoryInfo {
 /// 现在的结构：
 ///
 /// ```
-/// ① 外观        模型信息 · 主题 · 主题色 · 玻璃强度 · 对话框背景
+/// ① 外观        主题 · 主题色 · 玻璃强度 · 对话框背景
 /// ② 语音与辅助  TTS（1 组 2 项）· 无障碍
 /// ③ 运行时      内存 · 服务状态 · 模型仓库
 /// ④ 连接        设备发现 · 端脑流程 · 嵌入式大脑 · Resonance
@@ -115,12 +115,10 @@ class SystemMemoryInfo {
 /// 破坏性操作**单独隔离**在最底部并要求确认 —— 它跟外观同列时，
 /// 点错了不可逆。
 class SettingsScreen extends ConsumerWidget {
-  final String modelInfo;
   final VoidCallback onReset;
 
   const SettingsScreen({
     super.key,
-    required this.modelInfo,
     required this.onReset,
   });
 
@@ -145,21 +143,7 @@ class SettingsScreen extends ConsumerWidget {
                     title: l10n.settingsGroupAppearance,
                     icon: Icons.palette_outlined,
                     children: [
-                      SettingsBlock(
-                        children: [
-                          SettingsRow(
-                            title: l10n.modelInfo,
-                            icon: Icons.info_outline,
-                            subtitle: modelInfo,
-                          ),
-                          const ShadSeparator.horizontal(
-                            margin: EdgeInsets.symmetric(
-                              horizontal: AppTokens.spaceLg,
-                            ),
-                          ),
-                          const AppearanceSectionBody(),
-                        ],
-                      ),
+                      SettingsBlock(children: const [AppearanceSectionBody()]),
                     ],
                   ),
                 ],

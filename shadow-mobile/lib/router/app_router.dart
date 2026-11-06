@@ -189,13 +189,12 @@ final GoRouter appRouter = GoRouter(
       name: 'settings',
       pageBuilder: (context, state) {
         final extra = state.extra as Map<String, dynamic>?;
-        final modelInfo = extra?['modelInfo'] as String? ?? 'No model loaded';
         final onReset = extra?['onReset'] as VoidCallback? ?? () {};
         return _fadePage(
           state,
           _wrapInShell(
             state,
-            SettingsScreen(modelInfo: modelInfo, onReset: onReset),
+            SettingsScreen(onReset: onReset),
           ),
         );
       },

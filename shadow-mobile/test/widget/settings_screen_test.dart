@@ -25,9 +25,6 @@ import 'test_helper.dart';
 class _MockLogService extends LogService {
   @override
   void connectMnn() {}
-
-  @override
-  void connectPrefrontal(String baseUrl) {}
 }
 
 void main() {
@@ -64,7 +61,6 @@ void main() {
             supportedLocales: const [Locale('en')],
             locale: const Locale('en'),
             home: SettingsScreen(
-              modelInfo: 'Test Model',
               onReset: onReset ?? () {},
             ),
           ),
@@ -139,12 +135,6 @@ void main() {
       await tapVisible(tester, find.text(l10n.settingsAdvancedBackend));
 
       expect(find.text(l10n.commonSave), findsOneWidget);
-    });
-
-    testWidgets('模型信息在外观组内', (WidgetTester tester) async {
-      await pumpSettings(tester);
-
-      expect(find.text('Test Model'), findsOneWidget);
     });
 
     testWidgets('弹层里没有 Material 祖先也不崩（ShadSheet 不提供 Material）', (
