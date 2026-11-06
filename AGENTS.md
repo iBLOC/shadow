@@ -1,5 +1,19 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-06 (㎲ **「desktop-e2e 补读数：三轮 30/1 逐字同形钉死 ❼ 是稳定缺口、mock 修复与改名刀在 E2E 全链承重；push 不跑 E2E 是设计不是假绿」** —— 本条记**触发器形状**、**schedule 轮归档**、**dispatch 补读数**，以及**仍然欠着的**。）
+
+> 信封：epoch=2026-11-06 | authority=measured | scope=project | source=真机读数（schedule run 42137637025＝30 passed / 1 failed（16m21s）唯一失败 telencephalon-endpoints.spec.ts:57 信封 id=""；desktop-e2e.yml 触发器＝workflow_dispatch＋schedule cron 37 19 * * *，**push 不触发**；dispatch run 42187625132 on 今日 master（含改名刀 a12e096＋账本两刀）＝ 30 passed / 1 failed（29m11s）唯一失败同格逐字同形；ziti-rust 再 dispatch 42187362973 仍 5s 计费门外红）| status=active | supersedes=none
+
+① **⚠️ 触发器形状：push 不跑 E2E 是设计，不是假绿** —— Playwright E2E 自 2026-11-05 起**独立 workflow**（`desktop-e2e.yml`），触发器＝`workflow_dispatch`＋`schedule`（cron `37 19 * * *`）⇒ push 轮（ci.yml）**没有** E2E job 是**有意拆分**（ci.yml 注：主链里那一步「从来没跑过，连续 5 个 run 全部 cancelled」才搬的家）。⇒ ⇒ 排查「E2E 链在不在生效」**先看 workflow 清单再下结论**——本刀差点把「push 轮没有 E2E job」误判成「防线静默跳过」。
+
+② **schedule 轮归档（42137637025，跑在改名刀之前的 master）＝ 30 passed / 1 failed** —— 唯一失败＝`telencephalon-endpoints.spec.ts:57` `expect(body.telencephalon.id).toBeTruthy()` 收到 `""`，三次 retry 逐字同形＝**❼ 信封 id 第二轮连续红**（第一轮＝昨晚 42079173218）。⇒ **无任何新红**——mock 通道修复（23ff09e）在 schedule 轮承重（history 批全过），401 宽容路径未出新形状。
+
+③ **dispatch 补读数（run 42187625132，on 今日 master＝含 a12e096 改名刀＋㌰㌱ 账本）＝ 30 passed / 1 failed（29m11s）** —— 唯一失败＝`telencephalon-endpoints.spec.ts:57` 信封 id="" 三次 retry 逐字同形 ⇒ **❼ 第三轮连续红，三轮 30/1 把它钉死为稳定缺口**（独立 server 无配置入口，本仓改不了，等 telencephalon；修复施工图见 ㌱ 条④ 同批等那仓空出）。Playwright 安装步本轮格外慢（总时长超历史 5-10 分钟）＝runner 网络慢，与判据无关。⇒ ⇒ **今天全部 push 被 E2E 全链覆盖 ⇒ 改名刀与账本刀未伤 E2E 链任何一格**。
+
+④ **⚠️ 仍然欠着** —— ① ❼ 信封 id（三轮同形，缺口在 telencephalon）；② ziti-rust CI 绿读数（今天再 dispatch 仍 5s 计费门外红＝账户持续挡，堵点 Billing & plans）；③ telencephalon 侧 401 修复（并行会话持续占用中，工作树仍 5 M）。
+
+⑤ **⚠️ 圈码**：本条占 **U+33B2（㎲）** —— 插入前 fetch 远端重核（占位声明不锁位，插入即占），码位闸＋CI Ledger codepoints 双层钉住。
+
 **Updated**: 2026-11-06 (㎱ **「prefrontal dispatch 401 判了 —— 端脑自调用 skill 执行链没递自己的钥匙，测试绿生产红的形状成因找到，施工图留给 telencephalon」** —— 承 ㎫ 条⑦④（「prefrontal dispatch 401 待判」那笔），本条记**逐字取证链**、**根因五环**、**两个症状为什么一绿一红**、**修复施工图与安全约束**，以及**为什么本刀不修**。）
 
 > 信封：epoch=2026-11-06 | authority=measured | scope=project | source=真机取证（CI run 42079173218 Desktop E2E job 日志逐字 401 响应体；telencephalon src 静态五环：door_policy.txt:118／self_call_headers 双钥匙设计／skill_router.rs 8 处 handle 尾参 None／api/prefrontal.rs:163 None／lobes/mod.rs:3206 测试传 Some(state)；intent.rs 关键词表全中文；telencephalon 工作树 5 M＝并行会话活跃；远端账本插入前 fetch 重核）| status=active | supersedes=none
