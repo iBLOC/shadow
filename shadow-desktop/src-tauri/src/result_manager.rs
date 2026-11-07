@@ -31,6 +31,8 @@ use std::path::{Path, PathBuf};
 use git2::{IndexAddOption, Oid, Repository, Signature};
 use serde::Serialize;
 
+use crate::task_path;
+
 #[derive(Debug, thiserror::Error)]
 pub enum ResultManagerError {
     #[error("io: {0}")]
@@ -41,6 +43,14 @@ pub enum ResultManagerError {
     NotFound(String),
     #[error("no changes to commit in task {0}")]
     NoChanges(String),
+    /// ⚠️ **task id 不是合法的单个目录名** —— 路径穿越的入口。
+    ///
+    /// 以前 `repo_path` 是裸 `base.join(task_id)` ⇒ `../` 能逃出
+    /// `~/.shadow/results/`，Windows 上绝对路径还会**整体替换** base
+    /// ⇒ ⇒ 任意目录创建 ＋ 任意文件写。现在一律先过
+    /// [`task_path::validate_task_id`]（fail-closed）。
+    #[error("invalid task id: {0}")]
+    InvalidTaskId(String),
 }
 
 /// One commit's metadata — what `history()` returns.
@@ -77,8 +87,15 @@ impl ResultManager {
         Ok(Self::new(base))
     }
 
-    pub fn repo_path(&self, task_id: &str) -> PathBuf {
-        self.base_dir.join(task_id)
+    /// 任务仓库目录 = `base_dir/<task_id>`。
+    ///
+    /// ⚠️ **task id 先校验**（fail-closed）—— 它是外部输入（Tauri 命令
+    /// 入参），裸 join 会让 `../` 逃出 base 目录、Windows 上绝对路径还会
+    /// 整体替换 base ⇒ ⇒ 任意目录创建 ＋ 任意文件写。见
+    /// [`crate::task_path`]。
+    pub fn repo_path(&self, task_id: &str) -> Result<PathBuf, ResultManagerError> {
+        task_path::validate_task_id(task_id).map_err(ResultManagerError::InvalidTaskId)?;
+        Ok(self.base_dir.join(task_id))
     }
 
     pub fn base_dir(&self) -> &Path {
@@ -98,7 +115,7 @@ impl ResultManager {
     /// - Idempotent: if the repo already exists, returns the existing
     ///   path without re-initialising.
     pub fn init(&self, task_id: &str, title: &str) -> Result<PathBuf, ResultManagerError> {
-        let path = self.repo_path(task_id);
+        let path = self.repo_path(task_id)?;
         if path.join(".git").exists() {
             return Ok(path);
         }
@@ -132,7 +149,7 @@ impl ResultManager {
     /// Commit every change in the repo's working directory. Returns the
     /// new commit OID. Returns `NoChanges` when the index is clean.
     pub fn commit(&self, task_id: &str, message: &str) -> Result<Oid, ResultManagerError> {
-        let path = self.repo_path(task_id);
+        let path = self.repo_path(task_id)?;
         let repo = Repository::open(&path).map_err(|e| match e.code() {
             git2::ErrorCode::NotFound => ResultManagerError::NotFound(task_id.to_string()),
             _ => ResultManagerError::Git(e),
@@ -171,7 +188,7 @@ impl ResultManager {
 
     /// Walk the commit log newest-first.
     pub fn history(&self, task_id: &str, limit: usize) -> Result<Vec<CommitInfo>, ResultManagerError> {
-        let path = self.repo_path(task_id);
+        let path = self.repo_path(task_id)?;
         let repo = Repository::open(&path).map_err(|e| match e.code() {
             git2::ErrorCode::NotFound => ResultManagerError::NotFound(task_id.to_string()),
             _ => ResultManagerError::Git(e),
@@ -227,6 +244,52 @@ mod tests {
         assert_eq!(head.message().unwrap().trim(),("init: task task-001"));
     }
 
+    /// ⚠️ **路径穿越回归**（2026-11-08 安全扫描发现）。
+    ///
+    /// 以前 `repo_path` 是裸 `base.join(task_id)` ⇒ `../` 能逃出 base，
+    /// Windows 上绝对路径还会**整体替换** base ⇒ ⇒ `init` 会在**任意**
+    /// 目录建 git 仓库 ＋ 写 README ＋ commit。
+    #[test]
+    fn init_rejects_task_ids_that_escape_the_base_dir() {
+        let m = temp_mgr();
+        // ⚠️ 逃逸目标用**唯一名** —— 断言查的是文件系统上的一个路径，
+        // 用固定名会与并跑的其它测试撞车（temp_dir 是**共享**的）。
+        let escape_name = format!("escape-{}", uuid::Uuid::new_v4());
+        let evil_id = format!("../{escape_name}");
+        for evil in [
+            evil_id.as_str(),
+            "..\\escape",
+            "..",
+            ".",
+            "/abs/path",
+            "C:\\Windows\\Temp\\evil",
+            "",
+        ] {
+            let err = m.init(evil, "title").unwrap_err();
+            assert!(
+                matches!(err, ResultManagerError::InvalidTaskId(_)),
+                "task id {evil:?} 必须被拒（拿到了 {err:?}）",
+            );
+        }
+        // 拒绝 ⇒ 什么目录都没被创建（连 base 外那一层都没有）。
+        let base = m.base_dir().to_path_buf();
+        let outside = base.parent().unwrap().join(&escape_name);
+        assert!(!outside.exists(), "不该在 base 外创建任何东西");
+    }
+
+    #[test]
+    fn commit_and_history_reject_escaping_task_ids_too() {
+        let m = temp_mgr();
+        assert!(matches!(
+            m.commit("../escape", "msg").unwrap_err(),
+            ResultManagerError::InvalidTaskId(_)
+        ));
+        assert!(matches!(
+            m.history("../escape", 10).unwrap_err(),
+            ResultManagerError::InvalidTaskId(_)
+        ));
+    }
+
     #[test]
     fn init_is_idempotent() {
         let m = temp_mgr();
@@ -251,9 +314,12 @@ mod tests {
     fn commit_picks_up_changes() {
         let m = temp_mgr();
         m.init("task-004", "commit test").unwrap();
-        let path = m.repo_path("task-004");
+        let path = m.repo_path("task-004").unwrap();
         // Add a new file to the workdir.
-        std::fs::write(path.join("artifacts").join("plan.md"), "# plan").unwrap();
+        // ⚠️ 2026-11-08：**先建目录再写文件** —— 以前这里反着来
+        // （write 在 create_dir_all 之前）⇒ ⇒ 目标目录不存在 ⇒ write 报
+        // NotFound ⇒ ⇒ 这条测试**一直是红的**（而桌面 crate 的 Rust 测试
+        // 不在 CI 里跑 ⇒ ⇒ 没人看见）。
         std::fs::create_dir_all(path.join("artifacts")).unwrap();
         std::fs::write(path.join("artifacts").join("plan.md"), "# plan").unwrap();
         // Add the directory + file via index.add_path before commit.
@@ -279,7 +345,7 @@ mod tests {
     fn history_is_newest_first_and_respects_limit() {
         let m = temp_mgr();
         m.init("task-006", "x").unwrap();
-        let path = m.repo_path("task-006");
+        let path = m.repo_path("task-006").unwrap();
         for i in 0..3 {
             std::fs::create_dir_all(path.join("stage")).unwrap();
             std::fs::write(path.join("stage").join(format!("{i}.md")), i.to_string()).unwrap();

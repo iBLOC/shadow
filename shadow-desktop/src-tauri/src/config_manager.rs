@@ -11,6 +11,14 @@ pub struct AppConfig {
     pub db_config: DatabaseConfig,
     pub setup_complete: bool,
     pub setup_step: String,
+    /// ⚠️ **`#[serde(default)]` 不可省** —— 少一个字段，**整份配置**就
+    /// 反序列化失败 ⇒ 加载路径的 `.ok()` 把它吞成 `None` ⇒
+    /// `unwrap_or_default()` ⇒ ⇒ **用户全部设置被静默清空**（密码哈希、
+    /// 数据库配置、provider 的 key 全没）⇒ ⇒ 失败长得像成功。
+    ///
+    /// 配置结构**只会加字段** ⇒ ⇒ 每个新字段都得 default（下面
+    /// `hippocampus_data_dir` 就是这么做的）。
+    #[serde(default)]
     pub provider_config: ProviderConfig,
     /// Where the hippocampus (long-term memory) keeps its Lance data.
     ///
@@ -26,9 +34,16 @@ pub struct AppConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ProviderConfig {
+    /// ⚠️ 逐字段 default —— 少一个键不该让**整份** provider 配置报废
+    /// （provider_config 本身已经 default ⇒ 这里再 default 一层 ⇒
+    /// 局部缺失只丢局部）。
+    #[serde(default)]
     pub provider_type: String,
+    #[serde(default)]
     pub name: String,
+    #[serde(default)]
     pub api_base: String,
+    #[serde(default)]
     pub api_key: Option<String>,
 }
 
@@ -55,10 +70,31 @@ impl ConfigManager {
             .join("config.json");
 
         let config = if config_path.exists() {
-            fs::read_to_string(&config_path)
-                .ok()
-                .and_then(|s| serde_json::from_str(&s).ok())
-                .unwrap_or_default()
+            // ⚠️ **解析失败要说出来** —— 以前是 `.ok()` 吞掉错误 ⇒
+            // `unwrap_or_default()` ⇒ **整份配置静默变默认**（用户看不到
+            // 任何提示，只发现「我的设置没了」）。现在：能解析就用；解析
+            // 不了就**说清楚**，并尽量保住能读的那部分。
+            match fs::read_to_string(&config_path) {
+                Ok(text) => match serde_json::from_str::<AppConfig>(&text) {
+                    Ok(cfg) => cfg,
+                    Err(e) => {
+                        tracing::warn!(
+                            path = %config_path.display(),
+                            error = %e,
+                            "配置文件解析失败 ⇒ 回退到默认配置（**原文件未被改动**）",
+                        );
+                        AppConfig::default()
+                    }
+                },
+                Err(e) => {
+                    tracing::warn!(
+                        path = %config_path.display(),
+                        error = %e,
+                        "配置文件读取失败 ⇒ 回退到默认配置",
+                    );
+                    AppConfig::default()
+                }
+            }
         } else {
             AppConfig {
                 password_hash: String::new(),

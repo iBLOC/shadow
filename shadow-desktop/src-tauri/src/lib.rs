@@ -8,6 +8,7 @@ mod opencode_manager;
 mod preview_window;
 mod inline_preview;
 mod result_manager;
+mod task_path;
 mod feishu_mcp;
 mod computer_use;
 mod worktree_manager;
@@ -1466,7 +1467,11 @@ async fn read_task_xlsx(state: &AppState, task_id: &str) -> Result<Vec<u8>, Stri
     use std::path::PathBuf;
     let home = dirs::home_dir()
         .ok_or_else(|| "no $HOME".to_string())?;
-    let path: PathBuf = home.join(".shadow").join("results").join(task_id).join(DEFAULT_XLSX_NAME);
+    // ⚠️ **task id 先校验** —— 它是命令入参（外部输入）。裸 join 会让
+    // `../` 逃出 `~/.shadow/results/`，Windows 上绝对路径还会**整体
+    // 替换** base ⇒ ⇒ 读到并**回传**任意文件的内容。
+    let dir = task_path::task_dir(&home.join(".shadow").join("results"), task_id)?;
+    let path: PathBuf = dir.join(DEFAULT_XLSX_NAME);
     tokio::fs::read(&path)
         .await
         .map_err(|e| format!("read {}: {e}", path.display()))
@@ -1476,7 +1481,9 @@ async fn write_task_xlsx(state: &AppState, task_id: &str, bytes: &[u8]) -> Resul
     use std::path::PathBuf;
     let home = dirs::home_dir()
         .ok_or_else(|| "no $HOME".to_string())?;
-    let dir: PathBuf = home.join(".shadow").join("results").join(task_id);
+    // ⚠️ 同上：未校验 ⇒ 能在**任意**目录建目录并写入**调用方给的内容**。
+    let dir: PathBuf =
+        task_path::task_dir(&home.join(".shadow").join("results"), task_id)?;
     tokio::fs::create_dir_all(&dir)
         .await
         .map_err(|e| format!("mkdir {}: {e}", dir.display()))?;
