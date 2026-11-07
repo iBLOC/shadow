@@ -1,5 +1,23 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-07 (㎻ **「码位闸『条目合并盲区』加固收口 —— R3 缝合残迹＋R4 异体声明落地；旧判据库 A/B 回放实证当年假绿形状，新判据库会红」** —— 承 ㎴ 条③⑤新登记的独立小刀，本条记**四道验证读数**、**drill 自己踩的 CRLF 坑**、**登记不修的一处噪声**，以及**欠项清单更新**。)
+
+> 信封：epoch=2026-11-07 | authority=measured | scope=project | source=真机实测（self-test **9/9**；drill 三场景**绿→红→绿**＋真文件 SHA256 前后一致；真账本 **110 条零违规**（R3/R4 零误报）；A/B 回放＝git HEAD 旧判据库对同一 ㌳ 形状破损副本 **dups=0／mismatched=0 假绿逐字复现**、新判据库 **swallowed=1／foreign=1 会红**；fetch 远端＋重扫本地两态同形（各 110 条、max U+33BA）⇒ 本条取 U+33BB 空闲 ✔）| status=active | supersedes=none
+
+① **✅ 判据库扩四条（scripts/lib/ledger-codepoints.mjs 整体重写，判据与 I/O 分离不变）** —— R1 不撞号／R2 注解自洽**原样保留**；新增 **R3（缝合残迹）**＝非标题行嵌「**Updated**: 冒号＋日期」完整形状 ⇒ 行首锚被吞、前后条目并体（只认带日期的完整形状 ⇒ 正文对插入锚的工具性引用不误伤）；**R4（异体声明）**＝条目体 OWN_CLAIM（「本条占 **U+hex**」）命中码位 ≠ 自己标题码位 ⇒ 别条的声明躺在体里（挡锚连日期形态都没了的残余）。claims 改**全局收集**（OWN_CLAIM.lastIndex 用前归零——全局正则复用的经典坑）＋extractEntries 返回 {entries, lines}。
+
+② **✅ 闸脚本四处同步** —— 头部「守什么」扩四条＋出处；checkText 渲染 **[swallowed-anchor]**／**[foreign-declaration]** 两类新违规；self-test 扩三用例（缝合残迹 fixture ⇒ swallowed＋foreign 各恰 1；㎝ 形状规则引文 ⇒ 零误报；真账本零违规）＝**9/9**；drill 扩并体场景（真账本副本把第二个标题边界吞成字面换行文本 ⇒ 须 swallowed≥1，还原须绿，SHA 前后一致）。
+
+③ **⚠️⚠️ 加固刀自己踩了一脚 CRLF（新教训入库）** —— 并体场景第一版用字面 '\n\n**Updated**' 找边界 ⇒ 真账本**纯 CRLF**（实测 2517 行 CRLF、0 条裸 LF）⇒ '\n\n' 在 '\r\n\r\n' 里永远匹配不到 ⇒ mergedRed 压根没构造出来 ⇒ **三行打印全绿而退出码 1**。修法＝边界定位改 '\r?\n\r?\n\*\*Updated\*\*' 正则（两种行尾通吃）＋并体读数打进输出。⇒ ⇒ 与 ㌳ 事故本体互为表里：那次是**插入侧**的换行形状错（node -e 转义经 pwsh 层加倍），这次是**检测侧**的——「验证工具自己的锚也要按文件真实形态写」。
+
+④ **✅ A/B 回放（本刀最有说服力的一道）** —— 回放脚本把 git HEAD 的旧判据库与现库对**同一份**按 ㌳ 形状破损的副本各跑 findViolations ⇒ 旧库 **dups=0／mismatched=0（假绿逐字复现——当年闸就是这么绿的）**、新库 **swallowed=1／foreign=1（会红）**；未破损真账本两库都绿 ⇒ 加固零误报。旧库假绿的机制同时坐实：按行首锚切条目 ⇒ 锚被吞则被并条目**连头带体消失**（headCount 110→109）；OWN_CLAIM 非全局 match 只取第一条声明 ⇒ 并进来的第二条声明根本不看。
+
+⑤ **⚠️ 登记不修的一处噪声** —— R4 对「自己的注解写错」的单声明条目也会命中 ⇒ R2/R4 对同一错误**双报**（drill 破坏读数「判红 2 条」即此）。该场景 R2 的行级报文更准确，R4 的「别条的声明」措辞不成立；判据保持「体里任何 ≠ 标题的声明都算并体签名」的简单形状，不为美化报文加分支。
+
+⑥ **⚠️ 欠项清单更新** —— ① ~~码位闸条目合并盲区（㎴ 条③⑤）~~ **本刀收口**；② 401 施工图（㌱ 条④）仍待 telencephalon 工作树空出（并行会话仍在飞）；③ ziti-rust／encephalon CI 计费门外红（存量，堵点 Billing & plans）；④ mobile 真机读数／沙盒 ztiface-b-sandbox 与 .local/patch-probe/ 拍板（存量）；⑤ 外观族 3 键 l10n 待外观批次落地后扫（㎸ 条②）；⑥ 真机 UI 验收（㎶ 条⑧③）仍待设备在位。
+
+⑦ **⚠️ 圈码**：本条占 **U+33BB（㎻）** —— 插入前 fetch 远端＋重扫本地（两态各 110 条、distinct 110、dups=0、max U+33BA＝并行会话 ㎺ 条）⇒ U+33BB 空闲 ✔ ⇒ 取 U+33BB，插入后复跑码位闸＋行首锚计数（110+1=111）双钉住。顺带钉一笔：.local 的 ledger-scan.mjs 插入锚**钉死 2026-11-06 日期前缀** ⇒ 数不到当日条目（㎺ 条「远端 max U+33B4」读数偏旧的来源）⇒ 本条改用任意日期扫描器重核两态。
+
 **Updated**: 2026-11-08 (㎺ **「海马体僵尸副本出仓 —— 用户问『海马体应该被大脑初始化然后提供给端脑内的各个叶区使用，现在是不是端脑在初始化海马体』，代码证伪了旧预期的字面形状但坐实了现行纪律的分工：构造点在端脑 boot 是有意钉住的，桌面内嵌路径里大脑自己 build_hippocampus() 的第二份才是要删的僵尸」** —— 本条记**取证链**、**刀**、**选择性暂存新手法**、**读数与两轮资源挤兑**，以及**仍欠着的**。)
 
 > 信封：epoch=2026-11-08 | authority=measured | scope=project | source=真机实测（grep 全仓+tests+桌面 src-tauri+hengjian/ibloc-hr-* 零消费 ⇒ 僵尸坐实；cargo +1.99.0 check --all-targets EXIT=0；clippy 全 crate 唯一 error＝src/ziti.rs:184 clippy::question_mark＝HEAD 干净态存量；rustfmt 本文件 EXIT=0；cargo +1.99.0 test -p encephalon --lib **57/0**；shadow-desktop/src-tauri cargo check --offline --all-targets EXIT=0（1m17s）；OS 1455／link 1102 两轮资源挤兑归并行会话重编译挤兑）| status=active | supersedes=none
