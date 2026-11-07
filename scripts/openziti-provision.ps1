@@ -41,6 +41,8 @@
 #    $env:ZITI_ADMIN_PASSWORD = '...'
 #    pwsh -File scripts/openziti-provision.ps1
 #    pwsh -File scripts/openziti-provision.ps1 -Recreate
+#  三台 Android 形态 A（设备身份 + T4 未授权身份）：
+#    pwsh -File scripts/openziti-provision.ps1 -Devices 'dev-a,dev-b,dev-c' -Unauthorized 'dev-x'
 # =====================================================================
 
 [CmdletBinding()]
@@ -50,6 +52,13 @@ param(
   [string]$Password = '',
   [string]$ServiceName = 'shadow-brain',
   [string]$OutDir = '',
+  # 形态 A（三台 Android 互发现）：逗号分隔的设备短名，如 'dev-a,dev-b,dev-c'。
+  # 每台建 shadow-brain-<name> 身份 + Bind/Dial 双策略 + 本地身份文件
+  # （双策略 ⇒ T5 角色轮换时零控制器操作，只换探针的角色参数）。
+  [string]$Devices = '',
+  # T4（零信任断言）：只建身份 + enrollment + 本地文件，**不给任何**
+  # service policy ⇒ 控制器必须拒绝它 dial/bind。
+  [string]$Unauthorized = '',
   [switch]$Recreate
 )
 
@@ -319,6 +328,24 @@ $clientJson = Ensure-Enrolled -IdentityId $clientId -Name 'shadow-brain-client'
 Write-Step "绑定策略"
 Ensure-Policy -Name 'shadow-brain-bind' -Type 'Bind' -IdentityId $hostId   -ServiceId $svcId | Out-Null
 Ensure-Policy -Name 'shadow-brain-dial' -Type 'Dial' -IdentityId $clientId -ServiceId $svcId | Out-Null
+
+# --- 形态 A：三台 Android 设备身份（Bind + Dial 双策略） ------------------
+foreach ($dev in (($Devices -split ',') | ForEach-Object { $_.Trim() } | Where-Object { $_ })) {
+  Write-Step "设备身份 $dev（Bind + Dial 双策略，角色轮换零控制器操作）"
+  $devId = Ensure-Identity "shadow-brain-$dev"
+  $devJson = Ensure-Enrolled -IdentityId $devId -Name "shadow-brain-$dev"
+  Ensure-Policy -Name "shadow-brain-$dev-bind" -Type 'Bind' -IdentityId $devId -ServiceId $svcId | Out-Null
+  Ensure-Policy -Name "shadow-brain-$dev-dial" -Type 'Dial' -IdentityId $devId -ServiceId $svcId | Out-Null
+}
+
+# --- 形态 A T4：未授权身份（有文件、无策略 ⇒ 控制器必须拒） ---------------
+if ($Unauthorized) {
+  $u = $Unauthorized.Trim()
+  Write-Step "未授权身份 $u（只 enroll，不给任何 service policy）"
+  $uId = Ensure-Identity "shadow-brain-$u"
+  $null = Ensure-Enrolled -IdentityId $uId -Name "shadow-brain-$u"
+  Write-Host "    故意不建策略 ⇒ dial/bind 都应被控制器拒（T4 断言）"
+}
 
 Write-Step "写环境变量文件"
 $envFile = Join-Path $OutDir 'ziti.env'

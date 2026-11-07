@@ -1,5 +1,22 @@
 # PROJECT KNOWLEDGE BASE
 
+# PROJECT KNOWLEDGE BASE
+
+**Updated**: 2026-11-07 (㎷ **「三台 Android 零信任网形态 A 第一刀 —— ziti-rust 单二进制三角色探针（bind/dial/doctor）落地＋NDK aarch64 交叉编译全绿＋provision 扩三设备身份与 T4 未授权身份；本机正控回环闭合」** —— 承用户「局域网三个 android 设备能否互相发现组成零信任网络」＋「开始吧」，本条记**探针形状**、**正控读数**、**交叉编译两坑**、**供给扩展**，以及**待用户的三件事**。)
+
+> 信封：epoch=2026-11-07 | authority=measured | scope=project | source=真机实测（ziti-rust +1.99.0 基线全套绿：clippy --all-targets 0 警告／lib 13 passed／doc EXIT=0；本机真网正控三读数：dial 回环闭合 200＋echo 原样返回 EXIT=0／doctor 认证 61ms EXIT=0／bind 收拨入 conn_id=1001 回声闭合；aarch64-linux-android API 21 release 51.29s EXIT=0 ⇒ 8.8MB ELF（头字节 7f 45 4c 46）strip 后 6.2MB；provision 解析器 SYNTAX_OK；fetch 远端重核 97 distinct max U+33B6 ⇒ U+33B0 已被占 ⇒ 本条取 U+33B7）| status=active | supersedes=none
+
+① **✅ 探针形状（crates/ziti-v2/examples/ziti_probe.rs，+212 行，ziti-rust da1e20a 已推）** —— 单二进制三角色：`ziti_probe bind|dial|doctor`（第一个参数或 ZITI_ROLE），身份 ZITI_IDENTITY 必填、服务 ZITI_SERVICE 默认 shadow-brain；**退出码 0/1** 是 adb shell 最容易读的判据。应用层回环＝**手写最小 HTTP**（dial 发带 X-Probe-Id 的 GET ⇒ bind 把 id 回声进响应体 ⇒ dial 校验自己发的 id 原样回来 ⇒ 「数据真穿零信任网」最短闭环证据）。bind 的 accept 循环串行处理——路由器的 Connect/StateConnected 握手由 channel 事件循环完成（不经 accept），后到拨入在队列等 ⇒ 不会死锁。**零新增依赖**（tokio io-util 已在 Cargo.toml；`#[tokio::main]` 默认 multi_thread 而 rt-multi-thread feature 没开 ⇒ 改 `flavor = "current_thread"`，单线程对一进程一角色的探针足够，不动依赖面）。
+
+② **✅ 本机正控三读数（真网 quickstart @192.168.31.170，PC 级预演）** —— dial（client 身份）：StateConnected ⇒ 200 ⇒ body 逐字含 `PROBE-OK from pc-host echo=PROBE-1794017796748` ⇒ 回环闭合 EXIT=0；doctor：认证 61ms EXIT=0；bind（host 身份）：收拨入 conn_id=1001、93 字节请求、回声闭合。两侧日志对上同一个 probe id ⇒ T2/T5 的链路与回环语义在真网承重。
+
+③ **⚠️ 交叉编译两坑（encephalon build-android.ps1 注释都写过，本轮实测再钉一遍）** —— ❶ **target std 按工具链单独装**：aarch64-linux-android 装在默认工具链上 ≠ +1.99.0 有 ⇒ E0463 can't find crate for core ⇒ `rustup target add aarch64-linux-android --toolchain 1.99.0` 即过（该脚本第 9 条注释同款）；❷ cc-rs 环境变量目标名用**下划线**（CC_aarch64_linux_android），CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER 指 `aarch64-linux-android21-clang.cmd`（Windows NDK 是 .cmd 包装；API 21＝正式构建入口同款兼容面，Agent memory「构建档位读数取正式入口」已核）。产物 ELF 头字节 `7f 45 4c 46` 逐字节核过；release 8.8MB ⇒ llvm-strip 后 6.2MB（strip 拷贝那份 dist-android/，不动 cargo 产物——encephalon 范式）。
+
+④ **✅ 供给扩展（scripts/openziti-provision.ps1，解析器 SYNTAX_OK，实际发身份待口令）** —— `-Devices 'dev-a,dev-b,dev-c'`：每台建 shadow-brain-<name> 身份＋enroll＋本地身份文件＋**Bind/Dial 双策略**（双策略 ⇒ T5 角色轮换零控制器操作，只换探针角色参数）；`-Unauthorized 'dev-x'`：只 enroll **不给任何 service policy** ⇒ T4 零信任断言（控制器必须拒）。幂等全继承（Ensure-* 复用；开头删 shadow-brain-* 策略的循环天然覆盖设备策略）。
+
+⑤ **⚠️ 待用户三件事** —— ① controller 管理口令（ZITI_ADMIN_PASSWORD）⇒ 跑 `-Devices 'dev-a,dev-b,dev-c' -Unauthorized 'dev-x'` 发四张身份；② 三台设备接 adb ⇒ push `ziti-rust/dist-android/ziti_probe-aarch64`＋各自身份文件到 /data/local/tmp（这是 ELF 二进制不是 APK，MIUI 的安装限制不拦 push）⇒ 各跑 doctor；③ T4 断言：未授权身份 dial 应被控制器拒（探针会把拒绝原因逐字打出来）。
+
+⑥ **⚠️ 码位**：本条占 **U+33B7（㎷）** —— 插入前 fetch 远端重核：97 distinct、max U+33B6 ⇒ **U+33B0（㎰）已被并行会话占走**（原计划取 ㎰ 作废）⇒ 顺延取 U+33B7 空闲 ✔，插入后复跑码位闸＋条目计数（行首锚计应＝106+1=107）双钉住。
 **Updated**: 2026-11-07 (㎶ **「模型管理『新增』重做 —— 旧 FAB 是往没人读的死表写字（失败长得像成功），现在云端指向供应商页自动获取、自持模型走 ZCode 风格表单＋内置注册表智能配置」** —— 承 ㎵ 条（同一天同仓的相邻面），本条记**病根取证**、**表单与注册表**、**落盘链路**、**在飞碰撞与归因**、**分级读数**，以及**仍然欠着的**。)
 
 > 信封：epoch=2026-11-07 | authority=measured | scope=project | source=真机实测（known_models 16 条＋model_metadata 6 条＋表单 widget 4 条全绿；analyze 本轮文件零问题；全套唯一红 = encephalon_page_credential_probe（stash 实验归因在飞线）；新 apk 115.9MB 装上 ee6b4832 pid 23543；远端账本 92 条 dups=0 max U+33B4 ⇒ 本条取 U+33B6 空闲 ✔）| status=active | supersedes=none
