@@ -1,5 +1,23 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-08 (㎹ **「设置页『模型信息』死行出仓（两刀）—— 用户一句『为什么一直是 No model loaded』问出一条全断的数据通路；删行＋残余全链清理；共用工作树一天四连实战把两条新手法钉进 memory」** —— 起于用户问外观卡片里的「模型信息」是什么意思、为什么恒显 No model loaded，本条记**病根取证**、**两刀内容**、**读数与 A/B 归因**、**两次躲车**，以及**仍欠着的**。)
+
+> 信封：epoch=2026-11-08 | authority=measured | scope=project | source=真机实测（刀一 297bcc4＝3 文件 +3/−30；刀二 48d326c＝9 文件 +2/−88；settings_screen_test **17/17**；analyze 本刀文件零命中、全仓存量 83→61；全量 **623 passed / 8 failed**——8 条红经 stash-A/B 实证归并行线存量；两刀提交 Mimosa 均 scanner_enobufs 走兼容策略；fetch 远端重核 108 条、解析到圈码 108、distinct 108、dups=0、max U+33B8）| status=active | supersedes=none
+
+① **✅ 病根（用户一句话问出全断通路）** —— 设置页外观卡顶部「模型信息」行显示 `ChatState.modelInfo`（路由参数传入）。本地 LiteRT 退役后**全仓无人再给该字段赋值**（只剩 copyWith 管道）；主入口底部「我」tab 导航**不带 extra** ⇒ 恒命中 `app_router.dart:192` 硬编码兜底 `'No model loaded'`（连 l10n 都没走）；唯一带值的齿轮入口也只显默认值 `'Telencephalon'` ⇒ **两个入口都在显示写死的字符串**，与设备上有没有模型零相关 —— 一行「说了谎的占位符」。真模型状态在「运行时 → 模型仓库」卡本就有真实读数。
+
+② **✅ 刀一（297bcc4，+3/−30）** —— settings_screen 删行＋分隔线＋字段＋构造参数；app_router 不再读 `extra['modelInfo']`；测试删「模型信息在外观组内」断言；**顺带清 `db55e02`（prefrontal 退役）漏掉的 `_MockLogService.connectPrefrontal` 死 override**（analyze warning 消失）。当时 chat_screen 有并行在飞（聊天背景图批次）⇒ 不碰，残键登记待清。
+
+③ **✅ 刀二（48d326c，+2/−88，并行批次 262050e 落地后堵点解除）** —— chat_screen `_showSettings` 不再收/传键＋`displayModelInfo` 调用与死 import 删；`chat_state_l10n.dart` 删扩展方法（`displayErrorMessage` 有真实消费者保留）；`ChatState` 删 `modelInfo`/`modelInfoL10nKey` 两字段＋三个死枚举值＋copyWith 管道；测试删 `'Telencephalon'` 断言；**ARB 4 死键（modelInfo/modelInfoNotInitialized/modelLoaded/desktopMode）×2 出仓＋gen-l10n 重生成（−48）**；连带：枚举穷尽后 `displayErrorMessage` 的 `default` 变不可达 ⇒ 删（analyzer 抓的，两 case 恰穷尽枚举）。
+
+④ **✅ 读数与 A/B 归因** —— settings_screen_test **17/17**（中途撞 `sqlite3.dll` 旧构建产物文件锁，删掉即过）；全量 **623 passed / 8 failed**：`encephalon_mobile_page_test` 7 条＋401 探针挂死 1 条 ⇒ **stash 我的改动在 HEAD 复跑同名同红** ⇒ 全归并行线存量（他们刀三页面与测试的中间态），非本刀。
+
+⑤ **⚠️⚠️ 共用工作树两次躲车（同日四连实战，两条手法进 memory）** —— ❶ **ARB 同文件混删**：提交时并行会话 ~86 键死键清扫在飞、与我的 4 键删除混在同一文件（相邻 hunk 会被 git 合并）⇒ **基线副本重放**（`git show HEAD:` 取基线 → Edit 重放只有我的改动 → `--no-index` 出补丁 → `apply --cached`），他们的清扫完整留工作树；❷ **暂存区被占**：他们的 3 个 Kotlin 删除已在 staged ⇒ 裸 commit 会连它提交 ⇒ `git stash push --staged` 挪开 → 提交 → `git stash pop --index` 原样还回（提交后核对 staged D 逐条复原）。⇒ 提交后逐文件 stat 复核：ARB 恰 −4/文件、生成物恰 −48 ⇒ **零混入**。⚠️ memory 文件本身也被并行会话改写过（我早上写的手法条目被覆盖）⇒ 连旧带新写回。
+
+⑥ **⚠️ 仍然欠着** —— ① Mimosa 扫描连续三轮 `scanner_enobufs` ⇒ **项目安全性一格持续无读数**（与 ㎸⑤ 同型，建议尽快完整审计）；② 本条无其他新欠 —— 模型信息链（行/字段/键/测试）已全链出仓。
+
+⑦ **⚠️ 圈码**：本条占 **U+33B9（㎹）** —— 插入前 fetch 远端重核（108 条、解析到圈码 108、distinct 108、dups=0、max U+33B8＝并行会话 ㎸ 条）⇒ 空闲 ✔ ⇒ 顺延取 U+33B9（`String.fromCodePoint(0x33B9)` 生成，只认原始码位），插入后复跑码位闸＋**条目计数**（行首锚计应＝108+1=109）双钉住。
+
 **Updated**: 2026-11-07 (㎸ **「刀三落地 —— 大脑页瘦身为纯运行时，settings 死机械清扫，137 条 l10n 死键出仓；独立核对步拦住 sweep 重演」** —— 承 ㎵ 条的刀三施工图（并行批次 262050e 落地后堵点解除），本条记**七件套执行**、**迁移移植**、**读数与归因**，以及**仍欠着的**。)
 
 > 信封：epoch=2026-11-07 | authority=measured | scope=project | source=真机实测（提交 2fc1ce6＝21 文件 +409/−4239；flutter analyze **0 error**（61 条存量不变）；受影响测试 **48/48**＋models_screen 4/4；全量 **627 passed / 2 failed**——1 条 401 挂死＝并行在飞（㎵ 条同形）、1 条 models_screen 断言钉旧字面值已随改值更新；`gradlew :app:compileDebugKotlin` **EXIT=0**；背景常驻闸/死环境变量闸/a11y 契约闸零违规；agent-surface self-test 余 1 项＝accent.g.ts 桌面在飞（非本刀）；fetch 远端 107 条 distinct 68 max U+33B7）| status=active | supersedes=none
