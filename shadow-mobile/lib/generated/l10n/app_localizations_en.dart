@@ -1836,4 +1836,8 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get cloudGuideDesc =>
       'Add a cloud provider and its supported models are fetched automatically.';
+
+  @override
+  String get voiceNoteBrainAsrPending =>
+      'Voice transcription is not wired to the brain\'s speech-recognition face yet — type your question, or wait until it is connected.';
 }

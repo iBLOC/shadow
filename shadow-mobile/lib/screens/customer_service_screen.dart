@@ -19,8 +19,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_ai_toolkit/flutter_ai_toolkit.dart';
 
-import '../providers/ai/litert_provider.dart';
+import '../providers/ai/brain_llm_provider.dart';
 import '../providers/mode_provider.dart';
+import '../services/encephalon/encephalon_mobile_provider.dart';
 import '../services/usb_audio_routing_service.dart';
 import '../generated/l10n/app_localizations.dart';
 
@@ -97,7 +98,12 @@ class _CSState extends ConsumerState<CustomerServiceScreen> {
           // ---- AI processing surface ----------------
           Expanded(
             child: LlmChatView(
-              provider: LiteRTProvider(),
+              // 推理归 neuron 管 —— 进程内管线，本地/云端由大脑目录与路由决定。
+              provider: BrainLlmProvider(
+                service: ref.read(encephalonMobileServiceProvider),
+                failureText: () => l10n.encephalonInferFailed,
+                audioHint: () => l10n.voiceNoteBrainAsrPending,
+              ),
               enableAttachments: true,
               enableVoiceNotes: true,
               welcomeMessage: l10n.customerServiceHint,

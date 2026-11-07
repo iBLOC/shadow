@@ -85,6 +85,6 @@ flutter:
   uses-material-design: true
   generate: true
 
-  assets:
-    - assets/models/
-    - assets/config/
+# ⚠️ 2026-11-08：`assets/models/` ＋ `assets/config/`（本地 LiteRT/MNN 模型
+# 清单与采样器配置）随本地推理退役出仓 ⇒ ⇒ **零 Dart 消费方** ⇒ ⇒
+# assets 声明一并摘掉（声明了空目录会让构建报错）。

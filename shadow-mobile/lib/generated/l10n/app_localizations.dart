@@ -3445,6 +3445,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Add a cloud provider and its supported models are fetched automatically.'**
   String get cloudGuideDesc;
+
+  /// No description provided for @voiceNoteBrainAsrPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Voice transcription is not wired to the brain\'s speech-recognition face yet — type your question, or wait until it is connected.'**
+  String get voiceNoteBrainAsrPending;
 }
 
 class _AppLocalizationsDelegate

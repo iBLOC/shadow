@@ -997,5 +997,7 @@
   "inputTypeAudio": "Audio",
   "inputTypeVideo": "Video",
   "cloudGuideTitle": "Cloud models live with providers",
-  "cloudGuideDesc": "Add a cloud provider and its supported models are fetched automatically."
+  "cloudGuideDesc": "Add a cloud provider and its supported models are fetched automatically.",
+  "voiceNoteBrainAsrPending": "Voice transcription is not wired to the brain's speech-recognition face yet — type your question, or wait until it is connected.",
+  "@voiceNoteBrainAsrPending": {}
 }

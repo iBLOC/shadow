@@ -1782,4 +1782,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get cloudGuideDesc => '添加云供应商后，其支持的模型自动获取，无需手填。';
+
+  @override
+  String get voiceNoteBrainAsrPending => '语音转写还没接上大脑的语音识别面 —— 打字问，或者等大脑那边接通。';
 }

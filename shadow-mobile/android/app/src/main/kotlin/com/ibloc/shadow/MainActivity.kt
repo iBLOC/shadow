@@ -11,7 +11,6 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
-import com.ibloc.shadow.litert.LitertEngine
 import com.ibloc.shadow.pcm.PcmAudioRecorder
 import com.ibloc.shadow.tts.TtsManager
 import com.ibloc.shadow.provision.BleProvisioningService
@@ -29,7 +28,6 @@ class MainActivity : FlutterActivity() {
     private val A11Y_CHANNEL = "com.ibloc.shadow/accessibility"
     private val MDNS_CHANNEL = "com.ibloc.shadow/mdns"
     private val LOG_CHANNEL = "com.ibloc.shadow/mnn_logs"
-    private val LITERT_CHANNEL = "com.ibloc.shadow/litert"
     private val TTS_CHANNEL = "com.ibloc.shadow/tts"
     private val PCM_AUDIO_CHANNEL = "com.ibloc.shadow/pcm_audio"
     private val PCM_AUDIO_STREAM_CHANNEL = "com.ibloc.shadow/pcm_audio_stream"
@@ -42,7 +40,6 @@ class MainActivity : FlutterActivity() {
     private var nsdManager: NsdManager? = null
     private val discoveredServices = ConcurrentHashMap<String, NsdServiceInfo>()
     
-    private var litertEngine: LitertEngine? = null
     private var ttsManager: TtsManager? = null
     private var pcmAudioRecorder: PcmAudioRecorder? = null
     private var usbAudioRouter: UsbAudioRouter? = null
@@ -64,7 +61,6 @@ class MainActivity : FlutterActivity() {
         setupAccessibilityChannel(flutterEngine)
         setupMdnsChannel(flutterEngine)
         setupLogcatChannel(flutterEngine)
-        setupLitertChannel(flutterEngine)
         setupTtsChannel(flutterEngine)
         setupPcmAudioChannel(flutterEngine)
         setupEncephalonRuntimeChannel(flutterEngine)
@@ -182,86 +178,6 @@ class MainActivity : FlutterActivity() {
                 "resolveMdns" -> {
                     val serviceName = call.argument<String>("serviceName") ?: ""
                     resolveMdnsService(serviceName, result)
-                }
-                else -> result.notImplemented()
-            }
-        }
-    }
-    
-    private fun setupLitertChannel(flutterEngine: FlutterEngine) {
-        litertEngine = LitertEngine(this)
-
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, LITERT_CHANNEL).setMethodCallHandler { call, result ->
-            when (call.method) {
-                "initialize" -> {
-                    val modelPath = call.argument<String>("modelPath") ?: ""
-                    scope.launch {
-                        try {
-                            val success = litertEngine?.initialize(modelPath) ?: false
-                            result.success(success)
-                        } catch (e: Exception) {
-                            result.error("INIT_ERROR", e.message, null)
-                        }
-                    }
-                }
-                "initializeWithTimeout" -> {
-                    val modelPath = call.argument<String>("modelPath") ?: ""
-                    val timeoutMs = call.argument<Number>("timeoutMs")?.toLong() ?: 10000L
-                    scope.launch {
-                        try {
-                            val success = litertEngine?.initializeWithTimeout(modelPath, timeoutMs) ?: false
-                            result.success(success)
-                        } catch (e: Exception) {
-                            result.error("INIT_ERROR", e.message, null)
-                        }
-                    }
-                }
-                "diagnose" -> {
-                    val modelPath = call.argument<String>("modelPath") ?: ""
-                    val diagnosis = litertEngine?.diagnoseModelDirectory(modelPath)
-                    result.success(diagnosis ?: emptyMap<String, Any>())
-                }
-                "generateContent" -> {
-                    val prompt = call.argument<String>("prompt") ?: ""
-                    scope.launch {
-                        try {
-                            val response = litertEngine?.generateContent(prompt) ?: ""
-                            result.success(response)
-                        } catch (e: Exception) {
-                            result.error("GEN_ERROR", e.message, null)
-                        }
-                    }
-                }
-                "generateContentStream" -> {
-                    val content = call.argument<String>("content") ?: ""
-                    scope.launch {
-                        try {
-                            val response = litertEngine?.generateContentStream(content) ?: ""
-                            result.success(response)
-                        } catch (e: Exception) {
-                            result.error("GEN_ERROR", e.message, null)
-                        }
-                    }
-                }
-                "getResponseText" -> {
-                    result.success(litertEngine?.responseText?.value ?: "")
-                }
-                "isInitialized" -> {
-                    result.success(litertEngine?.isInitialized?.value ?: false)
-                }
-                "isLoading" -> {
-                    result.success(litertEngine?.isLoading?.value ?: false)
-                }
-                "getDownloadProgress" -> {
-                    val progress = litertEngine?.downloadProgress?.value
-                    result.success(progress?.let { mapOf("downloaded" to it.first, "total" to it.second) })
-                }
-                "getLastError" -> {
-                    result.success(litertEngine?.lastError?.value)
-                }
-                "release" -> {
-                    litertEngine?.release()
-                    result.success(true)
                 }
                 else -> result.notImplemented()
             }
@@ -745,8 +661,6 @@ class MainActivity : FlutterActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        litertEngine?.release()
-        litertEngine = null
         ttsManager?.release()
         ttsManager = null
         pcmAudioRecorder?.release()

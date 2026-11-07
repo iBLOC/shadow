@@ -157,16 +157,12 @@ flutter {
 }
 
 dependencies {
-    // Pinned to 0.13.1 (released 2026-06-03). Do NOT use `latest.release` here —
-    // floating versions break reproducible builds and have caused silent upgrades
-    // when Google publishes patch releases. The artifact's Kotlin API surface
-    // (Engine / EngineConfig / Backend / Conversation / Content / Contents) is
-    // backward compatible with our LitertEngine.kt. See:
-    //   https://github.com/google-ai-edge/LiteRT-LM/releases/tag/v0.13.1
-    //   https://maven.google.com/web/index.html#com.google.ai.edge.litertlm:litertlm-android
-    implementation("com.google.ai.edge.litertlm:litertlm-android:0.13.1")
-    implementation("org.nanohttpd:nanohttpd:2.3.1")
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    // ⚠️ 2026-11-08：本地推理**归 neuron 管**（进程内 adapter 管线）⇒ ⇒
+    // 这里不再有 LiteRT-LM / nanohttpd / okhttp 依赖：
+    // - `litertlm-android` —— 随 `litert/LitertEngine.kt` 出仓；
+    // - `nanohttpd` + `okhttp` —— 随 `mnn/OpenAIServer*`（本地 HTTP 面）
+    //   与 `http/MobileActionServer` 出仓。
+    // 三者在 Kotlin 源码里已**零引用** ⇒ ⇒ 留着只是白拉依赖。
 
     // ⚠️ **Android 模块的第一个 JVM 单测位**（2026-11-03 建）。
     //
