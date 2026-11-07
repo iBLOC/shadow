@@ -1,5 +1,19 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-08 (㎾ **「复测撞上并行收口刀 —— ㎺ 条⑤①『ziti.rs:184』病灶为真、已由 f5c01ad 在我测量窗口内修掉；双工具链绿＝修后复核非『病不存在』；clippy/fmt 存量池钉成可数地图」** —— 承 ㎺ 条⑤的「等 CI 恢复或下刀顺手收」，本条记**时间线取证**、**存量池地图**、**CI 口径情报**，以及**欠项清单更新**。)
+
+> 信封：epoch=2026-11-08 | authority=measured | scope=project | source=真机实测（**测量窗口与并行收口刀正面相遇**：07:24 扫仓时 HEAD＝7d973ae 且 ziti.rs 干净；~07:28 我的 probe 读到 `?` 形态而 `log -1 -- src/ziti.rs` 仍是 959cdf5＝并行会话的在飞未提交编辑；**07:29:02 f5c01ad 落地（+4/−4，恰好修在 7d973ae:184 的 match 形态上）**；07:3x 起双工具链（+1.99.0／stable）clippy 全绿＝**修后复核读数**；git show 7d973ae:src/ziti.rs 钉死病灶原貌（184 行 `None => match … None => return None`）⇒ ㎺ 条⑤①登记为真；fmt `--all --check` 1899 处／427 文件；账本插前两态 113 条 max U+33BD ⇒ 本条取 U+33BE 空闲 ✔）| status=active | supersedes=none
+
+① **⚠️⚠️ 复测推翻了自己——病灶是真的，我只是恰好在别人修完之后量（本刀最大的读数教训）** —— 立项时以为要做「ziti.rs:184 question_mark 一行机械改写」，probe 却读不到病灶 ⇒ 第一版结论写成「登记过时、复测优先于修码」。钉时间线后真相：**07:24 扫仓时病灶还在**（git show 7d973ae:src/ziti.rs 的 184 行就是 `None => match … None => return None`）；**07:29:02 并行会话 f5c01ad 把它修掉**（内层 match 换 `?`，语义逐字等价）；我的双工具链 clippy 绿＝**修后复核**，与他们的 `-D warnings EXIT=0` 互为印证，而不是「病不存在」的证据。⇒ ⇒ **教训入库：「复测绿」有两种截然不同的解释——病不存在 vs 病刚被别人治好；归因必须钉测量与提交的时间线**（git show <commit>:<file> 看历史原貌，不是只看今天的工作树）。差点把并行会话的收口刀功误判成账本误报。
+
+② **✅ 存量池地图（在飞树口径，落定后需重测）** —— clippy warnings：telencephalon **81**／neuron **60**（默认工具链 62，±2＝工具链噪声）／diencephalon **8**／hippocampus-server 5／storage 4／core 3；fmt：**1899 处 diff、427 个文件**，按仓分布 prefrontal 75／diencephalon 12／neuron 37／synapse 169／telencephalon 126／ziti-rust 8，而 **encephalon 本体 crate 两项全干净**（clippy 零警告＋`fmt -p encephalon` exit 0）。⇒ 真正的债全在兄弟成员仓；telencephalon 的数字含未落定的在飞代码，只作规模参考。
+
+③ **⚠️ CI 口径情报（查证 ci.yml）** —— lint-clippy＝`dtolnay/rust-toolchain@stable`＋`cargo clippy --all-targets --no-deps -- -D warnings` ⇒ **--no-deps 让路径依赖仓的 warnings 池不挡 encephalon CI**；「ziti-rust／encephalon CI 计费门外红」恢复后，encephalon 自身按今天读数 clippy/fmt 都该是绿的（前提 fmt 闸只测本 crate）；telencephalon 若有同口径闸则 81 条会红，归其账本。
+
+④ **⚠️ 欠项清单更新** —— ① ziti.rs:184（㎺ 条⑤①）**已由并行会话 f5c01ad 收口**（本刀双工具链绿＝修后复核，非修码方）；② encephalon workspace fmt（㎺ 条⑤②）**实钉**：真债（㎽ 条②归因一致）、本体干净、1899 处全在兄弟成员仓，修法＝各仓独立 fmt 小刀；③ 401 施工图（㌱ 条④）今日复查 telencephalon 仍 5 M 占用（Cargo.lock／lobe_runtime／api/mod／providers／state），继续等；④ Mimosa 项目安全性（㎻ 条⑥同型的无读数项）已由 ㎽ 条③拿到完整读数（135 条归类、真源码零漏洞）；⑤ 其余承 ㎻ 条⑥（真机读数／沙盒拍板／外观族 3 键）。
+
+⑤ **⚠️ 圈码**：本条占 **U+33BE（㎾）** —— 插入前 fetch 远端＋重扫本地（两态各 **113 条**、distinct 113、dups=0、max U+33BD＝并行会话 ㎽ 条——**测量间隙账本被推进两条、计划码位被占即顺延**；同一天连遇两次并行窗口：码位被占＋病灶被修，插前实测与时间线钉桩都不是仪式）⇒ U+33BE 空闲 ✔ ⇒ 取 U+33BE，插入后复跑码位闸＋行首锚计数（113+1=114）双钉住。
+
 **Updated**: 2026-11-08 (㎽ **「欠项清扫三连 —— ziti.rs clippy 存量收口；fmt 债归因坐实真债非工具链；Mimosa 深度审计首次拿到完整读数（135 条全归类：132 条构建产物＋3 条真源码人判零漏洞）」** —— 承 ㎺ 条⑤欠项清单，本条记**ziti 收口**、**fmt 归因实验**、**审计读数与人判**，以及**仍欠着的**。)
 
 > 信封：epoch=2026-11-08 | authority=measured | scope=project | source=真机实测（encephalon `f5c01ad` 已推：cargo +1.99.0 clippy --all-targets --no-deps -- -D warnings **EXIT=0 零 error**＋rustfmt 本文件 EXIT=0＋lib 测试 **57/0**；fmt 归因＝prefrontal/benches/load_test.rs 在 **1.96 与 1.99 两把 rustfmt 下都红** ⇒ 真债；Mimosa scan-…d8fc9d1cae4b＝seal sha256:ec7ffa78…，551 文件解析零失败、findingCount **135**、runStatus **inconclusive**、verdictEffect none；插入前 fetch 远端 c2c9eb2 对齐＋重扫本地 112 条 max U+33BC）| status=active | supersedes=none
