@@ -108,7 +108,7 @@ void main() {
       expect(find.text('Local Models'), findsNothing);
     });
 
-    testWidgets('状态条显示的是嵌入式大脑，不是本地引擎', (
+    testWidgets('状态条显示的是大脑运行时，不是本地引擎', (
       WidgetTester tester,
     ) async {
       await pumpModels(tester);
@@ -117,8 +117,10 @@ void main() {
       // ⇒ 永远显示「引擎未运行」。
       expect(find.text('Engine not running'), findsNothing);
       expect(find.text('Engine running'), findsNothing);
-      // 现在显示嵌入式大脑（native 那边报的是 running）。
-      expect(find.text('Embedded Brain'), findsOneWidget);
+      // 现在显示大脑运行时（native 那边报的是 running）。
+      // ⚠️ 2026-11-07 刀三：入口文案「嵌入式大脑」改名「大脑运行时」，
+      // 状态条跟着键走 ⇒ 断言钉新值。
+      expect(find.text('Brain Runtime'), findsOneWidget);
       expect(find.text('Running'), findsOneWidget);
     });
 

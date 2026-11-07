@@ -22,9 +22,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get startConversation => 'Start a conversation';
 
   @override
-  String get addLocalModelComingSoon => 'Add local model dialog coming soon';
-
-  @override
   String get askSomething => 'Ask something...';
 
   @override
@@ -46,34 +43,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get accessibilityOff => 'Disabled. Tap to open settings.';
 
   @override
-  String get addModel => 'Add Model';
-
-  @override
-  String get addLocalModel => 'Add Local Model';
-
-  @override
-  String get addCloudModel => 'Add Cloud Model';
-
-  @override
   String get searchModels => 'Search models...';
 
   @override
   String get filterAll => 'All';
-
-  @override
-  String get filterText => 'Text';
-
-  @override
-  String get filterVision => 'Vision';
-
-  @override
-  String get filterAudio => 'Audio';
-
-  @override
-  String get filterLocal => 'Local';
-
-  @override
-  String get filterCloud => 'Cloud';
 
   @override
   String get local => 'Local';
@@ -85,30 +58,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get loaded => 'Loaded';
 
   @override
-  String get notLoaded => 'Not loaded';
-
-  @override
   String get modelSettings => 'Model Settings';
-
-  @override
-  String threadCount(int n) {
-    return 'Thread Count: $n';
-  }
-
-  @override
-  String get backendType => 'Backend Type';
-
-  @override
-  String get cpu => 'CPU';
-
-  @override
-  String get opencl => 'OpenCL';
-
-  @override
-  String get metal => 'Metal';
-
-  @override
-  String get modelPath => 'Model Path';
 
   @override
   String get cancel => 'Cancel';
@@ -118,9 +68,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get noModels => 'No Models';
-
-  @override
-  String get addModelToGetStarted => 'Add a model to get started';
 
   @override
   String get cloudModel => 'Cloud Model';
@@ -135,19 +82,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get apiKey => 'API Key';
 
   @override
-  String get notSet => 'Not set';
-
-  @override
-  String get configureCloudModel => 'Configure Cloud Model';
-
-  @override
-  String get apiEndpoint => 'API Endpoint';
-
-  @override
   String get save => 'Save';
-
-  @override
-  String get cloudModelSettings => 'Cloud Model Settings';
 
   @override
   String get provider => 'Provider';
@@ -158,23 +93,10 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get desktopUnsupportedMessage =>
-      'MNN engine is only available on Android.\nThis is a desktop build - local LLM features are disabled.\nYou can still use cloud models.';
-
-  @override
   String get mobileNetworkDetected => 'Mobile Network Detected';
 
   @override
-  String downloadOnMobile(String modelSize) {
-    return 'You are on mobile data. The model ($modelSize) will be downloaded. Do you want to download now or wait for WiFi?';
-  }
-
-  @override
   String get waitForWifi => 'Wait for WiFi';
-
-  @override
-  String get waitingForWifiHint =>
-      'Waiting for WiFi — the model will download automatically once connected.';
 
   @override
   String get downloadNow => 'Download Now';
@@ -187,9 +109,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get file => 'File';
-
-  @override
-  String get textMode => 'Message Mode';
 
   @override
   String get voiceMode => 'Conversation Mode';
@@ -225,16 +144,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get recording => 'Recording...';
 
   @override
-  String get downloadComplete => 'Download complete!';
-
-  @override
-  String get downloadFailed => 'Download failed';
-
-  @override
   String get retry => 'Retry';
-
-  @override
-  String get startChatting => 'Start Chatting';
 
   @override
   String get manage => 'Manage';
@@ -261,18 +171,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get tasks => 'Tasks';
 
   @override
-  String get localModels => 'Local Models';
-
-  @override
-  String get modelStore => 'Model Store';
-
-  @override
-  String get noModelsAvailable => 'No models available';
-
-  @override
-  String get serviceStatus => 'Service Status';
-
-  @override
   String get healthy => 'Healthy';
 
   @override
@@ -288,42 +186,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get unknown => 'Unknown';
 
   @override
-  String get modelStoreUrlUpdated => 'Model store URL updated';
-
-  @override
-  String get modelStoreServer => 'Model Store Server';
-
-  @override
   String get custom => 'Custom';
-
-  @override
-  String get defaultOption => 'Default';
-
-  @override
-  String get liteRT => 'LiteRT';
 
   @override
   String get agent2UI => 'Agent2UI';
 
   @override
-  String voiceInputPlaceholder(int count) {
-    return '[Voice input: $count samples]';
-  }
-
-  @override
-  String get audioProcessingNotImplemented =>
-      '[This is a placeholder response. Audio processing not yet implemented.]';
-
-  @override
   String get removeAttachment => 'Remove attachment';
-
-  @override
-  String get webviewSkillNotImplemented =>
-      '[Webview skill execution not yet implemented]';
-
-  @override
-  String get nativeSkillNotImplemented =>
-      '[Native skill execution not yet implemented]';
 
   @override
   String get dimensionUser => 'User';
@@ -333,9 +202,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get dimensionSession => 'Session';
-
-  @override
-  String get dimensionResources => 'Resources';
 
   @override
   String score(String value) {
@@ -362,9 +228,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get howAudioWorks => 'How does audio input work?';
-
-  @override
-  String get ttsSettings => 'TTS Voice Synthesis';
 
   @override
   String get ttsEngine => 'Voice Engine';
@@ -470,15 +333,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get audioOutput => 'Audio Output';
 
   @override
-  String get routePhoneSpeaker => 'Phone Speaker';
-
-  @override
-  String get routeBluetoothHeadset => 'Bluetooth';
-
-  @override
-  String get routeShadowEsp32 => 'shadow-esp32';
-
-  @override
   String get shadowEsp32ReceivesAudio => 'shadow-esp32 is receiving audio';
 
   @override
@@ -504,14 +358,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get stopTts => 'Stop';
 
   @override
-  String routeSelected(String device) {
-    return 'Output: $device';
-  }
-
-  @override
-  String get digitalHumanTtsNow => 'Live Stream Mode';
-
-  @override
   String get shadowEsp32PlayingFromUsbAudio =>
       'shadow-esp32 connected via USB Audio';
 
@@ -519,37 +365,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get customerServiceMode => 'Customer Service';
 
   @override
-  String get callState => 'Call State';
-
-  @override
-  String get callStateIdle => 'Idle';
-
-  @override
-  String get callStateRinging => 'Ringing';
-
-  @override
-  String get callStateActive => 'Active';
-
-  @override
-  String get callStateEnded => 'Ended';
-
-  @override
-  String get earphoneTakeoverActive =>
-      'Wired earphone detected — audio routed to earphone for human takeover.';
-
-  @override
-  String get earphoneTakeoverAudioRouteNote =>
-      'When earphone is connected, call audio automatically routes to earphone. Plug it back out to route to shadow-esp32.';
-
-  @override
   String get aiAutoAnswer => 'AI Auto-Answer';
-
-  @override
-  String get aiAutoAnswerDesc =>
-      'Automatically answer incoming calls and respond with AI (telencephalon / LiteRT).';
-
-  @override
-  String get endCall => 'End Call';
 
   @override
   String get openLiveStreamMode => 'Live Stream';
@@ -563,21 +379,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get visualQaPickCamera => 'Pick a camera';
-
-  @override
-  String visualQaPicked(Object label) {
-    return 'Picked $label';
-  }
-
-  @override
-  String get modelBindingPromptTitle => 'Bind a model to continue';
-
-  @override
-  String get modelBindingPromptGoSettings =>
-      'Go to settings and bind a model first';
-
-  @override
-  String get modelBindingPromptLater => 'Later';
 
   @override
   String get conversationNewSession => 'New Session';
@@ -594,12 +395,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get conversationNewChat => 'New Chat';
-
-  @override
-  String get conversationTitleField => 'Chat title';
-
-  @override
-  String get conversationCreate => 'Create';
 
   @override
   String get conversationArchive => 'Archive';
@@ -674,24 +469,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get commonClearFilters => 'Clear filters';
 
   @override
-  String get navChat => 'Chat';
-
-  @override
-  String get navLive => 'Live';
-
-  @override
-  String get navService => 'Service';
-
-  @override
-  String get navTasks => 'Tasks';
-
-  @override
-  String get navManage => 'Manage';
-
-  @override
-  String get navSettings => 'Settings';
-
-  @override
   String get logsTelencephalonStarted => 'Telencephalon service started';
 
   @override
@@ -753,68 +530,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get memoryEmpty => 'No memories yet';
 
   @override
-  String get modelEngineRunning => 'Engine running';
-
-  @override
-  String get modelEngineStopped => 'Engine not running';
-
-  @override
-  String get modelEmpty => 'No models';
-
-  @override
-  String get modelEmptyHint => 'Tap the button below to add a model';
-
-  @override
-  String get modelTypeLabel => 'Type:';
-
-  @override
   String get commonAll => 'All';
-
-  @override
-  String get modelLiteRtEngine => 'LiteRT engine';
-
-  @override
-  String get modelInternalService => 'Internal service (Rust)';
-
-  @override
-  String get modelCloudProvider => 'Cloud provider';
-
-  @override
-  String get modelNoCloudModels => 'No cloud models';
-
-  @override
-  String get modelNoCloudModelsHint =>
-      'Tap the button below to add a cloud model';
-
-  @override
-  String get modelAddLocalTitle => 'Add Local Model';
-
-  @override
-  String get modelNameField => 'Model name';
-
-  @override
-  String get modelPathField => 'Model path';
-
-  @override
-  String get modelSizeField => 'Size (MB)';
-
-  @override
-  String get modelAddCloudTitle => 'Add Cloud Model';
-
-  @override
-  String get commonApiKeyOptional => 'API key (optional)';
-
-  @override
-  String get modelNameOptional => 'Model name (optional)';
-
-  @override
-  String get modelSettingsTitle => 'Model Settings';
-
-  @override
-  String get modelSettingsEngine => 'Inference engine';
-
-  @override
-  String get modelSettingsSelectModel => 'Select model';
 
   @override
   String get promptSaved => 'Prompt saved';
@@ -836,15 +552,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get promptRestoreDefault => 'Restore default';
-
-  @override
-  String get providerQwen => 'Qwen';
-
-  @override
-  String get providerZhipu => 'Zhipu AI';
-
-  @override
-  String get providerLocalModel => 'Local model';
 
   @override
   String get providerBuiltin => 'Built-in';
@@ -913,9 +620,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get commonApiAddress => 'API address';
-
-  @override
-  String get commonModel => 'Model';
 
   @override
   String get providersApiKeyRequired => 'Please enter an API key';
@@ -998,9 +702,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsResonanceDesc => 'Manage Resonance service instances';
-
-  @override
-  String get settingsRefreshStatus => 'Refresh status';
 
   @override
   String get skillsTitle => 'Skills';
@@ -1118,9 +819,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get taskStatus => 'Status';
 
   @override
-  String get taskTagsField => 'Tags (comma separated)';
-
-  @override
   String get taskEditPersistenceNote =>
       'Telencephalon task: the status can be changed at any time; the title, description, priority and tags are only written when the task is created.';
 
@@ -1171,15 +869,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get taskTags => 'Tags';
 
   @override
-  String get taskNoSubtasks => 'This task has no subtasks';
-
-  @override
-  String get taskSubtaskProgress => 'Subtask progress';
-
-  @override
-  String get logsTab => 'Logs';
-
-  @override
   String get logsClient => 'Client';
 
   @override
@@ -1193,9 +882,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get logsExport => 'Export logs';
-
-  @override
-  String get logsPanelClearAll => 'Clear all';
 
   @override
   String get soulPriorityNote => 'System Prompt takes highest priority.';
@@ -1256,36 +942,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get settingsEncephalonEmbedded => 'Embedded Brain';
+  String get settingsEncephalonEmbedded => 'Brain Runtime';
 
   @override
   String get settingsEncephalonEmbeddedDesc =>
-      'Manage the Encephalon brain runtime embedded in this app (inference + telencephalon agent surface)';
-
-  @override
-  String taskSubtasks(int count) {
-    return 'Subtasks ($count)';
-  }
-
-  @override
-  String taskStepStarted(String time) {
-    return 'Started: $time';
-  }
-
-  @override
-  String taskStepCompleted(String time) {
-    return 'Completed: $time';
-  }
-
-  @override
-  String taskStepDuration(int seconds) {
-    return 'Duration: ${seconds}s';
-  }
-
-  @override
-  String taskStepProgress(int completed, int total) {
-    return '$completed/$total steps';
-  }
+      'Brain runtime status, start/stop, and the in-process inference probe (model choice lives on the capability tab: the default-model card and the agents page)';
 
   @override
   String get soulDescHintExample =>
@@ -1332,9 +993,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get modelNameExample => 'e.g. Qwen2.5-7B';
-
-  @override
   String get cameraOff => 'Camera off';
 
   @override
@@ -1357,10 +1015,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Only plain text is supported right now - images, files and other attachments are not supported yet';
 
   @override
-  String get chatVoiceModelRequired =>
-      'Voice features need a model to be loaded first';
-
-  @override
   String chatSorryError(String error) {
     return 'Sorry, something went wrong: $error';
   }
@@ -1369,124 +1023,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatSorryErrorShort => 'Sorry, something went wrong';
 
   @override
-  String get modelPlaceholderNoLocal => 'No local model yet';
-
-  @override
   String get deviceThisMachine => 'This device';
-
-  @override
-  String get actionFlashlightOn => 'Turn on flashlight';
-
-  @override
-  String get actionFlashlightOff => 'Turn off flashlight';
-
-  @override
-  String actionCreateContact(String name) {
-    return 'Create contact: $name';
-  }
-
-  @override
-  String actionSendEmail(String to) {
-    return 'Send email to: $to';
-  }
-
-  @override
-  String actionShowLocation(String query) {
-    return 'Show location: $query';
-  }
-
-  @override
-  String get actionOpenWifi => 'Open WiFi settings';
-
-  @override
-  String actionCreateCalendar(String title) {
-    return 'Create calendar event: $title';
-  }
-
-  @override
-  String get actionFlashlightOnDone => 'Flashlight is on';
-
-  @override
-  String actionFlashlightOnFailed(String error) {
-    return 'Failed to turn on the flashlight: $error';
-  }
-
-  @override
-  String get actionFlashlightOffDone => 'Flashlight is off';
-
-  @override
-  String actionFlashlightOffFailed(String error) {
-    return 'Failed to turn off the flashlight: $error';
-  }
-
-  @override
-  String actionCreatingContact(String name) {
-    return 'Creating contact: $name';
-  }
-
-  @override
-  String get actionNoContactsApp => 'Cannot open the contacts app';
-
-  @override
-  String actionContactFailed(String error) {
-    return 'Failed to create the contact: $error';
-  }
-
-  @override
-  String actionEmailOpened(String to) {
-    return 'Email app opened, recipient: $to';
-  }
-
-  @override
-  String get actionNoEmailApp => 'Cannot open the email app';
-
-  @override
-  String actionEmailFailed(String error) {
-    return 'Failed to send the email: $error';
-  }
-
-  @override
-  String actionShowingLocation(String query) {
-    return 'Showing location: $query';
-  }
-
-  @override
-  String get actionNoMapsApp => 'Cannot open the maps app';
-
-  @override
-  String actionLocationFailed(String error) {
-    return 'Failed to show the location: $error';
-  }
-
-  @override
-  String get actionWifiOpened => 'WiFi settings opened';
-
-  @override
-  String actionWifiFailed(String error) {
-    return 'Failed to open the WiFi settings: $error';
-  }
-
-  @override
-  String actionCalendarCreated(String title) {
-    return 'Calendar event created: $title';
-  }
-
-  @override
-  String get actionNoCalendarApp => 'Cannot open the calendar app';
-
-  @override
-  String actionCalendarFailed(String error) {
-    return 'Failed to create the calendar event: $error';
-  }
 
   @override
   String get encephalonStartFailed => 'Failed to start the embedded brain';
 
   @override
-  String get encephalonNotRunning => 'The embedded brain is not running';
-
-  @override
-  String get encephalonEmbeddedTitle => 'Embedded Brain Runtime (NDK)';
+  String get encephalonEmbeddedTitle => 'Brain Runtime';
 
   @override
   String get encephalonEmbeddedRuntime => 'Embedded brain runtime';
@@ -1544,9 +1087,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get encephalonModelLocalNeuron => 'Local neuron weights';
 
   @override
-  String get encephalonModelCloud => 'Cloud provider';
-
-  @override
   String get encephalonModelNoCloudProvider =>
       'No cloud provider configured yet - add one in Model management first.';
 
@@ -1562,17 +1102,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get encephalonLobeRoutingTitle => 'Lobe model routing';
-
-  @override
-  String get encephalonLobeRoutingHint =>
-      'A lobe is the smallest unit that picks a model. By default every lobe follows the global source above; you can override a single lobe - e.g. prefrontal on local weights, the region that actually runs tasks on the cloud.';
-
-  @override
-  String get encephalonLobeRoutingUnavailable =>
-      'Could not read the lobe list from the telencephalon - the brain may not be running.';
-
-  @override
-  String get encephalonLobeRoutingRefresh => 'Refresh lobes';
 
   @override
   String get encephalonLobeFollowGlobal => 'Follow global';

@@ -22,9 +22,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get startConversation => '开始对话';
 
   @override
-  String get addLocalModelComingSoon => '添加本地模型对话框即将推出';
-
-  @override
   String get askSomething => '输入内容…';
 
   @override
@@ -46,34 +43,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get accessibilityOff => '未开启，点击进入设置';
 
   @override
-  String get addModel => '添加模型';
-
-  @override
-  String get addLocalModel => '添加本地模型';
-
-  @override
-  String get addCloudModel => '添加云端模型';
-
-  @override
   String get searchModels => '搜索模型…';
 
   @override
   String get filterAll => '全部';
-
-  @override
-  String get filterText => '文本';
-
-  @override
-  String get filterVision => '视觉';
-
-  @override
-  String get filterAudio => '音频';
-
-  @override
-  String get filterLocal => '本地';
-
-  @override
-  String get filterCloud => '云端';
 
   @override
   String get local => '本地';
@@ -85,30 +58,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get loaded => '已加载';
 
   @override
-  String get notLoaded => '未加载';
-
-  @override
   String get modelSettings => '模型设置';
-
-  @override
-  String threadCount(int n) {
-    return '线程数：$n';
-  }
-
-  @override
-  String get backendType => '后端类型';
-
-  @override
-  String get cpu => 'CPU';
-
-  @override
-  String get opencl => 'OpenCL';
-
-  @override
-  String get metal => 'Metal';
-
-  @override
-  String get modelPath => '模型路径';
 
   @override
   String get cancel => '取消';
@@ -118,9 +68,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get noModels => '暂无模型';
-
-  @override
-  String get addModelToGetStarted => '添加模型以开始使用';
 
   @override
   String get cloudModel => '云端模型';
@@ -135,19 +82,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get apiKey => 'API 密钥';
 
   @override
-  String get notSet => '未设置';
-
-  @override
-  String get configureCloudModel => '配置云端模型';
-
-  @override
-  String get apiEndpoint => 'API 端点';
-
-  @override
   String get save => '保存';
-
-  @override
-  String get cloudModelSettings => '云端模型设置';
 
   @override
   String get provider => '提供商';
@@ -158,22 +93,10 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get desktopUnsupportedMessage =>
-      'MNN 引擎仅在 Android 上可用。\n当前为桌面构建，本地 LLM 功能已禁用。\n您仍可使用云端模型。';
-
-  @override
   String get mobileNetworkDetected => '检测到移动网络';
 
   @override
-  String downloadOnMobile(String modelSize) {
-    return '您正在使用移动数据。模型 ($modelSize) 将被下载。是否立即下载或等待 WiFi？';
-  }
-
-  @override
   String get waitForWifi => '等待 WiFi';
-
-  @override
-  String get waitingForWifiHint => '已选择等待 WiFi，连上后会自动开始下载。';
 
   @override
   String get downloadNow => '立即下载';
@@ -186,9 +109,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get file => '文件';
-
-  @override
-  String get textMode => '消息模式';
 
   @override
   String get voiceMode => '对话模式';
@@ -224,16 +144,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get recording => '录音中...';
 
   @override
-  String get downloadComplete => '下载完成！';
-
-  @override
-  String get downloadFailed => '下载失败';
-
-  @override
   String get retry => '重试';
-
-  @override
-  String get startChatting => '开始对话';
 
   @override
   String get manage => '管理';
@@ -260,18 +171,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get tasks => '任务';
 
   @override
-  String get localModels => '本地模型';
-
-  @override
-  String get modelStore => '模型商店';
-
-  @override
-  String get noModelsAvailable => '暂无可用模型';
-
-  @override
-  String get serviceStatus => '服务状态';
-
-  @override
   String get healthy => '正常';
 
   @override
@@ -287,39 +186,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get unknown => '未知';
 
   @override
-  String get modelStoreUrlUpdated => '模型商店地址已更新';
-
-  @override
-  String get modelStoreServer => '模型商店服务器';
-
-  @override
   String get custom => '自定义';
-
-  @override
-  String get defaultOption => '默认';
-
-  @override
-  String get liteRT => 'LiteRT';
 
   @override
   String get agent2UI => 'Agent2UI';
 
   @override
-  String voiceInputPlaceholder(int count) {
-    return '[语音输入：$count 采样]';
-  }
-
-  @override
-  String get audioProcessingNotImplemented => '[这是一个占位响应。音频处理尚未实现。]';
-
-  @override
   String get removeAttachment => '移除附件';
-
-  @override
-  String get webviewSkillNotImplemented => '[Webview 技能执行尚未实现]';
-
-  @override
-  String get nativeSkillNotImplemented => '[原生技能执行尚未实现]';
 
   @override
   String get dimensionUser => '用户';
@@ -329,9 +202,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get dimensionSession => '会话';
-
-  @override
-  String get dimensionResources => '资源';
 
   @override
   String score(String value) {
@@ -358,9 +228,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get howAudioWorks => '音频输入是如何工作的？';
-
-  @override
-  String get ttsSettings => 'TTS 语音合成';
 
   @override
   String get ttsEngine => '语音引擎';
@@ -465,15 +332,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get audioOutput => '音频输出';
 
   @override
-  String get routePhoneSpeaker => '手机扬声器';
-
-  @override
-  String get routeBluetoothHeadset => '蓝牙';
-
-  @override
-  String get routeShadowEsp32 => 'shadow-esp32';
-
-  @override
   String get shadowEsp32ReceivesAudio => 'shadow-esp32 正在接收音频';
 
   @override
@@ -498,49 +356,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get stopTts => '停止';
 
   @override
-  String routeSelected(String device) {
-    return '输出: $device';
-  }
-
-  @override
-  String get digitalHumanTtsNow => '直播模式';
-
-  @override
   String get shadowEsp32PlayingFromUsbAudio => 'shadow-esp32 已通过 USB Audio 连接';
 
   @override
   String get customerServiceMode => '智能客服';
 
   @override
-  String get callState => '通话状态';
-
-  @override
-  String get callStateIdle => '待机';
-
-  @override
-  String get callStateRinging => '响铃';
-
-  @override
-  String get callStateActive => '通话中';
-
-  @override
-  String get callStateEnded => '已结束';
-
-  @override
-  String get earphoneTakeoverActive => '检测到有线耳机 — 音频已切到耳机，便于人接管。';
-
-  @override
-  String get earphoneTakeoverAudioRouteNote =>
-      '耳机插入时，通话音频自动切到耳机；拔出后自动切回 shadow-esp32。';
-
-  @override
   String get aiAutoAnswer => 'AI 自动应答';
-
-  @override
-  String get aiAutoAnswerDesc => '自动接听来电并用 LLM 自动回复（端脑 / LiteRT）。';
-
-  @override
-  String get endCall => '挂断';
 
   @override
   String get openLiveStreamMode => '直播模式';
@@ -556,20 +378,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get visualQaPickCamera => '请选择摄像头';
 
   @override
-  String visualQaPicked(Object label) {
-    return '已选择 $label';
-  }
-
-  @override
-  String get modelBindingPromptTitle => '先绑定模型再继续';
-
-  @override
-  String get modelBindingPromptGoSettings => '请先到设置页绑定模型';
-
-  @override
-  String get modelBindingPromptLater => '稍后';
-
-  @override
   String get conversationNewSession => '新会话';
 
   @override
@@ -583,12 +391,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get conversationNewChat => '新对话';
-
-  @override
-  String get conversationTitleField => '对话标题';
-
-  @override
-  String get conversationCreate => '创建';
 
   @override
   String get conversationArchive => '归档';
@@ -662,24 +464,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get commonClearFilters => '清除筛选';
 
   @override
-  String get navChat => '对话';
-
-  @override
-  String get navLive => '直播';
-
-  @override
-  String get navService => '客服';
-
-  @override
-  String get navTasks => '任务';
-
-  @override
-  String get navManage => '管理';
-
-  @override
-  String get navSettings => '设置';
-
-  @override
   String get logsTelencephalonStarted => '端脑服务启动成功';
 
   @override
@@ -740,67 +524,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get memoryEmpty => '暂无记忆';
 
   @override
-  String get modelEngineRunning => '引擎运行中';
-
-  @override
-  String get modelEngineStopped => '引擎未运行';
-
-  @override
-  String get modelEmpty => '暂无模型';
-
-  @override
-  String get modelEmptyHint => '点击右下角添加模型';
-
-  @override
-  String get modelTypeLabel => '类型:';
-
-  @override
   String get commonAll => '全部';
-
-  @override
-  String get modelLiteRtEngine => 'LiteRT 引擎';
-
-  @override
-  String get modelInternalService => '内部服务 (Rust)';
-
-  @override
-  String get modelCloudProvider => '云端供应商';
-
-  @override
-  String get modelNoCloudModels => '暂无云端模型';
-
-  @override
-  String get modelNoCloudModelsHint => '点击右下角添加云端模型';
-
-  @override
-  String get modelAddLocalTitle => '添加本地模型';
-
-  @override
-  String get modelNameField => '模型名称';
-
-  @override
-  String get modelPathField => '模型路径';
-
-  @override
-  String get modelSizeField => '大小 (MB)';
-
-  @override
-  String get modelAddCloudTitle => '添加云端模型';
-
-  @override
-  String get commonApiKeyOptional => 'API Key (可选)';
-
-  @override
-  String get modelNameOptional => '模型名称 (可选)';
-
-  @override
-  String get modelSettingsTitle => '模型设置';
-
-  @override
-  String get modelSettingsEngine => '推理引擎';
-
-  @override
-  String get modelSettingsSelectModel => '选择模型';
 
   @override
   String get promptSaved => '提示词已保存';
@@ -822,15 +546,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get promptRestoreDefault => '恢复默认';
-
-  @override
-  String get providerQwen => '通义千问';
-
-  @override
-  String get providerZhipu => '智谱AI';
-
-  @override
-  String get providerLocalModel => '本地模型';
 
   @override
   String get providerBuiltin => '内置';
@@ -897,9 +612,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get commonApiAddress => 'API 地址';
-
-  @override
-  String get commonModel => '模型';
 
   @override
   String get providersApiKeyRequired => '请输入 API Key';
@@ -981,9 +693,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get settingsResonanceDesc => '管理Resonance服务实例';
-
-  @override
-  String get settingsRefreshStatus => '刷新状态';
 
   @override
   String get skillsTitle => '技能管理';
@@ -1100,9 +809,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get taskStatus => '状态';
 
   @override
-  String get taskTagsField => '标签 (逗号分隔)';
-
-  @override
   String get taskEditPersistenceNote => '端脑任务：状态随时可改；标题、描述、优先级与标签只在创建时写入。';
 
   @override
@@ -1151,15 +857,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get taskTags => '标签';
 
   @override
-  String get taskNoSubtasks => '此任务暂无子任务';
-
-  @override
-  String get taskSubtaskProgress => '子任务进度';
-
-  @override
-  String get logsTab => '日志';
-
-  @override
   String get logsClient => '客户端';
 
   @override
@@ -1173,9 +870,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get logsExport => '导出日志';
-
-  @override
-  String get logsPanelClearAll => '清空日志';
 
   @override
   String get soulPriorityNote => 'System Prompt 优先级最高。';
@@ -1236,36 +930,11 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get settingsEncephalonEmbedded => '嵌入式大脑';
+  String get settingsEncephalonEmbedded => '大脑运行时';
 
   @override
   String get settingsEncephalonEmbeddedDesc =>
-      '管理嵌入在本 App 里的 Encephalon 大脑运行时（推理 + 端脑面）';
-
-  @override
-  String taskSubtasks(int count) {
-    return '子任务 ($count)';
-  }
-
-  @override
-  String taskStepStarted(String time) {
-    return '开始: $time';
-  }
-
-  @override
-  String taskStepCompleted(String time) {
-    return '完成: $time';
-  }
-
-  @override
-  String taskStepDuration(int seconds) {
-    return '耗时: ${seconds}s';
-  }
-
-  @override
-  String taskStepProgress(int completed, int total) {
-    return '$completed/$total 步';
-  }
+      '大脑运行状态、启停与进程内推理探针（模型选择在能力 tab：默认模型首卡与叶区 Agents 页）';
 
   @override
   String get soulDescHintExample => '例如：\n- 语气友好、简洁\n- 称呼用户为“你”\n- 主动提供有用的建议';
@@ -1311,9 +980,6 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get modelNameExample => '例如: Qwen2.5-7B';
-
-  @override
   String get cameraOff => '摄像头关闭';
 
   @override
@@ -1335,9 +1001,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chatAttachmentNotAvailable => '端脑链路当前只处理纯文本，图片、文件等附件暂不支持';
 
   @override
-  String get chatVoiceModelRequired => '语音功能需要先加载模型';
-
-  @override
   String chatSorryError(String error) {
     return '抱歉，发生了错误: $error';
   }
@@ -1346,124 +1009,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chatSorryErrorShort => '抱歉，发生了错误';
 
   @override
-  String get modelPlaceholderNoLocal => '暂无本地模型';
-
-  @override
   String get deviceThisMachine => '本机';
-
-  @override
-  String get actionFlashlightOn => '开启闪光灯';
-
-  @override
-  String get actionFlashlightOff => '关闭闪光灯';
-
-  @override
-  String actionCreateContact(String name) {
-    return '创建联系人: $name';
-  }
-
-  @override
-  String actionSendEmail(String to) {
-    return '发送邮件到: $to';
-  }
-
-  @override
-  String actionShowLocation(String query) {
-    return '显示位置: $query';
-  }
-
-  @override
-  String get actionOpenWifi => '打开WiFi设置';
-
-  @override
-  String actionCreateCalendar(String title) {
-    return '创建日历事件: $title';
-  }
-
-  @override
-  String get actionFlashlightOnDone => '闪光灯已开启';
-
-  @override
-  String actionFlashlightOnFailed(String error) {
-    return '闪光灯开启失败: $error';
-  }
-
-  @override
-  String get actionFlashlightOffDone => '闪光灯已关闭';
-
-  @override
-  String actionFlashlightOffFailed(String error) {
-    return '闪光灯关闭失败: $error';
-  }
-
-  @override
-  String actionCreatingContact(String name) {
-    return '正在创建联系人: $name';
-  }
-
-  @override
-  String get actionNoContactsApp => '无法打开联系人应用';
-
-  @override
-  String actionContactFailed(String error) {
-    return '联系人创建失败: $error';
-  }
-
-  @override
-  String actionEmailOpened(String to) {
-    return '邮件客户端已打开，收件人: $to';
-  }
-
-  @override
-  String get actionNoEmailApp => '无法打开邮件客户端';
-
-  @override
-  String actionEmailFailed(String error) {
-    return '邮件发送失败: $error';
-  }
-
-  @override
-  String actionShowingLocation(String query) {
-    return '正在显示位置: $query';
-  }
-
-  @override
-  String get actionNoMapsApp => '无法打开地图应用';
-
-  @override
-  String actionLocationFailed(String error) {
-    return '位置显示失败: $error';
-  }
-
-  @override
-  String get actionWifiOpened => 'WiFi设置已打开';
-
-  @override
-  String actionWifiFailed(String error) {
-    return 'WiFi设置打开失败: $error';
-  }
-
-  @override
-  String actionCalendarCreated(String title) {
-    return '日历事件已创建: $title';
-  }
-
-  @override
-  String get actionNoCalendarApp => '无法打开日历应用';
-
-  @override
-  String actionCalendarFailed(String error) {
-    return '日历事件创建失败: $error';
-  }
 
   @override
   String get encephalonStartFailed => '嵌入式大脑启动失败';
 
   @override
-  String get encephalonNotRunning => '嵌入式大脑未运行';
-
-  @override
-  String get encephalonEmbeddedTitle => '嵌入式大脑运行时（NDK）';
+  String get encephalonEmbeddedTitle => '大脑运行时';
 
   @override
   String get encephalonEmbeddedRuntime => '嵌入式大脑运行时';
@@ -1521,9 +1073,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get encephalonModelLocalNeuron => '本地 neuron 权重';
 
   @override
-  String get encephalonModelCloud => '云端供应商';
-
-  @override
   String get encephalonModelNoCloudProvider => '还没有配置云端供应商 —— 先去「模型管理」加一个。';
 
   @override
@@ -1537,16 +1086,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get encephalonLobeRoutingTitle => '叶区模型路由';
-
-  @override
-  String get encephalonLobeRoutingHint =>
-      '模型使用的最小单位是叶区。默认各叶区跟随上面的全局来源，可以单独覆盖某一个叶区 —— 比如前额叶用本地、实际执行任务的区域用云端。';
-
-  @override
-  String get encephalonLobeRoutingUnavailable => '读不到端脑的叶区列表 —— 大脑可能没在跑。';
-
-  @override
-  String get encephalonLobeRoutingRefresh => '刷新叶区';
 
   @override
   String get encephalonLobeFollowGlobal => '跟随全局';

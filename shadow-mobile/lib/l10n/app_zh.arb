@@ -4,7 +4,6 @@
   "models": "模型",
   "settings": "设置",
   "startConversation": "开始对话",
-  "addLocalModelComingSoon": "添加本地模型对话框即将推出",
   "askSomething": "输入内容…",
   "initializing": "初始化中…",
   "resetEngine": "重置引擎",
@@ -12,52 +11,28 @@
   "accessibilityControl": "无障碍控制",
   "accessibilityOn": "已开启，可控制设备点击/滑动",
   "accessibilityOff": "未开启，点击进入设置",
-  "addModel": "添加模型",
-  "addLocalModel": "添加本地模型",
-  "addCloudModel": "添加云端模型",
   "searchModels": "搜索模型…",
   "filterAll": "全部",
-  "filterText": "文本",
-  "filterVision": "视觉",
-  "filterAudio": "音频",
-  "filterLocal": "本地",
-  "filterCloud": "云端",
   "local": "本地",
   "cloud": "云端",
   "loaded": "已加载",
-  "notLoaded": "未加载",
   "modelSettings": "模型设置",
-  "threadCount": "线程数：{n}",
-  "backendType": "后端类型",
-  "cpu": "CPU",
-  "opencl": "OpenCL",
-  "metal": "Metal",
-  "modelPath": "模型路径",
   "cancel": "取消",
   "apply": "应用",
   "noModels": "暂无模型",
-  "addModelToGetStarted": "添加模型以开始使用",
   "cloudModel": "云端模型",
   "endpoint": "端点",
   "model": "模型",
   "apiKey": "API 密钥",
-  "notSet": "未设置",
-  "configureCloudModel": "配置云端模型",
-  "apiEndpoint": "API 端点",
   "save": "保存",
-  "cloudModelSettings": "云端模型设置",
   "provider": "提供商",
   "errorGeneric": "错误：{detail}",
-  "desktopUnsupportedMessage": "MNN 引擎仅在 Android 上可用。\n当前为桌面构建，本地 LLM 功能已禁用。\n您仍可使用云端模型。",
   "mobileNetworkDetected": "检测到移动网络",
-  "downloadOnMobile": "您正在使用移动数据。模型 ({modelSize}) 将被下载。是否立即下载或等待 WiFi？",
   "waitForWifi": "等待 WiFi",
-  "waitingForWifiHint": "已选择等待 WiFi，连上后会自动开始下载。",
   "downloadNow": "立即下载",
   "gallery": "相册",
   "camera": "相机",
   "file": "文件",
-  "textMode": "消息模式",
   "voiceMode": "对话模式",
   "agent2uiReady": "Agent2UI 就绪",
   "askMeAnything": "问我任何问题，我会为您生成界面",
@@ -69,10 +44,7 @@
   "disconnect": "断开连接",
   "holdToRecord": "按住录音",
   "recording": "录音中...",
-  "downloadComplete": "下载完成！",
-  "downloadFailed": "下载失败",
   "retry": "重试",
-  "startChatting": "开始对话",
   "manage": "管理",
   "providers": "提供商",
   "skills": "技能",
@@ -81,30 +53,17 @@
   "mcp": "MCP",
   "conversations": "会话",
   "tasks": "任务",
-  "localModels": "本地模型",
-  "modelStore": "模型商店",
-  "noModelsAvailable": "暂无可用模型",
-  "serviceStatus": "服务状态",
   "healthy": "正常",
   "offline": "离线",
   "checking": "检查中...",
   "unhealthy": "异常",
   "unknown": "未知",
-  "modelStoreUrlUpdated": "模型商店地址已更新",
-  "modelStoreServer": "模型商店服务器",
   "custom": "自定义",
-  "defaultOption": "默认",
-  "liteRT": "LiteRT",
   "agent2UI": "Agent2UI",
-  "voiceInputPlaceholder": "[语音输入：{count} 采样]",
-  "audioProcessingNotImplemented": "[这是一个占位响应。音频处理尚未实现。]",
   "removeAttachment": "移除附件",
-  "webviewSkillNotImplemented": "[Webview 技能执行尚未实现]",
-  "nativeSkillNotImplemented": "[原生技能执行尚未实现]",
   "dimensionUser": "用户",
   "dimensionAgent": "代理",
   "dimensionSession": "会话",
-  "dimensionResources": "资源",
   "score": "评分：{value}",
   "toDo": "待办",
   "inProgress": "进行中",
@@ -113,7 +72,6 @@
   "tellMeStory": "给我讲个故事",
   "whatCanYouHelp": "有什么可以帮助你的？",
   "howAudioWorks": "音频输入是如何工作的？",
-  "ttsSettings": "TTS 语音合成",
   "ttsEngine": "语音引擎",
   "ttsEngineAndroid": "Android 内置",
   "ttsEngineExternal": "外部服务",
@@ -182,12 +140,6 @@
   "@liveStreamMode": {},
   "audioOutput": "音频输出",
   "@audioOutput": {},
-  "routePhoneSpeaker": "手机扬声器",
-  "@routePhoneSpeaker": {},
-  "routeBluetoothHeadset": "蓝牙",
-  "@routeBluetoothHeadset": {},
-  "routeShadowEsp32": "shadow-esp32",
-  "@routeShadowEsp32": {},
   "shadowEsp32ReceivesAudio": "shadow-esp32 正在接收音频",
   "@shadowEsp32ReceivesAudio": {},
   "routeViaBluetoothA2dp": "通过蓝牙",
@@ -204,40 +156,12 @@
   "@startTts": {},
   "stopTts": "停止",
   "@stopTts": {},
-  "routeSelected": "输出: {device}",
-  "@routeSelected": {
-    "placeholders": {
-      "device": {
-        "type": "String"
-      }
-    }
-  },
-  "digitalHumanTtsNow": "直播模式",
-  "@digitalHumanTtsNow": {},
   "shadowEsp32PlayingFromUsbAudio": "shadow-esp32 已通过 USB Audio 连接",
   "@shadowEsp32PlayingFromUsbAudio": {},
   "customerServiceMode": "智能客服",
   "@customerServiceMode": {},
-  "callState": "通话状态",
-  "@callState": {},
-  "callStateIdle": "待机",
-  "@callStateIdle": {},
-  "callStateRinging": "响铃",
-  "@callStateRinging": {},
-  "callStateActive": "通话中",
-  "@callStateActive": {},
-  "callStateEnded": "已结束",
-  "@callStateEnded": {},
-  "earphoneTakeoverActive": "检测到有线耳机 — 音频已切到耳机，便于人接管。",
-  "@earphoneTakeoverActive": {},
-  "earphoneTakeoverAudioRouteNote": "耳机插入时，通话音频自动切到耳机；拔出后自动切回 shadow-esp32。",
-  "@earphoneTakeoverAudioRouteNote": {},
   "aiAutoAnswer": "AI 自动应答",
   "@aiAutoAnswer": {},
-  "aiAutoAnswerDesc": "自动接听来电并用 LLM 自动回复（端脑 / LiteRT）。",
-  "@aiAutoAnswerDesc": {},
-  "endCall": "挂断",
-  "@endCall": {},
   "openLiveStreamMode": "直播模式",
   "@openLiveStreamMode": {},
   "openVoiceAssistant": "语音助手",
@@ -246,25 +170,11 @@
   "@customerServiceHint": {},
   "visualQaPickCamera": "请选择摄像头",
   "@visualQaPickCamera": {},
-  "visualQaPicked": "已选择 {label}",
-  "@visualQaPicked": {
-    "placeholders": {
-      "label": {}
-    }
-  },
-  "modelBindingPromptTitle": "先绑定模型再继续",
-  "@modelBindingPromptTitle": {},
-  "modelBindingPromptGoSettings": "请先到设置页绑定模型",
-  "@modelBindingPromptGoSettings": {},
-  "modelBindingPromptLater": "稍后",
-  "@modelBindingPromptLater": {},
   "conversationNewSession": "新会话",
   "conversationManagement": "会话管理",
   "conversationEmpty": "暂无会话",
   "conversationEmptyHint": "点击右下角开始新对话",
   "conversationNewChat": "新对话",
-  "conversationTitleField": "对话标题",
-  "conversationCreate": "创建",
   "conversationArchive": "归档",
   "conversationUnarchive": "取消归档",
   "conversationArchiveBox": "归档箱",
@@ -295,12 +205,6 @@
   "discoverySetActive": "设为活跃",
   "commonRemove": "移除",
   "commonClearFilters": "清除筛选",
-  "navChat": "对话",
-  "navLive": "直播",
-  "navService": "客服",
-  "navTasks": "任务",
-  "navManage": "管理",
-  "navSettings": "设置",
   "logsTelencephalonStarted": "端脑服务启动成功",
   "logsDbTimeoutRetry": "数据库连接超时，正在重试...",
   "logsHippocampusUnreachable": "无法连接到Hippocampus服务",
@@ -321,27 +225,7 @@
   "mcpServerUrl": "服务器 URL",
   "mcpAuthTokenOptional": "认证 Token (可选)",
   "memoryEmpty": "暂无记忆",
-  "modelEngineRunning": "引擎运行中",
-  "modelEngineStopped": "引擎未运行",
-  "modelEmpty": "暂无模型",
-  "modelEmptyHint": "点击右下角添加模型",
-  "modelTypeLabel": "类型:",
   "commonAll": "全部",
-  "modelLiteRtEngine": "LiteRT 引擎",
-  "modelInternalService": "内部服务 (Rust)",
-  "modelCloudProvider": "云端供应商",
-  "modelNoCloudModels": "暂无云端模型",
-  "modelNoCloudModelsHint": "点击右下角添加云端模型",
-  "modelAddLocalTitle": "添加本地模型",
-  "modelNameField": "模型名称",
-  "modelPathField": "模型路径",
-  "modelSizeField": "大小 (MB)",
-  "modelAddCloudTitle": "添加云端模型",
-  "commonApiKeyOptional": "API Key (可选)",
-  "modelNameOptional": "模型名称 (可选)",
-  "modelSettingsTitle": "模型设置",
-  "modelSettingsEngine": "推理引擎",
-  "modelSettingsSelectModel": "选择模型",
   "promptSaved": "提示词已保存",
   "promptRestored": "已恢复默认提示词",
   "promptSettingsTitle": "提示词设置",
@@ -349,9 +233,6 @@
   "promptMainAgentLabel": "主Agent系统提示词",
   "promptInputHint": "输入系统提示词...",
   "promptRestoreDefault": "恢复默认",
-  "providerQwen": "通义千问",
-  "providerZhipu": "智谱AI",
-  "providerLocalModel": "本地模型",
   "providerBuiltin": "内置",
   "providerModelNotDownloaded": "未下载",
   "modelCategoryText": "文本模型",
@@ -374,7 +255,6 @@
   "providersEditTitle": "编辑提供商",
   "commonProvider": "提供商",
   "commonApiAddress": "API 地址",
-  "commonModel": "模型",
   "providersApiKeyRequired": "请输入 API Key",
   "providersNameRequired": "请输入提供商名称",
   "providersStandard": "接口标准",
@@ -402,7 +282,6 @@
   "settingsDeviceDiscoveryDesc": "扫描和发现网络设备",
   "settingsLogsDesc": "查看应用日志和错误信息",
   "settingsResonanceDesc": "管理Resonance服务实例",
-  "settingsRefreshStatus": "刷新状态",
   "skillsTitle": "技能管理",
   "skillsEmpty": "暂无技能",
   "skillsEmptyHint": "点击右下角添加自定义技能",
@@ -441,7 +320,6 @@
   "priorityUrgent": "紧急",
   "taskEditTitle": "编辑任务",
   "taskStatus": "状态",
-  "taskTagsField": "标签 (逗号分隔)",
   "taskEditPersistenceNote": "端脑任务：状态随时可改；标题、描述、优先级与标签只在创建时写入。",
   "taskDueTime": "截止时间",
   "taskDueTimeField": "截止时间",
@@ -458,15 +336,11 @@
   "taskCreatedAt": "创建时间",
   "taskCompletedAt": "完成时间",
   "taskTags": "标签",
-  "taskNoSubtasks": "此任务暂无子任务",
-  "taskSubtaskProgress": "子任务进度",
-  "logsTab": "日志",
   "logsClient": "客户端",
   "logsApp": "应用",
   "logsDevice": "本机组件",
   "logsAllLevels": "所有级别",
   "logsExport": "导出日志",
-  "logsPanelClearAll": "清空日志",
   "soulPriorityNote": "System Prompt 优先级最高。",
   "commonLoadFailed": "读取失败: {error}",
   "@commonLoadFailed": {
@@ -556,53 +430,10 @@
       }
     }
   },
-  "settingsEncephalonEmbedded": "嵌入式大脑",
+  "settingsEncephalonEmbedded": "大脑运行时",
   "@settingsEncephalonEmbedded": {},
-  "settingsEncephalonEmbeddedDesc": "管理嵌入在本 App 里的 Encephalon 大脑运行时（推理 + 端脑面）",
+  "settingsEncephalonEmbeddedDesc": "大脑运行状态、启停与进程内推理探针（模型选择在能力 tab：默认模型首卡与叶区 Agents 页）",
   "@settingsEncephalonEmbeddedDesc": {},
-  "taskSubtasks": "子任务 ({count})",
-  "@taskSubtasks": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "taskStepStarted": "开始: {time}",
-  "@taskStepStarted": {
-    "placeholders": {
-      "time": {
-        "type": "String"
-      }
-    }
-  },
-  "taskStepCompleted": "完成: {time}",
-  "@taskStepCompleted": {
-    "placeholders": {
-      "time": {
-        "type": "String"
-      }
-    }
-  },
-  "taskStepDuration": "耗时: {seconds}s",
-  "@taskStepDuration": {
-    "placeholders": {
-      "seconds": {
-        "type": "int"
-      }
-    }
-  },
-  "taskStepProgress": "{completed}/{total} 步",
-  "@taskStepProgress": {
-    "placeholders": {
-      "completed": {
-        "type": "int"
-      },
-      "total": {
-        "type": "int"
-      }
-    }
-  },
   "soulDescHintExample": "例如：\n- 语气友好、简洁\n- 称呼用户为“你”\n- 主动提供有用的建议",
   "@soulDescHintExample": {},
   "soulHistoryLoadFailed": "无法加载历史: {error}",
@@ -672,8 +503,6 @@
       }
     }
   },
-  "modelNameExample": "例如: Qwen2.5-7B",
-  "@modelNameExample": {},
   "cameraOff": "摄像头关闭",
   "@cameraOff": {},
   "cameraReady": "摄像头就绪",
@@ -688,8 +517,6 @@
   "@chatGreeting": {},
   "chatAttachmentNotAvailable": "端脑链路当前只处理纯文本，图片、文件等附件暂不支持",
   "@chatAttachmentNotAvailable": {},
-  "chatVoiceModelRequired": "语音功能需要先加载模型",
-  "@chatVoiceModelRequired": {},
   "chatSorryError": "抱歉，发生了错误: {error}",
   "@chatSorryError": {
     "placeholders": {
@@ -700,155 +527,11 @@
   },
   "chatSorryErrorShort": "抱歉，发生了错误",
   "@chatSorryErrorShort": {},
-  "modelPlaceholderNoLocal": "暂无本地模型",
-  "@modelPlaceholderNoLocal": {},
   "deviceThisMachine": "本机",
   "@deviceThisMachine": {},
-  "actionFlashlightOn": "开启闪光灯",
-  "@actionFlashlightOn": {},
-  "actionFlashlightOff": "关闭闪光灯",
-  "@actionFlashlightOff": {},
-  "actionCreateContact": "创建联系人: {name}",
-  "@actionCreateContact": {
-    "placeholders": {
-      "name": {
-        "type": "String"
-      }
-    }
-  },
-  "actionSendEmail": "发送邮件到: {to}",
-  "@actionSendEmail": {
-    "placeholders": {
-      "to": {
-        "type": "String"
-      }
-    }
-  },
-  "actionShowLocation": "显示位置: {query}",
-  "@actionShowLocation": {
-    "placeholders": {
-      "query": {
-        "type": "String"
-      }
-    }
-  },
-  "actionOpenWifi": "打开WiFi设置",
-  "@actionOpenWifi": {},
-  "actionCreateCalendar": "创建日历事件: {title}",
-  "@actionCreateCalendar": {
-    "placeholders": {
-      "title": {
-        "type": "String"
-      }
-    }
-  },
-  "actionFlashlightOnDone": "闪光灯已开启",
-  "@actionFlashlightOnDone": {},
-  "actionFlashlightOnFailed": "闪光灯开启失败: {error}",
-  "@actionFlashlightOnFailed": {
-    "placeholders": {
-      "error": {
-        "type": "String"
-      }
-    }
-  },
-  "actionFlashlightOffDone": "闪光灯已关闭",
-  "@actionFlashlightOffDone": {},
-  "actionFlashlightOffFailed": "闪光灯关闭失败: {error}",
-  "@actionFlashlightOffFailed": {
-    "placeholders": {
-      "error": {
-        "type": "String"
-      }
-    }
-  },
-  "actionCreatingContact": "正在创建联系人: {name}",
-  "@actionCreatingContact": {
-    "placeholders": {
-      "name": {
-        "type": "String"
-      }
-    }
-  },
-  "actionNoContactsApp": "无法打开联系人应用",
-  "@actionNoContactsApp": {},
-  "actionContactFailed": "联系人创建失败: {error}",
-  "@actionContactFailed": {
-    "placeholders": {
-      "error": {
-        "type": "String"
-      }
-    }
-  },
-  "actionEmailOpened": "邮件客户端已打开，收件人: {to}",
-  "@actionEmailOpened": {
-    "placeholders": {
-      "to": {
-        "type": "String"
-      }
-    }
-  },
-  "actionNoEmailApp": "无法打开邮件客户端",
-  "@actionNoEmailApp": {},
-  "actionEmailFailed": "邮件发送失败: {error}",
-  "@actionEmailFailed": {
-    "placeholders": {
-      "error": {
-        "type": "String"
-      }
-    }
-  },
-  "actionShowingLocation": "正在显示位置: {query}",
-  "@actionShowingLocation": {
-    "placeholders": {
-      "query": {
-        "type": "String"
-      }
-    }
-  },
-  "actionNoMapsApp": "无法打开地图应用",
-  "@actionNoMapsApp": {},
-  "actionLocationFailed": "位置显示失败: {error}",
-  "@actionLocationFailed": {
-    "placeholders": {
-      "error": {
-        "type": "String"
-      }
-    }
-  },
-  "actionWifiOpened": "WiFi设置已打开",
-  "@actionWifiOpened": {},
-  "actionWifiFailed": "WiFi设置打开失败: {error}",
-  "@actionWifiFailed": {
-    "placeholders": {
-      "error": {
-        "type": "String"
-      }
-    }
-  },
-  "actionCalendarCreated": "日历事件已创建: {title}",
-  "@actionCalendarCreated": {
-    "placeholders": {
-      "title": {
-        "type": "String"
-      }
-    }
-  },
-  "actionNoCalendarApp": "无法打开日历应用",
-  "@actionNoCalendarApp": {},
-  "actionCalendarFailed": "日历事件创建失败: {error}",
-  "@actionCalendarFailed": {
-    "placeholders": {
-      "error": {
-        "type": "String"
-      }
-    }
-  },
   "encephalonStartFailed": "嵌入式大脑启动失败",
   "@encephalonStartFailed": {},
-  "encephalonNotRunning": "嵌入式大脑未运行",
-  "@encephalonNotRunning": {},
-  "encephalonEmbeddedTitle": "嵌入式大脑运行时（NDK）",
+  "encephalonEmbeddedTitle": "大脑运行时",
   "@encephalonEmbeddedTitle": {},
   "encephalonEmbeddedRuntime": "嵌入式大脑运行时",
   "@encephalonEmbeddedRuntime": {},
@@ -886,16 +569,12 @@
   "encephalonModelSourceTitle": "大脑模型来源",
   "encephalonModelSourceHint": "全局默认：各叶区都用这个来源。也可以在下面的「叶区模型路由」里单独覆盖某个叶区。",
   "encephalonModelLocalNeuron": "本地 neuron 权重",
-  "encephalonModelCloud": "云端供应商",
   "encephalonModelNoCloudProvider": "还没有配置云端供应商 —— 先去「模型管理」加一个。",
   "encephalonModelSourceApplied": "已应用新的模型来源",
   "encephalonModelSourceFailed": "模型来源切换失败",
   "encephalonModelOptionsUnavailable": "读不到大脑的供应商目录 —— 大脑可能没在跑。",
   "@encephalonModelOptionsUnavailable": {},
   "encephalonLobeRoutingTitle": "叶区模型路由",
-  "encephalonLobeRoutingHint": "模型使用的最小单位是叶区。默认各叶区跟随上面的全局来源，可以单独覆盖某一个叶区 —— 比如前额叶用本地、实际执行任务的区域用云端。",
-  "encephalonLobeRoutingUnavailable": "读不到端脑的叶区列表 —— 大脑可能没在跑。",
-  "encephalonLobeRoutingRefresh": "刷新叶区",
   "encephalonLobeFollowGlobal": "跟随全局",
   "encephalonLobeRoutingApplied": "叶区模型已更新",
   "encephalonLobeRoutingFailed": "叶区模型更新失败",

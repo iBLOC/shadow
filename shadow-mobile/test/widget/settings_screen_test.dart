@@ -209,7 +209,9 @@ void main() {
   group('能力入口可达', () {
     // 2026-10-29：`/settings/encephalon` 的路由与页面早就有了，但设置页里
     // **没有入口** —— 那个页面在 App 里点不到。这条测试锁住入口。
-    testWidgets('嵌入式大脑入口在连接组里', (WidgetTester tester) async {
+    // 2026-11-07 刀三：入口从「连接」组挪到「高级」组（页面瘦身为纯
+    // 运行时：状态/启停/探针；模型选择在能力 tab）。
+    testWidgets('大脑运行时入口在高级组里', (WidgetTester tester) async {
       await pumpSettings(tester);
 
       final l10n = l10nOf(tester);

@@ -6,15 +6,10 @@ import 'package:path_provider/path_provider.dart';
 import 'capabilities/capability.dart';
 
 /// 应用配置服务
-/// 支持存储和读取可配置的参数，如模型下载服务器地址
 class AppConfigService {
   static const String _configFileName = 'app_config.json';
-  static const String _defaultModelStoreHost = 'modelscope.cn';
-  static const String _defaultModelStoreUrl =
-      'https://$_defaultModelStoreHost/api/v1';
 
   // 配置项
-  String? _modelStoreUrl;
   String? _telencephalonBaseUrl;
   String? _telencephalonAdminToken;
   String? _telencephalonShadowKey;
@@ -65,12 +60,6 @@ class AppConfigService {
   factory AppConfigService() => _instance;
   AppConfigService._internal();
 
-  /// 获取模型下载服务器地址
-  String get modelStoreUrl => _modelStoreUrl ?? _defaultModelStoreUrl;
-
-  /// 是否使用默认地址
-  bool get isUsingDefaultModelStore => _modelStoreUrl == null;
-
   /// Telencephalon base URL — null means use the
   /// client default (`http://127.0.0.1:60080`).
   String? get telencephalonBaseUrl => _telencephalonBaseUrl;
@@ -117,7 +106,6 @@ class AppConfigService {
       if (await file.exists()) {
         final contents = await file.readAsString();
         final config = json.decode(contents) as Map<String, dynamic>;
-        _modelStoreUrl = config['modelStoreUrl'] as String?;
         _telencephalonBaseUrl = config['telencephalonBaseUrl'] as String?;
         _telencephalonAdminToken = config['telencephalonAdminToken'] as String?;
         _telencephalonShadowKey = config['telencephalonShadowKey'] as String?;
@@ -135,7 +123,6 @@ class AppConfigService {
       }
     } catch (e) {
       // 配置文件读取失败，使用默认值
-      _modelStoreUrl = null;
       _telencephalonBaseUrl = null;
       _telencephalonAdminToken = null;
       _telencephalonShadowKey = null;
@@ -157,7 +144,6 @@ class AppConfigService {
     try {
       final file = await _getConfigFile();
       final config = {
-        if (_modelStoreUrl != null) 'modelStoreUrl': _modelStoreUrl,
         if (_telencephalonBaseUrl != null)
           'telencephalonBaseUrl': _telencephalonBaseUrl,
         if (_telencephalonAdminToken != null)
@@ -197,19 +183,6 @@ class AppConfigService {
     }
     final directory = await getApplicationDocumentsDirectory();
     return File('${directory.path}/$_configFileName');
-  }
-
-  /// 设置模型下载服务器地址
-  /// [url] 新的服务器地址，如果为 null 则使用默认地址
-  Future<void> setModelStoreUrl(String? url) async {
-    _modelStoreUrl = url;
-    await _saveConfig();
-  }
-
-  /// 重置为默认模型下载服务器地址
-  Future<void> resetModelStoreUrl() async {
-    _modelStoreUrl = null;
-    await _saveConfig();
   }
 
   /// Set telencephalon base URL (persisted). Pass null to fall back to

@@ -122,12 +122,6 @@ abstract class AppLocalizations {
   /// **'Start a conversation'**
   String get startConversation;
 
-  /// No description provided for @addLocalModelComingSoon.
-  ///
-  /// In en, this message translates to:
-  /// **'Add local model dialog coming soon'**
-  String get addLocalModelComingSoon;
-
   /// No description provided for @askSomething.
   ///
   /// In en, this message translates to:
@@ -170,24 +164,6 @@ abstract class AppLocalizations {
   /// **'Disabled. Tap to open settings.'**
   String get accessibilityOff;
 
-  /// No description provided for @addModel.
-  ///
-  /// In en, this message translates to:
-  /// **'Add Model'**
-  String get addModel;
-
-  /// No description provided for @addLocalModel.
-  ///
-  /// In en, this message translates to:
-  /// **'Add Local Model'**
-  String get addLocalModel;
-
-  /// No description provided for @addCloudModel.
-  ///
-  /// In en, this message translates to:
-  /// **'Add Cloud Model'**
-  String get addCloudModel;
-
   /// No description provided for @searchModels.
   ///
   /// In en, this message translates to:
@@ -199,36 +175,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'All'**
   String get filterAll;
-
-  /// No description provided for @filterText.
-  ///
-  /// In en, this message translates to:
-  /// **'Text'**
-  String get filterText;
-
-  /// No description provided for @filterVision.
-  ///
-  /// In en, this message translates to:
-  /// **'Vision'**
-  String get filterVision;
-
-  /// No description provided for @filterAudio.
-  ///
-  /// In en, this message translates to:
-  /// **'Audio'**
-  String get filterAudio;
-
-  /// No description provided for @filterLocal.
-  ///
-  /// In en, this message translates to:
-  /// **'Local'**
-  String get filterLocal;
-
-  /// No description provided for @filterCloud.
-  ///
-  /// In en, this message translates to:
-  /// **'Cloud'**
-  String get filterCloud;
 
   /// No description provided for @local.
   ///
@@ -248,53 +194,11 @@ abstract class AppLocalizations {
   /// **'Loaded'**
   String get loaded;
 
-  /// No description provided for @notLoaded.
-  ///
-  /// In en, this message translates to:
-  /// **'Not loaded'**
-  String get notLoaded;
-
   /// No description provided for @modelSettings.
   ///
   /// In en, this message translates to:
   /// **'Model Settings'**
   String get modelSettings;
-
-  /// No description provided for @threadCount.
-  ///
-  /// In en, this message translates to:
-  /// **'Thread Count: {n}'**
-  String threadCount(int n);
-
-  /// No description provided for @backendType.
-  ///
-  /// In en, this message translates to:
-  /// **'Backend Type'**
-  String get backendType;
-
-  /// No description provided for @cpu.
-  ///
-  /// In en, this message translates to:
-  /// **'CPU'**
-  String get cpu;
-
-  /// No description provided for @opencl.
-  ///
-  /// In en, this message translates to:
-  /// **'OpenCL'**
-  String get opencl;
-
-  /// No description provided for @metal.
-  ///
-  /// In en, this message translates to:
-  /// **'Metal'**
-  String get metal;
-
-  /// No description provided for @modelPath.
-  ///
-  /// In en, this message translates to:
-  /// **'Model Path'**
-  String get modelPath;
 
   /// No description provided for @cancel.
   ///
@@ -313,12 +217,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No Models'**
   String get noModels;
-
-  /// No description provided for @addModelToGetStarted.
-  ///
-  /// In en, this message translates to:
-  /// **'Add a model to get started'**
-  String get addModelToGetStarted;
 
   /// No description provided for @cloudModel.
   ///
@@ -344,35 +242,11 @@ abstract class AppLocalizations {
   /// **'API Key'**
   String get apiKey;
 
-  /// No description provided for @notSet.
-  ///
-  /// In en, this message translates to:
-  /// **'Not set'**
-  String get notSet;
-
-  /// No description provided for @configureCloudModel.
-  ///
-  /// In en, this message translates to:
-  /// **'Configure Cloud Model'**
-  String get configureCloudModel;
-
-  /// No description provided for @apiEndpoint.
-  ///
-  /// In en, this message translates to:
-  /// **'API Endpoint'**
-  String get apiEndpoint;
-
   /// No description provided for @save.
   ///
   /// In en, this message translates to:
   /// **'Save'**
   String get save;
-
-  /// No description provided for @cloudModelSettings.
-  ///
-  /// In en, this message translates to:
-  /// **'Cloud Model Settings'**
-  String get cloudModelSettings;
 
   /// No description provided for @provider.
   ///
@@ -386,35 +260,17 @@ abstract class AppLocalizations {
   /// **'Error: {detail}'**
   String errorGeneric(String detail);
 
-  /// No description provided for @desktopUnsupportedMessage.
-  ///
-  /// In en, this message translates to:
-  /// **'MNN engine is only available on Android.\nThis is a desktop build - local LLM features are disabled.\nYou can still use cloud models.'**
-  String get desktopUnsupportedMessage;
-
   /// No description provided for @mobileNetworkDetected.
   ///
   /// In en, this message translates to:
   /// **'Mobile Network Detected'**
   String get mobileNetworkDetected;
 
-  /// No description provided for @downloadOnMobile.
-  ///
-  /// In en, this message translates to:
-  /// **'You are on mobile data. The model ({modelSize}) will be downloaded. Do you want to download now or wait for WiFi?'**
-  String downloadOnMobile(String modelSize);
-
   /// No description provided for @waitForWifi.
   ///
   /// In en, this message translates to:
   /// **'Wait for WiFi'**
   String get waitForWifi;
-
-  /// No description provided for @waitingForWifiHint.
-  ///
-  /// In en, this message translates to:
-  /// **'Waiting for WiFi — the model will download automatically once connected.'**
-  String get waitingForWifiHint;
 
   /// No description provided for @downloadNow.
   ///
@@ -439,12 +295,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'File'**
   String get file;
-
-  /// No description provided for @textMode.
-  ///
-  /// In en, this message translates to:
-  /// **'Message Mode'**
-  String get textMode;
 
   /// No description provided for @voiceMode.
   ///
@@ -512,29 +362,11 @@ abstract class AppLocalizations {
   /// **'Recording...'**
   String get recording;
 
-  /// No description provided for @downloadComplete.
-  ///
-  /// In en, this message translates to:
-  /// **'Download complete!'**
-  String get downloadComplete;
-
-  /// No description provided for @downloadFailed.
-  ///
-  /// In en, this message translates to:
-  /// **'Download failed'**
-  String get downloadFailed;
-
   /// No description provided for @retry.
   ///
   /// In en, this message translates to:
   /// **'Retry'**
   String get retry;
-
-  /// No description provided for @startChatting.
-  ///
-  /// In en, this message translates to:
-  /// **'Start Chatting'**
-  String get startChatting;
 
   /// No description provided for @manage.
   ///
@@ -584,30 +416,6 @@ abstract class AppLocalizations {
   /// **'Tasks'**
   String get tasks;
 
-  /// No description provided for @localModels.
-  ///
-  /// In en, this message translates to:
-  /// **'Local Models'**
-  String get localModels;
-
-  /// No description provided for @modelStore.
-  ///
-  /// In en, this message translates to:
-  /// **'Model Store'**
-  String get modelStore;
-
-  /// No description provided for @noModelsAvailable.
-  ///
-  /// In en, this message translates to:
-  /// **'No models available'**
-  String get noModelsAvailable;
-
-  /// No description provided for @serviceStatus.
-  ///
-  /// In en, this message translates to:
-  /// **'Service Status'**
-  String get serviceStatus;
-
   /// No description provided for @healthy.
   ///
   /// In en, this message translates to:
@@ -638,35 +446,11 @@ abstract class AppLocalizations {
   /// **'Unknown'**
   String get unknown;
 
-  /// No description provided for @modelStoreUrlUpdated.
-  ///
-  /// In en, this message translates to:
-  /// **'Model store URL updated'**
-  String get modelStoreUrlUpdated;
-
-  /// No description provided for @modelStoreServer.
-  ///
-  /// In en, this message translates to:
-  /// **'Model Store Server'**
-  String get modelStoreServer;
-
   /// No description provided for @custom.
   ///
   /// In en, this message translates to:
   /// **'Custom'**
   String get custom;
-
-  /// No description provided for @defaultOption.
-  ///
-  /// In en, this message translates to:
-  /// **'Default'**
-  String get defaultOption;
-
-  /// No description provided for @liteRT.
-  ///
-  /// In en, this message translates to:
-  /// **'LiteRT'**
-  String get liteRT;
 
   /// No description provided for @agent2UI.
   ///
@@ -674,35 +458,11 @@ abstract class AppLocalizations {
   /// **'Agent2UI'**
   String get agent2UI;
 
-  /// No description provided for @voiceInputPlaceholder.
-  ///
-  /// In en, this message translates to:
-  /// **'[Voice input: {count} samples]'**
-  String voiceInputPlaceholder(int count);
-
-  /// No description provided for @audioProcessingNotImplemented.
-  ///
-  /// In en, this message translates to:
-  /// **'[This is a placeholder response. Audio processing not yet implemented.]'**
-  String get audioProcessingNotImplemented;
-
   /// No description provided for @removeAttachment.
   ///
   /// In en, this message translates to:
   /// **'Remove attachment'**
   String get removeAttachment;
-
-  /// No description provided for @webviewSkillNotImplemented.
-  ///
-  /// In en, this message translates to:
-  /// **'[Webview skill execution not yet implemented]'**
-  String get webviewSkillNotImplemented;
-
-  /// No description provided for @nativeSkillNotImplemented.
-  ///
-  /// In en, this message translates to:
-  /// **'[Native skill execution not yet implemented]'**
-  String get nativeSkillNotImplemented;
 
   /// No description provided for @dimensionUser.
   ///
@@ -721,12 +481,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Session'**
   String get dimensionSession;
-
-  /// No description provided for @dimensionResources.
-  ///
-  /// In en, this message translates to:
-  /// **'Resources'**
-  String get dimensionResources;
 
   /// No description provided for @score.
   ///
@@ -775,12 +529,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'How does audio input work?'**
   String get howAudioWorks;
-
-  /// No description provided for @ttsSettings.
-  ///
-  /// In en, this message translates to:
-  /// **'TTS Voice Synthesis'**
-  String get ttsSettings;
 
   /// No description provided for @ttsEngine.
   ///
@@ -950,24 +698,6 @@ abstract class AppLocalizations {
   /// **'Audio Output'**
   String get audioOutput;
 
-  /// No description provided for @routePhoneSpeaker.
-  ///
-  /// In en, this message translates to:
-  /// **'Phone Speaker'**
-  String get routePhoneSpeaker;
-
-  /// No description provided for @routeBluetoothHeadset.
-  ///
-  /// In en, this message translates to:
-  /// **'Bluetooth'**
-  String get routeBluetoothHeadset;
-
-  /// No description provided for @routeShadowEsp32.
-  ///
-  /// In en, this message translates to:
-  /// **'shadow-esp32'**
-  String get routeShadowEsp32;
-
   /// No description provided for @shadowEsp32ReceivesAudio.
   ///
   /// In en, this message translates to:
@@ -1016,18 +746,6 @@ abstract class AppLocalizations {
   /// **'Stop'**
   String get stopTts;
 
-  /// No description provided for @routeSelected.
-  ///
-  /// In en, this message translates to:
-  /// **'Output: {device}'**
-  String routeSelected(String device);
-
-  /// No description provided for @digitalHumanTtsNow.
-  ///
-  /// In en, this message translates to:
-  /// **'Live Stream Mode'**
-  String get digitalHumanTtsNow;
-
   /// No description provided for @shadowEsp32PlayingFromUsbAudio.
   ///
   /// In en, this message translates to:
@@ -1040,65 +758,11 @@ abstract class AppLocalizations {
   /// **'Customer Service'**
   String get customerServiceMode;
 
-  /// No description provided for @callState.
-  ///
-  /// In en, this message translates to:
-  /// **'Call State'**
-  String get callState;
-
-  /// No description provided for @callStateIdle.
-  ///
-  /// In en, this message translates to:
-  /// **'Idle'**
-  String get callStateIdle;
-
-  /// No description provided for @callStateRinging.
-  ///
-  /// In en, this message translates to:
-  /// **'Ringing'**
-  String get callStateRinging;
-
-  /// No description provided for @callStateActive.
-  ///
-  /// In en, this message translates to:
-  /// **'Active'**
-  String get callStateActive;
-
-  /// No description provided for @callStateEnded.
-  ///
-  /// In en, this message translates to:
-  /// **'Ended'**
-  String get callStateEnded;
-
-  /// No description provided for @earphoneTakeoverActive.
-  ///
-  /// In en, this message translates to:
-  /// **'Wired earphone detected — audio routed to earphone for human takeover.'**
-  String get earphoneTakeoverActive;
-
-  /// No description provided for @earphoneTakeoverAudioRouteNote.
-  ///
-  /// In en, this message translates to:
-  /// **'When earphone is connected, call audio automatically routes to earphone. Plug it back out to route to shadow-esp32.'**
-  String get earphoneTakeoverAudioRouteNote;
-
   /// No description provided for @aiAutoAnswer.
   ///
   /// In en, this message translates to:
   /// **'AI Auto-Answer'**
   String get aiAutoAnswer;
-
-  /// No description provided for @aiAutoAnswerDesc.
-  ///
-  /// In en, this message translates to:
-  /// **'Automatically answer incoming calls and respond with AI (telencephalon / LiteRT).'**
-  String get aiAutoAnswerDesc;
-
-  /// No description provided for @endCall.
-  ///
-  /// In en, this message translates to:
-  /// **'End Call'**
-  String get endCall;
 
   /// No description provided for @openLiveStreamMode.
   ///
@@ -1123,30 +787,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Pick a camera'**
   String get visualQaPickCamera;
-
-  /// No description provided for @visualQaPicked.
-  ///
-  /// In en, this message translates to:
-  /// **'Picked {label}'**
-  String visualQaPicked(Object label);
-
-  /// No description provided for @modelBindingPromptTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Bind a model to continue'**
-  String get modelBindingPromptTitle;
-
-  /// No description provided for @modelBindingPromptGoSettings.
-  ///
-  /// In en, this message translates to:
-  /// **'Go to settings and bind a model first'**
-  String get modelBindingPromptGoSettings;
-
-  /// No description provided for @modelBindingPromptLater.
-  ///
-  /// In en, this message translates to:
-  /// **'Later'**
-  String get modelBindingPromptLater;
 
   /// No description provided for @conversationNewSession.
   ///
@@ -1177,18 +817,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'New Chat'**
   String get conversationNewChat;
-
-  /// No description provided for @conversationTitleField.
-  ///
-  /// In en, this message translates to:
-  /// **'Chat title'**
-  String get conversationTitleField;
-
-  /// No description provided for @conversationCreate.
-  ///
-  /// In en, this message translates to:
-  /// **'Create'**
-  String get conversationCreate;
 
   /// No description provided for @conversationArchive.
   ///
@@ -1328,42 +956,6 @@ abstract class AppLocalizations {
   /// **'Clear filters'**
   String get commonClearFilters;
 
-  /// No description provided for @navChat.
-  ///
-  /// In en, this message translates to:
-  /// **'Chat'**
-  String get navChat;
-
-  /// No description provided for @navLive.
-  ///
-  /// In en, this message translates to:
-  /// **'Live'**
-  String get navLive;
-
-  /// No description provided for @navService.
-  ///
-  /// In en, this message translates to:
-  /// **'Service'**
-  String get navService;
-
-  /// No description provided for @navTasks.
-  ///
-  /// In en, this message translates to:
-  /// **'Tasks'**
-  String get navTasks;
-
-  /// No description provided for @navManage.
-  ///
-  /// In en, this message translates to:
-  /// **'Manage'**
-  String get navManage;
-
-  /// No description provided for @navSettings.
-  ///
-  /// In en, this message translates to:
-  /// **'Settings'**
-  String get navSettings;
-
   /// No description provided for @logsTelencephalonStarted.
   ///
   /// In en, this message translates to:
@@ -1484,131 +1076,11 @@ abstract class AppLocalizations {
   /// **'No memories yet'**
   String get memoryEmpty;
 
-  /// No description provided for @modelEngineRunning.
-  ///
-  /// In en, this message translates to:
-  /// **'Engine running'**
-  String get modelEngineRunning;
-
-  /// No description provided for @modelEngineStopped.
-  ///
-  /// In en, this message translates to:
-  /// **'Engine not running'**
-  String get modelEngineStopped;
-
-  /// No description provided for @modelEmpty.
-  ///
-  /// In en, this message translates to:
-  /// **'No models'**
-  String get modelEmpty;
-
-  /// No description provided for @modelEmptyHint.
-  ///
-  /// In en, this message translates to:
-  /// **'Tap the button below to add a model'**
-  String get modelEmptyHint;
-
-  /// No description provided for @modelTypeLabel.
-  ///
-  /// In en, this message translates to:
-  /// **'Type:'**
-  String get modelTypeLabel;
-
   /// No description provided for @commonAll.
   ///
   /// In en, this message translates to:
   /// **'All'**
   String get commonAll;
-
-  /// No description provided for @modelLiteRtEngine.
-  ///
-  /// In en, this message translates to:
-  /// **'LiteRT engine'**
-  String get modelLiteRtEngine;
-
-  /// No description provided for @modelInternalService.
-  ///
-  /// In en, this message translates to:
-  /// **'Internal service (Rust)'**
-  String get modelInternalService;
-
-  /// No description provided for @modelCloudProvider.
-  ///
-  /// In en, this message translates to:
-  /// **'Cloud provider'**
-  String get modelCloudProvider;
-
-  /// No description provided for @modelNoCloudModels.
-  ///
-  /// In en, this message translates to:
-  /// **'No cloud models'**
-  String get modelNoCloudModels;
-
-  /// No description provided for @modelNoCloudModelsHint.
-  ///
-  /// In en, this message translates to:
-  /// **'Tap the button below to add a cloud model'**
-  String get modelNoCloudModelsHint;
-
-  /// No description provided for @modelAddLocalTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Add Local Model'**
-  String get modelAddLocalTitle;
-
-  /// No description provided for @modelNameField.
-  ///
-  /// In en, this message translates to:
-  /// **'Model name'**
-  String get modelNameField;
-
-  /// No description provided for @modelPathField.
-  ///
-  /// In en, this message translates to:
-  /// **'Model path'**
-  String get modelPathField;
-
-  /// No description provided for @modelSizeField.
-  ///
-  /// In en, this message translates to:
-  /// **'Size (MB)'**
-  String get modelSizeField;
-
-  /// No description provided for @modelAddCloudTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Add Cloud Model'**
-  String get modelAddCloudTitle;
-
-  /// No description provided for @commonApiKeyOptional.
-  ///
-  /// In en, this message translates to:
-  /// **'API key (optional)'**
-  String get commonApiKeyOptional;
-
-  /// No description provided for @modelNameOptional.
-  ///
-  /// In en, this message translates to:
-  /// **'Model name (optional)'**
-  String get modelNameOptional;
-
-  /// No description provided for @modelSettingsTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Model Settings'**
-  String get modelSettingsTitle;
-
-  /// No description provided for @modelSettingsEngine.
-  ///
-  /// In en, this message translates to:
-  /// **'Inference engine'**
-  String get modelSettingsEngine;
-
-  /// No description provided for @modelSettingsSelectModel.
-  ///
-  /// In en, this message translates to:
-  /// **'Select model'**
-  String get modelSettingsSelectModel;
 
   /// No description provided for @promptSaved.
   ///
@@ -1651,24 +1123,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Restore default'**
   String get promptRestoreDefault;
-
-  /// No description provided for @providerQwen.
-  ///
-  /// In en, this message translates to:
-  /// **'Qwen'**
-  String get providerQwen;
-
-  /// No description provided for @providerZhipu.
-  ///
-  /// In en, this message translates to:
-  /// **'Zhipu AI'**
-  String get providerZhipu;
-
-  /// No description provided for @providerLocalModel.
-  ///
-  /// In en, this message translates to:
-  /// **'Local model'**
-  String get providerLocalModel;
 
   /// No description provided for @providerBuiltin.
   ///
@@ -1801,12 +1255,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'API address'**
   String get commonApiAddress;
-
-  /// No description provided for @commonModel.
-  ///
-  /// In en, this message translates to:
-  /// **'Model'**
-  String get commonModel;
 
   /// No description provided for @providersApiKeyRequired.
   ///
@@ -1969,12 +1417,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Manage Resonance service instances'**
   String get settingsResonanceDesc;
-
-  /// No description provided for @settingsRefreshStatus.
-  ///
-  /// In en, this message translates to:
-  /// **'Refresh status'**
-  String get settingsRefreshStatus;
 
   /// No description provided for @skillsTitle.
   ///
@@ -2204,12 +1646,6 @@ abstract class AppLocalizations {
   /// **'Status'**
   String get taskStatus;
 
-  /// No description provided for @taskTagsField.
-  ///
-  /// In en, this message translates to:
-  /// **'Tags (comma separated)'**
-  String get taskTagsField;
-
   /// No description provided for @taskEditPersistenceNote.
   ///
   /// In en, this message translates to:
@@ -2306,24 +1742,6 @@ abstract class AppLocalizations {
   /// **'Tags'**
   String get taskTags;
 
-  /// No description provided for @taskNoSubtasks.
-  ///
-  /// In en, this message translates to:
-  /// **'This task has no subtasks'**
-  String get taskNoSubtasks;
-
-  /// No description provided for @taskSubtaskProgress.
-  ///
-  /// In en, this message translates to:
-  /// **'Subtask progress'**
-  String get taskSubtaskProgress;
-
-  /// No description provided for @logsTab.
-  ///
-  /// In en, this message translates to:
-  /// **'Logs'**
-  String get logsTab;
-
   /// No description provided for @logsClient.
   ///
   /// In en, this message translates to:
@@ -2353,12 +1771,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Export logs'**
   String get logsExport;
-
-  /// No description provided for @logsPanelClearAll.
-  ///
-  /// In en, this message translates to:
-  /// **'Clear all'**
-  String get logsPanelClearAll;
 
   /// No description provided for @soulPriorityNote.
   ///
@@ -2435,44 +1847,14 @@ abstract class AppLocalizations {
   /// No description provided for @settingsEncephalonEmbedded.
   ///
   /// In en, this message translates to:
-  /// **'Embedded Brain'**
+  /// **'Brain Runtime'**
   String get settingsEncephalonEmbedded;
 
   /// No description provided for @settingsEncephalonEmbeddedDesc.
   ///
   /// In en, this message translates to:
-  /// **'Manage the Encephalon brain runtime embedded in this app (inference + telencephalon agent surface)'**
+  /// **'Brain runtime status, start/stop, and the in-process inference probe (model choice lives on the capability tab: the default-model card and the agents page)'**
   String get settingsEncephalonEmbeddedDesc;
-
-  /// No description provided for @taskSubtasks.
-  ///
-  /// In en, this message translates to:
-  /// **'Subtasks ({count})'**
-  String taskSubtasks(int count);
-
-  /// No description provided for @taskStepStarted.
-  ///
-  /// In en, this message translates to:
-  /// **'Started: {time}'**
-  String taskStepStarted(String time);
-
-  /// No description provided for @taskStepCompleted.
-  ///
-  /// In en, this message translates to:
-  /// **'Completed: {time}'**
-  String taskStepCompleted(String time);
-
-  /// No description provided for @taskStepDuration.
-  ///
-  /// In en, this message translates to:
-  /// **'Duration: {seconds}s'**
-  String taskStepDuration(int seconds);
-
-  /// No description provided for @taskStepProgress.
-  ///
-  /// In en, this message translates to:
-  /// **'{completed}/{total} steps'**
-  String taskStepProgress(int completed, int total);
 
   /// No description provided for @soulDescHintExample.
   ///
@@ -2528,12 +1910,6 @@ abstract class AppLocalizations {
   /// **'Latency: {ms}ms'**
   String resonanceLatency(int ms);
 
-  /// No description provided for @modelNameExample.
-  ///
-  /// In en, this message translates to:
-  /// **'e.g. Qwen2.5-7B'**
-  String get modelNameExample;
-
   /// No description provided for @cameraOff.
   ///
   /// In en, this message translates to:
@@ -2576,12 +1952,6 @@ abstract class AppLocalizations {
   /// **'Only plain text is supported right now - images, files and other attachments are not supported yet'**
   String get chatAttachmentNotAvailable;
 
-  /// No description provided for @chatVoiceModelRequired.
-  ///
-  /// In en, this message translates to:
-  /// **'Voice features need a model to be loaded first'**
-  String get chatVoiceModelRequired;
-
   /// No description provided for @chatSorryError.
   ///
   /// In en, this message translates to:
@@ -2594,167 +1964,11 @@ abstract class AppLocalizations {
   /// **'Sorry, something went wrong'**
   String get chatSorryErrorShort;
 
-  /// No description provided for @modelPlaceholderNoLocal.
-  ///
-  /// In en, this message translates to:
-  /// **'No local model yet'**
-  String get modelPlaceholderNoLocal;
-
   /// No description provided for @deviceThisMachine.
   ///
   /// In en, this message translates to:
   /// **'This device'**
   String get deviceThisMachine;
-
-  /// No description provided for @actionFlashlightOn.
-  ///
-  /// In en, this message translates to:
-  /// **'Turn on flashlight'**
-  String get actionFlashlightOn;
-
-  /// No description provided for @actionFlashlightOff.
-  ///
-  /// In en, this message translates to:
-  /// **'Turn off flashlight'**
-  String get actionFlashlightOff;
-
-  /// No description provided for @actionCreateContact.
-  ///
-  /// In en, this message translates to:
-  /// **'Create contact: {name}'**
-  String actionCreateContact(String name);
-
-  /// No description provided for @actionSendEmail.
-  ///
-  /// In en, this message translates to:
-  /// **'Send email to: {to}'**
-  String actionSendEmail(String to);
-
-  /// No description provided for @actionShowLocation.
-  ///
-  /// In en, this message translates to:
-  /// **'Show location: {query}'**
-  String actionShowLocation(String query);
-
-  /// No description provided for @actionOpenWifi.
-  ///
-  /// In en, this message translates to:
-  /// **'Open WiFi settings'**
-  String get actionOpenWifi;
-
-  /// No description provided for @actionCreateCalendar.
-  ///
-  /// In en, this message translates to:
-  /// **'Create calendar event: {title}'**
-  String actionCreateCalendar(String title);
-
-  /// No description provided for @actionFlashlightOnDone.
-  ///
-  /// In en, this message translates to:
-  /// **'Flashlight is on'**
-  String get actionFlashlightOnDone;
-
-  /// No description provided for @actionFlashlightOnFailed.
-  ///
-  /// In en, this message translates to:
-  /// **'Failed to turn on the flashlight: {error}'**
-  String actionFlashlightOnFailed(String error);
-
-  /// No description provided for @actionFlashlightOffDone.
-  ///
-  /// In en, this message translates to:
-  /// **'Flashlight is off'**
-  String get actionFlashlightOffDone;
-
-  /// No description provided for @actionFlashlightOffFailed.
-  ///
-  /// In en, this message translates to:
-  /// **'Failed to turn off the flashlight: {error}'**
-  String actionFlashlightOffFailed(String error);
-
-  /// No description provided for @actionCreatingContact.
-  ///
-  /// In en, this message translates to:
-  /// **'Creating contact: {name}'**
-  String actionCreatingContact(String name);
-
-  /// No description provided for @actionNoContactsApp.
-  ///
-  /// In en, this message translates to:
-  /// **'Cannot open the contacts app'**
-  String get actionNoContactsApp;
-
-  /// No description provided for @actionContactFailed.
-  ///
-  /// In en, this message translates to:
-  /// **'Failed to create the contact: {error}'**
-  String actionContactFailed(String error);
-
-  /// No description provided for @actionEmailOpened.
-  ///
-  /// In en, this message translates to:
-  /// **'Email app opened, recipient: {to}'**
-  String actionEmailOpened(String to);
-
-  /// No description provided for @actionNoEmailApp.
-  ///
-  /// In en, this message translates to:
-  /// **'Cannot open the email app'**
-  String get actionNoEmailApp;
-
-  /// No description provided for @actionEmailFailed.
-  ///
-  /// In en, this message translates to:
-  /// **'Failed to send the email: {error}'**
-  String actionEmailFailed(String error);
-
-  /// No description provided for @actionShowingLocation.
-  ///
-  /// In en, this message translates to:
-  /// **'Showing location: {query}'**
-  String actionShowingLocation(String query);
-
-  /// No description provided for @actionNoMapsApp.
-  ///
-  /// In en, this message translates to:
-  /// **'Cannot open the maps app'**
-  String get actionNoMapsApp;
-
-  /// No description provided for @actionLocationFailed.
-  ///
-  /// In en, this message translates to:
-  /// **'Failed to show the location: {error}'**
-  String actionLocationFailed(String error);
-
-  /// No description provided for @actionWifiOpened.
-  ///
-  /// In en, this message translates to:
-  /// **'WiFi settings opened'**
-  String get actionWifiOpened;
-
-  /// No description provided for @actionWifiFailed.
-  ///
-  /// In en, this message translates to:
-  /// **'Failed to open the WiFi settings: {error}'**
-  String actionWifiFailed(String error);
-
-  /// No description provided for @actionCalendarCreated.
-  ///
-  /// In en, this message translates to:
-  /// **'Calendar event created: {title}'**
-  String actionCalendarCreated(String title);
-
-  /// No description provided for @actionNoCalendarApp.
-  ///
-  /// In en, this message translates to:
-  /// **'Cannot open the calendar app'**
-  String get actionNoCalendarApp;
-
-  /// No description provided for @actionCalendarFailed.
-  ///
-  /// In en, this message translates to:
-  /// **'Failed to create the calendar event: {error}'**
-  String actionCalendarFailed(String error);
 
   /// No description provided for @encephalonStartFailed.
   ///
@@ -2762,16 +1976,10 @@ abstract class AppLocalizations {
   /// **'Failed to start the embedded brain'**
   String get encephalonStartFailed;
 
-  /// No description provided for @encephalonNotRunning.
-  ///
-  /// In en, this message translates to:
-  /// **'The embedded brain is not running'**
-  String get encephalonNotRunning;
-
   /// No description provided for @encephalonEmbeddedTitle.
   ///
   /// In en, this message translates to:
-  /// **'Embedded Brain Runtime (NDK)'**
+  /// **'Brain Runtime'**
   String get encephalonEmbeddedTitle;
 
   /// No description provided for @encephalonEmbeddedRuntime.
@@ -2876,12 +2084,6 @@ abstract class AppLocalizations {
   /// **'Local neuron weights'**
   String get encephalonModelLocalNeuron;
 
-  /// No description provided for @encephalonModelCloud.
-  ///
-  /// In en, this message translates to:
-  /// **'Cloud provider'**
-  String get encephalonModelCloud;
-
   /// No description provided for @encephalonModelNoCloudProvider.
   ///
   /// In en, this message translates to:
@@ -2911,24 +2113,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Lobe model routing'**
   String get encephalonLobeRoutingTitle;
-
-  /// No description provided for @encephalonLobeRoutingHint.
-  ///
-  /// In en, this message translates to:
-  /// **'A lobe is the smallest unit that picks a model. By default every lobe follows the global source above; you can override a single lobe - e.g. prefrontal on local weights, the region that actually runs tasks on the cloud.'**
-  String get encephalonLobeRoutingHint;
-
-  /// No description provided for @encephalonLobeRoutingUnavailable.
-  ///
-  /// In en, this message translates to:
-  /// **'Could not read the lobe list from the telencephalon - the brain may not be running.'**
-  String get encephalonLobeRoutingUnavailable;
-
-  /// No description provided for @encephalonLobeRoutingRefresh.
-  ///
-  /// In en, this message translates to:
-  /// **'Refresh lobes'**
-  String get encephalonLobeRoutingRefresh;
 
   /// No description provided for @encephalonLobeFollowGlobal.
   ///

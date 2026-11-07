@@ -189,12 +189,6 @@ class SettingsScreen extends ConsumerWidget {
                       ),
                       // v2.9 — 后台常驻（前台服务保活）。
                       const BackgroundRunSettingsGroup(),
-                      const ShadSeparator.horizontal(
-                        margin: EdgeInsets.symmetric(
-                          horizontal: AppTokens.spaceLg,
-                        ),
-                      ),
-                      const ModelStoreBlock(),
                     ],
                   ),
                 ],
@@ -225,17 +219,6 @@ class SettingsScreen extends ConsumerWidget {
                             title: l10n.telencephalonFlows,
                             subtitle: l10n.telencephalonFlowsDesc,
                             onTap: () => context.push('/flows'),
-                          ),
-                          const ShadSeparator.horizontal(
-                            margin: EdgeInsets.symmetric(
-                              horizontal: AppTokens.spaceLg,
-                            ),
-                          ),
-                          _NavRow(
-                            icon: Icons.psychology_alt,
-                            title: l10n.settingsEncephalonEmbedded,
-                            subtitle: l10n.settingsEncephalonEmbeddedDesc,
-                            onTap: () => context.push('/settings/encephalon'),
                           ),
                           const ShadSeparator.horizontal(
                             margin: EdgeInsets.symmetric(
@@ -344,6 +327,20 @@ class SettingsScreen extends ConsumerWidget {
                             ),
                           ],
                         ),
+                      ),
+                      const ShadSeparator.horizontal(
+                        margin: EdgeInsets.symmetric(
+                          horizontal: AppTokens.spaceLg,
+                        ),
+                      ),
+                      // 大脑运行时（嵌入式大脑）—— **子系统内部**的面：
+                      // 状态 / 启停 / 推理探针。模型选择已收到能力 tab
+                      // （默认模型首卡＋叶区 Agents 页），这里不再管模型。
+                      _NavRow(
+                        icon: Icons.psychology_alt,
+                        title: l10n.settingsEncephalonEmbedded,
+                        subtitle: l10n.settingsEncephalonEmbeddedDesc,
+                        onTap: () => context.push('/settings/encephalon'),
                       ),
                     ],
                   ),
@@ -617,121 +614,6 @@ class _AccessibilityRowState extends State<AccessibilityRow>
           }
         },
       ),
-    );
-  }
-}
-
-/// 模型仓库地址 —— 之前是一整张卡（含徽标 + 可编辑文本框）。
-class ModelStoreBlock extends StatefulWidget {
-  const ModelStoreBlock({super.key});
-
-  @override
-  State<ModelStoreBlock> createState() => _ModelStoreBlockState();
-}
-
-class _ModelStoreBlockState extends State<ModelStoreBlock> {
-  final _urlController = TextEditingController();
-  bool _isEditing = false;
-  bool _isDefault = true;
-  String _currentUrl = '';
-
-  @override
-  void initState() {
-    super.initState();
-    _loadCurrentUrl();
-  }
-
-  Future<void> _loadCurrentUrl() async {
-    final config = AppConfigService();
-    _currentUrl = config.modelStoreUrl;
-    _isDefault = config.isUsingDefaultModelStore;
-    _urlController.text = _currentUrl;
-    if (mounted) setState(() {});
-  }
-
-  Future<void> _saveUrl() async {
-    final config = AppConfigService();
-    final newUrl = _urlController.text.trim();
-    if (newUrl.isEmpty || newUrl == 'https://modelscope.cn/api/v1') {
-      await config.resetModelStoreUrl();
-    } else {
-      await config.setModelStoreUrl(newUrl);
-    }
-    _isEditing = false;
-    await _loadCurrentUrl();
-    if (mounted) setState(() {});
-  }
-
-  void _cancelEdit() {
-    _urlController.text = _currentUrl;
-    _isEditing = false;
-    setState(() {});
-  }
-
-  @override
-  void dispose() {
-    _urlController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-
-    return SettingsBlock(
-      children: [
-        SettingsRow(
-          title: l10n.modelStoreServer,
-          icon: Icons.download,
-          subtitle: _currentUrl,
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ShadBadge.outline(
-                child: Text(_isDefault ? l10n.defaultOption : l10n.custom),
-              ),
-              const SizedBox(width: AppTokens.spaceSm),
-              if (_isEditing)
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    ShadIconButton.ghost(
-                      icon: const Icon(Icons.close, size: 18),
-                      onPressed: _cancelEdit,
-                    ),
-                    ShadIconButton(
-                      icon: const Icon(Icons.check, size: 18),
-                      onPressed: _saveUrl,
-                    ),
-                  ],
-                )
-              else
-                ShadIconButton.ghost(
-                  icon: const Icon(Icons.edit, size: 18),
-                  onPressed: () => setState(() => _isEditing = true),
-                ),
-            ],
-          ),
-        ),
-        if (_isEditing) ...[
-          const ShadSeparator.horizontal(
-            margin: EdgeInsets.symmetric(horizontal: AppTokens.spaceLg),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppTokens.spaceLg,
-              AppTokens.spaceMd,
-              AppTokens.spaceLg,
-              AppTokens.spaceMd,
-            ),
-            child: ShadInput(
-              controller: _urlController,
-              placeholder: const Text('https://modelscope.cn/api/v1'),
-              keyboardType: TextInputType.url,
-            ),
-          ),
-        ],
-      ],
     );
   }
 }

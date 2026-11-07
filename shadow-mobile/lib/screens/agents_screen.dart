@@ -278,9 +278,18 @@ class _AgentCard extends ConsumerWidget {
           ],
           // ⚠️ 模型覆盖只给**原生叶区** —— 路由负载（lobe_models）按原生
           // 叶区名下发；prompt agent 不给一个静默无效的选项。
-          // 目录读不到时下拉只剩「跟随全局 / 本地」，不静默装作没有。
+          // 目录读不到 ⇒ **说出来**（下拉只剩「跟随全局 / 本地」时，
+          // 用户得知道是「读不到」而不是「真的没有云供应商」）。
           if (agent.isNativeLobe) ...[
             const SizedBox(height: 4),
+            if (optionsAsync.hasError)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text(
+                  l10n.encephalonModelOptionsUnavailable,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
             _buildModelOverrideRow(context, ref, l10n, sourceState, options),
           ],
         ],

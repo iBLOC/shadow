@@ -4,7 +4,6 @@
   "models": "Models",
   "settings": "Settings",
   "startConversation": "Start a conversation",
-  "addLocalModelComingSoon": "Add local model dialog coming soon",
   "askSomething": "Ask something...",
   "initializing": "Initializing...",
   "resetEngine": "Reset Engine",
@@ -12,47 +11,20 @@
   "accessibilityControl": "Accessibility Control",
   "accessibilityOn": "Enabled. You can control device tap/swipe.",
   "accessibilityOff": "Disabled. Tap to open settings.",
-  "addModel": "Add Model",
-  "addLocalModel": "Add Local Model",
-  "addCloudModel": "Add Cloud Model",
   "searchModels": "Search models...",
   "filterAll": "All",
-  "filterText": "Text",
-  "filterVision": "Vision",
-  "filterAudio": "Audio",
-  "filterLocal": "Local",
-  "filterCloud": "Cloud",
   "local": "Local",
   "cloud": "Cloud",
   "loaded": "Loaded",
-  "notLoaded": "Not loaded",
   "modelSettings": "Model Settings",
-  "threadCount": "Thread Count: {n}",
-  "@threadCount": {
-    "placeholders": {
-      "n": {
-        "type": "int"
-      }
-    }
-  },
-  "backendType": "Backend Type",
-  "cpu": "CPU",
-  "opencl": "OpenCL",
-  "metal": "Metal",
-  "modelPath": "Model Path",
   "cancel": "Cancel",
   "apply": "Apply",
   "noModels": "No Models",
-  "addModelToGetStarted": "Add a model to get started",
   "cloudModel": "Cloud Model",
   "endpoint": "Endpoint",
   "model": "Model",
   "apiKey": "API Key",
-  "notSet": "Not set",
-  "configureCloudModel": "Configure Cloud Model",
-  "apiEndpoint": "API Endpoint",
   "save": "Save",
-  "cloudModelSettings": "Cloud Model Settings",
   "provider": "Provider",
   "errorGeneric": "Error: {detail}",
   "@errorGeneric": {
@@ -62,23 +34,12 @@
       }
     }
   },
-  "desktopUnsupportedMessage": "MNN engine is only available on Android.\nThis is a desktop build - local LLM features are disabled.\nYou can still use cloud models.",
   "mobileNetworkDetected": "Mobile Network Detected",
-  "downloadOnMobile": "You are on mobile data. The model ({modelSize}) will be downloaded. Do you want to download now or wait for WiFi?",
-  "@downloadOnMobile": {
-    "placeholders": {
-      "modelSize": {
-        "type": "String"
-      }
-    }
-  },
   "waitForWifi": "Wait for WiFi",
-  "waitingForWifiHint": "Waiting for WiFi — the model will download automatically once connected.",
   "downloadNow": "Download Now",
   "gallery": "Gallery",
   "camera": "Camera",
   "file": "File",
-  "textMode": "Message Mode",
   "voiceMode": "Conversation Mode",
   "agent2uiReady": "Agent2UI Ready",
   "askMeAnything": "Ask me anything and I will generate UI for you",
@@ -90,10 +51,7 @@
   "disconnect": "Disconnect",
   "holdToRecord": "Hold to record",
   "recording": "Recording...",
-  "downloadComplete": "Download complete!",
-  "downloadFailed": "Download failed",
   "retry": "Retry",
-  "startChatting": "Start Chatting",
   "manage": "Manage",
   "providers": "Providers",
   "skills": "Skills",
@@ -102,37 +60,17 @@
   "mcp": "MCP",
   "conversations": "Conversations",
   "tasks": "Tasks",
-  "localModels": "Local Models",
-  "modelStore": "Model Store",
-  "noModelsAvailable": "No models available",
-  "serviceStatus": "Service Status",
   "healthy": "Healthy",
   "offline": "Offline",
   "checking": "Checking...",
   "unhealthy": "Unhealthy",
   "unknown": "Unknown",
-  "modelStoreUrlUpdated": "Model store URL updated",
-  "modelStoreServer": "Model Store Server",
   "custom": "Custom",
-  "defaultOption": "Default",
-  "liteRT": "LiteRT",
   "agent2UI": "Agent2UI",
-  "voiceInputPlaceholder": "[Voice input: {count} samples]",
-  "@voiceInputPlaceholder": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "audioProcessingNotImplemented": "[This is a placeholder response. Audio processing not yet implemented.]",
   "removeAttachment": "Remove attachment",
-  "webviewSkillNotImplemented": "[Webview skill execution not yet implemented]",
-  "nativeSkillNotImplemented": "[Native skill execution not yet implemented]",
   "dimensionUser": "User",
   "dimensionAgent": "Agent",
   "dimensionSession": "Session",
-  "dimensionResources": "Resources",
   "score": "Score: {value}",
   "@score": {
     "placeholders": {
@@ -148,7 +86,6 @@
   "tellMeStory": "Tell me a story",
   "whatCanYouHelp": "What can you help me with?",
   "howAudioWorks": "How does audio input work?",
-  "ttsSettings": "TTS Voice Synthesis",
   "ttsEngine": "Voice Engine",
   "ttsEngineAndroid": "Android Built-in",
   "ttsEngineExternal": "External Service",
@@ -225,12 +162,6 @@
   "@liveStreamMode": {},
   "audioOutput": "Audio Output",
   "@audioOutput": {},
-  "routePhoneSpeaker": "Phone Speaker",
-  "@routePhoneSpeaker": {},
-  "routeBluetoothHeadset": "Bluetooth",
-  "@routeBluetoothHeadset": {},
-  "routeShadowEsp32": "shadow-esp32",
-  "@routeShadowEsp32": {},
   "shadowEsp32ReceivesAudio": "shadow-esp32 is receiving audio",
   "@shadowEsp32ReceivesAudio": {},
   "routeViaBluetoothA2dp": "via Bluetooth",
@@ -247,40 +178,12 @@
   "@startTts": {},
   "stopTts": "Stop",
   "@stopTts": {},
-  "routeSelected": "Output: {device}",
-  "@routeSelected": {
-    "placeholders": {
-      "device": {
-        "type": "String"
-      }
-    }
-  },
-  "digitalHumanTtsNow": "Live Stream Mode",
-  "@digitalHumanTtsNow": {},
   "shadowEsp32PlayingFromUsbAudio": "shadow-esp32 connected via USB Audio",
   "@shadowEsp32PlayingFromUsbAudio": {},
   "customerServiceMode": "Customer Service",
   "@customerServiceMode": {},
-  "callState": "Call State",
-  "@callState": {},
-  "callStateIdle": "Idle",
-  "@callStateIdle": {},
-  "callStateRinging": "Ringing",
-  "@callStateRinging": {},
-  "callStateActive": "Active",
-  "@callStateActive": {},
-  "callStateEnded": "Ended",
-  "@callStateEnded": {},
-  "earphoneTakeoverActive": "Wired earphone detected — audio routed to earphone for human takeover.",
-  "@earphoneTakeoverActive": {},
-  "earphoneTakeoverAudioRouteNote": "When earphone is connected, call audio automatically routes to earphone. Plug it back out to route to shadow-esp32.",
-  "@earphoneTakeoverAudioRouteNote": {},
   "aiAutoAnswer": "AI Auto-Answer",
   "@aiAutoAnswer": {},
-  "aiAutoAnswerDesc": "Automatically answer incoming calls and respond with AI (telencephalon / LiteRT).",
-  "@aiAutoAnswerDesc": {},
-  "endCall": "End Call",
-  "@endCall": {},
   "openLiveStreamMode": "Live Stream",
   "@openLiveStreamMode": {},
   "openVoiceAssistant": "Voice Assistant",
@@ -289,25 +192,11 @@
   "@customerServiceHint": {},
   "visualQaPickCamera": "Pick a camera",
   "@visualQaPickCamera": {},
-  "visualQaPicked": "Picked {label}",
-  "@visualQaPicked": {
-    "placeholders": {
-      "label": {}
-    }
-  },
-  "modelBindingPromptTitle": "Bind a model to continue",
-  "@modelBindingPromptTitle": {},
-  "modelBindingPromptGoSettings": "Go to settings and bind a model first",
-  "@modelBindingPromptGoSettings": {},
-  "modelBindingPromptLater": "Later",
-  "@modelBindingPromptLater": {},
   "conversationNewSession": "New Session",
   "conversationManagement": "Conversations",
   "conversationEmpty": "No conversations",
   "conversationEmptyHint": "Tap the button below to start a new chat",
   "conversationNewChat": "New Chat",
-  "conversationTitleField": "Chat title",
-  "conversationCreate": "Create",
   "conversationArchive": "Archive",
   "conversationUnarchive": "Unarchive",
   "conversationArchiveBox": "Archive box",
@@ -338,12 +227,6 @@
   "discoverySetActive": "Set as active",
   "commonRemove": "Remove",
   "commonClearFilters": "Clear filters",
-  "navChat": "Chat",
-  "navLive": "Live",
-  "navService": "Service",
-  "navTasks": "Tasks",
-  "navManage": "Manage",
-  "navSettings": "Settings",
   "logsTelencephalonStarted": "Telencephalon service started",
   "logsDbTimeoutRetry": "Database connection timed out, retrying...",
   "logsHippocampusUnreachable": "Cannot connect to the Hippocampus service",
@@ -364,27 +247,7 @@
   "mcpServerUrl": "Server URL",
   "mcpAuthTokenOptional": "Auth token (optional)",
   "memoryEmpty": "No memories yet",
-  "modelEngineRunning": "Engine running",
-  "modelEngineStopped": "Engine not running",
-  "modelEmpty": "No models",
-  "modelEmptyHint": "Tap the button below to add a model",
-  "modelTypeLabel": "Type:",
   "commonAll": "All",
-  "modelLiteRtEngine": "LiteRT engine",
-  "modelInternalService": "Internal service (Rust)",
-  "modelCloudProvider": "Cloud provider",
-  "modelNoCloudModels": "No cloud models",
-  "modelNoCloudModelsHint": "Tap the button below to add a cloud model",
-  "modelAddLocalTitle": "Add Local Model",
-  "modelNameField": "Model name",
-  "modelPathField": "Model path",
-  "modelSizeField": "Size (MB)",
-  "modelAddCloudTitle": "Add Cloud Model",
-  "commonApiKeyOptional": "API key (optional)",
-  "modelNameOptional": "Model name (optional)",
-  "modelSettingsTitle": "Model Settings",
-  "modelSettingsEngine": "Inference engine",
-  "modelSettingsSelectModel": "Select model",
   "promptSaved": "Prompt saved",
   "promptRestored": "Default prompt restored",
   "promptSettingsTitle": "Prompt Settings",
@@ -392,9 +255,6 @@
   "promptMainAgentLabel": "Main agent system prompt",
   "promptInputHint": "Enter a system prompt...",
   "promptRestoreDefault": "Restore default",
-  "providerQwen": "Qwen",
-  "providerZhipu": "Zhipu AI",
-  "providerLocalModel": "Local model",
   "providerBuiltin": "Built-in",
   "providerModelNotDownloaded": "Not downloaded",
   "modelCategoryText": "Text models",
@@ -417,7 +277,6 @@
   "providersEditTitle": "Edit Provider",
   "commonProvider": "Provider",
   "commonApiAddress": "API address",
-  "commonModel": "Model",
   "providersApiKeyRequired": "Please enter an API key",
   "providersNameRequired": "Please enter a provider name",
   "providersStandard": "API standard",
@@ -445,7 +304,6 @@
   "settingsDeviceDiscoveryDesc": "Scan for and discover network devices",
   "settingsLogsDesc": "View app logs and error messages",
   "settingsResonanceDesc": "Manage Resonance service instances",
-  "settingsRefreshStatus": "Refresh status",
   "skillsTitle": "Skills",
   "skillsEmpty": "No skills",
   "skillsEmptyHint": "Tap the button below to add a custom skill",
@@ -484,7 +342,6 @@
   "priorityUrgent": "Urgent",
   "taskEditTitle": "Edit Task",
   "taskStatus": "Status",
-  "taskTagsField": "Tags (comma separated)",
   "taskEditPersistenceNote": "Telencephalon task: the status can be changed at any time; the title, description, priority and tags are only written when the task is created.",
   "taskDueTime": "Due",
   "taskDueTimeField": "Due date",
@@ -501,15 +358,11 @@
   "taskCreatedAt": "Created at",
   "taskCompletedAt": "Completed at",
   "taskTags": "Tags",
-  "taskNoSubtasks": "This task has no subtasks",
-  "taskSubtaskProgress": "Subtask progress",
-  "logsTab": "Logs",
   "logsClient": "Client",
   "logsApp": "App",
   "logsDevice": "Device components",
   "logsAllLevels": "All levels",
   "logsExport": "Export logs",
-  "logsPanelClearAll": "Clear all",
   "soulPriorityNote": "System Prompt takes highest priority.",
   "commonLoadFailed": "Load failed: {error}",
   "@commonLoadFailed": {
@@ -599,53 +452,10 @@
       }
     }
   },
-  "settingsEncephalonEmbedded": "Embedded Brain",
+  "settingsEncephalonEmbedded": "Brain Runtime",
   "@settingsEncephalonEmbedded": {},
-  "settingsEncephalonEmbeddedDesc": "Manage the Encephalon brain runtime embedded in this app (inference + telencephalon agent surface)",
+  "settingsEncephalonEmbeddedDesc": "Brain runtime status, start/stop, and the in-process inference probe (model choice lives on the capability tab: the default-model card and the agents page)",
   "@settingsEncephalonEmbeddedDesc": {},
-  "taskSubtasks": "Subtasks ({count})",
-  "@taskSubtasks": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
-  "taskStepStarted": "Started: {time}",
-  "@taskStepStarted": {
-    "placeholders": {
-      "time": {
-        "type": "String"
-      }
-    }
-  },
-  "taskStepCompleted": "Completed: {time}",
-  "@taskStepCompleted": {
-    "placeholders": {
-      "time": {
-        "type": "String"
-      }
-    }
-  },
-  "taskStepDuration": "Duration: {seconds}s",
-  "@taskStepDuration": {
-    "placeholders": {
-      "seconds": {
-        "type": "int"
-      }
-    }
-  },
-  "taskStepProgress": "{completed}/{total} steps",
-  "@taskStepProgress": {
-    "placeholders": {
-      "completed": {
-        "type": "int"
-      },
-      "total": {
-        "type": "int"
-      }
-    }
-  },
   "soulDescHintExample": "For example:\n- Friendly and concise\n- Address the user as \"you\"\n- Offer useful suggestions proactively",
   "@soulDescHintExample": {},
   "soulHistoryLoadFailed": "Failed to load history: {error}",
@@ -715,8 +525,6 @@
       }
     }
   },
-  "modelNameExample": "e.g. Qwen2.5-7B",
-  "@modelNameExample": {},
   "cameraOff": "Camera off",
   "@cameraOff": {},
   "cameraReady": "Camera ready",
@@ -731,8 +539,6 @@
   "@chatGreeting": {},
   "chatAttachmentNotAvailable": "Only plain text is supported right now - images, files and other attachments are not supported yet",
   "@chatAttachmentNotAvailable": {},
-  "chatVoiceModelRequired": "Voice features need a model to be loaded first",
-  "@chatVoiceModelRequired": {},
   "chatSorryError": "Sorry, something went wrong: {error}",
   "@chatSorryError": {
     "placeholders": {
@@ -743,155 +549,11 @@
   },
   "chatSorryErrorShort": "Sorry, something went wrong",
   "@chatSorryErrorShort": {},
-  "modelPlaceholderNoLocal": "No local model yet",
-  "@modelPlaceholderNoLocal": {},
   "deviceThisMachine": "This device",
   "@deviceThisMachine": {},
-  "actionFlashlightOn": "Turn on flashlight",
-  "@actionFlashlightOn": {},
-  "actionFlashlightOff": "Turn off flashlight",
-  "@actionFlashlightOff": {},
-  "actionCreateContact": "Create contact: {name}",
-  "@actionCreateContact": {
-    "placeholders": {
-      "name": {
-        "type": "String"
-      }
-    }
-  },
-  "actionSendEmail": "Send email to: {to}",
-  "@actionSendEmail": {
-    "placeholders": {
-      "to": {
-        "type": "String"
-      }
-    }
-  },
-  "actionShowLocation": "Show location: {query}",
-  "@actionShowLocation": {
-    "placeholders": {
-      "query": {
-        "type": "String"
-      }
-    }
-  },
-  "actionOpenWifi": "Open WiFi settings",
-  "@actionOpenWifi": {},
-  "actionCreateCalendar": "Create calendar event: {title}",
-  "@actionCreateCalendar": {
-    "placeholders": {
-      "title": {
-        "type": "String"
-      }
-    }
-  },
-  "actionFlashlightOnDone": "Flashlight is on",
-  "@actionFlashlightOnDone": {},
-  "actionFlashlightOnFailed": "Failed to turn on the flashlight: {error}",
-  "@actionFlashlightOnFailed": {
-    "placeholders": {
-      "error": {
-        "type": "String"
-      }
-    }
-  },
-  "actionFlashlightOffDone": "Flashlight is off",
-  "@actionFlashlightOffDone": {},
-  "actionFlashlightOffFailed": "Failed to turn off the flashlight: {error}",
-  "@actionFlashlightOffFailed": {
-    "placeholders": {
-      "error": {
-        "type": "String"
-      }
-    }
-  },
-  "actionCreatingContact": "Creating contact: {name}",
-  "@actionCreatingContact": {
-    "placeholders": {
-      "name": {
-        "type": "String"
-      }
-    }
-  },
-  "actionNoContactsApp": "Cannot open the contacts app",
-  "@actionNoContactsApp": {},
-  "actionContactFailed": "Failed to create the contact: {error}",
-  "@actionContactFailed": {
-    "placeholders": {
-      "error": {
-        "type": "String"
-      }
-    }
-  },
-  "actionEmailOpened": "Email app opened, recipient: {to}",
-  "@actionEmailOpened": {
-    "placeholders": {
-      "to": {
-        "type": "String"
-      }
-    }
-  },
-  "actionNoEmailApp": "Cannot open the email app",
-  "@actionNoEmailApp": {},
-  "actionEmailFailed": "Failed to send the email: {error}",
-  "@actionEmailFailed": {
-    "placeholders": {
-      "error": {
-        "type": "String"
-      }
-    }
-  },
-  "actionShowingLocation": "Showing location: {query}",
-  "@actionShowingLocation": {
-    "placeholders": {
-      "query": {
-        "type": "String"
-      }
-    }
-  },
-  "actionNoMapsApp": "Cannot open the maps app",
-  "@actionNoMapsApp": {},
-  "actionLocationFailed": "Failed to show the location: {error}",
-  "@actionLocationFailed": {
-    "placeholders": {
-      "error": {
-        "type": "String"
-      }
-    }
-  },
-  "actionWifiOpened": "WiFi settings opened",
-  "@actionWifiOpened": {},
-  "actionWifiFailed": "Failed to open the WiFi settings: {error}",
-  "@actionWifiFailed": {
-    "placeholders": {
-      "error": {
-        "type": "String"
-      }
-    }
-  },
-  "actionCalendarCreated": "Calendar event created: {title}",
-  "@actionCalendarCreated": {
-    "placeholders": {
-      "title": {
-        "type": "String"
-      }
-    }
-  },
-  "actionNoCalendarApp": "Cannot open the calendar app",
-  "@actionNoCalendarApp": {},
-  "actionCalendarFailed": "Failed to create the calendar event: {error}",
-  "@actionCalendarFailed": {
-    "placeholders": {
-      "error": {
-        "type": "String"
-      }
-    }
-  },
   "encephalonStartFailed": "Failed to start the embedded brain",
   "@encephalonStartFailed": {},
-  "encephalonNotRunning": "The embedded brain is not running",
-  "@encephalonNotRunning": {},
-  "encephalonEmbeddedTitle": "Embedded Brain Runtime (NDK)",
+  "encephalonEmbeddedTitle": "Brain Runtime",
   "@encephalonEmbeddedTitle": {},
   "encephalonEmbeddedRuntime": "Embedded brain runtime",
   "@encephalonEmbeddedRuntime": {},
@@ -929,16 +591,12 @@
   "encephalonModelSourceTitle": "Brain model source",
   "encephalonModelSourceHint": "Global default: every lobe uses this source. You can override a single lobe under \"Lobe model routing\" below.",
   "encephalonModelLocalNeuron": "Local neuron weights",
-  "encephalonModelCloud": "Cloud provider",
   "encephalonModelNoCloudProvider": "No cloud provider configured yet - add one in Model management first.",
   "encephalonModelSourceApplied": "New model source applied",
   "encephalonModelSourceFailed": "Failed to switch the model source",
   "encephalonModelOptionsUnavailable": "Could not read the provider catalog from the brain - it may not be running.",
   "@encephalonModelOptionsUnavailable": {},
   "encephalonLobeRoutingTitle": "Lobe model routing",
-  "encephalonLobeRoutingHint": "A lobe is the smallest unit that picks a model. By default every lobe follows the global source above; you can override a single lobe - e.g. prefrontal on local weights, the region that actually runs tasks on the cloud.",
-  "encephalonLobeRoutingUnavailable": "Could not read the lobe list from the telencephalon - the brain may not be running.",
-  "encephalonLobeRoutingRefresh": "Refresh lobes",
   "encephalonLobeFollowGlobal": "Follow global",
   "encephalonLobeRoutingApplied": "Lobe model updated",
   "encephalonLobeRoutingFailed": "Failed to update the lobe model",

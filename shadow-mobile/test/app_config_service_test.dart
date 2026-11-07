@@ -27,7 +27,6 @@ void main() {
       await cfg.init();
       expect(cfg.telencephalonBaseUrl, isNull);
       expect(cfg.telencephalonAdminToken, isNull);
-      expect(cfg.modelStoreUrl, isNotEmpty); // legacy default still works
     });
 
     test('setTelencephalonBaseUrl persists across reload', () async {
@@ -75,26 +74,12 @@ void main() {
       expect(cfg.telencephalonAdminToken, isNull);
     });
 
-    test('existing modelStoreUrl key is preserved when adding telencephalon keys',
-        () async {
-      final cfg = AppConfigService();
-      await cfg.init();
-      await cfg.setModelStoreUrl('https://huggingface.co/api/v1');
-      await cfg.setTelencephalonBaseUrl('http://localhost:60080');
-
-      final cfg2 = AppConfigService();
-      await cfg2.init();
-      expect(cfg2.modelStoreUrl, 'https://huggingface.co/api/v1');
-      expect(cfg2.telencephalonBaseUrl, 'http://localhost:60080');
-    });
-
     test('malformed JSON file does not crash; defaults are kept', () async {
       await tempFile.writeAsString('this is not valid json');
       final cfg = AppConfigService();
       await cfg.init();
       expect(cfg.telencephalonBaseUrl, isNull);
       expect(cfg.telencephalonAdminToken, isNull);
-      expect(cfg.modelStoreUrl, isNotEmpty);
     });
 
     test('concurrent reloads from the same file do not lose data', () async {

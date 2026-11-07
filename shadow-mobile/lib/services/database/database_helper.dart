@@ -19,7 +19,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 5,
+      version: 6,
       onCreate: _createDB,
       onUpgrade: _upgradeDB,
     );
@@ -59,23 +59,10 @@ class DatabaseHelper {
       )
     ''');
 
-    await db.execute('''
-      CREATE TABLE models (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        path TEXT NOT NULL,
-        type TEXT NOT NULL DEFAULT 'text',
-        size INTEGER NOT NULL DEFAULT 0,
-        is_loaded INTEGER NOT NULL DEFAULT 0,
-        is_local INTEGER NOT NULL DEFAULT 1,
-        source TEXT NOT NULL DEFAULT 'localEngine',
-        model_type TEXT NOT NULL DEFAULT 'llm',
-        endpoint TEXT,
-        api_key TEXT,
-        model TEXT,
-        settings TEXT
-      )
-    ''');
+    // ⚠️ **没有 `models` 表** —— 本地 LiteRT/MNN 引擎退役后它就没有任何
+    // 读取方了（旧 FAB 往这里写「添加的云端模型」，运行时链路只读大脑的
+    // `/models/providers` ⇒ 写了也用不上 ⇒ 失败长得像成功）。v6 迁移把
+    // 老库里这张死表删掉（见 `_upgradeDB`）。
 
     // App 私有的键值设置。
     //
@@ -139,6 +126,12 @@ class DatabaseHelper {
     }
     if (oldVersion < 5) {
       await _createModelMetadata(db);
+    }
+    // v6 —— `models` 死表退役：本地引擎退役后无人读（见 `_createDB` 的
+    // 注），老库里的残留行清掉。`IF EXISTS` ⇒ 新装（onCreate 直达 v6，
+    // 没建过这张表）也不炸。
+    if (oldVersion < 6) {
+      await db.execute('DROP TABLE IF EXISTS models');
     }
   }
 
