@@ -1,4 +1,19 @@
 # PROJECT KNOWLEDGE BASE
+**Updated**: 2026-11-08 (㎼ **「LiteRT 退役最后一刀 —— 推理归 neuron 管，Kotlin 侧不再直接实现；并行半成品事故现场复原」** —— 承用户「litert_provider 不是由 neuron 管理的吗，不要再在 kt 中直接实现吧」，本条记**新 provider 的接线形状**、**出仓清单**、**事故取证与复原**、**读数**，以及**仍欠着的**。)
+
+> 信封：epoch=2026-11-08 | authority=measured | scope=project | source=真机实测（提交 b99aeaf＝18 文件 +403/−614；flutter analyze **0 error**、61 条存量不变；gradlew :app:compileDebugKotlin **EXIT=0**（删依赖后复验）；brain_llm_provider_test **5/5**；widget 全量 **248/1**、全量 **633 passed / 1 failed**（唯一红＝并行在飞的 401 探针挂死）；fetch 远端 111 条 distinct 72 max U+33BB）| status=active | supersedes=none
+
+① **✅ 新 provider：推理归 neuron（用户拍板的那一刀）** —— 新建 `providers/ai/brain_llm_provider.dart`（flutter_ai_toolkit 的 `LlmProvider` 实现）：请求体走**进程内管线**（`EncephalonMobileService.infer` ⇒ `/v1/chat/completions`，OpenAI 兼容）—— 与运行时页的推理探针**同一条缝**；本地权重/云端供应商由大脑的目录与路由决定，这一层只管把对话送进大脑。⚠️ **附件语义**：图片 → OpenAI 视觉 data URL（目录里的视觉模型真能吃）；**音频不静默丢弃** —— 大脑的 chat completions 没有 ASR 槽 ⇒ 回一句明说「语音转写还没接大脑 ASR 面」（新 arb 键 `voiceNoteBrainAsrPending`）⇒ 失败长得像成功的反面。两屏（voice_conversation/customer_service 的 `LlmChatView`）换 provider ⇒ `litert_provider.dart` 出仓。
+
+② **✅ 出仓清单（Kotlin 侧零直接实现）** —— `litert/LitertEngine.kt`＋MainActivity 的 litert 通道整段＋**build.gradle 的三个依赖**（`litertlm-android`/`nanohttpd`/`okhttp` —— 随 LiteRT 与 OpenAIServer 出仓后在 Kotlin 源码里**零引用**，留着只是白拉依赖）＋assets 三个本地引擎清单（`litert_models.json`/`mnn_models.json`/`models/config.json`）＋pubspec 的 assets 声明（声明空目录会让构建报错）。Kotlin 侧 `AGENTS.md` **整篇重写** —— 原文描述的是已退役的「Engine 模式」（LiteRT ＋ OpenAI 兼容 HTTP 面 ＋ mDNS 广播）⇒ 改成当前真相（设备桥 ＋ 大脑运行时宿主）并写明反模式「**不要再在本层加本地推理实现**」（再加一个本地引擎 ⇒ 两个真相源 ⇒「用哪个模型」说不清）。
+
+③ **⚠️⚠️ 事故取证：并行会话扫走半成品 ⇒ 推上 origin 的树双红 ⇒ 复原** —— 时间线：❶ 本刀的 5 个删除用 `git rm` **进了暂存区**，importer 修复（MainActivity/两屏/build.gradle/pubspec）**还在工作树未暂存**；❷ 并行会话的 `34add2f` 扫库 ⇒ 把我已暂存的删除带走、没带走 importer 修复 ⇒ **推上 origin 的树双红**（MainActivity 旧版 import 被删的 `LitertEngine` ⇒ Kotlin 编译红；两屏 import 被删的 `litert_provider` ⇒ Dart 编译红）；❸ 并行会话 `dda9844` 恢复那 5 文件（树绿了）⇒ 但**我的 importer 修复仍在工作树** ⇒ 当前态**自相矛盾**（build.gradle 已删 litertlm 依赖、而 `LitertEngine.kt` 又回来 ⇒ Kotlin 必红）；❹ 本刀按**完整形态**重新删除 5 文件并复验（Kotlin 编译 EXIT=0 ＋ analyze 0 error ＋ 测试全绿）⇒ 18 文件暂存清单**独立核对**零夹带才提交（`b99aeaf`）。⇒ ⇒ **教训（与 ㎵ 条那条同型但更狠）**：**「删除类改动」的危险窗口在「删除已暂存、引用方未暂存」的那段时间** ⇒ ⇒ 谁扫库谁把半成品推上去 ⇒ ⇒ **删除必须与其引用方修复同批落地**，中间不要留任何可被扫走的暂存态。
+
+④ **✅ 分级读数** —— **判据级**：brain_llm_provider_test **5/5**（进程内 infer 路径是 `/v1/chat/completions`／请求体是 OpenAI 形状／native 没回**明说失败不装成功**／非 2xx 带状态码可定位／响应形状不对原样给片段不吞成空成功）；**编译级**：analyze **0 error**、61 条存量不变（我引入的 3 条已修：冗余 import ＋ 两个 prefer_initializing_formals）；`gradlew :app:compileDebugKotlin` **EXIT=0**（**删依赖后复验** —— 不是删之前那次绿）；**真机级**：全量 **633 passed / 1 failed**，唯一红是并行在飞的 `encephalon_page_credential_probe` 401 探针挂死（与本刀无关，仍 untracked）；**闸级**：后台常驻闸/死环境变量闸零违规；agent-surface self-test 余 1 项＝accent.g.ts 桌面在飞漂移（非本刀）。
+
+⑤ **⚠️ 仍然欠着** —— ❶ **移动端真机 UI 验收**（语音/客服两屏换大脑后能否真出话＋能力 tab 默认模型首卡＋叶区覆盖下拉＋自持模型表单）仍待设备在位；❷ **大脑 ASR 面**：语音笔记（`enableVoiceNotes: true`）目前只能回明说，等端脑 ASR 路由接上才能真转写；❸ 401 探针挂死归并行会话；❹ accent.g.ts 生成物漂移＋apk-surface 构建态两闸红归桌面在飞/构建态；❺ 外观族 3 键待外观批次落地后扫；❻ Mimosa 扫描器多轮 `scanner_enobufs` ⇒ **项目安全性仍无读数**（建议尽快完整审计）。
+
+⑥ **⚠️ 圈码**：本条占 **U+33BC（㎼）** —— 插入前 fetch 远端重核（111 条、distinct 72、max U+33BB＝并行会话 ㎻ 条）⇒ 空闲 ✔ ⇒ 顺延取 U+33BC，插入后复跑码位闸＋条目计数（行首锚计应＝111+1=112）双钉住。
 
 **Updated**: 2026-11-07 (㎻ **「码位闸『条目合并盲区』加固收口 —— R3 缝合残迹＋R4 异体声明落地；旧判据库 A/B 回放实证当年假绿形状，新判据库会红」** —— 承 ㎴ 条③⑤新登记的独立小刀，本条记**四道验证读数**、**drill 自己踩的 CRLF 坑**、**登记不修的一处噪声**，以及**欠项清单更新**。)
 
