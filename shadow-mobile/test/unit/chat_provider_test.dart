@@ -107,7 +107,6 @@ void main() {
       // 以前这里是 `isInitialized || isLitertReady || mode == ChatMode.off`，
       // 两个字段说的都是**本地**引擎 ⇒ 没装本地模型的设备上输入框整个是禁用的。
       expect(state.canChat, isTrue);
-      expect(state.modelInfo, equals('Telencephalon'));
     });
 
     test('sendGreeting adds greeting message', () {

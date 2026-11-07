@@ -31,9 +31,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get initializing => 'Initializing...';
 
   @override
-  String get modelInfo => 'Model Info';
-
-  @override
   String get resetEngine => 'Reset Engine';
 
   @override
@@ -154,15 +151,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get provider => 'Provider';
-
-  @override
-  String get modelInfoNotInitialized => 'Not initialized';
-
-  @override
-  String get modelLoaded => 'Model loaded';
-
-  @override
-  String get desktopMode => 'Desktop mode (Android only)';
 
   @override
   String errorGeneric(String detail) {

@@ -49,9 +49,6 @@ enum ChatRole { user, assistant, system }
 
 /// L10n keys for provider messages (resolved in UI with AppLocalizations).
 enum ChatStateL10nKey {
-  modelInfoNotInitialized,
-  modelLoaded,
-  desktopMode,
   errorGeneric,
 
   /// 带附件发送被拒（端脑链路只处理纯文本）。
@@ -66,9 +63,7 @@ enum ChatStateL10nKey {
 class ChatState {
   final List<ChatMessageModel> messages;
   final bool isLoading;
-  final String modelInfo;
   final String? errorMessage;
-  final ChatStateL10nKey? modelInfoL10nKey;
   final ChatStateL10nKey? errorMessageL10nKey;
   final String? errorMessageArg;
   final bool isRecordingAudio;
@@ -95,9 +90,7 @@ class ChatState {
   const ChatState({
     this.messages = const [],
     this.isLoading = false,
-    this.modelInfo = 'Telencephalon',
     this.errorMessage,
-    this.modelInfoL10nKey,
     this.errorMessageL10nKey,
     this.errorMessageArg,
     this.isRecordingAudio = false,
@@ -134,9 +127,7 @@ class ChatState {
   ChatState copyWith({
     List<ChatMessageModel>? messages,
     bool? isLoading,
-    String? modelInfo,
     Object? errorMessage = _omit,
-    ChatStateL10nKey? modelInfoL10nKey,
     Object? errorMessageL10nKey = _omit,
     Object? errorMessageArg = _omit,
     bool? isRecordingAudio,
@@ -154,9 +145,7 @@ class ChatState {
     return ChatState(
       messages: messages ?? this.messages,
       isLoading: isLoading ?? this.isLoading,
-      modelInfo: modelInfo ?? this.modelInfo,
       errorMessage: explicitError ? errorMessage as String? : this.errorMessage,
-      modelInfoL10nKey: modelInfoL10nKey ?? this.modelInfoL10nKey,
       errorMessageL10nKey: clearError
           ? null
           : (identical(errorMessageL10nKey, _omit)

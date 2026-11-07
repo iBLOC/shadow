@@ -31,9 +31,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get initializing => '初始化中…';
 
   @override
-  String get modelInfo => '模型信息';
-
-  @override
   String get resetEngine => '重置引擎';
 
   @override
@@ -154,15 +151,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get provider => '提供商';
-
-  @override
-  String get modelInfoNotInitialized => '未初始化';
-
-  @override
-  String get modelLoaded => '模型已加载';
-
-  @override
-  String get desktopMode => '桌面模式（仅 Android）';
 
   @override
   String errorGeneric(String detail) {

@@ -7,7 +7,6 @@
   "addLocalModelComingSoon": "Add local model dialog coming soon",
   "askSomething": "Ask something...",
   "initializing": "Initializing...",
-  "modelInfo": "Model Info",
   "resetEngine": "Reset Engine",
   "theme": "Theme",
   "accessibilityControl": "Accessibility Control",
@@ -55,9 +54,6 @@
   "save": "Save",
   "cloudModelSettings": "Cloud Model Settings",
   "provider": "Provider",
-  "modelInfoNotInitialized": "Not initialized",
-  "modelLoaded": "Model loaded",
-  "desktopMode": "Desktop mode (Android only)",
   "errorGeneric": "Error: {detail}",
   "@errorGeneric": {
     "placeholders": {

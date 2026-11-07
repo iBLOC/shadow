@@ -140,12 +140,6 @@ abstract class AppLocalizations {
   /// **'Initializing...'**
   String get initializing;
 
-  /// No description provided for @modelInfo.
-  ///
-  /// In en, this message translates to:
-  /// **'Model Info'**
-  String get modelInfo;
-
   /// No description provided for @resetEngine.
   ///
   /// In en, this message translates to:
@@ -385,24 +379,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Provider'**
   String get provider;
-
-  /// No description provided for @modelInfoNotInitialized.
-  ///
-  /// In en, this message translates to:
-  /// **'Not initialized'**
-  String get modelInfoNotInitialized;
-
-  /// No description provided for @modelLoaded.
-  ///
-  /// In en, this message translates to:
-  /// **'Model loaded'**
-  String get modelLoaded;
-
-  /// No description provided for @desktopMode.
-  ///
-  /// In en, this message translates to:
-  /// **'Desktop mode (Android only)'**
-  String get desktopMode;
 
   /// No description provided for @errorGeneric.
   ///

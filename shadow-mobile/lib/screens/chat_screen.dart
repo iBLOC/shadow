@@ -12,7 +12,6 @@ import '../providers/wake_word_provider.dart';
 import '../services/wake_word_service.dart';
 import '../providers/conversation_mode_provider.dart';
 import '../providers/theme_provider.dart';
-import '../utils/chat_state_l10n.dart';
 import '../widgets/continue_on_desktop_dialog.dart';
 import '../widgets/chat/local_chat_view.dart';
 import '../widgets/chat/agent2ui_panel.dart';
@@ -195,8 +194,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.settings),
-            onPressed: () =>
-                _showSettings(context, chatState.displayModelInfo(l10n)),
+            onPressed: () => _showSettings(context),
             tooltip: l10n.settings,
           ),
         ],
@@ -309,11 +307,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _sendMessage();
   }
 
-  void _showSettings(BuildContext context, String modelInfo) {
+  void _showSettings(BuildContext context) {
     context.push(
       AppRoutes.settings,
       extra: {
-        'modelInfo': modelInfo,
         'onReset': () {
           ref.read(chatProvider.notifier).reset();
         },
