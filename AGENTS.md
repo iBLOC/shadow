@@ -1,4 +1,21 @@
 # PROJECT KNOWLEDGE BASE
+
+**Updated**: 2026-11-08 (㎽ **「欠项清扫三连 —— ziti.rs clippy 存量收口；fmt 债归因坐实真债非工具链；Mimosa 深度审计首次拿到完整读数（135 条全归类：132 条构建产物＋3 条真源码人判零漏洞）」** —— 承 ㎺ 条⑤欠项清单，本条记**ziti 收口**、**fmt 归因实验**、**审计读数与人判**，以及**仍欠着的**。)
+
+> 信封：epoch=2026-11-08 | authority=measured | scope=project | source=真机实测（encephalon `f5c01ad` 已推：cargo +1.99.0 clippy --all-targets --no-deps -- -D warnings **EXIT=0 零 error**＋rustfmt 本文件 EXIT=0＋lib 测试 **57/0**；fmt 归因＝prefrontal/benches/load_test.rs 在 **1.96 与 1.99 两把 rustfmt 下都红** ⇒ 真债；Mimosa scan-…d8fc9d1cae4b＝seal sha256:ec7ffa78…，551 文件解析零失败、findingCount **135**、runStatus **inconclusive**、verdictEffect none；插入前 fetch 远端 c2c9eb2 对齐＋重扫本地 112 条 max U+33BC）| status=active | supersedes=none
+
+① **✅ ziti 存量收口（encephalon `f5c01ad` 已推，1 文件 +4/−4）** —— `options_from_env_with` 的内层 `None => match clean_opt(legacy_identity) {…, None => return None}` 改成 clippy 1.99 建议的 `let path = clean_opt(legacy_identity)?;`（语义逐字等价）。承 ㎺ 条⑤①「下刀顺手收」；读数：clippy `-D warnings` **EXIT=0 零 error**（此前全 crate 唯一 error 即此条）＋rustfmt 本文件 EXIT=0＋lib 测试 **57/0**。
+
+② **✅ fmt 债归因实验（登记不修的收口）** —— 959cdf5 当时「rustfmt 都绿」⇒ 现在 workspace `fmt --all` 大面积红（diencephalon/prefrontal）。实验：`prefrontal/benches/load_test.rs` 用 **1.96 与 1.99 两把 rustfmt 各量一次都红** ⇒ **非工具链漂移，真债**；最后落地窗口＝`d706f0d`/`1ad8cfd` 等并行提交（encephalon CI 计费门外红期间落地无人看见）。不现在扫的理由：workspace 级 fmt 会扫到并行在飞文件（mobile/mod.rs 等）＋数百行级 diff，sweep 风险大于零收益（CI 门外红 ⇒ 今天没人被它挡）⇒ 独立小刀等安静窗口。
+
+③ **✅ Mimosa 深度审计首次完整读数（多轮 scanner_enobufs 之后本轮 57 秒完整跑完）** —— 扫描器 `scan-…d8fc9d1cae4b`（deep，seal sha256:ec7ffa78…，551 文件解析零失败，runStatus **inconclusive**：threatModel partial＋validation investigated=0 ⇒ 全部是未经验证的静态 advisory；verdictEffect none）。**135 findings 全归类**：medium 109 / high 26；**132 条在 `dist-web/` 构建产物**（打包第三方 bpmn Modeler 等被当污点链，26 条 high 全在此类 ⇒ 同质抽查归类，未逐条人判）；**3 条真源码逐条人判**：`computer_use.rs:762` 与 `lib.rs:318` 两条「环境变量 → config_manager.rs:50 文件路径」＝**本机信任面内 by-design**（桌面端按设计从环境变量读配置根/凭据；能控环境变量的攻击者已完全控制进程，无信任边界被跨）＋ `lib.rs:356` mongo-sort-injection＝定义在打包 JS 里却归因到 Rust init ⇒ **跨文件误归属，假阳性**；业务逻辑候选 **0** ⇒ **真源码零漏洞**。依赖面：1737 包，离线通告命中 5 包/11 条/2 未知（明细未随封印物落盘，按需在扫描器侧展开）。
+
+④ **⚠️ 新登记小刀** —— 扫描排除 `dist-web/` 构建产物（生成物不进扫描面 ⇒ 132/135 噪声消失 ⇒ 未来审计读数直接可读）。
+
+⑤ **⚠️ 仍然欠着** —— ① encephalon workspace fmt 真债（大面积，独立小刀，②）；② encephalon CI 计费门外红（存量，堵点 Billing & plans）；③ dist-web 扫描排除（④）；④ ziti-rust/encephalon CI 绿读数待账户恢复。
+
+⑥ **⚠️ 圈码**：本条占 **U+33BD（㎽）** —— 插入前 fetch 远端（c2c9eb2 对齐、零落后）＋重扫本地（112 条、max U+33BC＝并行会话 ㎼ 条）⇒ U+33BD 空闲 ✔ ⇒ 顺延取 U+33BD（字符 `String.fromCodePoint(0x33BD)` 生成、只认原始码位），插入后复跑码位闸＋条目计数（行首锚计应＝112+1=113）双钉住。
+
 **Updated**: 2026-11-08 (㎼ **「LiteRT 退役最后一刀 —— 推理归 neuron 管，Kotlin 侧不再直接实现；并行半成品事故现场复原」** —— 承用户「litert_provider 不是由 neuron 管理的吗，不要再在 kt 中直接实现吧」，本条记**新 provider 的接线形状**、**出仓清单**、**事故取证与复原**、**读数**，以及**仍欠着的**。)
 
 > 信封：epoch=2026-11-08 | authority=measured | scope=project | source=真机实测（提交 b99aeaf＝18 文件 +403/−614；flutter analyze **0 error**、61 条存量不变；gradlew :app:compileDebugKotlin **EXIT=0**（删依赖后复验）；brain_llm_provider_test **5/5**；widget 全量 **248/1**、全量 **633 passed / 1 failed**（唯一红＝并行在飞的 401 探针挂死）；fetch 远端 111 条 distinct 72 max U+33BB）| status=active | supersedes=none
