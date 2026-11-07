@@ -289,9 +289,14 @@ function Ensure-Enrolled {
   $identity = @{
     ztAPI = "$Controller/edge/client/v1"
     id    = $IdentityId
-    cert  = $certPath
-    key   = $keyPath
-    ca    = $caPath
+    # ⚠️ 写**相对文件名**（Identity::load 按「相对身份文件所在目录」解析的官方形状）：
+    #    PC 同目录用法不变；push 到设备（/data/local/tmp/ziti/）也直接可用。
+    #    写绝对 Windows 路径在设备上会拼出鬼路径（2026-11-08 真机 T1 实证：
+    #    读 ca (/data/local/tmp/ziti/C:\Projects\...ca.pem) os error 2）。旧身份
+    #    文件里的绝对路径 PC 上仍可用（loader 两种都认），不必重发。
+    cert  = "$Name.cert.pem"
+    key   = "$Name.key.pem"
+    ca    = "$Name.ca.pem"
   }
   Set-Content -Path $jsonPath -Value ($identity | ConvertTo-Json -Depth 4) -Encoding ascii
   Write-Host "    已写出 $jsonPath"
