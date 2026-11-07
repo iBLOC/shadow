@@ -1,5 +1,21 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-08 (㎺ **「海马体僵尸副本出仓 —— 用户问『海马体应该被大脑初始化然后提供给端脑内的各个叶区使用，现在是不是端脑在初始化海马体』，代码证伪了旧预期的字面形状但坐实了现行纪律的分工：构造点在端脑 boot 是有意钉住的，桌面内嵌路径里大脑自己 build_hippocampus() 的第二份才是要删的僵尸」** —— 本条记**取证链**、**刀**、**选择性暂存新手法**、**读数与两轮资源挤兑**，以及**仍欠着的**。)
+
+> 信封：epoch=2026-11-08 | authority=measured | scope=project | source=真机实测（grep 全仓+tests+桌面 src-tauri+hengjian/ibloc-hr-* 零消费 ⇒ 僵尸坐实；cargo +1.99.0 check --all-targets EXIT=0；clippy 全 crate 唯一 error＝src/ziti.rs:184 clippy::question_mark＝HEAD 干净态存量；rustfmt 本文件 EXIT=0；cargo +1.99.0 test -p encephalon --lib **57/0**；shadow-desktop/src-tauri cargo check --offline --all-targets EXIT=0（1m17s）；OS 1455／link 1102 两轮资源挤兑归并行会话重编译挤兑）| status=active | supersedes=none
+
+① **✅ 取证链（用户问题 ⇒ 代码事实）** —— ❶ 构造点＝**端脑 boot**：`telencephalon/src/boot.rs:381-395`（`build_app_state_with` 内 `hippocampus_server::build_state_with_timeout_and_config`），落点优先级＝控制面（Turso）→ `BuildOptions.hippocampus_data_dir`（桌面 telencephalon_http.rs:283-287 递 config.json 的显式根；独立服务器 `..Default::default()` ⇒ 全靠控制面/环境变量；移动端递了落点但 feature 关）⇒ 大脑（宿主）职责是**给落点与开关**、不是亲手构造；❷ 大脑不碰 `hippocampus_server` 的理由注释钉死：`encephalon/src/surface.rs:134-157`「海马体只有一份／端脑是持有者」＋`a2a_server.rs:206-211`（2026-11-03 收口「两份 Lance 抢锁」）；❸ 叶区不直接持有状态：`lobes/memory.rs:86,161` 走 HTTP `POST {telencephalon_url}/hippocampus/api/search`（端脑面上 build_hippocampus_router 挂的路由）＋MCP 图谱工具经 MCP store（state.rs:297）。
+
+② **✅ 刀＝encephalon `7d973ae`（已推，1 文件 +20/−22）** —— `src/embedded.rs` 六处：module doc、`hippocampus_server` import、`Embedded.hippocampus` 字段、`boot()` 构造块（换说明注释指向唯一构造点）、字段初始化、`.hippocampus()` accessor ⇒ 桌面进程里不再有第二份海马体状态；boot 文档同步改「boots thalamus + bus + neuron」。
+
+③ **⚠️ 选择性暂存新手法（过滤补丁法，不动工作树）** —— `embedded.rs` 内并行会话在飞的 `LlmProvider.id` hunk（+6 行）与本刀**同文件不相交** ⇒ `git diff` 全量补丁 → node 脚本按 hunk 过滤（新增行含 `pub id: Option<String>` 的 hunk 丢弃）→ `git apply --cached --recount` ⇒ staged＝只 embedded.rs +20/−22，并行会话三件在飞（Cargo.lock／mobile/mod.rs／该 hunk）原样留在工作树 ⇒ 提交核对步 `git diff --cached --name-only`＝1 文件零夹带。⇒ 与 ㎹ 条的「stash --staged 挪还」同族，但**零 stash**：补丁进暂存区、工作树全程不碰，对并行会话零窗口。
+
+④ **✅ 读数与两轮资源挤兑（诚实登记）** —— ❶ 编译级：check/clippy/fmt/桌面 check 全绿面（见信封，存量逐条标明归属）；❷ `cargo test -p encephalon`（全目标）两轮挂＝**OS 1455**（页面文件太小，rlib mmap 失败）→ `-j 2` 重试 **E0463** → **link.exe 1102**（配额/内存不足）＝并行会话同 target 挤兑 ⇒ **收缩面重跑 lib 测试 57/0 绿**（本刀只动 lib 里的死代码，bin/example/集成目标与本刀无关）；❸ workspace `fmt --all` 大面积存量 diff（diencephalon/prefrontal）＋ ziti.rs:184 clippy error＝**encephalon CI 计费门外红期间落地无人看见的债**，本刀不扩面，登记待修；❹ shadow 纪律闸 **8 条违规全非本刀**：agent-surface／apk-surface／state-surface 三闸 self-test 红＋债对账 stale/missing（并行会话工作后债清单未同步），不涉本刀任何改动面（本刀只进 AGENTS.md 条目＋encephalon 一文件）。
+
+⑤ **⚠️ 仍然欠着** —— ① ziti.rs:184 question_mark 存量（修法＝一行机械改写，等 CI 恢复或下刀顺手收）；② encephalon workspace fmt 存量债（大面积，独立小刀）；③ encephalon CI 计费门外红（存量）；④ Mimosa 提交步 scanner_enobufs 兼容策略 ⇒ 项目安全性无完整读数（ⓘ 与 ㎹/㎶/㎵ 条同型，建议尽快完整审计）。
+
+⑥ **⚠️ 圈码**：本条占 **U+33BA（㎺）** —— 插入前 fetch 远端（max U+33B4＝远端还没收到本地未推的 ㎸㎹）＋重扫本地（max U+33B9＝并行会话 ㎹ 条）⇒ U+33BA 空闲 ✔ ⇒ 顺延取 U+33BA，插入后复跑码位闸＋条目计数（行首锚计应＝109+1=110）双钉住。
+
 **Updated**: 2026-11-08 (㎹ **「设置页『模型信息』死行出仓（两刀）—— 用户一句『为什么一直是 No model loaded』问出一条全断的数据通路；删行＋残余全链清理；共用工作树一天四连实战把两条新手法钉进 memory」** —— 起于用户问外观卡片里的「模型信息」是什么意思、为什么恒显 No model loaded，本条记**病根取证**、**两刀内容**、**读数与 A/B 归因**、**两次躲车**，以及**仍欠着的**。)
 
 > 信封：epoch=2026-11-08 | authority=measured | scope=project | source=真机实测（刀一 297bcc4＝3 文件 +3/−30；刀二 48d326c＝9 文件 +2/−88；settings_screen_test **17/17**；analyze 本刀文件零命中、全仓存量 83→61；全量 **623 passed / 8 failed**——8 条红经 stash-A/B 实证归并行线存量；两刀提交 Mimosa 均 scanner_enobufs 走兼容策略；fetch 远端重核 108 条、解析到圈码 108、distinct 108、dups=0、max U+33B8）| status=active | supersedes=none
