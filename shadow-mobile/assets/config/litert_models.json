@@ -1,0 +1,24 @@
+{
+  "engine": "litert",
+  "models": [
+    {
+      "id": "gemma4-e4b",
+      "name": "Gemma4 E4B",
+      "description": "Google最新一代旗舰模型",
+      "path": "models/gemma4-e4b-lite-rt.mnn",
+      "context_length": 8192,
+      "quantization": "q4km",
+      "supports": ["chat", "reasoning", "function_calling"]
+    },
+    {
+      "id": "gemma3-e4b",
+      "name": "Gemma3 E4B",
+      "description": "Gemma3系列高效模型",
+      "path": "models/gemma3-e4b-lite-rt.mnn",
+      "context_length": 8192,
+      "quantization": "q4km",
+      "supports": ["chat", "reasoning"]
+    }
+  ],
+  "default_model": "gemma4-e4b"
+}

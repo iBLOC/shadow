@@ -1,0 +1,17 @@
+{
+    "llm_model": "qwen2.5-0.5b.mnn",
+    "llm_weight": "qwen2.5-0.5b.mnn.weight",
+    "llm_config": "llm_config.json",
+    "tokenizer_file": "tokenizer.txt",
+    "backend_type": "cpu",
+    "thread_num": 4,
+    "precision": "low",
+    "memory": "low",
+    "sampler_type": "mixed",
+    "mixed_samplers": ["topK", "tfs", "typical", "topP", "min_p", "temperature"],
+    "temperature": 1.0,
+    "topK": 40,
+    "topP": 0.9,
+    "reuse_kv": true,
+    "max_new_tokens": 512
+}
