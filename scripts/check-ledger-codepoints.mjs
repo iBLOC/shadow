@@ -5,9 +5,13 @@
  * ## 守什么
  *
  * ① **不撞号**：每个条目标题里那个方块字的**原始码位**两两不同；
- * ② **注解自洽**：条目正文里的「本条占 **U+XXXX**」必须等于它自己的真实码位。
+ * ② **注解自洽**：条目正文里的「本条占 **U+XXXX**」必须等于它自己的真实码位；
+ * ③ **缝合残迹**：非标题行里不得嵌着「**Updated**: 日期」形状——行首锚被吞
+ *    ⇒ 前后条目并体（2026-11-06 ㌳ 插入事故实证：当时闸假绿、只有计数对得上）；
+ * ④ **异体声明**：条目体里不得出现别条的「本条占 **U+XXXX**」声明（码位 ≠
+ *    自己标题码位 ⇒ 又一种并体签名，挡锚连日期形态都没了的残余）。
  *
- * ## 为什么需要它（2026-11-05 真机实测）
+ * ## 为什么需要它（2026-11-05 真机实测；③④＝2026-11-06 ㌳ 事故加固）
  *
  * · 账本里有**五条**条目的注解写的是 `U+340x`，而落盘的字符是 `U+334x`
  *   ⇒ ⇒ 差 0xC0 ⇒ ⇒ **注解在说假话**（`U+340x` 是 CJK 扩展 A 的汉字，
@@ -51,6 +55,12 @@ export function checkText(text) {
   for (const m of v.mismatched) {
     out.push(`❌ [annotation-mismatch] 第 ${m.line} 行：注解写 U+${m.claimed}，而标题里的「${m.ch}」真实码位是 U+${m.actual}`);
   }
+  for (const s of v.swallowed) {
+    out.push(`❌ [swallowed-anchor] 第 ${s.line} 行：非标题行里嵌着「**Updated**: 日期」形状 ⇒ 行首锚被吞、前后条目并体（㌳ 事故形状）｜ ${s.snippet}`);
+  }
+  for (const f of v.foreign) {
+    out.push(`❌ [foreign-declaration] 第 ${f.line} 行起：条目体里出现别条的「本条占 **U+${f.claimed.join('/')}」声明（自己的应是 U+${f.actual}）⇒ 条目并体`);
+  }
   return { v, out };
 }
 
@@ -70,6 +80,18 @@ function selfTest() {
   check('注解写错 ⇒ 不是 dups', checkText(wrong).v.dups.length === 0);
   check('重复码位 ⇒ 恰好 1 个 dup', checkText(dup).v.dups.length === 1);
   check('正文里的引用/反例 ⇒ 不误报', checkText(refs).out.length === 0, JSON.stringify(checkText(refs).out));
+  // ③④ 用例（2026-11-06 ㌳ 事故加固）——控制字符一律 String.fromCharCode 构造。
+  const BS = String.fromCharCode(92);
+  const litBreak = BS + 'r' + BS + 'n' + BS + 'r' + BS + 'n';
+  const merged = ok.replace(
+    '\n\n**Updated**: 2026-11-05 (㍀',
+    litBreak + '**Updated**: 2026-11-05 (㍀',
+  );
+  const mv = checkText(merged);
+  check('缝合残迹（㌳ 形状）⇒ swallowed 恰好 1 条', mv.v.swallowed.length === 1, JSON.stringify(mv.out));
+  check('缝合残迹 ⇒ 异体声明恰好 1 条（㍀ 的声明并进 ㋿ 体）', mv.v.foreign.length === 1, JSON.stringify(mv.out));
+  const prose = ['# PROJECT KNOWLEDGE BASE', '', head('㋿', '本条占 **U+32FF**', '① 规则引文：正文里的「本条占 **U+XXXX**」必须等于真实码位。'), '', head('㍀', '本条占 **U+3340**', '② 锚点引用：这个「本条占」锚点只认完整声明。')].join('\n');
+  check('规则引文/锚点引用（㎝ 形状）⇒ 不误报', checkText(prose).out.length === 0, JSON.stringify(checkText(prose).out));
   if (!existsSync(LEDGER)) { check('真账本存在', false); } else {
     const r = checkText(readFileSync(LEDGER, 'utf8'));
     check('真账本 ⇒ 零违规', r.out.length === 0, r.out.join(' | '));
@@ -91,11 +113,32 @@ function drill() {
   const red = checkText(readFileSync(copy, 'utf8'));
   writeFileSync(copy, original);
   const green = checkText(readFileSync(copy, 'utf8'));
+  // ③④ 并体演练：把第二个标题的行首锚吞成字面换行文本（模拟 2026-11-06 ㌳ 事故）。
+  // 边界定位必须兼容 LF 与 CRLF 账本——字面 '\n\n' 锚在 CRLF 文件上永远找不到
+  // （2026-11-07 实测踩过：drill 三行打印全绿却退出码 1，根因是 mergedRed 没构造出来）。
+  const BS = String.fromCharCode(92);
+  const litBreak = BS + 'r' + BS + 'n' + BS + 'r' + BS + 'n';
+  const firstHead = original.search(/^\*\*Updated\*\*/m);
+  const boundary = /\r?\n\r?\n\*\*Updated\*\*/g;
+  boundary.lastIndex = firstHead + 1;
+  const hit = boundary.exec(original);
+  let mergedRed = null;
+  if (hit) {
+    const mergedCopy = original.slice(0, hit.index) + litBreak + '**Updated**' + original.slice(hit.index + hit[0].length);
+    writeFileSync(copy, mergedCopy);
+    mergedRed = checkText(readFileSync(copy, 'utf8'));
+    writeFileSync(copy, original);
+  }
   rmSync(dir, { recursive: true, force: true });
   const after = sha256(LEDGER);
-  const ok = red.out.length > 0 && green.out.length === 0 && before === after;
+  const mergedOk = mergedRed != null
+    && mergedRed.out.length > 0
+    && mergedRed.v.swallowed.length >= 1;
+  const ok = red.out.length > 0 && green.out.length === 0 && mergedOk && before === after;
   console.log(`  副本破坏 ⇒ 判红：${red.out.length} 条`);
   console.log(`  副本还原 ⇒ 判绿：${green.out.length} 条`);
+  if (mergedRed) console.log(`  并体副本（㌳ 形状）⇒ 判红：${mergedRed.out.length} 条（swallowed ${mergedRed.v.swallowed.length} / foreign ${mergedRed.v.foreign.length}）`);
+  else console.log('  并体副本 ⇒ 没构造出来（第二个标题边界没找到）');
   console.log(`  真文件 SHA256 前后一致：${before === after ? '是' : '否'} (${before.slice(0, 16)}…)`);
   return ok;
 }
