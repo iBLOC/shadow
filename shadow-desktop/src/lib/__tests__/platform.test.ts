@@ -1,4 +1,17 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+// ⚠️⚠️ 修法：还原 `vi.stubGlobal`。
+//   本文件里有一句 `vi.stubGlobal('window', { location: … })` —— 它把**整个 window**
+//   换成普通对象（其上**没有 localStorage**）⇒ ⇒ 而 vitest 默认
+//   `unstubGlobals: false` ⇒ ⇒ stub **不会**在文件结束时还原
+//   ⇒ ⇒ **跨文件泄漏**给同一 worker 的后续文件
+//   ⇒ ⇒ 后续受害者里 zustand `persist`（`createJSONStorage(() => window.localStorage)`
+//   在**模块加载那一刻**就捕获 storage）⇒ ⇒ 捕获到 `undefined`
+//   ⇒ ⇒ 之后每次 `setState` 抛 `TypeError: Cannot read properties of undefined`。
+//   ⇒ ⇒ 还原放在**污染源**这里（放在受害者上无效）。
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe('platform', () => {
   beforeEach(() => {

@@ -13,13 +13,26 @@ const mockLocalStorage = {
   clear: vi.fn(),
 };
 
-Object.defineProperty(globalThis, 'localStorage', {
-  value: mockLocalStorage,
-  writable: true,
-});
+// ⚠️⚠️ 修法：mock localStorage 的**安装**放进 beforeEach、**还原**放进 afterEach。
+//   原因：原生 `Object.defineProperty` **不受** `vi.unstubAllGlobals` 保护
+//   ⇒ ⇒ 装在文件头的 mock 会**泄漏给后续文件**
+//   ⇒ ⇒ 后续受害者从 mock 读到 `undefined`（而不是 `null`）⇒ ⇒ 飘红。
+const __origLocalStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+function __installMockLocalStorage() {
+  Object.defineProperty(globalThis, 'localStorage', {
+    value: mockLocalStorage,
+    writable: true,
+    configurable: true,
+  });
+}
+function __restoreLocalStorage() {
+  if (__origLocalStorage) Object.defineProperty(globalThis, 'localStorage', __origLocalStorage);
+  else Reflect.deleteProperty(globalThis, 'localStorage');
+}
 
 describe('AgentStore', () => {
   beforeEach(() => {
+    __installMockLocalStorage();
     vi.clearAllMocks();
     mockLocalStorage.getItem.mockReturnValue(null);
     
@@ -39,6 +52,7 @@ describe('AgentStore', () => {
   });
 
   afterEach(() => {
+    __restoreLocalStorage();
     localStorage.clear();
   });
 
