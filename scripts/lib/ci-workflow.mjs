@@ -17,9 +17,41 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { LOCAL, SHADOW_ROOT, pathDeps, repoOf, wsRoot, entries, membersOf } from './ci-cargo.mjs';
 
+/**
+ * 把 `run: |` / `run: >` 这类**块标量**的正文**提上来并拼进同一行**。
+ *
+ * ⚠️⚠️ 2026-11-08：**不处理块标量，解析器就会把整个 job 静默漏掉** ——
+ *   原来只认单行的 `run: cargo check ...`（正则能匹配到正文）⇒ ⇒ 多行命令
+ *   （如本仓 desktop-rust.yml 的 `run: |` + `set -o pipefail ...`）的正文行
+ *   缩进更深 ⇒ ⇒ 匹配不到 ⇒ ⇒ **正文从未进入 step.run** ⇒ ⇒ 探针的判据
+ *   （/cargo\s/ 与 /--manifest-path/）全部落空 ⇒ ⇒ 那个 job **整段不被判**
+ *   ⇒ ⇒ 一个真的检出闭包缺口，可以躲在一道**自报「没发现破口」**的工具后面。
+ */
+function expandRunBlocks(text) {
+  const lines = text.split(/\r?\n/);
+  const out = [];
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    const m = raw.match(/^([ \t]*)run:[ \t]*[|>][-+]?[ \t]*$/);
+    if (!m) { out.push(raw); continue; }
+    const ind = m[1].length;
+    const body = [];
+    let j = i + 1;
+    for (; j < lines.length; j++) {
+      const l = lines[j];
+      if (l.trim() === '') { body.push(''); continue; }
+      if (l.length - l.trimStart().length <= ind) break;
+      body.push(l.trim());
+    }
+    out.push(m[1] + 'run: ' + body.join(' ').trim());
+    i = j - 1;
+  }
+  return out.join('\n');
+}
+
 /** 把 workflow 文本拆成 job → step。 */
 export function parseWorkflow(text) {
-  const lines = text.split(/\r?\n/);
+  const lines = expandRunBlocks(text).split(/\r?\n/);
   const jobs = [];
   let job = null;
   let step = null;
