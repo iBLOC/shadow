@@ -760,6 +760,7 @@
   "settingsChatBackgroundPick": "选择图片",
   "settingsChatBackgroundClear": "清除",
   "settingsChatBackgroundFailed": "设置背景失败：{error}",
+  "settingsConfigSaveFailed": "没存上：{error}",
   "surfaceA2ui": "生成式界面",
   "surfaceIdentity": "身份",
   "agent2uiNoConnection": "未连接到端脑",

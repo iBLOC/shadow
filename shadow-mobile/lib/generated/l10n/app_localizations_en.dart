@@ -1482,6 +1482,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String settingsConfigSaveFailed(String error) {
+    return 'Not saved: $error';
+  }
+
+  @override
   String get surfaceA2ui => 'Generative UI';
 
   @override

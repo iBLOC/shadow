@@ -1449,6 +1449,11 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String settingsConfigSaveFailed(String error) {
+    return '没存上：$error';
+  }
+
+  @override
   String get surfaceA2ui => '生成式界面';
 
   @override

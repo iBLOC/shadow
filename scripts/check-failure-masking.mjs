@@ -267,13 +267,6 @@ export const KNOWN_DEBT = [
   },
   {
     repo: 'shadow-mobile',
-    file: 'lib/services/app_config_service.dart',
-    kind: 'D1',
-    why: '⚠️ **真缺陷**（配置**写**失败被吞 ⇒ ⇒ 内存里已经是新值、文件里还是旧值 ⇒ ⇒ 用户以为设置存下来了，重启就没）⇒ ⇒ 下一刀改（要一条到 UI 的错误通路 ⇒ ⇒ 属设计决定，未拍板）。',
-    when: '下一刀：配置保存失败要有到 UI 的通路。',
-  },
-  {
-    repo: 'shadow-mobile',
     file: 'lib/services/audio_ws_service.dart',
     kind: 'D1',
     why: '单条**非 JSON** 消息跳过（那条转写丢了，其余照常）⇒ ⇒ 不是把整条会话说成成功。',

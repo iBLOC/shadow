@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -46,6 +47,50 @@ class AppConfigService {
   // 空 = 一个都没显式配过 = 全走默认档（每次询问）⇒ ⇒
   // 配置文件里**没有**这个键，与「配成空」是同一件事。
   Map<String, String> _capabilityModes = {};
+
+  // ⚠️ **最近一次写盘失败的真因**（null = 上次写成功）。
+  //
+  // 为什么单独一个字段：写盘失败**没有**「长得像成功」的形状
+  // （界面不会因此显示成功）⇒ ⇒ 形状闸抓不到它
+  // ⇒ ⇒ 只能靠**一条真的通路**把它送到用户眼前。
+  //
+  // ⚠️ 原文（不重包）：「没存上」的原因分三类（磁盘满 / 权限 / 路径不存在）
+  // ⇒ ⇒ 处置完全不同 ⇒ ⇒ 重包成一句话等于把线索扔掉。
+  //
+  // ⚠️ 为什么是**广播流**而不是普通字段：**写盘是单例上的全局操作**
+  // ⇒ ⇒ 调用方散落在设置页 / 外观 / 后台开关 / 端脑页
+  // ⇒ ⇒ 每个页面各写一遍「怎么报错」必然漏掉几个
+  // ⇒ ⇒ 一处广播 ⇒ ⇒ App 根部挂一个横幅 ⇒ ⇒ **任何一处写失败都看得见**。
+  //
+  // ⚠️ 为什么不用 ValueNotifier：这个 service 是**纯 Dart**（不 import
+  // Flutter ⇒ ⇒ 后台 isolate / 无 Flutter 绑定的场景也能用）
+  // ⇒ ⇒ 通知机制也必须是纯 Dart 的。
+  final _saveErrorController = StreamController<String>.broadcast();
+
+  /// **写盘失败**的广播流（每次失败推一次**真因**）。
+  ///
+  /// UI 挂上它就能说「没存上」⇒ ⇒ 不依赖「谁记得处理」。
+  Stream<String> get saveFailures => _saveErrorController.stream;
+
+  /// 最近一次写盘失败的真因（null = 上次写成功）。
+  ///
+  /// ⚠️ 与 [saveFailures] 广播**同一份真相** ⇒ ⇒ 不许各存一份。
+  String? _lastSaveError;
+  String? get lastSaveError => _lastSaveError;
+
+  /// 用户手动关掉横幅（**关掉 ≠ 问题已解决** ⇒ 下次写失败还会再报）。
+  void clearSaveError() => _lastSaveError = null;
+
+  // ⚠️ **最后一次确认落盘的配置**（读到的，或写成功的）。
+  //
+  // 为什么需要它：写失败后要**回滚内存**，而回滚的基准必须是
+  // 「**磁盘上真正的那个值**」⇒ ⇒ 那就得有一份**已确认**的快照。
+  //
+  // ⚠️ 为什么**不能**靠「失败后再读一次磁盘」：写失败的原因常常
+  // （磁盘满 / 权限 / 路径不存在）**让读也失败** ⇒ ⇒ 那时读到的是
+  // 「什么都没有」⇒ ⇒ 回滚成默认值 ⇒ ⇒ **把用户其它正常设置一起抹掉**
+  // ⇒ ⇒ 比不回滚还糟。⇒ ⇒ 回滚基准必须是**上一次确认落盘的快照**。
+  Map<String, dynamic> _persisted = {};
 
   /// 已经搬过一次？（值 = 搬给谁的人格；null = 没搬过）
   String? get tenantMigrationTarget => _tenantMigrationTarget;
@@ -100,43 +145,15 @@ class AppConfigService {
   }
 
   /// 从文件加载配置
+  ///
+  /// ⚠️ **读失败也是「失败」** —— 但这里的失败**没有**「长得像成功」的
+  /// 形状（读不到 ⇒ 全部回到默认 ⇒ 界面显示的是「什么都没配」）⇒ ⇒
+  /// **诚实**（不谎称有配置）⇒ ⇒ 但**授权绝不因此放宽**。
+  ///
+  /// ⚠️ 与 [_reloadFromDisk] 同一套「读不到 ⇒ 默认」的规矩 ⇒ ⇒
+  /// 两个入口共用一份实现（别让两条路读出**两个**真相）。
   Future<void> _loadConfig() async {
-    try {
-      final file = await _getConfigFile();
-      if (await file.exists()) {
-        final contents = await file.readAsString();
-        final config = json.decode(contents) as Map<String, dynamic>;
-        _telencephalonBaseUrl = config['telencephalonBaseUrl'] as String?;
-        _telencephalonAdminToken = config['telencephalonAdminToken'] as String?;
-        _telencephalonShadowKey = config['telencephalonShadowKey'] as String?;
-        _brainStoppedByUser = config['brainStoppedByUser'] == true;
-        // ⚠️ 只有**显式 false** 才算关 —— 键缺失 / 值异常（旧文件没这键）
-        // 一律回到默认 true（与字段初始值同源，别让损坏文件悄悄关掉常驻）。
-        final keepAlive = config['backgroundKeepAlive'];
-        _backgroundKeepAlive = keepAlive is bool ? keepAlive : true;
-        _accentColorValue = config['accentColor'] as int?;
-        _glassIntensity = (config['glassIntensity'] as num?)?.toDouble();
-        _surfaceOverrideValue = config['surfaceOverride'] as int?;
-        _chatBackgroundPath = config['chatBackgroundPath'] as String?;
-        _tenantMigrationTarget = config['tenantMigrationTarget'] as String?;
-        _capabilityModes = CapabilityPolicyStore.read(config);
-      }
-    } catch (e) {
-      // 配置文件读取失败，使用默认值
-      _telencephalonBaseUrl = null;
-      _telencephalonAdminToken = null;
-      _telencephalonShadowKey = null;
-      _brainStoppedByUser = false;
-      _backgroundKeepAlive = true;
-      _accentColorValue = null;
-      _glassIntensity = null;
-      _surfaceOverrideValue = null;
-      _chatBackgroundPath = null;
-      _tenantMigrationTarget = null;
-      // ⚠️ 读失败 ⇒ 授权档位回到「什么都没配」⇒ ⇒ 全部按
-      // 「每次询问」处理 ⇒ ⇒ **绝不会因为文件坏了就放宽授权**。
-      _capabilityModes = {};
-    }
+    await _reloadFromDisk();
   }
 
   /// 保存配置到文件
@@ -166,9 +183,94 @@ class AppConfigService {
       // ⚠️ 能力授权：**空 map 不写** ⇒ ⇒ 配置文件里不留空壳。
       CapabilityPolicyStore.write(_capabilityModes, config);
       await file.writeAsString(json.encode(config));
+      // ⚠️ 写成功 ⇒ ⇒ 这一份**就是**磁盘上的真值了 ⇒ ⇒ 快照更新。
+      _persisted = config;
+      // 写成功 ⇒ ⇒ 上次的失败不再成立（否则 UI 会一直说「没存上」）。
+      _lastSaveError = null;
     } catch (e) {
-      // 配置保存失败，忽略错误
+      // ⚠️⚠️ **写失败不许长得像成功**。
+      //
+      // 原来这里是空 catch ⇒ ⇒ 写盘失败被吞 ⇒ ⇒ **内存里已经是新值、
+      // 文件里还是旧值** ⇒ ⇒ 用户以为设置存下来了，重启就没。
+      // ⇒ ⇒ 这一族里最阴的一种：**界面完全正常**，只是重启后消失。
+      //
+      // 现在做三件事：
+      // ❶ **记下真因**（原文，不重包）⇒ UI 能说出「为什么没存上」。
+      // ❷ **回滚内存** ⇒ 内存重新等于**最后确认落盘的那份** ⇒
+      //    「内存说 A、文件说 B」这个分裂不允许存在。
+      //    （不抛异常 ⇒ 不打断既有调用方的 await 语义。）
+      // ❸ **通知 UI** ⇒ App 根部的横幅让用户看见「没存上」。
+      final reason = e.toString();
+      // ⚠️ 回滚到**最后一次确认落盘的快照**（不是「再读一次磁盘」——
+      // 写失败的原因常常让读也失败 ⇒ ⇒ 那会把正常设置一起抹掉）。
+      _applyConfig(_persisted);
+      _lastSaveError = reason;
+      if (!_saveErrorController.isClosed) _saveErrorController.add(reason);
     }
+  }
+
+  /// **从磁盘重读** ⇒ 让内存回到**文件里的真值**。
+  ///
+  /// ⚠️ 读不到 ⇒ ⇒ 全部回默认（与 [init] 同一条规矩：授权档位回到
+  /// 「什么都没配」⇒ ⇒ 绝不因为读不到就放宽授权）。
+  ///
+  /// ⚠️ **读成功** ⇒ ⇒ 快照更新（这一份就是磁盘上的真值了）。
+  ///
+  /// ⚠️ **读失败** ⇒ ⇒ 快照**不动**（它还是上一次确认落盘的那份）
+  /// ⇒ ⇒ 后面写失败时的回滚基准不会退化成「什么都没有」。
+  Future<void> _reloadFromDisk() async {
+    try {
+      final file = await _getConfigFile();
+      if (!await file.exists()) {
+        _resetToDefaults();
+        // ⚠️ 文件不存在 ⇒ ⇒ 磁盘上的真值就是「什么都没配」。
+        _persisted = {};
+        return;
+      }
+      final contents = await file.readAsString();
+      final config = json.decode(contents) as Map<String, dynamic>;
+      _applyConfig(config);
+      _persisted = config;
+    } catch (_) {
+      _resetToDefaults();
+    }
+  }
+
+  /// 把一份配置**套到内存**上。
+  ///
+  /// ⚠️ 读盘与回滚**共用**这一份 ⇒ ⇒ 别让两条路读出**两个**真相。
+  void _applyConfig(Map<String, dynamic> config) {
+    _telencephalonBaseUrl = config['telencephalonBaseUrl'] as String?;
+    _telencephalonAdminToken = config['telencephalonAdminToken'] as String?;
+    _telencephalonShadowKey = config['telencephalonShadowKey'] as String?;
+    _brainStoppedByUser = config['brainStoppedByUser'] == true;
+    // ⚠️ 只有**显式 false** 才算关 —— 键缺失 / 值异常（旧文件没这键）
+    // 一律回到默认 true（与字段初始值同源，别让损坏文件悄悄关掉常驻）。
+    final keepAlive = config['backgroundKeepAlive'];
+    _backgroundKeepAlive = keepAlive is bool ? keepAlive : true;
+    _accentColorValue = config['accentColor'] as int?;
+    _glassIntensity = (config['glassIntensity'] as num?)?.toDouble();
+    _surfaceOverrideValue = config['surfaceOverride'] as int?;
+    _chatBackgroundPath = config['chatBackgroundPath'] as String?;
+    _tenantMigrationTarget = config['tenantMigrationTarget'] as String?;
+    _capabilityModes = CapabilityPolicyStore.read(config);
+  }
+
+  /// 内存回到「什么都没配」的默认态（读不到时的安全回落）。
+  void _resetToDefaults() {
+    _telencephalonBaseUrl = null;
+    _telencephalonAdminToken = null;
+    _telencephalonShadowKey = null;
+    _brainStoppedByUser = false;
+    _backgroundKeepAlive = true;
+    _accentColorValue = null;
+    _glassIntensity = null;
+    _surfaceOverrideValue = null;
+    _chatBackgroundPath = null;
+    _tenantMigrationTarget = null;
+    // ⚠️ 读不到 ⇒ ⇒ 授权档位回到「什么都没配」⇒ ⇒ 全部按
+    // 「每次询问」处理 ⇒ ⇒ **绝不会因为文件坏了就放宽授权**。
+    _capabilityModes = {};
   }
 
   /// 获取配置文件

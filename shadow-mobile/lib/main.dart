@@ -13,6 +13,7 @@ import 'theme/glass_theme.dart';
 import 'theme/shad_scheme.g.dart';
 import 'services/app_config_service.dart';
 import 'services/background/background_run_provider.dart';
+import 'widgets/config_save_error_banner.dart';
 import 'services/encephalon/encephalon_mobile_provider.dart';
 
 void main() async {
@@ -144,7 +145,15 @@ class ShadowApp extends ConsumerWidget {
             ),
             brightness: brightness,
           ),
-          child: child ?? const SizedBox.shrink(),
+          // ⚠️ **「没存上」横幅挂在 App 根部** —— 配置写盘失败时，
+          // **任何页面**都看得见（SnackBar 依赖当前页有 Scaffold ⇒ ⇒
+          // 不在设置页的写入就弹不出来 ⇒ ⇒ 那还是「失败长得像成功」）。
+          child: Column(
+            children: [
+              const ConfigSaveErrorBanner(),
+              Expanded(child: child ?? const SizedBox.shrink()),
+            ],
+          ),
         );
       },
     );

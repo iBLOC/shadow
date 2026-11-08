@@ -782,6 +782,14 @@
   "settingsChatBackgroundPick": "Choose image",
   "settingsChatBackgroundClear": "Clear",
   "settingsChatBackgroundFailed": "Failed to set background: {error}",
+  "settingsConfigSaveFailed": "Not saved: {error}",
+  "@settingsConfigSaveFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "@settingsChatBackgroundFailed": {
     "placeholders": {
       "error": {

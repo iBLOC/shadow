@@ -2828,6 +2828,12 @@ abstract class AppLocalizations {
   /// **'Failed to set background: {error}'**
   String settingsChatBackgroundFailed(String error);
 
+  /// No description provided for @settingsConfigSaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Not saved: {error}'**
+  String settingsConfigSaveFailed(String error);
+
   /// No description provided for @surfaceA2ui.
   ///
   /// In en, this message translates to:

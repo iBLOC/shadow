@@ -138,15 +138,27 @@ class CapabilityPolicyNotifier extends StateNotifier<CapabilityPolicy> {
 
   final AppConfigService _config = AppConfigService();
 
+  // ⚠️ **用户已经改过档位了吗** —— 用来防「恢复把用户的改动覆盖掉」。
+  //
+  // 为什么需要它：[CapabilityPolicyNotifier] 构造时**不 await** [_restore]
+  // ⇒ ⇒ 恢复是**异步**的 ⇒ ⇒ 用户（或调用方）若在这期间改了档位
+  // ⇒ ⇒ 恢复一完成就会把 state 覆盖成「文件里那个」⇒ ⇒
+  // **用户的改动被静默吃掉**（界面跳回旧档 ⇒ 用户以为没改成）
+  // ⇒ ⇒ 这是「失败长得像成功」的近亲：**改动发生了，却被回退**。
+  bool _userChanged = false;
+
   /// 从配置文件恢复上次的选择。
   Future<void> _restore() async {
     try {
       await _config.init();
-      if (mounted) state = CapabilityPolicy.fromWire(_config.capabilityModes);
+      // ⚠️ **用户改过 ⇒ 恢复不许覆盖**（以用户的为准）。
+      if (mounted && !_userChanged) {
+        state = CapabilityPolicy.fromWire(_config.capabilityModes);
+      }
     } catch (e) {
       // 读失败就用默认值 —— 授权配置坏了不该让 App 进不去。
       // ⚠️ 默认值是「每次询问」⇒ ⇒ 坏文件不会**放宽**授权。
-      if (mounted) state = CapabilityPolicy.empty;
+      if (mounted && !_userChanged) state = CapabilityPolicy.empty;
     }
     // ⚠️ **无论成功失败都要推** —— 闸的状态必须与内存里的档位一致
     // ⇒ ⇒ 恢复失败（走默认值）时也要把原生侧**推回拒绝**。
@@ -159,6 +171,8 @@ class CapabilityPolicyNotifier extends StateNotifier<CapabilityPolicy> {
     AuthorizationMode mode,
   ) async {
     if (!mounted) return;
+    // ⚠️ 先记「用户改过」⇒ ⇒ 恢复（若还在飞）不许覆盖这一改。
+    _userChanged = true;
     state = state.withMode(capability, mode);
     await _config.setCapabilityModes(state.toWire());
     // ⚠️ 改完档位**立刻**推 ⇒ ⇒ 原生侧不会拿着上一档的授权继续动作。
