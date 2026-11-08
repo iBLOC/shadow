@@ -105,12 +105,29 @@ pub struct FeishuMcp {
     enabled: Arc<std::sync::atomic::AtomicBool>,
 }
 
+/// Read the safety gate from the process-global FEISHU_ENABLED env var.
+fn env_gate_enabled() -> bool {
+    std::env::var("FEISHU_ENABLED")
+        .ok()
+        .map(|v| v != "0" && v.to_ascii_lowercase() != "false")
+        .unwrap_or(false)
+}
+
 impl FeishuMcp {
+    /// Production constructor - the gate comes from FEISHU_ENABLED.
     pub fn new(ops: Arc<dyn FeishuOps>) -> Self {
-        let enabled = std::env::var("FEISHU_ENABLED")
-            .ok()
-            .map(|v| v != "0" && v.to_ascii_lowercase() != "false")
-            .unwrap_or(false);
+        Self::new_with_enabled(ops, env_gate_enabled())
+    }
+
+    /// Constructor with an explicit gate.
+    ///
+    /// Tests use this one instead of new(): new() reads a process-global
+    /// env var, so two test threads that mutate FEISHU_ENABLED around a
+    /// construction can interleave and make each other observe the wrong
+    /// gate. That is exactly how create_sheet_returns_disabled_when_off got
+    /// an Ok instead of a Disabled on CI (130 passed / 1 failed). This path
+    /// touches no global state, so it cannot race with a sibling test.
+    pub fn new_with_enabled(ops: Arc<dyn FeishuOps>, enabled: bool) -> Self {
         Self {
             ops,
             enabled: Arc::new(std::sync::atomic::AtomicBool::new(enabled)),
@@ -460,46 +477,50 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    /// Enabled instance without touching the process-global env var.
     fn enabled_mcp() -> Arc<FeishuMcp> {
-        let prev = std::env::var("FEISHU_ENABLED").ok();
-        unsafe { std::env::set_var("FEISHU_ENABLED", "1") };
-        let m = Arc::new(FeishuMcp::new(Arc::new(MockFeishu::default())));
-        if let Some(v) = prev {
-            unsafe { std::env::set_var("FEISHU_ENABLED", v) };
-        } else {
-            unsafe { std::env::remove_var("FEISHU_ENABLED") };
-        }
-        m
+        Arc::new(FeishuMcp::new_with_enabled(
+            Arc::new(MockFeishu::default()),
+            true,
+        ))
     }
 
     #[test]
-    fn enabled_flag_defaults_off_then_on_via_env() {
+    fn enabled_flag_follows_env_at_construction_then_runtime() {
         // Safety gate semantics — the FEISHU_ENABLED env var flips the
         // atomic at construction. After that only set_enabled() /
         // MCP tool feishu_set_enabled can move it.
+        //
+        // This is the ONLY test in the crate that touches FEISHU_ENABLED;
+        // every sibling test builds its instance through new_with_enabled,
+        // so no other thread can observe a half-mutated process-global env
+        // var. Keep it that way: adding another env-mutating test
+        // reintroduces the race this module used to have (CI read:
+        // create_sheet_returns_disabled_when_off got Ok instead of
+        // Disabled).
         let prev = std::env::var("FEISHU_ENABLED").ok();
         unsafe { std::env::remove_var("FEISHU_ENABLED") };
         let m = FeishuMcp::new(Arc::new(MockFeishu::default()));
         assert!(!m.is_enabled());
+        unsafe { std::env::set_var("FEISHU_ENABLED", "1") };
+        let on = FeishuMcp::new(Arc::new(MockFeishu::default()));
+        assert!(on.is_enabled());
         m.set_enabled(true);
         assert!(m.is_enabled());
         m.set_enabled(false);
         assert!(!m.is_enabled());
         if let Some(v) = prev {
             unsafe { std::env::set_var("FEISHU_ENABLED", v) };
+        } else {
+            unsafe { std::env::remove_var("FEISHU_ENABLED") };
         }
     }
 
     #[tokio::test]
     async fn create_sheet_returns_disabled_when_off() {
-        let prev = std::env::var("FEISHU_ENABLED").ok();
-        unsafe { std::env::remove_var("FEISHU_ENABLED") };
-        let m = FeishuMcp::new(Arc::new(MockFeishu::default()));
+        let m = FeishuMcp::new_with_enabled(Arc::new(MockFeishu::default()), false);
         let err = m.create_sheet("x", None).await.unwrap_err();
         assert!(matches!(err, FeishuError::Disabled));
-        if let Some(v) = prev {
-            unsafe { std::env::set_var("FEISHU_ENABLED", v) };
-        }
     }
 
     #[tokio::test]
@@ -507,10 +528,8 @@ mod tests {
         // DOC-04 rollback path must work regardless of the FEISHU_ENABLED
         // gate — otherwise a half-published sheet survives a mid-flight
         // toggle-off.
-        let prev = std::env::var("FEISHU_ENABLED").ok();
-        unsafe { std::env::remove_var("FEISHU_ENABLED") };
         let mock = Arc::new(MockFeishu::default());
-        let m = FeishuMcp::new(mock.clone());
+        let m = FeishuMcp::new_with_enabled(mock.clone(), false);
         assert!(!m.is_enabled());
         m.delete_sheet("orphan-token").await.unwrap();
         let calls = mock.calls.lock().unwrap().clone();
@@ -519,9 +538,6 @@ mod tests {
             matches!(&calls[0], MockCall::Delete { spreadsheet_token } if spreadsheet_token == "orphan-token"),
             "expected a single Delete call for orphan-token, got {calls:?}"
         );
-        if let Some(v) = prev {
-            unsafe { std::env::set_var("FEISHU_ENABLED", v) };
-        }
     }
 
     #[tokio::test]
@@ -568,17 +584,15 @@ mod tests {
     #[tokio::test]
     async fn mcp_set_enabled_flips_gate_at_runtime() {
         use synapse::mcp::McpServer;
-        let prev = std::env::var("FEISHU_ENABLED").ok();
-        unsafe { std::env::remove_var("FEISHU_ENABLED") };
-        let m = Arc::new(FeishuMcp::new(Arc::new(MockFeishu::default())));
+        let m = Arc::new(FeishuMcp::new_with_enabled(
+            Arc::new(MockFeishu::default()),
+            false,
+        ));
         let server = m.mcp_server();
         assert!(!m.is_enabled());
         let _ = server.call_tool("feishu_set_enabled", json!({"on": true})).await.unwrap();
         assert!(m.is_enabled());
         let _ = server.call_tool("feishu_set_enabled", json!({"on": false})).await.unwrap();
         assert!(!m.is_enabled());
-        if let Some(v) = prev {
-            unsafe { std::env::set_var("FEISHU_ENABLED", v) };
-        }
     }
 }
