@@ -15,6 +15,21 @@ name: Desktop Rust
 #   push 流水线」（见仓内 ㏀ 条⑥❶ 的登记：桌面 Rust crate 无 CI 防线）。
 
 on:
+  # ⚠️⚠️ 2026-11-08 **加了 push 触发** —— 以前「只留手动与夜间定时」的理由是
+  # 「一次 ~几十分钟 ⇒ ⇒ 在每 2–4 分钟一次 push 的节奏下，push 触发 ⇒ ⇒ 排队的那一个
+  # 永远被下一次 push 顶掉 ⇒ ⇒ 手动触发也会被推挤掉」⇒ ⇒ 而那条理由**只在「push 触发
+  # 排队并互相等」时成立** ⇒ ⇒ 现在两处前提都改了：
+  #   ① **冷编从 13 分 53 秒压到分钟级**（rust-cache 现在把桌面 crate 自己的 target
+  #      也纳入 ⇒ ⇒ 详见下面 Setup Rust 那一步的注释 ⇒ ⇒ 这一跑不再是「几十分钟」）；
+  #   ② **push 触发的那几跑互相顶掉**（并发组按事件名分开 ＋ push 那一档
+  #      cancel-in-progress: true）⇒ ⇒ 不排队 ⇒ ⇒ 队列那条反对理由不成立。
+  # ⇒ ⇒ **只推桌面 crate 相关的改动才触发**（paths 过滤）⇒ ⇒ 前端/文档改动不触发。
+  push:
+    branches: [master]
+    paths:
+      - 'shadow-desktop/src-tauri/**'
+      - '.github/workflows/desktop-rust.yml'
+      - '.github/actions/ibloc-siblings/**'
   workflow_dispatch:
   schedule:
     # UTC 21:23 ＝ 北京 05:23 ⇒ ⇒ 与 desktop-e2e 的 19:37 UTC **错峰** ⇒ ⇒ 两个重型
@@ -22,9 +37,12 @@ on:
     - cron: '23 21 * * *'
 
 concurrency:
-  group: desktop-rust
+  # ⚠️ **两组**：push 触发的那一档**互相顶掉**（只留最新一次 ⇒ ⇒ 不排队 ⇒ ⇒ 队列不会
+  #   越积越长）；夜间/手动那一档**永不取消**（false 是这个 workflow 存在的全部理由
+  #   ⇒ ⇒ 改回 true ⇒ ⇒ 「它从来没跑完过」回来）。
+  group: ${{ github.event_name == 'push' && 'desktop-rust-push' || 'desktop-rust' }}
   # ⚠️ **false 是这个 workflow 存在的全部理由** ⇒ ⇒ 改回 true ⇒ ⇒ 「它从来没跑完过」回来。
-  cancel-in-progress: false
+  cancel-in-progress: ${{ github.event_name == 'push' }}
 
 env:
   CARGO_TERM_COLOR: always
