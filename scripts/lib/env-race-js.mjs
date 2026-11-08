@@ -17,26 +17,43 @@
  *
  * **实测证据**（vitest 3.2.4，本仓 shadow-desktop 的 vitest）：
  *
- *   ❶ **vitest 不在文件之间还原 `process.env`** ⇒ ⇒ 跨文件污染是**真机制**。
- *      决定性对照实验（同一 worker、`singleThread`、`fileParallelism:false`）：
- *      · 大文件（先跑）设 env **不还原** ⇒ ⇒ 小文件（后跑）读到 **set-by-S1**
- *        ⇒ ⇒ **确实泄漏**；
- *      · 对照组：读者是大文件（先跑）⇒ ⇒ 读到 **undefined** ⇒ ⇒ 泄漏**依赖顺序**。
- *   ❷ **文件执行顺序会漂** ⇒ ⇒ 所以泄漏是**间歇性**的（飘红）。
- *      vitest 的 `BaseSequencer.sort()`（`node_modules/vitest/dist/chunks/…`）：
- *      · 没有结果缓存时 ⇒ ⇒ **按文件大小降序**（大的先跑）；
- *      · 有结果缓存时 ⇒ ⇒ **上次失败的先跑**，再**上次耗时长的先跑**；
- *      ⇒ ⇒ 缓存状态一变 ⇒ ⇒ 顺序就变 ⇒ ⇒ 同一份代码有时漏有时不漏。
+ *   ⚠️ **下列两条已被 2026-11-08 第三次实测作废**（保留在此只为记录被推翻的中间结论）：
+ *   ❶ 「vitest 不在文件之间还原 `process.env` ⇒ ⇒ 跨文件污染是真机制」——**作废**。
+ *   ❷ 「文件执行顺序会漂 ⇒ ⇒ 泄漏是间歇性的」——**作废**（它只是"顺序不可控"，
+ *      而当时把"不可控"读成了"会泄漏"）。
+ *      作废的原因：**这两条的读数都建立在「写文件先跑」这个假设上** ⇒ ⇒ 而该假设
+ *      **不成立**（vitest `BaseSequencer.sort()` 对**未知**文件走「run unknown first」
+ *      分支，**不是**「按大小降序」）⇒ ⇒ 顺序不可控 ≠ 会泄漏。
+ *      ⇒ ⇒ **教训：凡比较「谁先跑」的实验，必须用握手/轮询（顺序无关）或显式钉顺序。**
+ *      ⇒ ⇒ 现结论见下方「族 2」段。
  *
- * ⇒ ⇒ **JS 面的真竞争面有两族**（缺一不可）：
+ *   **第三次实测（顺序无关的握手探针，vitest 3.2.4）**：
+ *   写侧在 marker 上打点（`globalThis` 与 `process.env` 各一版）、读侧**轮询**
+ *   ⇒ ⇒ 谁先跑都无所谓。决定性对照：
+ *   · **N1**（root＝桌面端、探针文件在 **root 之外**）⇒ ⇒ 读侧看到 `marked-by-K3`
+ *     ⇒ ⇒ **共享**；
+ *   · **N2**（root＝探针目录、文件在 **root 之内**）⇒ ⇒ 读侧看到 `undefined`
+ *     ⇒ ⇒ **不共享**；
+ *   · root 内**五种拓扑**（多 worker／单 worker／`isolate:false`／`forks`／
+ *     `maxWorkers+minWorkers`）⇒ ⇒ **全部不共享**。
+ *   ⇒ ⇒ **真机制＝「测试文件在 vitest `root` 之外」**（vitest 不为 root 外的文件
+ *   建独立环境）⇒ ⇒ **与 `isolate`／worker 拓扑无关**。
+ *
+ * ⇒ ⇒ **JS 面真正会判红的是族 1 与族 3**（族 2 已降为只读数）：
  *
  *   **族 1 · 并发块内的 env 写** —— `it.concurrent`／`test.concurrent`／
  *   `describe.concurrent` 的块里写 env ⇒ ⇒ 与并行的兄弟块**同时**共享 env。
  *   （实测：探针 C ⇒ 并发兄弟块读到 `set-by-C1`。）
  *
- *   **族 2 · 跨文件污染（不还原的裸写）** —— 某测试文件裸写 env **且不还原**
- *   ⇒ ⇒ 它污染**同 worker 里后续跑的任何文件** ⇒ ⇒ 顺序漂 ⇒ ⇒ 飘红。
- *   （实测：探针 S ⇒ 后续文件读到 `set-by-S1`。）
+ *   **族 2 · 跨文件污染（不还原的裸写）** —— ⚠️⚠️ **2026-11-08 第三次实测给出了
+ *   真机制**：「同 worker ⇒ ⇒ 跨文件共享」是**错的**（那些读数都建立在
+ *   「大文件先跑 ⇒ ⇒ 写文件先跑」这个**不可靠**的顺序假设上 ⇒ ⇒ 首次跑时 vitest
+ *   对**未知**文件**不按大小排序** ⇒ ⇒ 顺序不可控）。⇒ ⇒ **顺序无关的握手探针**
+ *   （写侧打 marker ＋ 读侧轮询 ⇒ ⇒ 谁先跑都无所谓）给出真机制：
+ *   **跨文件 `process.env` 共享 ⇔ 测试文件在 vitest `root` 之外**（root 内 ⇒ ⇒ 五种
+ *   拓扑全部不共享；root 外 ⇒ ⇒ 共享）⇒ ⇒ 与 `isolate`／worker 拓扑**无关**。
+ *   ⇒ ⇒ **在真实工程里（测试文件全在 root 内）这一族不成立** ⇒ ⇒ 判红档已撤
+ *   ⇒ ⇒ 只保留**读数**（谁裸写了 env 且不还原 ⇒ ⇒ 可见，便于将来出现 root 外扫描面）。
  *
  * ## 族 3 · **配置层并发**（`sequence.concurrent: true`）
  *
@@ -129,10 +146,13 @@ export function readVitestConfig(configPath) {
   //   · **同 worker** ＋ isolate 默认（true）⇒ ⇒ **不泄漏**（每文件重建环境 ⇒ env 隔离）
   //   · `maxWorkers: 1` ＋ isolate 默认 ⇒ ⇒ 不泄漏
   //   ⇒ ⇒ v3 那个「fileParallelism:false／singleThread／maxWorkers:1／isolate:false
-  //   **任一**成立就判红」的写法**过宽** ⇒ ⇒ 会在这些配置下**误报** ⇒ ⇒ 收窄成：
-  //   **同 worker（fileParallelism:false／singleThread／maxWorkers:1）且 isolate:false**。
+  //   **任一**成立就判红」的写法**过宽** ⇒ ⇒ 会在这些配置下**误报**。
+  // ⚠️⚠️ **2026-11-08 第三次实测：连「收窄成 AND」这一步也作废** ——
+  //   顺序无关的握手探针给出的真机制是「**测试文件在 vitest root 之外**」
+  //   ⇒ ⇒ 与 isolate／worker 拓扑**无关** ⇒ ⇒ 下面这些字段**只作读数**
+  //   （拓扑形状可见），**不再**用来决定「判红档」。
   const isolateShared = isolate === false;
-  const crossFileCertain = sameWorkerLikely && isolateShared;
+  const crossFileCertain = false;
   return { excludes, sequenceConcurrent, fileParallelism, singleThread, isolate, maxWorkers, sameWorkerLikely, isolateShared, crossFileCertain };
 }
 
@@ -318,9 +338,20 @@ export function censusJs(root, opts = {}) {
   const excludes = opts.excludes || [];
   const prodDirs = opts.prodDirs || ['src'];
   const sequenceConcurrent = !!opts.sequenceConcurrent;
-  // ⚠️ 跨文件污染的**成立条件**（由配置推出来）⇒ ⇒ 决定族 2 是「判红」还是「只读数」
+  // ⚠️⚠️ **族 2（跨文件污染）在真实工程里**不成立** ⇒ ⇒ 只作读数、永不判红** ——
+  //   2026-11-08 **顺序无关的握手探针**（写侧在 globalThis / process.env 上打 marker，
+  //   读侧轮询 ⇒ ⇒ 谁先跑都无所谓）给出决定性对照：
+  //   · **root 之内**的两个测试文件 ⇒ ⇒ `process.env` 与 `globalThis` **都不共享**
+  //     （五种拓扑全试过：多 worker／单 worker／isolate:false／forks／maxWorkers+minWorkers
+  //      ⇒ ⇒ 全部「不共享」）⇒ ⇒ vitest **每个测试文件一个独立环境**；
+  //   · **root 之外**的两个测试文件 ⇒ ⇒ **共享**（`PROBE_K4_SEEN=marked-by-K3`）
+  //     ⇒ ⇒ 与 isolate／worker 拓扑**无关** ⇒ ⇒ 真机制是「**文件在 vitest root 之外**」
+  //     ⇒ ⇒ vitest 不为 root 外的文件建独立环境。
+  //   ⇒ ⇒ 本闸的扫描面**就是 root 的子集**（listJsTestFiles(root)）⇒ ⇒ 这一族
+  //   **永不成立** ⇒ ⇒ 判红档已撤（留在这里只会诱使人写出「四个开关任一成立就判红」
+  //   那种**过宽**的判据）⇒ ⇒ 只保留**读数**（可见：谁裸写了 env 且不还原）。
   const sameWorkerLikely = !!opts.sameWorkerLikely;
-  const crossFileCertain = !!opts.crossFileCertain;
+  const crossFileCertain = false;
   const files = listJsTestFiles(root, excludes);
 
   // 生产代码读点（src/ 下的非测试文件）。
@@ -386,8 +417,8 @@ export function censusJs(root, opts = {}) {
         if (otherTestReads.length || pReads.length) {
           const item = { var: m.var, pts: [m], otherTestRead: otherTestReads, prodRead: pReads };
           // ⚠️ **两档**：同 worker ⇒ 必然污染 ⇒ 判红；默认多 worker ⇒ 条件性
-          if (crossFileCertain) crossFile.push(item);
-          else crossFileConditional.push(item);
+          // ⚠️ 族 2 **只进读数**（见上方实测）⇒ ⇒ 不进 candidates ⇒ ⇒ 永不判红
+          crossFileConditional.push(item);
         }
       }
     }
@@ -410,7 +441,8 @@ export function censusJs(root, opts = {}) {
     crossFileCandidates: perFile.reduce((a, f) => a + f.crossFile.length, 0),
     crossFileConditionalCandidates: perFile.reduce((a, f) => a + (f.crossFileConditional || []).length, 0),
     sameWorkerLikely,
-    crossFileCertain,
+    crossFileCertain: false,
+    crossFileNote: '实测：跨文件 env 共享 ⇔ 测试文件在 vitest root 之外；本闸扫描面是 root 的子集 ⇒ ⇒ 这一族在真实工程里不成立 ⇒ ⇒ 只作读数、不判红',
     uncertainBlocks: uncertainAll.reduce((a, f) => a + f.items.length, 0),
     sequenceConcurrent,
   };
