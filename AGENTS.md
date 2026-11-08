@@ -1,5 +1,33 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-09 (㐠 **「task_update 终于有落点了 —— 以前『把那个任务的标题改成…』在生产上必然失败，而且失败长得像成功」** —— 承 㐝 条（任务号是端脑持有的事实）与 㐊 条（意图契约严格化），本条记**病根（两层都缺）**、**这一刀的四处落点**、**update 的候选判据为什么与 confirm 不同**、**三条纪律**、**分级读数**，以及**仍然欠着的**。)
+
+> 信封：epoch=2026-11-09 | authority=measured | scope=project | source=真机实测（改动全在 `telencephalon` 仓：`src/lobes/{intent,mod,task_store}.rs` ＋ 4 个测试文件（1 新 3 改）；读数：**dispatch 级 13/13**、**契约级 6/6**（`lobe_intent_contract_strictness.rs` 全绿 ＋ confirm 流 6/6 不回归）、**`cargo check --all-targets` EXIT=0**、**`--lib` 837 passed / 0 failed**、⚠️ **真云级未跑（`SHADOW_TEST_CLOUD_*` 三个环境变量本机不存在 ⇒ ⇒ 真云矩阵/A-B 测试自己 skip）**）| status=active | supersedes=none
+
+① **⚠️⚠️ 病根：`task_update` 在 dispatch 侧**一个落点都没有** —— 而且是**两层都缺**，缺得**正好对齐**，所以**谁也发现不了**。
+   * **意图层**：`src/lobes/intent.rs` 里 `"task_update"` 分支**存在**（能解析出 `Intent::TaskUpdate`）⇒ ⇒ 但 `src/lobes/mod.rs` 的 `TemporalLobe::handle` 里 `match intent` **没有 TaskUpdate 分支** ⇒ ⇒ 它掉进 `_` 默认分支 ⇒ ⇒ 走**聊天**路径 ⇒ ⇒ 大脑回一句「好的，已改」⇒ ⇒ **任务库里一个字节都没变** ＝ **失败长得像成功**（比红更坏）。
+   * **动作层**：`PrefrontalLobe::handle` 的 `match action` 动作表里**没有 `update_task`** ⇒ ⇒ 就算把意图接上，转发过去也**没人接** ⇒ ⇒ 端脑转发过去 ⇒ prefrontal 回落 LLM 规划 ⇒ ⇒ 又是「看起来在规划」。
+   * ⚠️ **为什么两层同时缺**：意图与动作是**两份独立的清单**，加一边不会提醒你加另一边 ⇒ ⇒ **端脑的「不许推理」纪律只管住了「谁来分类」，没管住「分类完往哪走」** ⇒ ⇒ 这一刀把**两边都补齐**，并且**删掉 `_` 兜底**（意图层）⇒ ⇒ 以后新增意图**编译不过** ⇒ ⇒ 结构上钉死「每个意图都必须有落点」。
+
+② **✅ 这一刀的四处落点** —— ❶ `src/lobes/task_store.rs`：新增 `TaskUpdateRequest`（dispatch 侧形状，字段与 `intent::TaskUpdate` **逐字对齐**）＋ `update_task()`（**只改给了的字段**）＋ `updatable_task_id()`（候选）＋ 两个**严格**解析器；❷ `src/lobes/intent.rs`：`task_update` 的 `task_id` 从「大脑必填」降为「**端脑兜底**」（与 `task_confirm` 同一纪律）＋ 提示词补上 status/priority 的**取值词汇**；❸ `src/lobes/mod.rs`：`TemporalLobe` 加 `Intent::TaskUpdate` 分支（转发 `update_task`）＋ `PrefrontalLobe` 加 `update_task` 动作（改**真**任务库）＋ **删掉意图层的 `_` 兜底**；❹ 4 个测试文件（1 新 3 改）。
+
+③ **⚠️ update 的「唯一候选」判据**与 confirm **不同** —— 这不是偷懒，是**两件事的指代对象根本不同** ⇒ ⇒ 不能想当然套用 pending 集合。
+   * `pending_task_id()`（confirm 用）＝「**待确认**」的任务（`Pending` 且**还没确认**）⇒ ⇒ 它服务的是「刚建出来、等用户点头」那**一个**。
+   * `updatable_task_id()`（update 用）＝「**还没终结**」的任务（`Pending`／`InProgress`／`Overdue`，**不含** `Completed`／`Cancelled`）⇒ ⇒ 因为「改任务」指向的可能是**已经确认过**、甚至**正在做**的那个 ⇒ ⇒ 套用 pending 集合会把真正要改的任务**排除掉**（用户说「把那个会议改一下」，而那个会议三天前就确认过了 ⇒ ⇒ pending 集合是空的 ⇒ ⇒ 端脑报「没有可确认的」＝ 答非所问）。
+   * ⚠️ **共同纪律不变**：**恰好一个才敢用**；0 个 ⇒ 明确报错；≥2 个 ⇒ 明确报错并**说清有几个** ⇒ ⇒ **绝不猜**。
+
+④ **✅ 三条纪律** —— ❶ **任务号是端脑持有的事实**：大脑给了就**逐字照用**（错的 ⇒ ⇒ 库回「Task not found」⇒ ⇒ 明确失败，**不**静默换成唯一候选）；没给 ⇒ ⇒ 端脑**去任务库取**（取事实 ≠ 推理）。❷ **字符串必须显式解析**：意图给的 `status`／`priority` 是**字符串**，库里是**枚举** ⇒ ⇒ **认不得就明确报错**，不许静默回落（用户说「改成紧急」落成「普通」＝ **静默改错**；说「做完了」落成「待办」＝ 失败长得像成功）⇒ ⇒ 且**先全部解析、后动库** ⇒ ⇒ 一个字段认不得 ⇒ ⇒ **一个字节都不改**（不许半改）。❸ **没说要改什么 ⇒ 明确报错**（不许「什么都没改」却回一句成功）。
+
+⑤ **✅ 分级读数** —— **dispatch 级 10/10**（新文件 `tests/lobe_task_update_flow.rs`：真 `PrefrontalLobe` ＋ 真 `TaskStore`，走生产 dispatch 的同一条路径 ⇒ ⇒ 不需要 key、不需要权重）：任务号照用 ＋ 回读证明库真的变了／没给任务号时端脑自取（且**已确认**的任务也在候选里）／两个候选**拒绝猜**（且不许偷偷改掉其中一个）／零候选明确报错／大脑给的错 id **不换人**（且**一个都不许动**）／status 与 priority 认不得都**明确报错**（且不许回落）／没字段可改明确报错／status 真的生效／**已终结**的任务不在候选集里 ＋ **契约级 3/3**（`parse_intent_json` 纯函数：大脑可以不给任务号、端脑不许自己编一个；给了就逐字照用；status/priority 词汇钉死）。**编译级** `cargo check --all-targets` EXIT=0。
+   ⚠️ **真云级未跑**：`SHADOW_TEST_CLOUD_BASE_URL`／`SHADOW_TEST_CLOUD_API_KEY`／`SHADOW_TEST_CLOUD_MODEL` 本机**三个都不存在** ⇒ ⇒ `lobe_intent_matrix_real_cloud.rs`／`lobe_intent_context_ab.rs`／`lobe_intent_from_real_cloud.rs` 全部自己 `skip` ⇒ ⇒ 本刀最高读数到**契约级 ＋ dispatch 级** ⇒ ⇒ **不许拿离线绿冒充真云绿**。
+   ⚠️ **真机级未跑**（设备离线）。
+
+⑥ **⚠️ 改契约必须三处同步（否则矩阵自证会崩）** —— 这一刀把 `task_update.task_id` 从大脑的必填项降为端脑兜底 ⇒ ⇒ 必须同步改**三张表**：`tests/lobe_intent_contract_strictness.rs` 的用例表（删掉「task_update 缺 task_id ⇒ 报错」那条）＋ `tests/lobe_intent_matrix_real_cloud.rs` 的 `missing_required_in_json`（大脑原话的必填字段表）＋ 同文件的 `missing_required`（端脑映射结果的必填字段表）＋ `tests/lobe_intent_context_ab.rs` 的同名字段表 ⇒ ⇒ **漏改任何一张 ⇒ ⇒ 矩阵测试自相矛盾**（大脑原话缺字段 ⇒ 端脑却映射成功 ⇒ ⇒ 断言炸）⇒ ⇒ 这是「契约改动有固定落点」的又一处证据。
+
+⑦ **⚠️ 仍然欠着** —— ❶ **`pending_task_id` 的「待确认」判据仍是全局的**（任务库**没有会话字段**）⇒ ⇒ 多用户／多会话时「恰好一个待确认」这个前提不成立 ⇒ ⇒ 需要按会话收窄；本刀的 `updatable_task_id` **同病**（候选集也是全局的）⇒ ⇒ 两处都只是**有界**（明确报错、不猜），不是漏洞。❷ **`update_task` 与 REST 面（`tasks_admin.rs`）是两条路**：本刀只补 dispatch 链 ⇒ ⇒ REST 面仍是 UI 用的 CRUD ⇒ ⇒ 两边语义不混。❸ **端脑 `Cargo.lock` 与 `Cargo.toml` 不同步** ⇒ ⇒ 该仓**别用** `--locked`（承 㐝 条，本刀沿用）。❹ **端脑 CI 仍是门外红**（账号 billing／spending limit，承 ㎯ 条）⇒ ⇒ 本刀读数只能靠本地。❺ **真机级欠项照旧**（移动端真机 UI 验收／Android 进程内真云出网／ziti T4–T5）。❻ **真云矩阵待有 key 后重跑**（本刀改了必填字段口径 ⇒ ⇒ 矩阵读数需要重测才作数）。
+
+⑧ **⚠️ 圈码** —— 本条占 **U+3420（㐠）** —— 插入前 `git fetch`（清代理）＋ 跨**三账本**实测（父仓工作树 **258** 条／父仓远端 **255** 条／移动端 **58** 条／桌面端 **3** 条）⇒ ⇒ ⚠️ **34xx 段已占到 U+341F**（上一刀记的 U+341E 早已被并行会话取走 ⇒ ⇒ **圈码不是定稿，是实测**）⇒ ⇒ U+3420 四面各 **0** 次 ⇒ ⇒ 空闲 ✔ ⇒ ⇒ 插入后复跑码位闸 ＋ 在提交树上复核。
+
 **Updated**: 2026-11-09 (㐞 **「ziti 终于有界面了 —— 手机上那格从『机制通了、界面没有』变成『角色三选 ＋ 服务名 ＋ 粘一段身份就能用』」** —— 承 㐛 条（ziti 可视化配置的病根：身份文件的 ca/cert/key 原本**只能是路径**）与 ㎯ 条（门外红），本条记**三段配置面的真实分布**、**这一刀的落点与假设**、**三件事**、**三条纪律**、**被单测抓出来的真 bug**、**分级读数**，以及**仍然欠着的**。)
 
 > 信封：epoch=2026-11-09 | authority=measured | scope=project | source=真机实测（改动全在 `shadow` 仓的移动端：新增 `shadow-mobile/lib/services/ziti_config_service.dart` ＋ `shadow-mobile/lib/widgets/settings/ziti_settings_group.dart` ＋ `shadow-mobile/android/app/src/main/kotlin/com/ibloc/shadow/ZitiConfig.kt` ＋ 两个测试文件，改写 `settings_screen.dart` ＋ `EncephalonRuntime.kt` ＋ 两个 arb ＋ 三个生成的 l10n；另有前置在 `ziti-rust` 仓：`88995bb`；读数：**flutter analyze 0 issue**、**flutter test 13/13**、**gradle :app:compileDebugKotlin BUILD SUCCESSFUL**、**gradle :app:testDebugUnitTest 5 tests / 0 failures**（查了报告 XML ⇒ **不是零测试匹配的空绿**）、⚠️ **真机级未跑**）| status=active | supersedes=none
