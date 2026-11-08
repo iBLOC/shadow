@@ -100,6 +100,13 @@ export function WorkflowStudioPage() {
   const [connectFrom, setConnectFrom] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [okMsg, setOkMsg] = useState('')
+  /**
+   * **读不到 ≠ 没有 / 写不进 ≠ 写进了** —— 存档读写失败的原因（原文）。
+   *
+   * ⚠️ 以前这里是两个**空 catch**：读失败 ⇒ 「无存档 — 空画布」；
+   * 写失败（配额满）⇒ 「静默」⇒ ⇒ 两个方向都被说成了「成功」。
+   */
+  const [storageError, setStorageError] = useState<string | null>(null)
   const canvasRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<{ id: string; dx: number; dy: number } | null>(null)
 
@@ -113,8 +120,14 @@ export function WorkflowStudioPage() {
         setNodes(data.nodes ?? [])
         setEdges(data.edges ?? [])
       }
-    } catch {
-      // 无存档 — 空画布。
+      setStorageError(null)
+    } catch (e) {
+      // ⚠️ **读不到 ≠ 没有** —— 以前这里 `catch { /* 无存档 — 空画布。 */ }`
+      // ⇒ ⇒ 存档读失败（隐私模式 / 配额 / 坏 JSON）被说成「没有存档」。
+      // ⇒ ⇒ 现在说「读不到」＋原因（原文）。
+      setStorageError(
+        t('workflowStudio.loadFailed') + ' ' + (e instanceof Error ? e.message : String(e)),
+      )
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [name])
@@ -123,11 +136,17 @@ export function WorkflowStudioPage() {
     (n: EditorNode[], e: EditorEdge[]) => {
       try {
         localStorage.setItem(storageKey, JSON.stringify({ nodes: n, edges: e }))
-      } catch {
-        // 配额满等 — 静默。
+        setStorageError(null)
+      } catch (e) {
+        // ⚠️ **写不进 ≠ 写进了** —— 以前这里 `catch { /* 配额满等 — 静默。 */ }`
+        // ⇒ ⇒ 配额满时用户以为改动存下来了（刷新就没了）。
+        // ⇒ ⇒ 现在说「保存失败」＋原因（原文）。
+        setStorageError(
+          t('workflowStudio.saveFailed') + ' ' + (e instanceof Error ? e.message : String(e)),
+        )
       }
     },
-    [storageKey],
+    [storageKey, t],
   )
 
   const updateAll = useCallback(
@@ -371,6 +390,11 @@ export function WorkflowStudioPage() {
 
       {error && (
         <p className="text-xs text-destructive" role="alert">{error}</p>
+      )}
+      {storageError && (
+        <p className="text-xs text-destructive" role="alert" data-testid="workflow-storage-error">
+          {storageError}
+        </p>
       )}
       {okMsg && (
         <p className="text-xs text-green-600">{okMsg}</p>

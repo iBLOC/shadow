@@ -179,13 +179,6 @@ export const KNOWN_DEBT = [
   },
   {
     repo: 'shadow-desktop',
-    file: 'src/lib/storage.ts',
-    kind: 'R5',
-    why: '⚠️ **真缺陷**（**写**失败被吞：localStorage.removeItem 失败 ⇒ ⇒ 用户以为 key 清掉了，其实还在）⇒ ⇒ 下一刀改（写失败要说出来）。',
-    when: '下一刀：storage 写入面给出显式失败。',
-  },
-  {
-    repo: 'shadow-desktop',
     file: 'src/lib/telencephalonClient.ts',
     kind: 'R5',
     why: '解析坏条目 ⇒ ⇒ 跳过那一条（其余照常）⇒ ⇒ 不是把整次读取说成成功。',
@@ -197,13 +190,6 @@ export const KNOWN_DEBT = [
     kind: 'R5',
     why: '标记**写不进**（隐私模式等）⇒ ⇒ 下次还会再跑一遍；靠 uri 去重兜底 ⇒ ⇒ 不会重复迁移。',
     when: '换成能写的存储后。',
-  },
-  {
-    repo: 'shadow-desktop',
-    file: 'src/lib/tts.ts',
-    kind: 'R5',
-    why: '⚠️ **真缺陷**（**写**失败被吞：TTS 开关没存上 ⇒ ⇒ 用户以为改了，其实没改）⇒ ⇒ 下一刀改。',
-    when: '下一刀：TTS 开关写入面给出显式失败。',
   },
   {
     repo: 'shadow-desktop',
@@ -225,13 +211,6 @@ export const KNOWN_DEBT = [
     kind: 'R5',
     why: '⚠️ **真缺陷**（\`catch { }\` **空块**：skill 创建失败被吞）＋ ⚠️ **并行会话在飞**（该文件正在被改）⇒ ⇒ **本刀不碰**。',
     when: '那一侧改完后销账（或改成诚实失败）。',
-  },
-  {
-    repo: 'shadow-desktop',
-    file: 'src/pages/WorkflowStudioPage.tsx',
-    kind: 'R5',
-    why: '⚠️ **真缺陷**（读存档失败 ⇒ ⇒ 空画布 ⇒ 「读不到」被说成「没有存档」；写失败（配额满）被静默）⇒ ⇒ 下一刀改。',
-    when: '下一刀：工作流存档面给出显式失败。',
   },
   {
     repo: 'shadow-desktop',

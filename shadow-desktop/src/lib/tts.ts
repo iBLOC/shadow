@@ -108,14 +108,6 @@ export const ttsService = {
     }
   },
 
-  setEnabled(enabled: boolean): void {
-    try {
-      localStorage.setItem('shadow.tts.enabled', enabled ? 'true' : 'false');
-    } catch {
-      // ignore
-    }
-  },
-
   isAvailable(): boolean {
     if (isWebSpeechAvailable()) {
       const voices = window.speechSynthesis.getVoices();

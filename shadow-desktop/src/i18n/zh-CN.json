@@ -1261,6 +1261,8 @@
     "nodeKindAgent": "Agent",
     "nodeKindSink": "Sink",
     "dragHint": "Drag node cards to arrange; click the right dot then a target node to connect.",
+    "loadFailed": "读不到已保存的工作流",
+    "saveFailed": "保存工作流失败",
     "errorCycle": "Cycle detected — workflow must be a DAG"
   },
   "recording": {

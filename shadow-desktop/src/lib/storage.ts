@@ -51,12 +51,3 @@ export function saveJson(key: string, value: unknown): boolean {
     return false;
   }
 }
-
-export function clearKey(key: string): void {
-  if (typeof window === 'undefined') return;
-  try {
-    window.localStorage.removeItem(STORAGE_KEY_PREFIX + key);
-  } catch {
-    // ignore
-  }
-}

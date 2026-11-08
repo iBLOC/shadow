@@ -1255,6 +1255,8 @@
     "nodeKindAgent": "Agent",
     "nodeKindSink": "Sink",
     "dragHint": "Drag node cards to arrange; click the right dot then a target node to connect.",
+    "loadFailed": "Can't read the saved workflow",
+    "saveFailed": "Couldn't save the workflow",
     "errorCycle": "Cycle detected — workflow must be a DAG"
   },
   "recording": {
