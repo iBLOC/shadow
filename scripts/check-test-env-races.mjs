@@ -514,10 +514,15 @@ function selfTest() {
   const jsUnc = path.join(base, 'js-uncertain');
   fs.mkdirSync(path.join(jsUnc, 'src'), { recursive: true });
   fs.writeFileSync(path.join(jsUnc, 'src', 'prod.ts'), 'export const u = 1;\n');
+  // ⚠️⚠️ **这个夹具里不许写 env** —— 它只测「块边界配平不出来 ⇒ ⇒ 进判不了档」；
+  //   而「写了一个全仓没人读的 env」会被**死环境变量闸**判红（实测：JS_UNC ⇒ ⇒
+  //   Desktop Build 的那盏红**是本刀自己造成的** ⇒ ⇒ 教训：**新增的测试夹具也会
+  //   踩别的闸** ⇒ ⇒ 写夹具时要问「我写的那个名字，全仓有人读吗」）。
   fs.writeFileSync(path.join(jsUnc, 'unclosed.test.ts'),
     "import { it } from 'vitest';\n" +
     "it.concurrent('unclosed', () => {\n" +
-    "  process.env.JS_UNC = 'x';\n");
+    "  const x = 1;\n" +
+    "  void x;\n");
   const jsUncRes = censusJs(jsUnc, { excludes: [] });
   checks.push({ name: 'JS 正控：并发块花括号配平不出来 ⇒ ⇒ 必须进「判不了」档（不许当成干净）', ok: jsUncRes.summary.uncertainBlocks > 0,
     detail: 'uncertainBlocks=' + jsUncRes.summary.uncertainBlocks + '（读数里单列 ⇒ ⇒ 闸据此判红）' });
