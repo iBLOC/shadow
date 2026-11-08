@@ -1790,4 +1790,80 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get voiceNoteBrainAsrPending => '语音转写还没接上大脑的语音识别面 —— 打字问，或者等大脑那边接通。';
+
+  @override
+  String get zitiGroup => '零信任';
+
+  @override
+  String get zitiGroupDesc => '把这台手机接进零信任网：连远端大脑，或把本机大脑发布出去';
+
+  @override
+  String get zitiMode => '角色';
+
+  @override
+  String get zitiModeOff => '不走零信任';
+
+  @override
+  String get zitiModeClient => '连远端大脑';
+
+  @override
+  String get zitiModeServer => '发布本机大脑';
+
+  @override
+  String get zitiModeHint => '选完要保存；角色在启动时定死，重启 App 后生效';
+
+  @override
+  String get zitiService => '服务名';
+
+  @override
+  String get zitiServicePlaceholder => 'shadow-brain';
+
+  @override
+  String get zitiServiceHint => '要拨／要发布的那条零信任服务名';
+
+  @override
+  String get zitiIdentity => '身份';
+
+  @override
+  String get zitiIdentityNone => '还没导入身份';
+
+  @override
+  String zitiIdentityLoaded(String api, String id) {
+    return '已导入：控制器 $api · 身份 $id';
+  }
+
+  @override
+  String zitiIdentityLoadedNoId(String api) {
+    return '已导入：控制器 $api';
+  }
+
+  @override
+  String get zitiIdentityPlaceholder =>
+      '粘贴身份 JSON（含 ztAPI / id / ca / cert / key）';
+
+  @override
+  String get zitiIdentityHint =>
+      '身份里必须含内联的 ca / cert / key 三段 PEM；写文件路径的会明确报错（那台机器上没有那个文件）';
+
+  @override
+  String get zitiImport => '导入身份';
+
+  @override
+  String get zitiClearIdentity => '删除身份';
+
+  @override
+  String get zitiSavedHint => '已保存（重启 App 生效）';
+
+  @override
+  String get zitiRestartHint => '零信任角色在启动时定死 ⇒ 保存只落盘，重启 App 后生效。';
+
+  @override
+  String get zitiSecretHint =>
+      '身份含私钥，存在 App 私有目录；shadow key / admin token 仍走宿主，不在这里填。';
+
+  @override
+  String get zitiImportFailed => '导入失败';
+
+  @override
+  String get zitiSaveFailed => '保存失败';
 }

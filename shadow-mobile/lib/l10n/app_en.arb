@@ -1008,4 +1008,60 @@
   "cloudGuideDesc": "Add a cloud provider and its supported models are fetched automatically.",
   "voiceNoteBrainAsrPending": "Voice transcription is not wired to the brain's speech-recognition face yet — type your question, or wait until it is connected.",
   "@voiceNoteBrainAsrPending": {}
+,
+  "zitiGroup": "Zero Trust",
+  "@zitiGroup": {},
+  "zitiGroupDesc": "Put this phone on the zero-trust network: reach a remote brain, or publish this one",
+  "@zitiGroupDesc": {},
+  "zitiMode": "Role",
+  "@zitiMode": {},
+  "zitiModeOff": "No zero trust",
+  "@zitiModeOff": {},
+  "zitiModeClient": "Reach a remote brain",
+  "@zitiModeClient": {},
+  "zitiModeServer": "Publish this brain",
+  "@zitiModeServer": {},
+  "zitiModeHint": "Save to apply. The role is decided at startup, so restart the app.",
+  "@zitiModeHint": {},
+  "zitiService": "Service",
+  "@zitiService": {},
+  "zitiServicePlaceholder": "shadow-brain",
+  "@zitiServicePlaceholder": {},
+  "zitiServiceHint": "The zero-trust service to dial or publish",
+  "@zitiServiceHint": {},
+  "zitiIdentity": "Identity",
+  "@zitiIdentity": {},
+  "zitiIdentityNone": "No identity imported yet",
+  "@zitiIdentityNone": {},
+  "zitiIdentityLoaded": "Imported: controller {api} · identity {id}",
+  "@zitiIdentityLoaded": {
+    "placeholders": {
+        "api": { "type": "String" },
+        "id": { "type": "String" }
+    }
+  },
+  "zitiIdentityLoadedNoId": "Imported: controller {api}",
+  "@zitiIdentityLoadedNoId": {
+    "placeholders": {
+        "api": { "type": "String" }
+    }
+  },
+  "zitiIdentityPlaceholder": "Paste the identity JSON (ztAPI / id / ca / cert / key)",
+  "@zitiIdentityPlaceholder": {},
+  "zitiIdentityHint": "The identity must carry inline ca / cert / key PEMs; a file path is rejected explicitly (that file does not exist here)",
+  "@zitiIdentityHint": {},
+  "zitiImport": "Import identity",
+  "@zitiImport": {},
+  "zitiClearIdentity": "Delete identity",
+  "@zitiClearIdentity": {},
+  "zitiSavedHint": "Saved (restart the app to apply)",
+  "@zitiSavedHint": {},
+  "zitiRestartHint": "The zero-trust role is fixed at startup ⇒ saving only writes the file; restart the app to apply.",
+  "@zitiRestartHint": {},
+  "zitiSecretHint": "The identity holds a private key and lives in the app-private directory; shadow key / admin token stay in the host, not here.",
+  "@zitiSecretHint": {},
+  "zitiImportFailed": "Import failed",
+  "@zitiImportFailed": {},
+  "zitiSaveFailed": "Save failed",
+  "@zitiSaveFailed": {}
 }

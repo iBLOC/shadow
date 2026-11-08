@@ -1845,4 +1845,83 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get voiceNoteBrainAsrPending =>
       'Voice transcription is not wired to the brain\'s speech-recognition face yet — type your question, or wait until it is connected.';
+
+  @override
+  String get zitiGroup => 'Zero Trust';
+
+  @override
+  String get zitiGroupDesc =>
+      'Put this phone on the zero-trust network: reach a remote brain, or publish this one';
+
+  @override
+  String get zitiMode => 'Role';
+
+  @override
+  String get zitiModeOff => 'No zero trust';
+
+  @override
+  String get zitiModeClient => 'Reach a remote brain';
+
+  @override
+  String get zitiModeServer => 'Publish this brain';
+
+  @override
+  String get zitiModeHint =>
+      'Save to apply. The role is decided at startup, so restart the app.';
+
+  @override
+  String get zitiService => 'Service';
+
+  @override
+  String get zitiServicePlaceholder => 'shadow-brain';
+
+  @override
+  String get zitiServiceHint => 'The zero-trust service to dial or publish';
+
+  @override
+  String get zitiIdentity => 'Identity';
+
+  @override
+  String get zitiIdentityNone => 'No identity imported yet';
+
+  @override
+  String zitiIdentityLoaded(String api, String id) {
+    return 'Imported: controller $api · identity $id';
+  }
+
+  @override
+  String zitiIdentityLoadedNoId(String api) {
+    return 'Imported: controller $api';
+  }
+
+  @override
+  String get zitiIdentityPlaceholder =>
+      'Paste the identity JSON (ztAPI / id / ca / cert / key)';
+
+  @override
+  String get zitiIdentityHint =>
+      'The identity must carry inline ca / cert / key PEMs; a file path is rejected explicitly (that file does not exist here)';
+
+  @override
+  String get zitiImport => 'Import identity';
+
+  @override
+  String get zitiClearIdentity => 'Delete identity';
+
+  @override
+  String get zitiSavedHint => 'Saved (restart the app to apply)';
+
+  @override
+  String get zitiRestartHint =>
+      'The zero-trust role is fixed at startup ⇒ saving only writes the file; restart the app to apply.';
+
+  @override
+  String get zitiSecretHint =>
+      'The identity holds a private key and lives in the app-private directory; shadow key / admin token stay in the host, not here.';
+
+  @override
+  String get zitiImportFailed => 'Import failed';
+
+  @override
+  String get zitiSaveFailed => 'Save failed';
 }

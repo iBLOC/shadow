@@ -972,4 +972,60 @@
   "cloudGuideDesc": "添加云供应商后，其支持的模型自动获取，无需手填。",
   "voiceNoteBrainAsrPending": "语音转写还没接上大脑的语音识别面 —— 打字问，或者等大脑那边接通。",
   "@voiceNoteBrainAsrPending": {}
+,
+  "zitiGroup": "零信任",
+  "@zitiGroup": {},
+  "zitiGroupDesc": "把这台手机接进零信任网：连远端大脑，或把本机大脑发布出去",
+  "@zitiGroupDesc": {},
+  "zitiMode": "角色",
+  "@zitiMode": {},
+  "zitiModeOff": "不走零信任",
+  "@zitiModeOff": {},
+  "zitiModeClient": "连远端大脑",
+  "@zitiModeClient": {},
+  "zitiModeServer": "发布本机大脑",
+  "@zitiModeServer": {},
+  "zitiModeHint": "选完要保存；角色在启动时定死，重启 App 后生效",
+  "@zitiModeHint": {},
+  "zitiService": "服务名",
+  "@zitiService": {},
+  "zitiServicePlaceholder": "shadow-brain",
+  "@zitiServicePlaceholder": {},
+  "zitiServiceHint": "要拨／要发布的那条零信任服务名",
+  "@zitiServiceHint": {},
+  "zitiIdentity": "身份",
+  "@zitiIdentity": {},
+  "zitiIdentityNone": "还没导入身份",
+  "@zitiIdentityNone": {},
+  "zitiIdentityLoaded": "已导入：控制器 {api} · 身份 {id}",
+  "@zitiIdentityLoaded": {
+    "placeholders": {
+        "api": { "type": "String" },
+        "id": { "type": "String" }
+    }
+  },
+  "zitiIdentityLoadedNoId": "已导入：控制器 {api}",
+  "@zitiIdentityLoadedNoId": {
+    "placeholders": {
+        "api": { "type": "String" }
+    }
+  },
+  "zitiIdentityPlaceholder": "粘贴身份 JSON（含 ztAPI / id / ca / cert / key）",
+  "@zitiIdentityPlaceholder": {},
+  "zitiIdentityHint": "身份里必须含内联的 ca / cert / key 三段 PEM；写文件路径的会明确报错（那台机器上没有那个文件）",
+  "@zitiIdentityHint": {},
+  "zitiImport": "导入身份",
+  "@zitiImport": {},
+  "zitiClearIdentity": "删除身份",
+  "@zitiClearIdentity": {},
+  "zitiSavedHint": "已保存（重启 App 生效）",
+  "@zitiSavedHint": {},
+  "zitiRestartHint": "零信任角色在启动时定死 ⇒ 保存只落盘，重启 App 后生效。",
+  "@zitiRestartHint": {},
+  "zitiSecretHint": "身份含私钥，存在 App 私有目录；shadow key / admin token 仍走宿主，不在这里填。",
+  "@zitiSecretHint": {},
+  "zitiImportFailed": "导入失败",
+  "@zitiImportFailed": {},
+  "zitiSaveFailed": "保存失败",
+  "@zitiSaveFailed": {}
 }

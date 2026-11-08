@@ -3457,6 +3457,144 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Voice transcription is not wired to the brain\'s speech-recognition face yet — type your question, or wait until it is connected.'**
   String get voiceNoteBrainAsrPending;
+
+  /// No description provided for @zitiGroup.
+  ///
+  /// In en, this message translates to:
+  /// **'Zero Trust'**
+  String get zitiGroup;
+
+  /// No description provided for @zitiGroupDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Put this phone on the zero-trust network: reach a remote brain, or publish this one'**
+  String get zitiGroupDesc;
+
+  /// No description provided for @zitiMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Role'**
+  String get zitiMode;
+
+  /// No description provided for @zitiModeOff.
+  ///
+  /// In en, this message translates to:
+  /// **'No zero trust'**
+  String get zitiModeOff;
+
+  /// No description provided for @zitiModeClient.
+  ///
+  /// In en, this message translates to:
+  /// **'Reach a remote brain'**
+  String get zitiModeClient;
+
+  /// No description provided for @zitiModeServer.
+  ///
+  /// In en, this message translates to:
+  /// **'Publish this brain'**
+  String get zitiModeServer;
+
+  /// No description provided for @zitiModeHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Save to apply. The role is decided at startup, so restart the app.'**
+  String get zitiModeHint;
+
+  /// No description provided for @zitiService.
+  ///
+  /// In en, this message translates to:
+  /// **'Service'**
+  String get zitiService;
+
+  /// No description provided for @zitiServicePlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'shadow-brain'**
+  String get zitiServicePlaceholder;
+
+  /// No description provided for @zitiServiceHint.
+  ///
+  /// In en, this message translates to:
+  /// **'The zero-trust service to dial or publish'**
+  String get zitiServiceHint;
+
+  /// No description provided for @zitiIdentity.
+  ///
+  /// In en, this message translates to:
+  /// **'Identity'**
+  String get zitiIdentity;
+
+  /// No description provided for @zitiIdentityNone.
+  ///
+  /// In en, this message translates to:
+  /// **'No identity imported yet'**
+  String get zitiIdentityNone;
+
+  /// No description provided for @zitiIdentityLoaded.
+  ///
+  /// In en, this message translates to:
+  /// **'Imported: controller {api} · identity {id}'**
+  String zitiIdentityLoaded(String api, String id);
+
+  /// No description provided for @zitiIdentityLoadedNoId.
+  ///
+  /// In en, this message translates to:
+  /// **'Imported: controller {api}'**
+  String zitiIdentityLoadedNoId(String api);
+
+  /// No description provided for @zitiIdentityPlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'Paste the identity JSON (ztAPI / id / ca / cert / key)'**
+  String get zitiIdentityPlaceholder;
+
+  /// No description provided for @zitiIdentityHint.
+  ///
+  /// In en, this message translates to:
+  /// **'The identity must carry inline ca / cert / key PEMs; a file path is rejected explicitly (that file does not exist here)'**
+  String get zitiIdentityHint;
+
+  /// No description provided for @zitiImport.
+  ///
+  /// In en, this message translates to:
+  /// **'Import identity'**
+  String get zitiImport;
+
+  /// No description provided for @zitiClearIdentity.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete identity'**
+  String get zitiClearIdentity;
+
+  /// No description provided for @zitiSavedHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved (restart the app to apply)'**
+  String get zitiSavedHint;
+
+  /// No description provided for @zitiRestartHint.
+  ///
+  /// In en, this message translates to:
+  /// **'The zero-trust role is fixed at startup ⇒ saving only writes the file; restart the app to apply.'**
+  String get zitiRestartHint;
+
+  /// No description provided for @zitiSecretHint.
+  ///
+  /// In en, this message translates to:
+  /// **'The identity holds a private key and lives in the app-private directory; shadow key / admin token stay in the host, not here.'**
+  String get zitiSecretHint;
+
+  /// No description provided for @zitiImportFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Import failed'**
+  String get zitiImportFailed;
+
+  /// No description provided for @zitiSaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Save failed'**
+  String get zitiSaveFailed;
 }
 
 class _AppLocalizationsDelegate

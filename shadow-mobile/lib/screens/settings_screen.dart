@@ -19,6 +19,7 @@ import '../widgets/settings/capability_grants_section.dart';
 import '../widgets/settings/service_status_block.dart';
 import '../widgets/settings/settings_row.dart';
 import '../widgets/settings/tts_settings_group.dart';
+import '../widgets/settings/ziti_settings_group.dart';
 
 /// 系统内存信息。
 final systemMemoryProvider = FutureProvider<SystemMemoryInfo>((ref) async {
@@ -266,6 +267,26 @@ class SettingsScreen extends ConsumerWidget {
                     children: [
                       SettingsBlock(
                         children: const [CapabilityGrantsSection()],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+
+              // ── 零信任 ────────────────────────────────────────
+              //
+              // ⚠️ 这一层是**这台手机在零信任网里的角色**（连远端大脑／
+              // 发布本机大脑／不走）⇒ ⇒ 与「能力授权」那种逐项开关**不是**
+              // 一回事 ⇒ ⇒ 单独一节，别混进去。
+              _Section(
+                children: [
+                  SettingsGroup(
+                    title: l10n.zitiGroup,
+                    icon: Icons.hub_outlined,
+                    description: l10n.zitiGroupDesc,
+                    children: [
+                      SettingsBlock(
+                        children: const [ZitiSettingsGroup()],
                       ),
                     ],
                   ),
