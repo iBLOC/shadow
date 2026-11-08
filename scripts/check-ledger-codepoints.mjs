@@ -48,7 +48,7 @@ import { execFileSync } from 'node:child_process';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
-import { findViolations, findCollisions, hex4, canonicalSet, setDigest, collisionIdentities, identityDigest } from './lib/ledger-codepoints.mjs';
+import { findViolations, findCollisions, hex4, canonicalSet, setDigest, collisionIdentities, fingerprintIdentities, identityDigest } from './lib/ledger-codepoints.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..');
@@ -98,7 +98,7 @@ const BASELINE_DIGEST = '39534f74b79f26b1b384835ab19974d792c6acf81356d2ea4f990d3
  * ⚠️ 身份键取标题**前 60 字符**（不是整行）⇒ ⇒ 实测：标题**尾部**的引用被重编号
  * ⇒ ⇒ 身份仍算一致（U+32E3 的活例）⇒ ⇒ 而「另一个条目占同一码位」⇒ ⇒ 必红。
  */
-const BASELINE_IDENTITY_DIGEST = 'c833d0477a60f541ef0627fc086e39a2e7ebd417a7e49cd4d5e0f648e10f9563';
+const BASELINE_IDENTITY_DIGEST = '7120c89b7c260131f1b5f296b073030a3cf3f4f7690b1547a0fdc43184be5435';
 
 /**
  * 基线快照 —— **只是 git 历史读不到时的回落**（浅克隆／非 git 仓）。
@@ -155,7 +155,7 @@ function loadBaseline() {
     const collisions = findCollisions(ledgers);
     const cps = collisions.map((c) => hex4(c.cp));
     const identities = {};
-    for (const c of collisions) identities[hex4(c.cp)] = collisionIdentities(ledgers, c);
+    for (const c of collisions) identities[hex4(c.cp)] = fingerprintIdentities(collisionIdentities(ledgers, c));
     return {
       source: 'git:' + BASELINE_COMMIT.slice(0, 8),
       cps,
@@ -253,7 +253,8 @@ export function checkLedgers(ledgerTexts, opts = {}) {
     const where = c.uses.map((u) => u.name + 'L' + u.line).join(', ');
     if (exempt.has(hex)) {
       // ⚠️ **身份级豁免** —— 码位在基线集里**还不够**：还得是**同一批条目**。
-      const liveIds = collisionIdentities(ledgerTexts, c);
+      const liveRaw = collisionIdentities(ledgerTexts, c);
+      const liveIds = fingerprintIdentities(liveRaw);
       const baseIds = (identities[hex] || []).slice().sort();
       if (baseIds.length === 0) {
         warnings.push('⚠️ [identity-missing] 码位 U+' + hex + ' 在基线集里，但基线快照没有它的身份记录 ⇒ ⇒ 本次只按码位豁免 ⇒ ⇒ 下次要把快照重新生成');
@@ -268,7 +269,7 @@ export function checkLedgers(ledgerTexts, opts = {}) {
       const baseSet = new Set(baseIds);
       const extra = liveIds.filter((k) => !baseSet.has(k));
       if (extra.length > 0) {
-        out.push('❌ [identity-mismatch] 码位 U+' + hex + ' 的历史撞号**多出了基线里没有的占用者**：基线＝' + baseIds.join(' ／ ') + '；现在＝' + liveIds.join(' ／ ') + ' ⇒ ⇒ 视为**新增撞号**（重编号腾出的码位被**别的条目**占了 ⇒ ⇒ 码位级豁免不适用）');
+        out.push('❌ [identity-mismatch] 码位 U+' + hex + ' 的历史撞号**多出了基线里没有的占用者**：基线（指纹）＝' + baseIds.join(' ／ ') + '；现在＝' + liveRaw.join(' ／ ') + ' ⇒ ⇒ 视为**新增撞号**（重编号腾出的码位被**别的条目**占了 ⇒ ⇒ 码位级豁免不适用）');
         continue;
       }
       debts.push({ hex, where, reason: (debtMap.get(hex) || {}).reason || '' });
@@ -379,13 +380,13 @@ function selfTest() {
   // ⇒ ⇒ 码位级豁免会放它过去 ⇒ ⇒ **假绿** ⇒ ⇒ 身份层必须把它变成红。
   const sameLed = [{ name: 'A', text: twoSame }];
   const sameCol = findCollisions(sameLed);
-  const sameIds = collisionIdentities(sameLed, sameCol[0]);
+  const sameIds = fingerprintIdentities(collisionIdentities(sameLed, sameCol[0]));
   const idOk = checkLedgers(sameLed, { exempt: ['32FF'], identities: { '32FF': sameIds }, debt: { items: [] } });
   check('基线集里的码位 ＋ 身份一致 ⇒ 不红（身份级豁免成立）',
     idOk.out.length === 0 && idOk.debts.length === 1, JSON.stringify(idOk.out));
   const idBad = checkLedgers(sameLed, {
     exempt: ['32FF'],
-    identities: { '32FF': ['A|**Updated**: 2026-11-05 (㋿ **完全另一个条目** —— 讲点事。)'] },
+    identities: { '32FF': fingerprintIdentities(['A|**Updated**: 2026-11-05 (㋿ **完全另一个条目** —— 讲点事。)']) },
     debt: { items: [] },
   });
   check('基线集里的码位、但**身份不符**（别的条目占同一号）⇒ 必须红',
@@ -394,7 +395,7 @@ function selfTest() {
   const longA = '**Updated**: 2026-11-05 (㋿ **条目** —— 本条占 **U+32FF** —— 这是一条刻意写长的主题用来把尾部推到第 60 字符之后：第一条。）';
   const longB = '**Updated**: 2026-11-05 (㋿ **条目** —— 本条占 **U+32FF** —— 这是一条刻意写长的主题用来把尾部推到第 60 字符之后：第二条。）';
   const tailLed = [{ name: 'A', text: longA + '\n' + longB }];
-  const tailIds = collisionIdentities(tailLed, findCollisions(tailLed)[0]);
+  const tailIds = fingerprintIdentities(collisionIdentities(tailLed, findCollisions(tailLed)[0]));
   const tailLive = [{ name: 'A', text: tailLed[0].text.replace('第一条。）', '第一条（后来把引用重编号了）。）') }];
   const tailRes = checkLedgers(tailLive, { exempt: ['32FF'], identities: { '32FF': tailIds }, debt: { items: [] } });
   check('标题**尾部**被改（引用重编号）⇒ 身份仍一致 ⇒ 不红（U+32E3 的活例）',

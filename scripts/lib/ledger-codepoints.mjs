@@ -65,7 +65,7 @@ export const OWN_CLAIM =
 // ⇒ 而那 104 条里**躺着 5 对真撞号** ⇒ ⇒ 闸报「零违规」⇒ ⇒ **假绿**。
 //
 // ⇒ ⇒ 现在**两种形状都认**（`(?::)?` 可选），并且要求**标记字后面跟着
-// ⇒ ⇒ ` **`** —— 否则 `(Cortex 清干净 …`／`(移动端 agent 面切到 …` 这类
+// ⇒ ⇒ ` **`** —— 否则 `(某某旧模块 …`／`(移动端 agent 面切到 …` 这类
 // ⇒ ⇒ **不是条目的行**会被误当成条目（它们的首字是普通汉字，不是方块字）。
 export const HEADER_LINE =
   /^\*\*Updated(?::)?\*\*:?\s*[12]\d{3}-\d{2}-\d{2}\s+\(([^\s(]) \*\*/;
@@ -73,7 +73,7 @@ export const HEADER_LINE =
 // 标题形状：前缀 + 日期（R3 只认带日期的完整形状，免得把正文里
 // 对插入锚点的工具性引用误伤——那些引用不带冒号日期）。
 // ⚠️ R3 用的是**带标记字**的形状（`X **`）—— 不是只到日期为止。
-// ⇒ ⇒ 否则「(Cortex 清干净 …」这种**没圈码的行**会被误判成「缝合残迹」
+// ⇒ ⇒ 否则「(某某旧模块 …」这种**没圈码的行**会被误判成「缝合残迹」
 // ⇒ ⇒ ⇒ 而它其实只是「一条没圈码的条目」⇒ ⇒ 归 R5，不归 R3。
 const HEADER_SHAPE = /\*\*Updated(?::)?\*\*:?\s*[12]\d{3}-\d{2}-\d{2}\s+\([^\s(] \*\*/;
 
@@ -269,6 +269,24 @@ export function identityKey(ledgerTexts, use, prefixLength = IDENTITY_PREFIX_LEN
   return use.name + '|' + normalizeHeaderLine(line).slice(0, prefixLength);
 }
 
+/**
+ * **身份指纹** —— 身份键的单向指纹（基线快照存的是**它**，不是历史标题原文）。
+ *
+ * ⚠️ **为什么存指纹而不存原文**（2026-11-09 实测）：基线快照若逐字存历史标题
+ * ⇒ ⇒ 那份文件里就有**旧产品名** ⇒ ⇒ 它落进 legacy residue 闸的扫描面
+ * ⇒ ⇒ 闸红（2026-11-09 CI 实测：4 处）⇒ ⇒ 而身份级分辨力一点没丢
+ * （指纹 = f(身份键)，同身份 ⇔ 同指纹）⇒ ⇒ 可用 `git show` 复算。
+ *
+ * ⇒ ⇒ 算法：sha256(账本名｜标题前 60 字符) 的前 16 位十六进制。
+ */
+export function identityFingerprint(key) {
+  return createHash('sha256').update(String(key)).digest('hex').slice(0, 16);
+}
+
+/** 一组身份键 ⇒ ⇒ 一组身份指纹（升序）—— 基线里存的就是这个。 */
+export function fingerprintIdentities(keys) {
+  return (keys || []).map(identityFingerprint).sort();
+}
 /** 一个撞号的**身份集合**（各占用者的身份键，升序）⇒ ⇒ 顺序无关。 */
 export function collisionIdentities(ledgerTexts, collision, prefixLength = IDENTITY_PREFIX_LENGTH) {
   return collision.uses.map((u) => identityKey(ledgerTexts, u, prefixLength)).sort();
