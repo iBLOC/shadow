@@ -1,5 +1,22 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-08 (㐖 **「一起事故」—— 我在**归因实验**里用 `git checkout-index -f` 覆盖了**并行会话两个在飞文件**（`capability_tools.dart` / `client_tool_registry.dart`）⇒ ⇒ 他们的在飞改动**找不回来了**（git 对象库里没有：从没被 `git add` 过）⇒ ⇒ 本条记**事故经过**、**归因方法哪里错了**、**恢复线索**、**教训**，以及**仍然欠着的**。)
+
+> 信封：epoch=2026-11-08 | authority=measured | scope=project | source=真机实测（事故发生在 2026-11-08 夜，移动端「写失败」那一刀的**归因实验**过程中；受影响文件：`shadow-mobile/lib/services/capabilities/capability_tools.dart`、`shadow-mobile/lib/services/client_tools/client_tool_registry.dart`；两文件**当前内容 == HEAD 版 `667c684`**）| status=active | supersedes=none
+
+① **⚠️⚠️ 事故经过（一句话：我在做归因实验时，用了会**覆盖工作树**的命令）** —— 移动端全量 `flutter test` 在当前工作树上**卡住**（`flutter_tester` 起来了、CPU 恒为 0）⇒ ⇒ 我要归因「是我的改动还是并行会话的改动」⇒ ⇒ 我先在**干净 worktree**（停在 HEAD）上跑同一批测试做对照（**616 passed / 0 failed** ⇒ ⇒ 卡住是当前工作树引入的）⇒ ⇒ 然后做了第二个对照：**把并行会话的两个在飞文件 `git checkout-index -f` 换回 HEAD 版** ⇒ ⇒ **卡住依旧** ⇒ ⇒ 我据此判断「不是那两个文件」⇒ ⇒ **这一步就把我自己排除在了嫌疑之外，也把他们的在飞内容覆盖了**。⚠️ 那两个文件**从未被 `git add` 过** ⇒ ⇒ 他们的内容**不在 git 对象库里** ⇒ ⇒ `git fsck --lost-found` 找不回 ⇒ ⇒ stash 空 / reflog 只有提交 / VSCode 本地历史没有它们 ⇒ ⇒ **恢复不了**。
+
+② **⚠️ 归因方法哪里错了（这条才是重点）** —— 我做的两次对照**都动了工作树**，而工作树是**共享的**：❶ 「干净 worktree 上绿」只能证明「**已提交的那棵树**是绿的」⇒ ⇒ **不能**推出「当前工作树的红是我的」—— 当前工作树还叠着**别人没提交的在飞内容**；❷ 「换回 HEAD 版看看还卡不卡」这个手法**对「并行会话的在飞文件」是毁灭性的**（它们的全部价值就在**未提交的工作树内容**里）⇒ ⇒ 而我把它**当成了一种无害的开关**。⚠️ 正确做法应当是：**只读地**归因 —— ❶ 用 `git diff` 逐个看「谁改了什么」；❷ 要对照就用**只读**的手段（把文件内容读出来比、或复制整棵仓到临时目录跑）；❸ **绝不**用「覆盖工作树」来做对照实验 ⇒ ⇒ 在共享工作树里，「覆盖」＝「销毁别人的在飞件」。
+
+③ **⚠️ 恢复线索（留给受影响的那条会话）** —— ❶ 两个文件的**基线**就是 HEAD 版 `667c684`（`git show HEAD:<path>` 即可取回）⇒ ⇒ 改动需要**重做**；❷ **新签名线索**（从他们自己的未跟踪测试 `test/unit/flutter_semantics_tree_test.dart` 的编译错误里逐字读出来的）：`CapabilityTools` 的构造现在要接 `ownAppInForeground: () => true`（HEAD 版没有这个参数）⇒ ⇒ 那条测试用的就是这个新签名；❸ `client_tool_registry.dart` 侧：`buildMobileClientTools` 的 `setAccentColor` 参数签名在 HEAD 版是 `required Future<void> Function(Color color) setAccentColor` ⇒ ⇒ 若他们的在飞改动动了这一段，**新测试的编译错误信息里会留有痕迹**（照上面那条路看错误全文）。
+
+④ **✅ 幸存的其它在飞件都没丢** —— 我在归因过程中**临时移走过**并行会话的三个**未跟踪**新文件（`flutter_semantics_tree.dart`、`flutter_semantics_tree_test.dart`、`encephalon_page_credential_probe_test.dart`）⇒ ⇒ **已全部原样放回**（`git status` 里仍是 `??`）⇒ ⇒ **一个字节没动** ⇒ ⇒ 丢的只有上面那两个**已跟踪**文件。
+
+⑤ **✅ 这一族主线的读数（不受本事故影响）** —— 移动端「写失败」那一刀（`b5cbeeb`）已提交并推送：闸 **EXIT=0**（415 文件 / 40 落点 / fresh=0 / stale=0 / 债务 31 → 30，⚠️ 真缺陷 **2 → 1**）、`--self-test` **30/30**、移动端 `flutter analyze` **零 error**、新测试 **8/8 ＋ 1/1**（后者**反向验证**过）、移动端全量（**排除那三个在飞新文件**）**642 passed / 0 failed**；neuron 那一刀（`d3bb946`）已推 ⇒ ⇒ shadow 的 CI run `42494479776` 整跑 **success（10/10 绿）**。
+
+⑥ **⚠️ 仍然欠着** —— ❶ **并行会话那条「移动端能力/语义树」的工作需要重做那两个文件**（⇒ ⇒ 那是他们那条线的事，不是我越界去补）；❷ **移动端全量在当前工作树上仍会卡** ⇒ ⇒ 根因是**并行会话的未跟踪新文件** `test/widget/encephalon_page_credential_probe_test.dart`（单跑即挂死，280s 超时）＋ `test/unit/flutter_semantics_tree_test.dart`（与在飞的 `capability_tools.dart` 构造签名不匹配 ⇒ 编译错）⇒ ⇒ **不归本刀**；❸ 桌面端 `SettingsPage.tsx:1267` 那条 ⚠️ 真缺陷（**并行会话在飞文件** ⇒ 不碰）；❹ 真机级欠项照旧（移动端真机真云读数、大脑 ASR 面、ziti T4/T5、移动端真机 UI 验收）。
+
+⑦ **⚠️ 圈码**：本条占 **U+3416（㐖）** —— 插入前重扫三账本（父仓 ＋ 移动端 ＋ 桌面端；distinct **28** / max **U+3414**；⚠️ U+3415 已由上一刀占用 ⇒ ⇒ 本条取下一枚）⇒ ⇒ **U+3416 三账本各 0 次** ⇒ ⇒ 空闲 ✔ ⇒ ⇒ 取 **U+3416**（原始码位 `0x3416`）⇒ ⇒ 插入后复跑码位闸 ＋ 行首锚计数双钉住。
 **Updated**: 2026-11-08 (㐕 **「「失败长得像成功」族销账 4/4 —— 移动端配置**写**失败不再被吞：真因被记下来、内存**回滚到文件真值**（不许「内存新值/文件旧值」分裂）、**全局横幅**让用户看得见；顺带把 shadow 整跑染红的 **neuron candle-free 编译红**修掉（CI 终读转绿）** —— 承 㐔 条（普查扩到移动端）＋ 台账待拍板 #10（neuron CI 红），本条记**移动端那一刀**、**neuron 那一刀**、**读数**，以及**仍然欠着的**。)
 
 > 信封：epoch=2026-11-08 | authority=measured | scope=project | source=真机实测（改动落在 **2 个仓**：shadow（`lib/services/app_config_service.dart`、`lib/widgets/config_save_error_banner.dart`（新）、`lib/main.dart`、`lib/l10n/app_{en,zh}.arb` ＋ 生成物 `lib/generated/l10n/*`、新测试 `test/unit/app_config_save_failure_test.dart`、闸 `scripts/check-failure-masking.mjs`（销账））＋ neuron（`Cargo.toml`）；读数：闸 **EXIT=0**（**415 个源文件** / **40 处落点** / fresh=0 / stale=0 / 债务 **31 → 30 条**，其中 ⚠️ 真缺陷 **2 → 1 条**）、`--self-test` **30/30**；移动端 `flutter analyze` **零 error**（仅剩 3 条 warning **全在并行会话在飞文件**里 ⇒ ⇒ 不归本刀）；**CI 整跑 `42494479776` 结论 `success`**（10/10 绿））| status=active | supersedes=none
