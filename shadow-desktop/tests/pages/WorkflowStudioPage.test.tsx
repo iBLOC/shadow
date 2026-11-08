@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { WorkflowStudioPage } from '../../src/pages/WorkflowStudioPage';
 
@@ -30,6 +30,20 @@ function installStorage(opts: { failRead?: boolean; failWrite?: boolean }) {
   Object.defineProperty(window, 'localStorage', { value: fake, configurable: true, writable: true });
   return fake;
 }
+
+/**
+ * ⚠️⚠️ 修法：换掉 `localStorage` 之后**必须还原**。
+ *
+ *   原生 `Object.defineProperty` **不受** `vi.unstubAllGlobals` 保护
+ *   ⇒ ⇒ 装在测试里的 mock 会**泄漏给后续文件**
+ *   ⇒ ⇒ 后续受害者从 mock 读到 `null`／`undefined`（而不是真 Storage 的语义）
+ *   ⇒ ⇒ 断言随机翻转、**红点逐轮漂**。
+ */
+const __origLocalStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+afterEach(() => {
+  if (__origLocalStorage) Object.defineProperty(globalThis, 'localStorage', __origLocalStorage);
+  else Reflect.deleteProperty(globalThis, 'localStorage');
+});
 
 describe('WorkflowStudioPage —— 存档读写失败不许被说成成功', () => {
   beforeEach(() => {
