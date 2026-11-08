@@ -161,8 +161,17 @@ export const useTelencephalonStore = create<TelencephalonState>()(
       refreshFlows: async () => {
         try {
           const flows = await telencephalonClient.listFlows();
-          set({ flows });
-        } catch { }
+          set({ flows, error: null });
+        } catch (e) {
+          // ⚠️ **不许空 catch** —— 以前这里是 `catch { }` ⇒ ⇒ 流程列表读失败
+          // ⇒ ⇒ 列表空着、**连错误都不记** ⇒ ⇒ 界面说「没有流程」
+          // ⇒ ⇒ **「读不到」被说成「没有」** ⇒ ⇒ 现在**记错误**
+          // ⇒ ⇒ 与同 store 的 `refreshLobes` / `checkHealth` 同款。
+          set({
+            error: e instanceof Error ? e.message : String(e),
+            lastCheck: new Date(),
+          });
+        }
       },
     }),
     {

@@ -119,13 +119,6 @@ export const KNOWN_DEBT = [
   },
   {
     repo: 'shadow-desktop',
-    file: 'src/stores/telencephalonStore.ts',
-    kind: 'R5',
-    why: '⚠️ **真缺陷**（读流程列表失败 ⇒ catch 是空的 ⇒ 列表空着、**连错误都不记** ⇒ ⇒ 而同一个 store 的 checkHealth 是**记错误**的）⇒ ⇒ 正在改。',
-    when: '下一刀：同款改法（记 error）。',
-  },
-  {
-    repo: 'shadow-desktop',
     file: 'src/components/business/LocalEnginePanel/LocalEnginePanel.tsx',
     kind: 'R5',
     why: '本地作业列表是**缓存**（存储读失败不致命）⇒ ⇒ 界面退回空列表 ⇒ ⇒ 属「尽力而为」的回落，不是伪装成功。',
