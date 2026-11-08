@@ -1,5 +1,21 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-08 (㏊ **「项目安全性一格首次拿到完整读数 —— 连续四轮 scanner_enobufs 之后，干净 worktree 上 Mimosa 深扫 8 秒完整跑完；真源码 2 条 medium 全部人判同族 by-design（本机信任面内），业务逻辑面仍未覆盖」** —— 承 ㎹ 条⑥①「安全性一格持续无读数」，本条记**跑通的方法与读数**、**两条 finding 的人判**、**覆盖边界**，以及**仍欠着的**。)
+
+> 信封：epoch=2026-11-08 | authority=measured | scope=project | source=真机实测（scanId `scan-2026-11-08T11-52-40.542Z-ea843ddd2f25`，seal `sha256:1e045ee9afc23db2c7739f0703b7dcaf4cc4d9294d46834694e5a6f80fd13447`；干净 worktree（`git worktree add` sibling 位挂 origin/master bda25a3，1528 文件纯源码）⇒ 538 文件 selected/parsed 零失败零截断；**findingCount=2**（high 0／medium 2／businessLogic 0）；依赖 1595 包 offline advisory 5 包 11 条 2 未定；扫描用时 8 秒）| status=active | supersedes=none
+
+① **✅ 方法与读数（㏀ 条方法论再验）** —— 四轮 `scanner_enobufs` 的真因不是扫描器坏，是**扫的对象脏**（构建产物＋并行会话的编译挤兑，㏺ 条「OS 1455／link 1102」同型）⇒ 本轮改挂**干净 worktree**（纯已提交源码、无 dist-web/build/.dart_tool）＋并行会话安静窗口 ⇒ **8 秒完整跑完**。读数对照：脏树 **135** 条 → ㏀ 条干净树 **3** 条 → 本轮 **2** 条 —— 扫描对象一变，噪声面塌掉；两轮干净读数的差（3→2）＝`computer_use` 那条随 ㎺ 条改掉 `ComputerUse::new()` 的 env 读取结构而消失、mongo-sort-injection 假阳性未再复现。
+
+② **✅ 两条 finding 人判（同族，非漏洞）** —— ❶ `lib.rs:319`：环境变量 → `config_manager.rs:65` 文件路径操作；❷ `lib.rs:357`：环境变量 → `result_manager.rs:116` 文件路径操作。与 ㏀ 条人判同族同形：桌面端按设计从环境变量读配置根/数据根（`SHADOW_*` 族），env → base_dir 定位 → base_dir 参与文件操作是**本机信任面内 by-design** —— 能控环境变量的攻击者已完全控制进程，无信任边界被跨；且 `result_manager` 的 task_id 路径校验已在位（㏀ 条②修复＋测试钉住）；行号漂移（318→319／356→357）＝并行提交改 lib.rs 所致，落点未变。⚠️ 扫描器是粗粒度启发式（advisory、未验证：validation 阶段 investigated 0）⇒ 此为人工复核结论，非扫描器判定。
+
+③ **⚠️ 覆盖边界（inconclusive 的诚实形状）** —— runStatus **inconclusive**：threatModel 阶段 partial（0 entryPoints／0 principals／0 authorizationSurfaces）⇒ **业务逻辑/授权面依旧没跑到**（「0 business-logic candidate」仍是「那一阶段没产出」不是「没有」）；pathAnalysis 虽 completed（6079 functions／6399 call edges）但 **traces 0** ⇒ 污点链一条没走完。⇒ 本格读数是「真源码静态扫描零未解释 finding」，**不是**「项目安全」。
+
+④ **⚠️ 依赖面** —— 1595 包，offline advisory 命中 **5 包 11 条 2 未定**（与 ㏀ 条读数一致：context-only，需联网人工复核，0 受影响包）。
+
+⑤ **⚠️ 仍然欠着** —— ① 业务逻辑/授权面覆盖（threatModel 阶段 0 产出 —— 扫描器能力边界，不是配置问题）；② offline advisory 5 包 11 条的联网人工复核；③ 其余承 ㎹ 条⑥（无新增）。
+
+⑥ **⚠️ 圈码**：本条占 **U+33CA（㏊）** —— 插入前 fetch 远端重核（125 条、解析到圈码 125、distinct 125、dups=0、max U+33C9）⇒ 空闲 ✔ ⇒ 顺延取 U+33CA（`String.fromCodePoint(0x33CA)` 生成，只认原始码位），插入后复跑码位闸＋**条目计数**（行首锚计应＝125+1=126）双钉住。
+
 **Updated**: 2026-11-08 (㏉ **「端脑不许推理 —— 端脑唯一一处自己做的推理（规则式意图分析）被删掉，意图改由大脑给：JSON 契约 ＋ 大脑给不出就明确报错，绝不回落端脑自猜」** —— 承用户「端脑不允许推理 清理端脑中的推理代码由大脑提供」，本条记**取证（端脑其余「像推理」的模块经查已是转发）**、**刀**、**读数**、**行为代价**、**归因（那条红不归本刀）**，以及**仍然欠着的**。)
 
 > 信封：epoch=2026-11-08 | authority=measured | scope=project | source=真机实测（telencephalon `c40e2a1` 已推（3 文件 +403/−442：`src/lobes/intent.rs` 616→约 250 行、`src/lobes/mod.rs`、新测试 `tests/lobe_intent_from_brain.rs`）；新测试 **4 passed / 0 failed**；端脑 lib 全量 **831 passed / 1 failed** —— 唯一那条红**落在并行会话在飞的 `src/api/lobe_runtime.rs`**（他们新增的 `resolve_provider_api_key` 及其测试，`sk-from-brain` vs `sk-x`）⇒ **不归本刀**，未触碰；插前 fetch 远端＋重扫本地两态：本地 **124 条** max U+33C8＝并行会话 ㏈ 条（**已暂存待提交**）、远端 **123 条** max U+33C7）| status=active | supersedes=none
