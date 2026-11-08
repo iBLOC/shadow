@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { telencephalonClient, type LobeInfo, type FlowMeta } from '../lib/telencephalonClient';
+import { DEFAULT_TELEENCEPHALON_URL, buildTimeTelencephalonUrl } from '../lib/endpointDefaults';
 
 export type TelencephalonStatus = 'stopped' | 'starting' | 'running' | 'stopping' | 'unreachable' | 'error';
 
@@ -32,7 +33,15 @@ interface TelencephalonState {
   refreshFlows: () => Promise<void>;
 }
 
-const DEFAULT_BASE_URL = 'http://127.0.0.1:60080';
+/**
+ * 端脑地址的**默认值** —— 构建期可用 VITE_PREFRONTAL_URL 指过来
+ * （web 形态没有 sidecar ⇒ 只能靠它指到真脑）。
+ *
+ * ⚠️ **真相源只有这一处** —— connection.baseUrl 是「用户可配、持久化、重启后复原」的那个
+ * ⇒ ⇒ 客户端**只读**它（lib/prefrontalClient.ts / lib/hippocampusClient.ts）
+ * ⇒ ⇒ 任何模块**不许**在加载时改写它 ⇒ ⇒ 改写 = 把用户配的地址抹掉。
+ */
+const DEFAULT_BASE_URL = buildTimeTelencephalonUrl() ?? DEFAULT_TELEENCEPHALON_URL;
 
 // ⚠️ **持久化键改名** —— 旧键名 `shadow-cortex-store` 是**历史拼写**，
 // 但它是**存储键**（不是概念）⇒ ⇒ 直接改名会让用户已配置的端脑地址 /

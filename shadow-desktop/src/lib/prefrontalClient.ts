@@ -308,16 +308,34 @@ import { adminHeaders } from './adminToken';
 export class PrefrontalClient {
   private headers: Record<string, string>;
 
+  /**
+   * **显式**指定的地址（测试 / 嵌入场景）—— 只作用于**这一个实例**。
+   *
+   * ⚠️ 构造时**不再**改写全局 store。
+   * ⇒ ⇒ 病根：以前构造函数调 store.setBaseUrl(url)
+   * ⇒ ⇒ 而模块加载时 new PrefrontalClient(prefrontalUrl()) 传进去的是**默认值**
+   * ⇒ ⇒ ⇒ **每次应用启动都把用户配的端脑地址抹回默认**（而且写回 localStorage）
+   * ⇒ ⇒ ⇒ 同一刻 store.setBaseUrl 还把 telencephalonClient 的地址也改了
+   * ⇒ ⇒ ⇒ 两个客户端一起被打回本地（用户配的是远程大脑时 ⇒ 连不上自己的脑）。
+   */
+  private readonly overrideBaseUrl?: string;
+
   constructor(baseUrl?: string) {
     this.headers = {
       'Content-Type': 'application/json',
     };
-    if (baseUrl) {
-      useTelencephalonStore.getState().setBaseUrl(baseUrl);
-    }
+    this.overrideBaseUrl = baseUrl;
   }
 
+  /**
+   * 这一发打**哪个脑** —— 真相源只有一处 = store 的 connection.baseUrl。
+   *
+   * ① 实例显式指定的地址（测试 / 嵌入）⇒ 它赢；
+   * ② store 里的地址（用户可配、持久化、重启后复原）⇒ 它赢；
+   * ③ 都没有 ⇒ prefrontalUrl() 兜底。
+   */
   private getBaseUrl(): string {
+    if (this.overrideBaseUrl) return this.overrideBaseUrl;
     const telencephalonBase = useTelencephalonStore.getState().connection.baseUrl;
     if (telencephalonBase) return telencephalonBase;
     return prefrontalUrl();
@@ -739,4 +757,10 @@ export class PrefrontalClient {
   }
 }
 
-export const prefrontalClient = new PrefrontalClient(prefrontalUrl());
+/**
+ * 桌面端旧方言客户端的**单例**。
+ *
+ * ⚠️ **不传地址** ⇒ ⇒ 它跟着 store 走（用户配的地址 / 持久化复原的地址）
+ * ⇒ ⇒ 而不是在模块加载那一刻把默认地址钉死。
+ */
+export const prefrontalClient = new PrefrontalClient();

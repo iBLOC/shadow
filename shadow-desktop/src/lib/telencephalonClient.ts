@@ -1,8 +1,10 @@
 import { isTauri } from './platform';
+import { DEFAULT_TELEENCEPHALON_URL } from './endpointDefaults';
 import { adminHeaders } from './adminToken';
 import { readDoorHeaders } from './readDoorHeaders';
 
-const DEFAULT_TELEENCEPHALON_URL = 'http://127.0.0.1:60080';
+// ⚠️ 默认地址**只有一处** —— lib/platform.ts 里那个常量
+// ⇒ ⇒ 与 store 的默认值（stores/telencephalonStore.ts）同源 ⇒ ⇒ 两处不许漂。
 
 // 影的基础人设。走端脑时随会话创建一起送出去（`createConversation({ system })`），
 // 端脑把它记进会话记录 —— 叶区拿得到，模型才真的按这个人设说话。

@@ -13,6 +13,8 @@
  * PWA installed from a browser.
  */
 
+import { DEFAULT_TELEENCEPHALON_URL, buildTimeTelencephalonUrl } from './endpointDefaults';
+
 declare global {
   interface Window {
     __TAURI_INTERNALS__?: unknown;
@@ -55,7 +57,7 @@ export const detectPlatform = (): Platform => {
  * 响应形状都对不上** ⇒ ⇒ 逐条对照见 scripts/client-endpoint-map.txt
  * （node scripts/check-client-endpoint-map.mjs 盯着那张表不许过期）。
  *
- * - 默认 http://localhost:60080 —— Tauri 形态下是端脑 HTTP 面在
+ * - 默认 http://127.0.0.1:60080 —— Tauri 形态下是端脑 HTTP 面在
  *   **进程内**起的端脑 HTTP 面；web 形态下**没有** sidecar，需要自己代理。
  * - 构建期用 VITE_PREFRONTAL_URL 覆盖。
  *
@@ -68,13 +70,8 @@ export const detectPlatform = (): Platform => {
  * (7970925) 之前的旧契约留下来的，**今天不成立**；而 platform.test.ts
  * 里对应的那条断言被 it.skip 掉了 ⇒ ⇒ 没人发现 ⇒ ⇒ 现在两处都钉真实契约。
  */
-export const prefrontalUrl = (): string => {
-  if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_PREFRONTAL_URL) {
-    return import.meta.env.VITE_PREFRONTAL_URL as string;
-  }
-  // Always use the telencephalon URL regardless of environment
-  return 'http://localhost:60080';
-};
+export const prefrontalUrl = (): string =>
+  buildTimeTelencephalonUrl() ?? DEFAULT_TELEENCEPHALON_URL;
 
 /**
  * ⚠️ 这里**曾经**有过**第二个后端地址** —— `neuronUrl()`

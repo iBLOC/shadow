@@ -224,7 +224,7 @@ describe('platform', () => {
       const { prefrontalUrl } = await import('../platform');
       // ⚠️ 这条以前是 it.skip（断言 8082）—— 契约早就改成端脑 60080 了，
       // 而断言被**跳过** ⇒ ⇒ 没人发现 ⇒ ⇒ 现在钉**真实**契约。
-      expect(prefrontalUrl()).toBe('http://localhost:60080');
+      expect(prefrontalUrl()).toBe('http://127.0.0.1:60080');
     });
 
     it('falls back to telencephalon default on web', async () => {
@@ -233,7 +233,7 @@ describe('platform', () => {
       vi.stubGlobal('window', { location: { origin: 'http://localhost:5173' } });
       vi.resetModules();
       const { prefrontalUrl } = await import('../platform');
-      expect(prefrontalUrl()).toBe('http://localhost:60080');
+      expect(prefrontalUrl()).toBe('http://127.0.0.1:60080');
     });
   });
 });
