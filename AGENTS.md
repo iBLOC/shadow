@@ -1,5 +1,25 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-09 (㐞 **「ziti 终于有界面了 —— 手机上那格从『机制通了、界面没有』变成『角色三选 ＋ 服务名 ＋ 粘一段身份就能用』」** —— 承 㐛 条（ziti 可视化配置的病根：身份文件的 ca/cert/key 原本**只能是路径**）与 ㎯ 条（门外红），本条记**三段配置面的真实分布**、**这一刀的落点与假设**、**三件事**、**三条纪律**、**被单测抓出来的真 bug**、**分级读数**，以及**仍然欠着的**。)
+
+> 信封：epoch=2026-11-09 | authority=measured | scope=project | source=真机实测（改动全在 `shadow` 仓的移动端：新增 `shadow-mobile/lib/services/ziti_config_service.dart` ＋ `shadow-mobile/lib/widgets/settings/ziti_settings_group.dart` ＋ `shadow-mobile/android/app/src/main/kotlin/com/ibloc/shadow/ZitiConfig.kt` ＋ 两个测试文件，改写 `settings_screen.dart` ＋ `EncephalonRuntime.kt` ＋ 两个 arb ＋ 三个生成的 l10n；另有前置在 `ziti-rust` 仓：`88995bb`；读数：**flutter analyze 0 issue**、**flutter test 13/13**、**gradle :app:compileDebugKotlin BUILD SUCCESSFUL**、**gradle :app:testDebugUnitTest 5 tests / 0 failures**（查了报告 XML ⇒ **不是零测试匹配的空绿**）、⚠️ **真机级未跑**）| status=active | supersedes=none
+
+① **⚠️ 病根：ziti 的配置面有**三段**，只有一段是可视化的** —— 桌面端**客户端**模式（设置页 ZitiClientCard：开关／身份路径／服务名）**已可视化**（凭据仍走 env）；**移动端**机制通了、**界面没有**（Kotlin 里 setZitiClient / setZitiServer 早就在，但 **Dart 侧零调用方** ⇒ ⇒ 连通道方法都没有）；**供给侧**（建服务／身份／策略／enrollment）**只有** scripts/openziti-provision.ps1 一个脚本 ⇒ ⇒ 「可视化配置」不是给一个已有的东西补个框，是**三个不同的缺口**。
+
+② **⚠️ 这一刀的落点与假设（用户没回问卷 ⇒ ⇒ 按推荐项推进，明确记成假设）** —— 落点＝**移动端 App 设置页**（推荐项 ＋ 移动端正是㐐 条写着的「身份文件分发 UI 没做」那一格）；身份来源＝**粘贴一段身份 JSON**（推荐项，不需要控制器口令）；凭据＝**仍走环境变量／宿主那两把钥匙**（推荐项，保持现纪律）⇒ ⇒ 若用户要的是**桌面供给侧管理面**，本条的内核（配置形状 ＋ 身份导入 ＋ 解析）**可复用**，但那一面**尚未做**。
+
+③ **✅ 三件事** —— ❶ **配置服务**（纯 Dart）：落盘 App 私有目录下的 ziti.json（**不含秘密**：只有模式／服务名／身份路径）＋ **身份导入**（校验 ztAPI 与三段 PEM ⇒ 落成**标准身份文件**形状 id.json ＋ 三个 PEM，id.json 用**相对路径**引用 ⇒ ⇒ Rust 侧 Identity::load 原样能读）＋ **非秘密**摘要；❷ **界面**（ziti_settings_group.dart）：角色三选（不走／连远端大脑／发布本机大脑）＋ 服务名 ＋ 粘一段身份 ＋ **独立一节**（不与「能力授权」混）＋ 中英文案；❸ **宿主侧生效**（ZitiConfig.kt）：EncephalonRuntime.start() 在 nativeStart **之前**读那份 ziti.json ⇒ 两种角色走**已有的** setZitiClient / setZitiServer 入口 ⇒ ⇒ **零 Rust 改动、零 MainActivity 改动**（MainActivity 当时在并行会话在飞 ⇒ ⇒ 绕开它是这一刀的设计前提）。
+
+④ **⚠️ 三条纪律落在代码里（不是注释里）** —— ❶ **目录口径必须对得上**：Dart 写 App 私有目录（getApplicationSupportDirectory ⇒ **path_provider 文档逐字**：Android 上就是 PathUtils.getFilesDir）⇒ ⇒ 与宿主启动时的 dataDir（默认 filesDir）**是同一处** ⇒ ⇒ 对不上就是「保存了但没生效」（失败长得像成功）⇒ ⇒ ⚠️ 而 App 现有的 app_config.json 在 **documents 目录**（另一个位置）⇒ ⇒ **这里不能跟着它抄**；❷ **认不得就不猜**：模式字面量认不得 ⇒ ⇒ 回落 off；身份里缺键／写成文件路径 ⇒ ⇒ **明确报错**（那台机器上没有那个文件 ⇒ ⇒ 静默当空 ＝「进了网络但没身份」）；❸ **不半生效**：字段不全 ⇒ ⇒ 明确报错并**回落「不走零信任」**（手机照旧跑自己的大脑）⇒ ⇒ 不是「看着连上了、其实没身份」。
+
+⑤ **⚠️⚠️ 被单测抓出来的一个**真 bug**** —— 摘要读回时把 id.json 里的**相对路径**（key.pem）按**进程当前工作目录**解析 ⇒ ⇒ 明明有私钥、摘要却说「没有」⇒ ⇒ **失败长得像成功**⇒ ⇒ 改成按**身份文件所在目录**解析（与 Rust 侧 Identity::load 同一口径）⇒ ⇒ 这条正是「形状判定要有明确口径」那族：先按路径读、读不到再当内容，两段式判定会把「路径写错」伪装成「内容不对」。
+
+⑥ **✅ 读数（分级）** —— **Dart 静态级**：flutter analyze（4 个文件）**0 issue**；**Dart 单测级**：flutter test ziti_config_service_test **13/13 全过**；**Kotlin 编译级**：gradle :app:compileDebugKotlin **BUILD SUCCESSFUL**（21s）；**Kotlin 单测级**：gradle :app:testDebugUnitTest **5 tests / 0 failures**（16s，⚠️ **查了报告 XML** ⇒ 不是零测试匹配的空绿）；⚠️ **真机级未跑**（设备离线）⇒ ⇒ 「重启后真的换了面」与「真的进了网」**都还没在真机上验过**。
+
+⑦ **⚠️ 仍然欠着** —— ❶ **真机腿**：这一刀全部读数是**编译级 ＋ 离线级**；❷ **运行中状态读不回来**：桌面端那张卡有「这次启动实际在用哪个模式」的徽章 ⇒ ⇒ 移动端缺一个对应的读法（要新增通道方法 ⇒ ⇒ **MainActivity 在并行会话在飞** ⇒ ⇒ 这一刀故意不碰）；❸ **桌面供给侧管理面**（建服务／身份／策略／enrollment）未做（等用户定落点）；❹ 控制器**一键 enrollment** 未做（要口令）；❺ 移动端**凭据那笔债**照旧：App 现有 app_config.json 里**明文存着** admin token／shadow key（与桌面端「凭据不进配置文件」的纪律不一致）—— 这一刀没动它，但界面里明确写了「凭据仍走宿主，不在这里填」；❻ ziti 三台互发现仍等**控制器口令** ＋ 另外两台设备上线；❼ 移动端语音面接线 ＋ 真机 UI 验收**照旧挂着**（用户明确说了照旧）。
+
+⑧ **⚠️ 圈码** —— 本条占 **U+341E（㐞）**：插入前 fetch 远端 ＋ **跨三账本**实测（父仓工作树 **256** 条／父仓远端 **230** 条／移动端 **58** 条／桌面端 **3** 条）⇒ ⇒ 0x3400–0x3420 段已占 **U+3402–U+341D** ⇒ ⇒ **U+341E 空闲** ✔ ⇒ ⇒ ⚠️ **这是连续第三次「定稿时的空闲只证明那一刻没人占」**：本条定稿时占的是 U+341B ⇒ ⇒ 并行会话随后提交了 U+341C（㐜）⇒ ⇒ 改取 U+341D ⇒ ⇒ **U+341D 又被并行会话取走**（㐞 那条）⇒ ⇒ 复扫后改取 **U+341E** ⇒ ⇒ **「圈码」不是定稿，是实测**：插前重扫三账本才算数 ⇒ ⇒ 插入后**复跑码位闸 ＋ 在提交树上复核**。 ⇒ ⇒ ⚠️ **顺带记一个插条脚本自己的坑**：账本条目**内部有空行** ⇒ ⇒ 按空行切「块」会把一条条目切成好几块 ⇒ ⇒ 去重只认到了**标题行** ⇒ ⇒ 旧副本的正文全被留下（提交树里一度有 **3 份**）⇒ ⇒ **切分按行、按标题两处都钉死**。
+
 **Updated**: 2026-11-09 (㐝 **「任务号是端脑持有的事实，不是大脑该知道的字段 —— 「好，就这样吧」从『必然报错』变成『真的能确认』；顺带修掉三个静默失败（时间解析／时区显示／字段被丢），以及上一刀遗留的破构建」** —— 承 㐊 条（意图契约严格化）与 ㏋ 条（36 轮真云矩阵读数），本条记**病根**、**三刀**、**顺带修的三个静默失败**、**读数**、**连带修掉的破构建**、**全量失败的归因**，以及**仍然欠着的**。)
 
 > 信封：epoch=2026-11-09 | authority=measured | scope=project | source=真机实测（改动全在 `telencephalon` 仓：`src/lobes/{intent.rs,mod.rs,task_store.rs}` ＋ 5 个测试文件（含 2 个新文件）＋ 2 个旧测试文件改写；读数：**dispatch 级 6/6**、**契约级 6/6**、**端到端真云 1/1**（turn 2＝「✅ 任务已确认: 和客户开会」）、**lib 单测 836 passed / 0 failed**、**`cargo check --all-targets` EXIT=0**、**真云矩阵 36 轮**（FAITHFUL=32／EXPLICIT=4（**全部** `task_update(task_id)`）／DISPATCHED_WITH_EMPTY_FIELD=**0**）、**上下文 A/B 32 轮**（WITHOUT faithful=12／explicit=4／missing=4；WITH faithful=15／explicit=1／missing=1））| status=active | supersedes=none
