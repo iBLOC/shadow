@@ -187,6 +187,37 @@ describe('MoveSessionDialog', () => {
       });
     });
 
+    /**
+     * ⚠️ **「读不到」≠「没有」** —— 端脑这一面**根本没有** peer 列表路由
+     * ⇒ ⇒ 列表读失败时**不许**显示「未发现 Shadow 节点」的空态。
+     */
+    it('列表读不到 ⇒ 上下文＋原因都在，且**不**显示「未发现节点」空态', async () => {
+      mockListA2APeers.mockImplementation(() =>
+        Promise.reject(new Error('HTTP 404: Not Found')),
+      );
+      renderDialog();
+      await waitFor(() => {
+        expect(screen.getByText(/common\.migrate\.peerListFailed/)).toBeInTheDocument();
+      });
+      // 上下文（译文）＋ 原因（原文）**两者都在**
+      const errEl = screen.getByText(/common\.migrate\.peerListFailed/);
+      expect(errEl.textContent).toContain('HTTP 404: Not Found');
+      // 「读不到」**不许**被渲染成「一个节点都没有」
+      expect(screen.queryByText(/common\.migrate\.noPeers/)).not.toBeInTheDocument();
+    });
+
+    /**
+     * 孪生用例：列表**真的读到空** ⇒ ⇒ 空态**该出现**（且**没有**错误条）。
+     */
+    it('列表**真的读到空** ⇒ 空态出现（孪生：把「读不到」与「没有」分开）', async () => {
+      mockListA2APeers.mockImplementation(() => Promise.resolve({ data: [] }));
+      renderDialog();
+      await waitFor(() => {
+        expect(screen.getByText(/common\.migrate\.noPeers/)).toBeInTheDocument();
+      });
+      expect(screen.queryByText(/common\.migrate\.peerListFailed/)).not.toBeInTheDocument();
+    });
+
     it('resets state when re-opened', async () => {
       const { rerender } = renderDialog({ open: false });
       rerender(

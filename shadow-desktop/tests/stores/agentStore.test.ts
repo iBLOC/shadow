@@ -2,12 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { useAgentStore } from '../../src/stores/agentStore';
 import type { Agent, AgentTask } from '../../src/types';
 
-vi.mock('../../src/lib/prefrontalClient', () => ({
-  prefrontalClient: {
-    listAgents: vi.fn(),
-  },
-}));
-
 vi.mock('../../src/lib/tauriSafe', () => ({
   safeInvoke: vi.fn(),
 }));
@@ -33,8 +27,6 @@ describe('AgentStore', () => {
       agents: [],
       tasks: [],
       activeAgentId: null,
-      isLoading: false,
-      error: null,
       opencodeConfig: {
         port: 3000,
         autoLaunch: false,
@@ -56,96 +48,44 @@ describe('AgentStore', () => {
       expect(state.agents).toEqual([]);
       expect(state.tasks).toEqual([]);
       expect(state.activeAgentId).toBeNull();
-      expect(state.isLoading).toBe(false);
-      expect(state.error).toBeNull();
     });
   });
 
-  describe('fetchAgents', () => {
-    it('populates agents array from HTTP client', async () => {
-      const mockAgents = [
-        { id: 'agent-1', name: 'Agent 1', description: 'Test agent 1' },
-        { id: 'agent-2', name: 'Agent 2', description: 'Test agent 2' },
-      ];
-      
-      const { prefrontalClient } = await import('../../src/lib/prefrontalClient');
-      vi.mocked(prefrontalClient.listAgents).mockResolvedValueOnce(mockAgents);
-      
-      const { fetchAgents } = useAgentStore.getState();
-      await fetchAgents();
-      
-      const state = useAgentStore.getState();
-      expect(state.agents).toHaveLength(2);
-      expect(state.agents[0].id).toBe('agent-1');
-      expect(state.agents[0].name).toBe('Agent 1');
-      expect(state.isLoading).toBe(false);
+  /**
+   * ⚠️ **不许回来** —— 这里曾经有一个 `fetchAgents`：
+   * 它打的是旧的 `/api/agents`（今天 404），而且它 `set({ agents })`
+   * ⇒ ⇒ 会把**用户自建的 custom agents**（这个 store 是持久化的）
+   * **整份覆盖**成大脑的叶区列表 ⇒ ⇒ 那是一次**静默的数据覆盖**
+   * ⇒ ⇒ 它没有调用方 ⇒ ⇒ 所以它是**删掉**，不是「修好」。
+   *
+   * 大脑那一边的 agent 列表在 `stores/telencephalonStore.ts` 的 lobes 里
+   * （`GET /shadow/v1/agents`）。
+   */
+  describe('fetchAgents（已删除）', () => {
+    it('store 上**不许**再有 fetchAgents / isLoading / error', () => {
+      const state = useAgentStore.getState() as unknown as Record<string, unknown>;
+      expect(state.fetchAgents).toBeUndefined();
+      expect(state.isLoading).toBeUndefined();
+      expect(state.error).toBeUndefined();
     });
 
-    it('sets default fields on fetched agents', async () => {
-      const { prefrontalClient } = await import('../../src/lib/prefrontalClient');
-      vi.mocked(prefrontalClient.listAgents).mockResolvedValueOnce([
-        { id: 'agent-1', name: 'Test Agent' },
-      ]);
-      
-      const { fetchAgents } = useAgentStore.getState();
-      await fetchAgents();
-      
-      const state = useAgentStore.getState();
-      expect(state.agents[0].category).toBe('external');
-      expect(state.agents[0].status).toBe('online');
-      expect(state.agents[0].capabilities).toEqual([]);
-      expect(state.agents[0].createdAt).toBeInstanceOf(Date);
-      expect(state.agents[0].updatedAt).toBeInstanceOf(Date);
-    });
-
-    it('sets isLoading during fetch', async () => {
-      const { prefrontalClient } = await import('../../src/lib/prefrontalClient');
-      
-      let loadingDuringFetch: boolean | undefined;
-      const fetchAgents = useAgentStore.getState().fetchAgents;
-      
-      const originalListAgents = prefrontalClient.listAgents;
-      vi.mocked(prefrontalClient.listAgents).mockImplementation(async () => {
-        loadingDuringFetch = useAgentStore.getState().isLoading;
-        await originalListAgents();
-        return [];
+    it('用户自建的 custom agents 留着不动（没有任何自动同步会顶掉它）', async () => {
+      useAgentStore.getState().addAgent({
+        id: 'custom-1',
+        name: '我的 agent',
+        description: '',
+        category: 'custom',
+        status: 'online',
+        capabilities: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
       });
-      
-      const promise = fetchAgents();
-      
-      expect(useAgentStore.getState().isLoading).toBe(true);
-      
-      await promise;
-      
-      expect(loadingDuringFetch).toBe(true);
-      expect(useAgentStore.getState().isLoading).toBe(false);
-    });
-
-    it('handles errors gracefully', async () => {
-      const { prefrontalClient } = await import('../../src/lib/prefrontalClient');
-      vi.mocked(prefrontalClient.listAgents).mockRejectedValueOnce(new Error('Network error'));
-      
-      const { fetchAgents } = useAgentStore.getState();
-      await fetchAgents();
-      
-      const state = useAgentStore.getState();
-      expect(state.error).toBe('Network error');
-      expect(state.isLoading).toBe(false);
-      expect(state.agents).toEqual([]);
-    });
-
-    it('clears error before fetching', async () => {
-      useAgentStore.setState({ error: 'Previous error' });
-      
-      const mockAgents = [{ id: 'agent-1', name: 'Test Agent' }];
-      const { prefrontalClient } = await import('../../src/lib/prefrontalClient');
-      vi.mocked(prefrontalClient.listAgents).mockResolvedValueOnce(mockAgents);
-      
-      const { fetchAgents } = useAgentStore.getState();
-      await fetchAgents();
-      
-      const state = useAgentStore.getState();
-      expect(state.error).toBeNull();
+      // 让所有 pending 的 promise 落地（万一还有人在偷偷同步）
+      await Promise.resolve();
+      await Promise.resolve();
+      const agents = useAgentStore.getState().agents;
+      expect(agents).toHaveLength(1);
+      expect(agents[0].category).toBe('custom');
     });
   });
 

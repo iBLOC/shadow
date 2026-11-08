@@ -15,12 +15,6 @@ export interface Provider {
   model: string;
 }
 
-export interface Agent {
-  id: string;
-  name: string;
-  description?: string;
-}
-
 export interface Task {
   task_id: string;
   source?: 'local' | 'a2a' | 'schedule';
@@ -636,15 +630,6 @@ export class PrefrontalClient {
 
   async listModelProviders(): Promise<Provider[]> {
     return this.request<Provider[]>('/api/model-providers');
-  }
-
-  async listAgents(): Promise<Agent[]> {
-    const body = await this.request<unknown>('/api/agents');
-    return unwrapEnvelope<Agent[]>(body, 'listAgents failed') ?? [];
-  }
-
-  async getAgent(agentId: string): Promise<Agent> {
-    return this.request<Agent>(`/api/agents/${agentId}`);
   }
 
   async listTasks(

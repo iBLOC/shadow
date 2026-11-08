@@ -38,8 +38,6 @@ shadow-desktop/src/lib/prefrontalClient.ts GET /api/providers differs telencepha
 shadow-desktop/src/lib/prefrontalClient.ts POST /api/providers differs telencephalon POST /models/providers
 shadow-desktop/src/lib/prefrontalClient.ts DELETE /api/providers/{param} differs telencephalon DELETE /models/providers/{id}
 shadow-desktop/src/lib/prefrontalClient.ts GET /api/model-providers differs telencephalon GET /models/providers
-shadow-desktop/src/lib/prefrontalClient.ts GET /api/agents differs telencephalon GET /api/telencephalon/agents
-shadow-desktop/src/lib/prefrontalClient.ts GET /api/agents/{param} differs telencephalon GET /shadow/v1/agents/{name}
 shadow-desktop/src/lib/prefrontalClient.ts GET /hippocampus/api/tasks outer hippocampus GET /hippocampus/api/tasks
 shadow-desktop/src/lib/prefrontalClient.ts POST /hippocampus/api/tasks outer hippocampus POST /hippocampus/api/tasks
 shadow-desktop/src/lib/prefrontalClient.ts GET /hippocampus/api/tasks/{param}/{param} outer hippocampus GET /hippocampus/api/tasks/{tenant_id}/{task_id}

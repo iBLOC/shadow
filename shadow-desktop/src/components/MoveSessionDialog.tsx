@@ -51,7 +51,13 @@ export function MoveSessionDialog({
         const reachable = data.filter((p) => p.reachable);
         setPeers(reachable);
       })
-      .catch((e) => setError(String(e)))
+      .catch((e) => {
+        // ⚠️ **读不到 ≠ 没有** —— 而且端脑这一面**根本没有** peer 列表路由
+        // ⇒ ⇒ 以前是把裸的 "Error: HTTP 404: Not Found" 甩给用户
+        // ⇒ ⇒ 现在：状态里放**原始原因**（不带多余的 "Error:" 前缀），
+        // ⇒ ⇒ 由渲染处补一句「读不到节点列表」的上下文。
+        setError(e instanceof Error ? e.message : String(e));
+      })
       .finally(() => setLoading(false));
   }, [open]);
 
@@ -112,7 +118,9 @@ export function MoveSessionDialog({
           </div>
         )}
 
-        {!loading && peers.length === 0 && (
+        {/* ⚠️ 列表**读失败**时**不许**显示「未发现节点」的空态
+            —— 「读不到」≠「没有」⇒ ⇒ 空态只在**真的读到了空列表**时出现。 */}
+        {!loading && peers.length === 0 && !error && (
           <div className="move-session-empty">
             <Server size={32} />
             <p>{t('common.migrate.noPeers')}</p>
@@ -171,9 +179,14 @@ export function MoveSessionDialog({
           <div className="move-session-error">
             <AlertCircle size={18} />
             <span>
-              {phase === 'failed'
-                ? t('common.migrate.error', { error })
-                : error}
+              {phase === 'failed' ? (
+                t('common.migrate.error', { error })
+              ) : (
+                <>
+                  {t('common.migrate.peerListFailed')}{' '}
+                  {error}
+                </>
+              )}
             </span>
           </div>
         )}

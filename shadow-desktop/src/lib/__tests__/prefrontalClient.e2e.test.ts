@@ -102,12 +102,6 @@ describe.skipIf(!BIN_PRESENT)('prefrontalClient e2e', () => {
     expect(ok).toBe(true);
   });
 
-  it('PrefrontalClient.listAgents() reaches a live server', async () => {
-    const client = new PrefrontalClient(PREFRONTAL_BASE);
-    const agents = await client.listAgents();
-    expect(agents).toBeDefined();
-  });
-
   it('PrefrontalClient.createSession() returns a defined payload', async () => {
     const client = new PrefrontalClient(PREFRONTAL_BASE);
     const created = await client.createSession('e2e-test-session');

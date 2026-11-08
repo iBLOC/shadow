@@ -1,15 +1,11 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { prefrontalClient } from '../lib/prefrontalClient';
 import type { Agent, AgentTask } from '../types';
 
 interface AgentState {
   agents: Agent[];
   tasks: AgentTask[];
   activeAgentId: string | null;
-  isLoading: boolean;
-  error: string | null;
-  fetchAgents: () => Promise<void>;
   addAgent: (agent: Agent) => void;
   removeAgent: (id: string) => void;
   updateAgent: (id: string, updates: Partial<Agent>) => void;
@@ -24,28 +20,12 @@ export const useAgentStore = create<AgentState>()(
       agents: [],
       tasks: [],
       activeAgentId: null,
-      isLoading: false,
-      error: null,
-      fetchAgents: async () => {
-        set({ isLoading: true, error: null });
-        try {
-          const pfAgents = await prefrontalClient.listAgents();
-          const agents: Agent[] = pfAgents.map((a) => ({
-            ...a,
-            category: 'external' as const,
-            status: 'online' as const,
-            capabilities: [],
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          }));
-          set({ agents, isLoading: false });
-        } catch (error) {
-          set({ 
-            error: error instanceof Error ? error.message : 'Failed to fetch', 
-            isLoading: false 
-          });
-        }
-      },
+      // ⚠️ **这里曾有一个 fetchAgents** —— 它打的是旧的 /api/agents（今天 404），
+      // 而且它 set({ agents }) ⇒ ⇒ 会把**用户自建的 custom agents**（这个 store 是
+      // 持久化的）**整份覆盖**成大脑的叶区列表 ⇒ ⇒ 那是一次**静默的数据覆盖**
+      // ⇒ ⇒ 它没有调用方 ⇒ ⇒ 所以是**删掉**，不是「修好」——
+      // ⇒ 大脑那一边的 agent 列表在 stores/telencephalonStore.ts 的 lobes 里
+      // ⇒ ⇒ （GET /shadow/v1/agents，已在 scripts/client-endpoint-map.txt 里对齐）。
       addAgent: (agent) => set((state) => ({ 
         agents: [...state.agents, agent] 
       })),

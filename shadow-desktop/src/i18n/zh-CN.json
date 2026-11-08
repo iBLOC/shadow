@@ -45,7 +45,7 @@
       "error": "迁移失败：{error}",
       "sizeKb": "{kb} KB",
       "messageCount": "{count} 条消息",
-      "peerListFailed": "读不到 Shadow 节点列表：{error}"
+      "peerListFailed": "读不到 Shadow 节点列表"
     },
     "delegate": {
       "title": "委托给对等节点",
@@ -58,8 +58,8 @@
       "result": "节点返回结果",
       "error": "错误：{error}",
       "emptyPeers": "未找到 A2A 节点。添加节点以委托任务。",
-      "peerListFailed": "读不到 A2A 节点列表：{error}",
-      "peerAddFailed": "添加对等节点失败：{error}",
+      "peerListFailed": "读不到 A2A 节点列表",
+      "peerAddFailed": "添加对等节点失败",
       "sending": "正在发送...",
       "button": "委托"
     },

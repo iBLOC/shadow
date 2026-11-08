@@ -189,21 +189,16 @@ describe('PrefrontalClient contract tests', () => {
   });
 
   describe('agents and tasks', () => {
-    it('listAgents sends GET /api/agents', async () => {
-      mockFetch.mockResolvedValue(
-        okJson({ success: true, data: [{ id: 'agent-1', name: 'Helper' }] }),
-      );
-      const agents = await client.listAgents();
-      expect(agents).toHaveLength(1);
-      expect(agents[0].name).toBe('Helper');
-      expectRequest('GET', '/api/agents');
-    });
-
-    it('getAgent sends GET /api/agents/:id', async () => {
-      mockFetch.mockResolvedValue(okJson({ id: 'agent-1', name: 'Helper', description: 'A helpful agent' }));
-      const agent = await client.getAgent('agent-1');
-      expect(agent.description).toBe('A helpful agent');
-      expectRequest('GET', '/api/agents/agent-1');
+    /**
+     * ⚠️ **旧方言不许回来** —— `/api/agents` 这一面今天**不存在**
+     * （端脑的 agent 列表在 `GET /shadow/v1/agents`，已登记在
+     * `scripts/client-endpoint-map.txt`）⇒ ⇒ 客户端上**不许**再有
+     * `listAgents` / `getAgent` ⇒ ⇒ 这条把它们钉住。
+     */
+    it('客户端上**不许**再有 listAgents / getAgent（旧方言不许回来）', () => {
+      const c = client as unknown as Record<string, unknown>;
+      expect(c.listAgents).toBeUndefined();
+      expect(c.getAgent).toBeUndefined();
     });
 
     it('listTasks sends GET /hippocampus/api/tasks', async () => {
@@ -222,7 +217,7 @@ describe('PrefrontalClient contract tests', () => {
 
     it('rejects with HTTP error for non-ok responses', async () => {
       mockFetch.mockResolvedValue(errorResponse(404, 'Not Found'));
-      await expect(client.getAgent('nonexistent')).rejects.toThrow('HTTP 404');
+      await expect(client.listTasks()).rejects.toThrow('HTTP 404');
     });
   });
 

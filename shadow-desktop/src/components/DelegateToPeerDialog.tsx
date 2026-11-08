@@ -26,6 +26,12 @@ export function DelegateToPeerDialog({ open, onClose, prefillUrl }: DelegateDial
   const [peers, setPeers] = useState<DiscoveredPeer[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * 错误**来自哪一步** —— 读列表 / 加节点。
+   * ⇒ ⇒ 渲染时补一句上下文（译文）＋ 原因（原文）⇒ ⇒ 两者都在，
+   * ⇒ ⇒ 别让用户对着一个裸的 HTTP 404 发呆。
+   */
+  const [errorContext, setErrorContext] = useState<'list' | 'add' | null>(null);
   const [phase, setPhase] = useState<Phase>('pick');
   const [selectedPeer, setSelectedPeer] = useState<DiscoveredPeer | null>(null);
   const [message, setMessage] = useState('');
@@ -36,6 +42,7 @@ export function DelegateToPeerDialog({ open, onClose, prefillUrl }: DelegateDial
   useEffect(() => {
     if (!open) return;
     setError(null);
+    setErrorContext(null);
     setPhase('pick');
     setSelectedPeer(null);
     setMessage('');
@@ -51,9 +58,14 @@ export function DelegateToPeerDialog({ open, onClose, prefillUrl }: DelegateDial
         const withLlms = reachable.filter((p) => p.capabilities.includes('llm'));
         setPeers(withLlms);
       })
-      .catch(() => {
-        // A2A peer list endpoint not implemented yet — show empty state
+      .catch((e) => {
+        // ⚠️ **读不到 ≠ 没有** —— 以前这里 .catch(() => setPeers([]))
+        // ⇒ ⇒ 把「列表读失败」伪装成「一个 peer 都没有」
+        // ⇒ ⇒ 而端脑这一面**根本没有** peer 列表路由 ⇒ ⇒ 界面天天说谎。
+        // ⇒ ⇒ 现在说「读不到」并把原因带出来（失败不能长得像成功）。
         setPeers([]);
+        setErrorContext('list');
+        setError(e instanceof Error ? e.message : String(e));
       })
       .finally(() => setLoading(false));
   }, [open]);
@@ -70,9 +82,10 @@ export function DelegateToPeerDialog({ open, onClose, prefillUrl }: DelegateDial
     setLoading(true);
     try {
       const peerId = newPeerUrl.replace(/^https?:\/\//, '').replace(/:/, '-').replace(/\./g, '-');
-      await prefrontalClient.registerA2APeer(peerId, newPeerUrl.trim(), true).catch(() => {
-        // A2A peer registration endpoint not implemented yet
-      });
+      // ⚠️ **注册失败就不许进列表** —— 以前这里 .catch(() => {}) 把 404 吞了，
+      // 然后**编造**一个 reachable:true 的 peer 加进列表 ⇒ ⇒ 界面说「已添加、可发送」，
+      // 而服务端根本没有这个 peer ⇒ ⇒ **失败长得像成功**（最坏的一种）。
+      await prefrontalClient.registerA2APeer(peerId, newPeerUrl.trim(), true);
       const newPeer: DiscoveredPeer = {
         id: peerId,
         url: newPeerUrl.trim(),
@@ -86,7 +99,8 @@ export function DelegateToPeerDialog({ open, onClose, prefillUrl }: DelegateDial
       setShowAddPeer(false);
       setPhase('compose');
     } catch (e) {
-      setError(String(e));
+      setErrorContext('add');
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
@@ -106,7 +120,8 @@ export function DelegateToPeerDialog({ open, onClose, prefillUrl }: DelegateDial
       setResult(resp.text);
       setPhase('success');
     } catch (e) {
-      setError(String(e));
+      setErrorContext(null);
+      setError(e instanceof Error ? e.message : String(e));
       setPhase('error');
     }
   };
@@ -136,7 +151,9 @@ export function DelegateToPeerDialog({ open, onClose, prefillUrl }: DelegateDial
           </div>
         )}
 
-        {!loading && phase === 'pick' && !showAddPeer && peers.length === 0 && (
+        {/* ⚠️ 列表**读失败**时**不许**显示「一个 peer 都没有」的空态
+            —— 「读不到」≠「没有」⇒ ⇒ 空态只在**真的读到了空列表**时出现。 */}
+        {!loading && phase === 'pick' && !showAddPeer && peers.length === 0 && errorContext !== 'list' && (
           <div className="move-session-empty">
             <Server size={32} />
             <p>{t('common.delegate.emptyPeers')}</p>
@@ -222,7 +239,12 @@ export function DelegateToPeerDialog({ open, onClose, prefillUrl }: DelegateDial
         {error && phase !== 'success' && (
           <div className="move-session-error">
             <AlertCircle size={18} />
-            <span>{t('common.delegate.error', { error })}</span>
+            <span>
+              {errorContext === 'list' && t('common.delegate.peerListFailed')}
+              {errorContext === 'add' && t('common.delegate.peerAddFailed')}
+              {errorContext && ' '}
+              {error}
+            </span>
           </div>
         )}
 
