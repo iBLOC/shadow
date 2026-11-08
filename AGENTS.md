@@ -1,5 +1,36 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-08 (㐒 **「「失败长得像成功」族销账 2/4 —— 三条真缺陷当场改成三态（读失败说「读不到」＋原因 / 读到空才说「没有」）；顺带把闸的两个判据盲区**量出来**并升级：R4 补 try/catch 形态、R5 扩到跨行 ⇒ ⇒ 实测跨行空 catch 漏网 **27 处** ⇒ ⇒ 逐条分类登记进债务清单」** —— 承 㐏 条（销账 1/4），本条记**三条真缺陷的修法与读数**、**闸的判据升级与新落点分类**、**共享 i18n 的索引手术**、**一次真实的翻车**（幂等检查的判据写错了），以及**仍然欠着的**。)
+
+> 信封：epoch=2026-11-08 | authority=measured | scope=project | source=真机实测（改动落在 11 个文件：`shadow-desktop/src/components/recording/RecordingPanel.tsx`、`shadow-desktop/src/pages/ResonancePage.tsx`、`shadow-desktop/src/components/business/HfTokenSettings.tsx`、`shadow-desktop/src/pages/LogsPage.tsx`、`shadow-desktop/src/i18n/{en-US,zh-CN}.json`、新测试 4 个、`scripts/check-failure-masking.mjs`；读数：闸 `node scripts/check-failure-masking.mjs --json` **EXIT=0**（266 文件 / 31 落点 / fresh=0 / stale=0）、`--self-test` **22/22**、`tsc -b` **EXIT=0**、四个新测试 **16/16**、桌面端全量 **1416 passed / 1 failed**（唯一那条红在生成物同步闸 ⇒ 落在并行会话在飞的 `accent.g.ts` ⇒ 不归本刀、未触碰）；提交 `9c43130` 已推 `origin/master`）| status=active | supersedes=none
+
+① **✅ 刀三·销账 2/4：三条真缺陷当场修掉，每条配**孪生**（读失败 vs 读到空）** —— ❶ `RecordingPanel.tsx`：以前是「一个大 try 包两件事」＋ `.catch(() => null)` ⇒ ⇒ 事件读失败 ⇒ 列表空（被说成「什么都没录到」）；报告读失败 ⇒ 报告卡片不出现（被说成「没有报告」）⇒ ⇒ **两个不同的失败被压成同一个「什么都没有」** ⇒ ⇒ 现在**分开读、分开报**：`eventsError` / `reportError` 两个原因态 ＋ `reportLoaded`（**读到空**与**读失败**必须分得开）⇒ ⇒ 渲染时说「读不到」＋原因；读到 null 才说「还没有总结报告」。
+❷ `ResonancePage.tsx`：三处 —— ❶ `navigator.clipboard.writeText(code).catch(() => {})` ⇒ ⇒ 复制失败被吞 ⇒ ⇒ 用户以为配对码已复制（**而且复制按钮那处连 catch 都没有** ⇒ ⇒ 连「什么都没发生」都不算）；❷ `catch { setDiscoveredPeers([]) }` ⇒ ⇒ 列表读失败被说成「一台 peer 都没有」；❸ 广播失败一路抛出去 ⇒ ⇒ 界面毫无反应 ⇒ ⇒ 现在三条都有「**上下文（译文）＋ 原因（原文）**」，复制走同一个 `copyText` 助手（配对码仍显示在界面上，可手抄）。
+❸ `HfTokenSettings.tsx`：⚠️ 这条比「空 catch」更重 —— 根因是 `safeInvoke` **自己**把错误吞成 fallback（null）⇒ ⇒ **连组件的 catch 都进不去** ⇒ ⇒ 界面**永远**显示「未配置」；而真相是 **Tauri 命令 `get_hf_token` 早被删了**（`be50b7f`「把 cortex sidecar 换成内嵌 encephalon」那笔提交，明写「Remove 17 Tauri commands: … set_hf_token / get_hf_token」）⇒ ⇒ **读失败是常态** ⇒ ⇒ 改用 `safeInvokeOrThrow` ＋ 三态（`unknown`/`ready`/`failed`）⇒ ⇒ 现在说「读不到」＋原因（原文）。
+❹ 顺手修第四处同形状：`LogsPage.tsx` 的复制失败（空 catch ⇒ 界面毫无反应）。
+
+② **⚠️ 三态里最容易骗人的是「读到空 vs 读不到」** —— 每个修正都配**孪生**用例：❶ 报告读失败 ⇒ 出现「读不到」＋原因，**不许**出现报告卡片，也**不许**出现「还没有报告」；❷ 报告**真的读到空** ⇒ 出现「还没有报告」，**不**出现错误条；❸ 报告读到了 ⇒ 报告卡片在、无错误条；❹ token 读失败 ⇒ 「读不到」＋原因，**不许**显示「未配置」；❺ token **真的**读到 configured=false ⇒ 显示「未配置」且无错误条；❻ 复制失败 ⇒ 「复制失败」＋原因，**不许**出现「已复制」。
+
+③ **✅ 闸的判据升级（本刀主体之二）—— 盲区是量出来的，不是猜的** —— ❶ **R4 少了 try/catch 形态**：原来只认 `.catch(() => setX([]))` ⇒ ⇒ `catch { setX([]); }` 这另一种写法**完全漏网**（实测全仓 **1 处**，就是 `ResonancePage` 那处 ⇒ 本刀顺手修掉 ⇒ ⇒ 盲区关闭）⇒ ⇒ 现在两种形态都认。❷ **R5 只认单行空 catch** ⇒ ⇒ **跨行**的（块里只有注释）**全部漏网** ⇒ ⇒ 实测 **27 处 / 19 个文件**（探针量出来的，不是估的）⇒ ⇒ 现在跨行也认。⚠️ 判据升级 ⇒ ⇒ 落点数量**如实写进债务清单**（合法回落 vs ⚠️ 真缺陷逐条分类），**不是**把新判据藏起来。
+
+④ **✅ 27 处跨行空 catch 的分类结果（逐条看过上下文）** —— **合法回落 14 个文件**（失败确实不致命：解析坏条目只跳过一条、错误体读不出但错误照样抛、拖拽指针已释放、abort 时 controller 已关、localStorage 不可用、隐私模式写不进标记…）＋ **⚠️ 真缺陷 4 个文件**：❶ `storage.ts`（写失败被吞 ⇒ 用户以为 key 清掉了）；❷ `tts.ts`（写失败被吞 ⇒ 开关没存上）；❸ `WorkflowStudioPage.tsx`（读存档失败 ⇒ 空画布 ⇒ 「读不到」被说成「没有存档」；写失败（配额满）静默）；❹ `SettingsPage.tsx`（`catch { }` **空块** ⇒ skill 创建失败被吞）—— ⚠️ 其中 `SettingsPage.tsx` **是并行会话在飞文件** ⇒ ⇒ **本刀不碰**（不替别人改在飞文件）。
+
+⑤ **⚠️ 债务清单从 8 条变成 21 条 —— 这是诚实，不是倒退** —— 机制是「**落点没修就登记，写清 why/when**」⇒ ⇒ 升级判据后新增的合法回落**必须**登记 ⇒ ⇒ 否则闸会一直红 ⇒ ⇒ 「红久了没人看」＝**比没有防线更坏** ⇒ ⇒ 清单里 ⚠️ 标注的 4 条是**还在骗人的**，留给下一刀。⚠️ 关键：**销账机制仍然成立**（落点修好 ⇒ ⇒ 命中消失 ⇒ ⇒ 闸红 ⇒ ⇒ 删条目 ⇒ ⇒ 回绿）—— 本刀实测到了：修完三条 ⇒ ⇒ 闸立刻报「债务清单过期」⇒ ⇒ 删那三条 ⇒ ⇒ 回绿（**这正是 㐏 条建立的闭环，第二次跑通**）。
+
+⑥ **⚠️ 共享 i18n 的「只暂存我那段」手术（比第一次干净）** —— `en-US.json`/`zh-CN.json` 是**并行会话在飞文件**（他们在加 `background`/`accentCustom`/`chatBackground*` 键）⇒ ⇒ 直接 `git add` 会把他们的在飞内容卷进我的提交 ⇒ ⇒ 这次走**索引手术**：❶ `git show HEAD:<file>` 取 HEAD 版；❷ 从**工作树**里按锚点**摘出我那几行**（我加的每一行都是单行 JSON 键）；❸ 拼成「HEAD ＋ 只有我的」；❹ ⚠️ `JSON.parse` 当场验（**这一步抓到一处真错**：HEAD 里 `"copied": "Copied"` 是末位键、没有逗号 ⇒ ⇒ 插行后必须补逗号 ⇒ ⇒ 不补就是非法 JSON）；❺ `git hash-object -w` ＋ `git update-index --cacheinfo` 写索引；❻ **工作树一个字都不动** ⇒ ⇒ 对方的在飞改动原封不动留在工作树（`git status` 里 i18n 仍是 ` M`）⇒ ⇒ 提交后**在提交树上复核**：我的键在、他们的键不在 ✔。
+
+⑦ **✅ 读数（判据级 ＋ 编译级 ＋ 测试级）** —— **闸**：`node scripts/check-failure-masking.mjs --json` ⇒ ⇒ **EXIT=0**（266 个源文件 / 31 处落点 / `fresh=[]` / `stale=[]`）；`--self-test` ⇒ ⇒ **22/22**（上一版 14/14：新增 4 条正控 —— R4 的 try/catch 形态（单行/跨行各一条）、R5 的跨行形态（带注释/全空白各一条）＋ 4 条孪生 —— catch 里**有**实质处理（`setError`/`console.warn`）⇒ ⇒ 不许报）；**编译**：`tsc -b` ⇒ ⇒ **EXIT=0**；**测试**：四个新测试文件 ⇒ ⇒ **16/16**；桌面端全量 ⇒ ⇒ **1416 passed / 1 failed / 5 skipped**。
+
+⑧ **⚠️ 全量里唯一那条红不归本刀（按文件归因）** —— 红在 `tests/generatedEol.test.ts`（「`accent.g.ts` 与 `design-tokens.json` 不同步」）⇒ ⇒ `git diff` 看：`shadow-desktop/src/styles/accent.g.ts` **是并行会话在飞文件**（他们在加 `normalizeHexColor`）⇒ ⇒ **不归本刀、未触碰**（按纪律：红落在别人的在飞文件里 ⇒ ⇒ 不去修，也不改他们的半成品）。
+
+⑨ **⚠️ 本刀的一次真实翻车（记下来，因为下次还会踩）** —— 我用脚本给三个组件打补丁，脚本里写了「已打过补丁就跳过」的幂等检查 ⇒ ⇒ 但**锚点在新内容里仍然存在**（我是在锚点**后面**插内容）⇒ ⇒ 第二次跑脚本时**又插了一遍** ⇒ ⇒ `RecordingPanel.tsx` 出现**两份 state 声明** ＋ **两份渲染块** ⇒ ⇒ esbuild 直接报「The symbol "eventsError" has already been declared」⇒ ⇒ **判据：幂等检查必须判「新内容是否已在文件里」，不能判「旧内容是否还在」**（我改成 `n===0 && newText present` 才兜住，但**第一次**重复时那条路径压根没走到）⇒ ⇒ 去重后 16/16 全绿。
+
+⑩ **✅ 提交与推送** —— `9c43130`（**11 个文件**：4 个组件/页面 ＋ 2 个 i18n ＋ 4 个新测试 ＋ 闸脚本；`--cached --stat` 行数差逐项核对过：**804 insertions / 72 deletions**）⇒ ⇒ 已推 `origin/master`（`be69c23..9c43130`）⇒ ⇒ **提交树复核**：我的键在、对方的 `accentCustom`/`chatBackground` 不在 ✔。
+
+⑪ **⚠️ 仍然欠着（下一刀 3/4 的清单）** —— ❶ 上面那 4 条 ⚠️ 真缺陷（`storage.ts` / `tts.ts` / `WorkflowStudioPage.tsx` / `SettingsPage.tsx`——**后者是并行会话在飞文件**）；❷ `HfTokenSettings` 的**产品决定**（Tauri 命令 `get_hf_token`/`set_hf_token` 已被 `be50b7f` 删除 ⇒ ⇒ 面板在 Tauri 下**恒显「读不到」**⇒ ⇒ 修法三选一：只改前端诚实报错（本刀做的）／补回 Rust 命令（要动并行会话在飞的 `src-tauri/src/lib.rs`）／删面板 ⇒ ⇒ **待用户拍板**）；❸ 闸的**写操作面**：写失败被吞（`storage.clearKey`/`tts.setEnabled`）**没有**「长得像成功」的形状 ⇒ ⇒ 形状判据抓不到 ⇒ ⇒ 已在「覆盖边界」段**如实标注**；❹ 端脑侧本刀**未动**；❺ 真机级欠项照旧（移动端真机真云读数、大脑 ASR 面、ziti T4/T5、移动端真机 UI 验收）。
+
+⑫ **⚠️ 圈码**：本条占 **U+3412（㐒）** —— 插入前**重扫三账本**（父仓 144 条 distinct / max U+3411＝并行会话那条；桌面端 5 条 / max U+340F；移动端 0 条落在 3300–34FF 段）⇒ ⇒ **U+3411 已被占**（上一刀的候选号被抢）⇒ ⇒ 取 **U+3412**（三账本并集里 3400–34FF 段第一个空闲码位）⇒ ⇒ 插入**后**复查（重扫 ＋ 码位闸）⇒ ⇒ 撞了就就地改号。
+
 **Updated**: 2026-11-08 (㐏 **「「失败长得像成功」族销账 1/4 —— `refreshFlows` 的空 catch 改成记错误；新闸的**销账机制第一次实战跑通**（闸红 ⇒ ⇒ 销账 ⇒ ⇒ 回绿）」** —— 承 㐎 条那把新闸，本条记**这一刀**、**机制的第一次实战**、**剩下的三条**，以及**顺带量到的一条重复条目**。)
 
 > 信封：epoch=2026-11-08 | authority=measured | scope=project | source=真机实测（改动：`shadow-desktop/src/stores/telencephalonStore.ts` ＋ 新测试 `tests/stores/telencephalonStoreFlows.test.ts` ＋ 新闸的债务清单销一条；读数：新增 **2 条**测试全过、**反向验证**退回旧版 ⇒ ⇒ **两条全红**；新闸**自检 14/14** ＋ **绿**（债务 **9 → 8 条**））| status=active | supersedes=none

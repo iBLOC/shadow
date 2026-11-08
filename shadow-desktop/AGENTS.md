@@ -16,6 +16,8 @@
 ⑫ **✅ 「失败长得像成功」闸已落地（2026-11-08 ⇒ 见父仓 `AGENTS.md` 㐎 条）**：新增 `scripts/check-failure-masking.mjs` —— 五条**形状**判据（R1 `.catch(() => {})` / R2 吞成标量 / R3 吞成空数组 / R4 读失败⇒渲染成空 / R5 空 catch 块），判据跑在**剥掉注释**的文本上（注释里的字样不算命中）＋ **债务清单 9 条**（每条写清 why / when）＋ **自检 14/14**（每条规则都有正控 ＋ 孪生 ＋ 判定逻辑三条）⇒ ⇒ 读数：扫 **266** 个源文件、落点 **10 处** ⇒ ⇒ **绿**；已接进 CI（「Brain gates」job 两步，YAML 闸 6 文件全过）⇒ ⇒ ⚠️ 落点里 **4 条是真缺陷**（`RecordingPanel` 报告读失败 / `ResonancePage` 复制失败被吞 / `HfTokenSettings` 读 token 失败静默 / `telencephalonStore.refreshFlows` 空 catch）⇒ ⇒ **下一刀逐个修**，每修一处 ⇒ ⇒ 从债务清单**销账**（闸会红着提醒）⇒ ⇒ 清单**只会变短**。
 
 ⑬ **✅ 「失败长得像成功」族销账 1/4（2026-11-08 ⇒ 见父仓 `AGENTS.md` 㐏 条）**：`stores/telencephalonStore.ts` 的 `refreshFlows` 以前是 `catch { }` ⇒ ⇒ 读失败 ⇒ 列表空着、**连错误都不记** ⇒ ⇒ 界面说「没有流程」（**读不到被说成没有**）⇒ ⇒ 改成**记错误**（与同 store 的 `refreshLobes`/`checkHealth` 同款）＋ 成功时清空 `error`；新增 **2 条**测试全过 ＋ **反向验证**（退回旧版 ⇒ 两条全红）⇒ ⇒ **闸的销账机制第一次实战跑通**：修好后命中消失 ⇒ ⇒ 闸红 ⇒ ⇒ 从债务清单删掉那一条 ⇒ ⇒ 闸回绿（**9 → 8 条**）⇒ ⇒ 剩下 **3 条**真缺陷（`RecordingPanel` 报告读失败 / `ResonancePage` 复制失败被吞 / `HfTokenSettings` 读 token 失败静默）⇒ ⇒ 下一刀逐个修 ＋ 逐个销账。
+⑭ **✅ 「失败长得像成功」族销账 2/4（2026-11-08 ⇒ 见父仓 `AGENTS.md` 㐒 条）**：`RecordingPanel` 的报告/事件读失败以前被 `.catch(() => null)` 吞掉 ⇒ ⇒ 「读不到」被说成「没有报告」；`ResonancePage` 的复制失败被 `.catch(() => {})` 吞掉 ⇒ ⇒ 用户以为配对码已复制（复制按钮那处连 catch 都没有）；`HfTokenSettings` 读 token 失败**根本进不了 catch**（`safeInvoke` 自己吞成 null ⇒ ⇒ 界面永远显示「未配置」）⇒ ⇒ 现在三处都改成**三态**（读失败说「读不到」＋原因 / 读到空才说「没有」），并各配一个**孪生**测试；顺带把闸的两个判据盲区量出来并升级（R4 补 try/catch 形态、R5 扩到跨行 ⇒ ⇒ 实测跨行空 catch 漏网 **27 处** ⇒ ⇒ 逐条分类登记进债务清单）⇒ ⇒ 闸自检 14/14 → **22/22**。
+
 
 # PROJECT KNOWLEDGE BASE
 
