@@ -795,9 +795,17 @@ jobs:
     steps:
       - name: Checkout shadow
         uses: actions/checkout@v7
+        with:
+          # ⚠️ 基线 commit 的撞号集是**豁免权的出处** ⇒ ⇒ 闸要**现场从 git 历史重算**
+          # ⇒ ⇒ 必须带历史 ⇒ ⇒ fetch-depth: 0（默认 depth=1 ⇒ ⇒ 读不到基线 ⇒ ⇒
+          # ⇒ ⇒ 只能退回快照文件 ⇒ ⇒ 那条路是「回落」，不是事实本身）。
+          fetch-depth: 0
 
       - name: Gate self-test
         run: node scripts/check-ledger-codepoints.mjs --self-test
+
+      - name: Ledger codepoint drill (副本演练：绿→红→绿)
+        run: node scripts/check-ledger-codepoints.mjs --drill
 
       - name: Ledger codepoint check
         run: node scripts/check-ledger-codepoints.mjs

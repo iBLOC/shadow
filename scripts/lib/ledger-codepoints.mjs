@@ -7,10 +7,14 @@
  * ⇒ ⇒ 这一条挡的是「两个条目占同一个码位」⇒ ⇒ 那正是 2026-11-05 那次
  *    撞号事故（两条都写 U+33A0 ⇒ 引用变歧义 ⇒ 连累两条闸红）。
  *
- * **R2（注解自洽）**：一个条目若在正文里声明了「本条占 **U+XXXX**」，
- * 那么这个 U+XXXX **必须等于**它自己标题里那个字的**原始码位**。
+ * **R2（注解自洽）**：一个条目若在正文里声明了「本条占 **U+XXXX**」（**真账本**
+ * 的写法是 `本条占 U+XXXX（㐋）`，**不加粗**），那么这个 U+XXXX **必须等于**它
+ * 自己标题里那个字的**原始码位**。
  * ⇒ ⇒ 2026-11-05 实测：五条条目的注解写的是 U+340x（CJK 扩展 A 的汉字），
  *    而落盘的字符是 U+334x（CJK 兼容表意文字）⇒ ⇒ 差 0xC0 ⇒ ⇒ 注解在说假话。
+ * ⚠️ **2026-11-08 实测：这条规则曾经一直是暗的** —— 正则要求数字**带内层加粗**，
+ *    而真账本**不加粗** ⇒ ⇒ 形状对不上 ⇒ ⇒ 真账本上 R2 从没红过 ⇒ ⇒ 连本人
+ *    2026-11-08 那次「注解写 U+340B、字形落成 U+334B」都漏了过去 ⇒ ⇒ 见 R5。
  *
  * **R3（缝合残迹）**：任何一行只要**不是**以「**Updated**」开头、却嵌着
  * 「**Updated**: 日期」的标题形状 ⇒ ⇒ 行首锚被吞（插入工具的换行符变成了
@@ -35,11 +39,43 @@
  * ⇒ ⇒ 若把正文里**所有** `U+XXXX` 都当声明 ⇒ ⇒ 必然误报。
  */
 
+import { createHash } from 'node:crypto';
+
 export const HEADER_PREFIX = '**Updated**';
-export const OWN_CLAIM = /本条占\s*\*\*U\+([0-9A-Fa-f]{4,6})/g;
-// 标题形状：前缀 + 冒号 + 日期（R3 只认带日期的完整形状，免得把正文里
+/**
+ * 「本条占 **U+XXXX**」的**声明**形状 —— ⚠️ **必须与真账本同形**。
+ *
+ * ⚠️⚠️ **2026-11-08 实测踩出来的假绿**：旧正则要求数字**带内层加粗**
+ * （`本条占 **U+32FF**`）⇒ ⇒ 而**真账本**写的是 `本条占 U+340B（㐋）`
+ * （**不加粗**，且带一个括号里的方块字）⇒ ⇒ 真账本上 **R2 从来没红过**
+ * ⇒ ⇒ 本人当场把注解写成 `U+340B`、而落盘的字形是 **U+334B** 的那个字
+ * ⇒ ⇒ 闸报「零违规」⇒ ⇒ **尺子钝了没人知道**。
+ *
+ * ⇒ ⇒ 现在两种形状都认（`**` 可选）⇒ ⇒ 并且**顺带把括号里那个字也抓出来**
+ * ⇒ ⇒ R5 能判「注解里的括号字形与注解写的数字是不是同一个码位」。
+ */
+export const OWN_CLAIM =
+  /本条占\s*\*{0,2}U\+([0-9A-Fa-f]{4,6})\*{0,2}(?:\s*[（(]([^\s（()）])[）)])?/g;
+
+// ⚠⚠️ **两种头形状**（2026-11-08 实测踩出来的假绿）——
+//   * 父仓：`\*\*Updated\*\*: 2026-11-08 (㐃 **…`（冒号在加粗**外**）
+//   * 移动端／桌面端：`\*\*Updated:\*\* 2026-11-08 (㐃 **…`（冒号在加粗**内**）
+// ⇒ ⇒ 旧判据用 `startsWith('**Updated**')` ⇒ ⇒ **父仓那 104 条**（用的是
+// ⇒ ⇒ 移动端那种形状）**一条都不被看见** ⇒ ⇒ 父仓 236 条只判了 132 条 ⇒ ⇒
+// ⇒ 而那 104 条里**躺着 5 对真撞号** ⇒ ⇒ 闸报「零违规」⇒ ⇒ **假绿**。
+//
+// ⇒ ⇒ 现在**两种形状都认**（`(?::)?` 可选），并且要求**标记字后面跟着
+// ⇒ ⇒ ` **`** —— 否则 `(Cortex 清干净 …`／`(移动端 agent 面切到 …` 这类
+// ⇒ ⇒ **不是条目的行**会被误当成条目（它们的首字是普通汉字，不是方块字）。
+export const HEADER_LINE =
+  /^\*\*Updated(?::)?\*\*:?\s*[12]\d{3}-\d{2}-\d{2}\s+\(([^\s(]) \*\*/;
+
+// 标题形状：前缀 + 日期（R3 只认带日期的完整形状，免得把正文里
 // 对插入锚点的工具性引用误伤——那些引用不带冒号日期）。
-const HEADER_SHAPE = /\*\*Updated\*\*:\s*[12]\d{3}-/;
+// ⚠️ R3 用的是**带标记字**的形状（`X **`）—— 不是只到日期为止。
+// ⇒ ⇒ 否则「(Cortex 清干净 …」这种**没圈码的行**会被误判成「缝合残迹」
+// ⇒ ⇒ ⇒ 而它其实只是「一条没圈码的条目」⇒ ⇒ 归 R5，不归 R3。
+const HEADER_SHAPE = /\*\*Updated(?::)?\*\*:?\s*[12]\d{3}-\d{2}-\d{2}\s+\([^\s(] \*\*/;
 
 export function hex4(cp) {
   return cp.toString(16).toUpperCase().padStart(4, '0');
@@ -50,9 +86,10 @@ export function extractEntries(text) {
   const lines = text.split(/\r?\n/);
   const heads = [];
   for (let i = 0; i < lines.length; i++) {
-    if (!lines[i].startsWith(HEADER_PREFIX)) continue;
-    const m = lines[i].match(/\(([^\s(])/);
-    heads.push({ line: i + 1, ch: m ? m[1] : null, cp: m ? m[1].codePointAt(0) : null });
+    // ⚠️ 两种头形状都认（见 HEADER_LINE 的注释）——旧判据只认父仓那一种。
+    const m = lines[i].match(HEADER_LINE);
+    if (!m) continue;
+    heads.push({ line: i + 1, ch: m[1], cp: m[1].codePointAt(0) });
   }
   const entries = [];
   for (let k = 0; k < heads.length; k++) {
@@ -64,7 +101,14 @@ export function extractEntries(text) {
     let m;
     OWN_CLAIM.lastIndex = 0;
     while ((m = OWN_CLAIM.exec(body)) !== null) {
-      claims.push({ claimed: m[1].toUpperCase(), offset: m.index });
+      const glyph = m[2] || null;
+      claims.push({
+        claimed: m[1].toUpperCase(),
+        offset: m.index,
+        glyph,
+        // ⚠️ 括号里那个字的**真实码位**（null = 注解没带括号字形）。
+        glyphCp: glyph ? hex4(glyph.codePointAt(0)) : null,
+      });
     }
     entries.push({
       line: heads[k].line,
@@ -76,6 +120,32 @@ export function extractEntries(text) {
     });
   }
   return { entries, lines };
+}
+
+/**
+ * **跨账本**的撞号判定 —— 父仓／移动端／桌面端**共用一条码位序列**
+ * （移动端账本自己的条目 ❸ 写明：「**查重必须跨账本**」）。
+ *
+ * ⚠️ 为什么不能靠标题判断「是不是同一条目」：本仓三本账本里**没有**镜像条目
+ * ⇒ ⇒ 同一个码位被两条**不同**的条目占 ⇒ ⇒ 引用变歧义 ⇒ ⇒ 那正是 R1 要挡的。
+ *
+ * @param {{name: string, text: string}[]} ledgers
+ * @returns {{cp: number, uses: {name: string, line: number}[]}[]}
+ */
+export function findCollisions(ledgers) {
+  const byCp = new Map();
+  for (const l of ledgers) {
+    const { entries } = extractEntries(l.text);
+    for (const e of entries) {
+      if (e.actual == null) continue;
+      if (!byCp.has(e.actual)) byCp.set(e.actual, []);
+      byCp.get(e.actual).push({ name: l.name, line: e.line });
+    }
+  }
+  return [...byCp.entries()]
+    .filter(([, uses]) => uses.length > 1)
+    .map(([cp, uses]) => ({ cp, uses }))
+    .sort((a, b) => a.cp - b.cp);
 }
 
 /** 判据本体：返回 { dups, mismatched, swallowed, foreign, entries }。 */
@@ -96,19 +166,124 @@ export function findViolations(text) {
   // R3：非标题行里嵌着「**Updated**: 日期」⇒ 缝合残迹（行首锚被吞）。
   const swallowed = [];
   for (let i = 0; i < lines.length; i++) {
-    if (lines[i].startsWith(HEADER_PREFIX)) continue;
+    // ⚠️ 「是不是标题行」必须跟 extractEntries **用同一个判据** ——
+    // ⇒ ⇒ 否则移动端那种形状的**真条目**会被当成「非标题行里嵌着标题形状」
+    // ⇒ ⇒ ⇒ 一次改形状就凭空多出几十条假红（2026-11-08 实测踩过）。
+    if (HEADER_LINE.test(lines[i])) continue;
     if (HEADER_SHAPE.test(lines[i])) {
       swallowed.push({ line: i + 1, snippet: lines[i].slice(0, 60) });
     }
   }
   // R4：条目体里 OWN_CLAIM 命中的码位 ≠ 自己标题码位 ⇒ 别条的声明躺在体里。
+  //
+  // ⚠️⚠️ **2026-11-08 实测收紧**：旧判据只要「声明的码位 ≠ 自己的」就报 R4
+  // ⇒ ⇒ **自己注解写错**（R2 那一条）会被 R4 **重复报一遍** ⇒ ⇒ 两条红说同一件事
+  // ⇒ ⇒ 而且 R4 的措辞是「**条目并体**」⇒ ⇒ 那是在**误指控**：注解写错时
+  // ⇒ ⇒ 根本没有并体 ⇒ ⇒ **误指控比漏报更坏**。
+  //
+  // ⇒ ⇒ 现在按「**声明的位置**」分：条目体里的**第一条**声明是**自己的**
+  // ⇒ ⇒ 它的码位与标题不符 ⇒ ⇒ 那是 **R2（注解写错）**；**其后的**声明 ⇒ ⇒
+  // ⇒ ⇒ 那是**别条**的声明躺在这儿 ⇒ ⇒ **R4（并体残余）**。
+  // ⇒ ⇒ 旧判据把两者混在一起 ⇒ ⇒ 注解写错会被**报两遍**，而且 R4 的措辞
+  // ⇒ ⇒ 「条目并体」在那种情形下是**误指控** ⇒ ⇒ 误指控比漏报更坏。
+  // ⚠️ 边界：一个**自己没有声明**的条目若吞了别条的声明 ⇒ ⇒ 那条声明是「第一条」
+  // ⇒ ⇒ R4 看不见它 ⇒ ⇒ 那种情形靠 R3（缝合残迹）兜底（并体必然留下残迹）。
   const foreign = [];
   for (const e of entries) {
     if (e.actual == null) continue;
-    const others = e.claims.filter((c) => c.claimed !== e.actual);
+    const others = e.claims.slice(1).filter((c) => c.claimed !== e.actual);
     if (others.length > 0) {
       foreign.push({ line: e.line, actual: e.actual, claimed: others.map((c) => c.claimed) });
     }
   }
-  return { entries, dups, mismatched, swallowed, foreign };
+  // ⚠️ **R5（注解里的括号字形）** —— 「本条占 U+340B（㐋）」⇒ ⇒ 括号里
+  // 那个字的**真实码位**必须等于注解写的那个数字 ⇒ ⇒ 否则**注解在说假话**
+  // （标题说 U+340B、括号里却画着 U+334B 的字 —— 两者**不同形**，肉眼几乎看不出来）。
+  // ⚠️ 2026-11-08 实测：本人正是这么栽的 ⇒ ⇒ 旧 R2 因为形状不匹配而**一直是暗的**。
+  const glyphMismatch = [];
+  for (const e of entries) {
+    for (const c of e.claims) {
+      if (c.glyphCp && c.glyphCp !== c.claimed) {
+        glyphMismatch.push({
+          line: e.line,
+          claimed: c.claimed,
+          glyphCp: c.glyphCp,
+          glyph: c.glyph,
+        });
+      }
+    }
+  }
+  return { entries, dups, mismatched, swallowed, foreign, glyphMismatch };
+}
+
+/**
+ * **码位集的规范串** —— 升序、去重、大写、逗号连接。
+ *
+ * ⚠️ 为什么要有「规范串」：豁免集（基线 commit 的撞号集）要有一个**稳定的指纹**
+ * ⇒ ⇒ 否则「豁免集被改过」这件事**没法被看见** ⇒ ⇒ 指纹就是那把尺子的封条。
+ */
+export function canonicalSet(cps) {
+  return [...new Set((cps || []).map((c) => String(c).toUpperCase()))].sort().join(',');
+}
+
+/**
+ * **码位集的指纹**（sha256 of 规范串）—— 豁免集的**封条**。
+ *
+ * ⚠️ 2026-11-08 实测：上一版的豁免权是「债表里的一行」⇒ ⇒ 往债表里加一行
+ * ⇒ ⇒ 一个**今天才出现**的撞号立刻「已登记」⇒ ⇒ 不再红 ⇒ ⇒ **那是一台洗白机**。
+ * ⇒ ⇒ 现在豁免集的出处是**基线 commit 的历史事实**⇒ ⇒ 指纹**钉在闸脚本里**
+ * ⇒ ⇒ 改基线就要改指纹 ⇒ ⇒ 那是**代码改动** ⇒ ⇒ review 看得见。
+ */
+export function setDigest(cps) {
+  return createHash('sha256').update(canonicalSet(cps)).digest('hex');
+}
+
+/**
+ * **身份键的前缀长度** —— 豁免的「码位级」升级成「身份级」时用它。
+ *
+ * ⚠️ 为什么是**前缀**而不是整行（2026-11-08 实测）：
+ *   · 整行身份 ⇒ ⇒ 实测 48 对历史撞号里有 **1 对漂移**（U+32E3）
+ *   · 漂移的根因：**标题尾部的引用被重编号**（「承 ㋢ 条」→「承 ㋽ 条」）
+ *   · ⇒ ⇒ 用整行判身份 ⇒ ⇒ **同一个历史撞号被误判成「新增」**（假红）
+ *   · ⇒ ⇒ 用前缀（K=60）⇒ ⇒ 实测**零漂移** ⇒ ⇒ 既容忍「引用重编号」
+ *   · ⇒ ⇒ 又能抓住「**另一个条目**占了这个码位」（新条目的主题在开头就不同）
+ */
+export const IDENTITY_PREFIX_LENGTH = 60;
+
+/** 标题行归一（空白折叠＋去首尾）⇒ ⇒ 身份键与行尾空白无关。 */
+export function normalizeHeaderLine(line) {
+  return String(line || '').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * 某一条占号条目的**身份键** ＝ 「账本名 ｜ 标题行前 K 字符」。
+ *
+ * @param {{name: string, text: string}[]} ledgerTexts
+ * @param {{name: string, line: number}} use
+ */
+export function identityKey(ledgerTexts, use, prefixLength = IDENTITY_PREFIX_LENGTH) {
+  const l = ledgerTexts.find((x) => x.name === use.name);
+  if (!l) return use.name + '|?';
+  const lines = l.text.split(/\r?\n/);
+  const line = lines[use.line - 1] || '';
+  return use.name + '|' + normalizeHeaderLine(line).slice(0, prefixLength);
+}
+
+/** 一个撞号的**身份集合**（各占用者的身份键，升序）⇒ ⇒ 顺序无关。 */
+export function collisionIdentities(ledgerTexts, collision, prefixLength = IDENTITY_PREFIX_LENGTH) {
+  return collision.uses.map((u) => identityKey(ledgerTexts, u, prefixLength)).sort();
+}
+
+/** 身份映射的**规范串**（码位升序，每码位下身份键升序）⇒ ⇒ 指纹的输入。 */
+export function canonicalIdentities(identities) {
+  return Object.keys(identities || {})
+    .map((cp) => String(cp).toUpperCase())
+    .sort()
+    .map((cp) => cp + '=' + [...(identities[cp] || [])].map((k) => String(k)).sort().join(';'))
+    .join('|');
+}
+
+/** 身份映射的**指纹** —— 第二把封条（第一把是码位集的）。 */
+export function identityDigest(identities) {
+  return createHash('sha256').update(canonicalIdentities(identities)).digest('hex');
 }
