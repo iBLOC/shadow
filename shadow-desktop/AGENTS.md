@@ -7,7 +7,7 @@
 ⑥ **⚠️ 边界（必须说清）**：① **浏览器形态 ≠ Tauri 真机窗口** ⇒ 读数只覆盖「客户端这一侧」，Tauri 那一侧仍未验；② 跑的是 **生产构建**（`vite build --mode web`）⇒ ⇒ 那一次 404 **不会**弹全局错误框（`lib/httpInterceptor.ts` 只在 `import.meta.env.DEV` 或 `?debug=1` 时装）⇒ ⇒ 「界面零异常」在**真实用户形态**成立；③ 替身端脑是**宿主端的假端脑** ⇒ 验的是客户端（路由 → 真 client → 真 HTTP → 真 404 → 真重建 → 真控件树 → 真浏览器屏幕）。
 ⑦ **📄 复跑办法（已入库）**：`shadow-desktop/scripts/prove-session-loss-silent-reset.mjs --all`（+`scripts/session-loss-stub.mjs` 替身端脑）⇒ ⇒ 每次自己 `vite build` ⇒ ⇒ 跑的是当前代码；产物在 `artifacts/desktop-session-loss/<mode>/`（含界面文字、截图、替身端脑逐条记账）。
 ⑧ **⚠️ 还欠的（且有三个产品决定未拍板）**：① **修法归产品/同伴**：要不要对用户说「上下文被重置了」？② 「五个松散子串」要不要换成**确切形状**（状态码/错误码）？③ 端脑换实例时**客户端能不能提前知道**（而不是事后靠 404 猜）？⇒ ⇒ 这三条**本轮只取证、没改产品代码**。
-⑨ **⚠️ 顺带量到的一条**：`lib/prefrontalClient.ts` 在**模块加载时**就 `new PrefrontalClient(prefrontalUrl())` ⇒ `setBaseUrl` ⇒ ⇒ **它会覆盖掉 localStorage 里用户配的端脑地址**（store 的 `onRehydrateStorage` 随后又同步给 client）⇒ ⇒ 地址的真相源其实有**两处**，而**模块加载顺序**决定谁赢 ⇒ ⇒ 本实验因此**不能**靠 localStorage 预置地址 ⇒ 只能靠 `VITE_PREFRONTAL_URL` 指过去（这本身也值得单独查）。
+⑨ **✅ 顺带量到的一条（2026-11-08 已收口 ⇒ 见父仓 `AGENTS.md` ㏄ 条）**：`lib/prefrontalClient.ts` **曾** 在**模块加载时**就 `new PrefrontalClient(prefrontalUrl())` ⇒ `setBaseUrl` ⇒ ⇒ **它会覆盖掉 localStorage 里用户配的端脑地址**（store 的 `onRehydrateStorage` 随后又同步给 client）⇒ ⇒ 地址的真相源其实有**两处**，而**模块加载顺序**决定谁赢 ⇒ ⇒ 本实验因此**不能**靠 localStorage 预置地址 ⇒ 只能靠 `VITE_PREFRONTAL_URL` 指过去 ⇒ ⇒ **真相源已并成一处**（store 的 `connection.baseUrl`）⇒ ⇒ 现在**可以**靠 localStorage 预置地址了（真浏览器读数：用户配的那台收到全部流量、构建期那台**零请求**；同一脚本只退回那一个文件重跑 ⇒ **读数翻转** ⇒ user=0/build=4 ⇒ ⇒ 断言承重）。
 
 # PROJECT KNOWLEDGE BASE
 
