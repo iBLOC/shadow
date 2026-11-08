@@ -190,11 +190,19 @@ jobs:
       #   ⇒ ⇒ `x11rb` 连不上 X server ⇒ ⇒ 「failed to construct enigo for test fixture」⇒ ⇒
       #   ⇒ 这是**环境缺口不是代码缺陷** ⇒ ⇒ 用 `xvfb-run --auto-servernum` 给它一块虚拟屏
       #   （与 desktop-e2e.yml 同一手法）⇒ ⇒ 代码一行不动。
+      #   ⚠️⚠️⚠️ 2026-11-08 **但那层垫片不可靠** —— 第八跑（第一次 push 触发的那跑）在
+      #   **xvfb 已经挂上**的情况下**仍然红在同一处**（`computer_use::tests::
+      #   screenshot_does_not_require_gate`，enigo 依然绑不上）⇒ ⇒ 「给 CI 套一层虚拟 X」
+      #   只是**把环境依赖推到另一个层面**，并没有消掉它 ⇒ ⇒ **正确修法＝从源头去掉显示器
+      #   依赖**：那两条用例断言的**只是闸逻辑**（enabled 原子量），而 `ComputerUse.enigo`
+      #   本来就是 `Option`（结构体注释：headless ⇒ None ⇒ 动作一律 Disabled）⇒ ⇒ 夹具
+      #   改成 `enigo: None` ⇒ ⇒ **测试不再需要显示器** ⇒ ⇒ 这层 xvfb 也就没必要了 ⇒ ⇒
+      #   撤掉（少一个变量 ＋ 少一个「安静地飘红」的来源）。
       - name: Cargo test (lib)
         working-directory: shadow/shadow-desktop/src-tauri
         run: |
           set -o pipefail
-          xvfb-run --auto-servernum cargo test --manifest-path Cargo.toml --lib 2>&1 | tee /tmp/desktop-test.log
+          cargo test --manifest-path Cargo.toml --lib 2>&1 | tee /tmp/desktop-test.log
           echo "--- 测试读数（尺子要可见）---"
           grep -E 'test result:' /tmp/desktop-test.log || true
 
