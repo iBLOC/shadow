@@ -5,9 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:shadow_mobile/generated/l10n/app_localizations.dart';
 import 'package:shadow_mobile/providers/brain_model_source_provider.dart';
+import 'package:shadow_mobile/providers/model_metadata_provider.dart';
 import 'package:shadow_mobile/providers/telencephalon_provider.dart';
 import 'package:shadow_mobile/screens/model_management_screen.dart';
 import 'package:shadow_mobile/services/database/app_settings.dart';
+import 'package:shadow_mobile/services/database/model_metadata.dart';
 import 'package:shadow_mobile/services/telencephalon/telencephalon_client.dart';
 import 'test_helper.dart';
 
@@ -67,6 +69,14 @@ void main() {
           appSettingsRepositoryProvider.overrideWithValue(_FakeAppSettings()),
           // 端脑 client 换假的 —— 下发路由不该真发 HTTP。
           telencephalonClientProvider.overrideWithValue(_FakeTelencephalonClient()),
+          // ⚠️⚠️ 2026-11-08 **模型元数据仓储也要换内存版** —— 页面 initState 会
+          // `modelMetadataProvider.notifier.load()` ⇒ ⇒ 真库（SQLite）的读是
+          // **真实文件 I/O**，fake-async 区里**永远不会完成** ⇒ ⇒ 那个 pending
+          // 句柄会挂到测试结束 ⇒ ⇒ Flutter 的 `!timersPending` 断言直接红
+          // （CI 上飘到过：run 42461305869 attempt 1 红／attempt 2 绿 ⇒ ⇒ 慢的
+          // runner 才撞得上 ⇒ ⇒ **本地绿证不了这件事**）⇒ ⇒ 与上面那个
+          // `_FakeAppSettings` 同一个道理：真库那条路必须被换掉，不是被等出来。
+          modelMetadataRepositoryProvider.overrideWithValue(_FakeModelMetadata()),
         ],
         child: MaterialApp(
           localizationsDelegates: const [
@@ -161,6 +171,29 @@ class _FakeTelencephalonClient extends TelencephalonClient {
       'default_model': defaultModel,
       'applied': lobeModels,
     };
+  }
+}
+
+/// 内存版的模型元数据仓储 —— 真库（SQLite）的读是**真实文件 I/O**，
+/// fake-async 区里**永远不会完成** ⇒ ⇒ pending 句柄挂到测试结束 ⇒ ⇒
+/// `!timersPending` 直接红（与下面 `_FakeAppSettings` 同一个道理）。
+class _FakeModelMetadata implements ModelMetadataRepository {
+  final Map<String, ModelMetadata> rows = {};
+
+  @override
+  Future<ModelMetadata?> get(String modelId) async => rows[modelId];
+
+  @override
+  Future<Map<String, ModelMetadata>> getAll() async => Map.of(rows);
+
+  @override
+  Future<void> put(ModelMetadata metadata) async {
+    rows[metadata.modelId] = metadata;
+  }
+
+  @override
+  Future<void> delete(String modelId) async {
+    rows.remove(modelId);
   }
 }
 
