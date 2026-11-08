@@ -161,7 +161,11 @@ jobs:
       #   （与 desktop-e2e.yml 同一手法）⇒ ⇒ 代码一行不动。
       - name: Cargo test (lib)
         working-directory: shadow/shadow-desktop/src-tauri
-        run: xvfb-run --auto-servernum cargo test --manifest-path Cargo.toml --lib
+        run: |
+          set -o pipefail
+          xvfb-run --auto-servernum cargo test --manifest-path Cargo.toml --lib 2>&1 | tee /tmp/desktop-test.log
+          echo "--- 测试读数（尺子要可见）---"
+          grep -E 'test result:' /tmp/desktop-test.log || true
 
       # ⚠️⚠️ **口径先按「只挡 error」** —— 与仓内既有纪律一致（ci.yml 的 prefrontal 已经
       #   收紧到 `-D warnings`，其余仓仍按只挡 error ⇒ ⇒ **谁先清零谁先收回口径**）。
@@ -173,4 +177,9 @@ jobs:
         run: |
           set -o pipefail
           cargo clippy --manifest-path Cargo.toml --all-targets 2>&1 | tee /tmp/desktop-clippy.log
-          echo "desktop clippy warning lines: $(grep -c '^warning' /tmp/desktop-clippy.log || true)"
+          echo "--- clippy warning 池（每 crate 一行；**尺子要可见**）---"
+          # ⚠️⚠️ 2026-11-08 **这里踩过一个假读数的坑**：原来数的是 `grep -c '^warning'`
+          #   ⇒ ⇒ CI 日志里每行前面还带着「job 名 + 步骤名 + 时间戳」的前缀 ⇒ ⇒ 永远匹配不到
+          #   ⇒ ⇒ 打印出来是 **0** ⇒ ⇒ 一个「看起来有读数、其实是假的」的读数 ⇒ ⇒ 比没有更坏。
+          #   ⇒ ⇒ 改成数**汇总行**（「generated N warnings」）⇒ ⇒ 纯文本、不含 ANSI 打断。
+          grep -E 'generated [0-9]+ warnings?' /tmp/desktop-clippy.log | sed -E 's/^.*(generated [0-9]+ warnings?.*)$/\1/' | sort -u || true
