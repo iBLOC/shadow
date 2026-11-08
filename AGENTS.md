@@ -1,5 +1,21 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-08 (㐓 **「「失败长得像成功」族销账 3/4 —— 工作流存档的**两个方向**都说出来（读不到 ≠ 没有 / 写不进 ≠ 写进了）；两条**零调用方**的孤儿 API 直接删掉（`clearKey` / `ttsService.setEnabled`）⇒ ⇒ 债务清单 **21 → 18 条**、⚠️ 真缺陷 **4 → 1 条**」** —— 承 㐒 条（本刀升级判据时登记下来的那 4 条 ⚠️ 真缺陷），本条记**这一刀改了什么**、**「零调用方 ＋ 静默失败 ⇒ ⇒ 删而不是修」这条判据**、**读数**，以及**仍然欠着的**。)
+
+> 信封：epoch=2026-11-08 | authority=measured | scope=project | source=真机实测（改动落在 7 个文件：`shadow-desktop/src/pages/WorkflowStudioPage.tsx`、`shadow-desktop/src/lib/storage.ts`（删函数）、`shadow-desktop/src/lib/tts.ts`（删函数）、`shadow-desktop/src/i18n/{en-US,zh-CN}.json`、新测试 `shadow-desktop/tests/pages/WorkflowStudioPage.test.tsx`、`scripts/check-failure-masking.mjs`（销三条债务）；读数：闸 `node scripts/check-failure-masking.mjs --json` **EXIT=0**（266 文件 / **27 落点** / fresh=0 / stale=0）、`tsc -b` **EXIT=0**、五个测试文件 **20/20**、桌面端全量 **1420 passed / 1 failed**（唯一那条红仍是**并行会话在飞**的 `accent.g.ts` 生成物不同步 ⇒ 不归本刀、未触碰）；提交 `7cc817e` 已推 `origin/master`）| status=active | supersedes=none
+
+① **✅ 这一刀：工作流存档的**两个方向**都说出来** —— `WorkflowStudioPage.tsx` 以前是**两个空 catch**：❶ 读失败 ⇒ 「无存档 — 空画布」⇒ ⇒ **「读不到」被说成「没有存档」**（隐私模式 / 配额 / 坏 JSON 三种原因全被压成同一个「没有」）；❷ 写失败（配额满）⇒ 「静默」⇒ ⇒ **「写不进」被说成「写进了」**（用户以为改动存下来了，刷新就没了）⇒ ⇒ 现在两个方向各有自己的原因态（`storageError`）⇒ ⇒ 渲染时给「**上下文（译文）＋ 原因（原文）**」⇒ ⇒ 并且**读成功/写成功时把原因态清空**（不许留着一句旧错）。
+
+② **✅ 「零调用方 ＋ 静默失败 ⇒ ⇒ 删而不是修」这条判据** —— ❶ `storage.ts` 的 `clearKey`：全仓 grep（**整个仓**，含测试）**只命中定义本身** ⇒ ⇒ 零调用方 ＋ 写失败静默 ⇒ ⇒ **删掉**（而不是"改成返回 boolean"—— 没人调用 ⇒ ⇒ 返回值也永远没人看 ⇒ ⇒ 判据照旧，删更干净）；❷ `tts.ts` 的 `ttsService.setEnabled`：**同样零调用方** ⇒ ⇒ 同样删掉。⚠️ 连带量到一条**产品缺口**：`ttsService.isEnabled()` 读 `shadow.tts.enabled`，而**全仓没有任何地方写它** ⇒ ⇒ 「关掉 TTS」这个功能**今天不存在**（不是坏了，是从来没接上）⇒ ⇒ 记进欠项（**待用户拍板**：TTS 开关要不要做）。
+
+③ **✅ 债务清单 21 → 18 条（⚠️ 真缺陷 4 → 1 条）** —— 修完这三处 ⇒ ⇒ 那三处不再有命中 ⇒ ⇒ **闸立刻报「债务清单过期」** ⇒ ⇒ 删条目 ⇒ ⇒ 回绿（**㐏 条建的销账闭环，第三次跑通**）⇒ ⇒ 剩下的**唯一一条 ⚠️ 真缺陷**是 `SettingsPage.tsx:1267`（`catch { }` 空块 ⇒ skill 创建失败被吞）⇒ ⇒ 那个文件**是并行会话在飞文件** ⇒ ⇒ **本刀不碰**（不替别人改在飞文件）⇒ ⇒ 留给下一刀或那一侧。
+
+④ **✅ 读数（判据级 ＋ 编译级 ＋ 测试级）** —— **闸**：`--json` ⇒ ⇒ **EXIT=0**（266 个源文件 / **27 处落点**（上一刀 31 ⇒ ⇒ −4：storage.ts 1 / tts.ts 1 / WorkflowStudioPage 2）/ `fresh=[]` / `stale=[]`）；**编译**：`tsc -b` ⇒ ⇒ **EXIT=0**；**测试**：本刀新测试 4 条 ＋ 上一刀那 4 个文件 ⇒ ⇒ **20/20**（每条修正都配**孪生**：读失败 vs 读到空、写失败 vs 写得进）；桌面端全量 ⇒ ⇒ **1420 passed / 1 failed / 5 skipped**。
+
+⑤ **⚠️ 仍然欠着** —— ❶ `SettingsPage.tsx:1267` 那条 ⚠️ 真缺陷（**并行会话在飞文件** ⇒ 不碰）；❷ **TTS 开关只有读没有写** ⇒ ⇒ 「关掉 TTS」这个功能今天不存在（**产品决定，待拍板**）；❸ 闸的**写操作面**：写失败被吞**没有**「长得像成功」的形状 ⇒ ⇒ 形状判据**抓不到**（这一刀的两条孤儿函数就是靠「零调用方」才被抓出来的 —— 抓不到的是**有调用方**的那些）⇒ ⇒ 已在闸的「覆盖边界」段**如实标注**；❹ `HfTokenSettings` 的**产品决定**（`get_hf_token`/`set_hf_token` 已被 `be50b7f` 删除 ⇒ ⇒ 面板在 Tauri 下**恒显「读不到」**⇒ ⇒ 三选一：只改前端诚实报错（㐒 条做的）／补回 Rust 命令／删面板）；❺ 端脑侧本刀**未动**；❻ 真机级欠项照旧（移动端真机真云读数、大脑 ASR 面、ziti T4/T5、移动端真机 UI 验收）。
+
+⑥ **⚠️ 圈码**：本条占 **U+3413（㐓）** —— 插入前**重扫三账本**（父仓 145 条 distinct / max U+3412＝上一刀那条；桌面端 6 条 / max U+3412；移动端 0 条落在 3300–34FF 段）⇒ ⇒ 并集里 **U+3412 已被占**（上一刀）⇒ ⇒ 取 **U+3413**（3400–34FF 段第一个空闲码位）⇒ ⇒ 插入**后**复查（重扫 ＋ 码位闸）⇒ ⇒ 撞了就就地改号。
+
 **Updated**: 2026-11-08 (㐒 **「「失败长得像成功」族销账 2/4 —— 三条真缺陷当场改成三态（读失败说「读不到」＋原因 / 读到空才说「没有」）；顺带把闸的两个判据盲区**量出来**并升级：R4 补 try/catch 形态、R5 扩到跨行 ⇒ ⇒ 实测跨行空 catch 漏网 **27 处** ⇒ ⇒ 逐条分类登记进债务清单」** —— 承 㐏 条（销账 1/4），本条记**三条真缺陷的修法与读数**、**闸的判据升级与新落点分类**、**共享 i18n 的索引手术**、**一次真实的翻车**（幂等检查的判据写错了），以及**仍然欠着的**。)
 
 > 信封：epoch=2026-11-08 | authority=measured | scope=project | source=真机实测（改动落在 11 个文件：`shadow-desktop/src/components/recording/RecordingPanel.tsx`、`shadow-desktop/src/pages/ResonancePage.tsx`、`shadow-desktop/src/components/business/HfTokenSettings.tsx`、`shadow-desktop/src/pages/LogsPage.tsx`、`shadow-desktop/src/i18n/{en-US,zh-CN}.json`、新测试 4 个、`scripts/check-failure-masking.mjs`；读数：闸 `node scripts/check-failure-masking.mjs --json` **EXIT=0**（266 文件 / 31 落点 / fresh=0 / stale=0）、`--self-test` **22/22**、`tsc -b` **EXIT=0**、四个新测试 **16/16**、桌面端全量 **1416 passed / 1 failed**（唯一那条红在生成物同步闸 ⇒ 落在并行会话在飞的 `accent.g.ts` ⇒ 不归本刀、未触碰）；提交 `9c43130` 已推 `origin/master`）| status=active | supersedes=none
