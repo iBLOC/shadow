@@ -15,6 +15,8 @@
 
 ⑫ **✅ 「失败长得像成功」闸已落地（2026-11-08 ⇒ 见父仓 `AGENTS.md` 㐎 条）**：新增 `scripts/check-failure-masking.mjs` —— 五条**形状**判据（R1 `.catch(() => {})` / R2 吞成标量 / R3 吞成空数组 / R4 读失败⇒渲染成空 / R5 空 catch 块），判据跑在**剥掉注释**的文本上（注释里的字样不算命中）＋ **债务清单 9 条**（每条写清 why / when）＋ **自检 14/14**（每条规则都有正控 ＋ 孪生 ＋ 判定逻辑三条）⇒ ⇒ 读数：扫 **266** 个源文件、落点 **10 处** ⇒ ⇒ **绿**；已接进 CI（「Brain gates」job 两步，YAML 闸 6 文件全过）⇒ ⇒ ⚠️ 落点里 **4 条是真缺陷**（`RecordingPanel` 报告读失败 / `ResonancePage` 复制失败被吞 / `HfTokenSettings` 读 token 失败静默 / `telencephalonStore.refreshFlows` 空 catch）⇒ ⇒ **下一刀逐个修**，每修一处 ⇒ ⇒ 从债务清单**销账**（闸会红着提醒）⇒ ⇒ 清单**只会变短**。
 
+⑬ **✅ 「失败长得像成功」族销账 1/4（2026-11-08 ⇒ 见父仓 `AGENTS.md` 㐏 条）**：`stores/telencephalonStore.ts` 的 `refreshFlows` 以前是 `catch { }` ⇒ ⇒ 读失败 ⇒ 列表空着、**连错误都不记** ⇒ ⇒ 界面说「没有流程」（**读不到被说成没有**）⇒ ⇒ 改成**记错误**（与同 store 的 `refreshLobes`/`checkHealth` 同款）＋ 成功时清空 `error`；新增 **2 条**测试全过 ＋ **反向验证**（退回旧版 ⇒ 两条全红）⇒ ⇒ **闸的销账机制第一次实战跑通**：修好后命中消失 ⇒ ⇒ 闸红 ⇒ ⇒ 从债务清单删掉那一条 ⇒ ⇒ 闸回绿（**9 → 8 条**）⇒ ⇒ 剩下 **3 条**真缺陷（`RecordingPanel` 报告读失败 / `ResonancePage` 复制失败被吞 / `HfTokenSettings` 读 token 失败静默）⇒ ⇒ 下一刀逐个修 ＋ 逐个销账。
+
 # PROJECT KNOWLEDGE BASE
 
 **Updated:** 2026-11-02 (㋰ **「桌面端不再自己管供应商 —— 它管的是大脑真正在用的那份」** —— 承父仓㋰ 条与端脑仓㋯ 条（用户拍板「云端供应商、本地模型、agent、mcp 等等都由大脑直接提供接口，两端保持一致」），本条记**`provider_manager.rs` 整文件改成薄代理**、**旧注册表的一次性导入**、**单测**与**读数**。)
