@@ -1,3 +1,15 @@
+**Updated:** 2026-11-08 (㋺ **「移动端 widget 测试的一个 CI-only 飘红 —— `!timersPending` 在慢 runner 上随机红：启动链上的**真库**那条路没全断（模型元数据仓储）⇒ ⇒ 这一刀断掉一处，还欠一处」** —— 本条记**症状与证据**、**根因家族**、**这一刀断掉的那一处**、以及**仍然欠着的**。)
+
+> 信封：epoch=2026-11-08 | authority=measured | scope=project | source=真机实测（父仓 CI run 42461305869 的 `Mobile Test` 红：attempt 1 红／attempt 2 绿 ⇒ CI-only 飘红；本地该文件 4/4 绿 ⇒ ⇒ 本地绿证不了 CI 不飘）| status=active | supersedes=none
+
+① **⚠️ 症状（真撞上的一次，不是推演）** —— 父仓 CI run `42461305869` 的 `Mobile Test` job 红：逐字读是 `Failed assertion: line 2543 pos 12: '!timersPending'` ⇒ ⇒ 崩在 `test/widget/models_screen_test.dart` 的「状态条显示的是大脑运行时，不是本地引擎」⇒ ⇒ **同一次 run 复跑即绿**（attempt 1 红／attempt 2 绿）⇒ ⇒ **本地也一直绿**（该文件本地 4/4，5 秒）⇒ ⇒ 三件事合起来＝**典型的 CI-only 飘红**：不是代码缺陷，是**测试自身的环境依赖**在慢 runner 上露了出来。
+
+② **✅ 根因家族（本仓早就写过，只是这一处漏了）** —— `testWidgets` 的 fake-async 区里，**真实 I/O（SQLite 真库／socket）永远不会完成** ⇒ ⇒ 那个 pending 句柄会挂到测试结束 ⇒ ⇒ Flutter 的 `!timersPending` 断言直接红。本仓对这条**已经有成套的既有做法**：凡是启动链碰到大脑／设置的 widget 测试，一律把仓储与 client 换成内存版（`appSettingsRepositoryProvider` → `_FakeAppSettings`、`telencephalonClientProvider` → `_FakeTelencephalonClient`、`brainProviderOptionsProvider` → 空目录），注释里白纸黑字写着「真库的读是真实文件 I/O，fake-async 里永远不会完成」⇒ ⇒ **模型管理页漏了一处**：它的 `initState` 会 `modelMetadataProvider.notifier.load()` ⇒ ⇒ 而 `modelMetadataRepositoryProvider` **没被 override** ⇒ ⇒ 真库那条读还留在启动链上 ⇒ ⇒ 慢 runner 上它没来得及「不算挂住」⇒ ⇒ 断言炸。
+
+③ **✅ 这一刀断掉的** —— 给该测试补上内存版模型元数据仓储（`_FakeModelMetadata`，`implements ModelMetadataRepository`，四个方法 `get`/`getAll`/`put`/`delete`）＋ 在 `pumpModels` 的 overrides 里加一行 ⇒ ⇒ **与同文件既有两个 fake 同一个形状** ⇒ ⇒ 顺手也去掉了「本文件与别的测试文件共用 `shadow.db`」这个本仓账本自己记过的坑（㉓ 条⑦：真库的读会被别的文件的写锁住、永远不返回 ⇒ ⇒ 整个测试文件跟着挂）⇒ ⇒ 本地读数：`flutter analyze` **0 issue**、该文件 **4/4 绿**。
+
+④ **⚠️ 仍然欠着** —— ❶ **还不能说这条飘红已经绝迹**：本地**复现不了**（本地本来就绿 ⇒ ⇒ **本地绿证不了 CI 不飘**）⇒ ⇒ 要证绝迹，需要一个**能在本机造出 pending Timer 的探针**（把真库那条读放进 fake-async 区并断言它没完成）⇒ ⇒ 或者靠多次 CI 跑都绿（弱证据）⇒ ⇒ **判据入库：CI-only 的飘红，本地复现不了时，不要拿「本地绿」当结论**；❷ **启动链上可能还有别的真 I/O 路径**没被逐个断掉（本次只钉住了模型元数据仓储这一处）⇒ ⇒ 要彻底，得把这条页面启动链上**每一个**真库／真 socket 依赖列全并逐个换掉；❸ **查重必须跨账本**：插入前把三个账本一起扫才发现，**移动端账本与桌面端账本共用同一条 U+32xx 标记序列**（桌面端已用到 ㋵）⇒ ⇒ 只查自己那个账本会撞号；本条占 **U+32FA（㋺）**（U+32F0…U+32F9 全被占，U+32FA 三账本 0 命中）。
+
 **Updated:** 2026-11-02 (㋰ **「Cortex 清干净的收尾，移动端几乎没动 —— 但**判据**变了** —— 承㋮ 条（用户拍板「Cortex 是过时概念应该删除」）与父仓㋱ 条，本条记**移动端这一侧**的变化：**零处代码改动**、闸的**判据升级**、以及**为什么移动端那 4 处兼容面一个都不该改**。)
 ① **✅ 移动端代码零改动**：那 4 处（`telencephalon_client.dart` 与其测试里的 `json['cortex']` 回退、`prefrontal_client.dart` / `task_board_screen.dart` 注释里的 `cortex_router`）**全是兼容面** ⇒ ⇒ 一个都不该改（改了 = 断掉旧端脑的回退 / 编不过）⇒ ⇒ 仍登记在闸的豁免清单里。
 ② **⚠️ 但判据变了（引擎升级，本仓只吃红利）**：`history` 类的豁免**只在注释 / 文档行**生效 ⇒ ⇒ 移动端那两条 `cortex_router` 出现在 **README / ARCHITECTURE 的正文行**（不是注释）⇒ ⇒ 判为**代码行** ⇒ ⇒ 必须留 `contract`（它是**真模块名**）⇒ ⇒ 这条分类是**逐仓**定的，**不能一刀切**。
