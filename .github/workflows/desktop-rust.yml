@@ -86,6 +86,11 @@ jobs:
       # ⚠️ 系统依赖：**tauri 的 wry 要 webkit2gtk-4.1**（不是 4.0 —— 4.0 在 24.04 上已无）
       #   ＋ git2/native-tls 要 openssl 头 ＋ tray-icon 要 appindicator ＋ lance-encoding
       #   的 build script 要 protoc。
+      #   ⚠️⚠️ 2026-11-08 **第一次真跑补上的那一条**：`libpipewire-0.3-dev` —— 首跑编译炸在
+      #   「The system library `libpipewire-0.3` required by crate `libspa-sys` was not
+      #   found」⇒ ⇒ 依赖链＝**xcap（屏幕捕获）→ pipewire → libspa** ⇒ ⇒ apt 默认装的是
+      #   pipewire 的**运行时**（`libpipewire-0.3-0t64`）⇒ ⇒ **没有 `.pc` 文件** ⇒ ⇒ 必须装
+      #   **dev 包**（`libpipewire-0.3-dev`）⇒ ⇒ 这条**只有真编一次才会知道**。
       - name: Install system dependencies
         run: |
           set -eu
@@ -93,7 +98,8 @@ jobs:
           sudo apt-get install -y -qq \
             build-essential curl wget file pkg-config libssl-dev libxdo-dev \
             libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev \
-            protobuf-compiler
+            protobuf-compiler \
+            libpipewire-0.3-dev
 
       # ⚠️ runner 磁盘：预装工具合计 ~10GB，而本 job 要编整栈 + tauri ⇒ ⇒ 磁盘写满时
       #   runner 会被直接掐掉（「No space left on device」⇒ ⇒ 日志都传不回来）。
