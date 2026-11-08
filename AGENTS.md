@@ -1,5 +1,25 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-08 (㐎 **「把「失败长得像成功」这一族变成**机械可跑的工具** —— 新闸 `scripts/check-failure-masking.mjs`（五条形状判据 ＋ 债务清单 ＋ 自检 14/14）＋ CI 接线；顺带逮到 CI 上那条**本地复现不了的潜伏竞态**（`window is not defined`）」** —— 承 㐉 条那一刀（同族两处收口）与 㐇 条（旧方言那一族），本条记**为什么要有这道闸**、**判据与取舍**、**读数**、**CI 那次红的完整归因**、**一次差点造成损失的索引教训**，以及**这一族还欠着的**。)
+
+> 信封：epoch=2026-11-08 | authority=measured | scope=project | source=真机实测（新增 `scripts/check-failure-masking.mjs` ＋ `.github/workflows/ci.yml` 两步 ＋ 一处测试竞态修复；读数：新闸**自检 14/14**、扫 **266** 个源文件、落点 **10 处**、债务 **9 条** ⇒ ⇒ **绿**；已提交树**六道闸全绿**（端点表 152 条 / 状态面零违规 / 码位 136 条零违规 / 明文绿 / 归属阻断 0 / YAML 6 文件 ＋ 自检 32/32））| status=active | supersedes=none
+
+① **为什么要有这道闸** —— 这一族的代码**编译得过、跑得起来、界面上也不报错** ⇒ ⇒ 没有任何测试会红 ⇒ ⇒ 只能靠闸；而 㐉 条的普查读数是「桌面端至少 **9 个落点**」⇒ ⇒ 修掉两处之后**还有** ⇒ ⇒ 「修好了」≠「这一族干净了」⇒ ⇒ ⇒ **判据：同族缺陷要按「族」普查，而且普查结果要变成机械可跑的工具**（承 ㏰ 条那条「未普查要变成机械可跑的工具」）。
+
+② **判据（五条**形状**，跑在**剥掉注释**的文本上 ⇒ ⇒ 注释里的字样不算命中）** ＋ **取舍记录**：❶ R1 swallow-empty（`.catch(() => {})`）❷ R2 swallow-scalar（`.catch(() => null)` 之类）❸ R3 swallow-empty-array ❹ R4 read-failure-as-empty（`.catch(() => setX([]))`）❺ R5 catch-block-empty。⚠️ **R5 最初写成跨行** ⇒ ⇒ 命中 **26 处** ⇒ ⇒ 26 处是「尽力而为」的回落 ⇒ ⇒ **噪音** ⇒ ⇒ 收窄到「**同一行**的空 catch」⇒ ⇒ 落点 **40 → 10** ⇒ ⇒ ⇒ **覆盖边界如实标注**（跨行的空 catch 抓不到）。
+
+③ **债务清单机制**（**9 条**，每条写清 **why / when**）＋ **清单会自己变短**：清单里的落点被修好 ⇒ ⇒ 那个落点不再有命中 ⇒ ⇒ **闸红**（提示销账）⇒ ⇒ 第一轮跑就抓出**我自己写错的 4 条**（`sw.ts` / `FeishuPublishedCard` 的形状其实并不匹配 R2）⇒ ⇒ ⇒ **机制当场自证**（不是纸面设计）。
+
+④ **CI 接线（外科式）** —— `.github/workflows/ci.yml` 在并行会话在飞 ⇒ ⇒ **索引直写**「HEAD ＋ 我那一步」（**不含**他们在飞的那一步）＋ **工作树也插了我那一步** ⇒ ⇒ 两边都不互相卷走 ⇒ ⇒ 「Brain gates」job 多两步（闸 ＋ 自检）⇒ ⇒ YAML 闸 **6 文件全过 ＋ 自检 32/32**。
+
+⑤ **⚠️⚠️ CI 那次红的完整归因（本地复现不了 ⇒ 差点判成「他们的问题」）** —— 第二刀那笔的 CI：**Desktop Tests 红**，报错 `ReferenceError: window is not defined`，栈落在 `MoveSessionDialog.tsx` 的 `handleMigrate → setPhase('failed')` ⇒ ⇒ 查法：❶ 先读栈 ⇒ 那是**文件收尾之后**才落的 state update；❷ 本地单独跑 **12 轮 0/12**、全量跑 **2 轮 0/2** ⇒ ⇒ 本机复现不了 ⇒ ⇒ ⇒ **机器快慢决定红绿**；❸ 继续追 ⇒ ⇒ 那条**既有**测试留了个 **500ms 的 pending promise** ⇒ ⇒ 它落在下一条测试的 `mockReset()` **之后** ⇒ ⇒ `importSession` 返回 undefined ⇒ ⇒ `summary.data.id` 抛 TypeError ⇒ ⇒ 落进 catch ⇒ ⇒ ⇒ **竞态是既有的**（那条测试早于本会话）⇒ ⇒ **不是本会话引入的**，但它让本会话的提交红 ⇒ ⇒ ⇒ **归本刀修**（把整条链在测试内跑完 ⇒ ⇒ 结构上**不可能**再有 state update 落在收尾之后）。⚠️ **教训**：「本地绿、CI 红」在这条上**不是玄学**，是**机器快慢** ⇒ ⇒ 遇到这类必须**去读栈 + 数时序**，不许一句「CI 抖一下」带过。
+
+⑥ **⚠️ 一次「差点造成损失」的教训（共享索引里的**陈旧版本**）** —— 提交新闸那笔时，**索引里还留着**上一笔的 `AGENTS.md` blob（并行会话在这期间提交过 ⇒ ⇒ 索引没跟着更新 ⇒ ⇒ 那份 blob 比 HEAD **少 22 行**＝他们的新台账条目）⇒ ⇒ `git diff --cached --name-status` **只说「哪个文件」不说「改了什么」** ⇒ ⇒ 我差点把他们的条目**删掉** ⇒ ⇒ ⇒ **判据：提交前对**共享文件**必须看 `--stat` 的行数差，不能只看 name-status**；好在**未推送** ⇒ ⇒ 用 `HEAD^` 的 blob 复原 ＋ `--amend` 归位（内容无损）。
+
+⑦ **⚠️ 这一族还欠着** —— 闸里登记的 **4 条真缺陷**：❶ `RecordingPanel` 报告读失败 ⇒ 报告卡片不出现；❷ `ResonancePage` 复制失败被吞 ⇒ 用户以为配对码已复制；❸ `HfTokenSettings` 读 token 失败静默 ⇒ 界面显示成「没有 token」；❹ `telencephalonStore.refreshFlows` 空 catch ⇒ 列表空着、**连错误都不记**（而同 store 的 `checkHealth` 是记错误的）⇒ ⇒ **下一刀逐个修** ⇒ ⇒ 每修一处 ⇒ ⇒ **从债务清单里销账**（闸会红着提醒）⇒ ⇒ 清单**只会变短**。
+
+⑧ **⚠️ 圈码：本条占 U+340E（㐎）** —— 插入前**跨三本账本**实测：`U+340E` 三本**各 0 次**（`U+340A` 此刻**已被并行会话在飞**的条目占了 ⇒ ⇒ 改取 `U+340B` ⇒ ⇒ **插后复查**又发现 `U+340B` 也被抢 ⇒ ⇒ **当场再改**，本条改取 `U+340E`（留 `U+340C`/`U+340D` 两枚缓冲）⇒ ⇒ **本会话第三次**「插前查重 ≠ 插后不撞」⇒ ⇒ 共享工作树里并行写者抢号是**常态** ⇒ ⇒ 必须**插后复查**兜底）⇒ ⇒ 空闲 ✔ ⇒ ⇒ 插入后复跑码位闸 ⇒ ⇒ **零违规**。
+
 **Updated**: 2026-11-08 (㐌 **「单 worker 下本仓飘红的根因钉死了 —— 不是 env 污染，是 `vi.stubGlobal('window', …)` **跨文件泄漏**：被 stub 掉的那份 `window` 上没有 `localStorage` ⇒ ⇒ zustand `persist` 在 **store 模块加载那一刻** 捕获到 `undefined` storage ⇒ ⇒ 之后任何 `setState` 抛 `TypeError: Cannot read properties of undefined (reading 'setItem')`；最小触发对＝`src/lib/__tests__/platform.test.ts` → `tests/stores/certificateStore.test.ts`」** —— 承 㐈 条欠项❶（那 112 个用例的根因未钉死），本条记**取证方法**、**最小触发对**、**完整因果链（四段，逐段实测）**、**为何单 worker 红而多 worker 绿**、**为何红点会漂**、**修法取舍**、**读数**，以及**仍然欠着的**。)
 
 > 信封：epoch=2026-11-08 | authority=measured | scope=project | source=真机实测（vitest 3.2.4；**干净 worktree**（HEAD=`f34aa56` ＋ `node_modules` junction ＋ 补齐 `resolve.alias` 的单 worker config）；**二分定位**（`vitest list --filesOnly` ⇒ ⇒ 排序必须稳定）＋ **逐对实验**（18 个候选源文件各自与两个受害者同跑）＋ **写文件式观测**（`fs.appendFileSync` 记观测 ⇒ ⇒ 不受 stdout 缓冲影响）＋ **一比一复现**（`zz-probe-capture.test.ts` 里手写 stub ⇒ ⇒ 抛出的 TypeError 与真实堆栈**逐字相同**））| status=active | supersedes=none
