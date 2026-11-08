@@ -37,17 +37,38 @@ export function DocumentPage() {
   const [events, setEvents] = useState<RecordingEvent[]>([]);
   const [report, setReport] = useState<SummaryReport | null>(null);
   const [loading, setLoading] = useState(true);
+  /**
+   * ⚠️ **「读不到」≠「没有」** —— 以前这里读失败是 `.catch(() => setEvents([]))`
+   * ⇒ ⇒ 页面显示「No events recorded for this session.」⇒ ⇒ **读不到被说成没有**
+   * ⇒ ⇒ 现在：**记住失败**（原文原因）⇒ ⇒ 渲染时**说「读不到」**
+   * ⇒ ⇒ 那个「没有事件」的文案**只在真的读到空列表时**出现。
+   */
+  const [eventsError, setEventsError] = useState<string | null>(null);
+  /** ⚠️ 同上：报告读失败也不许装作「没有报告」。 */
+  const [reportError, setReportError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!taskId) return;
     setLoading(true);
     invoke<RecordingEvent[]>('recording_events', { sessionId: taskId })
-      .then(setEvents)
-      .catch(() => setEvents([]))
+      .then((evts) => {
+        setEvents(evts);
+        setEventsError(null);
+      })
+      .catch((e: unknown) => {
+        // ⚠️ **不许**把「读不到」渲染成「一个都没有」⇒ ⇒ 记下原因。
+        setEvents([]);
+        setEventsError(e instanceof Error ? e.message : String(e));
+      })
       .finally(() => setLoading(false));
     invoke<SummaryReport | null>('recording_report', { sessionId: taskId })
-      .then(setReport)
-      .catch(() => {});
+      .then((r) => {
+        setReport(r);
+        setReportError(null);
+      })
+      .catch((e: unknown) =>
+        setReportError(e instanceof Error ? e.message : String(e)),
+      );
   }, [taskId]);
 
   if (!taskId) {
@@ -86,11 +107,23 @@ export function DocumentPage() {
         </div>
       )}
 
+      {/* ⚠️ 报告读不到 ⇒ 说「读不到」，**不**装作「没有报告」 */}
+      {reportError && (
+        <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+          Can&apos;t read the summary report: {reportError}
+        </div>
+      )}
+
       {/* 事件表 */}
       <div className="flex-1 overflow-y-auto">
         {loading ? (
           <div className="flex items-center justify-center p-8">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : eventsError ? (
+          /* ⚠️ 「读不到」≠「没有」⇒ ⇒ 这一格说「读不到」＋原因 */
+          <div className="flex items-center justify-center p-8 text-sm text-destructive">
+            Can&apos;t read the event list: {eventsError}
           </div>
         ) : events.length === 0 ? (
           <div className="flex items-center justify-center p-8 text-sm text-muted-foreground">

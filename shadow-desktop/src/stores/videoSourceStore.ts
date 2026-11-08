@@ -18,6 +18,8 @@ interface VideoSourceState {
   available: Map<string /* deviceId */, RawDevice>;
   sync: SyncState;
   lastSyncAt?: number;
+  /** ⚠️ 最近一次**推送失败**的原因（原文）⇒ ⇒ 「读不到/写不进」的现场证据。 */
+  syncError?: string;
 
   refreshFromTelencephalon: () => Promise<void>;
   addFromAvailable: (deviceId: string) => Promise<void>;
@@ -25,7 +27,18 @@ interface VideoSourceState {
   remove: (id: string) => Promise<void>;
 }
 
-function pushToTelencephalon(catalog: Map<string, VideoSource>, activeId: string | null) {
+/**
+ * 把本地目录**推**给端脑。
+ *
+ * ⚠️ **失败不许被吞** —— 以前这里是 `.catch(() => {})` ⇒ ⇒ PUT 失败（401 / 422 / 网络）
+ * ⇒ ⇒ 界面**照样**说「已同步」（`VideoSourcesCard` 的徽章看的就是 `sync === 'idle'`）
+ * ⇒ ⇒ **失败长得像成功**（界面与端脑说的不是一回事）⇒ ⇒ 现在把 Promise **交回去**
+ * ⇒ ⇒ 由调用方按成败把 `sync` 置成 `'stale'` ⇒ ⇒ 徽章变「未同步」。
+ */
+async function pushToTelencephalon(
+  catalog: Map<string, VideoSource>,
+  activeId: string | null,
+): Promise<void> {
   const sources = Array.from(catalog.values());
   const snapshot: TelencephalonVideoSourcesSnapshot = {
     sources,
@@ -34,15 +47,35 @@ function pushToTelencephalon(catalog: Map<string, VideoSource>, activeId: string
     // `DeviceBlock` 早已改名（`telencephalon_version` ⇒ DTO 改成 camelCase
     // 之后就是 `telencephalonVersion`）⇒ ⇒ 以前这里发的是 `cortexVersion`
     // ⇒ ⇒ 服务端反序列化**整个 `device` 块失败** ⇒ ⇒ 整个 PUT bodies 被拒
-    // （422）⇒ ⇒ 而下面的 `.catch(() => {})` 把错误吞了 ⇒ ⇒ **失败长得像成功**
-    // （界面说「已与端脑同步」，其实一条都没写进去）。
+    // （422）⇒ ⇒ 而**当时**下面的 `.catch(() => {})` 把错误吞了 ⇒ ⇒ **失败长得像成功**
+    // （界面说「已与端脑同步」，其实一条都没写进去）⇒ ⇒ **那个吞异常的写法已经删掉**：
+    // ⇒ ⇒ 现在 PUT 失败会把 `sync` 置成 `'stale'` ⇒ ⇒ 徽章如实说「未同步」。
     device: { platform: 'web', hostname: location?.hostname ?? 'browser', telencephalonVersion: 'unknown' },
   };
-  // fire-and-forget push; UI stays optimistic
-  telencephalonClient
-    .putVideoSources(snapshot, '*')
-    .then(() => {})
-    .catch(() => {});
+  // ⚠️ **UI 仍然乐观**（本地目录先变），但**成败必须回到 store** ⇒ ⇒
+  // ⇒ 不许在这里吞错误（吞掉＝界面说「已同步」而端脑一条都没收到）。
+  await telencephalonClient.putVideoSources(snapshot, '*');
+}
+
+/**
+ * 推给端脑，并把**成败**写回 `sync`。
+ *
+ * ⚠️ **失败 ⇒ ⇒ `sync = 'stale'`**（本地有、端脑没有）⇒ ⇒ `VideoSourcesCard`
+ * 的徽章从「已同步」变成「未同步」⇒ ⇒ **界面不再说谎**；成功 ⇒ ⇒ `'idle'` ＋ 时间戳。
+ */
+function pushAndReport(
+  set: (partial: Partial<VideoSourceState>) => void,
+  catalog: Map<string, VideoSource>,
+  activeId: string | null,
+): void {
+  pushToTelencephalon(catalog, activeId).then(
+    () => set({ sync: 'idle', lastSyncAt: Date.now(), syncError: undefined }),
+    (e: unknown) =>
+      set({
+        sync: 'stale',
+        syncError: e instanceof Error ? e.message : String(e),
+      }),
+  );
 }
 
 export const useVideoSourceStore = create<VideoSourceState>()(
@@ -96,7 +129,7 @@ export const useVideoSourceStore = create<VideoSourceState>()(
           newSource.active = true;
         }
         set({ catalog: nextCatalog, activeId });
-        pushToTelencephalon(nextCatalog, activeId);
+        pushAndReport(set, nextCatalog, activeId);
       },
 
       setActive: async (id: string) => {
@@ -106,7 +139,7 @@ export const useVideoSourceStore = create<VideoSourceState>()(
           src.updatedAt = new Date().toISOString();
         }
         set({ catalog: nextCatalog, activeId: id });
-        pushToTelencephalon(nextCatalog, id);
+        pushAndReport(set, nextCatalog, id);
       },
 
       remove: async (id: string) => {
@@ -115,7 +148,7 @@ export const useVideoSourceStore = create<VideoSourceState>()(
         if (toRemove) nextCatalog.delete(toRemove.deviceId);
         const activeId = get().activeId === id ? null : get().activeId;
         set({ catalog: nextCatalog, activeId });
-        pushToTelencephalon(nextCatalog, activeId);
+        pushAndReport(set, nextCatalog, activeId);
       },
     }),
     {
