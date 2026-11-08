@@ -467,9 +467,27 @@ const REPORT_ONLY = has('report-only');
 // ⚠️ 只扫 **vitest 会跑的那批文件**（vitest 的 include 集减去它自己的 exclude
 //   前缀）⇒ ⇒ playwright／wdio 那些**独立进程**的 runner 不套这条判据
 //   （套了就是误报）。
-const vitestExcludes = readVitestExcludes(path.join(ROOT, 'shadow-desktop', 'vitest.config.ts'));
-const jsRoot = path.join(ROOT, 'shadow-desktop');
-const jsResult = fs.existsSync(jsRoot)
+// ⚠️⚠️ **JS 工程的位置必须是「白名单式布局」，不能是「搜索式发现」** ——
+//   第一版写成了「在 root 下递归搜 vitest.config.ts」⇒ ⇒ 当场撞了**两个**东西：
+//   ❶ 别的会话留在仓内的 **worktree 旧副本**（`.verify-wt/shadow-desktop`）⇒ ⇒
+//      扫的是**旧代码**（本地读到 150 个文件，真实是 185）⇒ ⇒ **读数不可信**；
+//   ❷ 跨仓读数时撞上**另一个仓**（`ibloc-hr-agent`）⇒ ⇒ 扫的根本不是本仓桌面端。
+//   ⇒ ⇒ 教训：**「自动发现」只有在边界明确时才安全**（工作区根是明确边界；
+//      任意树里搜就不是）⇒ ⇒ 这里改成**几条已知布局的白名单**，找不到就明确说
+//      「未找到」⇒ ⇒ **「没扫」与「扫了 0 个候选」必须能分开看**。
+function findJsProject(root) {
+  const candidates = [
+    path.join(root, 'shadow-desktop'),                       // 本仓判定：root＝仓根
+    path.join(root, 'shadow', 'shadow-desktop'),             // 跨仓读数：root＝工作区根
+  ];
+  for (const d of candidates) {
+    if (fs.existsSync(path.join(d, 'vitest.config.ts'))) return d;
+  }
+  return null;
+}
+const jsRoot = findJsProject(ROOT);
+const vitestExcludes = jsRoot ? readVitestExcludes(path.join(jsRoot, 'vitest.config.ts')) : [];
+const jsResult = jsRoot
   ? censusJs(jsRoot, { excludes: vitestExcludes })
   : { summary: { jsFilesScanned: 0, prodFilesScanned: 0, concurrentMuts: 0, candidates: 0 }, report: [] };
 const jsCandidates = jsResult.summary.candidates;
@@ -517,7 +535,12 @@ if (has('json')) {
   console.log('   候选：同二进制 ' + summary.sameBinaryCandidates + ' / 闸值污染 ' + summary.gatePollutedCandidates + ' / 集成测试 ' + summary.integCandidates + ' ⇒ 合计 ' + summary.candidates);
   console.log('');
   console.log('—— JS/TS 面（vitest：**判据不同**，见 scripts/lib/env-race-js.mjs 头注）——');
-  console.log('   扫了 ' + jsResult.summary.jsFilesScanned + ' 个 vitest 测试文件 / ' + jsResult.summary.prodFilesScanned + ' 个生产文件；并发块里的 env 写 ' + jsResult.summary.concurrentMuts + ' 处 ⇒ ⇒ 候选 ' + jsCandidates);
+  if (!jsRoot) {
+    console.log('   ⚠️ **未找到 vitest 工程**（没找到 vitest.config.ts）⇒ ⇒ 这一面**没扫** ⇒ ⇒ 不是「扫了 0 个候选」');
+  } else {
+    console.log('   工程: ' + path.relative(ROOT, jsRoot).replace(/\\/g, '/') + '（按 vitest.config.ts 探测）');
+    console.log('   扫了 ' + jsResult.summary.jsFilesScanned + ' 个 vitest 测试文件 / ' + jsResult.summary.prodFilesScanned + ' 个生产文件；并发块里的 env 写 ' + jsResult.summary.concurrentMuts + ' 处 ⇒ ⇒ 候选 ' + jsCandidates);
+  }
   for (const f of jsResult.report) {
     console.log('   == ' + f.file);
     for (const c of f.sameBinary) {
