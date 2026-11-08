@@ -102,7 +102,27 @@ export function readVitestConfig(configPath) {
   if (seqIdx >= 0) {
     sequenceConcurrent = /concurrent\s*:\s*true/.test(text.slice(seqIdx, seqIdx + 400));
   }
-  return { excludes, sequenceConcurrent };
+  // ⚠️⚠️ **跨文件污染的成立前提＝「多个测试文件落在同一个 worker」** ——
+  //   实测（探针 S + E1–E6）：
+  //   · **同 worker**（fileParallelism:false／singleThread／maxWorkers:1／
+  //     isolate:false）⇒ ⇒ 跨文件 env **共享** ⇒ ⇒ 写文件先跑时读文件能读到
+  //     （实测 PROBE_S2_SEEN=set-by-S1）；
+  //   · **多 worker**（默认）⇒ ⇒ 每个文件一个独立 worker ⇒ ⇒ env **隔离**
+  //     ⇒ ⇒ 即使写文件先跑也读不到（实测 E5/E6：ORDER=leak-ran 在前，
+  //     AB_SEEN 仍是 undefined）。
+  //   ⇒ ⇒ 所以族 2 必须**分两档**：同 worker ⇒ 判红；默认多 worker ⇒ 只作读数。
+  const boolOrNull = (re) => {
+    const m = text.match(re);
+    return m ? m[1] === 'true' : null;
+  };
+  const fileParallelism = boolOrNull(/fileParallelism\s*:\s*(true|false)/);
+  const singleThread = boolOrNull(/singleThread\s*:\s*(true|false)/);
+  const isolate = boolOrNull(/isolate\s*:\s*(true|false)/);
+  const mwMatch = text.match(/maxWorkers\s*:\s*(\d+)/);
+  const maxWorkers = mwMatch ? Number(mwMatch[1]) : null;
+  const sameWorkerLikely = fileParallelism === false || singleThread === true
+    || maxWorkers === 1 || isolate === false;
+  return { excludes, sequenceConcurrent, fileParallelism, singleThread, isolate, maxWorkers, sameWorkerLikely };
 }
 
 /** 兼容旧调用：只要 exclude 前缀。 */
@@ -287,6 +307,8 @@ export function censusJs(root, opts = {}) {
   const excludes = opts.excludes || [];
   const prodDirs = opts.prodDirs || ['src'];
   const sequenceConcurrent = !!opts.sequenceConcurrent;
+  // ⚠️ 同 worker 条件（由配置推出来）⇒ ⇒ 决定族 2 是「判红」还是「只读数」
+  const sameWorkerLikely = !!opts.sameWorkerLikely;
   const files = listJsTestFiles(root, excludes);
 
   // 生产代码读点（src/ 下的非测试文件）。
@@ -329,6 +351,7 @@ export function censusJs(root, opts = {}) {
     const sameBinary = [];
     const gatePolluted = [];
     const crossFile = [];
+    const crossFileConditional = [];
 
     for (const m of r.mut) {
       const isConcurrent = m.concurrent || (sequenceConcurrent && m.kind === 'set');
@@ -349,14 +372,17 @@ export function censusJs(root, opts = {}) {
         const otherTestReads = (allTestRead.get(m.var) || []).filter((s) => !s.startsWith(rel + ':'));
         const pReads = prodRead.get(m.var) || [];
         if (otherTestReads.length || pReads.length) {
-          crossFile.push({ var: m.var, pts: [m], otherTestRead: otherTestReads, prodRead: pReads });
+          const item = { var: m.var, pts: [m], otherTestRead: otherTestReads, prodRead: pReads };
+          // ⚠️ **两档**：同 worker ⇒ 必然污染 ⇒ 判红；默认多 worker ⇒ 条件性
+          if (sameWorkerLikely) crossFile.push(item);
+          else crossFileConditional.push(item);
         }
       }
     }
 
-    if (sameBinary.length || gatePolluted.length || crossFile.length) {
+    if (sameBinary.length || gatePolluted.length || crossFile.length || crossFileConditional.length) {
       candidates += sameBinary.length + gatePolluted.length + crossFile.length;
-      perFile.push({ file: rel, sameBinary, gatePolluted, crossFile, stubbed: r.stub });
+      perFile.push({ file: rel, sameBinary, gatePolluted, crossFile, crossFileConditional, stubbed: r.stub });
     }
     if (r.uncertain.length) {
       uncertainAll.push({ file: rel, items: r.uncertain });
@@ -370,6 +396,8 @@ export function censusJs(root, opts = {}) {
     unrestoredMuts,
     candidates,
     crossFileCandidates: perFile.reduce((a, f) => a + f.crossFile.length, 0),
+    crossFileConditionalCandidates: perFile.reduce((a, f) => a + (f.crossFileConditional || []).length, 0),
+    sameWorkerLikely,
     uncertainBlocks: uncertainAll.reduce((a, f) => a + f.items.length, 0),
     sequenceConcurrent,
   };

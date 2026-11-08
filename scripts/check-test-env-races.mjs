@@ -426,7 +426,7 @@ function selfTest() {
   const jsTwinFam1 = jsTwinRes.report.reduce((a, r) => a + r.sameBinary.length + r.gatePolluted.length, 0);
   const jsTwinFam2 = jsTwinRes.report.reduce((a, r) => a + (r.crossFile || []).length, 0);
   checks.push({ name: 'JS 孪生：顺序 it 里改同一个 env（多个 owner）⇒ **族 1（同文件并行面）必须为空**（顺序执行 ⇒ 不竞争）', ok: jsTwinFam1 === 0,
-    detail: '族1(并发面)=' + jsTwinFam1 + '；族2(跨文件污染)=' + jsTwinFam2 + '（族2 命中的是**另一族**：vitest 不在文件之间还原 env ⇒ ⇒ 裸写不还原 ⇒ ⇒ 污染别的文件 ⇒ ⇒ 顺序漂 ⇒ ⇒ 飘红）' });
+    detail: '族1(并发面)=' + jsTwinFam1 + '；族2(跨文件污染)=' + jsTwinFam2 + '（族2 命中的是**另一族**：同 worker 时 vitest 不在文件之间还原 env ⇒ ⇒ 裸写不还原 ⇒ ⇒ 污染别的文件；默认多 worker 时每个文件一个独立 worker ⇒ ⇒ 隔离 ⇒ ⇒ 只进条件档）' });
 
   // ⚠️⚠️ **第八个用例：JS 族的「跨文件污染」正控** —— 实测（探针 S）：
   //   vitest **不在文件之间还原** process.env ⇒ ⇒ 一个文件裸写 env 且不还原
@@ -442,10 +442,19 @@ function selfTest() {
   fs.writeFileSync(path.join(jsCross, 'b-reader.test.ts'),
     "import { it, expect } from 'vitest';\n" +
     "it('reads', () => { expect(process.env.JS_LEAK).toBeDefined(); });\n");
-  const jsCrossRes = censusJs(jsCross, { excludes: [] });
-  const jsCrossFound = jsCrossRes.report.some((x) => (x.crossFile || []).some((c) => c.var === 'JS_LEAK'));
-  checks.push({ name: 'JS 正控：裸写 env 且**不还原** + 别的文件读它 ⇒ 必须被报（跨文件污染面）', ok: jsCrossFound,
-    detail: 'candidates=' + jsCrossRes.summary.candidates + '；跨文件族=' + jsCrossRes.summary.crossFileCandidates });
+  // ⚠️⚠️ **夹具必须显式配「同 worker」** —— 实测：跨文件污染的**成立前提**
+  //   是「多个文件落在同一个 worker」（fileParallelism:false／singleThread／
+  //   maxWorkers:1／isolate:false）⇒ ⇒ 默认多 worker 时每个文件一个独立 worker
+  //   ⇒ ⇒ env 隔离 ⇒ ⇒ 跨文件污染**不成立**（实测 E5/E6）⇒ ⇒ 判据要分两档。
+  fs.writeFileSync(path.join(jsCross, 'vitest.config.ts'),
+    "import { defineConfig } from 'vitest/config';\n" +
+    "export default defineConfig({ test: { fileParallelism: false } });\n");
+  const jsCrossCfg = readVitestConfig(path.join(jsCross, 'vitest.config.ts'));
+  const jsCrossRes = censusJs(jsCross, { excludes: jsCrossCfg.excludes, sameWorkerLikely: jsCrossCfg.sameWorkerLikely });
+  const jsCrossFound = jsCrossCfg.sameWorkerLikely === true
+    && jsCrossRes.report.some((x) => (x.crossFile || []).some((c) => c.var === 'JS_LEAK'));
+  checks.push({ name: 'JS 正控：裸写 env 且**不还原** + 别的文件读它 + **同 worker 配置** ⇒ 必须被报（跨文件污染·判红档）', ok: jsCrossFound,
+    detail: 'sameWorkerLikely=' + jsCrossCfg.sameWorkerLikely + '；candidates=' + jsCrossRes.summary.candidates + '；跨文件·判红档=' + jsCrossRes.summary.crossFileCandidates });
 
   // ⚠️ **第九个用例：跨文件污染的孪生** —— 写了但**本文件内还原了**
   //   （afterEach 里 delete）⇒ ⇒ 不污染别的文件 ⇒ ⇒ 必须不被报。
@@ -533,6 +542,25 @@ function selfTest() {
   checks.push({ name: 'JS 正控：exclude 里的通配符前缀必须生效（tests/wdio/** ⇒ ⇒ 独立进程 runner 的目录不得进扫描面）', ok: jsExclScanned === 0 && jsExclCfg.excludes.some((x) => x.indexOf('tests/wdio') === 0),
     detail: 'exclude=' + JSON.stringify(jsExclCfg.excludes) + '；扫到的测试文件数=' + jsExclScanned + '（必须为 0）' });
 
+  // ⚠️⚠️ **第十四个用例：默认多 worker ⇒ ⇒ 跨文件污染只是「条件档」** ——
+  //   实测（E5/E6）：默认每个测试文件一个独立 worker ⇒ ⇒ env **隔离** ⇒ ⇒
+  //   跨文件污染**不成立** ⇒ ⇒ 若这时判红 ⇒ ⇒ 就是**误报**（造出假缺陷 ⇒ ⇒
+  //   然后大家就不信这把尺子）⇒ ⇒ 必须只作读数、并在读数里说清「CI 把并发
+  //   压到 1 个 worker 时它会转红」。
+  const jsMulti = path.join(base, 'js-multiworker');
+  fs.mkdirSync(path.join(jsMulti, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(jsMulti, 'src', 'prod.ts'), 'export const u = process.env.JS_MULTI;\n');
+  fs.writeFileSync(path.join(jsMulti, 'a-writer.test.ts'),
+    "import { it } from 'vitest';\n" +
+    "it('writes and never restores', () => { process.env.JS_MULTI = 'x'; });\n");
+  fs.writeFileSync(path.join(jsMulti, 'b-reader.test.ts'),
+    "import { it, expect } from 'vitest';\n" +
+    "it('reads', () => { expect(process.env.JS_MULTI).toBeDefined(); });\n");
+  const jsMultiRes = censusJs(jsMulti, { excludes: [] });
+  const jsMultiConditional = jsMultiRes.report.some((x) => (x.crossFileConditional || []).some((c) => c.var === 'JS_MULTI'));
+  checks.push({ name: 'JS 孪生：默认**多 worker**（每文件一个独立 worker ⇒ ⇒ env 隔离）⇒ ⇒ 跨文件污染必须只进**条件档**、不得判红', ok: jsMultiConditional && jsMultiRes.summary.candidates === 0,
+    detail: 'candidates=' + jsMultiRes.summary.candidates + '（必须 0）；条件档=' + jsMultiRes.summary.crossFileConditionalCandidates + '（必须 ≥1，可见但不判红）' });
+
   const pass = checks.filter((c) => c.ok).length;
   console.log('判据自检（测试里的进程级 env 竞争闸）');
   for (const c of checks) {
@@ -598,10 +626,10 @@ function findJsProject(root) {
 const jsRoot = findJsProject(ROOT);
 // ⚠️ **必须读配置** —— 实测（探针 G）：配置里开了 sequence.concurrent: true
 //   ⇒ ⇒ 连普通的顺序 it 都并发 ⇒ ⇒ 只看代码里的 .concurrent 会漏掉这一族。
-const jsConfig = jsRoot ? readVitestConfig(path.join(jsRoot, 'vitest.config.ts')) : { excludes: [], sequenceConcurrent: false };
+const jsConfig = jsRoot ? readVitestConfig(path.join(jsRoot, 'vitest.config.ts')) : { excludes: [], sequenceConcurrent: false, sameWorkerLikely: false };
 const jsResult = jsRoot
-  ? censusJs(jsRoot, { excludes: jsConfig.excludes, sequenceConcurrent: jsConfig.sequenceConcurrent })
-  : { summary: { jsFilesScanned: 0, prodFilesScanned: 0, concurrentMuts: 0, unrestoredMuts: 0, candidates: 0, crossFileCandidates: 0, uncertainBlocks: 0, sequenceConcurrent: false }, report: [], uncertain: [] };
+  ? censusJs(jsRoot, { excludes: jsConfig.excludes, sequenceConcurrent: jsConfig.sequenceConcurrent, sameWorkerLikely: jsConfig.sameWorkerLikely })
+  : { summary: { jsFilesScanned: 0, prodFilesScanned: 0, concurrentMuts: 0, unrestoredMuts: 0, candidates: 0, crossFileCandidates: 0, crossFileConditionalCandidates: 0, uncertainBlocks: 0, sequenceConcurrent: false, sameWorkerLikely: false }, report: [], uncertain: [] };
 const jsCandidates = jsResult.summary.candidates;
 const jsUncertain = jsResult.summary.uncertainBlocks;
 
@@ -654,7 +682,8 @@ if (has('json')) {
     console.log('   工程: ' + path.relative(ROOT, jsRoot).replace(/\\/g, '/') + '（按 vitest.config.ts 探测）');
     console.log('   扫了 ' + jsResult.summary.jsFilesScanned + ' 个 vitest 测试文件 / ' + jsResult.summary.prodFilesScanned + ' 个生产文件');
     console.log('   并发面：并发块里的 env 写 ' + jsResult.summary.concurrentMuts + ' 处（配置 sequence.concurrent=' + jsResult.summary.sequenceConcurrent + '）');
-    console.log('   跨文件污染面：裸写且**不还原**的 env 写 ' + jsResult.summary.unrestoredMuts + ' 处 ⇒ ⇒ 候选 ' + jsCandidates + '（其中跨文件 ' + jsResult.summary.crossFileCandidates + '）');
+    console.log('   跨文件污染面：裸写且**不还原**的 env 写 ' + jsResult.summary.unrestoredMuts + ' 处 ⇒ ⇒ 候选 ' + jsCandidates + '（跨文件·判红档 ' + jsResult.summary.crossFileCandidates + ' ／ 跨文件·条件档 ' + jsResult.summary.crossFileConditionalCandidates + '）');
+    console.log('   worker 条件：同 worker 可能＝' + jsResult.summary.sameWorkerLikely + '（fileParallelism:false／singleThread／maxWorkers:1／isolate:false 任一 ⇒ ⇒ 跨文件污染**判红**；默认多 worker ⇒ ⇒ 每个文件一个独立 worker ⇒ ⇒ env 隔离 ⇒ ⇒ 只作**读数**）');
     console.log('   判不了（并发块花括号配平不出来）: ' + jsResult.summary.uncertainBlocks + ' 处 ' + (jsResult.summary.uncertainBlocks > 0 ? '⇒ ⇒ 这一面**判不了** ⇒ ⇒ 闸据此判红' : '✔（这一面判得了）'));
     for (const u of (jsResult.unrestored || [])) {
       console.log('   · 裸写且不还原: ' + u.var + ' @ ' + u.file + ':' + u.line + (u.concurrent ? '（在并发面里 ⇒ ⇒ 族 1 也会命中）' : '（顺序 it ⇒ ⇒ 族 1 不命中；跨文件污染面靠「有别的文件读它」才成立）'));
@@ -666,7 +695,10 @@ if (has('json')) {
       console.log('       ' + c.var + '（并发面里写的）' + (c.prodRead.length ? '；生产读点: ' + c.prodRead.join(', ') : '') + (c.testRead.length ? '；同文件读点: ' + c.testRead.join(', ') : ''));
     }
     for (const c of (f.crossFile || [])) {
-      console.log('       ' + c.var + '（**裸写且不还原** ⇒ ⇒ 跨文件污染）' + (c.prodRead.length ? '；生产读点: ' + c.prodRead.join(', ') : '') + (c.otherTestRead.length ? '；别的测试文件读点: ' + c.otherTestRead.join(', ') : ''));
+      console.log('       ' + c.var + '（**裸写且不还原** ⇒ ⇒ 跨文件污染·判红档）' + (c.prodRead.length ? '；生产读点: ' + c.prodRead.join(', ') : '') + (c.otherTestRead.length ? '；别的测试文件读点: ' + c.otherTestRead.join(', ') : ''));
+    }
+    for (const c of (f.crossFileConditional || [])) {
+      console.log('       ' + c.var + '（**裸写且不还原** ⇒ ⇒ 跨文件污染·**条件档**（当前多 worker ⇒ ⇒ 不污染；但 CI 把并发压到 1 个 worker 时会转红））' + (c.prodRead.length ? '；生产读点: ' + c.prodRead.join(', ') : ''));
     }
   }
   for (const u of (jsResult.uncertain || [])) {
