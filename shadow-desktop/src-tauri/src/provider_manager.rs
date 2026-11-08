@@ -23,7 +23,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use tauri::State;
 
 use encephalon::providers::{HttpModelFetcher, ProviderEntry, ProviderManager};
@@ -243,10 +243,7 @@ pub(crate) fn entry_from_brain(raw: &Value) -> Result<ProviderEntry, String> {
                         .and_then(|v| v.as_str())
                         .unwrap_or_default()
                         .to_string(),
-                    display_name: m
-                        .get("name")
-                        .and_then(|v| v.as_str())
-                        .map(str::to_string),
+                    display_name: m.get("name").and_then(|v| v.as_str()).map(str::to_string),
                     context_length: None,
                     created_at: None,
                     // ⚠️ **能力**（llm / asr / tts / …）—— 内置条目（neuron 目录）
@@ -282,7 +279,10 @@ pub(crate) fn entry_from_brain(raw: &Value) -> Result<ProviderEntry, String> {
             .map(str::to_string),
         enabled: raw.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true),
         // ⚠️ 内置供应商（neuron）⇒ ⇒ 界面据此不给「编辑 / 删除」按钮。
-        builtin: raw.get("builtin").and_then(|v| v.as_bool()).unwrap_or(false),
+        builtin: raw
+            .get("builtin")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false),
         selected_model: raw
             .get("selected_model")
             .and_then(|v| v.as_str())
@@ -293,7 +293,10 @@ pub(crate) fn entry_from_brain(raw: &Value) -> Result<ProviderEntry, String> {
             .get("last_refreshed_at")
             .and_then(|v| v.as_str())
             .map(str::to_string),
-        last_error: raw.get("last_error").and_then(|v| v.as_str()).map(str::to_string),
+        last_error: raw
+            .get("last_error")
+            .and_then(|v| v.as_str())
+            .map(str::to_string),
     })
 }
 
@@ -307,9 +310,7 @@ fn derive_standard(provider_type: &str) -> ApiStandard {
 }
 
 fn entries_from_brain(raw: &Value) -> Result<Vec<ProviderEntry>, String> {
-    let arr = raw
-        .as_array()
-        .ok_or("大脑回的供应商列表不是一个数组")?;
+    let arr = raw.as_array().ok_or("大脑回的供应商列表不是一个数组")?;
     arr.iter().map(entry_from_brain).collect()
 }
 
@@ -376,13 +377,21 @@ async fn import_legacy_into_brain(state: &AppState) -> Result<(), String> {
     // ⇒ ⇒ **逐条幂等** ⇒ ⇒ 中途失败后重试**不会**因为「id 已存在」卡死。
     let existing = ids_present(&current);
     if !existing.is_empty() {
-        tracing::info!("provider legacy import: 大脑已有 {} 条 ⇒ 只补缺的那些", existing.len());
+        tracing::info!(
+            "provider legacy import: 大脑已有 {} 条 ⇒ 只补缺的那些",
+            existing.len()
+        );
     }
     for entry in &legacy {
         if existing.contains(&entry.id) {
             continue;
         }
-        brain_post(&brain_base(), "/models/providers", legacy_to_add_body(entry)).await?;
+        brain_post(
+            &brain_base(),
+            "/models/providers",
+            legacy_to_add_body(entry),
+        )
+        .await?;
     }
     if let Some(dir) = import_marker_path().parent() {
         let _ = std::fs::create_dir_all(dir);
@@ -391,10 +400,7 @@ async fn import_legacy_into_brain(state: &AppState) -> Result<(), String> {
         import_marker_path(),
         format!("imported {} entries\n", legacy.len()),
     );
-    tracing::info!(
-        "provider legacy import: {} entries → 大脑",
-        legacy.len()
-    );
+    tracing::info!("provider legacy import: {} entries → 大脑", legacy.len());
     // ⚠️ **标志只在真的干完之后才置位** ⇒ ⇒ 失败（大脑还没起来 / 网络抽风）
     // ⇒ ⇒ **下次还会试** ⇒ ⇒ 否则「导不进去」就变成「永远导不进去」。
     IMPORT_ATTEMPTED.store(true, Ordering::SeqCst);
@@ -487,21 +493,25 @@ pub async fn provider_remove(id: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn provider_set_enabled(
-    id: String,
-    enabled: bool,
-) -> Result<ProviderEntry, String> {
-    let raw = brain_put(&brain_base(), &format!("/models/providers/{}", id), json!({"enabled": enabled})).await?;
+pub async fn provider_set_enabled(id: String, enabled: bool) -> Result<ProviderEntry, String> {
+    let raw = brain_put(
+        &brain_base(),
+        &format!("/models/providers/{}", id),
+        json!({"enabled": enabled}),
+    )
+    .await?;
     entry_from_brain(&raw)
 }
 
 /// 换 key —— 预设供应商**唯一**可改的东西。
 #[tauri::command]
-pub async fn provider_set_api_key(
-    id: String,
-    api_key: String,
-) -> Result<ProviderEntry, String> {
-    let raw = brain_put(&brain_base(), &format!("/models/providers/{}", id), json!({"api_key": api_key})).await?;
+pub async fn provider_set_api_key(id: String, api_key: String) -> Result<ProviderEntry, String> {
+    let raw = brain_put(
+        &brain_base(),
+        &format!("/models/providers/{}", id),
+        json!({"api_key": api_key}),
+    )
+    .await?;
     entry_from_brain(&raw)
 }
 
@@ -560,7 +570,12 @@ pub async fn provider_select_model(
 /// 刷新一个供应商的模型列表（大脑那边去拉）。
 #[tauri::command]
 pub async fn provider_refresh(id: String) -> Result<ProviderEntry, String> {
-    brain_post(&brain_base(), &format!("/models/providers/{}/fetch-models", id), json!({})).await?;
+    brain_post(
+        &brain_base(),
+        &format!("/models/providers/{}/fetch-models", id),
+        json!({}),
+    )
+    .await?;
     let raw = brain_get(&brain_base(), "/models/providers").await?;
     let entries = entries_from_brain(&raw)?;
     entries
@@ -607,10 +622,7 @@ pub async fn provider_preview_fetch(
         "api_key": api_key,
     });
     let raw = brain_post(&brain_base(), "/models/providers/preview", body).await?;
-    let models = raw
-        .get("models")
-        .cloned()
-        .ok_or("大脑回的不是预览形状")?;
+    let models = raw.get("models").cloned().ok_or("大脑回的不是预览形状")?;
     serde_json::from_value(models).map_err(|e| format!("大脑回的模型列表形状不对：{}", e))
 }
 

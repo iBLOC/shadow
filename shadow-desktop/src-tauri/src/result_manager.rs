@@ -98,11 +98,16 @@ impl ResultManager {
         Ok(self.base_dir.join(task_id))
     }
 
+    /// 任务仓库的根目录（`~/.shadow/results/`）。
+    ///
+    /// ⚠️ 目前只有测试在用（2026-11-08）⇒ 显式豁免并留名（它是这个类型
+    /// 的**位置契约**，调用方迟早要问「东西落在哪」）。
+    #[allow(dead_code)]
     pub fn base_dir(&self) -> &Path {
         &self.base_dir
     }
 
-    fn signature(&self) -> Result<Signature, git2::Error> {
+    fn signature(&self) -> Result<Signature<'_>, git2::Error> {
         Signature::now(&self.author_name, &self.author_email)
     }
 
@@ -175,19 +180,16 @@ impl ResultManager {
         if parent_commit.tree_id() == oid {
             return Err(ResultManagerError::NoChanges(task_id.to_string()));
         }
-        let new_oid = repo.commit(
-            Some("HEAD"),
-            &sig,
-            &sig,
-            message,
-            &tree,
-            &[&parent_commit],
-        )?;
+        let new_oid = repo.commit(Some("HEAD"), &sig, &sig, message, &tree, &[&parent_commit])?;
         Ok(new_oid)
     }
 
     /// Walk the commit log newest-first.
-    pub fn history(&self, task_id: &str, limit: usize) -> Result<Vec<CommitInfo>, ResultManagerError> {
+    pub fn history(
+        &self,
+        task_id: &str,
+        limit: usize,
+    ) -> Result<Vec<CommitInfo>, ResultManagerError> {
         let path = self.repo_path(task_id)?;
         let repo = Repository::open(&path).map_err(|e| match e.code() {
             git2::ErrorCode::NotFound => ResultManagerError::NotFound(task_id.to_string()),
@@ -206,7 +208,11 @@ impl ResultManager {
             out.push(CommitInfo {
                 id: oid.to_string(),
                 short_id,
-                author: format!("{} <{}>", author.name().unwrap_or(""), author.email().unwrap_or("")),
+                author: format!(
+                    "{} <{}>",
+                    author.name().unwrap_or(""),
+                    author.email().unwrap_or("")
+                ),
                 timestamp,
                 message,
             });
@@ -216,8 +222,7 @@ impl ResultManager {
 }
 
 fn match_dir() -> Result<PathBuf, ResultManagerError> {
-    dirs::home_dir()
-        .ok_or_else(|| ResultManagerError::Io(std::io::Error::other("no $HOME")))
+    dirs::home_dir().ok_or_else(|| ResultManagerError::Io(std::io::Error::other("no $HOME")))
 }
 
 #[cfg(test)]
@@ -241,7 +246,7 @@ mod tests {
         // HEAD points at the initial commit.
         let repo = Repository::open(&path).unwrap();
         let head = repo.head().unwrap().peel_to_commit().unwrap();
-        assert_eq!(head.message().unwrap().trim(),("init: task task-001"));
+        assert_eq!(head.message().unwrap().trim(), ("init: task task-001"));
     }
 
     /// ⚠️ **路径穿越回归**（2026-11-08 安全扫描发现）。

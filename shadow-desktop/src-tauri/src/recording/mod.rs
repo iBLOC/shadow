@@ -79,6 +79,11 @@ pub struct SummaryReport {
 
 /// 海马体持久化端口。真实实现 POST /api/memories（dimension =
 /// recording_event / recording_summary）；测试用 MockHippocampus。
+///
+/// ⚠️ **端口还没接上生产实现**（2026-11-08）：只有测试在用 ⇒ ⇒ 但它是
+/// 「录制 → 海马体」这条链的**边界定义**（接上真实现时不用改调用方）
+/// ⇒ ⇒ 显式豁免并留名。
+#[allow(dead_code)]
 #[async_trait::async_trait]
 pub trait HippocampusRecorder: Send + Sync {
     async fn put_event(&self, event: &RecordingEvent) -> Result<(), String>;
@@ -177,7 +182,11 @@ impl RecordingStore {
         let (etype, content, conf) = pool[idx];
         let _ = self.add_event(
             session_id,
-            if etype == "audio" { RecordingEventType::Audio } else { RecordingEventType::Video },
+            if etype == "audio" {
+                RecordingEventType::Audio
+            } else {
+                RecordingEventType::Video
+            },
             elapsed,
             elapsed + 500,
             content.to_string(),
@@ -197,6 +206,10 @@ impl RecordingStore {
     }
 
     /// 追加事件。start/end_rel_ms 必须合法 (end >= start, start >= 0)。
+    ///
+    /// ⚠️ 参数多（8 个）—— 这是**事件载荷**的字段平铺（时间/内容/说话人/
+    /// 置信度），调用点已定 ⇒ ⇒ 显式豁免（拆结构体要改所有调用方）。
+    #[allow(clippy::too_many_arguments)]
     pub fn add_event(
         &self,
         session_id: &str,
@@ -211,9 +224,7 @@ impl RecordingStore {
             return Err(format!("unknown session {session_id}"));
         }
         if start_rel_ms < 0 || end_rel_ms < start_rel_ms {
-            return Err(format!(
-                "invalid time range [{start_rel_ms}, {end_rel_ms}]"
-            ));
+            return Err(format!("invalid time range [{start_rel_ms}, {end_rel_ms}]"));
         }
         let seq = self.event_seq.fetch_add(1, Ordering::Relaxed);
         let event = RecordingEvent {
@@ -332,7 +343,15 @@ mod tests {
     fn add_event_rejects_unknown_session() {
         let store = RecordingStore::new();
         assert!(store
-            .add_event("ghost", RecordingEventType::Audio, 0, 1, "x".into(), vec![], 1.0)
+            .add_event(
+                "ghost",
+                RecordingEventType::Audio,
+                0,
+                1,
+                "x".into(),
+                vec![],
+                1.0
+            )
             .is_err());
     }
 
@@ -341,10 +360,26 @@ mod tests {
         let store = RecordingStore::new();
         let s = store.start_session(RecordingMode::Audio);
         assert!(store
-            .add_event(&s.id, RecordingEventType::Audio, -1, 10, "x".into(), vec![], 1.0)
+            .add_event(
+                &s.id,
+                RecordingEventType::Audio,
+                -1,
+                10,
+                "x".into(),
+                vec![],
+                1.0
+            )
             .is_err());
         assert!(store
-            .add_event(&s.id, RecordingEventType::Audio, 100, 50, "x".into(), vec![], 1.0)
+            .add_event(
+                &s.id,
+                RecordingEventType::Audio,
+                100,
+                50,
+                "x".into(),
+                vec![],
+                1.0
+            )
             .is_err());
     }
 
@@ -353,14 +388,34 @@ mod tests {
         let store = RecordingStore::new();
         let s = store.start_session(RecordingMode::Audio);
         store
-            .add_event(&s.id, RecordingEventType::Audio, 0, 100, "a".into(), vec!["p1".into()], 1.0)
+            .add_event(
+                &s.id,
+                RecordingEventType::Audio,
+                0,
+                100,
+                "a".into(),
+                vec!["p1".into()],
+                1.0,
+            )
             .unwrap();
         store
-            .add_event(&s.id, RecordingEventType::Audio, 200, 300, "b".into(), vec!["p2".into()], 1.0)
+            .add_event(
+                &s.id,
+                RecordingEventType::Audio,
+                200,
+                300,
+                "b".into(),
+                vec!["p2".into()],
+                1.0,
+            )
             .unwrap();
         let report = store
             .summarize(&s.id, |events| {
-                let text = events.iter().map(|e| e.content.as_str()).collect::<Vec<_>>().join("；");
+                let text = events
+                    .iter()
+                    .map(|e| e.content.as_str())
+                    .collect::<Vec<_>>()
+                    .join("；");
                 let mut ids = Vec::new();
                 for e in events {
                     ids.extend(e.person_ids.iter().cloned());

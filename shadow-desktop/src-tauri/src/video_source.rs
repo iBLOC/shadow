@@ -88,14 +88,22 @@ pub struct SyncHealth {
 
 #[derive(Debug, thiserror::Error)]
 pub enum CommandError {
+    // ⚠️ 下面三个变体还没被构造出来（2026-11-08）—— 但它们是**真实会
+    // 发生的失败**（设备枚举失败 / 权限被拒 / 存储配额超限）⇒ ⇒ 留着，
+    // 别让 lint 把错误面删掉（将来构造它们时不用再改这块）。
+    #[allow(dead_code)]
     #[error("uvc enumeration failed: {0}")]
     EnumerateFailed(String),
+    #[allow(dead_code)]
     #[error("permission denied for camera access")]
     PermissionDenied,
     #[error("camera capability probe failed: {0}")]
     ProbeFailed(String),
+    #[allow(dead_code)]
     #[error("local storage quota exceeded")]
     StorageQuota,
+    // ⚠️ 同 StorageQuota：留作错误码契约（序列化进前端），当前构造路径不存在。
+    #[allow(dead_code)]
     #[error("platform does not support camera access (no navigator.mediaDevices)")]
     UnsupportedPlatform,
 }
@@ -138,7 +146,8 @@ pub async fn probe_capabilities(_device_id: String) -> Result<SourceCapabilities
     // is reserved for a future Rust-side capture path.
     Err(CommandError::ProbeFailed(
         "capability probing happens in the webview (MediaStream.getSettings) — \
-         Tauri command is reserved for future Rust-side capture".into(),
+         Tauri command is reserved for future Rust-side capture"
+            .into(),
     ))
 }
 

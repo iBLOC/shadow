@@ -22,17 +22,21 @@
 //! # 这条测试怎么跑
 //!
 //! * 模型目录不在 ⇒ ⇒ **跳过**（CI 上没有模型，跳过是诚实的）；
-//! * 模型在 ⇒ ⇒ 起一个**真** embedded neuron（随机端口）⇒ ⇒ POST 一段**真语音**
-//!   ⇒ ⇒ **必须拿到非空文本**。
+//! * 模型在 ⇒ ⇒ 起**大脑里那一个** neuron（router-only ⇒ 它**自己**没有口）
+//!   ⇒ ⇒ 打它的那张 router ⇒ ⇒ **必须拿到非空文本**。
+//!
+//! ⚠️ **不许自己起一个 neuron**（2026-11-08 用户拍板：「所有的本地推理任务
+//! 都应该由大脑中的 neuron 提供」）⇒ ⇒ 这里起的是端脑 owns 的那一个
+//! ⇒ ⇒ 桌面端**连 neuron 这个 crate 都不直接依赖**。
 //!
 //! ⚠️ 环境变量在**起 runtime 之前**设（Rust 2024：`set_var` 在多线程里是 UB）
 //! ⇒ ⇒ 这里先设、再建 runtime ⇒ ⇒ 没有并发读 env 的窗口。
 
 use std::path::PathBuf;
-use std::time::Duration;
 
-// neuron 的 [lib] target 叫 `neuron_lib`；按仓里既有写法别名成 crate 名。
-use neuron_lib as neuron;
+use axum::body::Body;
+use axum::http::Request;
+use tower::ServiceExt; // `oneshot` —— 直接打 router，不开第二个口
 
 fn home_dir() -> Option<PathBuf> {
     std::env::var("USERPROFILE")
@@ -44,10 +48,7 @@ fn home_dir() -> Option<PathBuf> {
 /// 本机的 candle-whisper 布局模型目录（`config.json` + `tokenizer.json`
 /// + `model.safetensors` + `mel_filters.safetensors`）。
 fn whisper_model_dir() -> Option<PathBuf> {
-    let asr = home_dir()?
-        .join(".neuron")
-        .join("models")
-        .join("asr");
+    let asr = home_dir()?.join(".neuron").join("models").join("asr");
     for name in ["whisper-base", "whisper-small", "whisper-tiny"] {
         let d = asr.join(name);
         if d.join("config.json").is_file()
@@ -77,10 +78,31 @@ fn sample_wav() -> Option<PathBuf> {
     None
 }
 
+/// 手搓 multipart 体 —— `/v1/audio/transcriptions` 认的字段是
+/// **`file`**（音频字节）与 **`language`**（可选）。
+fn multipart_audio(wav: &[u8], language: &str) -> (String, Vec<u8>) {
+    const BOUNDARY: &str = "shadow-asr-boundary";
+    let mut body: Vec<u8> = Vec::with_capacity(wav.len() + 512);
+    body.extend_from_slice(format!("--{BOUNDARY}\r\n").as_bytes());
+    body.extend_from_slice(
+        b"Content-Disposition: form-data; name=\"file\"; filename=\"sample.wav\"\r\n",
+    );
+    body.extend_from_slice(b"Content-Type: audio/wav\r\n\r\n");
+    body.extend_from_slice(wav);
+    body.extend_from_slice(format!("\r\n--{BOUNDARY}\r\n").as_bytes());
+    body.extend_from_slice(b"Content-Disposition: form-data; name=\"language\"\r\n\r\n");
+    body.extend_from_slice(language.as_bytes());
+    body.extend_from_slice(format!("\r\n--{BOUNDARY}--\r\n").as_bytes());
+    (
+        format!("multipart/form-data; boundary={BOUNDARY}"),
+        body,
+    )
+}
+
 /// **大脑的 ASR 面在引擎注册后必须真出文本** ——
 /// 这是「叶区的 ASR 面能不能用」的那一格（叶区 → 端脑门 → neuron → 引擎）。
 #[test]
-fn asr_face_returns_text_when_the_engine_is_registered() {
+fn the_brains_asr_face_returns_text_when_the_engine_is_registered() {
     let Some(model_dir) = whisper_model_dir() else {
         eprintln!("skip: 本机没有 candle-whisper 布局的 ASR 模型目录");
         return;
@@ -102,41 +124,34 @@ fn asr_face_returns_text_when_the_engine_is_registered() {
         .expect("tokio runtime");
 
     let (status, body) = rt.block_on(async move {
-        let cfg = neuron::NeuronEmbedConfig {
-            port: 0,
-            config: neuron::NeuronConfig::new(),
-        };
-        let handle = neuron::run_embedded(cfg).await.expect("embedded neuron binds");
-        // handle.addr 回显通配绑定（0.0.0.0）⇒ ⇒ 换回环 host，端口照用。
-        let base = format!("http://127.0.0.1:{}", handle.addr.port());
+        // ⚠️ **大脑里那一个** neuron（端脑 owns 它）—— 不是自己起一个。
+        let embed = encephalon::telencephalon::neuron_embed::start_neuron_router_only_default()
+            .await
+            .expect("the brain's neuron boots");
+        assert!(
+            embed.addr.is_none(),
+            "大脑里的 neuron 自己不该有监听口（router-only）—— 有的话就是第二个入口"
+        );
+        let router = embed.router();
 
         let bytes = std::fs::read(&wav).expect("read wav");
-        let part = reqwest::multipart::Part::bytes(bytes)
-            .file_name("sample.wav")
-            .mime_str("audio/wav")
-            .expect("mime");
-        let form = reqwest::multipart::Form::new()
-            .part("file", part)
-            .text("model", "whisper-1");
-
-        let resp = reqwest::Client::builder()
-            .timeout(Duration::from_secs(300))
-            .build()
-            .expect("client")
-            .post(format!("{base}/v1/audio/transcriptions"))
-            .multipart(form)
-            .send()
-            .await
+        let (content_type, body_bytes) = multipart_audio(&bytes, "en");
+        let request = Request::builder()
+            .method("POST")
+            .uri("/v1/audio/transcriptions")
+            .header("content-type", content_type)
+            .body(Body::from(body_bytes))
             .expect("asr request");
-        let status = resp.status();
-        let body = resp.text().await.unwrap_or_default();
-        (status, body)
+
+        let response = router.oneshot(request).await.expect("asr response");
+        let status = response.status();
+        let raw = axum::body::to_bytes(response.into_body(), 64 * 1024 * 1024)
+            .await
+            .unwrap_or_default();
+        (status, String::from_utf8_lossy(&raw).to_string())
     });
 
-    assert!(
-        status.is_success(),
-        "ASR 面失败：{status} / {body}"
-    );
+    assert!(status.is_success(), "ASR 面失败：{status} / {body}");
     let v: serde_json::Value = serde_json::from_str(&body).expect("ASR json");
     let text = v["text"].as_str().unwrap_or("").trim().to_string();
     assert!(!text.is_empty(), "ASR 返回空文本：{body}");

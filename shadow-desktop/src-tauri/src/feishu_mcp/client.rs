@@ -30,6 +30,9 @@ use async_trait::async_trait;
 use super::{FeishuError, FeishuOps, FeishuSheet};
 
 pub struct OpenLarkFeishu {
+    /// ⚠️ 身份字段（2026-11-08）：真实实现起来会读它（whoami）⇒ 现在
+    /// 还没被读 ⇒ 显式豁免并留名。
+    #[allow(dead_code)]
     pub user_email: String,
 }
 
@@ -70,7 +73,9 @@ impl FeishuOps for OpenLarkFeishu {
         _range: &str,
         _values: &[Vec<String>],
     ) -> Result<(), FeishuError> {
-        Err(FeishuError::Api("OpenLarkFeishu placeholder (see create_sheet)".into()))
+        Err(FeishuError::Api(
+            "OpenLarkFeishu placeholder (see create_sheet)".into(),
+        ))
     }
 
     async fn share_sheet(
@@ -80,10 +85,14 @@ impl FeishuOps for OpenLarkFeishu {
         _member_id: &str,
         _perm: &str,
     ) -> Result<(), FeishuError> {
-        Err(FeishuError::Api("OpenLarkFeishu placeholder (see create_sheet)".into()))
+        Err(FeishuError::Api(
+            "OpenLarkFeishu placeholder (see create_sheet)".into(),
+        ))
     }
 
     async fn delete_sheet(&self, _spreadsheet_token: &str) -> Result<(), FeishuError> {
-        Err(FeishuError::Api("OpenLarkFeishu placeholder (see create_sheet)".into()))
+        Err(FeishuError::Api(
+            "OpenLarkFeishu placeholder (see create_sheet)".into(),
+        ))
     }
 }

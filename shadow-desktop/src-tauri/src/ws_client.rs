@@ -1,5 +1,6 @@
 use futures_channel::mpsc;
 use futures_util::{SinkExt, StreamExt};
+use http::Request;
 use native_tls::TlsConnector;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -7,10 +8,9 @@ use tauri::{AppHandle, Emitter};
 use tokio::net::TcpStream;
 use tokio::sync::RwLock;
 use tokio_native_tls::TlsStream as TokioTlsStream;
-use tokio_tungstenite::{client_async, WebSocketStream};
 use tokio_tungstenite::tungstenite::Message;
+use tokio_tungstenite::{client_async, WebSocketStream};
 use url::Url;
-use http::Request;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WebSocketMessage {
@@ -18,10 +18,13 @@ pub struct WebSocketMessage {
     pub payload: serde_json::Value,
 }
 
+/// 客户端证书对（cert, key）—— DER 字节。
+type CertPair = (Vec<u8>, Vec<u8>);
+
 pub struct MtlsWebSocketClient {
     sender: Arc<RwLock<Option<mpsc::Sender<String>>>>,
     connected_url: Arc<RwLock<Option<String>>>,
-    connected_cert: Arc<RwLock<Option<(Vec<u8>, Vec<u8>)>>>,
+    connected_cert: Arc<RwLock<Option<CertPair>>>,
     app_handle: Arc<RwLock<Option<AppHandle>>>,
 }
 
@@ -57,25 +60,29 @@ impl MtlsWebSocketClient {
 
                 let mut builder = TlsConnector::builder();
                 builder.identity(key);
-                
+
                 // Only disable cert verification in development
                 #[cfg(debug_assertions)]
                 {
                     builder.danger_accept_invalid_certs(true);
                 }
-                
-                builder.build().map_err(|e| format!("TLS connector build failed: {}", e))?
+
+                builder
+                    .build()
+                    .map_err(|e| format!("TLS connector build failed: {}", e))?
             }
             None => {
                 let mut builder = TlsConnector::builder();
-                
+
                 // Only disable cert verification in development
                 #[cfg(debug_assertions)]
                 {
                     builder.danger_accept_invalid_certs(true);
                 }
-                
-                builder.build().map_err(|e| format!("TLS connector build failed: {}", e))?
+
+                builder
+                    .build()
+                    .map_err(|e| format!("TLS connector build failed: {}", e))?
             }
         };
 
@@ -95,7 +102,8 @@ impl MtlsWebSocketClient {
             .await
             .map_err(|e| format!("WebSocket connection failed: {}", e))?;
 
-        self.start_connection(app.clone(), url.clone(), ws_stream).await?;
+        self.start_connection(app.clone(), url.clone(), ws_stream)
+            .await?;
 
         *self.app_handle.write().await = Some(app);
         *self.connected_cert.write().await = client_cert;
@@ -137,10 +145,13 @@ impl MtlsWebSocketClient {
                             .and_then(|v| v.as_str())
                             .unwrap_or("message")
                             .to_string();
-                        let _ = app_clone.emit("ws_message", WebSocketMessage {
-                            msg_type,
-                            payload: parsed,
-                        });
+                        let _ = app_clone.emit(
+                            "ws_message",
+                            WebSocketMessage {
+                                msg_type,
+                                payload: parsed,
+                            },
+                        );
                     }
                 }
             }
@@ -162,7 +173,7 @@ impl MtlsWebSocketClient {
 
     pub async fn disconnect(&self) {
         if let Some(mut tx) = self.sender.write().await.take() {
-            let _ = tx.close_channel();
+            tx.close_channel();
         }
         *self.connected_url.write().await = None;
         *self.connected_cert.write().await = None;

@@ -12,7 +12,7 @@
 //!   ② 「大脑 → 明文 → 直接写文件」（材料从不上桌）。
 
 use serde::Serialize;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 
 use encephalon::providers::ProviderEntry;
 use synapse::providers::catalog::ApiStandard;
@@ -58,9 +58,8 @@ const OAUTH_SLOTS: [&str; 1] = ["claudeAiOauth.accessToken"];
 
 /// 工具 id ⇒ 工具（`opencode` / `claude-code` / `codex`）。
 fn parse_tool(id: &str) -> Result<ExternalTool, String> {
-    serde_json::from_value::<ExternalTool>(Value::String(id.to_string())).map_err(|_| {
-        format!("unknown external tool: {id} (opencode | claude-code | codex)")
-    })
+    serde_json::from_value::<ExternalTool>(Value::String(id.to_string()))
+        .map_err(|_| format!("unknown external tool: {id} (opencode | claude-code | codex)"))
 }
 
 /// 协议族 ⇒ 大脑的**预设 id**（没有 base_url 时靠它补 base URL ＋ 标准）。
@@ -162,8 +161,8 @@ pub async fn external_tools_export(
         .ok_or_else(|| "大脑那边没有这把钥匙".to_string())?;
 
     // ② 写回那个工具自己的配置（**备份 ＋ 原子替换** ⇒ ⇒ 只动那一项）。
-    let report =
-        import::write(tool, &[(source_id.as_str(), Some(key.as_str()))]).map_err(|e| e.to_string())?;
+    let report = import::write(tool, &[(source_id.as_str(), Some(key.as_str()))])
+        .map_err(|e| e.to_string())?;
 
     Ok(ExternalToolWriteReport {
         tool: tool.id().to_string(),

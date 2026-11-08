@@ -40,10 +40,10 @@
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use super::AppState;
 use enigo::{Axis, Button, Coordinate, Direction, Key, Keyboard, Mouse, Settings};
 use serde::{Deserialize, Serialize};
 use tauri::State;
-use super::AppState;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ComputerUseError {
@@ -54,6 +54,10 @@ pub enum ComputerUseError {
     Disabled,
     #[error("no monitor detected for screenshot capture")]
     NoMonitor,
+    // ⚠️ 还没被构造出来（2026-11-08）—— 但它是**真实会发生的失败**
+    // （输入后端初始化失败：权限/平台不支持）⇒ ⇒ 留着这个变体，
+    // 别让 lint 把它藏起来（将来构造它时不用再改错误面）。
+    #[allow(dead_code)]
     #[error("input backend init: {0}")]
     InputBackend(String),
     #[error("input action failed: {0}")]
@@ -144,10 +148,7 @@ impl ComputerUse {
     /// return [`ComputerUseError::Disabled`]. Screenshot still
     /// returns its own error in that case (no monitor either).
     pub fn new() -> Result<Self, ComputerUseError> {
-        let enabled = std::env::var("SHADOW_COMPUTER_USE_ENABLED")
-            .ok()
-            .as_deref()
-            == Some("1");
+        let enabled = std::env::var("SHADOW_COMPUTER_USE_ENABLED").ok().as_deref() == Some("1");
         let enigo = match enigo::Enigo::new(&Settings::default()) {
             Ok(e) => Some(std::sync::Mutex::new(e)),
             Err(err) => {
@@ -185,7 +186,8 @@ impl ComputerUse {
     /// Capture the primary monitor as PNG. Does NOT require the
     /// safety gate — observation is cheap, action is dangerous.
     pub fn screenshot(&self) -> Result<Screenshot, ComputerUseError> {
-        let monitors = xcap::Monitor::all().map_err(|e| ComputerUseError::Screenshot(e.to_string()))?;
+        let monitors =
+            xcap::Monitor::all().map_err(|e| ComputerUseError::Screenshot(e.to_string()))?;
         let monitor = monitors
             .into_iter()
             .next()
@@ -202,11 +204,9 @@ impl ComputerUse {
     }
 
     fn lock(&self) -> Result<std::sync::MutexGuard<'_, enigo::Enigo>, ComputerUseError> {
-        let m = self
-            .enigo
-            .as_ref()
-            .ok_or(ComputerUseError::Disabled)?;
-        m.lock().map_err(|_| ComputerUseError::InputAction("poisoned".into()))
+        let m = self.enigo.as_ref().ok_or(ComputerUseError::Disabled)?;
+        m.lock()
+            .map_err(|_| ComputerUseError::InputAction("poisoned".into()))
     }
 
     pub fn mouse_move(&self, x: i32, y: i32) -> Result<(), ComputerUseError> {
@@ -216,12 +216,7 @@ impl ComputerUse {
             .map_err(|e| ComputerUseError::InputAction(e.to_string()))
     }
 
-    pub fn mouse_click(
-        &self,
-        x: i32,
-        y: i32,
-        button: MouseButton,
-    ) -> Result<(), ComputerUseError> {
+    pub fn mouse_click(&self, x: i32, y: i32, button: MouseButton) -> Result<(), ComputerUseError> {
         self.check_enabled()?;
         let mut e = self.lock()?;
         e.move_mouse(x, y, Coordinate::Abs)
@@ -274,9 +269,8 @@ impl ComputerUse {
             KeyCombo::Shift(n) => (Some(Key::Shift), n),
             KeyCombo::Super(n) => (Some(Key::Meta), n),
         };
-        let key = parse_key(&name).ok_or_else(|| {
-            ComputerUseError::InputAction(format!("unknown key name: {name:?}"))
-        })?;
+        let key = parse_key(&name)
+            .ok_or_else(|| ComputerUseError::InputAction(format!("unknown key name: {name:?}")))?;
         let mut e = self.lock()?;
         if let Some(m) = modifier {
             // enigo 0.6: key(k, Direction) replaces key_down/key_up.
@@ -329,19 +323,31 @@ impl ComputerUse {
     /// Find the first descendant matching the given Name (substring,
     /// case-insensitive). Use AutomationId when the app exposes one
     /// (more robust); Name is the fallback for arbitrary apps.
-    pub fn find_ui_by_name(&self, name_substr: &str) -> Result<Option<UiElement>, ComputerUseError> {
+    ///
+    /// ⚠️ **还没被接线**（2026-11-08）：Windows-only，且只有测试在用
+    /// ⇒ ⇒ 但它是「屏幕上有什么」这套能力面的**一半**（另一半
+    /// `list_ui_elements` 已在用）⇒ ⇒ 显式豁免并留名。
+    #[allow(dead_code)]
+    pub fn find_ui_by_name(
+        &self,
+        name_substr: &str,
+    ) -> Result<Option<UiElement>, ComputerUseError> {
         self.check_enabled()?;
         uiautomation_find_first_by_name(name_substr).map_err(ComputerUseError::InputAction)
     }
 
     /// Find the first descendant matching the given AutomationId
     /// (exact match). Returns None when not found.
+    ///
+    /// ⚠️ 同上（Windows-only ＋ 未接线）⇒ 显式豁免并留名。
+    #[allow(dead_code)]
     pub fn find_ui_by_automation_id(
         &self,
         automation_id: &str,
     ) -> Result<Option<UiElement>, ComputerUseError> {
         self.check_enabled()?;
-        uiautomation_find_first_by_automation_id(automation_id).map_err(ComputerUseError::InputAction)
+        uiautomation_find_first_by_automation_id(automation_id)
+            .map_err(ComputerUseError::InputAction)
     }
 
     /// Invoke an element's default action — for Buttons this is
@@ -352,7 +358,9 @@ impl ComputerUse {
         let elem = uiautomation_find_first_by_name(name_substr)
             .map_err(ComputerUseError::InputAction)?
             .ok_or_else(|| {
-                ComputerUseError::InputAction(format!("no element with name matching {name_substr:?}"))
+                ComputerUseError::InputAction(format!(
+                    "no element with name matching {name_substr:?}"
+                ))
             })?;
         uiautomation_invoke(&elem).map_err(ComputerUseError::InputAction)
     }
@@ -365,7 +373,9 @@ impl ComputerUse {
         let elem = uiautomation_find_first_by_name(name_substr)
             .map_err(ComputerUseError::InputAction)?
             .ok_or_else(|| {
-                ComputerUseError::InputAction(format!("no element with name matching {name_substr:?}"))
+                ComputerUseError::InputAction(format!(
+                    "no element with name matching {name_substr:?}"
+                ))
             })?;
         uiautomation_read_text(&elem).map_err(ComputerUseError::InputAction)
     }
@@ -377,7 +387,9 @@ impl ComputerUse {
         let elem = uiautomation_find_first_by_name(name_substr)
             .map_err(ComputerUseError::InputAction)?
             .ok_or_else(|| {
-                ComputerUseError::InputAction(format!("no element with name matching {name_substr:?}"))
+                ComputerUseError::InputAction(format!(
+                    "no element with name matching {name_substr:?}"
+                ))
             })?;
         uiautomation_set_value(&elem, value).map_err(ComputerUseError::InputAction)
     }
@@ -411,16 +423,17 @@ fn uiautomation_to_element(handle: &uiautomation::UIElement) -> UiElement {
 
 #[cfg(target_os = "windows")]
 fn uiautomation_list_root_children() -> Result<Vec<UiElement>, String> {
-    use uiautomation::UIAutomation;
-    let automation = uiautomation::UIAutomation::new()
-        .map_err(|e| format!("UIAutomation::new: {e}"))?;
+    let automation =
+        uiautomation::UIAutomation::new().map_err(|e| format!("UIAutomation::new: {e}"))?;
     let root = automation
         .get_root_element()
         .map_err(|e| format!("get_root_element: {e}"))?;
     let children = root
         .find_all(
             uiautomation::types::TreeScope::Children,
-            &automation.create_true_condition().map_err(|e| format!("create_true_condition: {e}"))?,
+            &automation
+                .create_true_condition()
+                .map_err(|e| format!("create_true_condition: {e}"))?,
         )
         .map_err(|e| format!("find_all: {e}"))?;
     Ok(children.iter().map(uiautomation_to_element).collect())
@@ -428,13 +441,15 @@ fn uiautomation_list_root_children() -> Result<Vec<UiElement>, String> {
 
 #[cfg(target_os = "windows")]
 fn uiautomation_find_first_by_name(name_substr: &str) -> Result<Option<UiElement>, String> {
-    use uiautomation::UIAutomation;
-    use uiautomation::types::UIProperty;
     use uiautomation::types::TreeScope;
+    use uiautomation::types::UIProperty;
+
     let needle = name_substr.to_ascii_lowercase();
-    let automation = uiautomation::UIAutomation::new()
-        .map_err(|e| format!("UIAutomation::new: {e}"))?;
-    let root = automation.get_root_element().map_err(|e| format!("root: {e}"))?;
+    let automation =
+        uiautomation::UIAutomation::new().map_err(|e| format!("UIAutomation::new: {e}"))?;
+    let root = automation
+        .get_root_element()
+        .map_err(|e| format!("root: {e}"))?;
     // Cheap first pass: all descendants with a non-empty Name. The
     // name-substring match happens client-side (create_property_condition
     // only supports exact value match).
@@ -458,13 +473,20 @@ fn uiautomation_find_first_by_name(name_substr: &str) -> Result<Option<UiElement
 }
 
 #[cfg(target_os = "windows")]
-fn uiautomation_find_first_by_automation_id(automation_id: &str) -> Result<Option<UiElement>, String> {
-    use uiautomation::UIAutomation;
-    use uiautomation::types::UIProperty;
+// ⚠️ 只被上面那个「未接线」的 `find_ui_by_automation_id` 用 ⇒ ⇒ 跟着它
+// 一起显式豁免（Windows-only，Linux CI 看不到这一条）。
+#[allow(dead_code)]
+fn uiautomation_find_first_by_automation_id(
+    automation_id: &str,
+) -> Result<Option<UiElement>, String> {
     use uiautomation::types::TreeScope;
-    let automation = uiautomation::UIAutomation::new()
-        .map_err(|e| format!("UIAutomation::new: {e}"))?;
-    let root = automation.get_root_element().map_err(|e| format!("root: {e}"))?;
+    use uiautomation::types::UIProperty;
+
+    let automation =
+        uiautomation::UIAutomation::new().map_err(|e| format!("UIAutomation::new: {e}"))?;
+    let root = automation
+        .get_root_element()
+        .map_err(|e| format!("root: {e}"))?;
     let cond = automation
         .create_property_condition(
             UIProperty::AutomationId,
@@ -484,13 +506,15 @@ fn uiautomation_invoke(elem: &UiElement) -> Result<(), String> {
     // UIAutomation handle — the descriptor we have is serialisable.
     // For v1 we always re-resolve by AutomationId, falling back to
     // Name when the element has none.
-    use uiautomation::UIAutomation;
-    use uiautomation::types::UIProperty;
     use uiautomation::types::TreeScope;
+    use uiautomation::types::UIProperty;
     use uiautomation::variants::Variant;
-    let automation = uiautomation::UIAutomation::new()
-        .map_err(|e| format!("UIAutomation::new: {e}"))?;
-    let root = automation.get_root_element().map_err(|e| format!("root: {e}"))?;
+
+    let automation =
+        uiautomation::UIAutomation::new().map_err(|e| format!("UIAutomation::new: {e}"))?;
+    let root = automation
+        .get_root_element()
+        .map_err(|e| format!("root: {e}"))?;
     let handle = if !elem.automation_id.is_empty() {
         let cond = automation
             .create_property_condition(
@@ -531,13 +555,15 @@ fn uiautomation_invoke(elem: &UiElement) -> Result<(), String> {
 
 #[cfg(target_os = "windows")]
 fn uiautomation_read_text(elem: &UiElement) -> Result<String, String> {
-    use uiautomation::UIAutomation;
-    use uiautomation::types::UIProperty;
     use uiautomation::types::TreeScope;
+    use uiautomation::types::UIProperty;
     use uiautomation::variants::Variant;
-    let automation = uiautomation::UIAutomation::new()
-        .map_err(|e| format!("UIAutomation::new: {e}"))?;
-    let root = automation.get_root_element().map_err(|e| format!("root: {e}"))?;
+
+    let automation =
+        uiautomation::UIAutomation::new().map_err(|e| format!("UIAutomation::new: {e}"))?;
+    let root = automation
+        .get_root_element()
+        .map_err(|e| format!("root: {e}"))?;
     let value: Variant = if !elem.automation_id.is_empty() {
         Variant::from(elem.automation_id.as_str())
     } else {
@@ -574,13 +600,15 @@ fn uiautomation_read_text(elem: &UiElement) -> Result<String, String> {
 
 #[cfg(target_os = "windows")]
 fn uiautomation_set_value(elem: &UiElement, value: &str) -> Result<(), String> {
-    use uiautomation::UIAutomation;
-    use uiautomation::types::UIProperty;
     use uiautomation::types::TreeScope;
+    use uiautomation::types::UIProperty;
     use uiautomation::variants::Variant;
-    let automation = uiautomation::UIAutomation::new()
-        .map_err(|e| format!("UIAutomation::new: {e}"))?;
-    let root = automation.get_root_element().map_err(|e| format!("root: {e}"))?;
+
+    let automation =
+        uiautomation::UIAutomation::new().map_err(|e| format!("UIAutomation::new: {e}"))?;
+    let root = automation
+        .get_root_element()
+        .map_err(|e| format!("root: {e}"))?;
     let cond = automation
         .create_property_condition(
             UIProperty::AutomationId,
@@ -621,44 +649,39 @@ pub async fn cu_mouse_click(
 }
 
 #[tauri::command]
-pub async fn cu_mouse_move(
-    state: State<'_, AppState>,
-    x: i32,
-    y: i32,
-) -> Result<(), String> {
-    state.computer_use.mouse_move(x, y).map_err(|e| e.to_string())
+pub async fn cu_mouse_move(state: State<'_, AppState>, x: i32, y: i32) -> Result<(), String> {
+    state
+        .computer_use
+        .mouse_move(x, y)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub async fn cu_mouse_scroll(
-    state: State<'_, AppState>,
-    dx: i32,
-    dy: i32,
-) -> Result<(), String> {
-    state.computer_use.mouse_scroll(dx, dy).map_err(|e| e.to_string())
+pub async fn cu_mouse_scroll(state: State<'_, AppState>, dx: i32, dy: i32) -> Result<(), String> {
+    state
+        .computer_use
+        .mouse_scroll(dx, dy)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub async fn cu_keyboard_type(
-    state: State<'_, AppState>,
-    text: String,
-) -> Result<(), String> {
-    state.computer_use.keyboard_type(&text).map_err(|e| e.to_string())
+pub async fn cu_keyboard_type(state: State<'_, AppState>, text: String) -> Result<(), String> {
+    state
+        .computer_use
+        .keyboard_type(&text)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub async fn cu_keyboard_combo(
-    state: State<'_, AppState>,
-    combo: KeyCombo,
-) -> Result<(), String> {
-    state.computer_use.keyboard_combo(combo).map_err(|e| e.to_string())
+pub async fn cu_keyboard_combo(state: State<'_, AppState>, combo: KeyCombo) -> Result<(), String> {
+    state
+        .computer_use
+        .keyboard_combo(combo)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub async fn cu_set_enabled(
-    state: State<'_, AppState>,
-    on: bool,
-) -> Result<(), String> {
+pub async fn cu_set_enabled(state: State<'_, AppState>, on: bool) -> Result<(), String> {
     state.computer_use.set_enabled(on);
     Ok(())
 }
@@ -672,9 +695,7 @@ pub async fn cu_get_enabled(state: State<'_, AppState>) -> Result<bool, String> 
 
 #[cfg(target_os = "windows")]
 #[tauri::command]
-pub async fn cu_list_ui_elements(
-    state: State<'_, AppState>,
-) -> Result<Vec<UiElement>, String> {
+pub async fn cu_list_ui_elements(state: State<'_, AppState>) -> Result<Vec<UiElement>, String> {
     state
         .computer_use
         .list_ui_elements()
@@ -683,10 +704,7 @@ pub async fn cu_list_ui_elements(
 
 #[cfg(target_os = "windows")]
 #[tauri::command]
-pub async fn cu_click_ui_by_name(
-    state: State<'_, AppState>,
-    name: String,
-) -> Result<(), String> {
+pub async fn cu_click_ui_by_name(state: State<'_, AppState>, name: String) -> Result<(), String> {
     state
         .computer_use
         .click_ui_by_name(&name)
@@ -695,10 +713,7 @@ pub async fn cu_click_ui_by_name(
 
 #[cfg(target_os = "windows")]
 #[tauri::command]
-pub async fn cu_read_ui_text(
-    state: State<'_, AppState>,
-    name: String,
-) -> Result<String, String> {
+pub async fn cu_read_ui_text(state: State<'_, AppState>, name: String) -> Result<String, String> {
     state
         .computer_use
         .read_ui_text(&name)
@@ -729,7 +744,7 @@ mod tests {
         assert!(matches!(parse_key("Return"), Some(Key::Return)));
         assert!(matches!(parse_key("escape"), Some(Key::Escape)));
         assert!(matches!(parse_key("TAB"), Some(Key::Tab)));
-        assert!(matches!(parse_key("ctrl+c-pretender"), None));
+        assert!(parse_key("ctrl+c-pretender").is_none());
     }
 
     #[test]
@@ -737,7 +752,10 @@ mod tests {
         assert!(parse_key("RETURN").is_some());
         assert!(parse_key("return").is_some());
         assert!(parse_key("Return").is_some());
-        assert!(parse_key("RETURN ").is_none(), "trailing space must not match");
+        assert!(
+            parse_key("RETURN ").is_none(),
+            "trailing space must not match"
+        );
     }
 
     #[test]
@@ -763,7 +781,8 @@ mod tests {
         //   它 `tracing::warn!` 之后把 `enigo` 置成 `None`（结构体注释：headless ⇒
         //   None ⇒ 动作一律 Disabled）⇒ ⇒ **无显示器的 CI runner 上照样返回 Ok**
         //   ⇒ ⇒ 这条测试**不需要显示器**，也不需要 xvfb 垫层。
-        let cu = ComputerUse::new().expect("ComputerUse::new is infallible (enigo failure degrades to None)");
+        let cu = ComputerUse::new()
+            .expect("ComputerUse::new is infallible (enigo failure degrades to None)");
         assert!(!cu.is_enabled());
         cu.set_enabled(true);
         assert!(cu.is_enabled());

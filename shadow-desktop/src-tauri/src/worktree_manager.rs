@@ -1,8 +1,8 @@
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::process::Command;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorktreeInfo {
@@ -36,7 +36,14 @@ impl WorktreeManager {
         let baseline = base_branch.unwrap_or("main");
 
         let output = Command::new("git")
-            .args(["worktree", "add", "-b", &branch_name, &worktree_path, baseline])
+            .args([
+                "worktree",
+                "add",
+                "-b",
+                &branch_name,
+                &worktree_path,
+                baseline,
+            ])
             .current_dir(repo_path)
             .output()
             .map_err(|e| format!("Failed to execute git worktree add: {}", e))?;

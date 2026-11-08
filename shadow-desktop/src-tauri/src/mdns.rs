@@ -1,5 +1,9 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+// ⚠️ **只在 linux/macOS 用**（avahi-browse / dns-sd）⇒ ⇒ 在 Windows 上
+// 这个 import 是死的 ⇒ ⇒ 平台门写在这里，而不是删掉（删了 Linux/macOS
+// 就编不过 —— 「本机看着未用」不等于「所有平台都没用」）。
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 use tokio::process::Command;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -51,13 +55,13 @@ pub async fn discover_resonance() -> Result<Vec<DiscoveredService>, String> {
     {
         let service_names = browse_macos_services().await?;
         let mut services = Vec::new();
-        
+
         for name in service_names {
             if let Some(service) = resolve_macos_service(&name).await {
                 services.push(service);
             }
         }
-        
+
         Ok(services)
     }
 
@@ -67,104 +71,11 @@ pub async fn discover_resonance() -> Result<Vec<DiscoveredService>, String> {
     }
 }
 
-async fn browse_service(service_type: &str) -> Result<Vec<DiscoveredService>, String> {
-    #[cfg(target_os = "linux")]
-    {
-        let output = Command::new("avahi-browse")
-            .args(["-r", "-t", service_type])
-            .output()
-            .await;
-
-        match output {
-            Ok(out) => {
-                let stdout = String::from_utf8_lossy(&out.stdout);
-                let mut services = Vec::new();
-
-                for line in stdout.lines() {
-                    if !line.starts_with("=") {
-                        continue;
-                    }
-                    let parts: Vec<&str> = line.split(';').collect();
-                    if parts.len() < 7 {
-                        continue;
-                    }
-                    let raw_name = parts[3].trim();
-                    if !raw_name.contains(service_type.trim_start_matches('_').trim_end_matches("._tcp")) {
-                        continue;
-                    }
-                    let name = raw_name.to_string();
-                    let host_port = parts[5];
-                    if let Some((host, port)) = host_port.rsplit_once(':') {
-                        let port: u16 = port.parse().unwrap_or(8443);
-                        services.push(DiscoveredService {
-                            name,
-                            host: host.to_string(),
-                            port,
-                            txt_records: HashMap::new(),
-                        });
-                    }
-                }
-                Ok(services)
-            }
-            Err(_) => Ok(Vec::new()),
-        }
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        let output = Command::new("dns-sd")
-            .args(["-B", service_type, "local."])
-            .output()
-            .await;
-
-        match output {
-            Ok(out) => {
-                let stdout = String::from_utf8_lossy(&out.stdout);
-                let mut services = Vec::new();
-                for line in stdout.lines() {
-                    if line.contains(service_type) {
-                        if let Some(service) = resolve_macos_service_type(line, service_type).await {
-                            services.push(service);
-                        }
-                    }
-                }
-                Ok(services)
-            }
-            Err(_) => Ok(Vec::new()),
-        }
-    }
-
-    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
-    {
-        Ok(Vec::new())
-    }
-}
-
-#[cfg(target_os = "macos")]
-async fn resolve_macos_service_type(name: &str, service_type: &str) -> Option<DiscoveredService> {
-    let output = Command::new("dns-sd")
-        .args(["-L", name, service_type, "local."])
-        .output()
-        .await
-        .ok()?;
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    for line in stdout.lines() {
-        if line.contains("hostname=") {
-            if let Some(host_port) = extract_host_port(line) {
-                return Some(DiscoveredService {
-                    name: name.to_string(),
-                    host: host_port.0,
-                    port: host_port.1,
-                    txt_records: HashMap::new(),
-                });
-            }
-        }
-    }
-
-    None
-}
+// ⚠️ 2026-11-08：这里原有一对**从未被调用**的浏览helper
+// （`browse_service(service_type)` ＋ 只被它调用的 macOS 解析helper）
+// ⇒ ⇒ 公开面是 `discover_resonance()`（走自己的 avahi/dns-sd 路径）与
+// `resolve_service()` ⇒ ⇒ 那两个是**真孤儿** ⇒ ⇒ 连同它们的 cfg 块一起
+// 出仓（留着只会让人以为「按 service_type 浏览」是活的）。
 
 #[cfg(target_os = "macos")]
 async fn browse_macos_services() -> Result<Vec<String>, String> {
@@ -177,7 +88,7 @@ async fn browse_macos_services() -> Result<Vec<String>, String> {
         Ok(out) => {
             let stdout = String::from_utf8_lossy(&out.stdout);
             let mut names = Vec::new();
-            
+
             for line in stdout.lines() {
                 if line.starts_with('+') || line.starts_with('=') || line.starts_with('-') {
                     let parts: Vec<&str> = line.split_whitespace().collect();
@@ -204,7 +115,7 @@ async fn resolve_macos_service(name: &str) -> Option<DiscoveredService> {
         .ok()?;
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    
+
     for line in stdout.lines() {
         if line.contains("hostname=") {
             if let Some(host_port) = extract_host_port(line) {
@@ -217,7 +128,7 @@ async fn resolve_macos_service(name: &str) -> Option<DiscoveredService> {
             }
         }
     }
-    
+
     None
 }
 
@@ -240,7 +151,7 @@ fn extract_host_port(line: &str) -> Option<(String, u16)> {
     None
 }
 
-pub async fn resolve_service(service_name: &str) -> Result<Option<DiscoveredService>, String> {
+pub async fn resolve_service(_service_name: &str) -> Result<Option<DiscoveredService>, String> {
     #[cfg(target_os = "linux")]
     {
         let output = Command::new("avahi-resolve")
@@ -307,8 +218,14 @@ mod tests {
             port: 8082,
             txt_records,
         };
-        assert_eq!(service.txt_records.get("version"), Some(&"1.0.0".to_string()));
-        assert_eq!(service.txt_records.get("capabilities"), Some(&"chat,memory".to_string()));
+        assert_eq!(
+            service.txt_records.get("version"),
+            Some(&"1.0.0".to_string())
+        );
+        assert_eq!(
+            service.txt_records.get("capabilities"),
+            Some(&"chat,memory".to_string())
+        );
     }
 
     #[test]

@@ -54,7 +54,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { censusJs, readVitestExcludes } from './lib/env-race-js.mjs';
+import { censusJs, readVitestConfig } from './lib/env-race-js.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..');
@@ -295,10 +295,14 @@ export function census(root, opts = {}) {
  * ⚠️ 单独抽出来 ⇒ ⇒ 因为「report-only 也退 1」是本闸**第一版就有的真 bug**
  *    （接到 CI 上就会因为兄弟仓的存量候选而红）⇒ ⇒ 它必须被自检钉住。
  */
-export function gateExit(summary, reportOnly, jsCandidates) {
+export function gateExit(summary, reportOnly, jsCandidates, jsUncertain) {
   if (reportOnly) return 0;
   const js = jsCandidates || 0;
-  return (summary.candidates + js) > 0 ? 1 : 0;
+  // ⚠️⚠️ **「判不了」也算红** —— 并发块的花括号配平不出来 ⇒ ⇒ 说明**扫描面
+  //    本身有盲区** ⇒ ⇒ 「扫了 0 个候选」在这个文件上**不成立** ⇒ ⇒ 宁可红
+  //    不可疑（否则就是一把恒零的尺子）。
+  const und = jsUncertain || 0;
+  return (summary.candidates + js + und) > 0 ? 1 : 0;
 }
 
 /* ── 判据自检：正控（两个测试函数改同一个 var ⇒ 必须红）＋ 孪生（只有一个 ⇒ 必须绿） ── */
@@ -419,9 +423,115 @@ function selfTest() {
     "it('a', () => { process.env.JS_GATE = 'x'; });\n" +
     "it('b', () => { process.env.JS_GATE = 'y'; });\n");
   const jsTwinRes = censusJs(jsTwin, { excludes: [] });
-  const jsTwinClean = jsTwinRes.summary.candidates === 0;
-  checks.push({ name: 'JS 孪生：顺序 it 里改同一个 env（多个 owner）⇒ 必须不被报（顺序执行 ⇒ 不竞争）', ok: jsTwinClean,
-    detail: 'candidates=' + jsTwinRes.summary.candidates });
+  const jsTwinFam1 = jsTwinRes.report.reduce((a, r) => a + r.sameBinary.length + r.gatePolluted.length, 0);
+  const jsTwinFam2 = jsTwinRes.report.reduce((a, r) => a + (r.crossFile || []).length, 0);
+  checks.push({ name: 'JS 孪生：顺序 it 里改同一个 env（多个 owner）⇒ **族 1（同文件并行面）必须为空**（顺序执行 ⇒ 不竞争）', ok: jsTwinFam1 === 0,
+    detail: '族1(并发面)=' + jsTwinFam1 + '；族2(跨文件污染)=' + jsTwinFam2 + '（族2 命中的是**另一族**：vitest 不在文件之间还原 env ⇒ ⇒ 裸写不还原 ⇒ ⇒ 污染别的文件 ⇒ ⇒ 顺序漂 ⇒ ⇒ 飘红）' });
+
+  // ⚠️⚠️ **第八个用例：JS 族的「跨文件污染」正控** —— 实测（探针 S）：
+  //   vitest **不在文件之间还原** process.env ⇒ ⇒ 一个文件裸写 env 且不还原
+  //   ⇒ ⇒ 它污染同 worker 后续跑的任何文件 ⇒ ⇒ **文件执行顺序会漂**
+  //   （vitest 的 BaseSequencer：无缓存按大小降序；有结果缓存按「上次失败的
+  //   先跑 → 上次耗时长的先跑」）⇒ ⇒ 泄漏是**间歇性**的（飘红）。
+  const jsCross = path.join(base, 'js-crossfile');
+  fs.mkdirSync(path.join(jsCross, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(jsCross, 'src', 'prod.ts'), 'export const u = process.env.JS_LEAK;\n');
+  fs.writeFileSync(path.join(jsCross, 'a-writer.test.ts'),
+    "import { it } from 'vitest';\n" +
+    "it('writes and never restores', () => { process.env.JS_LEAK = 'x'; });\n");
+  fs.writeFileSync(path.join(jsCross, 'b-reader.test.ts'),
+    "import { it, expect } from 'vitest';\n" +
+    "it('reads', () => { expect(process.env.JS_LEAK).toBeDefined(); });\n");
+  const jsCrossRes = censusJs(jsCross, { excludes: [] });
+  const jsCrossFound = jsCrossRes.report.some((x) => (x.crossFile || []).some((c) => c.var === 'JS_LEAK'));
+  checks.push({ name: 'JS 正控：裸写 env 且**不还原** + 别的文件读它 ⇒ 必须被报（跨文件污染面）', ok: jsCrossFound,
+    detail: 'candidates=' + jsCrossRes.summary.candidates + '；跨文件族=' + jsCrossRes.summary.crossFileCandidates });
+
+  // ⚠️ **第九个用例：跨文件污染的孪生** —— 写了但**本文件内还原了**
+  //   （afterEach 里 delete）⇒ ⇒ 不污染别的文件 ⇒ ⇒ 必须不被报。
+  const jsCrossTwin = path.join(base, 'js-crossfile-twin');
+  fs.mkdirSync(path.join(jsCrossTwin, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(jsCrossTwin, 'src', 'prod.ts'), 'export const u = process.env.JS_LEAK2;\n');
+  fs.writeFileSync(path.join(jsCrossTwin, 'a-writer.test.ts'),
+    "import { it, afterEach } from 'vitest';\n" +
+    "afterEach(() => { delete process.env.JS_LEAK2; });\n" +
+    "it('writes and restores', () => { process.env.JS_LEAK2 = 'x'; });\n");
+  fs.writeFileSync(path.join(jsCrossTwin, 'b-reader.test.ts'),
+    "import { it, expect } from 'vitest';\n" +
+    "it('reads', () => { expect(process.env.JS_LEAK2).toBeUndefined(); });\n");
+  const jsCrossTwinRes = censusJs(jsCrossTwin, { excludes: [] });
+  checks.push({ name: 'JS 孪生：裸写 env 但**本文件内还原了** ⇒ 必须不被报（还原 ⇒ 不跨文件污染）', ok: jsCrossTwinRes.summary.candidates === 0,
+    detail: 'candidates=' + jsCrossTwinRes.summary.candidates });
+
+  // ⚠️⚠️ **第十个用例：并发块的「块边界」不能被字符串里的花括号截断** ——
+  //   实测（探针 F）：字符串里的一个 } 会让「逐字符数花括号」的旧算法把并发块
+  //   **提前截断** ⇒ ⇒ 块内后面的 env 写被判成「不在并发块」⇒ ⇒ **漏判**。
+  const jsBrace = path.join(base, 'js-brace');
+  fs.mkdirSync(path.join(jsBrace, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(jsBrace, 'src', 'prod.ts'), 'export const u = process.env.JS_BRACE;\n');
+  fs.writeFileSync(path.join(jsBrace, 'brace.test.ts'),
+    "import { it } from 'vitest';\n" +
+    "it.concurrent('writes', async () => {\n" +
+    "  const brace = '}';\n" +
+    "  process.env.JS_BRACE = 'x';\n" +
+    "});\n");
+  const jsBraceRes = censusJs(jsBrace, { excludes: [] });
+  const jsBraceFound = jsBraceRes.report.some((x) => x.sameBinary.some((c) => c.var === 'JS_BRACE'));
+  checks.push({ name: 'JS 正控：并发块里有字符串花括号 ⇒ ⇒ 块边界不得被截断 ⇒ ⇒ env 写必须仍被判在并发面', ok: jsBraceFound,
+    detail: 'candidates=' + jsBraceRes.summary.candidates + '（生产读点齐全）' });
+
+  // ⚠️⚠️ **第十一个用例：配置层并发** —— 实测（探针 G）：配置里开了
+  //   sequence.concurrent: true ⇒ ⇒ 连普通的顺序 it 都并发 ⇒ ⇒ 族 1 的
+  //   「块内」限定不够 ⇒ ⇒ 判据必须**读配置**，不能只看代码里的 .concurrent。
+  const jsSeq = path.join(base, 'js-seq');
+  fs.mkdirSync(path.join(jsSeq, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(jsSeq, 'vitest.config.ts'),
+    "import { defineConfig } from 'vitest/config';\n" +
+    "export default defineConfig({ test: { sequence: { concurrent: true } } });\n");
+  fs.writeFileSync(path.join(jsSeq, 'src', 'prod.ts'), 'export const u = process.env.JS_SEQ;\n');
+  fs.writeFileSync(path.join(jsSeq, 'seq.test.ts'),
+    "import { it } from 'vitest';\n" +
+    "it('writes', () => { process.env.JS_SEQ = 'x'; });\n");
+  const jsSeqCfg = readVitestConfig(path.join(jsSeq, 'vitest.config.ts'));
+  const jsSeqRes = censusJs(jsSeq, { excludes: jsSeqCfg.excludes, sequenceConcurrent: jsSeqCfg.sequenceConcurrent });
+  const jsSeqFound = jsSeqCfg.sequenceConcurrent === true
+    && jsSeqRes.report.some((x) => x.sameBinary.some((c) => c.var === 'JS_SEQ'));
+  checks.push({ name: 'JS 正控：配置里 sequence.concurrent=true ⇒ ⇒ 顺序 it 的 env 写也必须算并发面', ok: jsSeqFound,
+    detail: '读到的 sequence.concurrent=' + jsSeqCfg.sequenceConcurrent + '；candidates=' + jsSeqRes.summary.candidates });
+
+  // ⚠️⚠️ **第十二个用例：判不了必须显式** —— 并发块的花括号配平不出来 ⇒ ⇒
+  //   「这个文件有没有并发」判不了 ⇒ ⇒ **不能当成「干净」** ⇒ ⇒ 必须进
+  //   uncertain 档（闸据此判红）⇒ ⇒ 否则这把尺子在这里是恒零的。
+  const jsUnc = path.join(base, 'js-uncertain');
+  fs.mkdirSync(path.join(jsUnc, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(jsUnc, 'src', 'prod.ts'), 'export const u = 1;\n');
+  fs.writeFileSync(path.join(jsUnc, 'unclosed.test.ts'),
+    "import { it } from 'vitest';\n" +
+    "it.concurrent('unclosed', () => {\n" +
+    "  process.env.JS_UNC = 'x';\n");
+  const jsUncRes = censusJs(jsUnc, { excludes: [] });
+  checks.push({ name: 'JS 正控：并发块花括号配平不出来 ⇒ ⇒ 必须进「判不了」档（不许当成干净）', ok: jsUncRes.summary.uncertainBlocks > 0,
+    detail: 'uncertainBlocks=' + jsUncRes.summary.uncertainBlocks + '（读数里单列 ⇒ ⇒ 闸据此判红）' });
+
+  // ⚠️⚠️ **第十三个用例：exclude 里带通配符的前缀必须生效** —— vitest 的
+  //   exclude 写的是 'tests/wdio/**' / 'tests/tauri-e2e/**' 这种形状 ⇒ ⇒
+  //   旧写法把带 '*' 的**整条静默丢弃** ⇒ ⇒ 那些**独立进程**的 runner 目录
+  //   仍在扫描面内 ⇒ ⇒ 套上 vitest 的判据 ⇒ ⇒ 误报。
+  const jsExcl = path.join(base, 'js-exclude');
+  fs.mkdirSync(path.join(jsExcl, 'src'), { recursive: true });
+  fs.mkdirSync(path.join(jsExcl, 'tests', 'wdio'), { recursive: true });
+  fs.writeFileSync(path.join(jsExcl, 'src', 'prod.ts'), 'export const u = process.env.JS_EXCL;\n');
+  fs.writeFileSync(path.join(jsExcl, 'vitest.config.ts'),
+    "import { defineConfig } from 'vitest/config';\n" +
+    "export default defineConfig({ test: { include: ['**/*.test.ts'], exclude: ['tests/wdio/**'] } });\n");
+  fs.writeFileSync(path.join(jsExcl, 'tests', 'wdio', 'e2e.test.ts'),
+    "import { it } from 'vitest';\n" +
+    "it('writes', () => { process.env.JS_EXCL = 'x'; });\n");
+  const jsExclCfg = readVitestConfig(path.join(jsExcl, 'vitest.config.ts'));
+  const jsExclRes = censusJs(jsExcl, { excludes: jsExclCfg.excludes });
+  const jsExclScanned = jsExclRes.summary.jsFilesScanned;
+  checks.push({ name: 'JS 正控：exclude 里的通配符前缀必须生效（tests/wdio/** ⇒ ⇒ 独立进程 runner 的目录不得进扫描面）', ok: jsExclScanned === 0 && jsExclCfg.excludes.some((x) => x.indexOf('tests/wdio') === 0),
+    detail: 'exclude=' + JSON.stringify(jsExclCfg.excludes) + '；扫到的测试文件数=' + jsExclScanned + '（必须为 0）' });
 
   const pass = checks.filter((c) => c.ok).length;
   console.log('判据自检（测试里的进程级 env 竞争闸）');
@@ -486,11 +596,14 @@ function findJsProject(root) {
   return null;
 }
 const jsRoot = findJsProject(ROOT);
-const vitestExcludes = jsRoot ? readVitestExcludes(path.join(jsRoot, 'vitest.config.ts')) : [];
+// ⚠️ **必须读配置** —— 实测（探针 G）：配置里开了 sequence.concurrent: true
+//   ⇒ ⇒ 连普通的顺序 it 都并发 ⇒ ⇒ 只看代码里的 .concurrent 会漏掉这一族。
+const jsConfig = jsRoot ? readVitestConfig(path.join(jsRoot, 'vitest.config.ts')) : { excludes: [], sequenceConcurrent: false };
 const jsResult = jsRoot
-  ? censusJs(jsRoot, { excludes: vitestExcludes })
-  : { summary: { jsFilesScanned: 0, prodFilesScanned: 0, concurrentMuts: 0, candidates: 0 }, report: [] };
+  ? censusJs(jsRoot, { excludes: jsConfig.excludes, sequenceConcurrent: jsConfig.sequenceConcurrent })
+  : { summary: { jsFilesScanned: 0, prodFilesScanned: 0, concurrentMuts: 0, unrestoredMuts: 0, candidates: 0, crossFileCandidates: 0, uncertainBlocks: 0, sequenceConcurrent: false }, report: [], uncertain: [] };
 const jsCandidates = jsResult.summary.candidates;
+const jsUncertain = jsResult.summary.uncertainBlocks;
 
 if (summary.cratesScanned === 0) {
   console.error('判不了：' + ROOT + ' 下一个 crate 都没扫到 ⇒ ⇒ 退出码 2（不是「没问题」）');
@@ -539,15 +652,27 @@ if (has('json')) {
     console.log('   ⚠️ **未找到 vitest 工程**（没找到 vitest.config.ts）⇒ ⇒ 这一面**没扫** ⇒ ⇒ 不是「扫了 0 个候选」');
   } else {
     console.log('   工程: ' + path.relative(ROOT, jsRoot).replace(/\\/g, '/') + '（按 vitest.config.ts 探测）');
-    console.log('   扫了 ' + jsResult.summary.jsFilesScanned + ' 个 vitest 测试文件 / ' + jsResult.summary.prodFilesScanned + ' 个生产文件；并发块里的 env 写 ' + jsResult.summary.concurrentMuts + ' 处 ⇒ ⇒ 候选 ' + jsCandidates);
+    console.log('   扫了 ' + jsResult.summary.jsFilesScanned + ' 个 vitest 测试文件 / ' + jsResult.summary.prodFilesScanned + ' 个生产文件');
+    console.log('   并发面：并发块里的 env 写 ' + jsResult.summary.concurrentMuts + ' 处（配置 sequence.concurrent=' + jsResult.summary.sequenceConcurrent + '）');
+    console.log('   跨文件污染面：裸写且**不还原**的 env 写 ' + jsResult.summary.unrestoredMuts + ' 处 ⇒ ⇒ 候选 ' + jsCandidates + '（其中跨文件 ' + jsResult.summary.crossFileCandidates + '）');
+    console.log('   判不了（并发块花括号配平不出来）: ' + jsResult.summary.uncertainBlocks + ' 处 ' + (jsResult.summary.uncertainBlocks > 0 ? '⇒ ⇒ 这一面**判不了** ⇒ ⇒ 闸据此判红' : '✔（这一面判得了）'));
+    for (const u of (jsResult.unrestored || [])) {
+      console.log('   · 裸写且不还原: ' + u.var + ' @ ' + u.file + ':' + u.line + (u.concurrent ? '（在并发面里 ⇒ ⇒ 族 1 也会命中）' : '（顺序 it ⇒ ⇒ 族 1 不命中；跨文件污染面靠「有别的文件读它」才成立）'));
+    }
   }
   for (const f of jsResult.report) {
     console.log('   == ' + f.file);
     for (const c of f.sameBinary) {
-      console.log('       ' + c.var + '（并发块里写的）' + (c.prodRead.length ? '；生产读点: ' + c.prodRead.join(', ') : '') + (c.testRead.length ? '；同文件读点: ' + c.testRead.join(', ') : ''));
+      console.log('       ' + c.var + '（并发面里写的）' + (c.prodRead.length ? '；生产读点: ' + c.prodRead.join(', ') : '') + (c.testRead.length ? '；同文件读点: ' + c.testRead.join(', ') : ''));
+    }
+    for (const c of (f.crossFile || [])) {
+      console.log('       ' + c.var + '（**裸写且不还原** ⇒ ⇒ 跨文件污染）' + (c.prodRead.length ? '；生产读点: ' + c.prodRead.join(', ') : '') + (c.otherTestRead.length ? '；别的测试文件读点: ' + c.otherTestRead.join(', ') : ''));
     }
   }
-  console.log('   ⚠️ JS 侧**不适用** Rust 那套「多个 owner」判据（实测：vitest 跨文件会还原 env ⇒ ⇒ 不竞争）；只有**并发块**才竞争。');
+  for (const u of (jsResult.uncertain || [])) {
+    console.log('   ⚠️ 判不了: ' + u.file + ' —— ' + u.items.map((x) => '第' + x.line + '行 ' + x.reason).join('；'));
+  }
+  console.log('   ⚠️ JS 侧**不适用** Rust 那套「多个 owner」判据（实测：vitest 同一文件内的顺序 it 是顺序执行的 ⇒ ⇒ 不竞争）；但**跨文件污染是真的**（实测：vitest **不在文件之间还原** env ⇒ ⇒ 裸写不还原 ⇒ ⇒ 文件顺序漂 ⇒ ⇒ 飘红）。');
   console.log('   ℹ️ Dart 侧**不适用**：Dart 的 `Platform.environment` 是只读的，没有 env 写入 API ⇒ ⇒ 本仓该族不成立。');
   console.log('   ⚠️ 候选**不是判决** ⇒ ⇒ 判定仍要靠「同一命令跑 N 轮」的 A/B。');
   if (reportOnly) {
@@ -559,7 +684,7 @@ if (has('json')) {
 //    若它仍然退 1 ⇒ ⇒ 接到 CI 上就会**因为有存量候选而红** ⇒ ⇒ 而那些候选
 //    在**兄弟仓**里（属别的工作线）⇒ ⇒ 本仓的 CI 不该替它们背锅 ⇒ ⇒
 //    「有候选」与「该不该红」必须分开（**闸 vs 读数**两档）。
-process.exit(gateExit(summary, REPORT_ONLY, jsCandidates));
+process.exit(gateExit(summary, REPORT_ONLY, jsCandidates, jsUncertain));
 } // main()
 
 /** 本文件是不是被**直接当脚本**跑（而不是被 import）？ */

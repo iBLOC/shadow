@@ -172,9 +172,12 @@ impl GlobalKeysState {
         *self.inner.last_trigger.lock_ignore_poison() = Some(action.to_string());
         self.inner.trigger_count.fetch_add(1, Ordering::SeqCst);
         if let Some(app) = self.inner.app.get() {
-            if let Err(e) = app.emit("gk-trigger", TriggerEvent {
-                action: action.to_string(),
-            }) {
+            if let Err(e) = app.emit(
+                "gk-trigger",
+                TriggerEvent {
+                    action: action.to_string(),
+                },
+            ) {
                 tracing::warn!("global keys: trigger emit failed: {e}");
             }
         }
@@ -183,9 +186,12 @@ impl GlobalKeysState {
     fn emit_capture(&self, chord: &str) {
         *self.inner.last_capture.lock_ignore_poison() = Some(chord.to_string());
         if let Some(app) = self.inner.app.get() {
-            if let Err(e) = app.emit("gk-capture", CaptureEvent {
-                chord: chord.to_string(),
-            }) {
+            if let Err(e) = app.emit(
+                "gk-capture",
+                CaptureEvent {
+                    chord: chord.to_string(),
+                },
+            ) {
                 tracing::warn!("global keys: capture emit failed: {e}");
             }
         }
@@ -224,16 +230,19 @@ trait RwLockIgnorePoison<T> {
 
 impl<T> MutexLockIgnorePoison<T> for Mutex<T> {
     fn lock_ignore_poison(&self) -> MutexGuard<'_, T> {
-        self.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+        self.lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 }
 
 impl<T> RwLockIgnorePoison<T> for RwLock<T> {
     fn read_ignore_poison(&self) -> RwLockReadGuard<'_, T> {
-        self.read().unwrap_or_else(std::sync::PoisonError::into_inner)
+        self.read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
     fn write_ignore_poison(&self) -> RwLockWriteGuard<'_, T> {
-        self.write().unwrap_or_else(std::sync::PoisonError::into_inner)
+        self.write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 }
 
@@ -269,11 +278,11 @@ pub fn install(state: &'static GlobalKeysState, app: AppHandle) {
 
 #[cfg(windows)]
 unsafe fn hook_thread() {
+    use windows::core::PCWSTR;
     use windows::Win32::System::LibraryLoader::GetModuleHandleW;
     use windows::Win32::UI::WindowsAndMessaging::{
         GetMessageW, SetWindowsHookExW, MSG, WH_KEYBOARD_LL,
     };
-    use windows::core::PCWSTR;
 
     // WH_KEYBOARD_LL runs in-process, so the exe module handle is the
     // standard (and, with a null thread id, the documented) choice.
@@ -394,10 +403,7 @@ fn modifier_bit(vk: u32) -> Option<u32> {
 
 fn chord_string(modifiers: u32, code: &str) -> String {
     let mut s = String::new();
-    for (i, bit) in [MOD_CTRL, MOD_SHIFT, MOD_ALT, MOD_META]
-        .iter()
-        .enumerate()
-    {
+    for (i, bit) in [MOD_CTRL, MOD_SHIFT, MOD_ALT, MOD_META].iter().enumerate() {
         if modifiers & bit != 0 {
             s.push_str(MODIFIER_NAMES[i]);
             s.push('+');
@@ -412,13 +418,13 @@ const DIGIT_CODES: [&str; 10] = [
     "Digit9",
 ];
 const KEY_CODES: [&str; 26] = [
-    "KeyA", "KeyB", "KeyC", "KeyD", "KeyE", "KeyF", "KeyG", "KeyH", "KeyI", "KeyJ", "KeyK",
-    "KeyL", "KeyM", "KeyN", "KeyO", "KeyP", "KeyQ", "KeyR", "KeyS", "KeyT", "KeyU", "KeyV",
-    "KeyW", "KeyX", "KeyY", "KeyZ",
+    "KeyA", "KeyB", "KeyC", "KeyD", "KeyE", "KeyF", "KeyG", "KeyH", "KeyI", "KeyJ", "KeyK", "KeyL",
+    "KeyM", "KeyN", "KeyO", "KeyP", "KeyQ", "KeyR", "KeyS", "KeyT", "KeyU", "KeyV", "KeyW", "KeyX",
+    "KeyY", "KeyZ",
 ];
 const FN_CODES: [&str; 24] = [
-    "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12", "F13", "F14",
-    "F15", "F16", "F17", "F18", "F19", "F20", "F21", "F22", "F23", "F24",
+    "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12", "F13", "F14", "F15",
+    "F16", "F17", "F18", "F19", "F20", "F21", "F22", "F23", "F24",
 ];
 const NUMPAD_CODES: [&str; 10] = [
     "Numpad0", "Numpad1", "Numpad2", "Numpad3", "Numpad4", "Numpad5", "Numpad6", "Numpad7",
@@ -508,8 +514,7 @@ fn is_known_code(code: &str) -> bool {
         return matches!(rest, "Add" | "Subtract" | "Multiply" | "Divide" | "Decimal");
     }
     if let Some(rest) = code.strip_prefix("F") {
-        return !rest.starts_with('0')
-            && rest.parse::<u8>().is_ok_and(|n| (1..=24).contains(&n));
+        return !rest.starts_with('0') && rest.parse::<u8>().is_ok_and(|n| (1..=24).contains(&n));
     }
     matches!(
         code,
@@ -651,8 +656,14 @@ mod tests {
 
     #[test]
     fn chord_string_uses_canonical_modifier_order() {
-        assert_eq!(chord_string(MOD_CTRL | MOD_SHIFT, "KeyR"), "Ctrl+Shift+KeyR");
-        assert_eq!(chord_string(MOD_SHIFT | MOD_CTRL, "KeyR"), "Ctrl+Shift+KeyR");
+        assert_eq!(
+            chord_string(MOD_CTRL | MOD_SHIFT, "KeyR"),
+            "Ctrl+Shift+KeyR"
+        );
+        assert_eq!(
+            chord_string(MOD_SHIFT | MOD_CTRL, "KeyR"),
+            "Ctrl+Shift+KeyR"
+        );
         assert_eq!(chord_string(MOD_META, "Enter"), "Meta+Enter");
         assert_eq!(chord_string(0, "MediaPlayPause"), "MediaPlayPause");
     }

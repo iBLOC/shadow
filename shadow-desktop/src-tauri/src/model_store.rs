@@ -168,8 +168,7 @@ impl Default for EncryptedStorage {
 }
 
 fn base64_encode(data: &[u8]) -> String {
-    const ALPHABET: &[u8] =
-        b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut result = String::new();
     for chunk in data.chunks(3) {
         let b = match chunk.len() {
@@ -178,13 +177,9 @@ fn base64_encode(data: &[u8]) -> String {
             _ => [chunk[0], chunk[1], chunk[2]],
         };
         result.push(ALPHABET[(b[0] >> 2) as usize] as char);
-        result.push(
-            ALPHABET[((b[0] & 0x03) << 4 | b[1] >> 4) as usize] as char,
-        );
+        result.push(ALPHABET[((b[0] & 0x03) << 4 | b[1] >> 4) as usize] as char);
         if chunk.len() > 1 {
-            result.push(
-                ALPHABET[((b[1] & 0x0f) << 2 | b[2] >> 6) as usize] as char,
-            );
+            result.push(ALPHABET[((b[1] & 0x0f) << 2 | b[2] >> 6) as usize] as char);
         }
         if chunk.len() > 2 {
             result.push(ALPHABET[(b[2] & 0x3f) as usize] as char);
@@ -209,19 +204,17 @@ mod tests {
             api_base: Some("https://api.test.com".to_string()),
             api_key: Some("sk-test123".to_string()),
             enabled: true,
-            models: vec![
-                LLMModel {
-                    id: "model-1".to_string(),
-                    name: "Model 1".to_string(),
-                    model_id: "gpt-4".to_string(),
-                    model_type: "chat".to_string(),
-                    context_length: Some(8192),
-                    supports_vision: false,
-                    supports_function_calling: true,
-                    enabled: true,
-                    is_default: true,
-                },
-            ],
+            models: vec![LLMModel {
+                id: "model-1".to_string(),
+                name: "Model 1".to_string(),
+                model_id: "gpt-4".to_string(),
+                model_type: "chat".to_string(),
+                context_length: Some(8192),
+                supports_vision: false,
+                supports_function_calling: true,
+                enabled: true,
+                is_default: true,
+            }],
         }
     }
 
@@ -280,7 +273,10 @@ mod tests {
         let mut updated = make_test_provider();
         updated.name = "Updated Provider".to_string();
         assert!(store.update_provider(updated.clone()));
-        assert_eq!(store.get_provider("test-provider").unwrap().name, "Updated Provider");
+        assert_eq!(
+            store.get_provider("test-provider").unwrap().name,
+            "Updated Provider"
+        );
     }
 
     #[test]

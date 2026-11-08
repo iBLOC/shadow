@@ -82,8 +82,7 @@ fn read_stored(path: &Path) -> Option<String> {
 /// 写盘（Unix 下 `0600`）。
 fn write_stored(path: &Path, token: &str) -> Result<(), String> {
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format!("create {}: {e}", parent.display()))?;
+        std::fs::create_dir_all(parent).map_err(|e| format!("create {}: {e}", parent.display()))?;
     }
     std::fs::write(path, token).map_err(|e| format!("write {}: {e}", path.display()))?;
     #[cfg(unix)]
@@ -174,19 +173,13 @@ mod tests {
         let a = generate_token();
         let b = generate_token();
         assert_eq!(a.len(), TOKEN_BYTES * 2, "32 字节 ⇒ 64 个 hex 字符");
-        assert!(
-            a.chars().all(|c| c.is_ascii_hexdigit()),
-            "只能是 hex：{a}"
-        );
+        assert!(a.chars().all(|c| c.is_ascii_hexdigit()), "只能是 hex：{a}");
         assert_ne!(a, b, "两次生成必须不同 —— 否则这把钥匙就是公开的");
     }
 
     #[test]
     fn the_environment_wins_over_the_stored_one() {
-        let picked = choose(
-            Some("from-env".to_string()),
-            Some("from-file".to_string()),
-        );
+        let picked = choose(Some("from-env".to_string()), Some("from-file".to_string()));
         assert_eq!(picked.as_deref(), Some("from-env"));
     }
 
@@ -196,7 +189,10 @@ mod tests {
         // 「空 expected ⇒ fail-closed」是同一条语义。
         assert_eq!(choose(Some("  ".to_string()), None), None);
         assert_eq!(choose(None, Some(String::new())), None);
-        assert_eq!(choose(None, Some("from-file".to_string())).as_deref(), Some("from-file"));
+        assert_eq!(
+            choose(None, Some("from-file".to_string())).as_deref(),
+            Some("from-file")
+        );
     }
 
     #[test]

@@ -1,9 +1,9 @@
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::process::Stdio;
 use std::sync::Arc;
 use tokio::process::Command;
 use tokio::sync::Mutex;
-use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OpenCodeInstance {
@@ -48,12 +48,16 @@ impl OpenCodeManager {
             .map_err(|e| format!("Failed to spawn opencode: {}", e))?;
 
         let process_id = child.id().unwrap_or(0);
-        
+
         let instance = OpenCodeInstance {
             id: id.clone(),
             port,
             status: InstanceStatus::Running,
-            process_id: if process_id == 0 { None } else { Some(process_id) },
+            process_id: if process_id == 0 {
+                None
+            } else {
+                Some(process_id)
+            },
         };
 
         let mut instances = self.instances.lock().await;
@@ -92,7 +96,7 @@ impl OpenCodeManager {
     pub async fn stop(&self, id: &str) -> Result<(), String> {
         let mut instances = self.instances.lock().await;
         if let Some(instance) = instances.get_mut(id) {
-            if let Some(pid) = instance.process_id {
+            if let Some(_pid) = instance.process_id {
                 #[cfg(unix)]
                 {
                     Command::new("kill")
@@ -112,7 +116,11 @@ impl OpenCodeManager {
         instances.values().cloned().collect()
     }
 
-    pub async fn create_session(&self, instance_id: &str, _project_path: &str) -> Result<String, String> {
+    pub async fn create_session(
+        &self,
+        instance_id: &str,
+        _project_path: &str,
+    ) -> Result<String, String> {
         let instance = self.instances.lock().await;
         let inst = instance.get(instance_id).ok_or("Instance not found")?;
 
@@ -129,8 +137,11 @@ impl OpenCodeManager {
             id: String,
         }
 
-        let resp = client.post(&url)
-            .json(&CreateSessionRequest { title: "task".to_string() })
+        let resp = client
+            .post(&url)
+            .json(&CreateSessionRequest {
+                title: "task".to_string(),
+            })
             .send()
             .await
             .map_err(|e| e.to_string())?;
@@ -139,17 +150,24 @@ impl OpenCodeManager {
             return Err(format!("API error: {}", resp.status()));
         }
 
-        let session: CreateSessionResponse = resp.json().await
-            .map_err(|e| e.to_string())?;
+        let session: CreateSessionResponse = resp.json().await.map_err(|e| e.to_string())?;
 
         Ok(session.id)
     }
 
-    pub async fn send_message(&self, instance_id: &str, session_id: &str, message: &str) -> Result<String, String> {
+    pub async fn send_message(
+        &self,
+        instance_id: &str,
+        session_id: &str,
+        message: &str,
+    ) -> Result<String, String> {
         let instance = self.instances.lock().await;
         let inst = instance.get(instance_id).ok_or("Instance not found")?;
 
-        let url = format!("http://127.0.0.1:{}/session/{}/message", inst.port, session_id);
+        let url = format!(
+            "http://127.0.0.1:{}/session/{}/message",
+            inst.port, session_id
+        );
         let client = reqwest::Client::new();
 
         #[derive(Serialize)]
@@ -157,7 +175,8 @@ impl OpenCodeManager {
             parts: Vec<serde_json::Value>,
         }
 
-        let resp = client.post(&url)
+        let resp = client
+            .post(&url)
             .json(&MessageRequest {
                 parts: vec![serde_json::json!({ "type": "text", "text": message })],
             })
@@ -174,8 +193,7 @@ impl OpenCodeManager {
             info: serde_json::Value,
         }
 
-        let result: MessageResponse = resp.json().await
-            .map_err(|e| e.to_string())?;
+        let result: MessageResponse = resp.json().await.map_err(|e| e.to_string())?;
 
         Ok(serde_json::to_string(&result.info).unwrap_or_default())
     }

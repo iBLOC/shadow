@@ -107,7 +107,10 @@ impl ConfigManager {
             }
         };
 
-        Self { config, config_path }
+        Self {
+            config,
+            config_path,
+        }
     }
 
     pub fn save(&self) -> Result<(), String> {
@@ -174,10 +177,17 @@ impl SecureAuth {
 
     pub async fn get_machine_id(&self) -> String {
         let _config = self.config.lock().await;
-        format!("{:x}", md5::compute(format!("{:?}", std::env::consts::ARCH)))
+        format!(
+            "{:x}",
+            md5::compute(format!("{:?}", std::env::consts::ARCH))
+        )
     }
 
-    pub async fn save_db_config(&self, db_type: &str, db_config: DatabaseConfig) -> Result<(), String> {
+    pub async fn save_db_config(
+        &self,
+        db_type: &str,
+        db_config: DatabaseConfig,
+    ) -> Result<(), String> {
         let mut config = self.config.lock().await;
         config.update_db_config(db_type.to_string(), db_config);
         config.save()
@@ -199,7 +209,10 @@ impl SecureAuth {
         config.get_config().clone()
     }
 
-    pub async fn save_provider_config(&self, provider_config: ProviderConfig) -> Result<(), String> {
+    pub async fn save_provider_config(
+        &self,
+        provider_config: ProviderConfig,
+    ) -> Result<(), String> {
         let mut config = self.config.lock().await;
         config.config.provider_config = provider_config;
         config.save()
@@ -267,11 +280,13 @@ mod tests {
 
     #[test]
     fn the_storage_field_round_trips() {
-        let mut config = AppConfig::default();
         // ⚠️ update_hippocampus_data_dir 是 **ConfigManager** 的方法（不是
         // AppConfig 的）⇒ ⇒ 这条测试从 684be0f（2026-11-02 00:05）起就**编不过**
         // ⇒ ⇒ 桌面端的 cargo test --lib 一直跑不起来（没人跑过）。
-        config.hippocampus_data_dir = Some("D:/memory".to_string());
+        let config = AppConfig {
+            hippocampus_data_dir: Some("D:/memory".to_string()),
+            ..Default::default()
+        };
         let json = serde_json::to_string(&config).unwrap();
         assert!(json.contains("D:/memory"), "{json}");
         let back: AppConfig = serde_json::from_str(&json).unwrap();

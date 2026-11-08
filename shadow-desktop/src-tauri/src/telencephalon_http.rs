@@ -61,15 +61,13 @@
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::time::Duration;
 
-use axum::Router;
 use encephalon::Embedded;
 
 use crate::brain_face::{self, BrainFaceHandle};
 
 /// 前端默认的端脑地址（`src/stores/telencephalonStore.ts` 的
 /// `DEFAULT_BASE_URL`）—— sidecar 与前端共享这一个端口。
-pub const DEFAULT_ADDR: SocketAddr =
-    SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 60080);
+pub const DEFAULT_ADDR: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 60080);
 
 /// 端脑的 shadow API 前缀（会话 / agent）—— 前端 `telencephalonClient.ts`
 /// 的 `createConversation` / `streamMessage` 打的就是这里。
@@ -78,14 +76,6 @@ pub const SHADOW_API_PREFIX: &str = "/shadow/v1";
 /// 海马体在端脑面上的前缀 —— 和端脑自己的挂法一致
 /// （`telencephalon/src/api/mod.rs`：`outer.nest("/hippocampus", h)`）。
 pub const HIPPOCAMPUS_PREFIX: &str = "/hippocampus";
-
-/// 进程内的 native 叶区 —— 「叶区」在端脑里的实体。
-///
-/// ⚠️ **不再硬编码名单**（2026-11-03）—— 叶区的 LLM 端点现在由大脑仓的
-/// `point_lobes_at_neuron` 指过去，而它读的是**注册表自己的清单**
-/// ⇒ ⇒ 名单增删自动跟上 ⇒ ⇒ 不必在这里再抄一份（抄的那份只会漂）。
-/// `NativeLobeRegistry::with_temporal()` 注册的。
-const NATIVE_LOBES: [&str; 3] = ["temporal", "prefrontal", "parietal"];
 
 /// 端脑面被占时，多久重试一次 —— 占着 60080 的进程一走，桌面端就接管。
 const BIND_RETRY_SECS: u64 = 3;
@@ -187,17 +177,17 @@ pub async fn serve(stack: &Embedded, hippocampus_data_dir: Option<String>, face:
                 "零信任面已启动（terminator 就绪后可 dial）"
             );
         }
-        None => tracing::info!(
-            "零信任面未配置（没配 ZITI_HOST_IDENTITY）—— 行为与今天一致"
-        ),
+        None => tracing::info!("零信任面未配置（没配 ZITI_HOST_IDENTITY）—— 行为与今天一致"),
     }
 
     if let Err(e) = axum::serve(listener, brain_face.router).await {
         tracing::error!("telencephalon http server stopped: {e}");
-        face.set(brain_face::STATE_FAILED, Some(format!("server stopped: {e}")));
+        face.set(
+            brain_face::STATE_FAILED,
+            Some(format!("server stopped: {e}")),
+        );
     }
 }
-
 
 /// **客户端模式**：60080 上起**零信任代理**，而不是大脑那张面。
 ///
@@ -236,7 +226,6 @@ async fn build_face(
     stack: &Embedded,
     hippocampus_data_dir: Option<String>,
 ) -> Result<encephalon::surface::BrainFace, String> {
-
     // 端脑自己的 AppState（配置 / lobe 存储 / flow / 会话存储 / 海马体接线）。
     // neuron 传**同一个**嵌入实例 —— 进程内只有一份推理运行时。
     //
@@ -320,6 +309,7 @@ async fn build_face(
 mod tests {
     use super::*;
     use axum::routing::get;
+    use axum::Router;
     use tower::ServiceExt;
 
     /// 前缀挂载：内层 `/api/memory` 对外是 `/hippocampus/api/memory`。
@@ -371,7 +361,10 @@ mod tests {
     #[test]
     fn default_addr_matches_the_frontend_base_url() {
         assert_eq!(DEFAULT_ADDR.port(), 60080);
-        assert!(DEFAULT_ADDR.ip().is_loopback(), "the sidecar must stay on loopback");
+        assert!(
+            DEFAULT_ADDR.ip().is_loopback(),
+            "the sidecar must stay on loopback"
+        );
     }
 
     /// 叶区清单不能变少 —— 少一个就少一条链路上能到达的能力

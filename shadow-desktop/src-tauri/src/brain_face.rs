@@ -75,10 +75,7 @@ impl BrainFaceHandle {
 
     /// 当前状态（界面读这个）。
     pub fn status(&self) -> BrainFaceStatus {
-        self.inner
-            .read()
-            .unwrap_or_else(|e| e.into_inner())
-            .clone()
+        self.inner.read().unwrap_or_else(|e| e.into_inner()).clone()
     }
 
     /// 写状态 —— **一处实现**，启动路径与测试共用。

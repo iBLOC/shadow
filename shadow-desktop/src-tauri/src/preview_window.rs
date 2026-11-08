@@ -32,8 +32,6 @@
 //! the allowlist to dev-server origins (e.g. `http://localhost:*`,
 //! `https://*.shadow.local`).
 
-use std::sync::atomic::{AtomicU32, Ordering};
-
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 
 #[derive(Debug, thiserror::Error)]
@@ -66,11 +64,7 @@ pub fn preview_label(task_id: &str) -> Result<String, PreviewWindowError> {
 /// - If a window for this task already exists, it's focused and its
 ///   URL is replaced via `navigate`.
 /// - Otherwise a new `WebviewWindow` is created.
-pub fn open_preview(
-    app: &AppHandle,
-    task_id: &str,
-    url: &str,
-) -> Result<(), PreviewWindowError> {
+pub fn open_preview(app: &AppHandle, task_id: &str, url: &str) -> Result<(), PreviewWindowError> {
     let label = preview_label(task_id)?;
     let parsed = url::Url::parse(url)?;
 
@@ -93,15 +87,11 @@ pub fn open_preview(
         } else {
             format!("{title} #{attempt}")
         };
-        let builder = WebviewWindowBuilder::new(
-            app,
-            &label,
-            WebviewUrl::External(parsed.clone()),
-        )
-        .title(&t)
-        .inner_size(1024.0, 768.0)
-        .min_inner_size(640.0, 480.0)
-        .resizable(true);
+        let builder = WebviewWindowBuilder::new(app, &label, WebviewUrl::External(parsed.clone()))
+            .title(&t)
+            .inner_size(1024.0, 768.0)
+            .min_inner_size(640.0, 480.0)
+            .resizable(true);
         match builder.build() {
             Ok(_) => break,
             Err(e) => {
@@ -130,32 +120,15 @@ pub fn close_preview(app: &AppHandle, task_id: &str) -> Result<bool, PreviewWind
     }
 }
 
-/// List the labels of currently-open preview windows. Used by tests
-/// + the (future) React panel overview.
-pub fn list_open_previews(app: &AppHandle) -> Vec<String> {
-    app.webview_windows()
-        .keys()
-        .filter(|l| l.starts_with(PREVIEW_LABEL_PREFIX))
-        .cloned()
-        .collect()
-}
-
 // -- Tauri commands ----------------------------------------------------
 
 #[tauri::command]
-pub async fn preview_open(
-    app: AppHandle,
-    task_id: String,
-    url: String,
-) -> Result<(), String> {
+pub async fn preview_open(app: AppHandle, task_id: String, url: String) -> Result<(), String> {
     open_preview(&app, &task_id, &url).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub async fn preview_close(
-    app: AppHandle,
-    task_id: String,
-) -> Result<bool, String> {
+pub async fn preview_close(app: AppHandle, task_id: String) -> Result<bool, String> {
     close_preview(&app, &task_id).map_err(|e| e.to_string())
 }
 
@@ -179,10 +152,7 @@ mod tests {
             preview_label("task.001/sub:A").unwrap(),
             "preview-task001subA"
         );
-        assert_eq!(
-            preview_label("hello world!").unwrap(),
-            "preview-helloworld"
-        );
+        assert_eq!(preview_label("hello world!").unwrap(), "preview-helloworld");
     }
 
     #[test]
@@ -203,10 +173,7 @@ mod tests {
 
     #[test]
     fn preview_label_preserves_dashes_and_underscores() {
-        assert_eq!(
-            preview_label("a-b_c").unwrap(),
-            "preview-a-b_c"
-        );
+        assert_eq!(preview_label("a-b_c").unwrap(), "preview-a-b_c");
     }
 
     // NOTE: opening a real Tauri WebviewWindow requires a running Tauri

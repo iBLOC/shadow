@@ -20,9 +20,7 @@
 //! a child webview inside an existing window — only separate top-level
 //! `WebviewWindow`s, which is what `preview_window.rs` uses for OS windows.
 
-use tauri::{
-    AppHandle, LogicalPosition, LogicalSize, Manager, WebviewBuilder, WebviewUrl, Window,
-};
+use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, WebviewBuilder, WebviewUrl, Window};
 
 const INLINE_LABEL_PREFIX: &str = "inline-";
 const DEFAULT_PARENT_WINDOW: &str = "main";
@@ -58,7 +56,10 @@ pub fn inline_label(task_id: &str) -> Result<String, InlinePreviewError> {
     Ok(format!("{INLINE_LABEL_PREFIX}{sanitised}"))
 }
 
-fn parent_window(app: &AppHandle, parent_label: Option<&str>) -> Result<Window, InlinePreviewError> {
+fn parent_window(
+    app: &AppHandle,
+    parent_label: Option<&str>,
+) -> Result<Window, InlinePreviewError> {
     let label = parent_label.unwrap_or(DEFAULT_PARENT_WINDOW);
     app.get_window(label)
         .ok_or_else(|| InlinePreviewError::ParentWindowNotFound(label.to_string()))
@@ -68,6 +69,11 @@ fn parent_window(app: &AppHandle, parent_label: Option<&str>) -> Result<Window, 
 /// the parent window. If the same `task_id` already has a child webview,
 /// it is repositioned/resized in place — the URL is not re-applied (callers
 /// wanting a URL change must `close_inline_preview` first).
+///
+/// ⚠️ 参数多（8 个）—— 这是**几何参数**（位置/尺寸）与身份参数平铺的结果，
+/// 而调用契约已经定死 ⇒ ⇒ 显式豁免（拆成结构体要改所有调用方，收益不抵
+/// 风险）。
+#[allow(clippy::too_many_arguments)]
 pub fn open_inline_preview(
     app: &AppHandle,
     task_id: &str,
@@ -126,6 +132,9 @@ pub fn close_inline_preview(app: &AppHandle, task_id: &str) -> Result<bool, Inli
 // -- Tauri commands ----------------------------------------------------
 
 #[tauri::command]
+// ⚠️ 参数个数由**前端契约**定（Tauri command 的入参就是前端的字段）
+// ⇒ ⇒ 显式豁免（改签名就是改 wire 契约）。
+#[allow(clippy::too_many_arguments)]
 pub async fn inline_preview_open(
     app: AppHandle,
     task_id: String,
@@ -162,10 +171,7 @@ pub async fn inline_preview_set_bounds(
 }
 
 #[tauri::command]
-pub async fn inline_preview_close(
-    app: AppHandle,
-    task_id: String,
-) -> Result<bool, String> {
+pub async fn inline_preview_close(app: AppHandle, task_id: String) -> Result<bool, String> {
     close_inline_preview(&app, &task_id).map_err(|e| e.to_string())
 }
 
@@ -204,7 +210,10 @@ pub async fn fetch_markdown_text(url: &str) -> Result<String, InlinePreviewError
         .map_err(|e| InlinePreviewError::Fetch(e.to_string()))?;
     let status = response.status();
     if !status.is_success() {
-        return Err(InlinePreviewError::Fetch(format!("HTTP {}", status.as_u16())));
+        return Err(InlinePreviewError::Fetch(format!(
+            "HTTP {}",
+            status.as_u16()
+        )));
     }
     let bytes = response
         .bytes()
@@ -221,9 +230,7 @@ pub async fn fetch_markdown_text(url: &str) -> Result<String, InlinePreviewError
 
 #[tauri::command]
 pub async fn inline_preview_fetch_markdown(url: String) -> Result<String, String> {
-    fetch_markdown_text(&url)
-        .await
-        .map_err(|e| e.to_string())
+    fetch_markdown_text(&url).await.map_err(|e| e.to_string())
 }
 
 // -- tests -------------------------------------------------------------
@@ -244,10 +251,7 @@ mod tests {
             inline_label("task.001/sub:A").unwrap(),
             "inline-task001subA"
         );
-        assert_eq!(
-            inline_label("hello world!").unwrap(),
-            "inline-helloworld"
-        );
+        assert_eq!(inline_label("hello world!").unwrap(), "inline-helloworld");
     }
 
     #[test]

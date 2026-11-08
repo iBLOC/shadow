@@ -206,19 +206,14 @@ jobs:
           echo "--- 测试读数（尺子要可见）---"
           grep -E 'test result:' /tmp/desktop-test.log || true
 
-      # ⚠️⚠️ **口径先按「只挡 error」** —— 与仓内既有纪律一致（ci.yml 的 prefrontal 已经
-      #   收紧到 `-D warnings`，其余仓仍按只挡 error ⇒ ⇒ **谁先清零谁先收回口径**）。
-      #   桌面 crate 的 clippy warning 池**尚未清零** ⇒ ⇒ 这一刀不许用 `-D warnings`
-      #   ⇒ ⇒ 否则这道闸一上来就红 ⇒ ⇒ 「红久了没人看」＝「比没有防线更坏」。
-      #   ⇒ ⇒ 但**必须把 warning 数量打出来**（尺子要可见）：存量池就这么被量出来。
-      - name: Cargo clippy (桌面 crate)
+      # ⚠️⚠️ **口径已收回 `-D warnings`**（2026-11-08 池子清零刀）—— 上面的注释
+      #   立过规矩「谁先清零谁先收回口径」：桌面 crate 自身的 clippy warning 池
+      #   （原 lib 58／lib test 41 ＋ fmt 25 文件/194 处）已全数清零 ⇒ ⇒ 收紧。
+      #   ⚠️ **范围钉在 `-p shadow-desktop`**：workspace 里编着兄弟仓
+      #   （telencephalon 81 条等存量不归本闸管 ⇒ 它们只印不挡）；
+      #   `-D warnings` 经 `--` 只作用于选中包 ⇒ ⇒ 兄弟仓的存量不会被连坐。
+      - name: Cargo clippy (桌面 crate, -D warnings)
         working-directory: shadow/shadow-desktop/src-tauri
         run: |
           set -o pipefail
-          cargo clippy --manifest-path Cargo.toml --all-targets 2>&1 | tee /tmp/desktop-clippy.log
-          echo "--- clippy warning 池（每 crate 一行；**尺子要可见**）---"
-          # ⚠️⚠️ 2026-11-08 **这里踩过一个假读数的坑**：原来数的是 `grep -c '^warning'`
-          #   ⇒ ⇒ CI 日志里每行前面还带着「job 名 + 步骤名 + 时间戳」的前缀 ⇒ ⇒ 永远匹配不到
-          #   ⇒ ⇒ 打印出来是 **0** ⇒ ⇒ 一个「看起来有读数、其实是假的」的读数 ⇒ ⇒ 比没有更坏。
-          #   ⇒ ⇒ 改成数**汇总行**（「generated N warnings」）⇒ ⇒ 纯文本、不含 ANSI 打断。
-          grep -E 'generated [0-9]+ warnings?' /tmp/desktop-clippy.log | sed -E 's/^.*(generated [0-9]+ warnings?.*)$/\1/' | sort -u || true
+          cargo clippy --manifest-path Cargo.toml --all-targets -p shadow-desktop -- -D warnings

@@ -1,8 +1,6 @@
 use std::path::PathBuf;
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
-use tracing_subscriber::{
-    fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter,
-};
+use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 /// 日志目录名称
 const LOG_DIR_NAME: &str = "logs";
@@ -61,8 +59,7 @@ pub fn init() {
     GUARD.set(_guard).ok();
 
     // 构建 subscriber: stdout + file
-    let env_filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("info"));
+    let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
 
     let stdout_layer = fmt::layer()
         .with_writer(std::io::stdout)
@@ -114,13 +111,24 @@ pub fn log_startup_diagnostics() {
     // compatibility with scripts that pre-date the 2026-09 telencephalon
     // rename. The TELE_* names are canonical going forward.
     for (key, value) in [
-        ("TELE_SKIP_NEURON", std::env::var("TELE_SKIP_NEURON")
-            .or_else(|_| std::env::var("CORTEX_SKIP_NEURON"))
-            .unwrap_or_default()),
-        ("LANCE_URI", std::env::var("LANCE_URI").map(|_| "***".to_string()).unwrap_or_default()),
-        ("TELE_PORT", std::env::var("TELE_PORT")
-            .or_else(|_| std::env::var("CORTEX_PORT"))
-            .unwrap_or_default()),
+        (
+            "TELE_SKIP_NEURON",
+            std::env::var("TELE_SKIP_NEURON")
+                .or_else(|_| std::env::var("CORTEX_SKIP_NEURON"))
+                .unwrap_or_default(),
+        ),
+        (
+            "LANCE_URI",
+            std::env::var("LANCE_URI")
+                .map(|_| "***".to_string())
+                .unwrap_or_default(),
+        ),
+        (
+            "TELE_PORT",
+            std::env::var("TELE_PORT")
+                .or_else(|_| std::env::var("CORTEX_PORT"))
+                .unwrap_or_default(),
+        ),
         ("RUST_LOG", std::env::var("RUST_LOG").unwrap_or_default()),
     ] {
         if !value.is_empty() {

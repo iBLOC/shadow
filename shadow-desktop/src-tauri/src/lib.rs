@@ -1,33 +1,38 @@
-mod mdns;
-mod video_source;
-mod ws_client;
-mod crypto;
-mod model_store;
-mod config_manager;
-mod opencode_manager;
-mod preview_window;
-mod inline_preview;
-mod result_manager;
-mod task_path;
-mod feishu_mcp;
-mod computer_use;
-mod worktree_manager;
-mod recording;
-mod provider_manager;
-mod external_tools;
-mod global_keys;
-mod logger;
-mod telencephalon_http;
 mod admin_token;
 mod brain_face;
+mod computer_use;
+mod config_manager;
+mod crypto;
+mod external_tools;
+mod feishu_mcp;
+mod global_keys;
+mod inline_preview;
+mod logger;
+mod mdns;
+mod model_store;
+mod opencode_manager;
+mod preview_window;
+mod provider_manager;
+mod recording;
+mod result_manager;
+mod task_path;
+mod telencephalon_http;
+mod video_source;
+mod worktree_manager;
+mod ws_client;
 mod ziti_client_config;
 
-use config_manager::{AppConfig, DatabaseConfig, ProviderConfig, SecureAuth};
 use brain_face::{BrainFaceHandle, BrainFaceStatus};
+use computer_use::ComputerUse;
+use config_manager::{AppConfig, DatabaseConfig, ProviderConfig, SecureAuth};
 use encephalon::diencephalon::Thalamus;
-use encephalon::{AcpEnvelope, AgentId, Encephalon};
+use encephalon::telencephalon::a2a::client::TelencephalonStreamEvent as Tse;
+use encephalon::{AgentId, Encephalon};
+use feishu_mcp::{FeishuMcp, FeishuOps, FeishuSheet, MockFeishu, OpenLarkFeishu};
 use model_store::{EncryptedStorage, ModelProvider};
 use opencode_manager::OpenCodeManager;
+use preview_window as preview;
+use result_manager::{CommitInfo, ResultManager as ResultMgr};
 use std::sync::Arc;
 use tauri::{
     image::Image,
@@ -35,12 +40,7 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Manager, Runtime, State, WindowEvent,
 };
-use encephalon::telencephalon::a2a::client::TelencephalonStreamEvent as Tse;
 use worktree_manager::WorktreeManager;
-use result_manager::{CommitInfo, ResultManager as ResultMgr, ResultManagerError};
-use preview_window as preview;
-use feishu_mcp::{FeishuMcp, FeishuOps, FeishuSheet, MockFeishu, OpenLarkFeishu};
-use computer_use::{ComputerUse, Screenshot as CuScreenshot};
 use ws_client::MtlsWebSocketClient;
 
 struct AppState {
@@ -111,8 +111,7 @@ fn probe_storage_root(path: &std::path::Path) -> Result<(), String> {
         .map_err(|e| format!("could not create {}: {e}", path.display()))?;
     // Writability is proven by writing, not by asking.
     let probe = path.join(".shadow-write-probe");
-    std::fs::write(&probe, b"")
-        .map_err(|e| format!("{} is not writable: {e}", path.display()))?;
+    std::fs::write(&probe, b"").map_err(|e| format!("{} is not writable: {e}", path.display()))?;
     let _ = std::fs::remove_file(&probe);
     Ok(())
 }
@@ -132,7 +131,7 @@ fn setup_tray<R: Runtime>(app: &tauri::App<R>) -> Result<(), Box<dyn std::error:
     let icon = Image::from_path("icons/32x32.png")
         .or_else(|_| Image::from_path("icons/icon.png"))
         .unwrap_or_else(|_| {
-            let rgba = vec![0x63, 0x66, 0xf1, 0xff].repeat(32 * 32);
+            let rgba = [0x63, 0x66, 0xf1, 0xff].repeat(32 * 32);
             Image::new_owned(rgba, 32, 32)
         });
 
@@ -227,8 +226,7 @@ pub fn run() {
     // builds its hippocampus state at **boot**, so reading it once here
     // is enough; a changed setting needs a desktop restart.
     let secure_auth = Arc::new(SecureAuth::new());
-    let configured_root =
-        tauri::async_runtime::block_on(secure_auth.get_hippocampus_data_dir());
+    let configured_root = tauri::async_runtime::block_on(secure_auth.get_hippocampus_data_dir());
     // ⚠️ The configured root is probed **now**, not just when it was saved:
     // a path that worked yesterday may be gone today (an unplugged drive).
     // Handing an unusable root to the endbrain would panic the HTTP-face
@@ -307,8 +305,7 @@ pub fn run() {
         // (headless CI runner), the instance is permanently disabled
         // — every mouse/keyboard call returns Disabled.
         computer_use: Arc::new(
-            ComputerUse::new()
-                .unwrap_or_else(|_| unreachable!("ComputerUse::new is infallible")),
+            ComputerUse::new().unwrap_or_else(|_| unreachable!("ComputerUse::new is infallible")),
         ),
         // Feishu MCP for the document-use surface (DOC-01..DOC-05). When
         // FEISHU_APP_ID + FEISHU_APP_SECRET are set we use the real
@@ -412,13 +409,9 @@ pub fn run() {
             // Periodic model refresh: every enabled provider's /models
             // endpoint is re-fetched every 10 minutes so the cached model
             // lists track what the provider actually serves.
-            let refresh_manager = app
-                .state::<AppState>()
-                .provider_manager
-                .clone();
+            let refresh_manager = app.state::<AppState>().provider_manager.clone();
             tauri::async_runtime::spawn(async move {
-                refresh_manager
-                    .start_refresh_loop(std::time::Duration::from_secs(10 * 60));
+                refresh_manager.start_refresh_loop(std::time::Duration::from_secs(10 * 60));
             });
 
             Ok(())
@@ -723,8 +716,9 @@ fn desktop_identity_dir() -> Result<std::path::PathBuf, String> {
 /// 意味着「本机任意进程」，把账号密钥放到那儿等于把身份发出去。
 #[tauri::command]
 fn identity_export() -> Result<String, String> {
-    let account =
-        encephalon::telencephalon::security::identity::AccountIdentity::load_or_create(&desktop_identity_dir()?)?;
+    let account = encephalon::telencephalon::security::identity::AccountIdentity::load_or_create(
+        &desktop_identity_dir()?,
+    )?;
     Ok(account.export_account())
 }
 
@@ -803,9 +797,11 @@ fn base64_decode(input: &str) -> Option<Vec<u8>> {
 
     let input = input.trim();
     let len = input.len();
-    let padding = if len >= 2 && input[len-2..].as_bytes() == b"==" {
+    // ⚠️ 比较的是**尾部** ⇒ ⇒ 直接切字节视图（`input[len-2..].as_bytes()`
+    // 是「先切字符串再转字节」，多一步且在非 ASCII 边界上会 panic）。
+    let padding = if len >= 2 && input.as_bytes()[len - 2..] == *b"==" {
         2
-    } else if len >= 1 && input[len-1..].as_bytes() == b"=" {
+    } else if len >= 1 && input.as_bytes()[len - 1..] == *b"=" {
         1
     } else {
         0
@@ -844,7 +840,10 @@ async fn set_password(
     password: String,
     machine_id: String,
 ) -> Result<String, String> {
-    state.secure_auth.set_password(&password, &machine_id).await?;
+    state
+        .secure_auth
+        .set_password(&password, &machine_id)
+        .await?;
     state.model_storage.set_master_key(&password)?;
     Ok("Password set successfully".to_string())
 }
@@ -860,7 +859,10 @@ async fn verify_password(
     password: String,
     machine_id: String,
 ) -> Result<bool, String> {
-    state.secure_auth.verify_password(&password, &machine_id).await
+    state
+        .secure_auth
+        .verify_password(&password, &machine_id)
+        .await
 }
 
 #[tauri::command]
@@ -917,49 +919,188 @@ struct FetchedModel {
 
 fn get_fallback_models(api_base: &str) -> Option<Vec<FetchedModel>> {
     let api_base_lower = api_base.to_lowercase();
-    
+
     if api_base_lower.contains("minimax") || api_base_lower.contains("minimaxi") {
         return Some(vec![
-            FetchedModel { id: "MiniMax-M2.7".to_string(), name: "MiniMax M2.7".to_string(), model_id: "MiniMax-M2.7".to_string(), model_type: "chat".to_string(), context_length: Some(200000), supports_vision: false, supports_function_calling: true },
-            FetchedModel { id: "MiniMax-M2.7-highspeed".to_string(), name: "MiniMax M2.7 Highspeed".to_string(), model_id: "MiniMax-M2.7-highspeed".to_string(), model_type: "chat".to_string(), context_length: Some(200000), supports_vision: false, supports_function_calling: true },
-            FetchedModel { id: "MiniMax-M2.5".to_string(), name: "MiniMax M2.5".to_string(), model_id: "MiniMax-M2.5".to_string(), model_type: "chat".to_string(), context_length: Some(100000), supports_vision: false, supports_function_calling: true },
-            FetchedModel { id: "MiniMax-M2.5-highspeed".to_string(), name: "MiniMax M2.5 Highspeed".to_string(), model_id: "MiniMax-M2.5-highspeed".to_string(), model_type: "chat".to_string(), context_length: Some(100000), supports_vision: false, supports_function_calling: true },
-            FetchedModel { id: "M2-her".to_string(), name: "M2-her".to_string(), model_id: "M2-her".to_string(), model_type: "chat".to_string(), context_length: Some(32000), supports_vision: false, supports_function_calling: true },
+            FetchedModel {
+                id: "MiniMax-M2.7".to_string(),
+                name: "MiniMax M2.7".to_string(),
+                model_id: "MiniMax-M2.7".to_string(),
+                model_type: "chat".to_string(),
+                context_length: Some(200000),
+                supports_vision: false,
+                supports_function_calling: true,
+            },
+            FetchedModel {
+                id: "MiniMax-M2.7-highspeed".to_string(),
+                name: "MiniMax M2.7 Highspeed".to_string(),
+                model_id: "MiniMax-M2.7-highspeed".to_string(),
+                model_type: "chat".to_string(),
+                context_length: Some(200000),
+                supports_vision: false,
+                supports_function_calling: true,
+            },
+            FetchedModel {
+                id: "MiniMax-M2.5".to_string(),
+                name: "MiniMax M2.5".to_string(),
+                model_id: "MiniMax-M2.5".to_string(),
+                model_type: "chat".to_string(),
+                context_length: Some(100000),
+                supports_vision: false,
+                supports_function_calling: true,
+            },
+            FetchedModel {
+                id: "MiniMax-M2.5-highspeed".to_string(),
+                name: "MiniMax M2.5 Highspeed".to_string(),
+                model_id: "MiniMax-M2.5-highspeed".to_string(),
+                model_type: "chat".to_string(),
+                context_length: Some(100000),
+                supports_vision: false,
+                supports_function_calling: true,
+            },
+            FetchedModel {
+                id: "M2-her".to_string(),
+                name: "M2-her".to_string(),
+                model_id: "M2-her".to_string(),
+                model_type: "chat".to_string(),
+                context_length: Some(32000),
+                supports_vision: false,
+                supports_function_calling: true,
+            },
         ]);
     }
-    
+
     if api_base_lower.contains("moonshot") || api_base_lower.contains(" moonshot") {
         return Some(vec![
-            FetchedModel { id: "moonshot-v1-8k".to_string(), name: "Moonshot V1 8K".to_string(), model_id: "moonshot-v1-8k".to_string(), model_type: "chat".to_string(), context_length: Some(8000), supports_vision: false, supports_function_calling: true },
-            FetchedModel { id: "moonshot-v1-32k".to_string(), name: "Moonshot V1 32K".to_string(), model_id: "moonshot-v1-32k".to_string(), model_type: "chat".to_string(), context_length: Some(32000), supports_vision: false, supports_function_calling: true },
-            FetchedModel { id: "moonshot-v1-128k".to_string(), name: "Moonshot V1 128K".to_string(), model_id: "moonshot-v1-128k".to_string(), model_type: "chat".to_string(), context_length: Some(128000), supports_vision: false, supports_function_calling: true },
+            FetchedModel {
+                id: "moonshot-v1-8k".to_string(),
+                name: "Moonshot V1 8K".to_string(),
+                model_id: "moonshot-v1-8k".to_string(),
+                model_type: "chat".to_string(),
+                context_length: Some(8000),
+                supports_vision: false,
+                supports_function_calling: true,
+            },
+            FetchedModel {
+                id: "moonshot-v1-32k".to_string(),
+                name: "Moonshot V1 32K".to_string(),
+                model_id: "moonshot-v1-32k".to_string(),
+                model_type: "chat".to_string(),
+                context_length: Some(32000),
+                supports_vision: false,
+                supports_function_calling: true,
+            },
+            FetchedModel {
+                id: "moonshot-v1-128k".to_string(),
+                name: "Moonshot V1 128K".to_string(),
+                model_id: "moonshot-v1-128k".to_string(),
+                model_type: "chat".to_string(),
+                context_length: Some(128000),
+                supports_vision: false,
+                supports_function_calling: true,
+            },
         ]);
     }
-    
+
     if api_base_lower.contains("zhipu") || api_base_lower.contains("bigmodel") {
         return Some(vec![
-            FetchedModel { id: "glm-4".to_string(), name: "GLM-4".to_string(), model_id: "glm-4".to_string(), model_type: "chat".to_string(), context_length: Some(128000), supports_vision: true, supports_function_calling: true },
-            FetchedModel { id: "glm-4v".to_string(), name: "GLM-4V".to_string(), model_id: "glm-4v".to_string(), model_type: "chat".to_string(), context_length: Some(4096), supports_vision: true, supports_function_calling: true },
-            FetchedModel { id: "glm-3".to_string(), name: "GLM-3".to_string(), model_id: "glm-3".to_string(), model_type: "chat".to_string(), context_length: Some(128000), supports_vision: false, supports_function_calling: true },
+            FetchedModel {
+                id: "glm-4".to_string(),
+                name: "GLM-4".to_string(),
+                model_id: "glm-4".to_string(),
+                model_type: "chat".to_string(),
+                context_length: Some(128000),
+                supports_vision: true,
+                supports_function_calling: true,
+            },
+            FetchedModel {
+                id: "glm-4v".to_string(),
+                name: "GLM-4V".to_string(),
+                model_id: "glm-4v".to_string(),
+                model_type: "chat".to_string(),
+                context_length: Some(4096),
+                supports_vision: true,
+                supports_function_calling: true,
+            },
+            FetchedModel {
+                id: "glm-3".to_string(),
+                name: "GLM-3".to_string(),
+                model_id: "glm-3".to_string(),
+                model_type: "chat".to_string(),
+                context_length: Some(128000),
+                supports_vision: false,
+                supports_function_calling: true,
+            },
         ]);
     }
-    
+
     if api_base_lower.contains("deepseek") {
         return Some(vec![
-            FetchedModel { id: "deepseek-chat".to_string(), name: "DeepSeek Chat".to_string(), model_id: "deepseek-chat".to_string(), model_type: "chat".to_string(), context_length: Some(64000), supports_vision: false, supports_function_calling: true },
-            FetchedModel { id: "deepseek-coder".to_string(), name: "DeepSeek Coder".to_string(), model_id: "deepseek-coder".to_string(), model_type: "chat".to_string(), context_length: Some(16384), supports_vision: false, supports_function_calling: true },
+            FetchedModel {
+                id: "deepseek-chat".to_string(),
+                name: "DeepSeek Chat".to_string(),
+                model_id: "deepseek-chat".to_string(),
+                model_type: "chat".to_string(),
+                context_length: Some(64000),
+                supports_vision: false,
+                supports_function_calling: true,
+            },
+            FetchedModel {
+                id: "deepseek-coder".to_string(),
+                name: "DeepSeek Coder".to_string(),
+                model_id: "deepseek-coder".to_string(),
+                model_type: "chat".to_string(),
+                context_length: Some(16384),
+                supports_vision: false,
+                supports_function_calling: true,
+            },
         ]);
     }
-    
-    if api_base_lower.contains("qwen") || api_base_lower.contains("aliyun") || api_base_lower.contains("dashscope") {
+
+    if api_base_lower.contains("qwen")
+        || api_base_lower.contains("aliyun")
+        || api_base_lower.contains("dashscope")
+    {
         return Some(vec![
-            FetchedModel { id: "qwen-turbo".to_string(), name: "Qwen Turbo".to_string(), model_id: "qwen-turbo".to_string(), model_type: "chat".to_string(), context_length: Some(8000), supports_vision: false, supports_function_calling: true },
-            FetchedModel { id: "qwen-plus".to_string(), name: "Qwen Plus".to_string(), model_id: "qwen-plus".to_string(), model_type: "chat".to_string(), context_length: Some(131072), supports_vision: false, supports_function_calling: true },
-            FetchedModel { id: "qwen-max".to_string(), name: "Qwen Max".to_string(), model_id: "qwen-max".to_string(), model_type: "chat".to_string(), context_length: Some(131072), supports_vision: false, supports_function_calling: true },
-            FetchedModel { id: "qwen-vl-max".to_string(), name: "Qwen VL Max".to_string(), model_id: "qwen-vl-max".to_string(), model_type: "chat".to_string(), context_length: Some(8000), supports_vision: true, supports_function_calling: true },
+            FetchedModel {
+                id: "qwen-turbo".to_string(),
+                name: "Qwen Turbo".to_string(),
+                model_id: "qwen-turbo".to_string(),
+                model_type: "chat".to_string(),
+                context_length: Some(8000),
+                supports_vision: false,
+                supports_function_calling: true,
+            },
+            FetchedModel {
+                id: "qwen-plus".to_string(),
+                name: "Qwen Plus".to_string(),
+                model_id: "qwen-plus".to_string(),
+                model_type: "chat".to_string(),
+                context_length: Some(131072),
+                supports_vision: false,
+                supports_function_calling: true,
+            },
+            FetchedModel {
+                id: "qwen-max".to_string(),
+                name: "Qwen Max".to_string(),
+                model_id: "qwen-max".to_string(),
+                model_type: "chat".to_string(),
+                context_length: Some(131072),
+                supports_vision: false,
+                supports_function_calling: true,
+            },
+            FetchedModel {
+                id: "qwen-vl-max".to_string(),
+                name: "Qwen VL Max".to_string(),
+                model_id: "qwen-vl-max".to_string(),
+                model_type: "chat".to_string(),
+                context_length: Some(8000),
+                supports_vision: true,
+                supports_function_calling: true,
+            },
         ]);
     }
-    
+
     None
 }
 
@@ -978,13 +1119,19 @@ async fn fetch_provider_models(
         }
     }
 
-    let response = request.send().await.map_err(|e: reqwest::Error| e.to_string())?;
+    let response = request
+        .send()
+        .await
+        .map_err(|e: reqwest::Error| e.to_string())?;
 
     if response.status() == reqwest::StatusCode::NOT_FOUND {
         if let Some(fallback_models) = get_fallback_models(&api_base) {
             return Ok(fallback_models);
         }
-        return Err("API returned status: 404 Not Found. This provider may not support model listing.".to_string());
+        return Err(
+            "API returned status: 404 Not Found. This provider may not support model listing."
+                .to_string(),
+        );
     }
 
     if !response.status().is_success() {
@@ -1029,7 +1176,10 @@ async fn save_provider_config(
     state: State<'_, AppState>,
     provider_config: ProviderConfig,
 ) -> Result<(), String> {
-    state.secure_auth.save_provider_config(provider_config).await
+    state
+        .secure_auth
+        .save_provider_config(provider_config)
+        .await
 }
 
 #[tauri::command]
@@ -1038,10 +1188,7 @@ async fn get_provider_config(state: State<'_, AppState>) -> Result<ProviderConfi
 }
 
 #[tauri::command]
-async fn update_setup_step(
-    state: State<'_, AppState>,
-    step: String,
-) -> Result<(), String> {
+async fn update_setup_step(state: State<'_, AppState>, step: String) -> Result<(), String> {
     state.secure_auth.update_setup_step(&step).await
 }
 
@@ -1068,11 +1215,12 @@ fn get_brain_face_status(state: State<'_, AppState>) -> BrainFaceStatus {
 /// advertises a path nothing writes to is exactly the "failure that
 /// looks like success" shape.
 #[tauri::command]
-async fn get_hippocampus_storage(
-    state: State<'_, AppState>,
-) -> Result<serde_json::Value, String> {
+async fn get_hippocampus_storage(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
     let configured = state.secure_auth.get_hippocampus_data_dir().await;
-    Ok(hippocampus_storage_view(configured, &state.hippocampus_boot))
+    Ok(hippocampus_storage_view(
+        configured,
+        &state.hippocampus_boot,
+    ))
 }
 
 /// Point the hippocampus at another directory.
@@ -1107,7 +1255,10 @@ async fn set_hippocampus_storage(
             }
         }
     };
-    state.secure_auth.save_hippocampus_data_dir(normalized).await?;
+    state
+        .secure_auth
+        .save_hippocampus_data_dir(normalized)
+        .await?;
     Ok(hippocampus_storage_view(
         state.secure_auth.get_hippocampus_data_dir().await,
         &state.hippocampus_boot,
@@ -1160,10 +1311,7 @@ fn hippocampus_storage_view(
 }
 
 #[tauri::command]
-async fn opencode_launch(
-    state: State<'_, AppState>,
-    port: Option<u16>,
-) -> Result<String, String> {
+async fn opencode_launch(state: State<'_, AppState>, port: Option<u16>) -> Result<String, String> {
     let instance = state.opencode_manager.launch(port).await?;
     Ok(instance.id)
 }
@@ -1179,10 +1327,7 @@ async fn opencode_install() -> Result<(), String> {
 }
 
 #[tauri::command]
-async fn opencode_stop(
-    state: State<'_, AppState>,
-    instance_id: String,
-) -> Result<(), String> {
+async fn opencode_stop(state: State<'_, AppState>, instance_id: String) -> Result<(), String> {
     state.opencode_manager.stop(&instance_id).await
 }
 
@@ -1199,7 +1344,10 @@ async fn opencode_create_session(
     instance_id: String,
     project_path: String,
 ) -> Result<String, String> {
-    state.opencode_manager.create_session(&instance_id, &project_path).await
+    state
+        .opencode_manager
+        .create_session(&instance_id, &project_path)
+        .await
 }
 
 #[tauri::command]
@@ -1209,7 +1357,10 @@ async fn opencode_send_message(
     session_id: String,
     message: String,
 ) -> Result<String, String> {
-    state.opencode_manager.send_message(&instance_id, &session_id, &message).await
+    state
+        .opencode_manager
+        .send_message(&instance_id, &session_id, &message)
+        .await
 }
 
 #[tauri::command]
@@ -1219,14 +1370,14 @@ async fn worktree_create(
     repo_path: String,
     base_branch: Option<String>,
 ) -> Result<worktree_manager::WorktreeInfo, String> {
-    state.worktree_manager.create(&task_id, &repo_path, base_branch.as_deref()).await
+    state
+        .worktree_manager
+        .create(&task_id, &repo_path, base_branch.as_deref())
+        .await
 }
 
 #[tauri::command]
-async fn worktree_delete(
-    state: State<'_, AppState>,
-    task_id: String,
-) -> Result<(), String> {
+async fn worktree_delete(state: State<'_, AppState>, task_id: String) -> Result<(), String> {
     state.worktree_manager.delete(&task_id).await
 }
 
@@ -1255,7 +1406,7 @@ pub struct WorkflowPlan {
 
 #[tauri::command]
 async fn workflow_start_planning(
-    state: State<'_, AppState>,
+    _state: State<'_, AppState>,
     _task_id: String,
     task_title: String,
     task_description: String,
@@ -1273,27 +1424,27 @@ async fn workflow_start_planning(
 
     match serde_json::from_str::<WorkflowPlan>("") {
         Ok(plan) => Ok(plan),
-        Err(_) => {
-            Ok(WorkflowPlan {
-                steps: vec![PlanStep {
-                    order: 1,
-                    description: format!("Execute: {}", task_title),
-                    agent_type: "opencode".to_string(),
-                    target_file: None,
-                }],
-                estimated_time: Some("1 hour".to_string()),
-                required_agents: vec!["opencode".to_string()],
-            })
-        }
+        Err(_) => Ok(WorkflowPlan {
+            steps: vec![PlanStep {
+                order: 1,
+                description: format!("Execute: {}", task_title),
+                agent_type: "opencode".to_string(),
+                target_file: None,
+            }],
+            estimated_time: Some("1 hour".to_string()),
+            required_agents: vec!["opencode".to_string()],
+        }),
     }
 }
 
 #[tauri::command]
-async fn approve_task(
-    state: State<'_, AppState>,
-    task_id: String,
-) -> Result<(), String> {
-    state.workflow_state.lock().await.approved_tasks.insert(task_id, true);
+async fn approve_task(state: State<'_, AppState>, task_id: String) -> Result<(), String> {
+    state
+        .workflow_state
+        .lock()
+        .await
+        .approved_tasks
+        .insert(task_id, true);
     Ok(())
 }
 
@@ -1303,7 +1454,12 @@ async fn reject_task(
     task_id: String,
     reason: String,
 ) -> Result<(), String> {
-    state.workflow_state.lock().await.rejected_tasks.insert(task_id, reason);
+    state
+        .workflow_state
+        .lock()
+        .await
+        .rejected_tasks
+        .insert(task_id, reason);
     Ok(())
 }
 
@@ -1315,8 +1471,14 @@ async fn workflow_execute_step(
 ) -> Result<String, String> {
     if step.agent_type == "opencode" {
         let instance = state.opencode_manager.launch(None).await?;
-        let session_id = state.opencode_manager.create_session(&instance.id, "").await?;
-        let response = state.opencode_manager.send_message(&instance.id, &session_id, &step.description).await?;
+        let session_id = state
+            .opencode_manager
+            .create_session(&instance.id, "")
+            .await?;
+        let response = state
+            .opencode_manager
+            .send_message(&instance.id, &session_id, &step.description)
+            .await?;
         Ok(response)
     } else {
         Err(format!("Unsupported agent type: {}", step.agent_type))
@@ -1431,26 +1593,23 @@ async fn recording_report(
     if let Some(existing) = state.recording_store.get_summary(&session_id) {
         return Ok(existing);
     }
-    state
-        .recording_store
-        .summarize(&session_id, |events| {
-            // v1 stub: 按时间拼接事件文本；person_ids 去重收集。
-            let mut text = String::from("记录总结：\n");
-            let mut ids = Vec::new();
-            for e in events {
-                text.push_str(&format!(
-                    "- [{}s–{}s] {}\n",
-                    e.start_rel_ms / 1000,
-                    e.end_rel_ms / 1000,
-                    e.content
-                ));
-                ids.extend(e.person_ids.iter().cloned());
-            }
-            ids.sort();
-            ids.dedup();
-            (text, ids)
-        })
-        .map_err(|e| e)
+    state.recording_store.summarize(&session_id, |events| {
+        // v1 stub: 按时间拼接事件文本；person_ids 去重收集。
+        let mut text = String::from("记录总结：\n");
+        let mut ids = Vec::new();
+        for e in events {
+            text.push_str(&format!(
+                "- [{}s–{}s] {}\n",
+                e.start_rel_ms / 1000,
+                e.end_rel_ms / 1000,
+                e.content
+            ));
+            ids.extend(e.person_ids.iter().cloned());
+        }
+        ids.sort();
+        ids.dedup();
+        (text, ids)
+    })
 }
 
 // -- WS-05 / DOC-01..DOC-05 document-use surface -------------------------
@@ -1463,10 +1622,9 @@ async fn recording_report(
 
 const DEFAULT_XLSX_NAME: &str = "summary.xlsx";
 
-async fn read_task_xlsx(state: &AppState, task_id: &str) -> Result<Vec<u8>, String> {
+async fn read_task_xlsx(_state: &AppState, task_id: &str) -> Result<Vec<u8>, String> {
     use std::path::PathBuf;
-    let home = dirs::home_dir()
-        .ok_or_else(|| "no $HOME".to_string())?;
+    let home = dirs::home_dir().ok_or_else(|| "no $HOME".to_string())?;
     // ⚠️ **task id 先校验** —— 它是命令入参（外部输入）。裸 join 会让
     // `../` 逃出 `~/.shadow/results/`，Windows 上绝对路径还会**整体
     // 替换** base ⇒ ⇒ 读到并**回传**任意文件的内容。
@@ -1477,13 +1635,11 @@ async fn read_task_xlsx(state: &AppState, task_id: &str) -> Result<Vec<u8>, Stri
         .map_err(|e| format!("read {}: {e}", path.display()))
 }
 
-async fn write_task_xlsx(state: &AppState, task_id: &str, bytes: &[u8]) -> Result<(), String> {
+async fn write_task_xlsx(_state: &AppState, task_id: &str, bytes: &[u8]) -> Result<(), String> {
     use std::path::PathBuf;
-    let home = dirs::home_dir()
-        .ok_or_else(|| "no $HOME".to_string())?;
+    let home = dirs::home_dir().ok_or_else(|| "no $HOME".to_string())?;
     // ⚠️ 同上：未校验 ⇒ 能在**任意**目录建目录并写入**调用方给的内容**。
-    let dir: PathBuf =
-        task_path::task_dir(&home.join(".shadow").join("results"), task_id)?;
+    let dir: PathBuf = task_path::task_dir(&home.join(".shadow").join("results"), task_id)?;
     tokio::fs::create_dir_all(&dir)
         .await
         .map_err(|e| format!("mkdir {}: {e}", dir.display()))?;
@@ -1519,12 +1675,12 @@ async fn document_save(
 #[tauri::command]
 async fn document_publish_feishu(
     state: State<'_, AppState>,
-    task_id: String,
+    _task_id: String,
     title: String,
     folder_token: Option<String>,
     sheets: Vec<Vec<Vec<String>>>,
 ) -> Result<FeishuSheet, String> {
-    if state.feishu_mcp.is_enabled() == false {
+    if !state.feishu_mcp.is_enabled() {
         return Err("feishu disabled (FEISHU_ENABLED=0)".into());
     }
     // DOC-03 step 3 — create.
@@ -1535,14 +1691,17 @@ async fn document_publish_feishu(
         .map_err(|e| e.to_string())?;
     // DOC-03 step 4 — write each sheet.
     for (i, rows) in sheets.iter().enumerate() {
-        let sheet_meta = sheet.sheets.get(i).cloned().unwrap_or_else(|| {
-            feishu_mcp::FeishuSheetMeta {
-                sheet_id: format!("sheet{}", i + 1),
-                title: format!("Sheet{}", i + 1),
-                row_count: rows.len() as i64,
-                column_count: rows.iter().map(|r| r.len() as i64).max().unwrap_or(0),
-            }
-        });
+        let sheet_meta =
+            sheet
+                .sheets
+                .get(i)
+                .cloned()
+                .unwrap_or_else(|| feishu_mcp::FeishuSheetMeta {
+                    sheet_id: format!("sheet{}", i + 1),
+                    title: format!("Sheet{}", i + 1),
+                    row_count: rows.len() as i64,
+                    column_count: rows.iter().map(|r| r.len() as i64).max().unwrap_or(0),
+                });
         let range = format!("{}!A1:Z{}", sheet_meta.sheet_id, rows.len().max(1));
         if let Err(e) = state
             .feishu_mcp
@@ -1550,8 +1709,13 @@ async fn document_publish_feishu(
             .await
         {
             // DOC-04 — best-effort rollback.
-            let _ = state.feishu_mcp.delete_sheet(&sheet.spreadsheet_token).await;
-            return Err(format!("write_sheet_values sheet {i} failed: {e}; rolled back"));
+            let _ = state
+                .feishu_mcp
+                .delete_sheet(&sheet.spreadsheet_token)
+                .await;
+            return Err(format!(
+                "write_sheet_values sheet {i} failed: {e}; rolled back"
+            ));
         }
     }
     // DOC-03 step 5 — share with view perm (default target = the
@@ -1564,7 +1728,10 @@ async fn document_publish_feishu(
         .share_sheet(&sheet.spreadsheet_token, "email", member_email, perm)
         .await
     {
-        let _ = state.feishu_mcp.delete_sheet(&sheet.spreadsheet_token).await;
+        let _ = state
+            .feishu_mcp
+            .delete_sheet(&sheet.spreadsheet_token)
+            .await;
         return Err(format!("share_sheet failed: {e}; rolled back"));
     }
     Ok(sheet)
@@ -1576,10 +1743,7 @@ async fn document_publish_feishu(
 // alongside the other document_* commands.
 
 #[tauri::command]
-async fn document_set_feishu_enabled(
-    state: State<'_, AppState>,
-    on: bool,
-) -> Result<(), String> {
+async fn document_set_feishu_enabled(state: State<'_, AppState>, on: bool) -> Result<(), String> {
     state.feishu_mcp.set_enabled(on);
     Ok(())
 }
@@ -1591,7 +1755,6 @@ async fn document_feishu_enabled(state: State<'_, AppState>) -> Result<bool, Str
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     // CortexManager was removed when the old sidecar was replaced by
     // the embedded encephalon (commit be50b7f). The old

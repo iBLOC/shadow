@@ -45,8 +45,13 @@ use thiserror::Error;
 pub enum FeishuError {
     #[error("feishu disabled (set FEISHU_ENABLED=1 to allow)")]
     Disabled,
+    // ⚠️ `ConfigMissing` / `Auth` 还没被构造出来（2026-11-08）—— 它们是
+    // **接口面的一部分**（配置缺失/鉴权失败是这条链真实会发生的两种失败），
+    // 删掉它们就等于说「这两种失败不存在」⇒ ⇒ 显式豁免并留名。
+    #[allow(dead_code)]
     #[error("feishu config missing: {0}")]
     ConfigMissing(&'static str),
+    #[allow(dead_code)]
     #[error("feishu auth: {0}")]
     Auth(String),
     #[error("feishu api: {0}")]
@@ -109,7 +114,7 @@ pub struct FeishuMcp {
 fn env_gate_enabled() -> bool {
     std::env::var("FEISHU_ENABLED")
         .ok()
-        .map(|v| v != "0" && v.to_ascii_lowercase() != "false")
+        .map(|v| v != "0" && !v.eq_ignore_ascii_case("false"))
         .unwrap_or(false)
 }
 
@@ -196,17 +201,25 @@ impl FeishuMcp {
     /// set. The wire-format follows the same MCP substrate used by
     /// diencephalon (P1) and hippocampus, so any peer can mount this
     /// server without bespoke glue.
+    ///
+    /// ⚠️ **还没被挂载**（2026-11-08）：桌面端目前没把这个 server 挂到
+    /// 任何地方（只有测试在用）⇒ ⇒ 但它是**成型的对外集成面**（5 个工具
+    /// ＋ 事务序），不是死代码 ⇒ ⇒ 显式豁免并留名（等它被挂上）。
+    #[allow(dead_code)]
     pub fn mcp_server(self: &Arc<Self>) -> synapse::mcp::SimpleMcpServer {
         use serde_json::json;
-        use synapse::mcp::{McpServer, ToolHandler};
         use std::sync::Arc as StdArc;
+        use synapse::mcp::ToolHandler;
 
         struct OneShotHandler<F>(StdArc<F>);
         #[async_trait::async_trait]
         impl<F, Fut> ToolHandler for OneShotHandler<F>
         where
             F: Fn(serde_json::Value) -> Fut + Send + Sync + 'static,
-            Fut: std::future::Future<Output = Result<synapse::mcp::McpCallToolResult, synapse::mcp::McpError>> + Send + 'static,
+            Fut: std::future::Future<
+                    Output = Result<synapse::mcp::McpCallToolResult, synapse::mcp::McpError>,
+                > + Send
+                + 'static,
         {
             async fn execute(
                 &self,
@@ -219,15 +232,21 @@ impl FeishuMcp {
         let me = self.clone();
         let mk_text = |s: String| {
             Ok(synapse::mcp::McpCallToolResult {
-                content: vec![synapse::mcp::McpContent::Text(synapse::mcp::McpTextContent { text: s })],
+                content: vec![synapse::mcp::McpContent::Text(
+                    synapse::mcp::McpTextContent { text: s },
+                )],
                 is_error: false,
             })
         };
         let mk_err = |msg: String| {
-            Err(synapse::mcp::McpError::Rpc { code: -32000, message: msg })
+            Err(synapse::mcp::McpError::Rpc {
+                code: -32000,
+                message: msg,
+            })
         };
 
-        let mut server = synapse::mcp::SimpleMcpServer::new("shadow-feishu", env!("CARGO_PKG_VERSION"));
+        let mut server =
+            synapse::mcp::SimpleMcpServer::new("shadow-feishu", env!("CARGO_PKG_VERSION"));
 
         // feishu_sheet_create(title, folder_token?)
         {
@@ -246,8 +265,13 @@ impl FeishuMcp {
                 OneShotHandler(StdArc::new(move |args: serde_json::Value| {
                     let me = me.clone();
                     async move {
-                        let title = args.get("title").and_then(|v| v.as_str())
-                            .ok_or_else(|| synapse::mcp::McpError::Rpc { code: -32602, message: "missing title".into() })?;
+                        let title =
+                            args.get("title").and_then(|v| v.as_str()).ok_or_else(|| {
+                                synapse::mcp::McpError::Rpc {
+                                    code: -32602,
+                                    message: "missing title".into(),
+                                }
+                            })?;
                         let folder = args.get("folder_token").and_then(|v| v.as_str());
                         match me.create_sheet(title, folder).await {
                             Ok(s) => mk_text(serde_json::to_string(&s).unwrap_or_default()),
@@ -280,16 +304,40 @@ impl FeishuMcp {
                 OneShotHandler(StdArc::new(move |args: serde_json::Value| {
                     let me = me.clone();
                     async move {
-                        let tok = args.get("spreadsheet_token").and_then(|v| v.as_str())
-                            .ok_or_else(|| synapse::mcp::McpError::Rpc { code: -32602, message: "missing spreadsheet_token".into() })?;
-                        let sheet = args.get("sheet_id").and_then(|v| v.as_str())
-                            .ok_or_else(|| synapse::mcp::McpError::Rpc { code: -32602, message: "missing sheet_id".into() })?;
-                        let range = args.get("range").and_then(|v| v.as_str())
-                            .ok_or_else(|| synapse::mcp::McpError::Rpc { code: -32602, message: "missing range".into() })?;
+                        let tok = args
+                            .get("spreadsheet_token")
+                            .and_then(|v| v.as_str())
+                            .ok_or_else(|| synapse::mcp::McpError::Rpc {
+                                code: -32602,
+                                message: "missing spreadsheet_token".into(),
+                            })?;
+                        let sheet =
+                            args.get("sheet_id")
+                                .and_then(|v| v.as_str())
+                                .ok_or_else(|| synapse::mcp::McpError::Rpc {
+                                    code: -32602,
+                                    message: "missing sheet_id".into(),
+                                })?;
+                        let range =
+                            args.get("range").and_then(|v| v.as_str()).ok_or_else(|| {
+                                synapse::mcp::McpError::Rpc {
+                                    code: -32602,
+                                    message: "missing range".into(),
+                                }
+                            })?;
                         let values: Vec<Vec<String>> = match args.get("values") {
-                            Some(v) => serde_json::from_value(v.clone())
-                                .map_err(|e| synapse::mcp::McpError::Rpc { code: -32602, message: format!("values: {e}") })?,
-                            None => return Err(synapse::mcp::McpError::Rpc { code: -32602, message: "missing values".into() }),
+                            Some(v) => serde_json::from_value(v.clone()).map_err(|e| {
+                                synapse::mcp::McpError::Rpc {
+                                    code: -32602,
+                                    message: format!("values: {e}"),
+                                }
+                            })?,
+                            None => {
+                                return Err(synapse::mcp::McpError::Rpc {
+                                    code: -32602,
+                                    message: "missing values".into(),
+                                })
+                            }
                         };
                         match me.write_sheet_values(tok, sheet, range, &values).await {
                             Ok(()) => mk_text("ok".into()),
@@ -319,14 +367,33 @@ impl FeishuMcp {
                 OneShotHandler(StdArc::new(move |args: serde_json::Value| {
                     let me = me.clone();
                     async move {
-                        let tok = args.get("spreadsheet_token").and_then(|v| v.as_str())
-                            .ok_or_else(|| synapse::mcp::McpError::Rpc { code: -32602, message: "missing spreadsheet_token".into() })?;
-                        let mt = args.get("member_type").and_then(|v| v.as_str())
-                            .ok_or_else(|| synapse::mcp::McpError::Rpc { code: -32602, message: "missing member_type".into() })?;
-                        let mid = args.get("member_id").and_then(|v| v.as_str())
-                            .ok_or_else(|| synapse::mcp::McpError::Rpc { code: -32602, message: "missing member_id".into() })?;
-                        let perm = args.get("perm").and_then(|v| v.as_str())
-                            .ok_or_else(|| synapse::mcp::McpError::Rpc { code: -32602, message: "missing perm".into() })?;
+                        let tok = args
+                            .get("spreadsheet_token")
+                            .and_then(|v| v.as_str())
+                            .ok_or_else(|| synapse::mcp::McpError::Rpc {
+                                code: -32602,
+                                message: "missing spreadsheet_token".into(),
+                            })?;
+                        let mt = args
+                            .get("member_type")
+                            .and_then(|v| v.as_str())
+                            .ok_or_else(|| synapse::mcp::McpError::Rpc {
+                                code: -32602,
+                                message: "missing member_type".into(),
+                            })?;
+                        let mid =
+                            args.get("member_id")
+                                .and_then(|v| v.as_str())
+                                .ok_or_else(|| synapse::mcp::McpError::Rpc {
+                                    code: -32602,
+                                    message: "missing member_id".into(),
+                                })?;
+                        let perm = args.get("perm").and_then(|v| v.as_str()).ok_or_else(|| {
+                            synapse::mcp::McpError::Rpc {
+                                code: -32602,
+                                message: "missing perm".into(),
+                            }
+                        })?;
                         match me.share_sheet(tok, mt, mid, perm).await {
                             Ok(()) => mk_text("ok".into()),
                             Err(e) => mk_err(format!("feishu_sheet_share: {e}")),
@@ -354,8 +421,13 @@ impl FeishuMcp {
                 OneShotHandler(StdArc::new(move |args: serde_json::Value| {
                     let me = me.clone();
                     async move {
-                        let tok = args.get("spreadsheet_token").and_then(|v| v.as_str())
-                            .ok_or_else(|| synapse::mcp::McpError::Rpc { code: -32602, message: "missing spreadsheet_token".into() })?;
+                        let tok = args
+                            .get("spreadsheet_token")
+                            .and_then(|v| v.as_str())
+                            .ok_or_else(|| synapse::mcp::McpError::Rpc {
+                                code: -32602,
+                                message: "missing spreadsheet_token".into(),
+                            })?;
                         match me.delete_sheet(tok).await {
                             Ok(()) => mk_text("ok".into()),
                             Err(e) => mk_err(format!("feishu_sheet_delete: {e}")),
@@ -381,8 +453,12 @@ impl FeishuMcp {
                 OneShotHandler(StdArc::new(move |args: serde_json::Value| {
                     let me = me.clone();
                     async move {
-                        let on = args.get("on").and_then(|v| v.as_bool())
-                            .ok_or_else(|| synapse::mcp::McpError::Rpc { code: -32602, message: "missing on".into() })?;
+                        let on = args.get("on").and_then(|v| v.as_bool()).ok_or_else(|| {
+                            synapse::mcp::McpError::Rpc {
+                                code: -32602,
+                                message: "missing on".into(),
+                            }
+                        })?;
                         me.set_enabled(on);
                         mk_text(if on { "enabled" } else { "disabled" }.into())
                     }
@@ -404,12 +480,33 @@ pub struct MockFeishu {
     pub calls: std::sync::Mutex<Vec<MockCall>>,
 }
 
+/// Mock 记录下来的调用 —— 变体是「调了哪个 API」，载荷是「调的时候带了
+/// 什么参数」。
+///
+/// ⚠️ 载荷字段目前**没人读**（2026-11-08）：断言只看变体顺序 ⇒ ⇒ 显式
+/// 豁免并留名（将来断言要看载荷时，这些字段已经在那儿了）。
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub enum MockCall {
-    CreateSheet { title: String, folder_token: Option<String> },
-    WriteValues { spreadsheet_token: String, sheet_id: String, range: String, rows: usize },
-    Share { spreadsheet_token: String, member_type: String, member_id: String, perm: String },
-    Delete { spreadsheet_token: String },
+    CreateSheet {
+        title: String,
+        folder_token: Option<String>,
+    },
+    WriteValues {
+        spreadsheet_token: String,
+        sheet_id: String,
+        range: String,
+        rows: usize,
+    },
+    Share {
+        spreadsheet_token: String,
+        member_type: String,
+        member_id: String,
+        perm: String,
+    },
+    Delete {
+        spreadsheet_token: String,
+    },
 }
 
 #[async_trait]
@@ -590,9 +687,15 @@ mod tests {
         ));
         let server = m.mcp_server();
         assert!(!m.is_enabled());
-        let _ = server.call_tool("feishu_set_enabled", json!({"on": true})).await.unwrap();
+        let _ = server
+            .call_tool("feishu_set_enabled", json!({"on": true}))
+            .await
+            .unwrap();
         assert!(m.is_enabled());
-        let _ = server.call_tool("feishu_set_enabled", json!({"on": false})).await.unwrap();
+        let _ = server
+            .call_tool("feishu_set_enabled", json!({"on": false}))
+            .await
+            .unwrap();
         assert!(!m.is_enabled());
     }
 }

@@ -73,11 +73,9 @@ pub fn load_from(path: &Path) -> Option<ZitiClientConfig> {
 /// 把配置写到 `path`（父目录不存在就建）。
 pub fn save_to(path: &Path, cfg: &ZitiClientConfig) -> Result<(), String> {
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format!("create {}: {e}", parent.display()))?;
+        std::fs::create_dir_all(parent).map_err(|e| format!("create {}: {e}", parent.display()))?;
     }
-    let text =
-        serde_json::to_string_pretty(cfg).map_err(|e| format!("serialize config: {e}"))?;
+    let text = serde_json::to_string_pretty(cfg).map_err(|e| format!("serialize config: {e}"))?;
     std::fs::write(path, text).map_err(|e| format!("write {}: {e}", path.display()))
 }
 
@@ -86,9 +84,7 @@ pub fn save_to(path: &Path, cfg: &ZitiClientConfig) -> Result<(), String> {
 /// 配置完整 ⇒ `set_options(Some(...))`（显式 setter 赢过 env）；
 /// 没文件 / 没启用 / 字段不全 ⇒ 什么都不做 ⇒ env 照旧生效。
 pub fn apply_at_startup() {
-    apply_at_startup_with(
-        &default_config_path().map_or_else(PathBuf::new, |p| p),
-    );
+    apply_at_startup_with(&default_config_path().unwrap_or_default());
 }
 
 /// [`apply_at_startup`] 的可测形态（路径可注入）。
@@ -105,18 +101,13 @@ pub fn apply_at_startup_with(path: &Path) {
         );
         return;
     }
-    let options = encephalon::ziti_client::ClientOptions::new(
-        cfg.identity_path.trim(),
-        cfg.service.trim(),
-    );
+    let options =
+        encephalon::ziti_client::ClientOptions::new(cfg.identity_path.trim(), cfg.service.trim());
     encephalon::ziti_client::set_options(Some(options));
     // ⚠️ 身份路径**不打全** —— 它指向的身份文件本身就是这台机器在网上的身份。
     tracing::info!(
         "零信任客户端模式（设置页配置）：identity=…{}，service={}",
-        cfg.identity_path
-            .rsplit(['/', '\\'])
-            .next()
-            .unwrap_or("?"),
+        cfg.identity_path.rsplit(['/', '\\']).next().unwrap_or("?"),
         cfg.service
     );
 }
@@ -145,9 +136,7 @@ pub fn ziti_client_set_config(
         service: service.trim().to_string(),
     };
     if cfg.enabled && !cfg.is_complete() {
-        return Err(
-            "启用零信任客户端需要同时填写身份文件路径与服务名".to_string(),
-        );
+        return Err("启用零信任客户端需要同时填写身份文件路径与服务名".to_string());
     }
     let Some(path) = default_config_path() else {
         return Err("这台机器没有可用的配置目录".to_string());
@@ -269,8 +258,8 @@ mod tests {
         )
         .unwrap();
         apply_at_startup_with(&path);
-        let opts = encephalon::ziti_client::explicit_options()
-            .expect("完整配置 ⇒ 显式 options 被设置");
+        let opts =
+            encephalon::ziti_client::explicit_options().expect("完整配置 ⇒ 显式 options 被设置");
         assert_eq!(opts.identity_path, "/tmp/id.json");
         assert_eq!(opts.service_name, "shadow-brain");
         // 清理：别把单例留给同进程的其它测试。
@@ -303,9 +292,10 @@ mod tests {
         // ⚠️ 设置页的徽章读的就是它 ⇒ ⇒ 它必须与 serve 启动时的判据
         // （`is_client_mode()`：显式 setter **或** 环境变量）一致。
         let _guard = lock_singleton();
-        encephalon::ziti_client::set_options(Some(
-            encephalon::ziti_client::ClientOptions::new("/tmp/id.json", "shadow-brain"),
-        ));
+        encephalon::ziti_client::set_options(Some(encephalon::ziti_client::ClientOptions::new(
+            "/tmp/id.json",
+            "shadow-brain",
+        )));
         assert!(ziti_client_runtime_mode(), "显式配置了 ⇒ 运行时就是客户端");
         encephalon::ziti_client::set_options(None);
         // 环境变量也能打开它 ⇒ ⇒ 只有这台机器没配那个变量时，才能断言「本地」。

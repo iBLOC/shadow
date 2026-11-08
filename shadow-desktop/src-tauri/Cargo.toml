@@ -239,10 +239,10 @@ wiremock = "0.6"
 tokio = { version = "1", features = ["macros", "rt", "time"] }
 # `ServiceExt::oneshot` —— 路由挂载形状的单测用它直接打 router。
 tower = { version = "0.5", features = ["util"] }
-# `tests/embedded_stack.rs` 要用 neuron 的嵌入运行时（`neuron_lib` 是
-# neuron 的 [lib] target 名）。**必须和 telencephalon 用同一个源**，
-# 否则 cargo 会把 neuron 编成两份，类型对不上。
-# ⚠️ 2026-11-04：那个「同一个源」现在是**本地路径依赖** `../../../neuron`
-#    （端脑那份也刚切过来）⇒ ⇒ 钉 git rev 走不通：neuron HEAD 有嵌套的
-#    path 依赖（synapse-privacy）⇒ ⇒ 从 cargo 的 git checkout 里解析必然失败。
-neuron = { path = "../../../neuron", default-features = false }
+# ⚠️ **这里曾经有一条 `neuron` 的 dev-dependency** —— 那让桌面端的测试
+# **自己起一个 neuron**（`neuron::run_embedded`）⇒ ⇒ 进程里的第二个 neuron
+# ⇒ ⇒ 同一批模型被重复占用一份 ⇒ ⇒ 2026-11-08 用户拍板「所有的本地推理任务
+# 都应该由大脑中的 neuron 提供」⇒ ⇒ **删掉**。
+# ⇒ ⇒ 桌面端**连 neuron 这个 crate 都不直接依赖**：要推理能力就经
+#    `encephalon::telencephalon::neuron_embed`（大脑里那一个）。
+# ⇒ ⇒ 那条不变量由 `shadow/scripts/check-neuron-ownership.mjs`（N13）钉住。
