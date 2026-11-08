@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Mic, MicOff, Loader2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { telencephalonClient } from '@/lib/telencephalonClient';
+import { bytesToBase64, webmToWav16k } from '@/lib/audio';
 
 interface VoiceButtonProps {
   onTranscription: (text: string) => void;
@@ -77,10 +78,12 @@ export function VoiceButton({ onTranscription, onError, disabled, className }: V
 
   const processAudio = useCallback(async (audioBlob: Blob) => {
     try {
-      const arrayBuffer = await audioBlob.arrayBuffer();
-      const base64Audio = btoa(
-        new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
-      );
+      // ⚠️ **必须转成 WAV 再送** —— 浏览器录的是 `audio/webm;codecs=opus`，
+      // 而大脑 ASR（neuron）**只认 RIFF/WAVE** ⇒ ⇒ 直接送 webm 只会拿到
+      // 「audio does not look like WAV」⇒ ⇒ 转换在**录音这一侧**做
+      // （WebAudio 解 opus → 降单声道 → 重采样 16 kHz → 16-bit WAV）。
+      const wavBytes = await webmToWav16k(audioBlob);
+      const base64Audio = bytesToBase64(wavBytes);
 
       // ⚠️ **走 `telencephalonClient`，不要裸 fetch 相对路径** ——
       // 端脑的路由是 `/api/telencephalon/voice/transcribe`（**不是** `/api/cortex/*`）；
@@ -88,7 +91,7 @@ export function VoiceButton({ onTranscription, onError, disabled, className }: V
       // 不是端脑 ⇒ 在 Tauri 里必然失败。
       // 走 client 还顺带拿到两件事：① 可配置的 `baseUrl` ② `X-Shadow-Key`。
       // （`telencephalonClient.transcribeAudio` 已经封装好了这条路。）
-      const result = await telencephalonClient.transcribeAudio(base64Audio, 'webm', 'zh');
+      const result = await telencephalonClient.transcribeAudio(base64Audio, 'wav', 'zh');
 
       if (result.text) {
         onTranscription(result.text);
