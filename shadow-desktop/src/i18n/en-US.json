@@ -48,7 +48,8 @@
       "success": "Moved to {peer}",
       "error": "Move failed: {error}",
       "sizeKb": "{kb} KB",
-      "messageCount": "{count} messages"
+      "messageCount": "{count} messages",
+      "peerListFailed": "Can't read the Shadow node list: {error}"
     },
     "delegate": {
       "title": "Delegate to peer",
@@ -61,6 +62,8 @@
       "result": "Result from peer",
       "error": "Error: {error}",
       "emptyPeers": "No A2A peers found. Add a peer to delegate tasks.",
+      "peerListFailed": "Can't read the A2A peer list: {error}",
+      "peerAddFailed": "Failed to add the peer: {error}",
       "sending": "Sending to peer...",
       "button": "Delegate"
     },

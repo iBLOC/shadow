@@ -1,5 +1,27 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-08 (㐄 **「JS 面 env 竞争判据 v4 —— 跨文件 env 共享的真条件是**两个条件同时成立**（同 worker **且** `isolate:false`），v3 那个『任一成立就判红』的写法**过宽、会误报**；机制矩阵补全到四格；干净树成对读数给出**真判决**：本仓多 worker 全绿（144 文件/1372 用例）、**单 worker 红 112 个用例** ⇒ ⇒『CI 单 worker 会不会飘红』这条欠项**有了答案：会**」** —— 承 㐃 条那版 v3 判据，本条记**机制矩阵补全**、**判据收窄**、**真判决**、**两处更正**（含上一刀那条**过度归因**），以及**仍然欠着的**。)
+
+> 信封：epoch=2026-11-08 | authority=measured | scope=project | source=真机实测（vitest 3.2.4；机制矩阵 G1–H1 共 8 格，含「首次跑」控制；**干净 worktree**（HEAD=`cf8e809`）＋ `node_modules` junction ＋ 补上 `resolve.alias` 的成对全量读数；`scripts/lib/env-race-js.mjs` ＋ `scripts/check-test-env-races.mjs` 改判据 v4；自检 **15/15**；本仓闸读数：JS 面 **146 个 vitest 测试文件 / 207 个生产文件**、并发面 0、跨文件（判红档 0／条件档 0）、判不了 0 ⇒ ⇒ **EXIT=0**）| status=active | supersedes=none
+
+① **⚠️⚠️ 判据 v4：跨文件 env 共享的真条件是 **AND**，不是 OR** —— 实测矩阵（同 root、**首次跑**（新文件名 ⇒ 缓存无记录 ⇒ 顺序＝大小降序 ⇒ 写文件先跑）、`fileParallelism:false` 除非另注）：· **`isolate:false` ＋ 同 worker ⇒ ⇒ 泄漏**（`PROBE_G4_SEEN=set-by-G3`）；· **`isolate:false` ＋ 多 worker ⇒ ⇒ 不泄漏**（两个文件分到不同 worker）；· **同 worker（`fileParallelism:false`）＋ isolate 默认（true）⇒ ⇒ 不泄漏**；· **`singleThread` ＋ isolate 默认 ⇒ ⇒ 不泄漏**；· **`maxWorkers:1` ＋ isolate 默认 ⇒ ⇒ 不泄漏**。⇒ ⇒ **机制＝「同 worker」只决定文件落在哪，「isolate」才决定环境是否共享** ⇒ ⇒ vitest 默认 `isolate: true` ⇒ ⇒ **每文件重建环境 ⇒ ⇒ `process.env` 隔离**。⇒ ⇒ ⚠️ ⇒ 㐃 条（v3）写的「`fileParallelism:false`／`singleThread`／`maxWorkers:1`／`isolate:false` **任一**成立就判红」**过宽** ⇒ ⇒ 会在上面三种配置下**误报** ⇒ ⇒ v4 收窄成 **同 worker（前三者任一）且 `isolate:false`**（两者**同时**成立才判红）。
+
+② **⚠️ 机制矩阵补到四格（还发现第四个入口）** —— 之前的 E1–E4 那组**文件放在 `root` 之外** ⇒ ⇒ 它也泄漏 ⇒ ⇒ 于是多出一个入口：**vitest 对 `root` 之外的测试文件不建隔离环境** ⇒ ⇒ 第四个入口＝「测试文件在 root 之外」。⚠️ 但本闸的扫描面**本来就是 root 的子集**（`listJsTestFiles(root)`）⇒ ⇒ 这一格在工具里**不存在** ⇒ ⇒ 不进判据，但记在这里以免下一个人重踩。
+
+③ **✅✅ 真判决：「本仓在 CI 单 worker 下会不会飘红」＝ 会** —— 在**干净 worktree**（HEAD＝`cf8e809`，`git worktree add --detach` ＋ `node_modules` junction）上跑**成对全量读数**（同一份 config，只改拓扑；**必须带上真实配置里的 `resolve.alias`**）：· **多 worker（对照）** ⇒ ⇒ **144 文件全过 / 1 skipped；1372 用例全过 / 5 skipped** ⇒ ⇒ **绿**；· **单 worker（`fileParallelism:false` ＋ `singleThread:true`）** ⇒ ⇒ **15 文件红 / 129 绿；112 用例红 / 1254 绿** ⇒ ⇒ **红**。⇒ ⇒ ⇒ 这条欠项**销账**：本仓在单 worker 拓扑下**确实会飘红**，而 CI 现在是多 worker（Linux runner 核数多）⇒ ⇒ 所以 CI 是绿的；但**一旦 runner 被限成 1 核/1 worker ⇒ ⇒ CI 就会红** ⇒ ⇒ 这是个**真实存在、可触发**的风险。
+
+④ **⚠️ 污染源指向 localStorage 族（未钉死）** —— 单 worker 下的失败**文件清单**收敛到 **6 个**（且**逐轮会漂**：另一轮是 15 个 ⇒ ⇒ 与「顺序随缓存漂」一致）：`src/lib/__tests__/adminToken.test.ts`、`src/lib/__tests__/certificateStore.test.ts`、`src/lib/__tests__/prefrontalClient.e2e.test.ts`、`tests/components/PreviewSplitter.test.ts`、`tests/stores/certificateStore.test.ts`、`tests/stores/shortcutStore.test.ts` ⇒ ⇒ **多数是 localStorage/persist 族**（adminToken／certificateStore×2／shortcutStore ⇒ 都在读写 `localStorage`）⇒ ⇒ **强指向「同 worker ⇒ 同一 jsdom ⇒ localStorage 跨文件共享」** ⇒ ⇒ 而这一族**不在本闸覆盖面内**（本闸只管 `process.env`）⇒ ⇒ 是**下一个族**。⚠️ **未钉死**：那 6 个文件**单独跑都绿**（实测 `skillStore.test.ts`＋`tenantMigration.test.ts` 同跑 ⇒ 绿）⇒ ⇒ 确实是**跨文件**效应，但**哪一对文件互相污染**尚未定位 ⇒ ⇒ 且 `prefrontalClient.e2e.test.ts`／`PreviewSplitter` 可能属别的机制（网络／布局）⇒ ⇒ 不宜一律归给 localStorage。
+
+⑤ **⚠️⚠️ 更正 㐃 条的一处**过度归因** —— 㐃 条写「在飞工作树全量 vitest **红点漂移** ⇒ ⇒ 是并行会话在飞改动造成的」⇒ ⇒ **那是过度归因**：真因是**我的实验 config 漏了 `resolve.alias`**（`@/` 别名）⇒ ⇒ 67 个文件红在「Failed to resolve import \"@/lib/utils\"」⇒ ⇒ **那是我自己造的装置缺陷**，不是仓库缺陷、也不是并行改动的锅 ⇒ ⇒ **教训**：**实验装置自身的缺陷会伪装成发现** ⇒ ⇒ 下次自造 config 跑真工程，**先把真实 config 的每一项对齐**（alias／plugins／setupFiles／include／exclude），再判读数。
+
+⑥ **⚠️ 一件必须记的事：并行会话的工作树版本**覆盖**了我的 㐃 条** —— 取证时发现：HEAD／远端里 **㐃 条在**（`git show HEAD:AGENTS.md` 查得到），而**工作树**里的 `AGENTS.md` **没有它**（顶部是 ㏿／㏾／㏽）⇒ ⇒ 也就是说并行会话是用**更早的版本**覆盖了工作树的账本 ⇒ ⇒ ⚠️ **若他们直接 `git add AGENTS.md` 提交，㐃 条会从账本里被删掉**（违反 append-only）⇒ ⇒ 本刀的处理：**把 㐃 条按 HEAD 原样插回工作树顶部**（不覆盖他们的新条目）**＋** 本条用**新码位 U+3404** 走**索引直写**入库 ⇒ ⇒ 双保险 ⇒ ⇒ ��果他们仍用旧版本覆盖回来，这条记的就是证据。
+
+⑦ **✅ 自检 14/14 → 15/15** —— 第 8 条夹具改为**同时**配「同 worker ＋ `isolate:false`」（否则它量的是另一档 ⇒ ⇒ 绿得没有意义）；**新增第 15 条**：「同 worker 但 isolate 默认（true）⇒ ⇒ **不得判红**，只进条件档」⇒ ⇒ 把 **AND 语义**钉成机械判据（⇒ ⇒ 钉住「v3 那个 OR 写法已废」）。
+
+⑧ **⚠️ 仍然欠着** —— ❶ **localStorage 族未定位**：那 6 个失败文件两两之间的污染对**还没钉死** ⇒ ⇒ 「同 worker ⇒ localStorage 跨文件共享」目前只是**强指向**，不是判决 ⇒ ⇒ 要做**成对实验**（污染源文件 ＋ 被污染文件两文件同跑）；❷ **本仓要不要钉住多 worker**：既然单 worker 会红 112 个用例 ⇒ ⇒ 要么在 `vitest.config.ts` 里**显式**钉住拓扑（多 worker）＋ 在 CI 里**断言**它 ⇒ ⇒ 要么把那 112 个用例修到两种拓扑都绿 ⇒ ⇒ 这是**下一刀**的选题；❸ **CI 上会不会退化成单 worker**（runner 被限核）**未监控**；❹ `isolate:false` 在**真实工程**里的用法未查（本仓默认 true ⇒ ⇒ 族 2 在本仓**不成立**）；❺ JS 侧生产读点仍只扫 `src/`；❻ 仍是行级启发式（正则字面量里的花括号认不出）；❼ **Dart 侧结论不变**（该族不成立）；❽ 兄弟仓那 7 条候选真伪未判（不越界）；❾ 桌面 crate 的 clippy/fmt 存量与真机级欠项照旧。
+
+⑨ **⚠️ 圈码**：本条占 **U+3404（㐄）** —— 插入前 fetch 远端＋**跨三账本**重扫本地（父仓工作树 **132 条**、33E0–3410 段最大 **U+3402**、远端 **130 条**；移动端 56 条 max U+32FA；桌面端 4 条 max U+33C4）⇒ ⇒ U+3403 被 **㐃 条**占用（且它被并行会话的工作树覆盖掉了）⇒ ⇒ U+3404 三账本各 **0** 次 ⇒ ⇒ 空闲 ✔ ⇒ 取 U+3404（`0x3404`），插入后复跑码位闸＋行首锚计数双钉住。
+
 **Updated**: 2026-11-08 (㐃 **「JS 面 env 竞争判据 v3 —— 族 2 的成立前提是『**多个测试文件落在同一个 worker**』：六个受控实验把变量逐个隔离（setup 不是、jsdom 不是、**worker 拓扑才是**）；真实工程上『10 轮零泄漏』的追查——真因是**执行顺序反了**、不是机制不成立；判据分两档（**判红档**／**条件档**），自检 13/13 → **14/14**」** —— 承 ㏽ 条那版 v2 判据，本条记**对㏽ 条两处过度断言的更正**、**取证矩阵**、**两档判据**、**读数**，以及**仍然欠着的**。)
 
 > 信封：epoch=2026-11-08 | authority=measured | scope=project | source=真机实测（vitest 3.2.4；六个受控实验 E1–E6 ＋ 真实工程探针 A/B ＋ 顺序标记；`scripts/lib/env-race-js.mjs` ＋ `scripts/check-test-env-races.mjs` 改判据 v3，commit `060648f` 已推；自检 **14/14**；本仓读数：JS 面 **146 个 vitest 测试文件 / 207 个生产文件**、并发面 env 写 **0** 处、跨文件（判红档 **0**／条件档 **0**）⇒ ⇒ **EXIT=0**；worker 条件读数＝**同 worker 可能 = false**）| status=active | supersedes=none

@@ -121,8 +121,19 @@ export function readVitestConfig(configPath) {
   const mwMatch = text.match(/maxWorkers\s*:\s*(\d+)/);
   const maxWorkers = mwMatch ? Number(mwMatch[1]) : null;
   const sameWorkerLikely = fileParallelism === false || singleThread === true
-    || maxWorkers === 1 || isolate === false;
-  return { excludes, sequenceConcurrent, fileParallelism, singleThread, isolate, maxWorkers, sameWorkerLikely };
+    || maxWorkers === 1;
+  // ⚠️⚠️ **v4 更正：跨文件 env 共享需要两个条件**（**AND**，不是 OR）——
+  //   实测矩阵（同 root、首次跑、写文件先跑）：
+  //   · `isolate: false` ＋ **同 worker** ⇒ ⇒ **泄漏**（PROBE_G4_SEEN=set-by-G3）
+  //   · `isolate: false` ＋ **多 worker** ⇒ ⇒ 不泄漏（两个文件分到不同 worker ⇒ 隔离）
+  //   · **同 worker** ＋ isolate 默认（true）⇒ ⇒ **不泄漏**（每文件重建环境 ⇒ env 隔离）
+  //   · `maxWorkers: 1` ＋ isolate 默认 ⇒ ⇒ 不泄漏
+  //   ⇒ ⇒ v3 那个「fileParallelism:false／singleThread／maxWorkers:1／isolate:false
+  //   **任一**成立就判红」的写法**过宽** ⇒ ⇒ 会在这些配置下**误报** ⇒ ⇒ 收窄成：
+  //   **同 worker（fileParallelism:false／singleThread／maxWorkers:1）且 isolate:false**。
+  const isolateShared = isolate === false;
+  const crossFileCertain = sameWorkerLikely && isolateShared;
+  return { excludes, sequenceConcurrent, fileParallelism, singleThread, isolate, maxWorkers, sameWorkerLikely, isolateShared, crossFileCertain };
 }
 
 /** 兼容旧调用：只要 exclude 前缀。 */
@@ -307,8 +318,9 @@ export function censusJs(root, opts = {}) {
   const excludes = opts.excludes || [];
   const prodDirs = opts.prodDirs || ['src'];
   const sequenceConcurrent = !!opts.sequenceConcurrent;
-  // ⚠️ 同 worker 条件（由配置推出来）⇒ ⇒ 决定族 2 是「判红」还是「只读数」
+  // ⚠️ 跨文件污染的**成立条件**（由配置推出来）⇒ ⇒ 决定族 2 是「判红」还是「只读数」
   const sameWorkerLikely = !!opts.sameWorkerLikely;
+  const crossFileCertain = !!opts.crossFileCertain;
   const files = listJsTestFiles(root, excludes);
 
   // 生产代码读点（src/ 下的非测试文件）。
@@ -374,7 +386,7 @@ export function censusJs(root, opts = {}) {
         if (otherTestReads.length || pReads.length) {
           const item = { var: m.var, pts: [m], otherTestRead: otherTestReads, prodRead: pReads };
           // ⚠️ **两档**：同 worker ⇒ 必然污染 ⇒ 判红；默认多 worker ⇒ 条件性
-          if (sameWorkerLikely) crossFile.push(item);
+          if (crossFileCertain) crossFile.push(item);
           else crossFileConditional.push(item);
         }
       }
@@ -398,6 +410,7 @@ export function censusJs(root, opts = {}) {
     crossFileCandidates: perFile.reduce((a, f) => a + f.crossFile.length, 0),
     crossFileConditionalCandidates: perFile.reduce((a, f) => a + (f.crossFileConditional || []).length, 0),
     sameWorkerLikely,
+    crossFileCertain,
     uncertainBlocks: uncertainAll.reduce((a, f) => a + f.items.length, 0),
     sequenceConcurrent,
   };
