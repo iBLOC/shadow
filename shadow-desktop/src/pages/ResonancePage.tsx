@@ -38,6 +38,12 @@ export function ResonancePage() {
   const [discoveryEnabled, setDiscoveryEnabled] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [discoveredPeers, setDiscoveredPeers] = useState<DiscoveredDevice[]>([]);
+  /** **读不到 ≠ 没有** —— 已发现节点列表读失败的原因（原文）。 */
+  const [discoveryError, setDiscoveryError] = useState<string | null>(null);
+  /** 广播自发现失败的原因（原文）。 */
+  const [scanError, setScanError] = useState<string | null>(null);
+  /** 复制到剪贴板失败的原因（原文）。 */
+  const [copyError, setCopyError] = useState<string | null>(null);
   const [pairingRequests, setPairingRequests] = useState<PairingRequest[]>([]);
   const [pendingPairings, setPendingPairings] = useState<PendingPairing[]>([]);
   const [pairingCode, setPairingCode] = useState('');
@@ -60,8 +66,12 @@ export function ResonancePage() {
     try {
       const devices = await discoveryClient.listAllDiscovered();
       setDiscoveredPeers(devices);
-    } catch {
-      setDiscoveredPeers([]);
+    } catch (e) {
+      // ⚠️ **读不到 ≠ 没有** —— 以前这里 `catch { setDiscoveredPeers([]); }`
+      // ⇒ ⇒ 把「列表读失败」伪装成「一台 peer 都没有」。
+      // ⇒ ⇒ 现在**不**清空（清空＝抹掉上一次真读到的结果），
+      //    而是把「读不到」和原因说出来。
+      setDiscoveryError(e instanceof Error ? e.message : String(e));
     }
   }, []);
 
@@ -83,13 +93,35 @@ export function ResonancePage() {
 
   const handleScan = async () => {
     setIsScanning(true);
+    setScanError(null);
     try {
       await discoveryClient.broadcastDiscovery();
       await fetchDiscoveredDevices();
+    } catch (e) {
+      // ⚠️ 广播失败必须被说出来 —— 以前它一路抛出去 ⇒ ⇒ 界面上**什么也没发生**
+      // ⇒ ⇒ 用户以为「扫过了」。
+      setScanError(e instanceof Error ? e.message : String(e));
     } finally {
       setIsScanning(false);
     }
   };
+
+  /**
+   * 复制到剪贴板 —— ⚠️ **失败不许被吞**。
+   *
+   * 以前这里是 `navigator.clipboard.writeText(code).catch(() => {})`
+   * ⇒ ⇒ 复制失败时**界面上毫无反应** ⇒ ⇒ 用户以为配对码已经复制好了，
+   * 而剪贴板里什么都没有（失败长得像成功）。
+   * ⇒ ⇒ 现在失败就说「复制失败」＋原因（配对码本身仍显示在界面上，可手抄）。
+   */
+  const copyText = useCallback(async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopyError(null);
+    } catch (e) {
+      setCopyError(e instanceof Error ? e.message : String(e));
+    }
+  }, []);
 
   const handlePair = (peer: DiscoveredDevice) => {
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -102,7 +134,7 @@ export function ResonancePage() {
       createdAt: Date.now(),
     };
     setPendingPairings((prev) => [...prev, pairing]);
-    navigator.clipboard.writeText(code).catch(() => {});
+    void copyText(code);
   };
 
   const handleAcceptPairing = (requestId: string) => {
@@ -260,6 +292,20 @@ export function ResonancePage() {
             <div className="flex items-center gap-1"><Activity size={12} /> {t('resonance.capabilities')}: llm, task-dispatch</div>
           </div>
 
+          {scanError && (
+            <p className="mb-3 text-xs text-destructive" role="alert" data-testid="resonance-scan-error">
+              {t('resonance.scanFailed')} {scanError}
+            </p>
+          )}
+          {discoveryError && (
+            <p
+              className="mb-3 text-xs text-destructive"
+              role="alert"
+              data-testid="resonance-discovery-error"
+            >
+              {t('resonance.discoveryReadFailed')} {discoveryError}
+            </p>
+          )}
           {discoveredPeers.length > 0 && (
             <div className="space-y-2">
               <p className="text-sm font-medium">{t('resonance.discoveredPeers')}</p>
@@ -333,6 +379,11 @@ export function ResonancePage() {
             <Zap size={18} className="text-blue-500" />
             <h3 className="font-semibold">{t('resonance.pendingPairing')}</h3>
           </div>
+          {copyError && (
+            <p className="mb-3 text-xs text-destructive" role="alert" data-testid="resonance-copy-error">
+              {t('resonance.copyFailed')} {copyError}
+            </p>
+          )}
           {pendingPairings.map((pairing) => (
             <div key={pairing.id} className="flex items-center justify-between p-3 border border-border rounded-md bg-background">
               <div>
@@ -340,7 +391,7 @@ export function ResonancePage() {
                 <div className="flex items-center gap-2 mt-1">
                   <span className="text-xs text-muted-foreground">{t('resonance.pairingCode')}:</span>
                   <Badge variant="outline" className="font-mono">{pairing.code}</Badge>
-                  <Button size="icon" variant="ghost" onClick={() => navigator.clipboard.writeText(pairing.code)}>
+                  <Button size="icon" variant="ghost" onClick={() => void copyText(pairing.code)}>
                     <Copy size={12} />
                   </Button>
                 </div>

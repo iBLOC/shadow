@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { KeyRound, CheckCircle, AlertCircle, Loader2, ExternalLink, RefreshCw } from 'lucide-react';
-import { safeInvoke } from '../../lib/tauriSafe';
+import { safeInvokeOrThrow } from '../../lib/tauriSafe';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { SettingsCard } from './SettingsCard';
@@ -23,6 +23,13 @@ interface HfTokenInfo {
 export function HfTokenSettings({ onSaved }: { onSaved?: () => void }) {
   const { t } = useTranslation();
   const [info, setInfo] = useState<HfTokenInfo | null>(null);
+  /**
+   * **读不到 ≠ 没有** —— 读 token 状态的三态：
+   * `unknown`（还没读）／`ready`（读到了）／`failed`（**读失败**）。
+   * ⚠️ 读失败时**不许**显示成「未配置」⇒ ⇒ 那是在说谎。
+   */
+  const [readState, setReadState] = useState<'unknown' | 'ready' | 'failed'>('unknown');
+  const [readError, setReadError] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [showDraft, setShowDraft] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -30,9 +37,20 @@ export function HfTokenSettings({ onSaved }: { onSaved?: () => void }) {
 
   const refresh = async () => {
     try {
-      const data = await safeInvoke<HfTokenInfo>('get_hf_token');
-      if (data) setInfo(data);
-    } catch { /* silent */ }
+      // ⚠️ **不能用 `safeInvoke`** —— 它自己把错误吞成 fallback（null）
+      // ⇒ ⇒ 连下面的 catch 都进不去 ⇒ ⇒ 原因**根本没机会**被带出来。
+      const data = await safeInvokeOrThrow<HfTokenInfo>('get_hf_token');
+      setInfo(data);
+      setReadState('ready');
+      setReadError(null);
+    } catch (e) {
+      // ⚠️ **读不到 ≠ 没有** —— 以前这里是 `safeInvoke` ＋ `catch { /* silent */ }`
+      // ⇒ ⇒ 界面永远显示「未配置」，而真相是：**读失败是常态**
+      // （Tauri 命令 `get_hf_token` 早已被删）⇒ ⇒ 现在说「读不到」＋原因（原文）。
+      setInfo(null);
+      setReadState('failed');
+      setReadError(e instanceof Error ? e.message : String(e));
+    }
   };
 
   useEffect(() => { void refresh(); }, []);
@@ -41,16 +59,18 @@ export function HfTokenSettings({ onSaved }: { onSaved?: () => void }) {
     setSaving(true);
     setFeedback(null);
     try {
-      const result = await safeInvoke<HfTokenInfo>('set_hf_token', { token: draft });
-      if (result) {
-        setInfo(result);
-        setDraft('');
-        setShowDraft(false);
-        setFeedback({ kind: 'ok', msg: t('settings.hfToken.saved') });
-        onSaved?.();
-      }
+      const result = await safeInvokeOrThrow<HfTokenInfo>('set_hf_token', { token: draft });
+      setInfo(result);
+      setDraft('');
+      setShowDraft(false);
+      setFeedback({ kind: 'ok', msg: t('settings.hfToken.saved') });
+      onSaved?.();
     } catch (e) {
-      setFeedback({ kind: 'err', msg: String(e) });
+      // ⚠️ **上下文（译文）＋ 原因（原文）** —— 以前这里只有裸的 String(e)。
+      setFeedback({
+        kind: 'err',
+        msg: t('settings.hfToken.saveFailed') + ' ' + (e instanceof Error ? e.message : String(e)),
+      });
     } finally {
       setSaving(false);
     }
@@ -60,13 +80,15 @@ export function HfTokenSettings({ onSaved }: { onSaved?: () => void }) {
     setSaving(true);
     setFeedback(null);
     try {
-      const result = await safeInvoke<HfTokenInfo>('set_hf_token', { token: '' });
-      if (result) {
-        setInfo(result);
-        setFeedback({ kind: 'ok', msg: t('settings.hfToken.cleared') });
-      }
+      const result = await safeInvokeOrThrow<HfTokenInfo>('set_hf_token', { token: '' });
+      setInfo(result);
+      setFeedback({ kind: 'ok', msg: t('settings.hfToken.cleared') });
     } catch (e) {
-      setFeedback({ kind: 'err', msg: String(e) });
+      // ⚠️ **上下文（译文）＋ 原因（原文）** —— 以前这里只有裸的 String(e)。
+      setFeedback({
+        kind: 'err',
+        msg: t('settings.hfToken.clearFailed') + ' ' + (e instanceof Error ? e.message : String(e)),
+      });
     } finally {
       setSaving(false);
     }
@@ -81,7 +103,20 @@ export function HfTokenSettings({ onSaved }: { onSaved?: () => void }) {
       <div className="flex flex-col gap-3">
         {/* Status row */}
         <div className="flex items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm">
-          {info?.configured ? (
+          {readState === 'failed' ? (
+            <>
+              <AlertCircle size={16} className="text-red-500" />
+              {/* ⚠️ **读不到 ≠ 没有** —— 读失败时**不许**显示「未配置」。 */}
+              <span className="text-destructive" data-testid="hf-token-read-error">
+                {t('settings.hfToken.readFailed')} {readError}
+              </span>
+            </>
+          ) : readState === 'unknown' ? (
+            <>
+              <Loader2 size={16} className="animate-spin text-muted-foreground" />
+              <span className="text-muted-foreground">{t('settings.hfToken.statusUnknown')}</span>
+            </>
+          ) : info?.configured ? (
             <>
               <CheckCircle size={16} className="text-green-500" />
               <span className="text-foreground">

@@ -862,6 +862,10 @@
       "description": "用于下载 gated 模型的认证令牌",
       "configured": "已配置 ({{preview}}, {{length}}字符)",
       "notConfigured": "未配置",
+      "readFailed": "读不到 token 状态 —— 这不代表你没有 token",
+      "statusUnknown": "正在查 token 状态…",
+      "saveFailed": "保存 token 失败",
+      "clearFailed": "清除 token 失败",
       "placeholder": "hf_xxxxxxxxxxxx...",
       "save": "保存",
       "clear": "清除",
@@ -981,6 +985,9 @@
     "pairingCode": "配对码",
     "confirm": "确认",
     "enterPairingCode": "输入配对码",
+    "discoveryReadFailed": "读不到已发现的对等节点列表",
+    "scanFailed": "广播自发现失败",
+    "copyFailed": "复制失败 —— 浏览器拒绝了剪贴板访问。",
     "pairWithCode": "通过配对码连接"
   },
   "setup": {
@@ -1089,7 +1096,8 @@
     "emptyNone": "暂无错误记录。触发一个错误后将在此显示。",
     "emptyFiltered": "当前筛选下没有错误记录。",
     "copy": "复制",
-    "copied": "已复制"
+    "copied": "已复制",
+    "copyFailed": "复制失败 —— 浏览器拒绝了剪贴板访问。"
   },
   "errorDialog": {
     "sourceHttp": "HTTP 请求失败",
@@ -1269,6 +1277,9 @@
     "eventsTitle": "事件流",
     "reportTitle": "总结报告",
     "reportMeta": "{{count}} 个事件 · 参与人：{{persons}}",
+    "eventsReadFailed": "读不到事件列表",
+    "reportReadFailed": "读不到总结报告",
+    "reportNone": "这次会话还没有总结报告。",
     "historyTitle": "历史会话",
     "historyEmpty": "暂无记录。",
     "viewReport": "查看报告",

@@ -856,6 +856,10 @@
       "description": "Authentication token for downloading gated models",
       "configured": "Configured ({{preview}}, {{length}} chars)",
       "notConfigured": "Not configured",
+      "readFailed": "Can't read the token status — this does not mean you have no token",
+      "statusUnknown": "Checking the token status…",
+      "saveFailed": "Couldn't save the token",
+      "clearFailed": "Couldn't clear the token",
       "placeholder": "hf_xxxxxxxxxxxx...",
       "save": "Save",
       "clear": "Clear",
@@ -975,6 +979,9 @@
     "pairingCode": "Pairing Code",
     "confirm": "Confirm",
     "enterPairingCode": "Enter Pairing Code",
+    "discoveryReadFailed": "Can't read the discovered peers",
+    "scanFailed": "Discovery broadcast failed",
+    "copyFailed": "Copy failed — the browser refused clipboard access.",
     "pairWithCode": "Pair with Code"
   },
   "setup": {
@@ -1072,7 +1079,8 @@
     "emptyNone": "No errors recorded yet. Trigger an error to see it here.",
     "emptyFiltered": "No errors match the current filter.",
     "copy": "Copy",
-    "copied": "Copied"
+    "copied": "Copied",
+    "copyFailed": "Copy failed — the browser refused clipboard access."
   },
   "errorDialog": {
     "sourceHttp": "HTTP request failed",
@@ -1263,6 +1271,9 @@
     "eventsTitle": "Events",
     "reportTitle": "Summary report",
     "reportMeta": "{{count}} events · participants: {{persons}}",
+    "eventsReadFailed": "Can't read the event list",
+    "reportReadFailed": "Can't read the summary report",
+    "reportNone": "No summary report for this session yet.",
     "historyTitle": "Past sessions",
     "historyEmpty": "No recordings yet.",
     "viewReport": "View report",

@@ -77,6 +77,17 @@ export function RecordingPanel({ session, onSessionChange }: RecordingPanelProps
   const [report, setReport] = useState<SummaryReport | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  /**
+   * **读不到 ≠ 没有** —— 事件列表读失败的原因（原文）。
+   *
+   * ⚠️ 以前这里是「一个大 try 包两件事」＋ `.catch(() => null)`
+   * ⇒ ⇒ 读失败被渲染成「一条事件都没有」／「没有报告」。
+   */
+  const [eventsError, setEventsError] = useState<string | null>(null);
+  /** 总结报告读失败的原因（原文）。 */
+  const [reportError, setReportError] = useState<string | null>(null);
+  /** 报告**读过了**（读到空 or 读失败）⇒ ⇒ 「没有报告」与「读不到」必须分得开。 */
+  const [reportLoaded, setReportLoaded] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const live = session.recordingEndedAt === null || session.recordingEndedAt === undefined;
@@ -107,17 +118,38 @@ export function RecordingPanel({ session, onSessionChange }: RecordingPanelProps
     if (live) return;
     let cancelled = false;
     (async () => {
+      // ⚠️ **读不到 ≠ 没有** —— 以前这里是「一个大 try 包两件事」：
+      //   ❶ `recording_events` 读失败 ⇒ ⇒ 事件列表空（被说成「什么都没录到」）；
+      //   ❷ `recording_report` 读失败 ⇒ ⇒ `.catch(() => null)` ⇒ ⇒ 报告卡片不出现
+      //      （被说成「没有报告」）⇒ ⇒ 两个不同的失败被压成同一个「什么都没有」。
+      // ⇒ ⇒ 现在**分开读、分开报**：读失败说「读不到」＋原因；读到空才叫「没有」。
       try {
         const evts = await invoke<RecordingEvent[]>('recording_events', {
           sessionId: session.id,
         });
-        if (!cancelled) setEvents(evts);
+        if (!cancelled) {
+          setEvents(evts);
+          setEventsError(null);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setEventsError(e instanceof Error ? e.message : String(e));
+        }
+      }
+      try {
         const r = await invoke<SummaryReport | null>('recording_report', {
           sessionId: session.id,
-        }).catch(() => null);
-        if (!cancelled && r) setReport(r);
-      } catch {
-        /* noop */
+        });
+        if (!cancelled) {
+          setReportLoaded(true);
+          setReportError(null);
+          if (r) setReport(r);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setReportLoaded(true);
+          setReportError(e instanceof Error ? e.message : String(e));
+        }
       }
     })();
     return () => {
@@ -244,6 +276,28 @@ export function RecordingPanel({ session, onSessionChange }: RecordingPanelProps
         </CardContent>
       </Card>
 
+      {/* ⚠️ **读不到 ≠ 没有** —— 读失败时把「读不到」和原因说出来，
+          不许让它长得像「什么都没录到」。 */}
+      {(eventsError || reportError) && (
+        <div className="flex flex-col gap-1" data-testid="recording-read-errors">
+          {eventsError && (
+            <p className="text-xs text-destructive" role="alert">
+              {t('recording.eventsReadFailed')} {eventsError}
+            </p>
+          )}
+          {reportError && (
+            <p className="text-xs text-destructive" role="alert">
+              {t('recording.reportReadFailed')} {reportError}
+            </p>
+          )}
+        </div>
+      )}
+      {/* 报告**真的读到了空**（不是读失败）⇒ ⇒ 说「没有」而不是装死。 */}
+      {reportLoaded && !report && !reportError && (
+        <p className="text-xs text-muted-foreground" data-testid="recording-report-none">
+          {t('recording.reportNone')}
+        </p>
+      )}
       {/* 总结报告 */}
       {report && (
         <Card className="border-green-500/40 bg-green-500/5" data-testid="recording-report">

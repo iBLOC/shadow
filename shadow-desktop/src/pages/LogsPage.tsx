@@ -54,6 +54,8 @@ export function LogsPage() {
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  /** ⚠️ **失败不许长得像成功** —— 复制失败的原因（原文）。 */
+  const [copyError, setCopyError] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     if (sourceFilter === 'all') return entries;
@@ -66,8 +68,11 @@ export function LogsPage() {
       await navigator.clipboard.writeText(text);
       setCopiedId(entry.id);
       window.setTimeout(() => setCopiedId(null), 2000);
-    } catch {
-      // clipboard unavailable
+    } catch (e) {
+      // ⚠️ **失败不许长得像成功** —— 以前这里是 `catch { /* clipboard unavailable */ }`
+      // ⇒ ⇒ 复制失败时界面**毫无反应** ⇒ ⇒ 用户以为日志已经复制走了。
+      // ⇒ ⇒ 现在说「复制失败」＋原因（**上下文译文 ＋ 原因原文**）。
+      setCopyError(e instanceof Error ? e.message : String(e));
     }
   };
 
@@ -152,6 +157,12 @@ export function LogsPage() {
       </header>
 
       <Separator />
+
+      {copyError && (
+        <p className="text-xs text-destructive" role="alert" data-testid="logs-copy-error">
+          {t('logsPage.copyFailed')} {copyError}
+        </p>
+      )}
 
       {filtered.length === 0 ? (
         <Card>
