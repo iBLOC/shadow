@@ -5,7 +5,8 @@
  * ## 守什么
  *
  * R1'（**跨三账本**不撞号）／R2（注解自洽）／R3（缝合残迹）／R4（异体声明）／
- * R5（注解里的括号字形）—— 判据纯函数在 scripts/lib/ledger-codepoints.mjs
+ * R5（注解里的括号字形）／R6（**悬空引用**：引用必须指向现存条目）——
+ * 判据纯函数在 scripts/lib/ledger-codepoints.mjs
  * （判据与 I/O 分离，脚本层只管跑）。
  *
  * ## ⚠️ 豁免权的来源＝**历史事实**，不是「某个文件里的一行」（2026-11-08 实测）
@@ -48,7 +49,7 @@ import { execFileSync } from 'node:child_process';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
-import { findViolations, findCollisions, hex4, canonicalSet, setDigest, collisionIdentities, fingerprintIdentities, identityDigest } from './lib/ledger-codepoints.mjs';
+import { findViolations, findCollisions, extractEntries, findReferenceIssues, occupiedMap, hex4, canonicalSet, setDigest, collisionIdentities, fingerprintIdentities, identityDigest } from './lib/ledger-codepoints.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..');
@@ -156,10 +157,14 @@ function loadBaseline() {
     const cps = collisions.map((c) => hex4(c.cp));
     const identities = {};
     for (const c of collisions) identities[hex4(c.cp)] = fingerprintIdentities(collisionIdentities(ledgers, c));
+    // ⚠️ **基线标记集合** —— R6 用它把「②」这类**列表序号**排除在引用之外。
+    const markers = new Set();
+    for (const l of ledgers) for (const e of extractEntries(l.text).entries) if (e.actual) markers.add(e.actual);
     return {
       source: 'git:' + BASELINE_COMMIT.slice(0, 8),
       cps,
       identities,
+      markers,
       digest: setDigest(cps),
       identityDigest: identityDigest(identities),
     };
@@ -277,6 +282,23 @@ export function checkLedgers(ledgerTexts, opts = {}) {
     }
     out.push('❌ [dup-codepoint] 码位 U+' + hex + ' 被 ' + c.uses.length + ' 条占用：' + where +
       ' ⇒ ⇒ **不在基线集里** ⇒ ⇒ 这是**新增撞号**（豁免只认基线 commit 的历史事实 ⇒ ⇒ 债表/任何文件都洗不白它）');
+  }
+
+  // ⚠️⚠️ **R6（悬空引用）** —— 引用必须指向**现存条目**（**跨三账本**算）。
+  //   ⇒ ⇒ 「承 ㋛ 条」里的 ㋛ 若没有任何条目占着 ⇒ ⇒ 那处引用**悬空** ⇒ ⇒ 红。
+  //   ⇒ ⇒ 歧义引用（多个条目共用一个码位）**只警告**：那是 R1 撞号那笔债。
+  const universe = new Set([...(opts.markerUniverse || []), ...occupiedMap(ledgerTexts).keys()]);
+  const refIssues = findReferenceIssues(ledgerTexts, universe);
+  for (const d of refIssues.dangling) {
+    out.push('❌ [dangling-reference] ' + d.ledger + ' 第 ' + d.line + ' 行：引用「' + d.glyph + ' 条」指向 U+' + d.cp + '，但**三账本里没有任何条目占这个码位** ⇒ ⇒ 这条引用**悬空**（读者点不动、机器判不出真假）｜ …' + d.snippet + '…');
+  }
+  if (refIssues.ambiguous.length) {
+    // ⚠️ **聚合成一条** —— 闸的输出必须**可数**（一行一条红是纪律，逐行刷屏不是）。
+    const byCp = new Map();
+    for (const a of refIssues.ambiguous) byCp.set(a.cp, (byCp.get(a.cp) || 0) + 1);
+    const top = [...byCp.entries()].sort((x, y) => y[1] - x[1]).slice(0, 5)
+      .map(([cp, n]) => 'U+' + cp + '×' + n).join('、');
+    warnings.push('⚠️ [ambiguous-reference] ' + refIssues.ambiguous.length + ' 处引用指向**有歧义**的码位（多个条目共用；涉及 ' + byCp.size + ' 个码位，最多：' + top + '）⇒ ⇒ 那是 R1 撞号那笔债（由基线豁免挡着）⇒ ⇒ 本条**不重复红**');
   }
 
   const settled = [...exempt].filter((hex) => !collided.has(hex)).sort();
@@ -401,6 +423,24 @@ function selfTest() {
   check('标题**尾部**被改（引用重编号）⇒ 身份仍一致 ⇒ 不红（U+32E3 的活例）',
     tailRes.out.length === 0, JSON.stringify(tailRes.out));
 
+  // ⚠️⚠️ **R6（悬空引用）** —— 引用必须指向**现存条目**；且**不许把表项序号当引用**。
+  const G_32DB = String.fromCodePoint(0x32db);
+  const refDangle = ['# L', '', headReal(G_32FF, '32FF', G_32FF), '① 承 ' + G_32DB + ' 条 那条。'].join('\n');
+  const rd = checkLedgers([{ name: 'A', text: refDangle }], { exempt: [] });
+  check('悬空引用（指向不存在的码位）⇒ 恰好 1 条红（dangling-reference）',
+    rd.out.length === 1 && rd.out[0].includes('dangling-reference'), JSON.stringify(rd.out));
+  const refLive = ['# L', '', headReal(G_32FF, '32FF', G_32FF), '① 承 ' + G_32FF + ' 条 那条。'].join('\n');
+  const ro = checkLedgers([{ name: 'A', text: refLive }], { exempt: [] });
+  check('引用指向**现存条目** ⇒ 零违规', ro.out.length === 0, JSON.stringify(ro.out));
+  const listNo = ['# L', '', headReal(G_32FF, '32FF', G_32FF), '① 判定表第 ② 条原则（② 不是条目标记 ⇒ 不是引用）。'].join('\n');
+  const rl = checkLedgers([{ name: 'A', text: listNo }], { exempt: [] });
+  check('「第 ② 条」这类**表项序号** ⇒ 不误报（零违规）', rl.out.length === 0, JSON.stringify(rl.out));
+  const amb = ['# L', '', headReal(G_32FF, '32FF', G_32FF), '① 承 ' + G_32FF + ' 条 那条。', headReal(G_32FF, '32FF', G_32FF)].join('\n');
+  const ra = checkLedgers([{ name: 'A', text: amb }], { exempt: ['32FF'], debt: { items: [] } });
+  check('引用指向**撞号**码位 ⇒ 只警告（ambiguous-reference）、不红',
+    ra.out.length === 0 && (ra.warnings || []).some((w) => w.includes('ambiguous-reference')),
+    JSON.stringify(ra.out) + ' / ' + JSON.stringify(ra.warnings));
+
   // ⚠️ **面判据**：三个面各判一遍 ⇒ ⇒ 只有坏的那个面红。
   const faceGood = { name: '好面', desc: '好', ledgerTexts: [{ name: 'A', text: ok }] };
   const faceBad = { name: '坏面', desc: '坏', ledgerTexts: [{ name: 'A', text: merged }] };
@@ -467,7 +507,7 @@ function drill() {
   const original = readFileSync(LEDGER_PATH, 'utf8');
   const others = LEDGERS.filter((l) => l.path !== LEDGER_PATH).map((l) => ({ name: l.name, text: readFileSync(l.path, 'utf8') }));
   const debt = readDebt();
-  const opts = { exempt: baseline.cps, identities: baseline.identities, debt };
+  const opts = { exempt: baseline.cps, identities: baseline.identities, debt, markerUniverse: baseline.markers };
   const checkAll = (parentText, o = opts) => checkLedgers([{ name: '父仓', text: parentText }, ...others], o);
   writeFileSync(copy, original);
   // ⚠️ **原始读数**（仓库**当前**状态 ⇒ 可能是红的）—— 演练的断言要**相对**它。
@@ -501,7 +541,11 @@ function drill() {
     '**Updated**: 2026-11-05 (' + fb + ' **第二条** —— 本条占 **U+3340**。)',
   ].join('\r\n');
   const fixtureMerged = fixture.replace('\r\n**Updated**: 2026-11-05 (' + fb, litBreak + '**Updated**: 2026-11-05 (' + fb);
-  const fixtureRed = checkLedgers([{ name: '夹具', text: fixtureMerged }, ...others], opts);
+  // ⚠️⚠️ **必须带上父仓**（2026-11-09 实测踩出来的）：R6 是**跨账本**判据
+  //   ⇒ ⇒ 只喂「夹具＋移动端＋桌面端」时，**移动端/桌面端里指向父仓条目的引用**
+  //   ⇒ ⇒ 会被判成悬空（实测多出 30+ 条假红）⇒ ⇒ 尺子被**缺席的账本**误伤。
+  //   ⇒ ⇒ 占用表要**三本齐**才有意义。
+  const fixtureRed = checkLedgers([{ name: '夹具', text: fixtureMerged }, { name: '父仓', text: original }, ...others], opts);
 
   // ⚠️⚠️⚠️ **洗白机演练腿（真实数据）** —— 上一版这里会**绿**（因为豁免＝债表）
   // ⇒ ⇒ 现在豁免＝基线集 ⇒ ⇒ 注入一个**基线集里没有**的撞号 ⇒ ⇒ 必须红
@@ -529,6 +573,38 @@ function drill() {
   const idWash = checkAll(injJCopy, { exempt: baseline.cps, identities: baseline.identities, debt: idWashDebt });
   const idWashStillRed = idWash.out.some((l) => l.includes('32F1') && l.includes('identity-mismatch'));
 
+  // ⚠️⚠️⚠️ **R6 演练腿（真实数据）** —— 往副本里注入一处**指向不存在码位**的引用
+  // ⇒ ⇒ 必须红（尺子咬住）；再注入「第 ② 条」⇒ ⇒ **仍不许红**（不许误报）。
+  // ⚠️ 注入用的两个码位**现场算**：一个当注入条目的标记，一个当被引用的目标 ——
+  //   ⚠️ 两者必须**不同** ⇒ ⇒ 否则那处引用会被注入条目自己接住 ⇒ ⇒ 测不到悬空。
+  const freeCps = (() => {
+    const used = new Set();
+    for (const l of [{ name: '父仓', text: original }, ...others]) {
+      for (const e of extractEntries(l.text).entries) if (e.actual) used.add(e.actual);
+    }
+    const out = [];
+    for (let cp = 0x3200; cp <= 0x4dbf && out.length < 2; cp++) {
+      const h = cp.toString(16).toUpperCase().padStart(4, '0');
+      if (!used.has(h)) out.push(h);
+    }
+    return out;
+  })();
+  let refRedOk = false;
+  let refNoFalsePositive = false;
+  if (freeCps.length >= 2) {
+    const gEntry = String.fromCodePoint(parseInt(freeCps[0], 16));
+    const gTarget = String.fromCodePoint(parseInt(freeCps[1], 16));
+    const injectRef = '**Updated**: 2026-11-05 (' + gEntry + ' **注入的引用** —— 本条占 U+' + freeCps[0] + '（' + gEntry + '）。)\n① 承 ' + gTarget + ' 条 那条。\n';
+    writeFileSync(copy, injectRef + original);
+    const refRed = checkAll(readFileSync(copy, 'utf8'));
+    refRedOk = refRed.out.length > origRed.out.length
+      && refRed.out.some((l) => l.includes('dangling-reference') && l.includes(freeCps[1]));
+    const injectNum = '**Updated**: 2026-11-05 (' + gEntry + ' **注入的序号** —— 本条占 U+' + freeCps[0] + '（' + gEntry + '）。)\n① 判定表第 ② 条原则。\n';
+    writeFileSync(copy, injectNum + original);
+    const refFp = checkAll(readFileSync(copy, 'utf8'));
+    refNoFalsePositive = !refFp.out.some((l) => l.includes('dangling-reference'));
+    writeFileSync(copy, original);
+  }
   rmSync(dir, { recursive: true, force: true });
   const after = sha256(LEDGER_PATH);
   const mergedOk = mergedRed != null && mergedRed.out.length > 0 && mergedRed.v.swallowed.length >= 1;
@@ -542,7 +618,7 @@ function drill() {
     && red.out.some((l) => l.includes('annotation-mismatch'));
   const greenRestores = green.out.length === origRed.out.length
     && green.out.join('\n') === origRed.out.join('\n');
-  const ok = redAddsDamage && greenRestores && mergedOk && fixtureOk && injectRedHasDup && injectWashStillRed && idRedOk && idWashStillRed && before === after;
+  const ok = redAddsDamage && greenRestores && mergedOk && fixtureOk && injectRedHasDup && injectWashStillRed && idRedOk && idWashStillRed && refRedOk && refNoFalsePositive && before === after;
   console.log('  副本破坏 ⇒ 判红：' + red.out.length + ' 条（原始 ' + origRed.out.length + ' 条 ⇒ ⇒ 本次注入**多**红 ' + (red.out.length - origRed.out.length) + ' 条 ⇒ ⇒ 尺子咬住了本次伤害：' + (redAddsDamage ? '是' : '否') + '）');
   console.log('  副本还原 ⇒ 读数与原始**逐字相同**：' + (greenRestores ? '是' : '否') + '（' + green.out.length + ' 条）');
   if (mergedRed) console.log('  并体副本（㌳ 形状，真实父仓）⇒ 判红：' + mergedRed.out.length + ' 条（swallowed ' + mergedRed.v.swallowed.length + ' / foreign ' + mergedRed.v.foreign.length + '）');
@@ -552,6 +628,8 @@ function drill() {
   console.log('  同一注入 ＋ 往说明清单补一行 ⇒ **仍判红**（洗白机被封死）：' + (injectWashStillRed ? '是' : '否'));
   console.log('  基线码位被**另一个条目**占用（U+32F1）⇒ 判红（旧版码位级豁免会绿）：' + (idRedOk ? '是' : '否'));
   console.log('  同一情形 ＋ 往说明清单补一行 ⇒ **仍判红**：' + (idWashStillRed ? '是' : '否'));
+  console.log('  注入**悬空引用**（指向不存在的码位）⇒ 判红：' + (refRedOk ? '是' : '否'));
+  console.log('  同一注入改成「第 ② 条」⇒ **不许红**（不许误报）：' + (refNoFalsePositive ? '是' : '否'));
   console.log('  真文件 SHA256 前后一致：' + (before === after ? '是' : '否') + ' (' + before.slice(0, 16) + '…)');
   return ok;
 }
@@ -574,7 +652,7 @@ function main() {
     return 2;
   }
   const debt = readDebt();
-  const opts = { exempt: baseline.cps, identities: baseline.identities, debt };
+  const opts = { exempt: baseline.cps, identities: baseline.identities, debt, markerUniverse: baseline.markers };
   const faces = [];
   if (!faceArg || faceArg === 'worktree' || faceArg === 'all') {
     faces.push({

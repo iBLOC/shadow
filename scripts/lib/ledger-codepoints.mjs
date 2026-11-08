@@ -23,6 +23,15 @@
  *    缝合处出现 8 个可见字符，㎲ 条整个并进 ㌳ 条体 ⇒ ⇒ 当时闸**假绿**，
  *    唯一报警是条目计数 102≠应 103。R3 把那次形状变成**会红的读数**。
  *
+ * **R6（悬空引用）**：正文里「承 ㋛ 条」这种**交叉引用**指向的码位，
+ *    必须**有条目占着** ⇒ ⇒ 否则那处引用**悬空**（读者点不动、机器判不出真假）。
+ *    ⚠️ 2026-11-09 实测入库：真账本里**当场逮到 15 处**幻影引用（其中 10 处是
+ *    **差 0x80 的错码位**：U+3331 写成 U+33B1、U+3332 写成 U+33B2、U+3333 写成
+ *    U+33B3 —— 「3」与「B」混淆）⇒ ⇒ 那 6 个目标码位在**全部 410 个历史提交**里
+ *    **从未当过条目标记** ⇒ ⇒ 它们不是「死条目」，是**从未存在过的幻影**。
+ *    ⇒ ⇒ 判据形状必须是「**方块字 + 条**」（只凭方块字会把「❶ ② ③」这类
+ *    **列表序号**当成引用 ⇒ ⇒ 那是最大的假阳性源）。
+ *
  * **R4（异体声明）**：一个条目体里 OWN_CLAIM（「本条占 **U+十六进制**」）
  * 命中的码位若**不等于**它自己标题字的码位 ⇒ ⇒ 体里躺着**别条**的声明
  * ⇒ ⇒ 又是「并体」的签名（R3 挡得住带日期的锚残迹；R4 挡的是锚没了
@@ -304,4 +313,96 @@ export function canonicalIdentities(identities) {
 /** 身份映射的**指纹** —— 第二把封条（第一把是码位集的）。 */
 export function identityDigest(identities) {
   return createHash('sha256').update(canonicalIdentities(identities)).digest('hex');
+}
+
+export  const LEDGER_REF = /([\u2460-\u24FF\u3200-\u4DBF])[ \t]*条/g;
+
+/** 圈码字形可能落在哪几个区段（带圈数字段 ＋ CJK 兼容/扩展 A 段）。 */
+export  const MARKER_RANGES = [[0x2460, 0x24ff], [0x3200, 0x4dbf]];
+
+export  function isMarkerShaped(cp) {
+  for (const [a, b] of MARKER_RANGES) if (cp >= a && cp <= b) return true;
+  return false;
+}
+
+/** 三账本合计的**占用表**（码位 → 占用者列表）。 */
+export  function occupiedMap(ledgers) {
+  const m = new Map();
+  for (const l of ledgers) {
+    for (const e of extractEntries(l.text).entries) {
+      if (!e.actual) continue;
+      if (!m.has(e.actual)) m.set(e.actual, []);
+      m.get(e.actual).push({ name: l.name, line: e.line });
+    }
+  }
+  return m;
+}
+
+/** 某账本里**条目自己的圈码字形**所在位置（行号|列号）—— 那是声明，不是引用。 */
+function ownMarkerPositions(text) {
+  const lines = text.split(/\r?\n/);
+  const pos = new Set();
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(HEADER_LINE);
+    if (!m) continue;
+    const idx = lines[i].indexOf(m[1]);
+    if (idx >= 0) pos.add(i + '|' + idx);
+  }
+  return pos;
+}
+
+/**
+ * 找出**悬空引用**（指向不存在的条目）与**歧义引用**（指向多个条目）。
+ *
+ * ⚠️⚠️ **R6（2026-11-09 实测入库）**：账本里到处是「承 ㋛ 条」这种**交叉引用**
+ * ⇒ ⇒ 而「㋛」这个码位**必须**有条目占着 ⇒ ⇒ 否则那处引用**悬空**（读者点不动、
+ * 事后无从对账、机器判不出真假）。
+ * ⇒ ⇒ 实测三账本：**15 处**引用指向**当前没有任何条目占用**的码位 ⇒ ⇒ 而那 6 个
+ * 目标码位（U+3331／3332／3333／334B／33F0／33FA）在**全部 410 个历史提交**里
+ * **从未当过条目标记** ⇒ ⇒ 它们不是「死条目」，是**幻影**（写错的码位）。
+ * ⇒ ⇒ 根因两类：① **差 0x80 的错码位**（U+3331↔U+33B1、U+3332↔U+33B2、
+ * U+3333↔U+33B3 —— **「3」与「B」混淆**，这一族一处吃掉 10 处引用）；
+ * ② **笔误／张冠李戴**（㏰ 写成 ㏈、㍋ 写成 㐋、㏺ 写成 ㎺）。
+ *
+ * 三条硬约束：
+ * · 引用形状＝「**方块字 + 条**」（承 ㋛ 条／㋛ 条③／㋛ 条「…」）——
+ *   ⚠️ **必须带「条」**：只凭方块字会把「❶ ② ③」这类**列表序号**当成引用
+ *   ⇒ ⇒ 那是最大的假阳性源（真账本里 ② 出现几百次）。
+ * · 目标码位**必须**在三账本里被**某个条目占用**（**跨账本**算）⇒ ⇒ 否则悬空 ⇒ 红。
+ * · **歧义引用**（目标码位被**多个**条目占用）⇒ ⇒ 只**警告**：那是 R1 撞号那笔债
+ *   （由基线豁免挡着）⇒ ⇒ 本条**不重复红**。
+ * · 条目**自己**标题里那个圈码字形是**声明**（不是引用）⇒ ⇒ 必须扣掉。
+ *
+ * @param {{name:string,text:string}[]} ledgers 三账本
+ * @param {Set<string>} markerUniverse 「当过条目标记」的码位集合 ——
+ *        用来把「②」这种**表项序号**从引用里排除掉（⚠️ 只对 0x2460–0x24FF 段生效：
+ *        那一段既当过条目标记（⑲⑳），也当过列表序号（①②③））。
+ */
+export  function findReferenceIssues(ledgers, markerUniverse) {
+  const occupied = occupiedMap(ledgers);
+  const dangling = [];
+  const ambiguous = [];
+  for (const l of ledgers) {
+    const lines = l.text.split(/\r?\n/);
+    const own = ownMarkerPositions(l.text);
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      let m;
+      LEDGER_REF.lastIndex = 0;
+      while ((m = LEDGER_REF.exec(line)) !== null) {
+        const cp = m[1].codePointAt(0);
+        const hex = hex4(cp);
+        if (own.has(i + '|' + m.index)) continue; // 自己的圈码＝声明
+        if (cp >= 0x2460 && cp <= 0x24ff && !(markerUniverse && markerUniverse.has(hex))) continue; // 列表序号
+        const users = occupied.get(hex) || [];
+        const rec = {
+          ledger: l.name, line: i + 1, cp: hex, glyph: m[1], users: users.length,
+          snippet: line.slice(Math.max(0, m.index - 24), m.index + 26).replace(/\r/g, ''),
+        };
+        if (users.length === 0) dangling.push(rec);
+        else if (users.length > 1) ambiguous.push(rec);
+      }
+    }
+  }
+  return { dangling, ambiguous, occupied };
 }
