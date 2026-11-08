@@ -154,9 +154,14 @@ jobs:
       #   的两条反向验证用例）⇒ ⇒ 它们只在本机跑过 ⇒ ⇒ 「本机绿」≠「CI 绿」。
       #   ⚠️ 只跑 `--lib`（单元测试）：`tests/embedded_stack.rs` 与 `tests/asr_engine_probe.rs`
       #   要真机/真脑 ⇒ ⇒ 那是**真机级**欠项，不属于这一档。
+      #   ⚠️⚠️ 2026-11-08 **第三跑实测补上的**：**必须挂 xvfb** —— 首跑 131 条里 **129 绿 2 红**，
+      #   两条红都是 `computer_use` 的用例（它们构造 **enigo** 夹具）⇒ ⇒ runner 上**没有显示器**
+      #   ⇒ ⇒ `x11rb` 连不上 X server ⇒ ⇒ 「failed to construct enigo for test fixture」⇒ ⇒
+      #   ⇒ 这是**环境缺口不是代码缺陷** ⇒ ⇒ 用 `xvfb-run --auto-servernum` 给它一块虚拟屏
+      #   （与 desktop-e2e.yml 同一手法）⇒ ⇒ 代码一行不动。
       - name: Cargo test (lib)
         working-directory: shadow/shadow-desktop/src-tauri
-        run: cargo test --manifest-path Cargo.toml --lib
+        run: xvfb-run --auto-servernum cargo test --manifest-path Cargo.toml --lib
 
       # ⚠️⚠️ **口径先按「只挡 error」** —— 与仓内既有纪律一致（ci.yml 的 prefrontal 已经
       #   收紧到 `-D warnings`，其余仓仍按只挡 error ⇒ ⇒ **谁先清零谁先收回口径**）。
