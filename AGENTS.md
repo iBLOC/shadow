@@ -1,5 +1,23 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-08 (㏉ **「端脑不许推理 —— 端脑唯一一处自己做的推理（规则式意图分析）被删掉，意图改由大脑给：JSON 契约 ＋ 大脑给不出就明确报错，绝不回落端脑自猜」** —— 承用户「端脑不允许推理 清理端脑中的推理代码由大脑提供」，本条记**取证（端脑其余「像推理」的模块经查已是转发）**、**刀**、**读数**、**行为代价**、**归因（那条红不归本刀）**，以及**仍然欠着的**。)
+
+> 信封：epoch=2026-11-08 | authority=measured | scope=project | source=真机实测（telencephalon `c40e2a1` 已推（3 文件 +403/−442：`src/lobes/intent.rs` 616→约 250 行、`src/lobes/mod.rs`、新测试 `tests/lobe_intent_from_brain.rs`）；新测试 **4 passed / 0 failed**；端脑 lib 全量 **831 passed / 1 failed** —— 唯一那条红**落在并行会话在飞的 `src/api/lobe_runtime.rs`**（他们新增的 `resolve_provider_api_key` 及其测试，`sk-from-brain` vs `sk-x`）⇒ **不归本刀**，未触碰；插前 fetch 远端＋重扫本地两态：本地 **124 条** max U+33C8＝并行会话 ㏈ 条（**已暂存待提交**）、远端 **123 条** max U+33C7）| status=active | supersedes=none
+
+① **✅ 取证：端脑唯一「自己做推理」的地方，就是意图分析** —— 逐模块核过：❶ **`vision_pipeline/` 已经是转发**（`NeuronDetectorClient` → `POST /v1/vision/detect`、`NeuronVlmClient` → `/v1/chat/completions`；端脑自己的 AGENTS.md 也写着「**No inference happens here**」）⇒ ⇒ 那是**编排**，不是推理，留着；❷ 端脑仓里**没有任何本地模型执行代码**（`candle`／`tokenizers`／`safetensors`／`onnx`／`ort` 一处引用都没有）⇒ ⇒ 端脑本来就不跑模型；❸ 于是剩下的自推理点只有 **`lobes/intent.rs` 的规则式意图分析**（`analyze_intent` ＋ 12 个关键词匹配函数：`is_task_query`／`is_memory_query`／`is_agent_query`／`extract_task_request`／`extract_time`／`extract_hour_after`／`extract_task_title`／`is_confirmation_response`／`is_rejection_response`／`extract_task_id_from_context`／`extract_source_hint_from_context`）⇒ ⇒ 它**真的在生产路径上**（`lobes/mod.rs:202` 的 temporal lobe 每次消息都调）⇒ ⇒ 端脑**自己猜**用户想干什么 ⇒ ⇒ 这就是「端脑在推理」的那一格。
+
+② **✅ 刀：意图改由大脑提供，端脑只留契约与分发** —— `src/lobes/intent.rs`：**删掉**整套装规则（连同它们自己的 6 条单元测试）⇒ 新增 `analyze_intent_via_brain`：走端脑现成的大脑 LLM 通道（`resolve_model` 选模型 → `send_chat_completion` ⇒ 云代理→回落 neuron 面），用一段 **JSON 契约**提示词（9 种意图：chat／task_create／task_confirm／task_query／task_update／memory_query／agent_query／visual_qa／visual_task）要一次**结构化分类**，再映射回端脑的 `Intent` 契约（剥 ``` 围栏容错）。⚠️ **大脑给不出可用意图 ⇒ 明确报错，绝不回落端脑自己那套规则** —— 回落就等于推理又回到端脑，纪律就白立了。端脑保留的是「**按意图分发**」的编排能力（转 prefrontal／查记忆／开视觉任务／普通对话），**理解**那一层归大脑。
+
+③ **✅ 读数（新测试 4 条全绿，脚本化「假大脑面」⇒ 真链路、真形状、可断言）** —— ❶ 大脑给的结构化意图被原样解析（`TaskCreate` 的 title／due_time／priority 逐个对上）＋ 请求真的发给了大脑且带的是路由到的模型 id；❷ **纪律断言**：那句话（「今天有什么任务」）按**旧规则**本该判 `TaskQuery`，而大脑给 `chat` ⇒ ⇒ 端脑必须给 `chat` ⇒ ⇒ **端脑没有在背后自己推理**；❸ 大脑回的**不是 JSON** ⇒ 明确报错（错误文本含「did not return intent JSON」）**且不回落自猜**；❹ 大脑**不可达** ⇒ 同样明确报错。
+
+④ **⚠️ 行为代价（架构口径的账，要说清）** —— ❶ temporal lobe 现在**每次对话多一次 LLM 调用**（意图分类那一次）⇒ 延迟与成本上升；❷ 大脑不可达／答不出 ⇒ 端脑**明确报错**（这是纪律的代价，也是「失败长得像成功」的反面：宁可红不可疑）；❸ 既有那条 lib 测试（`memory_query_falls_back_to_chat_when_hippocampus_is_absent`：海马体不在 ⇒ 记忆查询要回落成普通对话而不是 502）必须**改成脚本化**（上游先回意图 JSON、再回回答 ⇒ 调用次数 1 → 2）—— 它保的行为**没变**，只是意图的来源换了；❹ 两处「意图路由是**关键词规则**」的注释被更正 —— 架构变了，注释不能留着骗人。
+
+⑤ **⚠️ 归因（那条红不归本刀）** —— 端脑 lib 全量 **831 passed / 1 failed**，唯一那条红是 `api::lobe_runtime::tests::resolve_pulls_the_key_from_the_brain_store_by_id`（期望 `sk-from-brain` 实到 `sk-x`）⇒ ⇒ 它落在**并行会话在飞的 `src/api/lobe_runtime.rs`**（他们在飞 diff 里**新增**了 `resolve_provider_api_key` ＋ `attach_store_with_provider` ＋ 这几条测试）⇒ ⇒ **不归本刀，未触碰**（纪律：编译/测试红先按文件归因，错误落在谁的文件里归谁；共享工作树里绝不扫库、绝不碰他们的在飞文件）。
+
+⑥ **⚠️ 仍然欠着** —— ❶ **端脑其余疑似推理点未逐一定性**：`lobes/perception.rs::detect_anomaly`（统计型异常检测）、`visual_qa/intent_ext.rs::classify`（规则分类）、`a2a/skill_router.rs`（技能路由）—— 本条只清了意图分析这一处（它是**唯一**生产路径上的自推理点），其余要么是**统计/规则路由**（编排）要么是**感知契约**，但**没逐个定性**；❷ **大脑侧的意图能力缺真读数**：现在只有「假大脑面」的接缝级读数 ⇒ ⇒ **真模型**（云端/本地权重）给结构化意图的稳定性还没量（prompt 要不要加重试/容错、JSON 解析失败率多少）⇒ 真机欠项；❸ **端脑 temporal lobe 的真机读数**（带真大脑跑一轮对话、看意图分类与回落）；❹ **端脑 ASR 面**的 webm→wav 转换（㏇ 条⑥❶）与**移动端语音面接线**（㏇ 条⑥❸）；❺ ziti T4/T5 全形状＋三台互发现（待口令＋设备）；❻ 移动端真机 UI 验收。
+
+⑦ **⚠️ 圈码**：本条占 **U+33C9（㏉）** —— 插入前 fetch 远端＋重扫本地两态（本地 **124 条**、distinct 124、四类违规全 0、max U+33C8＝并行会话 ㏈ 条，**且它已被暂存待提交** ⇒ ⇒ 本条用**索引直写法**（㏁ 条入库的第四道钉）⇒ 不扫带他们的 hunk；远端 **123 条** max U+33C7）⇒ U+33C9 空闲 ✔ ⇒ 取 U+33C9，插入后复跑码位闸＋行首锚计数（**124+1=125**）双钉住。
+
 **Updated**: 2026-11-08 (㏈ **「测试里的进程级 env 竞争 —— 从『未普查』变成一道机械可跑的闸：判据收紧过一轮（改了却没人读不算污染），工具自证 5/5，跨仓普查把候选从 16 收到 7，每一条都带归属」** —— 承 ㏅ 条⑧❺ 那个欠项（「其他 crate 的 env 竞争仍未普查」），本条记**病**、**判据的三次收紧**、**工具自证**、**普查读数与归属清单**、**顺带收掉的一个假绿形状**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-08 | authority=measured | scope=project | source=真机实测（新增 `scripts/check-test-env-races.mjs` ＝ 42 道闸里的第 42 道，接进 `.github/workflows/ci.yml` 的 brain-gates job：**自检 5/5**、**本仓判定 0 候选（EXIT=0）**、**跨仓读数 7 候选（--report-only ⇒ EXIT=0）**；全量普查读数：**47 个 crate / 1329 个 .rs 文件**、候选 **7**（同二进制 4 / 闸值污染 3 / 集成测试 0）⇒ ⇒ 收紧前那版是 **16**；桌面 crate 侧：`cargo test --lib` 本地 **131 passed / 0 failed**（有 `Compiling shadow-desktop` 行 ⇒ 产物对应新源码）；治理闸审计：**闸总数 41→42**、新闸「自检:有 接CI:是 判不了档:有 自检退出:0 读数:5/5」⇒ ⇒ **零违规，不许登记成存量债**；插前 fetch 远端＋重扫本地两态（各 **123 条**、distinct 123、dups=0、max U+33C7＝并行会话 ㏇ 条）⇒ U+33C8 空闲 ✔）| status=active | supersedes=none
