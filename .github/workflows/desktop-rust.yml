@@ -118,7 +118,20 @@ jobs:
       - name: Setup Rust
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: ${{ steps.stack.outputs.workspaces }}
+          # ⚠️⚠️ **必须把桌面 crate 自己的 workspace 也列进来**（2026-11-08 实测）——
+          #   缓存**只列兄弟仓** ⇒ ⇒ 命中的是「兄弟仓各自的 target」⇒ ⇒ 而桌面 crate 是
+          #   **独立 workspace** ⇒ ⇒ 它的 path 依赖（tauri/wasmtime/lance/datafusion…）
+          #   **全被编进桌面 crate 自己的 target**（shadow/shadow-desktop/src-tauri/target）
+          #   ⇒ ⇒ **那几百个 crate 每次都从零编** ⇒ ⇒ 冷编 13 分 53 秒（run 42451957343
+          #   实测：缓存显示「Cache restored successfully · 621 MB · full match」，
+          #   **而测试步仍然 13 分 53 秒** ⇒ ⇒ 命中的那份缓存对这个编译**一点用没有**）。
+          #   ⇒ ⇒ 把桌面 crate 的 workspace 加进来 ⇒ ⇒ 那份重编译才能被缓存命中。
+          workspaces: |
+            ${{ steps.stack.outputs.workspaces }}
+            shadow/shadow-desktop/src-tauri
+          # ⚠️ shared-key：让**同一套 target** 在不同 workflow 的 job 之间共用缓存
+          #   （默认键含 job id ⇒ ⇒ 换 workflow 就换键 ⇒ ⇒ 缓存白存）。
+          shared-key: desktop-rust-stack
 
       # ⚠️⚠️ **被钉住的版本必须显式装** —— `RUSTUP_TOOLCHAIN` 只是**指定**版本 ⇒ ⇒ runner
       #   预装的 stable 里未必有那个精确版本 ⇒ ⇒ 不装就报 "toolchain '1.99.0' is not
