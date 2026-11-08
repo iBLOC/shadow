@@ -752,20 +752,18 @@ mod tests {
         // SAFETY: tests in this module are the only writer to this var.
         let prev = std::env::var("SHADOW_COMPUTER_USE_ENABLED").ok();
         unsafe { std::env::remove_var("SHADOW_COMPUTER_USE_ENABLED") };
-        // Construct a ComputerUse that doesn't actually talk to the
-        // input backend — we only need the env-driven gate logic.
+        // ⚠️⚠️ 2026-11-08：**真的调生产构造器 `ComputerUse::new()`** ——
+        //   原来这里**内联构造** `ComputerUse { enabled: AtomicBool::new(...),
+        //   enigo: None }` ⇒ ⇒ 断言打的是**测试自己造的原子量**，不是**生产代码
+        //   读 env 的那条路** ⇒ ⇒ **假绿形状**：把 `new()` 里的 env 读取改坏
+        //   （改 var 名 / 改比较值），这条测试**照样绿** ⇒ ⇒ 它证明不了闸逻辑。
+        //   ⇒ ⇒ 现在改成真的调 `ComputerUse::new()` ⇒ ⇒ 断言打在生产读点上。
         //
-        // ⚠️⚠️ 2026-11-08：**enigo 用 `None`，不构造真的实例** —— 构造 enigo 要
-        //   一个**显示器**（无 X 的 CI runner 上直接失败）⇒ ⇒ 而这条测试断言的**只是
-        //   闸逻辑**（那个 enabled 原子量）⇒ ⇒ 构造真 enigo 是**环境依赖，不是被测
-        //   行为** ⇒ ⇒ 它让这道 CI 闸**间歇性飘红**（run 42459825573：xvfb-run 已经
-        //   挂上了，enigo 仍然绑不上 ⇒ ⇒ 「给 CI 套一层虚拟 X」这个垫片**不可靠**）
-        //   ⇒ ⇒ 正确修法是**从源头去掉显示器依赖**：`enigo: None` 是这个类型
-        //   **明确支持**的状态（结构体注释：headless ⇒ None ⇒ 动作一律 Disabled）。
-        let cu = ComputerUse {
-            enabled: AtomicBool::new(prev.as_deref() == Some("1")),
-            enigo: None,
-        };
+        //   **为什么 headless 安全**：`new()` 里的 enigo 绑定**失败也不 panic** ——
+        //   它 `tracing::warn!` 之后把 `enigo` 置成 `None`（结构体注释：headless ⇒
+        //   None ⇒ 动作一律 Disabled）⇒ ⇒ **无显示器的 CI runner 上照样返回 Ok**
+        //   ⇒ ⇒ 这条测试**不需要显示器**，也不需要 xvfb 垫层。
+        let cu = ComputerUse::new().expect("ComputerUse::new is infallible (enigo failure degrades to None)");
         assert!(!cu.is_enabled());
         cu.set_enabled(true);
         assert!(cu.is_enabled());
