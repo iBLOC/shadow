@@ -345,6 +345,16 @@ describe('MoveSessionDialog', () => {
       await user.click(peer1);
       await user.click(screen.getByRole('button', { name: /common\.migrate\.confirm/ }));
       expect(await screen.findByText(/common\.migrate\.preparing/)).toBeInTheDocument();
+
+      // ⚠️⚠️ **这条测试以前留下一个 pending 的 promise** —— 500ms 的延迟在测试
+      // **结束之后**才落地 ⇒ ⇒ 撞上下一条测试的 `mockReset()` ⇒ ⇒ `importSession`
+      // 返回 undefined ⇒ ⇒ `summary.data.id` 抛 TypeError ⇒ ⇒ 落进 catch 的
+      // `setPhase('failed')` ⇒ ⇒ 而那时**文件早就收尾了** ⇒ ⇒ CI 上炸
+      // 「ReferenceError: window is not defined」（本地快 ⇒ ⇒ 复现不了 ⇒ ⇒ 极难归因）。
+      // ⇒ ⇒ 现在：**把整条链在本测试内跑完** ⇒ ⇒ 不留 pending promise。
+      await waitFor(() => {
+        expect(screen.getByText(/common\.migrate\.success/)).toBeInTheDocument();
+      });
     });
 
     it('shows sending phase after prepare completes', async () => {
@@ -361,6 +371,12 @@ describe('MoveSessionDialog', () => {
       await user.click(screen.getByRole('button', { name: /common\.migrate\.confirm/ }));
       await waitFor(() => {
         expect(screen.getByText(/common\.migrate\.inProgress\(Peer 1\)/)).toBeInTheDocument();
+      });
+
+      // ⚠️ 同款：**不留 pending promise** —— 否则导入那条链会落在测试**之后**
+      // ⇒ ⇒ CI 上偶发「window is not defined」。
+      await waitFor(() => {
+        expect(screen.getByText(/common\.migrate\.success/)).toBeInTheDocument();
       });
     });
 
