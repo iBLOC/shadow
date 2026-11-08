@@ -1,5 +1,25 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-08 (㏻ **「env 竞争的 JS/TS 面 —— 判据**不能照搬**：三个探针实测出 vitest 的机制与 Rust 完全不同（跨文件会还原 env、顺序 it 不并发、只有 it.concurrent 才共享），所以 JS 面的判据是「并发块里的裸 env 写」；Dart 侧该族根本不成立（Platform.environment 只读）」** —— 承 ㏈ 条❷ 那个欠项（「Dart／JS 侧的同类共享全局不在这个工具面」），本条记**取证（三个探针）**、**判据为何必须另立**、**闸的扩展与自检**、**读数与反向验证**、**归因**，以及**仍然欠着的**。)
+
+> 信封：epoch=2026-11-08 | authority=measured | scope=project | source=真机实测（新增 `scripts/lib/env-race-js.mjs` ＝ JS 面引擎；`scripts/check-test-env-races.mjs` 从「单语言闸」升级成**两族闸**（Rust 面＋JS 面）：自检 **7/7**（新增 JS 正控＋**JS 孪生**）；本仓判定读数：Rust 面 **2 crate / 51 .rs 文件 / 0 候选**，**JS 面 185 个 vitest 测试文件 / 207 个生产文件 / 并发块 env 写 0 处 ⇒ 候选 0**（EXIT=0）；**反向验证**：把探针放进**真实扫描面**（`shadow-desktop/tests/lib/zz-negative-probe.test.ts`）⇒ ⇒ 闸**报出候选 1、EXIT=1** ⇒ ⇒ 证明「0 候选」**不是空绿**；**机制取证**（vitest 3.2.4，三个探针文件实测）：跨 test file **不竞争**（同 worker 顺序跑，B 读到 `undefined`）／同文件顺序 `it` **不竞争**（默认顺序执行）／同文件 `it.concurrent` **真竞争**（C2 读到 C1 设的值 ⇒ `PROBE_C_SEEN=set-by-C1`）；**Dart 侧**：`Platform.environment` 只读、无 env 写入 API ⇒ ⇒ 本仓**零命中**、该族不成立；插前 fetch 远端＋**跨三账本**重扫本地（父仓 126 条／移动端 56 条／桌面端 4 条；distinct 216、max U+33FA＝并行会话 ㏺ 条）⇒ U+33FB 空闲 ✔）| status=active | supersedes=none
+
+① **⚠️⚠️ 取证先行：JS 侧**不是** Rust 那个机制 ⇒ ⇒ 判据照搬就是误报** —— 承 ㏈ 条❷（「Dart／JS 侧的同类共享全局不在这个工具面」）⇒ ⇒ 本条先把 **vitest 3.2.4 的机制实测出来**（三个探针文件，落在 `.local/` 下、**不扫**源码面）⇒ ⇒ 三条读数：**❶ 跨 test file 不竞争** —— 探针 A 改了 env **不还原**，探针 B 在**同一个 worker**（`singleThread: true` 强制）里顺序跑 ⇒ ⇒ B 读到的是 **`undefined`** ⇒ ⇒ **vitest 在文件之间还原了 `process.env`**；**❷ 同文件、顺序 `it` 不竞争** —— vitest 默认 `sequence.concurrent = false` ⇒ ⇒ 顺序执行 ⇒ ⇒ 没有窗口重叠；**❸ 同文件、`it.concurrent` 真竞争** —— 探针 C1 设的 env 被并行的 C2 **读到**（`PROBE_C_SEEN=set-by-C1`）。⇒ ⇒ **JS 面的真判据＝「并发块里的裸 env 写」**，**不是** Rust 那套「多个 owner」。
+
+② **⚠️ 为什么「照搬判据」是真会犯的错（本仓就有这个形状）** —— 本仓 `shadow-desktop/tests/lib/e2eConfigEnv.test.ts`：**三个** `it` 都改 `process.env.SHADOW_TELENCEPHALON_URL`（两个 delete、一个赋值）＋ `afterEach` 还原 ⇒ ⇒ 形状上**正是** Rust 那套「多个 owner」⇒ ⇒ 若照搬 ⇒ ⇒ **它会被误报成缺陷** ⇒ ⇒ 而按 ❶❷ 它**其实安全**（顺序执行）⇒ ⇒ ⇒ **判据必须按实测机制另立** ⇒ ⇒ 这条不是理论洁癖：**照搬会造出一堆假缺陷，然后大家就不信这道闸了**。
+
+③ **✅ 闸的扩展（两族，判据各按实测机制）** —— 新增 `scripts/lib/env-race-js.mjs`（JS 面**引擎**：判据在闸里、算法在引擎里）：· **扫描范围＝vitest 会跑的那批文件**（`*.test.{ts,tsx}` 减去 `vitest.config.ts` 自己的 `exclude` 前缀）⇒ ⇒ playwright／wdio 那些**独立进程**的 runner **不套**这条判据（套了同样是误报）；· **变异点**＝裸 `process.env.X = …`／`delete process.env.X`／`process.env['X'] = …`；· **豁免**＝`vi.stubEnv(...)`（vitest **官方 API**，**由 vitest 自己管还原**）⇒ ⇒ 不判红；· **读点**＝同文件读点 ＋ 生产代码（`src/` 下非测试文件）读点 ⇒ ⇒ 仍然要求「**有人读**」。
+
+④ **✅ 自检加两条（**JS 孪生是这一刀最要紧的那条**）** —— **JS 正控**：并发块里改 env 且有读点 ⇒ ⇒ **必须被报**（正控实测 candidates=2）；**JS 孪生**：**顺序 `it` 里改同一个 env（多个 owner！）⇒ ⇒ 必须不被报** ⇒ ⇒ 这条把「**没有照搬 Rust 判据**」**钉成机械判据** ⇒ ⇒ 哪天有人把 JS 面的判据改回「多个 owner」⇒ ⇒ 自检当场红。⇒ ⇒ 自检 **7/7 通过**（Rust 五条＋JS 两条）。
+
+⑤ **✅ 读数与「0 候选」的反向验证（**尺子要可见**）** —— 本仓判定：Rust 面 **2 个 crate / 51 个 .rs 文件 / 0 候选**；**JS 面 185 个 vitest 测试文件 / 207 个生产文件、并发块里的 env 写 0 处 ⇒ ⇒ 候选 0**（EXIT=0）。⚠️ **「0 候选」必须证明不是空绿** ⇒ ⇒ 把探针放进**真实扫描面**（`shadow-desktop/tests/lib/zz-negative-probe.test.ts`，未跟踪、验完移走）⇒ ⇒ 闸**报出候选 1、EXIT=1**（并指出「并发块里写的」＋「同文件读点」）⇒ ⇒ **证明这把尺子量得到东西** ⇒ ⇒ 移走后复位到 0 ⇒ ⇒ **真绿**。
+
+⑥ **✅ 归因（本刀不背这三盏红）** —— 跑闸时出现三盏红（`legacy-residue`／`agent-surface`／`gate-discipline`）⇒ ⇒ 在**干净 worktree**（`git worktree add --detach`）上复量：前两盏**在干净树上绿**（HEAD=bda25a3）⇒ ⇒ 它们是**并行会话在飞改动**弄红的（`shadow-desktop/src/styles/accent.g.ts` 生成物漂移；兄弟仓 `ziti-rust/target-android` 目录没登记）⇒ ⇒ **不归本刀、未触碰**；第三盏红在 `agent-surface` 的自检（同源）⇒ ⇒ 归因结论**写在这里**（否则读者会以为是我弄坏的）。
+
+⑦ **⚠️ 仍然欠着** —— ❶ **JS 面的判据仍是行级启发式**（并发块靠花括号配平找边界、env 写靠正则）⇒ ⇒ 字符串／注释里的花括号会扰动块边界 ⇒ ⇒ 读数是**候选清单**；❷ **JS 侧「生产读点」只扫 `src/`**（其它目录里的生产代码若有 env 读点，会漏）⇒ ⇒ 覆盖面待扩；❸ **Rust 侧那 7 条候选的真伪仍未判**（兄弟仓的，属**别的工作线** ⇒ ⇒ 本仓不越界）；❹ **Dart 侧是「该族不成立」而不是「已普查干净」** ⇒ ⇒ 若将来引入能写进程环境的 Dart 机制（如 FFI／平台通道），这条结论要**重测**；❺ **真机级欠项**照旧：移动端真机真云读数、大脑 ASR 面、ziti T4/T5、移动端真机 UI 验收（设备 offline）。
+
+⑧ **⚠️ 圈码**：本条占 **U+33FB（㏻）** —— 插入前 fetch 远端＋**跨三账本**重扫本地（父仓 126 条／移动端 56 条／桌面端 4 条；distinct 216、max U+33FA＝并行会话 ㏺ 条）⇒ U+33FB 三账本**各 0 次** ⇒ 空闲 ✔ ⇒ 取 U+33FB，插入后复跑码位闸＋行首锚计数双钉住。
+
 **Updated**: 2026-11-08 (㏊ **「项目安全性一格首次拿到完整读数 —— 连续四轮 scanner_enobufs 之后，干净 worktree 上 Mimosa 深扫 8 秒完整跑完；真源码 2 条 medium 全部人判同族 by-design（本机信任面内），业务逻辑面仍未覆盖」** —— 承 ㎹ 条⑥①「安全性一格持续无读数」，本条记**跑通的方法与读数**、**两条 finding 的人判**、**覆盖边界**，以及**仍欠着的**。)
 
 > 信封：epoch=2026-11-08 | authority=measured | scope=project | source=真机实测（scanId `scan-2026-11-08T11-52-40.542Z-ea843ddd2f25`，seal `sha256:1e045ee9afc23db2c7739f0703b7dcaf4cc4d9294d46834694e5a6f80fd13447`；干净 worktree（`git worktree add` sibling 位挂 origin/master bda25a3，1528 文件纯源码）⇒ 538 文件 selected/parsed 零失败零截断；**findingCount=2**（high 0／medium 2／businessLogic 0）；依赖 1595 包 offline advisory 5 包 11 条 2 未定；扫描用时 8 秒）| status=active | supersedes=none

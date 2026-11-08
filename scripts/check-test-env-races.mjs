@@ -54,6 +54,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { censusJs, readVitestExcludes } from './lib/env-race-js.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..');
@@ -294,9 +295,10 @@ export function census(root, opts = {}) {
  * ⚠️ 单独抽出来 ⇒ ⇒ 因为「report-only 也退 1」是本闸**第一版就有的真 bug**
  *    （接到 CI 上就会因为兄弟仓的存量候选而红）⇒ ⇒ 它必须被自检钉住。
  */
-export function gateExit(summary, reportOnly) {
+export function gateExit(summary, reportOnly, jsCandidates) {
   if (reportOnly) return 0;
-  return summary.candidates > 0 ? 1 : 0;
+  const js = jsCandidates || 0;
+  return (summary.candidates + js) > 0 ? 1 : 0;
 }
 
 /* ── 判据自检：正控（两个测试函数改同一个 var ⇒ 必须红）＋ 孪生（只有一个 ⇒ 必须绿） ── */
@@ -391,6 +393,36 @@ function selfTest() {
   checks.push({ name: 'CI 布局可达：shadow 在 <ws>/shadow ⇒ ⇒ 第 3 层的桌面 crate 必须被扫到', ok: found,
     detail: 'crates=' + r4.summary.cratesScanned + ' 目录=' + r4.report.map((x) => x.dir).join(', ') });
 
+  // ⚠️ **第六个用例：JS 面的正控** —— 并发块（it.concurrent）里改 env 且有读点
+  //   ⇒ ⇒ 必须被报（实测机制：同文件内并发块**共享** env ⇒ ⇒ 真竞争）。
+  const jsBase = path.join(base, 'js');
+  fs.mkdirSync(path.join(jsBase, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(jsBase, 'src', 'prod.ts'), 'export const url = process.env.JS_GATE;\n');
+  fs.writeFileSync(path.join(jsBase, 'js-positive.test.ts'),
+    "import { it } from 'vitest';\n" +
+    "it.concurrent('writes', () => { process.env.JS_GATE = 'x'; });\n");
+  const jsPos = censusJs(jsBase, { excludes: [] });
+  const jsPosFound = jsPos.summary.candidates > 0
+    && jsPos.report.some((x) => x.sameBinary.some((c) => c.var === 'JS_GATE'));
+  checks.push({ name: 'JS 正控：并发块（it.concurrent）里改 env 且有读点 ⇒ 必须被报', ok: jsPosFound,
+    detail: 'candidates=' + jsPos.summary.candidates + ' concurrentMuts=' + jsPos.summary.concurrentMuts });
+
+  // ⚠️⚠️ **第七个用例：JS 面的孪生（**这一条钉住「不能照搬 Rust 判据」）**
+  //   顺序 `it` 里改 env（**多个 owner**！）⇒ ⇒ **必须不被报** ——
+  //   实测：vitest 同一文件内的顺序 `it` 是**顺序执行**的 ⇒ ⇒ 不存在窗口重叠
+  //   ⇒ ⇒ 若这里被报 ⇒ ⇒ 说明判据照搬了 Rust 那套「多个 owner」⇒ ⇒ 误报。
+  const jsTwin = path.join(base, 'js-twin');
+  fs.mkdirSync(path.join(jsTwin, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(jsTwin, 'src', 'prod.ts'), 'export const url = process.env.JS_GATE;\n');
+  fs.writeFileSync(path.join(jsTwin, 'js-twin.test.ts'),
+    "import { it } from 'vitest';\n" +
+    "it('a', () => { process.env.JS_GATE = 'x'; });\n" +
+    "it('b', () => { process.env.JS_GATE = 'y'; });\n");
+  const jsTwinRes = censusJs(jsTwin, { excludes: [] });
+  const jsTwinClean = jsTwinRes.summary.candidates === 0;
+  checks.push({ name: 'JS 孪生：顺序 it 里改同一个 env（多个 owner）⇒ 必须不被报（顺序执行 ⇒ 不竞争）', ok: jsTwinClean,
+    detail: 'candidates=' + jsTwinRes.summary.candidates });
+
   const pass = checks.filter((c) => c.ok).length;
   console.log('判据自检（测试里的进程级 env 竞争闸）');
   for (const c of checks) {
@@ -430,6 +462,17 @@ if (!fs.existsSync(ROOT)) {
 
 const { summary, report } = census(ROOT, { only: ONLY, exclude: EXCLUDE });
 const REPORT_ONLY = has('report-only');
+
+// ── JS/TS 面（**判据与 Rust 面不同**，见 scripts/lib/env-race-js.mjs 头注）──
+// ⚠️ 只扫 **vitest 会跑的那批文件**（vitest 的 include 集减去它自己的 exclude
+//   前缀）⇒ ⇒ playwright／wdio 那些**独立进程**的 runner 不套这条判据
+//   （套了就是误报）。
+const vitestExcludes = readVitestExcludes(path.join(ROOT, 'shadow-desktop', 'vitest.config.ts'));
+const jsRoot = path.join(ROOT, 'shadow-desktop');
+const jsResult = fs.existsSync(jsRoot)
+  ? censusJs(jsRoot, { excludes: vitestExcludes })
+  : { summary: { jsFilesScanned: 0, prodFilesScanned: 0, concurrentMuts: 0, candidates: 0 }, report: [] };
+const jsCandidates = jsResult.summary.candidates;
 
 if (summary.cratesScanned === 0) {
   console.error('判不了：' + ROOT + ' 下一个 crate 都没扫到 ⇒ ⇒ 退出码 2（不是「没问题」）');
@@ -472,6 +515,17 @@ if (has('json')) {
   console.log('');
   console.log('—— 汇总：扫了 ' + summary.cratesScanned + ' 个 crate / ' + summary.filesScanned + ' 个 .rs 文件');
   console.log('   候选：同二进制 ' + summary.sameBinaryCandidates + ' / 闸值污染 ' + summary.gatePollutedCandidates + ' / 集成测试 ' + summary.integCandidates + ' ⇒ 合计 ' + summary.candidates);
+  console.log('');
+  console.log('—— JS/TS 面（vitest：**判据不同**，见 scripts/lib/env-race-js.mjs 头注）——');
+  console.log('   扫了 ' + jsResult.summary.jsFilesScanned + ' 个 vitest 测试文件 / ' + jsResult.summary.prodFilesScanned + ' 个生产文件；并发块里的 env 写 ' + jsResult.summary.concurrentMuts + ' 处 ⇒ ⇒ 候选 ' + jsCandidates);
+  for (const f of jsResult.report) {
+    console.log('   == ' + f.file);
+    for (const c of f.sameBinary) {
+      console.log('       ' + c.var + '（并发块里写的）' + (c.prodRead.length ? '；生产读点: ' + c.prodRead.join(', ') : '') + (c.testRead.length ? '；同文件读点: ' + c.testRead.join(', ') : ''));
+    }
+  }
+  console.log('   ⚠️ JS 侧**不适用** Rust 那套「多个 owner」判据（实测：vitest 跨文件会还原 env ⇒ ⇒ 不竞争）；只有**并发块**才竞争。');
+  console.log('   ℹ️ Dart 侧**不适用**：Dart 的 `Platform.environment` 是只读的，没有 env 写入 API ⇒ ⇒ 本仓该族不成立。');
   console.log('   ⚠️ 候选**不是判决** ⇒ ⇒ 判定仍要靠「同一命令跑 N 轮」的 A/B。');
   if (reportOnly) {
     console.log('   ℹ️ --report-only ⇒ ⇒ 本次**只打印**候选，不判红。');
@@ -482,7 +536,7 @@ if (has('json')) {
 //    若它仍然退 1 ⇒ ⇒ 接到 CI 上就会**因为有存量候选而红** ⇒ ⇒ 而那些候选
 //    在**兄弟仓**里（属别的工作线）⇒ ⇒ 本仓的 CI 不该替它们背锅 ⇒ ⇒
 //    「有候选」与「该不该红」必须分开（**闸 vs 读数**两档）。
-process.exit(gateExit(summary, REPORT_ONLY));
+process.exit(gateExit(summary, REPORT_ONLY, jsCandidates));
 } // main()
 
 /** 本文件是不是被**直接当脚本**跑（而不是被 import）？ */
