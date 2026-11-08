@@ -1,5 +1,23 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-08 (㏇ **「大脑 ASR 面 —— 端脑的 voice 面从『编结果』改成『真转发 neuron』：假文本的根被拔掉，两层读数（端脑接缝级 ＋ neuron 引擎级真识别）拿到；云端那条路实测不成立」** —— 承用户「大脑 asr 面 是neuron或者云提供商提供接口支持」与 ㏂ 条⑤②那个欠项，本条记**病**、**取证与分工**、**两层读数**、**顺带钉住的门契约**，以及**仍然欠着的**。)
+
+> 信封：epoch=2026-11-08 | authority=measured | scope=project | source=真机实测（telencephalon `64ad964` 已推（2 文件 +279/−21：`src/api/voice.rs` ＋ `tests/voice_neuron_bridge.rs`）；端脑侧**1 passed / 0 failed**（0.03s）；neuron 侧引擎级真跑（neuron 仓 `asr_engine_probe --ignored`）：反向 **500 · NoRegisteredModel**，正向 **200 ＋真文本**，elapsed **65.96s**（debug 档；release 档此前 9.2s/19.6s）；**云端实测**：MiniMax `POST /v1/audio/transcriptions` ⇒ **404 page not found** ⇒ 那条路对 MiniMax 不成立；插前 fetch 远端＋重扫本地两态（各 **122 条**、distinct 122、四类违规全 0、max U+33C6＝并行会话 ㏆ 条））| status=active | supersedes=none
+
+① **⚠️⚠️ 病（失败长得像成功）** —— 端脑的 voice 面**一直是假实现**：`transcribe_audio` 返回 `"Transcribed {n} bytes of audio"` —— 一段**编出来的**文本；`synthesize_speech` 返回一个**空 MP3 头**（`FF FB 90 00`）⇒ ⇒ 桌面端 `components/ui/voice-button.tsx` 走 `telencephalonClient.transcribeAudio` 拿到的就是这段假文本 ⇒ ⇒ **它被当成识别结果填进输入框** ⇒ ⇒ 用户以为听懂了，其实在骗自己。⇒ ⇒ 同一个文件里还挂着第二个编出来的读数：`confidence` 字段**永远是 0.9**（没有任何引擎产出过置信度）⇒ ⇒ 一并删掉（桌面端只读 `text`，移动端零调用方 ⇒ 形状变更无破坏面）。
+
+② **✅ 取证与分工（用户那句话把方向钉死，也被代码结构证实）** —— **neuron 侧确有 ASR**：三套 runtime（candle whisper／tract SenseVoice／sherpa）＋ `AsrRuntimeRegistry`（`lazy_default_runtime()`／`runtime_for`）＋ HTTP 面 `POST /v1/audio/transcriptions`＋`/v1/audio/speech`（TTS）＋ `AsrRuntime` trait（`transcribe(&[u8], lang) -> Transcription`）⇒ ⇒ **端脑侧零接线**（`neuron_embed` 只暴露了 LLM 相关的 `register_remote_llm`／catalog／start_*）⇒ ⇒ 缺口是「端脑没把请求交给 neuron」。**云端那条路实测不成立**：MiniMax `POST /v1/audio/transcriptions` ⇒ **404** ⇒ ⇒ 于是分工是：**端脑只做门面**（解 base64 ⇒ 交 neuron runtime ⇒ 透传结果），识别与合成能力由 neuron 的引擎决定。
+
+③ **✅「能不能真识别」取决于部署里的 neuron 构建与权重（这条要说清，否则会被误读成「端脑自己会识别」）** —— 端脑是 neuron 的 **router-only 依赖**（`neuron = { path = "../neuron", default-features = false }`；neuron 仓自己的注释：telencephalon 与 shadow-desktop 都关掉了 default features）⇒ ⇒ **端脑进程里没有 candle** ⇒ ⇒ 在这种部署上这条端点会**明确报「neuron 侧没有 ASR 引擎」**（错误文本来自 neuron），**而不是**编一段文本回来；装了带引擎的 neuron（或权重齐备的部署）时，同一个端点就是**真识别**。⇒ ⇒ 错误**原样透出**：「没有引擎」「权重没下载」「音频格式不支持」三件事处置完全不同 ⇒ ⇒ 端脑不重包成成功。
+
+④ **✅ 两层读数（缺一不可）** —— **层一·端脑接缝级**（`tests/voice_neuron_bridge.rs`，真 HTTP，**1 passed / 0 failed**）：① 无引擎 ⇒ **503** 且错误文本是 neuron 的原话 `NoRegisteredModel`（⇒ 证明请求真的越过了端脑、抵达了 neuron）；② 旧那句 `"Transcribed"` **一个字节都不许回来**；③ 坏 base64 仍 **400**（形状没坏）；④ TTS 无引擎是 **503**，不再是空 MP3。**层二·neuron 引擎级**（`neuron` 仓 `asr_engine_probe --ignored`，本机实跑）：反向 **500 · `neuron_error: NoRegisteredModel`**；正向 **200 ＋真文本**「The tribal chief then called for the boy and presented him with fifty pieces of gold.」，**elapsed 65.96s**（debug 档 candle-whisper；release 档此前读数 9.2s／19.6s）⇒ ⇒ 「引擎真能识别」这一格是**真语音真出文本**，不是形状推测。
+
+⑤ **⚠️ 顺带钉住的两条门契约（读代码才知道的那两条）** —— ❶ `/api/telencephalon/voice/*` 是**写门**（`admin` 门型 ⇒ 只认 `X-Admin-Token`；`shadow` 那把钥匙开不了写门）⇒ ⇒ 测试请求必须带凭据；❷ **`AppState::new` 只给 admin token 放**占位**（真值由 `main.rs`／`test_harness.rs` 覆盖）⇒ ⇒ 在 config 里设 `telencephalon.admin.api_key` **不生效** ⇒ ⇒ 测试必须**自己递一把**进 `state.admin_token`（「没配 admin token ⇒ admin 面关着」，fail-closed，2026-10-31 起的纪律）。
+
+⑥ **⚠️ 仍然欠着** —— ❶ **webm**（桌面端录的是 webm，而 whisper 只吃 wav ⇒ `decode_wav` 解不了）⇒ ⇒ **「大脑 ASR 面」在桌面端可用的最后一块是格式转换**（浏览器 `MediaRecorder` 不产 wav ⇒ 要 `AudioContext` 重采样）⇒ ⇒ 在这之前，桌面语音按钮会拿到**明确的格式错误**而不是假文本（诚实但不可用）；❷ **端脑进程内的真引擎**（需要部署带 candle／tract 的 neuron）⇒ 真机级读数仍缺；❸ **移动端语音入口**（移动端今天**零**调用方）⇒ 移动端语音面还没接线；❹ 大脑 ASR 面在**移动端真机**上的读数；❺ ziti T4/T5 全形状＋三台互发现（待口令＋设备）；❻ 移动端真机 UI 验收；❼ 云端 ASR（要换一个真有 ASR 的供应商才算这条路成立）。
+
+⑦ **⚠️ 圈码**：本条占 **U+33C7（㏇）** —— 插入前 fetch 远端＋重扫本地两态（各 **122 条**、withCp=122、distinct 122、dups=0、mismatched/swallowed/foreign 全 0、max U+33C6＝并行会话 ㏆ 条——测量间隙账本又被并行推进四条）⇒ U+33C7 空闲 ✔ ⇒ 取 U+33C7，插入后复跑码位闸＋行首锚计数（**122+1=123**）双钉住。
+
 **Updated**: 2026-11-08 (㏆ **「桌面 Rust 闸从「一天一次」变成「每次相关 push 都跑」—— 两步：① 冷编 13 分 53 秒的真因是**缓存命中的是另一棵树**（rust-cache 只列了兄弟仓 ⇒ 桌面 crate 那个独立 workspace 的 target 从来没被缓存）＋ ② push 触发（paths 过滤 ＋ **push 档互相顶掉、夜间档永不取消**）；第三次 push 触发又逮到一层**不可靠的垫片**（虚拟 X）⇒ ⇒ 显示器依赖从**源头**去掉，而不是继续给 CI 套环境」** —— 承 ㏅ 条②「长任务不进 push 流水线」那条纪律，本条记**它的两条前提怎么被拆掉的**、**读数**、以及**仍然欠着的**。)
 
 > 信封：epoch=2026-11-08 | authority=measured | scope=project | source=真机实测（**三跑**：run `42458163880` ＝缓存键变更后的第一次（冷）⇒ 测试步 **9 分 58 秒** ＋ 缓存写入 **2.8 GB**；run `42459825573` ＝**第一次 push 触发** ⇒ 测试步 **2 分 13 秒** ⇒ ⇒ **红**（enigo 夹具 ⇒ 虚拟 X 垫片不可靠）；run `42460640728` ＝撤掉垫片 ＋ 夹具改 `enigo: None` ⇒ 测试步 **2 分 27 秒** ✔ ⇒ **`test result: ok. 131 passed; 0 failed`** ⇒ 整跑 **7 分 04 秒** ✔；**改前基准** run `42451957343` ⇒ 测试步 **13 分 53 秒**、缓存只有 **621 MB**（兄弟仓那棵））| status=active | supersedes=none
