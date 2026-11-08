@@ -1,5 +1,27 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-08 (㐔 **「这一族的普查扩到**移动端** —— Dart 面进闸：148 个 `lib/` 源文件、**14 处**落点、**真缺陷只有 1 条**（配置**写**失败被吞）⇒ ⇒ 移动端比桌面端健康得多」** —— 承 㐓 条（销账 3/4 把债务清到只剩两条），本条记**为什么移动端必须进面**、**Dart 判据（D1/D2）**、**普查读数与逐条分类**、**覆盖边界的改写**，以及**仍然欠着的**。)
+
+> 信封：epoch=2026-11-08 | authority=measured | scope=project | source=真机实测（改动落在 1 个文件：`scripts/check-failure-masking.mjs`（新增 `DART_RULES` ＋ 两个面的扫描面 ＋ 自检加钉 ＋ 文档段改写）；读数：闸 `node scripts/check-failure-masking.mjs --json` **EXIT=0**（**414 个源文件**（桌面端 266 ＋ 移动端 lib/ 148）/ **41 处落点** / fresh=0 / stale=0 / 债务清单 **31 条**，其中 ⚠️ 真缺陷 **2 条**）、`--self-test` **30/30**；提交 `3e6b6fc` 已推 `origin/master`）| status=active | supersedes=none
+
+① **⚠️ 为什么移动端必须进面（这一族原本只查了一半）** —— 闸的「覆盖边界」段一直写着「② Dart 侧（shadow-mobile）的同族形状（**另一套语法** ⇒ 另做）」⇒ ⇒ 那是一句**未普查**的坦白 ⇒ ⇒ 而本仓的纪律是「**未普查要变成机械可跑的工具**」（㏈ 条那条）⇒ ⇒ 「另做」不等于「不做」⇒ ⇒ 现在 Dart 面**进面了**（不是靠自觉，是靠闸）。
+
+② **✅ Dart 判据（D1/D2）—— 另一套语法 ⇒ ⇒ 另一套判据（不是照搬 TS 那五条）** —— ❶ **D1 catch-block-empty**：`catch { }` / `catch (e) { }` / `on X catch (e) { }` ⇒ ⇒ 整块 catch 是空的；❷ **D2 catch-error-swallow**：`.catchError((e) => {})` / `.catchError((e) => null)` ⇒ ⇒ Future 上的吞法（今天实测 **0 命中** ⇒ ⇒ 留着当**预防性**的钉）。⚠️ 判据跑在**剥掉注释**的 Dart 文本上 ⇒ ⇒ 「块里只有一句注释」也算空块（与 TS 面同一条纪律）。⚠️ Dart 的测试目录（`test/`、`test_driver/`、`integration_test/`、`*_test.dart`）**不进判定**（但照常被扫）。
+
+③ **✅ 普查读数（148 个 `lib/` 源文件 ⇒ 14 处落点 / 13 个文件）** —— 剥注释后重扫（不剥只看到 4 处 ⇒ ⇒ **块里只有注释的那 10 处会漏** ⇒ ⇒ 剥注释是这条闸的必需品，不是装饰）⇒ ⇒ **14 处** ⇒ ⇒ 逐条看过上下文后分类：**合法回落 13 处** ＋ **⚠️ 真缺陷 1 处**。
+
+④ **✅ 13 处合法回落（逐条一句话，省得下次重读）** —— ❶ `a2a_client` 心跳 ping **尽力而为**（通道真坏了走 `_handleError`/`_handleDisconnect`）；❷ `audio_input_handler` 幅度条是**装饰性**读数（录制不依赖它）；❸❹❺ 三个屏的 USB 路由失败 ⇒ ⇒ 音频走当前默认输出 ⇒ ⇒ **界面显示的是真实路由**（`ref.watch(shadowOutputRouteProvider)`）⇒ ⇒ 没有谎称已路由；❻ `audio_ws_service` 单条**非 JSON** 消息跳过（那条转写丢了，其余照常）；❼ `background_run_provider` 逐个派发 ⇒ ⇒ 单个监听者炸了**不连累别人**；❽ `chat_background_service` 旧背景文件删不掉**不阻塞**新状态；❾ `encephalon_mobile_provider` 大脑起不来 ⇒ ⇒ 请求照常发、按原语义失败（**不假装大脑在跑**）；❿ `session_transfer_service` 端脑不可达 ⇒ ⇒ 退回**只本地**发现（列表少但不是假的）；⓫ `telencephalon_client` ❶就绪门抛错不把请求带崩 ❷SSE 单条坏 JSON 跳过；⓬ `video_frame_collector` 单帧采集失败 ⇒ ⇒ 跳过这一帧。
+
+⑤ **⚠️ 唯一那条真缺陷** —— `lib/services/app_config_service.dart` 的 `_saveConfig()`：配置**写**失败被吞（注释原文：「配置保存失败，忽略错误」）⇒ ⇒ 内存里已经是新值、**文件里还是旧值** ⇒ ⇒ 用户以为设置存下来了（重启就没）⇒ ⇒ **「写不进被说成写进了」**。⚠️ **为什么本刀没直接改**：改它需要一条「保存失败 ⇒ 到 UI 的错误通路」（SnackBar ＋ l10n ＋ 端到端测试）⇒ ⇒ 那是**设计决定**（写失败时该弹什么、该不该回滚内存里的值）⇒ ⇒ **未拍板** ⇒ ⇒ 先如实登记进债务清单。
+
+⑥ **⚠️ 覆盖边界改写（**别装作全覆盖**）** —— Dart 面**只认 D1/D2 两种形状** ⇒ ⇒ `Future.any` / `whenComplete` / `unawaited` 上的静默吞法**抓不到**；「catch 里有处理但处理错了」的**抓不到**；**写操作面**（写失败被吞）两个面都**抓不到**（它没有「长得像成功」的形状）⇒ ⇒ 这三条都写进了闸的「覆盖边界」段。
+
+⑦ **✅ 读数** —— **闸**：`--json` ⇒ ⇒ **EXIT=0**（**414** 个源文件 / **41** 处落点 / `fresh=[]` / `stale=[]`；债务清单 **31 条**，其中 ⚠️ 真缺陷 **2 条**）；`--self-test` ⇒ ⇒ **30/30**（上一版 22/22 ⇒ ⇒ 新增 **5 条正控**（D1 三种写法 ＋ D2 两种写法）＋ **3 条孪生**（`debugPrint` 处理的 catch ×2 ＋ `rethrow` 的 catchError）⇒ ⇒ **每条新判据都有正控也有孪生**）；提交 `3e6b6fc` 已推。
+
+⑧ **⚠️ 仍然欠着** —— ❶ 剩下 **2 条 ⚠️ 真缺陷**：`SettingsPage.tsx:1267`（**并行会话在飞文件** ⇒ 不碰）＋ `app_config_service._saveConfig`（**待设计决定**：写失败到 UI 的通路）；❷ 本刀**没有**修任何 Dart 代码 ⇒ ⇒ 移动端的真缺陷仍在那儿；❸ 移动端台账（`shadow-mobile/AGENTS.md`）**是并行会话在飞文件** ⇒ ⇒ **本刀不碰**（条目只记在父仓）；❹ 端脑侧**未动**；❺ 真机级欠项照旧（移动端真机真云读数、大脑 ASR 面、ziti T4/T5、移动端真机 UI 验收）。
+
+⑨ **⚠️ 圈码**：本条占 **U+3414（㐔）** —— 插入前**重扫三账本**（父仓 146 条 distinct / max U+3413＝上一刀那条；桌面端 7 条 / max U+3413；移动端 0 条落在 3300–34FF 段）⇒ ⇒ **U+3414 空闲** ✔ ⇒ ⇒ 插入**后**复查（重扫 ＋ 码位闸）⇒ ⇒ 撞了就就地改号。
+
 **Updated**: 2026-11-08 (㐓 **「「失败长得像成功」族销账 3/4 —— 工作流存档的**两个方向**都说出来（读不到 ≠ 没有 / 写不进 ≠ 写进了）；两条**零调用方**的孤儿 API 直接删掉（`clearKey` / `ttsService.setEnabled`）⇒ ⇒ 债务清单 **21 → 18 条**、⚠️ 真缺陷 **4 → 1 条**」** —— 承 㐒 条（本刀升级判据时登记下来的那 4 条 ⚠️ 真缺陷），本条记**这一刀改了什么**、**「零调用方 ＋ 静默失败 ⇒ ⇒ 删而不是修」这条判据**、**读数**，以及**仍然欠着的**。)
 
 > 信封：epoch=2026-11-08 | authority=measured | scope=project | source=真机实测（改动落在 7 个文件：`shadow-desktop/src/pages/WorkflowStudioPage.tsx`、`shadow-desktop/src/lib/storage.ts`（删函数）、`shadow-desktop/src/lib/tts.ts`（删函数）、`shadow-desktop/src/i18n/{en-US,zh-CN}.json`、新测试 `shadow-desktop/tests/pages/WorkflowStudioPage.test.tsx`、`scripts/check-failure-masking.mjs`（销三条债务）；读数：闸 `node scripts/check-failure-masking.mjs --json` **EXIT=0**（266 文件 / **27 落点** / fresh=0 / stale=0）、`tsc -b` **EXIT=0**、五个测试文件 **20/20**、桌面端全量 **1420 passed / 1 failed**（唯一那条红仍是**并行会话在飞**的 `accent.g.ts` 生成物不同步 ⇒ 不归本刀、未触碰）；提交 `7cc817e` 已推 `origin/master`）| status=active | supersedes=none
