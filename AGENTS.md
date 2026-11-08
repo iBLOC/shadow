@@ -1,5 +1,23 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-08 (㏂ **「真云供应商上的端到端读数 —— 从 mock 到真云：同一套链路指向真 MiniMax，云模型自己决定调工具，设备答案真进了云模型上下文；方法论＝本机『记录代理』让真云可断言」** —— 承 ㏁ 条⑤①「真云供应商端到端」那个欠项，本条记**真云侧先验**、**记录代理法**、**九项断言与三连绿读数**、**凭据零字节纪律**，以及**仍然欠着的**。)
+
+> 信封：epoch=2026-11-08 | authority=measured | scope=project | source=真机实测（真云直连预检：`https://api.minimax.chat/v1` ＋ `MiniMax-M3.1-Flash` 带 tools 一发 ⇒ **779ms**、`finish_reason=tool_calls`、真 tool_call（id `call_9962…`、`name=set_theme`、arguments 为 JSON 字符串）；组合探针 `telencephalon/tests/shadow_real_cloud_tool_loop.rs`＝telencephalon `9fbc6c2` 已推（1 文件 +424，凭据零字节自查 `NO_SECRET_IN_FILE`）；**三连绿 1 passed / 0 failed（4.73s／2.97s／2.68s，每轮两次真实云调用）**；编译级 `cargo +1.99.0 test --locked --offline` 绿、lib 81 warning 全存量；插前 fetch 远端＋重扫本地两态（各 **117 条**、distinct 117、四类违规全 0、max U+33C1））| status=active | supersedes=none
+
+① **✅ 真云侧先验（先证云会调工具，再证我们的链接得住）** —— 直连真云预检一发即中：带 OpenAI 形状的 `tools`（`set_theme`）⇒ 779ms 返回 `finish_reason=tool_calls`、`tool_calls[0].function.name=set_theme`、`arguments` 是 JSON **字符串**（不是对象）⇒ ⇒ 真云供应商**确实**在这套形状上走 function-calling。这条预检的意义：把「云会不会调工具」与「我们的链有没有把工具调用接住」拆成两次可分别证伪的实验，避免用一个红混着两个疑。
+
+② **✅ 方法论＝本机「记录代理」（真云不可观测 ⇒ 造一个可观测的对端）** —— 真云在我们这边是**黑盒**：看不到请求体 ⇒ 「ModelRouting 的 id 真落到 neuron 派发表」「tools 的 schema 真穿链」「设备答案真进了上下文」这三条**全部判不了**。解法＝本机起一个**透明记录代理**：neuron 打的是它，它把**请求体**与**上游响应体**都记下来，再原样转发真云（自己补 `Authorization`）⇒ ⇒ **真云仍是真正的对端**（请求真的出网、真的由云模型作答），而请求体在我们手里**可断言**。这一招把「端到端」与「可断言」两个目标同时保住，且不需要给生产链加任何观测代码（代理只在测试进程里）。
+
+③ **✅ 探针刀＝`tests/shadow_real_cloud_tool_loop.rs`（telencephalon `9fbc6c2`，+424）** —— 与 `shadow_remote_llm_tool_loop.rs`（mock 版）**同一条链路**，只把上游换成真云：生产形状合并面（`build_full_app` ＋ 真 neuron 面挂根，门罩住最外层）＋ `register_remote_llm` 指记录代理 ＋ temporal 固定该云模型 id ＋ `await_tool_result:true` 同回合时序（wait 30s）＋ 手写 TCP 增量读（driver 攥流时 `resp.text()` 会互相等死，见 ㎿ 条④）。**九项断言**（端脑侧 3 ＋ 云侧 6）：SSE 带 `tool_call`/`set_theme`、同条流以 `done` 收口；云侧恰两调、`request[0].model` 等于路由到的云模型 id、tools 的 JSON Schema 穿链、**真模型自己** `finish_reason=tool_calls` 且**自选** `set_theme`、第二调 messages 含 `[tool_result] set_theme`、真终答非空（内容自由，不断言字串）。**读数三连绿**（4.73s／2.97s／2.68s）⇒ 真云有随机性，单次绿不算数，三连绿才说明这不是撞运气。
+
+④ **⚠️ 凭据纪律（仓里一个字节都不留）** —— 真 key **只从环境变量读**：`SHADOW_TEST_CLOUD_BASE_URL`（含 `/v1`）／`SHADOW_TEST_CLOUD_API_KEY`／`SHADOW_TEST_CLOUD_MODEL`，缺任一 ⇒ 测试**跳过并打印原因**（⇒ CI 永远绿，真机跑时带齐三个变量）。出仓前另跑一道**自查**：拿真 key 在待提交文件里做 `Contains` 比对 ⇒ `NO_SECRET_IN_FILE`（这条自查本身也该成为共享凭据类提交的常规动作）。
+
+⑤ **⚠️ 插条纪律的第二次实战（㏁ 条第四道钉首次实跑）** —— 本条插前工作树里**躺着并行会话的在飞改动**（㏁ 条首行改写 ＋ 1942 行附近四条旧条目重排，共 5 删 5 增）⇒ 若照旧 `git add AGENTS.md`，他们的在飞 hunk 会被我**一并发布**（= ㏁ 条记载的事故形态）。本次改走**索引直写**：构造「HEAD ＋ 我的新条」的副本 ⇒ `git hash-object -w` ⇒ `git update-index --cacheinfo` 把索引指向该副本 ⇒ 提交里只有我的 hunk，**工作树一个字不动**（他们的在飞编辑原样保留）⇒ 提交后再逐 hunk 核对暂存区（恰 1 hunk 纯新增、零删除）。⇒ ⇒ **「文件是我的」不等于「文件内容是我的」**：共享工作树里发布前必须逐 hunk 认领。
+
+⑥ **⚠️ 仍然欠着** —— ① **移动端真机上的真云读数**：本条是**桌面进程内**（真 key ＋ 真云），Android App 进程内的真云调用仍属真机验收欠项（移动端在飞线）；② **大脑 ASR 面**（㎿ 条⑤②）；③ **ziti T4/T5 全形状＋三台互发现**（待口令＋设备）；④ 移动端真机 UI 验收（对话换大脑后真出话）。
+
+⑦ **⚠️ 圈码**：本条占 **U+33C2（㏂）** —— 插入前 fetch 远端＋重扫本地两态（各 **117 条**、distinct 117、dups=0、mismatched/swallowed/foreign 全 0、max U+33C1）⇒ U+33C2 空闲 ✔ ⇒ 取 U+33C2，插入后复跑码位闸＋行首锚计数（**117+1=118**）双钉住。
+
 **Updated**: 2026-11-08 (㏁ **「㎿ 撞号事故双记 —— 同一码位两会话同一窗口各取一次：c99419b 把并行会话工作树里未提交的半成品条目一并扫上 origin（dups=1 红），他们的 763fa02 已把自家条改题 ㏀/U+33C0；本条记时间线、两道闸为什么都没拦住、给未来写入方的第四道钉」** —— 承 ㌳ 插入事故（检测侧假绿）与本轮 ㎿ 条（本刀本体），本条记**事故取证**、**闸的盲区**、**修复动作**，以及**判据入库**。)
 
 > 信封：epoch=2026-11-08 | authority=measured | scope=project | source=真机实测（origin 推前 **116 条 dups=1**（第 3 行我的 ㎿、第 18 行他们的 ㎿——两会话在同一测量窗口各取 U+33BF：各自 fetch 到的远端都还是 max U+33BE）；763fa02＝他们把自家条改题 ㏀/U+33C0（AGENTS.md 恰 2 行 +2/−2，提交未推 ahead 1）；我只快进推这笔**已完成的提交** ⇒ 推后 fetch 重扫**两态各 116 条 distinct 116 dups=0 max U+33C0**、头部 ㎿；本条插前 fetch＋重扫两态同上）| status=active | supersedes=none
