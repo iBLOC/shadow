@@ -1,0 +1,161 @@
+name: Desktop Rust
+
+# ⚠️⚠️ **这个 workflow 单独成文件，是因为它编整栈** —— 桌面 crate（`shadow-desktop/src-tauri`）
+#   的依赖面是 **tauri + wasmtime + lance + datafusion + 整条 iBLOC 栈**（encephalon →
+#   telencephalon → neuron → synapse → hippocampus）⇒ ⇒ 冷编是**几十分钟**量级
+#   ⇒ ⇒ 而 CI 主 workflow 的 concurrency 是 `cancel-in-progress: true` ⇒ ⇒ 放进 push
+#   流水线 ⇒ ⇒ **每次 push 都会把它砍掉** ⇒ ⇒ 「跑了但没跑完」＝「没有防线」
+#   ⇒ ⇒ 修法与 desktop-e2e.yml 同一条纪律：**长任务不进 push 流水线** ⇒ 它有自己的
+#   workflow、自己的并发组（`cancel-in-progress: false`）⇒ ⇒ 没人能取消它。
+#
+# ⚠️ **为什么触发只有手动与夜间定时**（与 desktop-e2e.yml 同理由）：一次 ~几十分钟 ⇒ ⇒
+#   在「每 2–4 分钟一次 push」的协作节奏下，push 触发 ⇒ ⇒ 排队的那一个永远被下一次
+#   push 顶掉 ⇒ ⇒ 手动触发也会被推挤掉 ⇒ ⇒ 只留 workflow_dispatch 与 schedule。
+#   ⚡️ 本 workflow 的**第一次真跑**会给出**冷编时长读数** ⇒ ⇒ 那个读数决定「它能不能进
+#   push 流水线」（见仓内 ㏀ 条⑥❶ 的登记：桌面 Rust crate 无 CI 防线）。
+
+on:
+  workflow_dispatch:
+  schedule:
+    # UTC 21:23 ＝ 北京 05:23 ⇒ ⇒ 与 desktop-e2e 的 19:37 UTC **错峰** ⇒ ⇒ 两个重型
+    # job 不会同时抢 runner。
+    - cron: '23 21 * * *'
+
+concurrency:
+  group: desktop-rust
+  # ⚠️ **false 是这个 workflow 存在的全部理由** ⇒ ⇒ 改回 true ⇒ ⇒ 「它从来没跑完过」回来。
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  desktop-rust:
+    name: Desktop Rust (桌面 crate 的 Rust 防线)
+    runs-on: ubuntu-latest
+    # ⚠️ 冷编整栈 ⇒ ⇒ 给足时间；但不许无限跑（磁盘/内存打满时 runner 会被掐掉，
+    #   日志都传不回来 —— 比超时更难查）。
+    timeout-minutes: 90
+    env:
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      CARGO_PROFILE_TEST_DEBUG: '0'
+      CARGO_INCREMENTAL: '0'
+      # ⚠️⚠️ **尺子必须与另两个 workflow 同一把**（1.99.0）—— desktop-e2e.yml 与
+      #   ci.yml 的 prefrontal-rust job 都钉死它 ⇒ ⇒ 三个 job 编同一套 path 依赖 ⇒ ⇒
+      #   用不同版本编会出现「这里编过、那里编不过」的尺子漂移。
+      # ⚠️⚠️ **变量名必须是 `RUSTUP_TOOLCHAIN`**（带 `UP`）—— 写成 `RUST_TOOLCHAIN` ⇒ ⇒
+      #   rustup **完全无视它** ⇒ ⇒ 装了 1.99.0、却用 stable 跑 ⇒ ⇒ 假钉（真机实测过）。
+      RUSTUP_TOOLCHAIN: '1.99.0'
+    steps:
+      # ⚠️⚠️ **checkout 的落点决定了 path 依赖能不能解析** —— 桌面 crate 的依赖是
+      #   `path = "../../../encephalon"` ⇒ ⇒ 三级 ⇒ ⇒ **必须**是
+      #   `$GITHUB_WORKSPACE/shadow/shadow-desktop/src-tauri` ⇒ ⇒ 三级上来正好是
+      #   `$GITHUB_WORKSPACE` ⇒ ⇒ 而兄弟仓由 composite action 检在 `$GITHUB_WORKSPACE/<repo>`
+      #   ⇒ ⇒ **布局对上** ⇒ ⇒ path 依赖解析得到。
+      #   ⚠️ 这正是 ci.yml 里那一步注释写的「Tauri Rust side is NOT built here」的成因：
+      #   那个 job 把 shadow 检在**工作区根** ⇒ ⇒ `../../../` 指到工作区的**外面** ⇒ ⇒
+      #   manifest 读不到（state-surface 闸实测：`cargo tree` 退出码 101）⇒ ⇒ 桌面 crate
+      #   在 CI 上**从来没有被解析过、更没有被编过**。
+      - name: Checkout shadow
+        uses: actions/checkout@v7
+        with:
+          path: shadow
+
+      # ⚠️ 检出清单**只有这一份**（在 composite action 里）⇒ ⇒ 与 ci.yml / desktop-e2e.yml
+      #   不会漂移（2026-11-05 实测踩过：「搬完家要逐个 job 核对检出清单」）。
+      - name: Checkout the iBLOC stack
+        id: stack
+        uses: ./shadow/.github/actions/ibloc-siblings
+        with:
+          token: ${{ secrets.IBLOC_TOKEN }}
+
+      # ⚠️⚠️ **检出清单逐个核对** —— cargo 连 **optional 的 path 依赖也要读它的 manifest**
+      #   ⇒ ⇒ 少检一个兄弟仓 ⇒ ⇒ cargo 直接报「failed to load manifest」⇒ ⇒ 整道闸判不了
+      #   （2026-11-05 真机实测：只放 synapse、不放 ziti-rust ⇒ `cargo metadata` EXIT=101）。
+      - name: Verify the sibling checkout list
+        run: |
+          set -eu
+          for d in telencephalon encephalon synapse prefrontal hippocampus neuron diencephalon temporal occipital ziti-rust; do
+            if [ ! -d "$GITHUB_WORKSPACE/$d" ]; then
+              echo "::error::missing sibling checkout: $d"
+              exit 1
+            fi
+          done
+          echo "✅ 10 个兄弟仓在位"
+
+      # ⚠️ 系统依赖：**tauri 的 wry 要 webkit2gtk-4.1**（不是 4.0 —— 4.0 在 24.04 上已无）
+      #   ＋ git2/native-tls 要 openssl 头 ＋ tray-icon 要 appindicator ＋ lance-encoding
+      #   的 build script 要 protoc。
+      - name: Install system dependencies
+        run: |
+          set -eu
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            build-essential curl wget file pkg-config libssl-dev libxdo-dev \
+            libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev \
+            protobuf-compiler
+
+      # ⚠️ runner 磁盘：预装工具合计 ~10GB，而本 job 要编整栈 + tauri ⇒ ⇒ 磁盘写满时
+      #   runner 会被直接掐掉（「No space left on device」⇒ ⇒ 日志都传不回来）。
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost || true
+          sudo rm -rf /usr/local/lib/android /opt/hostedtoolcache/CodeSC || true
+          sudo rm -rf /usr/share/swift /usr/local/share/powershell || true
+          sudo rm -f /swapfile || true
+          df -h /home/runner
+
+      - name: Setup Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ${{ steps.stack.outputs.workspaces }}
+
+      # ⚠️⚠️ **被钉住的版本必须显式装** —— `RUSTUP_TOOLCHAIN` 只是**指定**版本 ⇒ ⇒ runner
+      #   预装的 stable 里未必有那个精确版本 ⇒ ⇒ 不装就报 "toolchain '1.99.0' is not
+      #   installed"。⇒ ⇒ 同样把版本**打出来**（尺子漂了必须看得见）＋ **断言它真的生效**
+      #   （装了不等于用了）。
+      - name: Install pinned Rust toolchain
+        run: |
+          set -eu
+          rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal --component clippy
+          rustup default "$RUSTUP_TOOLCHAIN"
+          rustc --version
+          cargo --version
+          cargo clippy --version
+          active="$(rustup show active-toolchain)"
+          echo "active toolchain: $active"
+          case "$active" in
+            "$RUSTUP_TOOLCHAIN"*) echo "✅ pinned toolchain is active" ;;
+            *) echo "::error::pinned toolchain is NOT active (active=$active, pinned=$RUSTUP_TOOLCHAIN)"; exit 1 ;;
+          esac
+
+      # ⚠️⚠️ **「能不能解析依赖图」与「能不能编过」是两步** —— 这一步只判前者 ⇒ ⇒ 它便宜 ⇒ ⇒
+      #   放在最前面当**快速信号**：path 依赖读不到 ⇒ ⇒ 这里当场红 ⇒ ⇒ 不用等几十分钟的
+      #   编译才发现「压根没检全兄弟仓」。
+      - name: Cargo metadata (path 依赖可解析)
+        working-directory: shadow/shadow-desktop/src-tauri
+        run: |
+          set -eu
+          cargo metadata --format-version 1 --manifest-path Cargo.toml > /tmp/desktop-metadata.json
+          node -e "const m=require('/tmp/desktop-metadata.json');const p=m.packages.find(x=>x.name==='shadow-desktop');const paths=p.dependencies.filter(d=>d.path).map(d=>d.name+' -> '+d.path);console.log(paths.join('\n'));if(!paths.length)throw new Error('no path deps resolved');"
+
+      # ⚠️⚠️ **这一道是本 workflow 的正事**：桌面 crate 的 Rust 测试**从来没在 CI 上跑过**
+      #   ⇒ ⇒ 包括 2026-11-08 刚收的那处安全修复（task_id 路径穿越 ⇒ `src/task_path.rs`
+      #   的两条反向验证用例）⇒ ⇒ 它们只在本机跑过 ⇒ ⇒ 「本机绿」≠「CI 绿」。
+      #   ⚠️ 只跑 `--lib`（单元测试）：`tests/embedded_stack.rs` 与 `tests/asr_engine_probe.rs`
+      #   要真机/真脑 ⇒ ⇒ 那是**真机级**欠项，不属于这一档。
+      - name: Cargo test (lib)
+        working-directory: shadow/shadow-desktop/src-tauri
+        run: cargo test --manifest-path Cargo.toml --lib
+
+      # ⚠️⚠️ **口径先按「只挡 error」** —— 与仓内既有纪律一致（ci.yml 的 prefrontal 已经
+      #   收紧到 `-D warnings`，其余仓仍按只挡 error ⇒ ⇒ **谁先清零谁先收回口径**）。
+      #   桌面 crate 的 clippy warning 池**尚未清零** ⇒ ⇒ 这一刀不许用 `-D warnings`
+      #   ⇒ ⇒ 否则这道闸一上来就红 ⇒ ⇒ 「红久了没人看」＝「比没有防线更坏」。
+      #   ⇒ ⇒ 但**必须把 warning 数量打出来**（尺子要可见）：存量池就这么被量出来。
+      - name: Cargo clippy (桌面 crate)
+        working-directory: shadow/shadow-desktop/src-tauri
+        run: |
+          set -o pipefail
+          cargo clippy --manifest-path Cargo.toml --all-targets 2>&1 | tee /tmp/desktop-clippy.log
+          echo "desktop clippy warning lines: $(grep -c '^warning' /tmp/desktop-clippy.log || true)"

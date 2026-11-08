@@ -15,7 +15,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { LOCAL, pathDeps, repoOf, wsRoot, entries, membersOf } from './ci-cargo.mjs';
+import { LOCAL, SHADOW_ROOT, pathDeps, repoOf, wsRoot, entries, membersOf } from './ci-cargo.mjs';
 
 /** 把 workflow 文本拆成 job → step。 */
 export function parseWorkflow(text) {
@@ -49,15 +49,49 @@ export function parseWorkflow(text) {
   return jobs;
 }
 
+/**
+ * 解析本地 composite action（ibloc-siblings）里的 checkout 清单 ⇒
+ * 「哪个兄弟仓落在工作区根的哪个目录」。
+ * ⚠️ 清单**只有这一份**（在 .github/actions/ibloc-siblings/action.yml）⇒
+ *   ⇒ 探针与 CI 不会漂。
+ */
+function compositeCheckouts() {
+  const f = path.join(SHADOW_ROOT, '.github', 'actions', 'ibloc-siblings', 'action.yml');
+  if (!fs.existsSync(f)) return [];
+  const out = [];
+  let repo = null;
+  for (const raw of fs.readFileSync(f, 'utf8').split(/\r?\n/)) {
+    let m;
+    if ((m = raw.match(/^\s+repository:\s*(\S+)\s*$/))) { repo = m[1].split('/').pop(); continue; }
+    if ((m = raw.match(/^\s+path:\s*(\S+)\s*$/))) {
+      if (repo) { out.push({ repo, path: m[1] }); repo = null; }
+    }
+  }
+  return out;
+}
 /** 一个 job 的检出清单 ⇒ 虚拟布局（每个仓的虚拟根）。 */
 export function layoutOf(job) {
   const vrootByRepo = {};
   const co = [];
   for (const s of job.steps) {
-    if (!s.uses || !s.uses.includes('actions/checkout')) continue;
-    const repo = (s.repo || 'iBLOC/shadow').split('/').pop();
-    co.push({ repo, path: s.withPath || null });
-    vrootByRepo[repo] = s.withPath || null;
+    if (!s.uses) continue;
+    if (s.uses.includes('actions/checkout')) {
+      const repo = (s.repo || 'iBLOC/shadow').split('/').pop();
+      co.push({ repo, path: s.withPath || null });
+      vrootByRepo[repo] = s.withPath || null;
+      continue;
+    }
+    // ⚠️⚠️ 2026-11-08：**composite action 的检出也要算进虚拟布局** ——
+    //   ibloc-siblings 这个本地 action 一次检出 10 个兄弟仓（都落在工作区**根**）
+    //   ⇒ ⇒ 探针原来只认 ctions/checkout ⇒ ⇒ desktop-e2e.yml 那类 job 的
+    //   布局里**一个兄弟仓都没有** ⇒ ⇒ pathOf 拿到 undefined ⇒ ⇒ 直接崩
+    //   （ERR_INVALID_ARG_TYPE）⇒ ⇒ 闭包分析对 composite 型 job **整段不可用**。
+    if (/actions\/[A-Za-z0-9._-]+$/.test(s.uses) || s.uses.includes('ibloc-siblings')) {
+      for (const c of compositeCheckouts()) {
+        co.push({ repo: c.repo, path: c.path });
+        vrootByRepo[c.repo] = c.path;
+      }
+    }
   }
   const VR = 'C:/__ci__';
   const vroot = {};
@@ -71,6 +105,9 @@ export function layoutOf(job) {
 export function vpathOf(M, depPath, layout) {
   const R = repoOf(M);
   if (!R) return null;
+  // ⚠️ 2026-11-08：**别崩** —— 这个仓不在虚拟布局里（检出清单缺它）⇒ ⇒ 判「指不到」，
+  //   而不是让 path.join(undefined) 把整个分析打断（那会让后面的 job 全都跑不到）。
+  if (!layout.vroot[R]) return null;
   const rel = path.relative(path.join(LOCAL, R), M).split(path.sep).join('/');
   const vDir = path.posix.join(layout.vroot[R], path.posix.dirname(rel));
   return path.posix.normalize(path.posix.join(vDir, depPath));
