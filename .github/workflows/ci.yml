@@ -548,6 +548,19 @@ jobs:
 
       - name: State surface governance check (self-test)
         run: node scripts/check-state-surface.mjs --self-test
+      # ── 「失败长得像成功」闸 ──────────────────────────────────
+      # ⚠️ 2026-11-08 实测：这一族（把失败变成一个「看起来正常」的东西）
+      #    在桌面端**反复出现**（注册 peer 失败被编造成成功、列表读失败被说成
+      #    「一个都没有」、视频源推送失败被吞成「已同步」…）⇒ ⇒ 而这些代码
+      #    **编译得过、跑得起来、界面上也不报错** ⇒ ⇒ **没有任何测试会红**
+      #    ⇒ ⇒ 只能靠闸。
+      # ⚠️ 判据＝**形状**（剥注释后）⇒ ⇒ 合法回落会有假阳性
+      #    ⇒ ⇒ 那正是「债务清单」的用处（每条写清 why / when）。
+      - name: Failure masking check
+        run: node scripts/check-failure-masking.mjs
+
+      - name: Failure masking check (self-test)
+        run: node scripts/check-failure-masking.mjs --self-test
 
       # 「用户偏好撤销通道」闸 —— **authority lapse 的机械形态**
       # （arXiv:2606.30306 §2.5：用户撤回了偏好，agent 仍照做）。
