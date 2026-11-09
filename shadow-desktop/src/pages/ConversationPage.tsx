@@ -43,7 +43,7 @@ import {
   Sparkles,
   Mic,
   Video,
-  ArrowRightLeft,
+  
   Paperclip,
   X,
 } from 'lucide-react';
