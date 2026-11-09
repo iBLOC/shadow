@@ -688,9 +688,22 @@ class CapabilityDefaultsView {
   /// 当前的分档默认（能力词 → 上游模型 id）。
   final Map<String, String> defaults;
 
+  /// **按引擎 id 解析**的能力词（asr / tts）—— 端脑说了算。
+  ///
+  /// ⚠️ 客户端**不许自己造**这张表 ⇒ ⇒ 也不许拿目录面（能下载的权重清单）
+  /// 去填这几档 ⇒ ⇒ 那套 id 端脑解析不到 ⇒ ⇒ **存得进去、用不了**。
+  final List<String> engineResolved;
+
+  /// 那些档**此刻已注册**的引擎 id（能力词 → id 列表）。
+  ///
+  /// ⚠️ **空列表 = 这台大脑此刻没注册这类引擎**（不是「没有这个能力」）。
+  final Map<String, List<String>> registered;
+
   const CapabilityDefaultsView({
     this.capabilities = const [],
     this.defaults = const {},
+    this.engineResolved = const [],
+    this.registered = const {},
   });
 
   factory CapabilityDefaultsView.fromJson(Map<String, dynamic> json) {
@@ -711,9 +724,31 @@ class CapabilityDefaultsView {
         }
       });
     }
+    // ⚠️ **engine_resolved / registered** —— 两套 id 命名空间的分界线。
+    final engineResolved = <String>[];
+    final rawEngineResolved = json['engine_resolved'];
+    if (rawEngineResolved is List) {
+      for (final c in rawEngineResolved) {
+        if (c is String && c.trim().isNotEmpty) engineResolved.add(c.trim());
+      }
+    }
+    final registered = <String, List<String>>{};
+    final rawRegistered = json['registered'];
+    if (rawRegistered is Map) {
+      rawRegistered.forEach((key, value) {
+        if (value is! List) return;
+        final ids = <String>[];
+        for (final id in value) {
+          if (id is String && id.trim().isNotEmpty) ids.add(id.trim());
+        }
+        registered['$key'] = ids;
+      });
+    }
     return CapabilityDefaultsView(
       capabilities: capabilities,
       defaults: defaults,
+      engineResolved: engineResolved,
+      registered: registered,
     );
   }
 }
@@ -781,6 +816,91 @@ Map<String, String> mergeCapabilityDefaultsForPush({
   return next;
 }
 
+/// 一条**可选项**（端脑认的那个 id ＋ 显示名）。
+class CapabilityCandidateOption {
+  final String id;
+  final String label;
+
+  /// **此刻这台大脑能不能真的用它**。
+  final bool usableNow;
+
+  const CapabilityCandidateOption({
+    required this.id,
+    required this.label,
+    this.usableNow = true,
+  });
+}
+
+/// 每档的**可选项** —— 端脑说哪几档按引擎 id 解析，就按哪套命名空间取。
+///
+/// ⚠️⚠️ **目录面 ≠ 已注册面**（2026-11-09 实测的根因）：
+/// · 客户端候选来自**目录面**（`GET /models/providers` ⇒ neuron`s
+///   `catalog_models_from_state`）⇒ ⇒ asr 的 id 形如 `whisper-base`；
+/// · 端脑**真的解析引擎**时用的是**已注册面**（`asr_registry.runtime_for(id)`
+///   ⇒ ⇒ 精确匹配已注册的 model_id）⇒ ⇒ 形如 `whisper-model`。
+/// ⇒ ⇒ 两套只有 `sensevoice-small` / `voxcpm2` 恰好同名 ⇒ ⇒ 拿目录面去填
+/// asr 档 ⇒ ⇒ 端脑永远解析不到 ⇒ ⇒ **存得进去、用不了**。
+///
+/// ⚠️ **不按引擎 id 解析的档 ⇒ 候选取目录面**（原样，不许被这一刀改掉）。
+Map<String, List<CapabilityCandidateOption>> capabilityOptionsByCapability(
+  Map<String, List<CapabilityModelCandidate>> catalog,
+  List<String> engineResolved,
+  Map<String, List<String>> registered,
+) {
+  final resolved = engineResolved.toSet();
+  final out = <String, List<CapabilityCandidateOption>>{};
+  for (final entry in catalog.entries) {
+    final cap = entry.key;
+    final list = entry.value;
+    if (!resolved.contains(cap)) {
+      out[cap] = [
+        for (final c in list) CapabilityCandidateOption(id: c.id, label: c.label),
+      ];
+      continue;
+    }
+    final ids = registered[cap] ?? const <String>[];
+    final labels = <String, String>{for (final c in list) c.id: c.label};
+    out[cap] = [
+      for (final id in ids)
+        CapabilityCandidateOption(id: id, label: labels[id] ?? id),
+    ];
+  }
+  // ⚠️ **按引擎 id 解析、但目录面里没有这一档** ⇒ ⇒ 也要列出来（已注册的
+  // id 才是唯一真相 ⇒ ⇒ 它可能压根不在供应商目录里）。
+  for (final cap in resolved) {
+    if (out.containsKey(cap)) continue;
+    final ids = registered[cap] ?? const <String>[];
+    if (ids.isEmpty) continue;
+    out[cap] = [
+      for (final id in ids) CapabilityCandidateOption(id: id, label: id),
+    ];
+  }
+  return out;
+}
+
+/// **当前默认值里，此刻用不了的那几档**（要拿去提醒用户）。
+///
+/// ⚠️ 只对**按引擎 id 解析**的档说「用不了」—— 那一档的 id 必须已注册。
+/// ⚠️ **不按引擎 id 解析的档不在这里说**（客户端没有依据判断 ⇒ ⇒ 不许编）。
+List<({String capability, String modelId})> unusableCapabilityDefaults(
+  Map<String, String> defaults,
+  List<String> engineResolved,
+  Map<String, List<String>> registered,
+) {
+  final resolved = engineResolved.toSet();
+  final out = <({String capability, String modelId})>[];
+  defaults.forEach((cap, modelId) {
+    if (!resolved.contains(cap)) return;
+    final id = modelId.trim();
+    if (id.isEmpty) return;
+    final ids = registered[cap] ?? const <String>[];
+    if (!ids.contains(id)) {
+      out.add((capability: cap, modelId: id));
+    }
+  });
+  return out;
+}
+
 /// 端脑的**分档默认模型**（词表 ＋ 当前值）—— 端脑是单一真源。
 final capabilityDefaultsProvider = FutureProvider<CapabilityDefaultsView>((ref) async {
   final client = ref.watch(telencephalonClientProvider);
@@ -794,4 +914,20 @@ final capabilityCandidatesProvider =
   final client = ref.watch(telencephalonClientProvider);
   final providers = await client.listProviders();
   return capabilityCandidatesByCapability(providers);
+});
+
+/// **可选项**（按能力分组）—— 目录面 ＋ 端脑的「已注册面」合成的结果。
+///
+/// ⚠️ 按引擎 id 解析的那两档（asr / tts）⇒ ⇒ 候选取**已注册面**⇒ ⇒
+/// 用户选的都是端脑真解析得到的 id ⇒ ⇒ **存得进去、用不了**那一族被堵住。
+final capabilityOptionsProvider =
+    FutureProvider<Map<String, List<CapabilityCandidateOption>>>((ref) async {
+  final client = ref.watch(telencephalonClientProvider);
+  final view = await ref.watch(capabilityDefaultsProvider.future);
+  final providers = await client.listProviders();
+  return capabilityOptionsByCapability(
+    capabilityCandidatesByCapability(providers),
+    view.engineResolved,
+    view.registered,
+  );
 });

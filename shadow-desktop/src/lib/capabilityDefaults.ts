@@ -129,6 +129,137 @@ export function mergeCapabilityDefaultsForPush(
   return next;
 }
 
+/* ────────────────────────────────────────────────────────────────────────────
+ * 「**此刻能不能用**」—— 目录面 ≠ 已注册面（2026-11-09 实测的根因）
+ *
+ * ⚠️⚠️ **这是两套不同的 id 命名空间**：
+ * · 客户端候选来自**目录面**（`GET /models/providers` ⇒ neuron's
+ *   `catalog_models_from_state`）⇒ ⇒ asr 的 id 形如 `whisper-base` /
+ *   `whisper-tiny` / `sensevoice-small`，tts 形如 `voxcpm2` /
+ *   `voxcpm-0.5b`；
+ * · 端脑**真的解析引擎**时用的是**已注册面**（`asr_registry.runtime_for(id)`
+ *   ⇒ ⇒ 精确匹配 `RegisteredAsr.model_id`）⇒ ⇒ id 来自部署的注册动作
+ *   （env 开关 / `config.registrations` / 运行期注册）⇒ ⇒ 形如
+ *   `whisper-model` / `sensevoice-small` / `voxcpm-model` / `voxcpm2`。
+ *
+ * ⇒ ⇒ 两套**只有 `sensevoice-small` 与 `voxcpm2` 恰好同名** ⇒ ⇒ 用户从
+ * 目录面挑一个 `whisper-base` ⇒ ⇒ 端脑按那个 id **永远解析不到** ⇒ ⇒
+ * **存得进去、用不了**（失败长得像成功）。
+ *
+ * ⇒ ⇒ 所以：**哪几档按引擎 id 解析**（端脑说了算：`engine_resolved`）、
+ * **那些档此刻注册了哪些 id**（端脑说了算：`registered`）—— 客户端照它
+ * 渲染，**不许**拿目录面冒充「此刻能用」。
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/** 端脑说的「哪几档按引擎 id 解析」＋「那些档此刻注册了哪些 id」。 */
+export interface EngineResolvedInfo {
+  /**
+   * **按引擎 id 解析**的能力词（如 `asr` / `tts`）—— 端脑说了算。
+   *
+   * ⚠️ **不在这个表里的档 ⇒ 不按引擎 id 解析**（走供应商路由）⇒ ⇒ 那一档
+   * 的候选仍然是目录面那套 id（那是它该用的命名空间）。
+   */
+  engineResolved: string[];
+
+  /**
+   * 那些档**此刻已注册**的引擎 id（能力词 → id 列表）。
+   *
+   * ⚠️ **空列表 = 这台大脑此刻没有已注册的引擎**（不是「没有这个能力」）。
+   */
+  registered: Record<string, string[]>;
+}
+
+/** 下拉框里的一条可选项。 */
+export interface CapabilityCandidateOption {
+  /** 端脑认的那个 id。 */
+  id: string;
+
+  /** 显示名。 */
+  label: string;
+
+  /**
+   * **此刻这台大脑能不能真的用它**。
+   *
+   * ⚠️ 对**按引擎 id 解析**的档 ⇒ ⇒ 恒为 `true`（能列出来的都已注册）
+   * ⇒ ⇒ 对**不按引擎 id 解析**的档 ⇒ ⇒ 恒为 `true`（那一档的可用性不由
+   * 注册表决定 ⇒ ⇒ 不许在这里说「不可用」—— 那是另一套说法）。
+   */
+  usableNow: boolean;
+}
+
+/**
+ * 每档的**可选项** —— 端脑说哪几档按引擎 id 解析，就按哪套命名空间取。
+ *
+ * ⚠️ **按引擎 id 解析的档 ⇒ 候选取「已注册面」**（不是目录面）—— 目录面
+ * 里的 id 端脑解析不到 ⇒ ⇒ 列出来就是「选了必然失败」⇒ ⇒ 那是另一种
+ * 撒谎（**失败长得像成功**的界面面）。
+ * ⚠️ **不按引擎 id 解析的档 ⇒ 候选取目录面**（原样，不许被这一刀改掉）。
+ * ⚠️ 已注册的 id 若同时在目录面里 ⇒ ⇒ **显示名用目录面那份**（同一个 id
+ * 两套显示名更让人困惑）。
+ */
+export function capabilityOptionsByCapability(
+  catalog: Record<string, CapabilityModelCandidate[]>,
+  info: EngineResolvedInfo,
+): Record<string, CapabilityCandidateOption[]> {
+  const engineResolved = new Set(info?.engineResolved ?? []);
+  const registered = info?.registered ?? {};
+  const out: Record<string, CapabilityCandidateOption[]> = {};
+
+  for (const [cap, list] of Object.entries(catalog ?? {})) {
+    if (!engineResolved.has(cap)) {
+      out[cap] = (list ?? []).map((c) => ({
+        id: c.id,
+        label: c.label,
+        usableNow: true,
+      }));
+      continue;
+    }
+    const ids = registered[cap] ?? [];
+    const labels = new Map((list ?? []).map((c) => [c.id, c.label]));
+    out[cap] = ids.map((id) => ({
+      id,
+      label: labels.get(id) ?? id,
+      usableNow: true,
+    }));
+  }
+
+  // ⚠️ **按引擎 id 解析、但目录面里没有这一档** ⇒ ⇒ 也要列出来（已注册的
+  // id 是唯一真相 ⇒ ⇒ 它可能压根不在供应商目录里，比如部署注册的自建 id）。
+  for (const cap of engineResolved) {
+    if (out[cap]) continue;
+    const ids = registered[cap] ?? [];
+    if (ids.length === 0) continue;
+    out[cap] = ids.map((id) => ({ id, label: id, usableNow: true }));
+  }
+
+  return out;
+}
+
+/**
+ * **当前默认值里，此刻用不了的那几档**（要拿去提醒用户）。
+ *
+ * ⚠️ 只对**按引擎 id 解析**的档说「用不了」—— 那一档的 id 必须已注册，
+ * 否则端脑一调用就报「按那个 id 找不到」⇒ ⇒ **存得进去、用不了**。
+ * ⚠️ **不按引擎 id 解析的档不在这里说**（那是供应商路由的事 ⇒ ⇒ 客户端
+ * 没有依据判断 ⇒ ⇒ 不许编）。
+ */
+export function unusableCapabilityDefaults(
+  defaults: Record<string, string>,
+  info: EngineResolvedInfo,
+): { capability: string; modelId: string }[] {
+  const engineResolved = new Set(info?.engineResolved ?? []);
+  const registered = info?.registered ?? {};
+  const out: { capability: string; modelId: string }[] = [];
+  for (const [cap, modelId] of Object.entries(defaults ?? {})) {
+    if (!engineResolved.has(cap)) continue;
+    const id = (modelId ?? '').trim();
+    if (!id) continue;
+    const ids = registered[cap] ?? [];
+    if (!ids.includes(id)) out.push({ capability: cap, modelId: id });
+  }
+  return out;
+}
+
 /** 桌面端的 durable 副本键（与移动端那份**不是**同一个存储，仅供重下发用）。 */
 export const CAPABILITY_DEFAULTS_STORAGE_KEY = 'brain_capability_defaults';
 

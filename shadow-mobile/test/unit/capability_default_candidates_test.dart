@@ -73,6 +73,134 @@ void main() {
     });
   });
 
+  group('capabilityOptionsByCapability —— 「此刻能不能用」', () {
+    // ⚠️ **目录面 ≠ 已注册面** —— 2026-11-09 实测的根因：
+    //   目录面（`GET /models/providers`）的 asr id 形如 `whisper-base`，
+    //   而端脑真解析引擎时用的是**已注册面**（`asr_registry.runtime_for(id)`
+    //   ⇒ 精确匹配已注册的 model_id）⇒ ⇒ 形如 `whisper-model`。
+    //   两套只有 `sensevoice-small` / `voxcpm2` 恰好同名 ⇒ ⇒ 客户端拿目录面
+    //   的 id 去填 asr 档 ⇒ ⇒ 端脑永远解析不到 ⇒ ⇒ **存得进去、用不了**。
+    final catalog = {
+      'asr': [
+        const CapabilityModelCandidate(id: 'whisper-base', label: '本地 · whisper-base'),
+        const CapabilityModelCandidate(id: 'whisper-tiny', label: '本地 · whisper-tiny'),
+        const CapabilityModelCandidate(id: 'sensevoice-small', label: '本地 · sensevoice-small'),
+      ],
+      'tts': [
+        const CapabilityModelCandidate(id: 'voxcpm2', label: '本地 · voxcpm2'),
+      ],
+      'llm': [
+        const CapabilityModelCandidate(id: 'Qwen/Qwen3-0.6B', label: '本地 · Qwen3'),
+      ],
+    };
+
+    test('按引擎 id 解析的档 ⇒ 候选取「已注册面」，不取目录面', () {
+      final out = capabilityOptionsByCapability(
+        catalog,
+        const ['asr', 'tts'],
+        const {
+          'asr': ['sensevoice-small'],
+          'tts': ['voxcpm2'],
+        },
+      );
+      // ⚠️ whisper-base 在目录面里，但**没注册** ⇒ ⇒ 不许出现在可选项里
+      //    （出现了就是「用户选了端脑永远解析不到」）。
+      expect(out['asr']!.map((o) => o.id).toList(), ['sensevoice-small']);
+      expect(out['tts']!.map((o) => o.id).toList(), ['voxcpm2']);
+    });
+
+    test('不按引擎 id 解析的档 ⇒ 候选不受影响（仍取目录面）', () {
+      final out = capabilityOptionsByCapability(
+        catalog,
+        const ['asr', 'tts'],
+        const {
+          'asr': ['sensevoice-small'],
+          'tts': ['voxcpm2'],
+        },
+      );
+      expect(out['llm']!.map((o) => o.id).toList(), ['Qwen/Qwen3-0.6B']);
+    });
+
+    test('已注册的 id 也可能在目录面里 ⇒ 显示名用目录面那份', () {
+      final out = capabilityOptionsByCapability(
+        catalog,
+        const ['asr'],
+        const {'asr': ['sensevoice-small']},
+      );
+      expect(out['asr']!.single.label, '本地 · sensevoice-small');
+    });
+
+    test('已注册的 id 不在目录面里 ⇒ 也要列出来（部署自建的 id 才是唯一真相）', () {
+      final out = capabilityOptionsByCapability(
+        const {},
+        const ['asr'],
+        const {'asr': ['self-hosted-asr']},
+      );
+      expect(out['asr']!.map((o) => o.id).toList(), ['self-hosted-asr']);
+      expect(out['asr']!.single.label, 'self-hosted-asr');
+    });
+
+    test('这台大脑没注册任何引擎 ⇒ 那一档是空列表（不是「没有这一档」）', () {
+      final out = capabilityOptionsByCapability(
+        catalog,
+        const ['asr', 'tts'],
+        const {'asr': [], 'tts': []},
+      );
+      expect(out['asr'], isEmpty);
+      expect(out['tts'], isEmpty);
+      // ⚠️ llm 档不受影响。
+      expect(out['llm']!.length, 1);
+    });
+
+    test('端脑没给 engineResolved ⇒ 全部按目录面（老端脑不许把界面画空）', () {
+      final out = capabilityOptionsByCapability(catalog, const [], const {});
+      expect(out['asr']!.length, 3);
+      expect(out['tts']!.length, 1);
+    });
+  });
+
+  group('unusableCapabilityDefaults —— 当前默认值此刻用不了', () {
+    test('指向没注册的 id ⇒ 判为「用不了」（存得进去、用不了）', () {
+      final out = unusableCapabilityDefaults(
+        const {'asr': 'whisper-base', 'tts': 'voxcpm2'},
+        const ['asr', 'tts'],
+        const {
+          'asr': ['sensevoice-small'],
+          'tts': ['voxcpm2'],
+        },
+      );
+      expect(out.length, 1);
+      expect(out.single.capability, 'asr');
+      expect(out.single.modelId, 'whisper-base');
+    });
+
+    test('不按引擎 id 解析的档 ⇒ 不说「用不了」（客户端没有依据判断）', () {
+      final out = unusableCapabilityDefaults(
+        const {'llm': 'some-cloud-model'},
+        const ['asr'],
+        const {'asr': ['sensevoice-small']},
+      );
+      expect(out, isEmpty);
+    });
+
+    test('空值 / 没配 ⇒ 不算「用不了」', () {
+      final out = unusableCapabilityDefaults(
+        const {'asr': '   '},
+        const ['asr'],
+        const {'asr': ['sensevoice-small']},
+      );
+      expect(out, isEmpty);
+    });
+
+    test('端脑没给 engineResolved ⇒ 一条都不判（不许凭空指控）', () {
+      final out = unusableCapabilityDefaults(
+        const {'asr': 'whisper-base'},
+        const [],
+        const {},
+      );
+      expect(out, isEmpty);
+    });
+  });
   group('CapabilityDefaultsView.fromJson', () {
     test('解析词表 ＋ 当前值', () {
       final view = CapabilityDefaultsView.fromJson({
@@ -98,6 +226,31 @@ void main() {
       });
       expect(view.capabilities, isEmpty);
       expect(view.defaults, isEmpty);
+    });
+
+    test('engine_resolved / registered 一起解析（两套 id 命名空间的分界线）', () {
+      final view = CapabilityDefaultsView.fromJson({
+        'capabilities': ['asr', 'tts'],
+        'defaults': {'asr': 'whisper-base'},
+        'engine_resolved': ['asr', 'tts'],
+        'registered': {
+          'asr': ['sensevoice-small'],
+          'tts': [],
+        },
+      });
+      expect(view.engineResolved, ['asr', 'tts']);
+      expect(view.registered['asr'], ['sensevoice-small']);
+      // ⚠️ **空列表 = 这台大脑此刻没注册这类引擎**（不是「没有这个能力」）。
+      expect(view.registered['tts'], isEmpty);
+    });
+
+    test('老端脑（没有 engine_resolved）⇒ 不许编出 registered', () {
+      final view = CapabilityDefaultsView.fromJson({
+        'capabilities': ['asr'],
+        'defaults': {'asr': 'whisper-base'},
+      });
+      expect(view.engineResolved, isEmpty);
+      expect(view.registered, isEmpty);
     });
   });
 

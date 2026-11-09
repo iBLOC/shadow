@@ -1,6 +1,70 @@
 # PROJECT KNOWLEDGE BASE
 
-**Updated**: 2026-11-11 (㑍 **「仓里有这个测试文件」不等于「它被跑过」—— 26 个 Playwright 规格，CI 只点名 4 个」** —— 承 U+3470 条（断言承重闸：「跑过了」这个事实本身也要被证一次）＋ U+347A 条（读数必须分层），本条记**取证（39 个 E2E 文件 vs CI 真正跑的那 4 个）**、**第一因（覆盖率故事里那一片是空头）**、**这一刀的落点（4 个文件 ＋ 1 个提交）**、**判据（六条红线 ＋ 五档反向验证）**、**分级读数**、**途中那几课**，以及**仍然欠着的**.)
+**Updated**: 2026-11-11 (㑾 **「目录面 ≠ 已注册面 —— 颞叶里的 ASR/TTS 怎么办：用户从下拉里选的 id，端脑永远解析不到」** —— 承 U+347A 条（读数必须分层：总量 vs 真风险），本条记**取证（两套 id 命名空间的逐条比对）**、**第一因（界面给了一个必然失败的选项）**、**这一刀的落点（端脑 3 个文件 ＋ 父仓 15 个文件：12 产品 ＋ 2 判据 ＋ 1 台账）**、**判据（端脑真 HTTP ＋ 两档反向验证）**、**分级读数**、**途中那几课**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真运行级实测（两套 id 命名空间逐条比对 ＋ 端脑真 HTTP 判据 ＋ 两档注入反向验证 ＋ 桌面/移动端全量回归 ＋ 三面三账本码位重扫） | 改动：端脑 **改** `src/lobes/manifest.rs`（`Capability::ENGINE_RESOLVED`）、**改** `src/api/lobe_manifest.rs`（视图加 `engine_resolved` ＋ `registered`）、**改** `tests/capability_defaults_and_agent_declaration.rs`（＋2 条真 HTTP 判据）；shadow 仓 **改** `shadow-desktop/src/lib/capabilityDefaults.ts`（`capabilityOptionsByCapability` ＋ `unusableCapabilityDefaults`）、**改** `shadow-desktop/src/lib/telencephalonClient.ts`（视图类型 ＋2 字段）、**改** `shadow-desktop/src/components/business/CapabilityDefaultsCard.tsx`、**改** `shadow-desktop/src/i18n/{en-US,zh-CN}.json`、**改** `shadow-mobile/lib/providers/brain_model_source_provider.dart`、**改** `shadow-mobile/lib/widgets/brain/capability_default_section.dart`、**改** `shadow-mobile/lib/l10n/app_{en,zh}.arb` ＋ 生成物、**改** `shadow-desktop/tests/lib/capabilityDefaults.test.ts`（＋10 条）、**改** `shadow-mobile/test/unit/capability_default_candidates_test.dart`（＋11 条）、**改** `AGENTS.md`（本条） ｜ 读数：**端脑真 HTTP 13/13 绿**、**桌面判据 25/25 绿**、**移动端判据 21/21 绿**、**反向验证 A（端脑把 `engine_resolved` 弄空）⇒ 恰好 1 红**、**反向验证 B（客户端退回目录面）⇒ 恰好 3 红**、**桌面全量 1509 过 / 16 跳 / 1 红**（那 1 红＝accent 生成物漂移，别人在飞，非本线）、**`tsc -b` EXIT=0**、**`flutter analyze` EXIT=0**、**码位闸：工作树面零违规（369 条条目）／提交树面 3 红（并行会话那处字形错 ⇒ ⇒ 本提交后回绿）** | status=active | supersedes=none
+
+① **⚠️ 取证：客户端候选与端脑解析是**两套不同的 id 命名空间****
+
+　❶ **客户端候选来自「目录面」** —— 桌面/移动端的分档默认候选都出自 `GET /models/providers` ⇒ ⇒ 端脑 `api/providers.rs` 的 builtin-neuron 条目 ⇒ ⇒ neuron 的 `catalog_models_from_state`（**目录面**＝「有哪些模型可以下载」）⇒ ⇒ asr 的 id 形如 `whisper-base` / `whisper-tiny` / `whisper-small` / `whisper-medium` / `whisper-large-v3` / `sensevoice-small`，tts 形如 `voxcpm2` / `voxcpm-0.5b`。
+　❷ **端脑真解析引擎时用的是「已注册面」** —— `api/voice.rs` 的 `select_asr` / `select_tts` ⇒ ⇒ `asr_registry.runtime_for(id)` / `tts_registry.runtime_for(id)` ⇒ ⇒ **精确匹配** `RegisteredAsr.model_id` / `RegisteredTts.model_id`（**已注册面**）⇒ ⇒ 那些 id 来自部署的注册动作：env 开关（`ASR_RUNTIME=whisper` ⇒ `whisper-model`；`ASR_RUNTIME=tract|sherpa` ⇒ `sensevoice-small`；`TTS_RUNTIME=voxcpm` ⇒ `voxcpm-model`；`TTS_RUNTIME=voxcpm2` ⇒ `voxcpm2`）＋ `config.registrations` 里任意的 `model_id`。
+　❸ ⇒ ⇒ **两套只有 `sensevoice-small` 与 `voxcpm2` 恰好同名** ⇒ ⇒ 用户在能力面板里从**目录面**挑一个 `whisper-base`（目录里最常见的 ASR 模型）⇒ ⇒ 端脑按那个 id **永远解析不到** ⇒ ⇒ 显式 id 报 **400**（`ModelNotRegistered`）、分档默认报 **503** ⇒ ⇒ **存得进去、用不了**（失败长得像成功）。
+　❹ **端脑 PUT 那一面不校验 id 能否解析** —— `api/lobe_manifest.rs` 只校验①键认识 ②值非空 ③整份替换 ⇒ ⇒ 未注册的 id 也能原样存进去 ⇒ ⇒ 失败被推迟到运行时。
+　❺ **顺带查出的另一族漂移（不在本刀范围）** —— 桌面 `NeuronModelSummary` 声明 `quantization`，而端脑 `ModelSummary` 实际发的是 `engine` ⇒ ⇒ `SubsystemPanel.tsx` 渲染的那枚 Badge **永不显示**（界面少显示一个字段）⇒ ⇒ 那是「预览面」那一族，单独一刀。
+
+② **⚠️ 第一因：界面给了一个必然失败的选项，而写入面又不去校验 ⇒ ⇒ 失败被推迟到运行时**
+
+　❶ 这一族错误的形状：**候选项与解析集不是同一个集合** ⇒ ⇒ 界面照候选渲染 ⇒ ⇒ 用户选一个端脑解析不到的 id ⇒ ⇒ 写入面不拦 ⇒ ⇒ 直到真用语音才炸 ⇒ ⇒ **「配好了」与「跑得起来」被混为一谈**。
+　❷ ⚠️ **两套命名空间不能靠客户端自己猜** —— 「哪几档按引擎 id 解析」是**端脑的知识**（voice 面那两档）⇒ ⇒ 客户端自己写死 asr/tts 就是把端脑的规则复制一份 ⇒ ⇒ 端脑哪天改了档，客户端就悄悄错 ⇒ ⇒ 所以由端脑在视图里发 `engine_resolved`（哪几档按 id 解析）＋ `registered`（那些档此刻注册了哪些 id）。
+　❸ 通用形态：**「可选项」必须与「解析集」同源** ⇒ ⇒ 两者不是同一套 id 时，界面给的那份就是**噪声** ⇒ ⇒ 而**写入面不校验** ⇒ ⇒ 噪声一路畅通 ⇒ ⇒ 直到运行时才说真话（太晚了）。
+
+③ **✅ 这一刀的落点（端脑 3 个文件 ＋ 父仓 15 个文件：12 产品 ＋ 2 判据 ＋ 1 台账，零产品逻辑改动）**
+
+　❶ **端脑 `src/lobes/manifest.rs`** —— 新增 `Capability::ENGINE_RESOLVED = [Asr, Tts]` ＋ `resolved_by_engine_id()`：一张表说清「哪两档是按 id 到引擎注册表解析的」（其余档走供应商路由，不在这套说法里）。
+　❷ **端脑 `src/api/lobe_manifest.rs`** —— 分档默认视图（GET 与 PUT 的响应）多带两张表：`engine_resolved`（哪几档按 id 解析）＋ `registered`（那些档**此刻已注册**的 id 列表，取自 `asr_registry.list_registered()` / `tts_registry.list_registered()`）⇒ ⇒ 客户端据此说清「此刻能不能用」⇒ ⇒ **不许**再拿目录面冒充它（承端脑 U+3308 条「目录面 vs 已加载面各司其职」）。
+　❸ **端脑 `tests/capability_defaults_and_agent_declaration.rs`** —— ＋2 条真 HTTP 判据（视图必须带 `engine_resolved` 且含 asr/tts 不含 llm；`registered` 的键必须与 `engine_resolved` 对齐；PUT 的响应同样带这两张表）。
+　❹ **父仓桌面端** —— `capabilityDefaults.ts` 新增 `capabilityOptionsByCapability`（按引擎 id 解析的档 ⇒ 候选取**已注册面**；其余档 ⇒ 原样取目录面）＋ `unusableCapabilityDefaults`（当前默认值里哪些「此刻用不了」）＋ `EngineResolvedInfo`；`telencephalonClient.ts` 的视图类型 ＋2 字段；`CapabilityDefaultsCard.tsx` 用新候选渲染，并有一条**红条**列出「存住了但引擎没注册、跑不起来」的档；i18n ＋`unusableNow`。
+　❺ **父仓移动端** —— `brain_model_source_provider.dart` 里有**同名同义**的 Dart 实现（`capabilityOptionsByCapability` / `unusableCapabilityDefaults`，规则逐条对齐桌面那份）＋ `capabilityOptionsProvider`；`capability_default_section.dart` 切到新 provider 并显示红字提示；arb ＋生成物 ＋`capabilityDefaultsUnusableNow`。
+　❻ **判据** —— 桌面 `tests/lib/capabilityDefaults.test.ts` ＋10 条；移动端 `test/unit/capability_default_candidates_test.dart` ＋11 条。
+　❼ **零产品逻辑改动** —— 端脑没有改任何解析规则（voice 面照旧按 id 精确匹配）⇒ ⇒ 本刀只补「客户端看得见的那张表」⇒ ⇒ 解析行为一行未动。
+
+④ **⚠️ 途中那几课**
+
+　❶ **「空列表」≠「没有这一档」** —— `registered[asr] = []` 说的是「这台大脑**此刻没注册** ASR 引擎」⇒ ⇒ 界面该说「这一档没有可选项」⇒ ⇒ 不许画成「没有这一档」（那会让用户以为这台大脑没有语音能力）。
+　❷ **已注册的 id 可能压根不在目录面里** —— 部署自建的 id（`config.registrations` / 运行期注册）不在供应商目录里 ⇒ ⇒ **已注册面才是唯一真相** ⇒ ⇒ 目录面里没有的已注册 id 也要列出来（否则用户连唯一能用的那个都选不到）。
+　❸ **不按引擎 id 解析的档不许被这一刀改掉** —— `llm` 那一档走供应商路由（模型 id 是供应商那份）⇒ ⇒ 候选仍取目录面 ⇒ ⇒ 也**不许**拿「已注册」去判定它能不能用（客户端没有依据 ⇒ ⇒ 凭空指控比不指控更糟）。
+　❹ ⚠️ **还原探针不许用「先写占位再替换」的写法** —— 我做反向验证 B 时顺手往端脑文件写了占位内容 `x` ⇒ ⇒ 整个文件被毁 ⇒ ⇒ `cargo test` 退 101 ⇒ ⇒ 救回方式是 `git show HEAD:<path>` 取基线重写 ⇒ ⇒ **教训：还原要么直接改，要么从 git 取基线重写，别走中间占位**。
+　❺ ⚠️ **Dart 的字符串插值不能被 JS 模板串吃掉** —— 插进 Dart 的插值表达式在 JS 模板串里会被当成本地插值 ⇒ ⇒ 改用「单引号 JS 字符串数组 join」＋ `String.fromCharCode(96)` 拼反引号 ⇒ ⇒ 并且**逐字节核**那一行（那次插出来的首字符是反引号 0x60 而不是单引号 0x27 ⇒ ⇒ `flutter analyze` 11 条错）。
+　❻ ⚠️ **master 的提交树面当时是红的，而我要改的那一行正好是它** —— 复跑码位闸读到「**提交树面 3 条红**」：并行会话那条「仓里有这个测试文件」的**头部注解写 U+347D，字形却写成「㑍」＝U+344D**（U+347D 的字形是「㝽」）⇒ ⇒ 于是既「注解与真实码位不一致」又与另一条**真正占 U+344D** 的条目**撞号** ⇒ ⇒ 我这把刀要把头部队列换成我自己的那一行 ⇒ ⇒ 工作树里他们已把字形改回「㝽」⇒ ⇒ 我照单收下这个**一字的事实修正**（不另开一刀）⇒ ⇒ ⇒ **「master 红了就得有人管」—— 而这一红恰好落在我刀口上**。
+　❼ ⚠️ **台账的读数也必须按「提交那一刻」重扫** —— 我起草 ⑧ 面时，HEAD 与 `origin/master` 两面最高已声明还是 **U+347A**（工作树里那条占 U+347D 的条目**尚未提交**）⇒ ⇒ 起草到插入之间，另一会话把那条提交并推上去了 ⇒ ⇒ 我 ⑧ 面里「HEAD 最高已声明 U+347A」在**提交那一刻就成了假话**⇒ ⇒ ⇒ 重扫（HEAD 面最高已是 **U+347D**）后改写 ⑧ 面 ⇒ ⇒ 通用形态：**尺子的读数与台账的读数一样会随时间漂移** ⇒ ⇒ 写进仓里的读数必须是**提交那一刻**的读数。
+
+⑤ **✅ 判据（五处）**
+
+　❶ **端脑真 HTTP 级**：13/13 绿（含 2 条新判据）⇒ ⇒ 视图真的说清了「哪两档按 id 解析」＋「那些档注册了哪些 id」。
+　❷ **反向验证 A（端脑侧）**：把 `engine_resolved` 弄成空 ⇒ ⇒ **恰好 1 红**（12 过 / 1 红），红的正是新判据（其余 12 条仍绿）⇒ ⇒ 还原后 13/13 绿 ⇒ ⇒ **尺子有牙且不恒红**。
+　❸ **反向验证 B（客户端侧）**：把「按引擎 id 解析的档取已注册面」这条规则弄坏（退回目录面）⇒ ⇒ **恰好 3 红**（正是那三条规则）⇒ ⇒ 还原后 25/25 绿。
+　❹ **移动端级**：`flutter test` 21/21 绿；`flutter analyze` EXIT=0（2 个文件）。
+　❺ **仓库级**：桌面 `vitest run` 全量 **1509 过 / 16 跳 / 1 红** ⇒ ⇒ 那 1 红是 `tests/generatedEol.test.ts`（`accent.g.ts` 生成物漂移 ⇒ ⇒ 工作树里**别人**的在飞件，来自 `5963696` ⇒ ⇒ **非本线**）；`tsc -b` EXIT=0；码位闸**工作树面零违规（369 条条目）**，但**提交树面 3 红**（并行会话那处字形错 ⇒ ⇒ 承 ④❻ ⇒ ⇒ 本提交后提交树面回绿）。
+
+⑥ **✅ 分级读数（全部实测）**
+
+　❶ **判据级**：端脑真 HTTP 13/13 ｜ 桌面 25/25 ｜ 移动端 21/21。
+　❷ **反向验证级**：端脑侧恰好 **1 红** ｜ 客户端侧恰好 **3 红**。
+　❸ **闸级**：桌面 `tsc -b` EXIT=0 ｜ `flutter analyze` EXIT=0 ｜ 码位闸**工作树面零违规（369 条条目）**、**提交树面 3 红**（并行会话那处字形错 ⇒ ⇒ 承 ④❻ ⇒ ⇒ 本提交后回绿）。
+　❹ **仓库级**：桌面全量 1509 过 / 16 跳 / 1 红（那 1 红非本线）。
+　❺ **真 CI 级**：待推（父仓与端脑各自推）。
+
+⑦ **⚠️ 仍然欠着**
+
+　❶ **端脑 PUT 仍不校验 id 能否解析** ⇒ ⇒ 客户端之外的调用方（脚本／第三方）仍能存进一个用不了的 id ⇒ ⇒ 要不要在 PUT 收口（400 并说清「这台大脑注册的是哪些 id」）是**产品决定**（会挡掉「先配好、引擎后装」的前瞻式配置）⇒ ⇒ **未擅自动手**。
+　❷ **`llm` 那一档的分档默认，端脑至今没有消费点** —— `capability_default` 只被 `api/voice.rs` 读（asr/tts）⇒ ⇒ 「文本模型那一档」存了**没人用** ⇒ ⇒ 与「agent 声明后谁来按它匹配」是同一笔产品决定（并行会话在飞）。
+　❸ **远端 ASR/TTS 引擎族两端都不存在** —— neuron 只有 `RemoteLlmEngine`（LLM 专用），`asr_registry` / `tts_registry` 只认本地 impl ⇒ ⇒ 协议选型与注册责任仍待产品决定。
+　❹ **`NeuronModelSummary` 的类型漂移（`quantization` vs `engine`）本刀未修** —— 那是「预览面」那一族（界面少显示一个字段）⇒ ⇒ 单独一刀，别混进来。
+　❺ **真机级／真端脑级未跑**；端脑 CI 恒门外红（runner 计费）；`Mobile Test` 那笔环境债照旧。
+
+⑧ **⚠️ 圈码：本条占 U+347E（㑾）** —— 插前**独立重扫**（父仓工作树 ∪ 父仓 HEAD ∪ 父仓 `origin/master` × **三本账本**，按**声明形状**扫）⇒ ⇒ **按提交那一刻的读数**：HEAD 与 `origin/master` 两面最高已声明 **U+347D**（并行会话那条「仓里有这个测试文件」，其 ⑧ 面声明 U+347D ⇒ ⇒ 提交树面最高 = U+347D）⇒ ⇒ 自然下一枚 **U+347E**（本条）⇒ ⇒ 按惯例**再留一枚缓冲（U+347F）**⇒ ⇒ 插前扫：U+347E／U+347F 在三账本三面**各 0 次声明** ✔（移动端／桌面端两本账本在该段**无任何声明** ⇒ ⇒ 三面一致）⇒ ⇒ ⚠️ **不填历史空洞**（U+3476／U+3479／U+347B 继续空 ＋ U+3472 留给真机腿那条线）⇒ ⇒ ⚠️ 本条**只引用已提交的码位**（U+3470／U+347A／U+347D）⇒ ⇒ ⚠️ **插完立刻复跑码位闸**是硬约束。
+
+**Updated**: 2026-11-11 (㑽 **「仓里有这个测试文件」不等于「它被跑过」—— 26 个 Playwright 规格，CI 只点名 4 个」** —— 承 U+3470 条（断言承重闸：「跑过了」这个事实本身也要被证一次）＋ U+347A 条（读数必须分层），本条记**取证（39 个 E2E 文件 vs CI 真正跑的那 4 个）**、**第一因（覆盖率故事里那一片是空头）**、**这一刀的落点（4 个文件 ＋ 1 个提交）**、**判据（六条红线 ＋ 五档反向验证）**、**分级读数**、**途中那几课**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真运行级实测（CI workflow 正文逐字解析 ＋ **playwright --list 真跑探针（被测物自己的读数）** ＋ 五档注入反向验证 ＋ 治理闸 D1–D5 复核 ＋ 三面三账本码位重扫） | 改动：shadow 仓 **新增** `scripts/lib/desktop-e2e-coverage.mjs`（判据库 · 纯函数）、**新增** `scripts/lib/desktop-e2e-coverage-debt.mjs`（债清单 · 逐文件 35 条）、**新增** `scripts/check-desktop-e2e-coverage.mjs`（闸 · 六条红线 ＋ 18 条孪生自检）、**新增** `.github/workflows/desktop-e2e-coverage.yml`（独立 workflow · 零共享接线面）、**改** `AGENTS.md`（本条） ｜ 读数：**闸 EXIT=0（文件 39 ｜ CI 覆盖 4 ｜ 未覆盖 35 · 全部登记在册）**、**分层读数：Playwright 26（覆盖 4 ｜ 未覆盖 22）＋ wdio 4（0 ｜ 4）＋ tauri-e2e 6（0 ｜ 6）＋ 旧 e2e-tests 3（0 ｜ 3）**、**判据自检 18/18**、**反向验证五档：① 注入未登记规格 ⇒ 恰好 1 红并点名；② 注入过期登记 ⇒ 恰好 1 红；③ 注入已销账条目 ⇒ 恰好 1 红；④ 注入重复登记 ⇒ 恰好 1 红；⑤ 把 CI 的过滤参数改成宽匹配主干 ⇒ C5 报漂移 ＋ C3 同时抓到「债已还」⇒ ⇒ 还原后 git diff 为空、复跑 0 红**、**治理闸：新闸「自检:有 ｜ 接CI:是 ｜ 判不了档:有 ｜ 自检退出:0 ｜ 读数:18/18」零违规**、**YAML 有效性闸 EXIT=0（13 个 YAML）** | status=active | supersedes=none
 
@@ -45,7 +109,7 @@
 　❺ **CI 的 `desktop-e2e.yml` 是夜间/手动触发**（不是每次 push）⇒ ⇒ 那 4 个 Playwright 规格**每次 push 也不跑** ⇒ ⇒ 「CI 覆盖 4 个」这句话的**频率**另说（不在本刀范围，但别把它读成「每次 push 都跑」）。
 　❻ 端脑侧判据在端脑自己的 CI 上仍无读数；`Mobile Test` 那笔环境债照旧。
 
-⑧ **⚠️ 圈码：本条占 U+347D（㑍）** —— 插前**独立重扫**（父仓工作树 ∪ 父仓 HEAD ∪ 父仓 `origin/master` × **三本账本**，按**声明形状**扫 ＋ 另扫「提及」）⇒ ⇒ 三面最高已声明 **U+347A**（我上一条）⇒ ⇒ 自然下一枚 **U+347B** ⇒ ⇒ 但 **U+347B 已被声明为缓冲**（承 U+347A 条 ⑧ 面「再留一枚缓冲（U+347B）」⇒ ⇒ 只提及、未声明）⇒ ⇒ ⇒ 取 **U+347D** ⇒ ⇒ **U+347B 继续留空**（缓冲位只提及、不声明，后续 agent 跳过它取再下一枚）⇒ ⇒ 插前扫：U+347C／U+347D 在三账本三面**各 0 次声明 0 次提及** ✔ ⇒ ⇒ ⚠️ **不填历史空洞**（U+3476／U+3479 继续空 ＋ U+3472 留给真机腿那条线）⇒ ⇒ ⚠️ 本条**只引用已提交的码位**（U+3470／U+3475／U+3477／U+3478／U+347A）⇒ ⇒ ⚠️ **插完立刻复跑码位闸**是硬约束。
+⑧ **⚠️ 圈码：本条占 U+347D（㑽）** —— 插前**独立重扫**（父仓工作树 ∪ 父仓 HEAD ∪ 父仓 `origin/master` × **三本账本**，按**声明形状**扫 ＋ 另扫「提及」）⇒ ⇒ 三面最高已声明 **U+347A**（我上一条）⇒ ⇒ 自然下一枚 **U+347B** ⇒ ⇒ 但 **U+347B 已被声明为缓冲**（承 U+347A 条 ⑧ 面「再留一枚缓冲（U+347B）」⇒ ⇒ 只提及、未声明）⇒ ⇒ ⇒ 取 **U+347D** ⇒ ⇒ **U+347B 继续留空**（缓冲位只提及、不声明，后续 agent 跳过它取再下一枚）⇒ ⇒ 插前扫：U+347C／U+347D 在三账本三面**各 0 次声明 0 次提及** ✔ ⇒ ⇒ ⚠️ **不填历史空洞**（U+3476／U+3479 继续空 ＋ U+3472 留给真机腿那条线）⇒ ⇒ ⚠️ 本条**只引用已提交的码位**（U+3470／U+3475／U+3477／U+3478／U+347A）⇒ ⇒ ⚠️ **插完立刻复跑码位闸**是硬约束。
 
 
 **Updated**: 2026-11-09 (㑺 **「『25 条条件化断言』这个数吓人了 —— 但真·假绿只有 0 条，尺子该分层」** —— 承 U+3470 条（断言承重闸）＋ U+3478 条（环境形状那把刀），本条记**取证（25 条逐条拆成三层）**、**第一因（把读数当风险数 ＝ 把噪音当债）**、**这一刀的落点（2 个文件 ＋ 1 个提交）**、**判据（反向验证恰好 1 红 ＋ 三层读数对账）**、**分级读数**、**途中那几课**，以及**仍然欠着的**.)

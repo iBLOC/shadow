@@ -32,7 +32,7 @@ class CapabilityDefaultSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
     final viewAsync = ref.watch(capabilityDefaultsProvider);
-    final candidatesAsync = ref.watch(capabilityCandidatesProvider);
+    final candidatesAsync = ref.watch(capabilityOptionsProvider);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -64,7 +64,8 @@ class CapabilityDefaultSection extends ConsumerWidget {
           ),
           data: (view) {
             final candidates =
-                candidatesAsync.valueOrNull ?? const <String, List<CapabilityModelCandidate>>{};
+                candidatesAsync.valueOrNull ??
+                const <String, List<CapabilityCandidateOption>>{};
             final local = ref.watch(brainModelSourceProvider).capabilityDefaults;
             if (view.capabilities.isEmpty) {
               return Text(
@@ -72,9 +73,32 @@ class CapabilityDefaultSection extends ConsumerWidget {
                 style: Theme.of(context).textTheme.bodySmall,
               );
             }
+            // ⚠️ **当前默认值此刻用不了** ⇒ ⇒ 必须说出来 —— 「存得进去、
+            // 用不了」若界面不吭声 ⇒ ⇒ 用户以为配好了 ⇒ ⇒ 真到用语音时
+            // 才发现 503 ⇒ ⇒ 失败长得像成功。
+            final unusable = unusableCapabilityDefaults(
+              view.defaults,
+              view.engineResolved,
+              view.registered,
+            );
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (unusable.isNotEmpty) ...[
+                  Text(
+                    l10n.capabilityDefaultsUnusableNow,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                  for (final u in unusable)
+                    Text(
+                      '${catalogCapabilityLabel(l10n, u.capability)} · ${u.modelId}',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                ],
                 for (final cap in view.capabilities)
                   _CapabilityRow(
                     capability: cap,
@@ -97,7 +121,7 @@ class CapabilityDefaultSection extends ConsumerWidget {
 class _CapabilityRow extends ConsumerWidget {
   final String capability;
   final String? current;
-  final List<CapabilityModelCandidate> candidates;
+  final List<CapabilityCandidateOption> candidates;
 
   const _CapabilityRow({
     required this.capability,

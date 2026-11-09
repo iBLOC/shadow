@@ -1068,5 +1068,6 @@
   "zitiImportFailed": "Import failed",
   "@zitiImportFailed": {},
   "zitiSaveFailed": "Save failed",
-  "@zitiSaveFailed": {}
+  "@zitiSaveFailed": {},
+  "capabilityDefaultsUnusableNow": "These tiers point at a model this brain has not registered - the setting is saved, but it cannot run until the engine is registered."
 }

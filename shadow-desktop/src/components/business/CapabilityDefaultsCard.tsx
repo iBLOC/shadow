@@ -3,10 +3,13 @@ import { useTranslation } from 'react-i18next';
 import { Alert, Card, CardContent, CardHeader, CardTitle, Loading } from '@/components/ui';
 import {
   capabilityCandidatesByCapability,
+  capabilityOptionsByCapability,
   mergeCapabilityDefaultsForPush,
   readCapabilityDefaultsSnapshot,
+  unusableCapabilityDefaults,
   writeCapabilityDefaultsSnapshot,
-  type CapabilityModelCandidate,
+  type CapabilityCandidateOption,
+  type EngineResolvedInfo,
 } from '@/lib/capabilityDefaults';
 import { telencephalonClient } from '@/lib/telencephalonClient';
 
@@ -36,8 +39,15 @@ export function CapabilityDefaultsCard() {
   const [capabilities, setCapabilities] = useState<string[]>([]);
   const [defaults, setDefaults] = useState<Record<string, string>>({});
   const [candidates, setCandidates] = useState<
-    Record<string, CapabilityModelCandidate[]>
+    Record<string, CapabilityCandidateOption[]>
   >({});
+  // ⚠️ **端脑说的「哪几档按引擎 id 解析」＋「那些档此刻注册了哪些 id」**
+  // ⇒ ⇒ 没有它，客户端只能拿目录面那套 id 去填 asr/tts ⇒ ⇒ 端脑永远解析
+  // 不到 ⇒ ⇒ **存得进去、用不了**（失败长得像成功）。
+  const [engineInfo, setEngineInfo] = useState<EngineResolvedInfo>({
+    engineResolved: [],
+    registered: {},
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -54,7 +64,20 @@ export function CapabilityDefaultsCard() {
       const remote = view.defaults ?? {};
       setCapabilities(view.capabilities ?? []);
       setDefaults(remote);
-      setCandidates(capabilityCandidatesByCapability(providers));
+      // ⚠️ **目录面只是「有哪些模型可以下载」** ⇒ ⇒ 按引擎 id 解析的那两档
+      // ⇒ ⇒ 候选取**已注册面**（端脑真解析引擎用的那套 id）⇒ ⇒ 否则用户
+      // 选一个端脑永远解析不到的 id ⇒ ⇒ 存得进去、用不了。
+      const info: EngineResolvedInfo = {
+        engineResolved: view.engine_resolved ?? [],
+        registered: view.registered ?? {},
+      };
+      setEngineInfo(info);
+      setCandidates(
+        capabilityOptionsByCapability(
+          capabilityCandidatesByCapability(providers),
+          info,
+        ),
+      );
 
       // ⚠️ **端脑刚重启 ⇒ 它的运行态槽是空的** ⇒ ⇒ 而本机还留着 durable
       // 副本 ⇒ ⇒ 这时候把副本**再下发一遍**（与移动端「开机下发」同一
@@ -79,6 +102,10 @@ export function CapabilityDefaultsCard() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // ⚠️ **哪些档的当前默认值此刻用不了** —— 端脑说「按引擎 id 解析」的
+  // 那些档，其 id 必须已注册 ⇒ ⇒ 没注册就是「配了也跑不起来」。
+  const unusable = unusableCapabilityDefaults(defaults, engineInfo);
 
   const apply = useCallback(
     async (capability: string, model: string) => {
@@ -133,6 +160,22 @@ export function CapabilityDefaultsCard() {
         )}
         {notice && !error && (
           <p className="text-sm text-muted-foreground">{notice}</p>
+        )}
+
+        {/* ⚠️ **当前默认值此刻用不了** ⇒ ⇒ 必须说出来 ——
+            「存得进去、用不了」若界面不吭声 ⇒ ⇒ 用户以为配好了 ⇒ ⇒
+            真到用语音时才发现 503 ⇒ ⇒ 失败长得像成功。 */}
+        {unusable.length > 0 && (
+          <Alert variant="destructive">
+            <p className="text-sm">{t('capabilityDefaults.unusableNow')}</p>
+            <ul className="mt-1 list-disc pl-5 text-sm">
+              {unusable.map((u) => (
+                <li key={u.capability}>
+                  {t(`capabilityDefaults.${u.capability}`, u.capability)} · {u.modelId}
+                </li>
+              ))}
+            </ul>
+          </Alert>
         )}
 
         {isLoading ? (

@@ -3624,6 +3624,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Save failed'**
   String get zitiSaveFailed;
+
+  /// No description provided for @capabilityDefaultsUnusableNow.
+  ///
+  /// In en, this message translates to:
+  /// **'These tiers point at a model this brain has not registered - the setting is saved, but it cannot run until the engine is registered.'**
+  String get capabilityDefaultsUnusableNow;
 }
 
 class _AppLocalizationsDelegate

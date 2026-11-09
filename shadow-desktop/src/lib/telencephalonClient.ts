@@ -358,6 +358,21 @@ export interface FlowRunResult {
 export interface CapabilityDefaultsView {
   defaults: Record<string, string>;
   capabilities: string[];
+
+  /**
+   * **按引擎 id 解析**的能力词（asr / tts）—— 端脑说了算。
+   *
+   * ⚠️ 客户端**不许自己造**这张表 ⇒ ⇒ 也不许拿目录面（能下载的权重清单）
+   * 去填这几档 ⇒ ⇒ 那套 id 端脑解析不到 ⇒ ⇒ **存得进去、用不了**。
+   */
+  engine_resolved?: string[];
+
+  /**
+   * 那些档**此刻已注册**的引擎 id（能力词 → id 列表）。
+   *
+   * ⚠️ **空列表 = 这台大脑此刻没注册这类引擎**（不是「没有这个能力」）。
+   */
+  registered?: Record<string, string[]>;
 }
 
 export interface AgentMutationResult {

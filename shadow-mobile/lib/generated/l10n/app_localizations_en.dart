@@ -1940,4 +1940,8 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get zitiSaveFailed => 'Save failed';
+
+  @override
+  String get capabilityDefaultsUnusableNow =>
+      'These tiers point at a model this brain has not registered - the setting is saved, but it cannot run until the engine is registered.';
 }

@@ -1456,6 +1456,7 @@
     "applied": "Capability defaults applied",
     "appliedButNotCached": "Applied to the brain, but the local copy was not saved - this tier will reset after a restart.",
     "failed": "Failed to set the capability defaults",
+    "unusableNow": "These tiers point at a model this brain has not registered - the setting is saved, but it cannot run until the engine is registered.",
     "llm": "Text model",
     "asr": "Speech recognition",
     "tts": "Speech synthesis",

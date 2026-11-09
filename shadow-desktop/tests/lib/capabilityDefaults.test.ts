@@ -2,10 +2,12 @@ import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import {
   CAPABILITY_DEFAULTS_STORAGE_KEY,
   capabilityCandidatesByCapability,
+  capabilityOptionsByCapability,
   firstCapabilityOf,
   mergeCapabilityDefaultsForPush,
   modelIdOf,
   readCapabilityDefaultsSnapshot,
+  unusableCapabilityDefaults,
   writeCapabilityDefaultsSnapshot,
 } from '../../src/lib/capabilityDefaults';
 
@@ -105,6 +107,117 @@ describe('capabilityCandidatesByCapability', () => {
     expect(modelIdOf({ id: 'a' })).toBe('a');
     expect(modelIdOf({ model_id: 'b' })).toBe('b');
     expect(modelIdOf({ id: '  ' })).toBe('');
+  });
+});
+
+describe('capabilityOptionsByCapability —— 「此刻能不能用」', () => {
+  // ⚠️ **目录面 ≠ 已注册面** —— 2026-11-09 实测的根因：
+  //   目录面（`GET /models/providers`）的 asr id 形如 `whisper-base`，
+  //   而端脑真解析引擎时用的是**已注册面**（`asr_registry.runtime_for(id)`
+  //   ⇒ 精确匹配已注册的 model_id）⇒ ⇒ 形如 `whisper-model`。
+  //   两套只有 `sensevoice-small` / `voxcpm2` 恰好同名 ⇒ ⇒ 客户端拿目录面
+  //   的 id 去填 asr 档 ⇒ ⇒ 端脑永远解析不到 ⇒ ⇒ **存得进去、用不了**。
+  const CATALOG = {
+    asr: [
+      { id: 'whisper-base', label: '本地 neuron（内置） · whisper-base' },
+      { id: 'whisper-tiny', label: '本地 neuron（内置） · whisper-tiny' },
+      { id: 'sensevoice-small', label: '本地 neuron（内置） · sensevoice-small' },
+    ],
+    tts: [{ id: 'voxcpm2', label: '本地 neuron（内置） · voxcpm2' }],
+    llm: [{ id: 'Qwen/Qwen3-0.6B', label: '本地 neuron（内置） · Qwen/Qwen3-0.6B' }],
+  };
+
+  it('按引擎 id 解析的档 ⇒ 候选取「已注册面」，不取目录面', () => {
+    const out = capabilityOptionsByCapability(CATALOG, {
+      engineResolved: ['asr', 'tts'],
+      registered: { asr: ['sensevoice-small'], tts: ['voxcpm2'] },
+    });
+    // ⚠️ whisper-base 在目录面里，但**没注册** ⇒ ⇒ 不许出现在可选项里
+    //    （出现了就是「用户选了端脑永远解析不到」）。
+    expect(out.asr.map((o) => o.id)).toEqual(['sensevoice-small']);
+    expect(out.tts.map((o) => o.id)).toEqual(['voxcpm2']);
+  });
+
+  it('不按引擎 id 解析的档 ⇒ 候选不受影响（仍取目录面）', () => {
+    const out = capabilityOptionsByCapability(CATALOG, {
+      engineResolved: ['asr', 'tts'],
+      registered: { asr: ['sensevoice-small'], tts: ['voxcpm2'] },
+    });
+    expect(out.llm.map((o) => o.id)).toEqual(['Qwen/Qwen3-0.6B']);
+  });
+
+  it('已注册的 id 也可能在目录面里 ⇒ 显示名用目录面那份（同一个 id 两套名字更困惑）', () => {
+    const out = capabilityOptionsByCapability(CATALOG, {
+      engineResolved: ['asr'],
+      registered: { asr: ['sensevoice-small'] },
+    });
+    expect(out.asr[0].label).toBe('本地 neuron（内置） · sensevoice-small');
+  });
+
+  it('已注册的 id 不在目录面里 ⇒ 也要列出来（部署自建的 id 才是唯一真相）', () => {
+    const out = capabilityOptionsByCapability({ llm: [] }, {
+      engineResolved: ['asr'],
+      registered: { asr: ['self-hosted-asr'] },
+    });
+    expect(out.asr.map((o) => o.id)).toEqual(['self-hosted-asr']);
+    expect(out.asr[0].label).toBe('self-hosted-asr');
+  });
+
+  it('这台大脑没注册任何引擎 ⇒ 那一档是空列表（不是「没有这一档」）', () => {
+    const out = capabilityOptionsByCapability(CATALOG, {
+      engineResolved: ['asr', 'tts'],
+      registered: { asr: [], tts: [] },
+    });
+    expect(out.asr).toEqual([]);
+    expect(out.tts).toEqual([]);
+    // ⚠️ llm 档不受影响。
+    expect(out.llm.length).toBe(1);
+  });
+
+  it('端脑没给 engine_resolved ⇒ 全部按目录面（老端脑不许把界面画空）', () => {
+    const out = capabilityOptionsByCapability(CATALOG, {
+      engineResolved: [],
+      registered: {},
+    });
+    expect(out.asr.length).toBe(3);
+    expect(out.tts.length).toBe(1);
+  });
+});
+
+describe('unusableCapabilityDefaults —— 当前默认值此刻用不了', () => {
+  it('指向没注册的 id ⇒ 判为「用不了」（存得进去、用不了）', () => {
+    const out = unusableCapabilityDefaults(
+      { asr: 'whisper-base', tts: 'voxcpm2' },
+      {
+        engineResolved: ['asr', 'tts'],
+        registered: { asr: ['sensevoice-small'], tts: ['voxcpm2'] },
+      },
+    );
+    expect(out).toEqual([{ capability: 'asr', modelId: 'whisper-base' }]);
+  });
+
+  it('不按引擎 id 解析的档 ⇒ 不说「用不了」（客户端没有依据判断）', () => {
+    const out = unusableCapabilityDefaults(
+      { llm: 'some-cloud-model' },
+      { engineResolved: ['asr'], registered: { asr: ['sensevoice-small'] } },
+    );
+    expect(out).toEqual([]);
+  });
+
+  it('空值 / 没配 ⇒ 不算「用不了」', () => {
+    const out = unusableCapabilityDefaults(
+      { asr: '   ' },
+      { engineResolved: ['asr'], registered: { asr: ['sensevoice-small'] } },
+    );
+    expect(out).toEqual([]);
+  });
+
+  it('端脑没给 engine_resolved ⇒ 一条都不判（不许凭空指控）', () => {
+    const out = unusableCapabilityDefaults(
+      { asr: 'whisper-base' },
+      { engineResolved: [], registered: {} },
+    );
+    expect(out).toEqual([]);
   });
 });
 

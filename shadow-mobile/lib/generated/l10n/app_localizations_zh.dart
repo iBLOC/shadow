@@ -1882,4 +1882,8 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get zitiSaveFailed => '保存失败';
+
+  @override
+  String get capabilityDefaultsUnusableNow =>
+      '下面这几档指向的模型这台大脑还没注册 —— 设置存住了，但引擎注册前跑不起来。';
 }
