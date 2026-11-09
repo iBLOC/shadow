@@ -122,6 +122,17 @@ export function discoverVitestProjects(root, maxDepth = 5) {
   return [...new Set(out)].sort();
 }
 
+/**
+ * 读 vitest 配置里的 `unstubGlobals: true`（**工程级兜底** —— vitest 自己管还原）。
+ * ⚠️ 它是**兜底**，不是判据：闸的候选判据只看「文件级 ＋ 工程级（setup）」，
+ *    这一层只进**读数**（让人看得见还有这层保险）。
+ */
+export function readConfigUnstubGlobals(configPath) {
+  let text = '';
+  try { text = fs.readFileSync(configPath, 'utf8'); } catch { return false; }
+  return /unstubGlobals\s*:\s*true/.test(text);
+}
+
 /** 该文件是不是「全局接线文件」（setup 之类 ⇒ ⇒ 每个文件都要跑 ⇒ ⇒ 例外）。 */
 export function isSetupFile(relPath) {
   const base = String(relPath).split('/').pop() || '';
@@ -332,17 +343,22 @@ export function scanSource(text, relPath, opts) {
 
   const candidates = [];
 
-  // 族 A：整体替换 window/globalThis/document/self
+  // 族 A：**任何** vi.stubGlobal（整体替换是「高危」，其余是「弱泄漏」——
+  // ⚠️ 两者**同样**跨文件泄漏 ⇒ ⇒ 同样必须还原 ⇒ ⇒ 一律判红。
+  // ⚠️ 2026-11-09 真机实测（探针）：装一个 fetch mock 且不还原 ⇒ ⇒ **后续文件真的
+  //   拿到了那个 mock**（leaked=true）⇒ ⇒ 加了 afterEach 还原 ⇒ ⇒ leaked=false。
   for (const m of realMatches(
     code, stringRanges,
     /\bvi\s*\.\s*stubGlobal\s*\(\s*(['"])([A-Za-z_$][\w$]*)\1/g,
   )) {
     const name = m[2];
-    if (!WHOLE_GLOBALS.includes(name)) continue;
     if (hasUnstub || projectHasUnstub) continue;
+    const whole = WHOLE_GLOBALS.includes(name);
     candidates.push({
       family: 'A', var: name, line: lineOf(m.index),
-      reason: '整体替换 ' + name + ' 且该文件没有 vi.unstubAllGlobals() 还原 ⇒ ⇒ 跨文件泄漏',
+      reason: (whole ? '整体替换 ' + name : '替换 ' + name) +
+        ' 且该文件没有 vi.unstubAllGlobals() 还原 ⇒ ⇒ 跨文件泄漏' +
+        (whole ? '（整个承载 API 的对象都没了）' : '（弱泄漏：mock 会留给后续文件）'),
     });
   }
 
@@ -418,8 +434,10 @@ export function censusGlobalLeaks(root) {
       .map((f) => f.replace(/^\.\//, ''))
       .filter((f) => fs.existsSync(path.join(proj, f)));
 
-    // 工程级还原：setup 里若有 vi.unstubAllGlobals() ⇒ ⇒ 它兜住所有文件
-    let projectHasUnstub = false;
+    // 工程级还原：① setup 里若有 vi.unstubAllGlobals() ② 配置里开了 unstubGlobals
+    //    ⇒ ⇒ 两者都兜住**所有**文件 ⇒ ⇒ 文件级就不必各自还原。
+    const cfgUnstub = cfgPath ? readConfigUnstubGlobals(cfgPath) : false;
+    let projectHasUnstub = cfgUnstub;
     for (const r of setupRel) {
       const s = scanTestFile(path.join(proj, r), r, { isSetup: true });
       if (s.hasUnstub) projectHasUnstub = true;
@@ -445,6 +463,8 @@ export function censusGlobalLeaks(root) {
       project: projName,
       files: allRel.length,
       setupFiles: setupRel,
+      configUnstubGlobals: cfgUnstub,
+      projectHasUnstub,
       candidates: projCands,
     });
     candidates.push(...projCands);
@@ -461,6 +481,7 @@ export function censusGlobalLeaks(root) {
       setupScanned,
       candidates: candidates.length,
       familyA: candidates.filter((c) => c.family === 'A').length,
+      configLevelRestore: perProject.filter((p) => p.configUnstubGlobals).length,
       familyB: candidates.filter((c) => c.family === 'B').length,
       unjudged: unjudged.length,
     },

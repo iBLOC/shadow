@@ -94,8 +94,14 @@ function selfTest() {
     const r = scanSource('const s = "vi.stubGlobal(\'window\', { })";\n', 'a.test.ts');
     return r.candidates.length === 0;
   });
-  add('族 A：不在白名单里的全局（fetch）⇒ ⇒ 不许抓', () => {
+  add('族 A：弱泄漏（fetch）⇒ ⇒ 必须抓到（实测：它同样跨文件泄漏）', () => {
     const r = scanSource("vi.stubGlobal('fetch', mockFetch);\n", 'a.test.ts');
+    return r.candidates.length === 1 && r.candidates[0].family === 'A';
+  });
+  add('族 A 孪生：工程级兜底（配置 unstubGlobals）⇒ ⇒ 不许再抓', () => {
+    const r = scanSource("vi.stubGlobal('fetch', mockFetch);\n", 'a.test.ts', {
+      projectHasUnstub: true,
+    });
     return r.candidates.length === 0;
   });
 

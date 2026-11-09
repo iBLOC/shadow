@@ -1,4 +1,15 @@
-import { describe, it, expect, vi, beforeEach, beforeAll, type Mock } from 'vitest';
+import { describe, it, expect, vi, beforeEach, beforeAll, type Mock, afterEach } from 'vitest';
+
+// ⚠️⚠️ **全局替换的还原**（2026-11-09 真机实测加的）
+//   vitest 默认 unstubGlobals: false ⇒ ⇒ **本文件 stub 出去的东西不会自动还原**
+//   ⇒ ⇒ 在**单 worker**下它会**泄漏给同一 worker 的后续文件**（探针实测 leaked=true）
+//   ⇒ ⇒ 后面那个文件可能拿到**上一个文件的 mock** ⇒ ⇒ 失败长得像成功。
+//   ⇒ ⇒ 装在 beforeEach（每个测试都有一份新的）＋ 还原在 afterEach（不外泄）。
+afterEach(() => {
+  // 还原 ⇒ ⇒ 不泄漏给同 worker 的后续文件
+  vi.unstubAllGlobals();
+});
+
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { useConversationStore } from '../../src/stores/conversationStore';
