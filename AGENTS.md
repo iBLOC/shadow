@@ -41,6 +41,7 @@
 　❷ **「复制一棵源码树」≠「复制了那些仓之间的连线」** —— 相对路径依赖是隐式连线 ⇒ ⇒ 复制时看不见 ⇒ ⇒ 断了以后报的是「找不到包」。
 　❸ **判「路由在不在」不能只看状态码** —— axum 里 **404 有两种**：路由**不存在** ⇒ 404 且**响应体为空**；路由**在、资源没有** ⇒ 404 且**带 JSON 体** ⇒ ⇒ 实测同一台机：`GET /api/telencephalon/definitely-not-a-route-xyz` ⇒ **HTTP 404 体长 0**；而 `POST /api/telencephalon/tasks/probe-nonexistent-id/update` ⇒ **HTTP 404 体长 72** ⇒ ⇒ ⇒ 通用形态：**404 有两种，只有「体」能分开它们** ⇒ ⇒ 尺子必须记体长。
 　❹ **MIUI 的「USB 安装」闸必须有人代点** —— `adb install` ⇒ `INSTALL_FAILED_USER_RESTRICTED: Install canceled by user`（不是权限没开 ⇒ ⇒ 是弹窗没人按）⇒ ⇒ 用仓里那个守门员脚本代点 ⇒ ⇒ **Success**。
+　❺ ⚠️ **自己新加的 `.ps1` 撞上仓里已有的那道闸** —— 含中文却没有 **UTF-8 BOM** ⇒ ⇒ `scripts/check-ps1-portability.mjs` 判红（字节判据：含非 ASCII 且无 BOM ⇒ ⇒ **与 locale 无关**）⇒ ⇒ **在中文 Windows（cp936）的 PowerShell 5.1 上连解析都过不去**（pwsh 7 却是好的 ⇒ ⇒ 纯编码问题）⇒ ⇒ 修法：**只加 EF BB BF**，内容一个字都不用改 ⇒ ⇒ ⇒ 通用形态：**自己新加的东西会撞上仓里已有的闸** ⇒ ⇒ 推之前先把**全仓的闸**在本地跑一遍（别只跑自己新写的那把）⇒ ⇒ 这一刀第一笔 `007a972` 就是这么红的，第二笔 `a5a8b5d` 补上。
 
 ⑧ **✅ 分级读数**
 　❶ **判据级**：闸自检 **7/7**；注入式反向验证（等长打掉）⇒ ⇒ **恰好 4 红**。
@@ -68,6 +69,17 @@
 　❸ **真机级**：`pwsh -File scripts/prove-brain-routes-on-device.ps1 -Serial ee6b4832` ⇒ ⇒ 「路由存在判定：存在 4 / 4」。
 　❹ **重编路径**：`pwsh -File scripts/build-android-clean-mirror.ps1` ⇒ ⇒ 镜像 ＋ 联接 ＋ 构建（4 分 23 秒量级）。
 
+⑫ **⚠️ 真 CI 读数（head `a5a8b5d`）**
+　❶ **两笔**：`007a972`（AGENTS.md ＋ 两个新脚本）→ `a5a8b5d`（给那两个 `.ps1` 加 UTF-8 BOM）⇒ ⇒ 都在 `origin/master` 链上。
+　❷ **workflow 面**：16 个里 **15 绿 1 红** —— 红的那一条是 **E2E Typecheck**（run `42695246744`）⇒ ⇒ 根因是**桌面端在飞**：`src/pages/SettingsPage.tsx` 引用了**未进提交面**的 `../lib/chatBackground`，而 `Appearance` 接口也没有 `chatBackground` 字段 ⇒ ⇒ **不是本刀**（workflow 自己都打了 notice：「并行会话在飞：Appearance 新增 chatBackground 未提交」）⇒ ⇒ **后继头 `293f4f4` 已把它修绿**（run `42695916870` = success）。
+　❸ **主 CI**（run `42695246732`，10 个 job）：**7 绿 3 红** ——
+　　· ✅ Brain gates ／ YAML validity ／ **Legacy residue (cross-repo)** ／ Mobile Analyze ／ **Ledger codepoints** ／ Prefrontal Rust ／ **PS1 Portability**（这一格是本刀第二笔修好的）
+　　· ❌ **Desktop Tests**（失败步骤：Run tests）⇒ ⇒ 桌面端 `chatBackground` 在飞 ⇒ ⇒ 不是本刀
+　　· ❌ **Mobile Test**（失败步骤：Flutter test）⇒ ⇒ 移动端 `capability_grants_test.dart` 在飞 ⇒ ⇒ 不是本刀
+　　· ❌ **Desktop Build**（失败步骤：Dead env vars check）⇒ ⇒ 死环境变量闸红：`SHADOW_E2E_ENDBRAIN_URL` 在 `.github/workflows/desktop-e2e.yml` 里设了，**全仓没有读者** ⇒ ⇒ 不是本刀
+　　· ⇒ ⇒ **三红逐条归因都不是本刀**（本刀两笔的 diff 只碰 AGENTS.md ＋ 两个 `.ps1`）⇒ ⇒ ⇒ 通用形态：**红数相同 ≠ 红的是同一处** ⇒ ⇒ 读数必须绑「run 号 ＋ head sha ＋ 红的成因」三件。
+　❹ ⚠️ **本刀在 CI 上犯过一次错（已修）** —— 第一笔 `007a972` 的 **PS1 Portability** 红了 ⇒ ⇒ 就是 ⑦❺ 那堂课 ⇒ ⇒ 第二笔 `a5a8b5d` 只加 BOM ⇒ ⇒ 复跑本地闸：26 个 `.ps1` 全绿。
+　❺ ⚠️ **纪律闸在某一轮本地红过（3 条，全指 `apk-surface`）** —— 复跑即绿 ⇒ ⇒ 那是并行会话改桌面端时的**瞬时状态** ⇒ ⇒ 不是本刀（diff 可证）⇒ ⇒ 又一课：**一次红先问「它稳不稳」—— 重跑一遍再归因**。
 **Updated**: 2026-11-11 (㑲 **「长按不是长按 —— 而『手停了多久』不等于『app 认这是长按』」** —— 承 U+3482 条（尺子要对着被测物）＋ U+3490 条（回退不只有「退成旧版」一种形状），本条记**取证（真机逐字读数）**、**第一因（三个问题是三件事，原代码只答了一个）**、**第二因（系统会重启无障碍服务）**、**第三因（按住时长压在平台阈值上）**、**这一刀的落点**、**途中那几课**、**判据**、**分级读数**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真运行级实测（odin 真机 × 4 轮 ＋ **注入式强制重启** ＋ **正负两档对照** ＋ 逐字 logcat 取证）｜ 改动：shadow-mobile **改** android/…/MainActivity.kt（**开关／连接／就绪**三判据 ＋ 派发路径「等得起」）、**改** android/…/PrefrontalAccessibilityService.kt（长按 500 → **800ms**）、**改** lib/services/accessibility_controller.dart（isServiceConnected ＋ isReady）、**改** lib/services/capabilities/accessibility_ops.dart（同上，抽象层**带默认实现**）、**改** lib/services/capabilities/capability_tools.dart（准入改问 isReady ＋ 失败**分两种原因**）、**改** integration_test/a11y_own_ui_probe_test.dart（尺子改量「app 认没认」）、**改** scripts/verify-mobile-use-on-device.ps1（不再每 5 秒改写设置项）、**新增** scripts/miui-install-confirm-tap.ps1（MIUI 安装确认代点 ＋ 守门员）、**新增** scripts/force-a11y-restart.ps1（注入式强制重启 ＋ 正负两档的台子）｜ 读数：**真机 4 轮全 PASS**、**正样本 PASS（waiting for it to come back）／ 负样本 FAIL ＋ 逐字复现假原因**、**契约闸 EXIT=0**、**analyze 61 issues / 0 error（与基线同数）**、**受影响单测 64/64 绿** | status=active | supersedes=none
