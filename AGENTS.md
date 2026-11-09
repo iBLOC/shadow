@@ -1,5 +1,32 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-09 (㑵 **「master 红了三次 —— 都不是我这把刀，但红在 master 上就得有人管」** —— 承 U+3470 条（断言承重闸），本条记**取证（三处红，各有归属）**、**第一因（「在飞豁免」是有保质期的债）**、**这一刀的落点（3 个提交）**、**判据（闸级 ＋ 真 CI 级）**、**分级读数**、**途中那几课**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-09 | authority=measured | scope=project | source=真运行级实测（真 CI 逐条读数 ＋ 闸级复跑 ＋ 两把类型闸） | 改动：shadow 仓 **改** `shadow-desktop/tests/lib/capabilityDefaults.test.ts`（删一条未用 type import）、**改** `shadow-desktop/src/pages/SettingsPage.tsx`（空 catch ⇒ 诚实失败）、**改** `scripts/check-failure-masking.mjs`（销账 2 条） ｜ 读数：**failure-masking 闸 EXIT=0（落点 39 处 / 债务清单 29 条 / 真缺陷 0 / 新增 0 / 过期 0）**、**桌面端两把类型闸 EXIT=0**、**真 CI：五道密闸全绿 ＋ Desktop E2E 全绿（契约整族 passed=54 failed=0 skipped=1）** ｜ 提交：`fc2ac05`／`5b1e9a6`／`d61c0a1` | status=active | supersedes=none
+
+① **⚠️ 取证：master 连红三次，每次一处**
+　❶ **桌面端类型闸红**（run 42614156142）：逐字 `tests/lib/capabilityDefaults.test.ts(10,8): error TS6133: 'CatalogProviderEntry' is declared but its value is never read.` ⇒ ⇒ **归属：并行会话那条线带进来的**（桌面端「按能力分档」那张卡）⇒ ⇒ 而它**已经进了提交面** ⇒ ⇒ master 因此红 ⇒ ⇒ 该文件在共享工作树里**是干净的**（没人在它上面在飞）⇒ ⇒ 只删**那一行没用到的 type import**（零行为变化）⇒ ⇒ 一行修复，主闸恢复绿。
+　❷ **failure-masking 闸红**（run 42614338759）：逐字「❌ 新增落点」＝ `shadow-desktop|src/pages/SettingsPage.tsx|R5` ⇒ ⇒ `CreateCustomAgentModal.handleSubmit` 的 catch 是**空块** ⇒ ⇒ **创建 agent（skill）失败被吞**⇒ ⇒ 弹窗不报错也不提示 ⇒ ⇒ 界面看着像「没反应」⇒ ⇒ 那正是「失败被伪装成成功」。
+　❸ **债清单过期**（同一轮）：我把 ❷ 修掉 ⇒ ⇒ 闸里那条「SettingsPage 在飞，本刀不碰」的登记**就过期了**⇒ ⇒ 闸判「债务清单过期（要销账）」⇒ ⇒ ⇒ **修一个缺陷要连带销账**（不然闸会拿过期条目把你自己的修复判成红）。
+
+② **⚠️ 第一因：「在飞豁免」是**有保质期的债**，不是永久豁免**
+　❶ ❷ 那个空 catch **早于**并行会话那条线（`54e42f4^` 里就有，只是行号不同）⇒ ⇒ 它一直躲在「该文件正在被改 ⇒ ⇒ 本刀不碰」的登记里 ⇒ ⇒ 那一侧**一提交**，豁免的前提消失 ⇒ ⇒ 缺陷**立刻**变成「新增落点」⇒ ⇒ ⇒ 「在飞」不是免检，只是不在你手上时先记着 ⇒ ⇒ 记着的债**必须有人销**。
+　❷ ⇒ ⇒ 通用形态：**豁免要带保质期**（谁在改、什么时候销账）⇒ ⇒ 否则它就从「暂记」变成「隐形」。
+
+③ **✅ 这一刀的落点（3 个提交，零产品行为倒退）** —— ❶ `fc2ac05`：删一行未用 type import（桌面端类型闸恢复绿）；❷ `5b1e9a6`：`SettingsPage.tsx` 的空 catch ⇒ **沿用本组件已有的 `generateDescError` 红条范式**（新增 `submitError` 状态 ⇒ catch 里把错误显出来 ⇒ ⇒ **不需要新的 i18n 键** ⇒ ⇒ 也没碰并行会话在飞的两份 i18n json）＋ 债清单里 SettingsPage 那条**销账**；❸ `d61c0a1`：并行会话把 `writeCapabilityDefaultsSnapshot` 改成返回 `{ ok }` ⇒ ⇒ 我先前登记的那条**过期** ⇒ ⇒ 再**销账**一次。
+
+④ **⚠️ 途中那几课**
+　❶ **修别人的文件要「只提交 HEAD ＋ 补丁」** —— 那个文件正被并行会话改着 ⇒ ⇒ 做法：① 改**共享工作树**（他们的在飞内容原样保留，我的三处编辑也进去 ⇒ ⇒ 他们下次提交会一起带上 ⇒ ⇒ 不需要回滚）；② 提交面用 **`git show HEAD:<path>` ＋ 同样三处编辑**构造 ⇒ ⇒ 提交里**只有**我的补丁 ⇒ ⇒ 不越界提交别人的在飞件。
+　❷ **闸的「过期条目」机制会反过来咬你** —— 你修好一个落点 ⇒ ⇒ 它从清单里消失 ⇒ ⇒ 清单**过期** ⇒ ⇒ 闸判红 ⇒ ⇒ ⇒ **修缺陷与销账必须同一个提交**（不然你会被自己的修复判红）。
+　❸ **真 CI 上「红在哪」比「红不红」重要** —— 这一轮三次红都是靠**逐条读数**定位到具体文件与行的；没有那几行逐字输出，定位就得靠猜。
+
+⑤ **✅ 判据（三处）** —— ❶ **闸级**：failure-masking 闸 EXIT=0（落点 39 / 债 29 / 真缺陷 0 / 新增 0 / 过期 0）＋ 桌面端**两把**类型闸 EXIT=0；❷ **真 CI 级**：`5b1e9a6`／`d61c0a1` 上五道密闸（Test Global Leaks / Secret Plaintext / Door Policy / E2E Typecheck / **Desktop Test Assertions**）**全绿** ＋ **Desktop E2E 全绿**（run 42614410694）⇒ ⇒ 其中契约那一步的**逐字读数**＝ `passed=54 failed=0 skipped=1 total=55`（唯一那条 skip ＝ 白名单里的 `thalamus/preview/sensors`）⇒ ⇒ **整族三支在真端脑上跑通**（U+3470 条那条刀的真 CI 读数到手）；❸ **归属级**：master 余下的两处红**都不在本会话这条线上**（台账 U+3474 那条信封缺 `source` ＋ `capabilityDefaults.test.ts` 在**干净检出**下红）⇒ ⇒ 事实与逐字证据已同步给并行会话。
+
+⑥ **✅ 分级读数（全部实测）** —— **闸级**：failure-masking EXIT=0 ｜ **类型闸级**：两把 EXIT=0 ｜ **真 CI 级**：五密闸 ＋ Desktop E2E 全绿（契约 54/0/1）｜ **回归级**：vitest 全量 **1496 过 / 16 跳 / 1 红**（那 1 红＝`accent.g.ts` 生成物漂移，**与本刀无关**）。
+
+⑦ **⚠️ 仍然欠着** —— ❶ **master 主轮仍红**（两处在并行会话那条线上，见 ⑤❸）⇒ ⇒ 等他们那一侧收口；❷ `tests/stores/appearanceMemory.test.ts` 仍被 exclude（并行会话在飞）；❸ **wdio / tauri-e2e 两族仍欠真跑承重**（U+3470 条已记）⇒ ⇒ 「页面挂上了」那一半只有静态证据；❹ `/hippocampus/api/memory` 实测回 200 ＋ 存储错误文本（端脑侧 lance `tenant_id` schema 不匹配）⇒ ⇒ 端脑那条债仍欠；❺ 端脑侧判据在端脑自己的 CI 上仍无读数（门外红）；❻ **条件化断言 25 条**（只读数，U+3470 条）⇒ ⇒ 下一刀收；❼ `Mobile Test` 那笔环境债照旧。
+
+⑧ **⚠️ 圈码：本条占 U+3475（㑵）** —— 插前**独立重扫**（父仓工作树 ∪ 父仓 HEAD ∪ 父仓 `origin/master` × **三本账本**，按**声明形状**扫）⇒ ⇒ 三面最高已声明 **U+3474**（并行会话那条）⇒ ⇒ 自然下一枚 **U+3475** ⇒ ⇒ 按惯例**再留一枚缓冲**（U+3476）⇒ ⇒ 取 **U+3475** ⇒ ⇒ 插前扫：U+3475／U+3476 在三账本三面**各 0 次声明 0 次提及** ✔ ⇒ ⇒ ⚠️ **不填历史空洞**（U+3472 留给真机腿那条线 ＋ U+346E／U+3463／U+3465／U+3467／U+3469 继续空）⇒ ⇒ ⚠️ 本条**只引用已提交的码位**（U+3470／U+3473／U+3474）⇒ ⇒ ⚠️ **插完立刻复跑码位闸**是硬约束。
 **Updated**: 2026-11-09 (㑴 **「『存没存住』要分得清 —— 端脑那份是权威，但本地副本写不进也得说真话」** —— 承 U+3471 条（桌面端分档默认那张卡）＋ U+346F 条（移动端那一段），本条记**取证（契约决定被交回给我）**、**第一因（部分成功是第三种状态）**、**这一刀的落点（12 个文件）**、**判据（桌面 15/15 ＋ 一档反向验证）**、**分级读数**、**途中那几课**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-09 | authority=measured | scope=project | source:真运行级实测（tsc -b 全族 ＋ vitest ＋ flutter analyze 全项目 ＋ flutter test ＋ 注入反向验证 ＋ 还原 hash 比对 ＋ 失败掩盖闸实跑） | 改动：shadow 仓 **改** `shadow-desktop/src/lib/capabilityDefaults.ts`、**改** `shadow-desktop/src/components/business/CapabilityDefaultsCard.tsx`、**改** `shadow-desktop/tests/lib/capabilityDefaults.test.ts`、**改** 2 个桌面 i18n、**改** `shadow-mobile/lib/providers/brain_model_source_provider.dart`、**改** `shadow-mobile/lib/widgets/brain/capability_default_section.dart`、**改** 5 个移动端 l10n 文件 ｜ 读数：**判据级 桌面 15/15 绿**、**反向验证级：把「写失败」也说成「存住了」⇒ 恰好 2 红**、**还原 blob 逐字一致 `c087eae…`**、**类型级：桌面 `tsc -b` EXIT=0**、**移动端 `flutter analyze` 全项目 61 issues ＝ 基线 61 ⇒ 零新增**、**移动 unit 族 353 过 / 12 跳 / 0 红**、**失败掩盖闸：本地读数＝「债务清单过期（shadow-desktop|src/lib/capabilityDefaults.ts|R5）」⇒ EXIT=1（销账动作在并行会话在飞的那个文件上 ⇒ ⇒ 我不越界改）** | status=active | supersedes=none
