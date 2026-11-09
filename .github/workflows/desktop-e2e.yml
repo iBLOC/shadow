@@ -408,10 +408,16 @@ jobs:
             echo "::error::移动端真跑级判据红了（退出码 $FSTATUS）—— 输出就在上面；⚠️ 已知有一笔 CI 环境侧的债：package:sqlite3 的原生 .so 哈希不符 ⇒ ⇒ flutter test 在 native asset 阶段就红 ⇒ ⇒ 连测试都没开始"
             exit 1
           fi
-          # ⚠️ 整份跳过时 flutter 印的是「All tests skipped.」⇒ ⇒ 匹配不上
-          #    「All tests passed」⇒ ⇒ 这一步判红 ⇒ ⇒ 跳过不许算绿。
-          if ! grep -qE 'All tests passed' "$MOUT.plain"; then
-            echo "::error::移动端真跑级判据**没有真的跑**（读数里没有「All tests passed」）—— 整份跳过也是退出 0 ⇒ ⇒ 绝不能把它当成绿"
+          # ⚠️⚠️ **两种 flutter 版本的摘要行不一样**（实测）：
+          #    本机（较旧）⇒ 「00:54 +4: All tests passed!」；
+          #    CI 的 3.47.8 ⇒ 「🎉 4 tests passed.」
+          #    ⇒ ⇒ 只认一种字面量 ⇒ ⇒ **尺子会误判红**（真跑通了却判红）
+          #    ⇒ ⇒ 那是「尺子钉着旧世界」的一个新面 ⇒ ⇒ 这里**两种都认**，
+          #    且**必须带数字 4**（不许「0 个也算过」）⇒ ⇒ 整份跳过时 flutter
+          #    印的是「All tests skipped.」⇒ ⇒ 匹配不上 ⇒ ⇒ 判红 ⇒ ⇒
+          #    跳过不许算绿。
+          if ! grep -qE '(\+4:|[^0-9]4 tests passed|All tests passed)' "$MOUT.plain" || grep -q 'All tests skipped' "$MOUT.plain"; then
+            echo "::error::移动端真跑级判据**没有真的跑**（读数里没有「4 passed」）—— 整份跳过也是退出 0 ⇒ ⇒ 绝不能把它当成绿"
             exit 1
           fi
           echo "✅ 移动端真跑级判据**真的跑了**（All tests passed）—— 通知面的线上形状在真端脑上对得上"
