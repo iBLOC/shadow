@@ -1,5 +1,35 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-09 (㑤 **「判据绿 ≠ 测的东西是真的 —— 类型闸照出 32 处「测试与产品形状脱节」」** —— 承 U+3462 条（给 E2E 家族补类型闸那条），本条记**取证（扩面后 32 处既有类型错第一次被看见 ＋ 闸的 types 缺 vite/client）**、**第一因（断言落在产品从不产生的键上 ⇒ ⇒ 绿是假的）**、**这一刀的落点（15 个文件）**、**判据（闸级 ＋ 行为级 ＋ 反向验证两档）**、**分级读数**、**途中那几课**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-09 | authority=measured | scope=project | source=真运行级实测（本机 tsc 真跑 ＋ 真注入 ＋ vitest 全量） | 改动：shadow 仓 **改** `shadow-desktop/tests/tsconfig.json`（覆盖面：e2e-ui ＋ 1 文件 ⇒ **.ts 全族** ＋ 补 `vite/client`）、**改** `.github/workflows/e2e-typecheck.yml`（覆盖面 notice ＋ 未覆盖项单列）、**改** 13 个 `shadow-desktop/tests/**` 测试文件 ｜ 读数：**闸级 EXIT=0**、**反向验证两档：注入类型错 ⇒ 闸 exit=2 逐字 TS2322 而根闸 exit=0 ／ 注入语法错 ⇒ 闸 exit=2 逐字 TS1005 而根闸 exit=0**（还原后 blob 逐字一致 `4f399159…`）、**vitest 全量 1473 过 / 16 跳 / 1 红**（那 1 红＝并行会话在飞的 `src/styles/accent.g.ts` 与 `design-tokens.json` 不同步，**与本刀无关**）、**YAML 闸 10 文件零违规** ｜ 提交 `a0866f6` | status=active | supersedes=none
+
+① **⚠️ 取证：32 处既有类型错第一次被看见** —— 把 `tests/**` 的 **.ts 全族**拉进闸 ⇒ ⇒ **32 处既有类型错当场暴露**（**14 个文件**）⇒ ⇒ 它们**从来没有被任何闸看过**（根 `tsconfig.json` 的 `include` 只有 `["src"]`）⇒ ⇒ ⇒ 「判据跑过了」这句话对它们**一直是假的**。
+　❶ **闸自己的洞**：`types` 是**覆盖**不是追加 ⇒ ⇒ 根 config 靠 **`src/vite-env.d.ts`** 的 triple-slash 引用拿到 `vite/client`（那是 **src 下**的文件，**本 config 不含 src**）⇒ ⇒ 不写就丢掉 ⇒ ⇒ `import.meta.env` 全报 TS2339 ⇒ ⇒ ⇒ **闸会拿着一个残缺的类型环境判绿**（实测：那 2 处是**假错**，补上 `vite/client` 即消失）。
+　❷ **触到 .tsx 家族**（若把 `**/*.tsx` 也纳入 ⇒ ⇒ 再暴露 **57 处**）⇒ ⇒ 那一族**仍未纳入**（记欠项）。
+
+② **⚠️ 第一因：判据「绿」不等于「测的东西是真的」** —— 那 32 处里有**真债**，不是空转（每条都是「断言落在产品不产生的键上」）：
+　❶ `AgentCategory` 只有 `'built-in' | 'external'`（`src/types/index.ts:6`）⇒ ⇒ 而 `agentStore.test.ts` 在用 **`'custom'`** ⇒ ⇒ `'custom'` 其实是 **`ExternalAgentType`** 的合法值 ⇒ ⇒ 「用户自建的 agent」的正确写法是 `category:'external'` ＋ `externalType:'custom'` ⇒ ⇒ ⇒ **产品从不产生那种分类 ⇒ ⇒ 断言落空**；
+　❷ `AgentTask` **没有 `message` 字段**（真形状是 `{id, agentId, title, description, status, createdAt…}`）⇒ ⇒ 而测试断言 `state.tasks[0].message` ⇒ ⇒ ⇒ **断言一个产品不产生的键**；
+　❸ `getA2ATask` 的**服务端回包**是 `{id, status:{state,message,timestamp}}`（产品注释里逐字写着「以前这里声明的是 `{task_id, state, result}` —— **服务端从来不这么回**」）⇒ ⇒ 而测试 mock 的**正是那个旧形状** ⇒ ⇒ ⇒ **假覆盖**；
+　❹ `cancelA2ATask` 服务端回 **`null`** ⇒ ⇒ 而测试断言 `result.success` ⇒ ⇒ ⇒ 落空；
+　❺ `Storage.length` 是**只读** ⇒ ⇒ 替身里直接赋值 ⇒ ⇒ TS2540；
+　❻ `CertificateState` 在产品里**没有 export** ⇒ ⇒ 测试用 `import('…').CertificateState` 取类型 ⇒ ⇒ TS2694 ⇒ ⇒ 而那个 `store` 变量**从头到尾没人读** ⇒ ⇒ 整段死代码；
+　❼ `agentStore` 的 `opencodeConfig` / `opencodeInstances` / `opencodeInstalled` / `isLoadingOpenCode` 四个字段**产品里根本没有** ⇒ ⇒ 写进去**没人读** ⇒ ⇒ 死字段。
+
+③ **✅ 这一刀的落点（15 个文件，零产品代码改动）** —— ❶ **改 `shadow-desktop/tests/tsconfig.json`**：`include` 从「e2e-ui ＋ 1 个文件」扩到 **`.ts` 全族** ＋ `../playwright.config.ts`；`types` 补 `vite/client`；`exclude` 逐项**记着理由**（`**/*.tsx` 57 处欠项／`wdio/**`／`tauri-e2e/**`／`stores/appearanceMemory.test.ts`＝**并行会话在飞**）；❷ **改 `.github/workflows/e2e-typecheck.yml`**：job 名 ＋ 注释 ＋ **覆盖面 notice ＋「未覆盖项必须与『已判无问题』分开报」的 3 行 notice**；❸ **改 13 个测试文件**：**把断言改成产品真实形状**（不弱化类型、**不加** `@ts-ignore`）＋ **删死变量/死字段** ＋ **把只读 `length` 改成 getter** ＋ **`bodyMatcher` 的 `unknown` 改成 `Record<string, unknown>`**（标成 `unknown` ⇒ ⇒ 每个 `b.xxx` 都得先转型 ⇒ ⇒ 那是闸在赶人绕路）。
+
+④ **⚠️ 承重墙：顺带补上两条「落空的断言」** —— 这两条是**闸的红**逼出来的，不是顺手改的：
+　❶ **`webrtcCompanion`**：那条测试名写着「stop calls pc.close() **and ws.close()**」⇒ ⇒ 而 **MockWebSocket 的 `close` 是普通方法** ⇒ ⇒ 替身**不支持「被调用过」的断言** ⇒ ⇒ ⇒ **ws 那半边从来没被验证过**（产品 `stop()` 其实**确实**调了 `ws.close()`，`webrtcCompanion.ts:335`）⇒ ⇒ 把替身改成 `close = vi.fn(…)` ＋ **补上 `expect(ws.close).toHaveBeenCalled()`** ⇒ ⇒ 那条用例**这才名副其实**；
+　❷ **`agentStore`**：断言从 `tasks[0].message`（产品不存在的键）换成 `tasks[0].title`（产品真有的键）⇒ ⇒ 从「断言落空」变成「真断言」。
+
+⑤ **✅ 判据（三处）** —— **闸级**：`npx tsc --noEmit -p tests/tsconfig.json` ⇒ ⇒ **EXIT=0**（扩面后）；**反向验证两档**：V1 注入 `const __probe3: number = 'not-a-number';` ⇒ ⇒ 闸 **exit=2** 逐字 `error TS2322` 而**根闸 exit=0**；V2 注入嵌套反引号 ⇒ ⇒ 闸 **exit=2** 逐字 `error TS1005: ',' expected` 而**根闸 exit=0** ⇒ ⇒ **还原后 blob 逐字一致**（`4f39915907ba04eae8921c078b3be2313c1638a0`）⇒ ⇒ ⇒ **闸有牙**（且两档都**只红那一处**、不误伤别的文件）；**行为级**：我改过的 11 个测试文件 **157 过 / 1 红** ⇒ ⇒ 那 1 红是**我补的断言当场抓到的**（mock 不支持断言）⇒ ⇒ 修法后 **33/33 绿**；**全量级**：`vitest run` ⇒ ⇒ **1473 过 / 16 跳 / 1 红** ⇒ ⇒ 那 1 红＝`tests/generatedEol.test.ts` 调 `node scripts/gen_tokens.mjs --check` ⇒ ⇒ **根因是并行会话在飞的 `src/styles/accent.g.ts`（22 行）与 `design-tokens.json` 不同步** ⇒ ⇒ ⇒ **与本刀无关**（我的提交不含它）。
+
+⑥ **⚠️ 途中那几课** —— ❶ **模板串里写整段 JSONC 会把整段吞掉**（`run_code` 直接报 `expecting '}'`）⇒ ⇒ 改用**行数组 join**；❷ **多行 `edit` 的 old_string 撞行尾/字面差** ⇒ ⇒ 改成**行内短锚点**插入；❸ **PowerShell 把 `[272,288]` 当类型名解析**（不是数组）⇒ ⇒ 「打印某几行上下文」这种活改用**文件读取工具**；❹ **`del` 被安全策略拦** ⇒ ⇒ 临时探针文件用 **`Move-Item` 移出仓库**（`.local/` 已 gitignore）⇒ ⇒ ⚠️ **不许绕过删除策略**；❺ **共享索引比 HEAD 旧 ⇒ 我的新文件在索引面显示「已暂存删除」** ⇒ ⇒ 并行会话一提交就会把它们从仓库里抹掉 ⇒ ⇒ **每次独立索引提交后都要 `git add --` 止血**（并逐个核 blob == HEAD）。
+
+⑦ **⚠️ 仍然欠着** —— ❶ **`.tsx` 组件测试家族（57 处既有类型错）没有判据承重**（下一刀）；❷ `tests/wdio/**` ＋ `tests/tauri-e2e/**` 无闸；❸ `tests/stores/appearanceMemory.test.ts` 被 exclude（并行会话在飞 `Appearance.chatBackground`）；❹ `reminderNotificationsLive.test.ts` 我改了签名（去掉运行时被忽略的第二参）但**没真跑**（要真端脑）⇒ ⇒ 那一格**没有真跑级读数**；❺ **`gen_tokens --check` 在并行会话的提交上可能红**（在飞件不同步）⇒ ⇒ 那是他们的债；❻ **`tests/tsconfig.probe.json` ＋ `tests/e2e-ui/tsconfig.e2e.json` 两个 untracked 探针**（不是我建的）⇒ ⇒ 有被 `git add -A` 误提交进仓的风险。
+
+⑧ **⚠️ 圈码：本条占 U+3464（㑤）** —— 插前**独立重扫**（父仓工作树 ∪ 父仓 HEAD ∪ 父仓 `origin/master` × **三本账本**，按**声明形状**扫）⇒ ⇒ 段内最高已声明 **U+3462**（承 U+3462 条）⇒ ⇒ 自然下一枚 **U+3463** ⇒ ⇒ 按惯例**再留一枚缓冲** ⇒ ⇒ 取 **U+3464** ⇒ ⇒ 插前扫：U+3463／U+3464 在三账本三面**各 0 次声明 0 次提及** ✔ ⇒ ⇒ ⚠️ **不填历史空洞**（U+3463 不回收）⇒ ⇒ ⚠️ 本条**只引用已提交的码位**（U+3462）⇒ ⇒ ⚠️ **插完立刻复跑码位闸**是硬约束。
 **Updated**: 2026-11-09 (㑢 **「E2E 家族至今没有类型闸 —— 根 tsconfig 的 include 只有 ["src"]」** —— 承 U+345E 条（绿里有假那条）的 ⑧❼（本刀改的 e2e 文件不在类型闸覆盖面里），本条记**取证（那一族至今无闸）**、**第一因（include 只含 src ＋ 只有重任务才真跑 ⇒ ⇒ 反馈太晚）**、**这一刀的落点（1 个新 tsconfig ＋ 1 个密闸 workflow ＋ 3 处类型洞）**、**判据（闸级 ＋ 反向验证两档）**、**分级读数**、**途中那三课**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-09 | authority=measured | scope=project | source=真运行级实测（本机 tsc 真跑 ＋ 真注入 ＋ 真 CI） | 改动：shadow 仓 **新增** `shadow-desktop/tests/tsconfig.json`、**新增** `.github/workflows/e2e-typecheck.yml`、**改** `shadow-desktop/tests/e2e-ui/global-setup.ts` ｜ 读数：**闸级 EXIT=0**、**反向验证两档：注入语法错 ⇒ E2E 闸 exit=2 而根闸 exit=0 ／ 注入类型错 ⇒ E2E 闸 exit=2 而根闸 exit=0**（⇒ ⇒ 两档都证明这把闸补的是真空缺）、**真 CI 级：新 workflow run 42598909757 = success ＋ 逐字覆盖面读数**、**YAML 闸 10 文件零违规** | status=active | supersedes=none
