@@ -120,7 +120,10 @@ test.describe('End-to-End: Conversation to Task Scheduling', () => {
     //   ⇒ ⇒ 被这条断言 ⇒ ⇒ 脆（实测：E2E 自己新增一个 provider 就把它顶掉了
     //   ⇒ ⇒ 而那个新 provider 没有模型 ⇒ ⇒ 这条红了）。
     //   ⇒ ⇒ 改成「**至少有一个** provider 带模型」⇒ ⇒ 与顺序无关。
-    const withModels = providers.filter((p) => Array.isArray(p.models) && p.models.length > 0);
+    const withModels = providers.filter((p: { models?: unknown }) => {
+      const models = p.models;
+      return Array.isArray(models) && models.length > 0;
+    });
     expect(withModels.length).toBeGreaterThanOrEqual(1);
   });
 
