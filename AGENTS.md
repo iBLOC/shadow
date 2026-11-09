@@ -1,5 +1,42 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-09 (㑯 **「默认模型只设一个 ⇒ 语音那一档根本没人管 —— 界面上的『按能力分档』」** —— 承 U+3460 条（端脑侧分档默认模型 ＋ agent 声明所需能力），本条记**取证（界面上只有『来源』一档）**、**第一因（「走哪边」与「用哪个模型」被当成一件事）**、**这一刀的落点（9 个文件）**、**判据（单测 9/9 ＋ 两档反向验证）**、**分级读数**、**途中那几课**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-09 | authority=measured | scope=project | source=真运行级实测（flutter analyze 全项目 ＋ flutter test ＋ 两档注入反向验证 ＋ 还原 hash 比对） | 改动：shadow 仓 **新增** `shadow-mobile/lib/widgets/brain/capability_default_section.dart`、**新增** `shadow-mobile/test/unit/capability_default_candidates_test.dart`、**改** `shadow-mobile/lib/providers/brain_model_source_provider.dart`、**改** `shadow-mobile/lib/widgets/brain/default_model_card.dart`、**改** 5 个 l10n 文件（arb 2 ＋ 生成物 3）｜ 读数：**判据级 9/9 绿**、**反向验证级：变体 A（合并时丢掉本地副本）⇒ 恰好 2 红 ／ 变体 B（解析时接受空串值）⇒ 恰好 1 红**、**还原 blob 逐字一致 `36b106c2…`**、**类型级：全项目 flutter analyze 61 issues ＝ 基线 61 ⇒ 零新增**、**unit 族 353 过 / 12 跳 / 0 红**、**闸级：父仓 door / endpoint-matrix / client-endpoint-map / 码位闸 四闸 EXIT=0** | status=active | supersedes=none
+
+① **⚠️ 取证：界面上只有「来源」一档 ⇒ 语音那一档根本没人管**
+　❶ 用户问的是「**默认模型要分多类设置**（文本 / TTS / ASR …）」⇒ ⇒ 而能力 tab 首卡那张「默认模型」卡**只有一个选择器** —— 「走本地 neuron 权重，还是走某个云供应商」⇒ ⇒ 它答的是「**走哪一边**」，不是「**这一类能力用哪个模型**」⇒ ⇒ ⇒ **两件事被压进了一个控件**。
+　❷ 而**端脑那一侧早就分档了**（U+3460 条：分档默认模型 ＋ voice 面按 id 选引擎）⇒ ⇒ ⇒ **后端有档位、界面没有入口** ⇒ ⇒ 「TTS 用哪个模型」在用户侧**仍然无处可设** ⇒ ⇒ ⇒ 那笔债是**界面欠的**，不是端脑欠的。
+　❸ 候选从哪来：**大脑供应商目录里每条模型的能力标注**（`RegisteredModel.capability`）⇒ ⇒ 与「这条模型是什么类型」是同一份数据 ⇒ ⇒ 界面不会自相矛盾（不会出现「这一档挂着对话模型」）。
+
+② **⚠️ 第一因：「来源」与「模型」是两件事，界面把它们并成了一件**
+　❶ 「来源」＝**本地还是云端**（`BrainModelSource`）⇒ ⇒ 「模型」＝**哪一个模型 id**（分档默认）⇒ ⇒ 前者决定**去哪**，后者决定**用啥**。
+　❷ 并进一个控件 ⇒ ⇒ 想设「ASR 用 whisper-1」的人**找不到能设它的地方** ⇒ ⇒ 而端脑那一侧已经在按 id 选引擎 ⇒ ⇒ ⇒ **能力有了、没人能拧那个旋钮**。
+　❸ 修法：**在同一张卡里分两层** —— 上层「来源」（原有），下层「按能力分档」（新增）⇒ ⇒ 两层共用同一份状态与下发链，不另造一条写路径。
+
+③ **✅ 这一刀的落点（9 个文件）**
+　❶ **新增 `shadow-mobile/lib/widgets/brain/capability_default_section.dart`** —— 照端脑给的**能力词表**逐档渲染一行（`DropdownButtonFormField`）：候选取自供应商目录里该能力的模型；「不指定」＝删掉这一档。
+　❷ **改 `shadow-mobile/lib/providers/brain_model_source_provider.dart`** —— 新增 `CapabilityDefaultsView`（端脑词表 ＋ 当前值）、`capabilityCandidatesByCapability()`（**纯函数**，按能力分组）、`mergeCapabilityDefaultsForPush()`（**纯函数**，整份合并）、两个读取面（`capabilityDefaultsProvider` ＝端脑真源、`capabilityCandidatesProvider` ＝直读目录）。
+　❸ **改 `shadow-mobile/lib/widgets/brain/default_model_card.dart`** —— 在「默认模型」卡里挂上这一段（能力 tab 首卡落地即可设）。
+　❹ **改 5 个 l10n 文件** —— `app_zh.arb` / `app_en.arb` ＋ 三个生成物（4 个键：标题 / 说明 /「不指定」/「这台大脑没有暴露任何能力档位」）。
+　❺ **新增 `shadow-mobile/test/unit/capability_default_candidates_test.dart`** —— 9 条纯逻辑判据。
+
+④ **⚠️ 途中那几课**
+　❶ **写路径的顺序不能反：先端脑、后本地** —— 先落本地再下发 ⇒ ⇒ 端脑拒了（模型 id 没注册）而本地已记 ⇒ ⇒ 界面显示「已应用」⇒ ⇒ **失败长得像成功** ⇒ ⇒ 所以「端脑收下了」才落本地。
+　❷ **整份替换 ⇒ ⇒ 基线必须是「本地副本 ∪ 端脑当前值」** —— 端脑那一面是**整份替换** ⇒ ⇒ 只拿本地那份去发 ⇒ ⇒ 会把**端脑那边已有的档位抹掉** ⇒ ⇒ ⇒ 这条已用反向验证钉住（变体 A ⇒ 恰好 2 红）。
+　❸ **共享工作树里那 5 个 l10n 文件有并行会话的在飞改动** ⇒ ⇒ 提交面必须是「HEAD ＋ 我这 4 个键」⇒ ⇒ 做法：脚本从 `git show HEAD:<path>` 取基线、只插**我自己的那几行**、再 `hash-object` 入独立索引 ⇒ ⇒ ⇒ **不把别人的在飞内容卷进我的提交**。
+　❹ **不许依赖别人在飞时新加的 l10n 键** —— 我一度用了 `l10n.commonErrorDetail` ⇒ ⇒ 核了一下：那把键**只存在于并行会话的在飞工作树**，HEAD 里没有 ⇒ ⇒ ⇒ 我这条提交单独检出来**编不过** ⇒ ⇒ ⇒ 改成**直接显示端脑的原话**（排查时反而更值钱）。
+　❺ **「当前值不在候选里」也要显示出来** —— 那个模型可能被删了，也可能是本地权重 ⇒ ⇒ 抹掉它＝**静默改掉用户设置**。
+
+⑤ **✅ 判据（三处）** —— ❶ **判据级**：`flutter test test/unit/capability_default_candidates_test.dart` ⇒ ⇒ **9/9 绿**；❷ **反向验证级（两档，各钉一条规则）**：**变体 A**（合并时丢掉本地副本）⇒ ⇒ **恰好 2 红**（两条 merge 判据）⇒ ⇒ 证明「基线 ＝ 本地 ∪ 端脑」这条**承重**；**变体 B**（解析时接受空串值）⇒ ⇒ **恰好 1 红**（空串不进表那条）⇒ ⇒ 证明「配了但没配」那一条**承重**；❸ **还原**：反向补丁还原后 `git hash-object` **逐字一致**（`36b106c2…`）⇒ ⇒ 复跑 9/9 绿。
+
+⑥ **✅ 分级读数（全部实测）** —— **判据级**：新判据 9/9 绿 ｜ **反向验证级**：变体 A 恰好 2 红 ／ 变体 B 恰好 1 红 ｜ **类型级**：`flutter analyze`（我这 4 个文件）**零 issue**；**全项目 analyze 61 issues ＝ 基线 61 ⇒ 零新增**（那 61 条全是既有债，含并行会话在飞文件里的一条未用 import）｜ **行为级**：`flutter test test/unit` ⇒ ⇒ **353 过 / 12 跳 / 0 红** ｜ **闸级**：父仓 door / endpoint-matrix / client-endpoint-map / 码位闸 **四闸 EXIT=0**。
+
+⑦ **⚠️ 本轮另外两刀（就地补记）** —— ❶ **端脑 `654b2be`**：分档默认的 `defaults` 改**必填** ⇒ ⇒ 契约探针体 `{"probe": true}` 得 **422**（不再把真大脑的分档默认整份清空）⇒ ⇒ 配套判据 11/11 绿；❷ **父仓 `0ac2b0e`**：契约调用点补**显式类型参数**（抓取脚本只认 `request<T>(`）⇒ ⇒ 分档默认那两条端点**进了契约清单**（38 ⇒ 43 条）⇒ ⇒ 端点漂移才抓得到。
+
+⑧ **⚠️ 仍然欠着** —— ❶ **桌面端界面仍没有这一段**（能力段在 `/models` 与 `/providers`；那张卡该落在哪一页要产品拍板 ⇒ ⇒ 且 `SettingsPage.tsx` 与桌面 i18n 在并行会话在飞 ⇒ ⇒ 本刀不越界）；❷ **ASR/TTS 引擎「注册进 neuron」那一环仍欠** —— 候选来自供应商目录的模型 id，而端脑把引擎注册进 neuron 的哪张表由 `api/providers.rs` / `api/lobe_runtime.rs` 决定（**并行会话在飞**）⇒ ⇒ ⇒ 选一个没注册的 id，端脑会**明确报错**（`ModelNotRegistered`）⇒ ⇒ 那是有意的（不许静默回落），但**界面还没把这条前置条件说清**；❸ **真机级／真端脑级未跑**（这一刀只到类型级 ＋ 单测级）；❹ **端脑 CI 恒门外红**（billing）⇒ ⇒ 端脑侧仍只有本地读数；❺ **移动端「agent 声明所需模型类型」的输入口仍没有** —— 客户端已能递（`agent.settings['required_capabilities']`），但**没有一个界面让用户勾**。
+
+⑨ **⚠️ 圈码：本条占 U+346F（㑯）** —— 插前**独立重扫**（父仓工作树 ∪ 父仓 HEAD ∪ 父仓 `origin/master` × **三本账本**，按**声明形状**扫）⇒ ⇒ 三面最高已声明 **U+346D**（并行会话那一条）⇒ ⇒ 自然下一枚 **U+346E** ⇒ ⇒ 按惯例**再留一枚缓冲**（U+346E 留给并行会话）⇒ ⇒ 取 **U+346F** ⇒ ⇒ 插前扫：U+346E／U+346F 在三账本三面**各 0 次声明 0 次提及** ✔ ⇒ ⇒ ⚠️ **不填历史空洞**（U+3463／U+3465／U+3467／U+3469 继续空）⇒ ⇒ ⚠️ 本条**只引用已提交的码位**（U+3460／U+346D）⇒ ⇒ ⚠️ **插完立刻复跑码位闸**是硬约束。
 **Updated**: 2026-11-09 (㑭 **「13 条红，13 条都在测错东西 —— 形状探针没带钥匙，于是『没测到』被写成『不对』」** —— 承 U+346C 条（契约闸改判「端点存在」），本条记**取证（三处根因）**、**第一因（判据的凭据要「默认」对齐门形）**、**这一刀的落点（2 个文件）**、**判据（真端脑整族读数 ＋ 形状闸反向验证）**、**分级读数**、**途中那几课**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-09 | authority=measured | scope=project | source=真运行级实测（自编端脑 ＋ 真跑整族 ＋ 形状注入反向验证） | 改动：shadow 仓 **改** `shadow-desktop/tests/api-contract/schemas.test.ts`、**改** `shadow-desktop/tests/api-contract/a2ui-live.test.ts` ｜ 读数：**真端脑整族 55 条 ⇒ 54 passed / 1 skipped / 0 failed**（此前 **13 红 / 37 绿**）、**逐条：schemas 8 条＝7 绿 1 跳、a2ui-live 3 条全绿**、**反向验证：注入形状错 ⇒ 恰好 1 红（1 failed / 6 passed / 1 skipped）**、**还原 blob 逐字一致 `2b148c3…`**、**类型闸 EXIT=0** | status=active | supersedes=none
