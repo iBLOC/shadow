@@ -259,7 +259,8 @@ export function findEnvReads(text, file) {
     const re = new RegExp(p.re.source, p.re.flags);
     let m;
     while ((m = re.exec(text)) !== null) {
-      const name = m[1];
+      // ⚠️ **可能有两个捕获组**（`env.X` 与 `env['X']` 两种写法）⇒ ⇒ 取第一个非空的。
+      const name = m[1] || m[2];
       if (name) out.push({ name, kind: p.kind });
       if (m.index === re.lastIndex) re.lastIndex++;
     }

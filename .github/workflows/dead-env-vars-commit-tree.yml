@@ -1,0 +1,63 @@
+name: Dead Env Vars Commit Tree
+
+# ⚠️ **它守的是什么** —— 「**提交树面**的死环境变量」。
+#
+#   死变量 = 「设了但整棵树里没有任何读者」⇒ ⇒ 它要么是**改名链漏改的化石**
+#   （CI 里的 e2e 安静地走了「规格自跳过」那条分支 ⇒ ⇒ **绿灯但什么都没测**），
+#   要么是**拼错了**（读者拼的是另一个名字 ⇒ ⇒ 本意根本没生效）。
+#
+# ⚠️ **为什么要有第二个面**（已有 `Dead Env Vars` 那把 = **工作树面**）：
+#   · 工作树面那把读的是**磁盘上的文件**（`git ls-files --cached --others`）
+#     ⇒ ⇒ 它量的是「**你本地的工作树**」。
+#   · 而 CI 里 checkout 出来的那一份是**提交树** ⇒ ⇒ 两面**不是同一件事**。
+#   · 实测（2026-11-11）：在**提交树**里注入一个「设了没人读」的变量，
+#     工作树面那把**报「零死变量」**（EXIT=0）⇒ ⇒ 它**看不见那一笔**。
+#   ⇒ ⇒ 提交树可以是破的而它是绿的 ⇒ ⇒ **本地绿 ≠ CI 绿**。
+#   ⇒ ⇒ 这一把量的是 **HEAD 的提交树** ⇒ ⇒ ＝ CI 真的会跑的那一面。
+#
+# ⚠️ **两个面必须共用同一份登记簿与同一份范围清单**
+#   （scripts/lib/dead-env-vars-allowed.mjs / scripts/lib/dead-env-vars-scope.mjs）
+#   ⇒ ⇒ 否则「两个面的读数不同」可能只是**登记簿不同**或**范围不同**，
+#   ⇒ ⇒ 而那不是「面的差异」⇒ ⇒ 那会让这一刀**证明不了它想证明的东西**。
+#
+# ⚠️ **为什么单独成文件**（与 commit-import-integrity.yml 同理）：
+#   ci.yml 是**共享文件**（并行会话在飞）⇒ ⇒ 独立成文件 ⇒ ⇒ 接线面**零共享**。
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  dead-env-vars-commit-tree:
+    name: Dead Env Vars Commit Tree
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout shadow
+        uses: actions/checkout@v7
+        with:
+          # ⚠️ **必须是完整历史** ⇒ ⇒ 否则「零死变量」是**假象**
+          #    （浅克隆里提交树是残的 ⇒ ⇒ 看不见的变量反而更多）。
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      # ⚠️ **自检先跑** —— 证明这把尺子在 CI 上**真的会红**（在合成的小树上造真形状）。
+      - name: Dead env vars commit tree check (self-test)
+        run: node scripts/check-dead-env-vars-commit-tree.mjs --self-test
+
+      # ⚠️ 这一步量的是 **HEAD 的提交树** ⇒ ⇒ ＝ CI 真的会跑的那一面。
+      - name: Dead env vars commit tree check
+        run: node scripts/check-dead-env-vars-commit-tree.mjs
