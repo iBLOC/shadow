@@ -2,6 +2,8 @@
 
 **Updated**: 2026-11-09 (㑑 **「一把闸的红遮住了五个步骤 —— 桌面的类型检查在 CI 上一直是黑的」** —— 承 㑏 条（真跑级判据接进夜间 workflow 那条）与 U+343F 条⑧❺，本条记**取证（那条红从哪来）**、**它遮蔽了什么**、**这一刀的三处落点**、**判据（一条形状 ＋ 一条登记）**、**反向验证（两档，各恰好 1 红）**、**分级读数**、**途中那三课**，以及**仍然欠着的**.)
 
+> 信封：epoch=2026-11-09 | authority=measured | scope=project | source=真 CI 级实测 run 42582023457：Desktop Build → State surface governance check 与 Legacy residue (cross-repo) → Gate discipline check 两 job 红；根因＝本条缺信封行 ⇒ ⇒ R1 判红 ⇒ ⇒ 连累 state-surface 自检红 ⇒ ⇒ 纪律闸两条违规 | status=active | supersedes=none
+
 ① **⚠️ 取证：这条红是**上一刀自己带进来的**（`736a213`）** —— 我给 `desktop-e2e.yml` 那两步加了 env 块 ⇒ ⇒ 死变量闸把其中两个变量判成「全仓没有任何读者」⇒ ⇒ 闸红 ⇒ ⇒ **CI 的 `Desktop Build` job 就此红掉**。⇒ ⇒ **不是别人的债，是我的债** ⇒ ⇒ 这一刀把它还掉。
 
 ② **⚠️ 它遮蔽了什么（比「一条红」严重得多）** —— 死变量闸在 `Desktop Build` job 里排在**第 28 位** ⇒ ⇒ 它一红 ⇒ ⇒ **后面 5 个步骤被 `success()` 传染全部跳过**（`Dead env vars check (self-test)`／`Brand asset drift check`／**`TypeScript check`**／**`Build web frontend`**／**`Build web`**）⇒ ⇒ ⇒ **桌面的类型检查与 web 构建在 CI 上从 `736a213` 起一直是黑的**（连续 6 个 run）。实测对照（`gh run view --json jobs`）：
