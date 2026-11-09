@@ -17,6 +17,7 @@
  *
  * 用法：
  *   node scripts/check-msrv-floor.mjs [--manifest-path <Cargo.toml>] [--floor 1.94]
+ *   node scripts/check-msrv-floor.mjs --self-test   ← 合成夹具，**不需要 cargo**
  *   不传 --manifest-path 时，从当前目录向上找 Cargo.toml。
  *
  * 退出码：0 = 通过；1 = 有违规；2 = 自身出错（查不到 manifest / cargo 跑不通）。
@@ -65,6 +66,64 @@ function fmt(v) {
   return v.join(".");
 }
 
+/**
+ * 真自检 —— **合成夹具**喂进 judge() ⇒ ⇒ 证明这一格会红。
+ *
+ * ⚠️ 为什么不用「跑一次正常检查」当自检：它要 cargo ＋ Cargo.toml ⇒ ⇒
+ *   本机判不了（退出码 2）⇒ ⇒ 恒绿或恒红都**证明不了任何事**。
+ * ⚠️ 顺带一条：这样自检就**不需要环境**⇒ ⇒ 「本机判不了」那一档不再挡住 D2 纪律。
+ */
+function selfTest() {
+  const floor = parseVer('1.94');
+  const own = (name, rv, manifestPath) => ({
+    name: name,
+    version: '0.1.0',
+    source: null,
+    rust_version: rv,
+    manifest_path: manifestPath || '/w/' + name + '/Cargo.toml',
+  });
+  const dep = (name, rv) => ({
+    name: name,
+    version: '1.0.0',
+    source: 'registry+https://github.com/rust-lang/crates.io-index',
+    rust_version: rv,
+    manifest_path: '/r/' + name,
+  });
+
+  const cases = [
+    { name: '自有 crate 缺 rust-version ⇒ 判红', packages: [own('a')], want: 1 },
+    { name: '自有 crate 声明 != 地板 ⇒ 判红', packages: [own('a', '1.93')], want: 1 },
+    { name: '依赖 1.95 ⇒ 越线判红', packages: [dep('d', '1.95.0')], want: 1 },
+    { name: '依赖 1.94.1 ⇒ 仍在 1.94 线内 ⇒ 不判红', packages: [dep('d', '1.94.1')], want: 0 },
+    { name: 'vendored 副本 1.99 ⇒ 不计入地板 ⇒ 不判红', packages: [own('v', '1.99.0', '/w/vendor/v/Cargo.toml')], want: 0 },
+    { name: '依赖没有 rust_version ⇒ 跳过 ⇒ 不判红', packages: [dep('d', undefined)], want: 0 },
+    { name: '全部合规（自有 1.94 ＋ 依赖 1.94.0）⇒ 不判红', packages: [own('a', '1.94'), dep('d', '1.94.0')], want: 0 },
+  ];
+
+  console.log('─'.repeat(72));
+  console.log('MSRV 地板闸 —— 自检');
+  console.log('─'.repeat(72));
+  let fails = 0;
+  for (const c of cases) {
+    const r = judge({ packages: c.packages }, floor);
+    const bad = r.ownMissing.length + r.ownWrong.length + r.violations.length;
+    const ok = bad === c.want;
+    if (!ok) fails++;
+    console.log('  ' + (ok ? '✓' : '✗') + ' ' + c.name + '（期望 ' + c.want + ' 项，实得 ' + bad + ' 项）');
+  }
+  console.log('─'.repeat(72));
+  if (fails === 0) {
+    console.log('✓ 自检全绿（' + cases.length + ' / ' + cases.length + ' 条全绿）');
+    process.exit(0);
+  }
+  console.error('✗ 自检 ' + fails + ' / ' + cases.length + ' 条红');
+  process.exit(1);
+}
+
+// ⚠️ 自检必须在「找 manifest」**之前**跑（它不需要 cargo，也不需要 Cargo.toml）。
+if (process.argv.includes('--self-test')) {
+  selfTest();
+}
 const args = parseArgs(process.argv.slice(2));
 const manifest = args.manifest || findManifest(process.cwd());
 if (!manifest) {
@@ -101,39 +160,57 @@ try {
   process.exit(2);
 }
 
-const violations = [];
-const ownMissing = [];
-const ownWrong = [];
-let depMax = null;
+/**
+ * 判断一份 cargo metadata ⇒ ⇒ 返回各条计数。
+ *
+ * ⚠️ **纯函数**（零 I/O）⇒ ⇒ 自检可以直接喂它**合成的夹具** ⇒ ⇒
+ *   不用 cargo、不用工具链 ⇒ ⇒ 「本机判不了」那一档不再挡住自检。
+ */
+function judge(meta, floor) {
+  // 「1.94 线」= 1.94.x ⇒ 允许上限 = 1.94.99（任何 1.95+ 一律越线）
+  const allowed = [floor[0], floor[1], 99];
+  const violations = [];
+  const ownMissing = [];
+  const ownWrong = [];
+  const vendored = [];
+  let depMax = null;
 
-const vendored = [];
-for (const p of meta.packages || []) {
-  const isPath = p.source === null || String(p.source).startsWith("path+");
-  // vendor/ 下的是第三方代码的 vendored 副本 —— 它的 MSRV 是上游的事，
-  // 我们不该去改它的声明（改了就会与上游分叉），也不该拿它当自己的地板。
-  const isVendored = isPath && String(p.manifest_path || "").split(/[\\/]/).includes("vendor");
-  const isOwn = isPath && !isVendored;
-  const rv = parseVer(p.rust_version);
-  if (isVendored) {
-    if (p.rust_version) vendored.push(p.name + " " + p.version + " -> " + p.rust_version);
-    continue;
-  }
-  if (isOwn) {
-    if (!p.rust_version) {
-      ownMissing.push(p.name + " " + p.version);
-    } else if (cmp(rv, floor) !== 0) {
-      ownWrong.push(p.name + " " + p.version + " -> " + p.rust_version);
+  for (const p of meta.packages || []) {
+    const isPath = p.source === null || String(p.source).startsWith("path+");
+    // vendor/ 下的是第三方代码的 vendored 副本 —— 它的 MSRV 是上游的事，
+    // 我们不该去改它的声明（改了就会与上游分叉），也不该拿它当自己的地板。
+    const isVendored = isPath && String(p.manifest_path || "").split(/[\\/]/).includes("vendor");
+    const isOwn = isPath && !isVendored;
+    const rv = parseVer(p.rust_version);
+    if (isVendored) {
+      if (p.rust_version) vendored.push(p.name + " " + p.version + " -> " + p.rust_version);
+      continue;
     }
-    continue;
+    if (isOwn) {
+      if (!p.rust_version) {
+        ownMissing.push(p.name + " " + p.version);
+      } else if (cmp(rv, floor) !== 0) {
+        ownWrong.push(p.name + " " + p.version + " -> " + p.rust_version);
+      }
+      continue;
+    }
+    if (!rv) continue;
+    if (!depMax || cmp(rv, parseVer(depMax.rust_version)) > 0) {
+      depMax = { name: p.name, version: p.version, rust_version: p.rust_version };
+    }
+    if (cmp(rv, allowed) > 0) {
+      violations.push(p.name + " " + p.version + " -> " + p.rust_version);
+    }
   }
-  if (!rv) continue;
-  if (!depMax || cmp(rv, parseVer(depMax.rust_version)) > 0) {
-    depMax = { name: p.name, version: p.version, rust_version: p.rust_version };
-  }
-  if (cmp(rv, allowed) > 0) {
-    violations.push(p.name + " " + p.version + " -> " + p.rust_version);
-  }
+  return { violations, ownMissing, ownWrong, vendored, depMax };
 }
+
+const judged = judge(meta, floor);
+const violations = judged.violations;
+const ownMissing = judged.ownMissing;
+const ownWrong = judged.ownWrong;
+const vendored = judged.vendored;
+const depMax = judged.depMax;
 
 const label = manifest.replace(/\\/g, "/").split("/").slice(-2).join("/");
 console.log("MSRV floor check :: " + label + " :: floor=" + args.floor + " (允许到 " + fmt(allowed) + ")");

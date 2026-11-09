@@ -28,12 +28,12 @@ export const NO_SELF_TEST = {
     '各自下次被改动时补上（增量纪律）⇒ ⇒ msrv-floor 先补' +
     '（它在 CI 上也缺工具链 ⇒ ⇒ 要先想清楚「判不了」那档怎么报）' +
     '⇒ ⇒ ⚠️ ziti-v2-wire 已于 2026-11-05 补上自检（13/13）⇒ ⇒ 已从本清单销账 ' +
-    '⇒ ⇒ 2026-11-11：cross-client（真自检 6/6 —— 真子进程注入 0/1/2/崩/文件不在）与 jni-surface（真自检 4/4 —— 夹具注入缺兄弟仓 / 没编 .so / Java 替身少入口）已补上 ⇒ ⇒ 已从本清单销账',
+    '⇒ ⇒ 2026-11-11：cross-client（真自检 6/6 —— 真子进程注入 0/1/2/崩/文件不在）与 jni-surface（真自检 4/4 —— 夹具注入缺兄弟仓 / 没编 .so / Java 替身少入口）已补上 ⇒ ⇒ 已从本清单销账' +
+    '⇒ ⇒ 2026-11-11：msrv-floor 已补**真自检 7/7**（把判断逻辑抽成纯函数 judge() ⇒ ⇒ 自检喂合成夹具 ⇒ ⇒ **不需要 cargo 也不需要 Cargo.toml**）⇒ ⇒ 已从本清单销账',
   gates: [
     'agent-surface',
     'apk-surface',
     'auth-backdoors',
-    'msrv-floor',
   ],
 };
 
