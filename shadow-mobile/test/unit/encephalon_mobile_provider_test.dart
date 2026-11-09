@@ -98,6 +98,13 @@ void main() {
     //    ⇒ 每个用例开始前都抹回 false。
     AppConfigService.configFileOverride = () async => globalCfgFile;
     await AppConfigService().setBrainStoppedByUser(false);
+    // ⚠️ **复位必须真的生效**：落盘失败 ⇒ ⇒ `_saveConfig` 的 catch 会把内存**回滚**
+    //   成上一次确认落盘的快照（那里面有「用户喊停过」）⇒ ⇒ 大脑永远起不来
+    //   ⇒ ⇒ 症状长成「条件在 10s 内没成立」⇒ ⇒ **长得像实现坏了**。
+    //   ⇒ ⇒ 这里直接断言它 ⇒ ⇒ 失败时把**真因**带出来（lastSaveError）。
+    expect(AppConfigService().brainStoppedByUser, isFalse,
+        reason: '复位没生效（落盘失败 ⇒ ⇒ 内存被回滚成上一份快照）'
+            ' ⇒ ⇒ 真因：${AppConfigService().lastSaveError}');
   });
 
   tearDown(() {

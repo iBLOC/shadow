@@ -20,8 +20,7 @@ import 'package:shadow_mobile/services/app_config_service.dart';
 /// 要么是新的完整值，**永远不会是半个**）。
 ///
 /// ⚠️ **注入只能走路径级**：Dart 的 `File` 是**工厂类**、**不可继承**
-/// ⇒ ⇒ 「写到一半被杀」这类故障**没法**用子类注入 ⇒ ⇒ 只能把落盘路径上的
-/// 某个位置**占成目录** ⇒ ⇒ 让那一步必然失败 ⇒ ⇒ 落盘整体必须失败。
+/// ⇒ ⇒ 「写到一半被杀」这类故障**没法**用子类注入 ⇒ ⇒ 只能靠**路径**去制造。
 void main() {
   late Directory tmpDir;
   late String cfgPath;
@@ -70,7 +69,7 @@ void main() {
     //   ⚠️ 为什么不用「整读 ＋ json.decode」当采样面（第一版就是这么写的）：
     //   Windows 上**长读**会挡住写面的 rename（实测 errno 5「拒绝访问」）
     //   ⇒ ⇒ 写面反复撞共享冲突 ⇒ ⇒ 判据自己把被测物逼成失败（**假红**）。
-    //   ⚠️ 而「查长度」**不会**挡 rename（实测：采样 189 次，rename 一次成功）
+    //   ⚠️ 而「查长度」**不会**挡 rename（实测：189 次采样下 rename 一次成功）
     //   ⇒ ⇒ 采样面**不会**干扰被测物 ⇒ ⇒ 判据量的是被测物，不是自己。
     final sampler =
         Future<void>.delayed(const Duration(milliseconds: 1), () async {
@@ -113,12 +112,15 @@ void main() {
     print('ℹ️ 采样 $samples 次，锁冲突 $locks 次');
   });
 
-  test('落盘失败不许毁掉旧值 ⇒ 且失败必须被报告（不许长得像成功）', () async {
-    // ⚠️ **路径级注入**：把落盘用的**临时路径**占成**目录**
-    //   ⇒ ⇒ 临时文件写不进去 ⇒ ⇒ 整次落盘必然**失败**
-    //   ⇒ ⇒ 失败时**磁盘上的旧值必须原样**、**内存不许停留在没存上的新值**、
-    //   **失败必须被报告**（`lastSaveError` ＋ `saveFailures`）。
-    await Directory('$cfgPath.tmp').create(recursive: true);
+  test('落盘失败不许毁掉目标 ⇒ 且失败必须被报告（不许长得像成功）', () async {
+    // ⚠️ **路径级注入**：让落盘**必然失败**，而且失败发生在**会动目标**的那一步
+    //   （rename）⇒ ⇒ 目标路径上原本是什么，失败后**还是什么**。
+    //   ⇒ 手法：把目标路径**占成一个目录** ⇒ ⇒ 文件不能替换目录
+    //   （Linux EISDIR ／ Windows 拒绝访问）⇒ ⇒ rename 必然失败。
+    //   ⇒ ⚠️ 为什么不能注入「临时文件写不进去」：临时文件的名字**每次写都不同**
+    //   （并发写者不许互抢）⇒ ⇒ 没法预先占住它 ⇒ ⇒ 注入点必须落在**目标**上。
+    await cfg.delete();
+    await Directory(cfgPath).create(recursive: true);
 
     AppConfigService.configFileOverride = () async => cfg;
     final svc = AppConfigService();
@@ -133,15 +135,42 @@ void main() {
     expect(failures, isNotEmpty,
         reason: '落盘失败必须被报告（界面得说「没存上」⇒ ⇒ 不许长得像成功）');
     expect(svc.lastSaveError, isNotNull, reason: '落盘失败必须留下真因（不许只广播不留痕）');
-
-    final onDisk = await File(cfgPath).readAsString();
-    final decoded = json.decode(onDisk) as Map<String, dynamic>;
-    expect(decoded['marker'], 'old',
-        reason: '落盘失败 ⇒ ⇒ 磁盘上的旧值**必须原样**（不许被截断毁掉）');
-    expect(decoded['ttsExternalUrl'], isNull,
-        reason: '半次写入不许变成「已落盘」的样子');
     expect(svc.ttsExternalUrl, isNot('https://tts.example/should-not-apply'),
         reason: '落盘失败 ⇒ ⇒ 内存必须回滚（不许停留在没存上的新值上）');
+    expect(Directory(cfgPath).existsSync(), isTrue,
+        reason: '失败不许把目标换成别的东西（目标路径上原本是什么，失败后还是什么）');
+    expect(File(cfgPath).existsSync(), isFalse,
+        reason: '失败不许把目标写成文件（那会把「目录」变成「配置」）');
+    final leftovers =
+        tmpDir.listSync().map((e) => e.path).where((p) => p.endsWith('.tmp'));
+    expect(leftovers, isEmpty, reason: '失败也不许在配置目录里留半成品');
+  });
+
+  test('两个写者同时落盘 ⇒ 谁都不许报「没存上」（并发不许互抢临时文件）', () async {
+    // ⚠️ **这条钉的是 2026-11-09 CI 上真踩到的那一族**：
+    //   端脑 provider 把「用户喊停」**排队异步落盘**（`_persistQueue.then`）
+    //   ⇒ ⇒ 那次落盘可能**晚到**、与下一次落盘**重叠**
+    //   ⇒ ⇒ 若两者共用一个**固定名字**的临时文件 ⇒ ⇒ 一方 rename 把它带走了
+    //   ⇒ ⇒ 另一方 rename 找不到源文件 ⇒ ⇒ 报「没存上」
+    //   ⇒ ⇒ 更糟：那次失败会触发**回滚** ⇒ ⇒ 内存被撤回到上一份快照
+    //   ⇒ ⇒ 症状长成「大脑起不来」（10s 超时）⇒ ⇒ 长得像**实现坏了**。
+    AppConfigService.configFileOverride = () async => cfg;
+    final svc = AppConfigService();
+
+    final a = bigPad(1);
+    final b = bigPad(2);
+    for (var round = 0; round < 3; round++) {
+      svc.clearSaveError();
+      await Future.wait([
+        svc.setTtsExternalUrl(a),
+        svc.setTtsExternalUrl(b),
+      ]);
+      expect(svc.lastSaveError, isNull,
+          reason: '两个写者同时落盘时**不许**有一方失败（那说明它们在抢同一个临时文件）');
+      // 落盘结果必须是一份**完整**的值（不是两半拼接，也不是空）。
+      final raw = json.decode(await cfg.readAsString()) as Map<String, dynamic>;
+      expect(raw['ttsExternalUrl'], anyOf(a, b), reason: '并发落盘的结果必须是一份完整值');
+    }
   });
 
   test('落盘成功后配置目录里不留半成品（临时文件已消失）', () async {

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:io';
+import 'dart:math';
 
 import 'package:path_provider/path_provider.dart';
 
@@ -250,7 +251,14 @@ class AppConfigService {
   /// ⚠️ 失败时把临时文件清掉 ⇒ ⇒ 配置目录里不留半成品
   ///    （清不掉就留着 —— 它**不是**目标文件 ⇒ ⇒ 读面看不到它）。
   static Future<void> _writeAtomically(File file, String content) async {
-    final tmp = File('${file.path}.tmp');
+    // ⚠️⚠️ 临时文件的名字必须**每次写都不同**（2026-11-09 CI 实测踩到）：
+    //   两个写者（App 本身 ＋ 后台 isolate 的**排队落盘**）若共用一个固定名字的
+    //   临时文件 ⇒ ⇒ 一方 rename 把它带走了 ⇒ ⇒ 另一方 rename 找不到源文件
+    //   ⇒ ⇒ 报「没存上」⇒ ⇒ 而那其实是**并发**造成的假失败 ⇒ ⇒ 真因被埋掉
+    //   ⇒ ⇒ 更糟：那次失败的落盘会触发**回滚** ⇒ ⇒ 内存被撤回到上一份快照。
+    //   ⇒ ⇒ 名字带**时间戳 ＋ 随机盐** ⇒ ⇒ 不同写者互不抢。
+    final tmp = File('${file.path}.${DateTime.now().microsecondsSinceEpoch}'
+        '${Random().nextInt(0xFFFFFF).toRadixString(16)}.tmp');
     try {
       await tmp.writeAsString(content, flush: true);
     } catch (_) {
