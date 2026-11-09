@@ -9,8 +9,9 @@
 #   判定搬到**提交前** ⇒ ⇒ 拦在当场。
 #
 # ⚠️ **它只拦一种形态**：「HEAD 里非空 ＋ 暂存面里是零字节」⇒ ⇒ 其余一律放行。
-# ⚠️ **fail-safe**：判不了（git 读不出来／没有 HEAD／node 不在 PATH）⇒ ⇒ 一律放行
-#   ⇒ ⇒ 宁可漏，**绝不卡住别人的提交**。
+# ⚠️ **fail-safe**：判不了（git 读不出来／没有 HEAD／node 不在 PATH／脚本缺失／脚本崩了）
+#   ⇒ ⇒ 一律放行 ⇒ ⇒ 宁可漏，**绝不卡住别人的提交**。
+#   ⇒ ⇒ 所以本钩子**只拦专用码 10**（判红）；其余（0 绿／1 崩了／2 判不了）一律放行。
 #
 # ⚠️ 装法（每个 clone 一次）：  git config core.hooksPath .githooks
 
@@ -19,9 +20,16 @@ if ! command -v node >/dev/null 2>&1; then
   exit 0
 fi
 
+# ⚠️ **脚本不在位 ⇒ ⇒ 放行**（fail-safe：宁可漏，绝不卡住别人的提交）
+if [ ! -f "$ROOT/scripts/check-precommit-hook.mjs" ]; then
+  exit 0
+fi
+
 node "$ROOT/scripts/check-precommit-hook.mjs" --hook
 code=$?
-if [ "$code" = "1" ]; then
+# ⚠️ **只拦专用码 10** —— node 自己的失败码就是 1（崩了、脚本缺失都退 1）
+#   ⇒ ⇒ 把 1 当判红 ⇒ ⇒ 会拦下所有人的提交 ⇒ ⇒ 与本钩子的 fail-safe 相矛盾。
+if [ "$code" = "10" ]; then
   exit 1
 fi
 exit 0

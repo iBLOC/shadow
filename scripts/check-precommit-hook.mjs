@@ -30,7 +30,7 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -45,6 +45,12 @@ import { checkStagedWipes, emptyBlobHash } from './lib/precommit-wipe.mjs';
 //   ⇒ ⇒ 自检随机失败 ⇒ ⇒ 治理闸把它读成「闸自己坏了」⇒ ⇒ 假红。
 //   ⇒ ⇒ 一律用 mkdtemp 在系统临时目录下开**每次唯一**的夹具目录。
 const HERE = fileURLToPath(new URL('.', import.meta.url));
+
+// ⚠️ **hook 模式的判红必须用专用退出码** —— node 自己的失败码就是 **1**
+//   （未捕获异常 ⇒ ⇒ 退 1；脚本缺失 ⇒ ⇒ MODULE_NOT_FOUND ⇒ ⇒ 也退 1）
+//   ⇒ ⇒ 钩子若把 1 当判红 ⇒ ⇒ 会拦下所有人的提交 ⇒ ⇒ 与 fail-safe 相矛盾。
+//   ⇒ ⇒ 故 hook 模式判红用 10（node 不会自己退 10）。
+const HOOK_RED_EXIT = 10;
 
 function mkGit(cwd) {
   return (args) => {
@@ -133,6 +139,16 @@ function selftestIn(TMP) {
     git(['add', '-A'], {});
     git(['commit', '-m', msg], {});
   };
+  const runCliHook = () => {
+    try {
+      const out = execFileSync('node', [join(HERE, 'check-precommit-hook.mjs'), '--hook'], {
+        encoding: 'utf8', cwd: TMP, stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      return { code: 0, out };
+    } catch (e) {
+      return { code: e.status === undefined ? 1 : e.status, out: (e.stdout || '') + (e.stderr || '') };
+    }
+  };
   const runCli = () => {
     try {
       const out = execFileSync('node', [join(HERE, 'check-precommit-hook.mjs')], {
@@ -180,6 +196,23 @@ function selftestIn(TMP) {
   const r4 = runCli();
   add('HEAD 里本来就是空的文件 ⇒ ⇒ 必须放行', r4.code === 0, '退出码=' + r4.code);
 
+  // ⑤ hook 模式判红 ⇒ ⇒ **专用退出码 10**（不是 1 —— node 自己的失败码就是 1）
+  git(['reset', '--hard', 'HEAD'], {});
+  write('hook-case.txt', 'content\n');
+  commit('add hook-case.txt');
+  write('hook-case.txt', '');
+  git(['add', 'hook-case.txt'], {});
+  const r5h = runCliHook();
+  add('hook 模式判红 ⇒ ⇒ 专用退出码 10（1 是 node 崩掉／脚本缺失的码）',
+    r5h.code === 10, 'hook 模式退出码=' + r5h.code);
+
+  // ⑥ 钩子只拦专用码 10 ⇒ ⇒ 崩掉（1）／缺失（1）／判不了（2）一律放行
+  const hookSrc = readFileSync(join(HERE, '..', '.githooks', 'pre-commit'), 'utf8');
+  const hookBlocksOne = /=\s*"1"/.test(hookSrc);
+  add('钩子只拦专用码 10 ⇒ ⇒ 崩掉／缺失／判不了一律放行',
+    hookSrc.includes('"10"') && !hookBlocksOne,
+    '钩子里拦的是 1 ｜=为 ' + hookBlocksOne);
+
   const ok = results.filter((r) => r.ok).length;
   for (const r of results) console.log((r.ok ? '  ✅ ' : '  ❌ ') + r.name + ' —— ' + r.detail);
   console.log('判据自检：' + ok + '/' + results.length + ' 通过');
@@ -207,7 +240,7 @@ function main(argv) {
     console.log('⚠️ 这一类事故**真发生过**（2026-11-11：台账 AGENTS.md 被提交成零字节 ⇒ ⇒ master 上整本消失）。');
     console.log('⚠️ 若这是**故意**的（例如要清空一个文件）⇒ ⇒ 请在提交信息里写明「清空 <路径>」，再重新提交。');
     console.log('⚠️ 确实要绕过：git commit --no-verify');
-    process.exit(1);
+    process.exit(isHook ? HOOK_RED_EXIT : 1);
   } catch (e) {
     // ⚠️ **fail-safe**：判不了 ⇒ ⇒ 放行（绝不卡住别人的提交）
     if (isHook) {
