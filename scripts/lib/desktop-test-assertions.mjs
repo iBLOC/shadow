@@ -257,6 +257,33 @@ export function extractAssertions(body, bodyStart, src) {
  * 扫一个 TS 文件：找出全部用例 + 它们的断言承重。
  * @returns {{file:string,cases:Array,tautologies:Array,zeroAssert:Array,weakOnly:Array,conditional:Array}}
  */
+export function findUncheckableSpy(body, bodyStart, src) {
+  const SPY_RE = /\b(?:vi|jest)\.spyOn\s*\(/g;
+  let m;
+  let found = null;
+  while ((m = SPY_RE.exec(body)) !== null) {
+    const before = body.slice(0, m.index);
+    const trimmed = before.replace(/\s+$/, '');
+    const lastChar = trimmed.slice(-1);
+    if (lastChar === '=') {
+      const prev = trimmed.slice(-2, -1);
+      if (prev !== '=' && prev !== '!' && prev !== '<' && prev !== '>') {
+        continue;
+      }
+    }
+    if (/toHaveBeenCalled|toHaveBeenCalledWith|toHaveBeenCalledTimes|toHaveBeenLastCalledWith|toHaveBeenNthCalledWith/.test(body)) {
+      continue;
+    }
+    found = {
+      offset: bodyStart + m.index,
+      line: lineOf(src, bodyStart + m.index),
+      kind: 'spy-uncheckable',
+    };
+    break;
+  }
+  return found;
+}
+
 export function scanTypeScriptSource(src, file) {
   const masked = maskSource(src);
   const cases = [];
@@ -326,6 +353,7 @@ export function scanTypeScriptSource(src, file) {
     //   ⇒ ⇒ 它**就是**一条断言 ⇒ ⇒ 尺子若只认 `expect(` ⇒ ⇒ 会把
     //   「零断言」误判到**有承重**的用例上 ⇒ ⇒ 那叫**尺子在测错东西**。
     const queries = countThrowQueries(body);
+    const uncheckedSpy = findUncheckableSpy(body, bodyOpen, src);
     const weakOnly =
       asserts.length > 0 &&
       queries === 0 &&
@@ -346,6 +374,7 @@ export function scanTypeScriptSource(src, file) {
       assertsOutsideConditional,
       conditionalAlwaysRuns,
       falseGreen,
+      uncheckedSpy,
     });
     re.lastIndex = bodyClose;
   }
@@ -370,7 +399,8 @@ export function scanTypeScriptSource(src, file) {
       });
     }
   }
-  return { file, cases, tautologies, zeroAssert, weakOnly, conditional: cases.filter((c) => c.conditional > 0), falseGreen: cases.filter((c) => c.falseGreen) };
+  const uncheckedSpies = cases.filter((c) => c.uncheckedSpy).map((c) => ({ file: c.file, line: c.uncheckedSpy.line, name: c.name, kind: c.uncheckedSpy.kind }));
+  return { file, cases, tautologies, zeroAssert, weakOnly, conditional: cases.filter((c) => c.conditional > 0), falseGreen: cases.filter((c) => c.falseGreen), uncheckedSpies };
 }
 
 /**

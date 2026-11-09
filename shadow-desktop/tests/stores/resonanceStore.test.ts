@@ -171,7 +171,7 @@ describe('ResonanceStore', () => {
     it('sets error when telencephalon A2A gateway is not reachable', async () => {
       hasResonanceRef.value = true;
       telencephalonStatusRef.value = 'running';
-      vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
         new Response('not found', { status: 404 }),
       );
       const { connect } = useResonanceStore.getState();
@@ -179,6 +179,11 @@ describe('ResonanceStore', () => {
       const state = useResonanceStore.getState();
       expect(state.connectionStatus).toBe('error');
       expect(state.error).toMatch(/not reachable/i);
+      // ⚠️ **替身自证**：这条用例的结论**依赖替身返回 404**
+      //    ⇒ ⇒ 若替身**没生效**（真 fetch 跑起来），结论可能**偶然同形**
+      //    ⇒ ⇒ 真端脑若恰好也回 404 ⇒ ⇒ 用例照样绿 ⇒ ⇒ 它就证明不了任何事。
+      //    ⇒ ⇒ 所以必须**显式断言替身被调用** ⇒ ⇒ 把「隐式依赖」变成「显式依赖」。
+      expect(fetchSpy).toHaveBeenCalled();
     });
   });
 
@@ -213,10 +218,12 @@ describe('ResonanceStore', () => {
 
     it('sets error on fetch failure', async () => {
       useResonanceStore.setState({ connectionStatus: 'connected' });
-      vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Send failed'));
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Send failed'));
       const { sendMessage } = useResonanceStore.getState();
       await sendMessage({ type: 'ping' });
       expect(useResonanceStore.getState().error).toContain('Send failed');
+      // ⚠️ **替身自证**（同上）：结论依赖替身抛的那个错误 ⇒ ⇒ 必须断言替身被调用。
+      expect(fetchSpy).toHaveBeenCalled();
     });
   });
 

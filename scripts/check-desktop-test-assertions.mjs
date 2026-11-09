@@ -20,7 +20,7 @@
  *   **Dart 版**，本文件是 **TypeScript 版** ⇒ ⇒ 同一条规则的两种语言实现
  *   ⇒ ⇒ 红线定义写在各自的 lib 头注释里（语义要对齐，实现各归各的语言）。
  *
- * ## 四条红线（**判红**）
+ * ## 五条红线（**判红**）
  *
  *   **R1 · 恒真断言** —— 断言的**主体是字面量常量**（`expect(true).toBe(true)`）
  *     ⇒ ⇒ 断言结果与被测物无关 ⇒ ⇒ 零信息量。
@@ -42,6 +42,21 @@
  *     `findBy*`，或由它赋值来的标识符）⇒ ⇒ 分支要么进、要么用例红
  *     ⇒ ⇒ 里面的断言**总会跑** ⇒ ⇒ 不判红。
  *
+ *   **R5 · 替身空转** —— 装了 spy／替身，却**连检查的资格都没有**。
+ *     ⚠️ 2026-11-11 真跑级实测（注入式反向验证）：
+ *       `tests/stores/resonanceStore.test.ts` 的用例「sets error when telencephalon A2A gateway
+ *       is not reachable」装了 `vi.spyOn(globalThis, 'fetch').mockResolvedValue(404)`
+ *       ⇒ ⇒ 断言的是「连接状态是 error」＋「错误消息匹配 /not reachable/i」。
+ *       ⇒ ⇒ **注入让 spy 装上但目标方法立刻还原**（⇒ ⇒ 替身**不生效**）⇒ ⇒
+ *       那条用例**依然绿** ⇒ ⇒ ⇒ 它**恒绿** ⇒ ⇒ 它**证明不了任何事**。
+ *       ⇒ ⇒ 而**真端脑恰好也回 404** ⇒ ⇒ 结论**偶然同形** ⇒ ⇒ 连注入式都得靠运气才能逮住它。
+ *     ⚠️ **判红条件是三条同时成立**（按**破坏形态**列）：
+ *       ① 出现 `vi.spyOn(...)` / `jest.spyOn(...)`；
+ *       ② 该调用**返回值没有被赋给任何标识符**（⇒ ⇒ 外面拿不到那个 mock）；
+ *       ③ 且用例内**没有**任何「spy 被调用」断言（`toHaveBeenCalled` 家族）。
+ *     ⚠️ **为什么不是「用了 spy 就必须断言被调用」** —— 有些 spy 只是为了让那一步不炸
+ *       ⇒ ⇒ 它**本来就不该**被断言 ⇒ ⇒ 「用了就判红」是**误指控** ⇒ ⇒ 而误指控比漏报更坏。
+ *
  * ## 读数（**不判红**，但要看得见）
  *
  *   · **条件化断言** —— 断言落在「没有 else 的 if」分支里（分支不进 ⇒ 零断言）；
@@ -50,7 +65,7 @@
  *
  * ## 防假绿
  *
- * · 判据自检（**孪生成对**）⇒ ⇒ 证明尺子**有牙**且**不恒红**；
+ * · 判据自检（**孪生成对**，R5 有 1 正控 ＋ 3 孪生）⇒ ⇒ 证明尺子**有牙**且**不恒红**；
  * · 一个文件都没读到 ⇒ ⇒ 退出码 2（不是 0）。
  *
  * ## 用法
@@ -98,6 +113,34 @@ function parseArgs(argv) {
  * ⇒ ⇒ 闸还没跑就自己炸了 ⇒ ⇒ 那一刀白挨。
  */
 const FIX = {
+  // ── R5 · 替身空转 ─────────────────────────────────────────────────
+  r5Uncheckable: [
+    "  it('x', () => {",
+    "    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('not found', { status: 404 }));",
+    "    expect(count).toBe(1);",
+    '  });',
+  ],
+  // ⚠️ 孪生①：返回值**赋给了变量** ⇒ ⇒ 外面拿得到那个 mock ⇒ ⇒ 有检查的资格 ⇒ ⇒ 不许抓
+  r5Assigned: [
+    "  it('x', () => {",
+    "    const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('x', { status: 404 }));",
+    '    expect(count).toBe(1);',
+    '  });',
+  ],
+  // ⚠️ 孪生②：有「spy 被调用」断言 ⇒ ⇒ 不许抓（哪怕返回值被丢弃）
+  r5CalledAssert: [
+    "  it('x', () => {",
+    "    vi.spyOn(globalThis, 'fetch');",
+    '    expect(count).toBe(1);',
+    '    expect(someSpy).toHaveBeenCalled();',
+    '  });',
+  ],
+  // ⚠️ 孪生③：根本没装 spy ⇒ ⇒ 不许抓
+  r5NoSpy: [
+    "  it('x', () => {",
+    '    expect(count).toBe(1);',
+    '  });',
+  ],
   r1True: [
     "  it('x', () => { expect(true).toBe(true); });",
   ],
@@ -309,6 +352,23 @@ function selfTest() {
     return scan(FIX.r4AlwaysRuns).falseGreen.length === 0;
   });
 
+  // ── R5 · 替身空转 ─────────────────────────────────────────────────
+  add('R5：装了 spy、返回值被丢弃、且没断言它被调用 ⇒ ⇒ 必须抓到', () => {
+    return scan(FIX.r5Uncheckable).uncheckedSpies.length === 1;
+  });
+
+  add('R5 孪生：返回值赋给了变量 ⇒ ⇒ 有检查的资格 ⇒ ⇒ 不许抓', () => {
+    return scan(FIX.r5Assigned).uncheckedSpies.length === 0;
+  });
+
+  add('R5 孪生：有「spy 被调用」断言 ⇒ ⇒ 不许抓', () => {
+    return scan(FIX.r5CalledAssert).uncheckedSpies.length === 0;
+  });
+
+  add('R5 孪生：没装 spy ⇒ ⇒ 不许抓', () => {
+    return scan(FIX.r5NoSpy).uncheckedSpies.length === 0;
+  });
+
   // ── Playwright 族：另一套语义（刀 O，2026-11-11 真机实测）────────
   // ⚠️ **为什么要单独一族**：Playwright 的 `test.describe` 是**容器**不是用例；
   //   `locator.isVisible()` / `count()` 是**软查询**（返回布尔/数字、不抛）
@@ -386,6 +446,7 @@ function main() {
     r2: 0,
     r3: 0,
     r4: 0,
+    r5: 0,
     conditional: 0,
     conditionalAlways: 0,
     conditionalOther: 0,
@@ -419,6 +480,16 @@ function main() {
       summary.r3 += 1;
       violations.push({ kind: 'R3 弱断言独占', file: w.file, line: w.line, name: w.name, detail: '唯一的断言只是「某个值非空」' });
     }
+    for (const u of r.uncheckedSpies || []) {
+      summary.r5 += 1;
+      violations.push({
+        kind: 'R5 替身空转（装了 spy 却没有办法检查它）',
+        file: u.file,
+        line: u.line,
+        name: u.name,
+        detail: '装了 spy／替身，返回值被丢弃，且没有任何「spy 被调用」断言 ⇒ ⇒ 替身生不生效都看不出 ⇒ ⇒ 这条用例可能恒绿',
+      });
+    }
   }
 
   const rel = (f) => String(f).replace(REPO_ROOT + path.sep, '');
@@ -434,6 +505,7 @@ function main() {
       ' ｜ R2 零断言 ' + summary.r2 +
       ' ｜ R3 弱断言独占 ' + summary.r3 +
       ' ｜ R4 假绿风险 ' + summary.r4 +
+      ' ｜ R5 替身空转 ' + summary.r5 +
       ' ｜ 条件化断言（只读数）' + summary.conditional +
       '（分支恒进 ' + summary.conditionalAlways +
       ' ＋ 另有无条件承重 ' + summary.conditionalOther +
@@ -443,7 +515,7 @@ function main() {
       console.error('::error::' + v.kind + ' ⇒ ' + rel(v.file) + ':' + v.line + ' ⇒ ' + v.name + ' ⇒ ' + v.detail);
     }
     if (violations.length === 0) {
-      console.log('✅ 四条红线全过（每条用例的断言都指向它宣称的那件事）');
+      console.log('✅ 五条红线全过（每条用例的断言都指向它宣称的那件事）');
     }
   }
 
