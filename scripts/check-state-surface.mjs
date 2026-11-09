@@ -61,7 +61,7 @@ import {
 import { dirname, join, resolve, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
-import { judgeSurface, analyzeSurface, DEBT_KINDS, ENVELOPE_KEYS } from './lib/state-surface.mjs';
+import { judgeSurface, analyzeSurface, DEBT_KINDS, ENVELOPE_KEYS, judgeCodePointPointers } from './lib/state-surface.mjs';
 import { SURFACES, KNOWN_DEBT, CUTOFF } from './lib/state-surface-registry.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -218,6 +218,23 @@ export function symbolDomainOf(surface) {
     for (const s of a.ownSymbols) own.push(s);
   }
   return { union, own };
+}
+
+/**
+ * 三个账本面（带编号体系的那些）⇒ ⇒ 供 R10 用。
+ *
+ * ⚠️ **读面在这里（脚本层）** —— 判据函数在 lib 里（纯函数 ⇒ ⇒ 判据能脱离
+ * 文件、脱离 git 单独跑 ⇒ ⇒ 反向验证不必碰共享文件）。
+ */
+function ledgerSurfaces(overrides, includeLocal) {
+  const out = [];
+  for (const s of SURFACES) {
+    if (s.kind !== 'md-updated' || s.judge === false) continue;
+    const r = readSurface(s, overrides, includeLocal);
+    if (r.text === null) continue;
+    out.push({ id: s.id, text: r.text, domainIds: s.symbolDomain || [] });
+  }
+  return out;
 }
 
 export function parseOverrides(argv) {
@@ -568,6 +585,40 @@ export function selfTest() {
     JSON.stringify(notNoSymV.map((v) => v.msg))
   );
 
+  // ⚠️⚠️ **R10 码位指针** —— 「承 U+XXXX 条」必须解析得到（旧判据看不见的那一族）。
+  const ptrText = (ref) =>
+    '**Updated**: 2026-11-05 (\u32F0 **「a」** —— 承 ' + ref + ' 条。)\n';
+  const ptrOkV = judgeCodePointPointers([{ id: 'ptr', text: ptrText('U+32F0'), domainIds: [] }]);
+  check(
+    'R10 正向：指针指向**存在的**编号 ⇒ ⇒ 不红',
+    ptrOkV.length === 0,
+    JSON.stringify(ptrOkV.map((v) => v.msg))
+  );
+  const ptrBadV = judgeCodePointPointers([{ id: 'ptr', text: ptrText('U+9999'), domainIds: [] }]);
+  check(
+    'R10 孪生：指针指向**不存在的**编号 ⇒ ⇒ 恰好红这一条',
+    ptrBadV.length === 1 && ptrBadV[0].rule === 'R10',
+    JSON.stringify(ptrBadV.map((v) => v.msg))
+  );
+  const ptrCrossV = judgeCodePointPointers([
+    { id: 'child', text: ptrText('U+3401'), domainIds: ['parent'] },
+    { id: 'parent', text: '**Updated**: 2026-11-05 (\u3401 **「p」** —— 父仓条目。)\n', domainIds: [] },
+  ]);
+  check(
+    'R10 孪生：子仓指向**父仓**的编号 ⇒ ⇒ 合法（symbolDomain）⇒ ⇒ 不红',
+    ptrCrossV.length === 0,
+    JSON.stringify(ptrCrossV.map((v) => v.msg))
+  );
+  const ptrCrossBadV = judgeCodePointPointers([
+    { id: 'child', text: ptrText('U+3401'), domainIds: ['parent'] },
+    { id: 'parent', text: '**Updated**: 2026-11-05 (\u3402 **「p」** —— 父仓条目。)\n', domainIds: [] },
+  ]);
+  check(
+    'R10 孪生：子仓指向**父仓没有**的编号 ⇒ ⇒ 恰好红这一条（跨面也不放过）',
+    ptrCrossBadV.length === 1 && ptrCrossBadV[0].rule === 'R10',
+    JSON.stringify(ptrCrossBadV.map((v) => v.msg))
+  );
+
   // 真面基线
   const dm = debtMap();
   let realViolations = [];
@@ -595,6 +646,9 @@ export function selfTest() {
       ).violations.map((v) => v.msg)
     );
   }
+  realViolations = realViolations.concat(
+    judgeCodePointPointers(ledgerSurfaces(null, false)).map((v) => v.msg)
+  );
   const declared = SURFACES.filter((s) => s.scope === 'repo').map((s) => s.rel);
   const unreg = findUnregistered(REPO, declared);
   check(
@@ -681,6 +735,8 @@ function main(argv) {
       },
     });
   }
+
+  for (const v of judgeCodePointPointers(ledgerSurfaces(overrides, includeLocal))) violations.push(v);
 
   const declared = SURFACES.filter((s) => s.scope === 'repo').map((s) => s.rel);
   const unreg = findUnregistered(REPO, declared);

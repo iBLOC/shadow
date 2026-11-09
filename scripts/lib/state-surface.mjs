@@ -48,6 +48,82 @@ const RE_ENCLOSED = /[\u3200-\u33FF]/g;
 /** 继承指针：「承㋰」这种**可解析**的指向。 */
 const RE_INHERIT_REF = /承\s*([\u3200-\u33FF]+)/g;
 
+/**
+ * 「承 U+XXXX」这种**码位指针** —— 指向**一个编号**，不是一个带圈符号。
+ *
+ * ⚠️⚠️ **为什么要单独一条规则**（2026-11-09 实测）：带圈符号（3200–33FF）那套
+ * 判据认的是「**符号**」⇒ ⇒ 而本仓的账本条目**大多用 34xx 段的方块字**
+ * ⇒ ⇒ 「承 U+34xx 条」那些指针**根本不在**带圈符号的判据面里
+ * ⇒ ⇒ 「承 U+3351 条」这种**指向不存在的编号**，旧判据**看不见**
+ * ⇒ ⇒ ⇒ 那是一条**盲区**，不是「没有债」。
+ */
+export const RE_CODEPOINT_POINTER = /承\s*U\+([0-9A-Fa-f]{4,6})/g;
+
+/**
+ * 这本账本**定义**了哪些编号 —— 条目标题里那个方块字的**原始码位**。
+ *
+ * ⚠️ **只认原始码位** —— 与码位闸同一纪律（NFKC 会把不同的条目判成同一个）。
+ * ⚠️ **不限段** —— 带圈段（3200–33FF）之外的那些（34xx…）才是账本的主力。
+ */
+export function ledgerCodepoints(text) {
+  const out = new Set();
+  const re = /^\*\*Updated(?::)?\*\*:?\s*[12]\d{3}-\d{2}-\d{2}\s+\((.)\s\*\*/gm;
+  let m;
+  while ((m = re.exec(text)) !== null) out.add(m[1].codePointAt(0));
+  return out;
+}
+
+/**
+ * 码位指针 ⇒ ⇒ **解析不到**的那些（allowed = 这个面**能看见**的编号集合）。
+ *
+ * ⚠️ 这是一个**纯函数** —— 判据要能脱离文件、脱离 git 单独跑。
+ */
+export function unresolvedCodePointPointers(text, allowed) {
+  const out = [];
+  const re = new RegExp(RE_CODEPOINT_POINTER.source, 'g');
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const cp = parseInt(m[1], 16);
+    if (!allowed.has(cp)) out.push({ ref: 'U+' + m[1].toUpperCase(), codepoint: cp });
+  }
+  return out;
+}
+
+/**
+ * **R10：码位指针必须解析得到**（跨面）。
+ *
+ * ⚠️ **为什么旧判据看不见它**（2026-11-09 实测）：带圈符号那套判据认的是
+ * 「**符号**」（3200–33FF）⇒ ⇒ 而账本条目**大多用 34xx 段的方块字**
+ * ⇒ ⇒ 「承 U+34xx 条」不在它的判据面里 ⇒ ⇒ 指向**不存在的编号**也照样通过
+ * ⇒ ⇒ ⇒ 那是一条**盲区**。
+ *
+ * ⚠️ **解析域＝自己面 ∪ domainIds 指向的面** —— 子仓账本**合法**引用父仓编号
+ * （父仓面有 symbolDomain）⇒ ⇒ 不能只按「自己面」判（那是假红）。
+ *
+ * ⚠️ **存量债＝0** —— 实测三账本当前**没有**解析不到的指针 ⇒ ⇒ 所以这条规则
+ * **不需要基线豁免**（没有要豁免的东西）⇒ ⇒ 也不用「基线 commit ＋ 指纹封条」。
+ */
+export function judgeCodePointPointers(surfaces) {
+  const defined = new Map();
+  for (const s of surfaces) defined.set(s.id, ledgerCodepoints(s.text));
+  const out = [];
+  for (const s of surfaces) {
+    const allowed = new Set(defined.get(s.id) || []);
+    for (const d of s.domainIds || []) {
+      for (const cp of defined.get(d) || []) allowed.add(cp);
+    }
+    for (const p of unresolvedCodePointPointers(s.text, allowed)) {
+      out.push({
+        rule: 'R10',
+        msg:
+          '状态面 ' + s.id + '：指针「承 ' + p.ref + ' 条」指向的编号**在它能看见的账本里不存在**'
+          + ' ⇒ ⇒ **悬空指针**（读者点不过去 ⇒ ⇒ 这条引用等于没写）',
+      });
+    }
+  }
+  return out;
+}
+
 /** 位置型指针：「承上一条」「承用户那句」—— 插入/删除就会指错。 */
 const RE_POSITIONAL_REF =
   /承\s*(上一条|上一轮|前一条|上面那条|用户那句|上一[^\s，。、；：)）]{0,6}那条)/g;
