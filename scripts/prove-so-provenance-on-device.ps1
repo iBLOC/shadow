@@ -35,8 +35,8 @@
 #      .dart_tool/hooks_runner 整棵复制到干净树（用 Node 拷，bash 递归写会被拦）。
 param(
   [string]$Serial = 'ee6b4832',
-  [string]$Package = 'com.ibloc.shadow',
-  [string]$Activity = 'com.ibloc.shadow.MainActivity',
+  [string]$Package = '',
+  [string]$Activity = '',
   [string]$JniLibs = 'C:\Projects\iBLOC\shadow\shadow-mobile\android\app\src\main\jniLibs\arm64-v8a\libencephalon.so',
   [string]$ExpectSha = '',
   [string]$OutDir = ''
@@ -58,6 +58,21 @@ $ErrorActionPreference = 'Stop'
 #   - 跑 A2UI：叶区诚实性（unknown / not probed）+ 文案本地化（zh vs en）
 #
 # 退出码：0 全过 / 1 有红 / 2 什么都没探到
+# ⚠️ **包名要自己探，不许写死**（2026-11-10 真机实测抓到的）：
+# debug flavor 的 applicationId 是 `com.ibloc.debug`，release 才是 `com.ibloc.shadow`
+# ⇒ ⇒ 写死成 release 包名 ⇒ ⇒ 设备上 `pm path` 取不到 APK 路径 ⇒ ⇒ 退出码 2
+# （「什么都没探到」）⇒ ⇒ 而且 `run-as` **只有 debug 包能跑** ⇒ ⇒ 优先探 debug 包。
+if (-not $Package) {
+  $candidates = adb -s $Serial shell pm list packages |
+    ForEach-Object { ($_ -split ':')[-1].Trim() } |
+    Where-Object { $_ -like 'com.ibloc.*' }
+  $Package = ($candidates | Where-Object { $_ -eq 'com.ibloc.debug' } | Select-Object -First 1)
+  if (-not $Package) { $Package = ($candidates | Select-Object -First 1) }
+}
+if (-not $Package) { Write-Output '设备上找不到 iBLOC 的包 ⇒ 判不了'; exit 2 }
+if (-not $Activity) { $Activity = "$Package.MainActivity" }
+Write-Output "包名：$Package"
+
 if (-not $OutDir) { $OutDir = Join-Path $env:TEMP 'so-provenance' }
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 
