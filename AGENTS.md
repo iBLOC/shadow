@@ -1,5 +1,41 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-09 (㑰 **「51 条断言在量『浏览器返回了任何东西』—— 端脑整个坏了它照样绿」** —— 承 U+346D 条（契约套件凭据面收口），本条记**取证（51 条弱断言 ＋ 1 条零断言 ＋ R1 恒真 0）**、**第一因（断言的被测对象选错了）**、**这一刀的落点（13 个文件）**、**判据（闸级 ＋ 自检 ＋ 反向验证 ＋ 行为级）**、**分级读数**、**途中那几课**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-09 | authority=measured | scope=project | source=真运行级实测（自写断言普查器 ＋ 两档注入反向验证 ＋ 真端脑复演 API 断言 ＋ vitest 全量 ＋ 两把类型闸） | 改动：shadow 仓 **新增** `shadow-desktop/tests/support/brain-api.ts`、**新增** `scripts/lib/desktop-test-assertions.mjs`、**新增** `scripts/check-desktop-test-assertions.mjs`、**新增** `.github/workflows/desktop-test-assertions.yml`、**改** 4 个 `shadow-desktop/tests/wdio/*.test.ts`、**改** 4 个 `shadow-desktop/tests/tauri-e2e/smoke/*.test.ts`、**改** `shadow-desktop/tests/lib/webrtcCompanion.test.ts` ｜ 读数：**闸级 EXIT=0（206 文件 / 1617 用例 / 3040 断言 ⇒ R1=0、R2=0、R3=0）**、**自检 13/13**、**反向验证：注入一处恒真 ⇒ 恰好 1 红且点名 ⇒ 还原 blob 逐字一致 `de80e3dc…`**、**行为级：17/17 API 断言在真端脑（60204，全新数据目录）上过**、**类型闸：wdio 闸 EXIT=0；主闸 1 红＝并行会话已提交的 `capabilityDefaults.test.ts` 未用 import（与其无关）**、**vitest 全量 1485 过 / 16 跳 / 1 红**（那 1 红＝并行会话在飞的 `accent.g.ts` 生成物漂移，**与本刀无关**）、**YAML 闸 12 文件零违规**、**治理闸：我的闸 D1–D5 零违规** | status=active | supersedes=none
+
+① **⚠️ 取证：桌面端 1617 条用例里，51 条的断言「测不到它宣称的那件事」**
+　❶ **50 条「弱断言独占」**（全在 `tests/wdio/**` ＋ `tests/tauri-e2e/smoke/**`）：`expect(url).toBeTruthy()`（URL 永远非空）＋ `expect(text).toBeTruthy()`（`text` ＝ 整页 body 文本 ⇒ ⇒ **任何渲染出来的页面都有字** —— 包括 404 页、401 页）⇒ ⇒ ⇒ **端脑整个坏了它照样绿**。
+　❷ **1 条「零断言用例」**：`tests/lib/webrtcCompanion.test.ts` 的「stop() does not throw when called without start」⇒ ⇒ 断言只是「调一下不炸」⇒ ⇒ 「stop() 改成会抛异常」也是绿的。
+　❸ **1 处「零断言通过」的守卫**：`if (await input.isExisting()) { …断言… }` ⇒ ⇒ 输入框**不见了**时整条用例零断言通过。
+　❹ **R1（字面量主体的恒真断言）＝ 0** ⇒ ⇒ 桌面端的问题**不是**「写死常量」，而是「断言的**主体**恒真／**唯一**断言太弱」⇒ ⇒ ⇒ 这两条红线必须分开。
+　❺ ⚠️ **「API 用例」量到的其实是错误页** —— 真机实测：桌面端自己的 60080 口上，`/models/providers`、`/api/telencephalon/agents`、`/v1/models`、`/hippocampus/api/memory` 等**全部 401** ⇒ ⇒ 而 `expect(text).toBeTruthy()` 在 401 页面上**照样绿** ⇒ ⇒ 这一族「端脑 API」用例从来量的不是端脑。
+
+② **⚠️ 第一因：断言的**被测对象**选错了 —— 量的是「浏览器返回了任何东西」，不是「产品可用」**
+　❶ 「页面加载成功」的**真判据**是「那个路由的界面挂上了」，而 `body.getText()` 非空**证明不了它**（错误页也有字）⇒ ⇒ 判据必须指向**它宣称的那件事**（路由 ＋ `#root` 真有内容）。
+　❷ 「端脑这个接口答得出」的**真判据**是**状态码 ＋ 回包里的具体字段**，而「抓文本非空」连 404 与 200 都分不开 ⇒ ⇒ 改为直接打端脑、断言状态码与字段。
+　❸ ⚠️ **凭据要默认对齐门形** —— 打端脑必须递**影子锁 ∪ admin token**（门形真源＝端脑 `door_policy.txt`；产品实现＝`src/lib/readDoorHeaders.ts`）⇒ ⇒ 新的共享探针 `tests/support/brain-api.ts` 与它们**同一套规则**。
+
+③ **✅ 这一刀的落点（13 个文件）**
+　❶ **新增** `shadow-desktop/tests/support/brain-api.ts`：端脑读面探针（`BRAIN_URL` 可用 `SHADOW_TELENCEPHALON_URL` 覆盖 ＋ `doorHeaders()` 递影子锁 ∪ admin token ＋ `brainGet()` 拿**状态码与回包**）。
+　❷ **改** 8 个 spec（wdio 4 个 ＋ tauri-e2e/smoke 4 个）：**页面**用例 ⇒ 断言「路由对得上」＋「`#root` 在、且不是白屏」；**端脑**用例 ⇒ 断言**状态码** ＋ 回包里的**具体字段**（期望值**取自真端脑实测**）；两个只接 POST 的路由 ⇒ 改成「这条路由在（只接 POST）」（405/200，而不是 404）⇒ ⇒ **标题也改了**（原标题宣称的事比断言多 ⇒ 那就是**假标题**）。
+　❸ **改** `tests/lib/webrtcCompanion.test.ts`：「不抛异常」写成**显式断言**（`await expect(companion.stop()).resolves.not.toThrow()`）。
+　❹ **新增** `scripts/lib/desktop-test-assertions.mjs`（普查器：掩码 → 抽用例 → 抽断言 → 三条红线）＋ **新增** `scripts/check-desktop-test-assertions.mjs`（CLI：判定 ＋ `--self-test` ＋ `--json` ＋ 退出码 0/1/2）＋ **新增** `.github/workflows/desktop-test-assertions.yml`（**独立 workflow**，不碰共享的 `ci.yml` ⇒ ⇒ 接线面零共享）。
+
+④ **⚠️ 途中那几课**
+　❶ **尺子自己先错了一回** —— 掩码（剥注释与字符串）里**模板串漏赋一个字符** ⇒ ⇒ 掩码比源码**短一个** ⇒ ⇒ 之后所有偏移**全错位** ⇒ ⇒ 结果是：**有承重的用例被判成零断言**，而我自己的 R1 命中**全是假阳性**（那 1 条 R1 其实在**字符串里的夹具**中）⇒ ⇒ ⇒ 「尺子要先被自己的夹具钉住」—— 掩码长度不变必须是一条**自检**。
+　❷ **「找不到就抛异常」的查询也是承重** —— `await screen.findByText('x')` 找不到就**抛** ⇒ ⇒ 用例会红 ⇒ ⇒ 它**就是**一条断言 ⇒ ⇒ 只认 `expect(` 的尺子会把 3 条**有承重**的用例判成零断言 ⇒ ⇒ ⇒ 零断言的判据必须问「**它会不会抛**」。
+　❸ **端点清单与端脑是两个仓** —— 真 CI 上契约闸红的那一条是 `GET /api/telencephalon/lobes/capability-defaults` ⇒ ⇒ 而这条路由**只存在于** telencephalon 的**未推送**提交 `c59fd7c` ⇒ ⇒ CI 从 `telencephalon@origin/master` 构建端脑 ⇒ ⇒ ⇒ **红的是版本差，不是产品坏** ⇒ ⇒ 已把事实同步给并行会话，并把那一步改成「红时**逐条点名**＋上传报告」。
+　❹ **写闸的脚本自己会被嵌套引号写炸** ⇒ ⇒ 夹具统一**只用单引号** ⇒ ⇒ 「闸还没跑就自己语法错」那一刀白挨。
+　❺ **注释里不许出现「星号 ＋ 斜杠」的组合** ⇒ ⇒ 它会**提前闭合**那段注释 ⇒ ⇒ 整个文件当场语法错（实测踩到）。
+
+⑤ **✅ 判据（四处）** —— ❶ **闸级**：206 文件 / 1617 用例 / 3040 断言 ⇒ ⇒ **R1=0、R2=0、R3=0** ⇒ EXIT 0（条件化断言 25 条**只读数**）；❷ **自检级**：13/13 通过（含 4 组**孪生**：字面量 vs 标识符、零断言 vs findBy、弱独占 vs 具体值、toBeTruthy＋findBy）⇒ ⇒ 证明尺子**有牙且不恒红**；❸ **反向验证级**：往 `webrtcCompanion.test.ts` 注入 `expect(true).toBe(true)` ⇒ ⇒ **恰好 1 红并点名那一行** ⇒ ⇒ 还原后 blob **逐字一致**（`de80e3dc…`）⇒ ⇒ 闸复绿；❹ **行为级**：用**同一个探针**在**真端脑**（60204，全新数据目录）复演 wdio/tauri-e2e 的 API 断言 ⇒ ⇒ **17/17 过**（含两个 405 ⇒ ⇒ 「只接 POST」这件事被证过）。
+
+⑥ **✅ 分级读数（全部实测）** —— **闸级**：EXIT=0（R1=R2=R3=0）｜ **自检级**：13/13 ｜ **反向验证级**：注入 ⇒ 恰好 1 红且点名 ⇒ 还原逐字一致 ｜ **行为级**：17/17 API 断言在真端脑上过 ｜ **类型闸级**：wdio 闸 EXIT=0；主闸 1 红＝并行会话已提交的未用 import（**与其无关**）｜ **回归级**：vitest 全量 **1485 过 / 16 跳 / 1 红**（那 1 红＝`accent.g.ts` 生成物漂移，**与本刀无关**）｜ **静态闸级**：YAML 闸 12 文件零违规 ＋ **治理闸零违规**（D1 自检 ✔ / D2 自检绿 ✔ / D3 可数读数 ✔ / D4 已接 workflow ✔ / D5 退出码 2 ✔）。
+
+⑦ **⚠️ 仍然欠着** —— ❶ **wdio / tauri-e2e 两族仍没有「真跑」承重**（`wdio.conf.ts` 的 `chromedriverCustomPath` 写死 linux 路径）⇒ ⇒ 本条给的是**静态面 ＋ 行为级（API 那一半）**读数 ⇒ ⇒ **页面那一半**（`#root` 真的挂上、路由真的对）仍只有静态证据；❷ `/hippocampus/api/memory` 实测回 200 ＋ **一段存储错误文本**（lance 的 `tenant_id` schema 不匹配）⇒ ⇒ 那条只断言状态码 ⇒ ⇒ 端脑侧那条债仍欠；❸ 两个只接 POST 的路由**没有真发**（会改端脑状态）⇒ ⇒ 只证明「路由在」；❹ 主类型闸那 1 条 TS6133（`capabilityDefaults.test.ts`）是**并行会话已提交**的 ⇒ ⇒ 仍欠；❺ **契约闸在 CI 上仍红**（跨仓版本差）⇒ ⇒ 等 telencephalon 推送那两个提交（已同步事实）；❻ **条件化断言 25 条**（只读数）⇒ ⇒ 下一刀收；❼ `tests/stores/appearanceMemory.test.ts` 仍被 exclude（并行会话在飞）；❽ 端脑侧判据在端脑自己的 CI 上仍无读数（门外红）。
+
+⑧ **⚠️ 圈码：本条占 U+3470（㑰）** —— 插前**独立重扫**（父仓工作树 ∪ 父仓 HEAD ∪ 父仓 `origin/master` × **三本账本**，按**声明形状**扫）⇒ ⇒ 三面最高已声明 **U+3471**（并行会话那条：桌面端「按能力分档」那张卡）⇒ ⇒ 而 **U+3470 已由本会话认领占用**（并行会话 U+3471 条里**就地写明**「U+3470 后来由 mvs_34f8fc17 认领」⇒ ⇒ 真机腿那条线**顺延到 U+3472**）⇒ ⇒ ⇒ 取 **U+3470** ⇒ ⇒ 插前扫：U+3470／U+3472 在三账本三面**各 0 次声明 0 次提及** ✔ ⇒ ⇒ ⚠️ **不填历史空洞**（U+346E 因低于最高已用 ⇒ ⇒ 属空洞 ⇒ ⇒ 空着不回收；U+3463／U+3465／U+3467／U+3469 继续空）⇒ ⇒ ⚠️ 本条**只引用已提交的码位**（U+346D／U+3471）⇒ ⇒ ⚠️ **插完立刻复跑码位闸**是硬约束。
 **Updated**: 2026-11-09 (㑱 **「桌面端那一半也补上了 —— 但『注册进 neuron』那一环还是欠着」** —— 承 U+346F 条（移动端「按能力分档」那段 ＋ U+3460 条（端脑侧分档默认与 agent 声明），本条记**取证（桌面端能力段没有那张卡）**、**第一因（这张卡属于「配置面」，不属于「嵌入式大脑」那张运行时面）**、**这一刀的落点（7 个文件）**、**判据（桌面 12/12 ＋ 两档反向验证）**、**分级读数**、**途中那几课**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-09 | authority=measured | scope=project | source=真运行级实测（tsc -b 全族 ＋ vitest 全量 ＋ 两档注入反向验证 ＋ 还原 hash 比对） | 改动：shadow 仓 **新增** `shadow-desktop/src/lib/capabilityDefaults.ts`、**新增** `shadow-desktop/src/components/business/CapabilityDefaultsCard.tsx`、**新增** `shadow-desktop/tests/lib/capabilityDefaults.test.ts`、**改** `shadow-desktop/src/pages/ModelsPage.tsx`、**改** `shadow-desktop/src/components/business/AddProviderModal/types.ts`、**改** 2 个桌面 i18n（en-US / zh-CN）｜ 读数：**判据级 12/12 绿**、**反向验证级：变体 A（合并时丢掉本地副本）⇒ 恰好 2 红 ／ 变体 B（副本接受空串值）⇒ 恰好 1 红**、**还原 blob 逐字一致 `8dc6f39…`**、**类型闸 `tsc -b` EXIT=0**、**vitest 全量 1485 过 / 16 跳 / 1 红**（那 1 红＝并行会话在飞的 `accent.g.ts` 生成物漂移，**与本刀无关**）| status=active | supersedes=none

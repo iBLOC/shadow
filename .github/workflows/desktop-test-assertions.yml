@@ -1,0 +1,52 @@
+name: Desktop Test Assertions
+
+# ⚠️ **为什么单独成文件**（2026-11-09 实测，本仓 iBLOC/shadow）：
+#   · 这道闸是**纯 node、零依赖、秒级**的 ⇒ ⇒ 它**不重**；
+#   · 但它盯的是**桌面端用例的断言承重** ⇒ ⇒ 而 ci.yml 是**共享文件**
+#     （并行会话在飞）⇒ ⇒ 共享文件上的接线是本仓最容易出两类事故的地方：
+#       「把别人的在飞件卷进我的提交」；「我的暂存被别人一次 plain commit 抢走署名」。
+#     ⇒ ⇒ 所以它**单独成文件** ⇒ ⇒ 接线面**零共享** ⇒ ⇒ 竞态根本不存在。
+#   （与 desktop-e2e.yml 那种「重任务另开」不同：那是为**不被 cancel**；
+#     这里是为**不碰共享文件**。）
+#
+# ⚠️ **它守的是什么** —— 2026-11-09 真机实测：
+#   桌面端 **206** 个用例文件 / **1617** 条用例里，有 **51 条**是「恒真断言」
+#   或「弱断言独占」：
+#     · `expect(url).toBeTruthy()` —— URL 永远非空 ⇒ ⇒ 恒真；
+#     · `expect(text).toBeTruthy()`（`text` ＝ 整页 body 文本）⇒ ⇒ **任何**
+#       渲染出来的页面都有文字 —— 包括 404 页、401 页 ⇒ ⇒ **端脑整个坏了它照样绿**；
+#     · `if (await input.isExisting()) { …断言… }` ⇒ ⇒ 元素不在 ⇒ ⇒ 零断言通过；
+#     · 「调一下不炸」那种用例 ⇒ ⇒ **一条断言都没有**。
+#   ⇒ ⇒ 这几种在真跑时都表现为「**PASS**」⇒ ⇒ 而什么都没被证明。
+#   ⇒ ⇒ 修完必须**有闸盯着**，否则下一处 `toBeTruthy()` 会把同一场假绿带回来。
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  desktop-test-assertions:
+    name: Desktop Test Assertions
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout shadow
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      # ⚠️ **两步都要跑** —— 判定 ＋ 判据自检（自检证明这道闸**真的会红**）。
+      - name: Desktop test assertion check
+        run: node scripts/check-desktop-test-assertions.mjs
+
+      - name: Desktop test assertion check (self-test)
+        run: node scripts/check-desktop-test-assertions.mjs --self-test

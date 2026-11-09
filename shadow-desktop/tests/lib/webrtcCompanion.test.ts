@@ -164,7 +164,9 @@ describe('WebRtcCompanion', () => {
   describe('stop()', () => {
     it('stop() does not throw when called without start', async () => {
       companion = createCompanion({ signalingUrl: 'ws://localhost:8082', sessionId: 'test' });
-      await companion.stop();
+      // ⚠️ 原来只是「调一下不炸」⇒ ⇒ **零断言** ⇒ ⇒ 「stop() 改成会抛异常」
+      //   也是绿的 ⇒ ⇒ 现在写成**显式断言**（「不抛异常」也有显式写法）。
+      await expect(companion.stop()).resolves.not.toThrow();
     });
   });
 
