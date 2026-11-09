@@ -2,7 +2,7 @@
 
 **Updated**: 2026-11-11 (㑿 **「22 个规格写完就再没跑过 —— 本机一跑，16 条红里只有 1 条是产品缺陷」** —— 承 U+347D 条（刀 M：「谁真被跑过」显式化闸）＋ U+347E 条（目录面 vs 已注册面），本条记**取证（全族真跑：84 过 / 16 红 / 2 跳 → 修完 95 过 / 0 红 / 7 跳）**、**第一因（断言写完就再没跑 ⇒ ⇒ 断言与产品面早就漂了）**、**这一刀的落点（14 个文件 ＋ 1 个提交）**、**判据（反向验证三档 ＋ 尺子自曝盲区）**、**分级读数**、**途中那几课**，以及**仍然欠着的**.)
 
-> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真运行级实测（**Playwright 全族 26 规格 / 102 条用例本机真跑两轮** ＋ 三档注入反向验证 ＋ 闸级实跑 ＋ 三面三账本码位重扫） | 改动：shadow 仓 **改** `.github/workflows/desktop-e2e.yml`（playwright 命令去掉过滤参数 ＋ skipped 改逐条白名单 ＋ failed 一律红）、**改** `scripts/lib/desktop-e2e-coverage.mjs`（覆盖推导认三种点名形式 ＋ `resolveWholeFamily` ＋ **`hasPlaywrightInvocation`**）、**改** `scripts/check-desktop-e2e-coverage.mjs`（C5 静态侧同口径 ＋ 无 playwright 调用即判红）、**改** `scripts/lib/desktop-e2e-coverage-debt.mjs`（22 条 Playwright 债**销账**）、**改** `shadow-desktop/src/i18n/{zh-CN,en-US}.json`（**补 20 个 voice 键/份**）、**改** 8 个 `shadow-desktop/tests/e2e-ui/*.spec.ts`（修断言） ｜ 读数：**全族真跑 95 过 / 0 红 / 7 跳（24.4 秒）**、**闸 EXIT=0（文件 39 ｜ CI 覆盖 26 ｜ 未覆盖 13，全部登记在册）**、**判据自检 22/22**、**反向验证三档**、**YAML 有效性 EXIT=0（13 个 YAML）**、**码位闸三面零违规**、**桌面端 e2e-ui 类型闸 EXIT=0** | 提交：`fcfe977` | status=active | supersedes=none
+> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真运行级实测（**Playwright 全族 26 规格 / 102 条用例本机真跑两轮** ＋ 三档注入反向验证 ＋ 闸级实跑 ＋ 三面三账本码位重扫） | 改动：shadow 仓 **改** `.github/workflows/desktop-e2e.yml`（playwright 命令去掉过滤参数 ＋ skipped 改逐条白名单 ＋ failed 一律红）、**改** `scripts/lib/desktop-e2e-coverage.mjs`（覆盖推导认三种点名形式 ＋ `resolveWholeFamily` ＋ **`hasPlaywrightInvocation`**）、**改** `scripts/check-desktop-e2e-coverage.mjs`（C5 静态侧同口径 ＋ 无 playwright 调用即判红）、**改** `scripts/lib/desktop-e2e-coverage-debt.mjs`（22 条 Playwright 债**销账**）、**改** `shadow-desktop/src/i18n/{zh-CN,en-US}.json`（**补 20 个 voice 键/份**）、**改** 8 个 `shadow-desktop/tests/e2e-ui/*.spec.ts`（修断言） ｜ 读数：**全族真跑 95 过 / 0 红 / 7 跳（24.4 秒）**、**闸 EXIT=0（文件 39 ｜ CI 覆盖 26 ｜ 未覆盖 13，全部登记在册）**、**判据自检 22/22**、**反向验证三档**、**YAML 有效性 EXIT=0（13 个 YAML）**、**码位闸三面零违规**、**桌面端 e2e-ui 类型闸 EXIT=0**、**真 CI 终局（run 42637921968，head `677dc79`）：「Run Playwright E2E against the 端脑 server」= success（26 个规格真跑通）＋ API 契约套件 success ＋ E2E trace 凭据检查 success** ｜ 提交：`fcfe977`／`98610b5` | status=active | supersedes=none
 
 ① **⚠️ 取证：把 22 个「写完就再没跑过」的规格真跑一遍，红的形态是产品早就漂了**
 　❶ **刀 M 的账**：39 个 E2E 文件，CI 真跑 4 个（10%）⇒ ⇒ 那 22 个 Playwright 规格的断言**从未被执行过**。
@@ -40,6 +40,11 @@
 　❹ **CI 的 port 约定**：本地构建产物那条路是 `127.0.0.1:4173`，dev server 是 `localhost:5173` ⇒ ⇒ **写死任何一个都会在另一条路上恒红** ⇒ ⇒ 断言必须认**当前 origin**。
 　❺ **「诚实跳过」是合法读数，但必须逐条点名** —— 5 条「产品面未实现/已移除」的跳过**不许静默**（不许「跳过也算绿」）⇒ ⇒ CI 里走**白名单逐条核对**，白名单外任何一条跳过 ⇒ ⇒ 判红。
 
+　❻ **⚠️⚠️ **刀 N 的第一版白名单在 CI 上是「静默空转」的** —— 这一条是**提交后才发现**的 ⇒ ⇒ 记下来（承 U+347D 条：「尺子的漏洞要在尺子被用坏时才暴露」）**：
+　　❶ **第一版判定**：CI 命令用 `--reporter=github`（单 reporter）＋ 提取「`-` 前缀 ＋ `[chromium]`」的行 ⇒ ⇒ **本机实测：那个形状** **`github` reporter 根本不给** —— 它只印 `[1/3] [chromium] › …`（**没有 `-` 前缀**）⇒ ⇒ **抽出来 0 行** ⇒ ⇒ ⇒ **白名单永远不会触发** ⇒ ⇒ ⇒ 「跳过也算绿」在 CI 上**确实存在**（而本地用 `list` reporter 时它是对的 ⇒ ⇒ ⇒ **本地绿 ≠ CI 绿**的**第四格**，且这一格是**我自己的新代码**写坏的）。
+　　❷ **修法**：命令改**双 reporter**（`--reporter=github,list`）—— github 给 CI 摘要，list 给**逐条**清单 ⇒ ⇒ 白名单改吃 **list 那份**的行 ⇒ ⇒ 判的是语义（「行首 `-` ＋ 有 chromium ＋ 有 `.spec.ts:行:列`」）⇒ ⇒ 版式随 Playwright 版本变也还认得。
+　　❸ **本地用真实输出验过**：旧正则抽 **0 行** ／ 新正则抽 **3 行**（逐条点名到文件名）⇒ ⇒ 再把文件名换成未登记的 ⇒ ⇒ 3 条全被抓 ⇒ ⇒ **尺子有牙**。
+　　❹ ⚠️ **通用形态**：**新写的判据，第一次用就要验它的「输入形状」** —— 本例的输入是**另一个工具的输出**，而那个工具的输出格式**随版本变、随 reporter 变** ⇒ ⇒ 只在本机用同一个 reporter 验 ⇒ ⇒ **验不到 CI 上那个 reporter** ⇒ ⇒ ⇒ **自己写的新尺子，也要先验「它在真环境里拿到的输入长什么样」**。
 ⑤ **✅ 判据（四处）**
 　❶ **真跑级**：全族 26 规格 / 102 条用例**本机两轮真跑** ⇒ ⇒ **84 过 / 16 红 / 2 跳**（修前）⇒ ⇒ **95 过 / 0 红 / 7 跳**（修后，24.4 秒）⇒ ⇒ 7 条跳过**逐条点名**（2 条 `MIMO_API_KEY` ＋ 5 条产品面未实现/已移除）。
 　❷ **反向验证级（三档，每档都有读数）**：❶ **CI 收窄**（加回 2 个名字）⇒ ⇒ 覆盖从 26 掉到 2 ⇒ ⇒ **24 条红**逐条点名（`unregistered-uncovered`）⇒ ⇒ 还原后 0 红；❷ **新增未登记规格** ⇒ ⇒ 闸**绿**（**正确**：探针 `--list` 读到 27 文件/103 条 ⇒ ⇒ 新规格真被跑到）⇒ ⇒ 移走探针复跑 0 红；❸ **删掉 CI 里那条 playwright 调用** ⇒ ⇒ 覆盖 0 / 未覆盖 39 ⇒ ⇒ **53 条红**（26 条 C1 ＋ 26 条 C5）逐条点名 ⇒ ⇒ 还原后 0 红。
