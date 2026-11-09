@@ -202,6 +202,11 @@ class CapabilityTools {
         // 以及那些坐标能不能直接拿去点。
         'source': kScreenSourceAndroidA11y,
         'coordinateSpace': kCoordinateSpaceScreen,
+        // ⚠️⚠️ **前台是谁** —— 模型必须知道自己看的是**哪个 app 的屏**。
+        // ⇒ ⇒ 它看到「日历」二字可能以为那是自家界面 ⇒ ⇒ 而「这棵树是谁的」
+        // ⇒ ⇒ 树里**看不出来** ⇒ ⇒ 所以要单独给一个字段。
+        // ⚠️ 取不到 ⇒ ⇒ **null**（不是空串）⇒ ⇒ 模型据此知道「不知道」。
+        'foregroundPackage': await AccessibilityController.foregroundPackage(),
       };
     }
     // ⚠️⚠️ **回落：自家 app 的窗口** —— Android 不把宿主自己的窗口交给

@@ -146,6 +146,26 @@ class PrefrontalAccessibilityService : AccessibilityService() {
         return text
     }
 
+    /// **前台是谁** —— 当前可读窗口的包名。
+    ///
+    /// ⚠️⚠️ **为什么需要它**（2026-11-11 真机实测）：
+    /// ⇒ ⇒ 读屏给模型的**只有一棵树** ⇒ ⇒ 而「这棵树是哪个 app 的」
+    /// ⇒ ⇒ 模型**看不出来** ⇒ ⇒ 它看到「日历」二字，可能以为那是自家界面。
+    /// ⇒ ⇒ ⇒ 而**判据**也缺这一项：长按桌面图标与点按桌面图标，
+    /// ⇒ ⇒ ⇒ **两条路的分界正是「前台有没有换人」**
+    /// ⇒ ⇒ ⇒ ⇒（实测：长按 ⇒ 前台仍是 `com.miui.home`；
+    /// ⇒ ⇒ ⇒ ⇒　　点按 ⇒ 前台变成 `com.android.calendar`）
+    /// ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ **通用形态：读屏要带「这是谁的屏」**，
+    /// ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ 否则「屏变了」这件事**分不清是谁变了**。
+    ///
+    /// @return null = 取不到前台窗口（服务没连上，或当前没有可读窗口）
+    fun foregroundPackage(): String? {
+        val root = rootInActiveWindow ?: return null
+        val name = root.packageName?.toString()
+        root.recycle()
+        return name
+    }
+
     /// 把可访问性树拍成**缩进文本** —— 模型看得懂，token 也省。
     private fun appendNodesToString(node: AccessibilityNodeInfo, sb: StringBuilder, depth: Int, budget: ScreenBudget) {
         if (!budget.visit(depth)) return

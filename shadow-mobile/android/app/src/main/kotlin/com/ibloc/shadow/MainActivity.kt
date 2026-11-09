@@ -210,6 +210,19 @@ class MainActivity : FlutterActivity() {
                         mapOf("width" to w.toDouble(), "height" to h.toDouble())
                     }
                 }
+                "getForegroundPackage" -> {
+                    // ⚠️ **前台是谁** —— 当前可读窗口的包名。
+                    //
+                    // ⚠️⚠️ **为什么需要它**（2026-11-11 真机实测）：
+                    // ⇒ ⇒ 读屏给模型的**只有一棵树** ⇒ ⇒ 而「这棵树是哪个 app 的」
+                    // ⇒ ⇒ 模型**看不出来** ⇒ ⇒ 它看到「日历」二字可能以为那是自家界面。
+                    // ⇒ ⇒ ⇒ 而且**判据**也缺这一项：长按桌面图标与点按桌面图标，
+                    // ⇒ ⇒ ⇒ **两条路的分界正是「前台有没有换人」**。
+                    //
+                    // ⚠️ null = 没有可读的前台窗口 ⇒ ⇒ Dart 侧据此说「读不到」，
+                    // ⇒ ⇒ **不许**回空串（那是「失败长得像成功」的一族）。
+                    withAccessibilityService(result) { svc -> svc.foregroundPackage() }
+                }
                 "setDeviceActionsAllowed" -> {
                     // ⚠️ **把「手机操作」那一档推给原生侧** ⇒ ⇒
                     // 原生那两个平行面（HTTP `/api/mobile/action`、A2A 的

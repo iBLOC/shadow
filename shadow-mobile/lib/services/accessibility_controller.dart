@@ -184,6 +184,24 @@ class AccessibilityController {
   ///
   /// ⚠️ 为什么用**树**而不是截图：树是**文本** ⇒ ⇒ 模型直接读得懂、
   /// token 也省；而且截图要用户每次授权（MediaProjection），树不要。
+  /// **前台是谁** —— 当前可读窗口的包名。
+  ///
+  /// ⚠️⚠️ **为什么需要它**（2026-11-11 真机实测）：读屏给模型的**只有一棵树**
+  /// ⇒ ⇒ 而「这棵树是哪个 app 的」模型**看不出来** ⇒ ⇒ 它看到「日历」二字
+  /// ⇒ ⇒ 可能以为那是自家界面 ⇒ ⇒ 而且**判据**也缺这一项
+  /// ⇒ ⇒ ⇒（长按桌面图标 vs 点按桌面图标，**分界正是「前台有没有换人」**）。
+  ///
+  /// ⚠️ null = 没有可读的前台窗口 ⇒ ⇒ **不许**回空串。
+  static Future<String?> foregroundPackage() async {
+    if (!isSupported) return null;
+    try {
+      return await _channel.invokeMethod<String>('getForegroundPackage');
+    } on MissingPluginException {
+      // ⚠️ 通道不在 ⇒ ⇒ 读不到（**不是**「前台是空」）。
+      return null;
+    }
+  }
+
   static Future<String?> readScreen() async {
     if (!isSupported) return null;
     try {

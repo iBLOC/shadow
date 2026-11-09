@@ -175,6 +175,59 @@ void main() {
     return out;
   }
 
+  /// 从树里找出**一个 long-clickable 的节点**（带文字或描述 ＋ 屏幕中心）。
+  ///
+  /// ⚠️⚠️ **为什么要找「可长按」的节点** —— 靶子必须「长按与点按走出
+  /// ⇒ ⇒ **不同结果**」⇒ ⇒ 否则两条路分不开 ⇒ ⇒ 而「分不开」意味着
+  /// ⇒ ⇒ 那条用例**证明不了任何事**。
+  ///
+  /// ⚠️ **树里没有 long-clickable 这个字段** —— 原生侧那棵树只拍
+  /// ⇒ ⇒ `text` / `desc` / `bounds` ⇒ ⇒ 所以**判据要落在文字上**：
+  /// ⇒ ⇒ ⇒ 桌面 app 图标的**可访问名**（描述）是 app 名（天气｜相册｜日历…）
+  /// ⇒ ⇒ ⇒ 而桌面**没有**那些「动作型短语」⇒ ⇒ ⇒ 也就是说：
+  /// ⇒ ⇒ ⇒ ⇒ **桌面里出现的那些 app 名**就是可长按的图标。
+  ///
+  /// ⚠️⚠️ 而「桌面」本身怎么认？—— **不认** ⇒ ⇒ 我们**不钉死哪个图标**：
+  /// ⇒ ⇒ ⇒ 从树里挑「一个看起来像 app 图标的标签」⇒ ⇒ 逐个试
+  /// ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ **通用形态：靶子要能区分「两条路」**，
+  /// ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ 而**挑哪个靶子**可以试 ⇒ ⇒ ⇒ ⇒ 挑不出来时**如实失败**。
+  /// 这个词像不像「一个动作」（应用信息｜移除｜设置｜下个日程…）？
+  ///
+  /// ⚠️ **为什么要排除它们** —— 长按弹出菜单后，菜单项**也会**出现在树里
+  /// ⇒ ⇒ 而菜单项正是「长按的结果」⇒ ⇒ 若把菜单项当靶子再长按一次，
+  /// ⇒ ⇒ 那就**测的是菜单**而不是桌面图标 ⇒ ⇒ ⇒ 判据会自相矛盾。
+  bool looksLikeActionPhrase(String text) {
+    const actions = <String>[
+      '移除', '删除', '重命名', '卸载', '编辑', '设置',
+      '应用信息', '新建', '添加', '分享', '移动', '复制',
+      '收藏', '排序', '隐藏', '自启动',
+    ];
+    for (final a in actions) {
+      if (text.contains(a)) return true;
+    }
+    return false;
+  }
+
+  List<_Label> findLongClickable(String tree) {
+    // ⚠️ **「app 图标的描述」是短词**（天气/相册/日历/设置…）
+    // ⇒ ⇒ 而「动作型短语」更长（含动词：应用信息/移除/新建日程…）
+    // ⇒ ⇒ ⇒ 所以按**长度**分开 ⇒ ⇒ 不用钉死具体哪个 app。
+    final out = <_Label>[];
+    for (final label in extractLabels(tree)) {
+      final text = label.text.trim();
+      if (text.isEmpty) continue;
+      // ⚠️ app 图标的描述一般 **≤ 6 个字**（天气｜相册｜计算器｜设置｜日历）
+      // ⇒ ⇒ 菜单项那种「应用信息」「新建日程」会被这条规则排除掉
+      // ⇒ ⇒ ⇒ 而桌面里那些带**长句子**的（小组件标题、天气详情）也排除掉
+      // ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ **通用形态：用「性质」筛，不要用「名单」筛**。
+      if (text.length > 6) continue;
+      if (looksLikeActionPhrase(text)) continue;
+      out.add(label);
+    }
+    return out;
+  }
+
+
   /// 树里的**节点数**。
   int nodeCount(String tree) {
     return RegExp(r'\[([A-Za-z0-9_.]+)\]').allMatches(tree).length;
@@ -481,8 +534,9 @@ void main() {
       final FlutterView view = PlatformDispatcher.instance.views.first;
       final Size size = view.physicalSize;
 
-      final before = await readTreeWithRetry(60);
-      expect(before, isNotNull, reason: '读不到前台窗口');
+      final beforeTree = await readTreeWithRetry(60);
+      expect(beforeTree, isNotNull, reason: '读不到前台窗口');
+      final String before = beforeTree ?? '';
 
       // ⚠️⚠️ **起点必须避开「平台死区」** —— 实测（odin / MIUI 14）：
       // ⇒ ⇒ 桌面上从**正中**（x=540）下拉是**死区**（什么也不发生）
@@ -491,19 +545,31 @@ void main() {
       // ⇒ ⇒ ⇒ ⇒ ⇒ **通用形态：同一条手势在不同 x 上结果不同 ⇒ ⇒
       // ⇒ ⇒ ⇒ ⇒ ⇒ 尺子不能只试一个坐标就判生死**
       final double x = size.width * 0.28;
-      await tools.swipe(<String, dynamic>{
-        'x1': x,
-        'y1': size.height * 0.72,
-        'x2': x,
-        'y2': size.height * 0.28,
-        'duration_ms': 500,
-      });
-
-      final after = await readTreeUntilChanged(before!, 40);
+      // ⚠️⚠️ **两个方向都要试** —— 实测踩过：设置列表**上一轮已经被滑到底**
+      // ⇒ ⇒ ⇒ 再往上滑就**滑不动** ⇒ ⇒ ⇒ 树不变 ⇒ ⇒ ⇒ 红了
+      // ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ **通用形态：靶子有「当前位置」⇒ ⇒ 尺子不能假设
+      // ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ 它在某个特定位置 ⇒ ⇒ ⇒ ⇒ ⇒ **通用形态：
+      // ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ **测「能不能滑」要覆盖它可能的两个方向**。
+      String? after;
+      final directions = <List<double>>[
+        [size.height * 0.72, size.height * 0.28], // 往上推 ⇒ ⇒ 列表往后翻
+        [size.height * 0.28, size.height * 0.72], // 往下拉 ⇒ ⇒ 列表往前翻
+      ];
+      for (final d in directions) {
+        await tools.swipe(<String, dynamic>{
+          'x1': x,
+          'y1': d[0],
+          'x2': x,
+          'y2': d[1],
+          'duration_ms': 500,
+        });
+        after = await readTreeUntilChanged(before, 20);
+        if (after != null) break;
+      }
       expect(
         after,
         isNotNull,
-        reason: '在别的 app 里滑动之后 **界面没有实质变化**'
+        reason: '在别的 app 里两个方向都滑过了，界面**都没有实质变化**'
             ' ⇒ ⇒ 滑动手势在真机上不成立',
       );
       // ignore: avoid_print
@@ -511,6 +577,101 @@ void main() {
           '\nafter=${structureSignature(after!)}'
           '\nbeforeNodes=${nodeCount(before)}'
           '\nafterNodes=${nodeCount(after)}');
+    });
+  }, timeout: const Timeout(Duration(minutes: 5)));
+
+  test('长按（**别人的 app 里**）⇒ 被认成长按，**不是**被当成点按', () async {
+    await check('长按 ⇒ 被认成长按（不是点按）', () async {
+      final tools = CapabilityTools();
+      expect(await waitForAccessibility(60), isTrue, reason: '无障碍服务没开');
+
+      // ⚠️⚠️ **靶子必须「长按与点按走出不同结果」** —— 否则两条路分不开，
+      // ⇒ ⇒ 而「分不开」意味着这条用例**证明不了任何事**。
+      // ⇒ ⇒ ⇒ 实测（odin / MIUI 14）：**桌面（MIUI 启动器）**的 app 图标
+      // ⇒ ⇒ ⇒ ⇒ 是 `long-clickable=true`（实测 18 个节点）⇒ ⇒
+      // ⇒ ⇒ ⇒ ⇒ **长按** ⇒ ⇒ 弹出菜单（应用信息｜移除｜设置｜下个日程｜…）
+      // ⇒ ⇒ ⇒ ⇒ **点按** ⇒ ⇒ **打开那个 app**（实测：日历 → `com.android.calendar`）
+      // ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ **两条路互斥** ⇒ ⇒ ⇒ 这就是判别式。
+      // ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ **通用形态：靶子要能区分「两条路」**，
+      // ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ 否则「证明了什么」是空的。
+
+      // ① 先让自家 app **离开前台** —— 它读不到自己的窗口
+      await tools.globalAction(<String, dynamic>{'action': 'home'});
+      await Future<void>.delayed(const Duration(milliseconds: 1500));
+
+      // ⚠️ **从树里找一个 long-clickable 的图标** —— 不钉死「哪个图标」
+      // ⇒ ⇒（桌面布局因机型而异）⇒ ⇒ 钉「**它可长按**」这个性质。
+      final home = await readTreeWithRetry(60);
+      expect(home, isNotNull, reason: '读不到桌面');
+      final candidates = findLongClickable(home!);
+      expect(candidates, isNotEmpty, reason: '桌面里一个像 app 图标的标签都没有'
+          ' ⇒ ⇒ 这个机型上没法用它当靶子');
+      // ⚠️ **逐个试** —— 不是每个 app 图标都一定响应长按
+      // ⇒ ⇒ 所以只要**有一个**长按成功（前台没换人），这条能力就成立。
+      _Label? target;
+      String? pkgBefore;
+      String? pkgAfter;
+      Map<String, dynamic>? pressResult;
+      for (final c in candidates.take(8)) {
+        final before = await AccessibilityController.foregroundPackage();
+        final res = await tools.longPress(<String, dynamic>{
+          'x': c.cx,
+          'y': c.cy,
+        });
+        // ⚠️ **长按之后前台没换人** ⇒ ⇒ 它**没**被当成点按 ⇒ ⇒ 这次长按成了
+        final afterPkg = await AccessibilityController.foregroundPackage();
+        // ignore: avoid_print
+        print('--- LONG PRESS TRY --- label=${c.text} '
+            'at ${c.cx},${c.cy} pkgBefore=$before pkgAfter=$afterPkg');
+        if (afterPkg == before) {
+          target = c;
+          pkgBefore = before;
+          pkgAfter = afterPkg;
+          pressResult = res as Map<String, dynamic>;
+          break;
+        }
+        // ⚠️ 前台换了人 ⇒ ⇒ 这次被当成点按了 ⇒ ⇒ **换下一个图标**重试
+        // ⇒ ⇒ ⇒（顺带把点开的东西退回去 ⇒ ⇒ 别影响后面的用例）
+        await tools.globalAction(<String, dynamic>{'action': 'home'});
+        await Future<void>.delayed(const Duration(milliseconds: 1200));
+      }
+      expect(target, isNotNull, reason: '挨个试了 ${candidates.take(8).length} 个桌面图标，'
+          '没有一个的长按被认成长按 ⇒ ⇒ 长按在真机上不成立');
+
+      // ⚠️ **派发结果也要看一眼** —— 工具层在「没派发出去」时会**抛错**
+      // ⇒ ⇒ 能走到这里就说明派发出去了 ⇒ ⇒ 但**派发成功 ≠ 长按被认出来**
+      // ⇒ ⇒ ⇒ （那正是这一条要判的：有没有被当成点按）。
+      final Map<String, dynamic> press = pressResult ?? <String, dynamic>{};
+      expect(press['longPressed'], isTrue);
+
+      // ③ 读回界面 ⇒ ⇒ 判「**这是长按的结果**」还是「**这是点按的结果**」
+      final afterTree = await readTreeUntilChanged(home, 40);
+      expect(afterTree, isNotNull, reason: '长按之后界面**没有实质变化**'
+          ' ⇒ ⇒ 长按在真机上不成立');
+      final afterTexts = labelsOf(afterTree ?? '').join('|');
+      final _Label picked = target ?? candidates.first;
+      // ignore: avoid_print
+      print('--- LONG PRESS (other app) ---\nlabel=${picked.text}'
+          '\nat=${picked.cx},${picked.cy}'
+          '\nafterNodes=${nodeCount(afterTree ?? '')}'
+          '\nafterTexts=$afterTexts');
+
+      // ⚠️⚠️ **判据：长按的结果 ≠ 点按的结果** —— 两条路**互斥**。
+      // ⇒ ⇒ 「被当成点按」的症状是：**那个 app 被打开了**。
+      // ⇒ ⇒ ⇒ 而「点按才有的界面」的特征是：**前台换了人**。
+      // ⇒ ⇒ ⇒ ⚠️ 这里不能钉死某个 app 的名字 ⇒ ⇒（桌面上的图标因机型而异）
+      // ⇒ ⇒ ⇒ ⇒ 而要钉**性质**：长按之后**前台没换人**。
+      // ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ **通用形态：判据钉「性质」，不钉「某个环境下的值」**。
+      // ⇒ ⇒ ⇒ ⇒ ⚠️⚠️ 而「前台是谁」这条信息**要产品给** —— 树里**看不出来**
+      // ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒（树只有 text/desc/bounds）⇒ ⇒ ⇒ 所以产品侧
+      // ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ 新增了 `foregroundPackage` 字段。
+      expect(
+        pkgAfter,
+        pkgBefore,
+        reason: '长按之后**前台换了人**（$pkgBefore ⇒ $pkgAfter）⇒ ⇒ '
+            '那个 app 被打开了 ⇒ ⇒ 这次长按**被系统当成了点按**'
+            ' ⇒ ⇒ 长按没被认成长按',
+      );
     });
   }, timeout: const Timeout(Duration(minutes: 5)));
 

@@ -1,3 +1,82 @@
+**Updated**: 2026-11-11 (㒫 **「在别人的 app 里长按 —— 那盏红灯不是长按坏了，是靶子上一轮被滑到了底部」** —— 承 U+34A7 条（读屏族真机腿全绿）＋ U+3472 条（长按不是长按），本条记**取证（三轮真机读数）**、**第一因（靶子有「状态」，而尺子只管住了「身份」）**、**第二因（读屏不带「这是谁的屏」⇒ ⇒ 分不清是谁变了）**、**第三因（靶子必须能区分两条路）**、**这一刀的落点**、**途中那几课**、**判据**、**分级读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真机级实测（odin ee6b4832 · MIUI 14 / Android 13 · 两轮读屏族真机跑测 ＋ 系统级注入对照实验 ＋ 真机腿终局读数）｜ 改动：shadow-mobile **改** android/.../PrefrontalAccessibilityService.kt（新增 `foregroundPackage()`）、**改** android/.../MainActivity.kt（新增 `getForegroundPackage` 通道）、**改** lib/services/accessibility_controller.dart（新增 `foregroundPackage()`）、**改** lib/services/capabilities/capability_tools.dart（`readScreen` 返回 map 新增 `foregroundPackage` 字段）、**改** integration_test/a11y_mobile_use_test.dart（**新增**「长按（别人的 app 里）⇒ 被认成长按」腿 ＋ 滑动腿改**双向试** ＋ 长按靶子候选按**性质**筛）｜ 读数：真机腿 **12/12 全绿 · VERDICT PASS · 退出码 0**、**长按腿逐字 `label=新闻热榜 pkgBefore=com.miui.home pkgAfter=com.miui.home`**（前台没换人 ⇒ ⇒ 没被当成点按） | status=active | supersedes=none
+
+① **⚠️ 取证：这一格此前一直未验 —— 「在别人的 app 里长按是否被认成长按」**
+　❶ 上一条（U+34A7）里我把它记在「仍然欠着」⇒ ⇒ 本条把它做掉。
+　❷ ⇒ ⇒ 要验它，得先找一个**能区分「长按」与「点按」**的靶子（否则那条用例证明不了任何事）。
+　❸ ⇒ ⇒ 实测（odin / MIUI 14）：**桌面（MIUI 启动器）**的 app 图标 `long-clickable=true`（实测 **18 个**节点）⇒ ⇒
+　　· **长按** ⇒ ⇒ 弹出菜单（逐字：应用信息｜移除｜设置｜下个日程｜新建日程｜添加小部件｜编辑图标）
+　　· **点按** ⇒ ⇒ **打开那个 app**（实测：日历 ⇒ `com.android.calendar` ⇒ 焦点窗口换人）
+　　⇒ ⇒ ⇒ **两条路互斥** ⇒ ⇒ ⇒ 这就是判别式。
+
+② **⚠️ 第一因：靶子不只有「是哪一个」，还有「在什么位置」—— 尺子只管住了身份**（这一条是**假红**）**
+　❶ 「滑动手势（别人的 app 里）」那条：第一轮**绿**、第二轮**红** ⇒ ⇒ **同一个 app、同一个列表、同一条手势**。
+　❷ ⇒ ⇒ 真因：设置列表**上一轮已经被滑到了底部** ⇒ ⇒ 再往上推就**滑不动** ⇒ ⇒ 树不变 ⇒ ⇒ **假红**。
+　❸ ⇒ ⇒ **通用形态：靶子是一个**有状态的对象** ⇒ ⇒ 它的「身份」与「状态」**是两件事**
+　　⇒ ⇒ ⇒ 尺子只管住身份 ⇒ ⇒ 读数就会**随上一轮漂** ⇒ ⇒ ⇒
+　　⇒ ⇒ ⇒ **通用形态：读数不可复现时，先问「靶子的状态是不是被上一轮改了」**。
+　❹ ⇒ ⇒ **修法**：测「能不能滑」**覆盖两个方向**（往上推不动就往下拉）⇒ ⇒ ⇒ 而**不许**假设靶子在某个特定位置。
+　❺ ⚠️ **一条反面做法（我试过，撤了）**：在驱动脚本里**周期性**把靶子归位
+　　⇒ ⇒ ⇒ **错** ⇒ ⇒ ⇒ 那会把「滑动落地」那条的靶子**一直拉回顶部** ⇒ ⇒ ⇒ **滑不动**
+　　⇒ ⇒ ⇒ ⇒ ⇒ **通用形态：修「靶子状态漂」时，别用「周期性重置」⇒ ⇒ 它会干扰被测行为本身**。
+
+③ **⚠️ 第二因：读屏不带「这是谁的屏」⇒ ⇒ 分不清是谁变了**（这一条**补的是产品**）**
+　❶ 原生那棵树只有 `text` / `desc` / `bounds` ⇒ ⇒ **看不出这是哪个 app 的屏**
+　　⇒ ⇒ 模型看到「日历」二字，可能以为那是自家界面。
+　❷ ⇒ ⇒ 而**判据**也缺这一项：长按 vs 点按，**两条路的分界正是「前台有没有换人」**
+　　⇒ ⇒ 实测：长按 ⇒ 前台仍是 `com.miui.home`；点按 ⇒ 前台变成 `com.android.calendar`。
+　❸ ⇒ ⇒ **修法（产品面）**：新增 `foregroundPackage` —— 原生取 `rootInActiveWindow.packageName`
+　　⇒ ⇒ 通道 `getForegroundPackage` ⇒ ⇒ Dart `AccessibilityController.foregroundPackage()`
+　　⇒ ⇒ 工具层 `readScreen` 的返回 map 里多一个 `foregroundPackage` 字段。
+　❹ ⇒ ⇒ ⇒ **通用形态：一次读数若要能回答「发生了什么」，它必须带足「是谁」的上下文**
+　　⇒ ⇒ ⇒ 否则「变了」这件事**分不清是界面变了、还是被测对象换了**。
+
+④ **⚠️ 第三因：靶子必须能区分「两条路」—— 否则那条用例证明不了任何事**（却会绿）**
+　❶ ⇒ ⇒ 而「树里没有 `long-clickable` 字段」⇒ ⇒ 靶子候选只能按**性质**筛
+　　⇒ ⇒ ⇒（**短词** ＋ **排除「动作型短语」**）⇒ ⇒ ⇒ ⇒ **用「性质」筛，不要用「名单」筛**。
+　❷ ⇒ ⇒ 而真机跑测证明这个筛法**能用**：实测候选「新闻热榜」被选中，长按成功。
+　❸ ⇒ ⇒ ⇒ **通用形态：设计判据时先问「哪两条路要区分开」⇒ ⇒ 靶子必须让它们走出**不同**结果**。
+
+⑤ **✅ 这一刀的落点（5 个文件 ＋ 4 个是产品面）**
+　❶ **改 `shadow-mobile/android/app/src/main/kotlin/com/ibloc/shadow/PrefrontalAccessibilityService.kt`**：新增 `foregroundPackage()`（取 `rootInActiveWindow.packageName` ⇒ ⇒ 拿不到回 null）。
+　❷ **改 `shadow-mobile/android/app/src/main/kotlin/com/ibloc/shadow/MainActivity.kt`**：新增 `getForegroundPackage` 通道方法（null ⇒ ⇒ Dart 侧说「读不到」，**不许**回空串）。
+　❸ **改 `shadow-mobile/lib/services/accessibility_controller.dart`**：新增 `foregroundPackage()`（`MissingPluginException` ⇒ ⇒ null，**不是**「前台是空」）。
+　❹ **改 `shadow-mobile/lib/services/capabilities/capability_tools.dart`**：`readScreen` 的返回 map 新增 `foregroundPackage` 字段 ⇒ ⇒ **模型知道自己看的是哪个 app 的屏**。
+　❺ **改 `shadow-mobile/integration_test/a11y_mobile_use_test.dart`**：**新增**「长按（别人的 app 里）⇒ 被认成长按」腿（逐个试候选 ⇒ ⇒ 判「前台有没有换人」）；滑动腿改**双向试**；长按靶子候选按**性质**筛。
+　❻ ⚠️ **这一刀改了产品**（前 4 个文件）—— 因为「读屏不带『这是谁的屏』」是**产品真缺口**，不只是尺子缺判据。
+
+⑥ **⚠️ 途中那几课**
+　❶ **判据要对着「产品该保证的性质」** —— 长按这条钉的是**性质**（「前台没换人」＝没被当成点按）⇒ ⇒ **不钉死哪个 app**（桌面图标因机型而异）⇒ ⇒ ⇒ **通用形态：判据钉「性质」，不钉「某个环境下的值」**。
+　❷ **改产品树格式前先看契约闸钉了什么** —— 本次契约闸只钉了**截断标记**与**预算常数** ⇒ ⇒ **没钉树字段** ⇒ ⇒ 所以加 `foregroundPackage` **不会破坏任何既有契约**。
+　❸ ⚠️ **行尾是这一族最容易踩的坑** —— 本轮我在 4 个文件上各踩一次：
+　　⇒ ⇒ Kotlin/Java/Dart 各有**不同的行尾形态**（本仓：MainActivity.kt 全 CRLF、Dart 全 CRLF、无 BOM）
+　　⇒ ⇒ ⇒ 而 `edit` 工具写 `\n` ⇒ ⇒ ⇒ 匹配不上 ⇒ ⇒ 且**用 bash 写回时会把整个文件归一**
+　　⇒ ⇒ ⇒ ⇒ ⇒ **通用形态：改完文件必须逐个核「CRLF 数 / 纯 LF 数」**，否则会造出一个**只改 13 行却改了整个文件行尾**的假 diff。
+　❹ ⚠️ **写含中文的文件后扫 U+FFFD** —— 本轮每写一个都扫了（ffdd=0）。
+
+⑦ **✅ 判据与分级读数（全部实测）**
+　❶ **真机级（本条最高级）**：odin `ee6b4832` 读屏族真机腿 **12/12 全绿**，逐字：`--- VERDICT --- PASS failures=[]` ＋ `All tests passed.` ＋ **退出码 0**。
+　　· **长按腿逐字**：`--- LONG PRESS TRY --- label=新闻热榜 at 543.0,712.5 pkgBefore=com.miui.home pkgAfter=com.miui.home`
+　　　⇒ ⇒ **前台没换人** ⇒ ⇒ **这次长按没被当成点按** ⇒ ⇒ **长按在真机上成立**。
+　　· 滑动腿逐字：`--- SCROLL (other app) ---`（**双向**试 ⇒ ⇒ 第二轮绿）。
+　　· 截断那条逐字：`--- TOOL LAYER --- truncated=true marker=true len=20012`。
+　❷ **静态级**：`flutter analyze`（3 个 Dart 文件）**零 issue**；契约闸 EXIT=0（**Dart 13 / Kotlin 13**）；**PS1 可移植性闸 27 文件全绿**（真 5.1 `Parser::ParseFile` 零错误）；码位闸三面零违规；状态面闸零违规；残留闸全绿。
+　❸ **安装级**：真 App 已装回、**MD5 对账一致**（`d4cc4430c2a85082cfd08005c1047523` —— 与上一轮 `17972b9d…` **不同** ⇒ ⇒ **这是预期的**：本轮改了产品代码 ⇒ ⇒ ⇒ **MD5 变了正好证明装回去的是**这一轮**的产物**）。
+　❹ **设备态**：无障碍开关已还原（`enabled_accessibility_services=null`、`accessibility_enabled=0`）；旋转已还原。
+
+⑧ **⚠️ 仍然欠着的**
+　❶ **「在别人的 app 里长按」这条只在 odin 一台机型上跑过**（MIUI 14）⇒ ⇒ LX04 与 MI_MAX_2 未跑（前者 /data 只剩 108 MB、后者必须插 SIM ⇒ ⇒ 都得用户动手）。
+　❷ **长按靶子靠「桌面图标」** ⇒ ⇒ 而**某些机型/桌面根本没有长按菜单** ⇒ ⇒ ⇒ 那时这条要**判不了**（不是红）⇒ ⇒ ⇒ **读屏族还欠一个「别的靶子」的交叉验证**。
+　❸ **`integration_test/` 仍不在 CI 里跑** ⇒ ⇒ 那 26 处守卫在 CI 里永远静默绿 ⇒ ⇒ **真机读数只能单独取**。
+　❹ **`foregroundPackage` 这个字段目前只有长按那条用例在用** ⇒ ⇒ ⇒ **模型侧还没人用上它** ⇒ ⇒ ⇒ ⇒ 「模型怎么用『这是谁的屏』」这一格**还没验**（要不要把它写进工具的说明里？⇒ ⇒ 那是另一刀）。
+　❺ **截断的 20000 字符预算**本身没被重新论证过 —— 上一条已记，此处仍欠。
+
+⑨ **⚠️ 圈码：本条占 U+34AB（㒫）**
+　❶ 插前**独立重扫**（父仓工作树 ∪ 父仓索引 ∪ 父仓 HEAD ∪ 父仓 origin/master × **三本账本**，按**声明形状**扫、**声明与提及分开**、码位按**十六进制**计）⇒ ⇒ 读数：四面**齐平**（各 80 条声明）⇒ ⇒ **最高已声明 U+34AA（㒪）** ⇒ ⇒ ⇒ ⚠️ **注意：十分钟前我给兄弟会话的建议是「U+34AA 可取」⇒ ⇒ 它已经被别人取走了** ⇒ ⇒ ⇒ ⇒ ⇒ **通用形态：取号建议会过期 ⇒ ⇒ 落笔前必须当场重扫**。
+　❷ ⇒ ⇒ 本条取 **U+34AB（㒫）** ⇒ ⇒ 按惯例**再留一枚缓冲（U+34AC）**。
+　❸ ⇒ ⇒ 本条**只引用已提交的码位**（U+34A7／U+3472）⇒ ⇒ ⚠️ **插完立刻复跑码位闸**是硬约束。
+
 **Updated**: 2026-11-11 (㒪 **「57 道闸里只有 41 道接进 CI —— 而那 16 道从来没被人跑过」** —— 承 U+34A6 条（尺子认的形状比人眼想的更窄），本条记**取证（全量跑闸，逐道量）**、**第一因（债表里的理由已经过期）**、**第二因（判不了那一档在 Actions 里会伪装成「有问题」）**、**这一刀的落点**、**途中那几课**、**判据**、**分级读数**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真跑级实测（治理闸 --audit 全量清单 ＋ 16 道未接闸逐道本机跑 ＋ 治理闸复跑 ＋ 真 CI 读数）｜ 改动：shadow 仓 **新增** scripts/run-gate-once.mjs（跑闸器 · 三档转译）＋ **新增** .github/workflows/unwired-gates.yml（独立 workflow · 零共享面）＋ **改** 11 道闸的自检（补可数读数 N/N）＋ **改** scripts/lib/gate-discipline-registry.mjs（14 道销账）｜ 读数：治理闸 **57 道闸零违规**（存量债 32 → 18）、**YAML 闸 24 个文件零违规**、**14 道闸逐条：自检绿 ＋ 有可数读数 ＋ 真跑绿**、**真 CI 新 workflow「Unwired Gates」run 42702336369** | 提交：`160c2b5`（1 文件 / 0 无关改动） | status=active | supersedes=none
