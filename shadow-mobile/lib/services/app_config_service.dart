@@ -15,6 +15,17 @@ class AppConfigService {
   String? _telencephalonAdminToken;
   String? _telencephalonShadowKey;
 
+  // TTS 引擎（'android' / 'rust' / 'external'）—— null = 默认（Android 内置）。
+  //
+  // ⚠️ **为什么必须有它**（2026-11-09 实测）：引擎选择以前**只存在内存里**
+  // ⇒ ⇒ 设置页每个 widget 都 new 一个 TtsEngine ⇒ ⇒ 选完就丢
+  // ⇒ ⇒ 而且**说话那条路**用的是**另一个实例** ⇒ ⇒ 用户选了「Rust」、
+  // 实际说话还是 Android 内置 ⇒ ⇒ **配了等于没配**（「写不进 ≠ 写进了」）。
+  String? _ttsEngineType;
+
+  // 外部 TTS 服务地址（仅 engineType == 'external' 时有意义）。
+  String? _ttsExternalUrl;
+
   // 「用户主动停过大脑」—— **持久偏好**，不是会话状态。
   //
   // 为什么必须落盘：那个标记若只活在内存里 ⇒ Activity 被重建（新 Dart
@@ -115,6 +126,12 @@ class AppConfigService {
   /// Telencephalon shadow key — null means do not send `X-Shadow-Key`.
   String? get telencephalonShadowKey => _telencephalonShadowKey;
 
+  /// TTS 引擎（'android' / 'rust' / 'external'）—— null = 默认（Android 内置）。
+  String? get ttsEngineType => _ttsEngineType;
+
+  /// 外部 TTS 服务地址 —— null = 没配。
+  String? get ttsExternalUrl => _ttsExternalUrl;
+
   /// 用户主动停过大脑？
   ///
   /// true = 别自动拉起来（等用户点「启动大脑」）；false = 从没喊停过。
@@ -179,6 +196,11 @@ class AppConfigService {
           'chatBackgroundPath': _chatBackgroundPath,
         if (_tenantMigrationTarget != null)
           'tenantMigrationTarget': _tenantMigrationTarget,
+        // ⚠️ **只写非默认** —— 默认引擎是 android ⇒ ⇒ 配置文件里不留默认壳。
+        if (_ttsEngineType != null && _ttsEngineType != 'android')
+          'ttsEngineType': _ttsEngineType,
+        if (_ttsExternalUrl != null && _ttsExternalUrl!.isNotEmpty)
+          'ttsExternalUrl': _ttsExternalUrl,
       };
       // ⚠️ 能力授权：**空 map 不写** ⇒ ⇒ 配置文件里不留空壳。
       CapabilityPolicyStore.write(_capabilityModes, config);
@@ -252,6 +274,8 @@ class AppConfigService {
     _glassIntensity = (config['glassIntensity'] as num?)?.toDouble();
     _surfaceOverrideValue = config['surfaceOverride'] as int?;
     _chatBackgroundPath = config['chatBackgroundPath'] as String?;
+    _ttsEngineType = config['ttsEngineType'] as String?;
+    _ttsExternalUrl = config['ttsExternalUrl'] as String?;
     _tenantMigrationTarget = config['tenantMigrationTarget'] as String?;
     _capabilityModes = CapabilityPolicyStore.read(config);
   }
@@ -268,6 +292,8 @@ class AppConfigService {
     _surfaceOverrideValue = null;
     _chatBackgroundPath = null;
     _tenantMigrationTarget = null;
+    _ttsEngineType = null;
+    _ttsExternalUrl = null;
     // ⚠️ 读不到 ⇒ ⇒ 授权档位回到「什么都没配」⇒ ⇒ 全部按
     // 「每次询问」处理 ⇒ ⇒ **绝不会因为文件坏了就放宽授权**。
     _capabilityModes = {};
@@ -305,6 +331,21 @@ class AppConfigService {
   /// stop sending the `X-Shadow-Key` header.
   Future<void> setTelencephalonShadowKey(String? key) async {
     _telencephalonShadowKey = (key == null || key.isEmpty) ? null : key;
+    await _saveConfig();
+  }
+
+  /// 设置 TTS 引擎（持久）。null / 空 ⇒ 回到默认（Android 内置）。
+  ///
+  /// ⚠️ **必须落盘** —— 只改内存 ⇒ ⇒ 设置页一销毁就没了 ⇒ ⇒
+  /// 而且说话那条路用的是**另一个实例** ⇒ ⇒ 用户的选择**从来没生效过**。
+  Future<void> setTtsEngineType(String? type) async {
+    _ttsEngineType = (type == null || type.isEmpty) ? null : type;
+    await _saveConfig();
+  }
+
+  /// 设置外部 TTS 服务地址（持久）。null / 空 ⇒ 抹掉（不落空壳）。
+  Future<void> setTtsExternalUrl(String? url) async {
+    _ttsExternalUrl = (url == null || url.isEmpty) ? null : url;
     await _saveConfig();
   }
 

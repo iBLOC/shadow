@@ -62,15 +62,41 @@ class TtsEngine {
   String get externalUrl => _externalUrl;
   bool get isInitialized => _isInitialized;
 
+  /// 设置引擎类型 —— **落盘**（不是只改内存）。
+  ///
+  /// ⚠️ 以前这里只改字段 ⇒ ⇒ 设置页每个 widget 一个实例 ⇒ ⇒ 选完就丢
+  /// ⇒ ⇒ 而且**说话那条路**用的是**另一个**实例 ⇒ ⇒ 用户的选择从来没生效过。
   Future<void> setEngineType(TtsEngineType type) async {
     _engineType = type;
+    await AppConfigService().setTtsEngineType(type.value);
   }
 
+  /// 设置外部服务地址 —— **落盘**（同上）。
   Future<void> setExternalUrl(String url) async {
     _externalUrl = url;
+    await AppConfigService().setTtsExternalUrl(url);
+  }
+
+  /// 从配置里读回**持久化的**引擎选择与外部地址。
+  ///
+  /// ⚠️ 这一步是「配了等于没配」的反面：读回来的才是**用户真的选的那个**。
+  Future<void> _loadPersistedConfig() async {
+    final cfg = AppConfigService();
+    await cfg.init();
+    final type = cfg.ttsEngineType;
+    if (type != null && type.isNotEmpty) {
+      _engineType = TtsEngineType.values.firstWhere(
+        (t) => t.value == type,
+        orElse: () => TtsEngineType.androidBuiltIn,
+      );
+    }
+    _externalUrl = cfg.ttsExternalUrl ?? '';
   }
 
   Future<bool> initialize() async {
+    // ⚠️ **先读回持久化的选择** —— 否则界面显示的永远是默认值，
+    // 而用户明明选过别的引擎 ⇒ ⇒ 「界面在骗人」＋「说话用默认引擎」。
+    await _loadPersistedConfig();
     const maxRetries = 5;
     const retryDelay = Duration(milliseconds: 500);
 
