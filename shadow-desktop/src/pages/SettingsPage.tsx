@@ -25,7 +25,6 @@ import {
 } from '../lib/globalKeysClient';
 import { telencephalonClient, type ScanResult, type InstalledWasmList, type AgentSearchResponse, type McpAgentBinding, type McpServerRecord, type ModelProvider } from '../lib/telencephalonClient';
 import { providerListState, type ProviderListState } from '../lib/modelConfigProbe';
-import { HfTokenSettings } from '../components/business/HfTokenSettings';
 import { AgentCapabilityPicker } from '../components/business/AgentCapabilityPicker';
 import { serializeRequiredCapabilities } from '../lib/agentCapabilities';
 import { IdentityPanel } from '../components/business/IdentityPanel';
@@ -1874,8 +1873,6 @@ function DataSection() {
   return (
     <div>
       <HippocampusStorageCard />
-
-      <HfTokenSettings onSaved={() => {}} />
 
       <IdentityPanel />
     </div>

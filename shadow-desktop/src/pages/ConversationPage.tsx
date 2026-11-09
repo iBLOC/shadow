@@ -11,7 +11,6 @@ import { useCompanionModeStore } from '../stores/companionModeStore';
 import { WakeWordDetector } from '../lib/wakeWordDetector';
 import { Button, EmptyState } from '../components/ui';
 import { VoiceButton } from '../components/ui/voice-button';
-import { MoveSessionDialog } from '../components/MoveSessionDialog';
 import { ChartCard } from '../components/chatbi';
 import { VisualQaClarificationChip } from '../components/chat/VisualQaClarificationChip';
 import { ConversationModeSwitcher } from '../components/chat/ConversationModeSwitcher';
@@ -99,7 +98,6 @@ export function ConversationPage() {
   const [lifecycleError, setLifecycleError] = useState<string | null>(null);
   const [stagedImages, setStagedImages] = useState<StagedImage[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [showMoveDialog, setShowMoveDialog] = useState(false);
   const [showCreateMenu, setShowCreateMenu] = useState(false);
   // A2UI panel — the brain draws the screen for us (see `components/chat/A2uiPanel.tsx`).
   // ⚠️ The panel fetches its own surface from `POST {baseUrl}/a2a`; it is *not*
@@ -1019,28 +1017,7 @@ export function ConversationPage() {
 
             <CompanionModePanel />
 
-            {activeConversationId && (
-              <div className="flex justify-end px-4 pt-2">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  icon={<ArrowRightLeft size={16} />}
-                  onClick={() => setShowMoveDialog(true)}
-                >
-                  {t('common.migrate.title')}
-                </Button>
-              </div>
-            )}
 
-            <MoveSessionDialog
-              open={showMoveDialog}
-              sessionId={activeConversationId}
-              messageCount={0}
-              onClose={() => setShowMoveDialog(false)}
-              onMigrated={(newId, peerName) => {
-                console.log('Session migrated to', peerName, 'as', newId);
-              }}
-            />
 
             <div className="border-t border-border bg-card p-4">
               {stagedImages.length > 0 && (
