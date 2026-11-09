@@ -111,6 +111,31 @@ export function runSelfTest() {
     !!fullHit && shouldFail(fullHit, reg) === false && shouldFail(fullHit, []) === true,
     '登记后=' + shouldFail(fullHit, reg) + ' ｜ 未登记=' + shouldFail(fullHit, []));
 
+  // ⑦ 抹空：B 把一个**非空**文件写成**零字节** ⇒ ⇒ 必须抓到 ⇒ 且必须判红
+  //    ⚠️ 这一类的真样本是 2026-11-11 本会话自己造成的事故（5c85035 把台账写成空）。
+  write(TMP, 'w.txt', 'w0\n');
+  commit(git, 'w base');
+  write(TMP, 'w.txt', 'w0\nW1\n');
+  const aWipe = commit(git, 'A adds W1');
+  write(TMP, 'w.txt', '');
+  const bWipe = commit(git, 'B wipes the file to zero bytes');
+  const r7 = scanReverts(git, { rev: 'HEAD', limit: 20 });
+  const wipeHit = r7.events.find((e) => e.kind === 'wiped' && e.file === 'w.txt');
+  add('抹空 ⇒ 必须抓到 ⇒ 且（没有声明）⇒ **必须判红**',
+    !!wipeHit && wipeHit.commit === bWipe && wipeHit.reverted === aWipe && shouldFail(wipeHit),
+    wipeHit ? '抓到 ' + wipeHit.commit.slice(0, 7) + ' kind=' + wipeHit.kind + ' ｜ 判红=' + shouldFail(wipeHit) : '没抓到');
+
+  // ⑧ 抹空但**有声明** ⇒ ⇒ 放行（声明机制对这一类同样生效）
+  const declaredWipe = Object.assign({}, wipeHit || {}, { message: 'Revert "A adds W1"' });
+  add('抹空但有声明 ⇒ 放行', !!wipeHit && shouldFail(declaredWipe) === false,
+    '判红=' + shouldFail(declaredWipe));
+
+  // ⑨ 抹空但**登记在册** ⇒ ⇒ 放行（且**没有**登记时必须判红）
+  const regW = [{ commit: bWipe, file: 'w.txt', why: '夹具登记' }];
+  add('抹空但登记在册 ⇒ 放行 ｜ 没登记 ⇒ 判红',
+    !!wipeHit && shouldFail(wipeHit, regW) === false && shouldFail(wipeHit, []) === true,
+    '登记后=' + shouldFail(wipeHit, regW) + ' ｜ 未登记=' + shouldFail(wipeHit, []));
+
   const passed = cases.filter((c) => c.ok).length;
   return { passed, total: cases.length, cases };
 }

@@ -27,15 +27,47 @@ export function diffChangedLines(diffText, sign) {
  * blobs: { aBefore, aAfter, bBefore, bAfter } —— 四个版本的文件内容（可为 null = 文件不存在）。
  * aDiff / bDiff：对应的 diff 文本（'A' 与 'B' 各自的增量）。
  */
-export function classifyRevert({ blobs, aDiff, bDiff }) {
-  const { aBefore, aAfter, bBefore, bAfter } = blobs;
+/**
+ * 空 blob 的哈希 —— git **不会**给「空文件」发新哈希 ⇒ ⇒ 它永远是这两个常量之一
+ * （按仓的对象格式选）⇒ ⇒ 判「这个文件是不是被写成零字节」**不需要**多打一次 git。
+ */
+export const EMPTY_BLOB_SHA1 = 'e69de29bb2d1d6434b8b29ae775ad8c2e48c5391';
+export const EMPTY_BLOB_SHA256 = '473a0f4c3be8a93681a267e3b1e9a7dcda1185436fe141f7749120a303721813';
+
+export function emptyBlobHash(objectFormat) {
+  return objectFormat === 'sha256' ? EMPTY_BLOB_SHA256 : EMPTY_BLOB_SHA1;
+}
+
+/**
+ * **不用 diff 就能判的两类**（⇒ ⇒ 扫描层先用它分流，省掉大量 diff 调用）：
+ *   ① 'full'  —— 完全回退：B 的结果 == A 改动之前的内容。
+ *   ② 'wiped' —— **抹空**：B 把一个**非空**文件写成**零字节**。
+ *
+ * ⚠️⚠️ **「抹空」这一类是 2026-11-11 补上的，而且是补在**自己**身上**：
+ *   本会话自己制造过一次事故 —— git hash-object --stdin 的 input 被误当环境变量
+ *   ⇒ ⇒ stdin 为空 ⇒ ⇒ **台账 AGENTS.md 被提交成零字节**（5537 行删除）。
+ *   ⇒ ⇒ 闸当时把它判成「**部分回退**」（只提示、不判红）⇒ ⇒ ⇒ **闸没抓住**
+ *   ⇒ ⇒ 因为「完全回退」的判红条件是「B == A^」⇒ ⇒ 而「变成空」**不等于** A^
+ *   ⇒ ⇒ ⇒ **通用形态：判红条件写窄了，就有一类事故从缝里掉过去**
+ *   ⇒ ⇒ ⇒ 而这一类的破坏力**比完全回退更大**（整个文件没了）。
+ */
+export function quickKind({ aBefore, aAfter, bBefore, bAfter, empty }) {
   if (aBefore == null || aAfter == null) return null; // A 是新增文件 —— 不在本闸的射程内
   if (bAfter == null) return null; // B 删掉了这个文件 —— 「新增即删」不算悄悄回退
+  // ① 完全回退
+  if (aAfter !== aBefore && bAfter === aBefore && bBefore === aAfter) return 'full';
+  // ② 抹空
+  if (empty && bAfter === empty && aAfter !== empty) return 'wiped';
+  return null;
+}
 
-  // ① 完全回退：B 的结果 == A 改动之前的内容，且 A 确实改过它。
-  if (aAfter !== aBefore && bAfter === aBefore && bBefore === aAfter) {
-    return { kind: 'full', lines: [] };
-  }
+export function classifyRevert({ blobs, aDiff, bDiff }) {
+  const { aBefore, aAfter, bBefore, bAfter } = blobs;
+  const q = quickKind({ aBefore, aAfter, bBefore, bAfter, empty: blobs.empty });
+  if (q === 'full') return { kind: 'full', lines: [] };
+  if (q === 'wiped') return { kind: 'wiped', lines: [] };
+  if (aBefore == null || aAfter == null) return null; // A 是新增文件 —— 不在本闸的射程内
+  if (bAfter == null) return null; // B 删掉了这个文件 —— 「新增即删」不算悄悄回退
 
   // ② 部分回退：B 删掉的行里，有 A 刚加上的行。
   const added = diffChangedLines(aDiff, '+');
@@ -82,7 +114,10 @@ export function declaresRevert(message) {
  */
 export function shouldFail(event, registry) {
   if (!event) return false;
-  if (event.kind !== 'full') return false;
+  // ⚠️ **两类都判红**：完全回退（回到 A 之前）＋ **抹空**（写成零字节）。
+  //   ⇒ ⇒ 「抹空」判红的理由与「完全回退」同源：**把别人写的东西整个抹掉了**
+  //   ⇒ ⇒ 而且破坏更大 ⇒ ⇒ 逃逸口也一样（标题行声明 ＋ 登记在册）。
+  if (event.kind !== 'full' && event.kind !== 'wiped') return false;
   if (declaresRevert(event.message)) return false;
   if (isRegistered(registry, event.commit, event.file)) return false;
   return true;

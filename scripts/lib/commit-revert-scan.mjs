@@ -1,6 +1,6 @@
 // 「提交面回退」扫描层 —— git 调用在这里，纯判定在 commit-revert.mjs。
 
-import { classifyRevert } from './commit-revert.mjs';
+import { classifyRevert, quickKind, emptyBlobHash } from './commit-revert.mjs';
 
 /**
  * 扫描一个提交区间，找「把前一个提交的增量悄悄退掉」的事件。
@@ -30,6 +30,10 @@ export function scanReverts(git, opts) {
   if (commits.length < Math.min(limit, total)) {
     notes.push('只读到 ' + commits.length + ' 个提交（该 ref 共 ' + total + ' 个）⇒ ⇒ 历史**没读全** ⇒ ⇒ 这一格判不了');
   }
+
+  // ⚠️ **空 blob 的哈希**（按仓的对象格式）⇒ ⇒ 判「被抹空」不用多打一次 git。
+  const fmtRes = git(['rev-parse', '--show-object-format']);
+  const empty = emptyBlobHash(fmtRes.ok ? fmtRes.out.trim() : 'sha1');
 
   const messages = new Map();
   for (const c of commits) {
@@ -64,16 +68,21 @@ export function scanReverts(git, opts) {
       if (!aAfter || !bBefore || !bAfter) continue;
       if (aBefore === aAfter) continue;
       if (bBefore === bAfter) continue;
-      const full = bAfter === aBefore && bBefore === aAfter;
-      if (!full) {
+      // ⚠️ **不用 diff 就能判的两类**（完全回退 ＋ 抹空）⇒ ⇒ 先分流，
+      //   省掉其余情形下大量 diff 调用（实测全历史扫描的成本大头就在这里）。
+      const quick = quickKind({ aBefore, aAfter, bBefore, bAfter, empty });
+      if (quick) {
+        events.push({ kind: quick, commit: b, reverted: a, file: f, lines: [], message: messages.get(b) || '' });
+        continue;
+      }
+      {
         const aDiff = git(['diff', aParent, a, '--', f]).out;
         const bDiff = git(['diff', b + '^', b, '--', f]).out;
-        const hit = classifyRevert({ blobs: { aBefore, aAfter, bBefore, bAfter }, aDiff, bDiff });
+        const hit = classifyRevert({ blobs: { aBefore, aAfter, bBefore, bAfter, empty }, aDiff, bDiff });
         if (!hit) continue;
         events.push({ kind: hit.kind, commit: b, reverted: a, file: f, lines: hit.lines, message: messages.get(b) || '' });
         continue;
       }
-      events.push({ kind: 'full', commit: b, reverted: a, file: f, lines: [], message: messages.get(b) || '' });
     }
   }
   return { commits, events, total, notes };
