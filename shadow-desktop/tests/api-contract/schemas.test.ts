@@ -200,7 +200,10 @@ describe('GET /api/telencephalon/neuron/preview/models', () => {
       expect(typeof m.engine).toBe('string');
       expect(m.engine.length).toBeGreaterThan(0);
       // ⚠️ **不许出现桌面曾经幻觉出来的那个字段** —— 它从来不是端脑的形状。
-      expect((m as Record<string, unknown>).quantization).toBeUndefined();
+      // ⚠️ 用 in 判「这个键根本不存在」（而不是转成 Record 再取）
+      //   ⇒ ⇒ 端脑发的是 { capability, model_id, engine } ⇒ ⇒ 这个键不该在
+      //   ⇒ ⇒ 转成 Record<string, unknown> 会丢类型 ⇒ ⇒ 换一种写法反而更直白。
+      expect('quantization' in m).toBe(false);
     }
   }, 15_000);
 });

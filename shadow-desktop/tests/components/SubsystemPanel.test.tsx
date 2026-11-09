@@ -23,6 +23,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { SubsystemPanel } from '../../src/components/business/SubsystemPanel/SubsystemPanel';
 import { useSubsystemStore } from '../../src/stores/subsystemStore';
+import type { NeuronModelSummary } from '../../src/lib/telencephalonClient';
 
 /** 端脑 `ModelSummary` 的**真实形状**（`src/neuron_embed.rs`）。 */
 const BRAIN_SHAPED_MODEL = {
@@ -57,7 +58,12 @@ describe('SubsystemPanel · 已加载模型', () => {
     // ⚠️ **防「假修复」** —— 如果有人把端脑改成发 `quantization`、或者桌面
     //   同时认两个字段 ⇒ ⇒ 这一条要能看出来「界面显示的到底是哪一个」。
     useSubsystemStore.setState({
-      neuronModels: [{ ...BRAIN_SHAPED_MODEL, quantization: 'Q4_K_M' }],
+      // ⚠️ 这里故意喂一个端脑不发的字段 ⇒ ⇒ 被测类型（store 那一格）
+      //   本来不接受它 ⇒ ⇒ 必须显式断言绕过（否则 TS2353 多余属性）
+      //   ⇒ ⇒ 断言的是「故意的非法形状」⇒ ⇒ 不掩盖任何别的错。
+      neuronModels: [
+        { ...BRAIN_SHAPED_MODEL, quantization: 'Q4_K_M' } as unknown as NeuronModelSummary,
+      ],
     });
 
     render(<SubsystemPanel />);
@@ -71,7 +77,7 @@ describe('SubsystemPanel · 已加载模型', () => {
       neuronModels: [{ capability: 'llm', model_id: 'm1', engine: '' }],
     });
 
-    const { container } = render(<SubsystemPanel />);
+    render(<SubsystemPanel />);
 
     expect(screen.getByText('m1')).toBeInTheDocument();
     expect(screen.getByText('llm')).toBeInTheDocument();
