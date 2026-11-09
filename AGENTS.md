@@ -64,7 +64,7 @@
 
 **Updated**: 2026-11-11 (㒂 **「闸把 Playwright 当 vitest 量 —— 24 条假绿在 CI 里绿着，一条断言都没跑过」** —— 承 U+347F 条（刀 N：22 个规格接进 CI）＋ U+347A 条（断言承重闸的四条红线），本条记**取证（尺子量错了被测物）**、**第一因（`test.describe` 不是用例）**、**这一刀的落点（23 个文件 ＋ 1 个提交）**、**判据（反向验证 ＋ 全族真跑）**、**分级读数**、**途中那几课**，以及**仍然欠着的**.)
 
-> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真运行级实测（Playwright 全族 26 规格 / 102 条用例本机真跑两轮 ＋ 运行时 DOM 逐页探测 ＋ 注入反向验证 ＋ 三道闸实跑）｜ 改动：shadow 仓 **改** `scripts/lib/desktop-test-assertions.mjs`（**按框架分族** ＋ Playwright 族扫描器 ＋ 软守卫判据）、**改** `scripts/check-desktop-test-assertions.mjs`（6 条 Playwright 族孪生自检）、**改** `shadow-desktop/src/i18n/zh-CN.json` ＋ `en-US.json`（`subsystem` 段**提层**到顶层 ＋ 补 `thalamus.refresh` / `common.refreshAll`）、**改** 18 个 `shadow-desktop/tests/e2e-ui/*.spec.ts`（29 处软守卫改恒进断言 ＋ 4 条补结果断言）｜ 读数：**断言闸 EXIT=0（文件 212 ｜ 用例 1735 ｜ 断言 3140 ｜ R1 0 ｜ R2 0 ｜ R3 0 ｜ R4 0 ｜ 真·假绿 0）**、**判据自检 22/22**（基线 16 ＋ 新增 6）、**Playwright 全族真跑 96 passed / 0 failed / 7 skipped（28.3 秒）**（刀 N 基线 95/0/7）、**反向验证：注入一条真·假绿 ⇒ ⇒ 恰好 1 红并逐字点名（文件 ＋ 行 ＋ 用例名）⇒ ⇒ 移除探针后复跑 0 红**、**E2E 覆盖闸 EXIT=0（文件 40 ｜ CI 覆盖 27 ｜ 未覆盖 13）** ｜ 提交：`待入账`
+> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真运行级实测（Playwright 全族 26 规格 / 102 条用例本机真跑两轮 ＋ 运行时 DOM 逐页探测 ＋ 注入反向验证 ＋ 三道闸实跑）｜ 改动：shadow 仓 **改** `scripts/lib/desktop-test-assertions.mjs`（**按框架分族** ＋ Playwright 族扫描器 ＋ 软守卫判据）、**改** `scripts/check-desktop-test-assertions.mjs`（6 条 Playwright 族孪生自检）、**改** `shadow-desktop/src/i18n/zh-CN.json` ＋ `en-US.json`（`subsystem` 段**提层**到顶层 ＋ 补 `thalamus.refresh` / `common.refreshAll`）、**改** 18 个 `shadow-desktop/tests/e2e-ui/*.spec.ts`（29 处软守卫改恒进断言 ＋ 4 条补结果断言）｜ 读数：**断言闸 EXIT=0（文件 212 ｜ 用例 1735 ｜ 断言 3140 ｜ R1 0 ｜ R2 0 ｜ R3 0 ｜ R4 0 ｜ 真·假绿 0）**、**判据自检 22/22**（基线 16 ＋ 新增 6）、**Playwright 全族真跑 96 passed / 0 failed / 7 skipped（28.3 秒）**（刀 N 基线 95/0/7）、**反向验证：注入一条真·假绿 ⇒ ⇒ 恰好 1 红并逐字点名（文件 ＋ 行 ＋ 用例名）⇒ ⇒ 移除探针后复跑 0 红**、**E2E 覆盖闸 EXIT=0（文件 40 ｜ CI 覆盖 27 ｜ 未覆盖 13）** ｜ 提交：`待入账` | status=active | supersedes=none
 
 ① **⚠️ 取证：尺子把 Playwright 规格当 vitest 量了 ⇒ ⇒ 102 条真用例一条都没被单独审计**
 　❶ 刀 N 把 26 个 Playwright 规格接进 CI（CI 覆盖 4 → 26）⇒ ⇒ 但**断言承重闸**仍用 **testing-library 语义**扫它们 ⇒ ⇒ 闸把 `test.describe(...)` **整块当成一条用例** ⇒ ⇒ 实测：26 个文件只认出 **26** 条用例，而被测物自己的读数是 **102 条**（`playwright test --list`）⇒ ⇒ **76 条真用例从没被单独看过**。
@@ -5194,4 +5194,51 @@ For the end-to-end coverage assessment of all the above (which has zero e2e in C
 - `/home/ibloc/Projects/docs/diagrams/architecture.mmd`（SVG/PNG 渲染源文件）
 - `https://github.com/iBLOC/hippocampus/AGENTS.md`（synapse path dep 关系说明）
 - 8 个项目根目录分别放置了 `ARCHITECTURE.md` 指针文件
+**Updated**: 2026-11-11 (㒆 **「界面把 key 本身显示给用户 —— 147 个 i18n 键在两份词表里全缺」** —— 承 U+3483 条（他们补齐词表那一半），本条记**取证（缺键的两副面孔）**、**第一因（词表搬了家、组件没跟着改）**、**这一刀的落点**、**判据（把「词表齐」变成**可判红**的一格）**、**分级读数**、**途中那几课**，以及**仍然欠着的**.)
 
+> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真运行级实测（桌面端 src 全量 t() 字面量扫描 ＋ 两份词表逐键比对 ＋ 提交树复刻 ＋ 两档反向验证 ＋ 纪律闸审计） | 改动：shadow 仓 **改** `shadow-desktop/src/i18n/{zh-CN,en-US}.json`（补 127 键 × 2 份）、**改** `shadow-desktop/src/components/PWAInstallPrompt.tsx`（改读既有 `common.pwa.*`）、**新增** `scripts/check-i18n-key-completeness.mjs`、**新增** `.github/workflows/i18n-key-completeness.yml` | 读数：提交树判据 **914/914 全齐、0 问题**、自检 **9/9**、纪律闸审计 **自检:有 接CI:是 判不了档:有 读数:9/9**、反向验证两档（删任一份词表的一个键 ⇒ **恰好点名 `common.copied`**；还原 ⇒ 回到基线）、YAML 闸 14 文件零违规 ｜ 提交：`cd38d35`（已在 origin/master） | status=active | supersedes=none
+
+① **⚠️ 取证：缺键有两副面孔，长得完全不一样**
+　❶ **A 类（`t('x.y')` 不带默认值）** ⇒ ⇒ i18next 原样返回键名 ⇒ ⇒ **界面直接显示 `identity.currentTitle` 这样的裸 key** —— 桌面端 **139 处**。
+　❷ **B 类（`t('x.y', '中文兜底')`）** ⇒ ⇒ 中文界面看着正常 ⇒ ⇒ 但**英文界面显示中文** —— **25 处**（`modelSetup.*`／`tasks.endbrain*`／`telencephalonStatus.endpoint*`）。
+　❸ ⇒ ⇒ 本刀**不按「有没有默认值」分档** ⇒ ⇒ **一律要求两份词表齐全** ⇒ ⇒ 两副面孔一起根除。
+　❹ 实测：桌面端 src 里被 `t()` 字面量引用的键 **924 个**（提交树 914 个），而两份词表各缺 **147 个**。
+
+② **⚠️ 第一因：词表搬了家，组件没跟着改 ⇒ ⇒ 两套真相源**
+　❶ `common.pwa.*` 与 `settings.subsystem.*` 这两段文案**早就在词表里**（作者写的）⇒ ⇒ 但**零引用**（无人引用）⇒ ⇒ 组件读的是另一套（`pwa.*`／`subsystem.*`）⇒ ⇒ 那套**词表里根本没有** ⇒ ⇒ 界面显示裸 key。
+　❷ ⇒ ⇒ 通用形态：**「组件读的那一处」与「词表写的那一处」必须是同一处**；词表里的孤儿文案不是「备胎」，是**搬过家的残骸**。
+　❸ ⚠️ **这一刀我差点改反**：并行会话在 fd38c81 里把 `subsystem` 段**搬到了顶层**（方向与我相反，还顺手把「键名里带点」的脏键正规化）⇒ ⇒ 我原先「组件改读 `settings.subsystem.*`」的改法**会回退他们那份** ⇒ ⇒ ⇒ **撤回组件侧改动、改为尊重他们的词表结构** ⇒ ⇒ 只留 `PWAInstallPrompt` 一处（改读既有 `common.pwa.*`，那段他们没搬）。
+
+③ **✅ 这一刀的落点（4 个文件 ＋ 1 个提交）**
+　❶ **两份词表**：`shadow-desktop/src/i18n/{zh-CN,en-US}.json` —— 补 **127 键 × 2 份**（identity 21／preview 19／previews 8／computerUse 19／questionnaire 11／modelSetup 9／audioEvent 3／feishuPublished 3 ＋ mcp 6／models 2／tasks 6／common 7／telencephalonStatus 8／shortcuts 1 ＋ 顶层 4）＋ 补 en-US 缺的 `settings.common.{save,cancel,edit}` ⇒ ⇒ **两份词表逐键对齐（各 1452 键）** ＋ **相对基线零丢失**。
+　❷ **`PWAInstallPrompt.tsx`**：4 处 `pwa.*` → `common.pwa.*`（复用既有那段，消灭孤儿）。
+　❸ **新闸 `scripts/check-i18n-key-completeness.mjs`**：扫 src 的 `t()` 字面量 ⇒ ⇒ ① 被引用的键在两份词表都存在 ② **两份词表互相对齐**（zh 有 en 没有 ⇒ 也判红）③ 值不许空串；**退出码 2** 表达「判不了」（词表读不到／源码扫不到／一个引用都扫不到 ⇒ ⇒ **尺子空转 ≠ 没问题**）；**自检 9/9**（正控／孪生／对齐／空值／不该抓的／端到端／判不了）。
+　❹ **独立 workflow `.github/workflows/i18n-key-completeness.yml`**：纯 node 秒级 ⇒ ⇒ **零共享文件**（不碰 ci.yml）⇒ ⇒ 竞态根本不存在。
+
+④ **⚠️ 途中那几课**
+　❶ **尺子一上就照出尺子自己** —— 新闸在提交前就抓出**我自己的**改写错误：`settings.subsystem.thalamus.refresh` 那个键词表里并不存在（既有的是 `settings.subsystem.refresh`）⇒ ⇒ 若没有这道闸，那会带着一个「界面显示裸 key」的组件合进去。
+　❷ **尺子的读数会随别人的提交漂移** —— 我的词表基线是 ae10cf7，动手时 master 已到 fd38c81（他们改了词表）⇒ ⇒ **重扫基线后才没回退他们那份** ⇒ ⇒ 提交前必须重扫，且新提交要以**当前 master** 为父。
+　❸ ⚠️ **共享工作树里，工作树文件会被回退** —— 我把新词表写进工作树后，它又变回旧版（缺顶层 `subsystem.*`）⇒ ⇒ 若他们此刻 `git add` 词表，**我的 254 处键会被回退** ⇒ ⇒ 处置：提交后立刻把工作树同步到 HEAD 版本 ⇒ ⇒ **「工作树 == HEAD」是提交前必查的一格**。
+　❹ ⚠️ **独立索引提交里 `read-tree` 必须先于 `update-index`** —— 顺序写反 ⇒ ⇒ 索引被重置回 HEAD ⇒ ⇒ **提交是空的**（树与父提交完全相同）⇒ ⇒ 而且 `--stat` 一眼看不出来 ⇒ ⇒ 我连做了两个空提交（都未推送，已替换）⇒ ⇒ 通用形态：**提交后必须核 `--stat` 真有文件**。
+　❺ **「两份词表逐键对齐」是独立的一格** —— 哪怕源码没引用，只要 zh 有而 en 没有，英文界面迟早要用它 ⇒ ⇒ 既有那 3 个不对称键（en 缺 `settings.common.{save,cancel,edit}`）就是这么被照出来的。
+
+⑤ **✅ 判据（三处 ＋ 两档反向验证）**
+　❶ **提交树复刻**：判据 **914/914 全齐、0 问题**；自检 **9/9**。
+　❷ **纪律闸审计**：`i18n-key-completeness 自检:有 接CI:是 判不了档:有 自检退出:0 读数:9/9` ⇒ ⇒ 新闸**不欠任何一条纪律**（D1–D5 全过）。
+　❸ **YAML 闸**：14 个 YAML 零违规。
+　❹ **反向验证两档**：A 档删 zh 的 `common.copied` ⇒ ⇒ 24 条（基线 22 ＋ 缺 zh 1 ＋ 对齐 1）且**点名 `common.copied`**；B 档删 en 的同名键 ⇒ ⇒ 同样 24 条且点名 ⇒ ⇒ 还原后回到基线 ⇒ ⇒ **尺子有牙且不恒红**。
+
+⑥ **✅ 分级读数**
+　❶ 判据级：提交树 914/914 ｜ 自检 9/9 ｜ 纪律审计读数 9/9。
+　❷ 反向验证级：两档各 **24 条 ＋ 点名**，还原回基线。
+　❸ 闸级：YAML 14 文件零违规 ｜ 码位闸索引面/提交树面零违规。
+　❹ 仓库级：提交 `cd38d35` **已在 origin/master**（本地 master 与 origin/master 0/0）⇒ ⇒ 真 CI 上会多出 `i18n Key Completeness` 这个 workflow。
+　❺ 真 CI 级：**已取** —— run `42647562965`（head `ef580a4`）**i18n Key Completeness = success** ⇒ ⇒ 这道闸**第一次在真 CI 上有读数** ⇒ ⇒ 同轮其余七条 workflow 也全 success（Secret Plaintext／Door Policy／Test Global Leaks／E2E Typecheck／Desktop Test Assertions／Mobile Test Assertions／Desktop E2E Coverage）。
+
+⑦ **⚠️ 仍然欠着**
+　❶ **并行会话那条线（自定义主题色 ＋ 聊天背景图）在工作树里引入的 11 个 `settings.*` 键**（accentCustom／accentCustomPick／accentHex*／background／backgroundDesc／chatBackground*）**尚未进两份词表** ⇒ ⇒ 我的新闸会在它们提交后**逐条点名** ⇒ ⇒ 已通报，等对方落地或由我补。
+　❷ **内联中文兜底还在**（承 U+3483 条 ❷：77 处调用点／71 个键）⇒ ⇒ 词表齐了 ⇒ ⇒ 兜底轮不到 ⇒ ⇒ 但源码里那句中文还在 ⇒ ⇒ 要不要删是**产品决定**。
+　❸ **`tasks.priority` 现在源码零引用**（承 U+3483 条 ❸）⇒ ⇒ 它在两份词表里都齐 ⇒ ⇒ 留着无害。
+　❹ **真 CI 读数待取**；真机级照旧。
+
+⑧ **⚠️ 圈码：本条占 U+3486（㒆）** —— 插前**独立重扫**（父仓工作树 ∪ 父仓 HEAD ∪ 父仓 `origin/master` × **三本账本**，按**声明形状**扫、**声明与提及分开**）⇒ ⇒ 读数：**最高已声明 U+3485**（并行会话那条已提交）⇒ ⇒ 「最高已用＋1」＝ **U+3486** ⇒ ⇒ ⚠️ **U+3467 不可用**（并行会话口头说的「从 U+3467 起」已过期 ⇒ ⇒ U+3467 低于最高已声明 ⇒ ⇒ 属**历史空洞**，按纪律**不回收**）⇒ ⇒ ⚠️ **U+3484 不回收**（U+3482 那条明写为「留一枚缓冲」）⇒ ⇒ ⚠️ 本条**只引用已提交的码位**（U+3483／U+3485）⇒ ⇒ **不引在飞的** ⇒ ⇒ ⚠️ **插完立刻复跑码位闸**是硬约束。
