@@ -1,5 +1,38 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-09 (㑞 **「绿里有假 —— CI 那次「31 passed」里有一条 502 被吞了」** —— 承 U+3455 条（Playwright 那一步第一次绿那条），本条记**取证（绿里面藏着几个洞）**、**第一因（模型这个前提没人钉 ⇒ 「谁先跑」决定一切）**、**这一刀的落点（4 份 spec ＋ setup ＋ CI 那一步 ＋ 一把形状尺子）**、**判据（两层）**、**反向验证（两档）**、**分级读数**、**途中那五课**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-09 | authority=measured | scope=project | source=真运行级实测（本机真端脑 ＋ 真 mock ＋ 真 Playwright，五轮）＋ **CI 日志逐行取证** | 改动：shadow 仓 **改** `shadow-desktop/tests/e2e-ui/{business-flow-ui,e2e-conversation-flow,e2e-task-scheduling,telencephalon-endpoints}.spec.ts`、**改** `shadow-desktop/tests/e2e-ui/global-setup.ts`、**新增** `shadow-desktop/tests/e2e-ui/e2e-strict.ts`、**新增** `shadow-desktop/tests/lib/e2eStrictness.test.ts`、**改** `.github/workflows/desktop-e2e.yml` ｜ 读数：**真跑级 31/31 绿**（钉住前提后**从零**跑）、**反向验证两档：注入 502 ⇒ setup 探针红 ＋ spec 层 5 红**（改前它们是绿的）、**形状级尺子 4/4 绿**、**类型级 EXIT=0**、**YAML 闸 9 文件零违规** | status=active | supersedes=none
+
+① **⚠️ 取证：绿里面有洞** —— CI 上「Run Playwright E2E against the 端脑 server」**第一次绿**（run `42591908404`，日志逐字 `31 passed (17.1s)`）⇒ ⇒ 但**逐行读**那 4 份 CI 跑的 spec 时，发现绿里面藏着 **6 处「失败被原谅」** ＋ **22 处 `test.skip`**：
+　❶ `if (sendRes.ok()) { …断言… } else { 只断言「错误体非空」 }` ⇒ ⇒ 端脑 502 ⇒ **这条测试照样绿**；
+　❷ `if (sendRes.ok()) { … }`（**没有 else**）⇒ ⇒ 502 ⇒ **整条测试零断言通过** ⇒ ⇒ 连「失败」都没有，只有一个空壳；
+　❸ `expect([200, 502]).toContain(sendStatus)` ⇒ ⇒ **502 被明写进白名单**；
+　❹ `if (await X.isVisible()) { …断言… }` ⇒ ⇒ 元素不在 ⇒ 整条零断言；
+　❺ `if (!res.ok()) break;` ⇒ ⇒ 失败时**悄悄少做一步**；
+　❻ `test.skip(!await isTelencephalonReachable(), …)`（**22 处**）⇒ ⇒ 端脑没起来 ⇒ 整条被**跳过** ⇒ ⇒ **Playwright 的退出码只由 failed 决定** ⇒ ⇒ 「跳过也算绿」在 E2E 这一层**同样成立**（U+344F 条在 vitest／flutter 那一侧拆过一次，这里补上 Playwright 这一侧）。
+
+② **⚠️ 第一因：模型这个前提没人钉 ⇒ 「谁先跑」决定一切** —— 端脑**颞叶的内置默认** provider 是 `local_minicpm5`（模型 id `llm/minicpm5-1b`，`telencephalon/src/api/llm_configure.rs`）⇒ ⇒ 那个模型在 CI 上**没有引擎** ⇒ ⇒ 发消息 ⇒ **502**；⇒ ⇒ 而 CI 里**恰好有一条 spec** 会把模型 PATCH 成 mock 那个（`test-model-ui`）⇒ ⇒ ⇒ **谁先跑，决定这次判据测的是哪条路径**：CI 是 workers=1 ⇒ 「创建对话」那条**跑在 PATCH 之前** ⇒ ⇒ 它内部是 502 ⇒ ⇒ **被旧的宽容断言原谅了** ⇒ ⇒ ⇒ 「31 passed」里**有假绿**。
+　✅ **直接证据（不是推断）**：run `42591908404` 的**绿**日志里逐字有
+　　`{"error":{"code":5022,"message":"NO_MODEL_CONFIGURED:请先在设置页面配置 LLM 模型（添加云端供应商如 OpenAI、Anthropic、DeepSeek，或下载本地模型）。"}}`
+　⇒ ⇒ **而那一步的结论是 success** ⇒ ⇒ ⇒ 502 真的发生在绿的 run 里 ⇒ ⇒ ⇒ 被吞了。
+　同一份日志还逐字写着 `Running 31 tests using 1 worker`（⇒ 顺序依赖成立）与 `Send button not enabled - likely no lobe selected or available`（⇒ 印证 ⑧❶ 那条：web 构建里发送按钮本来就不可用）。
+　⚠️ **不是本机残留污染**：lobe 配置存在**海马体**（`LobeStore` → `hippo::upsert_memory`）⇒ ⇒ E2E 已用 `HIPPOCAMPUS_DATA_DIR`／`LANCE_URI` 隔离 ⇒ ⇒ ⇒ 纯**顺序依赖**。
+
+③ **✅ 这一刀的落点（6 个文件，零产品代码改动）** —— ❶ **4 份 CI 跑的 spec 硬化**（上面 ❶–❻ 逐处改成硬断言 ＋ 失败信息带响应体）；❷ **新增 `tests/e2e-ui/e2e-strict.ts`**：`requireTelencephalon()` —— **CI 上端脑不可达 = 抛错（红）**，本地仍 skip ⇒ ⇒ 「跳过也算绿」被拆开；❸ **setup 钉前提**（`global-setup.ts`）：spawn 分支里把颞叶模型 PATCH 成 mock 那个 ＋ **亲自走一遍「建会话 → 发消息」** ⇒ ⇒ 探针不过 ⇒ ⇒ **setup 直接失败** ⇒ ⇒ 「前提没钉住 ⇒ ⇒ 判据不许开始跑」（复用分支**不改**别人的端脑，只**只读**检查并说清前提）；❹ setup 顺带把 `TELENCEPHALON_PROVIDERS_FILE` 指到测试目录 ⇒ ⇒ E2E 不许读写开发者本机的 providers（那儿有**明文 api_key**）；❺ **CI 那一步核读数**：剥 ANSI ⇒ 要「N passed」这个**事实**（按语义不按版式）＋ **不许出现 skipped** ⇒ ⇒ 「跳过」在 CI 上从此不是绿；❻ **新增形状级尺子 `tests/lib/e2eStrictness.test.ts`**（会进 CI 的 `desktop-test` job）。
+
+④ **✅ 判据（两层）** —— ❶ **行为级（真跑级）**：Playwright 那 31 条 —— **4 份 spec 的每一处「宽容形状」都改成承重断言** ⇒ ⇒ 端脑不可达 ⇒ ⇒ **红**（不再是 skip）；端脑 502 ⇒ ⇒ **红**（不再被原谅）；❷ **形状级（静态）**：`tests/lib/e2eStrictness.test.ts` —— R1 每个 test 块**至少一条 `expect(`**（不许零断言 test）／R2a `if (X.ok())`／R2b `if (!X.ok()) break`／R3 `[200, 502]` 白名单／R4 自己 `test.skip` 端脑不可达 ⇒ ⇒ 每条规则都配**孪生负控**（坏样本必须被抓）＋**正控**（好样本必须不被抓）⇒ ⇒ **尺子不是恒绿**。
+
+⑤ **✅ 反向验证（两档，各证明一层）** —— **V1（探针层）**：把 `mock-llm-intent.mjs` 的意图分类退回「固定回散文」（旧行为）⇒ ⇒ 端脑 502 ⇒ ⇒ ⇒ setup 的**对话链路探针当场抓到**（逐字 `发消息 502 … the brain did not return intent JSON`）⇒ ⇒ **整个 Playwright run 直接红**（0 条测试跑）⇒ ⇒ ⇒ 「前提没钉住 ⇒ ⇒ 判据不许开始跑」这句话**有牙齿**；**V1b（spec 层）**：临时短路那个探针（让它只报不拦）⇒ ⇒ 同样的注入 ⇒ ⇒ ⇒ **5 条当场红**（business-flow 的「创建对话」「设置页面 lobe 配置立即生效」「多轮对话 history 累积」「prefrontal dispatch」＋ task-scheduling 的「通过对话发布定时任务」），逐字 `Expected: 200 / Received: 502`，**其余 26 条仍绿**（没误伤）⇒ ⇒ ⇒ 改前它们是绿的 ⇒ ⇒ ⇒ **spec 层也有牙**。
+
+⑥ **✅ 分级读数（全部实测）** —— **真跑级**：本机真端脑 ＋ 真 mock ＋ 真 Playwright（4 份 spec）⇒ ⇒ **31 passed / 0 failed**（钉住前提后**从零**跑；setup 逐字「颞叶模型 → test-model-ui」「对话链路探针：200」）⇒ ⇒ ⚠️ **中间那轮不算数**：❶ 第一轮 **2 红 29 绿**（那正是「宽容被换成硬断言」暴露出来的两处 ⇒ ⇒ 尺子有牙）；❷ 第二轮虽然 **31 绿**，但读数里有一行「**端脑 already running, reusing it**」⇒ ⇒ ⇒ **钉模型的代码在 spawn 分支里 ⇒ ⇒ 没执行** ⇒ ⇒ 那一轮的绿靠的是**上一轮残留的 PATCH 状态**（海马体在 `TEST_DATA_DIR` 里跨跑留存）⇒ ⇒ ⇒ 「本地绿 ≠ 从零绿」；❸ 第三轮（杀掉残留端脑后从零跑）才是**承重的那一次绿**；❹ 中间有一轮因为**嵌套反引号**的语法错**整场没跑起来**（Playwright 当场抓到：逐字 `SyntaxError: global-setup.ts: Unexpected token`）⇒ ⇒ 那正是「e2e 文件没有类型闸」的代价 ⇒ ⇒ 修好后**最后一轮从零跑**＝ **31 passed / 0 failed**（setup 逐字「颞叶模型 → test-model-ui」「对话链路探针：200」）；**形状级**：`npx vitest run tests/lib/e2eStrictness.test.ts` ⇒ ⇒ **4 passed / 0 failed**；**类型级**：`npx tsc --noEmit` ⇒ ⇒ **EXIT=0** ⇒ ⇒ ⚠️ **但它只覆盖 `src/`**（`tsconfig.json` 的 `include` 只有 `["src"]`）⇒ ⇒ ⇒ **本刀改的 e2e 文件根本不在它的覆盖面里** ⇒ ⇒ ⇒ 它们的语法承重是 **Playwright 那一跑**（它当场抓到了我那个嵌套反引号的语法错）⇒ ⇒ ⇒ **「类型闸绿」≠「我改的文件被类型闸看过」**；**YAML 闸**：`check-yaml-valid` ⇒ ⇒ **9 个 YAML 文件零违规 EXIT=0**。
+
+⑦ **⚠️ 途中那五课** —— ❶ **尺子第一版没剥注释** ⇒ ⇒ 它把**自己写的说明文字**当成被测对象的违规 ⇒ ⇒ **尺子把自己的说明判成了缺陷** ⇒ ⇒ 修法：加**认引号**的剥注释（无脑按 `//` 切行尾会把字符串里的 `http://` 后半截连同真违规一起切掉 ⇒ ⇒ 尺子就能被一行注释骗过）；❷ **`\x1B` 被模板吃掉** ⇒ ⇒ 写进 workflow 的是**真 ESC 控制字符** ⇒ ⇒ **YAML 解析器直接拒绝那个文件**（逐字 `unacceptable character #x001b`）⇒ ⇒ 修法：用占位符拼那 4 个字符；❸ **⚠️ PowerShell 的 `Replace` 类型不匹配抛了异常，而后面照写** ⇒ ⇒ **workflow 被写成了 0 字节** ⇒ ⇒ ⇒ 从**提交树**恢复（`git checkout --`）再重打补丁 ⇒ ⇒ 「失败长得像没发生」的**最贵一版**；❹ **定位器 `input[placeholder]` 匹到的是「搜索对话...」那个搜索框** ⇒ ⇒ 「填了测试消息」填进的是搜索框 ⇒ ⇒ **假动作**；❺ **⚠️ 还原注入时用了 `git checkout --` ⇒ ⇒ 把同一文件上**还没提交的真改动**一起抹了**（`global-setup.ts` 的钉模型代码整整没了 ⇒ ⇒ 「第三轮才是承重那一轮」这件事差点被这次误操作掩盖）⇒ ⇒ ⇒ **还原注入只能用备份 blob**（`git hash-object` 存下来，`git cat-file` 写回），**不许用 checkout** —— 除非那文件上的真改动**已经提交**。
+
+⑧ **⚠️ 仍然欠着** —— ❶ **对话页那个「发送按钮」在 web 构建里根本不存在**（空态页面只有搜索框 ＋ 「选择或创建新对话」；CI 日志里也有 `Send button not enabled`）⇒ ⇒ 这条断言已改成**真实契约**（空态提示 **或** 消息输入框，二者皆无才红）⇒ ⇒ 但「在 web 构建里真发一条消息并看到它出现在会话里」**仍欠着**（那是 Tauri 形态）；❷ **复用模式下不钉模型**（那个端脑不是我们起的）⇒ ⇒ 只**只读**检查并说清前提 ⇒ ⇒ 开发者本机若用自己那个端脑跑 E2E，发消息那几条会红（是前提没钉住，不是回归）；❸ **端脑 CI 仍是门外红**（`runner_id: 0`／`steps: []`／billing）⇒ ⇒ 端脑侧判据在**端脑自己的 CI** 上仍无读数；❹ **CI 那一步的读数断言还没在真 CI 上跑过**（本条只到本地真跑级）⇒ ⇒ 不许把本地绿冒充 CI 绿；❺ **`business-flow-ui.spec.ts` 里另外两条「端点形状」判据仍偏弱**（`expect(caps.capabilities).toBeTruthy()` 对空对象也真）⇒ ⇒ 不在这一刀里动；❻ **`tests/e2e-ui/` 不在 `tsconfig.json` 的 `include` 里** ⇒ ⇒ e2e 文件**没有独立的语法／类型闸** ⇒ ⇒ 本刀是靠 Playwright 那一跑兜住的 ⇒ ⇒ **建议给它一个专门的 tsconfig**（本刀未做：那是覆盖面决策，且并行会话在飞）；❽ 移动端真机级 / 真云级、端脑通知收件箱落盘 —— 照旧欠。
+
+⑨ **⚠️ 圈码：本条占 U+345E（㑞）** —— 插前**独立重扫**（父仓工作树 ∪ 父仓 HEAD ∪ 父仓 `origin/master` × **三本账本**，按**声明形状**扫）⇒ ⇒ 段内最高已声明 **U+345B** ⇒ ⇒ 自然下一枚 **U+345C** ⇒ ⇒ ⚠️ 并行会话此刻正**连着**取码 ⇒ ⇒ 按惯例**再留一枚缓冲** ⇒ ⇒ 取 **U+345E** ⇒ ⇒ 插前扫：U+345C／U+345D／U+345E 在三账本三面**各 0 次声明** ✔ ⇒ ⇒ ⚠️ **不填历史空洞**（U+345C／U+345D 不回收）⇒ ⇒ ⚠️ 本条**只引用已提交的码位**（U+3455）⇒ ⇒ 不引并行会话**未提交**的那些 ⇒ ⇒ ⚠️ **插完立刻复跑码位闸**是硬约束。
+
 **Updated**: 2026-11-09 (㑕 **「Playwright 那一步从来没跑绿过 —— 第一因是 mock 回散文，而端脑的意图契约要 JSON」** —— 承 U+3451 条⑧❹（Playwright 那步仍红那条），本条记**取证（CI 产物与端脑日志）**、**第一因（一个根因、两个症状）**、**这一刀的落点（父仓 mock ＋ 端脑自调用带钥匙）**、**判据（两层）**、**反向验证（两档，各恰好红自己那条）**、**分级读数**、**途中那四课**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-09 | authority=measured | scope=project | source=真运行级实测（真端脑进程 ＋ 真 HTTP ＋ 真 mock 上游）＋ CI 产物取证 | 改动：shadow 仓 **改** `shadow-desktop/tests/e2e-ui/mock-llm-server.mjs`、**新增** `shadow-desktop/tests/e2e-ui/mock-llm-intent.mjs`、**新增** `shadow-desktop/tests/lib/mockLlmIntent.test.ts`；端脑仓 **改** `src/lobes/mod.rs`、`src/lobes/intent.rs`、`src/a2a/skill_router.rs`、`src/api/shadow.rs` | 读数：**vitest 判据 5/5**、**Rust 判据 1/1**、**真运行级端到端复现绿**（3 条消息全 200 ＋ history 真累积 ＋ dispatch 200）、**反向验证两档各恰好红自己那条** | status=active | supersedes=none
