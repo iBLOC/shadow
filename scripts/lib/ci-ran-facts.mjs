@@ -83,6 +83,13 @@ export function classifyRun(run, jobs) {
     return { ...shape, why: 'run 未完成（status=' + run.status + '）⇒ ⇒ 还在排队/在跑，不能当读数' };
   }
   if (!Array.isArray(jobs) || jobs.length === 0) {
+    // ⚠️ **「没有 job 记录」有两种完全不同的东西**（2026-11-11 真 CI 抓到的）：
+    //   ① **被取消得太早**（concurrency 取消时 job 还没排上）⇒ ⇒ run.conclusion=cancelled
+    //      ⇒ ⇒ 这**不是**「基础设施坏了」，只是**没有读数**⇒ ⇒ 归 cancelled 档（不判红）。
+    //   ② 其它 ⇒ ⇒ 真的读不到 ⇒ ⇒ unknown（「判不了」）。
+    if (run.conclusion === 'cancelled') {
+      return { ...shape, kind: CANCELLED, why: 'run 已被取消且没有任何 job 记录（连 runner 都没排上）⇒ ⇒ 没有读数，但这不是门外红' };
+    }
     return { ...shape, why: '该 run 没有 job 记录（total_count=0）⇒ ⇒ 判不了' };
   }
 

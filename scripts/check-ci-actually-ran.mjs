@@ -87,6 +87,7 @@ function selfTest() {
     { name: '部分跑过（一个跑了一个没跑）', run: { status: 'completed', conclusion: 'failure' }, jobs: [{ steps: [{}], runner_id: 1000002515, conclusion: 'success' }, { steps: [], runner_id: 0, conclusion: 'failure' }], expect: PARTIAL },
     { name: '判不了（run 还没完成）', run: { status: 'in_progress', conclusion: null }, jobs: [{ steps: [], runner_id: 0 }], expect: UNKNOWN },
     { name: '判不了（没有 job 记录）', run: { status: 'completed', conclusion: 'failure' }, jobs: [], expect: UNKNOWN },
+    { name: '被取消且零 job（cancel-in-progress 取消得太早）⇒ ⇒ 归 cancelled，不是判不了', run: { status: 'completed', conclusion: 'cancelled' }, jobs: [], expect: CANCELLED },
     { name: '判不了（run 读不到）', run: null, jobs: null, expect: UNKNOWN },
     { name: '判不了（steps 缺字段）', run: { status: 'completed', conclusion: 'failure' }, jobs: [{ runner_id: 0, conclusion: 'failure' }], expect: NEVER_STARTED },
   ];
@@ -171,7 +172,12 @@ function main() {
       process.exit(2);
     }
     const rows = classifyAll(f.entries);
-    const latest = rows[0];
+    // ⚠️ **只看「最近一笔有 job 记录的」** —— 被取消得太早的 run（0 job）是常态
+    //   （本仓多数 workflow 用 cancel-in-progress: true ⇒ ⇒ 每次 push 都会取消上一轮）
+    //   ⇒ ⇒ 它们**没有读数**，但**不该让整批判红**（2026-11-11 真 CI 实测：就因为一笔
+    //   cancelled+0 job ⇒ ⇒ exit 2 ⇒ ⇒ 把 CI 拖红了）。
+    const measurable = rows.filter((r) => r.totalJobs > 0);
+    const latest = measurable[0];
     const neverStarted = rows.filter((r) => r.kind === NEVER_STARTED);
     const unknown = rows.filter((r) => r.kind === UNKNOWN);
     const payload = {
@@ -203,7 +209,10 @@ function main() {
       process.exit(1);
     }
     if (unknown.length) {
-      console.log('  ⚠️ 有 ' + unknown.length + ' 笔判不了 ⇒ ⇒ 「没红」不等于「没问题」');
+      console.log('  ⚠️ 有 ' + unknown.length + ' 笔判不了（历史既成事实，只报数不判红）⇒ ⇒ 「没红」不等于「没问题」');
+    }
+    if (!latest) {
+      console.log('  ⚠️ 最近 ' + rows.length + ' 笔里**没有一笔带 job 记录** ⇒ ⇒ 无从量起 ⇒ ⇒ 判不了');
       process.exit(2);
     }
     process.exit(0);
