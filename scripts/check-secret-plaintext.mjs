@@ -199,6 +199,7 @@ export const KNOWN_DEBT = [
     blind: true,
     why: 'app 私有目录的 JSON 里存着 admin token ＋ shadow key（**Android 无安全存储**）—— ⚠️ 债仍然是真的（`_saveConfig()` 明文写进 app_config.json）；探测器追不到，是因为 2026-11-09 的原子落盘重构把写入藏进了 `_writeAtomically(file, …)` helper（Dart 写规则只认调用点上的 `writeAsString(`）⇒ ⇒ 登记为盲区（**不是销账**）',
     when: 'P2d（android-native-keyring-store）',
+    onStale: '⚠️ 这条是**真债**（admin token ＋ shadow key 明文落进 app 私有目录的 JSON）⇒ ⇒ 它登记为**盲区**只表示「探测器追不到」，**不表示债还了** ⇒ ⇒ 若它变 stale（探测器追不到）⇒ ⇒ 请**读源码**确认 `_saveConfig()` 里那两行明文写盘还在不在 ⇒ ⇒ 只有「搬进钥匙环」或「只落引用」才算还 ⇒ ⇒ **不许**因为「闸不再报它」就当它不存在（那正是「把形状改成看不见」）',
   },
   // ---- synapse（2026-11-03 补进覆盖面）-------------------------------
   // ⚠️⚠️ **为什么补它**：端脑的 `Cargo.toml` 里是 `synapse = { path = "../synapse" }`
@@ -449,7 +450,15 @@ function report(findings, verdict, filesRead, missing, covered = null, scopeRepo
   if (verdict.blind?.length) {
     lines.push('');
     lines.push(`ℹ️ **探测器盲区登记**（${verdict.blind.length} 条）—— 债确实在，但当前判据追不到：`);
-    for (const k of verdict.blind) lines.push(`   · ${k}`);
+    for (const k of verdict.blind) {
+      lines.push(`   · ${k}`);
+      // ⚠️⚠️ **盲区必须自带告诫**（2026-11-09 加）—— 只印一个键名 ⇒ ⇒
+      // 「它现在不红」与「债还了」**长得一样** ⇒ ⇒ 读者会以为那笔已经没了
+      // ⇒ ⇒ 所以必须把这条债的**原因**（why）与告诫（onStale）**印出来**。
+      const entry = KNOWN_DEBT.find((d) => `${d.repo}|${d.file}|${d.kind}` === k);
+      if (entry?.why) lines.push(`     ${entry.why}`);
+      if (entry?.onStale) lines.push(`     ${entry.onStale}`);
+    }
     lines.push('   （它们**不是**销账；一旦探测器能抓到，闸会照常提示销账。）');
   }
   if (verdict.ok) {
@@ -469,6 +478,18 @@ function report(findings, verdict, filesRead, missing, covered = null, scopeRepo
 function selfTest() {
   const results = [];
   const check = (name, ok, why) => results.push({ name, ok, why });
+
+  // ⚠️⚠️ **盲区必须自带告诫**（2026-11-09 加）—— 只印一个键名 ⇒ ⇒
+  // 「它现在不红」与「债还了」**长得一样** ⇒ ⇒ 读者会以为那笔已经没了
+  // ⇒ ⇒ 所以报告里**必须印出那条债的原因**（why）与告诫（onStale）。
+  const blindVerdict = { fresh: [], stale: [], uncovered: [], ok: true, blind: ['mobile|lib/services/app_config_service.dart|file'] };
+  const blindText = String(report([], blindVerdict, 0, []));
+  const blindSaidWhy = blindText.includes('app_config_service.dart|file') && blindText.includes('债仍然是真的');
+  check('盲区条目 ⇒ 报告里印出它的告诫（why）', blindSaidWhy, blindSaidWhy ? '印出了' : '没印出 ⇒ ⇒ 「它不红」会长得像「债还了」');
+  // 孪生：不是盲区的那条 ⇒ **不**印 why（不是无条件刷屏）
+  const plainText = String(report([], { fresh: [], stale: [], uncovered: [], ok: true, blind: [] }, 0, []));
+  const plainLeaked = plainText.includes('app_config_service.dart');
+  check('孪生：不是盲区 ⇒ 不印那条 why', !plainLeaked, plainLeaked ? '漏印了' : '没漏');
 
   // --- 探测器层 ---
   // ⚠️ 样本必须**包含探测器要的每一个对象**（结构体定义 ＋ 字段 ＋ 落盘点）——
