@@ -257,6 +257,11 @@ class CapabilityTools {
       );
     }
     await _ensureAccessibilityService();
+    // ⚠️⚠️ **越界先拦** —— 派发 API 对越界坐标照样回「派发成功」
+    // ⇒ ⇒ 界面不动 ⇒ ⇒ **失败长得像成功**（2026-11-10 真机实测）。
+    await _ensureOnScreen('tap', <Map<String, double>>[
+      <String, double>{'x': x, 'y': y},
+    ]);
     final ok = await _a11y.tap(x, y);
     if (!ok) {
       throw await _notDispatched('tap gesture');
@@ -274,6 +279,9 @@ class CapabilityTools {
       );
     }
     await _ensureAccessibilityService();
+    await _ensureOnScreen('long-press', <Map<String, double>>[
+      <String, double>{'x': x, 'y': y},
+    ]);
     final ok = await _a11y.longPress(x, y);
     if (!ok) {
       throw await _notDispatched('long-press gesture');
@@ -294,6 +302,12 @@ class CapabilityTools {
     }
     final durationMs = _parseLimit(args['duration_ms'], 300);
     await _ensureAccessibilityService();
+    // ⚠️⚠️ **两端都要在屏内** —— 真机实测：起点 y=3084 而屏高 2400
+    // ⇒ ⇒ 派发成功但界面一动不动 ⇒ ⇒ **失败长得像成功**。
+    await _ensureOnScreen('swipe', <Map<String, double>>[
+      <String, double>{'x': x1, 'y': y1},
+      <String, double>{'x': x2, 'y': y2},
+    ]);
     final ok = await _a11y.swipe(x1, y1, x2, y2, durationMs);
     if (!ok) {
       throw await _notDispatched('swipe gesture');
@@ -374,6 +388,38 @@ class CapabilityTools {
       if (action.wire == raw) return action;
     }
     return null;
+  }
+
+  /// **坐标在不在屏幕内** —— 越界 ⇒ ⇒ **派发之前**就拦下来。
+  ///
+  /// ⚠️⚠️ **为什么必须拦**（2026-11-10 真机实测）：
+  /// Android 的手势派发 API 对**越界坐标**照样回「派发成功」
+  /// ⇒ ⇒ 实测滑动起点 `y=3084` 而屏幕只有 2400 高
+  /// ⇒ ⇒ 派发成功 ⇒ ⇒ **界面一动不动**
+  /// ⇒ ⇒ ⇒ 症状：**失败长得像成功** ⇒ ⇒ 模型以为滑过了
+  /// ⇒ ⇒ ⇒ 接着照着**旧**的语义树判断 ⇒ ⇒ 坐标全歪。
+  ///
+  /// ⚠️⚠️ **越界是「模型算错坐标」的最常见形态** —— 树里给的 bounds
+  /// ⇒ ⇒ 有时是**另一个窗口**的（多屏/分屏）⇒ ⇒ 换算到整屏就跑到屏外了。
+  /// ⇒ ⇒ 所以这一层**必须**有 ⇒ ⇒ 否则这类错误**静悄悄**。
+  ///
+  /// ⚠️ 拿不到屏幕尺寸 ⇒ ⇒ **不拦**（宁可放过，不误杀）⇒ ⇒ 与原生那层同一口径。
+  Future<void> _ensureOnScreen(String what, List<Map<String, double>> points) async {
+    final Map<String, double>? size = await AccessibilityController.screenSize();
+    if (size == null) return;
+    final double w = size['width']!;
+    final double h = size['height']!;
+    for (final Map<String, double> p in points) {
+      final double x = p['x']!;
+      final double y = p['y']!;
+      if (x < 0 || y < 0 || x > w || y > h) {
+        throw StateError(
+          'the $what was rejected: the point (${x.round()},${y.round()}) is '
+          'outside the screen (0..${w.round()} x 0..${h.round()}) — '
+          'it would have been dispatched but had no effect',
+        );
+      }
+    }
   }
 
   /// 「派发不出去」的**真因** —— 说清是「没派发」还是「服务没连上」。

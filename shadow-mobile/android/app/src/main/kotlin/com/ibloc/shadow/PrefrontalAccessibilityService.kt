@@ -27,8 +27,40 @@ class PrefrontalAccessibilityService : AccessibilityService() {
         AppLog.d(TAG, "PrefrontalAccessibilityService destroyed")
     }
 
+    /// **屏幕尺寸**（物理像素）—— 用来判「这个坐标在不在屏内」。
+    ///
+    /// ⚠️⚠️ **为什么需要它**（2026-11-10 真机实测）：
+    /// 手势派发 API 对**越界坐标**照样回 `dispatched=true`
+    /// ⇒ ⇒ 实测滑动起点 `y=3084` 而屏幕只有 2400 高
+    /// ⇒ ⇒ 派发「成功」⇒ ⇒ **界面一动不动**
+    /// ⇒ ⇒ ⇒ 症状：**失败长得像成功**（模型以为滑过了 ⇒ ⇒ 接着照着旧树判断）
+    /// ⇒ ⇒ ⇒ 所以派发**之前**先判坐标在不在屏内 ⇒ ⇒ 越界就**明确失败并说清原因**。
+    ///
+    /// ⚠️ **多屏**：这里取的是**默认屏**（display 0）⇒ ⇒ 与手势派发去的那块屏一致
+    /// ⇒ ⇒ 口径对得上 ⇒ ⇒ 不会误杀。
+    fun screenSize(): Pair<Int, Int> {
+        val dm = resources.displayMetrics
+        return Pair(dm.widthPixels, dm.heightPixels)
+    }
+
+    /// **这个点在不在屏内** —— 越界 ⇒ ⇒ 不许派发。
+    ///
+    /// ⚠️ 边界**含**等号（点正好在屏幕右/下边缘上算**在**屏内）
+    /// ⇒ ⇒ 因为 Android 自己就是这么判的 ⇒ ⇒ 别自己造一个更严的口径。
+    fun isPointOnScreen(x: Float, y: Float): Boolean {
+        val (w, h) = screenSize()
+        if (w <= 0 || h <= 0) return true   // ⚠️ 量不到尺寸 ⇒ ⇒ **不许**拦（宁可放过，不误杀）
+        return x >= 0f && y >= 0f && x <= w.toFloat() && y <= h.toFloat()
+    }
+
     fun performTap(x: Float, y: Float): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return false
+        if (!isPointOnScreen(x, y)) {
+            // ⚠️⚠️ **越界 ⇒ ⇒ 明确失败** —— 而不是派发出去再让调用方以为成功了
+            val (w, h) = screenSize()
+            AppLog.d(TAG, "performTap: ($x,$y) REJECTED off-screen (screen=${w}x$h)")
+            return false
+        }
         val path = Path().apply { moveTo(x, y) }
         val stroke = GestureDescription.StrokeDescription(path, 0, TAP_DURATION_MS)
         val gesture = GestureDescription.Builder().addStroke(stroke).build()
@@ -43,6 +75,11 @@ class PrefrontalAccessibilityService : AccessibilityService() {
 
     fun performLongPress(x: Float, y: Float): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return false
+        if (!isPointOnScreen(x, y)) {
+            val (w, h) = screenSize()
+            AppLog.d(TAG, "performLongPress: ($x,$y) REJECTED off-screen (screen=${w}x$h)")
+            return false
+        }
         val path = Path().apply { moveTo(x, y) }
         val stroke = GestureDescription.StrokeDescription(path, 0, LONG_PRESS_DURATION_MS)
         val gesture = GestureDescription.Builder().addStroke(stroke).build()
@@ -53,6 +90,13 @@ class PrefrontalAccessibilityService : AccessibilityService() {
 
     fun performSwipe(x1: Float, y1: Float, x2: Float, y2: Float, durationMs: Long): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return false
+        // ⚠️⚠️ **两端都要在屏内** —— 起点越界 ⇒ ⇒ 派发「成功」但界面不动
+        // ⚠️⚠️ （2026-11-10 真机实测：起点 y=3084 而屏高 2400 ⇒ ⇒ 什么都没发生）
+        if (!isPointOnScreen(x1, y1) || !isPointOnScreen(x2, y2)) {
+            val (w, h) = screenSize()
+            AppLog.d(TAG, "performSwipe: ($x1,$y1)->($x2,$y2) REJECTED off-screen (screen=${w}x$h)")
+            return false
+        }
         val path = Path().apply {
             moveTo(x1, y1)
             lineTo(x2, y2)

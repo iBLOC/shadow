@@ -196,6 +196,20 @@ class MainActivity : FlutterActivity() {
                         )
                     }
                 }
+                "getScreenSize" -> {
+                    // ⚠️ **屏幕尺寸**（物理像素）—— 用来判「坐标在不在屏内」。
+                    //
+                    // ⚠️⚠️ 为什么需要它（2026-11-10 真机实测）：手势派发 API 对**越界坐标**
+                    // ⇒ ⇒ 照样回「派发成功」⇒ ⇒ 实测滑动起点 y=3084 而屏高 2400
+                    // ⇒ ⇒ ⇒ 派发成功但**界面一动不动** ⇒ ⇒ **失败长得像成功**
+                    // ⇒ ⇒ ⇒ 所以派发**之前**先判坐标在不在屏内 ⇒ ⇒ 越界就**明确失败**。
+                    //
+                    // ⚠️ 口径：**默认屏**（display 0）⇒ ⇒ 与手势派发去的那块屏一致。
+                    withAccessibilityService(result) { svc ->
+                        val (w, h) = svc.screenSize()
+                        mapOf("width" to w.toDouble(), "height" to h.toDouble())
+                    }
+                }
                 "setDeviceActionsAllowed" -> {
                     // ⚠️ **把「手机操作」那一档推给原生侧** ⇒ ⇒
                     // 原生那两个平行面（HTTP `/api/mobile/action`、A2A 的

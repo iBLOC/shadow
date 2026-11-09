@@ -123,12 +123,56 @@ void main() {
       // ---- ② 滑 ----
       // ⚠️ **照着树给的坐标滑** —— 这正是模型会做的事 ⇒ ⇒
       // ⇒ ⇒ 顺带证明「树里的整屏坐标」对**手势**也成立（不只是对点击）。
-      final int anchor = beforeItems.reduce((int a, int b) => a > b ? a : b);
-      final Rect? anchorBounds = _boundsOfItem(before.text, anchor);
-      expect(anchorBounds, isNotNull, reason: '初始那一项没有 bounds ⇒ ⇒ 树读得不对');
-      final double x = anchorBounds!.center.dx;
+      //
+      // ⚠️⚠️ **锚点必须挑「屏内」的那一项**（2026-11-10 真机实测踩出来的）：
+      //   树里**会**出现屏外的项（列表只渲染可见部分，但语义树里仍有它们的 bounds）
+      //   ⇒ ⇒ 挑「编号最大」的那一项 ⇒ ⇒ 它的 bottom 落在**屏幕之外**
+      //   ⇒ ⇒ 实测起点 y=3084 而屏高只有 2400 ⇒ ⇒ 手势派发 API 照样回
+      //   「dispatched=true」⇒ ⇒ **界面一动不动** ⇒ ⇒ **失败长得像成功**。
+      //   ⇒ ⇒ ⇒ 模型真正的做法是「挑一个**看得见**的项」⇒ ⇒ 尺子也该这么挑。
+      final Map<String, double>? screen = await AccessibilityController.screenSize();
+      expect(
+        screen,
+        isNotNull,
+        reason: '原生量不到屏幕尺寸 ⇒ ⇒ 这一轮不成立 ⇒ ⇒ '
+            '没法判断哪个项在屏内（也就没法挑一个有效的滑动锚点）',
+      );
+      final double screenH = screen!['height']!;
+      final double screenW = screen['width']!;
+
+      // ⚠️ **选屏内那一项** —— 优先编号大（更靠下 ⇒ ⇒ 滑起来变化更明显），
+      //   但**必须**完整落在屏幕内。
+      int anchor = -1;
+      Rect? anchorBounds;
+      final List<int> ordered = beforeItems.toList()..sort();
+      for (final int idx in ordered.reversed) {
+        final Rect? b = _boundsOfItem(before.text, idx);
+        if (b == null) continue;
+        if (b.top >= 0 && b.bottom <= screenH && b.left >= 0 && b.right <= screenW) {
+          anchor = idx;
+          anchorBounds = b;
+          break;
+        }
+      }
+      expect(
+        anchor >= 0,
+        isTrue,
+        reason: '树里一个**完整落在屏内**的项都没有 ⇒ ⇒ 这一轮不成立 ⇒ ⇒ '
+            '（屏幕 ${screenW.round()}x${screenH.round()}）',
+      );
+      // ⚠️⚠️ **断言锚点真的在屏内** —— 不许派发屏外坐标
+      // ⇒ ⇒ 越界手势会「派发成功但没效果」⇒ ⇒ 那是假绿。
+      expect(
+        anchorBounds!.bottom <= screenH,
+        isTrue,
+        reason: '锚点 bottom=${anchorBounds.bottom} 超出屏高 $screenH ⇒ ⇒ '
+            '这一轮会把屏外坐标派发出去 ⇒ ⇒ 派发会「成功」但界面不动',
+      );
+      final double x = anchorBounds.center.dx;
       final double yFrom = anchorBounds.bottom - 4;
       final double yTo = origin.y + 8;
+      // ignore: avoid_print
+      print('--- SCROLL ANCHOR --- item=$anchor bounds=$anchorBounds screen=${screenW.round()}x${screenH.round()}');
       for (var i = 0; i < 5; i++) {
         await CapabilityTools().swipe(<String, dynamic>{
           'x1': x,
@@ -158,9 +202,28 @@ void main() {
       );
 
       // ---- ④ 照着新树里的坐标点**新出现的那一项** ----
-      final int target = fresh.reduce((int a, int b) => a > b ? a : b);
-      final Rect? bounds = _boundsOfItem(after.text, target);
-      expect(bounds, isNotNull, reason: '新出现的那一项没有 bounds');
+      // ⚠️⚠️ **同样必须挑「屏内」的那一项**（2026-11-10 真机实测）：
+      //   滑完之后树里**仍会**有屏外的项 ⇒ ⇒ 挑「编号最大」⇒ ⇒ 它的
+      //   中心在屏幕之外（实测 (540,2312) 而屏高 2296）⇒ ⇒ 点不到。
+      //   ⇒ ⇒ ⇒ 这一步**由新的越界判据当场拦住**（那把闸第一次在真机上抓住真因）
+      //   ⇒ ⇒ ⇒ 但我们要的是**点中**，不是「被拦住」⇒ ⇒ 所以尺子要挑屏内的项。
+      int target = -1;
+      Rect? bounds;
+      final List<int> freshOrdered = fresh.toList()..sort();
+      for (final int idx in freshOrdered.reversed) {
+        final Rect? b = _boundsOfItem(after.text, idx);
+        if (b == null) continue;
+        if (b.top >= 0 && b.bottom <= screenH && b.left >= 0 && b.right <= screenW) {
+          target = idx;
+          bounds = b;
+          break;
+        }
+      }
+      expect(
+        target >= 0,
+        isTrue,
+        reason: '新出现的项里**没有一个完整落在屏内** ⇒ ⇒ 这一轮不成立',
+      );
       final int tapsBefore = _taps[target] ?? 0;
       await CapabilityTools().tap(<String, dynamic>{
         'x': bounds!.center.dx,

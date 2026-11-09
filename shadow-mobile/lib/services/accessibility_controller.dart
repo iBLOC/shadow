@@ -224,6 +224,36 @@ class AccessibilityController {
     }
   }
 
+  /// **屏幕尺寸**（物理像素，宽 × 高）—— null ＝ 拿不到。
+  ///
+  /// ⚠️⚠️ **为什么需要它**（2026-11-10 真机实测）：
+  /// 手势派发 API 对**越界坐标**照样回「派发成功」
+  /// ⇒ ⇒ 实测滑动起点 `y=3084` 而屏幕只有 2400 高
+  /// ⇒ ⇒ 派发成功 ⇒ ⇒ **界面一动不动**
+  /// ⇒ ⇒ ⇒ 症状：**失败长得像成功**（模型以为滑过了 ⇒ ⇒ 接着照着旧树判断）
+  /// ⇒ ⇒ ⇒ 所以派发**之前**先拿屏幕尺寸判坐标在不在屏内。
+  ///
+  /// ⚠️ 口径与原生派发**同一块屏**（默认屏 display 0）⇒ ⇒ 不会误杀。
+  /// ⚠️ 拿不到就回 null ⇒ ⇒ 调用方**不拦**（宁可放过，不误杀）。
+  static Future<Map<String, double>?> screenSize() async {
+    if (!isSupported) return null;
+    try {
+      final result =
+          await _channel.invokeMethod<Map<dynamic, dynamic>>(
+        'getScreenSize',
+      );
+      if (result == null) return null;
+      final double? w = (result['width'] as num?)?.toDouble();
+      final double? h = (result['height'] as num?)?.toDouble();
+      if (w == null || h == null) return null;
+      return <String, double>{'width': w, 'height': h};
+    } on MissingPluginException {
+      return null;
+    } on PlatformException {
+      return null;
+    }
+  }
+
   /// 在当前前台窗口中查找包含 [text] 的节点并执行点击
   /// 用于按文案点击控件（如「确定」「发送」）
   static Future<bool> findAndClickByText(String text) async {
