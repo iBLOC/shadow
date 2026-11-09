@@ -7,6 +7,7 @@
     "dev": "vite",
     "dev:web": "vite --config vite.config.web.ts",
     "test:api": "node tests/api-contract/scrape-endpoints.mjs && vitest run --config vitest.api.config.ts",
+    "test:ci-env": "node scripts/vitest-ci-env.mjs",
     "prebuild": "pnpm test:api",
     "prebuild:web": "pnpm test:api",
     "build": "tsc -b && vite build",

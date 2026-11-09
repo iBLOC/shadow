@@ -2,34 +2,41 @@ import { expect, afterEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import '@testing-library/jest-dom';
 
-// jsdom (≥ 20) does not auto-expose `localStorage` as a global; tests that
-// reference the bare `localStorage` identifier throw `localStorage.clear is
-// not a function`. Wire the jsdom storage into globalThis once at setup so
-// every test file gets a working Storage instance.
-if (typeof globalThis.localStorage === 'undefined' || typeof globalThis.localStorage?.clear !== 'function') {
-  if (typeof window !== 'undefined' && typeof window.localStorage?.clear === 'function') {
-    Object.defineProperty(globalThis, 'localStorage', {
-      value: window.localStorage,
-      writable: true,
-      configurable: true,
-    });
-  } else {
-    // Last-resort in-memory stub so the identifier resolves and `.clear()` exists.
-    const store: Record<string, string> = {};
-    // ⚠️ `Storage.length` 是**只读**属性 ⇒ ⇒ 直接 `stub.length = …` 报 TS2540
-    //   ⇒ ⇒ 改用 **getter**（长度实时算）⇒ ⇒ 读出来的值一样
-    //   ⇒ ⇒ 且不再需要「手动同步 length」这种**容易漏**的写法。
-    const stub: Storage = {
-      get length() { return Object.keys(store).length; },
-      clear: () => { for (const k of Object.keys(store)) delete store[k]; },
-      getItem: (k) => store[k] ?? null,
-      key: (i) => Object.keys(store)[i] ?? null,
-      removeItem: (k) => { delete store[k]; },
-      setItem: (k, v) => { store[k] = String(v); },
-    };
-    Object.defineProperty(globalThis, 'localStorage', { value: stub, writable: true, configurable: true });
-  }
-}
+// ⚠️⚠️ **环境自带对象不许进判据** —— 这一段**原来**写成「运行时自带能用就用、
+// 不能用才造一个」⇒ ⇒ 于是**判据读到的 storage 形状由运行时决定**：
+// · 本机（Node 25 自带 webstorage）⇒ ⇒ `globalThis.localStorage` 是个**半残**的
+//   原生对象（`clear` 不是函数）⇒ ⇒ 落到兜底分支 ⇒ ⇒ **plain object**
+//   （`setItem` 是 own property ⇒ ⇒ `vi.spyOn` 能拦住）。
+// · CI（Node 24 没有原生 localStorage）⇒ ⇒ 落到 jsdom 分支 ⇒ ⇒ jsdom 的
+//   `localStorage` 是**Proxy**（为支持 `storage.foo` 这种命名属性）⇒ ⇒ 它的
+//   `get` trap 直接返回**原型方法**⇒ ⇒ 你 `vi.spyOn(storage, 'setItem')` 装在
+//   target 上的 own property **被绕过**⇒ ⇒ **「mock 装上了」≠「mock 生效了」**
+//   ⇒ ⇒ 那条用例在 CI 上其实在跑「真存进去了」⇒ ⇒ 断言 `ok=false` 红。
+//
+// ⇒ ⇒ 修法：**无条件**装一份**形状固定**的替身（不引用运行时自带的对象）⇒ ⇒
+//     每个测试文件读到的都是同一个东西（plain object ⇒ ⇒ own property ⇒ ⇒
+//     spy 能拦住、能替换）⇒ ⇒ **本机与 CI 读的是同一个东西**⇒ ⇒ 「本机绿」
+//     才可能是「CI 绿」。
+//
+// ⚠️ `Storage.length` 是**只读**属性 ⇒ ⇒ 直接 `stub.length = …` 报 TS2540
+//   ⇒ ⇒ 改用 **getter**（长度实时算）⇒ ⇒ 读出来的值一样
+//   ⇒ ⇒ 且不再需要「手动同步 length」这种**容易漏**的写法。
+const store: Record<string, string> = {};
+const deterministicStorage: Storage = {
+  get length() { return Object.keys(store).length; },
+  clear: () => { for (const k of Object.keys(store)) delete store[k]; },
+  getItem: (k) => store[k] ?? null,
+  key: (i) => Object.keys(store)[i] ?? null,
+  removeItem: (k) => { delete store[k]; },
+  setItem: (k, v) => { store[k] = String(v); },
+};
+// ⚠️ `configurable: true` ⇒ ⇒ 测试自己 `vi.stubGlobal('localStorage', …)` 时
+//   才改得动 ⇒ ⇒ 否则「替身」会反过来把用例钉死。
+Object.defineProperty(globalThis, 'localStorage', {
+  value: deterministicStorage,
+  writable: true,
+  configurable: true,
+});
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn().mockResolvedValue([]),
