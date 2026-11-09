@@ -1,0 +1,54 @@
+name: Commit Import Integrity
+
+# ⚠️ **它守的是什么** —— 「**提交树自足性**」：提交树里每一条**相对 import**
+#   都必须解析得到**树内真实存在的文件**。
+#
+#   2026-11-11 真 CI 实测（head a5a8b5d）：主 CI 的 **Desktop Build** 与
+#   **Desktop Tests** 双红 ＋ **E2E Typecheck** 红 —— 三个红灯，**同一个根因**：
+#   并行会话的 `6ea630a` 把引用方 `src/pages/SettingsPage.tsx` 提交了，
+#   而它 `import ... from '../lib/chatBackground'` 指的那个模块**从未进提交树**
+#   ⇒ ⇒ **提交树自相矛盾** ⇒ ⇒ 编译不过。
+#
+# ⚠️ 而这一格此前**只由 CI 的 tsc / vitest / vite 顺带回答** ⇒ ⇒ 要等整套工具链
+#   装好、跑起来才暴露 ⇒ ⇒ **红灯已经是既成事实**了。
+#   ⇒ ⇒ 这把闸把它提前：提交树里有悬空 import，当场红 ⇒ ⇒ 不用等三个 workflow 各红一次。
+#
+# ⚠️ **为什么单独成文件**（与 blank-blob-history.yml / ci-actually-ran.yml 同理）：
+#   ci.yml 是**共享文件**（并行会话在飞）⇒ ⇒ 独立成文件 ⇒ ⇒ 接线面**零共享**。
+#
+# ⚠️ **量的是提交树，不是工作树** ⇒ ⇒ 量的是「CI 真的会编译的那一面」。
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  commit-import-integrity:
+    name: Commit Import Integrity
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout shadow
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      # ⚠️ **自检先跑** —— 证明这把尺子在 CI 上**真的会红**（在合成的小树上造真形状）。
+      - name: Commit import integrity check (self-test)
+        run: node scripts/check-commit-import-integrity.mjs --self-test
+
+      # ⚠️ 这一步量的是 **HEAD 的提交树** ⇒ ⇒ ＝ CI 真的会编译的那一面。
+      - name: Commit import integrity check
+        run: node scripts/check-commit-import-integrity.mjs
