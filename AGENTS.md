@@ -1,3 +1,61 @@
+**Updated**: 2026-11-11 (㒸 **「文本模型这一档，写进『能力默认』等于没写 —— 而真正改路由的是同一页上的另一张卡」** —— 承 U+34AD 条（分档默认能指向一个这台大脑根本没有的引擎）＋ U+34B4 条（把判断抽成纯函数），本条记**取证（odin 真机逐条读数）**、**第一因（llm 档没有任何消费者）**、**第二因（两张同名表、不同物）**、**第三因（同一页两张模型卡 ⇒ 其中一张是死槽）**、**这一刀的落点**、**途中那几课**、**判据**、**分级读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真机级实测（odin ee6b4832 · MIUI 14 / Android 13 · 端脑面逐条 HTTP 读数 ＋ 端脑/neuron 源码取证 ＋ 移动端/桌面端客户端源码取证）｜ 改动：父仓 **新增** `scripts/prove-llm-tier-on-device.ps1`（UTF-8 BOM · 零产品代码）｜ 读数：真机探针 **EXIT=0**（写 llm 档 ⇒ 200 且落点生效、**但三个叶区的 `default_model` 仍是 `null`**；走 `POST /lobes/models` ⇒ 200 `applied` 三叶区同时变更；复原复核通过 ＋ 重启后 `defaults` 仍 `{}` ⇒ ⇒ **零残留**）| status=active | supersedes=none
+
+① **⚠️ 取证：odin 上「llm（文本）这一档」到底有没有消费点**
+　❶ 上一条（U+34AD）把分档默认那张表的**门与收口**量清楚了，但没量**谁在读它** ⇒ ⇒ 本条问的是最后一格：**写进去之后，路由真的变了吗**。
+　❷ 真机基线：`GET /api/telencephalon/lobes/list` ⇒ ⇒ 三个叶区 `default_model` **全是 `null`**；`GET /api/telencephalon/lobes/runtime/prefrontal` ⇒ ⇒ `default_model` 也 `null`；`GET /lobes/capability-defaults` ⇒ ⇒ `defaults` 为 `{}`。
+　❸ **写 llm 档**：`PUT /lobes/capability-defaults` 体 `{"defaults":{"llm":"probe-llm-xyz"}}` ⇒ ⇒ **HTTP 200**，且 GET 回来 `defaults` 里 `llm` **逐字在** ⇒ ⇒ **写入成功、读得回来**。
+　❹ **但路由一点没动**：`GET /lobes/list` ⇒ ⇒ 三个叶区 `default_model` **仍是 `null`**（体长 1049 → 1049）；`GET /lobes/runtime/prefrontal` ⇒ ⇒ **仍是 `null`**（体长 344 → 344）⇒ ⇒ ⇒ **写进去了、看得见、但对「用哪个模型」零影响**。
+　❺ **真正的路由面**：`POST /api/telencephalon/lobes/models` 体 `{"default_model":"probe-llm-xyz"}` ⇒ ⇒ **HTTP 200** `{"default_model":"probe-llm-xyz","applied":{"parietal":"probe-llm-xyz","prefrontal":"probe-llm-xyz","temporal":"probe-llm-xyz"},"overrides":{},"unknown":[],"registered":0}` ⇒ ⇒ `GET /lobes/list` 的 `default_model` **三个叶区同时变成 `probe-llm-xyz`**（体长 1049 → 1082）⇒ ⇒ ⇒ **这才是改路由的那条路**。
+　❻ **复原**：`POST /lobes/models` 体 `{"default_model":null}` ⇒ ⇒ `applied` 三叶区全回 `null`；`PUT /lobes/capability-defaults` 体 `{"defaults":{}}` ⇒ ⇒ `defaults` 回 `{}`；**重启 app 后 `defaults` 仍 `{}`** ⇒ ⇒ **零残留**。
+
+② **⚠️ 第一因：`llm` 这一档**没有任何消费者**（源码取证）**
+　❶ 端脑里读「某一档的默认模型」的地方**只有一处**：`api/voice.rs` 的 `select_asr`（读 `Capability::Asr`）与 `select_tts`（读 `Capability::Tts`）⇒ ⇒ **只有 asr/tts 两档有消费者**。
+　❷ 而 `llm` 档的路由走**完全另一套**：`native_lobes` 的 `global_default_model()` ＋ `replace_lobe_model_overrides(..)`（由 `POST /lobes/models` 下发），落在 **native_lobes**，**不在** `lobe_cache.capability_defaults` 里 ⇒ ⇒ **两张表同名不同物**。
+　❸ ⇒ ⇒ ⇒ **通用形态：一张配置表里的某一格有没有用，取决于「谁在读它」⇒ ⇒ 而表自己不会说** ⇒ ⇒ 端脑那张表里 `engine_resolved` 只标了 `["asr","tts"]`（按 id 到引擎注册表解析的那两档）⇒ ⇒ ⇒ **`llm` 既不是 engine_resolved、也没有别的消费者 ⇒ ⇒ 它是第三类：路由档 —— 但路由档走的是另一条路**。
+　❹ ⇒ ⇒ 这一格**不是配置错**，是**这张表对 `llm` 这一档没有定义** ⇒ ⇒ **产品待定**（见 ⑨）。
+
+③ **⚠️ 第二因：两张同名表、不同物 —— 名字里都带「默认模型」**
+　❶ `lobe_cache.capability_defaults`（能力档 → 模型 id）⇒ ⇒ **只有 asr/tts 被读**。
+　❷ `native_lobes` 的 global default ＋ per-lobe 覆盖（叶区 → 模型 id）⇒ ⇒ **这才是真正决定「哪个叶区用哪个模型」的那张表**。
+　❸ ⇒ ⇒ **同名两张表 ⇒ 读的人会以为是一张** ⇒ ⇒ 而端脑的 HTTP 面把它们挂在**同一个前缀**下（`/lobes/capability-defaults` 与 `/lobes/models`）⇒ ⇒ ⇒ **光看路径看不出一个死一个活**。
+
+④ **⚠️ 第三因：同一页上两张「模型」卡 ⇒ ⇒ 其中一张是死槽**
+　❶ 移动端设置页**同时**有：「**按能力分档的默认模型**」（l10n `capabilityDefaultsTitle`，提示语「**文本** / 语音识别 / 语音合成 各自一个默认模型；不指定就由端脑自己挑。」）＋「**叶区模型路由**」（`encephalonLobeRoutingTitle`）⇒ ⇒ ⇒ **用户在同一个页面里能设两个「文本模型」**。
+　❷ 而按 ② 的读数：**前者那一档（文本）写进死槽** ⇒ ⇒ 后者（叶区路由）才生效 ⇒ ⇒ ⇒ **用户把「文本模型」切到某个云端模型，界面显示已切，实际跑的还是老模型** ⇒ ⇒ **失败长得像成功**（正是 `lobe_runtime.rs` 注释里那句老话：「客户端界面显示『已切到云端』，实际还在跑老模型」—— 而它防的是 `config["model_id"]` 覆盖，**不是**这一条）。
+　❸ 桌面端同理：`src/components/business/CapabilityDefaultsCard.tsx` ＋ `src/lib/capabilityDefaults.ts` ⇒ ⇒ **同一个洞在两端都在**。
+　❹ ⇒ ⇒ **通用形态：「同一个概念有两处入口」⇒ ⇒ 其中一处若没接上，用户永远不知道** ⇒ ⇒ 而**界面不会说「这一档是死的」** ⇒ ⇒ ⇒ **端脑至少应该说清「哪些档真的会被消费」**（它已经有 `engine_resolved` 这个字段，但 `llm` 既不在里面、也没被标成「路由档」）。
+
+⑤ **✅ 这一刀的落点（1 个文件 ＋ 零产品代码）**
+　❶ **新增 `scripts/prove-llm-tier-on-device.ps1`**（UTF-8 BOM）：起 app → logcat 取端口 → adb forward → 取两把钥匙（**不打印**）→ **读两个面**（配置面 `capability-defaults` ＋ 路由面 `lobes/list` / `lobes/runtime/{name}`）→ 写 llm 档 → 复核路由面 → 走真正的路由面 → 复核 → **两处都复原** → **重启再复核**。
+　❷ **零产品代码改动** —— 这一刀只加尺子，不动被测物。
+
+⑥ **⚠️ 途中那几课**
+　❶ **「改路由」与「改默认」不是同一条路** ⇒ ⇒ 读数必须**同时看两个面**：只读配置面会得出「生效了」的结论，只读路由面会得出「没生效」却不知道配置面发生了什么 ⇒ ⇒ **两个面都要读**（本条：配置面 `defaults` 变了、路由面 `default_model` 没变 ⇒ ⇒ **这一对读数才是那格的真答案**）。
+　❷ **复原要**两处**都复原**：能力档那张表（`capability-defaults`）**和**路由那张表（`lobes/models` 的 global default）⇒ ⇒ 只复原一处 ⇒ ⇒ 下一轮读到的基线就是被自己污染的基线 ⇒ ⇒ **本条复原顺序：先 `lobes/models` 回 `null`、再 `capability-defaults` 回 `{}`、最后重启复核**。
+　❸ **真机上「app 启动时会自己下发路由」** ⇒ ⇒ logcat 里那行「✅ model routing set (54 bytes)」⇒ ⇒ 所以**重启是最后一道复原**（app 会把自己的路由重新下发一遍）⇒ ⇒ 而**分档默认那张表没人下发** ⇒ ⇒ ⇒ 它**只活在内存里** ⇒ ⇒ **重启后必回 `{}`** ⇒ ⇒ **这一格在手机上根本存不住**（客户端 l10n 里那句 `capabilityDefaultsAppliedButNotCached`＝「已下发到大脑，但本地副本没存住 —— 重启后这一档会回到默认」正是这同一件事的客户端侧说法）。
+
+⑦ **✅ 判据与分级读数（全部实测）**
+　❶ **真机级（本条主读数）**：odin 上 llm 档探针 **EXIT=0**；写 llm 档 ⇒ 200 ＋ 落点生效，**而三个叶区 `default_model` 仍 `null`**；`POST /lobes/models` ⇒ 200 ＋ 三叶区同时变更；**两处复原复核通过** ＋ **重启后 `defaults` 仍 `{}`** ⇒ ⇒ **零残留**。
+　❷ **源码级（归因）**：`capability_default(..)` 的消费者**只有** `api/voice.rs`（asr/tts）⇒ ⇒ llm 档无消费者；llm 路由落在 `native_lobes`（`global_default_model` ＋ per-lobe 覆盖）。
+　❸ **客户端级（谁在用那张表）**：移动端「按能力分档的默认模型」卡（含**文本**这一档）与「叶区模型路由」卡**同页并存**；桌面端 `CapabilityDefaultsCard.tsx` 同理。
+　❹ **判据级**：`node scripts/check-ledger-codepoints.mjs` 三面零违规；`node scripts/check-ps1-portability.mjs` 28 个 `.ps1` 全绿；`node scripts/check-state-surface.mjs` 零违规；`node scripts/check-gate-discipline.mjs` 零违规；`node scripts/check-commit-revert.mjs` 零静悄悄回退。
+　❺ **圈码级**：插前**独立重扫 12 面**（父仓工作树 ∪ 索引 ∪ HEAD ∪ origin/master × 三本账本，官方 `extractEntries`，声明与提及分开）⇒ ⇒ 读数：**12 面全部可读**、**最高已声明 U+34B5**、**U+34B7 声明 0 次 / 提及 4 次**（已被明写预留 ⇒ ⇒ 让开）⇒ ⇒ **本条取 U+34B8**。
+
+⑧ **⚠️ 圈码：本条占 U+34B8（㒸）**
+　❶ 插前**独立重扫**（父仓工作树 ∪ 父仓索引 ∪ 父仓 HEAD ∪ 父仓 origin/master × **三本账本**，按**声明形状**扫、**声明与提及分开**、码位按**十六进制**计）⇒ ⇒ 读数：**12 面全部可读（unreadable=0）**、**已声明最高 U+34B5（㒵）**、**U+34B6 与 U+34B7 声明 0 次 / 提及各 >0**（都被明写预留 ⇒ ⇒ 让开）⇒ ⇒ **U+34B8 声明 0 次 / 提及 0 次** ⇒ ⇒ **本条取 U+34B8（㒸）**。
+　❷ ⚠️ **按上一条自己的教训，这里不写「下一枚可取 ＝ X」** ⇒ ⇒ 「让开位也会被占」（U+34B4 那个让开位就被别人声明了）⇒ ⇒ **取号时别抄台账里的数字，自己当场扫 12 面**。
+　❸ ⇒ ⇒ 本条**只引用已提交的码位**（U+34AD／U+34B4）⇒ ⇒ ⚠️ **插完立刻复跑码位闸**是硬约束。
+
+⑨ **⚠️ 仍然欠着的**
+　❶ **`llm` 档要不要接上，是**产品决定**：要么端脑让 `llm` 档**真的被消费**（比如 `select_llm` 那一格：叶区发请求时按 `capability_default("llm")` 选模型），要么客户端那张卡**去掉文本这一档**（端脑的 `engine_resolved` 已经说了「按 id 到引擎注册表解析」的只有 asr/tts）⇒ ⇒ **本条不替它拍**。
+　❷ **`asr`/`tts` 两档在手机上也落不了地**（承 U+34AD 条：这份产物里没有 TTS 引擎；asr 要用 `candle` 注册才有）⇒ ⇒ ⇒ **「文本 / 语音识别 / 语音合成 各一个默认模型」这张卡，今天只有语音识别这一档在真机上能指到真引擎**。
+　❸ **「agent 声明后谁来按它匹配」仍然没定**（承 U+34AD 条）。
+　❹ **三份能力词表仍然漂着**（承 U+34AD 条），且 `llm` 这一档**连「有没有消费者」都不是按同一套规则判的** ⇒ ⇒ 收词表时得一并把「哪一档由谁消费」写进表的自描述。
+　❺ **端脑仓自身的真 CI 仍然没有读数**（承 U+34A0 条）。
+　❻ 本条探针**只在 odin 一台机型上跑过**（MIUI 14 / Android 13）。
+
 **Updated**: 2026-11-11 (㒵 **「尺子自己的夹具也会互踩 —— 治理闸偶发说『闸自己坏了』，而那道闸单独跑是绿的」** —— 承 U+34B3 条（装上替身 ≠ 替身生效）＋ U+34AE 条（Node 崩掉的退出码是 1，跟「闸判红」一模一样），本条记**取证（治理闸偶发假红）**、**第一因（夹具目录是固定路径 ⇒ ⇒ 并发跑互相删仓）**、**第二因（硬编码绝对路径 ⇒ ⇒ Linux CI 上污染 checkout）**、**第三因（治理闸把「偶发」与「必坏」混为一谈）**、**这一刀的落点**、**途中那几课**、**判据与分级读数**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-11 | authority=measured | scope=project | source=并发注入式实测（三个并发自检 ⇒ ⇒ 退出码 0/1/1）＋ 治理闸全量跑（修前 3 条违规 ⇒ ⇒ 修后零违规）＋ 真 CI 待取｜ 改动：scripts/lib/commit-revert-selftest.mjs（夹具目录改 mkdtemp ＋ try/finally 清理 ＋ 硬编码绝对路径删除）、scripts/check-precommit-hook.mjs（同形改法）｜ 读数：修前 3 并发 ⇒ `0,1,1`；修后 6 并发 ⇒ `0,0,0,0,0,0`；自检 9/9 ＋ 4/4；治理闸 **零违规** | status=active | supersedes=none
