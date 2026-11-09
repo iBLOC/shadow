@@ -37,6 +37,11 @@ import {
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
+// ⚠️ 自检**必须抢在「读文件」的分支之前** ⇒ ⇒ 否则它一进来就撞上读源失败。
+if (process.argv.includes('--self-test')) {
+  selfTest();
+}
+
 /**
  * 生成物清单 —— 与 scripts/gen_tokens.mjs / scripts/gen_nav.mjs 保持一致。
  *
@@ -112,8 +117,164 @@ const readJson = (rel) => JSON.parse(readFileSync(join(ROOT, rel), 'utf8'));
 const readText = (rel) => readFileSync(join(ROOT, rel), 'utf8');
 
 // ─────────────────────────────────────────────────────────────
+// 判据纯函数 + 判据自检（合成夹具 ⇒ ⇒ **不需要两端仓在位**）
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * 判据源在不在位 —— **不在 ⇒ ⇒ 判不了**（不是「没问题」）。
+ *
+ * ⚠️ 以前这些文件是直接 readFileSync 读的 ⇒ ⇒ 缺一个就**抛异常**
+ * ⇒ ⇒ Node 崩掉的退出码是 1 ⇒ ⇒ 与「闸判红」**逐字同形**
+ * ⇒ ⇒ 「源没读全」被写成「真有问题」⇒ ⇒ 现在先查在不在位。
+ */
+function judgeSources(paths) {
+  const missing = (paths || []).filter((p) => !existsSync(join(ROOT, p)));
+  return { missing, verdict: missing.length === 0 ? 'ok' : 'cannot-judge' };
+}
+
+// ─────────────────────────────────────────────────────────────
+// 判据自检 —— 喂合成夹具 ⇒ ⇒ **不需要两端仓在位**
+// ─────────────────────────────────────────────────────────────
+function selfTest() {
+  const cases = [];
+  const add = (name, run) => cases.push({ name, run });
+
+  const surfaceOf = (caps, extra) =>
+    Object.assign({ _meta: { groups: { core: {} } }, capabilities: caps }, extra || {});
+
+  add('清单与两端代码一致 ⇒ ⇒ 零 error', () => {
+    const surface = surfaceOf([
+      { id: 'chat', group: 'core', desktop: { route: '/chat' }, mobile: { route: '/chat' } },
+    ]);
+    const v = judgeSurface(surface, new Set(['/chat']), new Set(['/chat']));
+    return v.errors.length === 0;
+  });
+
+  add('清单声明的桌面路由在代码里不存在 ⇒ ⇒ 恰好 1 条 error 且点名', () => {
+    const surface = surfaceOf([{ id: 'chat', group: 'core', desktop: { route: '/chat' } }]);
+    const v = judgeSurface(surface, new Set(['/other']), new Set([]));
+    return v.errors.length === 1 && v.errors[0].includes('/chat');
+  });
+
+  add('孪生：代码里有路由但清单没登记 ⇒ ⇒ warning（不是 error）', () => {
+    const surface = surfaceOf([]);
+    const v = judgeSurface(surface, new Set(['/drift']), new Set([]));
+    return v.errors.length === 0 && v.warnings.length === 1 && v.warnings[0].includes('/drift');
+  });
+
+  add('容器路由不在移动端路由表 ⇒ ⇒ error', () => {
+    const surface = surfaceOf([], { _containers: { mobile: [{ route: '/hub' }] } });
+    const v = judgeSurface(surface, new Set([]), new Set([]));
+    return v.errors.length === 1 && v.errors[0].includes('/hub');
+  });
+
+  add('legacy 重定向不在移动端路由表 ⇒ ⇒ error', () => {
+    const surface = surfaceOf([], { _legacyRoutes: { mobile: ['/old'] } });
+    const v = judgeSurface(surface, new Set([]), new Set([]));
+    return v.errors.length === 1 && v.errors[0].includes('/old');
+  });
+
+  add('能力 id 重复 ⇒ ⇒ error', () => {
+    const surface = surfaceOf([
+      { id: 'chat', group: 'core' },
+      { id: 'chat', group: 'core' },
+    ]);
+    const v = judgeSurface(surface, new Set([]), new Set([]));
+    return v.errors.some((e) => e.includes('id 重复'));
+  });
+
+  add('能力缺 id ⇒ ⇒ error', () => {
+    const surface = surfaceOf([{ group: 'core' }]);
+    const v = judgeSurface(surface, new Set([]), new Set([]));
+    return v.errors.some((e) => e.includes('缺 id'));
+  });
+
+  add('group 不在 _meta.groups 里 ⇒ ⇒ error', () => {
+    const surface = surfaceOf([{ id: 'chat', group: 'nope' }]);
+    const v = judgeSurface(surface, new Set([]), new Set([]));
+    return v.errors.some((e) => e.includes('_meta.groups'));
+  });
+
+  add('移动端声明的路由不存在 ⇒ ⇒ error', () => {
+    const surface = surfaceOf([{ id: 'chat', group: 'core', mobile: { route: '/m' } }]);
+    const v = judgeSurface(surface, new Set([]), new Set([]));
+    return v.errors.length === 1 && v.errors[0].includes('/m');
+  });
+
+  add('桌面端别名不存在 ⇒ ⇒ error（别名也算「已登记」）', () => {
+    const surface = surfaceOf([{ id: 'chat', group: 'core', desktop: { aliases: ['/alias'] } }]);
+    const v = judgeSurface(surface, new Set([]), new Set([]));
+    return v.errors.length === 1 && v.errors[0].includes('/alias');
+  });
+
+  add('桌面端路由抽取：无前导斜杠的子路由要补成 /xxx', () => {
+    const out = extractDesktopRoutes('<Route path="chat" />\n<Route path="/settings" />');
+    return out.size === 2 && out.has('/chat') && out.has('/settings');
+  });
+
+  add('移动端路由抽取：从 app_router.dart 里抽常量', () => {
+    const out = extractMobileRoutes(
+      "static const String chat = '/chat';\nstatic const String me = '/me';",
+    );
+    return out.size === 2 && out.has('/chat') && out.has('/me');
+  });
+
+  add('hasJsonPath：命中与未命中', () => {
+    const obj = { surface: { chat: 'x' } };
+    return hasJsonPath(obj, 'surface.chat') === true && hasJsonPath(obj, 'surface.nope') === false;
+  });
+
+  add('判据源读不到 ⇒ ⇒ 判不了（不是「没问题」）', () => {
+    return judgeSources(['__不存在的路径__.json']).verdict === 'cannot-judge';
+  });
+
+  add('孪生：判据源都在 ⇒ ⇒ 判得了', () => {
+    return judgeSources(['AGENTS.md']).verdict === 'ok';
+  });
+
+  let bad = 0;
+  for (const c of cases) {
+    let ok = false;
+    try {
+      ok = c.run() === true;
+    } catch (err) {
+      ok = false;
+    }
+    console.log((ok ? '  [PASS] ' : '  [FAIL] ') + c.name);
+    if (!ok) bad += 1;
+  }
+  console.log('  判据自检：' + (cases.length - bad) + '/' + cases.length);
+  if (bad > 0) {
+    console.error('❌ 自检没过 ⇒ 闸门自己不可信');
+    process.exit(1);
+  }
+  console.log('✅ 自检通过');
+  process.exit(0);
+}
+
+// ─────────────────────────────────────────────────────────────
 // 1. 两份共享源本身必须是合法且结构对的
 // ─────────────────────────────────────────────────────────────
+const REQUIRED_SOURCES = [
+  'design-tokens.json',
+  'agent-surface.json',
+  'shadow-desktop/src/App.tsx',
+  'shadow-desktop/src/index.css',
+  'shadow-desktop/src/i18n/en-US.json',
+  'shadow-desktop/src/i18n/zh-CN.json',
+  'shadow-mobile/lib/router/app_router.dart',
+  'shadow-mobile/lib/l10n/app_en.arb',
+  'shadow-mobile/lib/l10n/app_zh.arb',
+  'shadow-mobile/lib/widgets/glass_card.dart',
+];
+
+const sourceVerdict = judgeSources(REQUIRED_SOURCES);
+if (sourceVerdict.verdict === 'cannot-judge') {
+  console.error('❌ 判不了：判据源读不到 ⇒ ⇒ 这一格**没验成**（不是「没问题」）');
+  for (const p of sourceVerdict.missing) console.error('   找不到：' + p);
+  process.exit(2);
+}
+
 let tokens;
 let surface;
 try {
@@ -130,15 +291,17 @@ try {
 }
 
 if (!tokens || !surface) {
-  report();
+  // ⚠️ 共享源读不到/解析失败 ⇒ ⇒ **判不了**（不是「有问题」）⇒ ⇒ 退出码 2。
+  console.error('❌ 判不了：共享源读不到或解析失败 ⇒ ⇒ 这一格**没验成**。');
+  for (const e of errors) console.error('   ' + e);
+  report(2);
 }
 
 // ─────────────────────────────────────────────────────────────
 // 2. 抽两端真实的路由表
 // ─────────────────────────────────────────────────────────────
-/** 桌面端：App.tsx 里 `<Route path="x" ...>`（含无前导斜杠的子路由） */
-function desktopRoutes() {
-  const src = readText('shadow-desktop/src/App.tsx');
+/** 桌面端：App.tsx 里 `<Route path="x" ...>`（含无前导斜杠的子路由）—— 纯函数。 */
+function extractDesktopRoutes(src) {
   const out = new Set();
   const re = /<Route\s+path="([^"]+)"/g;
   let m;
@@ -150,9 +313,8 @@ function desktopRoutes() {
   return out;
 }
 
-/** 移动端：app_router.dart 里 `AppRoutes.xxx = '/path'` 的常量表 */
-function mobileRoutes() {
-  const src = readText('shadow-mobile/lib/router/app_router.dart');
+/** 移动端：app_router.dart 里 `AppRoutes.xxx = '/path'` 的常量表 —— 纯函数。 */
+function extractMobileRoutes(src) {
   const out = new Set();
   const re = /static const String\s+\w+\s*=\s*'([^']+)'/g;
   let m;
@@ -160,8 +322,8 @@ function mobileRoutes() {
   return out;
 }
 
-const dRoutes = desktopRoutes();
-const mRoutes = mobileRoutes();
+const dRoutes = extractDesktopRoutes(readText('shadow-desktop/src/App.tsx'));
+const mRoutes = extractMobileRoutes(readText('shadow-mobile/lib/router/app_router.dart'));
 
 infos.push(
   `桌面端路由 ${dRoutes.size} 条，移动端路由 ${mRoutes.size} 条，清单能力 ${surface.capabilities.length} 条`,
@@ -170,69 +332,81 @@ infos.push(
 // ─────────────────────────────────────────────────────────────
 // 3. 清单 ↔ 两端路由 交叉校验
 // ─────────────────────────────────────────────────────────────
-const declaredDesktop = new Set();
-const declaredMobile = new Set();
-const ids = new Set();
+function judgeSurface(surface, dRoutes, mRoutes) {
+  const errors = [];
+  const warnings = [];
+  const declaredDesktop = new Set();
+  const declaredMobile = new Set();
+  const ids = new Set();
 
-for (const cap of surface.capabilities) {
-  if (!cap.id) {
-    errors.push('能力清单里有条目缺 id');
-    continue;
-  }
-  if (ids.has(cap.id)) errors.push(`能力清单里 id 重复：${cap.id}`);
-  ids.add(cap.id);
+  for (const cap of surface.capabilities) {
+    if (!cap.id) {
+      errors.push('能力清单里有条目缺 id');
+      continue;
+    }
+    if (ids.has(cap.id)) errors.push(`能力清单里 id 重复：${cap.id}`);
+    ids.add(cap.id);
 
-  if (!surface._meta?.groups?.[cap.group]) {
-    errors.push(`能力 ${cap.id} 的 group "${cap.group}" 不在 _meta.groups 里`);
-  }
+    if (!surface._meta?.groups?.[cap.group]) {
+      errors.push(`能力 ${cap.id} 的 group "${cap.group}" 不在 _meta.groups 里`);
+    }
 
-  const d = cap.desktop?.route;
-  const m = cap.mobile?.route;
-  if (d) {
-    declaredDesktop.add(d);
-    if (!dRoutes.has(d)) {
-      errors.push(`能力 ${cap.id} 声明的桌面端路由 "${d}" 在 shadow-desktop/src/App.tsx 里不存在`);
+    const d = cap.desktop?.route;
+    const m = cap.mobile?.route;
+    if (d) {
+      declaredDesktop.add(d);
+      if (!dRoutes.has(d)) {
+        errors.push(`能力 ${cap.id} 声明的桌面端路由 "${d}" 在 shadow-desktop/src/App.tsx 里不存在`);
+      }
+    }
+    for (const alias of cap.desktop?.aliases ?? []) {
+      declaredDesktop.add(alias);
+      if (!dRoutes.has(alias)) {
+        errors.push(`能力 ${cap.id} 声明的桌面端别名 "${alias}" 在 shadow-desktop/src/App.tsx 里不存在`);
+      }
+    }
+    if (m) {
+      declaredMobile.add(m);
+      if (!mRoutes.has(m)) {
+        errors.push(`能力 ${cap.id} 声明的移动端路由 "${m}" 在 shadow-mobile/lib/router/app_router.dart 里不存在`);
+      }
     }
   }
-  for (const alias of cap.desktop?.aliases ?? []) {
-    declaredDesktop.add(alias);
-    if (!dRoutes.has(alias)) {
-      errors.push(`能力 ${cap.id} 声明的桌面端别名 "${alias}" 在 shadow-desktop/src/App.tsx 里不存在`);
+
+  // 容器路由（聚合多个能力的入口）与 legacy 重定向也算「已登记」
+  for (const c of surface._containers?.mobile ?? []) {
+    declaredMobile.add(c.route);
+    if (!mRoutes.has(c.route)) {
+      errors.push(`容器路由 "${c.route}" 在移动端路由表里不存在`);
     }
   }
-  if (m) {
-    declaredMobile.add(m);
-    if (!mRoutes.has(m)) {
-      errors.push(`能力 ${cap.id} 声明的移动端路由 "${m}" 在 shadow-mobile/lib/router/app_router.dart 里不存在`);
+  for (const r of surface._legacyRoutes?.mobile ?? []) {
+    declaredMobile.add(r);
+    if (!mRoutes.has(r)) {
+      errors.push(`legacy 重定向 "${r}" 在移动端路由表里不存在`);
     }
   }
+
+  // 反向：两端有、清单没登记
+  for (const r of dRoutes) {
+    if (!declaredDesktop.has(r)) {
+      warnings.push(`桌面端路由 "${r}" 没有在 agent-surface.json 里登记（能力清单与代码漂移）`);
+    }
+  }
+  for (const r of mRoutes) {
+    if (!declaredMobile.has(r)) {
+      warnings.push(`移动端路由 "${r}" 没有在 agent-surface.json 里登记（能力清单与代码漂移）`);
+    }
+  }
+
+
+  return { errors, warnings };
 }
 
-// 容器路由（聚合多个能力的入口）与 legacy 重定向也算「已登记」
-for (const c of surface._containers?.mobile ?? []) {
-  declaredMobile.add(c.route);
-  if (!mRoutes.has(c.route)) {
-    errors.push(`容器路由 "${c.route}" 在移动端路由表里不存在`);
-  }
-}
-for (const r of surface._legacyRoutes?.mobile ?? []) {
-  declaredMobile.add(r);
-  if (!mRoutes.has(r)) {
-    errors.push(`legacy 重定向 "${r}" 在移动端路由表里不存在`);
-  }
-}
-
-// 反向：两端有、清单没登记
-for (const r of dRoutes) {
-  if (!declaredDesktop.has(r)) {
-    warnings.push(`桌面端路由 "${r}" 没有在 agent-surface.json 里登记（能力清单与代码漂移）`);
-  }
-}
-for (const r of mRoutes) {
-  if (!declaredMobile.has(r)) {
-    warnings.push(`移动端路由 "${r}" 没有在 agent-surface.json 里登记（能力清单与代码漂移）`);
-  }
-}
+// 主流程：走纯函数 ⇒ ⇒ 主流程与自检**共用同一份判据**
+const surfaceVerdict = judgeSurface(surface, dRoutes, mRoutes);
+for (const e of surfaceVerdict.errors) errors.push(e);
+for (const w of surfaceVerdict.warnings) warnings.push(w);
 
 // ─────────────────────────────────────────────────────────────
 // 4. token ↔ 两端落地文件：既查数值，也查「生成物有没有漂移」
@@ -368,7 +542,7 @@ function stripBlockComments(src) {
 // ─────────────────────────────────────────────────────────────
 report();
 
-function report() {
+function report(exitCode) {
   const line = '─'.repeat(72);
   console.log(line);
   console.log('跨端一致性校验 —— design-tokens.json / agent-surface.json');
@@ -384,5 +558,5 @@ function report() {
   );
   console.log(line);
 
-  process.exit(errors.length > 0 ? 1 : 0);
+  process.exit(exitCode !== undefined ? exitCode : errors.length > 0 ? 1 : 0);
 }

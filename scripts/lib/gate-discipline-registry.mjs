@@ -29,12 +29,11 @@ export const NO_SELF_TEST = {
     '（它在 CI 上也缺工具链 ⇒ ⇒ 要先想清楚「判不了」那档怎么报）' +
     '⇒ ⇒ ⚠️ ziti-v2-wire 已于 2026-11-05 补上自检（13/13）⇒ ⇒ 已从本清单销账 ' +
     '⇒ ⇒ 2026-11-11：cross-client（真自检 6/6 —— 真子进程注入 0/1/2/崩/文件不在）与 jni-surface（真自检 4/4 —— 夹具注入缺兄弟仓 / 没编 .so / Java 替身少入口）已补上 ⇒ ⇒ 已从本清单销账' +
-    '⇒ ⇒ 2026-11-11：msrv-floor 已补**真自检 7/7**（把判断逻辑抽成纯函数 judge() ⇒ ⇒ 自检喂合成夹具 ⇒ ⇒ **不需要 cargo 也不需要 Cargo.toml**）⇒ ⇒ 已从本清单销账',
-  gates: [
-    'agent-surface',
-    'apk-surface',
-    'auth-backdoors',
-  ],
+    '⇒ ⇒ 2026-11-11：msrv-floor 已补**真自检 7/7**（把判断逻辑抽成纯函数 judge() ⇒ ⇒ 自检喂合成夹具 ⇒ ⇒ **不需要 cargo 也不需要 Cargo.toml**）⇒ ⇒ 已从本清单销账' +
+    '⇒ ⇒ 2026-11-11：agent-surface（**真自检 15/15** —— 清单↔路由交叉校验抽成纯函数 judgeSurface() ⇒ ⇒ 自检喂合成夹具 ⇒ ⇒ **不需要两端仓在位**）、' +
+    'apk-surface（**真自检 11/11** —— 入口/符号/依赖判定抽成纯函数 judgeEntry()/judgeSymbols()/judgeDeps()）' +
+    '与 auth-backdoors（**真自检 10/10** —— 三条规则的判定抽成纯函数）⇒ ⇒ 三道都已补上 ⇒ ⇒ 已从本清单销账',
+  gates: [],
 };
 
 /** 闸没接进 .github/workflows/ci.yml ⇒ ⇒ 有闸但没人跑。 */
@@ -89,9 +88,10 @@ export const NO_CANNOT_JUDGE_EXIT = {
     '⇒ ⇒ 是治理闸的**源码形状启发**（只认字面 exit(2)）把它误判成没有' +
     '⇒ ⇒ 治理闸已补「2 能到达 exit」的形状（exit 的参数是某个函数、且那个函数 return 2）' +
     '⇒ ⇒ 剩下 6 条是**真债**（实测：它们的 exit 只能取 0 / 1）⇒ ⇒ 本清单不装假债 ' +
-    '⇒ ⇒ 2026-11-11：brain-chain / jni-surface / cross-client 已补退出码 2 那一档 ⇒ ⇒ 已从本清单销账（剩 3 条：agent-surface / client-tools / neuron-ownership，后两条是并行会话在飞件 ⇒ ⇒ 不代改）',
+    '⇒ ⇒ 2026-11-11：brain-chain / jni-surface / cross-client 已补退出码 2 那一档 ⇒ ⇒ 已从本清单销账' +
+    '⇒ ⇒ 2026-11-11：agent-surface 也补上了（判据源读不到 ⇒ ⇒ 退出码 2「判不了」⇒ ⇒ 以前是直接 readFileSync ⇒ ⇒ 缺一个就抛异常 ⇒ ⇒ Node 崩掉的退出码是 1 ⇒ ⇒ 与「闸判红」同形）⇒ ⇒ 已从本清单销账' +
+    '（剩 2 条：client-tools / neuron-ownership —— 并行会话在飞件 ⇒ ⇒ 不代改）',
   gates: [
-    'agent-surface',
     'client-tools',
     'neuron-ownership',
   ],
@@ -112,11 +112,9 @@ export const NO_READING_IN_WIRED = {
     '⇒ ⇒ ⚠️ ps1-portability 已于 2026-11-05 补上读数' +
     '（自检末尾印「自检：4/4」）⇒ ⇒ 已从本清单销账 ' +
     '⇒ ⇒ 2026-11-11：brain-chain（11 / 11）与 jni-surface（4 / 4）已印可数读数 ⇒ ⇒ 已从本清单销账' +
-    '⇒ ⇒ 2026-11-11：mobile-a11y-contract（并行会话已补「样本 10/10」⇒ ⇒ 读数可比）⇒ ⇒ 已从本清单销账',
-  gates: [
-    'agent-surface',
-    'apk-surface',
-  ],
+    '⇒ ⇒ 2026-11-11：mobile-a11y-contract（并行会话已补「样本 10/10」⇒ ⇒ 读数可比）⇒ ⇒ 已从本清单销账' +
+    '⇒ ⇒ 2026-11-11：agent-surface（15/15）与 apk-surface（11/11）已印可数读数 ⇒ ⇒ 已从本清单销账',
+  gates: [],
 };
 
 /** 债清单（唯一一份）⇒ ⇒ 闸按它对账。 */

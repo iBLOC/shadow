@@ -429,7 +429,7 @@ jobs:
       # 两端各自改漂（清单里的路由不存在 / 两端偷偷多出或少了路由 /
       # 生成物与 token 源不同步 / 两端手写色值 / 玻璃语义不对等）。
       - name: Cross-client consistency check
-        run: node scripts/check-agent-surface.mjs
+        run: node scripts/run-gate-once.mjs scripts/check-agent-surface.mjs
 
       # 移动端无障碍通道的契约闸 —— Dart ↔ Kotlin 两端必须逐字对齐。
       # ⚠️ 这条通道**跨两种语言**（Dart 调方法通道 / Kotlin 处理）⇒ ⇒
@@ -475,9 +475,10 @@ jobs:
       # APK 产物级：查**真正装进手机**的那份 —— 入口是不是正牌 App
       # （不是集成测试壳）+ 里面那份 .so 的符号 / 运行时依赖 / 与 jniLibs
       # 是否同一份。⚠️ jniLibs 对了但 **APK 是旧的** ⇒ 一样是坑。
-      # 干净 checkout 没有 APK ⇒ 只报提示、不阻断。
+      # ⚠️ 2026-11-11：干净 checkout 没有 APK ⇒ 这一格**判不了**（不是「没问题」）
+      #    ⇒ ⇒ 闸自己报退出码 2 ⇒ ⇒ 改走 run-gate-once ⇒ ⇒ 显眼但不阻断。
       - name: APK surface check
-        run: node scripts/check-apk-surface.mjs
+        run: node scripts/run-gate-once.mjs scripts/check-apk-surface.mjs
 
       # 通信链路：所有通信都要走 大脑 → 端脑 → 叶区。客户端直连推理
       # （neuron_infer / /v1/chat/completions）或本地直连编排器 = 意图

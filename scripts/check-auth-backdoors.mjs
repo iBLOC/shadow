@@ -77,6 +77,7 @@ function printHelp() {
       '  --desktop <dir>  桌面端仓根目录（默认 <repo>/shadow-desktop）',
       '  --mobile <dir>   移动端仓根目录（默认 <repo>/shadow-mobile）',
       '  --allow <lit>    豁免一个凭据字面量（可重复；理由请写进代码注释）',
+      '  --self-test      判据自检（喂合成夹具 ⇒ ⇒ 不需要兄弟仓在位）',
       '  --json           输出 JSON',
       '  -h, --help       这段话',
     ].join('\n'),
@@ -91,6 +92,7 @@ function parseArgs(argv) {
     mobile: join(REPO, 'shadow-mobile'),
     allow: new Set(),
     json: false,
+    selfTest: false,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -109,6 +111,9 @@ function parseArgs(argv) {
         break;
       case '--allow':
         opts.allow.add(argv[++i]);
+        break;
+      case '--self-test':
+        opts.selfTest = true;
         break;
       case '--json':
         opts.json = true;
@@ -259,6 +264,175 @@ function checkLiteralDefault(code, file, lineOf, lang) {
 }
 
 // ---------------------------------------------------------------------------
+// 判据纯函数 + 判据自检（合成夹具 ⇒ ⇒ **不需要兄弟仓在位**）
+// ---------------------------------------------------------------------------
+
+/**
+ * C：前端硬编码凭据默认值 —— 纯函数（零 I/O）⇒ ⇒ 自检能喂夹具证伪它。
+ */
+function checkFrontendLiteralDefault(code, file) {
+  const hits = [];
+  const lines = String(code || '').split('\n');
+  lines.forEach((line, idx) => {
+    const m = /\?\?\s*'([^']*)'|\?\?\s*"([^"]*)"/.exec(line);
+    if (!m) return;
+    const literal = m[1] ?? m[2] ?? '';
+    if (!literal) return;
+    if (!/(token|key|secret|credential)/i.test(line)) return;
+    hits.push({
+      rule: 'C',
+      file,
+      line: idx + 1,
+      fn: '(前端)',
+      literal,
+      detail: '前端默认凭据是字面量 "' + literal + '" ⇒ 打进前端产物里 ⇒ 不是秘密',
+    });
+  });
+  return hits;
+}
+
+/**
+ * 豁免过滤 —— 纯函数：「放行了哪些」与「还剩哪些」是**两个**集合。
+ * ⚠️ 为什么要抽出来：豁免是逃生阀 ⇒ ⇒ 它一旦生效就**不该再出现在 findings 里**
+ * ⇒ ⇒ 而这条过滤以前长在 main() 里 ⇒ ⇒ 自检根本够不着它。
+ */
+function splitByAllow(hits, allow) {
+  const set = allow instanceof Set ? allow : new Set(allow || []);
+  const all = hits || [];
+  return {
+    findings: all.filter((h) => !set.has(h.literal)),
+    allowed: all.filter((h) => set.has(h.literal)),
+  };
+}
+
+/**
+ * 「读到几个文件」⇒ ⇒ 一个结论。
+ * ⚠️ 一个都没读到 ⇒ ⇒ **判不了**（不是「没问题」）—— 这就是退出码 2 那一档。
+ */
+function judgeCoverage(scannedByTarget) {
+  const total = (scannedByTarget || []).reduce((n, t) => n + t.scanned, 0);
+  return { verdict: total === 0 ? 'cannot-judge' : 'ok', scanned: total };
+}
+
+/**
+ * 判据自检 —— **喂合成夹具**，不碰文件系统 ⇒ ⇒ 不需要三个兄弟仓在位。
+ *
+ * ⚠️ 为什么不能「跑一次正常检查」充数（2026-11-11 实测）：
+ *    这道闸扫的是**端脑 / 大脑 / 桌面端 / 移动端**四个仓 ⇒ ⇒ 真跑需要它们在位
+ * ⇒ ⇒ 本机没有 ⇒ ⇒ 自检退出 2 ⇒ ⇒ 纪律闸读成「**闸自己坏了**」
+ * ⇒ ⇒ 而「环境缺」与「闸坏了」必须分开 ⇒ ⇒ 于是自检只喂夹具。
+ */
+function selfTest() {
+  const cases = [];
+  const add = (name, run) => cases.push({ name, run });
+
+  const rust = (src) => {
+    const code = stripComments(src, { nested: true, rust: true });
+    return { code, lineOf: makeLineIndex(code) };
+  };
+
+  add('A 命中：鉴权函数里「== 字面量」分支直接 return Ok(…)', () => {
+    const { code, lineOf } = rust(
+      'fn verify_admin(expected: &str) -> Result<(), String> {\n' +
+        '    if expected == "dev-admin-key" {\n' +
+        '        return Ok(());\n' +
+        '    }\n' +
+        '    Err("denied".to_string())\n' +
+        '}\n',
+    );
+    const hits = checkBypassBranch(code, 'x.rs', lineOf);
+    return hits.length === 1 && hits[0].rule === 'A' && hits[0].literal === 'dev-admin-key';
+  });
+
+  add('孪生：A 不命中 —— 同一形状但分支里不是 return Ok(…)', () => {
+    const { code, lineOf } = rust(
+      'fn verify_admin(expected: &str) -> Result<(), String> {\n' +
+        '    if expected == "dev-admin-key" {\n' +
+        '        return Err("denied".to_string());\n' +
+        '    }\n' +
+        '    Ok(())\n' +
+        '}\n',
+    );
+    return checkBypassBranch(code, 'x.rs', lineOf).length === 0;
+  });
+
+  add('B 命中：凭据解析函数里默认凭据是源码里的字面量', () => {
+    const { code, lineOf } = rust(
+      'fn admin_token() -> String {\n' +
+        '    std::env::var("IBLOC_ADMIN").unwrap_or_else(|| "dev-admin-key".to_string())\n' +
+        '}\n',
+    );
+    const hits = checkLiteralDefault(code, 'x.rs', lineOf, 'rust');
+    return hits.length === 1 && hits[0].rule === 'B' && hits[0].literal === 'dev-admin-key';
+  });
+
+  add('孪生：B 不命中 —— 同一写法但那个函数与凭据无关', () => {
+    const { code, lineOf } = rust(
+      'fn theme_name() -> String {\n' +
+        '    std::env::var("THEME").unwrap_or_else(|| "dev-admin-key".to_string())\n' +
+        '}\n',
+    );
+    return checkLiteralDefault(code, 'x.rs', lineOf, 'rust').length === 0;
+  });
+
+  add('C 命中：前端默认凭据是字面量', () => {
+    const hits = checkFrontendLiteralDefault(
+      "const adminToken = cfg.X ?? 'dev-admin-key';\n",
+      'x.ts',
+    );
+    return hits.length === 1 && hits[0].rule === 'C' && hits[0].literal === 'dev-admin-key';
+  });
+
+  add('孪生：C 不命中 —— 同一行形状但那行不谈凭据', () => {
+    const hits = checkFrontendLiteralDefault("const themeName = cfg.X ?? 'dark';\n", 'x.ts');
+    return hits.length === 0;
+  });
+
+  add('注释里的字面量不算（剥注释后没有命中）', () => {
+    const { code, lineOf } = rust(
+      'fn admin_token() -> String {\n' +
+        '    // 旧实现：unwrap_or_else(|| "dev-admin-key".to_string())\n' +
+        '    std::env::var("IBLOC_ADMIN").unwrap_or_default()\n' +
+        '}\n',
+    );
+    return checkLiteralDefault(code, 'x.rs', lineOf, 'rust').length === 0;
+  });
+
+  add('豁免：--allow 放行的字面量不进 findings（且仍被记账）', () => {
+    const hits = [{ rule: 'A', literal: 'dev-admin-key', file: 'x.rs', line: 1 }];
+    const split = splitByAllow(hits, new Set(['dev-admin-key']));
+    return split.findings.length === 0 && split.allowed.length === 1;
+  });
+
+  add('「一个文件都没读到」⇒ ⇒ 判不了（不是「没问题」）', () => {
+    return judgeCoverage([]).verdict === 'cannot-judge';
+  });
+
+  add('孪生：读到了文件 ⇒ ⇒ 判得了', () => {
+    return judgeCoverage([{ name: '端脑', scanned: 3 }]).verdict === 'ok';
+  });
+
+  let bad = 0;
+  for (const c of cases) {
+    let ok = false;
+    try {
+      ok = c.run() === true;
+    } catch (err) {
+      ok = false;
+    }
+    console.log((ok ? '  [PASS] ' : '  [FAIL] ') + c.name);
+    if (!ok) bad += 1;
+  }
+  console.log('  判据自检：' + (cases.length - bad) + '/' + cases.length);
+  if (bad > 0) {
+    console.error('❌ 自检没过 ⇒ 闸门自己不可信');
+    process.exit(1);
+  }
+  console.log('✅ 自检通过');
+  process.exit(0);
+}
+
+// ---------------------------------------------------------------------------
 // 扫盘
 // ---------------------------------------------------------------------------
 
@@ -331,22 +505,7 @@ function scanRepo(root, lang, credHint) {
       hits.push(...checkLiteralDefault(code, rel, lineOf, 'rust'));
     } else {
       // 前端：按「行」扫（`?? '字面量'` 通常在同一行）
-      const lines = code.split('\n');
-      lines.forEach((line, idx) => {
-        const m = /\?\?\s*'([^']*)'|\?\?\s*"([^"]*)"/.exec(line);
-        if (!m) return;
-        const literal = m[1] ?? m[2] ?? '';
-        if (!literal) return;
-        if (!/(token|key|secret|credential)/i.test(line)) return;
-        hits.push({
-          rule: 'C',
-          file: rel,
-          line: idx + 1,
-          fn: '(前端)',
-          literal,
-          detail: `前端默认凭据是字面量 "${literal}" ⇒ 打进前端产物里 ⇒ 不是秘密`,
-        });
-      });
+      hits.push(...checkFrontendLiteralDefault(code, rel));
     }
   }
   return { hits, scanned, root };
@@ -358,6 +517,10 @@ function scanRepo(root, lang, credHint) {
 
 function main() {
   const opts = parseArgs(process.argv.slice(2));
+  if (opts.selfTest) {
+    selfTest();
+    return;
+  }
 
   const targets = [
     { name: '端脑', root: opts.source, lang: 'rust' },
@@ -382,9 +545,9 @@ function main() {
   }
 
   // ---- 防假绿 1：一个文件都没读到 ⇒ 闸门坏了 -------------------------------
-  const totalScanned = scannedByTarget.reduce((n, t) => n + t.scanned, 0);
-  if (totalScanned === 0) {
-    console.error('一个源文件都没读到 —— 这不是「没发现问题」，是闸门坏了。');
+  const coverage = judgeCoverage(scannedByTarget);
+  if (coverage.verdict === 'cannot-judge') {
+    console.error('一个源文件都没读到 —— 这不是「没发现问题」，是判不了。');
     for (const m of missing) console.error(`  找不到：${m}`);
     process.exit(2);
   }
@@ -395,8 +558,7 @@ function main() {
   for (const h of all) ruleHits[h.rule] = (ruleHits[h.rule] ?? 0) + 1;
 
   // ---- 豁免 -------------------------------------------------------------
-  const findings = all.filter((h) => !opts.allow.has(h.literal));
-  const allowed = all.filter((h) => opts.allow.has(h.literal));
+  const { findings, allowed } = splitByAllow(all, opts.allow);
 
   if (opts.json) {
     console.log(
