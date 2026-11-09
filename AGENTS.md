@@ -1,6 +1,6 @@
 **Updated**: 2026-11-11 (㒪 **「57 道闸里只有 41 道接进 CI —— 而那 16 道从来没被人跑过」** —— 承 U+34A6 条（尺子认的形状比人眼想的更窄），本条记**取证（全量跑闸，逐道量）**、**第一因（债表里的理由已经过期）**、**第二因（判不了那一档在 Actions 里会伪装成「有问题」）**、**这一刀的落点**、**途中那几课**、**判据**、**分级读数**，以及**仍然欠着的**.)
 
-> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真跑级实测（治理闸 --audit 全量清单 ＋ 16 道未接闸逐道本机跑 ＋ 治理闸复跑 ＋ 真 CI 读数）｜ 改动：shadow 仓 **新增** scripts/run-gate-once.mjs（跑闸器 · 三档转译）＋ **新增** .github/workflows/unwired-gates.yml（独立 workflow · 零共享面）＋ **改** 11 道闸的自检（补可数读数 N/N）＋ **改** scripts/lib/gate-discipline-registry.mjs（14 道销账）｜ 读数：治理闸 **57 道闸零违规**（存量债 32 → 18）、**YAML 闸 24 个文件零违规**、**14 道闸逐条：自检绿 ＋ 有可数读数 ＋ 真跑绿**、**真 CI 新 workflow「Unwired Gates」run 42702336369** | status=active | supersedes=none
+> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真跑级实测（治理闸 --audit 全量清单 ＋ 16 道未接闸逐道本机跑 ＋ 治理闸复跑 ＋ 真 CI 读数）｜ 改动：shadow 仓 **新增** scripts/run-gate-once.mjs（跑闸器 · 三档转译）＋ **新增** .github/workflows/unwired-gates.yml（独立 workflow · 零共享面）＋ **改** 11 道闸的自检（补可数读数 N/N）＋ **改** scripts/lib/gate-discipline-registry.mjs（14 道销账）｜ 读数：治理闸 **57 道闸零违规**（存量债 32 → 18）、**YAML 闸 24 个文件零违规**、**14 道闸逐条：自检绿 ＋ 有可数读数 ＋ 真跑绿**、**真 CI 新 workflow「Unwired Gates」run 42702336369** | 提交：`160c2b5`（1 文件 / 0 无关改动） | status=active | supersedes=none
 
 ① **⚠️ 取证：57 道闸，只有 41 道在 CI 上跑过**
 　❶ `node scripts/check-gate-discipline.mjs --audit` 逐字：**「闸总数：57 ｜ 已接进 CI：41 ｜ 本轮量了：57」**。
