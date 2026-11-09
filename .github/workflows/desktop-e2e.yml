@@ -324,41 +324,72 @@ jobs:
             --reporter=json --outputFile="$RUNNER_TEMP/api-contract.json" > "$OUT" 2>&1
           VSTATUS=$?
           cat "$OUT"
-          if [ "$VSTATUS" != "0" ]; then
-            echo "::error::API 契约套件红了（退出码 $VSTATUS）—— 输出就在上面"
-            exit "$VSTATUS"
-          fi
-          # ⚠️⚠️ **读数必须自己核** —— vitest 对「整份跳过」也退出 0 ⇒ ⇒ 那正是
-          #   「没跑过」被伪装成「绿」的地方 ⇒ ⇒ 这里**解析 JSON 报告**：
-          #   ❶ failed 必须为 0；
-          #   ❷ passed 必须 ≥ 45（端点清单会变 ⇒ ⇒ 用**下限**，不钉等值）；
-          #   ❸ skipped 只能是**白名单里那一条**（按**名字**判，不按条数）——
-          #      它是「端脑的 diencephalon 没就绪 ⇒ 形状测不了」的**诚实声明**。
+          # ⚠️⚠️⚠️ **逐条读数必须打出来 —— 不管退出码**（2026-11-09 真 CI 实测的教训）：
+          #   第一版是「退出码 ≠ 0 ⇒ ⇒ 打一句『红了』⇒ ⇒ exit」⇒ ⇒ **红的是哪一条
+          #   根本没留下** ⇒ ⇒ 「红得莫名其妙」＝最贵的失败（人只能自己去猜）。
+          #   ⇒ ⇒ 现在**先**解析 JSON 报告（**无条件**跑）⇒ ⇒ 把 failed / skipped 的
+          #   **名字逐条**打出来（连失败消息的前几行）⇒ ⇒ 诊断就在眼前 ⇒ ⇒ 再判退出码。
+          #   ⚠️ 顺带把「版本差」这类红当场说清：端脑来自**兄弟仓 master**，
+          #   而端点清单在**本仓** ⇒ ⇒ 两个仓节奏不同 ⇒ ⇒ 清单里的新端点在
+          #   那台端脑上**还不存在** ⇒ ⇒ 404 ⇒ ⇒ 红的正是那一条（名字会点名）。
+          READ_STATUS=0
           node -e '
             const fs = require("fs");
             const file = process.argv[1];
-            if (!fs.existsSync(file)) { console.error("::error::JSON 报告不存在 —— 这一步没真的跑"); process.exit(1); }
-            const r = JSON.parse(fs.readFileSync(file, "utf8"));
+            if (!fs.existsSync(file)) {
+              console.error("::error::JSON 报告不存在 —— 这一步没真的跑（vitest 压根没起来？）");
+              process.exit(2);
+            }
+            let r;
+            try { r = JSON.parse(fs.readFileSync(file, "utf8")); }
+            catch (e) { console.error("::error::JSON 报告解析失败：" + e.message); process.exit(2); }
             const all = (r.testResults || []).flatMap((f) => f.assertionResults || []);
             const failed = all.filter((a) => a.status === "failed");
             const skipped = all.filter((a) => a.status !== "passed" && a.status !== "failed");
             const allowed = ["thalamus/preview/sensors"];
-            console.log("::notice::API 契约读数：passed=" + r.numPassedTests + " failed=" + r.numFailedTests + " skipped=" + r.numPendingTests + " total=" + r.numTotalTests);
-            if (failed.length) { console.error("::error::有 failed：" + failed.map((a) => a.fullName).join(" | ")); process.exit(1); }
-            if (r.numPassedTests < 45) { console.error("::error::passed 只有 " + r.numPassedTests + " —— 低于 45 ⇒ ⇒ 整族没跑起来 ⇒ ⇒ 绝不能当成绿"); process.exit(1); }
+            const passed = all.filter((a) => a.status === "passed").length;
+            // ⚠️ **以逐条为准** —— reporter 自报的 numFailedTests 与逐条清单
+            //   在「合成/旧版报告」上会打架 ⇒ ⇒ 出现「failed=0 却列了红」
+            //   ⇒ ⇒ 那就是**读数自相矛盾** ⇒ ⇒ 判据不许依赖它。
+            console.log("::notice::API 契约读数：passed=" + passed + " failed=" + failed.length + " skipped=" + skipped.length + " total=" + all.length + "（reporter 自报：passed=" + r.numPassedTests + " failed=" + r.numFailedTests + " skipped=" + r.numPendingTests + " total=" + r.numTotalTests + "）");
+            for (const f of failed) {
+              const msg = String((f.failureMessages || []).join(" | ")).split("\n").slice(0, 4).join(" / ");
+              console.error("::error::红了：" + f.fullName + " ⇒ " + msg);
+            }
+            for (const s of skipped) console.log("::notice::跳过：" + s.fullName);
+            let bad = 0;
+            if (failed.length) bad = 1;
+            if (passed < 45) {
+              console.error("::error::passed 只有 " + passed + " —— 低于 45 ⇒ ⇒ 整族没跑起来 ⇒ ⇒ 绝不能当成绿");
+              bad = 1;
+            }
             for (const s of skipped) {
               if (!allowed.some((a) => String(s.fullName || "").includes(a))) {
                 console.error("::error::白名单外的跳过：" + s.fullName);
-                process.exit(1);
+                bad = 1;
               }
             }
-            for (const s of skipped) console.log("::notice::白名单内的跳过（端脑下游没就绪 ⇒ 形状测不了）：" + s.fullName);
-          ' "$RUNNER_TEMP/api-contract.json"
-          if [ "$?" != "0" ]; then
-            echo "::error::API 契约读数不合格 —— 上面是逐条理由"
+            process.exit(bad);
+          ' "$RUNNER_TEMP/api-contract.json" || READ_STATUS=$?
+          if [ "$VSTATUS" != "0" ]; then
+            echo "::error::API 契约套件红了（退出码 $VSTATUS）—— 逐条原因就在上面"
+            exit "$VSTATUS"
+          fi
+          if [ "$READ_STATUS" != "0" ]; then
+            echo "::error::API 契约读数不合格 —— 逐条理由就在上面"
             exit 1
           fi
           echo "::notice::API 契约套件读数合格（整族三支：端点存在性 ＋ 形状 ＋ A2UI 字节）"
+      # ⚠️ **报告不许丢** —— 红的时候**逐条原因**已经打在上面了，但这 JSON
+      #   报告本身也要留下来 ⇒ ⇒ 否则「下一次又红了」时连对照都没有。
+      - name: Upload the API contract reading (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: api-contract-reading
+          path: ${{ runner.temp }}/api-contract.json
+          retention-days: 7
+          if-no-files-found: error
       # ⚠️⚠️ **trace 就是请求级取证通道** —— Playwright 的 trace 逐行记着每个请求的
       #    方法 ＋ URL ＋ 状态码 ＋ **请求头** ⇒ ⇒ 「端脑那扇门到底**有没有**收到凭据」
       #    **不必**等端脑加请求级日志就能判 ⇒ ⇒ 这道闸把它变成**会红的读数**。
