@@ -1,3 +1,67 @@
+**Updated**: 2026-11-11 (㒭 **「分档默认能指向一个这台大脑根本没有的引擎 —— 而 agent 声明 asr+tts 过了校验，却死在「手机上没有海马体」那一步」** —— 承 U+34A0 条（编出来的那份大脑比源码旧 4 天）＋ U+34AB 条（在别人的 app 里长按），本条记**取证（odin 真机逐条 HTTP 读数）**、**第一因（PUT 只校验「词认识 ＋ 值非空」，不校验 id 是否可解析）**、**第二因（同一档在两个面上说法不一致）**、**第三因（手机端没有海马体 ⇒ agent 注册那条路根本走不通）**、**这一刀的落点**、**途中那几课**、**判据**、**分级读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真机级实测（odin ee6b4832 · MIUI 14 / Android 13 · 端脑面逐条 HTTP 读数 ＋ 三轮探针跑 ＋ 端脑/neuron 源码取证）｜ 改动：父仓 **新增** `scripts/prove-capability-plane-on-device.ps1`（UTF-8 BOM · 零产品代码）｜ 读数：真机探针 **EXIT=0**（基线复原复核 True ／ 二次复原复核 True ／ 重启后 `registered.asr` 归零）、门策略逐条（401／400 code 4005／400 code 4006／422／200）、引擎注册逐个候选名（asr `candle` ⇒ 200 `loaded`；`tract`／`sherpa` ⇒ 500；tts `burn` ⇒ 500；`chronos2` ⇒ 200 但能力面看不见）| status=active | supersedes=none
+
+① **⚠️ 取证：odin 上「能力面」逐条读数（这一格此前只到**源码级**）**
+　❶ 上一条（U+34A0）把**产物**补绿了（那条路由在不在）；本条问的是**行为**：分档默认收不收、agent 声明收不收。
+　❷ 真机（odin `ee6b4832` · MIUI 14 / Android 13）端脑面端口取自 logcat（`EncephalonRuntime.*agent surface:`，本轮 40133 / 38585），adb forward 后逐条打：
+　　· **读门**：不带任何头 ⇒ ⇒ **401** `telencephalon_door_closed`（`"door":"read"`）；只带 admin token ⇒ ⇒ **200**（admin 也开得了读面）。
+　　· **写门**（PUT）：只带 shadow key ⇒ ⇒ **401**（`"door":"admin"`）；**错的** admin token ⇒ ⇒ **401**。
+　　· **未知能力词** `stt` ⇒ ⇒ **400** `{"code":4005,"message":"unknown capability 'stt' (legal words: llm, asr, tts, vad, rerank, embedding, vision, forecast)"}`。
+　　· **空值** `{"asr":""}` ⇒ ⇒ **400** `{"code":4006,"message":"capability 'asr' has an empty model id"}`。
+　　· **缺 `defaults`** ⇒ ⇒ **422** `missing field 'defaults'`（axum 反序列化 ⇒ ⇒ 端点存在、请求不合法）。
+　❸ ⇒ ⇒ 门与词表这两道都**说真话**；下面三格才是这刀的落点。
+
+② **⚠️ 第一因：PUT 收口只到「词认识 ＋ 值非空」—— 它**不**校验 id 是否可解析**
+　❶ 真机：PUT `{"defaults":{"asr":"probe-nonexistent-engine-xyz"}}` ⇒ ⇒ **HTTP 200**，且 GET 回来**逐字相同** ⇒ ⇒ **落点生效了**。
+　❷ 同一时刻 `registered.asr` 仍是 **`[]`** ⇒ ⇒ 也就是说：**这一档指向的引擎，这台大脑根本没有** ⇒ ⇒ 分档默认**说得像成功、实际解析不出来**。
+　❸ 源码同源：`put_capability_defaults` 只做两件事（`parse_capability_list` ＋ 空串检查）⇒ ⇒ **没有第三道「这个 id 能不能解析」**。
+　❹ ⇒ ⇒ **通用形态：一个「能写进去」的地方，不等于「写了就有用」⇒ ⇒ 而两者都返回 200** ⇒ ⇒ **失败长得像成功**。
+　❺ ⇒ ⇒ 这一格的产品待定：**PUT 要不要收口校验 id 可解析**（本条把「悬着」变成「有读数的待决」：现状＝**不校验**）。
+
+③ **⚠️ 第二因：同一档在两个面上说法不一致 —— `vad` 收得进 PUT、声明不进 agent**
+　❶ 真机：PUT `{"defaults":{"vad":"probe-vad-xyz"}}` ⇒ ⇒ **HTTP 200** 且落点生效。
+　❷ 真机：同一个 `vad`，放进 agent 的 `required_capabilities` ⇒ ⇒ **400** `{"code":400,"message":"capability 'vad' is not available in this brain (exposed: llm, asr, tts, rerank, embedding, vision, forecast)"}`。
+　❸ ⇒ ⇒ **同一个词，两张面，两种说法** ⇒ ⇒ 根因在源码：`parse_capability_list` 用 `Capability::ALL`（**8 档，含 vad**）⇒ ⇒ 而 `neuron_available_capabilities()`（**7 档，无 vad**）才管「这台大脑暴露什么」⇒ ⇒ **PUT 只查前者、agent 声明查两者**。
+　❹ ⇒ ⇒ **通用形态：两张面引用同一个词表，却各查各的子集 ⇒ ⇒ 词表一旦变大，漂移必然发生** ⇒ ⇒ 而**产物级**读数能当场看见它。
+
+④ **⚠️ 第三因：手机上**没有海马体** ⇒ ⇒ agent 注册那条路根本走不通（不是能力声明的锅）**
+　❶ 真机：`POST /admin/agents/create` 带 `required_capabilities:["asr","tts"]` ⇒ ⇒ **500** `{"code":500,"message":"persist lobe: not configured: hippo find_id_by_uri: error sending request for url (http://localhost:60080/hippocampus/api/memory?tenantId=persona-f8cf8d4441ce37ad&limit=10000)"}`。
+　❷ ⇒ ⇒ **注意读法**：这**不是**「能力声明被拒」⇒ ⇒ 声明**过了**两道校验（词表 ＋ 可用性）⇒ ⇒ 它死在**落盘那一步**。
+　❸ 源码取证：`LobeStore` 的生产后端是 **hippocampus（HTTP）** ⇒ ⇒ 而海马体那组路由是 `#[cfg(feature = "hippocampus")]` 门控的 ⇒ ⇒ `telencephalon/Cargo.toml` 的 `default = [... "hippocampus" ...]` 里**手机构建关掉了它**（同文件 260 行有实测记录：Lance 靠 `fs::hard_link`，Android SELinux 不许 ⇒ ⇒ 开着 app 起不来）⇒ ⇒ 真机侧同证：`GET /api/telencephalon/hippocampus/preview/stats` ⇒ ⇒ **404 且体长 0**（**路由不存在**，不是「答空」）。
+　❹ ⇒ ⇒ **通用形态：能力声明这一格没坏，坏的是它**落盘**的地方** ⇒ ⇒ 「手机上注册不了 agent」与「手机上的 agent 能不能声明模型类型」是**两件事** ⇒ ⇒ 前者今天就是后者走不通的原因。
+
+⑤ **✅ 这一刀的落点（1 个文件 ＋ 零产品代码）**
+　❶ **新增 `scripts/prove-capability-plane-on-device.ps1`**（UTF-8 BOM）：起 app → logcat 取端口 → adb forward → 取两把钥匙（**不打印**）→ 打**读门/写门/词表/空值/缺字段/落点/整份替换/vad** → **复原基线并复核** → agent 声明四档 → 引擎注册逐个候选名 → 卸载面 → **重启 app 复核**；退出码 0/1/2。
+　❷ **零产品代码改动** —— 这一刀只加尺子，不动被测物。
+
+⑥ **⚠️ 途中那几课**
+　❶ **「尺子没对着被测物」会伪装成「被测物有问题」**：第一版引擎注册探针发的是 snake_case（`model_id`）⇒ ⇒ 被 serde 挡在 **400 `missing field 'modelId'`** ⇒ ⇒ **那一格没探成**（看着像「注册面不接受」）⇒ ⇒ 改尺子（`ModelRegistration` 是 `#[serde(rename_all = "camelCase")]`），不改事实。
+　❷ **「引擎名不是自由的」**：`register_model` 拿 engine 名去对 `AsrImpl`／`TtsImpl` 枚举 ⇒ ⇒ 假名 ⇒ **500 `Invalid ASR engine: unknown AsrImpl: probe`** ⇒ ⇒ 真名才进注册表 ⇒ ⇒ **上一轮 `registered` 一直空，只是因为 engine 名是假的**。
+　❸ **「注册成功」≠「能力面看得见」**：`chronos2` 注册 **200 `loaded`** ⇒ ⇒ 但它是**第二份词表**（neuron 的 `VALID_CAPABILITIES`）里的词，**端脑自己的 8 档里没有它** ⇒ ⇒ `registered.asr/tts` 与 `preview/models` 里**都看不见它** ⇒ ⇒ **三份词表**（`Capability::ALL` 8 档 ／ `neuron_available_capabilities()` 7 档 ／ neuron 的 `VALID_CAPABILITIES` 7 档且含 `chronos2` 无 `vad`）**在真机上当场自证漂移**。
+　❹ **「注册不可撤销」**：`DELETE /neuron/admin/model/{capability}/{name}` ⇒ ⇒ **501**（neuron 没有 unregister API）⇒ ⇒ **唯一的撤销手段是重启进程** ⇒ ⇒ 探针末尾**必须重启并复核**（本轮：重启后 `registered.asr` 回到 `[]`、`defaults` 回到 `{}` ⇒ ⇒ **零残留**）。
+　❺ **「起 app」在 MIUI 上有两个坑**（本轮各浪费一轮）：① app 被 MIUI **自动拉活** ⇒ ⇒ 「清 logcat 再等新端口」永远等不到（`am start` 只把已有实例带到前台，**不会**再打一行 `started on port`）⇒ ⇒ 改法：**先复用活着的端口**；② app 的**任务记录可能是陈的** ⇒ ⇒ `am start` 报「已交付给当前顶层实例」而**进程根本没起**（pidof 空、无 EncephalonRuntime 日志）⇒ ⇒ 改法：**`am start -S --activity-clear-task`**。
+　❻ **MIUI 的权限弹窗会卡住整个 app**：「是否允许『影』使用麦克风进行录音」⇒ ⇒ `pm grant` ＋ `keyevent 4` 才放行 ⇒ ⇒ **探针脚本必须能自己把 app 拉起来**（否则「端口没起来」会被误读成「产品坏了」）。
+
+⑦ **✅ 判据与分级读数（全部实测）**
+　❶ **真机级（本条主读数）**：odin 上能力面探针 **EXIT=0**；门策略逐条 401／400／422／200 如上；**基线复原复核 True**、**二次复原复核 True**、**重启后 `registered.asr` 归零** ⇒ ⇒ **零残留**。
+　❷ **真机级（引擎注册面）**：`asr` ＋ `candle` ⇒ **200 `{"status":"loaded"}`** ⇒ ⇒ `registered.asr` 变成 **`["probe-asr-candle"]`**、`preview/models` 看见 `{"capability":"asr","model_id":"probe-asr-candle","engine":"Candle"}` ⇒ ⇒ **asr 档此刻可以指向一个真引擎 id**；`tract`／`sherpa` ⇒ **500**（这份产物里没编）；**tts `burn` ⇒ 500**（`unknown TtsImpl`）⇒ ⇒ **这份手机产物里 TTS 引擎一个都没有**。
+　❸ **判据级**：`node scripts/check-ps1-portability.mjs` ⇒ **27 个 `.ps1` 全绿**（含新脚本的 BOM 判据）；`node scripts/check-gate-discipline.mjs` ⇒ **零违规**（57 道闸，存量债 18 条已登记）；`node scripts/check-state-surface.mjs --self-test` ⇒ **38/38**；`node scripts/check-legacy-residue.mjs` ⇒ **EXIT=0**（16 仓 / 1878 文件）；`node scripts/check-ledger-codepoints.mjs` ⇒ **三面零违规**。
+　❹ **圈码级**：插前**独立重扫 12 面**（父仓工作树 ∪ 索引 ∪ HEAD ∪ origin/master × 三本账本，官方 `extractEntries`）⇒ ⇒ 读数：**unreadable=0**、**最高已声明 U+34AB（㒫）**、**U+34AC 声明 0 次 / 提及 4 次**（别人明写的缓冲 ⇒ ⇒ 让开）⇒ ⇒ **本条取 U+34AD（㒭）**、**缓冲 U+34AE（㒮）**。
+
+⑧ **⚠️ 圈码：本条占 U+34AD（㒭）**
+　❶ 插前**独立重扫**（父仓工作树 ∪ 父仓索引 ∪ 父仓 HEAD ∪ 父仓 origin/master × **三本账本**，按**声明形状**扫、**声明与提及分开**、码位按**十六进制**计）⇒ ⇒ 读数：**12 面全部可读（unreadable=0）**、**最高已声明 U+34AB（㒫）**、**U+34AC 声明 0 次 / 提及 4 次**（＝已被明写的缓冲 ⇒ ⇒ 让开）⇒ ⇒ **U+34AD 声明 0 次 / 提及 0 次** ⇒ ⇒ **本条取 U+34AD（㒭）** ⇒ ⇒ 按惯例**再留一枚缓冲（U+34AE）**。
+　❷ ⇒ ⇒ 本条**只引用已提交的码位**（U+34A0／U+34AB）⇒ ⇒ ⚠️ **插完立刻复跑码位闸**是硬约束。
+
+⑨ **⚠️ 仍然欠着的**
+　❶ **「颞叶里的 asr/tts 怎么办」现在有了一半的答案**：**asr 档能落地**（用 `candle` 注册 ⇒ ⇒ `registered.asr` 亮 ⇒ ⇒ 分档默认可指到它）；**tts 档在这份手机产物里落不了地**（TtsImpl 一个变体都没有 ⇒ ⇒ `unknown TtsImpl`）⇒ ⇒ ⇒ **远端 TTS 引擎族协议与注册责任**仍是**产品决定**，本条不替它拍。
+　❷ **agent 声明后「谁来按它匹配」仍然没定**：声明落在 `config["required_capabilities"]`，但**手机端连注册都走不通**（第 ④ 节）⇒ ⇒ 匹配链的那一格**在手机上是空的**。
+　❸ **三份能力词表仍然漂着**（第 ③／⑥❸ 节）⇒ ⇒ 把那三张表收成一张，是**端脑仓的活**（本条只取证，不代改）。
+　❹ **`llm` 档分档默认的端脑消费点仍然没验**：本条验的是 `engine_resolved`（asr/tts）那两档的消费点（`api/voice.rs` 的 `select_asr`／`select_tts`：**按 id 解析，解析不到就明确报错**，不回落到别的引擎）⇒ ⇒ **`llm` 档由谁消费**（`lobes/models` 那条路由？）**本条没测**。
+　❺ **真机级负读数仍缺**：把手机上的 `.so` 换成旧的（让那几条路由消失）这一格，**改 APK 里的 zip 条目被本机硬安全策略两面挡死**（工作区外写／工作区内递归删）⇒ ⇒ **工具链够不着**，不是推掉了。
+　❻ **端脑仓自身的真 CI 仍然没有读数**（承 U+34A0 条）—— ⇒ ⇒ 本条所有真机读数都来自**父仓这把脚本**，端脑仓的判据没有自己的一条。
+　❼ 本条的探针**只在 odin 一台机型上跑过**（MIUI 14 / Android 13）。
+
 **Updated**: 2026-11-11 (㒫 **「在别人的 app 里长按 —— 那盏红灯不是长按坏了，是靶子上一轮被滑到了底部」** —— 承 U+34A7 条（读屏族真机腿全绿）＋ U+3472 条（长按不是长按），本条记**取证（三轮真机读数）**、**第一因（靶子有「状态」，而尺子只管住了「身份」）**、**第二因（读屏不带「这是谁的屏」⇒ ⇒ 分不清是谁变了）**、**第三因（靶子必须能区分两条路）**、**这一刀的落点**、**途中那几课**、**判据**、**分级读数**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真机级实测（odin ee6b4832 · MIUI 14 / Android 13 · 两轮读屏族真机跑测 ＋ 系统级注入对照实验 ＋ 真机腿终局读数）｜ 改动：shadow-mobile **改** android/.../PrefrontalAccessibilityService.kt（新增 `foregroundPackage()`）、**改** android/.../MainActivity.kt（新增 `getForegroundPackage` 通道）、**改** lib/services/accessibility_controller.dart（新增 `foregroundPackage()`）、**改** lib/services/capabilities/capability_tools.dart（`readScreen` 返回 map 新增 `foregroundPackage` 字段）、**改** integration_test/a11y_mobile_use_test.dart（**新增**「长按（别人的 app 里）⇒ 被认成长按」腿 ＋ 滑动腿改**双向试** ＋ 长按靶子候选按**性质**筛）｜ 读数：真机腿 **12/12 全绿 · VERDICT PASS · 退出码 0**、**长按腿逐字 `label=新闻热榜 pkgBefore=com.miui.home pkgAfter=com.miui.home`**（前台没换人 ⇒ ⇒ 没被当成点按） | status=active | supersedes=none
