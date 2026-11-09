@@ -1,5 +1,38 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-09 (㑳 **「agent 注册时能声明『需要哪些模型能力』—— 那笔配置项终于有个能勾的地方」** —— 承 U+3460 条（端脑侧声明 ＋ 两端客户端）与 U+3471 条（桌面端分档默认那张卡），本条记**取证（声明能递，但没人能勾）**、**第一因（声明是「注册那一刻」的事）**、**这一刀的落点（6 个文件）**、**判据（8/8 ＋ 两档反向验证）**、**分级读数**、**途中那几课**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-09 | authority=measured | scope=project | source=真运行级实测（tsc -b 全族 ＋ vitest 全量 ＋ 两档注入反向验证 ＋ 还原 hash 比对） | 改动：shadow 仓 **新增** `shadow-desktop/src/lib/agentCapabilities.ts`、**新增** `shadow-desktop/src/components/business/AgentCapabilityPicker.tsx`、**新增** `shadow-desktop/tests/lib/agentCapabilities.test.ts`、**改** `shadow-desktop/src/pages/SettingsPage.tsx`（**只改 agent 注册表单那一段**）、**改** 2 个桌面 i18n ｜ 读数：**判据级 8/8 绿**、**反向验证级：变体 A（空声明递空数组）⇒ 恰好 1 红 ／ 变体 B（空词也收）⇒ 恰好 1 红**、**还原 blob 逐字一致 `d69c0ff…`**、**类型级 `tsc -b` EXIT=0**、**vitest 全量 1493 过 / 16 跳 / 1 红**（那 1 红＝并行会话在飞的 `accent.g.ts` 生成物漂移，**与本刀无关**）| status=active | supersedes=none
+
+① **⚠️ 取证：声明早就能递，但**没有人能勾**
+　❶ 端脑与两端客户端**早就能递** `required_capabilities`（U+3460 条：严格词表校验 ＋ 落 `config["required_capabilities"]` ＋ 回显）⇒ ⇒ 那笔配置项**接口层面早就存在**。
+　❷ 但**界面没有一个输入口** ⇒ ⇒ 用户**勾不了** ⇒ ⇒ ⇒ 那笔配置项是「**只有接口、没有入口**」——**失败长得像成功**（接口存在、判据全绿、用户用不上）。
+　❸ ⚠️ **移动端根本没有 agent 创建入口**（只有 MCP / skill 的 `insert`，agent 那边只有 `initializeDefaultAgents` 的播种）⇒ ⇒ ⇒ **桌面端的 `CreateCustomAgentModal` 是唯一的注册表单** ⇒ ⇒ ⇒ 这一项的输入口只能落在那里。
+
+② **⚠️ 第一因：声明是「注册那一刻」的事 ⇒ ⇒ 输入口必须贴着注册表单**
+　❶ 端脑那边声明在**注册时校验**（词不认识 ⇒ ⇒ **整个拒绝**；本机没有的能力 ⇒ ⇒ 也拒）⇒ ⇒ ⇒ **事后补不回来** ⇒ ⇒ ⇒ 输入口若不在注册那一刻，语义就是假的。
+　❷ 所以不放在「设置页 / agent 详情页」—— 那种位置用户会在「注册完才想起来要声明」⇒ ⇒ 而端脑已经把门关了 ⇒ ⇒ ⇒ **贴在表单里**才是同一件事。
+
+③ **✅ 这一刀的落点（6 个文件）**
+　❶ **新增 `shadow-desktop/src/lib/agentCapabilities.ts`** —— 纯逻辑：勾选（保持顺序）、归一化（去空去重）、**序列化成「空 ⇒ undefined」**、能力词的中文兜底。
+　❷ **新增 `shadow-desktop/src/components/business/AgentCapabilityPicker.tsx`** —— 多选（chip ＋ 复选框），**词表直读端脑**（`GET /lobes/capability-defaults` 的 `capabilities`）⇒ ⇒ 端脑加新能力 ⇒ ⇒ 这里自动多一项。
+　❸ **改 `shadow-desktop/src/pages/SettingsPage.tsx`** —— 在 `CreateCustomAgentModal` 里挂上这一段，并把 `required_capabilities` 递进 `createPromptAgent`。
+　❹ **改 2 个桌面 i18n** —— 新增 4 个键（标题 / 说明 / 读不到词表 / 空态）。
+　❺ **新增 `shadow-desktop/tests/lib/agentCapabilities.test.ts`** —— 8 条纯逻辑判据。
+
+④ **⚠️ 途中那几课**
+　❶ **「没声明」与「声明了零项」是两件不同的事** ⇒ ⇒ 一个都没勾时递 `undefined`（**不是空数组**）⇒ ⇒ 否则端脑那边会收到一个「声明了但一项都没有」的怪东西 ⇒ ⇒ 这条已用反向验证钉住（变体 A ⇒ 恰好 1 红）。
+　❷ **空词不进声明**（端脑那边空串＝配了但没配 ⇒ ⇒ 400）⇒ ⇒ 变体 B 钉住。
+　❸ **词表仍然端脑说了算** —— 复用 `capability-defaults` 那个 GET 的 `capabilities` ⇒ ⇒ 客户端**不自己造词**（端脑的词表是**严格**的：不认识的词整个拒绝）。
+　❹ ⚠️ **`SettingsPage.tsx` 有并行会话的在飞改动**（主题/背景那段，在 `UISection` 里）⇒ ⇒ 我的落点在 `CreateCustomAgentModal`（**区域不重叠**）⇒ ⇒ ⇒ 提交面仍走「**HEAD ＋ 我这一段**」的机械构造（脚本把同一批替换施加到 HEAD 那份上）⇒ ⇒ ⇒ **他们的在飞内容没被卷进我的提交**（核过：工作树 vs HEAD+我 ⇒ 只剩他们那 230 行主题改动）。
+
+⑤ **✅ 判据（三处）** —— ❶ **判据级**：`npx vitest run tests/lib/agentCapabilities.test.ts` ⇒ ⇒ **8/8 绿**；❷ **反向验证级（两档）**：**变体 A**（空声明递成空数组）⇒ ⇒ **恰好 1 红**（「空 ⇒ undefined」那条）⇒ ⇒ 证明「没声明 ≠ 声明了零项」这条**承重**；**变体 B**（空词也收进声明）⇒ ⇒ **恰好 1 红**（空词不进表那条）⇒ ⇒ 证明「空串 = 配了但没配」那条**承重**；❸ **还原**：反向补丁还原后 `git hash-object` **逐字一致**（`d69c0ff…`）⇒ ⇒ 复跑 8/8 绿。
+
+⑥ **✅ 分级读数（全部实测）** —— **判据级**：新判据 8/8 绿（＋上一刀那张卡的 12/12 ⇒ 合计 20/20）｜ **反向验证级**：变体 A 恰好 1 红 ／ 变体 B 恰好 1 红 ｜ **类型级**：`npx tsc -b`（桌面全族）**EXIT=0** ｜ **行为级**：`npx vitest run`（桌面全量）⇒ ⇒ **1493 过 / 16 跳 / 1 红**（比上一刀 1485 多的 8 条就是本刀的判据）⇒ ⇒ 逐条归因：那 1 红＝`tests/generatedEol.test.ts` ⇒ ⇒ `scripts/gen_tokens.mjs --check` 说「`accent.g.ts` 与 `design-tokens.json` 不同步」⇒ ⇒ **并行会话在飞**的生成物漂移（与 `check-agent-surface` 同一个根因）⇒ ⇒ ⇒ **不是本刀**。
+
+⑦ **⚠️ 仍然欠着** —— ❶ **ASR/TTS 引擎「注册进 neuron」那一环仍欠**（承 U+3471 条）：候选来自供应商目录的模型 id，而端脑把引擎注册进 neuron 哪张表由 `api/providers.rs` / `api/lobe_runtime.rs` 决定（**并行会话在飞**）⇒ ⇒ ⇒ 选一个没注册的 id，端脑会**明确报错**（`ModelNotRegistered`）⇒ ⇒ 但**界面还没把这条前置条件说清**（用户勾得上、跑起来才报错）⇒ ⇒ 这是下一刀；❷ **移动端仍然没有 agent 创建入口** ⇒ ⇒ ⇒ 声明这件事在移动端**没法有**（它连表单都没有）⇒ ⇒ 若产品要移动端也能声明，得先有移动端的注册界面 ⇒ ⇒ **不擅自造一个**；❸ **「声明了之后谁来按它匹配」仍未定** —— 端脑的 auto-match 读的是同一个键（`providers.rs` 那侧**在飞**）⇒ ⇒ ⇒ 「谁触发匹配、匹配到哪一档」是产品决定；❹ **真机级／真端脑级未跑**（这一刀只到类型级 ＋ 单测级）；❺ **端脑 CI 恒门外红**（billing）⇒ ⇒ 端脑侧仍只有本地读数。
+
+⑧ **⚠️ 圈码：本条占 U+3473（㑳）** —— 插前**独立重扫**（父仓工作树 ∪ 父仓 HEAD ∪ 父仓 `origin/master` × **三本账本**，按**声明形状**扫）⇒ ⇒ 三面最高已声明 **U+3471**（承 U+3471 条；并行会话那条 U+3470 已在工作树面出现）⇒ ⇒ 自然下一枚 **U+3472** ⇒ ⇒ 但 **U+3472 已口头留给真机腿那条线**（mvs_259aea6）⇒ ⇒ ⇒ 按惯例**再留一枚缓冲** ⇒ ⇒ 取 **U+3473** ⇒ ⇒ 插前扫：U+3472／U+3473 在三账本三面**各 0 次声明**（⚠️ **U+3472 有 2 处提及** —— 那是我上一条里写的「顺延到 U+3472」⇒ ⇒ **提及不是声明**）✔ ⇒ ⇒ ⚠️ **不填历史空洞**（U+3463／U+3465／U+3467／U+3469／**U+346E** 继续空）⇒ ⇒ ⚠️ 本条**只引用已提交的码位**（U+3460／U+3471）⇒ ⇒ ⚠️ **插完立刻复跑码位闸**是硬约束。
 **Updated**: 2026-11-09 (㑰 **「51 条断言在量『浏览器返回了任何东西』—— 端脑整个坏了它照样绿」** —— 承 U+346D 条（契约套件凭据面收口），本条记**取证（51 条弱断言 ＋ 1 条零断言 ＋ R1 恒真 0）**、**第一因（断言的被测对象选错了）**、**这一刀的落点（13 个文件）**、**判据（闸级 ＋ 自检 ＋ 反向验证 ＋ 行为级）**、**分级读数**、**途中那几课**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-09 | authority=measured | scope=project | source=真运行级实测（自写断言普查器 ＋ 两档注入反向验证 ＋ 真端脑复演 API 断言 ＋ vitest 全量 ＋ 两把类型闸） | 改动：shadow 仓 **新增** `shadow-desktop/tests/support/brain-api.ts`、**新增** `scripts/lib/desktop-test-assertions.mjs`、**新增** `scripts/check-desktop-test-assertions.mjs`、**新增** `.github/workflows/desktop-test-assertions.yml`、**改** 4 个 `shadow-desktop/tests/wdio/*.test.ts`、**改** 4 个 `shadow-desktop/tests/tauri-e2e/smoke/*.test.ts`、**改** `shadow-desktop/tests/lib/webrtcCompanion.test.ts` ｜ 读数：**闸级 EXIT=0（206 文件 / 1617 用例 / 3040 断言 ⇒ R1=0、R2=0、R3=0）**、**自检 13/13**、**反向验证：注入一处恒真 ⇒ 恰好 1 红且点名 ⇒ 还原 blob 逐字一致 `de80e3dc…`**、**行为级：17/17 API 断言在真端脑（60204，全新数据目录）上过**、**类型闸：wdio 闸 EXIT=0；主闸 1 红＝并行会话已提交的 `capabilityDefaults.test.ts` 未用 import（与其无关）**、**vitest 全量 1485 过 / 16 跳 / 1 红**（那 1 红＝并行会话在飞的 `accent.g.ts` 生成物漂移，**与本刀无关**）、**YAML 闸 12 文件零违规**、**治理闸：我的闸 D1–D5 零违规** | status=active | supersedes=none
