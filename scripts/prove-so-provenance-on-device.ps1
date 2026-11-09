@@ -66,11 +66,24 @@ if (-not $Package) {
   $candidates = adb -s $Serial shell pm list packages |
     ForEach-Object { ($_ -split ':')[-1].Trim() } |
     Where-Object { $_ -like 'com.ibloc.*' }
-  $Package = ($candidates | Where-Object { $_ -eq 'com.ibloc.debug' } | Select-Object -First 1)
+  # ⚠️ **优先 com.ibloc.shadow**（2026-11-10 实测纠正）：仓里 applicationId 就是它
+  # ⇒ ⇒ 而设备上那个 `com.ibloc.debug` 是**旧版「影」**（2026-08-03 装的，带 MNN/sherpa
+  # 模型权重，那一版**还没有端脑 so**）⇒ ⇒ 优先探 debug 会**探到旧版** ⇒ ⇒ 假红。
+  $Package = ($candidates | Where-Object { $_ -eq 'com.ibloc.shadow' } | Select-Object -First 1)
+  if (-not $Package) { $Package = ($candidates | Where-Object { $_ -eq 'com.ibloc.debug' } | Select-Object -First 1) }
   if (-not $Package) { $Package = ($candidates | Select-Object -First 1) }
 }
 if (-not $Package) { Write-Output '设备上找不到 iBLOC 的包 ⇒ 判不了'; exit 2 }
-if (-not $Activity) { $Activity = "$Package.MainActivity" }
+# ⚠️ **Activity 不能从包名推**（2026-11-10 真机实测抓到的）：debug flavor 只改了
+# **applicationId**（com.ibloc.debug）⇒ ⇒ 而 **Kotlin 源包名仍是 com.ibloc.shadow**
+# ⇒ ⇒ 所以 Activity 是 com.ibloc.shadow.MainActivity ⇒ ⇒ 按包名推会得到
+# 「com.ibloc.debug.MainActivity」⇒ ⇒ **起 App 直接失败**（Error type 3）。
+# ⇒ ⇒ 正解：**问系统**（resolve-activity）⇒ ⇒ 问不到再回落那个源包名。
+if (-not $Activity) {
+  $resolved = adb -s $Serial shell cmd package resolve-activity --brief $Package 2>$null | Select-Object -Last 1
+  if ($resolved -and $resolved -match '/') { $Activity = ($resolved.Trim() -split '/')[-1] }
+}
+if (-not $Activity) { $Activity = 'com.ibloc.shadow.MainActivity' }
 Write-Output "包名：$Package"
 
 if (-not $OutDir) { $OutDir = Join-Path $env:TEMP 'so-provenance' }
@@ -92,9 +105,30 @@ $apkPath = (adb -s $Serial shell pm path $Package | Select-Object -First 1) -rep
 if (-not $apkPath) { Write-Output '拿不到 APK 路径'; exit 2 }
 $libDir = $apkPath -replace 'base\.apk$', ''
 $libFile = "$libDir/lib/arm64/libencephalon.so"
-$pulled = Join-Path $OutDir 'device-libencephalon.so'
+# ⚠️ **文件名带时间戳**（2026-11-10 实测踩到的坑）：so 是**直接打进 APK** 的
+# ⇒ ⇒ 设备文件系统里**没有**它 ⇒ ⇒ pull 会失败 ⇒ ⇒ 而旧版脚本随后拿
+# `$OutDir` 里**上一次跑留下的缓存**当「设备上的那份」⇒ ⇒ 报出一个**假红**
+# （缓存里是旧 so，而设备上其实已经装了新 so）⇒ ⇒ ⇒ 「量到的必须是这一次的」。
+$stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+$pulled = Join-Path $OutDir "device-libencephalon-$stamp.so"
 adb -s $Serial pull $libFile $pulled | Out-Null
-if (-not (Test-Path $pulled)) { Write-Output '拉不下设备上的 .so'; exit 2 }
+if (-not (Test-Path $pulled)) {
+  # ⇒ ⇒ 走真路：把 **APK 本身**拉回来，本地解 zip 取那份 so（第 ① 层要量的正是它）
+  $apkPulled = Join-Path $OutDir "device-$stamp.apk"
+  Write-Output "设备文件系统里没有那份 so（它内嵌在 APK 里）⇒ ⇒ 改拉 APK 本地解：$apkPulled"
+  adb -s $Serial pull $apkPath $apkPulled | Out-Null
+  if (-not (Test-Path $apkPulled)) { Write-Output '拉不下 APK'; exit 2 }
+  Add-Type -AssemblyName System.IO.Compression.FileSystem
+  $zip = [System.IO.Compression.ZipFile]::OpenRead($apkPulled)
+  try {
+    $entry = $zip.Entries | Where-Object { $_.FullName -eq 'lib/arm64-v8a/libencephalon.so' } | Select-Object -First 1
+    if (-not $entry) { $entry = $zip.Entries | Where-Object { $_.FullName -like '*/libencephalon.so' } | Select-Object -First 1 }
+    if (-not $entry) { Write-Output 'APK 里找不到 libencephalon.so'; exit 2 }
+    [System.IO.Compression.ZipFileExtensions]::ExtractToFile($entry, $pulled, $true)
+    Write-Output "APK 内条目：$($entry.FullName)"
+  } finally { $zip.Dispose() }
+}
+if (-not (Test-Path $pulled)) { Write-Output '取不到设备那份 so'; exit 2 }
 $devSha = (Get-FileHash $pulled -Algorithm SHA256).Hash
 $devLen = (Get-Item $pulled).Length
 Write-Output "设备上的 .so : $devSha  ($devLen bytes)"
@@ -105,7 +139,28 @@ if (Test-Path $JniLibs) {
   $localSha = (Get-FileHash $JniLibs -Algorithm SHA256).Hash
   $localLen = (Get-Item $JniLibs).Length
   Write-Output "本机 jniLibs : $localSha  ($localLen bytes)"
-  Check '设备那份 == 本机 jniLibs 那份' ($devSha -eq $localSha) ("dev=$devSha local=$localSha")
+  # ⚠️⚠️ **不能直接拿 jniLibs 那份跟 APK 里那份比指纹**（2026-11-10 实测）：
+  # Android 构建会 **strip** 掉 native 库的符号表 ⇒ ⇒ APK 内那份是 **strip 过的**
+  # ⇒ ⇒ 实测 jniLibs 223,372,280 B ⇒ ⇒ APK 内 157,623,608 B ⇒ ⇒ 逐字节**必然不等**
+  # ⇒ ⇒ 而那是**假红**（被测物没坏，是尺子跨了一道变换）。
+  # ⇒ ⇒ 正解：**两边都 strip 到同一形状再比** ⇒ ⇒ 用 NDK 的 llvm-strip 处理本机那份。
+  $ndkRoot = $env:ANDROID_NDK_HOME
+  if (-not $ndkRoot) { $ndkRoot = Join-Path $env:LOCALAPPDATA 'Android\Sdk\ndk\30.0.14904198' }
+  $stripExe = Join-Path $ndkRoot 'toolchains\llvm\prebuilt\windows-x86_64\bin\llvm-strip.exe'
+  if (Test-Path $stripExe) {
+    $stripped = Join-Path $OutDir "local-stripped-$stamp.so"
+    & $stripExe --strip-unneeded -o $stripped $JniLibs 2>$null | Out-Null
+    if (Test-Path $stripped) {
+      $strippedSha = (Get-FileHash $stripped -Algorithm SHA256).Hash
+      $strippedLen = (Get-Item $stripped).Length
+      Write-Output "本机 jniLibs（strip 后）: $strippedSha  ($strippedLen bytes)"
+      Check '设备那份 == 本机 jniLibs strip 后那份' ($devSha -eq $strippedSha) ("dev=$devSha localStripped=$strippedSha")
+    } else {
+      Write-Output 'strip 跑不出来 ⇒ ⇒ 这一格判不了（不是红）'
+    }
+  } else {
+    Write-Output "找不到 NDK 的 llvm-strip（$stripExe）⇒ ⇒ 这一格判不了（不是红）"
+  }
 } else {
   Check '本机 jniLibs 那份存在' $false $JniLibs
 }
