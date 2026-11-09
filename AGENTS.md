@@ -1,5 +1,31 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-09 (㐤 **「任务库落盘 —— 对话里建的任务，重启后还在」** —— 承 㐡 条（任务库有**三份**那条的「**仍然欠着**」项：任务库是内存的）与 㐝 条（任务号是端脑持有的事实），本条记**病根**、**选型取舍**、**落点与旋钮口径**、**落库纪律**、**判据**、**反向验证**、**分级读数**，以及**仍然欠着的**。)
+
+> 信封：epoch=2026-11-09 | authority=measured | scope=project | source=真机实测（改动全在 `telencephalon` 仓：**改写** `src/lobes/task_store.rs` ＋ **新增** `tests/task_store_persistence.rs`；读数：**落盘级 10/10 绿**、**反向验证级 恰好 9 红**、**编译级 `cargo check --all-targets` EXIT=0**、**单测级 `cargo test --lib` 845 passed / 0 failed**）| status=active | supersedes=none
+
+① **⚠️ 病根：任务库是内存的 ⇒ ⇒ 对话里建的任务重启即失** —— `TaskStore { tasks: Arc<RwLock<HashMap<String, Task>>>, next_id: Arc<RwLock<u64>> }` ⇒ ⇒ 全在进程内存里 ⇒ ⇒ 进程一退**全没** ⇒ ⇒ 与桌面/移动端任务板「今天就能用」那句话对不上 ⇒ ⇒ 承 㐡 条⑧❶ 那笔欠账（那一刀把「三份库」收成一份，但**没解决**「重启即失」）。
+
+② **✅ 选型：为什么是「端脑侧单文件 JSON」，不是 Lance／Turso** —— ❶ **Lance（海马体）移动端被平台硬挡**：发布文件靠 `fs::hard_link`，而 Android 的 SELinux **不允许 App 在自己数据目录里建硬链接**（AOSP：`allow appdomain app_data_file:file rw_file_perms`，那个宏里**没有** `link`）⇒ ⇒ 真机实测 `avc: denied { link }` ⇒ ⇒ 端脑直接 panic ⇒ ⇒ **移动端根本用不了** ⇒ ⇒ 只能桌面端；❷ **Turso/libSQL** 要**远程 URL ＋ token**（`Builder::new_remote`）⇒ ⇒ 凭据未给 ⇒ ⇒ 且移动端只能走 `turso-remote`（不编 libsql-sys）⇒ ⇒ **仍要同一个远程库** ⇒ ⇒ 阻塞；❸ ⇒ ⇒ 选**端脑侧单文件 JSON 快照** ⇒ ⇒ 与仓内既有先例**同形**（`src/api/shadow/conversations.rs` 的 `FilePersistence`：读→改→`tmp` 写→`rename` 原子替换，`Mutex` 下 read-modify-write）⇒ ⇒ **移动端也写得动**（一次改名，不需要硬链接）。
+
+③ **✅ 落点：宿主显式给，端脑零猜测** —— 旋钮 `TELENCEPHALON_TASKS_FILE`（旧名 `CORTEX_TASKS_FILE`）⇒ ⇒ 没指就退到 **❷ `TELENCEPHALON_PROVIDERS_FILE` 的兄弟文件**（同一目录里的 `tasks.json`）⇒ ⇒ ⚠️ **移动端因此自动具备**：宿主启动端脑之前已经把 providers 文件指到 App 私有目录（`providers_file_for`）⇒ ⇒ 任务库落到同一个目录 ⇒ ⇒ **端脑零改动、宿主零改动**；⚠️ **故意不设 `$HOME` 默认值**（与 `providers.json` 的口径**故意不同**）⇒ ⇒ `TaskStore::new()` 也被单测调用 ⇒ ⇒ 若按 `$HOME` 落盘 ⇒ ⇒ 跑一次 `cargo test` 就会把**测试任务写进用户真实的任务文件** ⇒ ⇒ 那是污染真实数据 ⇒ ⇒ 所以「**只有宿主显式指过，才落盘**」⇒ ⇒（文件内单测已全部改用 `TaskStore::in_memory()`）。
+
+④ **✅ 落库纪律：写失败必须出声，且内存一起回滚** —— 落盘点＝四个改动口（`create_task`／`confirm_task`／`update_task_fields`／`delete_task`）⇒ ⇒ 每次改动后**整份重写快照**（先写 `*.tmp-<pid>` 再 `rename` ⇒ ⇒ 同一目录内改名原子 ⇒ ⇒ 断电不留半个 JSON）⇒ ⇒ ⚠️ **写失败 ⇒ 返回 `Err` ＋ 把内存改动回滚** ⇒ ⇒ 「以为存下了、其实没存」那种**失败长得像成功**不许发生；⚠️ **顺带修掉一个老毛病**：`confirm_task` 以前在 `modifications.due_time` 解析失败时**已经改了一半**（`confirmed` 已翻成 true）⇒ ⇒ 现在改成「先在副本上改、校验通过才写回」⇒ ⇒ 出错时**一个字节都不改**。
+
+⑤ **⚠️ `next_id` 必须一起落盘** —— 只存 `tasks` ⇒ ⇒ 重启后任务号从 `task-1` 重新开始 ⇒ ⇒ **重号** ⇒ ⇒ 老任务被新任务顶掉 ⇒ ⇒ 那是**静默改错**（用户看到的是别人的任务）⇒ ⇒ 快照形状＝`{version, next_id, tasks[]}` ⇒ ⇒ 且加载时 `next_id` 至少越过「盘上最大的任务号」⇒ ⇒ **宁可跳号，不可重号**。
+
+⑥ **⚠️ 快照坏了 ⇒ 隔离，不是静默当空** —— 解析不过 ⇒ ⇒ **改名**成 `tasks.json.corrupt-<毫秒>`（**原件不删**，人能查）⇒ ⇒ 而**不是**当成空库（那＝用户的数据「看起来被清空了」）；⚠️ **版本不认识** ⇒ ⇒ **不许动它**（可能是更新版本写的）⇒ ⇒ 落盘关掉（不覆盖那份）；⚠️ **读不出来**（权限／IO）⇒ ⇒ 同样**不许覆盖** ⇒ ⇒ 明确失败。
+
+⑦ **✅ 判据（不是只改代码）** —— 新增 `tests/task_store_persistence.rs` **10 条**（「重启」＝**新 store 实例**读同一个文件 ⇒ ⇒ 同形，不需要真起进程 ⇒ ⇒ 且必须是**新实例**，同一个实例当然还在 ⇒ ⇒ 那条判据永远是绿的）：❶ 任务在新实例里还在（字段逐个对）；❷ 任务号**不重用**；❸ 删掉的任务号**不回来**；❹ 确认状态落盘；❺ 改标题落盘；❻ 删除落盘；❼ **写失败必须出声 ＋ 内存不留残影**；❽ 损坏快照被**隔离**（原件不删）；❾ 快照**原子写**（不留 `tmp`）且**带 `next_id`**；❿ **旋钮决定落点**（显式旋钮 ＋ providers 兄弟文件）。
+
+⑧ **✅ 反向验证（尺子有分辨力）** —— 把落盘整层摘掉（`with_persistence` 临时直接返回内存库，验完即摘、**不进仓**）⇒ ⇒ **恰好 9 条红**（逐条：任务不在了／id 重了／确认与改标题没落盘／快照文件不存在／旋钮没起作用／损坏件没被隔离／写盘**没有**失败 ⇒ ⇒ 尺子真的在盯这件事）⇒ ⇒ **1 条绿**＝`a_deleted_task_stays_deleted_after_a_restart`（它断言「不在」⇒ ⇒ 落盘摘掉后**空库也满足** ⇒ ⇒ 它的分辨力来自孪生的 ❶）⇒ ⇒ 还原 ⇒ ⇒ **10/10 绿**。
+
+⑨ **✅ 分级读数** —— **落盘级**：`cargo test --test task_store_persistence` ⇒ **10 passed / 0 failed**；**反向验证级** ⇒ **恰好 9 failed / 1 passed**（摘掉落盘）⇒ ⇒ 还原 ⇒ ⇒ 10/10 绿；**编译级**：`cargo check --all-targets` ⇒ **EXIT=0**（零 error）；**单测级**：`cargo test --lib` ⇒ 845 passed / 0 failed；⚠️ **真机级未跑**（设备离线）⇒ ⇒ 「重启后真的还在」在**真进程/真机**上还没验过 ⇒ ⇒ 本刀最高只到**落盘级** ⇒ ⇒ **不许拿离线绿冒充真机绿**。
+
+⑩ **⚠️ 仍然欠着** —— ❶ **桌面端还没接线**：桌面宿主**不设** `TELENCEPHALON_PROVIDERS_FILE`（全仓 grep 只在文档与移动端宿主里出现）⇒ ⇒ 端脑按口径**不落盘**（桌面那份 provider 走的是端脑**内部**的 `$HOME` 默认 ⇒ ⇒ 那**不是**宿主显式指过）⇒ ⇒ 桌面要落盘，需要宿主加一行 `TELENCEPHALON_TASKS_FILE`（或 `TELENCEPHALON_PROVIDERS_FILE`）⇒ ⇒ ⚠️ **本刀没加**：桌面宿主文件（`shadow-desktop/src-tauri/src/lib.rs`）**正被并行会话在飞改** ⇒ ⇒ 碰它＝把别人的在飞件卷进我的提交 ⇒ ⇒ **欠着**（等并行会话落地后一行补上）；❷ **真机级全欠**（设备离线）⇒ ⇒ 移动端那条「自动落盘」目前只有**推导** ＋ **离线级**读数；❸ **Turso/Lance 后端仍未用**（凭据未给／移动端被平台挡住）⇒ ⇒ 若日后给了 Turso 凭据要换后端 ⇒ ⇒ 那时要**重测这一刀的判据**；❹ **桌面任务板仍走海马体方言**（`/hippocampus/api/tasks`，Lance 那套）⇒ ⇒ 本刀的端脑任务库**不会**直接出现在桌面任务板上（那是另一份数据、另一刀）⇒ ⇒ 「桌面今天就能用」那句话**仍然对不上**；❺ **两个进程／两份 store 同时写一个文件**未处理（生产只有一份库 ⇒ ⇒ 不成立；真要两进程，得加文件锁）；❻ **端脑 CI 仍是门外红**（billing／spending limit，承 ㎯ 条）⇒ ⇒ 只能靠本地读数；❼ **端脑仓 `Cargo.lock` 与 `Cargo.toml` 不同步** ⇒ ⇒ 该仓**别用** `--locked`；❽ ⚠️ **本刀没提交**（用户没让我提交 ⇒ ⇒ 没提交）⇒ ⇒ 真要提交必须**外科式暂存**（独立索引 ＋ 索引直写），不许把并行会话的在飞件（`src/{api/boot,state}.rs`、`src/api/{lobe_runtime,providers,tasks_admin}.rs`、`src/lobes/{mod,scheduler}.rs`、`Cargo.lock`）卷进来。
+
+⑪ **⚠️ 圈码：本条占 U+3424（㐤）** —— 插前 `git fetch` 远端（清代理）＋ **跨四账本**实测（父仓工作树 ∪ 父仓远端 `origin/master` ∪ 移动端 ∪ 桌面端）⇒ ⇒ 0x3400–0x3423 **全部已占** ⇒ ⇒ **U+3424 空闲** ✔ ⇒ ⇒ ⚠️ **这是连续第七次「定稿时的空闲只证明那一刻没人占」**（㐞 三次、㐝 一次、㐡 一次、㐣 一次、本条再一次）⇒ ⇒ **插前重扫是硬约束，不是形式**；⚠️ 另记：本条**只引用已提交的码位**（可引 㐣 U+3423／㐡 U+3421／㐝 U+341D）⇒ ⇒ 引用并行会话**未提交**的那条 ⇒ ⇒ 提交树面**悬空引用**红（承 㐣 条⑧ 那条纪律）。
+
 **Updated**: 2026-11-09 (㐣 **「全局替换泄漏立闸 —— 「单 worker 下整仓飘红」那一族，从此有机械可跑的尺子」** —— 承 U+341C 条（那一族的钉死）与「尺子要可见」的纪律，本条记**病根回顾**、**这一刀的三处落点**、**判据两族各自的口径**、**⚠️ 第一版闸没有分辨力（实测踩到）**、**覆盖面怎么靠发现**、**反向验证（走真文件）**、**分级读数**，以及**仍然欠着的**。)
 
 > 信封：epoch=2026-11-09 | authority=measured | scope=project | source=真机实测（改动全在 `shadow` 父仓：**新增** `scripts/lib/test-global-leaks.mjs` ＋ **新增** `scripts/check-test-global-leaks.mjs` ＋ **新增** `.github/workflows/test-global-leaks.yml`；读数：**判据级 自检 12/12**、**取证级 反向验证 4/4**、**整仓普查 1 工程 / 156 文件（含 setup 1 个）/ 候选 0**、**纪律闸级 新闸零违规**、**YAML 闸 7/7 绿**、**CI 级 run 42541390786 success（5 步全绿）**）| status=active | supersedes=none
