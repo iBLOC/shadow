@@ -255,18 +255,37 @@ void main() {
       expect((tree ?? '').trim(), isNotEmpty, reason: '读到了一棵空树');
 
       // ⚠️ **截断标记不该出现在一棵正常树上** —— 误报比漏报更坑
-      // （模型会以为「这一屏被截了」⇒ ⇒ 于是不敢做判断）。
-      expect(tree!.trimRight().endsWith(kScreenTruncationMarker), isFalse);
+      // ⚠️⚠️ **判据从「不许截断」改成「要么不截断、要么显式标记」**（2026-11-11 真机实测）
+      // ⇒ ⇒ 原断言是「这一屏**不许**出现截断标记」
+      // ⇒ ⇒ ⇒ 但那一屏是**谁**没人管 ⇒ ⇒ 而 MIUI **桌面**的树巨大
+      // ⇒ ⇒ ⇒ ⇒ 实测树规模：ImageView×67 ＋ RelativeLayout×53 ＋ TextView×59
+      // ⇒ ⇒ ⇒ ⇒ ⇒ 字符预算 20000 ⇒ ⇒ **它本来就该被截断**
+      // ⇒ ⇒ ⇒ ⇒ ⇒ 而上一轮同一屏是 19149 字符（**刚好不截断**）
+      // ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ **同一个东西，差一点点 ⇒ ⇒ 一个绿一个红** ⇒ ⇒
+      // ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ 那不是能力变了，那是**环境漂了**
+      // ⇒ ⇒ ⇒ ⇒ ⇒ ⚠️ **产品真正该保证的性质**不是「不截断」，
+      // ⇒ ⇒ ⇒ ⇒ ⇒ 而是「**截断了就一定说出来**」（静悄悄截断 ⇒ ⇒ 模型以为看全了）
+      // ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ **通用形态：判据要对着「被测物该保证的性质」，
+      // ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ 而不是对着「某个环境下恰好成立的值」**。
+      final bool marked = tree!.trimRight().endsWith(kScreenTruncationMarker);
+      final bool hasMarkerInside = tree.contains(kScreenTruncationMarker);
+      expect(
+        marked,
+        hasMarkerInside,
+        reason: '截断标记的**位置**不对：'
+            '要么整棵树**没被截断**（那就不许出现标记），'
+            '要么**末尾**必须带标记（截断了就要说出来）',
+      );
 
       // 打印树的头部，好肉眼核对「读到的确实是一棵树」。
       final head = tree.length > 300 ? tree.substring(0, 300) : tree;
       // ignore: avoid_print
-      print('--- SCREEN TREE (${tree.length} chars) ---\n$head');
+      print('--- SCREEN TREE (${tree.length} chars) truncated=$marked ---\n$head');
     });
   }, timeout: const Timeout(Duration(minutes: 3)));
 
-  test('工具层那条路 ⇒ truncated 字段是 false（正常屏不误报）', () async {
-    await check('工具层 ⇒ truncated 为 false', () async {
+  test('工具层那条路 ⇒ **截断了就说截断了**（truncated 字段与标记逐字对齐）', () async {
+    await check('工具层 ⇒ truncated 字段与标记逐字对齐', () async {
       final tools = CapabilityTools();
       Map<String, dynamic>? map;
       for (var i = 0; i < 30; i++) {
@@ -281,9 +300,29 @@ void main() {
         await Future<void>.delayed(const Duration(milliseconds: 500));
       }
       expect(map, isNotNull, reason: '工具层始终没读到屏');
-      expect(map!['truncated'], isFalse);
-      expect(map['screen'], isA<String>());
-      expect((map['screen'] as String).trim(), isNotEmpty);
+      final Map<String, dynamic> got = map!;
+      expect(got['screen'], isA<String>());
+      final String screen = got['screen'] as String;
+      expect(screen.trim(), isNotEmpty);
+
+      // ⚠️⚠️ **判据：字段与标记必须**逐字对齐** ⇒ ⇒ 两者说的是同一件事。
+      // ⇒ ⇒ 「truncated=true 但树里没标记」⇒ ⇒ 模型看不出来 ⇒ ⇒ 那是静悄悄截断
+      // ⇒ ⇒ 「truncated=false 但树里带标记」⇒ ⇒ 字段在说谎 ⇒ ⇒ 同一族。
+      // ⚠️⚠️ 而**不许**再断言「truncated 必须是 false」——
+      // ⇒ ⇒ 那一屏（MIUI 桌面）的树**本来就超预算** ⇒ ⇒ 截断是**正确行为**
+      // ⇒ ⇒ ⇒ ⇒ ⇒ **通用形态：截断不是 bug，**静悄悄**的截断才是 bug**
+      final bool fieldSaysTruncated = map['truncated'] == true;
+      final bool markerSaysTruncated = screen.trimRight().endsWith(kScreenTruncationMarker);
+      expect(
+        fieldSaysTruncated,
+        markerSaysTruncated,
+        reason: 'truncated 字段（$fieldSaysTruncated）与树末尾的标记'
+            '（$markerSaysTruncated）**不一致** ⇒ ⇒ '
+            '要么模型看不出来，要么字段在说谎',
+      );
+      // ignore: avoid_print
+      print('--- TOOL LAYER --- truncated=$fieldSaysTruncated '
+          'marker=$markerSaysTruncated len=${screen.length}');
     });
   }, timeout: const Timeout(Duration(minutes: 3)));
 
@@ -333,7 +372,7 @@ void main() {
     });
   }, timeout: const Timeout(Duration(minutes: 4)));
 
-  test('滑动手势：从顶边下拉 ⇒ 界面大幅变了（通知栏被拉下来了）', () async {
+  test('滑动手势 ⇒ 界面真的变了（**滑动落地**，不钉死「哪个平台特性」）', () async {
     await check('滑动手势 ⇒ 落地', () async {
       final tools = CapabilityTools();
       expect(await waitForAccessibility(60), isTrue, reason: '无障碍服务没开');
@@ -345,7 +384,23 @@ void main() {
       final base = await readTreeWithRetry(60);
       expect(base, isNotNull, reason: '读不到前台窗口');
 
-      // ① 从**顶边**往下拉 ⇒ ⇒ 通知栏
+      // ⚠️⚠️⚠️ **为什么不再断言「从顶边下拉 ⇒ 通知栏」**（2026-11-10 真机实测）
+      // ⇒ ⇒ 那一版把**一个平台特性**当成了**能力本身**的判据
+      // ⇒ ⇒ ⇒ 实测（odin / MIUI 14）：**系统级** `adb input swipe` 对照
+      // ⇒ ⇒   从**正中**（x=540）往下拉 ⇒ ⇒ **界面一动不动**
+      // ⇒ ⇒   从 x=300 往下拉 ⇒ ⇒ 拉出 **NotificationShade**
+      // ⇒ ⇒   从 x=900 往下拉 ⇒ ⇒ 拉出 **control_center**
+      // ⇒ ⇒ ⇒ **同一条手势、同一台机器，只因为起点 x 不同，结果就三种**
+      // ⇒ ⇒ ⇒ ⇒ 那不是「滑动手势不成立」，那是**平台在这个坐标上是死区**
+      // ⇒ ⇒ ⇒ ⇒ ⇒ **通用形态：把平台特性当能力判据 ⇒ ⇒ 尺子会红在
+      // ⇒ ⇒ ⇒ ⇒ ⇒ 「平台行为」上，而产品其实没问题**
+      // ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ 修法：**判「滑动落地」这件事本身**（界面变了没有），
+      // ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ **不钉死用哪个坐标 / 拉出哪个界面**。
+      // ⇒ ⇒ ⇒ ⇒ ⇒ ⚠️ 而「界面变了」的判据必须是**实质变化**
+      // ⇒ ⇒ ⇒ ⇒ ⇒ （见 materiallyChanged：节点数 / 体量 / 标签集合）
+      // ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ 否则滑一下没动会被判成「变了」⇒ ⇒ 假绿。
+
+      // ① 从**顶边**往下拉 ⇒ ⇒ 通知栏（**首选**路径）
       await tools.swipe(<String, dynamic>{
         'x1': cx,
         'y1': 4,
@@ -353,22 +408,111 @@ void main() {
         'y2': size.height * 0.6,
         'duration_ms': 500,
       });
-      final shade = await readTreeUntilChanged(base!, 40);
+      var after = await readTreeUntilChanged(base!, 40);
+      var how = 'top-edge';
+
+      // ② ⚠️ **正中下拉在某些机型/桌面上是死区** ⇒ ⇒ 换**左侧**起点重试
+      // ⇒ ⇒（实测 x=300 能拉出 NotificationShade ⇒ ⇒ 而 x=540 什么也不发生）
+      if (after == null) {
+        // ignore: avoid_print
+        print('--- SWIPE (top-edge center) --- 没变化 ⇒ ⇒ 换左侧起点重试');
+        await tools.swipe(<String, dynamic>{
+          'x1': size.width * 0.28,
+          'y1': 4,
+          'x2': size.width * 0.28,
+          'y2': size.height * 0.6,
+          'duration_ms': 500,
+        });
+        after = await readTreeUntilChanged(base, 40);
+        how = 'top-edge-left';
+      }
+
       expect(
-        shade,
+        after,
         isNotNull,
-        reason: '从顶边下拉之后 **界面没有实质变化** ⇒ ⇒ 滑动手势很可能没落地',
+        reason: '两个候选起点都试过了，界面**都没有实质变化**'
+            ' ⇒ ⇒ 滑动手势在真机上不成立',
       );
       // ignore: avoid_print
-      print('--- SIGNATURE (swipe) ---\nbase=${structureSignature(base)}'
-          '\nshade=${structureSignature(shade!)}'
+      print('--- SIGNATURE (swipe) ---\nhow=$how'
+          '\nbase=${structureSignature(base)}'
+          '\nafter=${structureSignature(after!)}'
           '\nbaseNodes=${nodeCount(base)}'
-          '\nshadeNodes=${nodeCount(shade)}');
+          '\nafterNodes=${nodeCount(after)}');
 
-      // 收尾：把通知栏收回去（不断言 —— 收不回去也不影响本条的结论）
+      // 收尾：把可能拉下来的通知栏收回去（不断言 —— 收不回去也不影响本条的结论）
       await tools.globalAction(<String, dynamic>{'action': 'back'});
     });
-  }, timeout: const Timeout(Duration(minutes: 4)));
+  }, timeout: const Timeout(Duration(minutes: 5)));
+
+  test('滑动手势（**别人的 app 里**）⇒ 列表内容真的变了', () async {
+    await check('滑动手势 ⇒ 别人的 app 里列表变了', () async {
+      final tools = CapabilityTools();
+      expect(await waitForAccessibility(60), isTrue, reason: '无障碍服务没开');
+
+      // ⚠️ **目标必须「确定可滚」** —— 实测踩过：
+      // ⇒ ⇒ 桌面（MIUI 启动器）**不可靠**（它有负一屏、卡片、各种层）
+      // ⇒ ⇒ ⇒ 而**系统设置**的首屏是一张**确定可滚的列表** ⇒ ⇒ 拿它当靶子。
+      // ⇒ ⇒ ⇒ **通用形态：尺子要挑一个「行为确定」的靶子**，
+      // ⇒ ⇒ ⇒ 否则红的是「靶子不配合」，不是「被测能力不行」。
+      // ⚠️⚠️⚠️ **不要自己按 home** —— 第一版在这里按了 `home`
+      // ⇒ ⇒ ⇒ 结果把**主机侧准备好的靶子**（系统设置）切回了桌面
+      // ⇒ ⇒ ⇒ ⇒ 而桌面**不是确定可滚的列表** ⇒ ⇒ ⇒ 红了
+      // ⇒ ⇒ ⇒ ⇒ ⇒ **通用形态：注释里写了「靶子是什么」不算数**，
+      // ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ **代码里必须真的对着那个靶子量** ——
+      // ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ 否则尺子量的**根本不是它说的那个东西**。
+      // ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⚠️ 而 app 自己**开不了**别的 app ⇒ ⇒
+      // ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ 「拉起设置」这件事只能由**主机侧**做
+      // ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒（驱动脚本已经在做：它把设置拉到前台）
+      // ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ **app 侧不许把它切走**。
+      // ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒
+      // ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⚠️⚠️ **而且必须先确认「前台那屏确实可滚」**
+      // ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒（否则滑的是一张死屏 ⇒ ⇒ 又是「靶子不配合」）
+      final target = await readTreeWithRetry(60);
+      expect(target, isNotNull, reason: '读不到前台窗口');
+      final targetTexts = labelsOf(target!);
+      expect(
+        targetTexts.length,
+        greaterThan(3),
+        reason: '前台那屏的树几乎没东西 ⇒ ⇒ 不是一张可滚列表 ⇒ ⇒ '
+            '靶子没准备好（主机侧该把系统设置拉到前台）',
+      );
+
+      final FlutterView view = PlatformDispatcher.instance.views.first;
+      final Size size = view.physicalSize;
+
+      final before = await readTreeWithRetry(60);
+      expect(before, isNotNull, reason: '读不到前台窗口');
+
+      // ⚠️⚠️ **起点必须避开「平台死区」** —— 实测（odin / MIUI 14）：
+      // ⇒ ⇒ 桌面上从**正中**（x=540）下拉是**死区**（什么也不发生）
+      // ⇒ ⇒ 而从 **x=300** 下拉能拉出 NotificationShade
+      // ⇒ ⇒ ⇒ ⇒ 而在**设置列表**里，滚动手势的起点同样避开正中偏上的位置
+      // ⇒ ⇒ ⇒ ⇒ ⇒ **通用形态：同一条手势在不同 x 上结果不同 ⇒ ⇒
+      // ⇒ ⇒ ⇒ ⇒ ⇒ 尺子不能只试一个坐标就判生死**
+      final double x = size.width * 0.28;
+      await tools.swipe(<String, dynamic>{
+        'x1': x,
+        'y1': size.height * 0.72,
+        'x2': x,
+        'y2': size.height * 0.28,
+        'duration_ms': 500,
+      });
+
+      final after = await readTreeUntilChanged(before!, 40);
+      expect(
+        after,
+        isNotNull,
+        reason: '在别的 app 里滑动之后 **界面没有实质变化**'
+            ' ⇒ ⇒ 滑动手势在真机上不成立',
+      );
+      // ignore: avoid_print
+      print('--- SCROLL (other app) ---\nbefore=${structureSignature(before)}'
+          '\nafter=${structureSignature(after!)}'
+          '\nbeforeNodes=${nodeCount(before)}'
+          '\nafterNodes=${nodeCount(after)}');
+    });
+  }, timeout: const Timeout(Duration(minutes: 5)));
 
   test('点按 / 长按：手势被派发出去了（**只证明派发**）', () async {
     await check('点按 / 长按 ⇒ 派发成功', () async {

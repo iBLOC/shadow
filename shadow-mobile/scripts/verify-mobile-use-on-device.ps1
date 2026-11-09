@@ -368,6 +368,9 @@ try {
     $lastKeepAlive = [DateTime]::MinValue
     $lastDisplayCheck = [DateTime]::MinValue
     $foregroundPid = ''
+# ⚠️ **靶子回前台的时间戳** —— 读屏族的靶子（系统设置）必须**一直在前台**
+# ⇒ ⇒ 理由见下面那段注释（用例会把它切走，而驱动只准备了一次）。
+$lastTargetForeground = [DateTime]::MinValue
     while ((Get-Date) -lt $deadline) {
         if ($job.State -ne 'Running') { break }
         $pidText = ((& adb -s $DeviceId shell pidof com.ibloc.shadow) -join '').Trim()
@@ -490,6 +493,25 @@ try {
                 }
                 # ⚠️ **前台切换只做一次** —— 之后继续盯授权（drive 可能再重装）。
                 $foregroundPid = $pidText
+            }
+
+            # ⚠️⚠️⚠️ **靶子得「一直在前台」**（2026-11-11 真机实测补的）
+            # ⇒ ⇒ 上面那次切换**只在 pid 变化时做一次**
+            # ⇒ ⇒ ⇒ 而用例里任何一个 `back` / `home`（全局动作那条、
+            # ⇒ ⇒ ⇒ 滑动那条的收尾……）都会把**靶子切走**
+            # ⇒ ⇒ ⇒ ⇒ 而驱动脚本**永远不会把它拉回来**
+            # ⇒ ⇒ ⇒ ⇒ ⇒ 实测后果：「滑动手势（别人的 app 里）」那条
+            # ⇒ ⇒ ⇒ ⇒ ⇒ 量到的其实是**桌面** ⇒ ⇒ ⇒ 红了
+            # ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ **通用形态：靶子要有人负责「一直在」**
+            # ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ **只准备一次是不够的** ——
+            # ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ 用例会把它弄走的。
+            if ($granted -and -not $KeepOwnAppForeground) {
+                if (((Get-Date) - $lastTargetForeground).TotalSeconds -ge 6) {
+                    $lastTargetForeground = Get-Date
+                    # ⚠️ **只拉起，不按 HOME** —— HOME 会让系统落在启动器
+                    # ⇒ ⇒ ⇒ 而启动器不是确定可滚的靶子（实测滑它不生效）
+                    & adb -s $DeviceId shell am start -a android.settings.SETTINGS 2>$null | Out-Null
+                }
             }
 
             # ⚠️⚠️⚠️ **保活：App 必须处于「resume」才收得到触摸** ——

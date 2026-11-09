@@ -134,7 +134,21 @@ while ((Get-Date) -lt $deadline) {
     $focus = Get-FocusLine
     # ⚠️ **兜底间隔 10 秒** ⇒ ⇒ 不跟快触发抢 adb ⇒ ⇒ 但也够密（弹窗活 6 秒 ⇒ 至少碰到一次）。
     $slowDue = ((Get-Date) - $lastSlowCheck).TotalSeconds -ge 10
-    $plan = Get-ConfirmTapPlan -FocusLine $focus -HasCached ($cachedX -ge 0) -SlowDue $slowDue
+    # ⚠️⚠️ **慢路径的准入票** —— 「安装真的在进行中吗？」
+    # ⇒ ⇒ 判据：`pidof com.android.packageinstaller`（空闲时**为空**）
+    # ⇒ ⇒ 为什么必须有它：慢路径的 `uiautomator dump`
+    # ⇒ ⇒ ⇒ **会把被测 App 的无障碍服务拆掉再装回**（实测逐字：
+    # ⇒ ⇒ ⇒ destroyed → connected，间隔 ~1.8 秒）
+    # ⇒ ⇒ ⇒ 而旧版**每 10 秒无条件做一次** ⇒ ⇒ 空闲时也拆
+    # ⇒ ⇒ ⇒ ⇒ 那一轮真机读数里，「滑动手势落地」那条就是这么红的
+    # ⇒ ⇒ ⇒ ⇒ **通用形态：兜底路径也有代价 ⇒ ⇒「不漏」的那一条，
+    # ⇒ ⇒ ⇒ ⇒ 会在「本来没事」的时候**制造事** ⇒ ⇒ ⇒ 所以兜底也要准入。
+    $installPid = ''
+    if ($slowDue) {
+        $installPid = ((& adb -s $Serial shell 'pidof com.android.packageinstaller' 2>$null) -join '').Trim()
+    }
+    $installInProgress = Test-InstallInProgress -PackageInstallerPid $installPid
+    $plan = Get-ConfirmTapPlan -FocusLine $focus -HasCached ($cachedX -ge 0) -SlowDue $slowDue -InstallInProgress $installInProgress
 
     if ($plan -eq 'tap-cached') {
         Invoke-ConfirmTap -X $cachedX -Y $cachedY -How 'cached'

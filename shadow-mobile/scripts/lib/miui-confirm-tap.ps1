@@ -22,6 +22,32 @@
     ❸ **兜底**：慢速扫树 ⇒ ⇒ 认不认得焦点都做 ⇒ ⇒ **不会漏**
        ⇒ ⇒ 代价是慢，但**不会像旧版那样从头到尾没点过**。
 
+    ## ⚠️ ❹ **慢路径的准入判据**（2026-11-10 第二轮真机实测补的）
+
+    ## ⚠️⚠️ 为什么需要它 —— 「尺子不许自己拨动被测物」的第二次现场
+
+    实测（odin，2026-11-10）：慢路径每 10 秒做一次 `uiautomator dump`
+    ⇒ ⇒ **每一次 dump 都会把被测 App 的无障碍服务拆掉再装回**
+    ⇒ ⇒ 逐字证据：
+    ```
+    11-10 05:04:28.389 D PrefrontalA11y: PrefrontalAccessibilityService destroyed
+    11-10 05:04:30.194 D PrefrontalA11y: PrefrontalAccessibilityService connected
+    ```
+    ⇒ ⇒ 而那一次 dump 前后**什么都没有在安装**（空闲态）
+    ⇒ ⇒ ⇒ 也就是说：**慢路径在「压根没有安装发生」的时候，
+    ⇒ ⇒ 照样每 10 秒拆一次被测物一次** ⇒ ⇒ 读数被它搅了
+    ⇒ ⇒ ⇒ 真机读数那一轮里，滑动手势那条用例就是这么红的。
+
+    ⇒ ⇒ **通用形态：兜底路径（fallback）也有代价** ⇒ ⇒
+    「不漏」的那一条，会在「本来没事」的时候**制造事**。
+
+    ⇒ ⇒ **修法 = 给慢路径加一道准入** ⇒ ⇒ 只在**「安装真的在进行」**
+    时才允许它去 dump ⇒ ⇒
+    **判据**：`pidof com.android.packageinstaller` —— 实测**空闲时为空**
+    ⇒ ⇒ 安装进行中才有 pid ⇒ ⇒ 一条 adb 命令、几十毫秒、零副作用
+    ⇒ ⇒（对照：`dumpsys window` **零副作用**，但它里的 lbe 窗口条目
+    ⇒ ⇒ 是**历史残留**（实测空闲时仍有 20 条）⇒ ⇒ **不能**当「在场」判据）
+
     ## ⚠️ 为什么「缓存坐标」是安全的
 
     同一个弹窗在同一台设备上**位置不变** ⇒ ⇒ 点的还是同一个按钮。
@@ -70,6 +96,25 @@ function Resolve-ContinueButtonBounds {
     return $null
 }
 
+function Test-InstallInProgress {
+    <#
+      **慢路径的准入判据** —— 「安装真的在进行中吗」？
+      ⚠️⚠️ 为什么需要它：慢路径的 `uiautomator dump` **会把被测 App 的无障碍
+      无障碍服务拆掉再装回**（实测逐字：destroyed → connected，间隔 ~1.8 秒）
+      ⇒ ⇒ 而旧版慢路径**每 10 秒无条件做一次**
+      ⇒ ⇒ ⇒ 空闲时（压根没有安装发生）也照样拆 ⇒ ⇒ 读数被搅。
+      ⚠️ 判据本体：**`pidof com.android.packageinstaller`** 的输出
+      ⇒ ⇒ 实测**空闲时为空串** ⇒ ⇒ 安装进行中才有 pid
+      ⇒ ⇒ 一条 adb 命令、几十毫秒、**零副作用**。
+      ⚠️⚠️ **不能用 `dumpsys window` 里的窗口条目**当在场判据 ——
+      实测空闲时它仍有 **20 条** lbe 窗口条目 ⇒ ⇒ 那是**历史残留**
+      ⇒ ⇒ 拿它当判据 ⇒ ⇒ 永远「在场」⇒ ⇒ 准入形同虚设。
+    #>
+    param([string]$PackageInstallerPid)
+    if (-not $PackageInstallerPid) { return $false }
+    return ($PackageInstallerPid.Trim() -ne '')
+}
+
 function Get-ConfirmTapPlan {
     <#
       **这一段的决策** —— 给定「焦点是什么」＋「有没有缓存坐标」，返回该怎么办。
@@ -84,13 +129,20 @@ function Get-ConfirmTapPlan {
     param(
         [string]$FocusLine,
         [bool]$HasCached,
-        [bool]$SlowDue
+        [bool]$SlowDue,
+        [bool]$InstallInProgress = $false
     )
     if (Test-ConfirmDialogFocused -FocusLine $FocusLine) {
         if ($HasCached) { return 'tap-cached' }
         return 'resolve'
     }
-    if ($SlowDue) { return 'slow-scan' }
+    # ⚠️⚠️ **慢路径要一张「准入票」** —— 「安装真的在进行中」才允许去 dump。
+    # ⇒ ⇒ 为什么：慢路径的 `uiautomator dump` **会把被测 App 的无障碍服务
+    # ⇒ ⇒ 拆掉再装回**（实测逐字：destroyed → connected，间隔 ~1.8 秒）
+    # ⇒ ⇒ 而旧版**每 10 秒无条件做一次** ⇒ ⇒ 空闲时也拆 ⇒ ⇒ 读数被搅。
+    # ⇒ ⇒ ⇒ **通用形态：兜底路径也有代价 ⇒ ⇒「不漏」的那一条，
+    # ⇒ ⇒ ⇒ ⇒ 会在「本来没事」的时候**制造事** ⇒ ⇒ ⇒ 所以兜底也要准入。
+    if ($SlowDue -and $InstallInProgress) { return 'slow-scan' }
     return 'wait'
 }
 
@@ -192,9 +244,27 @@ function Invoke-MiuiConfirmTapSelfCheck {
         Detail = '第一次命中 ⇒ ⇒ 解析一次 ⇒ ⇒ 缓存起来'
     }
     $cases += [pscustomobject]@{
-        Name = '决策：没命中 ＋ 兜底到期 ⇒ ⇒ slow-scan（**不会漏**）'
-        Ok = ((Get-ConfirmTapPlan -FocusLine $focusSettings -HasCached $true -SlowDue $true) -eq 'slow-scan')
+        Name = '决策：没命中 ＋ 兜底到期 ＋ **安装在进行** ⇒ ⇒ slow-scan（**不会漏**）'
+        Ok = ((Get-ConfirmTapPlan -FocusLine $focusSettings -HasCached $true -SlowDue $true -InstallInProgress $true) -eq 'slow-scan')
         Detail = '认不认得焦点都扫一遍 ⇒ ⇒ 认不出的机型也不漏'
+    }
+    # ⚠️⚠️ **孪生**：兜底到期但**安装没在进行** ⇒ ⇒ **不许** slow-scan
+    # ⇒ ⇒ 因为 slow-scan 的 uiautomator dump **会把被测 App 的无障碍服务拆掉**
+    # ⇒ ⇒ 空闲时每 10 秒拆一次 ⇒ ⇒ 真机读数被搅 ⇒ ⇒ 这一条钉住那个修法。
+    $cases += [pscustomobject]@{
+        Name = '孪生：兜底到期 ＋ **安装不在进行** ⇒ ⇒ **不许** slow-scan（否则拆掉被测物的无障碍服务）'
+        Ok = ((Get-ConfirmTapPlan -FocusLine $focusSettings -HasCached $true -SlowDue $true -InstallInProgress $false) -eq 'wait')
+        Detail = '慢路径的 dump 会拆掉被测物的无障碍服务 ⇒ ⇒ 空闲时必须**不许**慢路径'
+    }
+    $cases += [pscustomobject]@{
+        Name = '准入判据：安装器进程有 pid ⇒ ⇒ 判「安装在进行」（慢路径可以放行）'
+        Ok = [bool](Test-InstallInProgress -PackageInstallerPid '9162')
+        Detail = 'pidof com.android.packageinstaller 有输出 ⇒ ⇒ 安装刚发生/正在进行'
+    }
+    $cases += [pscustomobject]@{
+        Name = '孪生：安装器进程**为空**（实测空闲态）⇒ ⇒ 判「没在安装」（慢路径**不许**放行）'
+        Ok = [bool](-not (Test-InstallInProgress -PackageInstallerPid ''))
+        Detail = '空闲时 pidof 为空 ⇒ ⇒ 没有安装 ⇒ ⇒ 不许慢路径去 dump'
     }
     $cases += [pscustomobject]@{
         Name = '决策：没命中 ＋ 兜底没到期 ⇒ ⇒ wait'
