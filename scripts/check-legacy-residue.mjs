@@ -50,7 +50,10 @@ const ROOT_OPTS = {
              //    · .github —— CI 配置（**最该判的活配置**）⇒ ⇒ 纳入后，闸自己的
              //      说明文字 / step 名 / job 名要**逐条登记豁免**（见 allowed）。
              //    · brand / fixtures / state —— 品牌资产 / 测试夹具 / 撤销账本。
-             '.github', 'brand', 'fixtures', 'state'],
+             // ⚠️ 2026-11-11：`.githooks`（提交前钩子，sh 脚本）原先**没人交代** ⇒ ⇒ 闸报
+             //    「顶层目录没有交代 ⇒ ⇒ 这一格没人判」⇒ ⇒ 与 `.github` 同族 ⇒ ⇒ **纳入扫描**
+             //    （不是登记成不扫）⇒ ⇒ 钩子里要是出现旧名，闸会当场报出来。
+             '.github', '.githooks', 'brand', 'fixtures', 'state'],
   // ⚠️ 2026-11-05：仓根的两个**面向用户**的文档纳入扫描（实测旧词 0 命中 ⇒ ⇒ 纳入是安全的）
   //    ⇒ ⇒ 以后谁往里面写旧名，闸会当场报出来（而不是「没人看」）。
   scanFiles: ['agent-surface.json', 'benchmark/README.md', 'shadow-esp32/README.md',
@@ -148,6 +151,15 @@ const ROOT_OPTS = {
       token: 'cortex = 残留',
       kind: 'history',
       reason: '**闸的注释里描述判据本身** ⇒ ⇒ 史证。',
+    },
+    // ⚠️ 2026-11-11 实测补上：提交面回退闸的**登记簿**（scripts/lib/commit-revert-registry.mjs）
+    //    要逐字引述一笔 2026-08-17 的历史提交标题（好让人能核对原话）⇒ ⇒ 那串标题里含旧名
+    //    ⇒ ⇒ **只豁免这一整串**（精确匹配）⇒ ⇒ 裸的旧名在活代码里**照样判红**
+    //    ⇒ ⇒ 这不是「给旧名开后门」，是给**一条引文**开后门。
+    {
+      token: 'test: add global setup to auto-start cortex and fix all 80 tests',
+      kind: 'history',
+      reason: '2026-08-17 那笔历史提交的标题**逐字**（登记簿要能核对原话 ⇒ ⇒ 引文必须逐字）⇒ ⇒ **只豁免这一整串** ⇒ ⇒ 裸的旧名在活代码里照样判红。',
     },
     {
       token: 'Execute a registered workflow in Cortex',

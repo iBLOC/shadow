@@ -18,8 +18,13 @@ export const REGISTERED_REVERTS = [
   {
     commit: 'eedb75f89e75352233102049639cb896724e37cd',
     file: 'shadow-desktop/test-results/.last-run.json',
+    // ⚠️ 那一笔的标题**逐字**记在这里（2026-08-17，**必须单行**）：「test: add global setup to auto-start cortex and fix all 80 tests」
+    //    ⇒ ⇒ 为什么放**注释**里而不是 `why` 里：活代码行里出现旧名会被「残留闸」判红
+    //    （scripts/check-legacy-residue.mjs）⇒ ⇒ 而这是**历史引文**，不是活代码
+    //    ⇒ ⇒ 那一整串标题已在闸的 allowed 里登记成 `history`（**只豁免这一整串**，
+    //    裸的旧名在活代码里照样判红）⇒ ⇒ 单行是为了让那串精确匹配得上。
     why:
-      '2026-08-17 eedb75f（test: add global setup to auto-start cortex and fix all 80 tests）把 23cd94e 在这个路径上的增量整个退掉了 ⇒ ⇒ ' +
+      '2026-08-17 eedb75f（标题逐字见上一行注释）把 23cd94e 在这个路径上的增量整个退掉了 ⇒ ⇒ ' +
       '**那个路径是 Playwright 的生成物**（一次测试运行的 last-run 状态），不是源码：23cd94e 那次跑挂了，Playwright 写下了 failedTests 列表' +
       '（40 个 id）与失败截图；eedb75f 修好 80 个测试后，生成物回到 status=passed / failedTests=[] ⇒ ⇒ **没有源码被抹掉** ⇒ ⇒ ' +
       '而且该路径后来被 96fd99e 从版本控制里摘掉（.gitignore 第 102 行 test-results/，那一笔的提交标题明写「test-results 不该被跟踪 —— 忽略规则管不住先入库后加规则」）' +

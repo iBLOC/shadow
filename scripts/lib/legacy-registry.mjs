@@ -123,7 +123,10 @@ export function repoSearchRoots(shadowRoot) {
  *    里面出现旧名是**史证**（证据本身不许改）⇒ 不该由活代码闸去判。
  */
 export const COMMON_EXCLUDE_DIRS = [
-  '.git', 'node_modules', 'target', 'target-bench', 'target-acp',
+  // ⚠️ 2026-11-11 实测补上 `target-android`（ziti-rust 的 Android 交叉编译产物目录，
+  //   那个仓的 .gitignore 第 2 行就写着 /target-android ⇒ ⇒ **未追踪的生成物**）⇒ ⇒
+  //   与 target / target-bench / target-acp 同族 ⇒ ⇒ 不该被「顶层对账」当成缺口。
+  '.git', 'node_modules', 'target', 'target-bench', 'target-acp', 'target-android',
   'dist', 'build', 'out', '.next', '.turbo',
   'docs', '.idea', '.vscode', '.mimosa', '.zcode', '.ai', '.opencode', '.specify',
 ];
