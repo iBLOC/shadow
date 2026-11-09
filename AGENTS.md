@@ -103,7 +103,7 @@
 　❷ **真机级（odin ee6b4832）**：asr 档被读 ✔／tts 档被读 ✔／asr 档解析到已注册引擎 ✔（失败因＝**缺权重**）／显式盖过分档默认 ✔（4004）／回落格**无** default 标记 ✔（5002）／tts 回落格 ✔（NoRegisteredModel）／重启后 registered 归零 ✔。
 　❸ **源码级（归因）**：`api/voice.rs` 的 `select_asr`/`select_tts`（显式 → 分档默认 → `lazy_default_runtime` 回落）；`api/lobe_manifest.rs` 的 `ENGINE_RESOLVED=["asr","tts"]` 与 `engine_resolved` 字段。
 　❹ **闸级**：`node scripts/check-ledger-codepoints.mjs` 三面零违规；`node scripts/check-ps1-portability.mjs` 全绿；`node scripts/check-state-surface.mjs` 零违规；`node scripts/check-gate-discipline.mjs` 零违规；`node scripts/check-commit-revert.mjs` 零静悄悄回退。
-　❺ **真 CI 级**：本条推送后取（只认 run 的 `headSha`）。
+　❺ **真 CI 级**：本条推送后取（只认 run 的 `headSha`）：head `7b9bf1c` 上 **19 个 workflow ＝ 18 绿 ＋ 主 CI 红**；主 CI run `42717185351` 的 10 个 job ＝ **9 绿 / 1 红**，红的那一个是 **`Mobile Test`**（job `129501644622`）⇒ ⇒ 逐字是 `shadow-mobile/test/unit/capability_grants_test.dart` ⑤ 执行层**两条**（`权限没批 ⇒ 抛异常，不是空列表` ／ `用户当场批了 ⇒ 继续往下走`）⇒ ⇒ **不是本刀**：本刀只动 `AGENTS.md` ＋ 新增一个 `.ps1` ⇒ ⇒ 零产品代码 ⇒ ⇒ 且**同两条在更早的 head `472bc51`（run `42706424173`）上就已经红** ⇒ ⇒ 归属要落到**逐字的用例名**上 ⇒ ⇒ ⚠️ **「红数相同 ≠ 红的是同一处」**。
 
 ⑧ **⚠️ 仍然欠着的**
 　❶ **显式分支的错因分类**（④❸）未修 ⇒ ⇒ 那是端脑仓的活（`api/voice.rs`）⇒ ⇒ 本条**不代改兄弟仓**。
