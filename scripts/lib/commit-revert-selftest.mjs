@@ -1,0 +1,116 @@
+// 「提交面回退闸」的判据自检 —— 在**临时 git 仓**里造真形状，跑同一段扫描代码。
+
+import { execFileSync } from 'node:child_process';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+import { scanReverts } from './commit-revert-scan.mjs';
+import { declaresRevert, shouldFail } from './commit-revert.mjs';
+
+const TMP = 'C:/Projects/iBLOC/shadow/.local/selftest-commit-revert';
+
+function mkGit(cwd) {
+  const run = (args) => {
+    try {
+      const out = execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8', maxBuffer: 1e8, stdio: ['ignore', 'pipe', 'pipe'] });
+      return { ok: true, out };
+    } catch (e) {
+      return { ok: false, out: (e.stdout || '') + '', err: String(e.stderr || e.message) };
+    }
+  };
+  return run;
+}
+
+function commit(git, msg) {
+  git(['add', '-A']);
+  git(['-c', 'user.email=t@t.local', '-c', 'user.name=t', 'commit', '-m', msg]);
+  return git(['rev-parse', 'HEAD']).out.trim();
+}
+
+function write(repo, rel, content) {
+  const p = join(repo, rel);
+  mkdirSync(join(p, '..'), { recursive: true });
+  writeFileSync(p, content, 'utf8');
+}
+
+export function runSelfTest() {
+  if (existsSync(TMP)) rmSync(TMP, { recursive: true, force: true });
+  mkdirSync(TMP, { recursive: true });
+  const git = mkGit(TMP);
+  git(['init', '-q']);
+  // ⚠️ **仓级身份**（不是每条命令带 -c）—— 否则 git revert 这类**会自己造提交**
+  //   的命令会因「Author identity unknown」失败 ⇒ ⇒ 夹具就造不出「有意的 revert」。
+  git(['config', 'user.email', 't@t.local']);
+  git(['config', 'user.name', 't']);
+  git(['-c', 'user.email=t@t.local', '-c', 'user.name=t', 'commit', '--allow-empty', '-m', 'init']);
+
+  const cases = [];
+  const add = (name, ok, detail) => cases.push({ name, ok, detail });
+
+  // ① 完全回退：B 把 A 对同一文件的增量整个退掉
+  write(TMP, 'f.txt', 'x\n');
+  commit(git, 'base');
+  write(TMP, 'f.txt', 'x\nAAA\n');
+  const aFull = commit(git, 'A adds AAA');
+  write(TMP, 'f.txt', 'x\n');
+  const bFull = commit(git, 'B silently drops AAA');
+  const r1 = scanReverts(git, { rev: 'HEAD', limit: 20 });
+  const fullHit = r1.events.find((e) => e.kind === 'full' && e.file === 'f.txt');
+  add('完全回退 ⇒ 必须抓到 ⇒ 且（没有声明）⇒ **必须判红**',
+    !!fullHit && fullHit.commit === bFull && fullHit.reverted === aFull && shouldFail(fullHit),
+    fullHit ? '抓到 ' + fullHit.commit.slice(0, 7) + ' ｜ 判红=' + shouldFail(fullHit) : '没抓到');
+
+  // ② 部分回退：B 删掉了 A 刚加上的那一行
+  write(TMP, 'p.txt', 'p0\n');
+  commit(git, 'p base');
+  write(TMP, 'p.txt', 'p0\nPARTIAL_LINE\nkeep\n');
+  const aPart = commit(git, 'A adds PARTIAL_LINE');
+  write(TMP, 'p.txt', 'p0\nkeep\n');
+  const bPart = commit(git, 'B removes PARTIAL_LINE only');
+  const r2 = scanReverts(git, { rev: 'HEAD', limit: 20 });
+  const partHit = r2.events.find((e) => e.kind === 'partial' && e.file === 'p.txt');
+  add('部分回退 ⇒ 必须抓到', !!partHit && partHit.commit === bPart && partHit.reverted === aPart,
+    partHit ? '抓到 ' + partHit.commit.slice(0, 7) + ' 行=' + JSON.stringify(partHit.lines) : '没抓到');
+
+  // ③ 不相干的提交（改别的文件）⇒ 不许抓
+  write(TMP, 'q.txt', 'q0\n');
+  commit(git, 'q base');
+  write(TMP, 'q.txt', 'q0\nq1\n');
+  commit(git, 'Q touches q only');
+  const r3 = scanReverts(git, { rev: 'HEAD', limit: 20 });
+  const falseHits = r3.events.filter((e) => e.file === 'q.txt');
+  add('不相干的提交 ⇒ 不许抓', falseHits.length === 0, '误抓 ' + falseHits.length + ' 处');
+
+  // ④ 有意的 revert ⇒ 消息能被认出 ⇒ ⇒ 且**那一笔会被放行**（不是「抓不到」）
+  //   ⇒ ⇒ 注意：revert 一个**已被别人回退过**的提交会冲突 ⇒ ⇒ 夹具要自己造一个干净的。
+  write(TMP, 's.txt', 's0\n');
+  commit(git, 'S base');
+  write(TMP, 's.txt', 's0\nS1\n');
+  const sCommit = commit(git, 'S adds S1');
+  git(['revert', '--no-edit', sCommit]);
+  const msg = git(['show', '-s', '--format=%B', 'HEAD']).out;
+  const r4 = scanReverts(git, { rev: 'HEAD', limit: 20 });
+  const sHit = r4.events.find((e) => e.file === 's.txt');
+  add('有意 revert ⇒ 消息能认出 ⇒ 且那笔被放行',
+    declaresRevert(msg) && !!sHit && declaresRevert(sHit.message) && !shouldFail(sHit),
+    'msg 首行=' + JSON.stringify((msg || '').split('\n')[0]) + ' ｜ 该笔=' + (sHit ? sHit.kind : '没抓到'));
+
+  // ⑤ 新增文件后又删掉 ⇒ 不许抓（「新增即删」不是悄悄回退）
+  write(TMP, 'n.txt', 'n0\n');
+  const aNew = commit(git, 'N adds n.txt');
+  git(['rm', '-q', 'n.txt']);
+  const bNew = commit(git, 'N removes n.txt again');
+  const r5 = scanReverts(git, { rev: 'HEAD', limit: 20 });
+  const newHits = r5.events.filter((e) => e.file === 'n.txt');
+  add('新增即删 ⇒ 不许抓', newHits.length === 0, '误抓 ' + newHits.length + ' 处');
+
+  // ⑥ 登记在册 ⇒ 放行（且**没有**登记时必须判红）
+  // ⚠️ 登记的是**退人的那一笔**（B）—— 判红的事件是「B 退掉了 A」⇒ ⇒ 登记项的 commit 是 B。
+  const reg = [{ commit: bFull, file: 'f.txt', why: '夹具登记' }];
+  add('登记在册 ⇒ 放行 ｜ 没登记 ⇒ 判红',
+    !!fullHit && shouldFail(fullHit, reg) === false && shouldFail(fullHit, []) === true,
+    '登记后=' + shouldFail(fullHit, reg) + ' ｜ 未登记=' + shouldFail(fullHit, []));
+
+  const passed = cases.filter((c) => c.ok).length;
+  return { passed, total: cases.length, cases };
+}

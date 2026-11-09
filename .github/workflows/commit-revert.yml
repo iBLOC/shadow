@@ -1,0 +1,51 @@
+name: Commit Revert
+
+# ⚠️ **它守的是什么** —— 2026-11-09 真机实测（本仓 iBLOC/shadow）：
+#   · 共享工作树 ＋ 并发「独立索引提交」⇒ ⇒ 两个会话各自构造自己的提交面
+#     ⇒ ⇒ **后一个的基线可能落后** ⇒ ⇒ 它写出来的文件内容会把**前一个提交
+#     的增量整段退掉**；
+#   · 实测：`afb7814` 把 `21f56d4`（TS7006 的类型补法）**退回旧版**
+#     ⇒ ⇒ 那条判据在真 CI 上红了（run 42646242924）⇒ ⇒ 表现是「类型闸红了」，
+#     **看起来像产品回归，其实是一次静悄悄的提交面回退**。
+#   ⇒ ⇒ 这一族失败**极难归因**（CI 只说「哪一行红了」，不说「谁把它退掉了」）
+#     ⇒ ⇒ 本闸把这件事变成**可数的读数**：谁、在哪个文件上、把谁的增量退掉了。
+#
+# ⚠️ **为什么单独成文件**（与 desktop-test-assertions.yml 同理）：
+#   · ci.yml 是**共享文件**（并行会话在飞）⇒ ⇒ 共享文件上的接线是本仓最容易出
+#     两类事故的地方（「把别人的在飞件卷进我的提交」／「我的暂存被别人抢走署名」）
+#     ⇒ ⇒ 独立成文件 ⇒ ⇒ 接线面**零共享** ⇒ ⇒ 竞态根本不存在。
+#   · **fetch-depth: 0 是硬需求** —— 这道闸读的是**提交历史**
+#     ⇒ ⇒ 浅克隆（depth=1）下它只能看见 1 个提交 ⇒ ⇒ 等于没跑。
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  commit-revert:
+    name: Commit Revert
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout shadow (full history)
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      # ⚠️ **两步都要跑** —— 判定 ＋ 判据自检（自检证明这道闸**真的会红**）。
+      - name: Commit revert check
+        run: node scripts/check-commit-revert.mjs --limit=40
+
+      - name: Commit revert check (self-test)
+        run: node scripts/check-commit-revert.mjs --self-test
