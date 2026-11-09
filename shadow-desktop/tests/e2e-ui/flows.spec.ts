@@ -15,16 +15,17 @@ test.describe('Flows Page', () => {
   });
 
   test('显示流程列表', async ({ page }) => {
-    const flowList = page.locator('[data-testid="flow-list"]');
-    if (await flowList.isVisible()) {
-      await expect(flowList).toBeVisible();
-    }
+    // ⚠️ 2026-11-11 真机实测（刀 O）：'[data-testid="flow-list"]' 产品里不存在
+    //   ⇒ ⇒ 软守卫恒 false ⇒ ⇒ 断言从未执行 ⇒ ⇒ 改认产品真实的列表锚点：
+    //   流程页的表头「名称」。
+    await expect(page.getByRole('columnheader', { name: '名称' })).toBeVisible();
   });
 
   test('显示新建流程按钮', async ({ page }) => {
-    const newFlowButton = page.locator('button:has-text("新建流程")');
-    if (await newFlowButton.isVisible()) {
-      await expect(newFlowButton).toBeVisible();
-    }
+    // ⚠️ 2026-11-11 真机实测（刀 O）：流程页**没有**「新建流程」按钮
+    //   ⇒ ⇒ 原来找的按钮不存在 ⇒ ⇒ 软守卫恒 false ⇒ ⇒ 零断言通过。
+    //   ⇒ ⇒ 改认产品真实存在的那个动作：页面上有「刷新」按钮。
+    const refreshButton = page.getByRole('button', { name: '刷新', exact: true });
+    await expect(refreshButton).toBeVisible();
   });
 });

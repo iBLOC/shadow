@@ -15,16 +15,17 @@ test.describe('Skills Page', () => {
   });
 
   test('显示技能列表', async ({ page }) => {
-    const skillList = page.locator('[data-testid="skill-list"]');
-    if (await skillList.isVisible()) {
-      await expect(skillList).toBeVisible();
-    }
+    // ⚠️ 2026-11-11 真机实测（刀 O）：'[data-testid="skill-list"]' 产品里不存在
+    //   ⇒ ⇒ 软守卫恒 false ⇒ ⇒ 断言从未执行 ⇒ ⇒ 改认产品真实的列表锚点：
+    //   「内置技能」那个分组标题。
+    const builtinHeading = page.getByRole('heading', { name: '内置技能' });
+    await expect(builtinHeading).toBeVisible();
   });
 
   test('显示新建技能按钮', async ({ page }) => {
-    const newSkillButton = page.locator('button:has-text("新建技能")');
-    if (await newSkillButton.isVisible()) {
-      await expect(newSkillButton).toBeVisible();
-    }
+    // ⚠️ 2026-11-11 真机实测（刀 O）：产品按钮是「**添加**技能」
+    //   ⇒ ⇒ 原来找的「新建技能」不存在 ⇒ ⇒ 软守卫恒 false ⇒ ⇒ 零断言通过。
+    const addSkillButton = page.getByRole('button', { name: '添加技能', exact: true });
+    await expect(addSkillButton).toBeVisible();
   });
 });

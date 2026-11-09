@@ -88,7 +88,11 @@ test.describe('Models Page', () => {
     await addButton.click();
     
     const nameInput = page.locator('input[placeholder="OpenAI"]');
-    await nameInput.fill('Test Provider');
+    // ⚠️ 2026-11-11 真机实测（刀 O）：名字必须**唯一** ⇒ ⇒ 否则同一个名字
+    //   会被写进端脑**多次**（E2E 之间共享端脑状态）⇒ ⇒ 页面上出现多个同名卡片
+    //   ⇒ ⇒ Playwright strict mode 直接判红（实测：resolved to 2 elements）。
+    const providerName = 'Test Provider ' + Date.now();
+    await nameInput.fill(providerName);
     
     await page.locator('button:has-text("DeepSeek")').click();
     
@@ -96,7 +100,14 @@ test.describe('Models Page', () => {
     const submitButton = page.getByRole('button', { name: '添加', exact: true });
     await submitButton.click();
     
-    await page.waitForTimeout(1000);
+    // ⚠️ 2026-11-11 真机实测（刀 O）：这条原来**一条断言都没有**
+    //   ⇒ ⇒ 点完就结束 ⇒ ⇒ 「添加供应商成功」这个宣称**没有任何东西在核**
+    //   ⇒ ⇒ 补结果断言。
+    //   ⚠️ 真机实测：提交后弹窗**没关**（按钮仍可见）⇒ ⇒ 不能断言它消失。
+    //   ⇒ ⇒ 断言「供应商名字出现在页面上」——那才是「添加成功」被核到了。
+    //   ⚠️ 用 `.first()`：端脑里可能已经有**同名**的历史条目（E2E 共享状态）
+    //   ⇒ ⇒ strict mode 会因为多个同名元素判红 ⇒ ⇒ 认第一个即可。
+    await expect(page.getByText(providerName).first()).toBeVisible();
   });
 
   test('取消添加供应商', async ({ page }) => {
@@ -110,6 +121,9 @@ test.describe('Models Page', () => {
     const cancelButton = page.locator('button:has-text("取消")');
     await cancelButton.click();
     
-    await page.waitForTimeout(500);
+    // ⚠️ 2026-11-11 真机实测（刀 O）：这条原来**一条断言都没有**
+    //   ⇒ ⇒ 「取消」这个宣称没有任何东西在核 ⇒ ⇒ 补结果断言：
+    //   ⇒ ⇒ 弹窗真的关掉了（取消按钮不见了）。
+    await expect(cancelButton).toBeHidden();
   });
 });

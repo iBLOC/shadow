@@ -43,17 +43,15 @@ test.describe('End-to-End: Provider Binding to Conversation', () => {
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(1000);
 
+    // ⚠️ 2026-11-11 真机实测（刀 O）：这两处软守卫让断言**可能永远不执行**
+    //   ⇒ ⇒ 去掉守卫 ⇒ ⇒ Playwright 的 expect 自带重试 ⇒ ⇒ 元素不在就**真红**。
     const newChatButton = page.locator('button').filter({ has: page.locator('svg.lucide-plus') }).first();
-    if (await newChatButton.isVisible()) {
-      await newChatButton.click();
-      await page.waitForTimeout(500);
-    }
+    await newChatButton.click();
+    await page.waitForTimeout(500);
 
     const messageInput = page.locator('input[placeholder], textarea').first();
-    if (await messageInput.isVisible()) {
-      await messageInput.fill('你好');
-      expect(await messageInput.inputValue()).toBe('你好');
-    }
+    await messageInput.fill('你好');
+    expect(await messageInput.inputValue()).toBe('你好');
   });
 
   test('验证智能体模型配置', async ({ page }) => {

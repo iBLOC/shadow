@@ -15,9 +15,9 @@ test.describe('Voice Page', () => {
   });
 
   test('显示语音设置', async ({ page }) => {
-    const voiceSettings = page.locator('[data-testid="voice-settings"]');
-    if (await voiceSettings.isVisible()) {
-      await expect(voiceSettings).toBeVisible();
-    }
+    // ⚠️ 2026-11-11 真机实测（刀 O）：'[data-testid="voice-settings"]' 产品里不存在
+    //   ⇒ ⇒ 软守卫恒 false ⇒ ⇒ 断言从未执行 ⇒ ⇒ 改认产品真实存在的语音区块：
+    //   页面上的「转写 (0)」那一栏。
+    await expect(page.getByText(/转写/).first()).toBeVisible();
   });
 });

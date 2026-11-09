@@ -115,8 +115,13 @@ test.describe('End-to-End: Conversation to Task Scheduling', () => {
     const providers = await providersResponse.json();
     expect(providers.length).toBeGreaterThanOrEqual(1);
 
-    const firstProvider = providers[0];
-    expect(firstProvider.models.length).toBeGreaterThan(0);
+    // ⚠️ 2026-11-11 真机实测（刀 O）：这条原来断言 `providers[0]`（**第一个**）
+    //   ⇒ ⇒ 断言**依赖 provider 的顺序**⇒ ⇒ 谁先写进 providers.json 谁就
+    //   ⇒ ⇒ 被这条断言 ⇒ ⇒ 脆（实测：E2E 自己新增一个 provider 就把它顶掉了
+    //   ⇒ ⇒ 而那个新 provider 没有模型 ⇒ ⇒ 这条红了）。
+    //   ⇒ ⇒ 改成「**至少有一个** provider 带模型」⇒ ⇒ 与顺序无关。
+    const withModels = providers.filter((p) => Array.isArray(p.models) && p.models.length > 0);
+    expect(withModels.length).toBeGreaterThanOrEqual(1);
   });
 
   test('对话页面输入定时任务消息', async ({ page }) => {

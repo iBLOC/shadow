@@ -759,33 +759,6 @@
       "data": "数据",
       "system": "系统"
     },
-    "subsystem": {
-      "title": "子系统管理",
-      "refresh": "刷新",
-      "common.refreshAll": "刷新全部",
-      "thalamus": {
-        "title": "丘脑（传感器）",
-        "sensors": "已注册的传感器",
-        "noSensors": "暂无注册的传感器"
-      },
-      "hippocampus": {
-        "title": "海马体（记忆）",
-        "memories": "记忆",
-        "graphNodes": "图节点",
-        "pendingConsolidations": "待处理",
-        "recent": "最近",
-        "noRecent": "暂无最近记忆",
-        "consolidator": "合并器",
-        "pending": "待处理",
-        "lastRunAt": "上次运行",
-        "lastStatus": "状态"
-      },
-      "neuron": {
-        "title": "神经（模型）",
-        "models": "已加载模型",
-        "noModels": "暂无加载的模型"
-      }
-    },
     "saveChanges": "保存更改",
     "resetAll": "重置全部",
     "appearance": "外观",
@@ -1494,5 +1467,35 @@
     "embedding": "向量模型",
     "vision": "视觉模型",
     "forecast": "预测模型"
+  },
+  "subsystem": {
+    "title": "子系统管理",
+    "refresh": "刷新",
+    "common": {
+      "refreshAll": "刷新全部"
+    },
+    "thalamus": {
+      "title": "丘脑（传感器）",
+      "sensors": "已注册的传感器",
+      "noSensors": "暂无注册的传感器",
+      "refresh": "刷新"
+    },
+    "hippocampus": {
+      "title": "海马体（记忆）",
+      "memories": "记忆",
+      "graphNodes": "图节点",
+      "pendingConsolidations": "待处理",
+      "recent": "最近",
+      "noRecent": "暂无最近记忆",
+      "consolidator": "合并器",
+      "pending": "待处理",
+      "lastRunAt": "上次运行",
+      "lastStatus": "状态"
+    },
+    "neuron": {
+      "title": "神经（模型）",
+      "models": "已加载模型",
+      "noModels": "暂无加载的模型"
+    }
   }
 }

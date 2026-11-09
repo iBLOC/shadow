@@ -39,9 +39,11 @@ test.describe('Settings Page', () => {
   });
 
   test('显示记忆集成', async ({ page }) => {
-    const memorySection = page.locator('text=记忆').first();
-    if (await memorySection.isVisible()) {
-      await expect(memorySection).toBeVisible();
-    }
+    // ⚠️ 2026-11-11 真机实测（刀 O）：设置页改版成侧栏 section 布局
+    //   ⇒ ⇒ 「记忆」在「子系统」那一 section 里 ⇒ ⇒ 默认 section 上看不到
+    //   ⇒ ⇒ 先切 section 再断言 ⇒ ⇒ 断言恒进（不再靠软守卫）。
+    await page.getByRole('button', { name: /^子系统$/ }).first().click();
+    const memorySection = page.getByText('记忆').first();
+    await expect(memorySection).toBeVisible();
   });
 });

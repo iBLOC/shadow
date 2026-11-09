@@ -759,32 +759,6 @@
       "data": "Data",
       "system": "System"
     },
-    "subsystem": {
-      "title": "Subsystem Management",
-      "refresh": "Refresh",
-      "thalamus": {
-        "title": "Thalamus (Sensors)",
-        "sensors": "Registered Sensors",
-        "noSensors": "No sensors registered"
-      },
-      "hippocampus": {
-        "title": "Hippocampus (Memory)",
-        "memories": "Memories",
-        "graphNodes": "Graph Nodes",
-        "pendingConsolidations": "Pending",
-        "recent": "Recent",
-        "noRecent": "No recent memories",
-        "consolidator": "Consolidator",
-        "pending": "Pending",
-        "lastRunAt": "Last Run",
-        "lastStatus": "Status"
-      },
-      "neuron": {
-        "title": "Neuron (Models)",
-        "models": "Loaded Models",
-        "noModels": "No models loaded"
-      }
-    },
     "saveChanges": "Save Changes",
     "resetAll": "Reset All",
     "appearance": "Appearance",
@@ -1488,5 +1462,35 @@
     "embedding": "Embedding model",
     "vision": "Vision model",
     "forecast": "Forecast model"
+  },
+  "subsystem": {
+    "title": "Subsystem Management",
+    "refresh": "Refresh",
+    "common": {
+      "refreshAll": "Refresh All"
+    },
+    "thalamus": {
+      "title": "Thalamus (Sensors)",
+      "sensors": "Registered Sensors",
+      "noSensors": "No sensors registered",
+      "refresh": "Refresh"
+    },
+    "hippocampus": {
+      "title": "Hippocampus (Memory)",
+      "memories": "Memories",
+      "graphNodes": "Graph Nodes",
+      "pendingConsolidations": "Pending",
+      "recent": "Recent",
+      "noRecent": "No recent memories",
+      "consolidator": "Consolidator",
+      "pending": "Pending",
+      "lastRunAt": "Last Run",
+      "lastStatus": "Status"
+    },
+    "neuron": {
+      "title": "Neuron (Models)",
+      "models": "Loaded Models",
+      "noModels": "No models loaded"
+    }
   }
 }

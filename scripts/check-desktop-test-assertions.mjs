@@ -71,6 +71,7 @@ import { fileURLToPath } from 'node:url';
 import {
   censusDesktopAssertions,
   scanTypeScriptSource,
+  scanPlaywrightSource,
 } from './lib/desktop-test-assertions.mjs';
 
 const REPO_ROOT = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
@@ -187,6 +188,62 @@ function fixture(lines) {
 
 const scan = (lines) => scanTypeScriptSource(fixture(lines), 'fixture.test.ts');
 
+/** Playwright 族的夹具 —— 语义与 vitest **不同**（刀 O，2026-11-11 真机实测）。 */
+const PW_FIX = {
+  softGuard: [
+    "import { test, expect } from '@playwright/test';",
+    "test('soft guard', async ({ page }) => {",
+    '  const box = page.locator(\'[data-testid="x"]\');',
+    '  if (await box.isVisible()) {',
+    '    await expect(box).toBeVisible();',
+    '  }',
+    '});',
+  ],
+  softAssigned: [
+    "import { test, expect } from '@playwright/test';",
+    "test('soft assigned', async ({ page }) => {",
+    '  const items = page.locator(\'[data-testid="y"]\');',
+    '  const n = await items.count();',
+    '  if (n > 0) {',
+    '    await expect(items.first()).toBeVisible();',
+    '  }',
+    '});',
+  ],
+  noGuard: [
+    "import { test, expect } from '@playwright/test';",
+    "test('no guard', async ({ page }) => {",
+    '  const box = page.locator(\'[data-testid="z"]\');',
+    '  await expect(box).toBeVisible();',
+    '});',
+  ],
+  hardGuard: [
+    "import { test, expect } from '@playwright/test';",
+    "test('hard guard', async ({ page }) => {",
+    '  const box = page.locator(\'[data-testid="w"]\');',
+    '  if (await box.getAttribute(\'id\') !== null) {',
+    '    await expect(box).toBeVisible();',
+    '  }',
+    '});',
+  ],
+  zeroAssert: [
+    "import { test, expect } from '@playwright/test';",
+    "test('zero assert', async ({ page }) => {",
+    "  await page.goto('/');",
+    '});',
+  ],
+  describeNotCase: [
+    "import { test, expect } from '@playwright/test';",
+    "test.describe('a describe', () => {",
+    "  test('inner', async ({ page }) => {",
+    "    await expect(page.locator('h1')).toContainText('x');",
+    '  });',
+    '});',
+  ],
+};
+
+/** 扫一段 Playwright 夹具。 */
+const pwScan = (lines) => scanPlaywrightSource(lines.join('\n'), 'fixture.spec.ts');
+
 /**
  * 判据自检 —— **真的会红**：每一例都同时钉「该抓的抓得到」与「不该抓的不抓」。
  *
@@ -251,6 +308,31 @@ function selfTest() {
   add('R4 孪生：分支条件是「找不到就抛」的查询（分支恒进）⇒ ⇒ 不许抓', () => {
     return scan(FIX.r4AlwaysRuns).falseGreen.length === 0;
   });
+
+  // ── Playwright 族：另一套语义（刀 O，2026-11-11 真机实测）────────
+  // ⚠️ **为什么要单独一族**：Playwright 的 `test.describe` 是**容器**不是用例；
+  //   `locator.isVisible()` / `count()` 是**软查询**（返回布尔/数字、不抛）
+  //   ⇒ ⇒ 用 vitest 的尺子量它 ⇒ ⇒ 102 条真用例一条都没被单独审计。
+  add('PW：软守卫 isVisible() ⇒ ⇒ 必须判假绿', () => {
+    return pwScan(PW_FIX.softGuard).falseGreen.length === 1;
+  });
+  add('PW：软查询在分支外（count 赋值）⇒ ⇒ 必须判假绿', () => {
+    return pwScan(PW_FIX.softAssigned).falseGreen.length === 1;
+  });
+  add('PW 孪生：无守卫 ⇒ ⇒ 不许判假绿', () => {
+    return pwScan(PW_FIX.noGuard).falseGreen.length === 0;
+  });
+  add('PW 孪生：硬守卫（会抛的查询）⇒ ⇒ 不许判假绿', () => {
+    return pwScan(PW_FIX.hardGuard).falseGreen.length === 0;
+  });
+  add('PW：零 expect ⇒ ⇒ 必须判零断言', () => {
+    return pwScan(PW_FIX.zeroAssert).zeroAssert.length === 1;
+  });
+  add('PW：describe 是容器不是用例 ⇒ ⇒ 只认内层那条', () => {
+    const r = pwScan(PW_FIX.describeNotCase);
+    return r.cases.length === 1 && r.cases[0].name === 'inner';
+  });
+
   // ── 覆盖面：靠发现 ───────────────────────────────────────────────
   add('覆盖面：仓里扫得到桌面端用例（不是 0 个文件）', () => {
     let files = 0;

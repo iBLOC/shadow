@@ -25,11 +25,11 @@ test.describe('Conversation Page', () => {
   });
 
   test('发送消息后显示用户消息', async ({ page }) => {
+    // ⚠️ 2026-11-11 真机实测（刀 O）：软守卫 `isVisible()` 让这条变成
+    //   「输入框在才断言」⇒ ⇒ 去掉守卫 ⇒ ⇒ 输入框不在就**真红**。
     const messageInput = page.locator('input[placeholder], textarea').first();
-    if (await messageInput.isVisible()) {
-      await messageInput.fill('测试消息');
-      const inputValue = await messageInput.inputValue();
-      expect(inputValue).toBe('测试消息');
-    }
+    await messageInput.fill('测试消息');
+    const inputValue = await messageInput.inputValue();
+    expect(inputValue).toBe('测试消息');
   });
 });

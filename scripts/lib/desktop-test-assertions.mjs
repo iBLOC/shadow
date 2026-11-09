@@ -465,6 +465,180 @@ export function countConditional(body, bodyStart, src) {
   return count;
 }
 
+/* ── Playwright 族：另一套语义（2026-11-11 真机实测踩到的坑）──────────────── */
+
+/**
+ * 这个文件是不是 **Playwright 规格**？
+ *
+ * ⚠️ **为什么要分族**（刀 O 取证）：桌面端断言闸原本用 **testing-library 语义**
+ *   量**所有** `.spec.ts` ⇒ ⇒ 而 Playwright 的语义**完全不同**：
+ *   · 用例是 `test(...)` ⇒ ⇒ `test.describe(...)` 是**容器**，不是用例；
+ *   · `expect(locator).toBeVisible()` **自带重试** ⇒ ⇒ 它**是真断言**；
+ *   · `locator.isVisible()` 返回**布尔**、**不抛** ⇒ ⇒ 它是**软查询**
+ *     ⇒ ⇒ `if (await x.isVisible()) { …断言… }` ⇒ ⇒ 分支不进 ⇒ ⇒ **零断言通过**。
+ * ⇒ ⇒ 用 vitest 的尺子量 Playwright ⇒ ⇒ **102 条真用例一条都没被单独审计**
+ *   （实测：闸把 26 个 `test.describe` 各当成 1 条用例 ⇒ ⇒ 只认出 26 条）。
+ */
+export function isPlaywrightSource(src) {
+  return /from\s+['"]@playwright\/test['"]/.test(String(src || ''));
+}
+
+/**
+ * **软查询** —— 返回布尔/数字，**不抛**：
+ *   ⇒ ⇒ 用它当分支条件 ⇒ ⇒ 分支**可能不进** ⇒ ⇒ 分支里的断言**可能永远不跑**。
+ *
+ * ⚠️ 这是 Playwright 版的「假绿」根源 —— 与 testing-library 的
+ *   `getBy*`（找不到就抛 ⇒ 分支恒进）**正好相反**。
+ */
+export const PLAYWRIGHT_SOFT_QUERIES = new Set([
+  'isVisible', 'isHidden', 'isEnabled', 'isDisabled', 'isChecked', 'isEditable', 'count',
+]);
+
+/**
+ * 扫一个 **Playwright 规格**文件：逐条 `test(...)` 用例 + 它们的断言承重。
+ *
+ * @returns {{file:string,family:'playwright',cases:Array,tautologies:Array,zeroAssert:Array,weakOnly:Array,conditional:Array,falseGreen:Array}}
+ */
+export function scanPlaywrightSource(src, file) {
+  const masked = maskSource(src);
+  const cases = [];
+  const re = /\btest\s*\(/g;
+  let m;
+  while ((m = re.exec(masked)) !== null) {
+    const open = masked.indexOf('(', m.index);
+    const close = matchBracket(masked, open);
+    if (close < 0) continue;
+    const args = masked.slice(open, close + 1);
+    const arrow = args.indexOf('=>');
+    if (arrow < 0) { re.lastIndex = close + 1; continue; }
+    const braceRel = args.indexOf('{', arrow);
+    if (braceRel < 0) { re.lastIndex = close + 1; continue; }
+    const bodyOpen = open + braceRel;
+    const bodyClose = matchBracket(masked, bodyOpen);
+    if (bodyClose < 0) { re.lastIndex = close + 1; continue; }
+    const body = masked.slice(bodyOpen, bodyClose + 1);
+    const asserts = extractAssertions(body, bodyOpen, src);
+    const branches = analyzePlaywrightBranches(body, bodyOpen, body);
+    let assertsInConditional = 0;
+    for (const a of asserts) {
+      for (const b of branches) {
+        if (a.offset >= b.start && a.offset <= b.end) { assertsInConditional += 1; break; }
+      }
+    }
+    const assertsOutsideConditional = asserts.length - assertsInConditional;
+    const risky = branches.filter((b) => b.softGuard);
+    // 「假绿」：全部断言都挂在**软守卫**的分支里 ⇒ ⇒ 分支不进 ⇒ ⇒ 零断言通过
+    const falseGreen =
+      asserts.length > 0 &&
+      assertsOutsideConditional === 0 &&
+      risky.length > 0 &&
+      asserts.every((a) => risky.some((b) => a.offset >= b.start && a.offset <= b.end));
+    const nameMatch = /(['"`])([\s\S]*?)\1/.exec(src.slice(open, close + 1));
+    const name = nameMatch ? nameMatch[2] : '(未命名用例)';
+    cases.push({
+      file,
+      family: 'playwright',
+      name,
+      line: lineOf(src, open),
+      asserts: asserts.length,
+      queries: 0,
+      loadBearing: asserts.length,
+      weakOnly: false,
+      assertionList: asserts,
+      conditional: branches.length,
+      assertsInConditional,
+      assertsOutsideConditional,
+      conditionalAlwaysRuns: risky.length === 0 && branches.length > 0,
+      falseGreen,
+    });
+    re.lastIndex = close + 1;
+  }
+  const tautologies = [];
+  const zeroAssert = [];
+  for (const c of cases) {
+    if (c.loadBearing === 0) zeroAssert.push(c);
+    for (const a of c.assertionList || []) {
+      if (!isLiteral(a.subject)) continue;
+      if (a.arg !== null && !isLiteral(a.arg)) continue;
+      tautologies.push({
+        file: c.file, line: a.line, name: c.name,
+        matcher: a.matcher, subject: a.subject.trim(),
+      });
+    }
+  }
+  return {
+    file, family: 'playwright', cases, tautologies, zeroAssert, weakOnly: [],
+    conditional: cases.filter((c) => c.conditional > 0),
+    falseGreen: cases.filter((c) => c.falseGreen),
+  };
+}
+
+/**
+ * 逐条分析 Playwright 用例体里的「没有 else 的 if」分支。
+ *
+ * ⚠️ **软守卫**判据：分支条件里出现 `isVisible()` / `count()` 这类
+ *   **返回布尔/数字、不抛**的查询 ⇒ ⇒ 分支**可能不进**。
+ *   ⇒ ⇒ 分支里的断言**可能永远不执行** ⇒ ⇒ 零断言通过 = 假绿。
+ */
+export function analyzePlaywrightBranches(body, bodyStart, caseBody) {
+  const branches = [];
+  const re = new RegExp('\\bif\\s*\\(', 'g');
+  let m;
+  while ((m = re.exec(body)) !== null) {
+    const condClose = matchBracket(body, m.index + m[0].length - 1);
+    if (condClose < 0) continue;
+    let k = condClose + 1;
+    while (k < body.length && body[k] === ' ') k += 1;
+    if (body[k] !== '{') continue;
+    const blockClose = matchBracket(body, k);
+    if (blockClose < 0) continue;
+    const block = body.slice(k, blockClose + 1);
+    if (!block.includes('expect')) { re.lastIndex = blockClose; continue; }
+    let e = blockClose + 1;
+    while (e < body.length && body[e] === ' ') e += 1;
+    if (body.startsWith('else', e)) { re.lastIndex = blockClose; continue; }
+    const cond = body.slice(m.index + m[0].length, condClose);
+    branches.push({
+      cond,
+      start: bodyStart + k,
+      end: bodyStart + blockClose,
+      softGuard: hasPlaywrightSoftQuery(cond) || hasSoftQueryAssignedVar(cond, caseBody),
+    });
+    re.lastIndex = blockClose;
+  }
+  return branches;
+}
+
+/**
+ * 条件是**裸标识符**，而它在同一个用例里是被**软查询**赋值来的
+ * ⇒ ⇒ 那个软查询在分支**外** ⇒ ⇒ 分支仍然**可能不进**。
+ *
+ * ⚠️ 实测踩到过：`const count = await providerCards.count(); if (count > 0) { …断言… }`
+ *   —— 软查询在分支外、值可能为 0 ⇒ ⇒ 分支不进 ⇒ ⇒ 零断言通过。
+ */
+export function hasSoftQueryAssignedVar(cond, caseBody) {
+  const c = String(cond || '').trim();
+  if (!c || !caseBody) return false;
+  const softAlt = Array.from(PLAYWRIGHT_SOFT_QUERIES).join('|');
+  // 条件里出现的**每一个标识符**，若在用例体里是被软查询赋值来的 ⇒ ⇒ 软守卫
+  const ids = c.match(/[A-Za-z_$][A-Za-z0-9_$]*/g) || [];
+  for (const id of ids) {
+    const assign = new RegExp(
+      '(?:const|let|var)\\s+' + id + '\\s*=[^;]*\\.(?:' + softAlt + ')\\s*\\('
+    );
+    if (assign.test(caseBody)) return true;
+  }
+  return false;
+}
+
+/** 条件里有没有「软查询」（`isVisible()` / `count()` …）？ */
+export function hasPlaywrightSoftQuery(cond) {
+  const c = String(cond || '');
+  for (const name of PLAYWRIGHT_SOFT_QUERIES) {
+    if (new RegExp('\\.' + name + '\\s*\\(').test(c)) return true;
+  }
+  return false;
+}
 /* ── 普查：扫目录 ─────────────────────────────────────────────────────── */
 
 /**
@@ -492,7 +666,10 @@ export function censusDesktopAssertions(root, fs, path) {
   for (const f of files) {
     let src;
     try { src = fs.readFileSync(f, 'utf8'); } catch { continue; }
-    results.push(scanTypeScriptSource(src, f));
+    // ⚠️⚠️ **按框架分族**（刀 O，2026-11-11 真机实测）：Playwright 的语义与
+    //   testing-library **完全不同** ⇒ ⇒ 用同一把尺子量 ⇒ ⇒ **102 条真用例
+    //   一条都没被单独审计**（`test.describe` 被当成一条用例）。
+    results.push(isPlaywrightSource(src) ? scanPlaywrightSource(src, f) : scanTypeScriptSource(src, f));
   }
   const summary = {
     files: results.length,
