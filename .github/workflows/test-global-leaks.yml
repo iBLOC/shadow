@@ -1,0 +1,47 @@
+name: Test Global Leaks
+
+# ⚠️ **为什么单独成文件**（2026-11-09 真机实测）：
+#   这道闸是**纯 node、零依赖、秒级**的（实测本地 < 2 秒）⇒ ⇒ 它**不重**
+#   ⇒ ⇒ 但它盯的是**桌面端测试里的全局替换泄漏** ⇒ ⇒ 而 ci.yml 是**共享文件**
+#   ⇒ ⇒ 共享文件上的接线是本仓最容易出两类事故的地方：
+#     · 「把别人的在飞件卷进我的提交」；
+#     · 「我的暂存被别人一次 plain commit 抢走署名」。
+#   ⇒ ⇒ 所以它**单独成文件** ⇒ ⇒ 接线面**零共享** ⇒ ⇒ 竞态根本不存在。
+#   （与 desktop-e2e.yml 那种「重任务另开」不同：那是为**不被 cancel**；
+#     这里是为**不碰共享文件**。）
+#
+# ⚠️ **它守的是什么** —— 2026-11-09 真机实测：桌面端在**单 worker** 下**整仓飘红**
+#   （失败文件逐轮漂：6 → 4 → 5 → 1 → 8 → 4）⇒ ⇒ 根因是**四处**全局替换**泄漏**
+#   ⇒ ⇒ 修完以后必须**有闸盯着**，否则下一处 vi.stubGlobal('window', …)
+#   会把同一场飘红原样带回来。
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-global-leaks:
+    name: Test Global Leaks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout shadow
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      # ⚠️ **两步都要跑** —— 判定 ＋ 判据自检（自检证明这道闸**真的会红**）。
+      - name: Test global-leak check
+        run: node scripts/check-test-global-leaks.mjs
+
+      - name: Test global-leak check (self-test)
+        run: node scripts/check-test-global-leaks.mjs --self-test
