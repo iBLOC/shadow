@@ -299,7 +299,12 @@ function main(argv) {
     }
     console.log('');
     console.log('⇒ **判不了**（退出码 2）—— 这一格不能算「通过」。');
-    return 2;
+    // ⚠️ **这里必须是字面的 exit(2)** —— 闸纪律闸的 D5（no-cannot-judge-exit）
+    //   认的形状是「字面 exit(2)」**或**「exit(某函数) 且该函数 return 2」。
+    //   ⚠️ 上一版写的是 process.exit(main(...)) ⇒ ⇒ 形状检测认不出「2 能不能到
+    //   达 exit」⇒ ⇒ 纪律闸把本闸记成「没有那一档」的新缺口 ⇒ ⇒ **新增即错**。
+    //   ⇒ ⇒ 纪律是**可执行**的：不合纪律的闸会被自己的治理闸当场抓住。
+    process.exit(2);
   }
 
   for (const a of artifacts) {
