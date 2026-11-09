@@ -161,6 +161,7 @@ shadow-mobile/lib/services/telencephalon/telencephalon_client.dart PATCH /api/te
 shadow-mobile/lib/services/telencephalon/telencephalon_client.dart POST /api/telencephalon/admin/agents/generate-description aligned telencephalon POST /api/telencephalon/admin/agents/generate-description
 shadow-mobile/lib/services/telencephalon/telencephalon_client.dart POST /api/telencephalon/tasks aligned telencephalon POST /api/telencephalon/tasks
 shadow-mobile/lib/services/telencephalon/telencephalon_client.dart POST /api/telencephalon/tasks/{param}/status aligned telencephalon POST /api/telencephalon/tasks/{id}/status
+shadow-mobile/lib/services/telencephalon/telencephalon_client.dart POST /api/telencephalon/tasks/{param}/update aligned telencephalon POST /api/telencephalon/tasks/{id}/update
 shadow-mobile/lib/services/telencephalon/telencephalon_client.dart POST /api/telencephalon/tasks/{param}/confirm aligned telencephalon POST /api/telencephalon/tasks/{id}/confirm
 shadow-mobile/lib/services/telencephalon/telencephalon_client.dart DELETE /api/telencephalon/admin/mcp/servers/{param} aligned telencephalon DELETE /api/telencephalon/admin/mcp/servers/{id}
 shadow-mobile/lib/services/telencephalon/telencephalon_client.dart DELETE /api/telencephalon/admin/mcp/agents/{param}/servers/{param} aligned telencephalon DELETE /api/telencephalon/admin/mcp/agents/{name}/servers/{id}

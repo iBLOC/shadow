@@ -517,6 +517,7 @@ WebRTC 浏览器、桌面端自己起的 sidecar、外部端脑进程。⇒ 这�
 | `/api/telencephalon/tasks/{id}` | DELETE | tasks_admin | ✅ | 删任务 |
 | `/api/telencephalon/tasks/{id}/confirm` | POST | tasks_admin | ✅ | 确认任务 ⇒ 触发执行 |
 | `/api/telencephalon/tasks/{id}/status` | POST | tasks_admin | ✅ | 改任务状态 |
+| `/api/telencephalon/tasks/{id}/update` | POST | tasks_admin | ✅ | **改任务（标题/状态/优先级/截止时间）** ⇒ 与对话面同一个落库函数 |
 | `/api/telencephalon/video-sources` | PUT | video_source | — | 改视频源 |
 | `/api/telencephalon/video-sources/{id}/probe` | POST | video_source | — | 探测视频源 |
 | `/api/flows` | POST | flow | ✅ | 建工作流 |

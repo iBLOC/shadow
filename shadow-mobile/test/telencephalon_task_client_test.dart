@@ -158,6 +158,37 @@ void main() {
       expect(mods['priority'], 'urgent');
     });
 
+    test('updateTask() 打 /tasks/{id}/update 且只带改了的字段', () async {
+      Map<String, dynamic>? sent;
+      String? path;
+      final mock = http_testing.MockClient((request) async {
+        if (request.method == 'POST') {
+          path = request.url.path;
+          sent = jsonDecode(request.body) as Map<String, dynamic>;
+          return jsonResponse(task());
+        }
+        return http.Response('Not Found', 404);
+      });
+      final client = TelencephalonClient(
+        baseUrl: 'http://127.0.0.1:41235',
+        client: mock,
+      );
+
+      await client.updateTask(
+        'task-1',
+        title: '改过的标题',
+        priority: 'urgent',
+      );
+
+      expect(path, '/api/telencephalon/tasks/task-1/update');
+      expect(sent!['title'], '改过的标题');
+      expect(sent!['priority'], 'urgent');
+      // ⚠️ **没给的字段不许出现** ⇒ ⇒ 端脑那边「只改给了的」才成立
+      // （发一个空字段 ⇒ 服务端会当成「改成空」⇒ ⇒ 静默改错）。
+      expect(sent!.containsKey('status'), isFalse);
+      expect(sent!.containsKey('due_time'), isFalse);
+    });
+
     test('deleteTask() DELETE 任务并接受 204', () async {
       String? method;
       String? path;

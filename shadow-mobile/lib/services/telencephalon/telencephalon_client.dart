@@ -1558,6 +1558,35 @@ class TelencephalonClient {
     return TelencephalonTask.fromJson(json);
   }
 
+  /// **改任务** —— 端脑面 `POST /api/telencephalon/tasks/{id}/update`。
+  ///
+  /// ⚠️ **为什么需要它**（2026-11-09）：任务板以前**只能改状态**
+  /// ⇒ ⇒ 「对话里能改标题、界面上改不了」⇒ ⇒ 两张面不齐
+  /// ⇒ ⇒ 用户得先回对话才能改标题。
+  ///
+  /// ⚠️ **只改给了的字段**（没给的字段服务端不动）⇒ ⇒ 传 `null` = 不改。
+  /// ⚠️ [status] 收**大小写不敏感**的词表（`in_progress` / `InProgress` 都行）
+  /// ⇒ ⇒ 与对话面**同一把尺**（服务端同一个解析器）。
+  /// ⚠️ 认不得的值服务端**明确报错**（400）⇒ ⇒ 不会静默回落成 Medium。
+  Future<TelencephalonTask> updateTask(
+    String taskId, {
+    String? title,
+    String? status,
+    String? priority,
+    String? dueTime,
+  }) async {
+    final body = <String, dynamic>{};
+    if (title != null && title.isNotEmpty) body['title'] = title;
+    if (status != null && status.isNotEmpty) body['status'] = status;
+    if (priority != null && priority.isNotEmpty) body['priority'] = priority;
+    if (dueTime != null && dueTime.isNotEmpty) body['due_time'] = dueTime;
+    final json = await _adminPost(
+      '/api/telencephalon/tasks/${Uri.encodeComponent(taskId)}/update',
+      body,
+    );
+    return TelencephalonTask.fromJson(json);
+  }
+
   /// 删掉一条任务。
   Future<void> deleteTask(String taskId) => _adminDelete(
     '/api/telencephalon/tasks/${Uri.encodeComponent(taskId)}',

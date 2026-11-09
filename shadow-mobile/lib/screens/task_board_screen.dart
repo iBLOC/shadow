@@ -251,15 +251,28 @@ class TasksNotifier extends StateNotifier<TasksState> {
 
   /// 改任务状态。
   ///
-  /// 端脑的**状态是随时可改的**（`POST /api/telencephalon/tasks/{id}/status`）——
-  /// 这是它唯一支持「事后修改」的字段。标题 / 描述 / 优先级 / 标签都改不了：
-  /// 描述与标签只在创建时写入，标题与优先级只有**待确认**的任务能通过
-  /// 「确认」端点顺带改（见 [confirmTask]）。
-  Future<void> updateTask(String taskId, {String? status}) async {
+  /// 改任务 —— 标题 / 状态 / 优先级 / 截止时间。
+  ///
+  /// ⚠️ 端脑面 `POST /api/telencephalon/tasks/{id}/update`（2026-11-09 新增）
+  /// ⇒ ⇒ 以前这里**只能改状态** ⇒ ⇒ 「对话里能改标题、界面上改不了」
+  /// ⇒ ⇒ 两张面不齐 ⇒ ⇒ 今天补上。
+  ///
+  /// ⚠️ **一次请求改多个字段** ⇒ ⇒ 服务端「先全部解析、后动库」
+  /// ⇒ ⇒ 有一个字段认不得 ⇒ ⇒ **一个字节都不改**（不是半改）。
+  ///
+  /// ⚠️ **描述与标签仍然改不了**（只在创建时写入）⇒ ⇒ 不开这两个输入框。
+  Future<void> updateTask(
+    String taskId, {
+    String? status,
+    String? title,
+    String? priority,
+  }) async {
     try {
-      final updated = await _client.updateTaskStatus(
+      final updated = await _client.updateTask(
         taskId,
-        serverStatusOf(status ?? TaskBoardColumn.backlog),
+        status: serverStatusOf(status ?? TaskBoardColumn.backlog),
+        title: title,
+        priority: priority,
       );
       final info = _toTaskInfo(updated);
       state = state.copyWith(

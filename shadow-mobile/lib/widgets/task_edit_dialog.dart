@@ -6,10 +6,10 @@ import '../generated/l10n/app_localizations.dart';
 /// 任务编辑弹窗。
 ///
 /// 端脑的任务**不是所有字段都能改**，这个弹窗只开放它真能持久化的：
-/// - **状态** → `POST /api/telencephalon/tasks/{id}/status`，随时可改；
-/// - 标题 / 描述 / 优先级 / 标签 → **没有更新端点**。标题与优先级只有
-///   「待确认」的任务能靠确认端点顺带改（而且那会把任务标记成已确认），
-///   描述与标签只在**创建**时写入。
+/// - **标题 / 状态 / 优先级 / 截止时间** → `POST /api/telencephalon/tasks/{id}/update`
+///   （2026-11-09 新增 ⇒ ⇒ 以前只能改状态 ⇒ ⇒ 「对话里能改标题、界面上
+///   改不了」那张面今天补上 ⇒ ⇒ 且**服务端与对话面同一个落库函数**）；
+/// - **描述 / 标签** → **仍然没有更新端点**，只在**创建**时写入。
 ///
 /// （以前这个弹窗开放的是「状态 + 标签」，那是海马体方言的形状 ——
 /// 海马体的 `TaskRecord` 没有 title / description / priority 列，upsert
@@ -24,6 +24,9 @@ class TaskEditDialog extends ConsumerStatefulWidget {
 
 class _TaskEditDialogState extends ConsumerState<TaskEditDialog> {
   late String _status;
+  late String _title;
+  late String _priority;
+  final _titleController = TextEditingController();
   bool _isSubmitting = false;
   String? _errorMessage;
 
@@ -45,6 +48,17 @@ class _TaskEditDialogState extends ConsumerState<TaskEditDialog> {
     // 下拉框列的是端脑的状态，先换算再作为初值，否则 Dropdown 会因为
     // 找不到匹配的 item 直接断言失败。
     _status = serverStatusOf(widget.task.status);
+    _title = widget.task.title;
+    _titleController.text = _title;
+    // 端脑回的是 serde 变体名（`High`），下拉框列的是小写（`high`）
+    // ⇒ ⇒ 先换算，否则 Dropdown 会因为找不到匹配的 item 断言失败。
+    _priority = widget.task.priority.toLowerCase();
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    super.dispose();
   }
 
   Future<void> _submit() async {
@@ -53,9 +67,13 @@ class _TaskEditDialogState extends ConsumerState<TaskEditDialog> {
       _errorMessage = null;
     });
     try {
+      // ⚠️ **一次请求改多个字段** ⇒ ⇒ 端脑那边「先全部解析、后动库」
+      // ⇒ ⇒ 有一个字段认不得 ⇒ ⇒ **一个字节都不改**（不是半改）。
       await ref.read(tasksNotifierProvider.notifier).updateTask(
             widget.task.id,
+            title: _title,
             status: _status,
+            priority: _priority,
           );
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
@@ -80,13 +98,33 @@ class _TaskEditDialogState extends ConsumerState<TaskEditDialog> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              widget.task.title,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 2),
-            Text(
               widget.task.id,
               style: const TextStyle(fontSize: 11, color: Colors.grey),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _titleController,
+              decoration: InputDecoration(
+                labelText: l10n.taskTitleField,
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: _priority,
+              decoration: InputDecoration(
+                labelText: l10n.taskPriority,
+                border: OutlineInputBorder(),
+              ),
+              items: [
+                DropdownMenuItem(value: 'low', child: Text(l10n.priorityLow)),
+                DropdownMenuItem(value: 'medium', child: Text(l10n.priorityMedium)),
+                DropdownMenuItem(value: 'high', child: Text(l10n.priorityHigh)),
+                DropdownMenuItem(value: 'urgent', child: Text(l10n.priorityUrgent)),
+              ],
+              onChanged: (v) {
+                if (v != null) setState(() => _priority = v);
+              },
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
