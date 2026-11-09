@@ -3,9 +3,11 @@ import { useTranslation } from 'react-i18next';
 import { RefreshCw, Server, Cpu, AlertCircle, CheckCircle, FileText } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
 import { cn } from '../lib/utils';
 import { readDoorHeaders } from '../lib/readDoorHeaders';
+import { normalizeTelencephalonBaseUrl, ENDPOINT_REJECT_TEXT } from '../lib/telencephalonEndpoint';
 import { telencephalonClient } from '../lib/telencephalonClient';
 import { useTelencephalonStore } from '../stores/telencephalonStore';
 
@@ -34,11 +36,61 @@ export function TelencephalonStatusPage() {
   // ⚠️ 但也别把「端口会变」当理由 —— 桌面端 sidecar 的默认端口**就是** 60080
   // （`src-tauri/src/telencephalon_http.rs` `DEFAULT_ADDR`，有测试钉住）。
   const baseUrl = useTelencephalonStore((s) => s.connection.baseUrl);
+  // ⚠️ **影子锁（X-Shadow-Key）** —— 端脑开了 shadow.api_key 时，读门要它。
+  // web 形态**没有 Tauri** ⇒ ⇒ 拿不到 admin.key 文件里的那把 ⇒ ⇒ 只能在这里配。
+  const apiKey = useTelencephalonStore((s) => s.connection.apiKey);
   const [status, setStatus] = useState<TelencephalonStatus | null>(null);
   const [logs, setLogs] = useState<TelencephalonLogs | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'status' | 'logs'>('status');
+
+  // ⚠️ **端脑地址是用户可配的那一个** —— 真相源是 store 的 connection.baseUrl，
+  // 这一页只**读**它（页面自己那份 state 只是「正在编辑的草稿」）。
+  // ⚠️ 以前**没有任何地方能改它**（setBaseUrl 在 src/ 里零调用方）⇒ ⇒ 用户配不了地址
+  // ⇒ ⇒ 而这一页那句「端脑地址在设置里可改」是**说谎**的 ⇒ ⇒ 现在这里就是那个「设置」。
+  const [baseUrlDraft, setBaseUrlDraft] = useState(baseUrl);
+  const [apiKeyDraft, setApiKeyDraft] = useState(apiKey);
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [keySaved, setKeySaved] = useState(false);
+  const [endpointError, setEndpointError] = useState<string | null>(null);
+  const [endpointSaved, setEndpointSaved] = useState(false);
+
+  // 地址在别处变了（持久化复原 / 别的入口改了）⇒ ⇒ 草稿跟着走，
+  // 别让草稿停在一个已经不存在的旧地址上。
+  useEffect(() => {
+    setBaseUrlDraft(baseUrl);
+  }, [baseUrl]);
+
+  useEffect(() => {
+    setApiKeyDraft(apiKey);
+  }, [apiKey]);
+
+  const handleSaveApiKey = () => {
+    // ⚠️ **空串是合法的** —— 那表示「撤掉这把钥匙」（端脑没开门时不需要）。
+    // ⇒ ⇒ 但**空白**（纯空格）不许写进去 ⇒ ⇒ 它既不是钥匙、看着又像配过了。
+    const trimmed = apiKeyDraft.trim();
+    useTelencephalonStore.getState().setApiKey(trimmed);
+    setApiKeyDraft(trimmed);
+    setKeySaved(true);
+  };
+
+  const handleSaveBaseUrl = () => {
+    const check = normalizeTelencephalonBaseUrl(baseUrlDraft);
+    if (!check.ok) {
+      // ⚠️ **不合格的地址不许进 store** —— 写坏了它就是**所有页面**的真相源，
+      // 而那时用户**改不回来** ⇒ ⇒ 「写不进」必须说成「写不进」。
+      setEndpointError(ENDPOINT_REJECT_TEXT[check.reason]);
+      setEndpointSaved(false);
+      return;
+    }
+    // ⚠️ **走 store 的 setBaseUrl** —— 它同时同步 client（`telencephalonClient.setBaseUrl`）
+    // ⇒ ⇒ 页面与所有走 client 的请求**同一份地址**（两处不一致＝「一半连上一半连不上」）。
+    useTelencephalonStore.getState().setBaseUrl(check.value);
+    setBaseUrlDraft(check.value);
+    setEndpointError(null);
+    setEndpointSaved(true);
+  };
 
   const fetchStatus = useCallback(async () => {
     setLoading(true);
@@ -169,6 +221,77 @@ export function TelencephalonStatusPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* ⚠️ 端脑地址 —— 「配地址」的真入口（以前**没有** ⇒ ⇒ 用户配不了）。
+          放在错误卡片**上面** ⇒ ⇒ 「连不上」时地址就在手边 ⇒ ⇒ 改完立刻重试。 */}
+      <Card>
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Server size={18} className="text-muted-foreground" />
+            <h2 className="text-sm font-medium text-foreground">
+              {t('telencephalonStatus.endpointSection', '端脑地址')}
+            </h2>
+          </div>
+          <div className="flex gap-2">
+            <Input
+              value={baseUrlDraft}
+              onChange={(e) => {
+                setBaseUrlDraft(e.target.value);
+                setEndpointSaved(false);
+              }}
+              placeholder="http://127.0.0.1:60080"
+              aria-label={t('telencephalonStatus.endpointLabel', '端脑地址')}
+              data-testid="telencephalon-base-url-input"
+              autoComplete="off"
+              spellCheck={false}
+            />
+            <Button onClick={handleSaveBaseUrl} data-testid="telencephalon-base-url-save">
+              {t('common.save', '保存')}
+            </Button>
+          </div>
+          {/* ⚠️ 影子锁 —— 读门的钥匙。**没有它**，端脑一开门，读面就 401
+              ⇒ ⇒ 而 web 形态**没有别的地方**能配它 ⇒ ⇒ 「门掐断主人」。 */}
+          <div className="flex gap-2">
+            <Input
+              type={showApiKey ? 'text' : 'password'}
+              value={apiKeyDraft}
+              onChange={(e) => {
+                setApiKeyDraft(e.target.value);
+                setKeySaved(false);
+              }}
+              placeholder={t('telencephalonStatus.endpointKeyPlaceholder', '影子锁（X-Shadow-Key），留空表示不递')}
+              aria-label={t('telencephalonStatus.endpointKeyLabel', '影子锁')}
+              data-testid="telencephalon-api-key-input"
+              autoComplete="off"
+              spellCheck={false}
+            />
+            <Button onClick={handleSaveApiKey} data-testid="telencephalon-api-key-save">
+              {t('common.save', '保存')}
+            </Button>
+            <Button variant="outline" onClick={() => setShowApiKey((s) => !s)} data-testid="telencephalon-api-key-toggle">
+              {showApiKey ? t('telencephalonStatus.endpointKeyHide', '隐藏') : t('telencephalonStatus.endpointKeyShow', '显示')}
+            </Button>
+          </div>
+          {keySaved && (
+            <div className="text-xs text-green-600 dark:text-green-400" data-testid="telencephalon-api-key-saved">
+              {t('telencephalonStatus.endpointKeySaved', '已保存（重启后仍然有效）')}
+            </div>
+          )}
+          {endpointError && (
+            <div className="text-xs text-destructive" data-testid="telencephalon-base-url-error">
+              {endpointError}
+            </div>
+          )}
+          {endpointSaved && !endpointError && (
+            <div
+              className="text-xs text-green-600 dark:text-green-400"
+              data-testid="telencephalon-base-url-saved"
+            >
+              {t('telencephalonStatus.endpointSaved', '已保存（重启后仍然有效）')}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {activeTab === 'status' && status && (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
