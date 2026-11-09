@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { prefrontalClient } from '../lib/prefrontalClient';
 import type { Task } from '../lib/prefrontalClient';
+import { telencephalonClient } from '../lib/telencephalonClient';
+import { mapEndbrainTask, type EndbrainTask } from '../lib/endbrainTasks';
 import { useIdentityStore } from './identityStore';
 
 export type TaskDetailTab = 'overview' | 'subtasks' | 'logs' | 'history';
@@ -15,9 +17,21 @@ interface TaskBoardDataState {
   isLoadingHippocampus: boolean;
   hippocampusError: string | null;
 
+  /** 端脑任务（对话里建的）—— **与海马体那份不是一回事**。 */
+  endbrainTasks: EndbrainTask[];
+  isLoadingEndbrain: boolean;
+  endbrainError: string | null;
+  /** 形状认不得、被跳过的条数（**出声**，不许静默丢）。 */
+  endbrainSkipped: number;
+
   detail: TaskDetailState;
 
   fetchHippocampusTasks: () => Promise<void>;
+
+  /** 读端脑任务（对话里建的）—— 走 `/api/telencephalon/tasks`。 */
+  fetchEndbrainTasks: () => Promise<void>;
+  /** 确认／拒绝一条端脑任务（端脑只有 `Pending` 的能确认）。 */
+  confirmEndbrainTask: (taskId: string, confirmed: boolean) => Promise<void>;
   refreshHippocampusTask: (taskId: string) => Promise<void>;
   updateHippocampusTask: (
     taskId: string,
@@ -62,6 +76,11 @@ export const useTaskBoardDataStore = create<TaskBoardDataState>((set, get) => ({
   isLoadingHippocampus: false,
   hippocampusError: null,
 
+  endbrainTasks: [],
+  isLoadingEndbrain: false,
+  endbrainError: null,
+  endbrainSkipped: 0,
+
   detail: { taskId: null, activeTab: 'overview' },
 
   async fetchHippocampusTasks() {
@@ -79,6 +98,47 @@ export const useTaskBoardDataStore = create<TaskBoardDataState>((set, get) => ({
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       set({ hippocampusError: msg, isLoadingHippocampus: false });
+    }
+  },
+
+  /**
+   * 读端脑任务 —— 对话里建的那些（**不是**海马体那份）。
+   *
+   * ⚠️ **形状认不得的那几条 ⇒ 出声**（`endbrainSkipped`）⇒ ⇒ 不静默丢。
+   */
+  async fetchEndbrainTasks() {
+    set({ isLoadingEndbrain: true, endbrainError: null });
+    try {
+      const raw = await telencephalonClient.getTasks();
+      const mapped: EndbrainTask[] = [];
+      let skipped = 0;
+      for (const item of raw) {
+        const task = mapEndbrainTask(item);
+        if (task) {
+          mapped.push(task);
+        } else {
+          skipped += 1;
+        }
+      }
+      set({ endbrainTasks: mapped, endbrainSkipped: skipped, isLoadingEndbrain: false });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      set({ endbrainError: msg, isLoadingEndbrain: false });
+    }
+  },
+
+  /**
+   * 确认／拒绝一条端脑任务。
+   *
+   * ⚠️ **只有 `Pending` 的能确认**（服务端在别的状态上会回 400）⇒ ⇒ 失败
+   * 就**原样抛出去**（界面上要看得见），不假装成功。
+   */
+  async confirmEndbrainTask(taskId: string, confirmed: boolean) {
+    try {
+      await telencephalonClient.confirmTask(taskId, confirmed);
+      await get().fetchEndbrainTasks();
+    } catch (e) {
+      throw e instanceof Error ? e : new Error(String(e));
     }
   },
 

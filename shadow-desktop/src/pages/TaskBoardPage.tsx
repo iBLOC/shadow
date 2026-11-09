@@ -5,6 +5,7 @@ import { useAgentStore } from '../stores/agentStore';
 import { useResonanceStore } from '../stores/resonanceStore';
 import { Button, Badge } from '../components/ui';
 import { HippocampusTaskSection } from '../components/task/HippocampusTaskSection';
+import { EndbrainTaskSection } from '../components/task/EndbrainTaskSection';
 import {
   Plus,
   Trash2,
@@ -381,6 +382,9 @@ export function TaskBoardPage() {
       )}
 
       <HippocampusTaskSection />
+
+      {/* ⚠️ **端脑任务** —— 对话里建的那些，桌面上第一次能看见它们。 */}
+      <EndbrainTaskSection />
     </div>
   );
 }
