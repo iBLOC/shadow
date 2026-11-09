@@ -1,5 +1,67 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-11 (㒅 **「桌面的『已加载模型』少显示一个字段 —— 端脑发 `engine`，桌面写 `quantization`，那枚徽章从来没出现过」** —— 承 U+347E 条（目录面 vs 已注册面：客户端必须认端脑**真发**的字段）＋ U+347F 条（断言写完就再没跑过 ⇒ ⇒ 断言与产品面早就漂了），本条记**取证（端脑发什么 / 桌面认什么，两边逐字段对账）**、**第一因（`unknown[]` ＋ 手写 `as` ⇒ ⇒ 两边零约束 ⇒ ⇒ 谁都不报错）**、**这一刀的落点（5 改 ＋ 1 新增 ＋ 1 个提交）**、**判据（渲染级 3 条 ＋ 契约级 2 条断言 ＋ 两档反向验证）**、**分级读数**、**途中那几课**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真运行级实测（端脑 Rust 源码逐字段对账 ＋ 桌面渲染级判据真跑 ＋ **两档注入反向验证** ＋ 类型闸实跑 ＋ 整族 Playwright 真 CI 读数）｜ 改动：shadow 仓 **改** `shadow-desktop/src/lib/telencephalonClient.ts`（`NeuronModelSummary` 改认 `engine`）、**改** `shadow-desktop/src/components/business/SubsystemPanel/SubsystemPanel.tsx`（Badge 改显示引擎实现 ＋ **去掉手写 `as Array<{...}>`**）、**改** `shadow-desktop/src/stores/subsystemStore.ts`（`neuronModels: unknown[]` → `NeuronModelSummary[]`）、**改** `shadow-desktop/tests/api-contract/schemas.test.ts`（形状断言 ＋2 条）、**改** `shadow-desktop/tests/stores/subsystemStore.test.ts`（mock 形状对齐端脑）、**新增** `shadow-desktop/tests/components/SubsystemPanel.test.tsx`（3 条）｜ 读数：**桌面新判据 3/3 绿 ＋ store 判据 3/3 绿**、**类型闸 `tsc -b` EXIT=0**、**反向验证 A（产品退回旧字段）⇒ ⇒ 恰好 2 红**、**反向验证 B（字段漂移）⇒ ⇒ 类型闸 TS2339 红**、**桌面全量 1526 过 / 16 跳 / 1 红**（那 1 红＝`tests/generatedEol.test.ts` 的 `accent.g.ts` 生成物漂移，**别人在飞，非本线**）、**真 CI 整族 Desktop E2E run `42643919095` success（head `60f5bb6`）：Playwright 96 passed / 0 failed / 7 skipped（无白名单外跳过）＋ API 契约 passed=54 failed=0 skipped=1 total=55** | status=active | supersedes=none
+
+① **⚠️ 取证：端脑发的是 `engine`，桌面认的是 `quantization` ⇒ ⇒ 那枚徽章从来没出现过**
+　❶ **端脑那一侧** —— `telencephalon/src/neuron_embed.rs` 的 `ModelSummary` 只有三个字段：`capability` / `model_id` / **`engine`**（`engine` ＝ `format!("{:?}", reg.impl_id)` ⇒ ⇒ 如 `Candle` / `MistralRs` / `Burn` / `Tract` / `Sherpa`）⇒ ⇒ `GET /api/telencephalon/neuron/preview/models` 原样序列化它 ⇒ ⇒ **端脑从来不发 `quantization`**。
+　❷ **桌面那一侧** —— `shadow-desktop/src/lib/telencephalonClient.ts` 的 `NeuronModelSummary` 声明的是 `quantization: string | null` ⇒ ⇒ `SubsystemPanel` 渲染 `{m.quantization && <Badge>…</Badge>}` ⇒ ⇒ 端脑真发的那份 JSON 里**没有这一格** ⇒ ⇒ `m.quantization` **恒为 `undefined`** ⇒ ⇒ **那枚「引擎/量化」徽章永远渲染不出来** ⇒ ⇒ 界面**少显示一个字段**（模型 id 在、能力徽章在、就是那枚徽章不在）。
+　❸ ⇒ ⇒ **这不是「显示得不好看」，是「一个字段从来没被显示过」** ⇒ ⇒ 而它长得**完全像正常**（徽章不见了，页面照样渲染、其它用例照样绿）⇒ ⇒ **失败长得像成功**的又一族。
+　❹ ⚠️ **口径要分清** —— 「量化」在仓里**另有其人**：下载面 `shadow-desktop/src/lib/modelDownloadService.ts` 的 `AVAILABLE_MODELS[].quantization`（`Q4_K_M` 那一套）⇒ ⇒ 那是**本地常量**、与端脑无关 ⇒ ⇒ **本刀不碰它** ⇒ ⇒ 只改 **`preview/models` 那一条线**。
+
+② **⚠️ 第一因：`unknown[]` ＋ 手写 `as` ⇒ ⇒ 两边零约束 ⇒ ⇒ 谁都不报错**
+　❶ `subsystemStore` 那一格写的是 `neuronModels: unknown[]` ⇒ ⇒ 于是**面板只好自己手写一份** `as Array<{ model_id: string; capability: string; quantization: string | null }>` ⇒ ⇒ **那份手写类型与端脑没有任何约束关系**（它既不是从端脑生成的，也不是从任何真源推导的）⇒ ⇒ **端脑发 `engine`、桌面写 `quantization` ⇒ ⇒ TypeScript 一声不吭** ⇒ ⇒ 「客户端与端脑的字段漂移」这一族**在编译期完全隐形**。
+　❷ ⇒ ⇒ **通用形态**：**`unknown` ＋ 手写断言类型 ＝ 给漂移发一张通行证** —— 它让「界面认的形状」与「服务端发的形状」**彻底解耦** ⇒ ⇒ 两者可以各说各话，而**没有任何一道闸会响**（类型闸不响、契约断言不响、单测不响）⇒ ⇒ 直到**真浏览器里看一眼**才发现那一格是空的。
+　❸ ⇒ ⇒ **修法不是「把字段名改对」**（那只是把这一次的漂移修掉）⇒ ⇒ 而是**让两边重新有约束关系**：store 那一格改成**端脑那一侧的真类型**（`NeuronModelSummary[]`）⇒ ⇒ 面板**直接用**、**不再手写 `as`** ⇒ ⇒ ⇒ 端脑哪天改字段名 ⇒ ⇒ **类型闸立刻红**（TS2339）⇒ ⇒ 漂移从此**不再隐形**。
+　❹ ⇒ ⇒ 承 U+347E 条那句「**客户端必须认端脑真发的字段**」—— 那一条讲的是**候选集合**（目录面 vs 已注册面），本条讲的是**字段形状** ⇒ ⇒ **同一个道理的两个面**：**客户端不许自己造端脑的形状**。
+
+③ **✅ 这一刀的落点（5 改 ＋ 1 新增 ＋ 1 个提交）**
+　❶ **改 `src/lib/telencephalonClient.ts`** —— `NeuronModelSummary` 的 `quantization: string | null` ⇒ ⇒ **`engine: string`**（附口径注释：这一栏说的是「**此刻已注册的引擎**」⇒ ⇒ 那个字段是**引擎实现**、**不是**量化档位）。
+　❷ **改 `src/components/business/SubsystemPanel/SubsystemPanel.tsx`** —— ❶ Badge 从 `{m.quantization && …}` ⇒ ⇒ `{m.engine && …}`（**显示端脑真发的引擎实现**）；❷ **去掉那行手写 `as Array<{...}>`** ⇒ ⇒ 直接 `store.neuronModels`（**类型约束由 store 那一格承担**）。
+　❸ **改 `src/stores/subsystemStore.ts`** —— `neuronModels: unknown[]` ⇒ ⇒ **`NeuronModelSummary[]`**（从端脑那一侧的真类型导入）⇒ ⇒ **这一格是「根因」那一格**：它以前让整条链失去约束。
+　❹ **改 `tests/api-contract/schemas.test.ts`** —— 形状接口跟着改（`engine: string`）＋ **＋2 条断言**：`typeof m.engine === 'string'` ＋ `m.engine.length > 0` ＋ `quantization` **不许出现** ⇒ ⇒ 端脑哪天改名/去掉 ⇒ ⇒ **这里立刻红**。
+　❺ **改 `tests/stores/subsystemStore.test.ts`** —— mock 的形状从 `{ model_id: 'gpt-4' }`（**只有一格**）⇒ ⇒ 改成**端脑真发**的 `{ capability: 'llm', model_id: 'gpt-4', engine: 'Candle' }` ⇒ ⇒ 断言同步 ⇒ ⇒ ⇒ **判据里从此有 `capability` / `engine`**（以前**从来没有**）。
+　❻ **新增 `tests/components/SubsystemPanel.test.tsx`（3 条）** —— 把**端脑真实响应形状**喂进 store ⇒ ⇒ 断言**那枚引擎徽章真的渲染出来**（`Candle` 在 DOM 里）＋ `quantization` **不许**被当成引擎显示 ＋ 引擎为空 ⇒ ⇒ **不留空徽章壳**。
+　❼ ⚠️ **零端脑改动** —— 端脑一行未动（它的 `engine` 是**事实**）⇒ ⇒ 本刀只让**桌面去认事实**。
+　❽ ⚠️ **提交面机械构造** —— `SubsystemPanel.tsx` 这个文件**同时有并行会话的在飞改动**（`t('subsystem.*')` → `t('settings.subsystem.*')` 的 i18n 键迁移 ＋ 两份词表也在他手上）⇒ ⇒ 本刀的提交面＝**HEAD ＋ 我那两处** ⇒ ⇒ 逐字核过：**`settings.subsystem` 在我这一份里 0 残留** ⇒ ⇒ **别人的在飞件一条没被卷进来**。
+
+④ **⚠️ 途中那几课**
+　❶ **「类型对了」不等于「字段对了」** —— `quantization: string | null` 这个声明**在 TypeScript 看来完全合法**（`string | null` 是个正常类型）⇒ ⇒ 编译零 complaints ⇒ ⇒ 「类型闸绿」对**这一族漂移**根本不承重 ⇒ ⇒ 承 U+347F 条：「跑过了」是第三层证据 —— 这里还要再加一层：**「类型对了」是第四层**。
+　❷ **判据的第一版自己有恒真断言** —— 我第一版写的是 `expect(container.querySelectorAll('[data-slot="badge"]').length).toBeGreaterThanOrEqual(0)` ⇒ ⇒ **Badge 组件根本没有 `data-slot` 属性**（实测其 DOM 只有 class）⇒ ⇒ 那个查询恒返回 **0 个** ⇒ ⇒ `toBeGreaterThanOrEqual(0)` **恒真** ⇒ ⇒ 这条断言**永远绿** ⇒ ⇒ 等于没写 ⇒ ⇒ 改成「**数模型行那一层的徽章个数**」（先锚到 `font-mono` 那一格、往上取它那一行、再数 `.inline-flex.items-center.rounded-full`）⇒ ⇒ 数出来是 **1**（能力那枚）⇒ ⇒ 引擎为空时**不多出第 2 枚**。
+　❸ ⚠️ **`queryByText('')` 是假红的常见来源** —— testing-library 对**空串**是「匹配所有」⇒ ⇒ `expect(screen.queryByText('')).not.toBeInTheDocument()` 会**匹配到一堆元素** ⇒ ⇒ 必然红 ⇒ ⇒ **判据里不许用空文本做存在性判断**。
+　❹ **数徽章要先圈定范围** —— 面板里**别的卡片也有 Badge**（模型计数、传感器数…）⇒ ⇒ 直接数**整块面板** ⇒ ⇒ 实测 **3 枚**（不是 1）⇒ ⇒ 判据必须落在**模型行**那一层 ⇒ ⇒ ⇒ **「数东西」的判据必须说清数的是哪一层**，否则它数的是**别的东西**。
+　❺ ⚠️ **共享文件上的提交面必须机械构造** —— 面板那个文件我改的时候，别人**同时**在改同一文件（i18n 键迁移）⇒ ⇒ 我若直接 `git add` 那个文件 ⇒ ⇒ **他的在飞件会被我一起提交** ⇒ ⇒ 修法：**从 HEAD 取基线、只重放我那两处**（并逐字核 `settings.subsystem` 0 残留）⇒ ⇒ 与 U+347E 条那条「机械构造」同一条纪律。
+　❻ ⚠️ **端口占用会把「测不了」变成「测错了」** —— 本机跑 api-contract 套件时，`/healthz` 回 **404** ⇒ ⇒ 看着像「端脑形状不对」⇒ ⇒ 实际是 **60080 上跑的是桌面 Tauri 应用**（`shadow-desktop.exe`，实测 PID 60560）**不是端脑** ⇒ ⇒ 其余 7 条全部**跳过** ⇒ ⇒ 那条红**与本刀无关**（不是本刀的形状断言）⇒ ⇒ ⇒ **「端点回 404」要先问「那上面跑的是谁」**。
+
+⑤ **✅ 判据（四处）**
+　❶ **渲染级（新增，3 条）** —— `tests/components/SubsystemPanel.test.tsx`：① 端脑真形状喂进去 ⇒ ⇒ **引擎徽章真的渲染出来**；② `quantization` **不许**被当成引擎显示（**防「假修复」**）；③ 引擎为空 ⇒ ⇒ **不留空徽章** ⇒ ⇒ **3/3 绿**。
+　❷ **契约级（改，＋2 条断言）** —— `tests/api-contract/schemas.test.ts`：`engine` 必须是**非空字符串** ＋ `quantization` **不许出现** ⇒ ⇒ 端脑改字段 ⇒ ⇒ 这里红 ⇒ ⇒ 「界面少显示字段」这一族以后会**自己变红**。
+　❸ **store 级（改）** —— mock 与断言都换成**端脑真发的形状** ⇒ ⇒ 判据里从此**有** `capability` / `engine` ⇒ ⇒ **3/3 绿**。
+　❹ **类型级（根因的证据）** —— `tsc -b` **EXIT=0** ⇒ ⇒ 而**反向验证 B** 证明它**有牙**（见 ⑥❷）。
+
+⑥ **✅ 反向验证（两档，各有读数）**
+　❶ **A（产品侧）** —— 把面板退回读 `quantization`（旧形状）⇒ ⇒ **恰好 2 红**（引擎徽章那两条）⇒ ⇒ 第三条（引擎为空不留壳）**仍绿** —— 对，它**不依赖字段名**（引擎为空时两种写法都不出徽章）⇒ ⇒ **这正是「恰好」该有的形状** ⇒ ⇒ 还原后 **3/3 绿**。
+　❷ **B（类型侧）** —— 把面板改成读一个端脑**根本没有**的字段（`m.engine_impl_name`）⇒ ⇒ **类型闸立刻红**：`error TS2339: Property 'engine_impl_name' does not exist on type 'NeuronModelSummary'` ⇒ ⇒ **恰好 2 处报错** ⇒ ⇒ 还原后 **EXIT=0** ⇒ ⇒ ⇒ **这一档是「根因真修掉了」的证据**：改之前，这种漂移**类型闸一声不吭**（因为那行手写 `as` 把约束全断了）⇒ ⇒ 现在**它会响**。
+　❸ ⇒ ⇒ **两档各证一件事**：A 证「判据能抓住字段名漂移」，B 证「**类型闸能抓住字段名漂移**」⇒ ⇒ 两件事以前**都做不到**。
+
+⑦ **✅ 分级读数（全部实测）**
+　❶ **判据级**：桌面新判据 **3/3 绿** ｜ store 判据 **3/3 绿**（合成 6/6）｜ 契约级断言（改后，**真端脑那条在 CI 上跑**）。
+　❷ **反向验证级**：A ⇒ **恰好 2 红**（还原后 3/3 绿）｜ B ⇒ **TS2339 × 2**（还原后 EXIT=0）。
+　❸ **闸级**：桌面 `tsc -b` **EXIT=0** ｜ 码位闸**三面零违规**（见 ⑨）。
+　❹ **仓库级**：桌面全量 `vitest run` ⇒ ⇒ **1526 过 / 16 跳 / 1 红** ⇒ ⇒ 那 1 红 ＝ `tests/generatedEol.test.ts`（`accent.g.ts` 与 `design-tokens.json` 不同步 ⇒ ⇒ **生成物漂移**）⇒ ⇒ **归属**：**并行会话在飞件**（`shadow-desktop/src/styles/accent.g.ts` 在工作树里是 ` M` 状态，**本刀一行没碰**）⇒ ⇒ ⇒ **非本线**。
+　❺ **真 CI 级（整族 Playwright）**：run **`42643919095`**（head `60f5bb6`，`workflow_dispatch`）⇒ ⇒ **success** ⇒ ⇒ 逐字：「**96 passed**」「**7 skipped**」＋「Playwright 读数：96 passed（且**无白名单外的跳过**）」⇒ ⇒ **API 契约读数：passed=54 failed=0 skipped=1 total=55**（**真端脑**）⇒ ⇒ 桌面通知面 `Tests 5 passed` ＋ 移动端 `🎉 4 tests passed.` ⇒ ⇒ ⇒ **这一刀依赖的「端脑真发 `engine`」在真端脑上被契约套件证实**。
+　❻ ⚠️ **本刀自己的新 e2e spec（U+347E 条那条 `capability-defaults.spec.ts`）在这一轮整族 run 里真跑通了** —— 上一轮整族读数是 **95 passed / 7 skipped**，这一轮是 **96 passed / 7 skipped** ⇒ ⇒ **多出来的那一条正是它** ⇒ ⇒ 承 U+347F 条：「跑过了」这一格现在**有真 CI 读数**了（此前只有本机读数）。
+
+⑧ **⚠️ 仍然欠着**
+　❶ **端脑真进程级读数仍缺** —— 本机 60080 被**桌面 Tauri 应用**占着（`shadow-desktop.exe`，PID 60560）⇒ ⇒ 端脑起不来 ⇒ ⇒ api-contract 套件本机**测不了形状**（7 条跳过 ＋ `/healthz` 那条因「跑的不是端脑」而红）⇒ ⇒ 真形状的证据来自 **CI 上那一份**（`passed=54 failed=0`）⇒ ⇒ ⇒ **本机红 ≠ 产品红**，得先问「那上面跑的是谁」。
+　❷ **`VITE_PREFRONTAL_URL` 那条通道在 CI 上没接**（承 U+347F 条 ⑦❶）⇒ ⇒ 本刀不碰，但它是「端脑换端口 ⇒ 静默全红」的前置缺口。
+　❸ **13 个 E2E 文件在 CI 里仍然没跑**（wdio 4 ＋ tauri-e2e 6 ＋ 旧 e2e-tests 3）⇒ ⇒ 全是环境债（承 U+3470 条）。
+　❹ **`preview/models` 的「已注册引擎」语义要不要在界面上说清** —— 端脑这一栏给的是「此刻注册了的引擎」⇒ ⇒ 与 U+347E 条那条「目录面 vs 已注册面」是**同一族语义**（这一栏本来就是已注册面）⇒ ⇒ 但界面上**只显示一枚引擎徽章**、没标「这是已注册面」⇒ ⇒ 要不要加一句说明是**产品决定** ⇒ ⇒ **未擅自动手**。
+　❺ **真机级／真端脑级仍未跑**；端脑 CI 恒门外红（runner 计费）⇒ ⇒ 照旧。
+
+⑨ **⚠️ 圈码：本条占 U+3485（㒅）** —— 插前**独立重扫**（父仓工作树 ∪ 父仓 HEAD ∪ 父仓 `origin/master` × **三本账本**，共 **9 个面**，按**声明形状**扫、**声明与提及分开**）⇒ ⇒ 读数：工作树面最高已声明 **U+3483**（三条在飞：U+3481／U+3482／U+3483，**均在工作树、尚未提交** ⇒ ⇒ HEAD 面与 origin/master 面最高仍是 **U+347F**）⇒ ⇒ 「最高已用＋1」＝ **U+3484** ⇒ ⇒ ⚠️ **U+3484 被 U+3482 那条明写为「留一枚缓冲」**（它逐字写着「U+3484 从未被声明也未被提及 ⇒ ⇒ 按惯例**再留一枚缓冲**」）⇒ ⇒ 那是**有据的保留**，**不回收** ⇒ ⇒ ⇒ 按惯例**再让一枚** ⇒ ⇒ 取 **U+3485** ⇒ ⇒ 插前扫：**U+3484／U+3485 九面各 0 次声明**（U+3484 在工作树里只是**提及**、不是声明）✔ ⇒ ⇒ ⚠️ **不填历史空洞**（U+3480 是 U+3481 那条明写的缓冲，同样不回收）⇒ ⇒ ⚠️ 本条**只引用已提交的码位**（U+347E／U+347F／U+347A／U+3470）⇒ ⇒ **不引在飞的** U+3481／U+3482／U+3483（否则提交树面**悬空引用**红）⇒ ⇒ ⚠️ **插完立刻复跑码位闸**是硬约束。
+
 **Updated**: 2026-11-11 (㒂 **「闸把 Playwright 当 vitest 量 —— 24 条假绿在 CI 里绿着，一条断言都没跑过」** —— 承 U+347F 条（刀 N：22 个规格接进 CI）＋ U+347A 条（断言承重闸的四条红线），本条记**取证（尺子量错了被测物）**、**第一因（`test.describe` 不是用例）**、**这一刀的落点（23 个文件 ＋ 1 个提交）**、**判据（反向验证 ＋ 全族真跑）**、**分级读数**、**途中那几课**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真运行级实测（Playwright 全族 26 规格 / 102 条用例本机真跑两轮 ＋ 运行时 DOM 逐页探测 ＋ 注入反向验证 ＋ 三道闸实跑）｜ 改动：shadow 仓 **改** `scripts/lib/desktop-test-assertions.mjs`（**按框架分族** ＋ Playwright 族扫描器 ＋ 软守卫判据）、**改** `scripts/check-desktop-test-assertions.mjs`（6 条 Playwright 族孪生自检）、**改** `shadow-desktop/src/i18n/zh-CN.json` ＋ `en-US.json`（`subsystem` 段**提层**到顶层 ＋ 补 `thalamus.refresh` / `common.refreshAll`）、**改** 18 个 `shadow-desktop/tests/e2e-ui/*.spec.ts`（29 处软守卫改恒进断言 ＋ 4 条补结果断言）｜ 读数：**断言闸 EXIT=0（文件 212 ｜ 用例 1735 ｜ 断言 3140 ｜ R1 0 ｜ R2 0 ｜ R3 0 ｜ R4 0 ｜ 真·假绿 0）**、**判据自检 22/22**（基线 16 ＋ 新增 6）、**Playwright 全族真跑 96 passed / 0 failed / 7 skipped（28.3 秒）**（刀 N 基线 95/0/7）、**反向验证：注入一条真·假绿 ⇒ ⇒ 恰好 1 红并逐字点名（文件 ＋ 行 ＋ 用例名）⇒ ⇒ 移除探针后复跑 0 红**、**E2E 覆盖闸 EXIT=0（文件 40 ｜ CI 覆盖 27 ｜ 未覆盖 13）** ｜ 提交：`待入账`

@@ -142,7 +142,11 @@ function HippocampusPanel() {
 function NeuronPanel() {
   const { t } = useTranslation();
   const store = useSubsystemStore();
-  const models = store.neuronModels as Array<{ model_id: string; capability: string; quantization: string | null }>;
+  // ⚠️ **不许在这里手写 `as Array<{...}>`** —— 那份手写类型与端脑**没有任何
+  //   约束关系** ⇒ ⇒ 端脑发 `engine`、这里写 `quantization` ⇒ ⇒ **谁都不
+  //   报错** ⇒ ⇒ 那枚 Badge **永远不显示**。⇒ ⇒ store 那一格已经是端脑
+  //   那一侧的真类型 ⇒ ⇒ 这里**直接用** ⇒ ⇒ 漂移 ⇒ ⇒ **类型闸就响**。
+  const models = store.neuronModels;
 
   return (
     <SettingsCard title={t('subsystem.neuron.title')} icon={<RefreshCw size={20} />}>
@@ -160,7 +164,7 @@ function NeuronPanel() {
                 <span className="font-mono">{m.model_id}</span>
                 <div className="flex gap-1">
                   <Badge variant="secondary" size="sm">{m.capability}</Badge>
-                  {m.quantization && <Badge variant="outline" size="sm">{m.quantization}</Badge>}
+                  {m.engine && <Badge variant="outline" size="sm">{m.engine}</Badge>}
                 </div>
               </div>
             ))}

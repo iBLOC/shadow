@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { telencephalonClient, ConsolidatorState, HippocampusMemory, HippocampusStats } from '../lib/telencephalonClient';
+import { telencephalonClient, ConsolidatorState, HippocampusMemory, HippocampusStats, NeuronModelSummary } from '../lib/telencephalonClient';
 
 interface SubsystemState {
   thalamusSensors: string[];
@@ -7,7 +7,13 @@ interface SubsystemState {
   hippocampusStats: HippocampusStats | null;
   hippocampusRecent: HippocampusMemory[];
   consolidatorState: ConsolidatorState | null;
-  neuronModels: unknown[];
+  // ⚠️ **不许写 `unknown[]`** —— 那会让「端脑发的字段」与「界面认的字段」
+  //   **各说各话**：以前这一格是 `unknown[]` ⇒ ⇒ 面板只好自己手写一份
+  //   `as Array<{...}>` ⇒ ⇒ 那份手写类型与端脑**没有任何约束关系**
+  //   ⇒ ⇒ 端脑发 `engine`、桌面写 `quantization` ⇒ ⇒ **谁都不报错**
+  //   ⇒ ⇒ 那枚徽章**永远不显示**。⇒ ⇒ 这里改成**端脑那一侧的真类型**
+  //   ⇒ ⇒ 字段漂移 ⇒ ⇒ **TypeScript 就响**。
+  neuronModels: NeuronModelSummary[];
   lastPollAt: Date | null;
   refreshAll: () => Promise<void>;
   startPolling: () => () => void;

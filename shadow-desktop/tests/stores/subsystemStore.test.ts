@@ -12,7 +12,13 @@ vi.mock('../../src/lib/telencephalonClient', () => ({
       consolidator: vi.fn().mockResolvedValue({ pending: 5, last_consolidated_id: 'uuid-123', last_run_at: '2026-01-01T00:00:00Z', last_status: 'success' }),
     },
     neuron: {
-      models: vi.fn().mockResolvedValue([{ model_id: 'gpt-4' }]),
+      // ⚠️ **形状照端脑真发**（`src/neuron_embed.rs` 的 `ModelSummary`）——
+      //   以前这里是 `{ model_id: 'gpt-4' }`（**只有一格**）⇒ ⇒ 而 store
+      //   那一格写的是 `unknown[]` ⇒ ⇒ **两边都不受约束** ⇒ ⇒ 端脑真发的
+      //   `capability` / `engine` 从来没在判据里出现过 ⇒ ⇒ 漂移无人发现。
+      models: vi.fn().mockResolvedValue([
+        { capability: 'llm', model_id: 'gpt-4', engine: 'Candle' },
+      ]),
     },
   },
 }));
@@ -38,7 +44,9 @@ describe('subsystemStore', () => {
     expect(state.thalamusSensors).toEqual(['sensor1', 'sensor2']);
     expect(state.hippocampusStats).toEqual({ memory_count: 10, graph_node_count: 3, pending_consolidations: 5 });
     expect(state.consolidatorState).toEqual({ pending: 5, last_consolidated_id: 'uuid-123', last_run_at: '2026-01-01T00:00:00Z', last_status: 'success' });
-    expect(state.neuronModels).toEqual([{ model_id: 'gpt-4' }]);
+    expect(state.neuronModels).toEqual([
+      { capability: 'llm', model_id: 'gpt-4', engine: 'Candle' },
+    ]);
     expect(state.lastPollAt).toBeInstanceOf(Date);
   });
 

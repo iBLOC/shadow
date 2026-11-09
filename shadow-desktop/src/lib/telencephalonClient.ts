@@ -607,10 +607,23 @@ export interface GraphNode {
   _stub?: boolean;
 }
 
+/**
+ * 端脑 `GET /api/telencephalon/neuron/preview/models` 的**真实形状**。
+ *
+ * ⚠️⚠️ **这里以前声明的是 `quantization`**（2026-11-11 实测取证）⇒ ⇒ 而端脑
+ * 从来不发这个字段 ⇒ ⇒ 端脑发的是 **`engine`**（运行时实现，如 `Candle` /
+ * `MistralRs` / `Burn` / `Tract` / `Sherpa`）⇒ ⇒ 那枚显示「量化」的 Badge
+ * **永远渲染不出来**（`m.quantization` 恒为 `undefined`）⇒ ⇒ 界面少显示一个字段。
+ *
+ * ⚠️ **口径**：`preview/models` 说的是「**此刻已注册的引擎**」⇒ ⇒ 所以这里那个
+ * 字段是**引擎实现**，**不是**量化档位 ⇒ ⇒ 「量化」是**另一个集合**的字段
+ * （下载面 `modelDownloadService` 的 `quantization`，那份不归这里管）。
+ */
 export interface NeuronModelSummary {
   capability: string;
   model_id: string;
-  quantization: string | null;
+  /** 运行时实现（端脑 `impl_id` 的 Debug 形式，如 `Candle` / `MistralRs`）。 */
+  engine: string;
 }
 
 export interface NeuronModelsResponse {

@@ -165,10 +165,15 @@ describe('GET /api/telencephalon/hippocampus/preview/stats', () => {
   }, 15_000);
 });
 
+/**
+ * 端脑 `ModelSummary` 的**真实形状**（`src/neuron_embed.rs`）——
+ * ⚠️⚠️ **这里以前写的是 `quantization`** ⇒ ⇒ 而端脑发的是 **`engine`**
+ * ⇒ ⇒ 桌面那一枚徽章因此**永不显示** ⇒ ⇒ 这一条把「真发什么」钉住。
+ */
 interface NeuronModelSummary {
   capability: string;
   model_id: string;
-  quantization: string | null;
+  engine: string;
 }
 
 interface NeuronModelsResponse {
@@ -190,6 +195,12 @@ describe('GET /api/telencephalon/neuron/preview/models', () => {
     for (const m of body.models) {
       expect(typeof m.capability).toBe('string');
       expect(typeof m.model_id).toBe('string');
+      // ⚠️ **引擎实现必须真的在** —— 桌面靠它渲染那一枚徽章 ⇒ ⇒ 端脑哪天
+      //   把它改名/去掉 ⇒ ⇒ **这里立刻红** ⇒ ⇒ 界面不会静默少显示一个字段。
+      expect(typeof m.engine).toBe('string');
+      expect(m.engine.length).toBeGreaterThan(0);
+      // ⚠️ **不许出现桌面曾经幻觉出来的那个字段** —— 它从来不是端脑的形状。
+      expect((m as Record<string, unknown>).quantization).toBeUndefined();
     }
   }, 15_000);
 });
