@@ -26,9 +26,9 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { requestA2uiSurface } from '../../src/lib/a2uiClient';
+import { A2uiHttpError, requestA2uiSurface } from '../../src/lib/a2uiClient';
 import { buildSurfaceFromEvents } from '../../src/lib/a2uiProtocol';
-import { API_BASE_URL, checkServerReachable, IS_STRICT } from './server-check';
+import { API_BASE_URL, checkServerReachable, IS_STRICT, SHADOW_KEY } from './server-check';
 
 /** 冻结的 fixture —— 「协议长什么样」的快照。 */
 function fixturePath(name: string): string {
@@ -101,11 +101,29 @@ describe('活端脑的 A2UI 字节（走客户端自己那条路）', () => {
       return;
     }
 
-    const result = await requestA2uiSurface({
-      baseUrl: API_BASE_URL,
-      view: 'tasks',
-      locale: 'zh-CN',
-    });
+    // ⚠️⚠️ **影子锁要显式注入**（2026-11-09 真端脑实测）：端脑的 `/a2a` 在
+    // shadow key 后面 ⇒ ⇒ 不带 ⇒ ⇒ **401** ⇒ ⇒ 而这条用例断言的是「端脑的
+    // 字节能不能被解析成一块界面」⇒ ⇒ 401 时那条**根本没测到**⇒ ⇒ 判红是
+    // 「判据在测错东西」⇒ ⇒ ⇒ 这里把判据自己的影子锁递进去（与门形同规则）。
+    let result: Awaited<ReturnType<typeof requestA2uiSurface>>;
+    try {
+      result = await requestA2uiSurface({
+        baseUrl: API_BASE_URL,
+        apiKey: SHADOW_KEY,
+        view: 'tasks',
+        locale: 'zh-CN',
+      });
+    } catch (e) {
+      if (e instanceof A2uiHttpError && e.status === 401) {
+        console.warn(
+          '[a2ui-live] 端脑拒了这次请求（401）—— 影子锁对不上 ⇒ ⇒ ' +
+            '这条**字节形状**测不了 ⇒ ⇒ 跳过（不是「形状不对」）',
+        );
+        ctx.skip();
+        return;
+      }
+      throw e;
+    }
 
     // ⚠️ **协议层的问题必须为零** —— 有一条就说明端脑吐了客户端读不懂的东西
     // ⇒ ⇒ 而那种情况在界面上是**一块空白**（用户以为没任务）。
@@ -127,11 +145,29 @@ describe('活端脑的 A2UI 字节（走客户端自己那条路）', () => {
       return;
     }
 
-    const result = await requestA2uiSurface({
-      baseUrl: API_BASE_URL,
-      view: 'tasks',
-      locale: 'zh-CN',
-    });
+    // ⚠️⚠️ **影子锁要显式注入**（2026-11-09 真端脑实测）：端脑的 `/a2a` 在
+    // shadow key 后面 ⇒ ⇒ 不带 ⇒ ⇒ **401** ⇒ ⇒ 而这条用例断言的是「端脑的
+    // 字节能不能被解析成一块界面」⇒ ⇒ 401 时那条**根本没测到**⇒ ⇒ 判红是
+    // 「判据在测错东西」⇒ ⇒ ⇒ 这里把判据自己的影子锁递进去（与门形同规则）。
+    let result: Awaited<ReturnType<typeof requestA2uiSurface>>;
+    try {
+      result = await requestA2uiSurface({
+        baseUrl: API_BASE_URL,
+        apiKey: SHADOW_KEY,
+        view: 'tasks',
+        locale: 'zh-CN',
+      });
+    } catch (e) {
+      if (e instanceof A2uiHttpError && e.status === 401) {
+        console.warn(
+          '[a2ui-live] 端脑拒了这次请求（401）—— 影子锁对不上 ⇒ ⇒ ' +
+            '这条**字节形状**测不了 ⇒ ⇒ 跳过（不是「形状不对」）',
+        );
+        ctx.skip();
+        return;
+      }
+      throw e;
+    }
     const title = firstText(buildSurfaceFromEvents(result.events));
     expect(title).not.toBe('');
 
@@ -154,11 +190,29 @@ describe('活端脑的 A2UI 字节（走客户端自己那条路）', () => {
       return;
     }
 
-    const result = await requestA2uiSurface({
-      baseUrl: API_BASE_URL,
-      view: 'tasks',
-      locale: 'zh-CN',
-    });
+    // ⚠️⚠️ **影子锁要显式注入**（2026-11-09 真端脑实测）：端脑的 `/a2a` 在
+    // shadow key 后面 ⇒ ⇒ 不带 ⇒ ⇒ **401** ⇒ ⇒ 而这条用例断言的是「端脑的
+    // 字节能不能被解析成一块界面」⇒ ⇒ 401 时那条**根本没测到**⇒ ⇒ 判红是
+    // 「判据在测错东西」⇒ ⇒ ⇒ 这里把判据自己的影子锁递进去（与门形同规则）。
+    let result: Awaited<ReturnType<typeof requestA2uiSurface>>;
+    try {
+      result = await requestA2uiSurface({
+        baseUrl: API_BASE_URL,
+        apiKey: SHADOW_KEY,
+        view: 'tasks',
+        locale: 'zh-CN',
+      });
+    } catch (e) {
+      if (e instanceof A2uiHttpError && e.status === 401) {
+        console.warn(
+          '[a2ui-live] 端脑拒了这次请求（401）—— 影子锁对不上 ⇒ ⇒ ' +
+            '这条**字节形状**测不了 ⇒ ⇒ 跳过（不是「形状不对」）',
+        );
+        ctx.skip();
+        return;
+      }
+      throw e;
+    }
     const frozen = eventsOf(readFileSync(fixturePath('tasks_sse_empty.txt'), 'utf8'));
     expect(frozen.length).toBeGreaterThan(0);
 

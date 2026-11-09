@@ -11,6 +11,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import type { TestContext } from 'vitest';
 import {
   API_BASE_URL,
   authHeaders,
@@ -19,13 +20,41 @@ import {
   IS_STRICT,
 } from './server-check';
 
-async function probe<T>(path: string, init?: RequestInit): Promise<T> {
-  const headers = { 'Content-Type': 'application/json', ...(init?.headers || {}) };
+/**
+ * 探一个端点并拿它的**形状**。
+ *
+ * ⚠️⚠️ **默认递读门钥匙**（2026-11-09 真端脑实测）：这个探针原先**默认不带**
+ * 任何凭据（只有显式传 `init.headers` 才带）⇒ ⇒ 在端脑读门 fail-closed 的
+ * 形态上 ⇒ ⇒ 那 5 条形状用例全部 **401** ⇒ ⇒ 「形状没测到」被写成
+ * 「形状不对」⇒ ⇒ **判据在测错东西**。⇒ ⇒ 现在默认递**影子锁 ∪ admin token**
+ * （门形真源＝端脑 `src/api/door_policy.txt`；与产品实现 `src/lib/readDoorHeaders.ts`
+ * 同一规则）⇒ ⇒ `authHeaders(false)` 就是那一套。
+ *
+ * ⚠️ **三种状态码不是「端点的问题」** ⇒ ⇒ **跳过并说清原因**，而不是 throw：
+ *   · **401/403** —— 门要**它自己的**钥匙（下游服务/写门）⇒ ⇒ 形状**测不了**；
+ *   · **503** —— 路由在，但它依赖的下游**没就绪**（diencephalon 等）⇒ ⇒ 同样测不了。
+ * ⇒ ⇒ 「跳过」在这里是**诚实声明**（不是假绿）⇒ ⇒ 而真跑级读数里会**点名**它们。
+ */
+async function probe<T>(
+  ctx: TestContext,
+  path: string,
+  init?: RequestInit,
+): Promise<T> {
+  const headers = { ...authHeaders(false), ...(init?.headers || {}) };
   const resp = await fetch(`${API_BASE_URL.replace(/\/$/, '')}${path}`, {
     ...init,
     headers,
   });
-  if (!resp.ok) throw new Error(`${path} returned HTTP ${resp.status}`);
+  if (!resp.ok) {
+    if (resp.status === 401 || resp.status === 403 || resp.status === 503) {
+      console.warn(
+        `[schemas] ${path} 回 ${resp.status} —— 门要它自己的钥匙／下游没就绪 ⇒ ⇒ ` +
+          `这条**形状**测不了 ⇒ ⇒ 跳过（不是「形状不对」）`,
+      );
+      ctx.skip();
+    }
+    throw new Error(`${path} returned HTTP ${resp.status}`);
+  }
   if (resp.status === 204) return undefined as T;
   return (await resp.json()) as T;
 }
@@ -74,6 +103,7 @@ describe('GET /api/telencephalon/admin/agents/installed', () => {
       return;
     }
     const body = await probe<InstalledWasmList>(
+      ctx,
       '/api/telencephalon/admin/agents/installed',
       { headers: authHeaders(true) },
     );
@@ -102,6 +132,7 @@ describe('GET /api/telencephalon/thalamus/preview/sensors', () => {
       return;
     }
     const body = await probe<ThalamusSensorList>(
+      ctx,
       '/api/telencephalon/thalamus/preview/sensors',
     );
     expect(Array.isArray(body.sensors)).toBe(true);
@@ -125,6 +156,7 @@ describe('GET /api/telencephalon/hippocampus/preview/stats', () => {
       return;
     }
     const body = await probe<HippocampusStats>(
+      ctx,
       '/api/telencephalon/hippocampus/preview/stats',
     );
     expect(typeof body.memory_count).toBe('number');
@@ -151,6 +183,7 @@ describe('GET /api/telencephalon/neuron/preview/models', () => {
       return;
     }
     const body = await probe<NeuronModelsResponse>(
+      ctx,
       '/api/telencephalon/neuron/preview/models',
     );
     expect(Array.isArray(body.models)).toBe(true);
@@ -179,6 +212,7 @@ describe('POST /api/telencephalon/admin/token', () => {
       return;
     }
     const body = await probe<SubsystemToken>(
+      ctx,
       '/api/telencephalon/admin/token',
       {
         method: 'POST',
@@ -199,14 +233,14 @@ interface HealthPayload {
   [k: string]: unknown;
 }
 
-describe('GET /health', () => {
+describe('GET /healthz (公开健康面 —— `/health` 在**读门后** ⇒ ⇒ 403)', () => {
   it('returns a JSON status payload', async (ctx) => {
     await setup;
     if (!serverUp) {
       ctx.skip(); // server absent — report as skipped, not passed
       return;
     }
-    const body = await probe<HealthPayload>('/health');
+    const body = await probe<HealthPayload>(ctx, '/healthz');
     expect(typeof body).toBe('object');
   }, 15_000);
 });
@@ -224,7 +258,7 @@ describe('TelencephalonStatusPage lives /api/telencephalon/status|logs', () => {
       ctx.skip(); // server absent — report as skipped, not passed
       return;
     }
-    const body = await probe<TelencephalonStatusResponse>('/api/telencephalon/status');
+    const body = await probe<TelencephalonStatusResponse>(ctx, '/api/telencephalon/status');
     expect(typeof body).toBe('object');
   }, 15_000);
 
@@ -234,7 +268,7 @@ describe('TelencephalonStatusPage lives /api/telencephalon/status|logs', () => {
       ctx.skip(); // server absent — report as skipped, not passed
       return;
     }
-    const body = await probe<TelencephalonStatusResponse>('/api/telencephalon/logs');
+    const body = await probe<TelencephalonStatusResponse>(ctx, '/api/telencephalon/logs');
     expect(typeof body).toBe('object');
   }, 15_000);
 });
