@@ -1,5 +1,24 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-09 (㑨 **「.tsx 家族也进闸了 —— 37 处既有类型错 + 顺手订正一个我自己写错的数字」** —— 承 U+3464（.ts 全族入闸）与 U+3466（闸的判定改结构化）两条，本条记**取证（37 处第一次被看见）**、**第一因（fixture 与替身的形状都不由产品承重）**、**这一刀的落点（21 个文件）**、**判据（闸级 ＋ 行为级 ＋ 反向验证）**、**分级读数**、**途中那几课**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-09 | authority=measured | scope=project | source=真运行级实测（本机 tsc 真跑 ＋ 真注入 ＋ vitest 全量） | 改动：shadow 仓 **改** `shadow-desktop/tests/tsconfig.json`（include 加 `**/*.tsx`）、**改** `.github/workflows/e2e-typecheck.yml`（覆盖面 notice）、**改** 19 个 `shadow-desktop/tests/**` 的 `.tsx` 测试文件 ｜ 读数：**闸级 EXIT=0（含 .ts ＋ .tsx 全族）**、**反向验证：往 .tsx 注入类型错 ⇒ 闸 exit=2 逐字 TS2322 而根闸 exit=0**、**vitest 全量 1473 过 / 16 跳 / 1 红**（那 1 红＝并行会话在飞的 `src/styles/accent.g.ts` 与 `design-tokens.json` 不同步，**与本刀无关**） ｜ 提交 `2b53365` | status=active | supersedes=none
+
+① **⚠️ 取证：`.tsx` 家族的 37 处第一次被看见** —— 把 `**/*.tsx` 也纳入闸 ⇒ ⇒ **37 处既有类型错**（**19 个文件**）⇒ ⇒ 与上一刀那 32 处一样，**它们从来没有被任何闸看过**。
+　❶ **顺带订正一个我自己写错的数字**：上一条（U+3464）里我写「`.tsx` 家族 ⇒ ⇒ 再暴露 **57 处**」⇒ ⇒ **那是错的** ⇒ ⇒ 57 是我把 `.ts` 与 `.tsx` 的**混合计数**当成了 `.tsx` 的处数 ⇒ ⇒ **实测就是 37 处** ⇒ ⇒ ⚠️ 台账里那两处「57 处」**就地订正**（规矩：账不对码留在历史里就是错）⇒ ⇒ workflow 的 notice 也一并改掉。
+　❷ 分类：**TS6133 未使用 17 ／ TS2739 fixture 缺必填字段 12 ／ TS2339 替身形状 3 ／ TS2769 签名不匹配 3 ／ 其余 2** ⇒ ⇒ 多数是机械债，但有两条是**真形状问题**（见 ②）。
+
+② **⚠️ 第一因：fixture 与替身的形状都不由产品承重** —— ❶ **`AgentCard` 的 fixture**：`Agent` 的 `createdAt`/`updatedAt` 是**必填**，而 fixture 没写 ⇒ ⇒ TS2739；而 `role`/`externalType` 没标字面量类型 ⇒ ⇒ 推成 `string` ⇒ ⇒ TS2322 ⇒ ⇒ **修法不是逐字段 `as const`**，而是 **`const mockAgent: Agent = {…}`**（用产品的类型承重）⇒ ⇒ 产品改字段，这里立刻红；❷ **`settings-flow` 的替身**：`hook.getState = vi.fn(…)` 是给 `vi.fn` 挂属性 ⇒ ⇒ TS 只看得见 Mock 的**调用签名** ⇒ ⇒ TS2339 ⇒ ⇒ **修法**：`Object.assign(vi.fn(…), { getState: … })` ⇒ ⇒ 形状真实反映在类型里（**行为不变**）。
+
+③ **✅ 这一刀的落点（21 个文件，零产品代码改动）** —— ❶ **改 `shadow-desktop/tests/tsconfig.json`**：`include` 加 `**/*.tsx`（⇒ ⇒ 覆盖面＝`.ts` ＋ `.tsx` 全族）；❷ **改 `.github/workflows/e2e-typecheck.yml`**：job 名 ＋ 覆盖面 notice（未覆盖项只剩 `wdio/**` ＋ `tauri-e2e/**` ＋ `stores/appearanceMemory.test.ts`＝并行会话在飞）；❸ **改 19 个 `.tsx` 测试文件**：删未使用 import/变量（15 处）＋ **fixture 由产品类型承重**（AgentCard／ProviderCard）＋ **替身形状用 `Object.assign`**（settings-flow ×3）＋ **签名不匹配的 `expect(value, message)` 改成先算布尔再断言**（ProvidersPageBuiltin）＋ **React 19 的 `WrapperProps.children` 从 `ReactElement` 放宽到 `ReactNode`**（`test-utils.tsx`／`render-with-store.tsx`）＋ **ref 回调必须返回 void**（Input）＋ 删两个从未被调用过的 fixture 常量（`sampleMemory`／`sampleSkill`）。
+
+④ **✅ 判据（三处）** —— **闸级**：`npx tsc --noEmit -p tests/tsconfig.json` ⇒ ⇒ **EXIT=0**（`.ts` ＋ `.tsx` 全族）⇒ ⇒ 根闸同样 EXIT=0；**反向验证**：往 `tests/components/Card.test.tsx` 注入 `const __probeTsx: number = 'not-a-number';` ⇒ ⇒ 闸 **exit=2** 逐字 `error TS2322` 而**根闸 exit=0** ⇒ ⇒ ⇒ **`.tsx` 族确实被闸看着**；**行为级**：`vitest run` 全量 ⇒ ⇒ **1473 过 / 16 跳 / 1 红** ⇒ ⇒ 那 1 红＝`tests/generatedEol.test.ts` 的 `gen_tokens --check` ⇒ ⇒ **根因是并行会话在飞的 `src/styles/accent.g.ts`（22 行）与 `design-tokens.json` 不同步** ⇒ ⇒ ⇒ **与本刀无关**（我的提交不含它）。
+
+⑤ **⚠️ 途中那几课** —— ❶ **还原验证要比「字节」，不能比「两种 hash」** —— `git hash-object <file>` 走 **clean 过滤**（CRLF→LF），而 `git hash-object --stdin` **不走** ⇒ ⇒ 同一个文件两种算法给出**不同的 sha** ⇒ ⇒ 我一度以为「还原没还原成功」⇒ ⇒ 实测**逐字一致**（sha256 相同、2573 字节）⇒ ⇒ ⚠️ **还原判据要用字节比较**（`crypto.sha256`）⇒ ⇒ 那才是「逐字一致」的承重读数；❷ **缩进差 2 格就会让 `edit` 失配** ⇒ ⇒ 批量改前先 `JSON.stringify` 打印那一行的精确字节；❸ PowerShell 把 `[272,288]` 当类型名解析 ⇒ ⇒ 「打印某几行上下文」这种活改用**文件读取工具**或 Node。
+
+⑥ **⚠️ 仍然欠着** —— ❶ `tests/wdio/**` ＋ `tests/tauri-e2e/**` 仍无闸（需要 @wdio/globals 运行时）；❷ `tests/stores/appearanceMemory.test.ts` 被 exclude（并行会话在飞 `Appearance.chatBackground`）；❸ **web 构建里仍没有发送按钮** ⇒ ⇒ 「在 UI 上真发一条消息并看到它出现」仍欠（Tauri 形态）；❹ `reminderNotificationsLive.test.ts` 的签名改动仍**没有真跑级读数**（要真端脑）；❺ **本地闸比 CI 更严**：本地工作树含并行会话**未提交**的文件（CI 上不存在）⇒ ⇒ 本地绿不代表 CI 绿，反之亦然；❻ `gen_tokens --check` 的红在并行会话提交后会落到 CI 上 ⇒ ⇒ 那是他们的债。
+
+⑦ **⚠️ 圈码：本条占 U+3468（㑨）** —— 插前**独立重扫**（父仓工作树 ∪ 父仓 HEAD ∪ 父仓 `origin/master` × **三本账本**，按**声明形状**扫）⇒ ⇒ 段内最高已声明 **U+3466**（上一条）⇒ ⇒ 自然下一枚 **U+3467** ⇒ ⇒ ⚠️ **U+3467 已口头留给并行会话**（他们说「从 U+3467 起取」）⇒ ⇒ ⇒ **本条取 U+3468**（既留缓冲又不撞）⇒ ⇒ 插前扫：U+3467／U+3468 在三账本三面**各 0 次声明 0 次提及** ✔ ⇒ ⇒ ⚠️ **不填历史空洞**（U+3463／U+3465 继续空着）⇒ ⇒ ⚠️ 本条**只引用已提交的码位**（U+3464／U+3466）⇒ ⇒ ⚠️ **插完立刻复跑码位闸**是硬约束。
 **Updated**: 2026-11-09 (㑦 **「尺子不该被注释长度牵着走 —— 泄漏闸的「有守卫」判定改成结构化」** —— 承 U+3464 条（本刀改 `tests/setup.ts` 之后把 CI 撞红那条），本条记**取证（我的三行注释让闸改判）**、**第一因（判定按「字符窗口找最近的 `if (`」⇒ ⇒ 尺子测的是注释长度）**、**这一刀的落点（2 个文件）**、**判据（自检 16/16 ＋ 全量零候选 ＋ 反向验证）**、**分级读数**、**途中那几课**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-09 | authority=measured | scope=project | source=真运行级实测（CI 逐字读数 ＋ A/B 定责 ＋ 注入反验） | 改动：shadow 仓 **改** `scripts/lib/test-global-leaks.mjs`（判定改结构化）、**改** `scripts/check-test-global-leaks.mjs`（＋3 条孪生自检） ｜ 读数：**自检 16/16**、**全量闸零候选 EXIT=0**、**反向验证：注入「无条件接管」⇒ 闸 exit=1 逐字点名 setup.ts:30，还原后 blob 逐字一致**、**真 CI：`Test Global Leaks 42601674081` = success（修前那次 42601091229 = failure）**、**`E2E Typecheck 42601673896` = success 且逐字打出覆盖面 notice** ｜ 提交 `540efd0` | status=active | supersedes=none
@@ -19,7 +38,7 @@
 
 ⑥ **⚠️ 途中那几课** —— ❶ **「谁的责任」要靠 A/B 定量，不能靠推理**（我两次推理方向都错：先猜「结构变了」，再猜「窗口效应」，**实测才是对的**）⇒ ⇒ 最快的办法是**用闸自己的函数喂变体**（`scanSource`）；❷ **闸把注释长度当判据 ⇒ ⇒ 「那个 run 红了」的第一反应不该是「改我的代码迁就它」** ⇒ ⇒ 该问「**它测的是我声称的东西吗**」⇒ ⇒ 本刀选了修尺子而不是缩注释；❸ 长内联字符串会让 `run_code` 解析器报 `unexpected end of string` ⇒ ⇒ 改用**片段文件 ＋ 脚本插入**。
 
-⑦ **⚠️ 仍然欠着** —— ❶ **`.tsx` 组件测试家族（57 处既有类型错）仍无判据承重**（承 U+3464 条）；❷ `tests/wdio/**` ＋ `tests/tauri-e2e/**` 仍无闸；❸ `reminderNotificationsLive.test.ts` 的签名改动**没有真跑级读数**（要真端脑）；❹ **本地闸扫 167 个文件、CI 上扫 165 个** ⇒ ⇒ 差的 2 个是**未提交的在飞文件** ⇒ ⇒ 共享工作树里本地闸会比 CI 更严（也会更脆）；❺ `tests/setup.ts` 里 `vi.mock` 那几处接线**不在这道闸的族 A/B 视野内**（别的闸在管）。
+⑦ **⚠️ 仍然欠着** —— ❶ **`.tsx` 组件测试家族**（承 U+3464 条；**已在 U+3468 条收口**：37 处既有类型错修完并纳入闸）；❷ `tests/wdio/**` ＋ `tests/tauri-e2e/**` 仍无闸；❸ `reminderNotificationsLive.test.ts` 的签名改动**没有真跑级读数**（要真端脑）；❹ **本地闸扫 167 个文件、CI 上扫 165 个** ⇒ ⇒ 差的 2 个是**未提交的在飞文件** ⇒ ⇒ 共享工作树里本地闸会比 CI 更严（也会更脆）；❺ `tests/setup.ts` 里 `vi.mock` 那几处接线**不在这道闸的族 A/B 视野内**（别的闸在管）。
 
 ⑧ **⚠️ 圈码：本条占 U+3466（㑦）** —— 插前**独立重扫**（父仓工作树 ∪ 父仓 HEAD ∪ 父仓 `origin/master` × **三本账本**，按**声明形状**扫）⇒ ⇒ 段内最高已声明 **U+3464**（上一条）⇒ ⇒ 自然下一枚 **U+3465** ⇒ ⇒ 按惯例**再留一枚缓冲** ⇒ ⇒ 取 **U+3466** ⇒ ⇒ 插前扫：U+3465／U+3466 在三账本三面**各 0 次声明 0 次提及** ✔ ⇒ ⇒ ⚠️ **不填历史空洞**（U+3465 不回收）⇒ ⇒ ⚠️ 本条**只引用已提交的码位**（U+3464）⇒ ⇒ ⚠️ **插完立刻复跑码位闸**是硬约束。
 **Updated**: 2026-11-09 (㑤 **「判据绿 ≠ 测的东西是真的 —— 类型闸照出 32 处「测试与产品形状脱节」」** —— 承 U+3462 条（给 E2E 家族补类型闸那条），本条记**取证（扩面后 32 处既有类型错第一次被看见 ＋ 闸的 types 缺 vite/client）**、**第一因（断言落在产品从不产生的键上 ⇒ ⇒ 绿是假的）**、**这一刀的落点（15 个文件）**、**判据（闸级 ＋ 行为级 ＋ 反向验证两档）**、**分级读数**、**途中那几课**，以及**仍然欠着的**.)
@@ -28,7 +47,7 @@
 
 ① **⚠️ 取证：32 处既有类型错第一次被看见** —— 把 `tests/**` 的 **.ts 全族**拉进闸 ⇒ ⇒ **32 处既有类型错当场暴露**（**14 个文件**）⇒ ⇒ 它们**从来没有被任何闸看过**（根 `tsconfig.json` 的 `include` 只有 `["src"]`）⇒ ⇒ ⇒ 「判据跑过了」这句话对它们**一直是假的**。
 　❶ **闸自己的洞**：`types` 是**覆盖**不是追加 ⇒ ⇒ 根 config 靠 **`src/vite-env.d.ts`** 的 triple-slash 引用拿到 `vite/client`（那是 **src 下**的文件，**本 config 不含 src**）⇒ ⇒ 不写就丢掉 ⇒ ⇒ `import.meta.env` 全报 TS2339 ⇒ ⇒ ⇒ **闸会拿着一个残缺的类型环境判绿**（实测：那 2 处是**假错**，补上 `vite/client` 即消失）。
-　❷ **触到 .tsx 家族**（若把 `**/*.tsx` 也纳入 ⇒ ⇒ 再暴露 **57 处**）⇒ ⇒ 那一族**仍未纳入**（记欠项）。
+　❷ **触到 .tsx 家族**（若把 `**/*.tsx` 也纳入 ⇒ ⇒ **实测 37 处** —— ⚠️ 2026-11-09 我在这里把 `.ts` 与 `.tsx` 的**混合计数**当成了 `.tsx` 的处数 ⇒ ⇒ 已在 U+3468 条**就地订正**）⇒ ⇒ 那一族**在 U+3468 条已纳入闸**。
 
 ② **⚠️ 第一因：判据「绿」不等于「测的东西是真的」** —— 那 32 处里有**真债**，不是空转（每条都是「断言落在产品不产生的键上」）：
 　❶ `AgentCategory` 只有 `'built-in' | 'external'`（`src/types/index.ts:6`）⇒ ⇒ 而 `agentStore.test.ts` 在用 **`'custom'`** ⇒ ⇒ `'custom'` 其实是 **`ExternalAgentType`** 的合法值 ⇒ ⇒ 「用户自建的 agent」的正确写法是 `category:'external'` ＋ `externalType:'custom'` ⇒ ⇒ ⇒ **产品从不产生那种分类 ⇒ ⇒ 断言落空**；
@@ -49,7 +68,7 @@
 
 ⑥ **⚠️ 途中那几课** —— ❶ **模板串里写整段 JSONC 会把整段吞掉**（`run_code` 直接报 `expecting '}'`）⇒ ⇒ 改用**行数组 join**；❷ **多行 `edit` 的 old_string 撞行尾/字面差** ⇒ ⇒ 改成**行内短锚点**插入；❸ **PowerShell 把 `[272,288]` 当类型名解析**（不是数组）⇒ ⇒ 「打印某几行上下文」这种活改用**文件读取工具**；❹ **`del` 被安全策略拦** ⇒ ⇒ 临时探针文件用 **`Move-Item` 移出仓库**（`.local/` 已 gitignore）⇒ ⇒ ⚠️ **不许绕过删除策略**；❺ **共享索引比 HEAD 旧 ⇒ 我的新文件在索引面显示「已暂存删除」** ⇒ ⇒ 并行会话一提交就会把它们从仓库里抹掉 ⇒ ⇒ **每次独立索引提交后都要 `git add --` 止血**（并逐个核 blob == HEAD）。
 
-⑦ **⚠️ 仍然欠着** —— ❶ **`.tsx` 组件测试家族（57 处既有类型错）没有判据承重**（下一刀）；❷ `tests/wdio/**` ＋ `tests/tauri-e2e/**` 无闸；❸ `tests/stores/appearanceMemory.test.ts` 被 exclude（并行会话在飞 `Appearance.chatBackground`）；❹ `reminderNotificationsLive.test.ts` 我改了签名（去掉运行时被忽略的第二参）但**没真跑**（要真端脑）⇒ ⇒ 那一格**没有真跑级读数**；❺ **`gen_tokens --check` 在并行会话的提交上可能红**（在飞件不同步）⇒ ⇒ 那是他们的债；❻ **`tests/tsconfig.probe.json` ＋ `tests/e2e-ui/tsconfig.e2e.json` 两个 untracked 探针**（不是我建的）⇒ ⇒ 有被 `git add -A` 误提交进仓的风险。
+⑦ **⚠️ 仍然欠着** —— ❶ **`.tsx` 组件测试家族**（**已在 U+3468 条收口**：37 处既有类型错修完并纳入闸）；❷ `tests/wdio/**` ＋ `tests/tauri-e2e/**` 无闸；❸ `tests/stores/appearanceMemory.test.ts` 被 exclude（并行会话在飞 `Appearance.chatBackground`）；❹ `reminderNotificationsLive.test.ts` 我改了签名（去掉运行时被忽略的第二参）但**没真跑**（要真端脑）⇒ ⇒ 那一格**没有真跑级读数**；❺ **`gen_tokens --check` 在并行会话的提交上可能红**（在飞件不同步）⇒ ⇒ 那是他们的债；❻ **`tests/tsconfig.probe.json` ＋ `tests/e2e-ui/tsconfig.e2e.json` 两个 untracked 探针**（不是我建的）⇒ ⇒ 有被 `git add -A` 误提交进仓的风险。
 
 ⑧ **⚠️ 圈码：本条占 U+3464（㑤）** —— 插前**独立重扫**（父仓工作树 ∪ 父仓 HEAD ∪ 父仓 `origin/master` × **三本账本**，按**声明形状**扫）⇒ ⇒ 段内最高已声明 **U+3462**（承 U+3462 条）⇒ ⇒ 自然下一枚 **U+3463** ⇒ ⇒ 按惯例**再留一枚缓冲** ⇒ ⇒ 取 **U+3464** ⇒ ⇒ 插前扫：U+3463／U+3464 在三账本三面**各 0 次声明 0 次提及** ✔ ⇒ ⇒ ⚠️ **不填历史空洞**（U+3463 不回收）⇒ ⇒ ⚠️ 本条**只引用已提交的码位**（U+3462）⇒ ⇒ ⚠️ **插完立刻复跑码位闸**是硬约束。
 **Updated**: 2026-11-09 (㑢 **「E2E 家族至今没有类型闸 —— 根 tsconfig 的 include 只有 ["src"]」** —— 承 U+345E 条（绿里有假那条）的 ⑧❼（本刀改的 e2e 文件不在类型闸覆盖面里），本条记**取证（那一族至今无闸）**、**第一因（include 只含 src ＋ 只有重任务才真跑 ⇒ ⇒ 反馈太晚）**、**这一刀的落点（1 个新 tsconfig ＋ 1 个密闸 workflow ＋ 3 处类型洞）**、**判据（闸级 ＋ 反向验证两档）**、**分级读数**、**途中那三课**，以及**仍然欠着的**.)
