@@ -66,15 +66,15 @@ export function PWAInstallPrompt() {
   };
 
   return (
-    <div className="pwa-install-prompt" role="dialog" aria-label={t('pwa.installTitle')}>
+    <div className="pwa-install-prompt" role="dialog" aria-label={t('common.pwa.installTitle')}>
       <div className="pwa-install-content">
         <Download size={20} />
         <div className="pwa-install-text">
-          <strong>{t('pwa.installTitle')}</strong>
-          <span>{t('pwa.installDesc')}</span>
+          <strong>{t('common.pwa.installTitle')}</strong>
+          <span>{t('common.pwa.installDesc')}</span>
         </div>
         <Button onClick={accept}>
-          {t('pwa.install')}
+          {t('common.pwa.install')}
         </Button>
         <Button size="icon" variant="ghost" onClick={dismiss} aria-label={t('common.close')}>
           <X size={16} />

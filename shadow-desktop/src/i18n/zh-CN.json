@@ -108,7 +108,14 @@
     "next": "下一步",
     "connect": "连接",
     "connecting": "连接中...",
-    "disconnect": "断开连接"
+    "disconnect": "断开连接",
+    "retry": "重试",
+    "collapse": "收起",
+    "expand": "展开",
+    "hidePassword": "隐藏密码",
+    "showPassword": "显示密码",
+    "copied": "已复制",
+    "copy": "复制"
   },
   "layout": {
     "brandName": "Shadow",
@@ -405,7 +412,9 @@
     "providersMoved": "云供应商管理已移至「大模型服务提供商」页面",
     "providersMovedDesc": "选择预设供应商只需填写 API Key，模型列表自动获取并定期更新",
     "openProviders": "打开供应商管理",
-    "neuronDown": "本地推理引擎未连接（neuron :8083）。模型列表与下载需要 neuron 运行。"
+    "neuronDown": "本地推理引擎未连接（neuron :8083）。模型列表与下载需要 neuron 运行。",
+    "failed": "失败",
+    "test": "测试连接"
   },
   "agents": {
     "title": "智能体管理",
@@ -569,7 +578,13 @@
     "start": "启动",
     "stop": "停止",
     "delete": "删除",
-    "separateArgsWithCommas": "使用逗号分隔参数"
+    "separateArgsWithCommas": "使用逗号分隔参数",
+    "tools": "工具",
+    "fieldName": "名称",
+    "fieldDescription": "描述",
+    "transportType": "传输方式",
+    "bind": "绑定 MCP",
+    "noServersDesc": "还没有配置任何 MCP 服务器。"
   },
   "skills": {
     "title": "技能",
@@ -679,7 +694,13 @@
       "priorityField": "优先级",
       "statusField": "状态",
       "tagsField": "标签 (逗号分隔)"
-    }
+    },
+    "endbrainTasks": "端脑任务",
+    "endbrainTasksError": "读不到端脑任务：",
+    "endbrainTasksSkipped": "有 {n} 条任务形状认不得，已跳过。",
+    "endbrainAwaiting": "待确认",
+    "endbrainConfirm": "确认",
+    "priority": "优先级"
   },
   "memory": {
     "title": "记忆",
@@ -1236,7 +1257,15 @@
     "connectionError": "无法连接到端脑",
     "connectionHint": "端脑应该在 {{url}} 运行。如果未运行，请检查 Tauri 是否正确启动了端脑的 HTTP 面。",
     "lines": "行",
-    "noLogs": "暂无日志"
+    "noLogs": "暂无日志",
+    "endpointSection": "端脑地址",
+    "endpointLabel": "端脑地址",
+    "endpointKeyPlaceholder": "影子锁（X-Shadow-Key），留空表示不递",
+    "endpointKeyLabel": "影子锁",
+    "endpointKeyHide": "隐藏",
+    "endpointKeyShow": "显示",
+    "endpointKeySaved": "已保存（重启后仍然有效）",
+    "endpointSaved": "已保存（重启后仍然有效）"
   },
   "workflowStudio": {
     "namePlaceholder": "workflow-name",
@@ -1391,7 +1420,8 @@
         "label": "开始 / 停止录音",
         "desc": "没有进行中的录音时开始语音录音，否则停止并生成总结"
       }
-    }
+    },
+    "remoteHelpHint": "配对后，遥控器的按键会按上面的标准键码发送；点「录制」再按遥控器即可完成绑定。"
   },
   "surface": {
     "chat": "对话",
@@ -1497,5 +1527,124 @@
       "models": "已加载模型",
       "noModels": "暂无加载的模型"
     }
+  },
+  "mcpAgentBindings": "MCP 绑定",
+  "mcpBindTitle": "为 {{agent}} 绑定 MCP 服务器",
+  "mcpBindNoEligible": "没有可绑定的 MCP 服务器。",
+  "mcpBind": "绑定",
+  "modelSetup": {
+    "title": "配置 LLM 模型",
+    "pickProvider": "选择模型来源：",
+    "requiresKey": "需 API Key",
+    "localModelTitle": "本地模型",
+    "localModelDesc": "点击保存后，端脑会自动从 ModelScope 下载模型权重（约 700MB），完成后即可使用。",
+    "testing": "正在配置并测试模型...",
+    "success": "模型配置成功！正在重新发送您的请求...",
+    "errorTitle": "配置失败",
+    "save": "保存"
+  },
+  "questionnaire": {
+    "agentClarify": {
+      "title": "需要你补充一点",
+      "description": "端脑需要你补充一些信息才能继续。",
+      "previous": "上一步",
+      "skip": "跳过",
+      "submit": "提交"
+    },
+    "bindModel": {
+      "title": "为 {{agent}} 绑定模型",
+      "description": "选一个模型来源、模型与能力分档，绑给这个智能体。",
+      "chooseProvider": "选择模型来源",
+      "chooseModel": "选择模型",
+      "chooseCapabilities": "选择能力分档（可选）",
+      "submit": "绑定"
+    }
+  },
+  "audioEvent": {
+    "title": "声音事件",
+    "confidence": "置信度 {{pct}}%",
+    "class": "类别 {{classId}}"
+  },
+  "feishuPublished": {
+    "title": "已发布到飞书",
+    "open": "在飞书中打开",
+    "messageContent": "已发布到飞书：{{title}}"
+  },
+  "identity": {
+    "exportFailed": "导出身份失败",
+    "importFailed": "导入身份失败",
+    "importDone": "身份已导入",
+    "copied": "身份码已复制",
+    "copyFailed": "复制失败",
+    "currentTitle": "当前身份",
+    "currentDesc": "端脑据此认出你是谁、扮演哪个人格、用的是哪台设备、属于哪个租户。",
+    "principal": "主体",
+    "nobody": "（未识别）",
+    "persona": "人格",
+    "device": "设备",
+    "tenant": "租户",
+    "nobodyHint": "还没有识别出你的身份 —— 连上端脑后会自动解析。",
+    "exportTitle": "导出身份",
+    "exportDesc": "生成一段身份码，交给另一台设备导入即可换成这个身份。",
+    "exportAction": "导出",
+    "copy": "复制身份码",
+    "importTitle": "导入身份",
+    "importDesc": "粘贴别处导出的身份码，即可接管那个身份。",
+    "importPlaceholder": "粘贴身份码",
+    "importAction": "导入"
+  },
+  "computerUse": {
+    "gateTitle": "电脑使用闸",
+    "gateDescription": "端脑驱动你的电脑之前，必须先过这道闸。",
+    "gateUnknown": "状态未知",
+    "gateOn": "已开启",
+    "gateOff": "已关闭",
+    "gateTurnOff": "关闭闸",
+    "gateTurnOn": "开启闸",
+    "gateWarning": "闸已关闭 —— 端脑此刻不能截屏，也不能碰你的电脑。",
+    "screenshotTitle": "截图",
+    "screenshotDescription": "让端脑看一眼你当前的屏幕。",
+    "capturing": "正在截屏...",
+    "capture": "截屏",
+    "captured": "已截屏（{{width}}×{{height}}）",
+    "screenshotAlt": "当前屏幕截图",
+    "noScreenshotYet": "还没有截图",
+    "notesTitle": "说明",
+    "noteWindows": "截屏与电脑操作由桌面端能力提供（Windows 上还支持 UIA）。",
+    "noteOther": "其它平台暂不提供截屏与电脑操作。",
+    "noteMcp": "端脑也可以通过 MCP 服务器驱动你的电脑。"
+  },
+  "preview": {
+    "openInWindow": "在新窗口打开",
+    "dialogTitle": "预览 {{taskId}}",
+    "dialogDescription": "让端脑开一个预览窗口。",
+    "urlLabel": "预览地址",
+    "urlHint": "端脑会用这个地址打开预览页。",
+    "opening": "正在打开...",
+    "open": "打开",
+    "pane": {
+      "title": "预览面板",
+      "addNew": "新增预览",
+      "hide": "隐藏面板",
+      "kindLabel": "类型",
+      "taskIdLabel": "任务 ID",
+      "urlLabel": "地址",
+      "opening": "正在打开...",
+      "openMarkdown": "打开 Markdown",
+      "openInline": "内嵌打开",
+      "detachTitle": "把 {{taskId}} 拆到独立窗口打开",
+      "closeTab": "关闭标签",
+      "empty": "还没有打开任何预览"
+    }
+  },
+  "previews": {
+    "adHocTitle": "临时预览",
+    "taskIdLabel": "任务 ID",
+    "urlLabel": "预览地址",
+    "opening": "正在打开...",
+    "open": "打开",
+    "openTitle": "已打开的预览",
+    "empty": "还没有打开过预览",
+    "close": "关闭"
   }
 }

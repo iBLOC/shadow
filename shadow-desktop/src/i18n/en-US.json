@@ -108,7 +108,14 @@
     "next": "Next",
     "connect": "Connect",
     "connecting": "Connecting...",
-    "disconnect": "Disconnect"
+    "disconnect": "Disconnect",
+    "retry": "Retry",
+    "collapse": "Collapse",
+    "expand": "Expand",
+    "hidePassword": "Hide password",
+    "showPassword": "Show password",
+    "copied": "Copied",
+    "copy": "Copy"
   },
   "layout": {
     "brandName": "Shadow",
@@ -405,7 +412,9 @@
     "providersMoved": "Cloud provider management moved to the \"LLM Providers\" page",
     "providersMovedDesc": "Pick a preset and enter only the API key — model lists are fetched and refreshed automatically",
     "openProviders": "Open provider management",
-    "neuronDown": "Local inference runtime not connected (neuron :8083). Model listing and downloads require neuron to be running."
+    "neuronDown": "Local inference runtime not connected (neuron :8083). Model listing and downloads require neuron to be running.",
+    "failed": "Failed",
+    "test": "Test Connection"
   },
   "agents": {
     "title": "Agent Management",
@@ -569,7 +578,13 @@
     "start": "Start",
     "stop": "Stop",
     "delete": "Delete",
-    "separateArgsWithCommas": "Separate arguments with commas"
+    "separateArgsWithCommas": "Separate arguments with commas",
+    "tools": "Tools",
+    "fieldName": "Name",
+    "fieldDescription": "Description",
+    "transportType": "Transport",
+    "bind": "Bind MCP",
+    "noServersDesc": "No MCP server is configured yet."
   },
   "skills": {
     "title": "Skills",
@@ -679,7 +694,13 @@
       "priorityField": "Priority",
       "statusField": "Status",
       "tagsField": "Tags (comma separated)"
-    }
+    },
+    "endbrainTasks": "Telencephalon tasks",
+    "endbrainTasksError": "Cannot read telencephalon tasks:",
+    "endbrainTasksSkipped": "{n} task(s) had an unrecognized shape and were skipped.",
+    "endbrainAwaiting": "Awaiting confirmation",
+    "endbrainConfirm": "Confirm",
+    "priority": "Priority"
   },
   "memory": {
     "title": "Memory",
@@ -924,7 +945,12 @@
     },
     "providersUnreadable": "Cannot read the provider list",
     "providersUnreadableHint": "The brain may be unreachable, or its door may be locked (an admin key is required). This does not mean you have no providers.",
-    "providersCountUnknown": "Provider count unknown"
+    "providersCountUnknown": "Provider count unknown",
+    "common": {
+      "save": "Save",
+      "cancel": "Cancel",
+      "edit": "Edit"
+    }
   },
   "resonance": {
     "title": "Resonance",
@@ -1231,7 +1257,15 @@
     "connectionError": "Cannot connect to the telencephalon",
     "connectionHint": "The telencephalon should be running at {{url}}. If it is not, check that Tauri started the telencephalon HTTP face.",
     "lines": "lines",
-    "noLogs": "No logs yet"
+    "noLogs": "No logs yet",
+    "endpointSection": "Telencephalon address",
+    "endpointLabel": "Telencephalon address",
+    "endpointKeyPlaceholder": "Shadow key (X-Shadow-Key); leave empty to send none",
+    "endpointKeyLabel": "Shadow key",
+    "endpointKeyHide": "Hide",
+    "endpointKeyShow": "Show",
+    "endpointKeySaved": "Saved (still applies after restart)",
+    "endpointSaved": "Saved (still applies after restart)"
   },
   "workflowStudio": {
     "namePlaceholder": "workflow-name",
@@ -1386,7 +1420,8 @@
         "label": "Start / stop recording",
         "desc": "Start an audio recording when none is live; otherwise stop and summarise"
       }
-    }
+    },
+    "remoteHelpHint": "After pairing, the remote buttons arrive as the standard key codes above; press \"Record\" and then a remote button to bind it."
   },
   "surface": {
     "chat": "Chat",
@@ -1492,5 +1527,124 @@
       "models": "Loaded Models",
       "noModels": "No models loaded"
     }
+  },
+  "mcpAgentBindings": "MCP bindings",
+  "mcpBindTitle": "Bind an MCP server for {{agent}}",
+  "mcpBindNoEligible": "No MCP server is eligible for binding.",
+  "mcpBind": "Bind",
+  "modelSetup": {
+    "title": "Configure LLM model",
+    "pickProvider": "Model source:",
+    "requiresKey": "Requires API key",
+    "localModelTitle": "Local model",
+    "localModelDesc": "After you save, the telencephalon downloads the model weights from ModelScope (about 700 MB) and it becomes usable once done.",
+    "testing": "Configuring and testing the model...",
+    "success": "Model configured. Re-sending your request...",
+    "errorTitle": "Configuration failed",
+    "save": "Save"
+  },
+  "questionnaire": {
+    "agentClarify": {
+      "title": "A few details needed",
+      "description": "The telencephalon needs a bit more information before it can continue.",
+      "previous": "Previous",
+      "skip": "Skip",
+      "submit": "Submit"
+    },
+    "bindModel": {
+      "title": "Bind a model for {{agent}}",
+      "description": "Pick the provider, the model and the capability tiers for this agent.",
+      "chooseProvider": "Choose a provider",
+      "chooseModel": "Choose a model",
+      "chooseCapabilities": "Choose capability tiers (optional)",
+      "submit": "Bind"
+    }
+  },
+  "audioEvent": {
+    "title": "Audio event",
+    "confidence": "Confidence {{pct}}%",
+    "class": "Class {{classId}}"
+  },
+  "feishuPublished": {
+    "title": "Published to Feishu",
+    "open": "Open in Feishu",
+    "messageContent": "Published to Feishu: {{title}}"
+  },
+  "identity": {
+    "exportFailed": "Failed to export the identity",
+    "importFailed": "Failed to import the identity",
+    "importDone": "Identity imported",
+    "copied": "Identity code copied",
+    "copyFailed": "Copy failed",
+    "currentTitle": "Current identity",
+    "currentDesc": "The telencephalon uses this to know who you are, which persona you play, which device you use and which tenant you belong to.",
+    "principal": "Principal",
+    "nobody": "(unidentified)",
+    "persona": "Persona",
+    "device": "Device",
+    "tenant": "Tenant",
+    "nobodyHint": "Your identity is not resolved yet - it resolves automatically once the telencephalon is reachable.",
+    "exportTitle": "Export identity",
+    "exportDesc": "Generate an identity code that another device can import to take over this identity.",
+    "exportAction": "Export",
+    "copy": "Copy identity code",
+    "importTitle": "Import identity",
+    "importDesc": "Paste an identity code exported elsewhere to take over that identity.",
+    "importPlaceholder": "Paste the identity code",
+    "importAction": "Import"
+  },
+  "computerUse": {
+    "gateTitle": "Computer-use gate",
+    "gateDescription": "The telencephalon must pass this gate before it may drive your computer.",
+    "gateUnknown": "Status unknown",
+    "gateOn": "Enabled",
+    "gateOff": "Disabled",
+    "gateTurnOff": "Turn off the gate",
+    "gateTurnOn": "Turn on the gate",
+    "gateWarning": "The gate is off - the telencephalon cannot take screenshots or touch your computer right now.",
+    "screenshotTitle": "Screenshot",
+    "screenshotDescription": "Let the telencephalon take a look at your current screen.",
+    "capturing": "Capturing...",
+    "capture": "Capture",
+    "captured": "Captured ({{width}}x{{height}})",
+    "screenshotAlt": "Screenshot of the current screen",
+    "noScreenshotYet": "No screenshot yet",
+    "notesTitle": "Notes",
+    "noteWindows": "Screen capture and computer control come from the desktop app (plus UIA on Windows).",
+    "noteOther": "Other platforms do not provide screen capture or computer control yet.",
+    "noteMcp": "The telencephalon can also drive your computer through an MCP server."
+  },
+  "preview": {
+    "openInWindow": "Open in a new window",
+    "dialogTitle": "Preview {{taskId}}",
+    "dialogDescription": "Let the telencephalon open a preview window.",
+    "urlLabel": "Preview URL",
+    "urlHint": "The telencephalon opens the preview at this address.",
+    "opening": "Opening...",
+    "open": "Open",
+    "pane": {
+      "title": "Preview pane",
+      "addNew": "New preview",
+      "hide": "Hide pane",
+      "kindLabel": "Kind",
+      "taskIdLabel": "Task ID",
+      "urlLabel": "URL",
+      "opening": "Opening...",
+      "openMarkdown": "Open Markdown",
+      "openInline": "Open inline",
+      "detachTitle": "Detach {{taskId}} into its own window",
+      "closeTab": "Close tab",
+      "empty": "No preview opened yet"
+    }
+  },
+  "previews": {
+    "adHocTitle": "Ad-hoc preview",
+    "taskIdLabel": "Task ID",
+    "urlLabel": "Preview URL",
+    "opening": "Opening...",
+    "open": "Open",
+    "openTitle": "Opened previews",
+    "empty": "No preview opened yet",
+    "close": "Close"
   }
 }

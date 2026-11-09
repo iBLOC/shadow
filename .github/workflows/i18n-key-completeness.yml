@@ -1,0 +1,48 @@
+name: i18n Key Completeness
+
+# ⚠️ **为什么单独成文件**（2026-11-11 真机取证）：
+#   · 这道闸是**纯 node、零依赖、秒级**（实测本地 < 2 秒）⇒ ⇒ 它**不重**；
+#   · ci.yml 是**共享文件**（并行会话常在飞改）⇒ ⇒ 共享文件上的接线是本仓
+#     最容易出「把别人的在飞件卷进我的提交」「我的暂存被别人抢走署名」
+#     两类事故的地方 ⇒ ⇒ 独立文件 ⇒ ⇒ **接线面零共享** ⇒ ⇒ 竞态根本不存在。
+#   （与 desktop-e2e.yml 那种「重任务另开」不同：那里是为**不被 cancel**；
+#     这里是为**不碰共享文件** ＋ **不拖慢主流程**。）
+
+# ⚠️ **它守的是什么** —— 界面不许显示 key 本身：
+#   「界面上出现 `identity.currentTitle` 這樣一串东西」**不报错**、页面照常
+#   渲染、测试照常绿 ⇒ ⇒ 没有人会发现 ⇒ ⇒ 必须有闸盯着。
+#   ⚠️ 实测：桌面端 src 里有 **923 个被引用的字面量键**，而两份词表
+#      （zh-CN / en-US）曾各缺 **147 个** ⇒ ⇒ 其中 139 处**没有默认值**
+#      ⇒ ⇒ 界面**直接显示裸 key**；另 25 处带中文默认值 ⇒ ⇒ 中文界面看着
+#      正常，但**英文界面显示中文**。
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  i18n-key-completeness:
+    name: i18n Key Completeness
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout shadow
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      # ⚠️ **两步都要跑** —— 判定 ＋ 判据自检（自检证明这道闸**真的会红**）。
+      - name: i18n key completeness check
+        run: node scripts/check-i18n-key-completeness.mjs
+
+      - name: i18n key completeness check (self-test)
+        run: node scripts/check-i18n-key-completeness.mjs --self-test
