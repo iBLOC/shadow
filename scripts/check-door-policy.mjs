@@ -48,8 +48,23 @@ const REPO = resolve(HERE, '..');
 
 // ⚠️ 方法表与门型名表在 `scripts/lib/door-policy.mjs`（**一处实现** ⇒ 别再各抄一份）。
 
+/**
+ * 端脑仓的位置 —— **两种布局都要认**（2026-11-09 接 CI 时实测）：
+ *   · A（本机）：兄弟仓在 shadow 仓**之外**（`../telencephalon`）
+ *   · B（CI）：兄弟仓被 checkout 到 shadow 仓根**之下**（`telencephalon/`）
+ *
+ * ⚠️ 只认 A ⇒ ⇒ CI 上「读不到门型表」⇒ ⇒ 退出码 2「判不了」⇒ ⇒ **CI 恒红**
+ *   ⇒ ⇒ 那红的是**布局层**不是判据层（同 check-ziti-face.mjs /
+ *   check-secret-plaintext.mjs 的 `sibling()`）。
+ */
+function sibling(name) {
+  const outside = resolve(REPO, '..', name);
+  if (existsSync(outside)) return outside;
+  return join(REPO, name);
+}
+
 function parseArgs(argv) {
-  const opts = { source: resolve(REPO, '..', 'telencephalon'), selfTest: false };
+  const opts = { source: sibling('telencephalon'), selfTest: false };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--source') opts.source = resolve(argv[++i]);
     else if (argv[i] === '--self-test') opts.selfTest = true;
@@ -66,7 +81,9 @@ function parseArgs(argv) {
 
 function selfTest(sourceRoot) {
   let failed = 0;
+  let total = 0;
   const check = (name, ok) => {
+    total++;
     if (!ok) failed++;
     console.log('  ' + (ok ? '✅' : '❌') + ' ' + name);
   };
@@ -126,6 +143,10 @@ function selfTest(sourceRoot) {
     check('读得到真实门型表', false);
   }
 
+  // ⚠️ **可数读数**（N/N）—— 纪律闸 D3 要求：接进 CI 的闸，其自检
+  // 必须印出「跑了多少条、过了多少条」⇒ ⇒ 否则「读数不可比」
+  // ⇒ ⇒ 看不见跑了多少 ⇒ ⇒ 「它绿了」与「它什么都没跑」长得一样。
+  console.log('判据自检：' + (total - failed) + '/' + total + ' 条通过');
   console.log(failed ? '❌ 自检有 ' + failed + ' 条红' : '✅ 自检全过');
   process.exit(failed ? 1 : 0);
 }

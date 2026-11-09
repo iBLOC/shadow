@@ -51,7 +51,12 @@ export const NOT_WIRED_INTO_CI = {
     '⇒ ⇒ ⚠️ ziti-v2-wire 已于 2026-11-05 接进跨仓 stack job（当时叫 cortex-residue-stack，2026-11-06 改名后叫 legacy-residue-stack）' +
     '（那个 job 已检出 synapse ＋ ziti-rust ⇒ ⇒ 它才判得了）⇒ ⇒ 已从本清单销账' +
     '⇒ ⇒ ⚠️ ziti-face 已于 2026-11-06 接进同一 job' +
-    '（纯文本闸、两个布局都判得了 ⇒ ⇒ 本地闸 EXIT=0 ＋ self-test 50/50 后推）⇒ ⇒ 已从本清单销账',
+    '（纯文本闸、两个布局都判得了 ⇒ ⇒ 本地闸 EXIT=0 ＋ self-test 50/50 后推）⇒ ⇒ 已从本清单销账' +
+    '⇒ ⇒ ⚠️ door-policy / door-policy-parity 已于 2026-11-09 接进**独立** workflow' +
+    '（.github/workflows/door-policy.yml ⇒ ⇒ 不碰共享的 ci.yml ⇒ ⇒ 接线面零共享）' +
+    '（纯文本闸 ⇒ ⇒ 检出端脑就能判 ⇒ ⇒ 两道闸都认**两种布局**（仓外/仓内）' +
+    '⇒ ⇒ 只认一种 ⇒ ⇒ CI 上「读不到判据源」⇒ ⇒ 退出码 2 ⇒ ⇒ 恒红' +
+    '⇒ ⇒ 本地 EXIT=0 ＋ self-test 11/11 与 14/14）⇒ ⇒ 已从本清单销账',
   gates: [
     'a2ui-session-identity',
     'agent-surface-credentials',
@@ -63,8 +68,6 @@ export const NOT_WIRED_INTO_CI = {
     'conversation-prefix',
     'cors-allowlist',
     'cross-client',
-    'door-policy',
-    'door-policy-parity',
     'endpoint-matrix',
     'msrv-floor',
     'provider-admin-headers',

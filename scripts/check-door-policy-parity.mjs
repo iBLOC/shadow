@@ -43,6 +43,21 @@ import { parsePolicyText, resolveDoor } from './lib/door-policy.mjs';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..');
 
+/**
+ * 端脑仓的位置 —— **两种布局都要认**（2026-11-09 接 CI 时实测）：
+ *   · A（本机）：兄弟仓在 shadow 仓**之外**（`../telencephalon`）
+ *   · B（CI）：兄弟仓被 checkout 到 shadow 仓根**之下**（`telencephalon/`）
+ *
+ * ⚠️ 只认 A ⇒ ⇒ CI 上「读不到判据源」⇒ ⇒ 退出码 2「判不了」⇒ ⇒ **CI 恒红**
+ *   ⇒ ⇒ 那红的是**布局层**不是判据层（同 check-ziti-face.mjs /
+ *   check-secret-plaintext.mjs 的 `sibling()`）。
+ */
+function sibling(name) {
+  const outside = resolve(REPO, '..', name);
+  if (existsSync(outside)) return outside;
+  return join(REPO, name);
+}
+
 /** Rust 的门型名 ⇒ JS 这边的门型名（`resolve()` 派生后不会是 auto）。 */
 const DOOR_NAMES = {
   Open: 'open',
@@ -169,7 +184,9 @@ export function checkSpecCases(rustText, realEntries) {
 
 function selfTest() {
   let failed = 0;
+  let total = 0;
   const check = (name, ok) => {
+    total++;
     if (!ok) failed++;
     console.log('  ' + (ok ? '✅' : '❌') + ' ' + name);
   };
@@ -223,7 +240,7 @@ function selfTest() {
   check('规格用例：锚点缺了 ⇒ 判不了（missingAnchors > 0）', specMissing.missingAnchors.length > 0);
 
   // 再钉一次**真实文件** —— 上面那组只验逻辑，这里验真表真用例。
-  const src = resolve(REPO, '..', 'telencephalon');
+  const src = sibling('telencephalon');
   const doorRs = join(src, 'src', 'api', 'door.rs');
   const policyTxt = join(src, 'src', 'api', 'door_policy.txt');
   if (existsSync(doorRs) && existsSync(policyTxt)) {
@@ -242,6 +259,9 @@ function selfTest() {
     check('读得到真实门型表与 door.rs', false);
   }
 
+  // ⚠️ **可数读数**（N/N）—— 纪律闸 D3 要求：接进 CI 的闸，其自检
+  // 必须印出「跑了多少条、过了多少条」⇒ ⇒ 否则「读数不可比」。
+  console.log('判据自检：' + (total - failed) + '/' + total + ' 条通过');
   console.log(failed ? '❌ 自检有 ' + failed + ' 条红' : '✅ 自检全过');
   process.exit(failed ? 1 : 0);
 }
@@ -253,7 +273,7 @@ function realEntriesSelfTest() {
 
 function main() {
   const argv = process.argv.slice(2);
-  let source = resolve(REPO, '..', 'telencephalon');
+  let source = sibling('telencephalon');
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--source') source = resolve(argv[++i]);
     else if (argv[i] === '--self-test') return selfTest();

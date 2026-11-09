@@ -1,0 +1,86 @@
+name: Door Policy
+
+# ⚠️ **为什么单独成文件**（2026-11-09 真机实测）：
+#   · 这两道闸是**纯 node、零依赖、秒级**的（实测本地 < 3 秒）⇒ ⇒ 它不重；
+#   · 但它**跨仓**：它判的是**端脑仓**的路由表与门型表 ⇒ ⇒ 要检出端脑
+#     （私有仓 ⇒ 要 PAT）⇒ ⇒ 检出这一步有成本 ⇒ ⇒ 不该塞进「重任务」的
+#     ci.yml 主流程里拖慢每一次 CI；
+#   · ci.yml 是**共享文件**（并行会话常在飞改）⇒ ⇒ 共享文件上的接线是本仓
+#     最容易出「把别人的在飞件卷进我的提交」「我的暂存被别人抢走署名」
+#     两类事故的地方 ⇒ ⇒ 独立文件 ⇒ ⇒ **接线面零共享** ⇒ ⇒ 竞态根本不存在。
+#     （与 secret-plaintext.yml / test-global-leaks.yml 同一形状。）
+
+# ⚠️ **它守的是什么** —— 门型表的完整性：
+#   「端脑面新增路由默认关」这条规矩**只有机器盯着才成立** —— 人肉列一定会漏
+#   ⇒ ⇒ 而漏了不会报错（那条路由只是安安静静地 403 掉 ⇒ ⇒ 用户看到的是
+#   「功能坏了」，不是「你忘了开口」）⇒ ⇒ 这是**失败长得像成功**那一族。
+#   ⚠️ 而**跨语言一致性**（JS 镜像 vs 端脑 Rust 权威）是这道规矩的地基：
+#   两份实现迟早会漂 ⇒ ⇒ 漂了之后端脑的闸会判错门型 ⇒ ⇒ 「该关的路由」
+#   被报成「已覆盖」⇒ ⇒ 整条规矩作废 ⇒ ⇒ 两边必须逐条对账。
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  door-policy:
+    name: Door Policy
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout shadow
+        uses: actions/checkout@v7
+
+      # ⚠️⚠️ **端脑是私有仓** ⇒ ⇒ 默认 GITHUB_TOKEN 只对 iBLOC/shadow 有权限
+      #    ⇒ ⇒ 检不出来 ⇒ ⇒ 闸会「读不到判据源」⇒ ⇒ 退出码 2「判不了」
+      #    ⇒ ⇒ 那不是「闸抓到了漏网路由」，那是**环境缺** ⇒ ⇒ 必须先说清。
+      - name: Require cross-repo token
+        env:
+          IBLOC_TOKEN: ${{ secrets.IBLOC_TOKEN }}
+        run: |
+          if [ -z "$IBLOC_TOKEN" ]; then
+            echo "::error::secrets.IBLOC_TOKEN is not configured."
+            echo "::error::The door-policy gates judge the telencephalon repo's"
+            echo "::error::route table and door policy table, which is a private
+            echo "::error::repo. Add a PAT with read access as the IBLOC_TOKEN
+            echo "::error::repository secret."
+            exit 1
+          fi
+
+      # ⚠️ **检出形状决定闸能不能找到端脑**（2026-11-09 真机实测）：
+      #   本仓检在**工作区根** ⇒ ⇒ 端脑检在 `telencephalon/`（本仓根**之下**）
+      #   ⇒ ⇒ 两道闸的 `sibling()` 认**两种布局**（仓外 `../telencephalon` =
+      #   本机；仓内 `telencephalon/` = CI）⇒ ⇒ 只认一种 ⇒ ⇒ CI 上「读不到
+      #   判据源」⇒ ⇒ 退出码 2 ⇒ ⇒ **CI 恒红**（红的是**布局层**不是判据层）。
+      - name: Checkout telencephalon
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/telencephalon
+          path: telencephalon
+          token: ${{ secrets.IBLOC_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      # ⚠️ **四步都要跑** —— 两道闸的判定 ＋ 两道闸的判据自检。
+      #   自检证明这两道闸**真的会红**（恒绿的自检看着有自检，其实证明不了
+      #   任何事）⇒ ⇒ 自检红 ⇒ ⇒ 闸自己坏了 ⇒ ⇒ 必须先看见。
+      - name: Door policy check
+        run: node scripts/check-door-policy.mjs
+
+      - name: Door policy check (self-test)
+        run: node scripts/check-door-policy.mjs --self-test
+
+      - name: Door policy parity check
+        run: node scripts/check-door-policy-parity.mjs
+
+      - name: Door policy parity check (self-test)
+        run: node scripts/check-door-policy-parity.mjs --self-test
