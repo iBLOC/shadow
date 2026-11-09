@@ -1,4 +1,73 @@
 # PROJECT KNOWLEDGE BASE
+**Updated**: 2026-11-11 (㒠 **「编出来的那份大脑比源码旧 4 天 —— 而『重编』这一步自己也有三个坑」** —— 承 U+3496 条（端脑源码里有那条路由 ≠ 你编出来的大脑里有）＋ U+3482 条（哪几档按引擎 id 解析由端脑说了算），本条记**取证（真产物 ＋ 真机）**、**第一因（产物比源码旧 4 天）**、**第二因（共享工作树是脏的）**、**第三因（相对路径依赖 ＋ 缓存不在镜像里）**、**这一刀的落点**、**途中那几课**、**判据**、**分级读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真产物级 ＋ 真机级实测（odin ee6b4832：装机 ⇒ 端脑面端口 ⇒ 四条路由逐条读数 ＋ 空体 404 判别基线）＋ 注入式反向验证（等长打掉四条字面量）| 改动：shadow 仓 **新增** scripts/prove-brain-routes-on-device.ps1（真机路由探针，判据＝状态码 ＋ 体长 ＋ 体首 200 字）、**新增** scripts/build-android-clean-mirror.ps1（从已提交状态编出手机端那份大脑：镜像 ＋ 联接 ＋ 构建）｜ **产物**（不进提交面，.gitignore 第 72 行）：jniLibs/arm64-v8a/libencephalon.so 由 11-06 那份重编为当前源码那一份 | 读数：**产物级闸 EXIT=1（恰好 4 红）⇒ ⇒ EXIT=0（0 红）**、**注入式反向验证：等长打掉 ⇒ ⇒ 恰好同样 4 红**、**真机级：4 条路由全部存在**（capability-defaults 200 ＋ 八档词表／notifications 200／ack 200／tasks-update 404 带 JSON 体）、**判别基线：真不存在的路由 = 404 空体** | status=active | supersedes=none
+
+① **⚠️ 取证：红的那一格，根因是「产物比源码旧 4 天」**
+　❶ **旧产物**（逐字）：`jniLibs/arm64-v8a/libencephalon.so` ｜ mtime **2026-11-06 16:06:50** ｜ 164,359,896 B ｜ sha256 `8038FC11A48B99224EFDB582F4ABE111EACFCB7C69F032DA0989842DFF24165F` ⇒ ⇒ 路由面闸 **EXIT=1、恰好 4 红**（notifications ／ notifications/ack ／ lobes/capability-defaults ／ tasks/{id}/update）。
+　❷ **端脑已提交源码**（telencephalon HEAD `9fbe95e`）里那 4 条路由逐字在：`src/api/lobe_manifest.rs:47` ／ `src/api/notifications.rs:23,24` ／ `src/api/tasks_admin.rs:51`。
+　❸ ⇒ ⇒ **时间差就是根因** —— 11-06 16:06 编出来的大脑，**早于**端脑拿到这 4 条路由 ⇒ ⇒ 源码面绿、产物面红 ⇒ ⇒ ⇒ **「端脑源码里有」这句话，推不出「你手上那份里有」**。
+　❹ ⚠️ **闸只照不补** —— 上一刀落的那把闸判红了 4 条，但**把红变成绿的是「重新编」**，不是闸 ⇒ ⇒ ⇒ 通用形态：**闸是 CI 的活儿，产物是构建的活儿** ⇒ ⇒ 谁去编、编哪棵源码，**那一格没人写**。
+
+② **⚠️ 第一因：共享工作树是脏的 ⇒ ⇒ 编出来的东西不对应任何一笔提交**
+　❶ 实测：端脑工作树脏 **11 个文件**（`src/api/providers.rs` 300 行、`src/api/mod.rs`、`src/boot.rs`、`src/lobes/*`…）、synapse **1 个**、hippocampus **9 个** ⇒ ⇒ 全是并行会话的在飞改动（供应商目录那条线）⇒ ⇒ **不是我的**。
+　❷ ⇒ ⇒ 若直接在共享工作树里编 ⇒ ⇒ 产物里混着**别人没提交的代码** ⇒ ⇒ ⇒ 通用形态：**「产物级」的判据要问「这份产物是哪棵源码树编的」** —— 答不上来 ⇒ ⇒ 产物级读数就是**孤儿读数**。
+　❸ ⇒ ⇒ 修法：**干净镜像**（`git archive HEAD` ⇒ 8 个仓 ＝ 已提交状态）⇒ ⇒ 但见第三因。
+
+③ **⚠️ 第二因：兄弟仓之间的依赖全是相对路径 ⇒ ⇒ 镜像必须「同级同层」**
+　❶ 实测：`telencephalon/Cargo.toml` 里 `synapse = { path = "../synapse" }`、`neuron = { path = "../neuron" }`、`diencephalon = { path = "../diencephalon" }`、`prefrontal = { path = "../prefrontal" }`、`hippocampus-core = { path = "../hippocampus/hippocampus-core" }`；而 `hippocampus-core` 里还有 `synapse = { path = "../../synapse" }`。
+　❷ ⇒ ⇒ 把源码树复制到别处 ⇒ ⇒ 这些相对路径**全部指空** ⇒ ⇒ ⇒ 通用形态：**复制一棵源码树 ≠ 复制了那些仓之间的连线** —— 相对依赖是**隐式连线** ⇒ ⇒ 断了以后报的错是「找不到包」，不是「你少复制了什么」。
+　❸ ⚠️ **镜像不能落在 iBLOC 顶层** —— `scripts/check-legacy-residue-all.mjs` 会**枚举 iBLOC 顶层的每个目录**当仓扫 ⇒ ⇒ 新目录会被当新仓 ⇒ ⇒ ⇒ 落点定在 `C:\Projects\_cc\m1`（iBLOC 之外、**同级同层**）。
+　❹ ⇒ ⇒ 好处：**一条 `-SiblingPath` 覆盖都不需要** ⇒ ⇒ **谁的 manifest 都不被改写** ⇒ ⇒ 共享工作树**零写入**（构建脚本本来会临时改写 Cargo.toml / Cargo.lock ⇒ ⇒ 在共享工作树里跑就是往别人的在飞面上写东西）。
+
+④ **⚠️ 第三因：增量缓存不在镜像里 ⇒ ⇒ 从零编几千个 crate**
+　❶ 实测：真仓 `encephalon/target-android/aarch64-linux-android/release/deps` 里 **1915 个 rlib**（11-06 那次构建留下的）⇒ ⇒ 镜像里是空的 ⇒ ⇒ 从零编 datafusion / lance / candle 全家 ⇒ ⇒ 以小时计。
+　❷ ⇒ ⇒ 修法：**联接**（junction）把镜像里的 `target-android` 指回真仓那份 ⇒ ⇒ ⇒ 通用形态：**复制的成本不在复制本身，而在「复制品没有缓存」**。
+　❸ ⇒ ⇒ 读数：**构建 4 分 23 秒**（`Finished release profile in 4m 23s`）＋ 产物 219.6 MB ⇒ strip ⇒ **156.9 MB**（省 62.7 MB）＋ 出厂核验：**14 个 JNI 符号全部在位**。
+
+⑤ **✅ 这一刀的落点（2 个提交面新文件 ＋ 1 份产物，零产品代码）**
+　❶ **重新编出手机端那份大脑** ⇒ ⇒ 落到 `shadow-mobile/android/app/src/main/jniLibs/arm64-v8a/libencephalon.so`：mtime **2026-11-10 02:23:25** ｜ 164,572,552 B ｜ sha256 `CB5C06011B3325B51C1D2DFAD54BAEE16138E6CC4114A9BF570FB81EE698ACA9` ⇒ ⇒ ⚠️ **该路径被 .gitignore（第 72 行）** ⇒ ⇒ **产物不进提交面** ⇒ ⇒ 提交面只有 2 个新文件。
+　❷ **新增 `scripts/prove-brain-routes-on-device.ps1`** —— 真机路由探针 ⇒ ⇒ 端脑面端口从 logcat 取（`EncephalonRuntime.*agent surface:`）＋ `adb forward` ⇒ ⇒ 走**真机上的那份大脑** ⇒ ⇒ 判据＝**状态码 ＋ 体长 ＋ 体首 200 字**（见 ⑦❸）。
+　❸ **新增 `scripts/build-android-clean-mirror.ps1`** —— 「从已提交状态编出那份大脑」这件事**脚本化**（镜像 ＋ 联接 ＋ path 依赖自检 ＋ 调用既有构建脚本）⇒ ⇒ 免得每个新 clone 都要重新踩②③④三个坑。
+　❹ **台账本条（U+34A0）**。
+
+⑥ **✅ 判据（三点闭环：旧红 → 新绿 → 打掉即红）**
+　❶ **旧产物** ⇒ ⇒ 闸 **EXIT=1、恰好 4 红**（逐字点名端脑源码出处 ＋ 客户端出处 ＋ 字面量 ＋ 后果「真机上这条功能根本不存在（404）」）。
+　❷ **新产物** ⇒ ⇒ 闸 **EXIT=0、0 红**（端脑源码里有、产物里也有 **29 条**）。
+　❸ **注入式反向验证** —— 把**新产物**里那 4 条字面量**等长**打掉（`capability-defaults`→`capability-00000000`、`notifications`→`nnnnnnnnnnnnn`、`tasks/{id}/update`→`tasks/{id}/000000`）⇒ ⇒ 闸 **EXIT=1、恰好同样那 4 红** ⇒ ⇒ ⇒ **尺子还在看**，且红的**指纹**与旧产物逐字相同。
+
+⑦ **⚠️ 途中那几课**
+　❶ **「闸能照出」与「把红补绿」是两件事** —— 闸是 CI 的活儿，产物是构建的活儿 ⇒ ⇒ 这一格没人写 ⇒ ⇒ ⇒ 通用形态：**判据只覆盖「已经有的东西」**，补齐要另有一条流水线。
+　❷ **「复制一棵源码树」≠「复制了那些仓之间的连线」** —— 相对路径依赖是隐式连线 ⇒ ⇒ 复制时看不见 ⇒ ⇒ 断了以后报的是「找不到包」。
+　❸ **判「路由在不在」不能只看状态码** —— axum 里 **404 有两种**：路由**不存在** ⇒ 404 且**响应体为空**；路由**在、资源没有** ⇒ 404 且**带 JSON 体** ⇒ ⇒ 实测同一台机：`GET /api/telencephalon/definitely-not-a-route-xyz` ⇒ **HTTP 404 体长 0**；而 `POST /api/telencephalon/tasks/probe-nonexistent-id/update` ⇒ **HTTP 404 体长 72** ⇒ ⇒ ⇒ 通用形态：**404 有两种，只有「体」能分开它们** ⇒ ⇒ 尺子必须记体长。
+　❹ **MIUI 的「USB 安装」闸必须有人代点** —— `adb install` ⇒ `INSTALL_FAILED_USER_RESTRICTED: Install canceled by user`（不是权限没开 ⇒ ⇒ 是弹窗没人按）⇒ ⇒ 用仓里那个守门员脚本代点 ⇒ ⇒ **Success**。
+
+⑧ **✅ 分级读数**
+　❶ **判据级**：闸自检 **7/7**；注入式反向验证（等长打掉）⇒ ⇒ **恰好 4 红**。
+　❷ **产物级**：**EXIT=0、0 红**（同一把尺子对着旧产物：EXIT=1、4 红）。
+　❸ **真机级（odin `ee6b4832`）** —— 装机（MIUI 守门员代点 ⇒ Success）＋ APK 内那份 `.so` 与 jniLibs 那份**字节数一致**（164,572,552）⇒ ⇒ 同一份产物；端脑面端口 **40511** ⇒ `adb forward 42467`：
+　　· `GET /api/telencephalon/lobes/capability-defaults` ⇒ **HTTP 200** ｜ 体 162 B：`{"defaults":{},"capabilities":["llm","asr","tts","vad","rerank","embedding","vision","forecast"],"engine_resolved":["asr","tts"],"registered":{"asr":[],"tts":[]}}`
+　　· `GET /api/telencephalon/notifications` ⇒ **HTTP 200** ｜ 体 2 B：`[]`
+　　· `POST /api/telencephalon/notifications/ack` ⇒ **HTTP 200** ｜ 体 23 B：`{"acked":0,"pending":0}`
+　　· `POST /api/telencephalon/tasks/{id}/update` ⇒ **HTTP 404** ｜ 体 72 B：`{"error":{"code":4040,"message":"Task not found: probe-nonexistent-id"}}` ⇒ ⇒ **路由在**（对照基线：真不存在的路由 = 404 **空体**）
+　　· ⇒ ⇒ **4 条路由在真机的大脑里全部存在** ⇒ ⇒ ⇒ **用户问的「按能力分档的默认模型」在手机上此刻真的可用**。
+　❹ **闸级**：码位闸三面零违规；提交面回退闸零静悄悄回退；纪律闸里本闸不在红名单；YAML 解析全过。
+
+⑨ **⚠️ 仍然欠着**
+　❶ ⚠️ **真机级的「负向」没跑** —— 要拿到「路由不存在」的真机读数 ⇒ ⇒ 得把**打了补丁的 .so** 打进 APK 再装一次 ⇒ ⇒ 而那段时间里 `jniLibs` 那份是**假产物** ⇒ ⇒ 会污染并行会话的构建 ⇒ ⇒ ⇒ 本条只把负向做到**产物级**（等长打掉 ⇒ 恰好 4 红）⇒ ⇒ **真机级负向仍是欠账**。
+　❷ ⚠️ **闸的「2 条查不到归因」是抽取噪声，不是缺路由** —— 客户端那条字面量其实是**日志散文**（`"GET /api/telencephalon/notifications → ${resp.statusCode}: ${resp.body}"`）⇒ ⇒ 路径后面粘着散文 ⇒ ⇒ 骨架变成 `/api/telencephalon/notifications → *: *` ⇒ ⇒ 另开了一个键 ⇒ ⇒ 不影响判红（同一路由在 `reminder_inbox.dart:143` 另有**干净**字面量 ⇒ ⇒ 照样被核）⇒ ⇒ 但读者会以为有 2 条依赖没归因 ⇒ ⇒ 修法：**字面量在第一个非路径字符处截断**。
+　❸ **asr/tts 两档在真机上仍然没有引擎 id** —— 实测 `registered:{"asr":[],"tts":[]}` ⇒ ⇒ **分档默认模型对 asr/tts 还落不了地** ⇒ ⇒ ⇒ 这正是用户问的「颞叶里的 asr/tts 怎么办」的**答案形状**：**分档已经在了**（八档词表 ＋ `engine_resolved` 说清哪几档按引擎 id 解析 ＋ `registered` 说清此刻注册了哪些 id）⇒ ⇒ **但 asr/tts 要等引擎注册** ⇒ ⇒ 远端 ASR/TTS 引擎族协议与注册责任**仍未定**（产品决定）。
+　❹ **端脑仓自身的真 CI 仍无读数**（承 U+3494 条）。
+　❺ ⚠️ **「已注册面」与「目录面」在真机上仍是两套 id** —— `preview/models` 那一栏要不要标「这是已注册面」仍未拍板。
+
+⑩ **⚠️ 圈码：本条占 U+34A0（㒠）** —— 插前**独立重扫**（父仓工作树 ∪ 父仓索引面 ∪ 父仓 HEAD ∪ 父仓 `origin/master` × **三本账本**，按**声明形状**扫、**声明与提及分开**、**字形也扫**）⇒ ⇒ 读数：**最高已声明 U+3497**（并行会话那条）⇒ ⇒ **U+3498** 被那条明写为缓冲位 ⇒ ⇒ 让开；**U+3499** 被 U+3472 条明写为缓冲位 ⇒ ⇒ 让开；**U+349A** 被 U+3494 条的「`0x3480`–`0x349A` 区间」提及着 ⇒ ⇒ 让开；**U+349B–U+349F** 三面皆 0 ⇒ ⇒ 但那段已被判为**历史空洞／有据保留**的区间 ⇒ ⇒ **不复用** ⇒ ⇒ ⇒ 本条取 **U+34A0**（新段，三面 **0 次声明 0 次提及**）⇒ ⇒ 按惯例**再留一枚缓冲（U+34A1）**（三面 0/0/0）⇒ ⇒ ⇒ ⚠️ 本条**只引用已提交的码位**（U+3496 ／ U+3490 ／ U+3482 ／ U+3494）⇒ ⇒ ⚠️ **插完立刻复跑码位闸**是硬约束。
+
+⑪ **✅ 验证阶梯（怎么自己验一遍）**
+　❶ **判据级**：`node scripts/check-brain-route-surface.mjs --self-test` ⇒ ⇒ 7/7。
+　❷ **产物级**：`node scripts/check-brain-route-surface.mjs` ⇒ ⇒ EXIT=0（对着刚编出来那份）；**把四条字面量等长打掉再跑** ⇒ ⇒ EXIT=1、恰好 4 红。
+　❸ **真机级**：`pwsh -File scripts/prove-brain-routes-on-device.ps1 -Serial ee6b4832` ⇒ ⇒ 「路由存在判定：存在 4 / 4」。
+　❹ **重编路径**：`pwsh -File scripts/build-android-clean-mirror.ps1` ⇒ ⇒ 镜像 ＋ 联接 ＋ 构建（4 分 23 秒量级）。
+
 **Updated**: 2026-11-11 (㑲 **「长按不是长按 —— 而『手停了多久』不等于『app 认这是长按』」** —— 承 U+3482 条（尺子要对着被测物）＋ U+3490 条（回退不只有「退成旧版」一种形状），本条记**取证（真机逐字读数）**、**第一因（三个问题是三件事，原代码只答了一个）**、**第二因（系统会重启无障碍服务）**、**第三因（按住时长压在平台阈值上）**、**这一刀的落点**、**途中那几课**、**判据**、**分级读数**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真运行级实测（odin 真机 × 4 轮 ＋ **注入式强制重启** ＋ **正负两档对照** ＋ 逐字 logcat 取证）｜ 改动：shadow-mobile **改** android/…/MainActivity.kt（**开关／连接／就绪**三判据 ＋ 派发路径「等得起」）、**改** android/…/PrefrontalAccessibilityService.kt（长按 500 → **800ms**）、**改** lib/services/accessibility_controller.dart（isServiceConnected ＋ isReady）、**改** lib/services/capabilities/accessibility_ops.dart（同上，抽象层**带默认实现**）、**改** lib/services/capabilities/capability_tools.dart（准入改问 isReady ＋ 失败**分两种原因**）、**改** integration_test/a11y_own_ui_probe_test.dart（尺子改量「app 认没认」）、**改** scripts/verify-mobile-use-on-device.ps1（不再每 5 秒改写设置项）、**新增** scripts/miui-install-confirm-tap.ps1（MIUI 安装确认代点 ＋ 守门员）、**新增** scripts/force-a11y-restart.ps1（注入式强制重启 ＋ 正负两档的台子）｜ 读数：**真机 4 轮全 PASS**、**正样本 PASS（waiting for it to come back）／ 负样本 FAIL ＋ 逐字复现假原因**、**契约闸 EXIT=0**、**analyze 61 issues / 0 error（与基线同数）**、**受影响单测 64/64 绿** | status=active | supersedes=none
