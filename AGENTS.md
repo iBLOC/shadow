@@ -1,5 +1,18 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-09 (㐼 **「配置落盘改原子替换」—— 半个文件会把用户的全部配置清空」** —— 承 㐺 条⑧（Flutter 偶发红的根因）那条欠项，本条记**取证**、**修法与落点**、**判据**、**反向验证**、**分级读数**、**途中那一课**，以及**仍然欠着的**.)
+> 信封：epoch=2026-11-09 | authority=measured | scope=project | source=真机级落盘实测（改动：shadow 仓 **改** `shadow-mobile/lib/services/app_config_service.dart` ＋ **新增** `shadow-mobile/test/unit/app_config_atomic_write_test.dart`（3 条判据）＋ 账本本条；读数：**判据级 3/3 绿**、**反向验证 恰好 2 红（连跑两轮）**、**移动端 unit 全套 328/328 绿**、**类型级 EXIT=0**）| status=active | supersedes=none
+
+① **⚠️ 取证：落盘那一步是「先截断再写」** —— `AppConfigService._saveConfig()` 用 `file.writeAsString(json.encode(config))` ⇒ ⇒ Dart 的写是**先截断目标再写** ⇒ ⇒ 写到一半被杀 ⇒ ⇒ 磁盘上留下**半个文件** ⇒ ⇒ 下次 `_reloadFromDisk()` 的 `json.decode` 抛错 ⇒ ⇒ catch 里**静默回落默认值** ⇒ ⇒ **用户的全部配置被清空**（界面什么也不说）⇒ ⇒ 「失败长得像成功」。⇒ ⇒ 这**不只是「测试偶发」**：主 CI 的 `backend_shadow_key_entry_test.dart` 偶发红（`FormatException: Unexpected end of input (at character 1)`）就是它。
+② **✅ 修法与落点（两处）** —— ❶ **生产**（`shadow-mobile/lib/services/app_config_service.dart`）：`_saveConfig()` 从「直接写目标」改成 **`_writeAtomically()`**（同目录临时文件 `<path>.tmp` ＋ `flush: true` ＋ `rename` 覆盖 ⇒ ⇒ 目标文件要么是**旧的完整值**、要么是**新的完整值**，**永远不会是半个**；rename 撞**共享冲突**时有限重试（8 次 × 25ms）；失败时清掉临时文件 ⇒ ⇒ 配置目录里不留半成品）；❷ **判据**：**新增** `shadow-mobile/test/unit/app_config_atomic_write_test.dart`（**3 条**）。
+③ **✅ 核心纪律：故障注入只能走路径级** —— Dart 的 `File` 是**工厂类**、**不可继承** ⇒ ⇒ 「写到一半被杀」这类故障**没法**用子类注入（第一版写了个 `class _TruncatingFile extends File` ⇒ ⇒ **编译红**：`Superclass has no constructor named 'File'` ⇒ ⇒ 那是**尺子没说话**、不是有效反向验证）⇒ ⇒ 只能把落盘路径上的某个位置**占成目录** ⇒ ⇒ 让那一步必然失败 ⇒ ⇒ 整次落盘必须失败。
+④ **✅ 判据三层（3 条）** —— ❶ **残缺不可观测**：落盘期间目标文件**永远**不以「残缺长度」出现（采样面只查长度；末尾再校验一次 JSON ＋ 最后一次写入**真的落盘** ⇒ ⇒ **不许恒绿**）；❷ **失败不许毁旧值**：注入失败 ⇒ ⇒ 磁盘上的旧值**原样** ＋ 内存**回滚** ＋ `lastSaveError`／`saveFailures` **必须报**（不许长得像成功）；❸ **不留半成品**：落盘成功后配置目录里没有 `.tmp`。
+⑤ **⚠️ 途中那一课：判据的采样面会反过来挡被测物** —— 第一版的采样面是「整读 ＋ json.decode」⇒ ⇒ Windows 上**长读**会挡住写面的 rename（实测 `PathAccessException` errno 5「拒绝访问」）⇒ ⇒ 写面反复撞**共享冲突** ⇒ ⇒ **判据自己把被测物逼成失败（假红）**（实测：最后一次写入没落上，磁盘上还是上一版）⇒ ⇒ 改用**只查长度**的廉价采样面（实测：189 次采样下 rename 一次成功 ⇒ ⇒ 不挡路）⇒ ⇒ **判据量的是被测物，不是自己**。
+⑥ **✅ 反向验证（尺子有分辨力）** —— 把落盘换回修前写法 ⇒ ⇒ **恰好 2 条红**（❶ 抓到 **17～18 次「残缺长度 0」**＝截断窗口；❷ 失败**没被报告**）⇒ ⇒ ❸ 仍绿 ⇒ ⇒ 两条**各自承重** ⇒ ⇒ 还原 ⇒ ⇒ **3/3 绿** ⇒ ⇒ 连跑两轮都是「恰好 2 红」⇒ ⇒ **可靠**。
+⑦ **✅ 分级读数** —— **判据级**：`flutter test test/unit/app_config_atomic_write_test.dart` ⇒ **3 passed / 0 failed**（采样 3184 次、锁冲突 0）；**反向验证级** ⇒ **2 failed / 1 passed** ×2 轮；**邻居判据级**：`test/widget/backend_shadow_key_entry_test.dart` ⇒ **3/3 绿**（CI 偶发红那条）；**回归级**：`flutter test test/unit` ⇒ **328 passed / 0 failed**；**类型级**：`dart analyze` ⇒ **EXIT=0**（No issues found）；**提交级**：`a0adf33`（2 files，+207/−1）已推送 ⇒ ⇒ `origin/master…HEAD` = **0 0**。
+⑧ **⚠️ 仍然欠着** —— ❶ **真机级未跑**（设备离线）⇒ ⇒ 本刀最高只到**本机落盘实测**（Windows ＋ 判据级）⇒ ⇒ **不许拿判据绿冒充真机绿**；❷ **落盘失败的用户可见文案**仍靠 i18next 内联默认（两份 i18n 仍在飞）⇒ ⇒ 英文界面那几行暂显中文；❸ **端脑通知收件箱是内存的**（承 㐦 条）⇒ ⇒ 未确认的提醒重启不补发；❹ **真云级全欠**（三个 `SHADOW_TEST_CLOUD_*` 本机不存在）；❺ **并行的在飞件**（主题色／a11y／端脑任务面）本刀**没碰**。
+⑨ **⚠️ 圈码：本条占 U+343C（㐼）** —— 插前**重扫**（跨四账本、三面）⇒ ⇒ 最高已用 **U+343A**（并行会话那条，已提交）⇒ ⇒ **U+3439 空着但不取**（像被放弃的草稿 ⇒ ⇒ **空洞不是「可占」**）⇒ ⇒ 按惯例取「最高已用 ＋ 1」**之上再留一格缓冲** ⇒ ⇒ 取 **U+343C**（U+343B 留缓冲 ⇒ ⇒ 并行会话**连着**取码位 ⇒ ⇒ 挨着取＝排队打架）⇒ ⇒ 插完立刻跑**码位闸**。
+
 **Updated**: 2026-11-09 (㐺 **「账本说「不落盘」，代码说「落盘了」—— 那就写条判据，让它俩别再吵」** —— 承 㐶 条⑧❶ 与 㐱 条⑧❹ 那两条欠项，本条记**取证**、**判据**、**销账与就地订正（五处）**、**读数**、**反向验证**，以及**仍然欠着的**.)
 > 信封：epoch=2026-11-09 | authority=measured | scope=project | source=真机级存储层实测（改动：shadow 仓 **新增** `shadow-desktop/tests/stores/taskBoardStorePersistence.test.ts`（3 条判据）＋ **就地订正**账本五处旧说法 ＋ 账本本条；**零产品代码改动**——因为查出来的结论是「代码本来就没错，错的是账本那句话」；读数：**存储层 3/3 绿**、**类型级 EXIT=0**、**码位闸三面 EXIT=0**）| status=active | supersedes=none
 
