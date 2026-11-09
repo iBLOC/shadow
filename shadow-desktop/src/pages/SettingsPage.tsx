@@ -1235,6 +1235,11 @@ function CreateCustomAgentModal({
   const [generatingDesc, setGeneratingDesc] = useState(false);
   const [generateDescError, setGenerateDescError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // ⚠️ **创建失败要让人看见**（2026-11-09 真 CI 实测修的）：原先这里是**空 catch**
+  //   ⇒ ⇒ 创建失败被**吞掉**⇒ ⇒ 弹窗既不报错也不提示 ⇒ ⇒ 界面看起来像
+  //   「没反应」⇒ ⇒ 那正是「失败被伪装成成功」⇒ ⇒ 现在把错误**显出来**
+  //   （沿用本组件已有的 `generateDescError` 那套红条范式，不需要新的 i18n 键）。
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const handleGenerateDescription = useCallback(async () => {
     if (!systemPrompt.trim()) return;
@@ -1266,7 +1271,10 @@ function CreateCustomAgentModal({
         ),
       });
       onCreated({ name: result.name, description: result.description, skills: result.skills });
-    } catch {
+      setSubmitError(null);
+    } catch (e) {
+      // ⚠️ **不许空 catch** —— 创建失败必须**说给人听**（见上面那句注释）。
+      setSubmitError(e instanceof Error ? e.message : String(e));
     } finally {
       setIsSubmitting(false);
     }
@@ -1335,6 +1343,12 @@ function CreateCustomAgentModal({
           value={requiredCapabilities}
           onChange={setRequiredCapabilities}
         />
+        {submitError && (
+          <div className="flex items-start gap-2 rounded-md border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-500">
+            <AlertCircle size={12} />
+            <span>{submitError}</span>
+          </div>
+        )}
         <div className="flex justify-end gap-2 border-t border-border pt-3">
           <Button variant="outline" onClick={onClose}>{t('common.cancel')}</Button>
           <Button variant="primary" onClick={handleSubmit} loading={isSubmitting} disabled={!name.trim() || !systemPrompt.trim()}>
