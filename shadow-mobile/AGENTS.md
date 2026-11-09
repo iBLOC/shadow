@@ -1,3 +1,52 @@
+**Updated:** 2026-11-09 (㊮ **「滑动正路径 —— 移动端这一侧补上了「滑 ⇒ ⇒ 看得见 ⇒ ⇒ 点得到」这一整条链的离线判据，真机那条端到端也写好了」** —— 承 ㊯ 条（自家窗口的整屏坐标），本条记**移动端这一侧**新增了什么、**离线读数**、**反向验证（含一根**没红**的钉）**，以及**仍然欠着的**。)
+
+> 信封：epoch=2026-11-09 | authority=measured | scope=project | source=真机实测（新增 `test/unit/mobile_use_scroll_reachability_test.dart`、`integration_test/a11y_scroll_to_item_test.dart`、`test_driver/a11y_scroll_to_item_test.dart`；读数：analyze **0 issue**、离线单测 **4/4**、反向验证四根钉）| status=active | supersedes=none
+
+① **✅ 新增三个文件**：离线判据（`test/unit/mobile_use_scroll_reachability_test.dart` **4 条**：视口外的项**看不见**／滑过去**看得见**且 bounds 与量出来的一致／看得见 ⇒ **按文字点得到**（控件自己的回调被触发）／**负控**：看不见的字不许点）＋ 真机端到端（`integration_test/a11y_scroll_to_item_test.dart`）＋ 配套驱动（`test_driver/a11y_scroll_to_item_test.dart`）。
+
+② **✅ 真机那条钉的是**整条链**：读**自家窗口**的树（用原生原点 ⇒ ⇒ **整屏口径**）⇒ ⇒ **照着树给的坐标滑** ⇒ ⇒ 再读树 ⇒ ⇒ 断言出现**初始看不见**的项 ⇒ ⇒ **照着新树里的坐标点那一项** ⇒ ⇒ 断言**那一项自己的回调**被触发 ⇒ ⇒ 不是「派发出去了」。
+
+③ **✅ 读数**：analyze **0 issue**、离线单测 **4/4**、码位闸**零违规**；另：反向验证复原后树模块的 blob ＝ `49d5f226`（与上一轮保险 blob **逐字相同**）⇒ ⇒ 复原是**可证的**。
+
+④ **✅ 反向验证（含一根**没红**）**：摘掉 `performAction` ⇒ ⇒ 恰好 1 条红；不展开子树 ⇒ ⇒ 2 条红；把断言改成查一个不存在的编号 ⇒ ⇒ 那条红；⚠️ **把祖先上界改成 0 ⇒ ⇒ 没红** ⇒ ⇒ **源码事实**：那一项的语义节点**自己**就带 tap 动作 ⇒ ⇒ 「按文字点得到」靠的是它自己 ⇒ ⇒ **祖先上界那条判据在这一族上不承重**（承重的是探针那族：字在不可点的子节点里）。
+
+⑤ **⚠ 仍然欠着**：**真机腿全欠**（新写的端到端一行都没跑过）；移动端**全量** `flutter test` 被并行会话在飞的 widget 测试挡住；**能力档位未拍板** ⇒ ⇒ 本刀**没新增任何模型侧工具**。
+
+⑥ **⚠ 圈码**：本条占 **U+32AE（㊮）** —— 三账本里 **U+32FE–U+331A 全被占**（父仓那一段）⇒ ⇒ **U+3300–U+33FF 是 CJK 兼容表意文字**（NFKC 会变形 ⇒ ⇒ 闸明说不能拿 NFKC 判重 ⇒ ⇒ 避开）⇒ ⇒ 取 **U+32AE**（Enclosed CJK 段内、三账本 **0 命中** ✔；上一条占的 U+32AF 已用 ⇒ ⇒ 往下取一个空位）⇒ ⇒ 插入后复跑码位闸 ＋ 条目计数双钉住。
+
+**Updated:** 2026-11-09 (㊯ **「自家窗口的坐标升级成**整屏口径** —— 原生侧量出 FlutterView 在屏幕上的原点 ⇒ ⇒ 语义树的 `bounds` 与原生那棵**逐字同名** ⇒ ⇒ 顺带修掉「空树当成功」⇒ ⇒ 探针接上新刀当裁判」** —— 承 ㋘ 条（自家 app 的界面模型），本条记**移动端这一侧**改了什么、**两棵树的坐标口径怎么分**、**离线读数**，以及**仍然欠着的**。)
+
+> 信封：epoch=2026-11-09 | authority=measured | scope=project | source=真机实测（改动：`MainActivity.kt`（`getViewGeometry` ＋ 递归找 `FlutterView`）、`accessibility_controller.dart`（`viewGeometry()`）、`accessibility_ops.dart`（**默认 null** ＋ 真机委托）、`flutter_semantics_tree.dart`（`ViewOrigin`／`coordinateSpace`／空树守卫）、`capability_tools.dart`（换算原点 ＋ 口径跟快照）、`test/unit/flutter_semantics_tree_test.dart`（＋4 条）、`integration_test/a11y_own_ui_probe_test.dart`（语义标签 ＋ 原点当裁判）；读数：analyze **0 issue**、单测 **56/56**、Kotlin **BUILD SUCCESSFUL**、契约闸 **EXIT=0**（自检 9 条）、跨端闸**阻断 0**、码位闸**零违规**）| status=active | supersedes=none
+
+① **✅ 原生侧**量**原点**（不是算）：`MainActivity.getViewGeometry` ⇒ ⇒ **递归**找 `FlutterView`（宿主把它放在容器里）⇒ ⇒ `getLocationOnScreen` ⇒ ⇒ **拿不到就 null**（分屏／折叠屏／DeX／edge-to-edge ⇒ ⇒ 算不出来）。
+
+② **✅ Dart 侧三段**：通道方法 `AccessibilityController.viewGeometry()`（缺通道／异常 ⇒ null）⇒ ⇒ 抽象类 `AccessibilityOps.viewGeometry()` **默认实现回 null**（⇒ ⇒ 单测里的假实现**不用改** ⇒ ⇒ 「拿不到就不换算」这条纪律**默认就成立**）⇒ ⇒ 工具层回落时拿它换算。
+
+③ **✅ 口径跟着原点走**：有原点 ⇒ ⇒ `bounds`（＝整屏物理像素，**与原生那棵逐字同名**）；无原点 ⇒ ⇒ `viewBounds`（本窗口口径）⇒ ⇒ **两套口径不许同时出现在一棵树上**；头行那一行也跟着改（口径**写进给模型看的文本**）⇒ ⇒ 模型据此知道自己能不能照着坐标点。
+
+④ **✅ 空树 ⇒ null**（语义树存在 ≠ 有内容）⇒ ⇒ 但「**装不下**」≠「**空**」⇒ ⇒ 预算先耗尽 ⇒ ⇒ 给 `[truncated]` 标记，**不**回 null ⇒ ⇒ 判据 ＝「一个都没拍进去」**且**「不是因为预算」。
+
+⑤ **✅ 离线读数**：analyze **0 issue**、单测 **56/56**（＋4 条）、Kotlin **BUILD SUCCESSFUL**、契约闸 **EXIT=0**（自检 **9 条**）、跨端闸**阻断 0**、码位闸**零违规**；反向验证**四根钉改坏必红**（原点换算错／空树守卫失效／工具层口径写死／闸抽取退化）。
+
+⑥ **⚠ 仍然欠着**：**真机腿全欠**（设备离线 ⇒ ⇒ 原生原点没在真机上量过、探针当裁判那条没跑过、语义树在真机上的存在性没验过）；移动端**全量** `flutter test` 被并行会话在飞的 `encephalon_page_credential_probe_test.dart` 挡住；**能力档位未拍板** ⇒ ⇒ 本刀**没新增任何模型侧工具**。
+
+⑦ **⚠ 圈码**：本条占 **U+32AF（㊯）** —— 三账本里 **U+32FE–U+331A 全被占**（父仓那一段）⇒ ⇒ 而 **U+3300–U+33FF 是 CJK 兼容表意文字**（NFKC 会变形 ⇒ ⇒ 闸明说不能拿 NFKC 判重 ⇒ ⇒ 避开）⇒ ⇒ 取 **U+32AF**（Enclosed CJK 段内、三账本 **0 命中** ✔）⇒ ⇒ 插入后复跑码位闸 ＋ 条目计数双钉住。
+
+**Updated:** 2026-11-08 (㋘ **「自家 app 的界面模型 —— Flutter 语义树那一层落进移动端：既有 `mobile_read_screen` 在自家窗口上**不空着**（原生那棵树在自家窗口上**必然是空的**）⇒ ⇒ 结果**标明来源**（`android-a11y` vs `flutter-semantics`）⇒ ⇒ 两棵树的坐标**不混为一谈**」** —— 本条记**新增模块**、**工具层回落**、**离线自检**、**契约闸扩了一条**，以及**仍然欠着的**。)
+
+> 信封：epoch=2026-11-08 | authority=measured | scope=project | source=真机实测（新增 `lib/services/capabilities/flutter_semantics_tree.dart`、改 `lib/services/capabilities/capability_tools.dart` ＋ `lib/services/client_tools/client_tool_registry.dart`、改 `scripts/check-mobile-a11y-contract.mjs`；新增单测 `test/unit/flutter_semantics_tree_test.dart`；读数：单测 **9/9**、受影响三文件 **52/52**、analyze 本刀文件 **0 issue**、契约闸 **EXIT=0**（自检 8 条）、跨端闸 **阻断 0**、反向验证 **三处全红**）| status=active | supersedes=none
+
+① **✅ 新增模块**：`FlutterSemanticsTree` 从 **Flutter 语义树**读出「自家 app 自己的界面」⇒ ⇒ 拍成与原生侧**同一形状**的文本，但坐标字段**故意换名** `viewBounds` ⇒ ⇒ 与原生那棵的 `bounds`（整屏像素）**不可能被混用**；⚠️ **坐标本来就是物理像素**（`RenderView.semanticBounds` 的 rootTransform 已含 dpr）⇒ ⇒ 不许再乘一次。
+
+② **✅ 工具层回落**：`mobile_read_screen` 原生树读不到 ⇒ ⇒ 回落到 Flutter 语义树 ⇒ ⇒ 结果带 `source` ＋ `coordinateSpace`；`mobile_find_and_click` 同理，但自家窗口那条路**走语义动作**（不用坐标）⇒ ⇒ 避开「本窗口坐标 ≠ 整屏坐标」。⚠️ **纪律**：回落的前提是「原生树读不到 **且** 自家 app 在前台」⇒ ⇒ 在别人的屏幕上找不到那个字 ⇒ ⇒ **明确失败**，不许去点自家 app。
+
+③ **✅ 离线自检 ＋ 闸**：`test/unit/flutter_semantics_tree_test.dart` **9/9**（含「控件自己的回调被触发」＋ 两条负控）⇒ ⇒ 契约闸加了「两端口径的三个预算常数」＋「Flutter 那一棵必须复用同一个截断标记常量」⇒ ⇒ 自检 **8 条**全过 ⇒ ⇒ 反向验证三处**改坏必红**（坐标多乘 dpr / 前台守卫失效 / 两棵树混）。
+
+④ **⚠️ 仍然欠着**：**真机腿没跑**（读数全是离线级）⇒ ⇒ 真机语义树是否存在、真机上的 `viewBounds` 是不是那个窗口的物理像素，**都还没在真机上验过**；**窗口偏移没解**（Flutter 侧拿不到本窗口在屏幕上的位置）⇒ ⇒ 自家窗口只能靠语义动作；**能力档位未拍板** ⇒ ⇒ 本刀**没有新增任何模型侧工具**。详见父仓 U+3410 条。
+
+⑤ **⚠️ 圈码**：本条占 **U+32D8（㋘）** —— 插前 **fetch 远端失败**（代理拒连 ⇒ EXIT=128）⇒ ⇒ 只按**本地三账本**实测取码 ⇒ ⇒ U+32D8 三账本 **0 命中** ✔（U+32xx 段里**唯一**的空位）⇒ ⇒ 插入后复跑码位闸 ＋ 条目计数双钉住。
+⑥ **⚠️ 这一刀落地途中被覆盖过一次** —— 两个**已跟踪**文件（`capability_tools.dart` / `client_tool_registry.dart`）的工作树内容**被恢复成 HEAD 版** ⇒ ⇒ 改动**当场蒸发** ⇒ ⇒ 已重放并复验（analyze 0 issue / 单测 52/52 / 三道闸全绿）⇒ ⇒ 四个文件的内容已 `git hash-object -w` 写进对象库当保险（`git cat-file -p <blob>` 可取回）⇒ ⇒ **判据：在飞文件裸放在共享工作树里不叫保存**。详见父仓 U+3410 条。
+
 **Updated:** 2026-11-08 (㋺ **「移动端 widget 测试的一个 CI-only 飘红 —— `!timersPending` 在慢 runner 上随机红：启动链上的**真库**那条路没全断（模型元数据仓储）⇒ ⇒ 这一刀断掉一处，还欠一处」** —— 本条记**症状与证据**、**根因家族**、**这一刀断掉的那一处**、以及**仍然欠着的**。)
 
 > 信封：epoch=2026-11-08 | authority=measured | scope=project | source=真机实测（父仓 CI run 42461305869 的 `Mobile Test` 红：attempt 1 红／attempt 2 绿 ⇒ CI-only 飘红；本地该文件 4/4 绿 ⇒ ⇒ 本地绿证不了 CI 不飘）| status=active | supersedes=none
