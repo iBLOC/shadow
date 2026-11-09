@@ -1,3 +1,64 @@
+**Updated**: 2026-11-11 (㒽 **「分档默认这一格，asr/tts 档**真被消费了** —— 而同一个底层失败，按 id 从哪来分成两个错码」** —— 承 U+34B8 条（llm 档是死槽）与 U+34AD 条（能力面逐条读数），本条记**取证（真机级六格读数）**、**第一因**、**第二因**、**第三因**、**这一刀的落点**、**途中那几课**、**判据与分级读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真机级实测（odin ee6b4832 · 端脑面逐条 HTTP 读数）｜ 改动：父仓 **新增** `scripts/prove-asr-tier-on-device.ps1`（UTF-8 BOM · 零产品代码）｜ 读数：探针 **EXIT=0**（核心①asr 档被读 ✔／核心②tts 档被读 ✔／核心③asr 档解析到已注册引擎 ✔／核心④显式盖过分档默认 ✔／两个对照格 ✔；复原复核 ✔ ＋ 重启后 registered 归零 ⇒ ⇒ **零残留**）| status=active | supersedes=none
+
+① **⚠️ 取证：asr/tts 分档默认**真被消费**了 —— 真机级六格读数（odin ee6b4832）**
+　❶ 基线：`GET /lobes/capability-defaults` ⇒ `defaults {}`、`registered {"asr":[],"tts":[]}`。
+　❷ 注册真引擎：`POST /neuron/admin/model {"capability":"asr","modelId":"probe-asr-candle","engine":"candle"}` ⇒ **200 loaded** ⇒ `registered.asr=["probe-asr-candle"]` ⇒ ⇒ 这台大脑**有 candle 引擎**。
+　❸ **核心①（asr 档被读）**：PUT `{"defaults":{"asr":"probe-nonexistent-asr-xyz"}}` ⇒ 200；随后 `POST /voice/transcribe`（请求里**不带** model）⇒ **HTTP 503 / code 5003**，消息逐字：`neuron ASR (capability default 'asr' -> probe-nonexistent-asr-xyz): neuron_error: ModelNotRegistered: probe-nonexistent-asr-xyz` ⇒ ⇒ **默认分支被走到了**（消息里有那枚 id）。
+　❹ **核心②（tts 档被读）**：PUT `{"defaults":{"tts":"probe-nonexistent-tts-xyz"}}` ⇒ 200；`POST /voice/synthesize` ⇒ **HTTP 503 / code 5003**：`neuron TTS (capability default 'tts' -> probe-nonexistent-tts-xyz): model_not_registered: ModelNotRegistered: probe-nonexistent-tts-xyz` ⇒ ⇒ **tts 档也是活的**（尽管 `registered.tts` 全空）。
+　❺ **核心③（默认档真的解析到那个引擎）**：PUT `{"defaults":{"asr":"probe-asr-candle"}}` ⇒ 200；`POST /voice/transcribe` ⇒ **HTTP 503 / code 5003**，消息里**没有** ModelNotRegistered，而是：`neuron ASR (capability default 'asr' -> probe-asr-candle): neuron_error: WhisperAsrRuntime load failed: not_implemented: WhisperAsrRuntime: set NEURON_ASR_MODEL_PATH to a directory containing config.json + tokenizer.json + *.safetensors + mel_filters.safetensors for Whisper model 'probe-asr-candle' …` ⇒ ⇒ **端脑拿着默认档给的 id 找到了那个引擎、并真的去加载它** ⇒ ⇒ 失败原因是**缺权重**，不是缺档。
+　❻ **核心④（显式盖过分档默认）**：默认仍是 `probe-asr-candle`，请求里显式 `model=probe-nonexistent-explicit-xyz` ⇒ **HTTP 400 / code 4004**：`neuron ASR: neuron_error: ModelNotRegistered: probe-nonexistent-explicit-xyz` ⇒ ⇒ 显式分支**先**走 ⇒ ⇒ 优先级成立。
+　❼ **对照①（无 asr 档）**：PUT `{"defaults":{}}` ⇒ `POST /voice/transcribe` ⇒ **HTTP 503 / code 5002**：`neuron ASR: … WhisperAsrRuntime load failed …` ⇒ ⇒ 消息里**没有** `capability default` ⇒ ⇒ 走的是「第一个注册的引擎」回落。
+　❽ **对照②（无 tts 档）**：PUT `{"defaults":{}}` ⇒ `POST /voice/synthesize` ⇒ **HTTP 503 / code 5002**：`neuron TTS: neuron_error: NoRegisteredModel: register at least one TTS model` ⇒ ⇒ 回落分支的原话。
+　❾ 复原：defaults 整份 PUT 回基线 ⇒ 复核**逐字相同**；重启 app ⇒ `registered {"asr":[],"tts":[]}` ⇒ ⇒ **零残留**。
+
+② **⚠️ 第一因：判红得按「错误的**形状**」分，不能按「是不是同一个错」分**
+　❶ 显式分支的错是 **400/4004**，默认分支的错是 **503/5003** ⇒ ⇒ 两格若只看「都红了」⇒ ⇒ 分不出走没走默认分支。
+　❷ ⇒ ⇒ ⇒ **通用形态：跨层传结论时，「结论」要有自己的签名** ⇒ ⇒ 这里那个签名就是**消息里那枚 id** ⇒ ⇒ 判据必须写成「状态码 **＋ 消息含某个 id**」⇒ ⇒ 光看状态码/光看消息都不够。
+　❸ ⇒ ⇒ ⇒ 承 U+34AE 条那条教训的**消息面**：退出码分不开时，**读输出**才分得开 ⇒ ⇒ 而这里更进一步：**消息里必须有 id**，否则连读输出也分不开。
+
+③ **⚠️ 第二因：默认分支的错码 5003 **不分错因** ⇒ ⇒ 「id 没注册」与「引擎加载失败」同码**
+　❶ 核心③的读数就是 5003，而它的错因是**引擎缺权重**（**不是** ModelNotRegistered）⇒ ⇒ 5003 这一档**同时装着两件事**。
+　❷ ⇒ ⇒ ⇒ **通用形态：一个错误码若同时装「用错了」与「跑不起来」，按码分诊就会误诊** ⇒ ⇒ 好在**消息带 id** ⇒ ⇒ 分诊必须读消息，不能只读码。
+　❸ ⚠️ **这一条改写了 U+34B8 条的适用范围**：那条说「llm 档是死槽」⇒ ⇒ 本条证明 **asr/tts 档不是死槽** ⇒ ⇒ ⇒ **三档的结论各不相同**（llm 死／asr 活但缺权重／tts 活但无引擎）⇒ ⇒ ⇒ **不能一句话概括「分档默认有没有用」** ⇒ ⇒ 这正是用户那三问最需要的那一格。
+
+④ **⚠️ 第三因：显式分支把「引擎加载失败」也包成 4004「请求方的错」⇒ ⇒ 同一底层失败按 id 从哪来分成 400 与 503**
+　❶ 对照格：显式 `model=probe-asr-candle`（**已注册**）⇒ **HTTP 400 / code 4004**，消息里装的是 `WhisperAsrRuntime load failed …` ⇒ ⇒ **缺权重**被报成**「你选的模型不存在」**。
+　❷ 而**同一句** `WhisperAsrRuntime load failed` 在默认分支是 **HTTP 503 / code 5003** ⇒ ⇒ 同一个底层失败，**两个码**。
+　❸ ⇒ ⇒ ⇒ **通用形态：同一底层失败，分类不该依赖「参数从哪来」** ⇒ ⇒ 端脑源码面：`api/voice.rs` 的 `select_asr` 显式分支 `map_err(|e| bad_request(4004, …))` 把 `runtime_for` 的**加载失败**也包成「请求方的错」⇒ ⇒ 修法方向：**按错因分**（ModelNotRegistered ⇒ 400；加载失败 ⇒ 500）。
+　❹ ⇒ ⇒ 客户端后果：按码分诊的客户端会把「这台机器缺 Whisper 权重」报成「你选错了模型」⇒ ⇒ **失败长得像成功**的另一个面。
+
+⑤ **✅ 这一刀的落点（1 个文件 ＋ 零产品代码）**
+　❶ **新增 `scripts/prove-asr-tier-on-device.ps1`**（UTF-8 BOM）：起 app（复用活端口／必要时 `-S --activity-clear-task`）→ adb forward → 取两把钥匙（不打印）→ 读基线 → 注册真引擎 → **六格矩阵**（asr 档被读／tts 档被读／默认解析到引擎／显式优先／两个对照）→ **整份复原并复核** → **重启复核**。
+　❷ ⚠️ **零产品代码改动** —— 这一刀只加尺子，不动被测物。
+
+⑥ **⚠️ 途中那几课**
+　❶ **⚠️ 我的核心③判据第一版是错的**（**不是产品有病，是我的尺子坏了**）：我假设「已注册的 id ⇒ 解析成功 ⇒ 不会出现默认分支的错码」⇒ ⇒ 读数 False ⇒ ⇒ 而真相是**默认分支的错码就是 5003**（它不分错因）⇒ ⇒ 改成「消息带那枚 id ＋ 没有 ModelNotRegistered」才判得对。⇒ ⇒ **判据写错 ⇒ ⇒ 读数会被读成『被测物有病』** ⇒ ⇒ 第一反应要分清「尺子坏了」与「尺子量错了」。
+　❷ **对照格必须同形**：默认分支的消息里**有** `capability default`，回落分支的**没有** ⇒ ⇒ 这一个字符串差异是把两格分开的**唯一**证据 ⇒ ⇒ 探针必须先采到回落那一格的形状，否则没有基准。
+　❸ **「引擎存在」与「引擎跑得起来」是两件事**：注册 200 loaded 只说明**注册表里有了**；真跑仍要权重 ⇒ ⇒ 而端脑把 neuron 的原话**原样透出**（含权重目录怎么配、权重从哪下）⇒ ⇒ 这正是 `api/voice.rs` 头注释那条纪律（**错误要原样透出**）在真机上生效的读数。
+
+⑦ **✅ 判据与分级读数（全部实测）**
+　❶ **判据级**：探针 **EXIT=0**；核心①～④ **4/4 真**；对照①～② **2/2 真**；复原逐字相同 ✔。
+　❷ **真机级（odin ee6b4832）**：asr 档被读 ✔／tts 档被读 ✔／asr 档解析到已注册引擎 ✔（失败因＝**缺权重**）／显式盖过分档默认 ✔（4004）／回落格**无** default 标记 ✔（5002）／tts 回落格 ✔（NoRegisteredModel）／重启后 registered 归零 ✔。
+　❸ **源码级（归因）**：`api/voice.rs` 的 `select_asr`/`select_tts`（显式 → 分档默认 → `lazy_default_runtime` 回落）；`api/lobe_manifest.rs` 的 `ENGINE_RESOLVED=["asr","tts"]` 与 `engine_resolved` 字段。
+　❹ **闸级**：`node scripts/check-ledger-codepoints.mjs` 三面零违规；`node scripts/check-ps1-portability.mjs` 全绿；`node scripts/check-state-surface.mjs` 零违规；`node scripts/check-gate-discipline.mjs` 零违规；`node scripts/check-commit-revert.mjs` 零静悄悄回退。
+　❺ **真 CI 级**：本条推送后取（只认 run 的 `headSha`）。
+
+⑧ **⚠️ 仍然欠着的**
+　❶ **显式分支的错因分类**（④❸）未修 ⇒ ⇒ 那是端脑仓的活（`api/voice.rs`）⇒ ⇒ 本条**不代改兄弟仓**。
+　❷ **真识别仍未跑通**：这台大脑缺 Whisper 权重 ⇒ ⇒ 「asr 档能不能真识别」还差一层（要 `NEURON_ASR_MODEL_PATH`）。
+　❸ **tts 档仍无引擎**（`registered.tts` 全空）⇒ ⇒ 承 U+34AD 条：这份产物里没有 TTS 引擎。
+　❹ **端脑仓自身的真 CI 仍无读数**（承 U+34A0 条）。
+　❺ 本条只在 **odin 一台机型**上跑过。
+
+⑨ **⚠️ 圈码：本条占 U+34BD（㒽）**
+　❶ 插前**独立重扫**（三本账本 × 工作树／索引／HEAD／origin/master ＝ **12 面**，官方判据 `scripts/lib/ledger-codepoints.mjs` 的 `extractEntries`，**声明与提及分开**、码位按**十六进制**计）⇒ ⇒ 读数：**12 面全部可读（unreadable=0）**、已声明 distinct=**352**、最高已声明 **U+34BB**。
+　❷ ⇒ ⇒ **U+34BB 让开** —— 它是并行会话在**工作树面**已声明的那一条（三道闸补真自检那条），**尚未进提交树** ⇒ ⇒ **在飞占位也算占位**。
+　❸ ⇒ ⇒ **U+34BA 让开**（U+34B9 条明写的缓冲）、**U+34BC 让开**（并行会话 U+34BB 条里明写的缓冲）⇒ ⇒ **提及即让开**（连别人留的缓冲也要让开，前例 U+34AF）。
+　❹ ⇒ ⇒ **U+34BD 声明 0 次、提及 0 次** ✔（12 面逐面核过）⇒ ⇒ **本条取 U+34BD（㒽）**。
+　❺ ⇒ ⇒ 按惯例**再留一枚缓冲（U+34BE）** ⇒ ⇒ 但按 U+34B5 条自己的教训，**缓冲也会过期** ⇒ ⇒ 落笔前仍要**当场重扫 12 面**。
+
 **Updated**: 2026-11-11 (㒹 **「钩子把『脚本崩了』当成判红 ⇒ ⇒ 拦下所有人的提交 —— 而它自己写着 fail-safe」** —— 承 U+34AE 条（Node 崩掉的退出码是 1，跟「闸判红」一模一样）＋ U+34B5 条（尺子自己的夹具也会互踩），本条记**取证（兄弟会话报的真漏洞 ＋ 回退对照坐实）**、**第一因（退出码空间不够用）**、**第二因（钩子这一层没有「判不了」那一档）**、**第三因（判红要按「码的形状」分，不按「是不是 1」分）**、**这一刀的落点**、**途中那几课**、**判据与分级读数**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-11 | authority=measured | scope=project | source=兄弟会话实测报 ＋ 本会话**回退对照**坐实 ＋ Git bash 端到端六向 ｜ 改动：scripts/check-precommit-hook.mjs（hook 模式判红改专用退出码 10 ＋ 自检补两格）、.githooks/pre-commit（只拦 10 ＋ 脚本不在位就放行 ＋ 头注释改成退出码契约）｜ 读数：自检 4/4 ⇒ ⇒ 6/6；端到端六向全过；真 CI「Precommit Hook」**42715290438 = success**、「Unwired Gates」**42715289997 = success** | status=active | supersedes=none
