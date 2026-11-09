@@ -204,7 +204,15 @@ class AppConfigService {
       };
       // ⚠️ 能力授权：**空 map 不写** ⇒ ⇒ 配置文件里不留空壳。
       CapabilityPolicyStore.write(_capabilityModes, config);
-      await file.writeAsString(json.encode(config));
+      // ⚠️⚠️ **原子落盘**（2026-11-09 实测修掉的一族）：`file.writeAsString(...)` 是
+      //   「**先截断再写**」⇒ ⇒ 写到一半被杀 ⇒ ⇒ 磁盘上留下**半个文件** ⇒ ⇒
+      //   下次 `_reloadFromDisk()` 的 `json.decode` 抛错 ⇒ ⇒ **静默回落默认值**
+      //   ⇒ ⇒ **用户的全部配置被清空**（而界面什么也不说）⇒ ⇒ 「失败长得像成功」。
+      //   ⇒ ⇒ 改成：**临时文件 ＋ rename 原子替换** ⇒ ⇒ 目标文件要么是**旧的完整值**、
+      //   要么是**新的完整值**，**永远不会是半个**。
+      //   ⚠️ 实测症状：主 CI 的 `backend_shadow_key_entry_test.dart` **偶发**红
+      //   （`FormatException: Unexpected end of input (at character 1)`）。
+      await _writeAtomically(file, json.encode(config));
       // ⚠️ 写成功 ⇒ ⇒ 这一份**就是**磁盘上的真值了 ⇒ ⇒ 快照更新。
       _persisted = config;
       // 写成功 ⇒ ⇒ 上次的失败不再成立（否则 UI 会一直说「没存上」）。
@@ -228,6 +236,51 @@ class AppConfigService {
       _applyConfig(_persisted);
       _lastSaveError = reason;
       if (!_saveErrorController.isClosed) _saveErrorController.add(reason);
+    }
+  }
+
+  /// **原子写**：先写同目录的临时文件，再 rename 覆盖目标。
+  ///
+  /// ⚠️ **同目录** ⇒ ⇒ rename 不跨卷（跨卷会失败）⇒ ⇒ 临时文件必须在目标旁边。
+  /// ⚠️ `flush: true` ⇒ ⇒ 数据先落到盘上再 rename ⇒ ⇒ 掉电也不会出现
+  ///    「已经 rename、但内容没落盘」的鬼文件。
+  /// ⚠️ rename 在 Windows / Android 上都会**覆盖**既有目标（Dart 用 REPLACE_EXISTING）
+  ///    ⇒ ⇒ 不用先删目标。
+  /// ⚠️ 失败时把临时文件清掉 ⇒ ⇒ 配置目录里不留半成品
+  ///    （清不掉就留着 —— 它**不是**目标文件 ⇒ ⇒ 读面看不到它）。
+  static Future<void> _writeAtomically(File file, String content) async {
+    final tmp = File('${file.path}.tmp');
+    try {
+      await tmp.writeAsString(content, flush: true);
+    } catch (_) {
+      await _discardTempFile(tmp);
+      rethrow;
+    }
+    // ⚠️ **rename 覆盖**时会撞**共享冲突**：Windows 上若目标正被**另一个句柄**
+    //   打开着（读面 / 索引器 / 杀毒软件）⇒ ⇒ rename 报 ERROR_SHARING_VIOLATION
+    //   （Dart 映射成 [PathAccessException]）⇒ ⇒ 那是**瞬时**的 ⇒ ⇒ 有限重试即可。
+    //   ⚠️ 只重试这一类 ⇒ ⇒ 别的失败（磁盘满 / 权限 / 路径不存在）**立即**失败
+    //   ⇒ ⇒ 不许把真失败拖成慢失败，也不许把它重试成「成功」。
+    Object? lastError;
+    for (var attempt = 0; attempt < 8; attempt++) {
+      try {
+        await tmp.rename(file.path);
+        return;
+      } on PathAccessException catch (e) {
+        lastError = e;
+        await Future<void>.delayed(const Duration(milliseconds: 25));
+      }
+    }
+    await _discardTempFile(tmp);
+    throw lastError!;
+  }
+
+  /// 丢掉临时文件（尽力而为 ⇒ ⇒ 失败不许盖掉真正的失败）。
+  static Future<void> _discardTempFile(File tmp) async {
+    try {
+      if (await tmp.exists()) await tmp.delete();
+    } catch (_) {
+      // 临时文件删不掉就留着 ⇒ ⇒ 它**不是**目标文件 ⇒ ⇒ 读面看不到它。
     }
   }
 
