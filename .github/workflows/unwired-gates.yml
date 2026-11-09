@@ -38,6 +38,12 @@ jobs:
     name: Unwired Gates
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      # ⚠️⚠️ **secrets 不能直接用在 step 的 `if:` 里**（平台限制，2026-11-11 真 CI 实测）
+      #    ⇒ ⇒ 那个写法会让**整个 workflow 文件被拒绝加载**⇒ ⇒ run 的名字变成**文件路径**
+      #    ⇒ ⇒ 且报「This run likely failed because of a workflow file issue」
+      #    ⇒ ⇒ 修法：把 secret 映射到**作业级 env** ⇒ ⇒ `if:` 只引用 env 上下文。
+      IBLOC_TOKEN: ${{ secrets.IBLOC_TOKEN }}
     steps:
       - name: Checkout shadow
         uses: actions/checkout@v7
@@ -52,8 +58,6 @@ jobs:
       # ⚠️ 这里**不硬失败**：token 缺失只警告 ⇒ ⇒ 闸自己报「判不了」（退出码 2）
       #    ⇒ ⇒ 「读不到」既不伪装成「有问题」，也不伪装成「绿」。
       - name: Require cross-repo token
-        env:
-          IBLOC_TOKEN: ${{ secrets.IBLOC_TOKEN }}
         run: |
           if [ -z "$IBLOC_TOKEN" ]; then
             echo "::warning::secrets.IBLOC_TOKEN is not configured ⇒ ⇒ 跨仓闸会报「判不了」（退出码 2）⇒ ⇒ 那一格没验成。"
@@ -62,20 +66,20 @@ jobs:
           fi
 
       - name: Checkout telencephalon
-        if: ${{ secrets.IBLOC_TOKEN != '' }}
+        if: ${{ env.IBLOC_TOKEN != '' }}
         uses: actions/checkout@v7
         with:
           repository: iBLOC/telencephalon
           path: telencephalon
-          token: ${{ secrets.IBLOC_TOKEN }}
+          token: ${{ env.IBLOC_TOKEN }}
 
       - name: Checkout hippocampus
-        if: ${{ secrets.IBLOC_TOKEN != '' }}
+        if: ${{ env.IBLOC_TOKEN != '' }}
         uses: actions/checkout@v7
         with:
           repository: iBLOC/hippocampus
           path: hippocampus
-          token: ${{ secrets.IBLOC_TOKEN }}
+          token: ${{ env.IBLOC_TOKEN }}
 
       # ⚠️ neuron 是**公开仓** ⇒ ⇒ 不用 token
       - name: Checkout neuron
