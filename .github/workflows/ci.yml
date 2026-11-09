@@ -731,6 +731,32 @@ jobs:
         run: |
           FLUTTER_SDK="${FLUTTER_ROOT:-$(dirname "$(dirname "$(readlink -f "$(command -v flutter)")")")}"
           printf 'sdk.dir=%s\nflutter.sdk=%s\n' "$ANDROID_HOME" "$FLUTTER_SDK" > local.properties
+          # ⚠️⚠️ **先下载 Gradle 分发包，再跑测试** —— 两件事**拆开**
+          #    ⇒ ⇒ 「下载失败」与「测试失败」**不会长得一样** ⇒ ⇒ 红的时候
+          #    一眼能看出是哪一层（这一族的老毛病：失败长得像失败）。
+          #
+          # ⚠️ 实测 2026-11-09：GitHub 的 release CDN 偶发 **HTTP 504**
+          #    （gradle-8.14-all.zip 那个 ~200MB 的包）⇒ ⇒ 一失败就整条
+          #    job 红 ⇒ ⇒ 而红的其实是**网络**，不是测试 ⇒ ⇒ ⇒ 重试 3 次，
+          #    仍失败就**明确说网络**（不是「测试失败」）⇒ ⇒ 让人一眼知道
+          #    该重跑 job，而不是去查代码。
+          #
+          # ⚠️ 用 `./gradlew --version` 触发下载（wrapper 会先把分发包装好）
+          #    ⇒ ⇒ 下载这步**单独**判 ⇒ ⇒ 真测试失败时不会被重试掩盖。
+          for attempt in 1 2 3; do
+            if ./gradlew --version > /tmp/gradle-dist.log 2>&1; then
+              echo "Gradle 分发包就绪（第 ${attempt} 次尝试）"
+              break
+            fi
+            cat /tmp/gradle-dist.log
+            if [ "${attempt}" -lt 3 ]; then
+              echo "::warning::Gradle 分发包下载失败（第 ${attempt}/3 次）—— 15 秒后重试"
+              sleep 15
+            else
+              echo "::error::Gradle 分发包连续 3 次下载失败 ⇒ ⇒ 这是**网络**问题（GitHub release CDN 偶发 504），**不是测试失败** ⇒ ⇒ 直接重跑本 job 即可，不必查代码。"
+              exit 1
+            fi
+          done
           ./gradlew :app:testDebugUnitTest
 
   ps1-portability:
