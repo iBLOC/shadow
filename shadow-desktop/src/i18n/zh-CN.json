@@ -4,7 +4,30 @@
     "stopRecording": "停止录音",
     "noSpeechDetected": "未检测到语音，请重试",
     "processing": "处理中...",
-    "error": "语音处理失败"
+    "error": "语音处理失败",
+    "title": "语音对话",
+    "subtitle": "对着麦克风说话，端脑会听、会想、会答",
+    "start": "开始录音",
+    "stop": "停止录音",
+    "hint_idle": "按下麦克风开始说话",
+    "hint_active": "正在听…… 再次按下结束",
+    "transcript": "转写",
+    "speakingHint": "端脑正在回答",
+    "startHint": "点击麦克风开始一次语音对话",
+    "tip_native": "原生采集：走系统录音通道",
+    "tip_https": "浏览器采集：走 HTTPS 通道",
+    "mic": "麦克风",
+    "opus": "Opus",
+    "turns": "轮次",
+    "status": {
+      "idle": "空闲",
+      "connecting": "连接中",
+      "listening": "聆听中",
+      "speaking": "说话中",
+      "processing": "处理中",
+      "bargeIn": "被打断",
+      "error": "出错"
+    }
   },
   "brainFace": {
     "conflict": "端脑面没起来：{addr} 被别的进程占着。现在的对话不会走这个 App 的大脑 —— 关掉占用者后会自动接管。",

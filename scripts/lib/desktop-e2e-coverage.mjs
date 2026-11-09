@@ -198,12 +198,80 @@ export function resolvePlaywrightCoverage(stems, inventory) {
   const covered = [];
   const unresolved = [];
   for (const stem of stems) {
+    // ⚠️⚠️ **三种点名形式（2026-11-11 真跑级实测）** —— Playwright 的 CLI
+    //   过滤参数是**正则** ⇒ ⇒ 「点名」有好几种写法，静态推导必须都认：
+    //   ① **主干**（`voice`）—— 老写法，映射到 `<stem>.spec.ts`；
+    //   ② **路径**（`tests/e2e-ui/voice.spec.ts`）—— 精确到文件；
+    //   ③ **转义正则**（`tests/e2e-ui/voice\.spec\.ts$`）—— 路径再当正则用。
+    //   ⇒ ⇒ 只认①的话，②③会被当成「对不上任何规格」⇒ ⇒ C4 判红 ⇒ ⇒
+    //   ⇒ 「CI 已经点名了却报判不了」⇒ ⇒ 那是**尺子认不出被测物的写法**。
+    //   ⇒ ⇒ 另加第四种：**零过滤参数** ⇒ ⇒ Playwright 跑**整族** ⇒ ⇒
+    //   ⇒ 覆盖集 = 整个 inventory（这正是「不带过滤」的真实语义）。
+    const pathHit = inventory.filter((f) => f === stem || f.endsWith('/' + stem));
+    if (pathHit.length > 0) {
+      covered.push(...pathHit);
+      continue;
+    }
+    // 转义正则：`a\.b\.ts$` ⇒ ⇒ 去掉转义反斜杠后按后缀匹配。
+    const unescaped = stem.replace(/\\([.\\^$*+?()\[\]{}|/-])/g, '$1');
+    if (unescaped !== stem) {
+      const reHit = inventory.filter((f) => {
+        const base = f.split('/').pop() || f;
+        try {
+          return new RegExp(stem).test(base) || new RegExp(stem).test(f);
+        } catch {
+          return false;
+        }
+      });
+      if (reHit.length > 0) {
+        covered.push(...reHit);
+        continue;
+      }
+    }
     const hit = inventory.filter((f) => f.endsWith('/' + stem + '.spec.ts'));
     if (hit.length === 1) covered.push(hit[0]);
     else if (hit.length === 0) unresolved.push(stem);
     else covered.push(...hit);
   }
   return { covered, unresolved };
+}
+
+/**
+ * 「零过滤参数」⇒ ⇒ Playwright 跑**整族**。
+ *
+ * ⚠️ 为什么这一格承重（2026-11-11 真跑级实测）：CI 那条命令原本**只点名
+ *   4 个**规格 ⇒ ⇒ 22 个规格一次都没跑过 ⇒ ⇒ 刀 M 把它记成「未覆盖 35」。
+ *   ⇒ ⇒ 修法是**去掉过滤参数**（跑全族）⇒ ⇒ 但闸的静态推导走「位置参数」
+ *   ⇒ ⇒ 零位置参数 ⇒ ⇒ 覆盖集算出来是 0 ⇒ ⇒ **尺子认不出「全跑」这件事**
+ *   ⇒ ⇒ 所以这一格必须显式承认：**没有过滤参数 = 没有收窄 = 整族都跑**。
+ *
+ * @param {string[]} stems  CI 点名的位置参数
+ * @param {string[]} inventory 该族的全部文件
+ * @returns {{covered: string[], all: boolean}}
+ */
+export function resolveWholeFamily(stems, inventory) {
+  if (stems.length > 0) return { covered: [], all: false };
+  return { covered: inventory.slice(), all: true };
+}
+
+/**
+ * CI 里**到底有没有** `playwright test` 调用。
+ *
+ * ⚠️⚠️ **为什么这一格承重**（2026-11-11 刀 N 实测抓到的盲区）：
+ *   「零过滤参数 ⇒ ⇒ 跑整族」这条推理**有一个前提** —— CI 里**真的**有
+ *   一条 `playwright test` 命令 ⇒ ⇒ 若那条命令**整个被删掉**（或改名、
+ *   或被注释掉）⇒ ⇒ 「零过滤参数」仍然成立（还是零个！）⇒ ⇒
+ *   ⇒ ⇒ 而「整族覆盖」的结论就变成**空头** ⇒ ⇒ **闸照样绿**
+ *   ⇒ ⇒ ⇒ **CI 已经不跑 E2E 了，闸却说「26 个全覆盖」**
+ *   ⇒ ⇒ ⇒ 那正是「**失败长得像成功**」的经典形态（尺子被用坏时暴露）。
+ *   ⇒ ⇒ 修法：**零过滤参数**必须**同时**满足「CI 里真的有 playwright 调用」。
+ *
+ * @param {string[]} runTexts 全部 workflow 的 `run:` 正文
+ * @returns {boolean}
+ */
+export function hasPlaywrightInvocation(runTexts) {
+  const all = Array.isArray(runTexts) ? runTexts.join('\n') : String(runTexts || '');
+  return /\bplaywright\s+test\b/.test(all);
 }
 
 /**
@@ -250,6 +318,15 @@ export function evaluateLedger(input) {
   const covered = input.covered || new Map();
   const ledger = Array.isArray(input.ledger) ? input.ledger : [];
   const unresolvedStems = input.unresolvedStems || [];
+  // ⚠️⚠️ **哪些家族是「整族覆盖」**（2026-11-11 刀 N 实测踩到的盲区）：
+  //   CI 改成「不带过滤参数」⇒ ⇒ Playwright 跑整个 testDir ⇒ ⇒ 闸的静态
+  //   推导也报「整族都覆盖了」⇒ ⇒ **于是新增一个规格会自动被盖住**
+  //   ⇒ ⇒ C1 不触发 ⇒ ⇒ **「新增即红」失效** ⇒ ⇒ 债悄悄变大没人看见。
+  //   ⇒ ⇒ 这跟「pattern 登记」是**同一族**的盲区（承台账里那条教训：
+  //   ⇒ ⇒ 「登记/覆盖」必须精确到能让新增漏网变成不可能）。
+  //   ⇒ ⇒ 修法：整族覆盖**不等于**点名覆盖 ⇒ ⇒ 新增文件要么被**点名**
+  //   ⇒ ⇒ （那才叫「真跑」）⇒ ⇒ 要么显式登记成债。
+  const wholeFamily = input.wholeFamily || new Set();
 
   const violations = [];
   const readings = [];
@@ -274,6 +351,16 @@ export function evaluateLedger(input) {
   for (const family of FAMILIES) {
     const files = (inventory.get(family.id) || []).slice().sort();
     const cov = new Set(covered.get(family.id) || []);
+    // ⚠️⚠️ **「整族覆盖」的真实语义**（2026-11-11 刀 N 实测的盲区）：
+    //   CI 不带过滤参数 ⇒ ⇒ Playwright 跑**整个 testDir** ⇒ ⇒ **盘上每个
+    //   文件（含新加的）都真被跑了** ⇒ ⇒ 新文件**不是隐形债**（它真跑了）。
+    //   ⇒ ⇒ 所以「整族覆盖」下**不适用** C1（未登记的漏跑）——
+    //   ⇒ ⇒ 但它**适用**另一条：**被测物自己的读数**（`playwright --list`）
+    //   ⇒ ⇒ 必须与静态推导一致（那是 C5）⇒ ⇒ 尺子对着被测物。
+    //   ⇒ ⇒ 换句话说：**盲区不在「整族覆盖」，而在「新增文件会不会真跑」**
+    //   ⇒ ⇒ 那要靠 C5（探针 `--list` 会列出新文件 ⇒ ⇒ 对不上就红）。
+    //   ⇒ ⇒ ⚠️ 所以这里**不改** uncovered 的算法（整族覆盖 ⇒ 全部真跑）
+    //   ⇒ ⇒ 而是把「新增文件」这件事交给 C5 抓。
     const uncovered = files.filter((f) => !cov.has(f));
 
     let registered = 0;

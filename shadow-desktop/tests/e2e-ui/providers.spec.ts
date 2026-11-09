@@ -11,7 +11,7 @@ test.describe('Providers Page', () => {
   });
 
   test('页面标题正确显示', async ({ page }) => {
-    await expect(page.locator('h1')).toContainText('providers.title');
+    await expect(page.locator('h1')).toContainText('大模型服务提供商');
   });
 
   test('显示供应商列表', async ({ page }) => {

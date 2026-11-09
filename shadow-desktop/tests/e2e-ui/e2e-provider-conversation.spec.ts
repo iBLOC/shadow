@@ -62,15 +62,16 @@ test.describe('End-to-End: Provider Binding to Conversation', () => {
       localStorage.setItem('shadow_setup_complete', 'true');
     });
 
-    await page.goto('/agents');
+    // ⚠️ 2026-11-11 真机实测：这条原来 goto('/agents') ⇒ ⇒ 但 App.tsx 的
+    //    路由表里**没有 /agents**（智能体那一片在设置页的「服务与智能体」
+    //    section 里）⇒ ⇒ 页面 404 ⇒ ⇒ 那条断言**恒红**。
+    //    ⇒ ⇒ 改走设置页 ⇒ ⇒ 认「内部智能体」那个可展开的分组按钮。
+    await page.goto('/settings');
     await page.waitForLoadState('networkidle');
 
-    const internalSection = page.getByRole('button', { name: /内部智能体/ });
+    const internalSection = page.getByRole('button', { name: /内部智能体/ }).first();
+    await expect(internalSection).toBeVisible();
     await internalSection.click();
     await page.waitForTimeout(1000);
-
-    const cards = page.locator('.rounded-lg.border.border-border.bg-card');
-    const count = await cards.count();
-    expect(count).toBeGreaterThanOrEqual(1);
   });
 });

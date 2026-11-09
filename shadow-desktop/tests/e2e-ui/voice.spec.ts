@@ -11,7 +11,7 @@ test.describe('Voice Page', () => {
   });
 
   test('页面标题正确显示', async ({ page }) => {
-    await expect(page.locator('h1')).toContainText('语音');
+    await expect(page.locator('h1')).toContainText('语音对话');
   });
 
   test('显示语音设置', async ({ page }) => {

@@ -189,10 +189,20 @@ jobs:
           set +e
           set -uo pipefail
           OUT="$RUNNER_TEMP/playwright-e2e.txt"
+          # ⚠️⚠️⚠️ **2026-11-11 真跑级实测：这里原来只点名 4 个规格**
+          #   （e2e-conversation-flow / e2e-task-scheduling / business-flow-ui /
+          #   telencephalon-endpoints）⇒ ⇒ **另外 22 个规格的断言从未在 CI
+          #   里执行过**（刀 M 的取证：39 个 E2E 文件，CI 真跑 4 个 = 10%）。
+          #   ⇒ ⇒ 现在**去掉过滤参数** ⇒ ⇒ Playwright 按自己的语义跑**整个
+          #   testDir**（26 个规格 / 102 条用例）⇒ ⇒ 债从「登记」变成「真跑」。
+          #   ⇒ ⇒ ⚠️ **为什么不用「逐个点名」**：Playwright 的 CLI 过滤参数是
+          #   **正则**（实测：`conversation` 会同时命中 conversation-chat 与
+          #   conversation）⇒ ⇒ 点名 26 个要写 26 条转义正则 ⇒ ⇒ 脆 ⇒ ⇒
+          #   ⇒ 宁可**不点名**（跑整族）⇒ ⇒ 闸那一格也据此改（零过滤参数 = 整族）。
+          #   ⇒ ⇒ ⚠️ 本机实测读数：**95 passed / 0 failed / 7 skipped**（24.4 秒）
+          #   ⇒ ⇒ 7 条跳过是**诚实跳过**（逐条白名单在下面判）。
           xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
-            pnpm exec playwright test --reporter=github \
-              e2e-conversation-flow e2e-task-scheduling business-flow-ui \
-              telencephalon-endpoints > "$OUT" 2>&1
+            pnpm exec playwright test --reporter=github > "$OUT" 2>&1
           PSTATUS=$?
           cat "$OUT"
           if [ "$PSTATUS" != "0" ]; then
@@ -208,13 +218,51 @@ jobs:
             echo "::error::Playwright 读数里没有「N passed」—— 是不是全被 skip 了？（skip 在 Playwright 里不算失败 ⇒ ⇒ 退出码仍是 0）"
             exit 1
           fi
-          # ⚠️ **「跳过」不许算绿** —— 端脑不可达 ⇒ 那几条 spec 被 skip
-          #    ⇒ ⇒ 读数里出现 skipped ⇒ ⇒ 那一格是空的 ⇒ ⇒ 判红。
-          if printf '%s' "$CLEAN" | grep -qE '[0-9]+ skipped'; then
-            echo "::error::Playwright 读数里有 skipped —— 跳过不算失败 ⇒ ⇒ 这一格是假绿"
+          # ⚠️⚠️ **「跳过」不许算绿，但**合法跳过要**逐条白名单点名**
+          #    —— 2026-11-11 真跑级实测：全族跑起来后有 **7 条**跳过，分两族：
+          #      · ❶ **环境债**（2 条）：要 `MIMO_API_KEY` 才跑（真供应商）。
+          #      · ❷ **产品面未实现/已移除**（5 条）：`visual-qa-clarification-chip`
+          #        与 `VideoSourcesCard` 在 `src/` 里**零引用** ⇒ ⇒ 断言不可能绿
+          #        ⇒ ⇒ spec 里**诚实跳过**并写明原因（不许伪装成「跑过了」）。
+          #    ⇒ ⇒ **白名单之外**的任何一条跳过 ⇒ ⇒ 判红 ⇒ ⇒ 「跳过也算绿」
+          #    ⇒ ⇒ 依然是假绿。
+          #    ⇒ ⇒ ⚠️ 白名单按**文件名**认（不是行号/标题）⇒ ⇒ 标题会变。
+          SKIPPED_ALLOW=(
+            "e2e-provider-conversation.spec.ts"   # ❶ 要 MIMO_API_KEY（环境债）
+            "providers-models.spec.ts"            # ❶ 要 MIMO_API_KEY（环境债）
+            "video-sources.spec.ts"               # ❷ 产品面已从设置页移除
+            "visual-qa-clarification.spec.ts"     # ❷ 产品面从未实现
+          )
+          SKIPPED_LINES=$(printf '%s' "$CLEAN" | grep -E '^[\s-]*-[\s-]+[0-9]+ \[chromium\]' || true)
+          SKIPPED_TOTAL=$(printf '%s' "$SKIPPED_LINES" | grep -c '\[chromium\]' || true)
+          if [ "$SKIPPED_TOTAL" -gt 0 ]; then
+            echo "::notice::逐条跳过读数（$SKIPPED_TOTAL 条）—— 逐条对白名单："
+            printf '%s\n' "$SKIPPED_LINES" | sed 's/^/    /'
+            UNALLOWED=0
+            while IFS= read -r line; do
+              [ -z "$line" ] && continue
+              OK=0
+              for allow in "${SKIPPED_ALLOW[@]}"; do
+                if printf '%s' "$line" | grep -q "$allow"; then OK=1; break; fi
+              done
+              if [ "$OK" != "1" ]; then
+                echo "::error::白名单外的跳过：$line"
+                UNALLOWED=1
+              fi
+            done <<< "$SKIPPED_LINES"
+            if [ "$UNALLOWED" != "0" ]; then
+              echo "::error::有跳过不在白名单里 —— 跳过不算失败 ⇒ ⇒ 这一格是假绿"
+              exit 1
+            fi
+            echo "::notice::全部 $SKIPPED_TOTAL 条跳过都在白名单里（逐条点名过）"
+          fi
+          # ⚠️⚠️ **failed 一律判红** —— Playwright 自己的退出码已经覆盖这一条，
+          #    但**逐条点名**红的是哪几条 ⇒ ⇒ 「红得莫名其妙」是最贵的失败。
+          if printf '%s' "$CLEAN" | grep -qE '[0-9]+ failed'; then
+            echo "::error::Playwright 读数里有 failed —— 逐条名字在上面的输出里"
             exit 1
           fi
-          echo "::notice::Playwright 读数：$PASSED（且无 skipped）"
+          echo "::notice::Playwright 读数：$PASSED（且无白名单外的跳过）"
 
       - name: Upload Playwright report on failure
         if: failure()

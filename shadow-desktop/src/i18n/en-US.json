@@ -4,7 +4,30 @@
     "stopRecording": "Stop Recording",
     "noSpeechDetected": "No speech detected, please try again",
     "processing": "Processing...",
-    "error": "Voice processing failed"
+    "error": "Voice processing failed",
+    "title": "Voice conversation",
+    "subtitle": "Speak into the microphone; the brain listens, thinks, and answers",
+    "start": "Start recording",
+    "stop": "Stop recording",
+    "hint_idle": "Press the microphone to start speaking",
+    "hint_active": "Listening… press again to stop",
+    "transcript": "Transcript",
+    "speakingHint": "The brain is answering",
+    "startHint": "Tap the microphone to start a voice conversation",
+    "tip_native": "Native capture: uses the system recording channel",
+    "tip_https": "Browser capture: uses the HTTPS channel",
+    "mic": "Microphone",
+    "opus": "Opus",
+    "turns": "Turns",
+    "status": {
+      "idle": "Idle",
+      "connecting": "Connecting",
+      "listening": "Listening",
+      "speaking": "Speaking",
+      "processing": "Processing",
+      "bargeIn": "Interrupted",
+      "error": "Error"
+    }
   },
   "brainFace": {
     "conflict": "The endbrain face is not up: {addr} is held by another process. Conversations are not running on this app's brain — it takes over as soon as the port is free.",

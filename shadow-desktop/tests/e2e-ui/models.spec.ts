@@ -34,7 +34,7 @@ test.describe('Models Page', () => {
     await cloudTab.click();
     await page.waitForTimeout(500);
     
-    const addButton = page.locator('button:has-text("添加供应商")');
+    const addButton = page.locator('button:has-text("添加供应商")').first();
     await expect(addButton).toBeVisible();
   });
 
@@ -43,7 +43,7 @@ test.describe('Models Page', () => {
     await cloudTab.click();
     await page.waitForTimeout(500);
     
-    const addButton = page.locator('button:has-text("添加供应商")');
+    const addButton = page.locator('button:has-text("添加供应商")').first();
     await addButton.click();
     
     // Check for the modal heading
@@ -55,7 +55,7 @@ test.describe('Models Page', () => {
     await cloudTab.click();
     await page.waitForTimeout(500);
     
-    const addButton = page.locator('button:has-text("添加供应商")');
+    const addButton = page.locator('button:has-text("添加供应商")').first();
     await addButton.click();
     
     // Check for provider buttons in the modal
@@ -70,7 +70,7 @@ test.describe('Models Page', () => {
     await cloudTab.click();
     await page.waitForTimeout(500);
     
-    const addButton = page.locator('button:has-text("添加供应商")');
+    const addButton = page.locator('button:has-text("添加供应商")').first();
     await addButton.click();
     
     await page.locator('button:has-text("Xiaomi MiMo")').click();
@@ -84,7 +84,7 @@ test.describe('Models Page', () => {
     await cloudTab.click();
     await page.waitForTimeout(500);
     
-    const addButton = page.locator('button:has-text("添加供应商")');
+    const addButton = page.locator('button:has-text("添加供应商")').first();
     await addButton.click();
     
     const nameInput = page.locator('input[placeholder="OpenAI"]');
@@ -104,7 +104,7 @@ test.describe('Models Page', () => {
     await cloudTab.click();
     await page.waitForTimeout(500);
     
-    const addButton = page.locator('button:has-text("添加供应商")');
+    const addButton = page.locator('button:has-text("添加供应商")').first();
     await addButton.click();
     
     const cancelButton = page.locator('button:has-text("取消")');

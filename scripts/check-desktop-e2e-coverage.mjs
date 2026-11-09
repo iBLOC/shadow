@@ -57,6 +57,8 @@ import {
   logicalCommands,
   parsePlaywrightArgs,
   resolvePlaywrightCoverage,
+  resolveWholeFamily,
+  hasPlaywrightInvocation,
 } from './lib/desktop-e2e-coverage.mjs';
 import { COVERAGE_DEBT } from './lib/desktop-e2e-coverage-debt.mjs';
 import { scanYamlText } from './lib/yaml-valid.mjs';
@@ -301,6 +303,26 @@ function selfTest() {
     );
     return drift.length === 0;
   });
+  add('覆盖推导：路径式点名 ⇒ ⇒ 认得（CI 点名 tests/e2e-ui/a.spec.ts）', () => {
+    const inv = ['tests/e2e-ui/a.spec.ts', 'tests/e2e-ui/b.spec.ts'];
+    const r = resolvePlaywrightCoverage(['tests/e2e-ui/a.spec.ts'], inv);
+    return r.covered.length === 1 && r.covered[0] === 'tests/e2e-ui/a.spec.ts' && r.unresolved.length === 0;
+  });
+  add('覆盖推导：转义正则式点名 ⇒ ⇒ 认得（Playwright 的过滤参数是**正则**）', () => {
+    const inv = ['tests/e2e-ui/a.spec.ts', 'tests/e2e-ui/b.spec.ts'];
+    const r = resolvePlaywrightCoverage(['tests/e2e-ui/a\\.spec\\.ts$'], inv);
+    return r.covered.length === 1 && r.covered[0] === 'tests/e2e-ui/a.spec.ts' && r.unresolved.length === 0;
+  });
+  add('整族推导：零过滤参数 ⇒ ⇒ 覆盖整族（Playwright 的真实语义：不点名就跑整个 testDir）', () => {
+    const inv = ['tests/e2e-ui/a.spec.ts', 'tests/e2e-ui/b.spec.ts'];
+    const r = resolveWholeFamily([], inv);
+    return r.all === true && r.covered.length === 2;
+  });
+  add('整族推导孪生：有过滤参数 ⇒ ⇒ 不许当整族（那一格只对「零过滤」成立）', () => {
+    const inv = ['tests/e2e-ui/a.spec.ts', 'tests/e2e-ui/b.spec.ts'];
+    const r = resolveWholeFamily(['a'], inv);
+    return r.all === false && r.covered.length === 0;
+  });
   add('读数分层：总数与分层能对上（对不上 ⇒ ⇒ 分层实现有洞）', () => {
     const inventory = new Map(FAMILIES.map((f) => [f.id, []]));
     inventory.set('playwright', ['tests/e2e-ui/a.spec.ts', 'tests/e2e-ui/b.spec.ts']);
@@ -355,7 +377,27 @@ function main() {
   const unresolvedStems = [];
   const pwInv = inventory.get('playwright') || [];
   const pw = resolvePlaywrightCoverage(uniqueStems, pwInv);
-  covered.set('playwright', pw.covered);
+  // ⚠️⚠️ **「零过滤参数」⇒ ⇒ 跑的是整族** —— CI 那条命令**不带**位置参数
+  //   ⇒ ⇒ Playwright 按自己的语义跑**整个 testDir** ⇒ ⇒ 覆盖集 = 全部规格
+  //   ⇒ ⇒ 而不认这一格 ⇒ ⇒ 静态推导会算成「覆盖 0」⇒ ⇒ **尺子把
+  //   「全跑」读成「一个都没跑」** ⇒ ⇒ 那是「失败长得像成功」的反面
+  //   ⇒ ⇒ 「没跑」被说成「跑了」也一样坏。
+  const pwWhole = resolveWholeFamily(uniqueStems, pwInv);
+  // ⚠️⚠️⚠️ **「零过滤参数 ⇒ ⇒ 跑整族」有一个前提：CI 里真的有 playwright 调用**
+  //   —— 2026-11-11 刀 N 实测抓到的盲区：把 CI 里那条 `playwright test`
+  //   **整个删掉** ⇒ ⇒ 「零过滤参数」**仍然成立**（还是零个！）⇒ ⇒
+  //   ⇒ ⇒ 而「整族覆盖」的结论就变成**空头** ⇒ ⇒ **闸照样绿**
+  //   ⇒ ⇒ ⇒ **CI 已经不跑 E2E 了，闸却说「26 个全覆盖」**
+  //   ⇒ ⇒ ⇒ 那是「失败长得像成功」的经典形态 ⇒ ⇒ 这里把它挡死。
+  const pwInvoked = hasPlaywrightInvocation(runTexts);
+  // ⚠️ **不提前退出** —— 让它走完正常对账 ⇒ ⇒ 覆盖数算 0 ⇒ ⇒ C1 会**逐条**
+  //   点名那 26 个「既没被 CI 跑到、也没登记」的规格 ⇒ ⇒ 「红在哪」看得见
+  //   ⇒ ⇒ （提前 exit 只能告诉你「有问题」，逐条点名才能告诉你「哪些」）。
+  if (!pwInvoked) {
+    console.error('❌ CI 里**找不到** `playwright test` 调用 ⇒ ⇒ Playwright 族**一次都没跑**');
+    console.error('   ⇒ ⇒ 「零过滤参数 ⇒ ⇒ 跑整族」的前提不成立 ⇒ ⇒ 覆盖数按 0 算');
+  }
+  covered.set('playwright', pwWhole.all && pwInvoked ? pwWhole.covered : pw.covered);
   unresolvedStems.push(...pw.unresolved);
   for (const family of FAMILIES) {
     if (family.id === 'playwright') continue;
@@ -366,7 +408,12 @@ function main() {
   const probe = probePlaywrightList(uniqueStems);
   const scaleDrift = [];
   if (!probe.unavailable) {
-    scaleDrift.push(...compareScale(pw.covered, probe.covered));
+    // ⚠️⚠️ **C5 的静态侧必须与上面 `covered.set` 用**同一个**口径** ——
+    //   那是「零过滤参数 ⇒ ⇒ 整族」时的 pwWhole.covered ⇒ ⇒ 而这里若用
+    //   pw.covered（零 stems ⇒ ⇒ 空数组）⇒ ⇒ C5 会把**整族**全判成漂移
+    //   ⇒ ⇒ 「尺子自己漂了」而不是「尺子抓到了漂移」⇒ ⇒ 那是**假红**。
+    const staticPw = pwWhole.all && pwInvoked ? pwWhole.covered : pw.covered;
+    scaleDrift.push(...compareScale(staticPw, probe.covered));
   }
 
   const { violations, readings, coveredTotal, uncoveredTotal } = evaluateLedger({

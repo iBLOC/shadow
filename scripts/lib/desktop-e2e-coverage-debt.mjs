@@ -4,11 +4,11 @@
  * ⚠️⚠️ **为什么要有这份清单**（2026-11-11 真跑级实测 · 本仓 iBLOC/shadow）：
  *   「仓里有这个测试文件」**不等于**「它被跑过」⇒ ⇒ 覆盖率故事里那一片是**空头**。
  *   实测（`scripts/check-desktop-e2e-coverage.mjs`）：
- *   · Playwright 族 **26 个规格**，CI 的 `playwright test` 命令**只点名 4 个**
- *     ⇒ ⇒ **22 个规格的断言从未在 CI 里被执行过**；
- *   · wdio 族 **4 个** ＋ tauri-e2e 族 **6 个** ＋ 旧 e2e-tests 族 **3 个**
+ *   · ✅ **Playwright 族 26 个规格 —— 2026-11-11 刀 N 已销账**（CI 改成**不带
+ *     过滤参数** ⇒ ⇒ 跑整个 testDir ⇒ ⇒ 26 个规格全部进 CI）⇒ ⇒ 本族**零债**；
+ *   · ⚠️ wdio 族 **4 个** ＋ tauri-e2e 族 **6 个** ＋ 旧 e2e-tests 族 **3 个**
  *     ⇒ ⇒ CI 里**一次都没跑过**（只有 E2E Typecheck 给它们做**类型**检查
- *     ⇒ ⇒ 「类型对了」≠「跑过了」）。
+ *     ⇒ ⇒ 「类型对了」≠「跑过了」）⇒ ⇒ **本清单剩下的 13 条就是它们**。
  *
  * ⇒ ⇒ 这份清单的作用：**把隐形债变成显形债**，并且**新增即红**
  *   （新加一个规格却忘了接进 CI ⇒ ⇒ 闸立刻红 ⇒ ⇒ 覆盖率故事不会悄悄变虚）。
@@ -47,28 +47,6 @@ const R = {
  */
 export const COVERAGE_DEBT = [
   // ── Playwright 族：CI 只点名 4 个 ⇒ ⇒ 其余 22 个从未在 CI 里跑过。
-  { family: 'playwright', file: 'tests/e2e-ui/conversation-chat.spec.ts', reason: R.playwright },
-  { family: 'playwright', file: 'tests/e2e-ui/conversation.spec.ts', reason: R.playwright },
-  { family: 'playwright', file: 'tests/e2e-ui/discovery.spec.ts', reason: R.playwright },
-  { family: 'playwright', file: 'tests/e2e-ui/e2e-provider-conversation.spec.ts', reason: R.playwright },
-  { family: 'playwright', file: 'tests/e2e-ui/flows.spec.ts', reason: R.playwright },
-  { family: 'playwright', file: 'tests/e2e-ui/group.spec.ts', reason: R.playwright },
-  { family: 'playwright', file: 'tests/e2e-ui/logs.spec.ts', reason: R.playwright },
-  { family: 'playwright', file: 'tests/e2e-ui/mcp.spec.ts', reason: R.playwright },
-  { family: 'playwright', file: 'tests/e2e-ui/memory.spec.ts', reason: R.playwright },
-  { family: 'playwright', file: 'tests/e2e-ui/models.spec.ts', reason: R.playwright },
-  { family: 'playwright', file: 'tests/e2e-ui/onboarding.spec.ts', reason: R.playwright },
-  { family: 'playwright', file: 'tests/e2e-ui/providers-models.spec.ts', reason: R.playwright },
-  { family: 'playwright', file: 'tests/e2e-ui/providers.spec.ts', reason: R.playwright },
-  { family: 'playwright', file: 'tests/e2e-ui/resonance.spec.ts', reason: R.playwright },
-  { family: 'playwright', file: 'tests/e2e-ui/settings.spec.ts', reason: R.playwright },
-  { family: 'playwright', file: 'tests/e2e-ui/setup.spec.ts', reason: R.playwright },
-  { family: 'playwright', file: 'tests/e2e-ui/skills.spec.ts', reason: R.playwright },
-  { family: 'playwright', file: 'tests/e2e-ui/taskboard.spec.ts', reason: R.playwright },
-  { family: 'playwright', file: 'tests/e2e-ui/three-state-providers.spec.ts', reason: R.playwright },
-  { family: 'playwright', file: 'tests/e2e-ui/video-sources.spec.ts', reason: R.playwright },
-  { family: 'playwright', file: 'tests/e2e-ui/visual-qa-clarification.spec.ts', reason: R.playwright },
-  { family: 'playwright', file: 'tests/e2e-ui/voice.spec.ts', reason: R.playwright },
 
   // ── wdio 族：整族都没进 CI（pnpm test:wdio 需要 chromedriver ＋ 真浏览器）。
   { family: 'wdio', file: 'tests/wdio/api.test.ts', reason: R.wdio },

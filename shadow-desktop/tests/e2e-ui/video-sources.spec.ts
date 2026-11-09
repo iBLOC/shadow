@@ -36,6 +36,11 @@ test.describe('Video Sources Card', () => {
     await expect(page.getByText(/No video sources found|未发现视频设备/)).toBeVisible();
   });
 
+  // ⚠️⚠️ **2026-11-11 真机实测：视频源那一片已从设置页移除** ——
+  //    `VideoSourcesCard` 在 `src/` 里**零引用**，`视频源` 这个 i18n 键也**零引用**
+  //    ⇒ ⇒ 设置页没有「视频源」section ⇒ ⇒ 这条用例**不可能绿**。
+  //    ⇒ ⇒ 诚实跳过并写明原因（不许「跳过也算绿」）。
+  test.skip(true, '产品面已移除：src/ 里零引用 VideoSourcesCard ⇒ ⇒ 设置页没有视频源 section ⇒ ⇒ 诚实跳过');
   test('displays video source when configured', async ({ page }) => {
     // Mock 端脑 API to return one video source
     await page.route('**/api/telencephalon/video-sources', (route) => {
