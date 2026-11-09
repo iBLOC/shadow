@@ -32,10 +32,16 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { checkStagedWipes, emptyBlobHash } from './lib/precommit-wipe.mjs';
 
-const TMP = 'C:/Projects/iBLOC/shadow/.local/selftest-precommit-hook';
+// ⚠️ **不许写死 Windows 绝对路径**（2026-11-11 真 CI 实测）：写死 ⇒ ⇒ Linux CI 上
+//   夹具建在字面目录名 `C:` 下，且「用绝对路径调用自己」会找不到模块
+//   ⇒ ⇒ 判据自检 0/4 ⇒ ⇒ CI 红了而本地 4/4 绿（平台差异族）。
+// ⇒ ⇒ 一律从**脚本自身位置**推路径 ⇒ ⇒ 跨平台同形。
+const HERE = fileURLToPath(new URL('.', import.meta.url));
+const TMP = join(HERE, '..', '.local', 'selftest-precommit-hook');
 
 function mkGit(cwd) {
   return (args) => {
@@ -118,7 +124,7 @@ function selftest() {
   };
   const runCli = () => {
     try {
-      const out = execFileSync('node', ['C:/Projects/iBLOC/shadow/scripts/check-precommit-hook.mjs'], {
+      const out = execFileSync('node', [join(HERE, 'check-precommit-hook.mjs')], {
         encoding: 'utf8', cwd: TMP, stdio: ['ignore', 'pipe', 'pipe'],
       });
       return { code: 0, out };
