@@ -7,7 +7,6 @@ import {
   modelIdOf,
   readCapabilityDefaultsSnapshot,
   writeCapabilityDefaultsSnapshot,
-  type CatalogProviderEntry,
 } from '../../src/lib/capabilityDefaults';
 
 /**
