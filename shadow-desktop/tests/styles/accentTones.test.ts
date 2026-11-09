@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { deriveAccentTones } from '../../src/styles/accent.g';
+// ⚠️ 同上：`normalizeHexColor` 是**手写**的 ⇒ ⇒ 不住在生成物里。
+import { normalizeHexColor } from '../../src/styles/hexColor';
 
 /**
  * 主题色派生的**跨端契约**。
@@ -43,6 +45,22 @@ describe('主题色派生 —— 跨端契约', () => {
     // 亮色相（青）→ 用近黑前景；深色相（绛）→ 用近白前景。
     expect(deriveAccentTones('#22D3EE').fg).toBe('#09090B');
     expect(deriveAccentTones('#4C1D3F').fg).toBe('#FFFFFF');
+  });
+});
+
+describe('normalizeHexColor —— 任意色号输入的归一器', () => {
+  it('接受 3/6/8 位与无 # 前缀的写法', () => {
+    expect(normalizeHexColor('#abc')).toBe('#AABBCC');
+    expect(normalizeHexColor('71717A')).toBe('#71717A');
+    expect(normalizeHexColor('#71717aff')).toBe('#71717A');
+    expect(normalizeHexColor(' #22d3ee ')).toBe('#22D3EE');
+  });
+
+  it('认不得就拒绝 —— 坏值不许进 store', () => {
+    expect(normalizeHexColor('')).toBeNull();
+    expect(normalizeHexColor('#12')).toBeNull();
+    expect(normalizeHexColor('red')).toBeNull();
+    expect(normalizeHexColor('#ZZZZZZ')).toBeNull();
   });
 });
 

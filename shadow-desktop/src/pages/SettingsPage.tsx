@@ -6,12 +6,24 @@ import {
   HardDrive, Shield, Bell, Keyboard, ChevronRight,
   Cpu, Trash2, Plus, Brain, ChevronDown,
   AlertCircle, Boxes, Search, ScanLine, Link2, Unlink, Wand2,
-  Sparkles, Settings, Play, Camera, PlugZap, Bluetooth,
+  Sparkles, Settings, Play, Camera, PlugZap, Bluetooth, Pipette,
 } from 'lucide-react';
 import { safeInvoke, safeInvokeOrThrow } from '../lib/tauriSafe';
 import { isTauri } from '../lib/platform';
 import { useThemeStore } from '../stores/themeStore';
-import { accentPresets, surfaceOverrides } from '../styles/accent.g';
+import {
+  accentPresets,
+  bestForeground,
+  surfaceOverrides,
+} from '../styles/accent.g';
+// ⚠️ `normalizeHexColor` 住在**手写模块**里，不在生成物 `accent.g` 里
+//   （生成器下一次跑就会抹掉生成物里的手写行 ⇒ ⇒ 而「生成物 ≠ 生成器输出」
+//   会让生成物判据当场判红 ⇒ ⇒ 见 src/styles/hexColor.ts 的说明）。
+import { normalizeHexColor } from '../styles/hexColor';
+import {
+  fileToBackgroundDataUrl,
+  isChatBackgroundDataUrl,
+} from '../lib/chatBackground';
 import { useChatDisplayStore } from '../stores/chatDisplayStore';
 import { useTelencephalonStore } from '../stores/telencephalonStore';
 import { useAgentStore } from '../stores/agentStore';
@@ -1441,6 +1453,45 @@ function UISection() {
   const showTokenStats = useChatDisplayStore((s) => s.showTokenStats);
   const setShowTokenStats = useChatDisplayStore((s) => s.setShowTokenStats);
 
+  // 任意色号：hex 草稿 + 系统取色器。预设只是快捷方式，不是边界。
+  const [hexDraft, setHexDraft] = useState(appearance.accentSeed);
+  const [hexInvalid, setHexInvalid] = useState(false);
+  const [bgError, setBgError] = useState<string | null>(null);
+  const colorInputRef = useRef<HTMLInputElement>(null);
+  const bgFileInputRef = useRef<HTMLInputElement>(null);
+
+  // 主题色从别的入口变（预设 / 取色器 / 海马体回灌）时，草稿跟着对齐。
+  useEffect(() => {
+    setHexDraft(appearance.accentSeed);
+  }, [appearance.accentSeed]);
+
+  const commitHexDraft = () => {
+    const normalized = normalizeHexColor(hexDraft);
+    if (!normalized) {
+      setHexInvalid(true);
+      return;
+    }
+    setHexInvalid(false);
+    setHexDraft(normalized);
+    setAppearance({ accentSeed: normalized });
+  };
+
+  const handleBackgroundFile = async (file?: File | null) => {
+    if (!file) return;
+    setBgError(null);
+    try {
+      const dataUrl = await fileToBackgroundDataUrl(file);
+      setAppearance({ chatBackground: dataUrl });
+    } catch (e) {
+      // 失败要把真因说出来 —— 不许静默吞掉让用户以为设置成功了。
+      setBgError(
+        t('settings.chatBackgroundFailed', {
+          reason: e instanceof Error ? e.message : String(e),
+        }),
+      );
+    }
+  };
+
   const changeLanguage = (lng: string) => {
     i18n.changeLanguage(lng);
   };
@@ -1510,7 +1561,8 @@ function UISection() {
           label={t('settings.accentColor')}
           description={t('settings.accentColorDesc')}
         >
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-col gap-1">
+            <div className="flex flex-wrap items-center gap-2">
             {accentPresets.map((preset) => {
               const selected =
                 preset.hex.toUpperCase() === appearance.accentSeed.toUpperCase();
@@ -1532,6 +1584,68 @@ function UISection() {
                 />
               );
             })}
+            <button
+              type="button"
+              title={t('settings.accentCustom')}
+              aria-label={t('settings.accentCustomPick')}
+              data-testid="settings-accent-custom"
+              onClick={() => colorInputRef.current?.click()}
+              className={cn(
+                'flex h-7 w-7 items-center justify-center rounded-full border-2 transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                !accentPresets.some(
+                  (p) => p.hex.toUpperCase() === appearance.accentSeed.toUpperCase(),
+                )
+                  ? 'scale-110 border-foreground'
+                  : 'border-border hover:scale-105',
+              )}
+              style={{ backgroundColor: appearance.accentSeed }}
+            >
+              <Pipette
+                size={13}
+                style={{ color: bestForeground(appearance.accentSeed) }}
+              />
+            </button>
+            <input
+              ref={colorInputRef}
+              type="color"
+              value={appearance.accentSeed}
+              onChange={(e) => {
+                setHexInvalid(false);
+                setHexDraft(e.target.value.toUpperCase());
+                setAppearance({ accentSeed: e.target.value.toUpperCase() });
+              }}
+              className="sr-only"
+              aria-hidden="true"
+              tabIndex={-1}
+            />
+            <input
+              type="text"
+              value={hexDraft}
+              onChange={(e) => {
+                setHexDraft(e.target.value);
+                setHexInvalid(false);
+              }}
+              onBlur={commitHexDraft}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitHexDraft();
+              }}
+              placeholder={t('settings.accentHexPlaceholder')}
+              aria-label={t('settings.accentHexLabel')}
+              data-testid="settings-accent-hex"
+              className={cn(
+                'w-24 rounded-md border bg-background px-2 py-1 font-mono text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                hexInvalid ? 'border-destructive' : 'border-border',
+              )}
+            />
+            </div>
+            {hexInvalid && (
+              <p
+                className="text-xs text-destructive"
+                data-testid="settings-accent-hex-invalid"
+              >
+                {t('settings.accentHexInvalid')}
+              </p>
+            )}
           </div>
         </SettingRow>
 
@@ -1561,33 +1675,98 @@ function UISection() {
         </SettingRow>
 
         <SettingRow
-          label={t('settings.dialogBackground')}
-          description={t('settings.dialogBackgroundDesc')}
+          label={t('settings.background')}
+          description={t('settings.backgroundDesc')}
         >
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant={appearance.surfaceOverride ? 'outline' : 'default'}
-              size="sm"
-              onClick={() => setAppearance({ surfaceOverride: null })}
-            >
-              {t('settings.followTheme')}
-            </Button>
-            {surfaceOverrides.map((option) => (
-              <Button
-                key={option.id}
-                variant={
-                  appearance.surfaceOverride?.toUpperCase() === option.hex
-                    ? 'default'
-                    : 'outline'
-                }
-                size="sm"
-                onClick={() => setAppearance({ surfaceOverride: option.hex })}
-              >
-                {surfaceLabel(option.hex)}
-              </Button>
-            ))}
+          {/* 聊天背景图与对话框底色合并成一个「背景」设置项：
+              图与纯色是两种值类型，分槽存；合的只是入口。 */}
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1">
+              <p className="text-xs font-medium text-muted-foreground">
+                {t('settings.chatBackground')}
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                {isChatBackgroundDataUrl(appearance.chatBackground) && (
+                  <span
+                    aria-hidden
+                    data-testid="settings-chat-background-thumb"
+                    className="h-9 w-14 rounded border border-border bg-cover bg-center"
+                    style={{ backgroundImage: `url(${appearance.chatBackground})` }}
+                  />
+                )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => bgFileInputRef.current?.click()}
+                  data-testid="settings-chat-background-pick"
+                >
+                  {t('settings.chatBackgroundPick')}
+                </Button>
+                {appearance.chatBackground && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setBgError(null);
+                      setAppearance({ chatBackground: null });
+                    }}
+                    data-testid="settings-chat-background-clear"
+                  >
+                    {t('settings.chatBackgroundClear')}
+                  </Button>
+                )}
+              </div>
+              {bgError && (
+                <p
+                  className="text-xs text-destructive"
+                  data-testid="settings-chat-background-error"
+                >
+                  {bgError}
+                </p>
+              )}
+            </div>
+            <div className="flex flex-col gap-1">
+              <p className="text-xs font-medium text-muted-foreground">
+                {t('settings.dialogBackground')}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant={appearance.surfaceOverride ? 'outline' : 'default'}
+                  size="sm"
+                  onClick={() => setAppearance({ surfaceOverride: null })}
+                >
+                  {t('settings.followTheme')}
+                </Button>
+                {surfaceOverrides.map((option) => (
+                  <Button
+                    key={option.id}
+                    variant={
+                      appearance.surfaceOverride?.toUpperCase() === option.hex
+                        ? 'default'
+                        : 'outline'
+                    }
+                    size="sm"
+                    onClick={() => setAppearance({ surfaceOverride: option.hex })}
+                  >
+                    {surfaceLabel(option.hex)}
+                  </Button>
+                ))}
+              </div>
+            </div>
           </div>
         </SettingRow>
+        <input
+          ref={bgFileInputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/gif"
+          className="sr-only"
+          aria-hidden="true"
+          tabIndex={-1}
+          onChange={(e) => {
+            void handleBackgroundFile(e.target.files?.[0]);
+            e.target.value = '';
+          }}
+        />
       </SettingsCard>
 
       <SettingsCard
