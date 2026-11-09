@@ -1,0 +1,54 @@
+name: CI Actually Ran
+
+# ⚠️ **它守的是什么** —— 2026-11-11 真机实测：
+#   GitHub Actions 的 run 有两种「红」——
+#     · **真红**：job 领到 runner、跑了 step、测试真的挂了 ⇒ ⇒ 那是一个**读数**；
+#     · **门外红**：job 在**分配 runner 之前**就被拒 ⇒ ⇒ 零 step、runner_id=0、3 秒结束
+#       ⇒ ⇒ **一个测试都没跑** ⇒ ⇒ 「CI 红了」这句话是**假的**。
+#   实测：iBLOC 的**私有仓**（telencephalon 等）94 笔 run **笔笔门外红**，
+#   而**公开仓**（本仓 shadow）跑得好好的 ⇒ ⇒ 差异不在代码，在私有仓的托管 runner 配额。
+#   ⇒ ⇒ 本 workflow 守的是「**本仓这一格是跑过的**」：若最近一笔已完成的 run 是门外红
+#     ⇒ ⇒ 说明本仓的 CI 基础设施此刻坏了 ⇒ ⇒ 判红。
+#
+# ⚠️ **为什么单独成文件**：ci.yml 是**共享文件**（并行会话在飞）⇒ ⇒ 接线面**零共享**。
+#
+# ⚠️ **它量不到私有仓**：CI 上的 GITHUB_TOKEN 跨私有仓读不到（需 PAT）
+#   ⇒ ⇒ 私有仓那一族的读数在**本地**量（gh 已有 org 读权限）⇒ ⇒ 结论入台账。
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  ci-actually-ran:
+    name: CI Actually Ran
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout shadow
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      # ⚠️ **自检先跑** —— 证明这把尺子在 CI 上**真的会红**（在内存里造真形状）。
+      - name: CI-actually-ran check (self-test)
+        run: node scripts/check-ci-actually-ran.mjs --self-test
+
+      # ⚠️ 这一步量的是「**最近一笔已完成的 run**」⇒ ⇒ 不会量到当前这次（在跑）。
+      - name: CI-actually-ran check (recent runs)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/check-ci-actually-ran.mjs --repo ${{ github.repository }} --recent 5
