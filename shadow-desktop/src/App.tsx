@@ -10,7 +10,9 @@ import { migrateFromLocalStorage } from './lib/migrateSettings';
 import { migrateLegacyTenant } from './lib/tenantMigration';
 import { isTauri } from './lib/platform';
 import { safeEventListen } from './lib/tauriSafe';
-import { notifyIfWindowHidden } from './lib/notify';
+import { notify, notifyIfWindowHidden } from './lib/notify';
+import { startReminderPoller } from './lib/reminderInbox';
+import { telencephalonClient } from './lib/telencephalonClient';
 import { useTranslation } from 'react-i18next';
 import { useThemeStore } from './stores/themeStore';
 import { useIdentityStore } from './stores/identityStore';
@@ -94,6 +96,32 @@ function App() {
     return () => {
       unlisten?.();
     };
+  }, [t]);
+
+  // v2.11 — **提醒（通知）轮询** —— 端脑响了 ⇒ ⇒ 把它送到用户眼前。
+  //
+  // ⚠️ 端脑以前**在生产上从不构造**调度器 ⇒ ⇒ 用户在对话里说「提前 10 分钟
+  // 提醒我」⇒ ⇒ 提醒存进任务库 ⇒ ⇒ **永远不响** ⇒ ⇒ 而每一步都成功
+  // ⇒ ⇒ 失败长得像成功。现在端脑会响了 ⇒ ⇒ 这一段是「收到」那个出口。
+  //
+  // ⚠️ **只有真的送出去了才确认** —— 送不出去（没系统通知权限 / 不是
+  // Tauri）⇒ ⇒ 那条提醒**留在端脑的待办里** ⇒ ⇒ 下个周期再送 ⇒ ⇒ 绝不
+  // 确认掉一条用户没看到的提醒（那会让提醒**静默消失**）。
+  useEffect(() => {
+    const stop = startReminderPoller({
+      source: telencephalonClient,
+      deliver: async (n) => {
+        const body =
+          n.notification_type === 'Overdue'
+            ? t('reminders.overdue', { title: n.task_title })
+            : n.notification_type === 'NeedsConfirmation'
+              ? t('reminders.confirm', { title: n.task_title })
+              : t('reminders.reminder', { title: n.task_title });
+        return notify(t('reminders.title'), body);
+      },
+      onError: (e) => console.warn('[reminders]', e),
+    });
+    return stop;
   }, [t]);
 
   return (

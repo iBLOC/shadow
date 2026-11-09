@@ -1443,5 +1443,11 @@
   "notifications": {
     "wsDisconnectedTitle": "连接已断开",
     "wsDisconnectedBody": "Shadow 在后台运行期间，mTLS 连接断了。"
+  },
+  "reminders": {
+    "title": "任务提醒",
+    "reminder": "快到点了：{{title}}",
+    "overdue": "已过期：{{title}}",
+    "confirm": "等你确认：{{title}}"
   }
 }

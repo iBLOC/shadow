@@ -609,6 +609,24 @@ export class Telencephalon412Error extends Error {
   }
 }
 
+/**
+ * 一条提醒 —— 端脑的**通知收件箱**里的一条。
+ *
+ * ⚠️ 形状与端脑 `lobes::notification_inbox::Notification` 对齐
+ * （`notification_type` 是端脑的枚举字面量，不是随便编的字符串）。
+ */
+export interface ReminderNotification {
+  /** 通知自己的编号（拿它去 ack）。 */
+  id: string;
+  /** 任务号 —— 端脑分配的事实。 */
+  task_id: string;
+  task_title: string;
+  notification_type: 'Reminder' | 'Overdue' | 'NeedsConfirmation';
+  message: string;
+  timestamp: string;
+  due_time?: string | null;
+}
+
 export class TelencephalonClient {
   private baseUrl: string;
   private apiKey?: string;
@@ -1176,6 +1194,28 @@ export class TelencephalonClient {
     return this.request<any>(`/api/telencephalon/tasks/${taskId}/confirm`, {
       method: 'POST',
       body: JSON.stringify({ confirmed, modifications }),
+    });
+  }
+
+  /**
+   * 未确认的提醒 —— 端脑的**通知收件箱**（客户端轮询的就是它）。
+   *
+   * ⚠️ **读门**（影子锁 ∪ admin token）—— `request()` 已经把两把都带上。
+   */
+  async listNotifications(): Promise<ReminderNotification[]> {
+    return this.request<ReminderNotification[]>('/api/telencephalon/notifications');
+  }
+
+  /**
+   * 确认提醒（= 「已经送到用户眼前了」）。
+   *
+   * ⚠️ **写门**（admin token）⇒ ⇒ 影子锁开不了它 ⇒ ⇒ 别人不能替你的
+   * 客户端把提醒标记成已送达。
+   */
+  async ackNotifications(ids: string[]): Promise<void> {
+    await this.request('/api/telencephalon/notifications/ack', {
+      method: 'POST',
+      body: JSON.stringify({ ids }),
     });
   }
 

@@ -518,6 +518,7 @@ WebRTC 浏览器、桌面端自己起的 sidecar、外部端脑进程。⇒ 这�
 | `/api/telencephalon/tasks/{id}/confirm` | POST | tasks_admin | ✅ | 确认任务 ⇒ 触发执行 |
 | `/api/telencephalon/tasks/{id}/status` | POST | tasks_admin | ✅ | 改任务状态 |
 | `/api/telencephalon/tasks/{id}/update` | POST | tasks_admin | ✅ | **改任务（标题/状态/优先级/截止时间）** ⇒ 与对话面同一个落库函数 |
+| `/api/telencephalon/notifications/ack` | POST | notifications | ✅ | **确认提醒**（= 「已经送到用户眼前了」）⇒ ⇒ 写门（admin token）⇒ ⇒ 别人不能替你的客户端把提醒标记成已送达 |
 | `/api/telencephalon/video-sources` | PUT | video_source | — | 改视频源 |
 | `/api/telencephalon/video-sources/{id}/probe` | POST | video_source | — | 探测视频源 |
 | `/api/flows` | POST | flow | ✅ | 建工作流 |
@@ -566,6 +567,7 @@ WebRTC 浏览器、桌面端自己起的 sidecar、外部端脑进程。⇒ 这�
 | ~~`/api/telencephalon/devices` \| `/{id}`~~ | GET | ~~device~~ | — | **已下线**（2026-11-03 端脑仓下线「设备 MCP server」整条路：`src/api/device.rs` 删除 ⇒ 这张面不复存在） |
 | `/api/telencephalon/video-sources` \| `/{id}` | GET | video_source | — | 视频源清单 |
 | `/api/telencephalon/visual-tasks` \| `/{id}` | GET | visual_task_admin | — | 视觉任务 |
+| `/api/telencephalon/notifications` | GET | notifications | ✅ | **未确认的提醒**（任务标题与到期时间）⇒ ⇒ 读门（影子锁 ∪ admin token）⇒ ⇒ 拿不到钥匙就看不到（不是「没有提醒」） |
 | `/models/providers` | GET | providers | — | **provider 配置（含 api_key）** |
 | `/api/telencephalon/config` \| `/{section}` \| `/{section}/{key}` | GET | config_api | — | **这台大脑的全部配置**（配置中心 = Turso）⇒ ⚠️ 秘密项回包是掩码 ***（不是明文）⇒ 读门拿到的是「配置长什么样」而不是「钥匙是什么」；⚠️ 仅带 Turso 的构建有这张面 |
 | `/api/telencephalon/prefrontal/agents` | GET | prefrontal | — | 前额叶 agent 清单 |

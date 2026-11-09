@@ -15,6 +15,9 @@ import 'services/app_config_service.dart';
 import 'services/background/background_run_provider.dart';
 import 'widgets/config_save_error_banner.dart';
 import 'services/encephalon/encephalon_mobile_provider.dart';
+import 'providers/telencephalon_provider.dart';
+import 'services/reminder_inbox.dart';
+import 'services/background/background_run_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -68,6 +71,23 @@ void main() async {
   //
   // 放在 runApp 之后：启动要读本地模型配置（SQLite），别挡住首屏。
   container.read(encephalonMobileProvider.notifier).ensureStarted();
+
+  // 提醒（通知）轮询 —— 端脑响了 ⇒ ⇒ 送到用户眼前 ⇒ ⇒ **送出去了才确认**。
+  //
+  // ⚠️ 端脑以前**在生产上从不构造**调度器 ⇒ ⇒ 用户在对话里说「提前 10 分钟
+  // 提醒我」⇒ ⇒ 提醒**存进任务库**⇒ ⇒ **永远不响** ⇒ ⇒ 而每一步都成功
+  // ⇒ ⇒ **失败长得像成功**。
+  //
+  // ⚠️ 送不出去（**常驻服务没开** ⇒ ⇒ 系统通知这条路走不通）⇒ ⇒ **不确认**
+  // ⇒ ⇒ 提醒**留在端脑的待办里** ⇒ ⇒ 下个周期再送 ⇒ ⇒ 绝不确认掉一条用户
+  // 没看到的提醒。
+  final reminderClient = container.read(telencephalonClientProvider);
+  ReminderInbox(
+    baseUrl: () => reminderClient.baseUrl,
+    shadowKey: () => reminderClient.apiKey,
+    adminToken: () => reminderClient.adminToken,
+    deliver: (n) => BackgroundRunService().showReminder(n.message),
+  ).start();
 
   // 「手机操作」那道闸的**原生侧**状态 ⇒ ⇒ 启动时必须推一次。
   //

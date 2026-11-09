@@ -118,6 +118,27 @@ class BackgroundRunService {
 
   Future<bool> get isRunning => FlutterForegroundTask.isRunningService;
 
+  /// 把一条提醒写进**常驻通知** —— 手机上系统可见的那一面。
+  ///
+  /// ⚠️ **常驻服务没开就送不出去** ⇒ ⇒ 返回 false ⇒ ⇒ 提醒**留在待办里**
+  /// （绝不确认掉一条用户没看到的提醒 ⇒ ⇒ 那会让提醒静默消失）。
+  ///
+  /// ⚠️ 标题**沿用常驻通知自己的**（不换掉「Shadow 在后台运行」那个身份）
+  /// ⇒ ⇒ 只把正文换成提醒内容。
+  Future<bool> showReminder(String text) async {
+    if (!await isRunning) {
+      _log.warning('常驻服务没开 ⇒ ⇒ 提醒送不出去（它会留在待办里）');
+      return false;
+    }
+    try {
+      await FlutterForegroundTask.updateService(notificationText: text);
+      return true;
+    } catch (e) {
+      _log.warning('更新常驻通知失败: $e');
+      return false;
+    }
+  }
+
   /// 已经在电池优化白名单里？（ true = 系统不会对本进程做激进省电。）
   Future<bool> get isIgnoringBatteryOptimizations =>
       FlutterForegroundTask.isIgnoringBatteryOptimizations;

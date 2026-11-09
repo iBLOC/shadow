@@ -1437,5 +1437,11 @@
   "notifications": {
     "wsDisconnectedTitle": "Connection lost",
     "wsDisconnectedBody": "The mTLS connection dropped while Shadow runs in the background."
+  },
+  "reminders": {
+    "title": "Task reminder",
+    "reminder": "Due soon: {{title}}",
+    "overdue": "Overdue: {{title}}",
+    "confirm": "Waiting for you to confirm: {{title}}"
   }
 }
