@@ -182,10 +182,39 @@ jobs:
           # ⇒ ⇒ 这是**回环上的测试凭据**，不是产品密钥。
           SHADOW_E2E_ADMIN_KEY: e2e-loopback-admin-key
         run: |
+          # ⚠️⚠️ **GitHub 的 `run:` 默认是 `bash -e`** ⇒ ⇒ 失败的那条命令**后面**
+          #    的诊断全都不执行 ⇒ ⇒ 「红」得莫名其妙 ⇒ ⇒ 这里自己接管：
+          #    ① `set +e` 关掉 `-e`（退出码逐条判）；② **先打印输出、再判退出码**
+          #    ⇒ ⇒ 红的时候原因就在眼前（不许「失败长得像没发生」）。
+          set +e
+          set -uo pipefail
+          OUT="$RUNNER_TEMP/playwright-e2e.txt"
           xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
             pnpm exec playwright test --reporter=github \
               e2e-conversation-flow e2e-task-scheduling business-flow-ui \
-              telencephalon-endpoints
+              telencephalon-endpoints > "$OUT" 2>&1
+          PSTATUS=$?
+          cat "$OUT"
+          if [ "$PSTATUS" != "0" ]; then
+            echo "::error::Playwright 红了（退出码 $PSTATUS）—— 上面就是逐条读数"
+            exit "$PSTATUS"
+          fi
+          # ⚠️ **必须先剥掉 ANSI 颜色码再判**（github reporter 的摘要行带颜色码）
+          CLEAN=$(sed -r 's/\x1B[[0-9;]*[mK]//g' "$OUT")
+          # ⚠️ **按语义判，不按版式判** —— 要「N passed」这个**事实**，
+          #    不许钉某个具体版式字符串（版式会随环境变，事实不会）。
+          PASSED=$(printf '%s' "$CLEAN" | grep -oE '[0-9]+ passed' | head -1)
+          if [ -z "$PASSED" ]; then
+            echo "::error::Playwright 读数里没有「N passed」—— 是不是全被 skip 了？（skip 在 Playwright 里不算失败 ⇒ ⇒ 退出码仍是 0）"
+            exit 1
+          fi
+          # ⚠️ **「跳过」不许算绿** —— 端脑不可达 ⇒ 那几条 spec 被 skip
+          #    ⇒ ⇒ 读数里出现 skipped ⇒ ⇒ 那一格是空的 ⇒ ⇒ 判红。
+          if printf '%s' "$CLEAN" | grep -qE '[0-9]+ skipped'; then
+            echo "::error::Playwright 读数里有 skipped —— 跳过不算失败 ⇒ ⇒ 这一格是假绿"
+            exit 1
+          fi
+          echo "::notice::Playwright 读数：$PASSED（且无 skipped）"
 
       - name: Upload Playwright report on failure
         if: failure()

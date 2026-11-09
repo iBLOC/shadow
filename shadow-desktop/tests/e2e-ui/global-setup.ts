@@ -155,6 +155,88 @@ async function probeInferenceFace(timeoutMs = 30000): Promise<{ ok: boolean; det
   return { ok: false, detail: last || 'no response' };
 }
 
+/**
+ * ⚠️⚠️ **把「模型」这个前提钉住** —— 不许让判据去猜端脑当前配的是哪个模型。
+ *
+ * ## 为什么必须钉（2026-11-09 真机实测）
+ *
+ * 端脑的**颞叶默认** provider 是 `local_minicpm5`（模型 id `llm/minicpm5-1b`，
+ * 见 `telencephalon/src/api/llm_configure.rs`）⇒ ⇒ 那个模型在 CI 上**没有引擎**
+ * ⇒ ⇒ 发消息 ⇒ **502 no_engine_for_model**。
+ *
+ * ⇒ ⇒ 而 CI 里**恰好有一条测试**会 PATCH 成 `test-model-ui`（mock 那个）
+ * ⇒ ⇒ 于是**谁先跑**决定一切：CI 里 workers=1 ⇒ 「创建对话」那条跑在 PATCH **之前**
+ * ⇒ ⇒ 它内部是 502 ⇒ ⇒ **而旧的宽容断言把它原谅了** ⇒ ⇒ 「31 passed」里
+ * ⇒ ⇒ ⇒ **有一部分是假绿**。
+ *
+ * ⇒ ⇒ 现在：setup 里**先把模型钉成 mock**（只对自己起的那个端脑做）
+ * ⇒ ⇒ ⇒ 于是每一条 spec 的前提都一样 ⇒ ⇒ 「谁先跑」不再影响结论。
+ */
+/** 只读检查：颞叶当前配的模型是不是 mock 那个（复用模式下只报不改）。 */
+async function checkTemporalModel(): Promise<{ ok: boolean; detail: string }> {
+  const headers: Record<string, string> = {
+    ...(ADMIN_KEY ? { 'x-admin-token': ADMIN_KEY, 'x-shadow-key': ADMIN_KEY } : {}),
+  };
+  try {
+    const res = await fetch(`${TELENCEPHALON_URL}/api/telencephalon/agents`, { headers });
+    if (!res.ok) return { ok: false, detail: `读颞叶配置 ${res.status}` };
+    const body = await res.json() as { lobes?: Array<{ name?: string; config?: { model_id?: string } }> };
+    const temporal = body.lobes?.find((l) => l.name === 'temporal');
+    const modelId = temporal?.config?.model_id ?? '(没配)';
+    if (modelId === MOCK_MODEL_ID) return { ok: true, detail: `颞叶模型已是 ${modelId}` };
+    return { ok: false, detail: `复用的端脑颞叶模型是 ${modelId}（要 ${MOCK_MODEL_ID} 才对）` };
+  } catch (e) {
+    return { ok: false, detail: `读颞叶配置 THROW ${(e as Error).message}` };
+  }
+}
+
+async function pinTemporalModel(): Promise<{ ok: boolean; detail: string }> {
+  const headers: Record<string, string> = {
+    'content-type': 'application/json',
+    ...(ADMIN_KEY ? { 'x-admin-token': ADMIN_KEY, 'x-shadow-key': ADMIN_KEY } : {}),
+  };
+  try {
+    const res = await fetch(`${TELENCEPHALON_URL}/api/telencephalon/agents/temporal/config`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ config: { model_id: MOCK_MODEL_ID } }),
+    });
+    const text = await res.text();
+    if (!res.ok) return { ok: false, detail: `PATCH 颞叶配置 → ${res.status} ${text.slice(0, 160)}` };
+    return { ok: true, detail: `颞叶模型 → ${MOCK_MODEL_ID}` };
+  } catch (e) {
+    return { ok: false, detail: `PATCH 颞叶配置 THROW ${(e as Error).message}` };
+  }
+}
+
+/**
+ * ⚠️ **对话链路的真探针** —— 打的是「建会话 → 发消息」这条路
+ * （不是 `/v1/chat/completions`：那条绕过了**叶区**，不证明叶区能答）。
+ */
+async function probeConversationPath(): Promise<{ ok: boolean; detail: string }> {
+  const headers: Record<string, string> = {
+    'content-type': 'application/json',
+    ...(ADMIN_KEY ? { 'x-admin-token': ADMIN_KEY, 'x-shadow-key': ADMIN_KEY } : {}),
+  };
+  try {
+    const convRes = await fetch(`${TELENCEPHALON_URL}/shadow/v1/conversations`, {
+      method: 'POST', headers, body: '{}',
+    });
+    if (!convRes.ok) return { ok: false, detail: `建会话 ${convRes.status}` };
+    const conv = await convRes.json() as { id?: string };
+    const msgRes = await fetch(`${TELENCEPHALON_URL}/shadow/v1/conversations/${conv.id}/messages`, {
+      method: 'POST', headers, body: JSON.stringify({ text: 'ping' }),
+    });
+    const text = await msgRes.text();
+    if (!msgRes.ok) {
+      return { ok: false, detail: `发消息 ${msgRes.status} ${text.slice(0, 200).replace(/\s+/g, ' ')}` };
+    }
+    return { ok: true, detail: `200 ${text.slice(0, 80).replace(/\s+/g, ' ')}` };
+  } catch (e) {
+    return { ok: false, detail: `THROW ${(e as Error).message}` };
+  }
+}
+
 function isLoopbackUrl(url: string): boolean {
   try {
     const { hostname } = new URL(url);
@@ -230,6 +312,15 @@ async function globalSetup(_config: FullConfig) {
     const probe = await probeInferenceFace(15000);
     if (probe.ok) console.log(`[global-setup] 推理面就绪：${probe.detail}`);
     else console.warn(`[global-setup] ⚠️ 推理面未就绪（reuse 模式只报不拦）：${probe.detail}`);
+    // ⚠️ **复用模式不钉模型** —— 那个端脑**不是我们起的** ⇒ ⇒ 不许改它的配置
+    //    ⇒ ⇒ 但要**说清楚前提**：它的颞叶模型不是 mock ⇒ ⇒ 「发消息」那几条
+    //    ⇒ ⇒ 会红（不是 bug，是前提没钉住）⇒ ⇒ 不许让人以为是回归。
+    const pinned = await checkTemporalModel();
+    if (!pinned.ok) {
+      console.warn(`[global-setup] ⚠️ ${pinned.detail}`);
+      console.warn(`[global-setup]   ⇒ ⇒ 「发消息」那几条 spec 会红：端脑不可达时不许 skip ⇒ ⇒ 那是**前提没钉住**，不是产品回归`);
+      console.warn(`[global-setup]   ⇒ ⇒ 想让 E2E 自己起一个端脑 ⇒ ⇒ 用独立端口（SHADOW_TELENCEPHALON_URL）`);
+    }
     globalThis.__SHADOW_TELENCEPHALON_AVAILABLE__ = true;
     return;
   }
@@ -289,6 +380,10 @@ async function globalSetup(_config: FullConfig) {
         NEURON_REMOTE_BASE_URL: `http://127.0.0.1:${MOCK_PORT}/v1`,
         NEURON_REMOTE_MODELS: MOCK_MODEL_ID,
       } : {}),
+      // ⚠️⚠️ **providers 落盘也要隔离** —— 否则 E2E 会读写**开发者本机**的
+      //    `$HOME/.shadow/providers.json`（实测：那台机器上有一份真实供应商配置
+      //    ＋ **明文 api_key**）⇒ ⇒ E2E 不许碰它 ⇒ ⇒ 指到测试目录。
+      TELENCEPHALON_PROVIDERS_FILE: join(TEST_DATA_DIR, 'providers.json'),
     },
     stdio: ['ignore', logFd, logFd],
     detached: true,
@@ -338,6 +433,24 @@ async function globalSetup(_config: FullConfig) {
   }
   console.log('[global-setup] 端脑 server started');
   globalThis.__SHADOW_TELENCEPHALON_AVAILABLE__ = true;
+
+  // ⚠️⚠️ **先钉前提，再跑判据** —— 颞叶的默认模型在 CI 上**没有引擎**
+  //    ⇒ ⇒ 发消息必然 502 ⇒ ⇒ 旧的宽容断言会把它原谅 ⇒ ⇒ 假绿。
+  //    ⇒ ⇒ 现在把模型钉成 mock 那个 ⇒ ⇒ 并且**亲自走一遍对话链路**。
+  if (MOCK_ENABLED) {
+    const pin = await pinTemporalModel();
+    console.log('[global-setup] ' + pin.detail);
+    if (!pin.ok) {
+      throw new Error('钉不住颞叶模型（' + MOCK_MODEL_ID + '）：' + pin.detail);
+    }
+    const conv = await probeConversationPath();
+    console.log('[global-setup] 对话链路探针：' + conv.detail);
+    if (!conv.ok) {
+      const tail = readLogTail(serverLogPath, 40);
+      for (const line of tail) console.warn('    | ' + line);
+      throw new Error('对话链路探针没过（' + conv.detail + '）—— 前提没钉住 ⇒ ⇒ 判据不许开始跑');
+    }
+  }
 
   // ⚠️ **推理面探针（承「健康绿 ≠ 推理面可用」）**——health 就绪 ≠ 链路通。
   //    不挡路：链路没通时 spec 在真实断言上红（trace 记录），但读数当场可见。

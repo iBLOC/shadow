@@ -1,6 +1,6 @@
 import { test, expect, Page } from '@playwright/test';
 import { TEST_CONFIG } from './config';
-import { isTelencephalonReachable } from './global-setup';
+import { requireTelencephalon } from './e2e-strict';
 
 const TELENCEPHALON_URL = TEST_CONFIG.TELENCEPHALON_URL;
 const FULL_STACK = process.env.SHADOW_FULL_STACK === '1';
@@ -18,7 +18,7 @@ test.describe('Business Flow UI: Task Creation End-to-End', () => {
   });
 
   test('UI: 创建对话 → 发送任务创建请求 → 验证响应', async ({ page }) => {
-    test.skip(!await isTelencephalonReachable(), 'telencephalon not reachable on :60080');
+    await requireTelencephalon();
     // 1. 通过 UI API 创建对话
     const conv = await page.request.post(`${TELENCEPHALON_URL}/shadow/v1/conversations`, {
       data: {},
@@ -35,24 +35,24 @@ test.describe('Business Flow UI: Task Creation End-to-End', () => {
     );
 
     // 3. 验证响应
-    if (sendRes.ok()) {
-      const body = await sendRes.json();
-      expect(body.error).toBeUndefined();
-      expect(body.reply).toBeTruthy();
-      if (FULL_STACK) {
-        // Hard assertion in full-stack mode: reply must echo the task back.
-        expect(body.reply).toContain('任务');
-      }
-    } else {
-      const errorBody = await sendRes.text();
-      console.log('Task create error:', errorBody);
-      // 如果是 lobe 不可达，验证错误信息
-      expect(errorBody).toBeTruthy();
+    // ⚠️⚠️ **原来这里是 `if (sendRes.ok()) { …断言… } else { 只断言「错误体非空」 }`**
+    //    ⇒ ⇒ 端脑 502（意图契约对不上 / 自调用丢钥匙 / 没配模型）时
+    //    ⇒ ⇒ **这条测试照样绿** ⇒ ⇒ 「失败长得像成功」。
+    //    ⇒ ⇒ 现在端脑可达已经由 `requireTelencephalon()` 断言过了
+    //    ⇒ ⇒ ⇒ 502 不再是「可原谅的分支」，而是**真失败**。
+    const sendBody = await sendRes.text();
+    expect(sendRes.status(), `任务创建失败：${sendBody.slice(0, 300)}`).toBe(200);
+    const body = JSON.parse(sendBody);
+    expect(body.error).toBeUndefined();
+    expect(body.reply).toBeTruthy();
+    if (FULL_STACK) {
+      // Hard assertion in full-stack mode: reply must echo the task back.
+      expect(body.reply).toContain('任务');
     }
   });
 
   test('UI: 验证设置页面 lobe 配置立即生效', async ({ page }) => {
-    test.skip(!await isTelencephalonReachable(), 'telencephalon not reachable on :60080');
+    await requireTelencephalon();
     // 1. 设置默认模型
     const setRes = await page.request.patch(
       `${TELENCEPHALON_URL}/api/telencephalon/agents/temporal/config`,
@@ -82,10 +82,14 @@ test.describe('Business Flow UI: Task Creation End-to-End', () => {
       { data: { text: 'hello' } }
     );
 
-    if (sendRes.ok()) {
-      const body = await sendRes.json();
-      expect(body.error).toBeUndefined();
-    }
+    // ⚠️⚠️ **原来这里是 `if (sendRes.ok()) { … }`**（**没有 else**）
+    //    ⇒ ⇒ 端脑 502 ⇒ ⇒ **整条测试零断言通过** ⇒ ⇒ 连「失败」都没有，
+    //    ⇒ ⇒ 只有一个空壳 —— 最省电的那种「失败长得像成功」。
+    const sendBody = await sendRes.text();
+    expect(sendRes.status(), `发消息失败：${sendBody.slice(0, 300)}`).toBe(200);
+    const body = JSON.parse(sendBody);
+    expect(body.error).toBeUndefined();
+    expect(body.reply).toBeTruthy();
   });
 
   test('UI: 多轮对话验证 history 累积', async ({ page }) => {
@@ -99,7 +103,11 @@ test.describe('Business Flow UI: Task Creation End-to-End', () => {
         `${TELENCEPHALON_URL}/shadow/v1/conversations/${convData.id}/messages`,
         { data: { text: msg } }
       );
-      if (!res.ok()) break;
+      // ⚠️ 原来是 `if (!res.ok()) break;` ⇒ ⇒ 失败时**悄悄少发一条**
+      //    ⇒ ⇒ 后面那条 history 断言会红，但**看不出是哪条消息失败**
+      //    ⇒ ⇒ 「红得莫名其妙」那一族 ⇒ ⇒ 现在把失败当场钉住。
+      const body = await res.text();
+      expect(res.status(), `第 ${msg} 条消息失败：${body.slice(0, 300)}`).toBe(200);
     }
 
     // 3. 验证 history
@@ -118,10 +126,11 @@ test.describe('Business Flow UI: Task Creation End-to-End', () => {
 
     // 检查页面是否加载
     const heading = page.locator('h1, h2, h3').first();
-    if (await heading.isVisible()) {
-      const text = await heading.textContent();
-      expect(text).toBeTruthy();
-    }
+    // ⚠️ 原来是 `if (await heading.isVisible()) { … }` ⇒ ⇒ 标题不在 ⇒
+    //    ⇒ ⇒ **整条零断言通过** ⇒ ⇒ 「什么都没发生」被记成「通过」。
+    await expect(heading).toBeVisible({ timeout: 10000 });
+    const text = await heading.textContent();
+    expect(text).toBeTruthy();
   });
 
   test('UI: 设置页面导航', async ({ page }) => {
@@ -131,10 +140,10 @@ test.describe('Business Flow UI: Task Creation End-to-End', () => {
 
     // 验证设置页面有侧边栏
     const sidebar = page.locator('aside, nav').first();
-    if (await sidebar.isVisible()) {
-      const buttons = await sidebar.locator('button').count();
-      expect(buttons).toBeGreaterThan(0);
-    }
+    // ⚠️ 同上：不可见就是红 ⇒ ⇒ 不许「什么都没发生」。
+    await expect(sidebar).toBeVisible({ timeout: 10000 });
+    const buttons = await sidebar.locator('button').count();
+    expect(buttons).toBeGreaterThan(0);
   });
 
   test('UI: lobe 配置 PATCH 验证', async ({ page }) => {
@@ -153,7 +162,7 @@ test.describe('Business Flow UI: Task Creation End-to-End', () => {
   });
 
   test('UI: 验证 prefrontal 端点响应', async ({ page }) => {
-    test.skip(!await isTelencephalonReachable(), 'telencephalon not reachable on :60080');
+    await requireTelencephalon();
     // prefrontal/agents 端点
     const agentsRes = await page.request.get(`${TELENCEPHALON_URL}/api/telencephalon/prefrontal/agents`);
     expect(agentsRes.ok()).toBeTruthy();
@@ -163,7 +172,7 @@ test.describe('Business Flow UI: Task Creation End-to-End', () => {
   });
 
   test('UI: 验证 lobe capabilities 端点', async ({ page }) => {
-    test.skip(!await isTelencephalonReachable(), 'telencephalon not reachable on :60080');
+    await requireTelencephalon();
     const capsRes = await page.request.get(`${TELENCEPHALON_URL}/api/telencephalon/lobes/capabilities`);
     expect(capsRes.ok()).toBeTruthy();
     const caps = await capsRes.json();
@@ -172,7 +181,7 @@ test.describe('Business Flow UI: Task Creation End-to-End', () => {
   });
 
   test('UI: 验证 prefrontal dispatch 响应', async ({ page }) => {
-    test.skip(!await isTelencephalonReachable(), 'telencephalon not reachable on :60080');
+    await requireTelencephalon();
     const dispatchRes = await page.request.post(
       `${TELENCEPHALON_URL}/api/telencephalon/prefrontal/dispatch`,
       {
@@ -189,7 +198,7 @@ test.describe('Business Flow UI: Task Creation End-to-End', () => {
   });
 
   test('UI: 验证错误响应格式', async ({ page }) => {
-    test.skip(!await isTelencephalonReachable(), 'telencephalon not reachable on :60080');
+    await requireTelencephalon();
     // 故意使用不存在的会话
     const res = await page.request.post(
       `${TELENCEPHALON_URL}/shadow/v1/conversations/non-existent-id/messages`,

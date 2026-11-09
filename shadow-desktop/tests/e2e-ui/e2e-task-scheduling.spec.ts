@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { isTelencephalonReachable } from './global-setup';
+import { requireTelencephalon } from './e2e-strict';
 
 const TELENCEPHALON_URL = process.env.SHADOW_TELENCEPHALON_URL ?? 'http://localhost:60080';
 
@@ -12,7 +12,7 @@ test.describe('End-to-End: Conversation to Task Scheduling', () => {
   });
 
   test('通过对话发布定时任务并验证调度链路', async ({ page }) => {
-    test.skip(!await isTelencephalonReachable(), 'telencephalon not reachable on :60080');
+    await requireTelencephalon();
     const createConvResponse = await page.request.post(`${TELENCEPHALON_URL}/shadow/v1/conversations`, {
       data: { agent: 'temporal' },
     });
@@ -25,21 +25,23 @@ test.describe('End-to-End: Conversation to Task Scheduling', () => {
       `${TELENCEPHALON_URL}/shadow/v1/conversations/${conv.id}/messages`,
       { data: { text: taskMessage } }
     );
-    const sendStatus = sendResponse.status();
-    expect([200, 502]).toContain(sendStatus);
+    // ⚠️⚠️ **原来这里是 `expect([200, 502]).toContain(sendStatus)`**
+    //    ⇒ ⇒ **502 被明写进白名单** ⇒ ⇒ 端脑挂掉时这条测试照样绿
+    //    ⇒ ⇒ 而且后半段被 `if (sendStatus === 200)` 包着 ⇒ ⇒
+    //    ⇒ ⇒ 502 时**history 那一串根本没验**。
+    //    ⇒ ⇒ 现在：端脑可达已被 `requireTelencephalon()` 断言过 ⇒ ⇒ 502 就是红。
+    const sendBody = await sendResponse.text();
+    expect(sendResponse.status(), `发消息失败：${sendBody.slice(0, 300)}`).toBe(200);
+    const sendResult = JSON.parse(sendBody);
+    expect(sendResult.conversation_id).toBe(conv.id);
 
-    if (sendStatus === 200) {
-      const sendResult = await sendResponse.json();
-      expect(sendResult.conversation_id).toBe(conv.id);
+    const getConvResponse = await page.request.get(`${TELENCEPHALON_URL}/shadow/v1/conversations/${conv.id}`);
+    expect(getConvResponse.ok()).toBeTruthy();
+    const convDetail = await getConvResponse.json();
 
-      const getConvResponse = await page.request.get(`${TELENCEPHALON_URL}/shadow/v1/conversations/${conv.id}`);
-      expect(getConvResponse.ok()).toBeTruthy();
-      const convDetail = await getConvResponse.json();
-      
-      const userMessages = convDetail.history.filter((h: { role: string }) => h.role === 'user');
-      expect(userMessages.length).toBeGreaterThanOrEqual(1);
-      expect(userMessages.some((m: { text: string }) => m.text.includes(taskMessage))).toBeTruthy();
-    }
+    const userMessages = convDetail.history.filter((h: { role: string }) => h.role === 'user');
+    expect(userMessages.length).toBeGreaterThanOrEqual(1);
+    expect(userMessages.some((m: { text: string }) => m.text.includes(taskMessage))).toBeTruthy();
 
     const agentsResponse = await page.request.get(`${TELENCEPHALON_URL}/api/telencephalon/agents`);
     expect(agentsResponse.ok()).toBeTruthy();
@@ -55,7 +57,7 @@ test.describe('End-to-End: Conversation to Task Scheduling', () => {
   });
 
   test('验证颞叶到前额叶的A2A通信', async ({ page }) => {
-    test.skip(!await isTelencephalonReachable(), 'telencephalon not reachable on :60080');
+    await requireTelencephalon();
     const agentsResponse = await page.request.get(`${TELENCEPHALON_URL}/api/telencephalon/agents`);
     expect(agentsResponse.ok()).toBeTruthy();
     const agents = await agentsResponse.json();
@@ -88,7 +90,7 @@ test.describe('End-to-End: Conversation to Task Scheduling', () => {
   });
 
   test('验证智能体模型配置和调度能力', async ({ page }) => {
-    test.skip(!await isTelencephalonReachable(), 'telencephalon not reachable on :60080');
+    await requireTelencephalon();
     const agentsResponse = await page.request.get(`${TELENCEPHALON_URL}/api/telencephalon/agents`);
     expect(agentsResponse.ok()).toBeTruthy();
     const agents = await agentsResponse.json();
@@ -107,7 +109,7 @@ test.describe('End-to-End: Conversation to Task Scheduling', () => {
   });
 
   test('验证供应商和模型持久化', async ({ page }) => {
-    test.skip(!await isTelencephalonReachable(), 'telencephalon not reachable on :60080');
+    await requireTelencephalon();
     const providersResponse = await page.request.get(`${TELENCEPHALON_URL}/models/providers`);
     expect(providersResponse.ok()).toBeTruthy();
     const providers = await providersResponse.json();
@@ -122,10 +124,11 @@ test.describe('End-to-End: Conversation to Task Scheduling', () => {
     await page.waitForLoadState('networkidle');
 
     const messageInput = page.locator('input[placeholder], textarea').first();
-    if (await messageInput.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await messageInput.fill('每天下午18点总结全网最新的AI咨询');
-      expect(await messageInput.inputValue()).toContain('18点');
-    }
+    // ⚠️ 原来是 `if (await messageInput.isVisible(...).catch(() => false)) { … }`
+    //    ⇒ ⇒ 输入框不在 ⇒ 整条零断言通过 ⇒ ⇒ 现在不可见就是红。
+    await expect(messageInput).toBeVisible({ timeout: 10000 });
+    await messageInput.fill('每天下午18点总结全网最新的AI咨询');
+    expect(await messageInput.inputValue()).toContain('18点');
   });
 
   test('任务看板页面加载', async ({ page }) => {

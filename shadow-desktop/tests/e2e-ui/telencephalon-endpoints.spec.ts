@@ -1,14 +1,18 @@
 import { test, expect } from '@playwright/test';
 import { TEST_CONFIG } from './config';
-import { isTelencephalonReachable } from './global-setup';
+import { requireTelencephalon } from './e2e-strict';
 
 /**
  * Smoke-level coverage of the telencephalon HTTP surface itself. These
  * tests are intentionally narrow: they only need a running telencephalon
  * binary on :60080, no embedded lobes / agents / neuron. They run fast
- * (a few seconds), gate on `isTelencephalonReachable()` so they auto-skip when
- * the binary is absent, and act as the first sanity check the
- * `desktop-e2e` CI job runs after booting telencephalon.
+ * (a few seconds) and act as the first sanity check the `desktop-e2e` CI job
+ * runs after booting telencephalon.
+ *
+ * ⚠️⚠️ **可达性门槛的语义在 2026-11-09 改过** —— 原来这里是
+ * `test.skip(!await isTelencephalonReachable(), …)` ⇒ ⇒ 端脑没起来 ⇒
+ * ⇒ 整份 spec 被**跳过** ⇒ ⇒ Playwright 的退出码仍是 0 ⇒ ⇒ 「跳过也算绿」。
+ * ⇒ ⇒ 现在走 `requireTelencephalon()`：**CI 上端脑不可达 = 红**，本地仍 skip。
  *
  * Related: `e2e-conversation-flow.spec.ts`, `e2e-task-scheduling.spec.ts`,
  * and `business-flow-ui.spec.ts` exercise higher-level flows that depend
@@ -27,7 +31,7 @@ test.describe('Telencephalon endpoint smoke', () => {
   //    （`/health` 是**内嵌 neuron 面**上的路由 ⇒ 独立 server 不挂它）
   //    ⇒ ⇒ 探针改成「先 /healthz，再回落 /health」⇒ ⇒ 两张面都判得到。
   test('GET /healthz returns 200 with a non-empty body', async ({ request }) => {
-    test.skip(!await isTelencephalonReachable(), 'telencephalon not reachable on :60080');
+    await requireTelencephalon();
     let res = await request.get(`${BASE}/healthz`);
     if (res.status() === 404) {
       res = await request.get(`${BASE}/health`);
@@ -38,7 +42,7 @@ test.describe('Telencephalon endpoint smoke', () => {
   });
 
   test('GET /.well-known/agent.json returns 200', async ({ request }) => {
-    test.skip(!await isTelencephalonReachable(), 'telencephalon not reachable on :60080');
+    await requireTelencephalon();
     const res = await request.get(`${BASE}/.well-known/agent.json`);
     expect(res.status()).toBe(200);
     const body = await res.json();
@@ -46,7 +50,7 @@ test.describe('Telencephalon endpoint smoke', () => {
   });
 
   test('GET /shadow/v1/agents returns the telencephalon envelope key', async ({ request }) => {
-    test.skip(!await isTelencephalonReachable(), 'telencephalon not reachable on :60080');
+    await requireTelencephalon();
     const res = await request.get(`${BASE}/shadow/v1/agents`);
     expect(res.status()).toBe(200);
     const body = await res.json();
@@ -60,7 +64,7 @@ test.describe('Telencephalon endpoint smoke', () => {
   });
 
   test('GET /shadow/v1/conversations returns a list', async ({ request }) => {
-    test.skip(!await isTelencephalonReachable(), 'telencephalon not reachable on :60080');
+    await requireTelencephalon();
     const res = await request.get(`${BASE}/shadow/v1/conversations`);
     expect(res.status()).toBe(200);
     const body = await res.json();
@@ -69,7 +73,7 @@ test.describe('Telencephalon endpoint smoke', () => {
 
   test('POST /api/telencephalon/agents/discover returns 200 with a non-empty agents list',
       async ({ request }) => {
-    test.skip(!await isTelencephalonReachable(), 'telencephalon not reachable on :60080');
+    await requireTelencephalon();
     const res = await request.get(`${BASE}/api/telencephalon/agents/discover`);
     expect(res.status()).toBe(200);
     const body = await res.json();
@@ -77,7 +81,7 @@ test.describe('Telencephalon endpoint smoke', () => {
   });
 
   test('GET /api/telencephalon/lobes/list returns a non-empty list', async ({ request }) => {
-    test.skip(!await isTelencephalonReachable(), 'telencephalon not reachable on :60080');
+    await requireTelencephalon();
     const res = await request.get(`${BASE}/api/telencephalon/lobes/list`);
     expect(res.status()).toBe(200);
     const body = await res.json();
@@ -85,13 +89,13 @@ test.describe('Telencephalon endpoint smoke', () => {
   });
 
   test('unknown route under /api/telencephalon returns 404', async ({ request }) => {
-    test.skip(!await isTelencephalonReachable(), 'telencephalon not reachable on :60080');
+    await requireTelencephalon();
     const res = await request.get(`${BASE}/api/telencephalon/this-route-does-not-exist`);
     expect(res.status()).toBe(404);
   });
 
   test('legacy /api/cortex/* path is gone (enforces rename)', async ({ request }) => {
-    test.skip(!await isTelencephalonReachable(), 'telencephalon not reachable on :60080');
+    await requireTelencephalon();
     // Telencephalon does NOT keep a /api/cortex/* alias. If this test
     // ever flips to 200 it means someone silently re-added an alias
     // router — that regression needs to land here before merge.
