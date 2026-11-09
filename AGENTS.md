@@ -1,4 +1,53 @@
 # PROJECT KNOWLEDGE BASE
+
+**Updated**: 2026-11-11 (㒤 **「提交树引用了一个从不存在的模块 —— 而三个红灯是同一个根因」** —— 承 U+3494 条（先分清「CI 红了」是一族值）＋ U+3496 条（源码面 ≠ 产物面），本条记**取证（真 CI 三个红灯逐条归到同一个根因）**、**第一因（引用方进了提交树，被引用模块没进）**、**第二因（这一格此前没有尺子）**、**这一刀的落点**、**途中那几课**、**判据**、**分级读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真 CI 级实测（head a5a8b5d 三个 workflow 逐条读日志 ＋ 提交树级字节核验 ＋ 注入式反向验证 ＋ 真 CI 读数）｜ 改动：shadow 仓 **新增** scripts/lib/commit-import-integrity.mjs（判据库 · 分词 · 零 I/O）、**新增** scripts/check-commit-import-integrity.mjs（CLI · 默认量 HEAD 的提交树）、**新增** .github/workflows/commit-import-integrity.yml（独立 workflow · 零共享面）｜ 读数：判据自检 **17/17**、**反向验证：修前那笔恰好 1 红且逐字点名**、**当前树零悬空（1136 条相对 import 全解析）**、**闸纪律闸 56 道闸零违规**、**真 CI「Commit Import Integrity」run 42696906680 ＝ success** | status=active | supersedes=none
+
+① **⚠️ 取证：三个红灯，一个根因**
+　❶ **head a5a8b5d 的真 CI 读数**：主 CI 的 **Desktop Build** ＝ failure、**Desktop Tests** ＝ failure；独立 workflow **「E2E Typecheck」** ＝ failure ⇒ ⇒ **三个红灯**。
+　❷ **逐条读日志**（E2E Typecheck 那笔，逐字）：`src/pages/SettingsPage.tsx(26,8): error TS2307: Cannot find module '../lib/chatBackground'` ＋ `error TS2339: Property 'chatBackground' does not exist on type 'Appearance'`（1484／1689／1694／1705／1711 共 7 处）⇒ ⇒ **七条错误全指向同一个模块**。
+　❸ **提交树级核验**：`git cat-file -e HEAD:shadow-desktop/src/lib/chatBackground.ts` ⇒ ⇒ 逐字 **fatal: path 'shadow-desktop/src/lib/chatBackground.ts' exists on disk, but not in 'HEAD'** ⇒ ⇒ 而引用方 `src/pages/SettingsPage.tsx` **在**提交树里 ⇒ ⇒ **提交树自相矛盾**。
+　❹ ⇒ ⇒ 三个 workflow 报的是三件不同的事，**根因只有一个** ⇒ ⇒ 这是「红数相同 ≠ 红的是同一处」的**镜像**：**红数不同 ≠ 红的是不同处**。
+
+② **⚠️ 第一因：一次提交只带走了引用方**
+　❶ 提交 `6ea630a`（并行会话）动了 `src/pages/SettingsPage.tsx`（+233 行，引入 chatBackground 那一族 UI）＋ 新建 `src/styles/hexColor.ts` ⇒ ⇒ **被它引用的新模块 `src/lib/chatBackground.ts` 没进那笔提交** ⇒ ⇒ 那一笔之后，**master 的提交树就编不过了**。
+　❷ ⚠️ 而那一笔当时 CI 上「红」的读数是**别的**事（Desktop Build 那时红在另一族上）⇒ ⇒ **「提交树破了」不等于「CI 当场红」** ⇒ ⇒ 别的红会把它盖住 ⇒ ⇒ **它可以潜伏很久**。
+　❸ ⇒ ⇒ **通用形态：引用方与被引用方分两次进版本库 ⇒ ⇒ 中间那笔提交就是破的** ⇒ ⇒ 而 CI 要等三套工具链各跑一遍才暴露 ⇒ ⇒ **窗口期由 CI 的节奏决定，不由代码决定**。
+
+③ **⚠️ 第二因：这一格此前**没有尺子**，只有「顺带回答」**
+　❶ 「提交树能不能编译」此前**只由 CI 的 tsc / vitest / vite 顺带回答** ⇒ ⇒ 三者各有各的先决条件（工具链、node_modules、缓存）⇒ ⇒ **提交树自相矛盾这件事，要等整套工具链在 CI 上装好、跑起来才暴露**。
+　❷ ⇒ ⇒ 而那已经是**红灯**了 ⇒ ⇒ **判据是有的，但它答得太晚** ⇒ ⇒ 答的时候已经既成事实。
+
+④ **✅ 这一刀的落点（3 个文件 ＋ 零产品代码）**
+　❶ **新增 `scripts/lib/commit-import-integrity.mjs`**（判据库 · 纯函数 · 零 I/O）：分词器 ＋ 相对 import 提取 ＋ 解析规则。
+　❷ **新增 `scripts/check-commit-import-integrity.mjs`**（CLI）：默认量 **HEAD 的提交树**（＝ CI 真的会编译的那一面）＋ `--rev=` ＋ `--worktree` ＋ `--self-test` ＋ `--json`；退出码 **0/1/2**。
+　❸ **新增 `.github/workflows/commit-import-integrity.yml`**（独立 workflow ⇒ ⇒ 接线面**零共享**）⇒ ⇒ 跑自检 ＋ 真跑级。
+　❹ ⚠️ **零产品代码改动** —— 这一刀只加尺子，不动被测物。
+
+⑤ **⚠️ 途中那几课**
+　❶ **正则扫正文会看见不该看见的东西** —— 第一版用正则抽 import ⇒ ⇒ 字符串字面量里的 `"import x from './missing'"` 被当真 ⇒ ⇒ 假红 ⇒ ⇒ 改成**分词**（注释跳过、字符串单独成 token）⇒ ⇒ 17/17。
+　❷ **复合扩展名**：`../styles/accent.g` 的真身是 `accent.g.ts` ⇒ ⇒ 「只在没扩展名时才补扩展名」⇒ ⇒ 会把**生成物**误报成悬空 ⇒ ⇒ **5 处假红** ⇒ ⇒ 改成「原样」与「原样 ＋ 扩展名」**都试**。
+　❸ **批量读 blob 的头里没有路径**：`git cat-file --batch` 的头是「<sha> <type> <size>」⇒ ⇒ 拿第二段当路径 ⇒ ⇒ **读到 0 条相对 import**（真身是 1136 条）⇒ ⇒ 只能**按输入顺序**对齐。
+　❹ ⇒ ⇒ **「0 条」是这把尺子最难看的读数** ⇒ ⇒ 因为它长得像「没问题」⇒ ⇒ ⇒ **零读数必须先自证「确实扫到了东西」**（承「没测到／测过了／测对了是三件不同的事」那条）。
+
+⑥ **✅ 判据与分级读数（全部实测）**
+　❶ **判据级**：自检 **17/17**。
+　❷ **反向验证（注入式 · 逐字）**：对着修之前那笔（`a5a8b5d` 与 `6ea630a`）⇒ ⇒ **恰好 1 红**，逐字点名 `shadow-desktop/src/pages/SettingsPage.tsx:26 ⇒ import ../lib/chatBackground` ⇒ ⇒ **零假红**。
+　❸ **当前树级**：对着修好之后那笔（`293f4f4`）⇒ ⇒ **零悬空**（1136 条相对 import 全解析）⇒ ⇒ 修好之后这把尺子不再出声。
+　❹ **治理级**：闸纪律闸 **56 道闸零违规**（新闸 D1–D5 全过，没添新债）。
+　❺ **真 CI 级**：**「Commit Import Integrity」run 42696906680 ＝ success**。
+
+⑦ **⚠️ 仍然欠着的**
+　❶ 这把闸只管**相对 import** ⇒ ⇒ 依赖包缺失（node_modules 没装全）不在射程内 ⇒ ⇒ 那仍由 tsc 兜着。
+　❷ 默认量的是**提交树** ⇒ ⇒ 「工作树绿 ≠ 提交树绿」这一族仍要靠纪律（工作树那一面用 `--worktree` 量）。
+　❸ **动态 import 的变量路径**（`import(someVar)`）判不了 ⇒ ⇒ 那本就不是静态 import。
+　❹ 端脑／Rust／Dart 的模块图**不在射程内**（各自的 import 机制不同）⇒ ⇒ 这一格只覆盖 TS/JS 族。
+
+⑧ **⚠️ 圈码：本条占 U+34A4（㒤）**
+　❶ 插前**独立重扫**（父仓工作树 ∪ 父仓索引 ∪ 父仓 HEAD × **三本账本**，按**声明形状**扫、**声明与提及分开**、码位按**十六进制**计）⇒ ⇒ 读数：**最高已声明 U+34A2（㒢，并行会话那枚）** ⇒ ⇒ **U+34A3 让开**（那是并行会话的自然下一枚）⇒ ⇒ 本条取 **U+34A4（㒤）** ⇒ ⇒ 按惯例**再留一枚缓冲（U+34A5）**。
+　❷ ⇒ ⇒ 本条**只引用已提交的码位**（U+3494／U+3496／U+34A2）⇒ ⇒ ⚠️ **插完立刻复跑码位闸**是硬约束。
+
 **Updated**: 2026-11-11 (㒢 **「手势派发说『成功』，而屏幕上一动没动 —— 那个坐标在屏幕之外」** —— 承 U+3472 条（长按不是长按：手停了多久 ≠ app 认这是长按）＋ U+3482 条（尺子要对着被测物），本条记**取证（真机逐字读数）**、**第一因（派发 API 对越界坐标照样回成功）**、**第二因（弹窗只活 6 秒 ⇒ ⇒ 判据的结构性追不上）**、**第三因（窗口的包名 ≠ 内容的包名）**、**这一刀的落点**、**途中那几课**、**判据**、**分级读数**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真机级实测（odin ee6b4832：MIUI 14 / Android 13 / 1080x2400，三轮 drive 逐字 logcat ＋ 语义树前后对照）＋ 判据自检 ＋ **注入式反向验证** | 改动：shadow-mobile **改** android/…/MainActivity.kt（新增 `getScreenSize`）、**改** android/…/PrefrontalAccessibilityService.kt（`screenSize()` / `isPointOnScreen()` ＋ tap·longPress·swipe 派发前判越界）、**改** lib/services/accessibility_controller.dart（新增 `screenSize()`）、**改** lib/services/capabilities/capability_tools.dart（新增 `_ensureOnScreen()` ＋ 三处调用点）、**改** integration_test/a11y_scroll_to_item_test.dart（尺子改挑**屏内**的项 ＋ 断言锚点在屏内）、**改** scripts/miui-install-confirm-tap.ps1（守门员改**两段判据**）、**新增** scripts/lib/miui-confirm-tap.ps1（判据内核：纯函数 ＋ 11 条自检）｜ 读数：**真机级：滑动正路径 VERDICT PASS、退出码 0**（树从 {0..16} 变成 {43..59}，且照着新树的整屏坐标**点中了那一项自己的回调** `taps={58: 1}`）、**新越界判据当场抓住真因**（`the point (540,2312) is outside the screen (0..1080 x 0..2296)`）、**判据自检 11/11**、**反向验证：注入后恰好红 5 条 EXIT=1**、**安装级：8.8 秒 Success**（改前连装 3 次全败）、**analyze 零 issue**、**契约闸 EXIT=0（Dart 13 / Kotlin 13 齐平）** | 提交：`e30d59f`（7 文件 / 0 无关改动）| status=active | supersedes=none
