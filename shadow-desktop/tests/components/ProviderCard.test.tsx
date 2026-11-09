@@ -12,6 +12,10 @@ const mockProvider: ModelProvider = {
   api_key: 'sk-test',
   enabled: true,
   models: [],
+  // ⚠️ `ModelProvider` 的 `created_at`／`updated_at` 是**必填** ⇒ ⇒ 补齐
+  //   ⇒ ⇒ 否则 TS2739（缺必填字段）。
+  created_at: '2026-01-01T00:00:00Z',
+  updated_at: '2026-01-01T00:00:00Z',
 };
 
 const mockProviderWithModels: ModelProvider = {

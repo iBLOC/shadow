@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, act } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 vi.mock('react-i18next', () => ({
@@ -395,7 +395,8 @@ describe('MoveSessionDialog', () => {
     });
 
     it('does nothing when migrate is clicked without sessionId', async () => {
-      const user = userEvent.setup();
+      // ⚠️ `user` 变量没人读 ⇒ ⇒ 但 `setup()` 本身要留着（它装事件与计时器）
+      userEvent.setup();
       renderDialog({ sessionId: null });
       mockPrepareMigration.mockClear();
       mockPrepareMigration.mockImplementation(() => Promise.resolve({ payload: '', size_bytes: 0 }));

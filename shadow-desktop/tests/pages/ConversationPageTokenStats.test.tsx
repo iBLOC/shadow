@@ -179,7 +179,6 @@ describe('ConversationPage token stats', () => {
       setter?.call(textarea, 'ping');
       textarea.dispatchEvent(new Event('input', { bubbles: true }));
     });
-    const sendButton = screen.getAllByRole('button').find((b) => b.querySelector('svg'));
     // Find the primary send button via the Paperclip-less trailing button.
     const allButtons = screen.getAllByRole('button');
     // Last button in the composer is the send button (after file, voice, send).

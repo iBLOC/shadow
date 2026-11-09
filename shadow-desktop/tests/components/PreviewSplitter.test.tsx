@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { render, fireEvent } from '@testing-library/react';
 import { PreviewSplitter } from '../../src/components/preview/PreviewSplitter';
 import { usePreviewStore } from '../../src/stores/previewStore';

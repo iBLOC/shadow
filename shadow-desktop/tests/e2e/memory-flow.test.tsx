@@ -8,16 +8,6 @@ const mockRemoveMemory = vi.fn();
 const mockSearchMemories = vi.fn();
 const mockFetchMemories = vi.fn();
 
-const sampleMemory = {
- id: 'mem-1',
- uri: 'memory://12345',
- content: 'User prefers dark mode',
- dimension: 'User' as const,
- layer: 'L1' as const,
- createdAt: new Date('2024-01-01T10:00:00Z'),
- updatedAt: new Date('2024-01-01T10:00:00Z'),
-};
-
 vi.mock('../../src/stores/memoryStore', () => ({
  useMemoryStore: vi.fn(() => ({
  memories: [],

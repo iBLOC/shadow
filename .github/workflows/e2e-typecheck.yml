@@ -27,7 +27,7 @@ name: E2E Typecheck
 #   ⇒ ⇒ **结论**：判据「绿」不等于「测的东西是真的」⇒ ⇒ 类型闸能把
 #     「测试与产品形状脱节」这类**假覆盖**照出来 ⇒ ⇒ 这是它最值钱的地方。
 #   · ⚠️ **未覆盖项必须与「已判无问题」分开报**（见下面 notice）：
-#     **.tsx 组件测试家族（57 处既有类型错，欠项）** ＋ wdio/tauri-e2e
+#     **.tsx 组件测试家族（37 处既有类型错，欠项）** ＋ wdio/tauri-e2e
 #     ＋ stores/appearanceMemory.test.ts（并行会话在飞）。
 
 on:
@@ -42,7 +42,7 @@ concurrency:
 
 jobs:
   e2e-typecheck:
-    name: E2E Typecheck (桌面端 tests/ 家族 · .ts 全族)
+    name: E2E Typecheck (桌面端 tests/ 家族 · .ts ＋ .tsx 全族)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -83,8 +83,7 @@ jobs:
             echo "::error::E2E 家族的类型闸红了（退出码 $TSTATUS）—— 上面就是逐条读数"
             exit "$TSTATUS"
           fi
-          echo "::notice::E2E 类型闸：绿（覆盖面＝tests/**.ts 全族 ＋ playwright.config.ts）"
+          echo "::notice::E2E 类型闸：绿（覆盖面＝tests/**.ts ＋ tests/**.tsx 全族 ＋ playwright.config.ts）"
           echo "::notice::E2E 类型闸**未覆盖**（是欠项，**不是**「已判无问题」）："
-          echo "::notice::  · .tsx 组件测试家族（2026-11-09 实测 57 处既有类型错）"
           echo "::notice::  · tests/wdio/** ＋ tests/tauri-e2e/**（需要 @wdio/globals 运行时）"
           echo "::notice::  · tests/stores/appearanceMemory.test.ts（并行会话在飞：Appearance 新增 chatBackground 未提交）"

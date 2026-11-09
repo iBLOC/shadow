@@ -1,10 +1,12 @@
-import { ReactElement } from 'react';
+import { ReactElement, ReactNode } from 'react';
 import { render, RenderOptions } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import { StoreApi } from 'zustand';
 
 interface WrapperProps {
-  children: ReactElement;
+  // ⚠️ `children` 必须是 **ReactNode**（React 19 的 JSXElementConstructor 要求）
+  //   ⇒ ⇒ 写 `ReactElement` ⇒ ⇒ TS2769 ⇒ ⇒ 放宽到 ReactNode。
+  children: ReactNode;
 }
 
 function Wrapper({ children }: WrapperProps) {

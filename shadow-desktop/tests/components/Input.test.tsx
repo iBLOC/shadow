@@ -45,8 +45,10 @@ describe('Input', () => {
   });
 
   it('forwards ref to input element', () => {
-    const ref = { current: null };
-    render(<Input ref={(el) => Object.assign(ref, { current: el })} />);
+    // ⚠️ ref 回调**必须返回 void**（React 19 的 Ref 类型不接受返回值）⇒ ⇒
+    //   原来 `Object.assign(...)` 的返回值（一个对象）⇒ ⇒ TS2769 ⇒ ⇒ 改成块体。
+    const ref = { current: null as HTMLInputElement | null };
+    render(<Input ref={(el) => { ref.current = el; }} />);
     expect(ref.current).not.toBeNull();
   });
 

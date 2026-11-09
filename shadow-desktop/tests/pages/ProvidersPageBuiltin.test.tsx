@@ -120,10 +120,12 @@ describe('ProvidersPage built-in provider card', () => {
     expect(labels).toContain('llm · qwen3-0.6b');
     expect(labels).toContain('asr · whisper-base');
     // ⚠️ 没下载的那条**要点出来**（否则用户以为它能跑）。
-    expect(
-      labels.some((l) => l?.includes('not-downloaded-yet') && l.includes('providers.modelNotDownloaded')),
-      true,
+    // ⚠️ vitest 的 `expect` **没有** `(value, message)` 这种签名 ⇒ ⇒ TS2769
+    //   ⇒ ⇒ 改成先算布尔再断言（**语义不变**）。
+    const hasNotDownloadedLabel = labels.some(
+      (l) => l?.includes('not-downloaded-yet') && l.includes('providers.modelNotDownloaded'),
     );
+    expect(hasNotDownloadedLabel).toBe(true);
     // ⚠️ 没下载的**不许选**。
     const notDownloaded = options.find((o) => o.textContent?.includes('not-downloaded-yet'));
     expect(notDownloaded?.disabled).toBe(true);

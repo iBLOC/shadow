@@ -7,14 +7,6 @@ const mockAddSkill = vi.fn();
 const mockRemoveSkill = vi.fn();
 const mockToggleSkill = vi.fn();
 
-const sampleSkill = {
- id: 'skill-1',
- name: 'Web Search',
- description: 'Search the web for current information',
- category: 'custom' as const,
- enabled: true,
-};
-
 vi.mock('../../src/stores/skillStore', () => ({
  useSkillStore: vi.fn(() => ({
  skills: [],

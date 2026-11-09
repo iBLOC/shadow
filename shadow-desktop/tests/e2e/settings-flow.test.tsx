@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
-import userEvent, { PointerEventsCheckLevel } from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { SettingsPage } from '../../src/pages/SettingsPage';
 
@@ -25,8 +24,10 @@ vi.mock('../../src/stores/themeStore', () => {
     },
     setAppearance: vi.fn(),
   };
-  const hook = vi.fn(() => state);
-  hook.getState = vi.fn(() => state);
+  // ⚠️ **用 Object.assign 挂 getState** —— 原来给 `vi.fn(...)` 挂属性
+  //   ⇒ ⇒ TS 只看得见 Mock 的调用签名 ⇒ ⇒ TS2339（getState 不存在）⇒ ⇒
+  //   ⇒ Object.assign 让**形状**真实反映在类型里（不改行为）。
+  const hook = Object.assign(vi.fn(() => state), { getState: vi.fn(() => state) });
   return { useThemeStore: hook };
 });
 
@@ -52,8 +53,9 @@ vi.mock('../../src/stores/telencephalonStore', () => {
     setBaseUrl: vi.fn(),
     setApiKey: vi.fn(),
   };
-  const hook = vi.fn((selector?: any) => selector ? selector(state) : state);
-  hook.getState = vi.fn(() => state);
+  const hook = Object.assign(vi.fn((selector?: any) => selector ? selector(state) : state), {
+    getState: vi.fn(() => state),
+  });
   return { useTelencephalonStore: hook };
 });
 
@@ -74,8 +76,9 @@ vi.mock('../../src/stores/serviceStore', () => {
     removeResonanceInstance: vi.fn(),
     setPrimaryResonance: vi.fn(),
   };
-  const hook = vi.fn((selector?: any) => selector ? selector(state) : state);
-  hook.getState = vi.fn(() => state);
+  const hook = Object.assign(vi.fn((selector?: any) => selector ? selector(state) : state), {
+    getState: vi.fn(() => state),
+  });
   return { useServiceStore: hook };
 });
 

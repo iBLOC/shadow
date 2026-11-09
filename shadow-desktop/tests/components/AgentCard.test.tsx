@@ -1,9 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { AgentCard } from '../../src/components/business/AgentCard/AgentCard';
+import type { Agent } from '../../src/types';
 
 describe('AgentCard', () => {
-  const mockAgent = {
+  // ⚠️ **用产品的 `Agent` 类型承重**（不是逐字段 `as const`）⇒ ⇒ fixture 的形状
+  //   ⇒ 由产品定义说了算 ⇒ ⇒ 产品改了字段，这里立刻红（而不是 silently 漂）。
+  const mockAgent: Agent = {
     id: 'agent-1',
     name: 'Test Agent',
     role: 'planner',
@@ -12,9 +15,13 @@ describe('AgentCard', () => {
     status: 'online' as const,
     capabilities: ['planning', 'reasoning'],
     endpoint: 'http://localhost:3000',
+    // ⚠️ `Agent` 的 `createdAt`／`updatedAt` 是**必填** ⇒ ⇒ fixture 漏了它们
+    //   ⇒ ⇒ 组件测试的类型检查报 TS2739（**缺必填字段**）⇒ ⇒ 补齐。
+    createdAt: new Date(),
+    updatedAt: new Date(),
   };
 
-  const mockExternalAgent = {
+  const mockExternalAgent: Agent = {
     id: 'agent-external',
     name: 'External Agent',
     externalType: 'opencode',
@@ -23,6 +30,8 @@ describe('AgentCard', () => {
     status: 'online' as const,
     capabilities: ['coding'],
     endpoint: 'http://localhost:4000',
+    createdAt: new Date(),
+    updatedAt: new Date(),
   };
 
   it('renders agent name in heading', () => {

@@ -34,7 +34,7 @@ describe('Card', () => {
   });
 
   it('forwards additional props', () => {
-    const { container } = render(<Card data-testid="test-card">Content</Card>);
+    render(<Card data-testid="test-card">Content</Card>);
     expect(screen.getByTestId('test-card')).toBeInTheDocument();
   });
 });

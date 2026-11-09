@@ -1,5 +1,5 @@
 {
-  // ⚠️⚠️ **桌面端测试家族的类型闸**（2026-11-09 新增 ⇒ 同日扩面到整个 tests/ 家族）
+  // ⚠️⚠️ **桌面端测试家族的类型闸**（2026-11-09 新增 ⇒ 同日扩面两次：先是 .ts 全族，再加 .tsx 全族）
   //
   //   根 tsconfig 的 include 只有 ["src"] ⇒ ⇒ 而 **shadow-desktop/tests/** 整族
   //   ⇒ ⇒ **至今没有任何类型/语法闸** ⇒ ⇒ 那一族里一个语法错或类型错
@@ -10,7 +10,7 @@
   //   ⇒ ⇒ 根 tsc（ci.yml 的「TypeScript check」）**一声不吭**
   //   ⇒ ⇒ 是 Playwright 当场抓到的 ⇒ ⇒ 「类型闸绿」≠「我改的文件被看过」。
   //
-  //   ⇒ ⇒ 这个 config 把 **tests/ 里的 .ts 全族**拉进类型闸 ⇒ ⇒ 密闸在
+  //   ⇒ ⇒ 这个 config 把 **tests/ 里的 .ts 与 .tsx 全族**拉进类型闸 ⇒ ⇒ 密闸在
   //   ⇒ ⇒ .github/workflows/e2e-typecheck.yml（每个 push 都跑）。
   //
   //   ⚠️⚠️ **types 必须写全（它是覆盖，不是追加）**：
@@ -22,8 +22,6 @@
   //     ⇒ ⇒ **闸会拿着一个残缺的类型环境判绿**（2026-11-09 实测踩到）。
   //
   //   ⚠️ **exclude 里每一项都记着理由**（**未覆盖**必须与**已判无问题**分开报）：
-  //   · **\*\*/\*.tsx** —— React 组件测试家族，**57 处既有类型错**（2026-11-09 实测）
-  //     ⇒ ⇒ 那一族**还没有判据承重** ⇒ ⇒ 记欠项（下一刀）。
   //   · wdio/** 与 tauri-e2e/** —— 需要 @wdio/globals 的运行时，不在这个仓的 push 闸里。
   //   · stores/appearanceMemory.test.ts —— **并行会话在飞**（Appearance 新增
   //     chatBackground 字段**还没提交**）⇒ ⇒ 那一格**没有判据承重** ⇒ ⇒ 记欠项。
@@ -32,6 +30,6 @@
     "types": ["node", "vitest/globals", "@testing-library/jest-dom", "@playwright/test", "vite/client"],
     "noEmit": true
   },
-  "include": ["**/*.ts", "../playwright.config.ts"],
-  "exclude": ["**/*.tsx", "wdio/**", "tauri-e2e/**", "stores/appearanceMemory.test.ts"]
+  "include": ["**/*.ts", "**/*.tsx", "../playwright.config.ts"],
+  "exclude": ["wdio/**", "tauri-e2e/**", "stores/appearanceMemory.test.ts"]
 }
