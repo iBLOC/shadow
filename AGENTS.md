@@ -1,62 +1,61 @@
-**Updated**: 2026-11-11 (㓂 **「兄弟仓有**两种布局** —— 而 10 道闸只认一种 ⇒ ⇒ CI 上 11 道「判不了」被同一盏绿灯吞掉了」** —— 承 U+34BF 条（一盏绿灯没有分母）与 U+34BB 条（判据长在主流程里），本条记**取证（真 CI 逐条读数）**、**第一因**、**第二因**、**第三因**、**这一刀的落点**、**途中那几课**、**判据与分级读数**，以及**仍然欠着的**.)
+**Updated**: 2026-11-11 (㒾 **「颞叶里的 asr/tts —— 端脑其实有**第三套** voice 配置，而它是**死的**」** —— 承 U+34BD 条（分档默认的 asr/tts 档真被消费）与 U+34B8 条（两张同名表），本条记**取证（源码级逐条 grep）**、**第一因**、**第二因**、**第三因**、**这一刀的落点**、**途中那几课**、**判据与分级读数**，以及**仍然欠着的**.)
 
-> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真 CI 逐条读数（run 42718647744 与 run 42720852662 的「判读汇总」）＋ 本机端到端实测 | 改动：父仓 **新增** scripts/lib/sibling-repo.mjs（纯函数 ＋ --self-test 14/14）＋ **改** 10 道闸（各 +1 import ／ +1~3 行）⇒ ⇒ **零产品代码** | 读数：自检 **14/14**；10 道闸自检全绿 ＋ 真跑全绿（EXIT=0）；真 CI **15 道 ｜ 真判 11 ｜ 判不了 4 ｜ 红 0**（改前 **真判 4 ｜ 判不了 11**） | 提交：`01720554` | status=active | supersedes=none
+> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=端脑源码逐条 grep（telencephalon）＋ 与 U+34BD 条的真机读数对账（⚠️ 真机那一格本条**没拿到**，见 ⑧❶）｜ 改动：父仓 **零产品代码**（本条纯取证；新增台账一条）｜ 读数：grep 命中逐条见 ① | status=active | supersedes=none
 
-① **⚠️ 取证：CI 上兄弟仓**检出成功**，闸却「判不了」**
-　❶ 改前（真 CI run 42718647744）：「⇒ ⇒ 闸的判读：15 道 ｜ 真判 **4** ｜ 判不了 **11** ｜ 红 0」⇒ ⇒ 逐个点名 11 道判不了：a2ui-session-identity ／ client-dialect ／ client-endpoint-map ／ cross-client ／ conversation-prefix ／ cors-allowlist ／ endpoint-matrix ／ msrv-floor ／ provider-admin-headers ／ publish-address ／ tool-interception。
-　❷ 同一轮的 step 列表逐字：`Checkout telencephalon` ＝ success、`Checkout hippocampus` ＝ success、`Checkout neuron` ＝ success ⇒ ⇒ **兄弟仓检出成功**，`IBLOC_TOKEN` **在位**（job 级 env 打的是 ***）⇒ ⇒ 「判不了」**不是** secret 缺失。
-　❸ 改后（真 CI run 42720852662，同一 workflow、同一 token、同一检出清单）：「**15 道 ｜ 真判 11 ｜ 判不了 4 ｜ 红 0**」⇒ ⇒ 真判 **4 → 11**（**+7**）⇒ ⇒ 判不了 **11 → 4**。
-　❹ 改后剩 4 道，逐个点名与各自根因：cross-client（3 个子守卫判不了 —— jni-surface ／ apk-surface ＝ **产物级**（libencephalon.so 被 gitignore，干净 checkout 没有）＋ brain-route-surface ＝ **仍写死 ../telencephalon** ⇒ ⇒ 同族未接完）；cors-allowlist（要 **encephalon**（大脑仓）⇒ ⇒ workflow 只检出 telencephalon／hippocampus／neuron ⇒ ⇒ **没检出**）；msrv-floor（**真红灯**，见 ⑧❶）；publish-address（要 amygdala／temporal／occipital／parietal 四个叶区仓 ⇒ ⇒ CI 上没有）。
-　❺ ⇒ ⇒ ⇒ **推论**：那 11 道「判不了」里，**至少 7 道**的根因是**布局**（兄弟仓在仓内 vs 仓外）⇒ ⇒ 改布局即从「没验成」变「验成了」⇒ ⇒ **覆盖面从 4/15 抬到 11/15**。
+① **⚠️ 取证：端脑源码里「颞叶自己的 asr/tts」那套配置长什么样 —— 逐条 grep**
+　❶ `lobes/voice.rs` 的 `VoiceConfig` 字段**恰好六个**：`asr_enabled` / `tts_enabled` / `asr_model` / `tts_model` / `tts_voice` / `language`；默认 `asr_model="whisper-1"`、`tts_model="tts-1"`、`tts_voice="alloy"`、`language="zh"` ⇒ ⇒ 这就是「颞叶自己的 asr/tts」那一格在源码里的样子。
+　❷ ⚠️ **全仓 grep `VoiceProcessor` / `VoiceConfig`**：命中**只在 `lobes/voice.rs` 自己的定义处**（`:5` `struct VoiceConfig`、`:14` `impl Default`、`:49` `struct VoiceProcessor`、`:56` `fn new`），外加**该文件自己的单测**（`:199` `VoiceConfig::default()`）⇒ ⇒ **没有任何生产代码构造它** ⇒ ⇒ **没有调用方**。
+　❸ ⚠️ **全仓 grep `asr_enabled` / `tts_enabled` / `tts_voice`**：命中**全部**落在 `lobes/voice.rs` 内 ⇒ ⇒ 那几个字段**只被它自己读**（`:66` / `:127` / `:136`）。
+　❹ **它打的端点**：`{telencephalon_url}/v1/audio/transcriptions`（`:71`）与 `/v1/audio/speech`（`:131`）⇒ ⇒ 而端脑**没有这两条路由**：全仓 `route("/v1…` 的命中**只有** `api/shadow.rs` 的 `/shadow/v1/agents` 与 `/shadow/v1/conversations[/{id}[/messages]]`（`:82-100`）⇒ ⇒ 端脑**零** `/v1/audio/*` ⇒ ⇒ **即便把它接上，也打不通**。
+　❺ **对照：端脑真活着的语音路由**是 `/api/telencephalon/voice/transcribe` 与 `/api/telencephalon/voice/synthesize`（`api/voice.rs:52-53`，挂载在 `api/mod.rs:189` 的 `voice::router`）⇒ ⇒ 两者都归 **admin 门**（`api/door_policy.txt:150-151`）⇒ ⇒ 而它们吃的**正是分档默认表**（U+34BD 条已在真机上证明 asr/tts 档**真被消费**）。
+　❻ **「voice」这个键在端脑里的其它含义**：`webrtc` 的 modality（`webrtc/mod.rs:35`）、`well_known` 的 skill id（`api/well_known.rs:78`）、`registry/cache.rs` 的 skill 记录（`:251-257`）⇒ ⇒ **没有一处**是「叶区配置里的 asr/tts 那一格」。
+　❼ ⇒ ⇒ ⇒ **推论（由 ❷❸ 直接得出）**：要把它写进任何叶区配置，**必须先有人构造它** ⇒ ⇒ `VoiceProcessor::new` 无调用方 ⇒ ⇒ 那五个字段**永远进不了**任何叶区配置 ⇒ ⇒ **「在颞叶里配 asr/tts」这一格，连落点都没有**。
 
-② **⚠️ 第一因：兄弟仓有**两种布局**，而定位逻辑**被抄成了 N 份**
-　❶ 本机（A）：兄弟仓在 shadow 仓**之外** —— ../telencephalon。
-　❷ CI（B）：兄弟仓被 checkout 到 shadow 仓**根之下** —— telencephalon/。
-　❸ 既有先例：`check-door-policy.mjs` ／ `check-ziti-face.mjs` ／ `check-secret-plaintext.mjs` **各自抄了一份** sibling(name)（仓外优先、仓内兜底）⇒ ⇒ 抄一次漂一次 ⇒ ⇒ 布局修一次要改 N 处。
-　❹ 而另 **10 道闸**连抄都没抄 ⇒ ⇒ 默认路径一律写死 ../telencephalon ⇒ ⇒ CI 上判据源读不到 ⇒ ⇒ 退出码 2。
-　❺ ⇒ ⇒ ⇒ **通用形态：同一段「资源在哪」的定位逻辑抄成 N 份 ⇒ ⇒ 改一处不管用 ⇒ ⇒ 缺口只会在「CI 那一套布局」上显形** ⇒ ⇒ 本机永远是绿的 ⇒ ⇒ 病只有 CI 能看见。
+② **⚠️ 第一因：这是**第三套** asr/tts 配置 —— 而这一套**既不存、也不通**
+　❶ U+34B8 条：客户端同一页上两张卡（「按能力分档的默认模型」＋「叶区模型路由」）⇒ ⇒ **两张表**。
+　❷ 本条：端脑源码里**第三套**（`VoiceConfig`）⇒ ⇒ **三套**。
+　❸ ⇒ ⇒ ⇒ **通用形态：「一个概念出现第三处入口」⇒ ⇒ 第三处通常是没接上的那处** ⇒ ⇒ 而**第三处最危险** —— 它**长得最像「叶区自己配的」** ⇒ ⇒ 用户以为「颞叶里能单独配 asr/tts」⇒ ⇒ 其实那格**根本不存在**。
+　❹ ⇒ ⇒ ⇒ 落到用户那三问上：**颞叶里的 asr/tts 的正解是「不分出来」** ⇒ ⇒ 它们本来就该走**分档默认**（asr 档 / tts 档）⇒ ⇒ 而现在端脑里那份 `VoiceConfig` 是**第三张、且是死的那张表**。
 
-③ **⚠️ 第二因：**布局判定长在主流程里** ⇒ ⇒ 证伪不了
-　❶ 「判据源在不在」在每道闸里都是**主流程里的一行**（默认路径表达式）⇒ ⇒ 要证伪它，得先把兄弟仓按另一种布局摆出来。
-　❷ ⇒ ⇒ **通用形态：判据长在主流程里 ⇒ ⇒ 自检够不着 ⇒ ⇒ 只能恒绿**（承 U+34BB 条那把刀）⇒ ⇒ 这一刀同一个修法：**把定位抽成纯函数**。
-　❸ 新模块 `scripts/lib/sibling-repo.mjs`：siblingCandidates ／ findSibling ／ sibling ／ siblingRoot ⇒ ⇒ **零 I/O**（exists 可注入）⇒ ⇒ 自检喂合成夹具 ⇒ ⇒ **自检 14/14**（仓外命中／仓内命中／两边都在仓外优先／两边都不在返回 null／兜底不抛／纯函数两次同结果／siblingRoot 两个方向／多仓互不干扰）。
+③ **⚠️ 第二因：它打的是**另一个 API 形状**（OpenAI 兼容）⇒ ⇒ 即便接上，也会与端脑自己的路由脱节**
+　❶ `/v1/audio/transcriptions` 是 **OpenAI 兼容**那一族（neuron 侧有 `/neuron/v1/chat/completions`、`/neuron/v1/audio/speech` 那一族，见 `neuron_embed.rs:14-24`）。
+　❷ 而端脑自己的语音面是 `/api/telencephalon/voice/*` ＋ **admin 门** ⇒ ⇒ **两套路径、两套门、两套错误体**。
+　❸ ⇒ ⇒ ⇒ **通用形态：一个模块要接上别人，得先确认「对方的路由形状」** ⇒ ⇒ 而这一处**连对方的路由都不存在** ⇒ ⇒ 它不是「接错了」，是「从一开始就没打算接」。
 
-④ **⚠️ 第三因：**顺序** —— 「仓外优先」不是随便定的
-　❶ 若改成「仓内优先」，本机就会改读**仓内那个同名目录**（若存在）⇒ ⇒ 本机读数会变 ⇒ ⇒ 这一刀就变成「顺手改了本机行为」。
-　❷ ⇒ ⇒ **通用形态：改接线层时，「优先级」就是「哪一面会变」** ⇒ ⇒ 必须把不变的那一面排在前面 ⇒ ⇒ 「仓外优先」⇒ ⇒ **本机读数逐字不变** ⇒ ⇒ 这一刀只影响 CI。
+④ **⚠️ 第三因：这一套**连存的地方都没有** ⇒ ⇒ 「设置里那一项」落不下去**
+　❶ 由 ①❼：字段进不了叶区配置 ⇒ ⇒ 用户在设置里改的那一格**无处可写**。
+　❷ ⇒ ⇒ ⇒ **通用形态：一份配置如果没有落点，它不是「默认值不对」，是**根本存不进去**「** ⇒ ⇒ 用户以为改了（界面立刻变）⇒ ⇒ **重启就没** ⇒ ⇒ 这是「失败长得像成功」的一个新面：**改了，但没地方可改**。
+　❸ ⚠️ **与 U+34B8 条的「分档默认表是纯内存」不是同一件事**：那张表**存得住**（只是重启后回到默认）⇒ ⇒ 这张表**连存储的落点都没有** ⇒ ⇒ 两者的处置也不同（前者要加持久化，后者要先接线）。
 
-⑤ **✅ 这一刀的落点（1 个新文件 ＋ 10 个文件各改两行 ＋ 零产品代码）**
-　❶ **新增** `scripts/lib/sibling-repo.mjs`（134 行）：纯函数 ＋ `--self-test` 14/14。
-　❷ **改** 10 道闸（a2ui-session-identity ／ auth-backdoors ／ bind-exposure ／ client-dialect ／ client-endpoint-map ／ conversation-prefix ／ cors-allowlist ／ endpoint-matrix ／ provider-admin-headers ／ tool-interception）：各 **+1 行 import ＋ 1~3 行**（默认路径表达式换成 sibling(REPO, …)；bind-exposure 的 lobesRoot 换成 siblingRoot(REPO)）。
-　❸ **零产品代码** —— 只动尺子面。
-　❹ 提交面走**独立索引**（基线 `687bdba`）⇒ ⇒ 并行会话的在飞件**不被吞** ⇒ ⇒ 提交 `01720554`（11 文件）。
+⑤ **✅ 这一刀的落点（零产品代码 · 纯取证）**
+　❶ 本条**只做取证**，不改任何产品代码 ⇒ ⇒ 端脑仓里那套 `VoiceConfig` 是**兄弟仓的活**，本条**不代改**。
+　❷ ⇒ ⇒ 产品侧的**正解（待拍板）**：「颞叶的 asr/tts 不该有独立配置」⇒ ⇒ 应该**并入分档默认**（asr 档 / tts 档）⇒ ⇒ 而端脑里那份 `VoiceConfig` 要么**删掉**（它是第三张死表），要么**明确接线**（把 `asr_model`/`tts_model` 映射成分档默认的取值来源）。
 
 ⑥ **⚠️ 途中那几课**
-　❶ **扫描器又把 actual 当数字用了**（它其实是**十六进制字符串**）⇒ ⇒ 最高已声明码位报成 **U+3282**（真值 U+34C1）⇒ ⇒ 「空洞」「可取候选」全部作废 ⇒ ⇒ **通用形态：类型混用 ⇒ ⇒ 排序静默失序 ⇒ ⇒ 尺子输出「读数齐全」但没有一个数是真的** ⇒ ⇒ 先怀疑自己的扫描器（第二次踩同一族）。
-　❷ **管道会吞退出码**：把 node 的输出管到 Select-Object 之后，$LASTEXITCODE 变成**上一个** native 命令的值 ⇒ ⇒ 10 道闸自检明明全绿却报 **EXIT=1** ⇒ ⇒ 症状长得像「改坏了」⇒ ⇒ 改法：先捕获输出、再立刻取 $LASTEXITCODE。
-　❸ **改了定位就会露红**：msrv-floor 一旦能定位到 manifest，就从「判不了」变成**真判红**（见 ⑧❶）⇒ ⇒ 「修好一个洞」的代价可能是**点亮一盏真红灯** ⇒ ⇒ 要连着判断，不许只做前半截。
-　❹ **改共享文件要造两份面**（承前）：提交面＝HEAD ＋ 我的增量；共享索引＝对方的在飞内容 ＋ 我的增量。
+　❶ **「全仓 grep 的命中处数」是判「死代码」的硬凭据**：命中若**全部**落在定义文件自己（外加它自己的单测）⇒ ⇒ 就是**没有调用方**。
+　❷ ⚠️ **设备被并行会话占住时别硬抢**：这次端脑面端口拿不到（`/proc/net/tcp` 当时只剩一个 LISTEN 且不是端脑面；`logcat` 里也没有 `EncephalonRuntime` 启动行）⇒ ⇒ 本条**如实降级**为源码级取证 ⇒ ⇒ **不假装有真机读数、不外推**。
+　❸ ⚠️ **MIUI 的 InspectorApp 会把请求 URL 打进 logcat**（`InspectorApp: handleWebMessage: message=/api/telencephalon/lobes/… from=com.miui.home`）⇒ ⇒ 排查时**别把那些行当成端脑自己的日志** ⇒ ⇒ 否则会以为「端脑收到了请求却没有回日志」。
 
-⑦ **✅ 判据与分级读数（全部实测）**
-　❶ **判据级**：新模块 `--self-test` **14/14**（EXIT=0）。
-　❷ **本机级**：10 道闸 `--self-test` **全绿**（9/9、10/10、13/13、13/13、15/15、10/10、8/8、7/7、22/22、13/13）＋ 10 道闸真跑 **全 EXIT=0**（读数逐条未变：bind-exposure 扫 246 个 .rs、cors-allowlist 扫 246 个源文件、provider-admin-headers 22/22、tool-interception 已知缺口 5 条）。
-　❸ **真 CI 级**：run **42720852662** ＝ **success**，收尾一步逐字打出「**⇒ ⇒ 闸的判读：15 道 ｜ 真判 11 ｜ 判不了 4 ｜ 红 0**」＋ 逐个点名 4 道判不了；同一 job 里新尺子自检 **11/11 全 PASS**。
-　❹ **对照（改前）**：run **42718647744** ＝ success，「15 道 ｜ 真判 **4** ｜ 判不了 **11** ｜ 红 0」⇒ ⇒ 同一 workflow、同一 token、同一检出清单，**只改了布局识别** ⇒ ⇒ **真判 +7** ⇒ ⇒ 那 7 道此前**从来没在 CI 上判过**。
-　❺ **治理级**：治理闸自检 **全 PASS**；真检查的违规数在 **2~4** 之间波动 ⇒ ⇒ 归因**工作树面**（并行会话在飞：mobile-a11y-contract ＋ client-tools ＋ neuron-ownership）⇒ ⇒ **提交树面绿**。
+　❹ ⚠️ **信封那一行有两个坑，我各踩了一次**：① `source` 后面要写**半角 `=`** —— 我写成了 `source:` ⇒ ⇒ 那一整段因为「键不是 source」被**整段丢掉**；② 字段之间要**半角 ` | `** —— 我用了**全角 `｜`** ⇒ ⇒ `status` 被粘进 `source` 那一段 ⇒ ⇒ 闸读成「缺字段 status」。
+　❹ ⇒ ⇒ ⇒ **通用形态：「记录用的字段」要用**一套**键写法与分隔符**；混用「视觉相近的另一个符号」⇒ ⇒ 解析会把整段**丢掉** ⇒ ⇒ 而症状是「**缺字段**」⇒ ⇒ 读起来像「少写了」，实际是「写的那段**根本不算数**」⇒ ⇒ 于是会去补一个**已经写了**的字段。
+
+⑦ **✅ 判据与分级读数**
+　❶ **源码级（grep 实测）**：`VoiceProcessor|VoiceConfig` 全仓命中**只在 `lobes/voice.rs`** ＋ 该文件自己的单测；`asr_enabled|tts_enabled|tts_voice` 命中**全在 `lobes/voice.rs`**；端脑 `route("/v1…` **只有** `/shadow/v1/agents` 与 `/shadow/v1/conversations…` ⇒ ⇒ **无 `/v1/audio/*`**；端脑语音路由挂载在 `api/mod.rs:189`，门策略 `api/door_policy.txt:150-151`。
+　❷ **真机级（承 U+34BD 条，非本条新增）**：分档默认的 asr/tts 档**真被消费**（503/5003 ＋ 消息带 id ＝ 签名）。
+　❸ **真机级缺格（如实标注）**：颞叶 runtime 配置的真机读数**本条没拿到**（设备被并行会话占用）⇒ ⇒ **不补写、不外推**。
+　❹ **闸级**：本条**零产品代码** ⇒ ⇒ 闸面只多台账一条；码位闸／纪律闸／状态面／回退闸均 EXIT=0。
 
 ⑧ **⚠️ 仍然欠着的**
-　❶ **msrv-floor 那一格是「真红灯」，不是判不了**：本机真跑（定位到 shadow-desktop/src-tauri/Cargo.toml）⇒ ⇒ **VERDICT: FAIL (7 项)**：generator 0.8.12 ／ sysinfo 0.39.6 ／ windows-{core,implement,interface,result,strings} 0.100.0 全都要求 **1.95**，而自有 crate 声明 **1.94** ⇒ ⇒ 那道闸自己的注释就写着「1.94 这个地板在真实依赖图上随时会碎」⇒ ⇒ **它已经碎了**。
-　❷ ⚠️ **为什么这一刀没动它**：地板 **1.94 是跨仓约定**（hippocampus ／ telencephalon ／ encephalon 同声明）⇒ ⇒ 单方面抬本仓地板会造成**跨仓漂移**；降依赖（那 7 个包）又没有**编译级读数**（本机桌面端 Rust 侧无编译读数）⇒ ⇒ ⇒ 这是**要主人拍板**的那一格 ⇒ ⇒ 登记为明账，不在这一刀动。
-　❸ **同族闸还没接完**：仍写死仓外路径的还有 brain-route-surface ／ jni-surface ／ apk-surface ／ brain-chain ／ external-tools ／ neuron-ownership ／ publish-address ／ ziti-v2-wire ⇒ ⇒ **下一刀**。
-　❹ **workflow 缺两个检出**：**encephalon**（大脑仓 ⇒ cors-allowlist 要它）＋ 四个叶区仓（amygdala／temporal／occipital／parietal ⇒ publish-address 要它们）⇒ ⇒ 不检出 ⇒ ⇒ 判不了。
-　❺ **产物级闸在 CI 上永远判不了**：jni-surface ／ apk-surface 要 libencephalon.so ＋ APK（被 gitignore）⇒ ⇒ CI 干净 checkout 没有 ⇒ ⇒ 那一格**只能**在装了产物的机器上取读数。
-　❻ ⚠️ **上一笔 1460b65 的处置**：那笔提交（57+/0−）把并行会话**整条在飞台账**一并带进了提交面 ⇒ ⇒ **不重做**（重做＝把对方内容从提交树删掉再由对方加回 ⇒ ⇒ 制造冲突而无收益）⇒ ⇒ 事实是「**提前进入提交树**」而非「丢失」⇒ ⇒ 已回执对方。
+　❶ 真机级那一格（颞叶 runtime 配置里确实没有 asr/tts 字段）**待设备空闲后补** ⇒ ⇒ 这也正是 ⑥❷ 的代价：**抢不到就是抢不到**。
+　❷ `VoiceConfig` **删还是接**：**产品决定**（本条不拍）⇒ ⇒ 但「三套并存」本身**一定是个债**（U+34B8 条的老话：同名两张表，用户能设两个同义项）。
+　❸ 端脑自身的真 CI 仍无读数（承 U+34A0 条）。
+　❹ 本条的源码级取证覆盖的是 **telencephalon 仓**；兄弟仓若有同名结构（neuron / synapse 等）**未逐个核**。
 
-⑨ **⚠️ 圈码：本条占 U+34C2（㓂）**
-　❶ 插前**独立重扫**（**三本账本 × 工作树／索引／HEAD／origin/master** ＝ 12 面，官方判据 `scripts/lib/ledger-codepoints.mjs` 的 extractEntries，**声明与提及分开**、码位按**十六进制**计）⇒ ⇒ 读数：**12 面全部可读（unreadable=0）**、条目合计 **1643** 条、已声明 distinct=**357**、最高已声明 **U+34C1**。
-　❷ ⇒ ⇒ **U+34C1 让开**（已被并行会话**声明**）⇒ ⇒ **U+34C0 让开**（虽未被声明，但被**提及** 8 次 ⇒ ⇒ 提及即预告）⇒ ⇒ **U+34C2 声明 0 次、提及 0 次** ✔ ⇒ ⇒ **本条取 U+34C2（㓂）**。
-　❸ ⇒ ⇒ 本条**只引用已提交的码位**（U+34BF ／ U+34BB ／ U+34BE ／ U+34BD）⇒ ⇒ ⚠️ **插完立刻复跑码位闸**是硬约束。
-　❹ ⇒ ⇒ 按惯例**再留一枚缓冲（U+34C3）** ⇒ ⇒ 但缓冲**也会过期** ⇒ ⇒ 落笔前仍要**当场重扫 12 面**。
+⑨ **⚠️ 圈码：本条占 U+34BE（㒾）**
+　❶ 插前**独立重扫**（三本账本 × 工作树／索引／HEAD／origin/master ＝ **12 面**，官方判据 `scripts/lib/ledger-codepoints.mjs` 的 `extractEntries`，**声明与提及分开**、码位按**十六进制**计）⇒ ⇒ 读数：**12 面全部可读（unreadable=0）**、已声明 distinct=**353**、最高已声明 **U+34BD**。
+　❷ ⇒ ⇒ **U+34BE 声明 0 次**；提及**只有我上一条自己**留的那一处（移动端／桌面端账本**零命中**）⇒ ⇒ 按 U+34B5 条自己的教训，**缓冲要么当场用掉，要么当它不存在** ⇒ ⇒ **本条当场用掉它 ⇒ 本条取 U+34BE（㒾）**。
+　❸ ⇒ ⇒ 本条**只引用已提交的码位**（U+34BD / U+34B8 / U+34B5 / U+34A0）⇒ ⇒ ⚠️ **插完立刻复跑码位闸**是硬约束。
+　❹ ⇒ ⇒ 按惯例**再留一枚缓冲（U+34BF）** ⇒ ⇒ 但缓冲**也会过期** ⇒ ⇒ 落笔前仍要**当场重扫 12 面**。
 
 **Updated**: 2026-11-11 (㓁 **「同一个工具的同一个答案，树与『这是谁的屏』分两次采样 —— 真机上已经张冠李戴过」** —— 承 U+34BD 条（判据要对着性质而不是某个环境下的值）＋ U+34BE 条（一盏绿灯没有分母），本条记**取证（真机逐字读数）**、**第一因（两次独立 `rootInActiveWindow`）**、**第二因（判据写成了「两次独立读数相等」）**、**第三因（两条路的头不同形）**、**这一刀的落点**、**途中那几课**、**判据与分级读数**，以及**仍然欠着的**.)
 
@@ -125,63 +124,6 @@
 　❹ **`foregroundPackage()` 这条老路仍然存在**（Kotlin 里仍在）⇒ ⇒ 现在它**只**作**回落**（快照取不到时）⇒ ⇒ 但那条回落**分两次采样** ⇒ ⇒ **理论上仍可能张冠李戴** ⇒ ⇒ ⇒ **欠一条「快照失败时的行为」判据**。
 　❺ 「自有 app 在前台时走哪棵树」是**平台行为** ⇒ ⇒ 别的机型可能不同 ⇒ ⇒ 本条的判据**刻意不钉**那个值。
 　❻ **端脑侧（服务器）那条腿**仍没验 ⇒ ⇒ 本条全部读数都在**手机端**。
-
-**Updated**: 2026-11-11 (㒾 **「颞叶里的 asr/tts —— 端脑其实有**第三套** voice 配置，而它是**死的**」** —— 承 U+34BD 条（分档默认的 asr/tts 档真被消费）与 U+34B8 条（两张同名表），本条记**取证（源码级逐条 grep）**、**第一因**、**第二因**、**第三因**、**这一刀的落点**、**途中那几课**、**判据与分级读数**，以及**仍然欠着的**.)
-
-> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=端脑源码逐条 grep（`telencephalon`）＋ 与 U+34BD 条的真机读数对账（⚠️ 真机那一格本条**没拿到**，见 ⑧❶）｜ 改动：父仓 **零产品代码**（本条纯取证；新增台账一条）｜ 读数：grep 命中逐条见 ① | status=active | supersedes=none
-　✅ 已订正（2026-11-11，本条信封三处格式不合 state-surface 规约：authority 取值不在允许集合／source 用了冒号／status 跟在全角竖线后 ⇒ ⇒ 机械改正，结论与取证一字未动）
-
-① **⚠️ 取证：端脑源码里「颞叶自己的 asr/tts」那套配置长什么样 —— 逐条 grep**
-　❶ `lobes/voice.rs` 的 `VoiceConfig` 字段**恰好六个**：`asr_enabled` / `tts_enabled` / `asr_model` / `tts_model` / `tts_voice` / `language`；默认 `asr_model="whisper-1"`、`tts_model="tts-1"`、`tts_voice="alloy"`、`language="zh"` ⇒ ⇒ 这就是「颞叶自己的 asr/tts」那一格在源码里的样子。
-　❷ ⚠️ **全仓 grep `VoiceProcessor` / `VoiceConfig`**：命中**只在 `lobes/voice.rs` 自己的定义处**（`:5` `struct VoiceConfig`、`:14` `impl Default`、`:49` `struct VoiceProcessor`、`:56` `fn new`），外加**该文件自己的单测**（`:199` `VoiceConfig::default()`）⇒ ⇒ **没有任何生产代码构造它** ⇒ ⇒ **没有调用方**。
-　❸ ⚠️ **全仓 grep `asr_enabled` / `tts_enabled` / `tts_voice`**：命中**全部**落在 `lobes/voice.rs` 内 ⇒ ⇒ 那几个字段**只被它自己读**（`:66` / `:127` / `:136`）。
-　❹ **它打的端点**：`{telencephalon_url}/v1/audio/transcriptions`（`:71`）与 `/v1/audio/speech`（`:131`）⇒ ⇒ 而端脑**没有这两条路由**：全仓 `route("/v1…` 的命中**只有** `api/shadow.rs` 的 `/shadow/v1/agents` 与 `/shadow/v1/conversations[/{id}[/messages]]`（`:82-100`）⇒ ⇒ 端脑**零** `/v1/audio/*` ⇒ ⇒ **即便把它接上，也打不通**。
-　❺ **对照：端脑真活着的语音路由**是 `/api/telencephalon/voice/transcribe` 与 `/api/telencephalon/voice/synthesize`（`api/voice.rs:52-53`，挂载在 `api/mod.rs:189` 的 `voice::router`）⇒ ⇒ 两者都归 **admin 门**（`api/door_policy.txt:150-151`）⇒ ⇒ 而它们吃的**正是分档默认表**（U+34BD 条已在真机上证明 asr/tts 档**真被消费**）。
-　❻ **「voice」这个键在端脑里的其它含义**：`webrtc` 的 modality（`webrtc/mod.rs:35`）、`well_known` 的 skill id（`api/well_known.rs:78`）、`registry/cache.rs` 的 skill 记录（`:251-257`）⇒ ⇒ **没有一处**是「叶区配置里的 asr/tts 那一格」。
-　❼ ⇒ ⇒ ⇒ **推论（由 ❷❸ 直接得出）**：要把它写进任何叶区配置，**必须先有人构造它** ⇒ ⇒ `VoiceProcessor::new` 无调用方 ⇒ ⇒ 那五个字段**永远进不了**任何叶区配置 ⇒ ⇒ **「在颞叶里配 asr/tts」这一格，连落点都没有**。
-
-② **⚠️ 第一因：这是**第三套** asr/tts 配置 —— 而这一套**既不存、也不通**
-　❶ U+34B8 条：客户端同一页上两张卡（「按能力分档的默认模型」＋「叶区模型路由」）⇒ ⇒ **两张表**。
-　❷ 本条：端脑源码里**第三套**（`VoiceConfig`）⇒ ⇒ **三套**。
-　❸ ⇒ ⇒ ⇒ **通用形态：「一个概念出现第三处入口」⇒ ⇒ 第三处通常是没接上的那处** ⇒ ⇒ 而**第三处最危险** —— 它**长得最像「叶区自己配的」** ⇒ ⇒ 用户以为「颞叶里能单独配 asr/tts」⇒ ⇒ 其实那格**根本不存在**。
-　❹ ⇒ ⇒ ⇒ 落到用户那三问上：**颞叶里的 asr/tts 的正解是「不分出来」** ⇒ ⇒ 它们本来就该走**分档默认**（asr 档 / tts 档）⇒ ⇒ 而现在端脑里那份 `VoiceConfig` 是**第三张、且是死的那张表**。
-
-③ **⚠️ 第二因：它打的是**另一个 API 形状**（OpenAI 兼容）⇒ ⇒ 即便接上，也会与端脑自己的路由脱节**
-　❶ `/v1/audio/transcriptions` 是 **OpenAI 兼容**那一族（neuron 侧有 `/neuron/v1/chat/completions`、`/neuron/v1/audio/speech` 那一族，见 `neuron_embed.rs:14-24`）。
-　❷ 而端脑自己的语音面是 `/api/telencephalon/voice/*` ＋ **admin 门** ⇒ ⇒ **两套路径、两套门、两套错误体**。
-　❸ ⇒ ⇒ ⇒ **通用形态：一个模块要接上别人，得先确认「对方的路由形状」** ⇒ ⇒ 而这一处**连对方的路由都不存在** ⇒ ⇒ 它不是「接错了」，是「从一开始就没打算接」。
-
-④ **⚠️ 第三因：这一套**连存的地方都没有** ⇒ ⇒ 「设置里那一项」落不下去**
-　❶ 由 ①❼：字段进不了叶区配置 ⇒ ⇒ 用户在设置里改的那一格**无处可写**。
-　❷ ⇒ ⇒ ⇒ **通用形态：一份配置如果没有落点，它不是「默认值不对」，是**根本存不进去**「** ⇒ ⇒ 用户以为改了（界面立刻变）⇒ ⇒ **重启就没** ⇒ ⇒ 这是「失败长得像成功」的一个新面：**改了，但没地方可改**。
-　❸ ⚠️ **与 U+34B8 条的「分档默认表是纯内存」不是同一件事**：那张表**存得住**（只是重启后回到默认）⇒ ⇒ 这张表**连存储的落点都没有** ⇒ ⇒ 两者的处置也不同（前者要加持久化，后者要先接线）。
-
-⑤ **✅ 这一刀的落点（零产品代码 · 纯取证）**
-　❶ 本条**只做取证**，不改任何产品代码 ⇒ ⇒ 端脑仓里那套 `VoiceConfig` 是**兄弟仓的活**，本条**不代改**。
-　❷ ⇒ ⇒ 产品侧的**正解（待拍板）**：「颞叶的 asr/tts 不该有独立配置」⇒ ⇒ 应该**并入分档默认**（asr 档 / tts 档）⇒ ⇒ 而端脑里那份 `VoiceConfig` 要么**删掉**（它是第三张死表），要么**明确接线**（把 `asr_model`/`tts_model` 映射成分档默认的取值来源）。
-
-⑥ **⚠️ 途中那几课**
-　❶ **「全仓 grep 的命中处数」是判「死代码」的硬凭据**：命中若**全部**落在定义文件自己（外加它自己的单测）⇒ ⇒ 就是**没有调用方**。
-　❷ ⚠️ **设备被并行会话占住时别硬抢**：这次端脑面端口拿不到（`/proc/net/tcp` 当时只剩一个 LISTEN 且不是端脑面；`logcat` 里也没有 `EncephalonRuntime` 启动行）⇒ ⇒ 本条**如实降级**为源码级取证 ⇒ ⇒ **不假装有真机读数、不外推**。
-　❸ ⚠️ **MIUI 的 InspectorApp 会把请求 URL 打进 logcat**（`InspectorApp: handleWebMessage: message=/api/telencephalon/lobes/… from=com.miui.home`）⇒ ⇒ 排查时**别把那些行当成端脑自己的日志** ⇒ ⇒ 否则会以为「端脑收到了请求却没有回日志」。
-
-⑦ **✅ 判据与分级读数**
-　❶ **源码级（grep 实测）**：`VoiceProcessor|VoiceConfig` 全仓命中**只在 `lobes/voice.rs`** ＋ 该文件自己的单测；`asr_enabled|tts_enabled|tts_voice` 命中**全在 `lobes/voice.rs`**；端脑 `route("/v1…` **只有** `/shadow/v1/agents` 与 `/shadow/v1/conversations…` ⇒ ⇒ **无 `/v1/audio/*`**；端脑语音路由挂载在 `api/mod.rs:189`，门策略 `api/door_policy.txt:150-151`。
-　❷ **真机级（承 U+34BD 条，非本条新增）**：分档默认的 asr/tts 档**真被消费**（503/5003 ＋ 消息带 id ＝ 签名）。
-　❸ **真机级缺格（如实标注）**：颞叶 runtime 配置的真机读数**本条没拿到**（设备被并行会话占用）⇒ ⇒ **不补写、不外推**。
-　❹ **闸级**：本条**零产品代码** ⇒ ⇒ 闸面只多台账一条；码位闸／纪律闸／状态面／回退闸均 EXIT=0。
-
-⑧ **⚠️ 仍然欠着的**
-　❶ 真机级那一格（颞叶 runtime 配置里确实没有 asr/tts 字段）**待设备空闲后补** ⇒ ⇒ 这也正是 ⑥❷ 的代价：**抢不到就是抢不到**。
-　❷ `VoiceConfig` **删还是接**：**产品决定**（本条不拍）⇒ ⇒ 但「三套并存」本身**一定是个债**（U+34B8 条的老话：同名两张表，用户能设两个同义项）。
-　❸ 端脑自身的真 CI 仍无读数（承 U+34A0 条）。
-　❹ 本条的源码级取证覆盖的是 **telencephalon 仓**；兄弟仓若有同名结构（neuron / synapse 等）**未逐个核**。
-
-⑨ **⚠️ 圈码：本条占 U+34BE（㒾）**
-　❶ 插前**独立重扫**（三本账本 × 工作树／索引／HEAD／origin/master ＝ **12 面**，官方判据 `scripts/lib/ledger-codepoints.mjs` 的 `extractEntries`，**声明与提及分开**、码位按**十六进制**计）⇒ ⇒ 读数：**12 面全部可读（unreadable=0）**、已声明 distinct=**353**、最高已声明 **U+34BD**。
-　❷ ⇒ ⇒ **U+34BE 声明 0 次**；提及**只有我上一条自己**留的那一处（移动端／桌面端账本**零命中**）⇒ ⇒ 按 U+34B5 条自己的教训，**缓冲要么当场用掉，要么当它不存在** ⇒ ⇒ **本条当场用掉它 ⇒ 本条取 U+34BE（㒾）**。
-　❸ ⇒ ⇒ 本条**只引用已提交的码位**（U+34BD / U+34B8 / U+34B5 / U+34A0）⇒ ⇒ ⚠️ **插完立刻复跑码位闸**是硬约束。
-　❹ ⇒ ⇒ 按惯例**再留一枚缓冲（U+34BF）** ⇒ ⇒ 但缓冲**也会过期** ⇒ ⇒ 落笔前仍要**当场重扫 12 面**。
 
 **Updated**: 2026-11-11 (㒿 **「一盏绿灯没有分母 ⇒ ⇒ 「没验成」被同一盏绿灯吞掉了」** —— 承 U+34BB 条（三道闸的判据都长在主流程里）与 U+34AE 条（Node 崩掉的退出码是 1），本条记**取证**、**第一因**、**第二因**、**第三因**、**这一刀的落点**、**途中那几课**、**判据与分级读数**，以及**仍然欠着的**.)
 
@@ -7289,62 +7231,3 @@ For the end-to-end coverage assessment of all the above (which has zero e2e in C
 　❶ **端脑任务「新建」入口**（产品决策，不猜）；❷ **ziti 可视化配置的落点**（待用户拍板）；❸ **内联中文兜底还在**（承 U+3483 条 ❷：77 处调用点／71 个键）⇒ ⇒ 词表齐了兜底轮不到 ⇒ ⇒ 但源码里那句中文还在 ⇒ ⇒ 要不要删是**产品决定**；❹ **真机级读数**（移动端真机 UI 验收／ziti T4–T5／端脑 CI 门外红）照旧；❺ **本条的 CI 读数**待取。
 
 ⑥ **⚠️ 圈码：本条占 U+3488（㒈）** —— 插前**独立重扫**（父仓工作树 ∪ 父仓 HEAD ∪ 父仓 origin/master × **三本账本**，按**声明形状**扫、**声明与提及分开**）⇒ ⇒ 读数：**最高已声明 U+3487**（并行会话那条已提交）⇒ ⇒ 「最高已用＋1」＝ **U+3488** ⇒ ⇒ ⚠️ 我上一条预留的缓冲（U+3487）**已被他们用掉** ⇒ ⇒ 预留只是**意图**，能不能留成要看对方落在哪 ⇒ ⇒ ⚠️ 本条**只引用已提交的码位**（U+3483／U+3485／U+3486／U+3487）⇒ ⇒ **不引在飞的** ⇒ ⇒ ⚠️ **插完立刻复跑码位闸**是硬约束。
-
-**Updated**: 2026-11-11 (㒾 **「颞叶里的 asr/tts —— 端脑其实有**第三套** voice 配置，而它是**死的**」** —— 承 U+34BD 条（分档默认的 asr/tts 档真被消费）与 U+34B8 条（两张同名表），本条记**取证（源码级逐条 grep）**、**第一因**、**第二因**、**第三因**、**这一刀的落点**、**途中那几课**、**判据与分级读数**，以及**仍然欠着的**.)
-
-> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=端脑源码逐条 grep（telencephalon）＋ 与 U+34BD 条的真机读数对账（⚠️ 真机那一格本条**没拿到**，见 ⑧❶）｜ 改动：父仓 **零产品代码**（本条纯取证；新增台账一条）｜ 读数：grep 命中逐条见 ① | status=active | supersedes=none
-
-① **⚠️ 取证：端脑源码里「颞叶自己的 asr/tts」那套配置长什么样 —— 逐条 grep**
-　❶ `lobes/voice.rs` 的 `VoiceConfig` 字段**恰好六个**：`asr_enabled` / `tts_enabled` / `asr_model` / `tts_model` / `tts_voice` / `language`；默认 `asr_model="whisper-1"`、`tts_model="tts-1"`、`tts_voice="alloy"`、`language="zh"` ⇒ ⇒ 这就是「颞叶自己的 asr/tts」那一格在源码里的样子。
-　❷ ⚠️ **全仓 grep `VoiceProcessor` / `VoiceConfig`**：命中**只在 `lobes/voice.rs` 自己的定义处**（`:5` `struct VoiceConfig`、`:14` `impl Default`、`:49` `struct VoiceProcessor`、`:56` `fn new`），外加**该文件自己的单测**（`:199` `VoiceConfig::default()`）⇒ ⇒ **没有任何生产代码构造它** ⇒ ⇒ **没有调用方**。
-　❸ ⚠️ **全仓 grep `asr_enabled` / `tts_enabled` / `tts_voice`**：命中**全部**落在 `lobes/voice.rs` 内 ⇒ ⇒ 那几个字段**只被它自己读**（`:66` / `:127` / `:136`）。
-　❹ **它打的端点**：`{telencephalon_url}/v1/audio/transcriptions`（`:71`）与 `/v1/audio/speech`（`:131`）⇒ ⇒ 而端脑**没有这两条路由**：全仓 `route("/v1…` 的命中**只有** `api/shadow.rs` 的 `/shadow/v1/agents` 与 `/shadow/v1/conversations[/{id}[/messages]]`（`:82-100`）⇒ ⇒ 端脑**零** `/v1/audio/*` ⇒ ⇒ **即便把它接上，也打不通**。
-　❺ **对照：端脑真活着的语音路由**是 `/api/telencephalon/voice/transcribe` 与 `/api/telencephalon/voice/synthesize`（`api/voice.rs:52-53`，挂载在 `api/mod.rs:189` 的 `voice::router`）⇒ ⇒ 两者都归 **admin 门**（`api/door_policy.txt:150-151`）⇒ ⇒ 而它们吃的**正是分档默认表**（U+34BD 条已在真机上证明 asr/tts 档**真被消费**）。
-　❻ **「voice」这个键在端脑里的其它含义**：`webrtc` 的 modality（`webrtc/mod.rs:35`）、`well_known` 的 skill id（`api/well_known.rs:78`）、`registry/cache.rs` 的 skill 记录（`:251-257`）⇒ ⇒ **没有一处**是「叶区配置里的 asr/tts 那一格」。
-　❼ ⇒ ⇒ ⇒ **推论（由 ❷❸ 直接得出）**：要把它写进任何叶区配置，**必须先有人构造它** ⇒ ⇒ `VoiceProcessor::new` 无调用方 ⇒ ⇒ 那五个字段**永远进不了**任何叶区配置 ⇒ ⇒ **「在颞叶里配 asr/tts」这一格，连落点都没有**。
-
-② **⚠️ 第一因：这是**第三套** asr/tts 配置 —— 而这一套**既不存、也不通**
-　❶ U+34B8 条：客户端同一页上两张卡（「按能力分档的默认模型」＋「叶区模型路由」）⇒ ⇒ **两张表**。
-　❷ 本条：端脑源码里**第三套**（`VoiceConfig`）⇒ ⇒ **三套**。
-　❸ ⇒ ⇒ ⇒ **通用形态：「一个概念出现第三处入口」⇒ ⇒ 第三处通常是没接上的那处** ⇒ ⇒ 而**第三处最危险** —— 它**长得最像「叶区自己配的」** ⇒ ⇒ 用户以为「颞叶里能单独配 asr/tts」⇒ ⇒ 其实那格**根本不存在**。
-　❹ ⇒ ⇒ ⇒ 落到用户那三问上：**颞叶里的 asr/tts 的正解是「不分出来」** ⇒ ⇒ 它们本来就该走**分档默认**（asr 档 / tts 档）⇒ ⇒ 而现在端脑里那份 `VoiceConfig` 是**第三张、且是死的那张表**。
-
-③ **⚠️ 第二因：它打的是**另一个 API 形状**（OpenAI 兼容）⇒ ⇒ 即便接上，也会与端脑自己的路由脱节**
-　❶ `/v1/audio/transcriptions` 是 **OpenAI 兼容**那一族（neuron 侧有 `/neuron/v1/chat/completions`、`/neuron/v1/audio/speech` 那一族，见 `neuron_embed.rs:14-24`）。
-　❷ 而端脑自己的语音面是 `/api/telencephalon/voice/*` ＋ **admin 门** ⇒ ⇒ **两套路径、两套门、两套错误体**。
-　❸ ⇒ ⇒ ⇒ **通用形态：一个模块要接上别人，得先确认「对方的路由形状」** ⇒ ⇒ 而这一处**连对方的路由都不存在** ⇒ ⇒ 它不是「接错了」，是「从一开始就没打算接」。
-
-④ **⚠️ 第三因：这一套**连存的地方都没有** ⇒ ⇒ 「设置里那一项」落不下去**
-　❶ 由 ①❼：字段进不了叶区配置 ⇒ ⇒ 用户在设置里改的那一格**无处可写**。
-　❷ ⇒ ⇒ ⇒ **通用形态：一份配置如果没有落点，它不是「默认值不对」，是**根本存不进去**「** ⇒ ⇒ 用户以为改了（界面立刻变）⇒ ⇒ **重启就没** ⇒ ⇒ 这是「失败长得像成功」的一个新面：**改了，但没地方可改**。
-　❸ ⚠️ **与 U+34B8 条的「分档默认表是纯内存」不是同一件事**：那张表**存得住**（只是重启后回到默认）⇒ ⇒ 这张表**连存储的落点都没有** ⇒ ⇒ 两者的处置也不同（前者要加持久化，后者要先接线）。
-
-⑤ **✅ 这一刀的落点（零产品代码 · 纯取证）**
-　❶ 本条**只做取证**，不改任何产品代码 ⇒ ⇒ 端脑仓里那套 `VoiceConfig` 是**兄弟仓的活**，本条**不代改**。
-　❷ ⇒ ⇒ 产品侧的**正解（待拍板）**：「颞叶的 asr/tts 不该有独立配置」⇒ ⇒ 应该**并入分档默认**（asr 档 / tts 档）⇒ ⇒ 而端脑里那份 `VoiceConfig` 要么**删掉**（它是第三张死表），要么**明确接线**（把 `asr_model`/`tts_model` 映射成分档默认的取值来源）。
-
-⑥ **⚠️ 途中那几课**
-　❶ **「全仓 grep 的命中处数」是判「死代码」的硬凭据**：命中若**全部**落在定义文件自己（外加它自己的单测）⇒ ⇒ 就是**没有调用方**。
-　❷ ⚠️ **设备被并行会话占住时别硬抢**：这次端脑面端口拿不到（`/proc/net/tcp` 当时只剩一个 LISTEN 且不是端脑面；`logcat` 里也没有 `EncephalonRuntime` 启动行）⇒ ⇒ 本条**如实降级**为源码级取证 ⇒ ⇒ **不假装有真机读数、不外推**。
-　❸ ⚠️ **MIUI 的 InspectorApp 会把请求 URL 打进 logcat**（`InspectorApp: handleWebMessage: message=/api/telencephalon/lobes/… from=com.miui.home`）⇒ ⇒ 排查时**别把那些行当成端脑自己的日志** ⇒ ⇒ 否则会以为「端脑收到了请求却没有回日志」。
-
-　❹ ⚠️ **信封那一行有两个坑，我各踩了一次**：① `source` 后面要写**半角 `=`** —— 我写成了 `source:` ⇒ ⇒ 那一整段因为「键不是 source」被**整段丢掉**；② 字段之间要**半角 ` | `** —— 我用了**全角 `｜`** ⇒ ⇒ `status` 被粘进 `source` 那一段 ⇒ ⇒ 闸读成「缺字段 status」。
-　❹ ⇒ ⇒ ⇒ **通用形态：「记录用的字段」要用**一套**键写法与分隔符**；混用「视觉相近的另一个符号」⇒ ⇒ 解析会把整段**丢掉** ⇒ ⇒ 而症状是「**缺字段**」⇒ ⇒ 读起来像「少写了」，实际是「写的那段**根本不算数**」⇒ ⇒ 于是会去补一个**已经写了**的字段。
-
-⑦ **✅ 判据与分级读数**
-　❶ **源码级（grep 实测）**：`VoiceProcessor|VoiceConfig` 全仓命中**只在 `lobes/voice.rs`** ＋ 该文件自己的单测；`asr_enabled|tts_enabled|tts_voice` 命中**全在 `lobes/voice.rs`**；端脑 `route("/v1…` **只有** `/shadow/v1/agents` 与 `/shadow/v1/conversations…` ⇒ ⇒ **无 `/v1/audio/*`**；端脑语音路由挂载在 `api/mod.rs:189`，门策略 `api/door_policy.txt:150-151`。
-　❷ **真机级（承 U+34BD 条，非本条新增）**：分档默认的 asr/tts 档**真被消费**（503/5003 ＋ 消息带 id ＝ 签名）。
-　❸ **真机级缺格（如实标注）**：颞叶 runtime 配置的真机读数**本条没拿到**（设备被并行会话占用）⇒ ⇒ **不补写、不外推**。
-　❹ **闸级**：本条**零产品代码** ⇒ ⇒ 闸面只多台账一条；码位闸／纪律闸／状态面／回退闸均 EXIT=0。
-
-⑧ **⚠️ 仍然欠着的**
-　❶ 真机级那一格（颞叶 runtime 配置里确实没有 asr/tts 字段）**待设备空闲后补** ⇒ ⇒ 这也正是 ⑥❷ 的代价：**抢不到就是抢不到**。
-　❷ `VoiceConfig` **删还是接**：**产品决定**（本条不拍）⇒ ⇒ 但「三套并存」本身**一定是个债**（U+34B8 条的老话：同名两张表，用户能设两个同义项）。
-　❸ 端脑自身的真 CI 仍无读数（承 U+34A0 条）。
-　❹ 本条的源码级取证覆盖的是 **telencephalon 仓**；兄弟仓若有同名结构（neuron / synapse 等）**未逐个核**。
-
-⑨ **⚠️ 圈码：本条占 U+34BE（㒾）**
-　❶ 插前**独立重扫**（三本账本 × 工作树／索引／HEAD／origin/master ＝ **12 面**，官方判据 `scripts/lib/ledger-codepoints.mjs` 的 `extractEntries`，**声明与提及分开**、码位按**十六进制**计）⇒ ⇒ 读数：**12 面全部可读（unreadable=0）**、已声明 distinct=**353**、最高已声明 **U+34BD**。
-　❷ ⇒ ⇒ **U+34BE 声明 0 次**；提及**只有我上一条自己**留的那一处（移动端／桌面端账本**零命中**）⇒ ⇒ 按 U+34B5 条自己的教训，**缓冲要么当场用掉，要么当它不存在** ⇒ ⇒ **本条当场用掉它 ⇒ 本条取 U+34BE（㒾）**。
-　❸ ⇒ ⇒ 本条**只引用已提交的码位**（U+34BD / U+34B8 / U+34B5 / U+34A0）⇒ ⇒ ⚠️ **插完立刻复跑码位闸**是硬约束。
-　❹ ⇒ ⇒ 按惯例**再留一枚缓冲（U+34BF）** ⇒ ⇒ 但缓冲**也会过期** ⇒ ⇒ 落笔前仍要**当场重扫 12 面**。

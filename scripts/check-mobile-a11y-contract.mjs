@@ -114,7 +114,7 @@ function pathsFor(root) {
       'capabilities',
       'flutter_semantics_tree.dart'
     ),
-    // 工具层 —— 「这是谁的屏」那一格（自家包名常量）在这一份里。
+    // 工具层 —— 读屏结果的三格在这里组装（source / coordinateSpace / foregroundPackage）。
     dartTools: join(
       root,
       'shadow-mobile',
@@ -123,6 +123,16 @@ function pathsFor(root) {
       'capabilities',
       'capability_tools.dart'
     ),
+    // ⚠️ **自家包名常量住在哪一层，不该由这把闸钉死** ——
+    // ⇒ ⇒ 常量住在**两棵树的共同下层**（`accessibility_ops.dart`）⇒ ⇒
+    // ⇒ ⇒ 而那正是为了避开循环依赖才搬的 ⇒ ⇒ ⇒ 若闸钉死「工具层那一份」
+    // ⇒ ⇒ ⇒ **搬一次常量就把闸弄红** ⇒ ⇒ ⇒ 那是「判据钉实现形状」的脆。
+    // ⇒ ⇒ ⇒ ⇒ 扫**全部**候选源 ⇒ ⇒ 住哪一层都能找到。
+    dartPkgScan: [
+      join(root, 'shadow-mobile', 'lib', 'services', 'capabilities', 'capability_tools.dart'),
+      join(root, 'shadow-mobile', 'lib', 'services', 'capabilities', 'accessibility_ops.dart'),
+      join(root, 'shadow-mobile', 'lib', 'services', 'capabilities', 'flutter_semantics_tree.dart'),
+    ],
     // Gradle 侧 —— 自家 app 的包名（applicationId）是**同一件事的另一份**。
     gradleApp: join(root, 'shadow-mobile', 'android', 'app', 'build.gradle.kts'),
   };
@@ -499,6 +509,14 @@ function checkFacts(facts) {
       'block',
       '自家包名没找到（Dart 的 kOwnAppPackage 与 Gradle 的 applicationId —— 两端必须都有）'
     );
+  } else if (String(facts.ownPkgDart).startsWith('CONFLICT:')) {
+    // ⚠️ **两处写法不一致 ⇒ ⇒ 判不了** ⇒ ⇒ 不能静悄悄挑一个。
+    add(
+      'block',
+      '自家包名在 Dart 侧有**多个不同取值**：' +
+        String(facts.ownPkgDart).slice('CONFLICT:'.length) +
+        ' ⇒ ⇒ 必须只有一处定义 ⇒ ⇒ 两处不一致 ⇒ ⇒ 回落分支会报出**错的**包名'
+    );
   } else if (facts.ownPkgDart !== facts.ownPkgGradle) {
     add(
       'block',
@@ -621,10 +639,27 @@ function parseSourceValues(src) {
   return out;
 }
 
-/** Dart 侧的自家包名常量（`kOwnAppPackage`）。 */
-function parseOwnPackageDart(src) {
-  const m = /kOwnAppPackage\s*=\s*'([^']+)'/.exec(src);
-  return m ? m[1] : null;
+/**
+ * Dart 侧的自家包名常量（`kOwnAppPackage`）。
+ *
+ * ⚠️ **扫的是「全部候选源」，不是某一个文件** ——
+ * ⇒ ⇒ 常量住在**两棵树的共同下层**（`accessibility_ops.dart`）⇒ ⇒
+ * ⇒ ⇒ 而那正是为了避开循环依赖才搬的 ⇒ ⇒ ⇒ 若这里钉死「工具层那一份」
+ * ⇒ ⇒ ⇒ **搬一次常量就把闸弄红** ⇒ ⇒ ⇒ 那是「判据钉实现形状」的脆。
+ *
+ * ⚠️ **多处命中且取值不同 ⇒ ⇒ 判不了**（不是「取第一个」）⇒ ⇒
+ * ⇒ ⇒ 两处写法不一致 ⇒ ⇒ 必须红 ⇒ ⇒ 不能静悄悄挑一个。
+ */
+function parseOwnPackageDart(sources) {
+  const list = Array.isArray(sources) ? sources : [sources];
+  const found = [];
+  for (const src of list) {
+    const m = /kOwnAppPackage\s*=\s*'([^']+)'/.exec(src);
+    if (m) found.push(m[1]);
+  }
+  const uniq = [...new Set(found)];
+  if (uniq.length > 1) return 'CONFLICT:' + uniq.join('|');
+  return uniq.length === 1 ? uniq[0] : null;
 }
 
 /** Gradle 侧的 applicationId（自家 app 的包名）。 */
@@ -653,7 +688,7 @@ function parseAll(sources) {
     treeHasOwnMarkerLiteral: /['"]\[truncated\]['"]/.test(sources.dartTree),
     // ⚠️ 自家 app 的包名 —— Dart 常量 vs Gradle 的 applicationId
     // ⇒ ⇒ 「同一件事的两份」⇒ ⇒ 漂了就静悄悄。
-    ownPkgDart: parseOwnPackageDart(sources.dartTools),
+    ownPkgDart: parseOwnPackageDart(sources.dartPkgScan),
     ownPkgGradle: parseOwnPackageGradle(sources.gradleApp),
     // ⚠️ **R7 的被测面** —— 工具描述（模型唯一看到的口径说明）。
     toolDescription: parseToolDescription(sources.dartRegistry),
@@ -664,6 +699,16 @@ function parseAll(sources) {
 function readSources(paths) {
   const out = {};
   for (const [k, p] of Object.entries(paths)) {
+    // ⚠️ `dartPkgScan` 是**一列**文件 ⇒ ⇒ 读成数组 ⇒ ⇒ 逐份扫。
+    if (Array.isArray(p)) {
+      const parts = [];
+      for (const one of p) {
+        if (!existsSync(one)) return null;
+        parts.push(readFileSync(one, 'utf8'));
+      }
+      out[k] = parts;
+      continue;
+    }
     if (!existsSync(p)) return null;
     out[k] = readFileSync(p, 'utf8');
   }
@@ -690,7 +735,12 @@ const SAMPLE_DART_A11Y = [
   "enum GlobalAction { back('back'), home('home'); }",
 ].join('\n');
 
-const SAMPLE_DART_OPS = "const String kScreenTruncationMarker = '[truncated]';\n";
+// ⚠️ **ops 层** —— 截断标记常量 ＋ **自家包名常量**（镜像真代码：
+// ⇒ ⇒ 它住在**两棵树的共同下层** ⇒ ⇒ 工具层拿不到它 ⇒ ⇒ 就 import）。
+const SAMPLE_DART_OPS = [
+  "const String kScreenTruncationMarker = '[truncated]';",
+  "const String kOwnAppPackage = 'com.ibloc.shadow';",
+].join('\n');
 
 const SAMPLE_KT_MAIN = [
   'class A {',
@@ -732,9 +782,9 @@ const SAMPLE_DART_TREE = [
   'void f() { print(kScreenTruncationMarker); }',
 ].join('\n');
 
-// 工具层 —— 自家包名常量（「这是谁的屏」那一格的答案）。
+// ⚠️ **工具层** —— 只剩两棵树的**取值常量**（自家包名**不在**这一层 ⇒ ⇒
+// ⇒ ⇒ 镜像真代码：常量住在**共同的下层**，见 SAMPLE_DART_OPS）。
 const SAMPLE_DART_TOOLS = [
-  "const String kOwnAppPackage = 'com.ibloc.shadow';",
   "const String kScreenSourceAndroidA11y = 'android-a11y';",
   "const String kScreenSourceFlutterSemantics = 'flutter-semantics';",
 ].join('\n');
@@ -777,6 +827,7 @@ function selfTest() {
     dartTree: SAMPLE_DART_TREE,
     ktBudget: SAMPLE_KT_BUDGET,
     dartTools: SAMPLE_DART_TOOLS,
+    dartPkgScan: [SAMPLE_DART_TOOLS, SAMPLE_DART_OPS],
     gradleApp: SAMPLE_GRADLE_APP,
     dartRegistry: SAMPLE_DART_REGISTRY,
   };
@@ -827,6 +878,17 @@ function selfTest() {
           '                "getViewGeometry" -> {',
           '                "getViewGeometryX" -> {',
         ),
+      },
+    ],
+    [
+      '自家包名在 Dart 侧有两处**不同**取值 ⇒ ⇒ 判不了 ⇒ ⇒ 必红',
+      {
+        ...base,
+        // ⚠️ 两份 Dart 源里各写一个**不同**的包名 ⇒ ⇒ 回落分支会报出错的包名。
+        dartPkgScan: [
+          "const String kOwnAppPackage = 'com.ibloc.shadow';",
+          "const String kOwnAppPackage = 'com.ibloc.wrong';",
+        ],
       },
     ],
     [
