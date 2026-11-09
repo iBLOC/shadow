@@ -63,7 +63,7 @@
 ⑧ **⚠️ 圈码：本条占 U+3472（㑲）** —— 插前**独立重扫**（父仓工作树 ∪ 父仓索引 ∪ 父仓 HEAD × **三本账本**，按**声明形状**扫、**声明与提及分开**、码位按**十六进制**计）⇒ ⇒ 读数：**U+3472 三面各 decl=0 / men=16**（那 16 处全是「留给真机腿那条线」这类**提及**，**不是声明**）✔ ⇒ ⇒ 且台账原文**明写**「U+3472 已口头留给真机腿那条线（mvs_259aea6）」⇒ ⇒ **本会话正是那条线** ⇒ ⇒ ⇒ 本条取它（**有据的保留位**，兑现预留；**不是空洞回填**）⇒ ⇒ ⚠️ **不复用任何空洞**（U+3469／U+346B／U+346E／U+3476／U+3479／U+347B／U+347C 继续空）⇒ ⇒ 按惯例**再留一枚缓冲（U+3499）**（U+3498 ＝ 自然下一枚，**本条不动**）⇒ ⇒ ⚠️ 本条**只引用已提交的码位**（U+3482／U+3490）⇒ ⇒ ⚠️ **插完立刻复跑码位闸**是硬约束。
 **Updated**: 2026-11-11 (㒖 **「端脑源码里有那条路由 —— 而你编出来的大脑里没有」** —— 承 U+3482 条（哪几档按引擎 id 解析由端脑说了算）＋ U+3490 条（回退不只有「退成旧版」一种形状），本条记**取证（真产物字节扫描）**、**第一因（源码面 ≠ 产物面）**、**第二因（既有那道闸量的是符号面）**、**这一刀的落点**、**途中那几课**、**判据**、**分级读数**，以及**仍然欠着的**.)
 
-> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真产物级实测（真 .so 字节扫描 ＋ 端脑源码逐条核对 ＋ 注入式反向验证）｜ 改动：shadow 仓 **新增** scripts/check-brain-route-surface.mjs（产物级闸 ＋ 自检 ＋ 退出码 0/1/2）、**新增** .github/workflows/brain-route-surface.yml（独立 workflow，零共享面）、**改** scripts/check-cross-client.mjs（闸清单统一入口：登记第 5 把守卫 ＋ 退出码 2 =「判不了」不阻断但打印）｜ 读数：**判据自检 7/7**、**反向验证：假产物「除一条外全齐」⇒ 恰好 1 红且逐字点名**、**真产物级：对着真的 libencephalon.so（11-06 那份，156.7MB）⇒ EXIT=1、恰好 4 条红**（notifications ／ notifications/ack ／ lobes/capability-defaults ／ tasks/{id}/update）｜ status=active | supersedes=none
+> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真产物级实测（真 .so 字节扫描 ＋ 端脑源码逐条核对 ＋ 注入式反向验证）｜ 改动：shadow 仓 **新增** scripts/check-brain-route-surface.mjs（产物级闸 ＋ 自检 ＋ 退出码 0/1/2）、**新增** .github/workflows/brain-route-surface.yml（独立 workflow，零共享面）、**改** scripts/check-cross-client.mjs（闸清单统一入口：登记第 5 把守卫 ＋ 退出码 2 =「判不了」不阻断但打印）｜ 读数：**判据自检 7/7**、**反向验证：假产物「除一条外全齐」⇒ 恰好 1 红且逐字点名**、**真产物级：对着真的 libencephalon.so（11-06 那份，156.7MB）⇒ EXIT=1、恰好 4 条红**（notifications ／ notifications/ack ／ lobes/capability-defaults ／ tasks/{id}/update）| status=active | supersedes=none
 
 ① **⚠️ 取证：端脑源码里有 ⇒ ⇒ 跑着的端脑里没有**
 　❶ 用户那三问（② 分档默认 ＋ ③ agent 声明所需模型类型）**源码两侧都已落地**：端脑 telencephalon 的 src/api/lobe_manifest.rs 有「GET/PUT /api/telencephalon/lobes/capability-defaults」；src/api/agent_management.rs 有 required_capabilities ＋ 严格词表校验（不认识的能力词整个拒绝）；桌面端有 CapabilityDefaultsCard ＋ AgentCapabilityPicker；移动端有 capability_default_section.dart ＋ telencephalon_client.dart 的 get/setCapabilityDefaults。
@@ -216,6 +216,8 @@
 　❷ **探针的标识符形状必须是同一种** —— 我第一版聚合码位占用时，用带 `U+` 前缀的键去查 `extractEntries()` 返回的 `actual`（**裸 hex，无前缀**）⇒ ⇒ 读数「occupy=0」**全零** ⇒ ⇒ 而真相是 17 枚被占用 ⇒ ⇒ ⇒ **零与假覆盖长得一模一样**（这是「按声明形状扫」那条的同族复发：当晚我当场又踩了一次）⇒ ⇒ **正确做法：用项目自己的解析器 ＋ 归一化它的字段形状，别自己写正则去猜**。
 　❸ **本地绿 ≠ CI 绿** —— 这一族在 Windows 本地永远是绿的 ⇒ ⇒ ⇒ **本地读数在跨平台脚本上是无效读数** ⇒ ⇒ 要判它，只能在 CI 上判。
 　❹ **闸自己也会被治理闸照** —— 我的新闸被纪律闸扫到（D1–D5 零违规）；而**并行会话那把闸当场咬了它自己一口**（0/4）⇒ ⇒ ⇒ **一把闸在真 CI 上第一次跑，往往红的是它自己**。
+　❺ ⚠️ **条目级的合并会丢掉「字符级」的增量** —— 2026-11-11 实测：并行会话用「**旧基线 ＋ 整块替换自己那一条**」构造提交面 ⇒ ⇒ 台账**条目**一条没丢（逐条对账：**缺 0 条**）⇒ ⇒ 但**别人对某一条做过的字符级修改被整段顶掉了**（我那处信封分隔符的半角修复被退回全角 ⇒ ⇒ 状态面闸又报了一次「缺字段 status」）⇒ ⇒ ⇒ **通用形态：按「条目」粒度合并 ⇒ ⇒ 会静悄悄丢掉条目内部的增量** ⇒ ⇒ **判据**：合并后的提交面必须与「基线 ＋ 全部增量」**逐字**对账 ⇒ ⇒ 只对账条目数**不够**（条目数会一样，而字会不一样）。
+　❻ ⚠️ **我这把闸第一次真跑就红在自己身上（两处）** —— ① `--json` 末尾混了一行人读提示 ⇒ ⇒ 下游 `JSON.parse` 会炸（`Additional text encountered after finished reading JSON content`）⇒ ⇒ 同一个开关同时产出「机器可读」与「人可读」时，**机器那一面会被污染**；② 一笔**被 `cancel-in-progress` 取消得太早**的 run（`conclusion=cancelled` ＋ **0 job 记录**）被归成「判不了」⇒ ⇒ `--recent` 里历史那一笔触发 exit 2 ⇒ ⇒ **拖红 CI**（而它自己什么都没测）⇒ ⇒ ⇒ **根因不是判据写错，是判据把两种东西当成了一种**（「被取消得太早」≠「基础设施坏了」）⇒ ⇒ 修法：零 job ＋ `cancelled` ⇒ ⇒ 归 cancelled 档；`--recent` 的退出码只看「最近一笔**带 job 记录**的」⇒ ⇒ **「没有读数」与「读数是红的」要分开说**。
 
 ⑥ **✅ 判据（五档分类 ＋ 两条红线 ＋ 退出码三档）**
 　❶ **红线一**：**你声称要读的那一笔 run 是门外红** ⇒ ⇒ 红（exit 1）—— 「读数」不存在。
