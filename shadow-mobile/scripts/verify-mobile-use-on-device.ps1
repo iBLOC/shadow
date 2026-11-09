@@ -384,7 +384,16 @@ try {
             # ⇒ ⇒ ⇒ 「授权一次」**不够** ⇒ ⇒ 授权给**旧进程**那份在重装后失效
             # ⇒ ⇒ ⇒ 症状：app 侧 `isEnabled` 永远 false ⇒ ⇒ 用例等满 60 秒才失败。
             # ⇒ ⇒ ⇒ 所以：**pid 一变就重新代开**（外加每 5 秒兜底复查一次）。
-            $needAttempt = ($pidText -ne $lastPid) -or (((Get-Date) - $lastAttempt).TotalSeconds -ge 5)
+            # ⚠️⚠️⚠️ **不要「每 5 秒重写一次设置项」** ——
+            # ⇒ ⇒ 改写 `enabled_accessibility_services` ⇒ ⇒ 系统会**重绑**那个服务
+            # ⇒ ⇒ ⇒ 等于**脚本自己在制造竞态**：服务被拆 → 实例为 null →
+            # ⇒ ⇒ ⇒ app 侧的准入读数在那一秒里读成「没开」
+            # ⇒ ⇒ ⇒ 真机实测（2026-11-10）：那一秒里工具层抛的是
+            # ⇒ ⇒ ⇒ 「请去系统设置里打开」—— 而那里本来就是开的。
+            # ⇒ ⇒ ⇒ **尺子不许自己拨动被测物** ⇒ ⇒ 改成：
+            # ⇒ ⇒ ⇒ **pid 变了**（drive 重装 ⇒ 授权被清空）**或**
+            # ⇒ ⇒ ⇒ **服务当前确实没绑上**（真的掉了）⇒ ⇒ 才重开授权。
+            $needAttempt = ($pidText -ne $lastPid) -or (-not (Test-A11yServiceBound -PidText $pidText))
             if (-not $needAttempt) {
                 Start-Sleep -Milliseconds 700
                 continue

@@ -259,7 +259,7 @@ class CapabilityTools {
     await _ensureAccessibilityService();
     final ok = await _a11y.tap(x, y);
     if (!ok) {
-      throw StateError('the tap gesture was not dispatched');
+      throw await _notDispatched('tap gesture');
     }
     return <String, dynamic>{'tapped': true, 'x': x, 'y': y};
   }
@@ -276,7 +276,7 @@ class CapabilityTools {
     await _ensureAccessibilityService();
     final ok = await _a11y.longPress(x, y);
     if (!ok) {
-      throw StateError('the long-press gesture was not dispatched');
+      throw await _notDispatched('long-press gesture');
     }
     return <String, dynamic>{'longPressed': true, 'x': x, 'y': y};
   }
@@ -296,7 +296,7 @@ class CapabilityTools {
     await _ensureAccessibilityService();
     final ok = await _a11y.swipe(x1, y1, x2, y2, durationMs);
     if (!ok) {
-      throw StateError('the swipe gesture was not dispatched');
+      throw await _notDispatched('swipe gesture');
     }
     return <String, dynamic>{
       'swiped': true,
@@ -360,7 +360,7 @@ class CapabilityTools {
     await _ensureAccessibilityService();
     final ok = await _a11y.globalAction(action);
     if (!ok) {
-      throw StateError('the global action was not dispatched: $raw');
+      throw await _notDispatched('global action', detail: raw);
     }
     return <String, dynamic>{'action': raw};
   }
@@ -376,7 +376,32 @@ class CapabilityTools {
     return null;
   }
 
+  /// 「派发不出去」的**真因** —— 说清是「没派发」还是「服务没连上」。
+  ///
+  /// ⚠️ **为什么要分这两种**：真机实测过「系统把无障碍服务重启了」
+  /// ⇒ ⇒ 那 1 秒里任何手势都派发不出去 ⇒ ⇒ 但那**不是**「用户没开」
+  /// ⇒ ⇒ 一律报「没派发出去」，模型会以为手机坏了 / 坐标不对；
+  /// ⇒ ⇒ 一律报「服务没连上」，那「派发出去了但没生效」又被说成重启。
+  ///
+  /// ⚠️ 判据是**连接态**（瞬时）⇒ ⇒ 报「没连上」时服务**正在重启**
+  /// ⇒ ⇒ 那句话本身就是给模型的**下一步指令**（等一下再试）。
+  Future<StateError> _notDispatched(String what, {String? detail}) async {
+    final connected = await _a11y.isServiceConnected();
+    final suffix = detail == null ? '' : ': $detail';
+    if (connected) {
+      return StateError('the $what was not dispatched$suffix');
+    }
+    return StateError(
+      'the accessibility service is not connected right now '
+      '(it may be restarting) — the $what was not dispatched$suffix',
+    );
+  }
+
   /// 执行前确认**无障碍服务**已开启。
+  ///
+  /// ⚠️ 这里判的是**「开关」**（用户在系统设置里开了没）⇒ ⇒ 那是
+  /// **权威**判据 ⇒ ⇒ 不会因为系统重启服务而误杀一次调用。
+  /// ⇒ ⇒ 「服务此刻连上了没有」是**另一件事**，由派发那一层抗抖。
   ///
   /// ⚠️ 这一层与「应用层档位」是**两件事**：
   /// - 应用层（每次询问 / 完全访问 / 彻底关闭）⇒ 用户对**这个助手**的授权；
@@ -386,11 +411,21 @@ class CapabilityTools {
   /// ⇒ ⇒ 只能用户在系统设置里手动开 ⇒ ⇒ 这里**明确失败**并说清去哪儿开
   /// ⇒ ⇒ 设置页那一行给一键入口。
   Future<void> _ensureAccessibilityService() async {
-    final enabled = await _a11y.isEnabled();
-    if (enabled) return;
+    // ⚠️ 问的是「**现在能不能动手**」⇒ ⇒ 而不是「用户开没开」
+    // ⇒ ⇒ 因为真机实测：系统重启无障碍服务的那 1 秒里，**连「已启用列表」**
+    // 都是空的 ⇒ ⇒ 一读就下结论 ⇒ ⇒ 会把「系统正在重启它」说成「用户没开」
+    // ⇒ ⇒ 那是**假原因** ⇒ ⇒ 模型会劝用户去动一个本来就是开的开关。
+    // ⇒ ⇒ ⇒ 原生那一头会**等服务连上**（≤3 秒）再答 ⇒ ⇒ 这一格抗得住抖。
+    if (await _a11y.isReady()) return;
+    // ⚠️ 还是不行 ⇒ ⇒ 判清是「用户没开」还是「开了但没连上」
+    // ⇒ ⇒ 两者的**下一步指令**完全不同 ⇒ ⇒ 不能混成一句。
+    final switched = await _a11y.isEnabled();
     throw StateError(
-      'the accessibility service is not enabled — the user has to turn it on '
-      'in the system settings first',
+      switched
+          ? 'the accessibility service is enabled but not connected right now '
+              '(it may be restarting) — retry in a moment'
+          : 'the accessibility service is not enabled — the user has to turn '
+              'it on in the system settings first',
     );
   }
 }

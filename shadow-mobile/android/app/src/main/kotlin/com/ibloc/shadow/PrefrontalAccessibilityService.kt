@@ -214,7 +214,19 @@ class PrefrontalAccessibilityService : AccessibilityService() {
          */
         const val TRUNCATION_MARKER = "[truncated]"
         private const val TAP_DURATION_MS = 50L
-        private const val LONG_PRESS_DURATION_MS = 500L
+        /**
+         * 长按**按住多久**（毫秒）。
+         *
+         * ⚠️⚠️ **为什么不能正好 500ms** —— Flutter 的长按阈值是 500ms，
+         * Android 原生的长按超时**也是 500ms** ⇒ ⇒ 按住正好 500ms
+         * ⇒ ⇒ 就是在跟平台阈值**赛跑** ⇒ ⇒ 输了的那一次，app 收到的是
+         * 「点按」（onTap 触发、onLongPress 不触发）⇒ ⇒ **长按变成了点按**
+         * ⇒ ⇒ 而点按可能触发**点击动作**（比「没长按」更糟）。
+         * ⇒ ⇒ ⇒ 真机实测（2026-11-10）：按住 500ms 那一次，实测
+         * **onLongPress 没触发、反倒 onTap 触发了** ⇒ ⇒ app 眼里是「点按」
+         * ⇒ ⇒ ⇒ 所以按 800ms（留 300ms 余量，越过平台阈值）。
+         */
+        private const val LONG_PRESS_DURATION_MS = 800L
         private const val MIN_SWIPE_DURATION_MS = 50L
         private const val MAX_SWIPE_DURATION_MS = 3000L
 

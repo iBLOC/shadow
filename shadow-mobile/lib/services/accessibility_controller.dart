@@ -15,7 +15,15 @@ class AccessibilityController {
   /// 当前是否为 Android 平台（仅 Android 支持无障碍控制）
   static bool get isSupported => Platform.isAndroid;
 
-  /// 无障碍服务是否已开启
+  /// 无障碍服务**在系统设置里**是否已开启（**权威判据**）。
+  ///
+  /// ⚠️ **与 [isServiceConnected] 不是同一件事** ⇒ ⇒ 别混用：
+  /// - 这个 ＝「用户在系统设置里开了没」⇒ ⇒ **权威、无竞态**；
+  /// - [isServiceConnected] ＝「服务实例此刻在不在」⇒ ⇒ **瞬时** ⇒ ⇒
+  ///   系统重启服务时会短暂为 false（真机实测约 1 秒）。
+  ///
+  /// ⚠️ **为什么权威的那一头在原生侧**：服务会不会被系统重启、
+  /// 什么时候重连，只有系统知道 ⇒ ⇒ 原生那边读**系统设置**才准。
   static Future<bool> get isEnabled async {
     if (!isSupported) return false;
     try {
@@ -24,6 +32,42 @@ class AccessibilityController {
     } on MissingPluginException {
       // ⚠️ 通道不在（单测 / 裁剪版 / 非 Android）⇒ ⇒ 保守：**当作没开**。
       // ⚠️ 宁可界面显示「未开启」，也不要谎称已开启。
+      return false;
+    } on PlatformException {
+      return false;
+    }
+  }
+
+  /// 无障碍服务**此刻连上了没有**（瞬时活性）。
+  ///
+  /// ⚠️ 与 [isEnabled] **不是同一件事** ⇒ ⇒ 它答的是「能不能**立刻**派发」，
+  /// 而 [isEnabled] 答的是「用户开没开」⇒ ⇒ 两者会**短暂不一致**
+  /// ⇒ ⇒ 那正是系统重启服务的那一秒。
+  static Future<bool> get isServiceConnected async {
+    if (!isSupported) return false;
+    try {
+      final result = await _channel.invokeMethod<bool>('isServiceConnected');
+      return result ?? false;
+    } on MissingPluginException {
+      return false;
+    } on PlatformException {
+      return false;
+    }
+  }
+
+  /// 「**现在能不能动手**」—— 等得起抖的判据。
+  ///
+  /// ⚠️ 与 [isEnabled] **不是同一件事** ⇒ ⇒ 那个答「用户开没开」，
+  /// 这个答「此刻能不能派发」⇒ ⇒ 真机实测：系统重启无障碍服务的那 1 秒里，
+  /// **连「已启用列表」都是空的** ⇒ ⇒ 一读就下结论会得出**假原因**。
+  ///
+  /// ⚠️ 原生那一头会**等服务连上**（≤3 秒）再答 ⇒ ⇒ 所以这里**不会**立刻回 false。
+  static Future<bool> get isReady async {
+    if (!isSupported) return false;
+    try {
+      final result = await _channel.invokeMethod<bool>('isReady');
+      return result ?? false;
+    } on MissingPluginException {
       return false;
     } on PlatformException {
       return false;

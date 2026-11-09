@@ -22,7 +22,29 @@ abstract class AccessibilityOps {
   const AccessibilityOps();
 
   /// 无障碍服务是否已开启（系统设置里的那个开关）。
+  ///
+  /// ⚠️ **这是「开关」**，不是「服务此刻连上了没有」⇒ ⇒ 那件事是
+  /// [isServiceConnected] ⇒ ⇒ 两个问题，两个判据。
   Future<bool> isEnabled();
+
+  /// 无障碍服务**此刻连上了没有**（瞬时活性）。
+  ///
+  /// ⚠️ 与 [isEnabled] **不是同一件事** ⇒ ⇒ 别拿它当「开关」用：
+  /// 系统的无障碍服务**会被系统自己重启**（真机实测约 1 秒）
+  /// ⇒ ⇒ 那 1 秒里这里会短暂为 false，而 [isEnabled] 仍然是 true。
+  ///
+  /// ⚠️ 默认实现**跟随** [isEnabled] ⇒ ⇒ 单测里的假实现**不用改**
+  /// ⇒ ⇒ 而真机那一头由 [PlatformAccessibilityOps] 覆盖成真实连接态。
+  Future<bool> isServiceConnected() async => isEnabled();
+
+  /// 「**现在能不能动手**」—— 等得起抖的判据。
+  ///
+  /// ⚠️ 与 [isEnabled] **不是同一件事** ⇒ ⇒ [isEnabled] 答「用户开没开」，
+  /// 这个答「此刻能不能派发」⇒ ⇒ 真机实测：系统重启无障碍服务的那 1 秒里
+  /// 连「已启用列表」都是空的 ⇒ ⇒ 一读就下结论会得出**假原因**。
+  ///
+  /// ⚠️ 默认实现**跟随** [isServiceConnected] ⇒ ⇒ 单测里的假实现**不用改**。
+  Future<bool> isReady() async => isServiceConnected();
 
   /// 读当前屏幕（可访问性树）；null ＝ 取不到。
   Future<String?> readScreen();
@@ -64,6 +86,13 @@ class PlatformAccessibilityOps extends AccessibilityOps {
 
   @override
   Future<bool> isEnabled() => AccessibilityController.isEnabled;
+
+  @override
+  Future<bool> isServiceConnected() =>
+      AccessibilityController.isServiceConnected;
+
+  @override
+  Future<bool> isReady() => AccessibilityController.isReady;
 
   @override
   // ⚠️ `readScreen` 在控制器那边是**静态方法** ⇒ ⇒ 要带括号调用

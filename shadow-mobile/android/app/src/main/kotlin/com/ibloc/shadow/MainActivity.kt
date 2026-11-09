@@ -6,9 +6,12 @@ import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.provider.Settings
 import android.view.View
 import android.view.ViewGroup
+import android.accessibilityservice.AccessibilityServiceInfo
+import android.view.accessibility.AccessibilityManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.android.FlutterView
@@ -25,6 +28,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+/** 等无障碍服务连上的上限（毫秒）—— 真机实测系统重启服务约 1 秒。 */
+private const val SERVICE_WAIT_TIMEOUT_MS = 3000L
+
+/** 等无障碍服务连上时的轮询间隔（毫秒）。 */
+private const val SERVICE_WAIT_POLL_MS = 100L
+
+/** 无障碍这一层的日志 tag。 */
+private const val A11Y_LOG_TAG = "ShadowA11y"
 
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "com.ibloc.shadow/mnn"
@@ -53,6 +65,13 @@ class MainActivity : FlutterActivity() {
     // 能把**异步的权限申请结果**转回去（申请权限是弹窗，系统回调才到）。
     private var deviceDataBridge: DeviceDataBridge? = null
 
+    /// 主线程的 handler —— 等无障碍服务**连上**时用它轮询。
+    ///
+    /// ⚠️ 必须是**主线程**：无障碍实例**只能在主线程访问**
+    /// ⇒ ⇒ 而 MethodChannel 的 handler 本来就在主线程
+    /// ⇒ ⇒ 轮询也回主线程 ⇒ ⇒ 既不阻塞、又守住了那条规矩。
+    private val a11yWaitHandler = Handler(Looper.getMainLooper())
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
@@ -75,7 +94,26 @@ class MainActivity : FlutterActivity() {
     private fun setupAccessibilityChannel(flutterEngine: FlutterEngine) {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, A11Y_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
-                "isEnabled" -> result.success(PrefrontalAccessibilityService.instance != null)
+                // ⚠️⚠️ **「开关」与「连接」是两件事** —— 这里答的是**开关**。
+                //
+                // ⚠️ 为什么不能答「连接」：系统的无障碍服务**会被系统自己重启**
+                // （真机实测：点按之后约 1 秒里 service 被 destroy 再 connected，
+                // 进程没死 ⇒ ⇒ 不是 app 崩了）⇒ ⇒ 那 1 秒里 instance 是 null
+                // ⇒ ⇒ 若这里答 instance != null ⇒ ⇒ 「用户在设置里开了没」
+                // 这个问题的答案会**跟着系统抖** ⇒ ⇒ 调用方据此抛
+                // 「请去系统设置里打开」⇒ ⇒ **报错说了一个假原因**
+                // ⇒ ⇒ 模型会劝用户去动一个本来就是开的开关。
+                "isEnabled" -> result.success(isAccessibilityServiceEnabledInSettings())
+                // ⚠️ **连接态**（瞬时）—— 派发失败时用它区分「没派发出去」
+                // 与「服务正在重启」⇒ ⇒ 报错要说**真因**。
+                "isServiceConnected" -> result.success(PrefrontalAccessibilityService.instance != null)
+                // ⚠️⚠️ **「现在能不能动手」** —— 与「isEnabled」（答「用户开没开」）
+                // **不是同一件事** ⇒ ⇒ 判据必须**等得起**：
+                // ⇒ ⇒ 真机实测：系统重启无障碍服务的那 1 秒里，**连「已启用列表」
+                // 都是空的**（enabled=0 / matched=false）⇒ ⇒ 一读就下结论
+                // ⇒ ⇒ 会把「系统正在重启它」说成「用户没开」⇒ ⇒ **假原因**。
+                // ⇒ ⇒ ⇒ 所以这里**等服务连上**（≤3 秒）再答 ⇒ ⇒ 抗得住抖。
+                "isReady" -> withAccessibilityService(result) { svc -> true }
                 "openSettings" -> {
                     val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
                     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -85,12 +123,15 @@ class MainActivity : FlutterActivity() {
                 "tap" -> {
                     val x = (call.argument<Number>("x")?.toFloat()) ?: 0f
                     val y = (call.argument<Number>("y")?.toFloat()) ?: 0f
-                    result.success(PrefrontalAccessibilityService.instance?.performTap(x, y) ?: false)
+                    // ⚠️ **等服务连上**再派发 —— 系统重启服务的那 1 秒窗口里
+                    // ⇒ ⇒ 直接派发只会拿到 false ⇒ ⇒ 白白让模型以为手势坏了。
+                    withAccessibilityService(result) { svc -> svc.performTap(x, y) }
                 }
                 "longPress" -> {
                     val x = (call.argument<Number>("x")?.toFloat()) ?: 0f
                     val y = (call.argument<Number>("y")?.toFloat()) ?: 0f
-                    result.success(PrefrontalAccessibilityService.instance?.performLongPress(x, y) ?: false)
+                    // ⚠️ 同 tap ⇒ ⇒ 等服务连上再派发。
+                    withAccessibilityService(result) { svc -> svc.performLongPress(x, y) }
                 }
                 "swipe" -> {
                     val x1 = (call.argument<Number>("x1")?.toFloat()) ?: 0f
@@ -98,7 +139,7 @@ class MainActivity : FlutterActivity() {
                     val x2 = (call.argument<Number>("x2")?.toFloat()) ?: 0f
                     val y2 = (call.argument<Number>("y2")?.toFloat()) ?: 0f
                     val d = (call.argument<Number>("durationMs")?.toLong()) ?: 300L
-                    result.success(PrefrontalAccessibilityService.instance?.performSwipe(x1, y1, x2, y2, d) ?: false)
+                    withAccessibilityService(result) { svc -> svc.performSwipe(x1, y1, x2, y2, d) }
                 }
                 "globalAction" -> {
                     val action = call.argument<String>("action") ?: "back"
@@ -120,7 +161,7 @@ class MainActivity : FlutterActivity() {
                         // ⚠️ 认不出来的动作 ⇒ **明确失败**，别静悄悄变成「返回」。
                         result.success(false)
                     } else {
-                        result.success(PrefrontalAccessibilityService.instance?.performGlobalActionById(id) ?: false)
+                        withAccessibilityService(result) { svc -> svc.performGlobalActionById(id) }
                     }
                 }
                 "readScreen" -> {
@@ -132,7 +173,7 @@ class MainActivity : FlutterActivity() {
                     //
                     // null = 服务没连上 / 没有可读的前台窗口 ⇒ ⇒ Dart 侧据此
                     // 报「无障碍服务未开启」，而不是回一段空白。
-                    result.success(PrefrontalAccessibilityService.instance?.readScreenContent())
+                    withAccessibilityService(result) { svc -> svc.readScreenContent() }
                 }
                 "getViewGeometry" -> {
                     // ⚠️ **自家窗口在屏幕上的原点** —— 自家 app 的语义树坐标是
@@ -164,10 +205,86 @@ class MainActivity : FlutterActivity() {
                     DeviceActionGate.setAllowed(call.argument<Boolean>("allowed") == true)
                     result.success(true)
                 }
-                "findAndClickByText" -> result.success(PrefrontalAccessibilityService.instance?.findAndClickByText(call.argument<String>("text") ?: "") ?: false)
+                "findAndClickByText" -> withAccessibilityService(result) { svc -> svc.findAndClickByText(call.argument<String>("text") ?: "") }
                 else -> result.notImplemented()
             }
         }
+    }
+
+    /**
+     * 「用户在系统设置里开了本 app 的无障碍服务没有」—— **权威判据**。
+     *
+     * ⚠️ 为什么不用 `PrefrontalAccessibilityService.instance != null`：
+     * 那是**连接态** ⇒ ⇒ 系统重启服务时会短暂为 false ⇒ ⇒ 用它当「开关」
+     * ⇒ ⇒ 会在系统重启的那一秒里**误杀**一次调用 ⇒ ⇒ 而且报出来的是
+     * 「请去系统设置里打开」—— **假原因**。
+     */
+    private fun isAccessibilityServiceEnabledInSettings(): Boolean {
+        val manager = getSystemService(Context.ACCESSIBILITY_SERVICE) as? AccessibilityManager
+            ?: return false
+        // ⚠️ **带参数的那个**自 API 29 起被弃用，但 minSdk=24 ⇒ ⇒ 只能用它
+        // ⇒ ⇒ 那个弃用警告是**故意的**（无参数的版本 API 29 才有）。
+        @Suppress("DEPRECATION")
+        val enabled = manager.getEnabledAccessibilityServiceList(
+            AccessibilityServiceInfo.FEEDBACK_ALL_MASK
+        ) ?: return false
+        val self = PrefrontalAccessibilityService::class.java.name
+        val matched = enabled.any { info ->
+            val si = info.resolveInfo?.serviceInfo
+            si != null && si.packageName == packageName && si.name == self
+        }
+        // ⚠️ 读数落在**判定行**上 ⇒ ⇒ 真机上能直接看到「系统那边认不认我们」。
+        AppLog.d(A11Y_LOG_TAG, "a11y switch: enabled=${enabled.size} self=$self matched=$matched")
+        return matched
+    }
+
+    /**
+     * 等无障碍服务**连上**，再派发动作。
+     *
+     * ⚠️ 为什么要有这一层：系统的无障碍服务**会被系统自己重启**
+     * ⇒ ⇒ 重启那 1 秒里 `PrefrontalAccessibilityService.instance` 是 null
+     * ⇒ ⇒ 直接派发只会拿到「没派发出去」⇒ ⇒ 而真因是「服务在重启」。
+     *
+     * ⚠️ **不能阻塞**：MethodChannel 的 handler 跑在**平台主线程**上
+     * ⇒ ⇒ 而无障碍实例**只能在主线程访问** ⇒ ⇒ 所以用主线程的
+     * `postDelayed` 轮询 ⇒ ⇒ 既不阻塞、又还在主线程上。
+     *
+     * @param timeoutMs 等多久；超时回 null（Dart 侧映射成 false / 读不到）。
+     */
+    private fun <T> withAccessibilityService(
+        result: MethodChannel.Result,
+        timeoutMs: Long = SERVICE_WAIT_TIMEOUT_MS,
+        action: (PrefrontalAccessibilityService) -> T,
+    ) {
+        val deadline = SystemClock.uptimeMillis() + timeoutMs
+        var waited = false
+        fun attempt() {
+            val svc = PrefrontalAccessibilityService.instance
+            if (svc != null) {
+                result.success(action(svc))
+                return
+            }
+            if (SystemClock.uptimeMillis() >= deadline) {
+                AppLog.d(
+                    A11Y_LOG_TAG,
+                    "accessibility service did not connect within ${timeoutMs}ms"
+                )
+                result.success(null)
+                return
+            }
+            // ⚠️ **等得起** —— 真机实测：ART baseline profile 装完那一下，系统会把
+            // ⇒ ⇒ 无障碍服务**重启一次** ⇒ ⇒ 那 1 秒里实例是 null
+            // ⇒ ⇒ ⇒ 这里等它回来 ⇒ ⇒ 而不是「一读不到就报没开」。
+            if (!waited) {
+                waited = true
+                AppLog.d(
+                    A11Y_LOG_TAG,
+                    "a11y service not connected yet — waiting for it to come back"
+                )
+            }
+            a11yWaitHandler.postDelayed({ attempt() }, SERVICE_WAIT_POLL_MS)
+        }
+        attempt()
     }
 
     /**

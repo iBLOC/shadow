@@ -797,6 +797,9 @@ void main() {
       final Offset target = rectB.center;
       final Offset sent = screenPoint(target)!;
       final int downBefore = _Probe.downCount;
+      // ⚠️ **先记基线** ⇒ ⇒ 后面断言「**净增**」⇒ ⇒ 不被前面的用例污染。
+      final int longPressBefore = _Probe.longPressB;
+      final int tapBefore = _Probe.tapB;
 
       await tools.longPress(<String, dynamic>{'x': sent.dx, 'y': sent.dy});
 
@@ -808,7 +811,7 @@ void main() {
             '那一下没落到我们自己的窗口上',
       );
       // ⚠️ **按住时长**是长按的**事实** —— 比手势识别器的阈值可靠
-      // ⇒ ⇒ Kotlin 那边长按是 500ms ⇒ ⇒ 这里要求 ≥ 350ms。
+      // ⇒ ⇒ Kotlin 那边长按是 800ms ⇒ ⇒ 这里要求 **> 500ms**（越过平台阈值）。
       expect(
         _Probe.held,
         isNotNull,
@@ -816,9 +819,26 @@ void main() {
       );
       expect(
         _Probe.held!.inMilliseconds,
-        greaterThanOrEqualTo(350),
+        greaterThan(500),
         reason: '按住时长只有 ${_Probe.held!.inMilliseconds}ms ⇒ ⇒ '
-            '那不是长按 ⇒ ⇒ 长按这条能力在自家 UI 上不成立',
+            '没越过平台的长按阈值（500ms）⇒ ⇒ 这一下在 app 眼里不是长按',
+      );
+      // ⚠️⚠️⚠️ **「手指停了多久」不等于「app 认这是长按」** ——
+      // ⇒ ⇒ 真机实测（2026-11-10，Kotlin 侧按住 500ms）：**onLongPress 没触发，
+      // 反倒是 onTap 触发了** ⇒ ⇒ app 收到的是**点按**！
+      // ⇒ ⇒ ⇒ 那把只量「按住 ≥350ms」的尺子**量错了被测物** ⇒ ⇒ 绿灯是假的。
+      // ⇒ ⇒ ⇒ 所以这里必须断言**控件自己的长按回调**被触发了。
+      expect(
+        _Probe.longPressB - longPressBefore,
+        equals(1),
+        reason: '长按**没有被 app 认成长按**（onLongPress 没触发）⇒ ⇒ '
+            '这一下在 app 眼里是别的东西 ⇒ ⇒ 长按这条能力不成立',
+      );
+      expect(
+        _Probe.tapB - tapBefore,
+        equals(0),
+        reason: '这一下被 app 当成了**点按**（onTap 触发）⇒ ⇒ '
+            '长按会误触发点击动作 ⇒ ⇒ 比「没长按」更糟',
       );
       final Offset landing = _Probe.down!;
       expect(
