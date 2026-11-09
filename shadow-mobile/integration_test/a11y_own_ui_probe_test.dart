@@ -1012,6 +1012,37 @@ void main() {
     });
   }, timeout: const Timeout(Duration(minutes: 4)));
 
+  test('**自家 app 在前台** ⇒ 走回落那条路 ⇒ 「这是谁的屏」这一格**键在、值＝自家包名**', () async {
+    await check('回落分支 ⇒ foregroundPackage 键在且值＝自家包名', () async {
+      expect(await waitForAccessibility(60), isTrue, reason: '无障碍服务没开');
+
+      final Map<String, dynamic> r =
+          (await CapabilityTools().readScreen(<String, dynamic>{}))
+              as Map<String, dynamic>;
+      // ignore: avoid_print
+      print('--- PROBE FALLBACK PKG --- source=${r['source']} '
+          'pkg=${r['foregroundPackage']} '
+          'hasKey=${r.containsKey('foregroundPackage')}');
+
+      // ⚠⚠️ **键不许缺** —— 两条分支的**形状**必须一样 ⇒ ⇒ 模型不许靠
+      // ⇒ ⇒ 「有没有这个键」去猜这是哪棵树 ⇒ ⇒ 而这一格**真机上是头一次验**。
+      expect(
+        r.containsKey('foregroundPackage'),
+        isTrue,
+        reason: '回落分支**没有** foregroundPackage 键 ⇒ ⇒ 两条分支形状不一样 '
+            '⇒ ⇒ 模型分不清「值是空」与「这一格没实现」',
+      );
+
+      if (r['source'] == kScreenSourceFlutterSemantics) {
+        // ⇒ ⇒ 回落的前提**就是**自家 app 在前台 ⇒ ⇒ 答案**已知**（不必问原生）
+        expect(
+          r['foregroundPackage'],
+          kOwnAppPackage,
+          reason: '回落分支答的必须是**自家包名**（前提就是自家 app 在前台）',
+        );
+      }
+    });
+  }, timeout: const Timeout(Duration(minutes: 3)));
   test('【结论】把这次的真机验证结果**如实**报给驱动脚本', () async {
     // ⚠️⚠️ **这条是给驱动脚本看的** —— 它**看不见**上面那些普通 test()
     // 的失败 ⇒ ⇒ 只看我们**自己报的**结论 ⇒ ⇒ 所以这里必须**如实**写
