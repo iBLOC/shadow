@@ -65,6 +65,11 @@
 　❹ **另两笔「CI Actually Ran」的读数**：run 42667280127 @ 6de1c5f ＝ **failure（退出码 2）** ⇒ ⇒ 它的原话是「有 1 笔**判不了** ⇒ ⇒『没红』不等于『没问题』」⇒ ⇒ 那 1 笔判不了的正是**我那轮被取消的主 CI** ⇒ ⇒ **它自己那把闸在抓「被取消」这一族**（不是本刀引起的缺陷）。
 　❺ ⚠ **本轮这一格没有「主 CI 全绿」的读数**（三处红全是存量或别人那条线的）⇒ ⇒ 说真话：**我这一刀的 CI 读数＝「我自己的 workflow 绿 ＋ 纪律闸对我归零」**，不是「整条流水线全绿」。
 
+⑫ **✅ 最终 CI 读数（head c226bb9）**
+　❶ **本闸自己的 workflow**：run **42669097170** ＝ **success**｜**「CI Actually Ran」** run **42669096974** ＝ **success**（上一轮它红，是因为**我那轮主 CI 被取消** ⇒ ⇒ 它自己那把闸抓的正是「被取消」这一族）｜其余 **15 个** workflow（Commit Revert ／ Index Revert ／ Blank Blob History ／ Door Policy ／ E2E Endbrain Wiring ／ i18n ／ E2E Typecheck ／ Precommit Hook ／ Mobile·Desktop Test Assertions ／ Test Global Leaks ／ Desktop E2E Coverage ／ Secret Plaintext）**全绿**。
+　❷ ⚠ **主 CI run 42669097220 ＝ failure**（10 个 job：**7 绿 3 红**）⇒ ⇒ **三处红逐条归因（都不是本刀）**：① **Legacy residue (cross-repo)** ⇒ ⇒ 纪律闸现在报「**共 2 条违规**」⇒ ⇒ **两条都是「state-surface」（并行会话那条线）** ⇒ ⇒ **「brain-route-surface」已从红名单里消失**（本刀引起的那条已修好，**CI 上可验**）✔；② **Desktop Build** ⇒ ⇒ 在**我提交之前**的 567dd4c 上就已红（run 42666694515）⇒ ⇒ **存量**；③ **Mobile Test** ⇒ ⇒ 红的用例是 shadow-mobile/test/unit/capability_grants_test.dart（**并行会话那条线的在飞文件**）⇒ ⇒ 本刀**零移动端改动** ⇒ ⇒ **不是本刀**。
+　❸ ⇒ ⇒ **说真话**：本刀的 CI 足迹是**绿的**（自己的 workflow 绿 ＋ 纪律闸里本闸归零 ＋ 账本码位闸绿 ＋ 其余 workflow 全绿）⇒ ⇒ 但**主 CI 这一轮整体仍是红的**（三处红全是存量或别人那条线的）⇒ ⇒ **这一格不能写成「全绿」**。
+
 
 **Updated**: 2026-11-11 (㒗 **「抹空这一族在全历史上只发生过一次 —— 而让它能被看见的不是更长的运行，是更便宜的一条判据」** —— 承 U+3490 条（我把台账提交成了零字节，而那把闸没抓住）＋ U+3487 条（提交面回退闸那把尺子必须能红），本条记**取证（全历史那一格终于有读数了）**、**第一因（那一格用的是刀 R 之前的代码）**、**这一刀的落点（4 个文件 ＋ 3 处订正）**、**途中那两课**、**判据**、**分级读数**，以及**仍然欠着的**.)
 
