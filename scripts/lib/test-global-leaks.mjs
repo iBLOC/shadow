@@ -403,7 +403,8 @@ export function censusGlobalLeaks(root) {
       .find((p) => fs.existsSync(p));
     const cfg = cfgPath ? readVitestConfig(cfgPath) : { excludes: [] };
     const rel = listJsTestFiles(proj, cfg.excludes || []);
-    const projName = path.relative(root, proj).replace(/\\/g, '/');
+    // ⚠️ 工程**就是**根目录时 relative 返回空串 ⇒ ⇒ 打印出来是「」⇒ ⇒ 看不出是哪个工程
+    const projName = path.relative(root, proj).replace(/\\/g, '/') || '.';
     if (rel.length === 0) {
       unjudged.push({
         project: projName,
