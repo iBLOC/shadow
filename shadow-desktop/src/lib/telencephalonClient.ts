@@ -349,6 +349,17 @@ export interface FlowRunResult {
   outputs: Record<string, unknown>;
 }
 
+/**
+ * **分档默认模型** —— 「这一类能力用哪个模型」。
+ *
+ * ⚠️ 键是**能力词**（llm / asr / tts …）⇒ ⇒ 端脑的 `Capability` 词表是
+ * 单一真源（`GET` 把合法词表一起回来）⇒ ⇒ 界面照它渲染选择器。
+ */
+export interface CapabilityDefaultsView {
+  defaults: Record<string, string>;
+  capabilities: string[];
+}
+
 export interface AgentMutationResult {
   name: string;
   version: string;
@@ -1206,11 +1217,14 @@ export class TelencephalonClient {
    * ⚠️ 键是**能力词**（llm / asr / tts …）⇒ ⇒ 端脑的 `Capability` 词表是
    * 单一真源（`GET` 把合法词表一起回来）⇒ ⇒ 界面照它渲染选择器。
    */
-  async getCapabilityDefaults(): Promise<{
-    defaults: Record<string, string>;
-    capabilities: string[];
-  }> {
-    return this.request('/api/telencephalon/lobes/capability-defaults');
+  async getCapabilityDefaults(): Promise<CapabilityDefaultsView> {
+    // ⚠️ **显式类型参数**（`this.request<CapabilityDefaultsView>(…)`）——
+    // ⇒ ⇒ 契约清单的抓取脚本认的是 `request<T>(` 这个形状 ⇒ ⇒ 写成
+    // `this.request(` 就**抓不到** ⇒ ⇒ 这个端点就**不在清单里** ⇒ ⇒
+    // 端点漂移（端脑哪天少这条路由）永远抓不到。
+    return this.request<CapabilityDefaultsView>(
+      '/api/telencephalon/lobes/capability-defaults',
+    );
   }
 
   /**
@@ -1220,11 +1234,15 @@ export class TelencephalonClient {
    */
   async setCapabilityDefaults(
     defaults: Record<string, string>,
-  ): Promise<{ defaults: Record<string, string>; capabilities: string[] }> {
-    return this.request('/api/telencephalon/lobes/capability-defaults', {
-      method: 'PUT',
-      body: JSON.stringify({ defaults }),
-    });
+  ): Promise<CapabilityDefaultsView> {
+    // ⚠️ 同上：**显式类型参数** ⇒ ⇒ 才进得了契约清单。
+    return this.request<CapabilityDefaultsView>(
+      '/api/telencephalon/lobes/capability-defaults',
+      {
+        method: 'PUT',
+        body: JSON.stringify({ defaults }),
+      },
+    );
   }
 
   // Task methods

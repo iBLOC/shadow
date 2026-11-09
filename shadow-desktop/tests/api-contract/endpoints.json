@@ -1,274 +1,309 @@
 {
   "version": 1,
-  "scrapedAt": "2026-10-29T08:33:18.101Z",
+  "scrapedAt": "2026-11-09T11:30:57.185Z",
   "baseUrl": "http://127.0.0.1:60080",
-  "endpointCount": 38,
+  "endpointCount": 43,
   "endpoints": [
     {
       "method": "DELETE",
       "path": "/api/telencephalon/admin/agents/{name}/{version}",
       "probePath": "/api/telencephalon/admin/agents/probe-agent/0.0.0",
       "needsAdmin": true,
-      "source": "src\\lib\\telencephalonClient.ts:708"
+      "source": "src\\lib\\telencephalonClient.ts:1059"
     },
     {
       "method": "POST",
       "path": "/api/telencephalon/admin/agents/create",
       "probePath": "/api/telencephalon/admin/agents/create",
       "needsAdmin": true,
-      "source": "src\\lib\\telencephalonClient.ts:658"
+      "source": "src\\lib\\telencephalonClient.ts:1002"
     },
     {
       "method": "POST",
       "path": "/api/telencephalon/admin/agents/generate-description",
       "probePath": "/api/telencephalon/admin/agents/generate-description",
       "needsAdmin": true,
-      "source": "src\\lib\\telencephalonClient.ts:679"
+      "source": "src\\lib\\telencephalonClient.ts:1028"
     },
     {
       "method": "GET",
       "path": "/api/telencephalon/admin/agents/installed",
       "probePath": "/api/telencephalon/admin/agents/installed",
       "needsAdmin": true,
-      "source": "src\\lib\\telencephalonClient.ts:704"
+      "source": "src\\lib\\telencephalonClient.ts:1055"
     },
     {
       "method": "POST",
       "path": "/api/telencephalon/admin/agents/register",
       "probePath": "/api/telencephalon/admin/agents/register",
       "needsAdmin": true,
-      "source": "src\\lib\\telencephalonClient.ts:672"
+      "source": "src\\lib\\telencephalonClient.ts:1021"
     },
     {
       "method": "DELETE",
       "path": "/api/telencephalon/admin/mcp/agents/{agentName}/servers/{serverId}",
       "probePath": "/api/telencephalon/admin/mcp/agents/probe-agent/servers/probe-mcp",
       "needsAdmin": true,
-      "source": "src\\lib\\telencephalonClient.ts:817"
+      "source": "src\\lib\\telencephalonClient.ts:1168"
     },
     {
       "method": "POST",
       "path": "/api/telencephalon/admin/mcp/agents/{agentName}/servers/{serverId}",
       "probePath": "/api/telencephalon/admin/mcp/agents/probe-agent/servers/probe-mcp",
       "needsAdmin": true,
-      "source": "src\\lib\\telencephalonClient.ts:810"
+      "source": "src\\lib\\telencephalonClient.ts:1161"
     },
     {
       "method": "POST",
       "path": "/api/telencephalon/admin/mcp/servers",
       "probePath": "/api/telencephalon/admin/mcp/servers",
       "needsAdmin": true,
-      "source": "src\\lib\\telencephalonClient.ts:782"
+      "source": "src\\lib\\telencephalonClient.ts:1133"
     },
     {
       "method": "DELETE",
       "path": "/api/telencephalon/admin/mcp/servers/{id}",
       "probePath": "/api/telencephalon/admin/mcp/servers/probe",
       "needsAdmin": true,
-      "source": "src\\lib\\telencephalonClient.ts:789"
+      "source": "src\\lib\\telencephalonClient.ts:1140"
     },
     {
       "method": "POST",
       "path": "/api/telencephalon/admin/mcp/servers/{id}/start",
       "probePath": "/api/telencephalon/admin/mcp/servers/probe/start",
       "needsAdmin": true,
-      "source": "src\\lib\\telencephalonClient.ts:796"
+      "source": "src\\lib\\telencephalonClient.ts:1147"
     },
     {
       "method": "POST",
       "path": "/api/telencephalon/admin/mcp/servers/{id}/stop",
       "probePath": "/api/telencephalon/admin/mcp/servers/probe/stop",
       "needsAdmin": true,
-      "source": "src\\lib\\telencephalonClient.ts:803"
+      "source": "src\\lib\\telencephalonClient.ts:1154"
     },
     {
       "method": "POST",
       "path": "/api/telencephalon/admin/token",
       "probePath": "/api/telencephalon/admin/token",
       "needsAdmin": true,
-      "source": "src\\lib\\telencephalonClient.ts:976"
+      "source": "src\\lib\\telencephalonClient.ts:1455"
     },
     {
       "method": "PATCH",
       "path": "/api/telencephalon/agents/{name}/config",
       "probePath": "/api/telencephalon/agents/probe-agent/config",
       "needsAdmin": false,
-      "source": "src\\lib\\telencephalonClient.ts:729"
+      "source": "src\\lib\\telencephalonClient.ts:1080"
     },
     {
       "method": "GET",
       "path": "/api/telencephalon/agents/discover",
       "probePath": "/api/telencephalon/agents/discover",
       "needsAdmin": false,
-      "source": "src\\lib\\telencephalonClient.ts:700"
+      "source": "src\\lib\\telencephalonClient.ts:1049"
     },
     {
       "method": "POST",
       "path": "/api/telencephalon/agents/scan",
       "probePath": "/api/telencephalon/agents/scan",
       "needsAdmin": false,
-      "source": "src\\lib\\telencephalonClient.ts:689"
+      "source": "src\\lib\\telencephalonClient.ts:1038"
     },
     {
       "method": "GET",
       "path": "/api/telencephalon/agents/search${qs ? ",
       "probePath": "/api/telencephalon/agents/search${qs ? ",
       "needsAdmin": false,
-      "source": "src\\lib\\telencephalonClient.ts:723"
+      "source": "src\\lib\\telencephalonClient.ts:1074"
     },
     {
       "method": "POST",
       "path": "/api/telencephalon/agents/sync/{providerId}",
       "probePath": "/api/telencephalon/agents/sync/probe-provider",
       "needsAdmin": false,
-      "source": "src\\lib\\telencephalonClient.ts:693"
+      "source": "src\\lib\\telencephalonClient.ts:1042"
     },
     {
       "method": "GET",
       "path": "/api/telencephalon/hippocampus/preview/consolidator",
       "probePath": "/api/telencephalon/hippocampus/preview/consolidator",
       "needsAdmin": false,
-      "source": "src\\lib\\telencephalonClient.ts:947"
+      "source": "src\\lib\\telencephalonClient.ts:1426"
     },
     {
       "method": "GET",
       "path": "/api/telencephalon/hippocampus/preview/stats",
       "probePath": "/api/telencephalon/hippocampus/preview/stats",
       "needsAdmin": false,
-      "source": "src\\lib\\telencephalonClient.ts:940"
+      "source": "src\\lib\\telencephalonClient.ts:1419"
+    },
+    {
+      "method": "GET",
+      "path": "/api/telencephalon/lobes/capability-defaults",
+      "probePath": "/api/telencephalon/lobes/capability-defaults",
+      "needsAdmin": false,
+      "source": "src\\lib\\telencephalonClient.ts:1221"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/telencephalon/lobes/capability-defaults",
+      "probePath": "/api/telencephalon/lobes/capability-defaults",
+      "needsAdmin": false,
+      "source": "src\\lib\\telencephalonClient.ts:1239"
     },
     {
       "method": "GET",
       "path": "/api/telencephalon/mcp/agents/{agentName}/servers",
       "probePath": "/api/telencephalon/mcp/agents/probe-agent/servers",
       "needsAdmin": false,
-      "source": "src\\lib\\telencephalonClient.ts:755"
+      "source": "src\\lib\\telencephalonClient.ts:1106"
     },
     {
       "method": "GET",
       "path": "/api/telencephalon/mcp/agents/{agentName}/tools",
       "probePath": "/api/telencephalon/mcp/agents/probe-agent/tools",
       "needsAdmin": false,
-      "source": "src\\lib\\telencephalonClient.ts:761"
+      "source": "src\\lib\\telencephalonClient.ts:1112"
     },
     {
       "method": "GET",
       "path": "/api/telencephalon/mcp/servers",
       "probePath": "/api/telencephalon/mcp/servers",
       "needsAdmin": false,
-      "source": "src\\lib\\telencephalonClient.ts:739"
+      "source": "src\\lib\\telencephalonClient.ts:1090"
     },
     {
       "method": "GET",
       "path": "/api/telencephalon/mcp/servers/{id}",
       "probePath": "/api/telencephalon/mcp/servers/probe",
       "needsAdmin": false,
-      "source": "src\\lib\\telencephalonClient.ts:743"
+      "source": "src\\lib\\telencephalonClient.ts:1094"
     },
     {
       "method": "GET",
       "path": "/api/telencephalon/mcp/servers/{id}/tools",
       "probePath": "/api/telencephalon/mcp/servers/probe/tools",
       "needsAdmin": false,
-      "source": "src\\lib\\telencephalonClient.ts:749"
+      "source": "src\\lib\\telencephalonClient.ts:1100"
     },
     {
       "method": "GET",
       "path": "/api/telencephalon/neuron/preview/models",
       "probePath": "/api/telencephalon/neuron/preview/models",
       "needsAdmin": false,
-      "source": "src\\lib\\telencephalonClient.ts:952"
+      "source": "src\\lib\\telencephalonClient.ts:1431"
     },
     {
       "method": "GET",
       "path": "/api/telencephalon/neuron/preview/stats",
       "probePath": "/api/telencephalon/neuron/preview/stats",
       "needsAdmin": false,
-      "source": "src\\lib\\telencephalonClient.ts:959"
+      "source": "src\\lib\\telencephalonClient.ts:1438"
+    },
+    {
+      "method": "GET",
+      "path": "/api/telencephalon/notifications",
+      "probePath": "/api/telencephalon/notifications",
+      "needsAdmin": false,
+      "source": "src\\lib\\telencephalonClient.ts:1334"
     },
     {
       "method": "GET",
       "path": "/api/telencephalon/tasks",
       "probePath": "/api/telencephalon/tasks",
       "needsAdmin": false,
-      "source": "src\\lib\\telencephalonClient.ts:849"
+      "source": "src\\lib\\telencephalonClient.ts:1250"
     },
     {
       "method": "POST",
       "path": "/api/telencephalon/tasks",
       "probePath": "/api/telencephalon/tasks",
       "needsAdmin": false,
-      "source": "src\\lib\\telencephalonClient.ts:859"
+      "source": "src\\lib\\telencephalonClient.ts:1273"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/telencephalon/tasks/{taskId}",
+      "probePath": "/api/telencephalon/tasks/{taskId}",
+      "needsAdmin": false,
+      "source": "src\\lib\\telencephalonClient.ts:1322"
     },
     {
       "method": "POST",
       "path": "/api/telencephalon/tasks/{taskId}/confirm",
       "probePath": "/api/telencephalon/tasks/{taskId}/confirm",
       "needsAdmin": false,
-      "source": "src\\lib\\telencephalonClient.ts:866"
+      "source": "src\\lib\\telencephalonClient.ts:1287"
+    },
+    {
+      "method": "POST",
+      "path": "/api/telencephalon/tasks/{taskId}/update",
+      "probePath": "/api/telencephalon/tasks/{taskId}/update",
+      "needsAdmin": false,
+      "source": "src\\lib\\telencephalonClient.ts:1314"
     },
     {
       "method": "POST",
       "path": "/api/telencephalon/thalamus/manage/sensors",
       "probePath": "/api/telencephalon/thalamus/manage/sensors",
       "needsAdmin": false,
-      "source": "src\\lib\\telencephalonClient.ts:923"
+      "source": "src\\lib\\telencephalonClient.ts:1402"
     },
     {
       "method": "DELETE",
       "path": "/api/telencephalon/thalamus/manage/sensors/{name}",
       "probePath": "/api/telencephalon/thalamus/manage/sensors/probe-agent",
       "needsAdmin": false,
-      "source": "src\\lib\\telencephalonClient.ts:928"
+      "source": "src\\lib\\telencephalonClient.ts:1407"
     },
     {
       "method": "PUT",
       "path": "/api/telencephalon/thalamus/manage/sensors/{name}/config",
       "probePath": "/api/telencephalon/thalamus/manage/sensors/probe-agent/config",
       "needsAdmin": false,
-      "source": "src\\lib\\telencephalonClient.ts:932"
+      "source": "src\\lib\\telencephalonClient.ts:1411"
     },
     {
       "method": "POST",
       "path": "/api/telencephalon/thalamus/preview/query",
       "probePath": "/api/telencephalon/thalamus/preview/query",
       "needsAdmin": false,
-      "source": "src\\lib\\telencephalonClient.ts:917"
+      "source": "src\\lib\\telencephalonClient.ts:1396"
     },
     {
       "method": "GET",
       "path": "/api/telencephalon/thalamus/preview/sensors",
       "probePath": "/api/telencephalon/thalamus/preview/sensors",
       "needsAdmin": false,
-      "source": "src\\lib\\telencephalonClient.ts:905"
+      "source": "src\\lib\\telencephalonClient.ts:1384"
     },
     {
       "method": "GET",
       "path": "/api/telencephalon/thalamus/preview/sensors/{name}/stats",
       "probePath": "/api/telencephalon/thalamus/preview/sensors/probe-agent/stats",
       "needsAdmin": false,
-      "source": "src\\lib\\telencephalonClient.ts:907"
+      "source": "src\\lib\\telencephalonClient.ts:1386"
     },
     {
       "method": "GET",
       "path": "/api/telencephalon/thalamus/preview/sensors/{name}/tail{qs}",
       "probePath": "/api/telencephalon/thalamus/preview/sensors/probe-agent/tail{qs}",
       "needsAdmin": false,
-      "source": "src\\lib\\telencephalonClient.ts:910"
+      "source": "src\\lib\\telencephalonClient.ts:1389"
     },
     {
       "method": "GET",
       "path": "/api/telencephalon/video-sources",
       "probePath": "/api/telencephalon/video-sources",
       "needsAdmin": false,
-      "source": "src\\lib\\telencephalonClient.ts:874"
+      "source": "src\\lib\\telencephalonClient.ts:1352"
     },
     {
       "method": "POST",
       "path": "/api/telencephalon/voice/transcribe",
       "probePath": "/api/telencephalon/voice/transcribe",
       "needsAdmin": false,
-      "source": "src\\lib\\telencephalonClient.ts:825"
+      "source": "src\\lib\\telencephalonClient.ts:1188"
     }
   ]
 }
