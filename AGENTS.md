@@ -1,5 +1,54 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-09 (㑸 **「环境自带对象不许进判据 —— setup.ts 挑了哪一份 storage，由运行时说了算」** —— 承 U+3477 条（并行会话那把尺子漂移）＋ U+3475 条（master 三红的归属），本条记**取证（CI 那条红的逐字归因 ＋ 同机 A/B）**、**第一因（替身装上了 ≠ 替身生效了）**、**这一刀的落点（4 个文件 ＋ 1 个提交）**、**判据（复演 CI 的红 ＋ 两档环境逐文件一致）**、**分级读数**、**途中那几课**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-09 | authority=measured | scope=project | source=真运行级实测（真 CI 逐字日志 ＋ 同机 A/B 实验（只翻一个运行时开关）＋ 两档环境全量 JSON 报告逐文件比对 ＋ 注入反向验证 ＋ blob 逐字比对 ＋ 类型闸与 eslint 实跑） | 改动：shadow 仓 **改** `shadow-desktop/tests/setup.ts`（无条件安装确定性 localStorage）、**新增** `shadow-desktop/tests/lib/testEnvDeterminism.test.ts`（3 条环境守卫）、**新增** `shadow-desktop/scripts/vitest-ci-env.mjs`（CI 仿真读数工具）、**改** `shadow-desktop/package.json`（＋ `test:ci-env` 脚本）、**改** `AGENTS.md`（本条） ｜ 读数：**两档环境全量逐文件比对：169 个文件、0 处差异（计数同为 1499 过 / 1 红 / 16 跳）**、**反向验证：还原旧 setup.ts ＋ HEAD 那版用例 ⇒ CI 仿真下逐字复演 CI 的红（`expected true to be false`，同一条用例名）**、**守卫有牙：旧 setup.ts 下守卫恰好 2 红（另 1 条孪生仍绿）**、**还原后两个文件 blob 逐字一致（`22d56ea…`／`5c35195…`）**、**类型闸 EXIT=0 ／ eslint EXIT=0** ｜ 提交：`8bb25db` | status=active | supersedes=none
+
+① **⚠️ 取证：master 第三处红的逐字归因 ＋ 一个同机 A/B**
+　❶ **真 CI（run 42617962783，head `d61c0a1`）逐字**：`FAIL tests/lib/capabilityDefaults.test.ts > writeCapabilityDefaultsSnapshot —— 「存没存住」必须分得清 > 存不进去（抛异常）⇒ ok=false ＋ 带原因` ⇒ ⇒ `AssertionError: expected true to be false` ⇒ ⇒ **本机同一条是绿的**。
+　❷ **同机 A/B（只翻一个开关，其余全同）**：本机默认环境 ⇒ `globalThis.localStorage` 的 `ctor = Object`、**own `setItem` = true** ⇒ ⇒ `vi.spyOn` **拦得住**；加上 `--no-experimental-webstorage`（＝ CI 的 Node 24 形状）⇒ ⇒ `ctor = Storage`、**own `setItem` = false** ⇒ ⇒ **spy 装上了却一次没被调到**（实测 `spy intercepted = false`）。
+　❸ ⇒ ⇒ 差异不在用例，在 **setup.ts 挑了哪一份 storage**：它原来写成「运行时自带的能用就用、不能用才造一个」⇒ ⇒ 而「能不能用」**由运行时决定** ⇒ ⇒ **判据读到的对象，形状是运行时给的**。
+　❹ **两条分支各自是什么**：CI（Node 24，无原生 localStorage）⇒ ⇒ 落到 jsdom 分支 ⇒ ⇒ jsdom 的 `localStorage` 是 **Proxy**（为支持 `storage.foo` 命名属性）⇒ ⇒ 它的 `get` trap 直接返回**原型方法** ⇒ ⇒ 装在 target 上的 own property **被绕过**；本机（Node 25 自带 webstorage，但那个原生对象是**半残**的 —— `clear` 不是函数）⇒ ⇒ 落到**兜底 plain object** 分支 ⇒ ⇒ `setItem` 是 own property ⇒ ⇒ spy 生效 ⇒ ⇒ **本机恰好落在「能拦住」的那一支** ⇒ ⇒ 本机绿不是运气，是**另一套形状**。
+
+② **⚠️ 第一因：替身「装上了」≠ 替身「生效了」**
+　❶ 这一族错误的形状是：**没人验证注入真的发生了** ⇒ ⇒ 那条用例看着在测「写失败」，其实测的是「真写进去了」⇒ ⇒ **没测到被写成了不对**（最坏的一种假红）。
+　❷ 而「装上」与「生效」之间隔着**运行时**：Node 有没有原生 webstorage ＋ jsdom 给不给 Proxy ⇒ ⇒ 同一个仓库、同一条用例 ⇒ ⇒ 两个环境读的是**两个东西** ⇒ ⇒ **本地绿证明不了 CI 绿**。
+　❸ 通用形态：**凡是对「环境自带对象」下 spy ／ 替身，判据就读了运行时的脾气** ⇒ ⇒ 修法不是「把这一条用例改对」，是**把环境钉死** —— 判据环境里的对象必须由判据自己装，**形状不许由运行时挑**。
+　❹ ⚠️ **仓里已有正确范式，但没被统一**：`tests/pages/WorkflowStudioPage.test.tsx` 早就写着「jsdom 的 Storage 不方便 spyOn ⇒ ⇒ 整个换掉」⇒ ⇒ 与并行会话 U+3477 条那条修法同源 ⇒ ⇒ 但**共享 setup.ts 仍让 ambient storage 随 node 版本变** ⇒ ⇒ 这一格就是本刀的活（承 U+3477 条 ⑦❶「下一刀的活」）。
+
+③ **✅ 这一刀的落点（4 个文件 ＋ 1 个提交，零产品代码改动）**
+　❶ **改 `shadow-desktop/tests/setup.ts`** —— **无条件**安装一份**形状固定**的 localStorage 替身（plain object ⇒ own property ⇒ spy 能拦住、能替换）⇒ ⇒ 本机与 CI 读的是同一个东西 ⇒ ⇒ **零产品代码改动**。
+　❷ **新增 `shadow-desktop/tests/lib/testEnvDeterminism.test.ts`** —— 3 条**常驻守卫**（① `setItem` 必须是 own property；② spy 装上后必须真的拦得住；③ `globalThis.localStorage` 与 `window.localStorage` 同一对象）⇒ ⇒ 把「可替换性」从「这次对了」变成「一直对」。
+　❸ **新增 `shadow-desktop/scripts/vitest-ci-env.mjs` ＋ `package.json` 的 `test:ci-env`** —— **CI 仿真读数**：用 `--no-experimental-webstorage` 起 vitest ⇒ ⇒ 本地一条命令就能看见 CI 那一种形状 ⇒ ⇒ 退出码 0/1/2（2 ＝ 本机 Node 不支持那个开关 ⇒ ⇒ **判不了**，不许伪装成通过）。
+　❹ ⚠️ **不动并行会话那条线上刚落的东西**：`c592a89` 已经把「注入失败」改成「整个换掉 global」＋ 加了 `calls.setItem` 计数 ⇒ ⇒ 与本刀**互补不冲突**（他们换掉 global；我把环境钉死）⇒ ⇒ 本刀**不碰**那个文件。
+
+④ **⚠️ 途中那几课**
+　❶ **「装上了」与「生效了」是两件事** ⇒ ⇒ 判据里凡有 spy ／ 替身 ⇒ 必须有一句「它真的拦住了吗」的**自证**（本刀那条守卫就是）⇒ ⇒ 否则「绿」可能只是「没被叫到」。
+　❷ **代理对象（Proxy）的 `get` trap 会绕过你装在 target 上的 own property** ⇒ ⇒ 「装 spy 没报错」**不是**「装上了」的证据 ⇒ ⇒ 代理环境里的 mock **静默失效**。
+　❸ **「本地跑过了」这句话要注明在哪种运行时下跑的** ⇒ ⇒ 同机 A/B（只翻一个开关）是拆这类 bug 最快的杠杆 ⇒ ⇒ 比换机器、换版本、猜「是不是环境问题」快几个数量级。
+　❹ **拆开两档环境要逐文件比**，不能只比总数 ⇒ ⇒ 同一套用例在两档环境各跑一次（JSON 报告）⇒ ⇒ **逐文件比对**才能说「一致」⇒ ⇒ 只比「1499/1/16」这种总数，别的环境差异会被平均掉。
+　❺ **还原纪律**：注入与还原都走 blob（`git hash-object -w` ＋ `git cat-file blob`）⇒ ⇒ 还原后**逐字一致**（`22d56ea…`／`5c35195…`）⇒ ⇒ 且**并行会话在飞的那个文件**也按 blob 还原 ⇒ ⇒ 不动他们的在飞内容。
+
+⑤ **✅ 判据（四处）**
+　❶ **复演级（最强的一条）**：还原旧 `setup.ts` ＋ HEAD 那版用例 ⇒ ⇒ 在 CI 仿真环境下**逐字**复演 CI 的红（`expected true to be false`，**同一条用例名**）⇒ ⇒ **本地能造出 CI 的红** ⇒ ⇒ 归因闭环（不是「猜环境问题」）。
+　❷ **守卫有牙**：旧 `setup.ts` ＋ CI 仿真 ⇒ ⇒ 守卫 3 条里**恰好 2 条红**（own property 断言 ＋ spy 生效断言）⇒ ⇒ 另 1 条（`globalThis` 与 `window` 同源）在旧形状下**仍绿**（孪生）⇒ ⇒ 尺子**有牙且不恒红**。
+　❸ **两档环境一致**：默认环境 vs CI 仿真环境各跑全量桌面测试（JSON 报告）⇒ ⇒ **169 个文件逐文件比对：0 处差异**；计数同为 **1499 过 / 1 红 / 16 跳**（那 1 红 ＝ `tests/generatedEol.test.ts` ⇒ ⇒ `accent.g.ts` 与 `design-tokens.json` 不同步 ⇒ ⇒ **并行会话在飞**，与本刀无关）⇒ ⇒ ⇒ **「本机绿」从此可以当「CI 绿」的代理**（就 ambient 形状这一族而言）。
+　❹ **静态闸级**：桌面端类型闸（`tests/tsconfig.json` 全族）**EXIT=0**；eslint **EXIT=0**。
+
+⑥ **✅ 分级读数（全部实测）**
+　❶ **行为级（两档环境）**：1499 过 / 1 红 / 16 跳，**逐文件 0 差异** ｜ **复演级**：旧 setup ＋ HEAD 用例 ⇒ 逐字复演 CI 红 ｜ **反向验证级**：守卫恰好 2 红 ｜ **闸级**：类型闸 EXIT=0 ／ eslint EXIT=0 ｜ **还原级**：两个文件 blob 逐字一致（`22d56ea…`／`5c35195…`）。
+
+⑦ **⚠️ 仍然欠着**
+　❶ 那 1 红（`tests/generatedEol.test.ts` ⇒ ⇒ `accent.g.ts` 生成物漂移）仍在并行会话那条线上 ⇒ ⇒ **不等于**「桌面端全绿」⇒ ⇒ 本条给的是「除那一红之外，两档环境一致」。
+　❷ **Node 版本本身仍不同**（本机 25 ／ CI 24）⇒ ⇒ 本刀钉死的是 **ambient 形状**这一族 ⇒ ⇒ **别的**运行时差异（Node 版本带来的行为差）仍可能藏着 ⇒ ⇒ 要彻底对齐，得让 CI 也用同一个 Node 版本。
+　❸ `test:ci-env` **只在本地有意义**（CI 上那个开关是空转）⇒ ⇒ 它是**本地读数工具**，**不是** CI 闸。
+　❹ 并行会话那条「注入可观测」（`calls.setItem` 计数，`c592a89`）已落 ⇒ ⇒ 与本刀守卫**互补** ⇒ ⇒ 两条都在时：**注入空转会红 ＋ 环境形状漂移会红**。
+　❺ wdio / tauri-e2e 两族仍欠真跑承重（承 U+3470 条）。
+　❻ 端脑侧判据在端脑自己的 CI 上仍无读数（门外红）。
+　❼ `Mobile Test` 那笔环境债照旧。
+　❽ **条件化断言 25 条**（只读数，承 U+3470 条）⇒ ⇒ 下一刀收。
+
+⑧ **⚠️ 圈码：本条占 U+3478（㑸）** —— 插前**独立重扫**（父仓工作树 ∪ 父仓 HEAD ∪ 父仓 `origin/master` × **三本账本**，按**声明形状**扫）⇒ ⇒ 三面最高已声明 **U+3477**（并行会话那条）⇒ ⇒ 自然下一枚 **U+3478** ⇒ ⇒ 按惯例**再留一枚缓冲**（U+3479）⇒ ⇒ 取 **U+3478** ⇒ ⇒ 插前扫：U+3478／U+3479 在三账本三面**各 0 次声明 0 次提及** ✔ ⇒ ⇒ ⚠️ **不填历史空洞**（U+3476 继续空 ＋ U+3472 留给真机腿那条线）⇒ ⇒ ⚠️ 本条**只引用已提交的码位**（U+3470／U+3474／U+3475／U+3477）⇒ ⇒ ⚠️ **插完立刻复跑码位闸**是硬约束。
 **Updated**: 2026-11-09 (㑷 **「本地绿、CI 红 —— 原来量的是两把不同的尺子」** —— 承 U+3474 条（「存没存住」那条线）＋ U+3475 条（master 那三处红的归属），本条记**取证（真 CI 三处红 ＋ 尺子漂移的复现）**、**第一因（注入失败的手段本身就是尺子）**、**这一刀的落点（2 个文件）**、**判据（环境复现级 ＋ 三档反向验证 ＋ 还原）**、**分级读数**、**途中那几课**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-09 | authority=measured | scope=project | source=真运行级实测（真 CI 逐字日志 ＋ 本地**环境复现**（NODE_OPTIONS=--no-experimental-webstorage）＋ 三档注入反向验证 ＋ 还原 hash 比对 ＋ 三道闸实跑 ＋ tsc -b） | 改动：shadow 仓 **改** `shadow-desktop/tests/lib/capabilityDefaults.test.ts`（注入失败改为「整个换掉 global」＋ 新增「注入真的被调用过」断言）、**改** `AGENTS.md`（本条） ｜ 读数：**环境复现级：旧版在 CI 条件下逐字复现 CI 的红（`expected true to be false`）⇒ 新版同条件 15/15 绿**、**反向验证级：变体 A ⇒ 恰好 1 红 ／ 变体 B ⇒ 恰好 1 红 ／ 变体 C ⇒ 新守卫单独抓到（`expected +0 to be 1`）**、**还原：产品文件 blob 逐字一致 `c087eae…`**、**闸级：state-surface 零违规 ＋ 自检 38/38 ／ 失败掩盖闸 EXIT=0 ／ 码位闸零违规**、**类型级：桌面 `tsc -b` EXIT=0** | status=active | supersedes=none
