@@ -1,3 +1,20 @@
+**Updated:** 2026-11-09 (㊭ **「CI 那条红不是『上游资产被换』—— 是 GitHub 的 504 页被当成了资产；这一刀让 Linux 干脆不去下载」** —— 承 ㊮ 条（滑动正路径），本条记**取证（坏哈希的真身）**、**这一刀的落点**、**判据与反向验证**、**分级读数**，以及**仍然欠着的**。)
+
+> 信封：epoch=2026-11-09 | authority=measured | scope=project | source=真机实测（本地按字节复算 ＋ 上游 issue 核对 ＋ 本地全量 flutter test ＋ CI 复跑）｜ 改动：`shadow-mobile/pubspec.yaml`（`hooks.user_defines.sqlite3.source` **按 OS 分岔** ＋ sqlite3 提为显式 dev 依赖 ^3.9.1）、`shadow-mobile/pubspec.lock`（sqlite3 3.5.2→3.9.1／hooks 2.0.2→2.2.0／record_use 0.6.0→1.1.1）、**新增** `shadow-mobile/test/unit/sqlite_asset_source_contract_test.dart`（4 条）；**零产品逻辑改动** | status=active | supersedes=none
+
+① **⚠️ 取证：坏哈希的真身是 GitHub 的 504 页（92 字节），不是「资产被掉包」** —— 现象：CI 的 `Mobile Test` job 在 **native asset 构建阶段**就红 ⇒ ⇒ `Bad state: Hash of downloaded file libsqlite3.x64.linux.so is bef140a1…, expected b1772918…` ⇒ ⇒ **连测试都没开始**（与「测试失败」是两件事）。取证五步：❶ 本地重下上游同一个 URL（1,801,592 字节 ⇒ sha256 ＝ `b1772918…`）⇒ ⇒ **上游资产完好**；❷ 枚举上游 **30 个 release × 1372 个资产**的官方 `digest` ⇒ ⇒ **没有一条是 `bef140a1…`** ⇒ ⇒ 坏字节**不是任何上游发布物**；❸ 把 GitHub 的 504 页**按字节复算**（LF ＋ 末尾换行 ＝ **92 字节**）⇒ ⇒ sha256 ＝ **`bef140a1…` 逐字一致**；❹ 上游 issue **simolus3/sqlite3.dart#435／#436** 用的**就是同一个哈希** ⇒ ⇒ 维护者实测：那是 **GitHub release CDN 的 504 页**；❺ 根因＝**上游 hook 不检查 `response.statusCode`** ⇒ ⇒ 错误页被当资产喂进哈希器 ⇒ ⇒ 报错长得像「资产被掉包」⇒ ⇒ **其实是「下载失败」**。
+
+② **✅ 这一刀的落点：Linux 干脆不去下载** —— ❶ `pubspec.yaml` 加 `hooks.user_defines.sqlite3.source: {linux: system, default: sqlite3}` ⇒ ⇒ **Linux 走 dlopen 系统那份 libsqlite3.so**（CI 的 `Install SQLite runtime` 早就在装 `libsqlite3-dev` ⇒ ⇒ 那一步**从「顺手装的」变成「真正的提供者」**）⇒ ⇒ 这条路径**零网络** ⇒ ⇒ 上游 CDN 抖动**再也伤不到移动端 CI**；❷ `default: sqlite3` ⇒ ⇒ **Windows／Android／macOS 仍用包自带的预编译库** ⇒ ⇒ 本地开发与 APK 打包**一个字没变**；❸ **sqlite3 3.5.2 → 3.9.1**（连带 hooks 2.0.2 → 2.2.0、record_use 0.6.0 → 1.1.1）⇒ ⇒ 因为**按 OS 分岔 `source` 是 3.9.1 才有的能力**（3.5.2 的 `source` 是全局的 ⇒ ⇒ 全局设 `system` 会连带打断 Windows／Android）⇒ ⇒ ⇒ **升级与这段配置必须同刀**；❹ **零产品逻辑改动**（只动依赖版本 ＋ 构建期配置 ＋ 判据）。
+
+③ **✅ 判据（新增 4 条，只承重这一族）** —— ❶ `pubspec.yaml` 的 `source` 必须是**按 OS 的映射**且 **`linux: system`**（不许回退成下载）；❷ **锁文件**里的 sqlite3 **≥ 3.9.1**（per-OS 映射能力）—— 降级会让映射**失效**（3.5.2 读到 Map 会直接抛 `Unknown source` ⇒ ⇒ **响亮地坏**，不是静默）；❸ **实际解析到的** sqlite3 版本（`.dart_tool/package_config.json` ＋ 包自己的 pubspec）**≥ 3.9.1**（锁文件说的不算，**这台机器真用的**才算）；❹ CI 的 workflow 里**仍装 `libsqlite3-dev`**（系统库是 Linux 分支的真正提供者 ⇒ ⇒ 少了它 CI 必红）。⇒ ⇒ 这四条**跑在每一次 `flutter test` 里** ⇒ ⇒ **不用改 `ci.yml`**（那个文件此刻有并行会话的在飞改动 ⇒ ⇒ 不碰）。
+
+④ **✅ 反向验证（两档，各恰好 1 红）** —— ❶ 把 `linux: system` 改成 `linux: sqlite3` ⇒ ⇒ **恰好 1 红**（❶），报出的 Actual 逐字写着 `linux: sqlite3` ⇒ ⇒ 其余三条仍绿；❷ 把锁文件里的 sqlite3 改回 `3.5.2` ⇒ ⇒ **恰好 1 红**（❷）⇒ ⇒ 而 ❸ 仍绿（实际装着的还是 3.9.1）⇒ ⇒ **两条判据彼此独立**（锁文件说的 ≠ 实际用的）；❸ 两处复原后 ⇒ ⇒ **4/4 绿**。
+
+⑤ **✅ 分级读数** —— ❶ **判据级**：新判据 **4/4 绿**（本地）；❷ **取证级**：坏哈希＝那张 504 页（**92 字节，sha256 逐字一致**）＋ 上游 **1372 个资产**里没有它 ＋ 上游 issue #435／#436 同一哈希；❸ **本地全量级**：移动端 `flutter test` **737 通过 / 12 跳过 / 0 失败**（**排除**并行会话**未跟踪**的在飞文件 `encephalon_page_credential_probe_test.dart` —— 它会把进程**卡死**（CPU 停在 48.38s 不再增长）⇒ ⇒ 那是**环境债**，本刀的账本里早有记载 ⇒ ⇒ 且它**没进仓** ⇒ ⇒ CI 看不到它）；❹ **CI 级**：见下面那条读数。
+
+⑥ **⚠️ 仍然欠着** —— ❶ **真机级**全欠（设备离线）；❷ **Android／macOS 仍走下载** ⇒ ⇒ 那条路**仍然暴露在同一张 504 页之下**（本刀只把 **Linux** 那条摘出来 ⇒ ⇒ APK 打包那条路**未摘**）；❸ 上游 3.9.1 只把报错改成「HTTP 504」**更诚实** ⇒ ⇒ **它不消除下载** ⇒ ⇒ 真正的摘除靠的是本条那两行 per-OS 映射；❹ `Mobile Test` 里 **Gradle 分发包**那一步的 504 是**同一族**的另一个面 ⇒ ⇒ CI 里已用重试挡着；❺ 上游那条 **「下载失败要报状态码」**的修法（3.9.1 才带）只让报错**诚实**，**不是**修复 ⇒ ⇒ 别把「升级」当修复。
+
+⑦ **⚠ 圈码**：本条占 **U+32AD（㊭）** —— 插前**重扫**（三账本 × 三个面：工作树／HEAD／origin/master）⇒ ⇒ Enclosed CJK 段里 **0x32B0 ＝ 父仓**、**0x32AE／0x32AF ＝ 移动端**、再往下 **0x32AD 三面全空闲** ✔ ⇒ ⇒ 取 **U+32AD** ⇒ ⇒ 避开 **U+3300–U+33FF**（CJK 兼容表意文字 ⇒ NFKC 会变形 ⇒ ⇒ 闸明说不能拿 NFKC 判重）⇒ ⇒ 标题里的标记字形用 `String.fromCodePoint(0x32AD)` 逐字核对过 ✔ ⇒ ⇒ 插完立刻复跑码位闸。
 **Updated:** 2026-11-09 (㊮ **「滑动正路径 —— 移动端这一侧补上了「滑 ⇒ ⇒ 看得见 ⇒ ⇒ 点得到」这一整条链的离线判据，真机那条端到端也写好了」** —— 承 ㊯ 条（自家窗口的整屏坐标），本条记**移动端这一侧**新增了什么、**离线读数**、**反向验证（含一根**没红**的钉）**，以及**仍然欠着的**。)
 
 > 信封：epoch=2026-11-09 | authority=measured | scope=project | source=真机实测（新增 `test/unit/mobile_use_scroll_reachability_test.dart`、`integration_test/a11y_scroll_to_item_test.dart`、`test_driver/a11y_scroll_to_item_test.dart`；读数：analyze **0 issue**、离线单测 **4/4**、反向验证四根钉）| status=active | supersedes=none

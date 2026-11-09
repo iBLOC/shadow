@@ -81,6 +81,13 @@ dev_dependencies:
   flutter_localization_linter: ^1.0.2
   sqflite_common_ffi: ^2.3.0
 
+  # ⚠️ 2026-11-09：**SQLite native asset 的提供者**（原本只是
+  # sqflite_common_ffi 的传递依赖）⇒ ⇒ 现在**提为显式 dev 依赖并钉住下限**
+  # ⇒ ⇒ 因为「按目标 OS 分岔 source」是 **sqlite3 ≥ 3.9.1** 才有的能力
+  # （3.5.2 的 `source` 是全局的 ⇒ ⇒ 一旦全局设成 `system` 就会连带打断
+  # Windows／Android）⇒ ⇒ **升级与下面 `hooks.user_defines` 那段必须同刀**。
+  sqlite3: ^3.9.1
+
 flutter:
   uses-material-design: true
   generate: true
@@ -88,3 +95,25 @@ flutter:
 # ⚠️ 2026-11-08：`assets/models/` ＋ `assets/config/`（本地 LiteRT/MNN 模型
 # 清单与采样器配置）随本地推理退役出仓 ⇒ ⇒ **零 Dart 消费方** ⇒ ⇒
 # assets 声明一并摘掉（声明了空目录会让构建报错）。
+
+# ⚠️ 2026-11-09：**SQLite native asset 的来源按平台分岔** ⇒ ⇒ Linux 上的
+# **移动端 CI 不再从 GitHub release 下载**预编译库 ⇒ ⇒ 也就不会被 GitHub 的
+# **504 网关超时页**（92 字节）冒充成资产、撞哈希 ——
+# 取证：上游 simolus3/sqlite3.dart#435／#436；CI 撞到的坏哈希
+# `bef140a1…` ＝ 那张 504 页的 SHA-256（本地按字节复算，逐字一致）。
+#
+# · `linux: system` ⇒ Linux（**CI 的 `Mobile Test` job 正好在 Linux 上**）走
+#   dlopen **系统那份 libsqlite3.so** ⇒ ⇒ CI 里 `Install SQLite runtime`
+#   （`apt-get install -y libsqlite3-dev`）装的那份**从此是真正的提供者**
+#   ⇒ ⇒ 这条路径**零网络** ⇒ ⇒ 上游 CDN 抖动再也伤不到移动端 CI。
+# · `default: sqlite3` ⇒ 其余平台（Windows／Android／macOS）**仍用包自带的
+#   预编译库** ⇒ ⇒ 本地开发与 APK 打包的行为**一个字没变**。
+#
+# ⚠️ per-OS 映射要 sqlite3 ≥ 3.9.1（见上面 dev_dependencies 那段）⇒ ⇒
+# **升级与这段配置必须同刀** ⇒ ⇒ 别把它们拆成两笔。
+hooks:
+  user_defines:
+    sqlite3:
+      source:
+        linux: system
+        default: sqlite3
