@@ -27,6 +27,12 @@ abstract class AccessibilityOps {
   /// 读当前屏幕（可访问性树）；null ＝ 取不到。
   Future<String?> readScreen();
 
+  /// 本 app 自己的窗口在**屏幕**上的原点（物理像素）；null ＝ 拿不到。
+  ///
+  /// ⚠️ **默认实现回 null** ⇒ ⇒ 单测里的假实现**不用改**
+  /// ⇒ ⇒ 而「拿不到原点 ⇒ 不换算」这条纪律**默认就成立**。
+  Future<Map<String, double>?> viewGeometry() async => null;
+
   /// 点一下屏幕。
   Future<bool> tap(double x, double y);
 
@@ -63,6 +69,10 @@ class PlatformAccessibilityOps extends AccessibilityOps {
   // ⚠️ `readScreen` 在控制器那边是**静态方法** ⇒ ⇒ 要带括号调用
   // ⇒ ⇒ 直接返回 tear-off 会类型不匹配。
   Future<String?> readScreen() => AccessibilityController.readScreen();
+
+  @override
+  Future<Map<String, double>?> viewGeometry() =>
+      AccessibilityController.viewGeometry();
 
   @override
   Future<bool> tap(double x, double y) => AccessibilityController.tap(x, y);

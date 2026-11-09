@@ -7,8 +7,11 @@ import android.net.nsd.NsdServiceInfo
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.view.View
+import android.view.ViewGroup
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.embedding.android.FlutterView
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
 import com.ibloc.shadow.pcm.PcmAudioRecorder
@@ -131,6 +134,27 @@ class MainActivity : FlutterActivity() {
                     // 报「无障碍服务未开启」，而不是回一段空白。
                     result.success(PrefrontalAccessibilityService.instance?.readScreenContent())
                 }
+                "getViewGeometry" -> {
+                    // ⚠️ **自家窗口在屏幕上的原点** —— 自家 app 的语义树坐标是
+                    // 「**本窗口**」的物理像素 ⇒ ⇒ 而手势派发用的是**整屏**
+                    // 物理像素 ⇒ ⇒ 两者差一个窗口原点 ⇒ ⇒ 不知道它就没法
+                    // 把自家窗口的坐标拿去点。
+                    // ⚠️ **量**而不是算：窗口在屏幕上的位置取决于 edge-to-edge、
+                    // 分屏、折叠屏、多屏 ⇒ ⇒ 算不出来 ⇒ ⇒ 只能量。
+                    // ⚠️ 拿不到就回 **null** ⇒ ⇒ Dart 侧**不换算**
+                    // ⇒ ⇒ 宁可换一个坐标口径，也不给一个错的偏移（错偏移会点歪）。
+                    val origin = flutterViewOriginOnScreen()
+                    if (origin == null) {
+                        result.success(null)
+                    } else {
+                        result.success(
+                            mapOf(
+                                "originX" to origin[0].toDouble(),
+                                "originY" to origin[1].toDouble()
+                            )
+                        )
+                    }
+                }
                 "setDeviceActionsAllowed" -> {
                     // ⚠️ **把「手机操作」那一档推给原生侧** ⇒ ⇒
                     // 原生那两个平行面（HTTP `/api/mobile/action`、A2A 的
@@ -144,6 +168,36 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+    }
+
+    /**
+     * FlutterView 在**屏幕**上的原点（物理像素）；找不到就 null。
+     *
+     * ⚠️ 为什么**量**而不是算：窗口在屏幕上的位置取决于 edge-to-edge、
+     * 分屏、折叠屏、多屏 ⇒ ⇒ 算不出来 ⇒ ⇒ 只能量。
+     */
+    private fun flutterViewOriginOnScreen(): IntArray? {
+        val decor = window?.decorView ?: return null
+        val view = findFlutterView(decor) ?: return null
+        val location = IntArray(2)
+        view.getLocationOnScreen(location)
+        return location
+    }
+
+    /**
+     * 在视图树里**递归**找 FlutterView。
+     *
+     * ⚠️ 为什么递归：宿主把 FlutterView 放在**容器**里
+     * ⇒ ⇒ 只看 decorView 的直接孩子会找不到。
+     */
+    private fun findFlutterView(view: View): View? {
+        if (view is FlutterView) return view
+        if (view is ViewGroup) {
+            for (i in 0 until view.childCount) {
+                findFlutterView(view.getChildAt(i))?.let { return it }
+            }
+        }
+        return null
     }
     
     private fun setupLogcatChannel(flutterEngine: FlutterEngine) {

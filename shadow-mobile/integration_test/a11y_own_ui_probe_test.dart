@@ -2,10 +2,12 @@ import 'dart:ui' show Display, FlutterView, PlatformDispatcher;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:shadow_mobile/services/accessibility_controller.dart';
 import 'package:shadow_mobile/services/capabilities/capability_tools.dart';
+import 'package:shadow_mobile/services/capabilities/flutter_semantics_tree.dart';
 
 /// **探针**（probe）—— 一小块**我们自己写的** UI，专门回答一个问题：
 /// 「点按 / 长按 到底**点到了哪**？」
@@ -142,21 +144,31 @@ class _Target extends StatelessWidget {
   const _Target({
     super.key,
     required this.color,
+    required this.label,
     required this.onTap,
     required this.onLongPress,
   });
 
   final Color color;
+
+  /// ⚠️ **语义标签** —— 自家 app 的界面模型（Flutter 语义树）只拍
+  /// **带字**的节点 ⇒ ⇒ 没有标签 ⇒ ⇒ 树里就一个字都没有
+  /// ⇒ ⇒ 「自家窗口的界面模型」这一格等于**空着**。
+  final String label;
+
   final VoidCallback onTap;
   final VoidCallback onLongPress;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      onLongPress: onLongPress,
-      child: ColoredBox(color: color),
+    return Semantics(
+      label: label,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        onLongPress: onLongPress,
+        child: ColoredBox(color: color),
+      ),
     );
   }
 }
@@ -213,6 +225,7 @@ class _ProbeApp extends StatelessWidget {
                     child: _Target(
                       key: _Probe.keyA,
                       color: const Color(0xFF00897B),
+                      label: '目标甲',
                       onTap: () => _Probe.tapA++,
                       onLongPress: () => _Probe.longPressA++,
                     ),
@@ -225,6 +238,7 @@ class _ProbeApp extends StatelessWidget {
                     child: _Target(
                       key: _Probe.keyB,
                       color: const Color(0xFF6D4C41),
+                      label: '目标乙',
                       onTap: () => _Probe.tapB++,
                       onLongPress: () => _Probe.longPressB++,
                     ),
@@ -237,6 +251,39 @@ class _ProbeApp extends StatelessWidget {
       ),
     );
   }
+}
+
+
+/// **语义树的 handle** —— 必须**握住不放**。
+///
+/// ⚠️ 为什么必须显式开：Flutter 只在「平台请求语义」时才建树
+/// ⇒ ⇒ 自家 app 的界面模型（`FlutterSemanticsTree`）就**读不到**
+/// ⇒ ⇒ 而这一族要验的正是它 ⇒ ⇒ 所以这里**自己**把它打开。
+SemanticsHandle? _semanticsHandle;
+
+/// 从**语义树文本**里抽出「某个 label 那一段」的 bounds（整屏口径）。
+///
+/// ⚠️ 为什么现算：树的文本格式是**给人看的** ⇒ ⇒ 解析它就是「拿尺子量」
+/// ⇒ ⇒ 但尺子本身要有分辨力 ⇒ ⇒ 解析不出来就回 null ⇒ ⇒ 断言立刻红
+/// ⇒ ⇒ 而不是「解析不出来就当过了」。
+Rect? boundsOfLabel(String tree, String label) {
+  final List<String> lines = tree.split('\n');
+  for (var i = 0; i < lines.length; i++) {
+    if (!lines[i].contains('text: $label')) continue;
+    for (var j = i + 1; j < lines.length && j < i + 6; j++) {
+      final RegExpMatch? m = RegExp(
+        r'bounds: (-?\d+),(-?\d+),(-?\d+),(-?\d+)',
+      ).firstMatch(lines[j]);
+      if (m == null) continue;
+      return Rect.fromLTRB(
+        double.parse(m.group(1)!),
+        double.parse(m.group(2)!),
+        double.parse(m.group(3)!),
+        double.parse(m.group(4)!),
+      );
+    }
+  }
+  return null;
 }
 
 /// 设备像素比（逻辑像素 ⇄ 屏幕物理像素的换算因子）。
@@ -337,6 +384,12 @@ void main() {
 
   // ⚠️ **把生命周期打出来** —— 手势落不进来时，这是**唯一**能说清原因的证据。
   WidgetsBinding.instance.addObserver(_LifecycleProbe());
+
+  // ⚠️⚠️ **必须显式开语义树** —— Flutter 只在「平台请求语义」时才建树
+  // ⇒ ⇒ 自家 app 的界面模型（`FlutterSemanticsTree`）就**读不到**
+  // ⇒ ⇒ 而这一族要验的正是它 ⇒ ⇒ 所以这里**自己**把它打开
+  // ⇒ ⇒ 并把 handle **握住不放**（放开 ⇒ ⇒ 树当场被拆掉）。
+  _semanticsHandle = SemanticsBinding.instance.ensureSemantics();
 
   // ⚠️ **探针必须先起来** —— 它就是「被点的那一样东西」。
   runApp(const _ProbeApp());
@@ -825,6 +878,117 @@ void main() {
       print('--- PROBE NEGATIVE --- sent=$sent landed=$landing blank=$blank '
           'tapA=${_Probe.tapA} tapB=${_Probe.tapB} '
           'displayId=${_Probe.displayId} displayDpr=${_Probe.displayDpr}');
+    });
+  }, timeout: const Timeout(Duration(minutes: 4)));
+
+  test('自家窗口 ⇒ 语义树可读 ＋ 原点两条路**一致**（原生量 vs 探针校准）', () async {
+    await check('自家窗口语义树 ＋ 原点一致性', () async {
+      // ⚠️ 语义树**必须开着** —— 不开 ⇒ ⇒ 自家界面模型根本读不到。
+      expect(
+        _semanticsHandle,
+        isNotNull,
+        reason: '语义树没开 ⇒ ⇒ 自家 app 的界面模型这一格是空的',
+      );
+      expect(await waitForAccessibility(60), isTrue, reason: '无障碍服务没开');
+      expect(await waitForLayout(), isTrue, reason: '探针布局没落地');
+      expect(await calibrate(), isTrue, reason: '校准失败 ⇒ ⇒ 坐标系没法定');
+
+      // ⚠️ **原生量到的窗口原点**（**物理**像素）—— 这是**第一条路**。
+      final Map<String, double>? native =
+          await AccessibilityController.viewGeometry();
+      expect(
+        native,
+        isNotNull,
+        reason: '原生量不到窗口原点 ⇒ ⇒ 这一轮不成立 ⇒ ⇒ '
+            '自家窗口的坐标没法换算成整屏口径',
+      );
+
+      // ⚠️ **探针校准量到的原点**（**物理**像素）—— 这是**第二条路**。
+      final Offset calibrated = _Probe.originPhysical;
+
+      // ⚠⚠⚠ **当裁判**：两条路量到的原点必须一致。
+      // ⇒ ⇒ 差得远 ⇒ ⇒ 说明「语义树坐标 ↔ 整屏坐标」的换算**不可信**
+      // ⇒ ⇒ ⇒ 自家窗口的坐标就**不许**拿去点（宁可不点，也不要点歪）。
+      final double dx = (native!['originX']! - calibrated.dx).abs();
+      final double dy = (native['originY']! - calibrated.dy).abs();
+      expect(
+        dx,
+        lessThan(5.0),
+        reason: '原生量到的原点 X=${native['originX']} 与探针校准的 '
+            '${calibrated.dx} 差了 $dx 像素 ⇒ ⇒ 两条路对不上',
+      );
+      expect(
+        dy,
+        lessThan(5.0),
+        reason: '原生量到的原点 Y=${native['originY']} 与探针校准的 '
+            '${calibrated.dy} 差了 $dy 像素 ⇒ ⇒ 两条路对不上',
+      );
+
+      // ⚠️ **语义树本身**（自家 app 的界面模型）——
+      // ⇒ ⇒ 带原点 ⇒ ⇒ 坐标必须是**整屏口径**（字段名与原生那棵一样）。
+      final FlutterSemanticsSnapshot? own = FlutterSemanticsTree.read(
+        viewOrigin: ViewOrigin(native['originX']!, native['originY']!),
+      );
+      expect(own, isNotNull, reason: '自家 app 的语义树读不到 ⇒ ⇒ 这一格没补上');
+      expect(own!.coordinateSpace, kCoordinateSpaceScreen);
+      expect(own.text, contains('bounds:'), reason: '树里没有整屏口径的 bounds');
+      expect(
+        own.text,
+        isNot(contains('viewBounds:')),
+        reason: '两套坐标混在一起了 ⇒ ⇒ 模型会拿错口径去点',
+      );
+
+      // ⚠⚠⚠ **最强的那条**：树里报出来的 bounds 必须等于
+      // ⇒ ⇒ 「量出来的矩形 × dpr ＋ 原生原点」⇒ ⇒ 差一截就红。
+      final Rect? bounds = boundsOfLabel(own.text, '目标甲');
+      expect(bounds, isNotNull, reason: '树里没有「目标甲」的 bounds');
+      final double dpr = _devicePixelRatio();
+      final Rect expected = Rect.fromLTRB(
+        _Probe.rectA.left * dpr + native['originX']!,
+        _Probe.rectA.top * dpr + native['originY']!,
+        _Probe.rectA.right * dpr + native['originX']!,
+        _Probe.rectA.bottom * dpr + native['originY']!,
+      );
+      expect(
+        (bounds!.left - expected.left).abs(),
+        lessThanOrEqualTo(3.0),
+        reason: '树里的 bounds $bounds 与量出来的 $expected 对不上 ⇒ ⇒ '
+            '「语义树坐标 ＋ 原点 ≠ 整屏坐标」',
+      );
+      expect(
+        (bounds.top - expected.top).abs(),
+        lessThanOrEqualTo(3.0),
+        reason: '树里的 bounds $bounds 与量出来的 $expected 对不上',
+      );
+      expect(
+        (bounds.right - expected.right).abs(),
+        lessThanOrEqualTo(3.0),
+        reason: '树里的 bounds $bounds 与量出来的 $expected 对不上',
+      );
+      expect(
+        (bounds.bottom - expected.bottom).abs(),
+        lessThanOrEqualTo(3.0),
+        reason: '树里的 bounds $bounds 与量出来的 $expected 对不上',
+      );
+
+      // ⚠️ **工具层**（走生产那条回落路）—— 口径必须**跟着快照**走。
+      final Map<String, dynamic> toolsResult =
+          (await CapabilityTools().readScreen(<String, dynamic>{}))
+              as Map<String, dynamic>;
+      // ignore: avoid_print
+      print('--- PROBE TOOLS LAYER --- source=${toolsResult['source']} '
+          'coordinateSpace=${toolsResult['coordinateSpace']}');
+      if (toolsResult['source'] == kScreenSourceFlutterSemantics) {
+        expect(
+          toolsResult['coordinateSpace'],
+          kCoordinateSpaceScreen,
+          reason: '拿到原点 ⇒ ⇒ 回落结果的坐标口径必须是**整屏**',
+        );
+      }
+
+      // ignore: avoid_print
+      print('--- PROBE OWN TREE --- native=$native calibrated=$calibrated '
+          'bounds=$bounds expected=$expected dpr=$dpr');
     });
   }, timeout: const Timeout(Duration(minutes: 4)));
 

@@ -152,6 +152,34 @@ class AccessibilityController {
     }
   }
 
+  /// 本 app 自己的窗口在**屏幕**上的原点（物理像素）—— null ＝ 拿不到。
+  ///
+  /// ⚠️ 为什么需要它：自家 app 的语义树坐标是「**本窗口**」的物理像素
+  /// ⇒ ⇒ 而手势派发用的是**整屏**物理像素 ⇒ ⇒ 两者差一个窗口原点
+  /// ⇒ ⇒ 不知道这个原点 ⇒ ⇒ 自家窗口里的坐标**不能**直接拿去点。
+  ///
+  /// ⚠️ 拿不到就回 null ⇒ ⇒ 调用方**不换算**（宁可换个坐标口径，
+  /// 也不给一个错的偏移 —— 错偏移会让模型点歪）。
+  static Future<Map<String, double>?> viewGeometry() async {
+    if (!isSupported) return null;
+    try {
+      final result =
+          await _channel.invokeMethod<Map<dynamic, dynamic>>(
+        'getViewGeometry',
+      );
+      if (result == null) return null;
+      final double? x = (result['originX'] as num?)?.toDouble();
+      final double? y = (result['originY'] as num?)?.toDouble();
+      if (x == null || y == null) return null;
+      return <String, double>{'originX': x, 'originY': y};
+    } on MissingPluginException {
+      // ⚠️ 通道不在（iOS / 单测 / 裁剪版）⇒ ⇒ 没有原点 ⇒ ⇒ 不换算。
+      return null;
+    } on PlatformException {
+      return null;
+    }
+  }
+
   /// 在当前前台窗口中查找包含 [text] 的节点并执行点击
   /// 用于按文案点击控件（如「确定」「发送」）
   static Future<bool> findAndClickByText(String text) async {

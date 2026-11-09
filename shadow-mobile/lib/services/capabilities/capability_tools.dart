@@ -2,6 +2,21 @@ import '../accessibility_controller.dart';
 import 'accessibility_ops.dart';
 import 'capability.dart';
 import 'device_data_channel.dart';
+import 'flutter_semantics_tree.dart';
+
+/// 读屏结果的**来源** —— 两棵树的坐标口径不一样 ⇒ ⇒ 必须标出来。
+///
+/// ⚠️ 为什么非标不可：原生那棵树是**别人的窗口**（坐标＝整屏物理像素），
+/// 而自家 app 那棵是**本窗口**（坐标＝本窗口物理像素）
+/// ⇒ ⇒ 模型若把后者当整屏坐标去点 ⇒ ⇒ 点歪 ⇒ ⇒ 看起来像「手势坏了」。
+const String kScreenSourceAndroidA11y = 'android-a11y';
+
+/// 自家 app 自己的界面模型（Flutter 语义树）。
+const String kScreenSourceFlutterSemantics = 'flutter-semantics';
+
+/// 坐标口径 —— 与上面的来源**配套**（整屏 vs 本窗口）。
+const String kCoordinateSpaceScreen = 'screen';
+const String kCoordinateSpaceView = 'view';
 
 /// **设备能力执行器** —— 五个能力工具的**执行那一半**。
 ///
@@ -52,14 +67,28 @@ class CapabilityTools {
   /// [AccessibilityOps.platform]）⇒ ⇒ 见 [_a11y]。
   final AccessibilityOps? accessibility;
 
+  /// 「自家 app 现在在前台吗」的判据 —— **可注入**。
+  ///
+  /// ⚠️ 为什么可注入：回落（读屏 / 按文字点击）**只在前台是自家 app**
+  /// 时才允许 ⇒ ⇒ 而「前台是谁」在单测里没法造 ⇒ ⇒ 注入一条假的判据
+  /// ⇒ ⇒ 单测就能把「该回落」与「不许回落」两条路**都**钉住。
+  ///
+  /// ⚠️ null ⇒ ⇒ 用真实生命周期（`AppLifecycleState.resumed`）。
+  final bool Function()? ownAppInForeground;
+
   const CapabilityTools({
     this.channel = const DeviceDataChannel(),
     this.accessibility,
+    this.ownAppInForeground,
   });
 
   /// 无障碍那一层（没注入就用真机实现）。
   AccessibilityOps get _a11y =>
       accessibility ?? const PlatformAccessibilityOps();
+
+  /// 自家 app 在前台吗（没注入判据 ⇒ 问真实生命周期）。
+  bool _ownAppInForeground() =>
+      ownAppInForeground?.call() ?? FlutterSemanticsTree.isOwnAppInForeground();
 
   /// 读日历事件（时间窗内）。
   ///
@@ -160,19 +189,61 @@ class CapabilityTools {
   Future<Object?> readScreen(Map<String, dynamic> args) async {
     await _ensureAccessibilityService();
     final text = await _a11y.readScreen();
-    if (text == null) {
+    if (text != null && text.trim().isNotEmpty) {
+      // ⚠️ **截断必须是显式的** —— Kotlin 侧预算用完时会在末尾加
+      // `[truncated]` ⇒ ⇒ 模型据此知道「这一屏**没看全**」⇒ ⇒ 别对着
+      // 缺失的信息做判断（那是「失败长得像成功」的一族）。
+      final truncated = text.trimRight().endsWith(kScreenTruncationMarker);
+      return <String, dynamic>{
+        'screen': text,
+        'length': text.length,
+        'truncated': truncated,
+        // ⚠️ **来源与坐标口径要写明** —— 模型必须知道自己看的是哪棵树，
+        // 以及那些坐标能不能直接拿去点。
+        'source': kScreenSourceAndroidA11y,
+        'coordinateSpace': kCoordinateSpaceScreen,
+      };
+    }
+    // ⚠️⚠️ **回落：自家 app 的窗口** —— Android 不把宿主自己的窗口交给
+    // 它自己绑定的那个无障碍服务 ⇒ ⇒ 原生那棵树在自家窗口上**必然是空的**
+    // ⇒ ⇒ 而「模型在自己 app 里干活」正是手机操作这条线的主战场
+    // ⇒ ⇒ 所以拿 **Flutter 自己的语义树**顶上（自家 app 的界面模型）。
+    //
+    // ⚠️⚠️ **但必须先确认「自家 app 在前台」** —— 原生树读不到有两种可能：
+    // ❶ 前台就是自家 app；❷ 前台是**别人**、只是那棵树恰好是空的
+    // ⇒ ⇒ 这两种**长得一样** ⇒ ⇒ 不问一句就回落 ⇒ ⇒ 会在别人的屏幕上
+    // 显示自家 app 的界面 ⇒ ⇒ 那是最典型的「失败长得像成功」。
+    if (!_ownAppInForeground()) {
       throw StateError(
-        'the accessibility service stopped responding — cannot read the screen',
+        'cannot read the screen: the foreground window has no readable '
+        'accessibility tree',
       );
     }
-    // ⚠️ **截断必须是显式的** —— Kotlin 侧预算用完时会在末尾加
-    // `[truncated]` ⇒ ⇒ 模型据此知道「这一屏**没看全**」⇒ ⇒ 别对着
-    // 缺失的信息做判断（那是「失败长得像成功」的一族）。
-    final truncated = text.trimRight().endsWith(kScreenTruncationMarker);
+    // ⚠ **窗口原点**（本窗口在屏幕上的位置）—— 拿到 ⇒ ⇒ 坐标就能换算成
+    // **整屏**口径 ⇒ ⇒ 与原生那棵树**同一个字段名、同一个口径**
+    // ⇒ ⇒ 模型照着点得准 ⇒ ⇒ 自家窗口也能按坐标操作。
+    // ⚠ 拿不到 ⇒ ⇒ 保持**本窗口**口径（字段名 `viewBounds`）⇒ ⇒ 不猜。
+    final Map<String, double>? geometry = await _a11y.viewGeometry();
+    final ViewOrigin? origin = geometry == null
+        ? null
+        : ViewOrigin(
+            geometry['originX'] ?? 0,
+            geometry['originY'] ?? 0,
+          );
+    final FlutterSemanticsSnapshot? own =
+        FlutterSemanticsTree.read(viewOrigin: origin);
+    if (own == null) {
+      throw StateError(
+        'cannot read the screen: this app own semantics tree is not available',
+      );
+    }
     return <String, dynamic>{
-      'screen': text,
-      'length': text.length,
-      'truncated': truncated,
+      'screen': own.text,
+      'length': own.text.length,
+      'truncated': own.truncated,
+      'source': kScreenSourceFlutterSemantics,
+      // ⚠ 口径**跟着快照**走（整屏 or 本窗口）⇒ ⇒ 别写死。
+      'coordinateSpace': own.coordinateSpace,
     };
   }
 
@@ -242,7 +313,32 @@ class CapabilityTools {
       );
     }
     await _ensureAccessibilityService();
-    final ok = await _a11y.findAndClickByText(text);
+    // ⚠️⚠️ **先问「前台是谁」** —— 原生那棵树读不到时**才**走自家 app 那条路。
+    //
+    // ⚠️ 为什么不能「找不到就回落」：在**别人的** app 里找不到那个字
+    // ⇒ ⇒ 回落就变成「去点自家 app 里的同名控件」
+    // ⇒ ⇒ 那会点到一个用户**没要求**的东西 ⇒ ⇒ 比报错更坏。
+    final String? tree = await _a11y.readScreen();
+    if (tree == null && _ownAppInForeground()) {
+      // ⚠️ 自家窗口那条路**不用坐标** —— 那一套坐标是「本窗口」的，
+      // ⇒ ⇒ 与 mobile_tap 的「整屏像素」不是同一个口径 ⇒ ⇒ 拿它去点会歪
+      // ⇒ ⇒ 所以让框架把动作**直接派给控件**（控件自己的回调 ⇒ ⇒ 准）。
+      final bool tapped = FlutterSemanticsTree.tapByText(text);
+      if (tapped) {
+        return <String, dynamic>{
+          'clicked': true,
+          'text': text,
+          'source': kScreenSourceFlutterSemantics,
+        };
+      }
+      // ⚠️ 没找到 ⇒ **明确失败**，别回一句「点了」——
+      // 那会让模型以为界面变了，然后开始瞎点。
+      throw StateError(
+        'no clickable element with that text was found in this app own UI: '
+        '$text',
+      );
+    }
+    final bool ok = await _a11y.findAndClickByText(text);
     if (!ok) {
       // ⚠️ 没找到 ⇒ **明确失败**，别回一句「点了」——
       // 那会让模型以为界面变了，然后开始瞎点。
@@ -316,13 +412,21 @@ Future<void> _ensureOsPermission(
 ) async {
   final granted = await channel.hasOsPermission(capability.wire);
   if (granted) return;
-  final requested = await channel.requestPermission(capability.wire);
-  if (!requested) {
+  // ⚠️ **详细版** ⇒ ⇒ 「用户点了拒绝」与「系统拒绝再弹」**分得开**
+  // ⇒ ⇒ 后者**只能**去系统设置页开 ⇒ ⇒ 错误文案必须说清**下一步该干什么**
+  // ⇒ ⇒ 否则模型（和用户）只看到一句「没权限」⇒ ⇒ 谁也不知道该干嘛。
+  final outcome = await channel.requestPermissionDetailed(capability.wire);
+  if (outcome.granted) return;
+  if (outcome.permanentlyDenied) {
     throw StateError(
-      'the user has not granted the system permission for '
-      '${capability.label} — cannot proceed',
+      'the system will no longer show the permission prompt for '
+      '${capability.label} — the user has to enable it in the system settings',
     );
   }
+  throw StateError(
+    'the user has not granted the system permission for '
+    '${capability.label} — cannot proceed',
+  );
 }
 
 /// 解析一个时间参数。
