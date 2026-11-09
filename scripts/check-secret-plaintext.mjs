@@ -152,18 +152,52 @@ export const KNOWN_DEBT = [
   },
   {
     repo: 'desktop',
+    file: 'src-tauri/src/admin_token.rs',
+    kind: 'file-read',
+    count: 1,
+    why: '从**明文落盘**里读回 admin token（写的对面）—— ⚠️ 2026-11-09 实测才露出来：探测器此前把「**凡是被调用过的名字**」都豁免 ⇒ ⇒ 连**取值函数**（`desktop_admin_token()`）也被放过 ⇒ ⇒ 这一族整体隐形 ⇒ ⇒ 豁免收窄成「只豁免**谓词**」后才看得见 ⇒ ⇒ 债是真的（盘上确实有一把明文钥匙）⇒ ⇒ 不能销账',
+    when: 'P2c（同上）—— ⚠️ 它是「写」那一面的**对面**：写面已登记 ⇒ ⇒ 这一条是**读面** ⇒ ⇒ 两者必须**一起**销（换钥匙环 ⇒ ⇒ 写与读同时不再碰明文文件）',
+  },
+  {
+    repo: 'desktop',
     file: 'src-tauri/src/config_manager.rs',
     kind: 'file',
     count: 1,
     why: '桌面配置整份落盘（含 provider api_key ＋ 数据库 password）',
     when: 'P2（同 provider 那条）',
   },
+  // ⚠️⚠️ **ziti 身份文件那条**（2026-11-09 实测露出来 ⇒ ⇒ 接 CI 前的最后一刀）。
+  // ⇒ ⇒ **这是真债**（ziti 身份证书的**私钥 PEM 落盘**：ca.pem / cert.pem / key.pem
+  //    三份都写进 app 私有目录）⇒ ⇒ 但**探测器的形状**只咬住了 id.json 那次写入
+  //    （它的值是**文件名**（'key.pem' 等）⇒ ⇒ 严格说是**形状上的假红**）
+  // ⇒ ⇒ 而**真正的材料落盘**（pems['key'] 写进 key.pem）**探测器追不到**
+  //    （追踪断在**动态下标** `pems['key']` 上 ⇒ ⇒ 索引不静态 ⇒ ⇒ 追不动）
+  // ⇒ ⇒ 所以这一条**按「真债」登记**（不许因为「形状像假红」就放过它）
+  // ⇒ ⇒ 同时这条登记**顺手把那个盲区也记下来**（探测器看不见 ≠ 没有）。
+  {
+    repo: 'mobile',
+    file: 'lib/services/ziti_config_service.dart',
+    kind: 'file',
+    count: 1,
+    why: 'ziti 身份**私钥 PEM 明文落盘**（ca.pem / cert.pem / key.pem 写进 app 私有目录）—— ⚠️ 探测器咬住的是 id.json 那次写入（值是**文件名**）⇒ ⇒ 形状上偏假红；但**同一次调用**把**真材料**（pems 里那个 key 下标的值）写进了 key.pem ⇒ ⇒ 那处探测器**追不到**（动态下标 ⇒ ⇒ 盲区）⇒ ⇒ 所以这是**真债**，不是噪音',
+    when: 'P2d（ziti 身份材料搬进 android-native-keyring-store / 或改成只落**引用**）—— ⚠️ 归属**并行会话的 ziti 线**（commit 2461ac6）⇒ ⇒ 那条线动了这个文件之后，本条会变 stale ⇒ ⇒ 闸会红 ⇒ ⇒ 那时要**按实测重算 count** 再决定销账还是改数（不许静默放过）',
+    onStale: '⚠️ 这条是**真债**（ziti 私钥落盘）⇒ ⇒ 若它变 stale ⇒ ⇒ 请确认是真的搬走了，**不是**把形状改成「看不见」⇒ ⇒ ziti 身份材料确实不再落盘才算还',
+  },
   {
     repo: 'mobile',
     file: 'lib/services/app_config_service.dart',
     kind: 'file',
     count: 1,
-    why: 'app 私有目录的 JSON 里存着 admin token ＋ shadow key（**Android 无安全存储**）',
+    // ⚠️⚠️ **盲区登记**（2026-11-09 实测）—— 债**是真的**，但探测器追不到：
+    //    写入仍在（`_saveConfig()` 把 `telencephalonAdminToken` ＋ `telencephalonShadowKey`
+    //    明文塞进 `config` ⇒ ⇒ `json.encode(config)` ⇒ ⇒ 写进 app 私有目录的 app_config.json）
+    //    但 2026-11-09 的**原子落盘重构**把落盘改成了 `_writeAtomically(file, json.encode(config))`
+    //    ⇒ ⇒ 探测器的 Dart 写规则只认**调用点**上的 `writeAsString(`
+    //    ⇒ ⇒ 那次写调用现在藏在 helper 里（形参名是 `content`，不含密钥成分）
+    //    ⇒ ⇒ 追踪断在这里 ⇒ ⇒ 命中数 0。
+    //    ⇒ ⇒ **不许销账**（债还在）⇒ ⇒ 登记为盲区；探测器一旦能抓到，闸会照常提示销账。
+    blind: true,
+    why: 'app 私有目录的 JSON 里存着 admin token ＋ shadow key（**Android 无安全存储**）—— ⚠️ 债仍然是真的（`_saveConfig()` 明文写进 app_config.json）；探测器追不到，是因为 2026-11-09 的原子落盘重构把写入藏进了 `_writeAtomically(file, …)` helper（Dart 写规则只认调用点上的 `writeAsString(`）⇒ ⇒ 登记为盲区（**不是销账**）',
     when: 'P2d（android-native-keyring-store）',
   },
   // ---- synapse（2026-11-03 补进覆盖面）-------------------------------
@@ -211,8 +245,18 @@ export const KNOWN_DEBT = [
  * ⚠️ 这三个新仓在 2026-11-03 加入时实测**零命中** ⇒ ⇒ 覆盖面扩大而**不引入假红**。
  */
 export function scanRoots(sourceArg, extraRoots = []) {
-  const endbrain = sourceArg ?? resolve(REPO, '..', 'telencephalon');
-  const sibling = (name) => resolve(REPO, '..', name);
+  // ⚠️⚠️ **两种布局都要认**（2026-11-09 接 CI 时实测）——
+  //   · A（本机）：兄弟仓在 shadow 仓**之外**（`../<name>`）
+  //   · B（CI）：兄弟仓被 checkout 到 shadow 仓根**之下**（`<name>` 子目录）
+  // ⚠️ 只认 A ⇒ ⇒ CI 上五个兄弟仓**一个都读不到** ⇒ ⇒ 覆盖面读数只剩
+  //   desktop/mobile ⇒ ⇒ 那些债全成「没判」⇒ ⇒ 退出码 2 ⇒ ⇒ **CI 恒红**
+  //   ⇒ ⇒ 那不是「闸抓到了泄漏」，那是**布局层**的问题（同 check-ziti-face.mjs）。
+  const sibling = (name) => {
+    const outside = resolve(REPO, '..', name);
+    if (existsSync(outside)) return outside;
+    return join(REPO, name);
+  };
+  const endbrain = sourceArg ?? sibling('telencephalon');
   return [
     { repo: 'telencephalon', root: endbrain, sub: 'src' },
     // ⚠️ **端脑的宿主**（端脑改成 pure library 之后，它才是真正跑起来的那一个）。
@@ -254,12 +298,16 @@ export function scanAll(sourceArg, extraRoots = []) {
   const findings = [];
   let filesRead = 0;
   const missing = [];
+  // ⚠️⚠️ **在面内的仓**（2026-11-09 加）—— 覆盖面**是读数**，不是假设。
+  // ⇒ ⇒ 「哪个仓压根没被扫到」必须**说得出来**⇒ ⇒ 否则「没红」会被当成「没问题」。
+  const covered = new Set();
   for (const { repo, root, sub } of scanRoots(sourceArg, extraRoots)) {
     const base = join(root, sub);
     if (!existsSync(base)) {
       missing.push(base);
       continue;
     }
+    covered.add(repo);
     for (const f of walk(base)) {
       if (isTestPath(f)) continue;
       const code = readFileSync(f, 'utf8');
@@ -273,7 +321,10 @@ export function scanAll(sourceArg, extraRoots = []) {
       }
     }
   }
-  return { findings, filesRead, missing };
+  // ⚠️⚠️ **「该在面内的仓」也得交出去**（2026-11-09 修）—— 覆盖面是**读数**，
+  // ⇒ ⇒ 「在面内 / 没在面内」两段必须来自**同一份根清单**⇒ ⇒ 否则两段会互相矛盾。
+  const scopeRepos = [...new Set(scanRoots(sourceArg, extraRoots).map((r) => r.repo))].filter((r) => r !== 'probe');
+  return { findings, filesRead, missing, covered, scopeRepos };
 }
 
 const keyOf = (f) => `${f.repo}|${f.file}|${f.kind}`;
@@ -282,8 +333,20 @@ const keyOf = (f) => `${f.repo}|${f.file}|${f.kind}`;
  * 拿实测命中去对债务清单 ⇒ ⇒ 分成「新增」与「清单过期」两类。
  *
  * ⚠️ **纯函数** ⇒ ⇒ 自检可以直接喂合成数据。
+ *
+ * ⚠️⚠️⚠️ **2026-11-09 加的第三格：`covered`** —— 「那个仓**在不在面内**」。
+ *
+ * ⇒ ⇒ 此前只用「命中数」对账 ⇒ ⇒ **仓没被检出**（CI 只 checkout 了一部分）
+ * ⇒ ⇒ ⇒ 命中数 0 ⇒ ⇒ 报「**债还了**」⇒ ⇒ **逼你销掉一条真债**
+ * ⇒ ⇒ ⇒ 而真相是「**那一条根本没被看**」⇒ ⇒ 「没红」被说成「没问题」。
+ * ⇒ ⇒ 修法：**债条目所在的仓不在覆盖面内 ⇒ ⇒ 那一条算「没判」**，
+ * ⇒ ⇒ **不是「还了」** ⇒ ⇒ 更不是「没问题」。
+ *
+ * ⚠️ **形状**：`covered` 是一个**仓名集合**（`telencephalon` / `encephalon` /
+ * `prefrontal` / `synapse` / `desktop` / `mobile`）⇒ ⇒ 不传 ⇒ ⇒ **按老口径**
+ * ⇒ ⇒ （调用方若不提供，就当「全在面内」⇒ ⇒ 自检的老用例不受影响）。
  */
-export function evaluate(findings, debt) {
+export function evaluate(findings, debt, covered = null) {
   const counts = new Map();
   for (const f of findings) counts.set(keyOf(f), (counts.get(keyOf(f)) ?? 0) + 1);
 
@@ -294,9 +357,18 @@ export function evaluate(findings, debt) {
   }
   const stale = [];
   const blind = [];
+  // ⚠️⚠️ **没判**（覆盖不全 ⇒ 那一条压根没被看）—— 与「过期」**分开**。
+  // ⇒ ⇒ 「过期」＝债**确实还了**（要销账）⇒ ⇒ 「没判」＝**没看**（要补覆盖面）。
+  const uncovered = [];
   for (const d of debt) {
     const k = `${d.repo}|${d.file}|${d.kind}`;
     const actual = counts.get(k) ?? 0;
+    // ⚠️⚠️ **仓不在覆盖面内 ⇒ ⇒ 这一条「没判」** ⇒ ⇒ **不许**报「债还了」。
+    // ⇒ ⇒ 否则 CI 只 checkout 了一部分仓时 ⇒ ⇒ 闸会**逼你销掉真债**。
+    if (covered && !covered.has(d.repo)) {
+      uncovered.push({ key: k, expected: d.count, repo: d.repo });
+      continue;
+    }
     // ⚠️⚠️ **盲区登记** —— 探测器**追不到**这条债（追踪断在某个参数上，
     //    例如「从盘上读一个 `&Path` 指向的私钥」⇒ ⇒ 值链里没有密钥名）
     // ⇒ ⇒ 它**确实存在**，只是当前判据看不见 ⇒ ⇒ **不能**因为「抓不到」
@@ -309,17 +381,39 @@ export function evaluate(findings, debt) {
     }
     if (actual !== d.count) stale.push({ key: k, expected: d.count, actual });
   }
-  return { fresh, stale, blind, ok: fresh.length === 0 && stale.length === 0 };
+  // ⚠️ **判不了** ⇒ ⇒ 整体不算绿（覆盖不全 ⇒ 「没红」不等于「没问题」）。
+  return {
+    fresh,
+    stale,
+    blind,
+    uncovered,
+    ok: fresh.length === 0 && stale.length === 0 && uncovered.length === 0,
+  };
 }
 
 // ---------------------------------------------------------------------------
 // 输出
 // ---------------------------------------------------------------------------
 
-function report(findings, verdict, filesRead, missing) {
+function report(findings, verdict, filesRead, missing, covered = null, scopeRepos = null) {
   const lines = [];
   lines.push('── 明文密钥落盘闸 ──');
   lines.push(`扫了 ${filesRead} 个源文件；命中 ${findings.length} 处（债务清单 ${KNOWN_DEBT.length} 条）`);
+  // ⚠️⚠️ **覆盖面是读数**（2026-11-09 加）—— 「哪些仓在面内」必须说得出来。
+  // ⇒ ⇒ 否则「某个仓压根没扫到」会被说成「那个仓没问题」。
+  if (covered) {
+    // ⚠️⚠️ **「该在面内的仓」只能来自同一份根清单**（2026-11-09 修）——
+    // ⇒ ⇒ 此前这里**另调一次无参 scanRoots()** ⇒ ⇒ `--source` 模式下那份清单
+    // ⇒ ⇒ 与实际扫的面**不是同一份** ⇒ ⇒ 「覆盖仓」与「没在面内的仓」两段
+    // ⇒ ⇒ 会**互相矛盾**（前者说在面内、后者说不在）⇒ ⇒ 读数不可信。
+    const all = scopeRepos ?? [...new Set(scanRoots().map((r) => r.repo))].filter((r) => r !== 'probe');
+    const inScope = all.filter((r) => covered.has(r));
+    const outScope = all.filter((r) => !covered.has(r));
+    lines.push('覆盖仓：' + (inScope.length ? inScope.join('、') : '（无）'));
+    if (outScope.length) {
+      lines.push('⚠️ **没在面内的仓**（它们的债「没判」，不是「还了」）：' + outScope.join('、'));
+    }
+  }
   if (missing.length) {
     for (const m of missing) lines.push(`⚠️ 读不到：${m}`);
   }
@@ -343,6 +437,14 @@ function report(findings, verdict, filesRead, missing) {
       const entry = KNOWN_DEBT.find((d) => `${d.repo}|${d.file}|${d.kind}` === s.key);
       if (entry?.onStale) lines.push(`     ${entry.onStale}`);
     }
+  }
+  if (verdict.uncovered?.length) {
+    lines.push('');
+    lines.push(`⚠️ **有 ${verdict.uncovered.length} 条债「没判」**（它们所在的仓不在覆盖面内）——`);
+    for (const u of verdict.uncovered) {
+      lines.push(`   · ${u.key}（仓 ${u.repo} 不在面内 ⇒ ⇒ 清单记 ${u.expected} 处，但**没被看**）`);
+    }
+    lines.push('   （「没判」≠「还了」⇒ ⇒ **不许**销账 ⇒ ⇒ 要补覆盖面（或明确声明「本次不判这几个仓」。）');
   }
   if (verdict.blind?.length) {
     lines.push('');
@@ -401,6 +503,51 @@ impl ProviderStore {
   check('探测器：明文 api_key 落盘 ⇒ 抓得到', dPlain.length === 1, '抓 ' + dPlain.length + ' 处');
   check('探测器：孪生（写引用式）⇒ 不报', dRef.length === 0, '报 ' + dRef.length + ' 处');
   check('探测器：孪生（写掩码）⇒ 不报', dMask.length === 0, '报 ' + dMask.length + ' 处');
+
+  // ⚠️⚠️⚠️ **取值函数不许被豁免**（2026-11-09 实测抓到的真漏洞）。
+  //
+  // ⇒ ⇒ 原来的豁免是「凡是被调用过的名字都豁免」⇒ ⇒ `desktop_admin_token()`
+  // ⇒ ⇒ （它**返回的就是那把钥匙**）也被放过 ⇒ ⇒
+  // ⇒ ⇒ `std::env::set_var("HIPPOCAMPUS_BRAIN_TOKEN", &desktop_admin_token())`
+  // ⇒ ⇒ **闸看不见** ⇒ ⇒ **假绿**。
+  const getterSrc = [
+    'fn desktop_admin_token() -> String { String::new() }',
+    'fn main() {',
+    '    std::env::set_var("HIPPOCAMPUS_BRAIN_TOKEN", &desktop_admin_token());',
+    '}',
+  ].join('\n');
+  const dGetter = detectSecretPersistence(getterSrc, { path: 'x.rs' }).findings;
+  check(
+    '探测器：把钥匙塞进进程环境的**取值函数** ⇒ 抓得到（豁免不许放过它）',
+    dGetter.length === 1 && dGetter[0].kind === 'process-env',
+    '抓 ' + dGetter.length + ' 处：' + JSON.stringify(dGetter.map((x) => x.kind + ':' + x.detail)),
+  );
+
+  // ⚠️ **孪生**：**谓词**调用（`is_secret_key(...)`）**必须**仍被豁免 ——
+  // ⇒ ⇒ 它返回的是「判断」，不是材料 ⇒ ⇒ 判红就是假红。
+  const predicateSrc = [
+    'fn is_secret_key(x: &str) -> bool { true }',
+    'fn main() {',
+    '    std::env::set_var("HIPPOCAMPUS_BRAIN_TOKEN", &is_secret_key(k));',
+    '}',
+  ].join('\n');
+  const dPredicate = detectSecretPersistence(predicateSrc, { path: 'x.rs' }).findings;
+  check(
+    '孪生：谓词调用（is_secret_key）⇒ 不报（豁免只收窄到谓词，不是一刀切）',
+    dPredicate.length === 0,
+    '报 ' + dPredicate.length + ' 处',
+  );
+
+  // ⚠️ **孪生**：**非密钥形状**的 env 名 ⇒ ⇒ 不报（不能把闸变成噪音）。
+  const baseOnlySrc = [
+    'fn main() { std::env::set_var("HIPPOCAMPUS_BRAIN_BASE", &v); }',
+  ].join('\n');
+  const dBaseOnly = detectSecretPersistence(baseOnlySrc, { path: 'x.rs' }).findings;
+  check(
+    '孪生：非密钥形状的 env 名（HIPPOCAMPUS_BRAIN_BASE）⇒ 不报',
+    dBaseOnly.length === 0,
+    '报 ' + dBaseOnly.length + ' 处',
+  );
 
   // ⚠️⚠️ **导出路径必须「可见」**（2026-11-04 实证）——
   // ⇒ ⇒ 密钥材料被塞进 `serde_json::Value` 之后 ⇒ ⇒ **名字级的追踪就断了**
@@ -687,6 +834,26 @@ fn write_it(centre: &ConfigCenter) {
   check('探测器：值来自「密钥仓库」⇒ 不报（仓库装的是引用）', sStore.length === 0, '报 ' + sStore.length + ' 处');
   check('探测器：孪生（同样的形状，但值来自真密钥）⇒ 照旧报', sStoreTwin.length >= 1, '报 ' + sStoreTwin.length + ' 处');
 
+  // ⚠️⚠️ **覆盖不全 ⇒ ⇒ 「没判」**（2026-11-09 加）—— 与「过期」**分开**。
+  // ⇒ ⇒ 「仓压根没被检出」⇒ ⇒ 命中数 0 ⇒ ⇒ 报「债还了」⇒ ⇒ **逼你销掉一条真债**。
+  const e9 = evaluate([], [{ repo: 'r', file: 'a.rs', kind: 'file', count: 1 }], new Set(['r']));
+  check(
+    '闸门：仓**在面内**但没命中 ⇒ 报「过期」（债真还了 ⇒ 要销账）',
+    e9.stale.length === 1 && e9.uncovered.length === 0 && e9.ok === false,
+    'stale=' + e9.stale.length + ' uncovered=' + e9.uncovered.length,
+  );
+  const e10 = evaluate([], [{ repo: 'r', file: 'a.rs', kind: 'file', count: 1 }], new Set(['other']));
+  check(
+    '闸门：仓**不在面内** ⇒ 报「没判」（**不许**销账）且整体红',
+    e10.uncovered.length === 1 && e10.stale.length === 0 && e10.ok === false,
+    'uncovered=' + e10.uncovered.length + ' stale=' + e10.stale.length,
+  );
+  const e11 = evaluate([f('r', 'a.rs', 'file')], [{ repo: 'r', file: 'a.rs', kind: 'file', count: 1 }], new Set(['r']));
+  check(
+    '孪生：仓在面内且命中对得上 ⇒ 绿（覆盖完整时不误报「没判」）',
+    e11.ok === true && e11.uncovered.length === 0 && e11.stale.length === 0,
+    JSON.stringify(e11),
+  );
   const ok = results.filter((r) => r.ok).length;
   const lines = results.map((r) => (r.ok ? '  ✔ ' : '  ✘ ') + r.name + '  —— ' + r.why);
   console.log(lines.join('\n'));
@@ -710,17 +877,25 @@ function main(argv) {
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--root' && argv[i + 1]) extraRoots.push(resolve(argv[++i]));
   }
-  const { findings, filesRead, missing } = scanAll(sourceArg, extraRoots);
+  const { findings, filesRead, missing, covered, scopeRepos } = scanAll(sourceArg, extraRoots);
   if (filesRead === 0) {
     console.error('❌ 一个源文件都没读到 ⇒ ⇒ 「没红」不等于「没问题」（退出码 2）');
     for (const m of missing) console.error('   读不到：' + m);
     process.exit(2);
   }
-  const verdict = evaluate(findings, KNOWN_DEBT);
+  const verdict = evaluate(findings, KNOWN_DEBT, covered);
   if (argv.includes('--json')) {
-    console.log(JSON.stringify({ filesRead, findings, verdict }, null, 2));
+    console.log(JSON.stringify({ filesRead, findings, verdict, covered: [...covered] }, null, 2));
   } else {
-    console.log(report(findings, verdict, filesRead, missing));
+    console.log(report(findings, verdict, filesRead, missing, covered, scopeRepos));
+  }
+  // ⚠️⚠️ **覆盖不全 ⇒ ⇒ 退出码 2**（2026-11-09 加）—— 「判不了」≠「没问题」。
+  // ⇒ ⇒ **部分**仓缺位时那几条债是「没判」⇒ ⇒ 不许当「绿」放过去。
+  if (verdict.uncovered?.length) {
+    console.error('');
+    console.error(`❌ 覆盖不全：${verdict.uncovered.length} 条债所在的仓不在面内 ⇒ ⇒ 那些债「没判」（退出码 2）`);
+    for (const u of verdict.uncovered) console.error(`   · ${u.key}（仓 ${u.repo}）`);
+    process.exit(2);
   }
   process.exit(verdict.ok ? 0 : 1);
 }

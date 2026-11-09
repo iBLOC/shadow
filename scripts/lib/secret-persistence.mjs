@@ -641,18 +641,30 @@ function traceValue(text, ctx, fn, depth, visited, chain = []) {
 
   // ①a **成分级**判定（camelCase 也要认 ⇒ ⇒ `telencephalonAdminToken` 算）。
   //
-  // ⚠️ 两条排除，否则会误报：
+  // ⚠️ 三条排除，否则会误报：
   //   ① **已知的干净类型** ⇒ ⇒ `IssuedCredential`（存的是 jti/principal/kid，
   //      不是材料）不该因为名字里有 "Credential" 就判红 ⇒ ⇒ 类型规则说了算。
-  //   ② **函数调用** ⇒ ⇒ `is_secret_key(...)` 是「判断这个键是不是凭据」的函数，
+  //   ② **谓词调用** ⇒ ⇒ `is_secret_key(...)` 是「判断这个键是不是凭据」的函数，
   //      不是材料本身。
+  //
+  // ⚠️⚠️⚠️ **② 的范围在 2026-11-09 被收窄**（实测抓到一个**真漏洞**）：
+  //   原来的豁免是「**凡是被调用过的名字**都豁免」⇒ ⇒ 于是**取值函数**
+  //   （`desktop_admin_token()` —— 它**返回的就是那把钥匙**）也被豁免了
+  //   ⇒ ⇒ `std::env::set_var("HIPPOCAMPUS_BRAIN_TOKEN", &desktop_admin_token())`
+  //   ⇒ ⇒ **闸看不见** ⇒ ⇒ **假绿**。
+  //   ⇒ ⇒ 现在只豁免**谓词形状**（`is_` / `has_` / `should_` 前缀 ⇒ ⇒ 它们
+  //   返回的是**判断**，不是材料）⇒ ⇒ **取值函数不再豁免**。
+  //   ⇒ ⇒ 「那把钥匙被塞进进程环境」这一族重新可见。
   const called = new Set();
   const cre = /([A-Za-z_]\w*)\s*\(/g;
   let cm;
   while ((cm = cre.exec(text)) !== null) called.add(cm[1]);
+  // ⚠️ **谓词形状** ⇒ ⇒ 「是不是…」的函数 ⇒ ⇒ 它的**返回值**是个判断。
+  const PREDICATE_RE = /^(?:is|has|should|can|was)_(?:[a-z0-9]+_)*[a-z0-9]+$/i;
+  const isPredicateCall = (ident) => called.has(ident) && PREDICATE_RE.test(ident);
   const exempt = (ident) =>
     isBoolFlag(ident, fn, ctx) ||
-    called.has(ident) ||
+    isPredicateCall(ident) ||
     (ctx.blockNames.has(ident) && !ctx.secretTypes.has(ident));
   for (const ident of identifiers(text)) {
     if (!isSecretIdentifier(ident)) continue;

@@ -56,7 +56,12 @@ export const NOT_WIRED_INTO_CI = {
     '（.github/workflows/door-policy.yml ⇒ ⇒ 不碰共享的 ci.yml ⇒ ⇒ 接线面零共享）' +
     '（纯文本闸 ⇒ ⇒ 检出端脑就能判 ⇒ ⇒ 两道闸都认**两种布局**（仓外/仓内）' +
     '⇒ ⇒ 只认一种 ⇒ ⇒ CI 上「读不到判据源」⇒ ⇒ 退出码 2 ⇒ ⇒ 恒红' +
-    '⇒ ⇒ 本地 EXIT=0 ＋ self-test 11/11 与 14/14）⇒ ⇒ 已从本清单销账',
+    '⇒ ⇒ 本地 EXIT=0 ＋ self-test 11/11 与 14/14）⇒ ⇒ 已从本清单销账' +
+    '⇒ ⇒ ⚠️ secret-plaintext 已于 2026-11-09 接进**独立** workflow' +
+    '（.github/workflows/secret-plaintext.yml ⇒ ⇒ 不碰共享的 ci.yml ⇒ ⇒ 接线面零共享）' +
+    '（它是**跨仓**闸 ⇒ ⇒ 必须检出四个兄弟仓（私有 ⇒ ⇒ 需 secrets.IBLOC_TOKEN）' +
+    '⇒ ⇒ 闸本体认**两种布局**（仓外/仓内）⇒ ⇒ 只认一种 ⇒ ⇒ CI 上「读不到判据源」⇒ ⇒ 恒红）' +
+    '⇒ ⇒ 已从本清单销账',
   gates: [
     'a2ui-session-identity',
     'agent-surface-credentials',
@@ -72,7 +77,6 @@ export const NOT_WIRED_INTO_CI = {
     'msrv-floor',
     'provider-admin-headers',
     'publish-address',
-    'secret-plaintext',
     'tool-interception',
   ],
 };
