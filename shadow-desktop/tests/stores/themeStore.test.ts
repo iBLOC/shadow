@@ -15,6 +15,28 @@ describe('ThemeStore', () => {
     });
   });
 
+  describe('chatBackground —— 聊天背景图槽位', () => {
+    it('默认没有背景图', () => {
+      expect(useThemeStore.getState().appearance.chatBackground).toBeNull();
+    });
+
+    it('存得进 data URL，也清得回 null', () => {
+      const { setAppearance } = useThemeStore.getState();
+      const url = 'data:image/webp;base64,UklGRg==';
+      setAppearance({ chatBackground: url });
+      expect(useThemeStore.getState().appearance.chatBackground).toBe(url);
+
+      setAppearance({ chatBackground: null });
+      expect(useThemeStore.getState().appearance.chatBackground).toBeNull();
+    });
+
+    it('换背景图不动主题色', () => {
+      const { setAppearance } = useThemeStore.getState();
+      setAppearance({ chatBackground: 'data:image/png;base64,AAAA' });
+      expect(useThemeStore.getState().appearance.accentSeed).toBe('#71717A');
+    });
+  });
+
   describe('setTheme', () => {
     it('updates theme to light', () => {
       const { setTheme } = useThemeStore.getState();

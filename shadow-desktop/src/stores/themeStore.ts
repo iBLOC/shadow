@@ -23,12 +23,19 @@ export interface Appearance {
   glassIntensity: number;
   /** 对话框 / 面板背景覆盖（hex）。null = 跟随主题。 */
   surfaceOverride: string | null;
+  /**
+   * 聊天区背景图（压缩后的 data URL）。null = 不用背景图。
+   * 只住本地（localStorage）—— 不进海马体：图片跟着机器走，
+   * 换设备后的「同一张图」没有意义（路径/体积都不跨设备）。
+   */
+  chatBackground: string | null;
 }
 
 export const DEFAULT_APPEARANCE: Appearance = {
   accentSeed: '#71717A',
   glassIntensity: 1,
   surfaceOverride: null,
+  chatBackground: null,
 };
 
 interface ThemeState {

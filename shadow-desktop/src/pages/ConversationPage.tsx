@@ -5,6 +5,8 @@ import { composeSystemPrompt, telencephalonClient } from '../lib/telencephalonCl
 import { deleteConversationEverywhere, setConversationArchived } from '../lib/conversationLifecycle';
 import { computeTokenStats } from '../lib/tokenStats';
 import { useConversationStore } from '../stores/conversationStore';
+import { useThemeStore } from '../stores/themeStore';
+import { isChatBackgroundDataUrl } from '../lib/chatBackground';
 import { usePromptStore } from '../stores/promptStore';
 import { useChatDisplayStore } from '../stores/chatDisplayStore';
 import { useCompanionModeStore } from '../stores/companionModeStore';
@@ -110,6 +112,12 @@ export function ConversationPage() {
   // The setter is set from the assistant SSE handler at line ~176 and the
   // pending value feeds the page-level modal at line ~520.
   const [pendingCuAction, setPendingCuAction] = useState<import('../components/computerUse/ComputerUsePendingModal').ComputerUseAction | null>(null);
+  // 聊天背景图 —— 非法/超限值一律按「没有背景图」处理，不渲染不报错。
+  const chatBackground = useThemeStore((s) =>
+    isChatBackgroundDataUrl(s.appearance.chatBackground)
+      ? s.appearance.chatBackground
+      : null,
+  );
   // Settings → UI "Token 统计" toggle — when on, each assistant reply gets
   // a live token-count / speed line under its bubble.
   const showTokenStats = useChatDisplayStore((s) => s.showTokenStats);
@@ -816,7 +824,24 @@ export function ConversationPage() {
       </aside>
 
       {/* Main */}
-      <main className="flex flex-1 flex-col overflow-hidden bg-background">
+      <main className="relative flex flex-1 flex-col overflow-hidden">
+        {/* 聊天背景图：铺在内容底下，罩一层半透明底色保证文字可读。
+            未设置时保持原 bg-background 底色（主题跟随）。 */}
+        {chatBackground && (
+          <div
+            aria-hidden
+            data-testid="chat-background-image"
+            className="pointer-events-none absolute inset-0 bg-cover bg-center"
+            style={{ backgroundImage: `url(${chatBackground})` }}
+          />
+        )}
+        {chatBackground && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 bg-background/70 backdrop-blur-sm"
+          />
+        )}
+        <div className="relative flex min-h-0 flex-1 flex-col">
         <ConversationModeSwitcher />
         {/* Says it out loud when this app's own endbrain face is not the
             one answering on 60080 — see src/lib/brainFace.ts. */}
@@ -1089,6 +1114,7 @@ export function ConversationPage() {
             </Button>
           </div>
         )}
+        </div>
       </main>
       {/* R-11 — page-level preview-before-commit modal for
           computer-use actions. The modal lifecycle is independent

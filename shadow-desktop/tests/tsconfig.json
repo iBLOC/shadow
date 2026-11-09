@@ -30,13 +30,15 @@
   //     （@wdio/globals 一直是本仓的 devDependency）⇒ ⇒ 真正的原因是**类型环境残缺**：
   //     mocha 全局类型缺 ＋ WebdriverIO.Browser 的成员只在 webdriverio 包里 ⇒ ⇒
   //     已由 @types/mocha ＋ webdriverio 两个直接 devDependency 补齐。
-  //   · stores/appearanceMemory.test.ts —— **并行会话在飞**（Appearance 新增
-  //     chatBackground 字段**还没提交**）⇒ ⇒ 那一格**没有判据承重** ⇒ ⇒ 记欠项。
+  //   · stores/appearanceMemory.test.ts —— **已收口**（2026-11-11）：旧理由写
+  //     「并行会话在飞（Appearance 新增 chatBackground 字段还没提交）」⇒ ⇒ 那一格
+  //     没有判据承重 ⇒ ⇒ 那一族（聊天背景图）落地后，本文件**重新纳入类型闸**
+  //     ⇒ ⇒ 两处 Appearance 字面量已补 chatBackground: null。
   "extends": "../tsconfig.json",
   "compilerOptions": {
     "types": ["node", "vitest/globals", "@testing-library/jest-dom", "@playwright/test", "vite/client"],
     "noEmit": true
   },
   "include": ["**/*.ts", "**/*.tsx", "../playwright.config.ts"],
-  "exclude": ["wdio/**", "tauri-e2e/**", "stores/appearanceMemory.test.ts"]
+  "exclude": ["wdio/**", "tauri-e2e/**"]
 }

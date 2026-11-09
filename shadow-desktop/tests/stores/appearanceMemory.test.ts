@@ -125,7 +125,7 @@ describe('themeStore ↔ 记忆', () => {
   it('hydrateFromMemory 把记住的颜色应用回来', async () => {
     const { useThemeStore } = await import('../../src/stores/themeStore');
     useThemeStore.setState({
-      appearance: { accentSeed: '#71717A', glassIntensity: 1, surfaceOverride: null },
+      appearance: { accentSeed: '#71717A', glassIntensity: 1, surfaceOverride: null, chatBackground: null },
     });
     mockFetch.mockResolvedValueOnce(okJson([wireMemory()]));
 
@@ -137,7 +137,7 @@ describe('themeStore ↔ 记忆', () => {
   it('海马体够不到时不抛错，保留本地值', async () => {
     const { useThemeStore } = await import('../../src/stores/themeStore');
     useThemeStore.setState({
-      appearance: { accentSeed: '#71717A', glassIntensity: 1, surfaceOverride: null },
+      appearance: { accentSeed: '#71717A', glassIntensity: 1, surfaceOverride: null, chatBackground: null },
     });
     mockFetch.mockRejectedValueOnce(new Error('Network down'));
 
