@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Button, Badge, EmptyState, Loading } from '../components/ui';
 import { AddProviderModal } from '../components/business';
+import { CapabilityDefaultsCard } from '../components/business/CapabilityDefaultsCard';
 import type { ProviderTypeOption } from '../components/business/ProviderForm/types';
 import {
   Plus, Trash2, Cpu, TestTube, CheckCircle, XCircle,
@@ -174,6 +175,11 @@ export function ModelsPage() {
       <header>
         <h1>{t('models.title')}</h1>
       </header>
+
+      {/* ⚠️ 「按能力分档的默认模型」—— 能力段落地即可设（原来只有一个
+      「默认模型」槽 ⇒ ⇒ 文本 / 语音识别 / 语音合成 **只能用同一个模型**
+      ⇒ ⇒ 语音那一档根本没人管）。 */}
+      <CapabilityDefaultsCard />
 
       {/* Main tabs: Cloud / Local */}
       <div className="flex gap-1 rounded-lg bg-muted p-1">

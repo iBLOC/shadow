@@ -1,0 +1,193 @@
+import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Alert, Card, CardContent, CardHeader, CardTitle, Loading } from '@/components/ui';
+import {
+  capabilityCandidatesByCapability,
+  mergeCapabilityDefaultsForPush,
+  readCapabilityDefaultsSnapshot,
+  writeCapabilityDefaultsSnapshot,
+  type CapabilityModelCandidate,
+} from '@/lib/capabilityDefaults';
+import { telencephalonClient } from '@/lib/telencephalonClient';
+
+/**
+ * 「**按能力分档**的默认模型」卡 —— 每一类能力各有一个默认模型。
+ *
+ * ## 为什么要有这张卡
+ *
+ * ⚠️ 以前「默认模型」只有**一个**槽（文本）⇒ ⇒ 「语音识别用哪个模型」
+ * 「语音合成用哪个模型」这件事**界面上没人管** ⇒ ⇒ 端脑只能拿「第一个
+ * 注册的引擎」⇒ ⇒ 用户选的语音模型**根本没人用**（失败长得像成功）。
+ *
+ * 现在每一类能力各有一个默认模型（端脑的 `Capability` 词表是单一真源，
+ * 客户端照它渲染、不自己造词）。
+ *
+ * ## 写路径
+ *
+ * ⚠️ **先端脑、后本地**：端脑收下了才写 durable 副本 ⇒ ⇒ 端脑拒了（那个
+ * 模型 id 没注册）而本地已经记下 ⇒ ⇒ 界面显示「已应用」⇒ ⇒ **失败长得像
+ * 成功**。
+ *
+ * ⚠️ 下发的是**整份**（端脑那一面是整份替换）⇒ ⇒ 基线必须是「本地副本 ∪
+ * 端脑当前值」⇒ ⇒ 否则会把另一边已有的档位抹掉。
+ */
+export function CapabilityDefaultsCard() {
+  const { t } = useTranslation();
+  const [capabilities, setCapabilities] = useState<string[]>([]);
+  const [defaults, setDefaults] = useState<Record<string, string>>({});
+  const [candidates, setCandidates] = useState<
+    Record<string, CapabilityModelCandidate[]>
+  >({});
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [saving, setSaving] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const [view, providers] = await Promise.all([
+        telencephalonClient.getCapabilityDefaults(),
+        telencephalonClient.listProviders(),
+      ]);
+      const remote = view.defaults ?? {};
+      setCapabilities(view.capabilities ?? []);
+      setDefaults(remote);
+      setCandidates(capabilityCandidatesByCapability(providers));
+
+      // ⚠️ **端脑刚重启 ⇒ 它的运行态槽是空的** ⇒ ⇒ 而本机还留着 durable
+      // 副本 ⇒ ⇒ 这时候把副本**再下发一遍**（与移动端「开机下发」同一
+      // 套路）⇒ ⇒ 否则用户会发现「重启一次，设置全没了」。
+      const snapshot = readCapabilityDefaultsSnapshot();
+      if (Object.keys(remote).length === 0 && Object.keys(snapshot).length > 0) {
+        try {
+          await telencephalonClient.setCapabilityDefaults(snapshot);
+          setDefaults(snapshot);
+        } catch (e) {
+          // ⚠️ 重下发失败**要说真话**（不是静默吞掉）⇒ ⇒ 但不挡住界面。
+          setError(String(e));
+        }
+      }
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const apply = useCallback(
+    async (capability: string, model: string) => {
+      setSaving(capability);
+      setError(null);
+      setNotice(null);
+      const next = mergeCapabilityDefaultsForPush(
+        readCapabilityDefaultsSnapshot(),
+        defaults,
+        capability,
+        model,
+      );
+      try {
+        // ⚠️ **先端脑** —— 端脑收下了才落本地。
+        await telencephalonClient.setCapabilityDefaults(next);
+        writeCapabilityDefaultsSnapshot(next);
+        setDefaults(next);
+        setNotice(t('capabilityDefaults.applied'));
+      } catch (e) {
+        // ⚠️ 说真话：把端脑的原话带出来（它会说清是「键不认识」还是
+        // 「模型没注册」）⇒ ⇒ 不许只弹一句「失败」。
+        setError(`${t('capabilityDefaults.failed')}: ${String(e)}`);
+      } finally {
+        setSaving(null);
+      }
+    },
+    [defaults, t],
+  );
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{t('capabilityDefaults.title')}</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3">
+        <p className="text-sm text-muted-foreground">
+          {t('capabilityDefaults.hint')}
+        </p>
+
+        {error && (
+          <Alert variant="destructive">
+            <p className="text-sm">{error}</p>
+          </Alert>
+        )}
+        {notice && !error && (
+          <p className="text-sm text-muted-foreground">{notice}</p>
+        )}
+
+        {isLoading ? (
+          <Loading text={t('common.loading')} />
+        ) : capabilities.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            {t('capabilityDefaults.empty')}
+          </p>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {capabilities.map((cap) => {
+              const value = defaults[cap] ?? '';
+              const list = candidates[cap] ?? [];
+              // ⚠️ **当前值不在候选里也要显示出来** —— 那个模型可能已经被
+              // 删了，也可能是本地权重 ⇒ ⇒ 抹掉它 = 静默改掉用户设置。
+              const known = list.some((c) => c.id === value);
+              return (
+                <label key={cap} className="flex flex-col gap-1 text-sm">
+                  <span className="font-medium">
+                    {CAPABILITY_FALLBACK_LABELS[cap]
+                      ? t(
+                          `capabilityDefaults.${cap}`,
+                          CAPABILITY_FALLBACK_LABELS[cap],
+                        )
+                      : t(`capabilityDefaults.${cap}`, cap)}
+                  </span>
+                  <select
+                    className="rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+                    value={value}
+                    disabled={saving === cap}
+                    onChange={(e) => void apply(cap, e.target.value)}
+                  >
+                    <option value="">{t('capabilityDefaults.unset')}</option>
+                    {list.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.label}
+                      </option>
+                    ))}
+                    {value && !known && <option value={value}>{value}</option>}
+                  </select>
+                </label>
+              );
+            })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * 能力词的**兜底显示**（认得出的能力走 i18n 键）。
+ *
+ * ⚠️ **认不出的词原样显示**（不吞）—— 端脑加了新能力时，界面也要能看见
+ * 它，而不是把它悄悄藏起来。
+ */
+const CAPABILITY_FALLBACK_LABELS: Record<string, string> = {
+  llm: '文本模型',
+  asr: '语音识别',
+  tts: '语音合成',
+  vad: '语音活动检测',
+  rerank: '重排模型',
+  embedding: '向量模型',
+  vision: '视觉模型',
+  forecast: '预测模型',
+};

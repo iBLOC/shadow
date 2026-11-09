@@ -1443,5 +1443,21 @@
     "reminder": "Due soon: {{title}}",
     "overdue": "Overdue: {{title}}",
     "confirm": "Waiting for you to confirm: {{title}}"
+  },
+  "capabilityDefaults": {
+    "title": "Default model per capability",
+    "hint": "Each capability gets its own default model (text / speech recognition / speech synthesis ...). Leave a tier unset and the brain picks one.",
+    "unset": "Not set",
+    "empty": "This brain exposes no capability tiers.",
+    "applied": "Capability defaults applied",
+    "failed": "Failed to set the capability defaults",
+    "llm": "Text model",
+    "asr": "Speech recognition",
+    "tts": "Speech synthesis",
+    "vad": "Voice activity detection",
+    "rerank": "Rerank model",
+    "embedding": "Embedding model",
+    "vision": "Vision model",
+    "forecast": "Forecast model"
   }
 }
