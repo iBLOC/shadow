@@ -1,5 +1,63 @@
 import 'package:flutter/services.dart';
 
+/// 一次「系统权限弹窗申请」的**结果**。
+///
+/// ⚠️ 为什么要四个字段而不是一个布尔 —— 因为「弹不出来」这件事
+/// **必须**与「用户点了拒绝」分得开：
+/// - 用户点了拒绝 ⇒ ⇒ 系统框**出现过** ⇒ ⇒ 下次还能弹 ⇒ ⇒ 留在原地就行；
+/// - 系统拒绝再弹 ⇒ ⇒ 压根没弹 ⇒ ⇒ 只能去系统设置页 ⇒ ⇒ **没得选**。
+///
+/// ⇒ ⇒ 两者混成一个布尔 ⇒ ⇒ 用户点了「拒绝」我们却把他送去系统设置页
+/// ⇒ ⇒ 那是「失败长得像成功」的近亲（**做错的事长得像做对的事**）。
+class PermissionRequestOutcome {
+  /// 用户批了没。
+  final bool granted;
+
+  /// **系统框到底弹了没有**。
+  final bool dialogShown;
+
+  /// 系统**拒绝再弹**（用户拒绝过两次 / 勾了「不再询问」/ iOS 上拒绝过一次）。
+  final bool permanentlyDenied;
+
+  /// 这次请求被**后一次**顶掉了 ⇒ ⇒ 这次压根没走到用户面前。
+  ///
+  /// ⚠️ 必须单独标出来：顶掉 ≠ 「系统拒绝再弹」
+  /// ⇒ ⇒ 混为一谈 ⇒ ⇒ 用户会被莫名送去系统设置页。
+  final bool superseded;
+
+  const PermissionRequestOutcome({
+    required this.granted,
+    required this.dialogShown,
+    required this.permanentlyDenied,
+    required this.superseded,
+  });
+
+  /// 「什么都没发生」（通道不在 / 调用失败 / 能力不认识）。
+  ///
+  /// ⚠️ 保守起见当作「弹不出来」⇒ ⇒ 界面会退到系统设置页
+  /// ⇒ ⇒ 这是**唯一**不会把用户带偏的默认（宁可多走一步，不撒谎）。
+  const PermissionRequestOutcome.unavailable()
+      : granted = false,
+        dialogShown = false,
+        permanentlyDenied = false,
+        superseded = false;
+
+  /// 从原生回的 Map 还原 —— 字段名与 Kotlin / Swift 侧**一字不差**。
+  factory PermissionRequestOutcome.fromMap(Map<Object?, Object?> raw) {
+    bool flag(String key) => raw[key] == true;
+    return PermissionRequestOutcome(
+      granted: flag('granted'),
+      dialogShown: flag('dialogShown'),
+      permanentlyDenied: flag('permanentlyDenied'),
+      superseded: flag('superseded'),
+    );
+  }
+
+  /// 「弹不出来」⇒ ⇒ 只能退到系统设置页。
+  bool get needsSystemSettings =>
+      !granted && !dialogShown && !superseded;
+}
+
 /// **设备数据通道** —— 与 Kotlin 侧 `DeviceDataBridge` 对话。
 ///
 /// ## 边界（很重要）
@@ -66,6 +124,31 @@ class DeviceDataChannel {
       return false;
     } on PlatformException {
       return false;
+    }
+  }
+
+  /// **详细版**的系统权限申请 —— 弹系统框，并回「弹了没有 / 批没批」。
+  ///
+  /// ⚠️ 与 [requestPermission] 的差别**只有一处**：多回「系统框到底弹了没有」
+  /// ⇒ ⇒ 聊天流那条路不需要它（只要一个布尔）⇒ ⇒ 那条契约保持最窄；
+  /// ⇒ ⇒ 设置页那条路需要它 ⇒ ⇒ 才知道「弹不出来」时该退到系统设置页。
+  ///
+  /// ⚠️ 拿不到通道（单测 / 裁剪版）⇒ ⇒ 回「什么都没发生」
+  /// ⇒ ⇒ 界面会退到系统设置页 ⇒ ⇒ **保守**（不谎称「已经问过用户了」）。
+  Future<PermissionRequestOutcome> requestPermissionDetailed(
+    String capabilityWire,
+  ) async {
+    try {
+      final raw = await _channel.invokeMethod<Map<Object?, Object?>>(
+        'requestPermissionDetailed',
+        {'capability': capabilityWire},
+      );
+      if (raw == null) return const PermissionRequestOutcome.unavailable();
+      return PermissionRequestOutcome.fromMap(raw);
+    } on MissingPluginException {
+      return const PermissionRequestOutcome.unavailable();
+    } on PlatformException {
+      return const PermissionRequestOutcome.unavailable();
     }
   }
 
