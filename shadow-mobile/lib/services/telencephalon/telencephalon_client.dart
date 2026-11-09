@@ -1477,8 +1477,20 @@ class TelencephalonClient {
 
   /// 列出端脑任务（temporal lobe 的 `TaskStore`）。
   ///
-  /// 这条路由**不需要 admin token**（读是开放的），写才需要。
-  /// 任务存在端脑进程内存里 —— 进程重启就没了。
+  /// ⚠️ **读门不是「敞着」** —— 这条路由的门型是 **read**（`door_policy.txt` 里
+  /// `/api/telencephalon/tasks GET read`）⇒ ⇒ **读门认 shadow key ∪ admin token**
+  /// ⇒ ⇒ 端脑**配了影子锁**时，没钥匙就是 **401**。
+  /// ⚠️ **旧注释在这两件事上都是错的**（2026-11-09 实测订正）：
+  /// ① 「读是开放的」—— 实测：**不带任何凭据 ⇒ 401**；带**错的**影子锁 ⇒ 401；
+  ///    带 admin token ⇒ **200**（真端脑进程实测，不是读源码推断）。
+  /// ② 「任务存在端脑进程内存里 —— 进程重启就没了」—— 实测：**落盘层编进来了**
+  ///    （`encephalon` 的 `mobile` feature 转发 `telencephalon/flow` ⇒ `serde_json`
+  ///    ⇒ `task_store` 的 `persist` 那段 `#[cfg]` 编译在）⇒ ⇒ 宿主又把
+  ///    `TELENCEPHALON_PROVIDERS_FILE` 指到 App 私有目录 ⇒ ⇒ 任务库落在
+  ///    **同目录的 `tasks.json`** ⇒ ⇒ **端脑重启后任务仍在**（桌面端真跑级实测：
+  ///    杀进程 → 重启 → 那条任务还在）。
+  ///    ⚠️ 手机上的**真机读数**待跑（见父仓台账 U+3443 条）⇒ ⇒ 这一句目前是
+  ///    「按编译期事实与宿主接线推的」，**不是**真机实测。
   Future<List<TelencephalonTask>> listTasks() async {
     final decoded = await _getJson('/api/telencephalon/tasks');
     if (decoded is! List) return const <TelencephalonTask>[];
