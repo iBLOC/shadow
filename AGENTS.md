@@ -1,5 +1,27 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-09 (㑦 **「尺子不该被注释长度牵着走 —— 泄漏闸的「有守卫」判定改成结构化」** —— 承 U+3464 条（本刀改 `tests/setup.ts` 之后把 CI 撞红那条），本条记**取证（我的三行注释让闸改判）**、**第一因（判定按「字符窗口找最近的 `if (`」⇒ ⇒ 尺子测的是注释长度）**、**这一刀的落点（2 个文件）**、**判据（自检 16/16 ＋ 全量零候选 ＋ 反向验证）**、**分级读数**、**途中那几课**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-09 | authority=measured | scope=project | source=真运行级实测（CI 逐字读数 ＋ A/B 定责 ＋ 注入反验） | 改动：shadow 仓 **改** `scripts/lib/test-global-leaks.mjs`（判定改结构化）、**改** `scripts/check-test-global-leaks.mjs`（＋3 条孪生自检） ｜ 读数：**自检 16/16**、**全量闸零候选 EXIT=0**、**反向验证：注入「无条件接管」⇒ 闸 exit=1 逐字点名 setup.ts:30，还原后 blob 逐字一致**、**真 CI：`Test Global Leaks 42601674081` = success（修前那次 42601091229 = failure）**、**`E2E Typecheck 42601673896` = success 且逐字打出覆盖面 notice** ｜ 提交 `540efd0` | status=active | supersedes=none
+
+① **⚠️ 取证：我的三行注释让闸改判** —— CI 上 `Test Global Leaks` **failure**，逐字 `❌ [B] shadow-desktop/tests/setup.ts:30 —— setup 文件**无条件接管**状态载体 localStorage` ⇒ ⇒ 而那一行**语义上是有守卫的**（外层 `if` 判 `typeof globalThis.localStorage === 'undefined' || …clear !== 'function'` ⇒ ⇒ 只在 localStorage 缺/不可用时才接管）⇒ ⇒ ⇒ **红的理由是错的**。
+　❶ **先定责（不推给别人）**：把**改前**版本（`git show 9733556:…`）放回工作树跑闸 ⇒ ⇒ **exit=0（零候选）** ⇒ ⇒ 我的版本 exit=1 ⇒ ⇒ **确实是我引入的**；
+　❷ **再用闸自己的 `scanSource` 做 A/B**：去掉我的 3 行注释 ⇒ ⇒ 零候选；保留注释、只回退 getter ⇒ ⇒ 仍红；**旧版 ＋ 我的 3 行注释** ⇒ ⇒ 仍红 ⇒ ⇒ ⇒ **元凶就是那 3 行注释**。
+
+② **⚠️ 第一因：判定按「字符窗口」找守卫 ⇒ ⇒ 尺子测的不是它声称测的东西** —— `isGuardedFallback` 原来是「**往前 900 个字符找最近的一个 `if (`**，看它条件里有没有 `typeof globalThis.<name>` 与 `undefined`」⇒ ⇒ 且 `back.slice(ifIdx)` 取的是「从那个 `if` 到这一行」的**全部文本** ⇒ ⇒ ⇒ **注释长度一变，判定就变**（我加三行注释 ⇒ 守卫 `if` 被挤出窗口 ⇒ ⇒ 改判）。
+　✅ **语义上正确的判法是结构化的**：那条替换**是不是在**某个「条件含 `typeof globalThis.<name>` 与 `undefined`」的 `if` **块内** ⇒ ⇒ `else` 分支里的替换**也在**外层守卫 `if` 的块内 ⇒ ⇒ 两条都算有守卫 ⇒ ⇒ **改前的绿是偶然的**。
+
+③ **✅ 这一刀的落点（2 个文件，零产品代码改动）** —— ❶ **改 `scripts/lib/test-global-leaks.mjs`**：新增 `enclosingIfConditions(code, stringRanges, offset)`（逐个 `if (` 求条件与 `{`…`}` 块范围 ⇒ ⇒ **只认块范围包住那一行**的 `if` ⇒ ⇒ **跳过字符串区间**（`maskSource` 保留字符串原样 ⇒ ⇒ 括号配对必须跳过）⇒ ⇒ `else` 分支里的替换也算「被外层守卫包住」）＋ `isGuardedFallback` 改用它 ＋ **就地订正**那段注释（原文写的是「往前看最近的一个 `if (`」⇒ ⇒ 留假话在注释里就是留假话在判据里）；❷ **改 `scripts/check-test-global-leaks.mjs`**：加 **3 条孪生自检**（守卫兜底 ＋ 中间隔一大段注释 ⇒ ⇒ 不许抓 ／ 守卫 `if` 包着 `else` 分支 ⇒ ⇒ `else` 里那条也算有守卫 ⇒ ⇒ 不许抓 ／ 有 `if` 但条件与状态载体无关 ⇒ ⇒ 必须抓到）。
+
+④ **✅ 判据（三处）** —— **自检**：`node scripts/check-test-global-leaks.mjs --self-test` ⇒ ⇒ **16/16 全绿**（旧的 13 条**一条没被放松**）；**全量**：⇒ ⇒ **零候选 / EXIT=0**（本地 167 个测试文件）；**反向验证**：把 setup.ts 的守卫 `if (…)` 临时换成 `if (true)`（**语义上就是无条件接管**）⇒ ⇒ 闸 **exit=1** 且逐字点名 ⇒ ⇒ 还原后 blob **逐字一致** ⇒ ⇒ ⇒ **结构化没有把真违规放过**。
+
+⑤ **✅ 分级读数** —— 闸级 EXIT=0 ＋ 自检 16/16；A/B 定责两档（改前 exit=0 ／ 注入 exit=1 ／ 还原逐字一致）；**真 CI 级**：**`Test Global Leaks 42601674081` = success**（逐字「零候选」）—— 而修前那次 `42601091229` = **failure**（逐字点名 setup.ts:30）⇒ ⇒ **这就是「同一道闸、同一段代码、只因判定方法不同而绿红相反」的读数**；＋ **`E2E Typecheck 42601673896` = success** 且逐字打出覆盖面 notice ＋ 未覆盖项单列。
+
+⑥ **⚠️ 途中那几课** —— ❶ **「谁的责任」要靠 A/B 定量，不能靠推理**（我两次推理方向都错：先猜「结构变了」，再猜「窗口效应」，**实测才是对的**）⇒ ⇒ 最快的办法是**用闸自己的函数喂变体**（`scanSource`）；❷ **闸把注释长度当判据 ⇒ ⇒ 「那个 run 红了」的第一反应不该是「改我的代码迁就它」** ⇒ ⇒ 该问「**它测的是我声称的东西吗**」⇒ ⇒ 本刀选了修尺子而不是缩注释；❸ 长内联字符串会让 `run_code` 解析器报 `unexpected end of string` ⇒ ⇒ 改用**片段文件 ＋ 脚本插入**。
+
+⑦ **⚠️ 仍然欠着** —— ❶ **`.tsx` 组件测试家族（57 处既有类型错）仍无判据承重**（承 U+3464 条）；❷ `tests/wdio/**` ＋ `tests/tauri-e2e/**` 仍无闸；❸ `reminderNotificationsLive.test.ts` 的签名改动**没有真跑级读数**（要真端脑）；❹ **本地闸扫 167 个文件、CI 上扫 165 个** ⇒ ⇒ 差的 2 个是**未提交的在飞文件** ⇒ ⇒ 共享工作树里本地闸会比 CI 更严（也会更脆）；❺ `tests/setup.ts` 里 `vi.mock` 那几处接线**不在这道闸的族 A/B 视野内**（别的闸在管）。
+
+⑧ **⚠️ 圈码：本条占 U+3466（㑦）** —— 插前**独立重扫**（父仓工作树 ∪ 父仓 HEAD ∪ 父仓 `origin/master` × **三本账本**，按**声明形状**扫）⇒ ⇒ 段内最高已声明 **U+3464**（上一条）⇒ ⇒ 自然下一枚 **U+3465** ⇒ ⇒ 按惯例**再留一枚缓冲** ⇒ ⇒ 取 **U+3466** ⇒ ⇒ 插前扫：U+3465／U+3466 在三账本三面**各 0 次声明 0 次提及** ✔ ⇒ ⇒ ⚠️ **不填历史空洞**（U+3465 不回收）⇒ ⇒ ⚠️ 本条**只引用已提交的码位**（U+3464）⇒ ⇒ ⚠️ **插完立刻复跑码位闸**是硬约束。
 **Updated**: 2026-11-09 (㑤 **「判据绿 ≠ 测的东西是真的 —— 类型闸照出 32 处「测试与产品形状脱节」」** —— 承 U+3462 条（给 E2E 家族补类型闸那条），本条记**取证（扩面后 32 处既有类型错第一次被看见 ＋ 闸的 types 缺 vite/client）**、**第一因（断言落在产品从不产生的键上 ⇒ ⇒ 绿是假的）**、**这一刀的落点（15 个文件）**、**判据（闸级 ＋ 行为级 ＋ 反向验证两档）**、**分级读数**、**途中那几课**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-09 | authority=measured | scope=project | source=真运行级实测（本机 tsc 真跑 ＋ 真注入 ＋ vitest 全量） | 改动：shadow 仓 **改** `shadow-desktop/tests/tsconfig.json`（覆盖面：e2e-ui ＋ 1 文件 ⇒ **.ts 全族** ＋ 补 `vite/client`）、**改** `.github/workflows/e2e-typecheck.yml`（覆盖面 notice ＋ 未覆盖项单列）、**改** 13 个 `shadow-desktop/tests/**` 测试文件 ｜ 读数：**闸级 EXIT=0**、**反向验证两档：注入类型错 ⇒ 闸 exit=2 逐字 TS2322 而根闸 exit=0 ／ 注入语法错 ⇒ 闸 exit=2 逐字 TS1005 而根闸 exit=0**（还原后 blob 逐字一致 `4f399159…`）、**vitest 全量 1473 过 / 16 跳 / 1 红**（那 1 红＝并行会话在飞的 `src/styles/accent.g.ts` 与 `design-tokens.json` 不同步，**与本刀无关**）、**YAML 闸 10 文件零违规** ｜ 提交 `a0866f6` | status=active | supersedes=none
