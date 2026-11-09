@@ -1,0 +1,58 @@
+name: Index Revert
+
+# ⚠️ **它守的是什么** —— 2026-11-11 真机实测（本仓 iBLOC/shadow）：
+#   · 共享工作树里有人把**旧基线** `read-tree` 进了**共享索引**（`GIT_INDEX_FILE` 没生效）
+#     ⇒ ⇒ 索引变成「旧树 ＋ 少量新文件」⇒ ⇒ 表现为：刚落地的闸与 workflow 被
+#     **暂存为删除**、用户拍板过的值（CI 并发 `cancel-in-progress`）被**暂存改回旧值**、
+#     台账条目被**暂存退回旧版**；
+#   ⇒ ⇒ **任何一次 `git commit` 都会把它原样带进历史** ⇒ ⇒ 那是一次静悄悄的回退；
+#   ⇒ ⇒ 而「提交面回退闸」（`.github/workflows/commit-revert.yml`）只扫**历史**
+#     ⇒ ⇒ **扫不到还没提交的这一格** ⇒ ⇒ 缺口在这里。
+#
+# ⚠️ **与 Commit Revert 分族** ——
+#   · 本闸：**暂存面**（index vs HEAD）⇒ ⇒ 提交**前**
+#   · 那闸：**提交面**（git 历史）⇒ ⇒ 提交**后**
+# ⇒ ⇒ 两把尺子各自承重一族，不许越界。
+#
+# ⚠️ **为什么单独成文件**：ci.yml 是**共享文件**（并行会话在飞）⇒ ⇒ 共享文件上的
+#   接线是本仓最容易出两类事故的地方 ⇒ ⇒ 独立成文件 ⇒ ⇒ 接线面**零共享**。
+#
+# ⚠️ **CI 上这一格量不到真东西**（诚实写明，别拿它冒充验证）：
+#   CI 的检出是干净的 ⇒ ⇒ 暂存区 ≡ HEAD ⇒ ⇒ 「零回退」是**构造出来的**
+#   ⇒ ⇒ 所以本 workflow 的价值是**判据自检**（在临时仓里造真形状 ⇒ ⇒ 证明尺子有牙）
+#   ⇒ ⇒ 真读数在**活的共享工作树**上（提交前那一格）⇒ ⇒ 闸自己会把这件事印出来。
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  index-revert:
+    name: Index Revert
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout shadow
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      # ⚠️ **自检先跑** —— 证明这把尺子在 CI 上**真的会红**（在临时仓里造真形状）。
+      - name: Index revert check (self-test)
+        run: node scripts/check-index-revert.mjs --self-test
+
+      # ⚠️ 这一步在 CI 上**量不到真东西**（干净检出 ⇒ 暂存区 ≡ HEAD）
+      #    ⇒ ⇒ 它印出来的「零回退」是构造出来的 ⇒ ⇒ 闸自己会写明这一点。
+      - name: Index revert check (index face)
+        run: node scripts/check-index-revert.mjs
