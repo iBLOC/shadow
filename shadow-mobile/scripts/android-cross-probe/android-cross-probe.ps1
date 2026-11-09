@@ -24,6 +24,13 @@
 
 .PARAMETER Features
     可选。传给 cargo 的 --features 列表（逗号分隔）。
+    ⚠️ **端脑这类仓，移动端必须显式给 mobile**（2026-11-10 实测）：encephalon 的
+    `default` 特征里含 `dm-rules` ⇒ ⇒ 它拖进 diencephalon ⇒ ⇒ zen-engine
+    ⇒ ⇒ QuickJS 的 `rquickjs-sys` **不提供 `aarch64-linux-android` 的预编译
+    bindings** ⇒ ⇒ 默认特征下交叉编译**必然**死在
+    `couldn't read .../rquickjs-sys-0.10.0/src/bindings/aarch64-linux-android.rs`
+    ⇒ ⇒ 移动端 profile = `--no-default-features --features mobile`
+    （encephalon/Cargo.toml 的 [features] 段已写明这一条）。
 
 .PARAMETER NoDefaultFeatures
     开关。加上 --no-default-features。
@@ -36,6 +43,16 @@
 
 .EXAMPLE
     ./android-cross-probe.ps1 -ManifestPath C:\Projects\iBLOC\prefrontal\Cargo.toml -Features mobile
+
+.EXAMPLE
+    ./android-cross-probe.ps1 -ManifestPath C:\Projects\iBLOC\encephalon\Cargo.toml -Features mobile -NoDefaultFeatures
+
+.NOTES
+    ⚠️ **第二轮降级对 path 依赖的仓无效**（2026-11-10 实测）：脚本在 --locked
+    失败时会「复制到临时目录再编」⇒ ⇒ 但 encephalon 依赖 `../telencephalon` /
+    `../diencephalon` / `../synapse`（都是兄弟仓）⇒ ⇒ stage 目录里没有它们
+    ⇒ ⇒ 报 `failed to read ...\stage\diencephalon\Cargo.toml`
+    ⇒ ⇒ **这类仓只认第一轮**（原仓 + --locked ⇒ 失败即失败，别把降级当第二次机会）。
 #>
 [CmdletBinding()]
 param(
