@@ -32,6 +32,18 @@ interface TaskBoardDataState {
   fetchEndbrainTasks: () => Promise<void>;
   /** 确认／拒绝一条端脑任务（端脑只有 `Pending` 的能确认）。 */
   confirmEndbrainTask: (taskId: string, confirmed: boolean) => Promise<void>;
+  /**
+   * **改**一条端脑任务（标题／优先级／截止时间）。
+   *
+   * ⚠️ 入参用客户端口径（`dueTime`）⇒ ⇒ 客户端在**发出去**时换成
+   * 线上形状（`due_time`）⇒ ⇒ 这一层**不碰**线上形状。
+   */
+  updateEndbrainTask: (
+    taskId: string,
+    fields: { title?: string; priority?: string; dueTime?: string },
+  ) => Promise<void>;
+  /** 删掉一条端脑任务。 */
+  deleteEndbrainTask: (taskId: string) => Promise<void>;
   refreshHippocampusTask: (taskId: string) => Promise<void>;
   updateHippocampusTask: (
     taskId: string,
@@ -136,6 +148,33 @@ export const useTaskBoardDataStore = create<TaskBoardDataState>((set, get) => ({
   async confirmEndbrainTask(taskId: string, confirmed: boolean) {
     try {
       await telencephalonClient.confirmTask(taskId, confirmed);
+      await get().fetchEndbrainTasks();
+    } catch (e) {
+      throw e instanceof Error ? e : new Error(String(e));
+    }
+  },
+
+  /**
+   * **改**一条端脑任务 ⇒ ⇒ 改完**重读**（列表得立刻反映盘上的新值）。
+   *
+   * ⚠️ 入参用客户端口径（`dueTime`）⇒ ⇒ 客户端在**发出去**时换成线上形状。
+   */
+  async updateEndbrainTask(
+    taskId: string,
+    fields: { title?: string; priority?: string; dueTime?: string },
+  ) {
+    try {
+      await telencephalonClient.updateTask(taskId, fields);
+      await get().fetchEndbrainTasks();
+    } catch (e) {
+      throw e instanceof Error ? e : new Error(String(e));
+    }
+  },
+
+  /** **删**一条端脑任务 ⇒ ⇒ 删完**重读**（列表里那条必须消失）。 */
+  async deleteEndbrainTask(taskId: string) {
+    try {
+      await telencephalonClient.deleteTask(taskId);
       await get().fetchEndbrainTasks();
     } catch (e) {
       throw e instanceof Error ? e : new Error(String(e));

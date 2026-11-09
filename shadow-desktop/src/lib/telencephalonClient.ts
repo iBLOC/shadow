@@ -1177,6 +1177,14 @@ export class TelencephalonClient {
     return this.request<any[]>('/api/telencephalon/tasks');
   }
 
+  /**
+   * 新建一条端脑任务。
+   *
+   * ⚠️ **线上形状是蛇形**（端脑 `CreateTaskRequest` 收 `due_time`）⇒ ⇒
+   * 以前这里把入参**整个**发出去 ⇒ ⇒ serde **静默丢掉** `dueTime` 那个键
+   * ⇒ ⇒ 建出来的任务**永远没有截止时间**（移动端发的是 `due_time` ✔）。
+   * ⇒ ⇒ 这一刀按**线上形状显式拼**请求体（不照抄入参）。
+   */
   async createTask(task: {
     title: string;
     description?: string;
@@ -1184,17 +1192,64 @@ export class TelencephalonClient {
     priority?: string;
     tags?: string[];
   }): Promise<any> {
+    const body: Record<string, unknown> = { title: task.title };
+    if (task.description !== undefined) body.description = task.description;
+    if (task.dueTime) body.due_time = task.dueTime;
+    if (task.priority) body.priority = task.priority;
+    if (task.tags) body.tags = task.tags;
     return this.request<any>('/api/telencephalon/tasks', {
       method: 'POST',
-      body: JSON.stringify(task),
+      body: JSON.stringify(body),
     });
   }
 
+  /**
+   * 确认（或拒绝）一条端脑任务。
+   *
+   * ⚠️ **请求体里带上 `task_id`**（对齐移动端）—— 端脑**两样都收**：
+   * **路径里那个才是规范来源**（处理器会用它覆盖请求体那个）⇒ ⇒ 不带也认
+   * （端脑侧那条 `#[serde(default)]` 就是为这件事加的）。
+   */
   async confirmTask(taskId: string, confirmed: boolean, modifications?: any): Promise<any> {
     return this.request<any>(`/api/telencephalon/tasks/${taskId}/confirm`, {
       method: 'POST',
-      body: JSON.stringify({ confirmed, modifications }),
+      body: JSON.stringify({ task_id: taskId, confirmed, modifications }),
     });
+  }
+
+  /**
+   * **改**一条端脑任务（标题／状态／优先级／截止时间）。
+   *
+   * ⚠️ **只改给了的字段**（没给的字段服务端不动）⇒ ⇒ 与移动端同一语义。
+   * ⚠️ **线上形状是蛇形**：入参用 `dueTime`（客户端口径），
+   * **发出去**是 `due_time`（端脑 `TaskUpdateBody` 认的那个）。
+   */
+  async updateTask(
+    taskId: string,
+    fields: {
+      title?: string;
+      status?: string;
+      priority?: string;
+      dueTime?: string;
+    },
+  ): Promise<any> {
+    const body: Record<string, string> = {};
+    if (fields.title) body.title = fields.title;
+    if (fields.status) body.status = fields.status;
+    if (fields.priority) body.priority = fields.priority;
+    if (fields.dueTime) body.due_time = fields.dueTime;
+    return this.request<any>(
+      `/api/telencephalon/tasks/${encodeURIComponent(taskId)}/update`,
+      { method: 'POST', body: JSON.stringify(body) },
+    );
+  }
+
+  /** 删掉一条端脑任务（端脑回 **204**）。 */
+  async deleteTask(taskId: string): Promise<void> {
+    await this.request<void>(
+      `/api/telencephalon/tasks/${encodeURIComponent(taskId)}`,
+      { method: 'DELETE' },
+    );
   }
 
   /**
