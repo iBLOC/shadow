@@ -22,7 +22,14 @@
   //     ⇒ ⇒ **闸会拿着一个残缺的类型环境判绿**（2026-11-09 实测踩到）。
   //
   //   ⚠️ **exclude 里每一项都记着理由**（**未覆盖**必须与**已判无问题**分开报）：
-  //   · wdio/** 与 tauri-e2e/** —— 需要 @wdio/globals 的运行时，不在这个仓的 push 闸里。
+  //   · wdio/** 与 tauri-e2e/** —— **不是**「没有闸」（那一族有**第二把闸**：
+  //     tests/tsconfig.wdio.json）⇒ ⇒ 理由是**类型环境不同**：这一族走 mocha，
+  //     本 config 走 vitest ⇒ ⇒ 两边都往全局注入 describe/it ⇒ ⇒ 并进同一个
+  //     config 会撞「Duplicate identifier」。
+  //     ⚠️ 订正（2026-11-09）：旧理由写「需要 @wdio/globals 的运行时」⇒ ⇒ **是错的**
+  //     （@wdio/globals 一直是本仓的 devDependency）⇒ ⇒ 真正的原因是**类型环境残缺**：
+  //     mocha 全局类型缺 ＋ WebdriverIO.Browser 的成员只在 webdriverio 包里 ⇒ ⇒
+  //     已由 @types/mocha ＋ webdriverio 两个直接 devDependency 补齐。
   //   · stores/appearanceMemory.test.ts —— **并行会话在飞**（Appearance 新增
   //     chatBackground 字段**还没提交**）⇒ ⇒ 那一格**没有判据承重** ⇒ ⇒ 记欠项。
   "extends": "../tsconfig.json",

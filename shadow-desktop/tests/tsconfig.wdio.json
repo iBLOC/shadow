@@ -1,0 +1,35 @@
+{
+  // ⚠️⚠️ **wdio / tauri-e2e 家族的独立类型闸**（2026-11-09 新增）
+  //
+  //   ⚠️ **为什么必须独立成一个 config（而不是并进 tests/tsconfig.json）**：
+  //   · 这一族是 **mocha** 运行时（wdio v9），而 tests/tsconfig.json 是 **vitest** 运行时
+  //     ⇒ ⇒ 两边都往全局注入 `describe` / `it` ⇒ ⇒ 并进同一个 config 会撞
+  //     「Duplicate identifier」⇒ ⇒ 只能分两把闸。
+  //   · 这一族**至今没有任何类型闸**（根 tsconfig 的 include 只有 ["src"]，且显式 exclude 了
+  //     tests/wdio/** ＋ tests/tauri-e2e/**）⇒ ⇒ 那一族里的语法错 / 类型错
+  //     ⇒ ⇒ 只有等「有人手工跑 wdio」才暴露 ⇒ ⇒ 而 wdio 的 autoCompile 在 v9 走
+  //     transpileOnly（tests/wdio/wdio.conf.ts 的 tsNodeOpts 就是这么写的）
+  //     ⇒ ⇒ **类型层从不被检查** ⇒ ⇒ 「跑过了」也不证明类型是对的。
+  //
+  //   ⚠️⚠️ **2026-11-09 取证：这一族的类型环境天生残缺**（补齐前连「形状」都看不到）：
+  //   · `describe` / `it` / `before` 找不到 ⇒ ⇒ **mocha 全局类型缺**（@types/mocha 未装）；
+  //   · `Property 'url' does not exist on type 'Browser'` ⇒ ⇒ **Browser 形状缺**
+  //     ⇒ ⇒ @wdio/globals 只声明了一个**空的** `namespace WebdriverIO { interface Browser {} }`
+  //     ⇒ ⇒ 真正的成员在 **webdriverio** 包的 `declare global` 里 ⇒ ⇒ 而 webdriverio
+  //     **不是本仓的直接依赖**（只是 @wdio/cli 的传递依赖 ⇒ pnpm 严格模式下顶层不可解析）
+  //     ⇒ ⇒ 补齐它必须**升成直接 devDependency**（已做）。
+  //   ⇒ ⇒ 补齐后这一族从「60+ 处报错（全是环境残缺）」变成「2 处真错」，
+  //     那 2 处真错是：tests/wdio/features.test.ts import 了一个**不存在的 ./config**
+  //     ⇒ ⇒ 且 TEST_CONFIG 从未被使用 ⇒ ⇒ **死 import**（已删）。
+  //     ⚠️ 订正（就地）：作者曾推断「这份 spec 从未跑过」⇒ ⇒ **实测不成立**：
+  //     TS 的 import elision 会把未使用的 import **整个抹掉** ⇒ ⇒ 编译产物里没有
+  //     `require("./config")` ⇒ ⇒ 运行时**不会**抛 ERR_MODULE_NOT_FOUND
+  //     ⇒ ⇒ 它是**类型层的真错**，不是运行时崩溃。
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "types": ["node", "@wdio/globals", "@wdio/types", "mocha", "webdriverio"],
+    "noEmit": true
+  },
+  "include": ["wdio/**/*.ts", "tauri-e2e/**/*.ts"],
+  "exclude": []
+}

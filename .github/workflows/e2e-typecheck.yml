@@ -26,9 +26,23 @@ name: E2E Typecheck
 #     – Storage.length 是只读 ⇒ ⇒ 替身里直接赋值 ⇒ ⇒ TS2540。
 #   ⇒ ⇒ **结论**：判据「绿」不等于「测的东西是真的」⇒ ⇒ 类型闸能把
 #     「测试与产品形状脱节」这类**假覆盖**照出来 ⇒ ⇒ 这是它最值钱的地方。
+#   · ⚠️⚠️ **2026-11-09 第三把闸（wdio / tauri-e2e 家族）**：
+#     · 这一族**至今没有任何类型闸**（根 tsconfig 的 include 只有 ["src"]，且显式
+#       exclude 了 tests/wdio/** ＋ tests/tauri-e2e/**）⇒ ⇒ 那一族的语法错/类型错
+#       ⇒ ⇒ 只有等「有人手工跑 wdio」才暴露 ⇒ ⇒ 而 wdio 的 autoCompile 在 v9 走
+#       transpileOnly（tests/wdio/wdio.conf.ts 的 tsNodeOpts 就是这么写的）
+#       ⇒ ⇒ **类型层从不被检查** ⇒ ⇒ 「跑过了」也不证明类型是对的。
+#     · ⚠️ **就地订正一个假的欠项理由**：旧注释写「wdio/tauri-e2e 需要 @wdio/globals 的
+#       运行时，不在这个仓的 push 闸里」⇒ ⇒ **这句话是错的** ⇒ ⇒ @wdio/globals 一直
+#       就是本仓的 devDependency（且自带类型）⇒ ⇒ 真正的原因是**这一族的类型环境
+#       天生残缺**：① mocha 全局类型缺（@types/mocha 未装）② `WebdriverIO.Browser`
+#       的**成员**只存在于 **webdriverio** 包的 declare global 里（@wdio/globals 只
+#       声明了一个**空的**接口）⇒ ⇒ 而 webdriverio **不是本仓的直接依赖**
+#       ⇒ ⇒ 补齐＝把 @types/mocha ＋ webdriverio 升成直接 devDependency（已做）。
 #   · ⚠️ **未覆盖项必须与「已判无问题」分开报**（见下面 notice）：
-#     **.tsx 组件测试家族（37 处既有类型错，欠项）** ＋ wdio/tauri-e2e
-#     ＋ stores/appearanceMemory.test.ts（并行会话在飞）。
+#     剩下的**只有** stores/appearanceMemory.test.ts（并行会话在飞）。
+#     ⚠️ .tsx 组件测试家族（37 处既有类型错）与 wdio/tauri-e2e 家族（2 处真错）
+#     ⇒ ⇒ 都**已被本闸覆盖并修掉** ⇒ ⇒ **不再是欠项**（不许再拿它们当「未覆盖」报）。
 
 on:
   pull_request:
@@ -42,7 +56,7 @@ concurrency:
 
 jobs:
   e2e-typecheck:
-    name: E2E Typecheck (桌面端 tests/ 家族 · .ts ＋ .tsx 全族)
+    name: E2E Typecheck (桌面端 tests/ 家族 · .ts ＋ .tsx 全族 ＋ wdio/tauri-e2e)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -83,7 +97,30 @@ jobs:
             echo "::error::E2E 家族的类型闸红了（退出码 $TSTATUS）—— 上面就是逐条读数"
             exit "$TSTATUS"
           fi
-          echo "::notice::E2E 类型闸：绿（覆盖面＝tests/**.ts ＋ tests/**.tsx 全族 ＋ playwright.config.ts）"
+          echo "::notice::E2E 类型闸（主）：绿（覆盖面＝tests/**.ts ＋ tests/**.tsx 全族 ＋ playwright.config.ts）"
           echo "::notice::E2E 类型闸**未覆盖**（是欠项，**不是**「已判无问题」）："
-          echo "::notice::  · tests/wdio/** ＋ tests/tauri-e2e/**（需要 @wdio/globals 运行时）"
           echo "::notice::  · tests/stores/appearanceMemory.test.ts（并行会话在飞：Appearance 新增 chatBackground 未提交）"
+          echo "::notice::  · （wdio/tauri-e2e 家族**已**由下面第二把闸覆盖 —— 旧 notice 说它「需要 @wdio/globals 运行时」，那个理由是错的）"
+
+      # ⚠️ **第二把闸：wdio / tauri-e2e 家族**（mocha 型 ⇒ ⇒ 必须独立 config）
+      #   · 这一族走 **mocha**（wdio v9），主闸走 **vitest** ⇒ ⇒ 两边都往全局注入
+      #     describe/it ⇒ ⇒ 并进同一个 config 会撞「Duplicate identifier」。
+      #   · ⚠️ **它的类型环境天生残缺**（2026-11-09 实测补齐）：
+      #     – mocha 全局类型 ⇒ ⇒ 靠 @types/mocha（已升成直接 devDependency）；
+      #     – WebdriverIO.Browser 的**成员** ⇒ ⇒ 只在 **webdriverio** 包的 declare global 里
+      #       ⇒ ⇒ webdriverio 必须**升成直接 devDependency**（@wdio/globals 只声明空接口）。
+      #   ⇒ ⇒ 这把闸补的是**真空缺**：主闸 exit=0 时它能红（实测 TS2322 / TS1005 两档）。
+      - name: E2E type check (tests/tsconfig.wdio.json)
+        working-directory: shadow/shadow-desktop
+        run: |
+          set +e
+          set -uo pipefail
+          OUT="$RUNNER_TEMP/wdio-typecheck.txt"
+          pnpm exec tsc --noEmit -p tests/tsconfig.wdio.json > "$OUT" 2>&1
+          TSTATUS=$?
+          cat "$OUT"
+          if [ "TSTATUS" != "0" ]; then
+            echo "::error::wdio/tauri-e2e 家族的类型闸红了（退出码 $TSTATUS）—— 上面就是逐条读数"
+            exit "$TSTATUS"
+          fi
+          echo "::notice::wdio 类型闸：绿（覆盖面＝tests/wdio/** ＋ tests/tauri-e2e/** 全族 · mocha 型）"

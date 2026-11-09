@@ -1,5 +1,4 @@
 import { browser, expect } from '@wdio/globals';
-import { TEST_CONFIG } from './config';
 
 const TELENCEPHALON_URL = 'http://localhost:60080';
 
