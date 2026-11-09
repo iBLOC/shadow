@@ -38,6 +38,9 @@ import 'package:shadow_mobile/services/reminder_inbox.dart';
 ///
 /// ⚠️ **它默认是跳过的**（`SHADOW_LIVE_ENDBRAIN` 不等于 `1` 就整份跳过）⇒ ⇒
 /// CI 里没有端脑也不会红 ⇒ ⇒ 但它也**不假装绿**（跳过就是跳过，不是通过）。
+/// ⚠️ **但它不是「永远不跑」** —— 夜间的 `desktop-e2e` workflow 里有一份
+/// **真端脑**（回环）⇒ ⇒ 那里它**真跑**；而且那边「被跳过」判**红**
+/// ⇒ ⇒ 端脑的线上形状漂移了不会没人知道。
 void main() {
   final live = Platform.environment['SHADOW_LIVE_ENDBRAIN'] == '1';
   final adminToken = Platform.environment['SHADOW_LIVE_ADMIN_TOKEN'] ?? '';

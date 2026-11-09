@@ -149,6 +149,122 @@ jobs:
         working-directory: shadow/shadow-desktop
         run: pnpm install --frozen-lockfile
 
+      # ⚠️ Flutter —— 只为了跑**移动端**那条真跑级判据。
+      #    版本与 `ci.yml` 的 `mobile-analyze` / `mobile-test` **同一把**（3.47.8）
+      #    ⇒ ⇒ 不许漂 ⇒ ⇒ 两处同步手改。
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.8
+          channel: stable
+
+      # ⚠️ `hashFiles` 的路径**必须带 `shadow/` 前缀** —— 这个 workflow 的
+      #    checkout 在 `shadow` 子目录里（不是仓库根）⇒ ⇒ 写 `shadow-mobile/…`
+      #    ⇒ ⇒ 哈希的是**空集** ⇒ ⇒ 缓存键每次都变 ⇒ ⇒ 缓存等于没有。
+      - name: Cache Flutter pub
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-flutter-pub-${{ hashFiles('shadow/shadow-mobile/pubspec.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-pub-
+
+      - name: Flutter pub get
+        working-directory: shadow/shadow-mobile
+        run: flutter pub get
+
+      # ⚠️⚠️ **真跑级判据在这里有读数** —— 「真端脑 → 真客户端 → 真 ack」
+      #    那一段的两份判据**默认是跳过的**（`SHADOW_LIVE_ENDBRAIN` 不等于 `1`
+      #    就整份跳过）⇒ ⇒ 别的 workflow 跑它们 ⇒ ⇒ **跳过也算绿** ⇒ ⇒
+      #    线上形状漂移了**没人知道** ⇒ ⇒ ⇒ **判据会腐烂**。
+      # ⇒ ⇒ 这里给它们一个**真端脑**（上面刚编出来的那个）⇒ ⇒ 并**断言它们
+      #    真的跑了**（读数里必须有「5 passed」／「All tests passed」）⇒ ⇒
+      #    「被跳过」在这里判**红**。
+      # ⚠️ **为什么要多这一句断言**：vitest／flutter 对**整份跳过**都退出 0
+      #    ⇒ ⇒ 端脑没起来／环境变量名写错 ⇒ ⇒ 都是「skipped」＋ **绿的 step**
+      #    ⇒ ⇒ 正是「失败长得像成功」⇒ ⇒ 这里用 grep 把「跳过」判成红。
+      - name: Live notification contract (real 端脑 → 真客户端 → 真 ack)
+        env:
+          # ⚠️ **回环上的测试凭据**，不是产品密钥 ⇒ ⇒ 只活在这一步里。
+          TELENCEPHALON_ADMIN_KEY: live-loopback-admin-key
+          TELENCEPHALON_SHADOW_KEY: live-loopback-shadow-key
+          TELENCEPHALON_TASKS_FILE: ${{ runner.temp }}/live-notif-tasks.json
+          SHADOW_LIVE_ENDBRAIN: '1'
+          SHADOW_LIVE_ADMIN_TOKEN: live-loopback-admin-key
+          SHADOW_LIVE_SHADOW_KEY: live-loopback-shadow-key
+          SHADOW_LIVE_ENDBRAIN_URL: http://127.0.0.1:60192
+          # ⚠️ 别让颜色码混进读数（剥是第二道保险，见下面那句 sed）。
+          NO_COLOR: '1'
+        run: |
+          set -uo pipefail
+          BIN="$GITHUB_WORKSPACE/encephalon/target/debug/encephalon-server"
+          SRVLOG="$RUNNER_TEMP/live-notif-server.log"
+          OUT="$RUNNER_TEMP/live-notif-vitest.txt"
+          MOUT="$RUNNER_TEMP/live-notif-flutter.txt"
+          ( cd "$GITHUB_WORKSPACE/encephalon" && exec "$BIN" --port 60192 --bind 127.0.0.1 ) > "$SRVLOG" 2>&1 &
+          SRV=$!
+          trap 'kill "$SRV" 2>/dev/null || true' EXIT
+          # ⚠️ 端脑在 CI 上是**冷启动**（datafusion / lance / wasmtime）⇒ ⇒
+          #    本地那个 15 秒的时限在这儿不够（Playwright 那步给的是 120 秒）
+          #    ⇒ ⇒ 这里给 180 秒 ⇒ ⇒ **不许**因为「还没起来」就去跑判据
+          #    （那会变成「跳过」＝「绿」）。
+          READY=0
+          for i in $(seq 1 180); do
+            if curl -sf http://127.0.0.1:60192/healthz > /dev/null 2>&1; then READY=1; break; fi
+            sleep 1
+          done
+          if [ "$READY" != "1" ]; then
+            echo "::error::端脑没起来（180 秒）—— 真跑级判据**不许**因此被跳过"
+            tail -n 60 "$SRVLOG" || true
+            exit 1
+          fi
+          cd "$GITHUB_WORKSPACE/shadow/shadow-desktop"
+          pnpm exec vitest run tests/lib/reminderNotificationsLive.test.ts > "$OUT" 2>&1
+          VSTATUS=$?
+          # ⚠️⚠️ **必须先剥掉 ANSI 颜色码再 grep** —— vitest 的摘要行是
+          #    `Tests` ESC[22m ESC[1m ESC[32m `5 passed` ⇒ ⇒ 颜色码**夹在**
+          #    `Tests` 与 `5 passed` **中间** ⇒ ⇒ 不剥的话，grep 能不能匹配上
+          #    全看「中间恰好有没有空格」⇒ ⇒ 换个 vitest 版本就**误判红**
+          #    ⇒ ⇒ 那是「尺子靠运气」⇒ ⇒ 这里剥掉再判。
+          sed -r 's/\x1B\[[0-9;]*[mK]//g' "$OUT" > "$OUT.plain"
+          cat "$OUT.plain"
+          if [ "$VSTATUS" != "0" ]; then
+            echo "::error::桌面端真跑级判据红了（退出码 $VSTATUS）"
+            exit "$VSTATUS"
+          fi
+          if ! grep -qE 'Tests[[:space:]]+5 passed' "$OUT.plain"; then
+            echo "::error::桌面端真跑级判据**没有真的跑**（读数里没有「5 passed」）—— 端脑没起来、或环境变量名写错了 ⇒ ⇒ 绝不能把它当成绿"
+            exit 1
+          fi
+          cd "$GITHUB_WORKSPACE/shadow/shadow-mobile"
+          flutter test test/unit/reminder_inbox_live_test.dart --timeout 5m > "$MOUT" 2>&1
+          FSTATUS=$?
+          sed -r 's/\x1B\[[0-9;]*[mK]//g' "$MOUT" > "$MOUT.plain"
+          cat "$MOUT.plain"
+          if [ "$FSTATUS" != "0" ]; then
+            echo "::error::移动端真跑级判据红了（退出码 $FSTATUS）"
+            exit "$FSTATUS"
+          fi
+          # ⚠️ 整份跳过时 flutter 印的是「All tests skipped.」⇒ ⇒ 匹配不上
+          #    「All tests passed」⇒ ⇒ 这一步判红 ⇒ ⇒ 跳过不许算绿。
+          if ! grep -qE 'All tests passed' "$MOUT.plain"; then
+            echo "::error::移动端真跑级判据**没有真的跑**（读数里没有「All tests passed」）—— 整份跳过也是退出 0 ⇒ ⇒ 绝不能把它当成绿"
+            exit 1
+          fi
+          echo "✅ 两端真跑级判据都真的跑了（桌面 5 passed ／ 移动端 All tests passed）—— 通知面的线上形状在真端脑上对得上"
+
+      # ⚠️ **端脑的日志必须进产物** —— 判红时「端脑为什么那样答」判不了
+      #    ⇒ ⇒ 那条红就只是一条红 ⇒ ⇒ `if-no-files-found: error` ⇒ ⇒
+      #    日志路径再漂一次就**当场变红**（而不是又一次静默绿）。
+      - name: Upload the live-notification 端脑 log on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: live-notif-server-log
+          path: ${{ runner.temp }}/live-notif-server.log
+          retention-days: 7
+          if-no-files-found: error
+
       - name: Install Playwright browsers
         working-directory: shadow/shadow-desktop
         run: pnpm exec playwright install --with-deps chromium
