@@ -271,17 +271,24 @@ class AppConfigService {
     //   ⚠️ 只重试这一类 ⇒ ⇒ 别的失败（磁盘满 / 权限 / 路径不存在）**立即**失败
     //   ⇒ ⇒ 不许把真失败拖成慢失败，也不许把它重试成「成功」。
     Object? lastError;
-    for (var attempt = 0; attempt < 8; attempt++) {
-      try {
-        await tmp.rename(file.path);
-        return;
-      } on PathAccessException catch (e) {
-        lastError = e;
-        await Future<void>.delayed(const Duration(milliseconds: 25));
+    try {
+      for (var attempt = 0; attempt < 8; attempt++) {
+        try {
+          await tmp.rename(file.path);
+          return;
+        } on PathAccessException catch (e) {
+          lastError = e;
+          await Future<void>.delayed(const Duration(milliseconds: 25));
+        }
       }
+      throw lastError!;
+    } catch (_) {
+      // ⚠️ **任何**失败都要清掉临时文件 ⇒ ⇒ 不只是「共享冲突」那一种：
+      //   别的异常（比如目标路径是个**目录** ⇒ ⇒ rename 报 EISDIR）
+      //   也会留下半成品 ⇒ ⇒ 配置目录里堆垃圾 ⇒ ⇒ 连「失败也干净」都不成立。
+      await _discardTempFile(tmp);
+      rethrow;
     }
-    await _discardTempFile(tmp);
-    throw lastError!;
   }
 
   /// 丢掉临时文件（尽力而为 ⇒ ⇒ 失败不许盖掉真正的失败）。

@@ -174,7 +174,12 @@ void main() {
     await settleIo(tester);
 
     final raw = await readConfig(tester);
-    expect(raw['telencephalonShadowKey'], 'sk-new');
+    // ⚠️ 落盘失败必须**自带真因** ⇒ ⇒ 否则「值没落盘」只剩一句
+    //   「Actual: null」⇒ ⇒ 看起来像实现坏了 ⇒ ⇒ 真因被埋掉。
+    expect(AppConfigService().lastSaveError, isNull,
+        reason: '落盘失败 ⇒ ⇒ 真因：${AppConfigService().lastSaveError}');
+    expect(raw['telencephalonShadowKey'], 'sk-new',
+        reason: '盘上落的是：$raw');
     expect(container.read(telencephalonClientProvider).apiKey, 'sk-new');
   });
 
