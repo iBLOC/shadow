@@ -1,5 +1,25 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-09 (㑃 **「端脑自己也得按字段名找 —— 上一刀那条判据是按串找的，形状漂移时它照样绿」** —— 承 㐾 条（提醒链路那条）⑥ 里那条「端脑自己那条真 HTTP 判据全程是绿的」，本条记**取证（盲区在哪一行）**、**这一刀的落点**、**判据（端脑层第二道防线）**、**反向验证（恰好 2 红）**、**分级读数**、**途中那一课（Rust 嵌套项 ⇒ ⇒ 判据静默不收集）**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-09 | authority=measured | scope=project | source=真运行级实测（改动：端脑仓 **改** `telencephalon/tests/task_reminder_reaches_the_client.rs`（**只改判据**，**零生产代码改动**）；读数：**判据级 4/4 绿**、**反向验证 恰好 2 红**、**类型级 `cargo check --all-targets` EXIT=0**、**邻居判据级 9/9 ＋ 2/2 绿**）| status=active | supersedes=none
+
+① **⚠️ 取证：盲区就在一行断言里** —— 端脑那条面级判据 `the_client_face_shows_the_reminder_and_acks_it` 的核心断言是 `body.contains(&task_id)` ⇒ ⇒ 它只证明「那个**串**在 body 里」⇒ ⇒ **不证明客户端按字段名读得到** ⇒ ⇒ 端脑把 `task_id` 改名成 `taskId` ⇒ ⇒ 那个串**照样在 body 里** ⇒ ⇒ 端脑侧**照样绿** ⇒ ⇒ 而真客户端（桌面 `ReminderNotification` ／ 移动端 `Reminder.fromJson`）是**按字段名**读的 ⇒ ⇒ 读到 `undefined` ⇒ ⇒ ⇒ **轮询成功、ack 成功、提醒就是没内容**（承 㐾 条② 那条「失败长得像成功」）⇒ ⇒ ⇒ **上一刀的实测已经把这个盲区照出来了**：桌面恰好 1 红、移动端恰好 1 红，**端脑自己那条全程绿** ⇒ ⇒ ⇒ **盲区在服务端 ⇒ ⇒ 只有客户端那道防线会发现它**。
+
+② **✅ 这一刀的落点（只改判据，零生产代码）** —— 端脑仓 `telencephalon/tests/task_reminder_reaches_the_client.rs`：❶ **加固**老的面级判据（`body.contains(&task_id)` ⇒ ⇒ 改成**按字段名找**；ack 从写死 `notif-1` ⇒ ⇒ 改成用**线上那条的真编号**）；❷ **新增**一条形状契约判据 `the_notification_face_says_the_field_names_the_clients_read` ⇒ ⇒ ⇒ 端脑层从此有**第二道防线**（客户端侧一道、端脑侧一道）⇒ ⇒ 形状漂移时**端脑自己会红**，不必等客户端那边才发现。
+
+③ **✅ 形状契约判据钉的四件事** —— ❶ **键必须在**：线上那一条必须真有 `task_id` 这个**键**（按字段名找得到）；❷ **值必须有**：`id`／`task_id`／`task_title`／`notification_type` 必须是**非空字符串**，`message`／`timestamp` 必须**在场**；❸ **驼峰变体不许在**：`taskId`／`taskTitle`／`notificationType`／`dueTime` 一个都不许出现（客户端读的是蛇形；多一个驼峰键只会让「键名写错了」这件事**看不见**）；❹ **类型必须是客户端认得的三个字面量**：`Reminder`／`Overdue`／`NeedsConfirmation`（客户端按它分支）。
+
+④ **⚠️ 途中那一课：Rust 允许**嵌套项** ⇒ ⇒ 追加的判据**静默不被收集**（判据恒绿，比没有判据更坏）** —— 我把新判据追加到文件末尾时，锚点落在**上一个函数的体内** ⇒ ⇒ 它成了那个函数里的**嵌套 fn** ⇒ ⇒ Rust **照编译通过**（嵌套项合法）⇒ ⇒ 但测试框架**不收集它** ⇒ ⇒ 症状：`running 3 tests`（而不是 4）⇒ ⇒ ⇒ **失败长得像成功**（判据在、编译绿、测试全绿 ⇒ ⇒ 但那条判据**从来没跑过**）⇒ ⇒ **修法**：追加用例后**核一次「running N tests」**（N ＝ 顶层 `#[tokio::test]` 的个数）⇒ ⇒ 顺带把顶层结构逐行打出来看过才放心。
+
+⑤ **✅ 反向验证（尺子有分辨力，恰好 2 红）** —— 把端脑 `notification_inbox::Notification` 的 `task_id` 改成 `#[serde(rename = "taskId")]`（端脑真的改发字段名）⇒ ⇒ 重编 ⇒ ⇒ **恰好 2 条红**：新形状契约那条（线上没有 `task_id` 这个键 ⇒ ⇒ 客户端读到的就是 undefined）＋ 被加固的面级那条（按字段名找不到那条提醒）⇒ ⇒ 其余 **2 条仍绿**（调度器级／生产 boot 级 ⇒ ⇒ 它们读的是 **Rust 结构体**、不经线 ⇒ ⇒ 所以**不该**红）⇒ ⇒ ⇒ 两条**各自承重**、其余**不过度敏感** ⇒ ⇒ 还原后端脑文件**逐字一致**（`git hash-object` 比对 blob `77c031cf…` 完全相同 ⇒ ⇒ `git diff` 空）⇒ ⇒ 复跑 **4/4 绿**。
+
+⑥ **✅ 分级读数（全部实测）** —— **判据级**：`cargo test --test task_reminder_reaches_the_client` ⇒ **4 passed / 0 failed**（读数里明确写着 `running 4 tests` ⇒ ⇒ 顶层用例数核对过）；**反向验证级** ⇒ ⇒ **2 failed / 2 passed**；**类型级**：`cargo check --all-targets` ⇒ **EXIT=0**（21.59s）；**邻居判据级**：`task_relative_due_time` ⇒ **9/9 绿**、`task_store_is_one` ⇒ **2/2 绿**；**端脑生产面未被触碰**：`src/lobes/notification_inbox.rs` 的 blob 与 HEAD **逐字一致**（`77c031cf…`）⇒ ⇒ 这一刀**只动判据**。
+
+⑦ **⚠️ 仍然欠着** —— ❶ **端脑 CI 仍是门外红**（`runner_id: 0`／`steps: []`／3 秒完 ⇒ ⇒ billing）⇒ ⇒ 端脑判据在 CI 上**仍没有读数** ⇒ ⇒ 本条最高只到**本机实测级**；❷ **端脑通知收件箱是内存的** ⇒ ⇒ 端脑重启后**未确认的提醒不补发**（承 㐾 条⑨❶）⇒ ⇒ 要改得给它落盘（去重键也得一起落）⇒ ⇒ 不在这一刀里动；❸ **真机级 / 真云级** —— 移动端真机（设备离线）、真云（三个 `SHADOW_TEST_CLOUD_*` 本机不存在）⇒ ⇒ 不许拿本机绿冒充真机绿；❹ **两端真跑级判据默认跳过** ⇒ ⇒ CI 里不会红 ⇒ ⇒ **会腐烂**（要有人记得在有端脑的机器上跑）；❺ 端脑 `/v1/*` 门形、读门默认要不要钥匙（57 条读路由）、桌面 `HfTokenSettings`、两个假入口 —— 仍被**在飞文件**挡着 ⇒ ⇒ 不在这一刀里动；❻ **杏仁核判定值 `f32 → f64`** —— 在杏仁核仓 ⇒ ⇒ 本仓只留一句索引。
+
+⑧ **⚠️ 圈码：本条占 U+3443（㑃）** —— 插前**独立重扫**（父仓工作树 ∪ 父仓 HEAD ∪ 父仓 `origin/master` × **三本账本**（父仓／移动端／桌面端），范围 0x3400–0x346F）⇒ ⇒ 段内最高已用 **U+3441**（并行会话那条；远端与 HEAD 读数一致）⇒ ⇒ 自然下一枚是 **U+3442** ⇒ ⇒ ⚠️ **我留一枚缓冲**（并行会话正在**连着**取码位：它刚取走 U+343F 与 U+3441 ⇒ ⇒ 挨着取＝排队打架 ⇒ ⇒ 照前面几条的同一处置**往后挪一枚**）⇒ ⇒ 取 **U+3443** ⇒ ⇒ **插前扫：U+3442／U+3443／U+3444 在三个面各 0 次** ⇒ ⇒ 空闲 ✔ ⇒ ⇒ ⚠️ **不填历史空洞**（U+3440 那个空洞不回收）⇒ ⇒ ⚠️ 本条**只引用已提交的码位**（㐾 U+343E）⇒ ⇒ 不引并行会话**未提交**的那些（否则提交树面**悬空引用**红）。
+
 **Updated**: 2026-11-09 (㑁 **「CI 上那条红是我的 —— 固定名临时文件让两个写者互相踩」** —— 承 㐼 条（配置落盘改原子替换）那把刀的 CI 复验，本条记**取证**、**两个病根**、**四处修法**、**判据**、**反向验证**、**分级读数**、**途中那两课**，以及**仍然欠着的**.)
 > 信封：epoch=2026-11-09 | authority=measured | scope=project | source=真机级 CI 复验 ＋ 本机实测（改动：shadow 仓 **改** `shadow-mobile/lib/services/app_config_service.dart` ＋ **改** `shadow-mobile/test/unit/app_config_atomic_write_test.dart` ＋ **改** `shadow-mobile/test/unit/encephalon_mobile_provider_test.dart` ＋ **改** `shadow-mobile/test/widget/backend_shadow_key_entry_test.dart` ＋ 账本本条；读数：**判据级 4/4 绿**、**反向验证 恰好 1 红**、**回归级 332 通过/4 跳过/0 失败**、**CI 级 `flutter test` 650 通过/4 跳过/0 失败**）| status=active | supersedes=none
 
