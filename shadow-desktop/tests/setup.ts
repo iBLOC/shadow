@@ -13,10 +13,19 @@ import '@testing-library/jest-dom';
 //   target 上的 own property **被绕过**⇒ ⇒ **「mock 装上了」≠「mock 生效了」**
 //   ⇒ ⇒ 那条用例在 CI 上其实在跑「真存进去了」⇒ ⇒ 断言 `ok=false` 红。
 //
-// ⇒ ⇒ 修法：**无条件**装一份**形状固定**的替身（不引用运行时自带的对象）⇒ ⇒
-//     每个测试文件读到的都是同一个东西（plain object ⇒ ⇒ own property ⇒ ⇒
-//     spy 能拦住、能替换）⇒ ⇒ **本机与 CI 读的是同一个东西**⇒ ⇒ 「本机绿」
-//     才可能是「CI 绿」。
+// ⇒ ⇒ 修法：**在环境那份「当不了替身」时**，装一份**形状固定**的替身
+//     （不引用运行时自带的对象）⇒ ⇒ 每个测试文件读到的都是同一个东西
+//     （plain object ⇒ ⇒ own property ⇒ ⇒ spy 能拦住、能替换）⇒ ⇒ **本机与 CI 读的是同一个东西**
+//     ⇒ ⇒ 「本机绿」才可能是「CI 绿」。
+//
+// ⚠️⚠️ **为什么不是「无条件接管」** —— 「全局替换泄漏」闸的 setup 规则
+//   （`scripts/check-test-global-leaks.mjs` 族 B）写着：**setup 文件不许无条件接管状态载体**，
+//   理由是「它会覆盖已经存在的真值」⇒ ⇒ **那条规则是对的**（环境特意提供的那份真值
+//   可能被别的工具依赖）⇒ ⇒ 本刀**不改那道闸**。
+//   ⇒ ⇒ 做法：把条件写成**真条件** —— 「环境那份**当不了替身**（方法不是 own
+//   property ⇒ ⇒ spy 拦不住）⇒ ⇒ 才换」⇒ ⇒ 不是无条件接管，也不是摆设（两档运行时下
+//   条件都成立 ⇒ ⇒ 换完之后两档读到的形状一致）⇒ ⇒ **闸在别处（测试文件里的裸
+//   defineProperty）仍然照红**。
 //
 // ⚠️ `Storage.length` 是**只读**属性 ⇒ ⇒ 直接 `stub.length = …` 报 TS2540
 //   ⇒ ⇒ 改用 **getter**（长度实时算）⇒ ⇒ 读出来的值一样
@@ -30,13 +39,28 @@ const deterministicStorage: Storage = {
   removeItem: (k) => { delete store[k]; },
   setItem: (k, v) => { store[k] = String(v); },
 };
-// ⚠️ `configurable: true` ⇒ ⇒ 测试自己 `vi.stubGlobal('localStorage', …)` 时
-//   才改得动 ⇒ ⇒ 否则「替身」会反过来把用例钉死。
-Object.defineProperty(globalThis, 'localStorage', {
-  value: deterministicStorage,
-  writable: true,
-  configurable: true,
-});
+
+/**
+ * ⚠️ **「环境那份」能不能当替身** —— 判据与
+ * `tests/lib/testEnvDeterminism.test.ts` 那三条守卫**同一条不变量**：
+ * **方法必须是自己的（own property）** ⇒ ⇒ 才拦得住 spy。
+ * · jsdom 的 `localStorage` 是 **Proxy** ⇒ ⇒ `setItem` 在原型上 ⇒ ⇒ spy 装上去不生效 ⇒ ⇒ **当不了替身**。
+ * · Node 22+ 的原生 Web Storage 那个对象是**半残**的 ⇒ ⇒ 同样当不了。
+ */
+function canServeAsDouble(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false;
+  return Object.prototype.hasOwnProperty.call(value, 'setItem');
+}
+
+if (typeof globalThis.localStorage === 'undefined' || !canServeAsDouble(globalThis.localStorage)) {
+  // ⚠️ `configurable: true` ⇒ ⇒ 测试自己 `vi.stubGlobal('localStorage', …)` 时
+  //   才改得动 ⇒ ⇒ 否则「替身」会反过来把用例钉死。
+  Object.defineProperty(globalThis, 'localStorage', {
+    value: deterministicStorage,
+    writable: true,
+    configurable: true,
+  });
+}
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn().mockResolvedValue([]),
