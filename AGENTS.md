@@ -47,6 +47,7 @@
 　❶ **真机级（本条主读数）**：odin 上能力面探针 **EXIT=0**；门策略逐条 401／400／422／200 如上；**基线复原复核 True**、**二次复原复核 True**、**重启后 `registered.asr` 归零** ⇒ ⇒ **零残留**。
 　❷ **真机级（引擎注册面）**：`asr` ＋ `candle` ⇒ **200 `{"status":"loaded"}`** ⇒ ⇒ `registered.asr` 变成 **`["probe-asr-candle"]`**、`preview/models` 看见 `{"capability":"asr","model_id":"probe-asr-candle","engine":"Candle"}` ⇒ ⇒ **asr 档此刻可以指向一个真引擎 id**；`tract`／`sherpa` ⇒ **500**（这份产物里没编）；**tts `burn` ⇒ 500**（`unknown TtsImpl`）⇒ ⇒ **这份手机产物里 TTS 引擎一个都没有**。
 　❸ **判据级**：`node scripts/check-ps1-portability.mjs` ⇒ **27 个 `.ps1` 全绿**（含新脚本的 BOM 判据）；`node scripts/check-gate-discipline.mjs` ⇒ **零违规**（57 道闸，存量债 18 条已登记）；`node scripts/check-state-surface.mjs --self-test` ⇒ **38/38**；`node scripts/check-legacy-residue.mjs` ⇒ **EXIT=0**（16 仓 / 1878 文件）；`node scripts/check-ledger-codepoints.mjs` ⇒ **三面零违规**。
+　❺ **真 CI 级**：head `472bc51`（本条已推 origin/master）上 **19 个 workflow ⇒ ⇒ 18 绿**；主 CI run `42706424173` ⇒ ⇒ **9 个 job 绿 / 1 红** ⇒ ⇒ 那条红是 `Mobile Test` 里 `capability_grants_test.dart` 的两条，**不是本刀**（本刀只动父仓 `AGENTS.md` ＋ 一个新 `.ps1`，一行产品代码都没碰）⇒ ⇒ 与本刀相关的那些 job（**PS1 Portability** ／ **Ledger codepoints** ／ **Brain gates** ／ **Legacy residue** ／ **YAML validity**）**全绿** ⇒ ⇒ 那把新脚本正是被 **PS1 Portability** 那道判的（27 个 `.ps1`）。
 　❹ **圈码级**：插前**独立重扫 12 面**（父仓工作树 ∪ 索引 ∪ HEAD ∪ origin/master × 三本账本，官方 `extractEntries`）⇒ ⇒ 读数：**unreadable=0**、**最高已声明 U+34AB（㒫）**、**U+34AC 声明 0 次 / 提及 4 次**（别人明写的缓冲 ⇒ ⇒ 让开）⇒ ⇒ **本条取 U+34AD（㒭）**、**缓冲 U+34AE（㒮）**。
 
 ⑧ **⚠️ 圈码：本条占 U+34AD（㒭）**
