@@ -176,6 +176,11 @@ void main() {
     expect(map['source'], kScreenSourceFlutterSemantics);
     expect(map['coordinateSpace'], kCoordinateSpaceView);
     expect(map['screen'], contains('text: 确定'));
+    // ⚠⚠️ **「这是谁的屏」这一格不许缺** —— 回落分支也必须带这个键
+    // ⇒ ⇒ 两条分支的**形状**必须一样 ⇒ ⇒ 模型不许靠「有没有这个键」
+    // ⇒ ⇒ 去猜这是哪棵树 ⇒ ⇒ 而回落的前提**就是**自家 app 在前台
+    // ⇒ ⇒ 答案就是自家包名。
+    expect(map['foregroundPackage'], kOwnAppPackage);
     handle.dispose();
   });
 

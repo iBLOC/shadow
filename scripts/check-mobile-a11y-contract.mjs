@@ -73,6 +73,40 @@ function pathsFor(root) {
       'shadow',
       'PrefrontalAccessibilityService.kt'
     ),
+    // ⚠️ 预算常数（深度 / 节点数 / 字符数）—— 两端各写一份 ⇒ ⇒ 闸比对。
+    ktBudget: join(
+      root,
+      'shadow-mobile',
+      'android',
+      'app',
+      'src',
+      'main',
+      'kotlin',
+      'com',
+      'ibloc',
+      'shadow',
+      'ScreenBudget.kt'
+    ),
+    // 自家 app 那一棵（Flutter 语义树）的产出侧。
+    dartTree: join(
+      root,
+      'shadow-mobile',
+      'lib',
+      'services',
+      'capabilities',
+      'flutter_semantics_tree.dart'
+    ),
+    // 工具层 —— 「这是谁的屏」那一格（自家包名常量）在这一份里。
+    dartTools: join(
+      root,
+      'shadow-mobile',
+      'lib',
+      'services',
+      'capabilities',
+      'capability_tools.dart'
+    ),
+    // Gradle 侧 —— 自家 app 的包名（applicationId）是**同一件事的另一份**。
+    gradleApp: join(root, 'shadow-mobile', 'android', 'app', 'build.gradle.kts'),
   };
 }
 
@@ -199,7 +233,10 @@ function whenBranches(masked, raw, blockStart, blockEnd) {
 /** Dart 侧：`invokeMethod('名字', { '键': 值 })` ⇒ 方法名 + 参数键。 */
 function parseDartCalls(src) {
   const methods = new Map();
-  const re = /invokeMethod(?:<[^>]*>)?\(\s*'([^']+)'/g;
+  // ⚠️ 泛型里**还能再套一层**（`invokeMethod<Map<dynamic, dynamic>>`）
+  // ⇒ ⇒ 所以这里不能用 `<[^>]*>`（它吃到第一个 `>` 就停 ⇒ ⇒ 整个调用抽不到）
+  // ⇒ ⇒ 改成「不跨行、不跨语句」的宽松匹配 ⇒ ⇒ 嵌套一层也能吃掉。
+  const re = /invokeMethod(?:<[^()\n;]*>)?\(\s*'([^']+)'/g;
   let m;
   while ((m = re.exec(src)) !== null) {
     const name = m[1];
@@ -398,7 +435,108 @@ function checkFacts(facts) {
     );
   }
 
+  // ⚠️ **读屏预算**（深度 / 节点数 / 字符数）—— 原生那一棵与 Flutter 那一棵
+  // ⇒ ⇒ 是「同一件事的两份」⇒ ⇒ 体量口径必须一样 ⇒ ⇒ 漂了就静悄悄。
+  if (!facts.dartBudget || !facts.ktBudget) {
+    add('block', '预算常数没找到（深度 / 节点数 / 字符数 —— 两端必须都有）');
+  } else {
+    const labels = { depth: '深度', nodes: '节点数', chars: '字符数' };
+    for (const key of Object.keys(labels)) {
+      if (facts.dartBudget[key] !== facts.ktBudget[key]) {
+        add(
+          'block',
+          '读屏预算的' +
+            labels[key] +
+            '上限对不上：Dart ' +
+            facts.dartBudget[key] +
+            ' vs Kotlin ' +
+            facts.ktBudget[key] +
+            ' ⇒ ⇒ 两棵树的输出体量会漂 ⇒ ⇒ 「同一件事的两份」没对齐'
+        );
+      }
+    }
+  }
+
+  if (facts.treeUsesSharedMarker !== true) {
+    add(
+      'block',
+      'Flutter 那一棵树**没有复用** kScreenTruncationMarker ⇒ ⇒ ' +
+        '截断标记会各写一份 ⇒ ⇒ 漂了就静悄悄'
+    );
+  }
+
+  if (facts.treeHasOwnMarkerLiteral === true) {
+    add(
+      'block',
+      'Flutter 那一棵树里**自己写了一份** [truncated] 字面量 ⇒ ⇒ ' +
+        '不许 ⇒ ⇒ 必须用 kScreenTruncationMarker'
+    );
+  }
+
+  // ⚠️ **自家 app 的包名** —— Dart 常量与 Gradle 的 applicationId 是
+  // ⇒ ⇒ 「同一件事的两份」⇒ ⇒ 漂了就静悄悄（回落分支会报出**错的**包名
+  // ⇒ ⇒ ⇒ 模型于是以为自己在别家 app 里）。
+  if (!facts.ownPkgDart || !facts.ownPkgGradle) {
+    add(
+      'block',
+      '自家包名没找到（Dart 的 kOwnAppPackage 与 Gradle 的 applicationId —— 两端必须都有）'
+    );
+  } else if (facts.ownPkgDart !== facts.ownPkgGradle) {
+    add(
+      'block',
+      '自家包名对不上：Dart ' +
+        facts.ownPkgDart +
+        ' vs Gradle ' +
+        facts.ownPkgGradle +
+        ' ⇒ ⇒ 回落分支会报出**错的**包名 ⇒ ⇒ 模型以为自己在别家 app 里'
+    );
+  }
+
   return problems;
+}
+
+/** Dart 侧的三个预算常数（`kScreenBudgetMax*`）。 */
+function parseDartBudget(src) {
+  const out = {};
+  const pairs = [
+    ['depth', /kScreenBudgetMaxDepth\s*=\s*(\d+)/],
+    ['nodes', /kScreenBudgetMaxNodes\s*=\s*(\d+)/],
+    ['chars', /kScreenBudgetMaxChars\s*=\s*(\d+)/],
+  ];
+  for (const [key, re] of pairs) {
+    const m = re.exec(src);
+    if (!m) return null;
+    out[key] = Number(m[1]);
+  }
+  return out;
+}
+
+/** Kotlin 侧的三个预算常数（`DEFAULT_MAX_*`；数字里可以有下划线）。 */
+function parseKotlinBudget(src) {
+  const out = {};
+  const pairs = [
+    ['depth', /DEFAULT_MAX_DEPTH\s*=\s*([\d_]+)/],
+    ['nodes', /DEFAULT_MAX_NODES\s*=\s*([\d_]+)/],
+    ['chars', /DEFAULT_MAX_CHARS\s*=\s*([\d_]+)/],
+  ];
+  for (const [key, re] of pairs) {
+    const m = re.exec(src);
+    if (!m) return null;
+    out[key] = Number(m[1].replace(/_/g, ''));
+  }
+  return out;
+}
+
+/** Dart 侧的自家包名常量（`kOwnAppPackage`）。 */
+function parseOwnPackageDart(src) {
+  const m = /kOwnAppPackage\s*=\s*'([^']+)'/.exec(src);
+  return m ? m[1] : null;
+}
+
+/** Gradle 侧的 applicationId（自家 app 的包名）。 */
+function parseOwnPackageGradle(src) {
+  const m = /applicationId\s*=\s*"([^"]+)"/.exec(src);
+  return m ? m[1] : null;
 }
 
 function parseAll(sources) {
@@ -414,6 +552,15 @@ function parseAll(sources) {
     ktWires: parseKotlinWires(sources.ktMain, kt),
     dartMarker: parseMarkerDart(sources.dartOps),
     ktMarker: parseMarkerKotlin(sources.ktSvc),
+    dartBudget: parseDartBudget(sources.dartTree),
+    ktBudget: parseKotlinBudget(sources.ktBudget),
+    // ⚠️ Flutter 那一棵**必须复用**同一个截断标记常量 ⇒ ⇒ 不许自己写一份。
+    treeUsesSharedMarker: sources.dartTree.includes('kScreenTruncationMarker'),
+    treeHasOwnMarkerLiteral: /['"]\[truncated\]['"]/.test(sources.dartTree),
+    // ⚠️ 自家 app 的包名 —— Dart 常量 vs Gradle 的 applicationId
+    // ⇒ ⇒ 「同一件事的两份」⇒ ⇒ 漂了就静悄悄。
+    ownPkgDart: parseOwnPackageDart(sources.dartTools),
+    ownPkgGradle: parseOwnPackageGradle(sources.gradleApp),
   };
 }
 
@@ -437,6 +584,10 @@ const SAMPLE_DART_A11Y = [
   '  static Future<bool> ga(GlobalAction a) async {',
   "    final r = await _channel.invokeMethod<bool>('globalAction', {'action': a.wire});",
   '    return r ?? false;',
+  '  }',
+  '  static Future<Map<String, double>?> geometry() async {',
+  '    final r = await _channel.invokeMethod<Map<dynamic, dynamic>>(\'getViewGeometry\');',
+  '    return null;',
   '  }',
   '}',
   "enum GlobalAction { back('back'), home('home'); }",
@@ -464,6 +615,9 @@ const SAMPLE_KT_MAIN = [
   '                    }',
   '                    result.success(false)',
   '                }',
+  '                "getViewGeometry" -> {',
+  '                    result.success(null)',
+  '                },',
   '                else -> result.notImplemented()',
   '            }',
   '        }',
@@ -473,12 +627,48 @@ const SAMPLE_KT_MAIN = [
 
 const SAMPLE_KT_SVC = 'const val TRUNCATION_MARKER = "[truncated]"\n';
 
+// 自家 app 那一棵（Flutter 语义树）的产出侧 —— 预算 + 截断标记复用。
+const SAMPLE_DART_TREE = [
+  'const int kScreenBudgetMaxDepth = 20;',
+  'const int kScreenBudgetMaxNodes = 2000;',
+  'const int kScreenBudgetMaxChars = 20000;',
+  'void f() { print(kScreenTruncationMarker); }',
+].join('\n');
+
+// 工具层 —— 自家包名常量（「这是谁的屏」那一格的答案）。
+const SAMPLE_DART_TOOLS = [
+  "const String kOwnAppPackage = 'com.ibloc.shadow';",
+].join('\n');
+
+// Gradle 侧 —— 自家 app 的包名（applicationId）。
+const SAMPLE_GRADLE_APP = [
+  'android {',
+  '    defaultConfig {',
+  '        applicationId = "com.ibloc.shadow"',
+  '    }',
+  '}',
+].join('\n');
+
+const SAMPLE_KT_BUDGET = [
+  'class ScreenBudget {',
+  '  companion object {',
+  '    const val DEFAULT_MAX_DEPTH = 20',
+  '    const val DEFAULT_MAX_NODES = 2000',
+  '    const val DEFAULT_MAX_CHARS = 20_000',
+  '  }',
+  '}',
+].join('\n');
+
 function selfTest() {
   const base = {
     dartA11y: SAMPLE_DART_A11Y,
     dartOps: SAMPLE_DART_OPS,
     ktMain: SAMPLE_KT_MAIN,
     ktSvc: SAMPLE_KT_SVC,
+    dartTree: SAMPLE_DART_TREE,
+    ktBudget: SAMPLE_KT_BUDGET,
+    dartTools: SAMPLE_DART_TOOLS,
+    gradleApp: SAMPLE_GRADLE_APP,
   };
   const facts = parseAll(base);
   if (!facts) {
@@ -499,6 +689,46 @@ function selfTest() {
     ['取值漂了', { ...base, dartA11y: base.dartA11y.replace("back('back')", "back('backward')") }],
     ['截断标记漂了', { ...base, ktSvc: 'const val TRUNCATION_MARKER = "[cut]"\n' }],
     ['通道名漂了', { ...base, dartA11y: base.dartA11y.replace('com.ibloc.shadow/accessibility', 'com.ibloc.shadow/a11y') }],
+    [
+      '读屏预算漂了',
+      {
+        ...base,
+        dartTree: base.dartTree.replace(
+          'kScreenBudgetMaxNodes = 2000',
+          'kScreenBudgetMaxNodes = 5000',
+        ),
+      },
+    ],
+    [
+      'Flutter 树自己写了截断标记字面量',
+      {
+        ...base,
+        dartTree: base.dartTree.replace(
+          'print(kScreenTruncationMarker);',
+          "print('[truncated]');",
+        ),
+      },
+    ],
+    [
+      'Dart 用**嵌套泛型**调的方法 ⇒ Kotlin 少认 ⇒ 必红',
+      {
+        ...base,
+        ktMain: base.ktMain.replace(
+          '                "getViewGeometry" -> {',
+          '                "getViewGeometryX" -> {',
+        ),
+      },
+    ],
+    [
+      '自家包名漂了（Dart 常量 vs Gradle 的 applicationId）',
+      {
+        ...base,
+        gradleApp: base.gradleApp.replace(
+          'com.ibloc.shadow',
+          'com.ibloc.other',
+        ),
+      },
+    ],
   ];
   for (const [label, mutated] of cases) {
     const f = parseAll(mutated);
@@ -513,7 +743,9 @@ function selfTest() {
     }
     console.log('  ✓ 样本：' + label + ' ⇒ 抓到 ' + got.length + ' 条');
   }
-  console.log('自检全过');
+  console.log(
+    '自检全过（样本 ' + cases.length + '/' + cases.length + ' 条都被抓到）'
+  );
   return 0;
 }
 
@@ -552,6 +784,22 @@ function main() {
   console.log('· 方法：Dart ' + facts.dartMethods.size + ' 个 / Kotlin ' + facts.ktMethods.size + ' 个');
   console.log('· 全局动作取值：Dart ' + (facts.dartWires ? facts.dartWires.size : 0) + ' 个');
   console.log('· 截断标记：' + facts.dartMarker);
+  console.log(
+    '· 读屏预算：Dart 深度 ' +
+      (facts.dartBudget ? facts.dartBudget.depth : '?') +
+      ' / 节点 ' +
+      (facts.dartBudget ? facts.dartBudget.nodes : '?') +
+      ' / 字符 ' +
+      (facts.dartBudget ? facts.dartBudget.chars : '?') +
+      '（Kotlin 侧同名常数必须一致）'
+  );
+  console.log(
+    '· 自家包名：Dart ' +
+      (facts.ownPkgDart || '?') +
+      ' / Gradle ' +
+      (facts.ownPkgGradle || '?') +
+      '（两份必须一致）'
+  );
   if (infos.length) {
     for (const i of infos) console.log('  ! ' + i.msg);
   }

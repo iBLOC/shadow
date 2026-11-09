@@ -651,7 +651,7 @@ ClientToolRegistry buildMobileClientTools({
     ClientTool(
       name: 'mobile_read_screen',
       description:
-          'Read what is currently on this phone screen as an accessibility tree (the visible text and control labels). Call it before tapping so you know what is actually on screen.',
+          'Read what is currently on this phone screen as an accessibility tree (the visible text and control labels). Call it before tapping so you know what is actually on screen. The result names which tree it came from: android-a11y for another app (bounds are whole-screen pixels you can tap directly) or flutter-semantics for this app own screen (viewBounds are this window pixels, so use mobile_find_and_click to act on them). It also tells you whose screen this is: foregroundPackage is the package name of the app that currently owns the screen, so you can tell another app from this app own screen; when it is null it means the foreground app could not be read, not that there is no foreground app.',
       capability: Capability.mobileUse,
       parameters: <String, dynamic>{
         'type': 'object',

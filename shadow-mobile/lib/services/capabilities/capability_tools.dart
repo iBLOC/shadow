@@ -18,6 +18,16 @@ const String kScreenSourceFlutterSemantics = 'flutter-semantics';
 const String kCoordinateSpaceScreen = 'screen';
 const String kCoordinateSpaceView = 'view';
 
+/// 自家 app 的包名 —— **回落**分支里「这是谁的屏」的答案。
+///
+/// ⚠️ 为什么这里可以**写死**：回落的前提**就是**「自家 app 在前台」
+/// ⇒ ⇒ 答案不是「读到的」，是**推出来的** ⇒ ⇒ 写死的是**事实**，
+/// 不是「某个环境下的值」。
+///
+/// ⚠️ 而它与 Gradle 的 applicationId 是**同一件事的两份**
+/// ⇒ ⇒ 闸在比对（`scripts/check-mobile-a11y-contract.mjs`）⇒ ⇒ 漂了就红。
+const String kOwnAppPackage = 'com.ibloc.shadow';
+
 /// **设备能力执行器** —— 五个能力工具的**执行那一半**。
 ///
 /// ## ⚠️ 为什么「工具定义」不在这个文件里
@@ -206,7 +216,9 @@ class CapabilityTools {
         // ⇒ ⇒ 它看到「日历」二字可能以为那是自家界面 ⇒ ⇒ 而「这棵树是谁的」
         // ⇒ ⇒ 树里**看不出来** ⇒ ⇒ 所以要单独给一个字段。
         // ⚠️ 取不到 ⇒ ⇒ **null**（不是空串）⇒ ⇒ 模型据此知道「不知道」。
-        'foregroundPackage': await AccessibilityController.foregroundPackage(),
+        // ⚠️ 这一格走**可注入**的无障碍层（`_a11y`）⇒ ⇒ 单测塞假的就能钉住
+        // ⇒ ⇒ 否则「模型怎么用『这是谁的屏』」只能真机验 ⇒ ⇒ CI 永远静悄悄绿。
+        'foregroundPackage': await _a11y.foregroundPackage(),
       };
     }
     // ⚠️⚠️ **回落：自家 app 的窗口** —— Android 不把宿主自己的窗口交给
@@ -249,6 +261,12 @@ class CapabilityTools {
       'source': kScreenSourceFlutterSemantics,
       // ⚠ 口径**跟着快照**走（整屏 or 本窗口）⇒ ⇒ 别写死。
       'coordinateSpace': own.coordinateSpace,
+      // ⚠⚠️ **「这是谁的屏」这一格不许缺** —— 两条分支的**形状**必须一样
+      // ⇒ ⇒ 模型不许靠「有没有这个键」去猜这是哪棵树。
+      // ⚠ 回落的前提**就是**「自家 app 在前台」⇒ ⇒ 答案已知 ⇒ ⇒ 不去问原生
+      // ⇒ ⇒ （原生在自家前台时**拿不到自家窗口**⇒ ⇒ 问了也只会得到 null
+      // ⇒ ⇒ ⇒ 那会让模型以为「不知道这是谁的屏」，而其实它就在自家 app 里）。
+      'foregroundPackage': kOwnAppPackage,
     };
   }
 

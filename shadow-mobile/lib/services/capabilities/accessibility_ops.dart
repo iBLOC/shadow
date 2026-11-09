@@ -55,6 +55,16 @@ abstract class AccessibilityOps {
   /// ⇒ ⇒ 而「拿不到原点 ⇒ 不换算」这条纪律**默认就成立**。
   Future<Map<String, double>?> viewGeometry() async => null;
 
+  /// **前台是谁**（当前焦点窗口所属的 app 包名）；null ＝ 读不到。
+  ///
+  /// ⚠️ 为什么它属于「读屏结果」的一部分：树里只有 `text` / `desc` / `bounds`
+  /// ⇒ ⇒ 模型看到「日历」二字可能以为那是自家界面
+  /// ⇒ ⇒ 而「这棵树是谁的」树里**看不出来** ⇒ ⇒ 必须单独给一个字段。
+  ///
+  /// ⚠️ **默认实现回 null** ⇒ ⇒ 单测里的假实现**不用改**
+  /// ⇒ ⇒ 而「读不到」这个形状**默认就成立**（null ≠ 空串）。
+  Future<String?> foregroundPackage() async => null;
+
   /// 点一下屏幕。
   Future<bool> tap(double x, double y);
 
@@ -102,6 +112,10 @@ class PlatformAccessibilityOps extends AccessibilityOps {
   @override
   Future<Map<String, double>?> viewGeometry() =>
       AccessibilityController.viewGeometry();
+
+  @override
+  Future<String?> foregroundPackage() =>
+      AccessibilityController.foregroundPackage();
 
   @override
   Future<bool> tap(double x, double y) => AccessibilityController.tap(x, y);

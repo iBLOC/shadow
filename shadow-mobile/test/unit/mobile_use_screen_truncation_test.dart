@@ -9,10 +9,24 @@ import 'package:shadow_mobile/services/capabilities/capability_tools.dart';
 /// 单测塞假的」⇒ ⇒ 这条路的正路径（真机读屏）钉不住，
 /// 但「读回来的**文本**怎么处理」是可以钉的 ⇒ ⇒ 那才是这组用例管的。
 class _FakeA11y extends AccessibilityOps {
-  _FakeA11y({required this.enabled, required this.screen});
+  _FakeA11y({
+    required this.enabled,
+    required this.screen,
+    this.fakeForegroundPackage,
+  });
 
   final bool enabled;
   final String? screen;
+
+  /// 「前台是谁」—— 假的那一份 ⇒ ⇒ 单测钉得住。
+  ///
+  /// ⚠️ 抽象层给了**默认实现**（回 null）⇒ ⇒ 假实现**可以不改**
+  /// ⇒ ⇒ 而这里**故意改**：要证明工具层真的走**可注入**的这一层
+  /// ⇒ ⇒ （若它直连静态控制器 ⇒ ⇒ 单测就测不到 ⇒ ⇒ 只能真机验）。
+  final String? fakeForegroundPackage;
+
+  @override
+  Future<String?> foregroundPackage() async => fakeForegroundPackage;
 
   @override
   Future<bool> isEnabled() async => enabled;
@@ -85,5 +99,20 @@ void main() {
       read('whatever', enabled: false),
       throwsA(isA<StateError>()),
     );
+  });
+
+  test('原生那棵树 ⇒ 「前台是谁」取自**注入的无障碍层**（不是静态直连）', () async {
+    final tools = CapabilityTools(
+      accessibility: _FakeA11y(
+        enabled: true,
+        screen: '[android.widget.TextView]\n  text: 日历',
+        fakeForegroundPackage: 'com.android.calendar',
+      ),
+    );
+    final res = await tools.readScreen(<String, dynamic>{});
+    final map = res as Map<String, dynamic>;
+    // ⚠️ 这一格是**承重**的：若工具层直连静态控制器 ⇒ ⇒ 这里拿到的会是 null
+    // ⇒ ⇒ 「模型怎么用『这是谁的屏』」就只剩真机能验 ⇒ ⇒ CI 永远静悄悄绿。
+    expect(map['foregroundPackage'], 'com.android.calendar');
   });
 }
