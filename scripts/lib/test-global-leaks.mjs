@@ -265,17 +265,61 @@ function lineOfOffset(starts, offset) {
 }
 
 /**
+ * 找出**真正包住** `offset` 的那些 `if` 块的条件文本。
+ *
+ * ⚠️⚠️ **为什么必须结构化**（2026-11-09 实测踩到）：
+ *   上一版是「**往前 900 个字符**找最近的一个 `if (`」⇒ ⇒ **注释多写几行
+ *   就改判** ⇒ ⇒ 2026-11-09 我在 `tests/setup.ts` 里加了三行注释
+ *   ⇒ ⇒ 闸把一个**语义上完全有守卫**的兜底判成「无条件接管」⇒ ⇒ CI 红。
+ *   ⇒ ⇒ 那是**尺子在测别的东西**（测注释长度）⇒ ⇒ 判定必须看**结构**。
+ *
+ * 判法：逐个 `if (` 求它的条件与它的 `{`…`}` 块范围 ⇒ ⇒ 只认**块范围
+ * 包住** `offset` 的那些 if ⇒ ⇒ `else` 分支里的替换也算「被外层守卫包住」。
+ */
+function enclosingIfConditions(code, stringRanges, offset) {
+  const out = [];
+  const re = /\bif\s*\(/g;
+  let m;
+  while ((m = re.exec(code)) !== null) {
+    const open = code.indexOf('(', m.index);
+    if (open < 0) break;
+    let depth = 0;
+    let j = open;
+    for (; j < code.length; j += 1) {
+      if (inStringRange(j, stringRanges)) continue;
+      const ch = code[j];
+      if (ch === '(') depth += 1;
+      else if (ch === ')') { depth -= 1; if (depth === 0) break; }
+    }
+    if (j >= code.length) break;
+    const cond = code.slice(open + 1, j);
+    let k = j + 1;
+    while (k < code.length && /\s/.test(code[k])) k += 1;
+    if (code[k] !== '{') { re.lastIndex = m.index + 3; continue; }
+    let d = 0;
+    let e = k;
+    for (; e < code.length; e += 1) {
+      if (inStringRange(e, stringRanges)) continue;
+      const ch = code[e];
+      if (ch === '{') d += 1;
+      else if (ch === '}') { d -= 1; if (d === 0) break; }
+    }
+    if (k < offset && offset < e) out.push(cond);
+    re.lastIndex = m.index + 3;
+  }
+  return out;
+}
+
+/**
  * 这个替换是不是「**有守卫的兜底**」—— 即：它在「值本来就缺」时才补。
- * 判法：往前看最近的一个 `if (`，看它的条件里有没有
+ * 判法：**结构化**地看**包住它**的 `if` 块，条件里有没有
  * `typeof globalThis.<name>` 与 `undefined`。
  */
-function isGuardedFallback(code, offset, name) {
-  const back = code.slice(Math.max(0, offset - 900), offset);
-  const ifIdx = back.lastIndexOf('if (');
-  if (ifIdx < 0) return false;
-  const guard = back.slice(ifIdx);
+function isGuardedFallback(code, stringRanges, offset, name) {
+  const conds = enclosingIfConditions(code, stringRanges, offset);
+  if (!conds.length) return false;
   const re = new RegExp('typeof\\s+(?:globalThis|window)\\s*\\.\\s*' + name + '\\b');
-  return re.test(guard) && /undefined/.test(guard);
+  return conds.some((c) => re.test(c) && /undefined/.test(c));
 }
 
 /**
@@ -368,7 +412,7 @@ export function scanSource(text, relPath, opts) {
     if (!STATE_GLOBALS.includes(name)) continue;
     const line = rep.line;
     if (setup) {
-      if (!isGuardedFallback(code, rep.offset, name)) {
+      if (!isGuardedFallback(code, stringRanges, rep.offset, name)) {
         candidates.push({
           family: 'B', var: name, line,
           reason: 'setup 文件**无条件接管**状态载体 ' + name +

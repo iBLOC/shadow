@@ -136,6 +136,39 @@ function selfTest() {
     ].join('\n');
     return scanSource(src, 'tests/setup.ts').candidates.length === 0;
   });
+  add('族 B 孪生：守卫兜底 + 中间隔一大段注释 ⇒ ⇒ 仍不许抓（2026-11-09 实测踩到）', () => {
+    const src = [
+      "if (typeof globalThis.localStorage === 'undefined' || typeof globalThis.localStorage?.clear !== 'function') {",
+      '  // 这段注释故意写得很长很长很长很长很长很长很长很长很长很长很长很长很长',
+      '  // 用来证明闸的判定不看注释长度而看结构（上一版会在这里改判 ⇒ ⇒ CI 红）',
+      '  // 再补几行把守卫 if 往远处推：',
+      '  //   0123456789012345678901234567890123456789012345678901234567890123456789',
+      '  //   0123456789012345678901234567890123456789012345678901234567890123456789',
+      "  Object.defineProperty(globalThis, 'localStorage', { value: stub, writable: true, configurable: true });",
+      '}',
+    ].join('\n');
+    return scanSource(src, 'tests/setup.ts').candidates.length === 0;
+  });
+  add('族 B 孪生：守卫 if 包着 else 分支 ⇒ ⇒ else 里那条也算有守卫 ⇒ ⇒ 不许抓', () => {
+    const src = [
+      "if (typeof globalThis.localStorage === 'undefined' || typeof globalThis.localStorage?.clear !== 'function') {",
+      "  if (typeof window !== 'undefined' && typeof window.localStorage?.clear === 'function') {",
+      "    Object.defineProperty(globalThis, 'localStorage', { value: window.localStorage, writable: true, configurable: true });",
+      '  } else {',
+      "    Object.defineProperty(globalThis, 'localStorage', { value: stub, writable: true, configurable: true });",
+      '  }',
+      '}',
+    ].join('\n');
+    return scanSource(src, 'tests/setup.ts').candidates.length === 0;
+  });
+  add('族 B 孪生：有 if 但条件与状态载体无关 ⇒ ⇒ 必须抓到（不许被结构化放过）', () => {
+    const src = [
+      'if (someOtherCondition) {',
+      "  Object.defineProperty(globalThis, 'localStorage', { value: stub, writable: true, configurable: true });",
+      '}',
+    ].join('\n');
+    return scanSource(src, 'tests/setup.ts').candidates.length === 1;
+  });
   add('族 B：setup 无条件接管 ⇒ ⇒ 必须抓到（它会覆盖真值）', () => {
     const src = "Object.defineProperty(globalThis, 'localStorage', { value: stub, writable: true, configurable: true });";
     return scanSource(src, 'tests/setup.ts').candidates.length === 1;
