@@ -1,3 +1,40 @@
+**Updated:** 2026-11-11 (㌛ **「读屏结果的**形状**必须两边一样 —— 回落分支少一个键，模型就分不清『值是空』与『没实现』」** —— 承 ㋘ 条（U+32D8 那笔声称改过的两处**从未进过任何提交**），本条记**取证**、**第一因**、**第二因**、**这一刀的落点**、**判据与分级读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真机级实测（odin ee6b4832 · MIUI 14）＋ 判据自检 ＋ 注入式反向验证 ＋ 提交面机械构造取证｜ 改动：lib/services/capabilities/accessibility_ops.dart、lib/services/capabilities/capability_tools.dart、lib/services/client_tools/client_tool_registry.dart、test/unit/mobile_use_screen_truncation_test.dart、test/unit/flutter_semantics_tree_test.dart、../../scripts/check-mobile-a11y-contract.mjs（＋本条账本）｜ 读数：见 ④ ｜ 提交：`6d18b4a` | status=active | supersedes=none
+
+① **⚠️ 取证：㋘ 条（U+32D8）声称改过的两处**从未进过任何提交** ⇒ ⇒ 「账本在说假话」** ——
+　❶ `git log --all -S 'ktBudget' -- scripts/check-mobile-a11y-contract.mjs` ⇒ ⇒ **零命中**；`git log --all -S 'android-a11y for another app'` ⇒ ⇒ **零命中** ⇒ ⇒ 那批判据（预算常数比对／截断标记复用／嵌套泛型修复）与那一句工具描述**只在工作树与暂存区**。
+　❷ ⇒ ⇒ 本条**一并补进提交树**（提交 `6d18b4a`）⇒ ⇒ 而不是把账本改软。
+
+② **⚠️ 第一因：读屏结果的**形状**没有契约** —— 同一个 `mobile_read_screen`，两条分支给出两种形状：
+　❶ 原生那棵树 ⇒ ⇒ 结果 map **有** `'foregroundPackage'`；
+　❷ Flutter 语义树那棵（回落分支）⇒ ⇒ **没有这个键** ⇒ ⇒ 模型分不清「值是空」与「这一格没实现」。
+　❸ ⇒ ⇒ 修法：回落分支补键（＝自家包名，因为回落的前提**就是**自家 app 在前台 ⇒ ⇒ 答案**已知**）⇒ ⇒ **两条分支形状一样**。
+
+③ **⚠️ 第二因：工具层绕过了可注入抽象 ⇒ ⇒ 这一格只有真机能验** ——
+　❶ 原生分支直连静态 `AccessibilityController.foregroundPackage()` ⇒ ⇒ 单测塞假的 `AccessibilityOps` **测不到**。
+　❷ ⇒ ⇒ 修法：`AccessibilityOps` 加 `foregroundPackage()`（**默认回 null** ⇒ ⇒ 假实现不用改）＋ `PlatformAccessibilityOps` 委派静态控制器 ⇒ ⇒ 工具层改走 `_a11y`。
+　❸ ⇒ ⇒ 工具描述（`client_tool_registry.dart`）补「这是谁的屏」＋「null ＝ 读不到」的口径 ⇒ ⇒ 模型看得见。
+
+④ **✅ 判据与分级读数**
+　❶ **判据自检级**：契约闸自检 **10/10** ＋ 主检查 **EXIT=0**（逐字：方法 Dart 14 / Kotlin 14；截断标记对齐；预算 20 / 2000 / 20000；**自家包名两份一致**）。
+　❷ **静态级**：`flutter analyze` **零 issue**；读屏族两条单测 **19/19**。
+　❸ **反向验证级**：注入「改回静态直连」⇒ ⇒ **恰 1 红**（`Actual: <null>`）；注入「删掉回落分支的键」⇒ ⇒ **恰 1 红**。
+　❹ **提交面级**：`6d18b4a`（6 文件 / +319 −5）⇒ ⇒ registry **只动那一行**（＋1 −1）⇒ ⇒ 别人在飞的 `required_permissions` **一字未动**。
+　❺ **真机级**：// 真机读数（填进台账的 ⑧❺ 那一行）
+**真机级（odin `ee6b4832` · MIUI 14 / Android 13）**：读屏族 **12/12 全绿**，逐字 `--- VERDICT --- PASS failures=[]` ＋ `All tests passed.` ＋ **退出码 0**；长按腿逐字 `--- LONG PRESS TRY --- label=3° at 169.5,741.5 pkgBefore=com.miui.home pkgAfter=com.miui.home`（前台没换人 ⇒ ⇒ 没被当成点按）；截断那条逐字 `--- TOOL LAYER --- truncated=false marker=false len=2770`；MD5 对账一致 `13105b2ad55c5c2e9dea30bcf3ddc21e`；设备态已还原（无障碍 `null`/`0`、旋转 `1`/`0`）。
+⚠️ **这一轮 APK 是从**工作树**构建的** ⇒ ⇒ 里面**含**能力授权那条线在飞的未提交改动 ⇒ ⇒ 所以真机读数是**工作树面**的读数，不是纯 `6d18b4a` 那一棵树上的读数。
+
+⑤ **⚠️ 仍然欠着的**
+　❶ 「模型会不会**真的用**这一格」还没验 ⇒ ⇒ 那要**模型行为级**的读数。
+　❷ 真机腿仍**只在 odin 一台机型**上跑过（MIUI 14）⇒ ⇒ LX04 与 MI_MAX_2 **都得用户动手**。
+　❸ `integration_test/` 仍不在 CI 里跑 ⇒ ⇒ 那 26 处守卫在 CI 里永远静悄悄绿。
+　❹ 截断的 **20000 字符预算**本身没被重新论证过。
+
+⑥ **⚠️ 圈码：本条占 U+331B（㌛）** —— 插前**当场重扫**（三本账本 × **三个面**，官方判据 `extractEntries`，声明与提及分开）⇒ ⇒ 移动端三面**齐平**（各 57 条 / 56 个声明，最高已声明 **U+32FD**）⇒ ⇒ ⚠️ **但只看移动端这一本会取错号** —— 全量扫（三本 × 三面）显示 **U+32FE…U+331A 都已被父仓那条线占着** ⇒ ⇒ **U+331B 声明 0 次、提及 0 次** ✔ ⇒ ⇒ 按惯例**再留一枚缓冲（U+331C）** ⇒ ⇒ ⚠️ 本条**只引用已提交的码位**（U+32D8）⇒ ⇒ **插完立刻复跑码位闸**是硬约束。
+
+　⚠️ **途中的一次自我打脸（值得记）**：第一版本条取 **U+32FF**，插入后码位闸当场判红 ⇒ ⇒ 逐字：「❌ [dup-codepoint] 码位 U+32FF 被 2 条占用：父仓L5420, 移动端L1」⇒ ⇒ **移动端这一本**的 U+32FE–U+32FF 是空的，**父仓**早占了 ⇒ ⇒ 而我第一版**只扫了移动端那一本** ⇒ ⇒ ⇒ **通用形态：圈码要扫「所有账本的所有面」，不是「我这一本」** ⇒ ⇒ 另一处同款：**手打字形**也写错过一次（把 U+34B0 写成了 U+3370 的字形 ⇒ ⇒ 闸逐字报「注解写 U+34B0，而标题里的「㍰」真实码位是 U+3370」）⇒ ⇒ **字形要按码位算，不要手打**。
+
 **Updated:** 2026-11-09 (㊭ **「CI 那条红不是『上游资产被换』—— 是 GitHub 的 504 页被当成了资产；这一刀让 Linux 干脆不去下载」** —— 承 ㊮ 条（滑动正路径），本条记**取证（坏哈希的真身）**、**这一刀的落点**、**判据与反向验证**、**分级读数**，以及**仍然欠着的**。)
 
 > 信封：epoch=2026-11-09 | authority=measured | scope=project | source=真机实测（本地按字节复算 ＋ 上游 issue 核对 ＋ 本地全量 flutter test ＋ CI 复跑）｜ 改动：`shadow-mobile/pubspec.yaml`（`hooks.user_defines.sqlite3.source` **按 OS 分岔** ＋ sqlite3 提为显式 dev 依赖 ^3.9.1）、`shadow-mobile/pubspec.lock`（sqlite3 3.5.2→3.9.1／hooks 2.0.2→2.2.0／record_use 0.6.0→1.1.1）、**新增** `shadow-mobile/test/unit/sqlite_asset_source_contract_test.dart`（4 条）；**零产品逻辑改动** | status=active | supersedes=none

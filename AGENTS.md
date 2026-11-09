@@ -1,3 +1,67 @@
+**Updated**: 2026-11-11 (㒰 **「模型看得见『这是谁的屏』吗 —— 字段有了、两条分支的形状却两样、尺子还测不到」** —— 承 U+34AB 条（「在别人的 app 里长按是否被认成长按」，其 ⑧④ 点名「模型侧还没人用上 `foregroundPackage`」），本条记**取证（三处产品缺口 ＋ 一处账本失配）**、**第一因（读屏结果的形状没有契约）**、**第二因（工具层绕过了可注入抽象）**、**第三因（工具描述里没有这个字段）**、**第四因（账本声称 ≠ 提交树事实）**、**这一刀的落点**、**途中那几课**、**判据与分级读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真机级实测（odin ee6b4832 · MIUI 14 / Android 13）＋ 判据自检 ＋ **注入式反向验证** ＋ 提交面机械构造取证｜ 改动：shadow-mobile/lib/services/capabilities/accessibility_ops.dart（新增 `foregroundPackage()` 抽象）、shadow-mobile/lib/services/capabilities/capability_tools.dart（原生分支改走 `_a11y` ＋ 回落分支补键 ＋ 新增 `kOwnAppPackage`）、shadow-mobile/lib/services/client_tools/client_tool_registry.dart（工具描述写明口径）、shadow-mobile/test/unit/mobile_use_screen_truncation_test.dart（＋1 条）、shadow-mobile/test/unit/flutter_semantics_tree_test.dart（＋1 条断言）、scripts/check-mobile-a11y-contract.mjs（自家包名两份拷贝比对 ＋ 自检样本 ＋1 ＋ 自检印可数读数）、AGENTS.md（父仓本条）、shadow-mobile/AGENTS.md（移动端本条）｜ 读数：见 ⑧ ｜ 提交：`6d18b4a` | status=active | supersedes=none
+
+① **⚠️ 取证：这一格是上一格自己点名欠下的** —— U+34AB 条 ⑧④ 写得很清楚：「`foregroundPackage` 这个字段目前只有长按那条用例在用 ⇒ ⇒ **模型侧还没人用上它** ⇒ ⇒ 「模型怎么用『这是谁的屏』」这一格**还没验**」⇒ ⇒ 本条就去做这一格 ⇒ ⇒ 而**动手前先量**，量出**三处缺口 ＋ 一处账本失配**。
+
+② **⚠️ 第一因：读屏结果的「形状」没有契约** —— 同一个工具 `mobile_read_screen`，**两条分支**给出**两种形状**：
+　❶ 原生那棵树（`source=android-a11y`）⇒ ⇒ 结果 map 里**有** `'foregroundPackage'`（约 209 行）；
+　❷ Flutter 语义树那棵（`source=flutter-semantics`，回落分支，约 245–252 行）⇒ ⇒ **没有这个键**。
+　❸ ⇒ ⇒ **通用形态**：模型看到「键在」与「键不在」，**分不清**那是「值是空」还是「这一格根本没实现」⇒ ⇒ 而它恰恰要靠这一格分辨「这是别家 app 的屏」与「这是自家 app 的屏」⇒ ⇒ 于是「模型分不清是谁变了」这一族又回来了。
+　❹ ⇒ ⇒ 修法：**两条分支的形状必须一样** ⇒ ⇒ 回落分支补上 `'foregroundPackage'`（＝自家包名）—— 因为回落的前提**就是**自家 app 在前台 ⇒ ⇒ 答案**已知**（不去问原生：原生在自家前台时**拿不到自家窗口**⇒ ⇒ 问了也只会得到 null ⇒ ⇒ 那会让模型以为「不知道这是谁的屏」，而其实它就在自家 app 里）。
+
+③ **⚠️ 第二因：工具层绕过了可注入抽象 ⇒ ⇒ 这一格只有真机能验** ——
+　❶ 原生分支那一行**直连静态** `AccessibilityController.foregroundPackage()` ⇒ ⇒ **不走** `CapabilityTools` 里那个**可注入**的 `AccessibilityOps`（`_a11y`）⇒ ⇒ 单测塞假的 ops **测不到**这一格。
+　❷ ⇒ ⇒ 与「尺子要对着被测物」同族：**只有真机能验的那一格** ⇒ ⇒ CI 里永远静悄悄绿 ⇒ ⇒ 而它偏偏是「模型怎么用」这一格。
+　❸ ⇒ ⇒ 修法：把 `foregroundPackage()` 纳入 `AccessibilityOps` 抽象（**默认实现回 null** ⇒ ⇒ 假实现**不用改**，沿用仓里既有的好模式）＋ `PlatformAccessibilityOps` 委派静态控制器 ⇒ ⇒ 工具层改走 `_a11y.foregroundPackage()`。
+
+④ **⚠️ 第三因：工具描述里没有这个字段 ⇒ ⇒ 模型根本不知道它存在** ——
+　❶ `client_tool_registry.dart` 里 `mobile_read_screen` 的描述**只说「读屏」** ⇒ ⇒ 没有 `foregroundPackage` ⇒ ⇒ 模型不知道有这个字段，也不知道 **null 是什么意思**（是「读不到」还是「前台是空」）。
+　❷ ⇒ ⇒ 修法：把口径**写进描述**（模型看得见的那一份）⇒ ⇒ 「这是谁的屏」＋「null ＝ 读不到，不是没有前台」。
+
+⑤ **⚠️ 第四因：账本声称的改动**从未进任何提交** ⇒ ⇒ 「账本在说假话」** ——
+　❶ 移动端账本 U+32D8 条声称改过 `scripts/check-mobile-a11y-contract.mjs`（＋169 行：预算常数比对／截断标记复用／嵌套泛型修复／3 条新自检）与 `client_tool_registry.dart`（工具描述补 source 口径）⇒ ⇒ `git log --all -S` 两处**均无命中** ⇒ ⇒ **那两处改动只在工作树与暂存区，从未进过提交树**。
+　❷ ⇒ ⇒ **通用形态**：账本条目若声称改了某文件，而该改动**不在提交树里** ⇒ ⇒ 读账本的人会以为它**已经生效** ⇒ ⇒ 事实却是「它还在工作树上漂着」⇒ ⇒ **这是「失败长得像成功」的一族**。
+　❸ ⇒ ⇒ 修法：**补进提交树**（本条一并补上）⇒ ⇒ 而不是把账本改软。
+
+⑥ **✅ 这一刀的落点（6 个产品/判据文件 ＋ 2 个账本）**
+　❶ **改** `shadow-mobile/lib/services/capabilities/accessibility_ops.dart`：抽象加 `Future<String?> foregroundPackage() async => null;`（默认回 null）＋ `PlatformAccessibilityOps` 覆盖成委派静态控制器（＋14 行）。
+　❷ **改** `shadow-mobile/lib/services/capabilities/capability_tools.dart`：原生分支改走 `_a11y.foregroundPackage()`；回落分支补 `'foregroundPackage': kOwnAppPackage`；新增常量 `kOwnAppPackage = 'com.ibloc.shadow'`（＋19 −1）。
+　❸ **改** `shadow-mobile/lib/services/client_tools/client_tool_registry.dart`：`mobile_read_screen` 的描述补「这是谁的屏」口径（＋1 −1，**只动那一行**）。
+　❹ **改** `shadow-mobile/test/unit/mobile_use_screen_truncation_test.dart`（＋30 −1）与 `shadow-mobile/test/unit/flutter_semantics_tree_test.dart`（＋5）：两条新断言。
+　❺ **改** `scripts/check-mobile-a11y-contract.mjs`（＋250 −2）：自家包名**两份拷贝**（Dart 常量 ↔ Gradle `applicationId`）比对 ＋ 自检样本 ＋1 条 ＋ 自检印**可数读数**（10/10）。
+　❻ ⚠️ **这一刀改了产品**（前三个文件）—— 因为「模型看不见这一格」是**产品真缺口**，不只是尺子缺判据。
+
+⑦ **⚠️ 途中那几课**
+　❶ **提交面的字节形态必须逐文件对齐各自 HEAD 的 blob** —— 本轮实测：六个文件的 HEAD blob **全是纯 LF**（811 / 135 / 89 / 362 / 569 行），而工作树里有两个是 CRLF ⇒ ⇒ **工作树形态 ≠ 提交形态** ⇒ ⇒ 「量工作树」会得出相反结论 ⇒ ⇒ 提交面必须**从 blob 构造**。
+　❷ **争用文件要造两份** —— `client_tool_registry.dart` 的暂存区里**混着**能力授权那条线在飞的 `required_permissions`（＋112 −2）⇒ ⇒ 提交面＝**HEAD ＋ 我那一段**（不吞别人的活）＋ 共享索引＝**别人的在飞内容 ＋ 我那一段**（不让下一笔从共享索引提交时把我的句子静悄悄退回）⇒ ⇒ 两份都要造。
+　❸ **反向验证要承重** —— 注入「把工具层改回静态直连」⇒ ⇒ **恰 1 红**（逐字 `Expected: 'com.android.calendar' / Actual: <null>`）；注入「删掉回落分支那个键」⇒ ⇒ **恰 1 红** ⇒ ⇒ 两条新断言**真的咬得住**（绿过的用例不等于承重）。
+　❹ **自家包名是「同一件事的两份」** —— Dart 常量 ↔ Gradle `applicationId` ⇒ ⇒ 又是拷贝 ⇒ ⇒ 闸比对（新增判据 ＋ 自检样本）⇒ ⇒ 漂了就红。
+　❺ ⚠️ **台账取号建议会过期** —— 上一轮记的「下一枚可取 ＝ U+34AC」已过期（并行会话推到了 U+34AE）⇒ ⇒ 本条**当场重扫**三本账本 × 三个面（官方判据 `scripts/lib/ledger-codepoints.mjs` 的 `extractEntries`）⇒ ⇒ 父仓最高已声明 U+34AE、**U+34AF 已有 1 次提及**（上一条留的缓冲）⇒ ⇒ 本条取 **U+34B0**。
+　❻ ⚠️ **推送被代理拒** —— 用户全局 `~/.gitconfig` 把 github.com 的代理指向 **7897**（那个口**是死的**）⇒ ⇒ `git push` 报 `Failed to connect to github.com:443 over proxy 127.0.0.1` ⇒ ⇒ 活的是 **7900** ⇒ ⇒ 用 `git -c http.https://github.com.proxy=http://127.0.0.1:7900` **临时覆盖**（**不动用户的全局配置**）⇒ ⇒ 推成功。
+
+⑧ **✅ 判据与分级读数**
+　❶ **判据自检级**：契约闸自检 **10/10**（新增那条「自家包名漂了」被抓到）＋ 主检查 **EXIT=0**（逐字：通道名一致；方法 Dart 14 / Kotlin 14；截断标记对齐；预算 深度 20 / 节点 2000 / 字符 20000；**自家包名 Dart com.ibloc.shadow / Gradle com.ibloc.shadow（两份必须一致）**）。
+　❷ **静态级**：`flutter analyze`（4 个文件）**零 issue**；读屏族两条单测 **19/19**。
+　❸ **反向验证级**：两条注入各得**恰 1 红**（逐字 `Actual: <null>`）⇒ ⇒ 还原后 19/19 依旧。
+　❹ **提交面级**：提交 `6d18b4a`（6 文件 / **+319 −5**）⇒ ⇒ 逐字核 `git show --numstat`：registry **只动那一行**（＋1 −1）⇒ ⇒ 别人的在飞内容**一字未动**（共享索引里 `required_permissions` 仍在 ＋ 我那一句也在）。
+　❺ **真机级**：// 真机读数（填进台账的 ⑧❺ 那一行）
+**真机级（odin `ee6b4832` · MIUI 14 / Android 13）**：读屏族 **12/12 全绿**，逐字 `--- VERDICT --- PASS failures=[]` ＋ `All tests passed.` ＋ **退出码 0**；长按腿逐字 `--- LONG PRESS TRY --- label=3° at 169.5,741.5 pkgBefore=com.miui.home pkgAfter=com.miui.home`（前台没换人 ⇒ ⇒ 没被当成点按）；截断那条逐字 `--- TOOL LAYER --- truncated=false marker=false len=2770`；MD5 对账一致 `13105b2ad55c5c2e9dea30bcf3ddc21e`；设备态已还原（无障碍 `null`/`0`、旋转 `1`/`0`）。
+⚠️ **这一轮 APK 是从**工作树**构建的** ⇒ ⇒ 里面**含**能力授权那条线在飞的未提交改动 ⇒ ⇒ 所以真机读数是**工作树面**的读数，不是纯 `6d18b4a` 那一棵树上的读数。
+　❻ **真 CI 级**：// 真 CI 读数（先占位，CI 出来后重写本文件再插）
+**待取** —— 本条这一笔（`6d18b4a`）推送后取 ⇒ ⇒ **只认 run 的 headSha**（被后续推送取消的那轮不算红也不算绿）。
+
+⑨ **⚠️ 仍然欠着的**
+　❶ 「模型怎么用『这是谁的屏』」这一格本条验的是**形状与口径** ⇒ ⇒ **模型拿到这一格之后会不会真的用**（比如据此决定点不点）**还没验** ⇒ ⇒ 那要一条**模型行为级**的读数（真机 ＋ 真模型）。
+　❷ 读屏族与长按腿仍**只在 odin 一台机型**上跑过（MIUI 14）⇒ ⇒ LX04（`/data` 只剩 108 MB）与 MI_MAX_2（必须插 SIM）未跑 ⇒ ⇒ **都得用户动手**。
+　❸ `integration_test/` **仍不在 CI 里跑** ⇒ ⇒ 那 26 处守卫在 CI 里永远静悄悄绿 ⇒ ⇒ 真机读数只能单独取。
+　❹ 截断的 **20000 字符预算**本身没被重新论证过。
+　❺ 长按靶子仍只靠「桌面图标」⇒ ⇒ 某些机型/桌面根本没有长按菜单 ⇒ ⇒ 那时那条**判不了**（不是红）⇒ ⇒ 欠一个「别的靶子」的交叉验证。
+
+⑩ **⚠️ 圈码：本条占 U+34B0（㒰）**
+　❶ 插前**独立重扫**（三本账本 × **三个面**＝工作树 ∪ 索引 ∪ HEAD，用官方判据 `extractEntries`，**声明与提及分开**、码位按**十六进制**计）⇒ ⇒ 父仓三面**齐平**（各 338 条 / 333 个声明，最高 **U+34AE**）⇒ ⇒ **U+34AF 声明 0 次但提及 1 次**（上一条留的缓冲）⇒ ⇒ **U+34B0 声明 0 次、提及 0 次** ✔ ⇒ ⇒ 按惯例**再留一枚缓冲（U+34B1）**。
+　❷ ⇒ ⇒ 本条**只引用已提交的码位**（U+34AB / U+34AE）⇒ ⇒ ⚠️ **插完立刻复跑码位闸**是硬约束。
+
 **Updated**: 2026-11-11 (㒮 **「Node 崩掉的退出码是 1 —— 跟「闸判红」**一模一样**」** —— 承 U+34AA 条（57 道闸里只有 41 道接进 CI）＋ U+34A6 条（「读不到」必须自己写成「判不了」），本条记**取证（债表逐条量）**、**第一因（退出码空间只有 0/1）**、**第二因（崩掉的退出码是 1 ⇒ ⇒ 跟判红分不开）**、**这一刀的落点**、**途中那几课**、**判据**、**分级读数**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真跑级实测（治理闸 --audit 清单 ＋ 三道闸逐道本机跑 ＋ **注入式反向验证**（缺兄弟仓 / 没编 .so / Java 替身少入口 / 守卫崩了 / 守卫文件不在）＋ 真 CI 读数）｜ 改动：shadow 仓 **改** scripts/check-cross-client.mjs（判不了聚合 ＋ 真自检 6/6）＋ **改** scripts/check-jni-surface.mjs（判不了 ＋ 真自检 4/4 ＋ --root/--sibling 覆盖）＋ **改** scripts/check-brain-chain.mjs（判不了 ＋ 排除缺输入导致的发现 ＋ 读数 11/11）＋ **改** scripts/lib/gate-discipline-registry.mjs（8 条债销账）＋ **改** .github/workflows/unwired-gates.yml（接上 cross-client）＋ **改** .github/workflows/ci.yml（两步改走 run-gate-once）｜ 读数：**闸总数 57 ｜ 已接进 CI 41 → 57（全部）**、**存量债 18 → 10 条**、自检 **6/6 ＋ 4/4 ＋ 11/11**、真 CI「Unwired Gates」run **42708127204** ＝ success（15 道闸逐步全绿，含新接的 cross-client）、真 CI 主 CI 的 **Desktop Build ＝ success**（JNI surface check / Brain chain check 两步走 run-gate-once ⇒ 退出码 2 显眼但不阻断）｜ 真 CI 主 CI 整体 **failure**（10 个 job 里**只有 Mobile Test 红** ⇒ ⇒ 是并行会话在飞的 capability_grants_test.dart ⇒ ⇒ **不是本刀**） | 提交：`4a2a1b0`（6 文件 / 0 产品代码） | status=active | supersedes=none
