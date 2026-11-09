@@ -201,8 +201,16 @@ jobs:
           #   ⇒ 宁可**不点名**（跑整族）⇒ ⇒ 闸那一格也据此改（零过滤参数 = 整族）。
           #   ⇒ ⇒ ⚠️ 本机实测读数：**95 passed / 0 failed / 7 skipped**（24.4 秒）
           #   ⇒ ⇒ 7 条跳过是**诚实跳过**（逐条白名单在下面判）。
+          # ⚠️⚠️ **双 reporter**（2026-11-11 本机实测）—— `github` 给 CI 摘要，
+          #   `list` 给**逐条**清单 ⇒ ⇒ 因为 **github reporter 不给 skipped 单独标记**
+          #   （实测：它只印 `[1/3] [chromium] › …`，**没有 `-` 前缀**）⇒ ⇒
+          #   ⇒ ⇒ 只靠 github 那份**没法逐条点名跳过的是哪几条**⇒ ⇒
+          #   ⇒ ⇒ 而「跳过也要逐条点名」是本刀的核心纪律 ⇒ ⇒ 于是**两个 reporter 一起上**。
+          #   ⇒ ⇒ ⚠️ **版式会随 Playwright 版本变** ⇒ ⇒ 下面判的是**语义**
+          #   ⇒ ⇒ （有「N skipped」这个事实 ＋ 每条跳过的**文件名**在不在白名单里）
+          #   ⇒ ⇒ 不是钉某个具体字符串。
           xvfb-run --auto-servernum --server-args="-screen 0 1280x720x24" \
-            pnpm exec playwright test --reporter=github > "$OUT" 2>&1
+            pnpm exec playwright test --reporter=github,list > "$OUT" 2>&1
           PSTATUS=$?
           cat "$OUT"
           if [ "$PSTATUS" != "0" ]; then
@@ -233,7 +241,14 @@ jobs:
             "video-sources.spec.ts"               # ❷ 产品面已从设置页移除
             "visual-qa-clarification.spec.ts"     # ❷ 产品面从未实现
           )
-          SKIPPED_LINES=$(printf '%s' "$CLEAN" | grep -E '^[\s-]*-[\s-]+[0-9]+ \[chromium\]' || true)
+          # ⚠️⚠️ **逐条跳过清单来自 `list` reporter 的 `-` 前缀行**
+          #   （2026-11-11 本机实测：`github` reporter **不给 skipped 单独标记** ——
+          #   ⇒ ⇒ 它只印 `[1/3] [chromium] › …` ⇒ ⇒ **分不出哪些是跳过的**⇒ ⇒
+          #   ⇒ ⇒ 上面才让**两个 reporter 一起上**：`list` 那份带 `-` 前缀的
+          #   ⇒ ⇒ 就是**「这���条被跳过了」**的逐条证据 ⇒ ⇒ 白名单就核它）。
+          #   ⇒ ⇒ ⚠️ **判的是语义不是版式** —— 认「行里有 chromium 且有
+          #   ⇒ ⇒ `.spec.ts:行:列` 且**行首是 `-`**」⇒ ⇒ 版式变了也还认得。
+          SKIPPED_LINES=$(printf '%s' "$CLEAN" | grep -E '^[[:space:]]*-[[:space:]]+[0-9]+[[:space:]]+\[chromium\].*\.spec\.ts:[0-9]+:[0-9]+' || true)
           SKIPPED_TOTAL=$(printf '%s' "$SKIPPED_LINES" | grep -c '\[chromium\]' || true)
           if [ "$SKIPPED_TOTAL" -gt 0 ]; then
             echo "::notice::逐条跳过读数（$SKIPPED_TOTAL 条）—— 逐条对白名单："
