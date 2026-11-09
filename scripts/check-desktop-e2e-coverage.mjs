@@ -146,15 +146,19 @@ function readRunTexts() {
  * @returns {{covered: string[] | null, unavailable: boolean, reason: string}}
  */
 function probePlaywrightList(stems) {
-  if (!fs.existsSync(path.join(DESKTOP, 'node_modules', '@playwright', 'test'))) {
+  // ⚠️ **直调 `@playwright/test/cli.js`**（**不经 shell**）⇒ ⇒ 跨平台、
+  //   参数不被 shell 吃掉（`shell: true` 会把带引号的参数处理掉 ⇒ ⇒ 真 CI 上
+  //   探针会读错）。⚠️ `playwright` 顶层包在 pnpm 下**不一定**装在
+  //   `node_modules/` 根（只在 `.pnpm/` 里）⇒ ⇒ 认准 `@playwright/test`。
+  const cli = path.join(DESKTOP, 'node_modules', '@playwright', 'test', 'cli.js');
+  if (!fs.existsSync(cli)) {
     return { covered: null, unavailable: true, reason: '桌面端没装 @playwright/test ⇒ ⇒ 判不了' };
   }
-  const args = ['playwright', 'test', '--list', '--reporter=list'].concat(stems);
-  const res = spawnSync('npx.cmd', args, {
+  const args = [cli, 'test', '--list', '--reporter=list'].concat(stems);
+  const res = spawnSync(process.execPath, args, {
     cwd: DESKTOP,
     encoding: 'utf8',
     timeout: 120000,
-    shell: true,
   });
   const output = String(res.stdout || '') + String(res.stderr || '');
   const covered = new Set();

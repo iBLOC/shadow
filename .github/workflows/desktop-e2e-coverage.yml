@@ -29,6 +29,21 @@ jobs:
     steps:
       - name: Checkout shadow
         uses: actions/checkout@v7
+        with:
+          # ⚠️ **必须带 `path: shadow`** —— 否则仓落在 runner 工作目录的**根**
+          #   ⇒ ⇒ 下面的 `working-directory: shadow/shadow-desktop` 会指向
+          #   `/home/runner/work/shadow/shadow/shadow/shadow-desktop`（多一层）
+          #   ⇒ ⇒ **CI 立刻红**：
+          #   「An error occurred trying to start process '/usr/bin/bash'
+          #     with working directory '.../shadow/shadow/shadow/shadow-desktop'」
+          #   ⇒ ⇒ 这是本轮**真 CI 读数**抓到的（不是猜的）。
+          #   ⚠️ 兄弟 workflow（e2e-typecheck.yml / desktop-e2e.yml）都带它。
+          path: shadow
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10.31.0
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
