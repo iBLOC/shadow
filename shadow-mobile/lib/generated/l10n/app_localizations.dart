@@ -2107,6 +2107,29 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Could not read the provider catalog from the brain - it may not be running.'**
   String get encephalonModelOptionsUnavailable;
+  /// No description provided for @capabilityDefaultsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Default model per capability'**
+  String get capabilityDefaultsTitle;
+
+  /// No description provided for @capabilityDefaultsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Text / speech recognition / speech synthesis each get their own default model; leave a tier unset and the brain picks one.'**
+  String get capabilityDefaultsHint;
+
+  /// No description provided for @capabilityDefaultUnset.
+  ///
+  /// In en, this message translates to:
+  /// **'Not set'**
+  String get capabilityDefaultUnset;
+
+  /// No description provided for @capabilityDefaultsEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'This brain exposes no capability tiers.'**
+  String get capabilityDefaultsEmpty;
 
   /// No description provided for @encephalonLobeRoutingTitle.
   ///

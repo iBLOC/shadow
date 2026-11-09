@@ -1083,6 +1083,18 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get encephalonModelOptionsUnavailable => '读不到大脑的供应商目录 —— 大脑可能没在跑。';
+  @override
+  String get capabilityDefaultsTitle => '按能力分档的默认模型';
+
+  @override
+  String get capabilityDefaultsHint =>
+      '文本 / 语音识别 / 语音合成 各自一个默认模型；不指定就由端脑自己挑。';
+
+  @override
+  String get capabilityDefaultUnset => '不指定';
+
+  @override
+  String get capabilityDefaultsEmpty => '这台大脑没有暴露任何能力档位。';
 
   @override
   String get encephalonLobeRoutingTitle => '叶区模型路由';

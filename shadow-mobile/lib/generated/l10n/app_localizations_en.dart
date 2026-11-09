@@ -1099,6 +1099,18 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get encephalonModelOptionsUnavailable =>
       'Could not read the provider catalog from the brain - it may not be running.';
+  @override
+  String get capabilityDefaultsTitle => 'Default model per capability';
+
+  @override
+  String get capabilityDefaultsHint =>
+      'Text / speech recognition / speech synthesis each get their own default model; leave a tier unset and the brain picks one.';
+
+  @override
+  String get capabilityDefaultUnset => 'Not set';
+
+  @override
+  String get capabilityDefaultsEmpty => 'This brain exposes no capability tiers.';
 
   @override
   String get encephalonLobeRoutingTitle => 'Lobe model routing';

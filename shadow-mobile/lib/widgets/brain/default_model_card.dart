@@ -5,6 +5,7 @@ import '../../generated/l10n/app_localizations.dart';
 import '../../providers/brain_model_source_provider.dart';
 import '../../services/encephalon/encephalon_mobile_provider.dart';
 import '../glass_card.dart';
+import 'capability_default_section.dart';
 
 /// 「默认模型」卡 —— **全局默认**的大脑模型来源选择。
 ///
@@ -69,6 +70,10 @@ class DefaultModelCard extends ConsumerWidget {
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ),
+          // ⚠️ **「来源」之上还有一层「分档默认」** —— 「走本地还是走云端」
+          // 说的是**哪一边**，而「文本 / 语音识别 / 语音合成 各用哪个模型」
+          // 说的是**哪一个** ⇒ ⇒ 两件事，两个界面。
+          const CapabilityDefaultSection(),
         ],
       ),
     );

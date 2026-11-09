@@ -669,3 +669,123 @@ final brainModelSourceProvider =
     StateNotifierProvider<BrainModelSourceNotifier, BrainModelSourceState>((ref) {
   return BrainModelSourceNotifier(ref.watch(appSettingsRepositoryProvider));
 });
+
+/// 端脑给的**分档默认模型**视图 —— 能力词表 ＋ 当前默认值。
+///
+/// ⚠️ **词表来自端脑**（`GET /api/telencephalon/lobes/capability-defaults`
+/// 把合法能力词一起回来）⇒ ⇒ 客户端**不自己造词** ⇒ ⇒ 端脑加了新能力，
+/// 这里自动多一行。
+class CapabilityDefaultsView {
+  /// 合法能力词（llm / asr / tts …）。
+  final List<String> capabilities;
+
+  /// 当前的分档默认（能力词 → 上游模型 id）。
+  final Map<String, String> defaults;
+
+  const CapabilityDefaultsView({
+    this.capabilities = const [],
+    this.defaults = const {},
+  });
+
+  factory CapabilityDefaultsView.fromJson(Map<String, dynamic> json) {
+    final capabilities = <String>[];
+    final rawCaps = json['capabilities'];
+    if (rawCaps is List) {
+      for (final c in rawCaps) {
+        if (c is String && c.trim().isNotEmpty) capabilities.add(c.trim());
+      }
+    }
+    final defaults = <String, String>{};
+    final rawDefaults = json['defaults'];
+    if (rawDefaults is Map) {
+      rawDefaults.forEach((key, value) {
+        // ⚠️ 值只认**非空字符串** ⇒ ⇒ 坏数据不进来（空串 = 配了但没配）。
+        if (value is String && value.trim().isNotEmpty) {
+          defaults['$key'] = value.trim();
+        }
+      });
+    }
+    return CapabilityDefaultsView(
+      capabilities: capabilities,
+      defaults: defaults,
+    );
+  }
+}
+
+/// 某一档能力的**一条候选模型**。
+class CapabilityModelCandidate {
+  /// **上游模型 id** —— 端脑按 id 选引擎（`asr_registry.runtime_for(id)`）
+  /// ⇒ ⇒ 这里必须存**端脑认的那个 id**，不是显示名。
+  final String id;
+
+  /// 显示名（供应商名 · 模型名）—— 只给人看。
+  final String label;
+
+  const CapabilityModelCandidate({required this.id, required this.label});
+}
+
+/// 把大脑供应商目录里的模型**按能力分组**（纯函数 ⇒ 可单测）。
+///
+/// ⚠️ **候选来自目录里**模型的 `capability` 标注 ⇒ ⇒ 分组口径与
+/// 「这条模型是什么类型」是同一份数据 ⇒ ⇒ 界面不会出现「这一档的模型
+/// 其实是对话模型」这种自相矛盾。
+///
+/// ⚠️ **未知能力词 ⇒ 空列表**（不是「全塞进去」）—— 界面上一个看不懂的
+/// 词下面挂一堆模型，比没有这一行更糟。
+Map<String, List<CapabilityModelCandidate>> capabilityCandidatesByCapability(
+  List<RegisteredProvider> providers,
+) {
+  final out = <String, List<CapabilityModelCandidate>>{};
+  for (final p in providers) {
+    for (final m in p.models) {
+      final cap = (m.capability ?? '').trim().toLowerCase();
+      if (cap.isEmpty) continue;
+      final id = m.id.trim();
+      if (id.isEmpty) continue;
+      final list = out.putIfAbsent(cap, () => <CapabilityModelCandidate>[]);
+      // 同一条模型在目录里出现两次（多个供应商都提供它）⇒ ⇒ 只留一条。
+      if (list.any((c) => c.id == id)) continue;
+      list.add(CapabilityModelCandidate(id: id, label: '${p.name} · ${m.name}'));
+    }
+  }
+  return out;
+}
+
+/// 构造「要下发给端脑的那一份」分档默认。
+///
+/// ⚠️ 端脑那一面是**整份替换** ⇒ ⇒ 所以基线必须是「本地副本 ∪ 端脑当前值」
+/// ⇒ ⇒ 否则会把**另一边**已有的档位抹掉（用户在端脑那边设过 asr，App 这边
+/// 没记 ⇒ ⇒ 一次保存就把 asr 抹了）。
+///
+/// ⚠️ 改的那一档：空值 ⇒ ⇒ **删掉这一档**（不是「配成空串」—— 空串在端脑
+/// 那边会被 400 拒掉）。
+Map<String, String> mergeCapabilityDefaultsForPush({
+  required Map<String, String> local,
+  required Map<String, String> remote,
+  required String capability,
+  required String? model,
+}) {
+  final next = <String, String>{...local, ...remote};
+  final id = (model ?? '').trim();
+  if (id.isEmpty) {
+    next.remove(capability);
+  } else {
+    next[capability] = id;
+  }
+  return next;
+}
+
+/// 端脑的**分档默认模型**（词表 ＋ 当前值）—— 端脑是单一真源。
+final capabilityDefaultsProvider = FutureProvider<CapabilityDefaultsView>((ref) async {
+  final client = ref.watch(telencephalonClientProvider);
+  final raw = await client.getCapabilityDefaults();
+  return CapabilityDefaultsView.fromJson(raw);
+});
+
+/// 候选模型（按能力分组）—— 直读大脑供应商目录。
+final capabilityCandidatesProvider =
+    FutureProvider<Map<String, List<CapabilityModelCandidate>>>((ref) async {
+  final client = ref.watch(telencephalonClientProvider);
+  final providers = await client.listProviders();
+  return capabilityCandidatesByCapability(providers);
+});
