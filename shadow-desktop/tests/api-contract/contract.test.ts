@@ -6,7 +6,9 @@
  *
  *   - 2xx  → server recognised the request and replied with payload
  *   - 401  → admin-required endpoint called without admin token
- *   - 404  → path with `{id}` placeholder that won't resolve live
+ *   - 404  → **只对 path 里带 `{id}` 占位符的端点**放行（那种 live 解析不出
+ *            具体资源的路径）⇒ ⇒ **其余**端点回 404 ＝ 路由缺失／路径漂移 ⇒ ⇒ 红。
+ *            ⚠️ 2026-11-09 订正：旧实现把 404 **全局**放行 ⇒ ⇒ 端点漂移永远抓不到。
  *   - 405  → method-not-allowed (rare on probe endpoints)
  *
  * Anything else (5xx, unexpected 403) fails the test.
@@ -42,13 +44,27 @@ interface Manifest {
 
 const manifest = JSON.parse(readFileSync(endpointsManifest(), 'utf8')) as Manifest;
 
-function isAcceptableStatus(_method: string, status: number): boolean {
+/**
+ * ⚠️⚠️ **404 只有「路径里带 `{id}` 占位符」的端点才放行**（2026-11-09）。
+ *
+ * ⚠️ **为什么**：旧写法把 404 **全局**写进可接受集合 ⇒ ⇒ 于是「端脑缺了这个
+ * 路由」／「客户端的路径漂了」⇒ ⇒ 端脑回 404 ⇒ ⇒ **契约闸照样绿** ⇒ ⇒
+ * 「every endpoint … must respond」这个标题是**假的** ⇒ ⇒ 端点漂移永远不会被抓。
+ *
+ * ⇒ ⇒ 现在：**path 里带 `{` 的**（那类「live 解析不出具体资源」的）仍允许 404
+ * ⇒ ⇒ 而**其余**端点 404 ⇒ ⇒ **判红**（路由缺失／路径漂移）。
+ */
+function isAcceptableStatus(ep: EndpointRecord, status: number): boolean {
   if (status >= 200 && status < 300) return true;
   if (status === 400) return true; // bad request body — server is still
                                    // alive, it just rejected our synthetic
                                    // probe payload
   if (status === 401) return true;
-  if (status === 404) return true;
+  if (status === 404) {
+    // ⚠️ **只有**「路径里带 {id} 占位符」的端点才允许 404（live 解析不出
+    // 具体资源）⇒ ⇒ 其余端点 404 ＝ 端脑缺路由／客户端路径漂移 ⇒ ⇒ 判红。
+    return ep.path.includes('{');
+  }
   if (status === 405) return true;
   if (status === 422) return true;
   if (status === 504) return true; // server-side timeout — server is
@@ -127,8 +143,9 @@ describe('API contract: every endpoint in telencephalonClient must respond', () 
       }
       const resp = await fetchWithTimeout(url, init, 5_000);
       expect(
-        isAcceptableStatus(ep.method, resp.status),
-        `${ep.method} ${ep.probePath} (from ${ep.source}) returned ${resp.status}; expected 2xx/400/401/404/405/422/504`,
+        isAcceptableStatus(ep, resp.status),
+        `${ep.method} ${ep.probePath} (from ${ep.source}) returned ${resp.status}; ` +
+          `expected 2xx/400/401/404(仅限带 {id} 占位符的路径)/405/422/504`,
       ).toBe(true);
     }, 8_000);
   }

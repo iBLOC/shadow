@@ -32,6 +32,21 @@ export const API_BASE_URL =
  */
 export const ADMIN_TOKEN = process.env.SHADOW_TEST_ADMIN_TOKEN?.trim() || undefined;
 
+/**
+ * 端脑面的**影子锁**（读门钥匙）—— 同样只从环境变量来，没有就没有。
+ *
+ * ⚠️ **为什么需要它（2026-11-09 真机实测）**：这个套件原先**只递 admin token**
+ * ⇒ ⇒ 而端脑的**读门 = 影子锁 ∪ admin token**（门形真源：端脑
+ * `src/api/door_policy.txt`；判据实现 `security/api_key.rs::verify_read_credential`）
+ * ⇒ ⇒ 在「端脑配了影子锁、admin token 对不上」的形态上 ⇒ ⇒ 读面 **403**
+ * ⇒ ⇒ 而 `checkServerReachable` 把 403 判成「不可达」⇒ ⇒ **整份套件被 skip**
+ * ⇒ ⇒ ⇒ 「它有 50 个用例」是**假象** ⇒ ⇒ 它**从来没有过真跑读数**。
+ *
+ * ⚠️ 桌面端**产品代码**里的同一套规则在 `src/lib/readDoorHeaders.ts`
+ * ⇒ ⇒ 判据必须与它**对齐**（一条规则、两处实现是债；两处**说法**不同是更大的债）。
+ */
+export const SHADOW_KEY = process.env.SHADOW_TEST_SHADOW_KEY?.trim() || undefined;
+
 /** 有没有 admin token —— 没有 ⇒ admin 类的探测做不了。 */
 export const hasAdminToken = ADMIN_TOKEN !== undefined;
 
@@ -55,7 +70,12 @@ export async function checkServerReachable(
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 3_000);
   try {
-    const resp = await fetch(probe, { signal: controller.signal });
+    const resp = await fetch(probe, {
+      signal: controller.signal,
+      // ⚠️ 探针本身也要带读门钥匙 —— 否则门回 403 ⇒ ⇒ 被判成「不可达」
+      // ⇒ ⇒ 整份套件 skip ⇒ ⇒ 「没有真跑读数」这件事被伪装成「服务器没开」。
+      headers: authHeaders(false),
+    });
     const result: Reachability = {
       reachable: resp.ok || resp.status === 401 || resp.status === 404,
       status: resp.status,
@@ -88,11 +108,14 @@ export const IS_STRICT =
  *  recorded alongside failures so an admin-misconfigured environment
  *  doesn't masquerade as a missing endpoint. */
 export function authHeaders(needsAdmin: boolean): Record<string, string> {
-  if (!needsAdmin) return { 'Content-Type': 'application/json' };
-  return {
-    'Content-Type': 'application/json',
-    ...(ADMIN_TOKEN ? { 'X-Admin-Token': ADMIN_TOKEN } : {}),
-  };
+  // ⚠️⚠️ **读面也要递影子锁**（2026-11-09）—— 门形是「读门 = 影子锁 ∪ admin token」
+  // ⇒ ⇒ 只递 admin token ⇒ ⇒ 在「只配了影子锁」的端脑上读面 403 ⇒ ⇒ 整份跳过。
+  // ⇒ ⇒ 与产品实现 `src/lib/readDoorHeaders.ts` 同一规则（各有就带、空的绝不带）。
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (SHADOW_KEY) headers['X-Shadow-Key'] = SHADOW_KEY;
+  if (ADMIN_TOKEN) headers['X-Admin-Token'] = ADMIN_TOKEN;
+  void needsAdmin;
+  return headers;
 }
 
 /** Log + return a Vitest skip/fail guard. */
