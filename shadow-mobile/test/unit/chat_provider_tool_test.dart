@@ -304,6 +304,11 @@ void main() {
       // 这时候再往 `state` 写会抛「Bad state: Tried to modify a
       // disposed provider」⇒ 整个 App 崩。
       final gate = Completer<void>();
+      // ⚠️ **工具有没有真的跑完** —— 这一条是**承重**的。
+      //   以前这里写的是 `expect(true, isTrue)` ⇒ ⇒ 恒真的空断言
+      //   ⇒ ⇒ 而「工具压根没跑完」也会让那条空断言照样绿
+      //   ⇒ ⇒ 也就是「风险窗口没被踩到」被当成了「验过了」。
+      var toolRan = false;
       final client = ToolMockClient([
         StreamEvent(type: 'tool_call', name: 'slow'),
       ]);
@@ -316,21 +321,39 @@ void main() {
             description: 'takes a while',
             execute: (args) async {
               await gate.future;
+              toolRan = true;
               return 'done';
             },
           ),
         ]),
       );
 
-      await notifier.generateResponse('慢慢来');
-      notifier.dispose();
+      // ⚠️ **异步错误要收得上来** —— 「dispose 之后回写 state」这个错
+      //   是在**工具自己的续体里**抛的 ⇒ ⇒ 不是同步抛出
+      //   ⇒ ⇒ `expect(() {...}, returnsNormally)` **抓不到**
+      //   ⇒ ⇒ 必须用 zone 把「没人接手的异步错误」收上来。
+      final asyncErrors = <Object>[];
+      await runZonedGuarded(() async {
+        await notifier.generateResponse('慢慢来');
+        notifier.dispose();
 
-      // 工具这时才跑完 —— 回写状态时 notifier 已经不在了。
-      gate.complete();
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+        // 工具这时才跑完 —— 回写状态时 notifier 已经不在了。
+        gate.complete();
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }, (error, stack) => asyncErrors.add(error));
 
-      // 没崩就是过了（崩了的话这里会抛 StateError）。
-      expect(true, isTrue);
+      // ⚠️ **这条才是「真的踩到过」的证据** —— 工具跑完了
+      // ⇒ ⇒ 那次回写**真的撞上**了 dispose ⇒ ⇒ 「没崩」才是被验过的。
+      expect(
+        toolRan,
+        isTrue,
+        reason: '工具没跑完 ⇒ ⇒ 这一轮压根没验到「回写撞上 dispose」这件事',
+      );
+      expect(
+        asyncErrors,
+        isEmpty,
+        reason: 'dispose 之后的回写必须无声无息 ⇒ ⇒ 实际抛了：$asyncErrors',
+      );
     });
 
     test('先等用户点头，不执行、不回传', () async {

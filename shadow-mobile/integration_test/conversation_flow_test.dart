@@ -27,11 +27,17 @@ void main() {
       app.main();
       await tester.pumpAndSettle(const Duration(seconds: 5));
 
+      // ⚠️ **输入框必须一直在** —— 本地对话视图（LocalChatView）是**无条件渲染**的
+      //   ⇒ ⇒ 以前那条 `if (textField.evaluate().isNotEmpty)` 把整条断言
+      //   ⇒ ⇒ 挂在「找得到才验」的条件上 ⇒ ⇒ 找不到就**零断言通过**。
       final textField = find.byType(TextField);
-      if (textField.evaluate().isNotEmpty) {
-        await tester.enterText(textField.first, 'Hello');
-        await tester.pump();
-      }
+      expect(textField, findsWidgets, reason: '聊天页必须有一个能收字的输入框');
+
+      await tester.enterText(textField.first, 'Hello');
+      await tester.pump();
+
+      // ⚠️ **字真的进去了** —— 光调 `enterText` 不算（它不保证落到控件上）。
+      expect(find.text('Hello'), findsWidgets, reason: '字没进到输入框里');
     });
 
     testWidgets('empty chat shows welcome message', (

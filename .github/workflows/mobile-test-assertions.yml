@@ -1,0 +1,58 @@
+name: Mobile Test Assertions
+
+# ⚠️ **为什么单独成文件**（2026-11-09 实测，本仓 iBLOC/shadow）：
+#   这道闸是**纯 node、零依赖、秒级**的（实测本地 < 2 秒）⇒ ⇒ 它**不重**
+#   ⇒ ⇒ 但它盯的是**移动端用例的断言承重**
+#   ⇒ ⇒ 而 ci.yml 是**共享文件**（并行会话在飞）
+#   ⇒ ⇒ 共享文件上的接线是本仓最容易出两类事故的地方：
+#     · 「把别人的在飞件卷进我的提交」；
+#     · 「我的暂存被别人一次 plain commit 抢走署名」。
+#   ⇒ ⇒ 所以它**单独成文件** ⇒ ⇒ 接线面**零共享** ⇒ ⇒ 竞态根本不存在。
+#   （与 desktop-e2e.yml 那种「重任务另开」不同：那是为**不被 cancel**；
+#     这里是为**不碰共享文件**。）
+#
+# ⚠️ **它守的是什么** —— 2026-11-09 实测：
+#   移动端 113 个用例文件 / 805 条用例里，有 **6 条**是
+#   「恒真断言」或「用例体一条断言都没有」：
+#     · `expect(true, isTrue)` —— 断言结果在编译期就定了
+#       ⇒ ⇒ 与被测物无关 ⇒ ⇒ 零信息量；
+#     · `if (finder.evaluate().isNotEmpty) { … }` 把整条承重挂在分支上
+#       ⇒ ⇒ 分支不进 ⇒ ⇒ 零断言通过（本次抓到 3 条，
+#       它们找的 `BottomNavigationBar` / `Icons.checklist` /
+#       `RefreshIndicator` **在这仓里根本不存在** ⇒ ⇒ 分支永不成立）；
+#     · 「app initializes without crash」这类**一条断言都没有**的用例
+#       ⇒ ⇒ 用例名宣称的主张没有任何东西在核。
+#   ⇒ ⇒ 这三种在真机上都表现为「**PASS**」⇒ ⇒ 而什么都没被证明。
+#   ⇒ ⇒ 修完以后必须**有闸盯着**，否则下一处 `expect(true, isTrue)`
+#   会把同一场假绿原样带回来。
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mobile-test-assertions:
+    name: Mobile Test Assertions
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout shadow
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      # ⚠️ **两步都要跑** —— 判定 ＋ 判据自检（自检证明这道闸**真的会红**）。
+      - name: Mobile test assertion check
+        run: node scripts/check-mobile-test-assertions.mjs
+
+      - name: Mobile test assertion check (self-test)
+        run: node scripts/check-mobile-test-assertions.mjs --self-test

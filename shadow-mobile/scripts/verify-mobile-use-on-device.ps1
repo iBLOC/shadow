@@ -53,13 +53,43 @@ param(
     # ⚠️ **保持自己的 app 在前台** —— 探针那一族**必须**这样：
     # ⇒ ⇒ 读屏那族要把别的窗口推到前台（自己读不到自己），
     # ⇒ ⇒ 而探针要点的正是**自己写的 UI** ⇒ ⇒ 它得在前台。
-    [switch]$KeepOwnAppForeground
+    [switch]$KeepOwnAppForeground,
+    # ⚠️ **只跑解析判据的离线自检**（**不碰设备**）⇒ ⇒ CI 里没真机也能验这些判据。
+    # ⇒ ⇒ 用法：`pwsh -File shadow-mobile/scripts/verify-mobile-use-on-device.ps1 -SelfCheck`
+    [switch]$SelfCheck
 )
 
 $ErrorActionPreference = 'Stop'
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $mobileRoot = Split-Path -Parent $scriptDir
+
+# ---- 解析判据那一半（**纯函数** ⇒ ⇒ 可离线自检）----
+# ⚠️⚠️ 为什么抽出去 —— 实测（2026-11-08）那两个缺陷都出在「读 dumpsys 文本」上
+# ⇒ ⇒ ⇒ 而「读文本」这件事**根本不需要设备** ⇒ ⇒ ⇒ 抽成纯函数 ⇒ ⇒ 就能离线钉住。
+# ⚠️ **路径要跨平台** —— CI 跑在 ubuntu 上 ⇒ ⇒ `Join-Path` 里写反斜杠会当成**文件名的一部分**
+# ⇒ ⇒ ⇒ 找不着库 ⇒ ⇒ ⇒ 所以**分段 Join-Path**，不拼字符串。
+$parserLib = Join-Path (Join-Path $scriptDir 'lib') 'mobile-use-parsers.ps1'
+if (-not (Test-Path -LiteralPath $parserLib)) {
+    Write-Error "缺解析库：$parserLib"
+}
+. $parserLib
+
+# ⚠️ **离线自检** —— **在碰设备之前**就做 ⇒ ⇒ 没连设备也能验判据。
+if ($SelfCheck) {
+    $self = Invoke-MobileUseParserSelfCheck
+    Write-Host '== 解析判据自检 =='
+    foreach ($c in $self.Cases) {
+        $mark = '过'
+        if (-not $c.Ok) { $mark = '红' }
+        Write-Host ('  [' + $mark + '] ' + $c.Name + '  —— ' + $c.Detail)
+    }
+    Write-Host ('共 ' + $self.Cases.Count + ' 条，失败 ' + $self.Failures.Count + ' 条')
+    if ($self.Cases.Count -eq 0) { Write-Host '!! 一条用例都没执行 ⇒ ⇒ 空绿 ⇒ ⇒ 判失败'; exit 1 }
+    if (-not $self.Ok) { Write-Host '== 有不过 =='; foreach ($f in $self.Failures) { Write-Host ('  - ' + $f) }; exit 1 }
+    Write-Host '== 解析判据自检：全过 =='
+    exit 0
+}
 $logDir = Join-Path $mobileRoot 'build\device-verify'
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
@@ -74,6 +104,53 @@ if ([string]::IsNullOrWhiteSpace($DeviceId)) {
     $DeviceId = $devices[0]
 }
 Write-Host "== 设备 $DeviceId =="
+# ---- 设备前置体检（**在花时间构建/传输之前**）----
+# ⚠️⚠️ 为什么要有这一段 —— 实测（2026-11-09）踩过三道闸，全在**设备侧**：
+# ⇒ ⇒ ① **ABI 对不上** ⇒ ⇒ 装**物理上**不可能 ⇒ ⇒ 不查就装 ⇒ ⇒ 白花 200 秒传 200MB；
+# ⇒ ⇒ ② **/data 空间不够** ⇒ ⇒ 装到一半失败 ⇒ ⇒ 那是最难查的一种；
+# ⇒ ⇒ ③ **设备策略闸**（MIUI「USB 安装」/ One UI「通过 USB 安装应用」）
+# ⇒ ⇒ ⇒ ⇒ 只有**物理开关**能解 ⇒ ⇒ 而脚本只能报错 ⇒ ⇒ 报错时得说清是哪一类的闸
+# ⇒ ⇒ ⇒ 否则症状（无障碍没绑上）离根因隔了三层 ⇒ ⇒ ⇒ 又是「失败长得像成功」。
+$preApk = Join-Path $mobileRoot 'build\app\outputs\flutter-apk\app-debug.apk'
+if (Test-Path -LiteralPath $preApk) {
+    $preApkBytes = (Get-Item -LiteralPath $preApk).Length
+    # APK 里的 ABI 目录（**读的是 APK 本身**，不是构建配置 ⇒ ⇒ 才是事实）
+    $apkLibDirs = @()
+    try {
+        if (-not ('System.IO.Compression.ZipFile' -as [type])) { Add-Type -AssemblyName System.IO.Compression.FileSystem }
+        $zip = [System.IO.Compression.ZipFile]::OpenRead($preApk)
+        $apkLibDirs = @($zip.Entries | Where-Object { $_.FullName -like 'lib/*/*.so' } | ForEach-Object { ($_.FullName -split '/')[1] } | Sort-Object -Unique)
+        $zip.Dispose()
+    } catch {
+        $apkLibDirs = @()
+    }
+    $devAbilist = ((& adb -s $DeviceId shell getprop ro.product.cpu.abilist) -join '').Trim()
+    $abi = Test-ApkAbiSupported -DeviceAbilist $devAbilist -ApkLibDirs $apkLibDirs
+    Write-Host ('== 前置体检：APK ' + [Math]::Round($preApkBytes / 1MB, 1) + ' MB ｜ 设备 ABI=[' + $devAbilist + '] ｜ APK ABI=[' + ($apkLibDirs -join ',') + '] ==')
+    if ($abi.Known -and -not $abi.Supported) {
+        Write-Host '!! 前置体检不过：这台设备的 ABI 与 APK 没有交集 ⇒ ⇒ 装**物理上**不可能'
+        Write-Host '   ⇒ ⇒ 这是**设备侧**的硬约束（不是 app 的缺陷）⇒ ⇒ 换 arm64-v8a / x86_64 的设备'
+        exit 1
+    }
+    $freeBytes = 0
+    $dfText = ((& adb -s $DeviceId shell df -k /data 2>$null) -join "`n")
+    $dfLine = ($dfText -split "`n" | Where-Object { $_ -match '/data\s*$' } | Select-Object -First 1)
+    if ($dfLine) {
+        $cols = @($dfLine -split '\s+' | Where-Object { $_ -ne '' })
+        if ($cols.Count -ge 4) { $freeBytes = [long]$cols[3] * 1024 }
+    }
+    $room = Test-InstallHasRoom -ApkBytes $preApkBytes -FreeBytes $freeBytes
+    if ($room.Known) {
+        Write-Host ('== 前置体检：/data 可用 ' + [Math]::Round($room.Free / 1MB, 1) + ' MB ｜ 至少需要 ' + [Math]::Round($room.Required / 1MB, 1) + ' MB ==')
+        if (-not $room.Ok) {
+            Write-Host '!! 前置体检不过：/data 空间不足 ⇒ ⇒ 装到一半会失败 ⇒ ⇒ 先清空间'
+            exit 1
+        }
+    }
+} else {
+    Write-Host '== 前置体检：APK 还不存在（首次构建）⇒ ⇒ 跳过这一段 =='
+}
+
 
 # ---- 记下无障碍授权的原值（跑完要还原 ⇒ 这一步是可逆的）----
 $prevServices = (& adb -s $DeviceId shell settings get secure enabled_accessibility_services) -join ''
@@ -139,14 +216,13 @@ function Restore-Accessibility {
 function Test-A11yServiceBound {
     param([string]$PidText)
     $dump = (& adb -s $DeviceId shell dumpsys accessibility 2>$null) -join [Environment]::NewLine
-    $enabled = $dump -match 'Enabled services:\{?\{?[^}]*com\.ibloc\.shadow'
-    if (-not $enabled) { return $false }
-    if ($dump -match 'Bound services:\{[^}]*com\.ibloc\.shadow') { return $true }
+    $log = ''
     if ($PidText) {
         $log = (& adb -s $DeviceId logcat -d --pid=$PidText -t 400 2>$null) -join [Environment]::NewLine
-        if ($log -match 'PrefrontalAccessibilityService connected') { return $true }
     }
-    return $false
+    # ⚠️ 判据本体在**纯函数**里（lib/mobile-use-parsers.ps1）⇒ ⇒ 可离线自检。
+    $sig = Get-A11yBindingSignals -Dump $dump -ServiceLog $log
+    return $sig.Bound
 }
 
 # ---- app 的窗口现在在哪块屏上（空串 = 还没起来 / 查不到）----
@@ -161,16 +237,8 @@ function Test-A11yServiceBound {
 # ⇒ ⇒ ⇒ ⇒ 实际上是我们**不在手势去的那块屏上**。
 function Get-AppWindowDisplayId {
     $dump = (& adb -s $DeviceId shell dumpsys window windows 2>$null) -join "`n"
-    $lines = $dump -split "`n"
-    for ($i = 0; $i -lt $lines.Count; $i++) {
-        if ($lines[$i] -match 'Window\{.*com\.ibloc\.shadow/com\.ibloc\.shadow\.MainActivity') {
-            for ($j = $i; $j -lt [Math]::Min($i + 25, $lines.Count); $j++) {
-                if ($lines[$j] -match 'mDisplayId=(\d+)') { return $Matches[1] }
-            }
-            return ''
-        }
-    }
-    return ''
+    # ⚠️ 判据本体在**纯函数**里（**按块解析** ⇒ ⇒ 不会把别人的屏当成我们的）。
+    return (Get-AppWindowDisplayIdFromDump -Dump $dump)
 }
 
 # ---- 把 app 的 task 钉回**默认屏**（display 0）----
@@ -186,26 +254,33 @@ function Ensure-AppOnPrimaryDisplay {
     if (-not $displayId) { return $true }      # 窗口还没起来 ⇒ 等下一轮
     if ($displayId -eq '0') { return $true }    # 已经在默认屏上 ⇒ 没事
     $stack = (& adb -s $DeviceId shell am stack list 2>$null) -join "`n"
-    $taskId = ''
-    $root0 = ''
-    foreach ($line in ($stack -split "`n")) {
-        if ((-not $taskId) -and ($line -match 'taskId=(\d+): com\.ibloc\.shadow/')) {
-            $taskId = $Matches[1]
-        }
-        if ((-not $root0) -and ($line -match 'RootTask id=(\d+).*displayId=0 ')) {
-            $root0 = $Matches[1]
-        }
-    }
-    if ((-not $taskId) -or (-not $root0)) {
+    $place = Get-StackPlacementFromDump -Stack $stack
+    if ((-not $place.TaskId) -or ($place.RootTaskIds.Count -eq 0)) {
         Write-Host "!! 找不到 task / 目标屏 rootTask ⇒ ⇒ 搬不了屏（当前 display $displayId）"
         return $false
     }
-    Write-Host "== app 落在 display $displayId ⇒ ⇒ 搬回默认屏（task $taskId → rootTask $root0）=="
-    & adb -s $DeviceId shell am stack move-task $taskId $root0 true 2>&1 | Out-Null
-    Start-Sleep -Milliseconds 1200
-    $after = Get-AppWindowDisplayId
-    Write-Host "== 搬屏后：display $after =="
-    return ($after -eq '0')
+    # ⚠️⚠️ **挨个试**目标屏上的 rootTask —— 实测（2026-11-04）那版只取「第一个」
+    # ⇒ ⇒ 取到的是启动器那个（id=1）⇒ ⇒ 这次恰好能搬 ⇒ ⇒ **纯属运气**
+    # ⇒ ⇒ ⇒ 因为「哪个 rootTask 能承载 app」是系统内部决定的 ⇒ ⇒ 挑错就搬不动。
+    foreach ($root in $place.RootTaskIds) {
+        Write-Host "== app 落在 display $displayId ⇒ ⇒ 搬回默认屏（task $($place.TaskId) → rootTask $root）=="
+        & adb -s $DeviceId shell am stack move-task $place.TaskId $root true 2>&1 | Out-Null
+        # ⚠️⚠️ **搬屏是异步的** —— 实测（2026-11-04）搬完 1.2 秒去查，
+        # ⇒ ⇒ 窗口**还报旧屏** ⇒ ⇒ 脚本连喊三次「还是 display 2」⇒ ⇒
+        # ⇒ ⇒ 而其实 task **早就搬到了** display 0 ⇒ ⇒ ⇒ 白折腾。
+        # ⇒ ⇒ ⇒ 修法：**轮询**到窗口真的换屏为止（最多 ~12 秒）。
+        for ($i = 1; $i -le 12; $i++) {
+            Start-Sleep -Milliseconds 1000
+            $after = Get-AppWindowDisplayId
+            if ($after -eq '0') {
+                Write-Host "== 搬屏后：display 0（用了 ${i}s）=="
+                return $true
+            }
+        }
+        Write-Host "== 换了 rootTask $root 之后仍在 display $after ⇒ ⇒ 换下一个 =="
+    }
+    Write-Host '!! 搬不动 ⇒ ⇒ 目标屏上的 rootTask 都试过了'
+    return $false
 }
 
 # ---- 期望的 dpr（默认屏 density/160）—— 交给探针**自检** ----
@@ -214,8 +289,20 @@ function Ensure-AppOnPrimaryDisplay {
 # ⇒ ⇒ ⇒ 而不是把「派发成功、零指针事件」报成「手势坏了」。
 $expectDpr = ''
 $densityText = ((& adb -s $DeviceId shell wm density 2>$null) -join ' ')
-if ($densityText -match 'Physical density:\s*(\d+)') {
+# ⚠️⚠️ **先看 Override，再看 Physical** —— 实测（2026-11-09，MI_MAX_2）：
+# ⇒ ⇒ `wm density` 同时给两行（Physical 480 / **Override 440**）⇒ ⇒
+# ⇒ ⇒ 实际生效的是 **Override**（440 ⇒ dpr **2.75**）⇒ ⇒
+# ⇒ ⇒ 以前只读 Physical（480 ⇒ dpr 3.0）⇒ ⇒ 探针那句
+# ⇒ ⇒ 「我在主机期望的那块屏上吗」⇒ ⇒ **判这一轮不成立**
+# ⇒ ⇒ ⇒ 而这一轮其实**完全成立** ⇒ ⇒ 那是**假红** ⇒ ⇒ 读数被白白丢掉。
+$densityValue = 0
+if ($densityText -match 'Override density:\s*(\d+)') {
     $densityValue = [double]$Matches[1]
+}
+elseif ($densityText -match 'Physical density:\s*(\d+)') {
+    $densityValue = [double]$Matches[1]
+}
+if ($densityValue -gt 0) {
     $expectDpr = ($densityValue / 160).ToString('0.####', [Globalization.CultureInfo]::InvariantCulture)
     Write-Host "== 默认屏 density=$densityValue ⇒ ⇒ 期望 dpr=$expectDpr =="
 }
@@ -441,6 +528,24 @@ try {
     foreach ($line in $raw) {
         if (($line -as [int]) -ne $null) { $exitCode = [int]$line }
     }
+    # ⚠️⚠️ **失败也要归因** —— `flutter drive` 装不上 app 时，错误码**就在它的日志里**
+    # ⇒ ⇒（实测原文：`adb.exe: failed to install …: Failure [INSTALL_FAILED_USER_RESTRICTED: Install canceled by user]`）
+    # ⇒ ⇒ 而不解析 ⇒ ⇒ 就只剩一句「退出码非 0」⇒ ⇒ ⇒ 跟 app 缺陷分不开。
+    # ⚠️⚠️⚠️ **归因的输入必须取「真源」** —— 原来喂的是 `Receive-Job` 的**输出对象**
+    # ⇒ ⇒ 而那个对象在 job 被 `Stop-Job` 打断时**可能是空的** ⇒ ⇒ ⇒ 归因被**静默跳过**
+    # ⇒ ⇒ ⇒ （实测：真机那一轮归因行压根没打印 ⇒ ⇒ 就是因为 `$raw` 空了）
+    # ⇒ ⇒ ⇒ 而**日志文件**才是完整的（job 的脚本块一直在 `Out-File -Append`）⇒ ⇒ 用它。
+    if ($exitCode -ne 0) {
+        $logText = ''
+        if (Test-Path -LiteralPath $logPath) { $logText = Get-Content -LiteralPath $logPath -Raw -ErrorAction SilentlyContinue }
+        $rawText = ''
+        if ($raw) { $rawText = (@($raw) | ForEach-Object { "$_" }) -join "`n" }
+        $driveFailure = Get-InstallFailureKind -Text ($logText + "`n" + $rawText)
+        if ($driveFailure.Kind -ne 'unknown') {
+            Write-Host ('!! 归因：' + $driveFailure.Kind + '（' + $driveFailure.Code + '）')
+            Write-Host ('   ⇒ ⇒ ' + $driveFailure.Hint)
+        }
+    }
 }
 finally {
     Restore-Accessibility
@@ -476,9 +581,19 @@ if (-not $buildOk) {
     Write-Host "!! 真 App APK 不存在：$appApk"
     $exitCode = 1
 } else {
-    & adb -s $DeviceId install -r $appApk | Out-Null
+    # ⚠️⚠️ **不许把 stderr 吞掉** —— 原来这行是 `| Out-Null`
+    # ⇒ ⇒ ⇒ 安装失败时那句 `INSTALL_FAILED_USER_RESTRICTED` **没人看得到**
+    # ⇒ ⇒ ⇒ 脚本只知道「退出码非 0」⇒ ⇒ ⇒ 跟 app 缺陷分不开 ⇒ ⇒ ⇒ 又一次「失败长得像成功」。
+    $installOut = @(& adb -s $DeviceId install -r $appApk 2>&1 | ForEach-Object { "$_" })
     if ($LASTEXITCODE -ne 0) {
         Write-Host '!! 真 App 装回去失败'
+        $installFailure = Get-InstallFailureKind -Text ($installOut -join "`n")
+        if ($installFailure.Kind -ne 'unknown') {
+            Write-Host ('   ⇒ ⇒ 归因：' + $installFailure.Kind + '（' + $installFailure.Code + '）')
+            Write-Host ('   ⇒ ⇒ ' + $installFailure.Hint)
+        } else {
+            $installOut | Select-Object -Last 5 | ForEach-Object { Write-Host ('   ' + $_) }
+        }
         $exitCode = 1
     } else {
         Write-Host '== 真 App 已装回设备 =='

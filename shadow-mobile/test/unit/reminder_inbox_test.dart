@@ -111,7 +111,14 @@ void main() {
     });
 
     test('a failing poll does not throw and does not ack', () async {
-      final client = MockClient((request) async => http.Response('nope', 500));
+      // ⚠️ **要看得见「发了哪些请求」** —— 以前这条用例**一条断言都没有**
+      //   ⇒ ⇒ 「不 ack」这个主张**没有任何东西在核**
+      //   ⇒ ⇒ 用例名说了两件事，体里一件都没验。
+      final requests = <String>[];
+      final client = MockClient((request) async {
+        requests.add('${request.method} ${request.url.path}');
+        return http.Response('nope', 500);
+      });
       final inbox = ReminderInbox(
         baseUrl: () => 'http://127.0.0.1:60080',
         shadowKey: () => null,
@@ -120,7 +127,22 @@ void main() {
         httpClient: client,
       );
 
-      await inbox.pollOnce();
+      // ⚠️ 「不抛」这件事**显式**断言 —— 以前它是「用例没红」这种隐含事实。
+      await expectLater(inbox.pollOnce(), completes);
+
+      // ⚠️ **端脑没回待办 ⇒ ⇒ 不许发 ack** —— 发了就是
+      //   「确认掉一条用户根本没看到的提醒」⇒ ⇒ 提醒静悄悄消失。
+      expect(
+        requests.where((r) => r.contains('/ack')).toList(),
+        isEmpty,
+        reason: '端脑没回待办 ⇒ ⇒ 不许 ack（实际发了：$requests）',
+      );
+      // ⚠️ 而且**待办那条**确实问过了 —— 否则这条用例又变成「什么都没做」。
+      expect(
+        requests.where((r) => r.startsWith('GET ')).toList(),
+        isNotEmpty,
+        reason: '压根没去问端脑 ⇒ ⇒ 这一轮没验到任何东西',
+      );
     });
   });
 }
