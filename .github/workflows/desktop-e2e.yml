@@ -305,8 +305,6 @@ jobs:
           SHADOW_LIVE_ADMIN_TOKEN: live-loopback-admin-key
           SHADOW_LIVE_SHADOW_KEY: live-loopback-shadow-key
           SHADOW_LIVE_ENDBRAIN_URL: http://127.0.0.1:60192
-          # ⚠️ 别让颜色码混进读数（剥是第二道保险，见下面那句 sed）。
-          NO_COLOR: '1'
         run: |
           # ⚠️⚠️ **GitHub 的 `run:` 默认是 `bash -e`** ⇒ ⇒ 失败的那条命令
           #    **后面**的诊断全都不执行 ⇒ ⇒ 「红」得莫名其妙 ⇒ ⇒ 而把输出
@@ -375,6 +373,20 @@ jobs:
           SHADOW_LIVE_ADMIN_TOKEN: live-loopback-admin-key
           SHADOW_LIVE_SHADOW_KEY: live-loopback-shadow-key
           SHADOW_LIVE_ENDBRAIN_URL: http://127.0.0.1:60193
+          # ⚠️ **移动端这一处不是冗余**（2026-11-09 实测）：`flutter test` 的摘要行
+          #    由 Dart 的 `test_core` 打颜色码 ⇒ ⇒ 而下面那条 `sed` 只剥
+          #    `ESC[...m` / `ESC[...K` **两种**形态 ⇒ ⇒ `ESC[?25l`（光标隐藏）
+          #    与 `ESC]8;;…`（OSC 超链接）**剥不掉** ⇒ ⇒ 颜色码混进读数、
+          #    `grep` 就可能匹配不上 ⇒ ⇒ ⇒ 那里用 `NO_COLOR` **从源头**关掉颜色。
+          #    （桌面端那一处**删了** ⇒ ⇒ vitest 只用 `ESC[...m` ⇒ ⇒ `sed` 够用。
+          #    ⇒ ⇒ 死变量闸把这一处判成「没人读」⇒ ⇒ **是误报**：
+          #    ⇒ ⇒ 它的读者在**测试工具链里**（vitest 的 tinyrainbow / picocolors、
+          #    ⇒ ⇒ Dart 的 test_core 都读这个变量名）⇒ ⇒ 那几个包在 `node_modules`
+          #    ⇒ ⇒ 与 pub cache 里 ⇒ ⇒ **不在闸的扫描面内** ⇒ ⇒ 已登记进闸的
+          #    ⇒ ⇒ 「读者是工具链自己」那一档。)
+          #    ⚠️ **注释里不许写那个变量的读取形状** —— 闸**不剥注释** ⇒ ⇒ 注释里
+          #    ⇒ ⇒ 出现读取形状 ⇒ ⇒ 闸就认为「有人读」⇒ ⇒ **登记被架空** ⇒ ⇒
+          #    ⇒ ⇒ 那道闸就变成「靠措辞吃饭」⇒ ⇒ 登记必须**自己**承重。)
           NO_COLOR: '1'
         run: |
           set +e

@@ -95,6 +95,15 @@ const RUNTIME_READERS = [
   'JAVA_HOME', 'GRADLE_OPTS', 'ANDROID_HOME', 'ANDROID_SDK_ROOT',
   'FLUTTER_ROOT', 'PUB_CACHE', 'PUB_HOSTED_URL', 'FLUTTER_STORAGE_BASE_URL',
   'DART_SDK', 'CHROME_EXECUTABLE', 'PLATFORM', 'TERM',
+  // ⚠️ **`NO_COLOR`**：读者是**测试工具链自己** —— vitest 用的 `tinyrainbow` /
+  //    `picocolors`、Dart 的 `test_core`（`io.dart`）都读这个变量名
+  //    ⇒ ⇒ ⇒ **它在本仓文本里找不到读者**（那些包在 `node_modules` 与
+  //    pub cache 里 ⇒ ⇒ **不在闸的扫描面内**）⇒ ⇒ 登记的是「这个事实」。
+  //    ⚠️ 为什么不是「删掉它就完了」：`flutter test` 的摘要行由 `test_core`
+  //    打颜色码 ⇒ ⇒ 而剥码那条 `sed` 只剥 `ESC[...m` / `ESC[...K` **两种**形态
+  //    ⇒ ⇒ `ESC[?25l`（光标隐藏）与 `ESC]8;;…`（OSC 超链接）**剥不掉**
+  //    ⇒ ⇒ 颜色码混进读数 ⇒ ⇒ `grep` 可能匹配不上 ⇒ ⇒ ⇒ 从**源头**关颜色才是对的。
+  'NO_COLOR',
   'XDG_CONFIG_HOME', 'XDG_DATA_HOME', 'XDG_CACHE_HOME', 'XDG_STATE_HOME',
   // ⚠️ cargo 的配置环境变量（cargo 自己读 ⇒ ⇒ 本仓文本里永远找不到读者）：
   //    cargo 支持 CARGO_PROFILE_<profile>_<key> 与 CARGO_INCREMENTAL。

@@ -118,7 +118,12 @@ const READ_PATTERNS = [
   { kind: 'node-process-env-bracket', re: /process\.env\[\s*['"]([A-Z][A-Z0-9_]{2,})['"]\s*\]/g },
   // Vite 前端读构建期变量（import.meta.env.VITE_…）
   { kind: 'vite-import-meta-env', re: /import\.meta\.env\.([A-Z][A-Z0-9_]{2,})(?![A-Z0-9_])/g },
-  { kind: 'rust-env-var', re: /env::var\(\s*["']([A-Z][A-Z0-9_]{2,})["']\s*\)/g },
+  { kind: 'rust-env-var', re: /env::var\(\s*["']([A-Z][A-Z0-9_]{2,})["']\s*\)/g },  // ⚠️ **`env::var_os` 也是读者**（2026-11-09 实测踩到）：Rust 读环境变量有**两个** API ——
+  //    `env::var`（String）**与** `env::var_os`（OsString）⇒ ⇒ 后者是**路径型变量的正确读法**
+  //    （路径不保证是 UTF-8 ⇒ ⇒ `var` 会直接失败 ⇒ ⇒ 桌面的落点就用了它）。
+  //    ⇒ ⇒ 只认 `env::var` ⇒ ⇒ `TELENCEPHALON_TASKS_FILE` 的读者被**看不见**
+  //    ⇒ ⇒ 闸把它判成「死变量」⇒ ⇒ **误报**（⇒ ⇒ CI 因此红 ⇒ ⇒ 后面 5 步被传染跳过）。
+  { kind: 'rust-env-var-os', re: /env::var_os\(\s*["']([A-Z][A-Z0-9_]{2,})["']\s*\)/g },
   { kind: 'python-environ', re: /os\.environ\[\s*["']([A-Z][A-Z0-9_]{2,})['"]\s*\]/g },
   // ⚠️ 这两个形状**只在 shell 语义的文件里**才算「读环境变量」：
   //    $NAME / ${NAME} 在 shell 里是变量引用，在 Dart/TS/JS 里是**字符串插值**。
@@ -586,5 +591,36 @@ export function deadEnvSelfTest() {
       ]));
   }
 
+  {
+    // ⑯ Rust 的**两个**读取 API 都算读者：`env::var`（String）与 `env::var_os`（OsString）。
+    //    ⇒ ⇒ 路径型变量（路径不保证是 UTF-8 ⇒ ⇒ `var` 会直接失败）**只能**用 `var_os`
+    //    ⇒ ⇒ 只认 `var` ⇒ ⇒ 那类变量的读者被**看不见** ⇒ ⇒ 闸把它误报成「死变量」
+    //    ⇒ ⇒ 实测（2026-11-09）：`TELENCEPHALON_TASKS_FILE` 就栽在这上面 ⇒ ⇒ CI 因此红。
+    const rs = [
+      'let p = std::env::var("SHADOW_TASKS_PATH");',
+      'let q = std::env::var_os("SHADOW_OS_PATH");',
+    ].join('\n');
+    const reads = findEnvReads(rs, 'src/main.rs');
+    T('⑯ Rust 的两个读取 API（var / var_os）都算读者',
+      reads.length === 2
+        && reads.some((r) => r.name === 'SHADOW_TASKS_PATH')
+        && reads.some((r) => r.name === 'SHADOW_OS_PATH'),
+      JSON.stringify(reads));
+  }
+
+  {
+    // ⑰ **孪生负控**：`var_os` 是**读者**，`set_var` 是**设置端** ⇒ ⇒ 两者必须分得开
+    //    ⇒ ⇒ 否则「自己设自己读」会把一个真正的死变量伪装成有读者。
+    //    ⚠️ 形状上：`set_var("X", v)` 与 `var_os("X")` **参数个数不同**
+    //    ⇒ ⇒ 正则要求 `var_os(` 后面**紧跟** `)`（无逗号）⇒ ⇒ 才不会把 set_var 吃进来。
+    const rs = [
+      'std::env::set_var("SHADOW_SET_ONLY", path);',
+      'std::env::var_os("SHADOW_OS_PATH");',
+    ].join('\n');
+    const reads = findEnvReads(rs, 'src/main.rs');
+    T('⑰ set_var 不是读者（孪生负控）⇒ ⇒ 只有 var_os 那个算',
+      reads.length === 1 && reads[0].name === 'SHADOW_OS_PATH',
+      JSON.stringify(reads));
+  }
   return { code: fails === 0 ? 0 : 1, out: lines.join('\n'), total, fails };
 }
