@@ -1,0 +1,43 @@
+name: Precommit Hook
+
+# ⚠️ **它守的是什么** —— 2026-11-11 真事故（iBLOC/shadow，本会话自己造成的）：
+#   `git hash-object --stdin` 的 input 被误当成环境变量 ⇒ ⇒ stdin 为空
+#   ⇒ ⇒ 提交树面里那个文件是**零字节**（台账 AGENTS.md 2.45 MB ⇒ ⇒ 0）
+#   ⇒ ⇒ master 上的台账整本消失 ⇒ ⇒ **两分钟后**才被发现。
+#   ⇒ ⇒ 提交**之后**跑的回退闸能**照出**它，但**防不住**它 ⇒ ⇒ 这一刀把同一族
+#   的判定搬到**提交前**（`.githooks/pre-commit`）⇒ ⇒ 拦在当场。
+#
+# ⚠️ **为什么单独成文件**（与 commit-revert.yml 同理）：
+#   ci.yml 是**共享文件**（并行会话在飞）⇒ ⇒ 共享文件上的接线是本仓最容易出
+#   两类事故的地方 ⇒ ⇒ 独立成文件 ⇒ ⇒ 接线面**零共享** ⇒ ⇒ 竞态根本不存在。
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  precommit-hook:
+    name: Precommit Hook
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout shadow
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      # ⚠️ **两步都要跑** —— 判定 ＋ 判据自检（自检证明这道闸**真的会红**）。
+      - name: Precommit hook check (self-test)
+        run: node scripts/check-precommit-hook.mjs --self-test
+
+      - name: Precommit hook check
+        run: node scripts/check-precommit-hook.mjs

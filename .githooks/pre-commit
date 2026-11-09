@@ -1,0 +1,27 @@
+#!/bin/sh
+# ⚠️⚠️ **提交前那道闸** —— 「你这一笔把一个非空文件写成了零字节」
+#
+# ⚠️ **为什么要有它** —— 2026-11-11 真事故（本会话自己造成的）：
+#   `git hash-object --stdin` 的 input 被误当成环境变量 ⇒ ⇒ stdin 为空
+#   ⇒ ⇒ 提交树面里那个文件是**零字节**（台账 AGENTS.md 2.45 MB ⇒ ⇒ 0）
+#   ⇒ ⇒ master 上的台账整本消失 ⇒ ⇒ **两分钟后**才被发现。
+#   ⇒ ⇒ 提交**之后**跑的那道闸能**照出**它，但**防不住**它 ⇒ ⇒ 这一刀把同一族的
+#   判定搬到**提交前** ⇒ ⇒ 拦在当场。
+#
+# ⚠️ **它只拦一种形态**：「HEAD 里非空 ＋ 暂存面里是零字节」⇒ ⇒ 其余一律放行。
+# ⚠️ **fail-safe**：判不了（git 读不出来／没有 HEAD／node 不在 PATH）⇒ ⇒ 一律放行
+#   ⇒ ⇒ 宁可漏，**绝不卡住别人的提交**。
+#
+# ⚠️ 装法（每个 clone 一次）：  git config core.hooksPath .githooks
+
+ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+if ! command -v node >/dev/null 2>&1; then
+  exit 0
+fi
+
+node "$ROOT/scripts/check-precommit-hook.mjs" --hook
+code=$?
+if [ "$code" = "1" ]; then
+  exit 1
+fi
+exit 0
