@@ -94,9 +94,17 @@ export function CapabilityDefaultsCard() {
       try {
         // ⚠️ **先端脑** —— 端脑收下了才落本地。
         await telencephalonClient.setCapabilityDefaults(next);
-        writeCapabilityDefaultsSnapshot(next);
+        // ⚠️ **本地副本存没存住，要说真话** —— 端脑那份已经是权威了 ⇒ ⇒
+        // 存不住 ≠ 这次没生效；但「重启后这一档会回到默认」**必须让用户
+        // 知道** ⇒ ⇒ 否则用户以为「持久了」⇒ ⇒ 失败长得像成功。
+        const write = writeCapabilityDefaultsSnapshot(next);
         setDefaults(next);
-        setNotice(t('capabilityDefaults.applied'));
+        setNotice(
+          write.ok
+            ? t('capabilityDefaults.applied')
+            : t('capabilityDefaults.appliedButNotCached') +
+                (write.error ? ' (' + write.error + ')' : ''),
+        );
       } catch (e) {
         // ⚠️ 说真话：把端脑的原话带出来（它会说清是「键不认识」还是
         // 「模型没注册」）⇒ ⇒ 不许只弹一句「失败」。

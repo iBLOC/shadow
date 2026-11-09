@@ -1454,6 +1454,7 @@
     "unset": "Not set",
     "empty": "This brain exposes no capability tiers.",
     "applied": "Capability defaults applied",
+    "appliedButNotCached": "Applied to the brain, but the local copy was not saved - this tier will reset after a restart.",
     "failed": "Failed to set the capability defaults",
     "llm": "Text model",
     "asr": "Speech recognition",

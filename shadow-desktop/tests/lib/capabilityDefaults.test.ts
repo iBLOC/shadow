@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   CAPABILITY_DEFAULTS_STORAGE_KEY,
   capabilityCandidatesByCapability,
@@ -126,5 +126,34 @@ describe('durable 副本（桌面端本地留存）', () => {
   it('写进去能读回来', () => {
     writeCapabilityDefaultsSnapshot({ asr: 'whisper-1' });
     expect(readCapabilityDefaultsSnapshot()).toEqual({ asr: 'whisper-1' });
+  });
+});
+
+describe('writeCapabilityDefaultsSnapshot —— 「存没存住」必须分得清', () => {
+  beforeEach(() => {
+    globalThis.localStorage?.clear();
+  });
+
+  it('存进去了 ⇒ ok=true', () => {
+    expect(writeCapabilityDefaultsSnapshot({ asr: 'whisper-1' }).ok).toBe(true);
+  });
+
+  it('存不进去（抛异常）⇒ ok=false ＋ 带原因（不许假装存住了）', () => {
+    const spy = vi
+      .spyOn(globalThis.localStorage, 'setItem')
+      .mockImplementation(() => {
+        throw new Error('QuotaExceededError');
+      });
+    const res = writeCapabilityDefaultsSnapshot({ asr: 'whisper-1' });
+    expect(res.ok).toBe(false);
+    expect(res.error).toContain('QuotaExceededError');
+    spy.mockRestore();
+  });
+
+  it('压根没有 localStorage ⇒ 也是「没存住」（可选链不许把它吞成「存住了」）', () => {
+    vi.stubGlobal('localStorage', undefined);
+    const res = writeCapabilityDefaultsSnapshot({ asr: 'whisper-1' });
+    expect(res.ok).toBe(false);
+    expect(res.error).toBeTruthy();
   });
 });

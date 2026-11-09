@@ -149,20 +149,48 @@ export function readCapabilityDefaultsSnapshot(): Record<string, string> {
   }
 }
 
-/** 写 durable 副本（坏数据不许进来）。 */
+/** 写 durable 副本的结果 —— **存没存住要分得清**。 */
+export interface SnapshotWriteResult {
+  /** 真的落盘了吗。 */
+  ok: boolean;
+
+  /** 没落盘的原因（ok 为 false 时有）。 */
+  error?: string;
+}
+
+/**
+ * 写 durable 副本。
+ *
+ * ⚠️ **返回「存没存住」，不许静默吞掉** —— 端脑那份是权威、本地这份只是
+ * 「重启后重下发」的缓存 ⇒ ⇒ 写进不去**不等于**这次设置没生效 ⇒ ⇒ 但界面
+ * **必须说真话**（「已下发到大脑，但本地副本没存住 ⇒ 重启后这一档会回到
+ * 默认」）⇒ ⇒ 否则用户以为「持久了」，重启一次设置全丢 ⇒ ⇒ **失败长得像
+ * 成功**。
+ *
+ * ⚠️ **不抛错** —— 端脑那边已经写成功了 ⇒ ⇒ 抛错会把「**已经生效**」说
+ * 成「全失败」⇒ ⇒ 调用方会重试（白重发一遍）⇒ ⇒ 那是另一种撒谎。
+ */
 export function writeCapabilityDefaultsSnapshot(
   defaults: Record<string, string>,
-): void {
+): SnapshotWriteResult {
+  const clean: Record<string, string> = {};
+  for (const [k, v] of Object.entries(defaults ?? {})) {
+    if (typeof v === 'string' && v.trim()) clean[k] = v.trim();
+  }
   try {
-    const clean: Record<string, string> = {};
-    for (const [k, v] of Object.entries(defaults ?? {})) {
-      if (typeof v === 'string' && v.trim()) clean[k] = v.trim();
+    const storage = globalThis.localStorage;
+    // ⚠️ **没有 localStorage**（SSR / 无 DOM 的测试环境）⇒ ⇒ 那也是
+    // 「没存住」⇒ ⇒ 不许用一个可选链把它悄悄吞成「存住了」。
+    if (!storage) {
+      return { ok: false, error: 'localStorage is not available' };
     }
-    globalThis.localStorage?.setItem(
-      CAPABILITY_DEFAULTS_STORAGE_KEY,
-      JSON.stringify(clean),
-    );
-  } catch {
-    // 存不进去（隐私模式 / 配额满）⇒ ⇒ 不许因此假装「已保存」。
+    storage.setItem(CAPABILITY_DEFAULTS_STORAGE_KEY, JSON.stringify(clean));
+    return { ok: true };
+  } catch (e) {
+    // 存不进去（隐私模式 / 配额满）⇒ ⇒ **说清没存住**，别假装。
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : String(e),
+    };
   }
 }
