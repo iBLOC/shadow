@@ -202,13 +202,6 @@ export const KNOWN_DEBT = [
   },
   {
     repo: 'shadow-desktop',
-    file: 'src/lib/capabilityDefaults.ts',
-    kind: 'R5',
-    why: 'durable 副本**写不进**（隐私模式 / 配额满）⇒ ⇒ 忽略这一次 ⇒ ⇒ 端脑那份才是权威（本地这份只是缓存）⇒ ⇒ 不是把失败说成成功。',
-    when: '写 durable 副本的返回契约若要区分「存没存进去」，那时销账（现在它返回 void ⇒ ⇒ 调用方分不出本地缓存有没有落盘）。',
-  },
-  {
-    repo: 'shadow-desktop',
     file: 'src/pages/ConversationPage.tsx',
     kind: 'R5',
     why: '后端未就绪 ⇒ ⇒ 忽略那一条（统一收件箱可后续手动补出来）＋ 流里非 JSON ⇒ ⇒ 当纯文本保留 ⇒ ⇒ 不是伪装成功。',
