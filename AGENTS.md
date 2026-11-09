@@ -1,5 +1,53 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-09 (㑷 **「本地绿、CI 红 —— 原来量的是两把不同的尺子」** —— 承 U+3474 条（「存没存住」那条线）＋ U+3475 条（master 那三处红的归属），本条记**取证（真 CI 三处红 ＋ 尺子漂移的复现）**、**第一因（注入失败的手段本身就是尺子）**、**这一刀的落点（2 个文件）**、**判据（环境复现级 ＋ 三档反向验证 ＋ 还原）**、**分级读数**、**途中那几课**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-09 | authority=measured | scope=project | source=真运行级实测（真 CI 逐字日志 ＋ 本地**环境复现**（NODE_OPTIONS=--no-experimental-webstorage）＋ 三档注入反向验证 ＋ 还原 hash 比对 ＋ 三道闸实跑 ＋ tsc -b） | 改动：shadow 仓 **改** `shadow-desktop/tests/lib/capabilityDefaults.test.ts`（注入失败改为「整个换掉 global」＋ 新增「注入真的被调用过」断言）、**改** `AGENTS.md`（本条） ｜ 读数：**环境复现级：旧版在 CI 条件下逐字复现 CI 的红（`expected true to be false`）⇒ 新版同条件 15/15 绿**、**反向验证级：变体 A ⇒ 恰好 1 红 ／ 变体 B ⇒ 恰好 1 红 ／ 变体 C ⇒ 新守卫单独抓到（`expected +0 to be 1`）**、**还原：产品文件 blob 逐字一致 `c087eae…`**、**闸级：state-surface 零违规 ＋ 自检 38/38 ／ 失败掩盖闸 EXIT=0 ／ 码位闸零违规**、**类型级：桌面 `tsc -b` EXIT=0** | status=active | supersedes=none
+
+① **⚠️ 取证：master 那三处红，其实只有两个根因**
+　❶ **红在判据上**（真 CI run 42617962783，head `d61c0a1`）：逐字 `FAIL tests/lib/capabilityDefaults.test.ts > … > 存不进去（抛异常）⇒ ok=false ＋ 带原因` ⇒ ⇒ `AssertionError: expected true to be false` ⇒ ⇒ **本地同一条是绿的**。
+　❷ **红在台账上**：逐字 `[R1] 状态面 project-ledger：条目「『存没存住』要分得清 —— 端脑那份是权威，但本地副本写不进也得说真话」的信封缺字段 source` ⇒ ⇒ 连带 **state-surface 自检红**（37/38）⇒ ⇒ 连带 **governance（gate-discipline）2 条违规**（`self-test-broken` ＋ `debt-missing`）⇒ ⇒ ⇒ **三处红＝两个根因**。
+　❸ **本地绿、CI 红 ⇒ 差在「尺子」**：本地 `node v25.2.1` 的 `globalThis.localStorage` 是 **Node 原生 Web Storage**（普通对象 ⇒ `vi.spyOn` 装得上）；CI（**node 24**）上它是 **jsdom 的 Storage** ⇒ ⇒ **那是一个 Proxy** ⇒ ⇒ 实例上 `defineProperty`（`vi.spyOn` 干的就是这件事）被**静默吞掉**（实测：读回 `Object.getOwnPropertyDescriptor` 是 `undefined`）⇒ ⇒ **spy 装上了、却一次都没被调到** ⇒ ⇒ 写失败被说成「存住了」。
+
+② **⚠️ 第一因：注入失败的手段，本身就是尺子的一部分**
+　❶ 那条判据要证明「写失败必须说真话」⇒ ⇒ 它得**注入一次写失败**⇒ ⇒ 而注入手段（`vi.spyOn`）**依赖运行时**（jsdom 的 Proxy 吞不吞 own property）⇒ ⇒ **同一条判据在 node 24 与 node 25 上量的是两把不同的尺子** ⇒ ⇒ 本地绿**证明不了** CI 绿 ⇒ ⇒ 本次就是「本地绿、CI 红」。
+　❷ 而这把尺子量的是「**有没有被调用**」⇒ ⇒ 注入一旦空转（失败根本没发生），判据就在测一个**没发生过的失败**⇒ ⇒ 绿得毫无意义 ⇒ ⇒ ⇒ 必须让判据**自己知道注入有没有生效**。
+　❸ ⚠️ **同一族的另一面**：信封那个 `source:`（冒号）vs `source=`（等号）⇒ ⇒ 闸认**行形状**⇒ ⇒ 一个标点 ⇒ ⇒ 三道闸连坐红 ⇒ ⇒ **形状不是排版**。
+
+③ **✅ 这一刀的落点（2 个文件）**
+　❶ **改 `shadow-desktop/tests/lib/capabilityDefaults.test.ts`** —— 新增 `installStorage()`：**整个换掉 `globalThis.localStorage`**（`vi.stubGlobal`）＋ 计数 `calls.setItem`；两个 describe 改用它（「durable 副本」＋「writeCapabilityDefaultsSnapshot」）；「存不进去（抛异常）」那条改用注入替身；**新增一条断言 `expect(calls.setItem).toBe(1)`**（⇒ 注入空转 ⇒ 判据当场红）。
+　❷ **改 `AGENTS.md`** —— 本条（U+3477）。
+　❸ ⚠️ **❷（台账那个红）不重复销账** —— 它的根因是 U+3474 条的信封把 `source=` 写成了 `source:`（冒号）⇒ ⇒ 已由**并行会话的 `df14dd4`** 修掉 ⇒ ⇒ 本刀**复核**（闸零违规 ＋ 自检 38/38）⇒ ⇒ **不越界重复改**（否则会和对方的提交打架）。
+
+④ **⚠️ 途中那几课**
+　❶ **jsdom 的 Storage 是 Proxy** ⇒ ⇒ 实例上 `defineProperty` 被**静默吞掉**（读回 `undefined`）⇒ ⇒ `vi.spyOn`「装上了」却一次没被调到 ⇒ ⇒ **失败长得像成功**（这次是**判据**的失败长得像成功）。
+　❷ **node 25 自带 Web Storage** ⇒ ⇒ `globalThis.localStorage` 在 node 25 上**不是** jsdom 的那个 ⇒ ⇒ 本地与 CI 的**被测对象**根本不是同一个 ⇒ ⇒ 「本地绿」这句话本身要打问号。
+　❸ **复现手段：`NODE_OPTIONS=--no-experimental-webstorage`** ⇒ ⇒ 关掉 node 25 的原生 Web Storage ⇒ ⇒ 本地就变成 CI（node 24）的形状 ⇒ ⇒ **不必等 CI 就能复现**（本刀就是这么定位的：旧版逐字复现 CI 的红）。
+　❹ **注入必须可观测** ⇒ ⇒ `calls.setItem` 计数 ⇒ ⇒ 「判据有没有真的碰到被测物」变成判据的一部分 ⇒ ⇒ 而不是靠人相信。
+　❺ ⚠️ **仓里早就有正确范式**：`tests/pages/WorkflowStudioPage.test.tsx` 写着「jsdom 的 Storage 不方便 spyOn ⇒ 整个换掉」⇒ ⇒ **同一仓里两种写法并存** ⇒ ⇒ 这次是**先写错的那一份**红 ⇒ ⇒ **范式要能被人抄到**（共享 setup.ts 仍让 ambient storage 随 node 版本而变 ⇒ ⇒ 见「仍然欠着」）。
+
+⑤ **✅ 判据（四处）**
+　❶ **环境复现级（最强的一条）**：`NODE_OPTIONS=--no-experimental-webstorage`（＝ CI 的 node 24 形状）⇒ ⇒ **旧版逐字复现 CI 的红**（`expected true to be false`，同一行同一句）⇒ ⇒ **新版同条件 15/15 绿** ⇒ ⇒ ⇒ **同一台机器上量出了「本地绿、CI 红」的全过程**。
+　❷ **反向验证级（三档）**：变体 A（把「写失败」也说成「存住了」）⇒ ⇒ **恰好 1 红**（正是「存不进去」那条）；变体 B（把「压根没有 localStorage」也说成「存住了」）⇒ ⇒ **恰好 1 红**（正是那条）；变体 C（产品**绕过 storage**、自己编一个失败原因）⇒ ⇒ **新守卫单独抓到**（`expected +0 to be 1`）⇒ ⇒ ⇒ 证明「注入没生效 ⇒ 判据当场红」这条**承重**。
+　❸ **还原**：三档注入还原后 `git hash-object` **逐字一致**（`c087eae…`）⇒ ⇒ 复跑 15/15 绿。
+　❹ **闸级**：state-surface **零违规** ＋ 自检 **38/38**；失败掩盖闸 **EXIT=0**；码位闸零违规。
+
+⑥ **✅ 分级读数（全部实测）**
+　❶ **环境复现级**：旧版 ⇒ 逐字复现 CI 红 ｜ 新版 ⇒ 15/15 绿（CI 条件下）＋ 15/15 绿（本地默认条件）
+　❷ **反向验证级**：变体 A ⇒ 恰好 1 红 ｜ 变体 B ⇒ 恰好 1 红 ｜ 变体 C ⇒ 3 红（其中新守卫那条是**唯一**抓到「绕过 storage」的）
+　❸ **类型级**：桌面 `npx tsc -b` **EXIT=0**
+　❹ **闸级**：state-surface 零违规（自检 38/38）｜ 失败掩盖闸 EXIT=0 ｜ 码位闸零违规
+　❺ **真 CI 级**：待下一次 push 的 run（本地能**复现环境**，但不能替代真 CI）
+
+⑦ **⚠️ 仍然欠着**
+　❶ **共享的 `shadow-desktop/tests/setup.ts` 仍让「环境里的 localStorage」随 node 版本而变**（node 25 原生 / node 24 jsdom）⇒ ⇒ 其它依赖 ambient storage 的测试**仍有同类漂移**（仓里另一处已自带正确范式）⇒ ⇒ 本刀**未擅自改**共享 setup（160+ 文件共用 ⇒ ⇒ 越界风险大）⇒ ⇒ 下一刀的活。
+　❷ **真 CI 级读数**要等下一次 push（本地只能复现环境）。
+　❸ **ASR/TTS 引擎「注册进 neuron」那一环仍欠**（承 U+3471 条）⇒ ⇒ 并行会话在飞。
+　❹ **「声明后谁来按它匹配」仍是产品决定**。
+　❺ **真机级／真端脑级未跑**。
+
+⑧ **⚠️ 圈码：本条占 U+3477（㑷）** —— 插前**独立重扫**（父仓工作树 ∪ 父仓 HEAD ∪ 父仓 `origin/master` × **三本账本**，按**声明形状**扫）⇒ ⇒ 三面最高已声明 **U+3475**（承 U+3475 条）⇒ ⇒ 自然下一枚 **U+3476** ⇒ ⇒ 但 **U+3476 已被声明为缓冲**（承 U+3475 条 ⑧ 面「再留一枚缓冲（U+3476）」⇒ ⇒ **只提及、未声明**）⇒ ⇒ ⇒ 取 **U+3477** ⇒ ⇒ **U+3476 继续留空** ⇒ ⇒ 插前扫：U+3476／U+3477 在三账本三面 **声明各 0 次**（U+3476 仅 1 处提及＝那条缓冲）✔ ⇒ ⇒ ⚠️ **不填历史空洞**（U+346E 继续空）⇒ ⇒ ⚠️ 本条**只引用已提交的码位**（U+3471／U+3474／U+3475）⇒ ⇒ ⚠️ **插完立刻复跑码位闸**是硬约束。
+
 **Updated**: 2026-11-09 (㑵 **「master 红了三次 —— 都不是我这把刀，但红在 master 上就得有人管」** —— 承 U+3470 条（断言承重闸），本条记**取证（三处红，各有归属）**、**第一因（「在飞豁免」是有保质期的债）**、**这一刀的落点（3 个提交）**、**判据（闸级 ＋ 真 CI 级）**、**分级读数**、**途中那几课**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-09 | authority=measured | scope=project | source=真运行级实测（真 CI 逐条读数 ＋ 闸级复跑 ＋ 两把类型闸） | 改动：shadow 仓 **改** `shadow-desktop/tests/lib/capabilityDefaults.test.ts`（删一条未用 type import）、**改** `shadow-desktop/src/pages/SettingsPage.tsx`（空 catch ⇒ 诚实失败）、**改** `scripts/check-failure-masking.mjs`（销账 2 条） ｜ 读数：**failure-masking 闸 EXIT=0（落点 39 处 / 债务清单 29 条 / 真缺陷 0 / 新增 0 / 过期 0）**、**桌面端两把类型闸 EXIT=0**、**真 CI：五道密闸全绿 ＋ Desktop E2E 全绿（契约整族 passed=54 failed=0 skipped=1）** ｜ 提交：`fc2ac05`／`5b1e9a6`／`d61c0a1` | status=active | supersedes=none
