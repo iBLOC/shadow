@@ -1,13 +1,12 @@
 // 「提交面回退闸」的判据自检 —— 在**临时 git 仓**里造真形状，跑同一段扫描代码。
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { scanReverts } from './commit-revert-scan.mjs';
 import { declaresRevert, shouldFail } from './commit-revert.mjs';
-
-const TMP = 'C:/Projects/iBLOC/shadow/.local/selftest-commit-revert';
 
 function mkGit(cwd) {
   const run = (args) => {
@@ -34,8 +33,19 @@ function write(repo, rel, content) {
 }
 
 export function runSelfTest() {
-  if (existsSync(TMP)) rmSync(TMP, { recursive: true, force: true });
-  mkdirSync(TMP, { recursive: true });
+  // ⚠️ **夹具目录必须每次唯一**（mkdtemp）⇒ ⇒ 否则两个并发进程会互相删对方的仓
+  //   ⇒ ⇒ 自检随机失败 ⇒ ⇒ 治理闸把它读成「闸自己坏了」⇒ ⇒ 假红。
+  // ⚠️ 也**不许硬编码绝对路径**：旧写法写死本机目录 ⇒ ⇒ Linux CI 上会造出
+  //   一个字面量 `C:` 目录污染 checkout ⇒ ⇒ 一律走系统临时目录。
+  const dir = mkdtempSync(join(tmpdir(), 'commit-revert-selftest-'));
+  try {
+    return runSelfTestIn(dir);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+function runSelfTestIn(TMP) {
   const git = mkGit(TMP);
   git(['init', '-q']);
   // ⚠️ **仓级身份**（不是每条命令带 -c）—— 否则 git revert 这类**会自己造提交**

@@ -30,7 +30,8 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -40,8 +41,10 @@ import { checkStagedWipes, emptyBlobHash } from './lib/precommit-wipe.mjs';
 //   夹具建在字面目录名 `C:` 下，且「用绝对路径调用自己」会找不到模块
 //   ⇒ ⇒ 判据自检 0/4 ⇒ ⇒ CI 红了而本地 4/4 绿（平台差异族）。
 // ⇒ ⇒ 一律从**脚本自身位置**推路径 ⇒ ⇒ 跨平台同形。
+// ⚠️ 但**固定目录名不许留**：并发跑时两个进程会互相 `rmSync` 对方的仓
+//   ⇒ ⇒ 自检随机失败 ⇒ ⇒ 治理闸把它读成「闸自己坏了」⇒ ⇒ 假红。
+//   ⇒ ⇒ 一律用 mkdtemp 在系统临时目录下开**每次唯一**的夹具目录。
 const HERE = fileURLToPath(new URL('.', import.meta.url));
-const TMP = join(HERE, '..', '.local', 'selftest-precommit-hook');
 
 function mkGit(cwd) {
   return (args) => {
@@ -106,8 +109,16 @@ export function scan(cwd) {
 }
 
 function selftest() {
-  if (existsSync(TMP)) rmSync(TMP, { recursive: true, force: true });
-  mkdirSync(TMP, { recursive: true });
+  // ⚠️ **夹具目录必须每次唯一**（mkdtemp）⇒ ⇒ 否则并发跑会互相删对方的仓。
+  const dir = mkdtempSync(join(tmpdir(), 'precommit-hook-selftest-'));
+  try {
+    return selftestIn(dir);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+function selftestIn(TMP) {
   const git = mkGit(TMP);
   git(['init', '-q'], {});
   git(['config', 'user.email', 't@t.local'], {});
