@@ -1,5 +1,69 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-11 (㑿 **「22 个规格写完就再没跑过 —— 本机一跑，16 条红里只有 1 条是产品缺陷」** —— 承 U+347D 条（刀 M：「谁真被跑过」显式化闸）＋ U+347E 条（目录面 vs 已注册面），本条记**取证（全族真跑：84 过 / 16 红 / 2 跳 → 修完 95 过 / 0 红 / 7 跳）**、**第一因（断言写完就再没跑 ⇒ ⇒ 断言与产品面早就漂了）**、**这一刀的落点（14 个文件 ＋ 1 个提交）**、**判据（反向验证三档 ＋ 尺子自曝盲区）**、**分级读数**、**途中那几课**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真运行级实测（**Playwright 全族 26 规格 / 102 条用例本机真跑两轮** ＋ 三档注入反向验证 ＋ 闸级实跑 ＋ 三面三账本码位重扫） | 改动：shadow 仓 **改** `.github/workflows/desktop-e2e.yml`（playwright 命令去掉过滤参数 ＋ skipped 改逐条白名单 ＋ failed 一律红）、**改** `scripts/lib/desktop-e2e-coverage.mjs`（覆盖推导认三种点名形式 ＋ `resolveWholeFamily` ＋ **`hasPlaywrightInvocation`**）、**改** `scripts/check-desktop-e2e-coverage.mjs`（C5 静态侧同口径 ＋ 无 playwright 调用即判红）、**改** `scripts/lib/desktop-e2e-coverage-debt.mjs`（22 条 Playwright 债**销账**）、**改** `shadow-desktop/src/i18n/{zh-CN,en-US}.json`（**补 20 个 voice 键/份**）、**改** 8 个 `shadow-desktop/tests/e2e-ui/*.spec.ts`（修断言） ｜ 读数：**全族真跑 95 过 / 0 红 / 7 跳（24.4 秒）**、**闸 EXIT=0（文件 39 ｜ CI 覆盖 26 ｜ 未覆盖 13，全部登记在册）**、**判据自检 22/22**、**反向验证三档**、**YAML 有效性 EXIT=0（13 个 YAML）**、**码位闸三面零违规**、**桌面端 e2e-ui 类型闸 EXIT=0** | 提交：`fcfe977` | status=active | supersedes=none
+
+① **⚠️ 取证：把 22 个「写完就再没跑过」的规格真跑一遍，红的形态是产品早就漂了**
+　❶ **刀 M 的账**：39 个 E2E 文件，CI 真跑 4 个（10%）⇒ ⇒ 那 22 个 Playwright 规格的断言**从未被执行过**。
+　❷ **本机真跑全族**（26 规格 / 102 条用例 ＋ 真端脑 ＋ mock LLM）⇒ ⇒ **84 过 / 16 红 / 2 跳** ⇒ ⇒ **红的不是环境债** ⇒ ⇒ 是**断言与产品面早就漂了**。
+　❸ **16 条红拆成八族**（逐族归因，不是「一堆红」）：
+　　❶ **strict mode violation 6 条** —— `button:has-text("添加供应商")` **命中 2 个元素**（ModelsPage 的按钮 ＋ 空态行动项；两者文案都是 `models.addProvider`＝「添加供应商」）⇒ ⇒ 改 `.first()`。
+　　❷ **i18n key 字面量 2 条** —— 断言拿 `'providers.title'` 字符串比，而界面显示的是中文「大模型服务提供商」⇒ ⇒ **断言写错了**。
+　　❸ **产品缺陷 1 条** —— `VoicePage.tsx:57` 用 `t('voice.title')`，而 **`voice` 对象里 21 个键在 zh-CN 与 en-US 里全缺** ⇒ ⇒ **语音页把 key 本身显示给用户**（逐字：`locator resolved to <h1>voice.title</h1>`）⇒ ⇒ 补齐两份词表（20 键/份，含 `status` 子对象）。
+　　❹ **设置页 3 条** —— 设置页**改版成侧栏 section 布局**（`SettingsPage` 的 `activeSection`）⇒ ⇒ 断言找的「端脑/语言/主题」heading **不存在了** ⇒ ⇒ 改认侧栏 section ＋ 先切 section 再断言。
+　　❺ **功能从未实现 2 条** —— `visual-qa-clarification-chip` / `visual-qa-candidate-*` 这两个 testid 在 `src/` 里**零引用** ⇒ ⇒ 产品从来不会渲染它们 ⇒ ⇒ **诚实跳过**并写明原因。
+　　❻ **硬编码端口 1 条** —— onboarding 断言写死 `'localhost:5173'`，而 CI 用的是 `127.0.0.1:4173`（构建产物那条路）⇒ ⇒ **在 CI 上恒红** ⇒ ⇒ 改认当前 origin。
+　　❼ **路由不存在 1 条** —— `/agents` 不在 `App.tsx` 的路由表里（智能体那一片在设置页的「服务与智能体」section）⇒ ⇒ 页面 404 ⇒ ⇒ 改走设置页。
+　　❽ **产品面已移除 1 条** —— `VideoSourcesCard` 在 `src/` 里**零引用**，`视频源` 这个 i18n 键也零引用 ⇒ ⇒ 设置页没有「视频源」section ⇒ ⇒ **诚实跳过**。
+　❹ **修完复跑**：**95 过 / 0 红 / 7 跳**（24.4 秒）⇒ ⇒ 7 条跳过**逐条点名**：❶❷ 两条要 `MIMO_API_KEY`（环境债）＋ ③④⑤⑥⑦ 五条「产品面未实现/已移除」。
+
+② **⚠️ 第一因：断言写完就再没跑 ⇒ ⇒ 断言与产品面各自漂了，谁也不知道**
+　❶ 这一族错误的形状：**判据躺着没跑** ⇒ ⇒ 它断言的那个字符串／那个路由／那个 testid **早就不是产品现在的样子了** ⇒ ⇒ 而**没人知道**，因为「它绿不绿」这件事**从来没被问过**。
+　❷ ⇒ ⇒ **「类型对了」≠「跑过了」**（刀 M 那句）在本条升级成：**「跑过了」≠「断言还对」** ⇒ ⇒ 一个从没跑过的用例，**跑起来第一件事就是红** ⇒ ⇒ 它红得理直气壮（是它自己漂了，不是产品坏了）。
+　❸ 通用形态：**「仓里有这个测试文件」≠「它被跑过」≠「它跑起来是绿的」** —— **三层**都得自己取证，别拿上一层的结论当下层的证据。
+　❹ ⚠️ **「没测到」不许写成「产品坏」** —— 本条 16 条红里，**只有 1 条是真产品缺陷**（voice 词表缺 21 键），其余 15 条是**断言自己漂了** ⇒ ⇒ 分不清这两者，就会去改**没坏的**产品，或者放过**真坏的**产品。
+　❺ ⇒ ⇒ 归因方法：**每条红都要落到「产品侧这个形状现在是什么」**（去 `src/` 里 grep、去 i18n JSON 里查、去路由表里看）⇒ ⇒ 落不到 ⇒ ⇒ 才是「产品坏了」。
+
+③ **✅ 这一刀的落点（14 个文件 ＋ 1 个提交）**
+　❶ **CI 接线**（`.github/workflows/desktop-e2e.yml`）—— playwright 命令**去掉过滤参数**（Playwright 的过滤参数是**正则**；点名 26 个要写 26 条转义正则 ⇒ ⇒ 脆）⇒ ⇒ 跑整个 `testDir`；读数判据：passed 必须有、**failed 一律红**、**skipped 走逐条白名单**（白名单外任何一条跳过 ⇒ ⇒ 判红 ⇒ ⇒ 「跳过也算绿」被挡死）。
+　❷ **判据库**（`scripts/lib/desktop-e2e-coverage.mjs`）—— 覆盖推导认**三种点名形式**（主干 / 路径 / 转义正则）＋ 新增 `resolveWholeFamily`（「零过滤参数 ⇒ ⇒ 整族」）＋ 新增 **`hasPlaywrightInvocation`**（见 ④❷）。
+　❸ **闸**（`scripts/check-desktop-e2e-coverage.mjs`）—— C5 的静态侧与 `covered.set` 用**同一口径**（否则整族模式会把整族全判成漂移 ⇒ ⇒ **假红**）＋ CI 里没有 playwright 调用 ⇒ ⇒ 覆盖按 0 算并**逐条点名**。
+　❹ **债清单**（`scripts/lib/desktop-e2e-coverage-debt.mjs`）—— **22 条 Playwright 债销账**（承 U+3475 条：「修缺陷与销账必须同一个提交」）⇒ ⇒ 剩 **13 条**（wdio 4 ＋ tauri-e2e 6 ＋ 旧 e2e-tests 3，全部是环境债）。
+　❺ **产品侧**（`shadow-desktop/src/i18n/{zh-CN,en-US}.json`）—— 补 20 个 `voice` 键/份（`title`/`subtitle`/`start`/`stop`/`hint_*`/`transcript`/`speakingHint`/`startHint`/`tip_*`/`mic`/`opus`/`turns`/`status.*`）⇒ ⇒ 语音页不再显示 key。
+　❻ **8 个 spec** —— 逐条改成「对着产品现在的形状断言」。
+
+④ **⚠️ 途中那几课**
+　❶ **「全跑」比「点名」更抗漂移** —— 点名 26 个要写 26 条**转义正则**（Playwright 的过滤参数是正则，`.` 会互相匹配到别的文件）⇒ ⇒ 脆 ⇒ ⇒ 不点名（跑整族）反而更稳 ⇒ ⇒ **代价是闸那一格必须同步认「零过滤 = 整族」**（否则尺子把「全跑」读成「一个都没跑」）。
+　❷ **「零过滤参数」有一个前提，而前提会悄悄消失** —— **反向验证抓到的真盲区**：把 CI 里那条 `playwright test` **整个删掉** ⇒ ⇒ 「零过滤参数」**仍然成立**（还是零个！）⇒ ⇒ 「整族覆盖」的结论变成**空头** ⇒ ⇒ **闸照样绿** ⇒ ⇒ ⇒ **CI 已经不跑 E2E 了，闸却说「26 个全覆盖」** ⇒ ⇒ 那正是「失败长得像成功」的经典形态 ⇒ ⇒ ⇒ 修法：**零过滤参数必须同时满足「CI 里真的有 playwright 调用」**（`hasPlaywrightInvocation`）⇒ ⇒ 现在它红，并让 C1 逐条点名那 26 个。
+　❸ ⚠️ **「整族覆盖」下新增文件** —— 反向验证第二档：加一个未登记的新规格 ⇒ ⇒ 闸**绿** ⇒ ⇒ 差点被当成「又一个盲区」⇒ ⇒ 但**逐字核实后确认这是正确的**：`playwright --list` 读到 **27 文件 / 103 条**（新规格**在里面**）⇒ ⇒ 整族覆盖下**新规格真会被跑到** ⇒ ⇒ 它**不是隐形债** ⇒ ⇒ ⇒ **通用形态：判据说「绿」时，要去问「被测物自己的读数」**（承 U+347D 条：「尺子要对着被测物」）⇒ ⇒ 差点把「正确的绿」当成「盲区」⇒ ⇒ 那是**假红的反面**（把对的当错的）。
+　❹ **CI 的 port 约定**：本地构建产物那条路是 `127.0.0.1:4173`，dev server 是 `localhost:5173` ⇒ ⇒ **写死任何一个都会在另一条路上恒红** ⇒ ⇒ 断言必须认**当前 origin**。
+　❺ **「诚实跳过」是合法读数，但必须逐条点名** —— 5 条「产品面未实现/已移除」的跳过**不许静默**（不许「跳过也算绿」）⇒ ⇒ CI 里走**白名单逐条核对**，白名单外任何一条跳过 ⇒ ⇒ 判红。
+
+⑤ **✅ 判据（四处）**
+　❶ **真跑级**：全族 26 规格 / 102 条用例**本机两轮真跑** ⇒ ⇒ **84 过 / 16 红 / 2 跳**（修前）⇒ ⇒ **95 过 / 0 红 / 7 跳**（修后，24.4 秒）⇒ ⇒ 7 条跳过**逐条点名**（2 条 `MIMO_API_KEY` ＋ 5 条产品面未实现/已移除）。
+　❷ **反向验证级（三档，每档都有读数）**：❶ **CI 收窄**（加回 2 个名字）⇒ ⇒ 覆盖从 26 掉到 2 ⇒ ⇒ **24 条红**逐条点名（`unregistered-uncovered`）⇒ ⇒ 还原后 0 红；❷ **新增未登记规格** ⇒ ⇒ 闸**绿**（**正确**：探针 `--list` 读到 27 文件/103 条 ⇒ ⇒ 新规格真被跑到）⇒ ⇒ 移走探针复跑 0 红；❸ **删掉 CI 里那条 playwright 调用** ⇒ ⇒ 覆盖 0 / 未覆盖 39 ⇒ ⇒ **53 条红**（26 条 C1 ＋ 26 条 C5）逐条点名 ⇒ ⇒ 还原后 0 红。
+　❸ **判据自检 22/22** —— 新增 4 条（路径式点名 / 转义正则式点名 / 整族推导 / 整族推导孪生）⇒ ⇒ 每条都成对（该认的认得、不该认的不认）。
+　❹ **闸级**：刀 M 的闸 **EXIT=0（文件 39 ｜ CI 覆盖 26 ｜ 未覆盖 13，全部登记在册）**；YAML 有效性闸 EXIT=0（13 个 YAML）；码位闸**三面**零违规；桌面端 e2e-ui **类型闸 EXIT=0**。
+
+⑥ **✅ 分级读数（全部实测）**
+　❶ **真跑级**：26 规格 / 102 条用例，两轮 ⇒ ⇒ 修前 84 过 / 16 红 / 2 跳 ⇒ ⇒ 修后 **95 过 / 0 红 / 7 跳**（24.4 秒）。
+　❷ **反向验证级**：三档各有着陆点（24 红 / 绿且有「`--list`」读数佐证 / 53 红）⇒ ⇒ 还原后全绿。
+　❸ **判据级**：自检 **22/22**。
+　❹ **闸级**：E2E 真跑承重闸 EXIT=0（39 ｜ 26 ｜ 13）｜ YAML 闸 EXIT=0（13 个）｜ 码位闸三面零违规 ｜ e2e-ui 类型闸 EXIT=0。
+　❺ **仓库级**：**CI 覆盖从 4 个升到 26 个**（10% → 67%）⇒ ⇒ 未覆盖从 35 降到 **13**（全部是 wdio/tauri/旧 e2e 三族的环境债）。
+　❻ **真 CI 级**：待推（`fcfe977`）。
+
+⑦ **⚠️ 仍然欠着**
+　❶ **13 个文件在 CI 里仍然没跑** —— wdio 4 ＋ tauri-e2e 6 ＋ 旧 e2e-tests 3 ⇒ ⇒ **全是环境债**：`chromedriverCustomPath` 写死 linux 路径 ＋ tauri-driver ＋ 真桌面会话 ⇒ ⇒ 本条**只把债变显形并销掉 Playwright 那 22 条** ⇒ ⇒ 那一族仍欠。
+　❷ **`desktop-e2e.yml` 是夜间/手动触发** ⇒ ⇒ 「CI 覆盖 26 个」这句话的**频率**另说（不是每次 push）。
+　❸ **5 条「产品面未实现/已移除」的跳过是**欠账不是结论** —— `visual-qa-clarification-chip`（功能未做）＋ `VideoSourcesCard`（已移除）⇒ ⇒ 产品要不要把它们捡回来是**产品决定** ⇒ ⇒ 本条只**诚实登记**。
+　❹ **`MIMO_API_KEY` 那 2 条**需要真供应商凭据 ⇒ ⇒ 环境债。
+　❺ **端脑侧判据在端脑自己的 CI 上仍无读数**；`Mobile Test` 那笔环境债照旧；真机级／真端脑级未跑。
+　❻ **「整族覆盖」那一格仍依赖「CI 里真的有 playwright 调用」这一个前提** —— 若有人把命令**改名**（不是删）⇒ ⇒ `hasPlaywrightInvocation` 会红 ⇒ ⇒ 那是**故意**的（改名了就要更新这一格）⇒ ⇒ 但**改名成别的形状**时它会误红 ⇒ ⇒ 那一格认的是 `\bplaywright\s+test\b` 这个形状 ⇒ ⇒ 属于**承重**。
+
+⑧ **⚠️ 圈码：本条占 U+347F（㑿）** —— 插前**独立重扫**（父仓工作树 ∪ 父仓 HEAD ∪ 父仓 `origin/master` × **三本账本**，按**声明形状**扫 ＋ 另扫「提及」）⇒ ⇒ 三面最高已声明 **U+347E**（并行会话那条）⇒ ⇒ 自然下一枚 **U+347F**（本条）⇒ ⇒ 按惯例**再留一枚缓冲（U+3480）**⇒ ⇒ 插前扫：**U+347F／U+3480** 在三账本三面**各 0 次声明**（U+347F 那 42 处全是「留作缓冲」的**提及**，不是声明）✔ ⇒ ⇒ ⚠️ **不填历史空洞**（U+3476／U+3479／U+347B 继续空 ＋ U+3472 留给真机腿那条线）⇒ ⇒ ⚠️ 本条**只引用已提交的码位**（U+347D／U+347E）⇒ ⇒ ⚠️ **插完立刻复跑码位闸**是硬约束。
+
 **Updated**: 2026-11-11 (㑾 **「目录面 ≠ 已注册面 —— 颞叶里的 ASR/TTS 怎么办：用户从下拉里选的 id，端脑永远解析不到」** —— 承 U+347A 条（读数必须分层：总量 vs 真风险），本条记**取证（两套 id 命名空间的逐条比对）**、**第一因（界面给了一个必然失败的选项）**、**这一刀的落点（端脑 3 个文件 ＋ 父仓 15 个文件：12 产品 ＋ 2 判据 ＋ 1 台账）**、**判据（端脑真 HTTP ＋ 两档反向验证）**、**分级读数**、**途中那几课**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真运行级实测（两套 id 命名空间逐条比对 ＋ 端脑真 HTTP 判据 ＋ 两档注入反向验证 ＋ 桌面/移动端全量回归 ＋ 三面三账本码位重扫） | 改动：端脑 **改** `src/lobes/manifest.rs`（`Capability::ENGINE_RESOLVED`）、**改** `src/api/lobe_manifest.rs`（视图加 `engine_resolved` ＋ `registered`）、**改** `tests/capability_defaults_and_agent_declaration.rs`（＋2 条真 HTTP 判据）；shadow 仓 **改** `shadow-desktop/src/lib/capabilityDefaults.ts`（`capabilityOptionsByCapability` ＋ `unusableCapabilityDefaults`）、**改** `shadow-desktop/src/lib/telencephalonClient.ts`（视图类型 ＋2 字段）、**改** `shadow-desktop/src/components/business/CapabilityDefaultsCard.tsx`、**改** `shadow-desktop/src/i18n/{en-US,zh-CN}.json`、**改** `shadow-mobile/lib/providers/brain_model_source_provider.dart`、**改** `shadow-mobile/lib/widgets/brain/capability_default_section.dart`、**改** `shadow-mobile/lib/l10n/app_{en,zh}.arb` ＋ 生成物、**改** `shadow-desktop/tests/lib/capabilityDefaults.test.ts`（＋10 条）、**改** `shadow-mobile/test/unit/capability_default_candidates_test.dart`（＋11 条）、**改** `AGENTS.md`（本条） ｜ 读数：**端脑真 HTTP 13/13 绿**、**桌面判据 25/25 绿**、**移动端判据 21/21 绿**、**反向验证 A（端脑把 `engine_resolved` 弄空）⇒ 恰好 1 红**、**反向验证 B（客户端退回目录面）⇒ 恰好 3 红**、**桌面全量 1509 过 / 16 跳 / 1 红**（那 1 红＝accent 生成物漂移，别人在飞，非本线）、**`tsc -b` EXIT=0**、**`flutter analyze` EXIT=0**、**码位闸：工作树面零违规（369 条条目）／提交树面 3 红（并行会话那处字形错 ⇒ ⇒ 本提交后回绿）** | status=active | supersedes=none
