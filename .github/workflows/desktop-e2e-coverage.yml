@@ -29,16 +29,15 @@ jobs:
     steps:
       - name: Checkout shadow
         uses: actions/checkout@v7
-        with:
-          # ⚠️ **必须带 `path: shadow`** —— 否则仓落在 runner 工作目录的**根**
-          #   ⇒ ⇒ 下面的 `working-directory: shadow/shadow-desktop` 会指向
-          #   `/home/runner/work/shadow/shadow/shadow/shadow-desktop`（多一层）
-          #   ⇒ ⇒ **CI 立刻红**：
-          #   「An error occurred trying to start process '/usr/bin/bash'
-          #     with working directory '.../shadow/shadow/shadow/shadow-desktop'」
-          #   ⇒ ⇒ 这是本轮**真 CI 读数**抓到的（不是猜的）。
-          #   ⚠️ 兄弟 workflow（e2e-typecheck.yml / desktop-e2e.yml）都带它。
-          path: shadow
+        # ⚠️⚠️ **不要带 `path: shadow`** —— 那样仓会落在 runner 工作目录的**子目录**
+        #   ⇒ ⇒ 下面的 `run: node scripts/...`（工作目录＝仓库根）就**找不到脚本**：
+        #   「Error: Cannot find module
+        #     '/home/runner/work/shadow/shadow/scripts/check-desktop-e2e-coverage.mjs'」
+        #   ⇒ ⇒ **本轮真 CI 逐字读数**（run 42632142640）抓到的。
+        #   ⇒ ⇒ 兄弟 workflow（desktop-test-assertions.yml）也是**不带** path 的。
+        #   ⚠️ 兄弟 workflow（e2e-typecheck.yml / desktop-e2e.yml）**带** path: shadow
+        #   ⇒ ⇒ 因为它们的 step 全都显式写了 `working-directory: shadow/shadow-desktop`
+        #   ⇒ ⇒ **两套写法各自成立，但不能混用**（混用就会多一层 / 少一层）。
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
@@ -55,7 +54,7 @@ jobs:
       #   ⇒ ⇒ 没有它 ⇒ ⇒ C5 这一格只能「判不了」⇒ ⇒ 尺子漂了没人知道。
       #   ⇒ ⇒ 只装依赖，**不装浏览器**（--list 不跑浏览器 ⇒ ⇒ 快）。
       - name: Install desktop dependencies (for the playwright --list probe)
-        working-directory: shadow/shadow-desktop
+        working-directory: shadow-desktop
         run: pnpm install --frozen-lockfile
 
       # ⚠️ **两步都要跑** —— 判定 ＋ 判据自检（自检证明这道闸**真的会红**）。
