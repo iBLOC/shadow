@@ -47,6 +47,43 @@ jobs:
         with:
           node-version: '24'
 
+      # ⚠️ **兄弟仓是私有的**（iBLOC/telencephalon、hippocampus）⇒ ⇒ 默认 GITHUB_TOKEN
+      #    只对 iBLOC/shadow 有权限 ⇒ ⇒ 检不出来 ⇒ ⇒ 那些闸会「读不到判据源」。
+      # ⚠️ 这里**不硬失败**：token 缺失只警告 ⇒ ⇒ 闸自己报「判不了」（退出码 2）
+      #    ⇒ ⇒ 「读不到」既不伪装成「有问题」，也不伪装成「绿」。
+      - name: Require cross-repo token
+        env:
+          IBLOC_TOKEN: ${{ secrets.IBLOC_TOKEN }}
+        run: |
+          if [ -z "$IBLOC_TOKEN" ]; then
+            echo "::warning::secrets.IBLOC_TOKEN is not configured ⇒ ⇒ 跨仓闸会报「判不了」（退出码 2）⇒ ⇒ 那一格没验成。"
+          else
+            echo "IBLOC_TOKEN 在位 ⇒ ⇒ 跨仓闸能真判。"
+          fi
+
+      - name: Checkout telencephalon
+        if: ${{ secrets.IBLOC_TOKEN != '' }}
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/telencephalon
+          path: telencephalon
+          token: ${{ secrets.IBLOC_TOKEN }}
+
+      - name: Checkout hippocampus
+        if: ${{ secrets.IBLOC_TOKEN != '' }}
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/hippocampus
+          path: hippocampus
+          token: ${{ secrets.IBLOC_TOKEN }}
+
+      # ⚠️ neuron 是**公开仓** ⇒ ⇒ 不用 token
+      - name: Checkout neuron
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/neuron
+          path: neuron
+
       # ⚠️ A2UI 形态的「会话身份」两端一致
       - name: a2ui-session-identity
         run: node scripts/run-gate-once.mjs scripts/check-a2ui-session-identity.mjs

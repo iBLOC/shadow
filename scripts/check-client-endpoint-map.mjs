@@ -645,6 +645,15 @@ function setOf(routes) {
 }
 
 function buildUniverses(opts) {
+  // ⚠️ **端脑源码不在位 ⇒ ⇒ 判不了（退出码 2），不是「没有问题」**
+  //    （2026-11-11 真 CI 实测：兄弟仓没检出时，下面那行**抛 ENOENT 崩掉**
+  //    ⇒ ⇒ 崩溃的退出码是 1 ⇒ ⇒ CI 当成「有问题」⇒ ⇒ **「读不到」被写成了「有问题」**。
+  //    ⇒ ⇒ 这一格该说的是「我没验成」，不是「我验过了，没问题」。）
+  if (!existsSync(join(opts.source, 'src', 'api', 'mod.rs'))) {
+    console.error('判不了：端脑源码不在位（' + opts.source + '）⇒ ⇒ 这一格**没验成**，不是「没问题」。');
+    console.error('   ⇒ ⇒ CI 上需要检出兄弟仓（iBLOC/telencephalon）—— 见 .github/workflows/unwired-gates.yml');
+    process.exit(2);
+  }
   const telencephalon = setOf(surfaceRoutes(opts.source));
   const hippoRoutes = [];
   for (const f of walkRs(join(opts.hippocampus, 'hippocampus-server', 'src'))) {
