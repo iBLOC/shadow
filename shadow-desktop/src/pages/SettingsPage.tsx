@@ -26,6 +26,8 @@ import {
 import { telencephalonClient, type ScanResult, type InstalledWasmList, type AgentSearchResponse, type McpAgentBinding, type McpServerRecord, type ModelProvider } from '../lib/telencephalonClient';
 import { providerListState, type ProviderListState } from '../lib/modelConfigProbe';
 import { HfTokenSettings } from '../components/business/HfTokenSettings';
+import { AgentCapabilityPicker } from '../components/business/AgentCapabilityPicker';
+import { serializeRequiredCapabilities } from '../lib/agentCapabilities';
 import { IdentityPanel } from '../components/business/IdentityPanel';
 import { UpdateChecker } from '../components/business/UpdateChecker';
 import { VideoSourcesCard } from '../components/business/VideoSourcesCard';
@@ -1225,6 +1227,10 @@ function CreateCustomAgentModal({
   const [name, setName] = useState('');
   const [systemPrompt, setSystemPrompt] = useState('');
   const [skills, setSkills] = useState('');
+  // ⚠️ **agent 注册时要声明「需要哪些模型能力」** —— 不声明 ⇒ ⇒ 端脑只能
+  // 「有什么给什么」⇒ ⇒ 一个只要语音识别的 agent 也可能被塞一个对话模型
+  // ⇒ ⇒ **配了但没人用**。
+  const [requiredCapabilities, setRequiredCapabilities] = useState<string[]>([]);
   const [description, setDescription] = useState('');
   const [generatingDesc, setGeneratingDesc] = useState(false);
   const [generateDescError, setGenerateDescError] = useState<string | null>(null);
@@ -1253,13 +1259,18 @@ function CreateCustomAgentModal({
         system_prompt: systemPrompt,
         description: description.trim() || undefined,
         skills: skillList,
+        // ⚠️ **空 ⇒ 不声明**（不是空数组）——「没声明」与「声明了零项」在
+        // 端脑那边是两件不同的事。
+        required_capabilities: serializeRequiredCapabilities(
+          requiredCapabilities,
+        ),
       });
       onCreated({ name: result.name, description: result.description, skills: result.skills });
     } catch {
     } finally {
       setIsSubmitting(false);
     }
-  }, [name, systemPrompt, description, skills, onCreated]);
+  }, [name, systemPrompt, description, skills, requiredCapabilities, onCreated]);
 
   return (
     <Modal isOpen onClose={onClose} title={t('agents.newCustomAgent')} size="lg">
@@ -1319,6 +1330,11 @@ function CreateCustomAgentModal({
             className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
           />
         </div>
+        {/* ⚠️ **「需要哪些模型能力」** —— 注册时声明，端脑按严格词表校验。 */}
+        <AgentCapabilityPicker
+          value={requiredCapabilities}
+          onChange={setRequiredCapabilities}
+        />
         <div className="flex justify-end gap-2 border-t border-border pt-3">
           <Button variant="outline" onClick={onClose}>{t('common.cancel')}</Button>
           <Button variant="primary" onClick={handleSubmit} loading={isSubmitting} disabled={!name.trim() || !systemPrompt.trim()}>
