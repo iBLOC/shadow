@@ -222,7 +222,37 @@ export function findViolations(text) {
       }
     }
   }
-  return { entries, dups, mismatched, swallowed, foreign, glyphMismatch };
+  // ⚠️⚠️ **R7（孤儿声明）** —— 「本条占 U+XXXX」**必须挂在自己那条的体内**。
+  //   ⇒ ⇒ 不挂在任何条目里的声明 ⇒ ⇒ 要么那条的**标题行被吞了**（正文浮在文件里），
+  //   要么这是一条**重复**的声明 ⇒ ⇒ 两种都不是「正常的账本形状」。
+  //   ⚠️ **2026-11-09 实测入库**：真账本里**当场逮到 1 处** —— 并行会话插入条目时
+  //   **漏了标题行** ⇒ ⇒ 那段正文（连同它的圈码声明）浮在文件顶部、**不归属任何条目**
+  //   ⇒ ⇒ R2/R4 **都看不见它**（它们只看条目体）⇒ ⇒ 演练的「破坏声明」腿也因此
+  //   **咬不到**（它改的正是那处无主声明）⇒ ⇒ **尺子失灵** ⇒ ⇒ CI 红。
+  //   ⚠️ **量过的零假阳**：三本账本 × 两个面 ⇒ ⇒ 除那 1 处外 **0 命中**。
+  const orphanClaims = [];
+  {
+    const owned = new Set();
+    for (let k = 0; k < entries.length; k++) {
+      const end = k + 1 < entries.length ? entries[k + 1].line - 1 : lines.length;
+      for (let i = entries[k].line; i <= end; i++) owned.add(i);
+    }
+    for (let i = 0; i < lines.length; i++) {
+      let m;
+      OWN_CLAIM.lastIndex = 0;
+      while ((m = OWN_CLAIM.exec(lines[i])) !== null) {
+        if (!owned.has(i + 1)) {
+          orphanClaims.push({
+            line: i + 1,
+            claimed: m[1].toUpperCase(),
+            glyph: m[2] || null,
+            snippet: lines[i].slice(0, 60),
+          });
+        }
+      }
+    }
+  }
+  return { entries, dups, mismatched, swallowed, foreign, glyphMismatch, orphanClaims };
 }
 
 /**

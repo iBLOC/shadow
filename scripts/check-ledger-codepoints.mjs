@@ -208,6 +208,10 @@ export function checkText(text) {
   for (const g of v.glyphMismatch || []) {
     out.push('❌ [glyph-mismatch] 第 ' + g.line + ' 行：注解写 U+' + g.claimed + '，而括号里的「' + g.glyph + '」真实码位是 U+' + g.glyphCp + ' ⇒ 注解在说假话（两个码位不同形，肉眼几乎看不出来）');
   }
+  // ⚠️⚠️ **R7（孤儿声明）** —— 声明必须挂在自己那条的体内（2026-11-09 实测入库）。
+  for (const o of v.orphanClaims || []) {
+    out.push('❌ [orphan-declaration] 第 ' + o.line + ' 行：「本条占 U+' + o.claimed + '」**不归属任何条目** ⇒ ⇒ 那条条目的标题行被吞了（正文浮在文件里），或这是一条重复声明 ⇒ ⇒ 圈码声明必须挂在自己那条的体内｜ …' + o.snippet + '…');
+  }
   return { v, out };
 }
 
@@ -228,7 +232,7 @@ export function checkLedgers(ledgerTexts, opts = {}) {
   const warnings = [];
   const debtItems = (opts.debt && opts.debt.items) || [];
   const debtMap = new Map(debtItems.map((i) => [String(i.cp).toUpperCase(), i]));
-  const agg = { mismatched: [], swallowed: [], foreign: [], dups: [], glyphMismatch: [] };
+  const agg = { mismatched: [], swallowed: [], foreign: [], dups: [], glyphMismatch: [], orphanClaims: [] };
 
   for (const l of ledgerTexts) {
     const v = findViolations(l.text);
@@ -236,6 +240,7 @@ export function checkLedgers(ledgerTexts, opts = {}) {
     for (const s of v.swallowed) agg.swallowed.push({ ...s, ledger: l.name });
     for (const f of v.foreign) agg.foreign.push({ ...f, ledger: l.name });
     for (const g of v.glyphMismatch || []) agg.glyphMismatch.push({ ...g, ledger: l.name });
+    for (const o of v.orphanClaims || []) agg.orphanClaims.push({ ...o, ledger: l.name });
     for (const m of v.mismatched) {
       out.push('❌ [annotation-mismatch] ' + l.name + ' 第 ' + m.line + ' 行：注解写 U+' + m.claimed + '，而标题里的「' + m.ch + '」真实码位是 U+' + m.actual);
     }
@@ -247,6 +252,10 @@ export function checkLedgers(ledgerTexts, opts = {}) {
     }
     for (const g of v.glyphMismatch || []) {
       out.push('❌ [glyph-mismatch] ' + l.name + ' 第 ' + g.line + ' 行：注解写 U+' + g.claimed + '，而括号里的「' + g.glyph + '」真实码位是 U+' + g.glyphCp + ' ⇒ 注解在说假话');
+    }
+    // ⚠️⚠️ **R7（孤儿声明）** —— 声明必须挂在自己那条的体内（2026-11-09 实测入库）。
+    for (const o of v.orphanClaims || []) {
+      out.push('❌ [orphan-declaration] ' + l.name + ' 第 ' + o.line + ' 行：「本条占 U+' + o.claimed + '」**不归属任何条目** ⇒ ⇒ 那条条目的标题行被吞了（正文浮在文件里），或这是一条重复声明 ⇒ ⇒ 圈码声明必须挂在自己那条的体内｜ …' + o.snippet + '…');
     }
   }
 
@@ -357,6 +366,13 @@ function selfTest() {
   const nw = checkText(numWrong);
   check('真账本形状 ＋ 注解数字与标题字形不符 ⇒ 恰好 1 条红（annotation-mismatch）',
     nw.out.length === 1 && nw.v.mismatched.length === 1, JSON.stringify(nw.out));
+  // ⚠️⚠️ **R7（孤儿声明）** —— 声明必须挂在自己那条的体内（2026-11-09 实测入库）。
+  const orphanDecl = ['# PROJECT KNOWLEDGE BASE', '', '⑨ **⚠️ 圈码：本条占 U+32FF（' + G_32FF + '）** —— 无主的声明。', '', headReal(G_32FF, '32FF', G_32FF)].join('\n');
+  const od = checkText(orphanDecl);
+  check('孤儿声明（声明不归属任何条目）⇒ 恰好 1 条红（orphan-declaration）',
+    od.out.length === 1 && od.v.orphanClaims.length === 1, JSON.stringify(od.out));
+  const ownedDecl = ['# PROJECT KNOWLEDGE BASE', '', headReal(G_32FF, '32FF', G_32FF) + '\n⑨ **⚠️ 圈码：本条占 U+32FF（' + G_32FF + '）** —— 挂在体里的声明。'].join('\n');
+  check('同一句声明**挂在条目体内** ⇒ 零违规（R7 不误报）', checkText(ownedDecl).out.length === 0, JSON.stringify(checkText(ownedDecl).out));
   const headMobile = (ch, claim, body) => '**Updated:** 2026-11-05 (' + ch + ' **条目** —— ' + claim + ' —— 讲点事。)\n' + body;
   const twoShapes = [
     '**Updated**: 2026-11-05 (㋿ **条目** —— 本条占 **U+32FF** —— 父仓形状。）\n① 正文。',
@@ -484,8 +500,9 @@ function selfTest() {
       r.v.mismatched.length === perLedger('mismatched')
       && r.v.swallowed.length === perLedger('swallowed')
       && r.v.foreign.length === perLedger('foreign')
-      && (r.v.glyphMismatch || []).length === perLedger('glyphMismatch'),
-      JSON.stringify({ agg: r.v.mismatched.length + '/' + r.v.swallowed.length + '/' + r.v.foreign.length + '/' + (r.v.glyphMismatch || []).length, direct: perLedger('mismatched') + '/' + perLedger('swallowed') + '/' + perLedger('foreign') + '/' + perLedger('glyphMismatch') }));
+      && (r.v.glyphMismatch || []).length === perLedger('glyphMismatch')
+      && (r.v.orphanClaims || []).length === perLedger('orphanClaims'),
+      JSON.stringify({ agg: r.v.mismatched.length + '/' + r.v.swallowed.length + '/' + r.v.foreign.length + '/' + (r.v.glyphMismatch || []).length + '/' + (r.v.orphanClaims || []).length, direct: perLedger('mismatched') + '/' + perLedger('swallowed') + '/' + perLedger('foreign') + '/' + perLedger('glyphMismatch') + '/' + perLedger('orphanClaims') }));
     console.log('  ℹ️ 真账本当前 verdict：' + r.out.length + ' 条红（**这是仓库状态**，由主检查负责判定；自检只管尺子）');
     const realClaimed = real.reduce((n, l) => n + findViolations(l.text).entries.filter((e) => e.claimed).length, 0);
     check('真账本上「有注解的条目」数 > 0 ⇒ R2 不是暗的', realClaimed > 0, String(realClaimed));
@@ -512,7 +529,34 @@ function drill() {
   writeFileSync(copy, original);
   // ⚠️ **原始读数**（仓库**当前**状态 ⇒ 可能是红的）—— 演练的断言要**相对**它。
   const origRed = checkAll(readFileSync(copy, 'utf8'));
-  const broken = original.replace(/(本条占\s*\*{0,2}U\+)([0-9A-Fa-f]{4,6})/, (m, a) => a + 'FFFF');
+  // ⚠️⚠️⚠️ **破坏的对象必须是「某个条目自己的声明」**（2026-11-09 实测踩到）：
+  //   旧版直接 `replace(/本条占…U\+XXXX/)` ⇒ ⇒ 改的是**文件里碰到的第一处**字符串
+  //   ⇒ ⇒ 而那处**可能不属于任何条目**（真账本里**当场就有一处**：并行会话插入条目时
+  //   **漏了标题行** ⇒ ⇒ 那段正文连同圈码声明浮在文件顶部）⇒ ⇒ R2/R4 **都看不见它**
+  //   ⇒ ⇒ 尺子**咬不到** ⇒ ⇒ 演练腿红（而「尺子坏了」与「仓库坏了」根本分不清）。
+  //   ⇒ ⇒ 改成：**先找到一条真条目**，再改**它自己的**声明 ⇒ ⇒ 尺子对着**被测物**。
+  const entList = extractEntries(original).entries;
+  let targetEntry = null;
+  for (const e of entList) { if (e.claims && e.claims.length > 0) { targetEntry = e; break; } }
+  let broken = original;
+  let brokeOk = false;
+  if (targetEntry) {
+    const oLines = original.split(/\r?\n/);
+    const startIdx = targetEntry.line - 1;
+    let endIdx = oLines.length;
+    for (const e of entList) { if (e.line > targetEntry.line) { endIdx = e.line - 1; break; } }
+    for (let i = startIdx; i < endIdx && !brokeOk; i++) {
+      const mm = oLines[i].match(/(本条占\s*\*{0,2}U\+)([0-9A-Fa-f]{4,6})/);
+      if (mm) {
+        oLines[i] = oLines[i].slice(0, mm.index) + mm[1] + 'FFFF' + oLines[i].slice(mm.index + mm[0].length);
+        brokeOk = true;
+      }
+    }
+    if (brokeOk) {
+      const sep = original.includes('\r\n') ? '\r\n' : '\n';
+      broken = oLines.join(sep);
+    }
+  }
   writeFileSync(copy, broken);
   const red = checkAll(readFileSync(copy, 'utf8'));
   writeFileSync(copy, original);
@@ -550,16 +594,30 @@ function drill() {
   // ⚠️⚠️⚠️ **洗白机演练腿（真实数据）** —— 上一版这里会**绿**（因为豁免＝债表）
   // ⇒ ⇒ 现在豁免＝基线集 ⇒ ⇒ 注入一个**基线集里没有**的撞号 ⇒ ⇒ 必须红
   // ⇒ ⇒ 而且**再往说明清单里补一行** ⇒ ⇒ **仍必须红**（那台洗白机被封死了）。
-  const gi = String.fromCodePoint(0x3412);
+  // ⚠️⚠️⚠️ **注入的码位必须「当下空闲」**（2026-11-09 实测踩到）：写死 0x3412
+  // ⇒ ⇒ 别的条目**占了它**以后（实测：U+3412 被「失败长得像成功」族那条占了）
+  // ⇒ ⇒ 注入不再制造**新**撞号 ⇒ ⇒ 演练那条断言「比原始多红」落空
+  // ⇒ ⇒ 尺子自己失灵（而且它报的是「尺子没咬住」⇒ ⇒ 看不出是尺子坏了还是仓库坏了）。
+  // ⇒ ⇒ 改成：**当场算**一个「没人占 ＋ 不在基线豁免集里」的码位
+  // ⇒ ⇒ 尺子永远对着**当下**的现实，而不是某个历史快照。
+  const usedCps = new Set();
+  for (const t of [original].concat(others.map((o) => o.text))) {
+    for (const e of extractEntries(t).entries) usedCps.add(e.cp);
+  }
+  const baselineCps = baseline.cps || [];
+  let injectCp = 0x3400;
+  while (usedCps.has(injectCp) || baselineCps.includes(hex4(injectCp))) injectCp++;
+  const injectHex = hex4(injectCp);
+  const gi = String.fromCodePoint(injectCp);
   const injected =
-    '**Updated**: 2026-11-05 (' + gi + ' **注入的第一条** —— 本条占 U+3412（' + gi + '）。)\n① 注入。\n' +
-    '**Updated**: 2026-11-05 (' + gi + ' **注入的第二条** —— 本条占 U+3412（' + gi + '）。)\n② 注入。\n';
+    '**Updated**: 2026-11-05 (' + gi + ' **注入的第一条** —— 本条占 U+' + injectHex + '（' + gi + '）。)\n① 注入。\n' +
+    '**Updated**: 2026-11-05 (' + gi + ' **注入的第二条** —— 本条占 U+' + injectHex + '（' + gi + '）。)\n② 注入。\n';
   const injectedCopy = injected + original;
   const injectRed = checkAll(injectedCopy);
-  const washDebt = { items: [...(debt.items || []), { cp: '3412', reason: '演练：试图洗白' }] };
+  const washDebt = { items: [...(debt.items || []), { cp: injectHex, reason: '演练：试图洗白' }] };
   const injectWash = checkAll(injectedCopy, { exempt: baseline.cps, identities: baseline.identities, debt: washDebt });
-  const injectRedHasDup = injectRed.out.some((l) => l.includes('dup-codepoint') && l.includes('3412'));
-  const injectWashStillRed = injectWash.out.some((l) => l.includes('dup-codepoint') && l.includes('3412'));
+  const injectRedHasDup = injectRed.out.some((l) => l.includes('dup-codepoint') && l.includes(injectHex));
+  const injectWashStillRed = injectWash.out.some((l) => l.includes('dup-codepoint') && l.includes(injectHex));
 
   // ⚠️⚠️⚠️ **身份级豁免腿（真实数据）** —— 取一个**基线集里已有**的码位（U+32F1）
   // ⇒ ⇒ 在父仓副本里让**另一个条目**占它 ⇒ ⇒ 旧版（码位级豁免）会**绿**
@@ -618,13 +676,14 @@ function drill() {
     && red.out.some((l) => l.includes('annotation-mismatch'));
   const greenRestores = green.out.length === origRed.out.length
     && green.out.join('\n') === origRed.out.join('\n');
-  const ok = redAddsDamage && greenRestores && mergedOk && fixtureOk && injectRedHasDup && injectWashStillRed && idRedOk && idWashStillRed && refRedOk && refNoFalsePositive && before === after;
+  const ok = brokeOk && redAddsDamage && greenRestores && mergedOk && fixtureOk && injectRedHasDup && injectWashStillRed && idRedOk && idWashStillRed && refRedOk && refNoFalsePositive && before === after;
+  console.log('  破坏对象：**条目自己的声明**（' + (targetEntry ? ('第 ' + targetEntry.line + ' 行那条 · U+' + targetEntry.actual) : '没找到有声明的条目') + '）⇒ ⇒ 改到了：' + (brokeOk ? '是' : '否'));
   console.log('  副本破坏 ⇒ 判红：' + red.out.length + ' 条（原始 ' + origRed.out.length + ' 条 ⇒ ⇒ 本次注入**多**红 ' + (red.out.length - origRed.out.length) + ' 条 ⇒ ⇒ 尺子咬住了本次伤害：' + (redAddsDamage ? '是' : '否') + '）');
   console.log('  副本还原 ⇒ 读数与原始**逐字相同**：' + (greenRestores ? '是' : '否') + '（' + green.out.length + ' 条）');
   if (mergedRed) console.log('  并体副本（㌳ 形状，真实父仓）⇒ 判红：' + mergedRed.out.length + ' 条（swallowed ' + mergedRed.v.swallowed.length + ' / foreign ' + mergedRed.v.foreign.length + '）');
   else console.log('  并体副本 ⇒ 没构造出来（标题边界没找到）');
   console.log('  并体夹具（自带）⇒ 判红：' + fixtureRed.out.length + ' 条（swallowed ' + fixtureRed.v.swallowed.length + ' / foreign ' + fixtureRed.v.foreign.length + '）⇒ R3＋R4 两条路都咬住：' + (fixtureOk ? '是' : '否'));
-  console.log('  注入新增撞号（U+3412，基线集里没有）⇒ 判红：' + (injectRedHasDup ? '是' : '否'));
+  console.log('  注入新增撞号（U+' + injectHex + '，**当下空闲** ＋ 基线集里没有）⇒ 判红：' + (injectRedHasDup ? '是' : '否'));
   console.log('  同一注入 ＋ 往说明清单补一行 ⇒ **仍判红**（洗白机被封死）：' + (injectWashStillRed ? '是' : '否'));
   console.log('  基线码位被**另一个条目**占用（U+32F1）⇒ 判红（旧版码位级豁免会绿）：' + (idRedOk ? '是' : '否'));
   console.log('  同一情形 ＋ 往说明清单补一行 ⇒ **仍判红**：' + (idWashStillRed ? '是' : '否'));
