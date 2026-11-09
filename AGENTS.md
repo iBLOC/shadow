@@ -1,5 +1,35 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-09 (㑴 **「『存没存住』要分得清 —— 端脑那份是权威，但本地副本写不进也得说真话」** —— 承 U+3471 条（桌面端分档默认那张卡）＋ U+346F 条（移动端那一段），本条记**取证（契约决定被交回给我）**、**第一因（部分成功是第三种状态）**、**这一刀的落点（12 个文件）**、**判据（桌面 15/15 ＋ 一档反向验证）**、**分级读数**、**途中那几课**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-09 | authority=measured | scope=project | source:真运行级实测（tsc -b 全族 ＋ vitest ＋ flutter analyze 全项目 ＋ flutter test ＋ 注入反向验证 ＋ 还原 hash 比对 ＋ 失败掩盖闸实跑） | 改动：shadow 仓 **改** `shadow-desktop/src/lib/capabilityDefaults.ts`、**改** `shadow-desktop/src/components/business/CapabilityDefaultsCard.tsx`、**改** `shadow-desktop/tests/lib/capabilityDefaults.test.ts`、**改** 2 个桌面 i18n、**改** `shadow-mobile/lib/providers/brain_model_source_provider.dart`、**改** `shadow-mobile/lib/widgets/brain/capability_default_section.dart`、**改** 5 个移动端 l10n 文件 ｜ 读数：**判据级 桌面 15/15 绿**、**反向验证级：把「写失败」也说成「存住了」⇒ 恰好 2 红**、**还原 blob 逐字一致 `c087eae…`**、**类型级：桌面 `tsc -b` EXIT=0**、**移动端 `flutter analyze` 全项目 61 issues ＝ 基线 61 ⇒ 零新增**、**移动 unit 族 353 过 / 12 跳 / 0 红**、**失败掩盖闸：本地读数＝「债务清单过期（shadow-desktop|src/lib/capabilityDefaults.ts|R5）」⇒ EXIT=1（销账动作在并行会话在飞的那个文件上 ⇒ ⇒ 我不越界改）** | status=active | supersedes=none
+
+① **⚠️ 取证：契约决定被交回给我**
+　❶ 并行会话的「失败掩盖」闸（`scripts/check-failure-masking.mjs`）把我那处**只有注释的空 catch**（`writeCapabilityDefaultsSnapshot` 写不进 localStorage ⇒ 忽略）登记进债清单 ⇒ ⇒ 并且明确说「**我没有替你们定那个契约**」⇒ ⇒ 问的是：「写 durable 副本要不要改成显式失败（返回布尔／抛错）」。
+　❷ 他们登记的 `when` 一栏已经把答案写好了：**「写 durable 副本的返回契约若要区分『存没存进去』，那时销账（现在它返回 void ⇒ ⇒ 调用方分不出本地缓存有没有落盘）」** ⇒ ⇒ ⇒ 这是**他们把账指给我、而不是替我销账**的范式。
+
+② **⚠️ 第一因：「部分成功」是第三种状态，抛错与静默都是撒谎**
+　❶ 这一步的真实结果是**端脑写成功 ＋ 本地副本写失败** ⇒ ⇒ 它既不是「全成功」也不是「全失败」。
+　❷ **抛错会把「已经生效」说成「全失败」** ⇒ ⇒ 调用方会重试（白重发一遍）⇒ ⇒ 而端脑那边其实**已经是权威了** ⇒ ⇒ ⇒ 那是另一种撒谎。
+　❸ **静默吞掉会把「没存住」说成「存住了」** ⇒ ⇒ 用户以为「持久了」⇒ ⇒ 端脑重启一次设置全丢 ⇒ ⇒ **失败长得像成功**。
+　❹ ⇒ ⇒ 正确形态＝**返回结果，让界面说真话**：「已下发到大脑，但本地副本没存住 ⇒ 重启后这一档会回到默认」⇒ ⇒ **端脑那份是权威、本地这份只是缓存**（谁权威、谁是缓存，要说清）。
+
+③ **✅ 这一刀的落点（12 个文件）**
+　❶ **桌面端**：`writeCapabilityDefaultsSnapshot` 改成返回 `{ ok, error? }`；卡片在「端脑已生效但本地没存住」时给**另一句提示**（不再是笼统的「已应用」）＋ 1 个新 i18n 键；判据加 3 条。
+　❷ **移动端**：`_persist()` 改成返回 `bool`（失败时同时把原因放进 `state.error`）＋ `setCapabilityDefault` 返回它；卡片同样分「存住了」与「没存住」两句 ＋ 1 个新 l10n 键。
+
+④ **⚠️ 途中那几课**
+　❶ **可选链也会撒谎** —— `globalThis.localStorage?.setItem(...)` 在**没有 localStorage** 时什么都不做、也不报错 ⇒ ⇒ 那也是「没存住」⇒ ⇒ 这一刀改成**先判存在、再写、最后明确返回 ok**（判据里有一条专测这个）。
+　❷ **CRLF 陷阱（又一次）** —— 工作树里那份移动端生成物是 **CRLF**、仓里是 LF ⇒ ⇒ 我用 LF 写死锚点的插入脚本在移动端 l10n 那一步报「锚点找不到」⇒ ⇒ 改成**行尾无关**（按文件实际行尾拼锚点）⇒ ⇒ 这一步耗掉一次重跑。
+　❸ **债清单不许过期** —— 我的空 catch 消失后，那条登记就成了「过期」⇒ ⇒ 闸立刻报 `❌ 债务清单过期（shadow-desktop|src/lib/capabilityDefaults.ts|R5）` ⇒ ⇒ **销账动作在并行会话在飞的那个文件上** ⇒ ⇒ 我**不越界改**（改了会和他们在飞内容打架、而且他们的下一次提交会把那条又带回来）⇒ ⇒ ⇒ 已把闸的原文与销账要求发给他们 ⇒ ⇒ **在那之前这道闸是红的**（不假装它是绿的）。
+
+⑤ **✅ 判据（三处）** —— ❶ **判据级**：桌面 `tests/lib/capabilityDefaults.test.ts` ⇒ ⇒ **15/15 绿**（原 12 条仍绿 ＋ 新 3 条：存进去了 ok=true ／ 抛异常 ok=false 带原因 ／ **没有 localStorage 也是「没存住」**）；❷ **反向验证级**：把「写失败」也改成 `ok: true`（即把失败说成成功）⇒ ⇒ **恰好 2 红**（两条都是「不许假装存住了」那族）⇒ ⇒ 证明「存没存住要分得清」这条**承重**；❸ **还原**：反向补丁还原后 `git hash-object` **逐字一致**（`c087eae…`）⇒ ⇒ 复跑 15/15 绿。
+
+⑥ **✅ 分级读数（全部实测）** —— **判据级**：桌面 15/15 绿 ｜ **反向验证级**：恰好 2 红 ｜ **类型级**：桌面 `npx tsc -b` **EXIT=0**；移动端 `flutter analyze` **61 issues ＝ 基线 61 ⇒ 零新增** ｜ **行为级**：移动端 `flutter test test/unit` ⇒ ⇒ **353 过 / 12 跳 / 0 红** ｜ **闸级**：失败掩盖闸 **EXIT=1**，红点唯一且**可归因**（我那条债已过期 ⇒ ⇒ 销账在对方文件上）。
+
+⑦ **⚠️ 仍然欠着** —— ❶ **失败掩盖闸那条销账**（在并行会话在飞的那个文件上 ⇒ ⇒ 我不越界改 ⇒ ⇒ 等他们销账后该闸即绿）；❷ **ASR/TTS 引擎「注册进 neuron」那一环仍欠**（承 U+3471 条：注册表在 `api/providers.rs` / `api/lobe_runtime.rs`，**并行会话在飞**）⇒ ⇒ ⇒ 界面还没把这条前置条件说清；❸ **真机级／真端脑级未跑**（这一刀只到类型级 ＋ 单测级）；❹ **端脑 CI 恒门外红**（billing）⇒ ⇒ 端脑侧仍只有本地读数；❺ **移动端那条 l10n 生成物是 CRLF、仓里是 LF** ⇒ ⇒ 下次谁再动那批生成物，**锚点匹配要行尾无关**（我这次踩了）。
+
+⑧ **⚠️ 圈码：本条占 U+3474（㑴）** —— 插前**独立重扫**（父仓工作树 ∪ 父仓 HEAD ∪ 父仓 `origin/master` × **三本账本**，按**声明形状**扫）⇒ ⇒ 三面最高已声明 **U+3473**（承 U+3473 条）⇒ ⇒ 自然下一枚 **U+3474** ⇒ ⇒ 插前扫：U+3474 在三账本三面**各 0 次声明 0 次提及** ✔ ⇒ ⇒ ⚠️ **不填历史空洞**（U+3463／U+3465／U+3467／U+3469／**U+346E** 继续空；U+3472 已口头留给真机腿那条线）⇒ ⇒ ⚠️ 本条**只引用已提交的码位**（U+346F／U+3471／U+3473）⇒ ⇒ ⚠️ **插完立刻复跑码位闸**是硬约束。
 **Updated**: 2026-11-09 (㑳 **「agent 注册时能声明『需要哪些模型能力』—— 那笔配置项终于有个能勾的地方」** —— 承 U+3460 条（端脑侧声明 ＋ 两端客户端）与 U+3471 条（桌面端分档默认那张卡），本条记**取证（声明能递，但没人能勾）**、**第一因（声明是「注册那一刻」的事）**、**这一刀的落点（6 个文件）**、**判据（8/8 ＋ 两档反向验证）**、**分级读数**、**途中那几课**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-09 | authority=measured | scope=project | source=真运行级实测（tsc -b 全族 ＋ vitest 全量 ＋ 两档注入反向验证 ＋ 还原 hash 比对） | 改动：shadow 仓 **新增** `shadow-desktop/src/lib/agentCapabilities.ts`、**新增** `shadow-desktop/src/components/business/AgentCapabilityPicker.tsx`、**新增** `shadow-desktop/tests/lib/agentCapabilities.test.ts`、**改** `shadow-desktop/src/pages/SettingsPage.tsx`（**只改 agent 注册表单那一段**）、**改** 2 个桌面 i18n ｜ 读数：**判据级 8/8 绿**、**反向验证级：变体 A（空声明递空数组）⇒ 恰好 1 红 ／ 变体 B（空词也收）⇒ 恰好 1 红**、**还原 blob 逐字一致 `d69c0ff…`**、**类型级 `tsc -b` EXIT=0**、**vitest 全量 1493 过 / 16 跳 / 1 红**（那 1 红＝并行会话在飞的 `accent.g.ts` 生成物漂移，**与本刀无关**）| status=active | supersedes=none
