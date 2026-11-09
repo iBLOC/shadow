@@ -1,5 +1,32 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-09 (㑭 **「13 条红，13 条都在测错东西 —— 形状探针没带钥匙，于是『没测到』被写成『不对』」** —— 承 U+346C 条（契约闸改判「端点存在」），本条记**取证（三处根因）**、**第一因（判据的凭据要「默认」对齐门形）**、**这一刀的落点（2 个文件）**、**判据（真端脑整族读数 ＋ 形状闸反向验证）**、**分级读数**、**途中那几课**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-09 | authority=measured | scope=project | source=真运行级实测（自编端脑 ＋ 真跑整族 ＋ 形状注入反向验证） | 改动：shadow 仓 **改** `shadow-desktop/tests/api-contract/schemas.test.ts`、**改** `shadow-desktop/tests/api-contract/a2ui-live.test.ts` ｜ 读数：**真端脑整族 55 条 ⇒ 54 passed / 1 skipped / 0 failed**（此前 **13 红 / 37 绿**）、**逐条：schemas 8 条＝7 绿 1 跳、a2ui-live 3 条全绿**、**反向验证：注入形状错 ⇒ 恰好 1 红（1 failed / 6 passed / 1 skipped）**、**还原 blob 逐字一致 `2b148c3…`**、**类型闸 EXIT=0** | status=active | supersedes=none
+
+① **⚠️ 取证：那 13 条红，每一条都在测错东西**
+　❶ **5 条 401 的根因＝形状探针默认不带任何凭据** —— `schemas.test.ts` 的 `probe()` 只在**显式**传 `init.headers` 时才带钥匙 ⇒ ⇒ 那 5 条（thalamus/hippocampus/neuron/status/logs）**一个字都没测到** ⇒ ⇒ 而判据把它们写成「形状不对」⇒ ⇒ ⇒ 「没测到」被写成「不对」，是最坏的一种假红。
+　❷ **3 条 A2UI 红的根因＝影子锁没注入** —— 端脑的 `/a2a` 在 shadow key 后（`api::shadow_auth::require_shadow_key`）⇒ ⇒ 而 `requestA2uiSurface` 的 `apiKey` 是**调用方传的** ⇒ ⇒ 测试没传 ⇒ ⇒ 401。
+　❸ **`/health` 403 的根因＝它在读门后** ⇒ ⇒ 公开健康面是 `/healthz`（实测 200）⇒ ⇒ 探健康要用**公开面**。
+
+② **⚠️ 第一因：判据的凭据来源必须与门形对齐，而且要「默认」对齐** —— 旧写法把「只有 admin 端点才带钥匙」写进了函数签名 ⇒ ⇒ **读门那一半（影子锁）就整族漏了** ⇒ ⇒ ⇒ 而门形真源写得很清楚（读门 ＝ 影子锁 ∪ admin token）⇒ ⇒ ⇒ **判据漏掉的不是「细节」，是「规则的一半」**。
+
+③ **✅ 这一刀的落点（2 个文件，零产品代码改动）**
+　❶ **改 `shadow-desktop/tests/api-contract/schemas.test.ts`**：`probe` **默认**递 `authHeaders(false)`（影子锁 ∪ admin token）＋ **401/403/503 ⇒ skip 并说清原因**（不是 throw）＋ `/health` ⇒ `/healthz` ＋ 8 处调用传 `ctx`（`ctx.skip()` 让 vitest 记成 skipped 而不是 passed）。
+　❷ **改 `shadow-desktop/tests/api-contract/a2ui-live.test.ts`**：三处 `requestA2uiSurface` 注入 `apiKey: SHADOW_KEY` ＋ 401 ⇒ skip 并说明（「字节形状测不了」，不是「形状不对」）。
+
+④ **⚠️ 途中那几课**
+　❶ **「跳过」与「恒跳过」必须分开证** ⇒ ⇒ 只看「55 条里有 1 条跳」不够 ⇒ ⇒ 要**逐条**读：schemas 8 条里 **7 条真跑并通过**、a2ui-live **3 条全绿**（连 fixture 形状都一致）⇒ ⇒ ⇒ 只有那 1 条（thalamus 503）跳 ⇒ ⇒ ⇒ skip 机制**不是**「什么都跳」。
+　❷ **形状闸也要反向验证** —— 注入一处形状错（`memory_count` 的类型断言）⇒ ⇒ **恰好 1 红**（1 failed / 6 passed / 1 skipped）⇒ ⇒ 还原后 blob **逐字一致**（`2b148c3…`）⇒ ⇒ ⇒ 有牙，且**只有该红的那条红**。
+　❸ ⚠️ **共享工作树里 `endpoints.json` 被并行会话刷新了**（38 ⇒ 43 条，提交 `0ac2b0e`「契约调用点补显式类型参数 ＋ 刷新端点快照」）⇒ ⇒ ⇒ 我的读数因此是**在新清单**上跑的（contract 族 44 条全绿）⇒ ⇒ ⇒ 那**不是**我的在飞件 ⇒ ⇒ ⇒ **不越界提交它**（只提我那两个文件）⇒ ⇒ ⇒ 而且「清单会变」这件事本身说明：**契约闸必须按清单跑，不能按固定条数钉**。
+
+⑤ **✅ 判据（四处）** —— ❶ **真端脑整族**（端口 60202，自编 `encephalon-server` ＋ 两把回环钥匙）：**55 条 ⇒ 54 passed / 1 skipped / 0 failed** ⇒ ⇒ 与上一刀的 13 红 / 37 绿对照 ⇒ ⇒ ⇒ **13 条红全部收口**；❷ **那 1 条 skip 是诚实的**：`schemas.test.ts > GET /api/telencephalon/thalamus/preview/sensors` ⇒ ⇒ 端脑回 **503**（diencephalon 没就绪）⇒ ⇒ 形状**测不了** ⇒ ⇒ 跳过并打警告（不是「形状不对」）；❸ **反向验证**：注入形状错 ⇒ **恰好 1 红**；还原**逐字一致**；❹ **闸级**：桌面端类型闸（`.ts` ＋ `.tsx` 全族）**EXIT=0**。
+
+⑥ **✅ 分级读数（全部实测）** —— **真端脑级**：54 / 1 / 0 ＋ 逐条清单（schemas 7 绿 1 跳、a2ui 3 绿）＋ 恰好 1 红的反向验证｜ **闸级**：类型闸 EXIT=0｜ **反向验证级**：形状注入 ⇒ 恰好 1 红。
+
+⑦ **⚠️ 仍然欠着** —— ❶ **CI 那一步仍只跑「契约存在性」族**（44 条 ＋ 1 可达性，0 skip）⇒ ⇒ 另两支的 CI 承重**仍欠**（它们带「有据可查的 skip」⇒ ⇒ 要进 CI，得先定「哪些 skip 是允许的」的白名单）⇒ ⇒ 下一刀；❷ `thalamus/preview/sensors` 那条 503 仍跳（要端脑侧能起 diencephalon）；❸ **这道闸的频率仍是夜间/手动**（不是每次 push）⇒ ⇒ 「端点漂移」在高频 push 下仍抓不到；❹ `tests/wdio/**` ＋ `tests/tauri-e2e/**` 两族仍欠真跑 ＋ 那 **~44 处恒真断言**待加固；❺ 端脑侧判据在端脑自己的 CI 上仍无读数；❻ `Mobile Test` 那笔 CI 环境债照旧（与本刀无关）。
+
+⑧ **⚠️ 圈码：本条占 U+346D（㑭）** —— 插前**独立重扫**（父仓工作树 ∪ 父仓 HEAD ∪ 父仓 `origin/master` × **三本账本**，按**声明形状**扫）⇒ ⇒ 段内最高已声明 **U+346C**（承 U+346C 条）⇒ ⇒ 取 **U+346D**（**U+346E 起已口头留给并行会话**）⇒ ⇒ 插前扫：U+346D／U+346E 在三账本三面**各 0 次声明 0 次提及** ✔ ⇒ ⇒ ⚠️ **不填历史空洞**（U+3463／U+3465／U+3467／U+3469 继续空）⇒ ⇒ ⚠️ 本条**只引用已提交的码位**（U+346C）⇒ ⇒ ⚠️ **插完立刻复跑码位闸**是硬约束。
 **Updated**: 2026-11-09 (㑬 **「契约套件躺在仓里，却从没被调用过 —— 而 404 白名单让端点漂移永远抓不到」** —— 承 U+346A 条（wdio 家族入闸），本条记**取证（两处：无人调用 ＋ 404 全局放行）**、**第一因（豁免挂在「状态码」上，而不是挂在「端点的形状」上）**、**这一刀的落点（3 个代码文件）**、**判据（假服务器两档 ＋ 真端脑读数）**、**分级读数**、**途中那几课**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-09 | authority=measured | scope=project | source=真运行级实测（假服务器两档反向验证 ＋ 真端脑真跑 ＋ 全仓调用点普查） | 改动：shadow 仓 **改** `shadow-desktop/tests/api-contract/contract.test.ts`（404 白名单收窄）、**改** `shadow-desktop/tests/api-contract/server-check.ts`（递读门钥匙）、**改** `.github/workflows/desktop-e2e.yml`（接上真端脑 ＋ 核读数） ｜ 读数：**反向验证级（假服务器两档）：V1 全 404 ⇒ 契约闸 30 红 / 20 绿（逐条核：绿的全带 `{id}`、红的全不带）＋ V2 全 200 ⇒ 39 passed / 0 failed**、**闸级：类型闸 EXIT=0 ／ eslint 0 error ／ YAML 闸 10 文件零违规**、**真端脑级：真端脑首跑 50 条 ⇒ 13 红 / 37 绿（逐条归因 ⇒ ⇒ **一条 404 都没有** ⇒ ⇒ 「404 收窄没误红」被真读数证实 ✔）；改判「只判端点存在」后 **39 passed / 0 failed** ＋ 5xx 逐条报告；真端脑反向验证：注入不存在端点 ⇒ **恰好 1 红**（1 failed / 39 passed）** | status=active | supersedes=none
