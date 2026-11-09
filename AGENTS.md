@@ -1,3 +1,63 @@
+**Updated**: 2026-11-11 (㒻 **「三道闸的判据都长在主流程里 ⇒ ⇒ 自检够不着 ⇒ ⇒ 只能恒绿 —— 而抽成纯函数就能喂夹具」** —— 承 U+34B4 条（把判断抽成纯函数）与 U+34AE 条（Node 崩掉的退出码是 1），本条记**取证**、**第一因**、**第二因**、**第三因**、**这一刀的落点**、**途中那几课**、**判据与分级读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真跑级实测（三道闸自检逐条跑 ＋ 注入式反向验证 ＋ 治理闸逐条量 ＋ 真 CI 读数）｜ 改动：shadow 仓 **改** scripts/check-agent-surface.mjs（交叉校验抽成纯函数 judgeSurface() ＋ 判据源在位检查 ＋ --self-test 15/15）＋ **改** scripts/check-apk-surface.mjs（入口/符号/依赖抽成纯函数 ＋ 「APK 不在位」改 exit 2 ＋ --self-test 11/11）＋ **改** scripts/check-auth-backdoors.mjs（三条规则抽成纯函数 ＋ --self-test 10/10）＋ **改** scripts/lib/gate-discipline-registry.mjs（销账 6 条）＋ **改** .github/workflows/ci.yml（那两步改走 run-gate-once）｜ 读数：自检 **15/15 ＋ 11/11 ＋ 10/10**、治理闸 **57 道闸零违规**（存量债 **8 → 2**）、反向验证 **三条各恰 1 红**、真跑三道全绿、YAML **24** 文件零违规、暂存面零回退 | 提交：`b025e61`（5 文件 / 0 产品代码） | status=active | supersedes=none
+
+① **⚠️ 取证：治理闸逐字点名 6 条债**
+　❶ 逐字：「⚠ [存量债] [no-self-test] 闸「agent-surface」没有 --self-test ⇒ ⇒ 它证明不了自己会红」；「⚠ [存量债] [no-reading-in-wired] 闸「apk-surface」的自检没印可数读数（N/N）⇒ ⇒ 读数不可比」。
+　❷ ⇒ ⇒ 6 条债分布在三道闸：agent-surface（no-self-test ／ no-cannot-judge-exit ／ no-reading-in-wired）、apk-surface（no-self-test ／ no-reading-in-wired）、auth-backdoors（no-self-test）。
+　❸ ⇒ ⇒ 这三道**不在**并行会话的在飞面上（在飞的是 client-tools ／ neuron-ownership）⇒ ⇒ 我**自己销**，不代改。
+
+② **⚠️ 第一因：判据都长在主流程里 ⇒ ⇒ 自检够不着 ⇒ ⇒ 只能恒绿**
+　❶ auth-backdoors 的规则 C（前端硬编码凭据）以前是 `scanRepo()` 里的一段内联 `lines.forEach` ⇒ ⇒ 要证伪它 ⇒ ⇒ 得先把三个兄弟仓摆好。
+　❷ apk-surface 的入口判定（是不是集成测试壳）以前**长在主流程里**（读 APK → 抽 kernel blob → 判字样）⇒ ⇒ 要证伪它 ⇒ ⇒ 得先造一个 APK。
+　❸ agent-surface 的「清单 ↔ 两端路由」交叉校验同理（直接读 App.tsx / app_router.dart）。
+　❹ ⇒ ⇒ **通用形态：判据长在主流程里 ⇒ ⇒ 它就只对「环境齐」的世界成立 ⇒ ⇒ 自检只能退化成「跑一次正常检查」⇒ ⇒ 恒绿**（看着有自检，其实证明不了任何事）。
+　❺ ⇒ ⇒ 修法（承 U+34B4 条那把）：**把判定抽成纯函数（零 I/O）**⇒ ⇒ 自检喂**合成夹具**⇒ ⇒ 不需要 APK、不需要兄弟仓、不需要两端仓在位。
+
+③ **⚠️ 第二因：「还没构建」被写成 exit 0（绿）—— 读不到 ≠ 是 0**
+　❶ 实测：apk-surface 以前在 APK 不存在时 `warn()` ＋ `process.exit(0)` ⇒ ⇒ 在 CI 上「没构建 APK」被读成「APK 没问题」。
+　❷ ⇒ ⇒ **通用形态：闸自己拿不到被测物时，「发绿」是最省事也最危险的选择** ⇒ ⇒ 失败长得像成功。
+　❸ ⇒ ⇒ 修法：改成 **exit 2（判不了）**＋ 接线侧用 `run-gate-once` 把 2 转成「显眼但不阻断」（0 绿／1 红／2 显眼）。
+
+④ **⚠️ 第三因：源没读全 ⇒ ⇒ Node 崩掉 ⇒ ⇒ 退出码 1 ⇒ ⇒ 与「闸判红」同形**
+　❶ agent-surface 以前直接 `readFileSync()` 判据源 ⇒ ⇒ 缺一个就**抛异常** ⇒ ⇒ Node 未捕获异常的退出码是 **1**（U+34AE 条已实测）⇒ ⇒ 与「闸判红」**逐字同形**。
+　❷ ⇒ ⇒ **通用形态：闸崩了与闸判红在 CI 上长得一模一样 ⇒ ⇒ 「读不到」必须由闸自己写成 exit 2** ⇒ ⇒ 这是 U+34AE 条那条的**第二个实例**（同一条规则，两处不同的地方）。
+　❸ ⇒ ⇒ 修法：先 `judgeSources()` 查 10 个判据源在不在位 ⇒ ⇒ 缺就 exit 2 并逐个点名。
+
+⑤ **✅ 这一刀的落点（4 个脚本 ＋ 1 个 workflow ＋ 1 份债表）**
+　❶ **改 `scripts/check-agent-surface.mjs`**：`judgeSurface(surface, dRoutes, mRoutes)`（清单↔路由交叉校验搬成纯函数）＋ `extractDesktopRoutes()` / `extractMobileRoutes()`（路由抽取纯函数）＋ `judgeSources()`（判据源在位）＋ `--self-test` **15/15**（声明的路由不存在 ／ 容器路由 ／ legacy 重定向 ／ id 重复 ／ 缺 id ／ group 不对 ／ 别名不存在 ／ 双向漂移 ＋ 路由抽取 ＋ `hasJsonPath` ＋ 「源读不到 ⇒ 判不了」）。
+　❷ **改 `scripts/check-apk-surface.mjs`**：`judgeEntry()`（入口）／ `judgeSymbols()`（JNI 符号）／ `judgeDeps()`（运行时依赖）／ `judgeApkPresence()`（APK 在不在）＋ `--self-test` **11/11**；「APK 不在位」从 exit 0 改成 **exit 2**。
+　❸ **改 `scripts/check-auth-backdoors.mjs`**：`checkFrontendLiteralDefault()`（规则 C）／ `splitByAllow()`（豁免过滤）／ `judgeCoverage()`（读到几个文件）＋ `--self-test` **10/10**（A/B/C 各一条正例 ＋ 各一条孪生反例 ＋ 注释不算 ＋ 豁免 ＋ 「没读到 ⇒ 判不了」）。
+　❹ **改 `scripts/lib/gate-discipline-registry.mjs`**：销账 6 条 ⇒ ⇒ 存量债 **8 → 2**（剩 client-tools ／ neuron-ownership ⇒ ⇒ 并行会话在飞件 ⇒ ⇒ 不代改）。
+　❺ **改 `.github/workflows/ci.yml`**：那两步改走 `run-gate-once` ⇒ ⇒ 退出码 2 被转成「显眼但不阻断」（**只动 2 行 run ＋ 1 行注释** ⇒ ⇒ 逐字核 `git show --numstat` ＝ **4＋ / 3−**）。
+　❻ ⚠ **零产品代码改动** —— 只改尺子与接线面。
+
+⑥ **⚠️ 途中那几课**
+　❶ **自检必须抢在「依赖环境的分支」之前** —— 否则它一进来就撞上读源失败（msrv-floor 那条的老教训，这三道闸是同一族）。
+　❷ **自检红了，先分「夹具错了」还是「判据错了」** —— 实测：agent-surface 自检首跑 **14/15**（红的那条是**我的断言写错**：我以为 `hasJsonPath` 返回值，其实它返回布尔）⇒ ⇒ 修**断言**不修判据 ⇒ ⇒ ⇒ **通用形态：自检红要逐条看是「哪一条」红 ⇒ ⇒ 那一条可能是在说你的夹具**。
+　❸ **改共享文件要造两份面** —— ci.yml 是**共享**的（并行会话有在飞的暂存内容）⇒ ⇒ 提交面＝**HEAD ＋ 我的两行**（不吞别人的活）＋ 共享索引＝**别人的在飞内容 ＋ 我的两行**（不让下一笔从共享索引提交时把我的句子静悄悄退回）⇒ ⇒ 两份都要造。
+　❹ **共享文件的存储形态与工作树可以不同** —— 实测：ci.yml 的 **blob 是 LF**，工作树是 CRLF（autocrlf 检出）⇒ ⇒ 造面时必须**按各自基线的行尾**来 ⇒ ⇒ 否则 diff 整篇翻红。
+　❺ **共享 index 第四次陈旧** —— 并行会话连着提交却没同步共享索引 ⇒ ⇒ 暂存面回退闸报 4 处（`.githooks/pre-commit` ／ `AGENTS.md` ／ `scripts/check-precommit-hook.mjs` ＋ 台账少一条）⇒ ⇒ 我代修（**只在「工作树 == HEAD」时才修** ⇒ ⇒ 工作树一字节未动）⇒ ⇒ 暂存面归零。
+
+⑦ **✅ 判据与分级读数（全部实测）**
+　❶ **判据级**：三道闸自检 **15/15 ＋ 11/11 ＋ 10/10**。
+　❷ **反向验证（注入式 · 逐条）**：auth-backdoors 把 A 规则改成永不匹配 ⇒ ⇒ **恰 1 红**（9/10，点名「A 命中」）；apk-surface 把「测试壳 ＋ 声明用途」分支改坏 ⇒ ⇒ **恰 1 红**（10/11）；agent-surface 把「路由存在性检查」改坏 ⇒ ⇒ **恰 1 红**（14/15）⇒ ⇒ 还原后各自回满。
+　❸ **真跑级**：agent-surface **exit 0**（阻断 0 项；桌面端 26 条路由 ／ 移动端 27 条 ／ 清单 33 条；生成物 4＋2 全同步）；apk-surface **exit 0**（APK 真在位：正牌入口 ＋ arm64-v8a **14** 个 JNI 符号齐 ＋ 与 jniLibs 那份 sha256 一致）；auth-backdoors **exit 0**（扫 4 个仓共 761 个文件；规则命中 A=0 B=0 C=0）。
+　❹ **治理级**：治理闸 **57 道闸零违规**，存量债 **8 → 2**；码位闸三面零违规；YAML 闸 **24** 个文件零违规；暂存面零回退。
+　❺ **真 CI 级**：**真 CI 级（head `b025e61`）**：「Unwired Gates」run **42716279497** ＝ **success**（15 道闸逐步全绿，含本刀改过的三道闸的自检）；主 CI run **42716279409** ＝ **failure** —— 10 个 job 里**只有 Mobile Test 红**（逐字：`691 tests passed, 2 failed, 12 skipped`；失败的两条都在 `shadow-mobile/test/unit/capability_grants_test.dart`「⑤ 执行层：没权限就**明确失败**」⇒ ⇒ 归因**并行会话的在飞件**，**不是本刀**）⇒ ⇒ 其余 9 个 job 全绿，**含 Desktop Build**（那正是本刀改过 ci.yml 的那个 job）＋ Prefrontal Rust ＋ Brain gates ＋ Ledger codepoints ＋ YAML validity ⇒ ⇒ 本刀涉及的那一格**在 CI 上也是绿的**。
+
+⑧ **⚠️ 仍然欠着的**
+　❶ 剩下 **2 条**债：client-tools ／ neuron-ownership ⇒ ⇒ **并行会话的在飞文件** ⇒ ⇒ 我**不代改**。
+　❷ ⚠ **闸接进 CI ≠ 闸在 CI 上判得了**：apk-surface 在干净 checkout 里**必然** exit 2（没有 APK）⇒ ⇒ 那一格在 CI 上永远是「判不了」⇒ ⇒ 它的真机级读数**只能**在装了 APK 的机器上取。
+　❸ ⚠ **auth-backdoors 在 CI 上只扫得到仓内那两份**（端脑／大脑两个兄弟仓检不出来）⇒ ⇒ CI 上的它**只覆盖**前端硬编码那一族 ⇒ ⇒ 端脑侧那两条（放行分支 ／ 字面量默认凭据）**在 CI 上判不了** ⇒ ⇒ 那一族仍靠**本机三仓同在**时取读数。
+　❹ ⚠ D3 的判据是「输出里有 N/N」⇒ ⇒ 若自检别处也印了 `数字/数字` 形状的串，会被误当读数（不影响真假，但读数不精确）。
+　❺ ⚠ **剩下那两条债一旦落地，「存量债」就空了** ⇒ ⇒ 那时治理闸的「零违规」才真的开始有内容。
+
+⑨ **⚠️ 圈码：本条占 U+34BB（㒻）**
+　❶ 插前**独立重扫**（父仓工作树 ∪ 父仓索引 ∪ 父仓 HEAD × **三本账本**，按**声明形状**扫、声明与提及分开、十六进制计）⇒ ⇒ 三面**齐平**（各 **244** 条声明，最高已声明 **U+34B9（㒹）**）。
+　❷ ⇒ ⇒ ⚠ **U+34BA 让开** —— 它是并行会话在 U+34B9 条里**明写**的「再留一枚缓冲（U+34BA）」⇒ ⇒ 按 U+34B5 条自己的教训，**连别人留的缓冲也要让开**（前例：U+34AF）⇒ ⇒ 本条取 **U+34BB（㒻）** ⇒ ⇒ 按惯例**再留一枚缓冲（U+34BC）**。
+　❸ ⇒ ⇒ 本条**只引用已提交的码位**（U+34B4 ／ U+34AE ／ U+34B5）⇒ ⇒ ⚠ **插完立刻复跑码位闸**是硬约束。
+
 **Updated**: 2026-11-11 (㒽 **「分档默认这一格，asr/tts 档**真被消费了** —— 而同一个底层失败，按 id 从哪来分成两个错码」** —— 承 U+34B8 条（llm 档是死槽）与 U+34AD 条（能力面逐条读数），本条记**取证（真机级六格读数）**、**第一因**、**第二因**、**第三因**、**这一刀的落点**、**途中那几课**、**判据与分级读数**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真机级实测（odin ee6b4832 · 端脑面逐条 HTTP 读数）｜ 改动：父仓 **新增** `scripts/prove-asr-tier-on-device.ps1`（UTF-8 BOM · 零产品代码）｜ 读数：探针 **EXIT=0**（核心①asr 档被读 ✔／核心②tts 档被读 ✔／核心③asr 档解析到已注册引擎 ✔／核心④显式盖过分档默认 ✔／两个对照格 ✔；复原复核 ✔ ＋ 重启后 registered 归零 ⇒ ⇒ **零残留**）| status=active | supersedes=none
