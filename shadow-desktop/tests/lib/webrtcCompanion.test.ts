@@ -15,7 +15,10 @@ beforeEach(() => {
     iceConnectionState = 'new';
     iceGatheringState = 'new';
     signalingState = 'stable';
-    localDescription: RTCSessionDescription | null = { type: 'offer', sdp: 'test-sdp' };
+    // ⚠️ **用 RTCSessionDescriptionInit**（不是 RTCSessionDescription）——
+    //   后者是 DOM 的**类**类型 ⇒ ⇒ 强制要求 toJSON ⇒ ⇒ 测试替身写不出来
+    //   ⇒ ⇒ 而产品代码只读 .sdp（webrtcCompanion.ts:187）⇒ ⇒ Init 就够。
+    localDescription: RTCSessionDescriptionInit | null = { type: 'offer', sdp: 'test-sdp' };
     private pcListeners: Record<string, Set<(ev: Event) => void>> = {};
     constructor() { mockPcInstances.push(this); }
     addEventListener = (event: string, handler: (ev: Event) => void) => {
@@ -71,11 +74,15 @@ beforeEach(() => {
       if (this.onmessage) this.onmessage(msg);
       this.dispatchEvent(msg);
     }
-    close() {
+    // ⚠️⚠️ **用 vi.fn 包起来**（2026-11-09）：原来是**普通方法** ⇒ ⇒ 替身**不支持
+    //   「被调用过」的断言** ⇒ ⇒ 而产品 `stop()` **确实**调了 `ws.close()`
+    //   （webrtcCompanion.ts:335）⇒ ⇒ 那条测试名写着「and ws.close()」的用例
+    //   ⇒ ⇒ **从来没真的验证过 ws 那半边** ⇒ ⇒ 把它变成可断言的替身。
+    close = vi.fn(() => {
       this.readyState = 3;
       if (this.onclose) this.onclose(new CloseEvent('close'));
       this.dispatchEvent(new CloseEvent('close'));
-    }
+    });
   }
 
   vi.stubGlobal('RTCPeerConnection', MockRTCPeerConnection);
@@ -391,6 +398,12 @@ describe('WebRtcCompanion', () => {
       const ws = mockWsInstances[mockWsInstances.length - 1];
       await companion.stop();
       expect(pc.close).toHaveBeenCalled();
+      // ⚠️⚠️ **补上这条断言**（2026-11-09）：测试名写着「and ws.close()」
+      //   ⇒ ⇒ 而**原来一个 ws 断言都没有** ⇒ ⇒ `ws` 变量只被赋值、没人读
+      //   ⇒ ⇒ **类型闸把它当成未使用变量报红**（TS6133）——
+      //   ⇒ ⇒ 那条红其实是**这条测试名不副实的证据**：
+      //   ⇒ ⇒ 名说测「ws 也关了」，实际只测了 pc。
+      expect(ws.close).toHaveBeenCalled();
     });
 
     it('stop resets state to closed', async () => {

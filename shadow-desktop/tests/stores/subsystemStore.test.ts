@@ -58,7 +58,7 @@ describe('subsystemStore', () => {
     const store = useSubsystemStore.getState();
     const clearSpy = vi.fn();
 
-    vi.spyOn(global, 'setInterval').mockImplementation((callback: TimerHandler) => {
+    vi.spyOn(global, 'setInterval').mockImplementation(() => {
       return 1 as unknown as NodeJS.Timeout;
     });
     vi.spyOn(global, 'clearInterval').mockImplementation(clearSpy);

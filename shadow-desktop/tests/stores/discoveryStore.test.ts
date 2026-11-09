@@ -32,12 +32,8 @@ function __restoreLocalStorage() {
   else Reflect.deleteProperty(globalThis, 'localStorage');
 }
 
-const STORAGE_KEY = 'shadow-discovery';
-
-function getPersistedState() {
-  const stored = localStorage.getItem(STORAGE_KEY);
-  return stored ? JSON.parse(stored) : null;
-}
+// ⚠️ 原来这里有个 `STORAGE_KEY` 常量 —— 它只被一个**从没被调用过**的
+//   `getPersistedState()` 用着 ⇒ ⇒ 两个都是死代码 ⇒ ⇒ 一起删。
 
 describe('DiscoveryStore', () => {
   beforeEach(() => {

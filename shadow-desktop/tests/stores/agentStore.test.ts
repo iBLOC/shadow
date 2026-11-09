@@ -40,14 +40,9 @@ describe('AgentStore', () => {
       agents: [],
       tasks: [],
       activeAgentId: null,
-      opencodeConfig: {
-        port: 3000,
-        autoLaunch: false,
-        autoInstall: false,
-      },
-      opencodeInstances: [],
-      opencodeInstalled: false,
-      isLoadingOpenCode: false,
+      // ⚠️ **这四个 opencode 字段产品里根本没有**（`AgentState` 没有它们）
+      //   ⇒ ⇒ 以前写进去**没人读** ⇒ ⇒ 是**死字段** ⇒ ⇒ 删掉
+      //   ⇒ ⇒ （类型闸的 TS2353 就是这条的第一个证人）
     });
   });
 
@@ -88,7 +83,11 @@ describe('AgentStore', () => {
         id: 'custom-1',
         name: '我的 agent',
         description: '',
-        category: 'custom',
+        // ⚠️ 'custom' 是 **externalType** 的合法值，**不是 category** 的
+        //   （`AgentCategory = 'built-in' | 'external'`，src/types/index.ts:6）
+        //   ⇒ ⇒ 「用户自建的 agent」= external ＋ externalType: 'custom'。
+        category: 'external',
+        externalType: 'custom',
         status: 'online',
         capabilities: [],
         createdAt: new Date(),
@@ -99,7 +98,8 @@ describe('AgentStore', () => {
       await Promise.resolve();
       const agents = useAgentStore.getState().agents;
       expect(agents).toHaveLength(1);
-      expect(agents[0].category).toBe('custom');
+      expect(agents[0].category).toBe('external');
+      expect(agents[0].externalType).toBe('custom');
     });
   });
 
@@ -109,7 +109,8 @@ describe('AgentStore', () => {
         id: 'agent-new',
         name: 'New Agent',
         description: 'A new agent',
-        category: 'custom',
+        category: 'external',
+        externalType: 'custom',
         status: 'online',
         capabilities: [],
         createdAt: new Date(),
@@ -192,8 +193,11 @@ describe('AgentStore', () => {
     it('addTask adds to tasks array', () => {
       const task: AgentTask = {
         id: 'task-1',
+        agentId: 'agent-1',
+        title: 'Test task',
+        description: '',
         status: 'pending',
-        message: 'Test task',
+        createdAt: new Date(),
       };
       
       const { addTask } = useAgentStore.getState();
@@ -209,24 +213,29 @@ describe('AgentStore', () => {
         tasks: [
           {
             id: 'task-1',
+            agentId: 'agent-1',
+            title: 'Original task',
+            description: '',
             status: 'pending',
-            message: 'Original message',
+            createdAt: new Date(),
           },
         ],
       });
       
       const { updateTask } = useAgentStore.getState();
-      updateTask('task-1', { status: 'completed', message: 'Updated message' });
+      updateTask('task-1', { status: 'completed', title: 'Updated task' });
       
       const state = useAgentStore.getState();
       expect(state.tasks[0].status).toBe('completed');
-      expect(state.tasks[0].message).toBe('Updated message');
+      // ⚠️ **原来断言的是 `message`** —— 而产品的 `AgentTask` **没有这个字段**
+      //   ⇒ ⇒ 断言落在一个**产品从不产生**的键上 ⇒ ⇒ 换成像样的字段 `title`。
+      expect(state.tasks[0].title).toBe('Updated task');
     });
   });
 
   describe('persistence', () => {
     it('preserves agents across state updates', () => {
-      const agents = [
+      const agents: Agent[] = [
         {
           id: 'agent-persisted',
           name: 'Persisted Agent',

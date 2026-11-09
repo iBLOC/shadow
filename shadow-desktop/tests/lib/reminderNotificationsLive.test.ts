@@ -79,10 +79,13 @@ function useOnlyShadowKey(): void {
  */
 async function plantReminder(): Promise<void> {
   const due = new Date(Date.now() + 5 * 60_000).toISOString();
+  // ⚠️ **createTask 没有第二参**（签名只有 `{title, description?, dueTime?, priority?, tags?}`）
+  //   ⇒ ⇒ 以前多传了一个 `PLANT_TIMEOUT_MS`（运行时被**悄悄忽略**）
+  //   ⇒ ⇒ TS2554 当场揭穿它 ⇒ ⇒ 删掉（语义不变）。
   const created = await telencephalonClient.createTask({
     title: '桌面端真跑级探针',
     dueTime: due,
-  }, PLANT_TIMEOUT_MS);
+  });
   const id: string = created?.id ?? created?.task_id;
   expect(id, '端脑建出来的任务必须有任务号').toBeTruthy();
   // ⚠️ 调度器**默认 60 秒**一个周期（首个 tick 延后一个周期）⇒ ⇒ 得等。

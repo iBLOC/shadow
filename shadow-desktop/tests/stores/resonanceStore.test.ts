@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import type { MockInstance } from 'vitest';
 import { useResonanceStore } from '../../src/stores/resonanceStore';
 import type { DiscoveredService, TaskPush } from '../../src/stores/resonanceStore';
 
@@ -220,7 +221,11 @@ describe('ResonanceStore', () => {
   });
 
   describe('sendTaskResponse / sendTaskProgress / sendTaskResult', () => {
-    let fetchSpy: ReturnType<typeof vi.spyOn>;
+    // ⚠️ `ReturnType<typeof vi.spyOn>` 在 vitest 4 里是**重载的** ⇒ ⇒ 推成
+    //   「最后一个重载」那个泛型签名 ⇒ ⇒ 与 `vi.spyOn(globalThis, 'fetch')`
+    //   实际返回的 MockInstance **不兼容** ⇒ ⇒ TS2322。
+    //   ⇒ ⇒ 直接标成 fetch 的 MockInstance（**承重类型**，不是凑合）。
+    let fetchSpy: MockInstance<typeof globalThis.fetch>;
 
     beforeEach(() => {
       useResonanceStore.setState({ connectionStatus: 'connected' });

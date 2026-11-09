@@ -27,7 +27,7 @@ vi.mock('../src/stores/serviceStore', () => ({
   },
 }));
 
-import { useResonanceStore, type DiscoveredService, type TaskPush } from '../src/stores/resonanceStore';
+import { useResonanceStore, type TaskPush } from '../src/stores/resonanceStore';
 
 describe('ResonanceStore', () => {
   beforeEach(() => {

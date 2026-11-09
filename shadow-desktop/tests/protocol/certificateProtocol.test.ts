@@ -1,13 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('mTLS certificate protocol', () => {
-  let store: import('../../src/stores/certificateStore').CertificateState;
-
+  // ⚠️ **原来这里声明过 `store`**（类型写成 `import('…').CertificateState`）
+  //   ⇒ ⇒ 两个问题：❶ 产品的 `CertificateState` **没有 export** ⇒ ⇒ TS2694；
+  //   ❷ `store` **从头到尾没人读** ⇒ ⇒ TS6133（死变量）⇒ ⇒ 整段是死代码。
+  //   ⇒ ⇒ 现在只保留**模块加载**这个副作用（store 靠 persist 自己初始化）。
   beforeEach(async () => {
     vi.resetModules();
     localStorage.clear();
-    const { useCertificateStore } = await import('../../src/stores/certificateStore');
-    store = useCertificateStore.getState();
+    await import('../../src/stores/certificateStore');
   });
 
   describe('certificate lifecycle', () => {

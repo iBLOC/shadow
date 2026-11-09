@@ -58,7 +58,10 @@ describe('PrefrontalClient contract tests', () => {
   function expectRequest(
     method: string,
     path: string,
-    bodyMatcher?: (body: unknown) => void,
+    // ⚠️ **body 的类型不是 unknown** —— 它是 `JSON.parse` 出来的**请求体**
+    //   ⇒ ⇒ 标成 `Record<string, unknown>` ⇒ ⇒ 回调里 `b.fetch_card` 才拿得到
+    //   ⇒ ⇒ （标成 unknown ⇒ ⇒ 每个 `b.xxx` 都得先转型 ⇒ ⇒ 那是闸在赶人绕路）
+    bodyMatcher?: (body: Record<string, unknown>) => void,
   ) {
     expect(mockFetch).toHaveBeenCalledWith(
       `http://localhost:8085${path}`,
@@ -283,16 +286,24 @@ describe('PrefrontalClient contract tests', () => {
     });
 
     it('getA2ATask sends GET /api/a2a/peers/:id/tasks/:taskId', async () => {
-      mockFetch.mockResolvedValue(okJson({ task_id: 't-1', state: 'completed', result: { text: 'done' } }));
+      // ⚠️⚠️ **回包形状 = 平台的 protocol::Task**（`{id, status:{state,message,timestamp}}`）
+      //   —— **不是** `{task_id, state, result}`：服务端 `get_a2a_task` 把对端的
+      //   `tasks/get` 结果**原样转述** ⇒ ⇒ 原来这里 mock 的是**服务端从不返回的形状**
+      //   ⇒ ⇒ `task.result?.text` 断言的是一个**不存在的键** ⇒ ⇒ 假覆盖。
+      mockFetch.mockResolvedValue(okJson({ id: 't-1', status: { state: 'COMPLETED', message: 'done' } }));
       const task = await client.getA2ATask('peer-1', 't-1');
-      expect(task.result?.text).toBe('done');
+      expect(task.id).toBe('t-1');
+      expect(task.status.state).toBe('COMPLETED');
+      expect(task.status.message).toBe('done');
       expectRequest('GET', '/api/a2a/peers/peer-1/tasks/t-1');
     });
 
     it('cancelA2ATask sends DELETE /api/a2a/peers/:id/tasks/:taskId/cancel', async () => {
-      mockFetch.mockResolvedValue(okJson({ success: true }));
+      // ⚠️ 服务端 `cancel_a2a_task` 回的是 **null**（它把 `()` 序列化了）
+      //   ⇒ ⇒ **没有** success 字段 ⇒ ⇒ 原来断言的 `result.success` 落空。
+      mockFetch.mockResolvedValue(okJson(null));
       const result = await client.cancelA2ATask('peer-1', 't-1');
-      expect(result.success).toBe(true);
+      expect(result).toBeNull();
       expect(mockFetch).toHaveBeenCalledWith(
         'http://localhost:8085/api/a2a/peers/peer-1/tasks/t-1/cancel',
         expect.objectContaining({ method: 'DELETE' }),

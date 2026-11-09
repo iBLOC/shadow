@@ -1,37 +1,37 @@
 {
-  // ⚠️⚠️ **E2E 家族的类型闸**（2026-11-09 新增）
+  // ⚠️⚠️ **桌面端测试家族的类型闸**（2026-11-09 新增 ⇒ 同日扩面到整个 tests/ 家族）
   //
-  //   根 tsconfig 的 include 只有 ["src"] ⇒ ⇒ 而
-  //   **shadow-desktop/tests/e2e-ui/** 与 **shadow-desktop/tests/lib/**
+  //   根 tsconfig 的 include 只有 ["src"] ⇒ ⇒ 而 **shadow-desktop/tests/** 整族
   //   ⇒ ⇒ **至今没有任何类型/语法闸** ⇒ ⇒ 那一族里一个语法错或类型错
-  //   ⇒ ⇒ 只有等 Playwright 真跑（**夜间/手动**）或 vitest 真跑（**重**）才暴露
-  //   ⇒ ⇒ ⇒ 反馈太晚，而且「判据自己坏了」这件事会被当成「产品回归」。
+  //   ⇒ ⇒ 只有等 vitest 真跑（**重**）才暴露 ⇒ ⇒ ⇒ 反馈太晚，
+  //   ⇒ ⇒ 而且「判据自己坏了」这件事会被当成「产品回归」。
   //
   //   ⚠️ **实证（2026-11-09）**：我在这一族里写了个**嵌套反引号**的语法错
   //   ⇒ ⇒ 根 tsc（ci.yml 的「TypeScript check」）**一声不吭**
   //   ⇒ ⇒ 是 Playwright 当场抓到的 ⇒ ⇒ 「类型闸绿」≠「我改的文件被看过」。
   //
-  //   ⇒ ⇒ 这个 config 把**E2E 家族**拉进类型闸 ⇒ ⇒ 密闸在
+  //   ⇒ ⇒ 这个 config 把 **tests/ 里的 .ts 全族**拉进类型闸 ⇒ ⇒ 密闸在
   //   ⇒ ⇒ .github/workflows/e2e-typecheck.yml（每个 push 都跑）。
   //
-  // ⚠️ **覆盖面是有意的，不是漏的**：
-  //   · include 只列 **e2e-ui/** ＋ **那把形状尺子**（lib/e2eStrictness.test.ts）
-  //     ＋ playwright.config.ts ⇒ ⇒ 其余 tests/lib/** 里另有 **12 处既有类型错**
-  //     ⇒ ⇒ 它们落在**别人在飞的测试文件**上 ⇒ ⇒ 不在这一刀里动（越界＝把别人的
-  //     ⇒ ⇒ 在飞件卷进我的提交）⇒ ⇒ 记为欠项。
-  //   · tests/wdio/** 与 tests/tauri-e2e/** 需要 @wdio/globals 的运行时
-  //     ⇒ ⇒ 不在这里（它们也不在这个仓的 push 闸里）。
+  //   ⚠️⚠️ **types 必须写全（它是覆盖，不是追加）**：
+  //   · 根 config 的 ["vitest/globals", "@testing-library/jest-dom"] 必须**一起写上**
+  //     ⇒ ⇒ 否则这两个的全局类型会消失（⇒ ⇒ 一堆假错误）。
+  //   · **vite/client 也必须写上** —— 根 config 靠 **src/vite-env.d.ts** 的
+  //     triple-slash 引用拿到它，而那是 **src 下**的文件（**本 config 不含 src**）
+  //     ⇒ ⇒ 不写就丢掉 ⇒ ⇒ import.meta.env 全报 TS2339
+  //     ⇒ ⇒ **闸会拿着一个残缺的类型环境判绿**（2026-11-09 实测踩到）。
+  //
+  //   ⚠️ **exclude 里每一项都记着理由**（**未覆盖**必须与**已判无问题**分开报）：
+  //   · **\*\*/\*.tsx** —— React 组件测试家族，**57 处既有类型错**（2026-11-09 实测）
+  //     ⇒ ⇒ 那一族**还没有判据承重** ⇒ ⇒ 记欠项（下一刀）。
+  //   · wdio/** 与 tauri-e2e/** —— 需要 @wdio/globals 的运行时，不在这个仓的 push 闸里。
+  //   · stores/appearanceMemory.test.ts —— **并行会话在飞**（Appearance 新增
+  //     chatBackground 字段**还没提交**）⇒ ⇒ 那一格**没有判据承重** ⇒ ⇒ 记欠项。
   "extends": "../tsconfig.json",
   "compilerOptions": {
-    // ⚠️ **types 是覆盖，不是追加** ⇒ ⇒ 根 config 的
-    //   ["vitest/globals", "@testing-library/jest-dom"] 必须**一起写上**，
-    //   ⇒ ⇒ 否则这两个的全局类型会消失（⇒ ⇒ 一堆假错误）。
-    "types": ["node", "vitest/globals", "@testing-library/jest-dom", "@playwright/test"],
+    "types": ["node", "vitest/globals", "@testing-library/jest-dom", "@playwright/test", "vite/client"],
     "noEmit": true
   },
-  "include": [
-    "e2e-ui/**/*.ts",
-    "lib/e2eStrictness.test.ts",
-    "../playwright.config.ts"
-  ]
+  "include": ["**/*.ts", "../playwright.config.ts"],
+  "exclude": ["**/*.tsx", "wdio/**", "tauri-e2e/**", "stores/appearanceMemory.test.ts"]
 }

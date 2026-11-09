@@ -3,6 +3,7 @@ import {
   normalizeTelencephalonBaseUrl,
   ENDPOINT_REJECT_TEXT,
 } from '../../src/lib/telencephalonEndpoint';
+import type { EndpointRejectReason } from '../../src/lib/telencephalonEndpoint';
 
 /**
  * 端脑地址的**校验与规范化** —— 判据钉的是**规则**，不是实现细节。
@@ -68,7 +69,10 @@ describe('normalizeTelencephalonBaseUrl —— 不合格的地址不许进 store
   });
 
   it('每个拒绝理由都有人话（不许出现空文案）', () => {
-    const reasons = ['EMPTY', 'NOT_A_URL', 'BAD_PROTOCOL', 'NO_HOST'];
+    // ⚠️ 标成 `EndpointRejectReason[]` —— 那个联合类型就是「每个拒绝理由」的
+    //   **权威清单** ⇒ ⇒ 索引 `ENDPOINT_REJECT_TEXT[reason]` 才承重
+    //   ⇒ ⇒ （不标 ⇒ ⇒ reason 是 string ⇒ ⇒ TS7053 ⇒ ⇒ 判据自己先坏）
+    const reasons: EndpointRejectReason[] = ['EMPTY', 'NOT_A_URL', 'BAD_PROTOCOL', 'NO_HOST'];
     for (const reason of reasons) {
       expect(ENDPOINT_REJECT_TEXT[reason].length).toBeGreaterThan(0);
     }

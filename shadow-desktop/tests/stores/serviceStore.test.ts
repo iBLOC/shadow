@@ -1,10 +1,10 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
 }));
 
-import { useServiceStore, type ServiceName, type ServiceStatus, type ServiceInfo } from '../../src/stores/serviceStore';
+import { useServiceStore, type ServiceStatus } from '../../src/stores/serviceStore';
 
 describe('ServiceStore', () => {
   beforeEach(() => {

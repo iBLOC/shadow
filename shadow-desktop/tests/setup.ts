@@ -16,13 +16,16 @@ if (typeof globalThis.localStorage === 'undefined' || typeof globalThis.localSto
   } else {
     // Last-resort in-memory stub so the identifier resolves and `.clear()` exists.
     const store: Record<string, string> = {};
+    // ⚠️ `Storage.length` 是**只读**属性 ⇒ ⇒ 直接 `stub.length = …` 报 TS2540
+    //   ⇒ ⇒ 改用 **getter**（长度实时算）⇒ ⇒ 读出来的值一样
+    //   ⇒ ⇒ 且不再需要「手动同步 length」这种**容易漏**的写法。
     const stub: Storage = {
-      length: 0,
-      clear: () => { for (const k of Object.keys(store)) delete store[k]; stub.length = 0; },
+      get length() { return Object.keys(store).length; },
+      clear: () => { for (const k of Object.keys(store)) delete store[k]; },
       getItem: (k) => store[k] ?? null,
       key: (i) => Object.keys(store)[i] ?? null,
-      removeItem: (k) => { delete store[k]; stub.length = Object.keys(store).length; },
-      setItem: (k, v) => { store[k] = String(v); stub.length = Object.keys(store).length; },
+      removeItem: (k) => { delete store[k]; },
+      setItem: (k, v) => { store[k] = String(v); },
     };
     Object.defineProperty(globalThis, 'localStorage', { value: stub, writable: true, configurable: true });
   }
