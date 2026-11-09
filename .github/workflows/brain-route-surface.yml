@@ -1,0 +1,57 @@
+name: Brain Route Surface
+
+# ⚠️ **它守的是什么** —— 2026-11-11 实测（iBLOC/shadow）：
+#   端脑**源码**里明明有「GET/PUT /api/telencephalon/lobes/capability-defaults」
+#   （兄弟仓 telencephalon 的 src/api/lobe_manifest.rs）⇒ ⇒ 而手机里那份
+#   NDK 内嵌大脑（jniLibs/arm64-v8a/libencephalon.so）**没有**那条路由
+#   ⇒ ⇒ 真机上「按能力分档的默认模型」整块 404 ⇒ ⇒ 界面只显示一条原始错误
+#   ⇒ ⇒ **失败长得像成功**。
+#
+# ⚠️ **为什么既有那道闸盖不住** —— scripts/check-jni-surface.mjs 查的是
+#   **JNI 函数符号**面 ⇒ ⇒ 符号是稳定的 ⇒ ⇒ 一份旧 .so 的符号可以**全对**、
+#   而 HTTP 路由少了一堆 ⇒ ⇒ 符号面与路由面是**两族**。
+#
+# ⚠️ **为什么单独成文件**（与 e2e-endbrain-wiring.yml 同理）：
+#   ci.yml 是**共享文件**（并行会话在飞）⇒ ⇒ 独立成文件 ⇒ ⇒ 接线面**零共享**。
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  brain-route-surface:
+    name: Brain Route Surface
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout shadow
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      # ⚠️ **两步都要跑** —— 判据自检（证明这道闸**真的会红**）＋ 产物级校验。
+      - name: 端脑路由面（产物级）
+        run: |
+          set +e
+          node scripts/check-brain-route-surface.mjs
+          code=$?
+          set -e
+          # ⚠️ 退出码 2 =「判不了」（CI 上没有 .so，也没有兄弟仓端脑）
+          # ⇒ ⇒ **显式说判不了**，不许把 2 当绿（那是构造出来的零）。
+          if [ "$code" = "2" ]; then
+            echo "::warning::端脑路由面这一格在 CI 上判不了（没有 .so 产物 / 端脑源码）"
+            exit 0
+          fi
+          exit "$code"
+
+      - name: 端脑路由面（自检）
+        run: node scripts/check-brain-route-surface.mjs --self-test

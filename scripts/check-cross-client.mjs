@@ -20,6 +20,9 @@
  *                                  （不是集成测试壳）+ **真正装进手机那份** `.so`
  *                                  的符号 / 运行时依赖 / 与 `jniLibs` 是否同一份
  *                                  （⚠️ `jniLibs` 对了但 **APK 是旧的** ⇒ 一样是坑）
+ *   5. `check-brain-route-surface.mjs` —— **端脑 HTTP 路由面**（产物级）：客户端
+ *                                  依赖的端脑路由，端脑源码里有、你编出来的大脑里
+ *                                  有没有（⚠️ 符号全对但路由少了一堆 ⇒ 一样是坑）
  *
  * 用法：
  *   node scripts/check-cross-client.mjs
@@ -50,6 +53,10 @@ const GUARDS = [
     script: 'scripts/check-apk-surface.mjs',
     what: 'APK 产物级：入口是不是正牌 App + 真正装进手机那份 .so 的符号/依赖/同一性',
   },
+  {
+    script: 'scripts/check-brain-route-surface.mjs',
+    what: '端脑 HTTP 路由面（产物级）：客户端依赖 ∧ 端脑源码有 ∧ 产物里有没有',
+  },
 ];
 
 const line = '═'.repeat(72);
@@ -72,7 +79,12 @@ for (const guard of GUARDS) {
   if (res.stdout) process.stdout.write(res.stdout);
   if (res.stderr) process.stderr.write(res.stderr);
 
-  if (res.status !== 0) {
+  // ⚠️ **退出码 2 = 「判不了」**（守卫缺它要的输入：兄弟仓 / 产物）
+  //   ⇒ ⇒ **不阻断**，但要打印出来 —— 缺口要留在视野里。
+  //   ⚠️ 把它当「通过」就是「构造出来的零」⇒ ⇒ 那是假的。
+  if (res.status === 2) {
+    console.warn(`  ! ${guard.script} 判不了（退出码 2）—— 缺它要的输入；不阻断，但这一格没验。`);
+  } else if (res.status !== 0) {
     failed++;
     console.error(`  ✗ ${guard.script} 退出码 ${res.status}`);
   }
