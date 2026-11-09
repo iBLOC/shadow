@@ -38,9 +38,10 @@ export const RAN = 'ran';
 export const PARTIAL = 'partial';
 export const NEVER_STARTED = 'never-started';
 export const CANCELLED = 'cancelled';
+export const NO_JOBS = 'no-jobs';
 export const UNKNOWN = 'unknown';
 
-export const KINDS = [RAN, PARTIAL, NEVER_STARTED, CANCELLED, UNKNOWN];
+export const KINDS = [RAN, PARTIAL, NEVER_STARTED, CANCELLED, NO_JOBS, UNKNOWN];
 
 /** 中文标签（输出用）。 */
 export const KIND_LABELS = {
@@ -48,6 +49,7 @@ export const KIND_LABELS = {
   [PARTIAL]: '部分跑过',
   [NEVER_STARTED]: '门外红（一个 step 都没跑）',
   [CANCELLED]: '被取消（零 step）',
+  [NO_JOBS]: '连 job 都没造出来（0 job ＋ failure）',
   [UNKNOWN]: '判不了',
 };
 
@@ -89,6 +91,9 @@ export function classifyRun(run, jobs) {
     //   ② 其它 ⇒ ⇒ 真的读不到 ⇒ ⇒ unknown（「判不了」）。
     if (run.conclusion === 'cancelled') {
       return { ...shape, kind: CANCELLED, why: 'run 已被取消且没有任何 job 记录（连 runner 都没排上）⇒ ⇒ 没有读数，但这不是门外红' };
+    }
+    if (run.conclusion === 'failure') {
+      return { ...shape, kind: NO_JOBS, why: '这个 run **连 job 都没造出来**（0 job ＋ 0 check run ＋ 空日志 zip）⇒ ⇒ 它比「门外红」还早一档：**workflow 压根没被启动成 job** ⇒ ⇒ ⚠️ 实测：同一个 headSha 上 rerun 同一笔即造出 10 个 job ⇒ ⇒ 这一档多半是**平台侧偶发**，不是代码的账 ⇒ ⇒ 出声、不判红' };
     }
     return { ...shape, why: '该 run 没有 job 记录（total_count=0）⇒ ⇒ 判不了' };
   }

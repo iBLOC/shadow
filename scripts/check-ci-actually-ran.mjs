@@ -41,7 +41,7 @@
 import { execFileSync } from 'node:child_process';
 import {
   classifyRun, classifyAll, isAReading,
-  RAN, PARTIAL, NEVER_STARTED, CANCELLED, UNKNOWN, KIND_LABELS,
+  RAN, PARTIAL, NEVER_STARTED, CANCELLED, NO_JOBS, UNKNOWN, KIND_LABELS,
 } from './lib/ci-ran-facts.mjs';
 
 const DEFAULT_REPO = 'iBLOC/shadow';
@@ -86,8 +86,9 @@ function selfTest() {
     { name: '被取消（0 step / conclusion=cancelled）', run: { status: 'completed', conclusion: 'cancelled' }, jobs: [{ steps: [], runner_id: null, conclusion: 'cancelled' }], expect: CANCELLED },
     { name: '部分跑过（一个跑了一个没跑）', run: { status: 'completed', conclusion: 'failure' }, jobs: [{ steps: [{}], runner_id: 1000002515, conclusion: 'success' }, { steps: [], runner_id: 0, conclusion: 'failure' }], expect: PARTIAL },
     { name: '判不了（run 还没完成）', run: { status: 'in_progress', conclusion: null }, jobs: [{ steps: [], runner_id: 0 }], expect: UNKNOWN },
-    { name: '判不了（没有 job 记录）', run: { status: 'completed', conclusion: 'failure' }, jobs: [], expect: UNKNOWN },
+
     { name: '被取消且零 job（cancel-in-progress 取消得太早）⇒ ⇒ 归 cancelled，不是判不了', run: { status: 'completed', conclusion: 'cancelled' }, jobs: [], expect: CANCELLED },
+    { name: '连 job 都没造出来（0 job ＋ failure）⇒ ⇒ 这一族比门外红还早一档：workflow 压根没启动成 job', run: { status: 'completed', conclusion: 'failure' }, jobs: [], expect: NO_JOBS },
     { name: '判不了（run 读不到）', run: null, jobs: null, expect: UNKNOWN },
     { name: '判不了（steps 缺字段）', run: { status: 'completed', conclusion: 'failure' }, jobs: [{ runner_id: 0, conclusion: 'failure' }], expect: NEVER_STARTED },
   ];
@@ -160,7 +161,7 @@ function main() {
       if (c.kind === NEVER_STARTED) console.log('  ⛔ 这笔 run 红了，但一个测试都没跑 ⇒ ⇒ 「CI 红了」是假的');
     }
     if (c.kind === NEVER_STARTED) process.exit(1);
-    if (c.kind === UNKNOWN) process.exit(2);
+    if (c.kind === UNKNOWN || c.kind === NO_JOBS) process.exit(2);
     process.exit(0);
   }
 
@@ -187,6 +188,7 @@ function main() {
       ran: rows.filter((r) => r.kind === RAN).length,
       partial: rows.filter((r) => r.kind === PARTIAL).length,
       neverStarted: neverStarted.length,
+      noJobs: rows.filter((r) => r.kind === NO_JOBS).length,
       cancelled: rows.filter((r) => r.kind === CANCELLED).length,
       unknown: unknown.length,
       latestKind: latest ? latest.kind : UNKNOWN,
@@ -196,7 +198,7 @@ function main() {
     else {
       console.log('CI 到底跑没跑：' + o.repo + ' 最近 ' + rows.length + ' 笔已完成的 run');
       printTable(rows);
-      console.log('  合计：真跑过 ' + payload.ran + ' ｜ 部分 ' + payload.partial + ' ｜ 门外红 ' + payload.neverStarted + ' ｜ 被取消 ' + payload.cancelled + ' ｜ 判不了 ' + payload.unknown);
+      console.log('  合计：真跑过 ' + payload.ran + ' ｜ 部分 ' + payload.partial + ' ｜ 门外红 ' + payload.neverStarted + ' ｜ 连 job 都没造出来 ' + payload.noJobs + ' ｜ 被取消 ' + payload.cancelled + ' ｜ 判不了 ' + payload.unknown);
       if (neverStarted.length) console.log('  ℹ️ 门外红名单（历史既成事实，只报数不判红；--strict 可判红）：' + neverStarted.map((r) => r.run.id).join(', '));
     }
     const failOnLatest = latest && latest.kind === NEVER_STARTED;
