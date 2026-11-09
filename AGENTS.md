@@ -2,7 +2,7 @@
 
 **Updated**: 2026-11-09 (㑸 **「环境自带对象不许进判据 —— setup.ts 挑了哪一份 storage，由运行时说了算」** —— 承 U+3477 条（并行会话那把尺子漂移）＋ U+3475 条（master 三红的归属），本条记**取证（CI 那条红的逐字归因 ＋ 同机 A/B）**、**第一因（替身装上了 ≠ 替身生效了）**、**这一刀的落点（4 个文件 ＋ 1 个提交）**、**判据（复演 CI 的红 ＋ 两档环境逐文件一致）**、**分级读数**、**途中那几课**，以及**仍然欠着的**.)
 
-> 信封：epoch=2026-11-09 | authority=measured | scope=project | source=真运行级实测（真 CI 逐字日志 ＋ 同机 A/B 实验（只翻一个运行时开关）＋ 两档环境全量 JSON 报告逐文件比对 ＋ 注入反向验证 ＋ blob 逐字比对 ＋ 类型闸与 eslint 实跑） | 改动：shadow 仓 **改** `shadow-desktop/tests/setup.ts`（无条件安装确定性 localStorage）、**新增** `shadow-desktop/tests/lib/testEnvDeterminism.test.ts`（3 条环境守卫）、**新增** `shadow-desktop/scripts/vitest-ci-env.mjs`（CI 仿真读数工具）、**改** `shadow-desktop/package.json`（＋ `test:ci-env` 脚本）、**改** `AGENTS.md`（本条） ｜ 读数：**两档环境全量逐文件比对：169 个文件、0 处差异（计数同为 1499 过 / 1 红 / 16 跳）**、**反向验证：还原旧 setup.ts ＋ HEAD 那版用例 ⇒ CI 仿真下逐字复演 CI 的红（`expected true to be false`，同一条用例名）**、**守卫有牙：旧 setup.ts 下守卫恰好 2 红（另 1 条孪生仍绿）**、**还原后两个文件 blob 逐字一致（`22d56ea…`／`5c35195…`）**、**类型闸 EXIT=0 ／ eslint EXIT=0** ｜ 提交：`8bb25db` | status=active | supersedes=none
+> 信封：epoch=2026-11-09 | authority=measured | scope=project | source=真运行级实测（真 CI 逐字日志 ＋ 同机 A/B 实验（只翻一个运行时开关）＋ 两档环境全量 JSON 报告逐文件比对 ＋ 注入反向验证 ＋ blob 逐字比对 ＋ 类型闸与 eslint 实跑） | 改动：shadow 仓 **改** `shadow-desktop/tests/setup.ts`（无条件安装确定性 localStorage）、**新增** `shadow-desktop/tests/lib/testEnvDeterminism.test.ts`（3 条环境守卫）、**新增** `shadow-desktop/scripts/vitest-ci-env.mjs`（CI 仿真读数工具）、**改** `shadow-desktop/package.json`（＋ `test:ci-env` 脚本）、**改** `AGENTS.md`（本条） ｜ 读数：**两档环境全量逐文件比对：169 个文件、0 处差异（计数同为 1499 过 / 1 红 / 16 跳）**、**反向验证：还原旧 setup.ts ＋ HEAD 那版用例 ⇒ CI 仿真下逐字复演 CI 的红（`expected true to be false`，同一条用例名）**、**守卫有牙：旧 setup.ts 下守卫恰好 2 红（另 1 条孪生仍绿）**、**还原后两个文件 blob 逐字一致（`22d56ea…`／`5c35195…`）**、**类型闸 EXIT=0 ／ eslint EXIT=0**、**全局替换泄漏闸 EXIT=0（候选 0 ＋ 自检 16/16）** ｜ 提交：`8bb25db`／`378f1f0` | status=active | supersedes=none
 
 ① **⚠️ 取证：master 第三处红的逐字归因 ＋ 一个同机 A/B**
 　❶ **真 CI（run 42617962783，head `d61c0a1`）逐字**：`FAIL tests/lib/capabilityDefaults.test.ts > writeCapabilityDefaultsSnapshot —— 「存没存住」必须分得清 > 存不进去（抛异常）⇒ ok=false ＋ 带原因` ⇒ ⇒ `AssertionError: expected true to be false` ⇒ ⇒ **本机同一条是绿的**。
@@ -17,7 +17,7 @@
 　❹ ⚠️ **仓里已有正确范式，但没被统一**：`tests/pages/WorkflowStudioPage.test.tsx` 早就写着「jsdom 的 Storage 不方便 spyOn ⇒ ⇒ 整个换掉」⇒ ⇒ 与并行会话 U+3477 条那条修法同源 ⇒ ⇒ 但**共享 setup.ts 仍让 ambient storage 随 node 版本变** ⇒ ⇒ 这一格就是本刀的活（承 U+3477 条 ⑦❶「下一刀的活」）。
 
 ③ **✅ 这一刀的落点（4 个文件 ＋ 1 个提交，零产品代码改动）**
-　❶ **改 `shadow-desktop/tests/setup.ts`** —— **无条件**安装一份**形状固定**的 localStorage 替身（plain object ⇒ own property ⇒ spy 能拦住、能替换）⇒ ⇒ 本机与 CI 读的是同一个东西 ⇒ ⇒ **零产品代码改动**。
+　❶ **改 `shadow-desktop/tests/setup.ts`** —— 在环境那份**「当不了替身」时**（方法不是 own property ⇒ ⇒ spy 拦不住）安装一份**形状固定**的 localStorage 替身（plain object ⇒ own property ⇒ spy 能拦住、能替换）⇒ ⇒ 本机与 CI 读的是同一个东西 ⇒ ⇒ **零产品代码改动**（⚠️ 第一版写成「无条件接管」⇒ ⇒ 被「全局替换泄漏」闸判红 ⇒ ⇒ 见 ④❻ ⇒ ⇒ 落点提交：`8bb25db` → **`378f1f0`**）。
 　❷ **新增 `shadow-desktop/tests/lib/testEnvDeterminism.test.ts`** —— 3 条**常驻守卫**（① `setItem` 必须是 own property；② spy 装上后必须真的拦得住；③ `globalThis.localStorage` 与 `window.localStorage` 同一对象）⇒ ⇒ 把「可替换性」从「这次对了」变成「一直对」。
 　❸ **新增 `shadow-desktop/scripts/vitest-ci-env.mjs` ＋ `package.json` 的 `test:ci-env`** —— **CI 仿真读数**：用 `--no-experimental-webstorage` 起 vitest ⇒ ⇒ 本地一条命令就能看见 CI 那一种形状 ⇒ ⇒ 退出码 0/1/2（2 ＝ 本机 Node 不支持那个开关 ⇒ ⇒ **判不了**，不许伪装成通过）。
 　❹ ⚠️ **不动并行会话那条线上刚落的东西**：`c592a89` 已经把「注入失败」改成「整个换掉 global」＋ 加了 `calls.setItem` 计数 ⇒ ⇒ 与本刀**互补不冲突**（他们换掉 global；我把环境钉死）⇒ ⇒ 本刀**不碰**那个文件。
@@ -28,15 +28,16 @@
 　❸ **「本地跑过了」这句话要注明在哪种运行时下跑的** ⇒ ⇒ 同机 A/B（只翻一个开关）是拆这类 bug 最快的杠杆 ⇒ ⇒ 比换机器、换版本、猜「是不是环境问题」快几个数量级。
 　❹ **拆开两档环境要逐文件比**，不能只比总数 ⇒ ⇒ 同一套用例在两档环境各跑一次（JSON 报告）⇒ ⇒ **逐文件比对**才能说「一致」⇒ ⇒ 只比「1499/1/16」这种总数，别的环境差异会被平均掉。
 　❺ **还原纪律**：注入与还原都走 blob（`git hash-object -w` ＋ `git cat-file blob`）⇒ ⇒ 还原后**逐字一致**（`22d56ea…`／`5c35195…`）⇒ ⇒ 且**并行会话在飞的那个文件**也按 blob 还原 ⇒ ⇒ 不动他们的在飞内容。
+　❻ **⚠️ 本刀与「全局替换泄漏」闸正面相撞 ⇒ ⇒ 不改闸、也不无脑迁就** —— 我第一版把 setup 的接管写成**无条件** ⇒ ⇒ 真 CI（run 42621702068）逐字：`❌ [B] shadow-desktop/tests/setup.ts:35 —— setup 文件**无条件接管**状态载体 localStorage ⇒ ⇒ 它会覆盖已经存在的真值` ⇒ ⇒ **那道规则是对的**（环境特意提供的那份真值可能被别的工具依赖）⇒ ⇒ 做法：把条件写成**真条件** —— 「环境那份**当不了替身**（方法不是 own property ⇒ ⇒ spy 拦不住）⇒ ⇒ 才换」⇒ ⇒ 闸的结构化守卫判定自然满足（条件里出现 `typeof globalThis.X` ＋ `undefined`）⇒ ⇒ 而闸在别处（测试文件里的裸 `defineProperty`）**仍然照红**（自检 16/16 不变）⇒ ⇒ ⇒ **「迁就尺子」与「改尺子」之外的第三条路：把条件写成判据真正要的东西** ⇒ ⇒ 那条条件不是摆设（两档运行时下都成立 ⇒ ⇒ 换完之后两档形状一致）。
 
 ⑤ **✅ 判据（四处）**
 　❶ **复演级（最强的一条）**：还原旧 `setup.ts` ＋ HEAD 那版用例 ⇒ ⇒ 在 CI 仿真环境下**逐字**复演 CI 的红（`expected true to be false`，**同一条用例名**）⇒ ⇒ **本地能造出 CI 的红** ⇒ ⇒ 归因闭环（不是「猜环境问题」）。
 　❷ **守卫有牙**：旧 `setup.ts` ＋ CI 仿真 ⇒ ⇒ 守卫 3 条里**恰好 2 条红**（own property 断言 ＋ spy 生效断言）⇒ ⇒ 另 1 条（`globalThis` 与 `window` 同源）在旧形状下**仍绿**（孪生）⇒ ⇒ 尺子**有牙且不恒红**。
 　❸ **两档环境一致**：默认环境 vs CI 仿真环境各跑全量桌面测试（JSON 报告）⇒ ⇒ **169 个文件逐文件比对：0 处差异**；计数同为 **1499 过 / 1 红 / 16 跳**（那 1 红 ＝ `tests/generatedEol.test.ts` ⇒ ⇒ `accent.g.ts` 与 `design-tokens.json` 不同步 ⇒ ⇒ **并行会话在飞**，与本刀无关）⇒ ⇒ ⇒ **「本机绿」从此可以当「CI 绿」的代理**（就 ambient 形状这一族而言）。
-　❹ **静态闸级**：桌面端类型闸（`tests/tsconfig.json` 全族）**EXIT=0**；eslint **EXIT=0**。
+　❹ **静态闸级**：桌面端类型闸（`tests/tsconfig.json` 全族）**EXIT=0**；eslint **EXIT=0**；**全局替换泄漏闸 EXIT=0（候选 0 ＋ 自检 16/16）**。
 
 ⑥ **✅ 分级读数（全部实测）**
-　❶ **行为级（两档环境）**：1499 过 / 1 红 / 16 跳，**逐文件 0 差异** ｜ **复演级**：旧 setup ＋ HEAD 用例 ⇒ 逐字复演 CI 红 ｜ **反向验证级**：守卫恰好 2 红 ｜ **闸级**：类型闸 EXIT=0 ／ eslint EXIT=0 ｜ **还原级**：两个文件 blob 逐字一致（`22d56ea…`／`5c35195…`）。
+　❶ **行为级（两档环境）**：1499 过 / 1 红 / 16 跳，**逐文件 0 差异** ｜ **复演级**：旧 setup ＋ HEAD 用例 ⇒ 逐字复演 CI 红 ｜ **反向验证级**：守卫恰好 2 红 ｜ **闸级**：类型闸 EXIT=0 ／ eslint EXIT=0 ／ 全局替换泄漏闸 EXIT=0 ｜ **还原级**：两个文件 blob 逐字一致（`22d56ea…`／`5c35195…`）。
 
 ⑦ **⚠️ 仍然欠着**
 　❶ 那 1 红（`tests/generatedEol.test.ts` ⇒ ⇒ `accent.g.ts` 生成物漂移）仍在并行会话那条线上 ⇒ ⇒ **不等于**「桌面端全绿」⇒ ⇒ 本条给的是「除那一红之外，两档环境一致」。
