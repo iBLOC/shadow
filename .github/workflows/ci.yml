@@ -470,7 +470,7 @@ jobs:
       # 「端脑面上锁」**静默失效**（同设备任意 App 能换掉「这台机器是谁」）。
       # 干净 checkout 没有 .so（它被 gitignore）⇒ 只报提示、不阻断。
       - name: JNI surface check
-        run: node scripts/check-jni-surface.mjs
+        run: node scripts/run-gate-once.mjs scripts/check-jni-surface.mjs
 
       # APK 产物级：查**真正装进手机**的那份 —— 入口是不是正牌 App
       # （不是集成测试壳）+ 里面那份 .so 的符号 / 运行时依赖 / 与 jniLibs
@@ -484,7 +484,7 @@ jobs:
       # 路由、工具、flow、人格注入全都不在链路上 —— 桌面端真实发生过
       # （isTauri() 分支让对话直连 neuron，于是永远收不到 tool_call）。
       - name: Brain chain check
-        run: node scripts/check-brain-chain.mjs
+        run: node scripts/run-gate-once.mjs scripts/check-brain-chain.mjs
 
       # neuron's 归属：「全局唯一 neuron，由大脑直接管理」—— 消费者自己
       # 实例化一个（run_embedded / CandleLlmRuntime / create_router）⇒ ⇒

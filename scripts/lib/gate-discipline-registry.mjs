@@ -27,13 +27,12 @@ export const NO_SELF_TEST = {
   when:
     '各自下次被改动时补上（增量纪律）⇒ ⇒ msrv-floor 先补' +
     '（它在 CI 上也缺工具链 ⇒ ⇒ 要先想清楚「判不了」那档怎么报）' +
-    '⇒ ⇒ ⚠️ ziti-v2-wire 已于 2026-11-05 补上自检（13/13）⇒ ⇒ 已从本清单销账',
+    '⇒ ⇒ ⚠️ ziti-v2-wire 已于 2026-11-05 补上自检（13/13）⇒ ⇒ 已从本清单销账 ' +
+    '⇒ ⇒ 2026-11-11：cross-client（真自检 6/6 —— 真子进程注入 0/1/2/崩/文件不在）与 jni-surface（真自检 4/4 —— 夹具注入缺兄弟仓 / 没编 .so / Java 替身少入口）已补上 ⇒ ⇒ 已从本清单销账',
   gates: [
     'agent-surface',
     'apk-surface',
     'auth-backdoors',
-    'cross-client',
-    'jni-surface',
     'msrv-floor',
   ],
 };
@@ -69,10 +68,9 @@ export const NOT_WIRED_INTO_CI = {
     '⇒ ⇒ 且同刀补齐了 D3（11 道闸的自检补上**可数读数** N/N ⇒ ⇒ 读数才可比）' +
     '⇒ ⇒ 已从本清单销账' +
     '⇒ ⇒ ⚠️ cross-client 仍留在这儿：它**没有 --self-test** ⇒ ⇒ 接进 CI 会新增一条 D3 缺口' +
-    '⇒ ⇒ ⇒ ⇒ 补一个**真正的**自检之后再接（别拿「恒绿的自检」充数）',
-  gates: [
-    'cross-client',
-  ],
+    '⇒ ⇒ ⇒ ⇒ 补一个**真正的**自检之后再接（别拿「恒绿的自检」充数） ' +
+    '⇒ ⇒ 2026-11-11：cross-client 已补真自检（6/6）＋ 退出码 2 那一档 ⇒ ⇒ 并接进 .github/workflows/unwired-gates.yml ⇒ ⇒ 已从本清单销账（这张表现在空了）',
+  gates: [],
 };
 
 /** 闸没有「退出码 2」这一档 ⇒ ⇒ 分不开「源没读全」与「真有问题」。 */
@@ -90,13 +88,11 @@ export const NO_CANNOT_JUDGE_EXIT = {
     '它们的 process.exit(main()) 里 main() **确实 return 2** ⇒ ⇒ 那一档本来就有' +
     '⇒ ⇒ 是治理闸的**源码形状启发**（只认字面 exit(2)）把它误判成没有' +
     '⇒ ⇒ 治理闸已补「2 能到达 exit」的形状（exit 的参数是某个函数、且那个函数 return 2）' +
-    '⇒ ⇒ 剩下 6 条是**真债**（实测：它们的 exit 只能取 0 / 1）⇒ ⇒ 本清单不装假债',
+    '⇒ ⇒ 剩下 6 条是**真债**（实测：它们的 exit 只能取 0 / 1）⇒ ⇒ 本清单不装假债 ' +
+    '⇒ ⇒ 2026-11-11：brain-chain / jni-surface / cross-client 已补退出码 2 那一档 ⇒ ⇒ 已从本清单销账（剩 3 条：agent-surface / client-tools / neuron-ownership，后两条是并行会话在飞件 ⇒ ⇒ 不代改）',
   gates: [
     'agent-surface',
-    'brain-chain',
     'client-tools',
-    'cross-client',
-    'jni-surface',
     'neuron-ownership',
   ],
 };
@@ -114,12 +110,11 @@ export const NO_READING_IN_WIRED = {
     '⇒ ⇒ ⚠️ neuron-ownership 已于 2026-11-05 补上读数' +
     '（自检末尾印「自检：N/N 条全绿」）⇒ ⇒ 已从本清单销账' +
     '⇒ ⇒ ⚠️ ps1-portability 已于 2026-11-05 补上读数' +
-    '（自检末尾印「自检：4/4」）⇒ ⇒ 已从本清单销账',
+    '（自检末尾印「自检：4/4」）⇒ ⇒ 已从本清单销账 ' +
+    '⇒ ⇒ 2026-11-11：brain-chain（11 / 11）与 jni-surface（4 / 4）已印可数读数 ⇒ ⇒ 已从本清单销账',
   gates: [
     'agent-surface',
     'apk-surface',
-    'brain-chain',
-    'jni-surface',
     'mobile-a11y-contract',
   ],
 };

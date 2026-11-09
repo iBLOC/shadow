@@ -109,6 +109,11 @@ jobs:
       # ⚠️ 两端发给模型的客户端工具必须一致
       - name: client-tools
         run: node scripts/run-gate-once.mjs scripts/check-client-tools.mjs
+      # ⚠️ 跨端一致性的**统一入口**（5 个守卫当子进程跑一遍）
+      # ⚠️ 2026-11-11 接进来：它之前**没有 --self-test**、**没有退出码 2 那一档**、
+      #    也**没接进任何 workflow** ⇒ ⇒ 「有闸但没人跑」这一族的最后一道。
+      - name: cross-client
+        run: node scripts/run-gate-once.mjs scripts/check-cross-client.mjs
       # ⚠️ 两端认的是同一套会话内容口径
       - name: conversation-prefix
         run: node scripts/run-gate-once.mjs scripts/check-conversation-prefix.mjs

@@ -60,15 +60,33 @@ import {
   existsSync,
   statSync,
   readdirSync,
+  mkdirSync,
+  mkdtempSync,
+  writeFileSync,
+  rmSync,
 } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
+import { spawnSync } from 'node:child_process';
 import { readElfInfo, rustExportedMethods, SYSTEM_LIBS } from './lib/jni.mjs';
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+/** CLI：`--root=<目录>`（换被测物根）＋ `--sibling=<目录>`（换兄弟仓根）⇒ ⇒ 自检要用。 */
+function argValue(name) {
+  const hit = process.argv.slice(2).find((a) => a.startsWith(`--${name}=`));
+  return hit ? hit.slice(name.length + 3) : null;
+}
+
+const SELF = fileURLToPath(import.meta.url);
+
+const ROOT = argValue('root')
+  ? resolve(argValue('root'))
+  : join(dirname(fileURLToPath(import.meta.url)), '..');
 
 /** 兄弟仓（Rust 侧大脑）—— 与 `build-android.ps1` 里的相对布局一致。 */
-const SIBLING = resolve(ROOT, '..', 'encephalon');
+const SIBLING = argValue('sibling')
+  ? resolve(argValue('sibling'))
+  : resolve(ROOT, '..', 'encephalon');
 
 const KOTLIN_RT =
   'shadow-mobile/android/app/src/main/kotlin/com/ibloc/shadow/EncephalonRuntime.kt';
@@ -87,6 +105,13 @@ console.log(line);
 
 let failed = 0;
 let warned = 0;
+/**
+ * 「判不了」的原因清单。
+ *
+ * ⚠️ **「读不到」≠「没问题」** ⇒ ⇒ 缺输入必须能被说出来（退出码 2）
+ * ⇒ ⇒ 不能用「通过（0 条提示）」把「没查」写成「没问题」。
+ */
+const cannotJudge = [];
 
 function fail(msg) {
   console.error(`  ✗ ${msg}`);
@@ -138,6 +163,109 @@ function diff(a, b) {
   return a.filter((x) => !setB.has(x));
 }
 
+/**
+ * 真自检 —— **真子进程 ＋ 真夹具** ⇒ ⇒ 证明这一格会红，也会说「判不了」。
+ *
+ * ⚠️ 为什么不用「跑一次正常检查」当自检：那样恒绿 ⇒ ⇒ 证明不了任何事
+ * ⇒ ⇒ 这里每条用例都**注入一个具体的坏**，再看它会不会红。
+ */
+function runSelfTest() {
+  const dir = mkdtempSync(join(tmpdir(), 'shadow-jni-surface-'));
+  const KOTLIN = 'external fun alpha(): Int\nexternal fun beta(): Int\n';
+  const JAVA_OK = 'public static native int alpha();\npublic static native int beta();\n';
+  const JAVA_MISSING = 'public static native int alpha();\n';
+  const RUST =
+    '#[no_mangle]\npub extern "C" fn alpha() -> i32 { 0 }\n' +
+    '#[no_mangle]\npub extern "C" fn beta() -> i32 { 0 }\n';
+
+  const mkCase = (tag, opt = {}) => {
+    const root = join(dir, tag + '-root');
+    const kt = join(root, 'shadow-mobile/android/app/src/main/kotlin/com/ibloc/shadow/EncephalonRuntime.kt');
+    mkdirSync(dirname(kt), { recursive: true });
+    writeFileSync(kt, KOTLIN, 'utf8');
+    let sib = join(dir, tag + '-no-sib');
+    if (opt.sibling !== false) {
+      sib = join(dir, tag + '-sib');
+      const jp = join(sib, 'scripts/jni-host-test/src/com/ibloc/shadow/EncephalonRuntime.java');
+      mkdirSync(dirname(jp), { recursive: true });
+      writeFileSync(jp, opt.java === 'missing' ? JAVA_MISSING : JAVA_OK, 'utf8');
+      const rp = join(sib, 'src/mobile/jni.rs');
+      mkdirSync(dirname(rp), { recursive: true });
+      writeFileSync(rp, RUST, 'utf8');
+    }
+    return { root, sibling: sib };
+  };
+
+  const cases = [
+    {
+      name: '兄弟仓不在位 ⇒ 退出码 2（判不了）',
+      ...mkCase('c1', { sibling: false }),
+      want: 2,
+      wantText: '判不了',
+    },
+    {
+      name: '.so 没编（jniLibs 不在位）⇒ 退出码 2（判不了）',
+      ...mkCase('c2'),
+      want: 2,
+      wantText: '判不了',
+    },
+    {
+      name: 'Java 替身少一个入口 ⇒ 退出码 1（红）',
+      ...mkCase('c3', { java: 'missing' }),
+      want: 1,
+      wantText: 'beta',
+    },
+    {
+      name: '红 ＋ 判不了 ⇒ 退出码 1（**红优先**，不是 2）',
+      ...mkCase('c4', { java: 'missing' }),
+      want: 1,
+      wantText: 'beta',
+    },
+  ];
+
+  console.log(line);
+  console.log('JNI 面一致性校验 —— 自检');
+  console.log(line);
+
+  let fails = 0;
+  for (const c of cases) {
+    const res = spawnSync(
+      process.execPath,
+      [SELF, `--root=${c.root}`, `--sibling=${c.sibling}`],
+      { encoding: 'utf8' },
+    );
+    const out = (res.stdout || '') + (res.stderr || '');
+    const code = res.status;
+    const okCode = code === c.want;
+    const okText = !c.wantText || out.includes(c.wantText);
+    const ok = okCode && okText;
+    if (!ok) {
+      fails++;
+      console.log(`  ✗ ${c.name}（期望 ${c.want}，实得 ${code}）`);
+      console.log(out.split('\n').slice(-12).map((l) => '    | ' + l).join('\n'));
+    } else {
+      console.log(`  ✓ ${c.name}（期望 ${c.want}，实得 ${code}）`);
+    }
+  }
+
+  console.log(line);
+  try {
+    rmSync(dir, { recursive: true, force: true });
+  } catch {
+    /* 临时目录清不掉不影响结论 */
+  }
+  if (fails === 0) {
+    console.log(`✓ 自检全绿（${cases.length} / ${cases.length} 条全绿）`);
+    process.exit(0);
+  }
+  console.error(`✗ 自检 ${fails} / ${cases.length} 条红`);
+  process.exit(1);
+}
+
+// ⚠️ 自检必须在主流程**之前**跑（它自己 exit）⇒ ⇒ 夹具一换，被测物就换。
+if (process.argv.includes('--self-test')) {
+  runSelfTest();
+}
 // ---------------------------------------------------------------------------
 // 1. Kotlin ↔ Java 替身
 // ---------------------------------------------------------------------------
@@ -150,6 +278,7 @@ const javaPath = join(SIBLING, JAVA_STUB);
 if (!existsSync(kotlinPath)) {
   fail(`${KOTLIN_RT} 不存在`);
 } else if (!existsSync(javaPath)) {
+  cannotJudge.push(`兄弟仓里的 Java 替身不在位（${javaPath}）`);
   warn(
     `找不到兄弟仓里的 Java 替身（${javaPath}）—— 这一项在完整环境里是**阻断**的。` +
       `本机三仓同在时它必须查得出来。`,
@@ -190,11 +319,15 @@ const jniLibsRoot = join(ROOT, JNI_LIBS_DIR);
 const abiShipped = new Map();
 
 if (!existsSync(rustPath)) {
+  cannotJudge.push(`兄弟仓里的 ${RUST_JNI_SRC} 不在位 —— 符号清单定不出来`);
   warn(
     `找不到兄弟仓里的 ${RUST_JNI_SRC} —— 符号清单没法定出来。` +
       `本机三仓同在时它必须查得出来。`,
   );
 } else if (!existsSync(jniLibsRoot)) {
+  cannotJudge.push(
+    `${JNI_LIBS_DIR} 不存在 —— 还没编过 .so（跑 encephalon/scripts/build-android.ps1）`,
+  );
   warn(`${JNI_LIBS_DIR} 不存在 —— 还没编过 .so（跑 encephalon/scripts/build-android.ps1）。`);
 } else {
   const required = rustExportedMethods(readFileSync(rustPath, 'utf8'));
@@ -300,12 +433,19 @@ if (abiShipped.size >= 2) {
 
 console.log('');
 console.log(line);
-if (failed === 0) {
-  console.log(`通过（${warned} 条提示）。`);
-  console.log(line);
-  process.exit(0);
-} else {
+if (failed > 0) {
   console.error(`${failed} 项阻断问题。`);
   console.log(line);
   process.exit(1);
 }
+if (cannotJudge.length > 0) {
+  // ⚠️ **「读不到」≠「没问题」** ⇒ ⇒ 缺输入必须说出来（退出码 2）
+  //   ⇒ ⇒ 不能用「通过（0 条提示）」把「没查」写成「没问题」。
+  console.warn(`判不了：${cannotJudge.length} 项输入不在位 ⇒ ⇒ 这一格**没验成**：`);
+  for (const c of cannotJudge) console.warn(`  · ${c}`);
+  console.log(line);
+  process.exit(2);
+}
+console.log(`通过（${warned} 条提示）。`);
+console.log(line);
+process.exit(0);

@@ -24,14 +24,30 @@
  *   8. 「一张面」必须真的只有一张（本地模型那一半走大脑）。
  *
  * 用法：node scripts/check-brain-chain.mjs
- * 退出码 0 = 通过；1 = 有阻断问题。
+ * 退出码 0 = 通过；1 = 有阻断问题；**2 = 判不了**（源没读全：兄弟仓 / 扫描根不在位）。
  */
 
 import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname, join, relative, extname } from 'node:path';
+import { dirname, join, relative, extname, resolve } from 'node:path';
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+/** CLI：`--root=<目录>`（换被测物根）⇒ ⇒ 「判不了」那一档可被真实验证。 */
+function argValue(name) {
+  const hit = process.argv.slice(2).find((a) => a.startsWith(`--${name}=`));
+  return hit ? hit.slice(name.length + 3) : null;
+}
+
+const ROOT = argValue('root')
+  ? resolve(argValue('root'))
+  : join(dirname(fileURLToPath(import.meta.url)), '..');
+
+/**
+ * 「判不了」的原因清单。
+ *
+ * ⚠️ **「读不到」≠「没问题」** ⇒ ⇒ 这道闸的核心价值是**跨仓契约**
+ * ⇒ ⇒ 兄弟仓不在位 ⇒ ⇒ 那一层**根本没查** ⇒ ⇒ 报绿就是**构造出来的零**。
+ */
+const cannotJudge = [];
 
 const SKIP_DIRS = new Set([
   'node_modules',
@@ -58,10 +74,28 @@ const SCAN_ROOTS = [
  * ⚠️ **存在才扫** —— `shadow` 单独 clone 时兄弟仓不在 ⇒ ⇒ 跳过 ⇒ ⇒ 闸不会
  * 因为「仓库没检出来」而假红（那不是代码问题，是环境问题）。
  */
-const SIBLING_ROOTS = [
+const SIBLING_CANDIDATES = [
   { dir: join(ROOT, '..', 'telencephalon'), exts: ['.rs'] },
   { dir: join(ROOT, '..', 'encephalon'), exts: ['.rs'] },
-].filter((r) => existsSync(r.dir));
+];
+const SIBLING_ROOTS = SIBLING_CANDIDATES.filter((r) => existsSync(r.dir));
+
+// ⚠️ **「存在才扫」不等于「扫过了」** —— 兄弟仓不在位时，这一层**没查**
+// ⇒ ⇒ 必须记成「判不了」（退出码 2），不能报绿。
+for (const r of SIBLING_CANDIDATES) {
+  if (!existsSync(r.dir)) {
+    cannotJudge.push(
+      `兄弟仓不在位：${relative(ROOT, r.dir).replace(/\\/g, '/')} ⇒ ⇒ 跨仓契约这一层**没查**`,
+    );
+  }
+}
+for (const r of SCAN_ROOTS) {
+  if (!existsSync(r.dir)) {
+    cannotJudge.push(
+      `本仓扫描根不在位：${relative(ROOT, r.dir).replace(/\\/g, '/')}`,
+    );
+  }
+}
 
 function walk(dir, exts, out = []) {
   if (!existsSync(dir)) return out;
@@ -438,7 +472,7 @@ if (process.argv.includes('--self-test')) {
   }
   console.log('─'.repeat(72));
   if (fails === 0) {
-    console.log(`✓ 自检全绿（${cases.length} 条）`);
+    console.log(`✓ 自检全绿（${cases.length} / ${cases.length} 条全绿）`);
     process.exit(0);
   }
   console.error(`✗ 自检 ${fails} / ${cases.length} 条红`);
@@ -452,19 +486,45 @@ console.log('通信链路校验 —— 大脑 → 端脑 → 叶区');
 console.log('─'.repeat(72));
 console.log(`  · 扫描文件 ${files.length} 个`);
 
-if (findings.length === 0) {
-  console.log('  · 桌面端：sidecar 挂端脑面，客户端无直连推理');
-  console.log('  · 移动端：对话走端脑，无本地直连编排器');
+/**
+ * 「扫描根不在位」时，那些「文件不存在」类发现**不是证据** —— 它们是缺输入的
+ * 副作用 ⇒ ⇒ 必须排除 ⇒ ⇒ 否则「读不到」会被写成「有问题」（假红）。
+ */
+const missingScopeRels = SCAN_ROOTS.filter((r) => !existsSync(r.dir)).map((r) =>
+  relative(ROOT, r.dir).replace(/\\/g, '/'),
+);
+const isArtifact = (f) =>
+  missingScopeRels.some((r) => f.file === r || f.file.startsWith(r + '/'));
+const realFindings = findings.filter((f) => !isArtifact(f));
+const artifactCount = findings.length - realFindings.length;
+
+if (realFindings.length > 0) {
   console.log('─'.repeat(72));
-  console.log('阻断 0 项');
-  process.exit(0);
+  for (const f of realFindings) {
+    console.log(`  ✗ [${f.id}] ${f.file}`);
+    console.log(`      ${f.why}`);
+  }
+  console.log('─'.repeat(72));
+  console.log(
+    `阻断 ${realFindings.length} 项` +
+      (artifactCount > 0 ? `（另有 ${artifactCount} 项因扫描根不在位而无法判定 ⇒ ⇒ 不算证据）` : ''),
+  );
+  process.exit(1);
 }
 
-console.log('─'.repeat(72));
-for (const f of findings) {
-  console.log(`  ✗ [${f.id}] ${f.file}`);
-  console.log(`      ${f.why}`);
+if (cannotJudge.length > 0) {
+  // ⚠️ **「读不到」≠「没问题」** ⇒ ⇒ 缺输入必须说出来（退出码 2）。
+  console.warn(`判不了：${cannotJudge.length} 项输入不在位 ⇒ ⇒ 这一格**没验成**：`);
+  for (const c of cannotJudge) console.warn(`  · ${c}`);
+  if (artifactCount > 0) {
+    console.warn(`  · 另有 ${artifactCount} 项发现因扫描根不在位而**不是证据**（已排除，不计红）`);
+  }
+  console.log('─'.repeat(72));
+  process.exit(2);
 }
+
+console.log('  · 桌面端：sidecar 挂端脑面，客户端无直连推理');
+console.log('  · 移动端：对话走端脑，无本地直连编排器');
 console.log('─'.repeat(72));
-console.log(`阻断 ${findings.length} 项`);
-process.exit(1);
+console.log('阻断 0 项');
+process.exit(0);
