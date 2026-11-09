@@ -1,5 +1,66 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-11 (㑲 **「长按不是长按 —— 而『手停了多久』不等于『app 认这是长按』」** —— 承 U+3482 条（尺子要对着被测物）＋ U+3490 条（回退不只有「退成旧版」一种形状），本条记**取证（真机逐字读数）**、**第一因（三个问题是三件事，原代码只答了一个）**、**第二因（系统会重启无障碍服务）**、**第三因（按住时长压在平台阈值上）**、**这一刀的落点**、**途中那几课**、**判据**、**分级读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真运行级实测（odin 真机 × 4 轮 ＋ **注入式强制重启** ＋ **正负两档对照** ＋ 逐字 logcat 取证）｜ 改动：shadow-mobile **改** android/…/MainActivity.kt（**开关／连接／就绪**三判据 ＋ 派发路径「等得起」）、**改** android/…/PrefrontalAccessibilityService.kt（长按 500 → **800ms**）、**改** lib/services/accessibility_controller.dart（isServiceConnected ＋ isReady）、**改** lib/services/capabilities/accessibility_ops.dart（同上，抽象层**带默认实现**）、**改** lib/services/capabilities/capability_tools.dart（准入改问 isReady ＋ 失败**分两种原因**）、**改** integration_test/a11y_own_ui_probe_test.dart（尺子改量「app 认没认」）、**改** scripts/verify-mobile-use-on-device.ps1（不再每 5 秒改写设置项）、**新增** scripts/miui-install-confirm-tap.ps1（MIUI 安装确认代点 ＋ 守门员）、**新增** scripts/force-a11y-restart.ps1（注入式强制重启 ＋ 正负两档的台子）｜ 读数：**真机 4 轮全 PASS**、**正样本 PASS（waiting for it to come back）／ 负样本 FAIL ＋ 逐字复现假原因**、**契约闸 EXIT=0**、**analyze 61 issues / 0 error（与基线同数）**、**受影响单测 64/64 绿** ｜ status=active | supersedes=none
+
+① **⚠️ 取证：那一格红的原文，以及它为什么是「假原因」**
+　❶ **原始红（2026-11-10 真机，odin）**：两次跑同一根因，逐字：
+　　`Bad state: the accessibility service is not enabled — the user has to turn it on in the system settings first`
+　　`package:shadow_mobile/services/capabilities/capability_tools.dart 391:5  CapabilityTools._ensureAccessibilityService`
+　　`package:shadow_mobile/services/capabilities/capability_tools.dart 276:5  CapabilityTools.longPress`
+　　⇒ ⇒ **长按压根没走到派发**（原生侧一行 `performLongPress` 都没有）⇒ ⇒ 而那句报错说「用户没在系统设置里打开」⇒ ⇒ **而那里本来就是开的** ⇒ ⇒ **假原因**。
+　❷ **本轮第一手（逐字 logcat）**：
+　　`D/PrefrontalA11y: PrefrontalAccessibilityService destroyed`　**紧跟**　`D/FlutterJNI: Sending viewport metrics to the engine.`
+　　⇒ ⇒ **app 首帧那一下，系统把无障碍服务重启一次** ⇒ ⇒ 同一 pid ⇒ ⇒ 不是 app 崩了 ⇒ ⇒ **每个用户每次启动 app 都会撞上**。
+　❸ ⇒ ⇒ **而那一秒里，连「已启用列表」都是空的**：实测 `a11y switch: enabled=0 matched=false` 连续 3 次 ⇒ ⇒ 「用户在设置里开没开」这个答案**自己也会抖**。
+　❹ **第三层（更隐蔽）**：长按原本按住 **500ms**，而 **Flutter 的长按阈值也是 500ms**、Android 原生长按超时**也是 500ms** ⇒ ⇒ 实测 `longPressB=0 tapB=1` ⇒ ⇒ **app 收到的是「点按」** ⇒ ⇒ 手势自己的时长在跟平台阈值赛跑 ⇒ ⇒ 输了就退化成点按 ⇒ ⇒ **比「没长按」更糟**（点按可能触发点击动作）。
+
+② **⚠️ 第一因：三个问题是三件事，而代码只答了一个**
+　❶ **「用户开没开」＝开关**（系统的已启用列表）⇒ ⇒ 权威，但**会抖**（见 ①❸）；
+　❷ **「此刻连上了没」＝连接**（服务实例在不在）⇒ ⇒ 瞬时；
+　❸ **「现在能不能动手」＝就绪**（等得起的那一个）⇒ ⇒ 准入该问的是它。
+　❹ 原实现用**连接**去答**开关**（`isEnabled` ＝ `instance != null`）⇒ ⇒ 抖一下就**误杀**一次调用 ⇒ ⇒ 且报错说成「请去系统设置里打开」⇒ ⇒ ⇒ **通用形态：判据答错了问题 ⇒ ⇒ 报错就必然说错原因 ⇒ ⇒ 模型会被引去动一个本来就对的东西**。
+
+③ **⚠️ 第二因：判据的分类空间有洞 —— 「一读就下结论」的判据在任何瞬时状态上都会误杀**
+　❶ 修法**不是**「读得更准」（再准的读数也会在那 1 秒里读不到）⇒ ⇒ 是「**等得起**」；
+　❷ ⇒ ⇒ **准入层必须能等**：原生那一头**等服务连上**（≤3 秒）再答 ⇒ ⇒ 而「等」这件事**只能落在看得见实例的那一头**（原生）⇒ ⇒ ⇒ 工具层只管问「就绪吗」。
+
+④ **✅ 这一刀的落点（7 个文件 ＋ 2 个新脚本，零产品行为倒退）**
+　❶ **改 `MainActivity.kt`** —— ① `isEnabled` 改查**系统开关**（`AccessibilityManager.getEnabledAccessibilityServiceList` ＋ 按组件名比对）② 新增 `isServiceConnected`（**瞬时**连接态）③ 新增 `isReady`（**等得起**：≤3 秒轮询，主线程 `postDelayed`，**不阻塞**平台主线程）④ 派发路径（tap／longPress／swipe／globalAction／readScreen／findAndClickByText）**统一**走 `withAccessibilityService` ⇒ ⇒ 服务在重启时**等它回来再派发**。
+　❷ **改 `PrefrontalAccessibilityService.kt`** —— 长按 500 → **800ms**（越过平台阈值 300ms 余量）。
+　❸ **改 `accessibility_controller.dart` ＋ `accessibility_ops.dart`** —— 新增 `isServiceConnected` ＋ `isReady`；抽象层**带默认实现** ⇒ ⇒ 单测里的假实现**一个字都不用改** ⇒ ⇒ 不打断并行会话那条线的 42 条测试。
+　❹ **改 `capability_tools.dart`** —— 准入改问 `isReady`；派发失败**分两种原因**（「没派发出去」vs「服务正在重启，稍等再试」）⇒ ⇒ 报错终于说真因。
+　❺ **改 `a11y_own_ui_probe_test.dart`** —— 尺子改量「**app 认没认这是长按**」：断言 `onLongPress` **净增 1** ＋ `onTap` **净增 0** ＋ 按住 **> 500ms**。
+　❻ **改 `verify-mobile-use-on-device.ps1`** —— 不再**每 5 秒**改写 `enabled_accessibility_services` ⇒ ⇒ 那是**尺子自己拨被测物**；改成「pid 变了 **或** 服务当前确实没绑上」才重开授权。
+　❼ **新增两个脚本** —— `miui-install-confirm-tap.ps1`（MIUI「继续安装」代点 ＋ 守门员）、`force-a11y-restart.ps1`（注入式强制重启 ＝ 正负两档的台子）⇒ ⇒ 台账里的读数**可被复现**，而不是「我本地有个脚本」。
+
+⑤ **⚠️ 途中那几课**
+　❶ **「权威判据」≠「不会抖的判据」** —— 权威只保证「它答的是那个问题」，**不保证「它此刻有值」** ⇒ ⇒ 所以权威判据也**必须配一个等待**，或者配一个「区分两种失败原因」的出口。
+　❷ **尺子量错了被测物** —— 原来只量「手指停了 ≥350ms」⇒ ⇒ 500ms 那一次 app 眼里是**点按** ⇒ ⇒ **绿灯是假的** ⇒ ⇒ 「真机绿」≠「能力成立」⇒ ⇒ ⇒ 通用形态：**要判「能力成立」，就得判「被测物自己的反应」，别判它的副产品**。
+　❸ **测试脚本自己会制造竞态** —— 仓库脚本每 5 秒 `settings put enabled_accessibility_services` ⇒ ⇒ 系统重绑 ⇒ ⇒ **它在制造自己要量的那个抖动**；改掉之后**仍有 3 次**重启 ⇒ ⇒ ⇒ **重启是系统自己干的**（首帧 viewport metrics ／ ART profile 安装）⇒ ⇒ ⇒ **修法只能落在产品里**（真机用户也会遇到），落在脚本里没用。
+　❹ **负读数也会骗人** —— 注入器前两次「没命中」：logcat 的真实行是 `11-10 01:52:12.859 13147 13147 I flutter : --- PROBE TAP ---` ⇒ ⇒ **pid 是裸数字、tag 带尾空格** ⇒ ⇒ 拿驱动日志那份 `I/flutter (pid):` 的形状去套 ⇒ ⇒ **永远匹配不上** ⇒ ⇒ 而表面上看起来像「机制没生效」⇒ ⇒ ⇒ **一次「没测到」必须先自证「确实测了」**，否则它会被读成「这招不管用」。
+　❺ **闸自己也会被自己骗** —— 我第一版码位扫描按**十进制**递增（`U+3472` 的十六进制是 `0x3472`）⇒ ⇒ 扫的是 `U+D90` 那一段 ⇒ ⇒ **全 0** ⇒ ⇒ 而另一个扫描器说「最高已声明 U+3497」⇒ ⇒ ⇒ **两次扫互相矛盾本身就是信号** ⇒ ⇒ 改成按十六进制才拿到真读数。
+
+⑥ **✅ 判据与分级读数（全部实测）**
+　❶ **判据级**：契约闸 `scripts/check-mobile-a11y-contract.mjs` **EXIT=0**（Dart 12 个方法 ／ Kotlin 12 个方法；新增的 `isServiceConnected`／`isReady` 两端齐平）｜ `flutter analyze` **61 issues / 0 error**（与改动前**同一个数**，我这 7 个文件**零 issue**）｜ 受影响单测 **64/64 全绿**（含并行会话那条线的 `capability_grants_test`）。
+　❷ **真机级（odin `ee6b4832`，MIUI 14 / Android 13 / dpr 2.75）**：探针族 **4 轮全 PASS**，退出码 **0**，逐字：
+　　`--- PROBE LONG PRESS --- sent=Offset(853.2, 1602.0) landed=Offset(310.2, 582.5) target=Offset(310.3, 582.5) heldMs=800 longPressB=1 tapB=0`
+　　`--- VERDICT --- PASS failures=[]`
+　　⇒ ⇒ 落点与目标**逐字对齐**（差 0.1px）｜ 按住 800ms｜ **app 认了长按**（`longPressB=1`）｜ **没被吞成点按**（`tapB=0`）。
+　❸ **真跑级两档（注入式强制重启：宿主端把服务摘掉 1.2 秒再装回）** ——
+　　· **正样本**（等待预算 3 秒）：`a11y service not connected yet — waiting for it to come back` ⇒ ⇒ 等回来照样派发 ⇒ ⇒ **PASS ／ 退出码 0**；
+　　· **负样本**（等待预算 0，同一个强制重启）：`accessibility service did not connect within 0ms` ⇒ ⇒ `Bad state: the accessibility service is not enabled — the user has to turn it on in the system settings first` ⇒ ⇒ **FAIL ／ 退出码 1**（`failures=[校准 ⇒ 量出视图原点偏移, 长按 ⇒ 命中目标 B]`）⇒ ⇒ ⇒ **假原因被逐字复现** ⇒ ⇒ ⇒ 两档一对 ⇒ ⇒ **等待就是那个变量**。
+　❹ **收尾读数**：真 App 装回设备 ＋ **MD5 对账一致**（`ac8419cd…`／`ac280fd4…`／`7f3cc4f5…` 三轮各自一致）。
+
+⑦ **⚠️ 仍然欠着**
+　❶ 「等 3 秒」这个预算是**我拍的**（真实重启窗口实测约 1 秒）⇒ ⇒ 更长的重启它兜不住；
+　❷ `isReady` 只在**工具层**用；能力档位那一面（`capabilitySystemPermissionProvider`）读的是**开关** —— 那是**界面显示**，语义对；但若将来在那一层加**闸**，必须改用 `isReady`；
+　❸ 真机腿只覆盖**自家窗口**；在**别人的 app** 上长按是否被认成长按，**未验**（要能读别的 app 的树）；
+　❹ MIUI 的「继续安装」弹窗仍要守门员代点（本次已把守门员**进仓**，换机器不必重造）；
+　❺ `integration_test/` 仍然**不在 CI 里跑** ⇒ ⇒ 那 26 处守卫在 CI 里永远静默绿 ⇒ ⇒ **真机读数只能单独取**（本次取法：解包提交树面 ＋ 本地跑同一命令 ＝ 与 CI 同口径）。
+
+⑧ **⚠️ 圈码：本条占 U+3472（㑲）** —— 插前**独立重扫**（父仓工作树 ∪ 父仓索引 ∪ 父仓 HEAD × **三本账本**，按**声明形状**扫、**声明与提及分开**、码位按**十六进制**计）⇒ ⇒ 读数：**U+3472 三面各 decl=0 / men=16**（那 16 处全是「留给真机腿那条线」这类**提及**，**不是声明**）✔ ⇒ ⇒ 且台账原文**明写**「U+3472 已口头留给真机腿那条线（mvs_259aea6）」⇒ ⇒ **本会话正是那条线** ⇒ ⇒ ⇒ 本条取它（**有据的保留位**，兑现预留；**不是空洞回填**）⇒ ⇒ ⚠️ **不复用任何空洞**（U+3469／U+346B／U+346E／U+3476／U+3479／U+347B／U+347C 继续空）⇒ ⇒ 按惯例**再留一枚缓冲（U+3499）**（U+3498 ＝ 自然下一枚，**本条不动**）⇒ ⇒ ⚠️ 本条**只引用已提交的码位**（U+3482／U+3490）⇒ ⇒ ⚠️ **插完立刻复跑码位闸**是硬约束。
 **Updated**: 2026-11-11 (㒖 **「端脑源码里有那条路由 —— 而你编出来的大脑里没有」** —— 承 U+3482 条（哪几档按引擎 id 解析由端脑说了算）＋ U+3490 条（回退不只有「退成旧版」一种形状），本条记**取证（真产物字节扫描）**、**第一因（源码面 ≠ 产物面）**、**第二因（既有那道闸量的是符号面）**、**这一刀的落点**、**途中那几课**、**判据**、**分级读数**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真产物级实测（真 .so 字节扫描 ＋ 端脑源码逐条核对 ＋ 注入式反向验证）｜ 改动：shadow 仓 **新增** scripts/check-brain-route-surface.mjs（产物级闸 ＋ 自检 ＋ 退出码 0/1/2）、**新增** .github/workflows/brain-route-surface.yml（独立 workflow，零共享面）、**改** scripts/check-cross-client.mjs（闸清单统一入口：登记第 5 把守卫 ＋ 退出码 2 =「判不了」不阻断但打印）｜ 读数：**判据自检 7/7**、**反向验证：假产物「除一条外全齐」⇒ 恰好 1 红且逐字点名**、**真产物级：对着真的 libencephalon.so（11-06 那份，156.7MB）⇒ EXIT=1、恰好 4 条红**（notifications ／ notifications/ack ／ lobes/capability-defaults ／ tasks/{id}/update）｜ status=active | supersedes=none
