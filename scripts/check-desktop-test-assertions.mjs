@@ -20,7 +20,7 @@
  *   **Dart 版**，本文件是 **TypeScript 版** ⇒ ⇒ 同一条规则的两种语言实现
  *   ⇒ ⇒ 红线定义写在各自的 lib 头注释里（语义要对齐，实现各归各的语言）。
  *
- * ## 三条红线（**判红**）
+ * ## 四条红线（**判红**）
  *
  *   **R1 · 恒真断言** —— 断言的**主体是字面量常量**（`expect(true).toBe(true)`）
  *     ⇒ ⇒ 断言结果与被测物无关 ⇒ ⇒ 零信息量。
@@ -36,9 +36,17 @@
  *     ⚠️ `toBeFalsy()` / `toBeNull()` / `toThrow()` **不算弱** —— 它们要求
  *     被测物**恰好**是那个形状 ⇒ ⇒ 有承重。
  *
+ *   **R4 · 假绿风险** —— 用例的**全部**断言都落在「没有 else 的 if」分支里
+ *     ⇒ ⇒ 分支不进 ⇒ ⇒ 整条用例**零断言通过**（绿得毫无意义）。
+ *     ⚠️ **分支恒进不算** —— 条件若是「找不到就抛异常」的查询（`getBy*` /
+ *     `findBy*`，或由它赋值来的标识符）⇒ ⇒ 分支要么进、要么用例红
+ *     ⇒ ⇒ 里面的断言**总会跑** ⇒ ⇒ 不判红。
+ *
  * ## 读数（**不判红**，但要看得见）
  *
- *   · **条件化断言** —— 断言落在「没有 else 的 if」分支里（分支不进 ⇒ 零断言）。
+ *   · **条件化断言** —— 断言落在「没有 else 的 if」分支里（分支不进 ⇒ 零断言）；
+ *     其中「分支恒进」的单独计数 ⇒ ⇒ **那个总数不是风险数**（2026-11-09 实测：
+ *     25 条里真·假绿 **0** 条 ⇒ ⇒ 真实的风险规模要分层数，不能拿总数吓人）。
  *
  * ## 防假绿
  *
@@ -135,7 +143,31 @@ const FIX = {
     '    expect(el).toBeTruthy();',
     '  });',
   ],
-  falsyOnly: [
+  r4FalseGreen: [
+    "  it('x', () => {",
+    '    const maybe = Math.random() > 2;',
+    '    if (maybe) {',
+    '      expect(maybe).toBe(true);',
+    '    }',
+    '  });',
+  ],
+  r4WithUnconditional: [
+    "  it('x', () => {",
+    '    const maybe = Math.random() > 2;',
+    '    if (maybe) {',
+    '      expect(maybe).toBe(true);',
+    '    }',
+    '    expect(count).toBe(1);',
+    '  });',
+  ],
+  r4AlwaysRuns: [
+    "  it('x', () => {",
+    "    const el = screen.getByText('x');",
+    '    if (el) {',
+    "      expect(el.textContent).toBe('x');",
+    '    }',
+    '  });',
+  ],  falsyOnly: [
     "  it('x', async () => {",
     '    const err = await read();',
     '    expect(err).toBeFalsy();',
@@ -209,6 +241,16 @@ function selfTest() {
     return scan(FIX.falsyOnly).weakOnly.length === 0;
   });
 
+  // ── R4 · 假绿风险（承重全挂在可能不进的分支上）───────────────────
+  add('R4：全部断言都在「没有 else 的 if」分支里 ⇒ ⇒ 必须抓到', () => {
+    return scan(FIX.r4FalseGreen).falseGreen.length === 1;
+  });
+  add('R4 孪生：分支外另有断言 ⇒ ⇒ 不许抓', () => {
+    return scan(FIX.r4WithUnconditional).falseGreen.length === 0;
+  });
+  add('R4 孪生：分支条件是「找不到就抛」的查询（分支恒进）⇒ ⇒ 不许抓', () => {
+    return scan(FIX.r4AlwaysRuns).falseGreen.length === 0;
+  });
   // ── 覆盖面：靠发现 ───────────────────────────────────────────────
   add('覆盖面：仓里扫得到桌面端用例（不是 0 个文件）', () => {
     let files = 0;
@@ -261,13 +303,28 @@ function main() {
     r1: 0,
     r2: 0,
     r3: 0,
+    r4: 0,
     conditional: 0,
+    conditionalAlways: 0,
+    conditionalOther: 0,
   };
   const violations = [];
   for (const r of results) {
     summary.cases += r.cases.length;
     summary.assertions += r.cases.reduce((n, c) => n + c.asserts, 0);
     summary.conditional += r.conditional.length;
+    summary.conditionalAlways += r.conditional.filter((c) => c.conditionalAlwaysRuns).length;
+    summary.conditionalOther += r.conditional.filter((c) => !c.conditionalAlwaysRuns && !c.falseGreen).length;
+    for (const g of r.falseGreen || []) {
+      summary.r4 += 1;
+      violations.push({
+        kind: 'R4 假绿风险（承重全挂在可能不进的分支上）',
+        file: g.file,
+        line: g.line,
+        name: g.name,
+        detail: '全部 ' + g.asserts + ' 条断言都在「没有 else 的 if」分支里 ⇒ ⇒ 分支不进 ⇒ ⇒ 零断言通过',
+      });
+    }
     for (const t of r.tautologies) {
       summary.r1 += 1;
       violations.push({ kind: 'R1 恒真断言', file: t.file, line: t.line, name: t.name, detail: t.matcher + '(' + t.subject + ')' });
@@ -294,13 +351,17 @@ function main() {
       ' ｜ R1 恒真 ' + summary.r1 +
       ' ｜ R2 零断言 ' + summary.r2 +
       ' ｜ R3 弱断言独占 ' + summary.r3 +
-      ' ｜ 条件化断言（只读数）' + summary.conditional,
+      ' ｜ R4 假绿风险 ' + summary.r4 +
+      ' ｜ 条件化断言（只读数）' + summary.conditional +
+      '（分支恒进 ' + summary.conditionalAlways +
+      ' ＋ 另有无条件承重 ' + summary.conditionalOther +
+      ' ＋ 真·假绿 ' + summary.r4 + '）',
     );
     for (const v of violations) {
       console.error('::error::' + v.kind + ' ⇒ ' + rel(v.file) + ':' + v.line + ' ⇒ ' + v.name + ' ⇒ ' + v.detail);
     }
     if (violations.length === 0) {
-      console.log('✅ 三条红线全过（每条用例的断言都指向它宣称的那件事）');
+      console.log('✅ 四条红线全过（每条用例的断言都指向它宣称的那件事）');
     }
   }
 

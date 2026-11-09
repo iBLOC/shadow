@@ -246,6 +246,7 @@ export function extractAssertions(body, bodyStart, src) {
       subject,
       arg,
       line: lineOf(src, bodyStart + i),
+      offset: bodyStart + i,
     });
     i = close + 1;
   }
@@ -297,6 +298,27 @@ export function scanTypeScriptSource(src, file) {
     if (bodyClose < 0) continue;
     const body = masked.slice(bodyOpen, bodyClose + 1);
     const asserts = extractAssertions(body, bodyOpen, src);
+    const branches = analyzeConditionalBranches(body, bodyOpen, src);
+    let assertsInConditional = 0;
+    for (const a of asserts) {
+      for (const b of branches) {
+        if (a.offset >= b.start && a.offset <= b.end) { assertsInConditional += 1; break; }
+      }
+    }
+    const assertsOutsideConditional = asserts.length - assertsInConditional;
+    // 分支外的「找不到就抛」查询 ⇒ ⇒ 也是无条件承重
+    let queriesInside = 0;
+    for (const b of branches) {
+      queriesInside += countThrowQueries(body.slice(b.start - bodyOpen, b.end - bodyOpen + 1));
+    }
+    const queriesOutside = Math.max(0, countThrowQueries(body) - queriesInside);
+    const conditionalAlwaysRuns = branches.length > 0 && branches.every((b) => b.alwaysRuns);
+    // 「假绿」：整条用例的承重全挂在「可能不进的分支」上
+    const falseGreen =
+      asserts.length > 0 &&
+      assertsOutsideConditional === 0 &&
+      queriesOutside === 0 &&
+      !conditionalAlwaysRuns;
     const nameMatch = /(['"`])([\s\S]*?)\1/.exec(src.slice(argsOpen, argsClose + 1));
     const name = nameMatch ? nameMatch[2] : '(未命名用例)';
     // ⚠️⚠️ **「抛异常的查询」也是承重断言**（2026-11-09 实测踩到的坑）：
@@ -320,6 +342,10 @@ export function scanTypeScriptSource(src, file) {
       weakOnly,
       assertionList: asserts,
       conditional: countConditional(body, bodyOpen, src),
+      assertsInConditional,
+      assertsOutsideConditional,
+      conditionalAlwaysRuns,
+      falseGreen,
     });
     re.lastIndex = bodyClose;
   }
@@ -344,7 +370,7 @@ export function scanTypeScriptSource(src, file) {
       });
     }
   }
-  return { file, cases, tautologies, zeroAssert, weakOnly, conditional: cases.filter((c) => c.conditional > 0) };
+  return { file, cases, tautologies, zeroAssert, weakOnly, conditional: cases.filter((c) => c.conditional > 0), falseGreen: cases.filter((c) => c.falseGreen) };
 }
 
 /**
@@ -365,6 +391,57 @@ export function countThrowQueries(body) {
   return n;
 }
 
+/**
+ * 「没有 else 的 if」分支的条件是不会为假？
+ *
+ * ⚠️ **「分支恒进」也要认** —— 分支条件若是「找不到就抛异常」的查询
+ *   （`getBy*` / `findBy*`，或由它赋值来的标识符）⇒ ⇒ 分支要么进、要么用例红
+ *   ⇒ ⇒ 里面的断言**总会跑**⇒ ⇒ 不算风险。
+ */
+function isAlwaysRunningCondition(cond, maskedBody) {
+  const c = String(cond || '').trim();
+  if (new RegExp('\\b(?:findBy|findAllBy|getBy|getAllBy)[A-Za-z]*\\s*\\(').test(c)) return true;
+  // 条件是裸标识符，而它在同一个用例里是被「找不到就抛」的查询赋值来的
+  const id = c.replace(/^!/, '').replace(/\?$/, '').trim();
+  if (!new RegExp('^[A-Za-z_$][A-Za-z0-9_$]*$').test(id)) return false;
+  const assign = new RegExp(
+    '(?:const|let|var)\\s+' + id + '\\s*=[^;]*\\b(?:findBy|findAllBy|getBy|getAllBy)[A-Za-z]*\\s*\\('
+  );
+  return assign.test(maskedBody);
+}
+
+/**
+ * 逐条分析「没有 else 的 if」分支（含断言的那些）。
+ * @returns {Array<{cond:string,start:number,end:number,alwaysRuns:boolean}>}
+ */
+export function analyzeConditionalBranches(body, bodyStart, src) {
+  const branches = [];
+  const re = new RegExp('\\bif\\s*\\(', 'g');
+  let m;
+  while ((m = re.exec(body)) !== null) {
+    const condClose = matchBracket(body, m.index + m[0].length - 1);
+    if (condClose < 0) continue;
+    let k = condClose + 1;
+    while (k < body.length && body[k] === ' ') k += 1;
+    if (body[k] !== '{') continue;
+    const blockClose = matchBracket(body, k);
+    if (blockClose < 0) continue;
+    const block = body.slice(k, blockClose + 1);
+    if (!block.includes('expect')) { re.lastIndex = blockClose; continue; }
+    let e = blockClose + 1;
+    while (e < body.length && body[e] === ' ') e += 1;
+    if (body.startsWith('else', e)) { re.lastIndex = blockClose; continue; }
+    const cond = body.slice(m.index + m[0].length, condClose);
+    branches.push({
+      cond,
+      start: bodyStart + k,
+      end: bodyStart + blockClose,
+      alwaysRuns: isAlwaysRunningCondition(cond, body),
+    });
+    re.lastIndex = blockClose;
+  }
+  return branches;
+}
 export function countConditional(body, bodyStart, src) {
   let count = 0;
   const re = /\bif\s*\(/g;
