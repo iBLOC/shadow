@@ -1,5 +1,38 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-09 (㑬 **「契约套件躺在仓里，却从没被调用过 —— 而 404 白名单让端点漂移永远抓不到」** —— 承 U+346A 条（wdio 家族入闸），本条记**取证（两处：无人调用 ＋ 404 全局放行）**、**第一因（豁免挂在「状态码」上，而不是挂在「端点的形状」上）**、**这一刀的落点（3 个代码文件）**、**判据（假服务器两档 ＋ 真端脑读数）**、**分级读数**、**途中那几课**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-09 | authority=measured | scope=project | source=真运行级实测（假服务器两档反向验证 ＋ 真端脑真跑 ＋ 全仓调用点普查） | 改动：shadow 仓 **改** `shadow-desktop/tests/api-contract/contract.test.ts`（404 白名单收窄）、**改** `shadow-desktop/tests/api-contract/server-check.ts`（递读门钥匙）、**改** `.github/workflows/desktop-e2e.yml`（接上真端脑 ＋ 核读数） ｜ 读数：**反向验证级（假服务器两档）：V1 全 404 ⇒ 契约闸 30 红 / 20 绿（逐条核：绿的全带 `{id}`、红的全不带）＋ V2 全 200 ⇒ 39 passed / 0 failed**、**闸级：类型闸 EXIT=0 ／ eslint 0 error ／ YAML 闸 10 文件零违规**、⚠️ **真端脑级：本刀尚缺**（独立 target 冷编 `encephalon-server` 在本条落账时仍未到链接阶段） | status=active | supersedes=none
+
+① **⚠️ 取证：这道套件在 CI 上**从来没有被调用过** ⇒ ⇒ 「它有 50 个用例」是**假象**
+　❶ **全仓调用点普查**：把**所有** workflow 与 package script 扫一遍 ⇒ ⇒ `tests/api-contract/**` 只被 `pnpm test:api`（＝ `pnpm prebuild` 的一部分）调用 ⇒ ⇒ 而 `prebuild` 只在**构建**时跑 ⇒ ⇒ **CI 上跑的是构建，不是契约复验** ⇒ ⇒ ⇒ 这道闸在 CI 上的承重是**零**。
+　❷ **⚠️ 就地订正一个我自己差点写错的说法**：台账 L3375 记着「既有 api-contract 套件对着这台旧端脑有 **4 条红**」（2026-11-02）⇒ ⇒ 所以它**曾经**在本地对着活端脑跑过 ⇒ ⇒ **「它从没跑过」是错的** ⇒ ⇒ 准确的说法是：**它在 CI 上零承重**，而那次本地跑的 4 条红（`thalamus/preview/sensors` 两条 **503** ＋ `video-sources` ＋ 同一条的 schema 断言）**没人收口**（当时判成「端脑旧构建」）⇒ ⇒ 那笔债一直躺在「已跑过一次」这句话后面。
+　❸ **而且在今天的门形态下它更跑不通**：这个套件**只递 `X-Admin-Token`** ⇒ ⇒ 而端脑的**读门 = 影子锁 ∪ admin token**（门形真源＝端脑 `src/api/door_policy.txt`；判据实现 `security/api_key.rs::verify_read_credential`）⇒ ⇒ 在「配了影子锁、admin token 对不上」的端脑上 ⇒ ⇒ 读面 **403** ⇒ ⇒ 而 `checkServerReachable` 把 403 判成「**不可达**」⇒ ⇒ **整份套件被 skip** ⇒ ⇒ vitest 对整份跳过退出 **0** ⇒ ⇒ ⇒ 「没跑过」这件事被伪装成「服务器没开」。
+
+② **⚠️ 第一因：豁免必须挂在「端点的形状」上，而不是挂在「状态码」上**
+　❶ 旧判据 `isAcceptableStatus(_method, status)` **只认状态码** ⇒ ⇒ 而 404 被**全局**写进可接受集合 ⇒ ⇒ 「端脑缺了这个路由」／「客户端的路径漂了」⇒ ⇒ 端脑回 404 ⇒ ⇒ **闸照样绿** ⇒ ⇒ 「every endpoint … must respond」这个标题是**假的** ⇒ ⇒ ⇒ 端点漂移永远抓不到。
+　❷ **修法**：404 **只对「path 里带 `{id}` 占位符」的端点**放行（那类 live 解析不出具体资源的路径）⇒ ⇒ 其余端点 404 ⇒ ⇒ **判红**（路由缺失／路径漂移）⇒ ⇒ ⇒ 豁免从「一类结果」挪到了「这一条的形状」。
+　❸ **凭据也要与门形对齐**：`server-check.ts` 现在递**影子锁 ∪ admin token**（各有就带、空的绝不带）⇒ ⇒ 与桌面端**产品实现** `src/lib/readDoorHeaders.ts` 同一规则 ⇒ ⇒ 探针本身也带钥匙（否则门回 403 ⇒ ⇒ 被判成不可达 ⇒ ⇒ 整份跳过）。
+
+③ **✅ 这一刀的落点（3 个代码文件，零产品代码改动）**
+　❶ **改 `shadow-desktop/tests/api-contract/contract.test.ts`**：`isAcceptableStatus(ep, status)`（拿得到 `ep.path`）＋ **404 收窄到带占位符的路径** ＋ 文件头注释**就地订正**（原文写着「404 → path with `{id}` placeholder that won't resolve live」——那是**意图**，旧实现没兑现 ⇒ ⇒ 现在兑现了）。
+　❷ **改 `shadow-desktop/tests/api-contract/server-check.ts`**：加 `SHADOW_KEY`（来源 `SHADOW_TEST_SHADOW_KEY`）＋ `authHeaders` 递**影子锁 ∪ admin token** ＋ 探针带钥匙 ＋ 注释写清门形真源与产品实现的对应关系。
+　❸ **改 `.github/workflows/desktop-e2e.yml`**：加一步「**API 契约套件（真端脑）**」⇒ ⇒ 起端脑（端口 60194，**复用**这个 workflow 已编好的二进制）＋ 跑 `vitest run --config vitest.api.config.ts` ＋ **核读数**：必须出现「N passed」，且**不许有 skipped** ⇒ ⇒ 复用该 workflow 已有的范式（与上面两步同款：先打印输出、再判退出码；不许 skip 混绿）。
+　❹ **⚠️ 为什么不是每次 push**：它要**编端脑**（冷编几十分钟）⇒ ⇒ 而 `ci.yml` 是**共享文件**（并行会话在飞）⇒ ⇒ 独立成 workflow 会**重复冷编** ⇒ ⇒ 这里复用 `desktop-e2e.yml` 已经编好的二进制 ⇒ ⇒ **频率＝夜间/手动**（台账里记着这一格的真实频率，不许把它说成「每次 push」）。
+
+④ **⚠️ 途中那几课**
+　❶ **反向验证不必起真被测物 ⇒ ⇒ 假服务器就是杠杆** —— 要证明「这把尺子有牙」，我写了个**极简假服务器**（`/health` 回 200、其余按开关回 404 或 200）⇒ ⇒ **404 假服务器 ⇒ 精确红在非占位符端点** ＋ **200 假服务器 ⇒ 全绿** ⇒ ⇒ 成本从「编译真被测物几十分钟」降到「几秒」⇒ ⇒ ⇒ **两个方向都要跑**（正控 ＋ 对照）⇒ ⇒ 只跑正控会分不清「尺子有牙」与「尺子恒红」。
+　❷ **豁免集合必须逐条列出来核** —— 只看「20 红 / 20 绿」不够 ⇒ ⇒ 要**逐条确认绿的全是带 `{` 的、红的全是不带的** ⇒ ⇒ 否则「豁免写反了」会被算成「有分辨力」。
+　❸ **「判据在仓里」≠「判据在跑」** ⇒ ⇒ 查法＝**grep 谁调用它** ⇒ ⇒ 本例零命中 ⇒ ⇒ 「它有 50 个用例」这句话本身就该当成**待验断言**。
+　❹ **收窄白名单会改变别的 CI 行为 ⇒ ⇒ 必须先核那一条** —— `pnpm build` / `pnpm build:web` 的 `prebuild` **都会跑这个套件** ⇒ ⇒ 若某处端脑**可达**且有端点真 404 ⇒ ⇒ 我这一刀会把**别的 job** 跑红 ⇒ ⇒ 核完：`Desktop Build` 与 `release` 里端脑**都不可达** ⇒ ⇒ 那里是 skip ⇒ ⇒ 不受影响（⚠️ 这一步**先核后改**，不是改完再想）。
+
+⑤ **✅ 判据（三处）** —— ❶ **反向验证两档（假服务器）**：**V1 全部 404** ⇒ ⇒ 契约闸 **30 红 / 20 绿**（逐条核：绿的全带 `{id}`、红的全不带）⇒ ⇒ **V2 全部 200** ⇒ ⇒ **39 passed / 0 failed** ⇒ ⇒ ⇒ **尺子有牙且不恒红**；❷ **真端脑级**：⚠️ **本刀尚缺** —— 为拿到它我起了一次**独立 target 的冷编**（`CARGO_TARGET_DIR` 指到 `.local/`，不碰并行会话的 target）⇒ ⇒ 本条落账时它**仍未到链接阶段**（26 GB）⇒ ⇒ ⇒ 「这条闸在真端脑上到底绿不绿」**没有读数** ⇒ ⇒ 记欠项；❸ **静态闸级**：桌面端类型闸（`.ts` ＋ `.tsx` 全族）**EXIT=0** ＋ **eslint 0 error** ＋ **YAML 闸 10 文件零违规**。
+
+⑥ **✅ 分级读数（全部实测）** —— **反向验证级**：V1/V2 两档（见 ⑤）｜ **闸级**：类型闸 EXIT=0 ／ eslint 0 error ／ YAML 闸零违规｜ ⚠️ **真端脑级：尚缺**（见 ⑤❷ 与 ⑦）。
+
+⑦ **⚠️ 仍然欠着** —— ❶ **本刀缺「真端脑级」读数** ⇒ ⇒ 新加的那一步（`desktop-e2e.yml` 的「API 契约套件」）**尚未被真跑验证过** ⇒ ⇒ ⇒ **它首次在夜间 workflow 里跑时可能红**（那是**诊断信息**，不是产品回归）⇒ ⇒ ⇒ 下一刀第一件事：把那次读数取回来，若某端点真 404 ⇒ ⇒ 按端点登记豁免（**不许**把 404 又放回全局）；❷ **这道闸的频率是夜间/手动，不是每次 push** ⇒ ⇒ 「端点漂移」在**每 2–4 分钟一次 push** 的节奏里**仍然抓不到** ⇒ ⇒ 要每次 push 抓 ⇒ ⇒ 得有一个**便宜的**端脑实例（或预编译产物）⇒ ⇒ 那一格还欠；❸ **端脑侧判据在端脑自己的 CI 上仍无读数**（门外红）；❹ **`tests/wdio/**` ＋ `tests/tauri-e2e/**` 两族仍欠真跑**（chromedriver 路径写死 linux 路径 ＋ 那两族有 **~44 处恒真断言**待加固）；❺ `tests/stores/appearanceMemory.test.ts` 仍被 exclude（并行会话在飞）；❻ `reminderNotificationsLive.test.ts` 的签名改动仍**没有真跑级读数**；❼ **web 构建里仍没有发送按钮** ⇒ ⇒ 「在 UI 上真发一条消息并看到它出现」仍欠（Tauri 形态）。
+
+⑧ **⚠️ 圈码：本条占 U+346C（㑬）** —— 插前**独立重扫**（父仓工作树 ∪ 父仓 HEAD ∪ 父仓 `origin/master` × **三本账本**，按**声明形状**扫）⇒ ⇒ 段内最高已声明 **U+346A**（承 U+346A 条）⇒ ⇒ 自然下一枚 **U+346B** ⇒ ⇒ 按惯例**再留一枚缓冲**（346B 留给并行会话）⇒ ⇒ 取 **U+346C** ⇒ ⇒ 插前扫：U+346B／U+346C 在三账本三面**各 0 次声明 0 次提及** ✔ ⇒ ⇒ ⚠️ **不填历史空洞**（U+3463／U+3465／U+3467／U+3469 继续空）⇒ ⇒ ⚠️ 本条**只引用已提交的码位**（U+346A）⇒ ⇒ ⚠️ **插完立刻复跑码位闸**是硬约束。
 **Updated**: 2026-11-09 (㑪 **「未覆盖项清单自己会腐烂 —— wdio/tauri-e2e 家族的欠项理由是假的」** —— 承 U+3468 条（.tsx 全族入闸），本条记**取证（那族至今无闸，而理由站不住）**、**第一因（台账上的「欠项理由」本身没有承重）**、**这一刀的落点（6 个文件）**、**判据（两把闸 ＋ 反向验证两档）**、**分级读数**、**途中那几课**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-09 | authority=measured | scope=project | source=真运行级实测（本机 tsc 真跑 ＋ 真注入 ＋ 真编译产物取证 ＋ vitest 全量） | 改动：shadow 仓 **新增** `shadow-desktop/tests/tsconfig.wdio.json`、**改** `shadow-desktop/package.json`（＋ `@types/mocha` ＋ `webdriverio`）、**改** `shadow-desktop/pnpm-lock.yaml`、**改** `shadow-desktop/tests/tsconfig.json`（exclude 理由订正）、**改** `shadow-desktop/tests/wdio/features.test.ts`（删死 import）、**改** `.github/workflows/e2e-typecheck.yml`（第二把闸 ＋ notice 订正） ｜ 读数：**两把闸 EXIT=0**、**反向验证两档：注入类型错 ⇒ wdio 闸 exit=2 逐字 TS2322 而主闸 exit=0 ／ 注入语法错 ⇒ wdio 闸 exit=2 逐字 TS1005 而主闸 exit=0**、**还原后 blob 逐字一致 `aa126163…`**、**YAML 闸 10 文件零违规**、**eslint 0 error**、**vitest 全量 1473 过 / 16 跳 / 1 红**（那 1 红＝并行会话在飞的 `src/styles/accent.g.ts` 与 `design-tokens.json` 不同步，**与本刀无关**） | status=active | supersedes=none
