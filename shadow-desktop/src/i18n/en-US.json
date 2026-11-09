@@ -950,7 +950,18 @@
       "save": "Save",
       "cancel": "Cancel",
       "edit": "Edit"
-    }
+    },
+    "chatBackgroundFailed": "Failed to read the background image: {{reason}}",
+    "accentCustom": "Custom accent color",
+    "accentCustomPick": "Pick a custom color",
+    "accentHexPlaceholder": "#6366F1",
+    "accentHexLabel": "Accent color value",
+    "accentHexInvalid": "Invalid color value (use #RRGGBB)",
+    "background": "Background",
+    "backgroundDesc": "Chat background image and dialog surfaces",
+    "chatBackground": "Chat background",
+    "chatBackgroundPick": "Choose image",
+    "chatBackgroundClear": "Clear"
   },
   "resonance": {
     "title": "Resonance",

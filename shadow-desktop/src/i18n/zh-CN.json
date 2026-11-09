@@ -950,7 +950,18 @@
     },
     "providersUnreadable": "读不到供应商列表",
     "providersUnreadableHint": "端脑可能连不上，或那扇门关着（需要 admin 钥匙）。这不代表你没有配置供应商。",
-    "providersCountUnknown": "供应商数量未知"
+    "providersCountUnknown": "供应商数量未知",
+    "chatBackgroundFailed": "背景图读取失败：{{reason}}",
+    "accentCustom": "自定义主题色",
+    "accentCustomPick": "选择自定义颜色",
+    "accentHexPlaceholder": "#6366F1",
+    "accentHexLabel": "主题色值",
+    "accentHexInvalid": "色值格式不对（要用 #RRGGBB）",
+    "background": "背景",
+    "backgroundDesc": "聊天背景图与对话框底色",
+    "chatBackground": "聊天背景图",
+    "chatBackgroundPick": "选择图片",
+    "chatBackgroundClear": "清除"
   },
   "resonance": {
     "title": "共鸣",
