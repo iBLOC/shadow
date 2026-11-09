@@ -1451,6 +1451,38 @@
 　❽ ⚠️ **插这一段时我犯了一个错，记下来** —— 我用脚本把本段插到「⑧ 面最后一句」之后 ⇒ ⇒ 脚本按「锚点句末尾」插 ⇒ ⇒ **锚点句与本段首行之间没有换行** ⇒ ⇒ ⇒ `…承 ②❹。⑨ **⚠️ 顺手独立复核…` **粘成一行** ⇒ ⇒ ⇒ **⑨ 段的标题行被吃掉** ⇒ ⇒ ⇒ 第一版提交（`bbd71d5`）就是那个形状 ⇒ ⇒ ⇒ **它还没推到远端 ⇒ ⇒ 直接替换掉**（不重写远端历史）⇒ ⇒ ⇒ ⇒ ⇒ **通用形态：在共享文件里机械插入时，锚点与插入块之间的那个换行，得当成插入块的一部分来管** ⇒ ⇒ ⇒ 否则「插进去了」不等于「插对了」。
 　❽ ⚠️ **插这一段时我犯了一个错，记下来** —— 我用脚本把本段插到「⑧ 面最后一句」之后 ⇒ ⇒ 脚本按「锚点句末尾」插 ⇒ ⇒ **锚点句与本段首行之间没有换行** ⇒ ⇒ ⇒ `…承 ②❹。⑨ **⚠️ 顺手独立复核…` **粘成一行** ⇒ ⇒ ⇒ **⑨ 段的标题行被吃掉** ⇒ ⇒ ⇒ 第一版提交（`bbd71d5`）就是那个形状 ⇒ ⇒ ⇒ **它还没推到远端 ⇒ ⇒ 直接替换掉**（不重写远端历史）⇒ ⇒ ⇒ ⇒ ⇒ **通用形态：在共享文件里机械插入时，锚点与插入块之间的那个换行，得当成插入块的一部分来管** ⇒ ⇒ ⇒ 否则「插进去了」不等于「插对了」。
 
+㉠ **⚠️ 真机腿的阻塞点换人了：从「等一个配对码」换成「要设备侧开一个开关」；顺带这一族进了树（实现 ＋ 17 条单测 ＋ 真机探针）** —— 本段记**取证（设备面到底有什么）**、**第一因（阻塞点换了人）**、**这一刀的落点**、**途中那几课**、**分级读数**，以及**仍然欠着的**.
+
+① **⚠️ 取证：设备面比账本里写的宽 —— 三台设备，只有一台能装**
+　❶ **odin**（`ee6b4832` / 2106118C / 小米 / Android 13 / API 33 / **arm64-v8a** / 1080×2400 / density 440）⇒ ⇒ **USB 已连、已授权、state=device** ⇒ ⇒ ABI 与 APK（arm64-v8a ＋ x86_64）**对得上** ⇒ ⇒ 唯一可用的一台。
+　❷ **LX04**（`192.168.31.235:5555` / 小米 / Android 8.1 / API 27 / **armeabi-v7a** / 800×480 / density 240）⇒ ⇒ 无线 adb 在线 ⇒ ⇒ 但 **ABI 装不上**：APK 只含 arm64-v8a 与 x86_64（`jniLibs` 下只有 arm64-v8a ⇒ ⇒ `abiFilters` 按它限死 ⇒ ⇒ `--target-platform android-arm` **被覆盖** ⇒ ⇒ 构建出来还是 arm64）⇒ ⇒ 且 `/data` 只剩 **307 MB**（201 MB 的 APK 装完要翻倍）⇒ ⇒ **双重堵死**。
+　❸ **三星**（`2bcb05ec`）⇒ ⇒ **offline**（USB 在、adbd 没握手）⇒ ⇒ 重启 adb server 无效 ⇒ ⇒ 仍需用户解锁＋重新授权。
+
+② **⚠️ 第一因：真机腿的阻塞点从「要一个配对码」换成「要设备侧开一个开关」** —— 探针族在 odin 上跑 ⇒ ⇒ 脚本一路走到**安装**那一步 ⇒ ⇒ 撞 `INSTALL_FAILED_USER_RESTRICTED: Install canceled by user` ⇒ ⇒ 逐字归因：**MIUI 的「开发者选项 → USB 安装」没开** ⇒ ⇒ 这是**设备策略闸**，不是 app 缺陷 ⇒ ⇒ 脚本的归因判据把它单列为 `device-policy` 并给出提示 ⇒ ⇒ **归因判据本身是对的**（它把「装不上」与「产品有问题」分开了）。
+　❸ ⇒ ⇒ **adb 侧关不掉**：`settings put secure adb_install_need_confirm 0`（secure 与 global 都已是 0）⇒ ⇒ **重装仍被拦**（逐字同一条错误）⇒ ⇒ ⇒ 这一格**只能物理动作**。
+　❹ ⇒ ⇒ **无线 adb 那条路**在 odin 上**不成立**：`adb_wifi_enabled=0`（无线调试没开）⇒ ⇒ 端口无从得知 ⇒ ⇒ `adb connect 192.168.31.86:5555` 被拒（WiFi IP 是 `192.168.31.86`）。
+
+③ **✅ 这一刀的落点：这一族进树（10 个文件，1643 ＋ / 19 −）** —— ❶ `lib/services/capabilities/flutter_semantics_tree.dart`（**新**）：自家 app 的界面模型 ＋ 按文字点（**派给控件自己的回调**，不用坐标）＋ 自家树为空时**明确失败**；❷ `lib/services/capabilities/capability_tools.dart`：读屏与按文字点击的回落（**先问「前台是谁」**，不许在别人的屏幕上回落）＋ 回落后标注**来源与坐标口径**；❸ `lib/services/accessibility_controller.dart` ＋ `capabilities/accessibility_ops.dart`：`viewGeometry()`（自家窗口在屏幕上的原点，拿不到就回 null ⇒ ⇒ **不换算**）；❹ `android/app/src/main/kotlin/com/ibloc/shadow/MainActivity.kt`：`getViewGeometry` 方法通道（**量**而不算 —— edge-to-edge / 分屏 / 折叠屏 / 多屏都算不准）；❺ `test/unit/flutter_semantics_tree_test.dart` ＋ `test/unit/mobile_use_scroll_reachability_test.dart`（**新**，**17 条**）；❻ `integration_test/a11y_own_ui_probe_test.dart`（改）＋ `integration_test/a11y_scroll_to_item_test.dart`（**新**）＋ `test_driver/a11y_scroll_to_item_test.dart`（**新**）：真机那一族。
+
+④ **⚠️ 途中那几课**
+　❶ **「这一族要进树」不是一个文件的事 —— 依赖面要自己盘** —— 记账时以为只差「169 行增量 ＋ 3 个新文件」⇒ ⇒ 真要落树才发现：还差**实现本体** ＋ 两个 `viewGeometry` API ＋ 原生 `getViewGeometry` ⇒ ⇒ **6 个文件变成 10 个** ⇒ ⇒ 若只提交最初记的那几个 ⇒ ⇒ **提交面根本编不过**（`capability_tools.dart` 引用了没进树的实现）⇒ ⇒ ⇒ **「待进树增量」这种计数最危险** ⇒ ⇒ 它记的是**我以为的差量**，不是**真实依赖闭包**。
+　❷ **共享文件的归属必须逐文件核，不能靠「它 staged 着」推断** —— 索引里混着并行会话「能力档位声明」那条线的 12 个文件 ＋ **我这一族的 1 个共享文件**（`capability_tools.dart`）⇒ ⇒ 逐条读 staged diff 才认得出「这一块是我的」⇒ ⇒ 提交时用 `git commit --only <路径>` 精确取自己那 10 个 ⇒ ⇒ 提交后核 `git status` ⇒ ⇒ **并行会话那 12 个 staged 文件一根毛都没少**。
+　❸ **「提交面能不能编过」要在提交前算一次** —— HEAD 版 `capability_tools.dart` **不引用**未进树的 `capability_declaration.dart` ⇒ ⇒ 我的提交面才编得过 ⇒ ⇒ 这项检查只花一条 `git show HEAD:<file>` 的检索 ⇒ ⇒ 而它挡住的是「提交完才发现 CI 红了」。
+
+⑤ **✅ 分级读数**
+　❶ **单测级（可进 CI）**：两个新族 **17/17 绿**（本机 `flutter test` 实跑，逐条点名）。
+　❷ **构建级**：`flutter build apk --debug` **通过**（91.9 秒）⇒ ⇒ Kotlin 侧 `getViewGeometry` **编译通过**（`flutter test` 查不到 Kotlin 语法错 ⇒ ⇒ 这条构建证据不可省）。
+　❸ **真机级**：**尚无** —— 探针族在 odin 上**止于安装**（设备策略闸）⇒ ⇒ 「派发成功 / 点到了目标 / 落点」这些读数**一个都没拿到** ⇒ ⇒ **不许拿单测绿冒充真机绿**。
+　❹ **CI 级**：这一族的两个单测文件会进 CI 的 `flutter test`（读数待取）。
+
+⑥ **⚠️ 仍然欠着**
+　❶ **odin 的「开发者选项 → USB 安装」** —— 唯一硬阻塞，**只能物理动作**（odin 已登录小米账号 ⇒ ⇒ 这个开关**应该**能开；MIUI 11 那台无 SIM 时点它只弹 toast）。
+　❷ **三星 `2bcb05ec` 仍 offline** —— 解锁＋重新授权即可（它有 DeX 多屏的历史坑，脚本已按「搬回默认屏」处理）。
+　❸ **LX04 要 arm32 的话得动 `jniLibs` / `abiFilters`** ⇒ ⇒ 那是**产品构建决策**（APK 体积 ＋ 覆盖机型）⇒ ⇒ **不擅自改**。
+　❹ **真机那一族的读数**（探针落点 / 滑动正路径 / 读屏族）**全部待补**；`integration_test/` 仍不在 CI 里跑 ⇒ ⇒ 只有真机能看见 ⇒ ⇒ 真机读数必须**单独核「端脑确实在跑」**。
+　❺ **另外三条 integration 用例**（`app_test.dart`／`conversation_flow_test.dart`／`task_flow_test.dart`）**仍无真机读数** ⇒ ⇒ 不许拿闸绿当它们在设备上绿。
+
+
 **Updated**: 2026-11-09 (㑃 **「端脑自己也得按字段名找 —— 上一刀那条判据是按串找的，形状漂移时它照样绿」** —— 承 㐾 条（提醒链路那条）⑥ 里那条「端脑自己那条真 HTTP 判据全程是绿的」，本条记**取证（盲区在哪一行）**、**这一刀的落点**、**判据（端脑层第二道防线）**、**反向验证（恰好 2 红）**、**分级读数**、**途中那一课（Rust 嵌套项 ⇒ ⇒ 判据静默不收集）**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-09 | authority=measured | scope=project | source=真运行级实测（改动：端脑仓 **改** `telencephalon/tests/task_reminder_reaches_the_client.rs`（**只改判据**，**零生产代码改动**）；读数：**判据级 4/4 绿**、**反向验证 恰好 2 红**、**类型级 `cargo check --all-targets` EXIT=0**、**邻居判据级 9/9 ＋ 2/2 绿**）| status=active | supersedes=none
