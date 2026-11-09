@@ -131,6 +131,15 @@ const READ_PATTERNS = [
   //    ⇒ ⇒ 于是一条**真的死条目**（文档里的拼错的环境变量）被伪装成活的。
   { kind: 'shell-dollar', re: /\$\{?([A-Z][A-Z0-9_]{2,})\}?/g, shellOnly: true },
   { kind: 'windows-percent', re: /%([A-Z][A-Z0-9_]{2,})%/g, shellOnly: true },
+  // ⚠️⚠️ **GitHub Actions 的表达式形状**（2026-11-11 真 CI 实测踩到）：
+  //    workflow 里读环境变量的方式就是 `${{ env.NAME }}` ⇒ ⇒ 而上面那个 `$NAME`
+  //    形状**认不出它**（`$` 后面紧跟的是 `{`）⇒ ⇒ 于是一个**真有人读**的变量
+  //    被判成「死变量」⇒ ⇒ 闸报「设了但全仓没有任何读者」⇒ ⇒ **CI 的 Desktop Build 红**
+  //    ⇒ ⇒ 而且它**在第 28 步**⇒ ⇒ 后面 5 步（TypeScript check / Build web frontend /
+  //    Build web…）被**传染跳过**⇒ ⇒ 连「web 前端构建」这一格都没测。
+  //    ⇒ ⇒ 与 `env::var_os` 那条**完全同形**：不是变量死，是**尺子认不出读者的形状**。
+  { kind: 'gha-expression-env', re: /\$\{\{\s*env\.([A-Z][A-Z0-9_]{2,})\s*\}\}/g, shellOnly: true },
+  { kind: 'gha-expression-env-bracket', re: /\$\{\{\s*env\[\s*['"]([A-Z][A-Z0-9_]{2,})['"]\s*\]\s*\}\}/g, shellOnly: true },
 ];
 
 /**
@@ -621,6 +630,43 @@ export function deadEnvSelfTest() {
     T('⑰ set_var 不是读者（孪生负控）⇒ ⇒ 只有 var_os 那个算',
       reads.length === 1 && reads[0].name === 'SHADOW_OS_PATH',
       JSON.stringify(reads));
+  }
+
+  {
+    // ⑱ GitHub Actions 的**表达式**是 workflow 里读环境变量的方式 ⇒ ⇒ 算读者
+    //    ⇒ ⇒ 否则一个**真有人读**的变量会被判成「死变量」⇒ ⇒ CI 红（2026-11-11 实测）。
+    const yml = [
+      '      VITE_PREFRONTAL_URL: ${{ env.SHADOW_E2E_ENDBRAIN_URL }}',
+      '      SHADOW_TELENCEPHALON_URL: ${{ env.SHADOW_E2E_ENDBRAIN_URL }}',
+    ].join('\n');
+    const reads = findEnvReads(yml, '.github/workflows/desktop-e2e.yml');
+    T('⑱ workflow 里的 `${{ env.X }}` ⇒ ⇒ 算读者',
+      reads.length === 2
+        && reads.every((r) => r.name === 'SHADOW_E2E_ENDBRAIN_URL')
+        && reads.every((r) => r.kind === 'gha-expression-env'),
+      JSON.stringify(reads));
+  }
+
+  {
+    // ⑲ **孪生负控**：`${{ env.X }}` 只在 **shell 语义的文件**（workflow / 脚本）里算读者
+    //    ⇒ ⇒ 在 .ts / .dart 里它只是**字符串** ⇒ ⇒ 不能让它把死变量伪装成活的。
+    const expr = 'const u = "${{ env.SHADOW_E2E_ENDBRAIN_URL }}";';
+    const readsTs = findEnvReads(expr, 'shadow-desktop/src/x.ts');
+    const readsYml = findEnvReads(expr, '.github/workflows/x.yml');
+    T('⑲ 孪生负控：非 shell 语义的文件里 `${{ env.X }}` 不算读者',
+      readsTs.length === 0 && readsYml.length === 1,
+      JSON.stringify({ readsTs, readsYml }));
+  }
+
+  {
+    // ⑳ **反向验证**：加了新形状**之后**，真正没人读的变量**仍然**被判死
+    //    ⇒ ⇒ 证明这次补的是「读者的形状」，不是「把闸放松了」。
+    const sets = [{ name: 'SHADOW_TRULY_DEAD', kind: 'yaml-env', file: 'ci.yml' }];
+    const reads = findEnvReads('      OTHER: ${{ env.SOME_OTHER_NAME }}', 'ci.yml');
+    const r = checkDeadEnvVars({ sets, reads });
+    T('⑳ 孪生：真正没人读的变量仍然被判死（不是把闸放松了）',
+      r.dead.length === 1 && r.dead[0].name === 'SHADOW_TRULY_DEAD',
+      JSON.stringify(r));
   }
   return { code: fails === 0 ? 0 : 1, out: lines.join('\n'), total, fails };
 }
