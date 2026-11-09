@@ -538,6 +538,7 @@ WebRTC 浏览器、桌面端自己起的 sidecar、外部端脑进程。⇒ 这�
 | `/api/telencephalon/config/{section}/{key}` | PUT,DELETE | config_api | — | **改/删这台大脑的配置**（端脑 / 丘脑 / neuron / 云端供应商 / MCP 的运行数据与配置都在 Turso 里 ⇒ 不在海马体里）⇒ ⚠️ 回包里的秘密项是**掩码**；⚠️ 仅带 Turso 的构建有这张面 |
 | `/api/telencephalon/voice/synthesize` | POST | voice | — | 烧 TTS |
 | `/api/telencephalon/voice/transcribe` | POST | voice | — | 烧 STT |
+| `/api/telencephalon/lobes/capability-defaults` | PUT | lobe_manifest | ✅ | **改这台大脑「哪一类能力用哪个模型」**（写门：admin token）⇒ ⇒ 没有钥匙的人改不了你的模型选择 |
 | `/api/telencephalon/agents/scan` | POST | agent_management | ✅ | 扫网段 ⇒ 探测内网 |
 | `/api/telencephalon/agents/sync/{provider_id}` | POST | agent_management | ✅ | 从 provider 同步 agent |
 | `/shadow/v1/identity` | POST | shadow | ✅ | **换掉「这台机器是谁」**（**已锁**） |
@@ -563,6 +564,7 @@ WebRTC 浏览器、桌面端自己起的 sidecar、外部端脑进程。⇒ 这�
 | `/api/telencephalon/neuron/preview/*` | GET | neuron_public | — | 模型/引擎清单 |
 | `/api/telencephalon/agents` \| `/list` \| `/registry` \| `/exposed` \| `/search` \| `/discover` \| `/mirror` | GET | agents_registry / agent_management / agent_search | ✅ | 叶区与 agent 清单 |
 | `/api/telencephalon/lobes/capabilities` \| `/manifest` \| `/manifest/{name}` \| `/runtime/{name}` | GET | lobe_manifest / lobe_runtime | — | 叶区能力面 |
+| `/api/telencephalon/lobes/capability-defaults` | GET | lobe_manifest | ✅ | 叶区**分档默认模型**（这台大脑每一类能力分别用哪个模型）⇒ ⇒ 读门（影子锁 ∪ admin token） |
 | `/api/telencephalon/lobes/list` | GET | lobe_runtime | ✅ | 叶区清单 |
 | ~~`/api/telencephalon/devices` \| `/{id}`~~ | GET | ~~device~~ | — | **已下线**（2026-11-03 端脑仓下线「设备 MCP server」整条路：`src/api/device.rs` 删除 ⇒ 这张面不复存在） |
 | `/api/telencephalon/video-sources` \| `/{id}` | GET | video_source | — | 视频源清单 |

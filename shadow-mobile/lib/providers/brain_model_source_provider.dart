@@ -159,9 +159,20 @@ class BrainModelRouting {
   /// 只存**显式**覆盖；「跟随全局默认」就是不写进这张表。
   final Map<String, BrainModelSource> lobeOverrides;
 
+  /// **分档默认模型**（能力词 → 上游模型 id）。
+  ///
+  /// ⚠️ 以前**只有一个** `default_model` 槽（文本）⇒ ⇒ 「TTS 用哪个
+  /// 模型」这件事**没人管** ⇒ ⇒ 端脑只能拿「第一个注册的引擎」⇒ ⇒
+  /// 用户在界面上选的语音模型**根本没人用**（失败长得像成功）。
+  ///
+  /// ⚠️ 键是**能力词**（llm / asr / tts …）⇒ ⇒ 词表是端脑的
+  /// `Capability`（单一真源）⇒ ⇒ 这里只存**原样**的词，不自己造词。
+  final Map<String, String> capabilityDefaults;
+
   const BrainModelRouting({
     this.defaultSource = const BrainModelSource.auto(),
     this.lobeOverrides = const {},
+    this.capabilityDefaults = const {},
   });
 
   /// 某个叶区的**有效**来源（覆盖优先于全局默认）。
@@ -175,10 +186,12 @@ class BrainModelRouting {
   BrainModelRouting copyWith({
     BrainModelSource? defaultSource,
     Map<String, BrainModelSource>? lobeOverrides,
+    Map<String, String>? capabilityDefaults,
   }) {
     return BrainModelRouting(
       defaultSource: defaultSource ?? this.defaultSource,
       lobeOverrides: lobeOverrides ?? this.lobeOverrides,
+      capabilityDefaults: capabilityDefaults ?? this.capabilityDefaults,
     );
   }
 
@@ -189,6 +202,9 @@ class BrainModelRouting {
         for (final e in lobeOverrides.entries)
           if (e.value.raw != null) e.key: e.value.raw,
       },
+      // ⚠️ **分档默认模型**与「来源」是**两件事** ⇒ ⇒ 分开存 ⇒ ⇒ 改
+      // 「语音用哪个模型」不会把「走本地还是走云端」一起改掉。
+      'capability_defaults': Map<String, String>.from(capabilityDefaults),
     };
   }
 
@@ -222,9 +238,20 @@ class BrainModelRouting {
         }
       });
     }
+    // ⚠️ **分档默认模型**：值只认**非空字符串** ⇒ ⇒ 坏数据不进来。
+    final capabilityDefaults = <String, String>{};
+    final rawCaps = json['capability_defaults'];
+    if (rawCaps is Map) {
+      rawCaps.forEach((key, value) {
+        if (value is String && value.trim().isNotEmpty) {
+          capabilityDefaults['$key'] = value.trim();
+        }
+      });
+    }
     return BrainModelRouting(
       defaultSource: BrainModelSource.parse(json['default'] as String?),
       lobeOverrides: lobes,
+      capabilityDefaults: capabilityDefaults,
     );
   }
 
@@ -236,11 +263,18 @@ class BrainModelRouting {
     for (final e in lobeOverrides.entries) {
       if (other.lobeOverrides[e.key] != e.value) return false;
     }
+    if (other.capabilityDefaults.length != capabilityDefaults.length) {
+      return false;
+    }
+    for (final e in capabilityDefaults.entries) {
+      if (other.capabilityDefaults[e.key] != e.value) return false;
+    }
     return true;
   }
 
   @override
-  int get hashCode => Object.hash(defaultSource, lobeOverrides.length);
+  int get hashCode =>
+      Object.hash(defaultSource, lobeOverrides.length, capabilityDefaults.length);
 
   @override
   String toString() =>
@@ -471,12 +505,16 @@ class BrainModelSourceState {
   /// per-lobe 覆盖（叶区名 → 来源）。
   final Map<String, BrainModelSource> lobeOverrides;
 
+  /// **分档默认模型**（能力词 → 上游模型 id）。
+  final Map<String, String> capabilityDefaults;
+
   final bool isLoading;
   final String? error;
 
   const BrainModelSourceState({
     this.source = const BrainModelSource.auto(),
     this.lobeOverrides = const {},
+    this.capabilityDefaults = const {},
     this.isLoading = false,
     this.error,
   });
@@ -484,6 +522,7 @@ class BrainModelSourceState {
   BrainModelSourceState copyWith({
     BrainModelSource? source,
     Map<String, BrainModelSource>? lobeOverrides,
+    Map<String, String>? capabilityDefaults,
     bool? isLoading,
     String? error,
     bool clearError = false,
@@ -491,6 +530,7 @@ class BrainModelSourceState {
     return BrainModelSourceState(
       source: source ?? this.source,
       lobeOverrides: lobeOverrides ?? this.lobeOverrides,
+      capabilityDefaults: capabilityDefaults ?? this.capabilityDefaults,
       isLoading: isLoading ?? this.isLoading,
       error: clearError ? null : (error ?? this.error),
     );
@@ -507,6 +547,9 @@ class BrainModelSourceState {
   BrainModelRouting get routing => BrainModelRouting(
         defaultSource: source,
         lobeOverrides: lobeOverrides,
+        // ⚠️ **分档默认模型**必须跟着走 ⇒ ⇒ 否则「路由」这一层会把它
+        // 悄悄丢掉 ⇒ ⇒ 下发时变成「没配」⇒ ⇒ 失败长得像成功。
+        capabilityDefaults: capabilityDefaults,
       );
 }
 
@@ -534,6 +577,7 @@ class BrainModelSourceNotifier extends StateNotifier<BrainModelSourceState> {
         state = state.copyWith(
           source: routing.defaultSource,
           lobeOverrides: routing.lobeOverrides,
+          capabilityDefaults: routing.capabilityDefaults,
           isLoading: false,
         );
         return;
@@ -559,6 +603,24 @@ class BrainModelSourceNotifier extends StateNotifier<BrainModelSourceState> {
   /// 记下**全局默认**来源。
   Future<void> setSource(BrainModelSource source) async {
     state = state.copyWith(source: source, clearError: true);
+    await _persist();
+  }
+
+  /// 记下**某一类能力**的默认模型（能力词 → 上游模型 id）。
+  ///
+  /// 传 null ⇒ 删掉这一档（那一档回到「没指定」⇒ 端脑按老路走）。
+  ///
+  /// ⚠️ **持久副本在客户端** —— 与「来源」同一套路（客户端持 durable
+  /// 副本、开机下发）⇒ ⇒ 重启不丢。
+  Future<void> setCapabilityDefault(String capability, String? model) async {
+    final defaults = Map<String, String>.from(state.capabilityDefaults);
+    final id = model?.trim() ?? '';
+    if (id.isEmpty) {
+      defaults.remove(capability);
+    } else {
+      defaults[capability] = id;
+    }
+    state = state.copyWith(capabilityDefaults: defaults, clearError: true);
     await _persist();
   }
 

@@ -979,6 +979,14 @@ export class TelencephalonClient {
     skills?: string[];
     model_provider?: string;
     model_name?: string;
+    /**
+     * **这个 agent 需要哪几类模型**（llm / asr / tts …）。
+     *
+     * ⚠️ 词表是端脑的 `Capability`（**单一真源**）⇒ ⇒ 不认识的词会被
+     * 端脑**整个拒绝**（不会一半生效、一半被丢掉）⇒ ⇒ 界面照那份词表
+     * 渲染选择器，不许自己另造一套词。
+     */
+    required_capabilities?: string[];
   }): Promise<AgentMutationResult> {
     return this.request<AgentMutationResult>('/api/telencephalon/admin/agents/create', {
       method: 'POST',
@@ -993,6 +1001,11 @@ export class TelencephalonClient {
     skills?: string[];
     version?: string;
     provider_type?: string;
+    /**
+     * **这个 agent 需要哪几类模型**（llm / asr / tts …）—— 与
+     * [createPromptAgent] 同一个键、同一个语义。
+     */
+    required_capabilities?: string[];
   }): Promise<AgentMutationResult> {
     return this.request<AgentMutationResult>('/api/telencephalon/admin/agents/register', {
       method: 'POST',
@@ -1148,21 +1161,36 @@ export class TelencephalonClient {
   }
 
   // Voice methods
-  async transcribeAudio(audio: string, format: string = 'webm', language: string = 'zh'): Promise<{ text: string }> {
+  /**
+   * **大脑 ASR** —— `model` 不给就用端脑那档（asr）的**分档默认**。
+   *
+   * ⚠️ 端脑现在**真的按 id 选引擎**（以前这个字段收下就丢 ⇒ ⇒ 实际跑的
+   * 永远是「第一个注册的引擎」）⇒ ⇒ 给了不存在的 id 会**明确报错**，
+   * 不会静默换一个引擎。
+   */
+  async transcribeAudio(
+    audio: string,
+    format: string = 'webm',
+    language: string = 'zh',
+    model?: string,
+  ): Promise<{ text: string }> {
     return this.request<{ text: string }>('/api/telencephalon/voice/transcribe', {
       method: 'POST',
-      body: JSON.stringify({ audio, format, language }),
+      body: JSON.stringify({ audio, format, language, ...(model ? { model } : {}) }),
     });
   }
 
-  async synthesizeSpeech(text: string, voice: string = 'alloy'): Promise<Blob> {
+  /**
+   * **大脑 TTS** —— `model` 不给就用端脑那档（tts）的**分档默认**。
+   */
+  async synthesizeSpeech(text: string, voice: string = 'alloy', model?: string): Promise<Blob> {
     const response = await fetch(`${this.baseUrl}/api/telencephalon/voice/synthesize`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...(await adminHeaders()),
       },
-      body: JSON.stringify({ text, voice }),
+      body: JSON.stringify({ text, voice, ...(model ? { model } : {}) }),
     });
 
     if (!response.ok) {
@@ -1170,6 +1198,33 @@ export class TelencephalonClient {
     }
 
     return response.blob();
+  }
+
+  /**
+   * **分档默认模型** —— 「这一类能力用哪个模型」。
+   *
+   * ⚠️ 键是**能力词**（llm / asr / tts …）⇒ ⇒ 端脑的 `Capability` 词表是
+   * 单一真源（`GET` 把合法词表一起回来）⇒ ⇒ 界面照它渲染选择器。
+   */
+  async getCapabilityDefaults(): Promise<{
+    defaults: Record<string, string>;
+    capabilities: string[];
+  }> {
+    return this.request('/api/telencephalon/lobes/capability-defaults');
+  }
+
+  /**
+   * 写**分档默认模型**（写门 ⇒ 要 admin 钥匙 ⇒ `request()` 递的那把）。
+   *
+   * ⚠️ **整份替换** —— 下发的是全量 ⇒ ⇒ 两端不会各留一半。
+   */
+  async setCapabilityDefaults(
+    defaults: Record<string, string>,
+  ): Promise<{ defaults: Record<string, string>; capabilities: string[] }> {
+    return this.request('/api/telencephalon/lobes/capability-defaults', {
+      method: 'PUT',
+      body: JSON.stringify({ defaults }),
+    });
   }
 
   // Task methods

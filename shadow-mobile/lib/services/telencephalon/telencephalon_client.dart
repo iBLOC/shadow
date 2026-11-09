@@ -1452,6 +1452,7 @@ class TelencephalonClient {
     List<String>? skills,
     String? modelProvider,
     String? modelName,
+    List<String>? requiredCapabilities,
   }) async {
     final body = <String, dynamic>{'name': name, 'system_prompt': systemPrompt};
     if (version != null) body['version'] = version;
@@ -1459,7 +1460,31 @@ class TelencephalonClient {
     if (skills != null) body['skills'] = skills;
     if (modelProvider != null) body['model_provider'] = modelProvider;
     if (modelName != null) body['model_name'] = modelName;
+    // ⚠️ **能力声明**（llm / asr / tts …）—— 端脑按 `Capability` 词表
+    // 校验 ⇒ ⇒ 不认识的词会被**整个拒绝**。
+    if (requiredCapabilities != null) {
+      body['required_capabilities'] = requiredCapabilities;
+    }
     return await _adminPost('/api/telencephalon/admin/agents/create', body);
+  }
+
+  /// **分档默认模型** —— 「这一类能力用哪个模型」。
+  ///
+  /// ⚠️ 键是**能力词**（llm / asr / tts …）⇒ ⇒ 端脑的 `Capability` 词表
+  /// 是单一真源（这个 GET 把合法词表一起回来）。
+  Future<Map<String, dynamic>> getCapabilityDefaults() async {
+    return await _get('/api/telencephalon/lobes/capability-defaults');
+  }
+
+  /// 写**分档默认模型**（写门 ⇒ `_headers()` 两把钥匙都带）。
+  ///
+  /// ⚠️ **整份替换** —— 下发的是全量 ⇒ ⇒ 两端不会各留一半。
+  Future<Map<String, dynamic>> setCapabilityDefaults(
+    Map<String, String> defaults,
+  ) async {
+    return await _put('/api/telencephalon/lobes/capability-defaults', {
+      'defaults': defaults,
+    });
   }
 
   Future<Map<String, dynamic>> generateAgentDescription(

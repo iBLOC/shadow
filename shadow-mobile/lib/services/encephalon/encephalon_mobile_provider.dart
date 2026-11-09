@@ -370,6 +370,8 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
     //    「该下发」的那一次判成「不用下发」（真机 2026-11-04 实测踩到）。
     if (state.agentPort != null) {
       await _pushLobeModels(payload);
+      // ⚠️ **分档默认模型**也要下发（它决定「语音用哪个模型」）。
+      await _pushCapabilityDefaults();
     }
     return payload;
   }
@@ -425,9 +427,35 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
 
     // 2) 大脑在跑 ⇒ 立刻生效。
     if (state.status == EncephalonMobileStatus.running) {
-      return _pushLobeModels(payload);
+      final pushed = await _pushLobeModels(payload);
+      // ⚠️ 分档默认模型**单独一条面** ⇒ ⇒ 不许塞进模型路由那个负载
+      // （serde 会**静默丢掉**没定义的字段 ⇒ ⇒ 「看起来下发了、其实没生效」
+      // ⇒ ⇒ 失败长得像成功）。
+      await _pushCapabilityDefaults();
+      return pushed;
     }
     return slotOk;
+  }
+
+  /// 把**分档默认模型**（能力词 → 模型 id）打到端脑面。
+  ///
+  /// ⚠️ **它不走模型路由那条面** —— `POST /api/telencephalon/lobes/models`
+  /// 的请求体里没有这一档 ⇒ ⇒ serde 会**静默丢掉** ⇒ ⇒ 所以单独一条面
+  /// （`PUT /api/telencephalon/lobes/capability-defaults`）。
+  ///
+  /// ⚠️ **整份替换**（与模型路由同一套路）⇒ ⇒ 两端不会各留一半。
+  Future<bool> _pushCapabilityDefaults() async {
+    final client = _ref.read(telencephalonClientProvider);
+    final defaults =
+        _ref.read(brainModelSourceProvider).routing.capabilityDefaults;
+    try {
+      await client.setCapabilityDefaults(defaults);
+      _log.info('分档默认模型已下发: $defaults');
+      return true;
+    } catch (e) {
+      _log.warning('分档默认模型下发失败: $e');
+      return false;
+    }
   }
 
   /// 把路由**整份**打到端脑面。

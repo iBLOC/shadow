@@ -47,12 +47,22 @@ class TelencephalonAgentRepository implements IAgentRepository {
     // 「系统提示词」这个字段。
     final desc = (agent.description ?? '').trim();
     final prompt = desc.isNotEmpty ? desc : agent.name;
+    // ⚠️ **能力声明**（llm / asr / tts …）—— 从 agent 自己的设置袋里读。
+    //
+    // ⚠️ **没有就声明「没有」**（null）⇒ ⇒ 端脑那边就是「没声明」⇒ ⇒
+    // **不编**一份「它大概需要 llm」—— 那是替用户发明需求。
+    final rawCaps = agent.settings?['required_capabilities'];
+    final requiredCaps = rawCaps is List
+        ? rawCaps.map((e) => '$e').where((s) => s.trim().isNotEmpty).toList()
+        : const <String>[];
     await _client.createPromptAgent(
       name: agent.name,
       systemPrompt: prompt,
       description: agent.description,
       skills: agent.skills.isEmpty ? null : agent.skills,
       modelName: agent.model.isEmpty ? null : agent.model,
+      requiredCapabilities:
+          requiredCaps.isEmpty ? null : requiredCaps,
     );
   }
 
