@@ -35,6 +35,24 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
+  # ⚠️⚠️ **端脑地址的唯一真源**（2026-11-11 刀 Q）——
+  #   ⇒ ⇒ 此前这个地址在 workflow 里**根本没出现过** ⇒ ⇒ 两边各拿各的默认：
+  #   · 前端 bundle —— web 形态没有 sidecar ⇒ ⇒ 靠**构建期**地址
+  #     （VITE_PREFRONTAL_URL）⇒ ⇒ CI 不传 ⇒ ⇒ 落回产品里**硬编码**的
+  #     DEFAULT_TELEENCEPHALON_URL ＝ http://127.0.0.1:60080
+  #   · 端脑 child —— global-setup 从 SHADOW_TELENCEPHALON_URL 取端口
+  #     ⇒ ⇒ 没配 ⇒ ⇒ 落回**另一个**默认（同一个文件里的 60080）
+  #   ⇒ ⇒ 「能跑通」靠的是**两个各自独立的默认值恰好相等** ⇒ ⇒ **是巧合，
+  #   不是接线** ⇒ ⇒ 一旦其中一边改了 ⇒ ⇒ E2E 连不上，而**红在 spec 里**
+  #   （离原因很远）⇒ ⇒ 「跑过了」在接线漂了之后依然成立。
+  #   ⇒ ⇒ 现在：**一个真源、两处引用**（下面 VITE_PREFRONTAL_URL 与
+  #   SHADOW_TELENCEPHALON_URL 都引它）＋ **一枚探针构建**（见下）。
+  #   ⚠️ **必须是 127.0.0.1，不能是 localhost** —— 源码注释逐字写着：
+  #   IPv6 优先的机器上 localhost 先解析成 ::1 ⇒ ⇒ 打到没人听的地址。
+  #   ⚠️ **端口沿用 60080**（不是改成别的）⇒ ⇒ 因为产品里有若干处**写死
+  #   60080**（brainFace / resonanceStore / platform）⇒ ⇒ 这一刀**只把隐式的
+  #   巧合变成显式的声明**，**行为一个字不变**。
+  SHADOW_E2E_ENDBRAIN_URL: http://127.0.0.1:60080
 
 jobs:
   desktop-e2e:
@@ -158,8 +176,46 @@ jobs:
       #    「/settings」的 load 事件 180 秒都没等到 ⇒ ⇒ 页面全白 ⇒ ⇒ 页面类断言必红。
       - name: Build the web bundle for E2E
         working-directory: shadow/shadow-desktop
+        # ⚠️ **端脑地址要烘进 bundle**（刀 Q）—— web 形态没有 sidecar ⇒ ⇒
+        #   前端只能靠**构建期**地址（endpointDefaults.ts 的
+        #   VITE_PREFRONTAL_URL）⇒ ⇒ 不传 ⇒ ⇒ bundle 里就是产品硬编码的
+        #   60080 ⇒ ⇒ 与下面那个真源**各写各的**。
+        env:
+          VITE_PREFRONTAL_URL: ${{ env.SHADOW_E2E_ENDBRAIN_URL }}
         run: pnpm exec vite build --config vite.config.web.ts --mode web
 
+      # ⚠️⚠️ **「显式接线」必须可证伪**（刀 Q 的最后一格）——
+      #   真源的**值**与产品硬编码默认**恰好相等**（都是 60080）⇒ ⇒ 于是
+      #   「bundle 里有没有这个地址」这一问**没有分辨力** —— 两个默认值相等时
+      #   ⇒ ⇒ 它压根查不出「环境变量没进到构建」⇒ ⇒ ⇒ 一道**永远不会红**的
+      #   检查比没有检查更坏（它给人假的安心）⇒ ⇒ 所以这里另用一枚
+      #   **只有构建期才可能出现**的探针地址（60195）再编一次 ⇒ ⇒
+      #   探针地址出现在产物里 ⇒ ⇒ 通道是活的 ⇒ ⇒ 「显式接线」不是一句空话；
+      #   不出现 ⇒ ⇒ **当场红**，而且红在**接线**上（离原因一步之遥）。
+      #   ⚠️ 本机实测（2026-11-11）：探针构建 **16.18 秒**，产物里逐字出现
+      #   「const t="http://127.0.0.1:60195"」⇒ ⇒ 通道**确实**是通的。
+      - name: "Probe: the build-time address really reaches the bundle"
+        working-directory: shadow/shadow-desktop
+        env:
+          VITE_PREFRONTAL_URL: http://127.0.0.1:60195
+        run: |
+          set +e
+          set -uo pipefail
+          echo "::notice::探针地址：$VITE_PREFRONTAL_URL（必须与真源不同 ⇒ ⇒ 否则这一问没有分辨力）"
+          pnpm exec vite build --config vite.config.web.ts --mode web --outDir .probe-dist --emptyOutDir
+          BUILD_EXIT=$?
+          if [ "$BUILD_EXIT" != "0" ]; then
+            echo "::error::探针构建失败（exit $BUILD_EXIT）⇒ ⇒ 通道这一格判不了"
+            exit 1
+          fi
+          if grep -R -F -- "$VITE_PREFRONTAL_URL" .probe-dist/ > /dev/null 2>&1; then
+            echo "::notice::探针地址出现在产物里 ⇒ ⇒ VITE_PREFRONTAL_URL 真的进了构建 ⇒ ⇒ 显式接线是**活的**"
+            exit 0
+          fi
+          echo "::error::探针地址**没有**出现在产物里 ⇒ ⇒ VITE_PREFRONTAL_URL 压根没进到构建 ⇒ ⇒ 「显式接线」是**假接线**"
+          echo "::notice::产物里实际出现的回环地址："
+          grep -R -o -E 'http://127\.0\.0\.1:[0-9]{2,5}' .probe-dist/ 2>/dev/null | sort -u | head -10
+          exit 1
       - name: Run Playwright E2E against the 端脑 server
         working-directory: shadow/shadow-desktop
         env:
@@ -181,6 +237,10 @@ jobs:
           #    `extraHTTPHeaders`）⇒ ⇒ 头名与钥匙**只有一处** ⇒ ⇒ 不会漂。
           # ⇒ ⇒ 这是**回环上的测试凭据**，不是产品密钥。
           SHADOW_E2E_ADMIN_KEY: e2e-loopback-admin-key
+          # ⚠️ **端脑地址（刀 Q）** —— global-setup 从**它**取端口
+          #   （telencephalonPort()）⇒ ⇒ child 起在哪由这一行决定
+          #   ⇒ ⇒ 与 bundle 那半边**同一个真源**。
+          SHADOW_TELENCEPHALON_URL: ${{ env.SHADOW_E2E_ENDBRAIN_URL }}
         run: |
           # ⚠️⚠️ **GitHub 的 `run:` 默认是 `bash -e`** ⇒ ⇒ 失败的那条命令**后面**
           #    的诊断全都不执行 ⇒ ⇒ 「红」得莫名其妙 ⇒ ⇒ 这里自己接管：

@@ -1,0 +1,50 @@
+name: E2E Endbrain Wiring
+
+# ⚠️ **它守的是什么** —— 2026-11-11 刀 Q 的实测（iBLOC/shadow）：
+#   Desktop E2E 那条 job 里，端脑地址**从来没在 workflow 里出现过** ⇒ ⇒
+#   于是两边各拿各的默认值：
+#     · 前端 bundle —— web 形态没有 sidecar ⇒ ⇒ 靠**构建期**地址
+#       （VITE_PREFRONTAL_URL）⇒ ⇒ CI 不传 ⇒ ⇒ 落回产品里**硬编码**的
+#       http://127.0.0.1:60080；
+#     · 端脑 child —— global-setup 从 SHADOW_TELENCEPHALON_URL 取端口
+#       ⇒ ⇒ 没配 ⇒ ⇒ 落回**另一个**默认（同一个文件里的 '60080'）。
+#   ⇒ ⇒ 「能跑通」靠的是**两个各自独立的默认值恰好相等** ⇒ ⇒ **是巧合，
+#   不是接线** ⇒ ⇒ 一旦其中一边改了 ⇒ ⇒ E2E 连不上，而**红在 spec 里**
+#   （离原因很远）⇒ ⇒ 「跑过了」在接线漂了之后依然成立。
+#   ⇒ ⇒ 这一闸把「接线形状」变成可数的读数：**一个真源、两处引用、
+#   构建后当场核对**。
+#
+# ⚠️ **为什么单独成文件**（与 commit-revert.yml 同理）：
+#   ci.yml 是**共享文件**（并行会话在飞）⇒ ⇒ 共享文件上的接线是本仓最容易出
+#   两类事故的地方 ⇒ ⇒ 独立成文件 ⇒ ⇒ 接线面**零共享** ⇒ ⇒ 竞态根本不存在。
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e-endbrain-wiring:
+    name: E2E Endbrain Wiring
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout shadow
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      # ⚠️ **两步都要跑** —— 判定 ＋ 判据自检（自检证明这道闸**真的会红**）。
+      - name: E2E 端脑地址接线检查
+        run: node scripts/check-e2e-endbrain-wiring.mjs
+
+      - name: E2E 端脑地址接线检查（自检）
+        run: node scripts/check-e2e-endbrain-wiring.mjs --self-test
