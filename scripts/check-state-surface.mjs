@@ -61,7 +61,7 @@ import {
 import { dirname, join, resolve, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
-import { judgeSurface, analyzeSurface, DEBT_KINDS, ENVELOPE_KEYS, judgeCodePointPointers } from './lib/state-surface.mjs';
+import { judgeSurface, analyzeSurface, DEBT_KINDS, ENVELOPE_KEYS, judgeCodePointPointers, classifyCodePointPointers } from './lib/state-surface.mjs';
 import { SURFACES, KNOWN_DEBT, CUTOFF } from './lib/state-surface-registry.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -594,11 +594,26 @@ export function selfTest() {
     ptrOkV.length === 0,
     JSON.stringify(ptrOkV.map((v) => v.msg))
   );
-  const ptrBadV = judgeCodePointPointers([{ id: 'ptr', text: ptrText('U+9999'), domainIds: [] }]);
+  const ptrBadV = judgeCodePointPointers([{ id: 'ptr', text: ptrText('U+32F1'), domainIds: [] }]);
   check(
-    'R10 孪生：指针指向**不存在的**编号 ⇒ ⇒ 恰好红这一条',
+    'R10 孪生：指针指向**编号空间内但不存在**的编号 ⇒ ⇒ 恰好红这一条（尺子的牙还在）',
     ptrBadV.length === 1 && ptrBadV[0].rule === 'R10',
     JSON.stringify(ptrBadV.map((v) => v.msg))
+  );
+  // ⚠️⚠️ **示例占位 ≠ 引用**（2026-11-09 实测踩出来的）：账本正文里会拿
+  //   「承 U+XXXX 条」这个**形状**举例子 ⇒ ⇒ 若一律判悬空 ⇒ ⇒ 闸**恒红**
+  //   （实测：并行会话那条 U+3429 条里的示例 ⇒ ⇒ 主 CI 两条红：状态面闸 ＋ 纪律闸）。
+  //   ⇒ ⇒ 落在**编号空间外**的（U+9999 这种）⇒ ⇒ **不判红**，**但要出声**。
+  const ptrExV = classifyCodePointPointers([{ id: 'ptr', text: ptrText('U+9999'), domainIds: [] }]);
+  check(
+    'R10 孪生：指针指向**编号空间外**的编号（示例占位）⇒ ⇒ **不红**',
+    ptrExV.violations.length === 0,
+    JSON.stringify(ptrExV.violations.map((v) => v.msg))
+  );
+  check(
+    'R10 孪生：空间外的指针**要出声**（进 examples 读数 ⇒ ⇒ 不许静默放过）',
+    ptrExV.examples.length === 1 && ptrExV.examples[0].ref === 'U+9999',
+    JSON.stringify(ptrExV.examples)
   );
   const ptrCrossV = judgeCodePointPointers([
     { id: 'child', text: ptrText('U+3401'), domainIds: ['parent'] },
@@ -736,7 +751,8 @@ function main(argv) {
     });
   }
 
-  for (const v of judgeCodePointPointers(ledgerSurfaces(overrides, includeLocal))) violations.push(v);
+  const ptrCls = classifyCodePointPointers(ledgerSurfaces(overrides, includeLocal));
+  for (const v of ptrCls.violations) violations.push(v);
 
   const declared = SURFACES.filter((s) => s.scope === 'repo').map((s) => s.rel);
   const unreg = findUnregistered(REPO, declared);
@@ -749,7 +765,7 @@ function main(argv) {
   }
 
   if (argv.includes('--json')) {
-    console.log(JSON.stringify({ cutoff: CUTOFF, violations, notes, audit, unregistered: unreg }, null, 2));
+    console.log(JSON.stringify({ cutoff: CUTOFF, violations, notes, audit, unregistered: unreg, pointerExamples: ptrCls.examples }, null, 2));
     process.exit(violations.length === 0 ? 0 : 1);
   }
 
@@ -782,6 +798,14 @@ function main(argv) {
 
   console.log('状态面治理闸：cutoff=' + CUTOFF + '；扫 ' + audit.length + ' 个面');
   for (const n of notes) console.log('注：' + n);
+  // ⚠️ **示例型指针要出声**（2026-11-09 实测）—— 静默吞掉＝「我没看见」冒充「没有问题」。
+  if (ptrCls.examples.length) {
+    console.log(
+      'ℹ️ 示例型指针（目标**不在**账本编号空间 ⇒ ⇒ 不判红，但**出声**）：'
+      + ptrCls.examples.length + ' 处 —— '
+      + ptrCls.examples.map((e) => e.ref + '（面 ' + e.surface + '）').join('、')
+    );
+  }
   if (violations.length === 0) {
     console.log('✓ 零违规');
   } else {

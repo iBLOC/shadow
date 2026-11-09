@@ -103,17 +103,51 @@ export function unresolvedCodePointPointers(text, allowed) {
  * ⚠️ **存量债＝0** —— 实测三账本当前**没有**解析不到的指针 ⇒ ⇒ 所以这条规则
  * **不需要基线豁免**（没有要豁免的东西）⇒ ⇒ 也不用「基线 commit ＋ 指纹封条」。
  */
-export function judgeCodePointPointers(surfaces) {
+/**
+ * 账本的**编号空间** —— 三个面里真正被用过的码位，落在哪几个 256 块上。
+ *
+ * ⚠️ **为什么需要它**（2026-11-09 实测）：R10 认的是「承 U+XXXX 条」这个**形状**
+ * ⇒ ⇒ 而账本正文里**也会拿这个形状举例子**（实测：并行会话那条 U+3429 条里写着
+ * 「在副本上注入「承 U+9999 条」」）⇒ ⇒ 那种**示例占位**会被当成**真引用**
+ * ⇒ ⇒ 闸**恒红**（实测：主 CI 的「State surface governance check」与
+ * 「Gate discipline check」两条红，根因都在这一条）⇒ ⇒ ⇒ 判据必须分清
+ * 「**引用**」与「**示例**」。
+ *
+ * ⚠️ **口径＝块**（不是区间）⇒ ⇒ 账本真用的那些块（0x32 带圈段 ／ 0x34 方块段…）
+ * ⇒ ⇒ 落在**同一块**里的悬空指针**照样红**（尺子的牙还在）
+ * ⇒ ⇒ 落在**空间外**的（U+9999 这种占位）⇒ ⇒ **不判红，但出声**（进读数）。
+ */
+export function ledgerCodepointSpace(surfaces) {
+  const blocks = new Set();
+  for (const s of surfaces) {
+    for (const cp of ledgerCodepoints(s.text)) blocks.add(Math.floor(cp / 256));
+  }
+  return blocks;
+}
+
+/**
+ * R10 的**分类**版 —— 分两堆：**违规**（编号空间内的悬空指针）＋ **示例**
+ * （空间外的占位指针 ⇒ ⇒ 不判红，但**要出声**）。
+ *
+ * ⚠️ 「示例」这一堆**不许静默吞掉** —— 静默＝「我没看见」冒充「没有问题」。
+ */
+export function classifyCodePointPointers(surfaces) {
   const defined = new Map();
   for (const s of surfaces) defined.set(s.id, ledgerCodepoints(s.text));
-  const out = [];
+  const space = ledgerCodepointSpace(surfaces);
+  const violations = [];
+  const examples = [];
   for (const s of surfaces) {
     const allowed = new Set(defined.get(s.id) || []);
     for (const d of s.domainIds || []) {
       for (const cp of defined.get(d) || []) allowed.add(cp);
     }
     for (const p of unresolvedCodePointPointers(s.text, allowed)) {
-      out.push({
+      if (!space.has(Math.floor(p.codepoint / 256))) {
+        examples.push({ surface: s.id, ref: p.ref, codepoint: p.codepoint });
+        continue;
+      }
+      violations.push({
         rule: 'R10',
         msg:
           '状态面 ' + s.id + '：指针「承 ' + p.ref + ' 条」指向的编号**在它能看见的账本里不存在**'
@@ -121,7 +155,12 @@ export function judgeCodePointPointers(surfaces) {
       });
     }
   }
-  return out;
+  return { violations, examples };
+}
+
+/** R10 判据（只要违规那堆）—— 老接口保持不变。 */
+export function judgeCodePointPointers(surfaces) {
+  return classifyCodePointPointers(surfaces).violations;
 }
 
 /** 位置型指针：「承上一条」「承用户那句」—— 插入/删除就会指错。 */
