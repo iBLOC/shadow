@@ -251,6 +251,7 @@ jobs:
       #    版本与 `ci.yml` 的 `mobile-analyze` / `mobile-test` **同一把**（3.47.8）
       #    ⇒ ⇒ 不许漂 ⇒ ⇒ 两处同步手改。
       - name: Setup Flutter
+        if: always()
         uses: subosito/flutter-action@v2
         with:
           flutter-version: 3.47.8
@@ -260,6 +261,7 @@ jobs:
       #    checkout 在 `shadow` 子目录里（不是仓库根）⇒ ⇒ 写 `shadow-mobile/…`
       #    ⇒ ⇒ 哈希的是**空集** ⇒ ⇒ 缓存键每次都变 ⇒ ⇒ 缓存等于没有。
       - name: Cache Flutter pub
+        if: always()
         uses: actions/cache@v4
         with:
           path: ~/.pub-cache
@@ -268,6 +270,7 @@ jobs:
             ${{ runner.os }}-flutter-pub-
 
       - name: Flutter pub get
+        if: always()
         working-directory: shadow/shadow-mobile
         run: flutter pub get
 
@@ -276,6 +279,7 @@ jobs:
       #    `flutter test` 会在加载原生库时炸 ⇒ ⇒ 与 `ci.yml` 的 `mobile-test`
       #    同一款装法（那一步是它第一次真跑就栽在这）。
       - name: Install SQLite runtime
+        if: always()
         run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
 
       # ⚠️⚠️ **真跑级判据在这里有读数** —— 「真端脑 → 真客户端 → 真 ack」
@@ -401,7 +405,7 @@ jobs:
           sed -r 's/\x1B\[[0-9;]*[mK]//g' "$MOUT" > "$MOUT.plain"
           cat "$MOUT.plain"
           if [ "$FSTATUS" != "0" ]; then
-            echo "::error::移动端真跑级判据红了（退出码 $FSTATUS）—— 输出就在上面；⚠️ 已知有一笔 **CI 环境侧**的债：`package:sqlite3` 的原生 `.so` 哈希不符 ⇒ ⇒ `flutter test` 在 native asset 阶段就红 ⇒ ⇒ 连测试都没开始"
+            echo "::error::移动端真跑级判据红了（退出码 $FSTATUS）—— 输出就在上面；⚠️ 已知有一笔 CI 环境侧的债：package:sqlite3 的原生 .so 哈希不符 ⇒ ⇒ flutter test 在 native asset 阶段就红 ⇒ ⇒ 连测试都没开始"
             exit 1
           fi
           # ⚠️ 整份跳过时 flutter 印的是「All tests skipped.」⇒ ⇒ 匹配不上
