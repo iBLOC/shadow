@@ -1,5 +1,39 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-09 (㑱 **「桌面端那一半也补上了 —— 但『注册进 neuron』那一环还是欠着」** —— 承 U+346F 条（移动端「按能力分档」那段 ＋ U+3460 条（端脑侧分档默认与 agent 声明），本条记**取证（桌面端能力段没有那张卡）**、**第一因（这张卡属于「配置面」，不属于「嵌入式大脑」那张运行时面）**、**这一刀的落点（7 个文件）**、**判据（桌面 12/12 ＋ 两档反向验证）**、**分级读数**、**途中那几课**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-09 | authority=measured | scope=project | source=真运行级实测（tsc -b 全族 ＋ vitest 全量 ＋ 两档注入反向验证 ＋ 还原 hash 比对） | 改动：shadow 仓 **新增** `shadow-desktop/src/lib/capabilityDefaults.ts`、**新增** `shadow-desktop/src/components/business/CapabilityDefaultsCard.tsx`、**新增** `shadow-desktop/tests/lib/capabilityDefaults.test.ts`、**改** `shadow-desktop/src/pages/ModelsPage.tsx`、**改** `shadow-desktop/src/components/business/AddProviderModal/types.ts`、**改** 2 个桌面 i18n（en-US / zh-CN）｜ 读数：**判据级 12/12 绿**、**反向验证级：变体 A（合并时丢掉本地副本）⇒ 恰好 2 红 ／ 变体 B（副本接受空串值）⇒ 恰好 1 红**、**还原 blob 逐字一致 `8dc6f39…`**、**类型闸 `tsc -b` EXIT=0**、**vitest 全量 1485 过 / 16 跳 / 1 红**（那 1 红＝并行会话在飞的 `accent.g.ts` 生成物漂移，**与本刀无关**）| status=active | supersedes=none
+
+① **⚠️ 取证：桌面端能力段**没有**「默认模型」那张卡** ⇒ ⇒ 两端行为分叉
+　❶ 移动端这一轮补上了「按能力分档」（U+346F 条）⇒ ⇒ 而**桌面端**能力段只有 `/models`（本地引擎下载 ＋ 云供应商入口）与 `/providers`（供应商目录）⇒ ⇒ **没有一档模型是「默认」的** ⇒ ⇒ 桌面用户改不了「ASR 用哪个模型」。
+　❷ 而**端脑那一侧是同一套**（U+3460 条：`GET/PUT /api/telencephalon/lobes/capability-defaults` ＋ voice 面按 id 选引擎）⇒ ⇒ ⇒ **后端有能力、桌面没有入口** ⇒ ⇒ 与移动端补之前**一模一样**的那笔界面债。
+　❸ ⚠️ 顺带把用户问的那件事说准了：「设置里的**嵌入式大脑**」与「**能力**」**不是相似，是两张不同的面** —— 前者是**运行时/排障面**（状态、启停、推理探针），后者是**配置面** ⇒ ⇒ 「默认模型」这张卡属于**配置面** ⇒ ⇒ 它该在**能力段（模型页）**，不是嵌入式大脑那张页 ⇒ ⇒ 本刀正是这么落的。
+
+② **⚠️ 第一因：同一件事在两端要有**同一套算法** ⇒ ⇒ 否则界面与实际会分叉**
+　❶ 桌面端有一份 TS、移动端有一份 Dart（同名纯函数 `capabilityCandidatesByCapability` / `mergeCapabilityDefaultsForPush`）⇒ ⇒ 两边**逐条对齐**：分组口径（没能力标注 ⇒ 不进任何一档；空 id ⇒ 不进候选；同 id 去重）、合并基线（**本地 ∪ 端脑**，因为端脑那一面是**整份替换**）、空值处理（清空一档 ⇒ **删掉这一档**，不是空串 —— 空串在端脑那边会被 400 拒）。
+　❷ 「清掉某一档」在两端都是**同一种形状**的失败：端脑拒了而本地已记 ⇒ ⇒ 界面显示「已应用」⇒ ⇒ **失败长得像成功** ⇒ ⇒ 所以两边都是**先端脑、后本地**。
+
+③ **✅ 这一刀的落点（7 个文件）**
+　❶ **新增 `shadow-desktop/src/lib/capabilityDefaults.ts`** —— 纯逻辑（无 React、无网络）：分组、合并、durable 副本读写。
+　❷ **新增 `shadow-desktop/src/components/business/CapabilityDefaultsCard.tsx`** —— 照端脑给的**能力词表**逐档渲染一个下拉框；候选取自供应商目录里该能力的模型。
+　❸ **改 `shadow-desktop/src/pages/ModelsPage.tsx`** —— 把这张卡挂在**模型页顶部**（能力段落地即可设）。
+　❹ **改 `shadow-desktop/src/components/business/AddProviderModal/types.ts`** —— 给 `LLMModel` 补上 `capability?` / `capabilities?`（见 ④❶）。
+　❺ **改 2 个桌面 i18n**（en-US / zh-CN）—— 新增 `capabilityDefaults` 段（标题 / 说明 /「不指定」/ 空态 / 成功 / 失败 ＋ 8 个能力词的用户语言）。
+　❻ **新增 `shadow-desktop/tests/lib/capabilityDefaults.test.ts`** —— 12 条纯逻辑判据。
+
+④ **⚠️ 途中那几课**
+　❶ **桌面端的 `LLMModel` 类型从来没声明 `capability`** —— 而**运行时它就在**（大脑目录给的那份，与移动端读的是同一张面）⇒ ⇒ 谁读它都得先 cast ⇒ ⇒ 「分档默认」那张卡本来**没法**按能力分组 ⇒ ⇒ 这一刀把字段**补进类型**（不是编造数据：端脑与移动端都已证明这个字段存在）。
+　❷ **端脑重启 ⇒ 它的运行态槽清空** ⇒ ⇒ 而分档默认是**运行态**（端脑自己那份不落盘）⇒ ⇒ 只在桌面改 ⇒ ⇒ 「重启一次，设置全没了」⇒ ⇒ 桌面端因此也留了一份 **durable 副本**（localStorage）：端脑空 ＋ 本机有 ⇒ ⇒ **自动重下发**（与移动端「开机下发」同一套路）⇒ ⇒ 两端对「谁负责把设置送回去」的答案一致。
+　❸ **i18n 那两份 json 有并行会话的在飞改动** ⇒ ⇒ 提交面必须是「HEAD ＋ 我这一段」⇒ ⇒ 做法同 U+346F 条（脚本从 `git show HEAD:<path>` 取基线、只插我自己的段、再 `hash-object` 入独立索引）⇒ ⇒ ⇒ **不把别人的在飞内容卷进我的提交**。
+　❹ **「当前值不在候选里」也要显示出来**（两端同）—— 那个模型可能已被删，也可能是本地权重 ⇒ ⇒ 抹掉它＝**静默改掉用户设置**。
+
+⑤ **✅ 判据（三处）** —— ❶ **判据级**：`npx vitest run tests/lib/capabilityDefaults.test.ts` ⇒ ⇒ **12/12 绿**；❷ **反向验证级（两档，各钉一条规则）**：**变体 A**（合并时丢掉本地副本）⇒ ⇒ **恰好 2 红**（两条 merge 判据）⇒ ⇒ 与移动端**同一档注入、同一红数**（两端算法确实一致）；**变体 B**（durable 副本接受空串值）⇒ ⇒ **恰好 1 红**（空串不进副本那条）；❸ **还原**：反向补丁还原后 `git hash-object` **逐字一致**（`8dc6f39…`）⇒ ⇒ 复跑 12/12 绿。
+
+⑥ **✅ 分级读数（全部实测）** —— **判据级**：桌面新判据 12/12 绿（移动端那一侧 9/9 绿，上一条）｜ **反向验证级**：变体 A 恰好 2 红 ／ 变体 B 恰好 1 红 ｜ **类型级**：`npx tsc -b`（桌面全族）**EXIT=0** ｜ **行为级**：`npx vitest run`（桌面全量）⇒ ⇒ **1485 过 / 16 跳 / 1 红** ⇒ ⇒ 逐条归因：那 1 红＝`tests/generatedEol.test.ts` ⇒ ⇒ `scripts/gen_tokens.mjs --check` 说「`accent.g.ts` 与 `design-tokens.json` 不同步」⇒ ⇒ 那是**并行会话在飞**的生成物漂移（与 `check-agent-surface` 同一个根因）⇒ ⇒ ⇒ **不是本刀**，且本刀**没碰**那三个文件。
+
+⑦ **⚠️ 仍然欠着** —— ❶ **ASR/TTS 引擎「注册进 neuron」那一环仍欠**（承 U+346F 条）：候选来自供应商目录的模型 id，而端脑把引擎注册进 neuron 哪张表由 `api/providers.rs` / `api/lobe_runtime.rs` 决定（**并行会话在飞**）⇒ ⇒ ⇒ 选一个没注册的 id，端脑会**明确报错**（`ModelNotRegistered`）⇒ ⇒ 那是有意的（不许静默回落），但**两端界面都还没把这条前置条件说清**；❷ **「agent 声明所需模型类型」的输入口两端都还没有** —— 客户端已能递（`agent.settings['required_capabilities']` / `required_capabilities`），但**没有一个界面让用户勾**；❸ **真机级／真端脑级未跑**（这两刀都只到类型级 ＋ 单测级）；❹ **端脑 CI 恒门外红**（billing）⇒ ⇒ 端脑侧仍只有本地读数；❺ **桌面端的 durable 副本与移动端那份不是同一个存储** ⇒ ⇒ 两端各存一份 ⇒ ⇒ 靠「端脑空 ＋ 本机有 ⇒ 重下发」对齐 ⇒ ⇒ 同一台机器上两端各改过 ⇒ ⇒ **最后写的那份赢**（端脑那面是整份替换）。
+
+⑧ **⚠️ 圈码：本条占 U+3471（㑱）** —— 插前**独立重扫**（父仓工作树 ∪ 父仓 HEAD ∪ 父仓 `origin/master` × **三本账本**，按**声明形状**扫）⇒ ⇒ 三面最高已声明 **U+346F**（承 U+346F 条）⇒ ⇒ 自然下一枚 **U+3470** ⇒ ⇒ 但 **U+3470 已口头留给真机腿那条线**（mvs_259aea6）⇒ ⇒ ⇒ 按惯例**再留一枚缓冲** ⇒ ⇒ 取 **U+3471** ⇒ ⇒ 插前扫：U+3470／U+3471 在三账本三面**各 0 次声明 0 次提及** ✔ ⇒ ⇒ ⚠️ **不填历史空洞**（U+3463／U+3465／U+3467／U+3469 继续空）⇒ ⇒ ⚠️ 本条**只引用已提交的码位**（U+3460／U+346F／U+346D）⇒ ⇒ ⚠️ **插完立刻复跑码位闸**是硬约束。
 **Updated**: 2026-11-09 (㑯 **「默认模型只设一个 ⇒ 语音那一档根本没人管 —— 界面上的『按能力分档』」** —— 承 U+3460 条（端脑侧分档默认模型 ＋ agent 声明所需能力），本条记**取证（界面上只有『来源』一档）**、**第一因（「走哪边」与「用哪个模型」被当成一件事）**、**这一刀的落点（9 个文件）**、**判据（单测 9/9 ＋ 两档反向验证）**、**分级读数**、**途中那几课**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-09 | authority=measured | scope=project | source=真运行级实测（flutter analyze 全项目 ＋ flutter test ＋ 两档注入反向验证 ＋ 还原 hash 比对） | 改动：shadow 仓 **新增** `shadow-mobile/lib/widgets/brain/capability_default_section.dart`、**新增** `shadow-mobile/test/unit/capability_default_candidates_test.dart`、**改** `shadow-mobile/lib/providers/brain_model_source_provider.dart`、**改** `shadow-mobile/lib/widgets/brain/default_model_card.dart`、**改** 5 个 l10n 文件（arb 2 ＋ 生成物 3）｜ 读数：**判据级 9/9 绿**、**反向验证级：变体 A（合并时丢掉本地副本）⇒ 恰好 2 红 ／ 变体 B（解析时接受空串值）⇒ 恰好 1 红**、**还原 blob 逐字一致 `36b106c2…`**、**类型级：全项目 flutter analyze 61 issues ＝ 基线 61 ⇒ 零新增**、**unit 族 353 过 / 12 跳 / 0 红**、**闸级：父仓 door / endpoint-matrix / client-endpoint-map / 码位闸 四闸 EXIT=0** | status=active | supersedes=none
