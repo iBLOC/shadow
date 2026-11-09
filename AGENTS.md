@@ -167,6 +167,7 @@
 
 ⑨ **⚠️ 仍然欠着**
 　❶ ⚠️ **真机级的「负向」没跑** —— 要拿到「路由不存在」的真机读数 ⇒ ⇒ 得把**打了补丁的 .so** 打进 APK 再装一次 ⇒ ⇒ 而那段时间里 `jniLibs` 那份是**假产物** ⇒ ⇒ 会污染并行会话的构建 ⇒ ⇒ ⇒ 本条只把负向做到**产物级**（等长打掉 ⇒ 恰好 4 红）⇒ ⇒ **真机级负向仍是欠账**。
+　❶❶ ⚠️ **这一轮又量到一件把这条路堵死的事**：**无钥匙 ⇒ 401 带 JSON 体**（`telencephalon_door_closed`／`door: read`）⇒ ⇒ ⇒ 通用形态：**端脑那扇门是「先拦、后路由」** ⇒ ⇒ 所以「路由不存在」那种读数**必须带凭据**才拿得到 ⇒ ⇒ ⇒ 而 **release 包不是 debug 版 ⇒ `run-as` 读不到钥匙** ⇒ ⇒ ⇒ 「拿现成的旧 release APK 当负样本」这条路**不成立** ⇒ ⇒ ⇒ 真机级负向只能走「**debug 包 ＋ 旧 `.so`**」，而那条路要**改 APK 里的 zip 条目** ⇒ ⇒ ⇒ **被本机硬安全策略挡了**（逐字：「recursive write/delete target cannot be verified」／工作区外写与工作区内递归删**两面都堵**）⇒ ⇒ ⇒ ⇒ **本条仍欠着** —— 这一格不是被推掉了，是**工具链够不着**。
 　❷ ⚠️ **闸的「2 条查不到归因」是抽取噪声，不是缺路由** —— 客户端那条字面量其实是**日志散文**（`"GET /api/telencephalon/notifications → ${resp.statusCode}: ${resp.body}"`）⇒ ⇒ 路径后面粘着散文 ⇒ ⇒ 骨架变成 `/api/telencephalon/notifications → *: *` ⇒ ⇒ 另开了一个键 ⇒ ⇒ 不影响判红（同一路由在 `reminder_inbox.dart:143` 另有**干净**字面量 ⇒ ⇒ 照样被核）⇒ ⇒ 但读者会以为有 2 条依赖没归因 ⇒ ⇒ 修法：**字面量在第一个非路径字符处截断**。
 　❸ **asr/tts 两档在真机上仍然没有引擎 id** —— 实测 `registered:{"asr":[],"tts":[]}` ⇒ ⇒ **分档默认模型对 asr/tts 还落不了地** ⇒ ⇒ ⇒ 这正是用户问的「颞叶里的 asr/tts 怎么办」的**答案形状**：**分档已经在了**（八档词表 ＋ `engine_resolved` 说清哪几档按引擎 id 解析 ＋ `registered` 说清此刻注册了哪些 id）⇒ ⇒ **但 asr/tts 要等引擎注册** ⇒ ⇒ 远端 ASR/TTS 引擎族协议与注册责任**仍未定**（产品决定）。
 　❹ **端脑仓自身的真 CI 仍无读数**（承 U+3494 条）。
@@ -189,6 +190,12 @@
 　　· ❌ **Mobile Test**（失败步骤：Flutter test）⇒ ⇒ 移动端 `capability_grants_test.dart` 在飞 ⇒ ⇒ 不是本刀
 　　· ❌ **Desktop Build**（失败步骤：Dead env vars check）⇒ ⇒ 死环境变量闸红：`SHADOW_E2E_ENDBRAIN_URL` 在 `.github/workflows/desktop-e2e.yml` 里设了，**全仓没有读者** ⇒ ⇒ 不是本刀
 　　· ⇒ ⇒ **三红逐条归因都不是本刀**（本刀两笔的 diff 只碰 AGENTS.md ＋ 两个 `.ps1`）⇒ ⇒ ⇒ 通用形态：**红数相同 ≠ 红的是同一处** ⇒ ⇒ 读数必须绑「run 号 ＋ head sha ＋ 红的成因」三件。
+
+⑬ **⚠️ 后继 head 的终读数（head `979e57d`，含本刀三笔）** —— 主 CI run `42696577150`：
+　❶ **8 绿 2 红** —— ✅ Desktop Tests（桌面端那一族已补齐）／Brain gates／Legacy residue／Mobile Analyze／YAML validity／Ledger codepoints／**PS1 Portability**（本刀第二笔修好的那一格，在这里是绿的）
+　❷ ❌ **Desktop Build**（失败步骤：Dead env vars check）⇒ ⇒ `SHADOW_E2E_ENDBRAIN_URL` 在 `.github/workflows/desktop-e2e.yml` 里设了、**全仓没有读者** ⇒ ⇒ 不是本刀
+　❸ ❌ **Mobile Test**（失败步骤：Flutter test）⇒ ⇒ 移动端 `capability_grants_test.dart` 在飞 ⇒ ⇒ 不是本刀
+　❹ ⇒ ⇒ **两红逐条归因都不是本刀**（本刀三笔的 diff 只碰 AGENTS.md ＋ 两个 `.ps1`）⇒ ⇒ ⇒ 通用形态：**红数相同 ≠ 红的是同一处** ⇒ ⇒ 读数必须绑「run 号 ＋ head sha ＋ 红的成因」三件。
 　❹ ⚠️ **本刀在 CI 上犯过一次错（已修）** —— 第一笔 `007a972` 的 **PS1 Portability** 红了 ⇒ ⇒ 就是 ⑦❺ 那堂课 ⇒ ⇒ 第二笔 `a5a8b5d` 只加 BOM ⇒ ⇒ 复跑本地闸：26 个 `.ps1` 全绿。
 　❺ ⚠️ **纪律闸在某一轮本地红过（3 条，全指 `apk-surface`）** —— 复跑即绿 ⇒ ⇒ 那是并行会话改桌面端时的**瞬时状态** ⇒ ⇒ 不是本刀（diff 可证）⇒ ⇒ 又一课：**一次红先问「它稳不稳」—— 重跑一遍再归因**。
 **Updated**: 2026-11-11 (㑲 **「长按不是长按 —— 而『手停了多久』不等于『app 认这是长按』」** —— 承 U+3482 条（尺子要对着被测物）＋ U+3490 条（回退不只有「退成旧版」一种形状），本条记**取证（真机逐字读数）**、**第一因（三个问题是三件事，原代码只答了一个）**、**第二因（系统会重启无障碍服务）**、**第三因（按住时长压在平台阈值上）**、**这一刀的落点**、**途中那几课**、**判据**、**分级读数**，以及**仍然欠着的**.)
