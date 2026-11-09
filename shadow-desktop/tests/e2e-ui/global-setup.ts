@@ -363,6 +363,13 @@ async function globalSetup(_config: FullConfig) {
   //    ⇒ ⇒ 那是「端脑没起来」被放大成「整场测试没了」。
   //    （本地实测：`Error: spawn ...encephalon-server.exe ENOENT` ⇒ 进程直接挂。）
   let spawnError: { code?: string; message: string } | null = null;
+  // ⚠️⚠️ **这两个「回调里才赋值」的变量要用函数读** —— TS 的控制流分析
+  //   **看不见** `child.on('error'|'exit', …)` 里的赋值 ⇒ ⇒ 直接在读点用它
+  //   ⇒ ⇒ TS 把它窄化成 `never` ⇒ ⇒ `spawnError.message` / `exited.code`
+  //   ⇒ ⇒ 报 TS2339（2026-11-09 实测：被新加的 E2E 类型闸当场抓到）。
+  //   ⇒ ⇒ 修法：**用函数读**（TS 对 `let` 在闭包内会重置窄化）⇒ ⇒ 语义不变。
+  const readSpawnError = (): { code?: string; message: string } | null => spawnError;
+  const readExited = (): { code: number | null; signal: string | null } | null => exited;
   const telencephalon = spawn(TELENCEPHALON_BIN, ['--port', telencephalonPort()], {
     cwd: TELENCEPHALON_CWD,
     env: {
@@ -402,11 +409,13 @@ async function globalSetup(_config: FullConfig) {
     // ⚠️ **把它的日志尾巴打出来** ⇒ ⇒ 「判不了」必须说得清为什么判不了
     const tail = readLogTail(serverLogPath, 40);
     console.warn(`  server 日志：${serverLogPath}`);
-    if (spawnError) {
-      console.warn(`  server **起不来**（spawn 失败）：${spawnError.message}`);
+    const spawnErr = readSpawnError();
+    const exitInfo = readExited();
+    if (spawnErr) {
+      console.warn(`  server **起不来**（spawn 失败）：${spawnErr.message}`);
       console.warn(`  ⇒ ⇒ 二进制不在那儿？${TELENCEPHALON_BIN}`);
-    } else if (exited) {
-      console.warn(`  server 已退出：code=${exited.code} signal=${exited.signal}`);
+    } else if (exitInfo) {
+      console.warn(`  server 已退出：code=${exitInfo.code} signal=${exitInfo.signal}`);
     } else {
       console.warn('  server 还活着（没退出）⇒ ⇒ 多半是**启动慢**（冷启动要跑 datafusion/lance）⇒ ⇒ 时限不够');
     }

@@ -1,0 +1,69 @@
+name: E2E Typecheck
+
+# ⚠️ **为什么单独成文件**（2026-11-09 新增）：
+#   · **根 tsconfig 的 include 只有 ["src"]** ⇒ ⇒ shadow-desktop/tests/e2e-ui/**
+#     与 shadow-desktop/tests/lib/** ⇒ ⇒ **至今没有任何类型/语法闸**；
+#   ⇒ ⇒ 而这一族只有 Playwright（**夜间/手动**）或 vitest（**重**）才真跑
+#   ⇒ ⇒ ⇒ 一个 spec 里的语法错/类型错 ⇒ ⇒ 要等到那一格才暴露
+#   ⇒ ⇒ ⇒ 「判据自己坏了」会被当成「产品回归」⇒ ⇒ 反馈太晚。
+#   ⇒ ⇒ （实证：我在这一族里写了个**嵌套反引号**的语法错 ⇒ ⇒ 根 tsc **一声不吭**
+#     ⇒ ⇒ 是 Playwright 当场抓到的 ⇒ ⇒ 「类型闸绿」≠「我改的文件被看过」。）
+#   · 为什么不在 ci.yml 里加一步 ⇒ ⇒ **ci.yml 是共享文件**（并行会话在飞）
+#     ⇒ ⇒ 共享文件上的接线是本仓最容易出两类事故的地方
+#     ⇒ ⇒ （把别人的在飞件卷进我的提交／我的暂存被别人一次 plain commit 抢走署名）
+#     ⇒ ⇒ ⇒ 独立成文件 ⇒ ⇒ 接线面**零共享** ⇒ ⇒ 竞态根本不存在。
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e-typecheck:
+    name: E2E Typecheck (tests/e2e-ui ＋ 那把形状尺子)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout shadow
+        uses: actions/checkout@v7
+        with:
+          path: shadow
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10.31.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: shadow/shadow-desktop/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: shadow/shadow-desktop
+        run: pnpm install --frozen-lockfile
+
+      # ⚠️ **判据本身也要有读数** —— 不是「跑一下就算」⇒ ⇒ 把**覆盖面**打印出来
+      #    ⇒ ⇒ 哪天 include 被改窄了 ⇒ ⇒ 这一行会变 ⇒ ⇒ 看得见。
+      - name: E2E type check (tests/tsconfig.json)
+        working-directory: shadow/shadow-desktop
+        run: |
+          set +e
+          set -uo pipefail
+          OUT="$RUNNER_TEMP/e2e-typecheck.txt"
+          pnpm exec tsc --noEmit -p tests/tsconfig.json > "$OUT" 2>&1
+          TSTATUS=$?
+          # ⚠️ **先打印输出、再判退出码** ⇒ ⇒ 红的时候原因就在眼前。
+          cat "$OUT"
+          if [ "$TSTATUS" != "0" ]; then
+            echo "::error::E2E 家族的类型闸红了（退出码 $TSTATUS）—— 上面就是逐条读数"
+            exit "$TSTATUS"
+          fi
+          echo "::notice::E2E 类型闸：绿（覆盖面＝tests/e2e-ui/** ＋ tests/lib/e2eStrictness.test.ts ＋ playwright.config.ts）"
