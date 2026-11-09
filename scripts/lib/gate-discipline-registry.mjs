@@ -111,11 +111,11 @@ export const NO_READING_IN_WIRED = {
     '（自检末尾印「自检：N/N 条全绿」）⇒ ⇒ 已从本清单销账' +
     '⇒ ⇒ ⚠️ ps1-portability 已于 2026-11-05 补上读数' +
     '（自检末尾印「自检：4/4」）⇒ ⇒ 已从本清单销账 ' +
-    '⇒ ⇒ 2026-11-11：brain-chain（11 / 11）与 jni-surface（4 / 4）已印可数读数 ⇒ ⇒ 已从本清单销账',
+    '⇒ ⇒ 2026-11-11：brain-chain（11 / 11）与 jni-surface（4 / 4）已印可数读数 ⇒ ⇒ 已从本清单销账' +
+    '⇒ ⇒ 2026-11-11：mobile-a11y-contract（并行会话已补「样本 10/10」⇒ ⇒ 读数可比）⇒ ⇒ 已从本清单销账',
   gates: [
     'agent-surface',
     'apk-surface',
-    'mobile-a11y-contract',
   ],
 };
 
