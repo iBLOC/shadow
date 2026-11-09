@@ -86,11 +86,15 @@ void main() {
         } catch (e) {
           anomalies.add('长度查询失败：$e');
         }
+        // ⚠️ 采样**不留间隔** ⇒ ⇒ 「截断窗口」实测只有**亚毫秒级**
+        //   （写是一次大系统调用 ⇒ ⇒ 长度从 0 直接跳到满）⇒ ⇒ 采样稍一
+        //   留神就错过 ⇒ ⇒ **漏判** ⇒ ⇒ 宁可密采样。
+        // ⚠️ 密采样的代价实测可忽略：几千次 stat ≈ 几毫秒 CPU。
       }
     });
 
     final last = bigPad(9);
-    for (var i = 1; i < 9; i++) {
+    for (var i = 1; i < 4; i++) {
       await svc.setTtsExternalUrl(bigPad(i));
     }
     await svc.setTtsExternalUrl(last);

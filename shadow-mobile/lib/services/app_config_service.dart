@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
@@ -279,8 +280,10 @@ class AppConfigService {
   static Future<void> _discardTempFile(File tmp) async {
     try {
       if (await tmp.exists()) await tmp.delete();
-    } catch (_) {
-      // 临时文件删不掉就留着 ⇒ ⇒ 它**不是**目标文件 ⇒ ⇒ 读面看不到它。
+    } catch (e) {
+      // ⚠️ 「删不掉」这件事**不许静默** ⇒ ⇒ 留一条诊断痕。
+      //   （临时文件留着本身无害：它**不是**目标文件 ⇒ ⇒ 读面看不到它。）
+      developer.log('落盘临时文件删不掉（已保留）：$e', name: 'app_config');
     }
   }
 
