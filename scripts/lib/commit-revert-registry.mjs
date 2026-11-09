@@ -16,6 +16,16 @@ export const REGISTERED_REVERTS = [
       '⇒ ⇒ 已由 d36bb09 明确撤销（那一笔的提交信息里写了「撤销」）⇒ ⇒ 登记在册，放行。',
   },
   {
+    commit: 'eedb75f89e75352233102049639cb896724e37cd',
+    file: 'shadow-desktop/test-results/.last-run.json',
+    why:
+      '2026-08-17 eedb75f（test: add global setup to auto-start cortex and fix all 80 tests）把 23cd94e 在这个路径上的增量整个退掉了 ⇒ ⇒ ' +
+      '**那个路径是 Playwright 的生成物**（一次测试运行的 last-run 状态），不是源码：23cd94e 那次跑挂了，Playwright 写下了 failedTests 列表' +
+      '（40 个 id）与失败截图；eedb75f 修好 80 个测试后，生成物回到 status=passed / failedTests=[] ⇒ ⇒ **没有源码被抹掉** ⇒ ⇒ ' +
+      '而且该路径后来被 96fd99e 从版本控制里摘掉（.gitignore 第 102 行 test-results/，那一笔的提交标题明写「test-results 不该被跟踪 —— 忽略规则管不住先入库后加规则」）' +
+      '⇒ ⇒ 事件**真发生过**（全历史 1123 笔里唯一一处「静悄悄的完全回退」）⇒ ⇒ 但破坏形态是「生成物被回退」，不是「别人的源码被抹掉」⇒ ⇒ 登记在册，放行。',
+  },
+  {
     commit: '5c8503570d5c3a884bd9f5a5039bfd932592eb47',
     file: 'AGENTS.md',
     why:

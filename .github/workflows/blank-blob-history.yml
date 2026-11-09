@@ -1,0 +1,46 @@
+name: Blank Blob History
+
+# ⚠️ **它守的是什么** —— 「抹空」这一族（把一个**非空**文件写成**零字节**）。
+#   2026-11-11 真事故：台账 AGENTS.md 被提交成零字节 ⇒ ⇒ master 上的台账整本消失。
+#   提交面回退闸（刀 P ＋ 刀 R）能**照出**它，但那个闸每对提交都要打 diff ⇒ ⇒
+#   全历史（1123 笔）要跑**约一小时** ⇒ ⇒ 「更早的历史」那一格长期是欠账。
+#   ⚠️ 而「抹空」**根本不需要 diff** —— git 不会给空文件发新哈希 ⇒ ⇒ 比**空 blob 的
+#   哈希常量**就够了 ⇒ ⇒ 一遍 `git log --raw` ⇒ ⇒ 全历史覆盖只要**几秒**。
+#
+# ⚠️ **为什么单独成文件**（与 commit-revert.yml / precommit-hook.yml 同理）：
+#   ci.yml 是**共享文件**（并行会话在飞）⇒ ⇒ 独立成文件 ⇒ ⇒ 接线面**零共享**。
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  blank-blob-history:
+    name: Blank Blob History
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout shadow
+        uses: actions/checkout@v7
+        with:
+          # ⚠️⚠️ **必须是完整历史** —— 浅克隆下「零抹空」是**假象**（压根没有历史可扫）
+          #   ⇒ ⇒ 本闸在浅克隆里会判「判不了」（退出码 2）⇒ ⇒ 宁可红也不能绿。
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      # ⚠️ **两步都要跑** —— 判定 ＋ 判据自检（自检证明这道闸**真的会红**）。
+      - name: Blank blob history check (self-test)
+        run: node scripts/check-blank-blob-history.mjs --self-test
+
+      - name: Blank blob history check
+        run: node scripts/check-blank-blob-history.mjs
