@@ -2,7 +2,7 @@
 
 **Updated**: 2026-11-11 (㒇 **「后一笔把前一笔悄悄抹掉了 —— 而 CI 只说『哪一行红了』」** —— 承 U+3482 条（刀 O：Playwright 族的假绿 ＋ 尺子必须分族）＋ U+3486 条（端脑发 `engine`，桌面写 `quantization`），本条记**取证（真 CI 那一格红 ＋ 本地为什么没抓到 ＋ 回退是谁干的）**、**第一因（提交面的基线可以落后）**、**这一刀的落点（6 个新文件 ＋ 1 个独立 workflow）**、**途中那几课**、**判据**、**分级读数**，以及**仍然欠着的**.)
 
-> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真运行级实测（真 CI 逐字日志 ＋ 本地类型闸实跑 ＋ **真实提交历史**上跑新闸 ＋ 反向验证 ＋ 判据自检 ＋ 治理闸复核）｜ 改动：shadow 仓 **新增** `scripts/lib/commit-revert.mjs`（判定内核）、**新增** `scripts/lib/commit-revert-scan.mjs`（扫描层）、**新增** `scripts/lib/commit-revert-registry.mjs`（登记在册清单）、**新增** `scripts/lib/commit-revert-selftest.mjs`（判据自检 ＋ 临时 git 仓夹具）、**新增** `scripts/check-commit-revert.mjs`（CLI ＋ 分层读数 ＋ 退出码 0/1/2）、**新增** `.github/workflows/commit-revert.yml`（**独立成文件**，不碰共享的 ci.yml；**`fetch-depth: 0` 是硬需求**）｜ 读数：**真实 master 最近 40 个提交 ⇒ ⇒ 静悄悄的完全回退恰好 1 处（`afb7814` 退 `21f56d4`）＋ 已声明 1 处 ＋ 登记在册 1 处 ＋ 部分回退（提示）18 处**、**反向验证：登记项临时失效 ⇒ ⇒ 恰好 1 红并逐字点名 ⇒ ⇒ 还原后 blob 逐字一致（`b8bbc9f3…`）**、**判据自检 6/6**、**闸 EXIT=0 ｜ 治理闸不再报这把闸（D1–D5 全过）｜ YAML 有效（15 个文件）｜ 秘密明文闸 EXIT=0 ｜ 失败掩盖闸 EXIT=0**、**顺带收的债：`tsc --noEmit -p tests/tsconfig.json` 改前 4 条红 ⇒ ⇒ 改后 EXIT=0 ｜ 渲染级 3/3 绿** ｜ 提交：`76fe56e`（闸）＋ 本条（台账）| status=active | supersedes=none
+> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真运行级实测（真 CI 逐字日志 ＋ 本地类型闸实跑 ＋ **真实提交历史**上跑新闸 ＋ 反向验证 ＋ 判据自检 ＋ 治理闸复核）｜ 改动：shadow 仓 **新增** `scripts/lib/commit-revert.mjs`（判定内核）、**新增** `scripts/lib/commit-revert-scan.mjs`（扫描层）、**新增** `scripts/lib/commit-revert-registry.mjs`（登记在册清单）、**新增** `scripts/lib/commit-revert-selftest.mjs`（判据自检 ＋ 临时 git 仓夹具）、**新增** `scripts/check-commit-revert.mjs`（CLI ＋ 分层读数 ＋ 退出码 0/1/2）、**新增** `.github/workflows/commit-revert.yml`（**独立成文件**，不碰共享的 ci.yml；**`fetch-depth: 0` 是硬需求**）｜ 读数：**真实 master 最近 40 个提交 ⇒ ⇒ 静悄悄的完全回退恰好 1 处（`afb7814` 退 `21f56d4`）＋ 已声明 1 处 ＋ 登记在册 1 处 ＋ 部分回退（提示）16 处**（提交 A/B 推进了 40 提交窗口 ⇒ ⇒ 最早那两笔滑出窗口；「静悄悄恰好 1 处」那一格是**登记生效前**的判据证据，见 ⑤❶）、**反向验证：登记项临时失效 ⇒ ⇒ 恰好 1 红并逐字点名 ⇒ ⇒ 还原后 blob 逐字一致（`b8bbc9f3…`）**、**判据自检 6/6**、**闸 EXIT=0 ｜ 治理闸不再报这把闸（D1–D5 全过）｜ YAML 有效（15 个文件）｜ 秘密明文闸 EXIT=0 ｜ 失败掩盖闸 EXIT=0**、**顺带收的债：`tsc --noEmit -p tests/tsconfig.json` 改前 4 条红 ⇒ ⇒ 改后 EXIT=0 ｜ 渲染级 3/3 绿** ｜ 提交：`76fe56e`（闸）＋ 本条（台账）| status=active | supersedes=none
 
 ① **⚠️ 取证：刀 O 推上去之后，真 CI 红了一格 —— 而那一格红的是「类型面」**
 　❶ **真 CI 逐字**（run `42646242924`，head `fd38c81`）：`tests/e2e-ui/e2e-task-scheduling.spec.ts(123,42): error TS7006: Parameter 'p' implicitly has an 'any' type.` ⇒ ⇒ 那一行是刀 O 把「断言依赖 provider 顺序」改成「至少有一个带模型」时写的 ⇒ ⇒ `providers` 来自 `apiResponse.json()`（类型 `any`）⇒ ⇒ `filter` 的回调参数没有上下文类型 ⇒ ⇒ 隐式 `any`。
@@ -40,15 +40,19 @@
 　❷ **反向验证级** —— 把登记项临时改失效（只改那一行 commit）⇒ ⇒ 闸**恰好 1 红**并逐字点名 ⇒ ⇒ 还原后文件 blob **逐字一致**（`b8bbc9f3…`）⇒ ⇒ 复跑 EXIT=0 ⇒ ⇒ **尺子有牙且不恒红**。
 　❸ **判据自检级** —— **6/6**：完全回退必抓**且必判红** ／ 部分回退必抓 ／ 不相干提交不抓 ／ 有意 revert 被认出**且放行** ／ 新增即删不抓 ／ 登记在册放行**且未登记时判红**。
 　❹ **闸级** —— 主扫描 EXIT=0 ｜ 治理闸**不再报**这把闸（D1–D5 全过）｜ YAML 有效（15 个文件）｜ 秘密明文闸 EXIT=0 ｜ 失败掩盖闸 EXIT=0。
+　❺ **判不了档（实测）** —— 真造了一个**浅克隆**（`git clone --depth 1 file:///…`）⇒ ⇒ 闸读到「扫 1 个提交」⇒ ⇒ 逐字印「这是**浅克隆**（--depth）⇒ ⇒ 提交历史**不完整**⇒ ⇒ 「零回退」是假象⇒ ⇒ 这一格判不了」⇒ ⇒ **退出码 2** ⇒ ⇒ ⇒ ⚠️ **判不了时不许同时印「✅」** —— 初版印了 ⇒ ⇒ 人只看最后一眼 ⇒ ⇒ exit 2 会被一句绿盖过去 ⇒ ⇒ 已改成「⚠ 这一格**判不了** ⇒ ⇒ 上面的「零回退」**不作数**（不是「没问题」）」。
 
 ⑥ **✅ 分级读数（全部实测）**
-　❶ **真实历史级**：master 最近 40 个提交 ⇒ ⇒ 静悄悄完全回退 **1** ｜ 已声明 **1** ｜ 登记在册 **1** ｜ 部分回退（提示）**18** ⇒ ⇒ 分层给，因为「总数 20」会把这三件完全不同的事搅成一锅。
+　❶ **真实历史级**：master 最近 40 个提交 ⇒ ⇒ **登记生效后的当前读数**：静悄悄完全回退 **0** ｜ 已声明 **1** ｜ 登记在册 **1** ｜ 部分回退（提示）**16** ⇒ ⇒ 分层给，因为「总数 18」会把这三件完全不同的事搅成一锅 ⇒ ⇒ 另：**判据的证据那一档（登记生效前）是「静悄悄 1 处」**（见 ⑤❶）。
 　❷ **反向验证级**：撤登记 ⇒ ⇒ 恰好 1 红并点名；还原 ⇒ ⇒ blob 逐字一致 ⇒ ⇒ EXIT=0。
 　❸ **判据级**：自检 **6/6**。
 　❹ **闸级**：EXIT=0 ｜ 治理闸零新增缺口 ｜ YAML 有效 ｜ 秘密明文闸 EXIT=0 ｜ 失败掩盖闸 EXIT=0。
 　❺ **类型级（本刀顺带收的债）**：`tsc --noEmit -p tests/tsconfig.json` ⇒ ⇒ 改前 **4 条红** ⇒ ⇒ 改后 **EXIT=0** ｜ 渲染级 `SubsystemPanel.test.tsx` **3/3 绿** ｜ 真 CI run `42650520129` **E2E Typecheck = success**。
 　❻ ⚠️ **真跑面未覆盖（明写）** —— `neuron/preview/models` 形状那条在本地回 **401 ⇒ 跳过** ⇒ ⇒ 我改的那条断言**只过了类型面与语法面，没过真跑面**（那一格要 CI 的真端脑 ＋ 凭据）。
 　❼ ⚠️ **端脑那 2 条红已归因** —— 本机 60185 上跑的是**旧二进制**（端脑 `origin/master` 已有该路由）⇒ ⇒ 契约套件 **31 过 / 2 红 / 22 跳** ⇒ ⇒ 红的是**本机没重新编译**，不是产品坏。
+　❽ **真 CI 档** —— 新 workflow「Commit Revert」在 head `76fe56e` 上 **run `42650629115` = success** ⇒ ⇒ 这把闸**在真 CI 上跑通了**（不是只有本地读数）⇒ ⇒ 同一笔上其余七道闸（Desktop Test Assertions / Desktop E2E Coverage / Mobile Test Assertions / Door Policy / Test Global Leaks / Secret Plaintext / i18n Key Completeness）**全 success**。
+　❾ ⚠️ **真 CI 终局读数仍待补** —— `a200975` 上的 run `42650814796`（Commit Revert）与主 CI workflow 在跑 ⇒ ⇒ 终局读数下一次再补（承「真 CI 级读数待下一次 push」那条纪律）。
+　❿ ⚠️ **并行会话已独立复跑这把闸** —— U+3485 条 ⑨ 段里记了他们那份读数：**EXIT=0 ｜ 扫 40 个提交 ｜ 回退事件 18 处（判红 0 ｜ 已声明 1 ｜ 登记在册 1 ｜ 部分回退 16）** ⇒ ⇒ 与我这份**逐字一致** ⇒ ⇒ ⇒ 两把独立的眼睛在同一把闸上读出同一组数字 ⇒ ⇒ 这是**比自检更强**的一格交叉验证。
 
 ⑦ **⚠️ 仍然欠着**
 　❶ **闸只扫最近 40 个提交** ⇒ ⇒ 更早的回退看不见（登记在册的目前只有那一笔）⇒ ⇒ 要全覆盖得把窗口开大并定期跑。
