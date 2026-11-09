@@ -196,7 +196,10 @@ function main() {
     const failOnLatest = latest && latest.kind === NEVER_STARTED;
     const failOnStrict = o.strict && neverStarted.length > 0;
     if (failOnLatest || failOnStrict) {
-      console.log('  ⛔ 门外红 ⇒ ⇒ 这一格没有读数');
+      // ⚠️ **--json 时不许混人类可读的行** —— 否则下游按 JSON 解析会炸（JSON.parse 会
+      //   报「Additional text encountered after finished reading JSON content」）
+      //   ⇒ ⇒ 这一格只出现在人读的那一面。
+      if (!o.json) console.log('  ⛔ 门外红 ⇒ ⇒ 这一格没有读数');
       process.exit(1);
     }
     if (unknown.length) {
