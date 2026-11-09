@@ -490,7 +490,9 @@ function runGate(sourceRoot) {
 /** ── 自检：探测器自己坏没坏？六只样本。 ───────────────────── */
 function selfTest() {
   let failed = 0;
+  let total = 0;
   const check = (name, ok) => {
+    total++;
     if (!ok) {
       failed++;
       console.error('  ✗ ' + name);
@@ -558,7 +560,7 @@ function selfTest() {
     console.error('\n自检失败: ' + failed + ' 条 ⇒ 探测器坏了（退出码 2）');
     process.exit(2);
   }
-  console.log('\n自检全过');
+  console.log('\n自检全过（' + (total - failed) + '/' + total + '）');
 }
 
 const opts = parseArgs(process.argv.slice(2));

@@ -183,7 +183,9 @@ function parseArgs(argv) {
 
 function selfTest() {
   let failed = 0;
+  let total = 0;
   const check = (name, ok) => {
+    total++;
     if (!ok) failed++;
     console.log('  ' + (ok ? '✅' : '❌') + ' ' + name);
   };
@@ -241,6 +243,7 @@ function selfTest() {
   const fatal = evaluate({ known: false, reason: 'x' }, [plain]);
   check('服务端判不了 ⇒ 致命问题（退出码 2）', fatal.length === 1 && fatal[0].fatal === true);
 
+  console.log('  自检：' + (total - failed) + '/' + total);
   console.log(failed ? '❌ 自检有 ' + failed + ' 条红' : '✅ 自检全过');
   process.exit(failed ? 1 : 0);
 }

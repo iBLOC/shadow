@@ -219,7 +219,7 @@ function selfTest() {
   ok('判定：裸体 ⇒ 不红',
     judge([{ method: 'GET', path: '/api/sessions', strict: false, tolerant: false }], routes, false).reds.length === 0);
 
-  console.log(fail === 0 ? '自检全绿（' + total + ' 条）' : '自检红 ' + fail + ' 条');
+  console.log(fail === 0 ? '自检全绿（' + (total - fail) + '/' + total + ' 条）' : '自检红 ' + fail + '/' + total + ' 条');
   return fail === 0 ? 0 : 1;
 }
 

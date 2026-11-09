@@ -854,7 +854,7 @@ function main() {
       for (const f of failures) console.error('   - ' + f);
       process.exit(2);
     }
-    console.log('✅ 探测器自检全过（' + total + ' 只样本）');
+    console.log('✅ 探测器自检全过（' + total + '/' + total + ' 只样本）');
     process.exit(0);
   }
 

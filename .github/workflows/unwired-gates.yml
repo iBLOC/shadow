@@ -1,0 +1,92 @@
+name: Unwired Gates
+
+# ⚠️ **它守的是什么** —— 「**有闸但没人跑**」这一族。
+#
+#   2026-11-11 真测：仓里 **57 道闸**，而**只有 41 道接进 CI**
+#   ⇒ ⇒ 16 道「有闸但没人跑」⇒ ⇒ CI 一盏绿灯，**什么都没证明**。
+#
+#   ⚠️ 债表里当时的理由是「多数要本机工具链 ⇒ ⇒ 贸然接进 CI 只会让 CI 因**无关原因**变红」
+#   ⇒ ⇒ 但 2026-11-11 **逐条在本机量过**：14 道**真跑绿**、1 道**判不了**（msrv-floor 找不到 Cargo.toml）
+#   ⇒ ⇒ 那条理由**已过期** ⇒ ⇒ 这一刀就是把它兑现。
+#
+#   ⚠️ 同一刀顺带补齐 **D3**（接进 CI 的闸，自检必须印出**可数读数** N/N）
+#   ⇒ ⇒ 11 道闸的自检原本只印「✅ 自检全过」/「（13 只样本）」⇒ ⇒ 读数**不可比**
+#   ⇒ ⇒ 逐道补成**算出来的** N/N（不硬编数字）。
+#
+# ⚠️ **为什么单独成文件**（与其它闸的 workflow 同理）：ci.yml 是**共享文件**（并行会话在飞）
+#   ⇒ ⇒ 独立成文件 ⇒ ⇒ 接线面**零共享**。
+#
+# ⚠️ **每道闸一步**，且由 `scripts/run-gate-once.mjs` 转译退出码：
+#   · 0 ⇒ 绿；· 1 ⇒ 红（阻断）；· **2 ⇒ 判不了** ⇒ ⇒ 打印显眼提示但**不当红**
+#   ⇒ ⇒ 「读不到判据源」不会伪装成「有问题」，也不会伪装成「绿」。
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  unwired-gates:
+    name: Unwired Gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout shadow
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      # ⚠️ A2UI 形态的「会话身份」两端一致
+      - name: a2ui-session-identity
+        run: node scripts/run-gate-once.mjs scripts/check-a2ui-session-identity.mjs
+      # ⚠️ 能力面的凭据：每一处打这面的请求都带门认的凭据
+      - name: agent-surface-credentials
+        run: node scripts/run-gate-once.mjs scripts/check-agent-surface-credentials.mjs
+      # ⚠️ 后门：放行分支 / 字面量默认凭据 / 前端硬编码
+      - name: auth-backdoors
+        run: node scripts/run-gate-once.mjs scripts/check-auth-backdoors.mjs
+      # ⚠️ 源码级宽绑定
+      - name: bind-exposure
+        run: node scripts/run-gate-once.mjs scripts/check-bind-exposure.mjs
+      # ⚠️ 客户端与端脑的「话怎么说」对不对得上
+      - name: client-dialect
+        run: node scripts/run-gate-once.mjs scripts/check-client-dialect.mjs
+      # ⚠️ 客户端调用点 ↔ 端脑路由表
+      - name: client-endpoint-map
+        run: node scripts/run-gate-once.mjs scripts/check-client-endpoint-map.mjs
+      # ⚠️ 两端发给模型的客户端工具必须一致
+      - name: client-tools
+        run: node scripts/run-gate-once.mjs scripts/check-client-tools.mjs
+      # ⚠️ 两端认的是同一套会话内容口径
+      - name: conversation-prefix
+        run: node scripts/run-gate-once.mjs scripts/check-conversation-prefix.mjs
+      # ⚠️ CORS 白名单：没有 permissive
+      - name: cors-allowlist
+        run: node scripts/run-gate-once.mjs scripts/check-cors-allowlist.mjs
+      # ⚠️ 提交树面：死环境变量 / 改名漂移
+      # ⚠️ 端脑路由矩阵
+      - name: endpoint-matrix
+        run: node scripts/run-gate-once.mjs scripts/check-endpoint-matrix.mjs
+      # ⚠️ Rust MSRV 下限
+      - name: msrv-floor
+        run: node scripts/run-gate-once.mjs scripts/check-msrv-floor.mjs
+      # ⚠️ provider 面挂没挂门
+      - name: provider-admin-headers
+        run: node scripts/run-gate-once.mjs scripts/check-provider-admin-headers.mjs
+      # ⚠️ 公布出去的地址：端口来自真实监听
+      - name: publish-address
+        run: node scripts/run-gate-once.mjs scripts/check-publish-address.mjs
+      # ⚠️ 工具调用的拦截点接缝
+      - name: tool-interception
+        run: node scripts/run-gate-once.mjs scripts/check-tool-interception.mjs

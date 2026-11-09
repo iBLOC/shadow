@@ -701,7 +701,9 @@ function run() {
 
 function selfTest() {
   let failed = 0;
+  let total = 0;
   const check = (name, ok, detail = '') => {
+    total++;
     if (!ok) failed++;
     console.log('  ' + (ok ? '✅' : '❌') + ' ' + name + (detail ? '  —— ' + detail : ''));
   };
@@ -808,6 +810,7 @@ function selfTest() {
   check('退出定案：全绿 ⇒ 绿', exitVerdict(0, 0, 0) === 'GREEN');
   check('退出定案：必 401 优先于已接受契约', exitVerdict(1, 0, 5) === 'RED');
 
+  console.log('  自检：' + (total - failed) + '/' + total);
   console.log(failed ? '❌ 自检有 ' + failed + ' 条红' : '✅ 自检全过');
   process.exit(failed ? 1 : 0);
 }

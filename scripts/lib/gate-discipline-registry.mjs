@@ -61,23 +61,17 @@ export const NOT_WIRED_INTO_CI = {
     '（.github/workflows/secret-plaintext.yml ⇒ ⇒ 不碰共享的 ci.yml ⇒ ⇒ 接线面零共享）' +
     '（它是**跨仓**闸 ⇒ ⇒ 必须检出四个兄弟仓（私有 ⇒ ⇒ 需 secrets.IBLOC_TOKEN）' +
     '⇒ ⇒ 闸本体认**两种布局**（仓外/仓内）⇒ ⇒ 只认一种 ⇒ ⇒ CI 上「读不到判据源」⇒ ⇒ 恒红）' +
-    '⇒ ⇒ 已从本清单销账',
+    '⇒ ⇒ 已从本清单销账' +
+    '⇒ ⇒ ⚠️ 14 道已于 2026-11-11 接进**独立** workflow' +
+    '（.github/workflows/unwired-gates.yml ⇒ ⇒ 不碰共享的 ci.yml ⇒ ⇒ 接线面零共享）' +
+    '⇒ ⇒ 2026-11-11 **逐条在本机量过**：14 道**真跑绿**、1 道（msrv-floor）**判不了**' +
+    '⇒ ⇒ 判不了那一档由 scripts/run-gate-once.mjs 转成「**显眼但不阻断**」' +
+    '⇒ ⇒ 且同刀补齐了 D3（11 道闸的自检补上**可数读数** N/N ⇒ ⇒ 读数才可比）' +
+    '⇒ ⇒ 已从本清单销账' +
+    '⇒ ⇒ ⚠️ cross-client 仍留在这儿：它**没有 --self-test** ⇒ ⇒ 接进 CI 会新增一条 D3 缺口' +
+    '⇒ ⇒ ⇒ ⇒ 补一个**真正的**自检之后再接（别拿「恒绿的自检」充数）',
   gates: [
-    'a2ui-session-identity',
-    'agent-surface-credentials',
-    'auth-backdoors',
-    'bind-exposure',
-    'client-dialect',
-    'client-endpoint-map',
-    'client-tools',
-    'conversation-prefix',
-    'cors-allowlist',
     'cross-client',
-    'endpoint-matrix',
-    'msrv-floor',
-    'provider-admin-headers',
-    'publish-address',
-    'tool-interception',
   ],
 };
 

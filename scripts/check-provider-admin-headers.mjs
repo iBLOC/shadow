@@ -796,6 +796,7 @@ const SELF_TEST_CASES = [
 
 function runSelfTest() {
   let failed = 0;
+  let total = 0;
 
   // ⚠️ 判据源里的**测试段**必须被截掉 —— 测试夹具里的**假对端 router**
   // 也会写出同一个 `(方法, 路径)` ⇒ 混进表里 ⇒ ⇒ 同一个端点出现**两行、
@@ -812,9 +813,11 @@ function runSelfTest() {
     ].join('\n');
     const cut = stripTestModule(synth);
     const t1 = !cut.includes('/api/telencephalon/chat/completions');
+    total++;
     if (!t1) failed++;
     console.log(`  ${t1 ? '✅' : '❌'} 判据源里测试段的假路由被截掉 ⇒ 期望 截掉，实测 ${t1 ? '截掉' : '还在'}`);
     const t2 = cut.includes('/models/providers');
+    total++;
     if (!t2) failed++;
     console.log(`  ${t2 ? '✅' : '❌'} 真路由还在 ⇒ 期望 还在，实测 ${t2 ? '还在' : '被截掉了'}`);
   }
@@ -836,10 +839,11 @@ function runSelfTest() {
       }
     }
     const ok = got === c.want;
+    total++;
     if (!ok) failed++;
     console.log(`  ${ok ? '✅' : '❌'} ${c.name} ⇒ 期望 ${c.want}，实测 ${got}`);
   }
-  return failed;
+  return { failed, total };
 }
 
 /* ------------------------------------------------------------------ *
@@ -869,12 +873,13 @@ function main() {
 
   if (args.includes('--self-test')) {
     console.log('探测器自检 —— 判据本身会不会看错：');
-    const failed = runSelfTest();
+    const st = runSelfTest();
+    const failed = st.failed;
     if (failed > 0) {
       console.error(`\n❌ 自检没过（${failed} 条）⇒ 探测器坏了 ⇒ 退出码 2。`);
       return 2;
     }
-    console.log('\n✅ 自检全过。');
+    console.log('\n✅ 自检全过（' + (st.total - st.failed) + '/' + st.total + '）。');
     return 0;
   }
   let entries;

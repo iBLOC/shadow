@@ -134,7 +134,9 @@ function parseArgs(argv) {
 
 function selfTest() {
   let failed = 0;
+  let total = 0;
   const check = (name, ok) => {
+    total++;
     if (!ok) failed++;
     console.log('  ' + (ok ? '✅' : '❌') + ' ' + name);
   };
@@ -172,6 +174,7 @@ function selfTest() {
   const missing = { ...good, text: 'const unrelated = 1;' };
   check('没有声明前缀 ⇒ 有问题', evaluate(server, missing).length === 4);
 
+  console.log('  自检：' + (total - failed) + '/' + total);
   console.log(failed ? '❌ 自检有 ' + failed + ' 条红' : '✅ 自检全过');
   process.exit(failed ? 1 : 0);
 }

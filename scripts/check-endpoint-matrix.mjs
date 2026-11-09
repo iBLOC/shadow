@@ -426,7 +426,7 @@ function selfTest() {
     console.error(`\n✘ 自检没过 ${failed.length} 条 —— 解析器被文档格式带坏了。`);
     return false;
   }
-  console.log('\n✔ 自检全过。');
+  console.log('\n✔ 自检全过（' + (cases.length - failed.length) + '/' + cases.length + '）。');
   return true;
 }
 

@@ -667,7 +667,9 @@ function buildUniverses(opts) {
 
 function selfTest() {
   let failed = 0;
+  let total = 0;
   const check = (name, ok) => {
+    total++;
     if (!ok) failed++;
     console.log('  ' + (ok ? '✅' : '❌') + ' ' + name);
   };
@@ -740,6 +742,7 @@ function selfTest() {
   const groupSites = extractCallSites(join(REPO, groupService));
   check('group_service 的调用点抽得出（否则闸看不见它们）', groupSites.length > 0);
 
+  console.log('  自检：' + (total - failed) + '/' + total);
   console.log(failed ? '❌ 自检有 ' + failed + ' 条红' : '✅ 自检全过');
   process.exit(failed ? 1 : 0);
 }
