@@ -94,4 +94,18 @@ describe('SubsystemPanel · 已加载模型', () => {
     expect(badges).toHaveLength(1);
     expect(badges[0].textContent).toBe('llm');
   });
+  it('某一格被塞成非法形状 ⇒ **不许把整页打崩**', () => {
+    // ⚠️⚠️ **这是真浏览器级实测出来的病** —— 端脑答歪了 ⇒ ⇒ 客户端交出
+    //   `undefined` ⇒ ⇒ 面板 `models.length` ⇒ ⇒ **React 树被卸载** ⇒ ⇒
+    //   整页空白（连 `main` 都读不到）⇒ ⇒ 而 TypeScript 对此**一声不吭**。
+    useSubsystemStore.setState({
+      // ⚠️ **故意的非法形状** ⇒ ⇒ 必须**显式**绕过类型
+      neuronModels: undefined as unknown as NeuronModelSummary[],
+    });
+
+    // ⚠️ **判据是「不抛」** —— 这一格以前会把整棵树打崩
+    expect(() => render(<SubsystemPanel />)).not.toThrow();
+    // ⚠️ **并且要渲染出「0 枚模型」而不是空白**
+    expect(screen.getAllByText('0').length).toBeGreaterThan(0);
+  });
 });

@@ -1,5 +1,65 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-11 (㒋 **「一格失败不许连坐 —— 而 TypeScript 在运行时只是一纸空文」** —— 承 U+3485 条（端脑发 `engine`，桌面写 `quantization`，那枚徽章从来没出现过）＋ U+3482 条（尺子要对着被测物：闸把 Playwright 当 vitest 量），本条记**取证（端脑真的答了，界面却说「没有」）**、**第一因（`Promise.all` 一处失败 ⇒ ⇒ 整栏不落地）**、**第二因（形状不对 ⇒ ⇒ 整页崩，而 TS 一声不吭）**、**这一刀的落点（4 个文件 ＋ 1 个提交）**、**判据（5 条 ＋ 两档反向验证）**、**分级读数**、**途中那几课**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真浏览器级实测（真 Chromium ＋ 真端脑 60099 ＋ **一格真 500**）＋ 真运行级（判据实跑 ＋ 两档反向验证）＋ 闸级（类型闸／码位闸）｜ 改动：shadow 仓 **改** `shadow-desktop/src/stores/subsystemStore.ts`（`Promise.all` ⇒ `allSettled` ＋ 逐项落地 ＋ 形状闸 ＋ 点名失败格）、**改** `shadow-desktop/src/components/business/SubsystemPanel/SubsystemPanel.tsx`（三格数组读法加防线）、**改** `shadow-desktop/tests/stores/subsystemStore.test.ts`（**＋4 条**）、**改** `shadow-desktop/tests/components/SubsystemPanel.test.tsx`（**＋1 条**）、**改** `AGENTS.md`（本条）｜ 读数：**判据级 11/11 绿**、**反向验证 A（全退 HEAD）恰好 4 红 ＋ B（只退面板）恰好 1 红**（逐条归因）、**类型闸 `tsc -b` EXIT=0 ＋ `tsc --noEmit -p tests/tsconfig.json` EXIT=0**、**真浏览器级：引擎徽章 `Candle` 真渲染出来（截图在案）**，而同一时刻海马体那一格**真 500** | status=active | supersedes=none
+
+① **⚠️ 取证：端脑真的答了，界面却说「没有」**
+　❶ 真浏览器（**真 Chromium ＋ 真端脑** `encephalon-server.exe` 60099，带钥匙）⇒ ⇒ `GET /api/telencephalon/neuron/preview/models` **200** ＋ 真形状 `{"capability":"llm","model_id":"qwen2.5-0.5b","engine":"Candle"}` ⇒ ⇒ 而界面上「已加载模型」显示 **0**、「暂无加载的模型」。
+　❷ 逐字抓到真因：`[subsystemStore] refresh failed Error: telencephalon 500: {"error":"storage error: ... lance scan stream: Invalid user input: Schema error: No field named tenant_id ..."}` ⇒ ⇒ **海马体那一格**回 500 ⇒ ⇒ 而 `Promise.all` ⇒ ⇒ **整个 `set()` 都不执行** ⇒ ⇒ 五格全部停在旧值。
+　❸ ⇒ ⇒ **一处的毛病 ⇒ 另一处显示「没有」** ⇒ ⇒ 「已加载模型 0」**不是**「端脑没有模型」，是「**海马体那一格**回 500」⇒ ⇒ ⇒ 这条**直接掩盖了上一刀那枚引擎徽章的修复**（徽章其实已经渲染得出来了，却因为整栏不落地而看不见）⇒ ⇒ ⇒ **上一刀欠的那一格（真浏览器）被这一刀顶了出来** ⇒ ⇒ 必须先修连坐，再谈徽章。
+
+② **⚠️ 第一因：`Promise.all` 的语义是「全成或全败」**
+　❶ `Promise.all` ⇒ ⇒ 任一格 reject ⇒ ⇒ 整个 await 抛出 ⇒ ⇒ **后面的 `set()` 一行都不执行** ⇒ ⇒ **成功的那几格的结果被一起丢掉**。
+　❷ ⇒ ⇒ 界面上「端脑没答」与「端脑答了但**另一格**没答」**长得一模一样** ⇒ ⇒ ⇒ **失败长得像成功**（这一族的又一格）。
+　❸ ⇒ ⇒ 修法不是「让端脑别报错」（那是**端脑仓在飞件的债**，**不是我的线**）⇒ ⇒ 是**桌面这一侧不许把一格的失败连坐到别的那几格**。
+
+③ **⚠️ 第二因（真浏览器级逼出来的）：形状不对 ⇒ ⇒ 整页崩，而 TypeScript 一声不吭**
+　❶ 修完连坐、真浏览器重跑 ⇒ ⇒ **页面整个崩了**：`TypeError: Cannot read properties of undefined (reading 'length')` ⇒ ⇒ 连 `main` 都读不到 ⇒ ⇒ React 树被卸载 ⇒ ⇒ **整个设置页空白**。
+　❷ 从压缩产物里把崩溃点挖出来（`main-DzeX_SkS.js:110:68338` ⇒ ⇒ `k4e` ＝ ThalamusPanel ⇒ ⇒ `r.length`）⇒ ⇒ `r = store.thalamusSensors` 是 **undefined**。
+　❸ 真因：客户端 `listSensors()` 是 `.then(r => r.sensors)` ⇒ ⇒ **端脑答的形状不对**（探针 stub 回了裸数组，而端脑真发的是 `{sensors:[...]}`）⇒ ⇒ `r.sensors` ＝ **undefined** ⇒ ⇒ 而 `Promise<string[]>` 这个类型**在运行时只是一纸空文** ⇒ ⇒ ⇒ **TypeScript 不会响** ⇒ ⇒ 只能靠**运行时形状闸**。
+　❹ ⇒ ⇒ 通用形态：**「类型对」与「运行时对」是两件事** ⇒ ⇒ 类型闸只保证**编译期** ⇒ ⇒ 凡是**要拿来做 `.length`／`.map` 的运行时值**，都得配一道**形状闸**。
+
+④ **✅ 这一刀的落点（4 个文件 ＋ 1 个提交，端脑零改动）**
+　❶ **改 `src/stores/subsystemStore.ts`** —— ❶`Promise.all` ⇒ ⇒ **`Promise.allSettled`** ＋ **逐项落地**（成功的那几格照常更新）；❷**失败的那一格保留上一次的**（一次抖动不许把已经显示的数据抹掉）；❸**形状闸**（数组格／对象格：形状不对 ⇒ ⇒ 不落地 ＋ 点名「形状不对：xxx」）；❹**点名是哪一格失败**（以前只有一句 `refresh failed`，看不出是谁）。
+　❷ **改 `src/components/business/SubsystemPanel/SubsystemPanel.tsx`** —— 三格数组（传感器／最近记忆／已加载模型）**读法加防线**（`Array.isArray(...) ? ... : []`）⇒ ⇒ 任何写入路径都**打不崩整页**。
+　❸ ⚠️ **零端脑改动** —— 端脑回 500 是**端脑仓在飞件的 lance schema 漂移**（`No field named tenant_id`）⇒ ⇒ **不是我的线** ⇒ ⇒ 本刀只在桌面这一侧收口。
+　❹ ⚠️ **形状闸为什么不写在客户端** —— 客户端是「形状适配层」，让它对端脑的形状兜底＝让它**自己造端脑的形状** ⇒ ⇒ 与上一刀那条纪律（**端脑发什么，桌面就得认什么**）相反 ⇒ ⇒ ⇒ 闸落在**写入状态的那一刻**（store 是**唯一的写入口**）。
+
+⑤ **✅ 判据（5 条 ＋ 两档反向验证）**
+　❶ `tests/stores/subsystemStore.test.ts` **＋4 条**：❶一格失败 ⇒ ⇒ **别的那几格照常落地**；❷一格失败 ⇒ ⇒ **失败那格保留旧值**；❸**点名是哪一格失败**（且**不许把没失败的格也点进去**）；❹一格**形状不对** ⇒ ⇒ **保留旧值 ＋ 点名「形状不对」**。
+　❷ `tests/components/SubsystemPanel.test.tsx` **＋1 条**：某一格被塞成非法形状 ⇒ ⇒ **不许把整页打崩**（判据是「不抛」＋ 渲染出「0」而不是空白）。
+　❸ **反向验证 A（产品全退 HEAD 版）⇒ ⇒ 恰好 4 红** —— 四条判据逐条咬住（连坐／点名／形状保留／整页不崩）⇒ ⇒ **尺子有牙且不恒红**。
+　❹ **反向验证 B（只退面板、store 保持新版本）⇒ ⇒ 恰好 1 红**（只有面板那条）⇒ ⇒ ⇒ **归因逐条清晰**：store 的三条由 store 承重，面板那条由面板承重。
+　❺ ⚠️ **一条判据不承重（如实记）** —— 「失败那格保留旧值」那条在旧 `Promise.all` 形态下**也是绿的**（整个 `set()` 不执行 ⇒ ⇒ 旧值自然保留）⇒ ⇒ 它**不是区分性判据**，是**面向未来**的护栏（防「有人改成失败时写 undefined」）。
+
+⑥ **⚠️ 途中那几课**
+　❶ **尺子也会量错对象** —— 我第一次跑真浏览器探针，失败在 `getByText('qwen2.5-0.5b')` **恒 hidden** ⇒ ⇒ 原来页面上**别处**有个 `<select>` 的 `<option>` 写着同一个 id ⇒ ⇒ `.first()` 挑中了那个 hidden 的 ⇒ ⇒ ⇒ **「没测到」被写成了「产品没有」** ⇒ ⇒ 修法：**定位要落在模型行那一层**（`span.font-mono`），而不是全页找文本。
+　❷ **`data-testid` 有两个面** —— `settings-section-subsystem` 是**侧栏按钮**，不是面板容器 ⇒ ⇒ 我照它取「面板正文」只取到三个字「子系统」⇒ ⇒ ⇒ **锚点要问「它挂在谁身上」**。
+　❸ **我自己的 stub 写错了 ⇒ ⇒ 却暴露了产品真缺陷** —— 探针把丘脑那一格 stub 成**裸数组**（端脑真发 `{sensors:[...]}`）⇒ ⇒ 客户端 `.then(r => r.sensors)` 拿到 undefined ⇒ ⇒ **整页崩** ⇒ ⇒ ⇒ ⚠️ **「我的测试夹具错了」与「产品有缺陷」是两件事** ⇒ ⇒ 前者该修夹具，后者该修产品 ⇒ ⇒ 而这一刀**两个都做了**。
+　❹ **压缩产物也能定位崩溃点** —— 堆栈只有 `k4e` ⇒ ⇒ 直接从产物里按**行列偏移**把那一段挖出来 ⇒ ⇒ 读到 `r.length` 与 `r = e.thalamusSensors` ⇒ ⇒ 比临时装 sourcemap 快得多。
+
+⑦ **✅ 分级读数（全部实测）**
+　❶ **真浏览器级（本刀最高一格）**：真 Chromium ＋ **真端脑 60099**（带钥匙）⇒ ⇒ `neuron/preview/models` **200** ＋ `hippocampus/preview/recent` **真 500** ⇒ ⇒ **引擎徽章 `Candle` 真渲染出来**（截图在案：`qwen2.5-0.5b` / `llm` / `Candle` 两行）⇒ ⇒ 而海马体那一格同时显示「暂无最近记忆」⇒ ⇒ ⇒ **一格失败不再连坐**。
+　❷ **判据级**：本刀两个文件 **11/11 绿**（store 7 ＋ panel 4）。
+　❸ **反向验证级**：A 恰好 **4 红**、B 恰好 **1 红**；还原后复跑 **11/11 绿**。
+　❹ **类型闸级**：`tsc -b` **EXIT=0** ＋ `tsc --noEmit -p tests/tsconfig.json` **EXIT=0**（后者才是 CI 那条命令 ⇒ ⇒ **「本机绿 ≠ CI 绿」第四格：命令不同**）。
+　❺ **闸级**：`scripts/check-ledger-codepoints.mjs` 三面（工作树／索引／提交树）**零违规**。
+　❻ **真 CI 级**：见 ⑩（取「含本提交的后继 head」那一轮，且带 **head sha ＋ run 的 databaseId**）。
+
+⑧ **⚠️ 圈码：本条占 U+348B（㒋）** —— 插前**独立重扫**（父仓工作树 ∪ 父仓 HEAD ∪ 父仓 `origin/master` × **三本账本**，共 **9 个面**）⇒ ⇒ 段内最高**已声明** **U+3489**（并行会话那一枚，**只在工作树**，尚未提交）⇒ ⇒ ⚠️ 而 **U+348A 是对方明写的缓冲**（那一条的正文逐字写着「按惯例**再留一枚缓冲**（U+348A 空着）」）⇒ ⇒ **有据的保留，不是空洞** ⇒ ⇒ ⇒ 本条**跳过它**、取 **U+348B** ⇒ ⇒ 插前扫：**U+348B 九面各 0 次声明、0 次提及** ✔ ⇒ ⇒ ⚠️ **不填历史空洞**（低于最高已声明的空洞一律不回收）⇒ ⇒ ⚠️ 本条**只引用已提交的码位**（U+3485／U+3482）⇒ ⇒ **不引在飞的那些**（否则提交树面**悬空引用**红）⇒ ⇒ ⚠️ **插完立刻复跑码位闸**是硬约束。
+
+⑨ **⚠️ 仍然欠着**
+　❶ **端脑的 lance schema 漂移**（`hippocampus/preview/recent` 回 500）⇒ ⇒ 端脑仓在飞件 ⇒ ⇒ **不是我的线** ⇒ ⇒ 真端脑那一格至今红 ⇒ ⇒ **这一刀的读数是在「一格真 500」的条件下取的**（不是全绿环境）。
+　❷ **丘脑那一格**真端脑回 **503**（`thalamus not initialised`，最小形态）⇒ ⇒ 探针里**只隔离那一格**（并按端脑真形状回 `{sensors:[...]}`）⇒ ⇒ ⇒ **「探测环境必须复刻被测环境」**这一课第二次落在同一处。
+　❸ **`preview/models` 那一栏要不要标「这是已注册面」**（产品决定，未擅自动手）。
+　❹ **`VITE_PREFRONTAL_URL` 那条通道在 CI 上没接**（CI 恰好靠默认端口 60080）—— 照旧。
+　❺ **真机级**（桌面 app ＋ 真端脑进程）未跑。
+　❻ **端脑仓自身的真 CI** 恒门外红（runner 计费）⇒ ⇒ 端脑侧仍无真 CI 读数。
+
+⑩ **✅ 真 CI 级读数（取「含本提交的后继 head」那一轮）**
+　（待取：head sha ＋ run 的 databaseId ＋ 各 job 结论；被取消的那轮**不算红也不算绿**。）
+
 **Updated**: 2026-11-11 (㒇 **「后一笔把前一笔悄悄抹掉了 —— 而 CI 只说『哪一行红了』」** —— 承 U+3482 条（刀 O：Playwright 族的假绿 ＋ 尺子必须分族）＋ U+3486 条（端脑发 `engine`，桌面写 `quantization`），本条记**取证（真 CI 那一格红 ＋ 本地为什么没抓到 ＋ 回退是谁干的）**、**第一因（提交面的基线可以落后）**、**这一刀的落点（6 个新文件 ＋ 1 个独立 workflow）**、**途中那几课**、**判据**、**分级读数**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真运行级实测（真 CI 逐字日志 ＋ 本地类型闸实跑 ＋ **真实提交历史**上跑新闸 ＋ 反向验证 ＋ 判据自检 ＋ 治理闸复核）｜ 改动：shadow 仓 **新增** `scripts/lib/commit-revert.mjs`（判定内核）、**新增** `scripts/lib/commit-revert-scan.mjs`（扫描层）、**新增** `scripts/lib/commit-revert-registry.mjs`（登记在册清单）、**新增** `scripts/lib/commit-revert-selftest.mjs`（判据自检 ＋ 临时 git 仓夹具）、**新增** `scripts/check-commit-revert.mjs`（CLI ＋ 分层读数 ＋ 退出码 0/1/2）、**新增** `.github/workflows/commit-revert.yml`（**独立成文件**，不碰共享的 ci.yml；**`fetch-depth: 0` 是硬需求**）｜ 读数：**真实 master 最近 40 个提交 ⇒ ⇒ 静悄悄的完全回退恰好 1 处（`afb7814` 退 `21f56d4`）＋ 已声明 1 处 ＋ 登记在册 1 处 ＋ 部分回退（提示）16 处**（提交 A/B 推进了 40 提交窗口 ⇒ ⇒ 最早那两笔滑出窗口；「静悄悄恰好 1 处」那一格是**登记生效前**的判据证据，见 ⑤❶）、**反向验证：登记项临时失效 ⇒ ⇒ 恰好 1 红并逐字点名 ⇒ ⇒ 还原后 blob 逐字一致（`b8bbc9f3…`）**、**判据自检 6/6**、**闸 EXIT=0 ｜ 治理闸不再报这把闸（D1–D5 全过）｜ YAML 有效（15 个文件）｜ 秘密明文闸 EXIT=0 ｜ 失败掩盖闸 EXIT=0**、**顺带收的债：`tsc --noEmit -p tests/tsconfig.json` 改前 4 条红 ⇒ ⇒ 改后 EXIT=0 ｜ 渲染级 3/3 绿** ｜ 提交：`76fe56e`（闸）＋ 本条（台账）| status=active | supersedes=none

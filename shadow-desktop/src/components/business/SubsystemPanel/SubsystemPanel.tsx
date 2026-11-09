@@ -45,7 +45,10 @@ function SettingRow({ label, children }: SettingRowProps) {
 function ThalamusPanel() {
   const { t } = useTranslation();
   const store = useSubsystemStore();
-  const sensors = store.thalamusSensors;
+  // ⚠️ **形状闸（最后一道防线）** —— 端脑答歪了 ⇒ ⇒ 客户端会交出 `undefined`
+  //   ⇒ ⇒ `sensors.length` ⇒ ⇒ **整页崩**（React 树被卸载）⇒ ⇒ 而
+  //   TypeScript 对此**一声不吭** ⇒ ⇒ 这一格不许直接信。
+  const sensors = Array.isArray(store.thalamusSensors) ? store.thalamusSensors : [];
   const refreshAll = store.refreshAll;
 
   return (
@@ -81,7 +84,8 @@ function HippocampusPanel() {
   const { t } = useTranslation();
   const store = useSubsystemStore();
   const stats = store.hippocampusStats;
-  const recent = store.hippocampusRecent;
+  // ⚠️ **同上** —— 「最近记忆」那一格也不许直接信。
+  const recent = Array.isArray(store.hippocampusRecent) ? store.hippocampusRecent : [];
   const consolidator = store.consolidatorState;
 
   return (
@@ -146,7 +150,10 @@ function NeuronPanel() {
   //   约束关系** ⇒ ⇒ 端脑发 `engine`、这里写 `quantization` ⇒ ⇒ **谁都不
   //   报错** ⇒ ⇒ 那枚 Badge **永远不显示**。⇒ ⇒ store 那一格已经是端脑
   //   那一侧的真类型 ⇒ ⇒ 这里**直接用** ⇒ ⇒ 漂移 ⇒ ⇒ **类型闸就响**。
-  const models = store.neuronModels;
+  // ⚠️ **同上** —— 「已加载模型」那一格也不许直接信。
+  //   （这一格以前**永远渲染不出来**，现在它渲染出来了 ⇒ ⇒ 也就到了
+  //    **它自己把整页打崩**的风险面前 ⇒ ⇒ 闸得在这一格也在。）
+  const models = Array.isArray(store.neuronModels) ? store.neuronModels : [];
 
   return (
     <SettingsCard title={t('subsystem.neuron.title')} icon={<RefreshCw size={20} />}>
