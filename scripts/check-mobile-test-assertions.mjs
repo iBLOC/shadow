@@ -175,6 +175,104 @@ function selfTest() {
     return r.cases.length === 1 && r.cases[0].asserts === 1;
   });
 
+  // ── R3 · 条件化（假绿的第三种形态）────────────────────────────────────
+  add('R3：全部断言落在无 else 的 if 里 ⇒ ⇒ 必须抓到（假绿）', () => {
+    const r = scan([
+      "  test('x', () {",
+      '    final v = someValue;',
+      '    if (v > 0) {',
+      '      expect(v, 1);',
+      '    }',
+      '  });',
+    ].join('\n'));
+    return r.conditional.length === 1 && r.conditional[0].kind === 'false-green';
+  });
+  add('R3 孪生：分支恒进（IDENT != null 且它被赋值自抛访问）⇒ ⇒ 不许判假绿', () => {
+    const r = scan([
+      "  test('x', () {",
+      '    final f = tester.widget<TextField>(find.byType(TextField));',
+      '    if (f != null) {',
+      '      expect(f, isNotNull);',
+      '    }',
+      '  });',
+    ].join('\n'));
+    return r.conditional.length === 1 && r.conditional[0].kind === 'always-taken';
+  });
+  add('R3 孪生：分支外另有无条件断言 ⇒ ⇒ 不许判假绿', () => {
+    const r = scan([
+      "  test('x', () {",
+      '    expect(n, 1);',
+      '    if (v > 0) {',
+      '      expect(v, 1);',
+      '    }',
+      '  });',
+    ].join('\n'));
+    return r.conditional.length === 1 && r.conditional[0].kind === 'some-conditional';
+  });
+  add('R3 孪生：**有 else** 的分支 ⇒ ⇒ 不许算条件化（两边总会跑一边）', () => {
+    const r = scan([
+      "  test('x', () {",
+      '    if (cond) {',
+      '      expect(n, 1);',
+      '    } else {',
+      '      expect(n, 2);',
+      '    }',
+      '  });',
+    ].join('\n'));
+    return r.conditional.length === 0;
+  });
+  add('R3 孪生：`== null` 形态（分支在 f 非 null 时**不执行**）⇒ ⇒ 必须判假绿', () => {
+    const r = scan([
+      "  test('x', () {",
+      '    final f = tester.widget<TextField>(find.byType(TextField));',
+      '    if (f == null) {',
+      '      expect(f, isNull);',
+      '    }',
+      '  });',
+    ].join('\n'));
+    return r.conditional.length === 1 && r.conditional[0].kind === 'false-green';
+  });
+  add('R3 对账：三层之和 == 含条件断言的用例数', () => {
+    const r = scan([
+      "  test('a', () { if (c1) { expect(n, 1); } });",
+      "  test('b', () { final f = tester.widget<TextField>(find.byType(TextField)); if (f != null) { expect(f, isNotNull); } });",
+      "  test('c', () { expect(n, 1); if (c3) { expect(n, 2); } });",
+      "  test('d', () { expect(n, 1); });",
+    ].join('\n'));
+    const sum = r.conditional.filter((c) => c.kind === 'always-taken').length
+      + r.conditional.filter((c) => c.kind === 'some-conditional').length
+      + r.conditional.filter((c) => c.kind === 'false-green').length;
+    return r.conditional.length === 3 && sum === r.conditional.length;
+  });
+
+  // ── 守卫：用例级早退（**只作读数** ⇒ 不判红，见引擎里的理由）────────
+  add('守卫：用例体**顶层**的 if 分支含 return ⇒ ⇒ 必须抓到（条件不成立 ⇒ 零断言通过）', () => {
+    const r = scan([
+      "  test('x', () async {",
+      '    final ok = await reachable();',
+      '    if (!ok) {',
+      "      print('skip');",
+      '      return;',
+      '    }',
+      '    expect(n, 1);',
+      '  });',
+    ].join('\n'));
+    return r.guards.length === 1 && r.guards[0].guardCount === 1;
+  });
+  add('守卫孪生：**闭包内**的 if 分支含 return（mock handler）⇒ ⇒ 不许抓', () => {
+    const r = scan([
+      "  test('x', () {",
+      '    http.post(url).then((req) {',
+      "      if (req.url.path == '/x') {",
+      '        return;',
+      '      }',
+      '    });',
+      '    expect(n, 1);',
+      '  });',
+    ].join('\n'));
+    return r.guards.length === 0;
+  });
+
   // ── 覆盖面：靠发现 ───────────────────────────────────────────────────
   add('覆盖面：仓里扫得到移动端用例（不是 0 个文件）', () => {
     const c = censusMobileAssertions(path.join(REPO_ROOT, 'shadow-mobile'), fs, path);
@@ -217,6 +315,7 @@ function main() {
       tautologies: census.tautologies,
       zeroAssert: census.zeroAssert,
       conditional: census.conditional,
+      guards: census.guards,
       weakTally: census.weakTally,
       unjudged: census.unjudged,
     }, null, 2));
@@ -234,10 +333,29 @@ function main() {
         '」体里一条断言都没有 ⇒ ⇒ 用例名宣称的主张没有任何东西在核');
     }
     for (const c of census.conditional) {
-      console.log('⚠ [条件化] ' + c.file + ':' + c.line + ' —— ' + c.kind +
-        '（' + c.conditionalAsserts + '/' + c.asserts + ' 条断言在条件分支里）' +
-        '：' + c.name);
+      const label = c.kind === 'false-green'
+        ? 'R3 假绿'
+        : (c.kind === 'always-taken' ? '条件化·恒进' : '条件化·另有无条件承重');
+      const mark = c.kind === 'false-green' ? '❌' : '⚠';
+      console.log(mark + ' [' + label + '] ' + c.file + ':' + c.line + ' —— ' +
+        c.conditionalAsserts + '/' + c.asserts + ' 条断言在条件分支里' +
+        (c.alwaysTaken ? '（含恒进分支）' : '') + '：' + c.name);
     }
+    // ── 守卫清单（逐条点名）────────────────────────────────────────────
+    // ⚠️ **只作读数，不判红**：实测这族全在 `integration_test/`，
+    //    而 CI 的 `flutter test` 只跑 `test/` ⇒ ⇒ 判红 = 红一个 CI 从不执行的用例 ⇒ ⇒ 假红。
+    for (const g of census.guards) {
+      console.log('⚠ [守卫·早退] ' + g.file + ':' + g.line + ' —— 条件不成立就 return ⇒ ⇒ ' +
+        g.asserts + ' 条断言一条都不跑（' + g.guardCount + ' 处守卫）：' + g.name +
+        ' ｜ 条件：' + g.conds.join(' / '));
+    }
+    console.log('· 用例级早退守卫读数：' + census.guards.length + ' 条用例' +
+      '（**不判红** ⇒ ⇒ 它们全在 integration_test/ ⇒ ⇒ CI 的 flutter test 根本不跑 ⇒ ⇒ 判红即假红；' +
+      '⇒ ⇒ 但真机跑这一族时端脑一挂 ⇒ ⇒ 它们会**静默全绿** ⇒ ⇒ 真机读数必须单独核端脑在跑）');
+    console.log('· 条件化三层读数：恒进 ' + (census.conditional.filter((c) => c.kind === 'always-taken').length) +
+      ' ｜ 另有无条件承重 ' + (census.conditional.filter((c) => c.kind === 'some-conditional').length) +
+      ' ｜ 真·假绿 ' + (census.conditional.filter((c) => c.kind === 'false-green').length) +
+      '（含条件断言的用例共 ' + census.conditional.length + ' 条 ⇒ ⇒ 三层之和应当等于它）');
     console.log('· 弱匹配器读数：isNotNull ' + (census.weakTally.isNotNull || 0) +
       ' ｜ isNotEmpty ' + (census.weakTally.isNotEmpty || 0) +
       ' ｜ anything ' + (census.weakTally.anything || 0));
@@ -253,11 +371,12 @@ function main() {
     return 2;
   }
 
-  const reds = s.tautologies + s.zeroAssert;
+  const reds = s.tautologies + s.zeroAssert + s.falseGreen;
   if (reds > 0) {
     console.error('');
     console.error('✖ 移动端用例的断言承重有问题（' + reds + ' 条）' +
-      '（R1 恒真 ' + s.tautologies + ' ／ R2 空断言 ' + s.zeroAssert + '）');
+      '（R1 恒真 ' + s.tautologies + ' ／ R2 空断言 ' + s.zeroAssert +
+      ' ／ R3 假绿 ' + s.falseGreen + '）');
     return 1;
   }
   console.log('');

@@ -191,6 +191,29 @@ export function matchPair(code, ranges, open, openCh, closeCh) {
   return -1;
 }
 
+/**
+ * 从 `from` 起算的**相对括号深度**序列（跳过字符串区间）。
+ *
+ * ⚠️ **为什么必须是「相对」深度**：判「这个 if 在不在用例体**顶层**」时，
+ *   绝对深度没有意义（用例体在文件里的嵌套位置各不相同）⇒ ⇒ 只能看**相对**用例体起点的深度。
+ *   用例体起点那个 `{` 之后 ⇒ ⇒ **顶层语句**的深度是 **1**。
+ *
+ * @returns {Int32Array} 长度 = to - from，marks[i] = 位置 i 处的深度
+ */
+export function relativeDepths(code, ranges, from, to) {
+  const marks = new Int32Array(Math.max(0, to - from));
+  let depth = 0;
+  for (let i = from; i < to; i += 1) {
+    if (!inRanges(ranges, i)) {
+      const ch = code[i];
+      if (ch === '(' || ch === '[' || ch === '{') depth += 1;
+      else if (ch === ')' || ch === ']' || ch === '}') depth -= 1;
+    }
+    marks[i - from] = depth;
+  }
+  return marks;
+}
+
 /** 顶层逗号切分（跳过字符串与嵌套括号）。 */
 export function splitTopArgs(text, ranges, base) {
   const parts = [];
@@ -362,7 +385,76 @@ export function isConstantMatcher(text) {
 
 const ASSERT_RE = /\b(expect|expectLater|expectError|fail)\s*\(/g;
 
-/** 「没有 else 的 if」的块范围 ⇒ ⇒ 落在里面的断言是**条件化**的。 */
+/**
+ * **恒进**判定 —— 「找不到就抛」的访问 ⇒ ⇒ 分支**必然执行** ⇒ ⇒ 断言一定跑到。
+ *
+ * ⚠️ **为什么要有这一层**（2026-11-09，桌面端那条线先踩到）：
+ *   承重的断言若全在「可能不进的 if」里 ⇒ ⇒ 分支不进 ⇒ ⇒ **零断言通过**（假绿）
+ *   ⇒ ⇒ 该判红；**但**若那个分支**恒进** ⇒ ⇒ 分支必进 ⇒ ⇒ 断言一定跑到
+ *   ⇒ ⇒ **不是**假绿 ⇒ ⇒ **不许**判红。
+ *
+ * 恒进有两种形状（Dart 版）：
+ *   ① 条件里出现「**找不到就抛**」的访问 ——
+ *      `tester.widget<T>(finder)` / `tester.getSemantics(finder)` /
+ *      `tester.renderObject(finder)` ⇒ ⇒ 找不到就**用例直接红**；
+ *   ② 条件是「某个标识符 **!= null**」、而它在同一用例里被赋值自上述调用
+ *      ⇒ ⇒ 那个标识符**不可能是 null** ⇒ ⇒ 条件恒真。
+ *      ⚠️ **裸标识符不算**（`if (f)` 里的 f 可能是 bool ⇒ ⇒ 可能为 false）
+ *      ⚠️ **`== null` 也不算**（那让分支**不执行** ⇒ ⇒ 是假绿，不是恒进）。
+ *
+ * ⚠️ **两种都是「事实」而不是「猜测」** ⇒ ⇒ 认得出来的才算恒进
+ * ⇒ ⇒ 认不出来 ⇒ ⇒ 按「**不是**恒进」处理（⇒ ⇒ 该红就红 ⇒ ⇒ 不放过假绿）。
+ */
+export const THROWING_ACCESSORS = [
+  /\.widget\s*</,
+  /\.getSemantics\s*\(/,
+  /\.renderObject\s*\(/,
+];
+
+/**
+ * 这个 if 条件是不是**恒进**（分支必然执行）？
+ * @param {string} cond 条件文本（括号里的那一段）
+ * @param {string} [bodyText] 同一用例的体（用来认「标识符被赋值自抛调用」）
+ */
+export function isAlwaysTakenCondition(cond, bodyText) {
+  const c = String(cond || '');
+  if (!c.trim()) return false;
+  // ① 条件**自己**就调了「找不到就抛」的访问
+  //    ⇒ ⇒ 要么抛（用例直接红），要么条件为真 ⇒ ⇒ 分支必然执行。
+  if (THROWING_ACCESSORS.some((re) => re.test(c))) return true;
+
+  // ② 条件是「某个标识符 **!= null**」，而那个标识符在**同一用例**里
+  //    被赋值自上述「找不到就抛」的访问
+  //    ⇒ ⇒ 赋值成功则它**非 null**；赋值失败则用例**已经红了**（到不了这里）
+  //    ⇒ ⇒ 该条件恒真。
+  //
+  // ⚠️ **只认 `!= null`，不认裸标识符、也不认 `== null`**（2026-11-11 收紧）：
+  //   · 裸标识符 `if (f)`：Dart 里 `if (f)` 要么 f 是 bool（**可能为 false**）
+  //     要么 f 是引用类型（**不可能做条件**）⇒ ⇒ 认不出来的类型 ⇒ ⇒ 不判恒进
+  //     （宁可漏抓，不许误伤）。
+  //   · `== null`：f 非 null 时恒为 **false** ⇒ ⇒ 分支**不执行**
+  //     ⇒ ⇒ 那正是**假绿**（该红），不是恒进。
+  const m = /^([A-Za-z_$][\w$]*)\s*!=\s*null$/.exec(c.trim());
+  if (m && bodyText) {
+    const name = m[1].replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // ⚠️ `[^;]*` 允许**跨行**（赋值语句常折行）⇒ ⇒ 但**遇分号就停**
+  //   ⇒ ⇒ 不会吃到别的语句里去。
+    const assign = new RegExp('\\b' + name + '\\s*=\\s*[^;]*', 'g');
+    const hit = assign.exec(String(bodyText));
+    if (hit && THROWING_ACCESSORS.some((re) => re.test(hit[0]))) return true;
+  }
+  return false;
+}
+
+/**
+ * 「**没有 else** 的 if」的块范围 ⇒ ⇒ 落在里面的断言是**条件化**的。
+ *
+ * ⚠️ **「没有 else」是命根子**（2026-11-09，桌面端那条线踩过）：
+ *   有 `else`（含 `else if`）的分支 ⇒ ⇒ **两边都会跑其中一边**
+ *   ⇒ ⇒ 它**不可能**造成「零断言通过」⇒ ⇒ **不许**算进条件化。
+ *
+ * @returns {Array<{start:number,end:number,cond:string}>} **字符偏移**区间（不用行号）
+ */
 export function ifOnlyRegions(code, ranges, bodyStart, bodyEnd) {
   const regions = [];
   const re = /\bif\s*\(/g;
@@ -385,12 +477,50 @@ export function ifOnlyRegions(code, ranges, bodyStart, bodyEnd) {
     let k = bclose + 1;
     while (k < code.length && /\s/.test(code[k])) k += 1;
     const hasElse = /^else\b/.test(code.slice(k, k + 8));
-    if (!hasElse) regions.push([brace, bclose]);
+    if (!hasElse) {
+      regions.push({
+        start: brace,
+        end: bclose,
+        cond: code.slice(popen + 1, pclose),
+      });
+    }
   }
   return regions;
 }
 
 export const lineOf = (code, idx) => code.slice(0, Math.max(0, idx)).split('\n').length;
+
+/**
+ * 「**用例级早退守卫**」：用例体**顶层**（相对深度 1）的、没有 else 的 if 分支，
+ * 且分支里有 `return` / `continue` / `break` ⇒ ⇒ 条件不成立时**整个用例提前结束**
+ * ⇒ ⇒ 后面的断言一条都不跑 ⇒ ⇒ 用例**零断言通过**（假绿的另一种形态）。
+ *
+ * ⚠️ **为什么必须限定在「顶层」**：HTTP mock 的 route handler 里也有
+ *   `if (path == '/x') { return; }` ⇒ ⇒ 那个 `return` 只是「这次不处理这个请求」，
+ *   与「用例跑没跑断言」无关 ⇒ ⇒ 它在闭包里（相对深度 ≥ 2）⇒ ⇒ 天然被排除。
+ *   ⚠️ 深度口径：分支 `{` **处**的深度 = `if` 所在层 + 1 ⇒ ⇒ 顶层 `if` ⇒ 分支 `{` 处 = **2**。
+ *
+ * ⚠️ **为什么它只作读数、不判红**（2026-11-11 实测决策）：
+ *   实测全仓 26 处这一族**全部**在 `integration_test/` ⇒ ⇒ 而 CI 的 `flutter test`
+ *   （`.github/workflows/ci.yml`）**只跑 `test/`** ⇒ ⇒ `integration_test/` **不被执行**
+ *   ⇒ ⇒ 判红 = 红一个 CI 从不执行的用例 ⇒ ⇒ **假红**（判据恒红 ⇒ ⇒ 尺子坏了）。
+ *   ⇒ ⇒ 它们是**有意的环境守卫**（端脑不可达就跳过）⇒ ⇒ 但必须**逐条点名登记**，
+ *   因为真机跑这一族时端脑一挂 ⇒ ⇒ 这 26 条会**静默全绿**（失败长得像成功）。
+ *
+ * @returns {Array<{start:number,end:number,cond:string,line:number}>}
+ */
+export function findGuardRegions(code, ranges, bodyStart, bodyEnd) {
+  const marks = relativeDepths(code, ranges, bodyStart, bodyEnd);
+  const out = [];
+  for (const r of ifOnlyRegions(code, ranges, bodyStart, bodyEnd)) {
+    const rel = marks[r.start - bodyStart];
+    if (rel !== 2) continue;
+    const inner = code.slice(r.start, r.end);
+    if (!/\b(return|continue|break)\b/.test(inner)) continue;
+    out.push({ start: r.start, end: r.end, cond: r.cond, line: lineOf(code, r.start) });
+  }
+  return out;
+}
 
 /**
  * 扫**一段 Dart 源码** ⇒ 用例与断言的清单（纯函数 ⇒ 自检可以直接喂字符串）。
@@ -404,6 +534,7 @@ export function scanDartSource(text, relPath) {
   const tautologies = [];
   const zeroAssert = [];
   const conditional = [];
+  const guards = [];
   const weakTally = {};
   let assertCount = 0;
 
@@ -454,7 +585,16 @@ export function scanDartSource(text, relPath) {
     }
 
     const regions = ifOnlyRegions(code, ranges, body.start, body.end);
-    const condCount = asserts.filter((o) => regions.some((r) => o >= r[0] && o <= r[1])).length;
+    const guardRegions = findGuardRegions(code, ranges, body.start, body.end);
+    const bodyText = code.slice(body.start, body.end);
+    const condCount = asserts.filter((o) => regions.some((r) => o >= r.start && o <= r.end)).length;
+    const unconditionalCount = asserts.length - condCount;
+    // ⚠️ **恒进**：含断言的那些分支里，**至少有一个**是恒进的
+    // ⇒ ⇒ 那个分支的断言**一定跑到** ⇒ ⇒ 即使别的分支不进，也**不是**零断言通过。
+    const alwaysTaken = regions.some(
+      (r) => asserts.some((o) => o >= r.start && o <= r.end)
+        && isAlwaysTakenCondition(r.cond, bodyText),
+    );
 
     const rec = {
       file: relPath || null,
@@ -462,20 +602,38 @@ export function scanDartSource(text, relPath) {
       name,
       asserts: asserts.length,
       conditionalAsserts: condCount,
+      unconditionalAsserts: unconditionalCount,
+      alwaysTaken,
     };
     cases.push(rec);
 
+    // ── 用例级早退守卫（只作读数 ⇒ 不进三层分类）────────────────────
+    if (guardRegions.length) {
+      guards.push({
+        file: relPath || null,
+        line: guardRegions[0].line,
+        name,
+        asserts: asserts.length,
+        guardCount: guardRegions.length,
+        conds: guardRegions.map((g) => g.cond.trim().slice(0, 60)),
+      });
+    }
+
+    // ── 三层分类（互斥且穷尽「含条件断言的用例」）─────────────────────
     if (asserts.length === 0) {
       zeroAssert.push(rec);
+    } else if (condCount === 0) {
+      // 无条件承重 ⇒ ⇒ 不进三层
+    } else if (condCount === asserts.length && alwaysTaken) {
+      conditional.push({ ...rec, kind: 'always-taken' });     // 层 1：恒进
     } else if (condCount === asserts.length) {
-      // 「所有断言都在条件分支里」⇒ ⇒ 分支不进 ⇒ ⇒ 零断言通过
-      conditional.push({ ...rec, kind: 'all-conditional' });
-    } else if (condCount > 0) {
-      conditional.push({ ...rec, kind: 'some-conditional' });
+      conditional.push({ ...rec, kind: 'false-green' });      // 层 3：真·假绿 ⇒ ⇒ R3 红
+    } else {
+      conditional.push({ ...rec, kind: 'some-conditional' });  // 层 2：另有无条件承重
     }
   }
 
-  return { cases, tautologies, zeroAssert, conditional, weakTally, assertCount };
+  return { cases, tautologies, zeroAssert, conditional, guards, weakTally, assertCount };
 }
 
 /**
@@ -511,6 +669,7 @@ export function censusMobileAssertions(root, fsMod, pathMod) {
   const allTautologies = [];
   const allZero = [];
   const allConditional = [];
+  const allGuards = [];
   const weakTally = {};
   let cases = 0;
   let assertCount = 0;
@@ -528,6 +687,7 @@ export function censusMobileAssertions(root, fsMod, pathMod) {
     allTautologies.push(...r.tautologies);
     allZero.push(...r.zeroAssert);
     allConditional.push(...r.conditional);
+    allGuards.push(...r.guards);
     for (const k of Object.keys(r.weakTally)) {
       weakTally[k] = (weakTally[k] || 0) + r.weakTally[k];
     }
@@ -540,6 +700,7 @@ export function censusMobileAssertions(root, fsMod, pathMod) {
     tautologies: allTautologies,
     zeroAssert: allZero,
     conditional: allConditional,
+    guards: allGuards,
     weakTally,
     unjudged,
     summary: {
@@ -548,8 +709,11 @@ export function censusMobileAssertions(root, fsMod, pathMod) {
       assertCount,
       tautologies: allTautologies.length,
       zeroAssert: allZero.length,
-      allConditional: allConditional.filter((c) => c.kind === 'all-conditional').length,
+      alwaysTaken: allConditional.filter((c) => c.kind === 'always-taken').length,
       someConditional: allConditional.filter((c) => c.kind === 'some-conditional').length,
+      falseGreen: allConditional.filter((c) => c.kind === 'false-green').length,
+      conditionalCases: allConditional.length,
+      guardCases: allGuards.length,
       unjudged: unjudged.length,
     },
   };
