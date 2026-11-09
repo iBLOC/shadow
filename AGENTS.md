@@ -1,3 +1,51 @@
+**Updated**: 2026-11-11 (㒪 **「57 道闸里只有 41 道接进 CI —— 而那 16 道从来没被人跑过」** —— 承 U+34A6 条（尺子认的形状比人眼想的更窄），本条记**取证（全量跑闸，逐道量）**、**第一因（债表里的理由已经过期）**、**第二因（判不了那一档在 Actions 里会伪装成「有问题」）**、**这一刀的落点**、**途中那几课**、**判据**、**分级读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真跑级实测（治理闸 --audit 全量清单 ＋ 16 道未接闸逐道本机跑 ＋ 治理闸复跑 ＋ 真 CI 读数）｜ 改动：shadow 仓 **新增** scripts/run-gate-once.mjs（跑闸器 · 三档转译）＋ **新增** .github/workflows/unwired-gates.yml（独立 workflow · 零共享面）＋ **改** 11 道闸的自检（补可数读数 N/N）＋ **改** scripts/lib/gate-discipline-registry.mjs（14 道销账）｜ 读数：治理闸 **57 道闸零违规**（存量债 32 → 18）、**YAML 闸 24 个文件零违规**、**14 道闸逐条：自检绿 ＋ 有可数读数 ＋ 真跑绿**、**真 CI 新 workflow「Unwired Gates」run 42702336369** | status=active | supersedes=none
+
+① **⚠️ 取证：57 道闸，只有 41 道在 CI 上跑过**
+　❶ `node scripts/check-gate-discipline.mjs --audit` 逐字：**「闸总数：57 ｜ 已接进 CI：41 ｜ 本轮量了：57」**。
+　❷ 未接的 16 道逐字点名：a2ui-session-identity ／ agent-surface-credentials ／ auth-backdoors ／ bind-exposure ／ client-dialect ／ client-endpoint-map ／ client-tools ／ conversation-prefix ／ cors-allowlist ／ cross-client ／ dead-env-vars-commit-tree ／ endpoint-matrix ／ msrv-floor ／ provider-admin-headers ／ publish-address ／ tool-interception。
+　❸ ⇒ ⇒ **「CI 一盏绿灯，什么都没证明」** —— 这条诊断 2026-11-05 就写过（当时 34 道闸里只有 14 道接进 CI ⇒ ⇒ 缺口 20）⇒ ⇒ 今天 57 道里 41 道 ⇒ ⇒ 缺口 16 ⇒ ⇒ **绝对数几乎没动**。
+
+② **⚠️ 第一因：债表里的理由**已经过期**
+　❶ 债表（`scripts/lib/gate-discipline-registry.mjs`）写的理由是「多数要本机工具链 ⇒ ⇒ 贸然接进 CI 只会让 CI 因**无关原因**变红」。
+　❷ ⇒ ⇒ 但 2026-11-11 **逐道在本机量过**：14 道**真跑绿**（EXIT=0）＋ 1 道**判不了**（msrv-floor：找不到 Cargo.toml，EXIT=2）＋ 1 道是并行会话刚接的 ⇒ ⇒ **那条「不能接」的理由不成立**。
+　❸ ⇒ ⇒ **通用形态：一条「暂时做不了」的理由会一直有效，直到有人真去做 ⇒ ⇒ 而登记不销 ⇒ ⇒ 缺口就永远挂在账上** ⇒ ⇒ 债表必须**销账**（登记不许过期）。
+
+③ **⚠️ 第二因：判不了那一档在 Actions 里**会伪装成「有问题」**
+　❶ 闸的退出码 2 ＝ **判不了**（源没读全：缺工具链、缺兄弟仓、缺产物）⇒ ⇒ 而 **GitHub Actions 里任何非零退出码都让步骤失败** ⇒ ⇒ 「判不了」会把 CI 拖红 ⇒ ⇒ 于是大家就不敢接 ⇒ ⇒ 「有闸但没人跑」永远在。
+　❷ ⇒ ⇒ 这一刀专门造了 **`scripts/run-gate-once.mjs`**：0 绿 ／ 1 红（阻断）／ **2 ⇒ 显眼但不阻断**（打印「这一格**没验成**」）。
+　❸ ⇒ ⇒ **通用形态：把「判不了」并进「红」，等于把「读不到」写成「有问题」** ⇒ ⇒ 那与「读不到 ≠ 是 0」是同一个病。
+
+④ **✅ 这一刀的落点（14 个文件 ＋ 零产品代码）**
+　❶ **新增 `scripts/run-gate-once.mjs`**（跑闸器 · 三档转译 · 只依赖 node）。
+　❷ **新增 `.github/workflows/unwired-gates.yml`**（独立 workflow ⇒ ⇒ 接线面**零共享**）⇒ ⇒ 14 道闸各一步。
+　❸ **改 11 道闸的自检**：把「✅ 自检全过」／「（13 只样本）」补成**算出来的** N/N ⇒ ⇒ D3（接进 CI 的闸，自检必须印可数读数）才过得去 ⇒ ⇒ 读数才可比。
+　❹ **改 `scripts/lib/gate-discipline-registry.mjs`**：那 14 道从「没接进 CI」清单里**销账**（登记不许过期）。
+
+⑤ **⚠️ 途中那几课**
+　❶ **「先自证测到了东西」**：那 16 道**逐道在本机跑了一遍**才敢接 ⇒ ⇒ 不是照着债表的描述猜的。
+　❷ **补形状要补「总数」**：11 道闸的自检只统计**失败数**（「❌ 自检有 N 条红」）⇒ ⇒ 要印 N/N 得**同时**数总数 ⇒ ⇒ 加 `let total = 0;` ＋ `total++`。
+　❸ ⚠️ **同一个仓里行的 endings 不统一**：`check-provider-admin-headers.mjs` 是 **CRLF**，其余是 LF ⇒ ⇒ 用 LF 锚它 ⇒ ⇒ 命中 0 次 ⇒ ⇒ 补丁脚本**断言中止**（半个文件都没写）⇒ ⇒ 锚点必须**逐文件**校准。
+　❹ ⇒ ⇒ **「补丁脚本要带断言」**：每处替换必须命中**恰好一次**，否则整批中止 ⇒ ⇒ 半改的判据库比不改更危险。
+　❺ ⇒ ⇒ 另一条同族教训：**自己写的断言也会骗自己** —— 我用 `String.match(re).length` 数命中数 ⇒ ⇒ 那个长度是**捕获组数**（5），不是命中次数（1）⇒ ⇒ 补丁差点下错手 ⇒ ⇒ **「数命中」要用全局匹配数，不能用 match 的数组长度**。
+
+⑥ **✅ 判据与分级读数（全部实测）**
+　❶ **判据级**：治理闸自检绿；**57 道闸零违规**（存量债 **32 → 18 条**）。
+　❷ **真跑级**：YAML 闸 **24 个文件零违规**；14 道闸逐条：自检 EXIT=0 ＋ 印出可数读数 ＋ 真跑 EXIT=0。
+　❸ **真 CI 级**：新 workflow **「Unwired Gates」run 42702336369**（这道 workflow 第一次在真 CI 上跑）。
+　❹ **治理级**：本刀**只动判据库与接线面**，**不新增闸** ⇒ ⇒ 闸总数仍是 57。
+
+⑦ **⚠️ 仍然欠着的**
+　❶ **`cross-client` 仍没接** ⇒ ⇒ 它**没有 --self-test** ⇒ ⇒ 接进去会新增一条 D3 缺口 ⇒ ⇒ 补一个**真正的**自检之后再接（别拿「恒绿的自检」充数）。
+　❷ 剩下 6 条「没有退出码 2 那一档」的债（agent-surface ／ brain-chain ／ client-tools ／ cross-client ／ jni-surface ／ neuron-ownership）仍在 ⇒ ⇒ 那些闸源没读全时**只能报绿**。
+　❸ 本刀**只覆盖接线面**：闸**本身**判得准不准，仍靠各自的判据库与真机读数 ⇒ ⇒ 「接上了」不等于「判得对」。
+
+⑧ **⚠️ 圈码：本条占 U+34AA（㒪）**
+　❶ 插前**独立重扫**（父仓工作树 ∪ 父仓索引 ∪ 父仓 HEAD × **三本账本**，按**声明形状**扫、**声明与提及分开**、码位按**十六进制**计）⇒ ⇒ 读数：**最高已声明 U+34A9（㒩，并行会话那枚，三面齐平）** ⇒ ⇒ **U+34A8 留给并行会话作缓冲** ⇒ ⇒ 本条取 **U+34AA（㒪）** ⇒ ⇒ 按惯例**再留一枚缓冲（U+34AB）**。
+　❷ ⇒ ⇒ 本条**只引用已提交的码位**（U+34A6）⇒ ⇒ ⚠️ **插完立刻复跑码位闸**是硬约束。
+
+
 **Updated**: 2026-11-11 (㒩 **「一把只量工作树的闸，在 CI 上量的是另一面 —— 所以本地绿 ≠ CI 绿」** —— 承 U+34A6 条（一个**真有人读**的环境变量被闸判成了死的 ⇒ ⇒ CI 第 28 步红 ⇒ ⇒ 后面 5 步跟着一起没测）＋ U+34A2 条（派发说「成功」而屏幕上一动没动），本条记**取证（同一时刻两把闸读数不同）**、**第一因（闸量的是磁盘不是提交树）**、**第二因（登记簿与范围清单各有两份）**、**这一刀的落点（6 个文件）**、**途中那几课**、**判据**、**分级读数**，以及**仍然欠着的**)
 
 > 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真运行级实测（**提交树里真的注入一笔死变量** ＋ **同一时刻两把闸读数不同** ＋ 真实级反向验证 ＋ 判据自检 ＋ 治理闸 ＋ **真 CI 读数**）｜ 改动：父仓 **新增** `scripts/check-dead-env-vars-commit-tree.mjs`、**新增** `scripts/lib/dead-env-vars-allowed.mjs`、**新增** `scripts/lib/dead-env-vars-scope.mjs`、**新增** `.github/workflows/dead-env-vars-commit-tree.yml`、**改** `scripts/check-dead-env-vars.mjs`（登记簿与范围清单改成 import）、**改** `scripts/lib/dead-env-vars.mjs`（read 端兼容两个捕获组）｜ 读数：**提交树面自检 7/7**、**工作树面自检 20/20**、**反向验证：注入 ⇒ ⇒ EXIT=1 且逐字点名 ／ 工作树面同一时刻 EXIT=0 ／ 还原 ⇒ ⇒ 与基线逐字相同**、**判不了 ⇒ ⇒ EXIT=2**、**治理闸零违规（57 道闸）**、**真 CI：workflow「Dead Env Vars Commit Tree」＝ success（run 42701472639）**｜ 提交：`4134219`（6 文件 / 0 产品代码）| status=active | supersedes=none
