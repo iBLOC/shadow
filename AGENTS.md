@@ -57,8 +57,14 @@
 　❺ **真机级**（桌面 app ＋ 真端脑进程）未跑。
 　❻ **端脑仓自身的真 CI** 恒门外红（runner 计费）⇒ ⇒ 端脑侧仍无真 CI 读数。
 
-⑩ **✅ 真 CI 级读数（取「含本提交的后继 head」那一轮）**
-　（待取：head sha ＋ run 的 databaseId ＋ 各 job 结论；被取消的那轮**不算红也不算绿**。）
+⑩ **✅ 真 CI 级读数（全部实测）**
+　❶ **主 CI**：run **`42656785657`**（head **`945d1b1`** ＝ 本刀那一笔）⇒ ⇒ **`conclusion=success`**，**10 个 job 全绿**（Prefrontal Rust ／ Ledger codepoints ／ Brain gates ／ Desktop Build ／ Legacy residue ／ Mobile Test ／ Mobile Analyze ／ YAML validity ／ PS1 Portability ／ Desktop Tests）。
+　❷ **账本闸 job 逐字**：工作树／索引／提交树**三面零违规（379 条条目）** ＋ **副本演练「绿→红→绿」过** ⇒ ⇒ ⚠️ 而那份演练**挑中的破坏对象就是本条**（「第 3 行那条 · U+348B」）⇒ ⇒ ⇒ **它把我的条目当样本钻了一遍** ⇒ ⇒ 这是**独立于「零违规」**的第二份读数。
+　❸ **Desktop Tests 逐字**：`Test Files 165 passed | 4 skipped (169)` ⇒ ⇒ 本刀的 5 条新判据**在 CI 里真跑过**（文件数不变 ⇒ ⇒ 5 条是**加在既有文件里**的）。
+　❹ **Mobile Test 逐字**：`🎉 675 tests passed, 12 skipped.`（桌面这一刀**零移动端影响**）。
+　❺ **另 9 个独立 workflow 全 success**：i18n Key Completeness（`42656785648`）／ E2E Typecheck（`42656785763`）／ Commit Revert（`42656785616`）／ Test Global Leaks（`42656785652`）／ Door Policy（`42656785488`）／ Desktop E2E Coverage（`42656785594`）／ Secret Plaintext（`42656786081`）／ Mobile Test Assertions（`42656785525`）／ Desktop Test Assertions（`42656785583`）。
+　❻ ⚠️ **本机全量那一格是「工作树面」** —— 跑出来 **1536 过 / 1 红 / 16 跳**，那 1 红 ＝ `tests/generatedEol.test.ts`（`accent.g.ts` 与 `design-tokens.json` 不同步）⇒ ⇒ **并行会话在飞件的生成物漂移**，**不在本刀改动面**（本刀的提交面 5 条路径里没有它）⇒ ⇒ ⇒ 而 CI 那一格（**提交树面**）是**绿的** ⇒ ⇒ **这正是「本机 ≠ CI」第五格：面不同**。
+　❼ ⚠️ **后继 head**：我推完之后并行会话又连着推了 `dca76b2`／`6d198a4`／`9b7cc7c` ⇒ ⇒ **本条那一笔在它们链上**（`… → 9b7cc7c → 6d198a4 → dca76b2 → 945d1b1`）⇒ ⇒ 按口径取「**含本提交的后继 head**」那一轮作终局读数 ⇒ ⇒ 后继 head 的主 CI run `42656994702` **本条落笔时仍在跑** ⇒ ⇒ ⚠️ **未取到它的终局结论** ⇒ ⇒ ⇒ 故本条记的是**自己那一轮**（`42656785657` ／ head `945d1b1`）—— 口径里「**自己的提交本身也算**」⇒ ⇒ 且它**没被取消**（结论是 `success` 而不是 `cancelled`）⇒ ⇒ 成立。
 
 **Updated**: 2026-11-11 (㒇 **「后一笔把前一笔悄悄抹掉了 —— 而 CI 只说『哪一行红了』」** —— 承 U+3482 条（刀 O：Playwright 族的假绿 ＋ 尺子必须分族）＋ U+3486 条（端脑发 `engine`，桌面写 `quantization`），本条记**取证（真 CI 那一格红 ＋ 本地为什么没抓到 ＋ 回退是谁干的）**、**第一因（提交面的基线可以落后）**、**这一刀的落点（6 个新文件 ＋ 1 个独立 workflow）**、**途中那几课**、**判据**、**分级读数**，以及**仍然欠着的**.)
 
