@@ -1,4 +1,66 @@
 # PROJECT KNOWLEDGE BASE
+**Updated**: 2026-11-11 (㒢 **「手势派发说『成功』，而屏幕上一动没动 —— 那个坐标在屏幕之外」** —— 承 U+3472 条（长按不是长按：手停了多久 ≠ app 认这是长按）＋ U+3482 条（尺子要对着被测物），本条记**取证（真机逐字读数）**、**第一因（派发 API 对越界坐标照样回成功）**、**第二因（弹窗只活 6 秒 ⇒ ⇒ 判据的结构性追不上）**、**第三因（窗口的包名 ≠ 内容的包名）**、**这一刀的落点**、**途中那几课**、**判据**、**分级读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真机级实测（odin ee6b4832：MIUI 14 / Android 13 / 1080x2400，三轮 drive 逐字 logcat ＋ 语义树前后对照）＋ 判据自检 ＋ **注入式反向验证** | 改动：shadow-mobile **改** android/…/MainActivity.kt（新增 `getScreenSize`）、**改** android/…/PrefrontalAccessibilityService.kt（`screenSize()` / `isPointOnScreen()` ＋ tap·longPress·swipe 派发前判越界）、**改** lib/services/accessibility_controller.dart（新增 `screenSize()`）、**改** lib/services/capabilities/capability_tools.dart（新增 `_ensureOnScreen()` ＋ 三处调用点）、**改** integration_test/a11y_scroll_to_item_test.dart（尺子改挑**屏内**的项 ＋ 断言锚点在屏内）、**改** scripts/miui-install-confirm-tap.ps1（守门员改**两段判据**）、**新增** scripts/lib/miui-confirm-tap.ps1（判据内核：纯函数 ＋ 11 条自检）｜ 读数：**真机级：滑动正路径 VERDICT PASS、退出码 0**（树从 {0..16} 变成 {43..59}，且照着新树的整屏坐标**点中了那一项自己的回调** `taps={58: 1}`）、**新越界判据当场抓住真因**（`the point (540,2312) is outside the screen (0..1080 x 0..2296)`）、**判据自检 11/11**、**反向验证：注入后恰好红 5 条 EXIT=1**、**安装级：8.8 秒 Success**（改前连装 3 次全败）、**analyze 零 issue**、**契约闸 EXIT=0（Dart 13 / Kotlin 13 齐平）** | 提交：`e30d59f`（7 文件 / 0 无关改动）| status=active | supersedes=none
+
+① **⚠️ 取证：派发说「成功」，而屏幕一动没动**
+　❶ **逐字 logcat**（odin 真机，2026-11-11）：`D/PrefrontalA11y: performSwipe: (540.0,3084.0)->(540.0,8.0) dispatched=true` ⇒ ⇒ 而那台设备 `wm size` = **1080x2400** ⇒ ⇒ **起点 3084 在屏幕之外** ⇒ ⇒ 终点 8 在状态栏里。
+　❷ **语义树前后完全相同**：`--- SCROLL BEFORE --- items={0..16}` ＝ `--- SCROLL AFTER --- items={0..16}` ⇒ ⇒ **界面一动没动** ⇒ ⇒ 而派发 API 回的是 **`dispatched=true`**。
+　❸ ⇒ ⇒ **症状链**：模型以为滑过了 ⇒ ⇒ 接着照着**旧**的语义树判断 ⇒ ⇒ 后面每一步都歪 ⇒ ⇒ **错因在第一步，但报错点在最后一步**。
+　❹ ⇒ ⇒ **⇒ 失败长得像成功** —— 「派发成功」这个返回值**不承载**效果（效果由**接收方**决定）⇒ ⇒ 必须有一层**自己的**判据（看接收方变了没有）。
+
+② **⚠️ 第一因：越界坐标是「模型算错坐标」的最常见形态**
+　❶ 语义树里**会**出现屏外的项（列表只渲染可见部分，但语义树里仍有它们的 bounds）⇒ ⇒ 「照着树给的坐标滑」这句话**默认**会挑到屏外那一项。
+　❷ ⇒ ⇒ **通用形态：树给的是「这一项在哪」⇒ ⇒ 它**不保证**那一项此刻在屏内 ⇒ ⇒ 「用树里的坐标操作」与「用树里的坐标操作一个看得见的东西」是两件事**。
+　❸ ⇒ ⇒ 修法分两面：**产品面**（派发**之前**判越界 ⇒ ⇒ 越界就**明确失败并说清真因**）＋ **尺子面**（挑**完整落在屏内**的那一项 ⇒ ⇒ 并**断言**锚点真的在屏内 ⇒ ⇒ 不许派发屏外坐标）。
+
+③ **⚠️ 第二因：判据的**成本**必须小于它要追的那个窗口**
+　❶ MIUI 的安装确认弹窗上写着「**拒绝（6）**」⇒ ⇒ 那个 6 是**倒计时** ⇒ ⇒ 弹窗**只活约 6 秒** ⇒ ⇒ 过期后系统自己按「拒绝」。
+　❷ 旧守门员每轮做一次 `uiautomator dump`（**实测 2–4 秒**，树 1.3 MB）⇒ ⇒ **一轮就吃掉半个窗口** ⇒ ⇒ ⇒ 实测连装 **3 次全部** `INSTALL_FAILED_USER_RESTRICTED` ⇒ ⇒ **不是「没调到」，是「结构上追不上」**。
+　❸ ⇒ ⇒ 修法＝**判据分层**：「**便宜的判据负责触发**」（`dumpsys window | grep mCurrentFocus`，**实测 73 ms**）＋「**贵的判据只在命中之后跑一次**」（dump 解析坐标）＋「**坐标缓存**」（第二次弹窗零 dump）⇒ ⇒ 实测安装 **8.8 秒 Success**。
+　❹ ⇒ ⇒ **通用形态：一个判据若每轮要花的时间 ≳ 目标窗口 ⇒ ⇒ 它永远追不上 ⇒ ⇒ 修法不是「跑快一点」，是「把触发与取值分成两段」**。
+
+④ **⚠️ 第三因：窗口的包名 ≠ 内容的包名**
+　❶ 实测：弹窗在场时 `mCurrentFocus` 逐字是 `… u0 com.lbe.security.miui/com.android.packageinstaller.permission.ui.GrantPermissionsActivity` ⇒ ⇒ **窗口**包名 = `com.lbe.security.miui`；而 uiautomator 树里那些节点的**内容**包名 = `com.miui.securitycenter`。
+　❷ ⇒ ⇒ 我第一版判据写的是**内容**包名 ⇒ ⇒ **永远不命中** ⇒ ⇒ 而「装上了」其实是**慢路径兜底**干的 ⇒ ⇒ ⇒ **假绿**（自检 10/10 全绿，真机一次都没命中过快触发）。
+　❸ ⇒ ⇒ ⇒ **通用形态：同一件东西有两个「身份」（窗口身份 / 内容身份）⇒ ⇒ 判据要用你**量到**的那个 ⇒ ⇒ 且「本地全绿」不等于「那条路径被走过」**。
+
+⑤ **✅ 这一刀的落点（7 文件 / 0 无关改动，提交 `e30d59f`）**
+　❶ **改 `PrefrontalAccessibilityService.kt`** —— 新增 `screenSize()`（**默认屏 display 0**，与手势派发同一块屏 ⇒ ⇒ 口径一致不误杀）＋ `isPointOnScreen()`（边界**含**等号 ⇒ ⇒ 与 Android 自己一致；**量不到尺寸 ⇒ ⇒ 不拦**，宁可放过不误杀）⇒ ⇒ **tap / longPress / swipe 派发之前**判越界 ⇒ ⇒ 越界 ⇒ ⇒ **明确失败**并逐字记 `REJECTED off-screen`。
+　❷ **改 `MainActivity.kt`** —— 新增 `getScreenSize` 通道方法（宽/高，物理像素）。
+　❸ **改 `accessibility_controller.dart`** —— 新增 `screenSize()`（拿不到 ⇒ ⇒ 回 null ⇒ ⇒ 不换算）。
+　❹ **改 `capability_tools.dart`** —— 新增 `_ensureOnScreen()`：派发**之前**拦越界，报错说清真因（「它会被派发出去，但没有效果」）⇒ ⇒ 三处调用点接上（tap / longPress / swipe；**swipe 两端都要判**）。
+　❺ **改 `a11y_scroll_to_item_test.dart`** —— 尺子改挑**屏内**的项 ⇒ ⇒ 并**断言**锚点真的在屏内 ⇒ ⇒ 不许派发屏外坐标。
+　❻ **改 `miui-install-confirm-tap.ps1`** —— 守门员改**两段判据**（快触发 ＋ 命中后解析 ＋ 坐标缓存 ＋ 慢路径兜底）。
+　❼ **新增 `lib/miui-confirm-tap.ps1`** —— 判据内核（**纯函数** ⇒ ⇒ 可离线自检）：`Test-ConfirmDialogFocused` / `Resolve-ContinueButtonBounds` / `Get-ConfirmTapPlan` ＋ `Invoke-MiuiConfirmTapSelfCheck`（**11 条**，含「窗口包名 ≠ 内容包名」那条孪生）。
+
+⑥ **⚠️ 途中那几课**
+　❶ **「自检自己报错时，它不会『红』，它会『空』」** —— 我第一版自检用嵌套函数 `$script:cases +=` 累加 ⇒ ⇒ 闭包里 `$script:cases` 与外层 `$cases` **不是同一个变量** ⇒ ⇒ `+=` 撞上 PSObject 的 `op_Addition` ⇒ ⇒ **用例一条都没进** ⇒ ⇒ 读数是「共 0 条，失败 0 条」＝**空绿** ⇒ ⇒ ⇒ 所以自检**必须断言用例条数 N > 0**（脚本里已经断言）。
+　❷ **「注入式反向验证必须先自证『注入真的生效了』」** —— 我第一次用**双引号**写替换串 ⇒ ⇒ **PowerShell 把 `$FocusLine` 插值成空串** ⇒ ⇒ 替换**没匹配上** ⇒ ⇒ 跑出来仍是 10/10 全绿 ⇒ ⇒ ⇒ **那次的『绿』是假的** ⇒ ⇒ 修法：单引号 ＋ 写完**回读确认那行变了**（本轮已做：注入后**恰好红 5 条**、EXIT=1）。
+　❸ **尺子自己拨被测物那一族（再撞一次）** —— 守门员的**慢路径** `uiautomator dump` 会让系统把 app 的无障碍服务**拆掉再装回**（日志里 `PrefrontalAccessibilityService destroyed` 紧跟着它）⇒ ⇒ ⇒ 「用 uiautomator 读屏」这件事**本身**会打断被测物 ⇒ ⇒ 真机腿跑的时候**慢路径必须关小**（本轮 10 秒兜底）。
+　❹ **共享文件改动的行尾陷阱** —— `edit` 工具写进去的段落用 `\n`，而仓内文件是 `\r\n` ⇒ ⇒ 替换**匹配不上** ⇒ ⇒ 改用「按行区间重写」的 PowerShell 脚本（且写完回读核对 CRLF 计数 ＋ 扫 U+FFFD：这一轮在判据库里掉过两处字，是靠扫 U+FFFD 抓到的）。
+
+⑦ **✅ 判据与分级读数（全部实测）**
+　❶ **真机级（odin ee6b4832）滑动正路径**：**VERDICT PASS**、退出码 **0** —— 逐字：
+　　　`--- SCROLL BEFORE --- items={0,1,…,16}`｜`--- SCROLL ANCHOR --- item=11 bounds=Rect.fromLTRB(0.0, 2040.0, 1080.0, 2216.0) screen=1080x2296`｜`--- SCROLL AFTER --- items={43,44,…,59}`｜`--- SCROLL TAP --- target=58 bounds=Rect.fromLTRB(0.0, 2048.0, 1080.0, 2224.0) taps={58: 1}`｜`--- VERDICT --- PASS failures=[]`｜`All tests passed!`
+　　　⇒ ⇒ **滑动真的把新项带进语义树**（模型看得见它）⇒ ⇒ 且**照着新树的整屏坐标点中了那一项自己的回调**（不是「派发出去了」）。
+　❷ **真机级（新判据当场抓真因）**：上一轮修锚点前的读数 —— `Bad state: the tap was rejected: the point (540,2312) is outside the screen (0..1080 x 0..2296) — it would have been dispatched but had no effect` ⇒ ⇒ **越界不再静悄悄**。
+　❸ **判据自检级**：MIUI 安装闸 **11/11**（含「窗口包名 ≠ 内容包名」那条孪生）。
+　❹ **反向验证级**：注入「快触发恒为 true」⇒ ⇒ **恰好红 5 条**、EXIT=1；还原 ⇒ ⇒ **11/11**、EXIT=0。
+　❺ **静态级**：`flutter analyze`（3 个 Dart 文件）**零 issue**｜契约闸 **EXIT=0**（**Dart 13 个方法 / Kotlin 13 个方法**齐平）｜PS1 可移植性闸 —— 我这两个文件 **BOM ＋ CRLF ＋ 零 U+FFFD**（仓内另两个红文件属并行会话那条线，已逐字回执，未代改）。
+　❻ **安装级**：守门员改两段判据后 ⇒ ⇒ 安装 **8.8 秒 Success**（改前：连装 3 次全败）⇒ ⇒ 真 App 已装回、**MD5 对账一致**。
+
+⑧ **⚠️ 仍然欠着**
+　❶ **在别人的 app 上长按是否被认成长按** —— 未验（需能读别的 app 的树）。
+　❷ **读屏族真机读数** —— 未跑。
+　❸ `integration_test/` 仍**不在 CI 里跑** ⇒ ⇒ 那 26 处守卫在 CI 里永远静默绿 ⇒ ⇒ 真机读数只能单独取。
+　❹ 「等 3 秒」预算仍是我拍的（真实重启窗口约 1 秒）⇒ ⇒ 更长的重启兜不住。
+　❺ 能力档位未拍板 ⇒ ⇒ 不得擅自新增模型侧能力工具；iOS 未验；多屏/DeX 未验。
+　❻ **主 CI 的 0-job 那一格** —— 链顶 `6a53221` 的主 CI run 是 **0 个 job**（日志 zip 22 字节＝空）⇒ ⇒ 我在**同一 headSha 上复跑** ⇒ ⇒ **造出 10 个 job** ⇒ ⇒ ⇒ **那是平台侧偶发，不是文件形状**（且 ci.yml 在最后一笔绿的 `dca76b2` 与链顶之间**逐字相同**）⇒ ⇒ **「CI 红了」第一件事要问「它跑过没有」**。
+
+⑨ **⚠️ 圈码：本条占 U+34A2（㒢）** —— 插前**独立重扫**（工作树 ∪ HEAD ∪ 索引 × **三本账本**，按**声明形状**扫、**声明与提及分开**、**字形也扫**，十六进制区间 0x3498–0x34C0）⇒ ⇒ 读数：**U+34A0 已被并行会话占用**（三面 decl=1）⇒ ⇒ 让开；**U+349A–U+349F** 被那条明写为「**不复用**」的历史空洞 ⇒ ⇒ 让开；**U+34A1** 是那条的**缓冲位** ⇒ ⇒ 让开；**U+34A2** 三面各 **0 次声明 / 0 次提及 / 0 次字形** ✔ ⇒ ⇒ 空闲 ⇒ ⇒ 按惯例**再留一枚缓冲（U+34A3）**（三面 0/0/0）⇒ ⇒ ⇒ ⚠️ 本条**只引用已提交的码位**（U+3472 ／ U+3482）⇒ ⇒ ⚠️ **插完立刻复跑码位闸**是硬约束。
+
+
 **Updated**: 2026-11-11 (㒠 **「编出来的那份大脑比源码旧 4 天 —— 而『重编』这一步自己也有三个坑」** —— 承 U+3496 条（端脑源码里有那条路由 ≠ 你编出来的大脑里有）＋ U+3482 条（哪几档按引擎 id 解析由端脑说了算），本条记**取证（真产物 ＋ 真机）**、**第一因（产物比源码旧 4 天）**、**第二因（共享工作树是脏的）**、**第三因（相对路径依赖 ＋ 缓存不在镜像里）**、**这一刀的落点**、**途中那几课**、**判据**、**分级读数**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真产物级 ＋ 真机级实测（odin ee6b4832：装机 ⇒ 端脑面端口 ⇒ 四条路由逐条读数 ＋ 空体 404 判别基线）＋ 注入式反向验证（等长打掉四条字面量）| 改动：shadow 仓 **新增** scripts/prove-brain-routes-on-device.ps1（真机路由探针，判据＝状态码 ＋ 体长 ＋ 体首 200 字）、**新增** scripts/build-android-clean-mirror.ps1（从已提交状态编出手机端那份大脑：镜像 ＋ 联接 ＋ 构建）｜ **产物**（不进提交面，.gitignore 第 72 行）：jniLibs/arm64-v8a/libencephalon.so 由 11-06 那份重编为当前源码那一份 | 读数：**产物级闸 EXIT=1（恰好 4 红）⇒ ⇒ EXIT=0（0 红）**、**注入式反向验证：等长打掉 ⇒ ⇒ 恰好同样 4 红**、**真机级：4 条路由全部存在**（capability-defaults 200 ＋ 八档词表／notifications 200／ack 200／tasks-update 404 带 JSON 体）、**判别基线：真不存在的路由 = 404 空体** | status=active | supersedes=none
