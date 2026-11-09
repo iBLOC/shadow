@@ -1,5 +1,23 @@
 # PROJECT KNOWLEDGE BASE
 
+**Updated**: 2026-11-09 (㐥 **「桌面上能看见端脑任务了 —— 对话里建的任务，重启后还在」** —— 承 㐤 条（任务库落盘那条的「**仍然欠着**」项：❶ 桌面端接线、❹ 桌面任务板仍走海马体方言），本条记**取证**、**这一刀的三处落点**、**判据**、**分级读数**、**边界（在飞文件让出了什么）**，以及**仍然欠着的**。)
+
+> 信封：epoch=2026-11-09 | authority=measured | scope=project | source=真机实测（改动全在 `shadow` 父仓：**新增** `shadow-desktop/src/lib/endbrainTasks.ts` ＋ **新增** `shadow-desktop/src/components/task/EndbrainTaskSection.tsx` ＋ **新增** `shadow-desktop/tests/lib/endbrainTasks.test.ts` ＋ **新增** `shadow-desktop/tests/components/EndbrainTaskSection.test.tsx` ＋ **改写** `shadow-desktop/src/stores/taskBoardDataStore.ts` ＋ **改写** `shadow-desktop/src/pages/TaskBoardPage.tsx` ＋ **改写** `shadow-desktop/src-tauri/src/main.rs`；读数：**组件级 vitest 8/8 绿**、**类型级 `tsc -b` EXIT=0**、**宿主级 `cargo test --bin shadow-desktop` 1/1 绿**、**闸级 四个契约闸 EXIT=0 ＋ 码位闸三面绿**）| status=active | supersedes=none
+
+① **⚠️ 取证：桌面任务板上有两块，但都不是端脑任务** —— ❶ **本地看板列**（`useTaskBoardStore` ＝ 前端本地状态，`crypto.randomUUID()` 造 id ⇒ ⇒ **重启即失**）；❷ **「海马体任务」分区**（`HippocampusTaskSection` → `prefrontalClient.listTasks` → `GET /hippocampus/api/tasks`）⇒ ⇒ 那是**另一份数据**（agent 运行记录，Lance 那套）⇒ ⇒ **对话里建的任务落在端脑的 `TaskStore` 里，桌面上从来看不见** ⇒ ⇒ 两端永远对不上（移动端在 㐡 条治过 ⇒ 桌面还没）⇒ ⇒ 而桌面**早就有** `telencephalonClient.getTasks()`（`GET /api/telencephalon/tasks`）✔ ⇒ ⇒ 只是**没人用**。
+
+② **✅ 这一刀的三处落点** —— ❶ **新增「端脑任务」分区**（`src/components/task/EndbrainTaskSection.tsx` ＋ `src/lib/endbrainTasks.ts` 形状模块 ＋ `taskBoardDataStore` 的切片 ＋ `TaskBoardPage` 挂上）⇒ ⇒ 直读端脑那张面 ⇒ ⇒ 与移动端**同一份数据、同一套字面量**（`Pending` / `InProgress` / …）；❷ **桌面给端脑的任务库指路**（`src-tauri/src/main.rs`：端脑**只在宿主显式指过**时才落盘 ⇒ ⇒ 桌面不指 ⇒ 桌面的任务**重启即失** ⇒ ⇒ 现在指到 `dirs::config_dir()/shadow/tasks.json`，**跟 admin key 同目录**）；❸ **形状认不得的那几条 ⇒ 出声**（`endbrainSkipped` ⇒ 界面写明「有 N 条形状认不得，已跳过」）⇒ ⇒ 不静默丢；⚠️ **截止时间按本地钟点显示**（端脑存的是 UTC 瞬间）⇒ ⇒ 与移动端同一口径。
+
+③ **✅ 边界：这一刀让出了什么（为什么两张面仍不齐）** —— ⚠️ **只做「读 ＋ 确认」**：改标题／优先级／删除要动桌面的端脑客户端 ⇒ ⇒ 那要同时改「**客户端端点对照表**」（`scripts/client-endpoint-map.txt`）⇒ ⇒ 而那张表**正被并行会话在飞改**（他们在加通知收件箱那两行）⇒ ⇒ **不碰**（宁可不齐，也不把别人的在飞件卷进来）⇒ ⇒ 桌面端脑任务**暂时只能读与确认**。⚠️ **i18n 也让出了**：新文案走 i18next 的**内联默认**（`t(key, '默认')` —— 仓里已有同款先例，`HippocampusTaskSection` 自己就这么用）⇒ ⇒ 不碰 `src/i18n/*.json`（那两份当时也在飞改）⇒ ⇒ **英文界面这一块暂显中文** ⇒ ⇒ 等 i18n 文件空了再补键。
+
+④ **✅ 判据** —— 新增 `tests/lib/endbrainTasks.test.ts`（**4 条**：serde 变体名原样认下来／认不得任务号 ⇒ 那条认不得／认不得的状态与优先级 ⇒ 与移动端同一口径／只有「待确认」的才给确认按钮）＋ `tests/components/EndbrainTaskSection.test.tsx`（**4 条**：把端脑任务画出来／待确认的给确认按钮、确认过的不给／点确认 ⇒ 真的打端脑那张面／形状认不得 ⇒ 出声）＋ `src-tauri` 落点判据 **1 条**（任务文件跟 admin key 同目录）。
+
+⑤ **✅ 分级读数** —— **组件级**：`npx vitest run tests/lib/endbrainTasks.test.ts tests/components/EndbrainTaskSection.test.tsx` ⇒ **8 passed / 0 failed**；**类型级**：`npx tsc -b` ⇒ **EXIT=0**；**宿主级**：`cargo test --bin shadow-desktop`（`src-tauri`）⇒ **1 passed / 0 failed**（落点判据）；**闸级**：端点矩阵／客户端端点对照表／门型表／方言四个契约闸 **EXIT=0** ＋ 码位闸三面绿；⚠️ **真机级未跑**（没起桌面端脑实跑一遍）⇒ ⇒ 本刀最高只到**组件级 ＋ 宿主级** ⇒ ⇒ **不许拿组件绿冒充真机绿**。
+
+⑥ **⚠️ 仍然欠着** —— ❶ **桌面端脑任务只能读与确认**（改标题／优先级／删除要等「客户端端点对照表」与桌面的端脑客户端都空出来）；❷ **新文案在英文界面暂显中文**（i18n 键要等 `src/i18n/*.json` 空出来再补）；❸ **本地看板列仍是前端状态**（`crypto.randomUUID()` ⇒ ⇒ 重启即失 ⇒ ⇒ 它跟端脑任务是两份数据 ⇒ ⇒ **桌面至今没有「看板列也落盘」的方案**）；❹ **真机级读数**：没起桌面端脑实跑（对话建一条 ⇒ 桌面上看见 ⇒ 杀进程重启 ⇒ 还在）；❺ **端脑侧的真机级仍然欠着**（承 㐤 条⑩❷）；❻ **ziti 控制器口令／另外两台设备／ziti 可视化配置落点**仍在等用户（承 Pending 项）。
+
+⑦ **⚠️ 圈码：本条占 U+3425（㐥）** —— 插前 `git fetch` 远端（清代理）＋ **跨四账本**实测（父仓工作树 ∪ 父仓远端 `origin/master` ∪ 移动端 ∪ 桌面端）⇒ ⇒ 0x3400–0x3424 **全部已占**（U+3424 ＝ 上一刀的 㐤）⇒ ⇒ **U+3425 空闲** ✔ ⇒ ⇒ ⚠️ **这是连续第八次「定稿时的空闲只证明那一刻没人占」** ⇒ ⇒ **插前重扫是硬约束，不是形式**；⚠️ 本条**只引用已提交的码位**（㐤 U+3424／㐣 U+3423／㐡 U+3421）⇒ ⇒ 不引并行会话**未提交**的那条（否则提交树面悬空引用红）。
+
 **Updated**: 2026-11-09 (㐤 **「任务库落盘 —— 对话里建的任务，重启后还在」** —— 承 㐡 条（任务库有**三份**那条的「**仍然欠着**」项：任务库是内存的）与 㐝 条（任务号是端脑持有的事实），本条记**病根**、**选型取舍**、**落点与旋钮口径**、**落库纪律**、**判据**、**反向验证**、**分级读数**，以及**仍然欠着的**。)
 
 > 信封：epoch=2026-11-09 | authority=measured | scope=project | source=真机实测（改动全在 `telencephalon` 仓：**改写** `src/lobes/task_store.rs` ＋ **新增** `tests/task_store_persistence.rs`；读数：**落盘级 10/10 绿**、**反向验证级 恰好 9 红**、**编译级 `cargo check --all-targets` EXIT=0**、**单测级 `cargo test --lib` 845 passed / 0 failed**）| status=active | supersedes=none
