@@ -90,6 +90,19 @@ jobs:
           repository: iBLOC/neuron
           path: neuron
 
+      # ⚠️ **大脑仓（encephalon）也要检出** —— 2026-11-11 真 CI 实测（run 42720852662）
+      #    ⇒ ⇒ 「CORS 白名单」那道闸的判据源在**它**那儿
+      #    （`src/api/cors.rs` ＋ `src/a2a_server.rs`）⇒ ⇒ 不检出 ⇒ ⇒ **判不了**
+      #    ⇒ ⇒ 而这一刀刚把它的路径改成「仓外优先、仓内兜底」⇒ ⇒ **检出即可真判**。
+      # ⚠️ 它是**私有仓** ⇒ ⇒ 仍走同一个 token ⇒ ⇒ token 缺失时跳过 ⇒ ⇒ 那一格「判不了」。
+      - name: Checkout encephalon
+        if: ${{ env.IBLOC_TOKEN != '' }}
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/encephalon
+          path: encephalon
+          token: ${{ env.IBLOC_TOKEN }}
+
       # ⚠️ A2UI 形态的「会话身份」两端一致
       - name: a2ui-session-identity
         run: node scripts/run-gate-once.mjs scripts/check-a2ui-session-identity.mjs
