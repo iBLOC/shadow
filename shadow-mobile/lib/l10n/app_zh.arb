@@ -576,6 +576,7 @@
   "@encephalonModelOptionsUnavailable": {},
   "capabilityDefaultsTitle": "按能力分档的默认模型",
   "capabilityDefaultsHint": "文本 / 语音识别 / 语音合成 各自一个默认模型；不指定就由端脑自己挑。",
+  "capabilityDefaultsAppliedButNotCached": "已下发到大脑，但本地副本没存住 —— 重启后这一档会回到默认。",
   "capabilityDefaultUnset": "不指定",
   "capabilityDefaultsEmpty": "这台大脑没有暴露任何能力档位。",
   "encephalonLobeRoutingTitle": "叶区模型路由",

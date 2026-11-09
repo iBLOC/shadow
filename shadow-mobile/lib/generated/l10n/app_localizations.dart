@@ -2119,6 +2119,12 @@ abstract class AppLocalizations {
   /// **'Text / speech recognition / speech synthesis each get their own default model; leave a tier unset and the brain picks one.'**
   String get capabilityDefaultsHint;
 
+  /// No description provided for @capabilityDefaultsAppliedButNotCached.
+  ///
+  /// In en, this message translates to:
+  /// **'Applied to the brain, but the local copy was not saved - this tier will reset after a restart.'**
+  String get capabilityDefaultsAppliedButNotCached;
+
   /// No description provided for @capabilityDefaultUnset.
   ///
   /// In en, this message translates to:

@@ -1091,6 +1091,10 @@ class AppLocalizationsZh extends AppLocalizations {
       '文本 / 语音识别 / 语音合成 各自一个默认模型；不指定就由端脑自己挑。';
 
   @override
+  String get capabilityDefaultsAppliedButNotCached =>
+      '已下发到大脑，但本地副本没存住 —— 重启后这一档会回到默认。';
+
+  @override
   String get capabilityDefaultUnset => '不指定';
 
   @override

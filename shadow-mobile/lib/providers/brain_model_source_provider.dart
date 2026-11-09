@@ -612,7 +612,7 @@ class BrainModelSourceNotifier extends StateNotifier<BrainModelSourceState> {
   ///
   /// ⚠️ **持久副本在客户端** —— 与「来源」同一套路（客户端持 durable
   /// 副本、开机下发）⇒ ⇒ 重启不丢。
-  Future<void> setCapabilityDefault(String capability, String? model) async {
+  Future<bool> setCapabilityDefault(String capability, String? model) async {
     final defaults = Map<String, String>.from(state.capabilityDefaults);
     final id = model?.trim() ?? '';
     if (id.isEmpty) {
@@ -621,7 +621,10 @@ class BrainModelSourceNotifier extends StateNotifier<BrainModelSourceState> {
       defaults[capability] = id;
     }
     state = state.copyWith(capabilityDefaults: defaults, clearError: true);
-    await _persist();
+    // ⚠️ **返回「存没存住」** —— 端脑那份是权威、本地这份只是「开机重下发」
+    // 的副本 ⇒ ⇒ 存不住 ≠ 这次没生效 ⇒ ⇒ 但界面**必须说真话**（否则用户
+    // 以为「持久了」，重启一次设置全丢 ⇒ ⇒ **失败长得像成功**）。
+    return _persist();
   }
 
   /// 记下某个叶区的覆盖。
@@ -647,7 +650,8 @@ class BrainModelSourceNotifier extends StateNotifier<BrainModelSourceState> {
     await _persist();
   }
 
-  Future<void> _persist() async {
+  /// 落盘。**返回「存没存住」** —— 失败时也把原因放进 [state.error]。
+  Future<bool> _persist() async {
     try {
       await _settings.set(
         BrainModelSource.routingSettingKey,
@@ -659,8 +663,10 @@ class BrainModelSourceNotifier extends StateNotifier<BrainModelSourceState> {
       } else {
         await _settings.set(BrainModelSource.settingKey, state.source.raw!);
       }
+      return true;
     } catch (e) {
       state = state.copyWith(error: e.toString());
+      return false;
     }
   }
 }

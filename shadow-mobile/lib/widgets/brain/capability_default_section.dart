@@ -167,13 +167,21 @@ class _CapabilityRow extends ConsumerWidget {
     try {
       await client.setCapabilityDefaults(next);
       // ⚠️ 端脑收下了才落本地（顺序反了就会出现「界面说已设置、实际没有」）。
-      await ref
+      final persisted = await ref
           .read(brainModelSourceProvider.notifier)
           .setCapabilityDefault(capability, trimmed.isEmpty ? null : trimmed);
       ref.invalidate(capabilityDefaultsProvider);
       if (!context.mounted) return;
       messenger.showSnackBar(
-        SnackBar(content: Text(l10n.encephalonModelSourceApplied)),
+        SnackBar(
+          content: Text(
+            persisted
+                ? l10n.encephalonModelSourceApplied
+                // ⚠️ **本地副本没存住 ⇒ 要说清** —— 端脑那份已经是权威了，
+                // 但「重启后这一档会回到默认」必须让用户知道。
+                : l10n.capabilityDefaultsAppliedButNotCached,
+          ),
+        ),
       );
     } catch (e) {
       // ⚠️ **说真话**：把端脑的原话带出来（它会说清是「键不认识」还是
