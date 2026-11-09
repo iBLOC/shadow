@@ -59,6 +59,7 @@
  * 悄悄算进这一笔。
  */
 
+import { sibling } from './lib/sibling-repo.mjs';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { dirname, join, resolve, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -88,8 +89,8 @@ function printHelp() {
 
 function parseArgs(argv) {
   const opts = {
-    source: join(REPO, '..', 'telencephalon'),
-    brain: join(REPO, '..', 'encephalon'),
+    source: sibling(REPO, 'telencephalon'),
+    brain: sibling(REPO, 'encephalon'),
     desktop: join(REPO, 'shadow-desktop'),
     json: false,
     selfTest: false,

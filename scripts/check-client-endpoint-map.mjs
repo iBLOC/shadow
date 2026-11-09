@@ -35,6 +35,7 @@
  *   node scripts/check-client-endpoint-map.mjs
  *   node scripts/check-client-endpoint-map.mjs --source C:\Projects\iBLOC\telencephalon
  */
+import { sibling } from './lib/sibling-repo.mjs';
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -133,9 +134,9 @@ function isQueryStringIdent(text, name, before) {
 
 function parseArgs(argv) {
   const opts = {
-    source: resolve(REPO, '..', 'telencephalon'),
-    neuron: resolve(REPO, '..', 'neuron'),
-    hippocampus: resolve(REPO, '..', 'hippocampus'),
+    source: sibling(REPO, 'telencephalon'),
+    neuron: sibling(REPO, 'neuron'),
+    hippocampus: sibling(REPO, 'hippocampus'),
     selfTest: false,
     dump: null,
     discover: false,

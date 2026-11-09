@@ -47,6 +47,7 @@
  * node scripts/check-provider-admin-headers.mjs --self-test # 探测器自检
  * ```
  */
+import { sibling } from './lib/sibling-repo.mjs';
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { resolve, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -64,7 +65,7 @@ const REPO = resolve(HERE, '..');
 // （反向验证时就是要对着一个**历史 worktree** 跑）。
 let TELENCEPHALON_DIR =
   process.env.SHADOW_TELENCEPHALON_DIR ||
-  resolve(REPO, '..', 'telencephalon');
+  sibling(REPO, 'telencephalon');
 let TELENCEPHALON_SRC = resolve(TELENCEPHALON_DIR, 'src', 'api', 'providers.rs');
 let DESKTOP_SRC = join(REPO, 'shadow-desktop', 'src');
 const MOBILE_LIB = join(REPO, 'shadow-mobile', 'lib');

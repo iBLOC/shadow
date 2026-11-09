@@ -24,6 +24,7 @@
  *   node scripts/check-conversation-prefix.mjs --source C:\Projects\iBLOC\telencephalon
  *   node scripts/check-conversation-prefix.mjs --self-test
  */
+import { sibling } from './lib/sibling-repo.mjs';
 import { readFileSync, existsSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -117,7 +118,7 @@ function evaluate(serverPrefixes, client) {
 }
 
 function parseArgs(argv) {
-  const opts = { source: resolve(REPO, '..', 'telencephalon'), selfTest: false };
+  const opts = { source: sibling(REPO, 'telencephalon'), selfTest: false };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--source') opts.source = resolve(argv[++i]);
     else if (argv[i] === '--self-test') opts.selfTest = true;

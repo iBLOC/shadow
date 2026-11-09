@@ -70,6 +70,7 @@
  * ⇒ 不需要两套探测器，也不会出现两套标准。
  */
 
+import { sibling, siblingRoot } from './lib/sibling-repo.mjs';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { dirname, join, resolve, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -101,11 +102,11 @@ function printHelp() {
 
 function parseArgs(argv) {
   const opts = {
-    source: join(REPO, '..', 'telencephalon'),
-    brain: join(REPO, '..', 'encephalon'),
+    source: sibling(REPO, 'telencephalon'),
+    brain: sibling(REPO, 'encephalon'),
     desktop: join(REPO, 'shadow-desktop'),
     lobes: false,
-    lobesRoot: join(REPO, '..'),
+    lobesRoot: siblingRoot(REPO),
     json: false,
     selfTest: false,
   };

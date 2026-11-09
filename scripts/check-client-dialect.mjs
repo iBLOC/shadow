@@ -26,6 +26,7 @@
  * ⚠️ **路径先于形状**：路径对不上 ⇒ ⇒ **先 404** ⇒ ⇒ 形状轮不到 ⇒ ⇒ 那些
  * 只**报告**（它们归对照表管：missing / outer）。
  */
+import { sibling } from './lib/sibling-repo.mjs';
 import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs';
 import { join, resolve, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -108,7 +109,7 @@ function dumpOne(file) {
 }
 
 function main(argv) {
-  const opts = { source: resolve(REPO, '..', 'telencephalon') };
+  const opts = { source: sibling(REPO, 'telencephalon') };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--source') opts.source = resolve(argv[++i]);
     else if (argv[i] === '--self-test') opts.selfTest = true;

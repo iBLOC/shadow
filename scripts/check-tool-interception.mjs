@@ -76,6 +76,7 @@
  * node scripts/check-tool-interception.mjs --json
  * ```
  */
+import { sibling } from './lib/sibling-repo.mjs';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -154,7 +155,7 @@ const CALL_KINDS = [
 
 function parseArgs(argv) {
   const opts = {
-    source: resolve(REPO, '..', 'telencephalon'),
+    source: sibling(REPO, 'telencephalon'),
     selfTest: false,
     json: false,
   };

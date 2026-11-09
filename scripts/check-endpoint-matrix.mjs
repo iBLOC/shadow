@@ -42,6 +42,7 @@
  * ⚠️ **防假绿**：源码侧解析出 **0 条路由** ⇒ 直接报错退出（不是「全对」）。
  */
 
+import { sibling } from './lib/sibling-repo.mjs';
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -54,7 +55,7 @@ const MATRIX_PATH = join(
 );
 
 function parseArgs(argv) {
-  const opts = { source: resolve(REPO, '..', 'telencephalon'), why: null, selfTest: false };
+  const opts = { source: sibling(REPO, 'telencephalon'), why: null, selfTest: false };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--source') opts.source = resolve(argv[++i]);
     else if (argv[i] === '--why') opts.why = argv[++i];
