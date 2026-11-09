@@ -79,7 +79,7 @@
 
 **Updated**: 2026-11-11 (㒪 **「57 道闸里只有 41 道接进 CI —— 而那 16 道从来没被人跑过」** —— 承 U+34A6 条（尺子认的形状比人眼想的更窄），本条记**取证（全量跑闸，逐道量）**、**第一因（债表里的理由已经过期）**、**第二因（判不了那一档在 Actions 里会伪装成「有问题」）**、**这一刀的落点**、**途中那几课**、**判据**、**分级读数**，以及**仍然欠着的**.)
 
-> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真跑级实测（治理闸 --audit 全量清单 ＋ 16 道未接闸逐道本机跑 ＋ 治理闸复跑 ＋ 真 CI 读数）｜ 改动：shadow 仓 **新增** scripts/run-gate-once.mjs（跑闸器 · 三档转译）＋ **新增** .github/workflows/unwired-gates.yml（独立 workflow · 零共享面）＋ **改** 11 道闸的自检（补可数读数 N/N）＋ **改** scripts/lib/gate-discipline-registry.mjs（14 道销账）｜ 读数：治理闸 **57 道闸零违规**（存量债 32 → 18）、**YAML 闸 24 个文件零违规**、**14 道闸逐条：自检绿 ＋ 有可数读数 ＋ 真跑绿**、**真 CI 新 workflow「Unwired Gates」run 42702336369** | 提交：`160c2b5`（1 文件 / 0 无关改动） | status=active | supersedes=none
+> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真跑级实测（治理闸 --audit 全量清单 ＋ 16 道未接闸逐道本机跑 ＋ 治理闸复跑 ＋ 真 CI 读数）｜ 改动：shadow 仓 **新增** scripts/run-gate-once.mjs（跑闸器 · 三档转译）＋ **新增** .github/workflows/unwired-gates.yml（独立 workflow · 零共享面）＋ **改** 11 道闸的自检（补可数读数 N/N）＋ **改** scripts/lib/gate-discipline-registry.mjs（14 道销账）｜ 读数：治理闸 **57 道闸零违规**（存量债 32 → 18）、**YAML 闸 24 个文件零违规**、**14 道闸逐条：自检绿 ＋ 有可数读数 ＋ 真跑绿**、**真 CI 新 workflow「Unwired Gates」终局 run 42704475774 ＝ success（14 道闸全绿）**（首跑 42702838642 ＝ failure；再跑 42703852333 ＋ 42704273005 ＝ 平台拒绝加载） | 提交：`160c2b5`（1 文件 / 0 无关改动）＋ `78ffdf8`（判不了出口 ＋ 检出兄弟仓）＋ `02666dc`（workflow 加载修复） | status=active | supersedes=none
 
 ① **⚠️ 取证：57 道闸，只有 41 道在 CI 上跑过**
 　❶ `node scripts/check-gate-discipline.mjs --audit` 逐字：**「闸总数：57 ｜ 已接进 CI：41 ｜ 本轮量了：57」**。
@@ -109,18 +109,31 @@
 　❹ ⇒ ⇒ **「补丁脚本要带断言」**：每处替换必须命中**恰好一次**，否则整批中止 ⇒ ⇒ 半改的判据库比不改更危险。
 　❺ ⇒ ⇒ 另一条同族教训：**自己写的断言也会骗自己** —— 我用 `String.match(re).length` 数命中数 ⇒ ⇒ 那个长度是**捕获组数**（5），不是命中次数（1）⇒ ⇒ 补丁差点下错手 ⇒ ⇒ **「数命中」要用全局匹配数，不能用 match 的数组长度**。
 
-⑥ **✅ 判据与分级读数（全部实测）**
+⑥ **⚠️ 首跑红因①：「读不到」被写成了「有问题」—— 闸崩了，不是闸判红了**
+　❶ 真 CI **首跑 run 42702838642**（head `ba55b35`）：14 道闸里**只有 `client-endpoint-map` 红**，逐字：`Error ENOENT: no such file or directory, open '/runner/work/shadow/telencephalon/src/api/mod.rs'` ＋ `##[error]Process completed with exit code 1.` ⇒ ⇒ 闸**抛异常崩掉** ⇒ ⇒ 退出码 1 ⇒ ⇒ **「读不到」被写成了「有问题」** ⇒ ⇒ 退出码 2 那一档（判不了）**根本没走到**。
+　❷ ⇒ ⇒ 而这一格的代价**按被连坐的步数算**：第 9 步红 ⇒ ⇒ **后面 8 道闸（client-tools … tool-interception）全部 skipped** ⇒ ⇒ ⇒ **通用形态：闸崩了不只红一格 ⇒ ⇒ 它把后面每一格一起关掉**。
+　❸ ⇒ ⇒ **修法（闸侧，提交 `78ffdf8`）**：端脑源码不在位 ⇒ ⇒ **明确报「判不了」并 EXIT=2**（不再崩、不再假装红）⇒ ⇒ 本机实测：缺源 EXIT=2 ＋ 逐字「判不了：端脑源码不在位…」；真源 EXIT=0。
+　❹ ⇒ ⇒ **修法（接线侧，提交 `78ffdf8`）**：workflow **检出兄弟仓**（telencephalon ／ hippocampus 用 PAT、neuron 是公开仓不用 token）⇒ ⇒ token 缺失**只警告不硬失败**（缺 token ⇒ ⇒ 判不了，不该红）。
+　❺ ⇒ ⇒ ⇒ **通用形态：闸「崩了」与闸「判红」在 CI 上长得一模一样（步骤都是红）⇒ ⇒ 「读不到」必须自己写成「判不了」，不许靠抛异常让平台替你判**。
+
+⑦ **⚠️ 首跑红因②：平台拒绝加载 workflow —— 而 run 的名字会变成文件路径**
+　❶ 真 CI **第二跑 run 42703852333**（head `78ffdf8`）与**第三跑 run 42704273005**（head `63824f8`）：两个 run 的 **name 字段不是 workflow 名，而是 `.github/workflows/unwired-gates.yml`**（文件路径）⇒ ⇒ 平台逐字「This run likely failed because of a workflow file issue.」⇒ ⇒ **平台根本没有加载那个 workflow 文件**。
+　❷ ⇒ ⇒ 根因：step 的 `if:` 里写了 `${{ secrets.IBLOC_TOKEN != '' }}` ⇒ ⇒ **平台不允许 `secrets` 上下文出现在 step 级 `if:` 里** ⇒ ⇒ ⇒ **平台语义 ≠ 语法合法**：本地 YAML 闸（PyYAML，24 个文件全绿）**判不出这一条** ⇒ ⇒ 这一族只有真 CI 能验。
+　❸ ⇒ ⇒ **修法（提交 `02666dc`）**：secret 先映射到**作业级 env**，`if:` 里只引用 `env.IBLOC_TOKEN` ⇒ ⇒ 平台在**加载期**就接受 ⇒ ⇒ ⇒ **通用形态：「run 名字变成文件路径」是「文件没加载」的签名 —— 看到它，别去查日志里那一步（根本没有那一步）**。
+　❹ ⇒ ⇒ ⇒ **通用形态：本地 YAML 闸能验「语法」，验不了「平台会不会加载」⇒ ⇒ 两者要分开算通过**。
+⑧ **✅ 判据与分级读数（全部实测）**
 　❶ **判据级**：治理闸自检绿；**57 道闸零违规**（存量债 **32 → 18 条**）。
 　❷ **真跑级**：YAML 闸 **24 个文件零违规**；14 道闸逐条：自检 EXIT=0 ＋ 印出可数读数 ＋ 真跑 EXIT=0。
-　❸ **真 CI 级**：新 workflow **「Unwired Gates」run 42702336369**（这道 workflow 第一次在真 CI 上跑）。
+　❸ **真 CI 级**：新 workflow **「Unwired Gates」**：**首跑 run 42702838642 ＝ failure** ⇒ ⇒ 14 道闸里**只有 `client-endpoint-map` 红**（第 9 步）⇒ ⇒ **后面 8 道闸被连坐 skipped**；**第二跑 run 42703852333 ＋ 第三跑 run 42704273005 ＝ 平台拒绝加载**（run 名字变成文件路径）；**终局 run 42704475774 ＝ success**（逐 step：token 检查 ＋ 三个兄弟仓检出 ＋ **14 道闸全部 success**）。
 　❹ **治理级**：本刀**只动判据库与接线面**，**不新增闸** ⇒ ⇒ 闸总数仍是 57。
+　❺ **同 head 全景**：head `02666dc` 上 **19 个 workflow 里 18 个 success** ＋ 主 CI（run 42704475663）在跑，**唯一红的那格是 Mobile Test**（属并行会话在飞的 capability 一族 ⇒ ⇒ **不是本刀**）；上一次 head（`63824f8`）的主 CI run 42704276681 ＝ failure，**也是只有 Mobile Test 红**（其余 9 格全 success）。
 
-⑦ **⚠️ 仍然欠着的**
+⑨ **⚠️ 仍然欠着的**
 　❶ **`cross-client` 仍没接** ⇒ ⇒ 它**没有 --self-test** ⇒ ⇒ 接进去会新增一条 D3 缺口 ⇒ ⇒ 补一个**真正的**自检之后再接（别拿「恒绿的自检」充数）。
 　❷ 剩下 6 条「没有退出码 2 那一档」的债（agent-surface ／ brain-chain ／ client-tools ／ cross-client ／ jni-surface ／ neuron-ownership）仍在 ⇒ ⇒ 那些闸源没读全时**只能报绿**。
 　❸ 本刀**只覆盖接线面**：闸**本身**判得准不准，仍靠各自的判据库与真机读数 ⇒ ⇒ 「接上了」不等于「判得对」。
 
-⑧ **⚠️ 圈码：本条占 U+34AA（㒪）**
+⑩ **⚠️ 圈码：本条占 U+34AA（㒪）**
 　❶ 插前**独立重扫**（父仓工作树 ∪ 父仓索引 ∪ 父仓 HEAD × **三本账本**，按**声明形状**扫、**声明与提及分开**、码位按**十六进制**计）⇒ ⇒ 读数：**最高已声明 U+34A9（㒩，并行会话那枚，三面齐平）** ⇒ ⇒ **U+34A8 留给并行会话作缓冲** ⇒ ⇒ 本条取 **U+34AA（㒪）** ⇒ ⇒ 按惯例**再留一枚缓冲（U+34AB）**。
 　❷ ⇒ ⇒ 本条**只引用已提交的码位**（U+34A6）⇒ ⇒ ⚠️ **插完立刻复跑码位闸**是硬约束。
 
