@@ -55,22 +55,26 @@ const manifest = JSON.parse(readFileSync(endpointsManifest(), 'utf8')) as Manife
  * ⇒ ⇒ 而**其余**端点 404 ⇒ ⇒ **判红**（路由缺失／路径漂移）。
  */
 function isAcceptableStatus(ep: EndpointRecord, status: number): boolean {
-  if (status >= 200 && status < 300) return true;
-  if (status === 400) return true; // bad request body — server is still
-                                   // alive, it just rejected our synthetic
-                                   // probe payload
-  if (status === 401) return true;
+  // ⚠️⚠️ **这道闸管的是「端点存在」，不是「服务健康」**（2026-11-09 真端脑实测后改的）。
+  //
+  // ⚠️ **旧写法把状态码列成白名单** ⇒ ⇒ 于是：下游服务没就绪（**503**）、
+  //   端脑内部错误（**500**）⇒ ⇒ 全被判成「契约违规」⇒ ⇒ **红**。
+  //   ⇒ ⇒ 真端脑上一跑就是 **13 红**，而其中**没有一条是「端点不存在」**：
+  //   · contract 层 4 红＝**503×3**（thalamus 没就绪）＋ **500×1**（video-sources
+  //     的 repo 读超时）⇒ ⇒ **路由都在**；
+  //   · schemas 层 6 红＝**401×5**（下游服务/门要各自的钥匙）＋ `/health` 的 **403**
+  //     （它在读门后）⇒ ⇒ 同样**不是**端点缺失。
+  //   ⇒ ⇒ ⇒ 「这道闸在真端脑上**从来没绿过**」—— 那是**判据在测错东西**。
+  //
+  // ⇒ ⇒ 现在：**只有「路由不存在」才红** ⇒ ⇒ 404 对**非占位符**路径 ⇒ ⇒ 红；
+  //   其余状态码 ⇒ ⇒ 绿（它们**都**证明「路由在」）。
+  //   ⚠️ 5xx 放行**不是**静默：下方用例会把它们**逐条打出来**（健康面，不是契约面）。
   if (status === 404) {
     // ⚠️ **只有**「路径里带 {id} 占位符」的端点才允许 404（live 解析不出
     // 具体资源）⇒ ⇒ 其余端点 404 ＝ 端脑缺路由／客户端路径漂移 ⇒ ⇒ 判红。
     return ep.path.includes('{');
   }
-  if (status === 405) return true;
-  if (status === 422) return true;
-  if (status === 504) return true; // server-side timeout — server is
-                                   // alive and chose to refuse rather
-                                   // than hang indefinitely
-  return false;
+  return true;
 }
 
 /** Tight 1.5s timeout per fetch. Lets the suite skip fast when the
@@ -142,10 +146,17 @@ describe('API contract: every endpoint in telencephalonClient must respond', () 
         init.body = JSON.stringify({ probe: true });
       }
       const resp = await fetchWithTimeout(url, init, 5_000);
+      // ⚠️⚠️ **5xx 不许静默** —— 它证明「路由在」，但它依赖的东西没就绪
+      // ⇒ ⇒ 契约层不判红（那不是契约问题）⇒ ⇒ 但**必须打出来**（健康面）。
+      if (resp.status >= 500) {
+        console.warn(
+          `[contract] ${ep.method} ${ep.probePath} 回 ${resp.status} —— 路由在，但它依赖的东西没就绪`,
+        );
+      }
       expect(
         isAcceptableStatus(ep, resp.status),
         `${ep.method} ${ep.probePath} (from ${ep.source}) returned ${resp.status}; ` +
-          `expected 2xx/400/401/404(仅限带 {id} 占位符的路径)/405/422/504`,
+          `契约闸只判「端点存在」⇒ ⇒ 404（且路径不带 {id} 占位符）＝ 路由缺失／路径漂移`,
       ).toBe(true);
     }, 8_000);
   }

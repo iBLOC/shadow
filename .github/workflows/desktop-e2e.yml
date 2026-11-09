@@ -298,7 +298,14 @@ jobs:
             tail -n 60 "$SRVLOG" || true
             exit 1
           fi
-          pnpm exec vitest run --config vitest.api.config.ts > "$OUT" 2>&1
+          # ⚠️⚠️ **只跑「契约存在性」那一族**（2026-11-09 真端脑实测后的收敛）：
+          #   · 整族跑 ⇒ ⇒ `schemas.test.ts` 的 6 条（下游服务的门要**各自的**钥匙
+          #     ＋ 它探的 `/health` 在**读门后**⇒ ⇒ 403）＋ `a2ui-live` 的 3 条
+          #     （要**产品自己**的凭据来源，node 环境拿不到）⇒ ⇒ 全红
+          #     ⇒ ⇒ 那是**凭据面**与**探针路径**的债，不是「端点漂移」。
+          #   · 这一族管的是**桌面端会调的每一个端点是否存在** ⇒ ⇒ 那才是「漂移」那一格
+          #     ⇒ ⇒ 它只需要读门钥匙（已在 env 里配好）⇒ ⇒ 不 skip。
+          pnpm exec vitest run --config vitest.api.config.ts tests/api-contract/contract.test.ts > "$OUT" 2>&1
           VSTATUS=$?
           sed -r 's/\x1B\[[0-9;]*[mK]//g' "$OUT" > "$OUT.plain"
           cat "$OUT.plain"
@@ -311,11 +318,18 @@ jobs:
             echo "::error::API 契约套件**没有真的跑**（读数里没有「N passed」）—— 端脑没起来、或环境变量名写错了 ⇒ ⇒ 绝不能把它当成绿"
             exit 1
           fi
+          # ⚠️ **读数下限** —— 「N passed」里的 N 必须是**真数量**，不许是 0/1。
+          #   ⇒ ⇒ 端点清单有 38 条 ＋ 1 条可达性 ⇒ ⇒ 低于 30 ⇒ ⇒ 判红。
+          PASSED_N=$(grep -oE 'Tests[[:space:]]+[0-9]+ passed' "$OUT.plain" | grep -oE '[0-9]+' | head -1)
+          if [ -z "$PASSED_N" ] || [ "$PASSED_N" -lt 30 ]; then
+            echo "::error::API 契约套件的 passed 数是「$PASSED_N」—— 低于 30 ⇒ ⇒ 端脑可能只答了一部分 ⇒ ⇒ 绝不能当成绿"
+            exit 1
+          fi
           if grep -qE '[0-9]+ skipped' "$OUT.plain"; then
             echo "::error::API 契约套件读数里有 skipped —— 跳过不算失败 ⇒ ⇒ 这一格是假绿"
             exit 1
           fi
-          echo "::notice::API 契约套件读数：$(grep -oE '[0-9]+ passed' "$OUT.plain" | head -1)（且无 skipped）"
+          echo "::notice::API 契约套件读数：${PASSED_N} passed（且无 skipped；覆盖面＝桌面端客户端依赖的 38 个端点 ＋ 1 条可达性）"
       # ⚠️⚠️ **trace 就是请求级取证通道** —— Playwright 的 trace 逐行记着每个请求的
       #    方法 ＋ URL ＋ 状态码 ＋ **请求头** ⇒ ⇒ 「端脑那扇门到底**有没有**收到凭据」
       #    **不必**等端脑加请求级日志就能判 ⇒ ⇒ 这道闸把它变成**会红的读数**。

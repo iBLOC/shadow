@@ -66,7 +66,13 @@ export async function checkServerReachable(
   const cached = cache.get(baseUrl);
   if (cached) return cached;
 
-  const probe = `${baseUrl.replace(/\/$/, '')}/health`;
+  // ⚠️⚠️ **探针打的是 `/healthz`，不是 `/health`**（2026-11-09 真机实测）：
+  //   · `/health` 在**读门之后** ⇒ ⇒ 端脑的门 fail-closed ⇒ ⇒ **403**
+  //     ⇒ ⇒ 而 403 **不在**「算可达」的集合里（2xx / 401 / 404）⇒ ⇒ 判成「不可达」
+  //     ⇒ ⇒ ⇒ **整份套件被 skip** ⇒ ⇒ 「没有真跑读数」被伪装成「服务器没开」。
+  //   · `/healthz` 是**公开健康面**（实测 200）⇒ ⇒ 它回答的是「这台大脑活着吗」
+  //     ⇒ ⇒ 这正是可达性探针该问的问题。
+  const probe = `${baseUrl.replace(/\/$/, '')}/healthz`;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 3_000);
   try {
