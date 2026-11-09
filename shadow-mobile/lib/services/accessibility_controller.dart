@@ -202,6 +202,32 @@ class AccessibilityController {
     }
   }
 
+  /// **一次采样** —— 树与「这是谁的屏」**同一个窗口**。
+  ///
+  /// ⚠️⚠️ **为什么需要它**（2026-11-11 真机实测）：
+  /// ⇒ ⇒ 分两次问（`readScreen` ＋ `getForegroundPackage`）⇒ ⇒ 两次
+  ///    `rootInActiveWindow` 可能落在**不同**窗口
+  /// ⇒ ⇒ ⇒ 实测逐字：`pkg=com.android.settings rawPkg=com.miui.home`
+  /// ⇒ ⇒ ⇒ 同一时刻，工具层说「设置」、原生说「桌面」
+  /// ⇒ ⇒ ⇒ ⇒ ⇒ **张冠李戴** ⇒ ⇒ 模型拿到**错的归属**。
+  ///
+  /// ⚠️ 返回 null ＝ 取不到前台窗口（读不到，**不是**「没有前台」）。
+  static Future<Map<String, dynamic>?> readScreenSnapshot() async {
+    if (!isSupported) return null;
+    try {
+      final Map<dynamic, dynamic>? raw =
+          await _channel.invokeMethod<Map<dynamic, dynamic>>(
+            'readScreenSnapshot',
+          );
+      if (raw == null) return null;
+      return Map<String, dynamic>.from(raw);
+    } on MissingPluginException {
+      return null;
+    } on PlatformException {
+      return null;
+    }
+  }
+
   static Future<String?> readScreen() async {
     if (!isSupported) return null;
     try {

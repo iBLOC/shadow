@@ -175,6 +175,19 @@ class MainActivity : FlutterActivity() {
                     // 报「无障碍服务未开启」，而不是回一段空白。
                     withAccessibilityService(result) { svc -> svc.readScreenContent() }
                 }
+                "readScreenSnapshot" -> {
+                    // ⚠️ **一次采样** —— 树与「这是谁的屏」**同一个窗口**。
+                    //
+                    // ⚠️⚠️ **为什么不能分两次问**（2026-11-11 真机实测）：
+                    // ⇒ ⇒ 分两次 ⇒ ⇒ 两次 `rootInActiveWindow` 可能落在**不同**窗口
+                    // ⇒ ⇒ ⇒ 实测逐字：`pkg=com.android.settings rawPkg=com.miui.home`
+                    // ⇒ ⇒ ⇒ 同一时刻，工具层说「设置」、原生说「桌面」
+                    // ⇒ ⇒ ⇒ ⇒ ⇒ **张冠李戴** ⇒ ⇒ 模型拿到**错的归属**。
+                    //
+                    // ⚠️ 走**服务**那一层 ⇒ ⇒ 与 `readScreen` **同一份遍历逻辑**
+                    // ⇒ ⇒ 两边不会漂。
+                    withAccessibilityService(result) { svc -> svc.readScreenSnapshot() }
+                }
                 "getViewGeometry" -> {
                     // ⚠️ **自家窗口在屏幕上的原点** —— 自家 app 的语义树坐标是
                     // 「**本窗口**」的物理像素 ⇒ ⇒ 而手势派发用的是**整屏**

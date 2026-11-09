@@ -1,3 +1,71 @@
+**Updated**: 2026-11-11 (㓁 **「同一个工具的同一个答案，树与『这是谁的屏』分两次采样 —— 真机上已经张冠李戴过」** —— 承 U+34BD 条（判据要对着性质而不是某个环境下的值）＋ U+34BE 条（一盏绿灯没有分母），本条记**取证（真机逐字读数）**、**第一因（两次独立 `rootInActiveWindow`）**、**第二因（判据写成了「两次独立读数相等」）**、**第三因（两条路的头不同形）**、**这一刀的落点**、**途中那几课**、**判据与分级读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真机级实测（odin ee6b4832 · MIUI 14）＋ 注入式反向验证 ＋ 判据自检｜ 改动：shadow 仓 **新增** scripts/lib/mobile-tool-description.mjs（纯函数判据）＋ **改** scripts/check-mobile-a11y-contract.mjs（R7 接进闸 ＋ 13/13 自检）；shadow-mobile **改** android/.../PrefrontalAccessibilityService.kt（新增 `readScreenSnapshot()` ＋ 两条路都补头 `package=`）＋ **改** android/.../MainActivity.kt（新增通道方法 `readScreenSnapshot`）＋ **改** lib/services/accessibility_controller.dart（新增 `readScreenSnapshot()`）＋ **改** lib/services/capabilities/accessibility_ops.dart（抽象层加 `readScreenSnapshot()` 默认 null ＋ `kOwnAppPackage` 常量下移）＋ **改** lib/services/capabilities/capability_tools.dart（工具层改走单次采样）＋ **改** lib/services/capabilities/flutter_semantics_tree.dart（`_header` 补 `package=`）＋ **改** lib/services/client_tools/client_tool_registry.dart（`mobile_read_screen` 描述：**只动那一行**）＋ **新增** test/unit/mobile_read_screen_description_test.dart（4 条）＋ **新增** test/unit/mobile_read_screen_single_sample_test.dart（3 条）＋ **改** integration_test/a11y_mobile_use_test.dart（真机判据改成「同源」）｜ 读数：见 ⑦ | status=active | supersedes=none
+
+① **⚠️ 取证：同一时刻，工具层说「设置」，原生说「桌面」** —— 真机逐字读数：
+　❶ `--- OTHER APP PKG --- source=android-a11y pkg=com.android.settings rawPkg=com.miui.home coordinateSpace=screen`
+　❷ ⇒ ⇒ **`pkg` 与 `rawPkg` 不一致** ⇒ ⇒ 而这两个都出自**同一次调用** ⇒ ⇒ ⇒ 模型拿到的「这是谁的屏」与「这棵树是谁家的」**互相矛盾**。
+　❸ ⇒ ⇒ ⇒ **通用形态：一个回答里的多个事实必须来自同一次采样** ⇒ ⇒ 否则它们之间可以互相矛盾 ⇒ ⇒ 而矛盾**长得像正常** ⇒ ⇒ 「失败长得像成功」的一族。
+
+② **⚠️ 第一因：工具层读「树」与读「这是谁的屏」是两次独立采样** —— 机制查清（源码取证）：
+　❶ `PrefrontalAccessibilityService.readScreenContent()` 与 `foregroundPackage()` **各自**取一次 `rootInActiveWindow`。
+　❷ ⇒ ⇒ 前台在两次读取**之间**切换 ⇒ ⇒ 两个答案落在**不同窗口**上 ⇒ ⇒ ⇒ **张冠李戴**（不是理论风险，真机上已发生）。
+　❸ ⇒ ⇒ **落点是原生侧**：一次取 `rootInActiveWindow`，**先取包名再遍历** ⇒ ⇒ 树与包名**必然同源**。
+
+③ **⚠️ 第二因：第一版真机判据写成了「两次独立读数相等」** —— 那**正是缺陷本身**：
+　❶ 第一版真机用例断言「工具层报的包名 == 另一次独立读的包名」⇒ ⇒ 两次独立采样本来就**可能**不同 ⇒ ⇒ 那条断言测的是「环境**恰好没变**」。
+　❷ ⇒ ⇒ ⇒ **通用形态：拿「两次独立读数相等」当判据 ⇒ ⇒ 就是在测「环境恰好没变」** ⇒ ⇒ 判据必须对着产品该保证的**性质**。
+　❸ ⇒ ⇒ **改法**：判据改成「**树与包名同源**」⇒ ⇒ 而「同源」要**独立地**验 ⇒ ⇒ 办法是**把属主写进树的头**（原生那棵的头写 `# source=android-a11y (package=…)`）⇒ ⇒ 头里的包名与那一格对得上 ⇒ ⇒ ⇒ **同源可自证**。
+
+④ **⚠️ 第三因：同一个工具、同一个答案，却有两条写法** —— 原生那棵的头只写 `source=android-a11y`，回落那棵的头写 `source=flutter-semantics` ＋ 口径 ⇒ ⇒ **形状不同** ⇒ ⇒ 模型得学两套读法 ⇒ ⇒ 而它会挑错那套 ⇒ ⇒ ⇒ **通用形态：同一个结果的两种写法 ⇒ ⇒ 模型得自己猜哪套对**。
+　❶ ⇒ ⇒ **修法**：两棵树的**头逐字同形**（都写 `source=… (package=…)`）⇒ ⇒ 差异只留在 `source` 的取值与口径说明上。
+
+⑤ **✅ 这一刀的落点（10 个文件 ＋ 零判据逻辑改动）**
+　❶ **改** `shadow-mobile/android/.../PrefrontalAccessibilityService.kt`：**新增** `readScreenSnapshot(): Map<String,String?>?`（一次取 root ⇒ 先取 `pkg` 再遍历 ⇒ 同源）；并给 `readScreenContent()` 与新方法**都**补头行 `# source=android-a11y (package=…)`。
+　❷ **改** `shadow-mobile/android/.../MainActivity.kt`：新增通道方法 `"readScreenSnapshot"`（走服务层**同一份遍历逻辑** ⇒ ⇒ 两边不会漂）。
+　❸ **改** `shadow-mobile/lib/services/accessibility_controller.dart`：新增 `static readScreenSnapshot()`。
+　❹ **改** `shadow-mobile/lib/services/capabilities/accessibility_ops.dart`：新增 `readScreenSnapshot()`（**默认 null** ⇒ ⇒ 假实现不用改）＋ Platform 委派；并把 `kOwnAppPackage` **常量搬到这一层**（两棵树的共同下层 ⇒ ⇒ 否则就是环）。
+　❺ **改** `shadow-mobile/lib/services/capabilities/capability_tools.dart`：工具层改走 `snapshot`（`'foregroundPackage': snapshot != null ? snapshot['package'] as String? : await _a11y.foregroundPackage()`）⇒ ⇒ **不再分两次问**。
+　❻ **改** `shadow-mobile/lib/services/capabilities/flutter_semantics_tree.dart`：`_header` 补 `package=$pkg`（与原生那棵**逐字同形**）。
+　❼ **改** `shadow-mobile/lib/services/client_tools/client_tool_registry.dart`：`mobile_read_screen` 描述**只动那一行**（＋1 −1）⇒ ⇒ 三格逐字段点名 ＋ 明写 `source` **不**说谁的屏。
+　❽ **新增** `shadow-mobile/test/unit/mobile_read_screen_description_test.dart`（4 条）＋ **新增** `shadow-mobile/test/unit/mobile_read_screen_single_sample_test.dart`（3 条）⇒ ⇒ 后者用**调用计数**钉住「走的是一次采样那条路」（`separatePkgCalls == 0`）＋ 假实现**故意**让快照与分开读的包名不一致。
+　❾ **改** `shadow-mobile/integration_test/a11y_mobile_use_test.dart`：真机用例判据**从「两个独立读数相等」改成「树与包名同源」**（用树头 `package=` 与那一格对照）。
+　❿ **新增** `scripts/lib/mobile-tool-description.mjs` ＋ **改** `scripts/check-mobile-a11y-contract.mjs`（R7 接进闸 ＋ 13/13 自检）⇒ ⇒ 描述口径那一格**也有尺子**。
+
+⑥ **⚠️ 途中那几课**
+　❶ **「尺子量错了被测物」** —— 第一版判据用「找下一个单引号」抽描述 ⇒ ⇒ 而描述里**含单引号**（`this app own`）⇒ ⇒ **提前截断** ⇒ ⇒ 判据拿**半句话**当描述 ⇒ ⇒ 于是报「没提到 foregroundPackage」⇒ ⇒ 那**不是描述漏了**，是**尺子量错了** ⇒ ⇒ ⇒ 修法：按 **Dart 字符串字面量的真实规则**扫（处理转义 ＋ 相邻字面量自动拼接）。
+　❷ **闸自检红 ⇒ 先问「夹具齐了吗」** —— 第一次自检报「样本本该是绿的，却报了 1 条」⇒ ⇒ 那是**样本**缺 `kScreenSource*` 常量 ⇒ ⇒ **不是判据错，是样本没造全**。
+　❸ **判据的搜索范围也是判据的一部分** —— 全文搜「another app」会误伤「foregroundPackage tells you whose screen it is」这句**归属的正确出处**⇒ ⇒ ⇒ 判据只扫「**紧挨着** `source` 取值的那一小段」⇒ ⇒ 变窄反而更该红。
+　❹ **共享工作树：改前先看对方有没有碰同一行** —— `client_tool_registry.dart` 是争用文件 ⇒ ⇒ 先核 `git diff --cached` 确认对方**只碰 `required_permissions`** ⇒ ⇒ 我只动描述那一行 ⇒ ⇒ 零冲突。
+　❺ **删孤儿块会留下粘连** —— 删掉旧用例残留 body 之后，一行 Kotlin 被压成 `appendNodesToString(...)        root.recycle()` ⇒ ⇒ **Kotlin 编译当场红**（`Unresolved reference 'root'`）⇒ ⇒ ⇒ **通用形态：删代码要核「行结构」不只核「括号平衡」** ⇒ ⇒ 一行被压扁 ⇒ ⇒ 语法仍可能平衡 ⇒ ⇒ 但语义已经错了。
+
+⑦ **✅ 判据与分级读数（全部实测）**
+　❶ **判据自检级**：`check-mobile-a11y-contract.mjs --self-test` ⇒ ⇒ **13/13**（新增 3 条 R7 反例各自都被抓到）⇒ ⇒ EXIT=0。
+　❷ **判据真跑级**：改描述**之前** ⇒ ⇒ **当场判红**（逐字点名「工具描述把 source「android-a11y」说成了「谁的屏」…」）⇒ ⇒ 改完 ⇒ ⇒ **EXIT=0**（通道两端一致 ｜ 方法 Dart 15 / Kotlin 15 ｜ 截断标记 [truncated] ｜ 预算 20/2000/20000 ｜ 自家包名两份一致）。
+　❸ **反向验证级（判据级）**：把描述注入回「android-a11y (another app)」⇒ ⇒ **恰 1 红** ⇒ ⇒ 判据**真咬得住**（不是恒绿）⇒ ⇒ 还原后 EXIT=0。
+　❹ **反向验证级（单测级）**：同一条注入 ⇒ ⇒ **恰 1 红**（逐字 `Actual: 'android-a11y (another app)…'`）⇒ ⇒ 还原后 **4/4 全绿**。
+　❺ **反向验证级（同源级 · 注入式）**：把工具层**改回**分两次问 ⇒ ⇒ 单测 **恰 1 红**（逐字 `Actual: com.miui.home` 而非 `com.android.settings`）⇒ ⇒ ⇒ **假实现故意让快照与分开读的包名不一致** ⇒ ⇒ 这条用例**只咬得住分两次那条路** ⇒ ⇒ 还原后 **3/3 全绿**。
+　❻ **相关单测级**：四个相关单测文件 ⇒ ⇒ **26/26 全绿**。
+　❼ **静态级**：`flutter analyze`（精确文件列表）⇒ ⇒ **零 error / 零 warning**。
+　❽ **真机级（odin ee6b4832 · MIUI 14）**：见 ⑧。
+
+⑧ **⚠️ 真机读数（修法后重跑，odin）**
+　❶ **修法前**（第一次真机跑）：新增用例当场红 ⇒ ⇒ 逐字 `pkg=com.android.settings rawPkg=com.miui.home` ⇒ ⇒ **张冠李戴**当场复现。
+　❷ **修法后重跑**（odin ee6b4832 · MIUI 14）：**13/13 全绿、退出码 0** ⇒ ⇒ 逐字 `--- SAME SOURCE PKG --- source=android-a11y pkg=com.miui.home coordinateSpace=screen len=20012 head=# source=android-a11y (package=com.miui.home)` ⇒ ⇒ ⇒ **树头 `package=` 与 `foregroundPackage` 逐字一致** ⇒ ⇒ ⇒ **同源成立**。
+　❸ ⚠️ **这一轮采样时前台是桌面**（`com.miui.home`）⇒ ⇒ 「别家 app 在前台」那场景**这一轮没直接采到** ⇒ ⇒ ⇒ 但判据钉的是**关系**（「树头属主 ＝ 那一格」），不是**取值** ⇒ ⇒ ⇒ **任何前台都该过** ⇒ ⇒ ⇒ 而它**在修法前红过** ⇒ ⇒ ⇒ **判据咬得住**。
+　❸ ⇒ ⇒ **通用形态：同一个缺陷要「先复现、后修、再复跑」** ⇒ ⇒ 只跑修后那一遍 ⇒ ⇒ 读到绿**不能**说明修法有用 ⇒ ⇒ 因为**判据可能压根没咬住缺陷**（恒绿）。
+
+⑨ **⚠️ 圈码：本条占 U+34C1（㓁）** —— 插前**当场重扫**（父仓/移动端/桌面端 × 工作树/索引/HEAD ＝ **9 面**，官方判据 `scripts/lib/ledger-codepoints.mjs` 的 `extractEntries`，**声明与提及分开**、码位按**十六进制**计）⇒ ⇒ 读数：**U+34BF 已被声明**（并行会话那条「一盏绿灯没有分母」，父仓 HEAD L58）⇒ ⇒ **U+34C0 提及 3 次**（缓冲 ⇒ ⇒ **让开位**）⇒ ⇒ ⇒ **U+34C1 声明 0 次、提及 0 次** ✔ ⇒ ⇒ ⇒ ⇒ **通用形态：码位是全局资源 ⇒ ⇒ 取号前必须扫「所有账本的所有面」** ⇒ ⇒ 而且**自己上一轮留的缓冲也会被别人取走** ⇒ ⇒ 本条**不写「下一枚可取 ＝ X」**。
+　❶ ⇒ ⇒ 本条**只引用已提交的码位**（U+34BD／U+34BE）⇒ ⇒ ⚠️ **插完立刻复跑码位闸**是硬约束。
+
+⑩ **⚠️ 仍然欠着的**
+　❶ **模型行为级读数仍缺** ⇒ ⇒ 「模型拿到这三格**会不会真的用对**」⇒ ⇒ 那要**真机 ＋ 真模型**的一次端到端 ⇒ ⇒ 本条只把**形状与同源**钉住。
+　❷ 真机腿仍**只在 odin 一台机型**上跑过（MIUI 14）⇒ ⇒ LX04 与 MI_MAX_2 **都得用户动手**。
+　❸ `integration_test/` 仍不在 CI 里跑 ⇒ ⇒ 本条那条真机守卫也一样 ⇒ ⇒ **静悄悄绿**。
+　❹ **`foregroundPackage()` 这条老路仍然存在**（Kotlin 里仍在）⇒ ⇒ 现在它**只**作**回落**（快照取不到时）⇒ ⇒ 但那条回落**分两次采样** ⇒ ⇒ **理论上仍可能张冠李戴** ⇒ ⇒ ⇒ **欠一条「快照失败时的行为」判据**。
+　❺ 「自有 app 在前台时走哪棵树」是**平台行为** ⇒ ⇒ 别的机型可能不同 ⇒ ⇒ 本条的判据**刻意不钉**那个值。
+　❻ **端脑侧（服务器）那条腿**仍没验 ⇒ ⇒ 本条全部读数都在**手机端**。
+
 **Updated**: 2026-11-11 (㒾 **「颞叶里的 asr/tts —— 端脑其实有**第三套** voice 配置，而它是**死的**」** —— 承 U+34BD 条（分档默认的 asr/tts 档真被消费）与 U+34B8 条（两张同名表），本条记**取证（源码级逐条 grep）**、**第一因**、**第二因**、**第三因**、**这一刀的落点**、**途中那几课**、**判据与分级读数**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-11 | authority=measured | scope=project | source=端脑源码逐条 grep（`telencephalon`）＋ 与 U+34BD 条的真机读数对账（⚠️ 真机那一格本条**没拿到**，见 ⑧❶）｜ 改动：父仓 **零产品代码**（本条纯取证；新增台账一条）｜ 读数：grep 命中逐条见 ① | status=active | supersedes=none

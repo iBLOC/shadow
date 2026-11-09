@@ -207,12 +207,16 @@ class FlutterSemanticsTree {
   static String _header(bool wholeScreen) {
     // ⚠ **口径写进文本** —— 同一个字段名 `bounds` 只在**整屏口径**下出现；
     // 本窗口口径下的字段名是 `viewBounds` ⇒ ⇒ 模型不会拿错口径去点。
+    // ⚠⚠️ **`package=` 与原生那棵**逐字同形** ⇒ ⇒ 两个形状**一样**
+    // ⇒ ⇒ ⇒ 模型不需要学两套读法 ⇒ ⇒ ⇒ 而两棵树的**头**都能自证属主
+    // ⇒ ⇒ ⇒ ⇒ **通用形态：同一个结果的两种写法 ⇒ ⇒ 模型得自己猜哪套对**。
+    final String pkg = kOwnAppPackage;
     if (wholeScreen) {
-      return '# source=flutter-semantics (this app own window; bounds are '
-          'whole-screen physical px)\n';
+      return '# source=flutter-semantics (package=$pkg; this app own window; '
+          'bounds are whole-screen physical px)\n';
     }
-    return '# source=flutter-semantics (this app own window; viewBounds are '
-        'physical px of THIS window, not whole-screen px)\n';
+    return '# source=flutter-semantics (package=$pkg; this app own window; '
+        'viewBounds are physical px of THIS window, not whole-screen px)\n';
   }
 
   /// 深度优先走一遍树。

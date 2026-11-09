@@ -23,6 +23,12 @@
  * ④ **全局动作取值** —— Dart 的 wire 值集合 == Kotlin 认的集合；
  * ⑤ **截断标记字面量** —— 读屏被截断时两端用同一个标记（Dart 靠它判断
  *    「这一屏没看全」⇒ ⇒ 字面量漂了 ⇒ ⇒ 截断**静悄悄**变成了「看全了」）。
+ * ⑥ **工具描述不许把「哪棵树」说成「谁的屏」**（R7，判据在
+ *    `scripts/lib/mobile-tool-description.mjs`）—— 2026-11-11 真机实测取证：
+ *    自家 app 在前台时读屏走的是**原生那棵树**（`source=android-a11y`）
+ *    ⇒ ⇒ `source` 答的是「哪棵树」，**不是**「谁的屏」（那一格是 `foregroundPackage`）
+ *    ⇒ ⇒ 描述若说「`android-a11y` = 别人的 app」⇒ ⇒ 模型照着**错的口径**选工具
+ *    ⇒ ⇒ 「失败长得像成功」：返回值是对的，而模型按错的口径行事。
  *
  * ## 防假绿
  *
@@ -40,6 +46,9 @@ import { readFileSync, existsSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+// ⚠️ **R7 的判据本体在独立 lib 里**（纯函数）⇒ ⇒ 可离线自检、可单测。
+import { checkToolDescription } from './lib/mobile-tool-description.mjs';
+
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..');
 
@@ -47,6 +56,15 @@ function pathsFor(root) {
   return {
     dartA11y: join(root, 'shadow-mobile', 'lib', 'services', 'accessibility_controller.dart'),
     dartOps: join(root, 'shadow-mobile', 'lib', 'services', 'capabilities', 'accessibility_ops.dart'),
+    // ⚠️ **工具描述**（模型唯一看到的口径说明）—— 客户端工具注册表。
+    dartRegistry: join(
+      root,
+      'shadow-mobile',
+      'lib',
+      'services',
+      'client_tools',
+      'client_tool_registry.dart',
+    ),
     ktMain: join(
       root,
       'shadow-mobile',
@@ -492,6 +510,19 @@ function checkFacts(facts) {
     );
   }
 
+  // ⚠️ **R7**：工具描述的口径 —— `source` 不许冒充「谁的屏」。
+  // ⇒ ⇒ 判据本体在 `scripts/lib/mobile-tool-description.mjs`（纯函数 ⇒ 可单测）。
+  if (facts.toolDescription === null) {
+    add('block', '注册表里取不到 mobile_read_screen 的描述 ⇒ ⇒ 判不了');
+  } else {
+    for (const p of checkToolDescription({
+      description: facts.toolDescription,
+      sourceValues: facts.sourceValues,
+    })) {
+      add(p.level, p.msg);
+    }
+  }
+
   return problems;
 }
 
@@ -524,6 +555,69 @@ function parseKotlinBudget(src) {
     if (!m) return null;
     out[key] = Number(m[1].replace(/_/g, ''));
   }
+  return out;
+}
+
+/**
+ * 抽出 `mobile_read_screen` 那一条工具的**描述文本**。
+ *
+ * ⚠️ 为什么按「这一条工具」抽而不是全文搜：
+ * ⇒ ⇒ 注册表里**每一条**工具都有 description ⇒ ⇒ 全文搜会串到别的工具上。
+ * ⇒ ⇒ ⇒ 定位到 `name: 'mobile_read_screen'` 之后的那一个 description。
+ *
+ * @param {string} src 注册表源码
+ * @returns {string|null} 描述文本（找不到 ⇒ null）
+ */
+function parseToolDescription(src) {
+  const toolIdx = src.indexOf("name: 'mobile_read_screen'");
+  if (toolIdx < 0) return null;
+  const descIdx = src.indexOf('description:', toolIdx);
+  if (descIdx < 0) return null;
+  // ⚠️⚠️ **必须扫过完整的 Dart 字符串字面量** —— 描述里**含单引号**
+  // ⇒ ⇒ 「找下一个单引号」会**提前截断**（实测：只剩前半句）
+  // ⇒ ⇒ ⇒ 判据会拿半句话当描述 ⇒ ⇒ 于是「没提到 foregroundPackage」
+  // ⇒ ⇒ ⇒ 那不是描述漏了，是**尺子量错了被测物**。
+  // ⇒ ⇒ Dart 的相邻字面量会**自动拼接** ⇒ ⇒ 扫完一段还要接下一段。
+  const start = src.indexOf("'", descIdx);
+  if (start < 0) return null;
+  let out = '';
+  let i = start;
+  for (;;) {
+    i += 1;
+    if (i >= src.length) return null;
+    const ch = src[i];
+    if (ch === '\\') {
+      // ⚠️ 转义：下一个字面量字符原样收进来（\\' ⇒ '）。
+      if (i + 1 >= src.length) return null;
+      out += src[i + 1];
+      i += 1;
+      continue;
+    }
+    if (ch === "'") {
+      // ⚠️ **这一段字面量结束** ⇒ ⇒ 看下一个非空白字符：
+      // ⇒ ⇒ 是 '+' ⇒ ⇒ 还有下一段要拼 ⇒ ⇒ 不是就收工。
+      let j = i + 1;
+      while (j < src.length && /\s/.test(src[j])) j += 1;
+      if (src[j] === '+') {
+        // ⇒ ⇒ 跳过 '+' 与空白，找下一段字面量的引号。
+        let k = j + 1;
+        while (k < src.length && /\s/.test(src[k])) k += 1;
+        if (src[k] !== "'") return null;
+        i = k;
+        continue;
+      }
+      return out;
+    }
+    out += ch;
+  }
+}
+
+/** Dart 侧的全部 `kScreenSource*` 取值（哪几棵树）。 */
+function parseSourceValues(src) {
+  const out = [];
+  const re = /kScreenSource\w+\s*=\s*'([^']+)'/g;
+  let m;
+  while ((m = re.exec(src)) !== null) out.push(m[1]);
   return out;
 }
 
@@ -561,6 +655,9 @@ function parseAll(sources) {
     // ⇒ ⇒ 「同一件事的两份」⇒ ⇒ 漂了就静悄悄。
     ownPkgDart: parseOwnPackageDart(sources.dartTools),
     ownPkgGradle: parseOwnPackageGradle(sources.gradleApp),
+    // ⚠️ **R7 的被测面** —— 工具描述（模型唯一看到的口径说明）。
+    toolDescription: parseToolDescription(sources.dartRegistry),
+    sourceValues: parseSourceValues(sources.dartTools),
   };
 }
 
@@ -638,8 +735,20 @@ const SAMPLE_DART_TREE = [
 // 工具层 —— 自家包名常量（「这是谁的屏」那一格的答案）。
 const SAMPLE_DART_TOOLS = [
   "const String kOwnAppPackage = 'com.ibloc.shadow';",
+  "const String kScreenSourceAndroidA11y = 'android-a11y';",
+  "const String kScreenSourceFlutterSemantics = 'flutter-semantics';",
 ].join('\n');
 
+// 工具注册表 —— mobile_read_screen 的描述（**模型唯一看到的口径说明**）。
+const SAMPLE_DART_REGISTRY = [
+  '    ClientTool(',
+  "      name: 'mobile_read_screen',",
+  '      description:',
+  "          'Read the screen. source is android-a11y for the native tree or ' +",
+  "            'flutter-semantics for this app own semantics tree; foregroundPackage ' +",
+  "            'is the package name of the app that currently owns the screen.',",
+  '    ),',
+].join('\n');
 // Gradle 侧 —— 自家 app 的包名（applicationId）。
 const SAMPLE_GRADLE_APP = [
   'android {',
@@ -669,6 +778,7 @@ function selfTest() {
     ktBudget: SAMPLE_KT_BUDGET,
     dartTools: SAMPLE_DART_TOOLS,
     gradleApp: SAMPLE_GRADLE_APP,
+    dartRegistry: SAMPLE_DART_REGISTRY,
   };
   const facts = parseAll(base);
   if (!facts) {
@@ -720,6 +830,35 @@ function selfTest() {
       },
     ],
     [
+      '工具描述把 source 说成「谁的屏」（android-a11y ⇒ 另一个 app）',
+      {
+        ...base,
+        dartRegistry: base.dartRegistry.replace(
+          'source is android-a11y for the native tree',
+          'source is android-a11y for another app',
+        ),
+      },
+    ],
+    [
+      '工具描述没提 foregroundPackage ⇒ 模型不知道读哪一格',
+      {
+        ...base,
+        dartRegistry: base.dartRegistry.replace(
+          'foregroundPackage ',
+          'the owner ',
+        ),
+      },
+    ],
+    [
+      '工具描述漏掉一个 source 取值 ⇒ 模型认不出那一棵树',
+      {
+        ...base,
+        dartRegistry: base.dartRegistry.replace(
+          'flutter-semantics for this app own semantics tree; ',
+          '',
+        ),
+      },
+    ],    [
       '自家包名漂了（Dart 常量 vs Gradle 的 applicationId）',
       {
         ...base,

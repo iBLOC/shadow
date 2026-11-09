@@ -8,6 +8,21 @@ import '../accessibility_controller.dart';
 /// ⇒ ⇒ 闸红 ⇒ ⇒ 不会静悄悄漂移。
 const String kScreenTruncationMarker = '[truncated]';
 
+/// 自家 app 的包名 —— 「这是谁的屏」那一格的答案（回落分支）。
+///
+/// ⚠️ 为什么这里可以**写死**：回落的前提**就是**「自家 app 在前台」
+/// ⇒ ⇒ 答案不是「读到的」，是**推出来的** ⇒ ⇒ 写死的是**事实**，
+/// 不是「某个环境下的值」。
+///
+/// ⚠️ 而它与 Gradle 的 applicationId 是**同一件事的两份**
+/// ⇒ ⇒ 闸在比对（`scripts/check-mobile-a11y-contract.mjs`）⇒ ⇒ 漂了就红。
+///
+/// ⚠️⚠️ **为什么它住在这一层**（2026-11-11）：
+/// ⇒ ⇒ 两棵树的**头**都要写自己的属主（原生那棵写真包的包名，
+/// ⇒ ⇒ Flutter 那棵写自家包名）⇒ ⇒ ⇒ 而两棵树的源码**互相不认识**
+/// ⇒ ⇒ ⇒ 常量必须住在**它们共同的下层** ⇒ ⇒ ⇒ **否则就是环**。
+const String kOwnAppPackage = 'com.ibloc.shadow';
+
 /// **无障碍那一层** —— 工具层只认它，不认实现。
 ///
 /// ⚠️ **为什么要这一层**：工具层若直接调静态的 [AccessibilityController]，
@@ -48,6 +63,18 @@ abstract class AccessibilityOps {
 
   /// 读当前屏幕（可访问性树）；null ＝ 取不到。
   Future<String?> readScreen();
+
+  /// **一次采样** —— 树与「这是谁的屏」**同一个窗口**。
+  ///
+  /// ⚠️⚠️ **为什么它是「一次」而不是分两次**（2026-11-11 真机实测）：
+  /// ⇒ ⇒ 分两次问 ⇒ ⇒ 两次 `rootInActiveWindow` 可能落在**不同**窗口
+  /// ⇒ ⇒ ⇒ 实测逐字：`pkg=com.android.settings rawPkg=com.miui.home`
+  /// ⇒ ⇒ ⇒ 同一时刻，工具层说「设置」、原生说「桌面」
+  /// ⇒ ⇒ ⇒ ⇒ ⇒ **张冠李戴** ⇒ ⇒ 模型拿到**错的归属**。
+  ///
+  /// ⚠️ **默认实现回 null** ⇒ ⇒ 单测里的假实现**不用改**
+  /// ⇒ ⇒ 而「拿不到 ⇒ 明确失败，不给半截答案」这条纪律**默认就成立**。
+  Future<Map<String, dynamic>?> readScreenSnapshot() async => null;
 
   /// 本 app 自己的窗口在**屏幕**上的原点（物理像素）；null ＝ 拿不到。
   ///
@@ -108,6 +135,10 @@ class PlatformAccessibilityOps extends AccessibilityOps {
   // ⚠️ `readScreen` 在控制器那边是**静态方法** ⇒ ⇒ 要带括号调用
   // ⇒ ⇒ 直接返回 tear-off 会类型不匹配。
   Future<String?> readScreen() => AccessibilityController.readScreen();
+
+  @override
+  Future<Map<String, dynamic>?> readScreenSnapshot() =>
+      AccessibilityController.readScreenSnapshot();
 
   @override
   Future<Map<String, double>?> viewGeometry() =>

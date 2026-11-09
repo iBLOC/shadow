@@ -125,6 +125,12 @@ class PrefrontalAccessibilityService : AccessibilityService() {
         val root = rootInActiveWindow ?: return null
         val sb = StringBuilder()
         val budget = ScreenBudget()
+        // ⚠️⚠️ **头必须与「一次采样」那条路**逐字同形** ⇒ ⇒
+        // ⇒ ⇒ 两条路的**形状**必须一样 ⇒ ⇒ 否则模型得学会两套读法
+        // ⇒ ⇒ ⇒ 而「同一个工具、两个形状」⇒ ⇒ 模型会挑错那套 ⇒ ⇒ ⇒
+        // ⇒ ⇒ ⇒ **通用形态：同一个结果的两种写法 ⇒ ⇒ 模型得自己猜哪套对**。
+        val pkg = root.packageName?.toString()
+        sb.appendLine("# source=android-a11y (package=" + (pkg ?: "unknown") + ")")
         appendNodesToString(root, sb, 0, budget)
         root.recycle()
         if (budget.truncated) {
@@ -144,6 +150,48 @@ class PrefrontalAccessibilityService : AccessibilityService() {
             return null
         }
         return text
+    }
+
+    /// **一次采样** —— 树与「这是谁的屏」**同一个窗口**。
+    ///
+    /// ⚠️⚠️ **为什么必须一次取**（2026-11-11 真机实测）：
+    /// ⇒ ⇒ `readScreenContent()` 与 `foregroundPackage()` **各自**取一次
+    ///    `rootInActiveWindow` ⇒ ⇒ **两次采样之间前台可能换人**
+    /// ⇒ ⇒ ⇒ **实测已经发生过**：逐字
+    ///    `pkg=com.android.settings rawPkg=com.miui.home`
+    /// ⇒ ⇒ ⇒ 同一时刻，工具层说「设置」、原生说「桌面」
+    /// ⇒ ⇒ ⇒ ⇒ ⇒ **张冠李戴** ⇒ ⇒ 模型会被告知**错的归属**
+    /// ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ 「失败长得像成功」的一族。
+    ///
+    /// ⇒ ⇒ **通用形态：一个回答里的多个事实必须来自**同一次采样**
+    /// ⇒ ⇒ 否则它们之间可以互相矛盾 ⇒ ⇒ 而矛盾长得像正常。
+    ///
+    /// @return null = 取不到前台窗口（服务没连上，或当前没有可读窗口）
+    fun readScreenSnapshot(): Map<String, String?>? {
+        val root = rootInActiveWindow ?: return null
+        // ⚠️ **包名必须与树同源** ⇒ ⇒ 在**遍历之前**取。
+        val pkg = root.packageName?.toString()
+        val sb = StringBuilder()
+        val budget = ScreenBudget()
+        // ⚠️⚠️ **树的头必须写明属主** ⇒ ⇒ 「这棵树是谁家的」在树里**看不出来**
+        // ⇒ ⇒ 而模型要靠**它自己**判断能不能信这棵树。
+        // ⇒ ⇒ ⇒ 与 Flutter 那一棵**同形**（那边头里也写着 source 与口径）。
+        // ⚠️ **属主写的是同一个 root 的包名** ⇒ ⇒ 头与 `package` 那一格**必然一致**
+        // ⇒ ⇒ ⇒ 而它们与树**同源** ⇒ ⇒ ⇒ 不可能张冠李戴。
+        sb.appendLine("# source=android-a11y (package=" + (pkg ?: "unknown") + ")")
+        appendNodesToString(root, sb, 0, budget)
+        root.recycle()
+        if (budget.truncated) {
+            sb.appendLine(TRUNCATION_MARKER)
+            AppLog.d(TAG, "read screen truncated: budget exhausted")
+        }
+        val text = sb.toString()
+        // ⚠️ **空树 ≠ 「屏幕上什么都没有」** ⇒ ⇒ 明确回 null。
+        if (text.isBlank()) {
+            AppLog.d(TAG, "read screen: empty tree (window not ready?)")
+            return null
+        }
+        return mapOf("screen" to text, "package" to pkg)
     }
 
     /// **前台是谁** —— 当前可读窗口的包名。

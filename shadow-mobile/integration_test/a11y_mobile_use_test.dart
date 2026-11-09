@@ -379,6 +379,81 @@ void main() {
     });
   }, timeout: const Timeout(Duration(minutes: 3)));
 
+  /// ⚠️⚠️ **2026-11-11 真机取证**：自家 app 在前台时读屏走的是**原生那棵树**
+  /// （逐字 `source=android-a11y`）⇒ ⇒ 「`source` 答的是『谁的屏』」这个
+  /// 老假设**在真机上不成立** ⇒ ⇒ ⇒ 而工具描述当时正是那么写的
+  /// ⇒ ⇒ ⇒ 模型照着**错的口径**推理 ⇒ ⇒ 「失败长得像成功」。
+  ///
+  /// ⇒ ⇒ 这一条补的是**从没验过的那半句**：
+  /// **别人家的 app 在前台时，「这是谁的屏」那一格报的是不是那家的包名。**
+  /// ⇒ ⇒ 宿主侧已把**系统设置**拉到前台（驱动脚本每 6 秒续一次）
+  /// ⇒ ⇒ 所以前台**确实是别人家的 app** ⇒ ⇒ 那一格必须报**那家**的包名。
+  /// ⚠️⚠️⚠️ **判据钉的是「同源」，不是「两个读数相等」** ——
+  /// 第一版写成「工具层报的包名 == 另一次独立读的包名」⇒ ⇒ **那正是缺陷本身**
+  /// ⇒ ⇒ 两次独立采样本来就**可能**不同 ⇒ ⇒ 真机实测逐字：
+  /// `pkg=com.android.settings rawPkg=com.miui.home` ⇒ ⇒ **当场红**
+  /// ⇒ ⇒ ⇒ 通用形态：**拿「两次独立读数相等」当判据 ⇒ ⇒ 就是在测「环境恰好没变」**
+  /// ⇒ ⇒ ⇒ **判据必须对着产品该保证的性质** ⇒ ⇒ 而这里的性质是
+  /// ⇒ ⇒ ⇒ 「**树与包名来自同一次采样**」⇒ ⇒ 那要**独立地**验。
+  test('**树与「这是谁的屏」同源** ⇒ ⇒ 不是两次独立采样（张冠李戴）', () async {
+    await check('读屏 ⇒ 树与包名同源', () async {
+      final tools = CapabilityTools();
+      expect(await waitForAccessibility(60), isTrue, reason: '无障碍服务没开');
+
+      // ⚠️⚠️ **连续采两次** ⇒ ⇒ 若两次**同一个窗口**，
+      // ⇒ ⇒ 那么「一次采样」与「两次采样」在结果上**没有区别**
+      // ⇒ ⇒ ⇒ 那这条用例就**证明不了任何事** ⇒ ⇒ ⇒
+      // ⇒ ⇒ ⇒ **通用形态：一条用例若在两种实现下都过 ⇒ ⇒ 它没在测那件事**。
+      // ⇒ ⇒ ⇒ 所以这里要的是**「树与包名对得上」**这个**关系**，
+      // ⇒ ⇒ ⇒ 而**不是**「两次读数相等」。
+      final Map<String, dynamic> r =
+          (await tools.readScreen(<String, dynamic>{}))
+              as Map<String, dynamic>;
+      final String? pkg = r['foregroundPackage'] as String?;
+      final String screen = (r['screen'] as String).toString();
+      // ignore: avoid_print
+      print('--- SAME SOURCE PKG --- source=${r['source']} pkg=$pkg '
+          'coordinateSpace=${r['coordinateSpace']} len=${screen.length} '
+          'head=${screen.substring(0, screen.length < 160 ? screen.length : 160)}');
+
+      // ⚠️ **键不许缺** —— 形状与自家那条一样。
+      expect(
+        r.containsKey('foregroundPackage'),
+        isTrue,
+        reason: '这一格**没有**键 ⇒ ⇒ 模型分不清「值是空」与「这一格没实现」',
+      );
+
+      // ⚠️⚠️⚠️ **承重的那一条**：**树与包名必须同源** ⇒ ⇒
+      // ⇒ ⇒ 「这棵树的属主」与「报出来的包名」必须**指同一个 app**。
+      // ⇒ ⇒ ⇒ 怎么独立地验？⇒ ⇒ **树的头一行**写着它是谁家的
+      // ⇒ ⇒ ⇒ ⇒ （原生那棵的头是 `# source=android-a11y (package=…)`）
+      // ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ 而**属主包名**必须与那一行里的**同一个**。
+      final RegExp headPkg = RegExp(r'package=([A-Za-z0-9_.]+)');
+      final Match? m = headPkg.firstMatch(screen);
+      expect(
+        m,
+        isNotNull,
+        reason: '树的头里没有 package=… ⇒ ⇒ 这一条**判不了**'
+            '（树头形状变了 ⇒ ⇒ 判据要跟着更新）',
+      );
+      expect(
+        pkg,
+        m!.group(1),
+        reason: '树头说它属于 ${m.group(1)}，而「这是谁的屏」那一格报的是 $pkg'
+            ' ⇒ ⇒ ⇒ **张冠李戴** ⇒ ⇒ 模型会被告知**错的归属**',
+      );
+
+      // ⚠️ **两格各答各的** —— 这一条是本条用例的**题眼**：
+      // ⇒ ⇒ `source` 答「哪棵树」，`foregroundPackage` 答「谁的屏」
+      // ⇒ ⇒ 而**它们不是同一件事** ⇒ ⇒ 模型不许拿 source 去推归属。
+      expect(
+        r['source'],
+        isNotNull,
+        reason: 'source 这一格没值 ⇒ ⇒ 模型认不出这是哪棵树',
+      );
+    });
+  }, timeout: const Timeout(Duration(minutes: 3)));
+
   test('全局动作：通知栏 ⇒ 界面大幅变了 ⇒ 返回 ⇒ 又回到原界面', () async {
     await check('全局动作 ⇒ 落地且可逆', () async {
       final tools = CapabilityTools();

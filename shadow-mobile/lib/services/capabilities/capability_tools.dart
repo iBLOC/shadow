@@ -4,6 +4,11 @@ import 'capability.dart';
 import 'device_data_channel.dart';
 import 'flutter_semantics_tree.dart';
 
+/// ⚠️ **自家 app 的包名**（`kOwnAppPackage`）住在 [accessibility_ops.dart] 里
+/// ⇒ ⇒ 因为两棵树的**头**都要写自己的属主 ⇒ ⇒ ⇒ 而两棵树的源码**互相不认识**
+/// ⇒ ⇒ ⇒ 常量必须住在**它们共同的下层** ⇒ ⇒ ⇒ **否则就是环**。
+/// ⇒ ⇒ 本文件已经 import 了那一层 ⇒ ⇒ ⇒ 引用点**一行不用改**。
+
 /// 读屏结果的**来源** —— 两棵树的坐标口径不一样 ⇒ ⇒ 必须标出来。
 ///
 /// ⚠️ 为什么非标不可：原生那棵树是**别人的窗口**（坐标＝整屏物理像素），
@@ -17,16 +22,6 @@ const String kScreenSourceFlutterSemantics = 'flutter-semantics';
 /// 坐标口径 —— 与上面的来源**配套**（整屏 vs 本窗口）。
 const String kCoordinateSpaceScreen = 'screen';
 const String kCoordinateSpaceView = 'view';
-
-/// 自家 app 的包名 —— **回落**分支里「这是谁的屏」的答案。
-///
-/// ⚠️ 为什么这里可以**写死**：回落的前提**就是**「自家 app 在前台」
-/// ⇒ ⇒ 答案不是「读到的」，是**推出来的** ⇒ ⇒ 写死的是**事实**，
-/// 不是「某个环境下的值」。
-///
-/// ⚠️ 而它与 Gradle 的 applicationId 是**同一件事的两份**
-/// ⇒ ⇒ 闸在比对（`scripts/check-mobile-a11y-contract.mjs`）⇒ ⇒ 漂了就红。
-const String kOwnAppPackage = 'com.ibloc.shadow';
 
 /// **设备能力执行器** —— 五个能力工具的**执行那一半**。
 ///
@@ -198,7 +193,22 @@ class CapabilityTools {
   /// 而截图（MediaProjection）要用户**每次**授权 ⇒ ⇒ 树是更省事的「看见」。
   Future<Object?> readScreen(Map<String, dynamic> args) async {
     await _ensureAccessibilityService();
-    final text = await _a11y.readScreen();
+    // ⚠️⚠️ **一次采样** —— 树与「这是谁的屏」必须**同源**。
+    //
+    // ⚠️⚠️ **为什么不能分两次问**（2026-11-11 真机实测）：
+    // ⇒ ⇒ 分两次（树一次、包名一次）⇒ ⇒ 两次 `rootInActiveWindow`
+    // ⇒ ⇒ ⇒ 可能落在**不同**窗口
+    // ⇒ ⇒ ⇒ ⇒ 实测逐字：`pkg=com.android.settings rawPkg=com.miui.home`
+    // ⇒ ⇒ ⇒ ⇒ ⇒ 同一时刻，工具层说「设置」、原生说「桌面」
+    // ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ **张冠李戴** ⇒ ⇒ 模型被告知**错的归属**
+    // ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ 「失败长得像成功」的一族。
+    //
+    // ⇒ ⇒ **通用形态：一个回答里的多个事实必须来自同一次采样**
+    // ⇒ ⇒ 否则它们之间可以互相矛盾 ⇒ ⇒ 而矛盾长得像正常。
+    final Map<String, dynamic>? snapshot =
+        await _a11y.readScreenSnapshot();
+    final String? text =
+        snapshot != null ? snapshot['screen'] as String? : await _a11y.readScreen();
     if (text != null && text.trim().isNotEmpty) {
       // ⚠️ **截断必须是显式的** —— Kotlin 侧预算用完时会在末尾加
       // `[truncated]` ⇒ ⇒ 模型据此知道「这一屏**没看全**」⇒ ⇒ 别对着
@@ -218,7 +228,10 @@ class CapabilityTools {
         // ⚠️ 取不到 ⇒ ⇒ **null**（不是空串）⇒ ⇒ 模型据此知道「不知道」。
         // ⚠️ 这一格走**可注入**的无障碍层（`_a11y`）⇒ ⇒ 单测塞假的就能钉住
         // ⇒ ⇒ 否则「模型怎么用『这是谁的屏』」只能真机验 ⇒ ⇒ CI 永远静悄悄绿。
-        'foregroundPackage': await _a11y.foregroundPackage(),
+        // ⚠️⚠️ **同源** —— 与上面那棵树**同一次采样** ⇒ ⇒ 不会张冠李戴。
+        'foregroundPackage': snapshot != null
+            ? snapshot['package'] as String?
+            : await _a11y.foregroundPackage(),
       };
     }
     // ⚠️⚠️ **回落：自家 app 的窗口** —— Android 不把宿主自己的窗口交给
