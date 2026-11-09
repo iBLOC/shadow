@@ -25,6 +25,7 @@
  * 退出码：**0 绿 / 1 红**（判不了那一档已被转成 0 ＋ 显眼提示）。
  */
 import { spawnSync } from 'node:child_process';
+import { appendFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -42,6 +43,22 @@ const res = spawnSync(process.execPath, [join(REPO, target)], {
 });
 
 const code = res.status === null || res.status === undefined ? 2 : res.status;
+
+// ⚠️ **workflow 层的「绿灯不带分母」** —— 2026-11-11 真 CI 实测（run 42717285106）：
+//    「Unwired Gates」＝ **success**，而那 15 道闸里 **8 道是「判不了」**
+//    （跨仓闸：兄弟仓没检出 ⇒ ⇒ 读不到判据源）⇒ ⇒ 「绿」把「没验成」一起吞了
+//    ⇒ ⇒ 这里把每道闸的结论**落一行机器可读**，收尾一步由 scripts/lib/gate-tally.mjs
+//    汇总成「真判 N ｜ 判不了 K ｜ 红 M」⇒ ⇒ 绿灯从此有分母。
+if (process.env.GATE_RESULT_FILE) {
+  const verdict = code === 0 ? 'ok' : code === 2 ? 'cannot-judge' : 'red';
+  const line = ['GATE_RESULT', target, String(code), verdict].join('\t') + '\n';
+  try {
+    appendFileSync(process.env.GATE_RESULT_FILE, line, 'utf8');
+  } catch (err) {
+    console.error('（写闸判读记录失败：' + err.message + '）');
+  }
+  console.log('⇒ ⇒ ' + line.trim());
+}
 
 if (code === 0) {
   console.log('⇒ ⇒ ✅ 绿');

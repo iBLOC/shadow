@@ -44,6 +44,8 @@ jobs:
       #    ⇒ ⇒ 且报「This run likely failed because of a workflow file issue」
       #    ⇒ ⇒ 修法：把 secret 映射到**作业级 env** ⇒ ⇒ `if:` 只引用 env 上下文。
       IBLOC_TOKEN: ${{ secrets.IBLOC_TOKEN }}
+      # ⚠️ **绿灯要带分母** —— 每道闸的结论往这里落一行，收尾一步汇总。
+      GATE_RESULT_FILE: ${{ github.workspace }}/.gate-results.ndjson
     steps:
       - name: Checkout shadow
         uses: actions/checkout@v7
@@ -136,3 +138,18 @@ jobs:
       # ⚠️ 工具调用的拦截点接缝
       - name: tool-interception
         run: node scripts/run-gate-once.mjs scripts/check-tool-interception.mjs
+
+      # ⚠️⚠️ **收尾：把这一轮「绿得有多真」写出来** —— 2026-11-11 真 CI 实测
+      #    （run 42717285106）：「Unwired Gates」＝ **success**，而那 15 道闸里
+      #    **8 道是「判不了」**（跨仓闸：兄弟仓没检出 ⇒ ⇒ 读不到判据源）
+      #    ⇒ ⇒ 「绿」把「没验成」一起吞了 ⇒ ⇒ 一盏绿灯，**分母不见了**。
+      # ⇒ ⇒ 这一步把每道闸的结论汇总成**带分母的读数**：
+      #    「15 道 ｜ 真判 7 ｜ 判不了 8 ｜ 红 0」
+      # ⇒ ⇒ 「判不了」**不当红**（它不是「有问题」）⇒ ⇒ 但也**不当绿**
+      # ⇒ ⇒ 它被逐个点名、进了 step summary ⇒ ⇒ 缺口留在视野里。
+      - name: 判读汇总（带分母的绿灯）
+        run: node scripts/lib/gate-tally.mjs --report
+
+      # ⚠️ 尺子自己的自检 —— 汇总读数这台尺子也得证明自己会红
+      - name: 判读汇总尺子的自检
+        run: node scripts/lib/gate-tally.mjs --self-test
