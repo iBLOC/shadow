@@ -63,6 +63,7 @@ import { fileURLToPath } from 'node:url';
 import {
   edgeRows,
   expectedSiblings,
+  faceNote,
   expandGlobPatterns,
   judgeFloors,
   ownerRepoOf,
@@ -421,6 +422,27 @@ function selfTest() {
     return textDigest(['m1', 'm2']) === textDigest(['m2', 'm1']);
   });
 
+  add('面说明：全部干净 ⇒ ⇒ 这一面量的是**提交**（**并说「边数不是判据」**）', () => {
+    const n = faceNote([{ name: 'a', git: { dirty: 0 } }, { name: 'b', git: { dirty: 0 } }]);
+    return n.dirtyCount === 0 && n.text.includes('提交') && n.text.includes('边数不是判据');
+  });
+
+  add('面说明：有脏仓 ⇒ ⇒ 这一面量的是**工作树**，且**点名**是哪个仓', () => {
+    const n = faceNote([{ name: 'a', git: { dirty: 0 } }, { name: 'hippocampus', git: { dirty: 9 } }]);
+    return n.dirtyCount === 1 && n.dirtyRepos[0] === 'hippocampus' && n.text.includes('工作树') && n.text.includes('边数不是判据');
+  });
+
+  add('面说明：**孪生** —— 脏仓数不同 ⇒ ⇒ 文本不同（**这一格不是恒真**）', () => {
+    const a = faceNote([{ name: 'x', git: { dirty: 0 } }]);
+    const b = faceNote([{ name: 'x', git: { dirty: 3 } }]);
+    return a.text !== b.text && b.text.includes('x');
+  });
+
+  add('面说明：**读不出脏度**（不是仓 ／ 没有 git）⇒ ⇒ 不许当成「干净」', () => {
+    const n = faceNote([{ name: 'x', git: { rev: '', dirty: null } }]);
+    return n.dirtyCount === 0 && n.text.includes('干净');
+  });
+
   let bad = 0;
   for (const c of cases) {
     let ok = false;
@@ -577,6 +599,7 @@ function main() {
     lines.push(l);
   }
   lines.push('  清单指纹 :: ' + textDigest([rows.map((r) => r.from + '->' + r.to + ' ' + (r.fromFloor || '?') + ' ' + (r.toFloor || '?') + ' ' + r.status + ' ' + r.owner).join('\n')]) + '（清单**逐行可 diff**；指纹不同 ⇒ ⇒ 清单内容不同）');
+  lines.push('  ' + faceNote(repos).text);
   for (const v of judged.violations) {
     lines.push('    ✗ 漂移 :: ' + v.from + '（自报 ' + v.fromFloor + '）依赖 ' + v.to + '（自报 ' + v.toFloor + '）⇒ ⇒ 消费者的承诺是假的');
   }

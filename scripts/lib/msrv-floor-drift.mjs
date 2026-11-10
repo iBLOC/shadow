@@ -361,6 +361,36 @@ export function edgeRows({ repos, edges, edgesOut, ownRepos }) {
 }
 
 /**
+ * 这一面**是不是工作树面** —— 从**证据**推导（**不是**硬编码的部署事实）。
+ *
+ * ⚠️ 为什么要它（兄弟会话的建议，2026-11-11）：「边数随布局而变 ⇒ ⇒ **边数不是判据，
+ *   单调性才是**」—— 不许只写在台账里 ⇒ ⇒ 闸**自己**要说这句话 ⇒ ⇒ 否则下一刀有人会
+ *   拿「本机 24 ／ CI 25」当漂移。
+ * ⚠️ **从证据推导**：脏仓数 > 0 ⇒ ⇒ 这一面量的就是那些仓的**工作树** ⇒ ⇒ 与 CI 量的
+ *   **提交面**不一定可比；全干净 ⇒ ⇒ 这一面量的是**提交**（逐仓 rev 见输出）。
+ *
+ * @param {{name?:string, repo?:string, git?:{dirty?:number|null}}[]} repos
+ * @returns {{dirtyCount:number, dirtyRepos:string[], text:string}}
+ */
+export function faceNote(repos) {
+  const nameOf = (r) => String((r && (r.name || r.repo)) || '');
+  const dirty = (repos || []).filter((r) => r && r.git && typeof r.git.dirty === 'number' && r.git.dirty > 0);
+  if (dirty.length === 0) {
+    return {
+      dirtyCount: 0,
+      dirtyRepos: [],
+      text: '✅ **面**：所有仓干净（+0 未提交）⇒ ⇒ 这一面量的是它们的**提交**（逐仓 rev 见上）⇒ ⇒ **边数不是判据，单调性才是**',
+    };
+  }
+  const names = dirty.map(nameOf);
+  return {
+    dirtyCount: dirty.length,
+    dirtyRepos: names,
+    text: '⚠️ **面**：**' + dirty.length + '** 个仓带未提交改动（' + names.join('、') + '）⇒ ⇒ 这一面量的是它们的**工作树**⇒ ⇒ 与 CI 量的**提交面**不一定可比 ⇒ ⇒ **边数不是判据，单调性才是**（逐边清单见上 ⇒ ⇒ 两面可逐行 diff）',
+  };
+}
+
+/**
  * **文本指纹** —— 「这堆内容是不是同一份」（面指纹 ／ 清单指纹都用它）。
  *
  * ⚠️ 为什么要有它（2026-11-11 本刀）：**同一时刻不同面的读数可以不同**
