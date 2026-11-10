@@ -40,7 +40,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { classifyIndexFace, ledgerSymbols, LEDGER_PATHS } from './lib/index-revert.mjs';
+import { classifyIndexFace, ledgerSymbols, LEDGER_PATHS, R1_KIND_LABEL } from './lib/index-revert.mjs';
 
 const REPO = process.cwd();
 const HISTORY_LIMIT = 60; // 每个路径往回看多少次历史改动
@@ -147,7 +147,23 @@ export function runCheck(cwd = REPO) {
     const i = gitTry(['show', ':' + p], cwd);
     if (i.ok) indexLedgerSymbols[p] = [...ledgerSymbols(i.out)];
   }
-  const { violations, hints } = classifyIndexFace(rows, { oldCommitFor, headLedgerSymbols, indexLedgerSymbols });
+  // ⚠️ **工作树面只作定性交叉**（2026-11-11 真机实测补）—— R1 说得出「索引面是旧版」，
+  //   说不出「**谁**把它放进去的」⇒ ⇒ 用工作树那一面把三种情况分开：
+  //   · 工作树 == HEAD 的内容 ⇒ ⇒ **过期暂存**（没有任何人在回退内容）；
+  //   · 工作树 == 索引那份 ⇒ ⇒ 有人在工作树里把旧版写了回来 ⇒ ⇒ 需要人确认意图；
+  //   · 工作树是第三种内容 ⇒ ⇒ 意图判不了。
+  //   ⇒ ⇒ **判红不放松**（危害一样）⇒ ⇒ 但**归因**必须分档 ⇒ ⇒ 否则读数会把人指向不存在的人。
+  const worktreeBlob = new Map();
+  for (const row of changed) {
+    const w = gitTry(['hash-object', '--', row.path], cwd);
+    if (w.ok && w.out.trim()) worktreeBlob.set(row.path, w.out.trim());
+  }
+  const { violations, hints } = classifyIndexFace(rows, {
+    oldCommitFor,
+    headLedgerSymbols,
+    indexLedgerSymbols,
+    worktreeBlobFor: (p) => worktreeBlob.get(p) || null,
+  });
   return { code: violations.length ? 1 : 0, violations, hints, scanned: rows.length };
 }
 
@@ -177,6 +193,21 @@ function selfTest() {
     g(['add', 'scripts/check-x.mjs']);
     const r2 = runCheck(dir);
     results.push(['退回旧版 ⇒ 恰好 1 红（R1）', r2.code === 1 && r2.violations.length === 1 && r2.violations[0].code === 'R1']);
+    // ⚠️ **归因档位（2026-11-11 补）** —— 这一格的工作树**也是**旧版 ⇒ ⇒ 需要人确认意图。
+    results.push(['工作树也是旧版 ⇒ 归因档位＝worktree-old（不许含糊成「有人在回退」）',
+      !!r2.violations[0] && r2.violations[0].kind === 'worktree-old']);
+
+    // ⚠️ **过期暂存**（2026-11-11 实测补）：index 是旧版、**工作树已经是 HEAD 的内容**
+    //   ⇒ ⇒ **没有任何人在回退内容**（只是索引没跟上）⇒ ⇒ 判红**照旧**（危害一样：
+    //   下一次 commit 会把索引那份带进历史）⇒ ⇒ 但**归因档位**必须与上面那档不同。
+    g(['reset', '-q', '--hard', 'HEAD']);
+    writeFileSync(join(dir, 'scripts', 'check-x.mjs'), 'v1\n');
+    g(['add', 'scripts/check-x.mjs']);
+    writeFileSync(join(dir, 'scripts', 'check-x.mjs'), 'v2\n'); // 工作树回到 HEAD 的内容（**不** add）
+    const r2b = runCheck(dir);
+    results.push(['过期暂存 ⇒ 仍然红（危害一样）', r2b.code === 1 && r2b.violations.length === 1]);
+    results.push(['过期暂存 ⇒ 归因档位＝stale（不许说成「有人在回退内容」）',
+      !!r2b.violations[0] && r2b.violations[0].kind === 'stale']);
 
     g(['reset', '-q', '--hard', 'HEAD']);
     g(['rm', '-q', '--cached', 'scripts/check-x.mjs']);
@@ -232,8 +263,15 @@ if (args.includes('--json')) {
   process.exit(res.code);
 }
 console.log('暂存面回退闸：扫 ' + res.scanned + ' 个暂存差异');
+console.log('   ℹ️ [面] 判红**只由暂存面**决定（index vs HEAD）｜**工作树面只作定性交叉**（说清「谁的责任」那一格）');
 if (res.note) console.log('   ℹ️ [N0] ' + res.note);
-for (const v of res.violations) console.log('   [' + v.code + '] ' + v.msg);
+for (const v of res.violations) {
+  console.log('   [' + v.code + '] ' + v.msg);
+  if (v.kind) {
+    console.log('        ↳ 归因档位：' + (R1_KIND_LABEL[v.kind] || v.kind));
+    console.log('        ↳ 修法：' + (v.fix || '（未登记）'));
+  }
+}
 for (const h of res.hints) console.log('   ℹ️ [' + h.code + '] ' + h.msg);
 console.log(res.violations.length ? ('✘ ' + res.violations.length + ' 处暂存面回退') : '✓ 暂存面零回退');
 process.exit(res.code);
