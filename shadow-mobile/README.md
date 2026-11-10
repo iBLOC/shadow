@@ -103,7 +103,13 @@ libencephalon.so（Rust）
 - **`PrefrontalClient` 说的是旧方言** —— 路径是 `/api/sessions`、`/api/agents`、`/api/skills`、`/api/soul/*`、`/api/mcp/servers`、`/hippocampus/api/*`，与端脑方言**没有交集**。灵魂 / 任务 / 记忆 / 提供商 / 技能 / MCP / agent 列表这些页面仍走它，而嵌入式大脑**不提供**这些概念（记忆按设计走零信任网络上的海马体，不在移动端本地）。把 client 指向嵌入式大脑只会把「连接被拒」换成「404」，更难排查。
 - **本地推理引擎（MNN / LiteRT）还在**，但**不在对话链路上** —— 对话路径只有端脑一条。
 - **`libencephalon.so` 不入库** —— 它是兄弟仓 `encephalon` 的交叉编译产物（Android 侧是 cdylib，Kotlin 侧 `System.loadLibrary("encephalon")`）。构建后拷进 `android/app/src/main/jniLibs/<abi>/libencephalon.so`。缺失时 App **不会崩**：加载失败被 catch，运行时优雅降级。
-- **ABI**：只出 `arm64-v8a` 与 `x86_64`。x86_64 的 jniLibs 目前**不完整**（缺 `libc++_shared.so` 与 MNN 全家）。
+- **ABI**：只出 `arm64-v8a`。
+  ⚠️ **2026-11-11 订正**：此前这里写的是「`arm64-v8a` 与 `x86_64`」—— **那是错的**
+  （端脑运行时**只入库存了 `arm64-v8a` 一份**）。而 x86_64 那个 ABI 在 APK 里
+  **只有引擎/插件/CMake 的库、没有 `libencephalon.so`** ⇒ ⇒ **装得上、端脑面却
+  整个消失** ⇒ ⇒ **失败长得像成功**。⇒ ⇒ 现在 x86_64 设备改走
+  `INSTALL_FAILED_NO_MATCHING_ABIS`（**失败长得像失败**）。
+  ⇒ ⇒ 要恢复它，得先把 x86_64 的端脑运行时**编出来**并补齐同目录的随包库。
 - **去 Material 未完成**：`uses-material-design: true` 仍在，设置页等已迁到 shadcn 组件，其余页面还在迁移中。
 
 ## 脚本

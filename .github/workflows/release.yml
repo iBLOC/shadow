@@ -494,9 +494,11 @@ jobs:
         #    「splits abi filters」**互斥** —— 同时给会报
         #    "Conflicting configuration : 'arm64-v8a,x86_64' in ndk abiFilters
         #    cannot be present when splits abi filters are set"。
-        #    而本 app 的 Gradle **自己**钉了 abiFilters（arm64-v8a / x86_64，
-        #    排掉 armeabi-v7a）⇒ ⇒ 不拆包反而**正是它的本意**：
-        #    出一个含那两种 ABI 的通用 APK。
+        #    而本 app 的 Gradle **自己**钉了 abiFilters（arm64-v8a，
+        #    排掉 armeabi-v7a 与 x86_64 —— 后者是因为端脑运行时只入库存了
+        #    arm64-v8a 一份，见 shadow-mobile/android/app/build.gradle.kts）
+        #    ⇒ ⇒ 不拆包反而**正是它的本意**：
+        #    出一个含那个 ABI 的通用 APK。
         run: flutter build apk --release
 
       - name: Upload artifact

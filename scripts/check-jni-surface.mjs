@@ -23,11 +23,17 @@
  *      （`encephalon/scripts/jni-host-test/.../EncephalonRuntime.java`）
  *      必须与 Android 上真正用的 Kotlin 侧**逐字对齐**（方法名 + 参数个数）。
  *      少声明一个 ⇒ 那个入口**没人验**（不是「测试红」，是「根本没有测试」）。
- *   2. **打包进 APK 的每一份 `.so`**（**逐个 ABI**，不是只看 arm64-v8a）：
+ *   2. **配置面：宣称支持的 ABI ↔ `jniLibs` 里真有的 ABI**：构建配置
+ *      （`build.gradle.kts` 的 `supportedAbis`）宣称的每个 ABI，必须**有那个
+ *      ABI 目录**，且**那个目录里真的有端脑运行时**。
+ *      ⚠️ **枚举源＝「配置宣称的」＋「真有的目录」，不是「已经有 `.so` 的」**
+ *      ⇒ ⇒ 否则「宣称支持、运行时却不在」那一族（**装得上、端脑面消失**
+ *      ＝ **失败长得像成功**）永远隐形（2026-11-11 真机实测）。
+ *   3. **打包进 APK 的每一份 `.so`**（**逐个 ABI**，不是只看 arm64-v8a）：
  *      - 它必须真的含有全部 JNI 符号；
  *      - 它的 **ELF `DT_NEEDED`** 指向的随包动态库，必须**在同一个 ABI 目录里**
  *        （缺一个 ⇒ `System.loadLibrary` 直接失败 ⇒ 那个 ABI 装上去就崩）。
- *   3. **各 ABI 随包动态库的一致性**：一个 ABI 目录比别的 ABI 少随包库
+ *   4. **各 ABI 随包动态库的一致性**：一个 ABI 目录比别的 ABI 少随包库
  *      ⇒ 那个 ABI 是个**半成品**（能装、不能跑），必须补齐或整个删掉。
  *
  * ⚠️ **为什么要逐个 ABI 查**（2026-10-31 加）：
@@ -71,6 +77,7 @@ import { dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { readElfInfo, rustExportedMethods, SYSTEM_LIBS } from './lib/jni.mjs';
+import { judgeAbiCoverage, parseGradleSupportedAbis } from './lib/abi-coverage.mjs';
 
 /** CLI：`--root=<目录>`（换被测物根）＋ `--sibling=<目录>`（换兄弟仓根）⇒ ⇒ 自检要用。 */
 function argValue(name) {
@@ -175,15 +182,34 @@ function runSelfTest() {
   const KOTLIN = 'external fun alpha(): Int\nexternal fun beta(): Int\n';
   const JAVA_OK = 'public static native int alpha();\npublic static native int beta();\n';
   const JAVA_MISSING = 'public static native int alpha();\n';
+  // ⚠️ **符号名必须是 JNI 形态**（`Java_com_ibloc_shadow_EncephalonRuntime_<名>`）
+  //    —— 解析器（scripts/lib/jni.mjs 的 rustExportedMethods）只认这一种。
+  //    ⚠️ 旧夹具写的是 `fn alpha()` ⇒ ⇒ 永远解析出 0 个符号 ⇒ ⇒
+  //    「jniLibs 在位」那条路**从来没被走过**（自检是绿的，但那条路没跑过）。
   const RUST =
-    '#[no_mangle]\npub extern "C" fn alpha() -> i32 { 0 }\n' +
-    '#[no_mangle]\npub extern "C" fn beta() -> i32 { 0 }\n';
+    '#[no_mangle]\npub extern "C" fn Java_com_ibloc_shadow_EncephalonRuntime_alpha() -> i32 { 0 }\n' +
+    '#[no_mangle]\npub extern "C" fn Java_com_ibloc_shadow_EncephalonRuntime_beta() -> i32 { 0 }\n';
 
   const mkCase = (tag, opt = {}) => {
     const root = join(dir, tag + '-root');
     const kt = join(root, 'shadow-mobile/android/app/src/main/kotlin/com/ibloc/shadow/EncephalonRuntime.kt');
     mkdirSync(dirname(kt), { recursive: true });
     writeFileSync(kt, KOTLIN, 'utf8');
+    // ⚠️ **配置面夹具**（2026-11-11）：构建配置宣称的 ABI ＋ jniLibs 里真有的 ABI 目录
+    //    ⇒ ⇒ 「宣称 ⊆ 目录 ⊆ 运行时在位」这一格才能被单独证伪。
+    const gradle = join(root, 'shadow-mobile/android/app/build.gradle.kts');
+    mkdirSync(dirname(gradle), { recursive: true });
+    const declared = opt.abis || ['arm64-v8a'];
+    writeFileSync(
+      gradle,
+      'val supportedAbis = listOf(' + declared.map((a) => '"' + a + '"').join(', ') + ')\n',
+      'utf8',
+    );
+    if (opt.jniLibs !== false) {
+      for (const a of opt.dirs || ['arm64-v8a']) {
+        mkdirSync(join(root, 'shadow-mobile/android/app/src/main/jniLibs', a), { recursive: true });
+      }
+    }
     let sib = join(dir, tag + '-no-sib');
     if (opt.sibling !== false) {
       sib = join(dir, tag + '-sib');
@@ -206,7 +232,7 @@ function runSelfTest() {
     },
     {
       name: '.so 没编（jniLibs 不在位）⇒ 退出码 2（判不了）',
-      ...mkCase('c2'),
+      ...mkCase('c2', { jniLibs: false }),
       want: 2,
       wantText: '判不了',
     },
@@ -221,6 +247,18 @@ function runSelfTest() {
       ...mkCase('c4', { java: 'missing' }),
       want: 1,
       wantText: 'beta',
+    },
+    {
+      name: '配置宣称 x86_64、jniLibs 里**没有那个 ABI 目录** ⇒ 退出码 1（红：半成品 ABI）',
+      ...mkCase('c5', { abis: ['arm64-v8a', 'x86_64'], dirs: ['arm64-v8a'] }),
+      want: 1,
+      wantText: 'x86_64',
+    },
+    {
+      name: 'ABI 目录都在、但端脑运行时**一个都没编** ⇒ 退出码 2（判不了，**不是绿**）',
+      ...mkCase('c6', { abis: ['arm64-v8a', 'x86_64'], dirs: ['arm64-v8a', 'x86_64'] }),
+      want: 2,
+      wantText: '判不了',
     },
   ];
 
@@ -307,14 +345,59 @@ if (!existsSync(kotlinPath)) {
   }
 }
 
-// ---------------------------------------------------------------------------
-// 2. 打包进 APK 的每一份 .so（逐个 ABI）
-// ---------------------------------------------------------------------------
-console.log('');
-console.log(`▶ 2. 打包进 APK 的每一份 ${SO_NAME}（逐个 ABI）`);
-
 const rustPath = join(SIBLING, RUST_JNI_SRC);
 const jniLibsRoot = join(ROOT, JNI_LIBS_DIR);
+
+// ---------------------------------------------------------------------------
+// 2. 构建配置宣称支持的 ABI ↔ jniLibs 里真有的 ABI（**配置面**）
+// ---------------------------------------------------------------------------
+console.log('');
+console.log('▶ 2. 构建配置宣称支持的 ABI ↔ jniLibs 里真有的 ABI（配置面）');
+console.log('  · 判据：宣称 ⊆ 目录 ⊆ 端脑运行时在位（**共用** scripts/lib/abi-coverage.mjs）');
+console.log('  · ⚠️ 枚举源＝「配置宣称的」＋「真有的目录」，**不是**「已经有 .so 的」');
+
+const GRADLE = 'shadow-mobile/android/app/build.gradle.kts';
+const gradlePath = join(ROOT, GRADLE);
+
+if (!existsSync(gradlePath)) {
+  cannotJudge.push(`${GRADLE} 不在位 —— 「宣称支持哪些 ABI」读不出来`);
+  warn(`${GRADLE} 不在位 —— 这一格**判不了**（宣称面读不到）。`);
+} else {
+  const declaredAbis = parseGradleSupportedAbis(readFileSync(gradlePath, 'utf8'));
+  if (declaredAbis.length === 0) {
+    cannotJudge.push(`${GRADLE} 里读不出 supportedAbis —— 宣称面读不到`);
+    warn(`${GRADLE} 里读不出 supportedAbis —— 这一格**判不了**。`);
+  } else {
+    const dirAbis = existsSync(jniLibsRoot)
+      ? readdirSync(jniLibsRoot, { withFileTypes: true })
+          .filter((d) => d.isDirectory())
+          .map((d) => d.name)
+          .sort()
+      : null;
+    // ⚠️ **端脑运行时这一格**：一个都没编 ⇒ 「读不到」⇒ ⇒ 判不了；
+    //    编了一部分 ⇒ ⇒ 那一档能判 ⇒ ⇒ 逐个点名。
+    const builtAbis = (dirAbis || []).filter((a) => existsSync(join(jniLibsRoot, a, SO_NAME)));
+    const abiCov = judgeAbiCoverage({
+      declaredAbis,
+      dirAbis,
+      brainAbis: builtAbis.length ? builtAbis : null,
+    });
+    if (abiCov.verdict === 'fail') {
+      fail(abiCov.message);
+    } else if (abiCov.verdict === 'cannot-judge') {
+      cannotJudge.push('端脑运行时这一格读不到（本机没编出 libencephalon.so）');
+      warn(abiCov.message);
+    } else {
+      pass(abiCov.message);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 3. 打包进 APK 的每一份 .so（逐个 ABI）
+// ---------------------------------------------------------------------------
+console.log('');
+console.log(`▶ 3. 打包进 APK 的每一份 ${SO_NAME}（逐个 ABI）`);
 
 /** 每个 ABI 目录 → 该目录里随包带上的动态库（不含 .so 本体）。 */
 const abiShipped = new Map();
@@ -404,10 +487,10 @@ if (!existsSync(rustPath)) {
 }
 
 // ---------------------------------------------------------------------------
-// 3. 各 ABI 随包动态库的一致性
+// 4. 各 ABI 随包动态库的一致性
 // ---------------------------------------------------------------------------
 console.log('');
-console.log('▶ 3. 各 ABI 随包动态库的一致性');
+console.log('▶ 4. 各 ABI 随包动态库的一致性');
 
 if (abiShipped.size >= 2) {
   // 参照集合 = 所有 ABI 随包库的并集

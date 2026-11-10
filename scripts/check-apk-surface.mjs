@@ -38,6 +38,12 @@
  *      必然不等** ⇒ ⇒ 比之前**两边都要 strip 归一**（strip 是幂等的）。
  *      ⇒ ⇒ 不一致 ⇒ 你装的是**旧 APK**（或新编了 `.so` 却没重打 APK）。
  *      ⚠️ 找不到 strip 工具 ⇒ ⇒ **判不了**（warn），**绝不是绿**。
+ *   5. **半成品 ABI**：APK **宣称支持**的那些 ABI（= APK 里**所有** ABI 目录）
+ *      必须**每一个**都有 `libencephalon.so` ⇒ ⇒ 否则那个 ABI **装得上、
+ *      端脑面却整个消失**（Kotlin 把 `UnsatisfiedLinkError` catch 掉 ⇒ ⇒
+ *      **失败长得像成功**）。
+ *      ⚠️ **枚举源＝「APK 里所有 ABI 目录」，不是「哪些 ABI 有
+ *      `libencephalon.so`」** ⇒ ⇒ 后者会让这一族**永远隐形**（2026-11-11 实测）。
  *
  * ## 用法
  *
@@ -80,6 +86,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { readElfInfo, rustExportedMethods, SYSTEM_LIBS } from './lib/jni.mjs';
+import { judgeAbiCoverage } from './lib/abi-coverage.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -300,6 +307,46 @@ function runSelfTest() {
   add('孪生：找不到 strip 工具 ⇒ ⇒ **判不了**（warn，**绝不是绿**、也不是红）', () => {
     const r = judgeSameBinary({ rawEqual: false, strippedEqual: null, tool: null });
     return r.verdict === 'warn' && r.reason === 'no-strip-tool';
+  });
+
+  add('ABI 覆盖：宣称 ⊆ 目录 ⊆ 端脑运行时在位 ⇒ ⇒ 绿', () => {
+    const r = judgeAbiCoverage({
+      declaredAbis: ['arm64-v8a'],
+      dirAbis: ['arm64-v8a'],
+      brainAbis: ['arm64-v8a'],
+    });
+    return r.verdict === 'pass' && r.reason === 'all-declared-have-brain';
+  });
+
+  add('孪生：宣称支持、那个 ABI **连目录都没有** ⇒ ⇒ 红（半成品 ABI 那一族）', () => {
+    const r = judgeAbiCoverage({
+      declaredAbis: ['arm64-v8a', 'x86_64'],
+      dirAbis: ['arm64-v8a'],
+      brainAbis: ['arm64-v8a'],
+    });
+    return r.verdict === 'fail' && r.reason === 'declared-without-dir' && r.withoutDir[0] === 'x86_64';
+  });
+
+  add('孪生：目录在、端脑运行时**不在** ⇒ ⇒ 红（**装得上、端脑面消失 = 失败长得像成功**）', () => {
+    const r = judgeAbiCoverage({
+      declaredAbis: ['arm64-v8a', 'x86_64'],
+      dirAbis: ['arm64-v8a', 'x86_64'],
+      brainAbis: ['arm64-v8a'],
+    });
+    return (
+      r.verdict === 'fail' &&
+      r.reason === 'declared-without-brain' &&
+      r.withoutBrain[0] === 'x86_64'
+    );
+  });
+
+  add('孪生：端脑运行时这一格**读不到**（没编）⇒ ⇒ 判不了（**不是红**：缺输入 ≠ 有问题）', () => {
+    const r = judgeAbiCoverage({
+      declaredAbis: ['arm64-v8a'],
+      dirAbis: ['arm64-v8a'],
+      brainAbis: null,
+    });
+    return r.verdict === 'cannot-judge' && r.reason === 'brain-not-built';
   });
 
   let bad = 0;
@@ -547,8 +594,21 @@ const abiOf = (entry) => {
   return m ? m[1] : null;
 };
 
-/** APK 里带了 `libencephalon.so` 的那些 ABI。 */
-const apkAbis = [...new Set(entries.filter((e) => e.endsWith(`/${SO_NAME}`)).map(abiOf))].sort();
+/**
+ * APK 里**所有** ABI 目录 ⇒ ⇒ **APK 宣称支持的那几个 ABI**。
+ *
+ * ⚠️ **枚举源必须是「宣称」，不能是「已经对了的」**（2026-11-11 真机实测）：
+ *   旧版只枚举「哪些 ABI 目录里有 `libencephalon.so`」⇒ ⇒ **半成品 ABI
+ *   永远不进那个列表**⇒ ⇒ ⇒ 而「宣称支持、端脑运行时却不在」那一族
+ *   （**装得上、端脑面整个消失** ⇒ ⇒ **失败长得像成功**）**于是永远隐形**
+ *   ⇒ ⇒ 判据的枚举源被它自己要抓的那个洞喂饱了。
+ */
+const apkAllAbis = [...new Set(entries.map(abiOf).filter(Boolean))].sort();
+
+/** APK 里带了 `libencephalon.so` 的那些 ABI（端脑运行时**在位**的那几个）。 */
+const apkAbis = [
+  ...new Set(entries.filter((e) => e.endsWith(`/${SO_NAME}`)).map(abiOf).filter(Boolean)),
+].sort();
 
 /** APK 里每个 ABI 目录下的库清单。 */
 const apkLibsOf = (abi) =>
@@ -625,6 +685,24 @@ try {
       `APK 里**一个** ${SO_NAME} 都没有（lib/ 下只有插件自带的库）⇒ 端脑根本没进包 ⇒ 装了也不能用。\n` +
         `    ⇒ 修法：把编好的 .so 放进 shadow-mobile/android/app/src/main/jniLibs/<abi>/ 再重打 APK。`,
     );
+  }
+
+  // ⚠️ **半成品 ABI** —— 「宣称支持、端脑运行时却不在」这一族
+  //    （2026-11-11 真机实测：x86_64 设备**装得上**、端脑面**整个消失** ⇒ ⇒
+  //    **失败长得像成功** ⇒ ⇒ 而旧判据因为**枚举源错**，这一族**永远隐形**）。
+  //    ⇒ 判据与配置面那道闸**共用同一份实现**（scripts/lib/abi-coverage.mjs）
+  //    ⇒ ⇒ 两个闸不会在同一族上分叉。
+  if (apkAllAbis.length > 0) {
+    const abiCoverage = judgeAbiCoverage({
+      declaredAbis: apkAllAbis,
+      dirAbis: apkAllAbis,
+      brainAbis: apkAbis,
+    });
+    if (abiCoverage.verdict === 'fail') {
+      fail(abiCoverage.message);
+    } else {
+      pass(abiCoverage.message);
+    }
   }
 
   const extracted = [];

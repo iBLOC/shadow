@@ -24,8 +24,20 @@ android {
     // 运行时 = 那些设备**装得上**（badging 的 native-code 是声明值），
     // 但那个运行时根本不存在，表现为功能整个消失。
     //
-    // libencephalon.so 只构建 arm64-v8a 与 x86_64 两份，所以 APK 也只声明
-    // 这两个 ABI。**armeabi-v7a 暂不做**（2026-10-29 决定）—— 背景：阻断
+    // ⚠️ **2026-11-11 订正**：上面那句「只构建 arm64-v8a 与 x86_64 两份」
+    // **是错的** —— 端脑运行时**只入库存了 arm64-v8a 一份**（jniLibs 下只有
+    // arm64-v8a/）。而 x86_64 之所以仍出现在 APK 里，是**引擎/插件/CMake**
+    // 带来的那 9 个库（libflutter.so 等）**凑**出来的 ⇒ ⇒ APK 逐字声明
+    // `native-code: 'arm64-v8a' 'x86_64'`，而 `lib/x86_64/` 里**没有**
+    // libencephalon.so ⇒ ⇒ **x86_64 设备装得上、端脑面却整个消失**
+    // （Kotlin 把 UnsatisfiedLinkError catch 掉 ⇒ ⇒ **失败长得像成功**）。
+    // ⇒ ⇒ 所以**只声明真正有运行时的那一个** —— x86_64 设备改走
+    // `INSTALL_FAILED_NO_MATCHING_ABIS`（**失败长得像失败**）。
+    // ⇒ ⇒ 要恢复 x86_64 声明的前提是：把 x86_64 的端脑运行时**编出来**
+    // （encephalon/scripts/build-android.ps1 有 x86_64 目标，✅ 59.1 MB）
+    // **并**把同目录的随包库补齐（libc++_shared.so / MNN 全家）。
+    //
+    // **armeabi-v7a 暂不做**（2026-10-29 决定）—— 背景：阻断
     // 是 cranelift-codegen（wasmtime 的代码生成器）：
     // "no supported isa found for arch `armv7`"。见 encephalon 仓
     // scripts/README.md。
@@ -41,7 +53,7 @@ android {
     // lance-core 的 32 位 ARM SIMD 探针（它的 `#[cfg]` 只有 aarch64 /
     // x86_64 / loongarch64 三支，没有 `target_arch = "arm"` ⇒ 32 位 ARM
     // 上闭包体被编译掉、返回 `()` 而不是 `SimdSupport`）。
-    val supportedAbis = listOf("arm64-v8a", "x86_64")
+    val supportedAbis = listOf("arm64-v8a")
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
