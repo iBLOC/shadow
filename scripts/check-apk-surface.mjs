@@ -31,8 +31,13 @@
  *      （清单取自 `encephalon/src/mobile/jni.rs`，**不是手抄常量**）。
  *   3. **APK 里那份 `.so` 的 `DT_NEEDED`**：非系统库必须**在同一个 ABI 目录**里
  *      （缺一个 ⇒ `System.loadLibrary` 直接失败 ⇒ 那个 ABI 启动即崩）。
- *   4. **APK 里那份 ↔ `jniLibs` 那份**：逐字节比对（sha256）。
- *      不一致 ⇒ 你装的是**旧 APK**（或新编了 `.so` 却没重打 APK）。
+ *   4. **APK 里那份 ↔ `jniLibs` 那份**：**strip 归一后**逐字节比对（sha256）。
+ *      ⚠️ **口径（2026-11-11 实测订正）**：打包时 AGP 会把原生库里的**调试符号
+ *      strip 掉** ⇒ ⇒ APK 里那份是 **stripped**（实测 157,623,608 B），而
+ *      `jniLibs` 那份是 **unstripped**（223,372,280 B）⇒ ⇒ **直接比 sha256
+ *      必然不等** ⇒ ⇒ 比之前**两边都要 strip 归一**（strip 是幂等的）。
+ *      ⇒ ⇒ 不一致 ⇒ 你装的是**旧 APK**（或新编了 `.so` 却没重打 APK）。
+ *      ⚠️ 找不到 strip 工具 ⇒ ⇒ **判不了**（warn），**绝不是绿**。
  *
  * ## 用法
  *
@@ -160,6 +165,51 @@ function judgeApkPresence(exists) {
   return { verdict: exists ? 'ok' : 'cannot-judge' };
 }
 
+/**
+ * 「APK 里那份」与「jniLibs 那份」是不是**同一份** —— 纯函数。
+ *
+ * ⚠️ **为什么必须 strip 归一**（2026-11-11 实测）：
+ *   打包时 AGP 会 strip 掉原生库里的调试符号 ⇒ ⇒ APK 里那份是 **stripped**
+ *   （实测 157,623,608 B），`jniLibs` 那份是 **unstripped**（223,372,280 B）
+ *   ⇒ ⇒ **直接比 sha256 必然不等** ⇒ ⇒ 于是这一项**恒红**，
+ *   而真相是「APK 是**新的**」（strip 归一后逐字节相同）。
+ *
+ * @param {{rawEqual: boolean, strippedEqual: boolean|null, tool: string|null}} input
+ * @returns {{verdict: 'pass'|'fail'|'warn', reason: string, message: string}}
+ */
+function judgeSameBinary({ rawEqual, strippedEqual, tool }) {
+  if (rawEqual) {
+    return {
+      verdict: 'pass',
+      reason: 'byte-identical',
+      message: 'APK 里那份与 jniLibs 那份逐字节相同',
+    };
+  }
+  if (strippedEqual === null) {
+    return {
+      verdict: 'warn',
+      reason: 'no-strip-tool',
+      message:
+        '两份的调试符号状态不同（APK 里那份被打包 strip 过）⇒ ⇒ 要比得先 strip 归一' +
+        ' ⇒ ⇒ 但 ' +
+        (tool ? 'strip 失败' : '找不到 strip 工具') +
+        ' ⇒ ⇒ **判不了**（绝不是绿）',
+    };
+  }
+  if (strippedEqual) {
+    return {
+      verdict: 'pass',
+      reason: 'same-after-strip',
+      message: 'strip 归一后两份相同（打包时 AGP strip 过调试符号 ⇒ ⇒ 这是同一份二进制）',
+    };
+  }
+  return {
+    verdict: 'fail',
+    reason: 'different-binary',
+    message: 'strip 归一后两份仍然不同 ⇒ ⇒ **不是同一份二进制** ⇒ ⇒ 你装的是旧 APK',
+  };
+}
+
 // ---------------------------------------------------------------------------
 // 判据自检 —— 喂合成夹具 ⇒ ⇒ **不需要 APK、不需要兄弟仓**
 // ---------------------------------------------------------------------------
@@ -230,6 +280,26 @@ function runSelfTest() {
 
   add('孪生：APK 在位 ⇒ ⇒ 判得了', () => {
     return judgeApkPresence(true).verdict === 'ok';
+  });
+
+  add('两份逐字节相同 ⇒ ⇒ 绿（不用 strip 就能判）', () => {
+    const r = judgeSameBinary({ rawEqual: true, strippedEqual: null, tool: null });
+    return r.verdict === 'pass' && r.reason === 'byte-identical';
+  });
+
+  add('调试符号状态不同、但 strip 归一后相同 ⇒ ⇒ 绿（**这正是真实情况**：APK 是新的）', () => {
+    const r = judgeSameBinary({ rawEqual: false, strippedEqual: true, tool: '/ndk/llvm-strip' });
+    return r.verdict === 'pass' && r.reason === 'same-after-strip';
+  });
+
+  add('孪生：strip 归一后仍然不同 ⇒ ⇒ 红（那才是「旧 APK」）', () => {
+    const r = judgeSameBinary({ rawEqual: false, strippedEqual: false, tool: '/ndk/llvm-strip' });
+    return r.verdict === 'fail' && r.reason === 'different-binary';
+  });
+
+  add('孪生：找不到 strip 工具 ⇒ ⇒ **判不了**（warn，**绝不是绿**、也不是红）', () => {
+    const r = judgeSameBinary({ rawEqual: false, strippedEqual: null, tool: null });
+    return r.verdict === 'warn' && r.reason === 'no-strip-tool';
   });
 
   let bad = 0;
@@ -310,6 +380,85 @@ function pass(msg) {
 // ---------------------------------------------------------------------------
 // 工具
 // ---------------------------------------------------------------------------
+
+/** NDK 版本号排序（`30.0.14904198` 这种）—— 数字段逐段比。 */
+function cmpNdkVersion(a, b) {
+  const pa = String(a).split('.').map((x) => parseInt(x, 10) || 0);
+  const pb = String(b).split('.').map((x) => parseInt(x, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i += 1) {
+    const d = (pa[i] || 0) - (pb[i] || 0);
+    if (d !== 0) return d;
+  }
+  return 0;
+}
+
+/**
+ * 找一个能 strip 掉调试符号的工具 —— 找不到就是**判不了**，不是「绿」。
+ *
+ * 查找顺序：① NDK 自带的 `llvm-strip`（`$ANDROID_HOME/ndk/<ver>/toolchains/llvm/prebuilt/<host>/bin`）
+ * 　　　　② `PATH` 上的 `llvm-strip` ／ `strip`。
+ */
+function findStripTool() {
+  const candidates = [];
+  const exe = process.platform === 'win32' ? '.exe' : '';
+  const host =
+    process.platform === 'win32'
+      ? 'windows-x86_64'
+      : process.platform === 'darwin'
+        ? 'darwin-x86_64'
+        : 'linux-x86_64';
+  const roots = [
+    process.env.ANDROID_HOME,
+    process.env.ANDROID_SDK_ROOT,
+    process.env.ANDROID_NDK_HOME,
+  ].filter(Boolean);
+  for (const root of roots) {
+    const ndkDir = join(root, 'ndk');
+    if (!existsSync(ndkDir)) continue;
+    let versions = [];
+    try {
+      versions = readdirSync(ndkDir, { withFileTypes: true })
+        .filter((d) => d.isDirectory())
+        .map((d) => d.name);
+    } catch {
+      continue;
+    }
+    // ⚠️ **优先用最新的 NDK**（不同版本的 strip 可能产出不同字节 ⇒ ⇒ 别挑最老的那个）
+    versions.sort((a, b) => cmpNdkVersion(b, a));
+    for (const v of versions) {
+      candidates.push(
+        join(ndkDir, v, 'toolchains', 'llvm', 'prebuilt', host, 'bin', 'llvm-strip' + exe),
+      );
+    }
+  }
+  const which = process.platform === 'win32' ? 'where' : 'which';
+  for (const name of ['llvm-strip' + exe, 'llvm-strip', 'strip']) {
+    const res = spawnSync(which, [name], { encoding: 'utf8' });
+    if (res.status !== 0) continue;
+    for (const p of String(res.stdout || '').split(/\r?\n/).filter(Boolean)) {
+      candidates.push(p.trim());
+    }
+  }
+  for (const c of candidates) {
+    if (c && existsSync(c)) return c;
+  }
+  return null;
+}
+
+/**
+ * 一份 `.so` **strip 归一之后**的 sha256（strip 是幂等的 ⇒ ⇒ 对已 stripped 的再 strip 一次不改变结果）。
+ *
+ * @returns {Promise<string|null>} null ＝ strip 跑不动 ⇒ ⇒ 调用方要报「判不了」，**不是**「绿」。
+ */
+async function strippedSha256(tool, filePath, workDir) {
+  const out = join(workDir, 'strip-' + Math.random().toString(36).slice(2) + '.so');
+  const res = spawnSync(tool, ['--strip-unneeded', '-o', out, filePath], {
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+  });
+  if (res.status !== 0 || !existsSync(out)) return null;
+  return await sha256(out);
+}
 
 /** 列 APK 里的所有条目。 */
 function apkEntries(apkPath) {
@@ -523,12 +672,20 @@ try {
   }
 
   // -----------------------------------------------------------------------
-  // 4. APK 里那份 ↔ jniLibs 那份
+  // 4. APK 里那份 ↔ jniLibs 那份（**strip 归一后**逐字节）
   // -----------------------------------------------------------------------
   console.log('');
-  console.log('▶ 3. APK 里那份 ↔ jniLibs 那份（逐字节）');
+  console.log('▶ 3. APK 里那份 ↔ jniLibs 那份（**strip 归一后**逐字节）');
+  console.log(
+    '  ⚠ 口径：打包时 AGP 会 strip 掉调试符号 ⇒ ⇒ APK 里那份是 stripped、jniLibs 那份是 unstripped',
+  );
+  console.log('    ⇒ ⇒ 直接比 sha256 必然不等 ⇒ ⇒ 必须两边都 strip 归一后再比。');
 
   const jniLibsRoot = resolve(ROOT, JNI_LIBS_DIR);
+  const stripTool = findStripTool();
+  console.log(
+    '  · strip 工具 :: ' + (stripTool ? stripTool : '<找不到 ⇒ ⇒ 这一项会「判不了」，绝不是绿>'),
+  );
   for (const { abi, path } of extracted) {
     const src = join(jniLibsRoot, abi, SO_NAME);
     if (!existsSync(src)) {
@@ -539,13 +696,24 @@ try {
       continue;
     }
     const [hApk, hSrc] = [await sha256(path), await sha256(src)];
-    if (hApk !== hSrc) {
+    let strippedEqual = null;
+    if (hApk !== hSrc && stripTool) {
+      const [a, b] = [
+        await strippedSha256(stripTool, path, work),
+        await strippedSha256(stripTool, src, work),
+      ];
+      strippedEqual = a !== null && b !== null ? a === b : null;
+    }
+    const r = judgeSameBinary({ rawEqual: hApk === hSrc, strippedEqual, tool: stripTool });
+    if (r.verdict === 'fail') {
       fail(
-        `ABI ${abi}：APK 里那份与 jniLibs 里那份**不是同一份**（sha256 不同）⇒ **你装的是旧 APK**。\n` +
+        `ABI ${abi}：${r.message}。\n` +
           `    ⇒ 修法：重打 APK（flutter build apk --debug --target=lib/main.dart）。`,
       );
+    } else if (r.verdict === 'warn') {
+      warn(`ABI ${abi}：${r.message}`);
     } else {
-      pass(`ABI ${abi}：APK 里那份 = jniLibs 那份（sha256 ${hSrc.slice(0, 12)}…）`);
+      pass(`ABI ${abi}：${r.message}（sha256 ${hSrc.slice(0, 12)}…）`);
     }
   }
 } finally {
