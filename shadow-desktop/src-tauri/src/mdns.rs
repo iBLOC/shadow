@@ -151,11 +151,19 @@ fn extract_host_port(line: &str) -> Option<(String, u16)> {
     None
 }
 
+// ⚠️⚠️ **参数名的 `_` 前缀不是「不用它」，是「只有 linux/macOS 才用得到它」**
+//   ⇒ ⇒ Windows 上没有 mDNS 实现 ⇒ ⇒ 那个面上参数真的没被用 ⇒ ⇒ clippy 的
+//   `unused_variables` 会报 ⇒ ⇒ 于是加前缀消警告。
+//   ⇒ ⇒ **但函数体里必须用同一个名字**（`_service_name`）—— 用裸名 `service_name`
+//   就是 E0425。2026-11-08 那笔 clippy 存量清扫只改了参数名、没改函数体 ⇒ ⇒
+//   Linux 上 2 处、macOS 上 1 处编不过 ⇒ ⇒ 而桌面 crate 唯一的 Linux 防线
+//   （desktop-rust workflow）**从落地第一天起就是红的** ⇒ ⇒ Windows 本机
+//   永远编不到那几段 ⇒ ⇒ 这就是那盏灯没人看见的原因。
 pub async fn resolve_service(_service_name: &str) -> Result<Option<DiscoveredService>, String> {
     #[cfg(target_os = "linux")]
     {
         let output = Command::new("avahi-resolve")
-            .args(["-n", service_name])
+            .args(["-n", _service_name])
             .output()
             .await;
 
@@ -165,7 +173,7 @@ pub async fn resolve_service(_service_name: &str) -> Result<Option<DiscoveredSer
                 let parts: Vec<&str> = stdout.trim().split('\t').collect();
                 if parts.len() >= 2 {
                     return Ok(Some(DiscoveredService {
-                        name: service_name.to_string(),
+                        name: _service_name.to_string(),
                         host: parts[1].to_string(),
                         port: 8080,
                         txt_records: HashMap::new(),
@@ -179,7 +187,7 @@ pub async fn resolve_service(_service_name: &str) -> Result<Option<DiscoveredSer
 
     #[cfg(target_os = "macos")]
     {
-        Ok(resolve_macos_service(service_name).await)
+        Ok(resolve_macos_service(_service_name).await)
     }
 
     #[cfg(not(any(target_os = "linux", target_os = "macos")))]

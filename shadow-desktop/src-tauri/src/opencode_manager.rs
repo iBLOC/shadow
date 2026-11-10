@@ -96,11 +96,14 @@ impl OpenCodeManager {
     pub async fn stop(&self, id: &str) -> Result<(), String> {
         let mut instances = self.instances.lock().await;
         if let Some(instance) = instances.get_mut(id) {
+            // ⚠️ 同 mdns.rs：`_pid` 前缀只为在非 unix 面上消 `unused_variables`
+            //   ⇒ ⇒ unix 面里必须用 `_pid`；用裸名 `pid` 就是 E0425 ⇒ ⇒ 桌面 crate
+            //   的 Linux 防线从落地第一天起就红在那一行。
             if let Some(_pid) = instance.process_id {
                 #[cfg(unix)]
                 {
                     Command::new("kill")
-                        .arg(pid.to_string())
+                        .arg(_pid.to_string())
                         .output()
                         .await
                         .map_err(|e| e.to_string())?;
