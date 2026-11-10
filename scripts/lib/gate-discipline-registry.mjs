@@ -90,10 +90,10 @@ export const NO_CANNOT_JUDGE_EXIT = {
     '⇒ ⇒ 剩下 6 条是**真债**（实测：它们的 exit 只能取 0 / 1）⇒ ⇒ 本清单不装假债 ' +
     '⇒ ⇒ 2026-11-11：brain-chain / jni-surface / cross-client 已补退出码 2 那一档 ⇒ ⇒ 已从本清单销账' +
     '⇒ ⇒ 2026-11-11：agent-surface 也补上了（判据源读不到 ⇒ ⇒ 退出码 2「判不了」⇒ ⇒ 以前是直接 readFileSync ⇒ ⇒ 缺一个就抛异常 ⇒ ⇒ Node 崩掉的退出码是 1 ⇒ ⇒ 与「闸判红」同形）⇒ ⇒ 已从本清单销账' +
-    '（剩 2 条：client-tools / neuron-ownership —— 并行会话在飞件 ⇒ ⇒ 不代改）',
+    '⇒ ⇒ 2026-11-11：neuron-ownership 也补上了（叶区面判不了 ⇒ ⇒ 退出码 2「判不了」⇒ ⇒ 那一格从没被查过 ⇒ ⇒ 不许伪装成「已判无问题」）⇒ ⇒ 已从本清单销账' +
+    '（剩 1 条：client-tools —— 并行会话在飞件 ⇒ ⇒ 不代改）',
   gates: [
     'client-tools',
-    'neuron-ownership',
   ],
 };
 

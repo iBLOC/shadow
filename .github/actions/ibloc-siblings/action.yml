@@ -13,7 +13,7 @@ inputs:
 
 outputs:
   workspaces:
-    description: 十个兄弟仓的目录名（换行分隔）⇒ 给 rust-cache 的 workspaces 用
+    description: 十四个兄弟仓的目录名（换行分隔）⇒ 给 rust-cache 的 workspaces 用
     value: |
       telencephalon
       encephalon
@@ -25,6 +25,10 @@ outputs:
       temporal
       occipital
       ziti-rust
+      amygdala
+      parietal
+      hengjian
+      lance-graph
 
 runs:
   using: composite
@@ -118,6 +122,45 @@ runs:
       with:
         repository: iBLOC/ziti-rust
         path: ziti-rust
+        token: ${{ inputs.token }}
+
+    # ⚠️⚠️⚠️ **2026-11-11 补：归属闸要判的仓必须在这里检出** ——
+    #   归属闸的「发现面」是**工作区里凡是�� manifest 的目录** ⇒ ⇒ 本机有
+    #   **18 个**仓 ⇒ ⇒ 而这份清单只列了 10 个 ⇒ ⇒ ⇒ 差的那几个
+    #   （amygdala／parietal／hengjian／lance-graph）**在 CI 上压根没被检出**
+    #   ⇒ ⇒ ⇒ 闸在 CI 上**只发现 10 个仓** ⇒ ⇒ ⇒ 它们若自己起了 neuron
+    #   ⇒ ⇒ ⇒ CI **不红** ⇒ ⇒ ⇒ 那是一盏「没查却绿」的灯（**假绿**）。
+    #   ⇒ ⇒ ⇒ 实测（隔离工作区复刻 CI 布局）：发现仓 **10** vs 本机 **18**。
+    #   ⇒ ⇒ ⇒ 端脑**没装载**这四个（不在叶区面里）⇒ ⇒ ⇒ 但它们是**消费者**
+    #   ⇒ ⇒ ⇒ ⇒ N13（不许有 neuron 依赖边）**该判它们** ⇒ ⇒ ⇒ 所以必须检出。
+    #   ⚠️ **清单只有这一份** ⇒ ⇒ 三个 workflow（ci.yml／desktop-e2e.yml／
+    #   ⇒ ⇒ desktop-rust.yml）共用它 ⇒ ⇒ ⇒ 改一处三处受益 ⇒ ⇒ ⇒ 不会漂。
+    - name: Checkout amygdala
+      uses: actions/checkout@v7
+      with:
+        repository: iBLOC/amygdala
+        path: amygdala
+        token: ${{ inputs.token }}
+
+    - name: Checkout parietal
+      uses: actions/checkout@v7
+      with:
+        repository: iBLOC/parietal
+        path: parietal
+        token: ${{ inputs.token }}
+
+    - name: Checkout hengjian
+      uses: actions/checkout@v7
+      with:
+        repository: iBLOC/hengjian
+        path: hengjian
+        token: ${{ inputs.token }}
+
+    - name: Checkout lance-graph
+      uses: actions/checkout@v7
+      with:
+        repository: iBLOC/lance-graph
+        path: lance-graph
         token: ${{ inputs.token }}
 
     # 端脑 server 的构建链同样要私有 git 依赖的凭据（ziti-sdk）。
