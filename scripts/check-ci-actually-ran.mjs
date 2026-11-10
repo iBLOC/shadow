@@ -14,10 +14,27 @@
  * 私有仓（telencephalon 等）的 CI **94 笔笔笔门外红**（0 step / runner_id=0），
  * 而公开仓（shadow 等）跑得好好的 ⇒ ⇒ 「端脑 CI 红了」这句话**从来没有承载过任何信息**。
  *
- * ## 判据（红线两条）
+ * ## 判据（红线三条 ＋ 一个**读数侧**的问法）
  *
  * · R1 **你声称要读的那一笔是门外红** ⇒ ⇒ 红（exit 1）—— 「读数」不存在。
  * · R2 **最近一笔已完成的 run 是门外红** ⇒ ⇒ 红（exit 1）—— 本仓 CI 基础设施此刻坏了。
+ * · R3 **你声称要读的那一笔压根没有 run** ⇒ ⇒ 红（exit 1）—— 读数**永远不会存在**。
+ *   ⇒ ⇒ ⚠️ 这一条**比 R1 还早一档**（连 run 都没有）⇒ ⇒ 实测（2026-11-11 真机）：我推完
+ *   一笔 `fc9b464` 后查 GitHub 侧 ⇒ ⇒ **零 check-run ＋ 零 status** ⇒ ⇒ 而紧接着的下一笔
+ *   `1cb151b` **24 道 run 全齐** ⇒ ⇒ ⇒ 同一把尺、同样问法、两次推、一次零一次齐
+ *   ⇒ ⇒ ⇒ **⇒ ⇒ 「那一格没读到」有两种可能（事件被并 ／ 尺子口径错）** ⇒ ⇒ ⇒ ⇒
+ *   ⇒ ⇒ ⇒ ⇒ **要分开只能靠「尺子自检」** —— **本闸的 `--sha` 问法就是那把尺子**。
+ *   ⇒ ⇒ ⚠️ **而「零 run」还要再分两档**（分不清 ⇒ ⇒ 那一格只能判不了）：
+ *   **还是分支尖端** ⇒ ⇒ 可能**还没起** ⇒ ⇒ 「判不了」（exit 2）；
+ *   **已经不是尖端** ⇒ ⇒ ⇒ **它的 run 永远不会再来了** ⇒ ⇒ ⇒ ⇒ ⇒ **判红**。
+ *
+ * ## ⚠️ **`--sha` 是**读数侧**的问法，不是 CI 侧的闸**
+ *
+ *   它问的是「**我声称要读的那一笔**有没有读数」⇒ ⇒ 那是**读者**的问题 ⇒ ⇒
+ *   ⇒ ⇒ **CI 问不了自己**（CI 正在跑 ⇒ ⇒ 这一笔至少有一道 run ⇒ ⇒ 问自己必然是绿的）
+ *   ⇒ ⇒ ⇒ ⇒ 所以它**不接 `ci.yml`** ⇒ ⇒ ⇒ ⇒ 而它的**接线面是纪律**：
+ *   ⇒ ⇒ ⇒ ⇒ ⇒ **每一次要引用某笔 CI 读数之前，先跑它** ⇒ ⇒ ⇒ ⇒ ⇒ ⇒
+ *   ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ 「读数不存在」从此是**一份机械读数**，而不是靠记性。
  *
  * ⚠️ **历史里的旧门外红只报数、不判红** —— 它们是既成事实，拖红今天的 CI 没有意义；
  *   要按「任何一笔都算」来判，用 --strict。
@@ -34,14 +51,16 @@
  *     node scripts/check-ci-actually-ran.mjs --run 42663656264
  *     node scripts/check-ci-actually-ran.mjs --recent 10
  *     node scripts/check-ci-actually-ran.mjs --recent 10 --strict --json
+ *     node scripts/check-ci-actually-ran.mjs --sha <full-sha>        ← 「这一笔有没有读数」
+ *     node scripts/check-ci-actually-ran.mjs --sha <full-sha> --json
  *
  * ⚠️ 跨仓量**私有仓**需要 PAT（CI 上的 GITHUB_TOKEN 跨私有仓读不到）
  *    ⇒ ⇒ 本仓（public）在 CI 上量自己；私有仓那一族在本地量（gh 已有 org 读权限）。
  */
 import { execFileSync } from 'node:child_process';
 import {
-  classifyRun, classifyAll, isAReading,
-  RAN, PARTIAL, NEVER_STARTED, CANCELLED, NO_JOBS, UNKNOWN, KIND_LABELS,
+  classifyRun, classifyAll, isAReading, classifyShaRuns,
+  RAN, PARTIAL, NEVER_STARTED, CANCELLED, NO_JOBS, UNKNOWN, NO_RUN_PENDING, NO_RUN_SUPERSEDED, KIND_LABELS,
 } from './lib/ci-ran-facts.mjs';
 
 const DEFAULT_REPO = 'iBLOC/shadow';
@@ -63,6 +82,20 @@ function fetchRun(repo, id) {
   const jobs = ghApi('repos/' + repo + '/actions/runs/' + id + '/jobs');
   if (!jobs.ok) return { ok: false, why: 'jobs 读不到：' + jobs.err };
   return { ok: true, run: r.data, jobs: jobs.data.jobs || [] };
+}
+
+/** 查**某一笔 sha** 名下的全部 run（这才是「我声称要读的那一笔」的读数面）。 */
+function fetchRunsBySha(repo, sha) {
+  const r = ghApi('repos/' + repo + '/actions/runs?head_sha=' + encodeURIComponent(sha) + '&per_page=100');
+  if (!r.ok) return { ok: false, why: 'run 列表读不到：' + r.err };
+  return { ok: true, runs: Array.isArray(r.data.workflow_runs) ? r.data.workflow_runs : [] };
+}
+
+/** 查分支尖端（用来分「还没起」与「已被取代」）。读不到 ⇒ ⇒ 返回 null（那一格判不了）。 */
+function fetchTipSha(repo, branch) {
+  const r = ghApi('repos/' + repo + '/commits/' + branch);
+  if (!r.ok) return null;
+  return r.data && r.data.sha ? r.data.sha : null;
 }
 
 function fetchRecent(repo, n) {
@@ -103,13 +136,27 @@ function selfTest() {
   const nrOk = !isAReading(nr.kind);
   if (nrOk) pass++;
   console.log((nrOk ? '  ✓ ' : '  ✗ ') + '门外红不算「有读数」');
-  const total = cases.length + 1;
+  // ⚠️ **「这一笔零 run」那一族**（2026-11-11 真机实测：推完一笔却零 check-run）
+  const shaCases = [
+    { name: '零 run ＋ 还是分支尖端 ⇒ ⇒ 判不了（可能还没起）', p: { sha: 'abc1234', runs: [], isTip: true }, expect: NO_RUN_PENDING },
+    { name: '零 run ＋ 已被取代（非尖端）⇒ ⇒ 读数不存在 ⇒ ⇒ 判红', p: { sha: 'abc1234', runs: [], isTip: false }, expect: NO_RUN_SUPERSEDED },
+    { name: '零 run ＋ 尖端读不到 ⇒ ⇒ 分不清 ⇒ ⇒ 判不了', p: { sha: 'abc1234', runs: [], isTip: null }, expect: NO_RUN_PENDING },
+    { name: '有 run 且真跑过 ⇒ ⇒ 有读数', p: { sha: 'abc1234', runs: [{ run: { status: 'completed', conclusion: 'success' }, jobs: [{ steps: [{}, {}], runner_id: 1, conclusion: 'success' }] }], isTip: true }, expect: RAN },
+    { name: '有 run 但全是门外红 ⇒ ⇒ 读数不存在', p: { sha: 'abc1234', runs: [{ run: { status: 'completed', conclusion: 'failure' }, jobs: [{ steps: [], runner_id: 0, conclusion: 'failure' }] }], isTip: true }, expect: NEVER_STARTED },
+  ];
+  for (const c of shaCases) {
+    const got = classifyShaRuns(c.p);
+    const ok = got.kind === c.expect;
+    if (ok) pass++;
+    console.log((ok ? '  ✓ ' : '  ✗ ') + c.name + ' ⇒ ' + got.kind + (ok ? '' : '（期望 ' + c.expect + '）'));
+  }
+  const total = cases.length + 1 + shaCases.length;
   console.log('自检：' + pass + '/' + total + ' 通过');
   return pass === total ? 0 : 1;
 }
 
 function parseArgs(argv) {
-  const o = { repo: DEFAULT_REPO, run: null, recent: null, strict: false, json: false, selfTest: false };
+  const o = { repo: DEFAULT_REPO, run: null, recent: null, sha: null, branch: 'master', strict: false, json: false, selfTest: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--self-test') o.selfTest = true;
@@ -117,6 +164,8 @@ function parseArgs(argv) {
     else if (a === '--strict') o.strict = true;
     else if (a === '--repo') o.repo = argv[++i];
     else if (a === '--run') o.run = argv[++i];
+    else if (a === '--sha') o.sha = argv[++i];
+    else if (a === '--branch') o.branch = argv[++i];
     else if (a === '--recent') {
       const v = argv[++i];
       o.recent = v === undefined || String(v).startsWith('-') ? 10 : Number(v);
@@ -220,7 +269,45 @@ function main() {
     process.exit(0);
   }
 
-  console.log('用法：node scripts/check-ci-actually-ran.mjs [--repo <owner/name>] [--run <id> | --recent <N>] [--strict] [--json]');
+  // ⚠️⚠️ **第三问法：--sha** —— 「**我声称要读的那一笔**」到底有没有读数。
+  //   ⇒ ⇒ 这是**读数侧**的问题（CI 问不了「我声称要读的那一笔」）⇒ ⇒ ⇒ 所以它**不接 ci.yml**。
+  if (o.sha) {
+    const f2 = fetchRunsBySha(o.repo, o.sha);
+    if (!f2.ok) {
+      if (o.json) console.log(JSON.stringify({ ok: false, why: f2.why }, null, 2));
+      else console.log('✗ 判不了：' + f2.why);
+      process.exit(2);
+    }
+    const entries = [];
+    for (const run of f2.runs) {
+      const j = ghApi('repos/' + o.repo + '/actions/runs/' + run.id + '/jobs');
+      entries.push({ run, jobs: j.ok ? (j.data.jobs || []) : null });
+    }
+    const tip = fetchTipSha(o.repo, o.branch);
+    const isTip = tip === null ? null : (tip === o.sha);
+    const c = classifyShaRuns({ sha: o.sha, runs: entries, isTip });
+    const payload = {
+      ok: c.readingCount > 0, repo: o.repo, sha: c.sha, branch: o.branch, tip,
+      isTip, kind: c.kind, why: c.why, runCount: c.runCount, readingCount: c.readingCount,
+      rows: entries.map((e) => ({ id: e.run.id, name: e.run.name, status: e.run.status, conclusion: e.run.conclusion })),
+    };
+    if (o.json) console.log(JSON.stringify(payload, null, 2));
+    else {
+      console.log('这一笔的 CI 读数存不存在：' + o.repo + ' sha ' + c.sha);
+      console.log('  分支 ' + o.branch + ' 尖端：' + (tip ? tip.slice(0, 7) : '读不到') + (isTip === false && c.kind === NO_RUN_SUPERSEDED ? '（这一笔**已不是**尖端 ⇒ ⇒ 它的 run 永远不会再来了）' : (isTip === false ? '（这一笔已不是尖端；但它的 run 存在 ⇒ ⇒ 读数在）' : '')));
+      console.log('  分类：' + (KIND_LABELS[c.kind] || c.kind));
+      console.log('  ' + c.why);
+      console.log('  run 数：' + c.runCount + ' ｜ 真跑过（有读数）：' + c.readingCount);
+      for (const r of payload.rows) console.log('    ' + String(r.id).padEnd(13) + ' ' + String(r.name || '-').padEnd(30) + ' ' + r.status + ' / ' + r.conclusion);
+      if (c.kind === NO_RUN_SUPERSEDED) console.log('  ⛔ 这一笔的 run **永远不会再来了** ⇒ ⇒ 它的读数**不存在** ⇒ ⇒ 不许拿别的 sha 的绿冒充它');
+      if (c.kind === NO_RUN_PENDING) console.log('  ⚠ 这一格**判不了**（可能还没起）⇒ ⇒ 不许当「没问题」');
+    }
+    if (c.kind === NO_RUN_PENDING || c.kind === UNKNOWN) process.exit(2);
+    if (c.kind === NEVER_STARTED || c.kind === NO_JOBS || c.kind === NO_RUN_SUPERSEDED) process.exit(1);
+    process.exit(0);
+  }
+
+  console.log('用法：node scripts/check-ci-actually-ran.mjs [--repo <owner/name>] [--run <id> | --recent <N> | --sha <sha>] [--branch <b>] [--strict] [--json]');
   console.log('      node scripts/check-ci-actually-ran.mjs --self-test');
   process.exit(2);
 }
