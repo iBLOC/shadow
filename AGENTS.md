@@ -1,6 +1,6 @@
 **Updated**: 2026-11-11 (㓘 **「地板这句话从来没被编译过一次 —— 而『图级 PASS』与『地板可建』之间，隔着一个补丁号」** —— 承 U+34D1 条（主 CI 的分母）＋ U+34D2 条（取号闸的语义豁免层），本条记**取证（图级 PASS ≠ 地板可建）**、**第一因（容差比承诺松一档）**、**第二因（`+1.94` 给的是线内最新补丁）**、**第三因（CI 上那一格是『判不了』）**、**这一刀的落点**、**途中那几课**、**判据与分级读数**，以及**仍然欠着**的.)
 
-> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=本机**编译级实测**（rustc 1.94.0 / 1.94.1 三个仓真编）＋ 跨 13 个兄弟仓的图级扫描 ＋ 源码逐字读（scripts/check-msrv-floor.mjs ／ scripts/probe-msrv-floor.mjs）＋ 官方闸读数（yaml／覆盖／治理） | 改动：父仓 **新增** scripts/probe-msrv-floor.mjs（编译级探针）＋ **新增** .github/workflows/msrv-floor-probe.yml（判读逻辑自检）＋ **改** scripts/check-msrv-floor.mjs（加「补丁级越线」一档，**只报不判红**）⇒ ⇒ **零产品代码**、**不碰 ci.yml** | 读数：探针自检 **12/12** EXIT=0；地板闸自检 **9/9** EXIT=0；闸级 hippocampus 图级「补丁级越线 :: **20**」＋「依赖图最高 MSRV :: aws-config 1.9.0 -> 1.94.1」⇒ ⇒ VERDICT PASS；**编译级 hippocampus @1.94.0 ＝ floor-unbuildable（20 个 aws 系包要 1.94.1，EXIT=1）**；prefrontal @1.94.0 ＝ EXIT=0；neuron @1.94(=1.94.1) ＝ EXIT=0；telencephalon @1.94(=1.94.1) ＝ EXIT=0；YAML 闸 27 文件零违规；覆盖闸 25 workflow 零违规；治理闸 59 闸零违规 | status=active | supersedes=none
+> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=本机**编译级实测**（rustc 1.94.0 / 1.94.1 三个仓真编）＋ 跨 13 个兄弟仓的图级扫描 ＋ 源码逐字读（scripts/check-msrv-floor.mjs ／ scripts/probe-msrv-floor.mjs）＋ 官方闸读数（yaml／覆盖／治理） | 改动：父仓 **新增** scripts/probe-msrv-floor.mjs（编译级探针）＋ **新增** .github/workflows/msrv-floor-probe.yml（判读逻辑自检）＋ **改** scripts/check-msrv-floor.mjs（加「补丁级越线」一档，**只报不判红**）⇒ ⇒ **零产品代码**、**不碰 ci.yml** | 读数：探针自检 **12/12** EXIT=0；地板闸自检 **9/9** EXIT=0；闸级 hippocampus 图级「补丁级越线 :: **20**」＋「依赖图最高 MSRV :: aws-config 1.9.0 -> 1.94.1」⇒ ⇒ VERDICT PASS；**编译级 hippocampus @1.94.0 ＝ floor-unbuildable（20 个 aws 系包要 1.94.1，EXIT=1）**；prefrontal @1.94.0 ＝ EXIT=0；neuron @1.94(=1.94.1) ＝ EXIT=0；telencephalon @1.94(=1.94.1) ＝ EXIT=0；YAML 闸 27 文件零违规；覆盖闸 25 workflow 零违规；治理闸 59 闸零违规；推送后真 CI：MSRV Floor Probe run 42760080724 ＝ success ＋ 主 CI run 42760080119 ＝ success（10 job 全绿） | 提交：`483cdfb`（主笔） | status=active | supersedes=none
 
 ① **⚠️ 取证：「图级 PASS」与「地板可建」之间，隔着一个补丁号**
 　❶ 既有地板闸（scripts/check-msrv-floor.mjs）的口径写得很清楚：「1.94 **线**」⇒ 允许的最高依赖 MSRV ＝ **1.94.99** ⇒ 任何 1.95+ 一律红 ⇒ ⇒ **1.94.1 不算越线**。
@@ -47,16 +47,16 @@
 　❷ **地板闸自检级**：9/9 EXIT=0（新增两格：补丁级被点名但**不**判红 ／ 补丁级零越线）。
 　❸ **闸级（本机 · hippocampus）**：「依赖要求超出地板的线 :: **0**」＋「补丁级越线 :: **20**」＋「依赖图最高 MSRV :: aws-config 1.9.0 -> **1.94.1**」⇒ ⇒ **VERDICT: PASS** ⇒ ⇒ ⇒ **图级口径下它是绿的**。
 　❹ **探针真跑（hippocampus · 编译级）**：floor-unbuildable ／ **20 个 offender**（全部 aws 系，要求 1.94.1）／ EXIT=**1** ⇒ ⇒ **编译级证据：地板在精确值上不可建**。
-　❺ **编译级 · 其它仓**：prefrontal @ **1.94.0** ＝ EXIT=0（2m38s）⇒ ⇒ **它的地板是真的**；neuron @1.94(=1.94.1) ＝ EXIT=0（1m45s）；telencephalon @1.94(=1.94.1) ＝ EXIT=0（8m18s）；**telencephalon @1.94.0 仍在跑（未到手）**。
+　❺ **编译级 · 全 13 仓（钉住 rustc **1.94.0** ＝地板**精确值**）**：**hippocampus ＝ EXIT=101 ❌**（20 个 aws 系包要 1.94.1）｜ prefrontal ＝ EXIT=0（2m38s）｜ telencephalon ＝ EXIT=0（fsst 14.0.2 -> 1.94.0 正好压线）｜ neuron ＝ EXIT=0（52.94s）｜ synapse ＝ EXIT=0 ｜ amygdala ＝ EXIT=0 ｜ diencephalon ＝ EXIT=0（11m26s）｜ hengjian ＝ EXIT=0 ｜ occipital ＝ EXIT=0 ｜ parietal ＝ EXIT=0 ｜ temporal ＝ EXIT=0 ｜ lance-graph ＝ EXIT=0 ｜ ziti-rust ＝ EXIT=0（4m52s）（encephalon 无 Cargo.toml ⇒ 那一格**判不了**）⇒ ⇒ ⇒ **「地板 = 1.94」只在 hippocampus 一个仓上是假的，其余 12 个仓的地板是真的**（⚠️ 同一批里还重跑过 +1.94（≡ 1.94.1）：neuron EXIT=0 / telencephalon EXIT=0）⇒ ⇒ 两档的读数**各自独立** ⇒ ⇒ 不用同一条编译结果冒充两档。
 　❻ **图级 · 跨 13 仓扫描**（全部 PASS，各自最高 MSRV）：prefrontal aws-config 1.8.18->1.91.1 ｜ telencephalon fsst 14.0.2->**1.94.0** ｜ neuron encoding_rs 0.8.42->1.88 ｜ synapse ar_archive_writer 0.5.2->1.88.0 ｜ **hippocampus aws-config 1.9.0->1.94.1** ｜ amygdala a2a-client-lf 0.2.5->1.85 ｜ diencephalon datafusion 54.1.0->1.88.0 ｜ hengjian home 0.5.12->1.88 ｜ occipital/parietal a2a-client-lf->1.85 ｜ temporal wasip2->1.87.0 ｜ lance-graph fsst->1.94.0 ｜ ziti-rust wasip2->1.87.0（encephalon 无 manifest）⇒ ⇒ **只有 hippocampus 的图越了「地板精确值」**。
 　❼ **闸级（其它）**：YAML 闸 **27** 文件零违规（python ＋ PyYAML）｜ 覆盖闸 **25** 个 workflow 零违规（我这一盏「闸步 0 ｜ 有闸的 job 0」⇒ ⇒ 零义务）｜ 治理闸 **59** 闸零违规（存量债 1 条属能力授权线）。
-　❼ **真 CI 级**：**计划**（本条尚未推送；推送后按 headSha 取读数）。
+　❽ **真 CI 级（已补）**：headSha `483cdfb` ⇒ ⇒ **MSRV Floor Probe** run **42760080724** ＝ **success** ⇒ ⇒ 日志逐字拿出探针自检的 12 条全 PASS（含「同一包重复出现 ⇒ 只被点名一次」）；主 CI run **42760080119** ＝ **success** ⇒ ⇒ **10 个 job 全绿**：Mobile Test ｜ Ledger codepoints ｜ YAML validity ｜ Prefrontal Rust ｜ Desktop Build ｜ Mobile Analyze ｜ Brain gates ｜ Legacy residue ｜ PS1 Portability ｜ Desktop Tests ⇒ ⇒ **本条有属于自己的 run**（不是并批借读数）。
 　❾ **真机级**：欠（odin 掉线；MI MAX 2 锁屏＋没插卡 ⇒ ⇒ 真机腿未动）。
 
 ⑧ **⚠️ 仍然欠着**
 　❶ **口径要主人拍板**（三条）：❶ 抬到 **1.94.1**（最小改动，仍在 1.94 线；hippocampus 立刻可编）｜ ❷ 抬到 **1.95**（跨仓 13+ 处一起改；且 fsst 14.0.2 的 1.94.0 也要重看）｜ ❸ **钉回**（重解析锁，把 aws 系降到要求 <=1.94.0 的版本；需网络，且要验它编得过）⇒ ⇒ 本条**只把事实钉准**，**不替你选**。
-　❷ **探针的编译级读数只覆盖 4 个仓**（hippocampus/prefrontal/neuron/telencephalon）⇒ ⇒ 其余 9 个仓（synapse/amygdala/diencephalon/hengjian/occipital/parietal/temporal/lance-graph/ziti-rust）未跑。
-　❸ **telencephalon @1.94.0 未到手**（仍在跑）⇒ ⇒ 它是 fsst 14.0.2 -> 1.94.0 那格的代表仓 ⇒ ⇒ **等它**。
+　❷ **探针的编译级读数已覆盖 13 个仓**（唯一无 manifest 的 encephalon 判不了）⇒ ⇒ 缺口只剩「**跨仓逐仓跑进 CI**」（即地板闸在 CI 上仍是『判不了』那一格 ⇒ ⇒ 见 ⑨）。
+　❸ **telencephalon @1.94.0 已到手**：EXIT=0（fsst 14.0.2 -> 1.94.0 正好压线 ⇒ ⇒ 它的地板**成立**）⇒ ⇒ 本条不再存在「等它」这个缺口。
 　❹ **地板闸在 CI 上仍是「判不了」**（shadow 仓根无 Cargo.toml）⇒ ⇒ 要么给它一个 manifest 路径，要么把它改成**跨仓逐仓跑**（那是接线面的事 ⇒ ⇒ 另开一刀）。
 　❺ **探针的真编那一格在 CI 上不存在**（需要兄弟仓 ＋ 1.94.0 工具链）⇒ ⇒ 只能按需手动触发。
 　❻ **真机腿仍欠**（承前：odin 掉线；MI MAX 2 插卡＋解锁两件物理动作待主人做）。
