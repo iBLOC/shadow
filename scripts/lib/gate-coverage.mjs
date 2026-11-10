@@ -112,7 +112,10 @@ export function parseWorkflowJobs(text) {
         const stepMap = item.node;
         const run = scalarText(mapGet(stepMap, 'run'));
         const name = scalarText(mapGet(stepMap, 'name'));
-        steps.push({ name, run });
+        // ⚠️ **if 条件也要读**（2026-11-11 本刀）—— 一道闸若带 if: always()
+        //    ⇒ ⇒ 它**前一步红了它照样跑** ⇒ ⇒ 不能把它算成「被跳过」。
+        const ifCond = scalarText(mapGet(stepMap, 'if'));
+        steps.push({ name, run, ifCond });
       }
     }
     out.push({
@@ -151,7 +154,9 @@ export function classifyJob(job) {
   let viaChannel = false;
   let hasTally = false;
   let hasSink = false;
-  for (const step of job.steps || []) {
+  const steps = job.steps || [];
+  for (let i = 0; i < steps.length; i += 1) {
+    const step = steps[i];
     const run = String(step.run || '');
     if (run.includes(CHANNEL_MARK)) viaChannel = true;
     if (run.includes(TALLY_MARK) && run.includes('--report')) hasTally = true;
@@ -162,6 +167,19 @@ export function classifyJob(job) {
         name: step.name,
         script: g.script,
         viaChannel: run.includes(CHANNEL_MARK),
+        // ⚠️ **步号**（2026-11-11 本刀）—— 归因要能点名到「哪一步」。
+        //    stepIndex ＝ **文件里**第几个步（1 起）；stepNo ＝ **GitHub 界面**里第几步。
+        //    ⚠️ 两者**差 1** ⇒ ⇒ 因为界面把「Set up job」算作第 1 步
+        //    ⇒ ⇒ （真 CI run 42783415633 逐 step 校准：文件里第 8 个步 ＝ 界面第 8 步
+        //    ⇒ ⇒ ＝ 「Neuron ownership check」—— 那一轮 Brain gates 的第 8 步红）。
+        stepIndex: i + 1,
+        stepNo: i + 2,
+        // ⚠️ 这一步**是不是 --strict** ⇒ ⇒ 它决定「判不了」会不会**阻断**那一步
+        //    ⇒ ⇒ 而「阻断」才让后面的步被跳过 ⇒ ⇒ 归因必须用它。
+        strict: run.includes('--strict'),
+        // ⚠️ **带 if 的步** ⇒ ⇒ 前一步红了它**照样跑**（always/failure/cancelled）
+        //    ⇒ ⇒ 它没交记录 ⇒ ⇒ **不是**「被跳过」⇒ ⇒ 是「真丢了」⇒ ⇒ 两码事。
+        runsAfterFailure: /always\(\)|failure\(\)|cancelled\(\)/.test(String(step.ifCond || '')),
       });
     }
   }
@@ -228,8 +246,18 @@ export function expectedGates({ text, jobId }) {
     }
   }
   const gates = [];
-  for (const j of target) for (const g of j.gates) gates.push(g.script);
-  return { scope, expected: gates.length, gates };
+  const plan = [];
+  const jobPlans = [];
+  for (const j of target) {
+    for (const g of j.gates) {
+      gates.push(g.script);
+      plan.push(g);
+    }
+    jobPlans.push({ id: j.id, name: j.name, gates: j.gates });
+  }
+  // ⚠️ **plan ＝ 按 job 分组的闸步清单**（含步号／名字／strict）⇒ ⇒
+  //    「少跑的那几道」要能**点名到 job ＋ 步** ⇒ ⇒ 归因的原料就在这里。
+  return { scope, expected: gates.length, gates, plan, jobs: jobPlans };
 }
 
 /**
@@ -600,6 +628,24 @@ function selfTest() {
   add('「该验几道」：不给 jobId ⇒ ⇒ 整个 workflow 的（默认）', () => {
     const res = expectedGates({ text: wfAgg, jobId: '' });
     return res.scope === 'workflow' && res.expected === 2;
+  });
+
+  add('「该验几道」：**步号**可读（界面口径 ＝ 文件序号 + 1，因为界面把「Set up job」算作第 1 步）', () => {
+    const res = expectedGates({ text: wfAgg, jobId: 'a' });
+    const g = res.plan[0];
+    // 夹具 job a 的步序：sink(1) / gate(2) / tally(3) ⇒ ⇒ 闸在**文件里第 2** 个步
+    // ⇒ ⇒ 界面口径（＝ 文件序号 + 1）＝ 3。
+    return g.stepIndex === 2 && g.stepNo === 3 && g.name === 'gate';
+  });
+
+  add('「该验几道」：**strict** 可读（它决定「判不了」会不会阻断那一步）', () => {
+    const res = expectedGates({ text: wfAgg, jobId: 'a' });
+    return res.plan[0].strict === true;
+  });
+
+  add('「该验几道」：plan 带 job 身份（归因要按 job 分组）', () => {
+    const res = expectedGates({ text: wfAgg, jobId: '' });
+    return res.jobs.length === 3 && res.jobs.map((j) => j.id).join(',') === 'a,b,agg';
   });
 
   add('「该验几道」：**没有一个闸的 workflow** ⇒ ⇒ 该验 0 道（不是「判不了」）', () => {

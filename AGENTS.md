@@ -1,3 +1,60 @@
+**Updated**: 2026-11-11 (㓳 **「被跳过的步写不出自己 —— 而『谁挡了它』要从别处推出来」** —— 承 U+34EF 条（分母口径：少跑几道只报数不归因）＋ U+34F1 条（面要能选），本条记**取证（真 CI 红灯轮逐 job 逐 step 真值 ＋ artifacts 判读记录原文）**、**第一因（「记录协议补 step 级跳过原因」这条路走不通 —— 被跳过的步根本没跑）**、**第二因（归因要能从『定义 ＋ 已交记录』反推出来）**、**第三因（库文件带 CLI 块 ⇒ ⇒ 一 import 就把宿主带走）**、**这一刀的落点**、**途中那几课**、**判据与分级读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真 CI run **42783415633**（head `c218c8d`）逐 job 逐 step 真值 ＋ 该轮 **8 个** artifacts 的判读记录原文 ＋ 本机对同一面的重放 | 改动：父仓 **改** scripts/lib/gate-runner.mjs（`resultLine` 加「job 身份」第五段 ＋ 自检 11 → **13**）＋ **改** scripts/run-gate-once.mjs（把 `GITHUB_JOB` 写进记录）＋ **改** scripts/lib/gate-coverage.mjs（闸步带**步号**／**strict**／**带 if 照样跑**；`expectedGates` 给出按 job 分组的 plan ＋ 自检 24 → **27**）＋ **改** scripts/lib/gate-tally.mjs（`parseResultLine` 读第五段 ＋ 新增纯函数 **attributeSkips** ＋ 汇总步输出「归因」那一段 ＋ **补入口守卫** ＋ 自检 18 → **27**）⇒ ⇒ **零 `ci.yml` 改动** ＋ **零产品代码** | 读数：`gate-tally` 自检 **27/27** EXIT=0｜`gate-coverage` 自检 **27/27** EXIT=0｜`gate-runner` 自检 **13/13** EXIT=0｜本仓四道闸全绿（覆盖 **27** workflow 零违规 ｜ 纪律 **60** 道零违规（存量债 1 条已登记）｜ YAML **29** 文件零违规 ｜ 状态面零违规）｜码位闸提交树面 **439** 条零违规｜**重放级（两面逐字闭合）**：对真 artifacts 反推 ⇒ ⇒ 「该验 30 ｜ 实跑 20 ｜ 少跑 10」＋ **10 道全部归因成功**（attributable=10 ／ unattributable=0）⇒ ⇒ 逐字「Brain gates 第 9 步『Test env-race check』**被第 8 步『Neuron ownership check』挡住了**」＋「Desktop Build 9 道**被第 15 步『Neuron ownership check』挡住了**」⇒ ⇒ **与平台自己的 step 结论逐字相同**（Brain gates 第 8 步红 ⇒ 9–11 skipped；Desktop Build 第 15 步红 ⇒ 16–34 skipped）| status=active | supersedes=none
+
+① **⚠️ 取证：真 CI 那一轮的逐 job 逐 step 真值 ＋ artifacts 判读记录原文**
+　❶ **逐 step 真值（run 42783415633，head `c218c8d`，failure）**：「Brain gates (跨仓闸)」job —— 第 6 步 External tools wiring check＝success、**第 8 步「Neuron ownership check」＝failure**、**第 9–11 步 ＝ skipped**（Test env-race check ／ 它的 self-test ／ 那个 census）、第 12 步判读汇总＝failure、第 13 步交出记录＝success；「Desktop Build」job —— 第 7–14 步全 success、**第 15 步「Neuron ownership check」＝failure**、**第 16–34 步 ＝ skipped**（E2E credential shape ／ Rust toolchain pin ／ Design token ／ Navigation ／ State surface ／ Failure masking ／ Preference revocation ／ Dead env vars ／ Brand asset ／ TypeScript ／ Build web …）。
+　❷ **artifacts 原文（8 个 job 各一个目录，目录名 ＝ `gate-results-<job>`）**：`brain-gates` 2 行（`check-external-tools` ok ／ `check-neuron-ownership` **red**）｜`desktop-build` **8** 行（agent-surface ok／mobile-a11y ok／provider-parity ok／legacy-residue ok／jni-surface **cannot-judge**／apk-surface **cannot-judge**／brain-chain **cannot-judge**／neuron-ownership **red**）｜`legacy-residue-stack` 4 行全 ok｜`ledger-codepoints` 2 行 ok｜`mobile-analyze`／`prefrontal-rust`／`ps1-portability`／`yaml-validity` 各 1 行 ok ⇒ ⇒ **合计 20 行**（真 CI 逐字「闸的判读：20 道 ｜ 真判 15 ｜ 判不了 3 ｜ 红 2」⇒ ⇒ **逐字吻合**）。
+　❸ **逐字闭合**：30 − 20 ＝ **10** ⇒ ⇒ 少的 10 道 ＝ Brain gates **1** 道（第 9 步）＋ Desktop Build **9** 道（第 17/19/21/22/23/25/27/29/31 步）⇒ ⇒ **与平台自己的 step 结论逐字相同**（两个面、同一把尺、同一个数）。
+
+② **⚠️ 第一因：「记录协议补 step 级跳过原因」这条路走不通 —— 而这一格得有人先说清**
+　❶ **兄弟会话提的修法**：判读记录补 **step 级跳过原因**（现在 `GATE_RESULT` 只有 target／exit／verdict）⇒ ⇒ 那是**记录协议**的一格（要改 `run-gate-once.mjs` ＋ 记录格式）⇒ ⇒ 他明说「你要拿就说一声，我不动那个文件」。
+　❷ **⚠️ 这一格的前提站不住**：**被跳过的步根本没跑** ⇒ ⇒ 它**一行记录都写不出来** ⇒ ⇒ 「我为什么没跑」**不能自报** ⇒ ⇒ 补进协议的那一格**永远是空的**（真 CI 逐字：skipped 的那 9 步**零记录**）。
+　❸ ⇒ ⇒ **通用形态：一个协议字段要求「没发生的事」自报 ⇒ ⇒ 它必然恒空 ⇒ ⇒ 那不是「还没填」，是「填不了」** ⇒ ⇒ 而**恒空的字段会让人以为「那几格还没接」** ⇒ ⇒ 于是下一刀会去「实现它」⇒ ⇒ 实现出来的还是一个恒空的字段。
+　❹ ⇒ ⇒ **修法要挑「证据已经在手边」的那条**：归因的原料有三样 —— ① **定义**（哪个 job 的第几步跑哪道闸）② **已交记录**（哪些闸真跑了、结论是什么）③ **平台语义**（一步失败 ⇒ ⇒ 后面那几步 skipped）⇒ ⇒ 三样**都已经在手边** ⇒ ⇒ ⇒ ⇒ **⇒ ⇒ 归因不必等「跳过原因」被自报 ⇒ ⇒ 它是**反推**出来的**。
+
+③ **⚠️ 第二因：要让「谁该跑没跑」归到 job —— 先得让记录说得出「我是哪个 job」**
+　❶ **归因的第一跳是 job，不是步**：不知道一条记录来自哪个 job ⇒ ⇒ 连「哪个 job 少跑了」都答不出 ⇒ ⇒ 而**归因不许跨 job**（别的 job 的红闸挡不到本 job 的步）⇒ ⇒ **job 身份是归因的地基**。
+　❷ **而 job 身份恰好是「跑着的那一步」知道的**（GitHub 给它 `GITHUB_JOB`）⇒ ⇒ ⇒ ⇒ **⇒ ⇒ 于是协议加的不是「跳过原因」，是「job 身份」** ⇒ ⇒ 而这一格**跑着的人填得出** ⇒ ⇒ **四段老记录仍然照认**（仍计入分母）⇒ ⇒ **历史读数逐字可比**。
+　❸ ⇒ ⇒ **通用形态二：一个协议格要么「谁自报谁填得出」，要么「由别的证据反推」** ⇒ ⇒ **别让没发生的事自报** ⇒ ⇒ 找那个**已经发生**、且**已经带着证据**的载体。
+　❹ ⇒ ⇒ **同族**：「分母要连着口径一起读」的**归因面版** —— 「少跑 10 道」这个数**不带归因** ⇒ ⇒ 读数就只回答了一半。
+
+④ **⚠️ 第三因：库文件带 CLI 块 ⇒ ⇒ 一 import 就把宿主带走 —— 而本仓三把尺里只有它漏了**
+　❶ **症状**：我的重放探针 `import { parseResultLine } from '.../gate-tally.mjs'` ⇒ ⇒ 进程直接打印「用法: node scripts/lib/gate-tally.mjs --self-test | --report」并 **exit 2** ⇒ ⇒ 探针整个死了 ⇒ ⇒ 症状**长得像**「我 import 的路径不对」。
+　❷ **真因（逐字定位）**：`gate-tally.mjs` 末尾的 CLI 块**没有入口守卫** ⇒ ⇒ 而 `gate-coverage.mjs` 与 `gate-runner.mjs` **都有**（两者的注释逐字写着「库文件带 CLI 块必须自己守入口」⇒ ⇒ 那是本仓自己吃过的亏）⇒ ⇒ ⇒ ⇒ **⇒ ⇒ 通用形态：**同一族三个文件，只有漏掉守卫的那个会咬人** ⇒ ⇒ ⇒ ⇒ **⇒ ⇒ 「大家都加了」不等于「这个也加了」⇒ ⇒ 要**逐个**核**。
+　❸ ⇒ ⇒ **修法**：`gate-tally.mjs` 补上同款 `invokedDirectly` 守卫 ⇒ ⇒ **零行为变化**（直跑照旧）⇒ ⇒ **import 变成安全**（实测：`IMPORT_OK exports=RESULT_PREFIX,attributeSkips,compareDenominator,parseResultLine,renderTally,tally`）⇒ ⇒ ⇒ ⇒ **⇒ ⇒ 而这一格**是本刀自己的归因函数能被别人复用**的前提（`attributeSkips` 住在库里 ⇒ ⇒ 不 import 它就没法用 ⇒ ⇒ 守卫是**功能性**的，不是洁癖）。
+　❹ ⇒ ⇒ **通用形态二：一个库要能被别的判据 import ⇒ ⇒ 它的入口守卫就不是「风格」而是「接口」** ⇒ ⇒ 漏了它 ⇒ ⇒ 第一个想复用它的人会**替它踩雷**。
+
+⑤ **✅ 这一刀的落点（4 个文件 ＋ 零 `ci.yml` ＋ 零产品代码）**
+　❶ **改** `scripts/lib/gate-runner.mjs`：`resultLine(target, code, verdict, job)` 加**第五段 ＝ job 身份** ⇒ ⇒ **没 job 就仍是四段**（本地读数与历史逐字可比）＋ 自检 **11 → 13**（两格：五段读得出 job ／ 没有 job 仍是四段）。
+　❷ **改** `scripts/run-gate-once.mjs`：把 `process.env.GITHUB_JOB` 写进那一行 ⇒ ⇒ **零 `ci.yml` 改动** ⇒ ⇒ （⚠️ 兄弟会话明说「你要拿就说一声，我不动那个文件」⇒ ⇒ **本条拿它**）
+　❸ **改** `scripts/lib/gate-coverage.mjs`：闸步带**步号**（界面口径 ＝ 文件序号 + 1，因为界面把「Set up job」算作第 1 步 ⇒ ⇒ 真 CI 逐 step 校准过）＋ **strict** 标记 ＋ **带 if ⇒ ⇒ 失败后照样跑** ＋ `expectedGates` 给出按 job 分组的 **plan** ＋ 自检 **24 → 27**（三格：步号／strict／plan 带 job 身份）。
+　❹ **改** `scripts/lib/gate-tally.mjs`：`parseResultLine` 读第五段（**老四段记录仍计入分母**）＋ 新增纯函数 **`attributeSkips`**（从「定义 ＋ 已交记录」反推「谁挡了它」）＋ 汇总步输出**「归因」那一段**（**加行** ⇒ ⇒ 既有那几行逐字不动）＋ **补入口守卫** ＋ 自检 **18 → 27**（九格，含五个孪生）。
+　⑤ ⇒ ⇒ **零 `ci.yml` 改动**（⚠️ 那份文件仍在兄弟会话的在飞面 ⇒ ⇒ 沿用上上刀那条「修法要挑不碰共享面也能落地的那条」）＋ **零产品代码** ＋ **零新增文件**。
+
+⑥ **✅ 途中那几课**
+　❶ **归因不许猜一个步号** —— 判据分三档：**指到一个具体的步**（前面有红闸）／**明说「不是被跳过」**（那一步带 if ⇒ ⇒ 失败后照样跑 ⇒ ⇒ 没交记录是**真丢了**）／**明说「归因判不了」**（前面没有红闸 ⇒ ⇒ 挡住它的不是闸）⇒ ⇒ **三档都不许输出一个没有证据的步号**。
+　❷ **「带 if 照样跑」这一格不看会误判** —— 一道闸若带 `if: always()` ⇒ ⇒ 前一步红了它**照样跑** ⇒ ⇒ 它没交记录**不是被跳过** ⇒ ⇒ 归因必须读那一步的 `if` 条件（定义侧新增 `runsAfterFailure`）。
+　❸ **多重集比不是可选项** —— 同一个闸在两个 job 里各跑一次（`check-neuron-ownership` 在 Brain gates 与 Desktop Build 各一次）⇒ ⇒ 配对要**按 job 分组**再做 ⇒ ⇒ **跨 job 配对会把它配错**。
+　❹ **老记录不许丢** —— 四段老记录**仍计入分母**（只是**归不到 job**）⇒ ⇒ 否则「升级协议」会**把历史读数改小** ⇒ ⇒ ⇒ ⇒ **⇒ ⇒ 通用形态：协议加字段 ⇒ ⇒ 老数据必须仍被计入** ⇒ ⇒ 否则「升级」就是「抹掉」。
+　❺ **写补丁脚本要用「JSON ＋ 逐行数组」** —— 我这一刀连踩两次转义（PowerShell 里 `-split`／反引号／嵌套模板串）⇒ ⇒ 改法：**补丁内容写成 JSON 文件**（行数组）⇒ ⇒ 运行时读 JSON 再 join ⇒ ⇒ **转义只发生一次**。
+
+⑦ **✅ 判据与分级读数（全部实测）**
+　❶ **判据级（自检，全部 EXIT=0）**：`gate-tally` **27/27** ｜ `gate-coverage` **27/27** ｜ `gate-runner` **13/13** ⇒ ⇒ 五个孪生各自钉住：归因到具体步 ／ 无红闸 ⇒ 归因判不了（**不许猜步号**）／ 带 if ⇒ 真丢 ／ **别的 job 的红闸挡不到本 job** ／ 归因判不了时**渲染不许出现「挡住了」**。
+　❷ **闸级（本机真跑，全部 EXIT=0 ＋ 读数逐字未变）**：覆盖闸「✅ 零违规（**27** 个 workflow ｜ 存量债 0 条已登记）」｜纪律闸「✅ 零违规（**60** 道闸都守纪律；存量债 1 条已登记）」｜YAML 闸「✅ 零违规（**29** 个 YAML 文件全过）」｜状态面闸「✓ 零违规」｜码位闸「✅ 提交树面：零违规（**439** 条条目：码位两两不同 ＋ 注解与真实码位一致）」。
+　❸ **重放级（本刀最强的一格 —— **两个面逐字闭合**）**：拿真 CI run **42783415633** 的 **8 个 artifacts** ＋ 那一轮的 `ci.yml`（`c218c8d`）跑我的判据 ⇒ ⇒ 逐字「expected=30 recorded=20 missing=10 attributable=10 unattributable=0」＋ **10 道全部归因成功** ⇒ ⇒ 逐字「Brain gates 第 9 步『Test env-race check』**被第 8 步『Neuron ownership check』挡住了**」＋「Desktop Build 9 道（第 17/19/21/22/23/25/27/29/31 步）**被第 15 步『Neuron ownership check』挡住了**」⇒ ⇒ ⇒ ⇒ **⇒ ⇒ 与平台自己的 step 结论（Brain gates 第 8 步红 ⇒ 9–11 skipped；Desktop Build 第 15 步红 ⇒ 16–34 skipped）逐字相同** ⇒ ⇒ **不是推断，是复现**。
+　❹ **导入级（守卫那一格的自证）**：改前 `import` 会打印用法并 exit 2（**宿主被带走**）⇒ ⇒ 改后逐字「**IMPORT_OK** exports=RESULT_PREFIX,attributeSkips,compareDenominator,parseResultLine,renderTally,tally」⇒ ⇒ **同一把尺、两种用法、零行为变化**。
+　❺ ⚠️ **真 CI 级：判不了** —— 本条**还没有属于自己的 run** ⇒ ⇒ 那几格**记「判不了」**，不拿「其余闸全绿」冒充它 ⇒ ⇒ 且**主 CI 那一轮已知的红**（`check-neuron-ownership` 在 Brain gates ＋ Desktop Build 两个 job）**不是本条造成的** ⇒ ⇒ 本条不代修（归端脑线）。
+　❻ ⚠️ **老记录那一格**：真 CI 上**已存在的** artifacts 是**四段**记录 ⇒ ⇒ 它们**仍被计入分母**但**归不到 job** ⇒ ⇒ **归因要等本条上线之后的新 run** ⇒ ⇒ 那一格**欠着**（不是「没实现」，是「等新面」）。
+
+⑧ **⚠️ 仍然欠着的**
+　❶ ⚠️ **那盏灯本身仍可能是绿的**：本刀堵的是**归因层**（「少跑的那 10 道是被哪个 job 的哪一步挡的」现在**逐字说得出来**）⇒ ⇒ **灯层**要变红仍需 `if: always()`（落在 `ci.yml` ⇒ ⇒ **等兄弟的清单收编刀落地后再动** ⇒ ⇒ **不抢**）。
+　❷ **归因只到「挡住它的那一步」为止** —— 那一步**为什么红**（退出码／判据源）**不在这一格** ⇒ ⇒ 要再往里走一层，需要那道闸**自己的**读数 ⇒ ⇒ 那是**另一条线**。
+　❸ **非闸步挡路那一格判不了**：如果挡住某道闸的是一道**非闸步**（checkout／装依赖……）⇒ ⇒ 它不留判读记录 ⇒ ⇒ 我的判据**明说「归因判不了」**⇒ ⇒ 要判得出来，需要**平台侧**的 step 结论（那在 CI 之外）。
+　❹ **跨仓逐仓编译级探针**、**真机多机型读数**、**cross-client 产物级读数** —— 照旧欠着（与本条无关）。
+　❺ ⚠️ **兄弟仓那 6 个锁不同步 ／ hippocampus 那 20 项越线** ⇒ ⇒ 他们的面，不代做。
+
+⑨ **⚠️ 圈码：本条占 U+34F3（㓳）** —— 插前**当场重扫 12 面**（父仓／移动端／桌面端 × 工作树／索引／HEAD／origin/master；官方判据 `extractEntries`，**声明与提及分开**、码位按**十六进制**计）⇒ ⇒ 读数：**可读 12/12**、父仓 **378** 条／移动端 **59**／桌面端 **2**、**全 12 面最高已声明 U+34F1（㓱）** ⇒ ⇒ 自然下一枚 **U+34F2** ⇒ ⇒ ⇒ ⇒ **⇒ ⇒ 按惯例再留一枚缓冲** ⇒ ⇒ **⇒ 本条取 U+34F3（㓳）** ⇒ ⇒ 插前扫：**U+34F2／U+34F3／U+34F4 十二面各 decl=0 ／ men=0** ✔ ⇒ ⇒ 空闲 ✔ ⇒ ⇒ ⚠️ **不填历史空洞**（U+34F3 高于全历史最高已声明 ⇒ ⇒ 无空洞）⇒ ⇒ ⚠️ **声明形状＝「本条占」后 ≤10 字符内即该码位** ⇒ ⇒ 本条**只写一次**那个声明句（**不许自引**——引用要改写措辞，否则会被判据读成两条声明）⇒ ⇒ ⚠️ **落笔前那一扫与落笔之间可能只隔一分钟** ⇒ ⇒ 提交前还要再扫一次（撞了就**让开重取**）。
 **Updated**: 2026-11-11 (㓱 **「差在哪一条 —— 而『面』得先能选」** —— 承 U+34EC 条（逐边清单与面指纹）＋ U+34EF 条（分母口径），本条记**取证（两个面的清单差在哪一条，从人工比对变成机器读数）**、**第一因（面不是一个参数，是一个读不出来的隐含假设）**、**第二因（清单不同长得像红 —— 而『红』判的是结论不是清单）**、**第三因（同一个路径形状，两套系统认得不一样 ⇒ ⇒ 尺子量的就是两个不同的东西）**、**这一刀的落点**、**途中那几课**、**判据与分级读数**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-11 | authority=measured | scope=project | source=本机真跑（工作树面 vs 提交面 的逐条 diff ＋ 与真 CI run 42797999073 的逐仓面指纹对照 ＋ 两把自检） | 改动：父仓 **改** scripts/lib/msrv-floor-drift.mjs（新增 listDigest ＋ faceNote 支持「提交面」一档）＋ **改** scripts/check-msrv-floor-drift.mjs（新增 --face=worktree|commit ＋ 面读取器 ＋ 成员清单纯函数 ＋ 路径归一 ＋ 自检 42 → 50）＋ **新增** scripts/lib/face-diff.mjs（纯函数 parseFace／diffFaces／renderFaceDiff）＋ **新增** scripts/face-diff.mjs（CLI，**不叫 check-***，它不是闸）⇒ ⇒ **零 ci.yml 改动** ＋ **零产品代码** ＋ **零兄弟仓改动** | 读数：闸自检 **50/50** EXIT=0；工具自检 **18/18** EXIT=0；工作树面 EXIT=0（**24 边** ｜ 清单指纹 af96243452b3）；提交面 EXIT=0（**25 边** ｜ 清单指纹 **384f68031338** ＝ 真 CI 逐字同值）；跨面 diff EXIT=**0**（差 1 条：hippocampus -> neuron）＋ 本仓四道闸 EXIT=0 | status=active | supersedes=none

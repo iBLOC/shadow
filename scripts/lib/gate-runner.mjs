@@ -101,15 +101,32 @@ export function verdictFor(code) {
 }
 
 /**
- * 一行机器可读的判读记录（**格式不许改** ⇒ ⇒ gate-tally.mjs 按它解析）。
+ * 一行机器可读的判读记录。
+ *
+ * ⚠️ **四段是底座，五段是加格**（2026-11-11 本刀）：
+ *   四段 ＝ GATE_RESULT<TAB>target<TAB>exit<TAB>verdict（**历史读数逐字不变**）
+ *   五段 ＝ 上面四段 ＋ <TAB>job（**job 身份** ⇒ ⇒ 「这条结论是哪个 job 交的」）
+ *
+ * ⚠️ **为什么加的是「job 身份」而不是「step 级跳过原因」** —— 后者**写不出来**：
+ *   **被跳过的步根本没跑** ⇒ ⇒ 它**一行记录都写不出来** ⇒ ⇒
+ *   ⇒ ⇒ 「我为什么没跑」只能由**别的**证据推出来 ⇒ ⇒ 不能靠它自报。
+ *   ⇒ ⇒ 而「job 身份」是**跑着的那一步**知道的（GitHub 给它 GITHUB_JOB）
+ *   ⇒ ⇒ 有了它 ⇒ ⇒ 「少跑的那几道属于哪个 job」就是**读出来的**，不是猜的。
+ *
+ * ⚠️ **没跑在 CI 里 ⇒ ⇒ 仍是四段**（本地没有 GITHUB_JOB）⇒ ⇒
+ *   ⇒ ⇒ 本地读数与历史读数**逐字可比**。
+ *
  * @param {string} target
  * @param {number} code
  * @param {string} [verdict]
+ * @param {string} [job] GitHub 的 job id（GITHUB_JOB）⇒ ⇒ 没有就留空
  * @returns {string}
  */
-export function resultLine(target, code, verdict) {
+export function resultLine(target, code, verdict, job) {
   const v = verdict || verdictFor(code);
-  return [RESULT_PREFIX, String(target), String(code), v].join('\t') + '\n';
+  const parts = [RESULT_PREFIX, String(target), String(code), v];
+  if (job) parts.push(String(job));
+  return parts.join('\t') + '\n';
 }
 
 /**
@@ -184,6 +201,17 @@ function selfTest() {
     const line = resultLine('scripts/check-x.mjs', 2);
     const parts = line.trim().split('\t');
     return parts.length === 4 && parts[0] === 'GATE_RESULT' && parts[1] === 'scripts/check-x.mjs' && parts[2] === '2' && parts[3] === 'cannot-judge';
+  });
+
+  add('记录行加「job 身份」⇒ ⇒ 五段（**四段那段逐字不变** ⇒ ⇒ 历史读数仍可比）', () => {
+    const line = resultLine('scripts/check-x.mjs', 0, 'ok', 'brain-gates');
+    const parts = line.trim().split('\t');
+    return parts.length === 5 && parts[0] === 'GATE_RESULT' && parts[4] === 'brain-gates';
+  });
+
+  add('**没有 job 身份**（本地没跑在 CI 里）⇒ ⇒ 仍是四段（不许塞空段）', () => {
+    const line = resultLine('scripts/check-x.mjs', 0, 'ok', '');
+    return line.trim().split('\t').length === 4;
   });
 
   add('目标路径 ⇒ ⇒ 相对调用者 cwd 解析（脑侧那个 job 的仓在子目录里）', () => {

@@ -92,7 +92,10 @@ const code = res.status === null || res.status === undefined ? 2 : res.status;
 const resultFile = opts.file || process.env.GATE_RESULT_FILE;
 if (resultFile) {
   const verdict = verdictFor(code);
-  const line = resultLine(opts.target, code, verdict);
+  // ⚠️ **job 身份这一格（2026-11-11 本刀）** —— 它让「少跑的那几道属于哪个 job」
+  //    从「猜」变成「读」⇒ ⇒ 而这一步**跑着** ⇒ ⇒ 它知道自己的 job id。
+  //    ⚠️ 「step 级跳过原因」**写不了** ⇒ ⇒ **被跳过的步根本没跑** ⇒ ⇒ 一行都写不出来。
+  const line = resultLine(opts.target, code, verdict, process.env.GITHUB_JOB || '');
   try {
     appendFileSync(resultFile, line, 'utf8');
   } catch (err) {
