@@ -63,9 +63,19 @@ export function sibling(repoRoot, name, exists = existsSync) {
 /**
  * 「一堆兄弟仓的父目录」⇒ ⇒ 仓外布局下是 `../`，仓内布局下是仓根。
  * （bind-exposure 的 lobesRoot / publish-address 的 root 用它）
+ *
+ * ⚠️⚠️ **判据必须问「那个仓在不在」，不能问「父目录在不在」**
+ *   （2026-11-11 真 CI 实测：run 42745722799）：CI 上仓外那一层
+ *   （`/home/runner/work/shadow`）**永远存在**——它就是 workspace 的父级——
+ *   ⇒ ⇒ 只问「父目录在不在」⇒ ⇒ **永远**选仓外 ⇒ ⇒ 拼出
+ *   `/home/runner/work/shadow/telencephalon/src`（**仓外**）⇒ ⇒
+ *   而仓真正在 `/home/runner/work/shadow/shadow/telencephalon/src`（**仓内**）
+ *   ⇒ ⇒ 逐字报「❌ 一个文件都没读到 ⇒ ⇒ 缺失: …/telencephalon/src」⇒ ⇒ 退出码 2。
+ *   ⇒ ⇒ **修法**：拿**具体那个仓**（默认 `telencephalon`）去问 ⇒ ⇒
+ *   仓外有那个仓 ⇒ ⇒ 用仓外；否则 ⇒ ⇒ 用仓根（仓内布局）。
  */
-export function siblingRoot(repoRoot, exists = existsSync) {
-  return exists(resolve(repoRoot, '..')) ? resolve(repoRoot, '..') : repoRoot;
+export function siblingRoot(repoRoot, exists = existsSync, probe = 'telencephalon') {
+  return exists(resolve(repoRoot, '..', probe)) ? resolve(repoRoot, '..') : repoRoot;
 }
 
 // ---------------------------------------------------------------------------
@@ -113,9 +123,12 @@ function selfTest() {
   // ⑦ 纯函数性：同一夹具两次调用结果相同（⇒ ⇒ 量的是输入不是磁盘）
   check('纯函数 ⇒ ⇒ 两次调用同结果', sibling(R, 'telencephalon', only(IN)) === sibling(R, 'telencephalon', only(IN)));
 
-  // ⑧ siblingRoot：仓外有东西 ⇒ ⇒ 兄弟仓的父目录是仓外；否则是仓根
-  check('siblingRoot：仓外存在 ⇒ ⇒ 取仓外', siblingRoot(R, only(resolve(R, '..'))) === resolve(R, '..'));
-  check('siblingRoot：仓外不存在 ⇒ ⇒ 取仓根', siblingRoot(R, only()) === R);
+  // ⑧ siblingRoot：**拿那个仓**去问，不是问父目录 ⇒ ⇒ 否则 CI 上永远判错
+  //    （CI 上仓外那一层永远存在 ⇒ ⇒ 只问父目录 ⇒ ⇒ 永远选仓外 ⇒ ⇒ 拼错路径）
+  const OUT_TEL = resolve(R, '..', 'telencephalon');
+  check('siblingRoot：仓外**有那个仓** ⇒ ⇒ 取仓外', siblingRoot(R, only(OUT_TEL)) === resolve(R, '..'));
+  check('siblingRoot：仓外只有目录、**没有那个仓** ⇒ ⇒ 取仓根（**这一条就是 CI 那格**）', siblingRoot(R, only(resolve(R, '..'))) === R);
+  check('siblingRoot：仓外什么都没有 ⇒ ⇒ 取仓根', siblingRoot(R, only()) === R);
 
   // ⑨ 多仓互不干扰（端脑在仓内 ⇒ ⇒ 海马体在仓外，各取各的）
   const H_OUT = resolve(R, '..', 'hippocampus');
