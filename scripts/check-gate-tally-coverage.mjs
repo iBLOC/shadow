@@ -225,7 +225,8 @@ function main() {
       kind: 'debt-stale',
       file: f.file,
       message:
-        'workflow「' + f.file + '」登记在册的「没有分母」缺口**已经不存在**了 ⇒ ⇒ **要销账**（清单不许过期）',
+        'workflow「' + f.file + '」登记在册的「没有分母」缺口**已经不存在**了 ⇒ ⇒ **要销账**（清单不许过期）' +
+        ' ⇒ ⇒ 销账动作：从 `scripts/lib/gate-coverage-debt.mjs` 里**删掉「' + f.file + '」这一条**',
     })),
   ];
 
