@@ -211,15 +211,19 @@ pub enum ComputerUseError {
     Screenshot(String),
     /// ref 已经失效（元素没了／快照过期／根本不是合法 ref 形状）。
     #[error("stale ref: {0}")]
+    #[cfg_attr(not(windows), allow(dead_code))]
     StaleRef(String),
     /// 一个 ref 匹配到**多个**元素 ⇒ ⇒ **不许猜**（不许替用户挑一个）。
     #[error("ambiguous ref: {0}")]
+    #[cfg_attr(not(windows), allow(dead_code))]
     AmbiguousRef(String),
     /// 那次快照**不完整**（树被深度／节点上限截断）⇒ ⇒ 它的 ref 一律不许动作。
     #[error("snapshot was incomplete: {0}")]
+    #[cfg_attr(not(windows), allow(dead_code))]
     SnapshotIncomplete(String),
     /// 这个元素**没法被寻址**（匿名 ＋ 或树上不唯一）。
     #[error("element is not addressable: {0}")]
+    #[cfg_attr(not(windows), allow(dead_code))]
     NotAddressable(String),
 }
 
@@ -611,6 +615,7 @@ impl ComputerUse {
 // the enigo path uses.
 
 #[derive(Debug, Clone, Serialize)]
+#[cfg_attr(not(windows), allow(dead_code))]
 pub struct UiElement {
     pub name: String,
     pub automation_id: String,
@@ -1106,6 +1111,7 @@ pub async fn cu_set_ui_value(
 
 /// 快照里一个节点（给模型看的那一份）。
 #[derive(Debug, Clone, Serialize)]
+#[cfg_attr(not(windows), allow(dead_code))]
 pub struct UiNode {
     /// `@<snapshot_id>:e<N>` —— **快照限定**：换一次快照就换一批 ref。
     pub ref_id: String,
@@ -1127,6 +1133,7 @@ pub struct UiNode {
 
 /// 一次快照。
 #[derive(Debug, Clone, Serialize)]
+#[cfg_attr(not(windows), allow(dead_code))]
 pub struct UiSnapshot {
     pub snapshot_id: String,
     pub nodes: Vec<UiNode>,
@@ -1198,6 +1205,7 @@ impl UiSnapshotQueue {
 }
 
 /// 生成一枚 ref —— `@<snapshot_id>:e<N>`。
+#[cfg_attr(not(windows), allow(dead_code))]
 fn ui_ref_id(snapshot_id: &str, index: usize) -> String {
     format!("@{snapshot_id}:e{index}")
 }
@@ -1206,6 +1214,7 @@ fn ui_ref_id(snapshot_id: &str, index: usize) -> String {
 ///
 /// ⚠️ **必须带快照号**：裸的 `@e3` 一律拒（那是**旧快照的 ref 混进来**
 /// 的典型形状）⇒ ⇒ 错一次就可能点到别的东西 ⇒ ⇒ 宁可拒。
+#[cfg_attr(not(windows), allow(dead_code))]
 fn parse_ui_ref(ref_id: &str) -> Result<(String, String), String> {
     let s = ref_id.trim();
     let rest = s
@@ -1232,6 +1241,7 @@ fn parse_ui_ref(ref_id: &str) -> Result<(String, String), String> {
 ///
 /// ⚠️ **匿名元素没有身份** —— 既没名字也没开发者 id ⇒ ⇒ 它**不可寻址**
 /// ⇒ ⇒ 这与 agent-desktop 一致（无可寻址元素的就不该给 ref）。
+#[cfg_attr(not(windows), allow(dead_code))]
 pub fn ui_identity_key(role: &str, name: &str, automation_id: &str) -> Option<String> {
     let name = name.trim();
     let automation_id = automation_id.trim();
@@ -1247,6 +1257,7 @@ pub fn ui_identity_key(role: &str, name: &str, automation_id: &str) -> Option<St
 /// · **匿名元素** ⇒ ⇒ **不可寻址**（它没有身份）；
 /// · **身份重复**（三元组全同、树上出现了两次）⇒ ⇒ **不可寻址**
 ///   （动作时重识别可能落到另一个身上 ⇒ ⇒ 宁可拒）。
+#[cfg_attr(not(windows), allow(dead_code))]
 pub fn ui_addressable_flags(nodes: &[(String, String, String)]) -> Vec<bool> {
     let keys: Vec<Option<String>> = nodes
         .iter()
@@ -1272,6 +1283,7 @@ pub fn ui_addressable_flags(nodes: &[(String, String, String)]) -> Vec<bool> {
 /// · 元素**不可寻址**（匿名 ＋ 或树上不唯一）⇒ ⇒ 不许用
 ///   （模型点名点不到它 ⇒ ⇒ 动作会落到别的东西上）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(not(windows), allow(dead_code))]
 pub enum UiRefGate {
     /// 可以用。
     Open,
@@ -1283,6 +1295,7 @@ pub enum UiRefGate {
 
 /// 判一个 ref 能不能用 —— **纯函数**（零 IO ⇒ ⇒ 可自检 ⇒ ⇒ 判据与
 /// 平台解耦 ⇒ ⇒ 这条判据在 Linux CI 上也跑得起来）。
+#[cfg_attr(not(windows), allow(dead_code))]
 pub fn ui_ref_gate(snapshot_complete: bool, entry_addressable: bool) -> UiRefGate {
     if !snapshot_complete {
         UiRefGate::SnapshotIncomplete
