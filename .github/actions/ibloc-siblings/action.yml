@@ -175,5 +175,14 @@ runs:
         # 自动 trim）—— 直接嵌进 URL 会让凭据失效，报 "Authentication failed"。
         TOKEN="$(printf '%s' "$IBLOC_TOKEN" | tr -d '\r\n')"
         mkdir -p "$HOME/.cargo"
-        printf '[net]\ngit-fetch-with-cli = true\n' >> "$HOME/.cargo/config.toml"
+        # 2026-11-11（[net] 幂等修）：宿主 job 可能已有别的步骤写过 ~/.cargo/config.toml
+        # （prefrontal 的「Prepare Rust dependencies」就有一份一模一样的 >>）⇒ 同一
+        # runner 上两个 [net] 段 ⇒ TOML duplicate key ⇒ cargo clippy --version
+        # exit 101（run 42800136091 step 10 逐字实测）。规则：无 [net] ⇒ 整段写入；
+        # 有 [net] 无 key ⇒ 紧贴 [net] 段插一行；key 已在 ⇒ 不动。
+        if grep -qs '^\[net\]' "$HOME/.cargo/config.toml"; then
+          grep -qs 'git-fetch-with-cli' "$HOME/.cargo/config.toml" || sed -i '/^\[net\]/a git-fetch-with-cli = true' "$HOME/.cargo/config.toml"
+        else
+          printf '[net]\ngit-fetch-with-cli = true\n' >> "$HOME/.cargo/config.toml"
+        fi
         git config --global url."https://x-access-token:${TOKEN}@github.com/".insteadOf "https://github.com/"
