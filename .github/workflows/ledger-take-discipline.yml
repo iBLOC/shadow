@@ -1,0 +1,54 @@
+name: Ledger Take Discipline
+
+# ⚠️ **它守的是什么** —— 「**取号**纪律」两族
+#   （判据纯函数：`scripts/lib/ledger-codepoint-take.mjs`；闸：`scripts/check-ledger-codepoint-take.mjs`）：
+#   · **A（回填历史空洞）** —— 新条目占的码位 **低于**该账本此刻的最高已声明
+#     ⇒ ⇒ 按「最高+1」推下一枚的人，会推出一个**已经被占过**的号；
+#   · **B（撞上别人明写留过的位）** —— 新条目占的码位，别人**在更早的笔里**
+#     已经**明写**留作缓冲／让开。
+# ⇒ ⇒ 两族都**只活在习惯里** ⇒ ⇒ 官方圈码闸（R1 只查撞号）一条都管不着。
+# ⇒ ⇒ 这道闸的豁免集出自**基线 commit 的历史事实**（sha256 钉在闸脚本里）
+# ⇒ ⇒ ⇒ 改基线就是**代码改动** ⇒ ⇒ review 看得见 ⇒ ⇒ 「悄悄洗白」这条路被堵死。
+#
+# ⚠️ **为什么单独成文件**（与 `commit-revert.yml` 同理）：
+#   · `ci.yml` 是**共享文件**（并行会话在飞）⇒ ⇒ 独立成文件 ⇒ ⇒ 接线面**零共享**；
+#   · **fetch-depth: 0 是硬需求** —— 豁免集要**现场从 git 历史重算**
+#     ⇒ ⇒ 浅克隆（depth=1）下它只能看见 1 个提交 ⇒ ⇒ 退出码 2（**判不了**）。
+#
+# ⚠️ **为什么 `ci.yml` 里也跑一遍** —— 中心流水线那道 `ledger-codepoints` job
+#   带着同样两步 ⇒ ⇒ 两处跑的是**同一支脚本** ⇒ ⇒ 判据只有一份；
+#   ⇒ ⇒ 而这份独立落点保证：中心流水线的并发组在并行会话连推时会把 **pending**
+#   ⇒ ⇒ 的轮次取消掉 ⇒ ⇒ 这道闸仍能拿到**属于自己 headSha** 的读数。
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  ledger-take-discipline:
+    name: Ledger Take Discipline
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout shadow (full history)
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      # ⚠️ **两步都要跑** —— 判定 ＋ 判据自检（自检证明这道闸**真的会红**）。
+      - name: Take-discipline self-test
+        run: node scripts/check-ledger-codepoint-take.mjs --self-test
+
+      - name: Take-discipline check
+        run: node scripts/check-ledger-codepoint-take.mjs
