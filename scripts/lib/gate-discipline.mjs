@@ -30,6 +30,12 @@
  * ⇒ ⇒ 它会被**显式报出来**（⚠ 行）⇒ ⇒ 但不进退出码 ⇒ ⇒
  * 这样同一份债清单在**本机与 CI 两边都对得上**（不因环境漂移）。
  *
+ * ⚠️ **D2 的「在飞」档（2026-11-11）**：共享工作树上，一道闸的源码正在被人改着
+ * ⇒ ⇒ 它的 --self-test 红分不清「闸真坏了」与「改到一半」⇒ ⇒ 判据＝
+ * 该闸源码闭包（入口＋本地 import 递归）相对 HEAD 有差异 ⇒ ⇒ 降级为
+ * in-flight 显式提示（不判红）。**fail-closed**：检测失败／字段缺失 ⇒ 照判红
+ * （「不知道」不许当「可以」）。终审在提交树面（CI 干净检出 ⇒ 没有「在飞」）。
+ *
  * ## 为什么 D3 只管「接进 CI 的那些」
  *
  * 行为类判据（跑别的闸 ⇒ 看它的输出）**依赖环境** ⇒ ⇒ 若对全部 34 道
@@ -177,9 +183,27 @@ export function countReading(output) {
 }
 
 /**
+ * 从源码文本里提取**本地相对** import 说明符（以 . 开头的那些）。
+ * 覆盖 `import ... from './x.mjs'`／`import './x.mjs'`／`import('./x.mjs')`／
+ * `export * from './x.mjs'`；包名（不以 . 开头）与 node: 内建一律不认。
+ * 供「在飞」检测收集闸源码闭包用 ⇒ ⇒ 纯函数 ⇒ ⇒ 自检喂文本即可。
+ */
+export function localImportSpecifiers(source) {
+  const text = String(source || '');
+  const out = [];
+  const re = /(?:\bfrom\s*|\bimport\s*|\bimport\(\s*|\bexport\s+\*\s+from\s*)['"](\.[^'"]+)['"]/g;
+  let m;
+  while ((m = re.exec(text)) !== null) out.push(m[1]);
+  return out;
+}
+
+/**
  * 判一道闸。
  * @param {object} facts
- *   { name, hasSelfTestFlag, hasCannotJudgeExit, wired, selfTestExit, selfTestOutput }
+ *   { name, hasSelfTestFlag, hasCannotJudgeExit, wired, selfTestExit, selfTestOutput,
+ *     sourceInFlight?, inFlightFiles? }
+ *   ⚠️ sourceInFlight 只认 **true** 为「在飞」；false 与**缺失**都按「不在飞」照判红
+ *   （fail-closed：检测没做成不许豁免）。
  * @param {{behaviorScope?: 'wired'|'all'}} [options]
  * @returns {{findings: object[], statuses: object[]}}
  */
@@ -228,7 +252,25 @@ export function classifyGate(facts, options) {
         status: 'cannot-judge',
         message: '闸「' + name + '」的自检退出码 2 ⇒ ⇒ 本机判不了（环境缺）⇒ ⇒ 不算纪律违规',
       });
+    } else if (facts.sourceInFlight === true) {
+      // 「在飞」档：这道闸的源码正在被人改着 ⇒ ⇒ 自检红分不清「真坏」与「中间态」
+      // ⇒ ⇒ 降级为显式提示（不判红）。终审在提交树面（CI 干净检出 ⇒ 没有「在飞」）。
+      const files = Array.isArray(facts.inFlightFiles) ? facts.inFlightFiles : [];
+      const listing =
+        files.length <= 6
+          ? files.join('、')
+          : files.slice(0, 6).join('、') + ' 等 ' + files.length + ' 个文件';
+      statuses.push({
+        gate: name,
+        status: 'in-flight',
+        message:
+          '闸「' + name + '」的 --self-test 退出码 ' + facts.selfTestExit +
+          ' ⇒ ⇒ 但该闸源码正在飞（' + listing + '）⇒ ⇒ 分不清「真坏」与「正在改」' +
+          '⇒ ⇒ 不判红（提交树面由 CI 终审）',
+        files,
+      });
     } else {
+      // ⚠️ fail-closed：sourceInFlight 缺失（检测没做成）⇒ 当「不在飞」⇒ 照判红。
       push(
         'self-test-broken',
         '闸「' + name + '」的 --self-test 退出码 ' + facts.selfTestExit + ' ⇒ ⇒ 闸自己坏了',

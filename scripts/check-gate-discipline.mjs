@@ -23,7 +23,7 @@
  *   D4 not-wired-into-ci     闸必须接进 .github/workflows/ci.yml
  *   D5 no-cannot-judge-exit  闸必须能以退出码 2 表达「判不了」
  *
- * ## 两条设计决定（都写清楚，免得后来人以为是漏洞）
+ * ## 三条设计决定（都写清楚，免得后来人以为是漏洞）
  *
  * ① **自检退出码 2 不判红**：那是「本机判不了」（环境缺），不是纪律违规
  *    ⇒ ⇒ 它被**显式打印**（⚠ 行）⇒ ⇒ 但不进退出码 ⇒ ⇒
@@ -31,6 +31,12 @@
  * ② **行为类判据只对「CI 已经在跑的那些闸」生效**（D2 / D3）：
  *    行为类要跑别的闸 ⇒ ⇒ 依赖环境 ⇒ ⇒ 若对全部 34 道都硬判 ⇒ ⇒
  *    本机与 CI 的结论会不一致 ⇒ ⇒ 债清单就没法对账。
+ * ③ **「self-test-broken」先问「这道闸的源码在不在飞」（2026-11-11）**：
+ *    共享工作树上，闸源码正在被人改 ⇒ ⇒ 它的自检红分不清「真坏」与「改到一半」
+ *    ⇒ ⇒ 判据＝该闸源码闭包（入口＋本地 import 递归，只展开 scripts/ 内）
+ *    相对 HEAD 有差异 ⇒ ⇒ 降级为 in-flight 显式提示（只出声不判红）。
+ *    **fail-closed**：检测失败／字段缺失 ⇒ 按不在飞照判红。
+ *    终审在提交树面（CI 干净检出 ⇒ 没有「在飞」这个概念）⇒ ⇒ 本机降噪、CI 不放水。
  *
  * ## 存量债
  *
@@ -51,7 +57,7 @@
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { join, relative, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   RULES,
@@ -59,6 +65,7 @@ import {
   compareDebt,
   countReading,
   gateNameFromFile,
+  localImportSpecifiers,
   sourceShape,
   splitDebt,
   unjudgedGates,
@@ -253,6 +260,52 @@ function selfTest() {
     return cmp.stale.length === 1 && (cmp.skippedStale || []).length === 0;
   });
 
+  add('在飞：闸源码正在飞 ⇒ ⇒ 自检红**降级**为 in-flight 提示（不判红）', () => {
+    const res = classifyGate(
+      compliantFacts({ selfTestExit: 1, sourceInFlight: true, inFlightFiles: ['scripts/check-demo.mjs'] }),
+      { behaviorScope: 'wired' },
+    );
+    return (
+      res.findings.length === 0 &&
+      res.statuses.length === 1 &&
+      res.statuses[0].status === 'in-flight' &&
+      res.statuses[0].message.includes('正在飞')
+    );
+  });
+  add('孪生：不在飞（sourceInFlight:false）⇒ ⇒ 照判红「闸自己坏了」', () => {
+    const res = classifyGate(compliantFacts({ selfTestExit: 1, sourceInFlight: false }), {
+      behaviorScope: 'wired',
+    });
+    return res.findings.length === 1 && res.findings[0].kind === 'self-test-broken';
+  });
+  add('孪生：sourceInFlight **缺失** ⇒ ⇒ 照判红（fail-closed：检测没做成当不在飞）', () => {
+    const facts = compliantFacts({ selfTestExit: 1 });
+    delete facts.sourceInFlight;
+    const res = classifyGate(facts, { behaviorScope: 'wired' });
+    return res.findings.length === 1 && res.findings[0].kind === 'self-test-broken';
+  });
+  add('在飞文件超 6 个 ⇒ ⇒ 消息里报「等 N 个文件」（清单可审计）', () => {
+    const files = ['scripts/a.mjs', 'scripts/b.mjs', 'scripts/c.mjs', 'scripts/d.mjs', 'scripts/e.mjs', 'scripts/f.mjs', 'scripts/g.mjs'];
+    const res = classifyGate(
+      compliantFacts({ selfTestExit: 1, sourceInFlight: true, inFlightFiles: files }),
+      { behaviorScope: 'wired' },
+    );
+    return res.statuses.length === 1 && res.statuses[0].message.includes('等 7 个文件');
+  });
+  add('import 提取：相对路径认、包名与 node: 不认、import() 与 export * 也认', () => {
+    const got = localImportSpecifiers(
+      "import { x } from './lib/x.mjs';\n" +
+        "import fs from 'node:fs';\n" +
+        "import 'some-package';\n" +
+        "const y = await import('../shared/y.mjs');\n" +
+        "export * from './lib/z.mjs';\n"
+    );
+    return JSON.stringify(got) === JSON.stringify(['./lib/x.mjs', '../shared/y.mjs', './lib/z.mjs']);
+  });
+  add('孪生：import 提取对没有本地 import 的源码 ⇒ ⇒ 返回空数组（不是 undefined）', () => {
+    return JSON.stringify(localImportSpecifiers("import fs from 'node:fs';\n")) === '[]';
+  });
+
   let bad = 0;
   for (const c of cases) {
     let ok = false;
@@ -292,6 +345,68 @@ function measureSelfTest(file, timeout) {
   let exit = res.status;
   if (res.error && res.error.code === 'ETIMEDOUT') exit = 'TIMEOUT';
   return { exit, output };
+}
+
+/**
+ * 「在飞」检测：该闸源码闭包里有没有任何文件相对 HEAD 有差异。
+ * 闭包 ＝ 闸入口 ＋ 它本地 import 的文件（递归；只展开 scripts/ 内）。
+ * 返回 { ok, inFlight, files }；失败返回 { ok:false, reason }
+ * ⇒ ⇒ 调用方按「不在飞」处理（fail-closed：不许拿「检测不动」当「放行」）。
+ */
+function detectSourceInFlight(entryRel) {
+  const closure = collectGateSourceClosure(entryRel);
+  if (!closure.ok) return closure;
+  const changed = gitChangedPaths(closure.files);
+  if (!changed.ok) return changed;
+  const files = closure.files.filter((f) => changed.paths.has(f));
+  return { ok: true, inFlight: files.length > 0, files };
+}
+
+/** 闸源码闭包：入口 ＋ 本地 import 递归（BFS；防环；上限 200 个文件）。 */
+function collectGateSourceClosure(entryRel) {
+  const files = [];
+  const seen = new Set();
+  const queue = [String(entryRel).replace(/\\/g, '/')];
+  try {
+    while (queue.length) {
+      const rel = queue.shift();
+      if (seen.has(rel)) continue;
+      seen.add(rel);
+      const abs = join(REPO_ROOT, rel);
+      if (!existsSync(abs)) return { ok: false, reason: '闭包文件读不到：' + rel };
+      files.push(rel);
+      if (files.length > 200) return { ok: false, reason: '闭包超过 200 个文件（不像一道闸）' };
+      if (!rel.startsWith('scripts/')) continue; // 仓内其它目录只进闭包，不再展开
+      const text = readFileSync(abs, 'utf8');
+      for (const spec of localImportSpecifiers(text)) {
+        const absSpec = resolve(dirname(abs), spec);
+        queue.push(relative(REPO_ROOT, absSpec).replace(/\\/g, '/'));
+      }
+    }
+  } catch (err) {
+    return { ok: false, reason: '闭包收集失败：' + err.message };
+  }
+  return { ok: true, files };
+}
+
+/** 这些路径里哪些相对 HEAD 有任何差异（含未跟踪）⇒ ⇒ git status --porcelain 一次拿全。 */
+function gitChangedPaths(relPaths) {
+  const res = spawnSync('git', ['status', '--porcelain', '--', ...relPaths], {
+    cwd: REPO_ROOT,
+    encoding: 'utf8',
+    maxBuffer: 4 * 1024 * 1024,
+  });
+  if (res.error || res.status !== 0) {
+    return { ok: false, reason: 'git status 失败：' + (res.error ? res.error.code : 'exit ' + res.status) };
+  }
+  const paths = new Set();
+  for (const line of String(res.stdout || '').split('\n')) {
+    if (!line.trim()) continue;
+    const body = line.slice(3).replace(/^"|"$/g, '');
+    const path = body.split(' -> ').pop().trim().replace(/\\/g, '/');
+    paths.add(path);
+  }
+  return { ok: true, paths };
 }
 
 function main() {
@@ -336,6 +451,17 @@ function main() {
       facts.selfTestExit = m.exit;
       facts.selfTestOutput = m.output;
       measured += 1;
+      // 「在飞」检测只在**即将判 self-test-broken**时才做（退出码 2／超时走不到
+      // 那一格 ⇒ 不用查）⇒ 红了才付 git 调用的成本。
+      if (m.exit !== 0 && m.exit !== 2 && m.exit !== 'TIMEOUT') {
+        const probe = detectSourceInFlight(join('scripts', file));
+        if (probe.ok) {
+          facts.sourceInFlight = probe.inFlight;
+          facts.inFlightFiles = probe.files;
+        } else {
+          console.log('⚠ [在飞检测失败] 闸「' + name + '」：' + probe.reason + ' ⇒ 按不在飞处理（fail-closed）');
+        }
+      }
     }
     // ⚠️ 行为类判据（D2 自检必须绿 / D3 印不印读数）**只对「CI 已经在跑的
     //    那些闸」生效** ⇒ ⇒ 否则本机与 CI 的结论会不一致 ⇒ ⇒ 债清单对不上账。

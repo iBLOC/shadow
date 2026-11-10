@@ -1,3 +1,41 @@
+**Updated**: 2026-11-11 (㔇 **「治理闸在共享工作树上分不清『闸真坏了』与『正在改』——self-test 红不问源码在不在飞，就把改到一半判成死罪」** —— 承兄弟会话回执（commit-revert 第四档三文件在飞 ⇒ self-test 17/20 ⇒ 治理闸逐字报「闸自己坏了＋debt-missing」）＋ U+3504 条（判红条件要按【被测物的那一层】写）＋ U+3500 条（「失败长得像成功」），本条记**取证（改前基线与归属）**、**拍板与边界**、**这一刀的落点**、**途中那几课**、**判据与分级读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=共享工作树真实读数（治理闸全量 60 道，改前基线恰 2 条红逐字＝state-surface broken ＋ debt-missing，归属＝**被量物 AGENTS.md 在飞**而非闸坏）＋ 判据自检 28/28 ＋ worktree 夹具四格（.local/gd-probe @1bf2e27）＋ 12 面码位扫描（12/12 可读，最高 U+3506，U+3507 decl=0/men=0，取样 2026-11-10T15:39:17Z @5516bcc）｜ 改动：scripts/lib/gate-discipline.mjs（classifyGate 在飞档 ＋ localImportSpecifiers 纯函数）＋ scripts/check-gate-discipline.mjs（闭包收集 ＋ git 差异 ＋ main 接线 ＋ 自检 22→28）⇒ ⇒ **2 个文件** ⇒ ⇒ 零新增文件 ＋ 零新增依赖 ＋ 零 ci.yml 改动 ＋ 不碰兄弟在飞面 ｜ 读数：判据级 28/28 EXIT=0 ｜ 闸级（共享工作树面）改后与改前**逐行一致**（2 条红照判 ⇒ 零误豁免）｜ 夹具级：正例逐字「⚠ 闸「legacy-residue」的 --self-test 退出码 1 ⇒ ⇒ 但该闸源码正在飞（scripts/check-legacy-residue.mjs）⇒ ⇒ 分不清「真坏」与「正在改」⇒ ⇒ 不判红」｜ 真 CI 待取 | status=active | supersedes=none
+
+① **⚠️ 取证：治理闸量的是工作树面，而工作树面上「闸红」有三个完全不同的来源**
+　❶ 兄弟会话实测（回执逐字）：我上一刀的 commit-revert 三文件在飞（+55/−3 等）⇒ ⇒ 它的 --self-test 17/20（中间态）⇒ ⇒ 治理闸判 red「self-test-broken ＋ debt-missing」⇒ ⇒ **那不是「闸坏了」，是「正在改」**。
+　❷ 本轮改前基线：全量 60 道恰 2 条红＝state-surface 的 self-test-broken ＋ 它的 debt-missing ⇒ ⇒ 归属逐字核对：check-state-surface.mjs ＋ 它的 lib **不在**修改清单里 ⇒ ⇒ 红的根因是**被量物（AGENTS.md）在飞**（state-surface 的自检读真实台账）⇒ ⇒ ⇒ **⇒ ⇒ 「self-test 红」至少三族：闸源码在飞（中间态）／被量物在飞（归属在别人）／闸真坏（已提交）** ⇒ ⇒ ⇒ 本刀只治第一族：**源码在飞 ⇒ 只出声不判红**。
+　❸ ⇒ ⇒ **通用形态：同一格红，要先问「这道闸自己身上有没有在飞的差异」** —— 不问就把中间态判成死罪 ⇒ ⇒ 共享工作树上每个并行会话都会撞上 ⇒ ⇒ 而「等对方提交完再跑闸」在并发协作里没有终点。
+
+② **⚠️ 拍板与边界（兄弟提议「在飞」档，我采纳；边界三处）**
+　❶ **判据＝该闸源码闭包（入口＋本地 import 递归，只展开 scripts/ 内，上限 200 文件防失控）相对 HEAD 有差异** ⇒ ⇒ 有差异 ⇒ ⇒ self-test 红降级为 in-flight 显式提示（带文件清单，≤6 个逐字列出、超过报「等 N 个文件」）⇒ ⇒ 终审在提交树面（CI 干净检出 ⇒ 没有「在飞」这个概念）⇒ ⇒ **本机降噪、CI 不放水**。
+　❷ **fail-closed 两处**：检测失败（闭包读不到／git status 失败）⇒ 打印 ⚠「按不在飞处理」照判红；facts.sourceInFlight **缺失**（undefined）⇒ 照判红 ⇒ ⇒ **「不知道」不许当「可以」**（承前端 addressable 缺字段那格的同一把尺）。
+　❸ **只豁免 D2（self-test-broken），不豁免 D1/D4/D5**（静态形状在正常中间态下稳定，假 finding 的来源是「跑自检」这个动作）；**被量物在飞不豁免**（那族几乎总在飞：AGENTS.md 常年有人改 ⇒ 若豁免就把太多真红静音）⇒ ⇒ 它的归属靠「干净检出里同闸转绿」来证（probe 实测：state-surface 在 probe 里绿 ⇒ 主树那 2 条红归属 AGENTS.md 在飞，实锤）。
+
+③ **✅ 这一刀的落点（2 个文件 ＋ 零新增文件 ＋ 零新增依赖）**
+　❶ **改** scripts/lib/gate-discipline.mjs —— classifyGate 的 D2 分支：sourceInFlight === true ⇒ statuses.push(in-flight)（带文件清单）；**否则照 push self-test-broken**；＋ 新纯函数 localImportSpecifiers（覆盖 import / from / import() / export * from，包名与 node: 不认）⇒ ⇒ 判据库保持零 IO ⇒ 自检喂文本即可。
+　❷ **改** scripts/check-gate-discipline.mjs —— detectSourceInFlight（闭包 × git status --porcelain 一次拿全，含未跟踪）＋ collectGateSourceClosure（BFS 防环）＋ gitChangedPaths（cwd=REPO_ROOT，maxBuffer 显式）⇒ ⇒ main 里**只在即将判 self-test-broken 时才查**（退出码 2／超时走不到那一格 ⇒ 红了才付 git 调用的成本）；＋ 自检 22 → 28 格（在飞降级／不在飞照红／**缺失照红**／超 6 个报数目／import 提取正孪生×2）；＋ 头注释「两条设计决定」→「三条」。
+
+④ **⚠️ 途中那几课**
+　❶ **夹具里跑的闸要自己带新版** —— probe 是 HEAD 干净检出 ⇒ 里面治理闸是**旧版** ⇒ 第一跑「正例没降级」看着像判据没生效 ⇒ 其实是**被测物（治理闸自己）在夹具里是旧版** ⇒ 拷新版进 probe 后正例逐字显形 ⇒ ⇒ **⇒ ⇒ 验证夹具生效的第一判据不是「跑通了」，是「读数形状随夹具变了」**（与 junction 农场 --preserve-symlinks-main 那条同族）。
+　❷ **「污染」换个问法就是「负控」** —— probe 布局下跨仓闸（door-policy／external-tools／neuron-ownership）自检红（读不到真实判据源）⇒ ⇒ 它们的源码闭包不在飞 ⇒ ⇒ **照判红一条没豁免** ⇒ ⇒ 恰好证明「在飞档只豁免源码在飞的那道」⇒ ⇒ 夹具的副作用不必消灭，先问它能不能当负控。
+　❸ **TIMEOUT ≠ 2 是既有形状** —— commit-revert 在 probe 里 self-test 超时 ⇒ 治理闸把 TIMEOUT 判红 ＋ debt-missing（unjudgedGates 只挡 stale 不挡 missing）⇒ ⇒ 不是本刀回归（主树该闸 77.5s 绿）⇒ ⇒ 记一笔，归治理闸线自己的欠账。
+　❹ **提交窗口越来越窄** —— 本轮取证期间 HEAD 数次前进（c32a2af → 1acb70af → 1bf2e27 → 5516bcc）⇒ ⇒ 并行推进的仓里，读数、取号、提交必须各带 sha 与时刻 ⇒ ⇒ 过期即可证伪。
+
+⑤ **✅ 判据与分级读数（全部实测）**
+　❶ **判据级**：治理闸自检 **28/28** EXIT=0（承 22 ＋ 本刀 6：在飞降级／不在飞照红／缺失照红（fail-closed）／超 6 个报「等 7 个文件」／import 提取正例／空数组孪生）。
+　❷ **闸级（共享工作树面，负控）**：改后全量 60 道与改前基线**逐行一致**（恰 2 条红照判＋存量债 1 条）⇒ ⇒ **新档零误豁免**。
+　❸ **夹具级（.local/gd-probe @1bf2e27，gitignored）**：❶ 改坏 legacy-residue 自检＋源码差异 ⇒ ⚠ in-flight 逐字显形（清单恰 scripts/check-legacy-residue.mjs 一个文件）＋ 它的 debt-missing 消失；❷ 同轮 door-policy 等 5 道（含 commit-revert TIMEOUT）照判红 ⇒ 只豁免自己；❸ probe 内 commit 后 ⇒ legacy-residue **照判红**（self-test-broken ＋ debt-missing 回来）⇒ ⇒ **「提交之后的坏照样红」＝终审在提交树面**；❹ state-surface 在 probe（干净检出）里绿 ⇒ 主树那 2 条红归属被量物 AGENTS.md 在飞，实锤。
+　❹ **码位闸**：12 面重扫（12/12 可读，maxBuffer 64MB；最高占用 U+3506；U+3507 decl=0/men=0）⇒ 插后复跑三面零违规（硬约束）。
+
+⑥ **⚠️ 仍然欠着的**
+　❶ **被量物在飞那族只证了归属、没做「标注」** —— state-surface 那 2 条红在 AGENTS.md 落账前会一直挂着（提示性质，正确）；要不要在治理闸里给「被量物在飞」一格显式标注，留待真需要时再做（登记表方案）。
+　❷ **TIMEOUT 那格**（④❸）归治理闸线欠账；**门闸在异布局下「判不了」退出 1 而非 2**（door-policy 9/10 那格红）归门闸线。
+　❸ **暂存面（index-revert）的条目级档还没接**（兄弟在飞 ⇒ 不碰）⇒ 「判据不许各判各的」在那一档仍未闭合。
+　❹ **真 CI 读数**：本刀在真 CI 上的读数待取（push 后按 sha 对治理闸 job 取）。
+　❺ probe／sim 清理场留在 .local（gitignored，对闸不可见）。
+
+
 **Updated**: 2026-11-11 (㔅 **「一棵树被截断了 —— 而『它证明不了这个 ref 只有一个』这句话，比『它跑得快』重要得多」** —— 承 U+3489 条（第 3 刀：ref 家族那条，**本刀一并补回**，见 ⑨）＋ U+3500 条（「失败长得像成功」是最强的一档），本条记**取证（真机 UIA 探针的三组读数）**、**第一因（作用域不是优化，是「唯一性证明」能不能成立的前提）**、**第二因（「可寻址」是相对模型能不能点名 —— 而「唯一」是相对作用域的）**、**第三因（失败要分档，而且分档的顺序也有讲究）**、**这一刀的落点**、**途中那几课**、**判据与分级读数**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真机 UIA 探针逐字（焦点链 **5 跳** ＋ 作用域 **22 节点 / 深度 5 / 未截断** ＋ 桌面根 **481→554 节点 / 仍撞深度上限** ＋ 叶子 get_first_child 的 Err(code == 0)）＋ 本机**判据级**（Rust cargo test --lib computer_use **23/23**；桌面全量 **152/152**）＋ 本机**前端级**（vitest **45/45**、tsc **EXIT=0**、eslint **EXIT=0**）＋ 本机**lint 级**（Windows 面 computer_use.rs **零错误**）＋ 码位闸三面零违规 | 改动：桌面 src-tauri/src/computer_use.rs（判据内核 ＋ 作用域 ＋ 完整性 ＋ 可寻址 ＋ 两个新错码 ＋ 顺带还掉我第 1 刀留在 Linux 面的死代码债）＋ 桌面 src/lib/clientTools.ts（addressable ＋ scope ＋「⚠ 不可寻址」标注 ＋ 工具说明两条拒绝规则）＋ 桌面 src/lib/__tests__/clientTools.computerUse.test.ts（**+7 条**用例）⇒ ⇒ **3 个文件** ⇒ ⇒ 零 ci.yml 改动 ＋ 零新增文件 ＋ 零新增依赖 ＋ 不碰兄弟在飞面（telencephalon_http.rs／.github/**／shadow-mobile/**）｜ 探针 .local/uia-probe/（gitignored，**不入库**） | 读数：判据级 **23/23** EXIT=0 ｜ 桌面全量 **152/152** EXIT=0 ｜ 前端 **45/45** ｜ tsc/eslint EXIT=0 ｜ clippy：computer_use.rs 零错误（整面仍红 2 条，**都在别人在飞件的 telencephalon_http.rs**）｜ 真机 UIA 探针：焦点窗口**完整** ／ 桌面根**永远不完整** ｜ 真 CI 待取 | status=active | supersedes=none
