@@ -645,6 +645,30 @@ export function selfTest() {
   //   （实测：并行会话那条 U+3429 条里的示例 ⇒ ⇒ 主 CI 两条红：状态面闸 ＋ 纪律闸）。
   //   ⇒ ⇒ 落在**编号空间外**的（U+9999 这种）⇒ ⇒ **不判红**，**但要出声**。
   const ptrExV = classifyCodePointPointers([{ id: 'ptr', text: ptrText('U+9999'), domainIds: [] }]);
+  // ⚠️⚠️ **R10 引述豁免**（2026-11-11 本刀）—— 台账正文会**逐字引用闸的输出**
+  //   ⇒ ⇒ 那一处是**历史读数** ⇒ ⇒ 不该被 R10 判红（闸的逐字输出被自己判红 ⇒ ⇒ 假红）
+  //   ⇒ ⇒ 但**必须出声**（进 quoted 读数 ⇒ ⇒ 不许静默吞掉）。
+  const ptrQuotedV = classifyCodePointPointers([
+    { id: 'ptr', text: '**Updated**: 2026-11-05 (\u32F0 **「a」** —— 见「承 U+32F1 条」那格。)\n', domainIds: [] },
+  ]);
+  check(
+    'R10 引述：指针落在**引号内**（引述闸的逐字输出）⇒ ⇒ **不红**',
+    ptrQuotedV.violations.length === 0,
+    JSON.stringify(ptrQuotedV.violations.map((v) => v.msg))
+  );
+  check(
+    'R10 引述：**要出声**（进 quoted 读数 ⇒ ⇒ 不许静默放过）',
+    ptrQuotedV.quoted.length === 1 && ptrQuotedV.quoted[0].ref === 'U+32F1',
+    JSON.stringify(ptrQuotedV.quoted)
+  );
+  const ptrRealV = classifyCodePointPointers([
+    { id: 'ptr', text: '**Updated**: 2026-11-05 (\u32F0 **「a」** —— 承 U+32F1 条。)\n', domainIds: [] },
+  ]);
+  check(
+    'R10 引述孪生：**真指针**（不在引号内）⇒ ⇒ 仍然红（尺子的牙还在）',
+    ptrRealV.violations.length === 1 && ptrRealV.quoted.length === 0,
+    JSON.stringify({ v: ptrRealV.violations.length, q: ptrRealV.quoted.length })
+  );
   check(
     'R10 孪生：指针指向**编号空间外**的编号（示例占位）⇒ ⇒ **不红**',
     ptrExV.violations.length === 0,
@@ -805,7 +829,7 @@ function main(argv) {
   }
 
   if (argv.includes('--json')) {
-    console.log(JSON.stringify({ cutoff: CUTOFF, violations, notes, audit, unregistered: unreg, pointerExamples: ptrCls.examples }, null, 2));
+    console.log(JSON.stringify({ cutoff: CUTOFF, violations, notes, audit, unregistered: unreg, pointerExamples: ptrCls.examples, pointerQuoted: ptrCls.quoted }, null, 2));
     process.exit(violations.length === 0 ? 0 : 1);
   }
 
@@ -844,6 +868,15 @@ function main(argv) {
       'ℹ️ 示例型指针（目标**不在**账本编号空间 ⇒ ⇒ 不判红，但**出声**）：'
       + ptrCls.examples.length + ' 处 —— '
       + ptrCls.examples.map((e) => e.ref + '（面 ' + e.surface + '）').join('、')
+    );
+  }
+  // ⚠️⚠️ **引述型指针要出声**（2026-11-11 本刀）—— 引述是**闸的逐字输出**（历史读数）
+  //   ⇒ ⇒ 不判红（它不是「引用写错」）⇒ ⇒ **但必须出声** ⇒ ⇒ 静默吞掉＝「我没看见」冒充「没问题」。
+  if (ptrCls.quoted.length) {
+    console.log(
+      'ℹ️ 引述型指针（**逐字引用**闸的输出 ⇒ ⇒ 不判红，但**出声**）：'
+      + ptrCls.quoted.length + ' 处 —— '
+      + ptrCls.quoted.map((e) => e.ref + '（面 ' + e.surface + '）').join('、')
     );
   }
   if (violations.length === 0) {

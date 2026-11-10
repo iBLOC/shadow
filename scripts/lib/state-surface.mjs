@@ -126,6 +126,34 @@ export function ledgerCodepointSpace(surfaces) {
 }
 
 /**
+ * **引述豁免** —— 指针落在**引号内**（「」／『』／半角双引号）⇒ ⇒ 它是**引述**，不是引用。
+ *
+ * ⚠️ **为什么需要它**（2026-11-11 实测）：台账正文里会**逐字引用闸的输出**，例如
+ *   「**R10「承 U+3507 条」悬空**」⇒ ⇒ 那一处是**历史读数**（历史事实）
+ *   ⇒ ⇒ 而 R10 的正则只认「承 U+XXXX」⇒ ⇒ **认不出**它是引述
+ *   ⇒ ⇒ ⇒ **闸的逐字输出会被自己判红**（活例：工作树面那 2 条 R10 里的 1 条）。
+ *
+ * ⚠️ **豁免但不许静默**：引述那一堆**必须出声**（进读数）⇒ ⇒ 与「示例占位」
+ *   同一处理法 ⇒ ⇒ 「我没看见」不许冒充「没问题」。
+ *
+ * ⚠️ **口径**：数**成对的引号** ⇒ ⇒ 「」『』三种都认 ⇒ ⇒ 半角双引号按**奇偶**判
+ *   ⇒ ⇒ 纯函数（零 I/O）⇒ ⇒ 自检能喂合成夹具。
+ *
+ * @param {string} text
+ * @param {number} idx —— 指针在 text 里的**起始**下标
+ * @returns {boolean}
+ */
+export function isQuotedPointer(text, idx) {
+  const before = String(text || '').slice(0, idx);
+  const openC = (before.match(/「/g) || []).length;
+  const closeC = (before.match(/」/g) || []).length;
+  const openB = (before.match(/『/g) || []).length;
+  const closeB = (before.match(/』/g) || []).length;
+  const dq = (before.match(/"/g) || []).length;
+  return openC > closeC || openB > closeB || dq % 2 === 1;
+}
+
+/**
  * R10 的**分类**版 —— 分两堆：**违规**（编号空间内的悬空指针）＋ **示例**
  * （空间外的占位指针 ⇒ ⇒ 不判红，但**要出声**）。
  *
@@ -137,25 +165,38 @@ export function classifyCodePointPointers(surfaces) {
   const space = ledgerCodepointSpace(surfaces);
   const violations = [];
   const examples = [];
+  // ⚠️ **引述那一堆**（2026-11-11 本刀）—— 指针落在引号内 ⇒ ⇒ 那是**引述闸的逐字输出**
+  //   ⇒ ⇒ 不判红（它不是「引用写错」）⇒ ⇒ **但必须出声**（不许静默吞掉）。
+  const quoted = [];
   for (const s of surfaces) {
     const allowed = new Set(defined.get(s.id) || []);
     for (const d of s.domainIds || []) {
       for (const cp of defined.get(d) || []) allowed.add(cp);
     }
-    for (const p of unresolvedCodePointPointers(s.text, allowed)) {
-      if (!space.has(Math.floor(p.codepoint / 256))) {
-        examples.push({ surface: s.id, ref: p.ref, codepoint: p.codepoint });
+    const re = new RegExp(RE_CODEPOINT_POINTER.source, 'g');
+    let m;
+    while ((m = re.exec(s.text)) !== null) {
+      const cp = parseInt(m[1], 16);
+      if (allowed.has(cp)) continue;
+      const ref = 'U+' + m[1].toUpperCase();
+      if (!space.has(Math.floor(cp / 256))) {
+        examples.push({ surface: s.id, ref, codepoint: cp });
+        continue;
+      }
+      // ⚠️ **引述** ⇒ ⇒ 豁免判红，但出声。
+      if (isQuotedPointer(s.text, m.index)) {
+        quoted.push({ surface: s.id, ref, codepoint: cp });
         continue;
       }
       violations.push({
         rule: 'R10',
         msg:
-          '状态面 ' + s.id + '：指针「承 ' + p.ref + ' 条」指向的编号**在它能看见的账本里不存在**'
+          '状态面 ' + s.id + '：指针「承 ' + ref + ' 条」指向的编号**在它能看见的账本里不存在**'
           + ' ⇒ ⇒ **悬空指针**（读者点不过去 ⇒ ⇒ 这条引用等于没写）',
       });
     }
   }
-  return { violations, examples };
+  return { violations, examples, quoted };
 }
 
 /** R10 判据（只要违规那堆）—— 老接口保持不变。 */
