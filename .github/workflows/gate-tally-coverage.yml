@@ -56,6 +56,13 @@ jobs:
       - name: Gate tally coverage self-test
         run: node scripts/check-gate-tally-coverage.mjs --self-test
 
+      # ⚠️ **判据库自己的自检**（合成夹具 ⇒ ⇒ 不需要任何 workflow 文件）⇒ ⇒
+      #    证明**判据本身**会红（而不只是闸脚本会红）⇒ ⇒ 这把尺子自己天天在 CI 上验。
+      # ⚠️ 2026-11-11 实测：这一步**从来没接过** ⇒ ⇒ 判据库里那些断言
+      #    ⇒ ⇒ 「尺子会红」这件事在 CI 上**从来没被验证过**（本条把它接上）。
+      - name: 判据库自检（gate-coverage）
+        run: node scripts/lib/gate-coverage.mjs --self-test
+
       # ⚠️ 收尾：把这一盏灯「绿得有多真」写出来（带分母）。
       - name: 判读汇总（带分母的绿灯）
         run: node scripts/lib/gate-tally.mjs --report
