@@ -1,6 +1,6 @@
 **Updated**: 2026-11-11 (㓌 **「取号纪律」只活在习惯里 —— 而习惯挡不住「按最高+1 推号 ⇒ ⇒ 推出一个已经被占过的号」** —— 承 U+34C1 条那条「取号要当场重扫」的纪律，本条把**纪律本身**做成尺子：判据纯函数 ＋ 判定闸 ＋ 基线封条)
 
-> 信封：epoch=2026-11-11 | authority=measured | scope=project | source:真实 git 历史逐笔取证（417 笔触及账本的提交）＋ 真实账本里「让开／缓冲」写法逐行取证 ＋ 隔离夹具自检 | 改动：父仓 **新增** `scripts/lib/ledger-codepoint-take.mjs`（纯函数 ＋ `--self-test` 9/9）＋ **新增** `scripts/check-ledger-codepoint-take.mjs`（闸 ＋ 三面 ＋ 基线封条）＋ **改** `.github/workflows/ci.yml`（把新闸接进 `ledger-codepoints` job）⇒ ⇒ **零产品代码** | 读数：自检 **9/9 EXIT=0**；闸真跑 **EXIT=0**（提交树面 60 条＝基线存量 60 ／ 新增 0）；基线＝**60 条**历史违例（A 族 56 ／ B 族 4），指纹 `sha256:305b4ef…` 钉死 | status=active | supersedes=none
+> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真实 git 历史逐笔取证（417 笔触及账本的提交）＋ 真实账本里「让开／缓冲」写法逐行取证 ＋ 隔离夹具自检 | 改动：父仓 **新增** `scripts/lib/ledger-codepoint-take.mjs`（纯函数 ＋ `--self-test` 9/9）＋ **新增** `scripts/check-ledger-codepoint-take.mjs`（闸 ＋ 三面 ＋ 基线封条）＋ **改** `.github/workflows/ci.yml`（把新闸接进 `ledger-codepoints` job）⇒ ⇒ **零产品代码** | 读数：自检 **9/9 EXIT=0**；闸真跑 **EXIT=0**（提交树面 60 条＝基线存量 60 ／ 新增 0）；基线＝**60 条**历史违例（A 族 56 ／ B 族 4），指纹 `sha256:305b4ef…` 钉死 | status=active | supersedes=none
 
 ① **⚠️ 取证：两族错，官方圈码闸一条都管不着**
 　❶ 官方判据（`scripts/lib/ledger-codepoints.mjs`）只守「**两个条目占同一个码位**」（R1）⇒ ⇒ 而「**取号**」这一步另有两族它管不着的错：
