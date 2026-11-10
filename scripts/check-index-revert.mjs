@@ -37,7 +37,7 @@
  *     node scripts/check-index-revert.mjs --json
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { classifyIndexFace, ledgerSymbols, LEDGER_PATHS, R1_KIND_LABEL } from './lib/index-revert.mjs';
@@ -118,13 +118,33 @@ export function runCheck(cwd = REPO) {
   const diff = gitTry(['diff', '--cached', '--raw', '--no-abbrev', 'HEAD'], root);
   if (!diff.ok) return { code: 2, reason: '读不到暂存面（git diff --cached 失败）' };
   const rows = parseRaw(diff.out);
+  // ⚠️ **台账三面符号要先读出来**（2026-11-11 实测补）—— 因为「工作树面那一格」
+  //   **不能被「暂存面零差异」吞掉** ⇒ ⇒ 「当前恰好零差异」会把一整族缺陷掩盖掉
+  //   ⇒ ⇒ 而「工作树正在丢已提交的内容」这件事**恰恰发生在暂存面干净的时候**
+  //   （还没 `git add`）⇒ ⇒ 所以这一格必须独立于 rows 算。
+  const headLedgerSymbols = {};
+  const indexLedgerSymbols = {};
+  const worktreeLedgerSymbols = {};
+  for (const p of LEDGER_PATHS) {
+    const h = gitTry(['show', 'HEAD:' + p], root);
+    if (h.ok) headLedgerSymbols[p] = [...ledgerSymbols(h.out)];
+    const i = gitTry(['show', ':' + p], root);
+    if (i.ok) indexLedgerSymbols[p] = [...ledgerSymbols(i.out)];
+    // ⚠️ **工作树面那一格**（2026-11-11 真机实测补）—— 路径相对**仓根**（与 diff --raw 同一基准）
+    //   ⇒ ⇒ null ＝ 文件不存在（整本账被删）｜数组 ＝ 读到了，取它的条目符号
+    if (h.ok) {
+      const abs = join(root, p);
+      worktreeLedgerSymbols[p] = existsSync(abs) ? [...ledgerSymbols(readFileSync(abs, 'utf8'))] : null;
+    }
+  }
   if (!rows.length) {
+    const only = classifyIndexFace([], { oldCommitFor: () => null, headLedgerSymbols, indexLedgerSymbols, worktreeLedgerSymbols });
     return {
       code: 0,
       violations: [],
-      hints: [],
+      hints: only.hints,
       scanned: 0,
-      note: '暂存区与 HEAD 逐字一致 ⇒ ⇒ 这一格**没有待判的东西** ⇒ ⇒ ⚠️ CI 的干净检出也长这样 ⇒ ⇒ 「零回退」在这里是**构造出来的** ⇒ ⇒ 不作数（它证明的是「没提交的东西里没有回退」，不是「这个仓没问题」）',
+      note: '暂存区与 HEAD 逐字一致 ⇒ ⇒ **暂存面**这一格没有待判的东西 ⇒ ⇒ ⚠️ CI 的干净检出也长这样 ⇒ ⇒ 「零回退」在这里是**构造出来的** ⇒ ⇒ 不作数（它证明的是「没提交的东西里没有回退」，不是「这个仓没问题」）⇒ ⇒ ⚠️ 而**工作树面**那一格仍可能出声（见下面）',
     };
   }
   // 每个被改的路径：往回看历史，找出「暂存区内容 == 哪一次旧提交」
@@ -146,14 +166,6 @@ export function runCheck(cwd = REPO) {
     }
     return null;
   };
-  const headLedgerSymbols = {};
-  const indexLedgerSymbols = {};
-  for (const p of LEDGER_PATHS) {
-    const h = gitTry(['show', 'HEAD:' + p], root);
-    if (h.ok) headLedgerSymbols[p] = [...ledgerSymbols(h.out)];
-    const i = gitTry(['show', ':' + p], root);
-    if (i.ok) indexLedgerSymbols[p] = [...ledgerSymbols(i.out)];
-  }
   // ⚠️ **工作树面只作定性交叉**（2026-11-11 真机实测补）—— R1 说得出「索引面是旧版」，
   //   说不出「**谁**把它放进去的」⇒ ⇒ 用工作树那一面把三种情况分开：
   //   · 工作树 == HEAD 的内容 ⇒ ⇒ **过期暂存**（没有任何人在回退内容）；
@@ -170,6 +182,7 @@ export function runCheck(cwd = REPO) {
     oldCommitFor,
     headLedgerSymbols,
     indexLedgerSymbols,
+    worktreeLedgerSymbols,
     worktreeBlobFor: (p) => worktreeBlob.get(p) || null,
   });
   return { code: violations.length ? 1 : 0, violations, hints, scanned: rows.length };
@@ -236,6 +249,16 @@ function selfTest() {
     g(['add', 'AGENTS.md']);
     const r4 = runCheck(dir);
     results.push(['台账少了条目 ⇒ 红（R4）', r4.code === 1 && r4.violations.some(v => v.code === 'R4')]);
+
+    // ⚠️ **工作树面那一格**（2026-11-11 真机实测补）：台账符号在 HEAD 有、在**工作树**没有
+    //   ⇒ ⇒ 工作树正在删一条已提交的台账条目 ⇒ ⇒ 若 `git add` 它 ⇒ ⇒ 暂存面会判红（R4）
+    //   ⇒ ⇒ ⇒ ⇒ **⇒ ⇒ 所以工作树面这一格**提前出声**（提示层）—— 而工作树本来就在飞
+    //   ⇒ ⇒ ⇒ ⇒ **⇒ ⇒ 「少了」不总是错（有意删条目也合法）⇒ ⇒ 只出声，不判红**。
+    g(['reset', '-q', '--hard', 'HEAD']);
+    writeFileSync(join(dir, 'AGENTS.md'), '**Updated**: 2026-11-11 (㒁 **别的条目**)\n');
+    const r4b = runCheck(dir);
+    results.push(['工作树面少了台账条目符号 ⇒ 出声但**不判红**（W1）',
+      r4b.code === 0 && r4b.hints.some(h => h.code === 'W1')]);
 
     g(['reset', '-q', '--hard', 'HEAD']);
     writeFileSync(join(dir, 'scripts', 'check-x.mjs'), 'v2-new\n');

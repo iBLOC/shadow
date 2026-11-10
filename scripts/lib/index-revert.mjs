@@ -170,6 +170,35 @@ export function classifyIndexFace(rows, ctx) {
       hints.push({ code: 'H1', path: row.path, msg: '暂存面改了 `' + row.path + '`（不是旧版本回退）' });
     }
   }
+  // ⚠️ **工作树面那一格**（2026-11-11 真机实测补）—— 台账符号在 HEAD 有、在**工作树**没有
+  //   ⇒ ⇒ 这一格**工作树正在删一条已提交的台账条目** ⇒ ⇒ 若 `git add` 它 ⇒ ⇒ 暂存面那一格
+  //   会判红（R4）⇒ ⇒ ⇒ ⇒ **⇒ ⇒ 所以这里**提前出声**（**提示层，不判红**）——
+  //   ⚠️ **工作树本来就在飞** ⇒ ⇒ 「少了」不总是错（**有意**删一条条目也是合法的）
+  //   ⇒ ⇒ ⇒ ⇒ **⇒ ⇒ 而「旧基线重建工作树」这种误伤** ⇒ ⇒ 只有这一格能提前看见 ⇒ ⇒
+  //   ⇒ ⇒ 所以它**必须出声**，但**不许改退出码**（零行为回归）。
+  //   ⚠️ 只在 **HEAD 侧存在**该台账时才比（子仓里没有那本账 ⇒ ⇒ 不该被算成「少了」）。
+  for (const [ledger, headSymbols] of Object.entries(ctx.headLedgerSymbols || {})) {
+    const wt = (ctx.worktreeLedgerSymbols || {})[ledger];
+    if (wt === undefined) continue;
+    if (wt === null) {
+      hints.push({
+        code: 'W1',
+        path: ledger,
+        msg: '工作树面**没有**这个台账文件（HEAD 有）⇒ ⇒ 这一格**工作树正在删整本账** ⇒ ⇒ 若 `git add` 它 ⇒ ⇒ 暂存面会判红 ⇒ ⇒ **提前出声**（不判红）',
+      });
+      continue;
+    }
+    const wtSymbols = new Set(wt);
+    for (const sym of headSymbols) {
+      if (!wtSymbols.has(sym)) {
+        hints.push({
+          code: 'W1',
+          path: ledger,
+          msg: '工作树面少了已提交的台账条目（符号 ' + sym + '）⇒ ⇒ 这一格**工作树正在删一条已提交的台账条目** ⇒ ⇒ 若 `git add` 它 ⇒ ⇒ 暂存面那一格会判红（R4）⇒ ⇒ **提前出声**（不判红：工作树本来就在飞）',
+        });
+      }
+    }
+  }
   for (const [ledger, headSymbols] of Object.entries(ctx.headLedgerSymbols || {})) {
     const indexSymbols = new Set((ctx.indexLedgerSymbols || {})[ledger] || []);
     for (const sym of headSymbols) {
