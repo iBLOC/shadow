@@ -1,6 +1,7 @@
 // 「提交面回退」扫描层 —— git 调用在这里，纯判定在 commit-revert.mjs。
 
-import { classifyRevert, quickKind, emptyBlobHash } from './commit-revert.mjs';
+import { classifyRevert, classifyEntryRevert, quickKind, emptyBlobHash } from './commit-revert.mjs';
+import { LEDGER_PATHS } from './ledger-entries.mjs';
 
 /**
  * 扫描一个提交区间，找「把前一个提交的增量悄悄退掉」的事件。
@@ -34,6 +35,18 @@ export function scanReverts(git, opts) {
   // ⚠️ **空 blob 的哈希**（按仓的对象格式）⇒ ⇒ 判「被抹空」不用多打一次 git。
   const fmtRes = git(['rev-parse', '--show-object-format']);
   const empty = emptyBlobHash(fmtRes.ok ? fmtRes.out.trim() : 'sha1');
+
+  // ⚠️ **blob 正文缓存** —— 条目级那一档要读**三个版本**的台账正文（AGENTS.md 有 3.4 MB）
+  //   ⇒ ⇒ 同一个 blob 会被多笔事件重复用到 ⇒ ⇒ 缓存 ⇒ ⇒ 不重复读。
+  const blobTextCache = new Map();
+  const blobText = (sha) => {
+    if (!sha) return null;
+    if (blobTextCache.has(sha)) return blobTextCache.get(sha);
+    const r = git(['cat-file', 'blob', sha]);
+    const text = r.ok ? r.out : null;
+    blobTextCache.set(sha, text);
+    return text;
+  };
 
   const messages = new Map();
   for (const c of commits) {
@@ -80,7 +93,23 @@ export function scanReverts(git, opts) {
         const bDiff = git(['diff', b + '^', b, '--', f]).out;
         const hit = classifyRevert({ blobs: { aBefore, aAfter, bBefore, bAfter, empty }, aDiff, bDiff });
         if (!hit) continue;
-        events.push({ kind: hit.kind, commit: b, reverted: a, file: f, lines: hit.lines, message: messages.get(b) || '' });
+        // ⚠️ **条目级那一档**（只在 'partial' 上「升级」）⇒ ⇒ 文件级三档仍然优先。
+        //   ⇒ ⇒ 「把某一条台账条目退回旧版」那一族，文件级三档都看不见 ⇒ ⇒ 靠这一档兜住。
+        let kind = hit.kind;
+        let symbols = null;
+        if (kind === 'partial' && LEDGER_PATHS.includes(f)) {
+          const ent = classifyEntryRevert({
+            file: f,
+            aBeforeText: blobText(aBefore),
+            aAfterText: blobText(aAfter),
+            bAfterText: blobText(bAfter),
+          });
+          if (ent) {
+            kind = ent.kind;
+            symbols = ent.symbols;
+          }
+        }
+        events.push({ kind, commit: b, reverted: a, file: f, lines: hit.lines, symbols, message: messages.get(b) || '' });
         continue;
       }
     }

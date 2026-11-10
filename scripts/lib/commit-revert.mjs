@@ -1,5 +1,9 @@
 // 「提交面回退」判据内核 —— 纯函数（不含 git 调用，便于自检）。
 
+// ⚠️ **台账「条目正文」那一层住在共享文件里** ⇒ ⇒ 两把尺子（提交面／暂存面）
+//   判的是**同一族** ⇒ ⇒ **判据不许各判各的** ⇒ ⇒ 「台账一条怎么切」只有一份。
+import { ledgerEntries, LEDGER_PATHS } from './ledger-entries.mjs';
+
 /**
  * 一个「回退事件」的描述。
  * kind:
@@ -112,6 +116,71 @@ export function classifyRevert({ blobs, aDiff, bDiff }) {
 }
 
 /**
+ * **条目级回退（entry-reverted）** —— 「B 把 A 改过的那一条台账条目，退回成 A 之前的那个版本」。
+ *
+ * ⚠️ **为什么要有这一档**（承「尺子要能照住自己的射程」）：
+ *   · 'full' 判的是**整文件**回到 A 之前 ⇒ ⇒ B 夹带自己的改动 ⇒ ⇒ 它看不见；
+ *   · 'inverted' 判的是 **A 的整个增量**被逐行倒回 ⇒ ⇒ **只退了一部分** ⇒ ⇒ 它也看不见；
+ *   · ⇒ ⇒ 「**把某一条条目退回旧版、其余照旧**」那一族 ⇒ ⇒ 落进 'partial'（只提示不判红）
+ *     ⇒ ⇒ ⇒ **一条台账条目的正文被静悄悄丢掉，闸却只提示**。
+ *   · 而台账条目是**判据的来源**（谁在什么面上说了什么）⇒ ⇒ 丢一条比丢一行代码更贵。
+ *
+ * ⚠️ **分界线取「逐字等于 A 之前的那个版本」** ⇒ ⇒ 合法演进产生的是**全新**内容 ⇒ ⇒ 不命中
+ *   ⇒ ⇒ 零噪声（与暂存面那把的 R5 同一形状 ⇒ ⇒ **共用同一份切分**）。
+ *
+ * ⚠️ **划界（这一档刻意不覆盖的三件事，写清楚免得日后被当成漏网）**：
+ *   ① **B 把这一条删掉** ⇒ ⇒ 那是「**条目退役**」，是正常演进 ⇒ ⇒ 不判红（否则闸恒红）；
+ *   ② **A 新增的条目**被 B 删掉 ⇒ ⇒ 「新增即删」⇒ ⇒ 本来就不在本闸射程内；
+ *   ③ **A 根本没改这一条** ⇒ ⇒ 与本档无关。
+ *
+ * @param {{file:string, aBeforeText:string|null, aAfterText:string|null, bAfterText:string|null}} input
+ * @returns {{kind:'entry-reverted', symbols:string[]}|null}
+ */
+export function classifyEntryRevert({ file, aBeforeText, aAfterText, bAfterText }) {
+  if (!LEDGER_PATHS.includes(file)) return null;
+  if (aBeforeText == null || aAfterText == null || bAfterText == null) return null;
+  const before = ledgerEntries(aBeforeText);
+  const after = ledgerEntries(aAfterText);
+  const now = ledgerEntries(bAfterText);
+  const symbols = [];
+  for (const [sym, tAfter] of after) {
+    const tBefore = before.get(sym);
+    if (tBefore == null) continue; // ② A 新增的条目 ⇒ 没有「可被退回的旧版」
+    if (tAfter === tBefore) continue; // ③ A 根本没改这一条
+    const tNow = now.get(sym);
+    if (tNow == null) continue; // ① B 把这一条删了（退役）⇒ ⇒ 不判红
+    if (tNow !== tBefore) continue; // B 的这一条不是旧版 ⇒ ⇒ 不是「退回旧版」
+    // ⚠️⚠️ ④ **A 必须真的引入过新行** ⇒ ⇒ 这一条是**实测出来的**（不是推的）。
+    //   真样本：`0ab9bec`（**合法去重**）—— A 把同一段**重复插了两份**，B 删掉一份
+    //   ⇒ ⇒ 这一条的正文**逐字**变回 A 之前的版本 ⇒ ⇒ 「逐字等于旧版」这一条**单独**会误判红
+    //   ⇒ ⇒ 而那一笔**一行新内容都没引入**（行集合一模一样，只是份数变了）
+    //   ⇒ ⇒ ⇒ **判据要问「A 到底有没有引入新东西」，而不只是「B 是不是回到了旧版」**。
+    if (entryIntroducedLines(tAfter, tBefore).length === 0) continue;
+    symbols.push(sym);
+  }
+  if (!symbols.length) return null;
+  return { kind: 'entry-reverted', symbols };
+}
+
+/**
+ * 这一条在【A 之后】比【A 之前】**多出来的行**（行集合，去掉空白行）。
+ *
+ * ⚠️ **它为什么存在**（真历史实测，见 `classifyEntryRevert` 的 ④）：
+ *   「B 的这一条逐字等于 A 之前的版本」**不足以**判红 ⇒ ⇒ 因为**去重**那一族
+ *   （A 重复插入一段、B 删掉一份）会让正文**逐字**回到旧版 ⇒ ⇒ 而那一族是**合法的修复**。
+ *   ⇒ ⇒ 分界线取「**A 真的引入过新行**」⇒ ⇒ 合法去重不误伤、真正的静悄悄回退照样抓到。
+ */
+function entryIntroducedLines(tAfter, tBefore) {
+  const before = new Set(
+    String(tBefore).split('\n').map((l) => l.trimEnd()).filter((l) => l.trim() !== '')
+  );
+  return String(tAfter)
+    .split('\n')
+    .map((l) => l.trimEnd())
+    .filter((l) => l.trim() !== '' && !before.has(l));
+}
+
+/**
  * 「这次提交**声明了**自己要回退别人」—— 认三种形状：
  *   ① git revert 生成的（This reverts commit … / 首行 Revert …）；
  *   ② 中文明写「撤销」「回退」「退回」。
@@ -149,10 +218,18 @@ export function declaresRevert(message) {
  */
 export function shouldFail(event, registry) {
   if (!event) return false;
-  // ⚠️ **三档都判红**：完全回退（回到 A 之前）＋ **抹空**（写成零字节）＋ **倒回**（整个增量被原样倒回）。
-  //   ⇒ ⇒ 三者的破坏是**同一族**：**把别人写的东西整个抹掉了** ⇒ ⇒ 逃逸口也一样
+  // ⚠️ **四档都判红**：完全回退（回到 A 之前）＋ **抹空**（写成零字节）＋ **倒回**（整个增量被原样倒回）
+  //   ＋ **条目退回旧版**（把某一条台账条目的正文退回成旧版）。
+  //   ⇒ ⇒ 四者的破坏是**同一族**：**把别人写的东西整个抹掉了** ⇒ ⇒ 逃逸口也一样
   //   （标题行声明 ＋ 登记在册）⇒ ⇒ ⇒ ⇒ **回退本身合法，静悄悄的回退才是病**。
-  if (event.kind !== 'full' && event.kind !== 'wiped' && event.kind !== 'inverted') return false;
+  if (
+    event.kind !== 'full' &&
+    event.kind !== 'wiped' &&
+    event.kind !== 'inverted' &&
+    event.kind !== 'entry-reverted'
+  ) {
+    return false;
+  }
   if (declaresRevert(event.message)) return false;
   if (isRegistered(registry, event.commit, event.file)) return false;
   return true;

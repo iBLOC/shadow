@@ -32,20 +32,48 @@ function write(repo, rel, content) {
   writeFileSync(p, content, 'utf8');
 }
 
+/**
+ * **独立小仓** —— 条目级那几格各用一个只有 3 笔提交的仓。
+ *
+ * ⚠️ **为什么要另开仓**（两条理由，缺一不可）：
+ *   ① **形状**：条目级那一档只在「**文件级三档都判不了**」时独立可见
+ *      ⇒ ⇒ 夹具必须造出「A 改了**两条以上**条目、B 只把其中一条退回旧版」的形状
+ *      ⇒ ⇒ 若 A 只改一条，B 退回它时文件级的「倒回（inverted）」会**先**命中
+ *      ⇒ ⇒ ⇒ 那一档就永远没机会上场（**这是实测出来的，不是推的**）。
+ *   ② **耗时**：主夹具仓随用例增长到 20+ 笔提交 ⇒ ⇒ 每格都全量扫一遍 ⇒ ⇒ O(n²)
+ *      ⇒ ⇒ 小仓只有 3 笔 ⇒ ⇒ 每格只扫 3 笔 ⇒ ⇒ 自检从「分钟级」回到「秒级」。
+ *
+ * ⚠️ **小仓必须放在主夹具仓之外**（另开一个 mkdtemp）⇒ ⇒ 否则主仓的
+ *   `git add -A` 会把小仓的内容也吸进去 ⇒ ⇒ 主仓的读数被污染。
+ */
+function mkRepo(base, name) {
+  const dir = join(base, name);
+  mkdirSync(dir, { recursive: true });
+  const git = mkGit(dir);
+  git(['init', '-q']);
+  git(['config', 'user.email', 't@t.local']);
+  git(['config', 'user.name', 't']);
+  git(['-c', 'user.email=t@t.local', '-c', 'user.name=t', 'commit', '--allow-empty', '-m', 'init']);
+  const commitIn = (msg) => commit(git, msg);
+  return { dir, git, commit: commitIn };
+}
+
 export function runSelfTest() {
   // ⚠️ **夹具目录必须每次唯一**（mkdtemp）⇒ ⇒ 否则两个并发进程会互相删对方的仓
   //   ⇒ ⇒ 自检随机失败 ⇒ ⇒ 治理闸把它读成「闸自己坏了」⇒ ⇒ 假红。
   // ⚠️ 也**不许硬编码绝对路径**：旧写法写死本机目录 ⇒ ⇒ Linux CI 上会造出
   //   一个字面量 `C:` 目录污染 checkout ⇒ ⇒ 一律走系统临时目录。
   const dir = mkdtempSync(join(tmpdir(), 'commit-revert-selftest-'));
+  const miniBase = mkdtempSync(join(tmpdir(), 'commit-revert-mini-'));
   try {
-    return runSelfTestIn(dir);
+    return runSelfTestIn(dir, miniBase);
   } finally {
     rmSync(dir, { recursive: true, force: true });
+    rmSync(miniBase, { recursive: true, force: true });
   }
 }
 
-function runSelfTestIn(TMP) {
+function runSelfTestIn(TMP, MINI) {
   const git = mkGit(TMP);
   git(['init', '-q']);
   // ⚠️ **仓级身份**（不是每条命令带 -c）—— 否则 git revert 这类**会自己造提交**
@@ -215,6 +243,122 @@ function runSelfTestIn(TMP) {
   add('倒回但登记在册 ⇒ 放行 ｜ 没登记 ⇒ 判红',
     !!invHit && shouldFail(invHit, regI) === false && shouldFail(invHit, []) === true,
     '登记后=' + shouldFail(invHit, regI) + ' ｜ 未登记=' + shouldFail(invHit, []));
+
+  // ─────────────────────────────────────────────────────────────────────
+  // 条目级那几格（'entry-reverted'）—— ⚠️ **各自用独立小仓**（见 mkRepo 的注释）。
+  // ─────────────────────────────────────────────────────────────────────
+  const G1 = String.fromCodePoint(0x32ff);
+  const G2 = String.fromCodePoint(0x3340);
+  const G3 = String.fromCodePoint(0x3341);
+  const G4 = String.fromCodePoint(0x3342);
+  const PARENT = '**Updated**:';
+  const MOBILE = '**Updated:**';
+  const e1 = (shape, v) => shape + ' 2026-01-01 (' + G1 + ' **条目一** —— 本条占 U+32FF。)\n' + v;
+  const e2 = (shape, v) => shape + ' 2026-01-01 (' + G2 + ' **条目二** —— 本条占 U+3340。)\n' + v;
+  const e3 = (shape) => shape + ' 2026-01-02 (' + G3 + ' **条目三** —— 本条占 U+3341。)\n③ 正文三。';
+  const e4 = (shape) => shape + ' 2026-01-03 (' + G4 + ' **条目四** —— 本条占 U+3342。)\n④ 正文四。';
+
+  // ⑯ **正例（条目级回退）** —— B 把 A 改过的那一条台账条目，退回成 A 之前的那个版本
+  //    （**逐字相同**）⇒ ⇒ 文件级三档都看不见（整文件不是旧版 ＋ 增量没被整个倒回）
+  //    ⇒ ⇒ 必须单设一档 ⇒ ⇒ 且（没有声明）⇒ ⇒ **必须判红**。
+  //    ⚠️ **形状的关键**：A 必须改**两条以上**条目、B 只把其中一条退回旧版
+  //    ⇒ ⇒ 否则「整个增量被逐行倒回」那一档（'inverted'）会**先**命中
+  //    ⇒ ⇒ ⇒ **这一档只在「A 动的不止一条条目」时才独立可见**（实测，见 ⑳）。
+  //    ⚠️ 真形状：**并发「旧基拼提交面」** —— B 用落后于 A 的基线写台账 ⇒ ⇒
+  //    ⇒ ⇒ B 的台账里那一条**逐字等于 A 之前的版本** ⇒ ⇒ 而 B 还夹带了自己的新条目。
+  const M1 = mkRepo(MINI, 'ent-positive');
+  write(M1.dir, 'AGENTS.md', e1(PARENT, '① 正文一。') + '\n' + e2(PARENT, '② 正文二。') + '\n');
+  M1.commit('ledger base');
+  write(M1.dir, 'AGENTS.md', e1(PARENT, '① 正文一（A 改过）。') + '\n' + e2(PARENT, '② 正文二（A 改过）。') + '\n');
+  const aEnt = M1.commit('A rewrites two ledger entries');
+  write(M1.dir, 'AGENTS.md', e1(PARENT, '① 正文一。') + '\n' + e2(PARENT, '② 正文二（A 改过）。') + '\n' + e3(PARENT) + '\n');
+  const bEnt = M1.commit('B restores entry one verbatim and keeps entry two');
+  const r16 = scanReverts(M1.git, { rev: 'HEAD', limit: 10 });
+  const entHit = r16.events.find((e) => e.kind === 'entry-reverted' && e.file === 'AGENTS.md' && e.commit === bEnt);
+  add('条目退回旧版 ⇒ 必须抓到 kind=entry-reverted ⇒ 且（没有声明）⇒ **必须判红**',
+    !!entHit && entHit.reverted === aEnt && shouldFail(entHit),
+    entHit ? '抓到 ' + entHit.commit.slice(0, 7) + ' kind=' + entHit.kind + ' 符号=' + JSON.stringify(entHit.symbols) + ' ｜ 判红=' + shouldFail(entHit) : '没抓到');
+
+  // ⑰ **负控①**：B 把那一条改写成**全新**内容（不是旧版）⇒ ⇒ 不许落这一档（分界线＝逐字等于旧版）
+  //    ⚠️ 这一格顺带证明**移动端那种标题形状**（冒号在加粗**内**）也切得出来。
+  const M2 = mkRepo(MINI, 'ent-newtext');
+  write(M2.dir, 'shadow-mobile/AGENTS.md', e1(MOBILE, '① 正文一。') + '\n' + e2(MOBILE, '② 正文二。') + '\n');
+  M2.commit('mobile ledger base');
+  write(M2.dir, 'shadow-mobile/AGENTS.md', e1(MOBILE, '① 正文一（A 改过）。') + '\n' + e2(MOBILE, '② 正文二（A 改过）。') + '\n');
+  const aMob = M2.commit('A rewrites two mobile entries');
+  write(M2.dir, 'shadow-mobile/AGENTS.md', e1(MOBILE, '① 正文一（全新重写）。') + '\n' + e2(MOBILE, '② 正文二（A 改过）。') + '\n' + e3(MOBILE) + '\n');
+  const bMob = M2.commit('B rewrites entry one with brand new content');
+  const r17 = scanReverts(M2.git, { rev: 'HEAD', limit: 10 });
+  const mobHit = r17.events.find((e) => e.file === 'shadow-mobile/AGENTS.md' && e.commit === bMob);
+  add('负控（把那条改写成**全新**内容）⇒ 不许落 entry-reverted ⇒ 留在 partial',
+    !!mobHit && mobHit.kind === 'partial' && mobHit.reverted === aMob && !shouldFail(mobHit),
+    mobHit ? 'kind=' + mobHit.kind : '没抓到');
+
+  // ⑱ **负控②（划界）**：B 把那一条**删掉** ⇒ ⇒ 那是「**条目退役**」（正常演进）⇒ ⇒ 不许判红
+  const M3 = mkRepo(MINI, 'ent-retired');
+  write(M3.dir, 'shadow-desktop/AGENTS.md', e1(PARENT, '① 正文一。') + '\n' + e2(PARENT, '② 正文二。') + '\n');
+  M3.commit('desktop ledger base');
+  write(M3.dir, 'shadow-desktop/AGENTS.md', e1(PARENT, '① 正文一（A 改过）。') + '\n' + e2(PARENT, '② 正文二（A 改过）。') + '\n');
+  const aDesk = M3.commit('A rewrites two desktop entries');
+  write(M3.dir, 'shadow-desktop/AGENTS.md', e2(PARENT, '② 正文二（A 改过）。') + '\n' + e3(PARENT) + '\n');
+  const bDesk = M3.commit('B retires desktop entry one');
+  const r18 = scanReverts(M3.git, { rev: 'HEAD', limit: 10 });
+  const deskHit = r18.events.find((e) => e.file === 'shadow-desktop/AGENTS.md' && e.commit === bDesk);
+  add('负控（条目**退役**＝被删掉）⇒ 不许落 entry-reverted ⇒ 留在 partial（划界）',
+    !!deskHit && deskHit.kind === 'partial' && deskHit.reverted === aDesk && !shouldFail(deskHit),
+    deskHit ? 'kind=' + deskHit.kind : '没抓到');
+
+  // ⑲ **负控③**：**非台账文件**上的同一形状 ⇒ ⇒ 这一档只对台账生效 ⇒ ⇒ 不许落
+  const M4 = mkRepo(MINI, 'ent-nonledger');
+  write(M4.dir, 'notes.md', e1(PARENT, '① 正文一。') + '\n' + e2(PARENT, '② 正文二。') + '\n');
+  M4.commit('notes base');
+  write(M4.dir, 'notes.md', e1(PARENT, '① 正文一（A 改过）。') + '\n' + e2(PARENT, '② 正文二（A 改过）。') + '\n');
+  const aNotes = M4.commit('A rewrites two notes entries');
+  write(M4.dir, 'notes.md', e1(PARENT, '① 正文一。') + '\n' + e2(PARENT, '② 正文二（A 改过）。') + '\n' + e3(PARENT) + '\n');
+  const bNotes = M4.commit('B restores notes entry one verbatim');
+  const r19 = scanReverts(M4.git, { rev: 'HEAD', limit: 10 });
+  const notesHit = r19.events.find((e) => e.file === 'notes.md' && e.commit === bNotes);
+  add('负控（**非台账文件**的同一形状）⇒ 不许落 entry-reverted ⇒ 留在 partial',
+    !!notesHit && notesHit.kind === 'partial' && notesHit.reverted === aNotes && !shouldFail(notesHit),
+    notesHit ? 'kind=' + notesHit.kind : '没抓到');
+
+  // ⑳ **负控④（真历史实测出来的假阳性族）** —— 「**合法去重**」：A 把同一段**重复插了两份**，
+  //    B 删掉其中一份 ⇒ ⇒ 这一条的正文**逐字**变回 A 之前的版本
+  //    ⇒ ⇒ 「逐字等于旧版」**单独**会误判红 ⇒ ⇒ 而那一笔**一行新内容都没引入**
+  //    ⇒ ⇒ ⇒ **判据要问「A 到底有没有引入新东西」** ⇒ ⇒ 这一格锁住那条分界线。
+  const M5 = mkRepo(MINI, 'ent-dedup');
+  write(M5.dir, 'AGENTS.md', e1(PARENT, '① 正文一。\n② 第二段。') + '\n' + e2(PARENT) + '\n');
+  M5.commit('ledger base');
+  write(M5.dir, 'AGENTS.md', e1(PARENT, '① 正文一。\n② 第二段。\n② 第二段。') + '\n' + e2(PARENT) + '\n' + e4(PARENT) + '\n');
+  const aDedup = M5.commit('A duplicates that paragraph by mistake and adds an entry');
+  write(M5.dir, 'AGENTS.md', e1(PARENT, '① 正文一。\n② 第二段。') + '\n' + e2(PARENT) + '\n' + e4(PARENT) + '\n');
+  const bDedup = M5.commit('B removes the duplicated paragraph and keeps the new entry');
+  const r20 = scanReverts(M5.git, { rev: 'HEAD', limit: 10 });
+  const dedupHit = r20.events.find((e) => e.file === 'AGENTS.md' && e.commit === bDedup);
+  add('负控（**合法去重**）⇒ 不许落 entry-reverted ⇒ 留在 partial',
+    !!dedupHit && dedupHit.kind === 'partial' && dedupHit.reverted === aDedup && !shouldFail(dedupHit),
+    dedupHit ? 'kind=' + dedupHit.kind : '没抓到');
+
+  // ㉑ **两档不许重叠（这一格是实测出来的边界）** —— A 只改**一条**条目、B 把它退回旧版
+  //    ⇒ ⇒ B 的 diff 就是 A 的 diff 的逐行逆 ⇒ ⇒ 文件级的「倒回（inverted）」**先**命中
+  //    ⇒ ⇒ ⇒ 这一档**只在「A 动的不止一条条目」时才独立可见** ⇒ ⇒ 两档不许重叠、不许双计。
+  const M6 = mkRepo(MINI, 'ent-overlap');
+  write(M6.dir, 'AGENTS.md', e1(PARENT, '① 正文一。') + '\n' + e2(PARENT, '② 正文二。') + '\n');
+  M6.commit('ledger base');
+  write(M6.dir, 'AGENTS.md', e1(PARENT, '① 正文一（A 改过）。') + '\n' + e2(PARENT, '② 正文二。') + '\n' + e4(PARENT) + '\n');
+  const aOv = M6.commit('A rewrites one ledger entry and adds another');
+  write(M6.dir, 'AGENTS.md', e1(PARENT, '① 正文一。') + '\n' + e2(PARENT, '② 正文二。') + '\n' + e3(PARENT) + '\n');
+  const bOv = M6.commit('B restores that one entry verbatim and adds its own');
+  const r21 = scanReverts(M6.git, { rev: 'HEAD', limit: 10 });
+  const ovHit = r21.events.find((e) => e.file === 'AGENTS.md' && e.commit === bOv);
+  add('两档不许重叠（A 只改一条 ⇒ 文件级倒回先命中）⇒ 落 inverted 而非 entry-reverted',
+    !!ovHit && ovHit.kind === 'inverted' && ovHit.reverted === aOv && shouldFail(ovHit),
+    ovHit ? 'kind=' + ovHit.kind : '没抓到');
+
+  // ㉒ **逃逸口**：条目退回旧版但**有声明** ⇒ ⇒ 放行（声明机制对第四档同样生效）
+  const declaredEnt = Object.assign({}, entHit || {}, { message: 'Revert "A rewrites two ledger entries"' });
+  add('条目退回旧版但有声明 ⇒ 放行', !!entHit && shouldFail(declaredEnt) === false,
+    '判红=' + shouldFail(declaredEnt));
 
   const passed = cases.filter((c) => c.ok).length;
   return { passed, total: cases.length, cases };

@@ -32,6 +32,18 @@
  *     ⚠️ 这一类**补在 2026-11-11**：真样本 `c62f500` 把 `639a556` 的 5 行原样倒回并夹带自己的 5 行
  *       —— 事件**真发生过**（那 5 行后来由 `605dc6a`／`869a10a` 恢复）。
  *
+ *   **R1d · 条目退回旧版** —— 提交 B 把 A 改过的**某一条台账条目**退回成 A 之前的那个版本
+ *     （**逐字相同**）⇒ ⇒ 整文件**不是**旧版（R1 看不见）＋ 增量**没被整个倒回**（R1c 也看不见）
+ *     ⇒ ⇒ **段落级**那一格（与暂存面那把的 R5 同一族 ⇒ ⇒ **共用同一份切分**）。
+ *     ⚠️ 分界线**两条**（**都是真历史量出来的**，不是拍的）：
+ *       ① 「**逐字等于旧版**」⇒ ⇒ 合法演进产生的是**全新**内容 ⇒ ⇒ 零噪声；
+ *       ② 「**A 必须真的引入过新行**」⇒ ⇒ 排除「**合法去重**」那一族（真样本 `0ab9bec`：
+ *          A 把同一段重复插了两份、B 删掉一份 ⇒ ⇒ 正文逐字回到旧版 ⇒ ⇒ 但 A 一行新内容都没引入）。
+ *     ⚠️ 划界：**条目退役**（B 把那一条删掉）**不判红** —— 那是正常演进。
+ *     ⚠️ 真历史**全量**实测（1365 笔 ／ 760 次台账触碰）⇒ ⇒ 命中 **6** 处：2 处早已登记在册
+ *       （`c62f500` ／ `c36f030`）＋ **4 处真样本**（`48bc812` ／ `c835f56` ／ `336903b` ／ `48394f6`）
+ *       ⇒ ⇒ 那 4 处已**逐字核实「丢的内容今天仍在」** ⇒ ⇒ 登记在册，放行。
+ *
  * ⚠️ **「部分回退」不判红**（它降级为提示层）—— 实测它在正常演进里极常见
  *   （改一行代码、改一行断言、重排一份词表）⇒ ⇒ 判红 ⇒ ⇒ 闸就恒红 ⇒ ⇒ 没人看。
  *
@@ -80,6 +92,7 @@ function makeGit() {
 function kindLabel(kind) {
   if (kind === 'wiped') return '抹空';
   if (kind === 'inverted') return '倒回';
+  if (kind === 'entry-reverted') return '条目退回旧版';
   return '完全回退';
 }
 
@@ -117,7 +130,7 @@ function main() {
   // ⚠️ **判红只给「完全回退 且 没有声明」** ⇒ ⇒ 部分回退与已声明的回退都只作提示。
   const hard = res.events.filter((e) => shouldFail(e, REGISTERED_REVERTS));
   // ⚠️ **三档都算「硬回退」** —— 完全回退 ＋ **抹空** ＋ **倒回** ⇒ ⇒ 判红与放行的分层一样。
-  const HARD_KINDS = new Set(['full', 'wiped', 'inverted']);
+  const HARD_KINDS = new Set(['full', 'wiped', 'inverted', 'entry-reverted']);
   const fullDeclared = res.events.filter((e) => HARD_KINDS.has(e.kind) && declaresRevert(e.message));
   const fullRegistered = res.events.filter((e) =>
     HARD_KINDS.has(e.kind) && !declaresRevert(e.message) && isRegistered(REGISTERED_REVERTS, e.commit, e.file));
@@ -135,8 +148,9 @@ function main() {
   const hardFull = hard.filter((e) => e.kind === 'full').length;
   const hardWiped = hard.filter((e) => e.kind === 'wiped').length;
   const hardInv = hard.filter((e) => e.kind === 'inverted').length;
+  const hardEnt = hard.filter((e) => e.kind === 'entry-reverted').length;
   console.log('  回退事件 ' + res.events.length + ' 处（判红：静悄悄的回退 ' + hard.length +
-    '（完全回退 ' + hardFull + ' ｜ 抹空 ' + hardWiped + ' ｜ 倒回 ' + hardInv + '）' +
+    '（完全回退 ' + hardFull + ' ｜ 抹空 ' + hardWiped + ' ｜ 倒回 ' + hardInv + ' ｜ 条目退回旧版 ' + hardEnt + '）' +
     ' ｜ 放行：已声明 ' + fullDeclared.length +
     ' ｜ 登记在册 ' + fullRegistered.length +
     ' ｜ 提示：部分回退 ' + partial.length + '）');
@@ -146,17 +160,26 @@ function main() {
       ? '静悄悄的**抹空**（把文件整个写成零字节）'
       : e.kind === 'inverted'
         ? '静悄悄的**倒回**（把别人的整个增量原样倒回，还夹带了自己的改动）'
-        : '静悄悄的完全回退';
+        : e.kind === 'entry-reverted'
+          ? '静悄悄的**条目退回旧版**（把别人改过的那一条台账条目，退回成旧版）'
+          : '静悄悄的完全回退';
     console.log('❌ [R1] ' + what + '：' + e.commit.slice(0, 7) + ' 在 ' + e.file + ' 上' +
       (e.kind === 'wiped'
         ? ' 把 ' + e.reverted.slice(0, 7) + ' 写进去的内容整个抹空了'
         : e.kind === 'inverted'
           ? ' 把 ' + e.reverted.slice(0, 7) + ' 的整个增量原样倒回了（并夹带了自己的改动）'
-          : ' 把 ' + e.reverted.slice(0, 7) + ' 的增量整个退掉了'));
+          : e.kind === 'entry-reverted'
+            ? ' 把 ' + e.reverted.slice(0, 7) + ' 改过的那一条台账条目退回成了旧版'
+            : ' 把 ' + e.reverted.slice(0, 7) + ' 的增量整个退掉了'));
     console.log('    被退掉的提交：' + e.reverted);
     console.log('    退它的提交：' + e.commit);
     if (e.kind === 'inverted' && e.lines && e.lines.length) {
       console.log('    被倒回的行数：' + e.lines.length + ' 行（它的增量一条不剩）');
+    }
+    if (e.kind === 'entry-reverted' && e.symbols && e.symbols.length) {
+      console.log('    被退回旧版的条目（符号）：' + e.symbols.join('、') +
+        '（逐字等于它们在 ' + e.reverted.slice(0, 7) + ' 之前的版本）');
+      console.log('    ⇒ 修法：把那条改回**新的**内容（回填），或在标题行**声明**这次回退 ⇒ ⇒ 静悄悄的才是病');
     }
     const first = (e.message || '').split('\n')[0];
     if (first) console.log('    该提交信息首行（**没有**声明这次回退）：' + first);
