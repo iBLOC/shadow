@@ -76,6 +76,11 @@ jobs:
       #    全绿、而实际用的是 stable（那天是 1.99.1）⇒ ⇒ **装了不等于用了**。
       RUSTUP_TOOLCHAIN: '1.99.0'
     steps:
+      # ⚠️ 判读落盘路径（**仓外**）—— 分母要覆盖**这一盏灯里所有**真跑的闸 ⇒ ⇒ 每道闸的结论都得落到同一份记录里 ⇒ ⇒ 收尾一步汇总成带分母的读数。
+      # ⚠️ 落在仓根会污染被测面（顶层对账闸会当场判红）⇒ ⇒ 用 RUNNER_TEMP。
+      # ⚠️ 落盘路径**不能**用表达式上下文（job 级 env 里不可用 ⇒ ⇒ 整个 workflow 文件会被拒绝加载 ⇒ ⇒ run 零 job 失败）。
+      - name: 准备判读落盘路径（仓外）
+        run: echo "GATE_RESULT_FILE=$RUNNER_TEMP/gate-results.ndjson" >> "$GITHUB_ENV"
       - name: Checkout shadow
         uses: actions/checkout@v7
         with:
@@ -149,13 +154,13 @@ jobs:
 
       # 两道跨仓闸 —— 放在长编译**之前** ⇒ ⇒ 便宜地先判一次「依赖图还成不成立」。
       - name: External tools wiring check
-        run: node shadow/scripts/check-external-tools.mjs
+        run: node shadow/scripts/run-gate-once.mjs --strict shadow/scripts/check-external-tools.mjs
 
       - name: External tools wiring check (self-test)
         run: node shadow/scripts/check-external-tools.mjs --self-test
 
       - name: Neuron ownership check
-        run: node shadow/scripts/check-neuron-ownership.mjs
+        run: node shadow/scripts/run-gate-once.mjs --strict shadow/scripts/check-neuron-ownership.mjs
 
       # One process, one port: neuron's OpenAI face at the root, the 端脑
       # face (/shadow/v1/*, /api/telencephalon/*), 海马体 at /hippocampus.
@@ -535,7 +540,7 @@ jobs:
             n=$((n+1))
           done
           echo "trace.zip 个数：$n"
-          node shadow/scripts/check-e2e-trace-credentials.mjs --dir "$OUT"
+          node shadow/scripts/run-gate-once.mjs --strict shadow/scripts/check-e2e-trace-credentials.mjs -- --dir "$OUT"
       # ⚠️ Flutter —— 只为了跑**移动端**那条真跑级判据。
       #    版本与 `ci.yml` 的 `mobile-analyze` / `mobile-test` **同一把**（3.47.8）
       #    ⇒ ⇒ 不许漂 ⇒ ⇒ 两处同步手改。
@@ -736,3 +741,11 @@ jobs:
             ${{ runner.temp }}/live-notif-server-mobile.log
           retention-days: 7
           if-no-files-found: error
+      # ⚠️ 收尾：把这一盏灯「绿得有多真」写出来 —— 这一盏灯里**所有**真跑的闸
+      #    都落了判读 ⇒ ⇒ 这里汇总成**带分母的读数**（真判 N ｜ 判不了 K ｜ 红 M）
+      #    ⇒ ⇒ 「判不了」不当红（它不是「有问题」）⇒ ⇒ 但也不当绿（它不是「没问题」）。
+      # ⚠️ if: always() ⇒ ⇒ **闸红的时候分母照样在** ⇒ ⇒ 不然「红」的那一格
+      #    恰好是**唯一没有分母**的那一格 ⇒ ⇒ 红灯也读不出「到底跑了哪几道」。
+      - name: 判读汇总（带分母的绿灯）
+        if: always()
+        run: node shadow/scripts/lib/gate-tally.mjs --report
