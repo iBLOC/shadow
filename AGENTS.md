@@ -1,3 +1,67 @@
+**Updated**: 2026-11-11 (㓂 **「兄弟仓有**两种布局** —— 而 10 道闸只认一种 ⇒ ⇒ CI 上 11 道「判不了」被同一盏绿灯吞掉了」** —— 承 U+34BF 条（一盏绿灯没有分母）与 U+34BB 条（判据长在主流程里），本条记**取证（真 CI 逐条读数）**、**第一因**、**第二因**、**第三因**、**这一刀的落点**、**途中那几课**、**判据与分级读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真 CI 逐条读数（run 42718647744 与 run 42720852662 的「判读汇总」）＋ 本机端到端实测 | 改动：父仓 **新增** scripts/lib/sibling-repo.mjs（纯函数 ＋ --self-test 14/14）＋ **改** 10 道闸（各 +1 import ／ +1~3 行）⇒ ⇒ **零产品代码** | 读数：自检 **14/14**；10 道闸自检全绿 ＋ 真跑全绿（EXIT=0）；真 CI **15 道 ｜ 真判 11 ｜ 判不了 4 ｜ 红 0**（改前 **真判 4 ｜ 判不了 11**） | 提交：`01720554` | status=active | supersedes=none
+
+① **⚠️ 取证：CI 上兄弟仓**检出成功**，闸却「判不了」**
+　❶ 改前（真 CI run 42718647744）：「⇒ ⇒ 闸的判读：15 道 ｜ 真判 **4** ｜ 判不了 **11** ｜ 红 0」⇒ ⇒ 逐个点名 11 道判不了：a2ui-session-identity ／ client-dialect ／ client-endpoint-map ／ cross-client ／ conversation-prefix ／ cors-allowlist ／ endpoint-matrix ／ msrv-floor ／ provider-admin-headers ／ publish-address ／ tool-interception。
+　❷ 同一轮的 step 列表逐字：`Checkout telencephalon` ＝ success、`Checkout hippocampus` ＝ success、`Checkout neuron` ＝ success ⇒ ⇒ **兄弟仓检出成功**，`IBLOC_TOKEN` **在位**（job 级 env 打的是 ***）⇒ ⇒ 「判不了」**不是** secret 缺失。
+　❸ 改后（真 CI run 42720852662，同一 workflow、同一 token、同一检出清单）：「**15 道 ｜ 真判 11 ｜ 判不了 4 ｜ 红 0**」⇒ ⇒ 真判 **4 → 11**（**+7**）⇒ ⇒ 判不了 **11 → 4**。
+　❹ 改后剩 4 道，逐个点名与各自根因：cross-client（3 个子守卫判不了 —— jni-surface ／ apk-surface ＝ **产物级**（libencephalon.so 被 gitignore，干净 checkout 没有）＋ brain-route-surface ＝ **仍写死 ../telencephalon** ⇒ ⇒ 同族未接完）；cors-allowlist（要 **encephalon**（大脑仓）⇒ ⇒ workflow 只检出 telencephalon／hippocampus／neuron ⇒ ⇒ **没检出**）；msrv-floor（**真红灯**，见 ⑧❶）；publish-address（要 amygdala／temporal／occipital／parietal 四个叶区仓 ⇒ ⇒ CI 上没有）。
+　❺ ⇒ ⇒ **下一刀已把 ❹ 里 cors-allowlist 那一格收掉**：unwired-gates.yml 补一步「Checkout encephalon」（私有仓 ⇒ 同一个 token）⇒ ⇒ 真 CI run **42721494506** 逐字打出「**15 道 ｜ 真判 12 ｜ 判不了 3 ｜ 红 0**」⇒ ⇒ cors-allowlist **不再点名** ⇒ ⇒ 判不了只剩 **cross-client ／ msrv-floor ／ publish-address** 三道。
+　❺ ⇒ ⇒ ⇒ **推论**：那 11 道「判不了」里，**至少 7 道**的根因是**布局**（兄弟仓在仓内 vs 仓外）⇒ ⇒ 改布局即从「没验成」变「验成了」⇒ ⇒ **覆盖面从 4/15 抬到 11/15**。
+
+② **⚠️ 第一因：兄弟仓有**两种布局**，而定位逻辑**被抄成了 N 份**
+　❶ 本机（A）：兄弟仓在 shadow 仓**之外** —— ../telencephalon。
+　❷ CI（B）：兄弟仓被 checkout 到 shadow 仓**根之下** —— telencephalon/。
+　❸ 既有先例：`check-door-policy.mjs` ／ `check-ziti-face.mjs` ／ `check-secret-plaintext.mjs` **各自抄了一份** sibling(name)（仓外优先、仓内兜底）⇒ ⇒ 抄一次漂一次 ⇒ ⇒ 布局修一次要改 N 处。
+　❹ 而另 **10 道闸**连抄都没抄 ⇒ ⇒ 默认路径一律写死 ../telencephalon ⇒ ⇒ CI 上判据源读不到 ⇒ ⇒ 退出码 2。
+　❺ ⇒ ⇒ ⇒ **通用形态：同一段「资源在哪」的定位逻辑抄成 N 份 ⇒ ⇒ 改一处不管用 ⇒ ⇒ 缺口只会在「CI 那一套布局」上显形** ⇒ ⇒ 本机永远是绿的 ⇒ ⇒ 病只有 CI 能看见。
+
+③ **⚠️ 第二因：**布局判定长在主流程里** ⇒ ⇒ 证伪不了
+　❶ 「判据源在不在」在每道闸里都是**主流程里的一行**（默认路径表达式）⇒ ⇒ 要证伪它，得先把兄弟仓按另一种布局摆出来。
+　❷ ⇒ ⇒ **通用形态：判据长在主流程里 ⇒ ⇒ 自检够不着 ⇒ ⇒ 只能恒绿**（承 U+34BB 条那把刀）⇒ ⇒ 这一刀同一个修法：**把定位抽成纯函数**。
+　❸ 新模块 `scripts/lib/sibling-repo.mjs`：siblingCandidates ／ findSibling ／ sibling ／ siblingRoot ⇒ ⇒ **零 I/O**（exists 可注入）⇒ ⇒ 自检喂合成夹具 ⇒ ⇒ **自检 14/14**（仓外命中／仓内命中／两边都在仓外优先／两边都不在返回 null／兜底不抛／纯函数两次同结果／siblingRoot 两个方向／多仓互不干扰）。
+
+④ **⚠️ 第三因：**顺序** —— 「仓外优先」不是随便定的
+　❶ 若改成「仓内优先」，本机就会改读**仓内那个同名目录**（若存在）⇒ ⇒ 本机读数会变 ⇒ ⇒ 这一刀就变成「顺手改了本机行为」。
+　❷ ⇒ ⇒ **通用形态：改接线层时，「优先级」就是「哪一面会变」** ⇒ ⇒ 必须把不变的那一面排在前面 ⇒ ⇒ 「仓外优先」⇒ ⇒ **本机读数逐字不变** ⇒ ⇒ 这一刀只影响 CI。
+
+⑤ **✅ 这一刀的落点（1 个新文件 ＋ 10 个文件各改两行 ＋ 零产品代码）**
+　❶ **新增** `scripts/lib/sibling-repo.mjs`（134 行）：纯函数 ＋ `--self-test` 14/14。
+　❷ **改** 10 道闸（a2ui-session-identity ／ auth-backdoors ／ bind-exposure ／ client-dialect ／ client-endpoint-map ／ conversation-prefix ／ cors-allowlist ／ endpoint-matrix ／ provider-admin-headers ／ tool-interception）：各 **+1 行 import ＋ 1~3 行**（默认路径表达式换成 sibling(REPO, …)；bind-exposure 的 lobesRoot 换成 siblingRoot(REPO)）。
+　❸ **零产品代码** —— 只动尺子面。
+　❹ 提交面走**独立索引**（基线 `687bdba`）⇒ ⇒ 并行会话的在飞件**不被吞** ⇒ ⇒ 提交 `01720554`（11 文件）。
+
+⑥ **⚠️ 途中那几课**
+　❶ **扫描器又把 actual 当数字用了**（它其实是**十六进制字符串**）⇒ ⇒ 最高已声明码位报成 **U+3282**（真值 U+34C1）⇒ ⇒ 「空洞」「可取候选」全部作废 ⇒ ⇒ **通用形态：类型混用 ⇒ ⇒ 排序静默失序 ⇒ ⇒ 尺子输出「读数齐全」但没有一个数是真的** ⇒ ⇒ 先怀疑自己的扫描器（第二次踩同一族）。
+　❷ **管道会吞退出码**：把 node 的输出管到 Select-Object 之后，$LASTEXITCODE 变成**上一个** native 命令的值 ⇒ ⇒ 10 道闸自检明明全绿却报 **EXIT=1** ⇒ ⇒ 症状长得像「改坏了」⇒ ⇒ 改法：先捕获输出、再立刻取 $LASTEXITCODE。
+　❸ **改了定位就会露红**：msrv-floor 一旦能定位到 manifest，就从「判不了」变成**真判红**（见 ⑧❶）⇒ ⇒ 「修好一个洞」的代价可能是**点亮一盏真红灯** ⇒ ⇒ 要连着判断，不许只做前半截。
+　❹ **改共享文件要造两份面**（承前）：提交面＝HEAD ＋ 我的增量；共享索引＝对方的在飞内容 ＋ 我的增量。
+　❺ ⚠️⚠️ **两份面还不够 —— 共享文件（台账）的增量必须同时落进「工作树」**：本条第一次提交（`ac709bc`）只落了**提交树** ＋ **共享索引** ⇒ ⇒ 工作树文件里**没有**本条 ⇒ ⇒ 随后并行会话按它自己的工作树**整篇重写** AGENTS.md（`d615a1b`，53+/170−）⇒ ⇒ 本条被**静悄悄撤掉**（提交面回退闸**只提示不判红**）⇒ ⇒ ⇒ **通用形态：共享文件的增量只落在「索引/提交树」而没落进「工作树」⇒ ⇒ 对方从工作树整篇重写时就会把它抹掉 ⇒ ⇒ 增量必须落在**三面**（工作树／提交树／共享索引）**。**
+
+⑦ **✅ 判据与分级读数（全部实测）**
+　❶ **判据级**：新模块 `--self-test` **14/14**（EXIT=0）。
+　❷ **本机级**：10 道闸 `--self-test` **全绿**（9/9、10/10、13/13、13/13、15/15、10/10、8/8、7/7、22/22、13/13）＋ 10 道闸真跑 **全 EXIT=0**（读数逐条未变：bind-exposure 扫 246 个 .rs、cors-allowlist 扫 246 个源文件、provider-admin-headers 22/22、tool-interception 已知缺口 5 条）。
+　❸ **真 CI 级**：run **42720852662** ＝ **success**，收尾一步逐字打出「**⇒ ⇒ 闸的判读：15 道 ｜ 真判 11 ｜ 判不了 4 ｜ 红 0**」＋ 逐个点名 4 道判不了；同一 job 里新尺子自检 **11/11 全 PASS**。
+　❸⚠️ **续刀（`56c9f7a`）**：补检出大脑仓后，run **42721494506** ＝ success，逐字「**15 道 ｜ 真判 12 ｜ 判不了 3 ｜ 红 0**」（cors-allowlist 已真判）；再一轮 run **42745051349**（head 701c26f）＝ success，读数**逐字相同**（「15 道 ｜ 真判 12 ｜ 判不了 3 ｜ 红 0」）⇒ ⇒ 那一格**稳住了**，不是偶然。
+　❹ **对照（改前）**：run **42718647744** ＝ success，「15 道 ｜ 真判 **4** ｜ 判不了 **11** ｜ 红 0」⇒ ⇒ 同一 workflow、同一 token、同一检出清单，**只改了布局识别** ⇒ ⇒ **真判 +7** ⇒ ⇒ 那 7 道此前**从来没在 CI 上判过**。
+　❺ **治理级**：治理闸自检 **全 PASS**；真检查的违规数在 **2~4** 之间波动 ⇒ ⇒ 归因**工作树面**（并行会话在飞：mobile-a11y-contract ＋ client-tools ＋ neuron-ownership）⇒ ⇒ **提交树面绿**。
+
+⑧ **⚠️ 仍然欠着的**
+　❶ **msrv-floor 那一格是「真红灯」，不是判不了**：本机真跑（定位到 shadow-desktop/src-tauri/Cargo.toml）⇒ ⇒ **VERDICT: FAIL (7 项)**：generator 0.8.12 ／ sysinfo 0.39.6 ／ windows-{core,implement,interface,result,strings} 0.100.0 全都要求 **1.95**，而自有 crate 声明 **1.94** ⇒ ⇒ 那道闸自己的注释就写着「1.94 这个地板在真实依赖图上随时会碎」⇒ ⇒ **它已经碎了**。
+　❷ ⚠️ **为什么这一刀没动它**：地板 **1.94 是跨仓约定**（hippocampus ／ telencephalon ／ encephalon 同声明）⇒ ⇒ 单方面抬本仓地板会造成**跨仓漂移**；降依赖（那 7 个包）又没有**编译级读数**（本机桌面端 Rust 侧无编译读数）⇒ ⇒ ⇒ 这是**要主人拍板**的那一格 ⇒ ⇒ 登记为明账，不在这一刀动。
+　❸ **同族闸还没接完**：仍写死仓外路径的还有 brain-route-surface ／ jni-surface ／ apk-surface ／ brain-chain ／ external-tools ／ neuron-ownership ／ publish-address ／ ziti-v2-wire ⇒ ⇒ **下一刀**。
+　❸⚠️ **但「同族接完」这一格收益有限** —— 实测：cross-client 的 5 个子守卫里 **jni-surface ／ apk-surface 是产物级**（要 libencephalon.so ＋ APK，被 gitignore）⇒ ⇒ 那 3 个子守卫在 CI 的干净 checkout 上**必然**判不了 ⇒ ⇒ 把 brain-route-surface 接完也**解不开** cross-client ⇒ ⇒ 那一格只能**在装了产物的机器上**取读数。
+　❹ **workflow 缺两个检出**：**encephalon**（大脑仓 ⇒ cors-allowlist 要它）＋ 四个叶区仓（amygdala／temporal／occipital／parietal ⇒ publish-address 要它们）⇒ ⇒ 不检出 ⇒ ⇒ 判不了。
+　❺ **产物级闸在 CI 上永远判不了**：jni-surface ／ apk-surface 要 libencephalon.so ＋ APK（被 gitignore）⇒ ⇒ CI 干净 checkout 没有 ⇒ ⇒ 那一格**只能**在装了产物的机器上取读数。
+　❻ ⚠️ **上一笔 1460b65 的处置**：那笔提交（57+/0−）把并行会话**整条在飞台账**一并带进了提交面 ⇒ ⇒ **不重做**（重做＝把对方内容从提交树删掉再由对方加回 ⇒ ⇒ 制造冲突而无收益）⇒ ⇒ 事实是「**提前进入提交树**」而非「丢失」⇒ ⇒ 已回执对方。
+
+⑨ **⚠️ 圈码：本条占 U+34C2（㓂）**
+　❶ 插前**独立重扫**（**三本账本 × 工作树／索引／HEAD／origin/master** ＝ 12 面，官方判据 `scripts/lib/ledger-codepoints.mjs` 的 extractEntries，**声明与提及分开**、码位按**十六进制**计）⇒ ⇒ 读数：**12 面全部可读（unreadable=0）**、条目合计 **1643** 条、已声明 distinct=**357**、最高已声明 **U+34C1**。
+　❷ ⇒ ⇒ **U+34C1 让开**（已被并行会话**声明**）⇒ ⇒ **U+34C0 让开**（虽未被声明，但被**提及** 8 次 ⇒ ⇒ 提及即预告）⇒ ⇒ **U+34C2 声明 0 次、提及 0 次** ✔ ⇒ ⇒ **本条取 U+34C2（㓂）**。
+　❸ ⇒ ⇒ 本条**只引用已提交的码位**（U+34BF ／ U+34BB ／ U+34BE ／ U+34BD）⇒ ⇒ ⚠️ **插完立刻复跑码位闸**是硬约束。
+　❹ ⇒ ⇒ 按惯例**再留一枚缓冲（U+34C3）** ⇒ ⇒ 但缓冲**也会过期** ⇒ ⇒ 落笔前仍要**当场重扫 12 面**。
+
 **Updated**: 2026-11-11 (㒾 **「颞叶里的 asr/tts —— 端脑其实有**第三套** voice 配置，而它是**死的**」** —— 承 U+34BD 条（分档默认的 asr/tts 档真被消费）与 U+34B8 条（两张同名表），本条记**取证（源码级逐条 grep）**、**第一因**、**第二因**、**第三因**、**这一刀的落点**、**途中那几课**、**判据与分级读数**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-11 | authority=measured | scope=project | source=端脑源码逐条 grep（telencephalon）＋ 与 U+34BD 条的真机读数对账（⚠️ 真机那一格本条**没拿到**，见 ⑧❶）｜ 改动：父仓 **零产品代码**（本条纯取证；新增台账一条）｜ 读数：grep 命中逐条见 ① | status=active | supersedes=none
