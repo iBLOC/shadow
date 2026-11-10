@@ -1,0 +1,68 @@
+name: State Surface Governance (状态面治理：信封 / 指针 / 债务)
+
+# ⚠️ **它守的是什么** —— 状态面（账本 / 记忆 / 用户偏好）的生命周期治理：
+#   新条目有没有信封（授权 epoch / 来源 / 取代链）、来源指针**能不能解析**、
+#   取代链断没断、存量债务有没有变多、仓里有没有**未登记**的状态面。
+#   ⇒ ⇒ 与源码那一族（check-*）不同：这一族守的是**持久状态**。
+#
+# ⚠️ **为什么这盏灯独立存在**（2026-11-11 实测）——
+#   `ci.yml` 的「Brain gates (跨仓闸)」job 里**也有**这道闸，
+#   但那个 job 的 **step8「Neuron ownership check」是红的**（跨仓那族既存欠账）
+#   ⇒ ⇒ GitHub Actions 的语义＝**前一步失败 ⇒ ⇒ 后一步被 skipped**
+#   ⇒ ⇒ 那道闸步排在它后面 ⇒ ⇒ **它从来没在 CI 上跑过**
+#   ⇒ ⇒ ⇒ **「接进 CI」≠「在 CI 上有读数」**
+#   ⇒ ⇒ ⇒ 读数必须落在**不会红的前置步之后**，否则一个既存欠账就把它整片遮蔽。
+#   ⚠️ `ci.yml` 是**共享文件**（并行会话在飞）⇒ ⇒ 本刀**不代动**
+#   ⇒ ⇒ 独立成文件、接线面**零共享** ⇒ ⇒ 给这道闸一盏**自己的**灯。
+#
+# ⚠️ **判据读的是「工作树面」** ⇒ ⇒ 在 CI 里工作树＝刚 clone 出来的那一面
+#   ⇒ ⇒ ＝ 提交树面 ⇒ ⇒ 不受本地分叉影响。
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  state-surface:
+    name: State Surface Governance
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # ⚠️ 判读落盘路径（**仓外**）—— 分母要覆盖**这一盏灯里所有**真跑的闸
+      #   ⇒ ⇒ 每道闸的结论都得落到同一份记录里 ⇒ ⇒ 落在仓根会污染被测面 ⇒ ⇒ 用 RUNNER_TEMP。
+      - name: 准备判读落盘路径（仓外）
+        run: echo "GATE_RESULT_FILE=$RUNNER_TEMP/gate-results.ndjson" >> "$GITHUB_ENV"
+
+      - name: Checkout shadow
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      # ⚠️ **闸自己的自检先跑**（43 条用例，含引述豁免那三组）
+      #   ⇒ ⇒ 判据自检不绿 ⇒ ⇒ 主判定的绿就**没有意义**（尺子本身坏了）。
+      - name: "Self-test: state surface (判据自检)"
+        if: always()
+        run: node scripts/check-state-surface.mjs --self-test
+
+      # ⚠️ **必须走判读通道**（run-gate-once）—— 否则这一盏灯的闸步「没登记」
+      #   ⇒ ⇒ 「Gate Tally Coverage」那盏灯会当场判红（unregistered-gap：gate-step-not-tallied）。
+      - name: "Check: state surface (状态面治理)"
+        if: always()
+        run: node scripts/run-gate-once.mjs --strict scripts/check-state-surface.mjs
+
+      # ⚠️ 收尾：把这一盏灯「绿得有多真」写出来 —— **job 必须有分母**，
+      #   否则同一个 unregistered-gap 的另一半（job-without-denominator）也会红。
+      - name: 判读汇总（带分母的绿灯）
+        if: always()
+        run: node scripts/lib/gate-tally.mjs --report

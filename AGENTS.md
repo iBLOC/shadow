@@ -1,3 +1,54 @@
+**Updated**: 2026-11-11 (㔒 **「这道闸在 CI 上从来没跑过 —— 而『接进 CI』这句话，管的是接线，不是读数」** —— 承 U+3511 条（引述豁免 ＋ 按提交号指称）＋ U+3510 条（新增的灯必须照抄已通过那盏灯的三步形状）＋ U+3500 条（「失败长得像成功」是最强的一档），本条记**取证（19 个闸步逐格 skipped）**、**第一因（一个既存的失败步骤把整片闸步遮蔽）**、**第二因（「分母齐」不等于「该验的都跑了」）**、**第三因（读数要问「它跑过没有」，不是「那盏灯绿不绿」）**、**这一刀的落点**、**途中那几课**、**判据与分级读数**，以及**仍然欠着的**.)
+> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真 CI 逐字（「Desktop Build」job 130106600869 的逐步结论：step16 ＝ failure、step24 ＝ skipped、step25 ＝ skipped）＋ ci.yml 的 job 行号区间（brain-gates 282／desktop-build 383）｜ 改动：.github/workflows/state-surface.yml（**新增**：独立一盏灯）＋ AGENTS.md（本条）⇒ ⇒ **2 个文件（1 个新增）** ⇒ ⇒ 零新增依赖 ＋ **零 ci.yml 改动**（那一面在兄弟的在飞面）＋ 不碰兄弟在飞面 ｜ 读数：本地接线闸（Gate Tally Coverage）**30 个 workflow ｜ 闸步 70 ｜ 经由判读通道 70 ｜ 有闸的 job 31 ｜ 有分母的 job 31 ｜ 零违规** ＋ YAML 闸 **32 个文件零违规** ＋ 提交树面自检 **43/43** ＋ 状态面闸 **零违规** ｜ 真 CI 待取 | status=active | supersedes=none
+
+① **⚠️ 取证：19 个闸步逐格 skipped**
+　❶ **真 CI 逐字**（「Desktop Build」job **130106600869**，headSha **1b32ba4** 那一轮）：**step16「Neuron ownership check」＝ failure** ｜ **step17 到 step35 ＝ 逐格 skipped** ｜ **step24「State surface governance check」＝ skipped** ｜ **step25「State surface governance check (self-test)」＝ skipped** ｜ step36「判读汇总（带分母的绿灯）」＝ failure ｜ step37「交出判读记录（供总分母汇总）」＝ success。
+　❷ **被遮蔽的那 19 个步，逐字名单**：17 Neuron ownership check (self-test)｜18 E2E credential shape check｜19 E2E credential shape check (self-test)｜20 Rust toolchain pin check｜21 Rust toolchain pin check (self-test)｜22 Design token drift check｜23 Navigation drift check｜**24 State surface governance check**｜**25 State surface governance check (self-test)**｜26 Failure masking check｜27 Failure masking check (self-test)｜28 Preference revocation check｜29 Preference revocation check (self-test)｜30 Dead env vars check｜31 Dead env vars check (self-test)｜32 Brand asset drift check｜33 TypeScript check｜**34 Build web frontend (Tauri Rust side is NOT built here)**｜**35 Build web**。
+　❸ ⇒ ⇒ ⇒ **最后两条尤其重**：「TypeScript check」「Build web」被 skipped ⇒ ⇒ **CI 上那个网页前端从来没有被构建过** ⇒ ⇒ ⇒ 而那一轮 **25 盏灯全绿**（主 CI 那盏红在别处）⇒ ⇒ ⇒ **「CI 跑过了」这句话，在这 19 格上是假的，而它长得像真的**。
+　❹ **那道闸在哪个 job 里**：逐字行号——`ci.yml` 的 job 起点：prefrontal-rust 17｜desktop-test 255｜**brain-gates 282**｜**desktop-build 383**｜mobile-analyze 637｜mobile-test 716｜ps1-portability 816｜yaml-validity 866｜ledger-codepoints 914｜legacy-residue-stack 974｜ci-tally 1203 ⇒ ⇒ ⇒ **状态面治理那道闸在 desktop-build（383-637）里**，**不在** brain-gates ⇒ ⇒ ⇒ **查「某道闸跑没跑」必须先定位它在哪个 job**。
+
+② **⚠️ 第一因：一个既存的失败步骤把整片闸步遮蔽**
+　❶ GitHub Actions 的语义：**同一 job 里，前一步失败 ⇒ ⇒ 后一步默认被 skipped** ⇒ ⇒ ⇒ 而那些闸步**没有 `if: always()`** ⇒ ⇒ ⇒ 一个**与它们无关**的既存欠账（Neuron ownership check 的跨仓那族）⇒ ⇒ 就把 **19 格读数整片吃掉**。
+　❷ ⇒ ⇒ **通用形态：闸步的「会不会跑」不取决于它自己 ⇒ ⇒ 取决于它**前面**有没有一个会红、且没有 `if: always()` 的步** ⇒ ⇒ ⇒ **⇒ ⇒ 「接进 CI」只保证「接了」，不保证「跑了」⇒ ⇒ 「跑过了」是位置相关的** ⇒ ⇒ ⇒ 演练腿那一族早就每步都写了 `if: always()`（逐字注释：「一道演练红**不许**把后面几道的读数吃掉」）⇒ ⇒ ⇒ **判读那族没写 ⇒ ⇒ 两族口径不一致 ⇒ ⇒ 后果落在这个面上**。
+　❸ ⚠️ **这一族没有闸**：没有任何一道闸检查「某道闸步在最近一轮里到底跑没跑」⇒ ⇒ ⇒ **⇒ ⇒ 欠一个机械闸**（方向：闸步必须带 `if: always()`，除非它前面每一步都不会失败）。
+
+③ **⚠️ 第二因：「分母齐」不等于「该验的都跑了」**
+　❶ 逐字：step36「判读汇总（带分母的绿灯）」**照样跑、照样落分母** ⇒ ⇒ 而它的分母口径是「**本 job 里走 run-gate-once 的那几道**」⇒ ⇒ ⇒ 一个被 skipped 的闸**根本不会落判读记录** ⇒ ⇒ ⇒ 分母的 N **两边一起缩**（该验的少一道、实跑的也少一道）⇒ ⇒ ⇒ 「该验 N 道 ＝ 实跑 N 道」**照样齐** ⇒ ⇒ ⇒ **⇒ ⇒ 通用形态：一个「只统计发生过的事」的分母 ⇒ ⇒ 无法发现「没发生」⇒ ⇒ 缺的那几格会静默地从分母里消失，而分母看起来还是齐的** ⇒ ⇒ ⇒ **分母齐 ＝ 跑过的那几道都记了账 ≠ 该跑的都跑了**。
+　❷ ⇒ ⇒ 承 U+350E 条那条（「判不了」与「绿」共用退出码 0）⇒ ⇒ 这里是**同一族的另一面**：**「被遮蔽」与「没验」在分母上都表现为「不存在」**。
+
+④ **⚠️ 第三因：读数要问「它跑过没有」，不是「那盏灯绿不绿」**
+　❶ ⇒ ⇒ **通用形态：「一道闸在 CI 上有没有读数」与「那一盏灯绿不绿」是两个问题** ⇒ ⇒ ⇒ **必须逐格看那盏灯的 step 列表**（本刀取的就是 `steps[].conclusion`）⇒ ⇒ ⇒ **只看 lamp 级别的 success／failure ⇒ ⇒ 会把「19 格从没跑过」读成「那盏灯红在别处」**。
+　❷ ⇒ ⇒ ⇒ 承 U+3500 条：「失败长得像成功」的最强一档 —— **一道闸从来没跑过，而那一轮 25 盏灯全是绿的** ⇒ ⇒ ⇒ **⇒ ⇒ 「绿灯」与「跑过」之间那道缝，就是这一族**。
+
+⑤ **✅ 这一刀的落点（2 个文件（1 个新增）＋ 零新增依赖 ＋ 零 ci.yml 改动）**
+　❶ **新增** `.github/workflows/state-surface.yml` —— 给状态面治理那道闸**一盏自己的灯**｜形状**照抄已通过那盏灯**（承 U+3510 条 ⑤❶）：① 「准备判读落盘路径（仓外）」步（`GATE_RESULT_FILE=$RUNNER_TEMP/gate-results.ndjson`，放在 Checkout 之前）② 「Self-test: state surface (判据自检)」步（`if: always()`）③ 「Check: state surface (状态面治理)」步走 `node scripts/run-gate-once.mjs --strict scripts/check-state-surface.mjs`（`if: always()`）④ 「判读汇总（带分母的绿灯）」步（`node scripts/lib/gate-tally.mjs --report`，`if: always()`）⇒ ⇒ **四个步一行都不能少**。
+　❷ **改** AGENTS.md（**提交树面**）—— 本条（插入**顶部**）⇒ ⇒ ⇒ **2 个文件（1 个新增）** ⇒ ⇒ 零新增依赖 ＋ **零 ci.yml 改动**（那一面在兄弟的在飞面）＋ 不碰兄弟在飞面。
+　❸ ⚠️ **为什么不动 ci.yml**：那一面在**兄弟的在飞面**（工作树面它是 M 面）⇒ ⇒ ⇒ **不代动** ⇒ ⇒ ⇒ **修法＝新开一盏灯（接线面零共享）** ⇒ ⇒ ⇒ 根因那 19 个步要一次修完 ⇒ ⇒ 归属**兄弟**（他们自己那笔 Neuron ownership 的债）。
+　❹ **提交**：独立索引 ＋ `commit-tree -p` ＋ `update-ref` **带 CAS**（基准＝读 blob 之前取的 HEAD）⇒ ⇒ 共享索引**只对齐自己动过的那几条路径**。
+
+⑥ **⚠️ 途中那几课**
+　❶ **「闸步跑没跑」要逐格看 `steps[].conclusion`** ⇒ ⇒ lamp 级别的 success／failure **不够**。
+　❷ **找一道闸在哪个 job 里，要看 job 的行号区间**（本刀：`ci.yml` 的 11 个 job 起点）⇒ ⇒ 只看闸步的名字会找错 job（我第一眼以为它在 brain-gates ⇒ ⇒ 其实在 desktop-build）。
+　❸ **新增的灯必须照抄已通过那盏灯的形状**（U+3510 条那条）⇒ ⇒ 本刀**先本地跑接线闸**（Gate Tally Coverage）再推 ⇒ ⇒ 避免「新增即错」。
+　❹ ⚠️ **「分母齐」这一族要单独查**：它只统计发生过的事 ⇒ ⇒ ⇒ 缺的那几格不会在分母上留痕。
+
+⑦ **✅ 判据与分级读数**
+　❶ **接线级（本地，同一 HEAD）**：Gate Tally Coverage ＝ **零违规**，逐字「⇒ ⇒ 闸的分母覆盖：扫了 **30** 个 workflow ｜ 闸步 **70** ｜ 经由判读通道 **70** ｜ 有闸的 job **31** ｜ 有分母的 job **31**」＋「✔ state-surface.yml　　　　　 闸步 1 ｜ 经由通道 **1** ｜ 有闸的 job 1 ｜ 有分母 **1**」＋「✅ 零违规（30 个 workflow ｜ 存量债 0 条已登记）」⇒ ⇒ ⇒ **新灯的接线三格齐**。
+　❷ **YAML 级**：逐字「扫描 1 个仓 / **32** 个 YAML 文件（workflow + composite action）｜ 真解析器：python + PyYAML 6.0.3」＋「✅ 零违规（32 个 YAML 文件全过）」。
+　❸ **判据级（提交树面，同一 HEAD）**：状态面治理闸 **✓ 零违规 EXIT=0** ＋ 自检 **43/43 EXIT=0**（在临时 worktree ＝ 提交树面那份内容上量的）⇒ ⇒ ⇒ **这道闸一旦跑起来就是绿的**（之前它只是**从来没跑过**）。
+　❹ **反向验证级**：本刀的新灯**没有改动任何判据** ⇒ ⇒ ⇒ 它的绿**不能证明判据变好了** ⇒ ⇒ ⇒ **它证明的是「这道闸终于有读数了」** ⇒ ⇒ ⇒ **这两件事必须分开说**。
+　❺ **真 CI 级**：**待取**（推到 origin 之后取 run 逐字回填：那一轮有没有多出一盏灯 ＋ 那盏灯的逐步结论 ＋ 主 CI 的失败步骤集合）。
+　❻ ⚠️ **上一轮（1b32ba4）的终态**：主 CI run **42894739086** 在本条取样时刻仍是 **in_progress** ⇒ ⇒ **时态** ⇒ ⇒ 终态读数**另计**（不回填成结论）。
+
+⑧ **⚠️ 仍然欠着的**
+　❶ **根因那 19 个闸步仍然被遮蔽**（状态面这一道被我新开一盏救回来）⇒ ⇒ **TypeScript check／Build web 仍然没跑** ⇒ ⇒ 归属兄弟的 ci.yml。
+　❷ **「闸步必须带 `if: always()`」这一族没有闸** ⇒ ⇒ 本刀是**人工**遵守的。
+　❸ **「分母只统计发生过的事 ⇒ ⇒ 缺的那几格静默消失」这一族没有闸** ⇒ ⇒ ⇒ **⇒ ⇒ 方向：要么闸步强制带 `if: always()`⇒ ⇒ 要么在汇总步里把「本该跑却没跑」的步逐个点名**。
+　❹ **「谁在哪一轮跑过哪道闸」没有台账** ⇒ ⇒ 本刀是**第一次逐格量**。
+　❺ 其余承前：R5 是兄弟的债；R6 与 R10 各判一半形状（R10 已补第三堆）；四个脚本末尾 `process.exit` 收尾；主判定的「判不了」与「绿」共用退出码 0。
+
+⑨ **⚠ 圈码：本条占 U+3512（㔒）** —— 号是按**官方口径**在**提交树面**取的（取样时刻 2026-11-10T20:29:55Z ｜ HEAD 3254371b9 ⇒ 父仓提交树面水位 U+3511 ⇒ 候选头一个 U+3512）⇒ ⇒ 插前扫：**12 面占用 0**（可读 12/12）✔ ⇒ ⇒ 方块字由 String.fromCodePoint 生成，不手打。
+
 **Updated**: 2026-11-11 (㔑 **「闸的逐字输出被它自己判红 —— 而判据只分『引用』与『示例』，没分『引述』」** —— 承 U+350A 条（形状必须按【面】作用域化）＋ U+3509 条（工作树面 R10 仍红）＋ U+3500 条（「失败长得像成功」是最强的一档），本条记**取证（兄弟回执逐字 ＋ 面间占用差 ＋ 四格矩阵）**、**第一因（R10 认不出「引述」⇒ ⇒ 闸的逐字输出被自己判红）**、**第二因（真指针只有「按提交号指称」这一条路）**、**第三因（兄弟提的方向会把悬空引用改成假引用）**、**这一刀的落点**、**途中那几课**、**判据与分级读数**，以及**仍然欠着的**.)
 > 信封：epoch=2026-11-11 | authority=measured | scope=project | source=兄弟会话回执 M'（工作树面 3 处违规的逐字 ＋ 触发行号）＋ 官方判据源码（scripts/lib/state-surface.mjs 的 RE_CODEPOINT_POINTER 与 classifyCodePointPointers）＋ 四格矩阵（被量物面 × 判据版本）｜ 改动：scripts/lib/state-surface.mjs（新增引述豁免）＋ scripts/check-state-surface.mjs（3 组自检 ＋ 引述出声）＋ AGENTS.md（U+3508 条标题那一行改写 ＋ 本条）⇒ ⇒ **3 个文件** ⇒ ⇒ 零新增文件 ＋ 零新增依赖 ＋ 零 ci.yml 改动 ＋ 不碰兄弟在飞面 ｜ 读数：四格矩阵 格1 R10=2 → 格2 R10=1 ｜ 格3／格4 零违规 ｜ 格5（模拟兄弟重建）R10 全消 ｜ 自检 42/43（红的那格＝工作树面既存 R5 ＋ R10，不是本刀引入）｜ 面间占用差：提交树面有、工作树面缺 **6** 个码位 ｜ 12 面可读 **12/12**、提交树面水位 U+3510 ⇒ 候选 U+3511、**12 面占用 0** ｜ 真 CI 待取 | status=active | supersedes=none
 
