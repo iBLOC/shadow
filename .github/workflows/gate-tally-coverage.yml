@@ -1,0 +1,61 @@
+name: Gate Tally Coverage
+
+# ⚠️ **它守的是什么** —— 「**有闸但没分母**」这一族。
+#
+#   2026-11-11 真测：中心流水线里 **30 道闸**，而**只有 4 道**的结论被收走
+#   ⇒ ⇒ 那盏绿灯的**分母是 4**，而闸实际有 30 道
+#   ⇒ ⇒ 「一盏绿灯」证明的东西，比它看起来少得多。
+#
+#   ⚠️ **同族**：2026-11-05 解决的是「**有闸但没人跑**」（第一层）；
+#      这一刀是**第二层**——闸跑了，但它的结论**没人收**。
+#
+# ⚠️ **为什么单独成文件**（与其它闸的 workflow 同理）：
+#   · `ci.yml` 是**共享文件**（并行会话在飞）⇒ ⇒ 独立成文件 ⇒ ⇒ 接线面**零共享**；
+#   · 中心流水线的并发组在并行会话连推时会把 **pending** 的轮次取消掉
+#     ⇒ ⇒ 这道闸仍要能拿到**属于自己 headSha** 的读数。
+#
+# ⚠️ **这一盏灯自己也守纪律**：落盘（仓外）＋ 走判读通道 ＋ 收尾汇总
+#   ⇒ ⇒ 它自己是**有分母**的那一盏 ⇒ ⇒ 它的绿灯也带分母。
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  gate-tally-coverage:
+    name: Gate Tally Coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout shadow
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      # ⚠️ 判读落盘路径（**仓外**）—— 落在仓根会污染被测面（顶层对账闸会当场判红）。
+      - name: 准备判读落盘路径（仓外）
+        run: echo "GATE_RESULT_FILE=$RUNNER_TEMP/gate-results.ndjson" >> "$GITHUB_ENV"
+
+      # ⚠️ 走判读通道（--strict ⇒ ⇒ 退出码**原样透传** ⇒ ⇒ 语义不变，只加记录）。
+      - name: Gate tally coverage check
+        run: node scripts/run-gate-once.mjs --strict scripts/check-gate-tally-coverage.mjs
+
+      # ⚠️ 闸自己的自检（证明这道闸**真的会红**）。
+      - name: Gate tally coverage self-test
+        run: node scripts/check-gate-tally-coverage.mjs --self-test
+
+      # ⚠️ 收尾：把这一盏灯「绿得有多真」写出来（带分母）。
+      - name: 判读汇总（带分母的绿灯）
+        run: node scripts/lib/gate-tally.mjs --report

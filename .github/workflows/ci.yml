@@ -49,6 +49,11 @@ jobs:
       #    RUSTUP_TOOLCHAIN"）⇒ ⇒ 只设 `RUST_TOOLCHAIN` ⇒ ⇒ 回到 stable ⇒ ⇒ 两个都设 ⇒ ⇒ `RUSTUP_TOOLCHAIN` 赢。
       RUSTUP_TOOLCHAIN: '1.99.0'
     steps:
+      # ⚠️ 判读落盘路径（**仓外**）—— 2026-11-11：分母要覆盖**所有**真跑的闸 ⇒ ⇒ 每道闸的结论都得落到同一份记录里 ⇒ ⇒ 收尾一步汇总成带分母的读数。
+      # ⚠️ 落在仓根会污染被测面（顶层对账闸会当场判红）⇒ ⇒ 用 RUNNER_TEMP。
+      # ⚠️ 落盘路径**不能**用表达式上下文（job 级 env 里不可用 ⇒ ⇒ 整个 workflow 文件会被拒绝加载 ⇒ ⇒ run 零 job 失败）。
+      - name: 准备判读落盘路径（仓外）
+        run: echo "GATE_RESULT_FILE=$RUNNER_TEMP/gate-results.ndjson" >> "$GITHUB_ENV"
       - name: Checkout shadow
         uses: actions/checkout@v7
 
@@ -130,7 +135,7 @@ jobs:
       #    仓在 shadow 仓根**之下** ⇒ exit 2「判不了」⇒ 红的是**布局层**
       #    不是判据层（闸已补双布局解析，与 ziti-v2-wire 同款）。
       - name: Zero-trust face check
-        run: node scripts/check-ziti-face.mjs
+        run: node scripts/run-gate-once.mjs --strict scripts/check-ziti-face.mjs
 
       - name: Zero-trust face check (self-test)
         run: node scripts/check-ziti-face.mjs --self-test
@@ -294,6 +299,12 @@ jobs:
         working-directory: neuron
         run: cargo check --manifest-path Cargo.toml --no-default-features --all-targets
 
+
+      # ⚠️ 收尾：把这一盏灯「绿得有多真」写出来 —— 这一盏灯里**所有**真跑的闸
+      #    都落了判读 ⇒ ⇒ 这里汇总成**带分母的读数**（真判 N ｜ 判不了 K ｜ 红 M）
+      #    ⇒ ⇒ 「判不了」不当红（它不是「有问题」）⇒ ⇒ 但也不当绿（它不是「没问题」）。
+      - name: 判读汇总（带分母的绿灯）
+        run: node scripts/lib/gate-tally.mjs --report
   desktop-test:
     name: Desktop Tests
     runs-on: ubuntu-latest
@@ -336,6 +347,11 @@ jobs:
       CARGO_PROFILE_TEST_DEBUG: '0'
       CARGO_INCREMENTAL: '0'
     steps:
+      # ⚠️ 判读落盘路径（**仓外**）—— 2026-11-11：分母要覆盖**所有**真跑的闸 ⇒ ⇒ 每道闸的结论都得落到同一份记录里 ⇒ ⇒ 收尾一步汇总成带分母的读数。
+      # ⚠️ 落在仓根会污染被测面（顶层对账闸会当场判红）⇒ ⇒ 用 RUNNER_TEMP。
+      # ⚠️ 落盘路径**不能**用表达式上下文（job 级 env 里不可用 ⇒ ⇒ 整个 workflow 文件会被拒绝加载 ⇒ ⇒ run 零 job 失败）。
+      - name: 准备判读落盘路径（仓外）
+        run: echo "GATE_RESULT_FILE=$RUNNER_TEMP/gate-results.ndjson" >> "$GITHUB_ENV"
       - name: Checkout shadow
         uses: actions/checkout@v7
         with:
@@ -363,7 +379,7 @@ jobs:
       # ⚠️⚠️ **必须在本 job** ⇒ ⇒ 它要读**兄弟仓**（端脑的 providers 源码）
       #    ⇒ ⇒ 只 checkout 本仓的 job 里源读不到 ⇒ ⇒ 闸按「退出码 2」阻断。
       - name: External tools wiring check
-        run: node shadow/scripts/check-external-tools.mjs
+        run: node shadow/scripts/run-gate-once.mjs --strict shadow/scripts/check-external-tools.mjs
 
       - name: External tools wiring check (self-test)
         run: node shadow/scripts/check-external-tools.mjs --self-test
@@ -372,7 +388,7 @@ jobs:
       # 源码层（谁在自己体内实例化运行时）／feature 图层（谁在脑侧那条链上开了
       # local-models 或 candle）／产物层（编译出来的二进制里装了几套运行时）。
       - name: Neuron ownership check
-        run: node shadow/scripts/check-neuron-ownership.mjs
+        run: node shadow/scripts/run-gate-once.mjs --strict shadow/scripts/check-neuron-ownership.mjs
 
       # ── 测试里的进程级 env 竞争闸 ──────────────────────────────────────────
       # ⚠️⚠️ **为什么这道闸存在**（2026-11-08 真机实测）：`cargo test` 把**同一个
@@ -391,7 +407,7 @@ jobs:
       #     ⇒ ⇒ 否则这道闸会「红久了没人看」（= 比没有防线更坏）。
       # ⚠️ **判据收紧过一轮**：「改了却没人读」不算污染 ⇒ ⇒ 候选必须有**读点**。
       - name: Test env-race check
-        run: node shadow/scripts/check-test-env-races.mjs --root="$GITHUB_WORKSPACE/shadow"
+        run: node shadow/scripts/run-gate-once.mjs --strict shadow/scripts/check-test-env-races.mjs -- --root="$GITHUB_WORKSPACE/shadow"
 
       - name: Test env-race check (self-test)
         run: node shadow/scripts/check-test-env-races.mjs --self-test
@@ -401,6 +417,12 @@ jobs:
       #   ⇒ 清单落在日志里 ⇒ ⇒ 后续每一条修复都有归属可查。
       - name: Test env-race census (cross-repo reading)
         run: node shadow/scripts/check-test-env-races.mjs --root="$GITHUB_WORKSPACE" --report-only
+
+      # ⚠️ 收尾：把这一盏灯「绿得有多真」写出来 —— 这一盏灯里**所有**真跑的闸
+      #    都落了判读 ⇒ ⇒ 这里汇总成**带分母的读数**（真判 N ｜ 判不了 K ｜ 红 M）
+      #    ⇒ ⇒ 「判不了」不当红（它不是「有问题」）⇒ ⇒ 但也不当绿（它不是「没问题」）。
+      - name: 判读汇总（带分母的绿灯）
+        run: node shadow/scripts/lib/gate-tally.mjs --report
   desktop-build:
     name: Desktop Build
     runs-on: ubuntu-latest
@@ -456,7 +478,7 @@ jobs:
       # **点到了屏幕左上角**；取值对不上 ⇒ 「最近任务」变成「返回」。
       # ⇒ ⇒ 本仓真的发生过（㌇ 条 ⑧）⇒ ⇒ 所以要有闸。
       - name: Mobile a11y contract check
-        run: node scripts/check-mobile-a11y-contract.mjs
+        run: node scripts/run-gate-once.mjs --strict scripts/check-mobile-a11y-contract.mjs
 
       # 两端供应商面**逐项对齐**闸 —— 「供应商都是大脑提供的」这句话的守门人。
       # ⚠️ 桌面端与移动端打的是**同一张端脑表** ⇒ ⇒ 两端必须发**同一组字段**、
@@ -466,7 +488,7 @@ jobs:
       # ⇒ ⇒ 判据**逐个函数体**看（不是「文件里出现过就算」）⇒ ⇒ 反向验证
       # ⇒ ⇒ 把 add 那条路弄坏、update 那条路留着 ⇒ ⇒ 闸照样红。
       - name: Provider parity check
-        run: node scripts/check-provider-parity.mjs
+        run: node scripts/run-gate-once.mjs --strict scripts/check-provider-parity.mjs
 
       - name: Provider parity check (self-test)
         run: node scripts/check-provider-parity.mjs --self-test
@@ -481,7 +503,7 @@ jobs:
       # ⚠️ 2026-11-06 改名刀：闸与 step 由 check-cortex-residue.mjs 一族改姓为
       #    legacy-residue ⇒ 上面注释里的旧词是判据对象与史证，不是闸名。
       - name: Legacy residue check
-        run: node scripts/check-legacy-residue.mjs
+        run: node scripts/run-gate-once.mjs --strict scripts/check-legacy-residue.mjs
 
       # JNI 面：Kotlin ↔ 宿主直测的 Java 替身 + jniLibs 里那份 .so 的符号。
       # ⚠️ 装错 .so ⇒ Kotlin 把 UnsatisfiedLinkError catch 掉 ⇒
@@ -511,7 +533,7 @@ jobs:
       # neuron_server 与脑面内嵌的那个登记同一批 38 个模型）。
       # ⚠️ 这道闸扫**兄弟仓**（存在才扫）⇒ ⇒ 本 job 已 checkout 全部相关仓。
       - name: Neuron ownership check
-        run: node scripts/check-neuron-ownership.mjs
+        run: node scripts/run-gate-once.mjs --strict scripts/check-neuron-ownership.mjs
 
       # 闸自己的自检（27 条用例，含真实事故夹具 ＋ 孪生用例）——
       # 它只吃合成夹具 ⇒ ⇒ 不需要兄弟仓 ⇒ ⇒ 放这儿当**快速护栏**。
@@ -524,7 +546,7 @@ jobs:
       #    Playwright **既不报错也不告警**（测试照样 pass）⇒ ⇒ 一个头都发不出去
       #    ⇒ ⇒ 端脑那扇门一律 401 ⇒ ⇒ 那批红**长得像**鉴权失败，其实是形状错了。
       - name: E2E credential shape check
-        run: node scripts/check-e2e-credential-shape.mjs
+        run: node scripts/run-gate-once.mjs --strict scripts/check-e2e-credential-shape.mjs
 
       # 闸自己的自检（6 条用例，含**真实事故夹具** ＋ 孪生用例）。
       - name: E2E credential shape check (self-test)
@@ -538,7 +560,7 @@ jobs:
       # ⚡️ 这道门还判**假钉**（钉了版本却没装 ⇒ ⇒ runner 上没那个版本 ⇒ ⇒ cargo 直接报
       #    "toolchain '1.99.0' is not installed"）与**跨 workflow 版本漂移**（三个 workflow 用不同刻度 ⇒ ⇒ 尺子不一致）。
       - name: Rust toolchain pin check
-        run: node scripts/check-rust-toolchain-pin.mjs
+        run: node scripts/run-gate-once.mjs --strict scripts/check-rust-toolchain-pin.mjs
 
       # 门自己的自检（7 条用例，含「假钉」与「跨 workflow 漂移」两个事故夹具 ＋ 孪生用例）。
       - name: Rust toolchain pin check (self-test)
@@ -547,12 +569,12 @@ jobs:
       # 生成物是从属的：改 design-tokens.json 后必须重跑生成器。
       # 这条单独拎出来，让漂移的报错一眼能定位。
       - name: Design token drift check
-        run: node scripts/gen_tokens.mjs --check
+        run: node scripts/run-gate-once.mjs --strict scripts/gen_tokens.mjs -- --check
 
       # 导航结构同样只有一份定义（agent-surface.json 的 navigation 段），
       # 两端导航都是生成物 —— 改了清单忘了重跑生成器 = 两端导航悄悄分叉。
       - name: Navigation drift check
-        run: node scripts/gen_nav.mjs --check
+        run: node scripts/run-gate-once.mjs --strict scripts/gen_nav.mjs -- --check
 
       # 「状态面治理」闸 —— **持久状态的生命周期治理**（arXiv:2606.30306）。
       # ⚠️ 本仓最强的另一半（上面 30 道 check-*）**全建在源码上**，
@@ -563,7 +585,7 @@ jobs:
       #    以及仓里**有没有未登记的状态面**。
       # ⚠️ 只读仓内的面 ⇒ ⇒ CI 里可跑（本地记忆面在 CI 不存在 ⇒ ⇒ 明确报「未覆盖」）。
       - name: State surface governance check
-        run: node scripts/check-state-surface.mjs
+        run: node scripts/run-gate-once.mjs --strict scripts/check-state-surface.mjs
 
       - name: State surface governance check (self-test)
         run: node scripts/check-state-surface.mjs --self-test
@@ -576,7 +598,7 @@ jobs:
       # ⚠️ 判据＝**形状**（剥注释后）⇒ ⇒ 合法回落会有假阳性
       #    ⇒ ⇒ 那正是「债务清单」的用处（每条写清 why / when）。
       - name: Failure masking check
-        run: node scripts/check-failure-masking.mjs
+        run: node scripts/run-gate-once.mjs --strict scripts/check-failure-masking.mjs
 
       - name: Failure masking check (self-test)
         run: node scripts/check-failure-masking.mjs --self-test
@@ -589,7 +611,7 @@ jobs:
       #    （不假装绿）⇒ ⇒ CI 守的是**账本自身**（V1/V2/V7）＋ 自检里的
       #    **完整生命周期演练**（每一步该红的地方都红）。
       - name: Preference revocation check
-        run: node scripts/check-preference-revocation.mjs
+        run: node scripts/run-gate-once.mjs --strict scripts/check-preference-revocation.mjs
 
       - name: Preference revocation check (self-test)
         run: node scripts/check-preference-revocation.mjs --self-test
@@ -602,7 +624,7 @@ jobs:
       # ⇒ ⇒ 这道闸盯「设了没人读」与「改名链漂移」两族 —— 它们是
       #    **词级残留闸抓不到的一族**（新名字里没有旧产品名那个词）。
       - name: Dead env vars check
-        run: node scripts/check-dead-env-vars.mjs
+        run: node scripts/run-gate-once.mjs --strict scripts/check-dead-env-vars.mjs
 
       - name: Dead env vars check (self-test)
         run: node scripts/check-dead-env-vars.mjs --self-test
@@ -610,7 +632,7 @@ jobs:
       # logo 几何同理：真相源在 brand/geom.mjs，两端图标与应用内标记都是
       # 生成物。改了几何忘了重跑 = 应用图标与应用内 logo 悄悄对不上。
       - name: Brand asset drift check
-        run: node brand/gen-icons.mjs --check
+        run: node scripts/run-gate-once.mjs --strict brand/gen-icons.mjs -- --check
 
       - name: TypeScript check
         working-directory: shadow-desktop
@@ -643,6 +665,11 @@ jobs:
     name: Mobile Analyze
     runs-on: ubuntu-latest
     steps:
+      # ⚠️ 判读落盘路径（**仓外**）—— 2026-11-11：分母要覆盖**所有**真跑的闸 ⇒ ⇒ 每道闸的结论都得落到同一份记录里 ⇒ ⇒ 收尾一步汇总成带分母的读数。
+      # ⚠️ 落在仓根会污染被测面（顶层对账闸会当场判红）⇒ ⇒ 用 RUNNER_TEMP。
+      # ⚠️ 落盘路径**不能**用表达式上下文（job 级 env 里不可用 ⇒ ⇒ 整个 workflow 文件会被拒绝加载 ⇒ ⇒ run 零 job 失败）。
+      - name: 准备判读落盘路径（仓外）
+        run: echo "GATE_RESULT_FILE=$RUNNER_TEMP/gate-results.ndjson" >> "$GITHUB_ENV"
       - name: Checkout
         uses: actions/checkout@v7
 
@@ -684,8 +711,14 @@ jobs:
       # Dart 侧 start/stop 接线 —— 三处少一处就是「写着常驻、其实不常驻」，
       # 且失败模式都静默 ⇒ 文本层判形状（判据见 scripts/lib/mobile-background-service.mjs）。
       - name: Mobile background-service contract check
-        run: node scripts/check-mobile-background-service.mjs
+        run: node scripts/run-gate-once.mjs --strict scripts/check-mobile-background-service.mjs
 
+
+      # ⚠️ 收尾：把这一盏灯「绿得有多真」写出来 —— 这一盏灯里**所有**真跑的闸
+      #    都落了判读 ⇒ ⇒ 这里汇总成**带分母的读数**（真判 N ｜ 判不了 K ｜ 红 M）
+      #    ⇒ ⇒ 「判不了」不当红（它不是「有问题」）⇒ ⇒ 但也不当绿（它不是「没问题」）。
+      - name: 判读汇总（带分母的绿灯）
+        run: node scripts/lib/gate-tally.mjs --report
   mobile-test:
     name: Mobile Test
     runs-on: ubuntu-latest
@@ -790,6 +823,12 @@ jobs:
     name: PS1 Portability (Windows PowerShell 5.1)
     runs-on: windows-latest
     steps:
+      # ⚠️ 判读落盘路径（**仓外**）—— 2026-11-11：分母要覆盖**所有**真跑的闸 ⇒ ⇒ 每道闸的结论都得落到同一份记录里 ⇒ ⇒ 收尾一步汇总成带分母的读数。
+      # ⚠️ 落在仓根会污染被测面（顶层对账闸会当场判红）⇒ ⇒ 用 RUNNER_TEMP。
+      # ⚠️ 落盘路径**不能**用表达式上下文（job 级 env 里不可用 ⇒ ⇒ 整个 workflow 文件会被拒绝加载 ⇒ ⇒ run 零 job 失败）。
+      - name: 准备判读落盘路径（仓外）
+        shell: bash
+        run: echo "GATE_RESULT_FILE=$RUNNER_TEMP/gate-results.ndjson" >> "$GITHUB_ENV"
       - name: Checkout
         uses: actions/checkout@v7
 
@@ -806,7 +845,7 @@ jobs:
         run: node scripts/check-ps1-portability.mjs --self-test
 
       - name: PS1 portability check
-        run: node scripts/check-ps1-portability.mjs
+        run: node scripts/run-gate-once.mjs --strict scripts/check-ps1-portability.mjs
 
   # ── YAML 合法性闸 ──────────────────────────────────────────────────
   # ⚠️ 2026-11-05：兄弟仓 telencephalon 的 workflow 曾因为 step 名里带冒号
@@ -814,11 +853,22 @@ jobs:
   # ⇒ ⇒ **整个 workflow 起不来**（GitHub 连 job 都进不去）⇒ ⇒ 而 CI 因账号
   # 额度本来就红 ⇒ ⇒ 没人看见 ⇒ ⇒ 病根不是「那行写错了」，是「CI 的 YAML
   # 从来没有被任何东西解析过」⇒ ⇒ 于是它被收成一道闸。
+
+      # ⚠️ 收尾：把这一盏灯「绿得有多真」写出来 —— 这一盏灯里**所有**真跑的闸
+      #    都落了判读 ⇒ ⇒ 这里汇总成**带分母的读数**（真判 N ｜ 判不了 K ｜ 红 M）
+      #    ⇒ ⇒ 「判不了」不当红（它不是「有问题」）⇒ ⇒ 但也不当绿（它不是「没问题」）。
+      - name: 判读汇总（带分母的绿灯）
+        run: node scripts/lib/gate-tally.mjs --report
   yaml-validity:
     name: YAML validity (workflows)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      # ⚠️ 判读落盘路径（**仓外**）—— 2026-11-11：分母要覆盖**所有**真跑的闸 ⇒ ⇒ 每道闸的结论都得落到同一份记录里 ⇒ ⇒ 收尾一步汇总成带分母的读数。
+      # ⚠️ 落在仓根会污染被测面（顶层对账闸会当场判红）⇒ ⇒ 用 RUNNER_TEMP。
+      # ⚠️ 落盘路径**不能**用表达式上下文（job 级 env 里不可用 ⇒ ⇒ 整个 workflow 文件会被拒绝加载 ⇒ ⇒ run 零 job 失败）。
+      - name: 准备判读落盘路径（仓外）
+        run: echo "GATE_RESULT_FILE=$RUNNER_TEMP/gate-results.ndjson" >> "$GITHUB_ENV"
       - name: Checkout shadow
         uses: actions/checkout@v7
 
@@ -834,18 +884,29 @@ jobs:
         run: node scripts/check-yaml-valid.mjs --self-test
 
       - name: Workflow YAML check
-        run: node scripts/check-yaml-valid.mjs
+        run: node scripts/run-gate-once.mjs --strict scripts/check-yaml-valid.mjs
 
   # ── 账本圈码闸 ─────────────────────────────────────────────────────
   # ⚠️ 账本里的「圈码」是**条目的身份证** ⇒ ⇒ 撞号 ⇒ ⇒ 引用变歧义 ⇒ ⇒
   #    连累别的闸红（2026-11-05 真机事故：两条都写 U+33A0）。
   # ⚠️ **注解与真实码位不符**是同一族的第二种形态（实测五条：注解写
   #    U+340x，字符其实是 U+334x）⇒ ⇒ 「已登记」不等于「已修好」。
+
+      # ⚠️ 收尾：把这一盏灯「绿得有多真」写出来 —— 这一盏灯里**所有**真跑的闸
+      #    都落了判读 ⇒ ⇒ 这里汇总成**带分母的读数**（真判 N ｜ 判不了 K ｜ 红 M）
+      #    ⇒ ⇒ 「判不了」不当红（它不是「有问题」）⇒ ⇒ 但也不当绿（它不是「没问题」）。
+      - name: 判读汇总（带分母的绿灯）
+        run: node scripts/lib/gate-tally.mjs --report
   ledger-codepoints:
     name: Ledger codepoints (账本圈码)
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      # ⚠️ 判读落盘路径（**仓外**）—— 2026-11-11：分母要覆盖**所有**真跑的闸 ⇒ ⇒ 每道闸的结论都得落到同一份记录里 ⇒ ⇒ 收尾一步汇总成带分母的读数。
+      # ⚠️ 落在仓根会污染被测面（顶层对账闸会当场判红）⇒ ⇒ 用 RUNNER_TEMP。
+      # ⚠️ 落盘路径**不能**用表达式上下文（job 级 env 里不可用 ⇒ ⇒ 整个 workflow 文件会被拒绝加载 ⇒ ⇒ run 零 job 失败）。
+      - name: 准备判读落盘路径（仓外）
+        run: echo "GATE_RESULT_FILE=$RUNNER_TEMP/gate-results.ndjson" >> "$GITHUB_ENV"
       - name: Checkout shadow
         uses: actions/checkout@v7
         with:
@@ -861,13 +922,13 @@ jobs:
         run: node scripts/check-ledger-codepoints.mjs --drill
 
       - name: Ledger codepoint check
-        run: node scripts/check-ledger-codepoints.mjs
+        run: node scripts/run-gate-once.mjs --strict scripts/check-ledger-codepoints.mjs
 
       - name: Ledger take-discipline self-test
         run: node scripts/check-ledger-codepoint-take.mjs --self-test
 
       - name: Ledger take-discipline check
-        run: node scripts/check-ledger-codepoint-take.mjs
+        run: node scripts/run-gate-once.mjs --strict scripts/check-ledger-codepoint-take.mjs
 
   # ── 跨仓 Legacy residue 闸（2026-11-06 改名前：Cortex 残留闸）──────
   # ⚠️ iBLOC 这套栈是**十几个独立 git 仓** ⇒ 闸只住在 shadow 仓的话，
@@ -880,6 +941,12 @@ jobs:
   #    **数据**（扫哪些目录 + 哪些 token 是真契约）⇒ 不会「一份实现两处写」。
   # ⚠️ 仓清单是**自动发现**的（扫工作区根下带 .git 的目录）⇒ 新仓自动纳入。
   # ⚠️ 未登记的仓 ⇒ **阻断**（「有闸但漏了仓」比「没有闸」更危险）。
+
+      # ⚠️ 收尾：把这一盏灯「绿得有多真」写出来 —— 这一盏灯里**所有**真跑的闸
+      #    都落了判读 ⇒ ⇒ 这里汇总成**带分母的读数**（真判 N ｜ 判不了 K ｜ 红 M）
+      #    ⇒ ⇒ 「判不了」不当红（它不是「有问题」）⇒ ⇒ 但也不当绿（它不是「没问题」）。
+      - name: 判读汇总（带分母的绿灯）
+        run: node scripts/lib/gate-tally.mjs --report
   legacy-residue-stack:
     name: Legacy residue (cross-repo)
     runs-on: ubuntu-latest
@@ -888,6 +955,11 @@ jobs:
       # 所有兄弟仓都是**私有**仓 ⇒ 默认 GITHUB_TOKEN 拿不到 ⇒ 必须用 PAT。
       IBLOC_TOKEN: ${{ secrets.IBLOC_TOKEN }}
     steps:
+      # ⚠️ 判读落盘路径（**仓外**）—— 2026-11-11：分母要覆盖**所有**真跑的闸 ⇒ ⇒ 每道闸的结论都得落到同一份记录里 ⇒ ⇒ 收尾一步汇总成带分母的读数。
+      # ⚠️ 落在仓根会污染被测面（顶层对账闸会当场判红）⇒ ⇒ 用 RUNNER_TEMP。
+      # ⚠️ 落盘路径**不能**用表达式上下文（job 级 env 里不可用 ⇒ ⇒ 整个 workflow 文件会被拒绝加载 ⇒ ⇒ run 零 job 失败）。
+      - name: 准备判读落盘路径（仓外）
+        run: echo "GATE_RESULT_FILE=$RUNNER_TEMP/gate-results.ndjson" >> "$GITHUB_ENV"
       - name: Require cross-repo token
         run: |
           if [ -z "$IBLOC_TOKEN" ]; then
@@ -1040,7 +1112,7 @@ jobs:
           node-version: '24'
 
       - name: Cross-repo Legacy residue check
-        run: node scripts/check-legacy-residue-all.mjs
+        run: node scripts/run-gate-once.mjs --strict scripts/check-legacy-residue-all.mjs
 
       - name: Cross-repo Legacy residue check (self-test)
         run: node scripts/check-legacy-residue-all.mjs --self-test
@@ -1053,7 +1125,7 @@ jobs:
       #    ⚠️ 闸认两种布局：兄弟仓在工作区**之外**（本机）/ **之内**（CI）
       #    ⇒ ⇒ CI 上找得到实现层。
       - name: OpenZiti v2 wire spec check
-        run: node scripts/check-ziti-v2-wire.mjs
+        run: node scripts/run-gate-once.mjs --strict scripts/check-ziti-v2-wire.mjs
 
       - name: OpenZiti v2 wire spec check (self-test)
         run: node scripts/check-ziti-v2-wire.mjs --self-test
@@ -1064,7 +1136,7 @@ jobs:
       #    workflow）⇒ ⇒ 而 YAML 解析器对重复键是**静默放过**的 ⇒ ⇒ 所以
       #    光「拿解析器过一遍」不够。
       - name: Cross-repo workflow YAML check
-        run: node scripts/check-yaml-valid.mjs --root=.
+        run: node scripts/run-gate-once.mjs --strict scripts/check-yaml-valid.mjs -- --root=.
 
       - name: Cross-repo workflow YAML check (self-test)
         run: node scripts/check-yaml-valid.mjs --self-test
@@ -1080,7 +1152,14 @@ jobs:
       #    在这里才判得了 ⇒ ⇒ 放在只 checkout 了 shadow 的 job 里 ⇒ ⇒
       #    它们只会「判不了」（绿灯但什么都没查）。
       - name: Gate discipline check
-        run: node scripts/check-gate-discipline.mjs --scope=wired
+        run: node scripts/run-gate-once.mjs --strict scripts/check-gate-discipline.mjs -- --scope=wired
 
       - name: Gate discipline check (self-test)
         run: node scripts/check-gate-discipline.mjs --self-test
+
+
+      # ⚠️ 收尾：把这一盏灯「绿得有多真」写出来 —— 这一盏灯里**所有**真跑的闸
+      #    都落了判读 ⇒ ⇒ 这里汇总成**带分母的读数**（真判 N ｜ 判不了 K ｜ 红 M）
+      #    ⇒ ⇒ 「判不了」不当红（它不是「有问题」）⇒ ⇒ 但也不当绿（它不是「没问题」）。
+      - name: 判读汇总（带分母的绿灯）
+        run: node scripts/lib/gate-tally.mjs --report
