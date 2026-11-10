@@ -8,6 +8,8 @@
 　❸ 改后（真 CI run 42720852662，同一 workflow、同一 token、同一检出清单）：「**15 道 ｜ 真判 11 ｜ 判不了 4 ｜ 红 0**」⇒ ⇒ 真判 **4 → 11**（**+7**）⇒ ⇒ 判不了 **11 → 4**。
 　❹ 改后剩 4 道，逐个点名与各自根因：cross-client（3 个子守卫判不了 —— jni-surface ／ apk-surface ＝ **产物级**（libencephalon.so 被 gitignore，干净 checkout 没有）＋ brain-route-surface ＝ **仍写死 ../telencephalon** ⇒ ⇒ 同族未接完）；cors-allowlist（要 **encephalon**（大脑仓）⇒ ⇒ workflow 只检出 telencephalon／hippocampus／neuron ⇒ ⇒ **没检出**）；msrv-floor（**真红灯**，见 ⑧❶）；publish-address（要 amygdala／temporal／occipital／parietal 四个叶区仓 ⇒ ⇒ CI 上没有）。
 　❺ ⇒ ⇒ **下一刀已把 ❹ 里 cors-allowlist 那一格收掉**：unwired-gates.yml 补一步「Checkout encephalon」（私有仓 ⇒ 同一个 token）⇒ ⇒ 真 CI run **42721494506** 逐字打出「**15 道 ｜ 真判 12 ｜ 判不了 3 ｜ 红 0**」⇒ ⇒ cors-allowlist **不再点名** ⇒ ⇒ 判不了只剩 **cross-client ／ msrv-floor ／ publish-address** 三道。
+　❻ ⇒ ⇒ **再下一刀把 publish-address 那一格也收掉** ⇒ ⇒ 分母到 **13/15**：① 同族闸接完布局（`b6de241`：publish-address ／ brain-route-surface ／ jni-surface ／ apk-surface ／ brain-chain 五道改走共享模块）⇒ ⇒ ② **`siblingRoot()` 的判据问错了对象**（`16f6cc5`）—— 它问「**父目录**在不在」，而 CI 上仓外那一层**永远存在**（它就是 workspace 的父级）⇒ ⇒ 于是永远选仓外 ⇒ ⇒ 修法：拿**具体那个仓**去问 ⇒ ⇒ 自检 **15/15**（＋1 条**正是 CI 那格**的反例）⇒ ⇒ 反向验证改回旧写法**恰 2 红**；③ workflow 补检出 **synapse**（**公开仓** ⇒ 不用 token）⇒ ⇒ 真 CI run **42747191676** 逐字「**15 道 ｜ 真判 13 ｜ 判不了 2 ｜ 红 0**」⇒ ⇒ publish-address **不再点名**。
+　❼ ⇒ ⇒ ⇒ **分母轨迹（同一 workflow、同一 token）**：**4/15 → 11/15 → 12/15 → 13/15** ⇒ ⇒ 逐轮都有 run 号可查（42718647744 → 42720852662 → 42721494506 → 42747191676）⇒ ⇒ 这 9 道闸此前**从来没在 CI 上判过**。
 　❺ ⇒ ⇒ ⇒ **推论**：那 11 道「判不了」里，**至少 7 道**的根因是**布局**（兄弟仓在仓内 vs 仓外）⇒ ⇒ 改布局即从「没验成」变「验成了」⇒ ⇒ **覆盖面从 4/15 抬到 11/15**。
 
 ② **⚠️ 第一因：兄弟仓有**两种布局**，而定位逻辑**被抄成了 N 份**
@@ -37,10 +39,11 @@
 　❷ **管道会吞退出码**：把 node 的输出管到 Select-Object 之后，$LASTEXITCODE 变成**上一个** native 命令的值 ⇒ ⇒ 10 道闸自检明明全绿却报 **EXIT=1** ⇒ ⇒ 症状长得像「改坏了」⇒ ⇒ 改法：先捕获输出、再立刻取 $LASTEXITCODE。
 　❸ **改了定位就会露红**：msrv-floor 一旦能定位到 manifest，就从「判不了」变成**真判红**（见 ⑧❶）⇒ ⇒ 「修好一个洞」的代价可能是**点亮一盏真红灯** ⇒ ⇒ 要连着判断，不许只做前半截。
 　❹ **改共享文件要造两份面**（承前）：提交面＝HEAD ＋ 我的增量；共享索引＝对方的在飞内容 ＋ 我的增量。
+　❻ ⚠️⚠️ **「目录存在」≠「那个东西在那个目录里」** —— 这一条最要紧：`siblingRoot()` 原来问「**父目录**在不在」⇒ ⇒ CI 上仓外那一层（`/home/runner/work/shadow`）**永远存在**（它就是 workspace 的父级）⇒ ⇒ 于是**永远**选仓外 ⇒ ⇒ 拼出仓外路径 ⇒ ⇒ 退出码 2 ⇒ ⇒ 而那 14/14 自检**全绿没发现它**（自检问的是「父目录在不在」，与 CI 上那一格**同形** ⇒ ⇒ 测的是「环境恰好没变」）⇒ ⇒ ⇒ **通用形态：判据问的对象错了 ⇒ ⇒ 恒真 ⇒ ⇒ 自检也跟着恒真 ⇒ ⇒ 「修法恒绿」** ⇒ ⇒ 修法：拿**具体那个仓**去问 ⇒ ⇒ 并补一条**正是 CI 那格**的反例（仓外只有目录、**没有那个仓** ⇒ ⇒ 取仓根）⇒ ⇒ 自检 **15/15**，反向验证改回旧写法**恰 2 红**。
 　❺ ⚠️⚠️ **两份面还不够 —— 共享文件（台账）的增量必须同时落进「工作树」**：本条第一次提交（`ac709bc`）只落了**提交树** ＋ **共享索引** ⇒ ⇒ 工作树文件里**没有**本条 ⇒ ⇒ 随后并行会话按它自己的工作树**整篇重写** AGENTS.md（`d615a1b`，53+/170−）⇒ ⇒ 本条被**静悄悄撤掉**（提交面回退闸**只提示不判红**）⇒ ⇒ ⇒ **通用形态：共享文件的增量只落在「索引/提交树」而没落进「工作树」⇒ ⇒ 对方从工作树整篇重写时就会把它抹掉 ⇒ ⇒ 增量必须落在**三面**（工作树／提交树／共享索引）**。**
 
 ⑦ **✅ 判据与分级读数（全部实测）**
-　❶ **判据级**：新模块 `--self-test` **14/14**（EXIT=0）。
+　❶ **判据级**：新模块 `--self-test` **14/14**（EXIT=0）⇒ ⇒ 修 siblingRoot 后 **15/15**（EXIT=0）＋ **反向验证恰 2 红**（把判据改回「只问父目录」⇒ ⇒ 红的那两条正是新旧分歧点）⇒ ⇒ 还原回满。
 　❷ **本机级**：10 道闸 `--self-test` **全绿**（9/9、10/10、13/13、13/13、15/15、10/10、8/8、7/7、22/22、13/13）＋ 10 道闸真跑 **全 EXIT=0**（读数逐条未变：bind-exposure 扫 246 个 .rs、cors-allowlist 扫 246 个源文件、provider-admin-headers 22/22、tool-interception 已知缺口 5 条）。
 　❸ **真 CI 级**：run **42720852662** ＝ **success**，收尾一步逐字打出「**⇒ ⇒ 闸的判读：15 道 ｜ 真判 11 ｜ 判不了 4 ｜ 红 0**」＋ 逐个点名 4 道判不了；同一 job 里新尺子自检 **11/11 全 PASS**。
 　❸⚠️ **续刀（`56c9f7a`）**：补检出大脑仓后，run **42721494506** ＝ success，逐字「**15 道 ｜ 真判 12 ｜ 判不了 3 ｜ 红 0**」（cors-allowlist 已真判）；再一轮 run **42745051349**（head 701c26f）＝ success，读数**逐字相同**（「15 道 ｜ 真判 12 ｜ 判不了 3 ｜ 红 0」）⇒ ⇒ 那一格**稳住了**，不是偶然。
@@ -50,8 +53,8 @@
 ⑧ **⚠️ 仍然欠着的**
 　❶ **msrv-floor 那一格是「真红灯」，不是判不了**：本机真跑（定位到 shadow-desktop/src-tauri/Cargo.toml）⇒ ⇒ **VERDICT: FAIL (7 项)**：generator 0.8.12 ／ sysinfo 0.39.6 ／ windows-{core,implement,interface,result,strings} 0.100.0 全都要求 **1.95**，而自有 crate 声明 **1.94** ⇒ ⇒ 那道闸自己的注释就写着「1.94 这个地板在真实依赖图上随时会碎」⇒ ⇒ **它已经碎了**。
 　❷ ⚠️ **为什么这一刀没动它**：地板 **1.94 是跨仓约定**（hippocampus ／ telencephalon ／ encephalon 同声明）⇒ ⇒ 单方面抬本仓地板会造成**跨仓漂移**；降依赖（那 7 个包）又没有**编译级读数**（本机桌面端 Rust 侧无编译读数）⇒ ⇒ ⇒ 这是**要主人拍板**的那一格 ⇒ ⇒ 登记为明账，不在这一刀动。
-　❸ **同族闸还没接完**：仍写死仓外路径的还有 brain-route-surface ／ jni-surface ／ apk-surface ／ brain-chain ／ external-tools ／ neuron-ownership ／ publish-address ／ ziti-v2-wire ⇒ ⇒ **下一刀**。
-　❸⚠️ **但「同族接完」这一格收益有限** —— 实测：cross-client 的 5 个子守卫里 **jni-surface ／ apk-surface 是产物级**（要 libencephalon.so ＋ APK，被 gitignore）⇒ ⇒ 那 3 个子守卫在 CI 的干净 checkout 上**必然**判不了 ⇒ ⇒ 把 brain-route-surface 接完也**解不开** cross-client ⇒ ⇒ 那一格只能**在装了产物的机器上**取读数。
+　❸ **同族闸接完了**（`b6de241`）：brain-route-surface ／ jni-surface ／ apk-surface ／ brain-chain ／ publish-address 五道已改走共享模块 ⇒ ⇒ 剩下仍写死仓外路径的只有 neuron-ownership（**在飞件，属并行会话** ⇒ ⇒ 我不代改）与 ziti-v2-wire（未接进那 15 道 ⇒ ⇒ 不影响分母）。
+　❸⚠️ **但「同族接完」这一格收益有限** —— 实测：cross-client 的 5 个子守卫里 **jni-surface ／ apk-surface 是产物级**（要 libencephalon.so ＋ APK，被 gitignore）⇒ ⇒ 那 2 个子守卫在 CI 的干净 checkout 上**必然**判不了 ⇒ ⇒ 把 brain-route-surface 接完也**解不开** cross-client ⇒ ⇒ 那一格只能**在装了产物的机器上**取读数 ⇒ ⇒ **它是剩下的 2 道判不了之一，且不是布局问题**。
 　❹ **workflow 缺两个检出**：**encephalon**（大脑仓 ⇒ cors-allowlist 要它）＋ 四个叶区仓（amygdala／temporal／occipital／parietal ⇒ publish-address 要它们）⇒ ⇒ 不检出 ⇒ ⇒ 判不了。
 　❺ **产物级闸在 CI 上永远判不了**：jni-surface ／ apk-surface 要 libencephalon.so ＋ APK（被 gitignore）⇒ ⇒ CI 干净 checkout 没有 ⇒ ⇒ 那一格**只能**在装了产物的机器上取读数。
 　❻ ⚠️ **上一笔 1460b65 的处置**：那笔提交（57+/0−）把并行会话**整条在飞台账**一并带进了提交面 ⇒ ⇒ **不重做**（重做＝把对方内容从提交树删掉再由对方加回 ⇒ ⇒ 制造冲突而无收益）⇒ ⇒ 事实是「**提前进入提交树**」而非「丢失」⇒ ⇒ 已回执对方。
