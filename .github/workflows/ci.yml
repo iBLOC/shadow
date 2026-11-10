@@ -411,7 +411,12 @@ jobs:
       #    ⇒ ⇒ 「Unwired Gates」那一盏灯已经有分母（真判 N ｜ 判不了 K ｜ 红 M），
       #    ⇒ ⇒ 主 CI 这一盏还没有 ⇒ ⇒ 同一个洞在两个地方各开一次。
       #    ⇒ ⇒ 这里让每道闸的结论往这里落一行，收尾一步汇总成带分母的读数。
-      GATE_RESULT_FILE: ${{ github.workspace }}/.gate-results.ndjson
+      # ⚠️ **落在 runner.temp（仓外），不是 workspace（仓根）** —— 2026-11-11 真 CI 实测
+      #    （run 42750340522）：落在仓根 ⇒ ⇒ 顶层对账闸（legacy residue）看到
+      #    「仓根多出一个没人交代的文件 .gate-results.ndjson」⇒ ⇒ 判红
+      #    ⇒ ⇒ **Desktop Build job 红在 Legacy residue check 那一步**（本机已复现逐字同形）。
+      # ⇒ ⇒ ⇒ **闸的判读落盘不许进 checkout** ⇒ ⇒ 产物不许污染被测面。
+      GATE_RESULT_FILE: ${{ runner.temp }}/gate-results.ndjson
     steps:
       - name: Checkout
         uses: actions/checkout@v7

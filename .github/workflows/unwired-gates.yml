@@ -45,7 +45,9 @@ jobs:
       #    ⇒ ⇒ 修法：把 secret 映射到**作业级 env** ⇒ ⇒ `if:` 只引用 env 上下文。
       IBLOC_TOKEN: ${{ secrets.IBLOC_TOKEN }}
       # ⚠️ **绿灯要带分母** —— 每道闸的结论往这里落一行，收尾一步汇总。
-      GATE_RESULT_FILE: ${{ github.workspace }}/.gate-results.ndjson
+      # ⚠️ **落在 runner.temp（仓外），不是 workspace（仓根）** —— 判读落盘不许进
+      #    checkout：仓根多一个没人交代的文件 ⇒ ⇒ 顶层对账闸会判红（见 ci.yml 同款）。
+      GATE_RESULT_FILE: ${{ runner.temp }}/gate-results.ndjson
     steps:
       - name: Checkout shadow
         uses: actions/checkout@v7
