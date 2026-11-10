@@ -187,6 +187,70 @@ function Test-InstallHasRoom {
     $required = [long]([Math]::Ceiling($ApkBytes * 1.5))
     return [pscustomobject]@{ Known = $true; Ok = ($FreeBytes -ge $required); Required = $required; Free = $FreeBytes; Margin = ($FreeBytes - $required) }
 }
+# ---- 第四档前置体检：锁屏这一格（2026-11-11 实测补）--------------------------
+function Test-DeviceCanShowInstallDialog {
+    <#
+      这台设备**此刻**能不能让 MIUI 的「继续安装」弹窗**拿到焦点** ⇒ ⇒ 能不能装。
+
+      ⚠️⚠️ 为什么要有第四档 —— 实测（2026-11-11，MI_MAX_2 / Android 7.1 / MIUI V11）：
+      ⇒ ⇒ ① 设备**锁着**（mWakefulness=Asleep ＋ mShowingLockscreen=true）
+      ⇒ ⇒ ② 装机守门员**全程零命中**（它盯的焦点窗口从来没落到确认框上）
+      ⇒ ⇒ ③ adb install 与 pm install -r -g **两条路都**报同一个错：
+      ⇒ ⇒    INSTALL_FAILED_USER_RESTRICTED: Install canceled by user
+      ⇒ ⇒ ④ 而 adb_install_need_confirm（secure 与 global）**本来就是 0**
+      ⇒ ⇒    ⇒ ⇒ **那不是「没关确认开关」，是「弹窗根本弹不到前台」**
+      ⇒ ⇒ ⑤ wm dismiss-keyguard ／ input keyevent 82 ／ input swipe **全部无效**
+      ⇒ ⇒    ⇒ ⇒ 那是 **secure keyguard** ⇒ ⇒ 需要**设备主人解锁**（物理动作）
+
+      ⇒ ⇒ ⇒ ⇒ **通用形态：错误码只说「被用户取消」，但真因是「弹窗没机会出现」**
+      ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ **⇒ 这一档必须在「传 200MB 之前」问掉**，
+      ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ **⇒ 否则失败长得像「网络慢」**（而它其实是锁屏）。
+
+      ⚠️ **三档读数**（不许只有「行／不行」两个值）：
+        · Ready    —— 亮着 ＋ 没锁屏 ⇒ ⇒ 弹窗能拿到焦点 ⇒ ⇒ 守门员能点到
+        · Locked   —— 锁着（secure keyguard）⇒ ⇒ **需要设备主人解锁**（物理动作）
+        · Asleep   —— 没锁但设备在休眠 ⇒ ⇒ 先点亮（input keyevent 224）
+        · Unknown  —— 读不到状态 ⇒ ⇒ **判不出来** ⇒ ⇒ 不许当成 Ready
+    #>
+    param([string]$Wakefulness, [string]$LockScreen, [string]$KeyguardDismissable)
+
+    $wake = if ($Wakefulness) { $Wakefulness.Trim() } else { '' }
+    $lock = if ($LockScreen) { $LockScreen.Trim() } else { '' }
+    $dismissable = if ($KeyguardDismissable) { $KeyguardDismissable.Trim() } else { '' }
+
+    if (-not $wake -or -not $lock) {
+        return [pscustomobject]@{
+            Known = $false; Ready = $false; State = 'Unknown'
+            Wakefulness = $wake; LockScreen = $lock
+            Reason = '读不到唤醒/锁屏状态 ⇒ ⇒ 判不出来（不许当成 Ready）'
+        }
+    }
+
+    $isLocked = ($lock -match 'true')
+    $isAsleep = ($wake -match 'Asleep|Dozing')
+    $canDismiss = ($dismissable -match 'true')
+
+    if ($isLocked -and -not $canDismiss) {
+        return [pscustomobject]@{
+            Known = $true; Ready = $false; State = 'Locked'
+            Wakefulness = $wake; LockScreen = $lock
+            Reason = '设备锁着（secure keyguard）⇒ ⇒ 确认框弹不到前台 ⇒ ⇒ adb 关不掉 ⇒ ⇒ 需要设备主人解锁（物理动作）'
+        }
+    }
+    if ($isAsleep) {
+        return [pscustomobject]@{
+            Known = $true; Ready = $false; State = 'Asleep'
+            Wakefulness = $wake; LockScreen = $lock
+            Reason = '设备在休眠 ⇒ ⇒ 弹窗弹不到前台 ⇒ ⇒ 先点亮（input keyevent 224）＋ 拉高 screen_off_timeout'
+        }
+    }
+    return [pscustomobject]@{
+        Known = $true; Ready = $true; State = 'Ready'
+        Wakefulness = $wake; LockScreen = $lock
+        Reason = '亮着且没锁屏 ⇒ ⇒ 弹窗能拿到焦点 ⇒ ⇒ 守门员点得到'
+    }
+}
+
 function Invoke-MobileUseParserSelfCheck {
     <#
       用**真机抓来的样本**把上面三个判据钉一遍。
@@ -328,6 +392,18 @@ adb: failed to install /tmp/x.apk: Failure [INSTALL_FAILED_NO_MATCHING_ABIS: Fai
     $cases += @{ Name = '空间：够 ⇒ 判为装得下'; Ok = ($room.Known -and $room.Ok); Detail = ('需要=' + $room.Required + ' 可用=' + $room.Free) }
     $room = Test-InstallHasRoom -ApkBytes 0 -FreeBytes 5000
     $cases += @{ Name = '空间：读不到 APK 大小 ⇒ 判不出来'; Ok = (-not $room.Known); Detail = ('Known=' + $room.Known) }
+    # ---- sample J/K: lock-screen gate (2026-11-11 MI_MAX_2 real device) ----
+    # TWIN PAIR: same reading, only the lockscreen item differs => one says Locked, one says Ready
+    # => proves this gate really reads the lockscreen, not a constant.
+    $d = Test-DeviceCanShowInstallDialog -Wakefulness 'Awake' -LockScreen 'true mShowingDream=false' -KeyguardDismissable 'false'
+    $cases += @{ Name = 'lockscreen: awake but LOCKED (keyguard cannot be dismissed) => Locked (owner must unlock)'; Ok = ($d.Known -and -not $d.Ready -and $d.State -eq 'Locked'); Detail = ('State=' + $d.State) }
+    $d = Test-DeviceCanShowInstallDialog -Wakefulness 'Awake' -LockScreen 'false' -KeyguardDismissable 'true'
+    $cases += @{ Name = 'lockscreen twin: same device NOT locked => Ready (dialog can take focus)'; Ok = ($d.Known -and $d.Ready -and $d.State -eq 'Ready'); Detail = ('State=' + $d.State) }
+    $d = Test-DeviceCanShowInstallDialog -Wakefulness 'Asleep' -LockScreen 'false' -KeyguardDismissable 'true'
+    $cases += @{ Name = 'asleep: not locked but device asleep => Asleep (wake it first)'; Ok = ($d.Known -and -not $d.Ready -and $d.State -eq 'Asleep'); Detail = ('State=' + $d.State) }
+    # NEGATIVE CONTROL: cannot read state => Unknown (must NOT be treated as Ready)
+    $d = Test-DeviceCanShowInstallDialog -Wakefulness '' -LockScreen '' -KeyguardDismissable ''
+    $cases += @{ Name = 'cannot read wake/lockscreen state => Unknown (must NOT be Ready)'; Ok = (-not $d.Known -and -not $d.Ready -and $d.State -eq 'Unknown'); Detail = ('State=' + $d.State + ' Known=' + $d.Known) }
     $failures = @()
     foreach ($c in $cases) { if (-not $c.Ok) { $failures += ($c.Name + ' ⇒ ' + $c.Detail) } }
     return [pscustomobject]@{ Ok = ($failures.Count -eq 0); Cases = $cases; Failures = $failures }

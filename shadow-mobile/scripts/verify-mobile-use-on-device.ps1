@@ -111,6 +111,35 @@ Write-Host "== 设备 $DeviceId =="
 # ⇒ ⇒ ③ **设备策略闸**（MIUI「USB 安装」/ One UI「通过 USB 安装应用」）
 # ⇒ ⇒ ⇒ ⇒ 只有**物理开关**能解 ⇒ ⇒ 而脚本只能报错 ⇒ ⇒ 报错时得说清是哪一类的闸
 # ⇒ ⇒ ⇒ 否则症状（无障碍没绑上）离根因隔了三层 ⇒ ⇒ ⇒ 又是「失败长得像成功」。
+# ---- 前置体检第四档：锁屏（**2026-11-11 实测补**）----
+# ⚠️⚠️ 为什么排在最前 —— 实测（MI_MAX_2 / Android 7.1 / MIUI V11）：
+# ⇒ ⇒ 设备**锁着** ⇒ ⇒ MIUI 的「继续安装」弹窗**弹不到前台** ⇒ ⇒
+# ⇒ ⇒ `adb install` 与 `pm install` **两条路都**报 `INSTALL_FAILED_USER_RESTRICTED`
+# ⇒ ⇒ 而 `adb_install_need_confirm` **本来就是 0** ⇒ ⇒ 那不是「没关确认开关」
+# ⇒ ⇒ ⇒ ⇒ **⇒ 装机守门员全程零命中**（它盯的焦点窗口从没落到确认框上）
+# ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ **⇒ 根因＝secure keyguard ⇒ ⇒ adb 关不掉 ⇒ ⇒ 需要设备主人解锁**
+# ⇒ ⇒ ⇒ ⇒ **⇒ 不查这一档 ⇒ ⇒ 白花 200 秒传 200MB ⇒ ⇒ 失败长得像「网络慢」**
+$wakeText = ((& adb -s $DeviceId shell dumpsys power 2>$null) -join "`n")
+$wakeLine = ($wakeText -split "`n" | Where-Object { $_ -match 'mWakefulness=' } | Select-Object -First 1)
+$lockText = ((& adb -s $DeviceId shell dumpsys window 2>$null) -join "`n")
+$lockLine = ($lockText -split "`n" | Where-Object { $_ -match 'mShowingLockscreen=' } | Select-Object -First 1)
+$policyText = ((& adb -s $DeviceId shell dumpsys window policy 2>$null) -join "`n")
+$dismissLine = ($policyText -split "`n" | Where-Object { $_ -match 'mCurrentlyDismissingKeyguard=' } | Select-Object -First 1)
+$screenGate = Test-DeviceCanShowInstallDialog -Wakefulness $wakeLine -LockScreen $lockLine -KeyguardDismissable $dismissLine
+if ($screenGate.Known) {
+    Write-Host ('== 前置体检：锁屏这一档 => ⇒ ' + $screenGate.State + '（wakefulness=' + $screenGate.Wakefulness + '）==')
+    if (-not $screenGate.Ready) {
+        Write-Host ('!! 前置体检不过：' + $screenGate.Reason)
+        if ($screenGate.State -eq 'Locked') {
+            Write-Host '   ⇒ ⇒ 这一档**脚本解决不了** ⇒ ⇒ 需要**设备主人解锁**（物理动作）⇒ ⇒ 之后再跑本脚本'
+        } else {
+            Write-Host '   ⇒ ⇒ 先把设备点亮（adb shell input keyevent 224）＋ 拉高 screen_off_timeout ⇒ ⇒ 再跑本脚本'
+        }
+        exit 1
+    }
+} else {
+    Write-Host '== 前置体检：锁屏这一档 ⇒ ⇒ **判不出来** ⇒ ⇒ 不当成「可以装」（继续往下走，但报出来）=='
+}
 $preApk = Join-Path $mobileRoot 'build\app\outputs\flutter-apk\app-debug.apk'
 if (Test-Path -LiteralPath $preApk) {
     $preApkBytes = (Get-Item -LiteralPath $preApk).Length
