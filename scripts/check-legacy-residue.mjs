@@ -19,7 +19,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { runGate, runSelfTest } from './lib/legacy-residue.mjs';
-import { checkTopLevelCoverage, renderCoverage } from './lib/coverage-reconciliation.mjs';
+import { checkTopLevelCoverage, renderCoverage, coverageSelfTest } from './lib/coverage-reconciliation.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -219,7 +219,12 @@ console.log(line);
 if (process.argv.includes('--self-test')) {
   const r = runSelfTest({ ...ROOT_OPTS, label: 'shadow（仓根）' });
   console.log(r.out);
-  process.exit(r.code);
+  // ⚠️ 判据库自己的自检（覆盖面那一格）—— 2026-11-11 之前它**导出了但从没被调用**
+  //    ⇒ ⇒ 「闸的自检」没自证覆盖面 ⇒ ⇒ 死代码；接线后两份自检一起跑，退出码取严。
+  const c = coverageSelfTest();
+  console.log('');
+  console.log(c.out);
+  process.exit(Math.max(r.code, c.code));
 }
 
 let failed = 0;
