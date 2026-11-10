@@ -33,13 +33,13 @@
 　❶ **判据级**：`--self-test` 残留 **5/5** ＋ 覆盖面 **9/9**，EXIT=0。
 　❷ **闸级回归（本地布局）**：修后全闸 vs 修前基线**逐行一致**（Compare-Object 零差异；EXIT=1 同因＝兄弟 4 个根级散件 `fixed-*.rlib` 等，与本刀无关、CI 上不存在）。
 　❸ **闸级 CI 布局模拟**（junction 农场：shadow 10 目录 junction＋6 文件＋14 兄弟仓 junction＝30 条目）：**EXIT=0**，「全部 4 个范围通过」，检出仓 **14 条逐字点名**（amygdala／diencephalon／encephalon／hengjian／hippocampus／lance-graph／neuron／occipital／parietal／prefrontal／synapse／telencephalon／temporal／ziti-rust，与 composite 检出清单一一对应），「✓ 顶层对账：30/30 个顶层条目都有交代」。
-　❹ **真 CI 级**：run 42816490874（@4e551a4）＝ 在跑 ⇒ ⇒ **结论未出** ⇒ ⇒ 不写绿。
+　❹ **真 CI 级（已回填 2026-11-10T12:49Z）**：run 42816490874（@4e551a4）＝ **completed=failure 带完整分母**（非 cancelled）—— step 12 ＝ **success**（CI 日志逐字：「检出仓（顶层目录含 .git ⇒ 独立 git 仓 ⇒ 动态豁免，由它们自己的闸管）:」＋「✓ 顶层对账：31/31 个顶层条目都有交代」）｜ step 13–15（JNI／APK／Brain chain）全绿 ｜ **红灯前移到 step 16 Neuron ownership check ＝ failure —— 脑闸第一次真判**：11 项既存违规逐字点名＝ hippocampus 7（N1×1／N5×2／N10×2／N13×2）＋ N14×3（telencephalon/src/boot.rs 2＋shadow-desktop telencephalon_http.rs 1）＝ **已知欠账归属逐条吻合，非本刀回归** ｜ 复跑 run 42817762314（@496dd55，含台账笔）同图景复现：step 12 success／step 16 failure／**Ledger codepoints job ＝ success**。
 
 ⑦ **⚠️ 仍然欠着的**
 　❶ 模拟场清理被权限闸拦（留在 `.local/ci-layout-sim`，gitignored）。
 　❷ 跨仓闸的「顶层交代」仍是内联判据 ⇒ 接进本库是欠账（库头已记）。
 　❸ 动态档的边界：它只接「没人交代且含 .git」——若哪天某检出目录不再含 .git（子仓合并／检出方式改变），它会重新变成缺口 ⇒ ⇒ 闸红是对的（事实变了，判据照实报）。
-　❹ 真 CI 那一格待取；取到后再回填。
+　❹ 真 CI 那一格**已回填**（见 ⑥❹）⇒ 本刀在真 CI 上闭合；余下红灯全在已知欠账的归属线上（hippocampus 7 归 hippocampus 线、N14 归端脑线／兄弟在飞那笔）。
 
 ⑧ **⚠️ 圈码：本条占 U+34FE（㓾）** —— 插前**当场重扫 12 面**（父仓／移动端／桌面端 × 工作树／索引／HEAD／origin/master；官方判据 `extractEntries`，**声明与提及分开**、码位按**十六进制**计；⚠️ spawnSync 要带 maxBuffer=64MB，否则父仓账本 blob 撑爆默认 1MB ⇒ 四面假性「不可读」）⇒ ⇒ **取样时刻 2026-11-10T12:36:41.566Z ｜ HEAD `4e551a4`**（读数自带时刻与 sha ⇒ ⇒ 过期可被证伪）⇒ ⇒ 读数：可读 **12/12**、**全 12 面最高已声明 U+34FD（㓽）**（兄弟 `840cdda` 刚落；⚠️ 他们工作树面的父仓台账还是旧基线（383 条／最高 U+34FC）——「读数自带面与时刻」这条纪律再次显灵）⇒ ⇒ 自然下一枚 **U+34FE** ⇒ ⇒ **插前扫：U+34FE 十二面 decl=0 ／ men=0** ✔ ⇒ ⇒ 空闲 ✔ ⇒ ⇒ ⚠️ **不填历史空洞**（U+34FE 高于全历史最高已声明 ⇒ ⇒ 无空洞）。
 
