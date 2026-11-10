@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { invoke } from '@tauri-apps/api/core'
+import { formatCuError } from '@/lib/cuErrors'
 
 export type ComputerUseAction =
   | { kind: 'mouse_click'; x: number; y: number; button: 'left' | 'right' | 'middle' }
@@ -111,7 +112,11 @@ export function ComputerUsePendingModal({
     } catch (e) {
       // Surface the error in the console for v1; a richer error
       // path (re-prompt with "Action failed: <reason>") is P2.
-      console.error('cu_* action failed', e)
+      //
+      // ⚠️ cu_* 的失败现在带**投递判定**（code/message/disposition）⇒ ⇒
+      // 打印时把判定也带上 ⇒ ⇒ 「可能已经落地」这件事在日志里看得见
+      // ⇒ ⇒ 不会再出现「失败长得像什么都没发生」。
+      console.error(`cu_* action failed: ${formatCuError(e)}`, e)
     } finally {
       onResolved()
     }

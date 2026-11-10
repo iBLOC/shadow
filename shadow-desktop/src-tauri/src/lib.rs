@@ -518,6 +518,14 @@ pub fn run() {
             computer_use::cu_read_ui_text,
             #[cfg(target_os = "windows")]
             computer_use::cu_set_ui_value,
+            #[cfg(target_os = "windows")]
+            computer_use::cu_snapshot_ui_tree,
+            #[cfg(target_os = "windows")]
+            computer_use::cu_click_ui_by_ref,
+            #[cfg(target_os = "windows")]
+            computer_use::cu_read_ui_by_ref,
+            #[cfg(target_os = "windows")]
+            computer_use::cu_set_ui_value_by_ref,
             provider_manager::provider_presets,
             provider_manager::provider_list,
             provider_manager::provider_add_preset,

@@ -154,6 +154,58 @@ const ALLOWED_DIVERGENCES = [
     status: 'accepted',
     reason: '同上 —— 手机独有的能力（返回 / 桌面 / 最近任务等系统动作）。',
   },
+  // ── 电脑操作（computer-use，桌面独有）────────────────────────
+  // ⚠️ 桌面端**有** computer-use —— 但它操作的是「**这台电脑**的屏幕与鼠标」，
+  // 不是「**这台手机**」⇒ ⇒ 语义不同，不是同一个工具 ⇒ ⇒ 端侧专属差异。
+  // ⇒ ⇒ 而且这一族走的是 **Windows UI Automation（无障碍树）** ——
+  // 手机上没有 UIA ⇒ ⇒ 移动端做不出这四个（不是忘了做）。
+  {
+    tool: 'cu_list_ui_elements',
+    end: 'mobile',
+    status: 'accepted',
+    reason:
+      '✅ 产品决定（2026-11-09）：桌面端 computer-use 走 **Windows UI Automation**（无障碍树）—— ' +
+      '它操作的是「**这台电脑**的屏幕」⇒ ⇒ 手机上没有 UIA，做不出这个工具（不是忘了做）。' +
+      '移动端那一族是 **mobile_use**（读/点这台手机的屏幕），语义不同 ⇒ ⇒ 端侧专属差异。',
+  },
+  {
+    tool: 'cu_read_ui_text',
+    end: 'mobile',
+    status: 'accepted',
+    reason: '同上 —— 读这台电脑上的 UI 元素文本（UIA，桌面独有）。',
+  },
+  {
+    tool: 'cu_click_ui_by_name',
+    end: 'mobile',
+    status: 'accepted',
+    reason: '同上 —— 按名字点这台电脑上的 UI 元素（UIA，桌面独有；要用户点头）。',
+  },
+  {
+    tool: 'cu_set_ui_value',
+    end: 'mobile',
+    status: 'accepted',
+    reason: '同上 —— 按名字写这台电脑上某个 UI 元素的值（UIA，桌面独有；要用户点头）。',
+  },
+  {
+    tool: 'cu_snapshot_ui_tree',
+    end: 'mobile',
+    status: 'accepted',
+    reason:
+      '同上 —— UIA 树快照（**这台电脑**的无障碍树，带 ref）；手机上没有 UIA，' +
+      '那一族的对应物是 mobile_read_screen（读**手机**的屏幕），语义不同。',
+  },
+  {
+    tool: 'cu_click_ui_by_ref',
+    end: 'mobile',
+    status: 'accepted',
+    reason: '同上 —— 按快照 ref 点这台电脑上的元素（UIA，桌面独有；要用户点头）。',
+  },
+  {
+    tool: 'cu_set_ui_value_by_ref',
+    end: 'mobile',
+    status: 'accepted',
+    reason: '同上 —— 按快照 ref 写这台电脑上某个元素的值（UIA，桌面独有；要用户点头）。',
+  },
 ];
 // ─────────────────────────────────────────────────────────────
 // 提取：桌面端

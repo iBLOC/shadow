@@ -13,6 +13,14 @@ import { useThemeStore } from '../stores/themeStore';
 // `core` 是**同一个实例**、只是不带 React（见 `src/i18n/core.ts` 的文件头）。
 import { ensureI18n } from '../i18n/core';
 import { telencephalonClient } from './telencephalonClient';
+import { safeInvokeOrThrow } from './tauriSafe';
+import {
+  describeDisposition,
+  formatCuError,
+  isCuErrorPayload,
+  type CuDisposition,
+  type CuOutcome,
+} from './cuErrors';
 import { requestA2uiSurface } from './a2uiClient';
 import { buildSurfaceFromEvents } from './a2uiProtocol';
 import type { ToolField } from '../components/chat/ClientToolForm';
@@ -195,6 +203,171 @@ export function toOpenAiTools(registry: ClientToolRegistry): OpenAiTool[] {
   });
 }
 
+
+/**
+ * computer-use 的**客户端工具** —— 让模型能在这台设备上「看」和「动」。
+ *
+ * ## 为什么走「客户端工具」这条路，而不是另开一个 MCP 面
+ *
+ * 端脑早就有一条**闭环**：桌面端把 `toOpenAiTools(desktopClientTools)`
+ * 交给模型 ⇒ 模型点名 ⇒ 端脑发 `tool_call` SSE ⇒ **这台设备执行**
+ * ⇒ 结果回传端脑喂回模型（见 `aiSdkTelencephalonTransport.ts` 与
+ * `ConversationPage` 的 `runClientToolCall`）⇒ ⇒
+ * ⇒ ⇒ 所以 computer-use 只要**注册进这张表**，agent 立刻就调得到
+ * ⇒ ⇒ **不必**新造一个 MCP server ＋ 一套注册流程。
+ *
+ * ## 为什么只暴露「语义」那四个，不暴露坐标点击
+ *
+ * ❶ `cu_mouse_click(x, y)` 是**盲点击** —— 模型看不到屏幕 ⇒ ⇒ 点下去
+ *    命中什么全凭猜 ⇒ ⇒ 与 agent-desktop 的做法相反（它用无障碍树
+ *    给出**可寻址的元素**，而不是给坐标）。
+ * ❷ 本仓的 UIA 侧虽然浅（只列根的直接子元素 ＋ 按 Name 子串找），
+ *    但**返回的是文本** ⇒ ⇒ 模型看得懂 ⇒ ⇒ 于是「先看元素、再按名字点」
+ *    这条路**今天就能用** ⇒ ⇒ 坐标那套**先不暴露**（等有像素/无障碍
+ *    观察面再说）⇒ ⇒ 这是**故意不暴露**，不是漏了。
+ *
+ * ## 失败必须带「投递判定」
+ *
+ * 失败可能意味着「什么都没发生」（可重试）或「可能已经落地」（重试会
+ * 重复生效）⇒ ⇒ 只回一句错误文本 ⇒ ⇒ 模型会盲重试 ⇒ ⇒
+ * ⇒ 所以这里把 `disposition` 一起带回去（见 `cuErrors.ts`）。
+ */
+
+/** 投递判定缺失时的**保守**取值：不知道 ⇒ ⇒ 不许说「没落地」。 */
+const UNKNOWN_DISPOSITION: CuDisposition = {
+  delivery: 'delivery_uncertain',
+  retry: 'unsafe',
+}
+
+/** 一个 UI 元素（与 Rust 侧 `UiElement` 一一对应）。 */
+interface CuUiElement {
+  name: string
+  automation_id: string
+  control_type: string
+  class_name: string
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+/** 必填参数缺失 ⇒ ⇒ **明确失败**（不许默默什么都不做）。 */
+function requireString(raw: unknown, field: string): string {
+  if (typeof raw !== 'string' || raw.trim() === '') {
+    throw new Error(`computer-use: "${field}" is required (a non-empty string)`)
+  }
+  return raw
+}
+
+/** 调一条 `cu_*` 命令 ⇒ ⇒ **成功与失败都带形状**。 */
+async function runCu(
+  action: string,
+  command: string,
+  args: Record<string, unknown>,
+): Promise<{ action: string; disposition: CuDisposition }> {
+  try {
+    const outcome = await safeInvokeOrThrow<CuOutcome>(command, args)
+    return {
+      action,
+      disposition: outcome?.disposition ?? UNKNOWN_DISPOSITION,
+    }
+  } catch (e) {
+    if (isCuErrorPayload(e)) {
+      // 结构化失败 ⇒ ⇒ 判定就在里头 ⇒ ⇒ 原样带出去。
+      throw new Error(
+        `computer-use ${action} failed [${e.code}]: ${e.message} — ${describeDisposition(e.disposition)}`,
+      )
+    }
+    // 环境级失败（web build 没有 Tauri／命令不存在）⇒ ⇒ **不知道有没有落地**
+    // ⇒ ⇒ 保守地说「不确定」，**不许**说「没落地」。
+    throw new Error(
+      `computer-use ${action} failed: ${formatCuError(e)} — delivery unknown (retry unsafe)`,
+    )
+  }
+}
+
+/** 把元素清单压成给模型看的一行行文本（有上限，别把上下文淹了）。 */
+function describeElements(elements: CuUiElement[]): string {
+  const lines = elements.map((el, i) => {
+    const name = el.name?.trim() || '(no name)'
+    const id = el.automation_id ? ` #${el.automation_id}` : ''
+    const rect = `@${el.x},${el.y} ${el.width}x${el.height}`
+    return `${i}: [${el.control_type}] ${name}${id} ${rect}`
+  })
+  const text = lines.join('\n')
+  return text.length > 3000 ? `${text.slice(0, 3000)}\n…(truncated)` : text
+}
+
+/** 快照里的一个节点（与 Rust 侧 `UiNode` 一一对应）。 */
+interface CuUiNode {
+  ref_id: string
+  role: string
+  name: string
+  automation_id: string
+  x: number
+  y: number
+  width: number
+  height: number
+  depth: number
+  actions: string[]
+  /**
+   * 这个节点**能不能被寻址**（有身份 ＋ 树上唯一）。
+   *
+   * ⚠️ **故意是可选的，而且「缺」＝ 不可寻址**（fail-closed）⇒ ⇒
+   * 后端少给一个字段 ⇒ ⇒ 前端当它不可用 ⇒ ⇒ 不许拿「不知道」当「可以」。
+   */
+  addressable?: boolean
+}
+
+/** 一次 UIA 树快照。 */
+interface CuUiSnapshot {
+  snapshot_id: string
+  nodes: CuUiNode[]
+  complete: boolean
+  truncated_by: string | null
+  /** 这次快照的**作用域**：「focused-window」｜「desktop」。 */
+  scope?: string
+}
+
+/** 把快照压成给模型看的一行行文本（**ref 必须在里面** —— 那是动作的地址）。 */
+function describeNodes(nodes: CuUiNode[]): string {
+  const lines = nodes.map((n) => {
+    const name = n.name?.trim() || '(no name)'
+    const acts = n.actions?.length ? ` (${n.actions.join(',')})` : ''
+    // ⚠️ **automation_id 要列出来** —— 「可寻址」的判据之一就是
+    // 「同名同角色但开发者 id 不同」⇒ ⇒ 模型得**看得见**这个 id
+    // 才分得清哪个才是它要点的那一个。
+    const aid = n.automation_id ? ` #${n.automation_id}` : ''
+    // ⚠️ **不可寻址的 ref 必须标出来** —— 「捕获时唯一性证明」那一刀
+    // （匿名元素／树上不唯一 ⇒ ⇒ 那个 ref 一律不许动作）⇒ ⇒
+    // 模型看不见这个标记就会去用一个根本不该动的 ref ⇒ ⇒ 命令拒它
+    // ⇒ ⇒ 模型白跑一趟 ⇒ ⇒ 所以标记要**紧挨着 ref**。
+    // ⚠️ **缺 addressable 字段 ⇒ ⇒ 当成不可寻址**（fail-closed）。
+    const flag = n.addressable === true ? '' : ' ⚠不可寻址'
+    return `${n.ref_id}${flag} [${n.role}] ${name}${aid} @${n.x},${n.y} ${n.width}x${n.height}${acts}`
+  })
+  const text = lines.join('\n')
+  return text.length > 4000 ? `${text.slice(0, 4000)}\n…(truncated)` : text
+}
+
+/** 调一条**只读**的 `cu_*` 命令（不发任何输入 ⇒ 失败一律 not_delivered）。 */
+async function runCuRead<T>(
+  action: string,
+  command: string,
+  args: Record<string, unknown>,
+): Promise<T> {
+  try {
+    return await safeInvokeOrThrow<T>(command, args)
+  } catch (e) {
+    if (isCuErrorPayload(e)) {
+      throw new Error(
+        `computer-use ${action} failed [${e.code}]: ${e.message} — ${describeDisposition(e.disposition)}`,
+      )
+    }
+    throw new Error(`computer-use ${action} failed: ${formatCuError(e)}`)
+  }
+}
+
 /**
  * 桌面端内置的客户端工具。
  *
@@ -329,4 +502,194 @@ export const desktopClientTools = new ClientToolRegistry()
         a2ui_events: result.events,
       };
     },
-  });
+  })
+  .register({
+    name: 'cu_list_ui_elements',
+    description:
+      'List the UI elements Windows UI Automation can see on this desktop (top-level windows and their direct controls). Each line has an index, control type, visible name and screen rectangle. Use it BEFORE clicking so you address an element by name instead of guessing coordinates.',
+    parameters: { type: 'object', properties: {} },
+    execute: async () => {
+      const raw = await runCuRead<CuUiElement[]>('list_ui_elements', 'cu_list_ui_elements', {})
+      const elements = Array.isArray(raw) ? raw : []
+      return {
+        report: `computer-use list_ui_elements: ${elements.length} element(s)\n${describeElements(elements)}`,
+        elements,
+      }
+    },
+  })
+  .register({
+    name: 'cu_read_ui_text',
+    description:
+      'Read the text of a desktop UI element by its visible name (Windows UI Automation). Use it to confirm what an element says before acting on it.',
+    parameters: {
+      type: 'object',
+      properties: {
+        name: {
+          type: 'string',
+          description: 'Visible name of the element (substring match, case-insensitive).',
+        },
+      },
+      required: ['name'],
+    },
+    execute: async (args) => {
+      const name = requireString(args.name, 'name')
+      const text = await runCuRead<string>('read_ui_text', 'cu_read_ui_text', { name })
+      return { report: `computer-use read_ui_text("${name}"): ${text}`, text }
+    },
+  })
+  .register({
+    name: 'cu_click_ui_by_name',
+    description:
+      'Click a desktop UI element by its visible name (Windows UI Automation). The user is asked to approve before it runs. The result says whether the click was delivered — only "not_delivered" may be retried safely.',
+    // ⚠️ **要用户点头** —— 这是「人在回路」的那一格。
+    requiresApproval: true,
+    parameters: {
+      type: 'object',
+      properties: {
+        name: {
+          type: 'string',
+          description: 'Visible name of the element to click (substring match, case-insensitive).',
+        },
+      },
+      required: ['name'],
+    },
+    execute: async (args) => {
+      const name = requireString(args.name, 'name')
+      const { disposition } = await runCu('click_ui_by_name', 'cu_click_ui_by_name', { name })
+      return {
+        report: `computer-use click_ui_by_name("${name}"): ${describeDisposition(disposition)}`,
+        disposition,
+      }
+    },
+  })
+  .register({
+    name: 'cu_set_ui_value',
+    description:
+      'Set the value of a desktop UI element (text field, combo box) by its visible name (Windows UI Automation). The user is asked to approve before it runs. The result says whether the write was delivered — only "not_delivered" may be retried safely.',
+    requiresApproval: true,
+    parameters: {
+      type: 'object',
+      properties: {
+        name: {
+          type: 'string',
+          description: 'Visible name of the element to write into (substring match, case-insensitive).',
+        },
+        value: {
+          type: 'string',
+          description: 'The text to put into the element.',
+        },
+      },
+      required: ['name', 'value'],
+    },
+    execute: async (args) => {
+      const name = requireString(args.name, 'name')
+      // ⚠️ **value 允许是空串**（清空一个输入框是合法动作）⇒ ⇒ 只查类型。
+      if (typeof args.value !== 'string') {
+        throw new Error('computer-use: "value" is required (a string; empty string clears the field)')
+      }
+      const value = args.value
+      const { disposition } = await runCu('set_ui_value', 'cu_set_ui_value', { name, value })
+      return {
+        report: `computer-use set_ui_value("${name}"): ${describeDisposition(disposition)}`,
+        disposition,
+      }
+    },
+  })
+  .register({
+    name: 'cu_snapshot_ui_tree',
+    description:
+      'Take a snapshot of the UI element tree of the focused window (Windows UI Automation). Each line has a ref (like @s0000002f:e7), the control type, the visible name, the developer id, the screen rectangle and what that element can do (Click / SetValue / Toggle). A ref marked "not addressable" is refused — that element is anonymous or not unique in the tree, so using it would be a guess. If the snapshot is reported as incomplete, every ref from it is refused too, because the tree was cut off and uniqueness cannot be proven; take a fresh snapshot. A ref is only valid for the snapshot it came from, so take a fresh snapshot after the UI changes.',
+    parameters: {
+      type: 'object',
+      properties: {
+        depth: {
+          // ⚠️ 本仓的 `ToolParameterProperty.type` 只允许
+          // string / number / boolean ⇒ ⇒ 这里用 number（不是 integer）。
+          type: 'number',
+          description: 'How deep to walk the tree (default and maximum 8).',
+        },
+      },
+    },
+    execute: async (args) => {
+      const depth = typeof args.depth === 'number' ? Math.trunc(args.depth) : undefined
+      const snapshot = await runCuRead<CuUiSnapshot>(
+        'snapshot_ui_tree',
+        'cu_snapshot_ui_tree',
+        depth === undefined ? {} : { depth },
+      )
+      const nodes = Array.isArray(snapshot?.nodes) ? snapshot.nodes : []
+      // ⚠️ **作用域要说出来** —— 模型得知道它看的是哪棵树（焦点窗口？
+      // 整桌面？）⇒ ⇒ 才知道该往哪个方向找。
+      const scope = snapshot?.scope ?? 'unknown'
+      // ⚠️ **不完整要说清后果** —— 不是「树被截了」这一句，是「那批 ref
+      // 都不能用了」⇒ ⇒ 模型才知道该重新拍一张，而不是换个 ref 再试。
+      const truncated = snapshot?.complete
+        ? ''
+        : ` (truncated: ${snapshot?.truncated_by ?? 'unknown'} — refs from this snapshot cannot be used)`
+      return {
+        report: `computer-use snapshot_ui_tree: ${snapshot?.snapshot_id ?? '(no id)'} — scope=${scope} — ${nodes.length} node(s)${truncated}\n${describeNodes(nodes)}`,
+        snapshot_id: snapshot?.snapshot_id,
+        nodes,
+      }
+    },
+  })
+  .register({
+    name: 'cu_click_ui_by_ref',
+    description:
+      'Click the UI element with the given ref (from cu_snapshot_ui_tree). The user is asked to approve before it runs. The result says whether the click was delivered — only "not_delivered" may be retried safely; a stale ref means take a fresh snapshot. A ref marked "not addressable", or a ref from an incomplete snapshot, is refused — pick an addressable ref from a complete snapshot.',
+    requiresApproval: true,
+    parameters: {
+      type: 'object',
+      properties: {
+        target: {
+          type: 'string',
+          description: "The element ref, e.g. '@s0000002f:e7'.",
+        },
+      },
+      required: ['target'],
+    },
+    execute: async (args) => {
+      const target = requireString(args.target, 'target')
+      const { disposition } = await runCu('click_ui_by_ref', 'cu_click_ui_by_ref', { target })
+      return {
+        report: `computer-use click_ui_by_ref(${target}): ${describeDisposition(disposition)}`,
+        disposition,
+      }
+    },
+  })
+  .register({
+    name: 'cu_set_ui_value_by_ref',
+    description:
+      'Set the value of the UI element with the given ref (from cu_snapshot_ui_tree). The user is asked to approve before it runs. The result says whether the write was delivered. A ref marked "not addressable", or a ref from an incomplete snapshot, is refused — pick an addressable ref from a complete snapshot.',
+    requiresApproval: true,
+    parameters: {
+      type: 'object',
+      properties: {
+        target: {
+          type: 'string',
+          description: "The element ref, e.g. '@s0000002f:e7'.",
+        },
+        value: {
+          type: 'string',
+          description: 'The text to put into the element.',
+        },
+      },
+      required: ['target', 'value'],
+    },
+    execute: async (args) => {
+      const target = requireString(args.target, 'target')
+      // ⚠️ **value 允许是空串**（清空一个输入框是合法动作）⇒ ⇒ 只查类型。
+      if (typeof args.value !== 'string') {
+        throw new Error('computer-use: "value" is required (a string; empty string clears the field)')
+      }
+      const { disposition } = await runCu('set_ui_value_by_ref', 'cu_set_ui_value_by_ref', {
+        target,
+        value: args.value,
+      })
+      return {
+        report: `computer-use set_ui_value_by_ref(${target}): ${describeDisposition(disposition)}`,
+        disposition,
+      }
+    },
+  })
+;

@@ -6,6 +6,16 @@
 //! preview / recording），每个包含若干工具。agent 通过
 //! telencephalon McpStore 的 McpAgentBinding 绑定 server 后
 //! 即可在运行时使用那些工具。
+//!
+//! ⚠️⚠️ **这份目录当前是「目录」，不是「能力」**（2026-11-09 取证）——
+//! ❶ `builtin_servers()` 在全仓**只被它自己与本文件的测试引用**
+//!    ⇒ ⇒ 桌面端**没有任何 tauri command** 把这份目录发出去
+//!    ⇒ ⇒ 前端也拿不到它。
+//! ❷ 五个条目**都没有对应的 MCP server 实现**（只有 `feishu_mcp`
+//!    有一个 `mcp_server()` 构造器，而它自己也标注「还没被挂载」）
+//!    ⇒ ⇒ **目录里写的工具名，agent 一个都调不到**。
+//! ⇒ ⇒ 所以下面 computer_use 那条目录**必须**写清楚「未挂载」，
+//! 否则目录显示 11 个工具、实际 0 个可调 ⇒ ⇒ 那是「失败长得像成功」。
 
 use serde::{Deserialize, Serialize};
 
@@ -55,20 +65,20 @@ pub fn builtin_servers() -> Vec<McpServerInfo> {
         },
         McpServerInfo {
             name: "computer_use".into(),
-            description: "Computer-use — 截图 + 鼠标 + 键盘 + Windows UIA 元素操作".into(),
+            description: "Computer-use — 截图 + 鼠标 + 键盘 + Windows UIA 元素操作（⚠️ 目录条目：MCP server 尚未挂载，agent 调不到；下面的工具目前只是桌面端内部的 Tauri command）".into(),
             source: "computer_use".into(),
             tools: vec![
-                tool("cu_screenshot", "截取主显示器"),
-                tool("cu_mouse_click", "坐标点击"),
-                tool("cu_mouse_move", "鼠标移动"),
-                tool("cu_mouse_scroll", "滚轮滚动"),
-                tool("cu_keyboard_type", "键入文本"),
-                tool("cu_keyboard_combo", "按键组合"),
+                tool("cu_screenshot", "截取主显示器（只读：失败一律 not_delivered / retry safe）"),
+                tool("cu_mouse_click", "坐标点击（动作类：成功回执带 disposition.delivered_unverified ⇒ 不许盲目重试）"),
+                tool("cu_mouse_move", "鼠标移动（动作类：同 cu_mouse_click）"),
+                tool("cu_mouse_scroll", "滚轮滚动（动作类：同 cu_mouse_click）"),
+                tool("cu_keyboard_type", "键入文本（动作类：同 cu_mouse_click）"),
+                tool("cu_keyboard_combo", "按键组合（动作类：同 cu_mouse_click；wire 形状是规格串如 ctrl+c）"),
                 tool("cu_set_enabled", "开关安全闸门"),
-                tool("cu_list_ui_elements", "列出 UI 元素（Windows UIA）"),
-                tool("cu_click_ui_by_name", "按名称点击 UI 元素"),
-                tool("cu_read_ui_text", "读取 UI 元素文本"),
-                tool("cu_set_ui_value", "设置 UI 元素值"),
+                tool("cu_list_ui_elements", "列出 UI 元素（Windows UIA；只读）"),
+                tool("cu_click_ui_by_name", "按名称点击 UI 元素（动作类：同 cu_mouse_click）"),
+                tool("cu_read_ui_text", "读取 UI 元素文本（只读）"),
+                tool("cu_set_ui_value", "设置 UI 元素值（动作类：同 cu_mouse_click）"),
             ],
         },
         McpServerInfo {

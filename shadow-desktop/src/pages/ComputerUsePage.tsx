@@ -29,6 +29,7 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+import { formatCuError } from '@/lib/cuErrors'
 
 interface Screenshot {
   width: number
@@ -65,7 +66,10 @@ export function ComputerUsePage() {
         if (!cancelled) setEnabled(on)
       })
       .catch((e) => {
-        if (!cancelled) setShotError(String(e))
+        // ⚠️ cu_* 的失败现在是一个**结构化对象**（code/message/disposition）
+        // ⇒ ⇒ 不能直接 String(e)（那会变成 "[object Object]"）⇒ ⇒ 统一走
+        // formatCuError（旧的字符串形状也仍然兼容）。
+        if (!cancelled) setShotError(formatCuError(e))
       })
     return () => {
       cancelled = true
@@ -92,7 +96,7 @@ export function ComputerUsePage() {
       const next = await invoke<Screenshot>('cu_screenshot')
       setScreenshot(next)
     } catch (e) {
-      setShotError(String(e))
+      setShotError(formatCuError(e))
     } finally {
       setShotting(false)
     }
