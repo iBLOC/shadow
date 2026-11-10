@@ -62,6 +62,7 @@ const LEDGERS = [
 ];
 const PATHS = LEDGERS.map((l) => l.rel);
 const SPACE_OF = Object.fromEntries(LEDGERS.map((l) => [l.rel, l.space]));
+const SPACE_NAME = Object.fromEntries(LEDGERS.map((l) => [l.space, l.name]));
 const NAME_OF = Object.fromEntries(LEDGERS.map((l) => [l.rel, l.name]));
 
 /**
@@ -202,14 +203,6 @@ function main() {
     return 2;
   }
   const baseSet = new Set(base.violations.map(violationIdentity));
-  if (process.argv.includes('--report')) {
-    console.log('基线 commit ' + BASELINE_COMMIT.slice(0, 8) + ' 上的历史违例 ' + base.violations.length + ' 条：');
-    for (const v of base.violations) {
-      console.log('  ' + v.kind.padEnd(16) + ' U+' + v.cp + '  ' + v.space + '  ' + v.id + '  ' + v.date);
-    }
-    console.log('每 space：' + JSON.stringify(base.stats));
-    return 0;
-  }
 
   // ⚠️ 只有**提交树面**判红。
   //   索引／工作树面里的条目**还没提交** ⇒ ⇒ 它们「什么时候取的号」不可考
@@ -233,7 +226,7 @@ function main() {
         (f.judge ? '' : '　⚠ **本面只报不判红** —— 未提交条目的取号时刻不可考 ⇒ ⇒ 那一格**判不了**'),
     );
     for (const v of fresh) {
-      console.log('      ⚠ ' + v.kind + ' U+' + v.cp + ' @' + NAME_OF[Object.keys(SPACE_OF).find((k) => SPACE_OF[k] === v.space) || ''] + ' ' + v.id + ' ' + v.date);
+      console.log('      ⚠ ' + v.kind + ' U+' + v.cp + ' @' + (SPACE_NAME[v.space] || v.space) + ' ' + v.id + ' ' + v.date);
       console.log('        ' + v.reason);
     }
   }
