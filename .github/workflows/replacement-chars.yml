@@ -27,6 +27,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      # ⚠️ 判读落盘路径（**仓外**）—— 分母要覆盖**这一盏灯里所有**真跑的闸 ⇒ ⇒ 每道闸的结论都得落到同一份记录里。
+      # ⚠️ 落在仓根会污染被测面 ⇒ ⇒ 用 RUNNER_TEMP。
+      - name: 准备判读落盘路径（仓外）
+        run: echo "GATE_RESULT_FILE=$RUNNER_TEMP/gate-results.ndjson" >> "$GITHUB_ENV"
+
       - name: Checkout shadow
         uses: actions/checkout@v7
         with:
@@ -41,6 +46,15 @@ jobs:
         if: always()
         run: node scripts/check-replacement-chars.mjs --self-test
 
+      # ⚠️ **必须走判读通道**（run-gate-once）—— 否则这一盏灯的闸步「没登记」⇒ ⇒
+      #   「Gate Tally Coverage」那盏灯会当场判红（unregistered-gap：gate-step-not-tallied）。
+      #   ⇒ ⇒ 本刀第一版漏了这一步 ⇒ ⇒ 那盏灯真的红了（run 42885271250 ／ 42885389454）⇒ ⇒ ⇒ 修法照抄已通过那盏灯的形状。
       - name: "Check: replacement chars (提交树面)"
         if: always()
-        run: node scripts/check-replacement-chars.mjs
+        run: node scripts/run-gate-once.mjs --strict scripts/check-replacement-chars.mjs
+
+      # ⚠️ 收尾：把这一盏灯「绿得有多真」写出来 —— **job 必须有分母**，否则同一个 unregistered-gap 的另一半
+      #   （job-without-denominator）也会红 ⇒ ⇒ 两格缺口，一格都不能留。
+      - name: 判读汇总（带分母的绿灯）
+        if: always()
+        run: node scripts/lib/gate-tally.mjs --report
