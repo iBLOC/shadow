@@ -382,6 +382,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      # ⚠️⚠️ 2026-11-11（desktop-build 检出刀）：本 job 的 neuron-ownership 闸**扫兄弟仓**，
+      #    而本 job 此前只 checkout 了 shadow 自己 ⇒ ⇒ 闸在真 CI 上报「N18 叶区面判不了」
+      #    ＋「一个兄弟仓都没发现」的未覆盖警告（run 42800136091 Desktop Build 第 15 步逐字）
+      #    ⇒ ⇒ 兄弟仓在位这一格才判得了。检出清单只有这一份（composite）⇒ 与
+      #    brain-gates / prefrontal / desktop-e2e / desktop-rust 不会漂移。
+      #    ⚠️ 本 job 不跑 cargo（Rust 面归 desktop-rust.yml）⇒ 多检出的兄弟仓不会被
+      #    解析 ⇒ 零 cargo 侧风险；pnpm / node 闸面不变。
+      #    ⚠️ 预期读数变化：第 15 步从「阻断 2 项（其中判不了 1）」转「真判」（既存违规
+      #    显形，与 Brain gates 同读数）⇒ 灯转绿仍需各仓修自己的违规，不在本刀射程。
+      - name: Checkout the iBLOC stack
+        id: stack
+        uses: ./.github/actions/ibloc-siblings
+        with:
+          token: ${{ secrets.IBLOC_TOKEN }}
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
         with:
