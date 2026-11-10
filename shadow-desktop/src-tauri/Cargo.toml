@@ -4,11 +4,14 @@ version = "0.1.0"
 description = "Shadow Desktop - AI Agent Executor"
 authors = ["Shadow Team"]
 edition = "2021"
-# The hippocampus stack behind this app (hippocampus-server -> hippocampus-storage)
-# now runs lance 14, whose rust-version is "1.94.0" => ⇒ anything lower is a promise
-# this manifest cannot keep. Kept in step with hippocampus / telencephalon /
-# encephalon, which all declare the same floor.
-rust-version = "1.94"
+# ⚠️ 2026-11-11（**分仓地板**：每个仓自报自己的地板 ⇒ ⇒ 不再「跟兄弟们保持一致」）
+#   ⇒ ⇒ 本仓的真实地板由**本仓的构建图**决定 ⇒ ⇒ 实测（scripts/check-msrv-floor.mjs
+#   ⇒ ⇒ 的 auto 口径，逐字）：**loom 0.7.2 → generator 0.8.12（要 1.95）→ windows-* 0.100.0（要 1.95）**
+#   ⇒ ⇒ 以及 **xet-runtime 1.8.0 → sysinfo 0.39.6（要 1.95）**⇒ ⇒ 整图最高 MSRV ＝ **1.95**
+#   ⇒ ⇒ 所以「1.94」这个声明**是假的**（在 1.94 上真编不过）⇒ ⇒ 声明必须写真的。
+#   ⇒ ⇒ ⚠️ 兄弟仓（hippocampus / telencephalon / encephalon）仍各自声明 1.94
+#   ⇒ ⇒ ⇒ ⇒ 那是**它们**的承诺（分仓地板：谁的仓谁自己报 ⇒ ⇒ **不代改**）。
+rust-version = "1.95"
 
 [workspace]
 members = ["."]

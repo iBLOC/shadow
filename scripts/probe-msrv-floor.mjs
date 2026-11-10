@@ -34,7 +34,7 @@
  * 退出码：**0 地板可建（绿） / 1 地板不可建（红） / 2 判不了**（工具链缺失／找不到 manifest／网络断）。
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -130,6 +130,33 @@ export function interpretProbe(res) {
  *   ⇒ ⇒ 所以「地板」要验的是**精确值 1.94.0**，不是「1.94 线」。
  * ⇒ ⇒ 通用形态：「版本号」有两个口径（**线** vs **精确值**）⇒ ⇒ 判定器必须先说清自己算哪一档。
  */
+/**
+ * **自报地板**（分仓口径）—— 从 manifest 原文里读 `[package]` 段的 `rust-version`。
+ *
+ * ⚠️ **纯函数**（零 I/O）⇒ ⇒ 自检能喂合成夹具。
+ * ⚠️ 只认 **[package] 段**里的那行 ⇒ ⇒ 依赖段里的 rust-version 不算数。
+ * ⚠️ 虚拟 manifest（只有 [workspace] 没有 [package]）⇒ ⇒ 返回 null ⇒ ⇒ **判不了**。
+ *
+ * @param {string} text manifest 原文
+ * @returns {string|null}
+ */
+export function declaredFloor(text) {
+  const src = String(text || '');
+  const lines = src.split(/\r?\n/);
+  let inPackage = false;
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (/^\[/.test(line)) {
+      inPackage = /^\[package\]/.test(line);
+      continue;
+    }
+    if (!inPackage) continue;
+    const m = line.match(/^rust-version\s*=\s*"([^"]+)"/);
+    if (m) return m[1].trim();
+  }
+  return null;
+}
+
 export function floorToolchain(floor) {
   const parts = String(floor).trim().split('.');
   if (parts.length >= 3) return parts.slice(0, 3).join('.');
@@ -139,7 +166,8 @@ export function floorToolchain(floor) {
 function parseArgs(argv) {
   const out = {
     manifest: null,
-    floor: '1.94',
+    // ⚠️ **默认＝auto（自报）** ⇒ ⇒ 地板由**那个仓自己**声明 ⇒ ⇒ 口径机械化了。
+    floor: 'auto',
     toolchain: null,
     crate: null,
     timeout: 3600,
@@ -156,10 +184,11 @@ function parseArgs(argv) {
     else if (a === '--json') out.json = true;
     else if (a === '--online') out.online = true;
   }
-  if (!out.toolchain) {
+  if (!out.toolchain && out.floor !== 'auto') {
     // 地板 1.94 ⇒ ⇒ 工具链**精确值** 1.94.0（不是 `+1.94`）
     out.toolchain = floorToolchain(out.floor);
   }
+  // ⚠️ auto 那一档的工具链**不能在这里推导** ⇒ ⇒ 它要等 manifest 读到自报声明。
   return out;
 }
 
@@ -246,6 +275,25 @@ function selfTest() {
     return a.toolchain === '1.94.0';
   });
 
+  add('自报地板：从 manifest 原文读 [package] 段的 rust-version', () => {
+    const t = ['[package]', 'name = "x"', 'rust-version = "1.94.1"', '', '[dependencies]', 'serde = "1"'].join('\n');
+    return declaredFloor(t) === '1.94.1';
+  });
+
+  add('自报地板：依赖段里的 rust-version **不算数**（只认 [package] 段）', () => {
+    const t = ['[package]', 'name = "x"', '', '[dependencies]', 'foo = { version = "1", rust-version = "1.99" }'].join('\n');
+    return declaredFloor(t) === null;
+  });
+
+  add('自报地板：虚拟 manifest（只有 [workspace]）⇒ ⇒ 读不到 ⇒ ⇒ 判不了', () => {
+    return declaredFloor('[workspace]\nmembers = ["a"]\n') === null;
+  });
+
+  add('默认地板＝auto（自报）⇒ ⇒ **没有人挑的数**', () => {
+    const a = parseArgs([]);
+    return a.floor === 'auto' && a.toolchain === null;
+  });
+
   let bad = 0;
   for (const c of cases) {
     let ok = false;
@@ -276,12 +324,27 @@ function main() {
     process.exit(2);
   }
 
-  const args = ['+' + opts.toolchain, 'check', '--locked'];
+  // ── 地板解析：**auto（自报）＝ 默认** ／ 显式 --floor（取证面）────────────
+  let floor = opts.floor;
+  let toolchain = opts.toolchain;
+  if (floor === 'auto') {
+    const declared = declaredFloor(readFileSync(manifest, 'utf8'));
+    if (!declared) {
+      console.error('❌ 这个仓**没有自报地板**（manifest 的 [package] 段没有 rust-version）⇒ ⇒ 判不了 ≠ 地板不成立');
+      process.exit(2);
+    }
+    floor = declared;
+    if (!toolchain) toolchain = floorToolchain(declared);
+  } else if (!toolchain) {
+    toolchain = floorToolchain(floor);
+  }
+
+  const args = ['+' + toolchain, 'check', '--locked'];
   if (!opts.online) args.push('--offline');
   if (opts.crate) args.push('-p', opts.crate);
   args.push('--manifest-path', manifest);
 
-  console.log('⇒ ⇒ MSRV 地板编译级探针 :: 地板 ' + opts.floor + ' ｜ 工具链 ' + opts.toolchain);
+  console.log('⇒ ⇒ MSRV 地板编译级探针 :: 地板 ' + floor + ' ｜ 工具链 ' + toolchain);
   console.log('   manifest :: ' + manifest);
   console.log('   命令     :: cargo ' + args.join(' '));
   console.log('   ⚠️ 真编（可能十几分钟）⇒ ⇒ 这一格**不会**在每次 push 里跑 ⇒ ⇒ 由主人按需触发。');
@@ -298,7 +361,7 @@ function main() {
   if (opts.json) {
     console.log(
       JSON.stringify(
-        { manifest, floor: opts.floor, toolchain: opts.toolchain, exit: code, ...verdict },
+        { manifest, floor, toolchain, exit: code, ...verdict },
         null,
         2,
       ),
@@ -310,12 +373,10 @@ function main() {
       console.log('     · ' + o.name + ' ' + o.version + ' 要 rustc ' + o.required);
     }
     if (verdict.verdict === 'floor-unbuildable') {
-      console.log('   ⇒ ⇒ **处置有两条**（都要跨仓）：');
-      console.log(
-        '      ① 抬地板：全部声明 1.94 的仓一起改（跨仓漂移风险，但地板变成真的）；',
-      );
-      console.log('      ② 钉回 1.94 线：重解析锁文件（需要网络；要验它编得过）。');
-      console.log('      ⇒ ⇒ 本探针只回答「地板现在是不是假的」，**不替你选**。');
+      console.log('   ⇒ ⇒ **处置有两条**（**都在这个仓自己身上** —— 分仓地板：谁的仓谁自己改）：');
+      console.log('      ① 抬**这个仓**自报的地板（改它自己的 rust-version ⇒ ⇒ 它的承诺变成真的）；');
+      console.log('      ② 降**这个仓**的依赖到 ≤ 自报地板（重解析锁文件；需要网络；要验它编得过）。');
+      console.log('      ⇒ ⇒ 本探针只回答「这个仓的地板现在是不是假的」，**不替你选**。');
     }
     if (verdict.verdict === 'cannot-judge') {
       console.log('   ⇒ ⇒ 这一格**没验成**（不是「地板不成立」）⇒ ⇒ 缺口要留在视野里。');
