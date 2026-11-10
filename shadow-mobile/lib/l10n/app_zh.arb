@@ -933,6 +933,31 @@
     }
   },
   "capabilityGrantSystemPermission": "去授权",
+  "capabilityGrantSucceeded": "已授权",
+  "capabilityGrantDenied": "已取消授权",
+  "capabilityGrantNeedsSettingsTitle": "系统不会再弹这个框了",
+  "capabilityGrantNeedsSettingsBody": "需要到系统设置里开启",
+  "capabilityGrantGoToSettings": "去设置",
+  "capabilityPermissionRequired": "需要的系统权限：{permission}",
+  "capabilityPermissionRequiredAccessibility": "无障碍服务（手机操作）",
+  "@capabilityPermissionRequired": {
+    "placeholders": {
+      "permission": {
+        "type": "String"
+      }
+    }
+  },
+  "capabilityDeclarationMismatch": "权限声明对不上：模型声明了 {declared}，而这个工具真正需要 {required}",
+  "@capabilityDeclarationMismatch": {
+    "placeholders": {
+      "declared": {
+        "type": "String"
+      },
+      "required": {
+        "type": "String"
+      }
+    }
+  },
   "backgroundKeepAlive": "后台常驻",
   "backgroundKeepAliveHint": "切到后台或息屏时，端脑与本地引擎继续运行（显示常驻通知）",
   "backgroundServiceStatus": "前台服务",

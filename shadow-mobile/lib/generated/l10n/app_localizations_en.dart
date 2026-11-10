@@ -1099,6 +1099,7 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get encephalonModelOptionsUnavailable =>
       'Could not read the provider catalog from the brain - it may not be running.';
+
   @override
   String get capabilityDefaultsTitle => 'Default model per capability';
 
@@ -1114,7 +1115,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get capabilityDefaultUnset => 'Not set';
 
   @override
-  String get capabilityDefaultsEmpty => 'This brain exposes no capability tiers.';
+  String get capabilityDefaultsEmpty =>
+      'This brain exposes no capability tiers.';
 
   @override
   String get encephalonLobeRoutingTitle => 'Lobe model routing';
@@ -1724,6 +1726,37 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get capabilityGrantSystemPermission => 'Grant';
+
+  @override
+  String get capabilityGrantSucceeded => 'Granted';
+
+  @override
+  String get capabilityGrantDenied => 'Permission denied';
+
+  @override
+  String get capabilityGrantNeedsSettingsTitle =>
+      'The system will not ask again';
+
+  @override
+  String get capabilityGrantNeedsSettingsBody =>
+      'Needs to be turned on in system settings';
+
+  @override
+  String get capabilityGrantGoToSettings => 'Open settings';
+
+  @override
+  String capabilityPermissionRequired(String permission) {
+    return 'System permission needed: $permission';
+  }
+
+  @override
+  String get capabilityPermissionRequiredAccessibility =>
+      'the accessibility service (phone control)';
+
+  @override
+  String capabilityDeclarationMismatch(String declared, String required) {
+    return 'Permission declaration does not match: the model declared $declared, but this tool really needs $required';
+  }
 
   @override
   String get backgroundKeepAlive => 'Keep running in background';

@@ -72,15 +72,28 @@ class _CapabilityGrantsSectionState
     }
   }
 
-  /// 打开「补齐系统层那一层」的入口。
+  /// 「去授权」的入口 —— **先就地弹系统框**，弹不出来才退到系统设置页。
   ///
-  /// ⚠️ **按能力分派** —— 「手机操作」缺的是**无障碍服务**这一个开关，
-  /// 而它**不在本 App 的权限页**（在**系统的无障碍设置页**里）
-  /// ⇒ ⇒ 用同一个入口会点到一个「根本没有那个开关」的页面
-  /// ⇒ ⇒ 用户以为开了、其实没开 ⇒ ⇒ 比没有入口更糟。
-  Future<void> _openPermissionSettings(Capability capability) async {
-    var opened = false;
+  /// ⚠️ **为什么不再一上来就跳系统设置页**（老做法）：
+  /// 跳设置页 ⇒ ⇒ 用户得自己在 App 详情页里翻那个开关 ⇒ ⇒ 交互体验极差
+  /// ⇒ ⇒ 而且**绝大多数时候根本不用跳**：用户第一次点「去授权」时，
+  /// 系统框**是能弹的** ⇒ ⇒ 就地弹，用户点一下「允许」就完事
+  /// ⇒ ⇒ 全程**不离开 App**。
+  ///
+  /// ⚠️ **什么时候才跳设置页**：只有系统**拒绝再弹**的时候
+  /// （Android 11+ 拒绝两次 / 勾了「不再询问」；iOS 拒绝过一次）
+  /// ⇒ ⇒ 那时跳设置页是**唯一**剩下的路 ⇒ ⇒ 不是体验差，是没得选。
+  ///
+  /// ⚠️ 「手机操作」是**无障碍服务** ⇒ ⇒ 程序**弹不出**那个框
+  /// ⇒ ⇒ 那一档仍然直接去系统的无障碍设置页（两端平台的事实如此）。
+  Future<void> _grantSystemPermission(Capability capability) async {
+    // ⚠️ 先把 l10n / messenger **取出来** ⇒ ⇒ 后面有 await
+    // ⇒ ⇒ 不能再随手碰 context（Flutter 的 lint 会拦，真机上 context 也可能没了）。
+    final l10n = AppLocalizations.of(context)!;
+    final messenger = ScaffoldMessenger.maybeOf(context);
+
     if (capability == Capability.mobileUse) {
+      var opened = false;
       try {
         await AccessibilityController.openSettings();
         opened = true;
@@ -88,14 +101,61 @@ class _CapabilityGrantsSectionState
         // 打不开 ⇒ ⇒ 不假装成功（界面状态不会因此变成「已开启」）。
         opened = false;
       }
-    } else {
-      const channel = DeviceDataChannel();
-      opened = await channel.openAppSettings();
+      if (!opened) return;
+      // 真正可靠的刷新在「回到前台」那个回调里；这里先作废一次，
+      // 让状态尽快跟上。
+      _refreshPermissionStates();
+      return;
     }
-    if (!opened) return;
-    // 真正可靠的刷新在「回到前台」那个回调里；这里先作废一次，
-    // 让状态尽快跟上。
+
+    const channel = DeviceDataChannel();
+    final outcome = await channel.requestPermissionDetailed(capability.wire);
+    if (!mounted) return;
+    // 授权结果会改「系统权限状态」⇒ ⇒ 立刻作废重查。
     _refreshPermissionStates();
+
+    // ⚠️ 被**后一次**请求顶掉了 ⇒ ⇒ 这次压根没到用户面前
+    // ⇒ ⇒ 什么都不用做（既不提示，也不跳设置页 —— 那是别人的那次请求的事）。
+    if (outcome.superseded) return;
+
+    if (outcome.granted) {
+      _toast(messenger, l10n.capabilityGrantSucceeded);
+      return;
+    }
+    if (!outcome.needsSystemSettings) {
+      // 系统框弹了，用户点了拒绝 ⇒ ⇒ **留在原地**（系统还愿意弹，下次还能问）。
+      _toast(messenger, l10n.capabilityGrantDenied);
+      return;
+    }
+    // 弹不出来 ⇒ ⇒ 只能退到系统设置页 ⇒ ⇒ **先说清楚为什么**，再去
+    // ⇒ ⇒ 否则用户被弹到设置页却不知道要干什么。
+    final goToSettings = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.capabilityGrantNeedsSettingsTitle),
+        content: Text(l10n.capabilityGrantNeedsSettingsBody),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(l10n.commonCancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(l10n.capabilityGrantGoToSettings),
+          ),
+        ],
+      ),
+    );
+    if (goToSettings != true) return;
+    await channel.openAppSettings();
+    if (!mounted) return;
+    _refreshPermissionStates();
+  }
+
+  /// 底部一条短提示 —— 授权的结果必须**看得见**
+  /// ⇒ ⇒ 否则用户点了「去授权」之后界面毫无变化 ⇒ ⇒ 不知道成没成。
+  void _toast(ScaffoldMessengerState? messenger, String message) {
+    messenger?.showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -112,7 +172,7 @@ class _CapabilityGrantsSectionState
             capability: capability,
             mode: policy.modeFor(capability),
             onChanged: (mode) => notifier.setMode(capability, mode),
-            onGrantSystemPermission: _openPermissionSettings,
+            onGrantSystemPermission: _grantSystemPermission,
           ),
           if (capability != Capability.values.last)
             const ShadSeparator.horizontal(

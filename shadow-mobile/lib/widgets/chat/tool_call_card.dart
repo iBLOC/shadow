@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../generated/l10n/app_localizations.dart';
 import '../../providers/chat_provider.dart';
+import '../../services/capabilities/capability.dart';
 import '../../services/capabilities/capability_i18n.dart';
 import '../../services/client_tools/client_tool_registry.dart';
 import '../responsive.dart';
@@ -110,6 +111,15 @@ class ToolCallCard extends ConsumerWidget {
                     ),
                   ),
             ],
+            // ⚠️ 「这次调用要哪个权限」—— **写给人话**（能力标签，不是 token）
+            // ⇒ ⇒ 用户点头前就知道这扇门通向哪儿。
+            if (call.requiredPermissions.isNotEmpty && call.capability != null) ...[
+              const SizedBox(height: 6),
+              Text(
+                l10n.capabilityPermissionRequired(_permissionHint(l10n)),
+                style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+              ),
+            ],
             if (call.errorText != null) ...[
               const SizedBox(height: 6),
               Text(
@@ -182,6 +192,19 @@ class ToolCallCard extends ConsumerWidget {
   ///
   /// ⚠️ 用户点头前看到的那个字符串 ⇒ ⇒ 「读取日历」远比
   /// `calendar_read_events` 有用（后者只有写工具的人才看得懂）。
+  /// 「这次调用要哪个系统权限」—— **写成人话**。
+  ///
+  /// ⚠️ 「手机操作」那一档要的是**无障碍服务那个系统开关**
+  /// ⇒ ⇒ 写「需要的系统权限：手机操作」等于**没说**
+  /// ⇒ ⇒ 那一档单独说一句「无障碍服务（手机操作）」。
+  String _permissionHint(AppLocalizations l10n) {
+    final capability = call.capability!;
+    if (capability == Capability.mobileUse) {
+      return l10n.capabilityPermissionRequiredAccessibility;
+    }
+    return capabilityLabel(l10n, capability);
+  }
+
   String _title(AppLocalizations l10n) {
     final capability = call.capability;
     if (capability == null) return call.name;

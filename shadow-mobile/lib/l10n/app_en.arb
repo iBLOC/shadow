@@ -969,6 +969,31 @@
     }
   },
   "capabilityGrantSystemPermission": "Grant",
+  "capabilityGrantSucceeded": "Granted",
+  "capabilityGrantDenied": "Permission denied",
+  "capabilityGrantNeedsSettingsTitle": "The system will not ask again",
+  "capabilityGrantNeedsSettingsBody": "Needs to be turned on in system settings",
+  "capabilityGrantGoToSettings": "Open settings",
+  "capabilityPermissionRequired": "System permission needed: {permission}",
+  "capabilityPermissionRequiredAccessibility": "the accessibility service (phone control)",
+  "@capabilityPermissionRequired": {
+    "placeholders": {
+      "permission": {
+        "type": "String"
+      }
+    }
+  },
+  "capabilityDeclarationMismatch": "Permission declaration does not match: the model declared {declared}, but this tool really needs {required}",
+  "@capabilityDeclarationMismatch": {
+    "placeholders": {
+      "declared": {
+        "type": "String"
+      },
+      "required": {
+        "type": "String"
+      }
+    }
+  },
   "backgroundKeepAlive": "Keep running in background",
   "backgroundKeepAliveHint": "Keeps the on-device brain and engines alive while backgrounded (shows a persistent notification)",
   "backgroundServiceStatus": "Foreground service",

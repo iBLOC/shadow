@@ -7,6 +7,7 @@ import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.database.Cursor
 import android.os.Build
@@ -124,13 +125,49 @@ class DeviceDataBridge(
     private val activity: Activity,
 ) {
 
-    /// 正在等系统回调的那个 Result。
+    /// 正在等系统回调的那一次权限申请。
     ///
     /// 为什么要有它：系统权限弹窗是**异步**的 ⇒ MethodChannel 的 Result
     /// 不能在 requestPermission 里就答掉 ⇒ 必须先把它存下来，
     /// 等 Activity 把 `onRequestPermissionsResult` 转回来时再答。
+    ///
+    /// ⚠️ 为什么要把**这次申请的几件事**一起存着（而不是只存 Result）：
+    /// 「系统框到底弹了没有」这个事实**只能在请求发出之前**算出来
+    /// ⇒ ⇒ 事后（回调里）再问系统就晚了（那时状态已经被这次拒绝改掉了）
+    /// ⇒ ⇒ 所以 [willShowDialog] 必须在**发请求之前**取好、带进来。
+    private class PendingPermission(
+        val reply: SingleReply,
+        /// 回**详细结果**（Map）还是回**一个布尔**（旧契约）。
+        val detailed: Boolean,
+        /// 这次请求**会不会**真的弹出系统框。
+        ///
+        /// ⚠️ 「会不会弹」与「批没批」是**两件事**：
+        /// - 批了 ⇒ ⇒ 系统框出现过，用户点了允许；
+        /// - 没批 ⇒ ⇒ 可能是用户点了拒绝（框出现过），
+        ///   也可能是系统**拒绝再弹**（框压根没出现 ⇒ 只能去设置页）。
+        /// ⇒ ⇒ 不区分这两者 ⇒ ⇒ 用户点了拒绝，我们却把他送去系统设置页。
+        val willShowDialog: Boolean,
+    )
+
     @Volatile
-    private var pendingPermissionResult: MethodChannel.Result? = null
+    private var pendingPermission: PendingPermission? = null
+
+    /// 「这个能力**问过没有**」的落盘标记。
+    ///
+    /// ⚠️ 为什么需要它 —— 这是「弹不出框」与「还没问过」的**唯一**分界：
+    /// Android 的 `shouldShowRequestPermissionRationale` 在这两种情况下
+    /// **都返回 false**（前者是「没问过」，后者是「被永久拒绝」）
+    /// ⇒ ⇒ 不自己记一份「问过没有」，就分不清该弹窗还是该跳设置页。
+    ///
+    /// ⚠️ 为什么它必须是**落盘**的而不是内存的：
+    /// 「问过没有」这件事在**进程重启后依然成立**
+    /// ⇒ ⇒ 内存版一重启就忘 ⇒ ⇒ 又变成「当成没问过」⇒ ⇒ 弹一个**永远弹不出来**的框。
+    private val permissionPrefs: SharedPreferences by lazy {
+        context.getSharedPreferences("device_data_permission_asked", Context.MODE_PRIVATE)
+    }
+
+    /// 「这个能力问过没有」的落盘键。
+    private fun askedKey(capability: Capability): String = "asked_${capability.wire}"
 
     /// 通道入口 —— 接线方（MainActivity）把 `MethodChannel` 的 handler 指向这里。
     ///
@@ -143,6 +180,12 @@ class DeviceDataBridge(
         // 所以必须在原路上把 Result 存起来，而不是在协程里干等。
         if (call.method == "requestPermission") {
             requestPermission(call, result)
+            return
+        }
+        // ⚠️ 详细版 —— 除了「批没批」，还要回「系统框到底弹了没有」
+        // ⇒ ⇒ 设置页据此决定「就地弹窗」还是「退到系统设置页」。
+        if (call.method == "requestPermissionDetailed") {
+            requestPermissionDetailed(call, result)
             return
         }
         // 打开系统权限页同样是**主线程**的事（要启 Activity）⇒ ⇒ 也不进 IO 协程。
@@ -199,33 +242,90 @@ class DeviceDataBridge(
     /// 不会顺带拿到「允许写日历」—— 这正是绕开 permission_handler 的理由
     /// （它的 calendarFullAccess 把读和写捆在一起）。
     private fun requestPermission(call: MethodCall, result: MethodChannel.Result) {
+        requestPermissionInternal(call, result, detailed = false)
+    }
+
+    /// **详细版**的权限申请 —— 除了「批没批」，还回「系统框到底弹了没有」。
+    ///
+    /// ⚠️ 为什么要分两档（而不是把旧的也改成回 Map）：
+    /// 聊天流那条路只需要一个布尔（批没批）⇒ ⇒ 契约越窄越不容易漂；
+    /// 而设置页那条路需要知道「弹不出来」⇒ ⇒ 才能决定要不要退到系统设置页。
+    private fun requestPermissionDetailed(call: MethodCall, result: MethodChannel.Result) {
+        requestPermissionInternal(call, result, detailed = true)
+    }
+
+    /// 权限申请的**共同实现**。
+    ///
+    /// ⚠️ **核心**：在**发请求之前**就把「这次会不会真的弹框」算出来
+    /// ⇒ ⇒ 因为事后（回调里）再问系统就晚了 ——
+    /// 用户这一次的拒绝**已经**把系统的状态改了
+    /// ⇒ ⇒ 事后算出来的「会不会弹」是**下一次**的答案，不是这一次的。
+    private fun requestPermissionInternal(
+        call: MethodCall,
+        result: MethodChannel.Result,
+        detailed: Boolean,
+    ) {
         val reply = SingleReply(result)
         val capability = Capability.fromWire(argString(call.arguments as? Map<*, *>, "capability"))
         if (capability == null) {
             // 未知/缺失的能力 ⇒ fail-closed（当没给），不抛。
             AppLog.w(TAG, "requestPermission：未知的能力")
-            postToMain { reply.success(false) }
+            postToMain {
+                reply.success(
+                    permissionOutcome(detailed, granted = false, dialogShown = false, permanentlyDenied = false),
+                )
+            }
             return
         }
 
         val perms = requiredPermissions(capability)
         if (perms.all { isGranted(it) }) {
             // 已经全有了 ⇒ 不用弹窗，直接 true。
-            postToMain { reply.success(true) }
+            postToMain {
+                reply.success(
+                    permissionOutcome(detailed, granted = true, dialogShown = false, permanentlyDenied = false),
+                )
+            }
             return
         }
 
         // 上一次还没回来 ⇒ 先把它结掉（那个请求被顶掉了）—— **不许丢结果**，
         // 否则 Dart 侧那个 await 会永远悬着。
-        val superseded = pendingPermissionResult
-        pendingPermissionResult = null
+        val superseded = pendingPermission
+        pendingPermission = null
         if (superseded != null) {
             AppLog.w(TAG, "requestPermission：上一次请求被顶掉了，先回 false")
-            postToMain { superseded.success(false) }
+            postToMain {
+                superseded.reply.success(
+                    permissionOutcome(
+                        superseded.detailed,
+                        granted = false,
+                        dialogShown = false,
+                        permanentlyDenied = false,
+                        // ⚠️ **顶掉了** ⇒ ⇒ 这一次的系统框压根没出现，
+                        // 但那**不是**「系统拒绝再弹」⇒ ⇒ 界面不该退到设置页
+                        // ⇒ ⇒ 必须单独标出来，否则用户会被莫名送去系统设置。
+                        superseded = true,
+                    ),
+                )
+            }
         }
 
-        pendingPermissionResult = reply
-        AppLog.i(TAG, "requestPermission：申请 ${perms.joinToString(", ")}")
+        // ⚠️ **「问过没有」要在请求发出之前就落盘** ⇒ ⇒ 用户点拒绝**也算**问过
+        // ⇒ ⇒ 这是区分「从没问过（还能弹）」与「永久拒绝（弹不出来）」的唯一依据。
+        val askedBefore = permissionPrefs.getBoolean(askedKey(capability), false)
+        permissionPrefs.edit().putBoolean(askedKey(capability), true).apply()
+
+        // ⚠️ **会不会弹框** —— 在**发请求之前**判定（理由见上面的注释）。
+        // - 从没问过 ⇒ ⇒ 第一次请求**一定**会弹（哪怕 shouldShowRationale 是 false）；
+        // - 问过 ⇒ ⇒ 只有系统还愿意弹（shouldShowRationale == true）才会弹。
+        val willShowDialog = !askedBefore || perms.any {
+            ActivityCompat.shouldShowRequestPermissionRationale(activity, it)
+        }
+
+        val pending = PendingPermission(reply, detailed, willShowDialog)
+        pendingPermission = pending
+        AppLog.i(TAG, "requestPermission：申请 ${perms.joinToString(", ")}（会弹框=${willShowDialog}）")
 
         // requestPermissions 必须在主线程调。
         postToMain {
@@ -234,13 +334,36 @@ class DeviceDataBridge(
             } catch (e: Exception) {
                 AppLog.e(TAG, "requestPermissions 失败", e)
                 // 只清**自己**那一格 —— 别把后来那次请求的结果也端走。
-                if (pendingPermissionResult === reply) {
-                    pendingPermissionResult = null
+                if (pendingPermission === pending) {
+                    pendingPermission = null
                 }
                 // SingleReply 保证只答一次（顶掉时已经答过 false 了）。
-                reply.success(false)
+                reply.success(
+                    permissionOutcome(detailed, granted = false, dialogShown = false, permanentlyDenied = false),
+                )
             }
         }
+    }
+
+    /// 一次权限申请的**结果** —— 按契约回布尔还是回 Map。
+    ///
+    /// ⚠️ 为什么把两种形状收在一个函数里 ⇒ ⇒ 保证「哪条路回什么」
+    /// 只有**一个**事实来源 ⇒ ⇒ 不会两处漂移。
+    private fun permissionOutcome(
+        detailed: Boolean,
+        granted: Boolean,
+        dialogShown: Boolean,
+        permanentlyDenied: Boolean,
+        superseded: Boolean = false,
+    ): Any = if (detailed) {
+        mapOf(
+            "granted" to granted,
+            "dialogShown" to dialogShown,
+            "permanentlyDenied" to permanentlyDenied,
+            "superseded" to superseded,
+        )
+    } else {
+        granted
     }
 
     /// Activity 把系统的权限回调转发过来 —— **只有我们的 requestCode 才处理**。
@@ -251,15 +374,28 @@ class DeviceDataBridge(
             return false
         }
         // 先清再答 ⇒ 保证「只答一次」。
-        val pending = pendingPermissionResult
-        pendingPermissionResult = null
+        val pending = pendingPermission
+        pendingPermission = null
         if (pending == null) {
             AppLog.w(TAG, "onRequestPermissionsResult：没有等着的结果，丢弃")
             return true
         }
         val granted = grantResults.isNotEmpty() &&
             grantResults.all { it == PackageManager.PERMISSION_GRANTED }
-        postToMain { pending.success(granted) }
+        // ⚠️ **永久拒绝**的判定 —— 只在「压根没弹框」时才成立：
+        // 系统愿意弹框却没批 ⇒ ⇒ 那是用户点了拒绝 ⇒ ⇒ 下次**还能**弹
+        // ⇒ ⇒ 只有系统**拒绝再弹**时，才只能退到系统设置页。
+        val permanentlyDenied = !granted && !pending.willShowDialog
+        postToMain {
+            pending.reply.success(
+                permissionOutcome(
+                    pending.detailed,
+                    granted = granted,
+                    dialogShown = pending.willShowDialog,
+                    permanentlyDenied = permanentlyDenied,
+                ),
+            )
+        }
         return true
     }
 

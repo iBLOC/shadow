@@ -8,6 +8,7 @@ import '../multimodal/multimodal.dart';
 import '../services/telencephalon/telencephalon_client.dart';
 import '../services/client_tools/client_tool_registry.dart';
 import '../services/capabilities/capability.dart';
+import '../services/capabilities/capability_declaration.dart';
 import 'capability_policy_provider.dart';
 import 'conversation_mode_provider.dart';
 import 'genui_provider.dart';
@@ -631,6 +632,9 @@ class ChatNotifier extends StateNotifier<ChatState> {
       description: tool?.description,
       // ⚠️ 带上能力 ⇒ ⇒ 授权卡片能把 `calendar_read_events` 翻成「读取日历」。
       capability: tool?.capability,
+      // ⚠️ 带上**真实**要的那一档权限 ⇒ ⇒ 卡片上写清楚「这次要哪个权限」
+      // ⇒ ⇒ 用户点头前就知道这扇门通向哪儿。
+      requiredPermissions: requiredPermissionsOf(tool?.capability),
       args: args,
     );
     _upsertToolCall(model);
@@ -683,6 +687,44 @@ class ChatNotifier extends StateNotifier<ChatState> {
           result: <String, dynamic>{
             'error': 'capability disabled',
             'capability': capability.wire,
+          },
+        ),
+      );
+      return;
+    }
+
+    // ⚠️ **agent 必须声明自己需要哪些权限** —— 这一份声明要**核对**。
+    //
+    // ⚠️ 核对**不等于**授权：真正要哪一档，永远由**工具**说了算
+    // ⇒ ⇒ 声明对不上 ⇒ ⇒ **明确失败**（模型能学到，下次改对）
+    // ⇒ ⇒ 而不是「按它说的给」⇒ ⇒ 那等于让模型给自己发权限。
+    //
+    // ⚠️ 「没声明」是**宽容**的（老模型不知道有这一栏）⇒ ⇒ 按工具真实要求走。
+    final declaration = evaluatePermissionDeclaration(
+      capability: tool.capability,
+      declared: declaredPermissionsOf(args),
+    );
+    if (!declaration.ok) {
+      _upsertToolCall(
+        model.copyWith(
+          status: ToolCallStatus.failed,
+          errorText: currentL10n().capabilityDeclarationMismatch(
+            declaration.extra.join(', '),
+            declaration.required.isEmpty ? '—' : declaration.required.join(', '),
+          ),
+        ),
+      );
+      unawaited(
+        _reportToolResult(
+          sessionId,
+          callId,
+          name,
+          ok: false,
+          // ⚠️ 回传里带上「它声明了什么 / 实际需要什么」⇒ ⇒ 模型能**改对**。
+          result: <String, dynamic>{
+            'error': 'permission declaration mismatch',
+            'declared': declaration.declared,
+            'required': declaration.required,
           },
         ),
       );

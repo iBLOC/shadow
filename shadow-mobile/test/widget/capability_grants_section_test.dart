@@ -23,11 +23,28 @@ void main() {
   const channel = MethodChannel('com.ibloc.shadow/device_data');
   final calls = <String>[];
 
-  void mockChannel({required bool granted}) {
+  /// 系统权限的**当前**状态 —— 可被「弹窗授予」当场改掉
+  /// ⇒ ⇒ 界面那行才会从「未授予」变成「已授予」⇒ ⇒ 与真机同一条路。
+  var osGranted = false;
+
+  /// 「requestPermissionDetailed」回什么。
+  /// null ⇒ ⇒ 原生**不认**这个方法 ⇒ ⇒ Dart 侧回「什么都没发生」。
+  Map<String, Object?>? detailReply;
+
+  void mockChannel({required bool granted, Map<String, Object?>? detail}) {
+    osGranted = granted;
+    detailReply = detail;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
       calls.add(call.method);
-      if (call.method == 'hasPermission') return granted;
+      if (call.method == 'hasPermission') return osGranted;
+      if (call.method == 'requestPermissionDetailed') {
+        final reply = detailReply;
+        if (reply == null) return null;
+        // 批了 ⇒ ⇒ 系统权限状态**当场**变 ⇒ ⇒ 界面刷新后要能看到。
+        if (reply['granted'] == true) osGranted = true;
+        return reply;
+      }
       if (call.method == 'openAppSettings') return true;
       return null;
     });
@@ -119,16 +136,101 @@ void main() {
     expect(find.textContaining('无障碍服务未开启'), findsOneWidget);
   });
 
-  testWidgets('点「去授权」⇒ 真的调了 openAppSettings', (
+  testWidgets('点「去授权」⇒ **就地弹系统框**，不把人支去设置页', (
     WidgetTester tester,
   ) async {
-    mockChannel(granted: false);
+    mockChannel(
+      granted: false,
+      detail: {
+        'granted': true,
+        'dialogShown': true,
+        'permanentlyDenied': false,
+      },
+    );
     await pump(tester);
 
     await tester.tap(find.text('去授权').first);
     await tester.pumpAndSettle();
 
+    expect(calls, contains('requestPermissionDetailed'));
+    // ⚠️ **不许**跳系统设置页 —— 弹窗能解决的事，就不该把用户支走。
+    expect(calls, isNot(contains('openAppSettings')));
+    // 授权结果要**看得见**（否则用户点了按钮却不知道成没成）。
+    expect(find.text('已授权'), findsOneWidget);
+    // 授权之后那一行应当改口（状态真的跟上了）。
+    expect(find.textContaining('系统权限已授予'), findsNWidgets(5));
+  });
+
+  testWidgets('用户点了拒绝 ⇒ 留在原地（下次还能再弹）', (
+    WidgetTester tester,
+  ) async {
+    mockChannel(
+      granted: false,
+      detail: {
+        'granted': false,
+        'dialogShown': true,
+        'permanentlyDenied': false,
+      },
+    );
+    await pump(tester);
+
+    await tester.tap(find.text('去授权').first);
+    await tester.pumpAndSettle();
+
+    expect(calls, contains('requestPermissionDetailed'));
+    // ⚠️ 系统**愿意**弹框却没批 ⇒ ⇒ 那是用户点了拒绝
+    // ⇒ ⇒ 下次还能弹 ⇒ ⇒ 不该跳设置页。
+    expect(calls, isNot(contains('openAppSettings')));
+    expect(find.text('已取消授权'), findsOneWidget);
+  });
+
+  testWidgets('系统弹不出来 ⇒ 先说清楚为什么，再去设置页', (
+    WidgetTester tester,
+  ) async {
+    mockChannel(
+      granted: false,
+      detail: {
+        'granted': false,
+        'dialogShown': false,
+        'permanentlyDenied': true,
+      },
+    );
+    await pump(tester);
+
+    await tester.tap(find.text('去授权').first);
+    await tester.pumpAndSettle();
+
+    // ⚠️ **不许**直接把人支走 ⇒ ⇒ 先把原因说清楚。
+    expect(calls, isNot(contains('openAppSettings')));
+    expect(find.text('需要到系统设置里开启'), findsOneWidget);
+
+    await tester.tap(find.text('去设置'));
+    await tester.pumpAndSettle();
+
     expect(calls, contains('openAppSettings'));
+  });
+
+  testWidgets('请求被顶掉 ⇒ 既不提示，也不跳设置页', (
+    WidgetTester tester,
+  ) async {
+    mockChannel(
+      granted: false,
+      detail: {
+        'granted': false,
+        'dialogShown': false,
+        'permanentlyDenied': false,
+        'superseded': true,
+      },
+    );
+    await pump(tester);
+
+    await tester.tap(find.text('去授权').first);
+    await tester.pumpAndSettle();
+
+    // ⚠️ 顶掉 ≠ 「系统拒绝再弹」⇒ ⇒ 不许拿它当借口把用户送去设置页。
+    expect(calls, isNot(contains('openAppSettings')));
+    expect(find.text('已取消授权'), findsNothing);
+    expect(find.text('需要到系统设置里开启'), findsNothing);
   });
 
   testWidgets('下拉里有**三档**：每次询问 / 完全访问 / 彻底关闭', (

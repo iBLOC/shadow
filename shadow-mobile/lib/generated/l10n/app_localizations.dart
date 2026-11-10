@@ -2107,6 +2107,7 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Could not read the provider catalog from the brain - it may not be running.'**
   String get encephalonModelOptionsUnavailable;
+
   /// No description provided for @capabilityDefaultsTitle.
   ///
   /// In en, this message translates to:
@@ -3228,6 +3229,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Grant'**
   String get capabilityGrantSystemPermission;
+
+  /// No description provided for @capabilityGrantSucceeded.
+  ///
+  /// In en, this message translates to:
+  /// **'Granted'**
+  String get capabilityGrantSucceeded;
+
+  /// No description provided for @capabilityGrantDenied.
+  ///
+  /// In en, this message translates to:
+  /// **'Permission denied'**
+  String get capabilityGrantDenied;
+
+  /// No description provided for @capabilityGrantNeedsSettingsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'The system will not ask again'**
+  String get capabilityGrantNeedsSettingsTitle;
+
+  /// No description provided for @capabilityGrantNeedsSettingsBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Needs to be turned on in system settings'**
+  String get capabilityGrantNeedsSettingsBody;
+
+  /// No description provided for @capabilityGrantGoToSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Open settings'**
+  String get capabilityGrantGoToSettings;
+
+  /// No description provided for @capabilityPermissionRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'System permission needed: {permission}'**
+  String capabilityPermissionRequired(String permission);
+
+  /// No description provided for @capabilityPermissionRequiredAccessibility.
+  ///
+  /// In en, this message translates to:
+  /// **'the accessibility service (phone control)'**
+  String get capabilityPermissionRequiredAccessibility;
+
+  /// No description provided for @capabilityDeclarationMismatch.
+  ///
+  /// In en, this message translates to:
+  /// **'Permission declaration does not match: the model declared {declared}, but this tool really needs {required}'**
+  String capabilityDeclarationMismatch(String declared, String required);
 
   /// No description provided for @backgroundKeepAlive.
   ///

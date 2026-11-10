@@ -45,8 +45,9 @@ import UIKit
 /// ## 与 Kotlin 侧**逐字对齐**的地方（改一边就必须改另一边）
 ///
 /// - 通道名：com.ibloc.shadow/device_data
-/// - 方法名：hasPermission / requestPermission / openAppSettings /
-///   readCalendar / writeCalendar / readContacts / readSms / readPhotos
+/// - 方法名：hasPermission / requestPermission / requestPermissionDetailed /
+///   openAppSettings / readCalendar / writeCalendar / readContacts / readSms /
+///   readPhotos
 /// - 错误码：PERMISSION_DENIED / DEVICE_DATA_ERROR（Dart 侧按字符串匹配）
 /// - 能力 wire 名：calendar_read / calendar_write / contacts / sms / photos
 /// - 返回数据的字段名（一字不差）
@@ -143,6 +144,10 @@ final class DeviceDataBridge: NSObject {
     switch call.method {
     case "requestPermission":
       requestPermission(args: args, reply: reply)
+    // ⚠️ 详细版 —— 除了「批没批」，还要回「系统框到底弹了没有」
+    // ⇒ ⇒ 设置页据此决定「就地弹窗」还是「退到系统设置页」。
+    case "requestPermissionDetailed":
+      requestPermissionDetailed(args: args, reply: reply)
     case "openAppSettings":
       openAppSettings(reply: reply)
     case "hasPermission":
@@ -294,6 +299,132 @@ final class DeviceDataBridge: NSObject {
       // ⚠️ 同样：运行时到不了（guard 先拦）⇒ ⇒ 但 switch 必须穷尽。
       reply.success(false)
     }
+  }
+
+  /// **详细版**的权限申请 —— 除了「批没批」，还回「系统框到底弹了没有」。
+  ///
+  /// ⚠️ 与 Kotlin 侧**同一个形状**（字段名一字不差）⇒ ⇒ 两端行为一致
+  /// ⇒ ⇒ 设置页那套「先弹窗、弹不出来才去设置页」的逻辑**两端共用**。
+  private func requestPermissionDetailed(args: [String: Any], reply: SingleReply) {
+    guard let capability = Self.capability(from: args) else {
+      reply.success(Self.outcome(granted: false, dialogShown: false, permanentlyDenied: false))
+      return
+    }
+    guard Self.isSupported(capability) else {
+      reply.success(Self.outcome(granted: false, dialogShown: false, permanentlyDenied: false))
+      return
+    }
+    // 已经拿到了 ⇒ ⇒ 不用申请（与 Kotlin 侧同一条短路）。
+    if hasOsPermission(capability) {
+      reply.success(Self.outcome(granted: true, dialogShown: false, permanentlyDenied: false))
+      return
+    }
+    switch promptState(for: capability) {
+    case .willPrompt:
+      // ⚠️ 系统**还会**弹框 ⇒ ⇒ 就地申请 ⇒ ⇒ 「弹了」是**事实**，不是推断。
+      // 复用现有的申请路径（同一套权限 API），只把布尔结果**包成**详细结果。
+      requestPermission(args: args, reply: SingleReply { value in
+        let granted = (value as? Bool) ?? false
+        reply.success(
+          Self.outcome(granted: granted, dialogShown: true, permanentlyDenied: false)
+        )
+      })
+    case .permanentlyDenied:
+      // ⚠️ 用户拒绝过（或被家长控制限制）⇒ ⇒ iOS **不会**再弹这个框
+      // ⇒ ⇒ 只能去系统设置页 ⇒ ⇒ 这一点必须**如实**告诉 Dart 侧，
+      //     否则 Dart 侧会以为「系统框没出现是我们的 bug」。
+      reply.success(Self.outcome(granted: false, dialogShown: false, permanentlyDenied: true))
+    case .alreadyDecided:
+      reply.success(Self.outcome(granted: false, dialogShown: false, permanentlyDenied: false))
+    }
+  }
+
+  /// 这个能力在 iOS 上的**授权态势** —— 只回答「还会不会弹框」这一件事。
+  private enum PromptState {
+    /// 系统**还会**弹框（.notDetermined）⇒ ⇒ 可以就地申请。
+    case willPrompt
+    /// 用户拒绝过 / 被策略限制 ⇒ ⇒ 系统**不会**再弹 ⇒ ⇒ 只能去设置页。
+    case permanentlyDenied
+    /// 已经定下来了（授权了 / 部分授权）⇒ ⇒ 不用申请。
+    case alreadyDecided
+  }
+
+  /// 这个能力还会不会弹框。
+  private func promptState(for capability: Capability) -> PromptState {
+    switch capability {
+    case .calendarRead, .calendarWrite:
+      return Self.calendarPromptState(for: capability)
+    case .contacts:
+      switch CNContactStore.authorizationStatus(for: .contacts) {
+      case .notDetermined: return .willPrompt
+      case .denied, .restricted: return .permanentlyDenied
+      default: return .alreadyDecided
+      }
+    case .photos:
+      return Self.photosPromptState()
+    case .sms, .mobileUse:
+      // ⚠️ 这两个能力在 iOS 上**不存在** ⇒ ⇒ 弹不出框。
+      return .permanentlyDenied
+    }
+  }
+
+  /// 日历的授权态势。
+  ///
+  /// ⚠️ **只认 notDetermined / denied / restricted** ⇒ ⇒ 不碰
+  /// fullAccess / writeOnly / authorized ⇒ ⇒ 一是避开 iOS 17 的
+  /// 可用性标注，二是避开 authorized 的弃用告警。
+  private static func calendarPromptState(for capability: Capability) -> PromptState {
+    let status = EKEventStore.authorizationStatus(for: .event)
+    if #available(iOS 17.0, *) {
+      switch status {
+      case .notDetermined:
+        return .willPrompt
+      case .denied, .restricted:
+        return .permanentlyDenied
+      case .writeOnly:
+        // ⚠️ 只有写 ⇒ ⇒ 「读」这一档**还没拿到** ⇒ ⇒ 系统**还会**再问一次
+        // ⇒ ⇒ 只有「写」那一档已经定了。
+        return capability == .calendarWrite ? .alreadyDecided : .willPrompt
+      default:
+        return .alreadyDecided
+      }
+    }
+    switch status {
+    case .notDetermined: return .willPrompt
+    case .denied, .restricted: return .permanentlyDenied
+    default: return .alreadyDecided
+    }
+  }
+
+  /// 相册的授权态势。
+  private static func photosPromptState() -> PromptState {
+    let status: PHAuthorizationStatus
+    if #available(iOS 14.0, *) {
+      status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+    } else {
+      status = PHPhotoLibrary.authorizationStatus()
+    }
+    switch status {
+    case .notDetermined: return .willPrompt
+    case .denied, .restricted: return .permanentlyDenied
+    default: return .alreadyDecided
+    }
+  }
+
+  /// 一次权限申请的**结果** —— 字段名与 Kotlin 侧**一字不差**。
+  private static func outcome(
+    granted: Bool,
+    dialogShown: Bool,
+    permanentlyDenied: Bool
+  ) -> [String: Any] {
+    return [
+      "granted": granted,
+      "dialogShown": dialogShown,
+      "permanentlyDenied": permanentlyDenied,
+      // ⚠️ iOS 上没有「后一次请求顶掉前一次」这回事（系统框是模态的）
+      // ⇒ ⇒ 恒为 false ⇒ ⇒ 但**字段必须留着**，否则 Dart 侧读不到键会崩。
+      "superseded": false,
+    ]
   }
 
   /// 日历权限申请。

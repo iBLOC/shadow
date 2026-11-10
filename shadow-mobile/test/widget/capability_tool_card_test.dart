@@ -274,4 +274,60 @@ void main() {
     // 前面根本不知道模型要干什么。
     expect(texts.length, 6);
   });
+
+  testWidgets('能力工具：卡片上写着「这次要哪个权限」（点头前就知道）', (
+    WidgetTester tester,
+  ) async {
+    await pumpCard(
+      tester,
+      ToolCallModel(
+        id: 'call-3',
+        name: 'calendar_read_events',
+        capability: Capability.calendarRead,
+        requiredPermissions: const ['calendar_read'],
+        status: ToolCallStatus.awaitingApproval,
+      ),
+    );
+
+    expect(find.text('需要的系统权限：读取日历'), findsOneWidget);
+    // ⚠️ **不许**把 token 摆给用户看 ⇒ ⇒ 那是给机器的词汇。
+    expect(find.textContaining('calendar_read'), findsNothing);
+  });
+
+  testWidgets('「手机操作」那一档 ⇒ 说清要的是**无障碍服务**那个系统开关', (
+    WidgetTester tester,
+  ) async {
+    await pumpCard(
+      tester,
+      ToolCallModel(
+        id: 'call-5',
+        name: 'mobile_tap',
+        capability: Capability.mobileUse,
+        requiredPermissions: const ['mobile_use'],
+        status: ToolCallStatus.awaitingApproval,
+      ),
+    );
+
+    expect(find.text('需要的系统权限：无障碍服务（手机操作）'), findsOneWidget);
+    // ⚠️ 不许只说「手机操作」⇒ ⇒ 那四个字读起来像「要操作手机」，
+    // 而**真正**要开着的是**无障碍服务**那个系统开关。
+    expect(find.text('需要的系统权限：手机操作'), findsNothing);
+  });
+  testWidgets('普通工具**不**多出那一行（不回归）', (
+    WidgetTester tester,
+  ) async {
+    await pumpCard(
+      tester,
+      ToolCallModel(
+        id: 'call-4',
+        name: 'set_theme',
+        description: 'Change the app theme colour',
+        args: const {'color': '#4F46E5'},
+        status: ToolCallStatus.succeeded,
+        reported: true,
+      ),
+    );
+
+    expect(find.textContaining('需要的系统权限'), findsNothing);
+  });
 }

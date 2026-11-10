@@ -1,0 +1,48 @@
+{
+  "_readme": "真模型实测抓下来的**真输出**（golden fixture）—— 用来把「模型到底会不会填这一栏」这件事从「一次性离线实测」变成**常驻回归**。⚠️ 里面每一行都是模型**逐字**返回的 arguments，不是手写的。",
+  "capturedAt": "前五条 2026-11-09 23:5x；手机操作那三条 2026-11-10 00:0x（跨零点补的）",
+  "model": "glm-5.3-flash",
+  "howCaptured": "用真 Dart 代码 toOpenAiTools(buildMobileClientTools(...)) dump 出**真**发给模型的那一份 tools 数组 ⇒ ⇒ 原样喂给模型（用户是中文口语）⇒ ⇒ 模型回的工具调用**逐字**存在这里。",
+  "cases": [
+    {
+      "id": "calendar_read",
+      "user": "我明天有什么安排？",
+      "raw": "{\"name\": \"calendar_read_events\", \"arguments\": {\"required_permissions\": [\"calendar_read\"]}}"
+    },
+    {
+      "id": "calendar_write",
+      "user": "帮我把明天上午十点跟张伟的会记到日历上",
+      "raw": "{\"name\": \"calendar_write_event\", \"arguments\": {\"required_permissions\": [\"calendar_write\"], \"title\": \"与张伟开会\", \"start\": \"2026-11-03T10:00:00\", \"end\": \"2026-11-03T11:00:00\"}}"
+    },
+    {
+      "id": "contacts",
+      "user": "张伟的电话号码是多少？",
+      "raw": "{\"name\": \"contacts_search\", \"arguments\": {\"query\": \"张伟\", \"required_permissions\": [\"contacts\"]}}"
+    },
+    {
+      "id": "sms",
+      "user": "我最近收到哪些短信了？",
+      "raw": "{\"name\": \"sms_read_messages\", \"arguments\": {\"required_permissions\": [\"sms\"], \"limit\": 30}}"
+    },
+    {
+      "id": "photos",
+      "user": "给我看看我最近的手机截图。",
+      "raw": "{\"name\": \"photos_list_recent\", \"arguments\": {\"required_permissions\": [\"photos\"], \"limit\": 30}}"
+    },
+    {
+      "id": "mobile_read_screen",
+      "user": "看看我现在的屏幕上有什么。",
+      "raw": "{\"name\": \"mobile_read_screen\", \"arguments\": {\"required_permissions\": [\"mobile_use\"]}}"
+    },
+    {
+      "id": "mobile_find_and_click",
+      "user": "点一下屏幕上那个『确定』按钮。",
+      "raw": "{\"name\": \"mobile_find_and_click\", \"arguments\": {\"required_permissions\": [\"mobile_use\"], \"text\": \"确定\"}}"
+    },
+    {
+      "id": "mobile_global_action",
+      "user": "回到主屏幕。",
+      "raw": "{\"name\": \"mobile_global_action\", \"arguments\": {\"required_permissions\": [\"mobile_use\"], \"action\": \"home\"}}"
+    }
+  ]
+}

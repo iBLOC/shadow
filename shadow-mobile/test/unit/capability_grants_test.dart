@@ -22,6 +22,7 @@ class FakeDeviceDataChannel extends DeviceDataChannel {
   FakeDeviceDataChannel({
     this.granted = true,
     this.requestResult = true,
+    this.permanentlyDenied = false,
     this.events = const [],
   });
 
@@ -30,6 +31,12 @@ class FakeDeviceDataChannel extends DeviceDataChannel {
 
   /// 「申请权限」这个动作的结果（模拟用户批 / 不批）。
   bool requestResult;
+
+  /// 模拟「系统**拒绝再弹**」（用户拒绝过两次 ⇒ 系统不再弹那个框）。
+  ///
+  /// ⚠️ 这一档必须与「用户点了拒绝」**分得开** ⇒ ⇒ 否则客户端只会说
+  /// 「用户没给权限」⇒ ⇒ 而真相是「只能去系统设置里开」。
+  final bool permanentlyDenied;
 
   /// 读日历要返回的东西。
   List<Map<String, Object?>> events;
@@ -47,6 +54,22 @@ class FakeDeviceDataChannel extends DeviceDataChannel {
     permissionRequests++;
     if (requestResult) granted = true;
     return requestResult;
+  }
+
+  /// **详细版**的申请 —— 与原生那侧**同形状**（字段名一字不差）。
+  @override
+  Future<PermissionRequestOutcome> requestPermissionDetailed(
+    String capabilityWire,
+  ) async {
+    permissionRequests++;
+    if (requestResult) granted = true;
+    return PermissionRequestOutcome(
+      granted: requestResult,
+      // ⚠️ 「系统拒绝再弹」⇒ ⇒ 压根**没弹** ⇒ ⇒ 与「用户点了拒绝」分得开。
+      dialogShown: !permanentlyDenied,
+      permanentlyDenied: permanentlyDenied,
+      superseded: false,
+    );
   }
 
   @override
@@ -855,6 +878,117 @@ void main() {
       );
       // ⚠️ **不许**静悄悄变成「返回」⇒ ⇒ 一个动作都不许发。
       expect(ops.calls, isEmpty);
+    });
+  });
+
+  group('⑤ 权限声明：agent 自己声明需要哪些权限', () {
+    test('声明与工具**真实**需要的那一档对得上 ⇒ 照常执行', () async {
+      final channel = FakeDeviceDataChannel(
+        events: [
+          <String, Object?>{'id': '1', 'title': '站会'},
+        ],
+      );
+      final client = _MockClient([
+        StreamEvent(
+          type: 'tool_call',
+          name: 'calendar_read_events',
+          args: <String, dynamic>{
+            'required_permissions': ['calendar_read'],
+          },
+        ),
+      ]);
+      final notifier = ChatNotifier(
+        _FakeTts(),
+        client,
+        clientTools: registryWith(channel),
+        capabilityModeFor: (_) => AuthorizationMode.fullAccess,
+      );
+
+      await notifier.generateResponse('我明天有什么安排');
+      await waitForSettled(notifier);
+
+      final call = lastToolCall(notifier);
+      expect(call!.status, ToolCallStatus.succeeded);
+      expect(channel.calendarReads, 1);
+      // ⚠️ 卡片上要写清楚「这次要哪个权限」⇒ ⇒ 用户点头前就知道。
+      expect(call.requiredPermissions, ['calendar_read']);
+    });
+
+    test('声明了**这个工具不需要**的权限 ⇒ 明确失败，且一个字节都不许读', () async {
+      final channel = FakeDeviceDataChannel();
+      final client = _MockClient([
+        StreamEvent(
+          type: 'tool_call',
+          name: 'calendar_read_events',
+          args: <String, dynamic>{
+            'required_permissions': ['calendar_write'],
+          },
+        ),
+      ]);
+      final notifier = ChatNotifier(
+        _FakeTts(),
+        client,
+        clientTools: registryWith(channel),
+        capabilityModeFor: (_) => AuthorizationMode.fullAccess,
+      );
+
+      await notifier.generateResponse('我明天有什么安排');
+      await waitForSettled(notifier);
+
+      final call = lastToolCall(notifier);
+      expect(call!.status, ToolCallStatus.failed);
+      // ⚠️ 越权的声明 ⇒ ⇒ **一个字节都不许读**。
+      expect(channel.calendarReads, 0);
+      // ⚠️ 失败要**回传端脑** ⇒ ⇒ 模型能学到下次改对。
+      expect(client.reports, hasLength(1));
+      expect(client.reports.single['ok'], isFalse);
+      final payload = client.reports.single['result'] as Map;
+      expect(payload['declared'], contains('calendar_write'));
+      expect(payload['required'], contains('calendar_read'));
+      // ⚠️ 错误文案里要点名那个**多出来的**权限（不含语种地断言）。
+      expect(call.errorText, contains('calendar_write'));
+    });
+
+    test('没声明 ⇒ 宽容：按工具真实需要的那一档走', () async {
+      final channel = FakeDeviceDataChannel();
+      final client = _MockClient([
+        StreamEvent(
+          type: 'tool_call',
+          name: 'calendar_read_events',
+          args: <String, dynamic>{},
+        ),
+      ]);
+      final notifier = ChatNotifier(
+        _FakeTts(),
+        client,
+        clientTools: registryWith(channel),
+        capabilityModeFor: (_) => AuthorizationMode.fullAccess,
+      );
+
+      await notifier.generateResponse('我明天有什么安排');
+      await waitForSettled(notifier);
+
+      expect(lastToolCall(notifier)!.status, ToolCallStatus.succeeded);
+      expect(channel.calendarReads, 1);
+    });
+
+    test('系统**拒绝再弹** ⇒ 错误文案要说「去系统设置」（不是「用户没给」）', () async {
+      final channel = FakeDeviceDataChannel(
+        granted: false,
+        requestResult: false,
+        permanentlyDenied: true,
+      );
+      final tools = CapabilityTools(channel: channel);
+      await expectLater(
+        tools.readCalendar(<String, dynamic>{}),
+        throwsA(
+          isA<StateError>().having(
+            (e) => e.message,
+            'message',
+            contains('system settings'),
+          ),
+        ),
+      );
     });
   });
 }

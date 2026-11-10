@@ -129,6 +129,13 @@ class ToolCallModel {
   /// 用户点头前看到的必须是**人话**，不是工具名。
   final Capability? capability;
 
+  /// 这次调用**需要哪些权限**（能力级 token）。
+  ///
+  /// ⚠️ 它是**工具真实**要的那一档 ⇒ ⇒ **不是** agent 声明的那一档
+  /// ⇒ ⇒ 两者对不上时，这次调用**根本不会执行**
+  /// ⇒ ⇒ 所以卡片上显示的这份是「**实际要什么**」，不是「它说它要什么」。
+  final List<String> requiredPermissions;
+
   /// 工具参数。
   final Map<String, dynamic> args;
 
@@ -166,6 +173,7 @@ class ToolCallModel {
     required this.name,
     this.description,
     this.capability,
+    this.requiredPermissions = const [],
     this.args = const {},
     this.status = ToolCallStatus.pending,
     this.result,
@@ -179,6 +187,7 @@ class ToolCallModel {
   ToolCallModel copyWith({
     String? description,
     Capability? capability,
+    List<String>? requiredPermissions,
     Map<String, dynamic>? args,
     ToolCallStatus? status,
     Object? result,
@@ -193,6 +202,7 @@ class ToolCallModel {
       name: name,
       description: description ?? this.description,
       capability: capability ?? this.capability,
+      requiredPermissions: requiredPermissions ?? this.requiredPermissions,
       args: args ?? this.args,
       status: status ?? this.status,
       result: result ?? this.result,
@@ -525,6 +535,15 @@ ClientToolRegistry buildMobileClientTools({
       parameters: <String, dynamic>{
         'type': 'object',
         'properties': <String, dynamic>{
+          'required_permissions': <String, dynamic>{
+            'type': 'array',
+            'items': <String, dynamic>{
+              'type': 'string',
+              'enum': ['calendar_read'],
+            },
+            'description':
+                'Declare which device permission this call needs on this phone. It must be exactly ["calendar_read"] for this tool. The app checks the declaration against the real requirement and refuses the call if they do not match.',
+          },
           'from': <String, dynamic>{
             'type': 'string',
             'description':
@@ -551,6 +570,15 @@ ClientToolRegistry buildMobileClientTools({
       parameters: <String, dynamic>{
         'type': 'object',
         'properties': <String, dynamic>{
+          'required_permissions': <String, dynamic>{
+            'type': 'array',
+            'items': <String, dynamic>{
+              'type': 'string',
+              'enum': ['calendar_write'],
+            },
+            'description':
+                'Declare which device permission this call needs on this phone. It must be exactly ["calendar_write"] for this tool. The app checks the declaration against the real requirement and refuses the call if they do not match.',
+          },
           'title': <String, dynamic>{
             'type': 'string',
             'description': 'Event title.',
@@ -591,6 +619,15 @@ ClientToolRegistry buildMobileClientTools({
       parameters: <String, dynamic>{
         'type': 'object',
         'properties': <String, dynamic>{
+          'required_permissions': <String, dynamic>{
+            'type': 'array',
+            'items': <String, dynamic>{
+              'type': 'string',
+              'enum': ['contacts'],
+            },
+            'description':
+                'Declare which device permission this call needs on this phone. It must be exactly ["contacts"] for this tool. The app checks the declaration against the real requirement and refuses the call if they do not match.',
+          },
           'query': <String, dynamic>{
             'type': 'string',
             'description':
@@ -612,6 +649,15 @@ ClientToolRegistry buildMobileClientTools({
       parameters: <String, dynamic>{
         'type': 'object',
         'properties': <String, dynamic>{
+          'required_permissions': <String, dynamic>{
+            'type': 'array',
+            'items': <String, dynamic>{
+              'type': 'string',
+              'enum': ['sms'],
+            },
+            'description':
+                'Declare which device permission this call needs on this phone. It must be exactly ["sms"] for this tool. The app checks the declaration against the real requirement and refuses the call if they do not match.',
+          },
           'limit': <String, dynamic>{
             'type': 'integer',
             'description': 'Maximum number of messages to return. Defaults to 30.',
@@ -628,6 +674,15 @@ ClientToolRegistry buildMobileClientTools({
       parameters: <String, dynamic>{
         'type': 'object',
         'properties': <String, dynamic>{
+          'required_permissions': <String, dynamic>{
+            'type': 'array',
+            'items': <String, dynamic>{
+              'type': 'string',
+              'enum': ['photos'],
+            },
+            'description':
+                'Declare which device permission this call needs on this phone. It must be exactly ["photos"] for this tool. The app checks the declaration against the real requirement and refuses the call if they do not match.',
+          },
           'limit': <String, dynamic>{
             'type': 'integer',
             'description': 'Maximum number of photos to return. Defaults to 30.',
@@ -655,7 +710,17 @@ ClientToolRegistry buildMobileClientTools({
       capability: Capability.mobileUse,
       parameters: <String, dynamic>{
         'type': 'object',
-        'properties': <String, dynamic>{},
+        'properties': <String, dynamic>{
+          'required_permissions': <String, dynamic>{
+            'type': 'array',
+            'items': <String, dynamic>{
+              'type': 'string',
+              'enum': ['mobile_use'],
+            },
+            'description':
+                'Declare which device permission this call needs on this phone. For the phone-control tools it must be exactly ["mobile_use"] — the on-device accessibility service that lets the assistant drive this phone. The app checks the declaration against the real requirement and refuses the call if they do not match.',
+          },
+        },
       },
       execute: (args) => capabilityTools.readScreen(args),
     ),
@@ -667,6 +732,15 @@ ClientToolRegistry buildMobileClientTools({
       parameters: <String, dynamic>{
         'type': 'object',
         'properties': <String, dynamic>{
+          'required_permissions': <String, dynamic>{
+            'type': 'array',
+            'items': <String, dynamic>{
+              'type': 'string',
+              'enum': ['mobile_use'],
+            },
+            'description':
+                'Declare which device permission this call needs on this phone. For the phone-control tools it must be exactly ["mobile_use"] — the on-device accessibility service that lets the assistant drive this phone. The app checks the declaration against the real requirement and refuses the call if they do not match.',
+          },
           'x': <String, dynamic>{
             'type': 'integer',
             'description':
@@ -690,6 +764,15 @@ ClientToolRegistry buildMobileClientTools({
       parameters: <String, dynamic>{
         'type': 'object',
         'properties': <String, dynamic>{
+          'required_permissions': <String, dynamic>{
+            'type': 'array',
+            'items': <String, dynamic>{
+              'type': 'string',
+              'enum': ['mobile_use'],
+            },
+            'description':
+                'Declare which device permission this call needs on this phone. For the phone-control tools it must be exactly ["mobile_use"] — the on-device accessibility service that lets the assistant drive this phone. The app checks the declaration against the real requirement and refuses the call if they do not match.',
+          },
           'x': <String, dynamic>{
             'type': 'integer',
             'description':
@@ -713,6 +796,15 @@ ClientToolRegistry buildMobileClientTools({
       parameters: <String, dynamic>{
         'type': 'object',
         'properties': <String, dynamic>{
+          'required_permissions': <String, dynamic>{
+            'type': 'array',
+            'items': <String, dynamic>{
+              'type': 'string',
+              'enum': ['mobile_use'],
+            },
+            'description':
+                'Declare which device permission this call needs on this phone. For the phone-control tools it must be exactly ["mobile_use"] — the on-device accessibility service that lets the assistant drive this phone. The app checks the declaration against the real requirement and refuses the call if they do not match.',
+          },
           'x1': <String, dynamic>{
             'type': 'integer',
             'description': 'Start X coordinate in screen pixels.',
@@ -747,6 +839,15 @@ ClientToolRegistry buildMobileClientTools({
       parameters: <String, dynamic>{
         'type': 'object',
         'properties': <String, dynamic>{
+          'required_permissions': <String, dynamic>{
+            'type': 'array',
+            'items': <String, dynamic>{
+              'type': 'string',
+              'enum': ['mobile_use'],
+            },
+            'description':
+                'Declare which device permission this call needs on this phone. For the phone-control tools it must be exactly ["mobile_use"] — the on-device accessibility service that lets the assistant drive this phone. The app checks the declaration against the real requirement and refuses the call if they do not match.',
+          },
           'text': <String, dynamic>{
             'type': 'string',
             'description':
@@ -765,6 +866,15 @@ ClientToolRegistry buildMobileClientTools({
       parameters: <String, dynamic>{
         'type': 'object',
         'properties': <String, dynamic>{
+          'required_permissions': <String, dynamic>{
+            'type': 'array',
+            'items': <String, dynamic>{
+              'type': 'string',
+              'enum': ['mobile_use'],
+            },
+            'description':
+                'Declare which device permission this call needs on this phone. For the phone-control tools it must be exactly ["mobile_use"] — the on-device accessibility service that lets the assistant drive this phone. The app checks the declaration against the real requirement and refuses the call if they do not match.',
+          },
           'action': <String, dynamic>{
             'type': 'string',
             // ⚠️ **不要写 `<String>[`** —— 跨端闸 `scripts/check-client-tools.mjs`

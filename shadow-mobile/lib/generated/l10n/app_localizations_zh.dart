@@ -1083,12 +1083,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get encephalonModelOptionsUnavailable => '读不到大脑的供应商目录 —— 大脑可能没在跑。';
+
   @override
   String get capabilityDefaultsTitle => '按能力分档的默认模型';
 
   @override
-  String get capabilityDefaultsHint =>
-      '文本 / 语音识别 / 语音合成 各自一个默认模型；不指定就由端脑自己挑。';
+  String get capabilityDefaultsHint => '文本 / 语音识别 / 语音合成 各自一个默认模型；不指定就由端脑自己挑。';
 
   @override
   String get capabilityDefaultsAppliedButNotCached =>
@@ -1677,6 +1677,34 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get capabilityGrantSystemPermission => '去授权';
+
+  @override
+  String get capabilityGrantSucceeded => '已授权';
+
+  @override
+  String get capabilityGrantDenied => '已取消授权';
+
+  @override
+  String get capabilityGrantNeedsSettingsTitle => '系统不会再弹这个框了';
+
+  @override
+  String get capabilityGrantNeedsSettingsBody => '需要到系统设置里开启';
+
+  @override
+  String get capabilityGrantGoToSettings => '去设置';
+
+  @override
+  String capabilityPermissionRequired(String permission) {
+    return '需要的系统权限：$permission';
+  }
+
+  @override
+  String get capabilityPermissionRequiredAccessibility => '无障碍服务（手机操作）';
+
+  @override
+  String capabilityDeclarationMismatch(String declared, String required) {
+    return '权限声明对不上：模型声明了 $declared，而这个工具真正需要 $required';
+  }
 
   @override
   String get backgroundKeepAlive => '后台常驻';
