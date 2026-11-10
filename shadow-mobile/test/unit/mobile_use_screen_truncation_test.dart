@@ -18,6 +18,20 @@ class _FakeA11y extends AccessibilityOps {
   final bool enabled;
   final String? screen;
 
+  /// ⚠️ **一次采样**的那一份（树 ＋ 包名**同源**）——
+  /// ⇒ ⇒ 产品走的是**这条**路（2026-11-11 起：工具层不再分两次问）
+  /// ⇒ ⇒ ⇒ 所以这里的假实现也必须**提供**它 ⇒ ⇒ 否则测的是一条**已废弃**的路。
+  Map<String, dynamic>? get snapshot =>
+      screen == null
+          ? null
+          : <String, dynamic>{
+              'screen': screen,
+              'package': fakeForegroundPackage,
+            };
+
+  @override
+  Future<Map<String, dynamic>?> readScreenSnapshot() async => snapshot;
+
   /// 「前台是谁」—— 假的那一份 ⇒ ⇒ 单测钉得住。
   ///
   /// ⚠️ 抽象层给了**默认实现**（回 null）⇒ ⇒ 假实现**可以不改**

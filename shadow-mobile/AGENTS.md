@@ -1,3 +1,4 @@
+
 **Updated:** 2026-11-11 (㌞ **「同一个工具的同一个答案，树与『这是谁的屏』分两次采样 —— 真机上已经张冠李戴过」** —— 承 ㌛ 条（读屏结果的**形状**必须两边一样）＋ ㋘ 条（声称改过的两处从未进过任何提交），本条记**取证（真机逐字读数）**、**第一因（两次独立 `rootInActiveWindow`）**、**第二因（判据写成了「两次独立读数相等」）**、**第三因（两条路的头不同形）**、**这一刀的落点**、**判据与分级读数**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真机级实测（odin ee6b4832 · MIUI 14）＋ 注入式反向验证 ＋ 判据自检｜ 改动：android/app/src/main/kotlin/com/ibloc/shadow/PrefrontalAccessibilityService.kt（新增 `readScreenSnapshot()` ＋ 两条路都补头 `package=`）＋ android/app/src/main/kotlin/com/ibloc/shadow/MainActivity.kt（新增通道方法 `readScreenSnapshot`）＋ lib/services/accessibility_controller.dart（新增 `readScreenSnapshot()`）＋ lib/services/capabilities/accessibility_ops.dart（抽象层加 `readScreenSnapshot()` 默认 null ＋ `kOwnAppPackage` 常量下移）＋ lib/services/capabilities/capability_tools.dart（工具层改走单次采样）＋ lib/services/capabilities/flutter_semantics_tree.dart（`_header` 补 `package=`）＋ lib/services/client_tools/client_tool_registry.dart（`mobile_read_screen` 描述：**只动那一行**）＋ **新增** test/unit/mobile_read_screen_description_test.dart（4 条）＋ **新增** test/unit/mobile_read_screen_single_sample_test.dart（3 条）＋ integration_test/a11y_mobile_use_test.dart（真机判据改成「同源」）＋ ../../scripts/lib/mobile-tool-description.mjs（**新增** 纯函数判据）＋ ../../scripts/check-mobile-a11y-contract.mjs（R7 接进闸 ＋ 13/13 自检）｜ 读数：见 ⑤ | status=active | supersedes=none
@@ -51,8 +52,12 @@
 
 ⑨ **⚠️ 仍然欠着的**
 　❶ **模型行为级读数仍缺** ⇒ ⇒ 「模型拿到这三格**会不会真的用对**」⇒ ⇒ 那要**真机 ＋ 真模型**的一次端到端。
-　❷ **`foregroundPackage()` 这条老路仍在** ⇒ ⇒ 现在只作**回落**（快照取不到时）⇒ ⇒ 而那条回落**分两次采样** ⇒ ⇒ **理论上仍可能张冠李戴** ⇒ ⇒ ⇒ 欠一条「快照失败时的行为」判据。
-　❸ 真机腿仍**只在 odin 一台机型**上跑过 ⇒ ⇒ LX04 与 MI_MAX_2 **都得用户动手**。
+　❷ ✅ **`foregroundPackage()` 那条老路已被工具层彻底断掉**（2026-11-11 续刀）—— 原记的「欠一条『快照失败时的行为』判据」**已补上**：
+　　❶ 工具层：快照失败 ⇒ ⇒ **那一格回 null**（`: await _a11y.foregroundPackage()` → `: null`）⇒ ⇒ **不再另问一次** ⇒ ⇒ 因为「另问一次」= **第二次独立采样** = 本条修的那个缺陷 ⇒ ⇒ ⇒ 而「快照失败」与「另问能成」几乎**不可能同时发生**（同一段遍历逻辑的两个出口 ⇒ ⇒ 判空条件相同）⇒ ⇒ ⇒ ⇒ ⇒ **「同源」是**无条件**性质，不许有「成功时同源、失败时不同源」的缝**。
+　　❷ 单测：原「回落成两次问」那条改成「**不许**再单独问一次包名 ⇒ ⇒ 那一格回 null」⇒ ⇒ 假实现**故意给一个看着很真的值**（`com.miui.home`）⇒ ⇒ **反向验证**：改回另问一次 ⇒ ⇒ **恰 1 红**（逐字 `Actual: 'com.miui.home'`）⇒ ⇒ 还原后全绿。
+　　❸ ⇒ ⇒ **通用形态：回退路径也不许偷偷换个来源** ⇒ ⇒ 「主路径失败了 ⇒ ⇒ 换一个**独立**的来源补上」⇒ ⇒ 看着像「更稳」⇒ ⇒ 实际上把**同一个缺陷**从主路径挪到了回退路径。
+　　❹ ⚠️ **底层老路仍在**（Kotlin 的 `foregroundPackage()`、通道方法、抽象层方法）⇒ ⇒ 因为**真机探针**直接调它做「前后台对比」⇒ ⇒ 但**工具层**已无调用点 ⇒ ⇒ 「能力在、但没人用」≠「死代码」。
+　❸ ⚠️ **机型那条的读数在变**（续刀）—— odin 掉线（USB）⇒ ⇒ **MI MAX 2（Android 7.1.1 · arm64-v8a）在线** ⇒ ⇒ 续刀的真机腿改在**它**上面跑 ⇒ ⇒ ⇒ ⇒ ⇒ **第二台机型**上的读数 ⇒ ⇒ ⇒ ⇒ ⇒ **LX04 装不上**（ABI `armeabi-v7a`，APK 只有 `arm64-v8a + x86_64`）⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ 需重编含 armeabi-v7a 的 APK（**改构建配置 ⇒ ⇒ 影响面大 ⇒ ⇒ 待拍板**）。
 　❹ `integration_test/` 仍不在 CI 里跑 ⇒ ⇒ 本条那条真机守卫也一样 ⇒ ⇒ **静悄悄绿**。
 　❺ **iOS 未验** ⇒ ⇒ 本条全部读数都在 **Android**（`readScreenSnapshot` 是 Kotlin 侧）⇒ ⇒ iOS 侧那条回落路径**没有同源保证**。
 

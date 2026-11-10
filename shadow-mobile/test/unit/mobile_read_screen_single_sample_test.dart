@@ -123,10 +123,17 @@ void main() {
       );
     });
 
-    test('**没提供**一次采样 ⇒ ⇒ 回落成两次问（老路）⇒ ⇒ 形状仍然完整', () async {
+    /// ⚠️⚠️⚠️ **快照失败 ⇒ ⇒ 宁可「不知道」，也不许另问一次**（2026-11-11）
+    /// ⇒ ⇒ 另问一次 = **第二次独立采样** ⇒ ⇒ 那正是本条修掉的那个缺陷 ⇒ ⇒
+    /// ⇒ ⇒ ⇒ 而「快照失败」与「另问能成」几乎**不可能同时发生**
+    /// ⇒ ⇒ ⇒ ⇒ （两者是**同一段遍历逻辑**的两个出口 ⇒ ⇒ 判空条件相同）
+    /// ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ **「同源」不是「快照成功时」的性质**
+    /// ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ 它是**无条件**性质。
+    test('**没提供**一次采样 ⇒ ⇒ **不许**再单独问一次包名 ⇒ ⇒ 那一格回 null', () async {
       final _FakeA11y fake = _FakeA11y(
         enabled: true,
         screen: 'node A',
+        // ⚠️ **故意给一个看着很真的值** ⇒ ⇒ 若工具层去问它 ⇒ ⇒ 就会报出来。
         fakeForegroundPackage: 'com.miui.home',
       );
       final Map<String, dynamic> r =
@@ -134,12 +141,24 @@ void main() {
                   .readScreen(<String, dynamic>{}))
               as Map<String, dynamic>;
       expect(r['screen'], 'node A');
-      expect(r['foregroundPackage'], 'com.miui.home');
       expect(r.containsKey('foregroundPackage'), isTrue);
+      expect(
+        r['foregroundPackage'],
+        isNull,
+        reason: '快照失败却报出了包名 ⇒ ⇒ 那一定来自**另一次独立采样**'
+            ' ⇒ ⇒ 两次采样可能落在不同窗口 ⇒ ⇒ 张冠李戴（真机实测过）'
+            ' ⇒ ⇒ ⇒ **宁可说「不知道」，也不许给可能错的归属**',
+      );
       expect(
         fake.snapshotCalls,
         equals(1),
         reason: '一次采样**问都没问** ⇒ ⇒ 拿不到就没试过 ⇒ ⇒ 读数失真',
+      );
+      expect(
+        fake.separatePkgCalls,
+        equals(0),
+        reason: '工具层**又单独问了一次**包名 ⇒ ⇒ 那条活路必须**没有**'
+            ' ⇒ ⇒ 否则「同源」只是「快照成功时」的性质',
       );
     });
 
