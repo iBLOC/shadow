@@ -393,7 +393,7 @@
 　❹ **真 CI 级（权威读数已到手，2026-11-11）**：run **42800136091**（head `80e5698`，树里含本笔 faf0162）＝ completed / **failure** ⇒ ⇒ 逐 job：**Prefrontal Rust ＝ failure**（本刀那一格）＋ Brain gates／Desktop Build ＝ failure（既存红：端脑线／desktop-build 两半修的面，非本刀造成）；**逐 step（Prefrontal Rust）**：step 3 Checkout shadow ＋ **step 4 Checkout the iBLOC stack（composite 接线本体）** ＋ step 5 Zero-trust face check ＝ **全 success** ⇒ ⇒ **收编那几格在真 runner 上首跑即绿**；job 红在 **step 10 Install pinned Rust toolchain**：`cargo clippy --version` exit 101，日志逐字「could not parse TOML configuration in `/home/runner/.cargo/config.toml`」＋「line 3, column 2 … `[net]` … duplicate key」⇒ ⇒ **红因＝[net] 双写**（写手全集 git grep 恰两处：composite 的 Prepare Rust credentials ＋ 本 job 自带的 Prepare Rust dependencies）⇒ ⇒ 修复笔见 ⑤❺，修复笔自己的读数见 ⑧❶。
 
 ⑧ **⚠️ 仍然欠着的**
-　❶ ⚠️ **修复笔的真 CI 读数**（`a87e2ab`＝[net] 双写修）⇒ ⇒ **在跑（结论未出）** ⇒ ⇒ 按纪律不写绿；到手后逐 step 复核 step 10 是否解封，再回填 ⑦❹ 的「修复后」那一格。
+　❶ ✅ **修复笔的真 CI 读数（已闭合，2026-11-11）**：run **42807063458**（head `507eb28`，树里含 `a87e2ab`）＝ completed / failure（整体——剩余红＝Brain gates／Desktop Build 两盏既存灯 ＋ CI 总分母连带，均非修复笔造成）⇒ ⇒ **Prefrontal Rust job ＝ success**，逐 step **1–17 全绿**：step 10 `Install pinned Rust toolchain` **success**（修复前正是它红：`cargo clippy --version` exit 101 ＋ `~/.cargo/config.toml` 里 `[net]` TOML duplicate key）⇒ ⇒ 被它挡住的 step 11–15（Cargo check／Cargo test／Cargo clippy／Cargo clippy (synapse)／Neuron candle-free check）**全部解封成功** ⇒ ⇒ **[net] 双写修复在真 CI 上生效 ＝ ⑦❹ 的「修复后」一格闭合**。
 　❷ **resonance／agent-memory-benchmark 将来若有了 Rust manifest**，是否进 composite（会改 neuron 闸对账读数 14→15）⇒ 口径待议 ⇒ 不代定。
 　❸ **desktop-build 的 cargo-101**（桌面端 `../../../encephalon` 在 CI 布局指到仓外）仍是接线面欠项 ⇒ 与检出布局相关的另一刀。
 　❹ hippocampus 的既存违规与 N14×3 ⇒ 他们的面 ⇒ 不代做。
