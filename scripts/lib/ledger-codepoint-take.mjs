@@ -63,6 +63,41 @@
  * ⚠️ **窗口有界 ⇒ ⇒ 尺子仍能红**：「否定词离关键词 **> 6 字**」⇒ ⇒ 不算否定
  *   ⇒ ⇒ 那一枚仍算预留 ⇒ ⇒ B 族照样判红（自检里钉住了这一格 ⇒ ⇒ 反向验证）。
  *
+ * ## ⚠️ **否定词的归属** —— 窗口命中 ≠ 归属成立（2026-11-11 实测入库）
+ *
+ * 兄弟会话（`mvs_a2b64fca`，台账 U+34E8 条 ⑦❸）把这一族转了过来：
+ * 真语料里那一句「**本条取 U+3468**（既留缓冲又不撞）」—— 旧版认 **154** 条「明写留过」、
+ * 新版认 **153** 条 ⇒ ⇒ 差的那一处**判对了**，但**对的理由不是窗口**：
+ * 句里那个否定词「不」属于**另一个动词**（「撞」）⇒ ⇒ 它**并没有否掉**「缓冲」本身
+ * ⇒ ⇒ 窗口只是**碰巧**命中（并列连接词「又」把否定词借给了前一个谓词）。
+ *
+ * ⇒ ⇒ **真正成立的理由是结构性的**：那一枚是**这一条自己占的**
+ *    （作者取走的是它自己 ⇒ ⇒ 不是让给别人的位）—— 兄弟逐字写过：
+ *    「那一枚是**被取走**的号、不是让开位」。
+ *
+ * ⇒ ⇒ 于是本判据把「**排除作者自己占的那一枚**」做成**独立依据**
+ *    ⇒ ⇒ 结论不再依赖「否定词恰好落在窗口里」⇒ ⇒ 关掉窗口（`negationWindow: 0`）
+ *    仍能得到同一读数 ⇒ ⇒ **两个依据同向**（自检里钉住了这一格）。
+ *
+ * ⚠️ **按【条目块】归属，不按【整笔】** —— 一笔「整本重写」的提交里含**全历史**
+ *   ⇒ ⇒ 按整笔算「这一笔声明了什么」⇒ ⇒ 会把**所有**码位排除 ⇒ ⇒ 失真。
+ * ⇒ ⇒ 粒度＝**该保留句所在的那个条目**。
+ *
+ * ⚠️ **量过的规模**（真语料，三本账本全历史 **729** 笔）：
+ *   「自指」＝ 同一笔里既声明占用、又被写成让开位 ⇒ ⇒ **32 条**（去重后 **22** 处）
+ *   ⇒ ⇒ **逐条定性全部正确**（排除自己的、保留别人的）。
+ *   ⇒ ⇒ 其中几组是**同句双码位**的完美对照：
+ *     「本条取 U+34AD（㒭）、**缓冲 U+34AE（㒮）**」⇒ ⇒ 只排除 U+34AD ✔
+ *     「本条取 **U+3497**，按惯例**再留一枚缓冲**（U+3498）」⇒ ⇒ 只排除 U+3497 ✔
+ *     「**当场再改**，本条改取 `U+340E`（留 `U+340C`/`U+340D` 两枚缓冲）」⇒ ⇒ 只排除 U+340E ✔
+ *
+ * ⚠️ **判据级影响＝零**（2026-11-11 实测）—— 那些码位**都已被同一笔声明过**
+ *   ⇒ ⇒ 后续笔再声明它们会被「重复声明归 R1 管」跳过 ⇒ ⇒ B 族压根不会去查它们
+ *   ⇒ ⇒ 这一刀改的是**理由**，不是**读数**（违例指纹不变 ⇒ ⇒ 基线封条不动）。
+ *   ⇒ ⇒ ⇒ ⇒ 而它要防的是**将来**：若哪天有人重写窗口规则、而这一族被吃掉
+ *   ⇒ ⇒ ⇒ ⇒ 真预留被误判成否定 ⇒ ⇒ **B 族漏报**（假绿）⇒ ⇒ 归因独立才有兜底。
+ *
+
  * ## ⚠️ A 族的阈值**逐账本**算（**不是**跨三本）
  *
  * 官方判据那句「父仓／移动端／桌面端**共用一条码位序列**」说的是
@@ -128,13 +163,16 @@ export function splitSentences(line) {
  * @param {number} index 关键词**起点**
  * @param {number} len   关键词长度（默认 1）⇒ ⇒ 后向窗口从它**末字之后**起算
  */
-export function isNegated(text, index, len = 1) {
-  const back = text.slice(Math.max(0, index - NEGATION_WINDOW), index);
+export function isNegated(text, index, len = 1, window = NEGATION_WINDOW) {
+  // ⚠️ `window <= 0` ＝ **关掉否定窗口**那一档 ⇒ ⇒ 只剩结构依据
+  //   （「作者取走的是它自己」）⇒ ⇒ 用来做**反向验证**：两个依据是否同向。
+  if (window <= 0) return false;
+  const back = text.slice(Math.max(0, index - window), index);
   for (const ch of NEGATION_CHARS) {
     const at = back.lastIndexOf(ch);
     if (at !== -1 && !NEGATION_BREAKERS.test(back.slice(at + 1))) return true;
   }
-  const fwd = text.slice(index + len, index + len + NEGATION_WINDOW);
+  const fwd = text.slice(index + len, index + len + window);
   for (const ch of NEGATION_CHARS) {
     const at = fwd.indexOf(ch);
     if (at !== -1 && !NEGATION_BREAKERS.test(fwd.slice(0, at))) return true;
@@ -143,12 +181,12 @@ export function isNegated(text, index, len = 1) {
 }
 
 /** 句里的全部关键词命中（含被否定的）。 */
-export function keywordHits(sentence) {
+export function keywordHits(sentence, window = NEGATION_WINDOW) {
   const hits = [];
   for (const kw of RESERVE_KEYWORDS) {
     let i = sentence.indexOf(kw);
     while (i !== -1) {
-      hits.push({ kw, index: i, negated: isNegated(sentence, i, kw.length) });
+      hits.push({ kw, index: i, negated: isNegated(sentence, i, kw.length, window) });
       i = sentence.indexOf(kw, i + kw.length);
     }
   }
@@ -162,8 +200,8 @@ export function isCitation(sentence, endIndex) {
 }
 
 /** 一句是不是**保留句**（有未被否定的「让开／缓冲」）。 */
-export function isReserveSentence(sentence) {
-  return keywordHits(sentence).some((h) => !h.negated);
+export function isReserveSentence(sentence, window = NEGATION_WINDOW) {
+  return keywordHits(sentence, window).some((h) => !h.negated);
 }
 
 /** 取一条文本里**声明**的码位（条目头 ＋ 正文「本条占」）。 */
@@ -183,13 +221,18 @@ export function declaredCodepoints(text) {
   return out;
 }
 
-/** 取一条文本里**明写留过**的码位（提及 ≠ 声明 ≠ 让开）。 */
-export function reservedCodepoints(text) {
+/**
+ * 扫描一段文本里的「明写留过」候选 —— **不含**「排除作者自己占的那一枚」那一步。
+ *
+ * ⚠️ 单独拆出来是为了让 `reservedCodepoints()` 的**归属粒度**可换
+ *   （逐条目块 vs 整笔）⇒ ⇒ 而**判据逻辑只有这一份**（不抄第二遍）。
+ */
+function scanReserved(block, window) {
   const out = [];
-  const lines = text.split(/\r?\n/);
+  const lines = block.split(/\r?\n/);
   for (let i = 0; i < lines.length; i++) {
     for (const s of splitSentences(lines[i])) {
-      if (!isReserveSentence(s.text)) continue;
+      if (!isReserveSentence(s.text, window)) continue;
       UPLUS.lastIndex = 0;
       let m;
       while ((m = UPLUS.exec(s.text)) !== null) {
@@ -200,6 +243,50 @@ export function reservedCodepoints(text) {
           snippet: s.text.trim().slice(0, 90),
         });
       }
+    }
+  }
+  return out;
+}
+
+/**
+ * 取一条文本里**明写留过**的码位（提及 ≠ 声明 ≠ 让开）。
+ *
+ * ⚠️ **排除「作者取走的是它自己」的那一枚**（2026-11-11 实测入库）
+ *
+ *   理由：**作者取走的是它自己 ⇒ ⇒ 不是让给别人的位**。
+ *   ⇒ ⇒ 这一枚不该算「明写留过」⇒ ⇒ 后续笔占它时**不该**被 B 族判红。
+ *   ⇒ ⇒ 台账原文逐字（U+3468 条）：「**本条取 U+3468**（既留缓冲又不撞）」
+ *     —— 那一枚是**被取走**的号、不是让开位。
+ *
+ * ⚠️ **为什么不能靠「否定词窗口」来判这一族**
+ *   ⇒ ⇒ 那一句里「不」属于**另一个动词**（「撞」）⇒ ⇒ 窗口命中是**碰巧**
+ *   ⇒ ⇒ 归属要**独立成立** ⇒ ⇒ 这一条规则就是那个独立依据。
+ *
+ * ⚠️ **粒度＝【条目块】，不是【整笔】** —— 一笔「整本重写」的提交里含**全历史**
+ *   ⇒ ⇒ 按整笔算「这一笔声明了什么」⇒ ⇒ 会把**所有**码位排除 ⇒ ⇒ 失真。
+ *
+ * @param {string} text
+ * @param {{negationWindow?: number}} [opts]
+ *        `negationWindow: 0` ＝ **关掉否定窗口**那一档（反向验证用）。
+ */
+export function reservedCodepoints(text, opts = {}) {
+  const window = opts.negationWindow == null ? NEGATION_WINDOW : opts.negationWindow;
+  const { entries, lines } = extractEntries(text);
+  const out = [];
+  // ① 条目头**之前**的正文（不属任何条目）⇒ ⇒ 不排除任何码位。
+  const firstHead = entries.length ? entries[0].line - 1 : lines.length;
+  for (const r of scanReserved(lines.slice(0, firstHead).join('\n'), window)) out.push(r);
+  // ② 逐条目块 ⇒ ⇒ 排除「**这个条目自己声明占用**」的那一枚。
+  for (let k = 0; k < entries.length; k++) {
+    const e = entries[k];
+    const start = e.line - 1;
+    const end = k + 1 < entries.length ? entries[k + 1].line - 1 : lines.length;
+    const own = new Set();
+    if (e.actual) own.add(e.actual);                              // 标题字形的码位
+    if (e.claims && e.claims.length) own.add(e.claims[0].claimed);  // 第一条声明＝自己的
+    for (const r of scanReserved(lines.slice(start, end).join('\n'), window)) {
+      if (own.has(r.cp)) continue;
+      out.push({ ...r, line: r.line + start });
     }
   }
   return out;
@@ -248,10 +335,12 @@ export function entriesOfCommit(text) {
  * @param {Array<{space: string, id: string, date: string, text: string}>} events
  *        **必须按时间顺序**（旧的在前）；**每个 space 独立算**
  *        （父仓／移动端／桌面端各用自己的编号段 ⇒ ⇒ 跨段比大小无意义）。
+ * @param {{negationWindow?: number}} [opts]
+ *        「negationWindow: 0」 ＝ **关掉否定窗口**那一档（反向验证用）。
  *        **每笔一个 text**（一笔提交可以含多个条目，但那是**同一笔**）。
  * @returns {{violations: Array, stats: Object}}
  */
-export function findTakeViolations(events) {
+export function findTakeViolations(events, opts = {}) {
   const bySpace = new Map();
   for (const e of events) {
     if (!bySpace.has(e.space)) bySpace.set(e.space, []);
@@ -302,7 +391,7 @@ export function findTakeViolations(events) {
         const n = parseInt(d.cp, 16);
         if (n > maxBefore) maxBefore = n;
       }
-      for (const r of reservedCodepoints(ev.text)) {
+      for (const r of reservedCodepoints(ev.text, opts)) {
         if (!reservedBefore.has(r.cp)) reservedBefore.set(r.cp, r);
       }
     }
@@ -580,6 +669,55 @@ function run() {
       [],
     ],
   ];
+  // ── 「否定词的归属」这一族 ⇒ ⇒ **直接测 reservedCodepoints 的输出** ──────
+  // ⚠️ 为什么必须**直接测输出**：判据级（findTakeViolations）**测不出这一族**
+  //   —— 那些码位**都已被同一笔声明过** ⇒ ⇒ 后续笔再声明它们会被
+  //   「重复声明归 R1 管」跳过 ⇒ ⇒ B 族压根不会去查 ⇒ ⇒ 鉴别力**只在输出层**。
+  const reserveCases = [
+    [
+      '「作者取走的是它自己」⇒ ⇒ 那一枚**不算**明写留过（**自指**）⇒ ⇒ 别人的那一枚仍算',
+      entry('33C1', ['❷ **本条取 U+33C1**、**缓冲 U+33C2** ⇒ ⇒ 前例。']),
+      ['33C2'],
+      {},
+    ],
+    [
+      '否定词在**之后**（「缓冲不是占位」）⇒ ⇒ 零预留',
+      entry('33C1', ['❷ **U+33C4 缓冲不是占位** ⇒ ⇒ 前例。']),
+      [],
+      {},
+    ],
+    [
+      '否定词在**之前**（「不是缓冲」）⇒ ⇒ 零预留',
+      entry('33C1', ['❷ **U+33C4 不是缓冲** ⇒ ⇒ 前例。']),
+      [],
+      {},
+    ],
+    [
+      '真预留（逗号断短语：「同样不回收」）⇒ ⇒ **仍算预留**（尺子仍能红）',
+      entry('33C1', ['❷ **U+33C4 是上一条明写的缓冲，同样不回收** ⇒ ⇒ 前例。']),
+      ['33C4'],
+      {},
+    ],
+    [
+      '⭐ **关掉否定窗口** ⇒ ⇒ 「作者取走的是它自己」那一枚**仍不算**预留 ⇒ ⇒ 两个依据**同向**',
+      entry('33C1', ['❷ **本条取 U+33C1**（既留缓冲又不撞）⇒ ⇒ 前例。']),
+      [],
+      { negationWindow: 0 },
+    ],
+  ];
+  let resBad = 0;
+  for (const [name, text, expect, opts] of reserveCases) {
+    const got = reservedCodepoints(text, opts || {}).map((r) => r.cp).sort();
+    const want = [...expect].sort();
+    const ok = got.length === want.length && got.every((c, i) => c === want[i]);
+    if (!ok) resBad++;
+    console.log((ok ? '  ✓ ' : '  ✗ ') + name + ' ⇒ ⇒ 输出 ' + JSON.stringify(got) + '（期望 ' + JSON.stringify(want) + '）');
+  }
+  if (resBad) {
+    console.error('「否定词的归属」输出层自检失败：' + resBad + ' 条不符');
+    return 2;
+  }
+
   // ── 语义豁免层的用例（纯函数，不依赖 git）─────────────────────────
   // ⚠️ 这一层是「A 族只认低于水位」的对冲 ⇒ ⇒ 必须**逐条**钉住：
   //   ❶ 盲回填（无理由）⇒ ⇒ **不豁免**（尺子咬得住）；
@@ -621,7 +759,7 @@ function run() {
     console.error('自检失败：' + bad + ' 条不符');
     return 2;
   }
-  console.log('自检全过（' + (cases.length + semCases.length) + '/' + (cases.length + semCases.length) + '）');
+  console.log('自检全过（' + (cases.length + semCases.length + reserveCases.length) + '/' + (cases.length + semCases.length + reserveCases.length) + '）');
   return 0;
 }
 
