@@ -178,6 +178,61 @@ export function classifyJob(job) {
 }
 
 /**
+ * 这个 workflow 的**名字**（顶层 `name:` 字段）⇒ ⇒ 与 GitHub 的 `GITHUB_WORKFLOW` **同源**。
+ *
+ * ⚠️ 为什么要有它：汇总步要回答「**这一盏灯该验几道**」⇒ ⇒ 得先认得自己是谁
+ *   ⇒ ⇒ 而 CI 里那个名字就是 `GITHUB_WORKFLOW` ⇒ ⇒ 两者必须用同一把尺子取。
+ *
+ * @param {string} text workflow 的 YAML 全文
+ * @returns {string} 名字（读不出 ⇒ ⇒ 空串）
+ */
+export function workflowNameOf(text) {
+  try {
+    const doc = scanYamlText(String(text || ''), { workflow: true }).doc;
+    return scalarText(mapGet(doc, 'name')) || '';
+  } catch (err) {
+    return '';
+  }
+}
+
+/**
+ * 「**该验几道**」—— 分母的**分母**。
+ *
+ * ⚠️ 为什么必须自己算（2026-11-11 真 CI 实测，run 42783415633）：
+ *   汇总步的输入是「**收到几条判读记录**」⇒ ⇒ 红灯时闸步被 skipped ⇒ ⇒
+ *   记录没交上来 ⇒ ⇒ 分母从 30 **缩到 20** ⇒ ⇒ 「红 0 ｜ 20 道」会被读成全绿
+ *   ⇒ ⇒ **假绿**。⇒ ⇒ 而「该验几道」是**workflow 定义里写着的事实** ⇒ ⇒
+ *   自己算 ⇒ ⇒ 汇总步就能报「该验 30 ｜ 实跑 20 ⇒ ⇒ 少跑 10 道 ⇒ ⇒ 那一格判不了」。
+ *
+ * ⚠️ **口径与覆盖闸完全同源**（同一套 `parseWorkflowJobs` ＋ `classifyJob`）
+ *   ⇒ ⇒ 零手写名单 ⇒ ⇒ 覆盖闸说「闸步 30」这里就说「该验 30」⇒ ⇒ 两把尺不会打架。
+ *
+ * ⚠️ **作用域**（两条）：
+ *   · 当前 job **自己**有闸 ⇒ ⇒ 只算**这个 job**的（它的记录只来自它自己）；
+ *   · 当前 job **没有**闸（那是「收 artifacts 的总分母 job」）⇒ ⇒ 算**整个 workflow**的
+ *     （它的记录来自别的 job）。
+ *
+ * @param {{text:string, jobId?:string}} input
+ * @returns {{scope:'job'|'workflow', expected:number, gates:string[]}}
+ */
+export function expectedGates({ text, jobId }) {
+  const jobs = parseWorkflowJobs(String(text || '')).map(classifyJob);
+  let scope = 'workflow';
+  let target = jobs;
+  const id = String(jobId || '');
+  if (id) {
+    const hit = jobs.find((j) => j.id === id);
+    if (hit && hit.gateCount > 0) {
+      scope = 'job';
+      target = [hit];
+    }
+  }
+  const gates = [];
+  for (const j of target) for (const g of j.gates) gates.push(g.script);
+  return { scope, expected: gates.length, gates };
+}
+
+/**
  * 判一个 workflow ⇒ ⇒ 找出三条缺口。
  * @param {string} text
  * @param {{file?:string}} [opts]
@@ -529,6 +584,35 @@ function selfTest() {
     const st = wfAgg.split('  agg:')[0];
     const res = judgeWorkflow(st, { file: 't.yml' });
     return res.findings.filter((f) => f.kind === 'tally-needs-missing-gate-job').length === 0;
+  });
+
+  // ── 「该验几道」（2026-11-11 本刀：分母的**分母**）──
+  add('「该验几道」：当前 job 自己有闸 ⇒ ⇒ 只算**这个 job**的（作用域＝job）', () => {
+    const res = expectedGates({ text: wfAgg, jobId: 'a' });
+    return res.scope === 'job' && res.expected === 1 && res.gates.length === 1;
+  });
+
+  add('「该验几道」：当前 job **没有**闸（那是收 artifacts 的总分母 job）⇒ ⇒ 算**整个 workflow**的', () => {
+    const res = expectedGates({ text: wfAgg, jobId: 'agg' });
+    return res.scope === 'workflow' && res.expected === 2;
+  });
+
+  add('「该验几道」：不给 jobId ⇒ ⇒ 整个 workflow 的（默认）', () => {
+    const res = expectedGates({ text: wfAgg, jobId: '' });
+    return res.scope === 'workflow' && res.expected === 2;
+  });
+
+  add('「该验几道」：**没有一个闸的 workflow** ⇒ ⇒ 该验 0 道（不是「判不了」）', () => {
+    const res = expectedGates({ text: 'jobs:\n  a:\n    runs-on: ubuntu-latest\n    steps:\n      - name: x\n        run: echo hi\n', jobId: 'a' });
+    return res.expected === 0 && res.scope === 'workflow';
+  });
+
+  add('workflow 名字：读得出顶层 name:', () => {
+    return workflowNameOf('name: X\njobs:\n  a:\n    runs-on: ubuntu-latest\n') === 'X';
+  });
+
+  add('workflow 名字：读不出 ⇒ ⇒ 空串（**不猜**）', () => {
+    return workflowNameOf('这不是 YAML') === '';
   });
 
   add('严格名单（主 CI 那几盏灯）⇒ ⇒ **不留例外** ⇒ ⇒ 缺口一律红', () => {

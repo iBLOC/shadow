@@ -31,10 +31,20 @@
  *
  *   node scripts/lib/gate-tally.mjs --self-test
  *   node scripts/lib/gate-tally.mjs --report [--file=<路径>]
+ *
+ * ## 「该验几道」（2026-11-11 本刀）
+ *
+ * ⚠️ 汇总步的输入是「**收到几条判读记录**」⇒ ⇒ 红灯时后面的闸步被 skipped
+ *   ⇒ ⇒ 记录没交上来 ⇒ ⇒ **分母会自己缩水** ⇒ ⇒ 「红 0 ｜ 20 道」会被读成全绿。
+ * ⇒ ⇒ 现在汇总步**自己**从 workflow 定义算出「该验几道」（**覆盖闸同一套发现逻辑**）
+ *   ⇒ ⇒ 报「该验 30 ｜ 实跑 20 ⇒ ⇒ 少跑 10 道 ⇒ ⇒ 那一格判不了」。
+ * ⚠️ 那个面可以用 `GATE_WORKFLOWS_DIR` 指到别处 ⇒ ⇒ 便于对着**别的面**验证。
  */
 
-import { existsSync, readFileSync, appendFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { existsSync, readFileSync, appendFileSync, readdirSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { expectedGates, workflowNameOf } from './gate-coverage.mjs';
 
 export const RESULT_PREFIX = 'GATE_RESULT';
 
@@ -80,8 +90,69 @@ export function tally(lines) {
   };
 }
 
+/**
+ * 「该验几道」对账 ⇒ ⇒ 分母的**分母**。
+ *
+ * ⚠️ 为什么要有它（2026-11-11 真 CI 实测，run 42783415633）：
+ *   汇总步的输入是「**收到几条判读记录**」⇒ ⇒ 红灯时后面的闸步被 skipped
+ *   ⇒ ⇒ 记录没交上来 ⇒ ⇒ 分母从 **30 缩到 20** ⇒ ⇒ 「红 0 ｜ 20 道」
+ *   ⇒ ⇒ 会被读成**全绿** ⇒ ⇒ **假绿**。
+ *   ⇒ ⇒ 而「该验几道」是 workflow 定义里**写着的事实** ⇒ ⇒ 自己算 ⇒ ⇒
+ *   汇总步就能说「该验 30 ｜ 实跑 20 ⇒ ⇒ 少跑 10 道 ⇒ ⇒ 那一格判不了」。
+ *
+ * ⚠️ **同名闸在两个 job 里各跑一次** ⇒ ⇒ 按**多重集**比（不是集合）
+ *   ⇒ ⇒ 否则「跑了一次」会被当成「两次都跑了」⇒ ⇒ 少跑的那道就消失了。
+ *
+ * @param {{total:number, expected:number, gates:string[], recorded:{target:string}[]}} input
+ * @returns {{expected:number, actual:number, shortfall:number, missing:string[]}}
+ */
+export function compareDenominator({ total, expected, gates, recorded }) {
+  const norm = (p) => String(p == null ? '' : p).replace(/\\/g, '/').trim();
+  const base = (p) => norm(p).split('/').pop();
+  const need = new Map();
+  for (const g of gates || []) {
+    const k = norm(g);
+    need.set(k, (need.get(k) || 0) + 1);
+  }
+  const have = new Map();
+  for (const r of recorded || []) {
+    const k = norm(r.target);
+    have.set(k, (have.get(k) || 0) + 1);
+  }
+  const missing = [];
+  for (const [k, n] of need) {
+    let left = n - (have.get(k) || 0);
+    if (left <= 0) continue;
+    // ⚠️ 路径前缀可能不同（有的 job 跑的是 shadow/scripts/…）⇒ ⇒ 退回按**文件名**配。
+    if (left > 0) {
+      const b = base(k);
+      let spare = 0;
+      for (const [hk, cnt] of have) {
+        if (base(hk) === b && hk !== k) spare += cnt;
+      }
+      const use = Math.min(left, spare);
+      left -= use;
+      for (const [hk, cnt] of have) {
+        if (base(hk) === b && hk !== k && cnt > 0) {
+          have.set(hk, cnt - 1);
+          break;
+        }
+      }
+    }
+    for (let i = 0; i < left; i++) missing.push(k);
+  }
+  const expectedN = Number(expected) || 0;
+  const actualN = Number(total) || 0;
+  return {
+    expected: expectedN,
+    actual: actualN,
+    shortfall: Math.max(0, expectedN - actualN),
+    missing,
+  };
+}
+
 /** 汇总 ⇒ ⇒ 一句人话（**必须带分母**）。 */
-export function renderTally(result) {
+export function renderTally(result, denominator) {
   const t = result || tally([]);
   const lines = [];
   lines.push(
@@ -115,6 +186,26 @@ export function renderTally(result) {
   }
   if (t.total === 0) {
     lines.push('⇒ ⇒ ⚠️ 一行结果记录都没有 ⇒ ⇒ 这一格**没验成**（不是「全绿」）');
+  }
+  // ⚠️ **分母的口径**（2026-11-11 本刀）—— 「该验几道」与「实跑几道」必须一起读。
+  if (denominator && denominator.unreadable) {
+    lines.push('⇒ ⇒ ⚠️ **该验几道：读不出**（' + (denominator.reason || '原因未记录') + '）⇒ ⇒ 这一格的分母口径判不了');
+  } else if (denominator) {
+    if (denominator.shortfall > 0) {
+      lines.push(
+        '⇒ ⇒ ⚠️ **该验 ' + denominator.expected + ' 道 ｜ 实跑 ' + denominator.actual +
+          ' 道 ⇒ ⇒ 少跑 ' + denominator.shortfall + ' 道 ⇒ ⇒ 那一格判不了**（不是「全绿」）',
+      );
+      for (const m of denominator.missing) lines.push('     · 少跑：' + m);
+      lines.push('⇒ ⇒ ⚠️ 少跑的那几道**没跑** ⇒ ⇒ 那几格**从没被查过** ⇒ ⇒ 不许当成「没问题」');
+    } else if (denominator.expected === denominator.actual) {
+      lines.push('⇒ ⇒ ✅ 分母齐：该验 ' + denominator.expected + ' 道 ＝ 实跑 ' + denominator.actual + ' 道');
+    } else {
+      lines.push(
+        '⇒ ⇒ ⚠️ 实跑 ' + denominator.actual + ' 道 ＞ 该验 ' + denominator.expected +
+          ' 道 ⇒ ⇒ 多出来的那些不属于这一盏灯 ⇒ ⇒ 请核（不是「跑得更多就更好」）',
+      );
+    }
   }
   return lines.join('\n');
 }
@@ -184,6 +275,72 @@ function selfTest() {
     return out.includes('没验成') && out.includes('不是「全绿」');
   });
 
+  // ── 「该验几道」对账（2026-11-11 本刀）──
+  add('分母对账：该验 3 ｜ 实跑 2 ⇒ ⇒ 少跑 1 道，且**点名**少跑的那道', () => {
+    const d = compareDenominator({
+      total: 2,
+      expected: 3,
+      gates: ['scripts/check-a.mjs', 'scripts/check-b.mjs', 'scripts/check-c.mjs'],
+      recorded: [{ target: 'scripts/check-a.mjs' }, { target: 'scripts/check-b.mjs' }],
+    });
+    return d.shortfall === 1 && d.missing.length === 1 && d.missing[0].includes('check-c');
+  });
+
+  add('分母对账：孪生 —— 期望改成 2 ⇒ ⇒ 少跑变 0（**这一格不是恒真**）', () => {
+    const mk = (expected) => compareDenominator({
+      total: 2,
+      expected,
+      gates: ['scripts/check-a.mjs', 'scripts/check-b.mjs', 'scripts/check-c.mjs'],
+      recorded: [{ target: 'scripts/check-a.mjs' }, { target: 'scripts/check-b.mjs' }],
+    });
+    return mk(3).shortfall === 1 && mk(2).shortfall === 0 && mk(5).shortfall === 3;
+  });
+
+  add('分母对账：**同一个闸在两个 job 里各跑一次** ⇒ ⇒ 跑一次仍算「少跑 1 道」（按多重集比）', () => {
+    const d = compareDenominator({
+      total: 1,
+      expected: 2,
+      gates: ['scripts/check-a.mjs', 'scripts/check-a.mjs'],
+      recorded: [{ target: 'scripts/check-a.mjs' }],
+    });
+    return d.shortfall === 1 && d.missing.length === 1;
+  });
+
+  add('分母对账：路径前缀不同（shadow/scripts/…）⇒ ⇒ 仍认得出是同一道', () => {
+    const d = compareDenominator({
+      total: 1,
+      expected: 1,
+      gates: ['scripts/check-a.mjs'],
+      recorded: [{ target: 'shadow/scripts/check-a.mjs' }],
+    });
+    return d.shortfall === 0;
+  });
+
+  add('渲染：**少跑 ⇒ ⇒ 必须说「那一格判不了」且不许读成全绿**', () => {
+    const out = renderTally(tally(['GATE_RESULT\ta\t0\tok']), {
+      expected: 2,
+      actual: 1,
+      shortfall: 1,
+      missing: ['scripts/check-b.mjs'],
+    });
+    return out.includes('少跑 1 道') && out.includes('判不了') && out.includes('不是「全绿」') && out.includes('check-b');
+  });
+
+  add('渲染：分母齐 ⇒ ⇒ 明说「该验 N ＝ 实跑 N」', () => {
+    const out = renderTally(tally(['GATE_RESULT\ta\t0\tok']), {
+      expected: 1,
+      actual: 1,
+      shortfall: 0,
+      missing: [],
+    });
+    return out.includes('分母齐');
+  });
+
+  add('渲染：**该验几道读不出 ⇒ ⇒ 说「判不了」，不许静默**', () => {
+    const out = renderTally(tally(['GATE_RESULT\ta\t0\ok']), { unreadable: true, reason: '找不到定义' });
+    return out.includes('读不出') && out.includes('判不了');
+  });
+
   let bad = 0;
   for (const c of cases) {
     let ok = false;
@@ -205,6 +362,60 @@ function selfTest() {
 }
 
 // ---------------------------------------------------------------------------
+// 「该验几道」—— 从 workflow 定义里**现算**（2026-11-11 本刀）
+// ---------------------------------------------------------------------------
+
+/** 仓根（**从脚本自身位置**推 ⇒ ⇒ 不看 cwd ⇒ ⇒ 哪个 job 跑都对得上）。 */
+function repoRootOf() {
+  return resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+}
+
+/**
+ * 「该验几道」对账。
+ *
+ * ⚠️ 只有在 **CI 里**（GITHUB_WORKFLOW 有值）才做 ⇒ ⇒ 本机随手跑汇总步时
+ *   没有「这一盏灯」⇒ ⇒ 不比较 ⇒ ⇒ 不制造噪声。
+ * ⚠️ 用**覆盖闸同一套**发现逻辑（expectedGates）⇒ ⇒ 零手写名单。
+ */
+function readExpectedDenominator(result, workflowsDir) {
+  const wfName = String(process.env.GITHUB_WORKFLOW || '');
+  if (!wfName) return null;
+  const dir = workflowsDir || join(repoRootOf(), '.github', 'workflows');
+  let files = [];
+  try {
+    files = readdirSync(dir).filter((f) => f.endsWith('.yml') || f.endsWith('.yaml')).sort();
+  } catch (err) {
+    return { unreadable: true, reason: '读不到 .github/workflows' };
+  }
+  let hit = null;
+  for (const f of files) {
+    let text = '';
+    try {
+      text = readFileSync(join(dir, f), 'utf8');
+    } catch (err) {
+      continue;
+    }
+    // ⚠️ **便宜的预筛**（先看含不含这个名字）⇒ ⇒ 只解析那一个文件。
+    if (!text.includes(wfName)) continue;
+    if (workflowNameOf(text) === wfName) {
+      hit = { file: f, text };
+      break;
+    }
+  }
+  if (!hit) {
+    return { unreadable: true, reason: '找不到名字是「' + wfName + '」的 workflow 定义' };
+  }
+  const exp = expectedGates({ text: hit.text, jobId: String(process.env.GITHUB_JOB || '') });
+  const cmp = compareDenominator({
+    total: result.total,
+    expected: exp.expected,
+    gates: exp.gates,
+    recorded: result.entries,
+  });
+  return Object.assign({}, cmp, { scope: exp.scope, file: hit.file });
+}
+
+// ---------------------------------------------------------------------------
 // 报告模式
 // ---------------------------------------------------------------------------
 function report(fileArg) {
@@ -218,7 +429,8 @@ function report(fileArg) {
     lines = readFileSync(file, 'utf8').split('\n');
   }
   const result = tally(lines);
-  const text = renderTally(result);
+  const denominator = readExpectedDenominator(result, process.env.GATE_WORKFLOWS_DIR || null);
+  const text = renderTally(result, denominator);
   console.log(text);
   const summary = process.env.GITHUB_STEP_SUMMARY;
   if (summary) {
