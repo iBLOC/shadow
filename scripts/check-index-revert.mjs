@@ -40,7 +40,8 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { classifyIndexFace, ledgerSymbols, LEDGER_PATHS, R1_KIND_LABEL } from './lib/index-revert.mjs';
+import { createHash } from 'node:crypto';
+import { classifyIndexFace, ledgerSymbols, ledgerEntries, normalizeEol, LEDGER_PATHS, R1_KIND_LABEL } from './lib/index-revert.mjs';
 
 const REPO = process.cwd();
 const HISTORY_LIMIT = 60; // 每个路径往回看多少次历史改动
@@ -100,6 +101,50 @@ function parseRaw(text) {
   return rows;
 }
 
+/** 两个「条目正文集合」是否逐字相同。 */
+function entriesEqual(a, b) {
+  if (!a || !b) return false;
+  if (a.size !== b.size) return false;
+  for (const [k, v] of a) if (b.get(k) !== v) return false;
+  return true;
+}
+
+/**
+ * 算一份内容的 **git blob sha1**（不落盘）—— ⚠️ **用来判「工作树是不是历史上某一版」**。
+ *   git 的 blob 哈希 ＝ sha1("blob <字节数>\0" ＋ 内容) ⇒ ⇒ 本地就能算 ⇒ ⇒
+ *   不用为了「问一句」把 60 个历史版本的内容全读出来。
+ * ⚠️ **必须用归一后的内容**（CRLF ⇒ LF）⇒ ⇒ 否则 Windows 工作树永远算不出 blob 哈希。
+ */
+function gitBlobSha1(text) {
+  const buf = Buffer.from(normalizeEol(text), 'utf8');
+  return createHash('sha1').update('blob ' + buf.length + '\0').update(buf).digest('hex');
+}
+
+/** 一次 `git cat-file --batch` 批量取**内容**（按 header 里的字节数切 ⇒ ⇒ 不靠猜）。 */
+function resolveBlobContents(cwd, queries) {
+  const map = new Map();
+  if (!queries.length) return map;
+  const buf = execFileSync('git', ['-C', cwd, 'cat-file', '--batch'], {
+    input: queries.join('\n') + '\n',
+    maxBuffer: 1 << 28,
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
+  let p = 0;
+  for (const q of queries) {
+    const nl = buf.indexOf(10, p);
+    if (nl < 0) break;
+    const header = buf.toString('utf8', p, nl);
+    const m = header.match(/^([0-9a-f]{40}) blob (\d+)$/);
+    if (!m) { p = nl + 1; continue; }        // `<query> missing` ⇒ ⇒ 跳过这一条
+    const size = Number(m[2]);
+    const start = nl + 1;
+    if (start + size > buf.length) break;
+    map.set(q, { sha: m[1], content: buf.toString('utf8', start, start + size) });
+    p = start + size + 1;                    // 跳过 blob 后面的换行
+  }
+  return map;
+}
+
 export function runCheck(cwd = REPO) {
   const inside = gitTry(['rev-parse', '--git-dir'], cwd);
   if (!inside.ok) return { code: 2, reason: '不是 git 仓（git rev-parse 失败）' };
@@ -125,20 +170,56 @@ export function runCheck(cwd = REPO) {
   const headLedgerSymbols = {};
   const indexLedgerSymbols = {};
   const worktreeLedgerSymbols = {};
+  // ⚠️ **条目正文**（R5／W2 要用）—— 台账是**若干条**，不是一整块文本 ⇒ ⇒ 必须**分块**比
+  const headLedgerEntries = {};
+  const indexLedgerEntries = {};
+  const worktreeLedgerEntries = {};
+  const historyLedgerEntries = {};
+  const worktreeWholeOld = {};
   for (const p of LEDGER_PATHS) {
     const h = gitTry(['show', 'HEAD:' + p], root);
-    if (h.ok) headLedgerSymbols[p] = [...ledgerSymbols(h.out)];
+    if (!h.ok) continue;
+    headLedgerSymbols[p] = [...ledgerSymbols(h.out)];
+    headLedgerEntries[p] = ledgerEntries(h.out);
     const i = gitTry(['show', ':' + p], root);
-    if (i.ok) indexLedgerSymbols[p] = [...ledgerSymbols(i.out)];
+    if (i.ok) {
+      indexLedgerSymbols[p] = [...ledgerSymbols(i.out)];
+      indexLedgerEntries[p] = ledgerEntries(i.out);
+    }
     // ⚠️ **工作树面那一格**（2026-11-11 真机实测补）—— 路径相对**仓根**（与 diff --raw 同一基准）
     //   ⇒ ⇒ null ＝ 文件不存在（整本账被删）｜数组 ＝ 读到了，取它的条目符号
-    if (h.ok) {
-      const abs = join(root, p);
-      worktreeLedgerSymbols[p] = existsSync(abs) ? [...ledgerSymbols(readFileSync(abs, 'utf8'))] : null;
+    const abs = join(root, p);
+    if (!existsSync(abs)) { worktreeLedgerSymbols[p] = null; worktreeLedgerEntries[p] = null; continue; }
+    const wtText = readFileSync(abs, 'utf8');
+    worktreeLedgerSymbols[p] = [...ledgerSymbols(wtText)];
+    worktreeLedgerEntries[p] = ledgerEntries(wtText);
+    // ── R5／W2 要跟「历史上那一版」比 ⇒ ⇒ 只在**真需要**时才取历史（省开销）──
+    const stagedChanged = !!indexLedgerEntries[p] && !entriesEqual(indexLedgerEntries[p], headLedgerEntries[p]);
+    const wtChanged = !entriesEqual(worktreeLedgerEntries[p], headLedgerEntries[p]);
+    if (!stagedChanged && !wtChanged) continue;
+    const lg = gitTry(['log', '--format=%H', '-n', String(HISTORY_LIMIT), '--', p], root);
+    if (!lg.ok) continue;
+    const revs = lg.out.trim().split('\n').filter(Boolean);
+    const queries = revs.map(rv => rv + ':' + p);
+    // ⚠️ **便宜的一问**：工作树（归一后）是不是**历史上某一版**？⇒ ⇒ 整份旧版 ⇒ ⇒
+    //   那是「整文件旧版」这个事实（不是段落级）⇒ ⇒ W2 不必重复出声。
+    if (wtChanged) {
+      const wtSha = gitBlobSha1(wtText);
+      const shas = resolveBlobs(root, queries);
+      for (const q of queries) if (shas.get(q) === wtSha) { worktreeWholeOld[p] = true; break; }
     }
+    if (!stagedChanged && worktreeWholeOld[p]) continue;   // 不需要正文（省掉整本账的历史读）
+    const contents = resolveBlobContents(root, queries);
+    const list = [];
+    for (const rv of revs) {
+      const c = contents.get(rv + ':' + p);
+      if (!c) continue;
+      list.push({ rev: rv.slice(0, 7), entries: ledgerEntries(c.content) });
+    }
+    historyLedgerEntries[p] = list;
   }
   if (!rows.length) {
-    const only = classifyIndexFace([], { oldCommitFor: () => null, headLedgerSymbols, indexLedgerSymbols, worktreeLedgerSymbols });
+    const only = classifyIndexFace([], { oldCommitFor: () => null, headLedgerSymbols, indexLedgerSymbols, worktreeLedgerSymbols, headLedgerEntries, indexLedgerEntries, worktreeLedgerEntries, historyLedgerEntries, worktreeWholeOld });
     return {
       code: 0,
       violations: [],
@@ -183,6 +264,11 @@ export function runCheck(cwd = REPO) {
     headLedgerSymbols,
     indexLedgerSymbols,
     worktreeLedgerSymbols,
+    headLedgerEntries,
+    indexLedgerEntries,
+    worktreeLedgerEntries,
+    historyLedgerEntries,
+    worktreeWholeOld,
     worktreeBlobFor: (p) => worktreeBlob.get(p) || null,
   });
   return { code: violations.length ? 1 : 0, violations, hints, scanned: rows.length };
@@ -191,6 +277,11 @@ export function runCheck(cwd = REPO) {
 /* ── 自检：7 条真形状（临时 git 仓里造） ─────────────────────────── */
 function selfTest() {
   const results = [];
+  // ⚠️ **台账条目的四个版本**（R5／W2 的夹具）
+  const ENT_A1 = '**Updated**: 2026-11-11 (㒀 **条目一**)\n\nA 版正文（旧的）\n';
+  const ENT_B1 = '**Updated**: 2026-11-11 (㒀 **条目一**)\n\nB 版正文（回填过的）\n';
+  const ENT_C2 = '**Updated**: 2026-11-11 (㒁 **条目二**)\n\nC 版正文\n';
+  const ENT_NEW = '**Updated**: 2026-11-11 (㒂 **条目三**)\n\n新条目\n';
   const dir = mkdtempSync(join(tmpdir(), 'index-revert-selftest-'));
   const g = (args) => execFileSync('git', ['-C', dir, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   try {
@@ -204,6 +295,13 @@ function selfTest() {
     writeFileSync(join(dir, 'AGENTS.md'), '**Updated**: 2026-11-11 (㒀 **条目一**)\n');
     g(['add', '-A']);
     g(['commit', '-qm', 'base']);
+
+    // ⚠️ **条目正文必须有历史**（R5 ＝「正文 == 历史上逐字相同的那一版」）⇒ ⇒ 造两笔：
+    //   v2 把正文写成 A、v3 回填成 B ⇒ ⇒ 于是「退回 A」有了一个可比的旧版。
+    writeFileSync(join(dir, 'AGENTS.md'), ENT_A1);
+    g(['add', '-A']); g(['commit', '-qm', 'v2 条目一正文 A']);
+    writeFileSync(join(dir, 'AGENTS.md'), ENT_B1 + ENT_C2);
+    g(['add', '-A']); g(['commit', '-qm', 'v3 条目一正文 B ＋ 条目二']);
 
     results.push(['暂存面干净 ⇒ 不红', runCheck(dir).code === 0]);
 
@@ -270,6 +368,37 @@ function selfTest() {
     g(['update-index', '--chmod=+x', 'scripts/check-x.mjs']);
     const r6 = runCheck(dir);
     results.push(['只翻权限位 ⇒ 不判红但必须被点名（M1）', r6.code === 0 && r6.hints.some(h => h.code === 'M1')]);
+
+    // ⚠️ **段落级（条目级）静悄悄回退**（2026-11-11 真机实测补）—— 这是 R1 与 R4 中间的那条缝：
+    //   · 整文件**不是**旧版 ⇒ ⇒ R1 不响；
+    //   · 条目**符号还在** ⇒ ⇒ R4 不响；
+    //   · 而那一条的**正文**被换成了它**历史上逐字相同**的旧版 ⇒ ⇒ 静悄悄回退。
+    g(['reset', '-q', '--hard', 'HEAD']);
+    writeFileSync(join(dir, 'AGENTS.md'), ENT_A1 + ENT_C2 + ENT_NEW);
+    g(['add', 'AGENTS.md']);
+    const r5a = runCheck(dir);
+    results.push(['段落级回退 ⇒ 红（R5）—— R1／R4 都看不见的那一格',
+      r5a.code === 1 && r5a.violations.some(v => v.code === 'R5' && v.symbol === '㒀')]);
+    // ⚠️ **合法回填不许命中**：正文是**全新**内容（历史里没有）⇒ ⇒ 零噪声
+    g(['reset', '-q', '--hard', 'HEAD']);
+    writeFileSync(join(dir, 'AGENTS.md'), ENT_B1 + ENT_C2 + ENT_NEW);
+    g(['add', 'AGENTS.md']);
+    const r5b = runCheck(dir);
+    results.push(['合法回填（正文是全新内容）⇒ 不红（R5 零噪声）',
+      r5b.code === 0 && !r5b.violations.some(v => v.code === 'R5')]);
+    // ⚠️ **整文件旧版 ⇒ R1 说了算 ⇒ 不重复数 R5**（同一个事实数两遍 ⇒ ⇒ 分母失真）
+    g(['reset', '-q', '--hard', 'HEAD']);
+    writeFileSync(join(dir, 'AGENTS.md'), ENT_A1);
+    g(['add', 'AGENTS.md']);
+    const r5c = runCheck(dir);
+    results.push(['整文件旧版 ⇒ R1 说清楚 ⇒ 不再报 R5（不重复数）',
+      r5c.code === 1 && r5c.violations.some(v => v.code === 'R1') && !r5c.violations.some(v => v.code === 'R5')]);
+    // ⚠️ **工作树面同一格 ⇒ 出声但不判红**（W2：工作树本来就在飞）
+    g(['reset', '-q', '--hard', 'HEAD']);
+    writeFileSync(join(dir, 'AGENTS.md'), ENT_A1 + ENT_C2 + ENT_NEW);
+    const r5d = runCheck(dir);
+    results.push(['工作树面段落级回退 ⇒ 出声但不判红（W2）',
+      r5d.code === 0 && r5d.hints.some(h => h.code === 'W2')]);
 
     const empty = mkdtempSync(join(tmpdir(), 'index-revert-empty-'));
     const r7 = runCheck(empty);
