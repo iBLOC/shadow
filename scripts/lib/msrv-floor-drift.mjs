@@ -372,13 +372,26 @@ export function edgeRows({ repos, edges, edgesOut, ownRepos }) {
  * @param {{name?:string, repo?:string, git?:{dirty?:number|null}}[]} repos
  * @returns {{dirtyCount:number, dirtyRepos:string[], text:string}}
  */
-export function faceNote(repos) {
+export function faceNote(repos, options) {
+  const opts = options || {};
+  const mode = String(opts.mode || '');
   const nameOf = (r) => String((r && (r.name || r.repo)) || '');
   const dirty = (repos || []).filter((r) => r && r.git && typeof r.git.dirty === 'number' && r.git.dirty > 0);
+  // ⚠️ **提交面** ⇒ ⇒ 「量的是提交」在这**不是推导，是事实**（读的就是 HEAD）
+  //    ⇒ ⇒ 直接说 ⇒ ⇒ 不拿「脏仓数」去推（那对提交面没有意义）。
+  if (mode === 'commit') {
+    return {
+      dirtyCount: 0,
+      dirtyRepos: [],
+      mode: 'commit',
+      text: '✅ **面**：这一面量的是各仓的**提交**（HEAD，**不是工作树**）⇒ ⇒ 与 CI 量的**同一面** ⇒ ⇒ **边数不是判据，单调性才是**（逐边清单见上 ⇒ ⇒ 两面可逐行 diff）',
+    };
+  }
   if (dirty.length === 0) {
     return {
       dirtyCount: 0,
       dirtyRepos: [],
+      mode: 'worktree',
       text: '✅ **面**：所有仓干净（+0 未提交）⇒ ⇒ 这一面量的是它们的**提交**（逐仓 rev 见上）⇒ ⇒ **边数不是判据，单调性才是**',
     };
   }
@@ -386,6 +399,7 @@ export function faceNote(repos) {
   return {
     dirtyCount: dirty.length,
     dirtyRepos: names,
+    mode: 'worktree',
     text: '⚠️ **面**：**' + dirty.length + '** 个仓带未提交改动（' + names.join('、') + '）⇒ ⇒ 这一面量的是它们的**工作树**⇒ ⇒ 与 CI 量的**提交面**不一定可比 ⇒ ⇒ **边数不是判据，单调性才是**（逐边清单见上 ⇒ ⇒ 两面可逐行 diff）',
   };
 }
@@ -412,6 +426,27 @@ export function textDigest(texts) {
     .sort()
     .join('\n\u0000');
   return createHash('sha256').update(norm, 'utf8').digest('hex').slice(0, 12);
+}
+
+/**
+ * **清单指纹** —— 「逐消费者边清单」的指纹（每条边一行，**含 OK 的边**）。
+ *
+ * ⚠️ **为什么它必须是**一个**函数（而不是两边各抄一份公式）：
+ *   · 闸的输出里印这个数（人读的读数）；
+ *   · 跨面 diff 工具也要算这个数（机器读的面）；
+ *   ⇒ ⇒ 两边各抄一份 ⇒ ⇒ 迟早漂 ⇒ ⇒ 「指纹不同」就不再等于「清单不同」
+ *   ⇒ ⇒ 而那正是**整个跨面 diff 的地基** ⇒ ⇒ ⇒ ⇒ **⇒ ⇒ 单一真相源**。
+ *
+ * @param {{from:string,to:string,fromFloor?:string|null,toFloor?:string|null,
+ *          status:string,owner?:string}[]} rows 逐边清单（顺序即行序）
+ * @returns {string} sha256 前 12 位
+ */
+export function listDigest(rows) {
+  const text = (rows || [])
+    .map((r) => r.from + '->' + r.to + ' ' + (r.fromFloor || '?') + ' ' + (r.toFloor || '?')
+      + ' ' + r.status + ' ' + (r.owner || '?'))
+    .join('\n');
+  return textDigest([text]);
 }
 
 export function judgeFloors(input) {

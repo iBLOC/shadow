@@ -50,6 +50,14 @@
  * ⇒ ⇒ 每仓另给**面指纹**（被读到的 manifest 归一后的 sha256 前 12 位）⇒ ⇒
  *   「读数不同第一嫌疑是**面不同**」从教训变成**可核的数**。
  *
+ * ## `--face=worktree|commit`（面可选）
+ *
+ * 本机读兄弟仓的**工作树**，CI 读它们的**提交**（checkout 出来的就是提交）
+ * ⇒ ⇒ 两面的读数**天然可以不同** ⇒ ⇒ 「边数不一样」**不是漂移**
+ * ⇒ ⇒ 所以「这一组数是在哪一面量的」必须是一个**显式可选的参数**
+ * ⇒ ⇒ `--face=commit` 用 git show HEAD:<path> 读 ⇒ ⇒ **与 CI 同一面** ⇒ ⇒ 读数可比。
+ * ⚠️ **认不出面 ⇒ ⇒ 判不了**（退出码 2）⇒ ⇒ 绝不默认成某一面 ⇒ ⇒ 那是在说假话。
+ *
  * ## `--fixture <dir>`（合成面）
  *
  * 反向验证必须是**真跑**（同一脚本、只换被测物 ⇒ ⇒ 读数反向）⇒ ⇒ 而被测物是跨仓面
@@ -58,7 +66,7 @@
 
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   edgeRows,
@@ -66,6 +74,7 @@ import {
   faceNote,
   expandGlobPatterns,
   judgeFloors,
+  listDigest,
   ownerRepoOf,
   parseCargoSections,
   pathDeps,
@@ -123,11 +132,14 @@ function listCrateDirs(dir, depth) {
  * ⚠️ **纯信息**：读不到（没有 git ／ 不是仓）⇒ ⇒ 一律记「读不出」，**绝不改变判决**
  *    ⇒ ⇒ 「面」的标注不许反过来影响「地板漂移」这个结论（那是两件事）。
  */
-function gitFace(dir) {
+function gitFace(dir, faceMode) {
   try {
     const rev = execFileSync('git', ['-C', dir, 'rev-parse', '--short', 'HEAD'], {
       encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
     }).trim();
+    // ⚠️ **提交面** ⇒ ⇒ 「工作树脏不脏」与这一面**无关**（读的是 HEAD）
+    //    ⇒ ⇒ 记「不适用」（null）⇒ ⇒ 不许拿它当「干净」⇒ ⇒ 那是在说假话。
+    if (faceMode === 'commit') return { rev, dirty: null };
     const dirty = execFileSync('git', ['-C', dir, 'status', '--porcelain'], {
       encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
     }).split(/\r?\n/).filter(Boolean).length;
@@ -138,26 +150,145 @@ function gitFace(dir) {
 }
 
 /**
+ * **git 路径归一**（纯函数）—— 把 manifest 的相对路径变成 **git 认的形状**。
+ *
+ * ⚠️ **为什么必须归一（2026-11-11 实测踩出来的）**：
+ *   根 manifest 里写着 `members = ["."]`（shadow-desktop/src-tauri 就是）
+ *   ⇒ ⇒ **工作树**读 `join(dir, './Cargo.toml')` ⇒ ⇒ 文件系统**认**这个形状；
+ *   ⇒ ⇒ 而 **git** 读 `HEAD:<dir>/./Cargo.toml` ⇒ ⇒ **不认**（那个路径在 git 里不存在）
+ *   ⇒ ⇒ 提交面就会**少读一个成员** ⇒ ⇒ 面指纹差一格
+ *   ⇒ ⇒ 而那一格**长得像「内容不同」** ⇒ ⇒ 会把人引向「内容变了」的错误结论
+ *   ⇒ ⇒ ⇒ ⇒ **⇒ ⇒ 通用形态：同一个路径形状，两套系统认得不一样 ⇒ ⇒ 尺子量的就是两个不同的东西**
+ *   ⇒ ⇒ ⇒ ⇒ 修法只有一个：**在读之前把路径归一**（不是猜）。
+ *
+ * @param {string} p 相对路径（如 './Cargo.toml'）
+ * @returns {string} git 认的形状（如 'Cargo.toml'）
+ */
+function gitRelPath(p) {
+  const parts = String(p == null ? '' : p).split('/').filter((s) => s && s !== '.');
+  return parts.join('/');
+}
+
+/**
+ * **面读取器** —— manifest 的文字从**哪一面**来。
+ *
+ * ⚠️ **为什么面必须可选（2026-11-11 本刀）**：
+ *   本机读兄弟仓的**工作树**，CI 读它们的**提交**（checkout 出来的就是提交）
+ *   ⇒ ⇒ 两面的读数**天然可以不同** ⇒ ⇒ 「边数不一样」**不是漂移**
+ *   ⇒ ⇒ 所以「这一组数是在哪一面量的」必须是一个**显式可选的参数**
+ *   ⇒ ⇒ 否则只能靠猜 ⇒ ⇒ 而「猜面」正是本仓吃过的那一堑（U+34EC 条）。
+ *
+ * ⚠️ **提交面怎么读**：git show HEAD:&lt;path&gt; ⇒ ⇒ 看到的就是 CI 看到的那份内容
+ *   ⇒ ⇒ 两面用**同一把尺**比 ⇒ ⇒ 读数可比。
+ *
+ * @param {string} dir 仓目录
+ * @param {'worktree'|'commit'} faceMode
+ */
+function makeReader(dir, faceMode) {
+  if (faceMode === 'commit') {
+    // ⚠️ **git 根 ≠ crate 目录** —— 本仓自己的 crate（shadow-desktop/src-tauri、benchmark）
+    //    是**子目录** ⇒ ⇒ 路径必须相对 **git 根** ⇒ ⇒ 否则 git show HEAD:Cargo.toml 读不到
+    //    ⇒ ⇒ 那个仓会被误判成「不在这一面」⇒ ⇒ 整面变成「判不了」。
+    let root = dir;
+    let prefix = '';
+    try {
+      const top = execFileSync('git', ['-C', dir, 'rev-parse', '--show-toplevel'], {
+        encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+      }).trim();
+      if (top) {
+        root = top;
+        const rel = relative(resolve(top), resolve(dir));
+        prefix = rel && !rel.startsWith('..') ? rel.split(sep).join('/') : '';
+      }
+    } catch { root = dir; prefix = ''; }
+    const base = prefix ? prefix + '/' : '';
+    return {
+      kind: 'commit',
+      read(relPath) {
+        try {
+          // ⚠️ **路径先归一**（members = ["."] 这个真实形状 ⇒ ⇒ './Cargo.toml' ⇒ ⇒ 'Cargo.toml'）
+          return execFileSync('git', ['-C', root, 'show', 'HEAD:' + base + gitRelPath(relPath)], {
+            encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+          });
+        } catch { return null; }
+      },
+      listMemberDirs() {
+        let listing = '';
+        try {
+          const args = ['-C', root, 'ls-tree', '-r', '--name-only', 'HEAD'];
+          if (base) args.push('--', prefix);
+          listing = execFileSync('git', args, {
+            encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+          });
+        } catch { return []; }
+        const dirs = [];
+        for (const raw of listing.split(/\r?\n/)) {
+          const p = raw.trim();
+          if (!p || !/(^|\/)Cargo\.toml$/.test(p)) continue;
+          // ⚠️ 路径是相对 **git 根**的 ⇒ ⇒ 切成相对 **crate 目录**的。
+          const local = base ? (p.startsWith(base) ? p.slice(base.length) : '') : p;
+          if (!local) continue;
+          const rel = local.replace(/Cargo\.toml$/, '').replace(/\/$/, '');
+          if (!rel) continue;
+          const segs = rel.split('/');
+          if (segs.some((s) => s === 'target' || s === '.git' || s === 'node_modules')) continue;
+          if (segs.length > 3) continue;
+          if (!dirs.includes(rel)) dirs.push(rel);
+        }
+        dirs.sort();
+        return dirs;
+      },
+    };
+  }
+  return {
+    kind: 'worktree',
+    read(rel) {
+      try { return readFileSync(join(dir, rel), 'utf8'); } catch { return null; }
+    },
+    listMemberDirs() { return listCrateDirs(dir, 3); },
+  };
+}
+
+/**
+ * **成员清单**（纯函数）—— 由「读取器」喂 manifest ⇒ ⇒ 自检能喂**假读取器**。
+ *
+ * ⚠️ 为什么抽出来：工作树面与提交面的**成员集合可以不同**
+ *   （工作树里删掉一个成员 ⇒ 工作树面少一条边；提交面里它还在）
+ *   ⇒ ⇒ 而那正是「两面清单差在哪一条」的**真实样本** ⇒ ⇒ 必须能被自检钉住。
+ *
+ * @param {{read:(rel:string)=>string|null, listMemberDirs:()=>string[]}} reader
+ * @param {string} rootText 根 manifest 全文
+ * @returns {{name:string,text:string}[]}
+ */
+function collectManifests(reader, rootText) {
+  const rootSecs = parseCargoSections(rootText);
+  const listing = reader.listMemberDirs();
+  const memberDirs = expandGlobPatterns(rootSecs.members, listing);
+  const members = [];
+  for (const m of memberDirs) {
+    const text = reader.read(m + '/Cargo.toml');
+    if (text === null) continue;
+    members.push({ name: m, text });
+  }
+  // ⚠️ **成员按名排序** ⇒ ⇒ 目录遍历顺序（随文件系统变）不许污染输出与面指纹。
+  members.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+  return members;
+}
+
+/**
  * 读一个仓的地板 + 它的 **path 依赖边**。
  *
  * ⚠️ **边按路径解析**（不按名字）：`path` 依赖先解析成绝对路径 ⇒ ⇒ 再看它落在**哪个仓目录**下。
  *   ⇒ ⇒ 仓内成员（`../behavior-stub`）**不是**跨仓边；
  *   ⇒ ⇒ 三层深（`../../../encephalon`）也能认出来。
  */
-function readRepo(name, dir, knownDirs) {
-  const rootPath = join(dir, 'Cargo.toml');
-  const rootText = readFileSync(rootPath, 'utf8');
-  const rootSecs = parseCargoSections(rootText);
-  const listing = listCrateDirs(dir, 3);
-  const memberDirs = expandGlobPatterns(rootSecs.members, listing);
-  const members = [];
-  for (const m of memberDirs) {
-    const p = join(dir, m, 'Cargo.toml');
-    if (!existsSync(p)) continue;
-    members.push({ name: m, text: readFileSync(p, 'utf8') });
-  }
-  // ⚠️ **成员按名排序** ⇒ ⇒ 目录遍历顺序（随文件系统变）不许污染输出与面指纹。
-  members.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+function readRepo(name, dir, knownDirs, faceMode) {
+  const reader = makeReader(dir, faceMode);
+  const rootText = reader.read('Cargo.toml');
+  // ⚠️ **这一面里读不到根 manifest** ⇒ ⇒ 这个仓**不在这一面**
+  //    ⇒ ⇒ 那一格没验成（不是「它没有依赖边」⇒ ⇒ 那会把「没查」读成「查过且没问题」）。
+  if (rootText === null) return null;
+  const members = collectManifests(reader, rootText);
   const floors = repoFloors({ name, rootText, members });
   const manifests = [{ dir: dir, text: rootText }].concat(
     members.map((m) => ({ dir: join(dir, m.name), text: m.text })),
@@ -175,7 +306,7 @@ function readRepo(name, dir, knownDirs) {
   // ⚠️ **面指纹** ＝ 这个仓被读到的那些 manifest 归一后的 sha256 前 12 位
   //    ⇒ ⇒ 本地与 CI 的清单可**逐行 diff** ⇒ ⇒ 「读数不同」第一嫌疑「面不同」变成可核的事实。
   const face = textDigest([rootText].concat(members.map((m) => m.text)));
-  const git = gitFace(dir);
+  const git = gitFace(dir, faceMode);
   return { name, dir, floors, deps, crates: members.length + 1, face, git };
 }
 
@@ -443,6 +574,68 @@ function selfTest() {
     return n.dirtyCount === 0 && n.text.includes('干净');
   });
 
+  // ── 面可选（工作树 / 提交）＋ 清单指纹单一真相源（2026-11-11 本刀）──
+  add('面：提交面 ⇒ ⇒ 「量的是提交」是**事实**（不是从脏仓数推出来的）', () => {
+    const n = faceNote([{ name: 'a', git: { dirty: 9 } }], { mode: 'commit' });
+    return n.mode === 'commit' && n.text.includes('提交') && n.text.includes('边数不是判据');
+  });
+
+  add('面：提交面 ⇒ ⇒ **不许声称量的是工作树**（哪怕工作树很脏 ⇒ ⇒ 那一格也不许提「未提交改动」）', () => {
+    const n = faceNote([{ name: 'a', git: { dirty: 9 } }], { mode: 'commit' });
+    // ⚠️ 判据要跟它要说的事对齐：**「量的是提交」** ≠ **「全文不许出现『工作树』三个字」**
+    //    （提交面的说明里恰恰要写「不是工作树」）⇒ ⇒ 判「不许声称」＋「不许提未提交改动」。
+    return n.text.includes('不是工作树') && !n.text.includes('未提交改动')
+      && !n.text.includes('这一面量的是它们的**工作树**');
+  });
+
+  add('面：**没给模式** ⇒ ⇒ 仍按脏仓数推导（工作树面）⇒ ⇒ 两种面互不串味', () => {
+    const n = faceNote([{ name: 'a', git: { dirty: 9 } }]);
+    return n.mode === 'worktree' && n.text.includes('工作树');
+  });
+
+  add('成员清单：**假读取器**（提交面有那个成员）⇒ ⇒ 它进清单', () => {
+    const rootText = '[workspace]\nmembers = ["core"]\n';
+    const reader = {
+      read: (rel) => (rel === 'Cargo.toml' ? rootText
+        : (rel === 'core/Cargo.toml' ? '[package]\nname = "core"\n' : null)),
+      listMemberDirs: () => ['core'],
+    };
+    const members = collectManifests(reader, rootText);
+    return members.length === 1 && members[0].name === 'core';
+  });
+
+  add('成员清单：**同一个仓、两个面**（工作树里删掉了那个成员）⇒ ⇒ 提交面多一条', () => {
+    const rootText = '[workspace]\nmembers = ["core"]\n';
+    const commitReader = {
+      read: (rel) => (rel === 'Cargo.toml' ? rootText
+        : (rel === 'core/Cargo.toml' ? '[package]\nname = "core"\n' : null)),
+      listMemberDirs: () => ['core'],
+    };
+    const worktreeReader = {
+      read: (rel) => (rel === 'Cargo.toml' ? rootText : null),
+      listMemberDirs: () => [],
+    };
+    return collectManifests(commitReader, rootText).length === 1
+      && collectManifests(worktreeReader, rootText).length === 0;
+  });
+
+  add('git 路径归一：「./Cargo.toml」⇒ ⇒ 「Cargo.toml」（**git 不认 ./ 形状** ⇒ ⇒ 不归一就少读一个成员）', () => {
+    return gitRelPath('./Cargo.toml') === 'Cargo.toml'
+      && gitRelPath('core/Cargo.toml') === 'core/Cargo.toml'
+      && gitRelPath('crates/ziti-v2/Cargo.toml') === 'crates/ziti-v2/Cargo.toml';
+  });
+
+  add('清单指纹：**同一份清单** ⇒ ⇒ 同一个数（闸印的那个数，与工具算的那个数同源）', () => {
+    const rows = [{ from: 'a', to: 'b', fromFloor: '1.94', toFloor: '1.94', status: 'ok', owner: 'sibling' }];
+    return listDigest(rows) === listDigest(rows.map((r) => ({ ...r })));
+  });
+
+  add('清单指纹：**改一个格子** ⇒ ⇒ 指纹不同（⇒ ⇒ 指纹不同 ＝ 清单内容不同）', () => {
+    const a = [{ from: 'a', to: 'b', fromFloor: '1.94', toFloor: '1.94', status: 'ok', owner: 'sibling' }];
+    const b = [{ from: 'a', to: 'b', fromFloor: '1.94', toFloor: '1.95', status: 'ok', owner: 'sibling' }];
+    return listDigest(a) !== listDigest(b);
+  });
+
   let bad = 0;
   for (const c of cases) {
     let ok = false;
@@ -482,15 +675,41 @@ function faceGitText(git) {
   return '@' + git.rev + (git.dirty === null ? '' : ' (+' + git.dirty + ' 未提交)');
 }
 
+/**
+ * `--face` 的参数读法（`--face=commit` 也认）⇒ ⇒ **没给**与**给了空**要分得开。
+ *
+ * @param {string[]} argv
+ * @returns {string|null} null ＝ 没给这个参数
+ */
+function readFaceArg(argv) {
+  const i = argv.indexOf('--face');
+  if (i >= 0) return argv[i + 1] === undefined ? '' : argv[i + 1];
+  const m = argv.find((a) => a.startsWith('--face='));
+  return m === undefined ? null : m.slice('--face='.length);
+}
+
 function main() {
   const argv = process.argv.slice(2);
   if (argv.includes('--self-test')) return selfTest();
   const asJson = argv.includes('--json');
   const fixtureDir = readFixtureArg(argv);
+  const faceArg = readFaceArg(argv);
+  const faceMode = faceArg === null ? 'worktree' : faceArg;
+
+  // ⚠️ **认不出面 ⇒ ⇒ 判不了**（绝不悄悄默认成某一面 ⇒ ⇒ 那是在说假话）。
+  if (faceMode !== 'worktree' && faceMode !== 'commit') {
+    console.error('❌ 认不出 --face=' + (faceArg === null ? '<没给>' : faceArg) + '（只认 worktree ／ commit）⇒ ⇒ 判不了');
+    process.exit(2);
+  }
 
   // ⚠️ **fixture 模式在 CI 上拒绝运行**（防止有人拿合成面把灯刷绿）⇒ ⇒ 判不了。
   if (fixtureDir && process.env.CI) {
     console.error('❌ **fixture 模式在 CI 上拒绝运行**（防止有人拿合成面把灯刷绿）⇒ ⇒ 判不了');
+    process.exit(2);
+  }
+  // ⚠️ **合成面里没有「提交」可读**（它不是 git 仓）⇒ ⇒ 那一格判不了（绝不假装能读提交）。
+  if (fixtureDir && faceMode === 'commit') {
+    console.error('❌ --fixture 与 --face=commit 不能同时用（合成面里没有提交可读）⇒ ⇒ 判不了');
     process.exit(2);
   }
 
@@ -546,7 +765,14 @@ function main() {
 
   // ❷ 逐仓读地板 + path 依赖边（**两遍**：先定目录，再解析边）
   const knownDirs = hits.map((h) => ({ name: h.name, dir: h.dir }));
-  const repos = hits.map((h) => readRepo(h.name, h.dir, knownDirs));
+  const repos = [];
+  for (const h of hits) {
+    const r = readRepo(h.name, h.dir, knownDirs, faceMode);
+    // ⚠️ **这一面里读不到根 manifest** ⇒ ⇒ 那个仓**不在这一面** ⇒ ⇒ 记成「不在位」
+    //    ⇒ ⇒ 不许当成「它没有依赖边」（那会把「没查」读成「查过且没问题」）。
+    if (!r) { missing.push(h.name); continue; }
+    repos.push(r);
+  }
 
   // ❸ 边 = 本仓 path 依赖**另一个在面里的**仓
   const inFace = new Set(repos.map((r) => r.name));
@@ -583,6 +809,7 @@ function main() {
   }
   lines.push('MSRV 地板跨仓对账（分仓自报口径 · 判「漂移」不判「够不够高」）');
   lines.push('  期望的兄弟仓（唯一一份检出清单） :: ' + expectedRepos.length + ' 个');
+  lines.push('  读的面 :: ' + (faceMode === 'commit' ? '各仓的**提交**（HEAD）' : '各仓的**工作树**') + '（--face=' + faceMode + '）');
   for (const r of repos) {
     lines.push('  ' + (r.name + ' (' + r.crates + ' crates)').padEnd(34) + ' :: 自报 ' + (r.floors.floor || '<读不出>') + ' :: 面 ' + r.face + ' ' + faceGitText(r.git) + (r.floors.problems.length ? ' :: ⚠ ' + r.floors.problems.join('; ') : ''));
   }
@@ -598,8 +825,8 @@ function main() {
     else l += 'UNDECIDABLE :: 责任方=' + ownerText(r.owner) + ' :: ' + r.reason;
     lines.push(l);
   }
-  lines.push('  清单指纹 :: ' + textDigest([rows.map((r) => r.from + '->' + r.to + ' ' + (r.fromFloor || '?') + ' ' + (r.toFloor || '?') + ' ' + r.status + ' ' + r.owner).join('\n')]) + '（清单**逐行可 diff**；指纹不同 ⇒ ⇒ 清单内容不同）');
-  lines.push('  ' + faceNote(repos).text);
+  lines.push('  清单指纹 :: ' + listDigest(rows) + '（清单**逐行可 diff**；指纹不同 ⇒ ⇒ 清单内容不同）');
+  lines.push('  ' + faceNote(repos, { mode: faceMode }).text);
   for (const v of judged.violations) {
     lines.push('    ✗ 漂移 :: ' + v.from + '（自报 ' + v.fromFloor + '）依赖 ' + v.to + '（自报 ' + v.toFloor + '）⇒ ⇒ 消费者的承诺是假的');
   }
@@ -610,7 +837,7 @@ function main() {
   lines.push((fixtureDir ? 'DRIFT-FIXTURE' : 'DRIFT') + ' :: ' + verdict + ' :: 仓数 ' + repos.length + ' :: 边 ' + edges.length + ' :: 漂移 ' + judged.violations.length + ' :: 判不了 ' + judged.unresolved.length + ' :: 取值 ' + (judged.distinct.join('/') || '-'));
 
   if (asJson) {
-    console.log(JSON.stringify({ fixture: !!fixtureDir, verdict, repos: repos.map((r) => ({ repo: r.name, floor: r.floors.floor, floors: r.floors.floors, problems: r.floors.problems, face: r.face, rev: r.git.rev, dirty: r.git.dirty })), edges, edgesOut, edgeRows: rows, violations: judged.violations, unresolved: judged.unresolved, distinct: judged.distinct, missing, ownRepos: OWN_CRATE_NAMES }, null, 2));
+    console.log(JSON.stringify({ fixture: !!fixtureDir, faceMode, faceNote: faceNote(repos, { mode: faceMode }), verdict, repos: repos.map((r) => ({ repo: r.name, floor: r.floors.floor, floors: r.floors.floors, problems: r.floors.problems, face: r.face, rev: r.git.rev, dirty: r.git.dirty })), edges, edgesOut, edgeRows: rows, violations: judged.violations, unresolved: judged.unresolved, distinct: judged.distinct, missing, ownRepos: OWN_CRATE_NAMES }, null, 2));
   } else {
     for (const l of lines) console.log(l);
   }
