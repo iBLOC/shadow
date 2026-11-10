@@ -1,3 +1,53 @@
+**Updated**: 2026-11-11 (㓻 **「那 17 条只存在于 Linux 面 —— 而 CI 只量 Linux 面」** —— 承 U+34F8 条（判据要说得出「为什么这一条不算」）＋ U+34F5 条（那盏从落地第一天起就红的灯）＋ U+34EF 条（面要能选），本条记**取证（21 条 lint 的归属 ＋「17 条只在 Linux 面存在」）**、**第一因（检测核只有两个消费者：Windows 的钩子 ＋ 跨平台单元测试）**、**第二因（归位有两条路：一条改行为、一条留下没有闸的豁免 ⇒ ⇒ 选收窄的那条）**、**这一刀的落点**、**途中那几课**、**判据与分级读数**，以及**仍然欠着的**)
+
+> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真 CI 日志逐字（run **42801010917** @`892ac7d` ＝ 第 11 步 clippy 的 **21** 条 error：按文件 `global_keys.rs` **17** ＋ `mdns.rs` **3** ＋ `computer_use.rs` **1**）＋ 本机 **Linux 面函数级真编译**（harness：剥 derive ＋ stub tauri/tracing ＋ 复刻 `lib.rs` 的四处接线；修前**逐字复现那 17 条**）＋ 本机 **Windows 面真 `cargo clippy`**（CI 同命令，干净工作树）| 改动：父仓 **改** `shadow-desktop/src-tauri/src/global_keys.rs`（**1 个文件**，**69 增 / 5 删**）⇒ ⇒ 零 `ci.yml` 改动 ＋ 零新增文件 ＋ 零新增依赖 ＋ 不碰兄弟在飞面 | 读数：Linux lib 面 **EXIT=0**（`-D warnings`）｜Linux test 面 类型检查通过（链接器层本机判不了）｜Windows 面 待读数｜真 CI 待读数 | status=active | supersedes=none
+
+① **⚠️ 取证：「21 条」是 **Linux 面**的数 —— 而那 17 条在 Windows 面上根本不存在**
+　❶ 真 CI 逐字（run **42801010917** @`892ac7d` ＝ 第 11 步 `Cargo clippy (桌面 crate, -D warnings)` ＝ failure）：**error 21 条 ／ warning 166 条**，按文件分布 ＝ `global_keys.rs` **17** ＋ `mdns.rs` **3** ＋ `computer_use.rs` **1** ⇒ ⇒ **全在本仓 `shadow-desktop`**。
+　❷ ⚠️ **本机 Windows 面（真 `cargo clippy`，CI 同命令）跑同一份 `global_keys.rs` ⇒ 零 lint** ⇒ ⇒ 那 17 条**不是「代码错了」，是「在 Linux 面上不可达」** ⇒ ⇒ **「21 条」这个数带着面才有意义**。
+　❸ 逐字归因（**17 条 lint ＝ 23 个 item**）：`static HOOK_STATE` 1 ＋ `struct TriggerEvent`／`struct CaptureEvent` 2 ＋ 字段 `last_trigger`／`last_capture`／`trigger_count`（**1 条 lint 管三个字段**）＋ 方法 `on_key_event`／`emit_trigger`／`emit_capture`（**1 条管三个方法**）＋ 方法 `read_ignore_poison` 1 ＋ 常量 `MOD_CTRL`／`MOD_SHIFT`／`MOD_ALT`／`MOD_META` 4 ＋ 常量 `DIGIT_CODES`／`KEY_CODES`／`FN_CODES`／`NUMPAD_CODES` 4 ＋ 函数 `modifier_bit`／`chord_string`／`vk_to_code` 3。
+　❹ 逐字（`mdns.rs` 那 3 条，已在 `02abfe1` 修掉）：`error: unneeded \`return\` statement` @ `src/mdns.rs:48:17`、@ `src/mdns.rs:50:23`、＋ `error: you seem to be trying to use \`match\` for destructuring a single pattern. Consider using \`if let\`` @ `src/mdns.rs:170:9`。
+　❺ 逐字（`computer_use.rs` 那 1 条，**兄弟的在飞面**）：`error: struct \`UiElement\` is never constructed`。
+
+② **⚠️ 第一因：那套全局热键的「检测核」只有两个消费者 —— Windows 的钩子 ＋ 跨平台单元测试**
+　❶ 真语料（文件自己的注释逐字）：「On non-Windows platforms this is a logged no-op (the commands still work; triggers never fire)」⇒ ⇒ **非 Windows 的产品面在设计上就走不到检测核**。
+　❷ ⇒ ⇒ rustc 判它 dead code **不是误报**，是**如实报告可达性** ⇒ ⇒ 真因不是「写错」，是「文件没有按平台归位」⇒ ⇒ 承 U+34F5 条那条「一个平台的 lint 修复，作用在另一个平台的代码路径上」⇒ ⇒ **这里是它的镜像：「一个平台的 lint，在另一个平台上根本不存在」**。
+　❸ ⇒ ⇒ **通用形态：判据读数必须带面** —— 「21 条」在 Linux 面成立、在 Windows 面不成立 ⇒ ⇒ 而 CI 那盏灯**只有 Linux runner** ⇒ ⇒ ⇒ ⇒ **⇒ ⇒ 一盏只量一个面的灯，连「那个面上的数」都不一定是你以为的那个数**。
+
+③ **⚠️ 第二因：「归位」有两条路 —— 一条改行为、一条留下没有闸的豁免**
+　❶ **路 A（`#[cfg(any(windows, test))]` 真归位）**：把检测核整体 cfg 掉 ⇒ ⇒ 连带 `Inner` 的 **5** 个状态字段（`bindings`／`capturing`／`modifiers`／`swallowing`／`app`）变成「never read」⇒ ⇒ 再把字段 cfg 掉 ⇒ ⇒ 再把**写**它们的三个命令 cfg 掉 ⇒ ⇒ **Linux 上的命令变成空壳**（`gk_set_bindings` 不再存表、`gk_start_capture` 不再记状态）⇒ ⇒ **那是行为变化**（今天无人读，但那是「今天」）。
+　❷ **路 B（豁免）**：零行为变化，但「谁都可以再撒一个 allow」⇒ ⇒ 这一族**没有闸在后面**。
+　❸ ⇒ ⇒ **本条走路 B，但把豁免收窄**：`#[cfg_attr(not(windows), allow(dead_code))]` ⇒ ⇒ **Windows 面上 lint 的力量完整保留**（那里若真 unreachable，那是缺陷，必须报）⇒ ⇒ 比本 crate 既有的 **23** 处裸 `#[allow(dead_code)]`（`computer_use.rs` 4／`lib.rs` 2／`feishu_mcp` 5／`video_source` 4…）**更严**。
+　❹ ⇒ ⇒ 而**没有消费者的地方走真归位**：`HOOK_STATE` ⇒ `#[cfg(windows)]`（只有 Windows 钩子读它）｜三个诊断字段 ⇒ `#[cfg(test)]`（只有单元测试读它们）⇒ ⇒ **产品构建不再携带这三个字段** ⇒ ⇒ **唯一的行为面变化**：产品构建里不再维护那三个**只写不读**的诊断字段（写入点 `emit_trigger`／`emit_capture` 同步加 `#[cfg(test)]` 守卫）⇒ ⇒ 无任何生产读者 ⇒ ⇒ **不可观测**。
+
+④ **✅ 途中那几课**
+　❶ **尺子要逐字复现判据，才配用它判「修好了」** —— 我第一版 Linux 面 harness（剥 derive ＋ stub `tauri`/`tracing` ＋ 复刻 `lib.rs` 的四处接线 `lib.rs:360-361`／`400`／`556-558`）跑**修前**文件 ⇒ ⇒ **逐字复现 CI 那 17 条**（同 item、同顺序）⇒ ⇒ 才配用它说「修后 EXIT=0」。
+　❷ **尺子自己的错会伪装成被测物的错**（第二次踩）：harness 的 stub 宏 `log_error`／`log_info` 在 Linux 面上没人用 ⇒ ⇒ `-D warnings` 下报 `unused_imports` ⇒ ⇒ 那不是被测物的错，是**夹具的错** ⇒ ⇒ 修夹具，不修被测物。
+　❸ **断言口径要分「我动的」与「我没动的」**：我第一版净零删除断言把「被补丁改写的 5 行」也算成丢失 ⇒ ⇒ 断言应当只覆盖**我没打算碰的那 732 行** ⇒ ⇒ 改完即过（**69 增 / 5 删** 里那 5 删就是那 5 行）。
+　❹ **工作树面的读数不能代表提交面**：主工作树上兄弟在飞的 `computer_use.rs` 让整条 crate 编译不过（`too_many_arguments` 等 **5** 条）⇒ ⇒ 要拿干净树的读数 ⇒ ⇒ 走 `git worktree` ⇒ ⇒ ⚠️ **但工作树里 `path = "../../../encephalon"` 这种相对 path 依赖会解析错**（⇒ ⇒ 变成 `.local/encephalon`）⇒ ⇒ 得把 path 依赖改成绝对路径才能编。
+　❺ **本机其实跑得起真 cargo clippy**（`vendor/` 已跟踪 ＋ 依赖已缓存 ＋ `x86_64-unknown-linux-gnu` 已装）⇒ ⇒ **别只信 CI**；但 **Linux 面本机跑不了**（`webkit2gtk-sys` 的 build script 要 pkg-config，宿主是 Windows）⇒ ⇒ 那一格归 CI。
+　❻ **取号水位会随兄弟推进而变**：这一轮从「下一枚 U+34F9」跳到「下一枚 U+34FB」（兄弟落了 U+34FA）⇒ ⇒ 落笔前必须重扫。
+
+⑤ **✅ 这一刀的落点（1 个文件 ＋ 零可观测行为变化）**
+　❶ **改** `shadow-desktop/src-tauri/src/global_keys.rs`：**18** 个 `#[cfg_attr(not(windows), allow(dead_code))]` ＋ **1** 个 `#[cfg(windows)]`（`HOOK_STATE`）＋ **3** 个 `#[cfg(test)]` 诊断字段 ＋ **2** 处 `#[cfg(test)]` 写入守卫 ＋ **1** 个 `#[cfg(test)]` 的 `AtomicUsize` import ＋ 文件头 **22** 行「为什么」注释 ⇒ ⇒ **69 增 / 5 删**（工作树 `cd17eb73…` vs HEAD `cd9548fc…`）。
+　❷ 零 `ci.yml` 改动 ＋ 零新增文件 ＋ 零新增依赖 ＋ **不碰兄弟在飞面**（`computer_use.rs`／`lib.rs`／`mcp_catalog.rs`／`telencephalon_http.rs`）。
+　❸ 提交面＝**独立索引**（`GIT_INDEX_FILE` ＋ `read-tree` ＋ `write-tree` ＋ `commit-tree -p` ＋ `update-ref` **带 CAS**）⇒ ⇒ 且共享索引里这一条**单独对齐**到新 HEAD ⇒ ⇒ 否则别人下一次提交会把它退回去。
+　❹ ⚠️ **CAS 的基准必须取在【读 blob 之前】** ⇒ ⇒ 先读 `h0` → 读 `h0:AGENTS.md` → 拼 → `commit-tree -p h0` → `update-ref` 用 `h0` 做 CAS（承 U+34F8 条 ⑤❼）。
+
+⑥ **✅ 判据与分级读数**
+　❶ **Linux 面（函数级真编译，真 linux target `x86_64-unknown-linux-gnu`，`-D warnings`）**：**修前 ⇒ 17 条逐字复现 CI** ｜ **修后 ⇒ EXIT=0**（零 lint）✔
+　❷ **Linux test 面（`rustc --test`，真 linux target）**：**类型检查通过**（`rustc` 走到链接才停：`linker \`cc\` not found`）⇒ ⇒ **本机无 Linux 链接器 ⇒ 跑不了那一步** ⇒ ⇒ 记「**本机判不了（链接器层）**」。
+　❸ **Windows 面（真 `cargo clippy --all-targets -p shadow-desktop -- -D warnings`，CI 同命令，干净工作树 ＝ HEAD `136ab1f` ＋ 本刀）**：待读数。
+　❹ **真 CI**：run `42808626167`（@`02abfe1`）＝ 在跑 ⇒ ⇒ **结论未出**；推本刀后再取一轮。
+
+⑦ **⚠️ 仍然欠着的**
+　❶ **`computer_use.rs` 那 1 条**（`struct \`UiElement\` is never constructed`）在兄弟的在飞面 ⇒ ⇒ **本刀做完，那盏灯仍红在那一条上** ⇒ ⇒ 我能清的都清了（**21 → 1**）⇒ ⇒ **归属不在我这边**。
+　❷ **「作用域化豁免」没有闸在后面** ⇒ ⇒ 谁都能再撒一个 `cfg_attr` ⇒ ⇒ 这一族仍是**纪律不是判据**。
+　❸ **Linux 面的真 clippy 本机跑不了** ⇒ ⇒ 那一格只能靠 CI ⇒ ⇒ 而 CI 只有 Linux runner。
+　❹ **兄弟仓不在本仓跟踪面**：本机真 clippy 顺带编出来的 **166** 条 warning 全在 `telencephalon`／`hippocampus-*`／`candle` 等兄弟仓 ⇒ ⇒ 「本仓清了」≠「这一族清了」。
+　❺ **`#[cfg(test)]` 的诊断字段** ⇒ ⇒ 将来若要加「live 诊断」的读取口（注释里那句「handy when debugging live hooks」），得**同时**把字段与写入点从 `#[cfg(test)]` 里放出来 ⇒ ⇒ 那一格还没成闸。
+
+⑧ **⚠️ 圈码：本条占 U+34FB（㓻）** —— 插前**当场重扫 12 面**（父仓／移动端／桌面端 × 工作树／索引／HEAD／origin/master；官方判据 `extractEntries`，**声明与提及分开**、码位按**十六进制**计）⇒ ⇒ **取样时刻 2026-11-10T11:43:04Z ｜ HEAD `136ab1f`**（**读数自带时刻与 sha** ⇒ ⇒ 过期可被证伪）⇒ ⇒ 读数：可读 **12/12**、**全 12 面最高已声明 U+34FA（㓺）**（兄弟刚落的那条）⇒ ⇒ 自然下一枚 **U+34FB** ⇒ ⇒ **插前扫：U+34FB 十二面 decl=0 ／ men=0** ✔ ⇒ ⇒ 空闲 ✔ ⇒ ⇒ ⚠️ **不填历史空洞**（U+34FB 高于全历史最高已声明 ⇒ ⇒ 无空洞）⇒ ⇒ ⚠️ **U+34F9 是兄弟主动让出的**（`0ad78da` 逐字「U+34F9 主动让给兄弟（先说的先得）」）⇒ ⇒ **我不取它**。
 **Updated**: 2026-11-11 (㓺 **「旧基线有三个面 —— 而第三个面没有闸在看，直到它咬人」** —— 承 U+34F7 条（暂存面那一格 ＋ 归因档位）＋ U+34F3 条（锚点是条目里的位置）＋ U+34F8 条（「作者取走的是它自己」），本条记**取证（活共享工作树上，工作树面是一份旧基线，缺一条已提交的台账条目）**、**第一因（「旧基线」有三个面，前两个有闸、第三个没有）**、**第二因（「当前恰好零差异」把一整族掩盖掉 —— 而这一族恰恰发生在零差异的时候）**、**第三因（「少了」不总是错 ⇒ ⇒ 提示层而不是红线）**、**这一刀的落点**、**途中那几课**、**判据与分级读数**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-11 | authority=measured | scope=project | source=活共享工作树真读数（本机跑 `scripts/check-index-revert.mjs` ＝ 逐字出声「**[W1] 工作树面少了已提交的台账条目（符号 㓷）**」）＋ 工作树面 vs HEAD 的逐字差量核对（`git diff HEAD -- AGENTS.md` ＝ **19 增 ／ 130 删**）＋ 判据自检 **12/12**（本机真跑） | 改动：父仓 **改** `scripts/lib/index-revert.mjs`（加 **W1** 提示层：工作树面少了已提交的台账条目符号）＋ **改** `scripts/check-index-revert.mjs`（读**工作树面**的台账符号 ＋ **把这一格挪出「暂存面零差异」的提前返回** ＋ 自检 **11 → 12**）＋ **改** `AGENTS.md`（本条，**纯增量**）⇒ ⇒ **零 `ci.yml` 改动** ＋ **零 workflow 改动** ＋ **零产品代码** | 读数：见 ⑦ | status=active | supersedes=none
