@@ -6,6 +6,7 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:shadow_mobile/services/accessibility_controller.dart';
+import 'package:shadow_mobile/services/capabilities/accessibility_ops.dart';
 import 'package:shadow_mobile/services/capabilities/capability_tools.dart';
 import 'package:shadow_mobile/services/capabilities/flutter_semantics_tree.dart';
 
