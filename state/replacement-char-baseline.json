@@ -1,0 +1,68 @@
+{
+  "schema": "ibloc/replacement-char-baseline@1",
+  "note": "既存的替换字符（U+FFFD）登记。**登记 ≠ 认可** —— 这些是历史欠账，原字符已丢、不可还原 ⇒ ⇒ 只登记、不代改。豁免键 ＝ 文件路径 + | + 行内容指纹（**不含行号** ⇒ ⇒ 台账插入不误判；那一行被改过 ⇒ ⇒ 指纹失配 ⇒ ⇒ 判红、必须显式重新评审）。",
+  "discoveredAt": "2026-11-10T19:21:22.440Z",
+  "discoveredBy": "scripts/check-replacement-chars.mjs --emit-baseline（读提交树面）",
+  "byKey": {
+    ".github/actions/ibloc-siblings/action.yml|3612e62e2d914f2a": {
+      "count": 1,
+      "chars": 2,
+      "note": "**兄弟的在飞面**（共享 composite action）⇒ ⇒ 只登记、不代改"
+    },
+    ".github/workflows/desktop-e2e.yml|3b1e2f332c5bc676": {
+      "count": 1,
+      "chars": 3,
+      "note": "历史欠账（workflow 注释）⇒ ⇒ 原字符已丢、不可还原 ⇒ ⇒ 只登记、不代改"
+    },
+    "AGENTS.md|6b49e4f34248c151": {
+      "count": 1,
+      "chars": 2,
+      "note": "父仓台账的历史条目正文 ⇒ ⇒ 原字符已丢、不可还原 ⇒ ⇒ 只登记、不代改"
+    },
+    "AGENTS.md|2de514bbc7cd9a18": {
+      "count": 1,
+      "chars": 3,
+      "note": "父仓台账的历史条目正文 ⇒ ⇒ 原字符已丢、不可还原 ⇒ ⇒ 只登记、不代改"
+    },
+    "AGENTS.md|ac3c20718c77f512": {
+      "count": 1,
+      "chars": 2,
+      "note": "父仓台账的历史条目正文 ⇒ ⇒ 原字符已丢、不可还原 ⇒ ⇒ 只登记、不代改"
+    },
+    "agent-surface.json|670064fc0476caa6": {
+      "count": 1,
+      "chars": 3,
+      "note": "**契约文件里的文案** ⇒ ⇒ 运行时会被读出来 ⇒ ⇒ 只登记、不代改"
+    },
+    "scripts/check-failure-masking.mjs|493b23f148f25fb6": {
+      "count": 1,
+      "chars": 2,
+      "note": "**运行期文案**（why 字段）⇒ ⇒ 用户看得见 ⇒ ⇒ 只登记、不代改"
+    },
+    "scripts/lib/precommit-wipe.mjs|9adcf64b401cfd43": {
+      "count": 1,
+      "chars": 3,
+      "note": "历史欠账（注释）⇒ ⇒ 原字符已丢、不可还原 ⇒ ⇒ 只登记、不代改"
+    },
+    "scripts/lib/rust-toolchain-pin.mjs|3db2db30bbfb4c57": {
+      "count": 1,
+      "chars": 2,
+      "note": "历史欠账（注释）⇒ ⇒ 原字符已丢、不可还原 ⇒ ⇒ 只登记、不代改"
+    },
+    "scripts/probe-agent-surface.mjs|ee143f96ad2780b4": {
+      "count": 1,
+      "chars": 2,
+      "note": "历史欠账（注释）⇒ ⇒ 原字符已丢、不可还原 ⇒ ⇒ 只登记、不代改"
+    },
+    "shadow-desktop/src/lib/__tests__/prefrontalClientAddress.test.ts|3e24098a135992e3": {
+      "count": 1,
+      "chars": 3,
+      "note": "历史欠账（注释）⇒ ⇒ 原字符已丢、不可还原 ⇒ ⇒ 只登记、不代改"
+    },
+    "shadow-mobile/lib/widgets/settings/ziti_settings_group.dart|b7e27a810c349c64": {
+      "count": 1,
+      "chars": 2,
+      "note": "历史欠账（注释）⇒ ⇒ 原字符已丢、不可还原 ⇒ ⇒ 只登记、不代改"
+    }
+  }
+}

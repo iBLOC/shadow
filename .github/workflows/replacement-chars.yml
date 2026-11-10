@@ -1,0 +1,46 @@
+name: Replacement Characters (替换字符扫描：坏字符不许进仓)
+
+# ⚠️ **它守的是什么** —— U+FFFD（替换字符）是「UTF-8 解码失败时被替换上去的占位符」
+#   ⇒ ⇒ 它出现 ⇒ ⇒ **原字符已经丢了**（不可还原）⇒ ⇒ 而它落在注释 / 文案 / 契约里
+#   ⇒ ⇒ 人读得到、机器读不懂 ⇒ ⇒ 典型形状：「失败长得像成功」。
+#   ⚠️ 本次实测：提交树面 **12 处 / 共 29 个**；工作树面 **13 处 / 共 32 个**。
+#
+# ⚠️ **为什么单独成文件**（与 gate-drills.yml 同理）：
+#   `ci.yml` 是**共享文件**（并行会话在飞）⇒ ⇒ 独立成文件 ⇒ ⇒ 接线面**零共享**。
+#
+# ⚠️ **判据读的是「提交树面」** ⇒ ⇒ 与 CI clone 到的那一面一致 ⇒ ⇒ 不受工作树分叉影响；
+#   工作树面的差异由**报告腿**点名（**不判红** —— 那是别人的在飞面，不是我能判的）。
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  replacement-chars:
+    name: Replacement Characters
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout shadow
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - name: "Self-test: replacement chars (判据自检)"
+        if: always()
+        run: node scripts/check-replacement-chars.mjs --self-test
+
+      - name: "Check: replacement chars (提交树面)"
+        if: always()
+        run: node scripts/check-replacement-chars.mjs
