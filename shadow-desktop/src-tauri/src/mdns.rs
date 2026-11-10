@@ -45,9 +45,9 @@ pub async fn discover_resonance() -> Result<Vec<DiscoveredService>, String> {
                         }
                     }
                 }
-                return Ok(services);
+                Ok(services)
             }
-            Err(_) => return Ok(Vec::new()),
+            Err(_) => Ok(Vec::new()),
         }
     }
 
@@ -167,20 +167,17 @@ pub async fn resolve_service(_service_name: &str) -> Result<Option<DiscoveredSer
             .output()
             .await;
 
-        match output {
-            Ok(out) => {
-                let stdout = String::from_utf8_lossy(&out.stdout);
-                let parts: Vec<&str> = stdout.trim().split('\t').collect();
-                if parts.len() >= 2 {
-                    return Ok(Some(DiscoveredService {
-                        name: _service_name.to_string(),
-                        host: parts[1].to_string(),
-                        port: 8080,
-                        txt_records: HashMap::new(),
-                    }));
-                }
+        if let Ok(out) = output {
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            let parts: Vec<&str> = stdout.trim().split('\t').collect();
+            if parts.len() >= 2 {
+                return Ok(Some(DiscoveredService {
+                    name: _service_name.to_string(),
+                    host: parts[1].to_string(),
+                    port: 8080,
+                    txt_records: HashMap::new(),
+                }));
             }
-            Err(_) => {}
         }
         Ok(None)
     }
