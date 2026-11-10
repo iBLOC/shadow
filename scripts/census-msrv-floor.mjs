@@ -46,7 +46,7 @@ import { dirname, resolve } from 'node:path';
  *   ⇒ ⇒ 本脚本必须报「判不了」⇒ ⇒ 否则「格式变了」会被读成「全绿」⇒ ⇒ 那是最坏的一类假绿。
  *
  * @param {{code:number, output:string}} res
- * @returns {{verdict:string, line:number, patch:number, maxMsrv:string}}
+ * @returns {{verdict:string, line:number, patch:number, maxMsrv:string, reason:string}}
  */
 export function parseGateOutput(res) {
   const code = Number((res && res.code) || 0);
@@ -56,19 +56,24 @@ export function parseGateOutput(res) {
   const patchMatch = out.match(/\u8865\u4e01\u7ea7\u8d8a\u7ebf[^\n]*::[ \t]*(\d+)/);
   const maxMatch = out.match(/\u4f9d\u8d56\u56fe\u6700\u9ad8 MSRV[ \t]*::[ \t]*([^\n]+)/);
   const maxMsrv = maxMatch ? maxMatch[1].trim() : '';
+  // ⚠️ **「判不了」必须带原因** —— 否则它变成一个**永远的黑洞**（谁都不知道该去找谁）。
+  //   本例：门的错误行本身就写着原因（例如「锁文件不同步」）⇒ ⇒ 先把它摸出来。
+  const reasonMatch = out.match(/check-msrv-floor:[^\n]*/);
+  const firstLine = out.split('\n').map((l) => l.trim()).filter(Boolean)[0] || '';
+  const reason = (reasonMatch ? reasonMatch[0] : firstLine).slice(0, 200);
 
-  if (code === 2) return { verdict: 'cannot-judge', line: 0, patch: 0, maxMsrv };
+  if (code === 2) return { verdict: 'cannot-judge', line: 0, patch: 0, maxMsrv, reason };
   if (!verdictMatch || !lineMatch) {
-    return { verdict: 'cannot-judge', line: 0, patch: 0, maxMsrv };
+    return { verdict: 'cannot-judge', line: 0, patch: 0, maxMsrv, reason };
   }
   const line = Number(lineMatch[1]);
   const patch = patchMatch ? Number(patchMatch[1]) : 0;
   if (code === 1 || verdictMatch[1] === 'FAIL') {
-    return { verdict: 'line-violation', line, patch, maxMsrv };
+    return { verdict: 'line-violation', line, patch, maxMsrv, reason };
   }
-  if (line > 0) return { verdict: 'line-violation', line, patch, maxMsrv };
-  if (patch > 0) return { verdict: 'patch-only', line: 0, patch, maxMsrv };
-  return { verdict: 'clean', line: 0, patch: 0, maxMsrv };
+  if (line > 0) return { verdict: 'line-violation', line, patch, maxMsrv, reason };
+  if (patch > 0) return { verdict: 'patch-only', line: 0, patch, maxMsrv, reason };
+  return { verdict: 'clean', line: 0, patch: 0, maxMsrv, reason };
 }
 
 /** 汇总判定：**只有**线级**真红灯判红**；补丁级与判不了都不阻断（口径未定）。 */
@@ -153,6 +158,14 @@ function selfTest() {
     return r.verdict === 'cannot-judge';
   });
 
+  add('\u5224\u4e0d\u4e86\u5fc5\u987b\u5e26\u539f\u56e0\uff08否\u5219\u5b83是\u4e00\u4e2a\u6c38\u8fdc\u7684\u9ed1\u6d1e\uff09', () => {
+    const r = parseGateOutput({
+      code: 2,
+      output: 'check-msrv-floor: cargo metadata --locked \u8dd1\u4e0d\u901a :: error: cannot update the lock file because --locked was passed',
+    });
+    return r.verdict === 'cannot-judge' && r.reason.indexOf('lock file') >= 0;
+  });
+
   add('strict \u6a21\u5f0f\uff1a\u7ebf\u7ea7\u771f\u7ea2\u706f\u21d2 \u21d2 \u5224\u7ea2\uff1b\u8865\u4e01\u7ea7\u4e0e\u5224\u4e0d\u4e86\u21d2 \u21d2 \u4e0d\u5224\u7ea2', () => {
     const rows = [
       { repo: 'a', verdict: 'patch-only' },
@@ -203,7 +216,7 @@ function main() {
   });
   const LABEL = { clean: '\u5e72\u51c0', 'patch-only': '\u8865\u4e01\u7ea7\u8d8a\u7ebf', 'line-violation': '\u7ebf\u7ea7\u8d8a\u7ebf\uff08\u771f\u7ea2\u706f\uff09', 'cannot-judge': '\u5224\u4e0d\u4e86' };
   for (const r of rows) {
-    console.log('  ' + (r.repo + ' (' + r.kind + ')').padEnd(28) + ' :: ' + (LABEL[r.verdict] || r.verdict) + ' :: \u7ebf ' + r.line + ' \uff5c \u8865\u4e01 ' + r.patch + (r.maxMsrv ? ' :: ' + r.maxMsrv : ''));
+    console.log('  ' + (r.repo + ' (' + r.kind + ')').padEnd(28) + ' :: ' + (LABEL[r.verdict] || r.verdict) + ' :: \u7ebf ' + r.line + ' \uff5c \u8865\u4e01 ' + r.patch + (r.maxMsrv ? ' :: ' + r.maxMsrv : '') + (r.verdict === 'cannot-judge' && r.reason ? '\n      \u21d2 \u539f\u56e0 :: ' + r.reason : ''));
   }
   const s = censusVerdict(rows);
   console.log('CENSUS :: \u5e72\u51c0 ' + s.clean + ' \uff5c \u8865\u4e01\u7ea7 ' + s.patchOnly + ' \uff5c \u7ebf\u7ea7\u771f\u7ea2\u706f ' + s.line + ' \uff5c \u5224\u4e0d\u4e86 ' + s.cannot + ' \uff5c \u4ed3\u6570 ' + rows.length);
@@ -216,7 +229,7 @@ function main() {
       lines.push('');
       lines.push('| 仓 | 类型 | 结论 | 线级 | 补丁级 | 图最高 MSRV |');
       lines.push('| --- | --- | --- | --- | --- | --- |');
-      for (const r of rows) lines.push('| ' + r.repo + ' | ' + r.kind + ' | ' + (LABEL[r.verdict] || r.verdict) + ' | ' + r.line + ' | ' + r.patch + ' | ' + (r.maxMsrv || '-') + ' |');
+      for (const r of rows) lines.push('| ' + r.repo + ' | ' + r.kind + ' | ' + (LABEL[r.verdict] || r.verdict) + ' | ' + r.line + ' | ' + r.patch + ' | ' + (r.maxMsrv || '-') + ' |' + (r.verdict === 'cannot-judge' && r.reason ? ' ' + r.reason : '') + ' |');
       lines.push('');
       lines.push('CENSUS :: 干净 ' + s.clean + ' ｜ 补丁级 ' + s.patchOnly + ' ｜ 线级真红灯 ' + s.line + ' ｜ 判不了 ' + s.cannot + ' ｜ 仓数 ' + rows.length);
       if (s.reds.length > 0) {
