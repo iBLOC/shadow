@@ -227,6 +227,8 @@ export function findTakeViolations(events) {
         if (n < maxBefore) {
           violations.push({
             kind: 'A-backfill-hole', space, id: ev.id, date: ev.date, cp: d.cp,
+            // ⚠️ 语义豁免层要用这两项 ⇒ ⇒ **不带**它们就没法判断「这一条自己写了理由」。
+            sha: ev.sha || ev.id, entryBody: d.body,
             maxBefore: hex4(maxBefore),
             reason:
               '本笔占的码位 ' + d.cp +
@@ -240,6 +242,7 @@ export function findTakeViolations(events) {
         if (r) {
           violations.push({
             kind: 'B-hit-reserved', space, id: ev.id, date: ev.date, cp: d.cp,
+            sha: ev.sha || ev.id, entryBody: d.body,
             reservedLine: r.line, reservedSnippet: r.snippet,
             reason:
               '本笔占的码位 ' + d.cp +
@@ -272,6 +275,174 @@ export function canonicalViolations(violations) {
   return [...new Set((violations || []).map(violationIdentity))].sort().join(',');
 }
 
+/* ------------------------------ 语义豁免层 ------------------------------ */
+
+/**
+ * 「A 族只认『低于水位就是回填』」⇒ ⇒ 而**台账自己**写明了两种**合法**的例外：
+ *
+ *   ❶ **有据的保留位，兑现预留** —— 台账原文（U+3472 条）：
+ *      「本条取它（**有据的保留位**，兑现预留；**不是空洞回填**）」
+ *      ＝ **那一枚先前被明写留给某条线** ⇒ ⇒ 兑现它**不是**回填；
+ *   ❷ **自陈理由** —— 台账原文（移动端 U+32AD 条）：
+ *      「**避开 U+3300–U+33FF**（NFKC 会变形 ⇒ ⇒ 闸明说不能拿 NFKC 判重）」
+ *      ＝ **这一条自己写清了为什么落在水位之下**。
+ *
+ * ⚠️ 这两种例外**以前只由「冻结的存量基线」兜着** ⇒ ⇒ 例外再来一次 ⇒ ⇒ **假红**
+ *   （实测：基线里 **7 处**真实例外（U+3470／U+3472／U+34BE／U+32AD／U+32AE／
+ *   U+32AF／U+32D8）**全部**被 A 族判成回填 ⇒ ⇒ 只靠基线豁免）。
+ *
+ * ⚠️ **豁免要「写出来」才算数** ⇒ ⇒ 纪律词 ＋ **证据令牌**（自己码位之外的
+ *   码位／号段／区间）**必须同在一条** ⇒ ⇒ 「顺手写个『缓冲』二字就洗白」
+ *   这条路被堵住。
+ *
+ * ⚠️ **明写的空洞**（不填／空着／继续空／不复用）⇒ ⇒ 是**否决项**，不是豁免项
+ *   ⇒ ⇒ 兑现它**不是**豁免 ⇒ ⇒ 是**更重**的一类。
+ *
+ * ⚠️ 这一层**只管 A 族** ⇒ ⇒ B 族（「撞上别人明写留过的让开位／缓冲」）**不豁免**
+ *   ⇒ ⇒ 因为台账原文：「按惯例**再留一枚缓冲（U+3499）**」＝ 那一枚是**让给别人**的。
+ */
+
+/** 纪律词 —— 「这一条自己写了理由」的措辞（形状取自台账原文）。 */
+export const JUSTIFY_WORDS = [
+  '有据', '兑现', '预留', '保留位', '认领', '留给', '留作',
+  '避开', '让开', '缓冲', '空位', '唯一', '只有', 'NFKC', '段内', '范围',
+];
+
+/** 明写的空洞 —— 「这一位空着、别填」（**否决项**）。 */
+export const NEVER_FILL_WORDS = [
+  '不填', '空着', '继续空', '不复用', '保持空', '不要占', '不占', '不回收', '不许回填',
+];
+
+/**
+ * 保留位方向的措辞 —— 「这一位是**留给某条线**的」⇒ ⇒ 与「空洞」**互斥**。
+ *
+ * ⚠️ 作用范围＝**同一条枚举项**（实测真句：「⚠️ **不填历史空洞**（U+3476／U+3479／
+ *   U+347B 继续空 **＋** U+3472 留给真机腿那条线）」⇒ ⇒ 「不填」管**前半串**，
+ *   U+3472 在**后半串**、是**保留位** ⇒ ⇒ 按整句判 ⇒ ⇒ **误判成空洞**）。
+ */
+export const RESERVED_TARGET_WORDS = [
+  '留给', '留作', '口头留给', '预留', '兑现预留', '让开', '缓冲',
+];
+
+/**
+ * 台账的子句分隔符 —— 方向判定必须在这一层做。
+ *
+ * ⚠️ **分号（；）也要切** —— 台账原文：「⚠️ **不填历史空洞**（U+3463／U+3465／
+ *   U+3467／U+3469／**U+346E** 继续空；**U+3472 已口头留给真机腿那条线**）」
+ *   ⇒ ⇒ 「不填」管的是**分号前**那一串，U+3472 在**分号之后**、是**保留位**
+ *   ⇒ ⇒ 不切分号 ⇒ ⇒ 「不填」会**跨到**U+3472 ⇒ ⇒ ⇒ **误判成空洞**（实测真红）。
+ *   ⇒ ⇒ 而**不切「／」** ⇒ ⇒ 那一串枚举要**留在一起**（「继续空」在串尾 ⇒ ⇒ 管住整串）。
+ */
+const CLAUSE_SPLIT = /[\u21d2\u3002\uff1b]/;
+
+/** 把文本切成**子句**（逐行，再按「⇒」「。」切）。 */
+export function clauses(text) {
+  const out = [];
+  for (const line of String(text || '').split(/\r?\n/)) {
+    for (const part of line.split(CLAUSE_SPLIT)) {
+      const t = part.trim();
+      if (t) out.push(t);
+    }
+  }
+  return out;
+}
+
+/** 码位写法（十六进制）：`U+XXXX` / `0xXXXX`。 */
+const HEX_TOKEN = /(?:U\+|0x)([0-9A-Fa-f]{4,6})/g;
+/** 号段写法：`U+32xx`。 */
+const SEGMENT_TOKEN = /(?:U\+|0x)([0-9A-Fa-f]{2})xx\b/g;
+/** 区间写法：`U+3300\u2013U+33FF`。 */
+const RANGE_TOKEN = /(?:U\+|0x)[0-9A-Fa-f]{4,6}\s*[\u2013\u2014\u2212~-]\s*(?:U\+|0x)?[0-9A-Fa-f]{4,6}/;
+
+/**
+ * 某一位在**先前状态**里是不是被**明写为空洞** ⇒ ⇒ 那是**否决项**。
+ *
+ * ⚠️ 粒度＝**子句** ⇒ ⇒ 台账一行里常同时写着好几个码位 ⇒ ⇒ 按行判会串
+ *   （实测：台账原文「⚠️ 不填历史空洞（U+3463／U+3465／…）继续空」与本条自己的
+ *   码位**同在一行** ⇒ ⇒ 按行判 ⇒ ⇒ 会把自己的码位也判成「明写的空洞」）。
+ *
+ * @param {string} prevText 先前状态全文
+ * @param {string} hex 四位十六进制（大小写不敏感）
+ */
+export function isDeclaredHole(prevText, hex) {
+  const re = new RegExp('(?:U\\+|0x)' + hex + '(?![0-9A-Fa-f])', 'i');
+  for (const cl of clauses(prevText)) {
+    // ⚠️ 先按「＋」**分组** ⇒ ⇒ 再在组内按「／」**拆项**
+    //   ⇒ ⇒ 「不填历史空洞（A／B 继续空 ＋ C 留给某条线）」⇒ ⇒ 「不填」只管前半组。
+    for (const group of cl.split('＋')) {
+      if (!re.test(group)) continue;
+      const items = group.split('／');
+      const cpItems = items.filter((it) => re.test(it));
+      const reserved = cpItems.some((it) => RESERVED_TARGET_WORDS.some((w) => it.includes(w)));
+      if (reserved) continue;              // 那一位在这一组里是**保留位** ⇒ ⇒ 不是空洞
+      if (NEVER_FILL_WORDS.some((w) => group.includes(w))) return true;
+    }
+  }
+  return false;
+}
+
+/** 同一行里有没有**证据令牌**（自己码位之外的码位／号段／区间）。 */
+export function hasEvidenceToken(line, ownHex) {
+  HEX_TOKEN.lastIndex = 0;
+  let m;
+  while ((m = HEX_TOKEN.exec(line)) !== null) {
+    if (m[1].toUpperCase() !== String(ownHex).toUpperCase()) return true;
+  }
+  SEGMENT_TOKEN.lastIndex = 0;
+  if (SEGMENT_TOKEN.test(line)) return true;
+  SEGMENT_TOKEN.lastIndex = 0;
+  if (RANGE_TOKEN.test(line)) return true;
+  RANGE_TOKEN.lastIndex = 0;
+  return false;
+}
+
+/**
+ * 这一条**自己写了理由**吗 —— 判据：**自己的码位** ＋ **纪律词** ＋ **证据令牌**
+ * 同在一条里。
+ *
+ * ⚠️ 粒度＝**行**（台账把「本条占 U+XXXX」与「为什么落在水位之下」写在**同一行**
+ *   ⇒ ⇒ 实测 7 处真实例外全部如此）。
+ */
+export function isJustifiedEntry(entryText, hex) {
+  const re = new RegExp('(?:U\\+|0x)' + hex + '(?![0-9A-Fa-f])', 'i');
+  for (const line of String(entryText || '').split(/\r?\n/)) {
+    if (!re.test(line)) continue;
+    if (!JUSTIFY_WORDS.some((w) => line.includes(w))) continue;
+    if (!hasEvidenceToken(line, hex)) continue;
+    return true;
+  }
+  return false;
+}
+
+/**
+ * **语义豁免**（A 族专用）—— 返回 {exempt, kind, reason}。
+ *
+ * @param {{prevText?: string, entryText?: string, hex: string}} o
+ *        `prevText` ＝ 那一笔**之前**的账本全文（方向判定的依据）
+ *        `entryText` ＝ 那一笔里**新条目自己的文本**（自陈理由的依据）
+ */
+export function semanticExemption(o) {
+  const hex = String(o.hex || '').toUpperCase();
+  if (isDeclaredHole(o.prevText || '', hex)) {
+    return {
+      exempt: false,
+      kind: 'declared-hole',
+      reason: '那一位在**先前状态**里被**明写为空洞**（不填／空着／继续空／不复用）⇒ ⇒ 兑现它**不是**豁免 ⇒ ⇒ 是**更重**的一类',
+    };
+  }
+  if (isJustifiedEntry(o.entryText || '', hex)) {
+    return {
+      exempt: true,
+      kind: 'self-declared',
+      reason: '这一条**自己写了理由**（纪律词 ＋ 证据令牌同在一条）⇒ ⇒ 属**有据的例外**（台账原文：「避开 U+3300\u2013U+33FF」「有据的保留位，兑现预留」）',
+    };
+  }
+  return {
+    exempt: false,
+    kind: 'none',
+    reason: '这一条**没有**自陈理由（纪律词 ＋ 证据令牌）⇒ ⇒ 不是有据的例外',
+  };
+}
 /* ------------------------------ 自检 ------------------------------ */
 /* ⚠️ 夹具的字形**由 fromCodePoint 生成** ⇒ ⇒ 注解与落盘字形必然一致
  * ⇒ ⇒ 免得「手打方块字 ⇒ 码位差一位 ⇒ 期望值全对不上」那一族。 */
@@ -338,6 +509,32 @@ function run() {
       [],
     ],
   ];
+  // ── 语义豁免层的用例（纯函数，不依赖 git）─────────────────────────
+  // ⚠️ 这一层是「A 族只认低于水位」的对冲 ⇒ ⇒ 必须**逐条**钉住：
+  //   ❶ 盲回填（无理由）⇒ ⇒ **不豁免**（尺子咬得住）；
+  //   ❷ 自陈理由 ＋ 证据令牌 ⇒ ⇒ **豁免**（合法例外不再假红）；
+  //   ❸ 只写纪律词、没有证据令牌 ⇒ ⇒ **不豁免**（「顺手写个缓冲就洗白」被堵住）；
+  //   ❹ 明写的空洞 ＋ 自陈理由 ⇒ ⇒ **不豁免**（更重的一类）。
+  const PREV = ['# \u524d\u4e00\u72b6\u6001'].join('');
+  const OWN = '**Updated**: 2026-01-02 (\u3403 **\u4f8b\u5b50** \u2014\u2014 \u672c\u6761\u5360 U+33C1\u3002';
+  const JUSTIFIED = OWN + ' \u2014\u2014 \u907f\u5f00 U+3300\u2013U+33FF\uff08NFKC \u4f1a\u53d8\u5f62\uff09\u3002';
+  const semCases = [
+    ['\u76f2\u56de\u586b\uff08\u65e0\u7406\u7531\uff09\u21d2 \u21d2 **\u4e0d\u8c41\u514d**', PREV, OWN, false],
+    ['\u81ea\u9648\u7406\u7531 \uFF0B \u8bc1\u636e\u4ee4\u724c \u21d2 \u21d2 **\u8c41\u514d**', PREV, JUSTIFIED, true],
+    ['\u53ea\u5199\u7eaa\u5f8b\u8bcd\u3001\u6ca1\u6709\u8bc1\u636e\u4ee4\u724c \u21d2 \u21d2 **\u4e0d\u8c41\u514d**', PREV, OWN + ' \u2014\u2014 \u987a\u624b\u7559\u4e2a\u7f13\u51b2\u3002', false],
+    ['\u660e\u5199\u7684\u7a7a\u6d1e \uFF0B \u81ea\u9648\u7406\u7531 \u21d2 \u21d2 **\u4e0d\u8c41\u514d**\uff08\u66f4\u91cd\u7684\u4e00\u7c7b\uff09', PREV + '\nU+33C1 \u7a7a\u7740\u4e0d\u586b\u3002', JUSTIFIED, false],
+    ['\u540c\u4e00\u53e5\u91cc\u300c\u4e0d\u586b\u5386\u53f2\u7a7a\u6d1e\u300d\u4e0e\u300c\u7559\u7ed9\u300d\u5e76\u5b58 \u21d2 \u21d2 \u90a3\u4e00\u4f4d\u662f**\u4fdd\u7559\u4f4d**\u21d2 \u21d2 **\u4e0d\u5426\u51b3**\uff08\u5b9e\u6d4b\u771f\u53e5\uff09', PREV + '\n\u26a0 **\u4e0d\u586b\u5386\u53f2\u7a7a\u6d1e**\uff08U+3306\uff0fU+3309 \u7ee7\u7eed\u7a7a \uff0b U+33C1 \u7559\u7ed9\u771f\u673a\u817f\u90a3\u6761\u7ebf\uff09', JUSTIFIED, true],
+    ['\u540c\u4e00\u53e5\u91cc\u300c\u4e0d\u586b\u5386\u53f2\u7a7a\u6d1e\u300d\u4e0e\u300c\u7559\u7ed9\u300d\u5e76\u5b58 \u21d2 \u21d2 **\u4e32\u91cc**\u90a3\u51e0\u4f4d\u4ecd\u662f\u7a7a\u6d1e \u21d2 \u21d2 **\u5426\u51b3**\uff08\u5b9e\u6d4b\u771f\u53e5\uff09', PREV + '\n\u26a0 **\u4e0d\u586b\u5386\u53f2\u7a7a\u6d1e**\uff08U+33C1\uff0fU+3309 \u7ee7\u7eed\u7a7a \uff0b U+330A \u7559\u7ed9\u771f\u673a\u817f\u90a3\u6761\u7ebf\uff09', JUSTIFIED, false],
+  ];
+  let semBad = 0;
+  for (const [name, prev, entry, expectExempt] of semCases) {
+    const ex = semanticExemption({ prevText: prev, entryText: entry, hex: '33C1' });
+    const ok = ex.exempt === expectExempt;
+    if (!ok) semBad++;
+    console.log((ok ? '  \u2713 ' : '  \u2717 ') + name + ' \u21d2 \u21d2 \u8c41\u514d=' + ex.exempt + '\uff08\u671f\u671b ' + expectExempt + '\uff09\u3002kind=' + ex.kind);
+  }
+  if (semBad) { console.error('\u8bed\u4e49\u8c41\u514d\u5c42\u81ea\u68c0\u5931\u8d25\uff1a' + semBad + ' \u6761\u4e0d\u7b26'); return 2; }
+
   let bad = 0;
   for (const [name, events, expectKinds] of cases) {
     const r = findTakeViolations(events);
@@ -353,12 +550,8 @@ function run() {
     console.error('自检失败：' + bad + ' 条不符');
     return 2;
   }
-  console.log('自检全过（' + cases.length + '/' + cases.length + '）');
+  console.log('自检全过（' + (cases.length + semCases.length) + '/' + (cases.length + semCases.length) + '）');
   return 0;
-}
-
-if (process.argv.includes('--self-test')) {
-  process.exit(run());
 }
 
 export { run as selfTest };
