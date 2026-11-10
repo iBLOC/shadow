@@ -25,9 +25,40 @@
 // Injected input (enigo / computer-use) is ignored via LLKHF_INJECTED
 // so RPA automation can never recurse into a shortcut trigger.
 
+// ── Platform reachability (why the `allow(dead_code)` below) ─────────
+//
+// The detection core below — the key-event state machine, the chord
+// primitives and the vk tables — has exactly two consumers: the
+// Windows `WH_KEYBOARD_LL` hook, and the cross-platform unit tests.
+// On every other platform the product path is a deliberate no-op (see
+// `install`), so in a non-Windows *product* build the core is
+// unreachable and rustc reports it as dead code.
+//
+// => => The core therefore carries
+//     `#[cfg_attr(not(windows), allow(dead_code))]`
+//     — scoped so that on Windows the lint keeps its full power: if a
+//     core item ever stops being reachable *there*, that is a real
+//     defect and must still be reported. A blanket
+//     `#[allow(dead_code)]` would silence it on the platform where it
+//     must be alive.
+//
+// => => Two things are *placed* rather than silenced, because no consumer
+//     exists for them anywhere:
+//     · `HOOK_STATE` — only the Windows hook reads it => => `#[cfg(windows)]`.
+//     · the three diagnostic fields — only the unit tests read them => =>
+//       `#[cfg(test)]`, so a product build no longer carries them.
+//
+// => => This follows the convention already used elsewhere in this crate
+//     (`#[allow(dead_code)]` on platform-specific items), but scoped
+//     tighter: the exemption exists only where the code is unreachable.
+
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+// `AtomicUsize` backs only the test-only diagnostic counter below, so
+// it is imported only where that counter exists.
+#[cfg(test)]
+use std::sync::atomic::AtomicUsize;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use tauri::{AppHandle, Emitter, State};
 
@@ -40,11 +71,13 @@ pub struct GlobalKeyBinding {
     pub chord: String,
 }
 
+#[cfg_attr(not(windows), allow(dead_code))]
 #[derive(Debug, Clone, Serialize)]
 struct TriggerEvent {
     action: String,
 }
 
+#[cfg_attr(not(windows), allow(dead_code))]
 #[derive(Debug, Clone, Serialize)]
 struct CaptureEvent {
     chord: String,
@@ -73,9 +106,14 @@ struct Inner {
     /// (a remote button held down) and are suppressed without
     /// re-triggering — exactly one trigger per physical press.
     swallowing: Mutex<Option<u32>>,
-    /// Diagnostics + unit-test observability.
+    /// Unit-test observability only. Nothing in a product build reads
+    /// these, so they exist only where their reader exists — and their
+    /// writer is guarded the same way (see `emit_trigger`).
+    #[cfg(test)]
     last_trigger: Mutex<Option<String>>,
+    #[cfg(test)]
     last_capture: Mutex<Option<String>>,
+    #[cfg(test)]
     trigger_count: AtomicUsize,
     app: OnceLock<AppHandle>,
 }
@@ -94,8 +132,11 @@ impl GlobalKeysState {
                 capturing: AtomicBool::new(false),
                 modifiers: AtomicU32::new(0),
                 swallowing: Mutex::new(None),
+                #[cfg(test)]
                 last_trigger: Mutex::new(None),
+                #[cfg(test)]
                 last_capture: Mutex::new(None),
+                #[cfg(test)]
                 trigger_count: AtomicUsize::new(0),
                 app: OnceLock::new(),
             }),
@@ -105,6 +146,7 @@ impl GlobalKeysState {
     /// Handle one key event from the LL hook. Returns `Some(1)` when
     /// the event must be swallowed (bound key, held key repeat, or
     /// capture in progress).
+    #[cfg_attr(not(windows), allow(dead_code))]
     fn on_key_event(&self, vk: u32, is_up: bool) -> Option<isize> {
         const SWALLOW: Option<isize> = Some(1);
 
@@ -168,9 +210,13 @@ impl GlobalKeysState {
         }
     }
 
+    #[cfg_attr(not(windows), allow(dead_code))]
     fn emit_trigger(&self, action: &str) {
-        *self.inner.last_trigger.lock_ignore_poison() = Some(action.to_string());
-        self.inner.trigger_count.fetch_add(1, Ordering::SeqCst);
+        #[cfg(test)]
+        {
+            *self.inner.last_trigger.lock_ignore_poison() = Some(action.to_string());
+            self.inner.trigger_count.fetch_add(1, Ordering::SeqCst);
+        }
         if let Some(app) = self.inner.app.get() {
             if let Err(e) = app.emit(
                 "gk-trigger",
@@ -183,8 +229,12 @@ impl GlobalKeysState {
         }
     }
 
+    #[cfg_attr(not(windows), allow(dead_code))]
     fn emit_capture(&self, chord: &str) {
-        *self.inner.last_capture.lock_ignore_poison() = Some(chord.to_string());
+        #[cfg(test)]
+        {
+            *self.inner.last_capture.lock_ignore_poison() = Some(chord.to_string());
+        }
         if let Some(app) = self.inner.app.get() {
             if let Err(e) = app.emit(
                 "gk-capture",
@@ -224,6 +274,7 @@ trait MutexLockIgnorePoison<T> {
 }
 
 trait RwLockIgnorePoison<T> {
+    #[cfg_attr(not(windows), allow(dead_code))]
     fn read_ignore_poison(&self) -> RwLockReadGuard<'_, T>;
     fn write_ignore_poison(&self) -> RwLockWriteGuard<'_, T>;
 }
@@ -236,6 +287,7 @@ impl<T> MutexLockIgnorePoison<T> for Mutex<T> {
 }
 
 impl<T> RwLockIgnorePoison<T> for RwLock<T> {
+    #[cfg_attr(not(windows), allow(dead_code))]
     fn read_ignore_poison(&self) -> RwLockReadGuard<'_, T> {
         self.read()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -248,6 +300,7 @@ impl<T> RwLockIgnorePoison<T> for RwLock<T> {
 
 // ── Hook installation ────────────────────────────────────────────────
 
+#[cfg(windows)]
 static HOOK_STATE: OnceLock<&'static GlobalKeysState> = OnceLock::new();
 
 /// Install the global key hook. Called once from `setup` with the
@@ -379,14 +432,19 @@ pub fn gk_stop_capture(state: State<'_, GlobalKeysState>) -> Result<(), String> 
 
 // ── Chord primitives (cross-platform: shared by hook + tests) ────────
 
+#[cfg_attr(not(windows), allow(dead_code))]
 const MOD_CTRL: u32 = 1;
+#[cfg_attr(not(windows), allow(dead_code))]
 const MOD_SHIFT: u32 = 2;
+#[cfg_attr(not(windows), allow(dead_code))]
 const MOD_ALT: u32 = 4;
+#[cfg_attr(not(windows), allow(dead_code))]
 const MOD_META: u32 = 8;
 
 /// Canonical modifier order, also the wire order of chord strings.
 const MODIFIER_NAMES: [&str; 4] = ["Ctrl", "Shift", "Alt", "Meta"];
 
+#[cfg_attr(not(windows), allow(dead_code))]
 fn modifier_bit(vk: u32) -> Option<u32> {
     match vk {
         // VK_SHIFT / VK_LSHIFT / VK_RSHIFT
@@ -401,6 +459,7 @@ fn modifier_bit(vk: u32) -> Option<u32> {
     }
 }
 
+#[cfg_attr(not(windows), allow(dead_code))]
 fn chord_string(modifiers: u32, code: &str) -> String {
     let mut s = String::new();
     for (i, bit) in [MOD_CTRL, MOD_SHIFT, MOD_ALT, MOD_META].iter().enumerate() {
@@ -413,19 +472,23 @@ fn chord_string(modifiers: u32, code: &str) -> String {
     s
 }
 
+#[cfg_attr(not(windows), allow(dead_code))]
 const DIGIT_CODES: [&str; 10] = [
     "Digit0", "Digit1", "Digit2", "Digit3", "Digit4", "Digit5", "Digit6", "Digit7", "Digit8",
     "Digit9",
 ];
+#[cfg_attr(not(windows), allow(dead_code))]
 const KEY_CODES: [&str; 26] = [
     "KeyA", "KeyB", "KeyC", "KeyD", "KeyE", "KeyF", "KeyG", "KeyH", "KeyI", "KeyJ", "KeyK", "KeyL",
     "KeyM", "KeyN", "KeyO", "KeyP", "KeyQ", "KeyR", "KeyS", "KeyT", "KeyU", "KeyV", "KeyW", "KeyX",
     "KeyY", "KeyZ",
 ];
+#[cfg_attr(not(windows), allow(dead_code))]
 const FN_CODES: [&str; 24] = [
     "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12", "F13", "F14", "F15",
     "F16", "F17", "F18", "F19", "F20", "F21", "F22", "F23", "F24",
 ];
+#[cfg_attr(not(windows), allow(dead_code))]
 const NUMPAD_CODES: [&str; 10] = [
     "Numpad0", "Numpad1", "Numpad2", "Numpad3", "Numpad4", "Numpad5", "Numpad6", "Numpad7",
     "Numpad8", "Numpad9",
@@ -434,6 +497,7 @@ const NUMPAD_CODES: [&str; 10] = [
 /// Map a Win32 virtual-key code to its DOM KeyboardEvent.code spelling.
 /// The remote-relevant consumer pages (media / browser / launch keys,
 /// 0xA6–0xB7) are what a paired Mi Bluetooth remote actually sends.
+#[cfg_attr(not(windows), allow(dead_code))]
 fn vk_to_code(vk: u32) -> Option<&'static str> {
     match vk {
         0x08 => Some("Backspace"),
