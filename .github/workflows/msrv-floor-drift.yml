@@ -1,0 +1,94 @@
+name: MSRV Floor Drift
+
+# ⚠️ **它守的是什么** —— 「**各仓的地板在依赖边上是否漂移**」
+#
+#   2026-11-11 实测（父仓 16 个 Rust 仓）：
+#     · 14 个兄弟仓 ＋ 本仓桌面端（自报 **1.95**）＋ benchmark ⇒ ⇒ 地板取值 **1.94 / 1.95**；
+#     · 跨仓 **path 依赖边 24 条**（telencephalon→synapse/prefrontal/neuron/hippocampus/diencephalon ...、
+#       shadow-desktop→encephalon/synapse ...）⇒ ⇒ **每条边的消费者承诺都 ≥ 提供者承诺** ⇒ ⇒ 绿。
+#
+# ⚠️ **它与既有那几把尺子量的是正交的两件事**（别混）：
+#   · `check-msrv-floor.mjs` ＝ **单仓**：「本仓的第三方依赖闭包有没有超过**自报**地板」
+#     ⇒ ⇒ 它的闭包**故意排除 path 依赖** ⇒ ⇒ 「本仓承诺被 path 依赖的兄弟仓打破」**全仓没人管**；
+#   · `probe-msrv-floor.mjs` ＝ **编译级**：「在地板**精确值**上真编一次能不能过」；
+#   · **本闸** ＝ **跨仓**：「**依赖边**上的地板是否单调不降」⇒ ⇒ 三把尺子互补，不重叠。
+#
+# ⚠️ **为什么只报「各仓地板彼此不同」而不判红**：分仓自报口径下（U+34E0 条）
+#   「桌面端 1.95 ／ 海马体 1.94」**都是诚实的** ⇒ ⇒ 判红 ＝ 用尺子推翻主人的口径。
+#   ⇒ ⇒ 那一族只出声（distinct 列表），**判红**的只有「依赖边上的单调性被打破」。
+#
+# ⚠️ **为什么单独成文件**（与其它闸的 workflow 同理）：ci.yml 是**共享文件**（并行会话在飞）
+#   ⇒ ⇒ 独立成文件 ⇒ ⇒ 接线面**零共享** ⇒ ⇒ 竞态根本不存在。
+#
+# ⚠️ **「读不到」那一档**：期望的仓不在位（IBLOC_TOKEN 缺失 ⇒ 兄弟仓检不出来）
+#   ⇒ ⇒ 闸报**判不了**（退出码 2）⇒ ⇒ **不是「没问题」**，那一格没验成。
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  msrv-floor-drift:
+    name: MSRV Floor Drift
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # ⚠️⚠️ **secrets 不能直接用在 step 的 `if:` 里**（平台限制，2026-11-11 真 CI 实测）
+      #    ⇒ ⇒ 那个写法会让**整个 workflow 文件被拒绝加载**⇒ ⇒ run 零 job 失败
+      #    ⇒ ⇒ 修法：把 secret 映射到**作业级 env** ⇒ ⇒ `if:` 只引用 env 上下文。
+      IBLOC_TOKEN: ${{ secrets.IBLOC_TOKEN }}
+    steps:
+      # ⚠️ 判读落盘路径（**仓外**）—— 分母要覆盖**所有**真跑的闸 ⇒ ⇒ 每道闸的结论都得落到同一份记录里。
+      # ⚠️ 落在仓根会污染被测面（顶层对账闸会当场判红）⇒ ⇒ 用 RUNNER_TEMP。
+      # ⚠️ 落盘路径**不能**用表达式上下文（job 级 env 里不可用 ⇒ ⇒ 整个 workflow 文件会被拒绝加载）。
+      - name: 准备判读落盘路径（仓外）
+        run: echo "GATE_RESULT_FILE=$RUNNER_TEMP/gate-results.ndjson" >> "$GITHUB_ENV"
+
+      # ⚠️ 本仓检在 `shadow/` ⇒ ⇒ 兄弟仓在**工作区根** ⇒ ⇒ 相对 shadow/ 就是 `../<name>`
+      #    ⇒ ⇒ 与本机布局（C:\Projects\iBLOC\shadow）**同构** ⇒ ⇒ 闸的发现面才能对上。
+      - name: Checkout shadow
+        uses: actions/checkout@v7
+        with:
+          path: shadow
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      # ⚠️ **检出清单只有这一份**（composite action）⇒ ⇒ 与其它 workflow 不会漂。
+      #    ⚠️ token 缺失时**整步跳过**（composite 自己会硬失败）⇒ ⇒ 那一格是「判不了」而不是「红」。
+      - name: Checkout the iBLOC stack
+        if: ${{ env.IBLOC_TOKEN != '' }}
+        uses: ./shadow/.github/actions/ibloc-siblings
+        with:
+          token: ${{ env.IBLOC_TOKEN }}
+
+      # ⚠️ **两步都要跑** —— 判定 ＋ 判据自检（自检证明这道闸**真的会红**）。
+      # ⚠️ 走 `run-gate-once` ⇒ ⇒ 结论**经由判读通道**落盘 ⇒ ⇒ 这一盏灯有分母。
+      - name: Floor drift self-test
+        working-directory: shadow
+        run: node scripts/check-msrv-floor-drift.mjs --self-test
+
+      - name: Floor drift check
+        working-directory: shadow
+        run: node scripts/run-gate-once.mjs scripts/check-msrv-floor-drift.mjs
+
+      # ⚠️ 收尾：把这一盏灯「绿得有多真」写出来 —— 这一盏灯里**所有**真跑的闸
+      #    都落了判读 ⇒ ⇒ 这里汇总成**带分母的读数**（真判 N ｜ 判不了 K ｜ 红 M）
+      #    ⇒ ⇒ 「判不了」**不当红**（它不是「有问题」）⇒ ⇒ 但也**不当绿**（它不是「没问题」）。
+      # ⚠️ if: always() ⇒ ⇒ **闸红的时候分母照样在** ⇒ ⇒ 不然「红」的那一格
+      #    恰好是**唯一没有分母**的那一格 ⇒ ⇒ 红灯也读不出「到底跑了哪几道」。
+      - name: 判读汇总（带分母的绿灯）
+        if: always()
+        working-directory: shadow
+        run: node scripts/lib/gate-tally.mjs --report
