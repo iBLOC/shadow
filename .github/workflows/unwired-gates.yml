@@ -90,7 +90,16 @@ jobs:
           repository: iBLOC/neuron
           path: neuron
 
-      # ⚠️ **大脑仓（encephalon）也要检出** —— 2026-11-11 真 CI 实测（run 42720852662）
+      # ⚠️ **synapse 也要检出** —— 2026-11-11 真 CI 实测（run 42746963183）
+      #    ⇒ ⇒ 「公布出去的地址」那道闸逐字报「仓「synapse」没扫到 ⇒ ⇒ 锚点无法核对」
+      #    ⇒ ⇒ 而 **synapse 是公开仓**（iBLOC/synapse）⇒ ⇒ **不用 token** ⇒ ⇒ 检出即可真判。
+      - name: Checkout synapse
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/synapse
+          path: synapse
+
+      # ⚠️ **大脑仓（encephalon）也要检出** —— 2026-11-11 真 CI 实测（run 42720852662)
       #    ⇒ ⇒ 「CORS 白名单」那道闸的判据源在**它**那儿
       #    （`src/api/cors.rs` ＋ `src/a2a_server.rs`）⇒ ⇒ 不检出 ⇒ ⇒ **判不了**
       #    ⇒ ⇒ 而这一刀刚把它的路径改成「仓外优先、仓内兜底」⇒ ⇒ **检出即可真判**。
