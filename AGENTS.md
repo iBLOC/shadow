@@ -59,7 +59,7 @@
 ⑨ **⚠️ 圈码：本条占 U+34D2（㓒）** —— 插前**独立重扫**（父仓 **工作树／索引／HEAD／origin/master** × **三本账本**（父仓／移动端／桌面端）＝ **12 面**；官方判据 `extractEntries`，**声明与提及分开**、码位按**十六进制**计）⇒ ⇒ 读数：父仓四面**最高已声明 U+34D1**（工作树／索引各 **353** 条 ／ HEAD／origin/master 各 **351** 条）⇒ ⇒ 自然下一枚 **U+34D2** ⇒ ⇒ 插前扫：**U+34D2 十二面 decl=0 ／ men=0** ✔ ⇒ ⇒ 无须让开 ⇒ ⇒ ⇒ 本条取 **U+34D2** ⇒ ⇒ ⚠️ **不填历史空洞**（U+34CA／U+34CB 那一段空洞不动）⇒ ⇒ ⚠️ 本条**只引用已提交的码位**（U+34CC／U+34CD／U+34D1）⇒ ⇒ ⚠️ **插完立刻复跑码位闸**是硬约束。
 **Updated**: 2026-11-11 (㓑 **「主 CI 那盏绿灯的分母只有 4 道 —— 而闸实际有 30 道」** —— 承 U+34CD 条（闸的产物把闸自己判红了）＋ U+34CF 条（CI 的检出清单少一个仓 ⇒ ⇒ 那一格没人判），本条记**取证（分母实测只有 4 道）**、**第一因（直跑的闸没人收结论）**、**第二因（改接线会悄悄改语义）**、**第三因（尺子做好了但没接线＝没做）**、**这一刀的落点**、**判据与分级读数**、**途中那几课**，以及**仍然欠着的**.)
 
-> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真 CI 逐字读数（run 42752869843「第 35 步：4 道」）＋ 本机 24 个 workflow 全量扫描 ＋ 新闸自检 | 改动：父仓 **新增** scripts/lib/gate-runner.mjs（判据纯函数）＋ **新增** scripts/lib/gate-coverage.mjs（覆盖判据纯函数）＋ **新增** scripts/lib/gate-coverage-debt.mjs（存量债清单）＋ **新增** scripts/check-gate-tally-coverage.mjs（新闸）＋ **改** scripts/run-gate-once.mjs（--strict／参数透传／目标按 cwd 解析）＋ **改** .github/workflows/ci.yml（30 道闸步走判读通道 ＋ 8 个 job 补落盘步与汇总步）＋ **改** .github/workflows/ledger-take-discipline.yml ＋ **新增** .github/workflows/gate-tally-coverage.yml ⇒ ⇒ **零产品代码** | 读数：判据自检 **11/11 ＋ 14/14 ＋ 6/6 EXIT=0**；新闸 **EXIT=0**（24 workflow ｜ 闸步 67 ｜ 经由通道 47 ｜ 有闸的 job 28 ｜ 有分母 11 ｜ 零违规 ｜ 存量债 17 条已登记）；ci.yml 改造后 **闸步 30/30 经由通道**（改造前 **4**）＋ **8 个 job 全有分母**（改造前 **1**）⇒ ⇒ **主 CI 的分母 4 → 30**；YAML 闸 **26 文件零违规**；状态面闸零违规；回退闸零静悄悄回退；真 CI 级**计划**（推送后取 run 的 headSha） | status=active | supersedes=none
+> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真 CI 逐字读数（run 42752869843「第 35 步：4 道」）＋ 本机 24 个 workflow 全量扫描 ＋ 新闸自检 | 改动：父仓 **新增** scripts/lib/gate-runner.mjs（判据纯函数）＋ **新增** scripts/lib/gate-coverage.mjs（覆盖判据纯函数）＋ **新增** scripts/lib/gate-coverage-debt.mjs（存量债清单）＋ **新增** scripts/check-gate-tally-coverage.mjs（新闸）＋ **改** scripts/run-gate-once.mjs（--strict／参数透传／目标按 cwd 解析）＋ **改** .github/workflows/ci.yml（30 道闸步走判读通道 ＋ 8 个 job 补落盘步与汇总步）＋ **改** .github/workflows/ledger-take-discipline.yml ＋ **新增** .github/workflows/gate-tally-coverage.yml ⇒ ⇒ **零产品代码** | 读数：判据自检 **11/11 ＋ 14/14 ＋ 6/6 EXIT=0**；新闸 **EXIT=0**（24 workflow ｜ 闸步 67 ｜ 经由通道 47 ｜ 有闸的 job 28 ｜ 有分母 11 ｜ 零违规 ｜ 存量债 17 条已登记）；ci.yml 改造后 **闸步 30/30 经由通道**（改造前 **4**）＋ **8 个 job 全有分母**（改造前 **1**）⇒ ⇒ **主 CI 的分母 4 → 30**；YAML 闸 **26 文件零违规**；状态面闸零违规；回退闸零静悄悄回退；真 CI 级 run **42756841272**（Gate Tally Coverage，headSha `a13dc99`）＝ **success**（逐字「扫了 24 个 workflow ｜ 闸步 67 ｜ 经由通道 47 ｜ 有闸的 job 28 ｜ 有分母 11」＋「✅ 零违规（存量债 17 条已登记）」）＋ 主 CI run **42756841298**（headSha `a13dc99`）＝ **success**（10 个 job 全绿）＋ **八个含闸的 job 全都带上了分母**：Prefrontal Rust **1** ｜ Brain gates **3** ｜ **Desktop Build 17（真判 14 ｜ 判不了 3 ｜ 红 0）** ｜ Mobile Analyze **1** ｜ PS1 Portability **1** ｜ YAML validity **1** ｜ Ledger codepoints **2** ｜ Legacy residue **4** ⇒ ⇒ **主 CI 的分母 4 → 30** | status=active | supersedes=none
 
 ① **⚠️ 取证：主 CI 那盏绿灯，**分母只有 4 道** —— 而闸实际有 30 道**
 　❶ 真 CI 读数（run 42752869843，headSha `c3e3dcf`）：Desktop Build 第 35 步「判读汇总（带分母的绿灯）」逐字「⇒ ⇒ 闸的判读：**4 道 ｜ 真判 1 ｜ 判不了 3 ｜ 红 0**」⇒ ⇒ **那盏灯的分母是 4**。
@@ -109,13 +109,13 @@
 　❷ **闸级**：`node scripts/check-gate-tally-coverage.mjs` ⇒ ⇒ **EXIT=0** ⇒ ⇒ 逐字「**24 个 workflow ｜ 闸步 67 ｜ 经由通道 47 ｜ 有闸的 job 28 ｜ 有分母 11**」＋「✅ 零违规（存量债 17 条已登记）」。
 　❸ **改造级（这一刀的核心读数）**：ci.yml 改造前 **闸步 30 ｜ 经由通道 4 ｜ 有分母的 job 1** ⇒ ⇒ 改造后 **闸步 30 ｜ 经由通道 30 ｜ 有分母的 job 8** ⇒ ⇒ ⇒ **主 CI 的分母 4 → 30**，且**覆盖闸与 YAML 闸各验一遍都是零违规**。
 　❹ **其它闸**：YAML 闸 **26 个文件零违规**｜状态面闸零违规｜回退闸零静悄悄回退｜治理闸（量全部 59 道闸的自检）见读数行。
-　❺ **真 CI 级**：**计划** —— 本条推送后取（只认 run 的 `headSha`；中心流水线的并发组在并行会话连推时会把 pending 轮次取消 ⇒ ⇒ 那道闸另立了独立 workflow 取读数）。
+　❺ **真 CI 级（已补）**：run **42756841272**「Gate Tally Coverage」（headSha `a13dc99`）＝ **success** ⇒ ⇒ 逐字「闸的分母覆盖：扫了 24 个 workflow ｜ 闸步 67 ｜ 经由判读通道 47 ｜ 有闸的 job 28 ｜ 有分母的 job 11」＋「✅ 零违规（24 个 workflow ｜ 存量债 17 条已登记）」；主 CI run **42756841298**（headSha `a13dc99`）＝ **success**（10 个 job 全绿）⇒ ⇒ **逐 job 的分母读数**：Prefrontal Rust **1 道 ｜ 真判 1** ｜ Brain gates **3 ｜ 3** ｜ **Desktop Build 17 ｜ 真判 14 ｜ 判不了 3 ｜ 红 0** ｜ Mobile Analyze **1 ｜ 1** ｜ PS1 Portability **1 ｜ 1** ｜ YAML validity **1 ｜ 1** ｜ Ledger codepoints **2 ｜ 2** ｜ Legacy residue **4 ｜ 4** ⇒ ⇒ ⇒ **八个 job 加起来 30 道** ⇒ ⇒ **主 CI 那盏灯的分母 4 → 30**（改造前只有 Desktop Build 的 4 道有分母）⇒ ⇒ ⇒ 而 Desktop Build 的 **3 道「判不了」**（jni-surface／apk-surface／brain-chain）**与改造前逐字相同** ⇒ ⇒ ⇒ **改造没有动任何一道闸的判定**（这正是 --strict 的意义）。
 
 ⑧ **⚠️ 仍然欠着的**
 　❶ **17 个**独立 workflow 的分母（已登记为存量债）⇒ ⇒ 逐个接（每个＝落盘步＋通道＋汇总步三行）。
 　❷ **「一盏灯一个分母」**：主 CI 现在是「**每个 job 各一份读数**」⇒ ⇒ 「**整个主 CI 一盏灯的总分母**」仍缺 ⇒ ⇒ 要 artifacts 汇总（每 job 传一份记录 ⇒ ⇒ 汇总 job 收齐再相加）⇒ ⇒ 本刀没做（要多引 actions/upload-artifact ＋ download-artifact ⇒ ⇒ 供应链面要另评）。
 　❸ **--strict 的闸一旦「判不了」，那个 job 就红 ⇒ ⇒ 汇总步不会跑 ⇒ ⇒ 那盏灯没有分母** ⇒ ⇒ 这是**语义不变**的代价（今天的直跑闸也是这么红的）⇒ ⇒ ⇒ 但「某道闸在 CI 上到底判不判得了」要**逐条评估** ⇒ ⇒ 那是**另一个决定**，本刀不代做。
-　❹ **真 CI 级读数**（本条推送后取）。
+　❹ **真 CI 级读数已取**（见 ⑦❺）⇒ ⇒ 这一格销账。
 　❺ **真机多机型读数**仍缺：odin（`ee6b4832`）掉线｜MI MAX 2（`2bcb05ec`）在线但**装机被 MIUI 拦**（本轮实测逐字 `INSTALL_FAILED_USER_RESTRICTED: Install canceled by user` ⇒ ⇒ 要插 SIM／在机上确认）｜LX04（`192.168.31.235:5555`）是 **armeabi-v7a** ⇒ ⇒ 要改 Gradle 构建配置 ⇒ ⇒ 待主人拍板。
 　❻ **兄弟那支同族闸**（`scripts/lib/ledger-codepoint-order.mjs`，R8「不回填空洞」）的口径仍未并 ⇒ ⇒ 两道闸可能一绿一红。
 
@@ -123,7 +123,7 @@
 　❶ 插前**当场重扫 12 面**（父仓／移动端／桌面端 × 工作树／索引／HEAD／origin/master）⇒ ⇒ 读数：**可读 12/12**、已声明 distinct=**365**、**最高已声明 U+34CF**（兄弟会话已取走 ⇒ ⇒ 我上一轮以为可取的 U+34CF 已被占）、**U+34D0 提及 2 次**（⇒ 让开 ⇒ ⇒ 跳过）⇒ ⇒ ⇒ **本条取 U+34D1（㓑）**（0 声明 / 0 提及）。
 　❷ ⇒ ⇒ ⚠️ **通用形态**：**「上一轮算出的可取号」会过期** ⇒ ⇒ 因为兄弟会话会抢跑 ⇒ ⇒ ⇒ **落笔前仍要当场重扫**（承 U+34CC 条那条纪律）。
 　❸ ⇒ ⇒ 本条**不钉具体缓冲号**（承 U+34BE 条那条订正）⇒ ⇒ ⇒ **下一枚真可取 ＝ 最高已声明 + 1，再逐个让开所有被预告的位置**（落笔前仍要**当场重扫 12 面**）。
-　❹ ⇒ ⇒ ⚠️ **插完立刻复跑码位闸与取号闸**是硬约束。
+　❹ ⇒ ⇒ ⚠️ **插完立刻复跑码位闸与取号闸**是硬约束 ⇒ ⇒ 实测：码位闸 **提交树面零违规（418 条条目）** ＋ 取号闸 **EXIT=0「全绿：没有新增的取号违例」**；且兄弟会话随后在其上取了 **U+34D2（㓒）** ⇒ ⇒ **两枚不撞** ✔
 **Updated**: 2026-11-11 (㓍 **「闸的产物把闸自己判红了」—— 而我连着两刀都是自己开的口子：落盘进仓根 ／ 表达式上下文写在 job 级 env** —— 承 U+34C2 条那条「兄弟仓有两种布局」与 U+34CC 条那条「纪律要机械化」，本条记**取证（两次真 CI 红）**、**第一因（产物落进被测面）**、**第二因（上下文在 job 级 env 不可用）**、**第三因（本地尺子比平台弱）**、**这一刀的落点**、**途中那几课**、**判据与分级读数**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真 CI 逐条读数（run 42750340522 ／ 42752069833 ／ 42752071028 ／ 42752869843）＋ 本机逐字复现 ＋ 官方取号尺子（scripts/lib/ledger-codepoint-take.mjs） | 改动：父仓 **改** `.github/workflows/ci.yml`（判读落盘改到 `RUNNER_TEMP` ＋ 新增一步写 `$GITHUB_ENV`）＋ **改** `.github/workflows/unwired-gates.yml`（同款）＋ **改** ci.yml 注释（口径订正 7 ⇒ ⇒ 4）⇒ ⇒ **零产品代码** | 读数：真 CI 主 CI run 42752869843 **success**（10 个 job 全绿）；Desktop Build 第 35 步逐字「⇒ ⇒ 闸的判读：**4 道 ｜ 真判 1 ｜ 判不了 3 ｜ 红 0**」；Unwired Gates run 42752869557 **success**；本机复现逐字同形（顶层对账 1 处缺口 ⇒ EXIT=1） | 提交：`87608a0` → `c3e3dcf` → `bdb7855` | status=active | supersedes=none
