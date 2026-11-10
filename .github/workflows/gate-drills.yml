@@ -59,3 +59,11 @@ jobs:
       - name: "Drill: yaml validity (workflow 的 YAML 合法性)"
         if: always()
         run: node scripts/check-yaml-valid.mjs --drill
+
+      # ⚠️ 撤销通道那道：它的 --drill 在任何 workflow 里都**没有**跑过（主判定与自检在 ci.yml 里）。
+      #   ⇒ ⇒ 它的演练腿是这一族最后一块没接上的面 ⇒ ⇒ 这里补上。
+      #   ⇒ ⇒ 这一道在 CI 上**必然**读不到真实用户记忆面 ⇒ ⇒ 那一格照实报「没验成」，
+      #   ⇒ ⇒ 判绿只由**机制六步**（合成夹具）决定 ⇒ ⇒ CI 与本机同一读数。
+      - name: "Drill: preference revocation (用户偏好撤销通道)"
+        if: always()
+        run: node scripts/check-preference-revocation.mjs --drill

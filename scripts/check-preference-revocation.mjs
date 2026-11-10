@@ -423,6 +423,33 @@ export function selfTest() {
     JSON.stringify(s5.violations.map((x) => x.rule))
   );
 
+  // ⚠️ **反向验证（刀⑬）** —— 判绿必须与真实面脱钩。
+  //   ① 机制六步逐格与预期一致；
+  //   ② **旧口径**（拿带存量的面当夹具基座 ＋ 空账本）⇒ ⇒ 判红 V5（那一格曾让演练恒红）；
+  //   ③ **同一面 ＋ 账本补上来源** ⇒ ⇒ 零违规（⇒ ⇒ 真面本身是绿的 ⇒ ⇒ 红的是演练的夹具）。
+  const mech = lifecycleVerdicts();
+  check(
+    '反向验证①：机制六步逐格与预期一致（判绿只看合成夹具）',
+    mech.steps.length === 6 && mech.steps.every((m) => m.ok),
+    JSON.stringify(mech.steps.map((m) => m.label + '=' + (m.ok ? 'ok' : 'X') + ':' + m.verdict))
+  );
+  const staleOld = judge({ userText: USER_WITH_TOMBSTONE, ledgerObj: { entries: [] }, dependents: dep(DEP_MARKED) });
+  check(
+    '反向验证②：旧口径（带存量的面 ＋ 空账本）⇒ ⇒ 判红 V5（这一格曾让演练恒红）',
+    staleOld.violations.some((x) => x.rule === 'V5'),
+    JSON.stringify(staleOld.violations.map((x) => x.rule))
+  );
+  const staleFixed = judge({
+    userText: USER_WITH_TOMBSTONE,
+    ledgerObj: { entries: [ledgerEntry({ id: 'rev-0001', target: { surface: 'user-memory', key: '自主推进偏好' } })] },
+    dependents: dep(DEP_MARKED),
+  });
+  check(
+    '反向验证③：同一面 ＋ 账本补上来源 ⇒ ⇒ 零违规（真面本身是绿的 ⇒ ⇒ 红的是演练的夹具）',
+    staleFixed.violations.length === 0,
+    JSON.stringify(staleFixed.violations.map((x) => x.rule))
+  );
+
   const ok = results.filter((r) => r.ok).length;
   console.log(
     results.map((r) => (r.ok ? '  ✔ ' : '  ✘ ') + r.name + (r.ok ? '' : '  —— ' + r.why)).join(NL)
@@ -434,6 +461,61 @@ export function selfTest() {
 // ---------------------------------------------------------------------------
 // 演练 —— 在**副本**上把整条撤销链走一遍（真文件一个字不动）
 // ---------------------------------------------------------------------------
+
+/**
+ * 机制六步 —— **判绿的唯一来源**（纯函数；**不读任何真实面**）。
+ *
+ * ⚠️ 为什么要单独抽出来（承 U+350C 条「同一族判据只保留一处实现」）：
+ *   旧实现把**真实用户记忆面**当夹具基座，却配一个**不含真实面既有撤销记录**的账本
+ *   ⇒ ⇒ 两者不自洽 ⇒ ⇒ 真面里的存量 V5 渗进每一步 ⇒ ⇒ 两个「期望绿」的步骤恒红。
+ *   ⇒ ⇒ 修法＝**判绿与真实数据脱钩**：机制六步跑在**合成夹具**上；
+ *   ⇒ ⇒ 真实面降为**报告腿**（照实报数，不参与判绿）。
+ */
+export function lifecycleVerdicts() {
+  const NL = String.fromCharCode(10);
+  const baseUser = USER_ACTIVE;
+  const prefs = analyzeUserSurface(baseUser).prefs;
+  if (prefs.length === 0) return { key: null, steps: [] };
+  const key = prefs[0].key;
+  const revId = 'rev-drill';
+
+  const depBase = ['### ' + key + '（2026-11-05）', '（演练用的派生副本：把这条偏好抄进记忆层。）', ''].join(NL);
+  const ledger1 = {
+    schema: 'ibloc/revocation-ledger@1',
+    entries: [
+      ledgerEntry({
+        id: revId,
+        target: { surface: 'user-memory', key: key },
+        source: '演练（不是真实撤销）',
+      }),
+    ],
+  };
+  const withTombstone = appendTombstone(baseUser, key, '2026-11-05', revId);
+  const markedDep = markDependentTitle(depBase, 'md-heading', key, revId);
+
+  const steps = [];
+  const run = (label, userText, ledger, depTextValue, expect) => {
+    const r = judge({
+      userText: userText,
+      ledgerObj: ledger,
+      dependents: [{ id: 'drill-dependent', label: '演练派生面', kind: 'md-heading', text: depTextValue }],
+    });
+    const rules = r.violations.map((x) => x.rule);
+    const verdict = r.violations.length === 0 ? '绿' : '红（' + rules.join(' ＋ ') + '）';
+    const ok = expect === '绿' ? r.violations.length === 0 : r.violations.length > 0;
+    steps.push({ label, expect, verdict, ok, violations: r.violations });
+    return ok;
+  };
+
+  run('步骤 0 · 基线（没有撤销）', baseUser, { entries: [] }, depBase, '绿');
+  run('步骤 1 · 只写撤销账本，偏好面**没改**', baseUser, ledger1, depBase, '红');
+  run('步骤 2 · 追加撤回声明（撤掉生效）', withTombstone, ledger1, depBase, '红');
+  run('步骤 3 · 派生副本**没**传播', withTombstone, ledger1, depBase, '红');
+  run('步骤 4 · 派生副本也盖上 rev-id（传播完成）', withTombstone, ledger1, markedDep, '绿');
+  run('步骤 5 · 抹掉撤销记录（模拟删账本）', withTombstone, { entries: [] }, markedDep, '红');
+
+  return { key, steps };
+}
 
 function drill(argv) {
   const overrides = parseOverrides(argv);
@@ -447,9 +529,11 @@ function drill(argv) {
   const beforeUser = realUser === null ? null : sha256(realUser);
   const beforeLedger = realLedgerRaw === null ? null : sha256(realLedgerRaw);
 
-  const baseUser = realUser === null ? USER_ACTIVE : realUser;
-  const baseNote =
-    realUser === null ? '（真实用户记忆面本轮不可读 ⇒ ⇒ 用合成夹具演练）' : '（真实用户记忆面，只读）';
+  // ⚠️ **判绿只看「机制夹具」（合成面）** —— 绝不看真实面。
+  //   旧实现拿**真实用户记忆面**当夹具基座，却配一个**不含真实面既有撤销记录**的账本
+  //   ⇒ ⇒ 两者不自洽 ⇒ ⇒ 真面里的存量 V5 渗进每一步 ⇒ ⇒ 两个「期望绿」的步骤恒红。
+  const baseUser = USER_ACTIVE;
+  const baseNote = '（机制夹具：合成面 ⇒ ⇒ 判绿与真实数据脱钩 ⇒ ⇒ 本机与 CI 同一读数）';
 
   let ledgerObj = { entries: [] };
   if (realLedgerRaw !== null) {
@@ -463,53 +547,37 @@ function drill(argv) {
 
   const prefs = analyzeUserSurface(baseUser).prefs;
   if (prefs.length === 0) {
-    console.error('❌ 用户记忆面里没有偏好 ⇒ ⇒ 演练无目标');
+    console.error('❌ 机制夹具里没有偏好 ⇒ ⇒ 演练无目标');
     process.exit(2);
   }
-  const key = prefs[0].key;
-  const revId = 'rev-drill';
-
-  const depBase = ['### ' + key + '（2026-11-05）', '（演练用的派生副本：把这条偏好抄进记忆层。）', ''].join(NL);
-
-  const run = (label, userText, ledger, depTextValue, expect) => {
-    const r = judge({
-      userText: userText,
-      ledgerObj: ledger,
-      dependents: [{ id: 'drill-dependent', label: '演练派生面', kind: 'md-heading', text: depTextValue }],
-    });
-    const rules = r.violations.map((x) => x.rule);
-    const verdict = r.violations.length === 0 ? '绿' : '红（' + rules.join(' ＋ ') + '）';
-    const ok = expect === '绿' ? r.violations.length === 0 : r.violations.length > 0;
-    console.log((ok ? '  ✔ ' : '  ✘ ') + label + ' ⇒ ⇒ ' + verdict);
-    for (const x of r.violations) console.log('       · [' + x.rule + '] ' + x.msg);
-    return ok;
-  };
 
   console.log('撤销通道演练（全部在**副本**上跑 ⇒ ⇒ 真文件一个字不动）：');
-  console.log('   目标偏好：「' + key + '」' + baseNote);
+  console.log('   目标偏好：「' + prefs[0].key + '」' + baseNote);
   console.log('');
 
-  const ledger1 = {
-    schema: 'ibloc/revocation-ledger@1',
-    entries: [
-      ledgerEntry({
-        id: revId,
-        target: { surface: 'user-memory', key: key },
-        source: '演练（不是真实撤销）',
-      }),
-    ],
-  };
+  // ⚠️ **报告腿**：真实面 ＋ 真实账本 ⇒ ⇒ 照实报数（**不参与判绿**）。
+  //   ⇒ ⇒ 真面若带存量，这一格**看得见**（不遮蔽真缺陷）；但它**不决定**演练判绿。
+  if (realUser === null) {
+    console.log('   真实面读数：真实用户记忆面读不到 ⇒ ⇒ 那一格**没验成**（不是「没问题」）');
+  } else {
+    const rr = judge({ userText: realUser, ledgerObj: ledgerObj, dependents: [] });
+    console.log(
+      '   真实面读数：真实用户记忆面 ＋ 真实撤销账本（只判这两个面；派生面没读 ⇒ ⇒ V6 这轮不判）⇒ ⇒ ' +
+        (rr.violations.length === 0 ? '零违规' : rr.violations.length + ' 条') +
+        '（**报告腿**：不参与判绿）'
+    );
+    for (const x of rr.violations) console.log('       · [' + x.rule + '] ' + x.msg);
+  }
+  console.log('');
 
-  const withTombstone = appendTombstone(baseUser, key, '2026-11-05', revId);
-  const markedDep = markDependentTitle(depBase, 'md-heading', key, revId);
-
-  let allOk = true;
-  allOk = run('步骤 0 · 基线（没有撤销）', baseUser, { entries: [] }, depBase, '绿') && allOk;
-  allOk = run('步骤 1 · 只写撤销账本，偏好面**没改**', baseUser, ledger1, depBase, '红') && allOk;
-  allOk = run('步骤 2 · 追加撤回声明（撤掉生效）', withTombstone, ledger1, depBase, '红') && allOk;
-  allOk = run('步骤 3 · 派生副本**没**传播', withTombstone, ledger1, depBase, '红') && allOk;
-  allOk = run('步骤 4 · 派生副本也盖上 rev-id（传播完成）', withTombstone, ledger1, markedDep, '绿') && allOk;
-  allOk = run('步骤 5 · 抹掉撤销记录（模拟删账本）', withTombstone, { entries: [] }, markedDep, '红') && allOk;
+  // ⚠️ **判绿只由「机制六步」决定**（跑在合成夹具上）⇒ ⇒ 与真实数据脱钩。
+  const mech = lifecycleVerdicts();
+  let okCount = 0;
+  for (const m of mech.steps) {
+    console.log((m.ok ? '  ✔ ' : '  ✘ ') + m.label + ' ⇒ ⇒ ' + m.verdict);
+    for (const x of m.violations) console.log('       · [' + x.rule + '] ' + x.msg);
+    if (m.ok) okCount++;
+  }
 
   const afterUser = readTextOrNull(userPath);
   const afterLedger = readTextOrNull(ledgerPath);
@@ -522,10 +590,15 @@ function drill(argv) {
   if (beforeUser) console.log('   用户记忆面 SHA256：' + beforeUser);
   if (beforeLedger) console.log('   撤销账本 SHA256：' + beforeLedger);
   console.log('');
-  console.log('   每一步该红的地方都红了 ⇒ ⇒ 这条通道**真的会在该红的时候红**。');
+  console.log(
+    '   机制六步逐格与预期一致：' + okCount + '/' + mech.steps.length + ' ⇒ ⇒ ' +
+      (okCount === mech.steps.length
+        ? '这条通道**在预期处会红**（机制判据在干净夹具上成立）'
+        : '与预期不一致 ⇒ ⇒ 这一格**判不了**（不许读成「机制已验证」）') + '。'
+  );
   console.log('   ⚠️ 但注意：演练证明的是「机制会红」，**不是**「agent 读到撤回声明就不照做」——');
   console.log('      后者只能靠真机行为测试（派一个全新会话问它偏好列表）。');
-  process.exit(allOk && userSame && ledgerSame ? 0 : 1);
+  process.exit(okCount === mech.steps.length && userSame && ledgerSame ? 0 : 1);
 }
 
 // ---------------------------------------------------------------------------
