@@ -1,0 +1,51 @@
+name: MSRV Floor Probe
+
+# ⚠️ **它守的是什么** —— 「**地板这句话没有编译级证据**」这一族。
+#
+#   2026-11-11 实测：中心流水线把 Rust 工具链钉在 **1.99.0**
+#   ⇒ ⇒ CI **从来没有用地板版本编过一次** ⇒ ⇒ 「地板 = 1.94」只有一行文本，
+#   ⇒ ⇒ **没有任何编译级证据**。
+#   而图级门（scripts/check-msrv-floor.mjs）判的是「锁里的依赖要求有没有越线」
+#   ⇒ ⇒ 它是**图级**读数 ⇒ ⇒ 准，但**不能**替代「地板能不能真编出来」。
+#
+# ⚠️ **为什么单独成文件**（与其它门的 workflow 同理）：
+#   · `ci.yml` 是**共享文件**（并行会话在飞）⇒ ⇒ 独立成文件 ⇒ ⇒ 接线面**零共享**；
+#   · 探针**真编**很重（十几分钟量级）⇒ ⇒ **不进每次 push** ⇒ ⇒
+#     这里只跑它的**判读逻辑自检**（纯函数 ⇒ ⇒ 便宜 ⇒ ⇒ 天天验）。
+#
+# ⚠️ **真跑那一格**（钉住 1.94.0 真编一次）由主人按需在本机触发：
+#     node scripts/probe-msrv-floor.mjs --manifest-path <兄弟仓>/Cargo.toml
+#   ⇒ ⇒ 2026-11-11 真机实测（hippocampus）：**floor-unbuildable**，20 个 aws 系包要 1.94.1
+#   ⇒ ⇒ 而图级门在同一仓说 PASS ⇒ ⇒ **「线内 PASS」≠「地板可建」**。
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  msrv-floor-probe:
+    name: MSRV Floor Probe
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout shadow
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      # ⚠️ 探针的**判读逻辑**是纯函数 ⇒ ⇒ 自检可以在 CI 里天天验（便宜）。
+      #    ⚠️ 这一步**不是门步**（`--self-test` ⇒ ⇒ 按覆盖门的口径不占分母）。
+      - name: MSRV 探针自检（判读逻辑）
+        run: node scripts/probe-msrv-floor.mjs --self-test

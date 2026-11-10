@@ -15,6 +15,14 @@
  *   - 地板 = 1.94 ⇒ 允许的最高依赖 MSRV = 1.94.x ⇒ 任何 1.95+ 一律红。
  *   - 自有 crate（path/source 为空）必须声明 rust-version（且等于地板）。
  *
+ * ⚠️ **补丁级越线（新增档，只报不判红）** —— 地板有两个口径：
+ *   「1.94 线」（本门的判定：允许到 1.94.99）与
+ *   「地板精确值 1.94.0」（rust-version = "1.94" 在 cargo 眼里就是 >= 1.94.0）。
+ *   实测（2026-11-11）：hippocampus 的依赖图里有 **22 个 aws 系包要 1.94.1** ⇒ ⇒
+ *   在 rustc 1.94.0 上真编直接报「error: rustc 1.94.0 is not supported by the following packages」
+ *   ⇒ ⇒ **「线内 PASS」不等于「地板可建」** ⇒ ⇒ 这一档只报不判红（改口径是主人的不是尺子的）。
+ *   编译级读数（真编一次）：scripts/probe-msrv-floor.mjs。
+ *
  * 用法：
  *   node scripts/check-msrv-floor.mjs [--manifest-path <Cargo.toml>] [--floor 1.94]
  *   node scripts/check-msrv-floor.mjs --self-test   ← 合成夹具，**不需要 cargo**
@@ -98,6 +106,8 @@ function selfTest() {
     { name: 'vendored 副本 1.99 ⇒ 不计入地板 ⇒ 不判红', packages: [own('v', '1.99.0', '/w/vendor/v/Cargo.toml')], want: 0 },
     { name: '依赖没有 rust_version ⇒ 跳过 ⇒ 不判红', packages: [dep('d', undefined)], want: 0 },
     { name: '全部合规（自有 1.94 ＋ 依赖 1.94.0）⇒ 不判红', packages: [own('a', '1.94'), dep('d', '1.94.0')], want: 0 },
+    { name: '依赖 1.94.1 ⇒ 补丁级越线被点名 ⇒ ⇒ 但**不**判红（线语义不变）', packages: [own('a', '1.94'), dep('d', '1.94.1')], want: 0, patchWant: 1 },
+    { name: '依赖 1.94.0 ⇒ 补丁级零越线', packages: [own('a', '1.94'), dep('d', '1.94.0')], want: 0, patchWant: 0 },
   ];
 
   console.log('─'.repeat(72));
@@ -107,9 +117,11 @@ function selfTest() {
   for (const c of cases) {
     const r = judge({ packages: c.packages }, floor);
     const bad = r.ownMissing.length + r.ownWrong.length + r.violations.length;
-    const ok = bad === c.want;
+    const patchOk = c.patchWant === undefined || r.patchViolations.length === c.patchWant;
+    const ok = bad === c.want && patchOk;
     if (!ok) fails++;
-    console.log('  ' + (ok ? '✓' : '✗') + ' ' + c.name + '（期望 ' + c.want + ' 项，实得 ' + bad + ' 项）');
+    const tail = c.patchWant === undefined ? '' : '，补丁级 ' + r.patchViolations.length + '/' + c.patchWant;
+    console.log('  ' + (ok ? '✓' : '✗') + ' ' + c.name + '（期望 ' + c.want + ' 项，实得 ' + bad + ' 项' + tail + '）');
   }
   console.log('─'.repeat(72));
   if (fails === 0) {
@@ -138,6 +150,8 @@ if (!floor) {
 }
 // 「1.94 线」= 1.94.x ⇒ 允许上限 = 1.94.99（任何 1.95+ 一律越线）
 const allowed = [floor[0], floor[1], 99];
+// 地板精确值（rust-version = "1.94" 在 cargo 眼里就是 >= 1.94.0）
+const exact = [floor[0], floor[1], 0];
 
 let raw;
 try {
@@ -169,6 +183,12 @@ try {
 function judge(meta, floor) {
   // 「1.94 线」= 1.94.x ⇒ 允许上限 = 1.94.99（任何 1.95+ 一律越线）
   const allowed = [floor[0], floor[1], 99];
+  // ⚠️ **地板的「精确值」** = 1.94.0 —— rust-version = "1.94" 在 cargo 眼里就是 >= 1.94.0
+  //   ⇒ ⇒ 依赖要 1.94.1 ⇒ ⇒ **在地板精确值上编不过** ⇒ ⇒ 「线内 PASS」≠「地板可建」
+  //   ⇒ ⇒ 实测（2026-11-11）hippocampus 在 rustc 1.94.0 上真编：22 个 aws 系包要 1.94.1 ⇒ ⇒ 编译级证据：「地板 = 1.94」在精确值上是假的
+  //   ⇒ ⇒ 这一档**只报不判红**（判红 ＝改跨仓口径 ⇒ ⇒ 是主人的决定，不是尺子的）
+  const exact = [floor[0], floor[1], 0];
+  const patchViolations = [];
   const violations = [];
   const ownMissing = [];
   const ownWrong = [];
@@ -200,9 +220,11 @@ function judge(meta, floor) {
     }
     if (cmp(rv, allowed) > 0) {
       violations.push(p.name + " " + p.version + " -> " + p.rust_version);
+    } else if (cmp(rv, exact) > 0) {
+      patchViolations.push(p.name + " " + p.version + " -> " + p.rust_version);
     }
   }
-  return { violations, ownMissing, ownWrong, vendored, depMax };
+  return { violations, patchViolations, ownMissing, ownWrong, vendored, depMax };
 }
 
 const judged = judge(meta, floor);
@@ -211,6 +233,7 @@ const ownMissing = judged.ownMissing;
 const ownWrong = judged.ownWrong;
 const vendored = judged.vendored;
 const depMax = judged.depMax;
+const patchViolations = judged.patchViolations || [];
 
 const label = manifest.replace(/\\/g, "/").split("/").slice(-2).join("/");
 console.log("MSRV floor check :: " + label + " :: floor=" + args.floor + " (允许到 " + fmt(allowed) + ")");
@@ -222,6 +245,14 @@ console.log("  vendored 第三方 crate（不计入地板） :: " + vendored.len
 vendored.forEach((v) => console.log("    ~ " + v));
 console.log("  依赖要求超出地板的线 :: " + violations.length);
 violations.forEach((v) => console.log("    - " + v));
+// ⚠️ **补丁级越线**：依赖要的版本在「1.94 线」内，但高于「地板精确值 1.94.0」
+//   ⇒ ⇒ 地板精确值上编不过 ⇒ ⇒ 「线内 PASS」不等于「地板可建」
+//   ⇒ ⇒ 这一档**只报不判红**：改口径 ⇒ ⇒ 是主人的决定（跨仓），不是尺子的
+console.log("  补丁级越线（超出地板**精确值** " + fmt(exact) + " ⇒ ⇒ 在该精确值上编不过） :: " + patchViolations.length);
+patchViolations.forEach((v) => console.log("    ~ " + v));
+if (patchViolations.length > 0) {
+  console.log("    ⚠️ 「线内 PASS」≠「地板可建」⇒ ⇒ 编译级读数靠 scripts/probe-msrv-floor.mjs（钉住 " + fmt(exact) + " 真编）");
+}
 console.log("  依赖图最高 MSRV :: " + (depMax ? depMax.name + " " + depMax.version + " -> " + depMax.rust_version : "<none>"));
 
 const bad = ownMissing.length + ownWrong.length + violations.length;
