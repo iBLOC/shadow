@@ -278,10 +278,10 @@
 　❸ **跨面级（真跑）**：diff EXIT=**0** ⇒ ⇒ 逐字「FACE-DIFF :: verdict=same :: edge-set-diff=1（只在 A 0 ｜ 只在 B 1） :: status-diff=0 :: floor-diff=0 :: repo-face-diff=1」＋「DIFF :: EDGE-ONLY-B :: hippocampus -> neuron」＋「DIFF :: REPO-FACE :: hippocampus :: A face=a149aea229b6 @ae6b73a :: B face=5a434afae29b @ae6b73a」＋「⇒ ⇒ 差异的**成因**：hippocampus 的**内容**在两面不同」。
 　❹ **交叉验证级**：本机提交面 vs 真 CI run **42797999073**（head 803aafb）⇒ ⇒ **16 个仓的面指纹逐字相同** ＋ **清单指纹逐字相同**（384f68031338）＋ **边数逐字相同**（25）⇒ ⇒ **提交面 ＝ CI 面**（两个面、同一把尺、同一个数）。
 　❺ **本仓闸级**：覆盖闸 EXIT=0（✅ 零违规 ｜ 27 个 workflow ｜ 存量债 0）｜ 纪律闸 EXIT=0（✅ 零违规 ｜ 60 道闸 ｜ 存量债 1 条已登记）｜ YAML EXIT=0（✅ 29 个文件全过）｜ 状态面 EXIT=0（✓ 零违规）。
-　❻ **真 CI 级（head 80e5698 —— 本刀那笔）**：❶ **MSRV Floor Drift** run **42800136139** ＝ **success** ⇒ ⇒ 逐字「**判据自检：50/50**」（本刀新增的 8 格在真 CI 上全过）＋「**读的面 :: 各仓的工作树（--face=worktree）**」（新出的那行在真 CI 上**出声了**）＋「**清单指纹 :: 384f68031338**」＋「**DRIFT :: consistent :: 仓数 16 :: 边 25 :: 漂移 0 :: 判不了 0 :: 取值 1.94/1.95**」（**汇总行与历史逐字相同**）＋「hippocampus (7 crates) :: 自报 1.94 :: 面 **5a434afae29b** @ae6b73a (+0 未提交)」＋ 汇总逐字「⇒ ⇒ **闸的判读：1 道 ｜ 真判 1 ｜ 判不了 0 ｜ 红 0**」；❷ **Commit Revert** run **42800136205** ＝ **success** ⇒ ⇒ 逐字「**回退事件 9 处（判红：静悄悄的回退 0（完全回退 0 ｜ 抹空 0）** ｜ 放行：已声明 0 ｜ 登记在册 0 ｜ 提示：部分回退 9）」＋「**✅ 零静悄悄回退**（扫过的 40 个提交里，没有一次把别人的增量悄悄整个退掉）」⇒ ⇒ **本刀那一笔没有静悄悄抹掉任何人的增量**；❸ **Ledger Take Discipline** run **42800136019** ＝ **success** ⇒ ⇒ 三面逐字「**提交树面 ／ 索引面 ／ 工作树面 ⇒ ⇒ 违例 62 条（存量 60 ／ 新增 2）**　✅ 其中**语义豁免** 2 条」＋「**全绿：没有新增的取号违例**」⇒ ⇒ **U+34F1 这一枚在三面都干净**；❹ **Gate Tally Coverage** run **42800135836** ＝ **success** ✔｜❺ **主 CI（head 80e5698）＝ failure**（run **42800136091**）⇒ ⇒ 落笔那一刻的「pending」**已过期**（pending 会变成 failure／success ⇒ ⇒ 读数到手要**逐步看结论**）⇒ ⇒ 逐 step 真值：❶ **Prefrontal Rust** job 第 10 步「Install pinned Rust toolchain」＝ **failure** ⇒ ⇒ 第 11–15 步 **skipped**（Cargo check ／ Cargo test ／ Cargo clippy ／ clippy(synapse) ／ Neuron candle-free check）⇒ ⇒ 真因逐字「error: failed to parse manifest at `/home/runner/work/shadow/shadow/telencephalon/Cargo.toml`」＋「TOML parse error at line 3, column 2」（encephalon／synapse／prefrontal／neuron／diencephalon／temporal／occipital／amygdala／parietal **同样逐字**）⇒ ⇒ ⇒ ⇒ **⇒ ⇒ 这一格不是本刀造成的**（本刀只动 scripts/ 两个文件 ＋ 两个新文件 ＋ AGENTS.md）⇒ ⇒ **归兄弟仓／接线面**；❷ **Brain gates** 第 8 步「Neuron ownership check」＝ **failure** ⇒ ⇒ 第 9–11 步 **skipped**（**既存红 ⇒ 归端脑线**）；❸ **Desktop Build** 第 15 步同闸红 ⇒ ⇒ 第 16–34 步 **skipped**（**既存红**）；❹ **CI 总分母** 第 4 步＝ **failure** ⇒ ⇒ 逐字「⇒ ⇒ 闸的判读：**20 道 ｜ 真判 15 ｜ 判不了 3 ｜ 红 2**」＋「⇒ ⇒ ⚠️ **该验 30 道 ｜ 实跑 20 道 ⇒ ⇒ 少跑 10 道 ⇒ ⇒ 那一格判不了**（不是「全绿」）」＋「⚠️ 少跑的那几道**没跑** ⇒ ⇒ 那几格**从没被查过** ⇒ ⇒ 不许当成「没问题」」⇒ ⇒ ⇒ ⇒ **⇒ ⇒ 分母那一格在真 CI 上「出声了」**（U+34EF 条那一刀）⇒ ⇒ ⇒ ⇒ **⇒ ⇒ 而「归因到 job ＋ 归到步」那段本轮**没出现** ⇒ ⇒ ⇒ ⇒ **⇒ ⇒ 那把刀（U+34F3 条，`156b612`）落在这笔之后 ⇒ ⇒ 下一批才有那一段**；❺ ⚠️ **这一轮的红不是本刀造成的** ⇒ ⇒ **本条不代修**。
+　❻ **真 CI 级**：**待读数**（这一笔还没推 ⇒ ⇒ 那一格是「没跑」，不是「绿」）。
 
 ⑧ **⚠️ 仍然欠着的**
-　❶ ✅ **真 CI 读数已到手并回填**（见 ⑦❻）⇒ ⇒ **这一格结清** ⇒ ⇒ ⚠️ 而**主 CI 那一条**（head 80e5698）＝ **failure**（run `42800136091`）⇒ ⇒ **三盏红都不是本刀造成的**（兄弟仓 Cargo.toml manifest 解析 ＋ 两处既存红 `check-neuron-ownership`）⇒ ⇒ **本条不代修**（归兄弟仓／端脑线）。
+　❶ ⚠️ **真 CI 读数仍欠**（本笔未推）⇒ ⇒ 那一格是「没跑」。
 　❷ ⚠️ **CI 侧还没直接产机器可读的面**：本刀靠「本机提交面 ＝ CI 面」这一**等价性**闭环 ⇒ ⇒ CI 侧若要**直接**产面（artifact），还得动 .github/workflows/msrv-floor-drift.yml（**我自己那份**）⇒ ⇒ 但那要加 upload-artifact ⇒ ⇒ 本刀**没动**（不拿未经真 CI 验证的接线面去换便利）。
 　❸ ⚠️ **「谁该跑没跑」还没点名到那一步**（承 U+34EF 条 ⑧❷）—— 那是判读记录协议的一格 ⇒ ⇒ **已向兄弟会话让出**。
 　❹ **第三档（有一面「判不了」）在真面上还没跑过** —— 自检里有（两格）⇒ ⇒ 真面要等某一面真的判不了。
@@ -290,7 +290,7 @@
 ⑨ **⚠️ 圈码：本条占 U+34F1（㓱）** —— 插前**当场重扫 12 面**（父仓／移动端／桌面端 × 工作树／索引／HEAD／origin/master；官方判据 extractEntries，**声明与提及分开**、码位按**十六进制**计）⇒ ⇒ 读数：**可读 12/12**、**最高已声明 U+34F0（㓰）**（兄弟会话刚落的那条「prefrontal-rust 的 7 仓手写检出清单收编进 ibloc-siblings composite」）⇒ ⇒ 自然下一枚 **U+34F1** ⇒ ⇒ 插前扫：**U+34F1 十二面 decl=0 ／ men=0** ✔ ⇒ ⇒ 空闲 ✔ ⇒ ⇒ ⚠️ **不填历史空洞**（U+34F1 高于全历史最高已声明 ⇒ ⇒ 无空洞）⇒ ⇒ ⚠️ **U+34F0 是我规划这一刀时还空着的那一枚** ⇒ ⇒ 落笔前它已被兄弟会话占了 ⇒ ⇒ ⇒ ⇒ **⇒ ⇒ 通用形态：落笔与扫描之间可能只隔一分钟 ⇒ ⇒ 号码也会被抢** ⇒ ⇒ 「当场重扫」不能省 ⇒ ⇒ 而**让开重取**是唯一正确的动作（不是「挤」——挤了就是两处声明同一码位 ⇒ ⇒ 码位闸 R1 立刻红）。
 **Updated**: 2026-11-11 (㓰 **「最后一份没有闸看守的手写检出清单消失了 —— 而『统一』的正确形状是『每份背后都有闸』，不是『只剩一份』」** —— 承 U+34CF 条（CI 检出清单 10→14 ＋ 对账），本条记**取证（三份手写清单、只有一份裸奔）**、**第一因（清单靠手抄 ⇒ 漂移是常态）**、**第二因（两份清单不能机械合一 ⇒ 差异是语义性的）**、**第三因（超集检出的安全性论证）**、**这一刀的落点**、**途中那几课**、**判据与分级读数**，以及**仍然欠着的**.)
 
-> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=ci.yml 三处锚点编辑的 diff-tree 取证 ＋ 本机六道闸电池读数（编辑后真跑，逐字）＋ 两份清单对账闸的现状盘点（composite ↔ neuron 闸；legacy job ↔ legacy-residue-all 判据 ③）＋ 12 面码位扫描（官方判据 extractEntries，声明与提及分开；**落盘前最后一扫**） | 改动：父仓 **改** .github/workflows/ci.yml（prefrontal-rust job：Require token ＋ 7 仓手写 checkout 段收编成 ibloc-siblings composite 一步 ＋ 删中段 ziti-rust 检出步 ＋ rust-cache workspaces 改读 composite 输出）＋ AGENTS.md（本条）⇒ ⇒ **零产品代码**、composite action 一字未动 | 读数：YAML 闸自检 **32/32**＋29 文件零违规 ｜ 钉住闸自检 **9/9**＋4 job 全钉 ｜ 覆盖闸 **27** workflow 零违规 ｜ neuron 闸自检 **92/92**＋真跑「阻断 **0** 项」 ｜ legacy 对账自检 **16/16**＋真跑「全绿（扫了 **16** 个仓 / **1878** 个文件）」 ｜ 纪律闸「**60** 道闸零违规（存量债 1 条已登记）」 | status=active | supersedes=none
+> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=ci.yml 三处锚点编辑的 diff-tree 取证 ＋ 本机六道闸电池读数（编辑后真跑，逐字）＋ 两份清单对账闸的现状盘点（composite ↔ neuron 闸；legacy job ↔ legacy-residue-all 判据 ③）＋ 12 面码位扫描（官方判据 extractEntries，声明与提及分开；**落盘前最后一扫**） | 改动：父仓 **改** .github/workflows/ci.yml（prefrontal-rust job：Require token ＋ 7 仓手写 checkout 段收编成 ibloc-siblings composite 一步 ＋ 删中段 ziti-rust 检出步 ＋ rust-cache workspaces 改读 composite 输出）＋ AGENTS.md（本条）⇒ ⇒ **零产品代码**、composite action 本笔一字未动（[net] 幂等修在后续笔 a87e2ab，见 ⑤❺） | 读数：YAML 闸自检 **32/32**＋29 文件零违规 ｜ 钉住闸自检 **9/9**＋4 job 全钉 ｜ 覆盖闸 **27** workflow 零违规 ｜ neuron 闸自检 **92/92**＋真跑「阻断 **0** 项」 ｜ legacy 对账自检 **16/16**＋真跑「全绿（扫了 **16** 个仓 / **1878** 个文件）」 ｜ 纪律闸「**60** 道闸零违规（存量债 1 条已登记）」 | status=active | supersedes=none
 
 ① **⚠️ 取证：ci.yml 里曾有三份手写兄弟检出清单，第三份在裸奔**
 　❶ composite（ibloc-siblings，14 仓）—— brain-gates／desktop-e2e／desktop-rust 三个 job 共用，check-neuron-ownership 的 listedCheckouts 与它对账（U+34CF 那刀：清单 ↔ 发现面逐个对得上）。
@@ -319,6 +319,7 @@
 　❷ 中段的 `Checkout ziti-rust` 步删除（composite 已含），原注释压缩成史证（cargo-101 那次的教训：optional path 依赖连 feature 不开也要读 manifest）。
 　❸ `Setup Rust` 的 `workspaces:` 从五行手写改为读 `steps.stack.outputs.workspaces`。
 　❹ composite action 本体一字未动 ⇒ neuron 闸与地板漂移闸读它的读数**逐字不变**；legacy job 一字未动 ⇒ 判据 ③ 读数逐字不变。
+　❺ **[net] 双写修（后续笔 `a87e2ab`，真 CI 红因的落点）**：ci.yml 的 Prepare Rust dependencies 砍掉 TOKEN／add-mask／[net] 追加／insteadOf（composite 的 Prepare Rust credentials 已逐字提供同款三样）只留 protoc；composite 追加改**幂等**（无 [net] ⇒ 整段写入；有 [net] 无 key ⇒ sed 紧贴插行；key 已在 ⇒ 不动；本机 git-bash 五分支＋幂等重跑全 PASS）⇒ ⇒ 未来任何宿主里残留的本地写都造不出重复段。
 
 ⑥ **✅ 途中那几课**
 　❶ **「收编 ≠ 合并」** —— ③ 里那两条语义差异若没先盘点清楚，顺手「统一清单」会把 legacy 闸的面直接弄坏（少 resonance/benchmark ＋ 多 encephalon）⇒ ⇒ 动「清单」之前先问「**谁的闸在量它、量的面是什么**」。
@@ -326,15 +327,16 @@
 　❸ **「在飞并行可并行」的判法** —— 动 ci.yml 前先 diff HEAD 把别人的在飞 hunks 逐块读出来（本次：JNI/Brain chain 注释 ＋ mobile parser 自检步 ＋ EOF，全在 ~528/546/677/749/1293 行一带），核与自己编辑区域（~60-180／~250 行）**无交集**才动手；提交面照旧「HEAD 基线 ＋ 我那一段」，别人的一行不捎带（提交后 diff-tree 验）。
 　❹ **HEAD 在一轮刀里会自己前进** —— 本轮两次实测（f7ed552 → da9aff2 → 38d9adb 一路推进）⇒ 每一步拼接前当场重读 HEAD。
 　❺ **「空闲」是相对「当场最高已声明」的属性** —— 首扫（当时最高已声明 U+34E8）曾见一枚候选全 12 面干净；拼面当场重扫 ⇒ 最高已声明已被兄弟线推进到 **U+34EC**（一轮三枚：E9 预告、EB、EC）⇒ 那枚候选落进最高已声明**之下** ⇒ 从「空闲」变成「空洞」⇒ **不取**（空洞回填是 A 族违例，不是「让开」也不是「可取」的第三种状态）⇒ ⇒ 取号候选必须同时过两道判据：**12 面干净** ＋ **高于当场最高已声明**；且进账的读数只能是**拼接前那一次**。
+　❻ **收编一个组件进新宿主 ⇒ 要对「副作用清单」，不只是「功能清单」** —— composite 有凭据副作用（写 `~/.cargo/config.toml`），宿主自己也写同一段 ⇒ 功能面（检出＋凭据）看起来都齐了，副作用面却是 double-writer ⇒ 真首跑才炸（TOML duplicate key）⇒ ⇒ 收编清单时要把宿主里被组件覆盖的本地实现**一并收走**，别留「反正也能跑」的旧路。
 
 ⑦ **✅ 判据与分级读数（全部实测）**
 　❶ **判据级**：YAML 闸自检 **32/32** ｜ 钉住闸自检 **9/9** ｜ 覆盖闸自检 **6/6** ｜ neuron 闸自检 **92/92** ｜ legacy 对账自检 **16/16** —— 全 EXIT=0。
 　❷ **闸级（本机真跑 · 编辑后）**：「✅ 零违规（**29** 个 YAML 文件全过）」｜「✅ 零违规（Rust 工具链：**4** 个跑 cargo 的 job 全部钉住精确版本且**核对过 active toolchain**）」｜「✅ 零违规（**27** 个 workflow ｜ 存量债 0 条已登记）」｜ neuron 真跑「**阻断 0 项**」｜ legacy 真跑「✓ 全绿（扫了 **16** 个仓 / **1878** 个文件）」｜ 纪律闸「**60** 道闸 ｜ 已接进 CI：**60** ｜ ✅ 零违规（存量债 1 条已登记）」。
 　❸ **接线级（提交面）**：diff-tree 取证 ⇒ 只 ci.yml ＋ AGENTS.md 两格；AGENTS 纯插入（−0）；ci.yml 只含我那三段（别人的在飞 hunks **零捎带**）；提交后照共享工作树纪律当场复跑四闸（码位／取号／暂存面回退／提交面回退）。
-　❹ ⚠️ **真 CI 级：欠**（推完按 headSha 取 ⇒ ⇒ prefrontal-rust job 那一格要等它真跑完才有权威读数）。
+　❹ **真 CI 级（权威读数已到手，2026-11-11）**：run **42800136091**（head `80e5698`，树里含本笔 faf0162）＝ completed / **failure** ⇒ ⇒ 逐 job：**Prefrontal Rust ＝ failure**（本刀那一格）＋ Brain gates／Desktop Build ＝ failure（既存红：端脑线／desktop-build 两半修的面，非本刀造成）；**逐 step（Prefrontal Rust）**：step 3 Checkout shadow ＋ **step 4 Checkout the iBLOC stack（composite 接线本体）** ＋ step 5 Zero-trust face check ＝ **全 success** ⇒ ⇒ **收编那几格在真 runner 上首跑即绿**；job 红在 **step 10 Install pinned Rust toolchain**：`cargo clippy --version` exit 101，日志逐字「could not parse TOML configuration in `/home/runner/.cargo/config.toml`」＋「line 3, column 2 … `[net]` … duplicate key」⇒ ⇒ **红因＝[net] 双写**（写手全集 git grep 恰两处：composite 的 Prepare Rust credentials ＋ 本 job 自带的 Prepare Rust dependencies）⇒ ⇒ 修复笔见 ⑤❺，修复笔自己的读数见 ⑧❶。
 
 ⑧ **⚠️ 仍然欠着的**
-　❶ **真 CI 读数**（prefrontal-rust job 的 composite 接线在真 runner 上首跑）⇒ 推完取。
+　❶ ⚠️ **修复笔的真 CI 读数**（`a87e2ab`＝[net] 双写修）⇒ ⇒ **在跑（结论未出）** ⇒ ⇒ 按纪律不写绿；到手后逐 step 复核 step 10 是否解封，再回填 ⑦❹ 的「修复后」那一格。
 　❷ **resonance／agent-memory-benchmark 将来若有了 Rust manifest**，是否进 composite（会改 neuron 闸对账读数 14→15）⇒ 口径待议 ⇒ 不代定。
 　❸ **desktop-build 的 cargo-101**（桌面端 `../../../encephalon` 在 CI 布局指到仓外）仍是接线面欠项 ⇒ 与检出布局相关的另一刀。
 　❹ hippocampus 的既存违规与 N14×3 ⇒ 他们的面 ⇒ 不代做。
@@ -387,7 +389,7 @@
 ⑧ **⚠️ 仍然欠着的**
 　❶ ⚠️ **那盏灯本身仍可能是绿的**（且本刀那一批的主 CI ＝ cancelled ⇒ ⇒ 连新出的那行都还没在真 CI 上出过声 ⇒ ⇒ **判不了**，不是绿）：❷ 堵的是**读数层**（「少跑 10 道 ⇒ ⇒ 那一格判不了」现在会自己喊出来）⇒ ⇒ 灯层要变红仍需❶（闸步加 `if: always()`）⇒ ⇒ **但 `ci.yml` 此刻在别人的在飞面** ⇒ ⇒ **这一格等它落地再动** ⇒ ⇒ 不抢。
 　❷ **「谁该跑没跑」还没点名到那一步**：本刀点到**闸**（少跑哪几道）⇒ ⇒ 还没点「是哪个 job 的哪一步把它跳过的」⇒ ⇒ 那需要把 **step 级**的跳过原因也带进判读记录 ⇒ ⇒ **那是 records 协议的一格**（现在 `GATE_RESULT` 只有 target／exit／verdict）⇒ ⇒ 欠着。
-　❸ **跨面 diff 工具**、**真机多机型读数**、**cross-client 产物级读数**（CI 上判不了）—— 照旧欠着。**（2026-11-11 部分闭合：「跨面 diff 工具」已由 U+34F1（㓱）条那一刀补上（机器读数 ＋ 逐字点名差在哪一条）⇒ ⇒ 剩下的「真机多机型读数」与「cross-client 产物级读数」**照旧欠着** ⇒ ⇒ 出处见 U+34F1（㓱）条。）**
+　❸ **跨面 diff 工具**、**真机多机型读数**、**cross-client 产物级读数**（CI 上判不了）—— 照旧欠着。
 　❹ ⚠️ **兄弟仓那 6 个锁不同步 ／ hippocampus 那 20 项越线** ⇒ ⇒ 他们的面，不代做。
 
 ⑨ **⚠️ 圈码：本条占 U+34EF（㓯）** —— 插前**当场重扫 12 面**（父仓／移动端／桌面端 × 工作树／索引／HEAD／origin/master；官方判据 extractEntries，**声明与提及分开**、码位按**十六进制**计）⇒ ⇒ 读数：**可读 12/12**、**最高已声明 U+34EE（㓮）**（兄弟会话刚落的「清单早就补到 14，断言还停在 10 ⇒ ⇒ 差的那 4 个仓没人断言（假绿）」那条）⇒ ⇒ 自然下一枚 **U+34EF**（十二面 decl=0 ／ men=0 ✔ 空闲 ✔）⇒ ⇒ ⚠️ **不填历史空洞**（U+34EF 高于全历史最高已声明 ⇒ ⇒ 无空洞）⇒ ⇒ ⚠️ **而「U+34EE」那一格是我插笔那一分钟里被占掉的** —— 我第一遍扫描时它还是空的 ⇒ ⇒ 落笔时被**提交前的断言**当场逮住（逐字：「我那条在提交面出现 **2 次**（应 1 次）⇒ 中止」）⇒ ⇒ ⇒ ⇒ **⇒ ⇒ 通用形态：落笔与扫描之间可能只隔一分钟 ⇒ ⇒ 一分钟里别人就能占掉你的号 ⇒ ⇒ 所以「当场重扫」不能省，而**断言要比扫描更狠**（它在**提交面**上数，不是扫描时数）** ⇒ ⇒ ⇒ ⇒ **⇒ ⇒ 通用形态二：**兄弟会话的号与我的号会撞在同一格** ⇒ ⇒ 那不是谁的问题，是**并发面** ⇒ ⇒ 撞上时唯一正确的动作是**让开重取**（不是「挤」——挤了就是两处声明同一码位 ⇒ ⇒ 码位闸 R1 立刻红）**。
@@ -484,9 +486,9 @@
 　❺ **真 CI 级（head 6b382ed —— 本刀那笔）**：**MSRV Floor Drift** run **42794622431** ＝ **success** ⇒ ⇒ 逐字「**判据自检：38/38**」＋「**DRIFT :: consistent :: 仓数 16 :: 边 25 :: 漂移 0 :: 判不了 0 :: 取值 1.94/1.95**」（**与本机那档结论逐字相同**、**边数不同** ⇒ ⇒ 面不同）＋ 汇总逐字「⇒ ⇒ **闸的判读：1 道 ｜ 真判 1 ｜ 判不了 0 ｜ 红 0**」＋ 逐字「**清单指纹 :: 384f68031338**」（本机是 af96243452b3 ⇒ ⇒ 指纹不同 ⇒ ⇒ 清单内容不同）⇒ ⇒ ⇒ ⇒ **⇒ ⇒ 那一格拿到了，而且它把 ①❸ 的推断变成了逐字事实**：CI 的 25 行清单里**有**「EDGE :: **hippocampus -> neuron** :: 1.94 vs 1.94 :: OK」，本机的 24 行清单里**没有**它 ⇒ ⇒ **两面清单逐行 diff 只差这一行** ⇒ ⇒ 而面指纹逐字给出成因：CI 面「hippocampus (7 crates) :: 自报 1.94 :: 面 **5a434afae29b** @ae6b73a (+0 未提交)」vs 本机面「面 **a149aea229b6** @ae6b73a (+9 未提交)」⇒ ⇒ ⇒ ⇒ **⇒ ⇒ 同一个提交 ae6b73a、两个面指纹 ⇒ ⇒ 「读数不同」不是判据不同，是面不同**（而且这个结论是**闸自己逐字说出来的**，不是人猜的）⇒ ⇒ ⇒ ⇒ ⇒ ⇒ **⇒ ⇒ 另一个副产品**：其余 15 个仓在两面**面指纹逐字相同**（比如 telencephalon 两面都是 7eafa961d4c7 @7db6067）⇒ ⇒ 而本机那个仓有 **15 个未提交**改动 ⇒ ⇒ **⇒ ⇒ 面指纹只哈希「被读到的 manifest」⇒ ⇒ 「兄弟仓有未提交改动」不等于「读数不同」⇒ ⇒ ⇒ ⇒ ⇒ ⇒ **⇒ ⇒ ⇒ 面不同在读数上的等价物是「被读到的那份内容不同」**（那才是要归因的东西）。
 
 ⑧ **⚠️ 仍然欠着的**
-　❶ ✅ **真 CI 读数已到手并回填**（见 ⑦❺）⇒ ⇒ **这一格结清** ⇒ ⇒ ⚠️ 但结论是「**边数不同、结论相同**」⇒ ⇒ 差的那一条已被逐字点名（hippocampus -> neuron）⇒ ⇒ ⇒ ⇒ **⇒ ⇒ 「读数不同」的成因现在有逐字凭据了（面指纹）** ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ **⇒ ⇒ 而「跨面自动 diff」这一格仍欠**（见 ⑧❸）。**（2026-11-11 已闭合：U+34F1（㓱）条那一刀落了「面可选」＋ 跨面 diff 工具 ⇒ ⇒ 「跨面自动 diff」现在**是机器读数** ⇒ ⇒ 逐字「DIFF :: EDGE-ONLY-B :: hippocampus -> neuron」⇒ ⇒ 出处见 U+34F1（㓱）条 ⑦❸。）**
+　❶ ✅ **真 CI 读数已到手并回填**（见 ⑦❺）⇒ ⇒ **这一格结清** ⇒ ⇒ ⚠️ 但结论是「**边数不同、结论相同**」⇒ ⇒ 差的那一条已被逐字点名（hippocampus -> neuron）⇒ ⇒ ⇒ ⇒ **⇒ ⇒ 「读数不同」的成因现在有逐字凭据了（面指纹）** ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ **⇒ ⇒ 而「跨面自动 diff」这一格仍欠**（见 ⑧❸）。
 　❷ ⚠️ **兄弟仓那 6 个锁不同步 ／ hippocampus 那 20 项越线** ⇒ ⇒ **他们的面，不代做**（本条**只**把「该动谁」标出来，不替他们动）。
-　❸ **跨面 diff 工具还欠**：现在有清单 ＋ 面指纹 ⇒ ⇒ 差多少**能看**，但「自动对比两面并指出差在哪一条」还没做（⇒ ⇒ 本条先给可 diff 的原料）。**（2026-11-11 已闭合：U+34F1（㓱）条那一刀落了 scripts/face-diff.mjs（纯函数 ＋ CLI ＋ 自检 18 格）＋ 对账闸的 --face=commit ⇒ ⇒ 「自动对比两面并指出差在哪一条」现在**是机器读数**（逐字「DIFF :: EDGE-ONLY-B :: hippocampus -> neuron :: 只在 B 有」）⇒ ⇒ 且判据是**结论**不是清单（清单不同**不是红**）⇒ ⇒ 出处见 U+34F1（㓱）条 ⑦❸。）**
+　❸ **跨面 diff 工具还欠**：现在有清单 ＋ 面指纹 ⇒ ⇒ 差多少**能看**，但「自动对比两面并指出差在哪一条」还没做（⇒ ⇒ 本条先给可 diff 的原料）。
 　❹ **APK 产物级读数在 CI 上判不了**（产物被 gitignore）⇒ ⇒ 那一格与本条正交，权威读数仍取本机。
 　❺ ✅ **旧条目那句欠项已就地订正**（U+34E7 条 ⑧❸ 承诺的那一刀）：三处「全局欠项照旧」里的「本地 APK 与 jniLibs 那份 .so 不一致 ⇒ ⇒ 需重打 APK」⇒ ⇒ **原句逐字保留**、只追加一段带日期的订正（真因是**比较方式**，不是「APK 旧了」；该闸已改成 strip 归一后比对 ⇒ ⇒ 本机 EXIT=0）⇒ ⇒ ⇒ ⇒ **⇒ ⇒ 通用形态：一条过时的欠项留在台账里 ⇒ ⇒ 下一个人会照着去「重打一遍」⇒ ⇒ 而那一遍**修不好它** ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ **⇒ ⇒ 欠项被销账时要在原地留一句「为什么销」** ⇒ ⇒ 否则后来人只看到「不用做了」，看不到「当初为什么以为要做」。
 
