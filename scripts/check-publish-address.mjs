@@ -91,8 +91,19 @@ import {
   skipCharOrLifetime,
 } from './lib/strip-comments.mjs';
 
+import { siblingRoot } from './lib/sibling-repo.mjs';
+
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..');
+
+// ⚠️ **兄弟仓的父目录有两种布局**（2026-11-11 真 CI 实测：run 42745051349）——
+//   · A（本机）：兄弟仓在 shadow 仓**之外** —— `../telencephalon`
+//   · B（CI）：兄弟仓被 checkout 到 shadow 仓根**之下** —— `telencephalon/`
+//   而这一道闸原来把 `root` **写死**成仓外 ⇒ ⇒ CI 上拼出
+//   `/home/runner/work/shadow/telencephalon/src`（**仓外**）⇒ ⇒ 实际在
+//   `/home/runner/work/shadow/shadow/telencephalon/src`（**仓内**）⇒ ⇒
+//   逐字报「❌ 一个文件都没读到 ⇒ ⇒ 缺失: …/telencephalon/src」⇒ ⇒ 退出码 2。
+//   ⇒ ⇒ 改走共享模块 `siblingRoot()`（仓外优先、仓内兜底）。
 
 // ---------------------------------------------------------------------------
 // 常量
@@ -186,7 +197,7 @@ function printHelp() {
 
 function parseArgs(argv) {
   const opts = {
-    root: resolve(REPO, '..'),
+    root: siblingRoot(REPO),
     source: null,
     shared: null,
     lobes: false,

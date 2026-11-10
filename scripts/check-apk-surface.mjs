@@ -59,6 +59,7 @@
  *   - 兄弟仓 `encephalon/`（拿 JNI 符号清单；找不到 ⇒ 只报 warning）
  */
 
+import { sibling } from './lib/sibling-repo.mjs';
 import {
   existsSync,
   statSync,
@@ -78,7 +79,7 @@ import { readElfInfo, rustExportedMethods, SYSTEM_LIBS } from './lib/jni.mjs';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 /** 兄弟仓（Rust 侧大脑）—— 与 `build-android.ps1` 里的相对布局一致。 */
-const SIBLING = resolve(ROOT, '..', 'encephalon');
+const SIBLING = sibling(ROOT, 'encephalon');
 const RUST_JNI_SRC = 'src/mobile/jni.rs';
 
 const APK_DIR = 'shadow-mobile/build/app/outputs/flutter-apk';

@@ -55,6 +55,7 @@
  * 「在完整环境里这一项是阻断的」。
  */
 
+import { sibling } from './lib/sibling-repo.mjs';
 import {
   readFileSync,
   existsSync,
@@ -86,7 +87,7 @@ const ROOT = argValue('root')
 /** 兄弟仓（Rust 侧大脑）—— 与 `build-android.ps1` 里的相对布局一致。 */
 const SIBLING = argValue('sibling')
   ? resolve(argValue('sibling'))
-  : resolve(ROOT, '..', 'encephalon');
+  : sibling(ROOT, 'encephalon');
 
 const KOTLIN_RT =
   'shadow-mobile/android/app/src/main/kotlin/com/ibloc/shadow/EncephalonRuntime.kt';

@@ -54,6 +54,7 @@
  * ⇒ ⇒ 拿「构造出来的零」冒充验证是不行的 ⇒ ⇒ 所以另给一个码）。
  */
 
+import { sibling } from './lib/sibling-repo.mjs';
 import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join, resolve, relative } from 'node:path';
@@ -64,7 +65,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const MOBILE_LIB = join(ROOT, 'shadow-mobile', 'lib');
 
 /** 端脑源码（兄弟仓）—— 归因的真相面。 */
-const SIBLING_TEL = resolve(ROOT, '..', 'telencephalon', 'src', 'api');
+const SIBLING_TEL = join(sibling(ROOT, 'telencephalon'), 'src', 'api');
 
 /** 手机里那份 NDK 内嵌大脑 —— **被测物**。 */
 const JNI_LIBS = join(ROOT, 'shadow-mobile', 'android', 'app', 'src', 'main', 'jniLibs');

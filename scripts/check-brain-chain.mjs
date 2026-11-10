@@ -27,6 +27,7 @@
  * 退出码 0 = 通过；1 = 有阻断问题；**2 = 判不了**（源没读全：兄弟仓 / 扫描根不在位）。
  */
 
+import { sibling } from './lib/sibling-repo.mjs';
 import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative, extname, resolve } from 'node:path';
@@ -75,8 +76,10 @@ const SCAN_ROOTS = [
  * 因为「仓库没检出来」而假红（那不是代码问题，是环境问题）。
  */
 const SIBLING_CANDIDATES = [
-  { dir: join(ROOT, '..', 'telencephalon'), exts: ['.rs'] },
-  { dir: join(ROOT, '..', 'encephalon'), exts: ['.rs'] },
+  // ⚠️ **两种布局都要认**（仓外优先／仓内兜底）—— 见 `scripts/lib/sibling-repo.mjs`
+  //    ⇒ ⇒ CI 上兄弟仓被 checkout 到仓根**之下**，写死仓外就读不到 ⇒ ⇒ 退出码 2。
+  { dir: sibling(ROOT, 'telencephalon'), exts: ['.rs'] },
+  { dir: sibling(ROOT, 'encephalon'), exts: ['.rs'] },
 ];
 const SIBLING_ROOTS = SIBLING_CANDIDATES.filter((r) => existsSync(r.dir));
 
