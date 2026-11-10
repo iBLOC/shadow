@@ -304,7 +304,17 @@ jobs:
       #    都落了判读 ⇒ ⇒ 这里汇总成**带分母的读数**（真判 N ｜ 判不了 K ｜ 红 M）
       #    ⇒ ⇒ 「判不了」不当红（它不是「有问题」）⇒ ⇒ 但也不当绿（它不是「没问题」）。
       - name: 判读汇总（带分母的绿灯）
+        if: always()
         run: node scripts/lib/gate-tally.mjs --report
+      # ⚠️ 把这一盏灯的判读记录**交上去** ⇒ ⇒ 收尾的「CI 总分母」那个 job 靠 artifacts 把各 job 的记录收齐 ⇒ ⇒ 「一盏灯一个分母」才立得住。
+      # ⚠️ `if: always()` ⇒ ⇒ **这个 job 红了也要交** ⇒ ⇒ 否则「红」的那几盏恰恰是**唯一没有分母**的那几盏 ⇒ ⇒ 红灯也读不出「到底跑了哪几道」。
+      - name: 交出判读记录（供总分母汇总）
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-results-${{ github.job }}
+          path: ${{ env.GATE_RESULT_FILE }}
+          if-no-files-found: ignore
   desktop-test:
     name: Desktop Tests
     runs-on: ubuntu-latest
@@ -422,7 +432,17 @@ jobs:
       #    都落了判读 ⇒ ⇒ 这里汇总成**带分母的读数**（真判 N ｜ 判不了 K ｜ 红 M）
       #    ⇒ ⇒ 「判不了」不当红（它不是「有问题」）⇒ ⇒ 但也不当绿（它不是「没问题」）。
       - name: 判读汇总（带分母的绿灯）
+        if: always()
         run: node shadow/scripts/lib/gate-tally.mjs --report
+      # ⚠️ 把这一盏灯的判读记录**交上去** ⇒ ⇒ 收尾的「CI 总分母」那个 job 靠 artifacts 把各 job 的记录收齐 ⇒ ⇒ 「一盏灯一个分母」才立得住。
+      # ⚠️ `if: always()` ⇒ ⇒ **这个 job 红了也要交** ⇒ ⇒ 否则「红」的那几盏恰恰是**唯一没有分母**的那几盏 ⇒ ⇒ 红灯也读不出「到底跑了哪几道」。
+      - name: 交出判读记录（供总分母汇总）
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-results-${{ github.job }}
+          path: ${{ env.GATE_RESULT_FILE }}
+          if-no-files-found: ignore
   desktop-build:
     name: Desktop Build
     runs-on: ubuntu-latest
@@ -659,7 +679,17 @@ jobs:
       # ⚠️ **分母是「本 job 里走 run-gate-once 的那几道」** ⇒ ⇒ 不是整个主 CI ⇒ ⇒
       #    读数里写清了口径 ⇒ ⇒ 不冒充「全 CI 的分母」。
       - name: 判读汇总（带分母的绿灯）
+        if: always()
         run: node scripts/lib/gate-tally.mjs --report
+      # ⚠️ 把这一盏灯的判读记录**交上去** ⇒ ⇒ 收尾的「CI 总分母」那个 job 靠 artifacts 把各 job 的记录收齐 ⇒ ⇒ 「一盏灯一个分母」才立得住。
+      # ⚠️ `if: always()` ⇒ ⇒ **这个 job 红了也要交** ⇒ ⇒ 否则「红」的那几盏恰恰是**唯一没有分母**的那几盏 ⇒ ⇒ 红灯也读不出「到底跑了哪几道」。
+      - name: 交出判读记录（供总分母汇总）
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-results-${{ github.job }}
+          path: ${{ env.GATE_RESULT_FILE }}
+          if-no-files-found: ignore
 
   mobile-analyze:
     name: Mobile Analyze
@@ -718,7 +748,17 @@ jobs:
       #    都落了判读 ⇒ ⇒ 这里汇总成**带分母的读数**（真判 N ｜ 判不了 K ｜ 红 M）
       #    ⇒ ⇒ 「判不了」不当红（它不是「有问题」）⇒ ⇒ 但也不当绿（它不是「没问题」）。
       - name: 判读汇总（带分母的绿灯）
+        if: always()
         run: node scripts/lib/gate-tally.mjs --report
+      # ⚠️ 把这一盏灯的判读记录**交上去** ⇒ ⇒ 收尾的「CI 总分母」那个 job 靠 artifacts 把各 job 的记录收齐 ⇒ ⇒ 「一盏灯一个分母」才立得住。
+      # ⚠️ `if: always()` ⇒ ⇒ **这个 job 红了也要交** ⇒ ⇒ 否则「红」的那几盏恰恰是**唯一没有分母**的那几盏 ⇒ ⇒ 红灯也读不出「到底跑了哪几道」。
+      - name: 交出判读记录（供总分母汇总）
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-results-${{ github.job }}
+          path: ${{ env.GATE_RESULT_FILE }}
+          if-no-files-found: ignore
   mobile-test:
     name: Mobile Test
     runs-on: ubuntu-latest
@@ -858,7 +898,17 @@ jobs:
       #    都落了判读 ⇒ ⇒ 这里汇总成**带分母的读数**（真判 N ｜ 判不了 K ｜ 红 M）
       #    ⇒ ⇒ 「判不了」不当红（它不是「有问题」）⇒ ⇒ 但也不当绿（它不是「没问题」）。
       - name: 判读汇总（带分母的绿灯）
+        if: always()
         run: node scripts/lib/gate-tally.mjs --report
+      # ⚠️ 把这一盏灯的判读记录**交上去** ⇒ ⇒ 收尾的「CI 总分母」那个 job 靠 artifacts 把各 job 的记录收齐 ⇒ ⇒ 「一盏灯一个分母」才立得住。
+      # ⚠️ `if: always()` ⇒ ⇒ **这个 job 红了也要交** ⇒ ⇒ 否则「红」的那几盏恰恰是**唯一没有分母**的那几盏 ⇒ ⇒ 红灯也读不出「到底跑了哪几道」。
+      - name: 交出判读记录（供总分母汇总）
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-results-${{ github.job }}
+          path: ${{ env.GATE_RESULT_FILE }}
+          if-no-files-found: ignore
   yaml-validity:
     name: YAML validity (workflows)
     runs-on: ubuntu-latest
@@ -896,7 +946,17 @@ jobs:
       #    都落了判读 ⇒ ⇒ 这里汇总成**带分母的读数**（真判 N ｜ 判不了 K ｜ 红 M）
       #    ⇒ ⇒ 「判不了」不当红（它不是「有问题」）⇒ ⇒ 但也不当绿（它不是「没问题」）。
       - name: 判读汇总（带分母的绿灯）
+        if: always()
         run: node scripts/lib/gate-tally.mjs --report
+      # ⚠️ 把这一盏灯的判读记录**交上去** ⇒ ⇒ 收尾的「CI 总分母」那个 job 靠 artifacts 把各 job 的记录收齐 ⇒ ⇒ 「一盏灯一个分母」才立得住。
+      # ⚠️ `if: always()` ⇒ ⇒ **这个 job 红了也要交** ⇒ ⇒ 否则「红」的那几盏恰恰是**唯一没有分母**的那几盏 ⇒ ⇒ 红灯也读不出「到底跑了哪几道」。
+      - name: 交出判读记录（供总分母汇总）
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-results-${{ github.job }}
+          path: ${{ env.GATE_RESULT_FILE }}
+          if-no-files-found: ignore
   ledger-codepoints:
     name: Ledger codepoints (账本圈码)
     runs-on: ubuntu-latest
@@ -946,7 +1006,17 @@ jobs:
       #    都落了判读 ⇒ ⇒ 这里汇总成**带分母的读数**（真判 N ｜ 判不了 K ｜ 红 M）
       #    ⇒ ⇒ 「判不了」不当红（它不是「有问题」）⇒ ⇒ 但也不当绿（它不是「没问题」）。
       - name: 判读汇总（带分母的绿灯）
+        if: always()
         run: node scripts/lib/gate-tally.mjs --report
+      # ⚠️ 把这一盏灯的判读记录**交上去** ⇒ ⇒ 收尾的「CI 总分母」那个 job 靠 artifacts 把各 job 的记录收齐 ⇒ ⇒ 「一盏灯一个分母」才立得住。
+      # ⚠️ `if: always()` ⇒ ⇒ **这个 job 红了也要交** ⇒ ⇒ 否则「红」的那几盏恰恰是**唯一没有分母**的那几盏 ⇒ ⇒ 红灯也读不出「到底跑了哪几道」。
+      - name: 交出判读记录（供总分母汇总）
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-results-${{ github.job }}
+          path: ${{ env.GATE_RESULT_FILE }}
+          if-no-files-found: ignore
   legacy-residue-stack:
     name: Legacy residue (cross-repo)
     runs-on: ubuntu-latest
@@ -1162,4 +1232,48 @@ jobs:
       #    都落了判读 ⇒ ⇒ 这里汇总成**带分母的读数**（真判 N ｜ 判不了 K ｜ 红 M）
       #    ⇒ ⇒ 「判不了」不当红（它不是「有问题」）⇒ ⇒ 但也不当绿（它不是「没问题」）。
       - name: 判读汇总（带分母的绿灯）
+        if: always()
         run: node scripts/lib/gate-tally.mjs --report
+      # ⚠️ 把这一盏灯的判读记录**交上去** ⇒ ⇒ 收尾的「CI 总分母」那个 job 靠 artifacts 把各 job 的记录收齐 ⇒ ⇒ 「一盏灯一个分母」才立得住。
+      # ⚠️ `if: always()` ⇒ ⇒ **这个 job 红了也要交** ⇒ ⇒ 否则「红」的那几盏恰恰是**唯一没有分母**的那几盏 ⇒ ⇒ 红灯也读不出「到底跑了哪几道」。
+      - name: 交出判读记录（供总分母汇总）
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-results-${{ github.job }}
+          path: ${{ env.GATE_RESULT_FILE }}
+          if-no-files-found: ignore
+
+  # ⚠️ **收尾：这一盏灯（整个主 CI）的总分母** —— 前面 8 个含闸的 job 各交一份判读记录（artifacts）⇒ ⇒ 这里收齐 ⇒ ⇒ 汇总成**一个**分母 ⇒ ⇒ 「这一盏灯到底验了几道」从此有答案。
+  # ⚠️ `if: always()` ⇒ ⇒ **前面任一 job 红了也要汇总** ⇒ ⇒ 不然「红」的那几盏恰恰是**唯一没有分母**的那几盏 ⇒ ⇒ 红灯也读不出「跑了哪几道」。
+  ci-tally:
+    name: CI 总分母（一盏灯一个分母）
+    needs: [ps1-portability, brain-gates, prefrontal-rust, mobile-analyze, yaml-validity, legacy-residue-stack, desktop-build, ledger-codepoints]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout shadow
+        uses: actions/checkout@v7
+
+      - name: 收齐各 job 的判读记录（artifacts）
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          path: gate-results
+
+      # ⚠️ 合并与读数**合成一步** ⇒ ⇒ 上一步（下载）失败时它也会被跳过 ⇒ ⇒ 所以下载那一步用 continue-on-error ⇒ ⇒ 这里自己判「有没有记录」。
+      - name: 汇总这一盏灯的总分母
+        run: |
+          GATE_RESULT_FILE="$GITHUB_WORKSPACE/gate-results.ndjson"
+          : > "$GATE_RESULT_FILE"
+          for d in gate-results/*/; do
+            cat "$d"*.ndjson >> "$GATE_RESULT_FILE" 2>/dev/null || true
+          done
+          export GATE_RESULT_FILE
+          echo "交上来判读记录的 job 数：$(ls -d gate-results/*/ 2>/dev/null | wc -l)"
+          # ⚠️ 一条记录都没有 ⇒ ⇒ 这一格**判不了** ⇒ ⇒ 直接红（不许「看着像绿」）
+          if [ ! -s "$GATE_RESULT_FILE" ]; then
+            echo "::error::主 CI 的总分母取不到：没有任何一个 job 交上来判读记录 ⇒ ⇒ 这一格判不了"
+            exit 1
+          fi
+          node scripts/lib/gate-tally.mjs --report
