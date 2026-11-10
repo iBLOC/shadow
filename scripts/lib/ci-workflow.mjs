@@ -114,7 +114,7 @@ export function layoutOf(job) {
       continue;
     }
     // ⚠️⚠️ 2026-11-08：**composite action 的检出也要算进虚拟布局** ——
-    //   ibloc-siblings 这个本地 action 一次检出 10 个兄弟仓（都落在工作区**根**）
+    //   ibloc-siblings 这个本地 action 一次检出 14 个兄弟仓（都落在工作区**根**）
     //   ⇒ ⇒ 探针原来只认 ctions/checkout ⇒ ⇒ desktop-e2e.yml 那类 job 的
     //   布局里**一个兄弟仓都没有** ⇒ ⇒ pathOf 拿到 undefined ⇒ ⇒ 直接崩
     //   （ERR_INVALID_ARG_TYPE）⇒ ⇒ 闭包分析对 composite 型 job **整段不可用**。

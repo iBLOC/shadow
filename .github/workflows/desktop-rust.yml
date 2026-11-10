@@ -91,15 +91,31 @@ jobs:
       #   ⇒ ⇒ 少检一个兄弟仓 ⇒ ⇒ cargo 直接报「failed to load manifest」⇒ ⇒ 整道闸判不了
       #   （2026-11-05 真机实测：只放 synapse、不放 ziti-rust ⇒ `cargo metadata` EXIT=101）。
       - name: Verify the sibling checkout list
+        env:
+          SIBLING_DIRS: ${{ steps.stack.outputs.workspaces }}
         run: |
           set -eu
-          for d in telencephalon encephalon synapse prefrontal hippocampus neuron diencephalon temporal occipital ziti-rust; do
+          # ⚠️ 2026-11-11：**断言从清单里读**（ibloc-siblings 的 outputs.workspaces）
+          #   ⇒ ⇒ 不再手写第二份名单 ⇒ ⇒ 名单改了这里自动跟着改。
+          #   ⚠️⚠️ 为什么要改：这里原来硬编码 **10** 个仓 ⇒ ⇒ 而清单早已补到
+          #   **14** 个（amygdala／parietal／hengjian／lance-graph 是 2026-11-11
+          #   为归属闸补的）⇒ ⇒ ⇒ 差的那 4 个**没人断言** ⇒ ⇒ ⇒ 清单里再删掉
+          #   任何一个，这道断言**照样绿** ⇒ ⇒ ⇒ 那是一盏「没查却绿」的灯。
+          #   ⇒ ⇒ 「清单只有一份」这条纪律 ⇒ ⇒ 要求**断言也只认那一份**
+          #   ⇒ ⇒ 否则清单与断言各写一遍 ⇒ ⇒ ⇒ 必然漂。
+          if [ -z "${SIBLING_DIRS:-}" ]; then
+            echo "::error::检出清单没给出兄弟仓目录（ibloc-siblings 的 outputs.workspaces 为空）⇒ ⇒ 判不了"
+            exit 1
+          fi
+          n=0
+          for d in $SIBLING_DIRS; do
             if [ ! -d "$GITHUB_WORKSPACE/$d" ]; then
               echo "::error::missing sibling checkout: $d"
               exit 1
             fi
+            n=$((n+1))
           done
-          echo "✅ 10 个兄弟仓在位"
+          echo "✅ $n 个兄弟仓在位（名单来自 ibloc-siblings 的 outputs.workspaces —— 与清单同一份）"
 
       # ⚠️ 系统依赖：**tauri 的 wry 要 webkit2gtk-4.1**（不是 4.0 —— 4.0 在 24.04 上已无）
       #   ＋ git2/native-tls 要 openssl 头 ＋ tray-icon 要 appindicator ＋ lance-encoding

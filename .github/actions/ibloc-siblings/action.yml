@@ -1,6 +1,6 @@
 name: Checkout the iBLOC stack
 description: >
-  把 iBLOC 栈的 10 个私有兄弟仓检到工作区根，并把 Rust 侧的私有依赖凭证配好。
+  把 iBLOC 栈的 14 个私有兄弟仓检到工作区根，并把 Rust 侧的私有依赖凭证配好。
   ⚠️ **检出清单只有这一份** —— ci.yml 的跨仓闸 job 与 desktop-e2e.yml 的
   重型 job 都调它 ⇒ ⇒ 两边不会漂移（以前「改一处要改两处」的老问题消失）。
   ⚠️ 本仓自己（shadow）**不在这里**：本地 action 必须先有仓才能被引用 ⇒ ⇒
