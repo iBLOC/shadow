@@ -151,3 +151,7 @@ benchmark/.tau2/
 benchmark/target-*/
 benchmark/reports-*/
 benchmark/runs-*traj/
+
+# agent scratch dir（共享工作树里的临时产物：解 APK 的 kernel_blob.bin、拼提交面的中间文件等）
+# => ⇒ 一句 git add -A 就会把上百 MB 的构建产物扫进提交 ⇒ ⇒ 整棵树忽略掉。
+/.ci-probe/
