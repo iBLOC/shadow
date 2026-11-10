@@ -862,6 +862,12 @@ jobs:
       - name: Ledger codepoint check
         run: node scripts/check-ledger-codepoints.mjs
 
+      - name: Ledger take-discipline self-test
+        run: node scripts/check-ledger-codepoint-take.mjs --self-test
+
+      - name: Ledger take-discipline check
+        run: node scripts/check-ledger-codepoint-take.mjs
+
   # ── 跨仓 Legacy residue 闸（2026-11-06 改名前：Cortex 残留闸）──────
   # ⚠️ iBLOC 这套栈是**十几个独立 git 仓** ⇒ 闸只住在 shadow 仓的话，
   #    **另外那些仓没人盯**（2026-11 实测：prefrontal 的 tool 描述里还写着
