@@ -1,3 +1,58 @@
+**Updated**: 2026-11-11 (㔉 **「红灯从 1 条变成 10 条 —— 而『判据与平台解耦』这句话，错在**调用方**不在那个面上」** —— 承 U+3505 条（computer-use 两刀：作用域 ＋ 完整性 ＋ 可寻址）＋ U+3500 条（「失败长得像成功」是最强的一档），本条记**取证（真 CI 逐字 10 条 ＋ 归属机械坐实）**、**第一因（平台无关说的是判据本身，不是它的可达性）**、**第二因（修法形状要按【面】作用域化 —— 裸豁免是宽绑定）**、**第三因（归属是随时间漂的**状态**，不是归属）**、**这一刀的落点**、**途中那几课**、**判据与分级读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真 CI 逐字（run 42841762163 @1acb70af：第 10 步 success ／ **第 11 步 clippy failure，exit 101，error 10 条全在 src/computer_use.rs**；warning 333）＋ 归属核对（computer_use.rs 三面一致 ⇒ blob 4c48b1f7 ⇒ 不在任何人的在飞面）＋ 真 target 双面矩阵（本机 x86_64-unknown-linux-gnu ＋ x86_64-pc-windows-msvc）＋ 真实源码 harness（带豁免 Linux EXIT=0 ／ 剥掉豁免 EXIT=101）｜ 改动：桌面 src-tauri/src/computer_use.rs（13 处 #[cfg_attr(not(windows), allow(dead_code))]，**13 增 / 0 删**）⇒ ⇒ **1 个文件** ⇒ ⇒ 零新增文件 ＋ 零新增依赖 ＋ 零 ci.yml 改动 ＋ 不碰兄弟在飞面 ｜ 读数：**真 CI error 10 → 0**（run 42846671250 @5516bcc ＝ completed/**success** ⇒ 第 10 步 Cargo test ＝ success（146 passed / 0 failed）＋ 第 11 步 clippy ＝ success（Finished in 5m 08s）＋ could not compile 计数 0 ＋ 本 crate 自身零警告）｜ 本机 harness：带豁免 Linux --lib EXIT=0 ／ --lib --tests EXIT=0 ／ 剥掉豁免 EXIT=101 ｜ 真 target 矩阵：作用域化豁免 Linux 绿 ／ Windows 仍红（真问题不静音）｜ 形状断言：1 路径 / 13 增 / 0 删 ｜ **⚠️ 本条是「补记」** —— 代码在 5516bcc 已提交，账本在此补落（原因见⑧❶）| status=active | supersedes=none
+
+① **⚠️ 取证：真 CI 把「1 条」变成「10 条」，而那 10 条全在同一个文件**
+　❶ 上一轮真 CI（run 42823403350 @17742cc）读数：Linux 面 clippy **error 1 条**。⇒ ⇒ 本轮真 CI（run **42841762163** @1acb70af，push 档）读数：**第 10 步 Cargo test (lib) ＝ success**；**第 11 步 Cargo clippy ＝ failure（exit 101）**；**error 10 条，warning 333**，逐字 10 条**全在 src/computer_use.rs**（零条落兄弟仓）：
+　　1 「variants StaleRef, AmbiguousRef, SnapshotIncomplete, and NotAddressable are never constructed」 @214:5｜2 「struct UiElement is never constructed」 @614:12｜3 「struct UiNode is never constructed」 @1109:12｜4 「struct UiSnapshot is never constructed」 @1130:12｜5 「fn ui_ref_id is never used」 @1201:4｜6 「fn parse_ui_ref is never used」 @1209:4｜7 「fn ui_identity_key is never used」 @1235:8｜8 「fn ui_addressable_flags is never used」 @1250:8｜9 「enum UiRefGate is never used」 @1275:10｜10 「fn ui_ref_gate is never used」 @1286:8。
+　❷ ⇒ ⇒ **红灯不是「多了」，是「换了一批」**：上一轮那 1 条（struct UiElement is never constructed）**还在这 10 条里**（第 2 条）⇒ ⇒ 也就是说：**兄弟那两刀把新判据内核提交上 origin 之后，Linux 面从 1 条红变成 10 条红** ⇒ ⇒ ⇒ **通用形态：提交一顶新刀会让红灯「换内容」而不是「换数量」** ⇒ ⇒ 只盯数量会以为「多了 9 条新债」，实际是**同一个族一次性显形**。
+　❸ **归属机械坐实（不是推测）**：computer_use.rs 的**工作树 ＝ 索引 ＝ HEAD ＝ 同一个 blob 4c48b1f7** ⇒ ⇒ 它**不在任何人的在飞面** ⇒ ⇒ 兄弟 U+3505 条 ❺ 的「computer_use.rs 零错误」是他**本机 Windows 面**的读数 ⇒ ⇒ **Linux 面是 10 条** ⇒ ⇒ ⇒ **第三次「同一把尺、两个面」**。
+
+② **⚠️ 第一因：「平台无关」说的是判据本身，不是它的可达性**
+　❶ 逐行核对（提交树面）：struct UiElement 定义在 **613–624 行（无 cfg 门）**，而**唯一**的构造点 uiautomation_to_element 在 **710 行的 #[cfg(target_os = "windows")] 门内**（721 行构造）⇒ ⇒ 那 13 个符号的**全部生产端调用点**都在门内（impl ComputerUse @1304 → ui_addressable_flags @1350、ui_ref_gate @1400；resolve_ui_ref @1382 → parse_ui_ref @1384；struct UiWalk @1486 → ui_ref_id @1519 ＋ 构造 UiNode @1520；walk_ui_tree @1499 → 构造 UiSnapshot @1369；Tauri 命令 @1726；四个新错码的构造点 @1402/1410/1439/1443）。
+　❷ ⇒ ⇒ **只有 #[cfg(test)] mod tests（@1781）在 Linux 面上调它们** ⇒ ⇒ 而 CI 跑的是 --all-targets ⇒ ⇒ **lib 目标与 lib-test 目标是分开编译的两个目标** ⇒ ⇒ **测试里的调用方不算 lib 目标的调用方** ⇒ ⇒ 那 10 条是「**在这个面上不可达**」，不是「代码错了」。
+　❸ ⇒ ⇒ **通用形态：凡是说「X 在 CI 上跑得起来」的，必须同时说清「**谁在 CI 那个面上调它**」** ⇒ ⇒ 「跑得起来」≠「跑过了」⇒ ⇒ 而「有测试」不能救「lib 面红」（这是本刀最容易犯的错，也是那 10 条能活到 CI 的原因）。
+　❹ ⇒ ⇒ **依赖层同源**：Cargo.toml 的 uiautomation 只在 [target.'cfg(target_os = "windows")'.dependencies] 里 ⇒ ⇒ 「生产调用方全在门内」不是巧合，是**依赖面的形状**决定的。
+
+③ **⚠️ 第二因：修法形状要按【面】作用域化 —— 裸豁免是宽绑定**
+　❶ **真 target 双面矩阵**（本机装了 x86_64-unknown-linux-gnu ＋ x86_64-pc-windows-msvc）逐格读数：
+　　· no_allow ⇒ Linux **红**（struct UiElement is never constructed）／Windows **红**；
+　　· **裸 #[allow(dead_code)]** ⇒ Linux 绿／Windows **红**（只报 fn 那个）⇒ ⇒ **裸豁免只修了一半，却把 Windows 面的一部分真问题一起静音了**；
+　　· **#[cfg_attr(not(windows), allow(dead_code))]** ⇒ Linux **绿**／Windows **红**（struct 也报）⇒ ⇒ **只静音「本平台无生产调用方」的那个面，真问题照报**。
+　❷ ⇒ ⇒ **通用形态：一个平台上的 lint 修复，作用在另一个平台的代码路径上 ⇒ ⇒ 后果落在「没有本平台」的那个平台上** ⇒ ⇒ 而**宽绑定**（裸豁免）会把两个面一起静音 ⇒ ⇒ **豁免要精确形状匹配** ⇒ ⇒ 这一族与「精确形状匹配」是同一条纪律。
+　❸ ⇒ ⇒ **修法＝按面作用域化，不改语义** ⇒ ⇒ 判据内核一行没改（ui_ref_gate 仍是纯函数，仍可自检）。
+
+④ **⚠️ 第三因：归属是随时间漂的**状态**，不是归属**
+　❶ 我在上一条台账里写的是「剩的那 1 条在兄弟的 computer_use.rs 在飞面」⇒ ⇒ 那一刻**对**（它当时确实在工作树里、还没提交）⇒ ⇒ 兄弟一提交，**归属就变了** ⇒ ⇒ 那 1 条从「在飞」变成「**已上 origin、无人认领的链上活缺陷**」。
+　❷ ⇒ ⇒ **通用形态：「在飞面」是一个**状态**，不是一个**归属** ⇒ ⇒ 读一条读数必须记「**取样时刻 ＋ sha**」⇒ ⇒ 我那条在那一刻对、在那一刻过期 ⇒ ⇒ 需要**就地订正**（原句逐字保留 ＋ 追加带日期的订正）⇒ ⇒ 而不是删掉改写。
+　❸ ⇒ ⇒ **对照**：本条就是那条订正的实现 —— 我这条记的是「红灯 1 → 10 条 ⇒ 归属漂移 ⇒ 链上活缺陷 ⇒ 已修」。
+
+⑤ **✅ 这一刀的落点（1 个文件 ＋ 零新增文件 ＋ 零新增依赖 ＋ 零 ci.yml 改动）**
+　❶ **改** shadow-desktop/src-tauri/src/computer_use.rs —— **13 处**作用域化豁免（4 个错误变体 StaleRef／AmbiguousRef／SnapshotIncomplete／NotAddressable ＋ UiElement／UiNode／UiSnapshot ＋ ui_ref_id／parse_ui_ref／ui_identity_key／ui_addressable_flags／UiRefGate／ui_ref_gate）⇒ ⇒ 形状：**13 增 / 0 删**（blob 4c48b1f7 → 55061e7e，LF，CRLF 数 ＝ 0）⇒ ⇒ **纯加不删**（连旧内容逐字都没动）。
+　❷ **提交**：独立索引 ＋ commit-tree -p ＋ update-ref **带 CAS** ⇒ ⇒ commit **5516bcc**（父 f5b964f，tree 3da5b3f3）⇒ ⇒ 共享索引**只对齐自己动过的那一条路径**（不整体 read-tree ⇒ 不冲掉别人的暂存）⇒ ⇒ 三面齐平。
+
+⑥ **⚠️ 途中那几课**
+　❶ **「平台无关」的判据要问两个问题**：判据本身可不可移植 ＋ **谁在目标面上调它** ⇒ ⇒ 只问前一个 ⇒ ⇒ CI 上就是红的。
+　❷ **lib 与 lib-test 分开编译** ⇒ ⇒ 「测试里调过」**不能**当作「lib 目标里有人调」⇒ ⇒ 这是本刀最容易骗过自己的地方（那 10 条在 #[cfg(test)] 里全都被调到了）。
+　❸ **CAS 只挡「ref 被抢」，不挡「基线过期」** ⇒ ⇒ 提交前要把**基准先取**、再读 blob、拼好、再 commit-tree -p 基准、再 update-ref 新 基准 ⇒ ⇒ 整条链同一进程。
+　❹ **git hash-object 默认不写对象库** ⇒ ⇒ 必须 -w，否则 write-tree 报 invalid object（本轮踩过并修）。
+　❺ **真 target 矩阵比本机单读数强** —— 本机是 Windows ⇒ ⇒ 单看本机永远看不出「Linux 面会不会红」⇒ ⇒ 复现别的平台的编译错要**装那个 target**。
+
+⑦ **✅ 判据与分级读数（全部实测）**
+　❶ **真 CI 级（决定性）**：run **42841762163** @1acb70af ⇒ ⇒ 第 10 步 **success** ／ 第 11 步 **failure（exit 101）**，**error 10 条全在 computer_use.rs**，warning 333 ｜ **修后**：run **42846671250** @5516bcc ＝ **completed / success** ⇒ ⇒ 第 10 步 Cargo test (lib) ＝ **success**（逐字「test result: ok. **146 passed**; 0 failed; 0 ignored; 0 measured; 0 filtered out」）＋ 第 11 步 Cargo clippy (桌面 crate, -D warnings) ＝ **success**（逐字「Finished `dev` profile [unoptimized] target(s) in **5m 08s**」）⇒ ⇒ **could not compile 出现次数 ＝ 0** ⇒ ⇒ **error 10 → 0** ⇒ ⇒ 且日志里**没有**任何「shadow-desktop … generated N warnings」行 ⇒ ⇒ **本 crate 自身零警告** ⇒ ⇒ ⇒ **那一格闭合了**：13 处按面作用域化豁免 ⇒ ⇒ **Linux 面真 clippy 绿**。⚠️ 另注：该 run 的 Setup Rust／Post Setup Rust 各有 2 行「cargo failed with exit code 101」⇒ ⇒ 那是 **rs-cache 缓存步骤**、**不是编译** ⇒ ⇒ job 结论仍是 success ⇒ ⇒ 但**不把这两行当绿灯的一部分**（失败长得像失败 ⇒ 要说清是哪一步失败）。
+　❷ **真 target 级**：双面矩阵三行（见③❶）⇒ ⇒ **裸豁免会把 Windows 面一起静音**、作用域化豁免不会。
+　❸ **真实源码 harness 级**（把工作树里的判据内核原样抽出成独立 lib crate）：带豁免 ⇒ Linux --lib **EXIT=0** ／ --lib --tests **EXIT=0**；**剥掉那 13 处豁免 ⇒ EXIT=101**（反向验证成立）⇒ ⇒ Windows target 仍红（真问题没被静音）。
+　❹ **形状级**：git diff --numstat ＝ **13 增 / 0 删**；diff-tree ＝ 1 个路径 / 13 增 / 0 删 ⇒ ⇒ **纯加不删**。
+　❺ **闸级**：官方两道码位闸三面零违规；取号闸全绿（见 U+3508 条）。
+
+⑧ **⚠️ 仍然欠着的**
+　❶ **⚠️ 本条是「补记」** —— 纪律是「账本条目必须与它的代码同笔提交」，而本条的代码在 **5516bcc** 已走、账在此补 ⇒ ⇒ 原因是：取号那一刻兄弟刚把 **U+3507** 拿走（我原以为取 U+3507）⇒ ⇒ **取号与落笔之间 HEAD 前进 ⇒ ⇒ 号要重取**（见 U+3508 条的取证）⇒ ⇒ **「同笔提交」在并发仓里会被「取号被抢先」打断** ⇒ ⇒ 那时该做的是**重取号 ＋ 把补记这件事本身写进条子里**（本条就是这么写的）⇒ ⇒ **不许假装是同笔**。
+　❷ **「作用域化豁免」这一族仍没有闸** —— 谁都能再撒一个 cfg_attr(not(windows), allow(dead_code)) ⇒ ⇒ 它仍是**纪律**不是**判据** ⇒ ⇒ 而**裸豁免会静音真实面**这一族**也没有闸** ⇒ ⇒ **形状探针仍住在 .local（gitignored）**。
+　❸ **命令级真机读数仍缺** —— 上面那些读数是**探针／harness／CI**，不是「从 cu_snapshot_ui_tree 那条命令真机跑出来的 complete=true」⇒ ⇒ 那一格**不拿探针冒充命令**。
+　❹ **兄弟 U+3505 条 ❺ 的「lint 级（Windows 面）computer_use.rs 零错误」** —— 它**带了面，是对的** ✅ ⇒ ⇒ 不需要订正；需要的是**补上 Linux 面那一格**（就是本条 ①❶）。
+　❺ **端脑侧零改动** ＋ **主 CI 里桌面 crate 的 Rust 侧没有防线**（主 CI 的 desktop-build 逐字「不碰 cargo」⇒ ⇒ 只有那盏独立 workflow）⇒ ⇒ 仍欠。
+⑨ **⚠ 圈码：本条占 U+3509（㔉）** —— ⚠ 本条的号是**补记**（代码在 5516bcc 已提交，账在此补落）⇒ ⇒ 取号时刻兄弟刚把 U+3507 拿走（我原以为取 U+3507）⇒ ⇒ 取号与落笔之间 HEAD 前进 ⇒ ⇒ 号要重取（官方 --next 三面读数）⇒ ⇒ 落笔前必须在**提交树面**重取（工作树面会给出已被占的那一枚）⇒ ⇒ 不许假装是同笔。
+
 **Updated**: 2026-11-11 (㔈 **「取号那一步没有闸 —— 而我手抄的那把尺子，把 394 条占用看成了 136 条」** —— 承 U+3507 条（治理闸在飞降级：同一格红要先问「源码在不在飞」）＋ U+3500 条（「失败长得像成功」是最强的一档），本条记**取证（两套口径差 258 条）**、**第一因（占用源只有一个：标题方块字）**、**第二因（取号读数必须带面 —— 三个面给出两个答案）**、**第三因（第二份手抄＝第二把尺）**、**这一刀的落点**、**途中那几课**、**判据与分级读数**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-11 | authority=measured | scope=project | source=官方两处实现（scripts/lib/ledger-codepoints.mjs 的 e.actual ＝ 标题方块字的真实码位；scripts/lib/ledger-codepoint-take.mjs 的 declaredCodepoints ＝ 标题字形 ＋ 正文「本条占」）＋ 我 .local 手抄尺子的 decl 口径（父仓 HEAD 394 条条目 vs 136 条声明 ⇒ 差 258 条）＋ 三面候选读数（取样时刻 2026-11-10T15:51:22Z ｜ HEAD 792f1931）｜ 改动：scripts/lib/ledger-codepoint-take.mjs（新增 nextCandidates ＋ declaredOnlyCodepoints ＋ 自检加 1 组 5 断言）＋ scripts/check-ledger-codepoint-take.mjs（新增 --next 三面输出）⇒ ⇒ **2 个文件** ⇒ ⇒ 零新增文件 ＋ 零新增依赖 ＋ 零 ci.yml 改动 ＋ 不碰兄弟在飞面 ｜ 读数：自检 **26/26** EXIT=0（承 25 ＋ 本刀 1 组 5 断言）＋ 官方两道码位闸 EXIT=0 ＋ 三面候选读数（工作树面头一个 U+3507 ／ 索引面与提交树面头一个 U+3508）｜ 真 CI 待取 | status=active | supersedes=none
@@ -41,6 +96,7 @@
 　❷ **「候选」不是「取号权」** —— 它只保证「此刻没人占、且不是明写留过的」⇒ ⇒ 不保证别人不会同时取 ⇒ ⇒ 落笔仍须**先占后写**。
 　❸ **工作树面的账本比提交树旧 5 条**（父仓：工作树 389 vs 提交树 394）⇒ ⇒ 含兄弟自己刚提交的那条治理闸条 ⇒ ⇒ **按工作树面取号会撞**（本条②❷ 的活例）⇒ ⇒ 已回执兄弟。
 　❹ **真 CI 读数待取**（本刀在真 CI 上的读数）。
+　　⚠ **2026-11-11 实测（补真 CI 与插入后复跑）**：run **42849259666** @d85e967（push 档，ledger-take-discipline.yml）⇒ ⇒ **success** ⇒ ⇒ 本刀改的取号闸在真 CI 上：自检 **26/26** ＋ 主判定全绿 ⇒ ⇒ **零行为变化得到真 CI 证成**；插入本条后复跑圈码闸 ⇒ ⇒ 工作树面 **451** 条／索引面 **456** 条／提交树面 **456** 条，仍**三面零违规**（上面 ⑦⑧ 的 450／455／455 是**插入前**那一拍的读数）⇒ ⇒ 而主 CI（ci.yml @d85e967）在跑，那一格待取。
 　❺ 「本条占」句**缺失**那一档仍未成独立判据（现在靠候选枚举兜住 ⇒ ⇒ 不许动作那一档**仍没有专门的红**）。
 ⑨ **⚠ 圈码：本条占 U+3508（㔈）** —— ⚠ 本条的号是按**官方口径**在**提交树面**取到的（取样时刻 2026-11-10T15:51:22Z ｜ HEAD 792f1931 ⇒ 父仓水位 U+3507 ⇒ 候选头一个 U+3508）⇒ ⇒ **不是**按那份手抄尺子（它会给出 U+3507 ⇒ ⇒ 正好撞上兄弟那条）⇒ ⇒ ⇒ 通用形态：取号读数必须带【面】＋【时刻】＋【sha】，且占用源必须与占用表**同源**。
 
@@ -572,6 +628,7 @@
 　❷ **Linux test 面（`rustc --test`，真 linux target）**：**类型检查通过**（`rustc` 走到链接才停：`linker \`cc\` not found`）⇒ ⇒ **本机无 Linux 链接器 ⇒ 跑不了那一步** ⇒ ⇒ 记「**本机判不了（链接器层）**」。
 　❸ **Windows 面（真 `cargo test --offline --lib -p shadow-desktop`，干净工作树 ＝ HEAD + 本刀）**：**TEST_EXIT = 0**，`global_keys::tests::*` 逐字全 ok（`chord_string_uses_canonical_modifier_order`／`capture_mode_reports_chords_and_suppresses_everything`／`emit_without_app_handle_is_safe` …）｜ ⇒ ⇒ 同命令的 clippy 档在**本机 Windows 面**被兄弟仓的 **166** 条 warning 淹没 ⇒ ⇒ **本机只记「测试真跑全绿」这一格** ⇒ ⇒ 权威 clippy 读数见 ⑧❶❹（Linux 面 / CI）。
 　❹ **真 CI**：四轮逐字见 ⑧❶（`42808626167` cancelled ／ `42810799723` cancelled ／ `42811224185` 坏树 18 条 ／ **`42823403350` 含本刀修复 ⇒ 第 10 步 success、第 11 步 error = 1**）⇒ ⇒ ⇒ ⇒ **⇒ ⇒ 21 → 1**（mdns 3 ＋ global_keys 17 全清）⇒ ⇒ 剩的那 1 条在兄弟的 `computer_use.rs`。
+　　⚠ **2026-11-11 就地订正（本句逐字保留）**：这一句在**取样时刻**是对的、后来**过期**了 —— 兄弟 1acb70af 把那两刀提交上 origin 后，那一条**已不在任何人的在飞面**（computer_use.rs 的工作树 ＝ 索引 ＝ HEAD ＝ 同一个 blob 4c48b1f7）⇒ ⇒ 而真 CI 在那一笔上读出 **error 10 条**（不是 1 条）⇒ ⇒ 红灯「换内容」而不是「换数量」⇒ ⇒ 归属已漂移⇒ ⇒ 那一格变成**已上 origin、无人认领的链上活缺陷**⇒ ⇒ 我已用 13 处按面作用域化豁免修掉（5516bcc）⇒ ⇒ 详见 U+3509 条。
 
 ⑦ **⚠️ 仍然欠着的**
 　❶ **`computer_use.rs` 那 1 条**（`struct \`UiElement\` is never constructed`）在兄弟的在飞面 ⇒ ⇒ **本刀做完，那盏灯仍红在那一条上** ⇒ ⇒ 我能清的都清了（**21 → 1**）⇒ ⇒ **归属不在我这边**。
