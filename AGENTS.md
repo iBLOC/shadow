@@ -1,3 +1,56 @@
+**Updated**: 2026-11-11 (㓰 **「最后一份没有闸看守的手写检出清单消失了 —— 而『统一』的正确形状是『每份背后都有闸』，不是『只剩一份』」** —— 承 U+34CF 条（CI 检出清单 10→14 ＋ 对账），本条记**取证（三份手写清单、只有一份裸奔）**、**第一因（清单靠手抄 ⇒ 漂移是常态）**、**第二因（两份清单不能机械合一 ⇒ 差异是语义性的）**、**第三因（超集检出的安全性论证）**、**这一刀的落点**、**途中那几课**、**判据与分级读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=ci.yml 三处锚点编辑的 diff-tree 取证 ＋ 本机六道闸电池读数（编辑后真跑，逐字）＋ 两份清单对账闸的现状盘点（composite ↔ neuron 闸；legacy job ↔ legacy-residue-all 判据 ③）＋ 12 面码位扫描（官方判据 extractEntries，声明与提及分开；**落盘前最后一扫**） | 改动：父仓 **改** .github/workflows/ci.yml（prefrontal-rust job：Require token ＋ 7 仓手写 checkout 段收编成 ibloc-siblings composite 一步 ＋ 删中段 ziti-rust 检出步 ＋ rust-cache workspaces 改读 composite 输出）＋ AGENTS.md（本条）⇒ ⇒ **零产品代码**、composite action 一字未动 | 读数：YAML 闸自检 **32/32**＋29 文件零违规 ｜ 钉住闸自检 **9/9**＋4 job 全钉 ｜ 覆盖闸 **27** workflow 零违规 ｜ neuron 闸自检 **92/92**＋真跑「阻断 **0** 项」 ｜ legacy 对账自检 **16/16**＋真跑「全绿（扫了 **16** 个仓 / **1878** 个文件）」 ｜ 纪律闸「**60** 道闸零违规（存量债 1 条已登记）」 | status=active | supersedes=none
+
+① **⚠️ 取证：ci.yml 里曾有三份手写兄弟检出清单，第三份在裸奔**
+　❶ composite（ibloc-siblings，14 仓）—— brain-gates／desktop-e2e／desktop-rust 三个 job 共用，check-neuron-ownership 的 listedCheckouts 与它对账（U+34CF 那刀：清单 ↔ 发现面逐个对得上）。
+　❷ legacy-residue-stack（15 仓）—— 它**自带对账**：check-legacy-residue-all 判据 ③ 把 ci.yml 里这个 job 的 checkout 清单与注册表算出的 CI_CHECKOUT 逐仓比（少检 ⇒ 阻断，多检 ⇒ 出声）。
+　❸ **prefrontal-rust（7 仓）—— 全仓没有任何一道闸在看它**。它是 2026-11-05～06 两轮人手补出来的（4 仓闭包 ＋ ziti-face 要的 encephalon/telencephalon ＋ cargo-101 要的 ziti-rust），每补一次都靠人记着「搬完家要逐个 job 核对检出清单」⇒ ⇒ 而那族事故的根因正是手抄清单 ⇒ ⇒ **尺子没盯着的地方，事故会再长出来**。
+　❹ ⇒ ⇒ 本刀只动第三份：把它收编进第一份（composite）；第二份留在原地（它已经有闸）。
+
+② **⚠️ 第一因：清单靠手抄 ⇒ 漂移是常态，闸才是判据**
+　❶ 有对账闸的清单不会漂 —— 漂了当场红（neuron 闸与 legacy 判据 ③ 都被验证过会红）。
+　❷ 没闸的清单漂了没人报：漏检不在 YAML 层显形，而在 cargo／闸的「判不了」层显形（cargo-101、exit 2）⇒ **失败长得像别的问题** ⇒ 定位成本翻几倍。
+　❸ ⇒ ⇒ 通用形态：**任何「另一份手写副本」都是一条没有判据的事实** ⇒ 收编的目标不是消灭副本，而是让每一份副本背后都站着一道闸。
+
+③ **⚠️ 第二因：两份清单不能机械合一 ⇒ 差异是语义性的，不是漂移**
+　❶ legacy 的 15 仓里有 resonance／agent-memory-benchmark —— 实测（本机）**两个仓都没有 Cargo.toml** ⇒ 它们不在 neuron 闸按 Rust manifest 发现的对账面里 ⇒ 若把它们塞进 composite，neuron 闸的「清单 ↔ 发现面」当场判红（清单里多出发现不了的仓）。
+　❷ 同理 legacy 刻意**不检出 encephalon**（它自己仓里有自己的残留闸 job，检进来反而让跨仓闸多扫一个不属于它面的仓）。
+　❸ ⇒ ⇒ **「统一成一份清单」在这个面上是错的**；正确的统一单位是**「每份清单都要有对账闸」** ⇒ ⇒ 本刀落地后 ci.yml 的清单格局＝「composite 一份（闸：neuron 对账）＋ legacy 一份（闸：判据 ③）」，**没有第三份**。
+
+④ **⚠️ 第三因：收编＝检出面 7 → 14 仓的超集，安全性有三条论据**
+　❶ cargo 只读**依赖图上**的 manifest ⇒ 多检出的兄弟仓（amygdala／parietal／hengjian／lance-graph／diencephalon／temporal／occipital）不会被解析 ⇒ 编译行为零变化。
+　❷ ziti-face 判的四个位置（encephalon／telencephalon／synapse／shadow-desktop）在 14 仓里全部仍在位。
+　❸ rust-cache 的 workspaces 改读 composite 的 `outputs.workspaces`（与 brain-gates 同款接线）⇒ 缓存面也从同一份清单派生 ⇒ 检出与缓存不再可能各漂各的。
+　❹ 代价照实记：checkout 步骤 7 → 14 ⇒ job 头部多约一两分钟检出时间 —— 用时间换「不再可能漂移」。
+
+⑤ **✅ 这一刀的落点（ci.yml 三处锚点编辑 ＋ 零产品代码 ＋ 零共享面）**
+　❶ prefrontal-rust job：`Require cross-repo token` ＋ 7 个 `Checkout <repo>` 步 ⇒ 一个 composite 步（`uses: ./.github/actions/ibloc-siblings`，`id: stack`）；原闭包注释保留为史证（明确标注那 7 仓清单已消失、为什么）。
+　❷ 中段的 `Checkout ziti-rust` 步删除（composite 已含），原注释压缩成史证（cargo-101 那次的教训：optional path 依赖连 feature 不开也要读 manifest）。
+　❸ `Setup Rust` 的 `workspaces:` 从五行手写改为读 `steps.stack.outputs.workspaces`。
+　❹ composite action 本体一字未动 ⇒ neuron 闸与地板漂移闸读它的读数**逐字不变**；legacy job 一字未动 ⇒ 判据 ③ 读数逐字不变。
+
+⑥ **✅ 途中那几课**
+　❶ **「收编 ≠ 合并」** —— ③ 里那两条语义差异若没先盘点清楚，顺手「统一清单」会把 legacy 闸的面直接弄坏（少 resonance/benchmark ＋ 多 encephalon）⇒ ⇒ 动「清单」之前先问「**谁的闸在量它、量的面是什么**」。
+　❷ **run_code 的模板串第二次被截断** —— ci.yml 里的 `${{ secrets.IBLOC_TOKEN }}` 在 JS 模板串里是插值开头 ⇒ 整段报「expecting }」⇒ ⇒ 与反引号那条同族：**凡共享面文本要过 run_code，一律行走占位符／行数组 join，不走模板串**。
+　❸ **「在飞并行可并行」的判法** —— 动 ci.yml 前先 diff HEAD 把别人的在飞 hunks 逐块读出来（本次：JNI/Brain chain 注释 ＋ mobile parser 自检步 ＋ EOF，全在 ~528/546/677/749/1293 行一带），核与自己编辑区域（~60-180／~250 行）**无交集**才动手；提交面照旧「HEAD 基线 ＋ 我那一段」，别人的一行不捎带（提交后 diff-tree 验）。
+　❹ **HEAD 在一轮刀里会自己前进** —— 本轮两次实测（f7ed552 → da9aff2 → 38d9adb 一路推进）⇒ 每一步拼接前当场重读 HEAD。
+　❺ **「空闲」是相对「当场最高已声明」的属性** —— 首扫（当时最高已声明 U+34E8）曾见一枚候选全 12 面干净；拼面当场重扫 ⇒ 最高已声明已被兄弟线推进到 **U+34EC**（一轮三枚：E9 预告、EB、EC）⇒ 那枚候选落进最高已声明**之下** ⇒ 从「空闲」变成「空洞」⇒ **不取**（空洞回填是 A 族违例，不是「让开」也不是「可取」的第三种状态）⇒ ⇒ 取号候选必须同时过两道判据：**12 面干净** ＋ **高于当场最高已声明**；且进账的读数只能是**拼接前那一次**。
+
+⑦ **✅ 判据与分级读数（全部实测）**
+　❶ **判据级**：YAML 闸自检 **32/32** ｜ 钉住闸自检 **9/9** ｜ 覆盖闸自检 **6/6** ｜ neuron 闸自检 **92/92** ｜ legacy 对账自检 **16/16** —— 全 EXIT=0。
+　❷ **闸级（本机真跑 · 编辑后）**：「✅ 零违规（**29** 个 YAML 文件全过）」｜「✅ 零违规（Rust 工具链：**4** 个跑 cargo 的 job 全部钉住精确版本且**核对过 active toolchain**）」｜「✅ 零违规（**27** 个 workflow ｜ 存量债 0 条已登记）」｜ neuron 真跑「**阻断 0 项**」｜ legacy 真跑「✓ 全绿（扫了 **16** 个仓 / **1878** 个文件）」｜ 纪律闸「**60** 道闸 ｜ 已接进 CI：**60** ｜ ✅ 零违规（存量债 1 条已登记）」。
+　❸ **接线级（提交面）**：diff-tree 取证 ⇒ 只 ci.yml ＋ AGENTS.md 两格；AGENTS 纯插入（−0）；ci.yml 只含我那三段（别人的在飞 hunks **零捎带**）；提交后照共享工作树纪律当场复跑四闸（码位／取号／暂存面回退／提交面回退）。
+　❹ ⚠️ **真 CI 级：欠**（推完按 headSha 取 ⇒ ⇒ prefrontal-rust job 那一格要等它真跑完才有权威读数）。
+
+⑧ **⚠️ 仍然欠着的**
+　❶ **真 CI 读数**（prefrontal-rust job 的 composite 接线在真 runner 上首跑）⇒ 推完取。
+　❷ **resonance／agent-memory-benchmark 将来若有了 Rust manifest**，是否进 composite（会改 neuron 闸对账读数 14→15）⇒ 口径待议 ⇒ 不代定。
+　❸ **desktop-build 的 cargo-101**（桌面端 `../../../encephalon` 在 CI 布局指到仓外）仍是接线面欠项 ⇒ 与检出布局相关的另一刀。
+　❹ hippocampus 的既存违规与 N14×3 ⇒ 他们的面 ⇒ 不代做。
+
+⑨ **⚠️ 圈码：本条占 U+34F0（㓰）** —— 本刀的取号跨了三个现场，照实都记：**首扫**（当时全历史最高已声明 U+34EC）曾取 **U+34EE** 且十二面干净；拼面被工具中断的当口，兄弟线把 **U+34EE 抢先落盘**（其回填提交 803aafb 在案；现在 decl=4/4，glyph 同为 㓮）⇒ ⇒ **落盘前最后一扫**（HEAD=803aafb；官方判据 `extractEntries`，声明与提及分开、码位按十六进制计）：**可读 12/12**；父仓 **376** 条／移动端 **59**／桌面端 **2**（四面读数一致）；全历史最高已声明 **U+34EF**；**U+34ED decl=0/4 ／ men=4/4**（仍是提及 ⇒ 让开）；**U+34EE decl=4/4 ⇒ 已是别人的 ⇒ 让开**；**U+34F0 decl=0/4 ／ men=0/4** ✔ 十二面干净**且高于最高已声明** ⇒ ⇒ ⇒ ⇒ **⇒ 本条改取 U+34F0（㓰）** ⇒ ⇒ ⑥❺ 那条的续篇就长在这格：**「空闲」只对「当场」负责 —— 取号与落盘之间隔着一个并行世界；落盘前必须重扫，被抢就让开，让完按最后一扫重取** ⇒ ⇒ 缓冲照惯例留一枚但**不写具体号** ⇒ ⇒ 不填历史空洞（低于全历史最高已声明的位置一律不回填）。
+
 **Updated**: 2026-11-11 (㓯 **「分母会自己缩水 —— 而『红 0 ｜ 20 道』长得像全绿」** —— 承兄弟会话 U+34E5 条（分母从 30 缩到 20）＋ U+34EC 条（面指纹与逐边清单），本条记**取证（分母缩水的逐字闭合：30 − 10 = 20）**、**第一因（分母＝「跑了几道」而不是「该验几道」）**、**第二因（实跑 ≤ 该验时，那行读数长得像全绿 ⇒ ⇒ 假绿）**、**第三因（修法有两条，我只选不动共享面的那条）**、**这一刀的落点**、**途中那几课**、**判据与分级读数**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-11 | authority=measured | scope=project | source=兄弟会话回执（run 42783415633 @c218c8d ＝ failure：「交上来判读记录的 job 数：8」＋「⇒ ⇒ 闸的判读：20 道 ｜ 真判 15 ｜ 判不了 3 ｜ 红 2」；同 head 的覆盖闸 run 42783415299 逐字「ci.yml 闸步 30 ｜ 有闸的 job 8 ｜ 有分母 8」；逐 step：Brain gates 第 8 步红 ⇒ 第 9–11 步 skipped，Desktop Build 第 15 步红 ⇒ 第 16–34 步 skipped ⇒ ⇒ 少 10 道）＋ 本机真跑（对着 **HEAD 那一面**的 ci.yml：ci-tally 作用域 ＝ workflow ⇒ ⇒ **该验 30 道**；喂齐 30 条记录 ⇒ ⇒ 「✅ 分母齐：该验 30 道 ＝ 实跑 30 道」；喂 20 条 ⇒ ⇒ 「⚠️ **该验 30 道 ｜ 实跑 20 道 ⇒ ⇒ 少跑 10 道 ⇒ ⇒ 那一格判不了**（不是「全绿」）」＋ 逐个点名那 10 道） | 改动：父仓 **改** scripts/lib/gate-coverage.mjs（新增纯函数 expectedGates／workflowNameOf ＋ 自检 18 → **24**）＋ **改** scripts/lib/gate-tally.mjs（新增纯函数 compareDenominator ＋ 汇总步现在自己算「该验几道」并与实跑对账 ＋ 自检 11 → **18**）⇒ ⇒ **零 `ci.yml` 改动**（那份文件正在被兄弟会话改 ⇒ ⇒ 不是我的面）⇒ ⇒ **零产品代码** | 读数：两把自检 **24/24** ＋ **18/18** EXIT=0；本仓四道闸全绿（覆盖 27 workflow 零违规｜纪律 60 道零违规（存量债 1 条已登记）｜YAML 29 文件零违规｜状态面零违规）；真跑三档见 ⑦ | status=active | supersedes=none

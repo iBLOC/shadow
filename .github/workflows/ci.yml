@@ -57,74 +57,26 @@ jobs:
       - name: Checkout shadow
         uses: actions/checkout@v7
 
-      - name: Require cross-repo token
-        env:
-          IBLOC_TOKEN: ${{ secrets.IBLOC_TOKEN }}
-        run: |
-          if [ -z "$IBLOC_TOKEN" ]; then
-            echo "::error::secrets.IBLOC_TOKEN is not configured."
-            echo "::error::The iBLOC stack is a local-path workspace. prefrontal,"
-            echo "::error::hippocampus and neuron are private siblings and cannot be"
-            echo "::error::checked out with the default GITHUB_TOKEN, which is scoped"
-            echo "::error::to iBLOC/shadow only. Add a PAT with read access to those"
-            echo "::error::repos as the IBLOC_TOKEN repository secret."
-            exit 1
-          fi
-
+      # ⚠️⚠️ 2026-11-11（清单收编刀）：本 job 的兄弟仓检出**收编进 ibloc-siblings
+      #    composite** ⇒ ⇒ 检出清单从此**只有一份**（
+      #    .github/actions/ibloc-siblings/action.yml，与 brain-gates /
+      #    desktop-e2e / desktop-rust 共用）⇒ ⇒ 这里那份手写的 7 仓清单
+      #    （prefrontal / synapse / hippocampus / neuron ＋ 2026-11-06 为
+      #    ziti-face 补的 encephalon / telencephalon ＋ 2026-11-05 为
+      #    cargo-101 补的 ziti-rust）**消失** ⇒ ⇒ 那是全仓最后一份**没有对账
+      #    闸看守**的手写检出清单（composite 那份由 neuron-ownership 闸对账、
+      #    legacy-residue-stack 那份由 legacy-residue-all 判据 ③ 对账）。
+      #    ⚠️ 检出面 7 → 14 仓（超集）：cargo 只读**依赖图上**的 manifest ⇒ ⇒
+      #    多检出的兄弟仓不会被解析 ⇒ ⇒ 零行为变化；ziti-face 判的四个位置
+      #    （encephalon / telencephalon / synapse / shadow-desktop）全部仍在位。
       # The iBLOC stack is a multi-repo local-path workspace: every crate
       # resolves siblings via `path = "../<repo>"`. `actions/checkout`
       # refuses any path outside GITHUB_WORKSPACE, so siblings MUST be
       # checked out into workspace sub-directories (not `../<repo>`).
-      #
-      # Closure for prefrontal (transitive `path` deps, comments stripped):
-      #   synapse            -> (leaf)
-      #   neuron             -> (leaf)
-      #   hippocampus/hippocampus-core -> neuron, synapse
-      #   prefrontal         -> synapse, hippocampus/hippocampus-core
-      - name: Checkout prefrontal
-        uses: actions/checkout@v7
+      - name: Checkout the iBLOC stack
+        id: stack
+        uses: ./.github/actions/ibloc-siblings
         with:
-          repository: iBLOC/prefrontal
-          path: prefrontal
-          token: ${{ secrets.IBLOC_TOKEN }}
-
-      - name: Checkout synapse
-        uses: actions/checkout@v7
-        with:
-          repository: iBLOC/synapse
-          path: synapse
-          token: ${{ secrets.IBLOC_TOKEN }}
-
-      - name: Checkout hippocampus
-        uses: actions/checkout@v7
-        with:
-          repository: iBLOC/hippocampus
-          path: hippocampus
-          token: ${{ secrets.IBLOC_TOKEN }}
-
-      - name: Checkout neuron
-        uses: actions/checkout@v7
-        with:
-          repository: iBLOC/neuron
-          path: neuron
-          token: ${{ secrets.IBLOC_TOKEN }}
-
-      # ⚠️ 2026-11-06：零信任面闸（check-ziti-face）要判 **encephalon /
-      #    telencephalon** 两个位置的接线 ⇒ ⇒ 这个 job 之前没检出它们 ⇒ ⇒
-      #    CI 上闸以退出码 2「判不了」（真跑即红 —— 而它接进 CI 的那天
-      #    本地是绿的：本机布局判的是工作区**之外**的兄弟仓）。
-      - name: Checkout encephalon
-        uses: actions/checkout@v7
-        with:
-          repository: iBLOC/encephalon
-          path: encephalon
-          token: ${{ secrets.IBLOC_TOKEN }}
-
-      - name: Checkout telencephalon
-        uses: actions/checkout@v7
-        with:
-          repository: iBLOC/telencephalon
-          path: telencephalon
           token: ${{ secrets.IBLOC_TOKEN }}
 
       # ⚠️ 2026-11-06：零信任面闸（check-ziti-face）接进 **这个** job ——
@@ -140,24 +92,11 @@ jobs:
       - name: Zero-trust face check (self-test)
         run: node scripts/check-ziti-face.mjs --self-test
 
-      # ⚠️⚠️ 2026-11-05：**这个 job 之前编不过 —— 而 CI 因账号计费红着，
-      #    没人看见。** 根因：v2 搬去 iBLOC/ziti-rust 之后，synapse 的
-      #    `ziti-v2` 是 **path 依赖**（`../ziti-rust/crates/ziti-v2`）⇒ ⇒
-      #    cargo 解析依赖图时**连 optional 的 path 依赖也要读它的 manifest**
-      #    ⇒ ⇒ 这个 job 只检出 prefrontal/synapse/hippocampus/neuron ⇒ ⇒
-      #    `../ziti-rust` 指不到 ⇒ ⇒ cargo 直接报「failed to load manifest
-      #    for dependency `ziti-v2`」⇒ ⇒ **整个 job 连依赖图都解析不出来**。
-      #    ⇒ ⇒ 实测（本地造 CI 布局：只放 synapse、不放 ziti-rust）⇒ ⇒
-      #    `cargo metadata` EXIT=101 且指名 ziti-v2；补上 ziti-rust 后 ⇒ ⇒
-      #    EXIT=0 且 `cargo check` 也 EXIT=0。
-      #    ⚠️ 同一件搬家，desktop-e2e job **补了**这个 checkout ⇒ ⇒ 只有
-      #    这个 job 漏了 ⇒ ⇒ **「搬完家要逐个 job 核对检出清单」**。
-      - name: Checkout ziti-rust
-        uses: actions/checkout@v7
-        with:
-          repository: iBLOC/ziti-rust
-          path: ziti-rust
-          token: ${{ secrets.IBLOC_TOKEN }}
+      # ⚠️ ziti-rust 由上面的 ibloc-siblings composite 检出。历史（2026-11-05
+      #    真 CI）：它漏检时 synapse 的 optional path 依赖 ziti-v2 连 feature
+      #    不开也要读 manifest ⇒ ⇒ cargo 直接「failed to load manifest for
+      #    dependency ziti-v2」⇒ ⇒ 整个 job 连依赖图都解析不出来（cargo-101）
+      #    ⇒ ⇒ 「搬完家要逐个 job 核对检出清单」—— 收编后这一族事故不再可发生。
 
       # cargo 自己 clone **私有 git 依赖**时也要凭据 ——
       # synapse 的 ziti feature 指向私有的 iBLOC/ziti-rust。actions/checkout
@@ -206,15 +145,13 @@ jobs:
       # rust-cache 的 workspaces 是**逐行**列表，用逗号分隔会被当成一个
       # 路径 —— 缓存直接失效（"The cwd: .../a,b,c does not exist!"），
       # 于是每次都从零重编整栈，又慢又撑爆磁盘。
+      # ⚠️ rust-cache **不能**放进 composite ⇒ ⇒ composite 没有 post 步 ⇒ ⇒
+      #    真正「存缓存」的那一步不会跑 ⇒ ⇒ 所以它留在 job 层；`workspaces`
+      #    由 composite 输出 ⇒ ⇒ 检出清单仍然只有一份。
       - name: Setup Rust
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: |
-            prefrontal
-            synapse
-            hippocampus
-            neuron
-            ziti-rust
+          workspaces: ${{ steps.stack.outputs.workspaces }}
 
       # ⚠️⚠️ 2026-11-05：**把尺子钉住，并且让它可见**。
       #    上面的 `RUST_TOOLCHAIN` 只是**指定**版本 —— runner 预装的 stable
