@@ -145,8 +145,23 @@ export function findUnregistered(root, declared) {
   //    ⇒ ⇒ 而「把账本副本放进去当草稿」这类**临时产物**不该被当成新状态面
   //    （2026-11-05 实测踩到：并行会话的 `artifacts/agents-remote.md` ⇒ ⇒ 判红
   //    ⇒ ⇒ 连累本闸的自检 ⇒ ⇒ 再连累纪律闸两条 ⇒ ⇒ **一条根因、两个读数**）。
-  // ⇒ ⇒ 判据仍然是「**入库的**才算仓里的」⇒ ⇒ 别处新增的 AGENTS.md 照样被抓。
-  const SKIP = new Set(['node_modules', 'target', '.git', 'dist', 'build', '.local', 'benchmark', '.dart_tool', 'artifacts']);
+  //
+  // ⚠️⚠️⚠️ **就地订正（2026-11-11）：判据扫的是「文件系统」，不是「索引」**
+  //    ⇒ ⇒ 旧注释那句「判据仍然是『**入库的**才算仓里的』」**与实现不符**
+  //    ⇒ ⇒ `findUnregistered` 走 `readdirSync`（**不查 git 索引**）
+  //    ⇒ ⇒ ⇒ ⇒ **未入库的** AGENTS.md **照样会被抓到**
+  //    ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ 「别处新增的 AGENTS.md 照样被抓」这句话**仍然成立**，
+  //    ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ ⇒ **只是理由要改成「实现在扫文件系统」**
+  //    ⇒ ⇒ ⇒ ⇒ **⇒ ⇒ 推论：SKIP 里的目录是「**无论入库与否**都不算状态面」**
+  //    ⇒ ⇒ ⇒ ⇒ **⇒ ⇒ 而不是「只要没入库就不算」** ⇒ ⇒ 照旧注释推理会推错。
+  //
+  // ⚠️ **`.ci-probe/` 是共享工作树里 agent 的 scratch 目录** ⇒ ⇒ 里面的
+  //    AGENTS.md 是**临时稿**，不是新状态面 ⇒ ⇒ 整棵跳过。
+  //    ⇒ ⇒ 与 `artifacts/` 的理由**不同**（那个是「gitignore ⇒ ⇒ 不可能入库」）；
+  //    ⇒ ⇒ 这个是「scratch ⇒ ⇒ **无论入库与否**都不算状态面」。
+  //    ⇒ ⇒ 2026-11-11 实测：这格原本靠「文件被移走」才绿 ⇒ ⇒ 那是**表面处置**
+  //    ⇒ ⇒ 治复发要靠这一行（**清单处置**）⇒ ⇒ 两个都要，缺一不可。
+  const SKIP = new Set(['node_modules', 'target', '.git', 'dist', 'build', '.local', 'benchmark', '.dart_tool', 'artifacts', '.ci-probe']);
   const walk = (dir, depth) => {
     if (depth > 5) return;
     let entries;
@@ -447,6 +462,31 @@ export function selfTest() {
     writeFileSync(join(wtRepo, '.git'), 'gitdir: elsewhere\n', 'utf8');
     const found5 = findUnregistered(tmp, ['AGENTS.md']);
     check('R6 边界：**worktree**（.git 是文件）整棵跳过', found5.length === 0, JSON.stringify(found5));
+
+    // ⚠️ **agent 的 scratch 目录整棵跳过** —— `.ci-probe/` 是共享工作树里
+    //    agent 的临时稿目录 ⇒ ⇒ 里面的 AGENTS.md 是**草稿**，不是新状态面。
+    //    ⇒ ⇒ 与 `artifacts/` 的理由**不同**：那个是「gitignore ⇒ ⇒ 不可能入库」；
+    //    ⇒ ⇒ 这个是「scratch ⇒ ⇒ **无论入库与否**都不算状态面」。
+    //    ⇒ ⇒ ⚠️ **在临时目录里造** ⇒ ⇒ 自检腿自己**不会**把主判定弄红。
+    //    ⇒ ⇒ ⚠️ **放在这一段的最后** ⇒ ⇒ 负控目录不会污染**前面**那些
+    //    ⇒ ⇒ 「期望 0 条」的用例（它们量的是同一个临时目录）。
+    const probeDir = join(tmp, '.ci-probe');
+    mkdirSync(probeDir, { recursive: true });
+    writeFileSync(join(probeDir, 'AGENTS.md'), '**Updated**: 2026-11-05 (㋰ **「x」**)\n', 'utf8');
+    const found7 = findUnregistered(tmp, ['AGENTS.md']);
+    check('R6 边界：**scratch 目录（.ci-probe/）整棵跳过**（无论入库与否）', found7.length === 0, JSON.stringify(found7));
+
+    // ⚠️⚠️ **孪生（负控）** —— 形状一样、名字**不在** SKIP 里 ⇒ ⇒ 照样被抓
+    //    ⇒ ⇒ 证明这一格是**真判据**，不是「凡是 scratch 就不报」的恒真。
+    const nopeDir = join(tmp, '.ci-probe-NOPE');
+    mkdirSync(nopeDir, { recursive: true });
+    writeFileSync(join(nopeDir, 'AGENTS.md'), '**Updated**: 2026-11-05 (㋰ **「x」**)\n', 'utf8');
+    const found8 = findUnregistered(tmp, ['AGENTS.md']);
+    check(
+      'R6 孪生（负控）：**不在 SKIP 里的同名形状目录照样被抓** ⇒ ⇒ 这一格不是恒真',
+      found8.length === 1 && found8[0] === '.ci-probe-NOPE/AGENTS.md',
+      JSON.stringify(found8)
+    );
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
