@@ -7361,3 +7361,54 @@ For the end-to-end coverage assessment of all the above (which has zero e2e in C
 　❶ **端脑任务「新建」入口**（产品决策，不猜）；❷ **ziti 可视化配置的落点**（待用户拍板）；❸ **内联中文兜底还在**（承 U+3483 条 ❷：77 处调用点／71 个键）⇒ ⇒ 词表齐了兜底轮不到 ⇒ ⇒ 但源码里那句中文还在 ⇒ ⇒ 要不要删是**产品决定**；❹ **真机级读数**（移动端真机 UI 验收／ziti T4–T5／端脑 CI 门外红）照旧；❺ **本条的 CI 读数**待取。
 
 ⑥ **⚠️ 圈码：本条占 U+3488（㒈）** —— 插前**独立重扫**（父仓工作树 ∪ 父仓 HEAD ∪ 父仓 origin/master × **三本账本**，按**声明形状**扫、**声明与提及分开**）⇒ ⇒ 读数：**最高已声明 U+3487**（并行会话那条已提交）⇒ ⇒ 「最高已用＋1」＝ **U+3488** ⇒ ⇒ ⚠️ 我上一条预留的缓冲（U+3487）**已被他们用掉** ⇒ ⇒ 预留只是**意图**，能不能留成要看对方落在哪 ⇒ ⇒ ⚠️ 本条**只引用已提交的码位**（U+3483／U+3485／U+3486／U+3487）⇒ ⇒ **不引在飞的** ⇒ ⇒ ⚠️ **插完立刻复跑码位闸**是硬约束。
+
+**Updated**: 2026-11-11 (㓋 **「手机上**不注册 agent**也能起对话 —— 「模型行为级读数」的入口在**第三处**，不在 agent 注册那条路上」** —— 承 U+34AD 条（agent 声明落盘 500）与 U+34BE 条（源码级取证的形状），本条记**取证（源码级逐条）**、**第一因**、**第二因**、**第三因**、**这一刀的落点**、**途中那几课**、**判据与分级读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=端脑源码逐条读（`telencephalon` 的 `boot.rs` / `api/shadow.rs` / `api/shadow/conversations.rs` / `api/door_policy.txt`）｜ 改动：父仓 **新增** `scripts/prove-phone-chat-without-agent.ps1`（UTF-8 BOM · 零产品代码）｜ 读数：源码级逐条见 ①；真机级**欠**（odin `ee6b4832` 掉线、另两台设备未装 app）| status=active | supersedes=none
+
+① **⚠️ 取证：手机上「不注册 agent 起对话」这条路 —— 逐条读源码**
+　❶ **路由**（`api/shadow.rs:88-104`）：`POST /shadow/v1/conversations`（建）、`GET`／`DELETE /shadow/v1/conversations/{id}`、`POST /shadow/v1/conversations/{id}/messages`（发）与 `…/messages:stream` ⇒ ⇒ **建会话与发消息都不经过 agent 注册**。
+　❷ **门**（`api/door_policy.txt`）：`:37` `/shadow/v1/*` ＝ **read**（shadow key ∪ admin）；只有 `DELETE`（`:50`）与 `archive`／`unarchive`（`:51-52`）要 admin ⇒ ⇒ ⇒ **建会话只需要影子锁** ⇒ ⇒ **不需要 admin、也不需要注册 agent**。
+　❸ **会话存储的回落**（`boot.rs:526-574`，逐字）：`#[cfg(feature = "hippocampus")]` ⇒ `lance_store = Some(Lance 持久化)`；**`#[cfg(not(feature = "hippocampus"))]` ⇒ `lance_store = None`**（`:554-555`）⇒ ⇒ 然后 `conv_store` ＝ 宿主指名文件 ⇒ `with_file_persistence`（`:557-570`），**否则** `lance_store.unwrap_or_else(|| ConversationStore::new())`（`:571-573`）⇒ ⇒ ⇒ **纯内存**（`conversations.rs:503-509`：`inner: Arc<RwLock<HashMap<String, Conversation>>>` ＋ `persistence: Option<…>`）⇒ ⇒ ⇒ **手机（不开 hippocampus feature）上，会话要么落文件、要么纯内存 ⇒ ⇒ 两种都不需要海马体**。
+　❹ **为什么手机必须不开 hippocampus**（同一段注释逐字）：「Lance 发布文件靠 `fs::hard_link`，而 Android 的 SELinux **不允许 App 在自己的数据目录里建硬链接**（AOSP：…那个宏里**没有** `link`）⇒ ⇒ Lance 在手机上根本写不出数据集 ⇒ ⇒ 端脑会**直接 panic 起不来**（真机实测：`avc: denied { link } … app=com.ibloc.shadow`）⇒ ⇒ **移动端改用文件版**」⇒ ⇒ 而 `FilePersistence` 的注释也写着它「**needs no hard link, which is exactly what Android refuses**」（`conversations.rs:355-361`）⇒ ⇒ ⇒ **它是专为手机写的回落**。
+　❺ **写入失败的行为**（`conversations.rs:13-21` 模块注释）：「Persistence failures during writes are logged and dropped (the in-memory cache …)」⇒ ⇒ **持久层失败不会让会话消失**，内存那份还在。
+
+② **⚠️ 第一因：agent 注册那条路，与「模型行为级读数」**不是同一条路** ⇒ ⇒ 注册失败 ≠ 拿不到读数**
+　❶ U+34AD 条实测：手机上 `POST /admin/agents/create` **必 500**（`persist lobe: not configured: hippo find_id_by_uri: …`）⇒ ⇒ 那条路确实断了。
+　❷ 但 ①❶❷ 证明：**建会话 ＋ 发消息**这条路上**没有 agent 注册这一步** ⇒ ⇒ ⇒ **要拿「模型行为级读数」，不需要注册 agent** ⇒ ⇒ ⇒ ⇒ **那笔 500 挡住的不是「读数」，是「注册」**。
+　❸ ⇒ ⇒ ⇒ **通用形态：「一个功能登记在一张表里」≠「它只能从那个入口拿到」** ⇒ ⇒ 同一个能力的**其它入口**可能完全不经过那张表 ⇒ ⇒ ⇒ **因此「那个入口坏了」不等于「这个功能没了」** ⇒ ⇒ ⇒ ⇒ **「A 坏了所以 B 也坏了」要逐条查 B 的入口，不能顺着 A 推**。
+
+③ **⚠️ 第二因：手机端关掉 hippocampus 不是「少编一个 feature」，是**编了会起不来****
+　❶ ①❹ 逐字：编上 ⇒ Lance 写不出数据集 ⇒ ⇒ **端脑直接 panic 起不来**（真机 `avc: denied { link }`）⇒ ⇒ ⇒ **所以关掉它不是省事，是必然**。
+　❷ ⇒ ⇒ ⇒ **这给 U+34AD 条那个 500 补上了根因**：那个 500 的**上游原因**是**平台约束**（Android SELinux 禁 `link`）⇒ ⇒ ⇒ ⇒ 而**修法方向**也随之变了：不是「补编 hippocampus feature」（那会让 app 起不来），而是**给 agent 落盘找一条不依赖硬链接的存储**（像会话那样：文件版）⇒ ⇒ ⇒ ⇒ **这是端脑仓的活**（本条不代改）。
+
+④ **⚠️ 第三因：会话存储有**三档回落** ⇒ ⇒ 「进程重启即丢」是**设计里写着的**，不是 bug**
+　❶ Lance（生产）⇒ 文件（宿主指名）⇒ 纯内存（兜底）⇒ ⇒ **每一档都能跑** ⇒ ⇒ **「有没有持久化」与「能不能对话」是两件事**。
+　❷ 注释逐字：「有本地海马体时用 Lance 持久化会话；**没有就纯内存（进程重启即丢）**」（`boot.rs:527`）⇒ ⇒ ⇒ **「重启即丢」是写明的降级**，不是数据丢失的 bug ⇒ ⇒ ⇒ **但它有个后果：手机上重启一次，之前那一轮上下文就没了** ⇒ ⇒ ⇒ 对「模型行为级读数」而言：**读数要在同一次进程里取** ⇒ ⇒ ⇒ ⇒ **探针必须「起 app ⇒ 建会话 ⇒ 发消息 ⇒ 取回执 ⇒ 清理」在一次连续会话里做完**（本条探针就是这么写的）。
+
+⑤ **✅ 这一刀的落点（1 个新文件 ＋ 零产品代码）**
+　❶ **新增 `scripts/prove-phone-chat-without-agent.ps1`**（UTF-8 BOM）：起 app（复用活端口／必要时 `-S --activity-clear-task`）→ 取两把钥匙（不打印）→ **对照格**（不带任何钥匙建会话 ⇒ 证门真的在那儿）→ **只带 shadow key** 建会话 → 发一条消息（**模型行为级**）→ 读回执 → **DELETE 清理**（admin 门）→ 列表复核 ⇒ ⇒ 退出码 0/1/2。
+　❷ ⚠️ **零产品代码改动** —— 这一刀只加尺子，不动被测物。
+　❸ ⚠️ **真机那一格本条没跑成（如实标注）**：`odin ee6b4832` **本轮掉线**（`adb devices` 里只剩 `2bcb05ec` 与 `192.168.31.235:5555`，两台**都没装** `com.ibloc.shadow`）⇒ ⇒ ⇒ **探针已就位，设备一回来即可跑** ⇒ ⇒ ⇒ **本条的真机读数欠着**（源级证据见 ①）。
+
+⑥ **⚠️ 途中那几课**
+　❶ **看 trait 不够 ⇒ ⇒ 要看**接线****：`ConversationPersistence` 有两个实现（`LancePersistence`／`FilePersistence`），trait 本身说明不了线上用哪个 ⇒ ⇒ 真正的答案是 `boot.rs` 里那句 `unwrap_or_else` ⇒ ⇒ ⇒ **通用形态：「一个能力有几个实现」⇒ ⇒ 决定权在**装配处**（谁 new、谁兜底）⇒ ⇒ 判「线上跑的是哪个」必须读装配点**。
+　❷ ⚠️ **回退路径往往才是真正的约束**：本例真正的约束写在 `#[cfg(not(feature = "hippocampus"))]` 那条回落里 ⇒ ⇒ 只看主路径（Lance）会以为「手机上会话也走海马体」⇒ ⇒ ⇒ **「同一个 API 有几套后端」⇒ ⇒ 每一套都要单独确认**。
+
+⑦ **✅ 判据与分级读数**
+　❶ **源码级（逐条读，实测）**：路由（`api/shadow.rs:88-104`）／门（`door_policy.txt:37`、`:50-52`）／三档回落（`boot.rs:526-574`）／内存体（`conversations.rs:503-509`）／Android 硬链接那条注释（`boot.rs:529-534` ＋ `conversations.rs:355-361`）／持久层失败不丢会话（`conversations.rs:13-21`）。
+　❷ **真机级**：**欠着**（设备掉线，见 ⑤❸）⇒ ⇒ **不补写、不外推**。
+　❸ **闸级**：码位闸／状态面闸／纪律闸／回退闸均 EXIT=0；PS1 可移植性 **30 个 .ps1 全绿**。
+　❹ **真 CI 级**：本条推送后取（只认 run 的 `headSha`）。
+
+⑧ **⚠️ 仍然欠着的**
+　❶ **真机级那一格**（手机不注册 agent 建会话 ＋ 发消息的逐条读数）**欠设备** ⇒ ⇒ 设备一回来就跑那支探针。
+　❷ **agent 落盘那条路仍然断**（手机没编 hippocampus ⇒ 必 500）⇒ ⇒ 而 ③ 说清了：**修法不是补编 feature**（那会让 app 起不来）⇒ ⇒ ⇒ **要给 agent 落盘找一条不依赖硬链接的存储**（像会话那样：文件版）⇒ ⇒ ⇒ **端脑仓的活**。
+　❸ **端脑仓自身的真 CI 仍无读数**（承 U+34A0 条）。
+　❹ 本条只读了 **telencephalon** 仓；兄弟仓若有同名回落**未逐个核**。
+
+⑨ **⚠️ 圈码：本条占 U+34CB（㓋）**
+　❶ 插前**独立重扫**（三本账本 × 工作树／索引／HEAD／origin/master ＝ **12 面**，官方判据 `scripts/lib/ledger-codepoints.mjs` 的 `extractEntries`，**声明与提及分开**、码位按**十六进制**计）⇒ ⇒ 读数：**12 面全部可读（unreadable=0）**、已声明 distinct=**361**、最高已声明 **U+34C9**（**工作树面**声明、未进提交树 ⇒ ⇒ 在飞占位也算占位）。
+　❷ ⇒ ⇒ **U+34CA 让开**（已被提及 ⇒ ⇒ 提及即让开）⇒ ⇒ ⇒ ⇒ **U+34CB 声明 0 次、提及 0 次** ✔ ⇒ ⇒ **本条取 U+34CB（㓋）**。
+　❸ ⇒ ⇒ 本条**不钉具体缓冲号**（承 U+34BE 条那条订正）⇒ ⇒ ⇒ ⇒ **下一枚真可取 ＝ 最高已声明 + 1，再逐个让开所有被预告的位置**（落笔前仍要**当场重扫 12 面**）。
+　❹ ⇒ ⇒ ⚠️ **插完立刻复跑码位闸**是硬约束。
