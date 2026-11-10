@@ -61,6 +61,7 @@ import { tmpdir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { scanYamlText, SYNTAX_KINDS, coverageVerdict } from './lib/yaml-valid.mjs';
+import { injectedDelta, sameMultiset, selfTest as relativeSelfTest } from './lib/relative-assert.mjs';
 
 const REPO_ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 
@@ -336,6 +337,8 @@ const REAL_INCIDENT = [
 ].join('\n');
 
 function selfTest() {
+  // ⚠️ **相对断言那一族的自检**（判据只有**一处实现** ⇒ ⇒ 这里只转个手 ⇒ ⇒ 不许各写一份）
+  if (relativeSelfTest() !== 0) process.exit(2);
   const cases = [];
   const add = (name, yaml, expect, opts) => cases.push({ name, yaml, expect, opts });
 
@@ -575,11 +578,10 @@ function drill(files) {
   };
 
   const base = scanCopy();
-  steps.push({
-    name: '副本原样 ⇒ 必须绿',
-    ok: base.code === 0,
-    detail: 'exit=' + base.code,
-  });
+  // ⚠️ **原始读数**（报告腿）⇒ ⇒ 判绿**不**看它（被测物带伤时它可以非零 ⇒ ⇒ 副本原样不必绿）。
+  const baseKinds = base.data && base.data.perFile
+    ? base.data.perFile.flatMap((f) => f.findings.map((x) => x.kind))
+    : [];
 
   const brokenText = original.replace(
     /- name: (.+)/,
@@ -591,10 +593,13 @@ function drill(files) {
     broken.data && broken.data.perFile
       ? broken.data.perFile.flatMap((f) => f.findings.map((x) => x.kind))
       : [];
+  // ⚠️ **相对断言**（2026-11-11 刀⑫）：判绿**只由注入腿**决定 ⇒ ⇒
+  //   注入带来的「多出来的」里**必须**含 plain-scalar-colon（不许恒真、不许靠存量凑数）。
+  const colonDelta = injectedDelta(baseKinds, brokenKinds, { requireNoLoss: false, expectKind: 'plain-scalar-colon' });
   steps.push({
-    name: '副本注入冒号 ⇒ 必须红（且抓到 plain-scalar-colon）',
-    ok: broken.code === 1 && brokenKinds.includes('plain-scalar-colon'),
-    detail: 'exit=' + broken.code + ' kinds=' + JSON.stringify(brokenKinds),
+    name: '副本注入冒号 ⇒ **相对原始读数**多出 plain-scalar-colon（不许恒真）',
+    ok: colonDelta.ok,
+    detail: 'exit=' + broken.code + ' ' + colonDelta.reason,
   });
 
   // ⚠️ 第二段退化：注入「少一个开括号的表达式」（Y14）⇒ ⇒ 必须红。
@@ -608,10 +613,12 @@ function drill(files) {
       brokenExpr.data && brokenExpr.data.perFile
         ? brokenExpr.data.perFile.flatMap((f) => f.findings.map((x) => x.kind))
         : [];
+    // ⚠️ 这一处注入**改解析** ⇒ ⇒ 不许拿「一条不少」当判据 ⇒ ⇒ 只要求「多出期望的那一种」。
+    const exprDelta = injectedDelta(baseKinds, brokenExprKinds, { requireNoLoss: false, expectKind: 'malformed-expression' });
     steps.push({
-      name: '副本注入少一个开括号的表达式 ⇒ 必须红（且抓到 malformed-expression）',
-      ok: brokenExpr.code === 1 && brokenExprKinds.includes('malformed-expression'),
-      detail: 'exit=' + brokenExpr.code + ' kinds=' + JSON.stringify(brokenExprKinds),
+      name: '副本注入少一个开括号的表达式 ⇒ **相对原始读数**多出 malformed-expression（不许恒真）',
+      ok: exprDelta.ok,
+      detail: 'exit=' + brokenExpr.code + ' ' + exprDelta.reason,
     });
   } else {
     steps.push({
@@ -623,10 +630,14 @@ function drill(files) {
 
   writeFileSync(copyPath, original, 'utf8');
   const restored = scanCopy();
+  const restoredKinds = restored.data && restored.data.perFile
+    ? restored.data.perFile.flatMap((f) => f.findings.map((x) => x.kind))
+    : [];
+  const restoredOk = sameMultiset(baseKinds, restoredKinds);
   steps.push({
-    name: '副本还原 ⇒ 必须绿',
-    ok: restored.code === 0,
-    detail: 'exit=' + restored.code,
+    name: '副本还原 ⇒ 与原始读数逐键同数（相对原始读数）',
+    ok: restoredOk,
+    detail: 'exit=' + restored.code + ' 原始 ' + baseKinds.length + ' 条 ／ 还原 ' + restoredKinds.length + ' 条',
   });
 
   const after = sha256(readFileSync(target, 'utf8'));
@@ -652,6 +663,7 @@ function drill(files) {
 
   rmSync(dir, { recursive: true, force: true });
 
+  console.log('  原始读数（副本原样）⇒ exit=' + base.code + ' ／ ' + baseKinds.length + ' 条（**报告腿**：不参与判绿）');
   let bad = 0;
   for (const s of steps) {
     console.log((s.ok ? '  [PASS] ' : '  [FAIL] ') + s.name + ' ⇒ ' + s.detail);

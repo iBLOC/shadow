@@ -34,6 +34,7 @@ import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import { findBackgroundServiceIssues } from './lib/mobile-background-service.mjs';
+import { injectedDelta, sameMultiset, selfTest as relativeSelfTest } from './lib/relative-assert.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..');
@@ -80,6 +81,8 @@ function describeKind(kind) {
 }
 
 function selfTest() {
+  // ⚠️ **相对断言那一族的自检**（判据只有**一处实现** ⇒ ⇒ 这里只转个手 ⇒ ⇒ 不许各写一份）
+  if (relativeSelfTest() !== 0) return false;
   let pass = 0, fail = 0;
   const check = (name, cond, detail = '') => {
     if (cond) { pass += 1; console.log(`  [PASS] ${name}`); }
@@ -268,12 +271,26 @@ function drill() {
     pubspec: readFileSync(PUBSPEC, 'utf8'),
     dartService: readFileSync(DART_SERVICE, 'utf8'),
   });
+  // ⚠️ **原始读数**（真文件内容）⇒ ⇒ 判绿**不**看它（被测物带伤时它可以非零）。
+  const base = checkSources({
+    manifest: original,
+    pubspec: readFileSync(PUBSPEC, 'utf8'),
+    dartService: readFileSync(DART_SERVICE, 'utf8'),
+  });
   rmSync(dir, { recursive: true, force: true });
   const after = sha256(MANIFEST);
-  const ok = red.out.length >= 2 && green.out.length === 0 && before === after;
-  console.log(`  副本破坏 ⇒ 判红：${red.out.length} 条`);
-  console.log(`  副本还原 ⇒ 判绿：${green.out.length} 条`);
+  // ⚠️ **相对断言**（2026-11-11 刀⑫）：判绿**只由注入腿**决定 ⇒ ⇒
+  //   被测物带伤时演练**不再恒红** ⇒ ⇒ 演练红**不遮蔽**主判定（U+350B／U+350C 条那个机制）。
+  const keysOf = (r) => r.v.issues.map((i) => i.kind);
+  const baseKeys = keysOf(base);
+  const delta = injectedDelta(baseKeys, keysOf(red));
+  const restoredOk = sameMultiset(baseKeys, keysOf(green));
+  const ok = delta.ok && restoredOk && before === after;
+  console.log(`  原始读数（真文件内容）⇒ ${baseKeys.length} 条（**报告腿**：不参与判绿）`);
+  console.log(`  副本破坏 ⇒ 判红：${keysOf(red).length} 条 ⇒ ⇒ 相对原始读数：${delta.reason}`);
+  console.log(`  副本还原 ⇒ 与原始读数逐键同数：${restoredOk ? '是' : '否'}`);
   console.log(`  真文件 SHA256 前后一致：${before === after ? '是' : '否'} (${before.slice(0, 16)}…)`);
+  console.log(`  演练判绿（**只看注入腿 ＋ 还原腿 ＋ 真文件未改动**）⇒ ${ok ? '是' : '否'}`);
   return ok;
 }
 

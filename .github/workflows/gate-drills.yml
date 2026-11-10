@@ -1,0 +1,61 @@
+name: Gate Drills (副本演练：每道闸的尺子还咬得住)
+
+# ⚠️ **它守的是什么** —— 「**副本演练**」那一族：
+#   每道闸的 `--drill` 腿要证明「尺子咬得住」⇒ ⇒ 一旦那族判据被改坏，
+#   演练就该红 ⇒ ⇒ 而**没人跑它**的演练，红了也没人看见（U+350B／U+350C 条那一族）。
+#
+# ⚠️ **为什么单独成文件**（与 `ledger-take-discipline.yml` 同理）：
+#   `ci.yml` 是**共享文件**（并行会话在飞）⇒ ⇒ 独立成文件 ⇒ ⇒ 接线面**零共享**；
+#   ⇒ ⇒ 这一族三道演练的接线点本来全在 `ci.yml` ⇒ ⇒ 那一面在飞 ⇒ ⇒ 本刀不代动。
+#
+# ⚠️ **为什么这一盏灯**只有演练、没有主判定：
+#   ⇒ ⇒ 演练红**不可能**遮蔽任何主判定的读数（CI 的步骤顺序：前一步失败 ⇒ ⇒ 后一步被 skipped）
+#   ⇒ ⇒ 「接进 CI」这件事本身**不制造**刀⑪ 那个遮蔽机制。
+#
+# ⚠️ `--drill` **不算闸步**（`gate-coverage.mjs` 的 NON_GATE_FLAGS）⇒ ⇒ **不动分母**。
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  gate-drills:
+    name: Gate Drills
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout shadow
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      # ⚠️ 移动端后台常驻面那道的**自检在 ci.yml 里从来没有**（只有主判定）
+      #   ⇒ ⇒ 它「证明尺子会红」的那一格在 CI 上从没跑过 ⇒ ⇒ 这里补上。
+      - name: "Self-test: mobile background service (移动端后台常驻面)"
+        if: always()
+        run: node scripts/check-mobile-background-service.mjs --self-test
+
+      # ⚠️ **每一步都带 `if: always()`** ⇒ ⇒ 一道演练红**不许**把后面几道的读数吃掉
+      #   （GitHub Actions：前一步失败 ⇒ ⇒ 后一步默认被 skipped ⇒ ⇒ 那一格就没读数了）。
+      - name: "Drill: mobile background service (移动端后台常驻面)"
+        if: always()
+        run: node scripts/check-mobile-background-service.mjs --drill
+
+      - name: "Drill: e2e credential shape (E2E 凭据头形状)"
+        if: always()
+        run: node scripts/check-e2e-credential-shape.mjs --drill
+
+      - name: "Drill: yaml validity (workflow 的 YAML 合法性)"
+        if: always()
+        run: node scripts/check-yaml-valid.mjs --drill
