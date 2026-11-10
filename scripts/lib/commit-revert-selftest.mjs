@@ -146,6 +146,76 @@ function runSelfTestIn(TMP) {
     !!wipeHit && shouldFail(wipeHit, regW) === false && shouldFail(wipeHit, []) === true,
     '登记后=' + shouldFail(wipeHit, regW) + ' ｜ 未登记=' + shouldFail(wipeHit, []));
 
+  // ⑩ ⚠️ **倒回（inverted）** —— B 把 A 的**整个增量**原样倒回（A 加的行全删、A 删的行原字加回），
+  //    且 B **夹带自己的改动** ⇒ ⇒ 文件**没有**回到 A 之前 ⇒ ⇒ 'full' 抓不到它
+  //    ⇒ ⇒ 必须单设一档 ⇒ ⇒ 且（没有声明）⇒ ⇒ **必须判红**。
+  //    ⚠️ 真形状取自真历史：`c62f500` 把 `639a556` 的 5 行原样倒回并夹带自己的 5 行。
+  write(TMP, 'i.txt', 'i0\nOLD\n');
+  commit(git, 'i base');
+  write(TMP, 'i.txt', 'i0\nNEW1\nNEW2\n');
+  const aInv = commit(git, 'A rewrites OLD into NEW1/NEW2');
+  write(TMP, 'i.txt', 'i0\nOLD\nB_OWN\n');
+  const bInv = commit(git, 'B inverts A and adds its own line');
+  const r10 = scanReverts(git, { rev: 'HEAD', limit: 40 });
+  const invHit = r10.events.find((e) => e.kind === 'inverted' && e.file === 'i.txt' && e.commit === bInv);
+  add('倒回 ⇒ 必须抓到 kind=inverted ⇒ 且（没有声明）⇒ **必须判红**',
+    !!invHit && invHit.reverted === aInv && shouldFail(invHit),
+    invHit ? '抓到 ' + invHit.commit.slice(0, 7) + ' kind=' + invHit.kind + ' ｜ 判红=' + shouldFail(invHit) : '没抓到');
+
+  // ⑪ **负控**：A 加了 2 行、删了 1 行；B **只删了其中 1 行**（也没把 A 删的行加回来）
+  //    ⇒ ⇒ hit ⊊ aAdd ⇒ ⇒ **不许**落 'inverted'（仍是 'partial'）⇒ ⇒ 闸不许见风就是红。
+  write(TMP, 'j.txt', 'j0\nJOLD\n');
+  commit(git, 'j base');
+  write(TMP, 'j.txt', 'j0\nJNEW1\nJNEW2\n');
+  const aJ = commit(git, 'A rewrites JOLD into JNEW1/JNEW2');
+  write(TMP, 'j.txt', 'j0\nJNEW2\n');
+  const bJ = commit(git, 'B removes only one of the two added lines');
+  const r11 = scanReverts(git, { rev: 'HEAD', limit: 40 });
+  const jHit = r11.events.find((e) => e.file === 'j.txt' && e.commit === bJ);
+  add('负控（只删一部分）⇒ **不许**落 inverted ⇒ 仍是 partial',
+    !!jHit && jHit.kind === 'partial' && jHit.reverted === aJ && !shouldFail(jHit),
+    jHit ? 'kind=' + jHit.kind + ' ｜ 判红=' + shouldFail(jHit) : '没抓到');
+
+  // ⑫ **两档不许重叠**：A **只加不删**、B 把 A 加的行全删 ⇒ ⇒ 文件整个回到 A 之前
+  //    ⇒ ⇒ 那是 **'full'** 那一档（不是 'inverted'）⇒ ⇒ 证明 `removedByA.size > 0` 那条守卫的用处。
+  write(TMP, 'k.txt', 'k0\n');
+  commit(git, 'k base');
+  write(TMP, 'k.txt', 'k0\nK1\n');
+  const aK = commit(git, 'A only adds K1');
+  write(TMP, 'k.txt', 'k0\n');
+  const bK = commit(git, 'B removes K1 entirely');
+  const r12 = scanReverts(git, { rev: 'HEAD', limit: 40 });
+  const kHit = r12.events.find((e) => e.file === 'k.txt' && e.commit === bK);
+  add('A 只加不删、B 全删 ⇒ 落 **full**（不是 inverted）⇒ 两档不许重叠',
+    !!kHit && kHit.kind === 'full' && kHit.reverted === aK,
+    kHit ? 'kind=' + kHit.kind : '没抓到');
+
+  // ⑬ **划界**（这一格是**故意收窄**的地方，不是漏网）：A **只加不删**、B 把 A 加的行全删
+  //    **并夹带自己的改动** ⇒ ⇒ 「原样倒回」**无字可原样加回** ⇒ ⇒ 与「改写重写」不可区分
+  //    ⇒ ⇒ 刻意留在 'partial'（只提示）⇒ ⇒ 改写是正常演进里最常见的一类 ⇒ ⇒ 不许判红。
+  write(TMP, 'm.txt', 'm0\n');
+  commit(git, 'm base');
+  write(TMP, 'm.txt', 'm0\nM1\n');
+  const aM = commit(git, 'A only adds M1');
+  write(TMP, 'm.txt', 'm0\nM2\n');
+  const bM = commit(git, 'B replaces M1 with M2');
+  const r13 = scanReverts(git, { rev: 'HEAD', limit: 40 });
+  const mHit = r13.events.find((e) => e.file === 'm.txt' && e.commit === bM);
+  add('划界（A 只加不删 ＋ 夹带改动）⇒ **不许**落 inverted ⇒ 留在 partial',
+    !!mHit && mHit.kind === 'partial' && !shouldFail(mHit),
+    mHit ? 'kind=' + mHit.kind + ' ｜ 判红=' + shouldFail(mHit) : '没抓到');
+
+  // ⑭ 倒回但**有声明** ⇒ ⇒ 放行（声明机制对第三档同样生效）
+  const declaredInv = Object.assign({}, invHit || {}, { message: 'Revert "A rewrites OLD into NEW1/NEW2"' });
+  add('倒回但有声明 ⇒ 放行', !!invHit && shouldFail(declaredInv) === false,
+    '判红=' + shouldFail(declaredInv));
+
+  // ⑮ 倒回但**登记在册** ⇒ ⇒ 放行（且**没有**登记时必须判红）
+  const regI = [{ commit: bInv, file: 'i.txt', why: '夹具登记' }];
+  add('倒回但登记在册 ⇒ 放行 ｜ 没登记 ⇒ 判红',
+    !!invHit && shouldFail(invHit, regI) === false && shouldFail(invHit, []) === true,
+    '登记后=' + shouldFail(invHit, regI) + ' ｜ 未登记=' + shouldFail(invHit, []));
+
   const passed = cases.filter((c) => c.ok).length;
   return { passed, total: cases.length, cases };
 }

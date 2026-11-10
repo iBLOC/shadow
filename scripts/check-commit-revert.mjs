@@ -26,6 +26,12 @@
  *       ⇒ ⇒ **没抓住** ⇒ ⇒ 而「变成空」**不等于** A^ ⇒ ⇒ **判红条件写窄了，
  *       就有一类事故从缝里掉过去** ⇒ ⇒ 这一类的破坏力**比完全回退更大**。
  *
+ *   **R1c · 倒回** —— 提交 B 把 A 的**整个增量**原样倒回（A 加的行全被删、A 删的行原字加回），
+ *     而 B **夹带了自己的改动** ⇒ ⇒ 文件因此**没有**回到 A 之前 ⇒ ⇒ R1 的判据看不见它
+ *     ⇒ ⇒ 它掉进「部分回退」的提示层 ⇒ ⇒ ⇒ **A 的整个增量被悄悄丢弃，闸却报「零静悄悄回退」**。
+ *     ⚠️ 这一类**补在 2026-11-11**：真样本 `c62f500` 把 `639a556` 的 5 行原样倒回并夹带自己的 5 行
+ *       —— 事件**真发生过**（那 5 行后来由 `605dc6a`／`869a10a` 恢复）。
+ *
  * ⚠️ **「部分回退」不判红**（它降级为提示层）—— 实测它在正常演进里极常见
  *   （改一行代码、改一行断言、重排一份词表）⇒ ⇒ 判红 ⇒ ⇒ 闸就恒红 ⇒ ⇒ 没人看。
  *
@@ -70,6 +76,13 @@ function makeGit() {
   };
 }
 
+/** 档位的中文名 —— 读数里逐字点名用（三档共用一份 ⇒ ⇒ 不会两处写岔）。 */
+function kindLabel(kind) {
+  if (kind === 'wiped') return '抹空';
+  if (kind === 'inverted') return '倒回';
+  return '完全回退';
+}
+
 function parseArgs(argv) {
   const opts = { selfTest: false, json: false, limit: 40, rev: '' };
   for (const a of argv) {
@@ -103,8 +116,8 @@ function main() {
   const res = scanReverts(git, { rev, limit: opts.limit });
   // ⚠️ **判红只给「完全回退 且 没有声明」** ⇒ ⇒ 部分回退与已声明的回退都只作提示。
   const hard = res.events.filter((e) => shouldFail(e, REGISTERED_REVERTS));
-  // ⚠️ **两类都算「硬回退」** —— 完全回退 ＋ **抹空** ⇒ ⇒ 判红与放行的分层一样。
-  const HARD_KINDS = new Set(['full', 'wiped']);
+  // ⚠️ **三档都算「硬回退」** —— 完全回退 ＋ **抹空** ＋ **倒回** ⇒ ⇒ 判红与放行的分层一样。
+  const HARD_KINDS = new Set(['full', 'wiped', 'inverted']);
   const fullDeclared = res.events.filter((e) => HARD_KINDS.has(e.kind) && declaresRevert(e.message));
   const fullRegistered = res.events.filter((e) =>
     HARD_KINDS.has(e.kind) && !declaresRevert(e.message) && isRegistered(REGISTERED_REVERTS, e.commit, e.file));
@@ -121,8 +134,9 @@ function main() {
   console.log('提交面回退闸：扫 ' + res.commits.length + ' 个提交（' + rev + ' 最近 ' + opts.limit + '）');
   const hardFull = hard.filter((e) => e.kind === 'full').length;
   const hardWiped = hard.filter((e) => e.kind === 'wiped').length;
+  const hardInv = hard.filter((e) => e.kind === 'inverted').length;
   console.log('  回退事件 ' + res.events.length + ' 处（判红：静悄悄的回退 ' + hard.length +
-    '（完全回退 ' + hardFull + ' ｜ 抹空 ' + hardWiped + '）' +
+    '（完全回退 ' + hardFull + ' ｜ 抹空 ' + hardWiped + ' ｜ 倒回 ' + hardInv + '）' +
     ' ｜ 放行：已声明 ' + fullDeclared.length +
     ' ｜ 登记在册 ' + fullRegistered.length +
     ' ｜ 提示：部分回退 ' + partial.length + '）');
@@ -130,21 +144,28 @@ function main() {
     console.log('');
     const what = e.kind === 'wiped'
       ? '静悄悄的**抹空**（把文件整个写成零字节）'
-      : '静悄悄的完全回退';
+      : e.kind === 'inverted'
+        ? '静悄悄的**倒回**（把别人的整个增量原样倒回，还夹带了自己的改动）'
+        : '静悄悄的完全回退';
     console.log('❌ [R1] ' + what + '：' + e.commit.slice(0, 7) + ' 在 ' + e.file + ' 上' +
       (e.kind === 'wiped'
         ? ' 把 ' + e.reverted.slice(0, 7) + ' 写进去的内容整个抹空了'
-        : ' 把 ' + e.reverted.slice(0, 7) + ' 的增量整个退掉了'));
+        : e.kind === 'inverted'
+          ? ' 把 ' + e.reverted.slice(0, 7) + ' 的整个增量原样倒回了（并夹带了自己的改动）'
+          : ' 把 ' + e.reverted.slice(0, 7) + ' 的增量整个退掉了'));
     console.log('    被退掉的提交：' + e.reverted);
     console.log('    退它的提交：' + e.commit);
+    if (e.kind === 'inverted' && e.lines && e.lines.length) {
+      console.log('    被倒回的行数：' + e.lines.length + ' 行（它的增量一条不剩）');
+    }
     const first = (e.message || '').split('\n')[0];
     if (first) console.log('    该提交信息首行（**没有**声明这次回退）：' + first);
   }
   for (const e of fullDeclared) {
-    console.log('  ✅ 已声明的' + (e.kind === 'wiped' ? '抹空' : '完全回退') + '（放行）：' + e.commit.slice(0, 7) + ' × ' + e.file);
+    console.log('  ✅ 已声明的' + kindLabel(e.kind) + '（放行）：' + e.commit.slice(0, 7) + ' × ' + e.file);
   }
   for (const e of fullRegistered) {
-    console.log('  📌 登记在册的' + (e.kind === 'wiped' ? '抹空' : '完全回退') + '（放行，但要说得出为什么）：' + e.commit.slice(0, 7) + ' × ' + e.file);
+    console.log('  📌 登记在册的' + kindLabel(e.kind) + '（放行，但要说得出为什么）：' + e.commit.slice(0, 7) + ' × ' + e.file);
   }
   if (partial.length) {
     console.log('');

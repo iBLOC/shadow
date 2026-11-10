@@ -4,7 +4,10 @@
  * 一个「回退事件」的描述。
  * kind:
  *   'full'     —— **完全回退**：提交 B 把文件 F 整个还原到了 A 改动之前。
- *   'partial'  —— **部分回退**：B 的 diff 删掉了 A 的 diff 刚加上的那几行。
+ *   'wiped'    —— **抹空**：提交 B 把文件 F 写成零字节。
+ *   'inverted' —— **倒回**：B 把 A 的**整个增量**原样倒回（A 加的行全被删、A 删的行原字加回），
+ *                 而 B **夹带自己的改动** ⇒ ⇒ 文件因此**没有**回到 A 之前 ⇒ ⇒ 'full' 抓不到它。
+ *   'partial'  —— **部分回退**：B 的 diff 删掉了 A 的 diff 刚加上的那几行（**只提示不判红**）。
  * A/B 是两个提交；A 是 B 的父链上**最近一次**改过 F 的提交。
  */
 
@@ -72,12 +75,39 @@ export function classifyRevert({ blobs, aDiff, bDiff }) {
   // ② 部分回退：B 删掉的行里，有 A 刚加上的行。
   const added = diffChangedLines(aDiff, '+');
   if (added.size === 0) return null;
+  const removedByA = diffChangedLines(aDiff, '-');
+  const addedByB = diffChangedLines(bDiff, '+');
   const removedByB = diffChangedLines(bDiff, '-');
   const hit = [];
   for (const line of removedByB) {
     if (added.has(line)) hit.push(line);
   }
   if (hit.length === 0) return null;
+
+  // ③ ⚠️⚠️ **倒回（inverted）** —— 「整个增量被原样倒回，而 B 还夹带了自己的改动」。
+  //
+  //   ⚠️ **它为什么从缝里掉过去了**（2026-11-11 真历史实测）：
+  //     'full' 的判据是「**整文件**回到 A 之前」（bAfter === aBefore）⇒ ⇒ 只要 B **多带一行**
+  //     自己的改动 ⇒ ⇒ bAfter 就 ≠ aBefore ⇒ ⇒ 'full' **不成立** ⇒ ⇒ 这一族掉到 'partial'
+  //     ⇒ ⇒ 而 'partial' **只提示不判红** ⇒ ⇒ ⇒ **A 的整个增量被悄悄丢弃，闸却看不见**。
+  //     真样本：`c62f500` 把 `639a556` 的 5 行原样倒回（且夹带自己的 5 行）—— 事件**真发生过**。
+  //
+  //   ⚠️ **判据形状**（逐字量出来的，不是拍的）：
+  //     hit  ＝ B 删掉的行 ∩ A 加上的行 ⇒ ⇒ 落 hit.length === added.size ⇒ ⇒ **A 加的每一行都被删了**
+  //     back ＝ A 删掉的行 ∩ B 加上的行 ⇒ ⇒ 落 back.length === removedByA.size ⇒ ⇒ **A 删的每一行都被原字加回**
+  //     两条**同时**成立 ⇒ ⇒ B 的 diff 就是 A 的 diff 的**逐行逆** ⇒ ⇒ 「倒回」**不容误认**。
+  //
+  //   ⚠️⚠️ **为什么要求 removedByA.size > 0**（这一条是**收窄**，写清楚免得日后被当成漏网）：
+  //     若 A **只加不删**（A 没删过任何行），那么「B 把 A 加的行全删了」**与「B 改写重写」不可区分**
+  //     —— 改写是**正常演进**里最常见的一类 ⇒ ⇒ 那一族**刻意留在 'partial'**（只提示）。
+  //     ⇒ ⇒ 「原样倒回」要**有东西可原样加回**才成立 ⇒ ⇒ 这一族**不是漏网，是划界**。
+  const back = [];
+  for (const line of removedByA) {
+    if (addedByB.has(line)) back.push(line);
+  }
+  if (hit.length === added.size && back.length === removedByA.size && removedByA.size > 0) {
+    return { kind: 'inverted', lines: hit };
+  }
   return { kind: 'partial', lines: hit };
 }
 
@@ -110,14 +140,19 @@ export function declaresRevert(message) {
  * ⚠️ **为什么部分回退不判红**（2026-11-09 实测出来的）：「B 删掉了 A 加上的那几行」
  *   在**正常演进**里极常见 —— 改一行代码、改一行断言、重排一份词表、下线一个入口
  *   ⇒ ⇒ 全都会命中 ⇒ ⇒ 判红 ⇒ ⇒ 闸就恒红了 ⇒ ⇒ 没人看。
- *   ⇒ ⇒ 它降为**提示层**（读数里点名，人工判读），判红只留给「整个文件回到 A 之前」。
+ *   ⇒ ⇒ 它降为**提示层**（读数里点名，人工判读），判红只留给「整个文件回到 A 之前」那一族。
+ *
+ * ⚠️ **2026-11-11 补第三档**：'inverted'（**倒回**）也判红 —— 理由与 'full' **同源**：
+ *   A 的增量**一条不剩**地没了（A 加的行全被删、A 删的行被原字加回），只是 B 多带了自己的改动
+ *   ⇒ ⇒ 于是文件**没有**回到 A 之前 ⇒ ⇒ 'full' 的判据看不见它 ⇒ ⇒ 若不单独设档，它就掉进
+ *   'partial' 的提示层 ⇒ ⇒ ⇒ **A 的整个增量被悄悄丢弃，闸却报「零静悄悄回退」**。
  */
 export function shouldFail(event, registry) {
   if (!event) return false;
-  // ⚠️ **两类都判红**：完全回退（回到 A 之前）＋ **抹空**（写成零字节）。
-  //   ⇒ ⇒ 「抹空」判红的理由与「完全回退」同源：**把别人写的东西整个抹掉了**
-  //   ⇒ ⇒ 而且破坏更大 ⇒ ⇒ 逃逸口也一样（标题行声明 ＋ 登记在册）。
-  if (event.kind !== 'full' && event.kind !== 'wiped') return false;
+  // ⚠️ **三档都判红**：完全回退（回到 A 之前）＋ **抹空**（写成零字节）＋ **倒回**（整个增量被原样倒回）。
+  //   ⇒ ⇒ 三者的破坏是**同一族**：**把别人写的东西整个抹掉了** ⇒ ⇒ 逃逸口也一样
+  //   （标题行声明 ＋ 登记在册）⇒ ⇒ ⇒ ⇒ **回退本身合法，静悄悄的回退才是病**。
+  if (event.kind !== 'full' && event.kind !== 'wiped' && event.kind !== 'inverted') return false;
   if (declaresRevert(event.message)) return false;
   if (isRegistered(registry, event.commit, event.file)) return false;
   return true;
