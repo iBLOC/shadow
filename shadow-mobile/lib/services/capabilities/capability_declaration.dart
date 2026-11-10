@@ -22,6 +22,52 @@ library;
 
 import 'capability.dart';
 
+/// **档位随消息发出去** —— 客户端把「用户给每个能力配了哪一档」告诉端脑。
+///
+/// ## 为什么这一格必须有
+///
+/// 端脑**只看得见**「这个工具存在」＋「它要哪个权限 token」
+/// ⇒ ⇒ 看不见「用户把它配成了哪一档（ask／full／off）」
+/// ⇒ ⇒ 于是「谁来按声明匹配」那条链**缺一份输入**。
+///
+/// ⚠️ **端脑知不知道用户配的档位，是两件独立的事**：
+/// - **客户端这一格**（本文件）：把档位**发出去** ⇒ ⇒ 端脑哪天认了这个
+///   字段，这份输入就在那儿了；
+/// - **端脑那一格**：认这个字段 ＋ 拿它去匹配 ⇒ ⇒ 那是端脑仓的活。
+///
+/// ⇒ ⇒ **本文件只管「发出去」这一半** ⇒ ⇒ **不越界代改端脑**。
+///
+/// ## 为什么这一格**现在**就做（而不是等端脑先加字段）
+///
+/// 端脑那个结构体上**每个字段都带 `#[serde(default)]`**
+/// ⇒ ⇒ **serde 忽略未知字段** ⇒ ⇒ 老端脑收到这个键**完全无害**
+/// ⇒ ⇒ ⇒ **不需要等端脑先改** ⇒ ⇒ 先把输入送到门口，
+/// 端脑认字段那天直接就能用 ⇒ ⇒ ⇒ 而**不是**「等端脑改完再一起做」
+/// ⇒ ⇒ ⇒ 那会让这一格**长期欠着**，而欠着的那一格**没人认领**。
+///
+/// ## 键名为什么是 snake_case
+///
+/// 这个对象被原样 `jsonEncode` 发出去
+/// ⇒ ⇒ 端脑那边认的就是 snake_case（与 `conversation_id`／
+/// `tool_call_id`／`await_tool_result` 同一条规矩）。
+const String capabilityModesKey = 'capability_modes';
+
+/// 这个能力**真实**需要的权限（普通工具 ⇒ 空）。
+///
+/// ⚠️ 用**能力 wire** 当键、用**档位 wire** 当值 ⇒ ⇒ 两边都取自
+/// 同一份落盘格式 ⇒ ⇒ 不会两处漂移。
+Map<String, String> capabilityModesPayload(
+  AuthorizationMode Function(Capability capability) modeFor, {
+  Iterable<Capability> capabilities = Capability.values,
+}) {
+  final out = <String, String>{};
+  for (final c in capabilities) {
+    out[c.wire] = modeFor(c).wire;
+  }
+  return out;
+}
+
+
 /// 参数里放声明的那个**键名**。
 ///
 /// ⚠️ 为什么要**一个固定的键**（而不是让模型塞进任意参数）：

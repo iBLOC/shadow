@@ -439,6 +439,15 @@ class ChatNotifier extends StateNotifier<ChatState> {
           // 在**同一条流**上接着说「主题已经换成靛蓝了」⇒ 用户看到的
           // 是一个回合，而不是一张沉默的卡片。
           awaitToolResult: true,
+          // ⚠️ **用户给每个能力配了哪一档**（ask／full／off）⇒ ⇒ 告诉端脑。
+          //
+          // ⚠️ 为什么这一格不能省：端脑**只看得见**「这个工具存在」＋
+          // 「它要哪个权限 token」⇒ ⇒ **看不见**「用户把它配成了哪一档」
+          // ⇒ ⇒ 「谁来按声明匹配」那条链就**缺一份输入**。
+          //
+          // ⚠️ **老端脑不认识这个字段 ⇒ 无害**（serde 忽略未知字段）
+          // ⇒ ⇒ 所以**不必等端脑先改**就能先把这半边做掉。
+          capabilityModes: capabilityModesPayload(_capabilityModeFor),
         ),
       )) {
         switch (event.type) {

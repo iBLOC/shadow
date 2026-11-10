@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../client_tools/client_tool_registry.dart';
+import '../capabilities/capability_declaration.dart';
 import '../../utils/conversation_title.dart';
 
 class SessionExport {
@@ -406,11 +407,24 @@ class SendMessageRequest {
   /// 老端脑不认识这个字段（serde 忽略未知字段 ⇒ 无害）。
   final bool awaitToolResult;
 
+  /// **这台设备给每个能力配了哪一档**（`ask`／`full`／`off`）。
+  ///
+  /// ⚠️ 为什么要有这一格：端脑**只看得见**「这个工具存在」＋
+  /// 「它要哪个权限 token」⇒ ⇒ **看不见**「用户把它配成了哪一档」
+  /// ⇒ ⇒ 「谁来按声明匹配」那条链就**缺一份输入**。
+  ///
+  /// ⚠️ **老端脑不认识这个字段 ⇒ 无害**（serde 忽略未知字段）
+  /// ⇒ ⇒ 所以客户端**不必等端脑先改**就能先把这半边做掉。
+  ///
+  /// ⚠️ 键名是 **snake_case**（与 `await_tool_result` 同一条规矩）。
+  final Map<String, String>? capabilityModes;
+
   const SendMessageRequest({
     required this.text,
     this.agent,
     this.tools,
     this.awaitToolResult = false,
+    this.capabilityModes,
   });
 
   Map<String, dynamic> toJson() => {
@@ -418,6 +432,11 @@ class SendMessageRequest {
     if (agent != null) 'agent': agent,
     if (tools != null && tools!.isNotEmpty) 'tools': tools,
     if (awaitToolResult) 'await_tool_result': true,
+    // ⚠️ 端脑认这个字段之前 ⇒ ⇒ serde 忽略未知字段 ⇒ ⇒ **无害**。
+    if (capabilityModes != null && capabilityModes!.isNotEmpty)
+      // ⚠️ **用常量，不用字面量** ⇒ ⇒ 键名只有**一个**来源
+      // ⇒ ⇒ 改名时两处必然同步 ⇒ ⇒ 不会「判据绿、实际发出去的键却漂了」。
+      capabilityModesKey: capabilityModes!,
   };
 }
 
