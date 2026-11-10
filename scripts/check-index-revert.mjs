@@ -41,7 +41,9 @@ import { existsSync, mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
-import { classifyIndexFace, ledgerSymbols, ledgerEntries, normalizeEol, LEDGER_PATHS, R1_KIND_LABEL } from './lib/index-revert.mjs';
+// ⚠️ **两把尺子不许各判各的** ⇒ ⇒ 「台账一条怎么切」从**共享文件**取（2026-11-11 抽）
+import { classifyIndexFace, R1_KIND_LABEL } from './lib/index-revert.mjs';
+import { ledgerSymbols, ledgerEntries, normalizeEol, LEDGER_PATHS } from './lib/ledger-entries.mjs';
 
 const REPO = process.cwd();
 const HISTORY_LIMIT = 60; // 每个路径往回看多少次历史改动
@@ -399,6 +401,21 @@ function selfTest() {
     const r5d = runCheck(dir);
     results.push(['工作树面段落级回退 ⇒ 出声但不判红（W2）',
       r5d.code === 0 && r5d.hints.some(h => h.code === 'W2')]);
+
+    // ⚠️ **共享那一层**（2026-11-11 抽）—— 「台账一条怎么切」必须**只有一份**
+    //   ⇒ ⇒ 两把尺子各判各的 ⇒ ⇒ 同一族两种结论 ⇒ ⇒ 那道闸就不可信。
+    //   ❶ 换行归一：同一份内容的 CRLF 版与 LF 版 ⇒ ⇒ 条目正文必须**逐字相同**
+    //   ⇒ ⇒ 不归一 ⇒ ⇒ 「这条正文 == 历史上那一版」永远不成立 ⇒ ⇒ 那一档恒不触发
+    //   ⇒ ⇒ 而且**自检抓不到它**（夹具在同一台机器上生成 ⇒ ⇒ 两个面同形）⇒ ⇒ 真形状必须在另一个面上造。
+    const eLf = ledgerEntries(ENT_A1);
+    const eCrlf = ledgerEntries(ENT_A1.split('\n').join('\r\n'));
+    results.push(['共享层：CRLF 版与 LF 版的同一条目正文逐字相同（换行归一生效）',
+      eCrlf.get('㒀') !== undefined && eCrlf.get('㒀') === eLf.get('㒀')]);
+    //   ❷ 在两条之间插一条新条目 ⇒ ⇒ **前一条的正文逐字不变**（尾部空行裁掉的效果）
+    //   ⇒ ⇒ 不裁 ⇒ ⇒ 前一条被「切短」⇒ ⇒ 假阳性 ⇒ ⇒ 而台账的惯例是**往顶上插**。
+    const eIns = ledgerEntries(ENT_A1 + ENT_C2 + ENT_NEW);
+    results.push(['共享层：插一条新条目 ⇒ ⇒ 前一条的正文逐字不变',
+      eIns.get('㒀') === eLf.get('㒀')]);
 
     const empty = mkdtempSync(join(tmpdir(), 'index-revert-empty-'));
     const r7 = runCheck(empty);

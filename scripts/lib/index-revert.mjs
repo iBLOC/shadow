@@ -48,69 +48,15 @@ export const EXEMPTIONS = [
   // { path: '…', why: '…' }
 ];
 
-/** 台账面（符号不许在暂存面里凭空消失）。 */
-export const LEDGER_PATHS = [
-  'AGENTS.md',
-  'shadow-mobile/AGENTS.md',
-  'shadow-desktop/AGENTS.md',
-];
-
-/** 一行台账条目的形状：`> 信封：` 之前的 `**Updated**: 日期 (符号 **标题**`。 */
-export function ledgerSymbols(text) {
-  const out = new Set();
-  for (const m of text.matchAll(/^\*\*Updated\*\*: \S+ \((.)\s+\*\*/gm)) out.add(m[1]);
-  return out;
-}
-
-/**
- * 换行归一（CRLF ⇒ LF）—— ⚠️ **必须归一**：
- *   Windows 上工作树是 CRLF、blob 里是 LF ⇒ ⇒ 不归一 ⇒ ⇒ 同一份内容在两个面上**逐字不等**
- *   ⇒ ⇒ 「这条正文 == 历史上那一版」的比较**永远不成立** ⇒ ⇒ R5 恒不触发（自检会抓住它）。
- */
-export function normalizeEol(text) {
-  return String(text == null ? '' : text).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-}
-
-/**
- * 台账**条目正文**（按符号分块）—— 台账不是一整块文本，它是**若干条**。
- *
- * ⚠️ **为什么要分块**：R1 抓「整文件退回旧版」、R4 抓「条目符号消失」
- *   ⇒ ⇒ 两头都漏掉**段落级**那一格：条目**还在**（符号在）、整文件**不是**旧版，
- *   而这一条的**正文**被换成了它**历史上逐字相同**的旧版。
- *
- * 形状：**条正文 ＝ 从该条的 `**Updated**:` 行到下一条的 `**Updated**:` 行**（尾部空行裁掉）**。
- * ⚠️ **尾部空行必须裁掉** ⇒ ⇒ 否则「在两条之间插一条新条目」会把**前一条**的正文切短
- *   ⇒ ⇒ 制造假阳性（台账的惯例是**往顶上插** ⇒ ⇒ 前一条的正文不受影响）。
- */
-export function ledgerEntries(text) {
-  const lines = normalizeEol(text).split('\n');
-  const starts = [];
-  for (let i = 0; i < lines.length; i++) {
-    const m = lines[i].match(/^\*\*Updated\*\*: \S+ \((.)\s+\*\*/);
-    if (m) starts.push({ sym: m[1], line: i });
-  }
-  const out = new Map();
-  for (let k = 0; k < starts.length; k++) {
-    const sym = starts[k].sym;
-    if (out.has(sym)) continue; // 同一符号出现多次 ⇒ 取第一次（先说的先得）
-    const from = starts[k].line;
-    const to = k + 1 < starts.length ? starts[k + 1].line : lines.length;
-    let end = to;
-    while (end > from && lines[end - 1].trim() === '') end--;
-    out.set(sym, lines.slice(from, end).join('\n'));
-  }
-  return out;
-}
-
-/** R5 的豁免登记（要把某条退回旧版时，必须在这里写清为什么）。 */
-export const LEDGER_ENTRY_EXEMPTIONS = [
-  // { ledger: 'AGENTS.md', symbol: '㓵', why: '…' }
-];
-
-/** R5 的豁免查表。 */
-export function isEntryExempt(ledger, symbol) {
-  return LEDGER_ENTRY_EXEMPTIONS.some(e => e && e.ledger === ledger && e.symbol === symbol);
-}
+// ⚠️ **台账「条目正文」那一层住在共享文件里**（2026-11-11 抽）——
+//   · 两把尺子判的是**同一族**（台账条目被退回旧版）⇒ ⇒ **判据不许各判各的**
+//     ⇒ ⇒ 「台账一条怎么切」必须**只有一份** ⇒ ⇒ 否则迟早漂（一个裁尾部空行、一个不裁
+//     ⇒ ⇒ ⇒ 同一族两种结论 ⇒ ⇒ 那道闸就不可信）。
+//   · 而它原来住在**这个**文件里 ⇒ ⇒ 提交面那把要接同一份判据 ⇒ ⇒ 就得动在飞面
+//     ⇒ ⇒ ⇒ **共享的东西必须住在自己的文件里** ⇒ ⇒ 与「谁在飞」无关。
+import { normalizeEol, ledgerEntries, ledgerSymbols, LEDGER_PATHS, LEDGER_ENTRY_EXEMPTIONS, isEntryExempt } from './ledger-entries.mjs';
+// 兼容层：旧路径继续能取到 ⇒ ⇒ **新代码请直接从 './ledger-entries.mjs' 取**（免得两份判据）。
+export { normalizeEol, ledgerEntries, ledgerSymbols, LEDGER_PATHS, LEDGER_ENTRY_EXEMPTIONS, isEntryExempt };
 
 /** R5 的修法（读数要能直接照着做 ⇒ ⇒ 不许只说「有回退」）。 */
 export const R5_FIX = '把它改回**新的**内容（回填），或在 `LEDGER_ENTRY_EXEMPTIONS` 里登记这一条 ＋ 写清为什么 ⇒ ⇒ **不要**把旧版正文原样放回暂存区';
