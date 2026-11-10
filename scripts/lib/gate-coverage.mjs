@@ -58,6 +58,34 @@ function mapGet(node, key) {
   }
   return null;
 }
+/**
+ * 取一个 job 的 needs（**两种写法都要认**）。
+ * ⚠️ 本仓的 YAML 扫描器把**流式**列表（needs: [a, b]）当成**标量** ⇒ ⇒
+ *    ⇒ 这里必须自己把方括号拆掉 ⇒ ⇒ 否则「哪些 job 交记录」这份名单读不出来。
+ * ⚠️ 而**块式**列表（- a）被扫成 seq ⇒ ⇒ 也要认。
+ */
+export function needsOf(jobMap) {
+  const n = mapGet(jobMap, 'needs');
+  if (!n) return [];
+  if (n.type === 'seq') {
+    const out = [];
+    for (const item of n.items || []) {
+      const node = item && item.node;
+      if (node && node.type === 'scalar') {
+        const v = String(node.value || '').trim();
+        if (v) out.push(v);
+      }
+    }
+    return out;
+  }
+  const raw = String(n.value || '').trim();
+  if (!raw) return [];
+  const inner = raw.startsWith('[') && raw.endsWith(']') ? raw.slice(1, -1) : raw;
+  return inner
+    .split(',')
+    .map((s) => s.trim().replace(/^["']|["']$/g, ''))
+    .filter(Boolean);
+}
 
 function scalarText(node) {
   if (!node) return '';
@@ -90,6 +118,7 @@ export function parseWorkflowJobs(text) {
     out.push({
       id: String(entry.key),
       name: scalarText(mapGet(jobMap, 'name')) || String(entry.key),
+      needs: needsOf(jobMap),
       steps,
     });
   }
@@ -139,6 +168,7 @@ export function classifyJob(job) {
   return {
     id: job.id,
     name: job.name,
+    needs: job.needs || [],
     gates,
     gateCount: gates.length,
     viaChannel,
@@ -195,10 +225,42 @@ export function judgeWorkflow(text, opts) {
       });
     }
   }
+  // ── C4：**汇总 job 的 needs 清单**必须**覆盖**这一盏灯里**所有**含闸的 job ──
+  // ⚠️ 「哪些 job 交记录」这份名单是**手写**的 ⇒ ⇒ 而「哪些 job 含闸」是**另一份事实**
+  //    ⇒ ⇒ 两份事实之间**没有对账** ⇒ ⇒ 漏一个 ⇒ ⇒ 那个 job 的判读记录**不会被收进来**
+  //    ⇒ ⇒ 总分母**少算** ⇒ ⇒ 「看起来很对，但少算了」＝ **最坏的一类假绿**。
+  const gateJobIds = jobs.filter((j) => j.gateCount > 0).map((j) => j.id);
+  const aggregateJobs = jobs.filter((j) => j.gateCount === 0 && j.hasTally);
+  const notes = [];
+  for (const a of aggregateJobs) {
+    const needSet = new Set(a.needs || []);
+    for (const g of gateJobIds) {
+      if (!needSet.has(g)) {
+        findings.push({
+          kind: 'tally-needs-missing-gate-job',
+          file,
+          job: a.id,
+          gate: g,
+          message:
+            'workflow「' + file + '」的汇总 job「' + a.id + '」的 needs 里**没有**含闸的 job「' + g +
+            '」⇒ ⇒ 那个 job 的判读记录**不会被收进来** ⇒ ⇒ 这一盏灯的总分母**少算**',
+        });
+      }
+    }
+    for (const n of a.needs || []) {
+      if (!gateJobIds.includes(n)) {
+        notes.push(
+          '汇总 job「' + a.id + '」的 needs 里列了不含闸的 job「' + n +
+          '」（只是多等一会儿 ⇒ ⇒ 不判红）',
+        );
+      }
+    }
+  }
   return {
     file,
     jobs,
     findings,
+    notes,
     gateCount: jobs.reduce((a, j) => a + j.gateCount, 0),
     talliedGates: jobs.reduce(
       (a, j) => a + j.gates.filter((g) => g.viaChannel).length,
@@ -265,6 +327,9 @@ export function renderCoverage(result) {
   );
   for (const f of r.findings || []) {
     lines.push('   · [' + f.kind + '] ' + f.message);
+  }
+  for (const n of r.notes || []) {
+    lines.push('   · [note] ' + n);
   }
   return lines.join('\n');
 }
@@ -405,6 +470,65 @@ function selfTest() {
       [],
     );
     return cmp.stale.length === 1 && cmp.tolerated.length === 0;
+  });
+
+  // ── C4 的四格（聚合 job 的 needs 清单 vs 哪些 job 含闸）─────────────────
+  const wfAgg = [
+    'jobs:',
+    '  a:',
+    '    runs-on: ubuntu-latest',
+    '    steps:',
+    '      - name: sink',
+    '        run: echo "GATE_RESULT_FILE=$RUNNER_TEMP/g.ndjson" >> "$GITHUB_ENV"',
+    '      - name: gate',
+    '        run: node scripts/run-gate-once.mjs --strict scripts/check-foo.mjs',
+    '      - name: tally',
+    '        run: node scripts/lib/gate-tally.mjs --report',
+    '  b:',
+    '    runs-on: ubuntu-latest',
+    '    steps:',
+    '      - name: sink',
+    '        run: echo "GATE_RESULT_FILE=$RUNNER_TEMP/g.ndjson" >> "$GITHUB_ENV"',
+    '      - name: gate2',
+    '        run: node scripts/run-gate-once.mjs --strict scripts/check-bar.mjs',
+    '      - name: tally',
+    '        run: node scripts/lib/gate-tally.mjs --report',
+    '  agg:',
+    '    needs: [a, b]',
+    '    runs-on: ubuntu-latest',
+    '    steps:',
+    '      - name: sink',
+    '        run: echo "GATE_RESULT_FILE=$RUNNER_TEMP/g.ndjson" >> "$GITHUB_ENV"',
+    '      - name: tally',
+    '        run: node scripts/lib/gate-tally.mjs --report',
+    '',
+  ].join('\n');
+
+  add('C4 孪生：汇总 job 的 needs 覆盖**全部**含闸 job ⇒ ⇒ 零缺口', () => {
+    const res = judgeWorkflow(wfAgg, { file: 't.yml' });
+    return res.findings.length === 0;
+  });
+
+  add('C4：汇总 job 的 needs **漏了**一个含闸 job ⇒ ⇒ 恰好红（总分母会少算）', () => {
+    const bad = wfAgg.replace('needs: [a, b]', 'needs: [a]');
+    const res = judgeWorkflow(bad, { file: 't.yml' });
+    return (
+      res.findings.length === 1 &&
+      res.findings[0].kind === 'tally-needs-missing-gate-job' &&
+      res.findings[0].gate === 'b'
+    );
+  });
+
+  add('C4 孪生：needs 多列一个不含闸的 job ⇒ ⇒ **不红**（只是多等一会儿 ⇒ ⇒ 只出声）', () => {
+    const st = wfAgg.replace('needs: [a, b]', 'needs: [a, b, zzz]');
+    const res = judgeWorkflow(st, { file: 't.yml' });
+    return res.findings.length === 0 && (res.notes || []).length === 1;
+  });
+
+  add('C4 孪生：含闸 job 自己也有汇总步（它**不是**汇总 job）⇒ ⇒ C4 不适用', () => {
+    const st = wfAgg.split('  agg:')[0];
+    const res = judgeWorkflow(st, { file: 't.yml' });
+    return res.findings.filter((f) => f.kind === 'tally-needs-missing-gate-job').length === 0;
   });
 
   add('严格名单（主 CI 那几盏灯）⇒ ⇒ **不留例外** ⇒ ⇒ 缺口一律红', () => {
