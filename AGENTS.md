@@ -102,7 +102,7 @@
 
 **Updated**: 2026-11-11 (㔇 **「治理闸在共享工作树上分不清『闸真坏了』与『正在改』——self-test 红不问源码在不在飞，就把改到一半判成死罪」** —— 承兄弟会话回执（commit-revert 第四档三文件在飞 ⇒ self-test 17/20 ⇒ 治理闸逐字报「闸自己坏了＋debt-missing」）＋ U+3504 条（判红条件要按【被测物的那一层】写）＋ U+3500 条（「失败长得像成功」），本条记**取证（改前基线与归属）**、**拍板与边界**、**这一刀的落点**、**途中那几课**、**判据与分级读数**，以及**仍然欠着的**.)
 
-> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=共享工作树真实读数（治理闸全量 60 道，改前基线恰 2 条红逐字＝state-surface broken ＋ debt-missing，归属＝**被量物 AGENTS.md 在飞**而非闸坏）＋ 判据自检 28/28 ＋ worktree 夹具四格（.local/gd-probe @1bf2e27）＋ 12 面码位扫描（12/12 可读，最高 U+3506，U+3507 decl=0/men=0，取样 2026-11-10T15:39:17Z @5516bcc）｜ 改动：scripts/lib/gate-discipline.mjs（classifyGate 在飞档 ＋ localImportSpecifiers 纯函数）＋ scripts/check-gate-discipline.mjs（闭包收集 ＋ git 差异 ＋ main 接线 ＋ 自检 22→28）⇒ ⇒ **2 个文件** ⇒ ⇒ 零新增文件 ＋ 零新增依赖 ＋ 零 ci.yml 改动 ＋ 不碰兄弟在飞面 ｜ 读数：判据级 28/28 EXIT=0 ｜ 闸级（共享工作树面）改后与改前**逐行一致**（2 条红照判 ⇒ 零误豁免）｜ 夹具级：正例逐字「⚠ 闸「legacy-residue」的 --self-test 退出码 1 ⇒ ⇒ 但该闸源码正在飞（scripts/check-legacy-residue.mjs）⇒ ⇒ 分不清「真坏」与「正在改」⇒ ⇒ 不判红」｜ 真 CI 待取 | status=active | supersedes=none
+> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=共享工作树真实读数（治理闸全量 60 道，改前基线恰 2 条红逐字＝state-surface broken ＋ debt-missing，归属＝**被量物 AGENTS.md 在飞**而非闸坏）＋ 判据自检 28/28 ＋ worktree 夹具四格（.local/gd-probe @1bf2e27）＋ 12 面码位扫描（12/12 可读，最高 U+3506，U+3507 decl=0/men=0，取样 2026-11-10T15:39:17Z @5516bcc）｜ 改动：scripts/lib/gate-discipline.mjs（classifyGate 在飞档 ＋ localImportSpecifiers 纯函数）＋ scripts/check-gate-discipline.mjs（闭包收集 ＋ git 差异 ＋ main 接线 ＋ 自检 22→28）⇒ ⇒ **2 个文件** ⇒ ⇒ 零新增文件 ＋ 零新增依赖 ＋ 零 ci.yml 改动 ＋ 不碰兄弟在飞面 ｜ 读数：判据级 28/28 EXIT=0 ｜ 闸级（共享工作树面）改后与改前**逐行一致**（2 条红照判 ⇒ 零误豁免）｜ 夹具级：正例逐字「⚠ 闸「legacy-residue」的 --self-test 退出码 1 ⇒ ⇒ 但该闸源码正在飞（scripts/check-legacy-residue.mjs）⇒ ⇒ 分不清「真坏」与「正在改」⇒ ⇒ 不判红」｜ 真 CI（@e3ab60a，run 42847792221／job 129941746897）：治理闸自身 **success**（step 27 Gate discipline check ＋ step 28 self-test ⇒ 新版在真 CI 干净检出面首跑即绿）；24 道 workflow 全绿；主 CI 三盏红全数归属既存欠账（Neuron ownership 逐字 10 ✗＝hippocampus 7＋N14×3，与本刀零关） | status=active | supersedes=none
 
 ① **⚠️ 取证：治理闸量的是工作树面，而工作树面上「闸红」有三个完全不同的来源**
 　❶ 兄弟会话实测（回执逐字）：我上一刀的 commit-revert 三文件在飞（+55/−3 等）⇒ ⇒ 它的 --self-test 17/20（中间态）⇒ ⇒ 治理闸判 red「self-test-broken ＋ debt-missing」⇒ ⇒ **那不是「闸坏了」，是「正在改」**。
@@ -134,7 +134,7 @@
 　❶ **被量物在飞那族只证了归属、没做「标注」** —— state-surface 那 2 条红在 AGENTS.md 落账前会一直挂着（提示性质，正确）；要不要在治理闸里给「被量物在飞」一格显式标注，留待真需要时再做（登记表方案）。
 　❷ **TIMEOUT 那格**（④❸）归治理闸线欠账；**门闸在异布局下「判不了」退出 1 而非 2**（door-policy 9/10 那格红）归门闸线。
 　❸ **暂存面（index-revert）的条目级档还没接**（兄弟在飞 ⇒ 不碰）⇒ 「判据不许各判各的」在那一档仍未闭合。
-　❹ **真 CI 读数**：本刀在真 CI 上的读数待取（push 后按 sha 对治理闸 job 取）。
+　❹ **真 CI 读数已取**（@e3ab60a）：治理闸自身在真 CI 上 **success**（Legacy residue cross-repo job 129941746897 step 27「Gate discipline check」（--scope=wired）＋ step 28「self-test」⇒ **新版在真 CI 干净检出面上首跑即绿**——「在飞」档在提交树面无事可做（那里没有在飞）⇒ 零行为差异正是预期）；Ledger codepoints／Ledger Take Discipline／Unwired Gates／Commit Revert／Gate Tally Coverage 等 **24 道 workflow 全绿**；主 CI（run 42847792221）三盏红（Desktop Build step 16／Brain gates step 8／总分母跟随）step 级归属逐字＝**Neuron ownership check 一格**，违规明细逐字 10 ✗（N1 hippocampus-server lib.rs ×1｜N5／N10／N13 hippocampus 两 Cargo.toml 各 ×2｜N14 telencephalon_http.rs ×1＋boot.rs ×2）⇒ **全数既存欠账、本刀零新增红**（判读汇总红＝跟随该红）。
 　❺ probe／sim 清理场留在 .local（gitignored，对闸不可见）。
 
 
