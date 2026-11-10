@@ -49,7 +49,7 @@ import { execFileSync } from 'node:child_process';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
-import { findViolations, findCollisions, extractEntries, findReferenceIssues, occupiedMap, hex4, canonicalSet, setDigest, collisionIdentities, fingerprintIdentities, identityDigest } from './lib/ledger-codepoints.mjs';
+import { findViolations, findCollisions, extractEntries, findReferenceIssues, occupiedMap, hex4, canonicalSet, setDigest, collisionIdentities, fingerprintIdentities, identityDigest, danglingRefKeys, sameKeyMultiset } from './lib/ledger-codepoints.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..');
@@ -451,6 +451,26 @@ function selfTest() {
   const listNo = ['# L', '', headReal(G_32FF, '32FF', G_32FF), '① 判定表第 ② 条原则（② 不是条目标记 ⇒ 不是引用）。'].join('\n');
   const rl = checkLedgers([{ name: 'A', text: listNo }], { exempt: [] });
   check('「第 ② 条」这类**表项序号** ⇒ 不误报（零违规）', rl.out.length === 0, JSON.stringify(rl.out));
+
+  // ⚠️⚠️ **负控腿的「相对原始读数」断言**（2026-11-11 落刀）——
+  //   原版是**绝对**断言（「一行 dangling 都不许有」）⇒ ⇒ 被测物**带真缺陷**时它恒假
+  //   ⇒ ⇒ 红的不是注入、是**存量** ⇒ ⇒ 而 CI 的步骤顺序是「演练先跑、主判定后跑」
+  //   ⇒ ⇒ **主判定被 skipped** ⇒ ⇒ 那批真缺陷**在 CI 上从没被判过**
+  //   （活例：run 42854031828 第 5 步演练 failure、第 6 步主判定 skipped）。
+  // ⇒ ⇒ 现在改成：**注入没有新增**悬空引用 ⇒ ⇒ 存量归存量、伤害归伤害。
+  const dgMix = ['❌ [dangling-reference] 父仓 第 9872 行：引用「䶿 条」指向 U+4DBF，…', '❌ [dup-codepoint] 乙行'];
+  const dgShift = ['❌ [dangling-reference] 父仓 第 9874 行：引用「䶿 条」指向 U+4DBF，…', '❌ [dup-codepoint] 乙行'];
+  const dgExtra = dgMix.concat(['❌ [dangling-reference] 父仓 第 9872 行：引用「䶿 条」指向 U+4DBF，…']);
+  check('danglingRefKeys 只挑「悬空引用」那些行、且键是**码位**（其余不动）',
+    danglingRefKeys(dgMix).length === 1 && danglingRefKeys(dgMix)[0] === 'U+4DBF',
+    JSON.stringify(danglingRefKeys(dgMix)));
+  check('**行号漂移**（注入条目插在顶部）⇒ ⇒ 键不变 ⇒ ⇒ 相对断言仍成立',
+    sameKeyMultiset(danglingRefKeys(dgMix), danglingRefKeys(dgShift)) === true);
+  check('注入**多出一条**悬空引用 ⇒ 相对断言必须红（尺子仍咬得住新伤害）',
+    sameKeyMultiset(danglingRefKeys(dgMix), danglingRefKeys(dgExtra)) === false);
+  check('存量带真缺陷时：**绝对断言恒假**、**相对断言成立** ⇒ ⇒ 这就是「演练被存量污染」的机制',
+    (!dgMix.some((l) => l.includes('dangling-reference')) === false
+      && sameKeyMultiset(danglingRefKeys(dgMix), danglingRefKeys(dgMix)) === true));
   const amb = ['# L', '', headReal(G_32FF, '32FF', G_32FF), '① 承 ' + G_32FF + ' 条 那条。', headReal(G_32FF, '32FF', G_32FF)].join('\n');
   const ra = checkLedgers([{ name: 'A', text: amb }], { exempt: ['32FF'], debt: { items: [] } });
   check('引用指向**撞号**码位 ⇒ 只警告（ambiguous-reference）、不红',
@@ -632,7 +652,7 @@ function drill() {
   const idWashStillRed = idWash.out.some((l) => l.includes('32F1') && l.includes('identity-mismatch'));
 
   // ⚠️⚠️⚠️ **R6 演练腿（真实数据）** —— 往副本里注入一处**指向不存在码位**的引用
-  // ⇒ ⇒ 必须红（尺子咬住）；再注入「第 ② 条」⇒ ⇒ **仍不许红**（不许误报）。
+  // ⇒ ⇒ 必须红（尺子咬住）；再注入「第 ② 条」⇒ ⇒ **不许新增悬空引用**（不许误报｜相对原始读数）。
   // ⚠️ 注入用的两个码位**现场算**：一个当注入条目的标记，一个当被引用的目标 ——
   //   ⚠️ 两者必须**不同** ⇒ ⇒ 否则那处引用会被注入条目自己接住 ⇒ ⇒ 测不到悬空。
   const freeCps = (() => {
@@ -660,7 +680,15 @@ function drill() {
     const injectNum = '**Updated**: 2026-11-05 (' + gEntry + ' **注入的序号** —— 本条占 U+' + freeCps[0] + '（' + gEntry + '）。)\n① 判定表第 ② 条原则。\n';
     writeFileSync(copy, injectNum + original);
     const refFp = checkAll(readFileSync(copy, 'utf8'));
-    refNoFalsePositive = !refFp.out.some((l) => l.includes('dangling-reference'));
+    // ⚠️⚠️ **断言必须相对「原始读数」**（2026-11-11 实测踩到）：原版是**绝对**断言
+    //   （「一行 dangling 都不许有」）⇒ ⇒ 被测物**带真缺陷**时它恒假 ⇒ ⇒ 红的不是
+    //   注入、是**存量** ⇒ ⇒ 而 CI 的步骤顺序是「演练先跑、主判定后跑」⇒ ⇒
+    //   **主判定被 skipped** ⇒ ⇒ 那批真缺陷**在 CI 上从没被判过**
+    //   （活例：run 42854031828 @5a85a9f —— 第 5 步演练 failure、第 6 步主判定 skipped）。
+    // ⇒ ⇒ 改成：**注入没有新增**悬空引用 ⇒ ⇒ 存量归存量、伤害归伤害。
+    // ⇒ ⇒ 键取**码位**（悬空引用的语义身份）⇒ ⇒ **行号漂移不影响比较**
+    //   （注入条目插在文件顶部 ⇒ 同一条缺陷两次读数行号不同 ⇒ ⇒ 逐字比必失配）。
+    refNoFalsePositive = sameKeyMultiset(danglingRefKeys(refFp.out), danglingRefKeys(origRed.out));
     writeFileSync(copy, original);
   }
   rmSync(dir, { recursive: true, force: true });
@@ -688,7 +716,7 @@ function drill() {
   console.log('  基线码位被**另一个条目**占用（U+32F1）⇒ 判红（旧版码位级豁免会绿）：' + (idRedOk ? '是' : '否'));
   console.log('  同一情形 ＋ 往说明清单补一行 ⇒ **仍判红**：' + (idWashStillRed ? '是' : '否'));
   console.log('  注入**悬空引用**（指向不存在的码位）⇒ 判红：' + (refRedOk ? '是' : '否'));
-  console.log('  同一注入改成「第 ② 条」⇒ **不许红**（不许误报）：' + (refNoFalsePositive ? '是' : '否'));
+  console.log('  同一注入改成「第 ② 条」⇒ **不许新增悬空引用**（不许误报｜相对原始读数）：' + (refNoFalsePositive ? '是' : '否'));
   console.log('  真文件 SHA256 前后一致：' + (before === after ? '是' : '否') + ' (' + before.slice(0, 16) + '…)');
   return ok;
 }

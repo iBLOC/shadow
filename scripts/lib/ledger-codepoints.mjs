@@ -436,3 +436,58 @@ export  function findReferenceIssues(ledgers, markerUniverse) {
   }
   return { dangling, ambiguous, occupied };
 }
+
+/**
+ * **R6 违规的「语义键」** —— 从一批闸输出里挑出「悬空引用」那些行，并给每行一个
+ * **与行号无关**的键（悬空的那个**码位**）。
+ *
+ * ⚠️ **为什么不能逐字比那些行**（2026-11-11 实测踩到）：闸的违规行里嵌了**行号**
+ *   （「父仓 第 9872 行：…」）⇒ ⇒ 而演练的注入条目会**插在文件顶部** ⇒ ⇒ 同一处
+ *   缺陷在两次读数里**行号不同** ⇒ ⇒ 逐字比 ⇒ ⇒ 「没新增」被误判成「变了」⇒ ⇒
+ *   负控腿**恒红** ⇒ ⇒ **改对了也不绿**（这就是第一版修法失败的原因）。
+ * ⇒ ⇒ 键取**码位**（悬空引用的语义身份）⇒ ⇒ 行号漂移不影响比较。
+ * ⇒ ⇒ ⚠️ **实现刻意不用正则**（下面手写十六进制扫描）⇒ ⇒ 因为落盘链路
+ *   （模板字面量 → 脚本字面量 → 文件）会**吃掉反斜杠**：一次转义变成两个字符里的
+ *   一个 ⇒ ⇒ 正则里的「U 加号」变成「U 加号」但**加号不再是转义** ⇒ ⇒ 匹配永不
+ *   成立 ⇒ ⇒ 键全部退化成兜底串 ⇒ ⇒ **改对了也不绿**（第二版失败的原因）。
+ *   ⇒ ⇒ **凡是落盘文本里带反斜杠的，必须先验一遍落盘后的逐字形态**。
+ * ⇒ ⇒ 兜底：消息里取不到码位时 ⇒ ⇒ 键取整行 ⇒ ⇒ 消息格式变了会**显红**，
+ *   不会静默放过。
+ */
+export function danglingRefKeys(out) {
+  const HEX = '0123456789ABCDEFabcdef';
+  const keys = [];
+  for (const l of out || []) {
+    const s = String(l);
+    if (!s.includes('dangling-reference')) continue;
+    const at = s.indexOf('指向 U+');
+    let key = null;
+    if (at >= 0) {
+      let j = at + 5;
+      let hex = '';
+      while (j < s.length && HEX.includes(s[j])) { hex += s[j]; j++; }
+      if (hex.length >= 4) key = 'U+' + hex;
+    }
+    keys.push(key || ('NO-CODE:' + s));
+  }
+  return keys;
+}
+
+/**
+ * 两组**语义键**是否**逐键同多重集**（顺序无关）。
+ *
+ * ⚠️ 为什么不能用「长度相同」或「逐位相同」：
+ *   · 长度相同 ⇒ ⇒ 一红一换照样绿 ⇒ ⇒ 假绿；
+ *   · 逐位相同 ⇒ ⇒ 顺序一变就红 ⇒ ⇒ 假红。
+ */
+export function sameKeyMultiset(a, b) {
+  const bag = (arr) => {
+    const m = new Map();
+    for (const k of arr || []) m.set(k, (m.get(k) || 0) + 1);
+    return m;
+  };
+  const A = bag(a), B = bag(b);
+  if (A.size !== B.size) return false;
+  for (const [k, n] of A) if (B.get(k) !== n) return false;
+  return true;
+}
