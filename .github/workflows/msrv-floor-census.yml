@@ -1,0 +1,71 @@
+name: MSRV Floor Census
+
+# ⚠️ **它守的是什么** —— 「**地板的真红灯在 CI 上被整瀚绿灯吞掉了**」这一族。
+#
+#   2026-11-11 实测：地板门（scripts/check-msrv-floor.mjs）在 CI 上**判不了**（没带 --manifest-path
+#   ⇒ ⇒ 在 shadow 仓根向上找 Cargo.toml ⇒ ⇒ 仓根没有 ⇒ ⇒ 退出码 2）；
+#   而**本仓内的桌面端**（shadow-desktop/src-tauri）图级就是「VERDICT: FAIL (7 项)」
+#   （generator 0.8.12 / sysinfo 0.39.6 / windows-* 0.100.0 全要 1.95）
+#   ⇒ ⇒ **那瀟红灯从来没有人看见过**。
+#
+# ⚠️ **为什么只报不判红**：口径（抬到 1.94.1 / 1.95 / 钉回 / 分仓自报）**待主人拍板**
+#   ⇒ ⇒ 口径未定就让 CI 红 ⇒ ⇒ 那不是「判据更严了」，是「尺子先于主人」。
+#   ⇒ ⇒ 但「只报」不等于「看不见」：它逐仓打印结论 ＋ 落 step summary ＋ 打一行机器可读汇总。
+#   ⇒ ⇒ `--strict` 留给「口径定之后」打开。
+#
+# ⚠️ **为什么单独成文件**：ci.yml 是共享文件（并行会话在飞）⇒ ⇒ 独立成文件 ⇒ ⇒ 接线面**零共享**。
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  msrv-floor-census:
+    name: MSRV Floor Census
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      # ⚠️⚠️ **secrets 不能直接用在 step 的 `if:` 里**（平台限制，2026-11-11 真 CI 实测）
+      #    ⇒ ⇒ 那个写法会让**整个 workflow 文件被拒绝加载**⇒ ⇒ 不是写法好看，而是整个文件不生效
+      #    ⇒ ⇒ 修法：把 secret 映射到**作业级 env** ⇒ ⇒ `if:` 只引用 env 上下文。
+      IBLOC_TOKEN: ${{ secrets.IBLOC_TOKEN }}
+    steps:
+      # ⚠️ 本仓检在 `shadow/` ⇒ ⇒ 兄弟仓在**工作区根** ⇒ ⇒ 相对 shadow/ 就是 `../<name>`
+      #    ⇒ ⇒ 与本机布局（C:\Projects\iBLOC\shadow）**同构** ⇒ ⇒ 普查脚本的发现面才能对上。
+      - name: Checkout shadow
+        uses: actions/checkout@v7
+        with:
+          path: shadow
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      # ⚠️ **检出清单只有这一份**（composite action）⇒ ⇒ 与其它 workflow 不会漂。
+      #    ⚠️ token 缺失时**整步跳过**（composite 自己会硬失败）⇒ ⇒ 那一格是「判不了」而不是「红」
+      #    ⇒ ⇒ 普查仍会跑（本仓的两个 manifest 照常判）。
+      - name: Checkout the iBLOC stack
+        if: ${{ env.IBLOC_TOKEN != '' }}
+        uses: ./shadow/.github/actions/ibloc-siblings
+        with:
+          token: ${{ env.IBLOC_TOKEN }}
+
+      # ⚠️ 普查本体（只报不判红）—— 逐仓走地板门并把结论列出来。
+      - name: MSRV floor census (report-only)
+        working-directory: shadow
+        run: node scripts/census-msrv-floor.mjs
+
+      # ⚠️ 普查脚本自己的自检（证明它**会**认得出红线与「判不了」）。
+      - name: MSRV census self-test
+        working-directory: shadow
+        run: node scripts/census-msrv-floor.mjs --self-test
