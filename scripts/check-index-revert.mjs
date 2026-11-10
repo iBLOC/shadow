@@ -103,12 +103,19 @@ function parseRaw(text) {
 export function runCheck(cwd = REPO) {
   const inside = gitTry(['rev-parse', '--git-dir'], cwd);
   if (!inside.ok) return { code: 2, reason: '不是 git 仓（git rev-parse 失败）' };
-  const head = gitTry(['rev-parse', '--verify', 'HEAD'], cwd);
+  // ⚠️ **所有 git 调用一律以「仓根」为基准**（2026-11-11 实测补）—— 否则两套系统对
+  //   「路径」的相对基准**不一样**：`git diff --cached --raw` 给的路径相对**仓根**，
+  //   而 `git log -- <path>` 的 pathspec 与 `git hash-object -- <路径>` 相对 **cwd**
+  //   ⇒ ⇒ 在子目录里跑 ⇒ ⇒ pathspec 落空 ＋ 工作树读不到 ⇒ ⇒ **尺子量的不是同一个东西**。
+  //   ⇒ ⇒ 通用形态：**同一个路径形状，两套系统认得不一样 ⇒ ⇒ 读之前把基准归一**。
+  const top = gitTry(['rev-parse', '--show-toplevel'], cwd);
+  const root = top.ok && top.out.trim() ? top.out.trim() : cwd;
+  const head = gitTry(['rev-parse', '--verify', 'HEAD'], root);
   if (!head.ok) return { code: 2, reason: '读不到 HEAD（空仓？）' };
   // ⚠️ `--no-abbrev` 是硬需求 —— 默认的 `--raw` 给的是**缩写 hash**（8 位）
   //    ⇒ ⇒ 与 `cat-file --batch-check` 给的**全长 hash**（40 位）比不上
   //    ⇒ ⇒ R1 永远匹配不上（自检实测：改成缩写 hash 那版 ⇒ ⇒ R1 恒不触发）。
-  const diff = gitTry(['diff', '--cached', '--raw', '--no-abbrev', 'HEAD'], cwd);
+  const diff = gitTry(['diff', '--cached', '--raw', '--no-abbrev', 'HEAD'], root);
   if (!diff.ok) return { code: 2, reason: '读不到暂存面（git diff --cached 失败）' };
   const rows = parseRaw(diff.out);
   if (!rows.length) {
@@ -125,13 +132,13 @@ export function runCheck(cwd = REPO) {
   const queries = [];
   const revsByPath = new Map();
   for (const row of changed) {
-    const lg = gitTry(['log', '--format=%H', '-n', String(HISTORY_LIMIT), '--', row.path], cwd);
+    const lg = gitTry(['log', '--format=%H', '-n', String(HISTORY_LIMIT), '--', row.path], root);
     if (!lg.ok) continue;
     const revs = lg.out.trim().split('\n').filter(Boolean);
     revsByPath.set(row.path, revs);
     for (const rev of revs) queries.push(rev + ':' + row.path);
   }
-  const resolved = resolveBlobs(cwd, queries);
+  const resolved = resolveBlobs(root, queries);
   const oldCommitFor = (path, blob) => {
     const revs = revsByPath.get(path) || [];
     for (const rev of revs) {
@@ -142,9 +149,9 @@ export function runCheck(cwd = REPO) {
   const headLedgerSymbols = {};
   const indexLedgerSymbols = {};
   for (const p of LEDGER_PATHS) {
-    const h = gitTry(['show', 'HEAD:' + p], cwd);
+    const h = gitTry(['show', 'HEAD:' + p], root);
     if (h.ok) headLedgerSymbols[p] = [...ledgerSymbols(h.out)];
-    const i = gitTry(['show', ':' + p], cwd);
+    const i = gitTry(['show', ':' + p], root);
     if (i.ok) indexLedgerSymbols[p] = [...ledgerSymbols(i.out)];
   }
   // ⚠️ **工作树面只作定性交叉**（2026-11-11 真机实测补）—— R1 说得出「索引面是旧版」，
@@ -153,9 +160,10 @@ export function runCheck(cwd = REPO) {
   //   · 工作树 == 索引那份 ⇒ ⇒ 有人在工作树里把旧版写了回来 ⇒ ⇒ 需要人确认意图；
   //   · 工作树是第三种内容 ⇒ ⇒ 意图判不了。
   //   ⇒ ⇒ **判红不放松**（危害一样）⇒ ⇒ 但**归因**必须分档 ⇒ ⇒ 否则读数会把人指向不存在的人。
+  // ⚠️ **工作树那一面也必须以仓根为基准**（见上面那段：pathspec 相对 cwd，工作树读也相对 cwd）。
   const worktreeBlob = new Map();
   for (const row of changed) {
-    const w = gitTry(['hash-object', '--', row.path], cwd);
+    const w = gitTry(['hash-object', '--', row.path], root);
     if (w.ok && w.out.trim()) worktreeBlob.set(row.path, w.out.trim());
   }
   const { violations, hints } = classifyIndexFace(rows, {
@@ -208,6 +216,15 @@ function selfTest() {
     results.push(['过期暂存 ⇒ 仍然红（危害一样）', r2b.code === 1 && r2b.violations.length === 1]);
     results.push(['过期暂存 ⇒ 归因档位＝stale（不许说成「有人在回退内容」）',
       !!r2b.violations[0] && r2b.violations[0].kind === 'stale']);
+
+    // ⚠️ **路径基准那族**（2026-11-11 实测补）：**在子目录里跑** ⇒ ⇒
+    //   `git diff --cached --raw` 的路径相对**仓根**，`git hash-object -- <路径>` 相对 **cwd**
+    //   ⇒ ⇒ 不归一 ⇒ ⇒ 读不到工作树那一面 ⇒ ⇒ 归因档位会错成「工作树里读不到」
+    //   ⇒ ⇒ 修法：工作树那一面一律以**仓根**为基准读 ⇒ ⇒ 这一格钉住它。
+    mkdirSync(join(dir, 'sub'), { recursive: true });
+    const r2c = runCheck(join(dir, 'sub'));
+    results.push(['在子目录里跑 ⇒ 归因档位仍是 stale（路径基准必须归一到仓根）',
+      r2c.code === 1 && !!r2c.violations[0] && r2c.violations[0].kind === 'stale']);
 
     g(['reset', '-q', '--hard', 'HEAD']);
     g(['rm', '-q', '--cached', 'scripts/check-x.mjs']);
