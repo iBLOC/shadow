@@ -45,12 +45,14 @@
  *
  *   node scripts/check-ledger-codepoint-take.mjs            # 判定（三个面）
  *   node scripts/check-ledger-codepoint-take.mjs --self-test # 自检（正控＋反向注入）
+ *   node scripts/check-ledger-codepoint-take.mjs --next     # 「下一枚可用码位」的候选（占用源＝官方口径）
  */
+import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { findTakeViolations, violationIdentity, canonicalViolations, entriesOfCommit, declaredCodepoints, selfTest, semanticExemption } from './lib/ledger-codepoint-take.mjs';
+import { findTakeViolations, violationIdentity, canonicalViolations, entriesOfCommit, declaredCodepoints, nextCandidates, selfTest, semanticExemption } from './lib/ledger-codepoint-take.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..');
@@ -248,6 +250,37 @@ function baselineSet() {
 }
 
 function main() {
+  // ⚠️ `--next`：**只**给出「下一枚可用码位」的候选 ⇒ ⇒ 不跑基线（那一格要读全历史，慢）。
+  //   ⚠️ 占用源＝**官方口径**（标题方块字 ＋ 正文「本条占」）⇒ ⇒ 与占用表同源。
+  //   ⚠️ **三个面各算各的** ⇒ ⇒ 工作树面含未提交条目、索引面含未提交的暂存
+  //     ⇒ ⇒ **落笔以「提交树面」为准**（实测：工作树面曾给出「U+3507 空闲」，
+  //     而那一枚在提交树面**已被占** ⇒ ⇒ 差一格就是撞号）。
+  if (process.argv.includes('--next')) {
+    const faces = [
+      { name: '工作树', read: (rel) => readFileSync(join(REPO, rel), 'utf8') },
+      { name: '索引', read: (rel) => git(['show', ':' + rel]) },
+      { name: '提交树', read: (rel) => git(['show', 'HEAD:' + rel]) },
+    ];
+    let sha = '(判不了)';
+    try { sha = git(['rev-parse', 'HEAD']).trim(); } catch { sha = '(判不了)'; }
+    console.log('下一枚可用码位 —— 占用源＝官方口径（**标题方块字** ＋ 正文「本条占」）');
+    console.log('取样时刻 ' + new Date().toISOString() + ' ｜ HEAD ' + sha.slice(0, 8) + ' ｜ 三个面各算各的 ⇒ ⇒ **落笔以「提交树面」为准**');
+    for (const f of faces) {
+      const spaces = LEDGERS.map((l) => {
+        let text = '';
+        try { text = f.read(l.rel); } catch { text = ''; }
+        return { name: l.space, text };
+      });
+      const r = nextCandidates(spaces, { limit: 8 });
+      console.log('  ── ' + f.name + '面');
+      for (const l of LEDGERS) {
+        const v = r[l.space];
+        console.log('     ' + l.name + '（' + l.space + '）⇒ 水位 U+' + v.maxDeclared + ' ⇒ 候选 ' + v.candidates.map((c) => 'U+' + c).join(' ／ '));
+      }
+    }
+    console.log('⚠️ 候选是**逐 space** 的 ⇒ ⇒ 跨 space 仍可能撞号（那由 R1「dup-codepoint」兜底 ⇒ ⇒ 撞了会红，不是静默）。');
+    return 0;
+  }
   // ⚠️ 基线违例集（豁免权的出处）⇒ ⇒ **主判定与演练共用这一处实现**。
   const base = baselineSet();
   if (base.error) {

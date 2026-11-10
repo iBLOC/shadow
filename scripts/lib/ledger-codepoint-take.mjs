@@ -293,6 +293,68 @@ export function reservedCodepoints(text, opts = {}) {
 }
 
 
+/* ------------------------------ 候选枚举 ------------------------------ */
+
+/**
+ * 「**下一枚可用码位**」的候选枚举。
+ *
+ * ⚠️⚠️ **占用源必须与官方占用表一致** —— 官方两处实现
+ *   （`ledger-codepoints.mjs` 的 `e.actual` ＝ **标题方块字的真实码位**、
+ *    本文件的 `declaredCodepoints` ＝ **标题字形 ＋ 正文「本条占」**）
+ *   都以**标题方块字**为权威 ⇒ ⇒ 而只认「正文里的『本条占』句」的那份口径
+ *   **漏掉绝大多数占用**（2026-11-11 实测：父仓 HEAD 394 条条目里差 **258** 条）
+ *   ⇒ ⇒ 按那份口径推出来的「下一枚」**可能撞上已被占用的号**。
+ *
+ * ⚠️ **规则三条**（与纪律逐条对齐）：
+ *   ❶ **不填历史空洞** ⇒ ⇒ 候选从「该 space 此刻的最高已声明 + 1」起 ⇒ ⇒
+ *      低于水位的空号**一律不作为候选**（哪怕它现在真的空着）。
+ *   ❷ **不撞已占** ⇒ ⇒ 跨三本账本合并占用表（三本**共用一条码位序列**）。
+ *   ❸ **不撞让开位** ⇒ ⇒ 别人**明写**留作缓冲／让开的号要绕开。
+ *
+ * @param {{name: string, text: string}[]} spaces 三本账本（各带自己的 space 名）
+ * @param {{limit?: number, negationWindow?: number}} [opts]
+ * @returns {{[space: string]: {maxDeclared: string, candidates: string[]}}}
+ */
+export function nextCandidates(spaces, opts = {}) {
+  const limit = opts.limit == null ? 5 : opts.limit;
+  const used = new Set();      // 已占（标题字形 ＋ 正文 decl）—— 官方口径
+  const reserved = new Set();  // 明写让开／缓冲的位
+  const perSpace = [];
+  for (const s of spaces) {
+    const decls = declaredCodepoints(s.text);
+    for (const d of decls) used.add(d.cp.toUpperCase());
+    for (const r of reservedCodepoints(s.text, opts)) reserved.add(r.cp.toUpperCase());
+    let max = 0;
+    for (const d of decls) max = Math.max(max, parseInt(d.cp, 16));
+    perSpace.push({ name: s.name, max });
+  }
+  const out = {};
+  for (const s of perSpace) {
+    const cands = [];
+    for (let n = s.max + 1; cands.length < limit && n <= 0xffff; n++) {
+      const h = hex4(n);
+      if (used.has(h) || reserved.has(h)) continue;
+      cands.push(h);
+    }
+    out[s.name] = { maxDeclared: hex4(s.max), candidates: cands };
+  }
+  return out;
+}
+
+/**
+ * **负控**：只认「正文里的『本条占』句」的口径 —— **这不是官方口径**。
+ *
+ * ⚠️ 它的唯一用途是当自检里的**反例**：两份口径的差集必须能看见
+ *   「有标题字形、没写 decl 句」的那些条目 ⇒ ⇒ 差集为空 ⇒ 对照没生效 ⇒ 自检红。
+ */
+export function declaredOnlyCodepoints(text) {
+  const out = [];
+  OWN_CLAIM.lastIndex = 0;
+  let cm;
+  while ((cm = OWN_CLAIM.exec(text)) !== null) out.push(cm[1].toUpperCase());
+  return out;
+}
+
 /* ------------------------------ 时间线 ------------------------------ */
 
 /** 条目头里的日期（`YYYY-MM-DD`）—— 粗粒度，只用于读数。 */
@@ -744,6 +806,41 @@ function run() {
   }
   if (semBad) { console.error('\u8bed\u4e49\u8c41\u514d\u5c42\u81ea\u68c0\u5931\u8d25\uff1a' + semBad + ' \u6761\u4e0d\u7b26'); return 2; }
 
+  // ── 候选枚举的用例（纯函数，不依赖 git）────────────────────────────
+  // ⚠️ 这一层是「**占用源口径**」的守卫 ⇒ ⇒ 必须**逐条**钉住：
+  //   ❶ 无 decl 句的条目 ⇒ ⇒ 它的码位**仍算已占**（标题方块字才是权威）；
+  //   ❷ 让开位 ⇒ ⇒ 候选**绕开**它；
+  //   ❸ 低于水位的空号 ⇒ ⇒ **不作为候选**（不填历史空洞）；
+  //   ❹ 拿掉让开句 ⇒ ⇒ 那一枚**变成候选**（负控：证明让开判定在起作用）；
+  //   ❺ 两份口径 ⇒ ⇒ 官方看得见「只有标题字形」的那一枚、负控口径看不见（正控）。
+  const NEXT_TEXT = [
+    '**Updated**: 2026-01-01 (' + G('3507') + ' **只写标题字形的条目** —— 故意不写 decl 句。)',
+    '① 正文。',
+    '',
+    '**Updated**: 2026-01-02 (' + G('3508') + ' **正常条目** —— 本条占 U+3508（' + G('3508') + '）。',
+    '② U+3509 让开给真机腿那条线。',
+    '',
+    '**Updated**: 2026-01-03 (' + G('3401') + ' **低水位条目** —— 本条占 U+3401（' + G('3401') + '）。',
+    '③ 正文。',
+  ].join('\n');
+  const nextBad = [];
+  const nx = nextCandidates([{ name: 'parent', text: NEXT_TEXT }], { limit: 5 });
+  const nxc = nx.parent.candidates;
+  if (nxc.includes('3507')) nextBad.push('❶ 无 decl 句的条目占的那一枚被当成候选了');
+  if (nxc.includes('3509')) nextBad.push('❷ 让开位没有被绕开');
+  if (nxc.includes('3401') || nxc.includes('3402')) nextBad.push('❸ 低于水位的号进了候选（填了历史空洞）');
+  const nxNoReserve = nextCandidates(
+    [{ name: 'parent', text: NEXT_TEXT.replace('让开给真机腿那条线', '留给真机腿那条线') }],
+    { limit: 5 },
+  );
+  if (!nxNoReserve.parent.candidates.includes('3509')) nextBad.push('❹ 拿掉让开句后那一枚仍不是候选');
+  const declOnly = new Set(declaredOnlyCodepoints(NEXT_TEXT));
+  const official = new Set(declaredCodepoints(NEXT_TEXT).map((d) => d.cp.toUpperCase()));
+  if (declOnly.has('3507')) nextBad.push('❺ 负控口径不该看见 3507（正例失效）');
+  if (!official.has('3507')) nextBad.push('❺ 官方口径看不见 3507（占用源失效）');
+  for (const b of nextBad) console.log('  ✗ ' + b);
+  console.log((nextBad.length ? '  ✗ ' : '  ✓ ') + '候选枚举 5 格 ⇒ ⇒ 水位 U+' + nx.parent.maxDeclared + ' ／ 候选 ' + JSON.stringify(nxc));
+
   let bad = 0;
   for (const [name, events, expectKinds] of cases) {
     const r = findTakeViolations(events);
@@ -759,7 +856,7 @@ function run() {
     console.error('自检失败：' + bad + ' 条不符');
     return 2;
   }
-  console.log('自检全过（' + (cases.length + semCases.length + reserveCases.length) + '/' + (cases.length + semCases.length + reserveCases.length) + '）');
+  console.log('自检全过（' + (cases.length + semCases.length + reserveCases.length + 1) + '/' + (cases.length + semCases.length + reserveCases.length + 1) + '）');
   return 0;
 }
 
