@@ -47,6 +47,7 @@
  * ⇒ ⇒ 天天能在 CI 上验。
  */
 
+import { createHash } from 'node:crypto';
 import { resolve, sep } from 'node:path';
 import { scanYamlText } from './yaml-valid.mjs';
 
@@ -267,6 +268,122 @@ export function ownerRepoOf(absPath, repoDirs) {
  * @returns {{verdict:string, violations:{from:string,to:string,fromFloor:string,toFloor:string}[],
  *          unresolved:{from:string,to:string,reason:string}[], distinct:string[], reasons:string[]}}
  */
+/**
+ * 一条依赖边的判读 —— **单一真相源**。
+ *
+ * ⚠️ 为什么把它从 judgeFloors 里抽出来（2026-11-11 本刀）：
+ *    「汇总结论」与「**逐边清单**」必须用**同一套判据** ⇒ ⇒ 否则会出现
+ *    「清单说绿、汇总说红」（或反过来）⇒ ⇒ 那是最坏的一类自相矛盾。
+ *
+ * @param {{from:string, to:string, reposByName:Map<string,object>}} input
+ * @returns {{from:string, to:string, status:'ok'|'drift'|'unresolved',
+ *            fromFloor:string|null, toFloor:string|null, reason:string}}
+ */
+export function judgeEdge({ from, to, reposByName }) {
+  const f = reposByName.get(from);
+  const t = reposByName.get(to);
+  if (!f) return { from, to, status: 'unresolved', fromFloor: null, toFloor: null, reason: '消费者仓不在面里' };
+  if (!t) return { from, to, status: 'unresolved', fromFloor: f.floor || null, toFloor: null, reason: '被依赖的仓不在面里' };
+  if (!f.floor) return { from, to, status: 'unresolved', fromFloor: null, toFloor: t.floor || null, reason: f.repo + ' 读不出地板' };
+  if (!t.floor) return { from, to, status: 'unresolved', fromFloor: f.floor, toFloor: null, reason: t.repo + ' 读不出地板' };
+  if (cmpVer(parseVer(f.floor), parseVer(t.floor)) < 0) {
+    return { from, to, status: 'drift', fromFloor: f.floor, toFloor: t.floor, reason: '消费者承诺 < 提供者承诺 ⇒ ⇒ 消费者的承诺是假的' };
+  }
+  return { from, to, status: 'ok', fromFloor: f.floor, toFloor: t.floor, reason: '' };
+}
+
+/**
+ * 一条边的**责任方** —— 「**谁的承诺是假的**」。
+ *
+ * ⚠️ 归属纪律（承 U+34E2 条）：**不许猜** ⇒ ⇒ 责任方由「消费者是谁」**机械推出**：
+ *   · 消费者是**我们仓里的 crate**（shadow-desktop ／ benchmark）⇒ ⇒ 责任方＝**ours**
+ *     ⇒ ⇒ 改我们这边（抬地板／断这条 path 依赖）；
+ *   · 消费者是**兄弟仓** ⇒ ⇒ 责任方＝**sibling** ⇒ ⇒ **他们的仓、他们的动作**。
+ *
+ * @param {{from:string, ownRepos:string[], repoNames:string[]}} input
+ * @returns {'ours'|'sibling'|'unknown'}
+ */
+export function edgeOwner({ from, ownRepos, repoNames }) {
+  const own = Array.isArray(ownRepos) ? ownRepos : [];
+  if (own.includes(from)) return 'ours';
+  const names = Array.isArray(repoNames) ? repoNames : [];
+  if (names.includes(from)) return 'sibling';
+  return 'unknown';
+}
+
+/**
+ * **逐消费者边清单** —— 每条依赖边一行（地板取值 ＋ 状态 ＋ 责任方）。
+ *
+ * ⚠️ 为什么**清单要含 OK 的边**（2026-11-11 本刀）：
+ *    只列红的边 ⇒ ⇒ 分母被缩成「有几条红」⇒ ⇒ 「没查却绿」看不出来
+ *    ⇒ ⇒ 清单行数必须 ＝ 边数（＋边外依赖数）⇒ ⇒ 少一行就看得出来。
+ *
+ * ⚠️ 为什么**排序**：本地与 CI 的清单要能**逐行 diff** ⇒ ⇒ 顺序必须与输入无关。
+ *
+ * @param {{repos:{repo:string,floor:string|null}[], edges:{from:string,to:string}[],
+ *          edgesOut?:{from:string,to:string}[], ownRepos:string[]}} input
+ * @returns {{from:string,to:string,status:string,fromFloor:string|null,toFloor:string|null,
+ *            reason:string,owner:string,inFace:boolean}[]}
+ */
+export function edgeRows({ repos, edges, edgesOut, ownRepos }) {
+  const reposByName = new Map((repos || []).map((r) => [r.repo, r]));
+  const repoNames = (repos || []).map((r) => r.repo);
+  const rows = [];
+  for (const e of edges || []) {
+    const r = judgeEdge({ from: e.from, to: e.to, reposByName });
+    rows.push({
+      from: r.from,
+      to: r.to,
+      status: r.status,
+      fromFloor: r.fromFloor,
+      toFloor: r.toFloor,
+      reason: r.reason,
+      owner: edgeOwner({ from: e.from, ownRepos, repoNames }),
+      inFace: true,
+    });
+  }
+  for (const e of edgesOut || []) {
+    rows.push({
+      from: e.from,
+      to: e.to,
+      status: 'unresolved',
+      fromFloor: null,
+      toFloor: null,
+      reason: '被依赖的仓不在面里（检出清单里没有它）',
+      owner: edgeOwner({ from: e.from, ownRepos, repoNames }),
+      inFace: false,
+    });
+  }
+  rows.sort((a, b) => (a.from === b.from
+    ? (a.to < b.to ? -1 : a.to > b.to ? 1 : 0)
+    : (a.from < b.from ? -1 : 1)));
+  return rows;
+}
+
+/**
+ * **文本指纹** —— 「这堆内容是不是同一份」（面指纹 ／ 清单指纹都用它）。
+ *
+ * ⚠️ 为什么要有它（2026-11-11 本刀）：**同一时刻不同面的读数可以不同**
+ *    （本地量兄弟仓的**工作树**、CI 量它们的**提交**）⇒ ⇒ 而一个「边数 24 vs 25」
+ *    的差异**光看汇总是定位不了的** ⇒ ⇒ 指纹让「面不同」变成**可逐行 diff 的事实**。
+ *
+ * ⚠️ **行尾必须归一**（本地 CRLF ／ CI LF —— 本仓 core.autocrlf=true）
+ *    ⇒ ⇒ 不归一 ⇒ ⇒ 同一份内容在两面算出两个指纹 ⇒ ⇒ 指纹就成了噪声。
+ * ⚠️ **顺序必须归一**（目录遍历顺序随文件系统变）⇒ ⇒ 排序后拼接。
+ *
+ * @param {string[]} texts 被读到的文本（如该仓的 manifest 全文）
+ * @returns {string} sha256 前 12 位
+ */
+export function textDigest(texts) {
+  const list = Array.isArray(texts) ? texts : [texts];
+  const norm = list
+    .map((t) => String(t == null ? '' : t).replace(/\r\n/g, '\n'))
+    .slice()
+    .sort()
+    .join('\n\u0000');
+  return createHash('sha256').update(norm, 'utf8').digest('hex').slice(0, 12);
+}
+
 export function judgeFloors(input) {
   const repos = input.repos || [];
   const edges = input.edges || [];
@@ -279,15 +396,14 @@ export function judgeFloors(input) {
     if (r.floor && !distinct.includes(r.floor)) distinct.push(r.floor);
   }
 
+  // ⚠️ **逐条边走 judgeEdge**（单一真相源）⇒ ⇒ 汇总与「逐边清单」永远一致
+  //    ⇒ ⇒ 否则会出现「清单说绿、汇总说红」⇒ ⇒ 那是最坏的一类自相矛盾。
   for (const e of edges) {
-    const from = byName.get(e.from);
-    const to = byName.get(e.to);
-    if (!from) { unresolved.push({ from: e.from, to: e.to, reason: '消费者仓不在面里' }); continue; }
-    if (!to) { unresolved.push({ from: e.from, to: e.to, reason: '被依赖的仓不在面里' }); continue; }
-    if (!from.floor) { unresolved.push({ from: e.from, to: e.to, reason: from.repo + ' 读不出地板' }); continue; }
-    if (!to.floor) { unresolved.push({ from: e.from, to: e.to, reason: to.repo + ' 读不出地板' }); continue; }
-    if (cmpVer(parseVer(from.floor), parseVer(to.floor)) < 0) {
-      violations.push({ from: e.from, to: e.to, fromFloor: from.floor, toFloor: to.floor });
+    const r = judgeEdge({ from: e.from, to: e.to, reposByName: byName });
+    if (r.status === 'drift') {
+      violations.push({ from: r.from, to: r.to, fromFloor: r.fromFloor, toFloor: r.toFloor });
+    } else if (r.status === 'unresolved') {
+      unresolved.push({ from: r.from, to: r.to, reason: r.reason });
     }
   }
 

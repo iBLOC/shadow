@@ -40,13 +40,28 @@
  * · 1 漂移（有边的消费者承诺 < 提供者承诺）
  * · 2 判不了（清单读不出 / 仓不在位 / 读不出地板）
  *
- * 用法：node scripts/check-msrv-floor-drift.mjs [--self-test] [--json]
+ * 用法：node scripts/check-msrv-floor-drift.mjs [--self-test] [--json] [--fixture <dir>]
+ *
+ * ## 逐消费者边清单（2026-11-11 本刀）
+ *
+ * 汇总只给一个数（「边 N 条」）⇒ ⇒ **两个面的读数不同就定位不到**
+ * ⇒ ⇒ 现在**每条边一行**（地板取值 ＋ 状态 ＋ 责任方）⇒ ⇒ 本地与 CI 可**逐行 diff**。
+ * ⇒ ⇒ 责任方由「消费者是谁」**机械推出**：我们仓里的 crate ⇒ ours；兄弟仓 ⇒ sibling。
+ * ⇒ ⇒ 每仓另给**面指纹**（被读到的 manifest 归一后的 sha256 前 12 位）⇒ ⇒
+ *   「读数不同第一嫌疑是**面不同**」从教训变成**可核的数**。
+ *
+ * ## `--fixture <dir>`（合成面）
+ *
+ * 反向验证必须是**真跑**（同一脚本、只换被测物 ⇒ ⇒ 读数反向）⇒ ⇒ 而被测物是跨仓面
+ * ⇒ ⇒ 用合成面 ⇒ ⇒ **不碰任何真实兄弟仓**。⚠️ **CI 上拒绝运行**（防止刷绿）。
  */
 
+import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  edgeRows,
   expectedSiblings,
   expandGlobPatterns,
   judgeFloors,
@@ -54,6 +69,7 @@ import {
   parseCargoSections,
   pathDeps,
   repoFloors,
+  textDigest,
 } from './lib/msrv-floor-drift.mjs';
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -66,10 +82,11 @@ const ACTION = join(REPO_ROOT, '.github', 'actions', 'ibloc-siblings', 'action.y
  *    `../../../encephalon` ／ `../../../synapse` ⇒ ⇒ 那两条边是「消费者承诺 ≥ 提供者承诺」
  *    的真实样本 ⇒ ⇒ 不进面 ⇒ ⇒ 它那一格永远没被量 ⇒ ⇒ 「没查却绿」。
  */
-const OWN_CRATES = [
-  { name: 'shadow-desktop', dir: join(REPO_ROOT, 'shadow-desktop', 'src-tauri') },
-  { name: 'benchmark', dir: join(REPO_ROOT, 'benchmark') },
-];
+const OWN_CRATE_NAMES = ['shadow-desktop', 'benchmark'];
+const OWN_CRATE_DIRS = {
+  'shadow-desktop': join(REPO_ROOT, 'shadow-desktop', 'src-tauri'),
+  benchmark: join(REPO_ROOT, 'benchmark'),
+};
 
 /** 兄弟仓的两种布局：仓外优先（与 scripts/lib/sibling-repo.mjs 同款口径）。 */
 function siblingDir(repoRoot, name) {
@@ -100,6 +117,26 @@ function listCrateDirs(dir, depth) {
 }
 
 /**
+ * 一个仓的 **git 面** —— 「这份内容是从哪个提交、脏不脏」。
+ *
+ * ⚠️ **纯信息**：读不到（没有 git ／ 不是仓）⇒ ⇒ 一律记「读不出」，**绝不改变判决**
+ *    ⇒ ⇒ 「面」的标注不许反过来影响「地板漂移」这个结论（那是两件事）。
+ */
+function gitFace(dir) {
+  try {
+    const rev = execFileSync('git', ['-C', dir, 'rev-parse', '--short', 'HEAD'], {
+      encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+    const dirty = execFileSync('git', ['-C', dir, 'status', '--porcelain'], {
+      encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+    }).split(/\r?\n/).filter(Boolean).length;
+    return { rev, dirty };
+  } catch (err) {
+    return { rev: '', dirty: null };
+  }
+}
+
+/**
  * 读一个仓的地板 + 它的 **path 依赖边**。
  *
  * ⚠️ **边按路径解析**（不按名字）：`path` 依赖先解析成绝对路径 ⇒ ⇒ 再看它落在**哪个仓目录**下。
@@ -118,6 +155,8 @@ function readRepo(name, dir, knownDirs) {
     if (!existsSync(p)) continue;
     members.push({ name: m, text: readFileSync(p, 'utf8') });
   }
+  // ⚠️ **成员按名排序** ⇒ ⇒ 目录遍历顺序（随文件系统变）不许污染输出与面指纹。
+  members.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
   const floors = repoFloors({ name, rootText, members });
   const manifests = [{ dir: dir, text: rootText }].concat(
     members.map((m) => ({ dir: join(dir, m.name), text: m.text })),
@@ -132,7 +171,11 @@ function readRepo(name, dir, knownDirs) {
       if (!deps.includes(owner)) deps.push(owner);
     }
   }
-  return { name, dir, floors, deps, crates: members.length + 1 };
+  // ⚠️ **面指纹** ＝ 这个仓被读到的那些 manifest 归一后的 sha256 前 12 位
+  //    ⇒ ⇒ 本地与 CI 的清单可**逐行 diff** ⇒ ⇒ 「读数不同」第一嫌疑「面不同」变成可核的事实。
+  const face = textDigest([rootText].concat(members.map((m) => m.text)));
+  const git = gitFace(dir);
+  return { name, dir, floors, deps, crates: members.length + 1, face, git };
 }
 
 /**
@@ -297,6 +340,87 @@ function selfTest() {
     return got.ok === false && got.repos.length === 0;
   });
 
+  // ── 逐消费者边清单 ＋ 责任方 ＋ 面指纹（2026-11-11 本刀）──
+  const RR = (name, floor) => ({ repo: name, floors: floor ? [floor] : [], floor: floor || null, problems: [] });
+
+  add('逐边清单：**清单行数 ＝ 边数**（分母不许缩 ⇒ ⇒ 少一行就看得出来）', () => {
+    const repos = [RR('a', '1.95'), RR('b', '1.94'), RR('c', '1.94')];
+    const edges = [{ from: 'a', to: 'b' }, { from: 'a', to: 'c' }];
+    const rows = edgeRows({ repos, edges, edgesOut: [], ownRepos: ['a'] });
+    return rows.length === edges.length && rows.filter((x) => x.status === 'ok').length === 2;
+  });
+
+  add('逐边清单：**OK 的边也在清单里**（只列红的边 ⇒ ⇒ 那是缩小后的分母）', () => {
+    const repos = [RR('a', '1.95'), RR('b', '1.94')];
+    const rows = edgeRows({ repos, edges: [{ from: 'a', to: 'b' }], edgesOut: [], ownRepos: ['a'] });
+    return rows.length === 1 && rows[0].status === 'ok';
+  });
+
+  add('责任方：消费者是**我们**仓的 crate ⇒ ⇒ 责任方=ours（改我们这边）', () => {
+    const repos = [RR('shadow-desktop', '1.94'), RR('synapse', '1.95')];
+    const rows = edgeRows({ repos, edges: [{ from: 'shadow-desktop', to: 'synapse' }], edgesOut: [], ownRepos: ['shadow-desktop', 'benchmark'] });
+    return rows[0].status === 'drift' && rows[0].owner === 'ours';
+  });
+
+  add('责任方：消费者是**兄弟仓** ⇒ ⇒ 责任方=sibling（他们的仓、他们的动作）', () => {
+    const repos = [RR('hippocampus', '1.94'), RR('neuron', '1.95')];
+    const rows = edgeRows({ repos, edges: [{ from: 'hippocampus', to: 'neuron' }], edgesOut: [], ownRepos: ['shadow-desktop', 'benchmark'] });
+    return rows[0].status === 'drift' && rows[0].owner === 'sibling';
+  });
+
+  add('**孪生**：同一条边只差消费者身份 ⇒ ⇒ 两个不同责任方', () => {
+    const repos = [RR('shadow-desktop', '1.94'), RR('hippocampus', '1.94'), RR('neuron', '1.95')];
+    const rows = edgeRows({ repos, edges: [{ from: 'shadow-desktop', to: 'neuron' }, { from: 'hippocampus', to: 'neuron' }], edgesOut: [], ownRepos: ['shadow-desktop'] });
+    return rows.find((x) => x.from === 'shadow-desktop').owner === 'ours'
+      && rows.find((x) => x.from === 'hippocampus').owner === 'sibling';
+  });
+
+  add('清单**排序稳定**：边的输入顺序打乱 ⇒ ⇒ 清单逐字相同（⇒ ⇒ 本地/CI 可 diff）', () => {
+    const repos = [RR('a', '1.94'), RR('b', '1.94'), RR('c', '1.94')];
+    const k = (rows) => rows.map((x) => x.from + '->' + x.to + ' ' + x.status).join(',');
+    const r1 = edgeRows({ repos, edges: [{ from: 'b', to: 'c' }, { from: 'a', to: 'c' }, { from: 'a', to: 'b' }], edgesOut: [], ownRepos: [] });
+    const r2 = edgeRows({ repos, edges: [{ from: 'a', to: 'c' }, { from: 'b', to: 'c' }, { from: 'a', to: 'b' }], edgesOut: [], ownRepos: [] });
+    return k(r1) === k(r2);
+  });
+
+  add('边外依赖（依赖了不在面里的仓）⇒ ⇒ 也在清单里，且标 UNDECIDABLE', () => {
+    const repos = [RR('a', '1.94')];
+    const rows = edgeRows({ repos, edges: [], edgesOut: [{ from: 'a', to: 'ghost' }], ownRepos: [] });
+    return rows.length === 1 && rows[0].status === 'unresolved' && rows[0].inFace === false;
+  });
+
+  add('**同源**：汇总说漂移 ⇒ ⇒ 清单里那一条必须也是 DRIFT（不许自相矛盾）', () => {
+    const repos = [RR('a', '1.94'), RR('b', '1.95')];
+    const edges = [{ from: 'a', to: 'b' }];
+    const j = judgeFloors({ repos, edges });
+    const rows = edgeRows({ repos, edges, edgesOut: [], ownRepos: [] });
+    return j.verdict === 'drift' && rows.length === 1 && rows[0].status === 'drift';
+  });
+
+  add('**同源（反向）**：汇总说一致 ⇒ ⇒ 清单里不许有 DRIFT', () => {
+    const repos = [RR('a', '1.95'), RR('b', '1.94')];
+    const edges = [{ from: 'a', to: 'b' }];
+    const j = judgeFloors({ repos, edges });
+    const rows = edgeRows({ repos, edges, edgesOut: [], ownRepos: [] });
+    return j.verdict === 'consistent' && rows.every((x) => x.status === 'ok');
+  });
+
+  add('面指纹：同样的内容 ⇒ ⇒ 同样的指纹', () => {
+    return textDigest(['[package]\nname = "a"\n']) === textDigest(['[package]\nname = "a"\n']);
+  });
+
+  add('面指纹：**行尾不同不算不同面**（本地 CRLF ／ CI LF ⇒ ⇒ 同一份内容）', () => {
+    return textDigest(['[package]\r\nname = "a"\r\n']) === textDigest(['[package]\nname = "a"\n']);
+  });
+
+  add('面指纹：内容改一个字 ⇒ ⇒ 指纹不同（⇒ ⇒ 那不是同一份内容）', () => {
+    return textDigest(['[package]\nname = "a"\n']) !== textDigest(['[package]\nname = "b"\n']);
+  });
+
+  add('面指纹：**成员顺序不同 ⇒ ⇒ 指纹相同**（目录遍历顺序不许污染指纹）', () => {
+    return textDigest(['m1', 'm2']) === textDigest(['m2', 'm1']);
+  });
+
   let bad = 0;
   for (const c of cases) {
     let ok = false;
@@ -313,35 +437,92 @@ function selfTest() {
   process.exit(0);
 }
 
+/**
+ * `--fixture <dir>` 的参数读法（`--fixture=<dir>` 也认）。
+ */
+function readFixtureArg(argv) {
+  const i = argv.indexOf('--fixture');
+  if (i >= 0) return argv[i + 1] || '';
+  const m = argv.find((a) => a.startsWith('--fixture='));
+  return m ? m.slice('--fixture='.length) : '';
+}
+
+/** 一条边的**责任方**怎么念（人读）。 */
+function ownerText(owner) {
+  if (owner === 'ours') return 'ours（消费者是我们仓里的 crate ⇒ ⇒ 改我们这边）';
+  if (owner === 'sibling') return 'sibling（消费者是兄弟仓 ⇒ ⇒ 他们的仓、他们的动作）';
+  return 'unknown（消费者不在面里）';
+}
+
+/** 一个仓的 git 面怎么念（读不到就照实说「读不出」）。 */
+function faceGitText(git) {
+  if (!git || !git.rev) return '@<读不出>';
+  return '@' + git.rev + (git.dirty === null ? '' : ' (+' + git.dirty + ' 未提交)');
+}
+
 function main() {
   const argv = process.argv.slice(2);
   if (argv.includes('--self-test')) return selfTest();
   const asJson = argv.includes('--json');
+  const fixtureDir = readFixtureArg(argv);
 
-  // ❶ 期望面 = **唯一一份**检出清单
-  if (!existsSync(ACTION)) {
-    console.error('❌ 读不到 .github/actions/ibloc-siblings/action.yml ⇒ ⇒ 判不了');
+  // ⚠️ **fixture 模式在 CI 上拒绝运行**（防止有人拿合成面把灯刷绿）⇒ ⇒ 判不了。
+  if (fixtureDir && process.env.CI) {
+    console.error('❌ **fixture 模式在 CI 上拒绝运行**（防止有人拿合成面把灯刷绿）⇒ ⇒ 判不了');
     process.exit(2);
   }
-  const expected = expectedSiblings(readFileSync(ACTION, 'utf8'));
-  if (!expected.ok) {
-    console.error('❌ 检出清单读不出来 :: ' + expected.reason + ' ⇒ ⇒ 判不了（绝不是绿）');
-    process.exit(2);
+
+  const expectedRepos = [];
+  const hits = [];
+  const missing = [];
+
+  if (fixtureDir) {
+    // ❶ **合成面** ⇒ ⇒ 期望清单与仓目录都来自夹具 ⇒ ⇒ **不碰任何真实兄弟仓**。
+    const expectedFile = join(fixtureDir, 'expected.txt');
+    if (!existsSync(expectedFile)) {
+      console.error('❌ fixture 读不到 expected.txt ⇒ ⇒ 判不了');
+      process.exit(2);
+    }
+    for (const raw of readFileSync(expectedFile, 'utf8').split(/\r?\n/)) {
+      const name = raw.trim();
+      if (name) expectedRepos.push(name);
+    }
+    for (const name of expectedRepos) {
+      const dir = join(fixtureDir, 'siblings', name);
+      if (!existsSync(join(dir, 'Cargo.toml'))) { missing.push(name); continue; }
+      hits.push({ name, dir });
+    }
+    for (const name of OWN_CRATE_NAMES) {
+      const dir = join(fixtureDir, 'own', name);
+      if (!existsSync(join(dir, 'Cargo.toml'))) { missing.push(name); continue; }
+      hits.push({ name, dir });
+    }
+  } else {
+    // ❶ 期望面 = **唯一一份**检出清单
+    if (!existsSync(ACTION)) {
+      console.error('❌ 读不到 .github/actions/ibloc-siblings/action.yml ⇒ ⇒ 判不了');
+      process.exit(2);
+    }
+    const expected = expectedSiblings(readFileSync(ACTION, 'utf8'));
+    if (!expected.ok) {
+      console.error('❌ 检出清单读不出来 :: ' + expected.reason + ' ⇒ ⇒ 判不了（绝不是绿）');
+      process.exit(2);
+    }
+    for (const name of expected.repos) expectedRepos.push(name);
+    for (const name of expected.repos) {
+      const hit = siblingDir(REPO_ROOT, name);
+      if (!hit) { missing.push(name); continue; }
+      hits.push({ name, dir: hit.dir });
+    }
+    // ⚠️ **本仓内的 crate 也进面**（它们同样有跨仓依赖边）。
+    for (const name of OWN_CRATE_NAMES) {
+      const dir = OWN_CRATE_DIRS[name];
+      if (!existsSync(join(dir, 'Cargo.toml'))) { missing.push(name); continue; }
+      hits.push({ name, dir });
+    }
   }
 
   // ❷ 逐仓读地板 + path 依赖边（**两遍**：先定目录，再解析边）
-  const hits = [];
-  const missing = [];
-  for (const name of expected.repos) {
-    const hit = siblingDir(REPO_ROOT, name);
-    if (!hit) { missing.push(name); continue; }
-    hits.push({ name, dir: hit.dir });
-  }
-  // ⚠️ **本仓内的 crate 也进面**（它们同样有跨仓依赖边）。
-  for (const own of OWN_CRATES) {
-    if (!existsSync(join(own.dir, 'Cargo.toml'))) { missing.push(own.name); continue; }
-    hits.push({ name: own.name, dir: own.dir });
-  }
   const knownDirs = hits.map((h) => ({ name: h.name, dir: h.dir }));
   const repos = hits.map((h) => readRepo(h.name, h.dir, knownDirs));
 
@@ -366,16 +547,36 @@ function main() {
   let verdict = judged.verdict;
   if (verdict === 'consistent' && notInPlace) verdict = 'cannot-judge';
 
+  // ❹ **逐消费者边清单**（与汇总**同源** ⇒ ⇒ 两者永远不会自相矛盾）。
+  const rows = edgeRows({
+    repos: repos.map((r) => ({ repo: r.name, floor: r.floors.floor, floors: r.floors.floors, problems: r.floors.problems })),
+    edges,
+    edgesOut,
+    ownRepos: OWN_CRATE_NAMES,
+  });
+
   const lines = [];
+  if (fixtureDir) {
+    lines.push('⚠️⚠️ **fixture 模式** ⇒ ⇒ 本次读数量的是 **' + fixtureDir + '** 里的**合成面** ⇒ ⇒ **不是本仓的读数** ⇒ ⇒（这个模式在 CI 上被拒绝运行）');
+  }
   lines.push('MSRV 地板跨仓对账（分仓自报口径 · 判「漂移」不判「够不够高」）');
-  lines.push('  期望的兄弟仓（唯一一份检出清单） :: ' + expected.repos.length + ' 个');
+  lines.push('  期望的兄弟仓（唯一一份检出清单） :: ' + expectedRepos.length + ' 个');
   for (const r of repos) {
-    lines.push('  ' + (r.name + ' (' + r.crates + ' crates)').padEnd(34) + ' :: 自报 ' + (r.floors.floor || '<读不出>') + (r.floors.problems.length ? ' :: ⚠ ' + r.floors.problems.join('; ') : ''));
+    lines.push('  ' + (r.name + ' (' + r.crates + ' crates)').padEnd(34) + ' :: 自报 ' + (r.floors.floor || '<读不出>') + ' :: 面 ' + r.face + ' ' + faceGitText(r.git) + (r.floors.problems.length ? ' :: ⚠ ' + r.floors.problems.join('; ') : ''));
   }
   if (missing.length) lines.push('  ⚠ 不在位 :: ' + missing.join(', '));
   if (edgesOut.length) lines.push('  ⚠ 依赖了不在面里的仓 :: ' + edgesOut.map((e) => e.from + ' -> ' + e.to).join(', '));
   lines.push('  各仓地板取值（**彼此不同不是红**，分仓自报口径下那都是诚实的） :: ' + (judged.distinct.join(' / ') || '<none>'));
   lines.push('  path 依赖边（量「消费者承诺 >= 提供者承诺」） :: ' + edges.length + ' 条');
+  lines.push('  ── 逐消费者边清单（**每条边一行**；清单行数 ＝ 边 ' + edges.length + ' ＋ 边外 ' + edgesOut.length + ' ＝ ' + rows.length + ' ⇒ ⇒ 少一行就看得出来）──');
+  for (const r of rows) {
+    let l = '    EDGE :: ' + r.from + ' -> ' + r.to + ' :: ' + (r.fromFloor || '<读不出>') + ' vs ' + (r.toFloor || '<读不出>') + ' :: ';
+    if (r.status === 'ok') l += 'OK';
+    else if (r.status === 'drift') l += 'DRIFT :: 责任方=' + ownerText(r.owner) + ' :: ' + r.reason;
+    else l += 'UNDECIDABLE :: 责任方=' + ownerText(r.owner) + ' :: ' + r.reason;
+    lines.push(l);
+  }
+  lines.push('  清单指纹 :: ' + textDigest([rows.map((r) => r.from + '->' + r.to + ' ' + (r.fromFloor || '?') + ' ' + (r.toFloor || '?') + ' ' + r.status + ' ' + r.owner).join('\n')]) + '（清单**逐行可 diff**；指纹不同 ⇒ ⇒ 清单内容不同）');
   for (const v of judged.violations) {
     lines.push('    ✗ 漂移 :: ' + v.from + '（自报 ' + v.fromFloor + '）依赖 ' + v.to + '（自报 ' + v.toFloor + '）⇒ ⇒ 消费者的承诺是假的');
   }
@@ -383,10 +584,10 @@ function main() {
     lines.push('    ⚠ 判不了 :: ' + u.from + ' -> ' + u.to + ' :: ' + u.reason);
   }
   for (const r of judged.reasons) lines.push('  ⇒ ⇒ ' + r);
-  lines.push('DRIFT :: ' + verdict + ' :: 仓数 ' + repos.length + ' :: 边 ' + edges.length + ' :: 漂移 ' + judged.violations.length + ' :: 判不了 ' + judged.unresolved.length + ' :: 取值 ' + (judged.distinct.join('/') || '-'));
+  lines.push((fixtureDir ? 'DRIFT-FIXTURE' : 'DRIFT') + ' :: ' + verdict + ' :: 仓数 ' + repos.length + ' :: 边 ' + edges.length + ' :: 漂移 ' + judged.violations.length + ' :: 判不了 ' + judged.unresolved.length + ' :: 取值 ' + (judged.distinct.join('/') || '-'));
 
   if (asJson) {
-    console.log(JSON.stringify({ verdict, repos: repos.map((r) => ({ repo: r.name, floor: r.floors.floor, floors: r.floors.floors, problems: r.floors.problems })), edges, violations: judged.violations, unresolved: judged.unresolved, distinct: judged.distinct, missing, edgesOut }, null, 2));
+    console.log(JSON.stringify({ fixture: !!fixtureDir, verdict, repos: repos.map((r) => ({ repo: r.name, floor: r.floors.floor, floors: r.floors.floors, problems: r.floors.problems, face: r.face, rev: r.git.rev, dirty: r.git.dirty })), edges, edgesOut, edgeRows: rows, violations: judged.violations, unresolved: judged.unresolved, distinct: judged.distinct, missing, ownRepos: OWN_CRATE_NAMES }, null, 2));
   } else {
     for (const l of lines) console.log(l);
   }
