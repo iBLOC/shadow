@@ -58,6 +58,13 @@ jobs:
       - name: Take-discipline check
         run: node scripts/run-gate-once.mjs --strict scripts/check-ledger-codepoint-take.mjs
 
+      # ⚠️ **演练排在主判定之后**（2026-11-11 刀⑪）—— 演练是**副本**，它红**不许**遮蔽主判定的读数。
+      #   ⇒ ⇒ 排在主判定**之前**时，演练一红 ⇒ ⇒ 主判定被 skipped ⇒ ⇒ 真缺陷从未被判（刀⑩ 的机制）。
+      # ⚠️ `--drill` **不算闸步**（gate-coverage 的 NON_GATE_FLAGS）⇒ ⇒ **不动分母**。
+      # ⚠️ **不走 run-gate-once** ⇒ ⇒ 不落判读记录 ⇒ ⇒ 演练**不进**「真判 N」的分子。
+      - name: Take-discipline drill (副本演练：绿→红→绿)
+        run: node scripts/check-ledger-codepoint-take.mjs --drill
+
       # ⚠️ 收尾：把这一盏灯「绿得有多真」写出来 —— 这一盏灯里**所有**真跑的闸
       #    都落了判读 ⇒ ⇒ 这里汇总成**带分母的读数**（真判 N ｜ 判不了 K ｜ 红 M）
       #    ⇒ ⇒ 「判不了」不当红（它不是「有问题」）⇒ ⇒ 但也不当绿（它不是「没问题」）。

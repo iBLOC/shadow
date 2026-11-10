@@ -223,6 +223,34 @@ function judgeFresh(raw, prevTextOf) {
 }
 
 /**
+ * **一个面的读数** —— 判据只有**这一处实现** ⇒ ⇒ 主判定与演练**共用** ⇒ ⇒
+ * 「口径分叉」从**结构上**不可能再发生。
+ *
+ * ⚠️ 豁免层**之前**（raw）与**之后**（fresh）**都给** ⇒ ⇒ 读者能同时看到两个数
+ *   ⇒ ⇒ 而**判红只看 fresh**（豁免层是合法例外的出处）。
+ *
+ * ⚠️ 2026-11-11 刀⑪ 的由来 —— 演练原先**自己**算了一版「豁免层**之前**」的原始集
+ *   ⇒ ⇒ 主判定数的是豁免层**之后**的 ⇒ ⇒ 两处口径分叉 ⇒ ⇒ 演练**恒红**
+ *   ⇒ ⇒ 而演练的文案**写死**「⇒ ⇒ 绿」⇒ ⇒ 文字说绿、退出码说红。
+ *
+ * @param {any[]} events 该面的提交事件
+ * @param {Set<string>} baseSet 基线违例集（豁免权的出处）
+ * @param {(v:any)=>{text?:string,error?:string}} prevTextOf 读「之前那一版」的函数
+ */
+function judgeFace(events, baseSet, prevTextOf) {
+  const all = findTakeViolations(events).violations;
+  const raw = all.filter((v) => !baseSet.has(violationIdentity(v)));
+  const judged = judgeFresh(raw, prevTextOf);
+  if (judged.error) return { error: judged.error };
+  return {
+    all,
+    raw,
+    fresh: judged.out.filter((j) => !j.ex.exempt),
+    exempt: judged.out.filter((j) => j.ex.exempt),
+  };
+}
+
+/**
  * **基线违例集**（豁免权的出处）—— 主判定与演练**共用这一处实现**。
  *
  * ⚠️ 指纹**不在**这里校 ⇒ ⇒ `--report`（诊断口）仍能在指纹不符时打印读数。
@@ -319,20 +347,18 @@ function main() {
   console.log('本闸守：取号纪律的两族 —— A 回填历史空洞／B 撞上别人明写的让开位');
   console.log('读数：基线 commit ' + BASELINE_COMMIT.slice(0, 8) + ' 上的历史违例 ' + base.violations.length + ' 条（指纹 ' + baseDigest.slice(0, 12) + '…）');
   for (const f of faces) {
-    const r = findTakeViolations(f.events);
-    const raw = r.violations.filter((v) => !baseSet.has(violationIdentity(v)));
-    // ⚠️ **语义豁免层** ⇒ ⇒ 合法例外（保留位兑现／自陈理由）**不再假红**
-    //    ⇒ ⇒ 但「明写的空洞」是**否决项** ⇒ ⇒ 照样红（更重的一类）。
-    const judged = judgeFresh(raw, readPrevLedger);
-    if (judged.error) {
-      console.error('❌ 判不了（退出码 2）：' + judged.error);
+    // ⚠️ **一个面的读数**只有**一处实现**（judgeFace）⇒ ⇒ 主判定与演练**共用**
+    //    ⇒ ⇒ 口径分叉从结构上不可能再发生（刀⑪ 的由来：两处各算一版 ⇒ ⇒ 演练恒红）。
+    const face = judgeFace(f.events, baseSet, readPrevLedger);
+    if (face.error) {
+      console.error('❌ 判不了（退出码 2）：' + face.error);
       return 2;
     }
-    const fresh = judged.out.filter((j) => !j.ex.exempt);
-    const exempt = judged.out.filter((j) => j.ex.exempt);
+    const fresh = face.fresh;
+    const exempt = face.exempt;
     if (f.judge) red += fresh.length;
     console.log(
-      '  ' + f.name + '面 ⇒ ⇒ 违例 ' + r.violations.length + ' 条（存量 ' + (r.violations.length - raw.length) + ' ／ 新增 ' + raw.length + '）' +
+      '  ' + f.name + '面 ⇒ ⇒ 违例 ' + face.all.length + ' 条（存量 ' + (face.all.length - face.raw.length) + ' ／ 新增 ' + face.raw.length + '）' +
         (exempt.length ? '　✅ 其中**语义豁免** ' + exempt.length + ' 条' : '') +
         (f.judge ? '' : '　⚠ **本面只报不判红** —— 未提交条目的取号时刻不可考 ⇒ ⇒ 那一格**判不了**'),
     );
@@ -384,11 +410,18 @@ function pickHoleTarget() {
  *   ❹ 同一笔但**先前状态明写为空洞** ⇒ ⇒ **照样红** ⇒ ⇒ 更重的一类没被放过。
  */
 function drill() {
+  // ⚠️ 「真文件未被改动」这一格**不许写死结论**（刀⑪：原文逐字写「：是」）⇒ ⇒ 先拍快照。
+  const snapshotLedgerFiles = () => JSON.stringify(LEDGERS.map((l) => {
+    try { return [l.rel, readFileSync(join(REPO, l.rel), 'utf8')]; } catch { return [l.rel, '(读不到)']; }
+  }));
+  const before = snapshotLedgerFiles();
   const base = baselineSet();
   if (base.error) { console.error('❌ ' + base.error + ' ⇒ ⇒ 演练判不了'); return false; }
   const events = buildEvents(base.commits);
-  const freshReal = findTakeViolations(events).violations
-    .filter((v) => !base.baseSet.has(violationIdentity(v)));
+  // ⚠️ **与主判定共用同一处实现**（judgeFace）⇒ ⇒ 口径不会再分叉。
+  //   ⚠️ 这一格是**报告腿** —— 真实账本上的缺陷**由主判定判红** ⇒ ⇒ 演练不遮蔽主判定的读数。
+  const real = judgeFace(events, base.baseSet, readPrevLedger);
+  if (real.error) { console.error('❌ ' + real.error + ' ⇒ ⇒ 演练判不了'); return false; }
   const target = pickHoleTarget();
   if (!target) { console.error('❌ 找不到未被声明的空位 ⇒ ⇒ 演练判不了（尺子没有靶子）'); return false; }
   const holeHex = target.hex;
@@ -397,22 +430,31 @@ function drill() {
   const blind = { space: 'parent', id: 'inject-blind', date: '2099-01-01', sha: 'delta', text: head + '\n⑨ 本条占 U+' + holeHex + '（' + holeGlyph + '）。\n' };
   const justified = { space: 'parent', id: 'inject-just', date: '2099-01-02', sha: 'delta', text: head + '\n⑨ 本条占 U+' + holeHex + '（' + holeGlyph + '）—— 避开 U+3300–U+33FF（NFKC 会变形）。\n' };
   const probe = (ev, prevText) => {
-    const vs = findTakeViolations(events.concat([ev])).violations
-      .filter((v) => v.cp === holeHex && v.kind === 'A-backfill-hole');
-    const j = judgeFresh(vs, () => ({ text: prevText }));
-    return { cand: vs.length, red: j.out.filter((x) => !x.ex.exempt).length };
+    // ⚠️ **同一个 judgeFace** ⇒ ⇒ 演练与主判定**共用**一处读数实现。
+    //   注入的那一条用**夹具的先前状态**；其余的用**真实历史**。
+    const face = judgeFace(events.concat([ev]), base.baseSet, (v) => {
+      return (v.cp === holeHex && v.kind === 'A-backfill-hole') ? { text: prevText } : readPrevLedger(v);
+    });
+    if (face.error) return { cand: 0, red: 0, error: face.error };
+    const cand = face.all.filter((v) => v.cp === holeHex && v.kind === 'A-backfill-hole').length;
+    const red = face.fresh.filter((j) => j.v.cp === holeHex && j.v.kind === 'A-backfill-hole').length;
+    return { cand, red };
   };
   const rBlind = probe(blind, '');
   const rJust = probe(justified, '');
   const rHole = probe(justified, 'U+' + holeHex + ' 空着不填。');
   console.log('  靶子选点：U+' + holeHex + '（低于**全历史**最高已声明 U+' + target.maxDeclared + ' ＋ 真实未被声明）');
-  const ok = freshReal.length === 0 && rBlind.cand === 1 && rBlind.red === 1
+  // ⚠️ **判绿只由三条「注入腿」决定**（相对断言）⇒ ⇒ 真实账本那一格**只报不判**。
+  //   ⇒ ⇒ 被测物带伤时演练**不红** ⇒ ⇒ 演练红**不再遮蔽**主判定的读数（刀⑩ 的机制）。
+  const ok = rBlind.cand === 1 && rBlind.red === 1
     && rJust.cand === 1 && rJust.red === 0 && rHole.red === 1;
-  console.log('  真实账本（提交树面，基线之外）⇒ ⇒ 新增违例 ' + freshReal.length + ' 条 ⇒ ⇒ 绿');
+  console.log('  真实账本（提交树面，基线之外）⇒ ⇒ 基线之外 ' + real.raw.length + ' 条 ⇒ ⇒ 其中**语义豁免** ' + real.exempt.length + ' 条 ／ **判红** ' + real.fresh.length + ' 条 ⇒ ⇒ **本格只报不判**（真实缺陷由主判定判红）');
   console.log('  注入**盲回填**（无据）⇒ ⇒ 候选 ' + rBlind.cand + ' 条 ／ 判红 ' + rBlind.red + ' 条 ⇒ ⇒ 尺子咬住了：' + (rBlind.red === 1 ? '是' : '否'));
   console.log('  注入**自陈理由**（纪律词 ＋ 证据令牌）⇒ ⇒ 候选 ' + rJust.cand + ' 条 ／ 判红 ' + rJust.red + ' 条 ⇒ ⇒ 豁免路走得通：' + (rJust.red === 0 ? '是' : '否'));
   console.log('  同一笔 ＋ **先前状态明写为空洞** ⇒ ⇒ 判红 ' + rHole.red + ' 条 ⇒ ⇒ 更重的一类照样红：' + (rHole.red === 1 ? '是' : '否'));
-  console.log('  真文件未被改动（演练只读不改）：是');
+  const after = snapshotLedgerFiles();
+  console.log('  真文件未被改动（演练只读不改）⇒ ⇒ ' + (before === after ? '是（三本账本工作树文件逐字比对）' : '否（演练改了真文件！）'));
+  console.log('  演练判绿（**只看三条注入腿**）⇒ ⇒ ' + (ok ? '是' : '否'));
   return ok;
 }
 
@@ -449,6 +491,32 @@ function runSelfTest() {
   const ok3 = hRed === 1;
   console.log((ok3 ? '  ✓ ' : '  ✗ ') + '反向验证 ③：同一笔，但先前状态**明写为空洞** ⇒ ⇒ 判红 ' + hRed + ' 条 ⇒ ⇒ 更重的一类照样红');
   if (!ok3) return 2;
+
+  // 反向验证 ④⑤：**一处实现**（judgeFace）给出的**三个数**（豁免层前／豁免／判红）——
+  //   ⚠️ 这一格证明的是「口径只有一处」⇒ ⇒ 主判定与演练读到的是**同一个数**（刀⑪ 的由来）。
+  const glyphOf = (cp) => String.fromCodePoint(parseInt(cp, 16));
+  const faceEntry = (cp, tail) => ({
+    space: 'parent', id: 'face-' + cp, date: '2026-01-02', sha: 'synthetic',
+    text: [
+      '**Updated**: 2026-01-02 (' + glyphOf(cp) + ' **条目 ' + cp + '** —— 夹具)',
+      '⑨ 本条占 U+' + cp + '（' + glyphOf(cp) + '）' + (tail || ''),
+    ].join(String.fromCharCode(10)),
+  });
+  const faceBase = new Set();
+  const faceJust = judgeFace(
+    [faceEntry('33C3', ''), faceEntry('33C1', '—— 避开 U+3300–U+33FF（NFKC 会变形）。')],
+    faceBase, () => ({ text: '' }),
+  );
+  const ok4 = faceJust.raw.length === 1 && faceJust.exempt.length === 1 && faceJust.fresh.length === 0;
+  console.log((ok4 ? '  ✓ ' : '  ✗ ') + '反向验证 ④：自陈理由的那一笔 ⇒ ⇒ **豁免层之前** ' + faceJust.raw.length + ' 条 ／ **豁免** ' + faceJust.exempt.length + ' 条 ／ **判红** ' + faceJust.fresh.length + ' 条 ⇒ ⇒ 豁免层前后的两个数都在（口径只有一处实现）');
+  if (!ok4) return 2;
+  const faceBlind = judgeFace(
+    [faceEntry('33C3', ''), faceEntry('33C1', '')],
+    faceBase, () => ({ text: '' }),
+  );
+  const ok5 = faceBlind.raw.length === 1 && faceBlind.exempt.length === 0 && faceBlind.fresh.length === 1;
+  console.log((ok5 ? '  ✓ ' : '  ✗ ') + '反向验证 ⑤：同一条**无理由**的回填 ⇒ ⇒ **豁免层之前** ' + faceBlind.raw.length + ' 条 ／ **豁免** ' + faceBlind.exempt.length + ' 条 ／ **判红** ' + faceBlind.fresh.length + ' 条 ⇒ ⇒ 尺子咬得住');
+  if (!ok5) return 2;
 
   console.log('自检全过');
   return 0;
