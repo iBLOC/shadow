@@ -404,19 +404,6 @@ jobs:
   desktop-build:
     name: Desktop Build
     runs-on: ubuntu-latest
-    env:
-      # ⚠️ **主 CI 也要有分母** —— 2026-11-11 真 CI 实测（run 42749918412）
-      #    ⇒ ⇒ 这个 job 里有 **7 道闸走 `run-gate-once`**，而它把退出码 2（判不了）
-      #    ⇒ ⇒ 转成「显眼但不阻断」⇒ ⇒ **「没验成」在主 CI 里就没人知道了**
-      #    ⇒ ⇒ 「Unwired Gates」那一盏灯已经有分母（真判 N ｜ 判不了 K ｜ 红 M），
-      #    ⇒ ⇒ 主 CI 这一盏还没有 ⇒ ⇒ 同一个洞在两个地方各开一次。
-      #    ⇒ ⇒ 这里让每道闸的结论往这里落一行，收尾一步汇总成带分母的读数。
-      # ⚠️ **落在 runner.temp（仓外），不是 workspace（仓根）** —— 2026-11-11 真 CI 实测
-      #    （run 42750340522）：落在仓根 ⇒ ⇒ 顶层对账闸（legacy residue）看到
-      #    「仓根多出一个没人交代的文件 .gate-results.ndjson」⇒ ⇒ 判红
-      #    ⇒ ⇒ **Desktop Build job 红在 Legacy residue check 那一步**（本机已复现逐字同形）。
-      # ⇒ ⇒ ⇒ **闸的判读落盘不许进 checkout** ⇒ ⇒ 产物不许污染被测面。
-      GATE_RESULT_FILE: ${{ runner.temp }}/gate-results.ndjson
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -437,6 +424,23 @@ jobs:
         working-directory: shadow-desktop
         run: pnpm install --frozen-lockfile
 
+      # ⚠️⚠️ **主 CI 也要有分母** —— 2026-11-11 真 CI 实测（run 42749918412）：
+      #    ⇒ ⇒ 这个 job 里有 **7 道闸走 `run-gate-once`，而它把退出码 2（判不了）
+      #    ⇒ ⇒ 转成「显眼但不阻断」⇒ ⇒ **「没验成」在主 CI 里就没人知道了**
+      #    ⇒ ⇒ 「Unwired Gates」那一盏灯已经有分母（真判 N ｜ 判不了 K ｜ 红 M），
+      #    ⇒ ⇒ 主 CI 这一盏还没有 ⇒ ⇒ 同一个洞在两个地方各开一次。
+      # ⇒ ⇒ ⇒ 这里让每道闸的结论往这里落一行，收尾一步汇总成带分母的读数。
+      # ⚠️⚠️ **两处踩过的坑（2026-11-11 真 CI 实测）**：
+      #    ① 落在**仓根** ⇒ ⇒ 顶层对账闸看到「仓根多出一个没人交代的文件」⇒ ⇒
+      #       判红（run 42750340522 红在 Legacy residue check 那一步）。
+      #    ② 写成 `${{ runner.temp }}` ⇒ ⇒ `runner` 上下文在 **job 级 `env:` 里不可用**
+      #       ⇒ ⇒ **整个 workflow 文件被拒绝加载**⇒ ⇒ run **零 job** 失败
+      #       （run 42752069833；run 的名字变成**文件路径**⇒ ⇒ 平台不告诉你哪行错了）。
+      # ⇒ ⇒ ⇒ 落盘路径改用 runner 的**默认环境变量** RUNNER_TEMP，写进 $GITHUB_ENV
+      #    ⇒ ⇒ 不依赖任何表达式上下文（job 级 env 只认 github/needs/strategy/matrix/
+      #    vars/secrets/inputs）⇒ ⇒ 且落在**仓外** ⇒ ⇒ 被测面不被自己的产物污染。
+      - name: 准备判读落盘路径（仓外）
+        run: echo "GATE_RESULT_FILE=$RUNNER_TEMP/gate-results.ndjson" >> "$GITHUB_ENV"
       # 桌面端与移动端是同一个 agent 的两个终端。design-tokens.json 与
       # agent-surface.json 是两端共享的唯一真相源；这一步守住它们不被
       # 两端各自改漂（清单里的路由不存在 / 两端偷偷多出或少了路由 /
