@@ -64,6 +64,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get cancel => '取消';
 
   @override
+  String get messageActionCopy => '复制';
+
+  @override
+  String get messageActionRetry => '重试';
+
+  @override
+  String get messageActionUndo => '撤销';
+
+  @override
+  String get messageCopiedToast => '已复制到剪贴板';
+
+  @override
   String get apply => '应用';
 
   @override

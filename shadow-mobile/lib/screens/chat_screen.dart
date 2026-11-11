@@ -303,6 +303,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   Future<void> _stopRecordingAndSend() async {
+    // ⚠️ 语音对话态下，音频块已经**实时**走 WS 流给服务端
+    // （`setAudioChunkCallback` ⇒ `sendAudioData`），转写文本由
+    // `transcriptionStream` 直接进对话 ⇒ 松手时本地这份 PCM 录音
+    // **不该**再当附件挂上去 —— 端脑链路只收纯文本，挂上去只会白报
+    // 一条「附件不可用」横幅（语音对话每说一句就红一次）。
+    //
+    // 文本态语义不变：录完挂附件（用户看得见自己发了什么）。
+    final isConversationMode =
+        ref.read(conversationModeProvider).mode ==
+        ConversationMode.conversation;
+    if (isConversationMode) {
+      await ref
+          .read(chatProvider.notifier)
+          .stopAudioRecording(keepAttachment: false);
+      return;
+    }
     await ref.read(chatProvider.notifier).stopAudioRecording();
     _sendMessage();
   }

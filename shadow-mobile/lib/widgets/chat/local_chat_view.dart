@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../generated/l10n/app_localizations.dart';
 import '../../providers/chat_provider.dart';
 import '../../utils/conversation_title.dart';
@@ -13,6 +15,7 @@ import 'message_bubbles.dart';
 import 'tool_call_card.dart';
 import 'voice_input_view.dart';
 import 'camera_preview.dart';
+import 'message_action_sheet.dart';
 
 /// Local chat view for on-device inference
 class LocalChatView extends ConsumerStatefulWidget {
@@ -86,46 +89,54 @@ class _LocalChatViewState extends ConsumerState<LocalChatView> {
     return Column(
       children: [
         // Error banner
+        //
+        // ⚠️ 长按横幅 ⇒ 毛玻璃菜单（复制原始错误 / 重试上次发送 /
+        // 撤销＝关掉横幅）。右侧的关闭按钮照旧 —— 长按是加法，不是替代。
         if (chatState.errorMessage != null)
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: (isDark ? AppColors.error : AppColors.errorLight)
-                  .withValues(alpha: 0.2),
-              border: Border(
-                bottom: BorderSide(
-                  color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-                ),
-              ),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.error_outline, color: AppColors.error, size: 20),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    chatState.displayErrorMessage(l10n) ??
-                        chatState.errorMessage!,
-                    style: TextStyle(color: AppColors.error, fontSize: 12),
+          GestureDetector(
+            onLongPress: () => _showErrorActions(context),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: (isDark ? AppColors.error : AppColors.errorLight)
+                    .withValues(alpha: 0.2),
+                border: Border(
+                  bottom: BorderSide(
+                    color: isDark
+                        ? AppColors.darkBorder
+                        : AppColors.lightBorder,
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.close, size: 18),
-                  // ⚠️ 这里**曾经**是一个**空闭包**（注释写着
-                  // "This will be handled by the parent"）——
-                  // 但父级从来没处理 ⇒ 横幅**关不掉**，它会一直挂在
-                  // 对话页顶上。
-                  //
-                  // `ChatNotifier.clearError()` 之前是**零调用方**的死方法，
-                  // 现在接上了。
-                  onPressed: () =>
-                      ref.read(chatProvider.notifier).clearError(),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  color: AppColors.error,
-                ),
-              ],
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.error_outline, color: AppColors.error, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      chatState.displayErrorMessage(l10n) ??
+                          chatState.errorMessage!,
+                      style: TextStyle(color: AppColors.error, fontSize: 12),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 18),
+                    // ⚠️ 这里**曾经**是一个**空闭包**（注释写着
+                    // "This will be handled by the parent"）——
+                    // 但父级从来没处理 ⇒ 横幅**关不掉**，它会一直挂在
+                    // 对话页顶上。
+                    //
+                    // `ChatNotifier.clearError()` 之前是**零调用方**的死方法，
+                    // 现在接上了。
+                    onPressed: () =>
+                        ref.read(chatProvider.notifier).clearError(),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    color: AppColors.error,
+                  ),
+                ],
+              ),
             ),
           ),
         // 当前是**哪条会话**。
@@ -321,7 +332,10 @@ class _LocalChatViewState extends ConsumerState<LocalChatView> {
                         msg.attachmentType == MultimodalInputType.video;
                     final isFile =
                         msg.attachmentType == MultimodalInputType.file;
-                    return Row(
+                    // 工具卡片不进长按菜单 —— 它是对话状态机的一半
+                    // （授权/执行/回传都挂着号），撤/重试都会把它搅乱。
+                    final isToolCard = msg.toolCall != null;
+                    final bubble = Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
@@ -389,6 +403,12 @@ class _LocalChatViewState extends ConsumerState<LocalChatView> {
                             tooltip: 'Speak response',
                           ),
                       ],
+                    );
+                    if (isToolCard) return bubble;
+                    return GestureDetector(
+                      onLongPress: () =>
+                          _showMessageActions(context, index, msg),
+                      child: bubble,
                     );
                   },
                 ),
@@ -539,8 +559,7 @@ class _LocalChatViewState extends ConsumerState<LocalChatView> {
                     if (!isConversationMode) ...[
                       const SizedBox(width: 8),
                       IconButton.filled(
-                        onPressed:
-                            chatState.canChat && !chatState.isLoading
+                        onPressed: chatState.canChat && !chatState.isLoading
                             ? widget.onSendMessage
                             : null,
                         icon:
@@ -565,6 +584,110 @@ class _LocalChatViewState extends ConsumerState<LocalChatView> {
         ),
       ],
     );
+  }
+
+  // ---- 长按毛玻璃菜单（消息 / 错误横幅）--------------------------------
+
+  /// 长按一条消息 ⇒ 毛玻璃菜单（复制 / 重试 / 撤销）。
+  ///
+  /// 动作按消息类型裁剪：
+  /// - 复制：只有**有文字内容**的气泡给（附件气泡的内容是路径/空，
+  ///   复制它没有意义）。
+  /// - 重试：用户消息 ⇒ 从这条重来；助手消息 ⇒ 重新生成；
+  ///   附件气泡不给（端脑链路只收纯文本，附件本来就发不出去）。
+  /// - 撤销：文本气泡都给；工具卡片整格不给（见上）。
+  Future<void> _showMessageActions(
+    BuildContext context,
+    int index,
+    ChatMessageModel msg,
+  ) async {
+    final l10n = AppLocalizations.of(context)!;
+    final canCopy = msg.content.isNotEmpty;
+    final canRetry =
+        canCopy &&
+        (msg.role == ChatRole.user || msg.role == ChatRole.assistant);
+    final action = await showMessageActionSheet(
+      context,
+      canCopy: canCopy,
+      canRetry: canRetry,
+      canUndo: true,
+      labels: MessageActionLabels(
+        copy: l10n.messageActionCopy,
+        retry: l10n.messageActionRetry,
+        undo: l10n.messageActionUndo,
+        cancel: l10n.cancel,
+      ),
+    );
+    if (!context.mounted || action == null || action == MessageAction.dismiss) {
+      return;
+    }
+    final notifier = ref.read(chatProvider.notifier);
+    switch (action) {
+      case MessageAction.copy:
+        await Clipboard.setData(ClipboardData(text: msg.content));
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(l10n.messageCopiedToast),
+            duration: const Duration(seconds: 1),
+          ),
+        );
+      case MessageAction.retry:
+        if (msg.role == ChatRole.user) {
+          await notifier.retryFromUserMessage(index);
+        } else {
+          await notifier.retryAssistantMessage(index);
+        }
+      case MessageAction.undo:
+        notifier.undoMessage(index);
+      case MessageAction.dismiss:
+        break;
+    }
+  }
+
+  /// 长按错误横幅 ⇒ 复制原始错误 / 重试上次发送 / 撤销（关掉横幅）。
+  Future<void> _showErrorActions(BuildContext context) async {
+    final l10n = AppLocalizations.of(context)!;
+    final chatState = widget.chatState;
+    final raw = chatState.errorMessage ?? '';
+    // 切会话失败的闸门还关着 ⇒ 重试没有意义（横幅说的就是这件事）。
+    final hasRetryableUser =
+        chatState.failedSwitchSessionId == null &&
+        chatState.messages.any((m) => m.role == ChatRole.user);
+    final action = await showMessageActionSheet(
+      context,
+      canCopy: raw.isNotEmpty,
+      canRetry: hasRetryableUser,
+      canUndo: true,
+      labels: MessageActionLabels(
+        copy: l10n.messageActionCopy,
+        retry: l10n.messageActionRetry,
+        undo: l10n.messageActionUndo,
+        cancel: l10n.cancel,
+      ),
+    );
+    if (!context.mounted || action == null || action == MessageAction.dismiss) {
+      return;
+    }
+    final notifier = ref.read(chatProvider.notifier);
+    switch (action) {
+      case MessageAction.copy:
+        // 复制**原始**错误文本（不带 l10n 包装）—— 给报错/贴日志用的就是它。
+        await Clipboard.setData(ClipboardData(text: raw));
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(l10n.messageCopiedToast),
+            duration: const Duration(seconds: 1),
+          ),
+        );
+      case MessageAction.retry:
+        await notifier.retryLastFailure();
+      case MessageAction.undo:
+        notifier.clearError();
+      case MessageAction.dismiss:
+        break;
+    }
   }
 
   MessageRole _convertRole(ChatRole role) {

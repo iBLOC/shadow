@@ -206,6 +206,30 @@ abstract class AppLocalizations {
   /// **'Cancel'**
   String get cancel;
 
+  /// No description provided for @messageActionCopy.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy'**
+  String get messageActionCopy;
+
+  /// No description provided for @messageActionRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get messageActionRetry;
+
+  /// No description provided for @messageActionUndo.
+  ///
+  /// In en, this message translates to:
+  /// **'Undo'**
+  String get messageActionUndo;
+
+  /// No description provided for @messageCopiedToast.
+  ///
+  /// In en, this message translates to:
+  /// **'Copied to clipboard'**
+  String get messageCopiedToast;
+
   /// No description provided for @apply.
   ///
   /// In en, this message translates to:

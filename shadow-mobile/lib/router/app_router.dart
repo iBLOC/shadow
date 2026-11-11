@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
 import '../providers/chat_provider.dart';
+import '../providers/conversation_mode_provider.dart';
 import '../utils/build_phase_guard.dart';
 import '../screens/chat_screen.dart';
 import '../screens/model_management_screen.dart';
@@ -15,7 +17,6 @@ import '../screens/memory_screen.dart';
 import '../screens/agents_screen.dart';
 import '../screens/manage/management_hub_screen.dart';
 import '../screens/prompt_settings_screen.dart';
-import '../screens/voice_conversation_screen.dart';
 import '../screens/livestream_screen.dart';
 import '../screens/customer_service_screen.dart';
 import '../screens/flows_screen.dart';
@@ -190,10 +191,7 @@ final GoRouter appRouter = GoRouter(
         final onReset = extra?['onReset'] as VoidCallback? ?? () {};
         return _fadePage(
           state,
-          _wrapInShell(
-            state,
-            SettingsScreen(onReset: onReset),
-          ),
+          _wrapInShell(state, SettingsScreen(onReset: onReset)),
         );
       },
     ),
@@ -204,32 +202,48 @@ final GoRouter appRouter = GoRouter(
       pageBuilder: (context, state) =>
           _fadePage(state, _wrapInShell(state, const PromptSettingsScreen())),
     ),
-    // Voice conversation (voice-assistant mode)
+    // 语音形态 —— **合并进常规对话页**（2026-11-11）。
+    //
+    // 以前这里是一个独立页面（VoiceConversationScreen：flutter_ai_toolkit
+    // 的 LlmChatView ＋ 进程内 BrainLlmProvider）⇒ 它的对话**不进端脑的
+    // 会话记录** ⇒ 语音里说过的话在会话列表/记忆里找不到。
+    //
+    // 现在语音只是**输入模式**：/voice 渲染的就是对话页本体（同一个
+    // 消息列表、同一条端脑链路），进来时把输入切到语音态
+    // （conversation mode：音频块走 WS 实时流 ⇒ 服务端 ASR 的转写文本
+    // 走 generateResponse ⇒ 每一句都落端脑会话记录 ⇒ 记忆找得到）。
+    //
+    // ⚠️ provider 改动必须发生在 build 期之外（pageBuilder 在 build 里
+    // 跑，见 build_phase_guard.dart 顶上的注释；2026-11-01 真机实证过）。
+    //
+    // VoiceConversationScreen 本身**留档不删**（同 Group 入口下线的
+    // 先例：revert 本次提交即可恢复），设备 USB 音频路由的诉求另行处理。
     GoRoute(
       path: AppRoutes.voice,
       name: 'voice',
-      pageBuilder: (context, state) => _fadePage(
-        state,
-        _wrapInShell(state, const VoiceConversationScreen()),
-      ),
+      pageBuilder: (context, state) {
+        final container = ProviderScope.containerOf(context, listen: false);
+        runOutsideBuild(() {
+          container
+              .read(conversationModeProvider.notifier)
+              .startConversationMode();
+        });
+        return _fadePage(state, _wrapInShell(state, const ChatScreen()));
+      },
     ),
     // Live-stream / read-aloud mode (voice-only, no digital avatar)
     GoRoute(
       path: AppRoutes.liveStream,
       name: 'livestream',
-      pageBuilder: (context, state) => _fadePage(
-        state,
-        _wrapInShell(state, const LivestreamScreen()),
-      ),
+      pageBuilder: (context, state) =>
+          _fadePage(state, _wrapInShell(state, const LivestreamScreen())),
     ),
     // Smart customer service mode (AI auto-answer calls via shadow-esp32)
     GoRoute(
       path: AppRoutes.customerService,
       name: 'customerService',
-      pageBuilder: (context, state) => _fadePage(
-        state,
-        _wrapInShell(state, const CustomerServiceScreen()),
-      ),
+      pageBuilder: (context, state) =>
+          _fadePage(state, _wrapInShell(state, const CustomerServiceScreen())),
     ),
     // ⚠️ 2026-11-03：Group 路由已下线（理由见 `AppRoutes` 处的说明）——
     // 端脑没有 group 概念 ⇒ ⇒ 不再挂这条会打 404 的路。
@@ -315,9 +329,8 @@ final GoRouter appRouter = GoRouter(
           const SizedBox(height: 8),
           Text(
             state.uri.toString(),
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
+            style: Theme.of(context).textTheme.bodyMedium
+                ?.copyWith(color: Colors.grey),
           ),
           const SizedBox(height: 24),
           ElevatedButton(

@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
+
 import '../tts_engine.dart';
 import '../multimodal/multimodal.dart';
 import '../services/telencephalon/telencephalon_client.dart';
@@ -232,6 +234,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
   ///
   /// ⚠️ 没注入 ⇒ 一律「每次询问」（fail-closed）。
   final AuthorizationMode Function(Capability capability) _capabilityModeFor;
+
   /// 等用户点头的工具调用（调用 id → 这次调用的上下文）。
   ///
   /// 用户点「允许」之后要能接着执行 ⇒ 光有卡片不够，得把
@@ -299,10 +302,14 @@ class ChatNotifier extends StateNotifier<ChatState> {
     }
   }
 
-  Future<void> stopAudioRecording() async {
+  ///
+  /// ⚠️ [keepAttachment] ＝ 语音对话态传 **false**：音频块在对话态下已经
+  /// 实时走 WS 流（服务端 ASR），本地这份 PCM 文件不该再当附件挂上去
+  /// （端脑链路只收纯文本 ⇒ 挂上去必报「附件不可用」）。文本态默认 true。
+  Future<void> stopAudioRecording({bool keepAttachment = true}) async {
     final input = await _multimodalManager.stopAudioRecording();
     state = state.copyWith(isRecordingAudio: false);
-    if (input != null) {
+    if (input != null && keepAttachment) {
       state = state.copyWith(attachments: [...state.attachments, input]);
     }
   }
@@ -381,10 +388,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
     if (state.failedSwitchSessionId != null) return;
 
     state = state.copyWith(
-      messages: [
-        ...state.messages,
-        ChatMessageModel(prompt, ChatRole.user),
-      ],
+      messages: [...state.messages, ChatMessageModel(prompt, ChatRole.user)],
       isLoading: true,
       errorMessage: null,
     );
@@ -523,7 +527,9 @@ class ChatNotifier extends StateNotifier<ChatState> {
   Future<bool> switchTo(String sessionId) async {
     if (sessionId.isEmpty) return false;
     try {
-      final conversation = await _telencephalonClient.getConversation(sessionId);
+      final conversation = await _telencephalonClient.getConversation(
+        sessionId,
+      );
       _currentSessionId = conversation.id;
       state = state.copyWith(
         sessionId: conversation.id,
@@ -719,7 +725,9 @@ class ChatNotifier extends StateNotifier<ChatState> {
           status: ToolCallStatus.failed,
           errorText: currentL10n().capabilityDeclarationMismatch(
             declaration.extra.join(', '),
-            declaration.required.isEmpty ? '—' : declaration.required.join(', '),
+            declaration.required.isEmpty
+                ? '—'
+                : declaration.required.join(', '),
           ),
         ),
       );
@@ -741,9 +749,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
     }
 
     if (_needsApproval(tool)) {
-      final pending = model.copyWith(
-        status: ToolCallStatus.awaitingApproval,
-      );
+      final pending = model.copyWith(status: ToolCallStatus.awaitingApproval);
       _pendingToolCalls[callId] = _PendingToolCall(
         sessionId: sessionId,
         model: pending,
@@ -976,6 +982,79 @@ class ChatNotifier extends StateNotifier<ChatState> {
     await _ttsEngine.speak(
       message.content.isNotEmpty ? message.content : 'Audio message',
     );
+  }
+
+  // ---- 消息动作（长按毛玻璃菜单的后半）---------------------------------
+
+  /// 撤销：把这条气泡从**当前对话视图**里拿掉。
+  ///
+  /// - **用户消息** ⇒ 连它引发的回复一起拿掉（从这条起整段截断）——
+  ///   留一条「孤儿回复」会让人以为回复凭空悬着。
+  /// - **助手 / 系统消息** ⇒ 只拿掉这一条。
+  ///
+  /// ⚠️ 端脑 shadow API 没有「删一条轮次」的端点 ⇒ 服务端那份记录动不了
+  /// ⇒ 撤销是**当前视图**的动作：切走再切回来，服务端历史原样回来。
+  /// 这是**说出来的**限制，不是静默 —— 别把「视图撤了」当成「服务端撤了」。
+  void undoMessage(int index) {
+    if (state.isLoading) return; // 回复流式生成中 ⇒ 列表不动
+    if (index < 0 || index >= state.messages.length) return;
+    final messages = List<ChatMessageModel>.from(state.messages);
+    final isUser = messages[index].role == ChatRole.user;
+    messages.removeRange(index, isUser ? messages.length : index + 1);
+    state = state.copyWith(messages: messages);
+  }
+
+  /// 重试：以这条**用户消息**的原文重发（它和它后面的一切先撤掉）。
+  Future<void> retryFromUserMessage(int index) async {
+    if (state.isLoading) return;
+    final messages = state.messages;
+    if (index < 0 || index >= messages.length) return;
+    if (messages[index].role != ChatRole.user) return;
+    final prompt = messages[index].content;
+    if (prompt.isEmpty) return;
+    state = state.copyWith(messages: [...messages.sublist(0, index)]);
+    await generateResponse(prompt);
+  }
+
+  /// 重试：重新生成这条**助手回复** —— 按它前面最近的一条用户消息。
+  Future<void> retryAssistantMessage(int index) async {
+    if (state.isLoading) return;
+    final messages = state.messages;
+    if (index < 0 || index >= messages.length) return;
+    if (messages[index].role != ChatRole.assistant) return;
+    var userIdx = -1;
+    for (var i = index - 1; i >= 0; i--) {
+      if (messages[i].role == ChatRole.user) {
+        userIdx = i;
+        break;
+      }
+    }
+    if (userIdx < 0) return;
+    final prompt = messages[userIdx].content;
+    if (prompt.isEmpty) return;
+    state = state.copyWith(messages: [...messages.sublist(0, userIdx)]);
+    await generateResponse(prompt);
+  }
+
+  /// 重试上一次失败的发送（错误横幅上的「重试」）。
+  ///
+  /// 失败时用户消息已经**乐观地**进了列表（[_sendToTelencephalon] 先插
+  /// 气泡再发请求）⇒ 「重试」＝ 撤掉它和它后面的一切（包括那条 system
+  /// 错误气泡）⇒ 用原文重发。
+  Future<void> retryLastFailure() async {
+    if (state.isLoading) return;
+    // ⚠️ 切会话失败的闸门还关着 ⇒ 不知道自己在哪条会话 ⇒ 不许重试
+    // （与 [_sendToTelencephalon] 的漏斗同一条规则，别绕过去）。
+    if (state.failedSwitchSessionId != null) return;
+    var userIdx = -1;
+    for (var i = state.messages.length - 1; i >= 0; i--) {
+      if (state.messages[i].role == ChatRole.user) {
+        userIdx = i;
+        break;
+      }
+    }
+    if (userIdx < 0) return;
+    await retryFromUserMessage(userIdx);
   }
 
   /// 清空当前对话。

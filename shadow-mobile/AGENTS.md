@@ -1,3 +1,41 @@
+**Updated:** 2026-11-11 (㌟ **「语音是输入模式，不是另一个房间 —— 独立语音页并进对话页；消息与错误长按出毛玻璃菜单（复制／重试／撤销）」** —— 本条记**取证（两套语音链路的面读数 ＋ 松手挂附件的缺陷链）**、**第一因（同一能力两套承载面 ⇒ 内容换了管线 ⇒ 记忆断）**、**第二因（语音对话态松手把 PCM 当附件挂上去 ⇒ 端脑只收纯文本 ⇒ 每说一句白红一次）**、**这一刀的落点**、**判据与分级读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=官方取号闸 --next（取样时刻 2026-11-11T07:31:46.848Z ｜ HEAD 193e16d1 ⇒ 移动端提交树面水位 U+331E ⇒ 候选头一个 U+331F）＋ flutter analyze（本刀 6 个 lib 文件零命中）＋ flutter test（新测 8/8 ＋ 三件套 27 条）＋ 码位闸三面零违规 ｜ 改动：lib/widgets/chat/message_action_sheet.dart（**新增** 毛玻璃操作菜单）＋ lib/widgets/chat/local_chat_view.dart（消息气泡与错误横幅接长按）＋ lib/providers/chat_provider.dart（undoMessage／retryFromUserMessage／retryAssistantMessage／retryLastFailure ＋ stopAudioRecording 增 keepAttachment）＋ lib/screens/chat_screen.dart（对话态松手不再挂附件）＋ lib/router/app_router.dart（/voice 改渲染对话页本体＋进页即切语音输入态）＋ lib/l10n 两个 arb（各 4 键）＋ lib/generated/l10n（gen-l10n 重生成 3 份）＋ **新增** test/unit/chat_message_actions_test.dart（8 条）⇒ ⇒ **12 个文件（2 新增）** ＋ 零新增依赖 ＋ 不碰父仓 AGENTS.md 在飞面 ｜ 读数：见 ⑤ | status=active | supersedes=none
+
+① **⚠️ 取证：语音有两个「房间」，其中一个不记记忆**
+　❶ **独立语音页**（/voice ⇒ VoiceConversationScreen）：flutter_ai_toolkit 的 LlmChatView ＋ 进程内 BrainLlmProvider（encephalonMobileServiceProvider）⇒ 推理不进端脑的 /shadow/v1/conversations ⇒ ⇒ **说过的话在会话列表里找不到**（会话记录 ＝ 记忆的来源）。
+　❷ **对话页语音对话态**（input bar 的 mic）：音频块走 WS 实时流 ⇒ 服务端 ASR ⇒ transcriptionStream ⇒ generateResponse ⇒ **每一句都落端脑会话** ⇒ ⇒ 这才是「能被记住的语音」。
+　❸ **缺陷链**：conversation mode 下松手（onLongPressEnd ⇒ _stopRecordingAndSend）⇒ stopAudioRecording() **无条件**把 PCM 文件挂进 attachments ⇒ _sendMessage 看到 hasAttachments ⇒ generateResponseWithAttachments ⇒ 端脑链路只收纯文本 ⇒ **错误横幅** ⇒ ⇒ 语音对话**每说一句**就白红一次（转写那条其实已经进对话了）。
+
+② **⚠️ 第一因：同一能力两套承载面 ⇒ 用户以为在延续对话，管线却换了**
+　❶ ⇒ ⇒ **通用形态：一个能力（语音）不能有两个不互通的承载面** ——「只是输入方式不同」是用户的合理预期 ⇒ 面的实现顺着这个预期合并，而不是各造一页。
+　❷ ⇒ ⇒ 合并的**判据**：合并后语音里的每一句都必须走与文字**同一条**会话链路 ⇒ 记忆（会话列表）找得到。
+
+③ **⚠️ 第二因：语音对话态的松手路径把「实时流的副本」又当附件发了一遍**
+　❶ ⇒ ⇒ **通用形态：同一段输入有多条路时，要有一条是**权威**的，其余路径不得再触发发送副作用** —— WS 流是权威路，本地 PCM 文件只是录音副产物 ⇒ 挂附件是第二条路在重复触发「发送」。
+　❷ ⇒ ⇒ 修法：stopAudioRecording 增 keepAttachment（对话态 false），_stopRecordingAndSend 按 conversation mode 分流 ⇒ 文本态语义不变（录完挂附件看得见）。
+
+④ **✅ 这一刀的落点（12 个文件 ＋ 2 新增 ＋ 零新增依赖）**
+　❶ **新增** lib/widgets/chat/message_action_sheet.dart —— 毛玻璃 ＝ BackdropFilter(blur 18) ＋ 半透明底板（alpha 0.55）＋ 淡遮罩（alpha 0.25）⇒ 菜单浮在对话上、上下文隐约可见；返回 MessageAction（copy／retry／undo／dismiss）。
+　❷ **改** local_chat_view.dart —— 消息气泡（工具卡片除外）与错误横幅包 GestureDetector(onLongPress)；动作按消息类型裁剪：复制只给有文字的；重试只给 user／assistant 文本气泡；工具卡片整格不给（授权／执行／回传挂着号，撤了搅乱状态机）。
+　❸ **改** chat_provider.dart —— 动作语义：**重试用户消息** ＝ 保留它之前的历史、它和之后的一切被重发的那轮换掉；**重试助手回复** ＝ 按前面最近一条用户消息重新生成；**撤销** ＝ 用户消息连回复整段截、助手／系统只截自己；**横幅重试** ＝ 撤掉失败那轮（含 system 错误气泡）原文重发。⚠️ 全部带 isLoading 守卫；横幅重试**不绕**切会话失败的闸门（failedSwitchSessionId 非空 ⇒ no-op）。
+　❹ **改** chat_screen.dart —— 见 ③（keepAttachment 分流）。
+　❺ **改** app_router.dart —— /voice 不再渲染独立语音页，改渲染 **ChatScreen 本体**；进页用 runOutsideBuild（build 期外）调 startConversationMode ⇒ 输入条直接是「按住说话」，消息列表同页可见 ⇒ 语音只是输入模式。VoiceConversationScreen **留档不删**（同 Group 入口下线先例，revert 即恢复）。
+　❻ **改** arb ×2 ＋ gen-l10n 重生成 —— messageActionCopy／messageActionRetry／messageActionUndo／messageCopiedToast。
+
+⑤ **✅ 判据与分级读数（全部实测）**
+　❶ **判据级**：flutter analyze 本刀 6 个 lib 文件**零命中**（项目存量 61 条全在未触碰文件）；新测 **8/8**（undo 截断两形／越界 no-op／isLoading no-op／重试两种／横幅重试／闸门 no-op）。
+　❷ **回归级**：三件套合计 **27 条全过**（8 新 ＋ 19 既有：chat_provider_tool_test ＋ voice_conversation_screen_test）⇒ 工具链与留档页未受扰动。
+　❸ **码位闸级**：三面零违规；取号闸复跑 ⇒ 移动端三面水位 **U+331F** ⇒ 候选 U+3320 起 ⇒ 本条字形确实占住了号。
+　❹ **预期读数变化（预期，非实测）**：/voice 进页后输入条应为「按住说话」且消息列表是同一条会话；语音态松手**不再**出「附件不可用」横幅。真机级与真 CI 级**待取**（需推 origin ＋ 真机）。
+
+⑥ **⚠️ 仍然欠着的**
+　❶ **撤销是视图级的**：端脑 shadow API 没有「删一条轮次」的端点 ⇒ 服务端记录动不了，切走再切回来历史原样回来。要真撤回 ⇒ 端脑先加端点，客户端再同步 —— 那半边在端脑仓。
+　❷ **conversation mode 的会话创建仍走 PrefrontalClient.createSession（旧方言）** —— 若端脑不认，语音态起不来（输入条退回文本）；真机另校。
+　❸ 附件气泡（voice／image／video／file）不支持复制／重试（内容是路径，复制无意义；端脑收不了附件 ⇒ 重试无意义）。
+　❹ 独立语音页的 USB 音频路由（shadow-esp32）随合并失去入口 ⇒ 设备侧诉求另行处理。
+
+⑦ **⚠ 圈码：本条占 U+331F（㌟）** —— 号按**官方口径**在**提交树面**取（取样时刻 2026-11-11T07:31:46.848Z ｜ HEAD 193e16d1 ⇒ 移动端提交树面水位 U+331E ⇒ 候选头一个 U+331F）⇒ ⇒ 方块字由 String.fromCodePoint 生成，不手打。
 
 **Updated:** 2026-11-11 (㌞ **「同一个工具的同一个答案，树与『这是谁的屏』分两次采样 —— 真机上已经张冠李戴过」** —— 承 ㌛ 条（读屏结果的**形状**必须两边一样）＋ ㋘ 条（声称改过的两处从未进过任何提交），本条记**取证（真机逐字读数）**、**第一因（两次独立 `rootInActiveWindow`）**、**第二因（判据写成了「两次独立读数相等」）**、**第三因（两条路的头不同形）**、**这一刀的落点**、**判据与分级读数**，以及**仍然欠着的**.)
 

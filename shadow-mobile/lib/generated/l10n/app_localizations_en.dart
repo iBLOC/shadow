@@ -64,6 +64,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cancel => 'Cancel';
 
   @override
+  String get messageActionCopy => 'Copy';
+
+  @override
+  String get messageActionRetry => 'Retry';
+
+  @override
+  String get messageActionUndo => 'Undo';
+
+  @override
+  String get messageCopiedToast => 'Copied to clipboard';
+
+  @override
   String get apply => 'Apply';
 
   @override
