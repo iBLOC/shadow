@@ -756,5 +756,119 @@ void main() {
       expect(seen.last.url.queryParameters['archived_only'], 'true');
       c.dispose();
     });
+
+    // ═════════════════════════════════════════════════════════════════
+    // neuron 目录面（脑面挂载 /v1/models ＋ /v1/models/pull）—— 下载弹窗
+    // 的数据源与发起下载的形状。⚠️ 关键一条：**202 是受理不是失败**
+    // （这条端点是异步任务；_post 只认 200/201，所以单独写）。
+    // ═════════════════════════════════════════════════════════════════
+    group('neuron 目录面（下载弹窗的数据源）', () {
+      test('neuronCatalog() 解析 {data:[…]} 信封，GET /v1/models', () async {
+        final mock = http_testing.MockClient((request) async {
+          seen.add(request);
+          return http.Response(
+            jsonEncode({
+              'supported_count': 2,
+              'available_count': 1,
+              'data': [
+                {
+                  'id': 'llm/a',
+                  'engine': 'llm',
+                  'available': true,
+                  'size_bytes': 1024,
+                  'default_repo': 'huggingface:o/a',
+                },
+                {'id': 'asr/b', 'engine': 'asr', 'available': false},
+              ],
+            }),
+            200,
+          );
+        });
+        final c = clientOn(mock);
+
+        final list = await c.neuronCatalog();
+
+        expect(list, hasLength(2));
+        expect(list.first.id, 'llm/a');
+        expect(list.first.available, isTrue);
+        expect(list.first.sizeBytes, 1024);
+        expect(list.first.defaultRepo, 'huggingface:o/a');
+        expect(list.first.modelId, 'a');
+        expect(list.last.available, isFalse);
+        expect(seen.single.method, 'GET');
+        expect(seen.single.url.path, '/v1/models');
+        c.dispose();
+      });
+
+      test('neuronPull() 收 202 ⇒ 回传 job_id（202 是受理不是失败）', () async {
+        final mock = http_testing.MockClient((request) async {
+          seen.add(request);
+          return http.Response(jsonEncode({'job_id': 'j9'}), 202);
+        });
+        final c = clientOn(mock);
+
+        final jobId = await c.neuronPull(
+          reference: 'huggingface:o/a',
+          engine: 'llm',
+          id: 'a',
+        );
+
+        expect(jobId, 'j9');
+        expect(seen.single.method, 'POST');
+        expect(seen.single.url.path, '/v1/models/pull');
+        expect(
+          jsonDecode(seen.single.body) as Map<String, dynamic>,
+          containsPair('reference', 'huggingface:o/a'),
+        );
+        c.dispose();
+      });
+
+      test('neuronPull() 收 404 ⇒ 抛（真失败不许装成功）', () async {
+        final mock = http_testing.MockClient((request) async {
+          seen.add(request);
+          return http.Response('{"error":"nope"}', 404);
+        });
+        final c = clientOn(mock);
+
+        await expectLater(
+          c.neuronPull(reference: 'r', engine: 'llm', id: 'a'),
+          throwsException,
+        );
+        c.dispose();
+      });
+
+      test('neuronPullJobs() 解析任务列表，GET /v1/models/pull', () async {
+        final mock = http_testing.MockClient((request) async {
+          seen.add(request);
+          return http.Response(
+            jsonEncode({
+              'count': 1,
+              'data': [
+                {
+                  'job_id': 'j1',
+                  'status': 'in_progress',
+                  'reference': 'huggingface:o/a',
+                  'engine': 'llm',
+                  'bytes_downloaded': 5,
+                  'total_bytes': 10,
+                },
+              ],
+            }),
+            200,
+          );
+        });
+        final c = clientOn(mock);
+
+        final jobs = await c.neuronPullJobs();
+
+        expect(jobs, hasLength(1));
+        expect(jobs.single.isActive, isTrue);
+        expect(jobs.single.bytesDownloaded, 5);
+        expect(jobs.single.totalBytes, 10);
+        expect(seen.single.method, 'GET');
+        expect(seen.single.url.path, '/v1/models/pull');
+        c.dispose();
+      });
+    });
   });
 }
