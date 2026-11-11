@@ -349,15 +349,18 @@ jobs:
       #     ⇒ ⇒ 否则这道闸会「红久了没人看」（= 比没有防线更坏）。
       # ⚠️ **判据收紧过一轮**：「改了却没人读」不算污染 ⇒ ⇒ 候选必须有**读点**。
       - name: Test env-race check
+        if: always()
         run: node shadow/scripts/run-gate-once.mjs --strict shadow/scripts/check-test-env-races.mjs -- --root="$GITHUB_WORKSPACE/shadow"
 
       - name: Test env-race check (self-test)
+        if: always()
         run: node shadow/scripts/check-test-env-races.mjs --self-test
 
       # ⚠️ **跨仓那一面只作读数** —— 兄弟仓的候选属**它们自己**的工作线
       #   ⇒ ⇒ 本仓只把它们**打出来**（谁、哪个 var、几个测试函数）⇒ ⇒
       #   ⇒ 清单落在日志里 ⇒ ⇒ 后续每一条修复都有归属可查。
       - name: Test env-race census (cross-repo reading)
+        if: always()
         run: node shadow/scripts/check-test-env-races.mjs --root="$GITHUB_WORKSPACE" --report-only
 
       # ⚠️ 收尾：把这一盏灯「绿得有多真」写出来 —— 这一盏灯里**所有**真跑的闸
@@ -506,6 +509,7 @@ jobs:
       # 它只吃合成夹具 ⇒ ⇒ 不需要兄弟仓 ⇒ ⇒ 放这儿当**快速护栏**。
       # ⚠️ 跨仓那一层要 desktop-e2e 那个 job（那里 checkout 了全套仓）。
       - name: Neuron ownership check (self-test)
+        if: always()
         run: node scripts/check-neuron-ownership.mjs --self-test
 
       # 「E2E 凭据头形状」闸 —— 端脑那几扇门在 CI 上是不是**真的**拿到了凭据。
@@ -513,10 +517,12 @@ jobs:
       #    Playwright **既不报错也不告警**（测试照样 pass）⇒ ⇒ 一个头都发不出去
       #    ⇒ ⇒ 端脑那扇门一律 401 ⇒ ⇒ 那批红**长得像**鉴权失败，其实是形状错了。
       - name: E2E credential shape check
+        if: always()
         run: node scripts/run-gate-once.mjs --strict scripts/check-e2e-credential-shape.mjs
 
       # 闸自己的自检（6 条用例，含**真实事故夹具** ＋ 孪生用例）。
       - name: E2E credential shape check (self-test)
+        if: always()
         run: node scripts/check-e2e-credential-shape.mjs --self-test
 
       # 「Rust 工具链钉住」门 —— CI 跑 cargo 的 job 是不是**真的**把尺子钉住了。
@@ -527,20 +533,24 @@ jobs:
       # ⚡️ 这道门还判**假钉**（钉了版本却没装 ⇒ ⇒ runner 上没那个版本 ⇒ ⇒ cargo 直接报
       #    "toolchain '1.99.0' is not installed"）与**跨 workflow 版本漂移**（三个 workflow 用不同刻度 ⇒ ⇒ 尺子不一致）。
       - name: Rust toolchain pin check
+        if: always()
         run: node scripts/run-gate-once.mjs --strict scripts/check-rust-toolchain-pin.mjs
 
       # 门自己的自检（7 条用例，含「假钉」与「跨 workflow 漂移」两个事故夹具 ＋ 孪生用例）。
       - name: Rust toolchain pin check (self-test)
+        if: always()
         run: node scripts/check-rust-toolchain-pin.mjs --self-test
 
       # 生成物是从属的：改 design-tokens.json 后必须重跑生成器。
       # 这条单独拎出来，让漂移的报错一眼能定位。
       - name: Design token drift check
+        if: always()
         run: node scripts/run-gate-once.mjs --strict scripts/gen_tokens.mjs -- --check
 
       # 导航结构同样只有一份定义（agent-surface.json 的 navigation 段），
       # 两端导航都是生成物 —— 改了清单忘了重跑生成器 = 两端导航悄悄分叉。
       - name: Navigation drift check
+        if: always()
         run: node scripts/run-gate-once.mjs --strict scripts/gen_nav.mjs -- --check
 
       # 「状态面治理」闸 —— **持久状态的生命周期治理**（arXiv:2606.30306）。
@@ -552,9 +562,11 @@ jobs:
       #    以及仓里**有没有未登记的状态面**。
       # ⚠️ 只读仓内的面 ⇒ ⇒ CI 里可跑（本地记忆面在 CI 不存在 ⇒ ⇒ 明确报「未覆盖」）。
       - name: State surface governance check
+        if: always()
         run: node scripts/run-gate-once.mjs --strict scripts/check-state-surface.mjs
 
       - name: State surface governance check (self-test)
+        if: always()
         run: node scripts/check-state-surface.mjs --self-test
       # ── 「失败长得像成功」闸 ──────────────────────────────────
       # ⚠️ 2026-11-08 实测：这一族（把失败变成一个「看起来正常」的东西）
@@ -565,9 +577,11 @@ jobs:
       # ⚠️ 判据＝**形状**（剥注释后）⇒ ⇒ 合法回落会有假阳性
       #    ⇒ ⇒ 那正是「债务清单」的用处（每条写清 why / when）。
       - name: Failure masking check
+        if: always()
         run: node scripts/run-gate-once.mjs --strict scripts/check-failure-masking.mjs
 
       - name: Failure masking check (self-test)
+        if: always()
         run: node scripts/check-failure-masking.mjs --self-test
 
       # 「用户偏好撤销通道」闸 —— **authority lapse 的机械形态**
@@ -578,9 +592,11 @@ jobs:
       #    （不假装绿）⇒ ⇒ CI 守的是**账本自身**（V1/V2/V7）＋ 自检里的
       #    **完整生命周期演练**（每一步该红的地方都红）。
       - name: Preference revocation check
+        if: always()
         run: node scripts/run-gate-once.mjs --strict scripts/check-preference-revocation.mjs
 
       - name: Preference revocation check (self-test)
+        if: always()
         run: node scripts/check-preference-revocation.mjs --self-test
 
       # ── 死环境变量闸 ──────────────────────────────────────────
@@ -591,17 +607,21 @@ jobs:
       # ⇒ ⇒ 这道闸盯「设了没人读」与「改名链漂移」两族 —— 它们是
       #    **词级残留闸抓不到的一族**（新名字里没有旧产品名那个词）。
       - name: Dead env vars check
+        if: always()
         run: node scripts/run-gate-once.mjs --strict scripts/check-dead-env-vars.mjs
 
       - name: Dead env vars check (self-test)
+        if: always()
         run: node scripts/check-dead-env-vars.mjs --self-test
 
       # logo 几何同理：真相源在 brand/geom.mjs，两端图标与应用内标记都是
       # 生成物。改了几何忘了重跑 = 应用图标与应用内 logo 悄悄对不上。
       - name: Brand asset drift check
+        if: always()
         run: node scripts/run-gate-once.mjs --strict brand/gen-icons.mjs -- --check
 
       - name: TypeScript check
+        if: always()
         working-directory: shadow-desktop
         run: pnpm exec tsc --noEmit
 
@@ -613,10 +633,12 @@ jobs:
       #    ⇒ ⇒ 要补这块覆盖，得先把本仓检出到 `path: shadow`（release.yml
       #    踩的是同一个坑）—— 本轮只把名字改对，覆盖另记。
       - name: Build web frontend (Tauri Rust side is NOT built here)
+        if: always()
         working-directory: shadow-desktop
         run: pnpm build
 
       - name: Build web
+        if: always()
         working-directory: shadow-desktop
         run: pnpm build:web
       # ⚠️ **收尾：把这一轮「绿得有多真」写出来** —— 本 job 里走 `run-gate-once` 的
