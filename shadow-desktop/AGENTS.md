@@ -1,3 +1,38 @@
+**Updated:** 2026-11-11 (㌡ **「下拉『选项』黑底黑字 —— 弹层是原生控件，而页面从来没告诉它自己处于什么主题」** —— 承「失败长得像成功」族（下拉看起来像『主题坏了』，实际是**两套配色系统各画各的**），本条记**取证（三份 CSS ＋ 全仓 9 处原生 select 逐处读数 ＋ 主题挂载点）**、**第一因（原生弹层不读 CSS 变量，color-scheme 全仓零声明）**、**第二因（6 处 select 无显式文字色 ⇒ 可读性挂在 body 继承链上）**、**落点（三层修法）**、**全应用同类扫描清单**，以及**仍然欠着的**。)
+
+> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=官方读数（src/index.css ＋ src/App.css ＋ src/styles/tokens.css 全文；grep color-scheme 仅命中 .dark 选择器本身 ⇒ 零声明；全仓原生 <select> 9 处 className 逐处；stores/themeStore.ts:107 .dark 挂 documentElement）｜ 改动：src/index.css（:root/.dark color-scheme ＋ select option 钉 popover token ＋ option:disabled 灰化）＋ src/pages/ProvidersPage.tsx（4 处补 text-foreground）＋ src/pages/JdmEditorPage.tsx（1 处）＋ src/components/business/CapabilityDefaultsCard.tsx（1 处）＋ 本条 ⇒ ⇒ **5 个文件** ⇒ ⇒ 零新增文件 ＋ 零新增依赖 ＋ 零 ci.yml 改动 ＋ 不碰兄弟在飞面（git status 逐条核对：DocumentPage/i18n/src-tauri 两文件/ci.yml/scripts/playwright-report 均与本刀路径不相交）| status=active | supersedes=none
+
+① **⚠️ 取证（「选项纯黑、字体也黑」的机械证据链）**
+　❶ **主题侧**：tokens.css 由 design-tokens.json 生成（勿手改）；亮色 --foreground: 240 10% 3.9%（近黑）／暗色 0 0% 98%（近白）；.dark class 由 themeStore.ts:107 toggle 在 **documentElement** 上。
+　❷ **弹层侧**：原生 <select> 的下拉弹出层是 WebView2/Chromium 的**原生控件窗口**，底色与文字色由 UA 按 **color-scheme** 决定 —— 而 grep 三份 CSS，color-scheme **零声明** ⇒ ⇒ 弹层按「系统」深浅画底色，option 文字却继承页面前景色（CSS 变量算的）⇒ ⇒ **系统深色 ＋ 页面亮色**的组合 ＝ 黑底 ＋ 黑字 ⇒ ⇒ 用户看到的正是这个。
+　❸ **承载面清单（全仓 9 处原生 select，逐处读数）**：ProvidersPage L938/L967（模型选择，无文字色）／L1071（导出，有 text-foreground）／L1283/L1399（接口标准，无）｜SettingsPage L1139（有 text-popover-foreground）｜JdmEditorPage L500（无）｜CapabilityDefaultsCard L205（无）｜TaskEditDialog L177/L199（有）｜EndbrainTaskSection L266（有；注释说明故意用原生 select 以便 jsdom fireEvent.change 可测、不用 Radix）⇒ ⇒ **6 处无显式文字色**。
+
+② **⚠️ 第一因：原生弹层不读 CSS 变量 —— 「主题」只对文档树成立，对原生控件不成立**
+　❶ 整个主题体系（tokens.css ＋ Tailwind 语义色）只作用在**文档树**上；原生 select 弹层是另一个绘制世界，只认 color-scheme 与 UA 默认 ⇒ ⇒ 「设了 --background」对弹层是**空气**。
+　❷ ⇒ ⇒ **通用形态：凡是「系统原生控件」（select 弹层／滚动条／checkbox／autofill）都必须用 color-scheme 显式登记主题，否则它跟系统走、页面跟 token 走 —— 两个真相源必然打架。**
+
+③ **⚠️ 第二因：可读性挂在隐式继承链上**
+　❶ body 有 text-foreground ⇒ 后代全继承；6 处 select 自己不写色 ⇒ 表面正常、依赖链脆弱（中间插入一层带色容器就翻车）⇒ ⇒ **通用形态：承载可读性的关键色要显式写在离内容最近的一层。**
+
+④ **✅ 落点（三层修法，5 个文件）**
+　❶ **src/index.css @layer base**：:root { color-scheme: light } ＋ .dark { color-scheme: dark }（根治弹层 UA 色脱钩）＋ select option { background-color: hsl(var(--popover)); color: hsl(var(--popover-foreground)) } ＋ option:disabled 用 muted-foreground（「未下载不能选」仍灰化可见）⇒ 弹层可读**不再依赖 UA 默认配色**（双保险；tokens.css 是生成文件 ⇒ 规则只能住 index.css）。
+　❷ **6 处补 text-foreground**：ProvidersPage ×4 ＋ JdmEditorPage ×1 ＋ CapabilityDefaultsCard ×1（已有色的 3 处不动）。
+
+⑤ **✅ 全应用同类扫描清单（「还有很多处」的完整答案）**
+　❶ **排除（有意设计、可读）**：bg-black/60~80＋text-white 的遮罩/删除钮（ConversationPage L1056、ModelsPage L1126、LocalEnginePanel L691、alert-dialog L21、dialog L22）｜彩色底＋text-white 的按钮/徽标 13 处（ui/button.tsx success/warning/info、FlowsPage、SetupPage、VoicePage 等）｜SetupPage L42 Vercel 品牌色 #000000｜内联动态色均配底色或 bestForeground 机制（SettingsPage L1583/L1601/L1605、AgentCard L45/L50、ProviderCard L33、ModelsPage L399）。
+　❷ **顺带登记（不是可辨识性缺陷，是风格债，本轮不动）**：FlowsPage L31/L51 bg-blue-500/bg-green-500 硬编码彩色（与 token 体系脱钩）｜ModelsPage L399 内联 color:#fff。⇒ ⇒ 「黑底黑字／白底白字」级的**可辨识性**缺陷：**select 弹层这一族是全部**。
+
+⑥ **✅ 判据与分级读数**
+　❶ **承载级**：vite build **EXIT=0**（✓ built in 29.31s）＋ tsc --noEmit **EXIT=0**（全仓，含在飞面）＋ 产物 CSS（dist/assets/index-*.css）逐字含 color-scheme 与 select option 规则（select option 命中 **2** 处 ＝ 含 :disabled）＋ 改动形状（index.css 一块插入 ＋ 4 文件 className 各补 1 个 token）。
+　❷ **行为面（亮色零变化论证）**：亮色下 color-scheme:light ＝ UA 默认 ⇒ 原本正常的亮色弹层**零行为变化**；暗色／系统深色下弹层从「系统色」改挂「主题 token」⇒ 缺陷面修复。
+　❸ **真机级**：⚠️ **待用户复看**（WebView2 原生弹层是 OS 窗口，自动化取不到屏幕读数）—— 复看路径：系统深色模式下打开应用，开任一下拉（ProvidersPage 模型选择最直接）。
+
+⑦ **⚠️ 仍然欠着的**
+　❶ 真机级读数（见 ⑥❸）。
+　❷ **原生 select 无法完全消灭**（EndbrainTaskSection 注释：Radix 在 jsdom 里只能靠指针事件 ⇒ 判据钉不住 ⇒ 故意保留原生）⇒ color-scheme ＋ option 兜底就是这一族的**长期形状**，不是权宜。
+　❸ FlowsPage/ModelsPage 风格债（见 ⑤❷），另刀。
+
+⑧ **⚠ 圈码：本条占 U+3321 (㌡)** —— 号按官方口径取（取样时刻 2026-11-11T08:09:00.058Z ＠ HEAD 27705270；取号闸逐 space 候选**已自动跳过**被移动端占用的 U+3320 ⇒ 桌面端三面候选头一个 ＝ U+3321；码位闸三面零违规 EXIT=0）⇒ 方块字由 String.fromCodePoint 生成，不手打。
 **Updated:** 2026-11-02 (㋱ **「端脑换实例 ⇒ 桌面端静默重建会话 ⇒ 模型上下文被静默清零」** —— 承父仓㋫ 条里那条**只到读源码**的桌面端同族缺陷（松散子串判错误类型 ⇒ 静默重试 ⇒ 失败长得像成功），本条把它变成**真浏览器里跑出来的读数**：真 React 代码 ＋ 真 HTTP ＋ 真 SSE ＋ 真 localStorage。)
 ① **⚠️ 病（为什么它是「失败长得像成功」）**：桌面端发送重试（`src/pages/ConversationPage.tsx:578`）用**五个松散子串**判「这是不是会话错误」：`session` / `not found` / `invalid` / `expired` / `conversation` ⇒ 命中且是第一次尝试 ⇒ `setSessionId(id, '')` ⇒ **静默重建** ⇒ `continue` ⇒ ⇒ **第一次失败被吞掉** ⇒ ⇒ 界面**零异常** ⇒ ⇒ 而模型那边已经换了一个**空会话**。
 ② **✅ 真机读数（浏览器形态，Chromium 151）**：**23 条断言 / 0 红 / EXIT=0**（四模式）—— `live` 6 过（正控：认识会话 ⇒ 不重建，服务端历史轮数 = 3，模型说「记得」）／ `notfound` 8 过（主案：404 ⇒ **换了会话 id**（`stale-session-xyz` → `srv-1`）⇒ **服务端历史轮数 = 0** ⇒ 模型明说「看不到你前面说过的话」⇒ **界面没有报错**）／ `substring` 5 过（反向验证）／ `other` 4 过（同族更坏）。

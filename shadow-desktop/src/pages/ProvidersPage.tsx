@@ -945,7 +945,7 @@ export function ProvidersPage() {
                             })
                           )
                         }
-                        className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                        className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
                         disabled={provider.models.length === 0}
                       >
                         {provider.models.length === 0 && (
@@ -974,7 +974,7 @@ export function ProvidersPage() {
                             })
                           )
                         }
-                        className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                        className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
                         disabled={provider.models.length === 0}
                       >
                         {provider.models.length === 0 && (
@@ -1287,7 +1287,7 @@ export function ProvidersPage() {
                     setCustomForm(next);
                     maybeAutoFetchCustom(next);
                   }}
-                  className="rounded-md border border-border bg-background px-3 py-2 text-sm"
+                  className="rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
                 >
                   <option value="openai">OpenAI</option>
                   <option value="claude">Claude</option>
@@ -1401,7 +1401,7 @@ export function ProvidersPage() {
                     onChange={(e) =>
                       setEditForm((f) => ({ ...f, standard: e.target.value as ApiStandard }))
                     }
-                    className="rounded-md border border-border bg-background px-3 py-2 text-sm"
+                    className="rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
                   >
                     <option value="openai">OpenAI</option>
                     <option value="claude">Claude</option>

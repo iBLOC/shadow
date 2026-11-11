@@ -21,6 +21,28 @@
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
+
+  /* ---- 原生控件配色（select 下拉弹层等）----
+   * 原生 <select> 的弹出层是 WebView2/Chromium 的原生控件：
+   * 页面不声明 color-scheme 时，弹层底色按「系统」深浅画，
+   * 而 option 文字继承页面前景色 ⇒ ⇒ 系统「深色 + 页面亮色」
+   * 的组合就是黑底黑字（选项无法辨识）。
+   * 修两层：① color-scheme 让原生控件跟随主题；
+   * ② 把弹层里的 option 显式钉到 token 上，可读性不再依赖 UA 默认配色。
+   * tokens.css 是生成文件（勿手改）⇒ 这组规则只能住在这里。 */
+  :root {
+    color-scheme: light;
+  }
+  .dark {
+    color-scheme: dark;
+  }
+  select option {
+    background-color: hsl(var(--popover));
+    color: hsl(var(--popover-foreground));
+  }
+  select option:disabled {
+    color: hsl(var(--muted-foreground));
+  }
 }
 
 @layer components {

@@ -498,7 +498,7 @@ function RuleSection({ title, items, onChange }: RuleSectionProps) {
             placeholder="variable"
           />
           <select
-            className="border rounded px-2 py-1 bg-background"
+            className="border rounded px-2 py-1 bg-background text-foreground"
             value={r.op}
             onChange={(e) => update(i, { op: e.target.value as ComparisonRule['op'] })}
           >

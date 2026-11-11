@@ -203,7 +203,7 @@ export function CapabilityDefaultsCard() {
                       : t(`capabilityDefaults.${cap}`, cap)}
                   </span>
                   <select
-                    className="rounded-md border border-input bg-background px-2 py-1.5 text-sm"
+                    className="rounded-md border border-input bg-background px-2 py-1.5 text-sm text-foreground"
                     value={value}
                     disabled={saving === cap}
                     onChange={(e) => void apply(cap, e.target.value)}
