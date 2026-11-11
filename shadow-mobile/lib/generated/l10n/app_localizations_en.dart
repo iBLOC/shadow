@@ -1977,4 +1977,41 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get capabilityDefaultsUnusableNow =>
       'These tiers point at a model this brain has not registered - the setting is saved, but it cannot run until the engine is registered.';
+
+  @override
+  String get providersDownloadModels => 'Download local models';
+
+  @override
+  String get providersDownloadedOnly => 'Downloaded';
+
+  @override
+  String get providersDownloadAction => 'Download';
+
+  @override
+  String get providersDownloading => 'Downloading…';
+
+  @override
+  String get providersDownloadFailed => 'Download failed';
+
+  @override
+  String get providersDownloadNoLocal => 'No downloaded local models yet';
+
+  @override
+  String get providersDownloadRetry => 'Retry';
+
+  @override
+  String get providersDownloadDone => 'Download complete';
+
+  @override
+  String providersDownloadProgress(int received, int total) {
+    return 'Downloading $received / $total';
+  }
+
+  @override
+  String providersDownloadReceived(int received) {
+    return '$received downloaded';
+  }
+
+  @override
+  String get providersDownloadEmpty => 'The brain returned no model catalog';
 }

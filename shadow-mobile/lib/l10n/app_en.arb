@@ -1094,5 +1094,27 @@
   "@zitiImportFailed": {},
   "zitiSaveFailed": "Save failed",
   "@zitiSaveFailed": {},
-  "capabilityDefaultsUnusableNow": "These tiers point at a model this brain has not registered - the setting is saved, but it cannot run until the engine is registered."
+  "capabilityDefaultsUnusableNow": "These tiers point at a model this brain has not registered - the setting is saved, but it cannot run until the engine is registered.",
+  "providersDownloadModels": "Download local models",
+  "providersDownloadedOnly": "Downloaded",
+  "providersDownloadAction": "Download",
+  "providersDownloading": "Downloading…",
+  "providersDownloadFailed": "Download failed",
+  "providersDownloadNoLocal": "No downloaded local models yet",
+  "providersDownloadRetry": "Retry",
+  "providersDownloadDone": "Download complete",
+  "providersDownloadProgress": "Downloading {received} / {total}",
+  "@providersDownloadProgress": {
+    "placeholders": {
+      "received": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
+  "providersDownloadReceived": "{received} downloaded",
+  "@providersDownloadReceived": {
+    "placeholders": {
+      "received": { "type": "int" }
+    }
+  },
+  "providersDownloadEmpty": "The brain returned no model catalog"
 }

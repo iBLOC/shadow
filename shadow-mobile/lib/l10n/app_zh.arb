@@ -1058,5 +1058,27 @@
   "@zitiImportFailed": {},
   "zitiSaveFailed": "保存失败",
   "@zitiSaveFailed": {},
-  "capabilityDefaultsUnusableNow": "下面这几档指向的模型这台大脑还没注册 —— 设置存住了，但引擎注册前跑不起来。"
+  "capabilityDefaultsUnusableNow": "下面这几档指向的模型这台大脑还没注册 —— 设置存住了，但引擎注册前跑不起来。",
+  "providersDownloadModels": "下载本地模型",
+  "providersDownloadedOnly": "已下载",
+  "providersDownloadAction": "下载",
+  "providersDownloading": "下载中…",
+  "providersDownloadFailed": "下载失败",
+  "providersDownloadNoLocal": "还没有已下载的本地模型",
+  "providersDownloadRetry": "重试",
+  "providersDownloadDone": "下载完成",
+  "providersDownloadProgress": "下载中 {received} / {total}",
+  "@providersDownloadProgress": {
+    "placeholders": {
+      "received": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
+  "providersDownloadReceived": "已下载 {received}",
+  "@providersDownloadReceived": {
+    "placeholders": {
+      "received": { "type": "int" }
+    }
+  },
+  "providersDownloadEmpty": "大脑没有返回模型目录"
 }

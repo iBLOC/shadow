@@ -1795,6 +1795,75 @@ class TelencephalonClient {
     return _modelsFrom(data);
   }
 
+  // =========================================================================
+  // neuron 目录面（挂载在脑面上的 `/v1/models` —— 与 OpenAI 推理面同一挂载）
+  // =========================================================================
+
+  /// neuron 目录**全量**（含「目录里有、还没下载」的条目）。
+  ///
+  /// ⚠️ 与 `/models/providers` 里内置条目的读视图是**两份形状**：这边带
+  /// `engine`／`default_repo`（发起下载要用的两样）⇒ ⇒ 那边没有 ⇒ ⇒
+  /// 「下载弹窗」的数据源是**这一份**，不是内置条目那份。
+  Future<List<NeuronCatalogEntry>> neuronCatalog() async {
+    final decoded = await _getJson('/v1/models');
+    final map = decoded as Map<String, dynamic>;
+    final raw = (map['data'] as List?) ?? const [];
+    return raw
+        .cast<Map<String, dynamic>>()
+        .map(NeuronCatalogEntry.fromJson)
+        .toList();
+  }
+
+  /// 发起下载（neuron `POST /v1/models/pull`）—— 成功码是 **202**。
+  ///
+  /// ⚠️ 这条端点是**异步任务**（202 Accepted ＋ job_id）⇒ ⇒ `_post`
+  /// （只认 200/201）会把「已受理」当失败抛 ⇒ ⇒ 单独写。
+  Future<String> neuronPull({
+    required String reference,
+    required String engine,
+    required String id,
+  }) async {
+    final r = await _http.post(
+      await _u('/v1/models/pull'),
+      headers: _headers(jsonBody: true),
+      body: jsonEncode(<String, dynamic>{
+        'reference': reference,
+        'engine': engine,
+        'id': id,
+      }),
+    );
+    if (r.statusCode != 200 && r.statusCode != 202) {
+      throw TelencephalonException(
+        'POST /v1/models/pull → ${r.statusCode}: ${r.body}',
+      );
+    }
+    final body = jsonDecode(r.body) as Map<String, dynamic>;
+    return body['job_id'] as String;
+  }
+
+  /// 下载任务列表（进度轮询用）。
+  Future<List<NeuronPullJob>> neuronPullJobs() async {
+    final map = await _get('/v1/models/pull');
+    final raw = (map['data'] as List?) ?? const [];
+    return raw
+        .cast<Map<String, dynamic>>()
+        .map(NeuronPullJob.fromJson)
+        .toList();
+  }
+
+  /// 取消一个下载任务（neuron `DELETE /v1/models/pull/{job_id}`）。
+  Future<void> neuronPullCancel(String jobId) async {
+    final r = await _http.delete(
+      await _u('/v1/models/pull/${Uri.encodeComponent(jobId)}'),
+      headers: _headers(),
+    );
+    if (r.statusCode != 200 && r.statusCode != 204) {
+      throw TelencephalonException(
+        'DELETE /v1/models/pull/$jobId → ${r.statusCode}: ${r.body}',
+      );
+    }
+  }
+
   /// 大脑两个模型端点的**形状不一样** ⇒ ⇒ 一个解析器吃两种。
   ///
   /// * preview ⇒ synapse 目录那份 ModelSummary（display_name / capability）
@@ -1999,3 +2068,86 @@ final defaultTelencephalonClient = TelencephalonClient();
 final defaultTelencephalonConnection = TelencephalonConnection(
   baseUrl: 'http://127.0.0.1:60080',
 );
+
+/// neuron 目录面的一条（脑面挂载 `/v1/models` 的 `data[]` 元素）。
+///
+/// ⚠️ `id` 是 `engine/model` 组合形状（如 `asr/sensevoice-small`）⇒ ⇒
+/// pull 端点要的 `id` 是**去掉 engine 前缀**的那截 ⇒ ⇒ 用 [modelId]。
+class NeuronCatalogEntry {
+  final String id;
+  final String engine;
+
+  /// **盘上真的有吗** —— false ＝ 目录里有、还没下载（可以发下载）。
+  final bool available;
+  final int? sizeBytes;
+
+  /// 默认仓库（`huggingface:owner/repo`）—— **直接当 pull 的 reference**。
+  final String? defaultRepo;
+
+  const NeuronCatalogEntry({
+    required this.id,
+    required this.engine,
+    required this.available,
+    this.sizeBytes,
+    this.defaultRepo,
+  });
+
+  factory NeuronCatalogEntry.fromJson(Map<String, dynamic> json) =>
+      NeuronCatalogEntry(
+        id: json['id'] as String? ?? '',
+        engine: json['engine'] as String? ?? '',
+        available: json['available'] as bool? ?? false,
+        sizeBytes: json['size_bytes'] as int?,
+        defaultRepo: json['default_repo'] as String?,
+      );
+
+  /// pull 端点要的 id —— **去掉 engine 前缀**（`asr/x` → `x`；
+  /// `llm/a/b` → `a/b`，按**第一个**斜杠拆）。
+  String get modelId =>
+      id.contains('/') ? id.substring(id.indexOf('/') + 1) : id;
+}
+
+/// 一个下载任务（`GET /v1/models/pull` 的 `data[]` 元素）。
+class NeuronPullJob {
+  final String jobId;
+
+  /// pending / in_progress / completed / failed / cancelled
+  final String status;
+  final String reference;
+  final String engine;
+  final int bytesDownloaded;
+  final int? totalBytes;
+  final String? currentFile;
+  final String? error;
+
+  const NeuronPullJob({
+    required this.jobId,
+    required this.status,
+    required this.reference,
+    required this.engine,
+    required this.bytesDownloaded,
+    this.totalBytes,
+    this.currentFile,
+    this.error,
+  });
+
+  factory NeuronPullJob.fromJson(Map<String, dynamic> json) => NeuronPullJob(
+        jobId: json['job_id'] as String? ?? '',
+        status: json['status'] as String? ?? '',
+        reference: json['reference'] as String? ?? '',
+        engine: json['engine'] as String? ?? '',
+        bytesDownloaded: json['bytes_downloaded'] as int? ?? 0,
+        totalBytes: json['total_bytes'] as int?,
+        currentFile: json['current_file'] as String?,
+        error: json['error'] as String?,
+      );
+
+  /// 还在跑（要不要继续轮询）。
+  bool get isActive => status == 'pending' || status == 'in_progress';
+
+  /// 下载完成。
+  bool get isDone => status == 'completed';
+
+  /// 失败（错误文本在 [error]）。
+  bool get isFailed => status == 'failed';
+}

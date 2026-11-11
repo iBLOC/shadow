@@ -211,7 +211,7 @@ void main() {
     //
     // ⚠️ 断言用「**恰好一个**」而不是「至少一个」⇒ ⇒ 这样才能同时钉住
     // 「普通条目还在」（正控）与「内置条目的不在」。
-    testWidgets('⚠️ 内置条目没有启停/编辑/删除；但**模型可以选**（没下载的不能选）', (
+    testWidgets('⚠️ 内置条目没有启停/编辑/删除；模型**只列已下载**（已下载的可选）', (
       WidgetTester tester,
     ) async {
       final puts = <String>[];
@@ -277,22 +277,25 @@ void main() {
       expect(find.text('Delete'), findsOneWidget, reason: '删除按钮只剩普通条目那份');
       // ⚠️ 内置条目的模型要**带能力**列出来（目录横跨七种能力）。
       expect(find.text('llm · qwen3-0.6b'), findsOneWidget);
-      // ⚠️⚠️ **没下载的**要点出来（否则用户以为它能跑）。
+      // ⚠️ **只列已下载**（2026-11-11）：没下载的不再出现 —— 选了也跑不起
+      // ⇒ ⇒ 下载入口改到「下载本地模型」弹窗（neuron 目录 /v1/models）。
+      expect(
+        find.byType(ChoiceChip),
+        findsNWidgets(2),
+        reason: '只列已下载：内置 1 条（qwen3-0.6b）＋ 云端 1 条（gpt-4o）',
+      );
       expect(
         find.text('llm · not-downloaded-yet · Not downloaded'),
-        findsOneWidget,
-        reason: '没下载的模型必须标出来',
+        findsNothing,
+        reason: '没下载的模型不再列出（下载走弹窗）',
       );
       // ⚠️ **已下载的可以选**（用户拍板：内置条目也能记 selected_model）。
       final okChip = tester.widget<ChoiceChip>(
         find.widgetWithText(ChoiceChip, 'llm · qwen3-0.6b'),
       );
       expect(okChip.onSelected, isNotNull, reason: '已下载的本地模型必须可选');
-      // ⚠️ **没下载的不能选**（选了也跑不起来 ⇒ ⇒ 大脑那边会拒 400）。
-      final badChip = tester.widget<ChoiceChip>(
-        find.widgetWithText(ChoiceChip, 'llm · not-downloaded-yet · Not downloaded'),
-      );
-      expect(badChip.onSelected, isNull, reason: '没下载的模型不许选');
+      // ⚠️ 内置条目现在带「下载本地模型」入口（弹窗数据源是 neuron 目录）。
+      expect(find.text('Download local models'), findsOneWidget);
       // ⚠️ 选一个 ⇒ ⇒ 真的让大脑记住（PUT /models/providers/{id}）。
       await tester.tap(find.widgetWithText(ChoiceChip, 'llm · qwen3-0.6b'));
       await tester.pumpAndSettle();

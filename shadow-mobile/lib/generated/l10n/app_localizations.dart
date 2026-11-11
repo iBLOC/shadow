@@ -3679,6 +3679,72 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'These tiers point at a model this brain has not registered - the setting is saved, but it cannot run until the engine is registered.'**
   String get capabilityDefaultsUnusableNow;
+
+  /// No description provided for @providersDownloadModels.
+  ///
+  /// In en, this message translates to:
+  /// **'Download local models'**
+  String get providersDownloadModels;
+
+  /// No description provided for @providersDownloadedOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloaded'**
+  String get providersDownloadedOnly;
+
+  /// No description provided for @providersDownloadAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Download'**
+  String get providersDownloadAction;
+
+  /// No description provided for @providersDownloading.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading…'**
+  String get providersDownloading;
+
+  /// No description provided for @providersDownloadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Download failed'**
+  String get providersDownloadFailed;
+
+  /// No description provided for @providersDownloadNoLocal.
+  ///
+  /// In en, this message translates to:
+  /// **'No downloaded local models yet'**
+  String get providersDownloadNoLocal;
+
+  /// No description provided for @providersDownloadRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get providersDownloadRetry;
+
+  /// No description provided for @providersDownloadDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Download complete'**
+  String get providersDownloadDone;
+
+  /// No description provided for @providersDownloadProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloading {received} / {total}'**
+  String providersDownloadProgress(int received, int total);
+
+  /// No description provided for @providersDownloadReceived.
+  ///
+  /// In en, this message translates to:
+  /// **'{received} downloaded'**
+  String providersDownloadReceived(int received);
+
+  /// No description provided for @providersDownloadEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'The brain returned no model catalog'**
+  String get providersDownloadEmpty;
 }
 
 class _AppLocalizationsDelegate

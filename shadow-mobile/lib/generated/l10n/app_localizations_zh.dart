@@ -1914,4 +1914,41 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get capabilityDefaultsUnusableNow =>
       '下面这几档指向的模型这台大脑还没注册 —— 设置存住了，但引擎注册前跑不起来。';
+
+  @override
+  String get providersDownloadModels => '下载本地模型';
+
+  @override
+  String get providersDownloadedOnly => '已下载';
+
+  @override
+  String get providersDownloadAction => '下载';
+
+  @override
+  String get providersDownloading => '下载中…';
+
+  @override
+  String get providersDownloadFailed => '下载失败';
+
+  @override
+  String get providersDownloadNoLocal => '还没有已下载的本地模型';
+
+  @override
+  String get providersDownloadRetry => '重试';
+
+  @override
+  String get providersDownloadDone => '下载完成';
+
+  @override
+  String providersDownloadProgress(int received, int total) {
+    return '下载中 $received / $total';
+  }
+
+  @override
+  String providersDownloadReceived(int received) {
+    return '已下载 $received';
+  }
+
+  @override
+  String get providersDownloadEmpty => '大脑没有返回模型目录';
 }

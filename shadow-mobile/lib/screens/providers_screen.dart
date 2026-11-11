@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/telencephalon_provider.dart';
 import '../services/telencephalon/telencephalon_client.dart';
 import '../widgets/glass_card.dart';
+import '../widgets/models/neuron_download_sheet.dart';
 import '../widgets/empty_state.dart';
 import '../theme/app_colors.dart';
 import '../generated/l10n/app_localizations.dart';
@@ -351,8 +352,13 @@ class _ProviderCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
+    // ⚠️ **只列已下载**（2026-11-11）：本地模型「目录里有、盘上没有」的条目
+    // ⇒ 选了也跑不起来 ⇒ 不再展示（云端模型没有 available 字段 ⇒ null ⇒
+    // ⇒ 不受影响，全部照列）。
+    final downloaded =
+        provider.models.where((m) => m.available != false).toList();
     final model = provider.selectedModel ??
-        (provider.models.isNotEmpty ? provider.models.first.id : null);
+        (downloaded.isNotEmpty ? downloaded.first.id : null);
     return GlassCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -438,10 +444,24 @@ class _ProviderCard extends ConsumerWidget {
           ],
           if (provider.models.isNotEmpty) ...[
             const SizedBox(height: 8),
-            Wrap(
+            // ⚠️ 过滤后一条不剩 ⇒ **说人话**（不画空白）：目录里的都还没下载
+            // ⇒ ⇒ 下载入口在下面那行「下载本地模型」。
+            if (downloaded.isEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  l10n.providersDownloadNoLocal,
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: AppColors.darkTextSecondary),
+                ),
+              )
+            else
+              Wrap(
               spacing: 6,
               runSpacing: 4,
-              children: provider.models
+              children: downloaded
                   .map(
                     (m) => ChoiceChip(
                       // ⚠️ 能力 ＋ 「还没下载」的标记 ⇒ ⇒ 用户一眼能分出
@@ -477,14 +497,28 @@ class _ProviderCard extends ConsumerWidget {
           const SizedBox(height: 4),
           Align(
             alignment: Alignment.centerRight,
-            child: TextButton.icon(
-              onPressed: () {
-                ref
-                    .read(providersNotifierProvider.notifier)
-                    .refreshModels(provider.id);
-              },
-              icon: const Icon(Icons.refresh, size: 18),
-              label: Text(l10n.providersRefreshModels),
+            child: Wrap(
+              spacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                // ⚠️ 只有内置条目（neuron）给「下载本地模型」—— 下载打的是
+                // neuron 目录（/v1/models/pull），不是云供应商的事。
+                if (provider.builtin)
+                  TextButton.icon(
+                    onPressed: () => NeuronDownloadSheet.show(context),
+                    icon: const Icon(Icons.download, size: 18),
+                    label: Text(l10n.providersDownloadModels),
+                  ),
+                TextButton.icon(
+                  onPressed: () {
+                    ref
+                        .read(providersNotifierProvider.notifier)
+                        .refreshModels(provider.id);
+                  },
+                  icon: const Icon(Icons.refresh, size: 18),
+                  label: Text(l10n.providersRefreshModels),
+                ),
+              ],
             ),
           ),
           // ⚠️ 内置条目（neuron）**不可编辑/删除**（注册表里只读 ⇒ ⇒ 按了
