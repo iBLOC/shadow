@@ -78,6 +78,12 @@ class _LocalChatViewState extends ConsumerState<LocalChatView> {
     return null;
   }
 
+  /// HH:mm（24 小时制）—— 与桌面端
+  /// `toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })`
+  /// 同一条口径。手动拼，不拉 DateFormat（省掉 locale data 初始化）。
+  String _formatMessageTime(DateTime t) =>
+      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+
   @override
   Widget build(BuildContext context) {
     final chatState = widget.chatState;
@@ -404,11 +410,46 @@ class _LocalChatViewState extends ConsumerState<LocalChatView> {
                           ),
                       ],
                     );
+                    // ⚠️ 助手文本气泡的卡片下方带一行**读数**：时间 ＋
+                    // token 速度／总量（服务端历史没有这份读数 ⇒ 只显时间，
+                    // 不编数字）。工具卡片与附件气泡不是回复 ⇒ 不带。
+                    final showMeta =
+                        isAssistant &&
+                        !isVoice &&
+                        !isImage &&
+                        !isAudio &&
+                        !isVideo &&
+                        !isFile;
+                    final content =
+                        showMeta
+                            ? Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  bubble,
+                                  MessageMetaRow(
+                                    timeText:
+                                        msg.createdAt == null
+                                            ? null
+                                            : _formatMessageTime(
+                                              msg.createdAt!,
+                                            ),
+                                    statsText:
+                                        msg.tokenStats == null
+                                            ? null
+                                            : l10n.messageTokenStatsSummary(
+                                              msg.tokenStats!.tokens,
+                                              msg.tokenStats!.tokensPerSecond
+                                                  .toStringAsFixed(1),
+                                            ),
+                                  ),
+                                ],
+                              )
+                            : bubble;
                     if (isToolCard) return bubble;
                     return GestureDetector(
                       onLongPress: () =>
                           _showMessageActions(context, index, msg),
-                      child: bubble,
+                      child: content,
                     );
                   },
                 ),

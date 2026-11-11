@@ -230,6 +230,12 @@ abstract class AppLocalizations {
   /// **'Copied to clipboard'**
   String get messageCopiedToast;
 
+  /// No description provided for @messageTokenStatsSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'{tokens} tokens · {speed} tok/s'**
+  String messageTokenStatsSummary(int tokens, String speed);
+
   /// No description provided for @apply.
   ///
   /// In en, this message translates to:

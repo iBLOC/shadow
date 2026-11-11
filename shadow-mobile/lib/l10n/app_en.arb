@@ -22,6 +22,17 @@
   "messageActionRetry": "Retry",
   "messageActionUndo": "Undo",
   "messageCopiedToast": "Copied to clipboard",
+  "messageTokenStatsSummary": "{tokens} tokens · {speed} tok/s",
+  "@messageTokenStatsSummary": {
+    "placeholders": {
+      "tokens": {
+        "type": "int"
+      },
+      "speed": {
+        "type": "String"
+      }
+    }
+  },
   "apply": "Apply",
   "noModels": "No Models",
   "cloudModel": "Cloud Model",

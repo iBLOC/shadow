@@ -26,6 +26,76 @@ import '../agents/providers/agent_provider.dart';
 AuthorizationMode alwaysAskCapability(Capability capability) =>
     AuthorizationMode.askEveryTime;
 
+/// 每条助手回复的**客户端侧** token 读数（与桌面端 `src/lib/tokenStats.ts`
+/// 同一条口径 —— 两端数字必须能对上）。
+///
+/// ⚠️ 端脑的流**不回传 usage**（客户端 `StreamEvent` 与服务端 SSE 形状里
+/// 都没有这个字段）⇒ 总量只能**估算**：CJK 字形在 BPE 下约 1 token/字，
+/// 拉丁文本平均约 4 字符/token。
+class MessageTokenStats {
+  /// 估算的 token 数（见 [estimateTokens]）。
+  final int tokens;
+
+  /// 流式窗口的墙钟时长（首个 delta → 完成），毫秒。
+  final int durationMs;
+
+  /// tokens / (durationMs / 1000)；没流过（窗口为 0）时为 0。
+  final double tokensPerSecond;
+
+  const MessageTokenStats({
+    required this.tokens,
+    required this.durationMs,
+    required this.tokensPerSecond,
+  });
+}
+
+/// 粗略的客户端 token 估算器 —— 与桌面端 `estimateTokens` **逐字同源**
+/// （同一组码位区间、同一个 ceil 口径），两端显示的总量才不会分叉。
+int estimateTokens(String text) {
+  if (text.isEmpty) return 0;
+  var cjk = 0;
+  var other = 0;
+  for (final cp in text.runes) {
+    if (_isCjkCodePoint(cp)) {
+      cjk++;
+    } else {
+      other++;
+    }
+  }
+  if (cjk == 0 && other == 0) return 0;
+  final total = cjk + (other + 3) ~/ 4; // ceil(other / 4)
+  return total < 1 ? 1 : total;
+}
+
+bool _isCjkCodePoint(int cp) {
+  return (cp >= 0x4e00 && cp <= 0x9fff) || // CJK 统一表意文字
+      (cp >= 0x3400 && cp <= 0x4dbf) || // CJK 扩展 A
+      (cp >= 0x3040 && cp <= 0x30ff) || // 平假名＋片假名
+      (cp >= 0xac00 && cp <= 0xd7af) || // 谚文音节
+      (cp >= 0x3000 && cp <= 0x303f) || // CJK 标点
+      (cp >= 0xff00 && cp <= 0xffef); // 全角形式
+}
+
+/// 由回复文本与它的流式窗口组装读数 —— 与桌面端 `computeTokenStats` 同一条
+/// 口径：[startedAt] 应当是**首个 delta 到达**（回落请求起点），速度反映的
+/// 是**生成**而不是排队。
+MessageTokenStats computeTokenStats(
+  String text,
+  DateTime startedAt,
+  DateTime endedAt,
+) {
+  final tokens = estimateTokens(text);
+  final raw = endedAt.difference(startedAt).inMilliseconds;
+  final durationMs = raw < 0 ? 0 : raw;
+  final seconds = durationMs / 1000;
+  final tokensPerSecond = seconds > 0 ? tokens / seconds : 0.0;
+  return MessageTokenStats(
+    tokens: tokens,
+    durationMs: durationMs,
+    tokensPerSecond: tokensPerSecond,
+  );
+}
+
 /// Chat message model for the UI
 class ChatMessageModel {
   final String content;
@@ -39,12 +109,22 @@ class ChatMessageModel {
   /// 但 `content` 为空、带着 [toolCall] 的消息 —— UI 渲染成卡片。
   final ToolCallModel? toolCall;
 
+  /// 这条消息**落进对话流**的时刻（卡片下方显示 HH:mm）。
+  /// 客户端现发时是落笔那一刻；从服务端历史切进来时是端脑记的那份。
+  final DateTime? createdAt;
+
+  /// 助手回复的 token 读数。⚠️ 只有**经这条链路流式生成**的回复才有 ——
+  /// 服务端历史没有这份读数 ⇒ 那些卡片下方只有时间，**不编数字**。
+  final MessageTokenStats? tokenStats;
+
   ChatMessageModel(
     this.content,
     this.role, {
     this.attachmentPath,
     this.attachmentType,
     this.toolCall,
+    this.createdAt,
+    this.tokenStats,
   });
 }
 
@@ -331,7 +411,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
     state = state.copyWith(
       messages: [
         ...state.messages,
-        ChatMessageModel(greeting, ChatRole.assistant),
+        ChatMessageModel(greeting, ChatRole.assistant, createdAt: DateTime.now()),
       ],
     );
   }
@@ -388,7 +468,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
     if (state.failedSwitchSessionId != null) return;
 
     state = state.copyWith(
-      messages: [...state.messages, ChatMessageModel(prompt, ChatRole.user)],
+      messages: [
+        ...state.messages,
+        ChatMessageModel(prompt, ChatRole.user, createdAt: DateTime.now()),
+      ],
       isLoading: true,
       errorMessage: null,
     );
@@ -419,6 +502,11 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
       final buffer = StringBuffer();
       state = state.copyWith(streamingText: '');
+
+      // token 读数的计时窗 —— 起算点是**首个 delta 到达**，速度反映的是
+      // **生成**而不是排队（与桌面端 tokenStats.ts 同一条口径）。
+      // 没收到过 delta ⇒ 没有可信的窗口 ⇒ 读数整个不挂（见成功落消息块）。
+      DateTime? firstDeltaAt;
 
       // 这一轮有没有发生工具调用。
       //
@@ -456,6 +544,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
       )) {
         switch (event.type) {
           case 'delta':
+            // 首个 delta 到达 ＝ 计时窗起点（见上面的口径注释）。
+            firstDeltaAt ??= DateTime.now();
             final delta = event.delta ?? '';
             if (delta.isEmpty) break;
             buffer.write(delta);
@@ -484,12 +574,24 @@ class ChatNotifier extends StateNotifier<ChatState> {
         throw Exception(currentL10n().chatSorryErrorShort);
       }
 
+      // token 读数：只有**真的流过**（收到过 delta）才挂 —— 没流过就没有
+      // 可信的速度窗 ⇒ 宁可不显示，不编数字（与桌面端同一条规则）。
+      final stats =
+          firstDeltaAt == null
+              ? null
+              : computeTokenStats(response, firstDeltaAt, DateTime.now());
+
       state = state.copyWith(
         messages: [
           ...state.messages,
           // 空回复 + 有工具调用 ⇒ 不插一条空气泡（工具卡片已经在了）。
           if (response.isNotEmpty)
-            ChatMessageModel(response, ChatRole.assistant),
+            ChatMessageModel(
+              response,
+              ChatRole.assistant,
+              createdAt: DateTime.now(),
+              tokenStats: stats,
+            ),
         ],
         isLoading: false,
         attachments: [],
@@ -505,7 +607,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
         errorMessageArg: e.toString(),
         messages: [
           ...state.messages,
-          ChatMessageModel('Error: $e', ChatRole.system),
+          ChatMessageModel('Error: $e', ChatRole.system, createdAt: DateTime.now()),
         ],
         isLoading: false,
         attachments: [],
@@ -617,6 +719,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
       'agent' || 'assistant' => ChatRole.assistant,
       _ => ChatRole.system,
     },
+    createdAt: turn.timestamp,
   );
 
   // ---- 客户端工具（端脑让这台设备干的活）-------------------------------
@@ -943,6 +1046,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
         attachmentPath: existing.attachmentPath,
         attachmentType: existing.attachmentType,
         toolCall: model,
+        createdAt: existing.createdAt,
+        tokenStats: existing.tokenStats,
       );
     } else {
       messages.add(ChatMessageModel('', ChatRole.assistant, toolCall: model));

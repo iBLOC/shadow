@@ -22,6 +22,17 @@
   "messageActionRetry": "重试",
   "messageActionUndo": "撤销",
   "messageCopiedToast": "已复制到剪贴板",
+  "messageTokenStatsSummary": "{tokens} tokens · {speed} tok/s",
+  "@messageTokenStatsSummary": {
+    "placeholders": {
+      "tokens": {
+        "type": "int"
+      },
+      "speed": {
+        "type": "String"
+      }
+    }
+  },
   "apply": "应用",
   "noModels": "暂无模型",
   "cloudModel": "云端模型",

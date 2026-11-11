@@ -76,6 +76,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get messageCopiedToast => 'Copied to clipboard';
 
   @override
+  String messageTokenStatsSummary(int tokens, String speed) {
+    return '$tokens tokens · $speed tok/s';
+  }
+
+  @override
   String get apply => 'Apply';
 
   @override

@@ -76,6 +76,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get messageCopiedToast => '已复制到剪贴板';
 
   @override
+  String messageTokenStatsSummary(int tokens, String speed) {
+    return '$tokens tokens · $speed tok/s';
+  }
+
+  @override
   String get apply => '应用';
 
   @override

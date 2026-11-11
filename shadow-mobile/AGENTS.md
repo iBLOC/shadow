@@ -1,3 +1,39 @@
+**Updated:** 2026-11-11 (㌠ **「助手回复也是一张卡片 —— 卡片下方带读数行：时间 · token 速度 · 总量」** —— 本条记**取证（端脑流两面都无 usage ＋ 桌面端先例）**、**口径（客户端估算 · 首 delta 起算 · 没流过不挂）**、**这一刀的落点**、**途中那几课**、**判据与分级读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-11 | authority=measured | scope=project | source=端脑 SSE 两面（客户端 `StreamEvent` 字段清单无 usage ＋ 服务端 shadow.rs 的 `TelencephalonStreamEvent` 形状 `Delta{ text }`／`Done{ reply, state, timestamp }` 无 usage）＋ 桌面端先例（`src/lib/tokenStats.ts` 注释逐字「do not reliably report usage on stream, so we approximate」＋ ConversationPage 的 meta 行：时间 HH:mm ＋ assistant 才挂「{{tokens}} tokens · {{speed}} tok/s」徽章）＋ 官方取号闸 --next（取样时刻 2026-11-11T07:55:51.586Z ｜ HEAD d33e22f5 ⇒ 移动端提交树面水位 U+331F ⇒ 候选头一个 U+3320）｜ 改动：lib/providers/chat_provider.dart（`MessageTokenStats` ＋ `estimateTokens`／`computeTokenStats` 与桌面端逐字同源 ＋ `ChatMessageModel` 增 createdAt／tokenStats ＋ 九个构造点全接线）＋ lib/widgets/chat_bubble.dart（助手气泡描边 ＋ `MessageMetaRow`）＋ lib/widgets/chat/local_chat_view.dart（读数行接线 ＋ HH:mm 格式化）＋ lib/l10n 两个 arb（各 1 键）＋ lib/generated/l10n（gen-l10n 重生成 3 份）＋ **新增** test/unit/chat_token_stats_test.dart（8 条）＋ **新增** test/widget/message_meta_row_test.dart（2 条）⇒ ⇒ **11 个文件（2 新增）** ＋ 零新增依赖 ＋ 不碰父仓 AGENTS.md 在飞面 ｜ 读数：见 ⑤ | status=active | supersedes=none
+
+① **⚠️ 取证：端脑的流里没有 usage ⇒ 总量只能客户端算**
+　❶ **客户端面**：`StreamEvent` 全字段（type／agent／delta／conversationId／state／timestamp／error／clarification／name／args／result／latencyMs／toolCallId）—— **没有 usage**；移动端 lib 里原本没有任何 token 读数链路。
+　❷ **服务端面**：`telencephalon/src/api/shadow.rs` 的 SSE 形状 `Delta{ text }`／`ToolCall`／`ToolResult`／`Done{ reply, state, timestamp }`／`Error` —— **没有 usage** ⇒ ⇒ 移动端要显真值，端脑 SSE 带 usage 是**服务端仓的另一刀**。
+　❸ **桌面端先例（同一道题已答的形状）**：`tokenStats.ts` 客户端估算（CJK ≈1 token／字、拉丁 ≈4 字符／token、至少 1）；ConversationPage 每条消息下时间（HH:mm），assistant 且有 token_stats 才挂速度／总量徽章 ⇒ ⇒ **移动端照搬同一条算法与同一组常量** —— 两端数字才可比。
+
+② **⚠️ 口径（三条硬规则，全部落进实现与测试）**
+　❶ **估算不自创** —— `estimateTokens` 与桌面端逐字同源（同码位区间、同 ceil、同「至少 1」）⇒ 两端显示的总量不分叉。
+　❷ **起算点是首个 delta** —— 速度反映**生成**不是排队；窗口为 0 ⇒ 速度 0（不许出负数速度）。
+　❸ **没流过就不挂读数** —— 没收到过 delta ⇒ 整份 stats 为 null ⇒ 服务端历史切进来的回复**只显时间**（不编数字）；新测里有一条专门钉这一格。
+
+③ **✅ 这一刀的落点（11 个文件 ＋ 2 新增 ＋ 零新增依赖）**
+　❶ **改** chat_provider.dart —— `MessageTokenStats`（tokens／durationMs／tokensPerSecond）＋ `estimateTokens`／`_isCjkCodePoint`／`computeTokenStats`；`ChatMessageModel` 增 **createdAt**（现发＝落笔时刻；历史＝端脑记的 `turn.timestamp`）与 **tokenStats**；九个构造点全接线（用户／助手／问候／错误 system／历史轮次／工具卡片 upsert **透传**不丢）。
+　❷ **改** chat_bubble.dart —— 助手气泡加描边（桌面端 border border-border bg-card 的同源形状；用户实底／系统错误底不描边）＋ 新增 `MessageMetaRow` 纯展示件（两字段全空 ⇒ 什么都不画）。
+　❸ **改** local_chat_view.dart —— 助手文本气泡的卡片下方接读数行（工具卡片与附件气泡不带）；`_formatMessageTime` 手拼 HH:mm（不拉 DateFormat，省 locale data 初始化）。
+　❹ **改** arb ×2 ＋ gen-l10n 重生成 3 份 —— `messageTokenStatsSummary`（占位符 tokens:int／speed:String；**中英同文**，桌面端 zh/en 本来就同文）。
+　❺ **新增** test/unit/chat_token_stats_test.dart（8 条：估算四形／负窗夹零／40t·2s⇒20 tok/s／流完挂读数＋createdAt／无 delta 无读数）＋ test/widget/message_meta_row_test.dart（2 条）。
+
+④ **⚠️ 途中那几课**
+　❶ **分析器把「抄来的形状」里用不上的那半截揪出来了** —— 桌面端 `computeTokenStats` 的文档写着「fall back to request start」，照抄声明了 `requestStartedAt` ⇒ analyze 红 `unused_local_variable`。追到桌面端那个回落只喂**流中实时读数**；最终读数本来就要求见过 delta ⇒ 移动端装配里这个兜底是死变量 ⇒ 删。⇒ ⇒ **通用形态：移植一段逻辑时，注释里的每个分支要问「在我的装配里是否真的可达」—— 不可达的分支不是「照抄安全」，是死代码**。
+
+⑤ **✅ 判据与分级读数（全部实测）**
+　❶ **判据级**：flutter analyze 本刀 8 个 lib/test 文件**零命中**（全项目回到存量 61 条，全在未触碰文件）；新测 **10/10**；含既有三件套合计 **37 条全过**。
+　❷ **码位闸级**：码位闸三面零违规 ＋ 取号闸复跑 EXIT=0（落笔后工作树面水位 U+3320 ⇒ 候选 U+3321 起 ⇒ 本条字形确实占住了 U+3320）。
+　❸ **预期读数变化（预期，非实测）**：真机上助手回复卡片下方应显「HH:mm · N tokens · X.X tok/s」；从会话列表切进来的历史回复**只有时间没有读数**；流式生成中的临时气泡不显读数（流完落定才挂）。真机级与真 CI 级**待取**（需推 origin ＋ 真机）。
+
+⑥ **⚠️ 仍然欠着的**
+　❶ **速度／总量是估算读数** —— 真值要端脑在 SSE 里带 usage（服务端仓另刀）；届时客户端改用真值、估算退为兜底。
+　❷ **桌面端 showTokenStats 是设置开关（默认关）；移动端常显**（用户点名要）⇒ 两端「默认可见性」不一致是有意的，要收口另加设置键。
+　❸ **流中实时速度未做**（桌面端有 liveStats）—— 移动端只在流完落定后显示一次。
+
+⑦ **⚠ 圈码：本条占 U+3320** —— 号按**官方口径**在**提交树面**取（取样时刻 2026-11-11T07:55:51.586Z ｜ HEAD d33e22f5 ⇒ 移动端水位 U+331F ⇒ 候选头一个 U+3320）⇒ ⇒ 方块字由 String.fromCodePoint 生成，不手打。
+
 **Updated:** 2026-11-11 (㌟ **「语音是输入模式，不是另一个房间 —— 独立语音页并进对话页；消息与错误长按出毛玻璃菜单（复制／重试／撤销）」** —— 本条记**取证（两套语音链路的面读数 ＋ 松手挂附件的缺陷链）**、**第一因（同一能力两套承载面 ⇒ 内容换了管线 ⇒ 记忆断）**、**第二因（语音对话态松手把 PCM 当附件挂上去 ⇒ 端脑只收纯文本 ⇒ 每说一句白红一次）**、**这一刀的落点**、**判据与分级读数**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-11 | authority=measured | scope=project | source=官方取号闸 --next（取样时刻 2026-11-11T07:31:46.848Z ｜ HEAD 193e16d1 ⇒ 移动端提交树面水位 U+331E ⇒ 候选头一个 U+331F）＋ flutter analyze（本刀 6 个 lib 文件零命中）＋ flutter test（新测 8/8 ＋ 三件套 27 条）＋ 码位闸三面零违规 ｜ 改动：lib/widgets/chat/message_action_sheet.dart（**新增** 毛玻璃操作菜单）＋ lib/widgets/chat/local_chat_view.dart（消息气泡与错误横幅接长按）＋ lib/providers/chat_provider.dart（undoMessage／retryFromUserMessage／retryAssistantMessage／retryLastFailure ＋ stopAudioRecording 增 keepAttachment）＋ lib/screens/chat_screen.dart（对话态松手不再挂附件）＋ lib/router/app_router.dart（/voice 改渲染对话页本体＋进页即切语音输入态）＋ lib/l10n 两个 arb（各 4 键）＋ lib/generated/l10n（gen-l10n 重生成 3 份）＋ **新增** test/unit/chat_message_actions_test.dart（8 条）⇒ ⇒ **12 个文件（2 新增）** ＋ 零新增依赖 ＋ 不碰父仓 AGENTS.md 在飞面 ｜ 读数：见 ⑤ | status=active | supersedes=none
