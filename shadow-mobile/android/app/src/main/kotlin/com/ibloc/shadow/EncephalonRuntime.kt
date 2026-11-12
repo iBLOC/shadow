@@ -75,16 +75,13 @@ class EncephalonRuntime {
 
     private external fun nativeStart(preferredPort: Int, dataDir: String): Int
 
-    /**
-     * 设置**本地控制面**（配置中心）的 SQLite 文件路径。**必须在 nativeStart
-     * 之前调用**（与 shadow key / admin token 同一套「纯增量入口」——
-     * 不动 `nativeStart` 的 ABI）。
-     *
-     * 为什么要它：手机上的「记忆存储」要在**应用内**配置（写控制面的
-     * `hippocampus` 段）。只带远端客户端（`turso-remote`）时没有本地文件
-     * 模式 ⇒ 配置中心永远「未配置」⇒ 设置页写了不生效。
-     */
-    private external fun nativeSetControlPlane(url: String): Int
+    // ⚠️ **没有 `nativeSetControlPlane`**（2026-11-12 订正）—— 配置中心
+    // （控制面）的落点是端脑**从 `dataDir` 自己派生**的
+    // （`encephalon/src/mobile/mod.rs` 的 `control_plane_for`），与
+    // `hippocampus_data_dir` / `conversation_store_file` 同一处、同一来源。
+    // ⇒ ⇒ Kotlin 不必再递一条路径，也就没有「宿主忘了调」这个失败态。
+    // **配置的内容**一直归端脑管（段 / 掩码 / 密钥密封 / 生效时机）；
+    // Android 只提供「哪个目录可写」——Android 没有 `$HOME`，这是宿主才知道的事。
     private external fun nativeStop(): Int
     private external fun nativeGetPort(): Int
     private external fun nativeGetAgentPort(): Int
@@ -462,9 +459,7 @@ class EncephalonRuntime {
         // nativeStart 一跑，那张面（本地大脑 vs 零信任代理 vs 发布）就定死了
         // ⇒ ⇒ 所以这里先读设置页落盘的那份可视化配置。
         applyZitiConfig(dataDir)
-        // ⚠️ **控制面也必须在 nativeStart 之前设** —— 配置中心在初始化时
-        // 打开一次；设晚了这一轮就没有控制面（设置页写不进任何东西）。
-        applyControlPlane(dataDir)
+        // （控制面不需要在这里设 —— 端脑从 `dataDir` 自己派生，见上面 JNI 声明处。）
         return try {
             val port = nativeStart(preferredPort, dataDir ?: "")
             if (port > 0) {
@@ -541,35 +536,6 @@ class EncephalonRuntime {
         }
         if (!ok) {
             AppLog.e(TAG, "❌ 零信任角色设置失败（" + config.role.wire + "）")
-        }
-    }
-
-    /**
-     * 把**本地控制面**（配置中心）的库文件路径交给大脑。`nativeStart` 之前调用。
-     *
-     * ⚠️ **路径与 `dataDir` 同源**（App 私有目录）—— 与 flow / identity /
-     * 会话 JSON 同一条纪律：Android 没有 `$HOME`，宿主必须显式给出可写路径。
-     * ⚠️ 老 `.so` 没有这个方法 ⇒ `UnsatisfiedLinkError` ⇒ **只警告不阻断**
-     * （大脑照常起，只是没有控制面 ⇒ 设置页会如实说「读不到配置中心」）。
-     */
-    private fun applyControlPlane(dataDir: String?) {
-        if (dataDir.isNullOrBlank()) return
-        val path = File(dataDir, "control-plane.db").absolutePath
-        try {
-            val rc = nativeSetControlPlane(path)
-            if (rc >= 0) {
-                AppLog.i(TAG, "✅ control plane (config centre) at $path")
-            } else {
-                AppLog.e(TAG, "❌ nativeSetControlPlane returned: $rc")
-            }
-        } catch (e: UnsatisfiedLinkError) {
-            AppLog.w(
-                TAG,
-                "nativeSetControlPlane missing — old .so without the local control plane; " +
-                    "the memory-storage settings page will report 'cannot read the control plane'",
-            )
-        } catch (e: Exception) {
-            AppLog.e(TAG, "applyControlPlane failed: ${e.message}", e)
         }
     }
 
