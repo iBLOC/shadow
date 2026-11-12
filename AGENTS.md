@@ -1,3 +1,45 @@
+**Updated**: 2026-11-12 (㔘 **「三件套在仓里、本机 32/32 全绿 —— 但 CI 上一次都没跑过：接线随笔落在一条从未并入 master 的救援线上」** —— 承 U+3500 条（失败长得像成功）＋「接进 CI ≠ 在 CI 上有读数」族（state-surface.yml 独立灯先例），本条记**取证（三件套＋零接线＋血缘＋工作树 ci.yml 雷定性）**、**修法判据（独立灯＋node 转译闸＋判读通道＋分母）**、**反向验证（篡改读数行 ⇒ 判不了，不假绿）**、**这一刀的落点**、**判据与分级读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-12 | authority=measured | scope=project | source=取证逐字（三件套 HEAD `cat-file -e` 全 EXISTS：判据库 mobile-use-parsers.ps1＋独立 runner mobile-use-parsers-selfcheck.ps1（独立入口＋「0 条用例」判红空绿保护）＋真机驱动 verify-mobile-use-on-device.ps1 的 -SelfCheck 口；本机 runner **32/32 失败 0 条 EXIT=0**、驱动 -SelfCheck 同 32/32；HEAD 全部 30 个 workflow 对 verify-mobile-use-on-device **零命中**）＋ 血缘（救援标签 rescue-parallel-eced13b＝eced13b 非 master 祖先，其 ci.yml 曾接「Mobile use parser self-check」一格、那条线从未并入；同线另一格 Ledger codepoint drill 已在 master ⇒ 丢的机制＝接线随笔落在从未并入 master 的线上）＋ 工作树 ci.yml wt-only 26 行定性（9 行旧凭据＋6 行旧注释＋10 行旧接线＝唯一真内容，本刀由新灯补回；其余 42 行 head-only；blob 0b8e752 从未提交）＋ 反向验证（篡改 runner 统计行 ⇒ 篡改版 runner 自己 EXIT=0（空绿保护查变量不查输出行）⇒ 闸指向篡改版 EXIT=2 判不了）＋ 官方取号（check-ledger-codepoint-take.mjs --next，取样 2026-11-12T10:50:10.329Z｜HEAD 0a1892e9d949b14d7604f71468c7cbd119d4cace｜三面一致，提交树面水位 U+3517 ⇒ 候选 U+3518；第一次取号 10:34:06Z 曾得 U+3517，其后兄弟两刀连落（4f2ff995 占 U+3517、0a1892e 台账就地订正未占新号）⇒ 顺延）｜ 改动：**shadow**（scripts/check-mobile-use-parsers.mjs 新＝node 转译闸＋.github/workflows/mobile-use-parsers.yml 新＝独立灯＋AGENTS.md 本条）⇒ ⇒ 3 文件＋零 ci.yml 改动｜ 读数：闸自检 9/9＋真跑 32/32 EXIT=0＋yaml-valid 33 文件零违规＋tally 31 workflow｜闸步 71｜经由通道 71｜分母 32/32 零违规（本灯逐格 1/1/1）＋discipline --json 违规 5 条全在别的闸（本行全绿）＋ ps1-portability 30 个 .ps1 全过＋ state-surface 自检 42/43 归属＝存量悬空指针 承 U+3506 条（见⑦❹⑧❷）｜ 真 CI 待取 | status=active | supersedes=none
+
+① **⚠️ 取证：三件套全在、本机全绿、CI 零读数**
+　❶ 三件套在 HEAD 全在（`cat-file -e` 三路径全 EXISTS）；本机读数：runner **32/32 EXIT=0**、驱动 `-SelfCheck` **32/32 EXIT=0**。
+　❷ 但 HEAD 的**全部 30 个 workflow** 对 `verify-mobile-use-on-device` **零命中** ⇒ ⇒ 自检在 CI 上从来没有过读数 ⇒ ⇒ 「本机全绿没有任何一条来自 CI」＝「接进 CI ≠ 在 CI 上有读数」族的又一格。
+
+② **⚠️ 血缘：接线丢在一条从未并入 master 的线上**
+　❶ 救援标签 `rescue-parallel-eced13b`（`eced13b`，2026-11-09，**非 master 祖先**）的 ci.yml 曾接过「Mobile use parser self-check」一格，那条线从未并入 ⇒ ⇒ 接线随线丢；同线的「Ledger codepoint drill」已在 master ⇒ ⇒ 不是「没人接过」，是「接过的地方没并入」。
+　❷ 工作树 ci.yml 的 26 行 wt-only：9 行旧版凭据写法（已被 a87e2ab 取代）＋6 行旧版链注释（已被 HEAD 取代）＋**10 行 Mobile use parser 接线（唯一真丢失内容，本刀由新灯补回）**；blob 0b8e752 从未进过对象库的任何提交。
+
+③ **⚠️ 修法判据：新独立灯＋node 转译闸 —— 不是把旧格子搬回 ci.yml**
+　❶ ci.yml 是共享文件（并行会话在飞）⇒ ⇒ 不代动 ⇒ ⇒ 独立成文件、接线面零共享（state-surface.yml 先例）。
+　❷ run-gate-once 只 spawn node ⇒ 纯 .ps1 进不了判读通道（gate-tally C1 硬要求）⇒ ⇒ 转译闸把「跑独立 runner＋解析『共 N 条，失败 M 条』读数」包成 node 面：解析不到读数 ⇒ 退出码 2 **判不了**；total=0 ⇒ 判红（空绿保护）。
+　❸ ⇒ ⇒ 注：这不是恢复旧接线 —— 旧格子直接 `pwsh -File` 跑驱动、不走判读通道、不带分母；本灯是**在 master 上第一次接上**。
+
+④ **⚠️ 反向验证：篡改的是「可数读数」那一行**
+　❶ 用 node 读 runner 的**真实字节**把统计行替换成「用例统计被摘掉了」⇒ 篡改版 runner **自己 EXIT=0**（它的空绿保护查的是 `$result.Cases.Count` 变量、不是输出行）⇒ 把闸指向篡改版 ⇒ **EXIT=2 判不了**，逐字「⚠️ 判不了：runner 的输出里解析不到『共 N 条，失败 M 条』」⇒ ⇒ 不假绿 ✓。篡改件已删（mavis-trash 回执）。
+　❷ 途中教训：篡改实验别用 pwsh 正则插值猜字节 —— 直接 node 读文件做精确替换才失配不了。
+
+⑤ **⚠️ 主判定不带 --strict 的理由**
+　❶ ubuntu runner 上 pwsh 在不在未验证（本机判不了物理层）⇒ ⇒ pwsh 缺 ⇒ 闸退出码 2（判不了）⇒ 默认口径「显眼不阻断」⇒ ⇒ 不假绿也不假红；第一次真 CI 拿到读数后再评估升档。
+
+⑥ **✅ 这一刀的落点（3 文件＋零 ci.yml 改动）**
+　❶ `scripts/check-mobile-use-parsers.mjs`（新）：parseReading／readiness／`--self-test` 9 例／主判定 spawn pwsh→独立 runner／退出码 0 绿 1 红 2 判不了／可数读数「解析判据自检：N/N 通过」。
+　❷ `.github/workflows/mobile-use-parsers.yml`（新）：照 state-surface.yml 形状五步（仓外判读落盘→Checkout→Setup Node→Self-test(判据自检)→Check(走通道，不带 --strict)→判读汇总带分母），全步 `if: always()`。
+　❸ AGENTS.md 本条；顺带：工作树 ci.yml 从 HEAD blob（e04108d）重建拆雷（10 行旧接线已由新灯补回，其余 wt-only 全是陈旧重复）＋两个篡改残留件已删。
+
+⑦ **✅ 判据与分级读数（全部实测）**
+　❶ 判据级：闸 `--self-test` **9/9** EXIT=0；主判定真跑 **32/32 EXIT=0**。
+　❷ 闸网级：yaml-valid **33 文件零违规**；gate-tally-coverage **31 workflow｜闸步 71｜经由通道 71｜有分母 32/32** 零违规（本灯逐格「闸步 1｜经由通道 1｜有分母 1」）；ps1-portability 30 个 .ps1 全过（本刀零新增 .ps1）。
+　❸ discipline 级：`--json` 违规 **5 条全在别的闸**（client-tools 没退出码 2 档／commit-revert 自检 TIMEOUT＋缺口没登记 ×2／state-surface 自检 42/43＋缺口没登记 ×2）；本闸行全绿（自检 9/9／退出 0）⇒ ⇒ 本刀**零新增纪律违规**。
+　❹ 归属：state-surface 那 42/43 败在「真面基线」格＝账本悬空指针「承 U+3506 条」（声明格 HEAD 面 0 命中、引用 2 处 ⇒ 存量债；state-surface 灯 b005437 轮已红＝run 43182883058；本刀两文件不碰任何账本）；commit-revert TIMEOUT 落在兄弟在飞 M 文件族（check-commit-revert.mjs 等 5 个）。HEAD 隔离 worktree 基线（违规 13）含**兄弟仓不贴邻的污染伪影**（door-policy 族／external-tools／neuron-ownership 在隔离树里自检假红）⇒ ⇒ 两树数字不可直接比；可比的判据是「findings 有没有点名本闸」＝没有。
+　❺ 真 CI 级：**待取**（新灯第一跑＋ubuntu pwsh 在不在）。
+
+⑧ **⚠️ 仍然欠着的**
+　❶ ubuntu pwsh 读数（32/32 会不会真来／判不了档显不显眼）⇒ 第一次真 CI；②里的其余 8 个零引用自检脚本未逐把定性；--strict 升档评估待第一次读数。
+　❷ 存量债转报：U+3506 声明格丢失（HEAD 面：声明 0、引用 2）⇒ state-surface 灯红（b005437 轮 run 43182883058／4f2ff995 轮 run 43201706725 均 failure）⇒ 归账本主人补声明或销指针，本刀不代修；同轮 Commit Revert／Ledger Take Discipline／Unwired Gates 三灯也红（存量，未逐把取证）。
+
+⑨ **⚠ 圈码：本条占 U+3518（㔘）** —— 取号按**官方口径**（`check-ledger-codepoint-take.mjs --next`，取样时刻 **2026-11-12T10:50:10.329Z｜HEAD 0a1892e9** ⇒ 三面一致，提交树面水位 U+3517 ⇒ 候选头一个 **U+3518**）⇒ 方块字由 String.fromCodePoint 生成不手打。⚠️ 第一次取号（取样 10:34:06Z｜HEAD b0054374）曾得 U+3517，一分钟后兄弟的 S3/OSS 存储刀落链（4f2ff995，提交于 10:35:03Z）把 U+3517 占掉 ⇒ ⇒ **号是时态** ⇒ 本条按落笔那一刻的提交树面重取、顺延 U+3518 ＋ 合成基座随之从 cd50fe83（b0054374）换成 7b51660a（4f2ff995）再换成 85145266（0a1892e 的台账订正笔）两度重做；R1 dup-codepoint 兜底（撞了会红，不是静默）。
+
 **Updated**: 2026-11-12 (㔗 **「『配了存储』这件事，以前只有一个入口能配 —— 而且是只支持本地目录的那一个」** —— 承本仓 㔖 条（三段存储链取证）＋ U+3500 条（失败长得像成功），本条记**取证（两端都没有 S3/OSS 配置面 ＋ 两宿主都没递控制面）**、**第一因（配置中心的真相源与 UI 各在一处：`storage_uri` 在客户端 grep 零命中）**、**第二因（旧卡片只有本地目录，且 Tauri 命令与配置中心是两套真相）**、**第三因（Lance 的云 provider 本来就是 opendal 打底 ⇒ 我们只欠一层 scheme-aware 映射）**、**这一刀的落点（两端设置页 ＋ 两宿主递控制面 ＋ scheme 校验）**、**判据与分级读数**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-12 | authority=measured | scope=project | source=探查逐字（`storage_uri` 在 `shadow-desktop/src` 与 `shadow-mobile/lib` **零命中**；桌面只有 `HippocampusStorageCard`（Tauri `get/set_hippocampus_storage`，只支持本地目录）；两宿主 `BuildOptions` 字面量都没有 `control_plane` ⇒ 配置中心一直 disabled）＋ 上游取证（`lance-io-8.0.1` 的 aws/gcp/azure/oss/tencent/tos/huggingface 七个 provider **全部** `use object_store_opendal::OpendalStore`；`oss.rs` 读 `oss_endpoint`/`oss_access_key_id`/`oss_secret_access_key`）＋ `hippocampus-storage/tests/lance_s3_primary.rs` 文件头自陈「**the configuration a phone uses when its memories live in S3 / OSS**」｜ 改动：**shadow**（桌面 `telencephalonClient` 配置中心 3 方法 ＋ 新 `MemoryStorageCard`（替换旧卡渲染）＋ i18n `settings.memoryStorage.*` zh/en ＋ 端点清单 3 行 ＋ vitest 5 条 ＋ 设置页生命周期 3 条改钉新卡；移动 `telencephalon_client` 配置中心 3 方法 ＋ 新 `MemoryStorageSection` ＋ 设置页接线 ＋ arb 24 键 ×2 ＋ gen-l10n ＋ widget 测 2 条）＋ **telencephalon**（boot scheme 校验，见该仓 ㌍ 条）＋ **hippocampus**（scheme-aware 映射，见该仓 ㋺ 条）＋ **encephalon**（`mobile` 带本地 turso ＋ `mobile-lean` ＋ 控制面落点**由 Rust 从 `data_dir` 派生**）⇒ ⇒ **4 仓** ｜ ⚠️ **就地订正（2026-11-12）**：本条初版写的是「移动 `EncephalonRuntime.kt` pre-start `applyControlPlane`」—— 那条 JNI 通道**已删除**：`nativeStart(preferredPort, dataDir)` 早把 App 私有目录交给 Rust，控制面路径与 `hippocampus_data_dir` / `conversation_store_file` 在同一处派生（`encephalon/src/mobile/mod.rs::control_plane_for`）⇒ ⇒ **配置内容归大脑，Android 只提供「哪个目录可写」**（Android 没有 `$HOME`，这是宿主才知道的事）。 ｜ 读数：桌面 vitest 全量 **1577 绿 / 16 跳**（+5）＋ `tsc -b` 0 ＋ 卡片定向 5/5 ＋ 生命周期 22/22；移动 `flutter analyze` **0 error** ＋ 分区定向 **2/2**；端脑 `cargo test --lib` **854 过 / 0 红**；海马体 `storage::config` **12/12**；Android `mobile-memory` 交叉编译 **2m08s 通过**；闸：endpoint-map EXIT=0 ＋ i18n **981/981** ｜ 真机待取 | status=active | supersedes=none

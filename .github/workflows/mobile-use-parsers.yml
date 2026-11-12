@@ -1,0 +1,69 @@
+name: Mobile Use Parsers Self-Check (移动端解析判据自检)
+
+# ⚠️ **它守的是什么** —— 移动端 mobile-use 的**解析判据**（shadow-mobile/scripts/lib/mobile-use-parsers.ps1，
+#   纯函数判据库）的自检（32 条用例）在 CI 上有没有真跑、跑完读数是什么。
+#   三件套（判据库 ＋ 独立 runner mobile-use-parsers-selfcheck.ps1 ＋ 真机驱动 verify-mobile-use-on-device.ps1 的 -SelfCheck 口）
+#   在 HEAD 全在、本机全绿（32/32 EXIT=0），但 HEAD 的全部 workflow 里零接线
+#   ⇒ ⇒ 「本机全绿没有任何一条来自 CI」＝「接进 CI ≠ 在 CI 上有读数」族的又一格。
+
+# ⚠️ **为什么这盏灯独立存在** ——
+#   救援标签 rescue-parallel-eced13b（eced13b，非 master 祖先）的 ci.yml 曾接过
+#   「Mobile use parser self-check」一格，但那条线从未并入 master ⇒ ⇒ 接线随线丢。
+#   ci.yml 是共享文件（并行会话在飞）⇒ ⇒ 本刀不代动 ⇒ ⇒ 独立成文件、接线面零共享。
+#   ⇒ ⇒ 注：这不是把旧格子原样搬回来 —— 旧格子直接 pwsh -File 跑驱动脚本、不走判读通道；
+#        本灯是**在 master 上第一次接上**，且经 run-gate-once 判读通道 ＋ 带分母。
+
+# ⚠️ **为什么要过 node 转译闸** —— run-gate-once 只 spawn node ⇒ 纯 .ps1 进不了判读通道
+#   ⇒ ⇒ scripts/check-mobile-use-parsers.mjs 把「跑独立 runner ＋ 解析『共 N 条，失败 M 条』读数」包成 node 面
+#   （解析不到读数 ⇒ 退出码 2 判不了 ⇒ 不假绿；total=0 ⇒ 判红 ⇒ 空绿保护）。
+
+# ⚠️ **为什么主判定不带 --strict** —— ubuntu runner 上 pwsh 在不在未验证（本机判不了物理层）
+#   ⇒ ⇒ pwsh 缺 ⇒ 闸退出码 2（判不了）⇒ 默认口径「显眼不阻断」⇒ ⇒ 不假绿也不假红；
+#   第一次真 CI 拿到读数后再评估要不要升 --strict。
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  mobile-use-parsers:
+    name: Mobile Use Parsers Self-Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # ⚠️ 判读落盘路径（仓外）—— 分母要覆盖这盏灯里所有真跑的闸 ⇒ 用 RUNNER_TEMP，不污染被测面
+      - name: 准备判读落盘路径（仓外）
+        run: echo "GATE_RESULT_FILE=$RUNNER_TEMP/gate-results.ndjson" >> "$GITHUB_ENV"
+
+      - name: Checkout shadow
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      # ⚠️ 闸自己的自检先跑（9 条用例：读数解析／readiness／空绿保护／退出码三档）
+      #   ⇒ 判据自检不绿 ⇒ 主判定的绿就没有意义（尺子本身坏了）。
+      - name: "Self-test: mobile use parsers (判据自检)"
+        if: always()
+        run: node scripts/check-mobile-use-parsers.mjs --self-test
+
+      # ⚠️ 必须走判读通道（run-gate-once）—— 否则 gate-tally 判红（gate-step-not-tallied）；
+      #   不带 --strict：判不了（退出码 2）显眼但不阻断。
+      - name: "Check: mobile use parsers (移动端解析判据自检)"
+        if: always()
+        run: node scripts/run-gate-once.mjs scripts/check-mobile-use-parsers.mjs
+
+      # ⚠️ 收尾：job 必须有分母，否则 unregistered-gap 的另一半（job-without-denominator）红。
+      - name: 判读汇总（带分母的绿灯）
+        if: always()
+        run: node scripts/lib/gate-tally.mjs --report
