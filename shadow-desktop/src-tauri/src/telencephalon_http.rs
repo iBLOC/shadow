@@ -95,6 +95,56 @@ fn desktop_admin_token() -> String {
     crate::admin_token::admin_token().to_string()
 }
 
+/// 脑面给海马体的**地址** —— 「本地推理只由大脑中的 neuron 提供」
+/// 这条在桌面端的落点。
+///
+/// ⚠️ **为什么必须由宿主注入**：海马体是**端脑**在 boot 时建的那一份
+/// ⇒ ⇒ 它自己**不知道**脑面在哪 ⇒ ⇒ 只有宿主知道脑面地址（`DEFAULT_ADDR`）。
+///
+/// ⚠️ **地址为什么带 `/v1`**：neuron 的 OpenAI 兼容面被 merge 在脑面**根**上
+/// ⇒ ⇒ 推理面是 `http://127.0.0.1:60080/v1/...`（`/v1/chat/completions`、
+/// `/v1/embeddings`）。
+///
+/// ⚠️⚠️ **这里只有地址，没有钥匙**（2026-11-09 实测后改的形状）：
+/// ⇒ ⇒ 桌面端**不再**把 admin token 写进**进程环境**（`HIPPOCAMPUS_BRAIN_TOKEN`）
+/// ⇒ ⇒ 那条通道会把凭据摊给同用户进程 / 子进程 / 崩溃转储 / 日志采集
+/// ⇒ ⇒ 明文密钥落盘闸盯的就是那一格；
+/// ⇒ ⇒ 钥匙改由**端脑自己那把 admin token** 出（端脑手里本来就是同一把）
+/// ⇒ ⇒ 秘密只活在**进程堆里**。
+pub fn brain_face_base() -> String {
+    format!("http://{DEFAULT_ADDR}/v1")
+}
+
+/// 脑面地址 —— **按真在监听的那个地址算**（2026-11-09）。
+///
+/// ⚠️ **为什么不再用常量**：此前海马体拿到的地址是**猜的**（`DEFAULT_ADDR`）
+/// ⇒ ⇒ 而那只是「桌面端**打算**用哪个口」⇒ ⇒ 端脑 boot 时那个口上坐的
+///    **未必是它** ⇒ ⇒ 详见 `serve` 里「顺序是这一刀的全部」那段。
+/// ⇒ ⇒ 现在地址取自**我们自己占住的那个 listener** ⇒ ⇒ 那个地址上坐的
+///    **只可能是我们自己** ⇒ ⇒ 海马体不可能打进**陌生的大脑**。
+pub fn brain_face_base_for(addr: SocketAddr) -> String {
+    format!("http://{addr}/v1")
+}
+
+/// **这一格现在由谁接**（2026-11-09 实测后改的形状）：
+///
+/// ⚠️ 此前是「桌面端把**地址 ＋ 钥匙**塞进**进程环境**」（`HIPPOCAMPUS_BRAIN_BASE`
+/// / `HIPPOCAMPUS_BRAIN_TOKEN`）⇒ ⇒ 凭据落在进程环境里 ⇒ ⇒ 同用户进程 / 子进程 /
+/// 崩溃转储 / 日志采集都会把它带走 ⇒ ⇒ **明文密钥落盘闸红的就是那一格**。
+///
+/// ⚠️ **现在**：桌面端只把**地址**递进端脑的 `BuildOptions::brain_face_base`
+/// ⇒ ⇒ **钥匙由端脑自己那把 admin token 出**（端脑手里本来就是同一把 ——
+/// `BuildOptions::admin_token` 已经是它了）⇒ ⇒ 秘密只活在**进程堆里**。
+///
+/// ⚠️ **为什么地址仍由宿主给**：端脑**不知道**自己的面挂在哪个**宿主端口**上
+/// （桌面端是 60080）⇒ ⇒ 那是宿主的事实 ⇒ ⇒ 与 `control_plane` / `identity_dir`
+/// 同一套路：**引导参数从初始化方法进来**。
+///
+/// ⚠️ 这条通道现在**没有函数**了 —— 因为**它不再需要在 boot 前做任何事**：
+/// ⇒ ⇒ 地址随 `BuildOptions` 一起进 `build_app_state_with` ⇒ ⇒ 海马体在
+/// boot 期就拿到了它 ⇒ ⇒ **时序天然对**（此前那版「boot 前写 env、
+/// boot 期读 env」是**两处**，中间任何一次 `remove_var` 都会掐断它）。
+
 /// 起端脑的 HTTP 面。
 ///
 /// 端脑 + neuron（根）+ 海马体（`/hippocampus`）三张面合成一台服务，
@@ -124,7 +174,44 @@ pub async fn serve(stack: &Embedded, hippocampus_data_dir: Option<String>, face:
         }
     }
 
-    let brain_face = match build_face(stack, hippocampus_data_dir).await {
+    // ⚠️⚠️⚠️ **顺序是这一刀的全部**：**先占住脑面那个口，再建端脑**
+    // （2026-11-09 真机实测 + 用户拍板「端脑延迟放行」）。
+    //
+    // ⇒ ⇒ **为什么**：端脑 boot 期就把脑面**地址**递给了海马体 ⇒ ⇒ 海马体
+    //    的本地推理/嵌入请求打的是那个地址 ⇒ ⇒ 而此前 **bind 发生在
+    //    build_face 之后** ⇒ ⇒ **boot 到 bind 之间**那段时间里 60080 上
+    //    坐的可能是**占着它的陌生进程**（独立端脑服务器 / 上一轮的残留）
+    //    ⇒ ⇒ 海马体的记忆与推理就落进了**陌生的大脑**（身份、记忆、叶区
+    //    全不是他的）⇒ ⇒ 而**界面上看不出任何异常**（请求成功 ⇒ 只是
+    //    回了一个**别人的**答案）⇒ ⇒ **失败长得像成功**。
+    //
+    // ⇒ ⇒ 现在：**端口先被我占住** ⇒ ⇒ 端脑 boot 时那个地址上坐的
+    //    **只可能是我自己** ⇒ ⇒ 「延迟放行」＝「绑定成功前，地址不交出去」。
+    //
+    // ⚠️ **绑不上 ⇒ ⇒ 端脑不 boot ⇒ ⇒ 地址不递出去**（不是「递一个
+    //    可能被别人占的地址」）⇒ ⇒ 那一格海马体**还不存在** ⇒ ⇒ 它的
+    //    推理请求会**诚实地失败**（而不是悄悄打进别人的大脑）
+    //    ⇒ ⇒ 界面上的 `brain_face` 状态同时会说真话（conflict ＋ 原因）。
+    // ⚠️ `bind_until_owned` **不返回 Err** —— 端口被别人占着时它**无限重试**
+    // ⇒ ⇒ 这一行在端口没被占着之前**不会**返回 ⇒ ⇒ **端脑也就不会
+    //    在端口被别人占着的时候 boot** ⇒ ⇒ 「延迟放行」就落在这**一行**上
+    //    ⇒ ⇒ 绑不上 ⇒ **地址不递出去**（海马体连端脑都还没建出来）
+    //    ⇒ ⇒ 而不是「递一个可能被别人占的地址」。
+    //
+    // ⇒ ⇒ 状态由 `bind_until_owned` **自己**写（conflict ＋ 真实原因）
+    // ⇒ ⇒ 界面能说真话：「现在连的那个 60080 不是这个 App 的大脑」。
+    let listener = brain_face::bind_until_owned(
+        &face,
+        DEFAULT_ADDR,
+        Duration::from_secs(BIND_RETRY_SECS),
+    )
+    .await;
+
+    // ⚠️ **地址从「真的那个 listener」取** —— 不是从常量猜 ⇒ ⇒ 端口被换过
+    //    （将来桌面端换口）时，海马体拿到的仍然是**真在监听的那个**。
+    let bound_addr = listener.local_addr().unwrap_or(DEFAULT_ADDR);
+
+    let brain_face = match build_face(stack, hippocampus_data_dir, bound_addr).await {
         Ok(f) => f,
         Err(e) => {
             tracing::error!("telencephalon http: building the telencephalon surface failed ({e})");
@@ -136,11 +223,6 @@ pub async fn serve(stack: &Embedded, hippocampus_data_dir: Option<String>, face:
         }
     };
 
-    // ⚠️ 绑不上**不是**「放弃」—— 见 brain_face::bind_until_owned 的注释。
-    let listener =
-        brain_face::bind_until_owned(&face, DEFAULT_ADDR, Duration::from_secs(BIND_RETRY_SECS))
-            .await;
-
     // ⚠️ **写回真实地址 ＋ 把叶区指过来**（统一入口的 `note_bound`）——
     // ⇒ 端脑的**自环回**（前额叶转发 / 记忆查询 / agent 清单）打的是
     // `bind.http` ⇒ ⇒ 不写回就是打到一个**没人监听**的端口 ⇒ ⇒
@@ -148,9 +230,7 @@ pub async fn serve(stack: &Embedded, hippocampus_data_dir: Option<String>, face:
     //
     // ⚠️ 「router-only」形态下 neuron 没有独立 listener ⇒ ⇒ 叶区的 LLM
     // 端点指的就是**这张面** ⇒ ⇒ 这一步是推理链的最后一跳。
-    if let Ok(addr) = listener.local_addr() {
-        brain_face.note_bound(addr).await;
-    }
+    brain_face.note_bound(bound_addr).await;
 
     tracing::info!(
         "telencephalon http listening on http://{DEFAULT_ADDR} \
@@ -225,6 +305,7 @@ async fn serve_client_proxy(face: &BrainFaceHandle) -> Result<(), String> {
 async fn build_face(
     stack: &Embedded,
     hippocampus_data_dir: Option<String>,
+    bound_addr: SocketAddr,
 ) -> Result<encephalon::surface::BrainFace, String> {
     // 端脑自己的 AppState（配置 / lobe 存储 / flow / 会话存储 / 海马体接线）。
     // neuron 传**同一个**嵌入实例 —— 进程内只有一份推理运行时。
@@ -276,12 +357,48 @@ async fn build_face(
         hippocampus_data_dir,
         // 会话存储文件：None = 桌面走海马体（Lance）。
         conversation_store_file: None,
+        // ⚠️ **脑面地址** —— 告诉端脑「进程内那份海马体的本地推理指这儿」。
+        //
+        // ⚠️⚠️ **这里只有地址，没有钥匙**（2026-11-09 实测后改的形状）：
+        // ⇒ ⇒ 桌面端**不再**把 admin token 写进**进程环境**
+        //    （`HIPPOCAMPUS_BRAIN_TOKEN`）⇒ ⇒ 那条通道会把凭据摊给同用户进程 /
+        //    子进程 / 崩溃转储 / 日志采集 ⇒ ⇒ **明文密钥落盘闸红的就是那一格**；
+        // ⇒ ⇒ 钥匙改由**端脑自己那把 admin token** 出（端脑手里本来就是同一把
+        //    —— 下面那个 `admin_token` 字段就是它）⇒ ⇒ 秘密只活在**进程堆里**。
+        //
+        // ⚠️ **为什么地址仍由宿主给**：端脑**不知道**自己的面挂在哪个**宿主端口**
+        // 上（这里是 60080）⇒ ⇒ 那是宿主的事实。
+        brain_face_base: Some(brain_face_base_for(bound_addr)),
         // 桌面端**显式**声明 admin token —— 端脑**不再**替宿主发明一把
         // 开发用的钥匙了。
         //
         // ⚠️ 环境变量优先（`TELENCEPHALON_ADMIN_KEY` / 旧的
         // `CORTEX_ADMIN_KEY`）。
         admin_token: Some(desktop_admin_token()),
+        // ⚠️ **本地控制面**（配置中心）—— 记忆存储的设置写在这里，**不是**
+        // 写在 Tauri 自己的 config.json 里（2026-11-12）。
+        //
+        // 为什么要给：端脑的配置中心**只从 `BuildOptions::control_plane`
+        // 进来**，没有环境变量兜底 ⇒ 宿主不递 ⇒ 它一直是 `disabled`
+        // ⇒ 「记忆存储」设置页写了也读不回来（读面答 503「控制面未连接」）。
+        //
+        // ⚠️ **本地文件模式**（`Bootstrap { token: None }`）：桌面端本来就编了
+        // `telencephalon/turso`（本地 libSQL）⇒ 一个库文件就够，不必依赖
+        // 任何远端 Turso。位置与 identity 目录同源（`config_dir/shadow/`）。
+        //
+        // ⚠️ 生效时机：控制面在 boot 时打开一次 ⇒ 改配置后**重启**才生效
+        // （读面回包的 `applies_when` 就是 `restart`）。
+        control_plane: Some(encephalon::telencephalon::config_center::Bootstrap {
+            url: dirs::config_dir()
+                .map(|dir| {
+                    dir.join("shadow")
+                        .join("control-plane.db")
+                        .to_string_lossy()
+                        .to_string()
+                })
+                .unwrap_or_else(|| ":memory:".to_string()),
+            token: None,
+        }),
         // ⚠️ **其余字段走 Default** —— `BuildOptions` 手写了 `Default`
         // ⇒ ⇒ 新增字段时不必在这里补 ⇒ ⇒ 也就不必「改一处、漏一处」
         // （E0063：缺 `control_plane` / `secret_store`）。
@@ -367,6 +484,117 @@ mod tests {
         );
     }
 
+    /// **宿主注入给海马体的那一格**：地址必须是**脑面根上的 neuron 面**
+    /// （带 `/v1`）。
+    ///
+    /// ⚠️ 这条钉的是「桌面端把脑面**地址**交给海马体」这个**事实**：
+    /// ⇒ ⇒ 少了它，进程内那份海马体的本地推理就落到别处去了
+    /// ⇒ ⇒ 「本地推理只由大脑中的 neuron 提供」这条在桌面端落不了地。
+    ///
+    /// ⚠️⚠️ **这里只钉地址，不钉钥匙** —— 钥匙**不再**由桌面端经进程环境递
+    /// ⇒ ⇒ 改由**端脑自己那把 admin token** 出（端脑手里本来就是同一把）
+    /// ⇒ ⇒ 秘密只活在**进程堆里**（同用户进程 / 子进程 / 崩溃转储都读不到）。
+    #[test]
+    fn the_hippocampus_endpoint_is_the_brain_face() {
+        assert_eq!(
+            brain_face_base(), "http://127.0.0.1:60080/v1",
+            "the brain face serves neuron's OpenAI surface at the face root + /v1"
+        );
+    }
+
+    /// ⚠️⚠️ **钥匙不许进进程环境**（2026-11-09 实测后改的形状的反向钉桩）——
+    /// ⇒ ⇒ 「桌面端把 admin token 塞进 env」那条通道**必须**已经消失
+    /// ⇒ ⇒ 否则明文密钥落盘闸（`check-secret-plaintext.mjs`）会红。
+    ///
+    /// ⚠️ **为什么用源码扫描而不是读进程环境**：测试进程自己的 env 未必有那
+    /// 两个变量（没人 set 过）⇒ ⇒ 读 env 只能证明「此刻没设」，**证不了**
+    /// 「代码里不会再设」⇒ ⇒ 判据必须落在**源码形状**上。
+    #[test]
+    fn the_desktop_does_not_put_the_brain_key_in_the_process_environment() {
+        let src = include_str!("telencephalon_http.rs");
+        // ⚠️⚠️ **只扫 `mod tests` 之前那段** —— 否则这条测试**自己**会被扫到
+        // ⇒ ⇒ 它的判据文本（`set_var` ＋ 那个变量名）**恰好**长得像违规
+        // ⇒ ⇒ ⇒ **自指陷阱** ⇒ ⇒ 测试永远红 ⇒ ⇒ 等于没有这条钉桩。
+        let product = src.split_once("mod tests {").map(|(head, _)| head).unwrap_or(src);
+        for line in product.lines() {
+            let t = line.trim();
+            if t.starts_with("//") {
+                continue;
+            }
+            assert!(
+                !(t.contains("set_var") && t.contains("HIPPOCAMPUS_BRAIN")),
+                "桌面端不许把脑面钥匙写进进程环境（{t}）—— 那条通道会把凭据摊给同用户进程 / 子进程 / 崩溃转储 / 日志采集"
+            );
+        }
+    }
+
+    /// ⚠️⚠️ **海马体的脑面地址必须来自「真在监听的那个 listener」**
+    /// （2026-11-09 真机取证 + 用户拍板「端脑延迟放行」）。
+    ///
+    /// ⇒ ⇒ **为什么**：端脑 boot 期就把脑面**地址**递给了海马体 ⇒ ⇒ 海马体
+    ///    的本地推理/嵌入请求打的就是那个地址 ⇒ ⇒ 若那地址是**猜的**
+    ///    （常量 `DEFAULT_ADDR`）⇒ ⇒ boot 到 bind 之间那段时间里它上头坐的
+    ///    **可能是陌生进程** ⇒ ⇒ 记忆与推理落进**陌生的大脑** ⇒ ⇒
+    ///    **界面上看不出任何异常**（失败长得像成功）。
+    /// ⇒ ⇒ 现在地址取自**我们自己占住的 listener** ⇒ ⇒ 那个地址上坐的
+    ///    **只可能是我们自己**。
+    ///
+    /// ⚠️ **孪生**：换一个端口 ⇒ ⇒ 地址**必须跟着换** ⇒ ⇒ 若它仍然写死
+    ///    60080 ⇒ ⇒ 这条钉桩要红（否则「按 listener 算」是假的）。
+    #[test]
+    fn the_brain_face_base_follows_the_bound_listener() {
+        assert_eq!(
+            brain_face_base_for(DEFAULT_ADDR),
+            "http://127.0.0.1:60080/v1",
+            "the brain face serves neuron's OpenAI surface at the face root + /v1"
+        );
+        // ⚠️ **孪生**：端口换了 ⇒ ⇒ 地址必须跟着换（不是写死常量）。
+        let other: SocketAddr = "127.0.0.1:61999".parse().unwrap();
+        assert_eq!(
+            brain_face_base_for(other),
+            "http://127.0.0.1:61999/v1",
+            "the brain face base must follow the listener we actually own, not a constant"
+        );
+    }
+
+    /// ⚠️⚠️ **顺序钉桩：bind 必须先于 build_face**（2026-11-09）。
+    ///
+    /// ⇒ ⇒ 这是那一刀的**全部** ⇒ ⇒ 顺序反了 ⇒ ⇒ 海马体拿到的地址
+    ///    上坐的**可能不是我们** ⇒ ⇒ 记忆打进陌生的大脑。
+    ///
+    /// ⚠️ **为什么用源码扫描**：这一格是**时序**，运行期看不到（海马体
+    ///    只在第一次请求时才用那个地址）⇒ ⇒ 判据必须落在源码形状上。
+    /// ⇒ ⇒ **孪生**：顺序反了的那份源码 ⇒ ⇒ 判据必须**红**（否则这条
+    ///    钉桩恒绿 ⇒ ⇒ 等于没有）。
+    #[test]
+    fn the_brain_face_is_bound_before_the_endbrain_is_built() {
+        let src = include_str!("telencephalon_http.rs");
+        let product = src.split_once("mod tests {").map(|(head, _)| head).unwrap_or(src);
+        let bind_at = product.find("bind_until_owned(").expect("the bind call must exist");
+        let build_at = product.find("build_face(").expect("the build call must exist");
+        assert!(
+            bind_at < build_at,
+            "bind must come before build_face: the endbrain hands the hippocampus the brain address at boot, so the port must already be ours — otherwise the hippocampus may talk to a stranger's brain"
+        );
+    }
+
+    /// ⚠️ **反向孪生**：顺序反了的那份源码 ⇒ ⇒ 判据**必须红**。
+    ///
+    /// ⇒ ⇒ 否则上面那条钉桩可能恒绿（判据没咬住）⇒ ⇒ 等于没有判据。
+    #[test]
+    fn the_order_judgement_rejects_a_reversed_source() {
+        let reversed = "let f = build_face(x); let l = bind_until_owned(y);";
+        let bind_at = reversed.find("bind_until_owned(").unwrap();
+        let build_at = reversed.find("build_face(").unwrap();
+        assert!(
+            bind_at > build_at,
+            "the twin source really is reversed — otherwise the twin proves nothing"
+        );
+        assert!(
+            !(bind_at < build_at),
+            "a reversed source must not satisfy the ordering judgement"
+        );
+    }
     /// 叶区清单不能变少 —— 少一个就少一条链路上能到达的能力
     /// （temporal = 对话 / 意图，prefrontal = 任务，parietal = 编排）。
     ///

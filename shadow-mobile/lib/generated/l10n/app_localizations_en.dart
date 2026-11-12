@@ -1618,6 +1618,102 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsGroupCapabilities => 'Capabilities';
 
   @override
+  String get memoryStorageTitle => 'Memory storage';
+
+  @override
+  String get memoryStorageDesc =>
+      'Where long-term memory lives (local directory / S3-compatible / Alibaba OSS)';
+
+  @override
+  String get memoryStorageBackendLocal => 'Local';
+
+  @override
+  String get memoryStorageBackendS3 => 'S3-compatible';
+
+  @override
+  String get memoryStorageBackendOss => 'Alibaba OSS';
+
+  @override
+  String get memoryStorageLocation => 'Location';
+
+  @override
+  String get memoryStorageLocationLocalHint =>
+      'Absolute path of a local directory';
+
+  @override
+  String get memoryStorageLocationRemoteHint =>
+      'Like s3://bucket/prefix or oss://bucket/prefix';
+
+  @override
+  String get memoryStorageEndpoint => 'Endpoint';
+
+  @override
+  String get memoryStorageEndpointHint =>
+      'For a self-hosted store or a non-default region; required for OSS';
+
+  @override
+  String get memoryStorageRegion => 'Region';
+
+  @override
+  String get memoryStorageAccessKey => 'Access Key';
+
+  @override
+  String get memoryStorageSecretKey => 'Secret Key';
+
+  @override
+  String get memoryStorageSecretHint =>
+      'Shown as *** when configured (saving it unchanged keeps the value)';
+
+  @override
+  String get memoryStorageAllowHttp =>
+      'Allow an HTTP endpoint (self-hosted store on the LAN)';
+
+  @override
+  String get memoryStorageSave => 'Save';
+
+  @override
+  String get memoryStorageSaving => 'Saving…';
+
+  @override
+  String get memoryStorageSavedPending =>
+      'Saved — takes effect after the brain restarts';
+
+  @override
+  String get memoryStorageConfigured => 'Configured';
+
+  @override
+  String get memoryStorageNotConfigured => 'Not configured (default location)';
+
+  @override
+  String get memoryStorageUnreadable => 'Cannot reach the control plane';
+
+  @override
+  String get memoryStorageRetry => 'Retry';
+
+  @override
+  String get memoryStorageBuildHint =>
+      'Note: the default build does not include the memory system (needs a mobile-memory build); a setting here only applies in such a build';
+
+  @override
+  String get memoryStoragePendingHint =>
+      '⚠️ The storage location is read once at boot — saving takes effect only after a restart';
+
+  @override
+  String get memoryStorageNoMigrationHint =>
+      '⚠️ Switching backends does not migrate existing memory: a Lance dataset takes root where it is first created';
+
+  @override
+  String get memoryStorageInvalidLocation => 'The location cannot be empty';
+
+  @override
+  String memoryStorageInvalidScheme(String scheme) {
+    return 'The location must start with $scheme';
+  }
+
+  @override
+  String get memoryStorageInvalidOssEndpoint => 'OSS requires an endpoint';
+
+  @override
   String get settingsGroupCapabilitiesDesc =>
       'You decide what the model may read on this phone, item by item';
 

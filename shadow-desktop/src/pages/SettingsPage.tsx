@@ -20,6 +20,7 @@ import {
 //   （生成器下一次跑就会抹掉生成物里的手写行 ⇒ ⇒ 而「生成物 ≠ 生成器输出」
 //   会让生成物判据当场判红 ⇒ ⇒ 见 src/styles/hexColor.ts 的说明）。
 import { normalizeHexColor } from '../styles/hexColor';
+import { MemoryStorageCard } from '../components/settings/MemoryStorageCard';
 import {
   fileToBackgroundDataUrl,
   isChatBackgroundDataUrl,
@@ -2051,7 +2052,12 @@ export function ShortcutsSection() {
 function DataSection() {
   return (
     <div>
-      <HippocampusStorageCard />
+      {/* ⚠️ **记忆存储的真相源已经搬到端脑配置中心**（2026-11-12）——
+          这里渲染的是能配「本地 / S3 / OSS」的新卡片。旧的
+          `HippocampusStorageCard`（Tauri 命令 get/set_hippocampus_storage，
+          只支持本地目录）**不再渲染**：两个入口各说一套就是两个真相源。
+          命令本身保留作底层兼容（`hippocampus_data_dir` 仍是宿主给的那一格）。 */}
+      <MemoryStorageCard />
 
       <IdentityPanel />
     </div>

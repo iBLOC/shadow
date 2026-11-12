@@ -3062,6 +3062,174 @@ abstract class AppLocalizations {
   /// **'Capabilities'**
   String get settingsGroupCapabilities;
 
+  /// No description provided for @memoryStorageTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Memory storage'**
+  String get memoryStorageTitle;
+
+  /// No description provided for @memoryStorageDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Where long-term memory lives (local directory / S3-compatible / Alibaba OSS)'**
+  String get memoryStorageDesc;
+
+  /// No description provided for @memoryStorageBackendLocal.
+  ///
+  /// In en, this message translates to:
+  /// **'Local'**
+  String get memoryStorageBackendLocal;
+
+  /// No description provided for @memoryStorageBackendS3.
+  ///
+  /// In en, this message translates to:
+  /// **'S3-compatible'**
+  String get memoryStorageBackendS3;
+
+  /// No description provided for @memoryStorageBackendOss.
+  ///
+  /// In en, this message translates to:
+  /// **'Alibaba OSS'**
+  String get memoryStorageBackendOss;
+
+  /// No description provided for @memoryStorageLocation.
+  ///
+  /// In en, this message translates to:
+  /// **'Location'**
+  String get memoryStorageLocation;
+
+  /// No description provided for @memoryStorageLocationLocalHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Absolute path of a local directory'**
+  String get memoryStorageLocationLocalHint;
+
+  /// No description provided for @memoryStorageLocationRemoteHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Like s3://bucket/prefix or oss://bucket/prefix'**
+  String get memoryStorageLocationRemoteHint;
+
+  /// No description provided for @memoryStorageEndpoint.
+  ///
+  /// In en, this message translates to:
+  /// **'Endpoint'**
+  String get memoryStorageEndpoint;
+
+  /// No description provided for @memoryStorageEndpointHint.
+  ///
+  /// In en, this message translates to:
+  /// **'For a self-hosted store or a non-default region; required for OSS'**
+  String get memoryStorageEndpointHint;
+
+  /// No description provided for @memoryStorageRegion.
+  ///
+  /// In en, this message translates to:
+  /// **'Region'**
+  String get memoryStorageRegion;
+
+  /// No description provided for @memoryStorageAccessKey.
+  ///
+  /// In en, this message translates to:
+  /// **'Access Key'**
+  String get memoryStorageAccessKey;
+
+  /// No description provided for @memoryStorageSecretKey.
+  ///
+  /// In en, this message translates to:
+  /// **'Secret Key'**
+  String get memoryStorageSecretKey;
+
+  /// No description provided for @memoryStorageSecretHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Shown as *** when configured (saving it unchanged keeps the value)'**
+  String get memoryStorageSecretHint;
+
+  /// No description provided for @memoryStorageAllowHttp.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow an HTTP endpoint (self-hosted store on the LAN)'**
+  String get memoryStorageAllowHttp;
+
+  /// No description provided for @memoryStorageSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get memoryStorageSave;
+
+  /// No description provided for @memoryStorageSaving.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving…'**
+  String get memoryStorageSaving;
+
+  /// No description provided for @memoryStorageSavedPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved — takes effect after the brain restarts'**
+  String get memoryStorageSavedPending;
+
+  /// No description provided for @memoryStorageConfigured.
+  ///
+  /// In en, this message translates to:
+  /// **'Configured'**
+  String get memoryStorageConfigured;
+
+  /// No description provided for @memoryStorageNotConfigured.
+  ///
+  /// In en, this message translates to:
+  /// **'Not configured (default location)'**
+  String get memoryStorageNotConfigured;
+
+  /// No description provided for @memoryStorageUnreadable.
+  ///
+  /// In en, this message translates to:
+  /// **'Cannot reach the control plane'**
+  String get memoryStorageUnreadable;
+
+  /// No description provided for @memoryStorageRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get memoryStorageRetry;
+
+  /// No description provided for @memoryStorageBuildHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Note: the default build does not include the memory system (needs a mobile-memory build); a setting here only applies in such a build'**
+  String get memoryStorageBuildHint;
+
+  /// No description provided for @memoryStoragePendingHint.
+  ///
+  /// In en, this message translates to:
+  /// **'⚠️ The storage location is read once at boot — saving takes effect only after a restart'**
+  String get memoryStoragePendingHint;
+
+  /// No description provided for @memoryStorageNoMigrationHint.
+  ///
+  /// In en, this message translates to:
+  /// **'⚠️ Switching backends does not migrate existing memory: a Lance dataset takes root where it is first created'**
+  String get memoryStorageNoMigrationHint;
+
+  /// No description provided for @memoryStorageInvalidLocation.
+  ///
+  /// In en, this message translates to:
+  /// **'The location cannot be empty'**
+  String get memoryStorageInvalidLocation;
+
+  /// No description provided for @memoryStorageInvalidScheme.
+  ///
+  /// In en, this message translates to:
+  /// **'The location must start with {scheme}'**
+  String memoryStorageInvalidScheme(String scheme);
+
+  /// No description provided for @memoryStorageInvalidOssEndpoint.
+  ///
+  /// In en, this message translates to:
+  /// **'OSS requires an endpoint'**
+  String get memoryStorageInvalidOssEndpoint;
+
   /// No description provided for @settingsGroupCapabilitiesDesc.
   ///
   /// In en, this message translates to:

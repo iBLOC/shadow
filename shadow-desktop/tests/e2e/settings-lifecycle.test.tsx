@@ -1,8 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent, { PointerEventsCheckLevel } from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { SettingsPage } from '../../src/pages/SettingsPage';
+import { telencephalonClient } from '../../src/lib/telencephalonClient';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -284,38 +285,58 @@ describe('SettingsPage Lifecycle E2E', () => {
   });
 
   describe('Memory integration', () => {
-    it('renders memory integration section', async () => {
+    // ⚠️ 2026-11-12：记忆存储的真相源搬到**端脑配置中心** ⇒ 卡片从
+    // 「Tauri 命令读本地目录」换成「配置中心读 hippocampus 段」。
+    // 这三条断言原本钉的是旧卡片的文案/路径 ⇒ 现在钉**新卡片**的：
+    // 位置来自配置中心、状态徽章说「已配置」、旧假地址仍不许回来。
+    beforeEach(() => {
+      vi.spyOn(telencephalonClient.neuron, 'configSection').mockResolvedValue({
+        section: 'hippocampus',
+        applies_when: 'restart',
+        entries: [
+          { key: 'storage_uri', value: 's3://tester-bucket/lance' },
+          { key: 'storage_endpoint', value: 'http://127.0.0.1:9000' },
+        ],
+      });
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('renders the memory storage section', async () => {
       renderWithRouter();
       await screen.findByText('settings.title');
       const dataButton = screen.getByRole('button', { name: /settings.section.data/i });
       fireEvent.click(dataButton);
       await waitFor(() => {
-        expect(screen.getByText('settings.memoryIntegration')).toBeInTheDocument();
+        expect(screen.getByText('settings.memoryStorage.title')).toBeInTheDocument();
       });
     });
 
-    it('renders connected status badge', async () => {
+    it('renders the configured status badge', async () => {
       renderWithRouter();
       await screen.findByText('settings.title');
       const dataButton = screen.getByRole('button', { name: /settings.section.data/i });
       fireEvent.click(dataButton);
       await waitFor(() => {
-        expect(screen.getByText('settings.connected')).toBeInTheDocument();
+        expect(screen.getByText('settings.memoryStorage.configured')).toBeInTheDocument();
       });
     });
 
-    it('renders the REAL storage path — and the fake address never comes back', async () => {
+    it('renders the REAL storage location — and the fake address never comes back', async () => {
       renderWithRouter();
       await screen.findByText('settings.title');
       const dataButton = screen.getByRole('button', { name: /settings.section.data/i });
       fireEvent.click(dataButton);
       // ⚠️ 那句 `settings.storagePathDefault`（内容是 `~/.hippocampus`）——
       // 一个**任何机器上都不存在**的地址 —— 已经从界面和 i18n 里删掉了。
-      // ⇒ ⇒ 这条断言钉的是「**显示真路径**」＋「**假地址不许回来**」。
+      // ⇒ ⇒ 这条断言钉的是「**显示配置中心里那个真落点**」＋「假地址不许回来」。
+      // ⚠️ 位置是**输入框**里的值（不是文本节点）⇒ 用 `toHaveValue`。
       await waitFor(() => {
-        expect(
-          screen.getByText('C:\\Users\\tester\\AppData\\Roaming\\shadow\\lance'),
-        ).toBeInTheDocument();
+        expect(screen.getByTestId('memory-storage-location')).toHaveValue(
+          's3://tester-bucket/lance',
+        );
       });
       expect(screen.queryByText('settings.storagePathDefault')).not.toBeInTheDocument();
     });

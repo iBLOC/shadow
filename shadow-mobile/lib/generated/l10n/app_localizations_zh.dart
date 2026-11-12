@@ -1,6 +1,5 @@
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
-
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -280,8 +279,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get continueDesktopTitle => '在桌面端继续';
 
   @override
-  String get continueDesktopDescription =>
-      '选择一个桌面端节点，把当前对话交接过去。音频和 TTS 保留在手机上，推理移动到桌面端。';
+  String get continueDesktopDescription => '选择一个桌面端节点，把当前对话交接过去。音频和 TTS 保留在手机上，推理移动到桌面端。';
 
   @override
   String get continueDesktopConfirm => '开始交接';
@@ -388,8 +386,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get openVoiceAssistant => '语音助手';
 
   @override
-  String get customerServiceHint =>
-      'AI 会自动接听电话并回复。shadow-esp32 播放来电方语音和 AI 回复。插入耳机后自动切到耳机。';
+  String get customerServiceHint => 'AI 会自动接听电话并回复。shadow-esp32 播放来电方语音和 AI 回复。插入耳机后自动切到耳机。';
 
   @override
   String get visualQaPickCamera => '请选择摄像头';
@@ -982,8 +979,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsEncephalonEmbedded => '大脑运行时';
 
   @override
-  String get settingsEncephalonEmbeddedDesc =>
-      '大脑运行状态、启停与进程内推理探针（模型选择在能力 tab：默认模型首卡与叶区 Agents 页）';
+  String get settingsEncephalonEmbeddedDesc => '大脑运行状态、启停与进程内推理探针（模型选择在能力 tab：默认模型首卡与叶区 Agents 页）';
 
   @override
   String get soulDescHintExample => '例如：\n- 语气友好、简洁\n- 称呼用户为“你”\n- 主动提供有用的建议';
@@ -1099,8 +1095,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get encephalonInferTitle => '进程内推理';
 
   @override
-  String get encephalonInferHint =>
-      '请求直接进入进程内 neuron 的 adapter 管线 —— 不走 socket，没有 CORS。';
+  String get encephalonInferHint => '请求直接进入进程内 neuron 的 adapter 管线 —— 不走 socket，没有 CORS。';
 
   @override
   String get encephalonInferPrompt => '提示词';
@@ -1115,8 +1110,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get encephalonModelSourceTitle => '默认模型';
 
   @override
-  String get encephalonModelSourceHint =>
-      '每一类模型各选各的，互不影响 —— 对话可以走云端，语音识别留在本地。叶区默认跟随这里的对话模型，也可以在下面单独指定。';
+  String get encephalonModelSourceHint => '每一类模型各选各的，互不影响 —— 对话可以走云端，语音识别留在本地。叶区默认跟随这里的对话模型，也可以在下面单独指定。';
 
   @override
   String get encephalonModelLocalNeuron => '本地 neuron 权重';
@@ -1134,8 +1128,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get encephalonModelOptionsUnavailable => '读不到大脑的供应商目录 —— 大脑可能没在跑。';
 
   @override
-  String get capabilityDefaultsAppliedButNotCached =>
-      '已下发到大脑，但本地副本没存住 —— 重启后这一档会回到默认。';
+  String get capabilityDefaultsAppliedButNotCached => '已下发到大脑，但本地副本没存住 —— 重启后这一档会回到默认。';
 
   @override
   String get capabilityDefaultUnset => '不指定';
@@ -1579,6 +1572,92 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsGroupCapabilities => '能力授权';
 
   @override
+  String get memoryStorageTitle => '记忆存储';
+
+  @override
+  String get memoryStorageDesc => '长期记忆落在哪里（本地目录 / S3 兼容 / 阿里云 OSS）';
+
+  @override
+  String get memoryStorageBackendLocal => '本地';
+
+  @override
+  String get memoryStorageBackendS3 => 'S3 兼容';
+
+  @override
+  String get memoryStorageBackendOss => '阿里云 OSS';
+
+  @override
+  String get memoryStorageLocation => '存储位置';
+
+  @override
+  String get memoryStorageLocationLocalHint => '本地目录的绝对路径';
+
+  @override
+  String get memoryStorageLocationRemoteHint => '形如 s3://bucket/prefix 或 oss://bucket/prefix';
+
+  @override
+  String get memoryStorageEndpoint => 'Endpoint';
+
+  @override
+  String get memoryStorageEndpointHint => '自建对象存储或非默认区域时填写；OSS 必填';
+
+  @override
+  String get memoryStorageRegion => 'Region';
+
+  @override
+  String get memoryStorageAccessKey => 'Access Key';
+
+  @override
+  String get memoryStorageSecretKey => 'Secret Key';
+
+  @override
+  String get memoryStorageSecretHint => '已配置时显示 ***（原样保存即保留原值）';
+
+  @override
+  String get memoryStorageAllowHttp => '允许 HTTP endpoint（局域网自建对象存储）';
+
+  @override
+  String get memoryStorageSave => '保存';
+
+  @override
+  String get memoryStorageSaving => '保存中…';
+
+  @override
+  String get memoryStorageSavedPending => '已保存 —— 重启大脑后生效';
+
+  @override
+  String get memoryStorageConfigured => '已配置';
+
+  @override
+  String get memoryStorageNotConfigured => '未配置（走默认位置）';
+
+  @override
+  String get memoryStorageUnreadable => '读不到配置中心';
+
+  @override
+  String get memoryStorageRetry => '重试';
+
+  @override
+  String get memoryStorageBuildHint => '注意：默认构建未编入记忆体（需 mobile-memory 构建），配了也只在那样的构建里生效';
+
+  @override
+  String get memoryStoragePendingHint => '⚠️ 存储位置在启动时读取一次 —— 保存后需要重启大脑才生效';
+
+  @override
+  String get memoryStorageNoMigrationHint => '⚠️ 切换存储后端不会迁移已有记忆：Lance 数据集在第一次创建时就地生根';
+
+  @override
+  String get memoryStorageInvalidLocation => '存储位置不能为空';
+
+  @override
+  String memoryStorageInvalidScheme(String scheme) {
+    return '位置必须以 $scheme 开头';
+  }
+
+  @override
+  String get memoryStorageInvalidOssEndpoint => 'OSS 必须填写 endpoint';
+
+  @override
   String get settingsGroupCapabilitiesDesc => '模型能读这台手机上的哪些东西，由你逐项决定';
 
   @override
@@ -1965,12 +2044,10 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get zitiIdentityPlaceholder =>
-      '粘贴身份 JSON（含 ztAPI / id / ca / cert / key）';
+  String get zitiIdentityPlaceholder => '粘贴身份 JSON（含 ztAPI / id / ca / cert / key）';
 
   @override
-  String get zitiIdentityHint =>
-      '身份里必须含内联的 ca / cert / key 三段 PEM；写文件路径的会明确报错（那台机器上没有那个文件）';
+  String get zitiIdentityHint => '身份里必须含内联的 ca / cert / key 三段 PEM；写文件路径的会明确报错（那台机器上没有那个文件）';
 
   @override
   String get zitiImport => '导入身份';
@@ -1985,8 +2062,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get zitiRestartHint => '零信任角色在启动时定死 ⇒ 保存只落盘，重启 App 后生效。';
 
   @override
-  String get zitiSecretHint =>
-      '身份含私钥，存在 App 私有目录；shadow key / admin token 仍走宿主，不在这里填。';
+  String get zitiSecretHint => '身份含私钥，存在 App 私有目录；shadow key / admin token 仍走宿主，不在这里填。';
 
   @override
   String get zitiImportFailed => '导入失败';
@@ -1995,8 +2071,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get zitiSaveFailed => '保存失败';
 
   @override
-  String get capabilityDefaultsUnusableNow =>
-      '下面这几档指向的模型这台大脑还没注册 —— 设置存住了，但引擎注册前跑不起来。';
+  String get capabilityDefaultsUnusableNow => '下面这几档指向的模型这台大脑还没注册 —— 设置存住了，但引擎注册前跑不起来。';
 
   @override
   String get providersDownloadModels => '下载本地模型';

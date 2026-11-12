@@ -710,6 +710,34 @@ export interface GenerateImageResponse {
   data: GenerateImageDatum[];
 }
 
+/**
+ * 配置中心的一条配置（`GET /api/telencephalon/config/{section}` 的 `entries[]`）。
+ *
+ * ⚠️ **`secret` 的条目读回是掩码**（`***`）—— 回写时原样送回即保留原值
+ * （服务端 `config_center/policy.rs` 认这个约定）。
+ */
+export interface ConfigEntry {
+  key: string;
+  value: unknown;
+  secret?: boolean;
+  version?: number;
+  updated_at?: string;
+  updated_by?: string;
+}
+
+/** 一个配置段（读回来带「何时生效」）。 */
+export interface ConfigSectionView {
+  section: string;
+  entries: ConfigEntry[];
+  /** `restart` 等 —— **「已保存」不等于「已生效」**，界面照它说。 */
+  applies_when: string;
+}
+
+/** 写一条配置的回包（脱敏后的那条 ＋ 何时生效）。 */
+export interface ConfigWriteResult extends ConfigEntry {
+  applies_when: string;
+}
+
 export class Telencephalon412Error extends Error {
   constructor(public reason: string) {
     super(reason);
@@ -1592,6 +1620,40 @@ export class TelencephalonClient {
       this.request<NeuronModelsResponse>('/api/telencephalon/neuron/preview/models').then((r) => r.models),
     stats: (): Promise<NeuronStats> =>
       this.request<NeuronStats>('/api/telencephalon/neuron/preview/stats'),
+
+    /**
+     * **配置中心**（`/api/telencephalon/config/*`）—— 记忆存储的落点就写在这里。
+     *
+     * ⚠️ 读不到控制面是 **503**（`config_centre_unavailable`），不是 404、
+     * 也不是「空列表」⇒ ⇒ 界面必须把「读不到」与「没配过」分开说。
+     * ⚠️ **显式泛型**（`request<…>`）⇒ 才进得了契约清单。
+     */
+    configSection: (section: string): Promise<ConfigSectionView> =>
+      this.request<ConfigSectionView>(
+        `/api/telencephalon/config/${encodeURIComponent(section)}`,
+      ),
+
+    /** 写一条（`secret: true` ⇒ 服务端密封入库、读回掩码）。 */
+    putConfig: (
+      section: string,
+      key: string,
+      value: unknown,
+      opts?: { secret?: boolean },
+    ): Promise<ConfigWriteResult> =>
+      this.request<ConfigWriteResult>(
+        `/api/telencephalon/config/${encodeURIComponent(section)}/${encodeURIComponent(key)}`,
+        {
+          method: 'PUT',
+          body: JSON.stringify({ value, secret: opts?.secret ?? false }),
+        },
+      ),
+
+    /** 删一条（切后端后清掉不再适用的键）。 */
+    deleteConfig: (section: string, key: string): Promise<{ removed: boolean }> =>
+      this.request<{ removed: boolean }>(
+        `/api/telencephalon/config/${encodeURIComponent(section)}/${encodeURIComponent(key)}`,
+        { method: 'DELETE' },
+      ),
 
     /**
      * neuron **目录面**（`GET /v1/models`，neuron 路由挂在脑面根上）——

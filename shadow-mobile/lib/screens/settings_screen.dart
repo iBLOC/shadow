@@ -16,6 +16,7 @@ import '../widgets/log_panel_section.dart';
 import '../widgets/settings/appearance_section.dart';
 import '../widgets/settings/background_run_settings_group.dart';
 import '../widgets/settings/capability_grants_section.dart';
+import '../widgets/settings/memory_storage_section.dart';
 import '../widgets/settings/service_status_block.dart';
 import '../widgets/settings/settings_row.dart';
 import '../widgets/settings/tts_settings_group.dart';
@@ -267,6 +268,25 @@ class SettingsScreen extends ConsumerWidget {
                     children: [
                       SettingsBlock(
                         children: const [CapabilityGrantsSection()],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+
+              // ── 记忆存储 ──────────────────────────────────────
+              //
+              // ⚠️ 真相源是端脑配置中心（`hippocampus` 段），不是 App 本地
+              // 配置 —— 桌面端同一张卡片写的是同一份东西 ⇒ 两端不会各说一套。
+              _Section(
+                children: [
+                  SettingsGroup(
+                    title: l10n.memoryStorageTitle,
+                    icon: Icons.storage_outlined,
+                    description: l10n.memoryStorageDesc,
+                    children: const [
+                      SettingsBlock(
+                        children: [MemoryStorageSection()],
                       ),
                     ],
                   ),
