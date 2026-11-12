@@ -1746,6 +1746,25 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get capabilityNotificationsRead => 'Read notifications';
+
+  @override
+  String get capabilityRequestNotificationsRead =>
+      'to read recent notifications on this device';
+
+  @override
+  String capabilityArgRecentNotifications(String count) {
+    return 'the most recent $count notifications';
+  }
+
+  @override
+  String get capabilityListenerGranted => 'notification access granted';
+
+  @override
+  String get capabilityListenerMissing =>
+      'notification access not granted, tap to enable';
+
+  @override
   String get capabilityGrantSystemPermission => 'Grant';
 
   @override

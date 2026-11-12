@@ -175,6 +175,34 @@ class CapabilityTools {
     };
   }
 
+  /// 读设备通知栏的近期通知（应用 / 标题 / 正文 / 时间）。
+  ///
+  /// ⚠️ 通知使用权不是运行时权限，是系统设置里的「通知使用权」服务开关
+  /// ⇒ ⇒ **不能**走 [_ensureOsPermission]（那条路会试图弹系统框，而通知**没有框**）
+  /// ⇒ ⇒ 自己查授权位；没授权 ⇒ **明确失败**并说清去哪儿开，
+  /// 绝不静悄悄回一个空列表（那是「假装成功」）。
+  ///
+  /// ⚠️ 「已授权但服务没连上」是原生层**另一个**明确错误（不是空列表）
+  /// ⇒ ⇒ 这一格与 [_ensureAccessibilityService] 的「开了没连上」同一族抗抖语义。
+  Future<Object?> readNotifications(Map<String, dynamic> args) async {
+    final limit = _parseLimit(args['limit'], 30);
+    final includeOngoing = args['include_ongoing'] == true;
+    if (!await channel.notificationsAccessGranted()) {
+      throw StateError(
+        'notification access is not granted — the user has to allow it in the '
+        'system settings (Settings > Notifications > Notification access for '
+        'this app)',
+      );
+    }
+    final events = await channel.readNotifications(
+      limit: limit,
+      includeOngoing: includeOngoing,
+    );
+    return <String, dynamic>{
+      'notifications': events,
+      'count': events.length,
+    };
+  }
   // ── 手机操作（mobile use）─────────────────────────────────
   //
   // ⚠️ 这一族与上面那五个**不是一类东西**：

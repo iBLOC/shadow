@@ -224,6 +224,14 @@ windows = { version = "0.61", features = [
     "Win32_Foundation",
     "Win32_System_LibraryLoader",
     "Win32_UI_WindowsAndMessaging",
+    # 通知使用权读取（UserNotificationListener）—— 见 src/device_notifications.rs。
+    # Foundation/Foundation_Collections 是 WinRT 异步与 IVectorView 的家。
+    "Foundation",
+    "Foundation_Collections",
+    "UI_Notifications",
+    "UI_Notifications_Management",
+    # UserNotification.AppInfo / AppDisplayInfo（来源应用显示名）。
+    "ApplicationModel",
 ] }
 
 # 2026-11-04: the `ziti-sdk` override was removed — that crate left the

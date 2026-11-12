@@ -1696,6 +1696,23 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get capabilityNotificationsRead => '读取通知';
+
+  @override
+  String get capabilityRequestNotificationsRead => '要读取你手机通知栏里的近期通知';
+
+  @override
+  String capabilityArgRecentNotifications(String count) {
+    return '最近 $count 条通知';
+  }
+
+  @override
+  String get capabilityListenerGranted => '通知使用权已授予';
+
+  @override
+  String get capabilityListenerMissing => '通知使用权未授予，去开启';
+
+  @override
   String get capabilityGrantSystemPermission => '去授权';
 
   @override

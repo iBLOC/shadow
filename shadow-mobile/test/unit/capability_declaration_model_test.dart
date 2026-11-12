@@ -115,7 +115,7 @@ void main() {
           reason: '$fn 的声明 enum 与它真实要的那一档对不上',
         );
       }
-      expect(checked, 11, reason: '**每一个**能力工具都要被这一格点到');
+      expect(checked, 12, reason: '**每一个**能力工具都要被这一格点到');
       expect(
         covered,
         {
@@ -124,9 +124,10 @@ void main() {
           'contacts',
           'sms',
           'photos',
+          'notifications_read',
           'mobile_use',
         },
-        reason: '六档能力都要在 tools 数组里向模型说清「要哪一档」',
+        reason: '七档能力都要在 tools 数组里向模型说清「要哪一档」',
       );
     });
 

@@ -1,3 +1,44 @@
+**Updated**: 2026-11-12 (㔓 **「两端第一次能读设备通知 —— 『按元数据记忆写的 WinRT 面』两把 cargo check 才绿，绑定源码才是唯一判据」** —— 本条是「读取设备通知」三刀里的**第 1 刀**（两端能力＋共享工具）；承 U+3509 条（谁在那个面上调它）＋ U+3500 条（失败长得像成功），本条记**取证（两端现状＋用户的感知模式设计）**、**设计判据（五格）**、**这一刀的落点（24 个文件）**、**途中那几课（windows-rs 0.61 四课＋AppInfo 事实订正＋计数闸）**、**判据与分级读数**，以及**仍然欠着的**.)
+> 信封：epoch=2026-11-12 | authority=measured | scope=project | source=官方绑定面逐字（windows-0.61.3 生成源码：UI/Notifications/Management/mod.rs ＋ UI/Notifications/mod.rs 的 pub fn／impl const 清单）＋ 跨端对齐闸（阻断 0）＋ 真编译两把 cargo check（2 错 → 4 错 → 0）＋ 两端单测（Dart 全量 unit 428 绿 0 红／Rust --lib device_notifications 4/4）｜ 改动：移动端 18（Kotlin 3 其中 1 新增＋Dart lib 8 含 arb 2＋gen-l10n 3＋测试 4 其中 1 新增）＋ 桌面端 5 其中 1 新增（Rust 2＋Cargo.toml＋lib.rs＋TS 2）＋ AGENTS.md 本条 ⇒ ⇒ **24 个文件（3 个新增）** ⇒ ⇒ 零 ci.yml 改动 ＋ 不碰兄弟在飞面（兄弟在飞：AGENTS.md 工作树面／playwright 报告／桌面 i18n／移动端 task 板面等，本刀零混入）｜ 读数：见⑦ ｜ 真 CI 待取 | status=active | supersedes=none
+
+① **⚠️ 取证：两端现状 ＋ 用户的设计方向**
+　❶ **需求逐字**：「现在移动端和电脑端能读取设备上的通知吗」＋「工具权限设置为完全放行后应该允许一种感知模式，由丘脑持续获取数据，数据变化时通知前额叶，并不是所有通知都值得给用户直接发消息，这点需要前额叶做出评估是否为紧急事件」⇒ ⇒ 拆成三刀：**第 1 刀**两端「读通知」能力＋工具（本刀）；**第 2 刀**丘脑结构化事件通道（encephalon/diencephalon）；**第 3 刀**前额叶紧急评估门（telencephalon）⇒ ⇒ 2、3 刀动兄弟仓 ⇒ 需另行授权，本刀不碰。
+　❷ **两端现状（落笔前）**：移动端 manifest 无 NotificationListenerService、DeviceDataBridge 无通知 case；桌面端无任何通知读取面 ⇒ ⇒ **两端都不能读**，发给模型的工具名单里也没有这一件 ⇒ ⇒ 本刀补齐第 1 刀。
+
+② **⚠️ 设计判据（五格）**
+　❶ **共享工具** notification_read_events 两端注册，schema 键序逐字一致（required_permissions→limit→include_ongoing），**不进** ALLOWED_DIVERGENCES ⇒ ⇒ 跨端闸按 JSON.stringify 逐字比。
+　❷ **通知使用权按「服务开关」建模**（复用 mobileUse 族四件套：无框可弹 ⇒ 按钮直开系统设置页／设置页「使用权」话术／图标／grants 分支）：Android 是 NotificationListenerService 授权位；Kotlin requiredPermissions 返回空列表 ⇒ 但必须在 perms.all{} **恒真陷阱之前**特判 NOTIFICATIONS。
+　❸ **授权 ≠ 连接（两个状态）**：isAccessGranted 只查系统设置授权位；读取时要求服务已连接 ⇒ 未连接**明确报**「已授权但未连接，稍后重试」，绝不静默回空列表。
+　❹ **未授权 ⇒ 明确失败并指路**（StateError 指去系统设置），不回空列表（承「失败长得像成功」）；执行器自行查授权、不走通用 _ensureOsPermission（通知没有运行时权限框可弹）。
+　❺ **桌面端不建档位系统**：Windows 的通知访问授权（UserNotificationListener 的 access status）本身就是闸；工具 requiresApproval=false；执行器不核对 required_permissions（与移动端的语义差异，如实记录见⑥）。
+
+③ **✅ 这一刀的落点（24 个文件 ＝ 3 新增 ＋ 21 修改 ＋ 零 ci.yml 改动）**
+　❶ **移动端 Kotlin**：新建 DeviceNotificationListener.kt（NotificationListenerService＋companion connected/isAccessGranted 查 enabled_notification_listeners 逐组件匹配＋readActiveNotifications 滤自家包/常驻/组摘要、postTime 降序、API29 isOngoing/isGroup 分支、API26 断连 requestRebind）＋ manifest service 块（BIND_NOTIFICATION_LISTENER_SERVICE）＋ DeviceDataBridge.kt 九处（NOTIFICATIONS 档／openNotificationAccessSettings 主线程特判／requestPermissionInternal 在 perms.all{} 恒真陷阱**之前**特判／dispatch 两 case／requiredPermissions 空列表／readNotifications limit coerceIn(1,200)）。
+　❷ **移动端 Dart**：Capability.notificationsRead('notifications_read')（photos 后 mobileUse 前＋availableOnIOS 排除）＋通道三方法（MissingPluginException ⇒ 保守 false）＋执行器＋注册表 notification_read_events（enum ['notifications_read']＋limit 默认 30 上限 200＋include_ongoing 默认 false）＋capability_i18n 三 switch＋设置页三处（图标／使用权话术／通知分支直开设置页）＋zh/en arb 各 5 键＋gen-l10n 3 文件。
+　❸ **桌面端**：新建 device_notifications.rs（WinRT UserNotificationListener＋GetAccessStatus 闸＋GetNotificationsAsync(NotificationKinds::Toast)＋binding template 手写扫描提文本（零反斜杠，承 U+350B 条）＋纯函数三件跨平台可测＋AppInfo 显示名如实填）＋Cargo.toml（windows features：UI_Notifications_Management＋Foundation_Collections＋**ApplicationModel**）＋lib.rs（mod＋generate_handler）＋clientTools.ts 注册同名工具＋telencephalonClient.ts（ToolParameterProperty 拓宽 integer/array＋items）。
+　❹ **测试**：移动端新建 capability_notifications_test.dart（6 条：注册/档位/wire 参数表/未授权抛且零读取/limit 上下限/include_ongoing 透传/声明核对）＋三个既有测试各补一格（modes_e2e 与 modes_wire 的穷尽 switch 补 notificationsRead＋declaration_model 计数闸 11→12 且 covered 补 notifications_read）；桌面端 4 组纯函数测试。
+　❺ **台账**：AGENTS.md 本条，**以 HEAD blob 为基底顶部纯插入**——工作树面父仓水位 U+350B 落后 HEAD 的 U+3512（兄弟构造式提交不落工作树）⇒ 拿工作树那份插入会**吞掉兄弟已提交的 U+350C–U+3512 五条** ⇒ ⇒ 台账插入的基底判据＝「WT blob 逐字等于哪个祖先提交」，不等 ⇒ 以 HEAD 为基底。
+
+④ **⚠️ 途中那几课**
+　❶ **windows-rs 0.61 四课**（全部来自真编译错＋生成源码逐字）：方法名是**原始 PascalCase**（current() ⇒ Current()，snake_case 调用全灭）；**GetAccessStatus 是同步属性查询**（不是异步操作 ⇒ 不用 .get()，第一版多包了一层）；GetNotificationsAsync 的参数类型是**父模块 NotificationKinds**，且 0.61 元数据里**只有 Unknown/Toast，没有 Any**；DateTime 的字段叫 **UniversalTime** 不是 .0 ⇒ 且 ticks 是 **100ns 一格** ⇒ 毫秒＝ticks/10_000（第一版 /10 是真缺陷：epoch 换算输出 11_632_829_126_400_000 而不是 0，单测当场抓住当场修）。
+　❷ **「按元数据记忆写 API 面」必翻车 ⇒ 修法＝直接读绑定源码**：~/.cargo/registry/…/windows-0.61.3/src/Windows/…/mod.rs 的 pub fn／impl const 清单就是唯一判据 ⇒ 两把 cargo check 才绿（第一把抓 import 与 Current；第二把抓 usize→u32／get_at 残留／UniversalTime／app_name 没随元组传递）⇒ ⇒ **逐把红都是真信号**。
+　❸ **⚠️ 事实订正（AppInfo）**：设计时写「WinRT 不暴露来源应用身份 ⇒ app/package 如实留空」——绑定面逐字**有** UserNotification.AppInfo()（1809+）⇒ 那句**是假的** ⇒ ⇒ 改法：AppInfo().DisplayInfo().DisplayName() .ok() 链拿得到就填、拿不到如实留空 ⇒ ⇒ **「如实降级」的前提必须查过绑定面，不能凭印象写**（package 确实不给 ⇒ 恒空，那半句仍成立）。
+　❹ **「新增一档能力」要动的第三处＝计数闸**：除了 schema 与穷尽 switch，declaration_model 还有 expect(checked, 11)（⇒ 12）——计数期望本身就是工具清单 ⇒ 新工具进来必红 ⇒ **红是对的不是闸坏**（全量 unit 回归抓住；定向三件套没覆盖到它 ⇒ 回归该跑全量）。
+　❸ 共享索引/工作树「陈旧 vs 在飞」又一活例：见③❺ ⇒ 本刀提交按独立索引＋commit-tree -p＋update-ref 带 CAS（基准＝读 blob 之前取的 HEAD）⇒ 共享索引只对齐本刀动过的 24 条路径（新增路径 --add --cacheinfo 补进）。
+
+⑤ **✅ 判据与分级读数**
+　❶ **判据级**：跨端对齐闸 **EXIT=0 阻断 0**（两端名单都含 notification_read_events，同名工具逐字一致）／桌面 tsc --noEmit **EXIT=0**／移动 flutter analyze **0 error**（61 条存量 info/warning 全在未触碰文件，逐文件聚合核对）／cargo check **EXIT=0**。
+　❷ **单测级**：Dart 定向三件套 **15/15**；Dart 全量 unit **+428 ~12 All tests passed（0 红）**（首跑 1 红＝计数闸 11→12 未补，属「新档必红」的正常信号）；Rust cargo test --lib device_notifications **4/4**（首跑 1 红＝ticks 换算真缺陷，自检抓住当场修）。
+　❸ **真 CI 级**：待取（推到 origin 之后逐格回填）。
+　❹ **真机级（本刀给不了，如实欠着）**：Android 真机的通知使用权授权流＋服务连接态（已授权但未连接那条错）；Windows 真机的通知中心读取（AppInfo 显示名实际拿不拿得到）⇒ 两端各欠一次真机读数。
+
+⑥ **⚠️ 仍然欠着的**
+　❶ **第 2 刀**：丘脑结构化事件通道（encephalon/diencephalon）——「数据变化时通知前额叶」的承载面；**第 3 刀**：前额叶紧急评估门（telencephalon）——「不是所有通知都值得发消息」的评估闸 ⇒ 都在兄弟仓 ⇒ 需另行授权。
+　❷ 桌面端执行器**不核对** required_permissions（移动端由 chat_provider 通用核对）⇒ 语义差异如实记录；桌面端 ongoing 恒 false（通知中心无常驻概念）⇒ include_ongoing 收下但无效；package 恒空（AppInfo 只给显示名）。
+　❸ 「感知模式」的档位（哪些通知进丘脑、哪些打扰用户）在第 2/3 刀落地前，本刀只有「手动问一次读一次」的语义。
+
+⑦ **⚠ 圈码：本条占 U+3513 (㔓)** —— 号按官方口径在**提交树面**取（取样时刻 2026-11-12T00:19:01.974Z ｜ HEAD 2686b0e0 ⇒ 父仓水位 U+3512 ⇒ 候选 U+3513）⇒ ⇒ 方块字由 String.fromCodePoint 生成，不手打。
+
 **Updated**: 2026-11-11 (㔒 **「这道闸在 CI 上从来没跑过 —— 而『接进 CI』这句话，管的是接线，不是读数」** —— 承 U+3511 条（引述豁免 ＋ 按提交号指称）＋ U+3510 条（新增的灯必须照抄已通过那盏灯的三步形状）＋ U+3500 条（「失败长得像成功」是最强的一档），本条记**取证（19 个闸步逐格 skipped）**、**第一因（一个既存的失败步骤把整片闸步遮蔽）**、**第二因（「分母齐」不等于「该验的都跑了」）**、**第三因（读数要问「它跑过没有」，不是「那盏灯绿不绿」）**、**这一刀的落点**、**途中那几课**、**判据与分级读数**，以及**仍然欠着的**.)
 > 信封：epoch=2026-11-11 | authority=measured | scope=project | source=真 CI 逐字（「Desktop Build」job 130106600869 的逐步结论：step16 ＝ failure、step24 ＝ skipped、step25 ＝ skipped）＋ ci.yml 的 job 行号区间（brain-gates 282／desktop-build 383）｜ 改动：.github/workflows/state-surface.yml（**新增**：独立一盏灯）＋ AGENTS.md（本条）⇒ ⇒ **2 个文件（1 个新增）** ⇒ ⇒ 零新增依赖 ＋ **零 ci.yml 改动**（那一面在兄弟的在飞面）＋ 不碰兄弟在飞面 ｜ 读数：本地接线闸（Gate Tally Coverage）**30 个 workflow ｜ 闸步 70 ｜ 经由判读通道 70 ｜ 有闸的 job 31 ｜ 有分母的 job 31 ｜ 零违规** ＋ YAML 闸 **32 个文件零违规** ＋ 提交树面自检 **43/43** ＋ 状态面闸 **零违规** ｜ 真 CI 待取 | status=active | supersedes=none
 

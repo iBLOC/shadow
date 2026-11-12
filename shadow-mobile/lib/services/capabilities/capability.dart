@@ -32,6 +32,15 @@ enum Capability {
   /// 读相册（**只读元数据**，不取图片内容）。
   photos('photos', '读取相册'),
 
+  /// 读设备通知（**通知栏里别人发的通知** —— 感知模式的移动端数据源）。
+  ///
+  /// ⚠️ 通知使用权是**服务开关**（NotificationListenerService），不是运行时权限
+  /// ⇒ ⇒ 没有系统弹窗可弹 ⇒ ⇒ 一键入口直接开系统设置页（与 mobileUse 同一族）。
+  ///
+  /// ⚠️ iOS **没有**对等 API（无公开的 NotificationListenerService 对应物）
+  /// ⇒ ⇒ 这一档在 iOS 上不存在（与短信同族：是平台事实，不是「暂时没实现」）。
+  notificationsRead('notifications_read', '读取通知'),
+
   /// **手机操作** —— 让模型驱动这台手机本身（读屏 / 点击 / 滑动 / 输入）。
   ///
   /// ⚠️ 这是移动端对标桌面端 **computer-use** 的那一条腿
@@ -67,7 +76,9 @@ enum Capability {
   /// ⚠️ 这**不是**「iOS 上暂时没实现」⇒ ⇒ 是**平台就没有这个能力**
   /// ⇒ ⇒ 与「实现了但用户关掉了」在语义上完全不同（后者是 [AuthorizationMode.disabled]）。
   bool get availableOnIOS =>
-      this != Capability.sms && this != Capability.mobileUse;
+      this != Capability.sms &&
+      this != Capability.mobileUse &&
+      this != Capability.notificationsRead;
 
   /// 从落盘的字符串还原。**认不出来的返回 null**。
   ///

@@ -692,4 +692,50 @@ export const desktopClientTools = new ClientToolRegistry()
       }
     },
   })
+  .register({
+    name: 'notification_read_events',
+    description:
+      'Read recent notifications on this device (app, title, text, time). Use when the user asks what notifications arrived, whether a message came in, or what is currently in the notification center.',
+    requiresApproval: false,
+    parameters: {
+      type: 'object',
+      properties: {
+        required_permissions: {
+          type: 'array',
+          items: {
+            type: 'string',
+            enum: ['notifications_read'],
+          },
+          description:
+            'Declare which device permission this call needs on this phone. It must be exactly ["notifications_read"] for this tool. The app checks the declaration against the real requirement and refuses the call if they do not match.',
+        },
+        limit: {
+          type: 'integer',
+          description: 'Maximum number of notifications to return. Defaults to 30.',
+        },
+        include_ongoing: {
+          type: 'boolean',
+          description: 'Include ongoing notifications (music playback, downloads). Defaults to false.',
+        },
+      },
+    },
+    execute: async (args) => {
+      // ⚠️ 解析与移动端 _parseLimit 同一纪律：认不出来 ⇒ 用默认值；上限 200。
+      let limit = 30
+      const rawLimit = args.limit
+      if (typeof rawLimit === 'number' && Number.isFinite(rawLimit) && rawLimit >= 1) {
+        limit = Math.min(Math.floor(rawLimit), 200)
+      } else if (typeof rawLimit === 'string') {
+        const parsed = Number.parseInt(rawLimit.trim(), 10)
+        if (Number.isFinite(parsed) && parsed >= 1) limit = Math.min(parsed, 200)
+      }
+      const includeOngoing = args.include_ongoing === true
+      const result = await safeInvokeOrThrow<{ notifications: unknown[]; count: number }>(
+        'notification_read_events',
+        { limit, includeOngoing },
+      )
+      // ⚠️ 不设 report ⇒ 整份结果回给模型（与移动端同一语义：读就是让它看）。
+      return result
+    },
+  })
 ;

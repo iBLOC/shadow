@@ -193,9 +193,11 @@ export interface ToolParameters {
 }
 
 export interface ToolParameterProperty {
-  type: 'string' | 'number' | 'boolean';
+  type: 'string' | 'number' | 'boolean' | 'integer' | 'array';
   description?: string;
   enum?: string[];
+  /** array 类型参数的元素声明（required_permissions 这类参数用）。 */
+  items?: { type: 'string'; enum?: string[] };
 }
 
 /**

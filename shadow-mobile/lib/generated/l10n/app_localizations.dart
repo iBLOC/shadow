@@ -3260,6 +3260,36 @@ abstract class AppLocalizations {
   /// **'the most recent {count} photos'**
   String capabilityArgRecentPhotos(String count);
 
+  /// No description provided for @capabilityNotificationsRead.
+  ///
+  /// In en, this message translates to:
+  /// **'Read notifications'**
+  String get capabilityNotificationsRead;
+
+  /// No description provided for @capabilityRequestNotificationsRead.
+  ///
+  /// In en, this message translates to:
+  /// **'to read recent notifications on this device'**
+  String get capabilityRequestNotificationsRead;
+
+  /// No description provided for @capabilityArgRecentNotifications.
+  ///
+  /// In en, this message translates to:
+  /// **'the most recent {count} notifications'**
+  String capabilityArgRecentNotifications(String count);
+
+  /// No description provided for @capabilityListenerGranted.
+  ///
+  /// In en, this message translates to:
+  /// **'notification access granted'**
+  String get capabilityListenerGranted;
+
+  /// No description provided for @capabilityListenerMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'notification access not granted, tap to enable'**
+  String get capabilityListenerMissing;
+
   /// No description provided for @capabilityGrantSystemPermission.
   ///
   /// In en, this message translates to:

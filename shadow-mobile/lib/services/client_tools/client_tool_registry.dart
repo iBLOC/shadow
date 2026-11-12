@@ -691,6 +691,35 @@ ClientToolRegistry buildMobileClientTools({
       },
       execute: (args) => capabilityTools.readPhotos(args),
     ),
+    ClientTool(
+      name: 'notification_read_events',
+      description:
+          'Read recent notifications on this device (app, title, text, time). Use when the user asks what notifications arrived, whether a message came in, or what is currently in the notification center.',
+      capability: Capability.notificationsRead,
+      parameters: <String, dynamic>{
+        'type': 'object',
+        'properties': <String, dynamic>{
+          'required_permissions': <String, dynamic>{
+            'type': 'array',
+            'items': <String, dynamic>{
+              'type': 'string',
+              'enum': ['notifications_read'],
+            },
+            'description':
+                'Declare which device permission this call needs on this phone. It must be exactly ["notifications_read"] for this tool. The app checks the declaration against the real requirement and refuses the call if they do not match.',
+          },
+          'limit': <String, dynamic>{
+            'type': 'integer',
+            'description': 'Maximum number of notifications to return. Defaults to 30.',
+          },
+          'include_ongoing': <String, dynamic>{
+            'type': 'boolean',
+            'description': 'Include ongoing notifications (music playback, downloads). Defaults to false.',
+          },
+        },
+      },
+      execute: (args) => capabilityTools.readNotifications(args),
+    ),
 
     // ── 手机操作（mobile use）────────────────────────────────
     //

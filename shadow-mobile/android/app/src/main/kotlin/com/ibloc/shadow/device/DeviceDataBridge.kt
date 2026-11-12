@@ -53,13 +53,14 @@ private const val MAX_LIMIT = 500
 private val deviceDataScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
 /// 能力枚举 —— wire 名必须与 Dart 侧 `capability.dart` 的枚举值**一字不差**
-/// （calendar_read / calendar_write / contacts / sms / photos）。
+/// （calendar_read / calendar_write / contacts / sms / photos / notifications_read）。
 private enum class Capability(val wire: String) {
     CALENDAR_READ("calendar_read"),
     CALENDAR_WRITE("calendar_write"),
     CONTACTS("contacts"),
     SMS("sms"),
-    PHOTOS("photos");
+    PHOTOS("photos"),
+    NOTIFICATIONS("notifications_read");
 
     companion object {
         fun fromWire(value: String?): Capability? = values().firstOrNull { it.wire == value }
@@ -193,6 +194,12 @@ class DeviceDataBridge(
             openAppSettings(result)
             return
         }
+        // ⚠️ 通知使用权没有系统弹窗可弹 —— 打开它的设置页同样是**主线程**的事
+        //（要启 Activity）⇒ ⇒ 也不进 IO 协程。
+        if (call.method == "openNotificationAccessSettings") {
+            openNotificationAccessSettings(result)
+            return
+        }
         val reply = SingleReply(result)
         val args = call.arguments as? Map<*, *>
         deviceDataScope.launch {
@@ -227,6 +234,21 @@ class DeviceDataBridge(
             postToMain { reply.success(true) }
         } catch (e: Exception) {
             AppLog.e(TAG, "打开系统权限页失败", e)
+            postToMain { reply.success(false) }
+        }
+    }
+
+    /// 打开系统的「通知使用权」设置页。
+    ///
+    /// ⚠️ 通知使用权**没有系统弹窗** ⇒ 一键入口只能送到设置页（与无障碍服务同一族）。
+    /// ⚠️ 必须走**主线程**（要启 Activity）⇒ ⇒ 不进 IO 协程。
+    private fun openNotificationAccessSettings(result: MethodChannel.Result) {
+        val reply = SingleReply(result)
+        try {
+            DeviceNotificationListener.openAccessSettings(context)
+            postToMain { reply.success(true) }
+        } catch (e: Exception) {
+            AppLog.e(TAG, "打开通知使用权设置页失败", e)
             postToMain { reply.success(false) }
         }
     }
@@ -273,6 +295,20 @@ class DeviceDataBridge(
             postToMain {
                 reply.success(
                     permissionOutcome(detailed, granted = false, dialogShown = false, permanentlyDenied = false),
+                )
+            }
+            return
+        }
+
+        // ⚠️ 通知使用权**没有系统弹窗** —— 它是用户在系统设置里手开的「服务开关」
+        // ⇒ ⇒ 不能走下面的「弹窗申请」路径；而且 requiredPermissions(NOTIFICATIONS)
+        // 是空列表 ⇒ ⇒ `perms.all { ... }` 对空列表**恒真** ⇒ ⇒ 会谎报「已授予」。
+        // ⇒ ⇒ 必须在这道陷阱**之前**特判：直接查「通知使用权」授权位（只答状态，不弹任何东西）。
+        if (capability == Capability.NOTIFICATIONS) {
+            val granted = DeviceNotificationListener.isAccessGranted(context)
+            postToMain {
+                reply.success(
+                    permissionOutcome(detailed, granted = granted, dialogShown = false, permanentlyDenied = false),
                 )
             }
             return
@@ -409,6 +445,8 @@ class DeviceDataBridge(
         "readContacts" -> readContacts(args)
         "readSms" -> readSms(args)
         "readPhotos" -> readPhotos(args)
+        "notificationsAccessGranted" -> Outcome.Ok(DeviceNotificationListener.isAccessGranted(context))
+        "readNotifications" -> readNotifications(args)
         else -> {
             AppLog.w(TAG, "未知的方法：$method")
             Outcome.Err(ERROR_DEVICE_DATA, "Unsupported method: $method", null)
@@ -453,6 +491,9 @@ class DeviceDataBridge(
         )
         Capability.CONTACTS -> listOf(Manifest.permission.READ_CONTACTS)
         Capability.SMS -> listOf(Manifest.permission.READ_SMS)
+        // 通知使用权不是运行时权限 —— 没有「权限串」⇒ 空列表；
+        // 真正的授权判定在 missingPermission 里特判（查「通知使用权」服务开关）。
+        Capability.NOTIFICATIONS -> emptyList()
         Capability.PHOTOS ->
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 listOf(Manifest.permission.READ_MEDIA_IMAGES)
@@ -466,6 +507,15 @@ class DeviceDataBridge(
 
     /// 返回 null = 放行；非 null = 人话版的「缺哪个权限」。
     private fun missingPermission(capability: Capability): String? {
+        if (capability == Capability.NOTIFICATIONS) {
+            // 通知使用权没有运行时权限串 ⇒ 单独查「服务开关」的授权位
+            //（hasPermission 走的就是这里 ⇒ 通知这一档直接成立）。
+            return if (DeviceNotificationListener.isAccessGranted(context)) {
+                null
+            } else {
+                "缺少通知使用权：请在系统设置 → 通知使用权 里允许本应用（能力 ${capability.wire}）"
+            }
+        }
         val missing = requiredPermissions(capability).filterNot { isGranted(it) }
         if (missing.isEmpty()) return null
         val names = missing.joinToString(", ") { it.substringAfterLast('.') }
@@ -901,6 +951,46 @@ class DeviceDataBridge(
             }
         }
         AppLog.i(TAG, "readPhotos：${out.size} 张图片的元数据")
+        return Outcome.Ok(out)
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // 通知
+    // ─────────────────────────────────────────────────────────────
+
+    /// 读设备通知栏里的**近期通知**（按投递时间倒序，新的在前）。
+    ///
+    /// ⚠️ 授权判据是「通知使用权」的服务开关（不是运行时权限）⇒
+    /// 见 [missingPermission] 的特判。
+    ///
+    /// ⚠️ **授权与连接是两个状态**：开关开了，服务可能还没被系统绑上
+    ///（刚开完、系统正在重启它）⇒ ⇒ 这时**明确报**「已授权但未连接」
+    /// ⇒ ⇒ 绝不静悄悄回一个空列表（那是「失败长得像成功」）。
+    ///
+    /// ⚠️ 常驻通知（音乐播放条、下载进度）默认**滤掉** —— 它们不是「发生了什么」，
+    /// 灌进模型上下文只是白烧 token；自家 app 的常驻条同样默认滤。
+    private fun readNotifications(args: Map<*, *>?): Outcome {
+        val limit = (argInt(args, "limit") ?: 30).coerceIn(1, 200)
+        val includeOngoing = args?.get("includeOngoing") == true
+        val includeOwn = args?.get("includeOwn") == true
+
+        val denied = missingPermission(Capability.NOTIFICATIONS)
+        if (denied != null) {
+            AppLog.w(TAG, "readNotifications 被拒：$denied")
+            return Outcome.Err(ERROR_PERMISSION_DENIED, denied, null)
+        }
+
+        val listener = DeviceNotificationListener.connectedInstance()
+        if (listener == null) {
+            return Outcome.Err(
+                ERROR_DEVICE_DATA,
+                "通知使用权已授予，但监听服务还没连上（刚开完或系统正在重启它）—— 稍后重试",
+                null,
+            )
+        }
+
+        val out = listener.readActiveNotifications(limit, includeOngoing, includeOwn)
+        AppLog.i(TAG, "readNotifications：${out.size} 条通知")
         return Outcome.Ok(out)
     }
 

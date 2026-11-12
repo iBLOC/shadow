@@ -225,6 +225,58 @@ class DeviceDataChannel {
     return _asMaps(raw);
   }
 
+  /// 「通知使用权」（NotificationListenerService）授了没有（**只读**，不跳页）。
+  ///
+  /// ⚠️ 通知使用权是**服务开关**，不是运行时权限 ⇒ ⇒ 查它要走专用方法，
+  /// 语义最窄的那条通道（原生层查的是系统设置里的授权位）。
+  Future<bool> notificationsAccessGranted() async {
+    try {
+      final granted =
+          await _channel.invokeMethod<bool>('notificationsAccessGranted') ??
+          false;
+      return granted;
+    } on MissingPluginException {
+      // 原生通道没装（单测 / 裁剪版）⇒ ⇒ 保守：**当作没有**。
+      return false;
+    } on PlatformException {
+      return false;
+    }
+  }
+
+  /// 打开系统的「通知使用权」设置页。
+  ///
+  /// ⚠️ 通知使用权没有系统弹窗 ⇒ 一键入口只能送到设置页（与 [openAppSettings] 同族）。
+  /// ⚠️ 打不开（通道不在 / 系统不认）⇒ ⇒ 返回 false（**不假装成功**）。
+  Future<bool> openNotificationAccessSettings() async {
+    try {
+      final ok =
+          await _channel.invokeMethod<bool>('openNotificationAccessSettings') ??
+          false;
+      return ok;
+    } on MissingPluginException {
+      return false;
+    } on PlatformException {
+      return false;
+    }
+  }
+
+  /// 读设备通知栏的近期通知（按时间倒序，新的在前）。
+  ///
+  /// ⚠️ 服务还没连上（刚开完授权 / 系统正在重启它）⇒ 原生层会回一个**明确的错误**，
+  /// 不会静悄悄给个空列表。
+  Future<List<Map<String, Object?>>> readNotifications({
+    int limit = 30,
+    bool includeOngoing = false,
+  }) async {
+    final raw =
+        await _channel.invokeListMethod<Object?>('readNotifications', {
+          'limit': limit,
+          'includeOngoing': includeOngoing,
+        }) ??
+        const [];
+    return _asMaps(raw);
+  }
+
   /// 打开**本 App**的系统权限页。
   ///
   /// ⚠️ 界面上写着「系统权限未授予」⇒ ⇒ 用户得有个**一键**去授的入口

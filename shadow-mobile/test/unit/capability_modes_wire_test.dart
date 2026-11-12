@@ -25,6 +25,7 @@ void main() {
             Capability.contacts => AuthorizationMode.disabled,
             Capability.sms => AuthorizationMode.askEveryTime,
             Capability.photos => AuthorizationMode.askEveryTime,
+            Capability.notificationsRead => AuthorizationMode.askEveryTime,
             Capability.mobileUse => AuthorizationMode.fullAccess,
           });
       expect(payload, {
@@ -33,6 +34,7 @@ void main() {
         'contacts': 'off',
         'sms': 'ask',
         'photos': 'ask',
+        'notifications_read': 'ask',
         'mobile_use': 'full',
       });
     });

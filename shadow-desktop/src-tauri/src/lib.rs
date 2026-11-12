@@ -2,7 +2,8 @@ mod admin_token;
 mod brain_face;
 mod computer_use;
 mod config_manager;
-mod crypto;
+mod crypto;mod device_notifications;
+
 mod external_tools;
 mod feishu_mcp;
 mod global_keys;
@@ -191,6 +192,16 @@ pub fn run() {
     // direct neuron dependency, no second runtime. Protocol note:
     // shadow ↔ encephalon is process-internal by design; A2A is the
     // encephalon's *external* agent protocol only.
+    // ⚠️ **脑面地址随 `BuildOptions` 进去**（不再有「boot 前写进程环境」那一格）——
+    //
+    // 海马体是端脑 boot 时建的那**一份** ⇒ ⇒ 它要本地推理就指**大脑那张面**
+    // （用户 2026-11-08：「所有的本地推理任务都应该由大脑中的 neuron 提供」）
+    // ⇒ ⇒ 桌面端只做一件事：把**脑面地址**告诉端脑
+    // ⇒ ⇒ 桌面端自己**不**起第二个运行时，也**不**直接依赖 neuron crate。
+    //
+    // ⚠️ **钥匙不在这一格** —— 端脑手里那把 admin token 就是它（同一个
+    // `desktop_admin_token()`）⇒ ⇒ 秘密只活在**进程堆里**，不落进程环境。
+
     let stack = tauri::async_runtime::block_on(encephalon::Embedded::boot(
         // ⚠️ **不再有 :8085**（2026-11-03）—— neuron 改成 **router-only**
         // （它不再自己监听一个口）⇒ ⇒ 桌面的推理面由**统一入口**挂在
@@ -479,7 +490,8 @@ pub fn run() {
             workflow_execute_step,
             encephalon_publish_demo,
             video_source::enumerate_uvc,
-            video_source::probe_capabilities,
+            video_source::probe_capabilities,            device_notifications::notification_read_events,
+
             video_source::push_thalamus,
             video_source::sync_health,
             result_init,
@@ -496,6 +508,8 @@ pub fn run() {
             document_publish_feishu,
             document_set_feishu_enabled,
             document_feishu_enabled,
+            document_load_snapshot,
+            document_save_snapshot,
             preview::preview_open,
             preview::preview_close,
             inline_preview::inline_preview_open,
@@ -1622,11 +1636,18 @@ async fn recording_report(
 
 // -- WS-05 / DOC-01..DOC-05 document-use surface -------------------------
 //
-// DOC-01 mount UniverSheet and load the per-task workbook (xlsx bytes).
+// DOC-01 mount UniverSheet and load the per-task workbook.
 // DOC-02 debounced auto-save back to disk + local git commit.
 // DOC-03 publish to Feishu with the full 5-tool orchestration.
 // DOC-04 best-effort rollback on mid-publish failure.
 // DOC-05 runtime toggle for the integration.
+//
+// v1 editor face (OSS core preset) carries the workbook as a **Univer
+// snapshot JSON** (summary.univer.json, document_load_snapshot /
+// document_save_snapshot below). The xlsx byte face (document_load /
+// document_save) stays as-is for a later cut — real xlsx import/export
+// in Univer 0.6.x lives behind the pro (license-gated) exchange-client
+// preset, and this repo does not take that dependency.
 
 const DEFAULT_XLSX_NAME: &str = "summary.xlsx";
 
@@ -1680,6 +1701,68 @@ async fn document_save(
 // Sheet contents as `Vec<Vec<String>>`. Each outer element is a
 // sheet; each inner element is a row of stringified cells. Sent
 // through the JSON shape the MCP `feishu_sheet_write` tool expects.
+// -- DOC-01/02 v1 编辑器面：Univer 快照 JSON --------------------------------
+//
+// 为什么不是把 xlsx 直接喂给 Univer：Univer 0.6.x 的 xlsx 导入/导出
+// （importXlsxToUnit / exportUnitToXlsx）声明在 pro 的 exchange-client
+// （授权闸）里，OSS core preset 没有这条路 ⇒ ⇒ 编辑器面 v1 改走
+// **Univer 原生快照 JSON**：document_load_snapshot 读 summary.univer.json，
+// document_save_snapshot 写回同一个文件 + 本地 git auto-commit（DOC-02）。
+//
+// ⚠️ **「还没有」≠「读不到」** —— xlsx 那一对命令对「文件不存在」和
+// 「读失败」返回同一种 Err ⇒ 前端无法区分「这个任务还没有工作簿」和
+// 「工作簿读不到」⇒ 快照读取把这两格**分开**：NotFound ⇒ Ok(None)
+// （前端可合法开空工作簿），其它 Err ⇒ 照旧报错（前端说「读不到」）。
+
+const DEFAULT_SNAPSHOT_NAME: &str = "summary.univer.json";
+
+async fn read_task_snapshot(task_id: &str) -> Result<Option<Vec<u8>>, String> {
+    use std::path::PathBuf;
+    let home = dirs::home_dir().ok_or_else(|| "no $HOME".to_string())?;
+    // ⚠️ 同 read_task_xlsx：task_id 是外部输入 ⇒ 先过路径穿越闸。
+    let dir = task_path::task_dir(&home.join(".shadow").join("results"), task_id)?;
+    let path: PathBuf = dir.join(DEFAULT_SNAPSHOT_NAME);
+    match tokio::fs::read(&path).await {
+        Ok(bytes) => Ok(Some(bytes)),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(format!("read {}: {e}", path.display())),
+    }
+}
+
+async fn write_task_snapshot(task_id: &str, bytes: &[u8]) -> Result<(), String> {
+    use std::path::PathBuf;
+    let home = dirs::home_dir().ok_or_else(|| "no $HOME".to_string())?;
+    // ⚠️ 同 write_task_xlsx：未校验的 task_id 能在任意目录建目录并写入。
+    let dir: PathBuf = task_path::task_dir(&home.join(".shadow").join("results"), task_id)?;
+    tokio::fs::create_dir_all(&dir)
+        .await
+        .map_err(|e| format!("mkdir {}: {e}", dir.display()))?;
+    let path = dir.join(DEFAULT_SNAPSHOT_NAME);
+    tokio::fs::write(&path, bytes)
+        .await
+        .map_err(|e| format!("write {}: {e}", path.display()))
+}
+
+#[tauri::command]
+async fn document_load_snapshot(task_id: String) -> Result<Option<Vec<u8>>, String> {
+    read_task_snapshot(&task_id).await
+}
+
+#[tauri::command]
+async fn document_save_snapshot(
+    state: State<'_, AppState>,
+    task_id: String,
+    snapshot: Vec<u8>,
+) -> Result<(), String> {
+    write_task_snapshot(&task_id, &snapshot).await?;
+    // DOC-02: auto-commit each save to the local git history.
+    state
+        .result_manager
+        .commit(&task_id, "edit: snapshot")
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 #[tauri::command]
 async fn document_publish_feishu(
     state: State<'_, AppState>,

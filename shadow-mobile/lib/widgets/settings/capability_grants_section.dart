@@ -108,6 +108,23 @@ class _CapabilityGrantsSectionState
       return;
     }
 
+    if (capability == Capability.notificationsRead) {
+      // 通知使用权没有系统弹窗可弹 —— 它是用户在系统设置里手开的「服务开关」
+      // ⇒ ⇒ 与「手机操作」同一族：一键直达系统的通知使用权设置页。
+      var opened = false;
+      try {
+        opened = await const DeviceDataChannel().openNotificationAccessSettings();
+      } catch (_) {
+        // 打不开 ⇒ ⇒ 不假装成功（界面状态不会因此变成「已开启」）。
+        opened = false;
+      }
+      if (!opened) return;
+      // 真正可靠的刷新在「回到前台」那个回调里；这里先作废一次，
+      // 让状态尽快跟上。
+      _refreshPermissionStates();
+      return;
+    }
+
     const channel = DeviceDataChannel();
     final outcome = await channel.requestPermissionDetailed(capability.wire);
     if (!mounted) return;
@@ -298,6 +315,13 @@ String _systemStateText(
         ? l10n.capabilityServiceGranted
         : l10n.capabilityServiceMissing;
   }
+  if (capability == Capability.notificationsRead) {
+    // 通知使用权也是「服务开关」—— 说「系统权限未授予」会让用户去权限页
+    // 找一个根本不存在的开关 ⇒ ⇒ 界面必须说实话（与手机操作同一族）。
+    return granted
+        ? l10n.capabilityListenerGranted
+        : l10n.capabilityListenerMissing;
+  }
   return granted
       ? l10n.capabilitySystemGranted
       : l10n.capabilitySystemMissing;
@@ -316,6 +340,8 @@ IconData _capabilityIcon(Capability capability) {
       return Icons.sms_outlined;
     case Capability.photos:
       return Icons.photo_library_outlined;
+    case Capability.notificationsRead:
+      return Icons.notifications_outlined;
     case Capability.mobileUse:
       return Icons.touch_app_outlined;
   }

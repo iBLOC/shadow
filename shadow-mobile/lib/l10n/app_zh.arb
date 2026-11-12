@@ -948,6 +948,18 @@
       }
     }
   },
+  "capabilityNotificationsRead": "读取通知",
+  "capabilityRequestNotificationsRead": "要读取你手机通知栏里的近期通知",
+  "capabilityArgRecentNotifications": "最近 {count} 条通知",
+  "@capabilityArgRecentNotifications": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "capabilityListenerGranted": "通知使用权已授予",
+  "capabilityListenerMissing": "通知使用权未授予，去开启",
   "capabilityGrantSystemPermission": "去授权",
   "capabilityGrantSucceeded": "已授权",
   "capabilityGrantDenied": "已取消授权",

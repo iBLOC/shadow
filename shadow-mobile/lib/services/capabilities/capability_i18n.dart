@@ -24,6 +24,8 @@ String capabilityLabel(AppLocalizations l10n, Capability capability) {
       return l10n.capabilitySms;
     case Capability.photos:
       return l10n.capabilityPhotos;
+    case Capability.notificationsRead:
+      return l10n.capabilityNotificationsRead;
     case Capability.mobileUse:
       return l10n.capabilityMobileUse;
   }
@@ -55,6 +57,8 @@ String capabilityRequestText(
       return l10n.capabilityRequestSms;
     case Capability.photos:
       return l10n.capabilityRequestPhotos;
+    case Capability.notificationsRead:
+      return l10n.capabilityRequestNotificationsRead;
     case Capability.mobileUse:
       switch (toolName) {
         case 'mobile_read_screen':
@@ -114,6 +118,8 @@ String capabilityArgsSummary(
 
     case Capability.photos:
       return l10n.capabilityArgRecentPhotos(_limitOf(args, 30));
+    case Capability.notificationsRead:
+      return l10n.capabilityArgRecentNotifications(_limitOf(args, 30));
     case Capability.mobileUse:
       switch (toolName) {
         case 'mobile_tap':

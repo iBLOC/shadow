@@ -984,6 +984,18 @@
       }
     }
   },
+  "capabilityNotificationsRead": "Read notifications",
+  "capabilityRequestNotificationsRead": "to read recent notifications on this device",
+  "capabilityArgRecentNotifications": "the most recent {count} notifications",
+  "@capabilityArgRecentNotifications": {
+    "placeholders": {
+      "count": {
+        "type": "String"
+      }
+    }
+  },
+  "capabilityListenerGranted": "notification access granted",
+  "capabilityListenerMissing": "notification access not granted, tap to enable",
   "capabilityGrantSystemPermission": "Grant",
   "capabilityGrantSucceeded": "Granted",
   "capabilityGrantDenied": "Permission denied",
