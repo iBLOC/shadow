@@ -1,45 +1,18 @@
-**Updated**: 2026-11-12 (㔘 **「三件套在仓里、本机 32/32 全绿 —— 但 CI 上一次都没跑过：接线随笔落在一条从未并入 master 的救援线上」** —— 承 U+3500 条（失败长得像成功）＋「接进 CI ≠ 在 CI 上有读数」族（state-surface.yml 独立灯先例），本条记**取证（三件套＋零接线＋血缘＋工作树 ci.yml 雷定性）**、**修法判据（独立灯＋node 转译闸＋判读通道＋分母）**、**反向验证（篡改读数行 ⇒ 判不了，不假绿）**、**这一刀的落点**、**判据与分级读数**，以及**仍然欠着的**.)
+**Updated**: 2026-11-12 (㔘 **「Android 只是大脑的包装 —— 而它自己还造着两把钥匙、读着一份 ziti.json」** —— 承 㔗 条（记忆存储设置页），本条记**取证（Kotlin 侧的四处平台实现 ＋ 客户端层零 turso/candle 引用）**、**第一因（同一件事两套实现：桌面在 Rust、手机在 Kotlin）**、**第二因（生成与读取的时序：钥匙必须先有再 start ⇒ 所以要先把生成搬进大脑）**、**这一刀的落点（host.rs ＋ Kotlin 四文件退役）**、**判据与分级读数**，以及**仍然欠着的**.)
 
-> 信封：epoch=2026-11-12 | authority=measured | scope=project | source=取证逐字（三件套 HEAD `cat-file -e` 全 EXISTS：判据库 mobile-use-parsers.ps1＋独立 runner mobile-use-parsers-selfcheck.ps1（独立入口＋「0 条用例」判红空绿保护）＋真机驱动 verify-mobile-use-on-device.ps1 的 -SelfCheck 口；本机 runner **32/32 失败 0 条 EXIT=0**、驱动 -SelfCheck 同 32/32；HEAD 全部 30 个 workflow 对 verify-mobile-use-on-device **零命中**）＋ 血缘（救援标签 rescue-parallel-eced13b＝eced13b 非 master 祖先，其 ci.yml 曾接「Mobile use parser self-check」一格、那条线从未并入；同线另一格 Ledger codepoint drill 已在 master ⇒ 丢的机制＝接线随笔落在从未并入 master 的线上）＋ 工作树 ci.yml wt-only 26 行定性（9 行旧凭据＋6 行旧注释＋10 行旧接线＝唯一真内容，本刀由新灯补回；其余 42 行 head-only；blob 0b8e752 从未提交）＋ 反向验证（篡改 runner 统计行 ⇒ 篡改版 runner 自己 EXIT=0（空绿保护查变量不查输出行）⇒ 闸指向篡改版 EXIT=2 判不了）＋ 官方取号（check-ledger-codepoint-take.mjs --next，取样 2026-11-12T10:50:10.329Z｜HEAD 0a1892e9d949b14d7604f71468c7cbd119d4cace｜三面一致，提交树面水位 U+3517 ⇒ 候选 U+3518；第一次取号 10:34:06Z 曾得 U+3517，其后兄弟两刀连落（4f2ff995 占 U+3517、0a1892e 台账就地订正未占新号）⇒ 顺延）｜ 改动：**shadow**（scripts/check-mobile-use-parsers.mjs 新＝node 转译闸＋.github/workflows/mobile-use-parsers.yml 新＝独立灯＋AGENTS.md 本条）⇒ ⇒ 3 文件＋零 ci.yml 改动｜ 读数：闸自检 9/9＋真跑 32/32 EXIT=0＋yaml-valid 33 文件零违规＋tally 31 workflow｜闸步 71｜经由通道 71｜分母 32/32 零违规（本灯逐格 1/1/1）＋discipline --json 违规 5 条全在别的闸（本行全绿）＋ ps1-portability 30 个 .ps1 全过＋ state-surface 自检 42/43 归属＝存量悬空指针 承 U+3506 条（见⑦❹⑧❷）｜ 真 CI 已取（见⑩） | status=active | supersedes=none
+> 信封：epoch=2026-11-12 | authority=measured | scope=project | source=逐字取证（`ShadowKey.kt` 45 行 / `AdminKey.kt` 44 行 / `HostSecret.kt` 生成＋0600 权限 / `ZitiConfig.kt` 101 行 解析＋角色；桌面端同名同责的实现是 `admin_token.rs`（Rust）⇒ **同一件事两套实现**）＋ 客户端层取证（`lib/` 与 `android/.../kotlin` 对 `turso`／`libsql`／`candle` **零引用**；推理走 `nativeInfer → 进程内 neuron`）＋ 用户拍板（2026-11-12）：「手机推理也是使用大脑中嵌入的 neuron，而不是自己使用 candle 推理」「turso 应该是大脑接入、给移动端和桌面端提供相同接口，而不是 Android 直接操作」｜ 改动：**encephalon**（新 `src/mobile/host.rs`：`ensure_secret`（读或生成＋0600）／`new_secret`（两枚 UUIDv4＝64 hex≈244bit）／`ZitiRole` 严格解析／`parse_ziti_config`／`apply_ziti_config`；`mobile/mod.rs` 在 `start_agent_surface` 里先算两把钥匙再设 ziti 槽位；6 条单测）＋ **shadow**（`HostSecrets.kt` **只读**；`MainActivity` 改为 **start 之后**读回；`EncephalonRuntime` 删 `applyZitiConfig` 与调用；删 `ShadowKey.kt`／`AdminKey.kt`／`HostSecret.kt`／`ZitiConfig.kt`）⇒ ⇒ **2 仓** ｜ 读数：encephalon `cargo test --lib mobile::host` **6/6** ＋ `cargo check` 三档（mobile／mobile-lean／android mobile-memory）0 error ＋ Kotlin `compileDebugKotlin` 见⑤ ｜ 真机待取 | status=active | supersedes=none
 
-① **⚠️ 取证：三件套全在、本机全绿、CI 零读数**
-　❶ 三件套在 HEAD 全在（`cat-file -e` 三路径全 EXISTS）；本机读数：runner **32/32 EXIT=0**、驱动 `-SelfCheck` **32/32 EXIT=0**。
-　❷ 但 HEAD 的**全部 30 个 workflow** 对 `verify-mobile-use-on-device` **零命中** ⇒ ⇒ 自检在 CI 上从来没有过读数 ⇒ ⇒ 「本机全绿没有任何一条来自 CI」＝「接进 CI ≠ 在 CI 上有读数」族的又一格。
+① **⚠️ 取证：四处平台实现住在 Android，而桌面端各有一份 Rust 版** —— `ShadowKey`／`AdminKey`（两把宿主秘密）、`HostSecret`（生成＋落盘＋0600）、`ZitiConfigReader`／`ZitiRole`（读 `ziti.json`、判角色）⇒ 桌面端的对应实现是 `shadow-desktop/src-tauri/src/admin_token.rs` ＋ 各自的配置文件逻辑 ⇒ ⇒ **同一件事两套实现，差的那点只是「目录从哪来」**。
 
-② **⚠️ 血缘：接线丢在一条从未并入 master 的线上**
-　❶ 救援标签 `rescue-parallel-eced13b`（`eced13b`，2026-11-09，**非 master 祖先**）的 ci.yml 曾接过「Mobile use parser self-check」一格，那条线从未并入 ⇒ ⇒ 接线随线丢；同线的「Ledger codepoint drill」已在 master ⇒ ⇒ 不是「没人接过」，是「接过的地方没并入」。
-　❷ 工作树 ci.yml 的 26 行 wt-only：9 行旧版凭据写法（已被 a87e2ab 取代）＋6 行旧版链注释（已被 HEAD 取代）＋**10 行 Mobile use parser 接线（唯一真丢失内容，本刀由新灯补回）**；blob 0b8e752 从未进过对象库的任何提交。
+② **⚠️ 第一因：平台差异只有三件，其余都该在大脑里** —— 手机与桌面真正不同的只有：可写目录在哪（Android 没有 `$HOME`）、有没有环境变量（zygote 决定）、App 生命周期怎么管。⇒ ⇒ 密钥怎么生成、权限怎么设、写不下来怎么办、ziti.json 怎么解析 —— 这些**不是平台差异**，是同一套语义 ⇒ 放错层就是两套实现慢慢漂。
 
-③ **⚠️ 修法判据：新独立灯＋node 转译闸 —— 不是把旧格子搬回 ci.yml**
-　❶ ci.yml 是共享文件（并行会话在飞）⇒ ⇒ 不代动 ⇒ ⇒ 独立成文件、接线面零共享（state-surface.yml 先例）。
-　❷ run-gate-once 只 spawn node ⇒ 纯 .ps1 进不了判读通道（gate-tally C1 硬要求）⇒ ⇒ 转译闸把「跑独立 runner＋解析『共 N 条，失败 M 条』读数」包成 node 面：解析不到读数 ⇒ 退出码 2 **判不了**；total=0 ⇒ 判红（空绿保护）。
-　❸ ⇒ ⇒ 注：这不是恢复旧接线 —— 旧格子直接 `pwsh -File` 跑驱动、不走判读通道、不带分母；本灯是**在 master 上第一次接上**。
+③ **⚠️ 第二因：时序决定「生成」必须在 start 里** —— 钥匙必须**先有再起门**（`require_shadow_key` 在请求时才读），而 Android 以前是「Kotlin 先生成 → 递进去 → start」。把生成搬进大脑后，正确形状是：`start_agent_surface` 里 **先**读或生成两把（`data_dir` 已在手），**再**设 ziti 槽位，**再**建 `BuildOptions`；客户端**在 start 之后**读回文件（第一次启动时文件是刚写下的）。⇒ ⇒ 顺序反了，客户端会拿到空串 ⇒ 不带钥匙 ⇒ 全 401（**看起来像「门坏了」**）。
 
-④ **⚠️ 反向验证：篡改的是「可数读数」那一行**
-　❶ 用 node 读 runner 的**真实字节**把统计行替换成「用例统计被摘掉了」⇒ 篡改版 runner **自己 EXIT=0**（它的空绿保护查的是 `$result.Cases.Count` 变量、不是输出行）⇒ 把闸指向篡改版 ⇒ **EXIT=2 判不了**，逐字「⚠️ 判不了：runner 的输出里解析不到『共 N 条，失败 M 条』」⇒ ⇒ 不假绿 ✓。篡改件已删（mavis-trash 回执）。
-　❷ 途中教训：篡改实验别用 pwsh 正则插值猜字节 —— 直接 node 读文件做精确替换才失配不了。
+④ **✅ 这一刀的落点（2 仓）** —— 见信封；文件契约**一字不改**（`shadow.key`／`admin.key`／`ziti.json` 都在 `<dataDir>` 根下，`integration_test/shadow_key.dart` 读的还是同一个路径）。
 
-⑤ **⚠️ 主判定不带 --strict 的理由**
-　❶ ubuntu runner 上 pwsh 在不在未验证（本机判不了物理层）⇒ ⇒ pwsh 缺 ⇒ 闸退出码 2（判不了）⇒ 默认口径「显眼不阻断」⇒ ⇒ 不假绿也不假红；第一次真 CI 拿到读数后再评估升档。
+⑤ **✅ 判据与分级读数** —— `cargo test --lib --features mobile mobile::host` **6/6**（密钥幂等／两把不同／角色严格／三字段解析／认不得⇒没配／不完整⇒不起面）；`cargo check --features mobile` 与 `--features mobile-lean` **0 error**；Android `--features mobile-memory --target aarch64-linux-android` 见补记；Kotlin `./gradlew :app:compileDebugKotlin` 见补记；Flutter 侧不受影响（`lib/` 零改动）。
 
-⑥ **✅ 这一刀的落点（3 文件＋零 ci.yml 改动）**
-　❶ `scripts/check-mobile-use-parsers.mjs`（新）：parseReading／readiness／`--self-test` 9 例／主判定 spawn pwsh→独立 runner／退出码 0 绿 1 红 2 判不了／可数读数「解析判据自检：N/N 通过」。
-　❷ `.github/workflows/mobile-use-parsers.yml`（新）：照 state-surface.yml 形状五步（仓外判读落盘→Checkout→Setup Node→Self-test(判据自检)→Check(走通道，不带 --strict)→判读汇总带分母），全步 `if: always()`。
-　❸ AGENTS.md 本条；顺带：工作树 ci.yml 从 HEAD blob（e04108d）重建拆雷（10 行旧接线已由新灯补回，其余 wt-only 全是陈旧重复）＋两个篡改残留件已删。
-
-⑦ **✅ 判据与分级读数（全部实测）**
-　❶ 判据级：闸 `--self-test` **9/9** EXIT=0；主判定真跑 **32/32 EXIT=0**。
-　❷ 闸网级：yaml-valid **33 文件零违规**；gate-tally-coverage **31 workflow｜闸步 71｜经由通道 71｜有分母 32/32** 零违规（本灯逐格「闸步 1｜经由通道 1｜有分母 1」）；ps1-portability 30 个 .ps1 全过（本刀零新增 .ps1）。
-　❸ discipline 级：`--json` 违规 **5 条全在别的闸**（client-tools 没退出码 2 档／commit-revert 自检 TIMEOUT＋缺口没登记 ×2／state-surface 自检 42/43＋缺口没登记 ×2）；本闸行全绿（自检 9/9／退出 0）⇒ ⇒ 本刀**零新增纪律违规**。
-　❹ 归属：state-surface 那 42/43 败在「真面基线」格＝账本悬空指针「承 U+3506 条」（声明格 HEAD 面 0 命中、引用 2 处 ⇒ 存量债；state-surface 灯 b005437 轮已红＝run 43182883058；本刀两文件不碰任何账本）；commit-revert TIMEOUT 落在兄弟在飞 M 文件族（check-commit-revert.mjs 等 5 个）。HEAD 隔离 worktree 基线（违规 13）含**兄弟仓不贴邻的污染伪影**（door-policy 族／external-tools／neuron-ownership 在隔离树里自检假红）⇒ ⇒ 两树数字不可直接比；可比的判据是「findings 有没有点名本闸」＝没有。
-　❺ 真 CI 级：**待取**（新灯第一跑＋ubuntu pwsh 在不在）。
-
-⑧ **⚠️ 仍然欠着的**
-　❶ ubuntu pwsh 读数（32/32 会不会真来／判不了档显不显眼）⇒ 第一次真 CI；②里的其余 8 个零引用自检脚本未逐把定性；--strict 升档评估待第一次读数。
-　❷ 存量债转报：U+3506 声明格丢失（HEAD 面：声明 0、引用 2）⇒ state-surface 灯红（b005437 轮 run 43182883058／4f2ff995 轮 run 43201706725 均 failure）⇒ 归账本主人补声明或销指针，本刀不代修；同轮 Commit Revert／Ledger Take Discipline／Unwired Gates 三灯也红（存量，未逐把取证）。
-
-⑨ **⚠ 圈码：本条占 U+3518（㔘）** —— 取号按**官方口径**（`check-ledger-codepoint-take.mjs --next`，取样时刻 **2026-11-12T10:50:10.329Z｜HEAD 0a1892e9** ⇒ 三面一致，提交树面水位 U+3517 ⇒ 候选头一个 **U+3518**）⇒ 方块字由 String.fromCodePoint 生成不手打。⚠️ 第一次取号（取样 10:34:06Z｜HEAD b0054374）曾得 U+3517，一分钟后兄弟的 S3/OSS 存储刀落链（4f2ff995，提交于 10:35:03Z）把 U+3517 占掉 ⇒ ⇒ **号是时态** ⇒ 本条按落笔那一刻的提交树面重取、顺延 U+3518 ＋ 合成基座随之从 cd50fe83（b0054374）换成 7b51660a（4f2ff995）再换成 85145266（0a1892e 的台账订正笔）两度重做；R1 dup-codepoint 兜底（撞了会红，不是静默⑩ **✅ 真 CI 读数回填（2026-11-12，27be7b3 轮，取样 10:53–11:02Z）** —— ❶ 新灯首跑＝**真绿**（run 43204222907 / job 131135168924 七步全 success）：第 5 步自检日志逐字「自检：9/9 通过」；第 6 步主判定日志逐字「解析判据自检：32/32 通过」＋GATE_RESULT ok mobile-use-parsers ⇒ ⇒ **ubuntu pwsh 在、转译层真跑通** ⇒ 32/32 不是「判不了转 0 显眼」，是带分母的真绿 ⇒ 本刀决定性读数闭合。❷ DTA 红归因（转报兄弟）：Desktop Test Assertions run 318（b005437）success ⇒ run 319（4f2ff995）**首红** ⇒ 引入者＝4f2ff99「feat(memory) 记忆存储」；败因 R5 替身空转 1 处：shadow-desktop/src/components/settings/__tests__/MemoryStorageCard.test.tsx:28（装 spy 丢返回值且无任何 spy 调用断言 ⇒ 用例可能恒绿）；git log 该文件提交树唯一修改者＝4f2ff99 ⇒ CI 轮次×文件归属两证据一致 ⇒ 27be7b3 轮红＝存量延续。❸ 主 CI 红＝存量延续：三轮失败步集合**逐格相同（多重集相等）14 格**（run 844/845/846 ＝ 4f2ff99/0a1892e/27be7b3：Desktop Build 5＋Mobile Test 1＋Mobile Analyze 1＋Legacy residue 2＋Brain gates 2＋Ledger codepoints 2＋CI 总分母 1） ⇒ 零新增失败格。❹ 自指纪律：本回填提交自身触发的 CI 读数不写进本条（留给下一笔）。
-）。
+⑥ **⚠️ 仍然欠着的** —— ❶ **`candle` 仍在 mobile 构建里**：按本次澄清它属于「大脑内嵌 neuron 的后端」而不是「Android 自己推理」⇒ **保留**；要真去掉得先决定手机是否还做本地推理（那会让下载面与离线对话退役）；❷ **`turso` 仍在 mobile 构建里**（本地 libSQL 文件）：客户端**只吃大脑的 `/api/telencephalon/config`**，Android 不碰它 —— 但「手机上的大脑要不要带配置中心」仍是产品选择（去掉 ⇒ 移动端记忆存储页只能读「读不到」）；❸ 会话／记忆在手机上的落盘仍是「内存／JSON」，没有统一进大脑的迁移；❹ `setZitiClient`／`setZitiServer` 的 Kotlin 方法与 JNI 壳**还在**（现在没人调用）—— 留着给别的宿主，属于「可删但未删」。
 
 **Updated**: 2026-11-12 (㔗 **「『配了存储』这件事，以前只有一个入口能配 —— 而且是只支持本地目录的那一个」** —— 承本仓 㔖 条（三段存储链取证）＋ U+3500 条（失败长得像成功），本条记**取证（两端都没有 S3/OSS 配置面 ＋ 两宿主都没递控制面）**、**第一因（配置中心的真相源与 UI 各在一处：`storage_uri` 在客户端 grep 零命中）**、**第二因（旧卡片只有本地目录，且 Tauri 命令与配置中心是两套真相）**、**第三因（Lance 的云 provider 本来就是 opendal 打底 ⇒ 我们只欠一层 scheme-aware 映射）**、**这一刀的落点（两端设置页 ＋ 两宿主递控制面 ＋ scheme 校验）**、**判据与分级读数**，以及**仍然欠着的**.)
 

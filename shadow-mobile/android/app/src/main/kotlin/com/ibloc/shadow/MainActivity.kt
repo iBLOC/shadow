@@ -667,38 +667,21 @@ class MainActivity : FlutterActivity() {
                         // Android 没有 $HOME，进程工作目录是 /（不可写）。
                         val dataDir = call.argument<String>("dataDir")
                             ?: filesDir?.absolutePath
-                        // 端脑面那道门的钥匙 —— 宿主生成，**同一份**同时给端脑
-                        // 和 App 自己的客户端。
-                        //
-                        // ⚠️ 必须在 start **之前**设进去：Rust 侧是在 start 的
-                        // 时候读这个槽位的（跟 LLM 上游那条通道一样）。
-                        //
-                        // ⚠️ 没有它，手机上的端脑面是**敞开**的：同一台设备上
-                        // 任何别的 App 都能 `POST /shadow/v1/identity` ⇒
-                        // **换掉「这台机器是谁」**（记忆改写进另一个人格、
-                        // 而且不报错）。
-                        val shadowKey = ShadowKey.getOrCreate(filesDir)
-                        // admin 面（「谁能改这台大脑的配置」）的那把 token ——
-                        // 宿主生成，**同一份**同时给端脑和 App 自己的客户端。
-                        //
-                        // ⚠️ 必须在 start **之前**设进去（Rust 侧是在 start 的
-                        // 时候读这个槽位的）。
-                        //
-                        // ⚠️ 没有它，手机上的 admin 面是**敞开**的：端脑的
-                        // admin token 取默认 `""` ⇒ 而 `verify_admin_token`
-                        // 在 expected 为空串时只要求「请求里带 `X-Admin-Token`
-                        // 头」⇒ **空值**的头就能过 ⇒ ⚠️ **2026-10-31 真机
-                        // 证实过**（空头 ⇒ 200）⇒ 同设备任何别的 App 都能装
-                        // agent、**改 LLM 上游**、动 MCP。
-                        //
-                        // ⚠️ **它与 shadow key 是两把不同的钥匙** —— 一个是
-                        // 门闩，一个是凭据。
-                        val adminToken = AdminKey.getOrCreate(filesDir)
+                        // ⚠️ **两把宿主秘密不再由 Android 生成**（2026-11-12）——
+                        // 大脑在 `start` 里读或生成 `<dataDir>/shadow.key` /
+                        // `admin.key`（0600），与桌面端同一套语义
+                        // （`encephalon/src/mobile/host.rs`）。Android 只在
+                        // **start 之后**把它们读回来交给 App 自己的客户端
+                        // （客户端要用同一把钥匙敲门：X-Shadow-Key / X-Admin-Token）。
                         try {
                             val runtime = EncephalonRuntime.getInstance()
-                            runtime.setShadowApiKey(shadowKey)
-                            runtime.setAdminToken(adminToken)
                             val started = runtime.start(port, dataDir)
+                            // 第一次启动时这两个文件是大脑刚写下的 ⇒ 必须
+                            // start 之后读（否则读到空串 ⇒ 客户端不带钥匙 ⇒ 401）。
+                            val shadowKey =
+                                HostSecrets.read(filesDir, HostSecrets.SHADOW_KEY_FILE)
+                            val adminToken =
+                                HostSecrets.read(filesDir, HostSecrets.ADMIN_TOKEN_FILE)
                             result.success(mapOf(
                                 "success" to started,
                                 "port" to runtime.getPort(),
@@ -785,10 +768,11 @@ class MainActivity : FlutterActivity() {
                                 // ⚠️ 钥匙跟运行态一起回 —— isolate 重建后走「接管」
                                 // 路径的新 isolate 没跑过 "start"（大脑一直在跑），
                                 // 客户端的 X-Shadow-Key / X-Admin-Token 只能从
-                                // 这里拿。getOrCreate 幂等：同一份，端脑守门、
-                                // 客户端敲门（安全语义见 "start" 分支注释）。
-                                "shadowKey" to ShadowKey.getOrCreate(filesDir),
-                                "adminToken" to AdminKey.getOrCreate(filesDir)
+                                // 这里拿。**只读**：生成与落盘在大脑里
+                                // （`encephalon/src/mobile/host.rs`），
+                                // Android 不造钥匙（安全语义见 "start" 分支注释）。
+                                "shadowKey" to HostSecrets.read(filesDir, HostSecrets.SHADOW_KEY_FILE),
+                                "adminToken" to HostSecrets.read(filesDir, HostSecrets.ADMIN_TOKEN_FILE)
                             ))
                         } catch (e: Exception) {
                             result.success(mapOf(

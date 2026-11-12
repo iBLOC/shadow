@@ -455,11 +455,10 @@ class EncephalonRuntime {
      *   传 null 用默认位置。
      */
     fun start(preferredPort: Int = 0, dataDir: String? = null): Boolean {
-        // ⚠️ **零信任角色必须在 nativeStart 之前定下来** ——
-        // nativeStart 一跑，那张面（本地大脑 vs 零信任代理 vs 发布）就定死了
-        // ⇒ ⇒ 所以这里先读设置页落盘的那份可视化配置。
-        applyZitiConfig(dataDir)
-        // （控制面不需要在这里设 —— 端脑从 `dataDir` 自己派生，见上面 JNI 声明处。）
+        // ⚠️ **零信任角色与两把宿主秘密都不在这里设了**（2026-11-12）——
+        // 全在大脑里：`encephalon/src/mobile/host.rs` 读 `ziti.json` 判角色、
+        // 读或生成 `shadow.key` / `admin.key`（0600）。Android 只交出
+        // `dataDir`，其余两端同一套语义。
         return try {
             val port = nativeStart(preferredPort, dataDir ?: "")
             if (port > 0) {
@@ -488,54 +487,6 @@ class EncephalonRuntime {
         } catch (e: Exception) {
             AppLog.e(TAG, "❌ Exception starting Encephalon: ${e.message}", e)
             false
-        }
-    }
-
-    /**
-     * 应用**零信任配置**（设置页落盘的那份 ziti.json）。
-     *
-     * ## 为什么放在启动时
-     *
-     * 角色是**启动时**定死的 ⇒ ⇒ 运行中改配置不换面（与桌面端同一纪律）
-     * ⇒ ⇒ 设置页必须把「重启后生效」说清楚。
-     *
-     * ## 失败一律**明确**，绝不半生效
-     *
-     * 字段不全 / 模式认不得 / 宿主设置失败 ⇒ ⇒ 明确报错并**回落「不走
-     * 零信任」** ⇒ ⇒ 手机照旧跑自己的大脑（行为与今天一模一样），
-     * 而不是「看着连上了、其实没身份」。
-     */
-    private fun applyZitiConfig(dataDir: String?) {
-        if (dataDir.isNullOrBlank()) {
-            return
-        }
-        val config = ZitiConfigReader.read(File(dataDir, ZitiConfigReader.FILE_NAME))
-        if (config == null) {
-            // 没有配置 / 解析不了 ⇒ ⇒ 当成「没配」⇒ 行为与今天一模一样。
-            return
-        }
-        if (config.role == ZitiRole.OFF) {
-            return
-        }
-        if (!config.isComplete) {
-            AppLog.e(
-                TAG,
-                "❌ ziti.json 不完整（service / identityPath 有空）⇒ 本次启动不走零信任",
-            )
-            return
-        }
-        val ok = when (config.role) {
-            ZitiRole.CLIENT -> setZitiClient(
-                config.identityPath,
-                config.service,
-                ShadowKey.getOrCreate(File(dataDir)),
-                AdminKey.getOrCreate(File(dataDir)),
-            )
-            ZitiRole.SERVER -> setZitiServer(config.identityPath, config.service)
-            ZitiRole.OFF -> false
-        }
-        if (!ok) {
-            AppLog.e(TAG, "❌ 零信任角色设置失败（" + config.role.wire + "）")
         }
     }
 
