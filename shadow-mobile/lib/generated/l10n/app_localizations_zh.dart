@@ -1563,6 +1563,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get capabilityAuthAskDesc => '每次调用前都先问你';
 
   @override
+  String get capabilityAuthAskMobileUseDesc => '每轮任务问一次；进入支付等敏感应用后每步都问';
+
+  @override
   String get capabilityAuthFullDesc => '不再逐次询问';
 
   @override

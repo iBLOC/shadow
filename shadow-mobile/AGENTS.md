@@ -1,3 +1,52 @@
+**Updated:** 2026-11-12 (㌢ **「模拟用户行为一轮只授权一次 —— 支付等敏感前台包一出现，缓存当场作废退回逐次问」** —— 本条记**取证（执行时闸是无状态纯判定 ⇒ 每条调用都弹）**、**第一因（「每次询问」档的粒度是「每条调用」，用户要的粒度是「一轮任务」）**、**第二因（「一轮」的边界与「敏感」的判定都要落在机械可见的读数上）**、**第三因（共享工作树上按文件粒度提交会带走别人的在飞行 ⇒ 提交树要从 HEAD 重放自己的 hunk 构造）**、**这一刀的落点**、**途中那几课**、**判据与分级读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-12 | authority=measured | scope=project | source=官方取号闸 --next（取样时刻 2026-11-12T08:14:31.864Z ｜ HEAD 534da85 ⇒ 移动端提交树面水位 U+3320 ⇒ 候选头一个 U+3322（U+3321 已被桌面端 ㌡ 占，闸自动跳过））＋ 临时 worktree（HEAD 检出＋仅本刀 14 hunk）实证三件套 80/80 全绿 ＋ analyze 本刀文件零命中（全项目 57 条存量 info、零 error）＋ gen-l10n 产物 NotificationsRead 零命中（兄弟 6 键零混入）｜ 改动：lib/services/capabilities/sensitive_packages.dart（**新增** 敏感前台包清单＋纯函数）＋ lib/providers/chat_provider.dart（6 处：import／轮内两字段／漏斗清缓存／_needsApproval 一轮一次放行／_runToolCall 敏感守卫／approveToolCall 记缓存）＋ lib/widgets/settings/capability_grants_section.dart（2 处：调用点带能力参数＋_modeDescription 签名加参数＋mobileUse 分支）＋ lib/l10n 两个 arb（各 1 键）＋ lib/generated/l10n（gen-l10n 重生成 3 份）＋ test/unit/chat_provider_tool_test.dart（streamOverride 时序 mock＋6 条新测）＋ AGENTS.md（本条）⇒ ⇒ **11 个文件（1 新增）** ＋ 零新增依赖 ＋ 零 ci.yml 改动 ＋ **构造式提交**（从 HEAD 重放本刀 14 个 hunk，兄弟「通知读取」在飞面的 5 个 hunk 机械排除、原样留在共享工作树）⇒ ⇒ 不碰兄弟在飞面 ｜ 读数：见 ⑦ | status=active | supersedes=none
+
+① **⚠️ 取证：执行时闸是无状态纯判定 ⇒ 「每次询问」档每条调用都弹**
+　❶ 原 _needsApproval(ClientTool tool) 只看两件事：tool.requiresApproval ＋ 档位是否 askEveryTime —— **不看历史、不看现场** ⇒ ⇒ mobileUse 一族 6 个工具（mobile_read_screen／tap／long_press／swipe／find_and_click／global_action）在默认「每次询问」档下**每条调用**都弹 Allow/Deny 卡片。
+　❷ 用户实测：任务页关掉后，每个动作都要授权、不授权无法进入下一步 ⇒ ⇒ 一轮 5 个动作 ＝ 5 张卡片 ＝ 任务被授权打断 5 次。
+　❸ 「悬浮窗」全仓 grep **零命中** ⇒ ⇒ 用户句中点名的另一半诉求（无障碍以悬浮窗运行）是**功能缺失**，登记欠着（见 ⑧❶）。
+
+② **⚠️ 第一因：「每次询问」档的粒度是「每条调用」，用户要的粒度是「一轮任务」**
+　❶ 用户拍板的语义：模拟用户行为**一轮授权一次**，除非支付等更敏感的行为（仍逐次）。
+　❷ ⇒ ⇒ **通用形态：执行闸的判定粒度要与用户心智的任务粒度对齐** —— 「能力 × 档位」二维表管不住「这是本轮第几次调用」，要在闸里引入**轮内状态**（缓存）。
+
+③ **⚠️ 第二因：「一轮」的边界与「敏感」的判定都要落在机械可见的读数上**
+　❶ 「一轮」＝ 一次发送：发送／重试／撤销重发全部入口都汇到 _sendToTelencephalon 漏斗 ⇒ ⇒ 缓存清零放漏斗开头，天然覆盖所有入口（缓存跟着「一轮」走，不跟着会话走）。
+　❷ 「敏感」＝ 支付类 App 到前台：客户端唯一机械可见的「现在在谁家 App」是 mobile_read_screen 结果里的 foregroundPackage ⇒ ⇒ 敏感清单按包名判（支付宝／微信／云闪付 3 包），**宁短勿错**（放错包名 ＝ 例外永不生效 ＝ fail-open；银行族核真后另刀扩展）。
+　❸ 方向性：敏感目标出现 ⇒ 缓存当场作废退回逐次问（宁可多问不可错放）；foregroundPackage 为 null 不升级（收紧需要证据）；数据面能力（日历/通知…）不进缓存、维持逐条问。
+
+④ **⚠️ 第三因（本刀最贵的一课）：共享工作树上「按文件粒度提交」会带走别人的在飞行**
+　❶ 拟提交的文件里，capability_grants_section.dart 有兄弟 3 个 hunk、两个 arb 各有兄弟 1 个 hunk（「通知读取」在飞面，其测试还带着 analyze error）⇒ ⇒ 直接 hash-object 整文件 ＝ 替别人提交半成品。
+　❷ 上一刀曾论证「行级拆分不可行」（枚举/switch 穷尽性/gen-l10n 产物链耦合）⇒ ⇒ **本刀证伪**：那些耦合是「工作树合并态」的属性，不是「我的改动」的属性 —— 本刀每一个 hunk 都不含兄弟的行 ⇒ ⇒ 从 HEAD 出发只重放**本刀的 14 个 hunk**（git diff 按 hunk 机械过滤：本刀特征串保留、兄弟特征串丢弃），apply 到 HEAD 检出的临时 worktree。
+　❸ ⇒ ⇒ **通用形态：共享工作树上的提交树不是「工作树文件的子集」，是「HEAD ＋ 自己的 diff」** ⇒ ⇒ 拆分的正确单位是 **hunk**，不是文件；可行性要拿「hunk 是否纯净」判，不要拿「文件是否共享」判。
+　❹ 配套：gen-l10n 产物不能拿工作树那份（含兄弟 6 键的 getter）⇒ ⇒ 在 worktree 用过滤后的 arb 重跑 gen-l10n ⇒ ⇒ 产物回到「HEAD＋本刀键」的规范形状（实测 NotificationsRead 零命中）。
+
+⑤ **✅ 这一刀的落点（11 个文件 ＋ 1 新增 ＋ 零新增依赖）**
+　❶ **新增** lib/services/capabilities/sensitive_packages.dart —— sensitiveForegroundPackages（com.eg.android.AlipayGphone ＋ com.tencent.mm ＋ com.unionpay）＋ 纯函数 isSensitiveForegroundPackage(String?)。
+　❷ **改** lib/providers/chat_provider.dart 6 处 —— import；_turnGrantedMobileUse（Set<Capability>）＋ _sensitiveTargetSeenThisTurn（bool）两字段；_sendToTelencephalon 开头清缓存（一轮＝一次发送）；_needsApproval 一轮一次放行分支（mobileUse 已点头 && 本轮未见敏感目标 ⇒ false）；_runToolCall 敏感守卫（mobileUse 且 result 是 Map 且 foregroundPackage 命中 ⇒ 置敏感标志＋清缓存）；approveToolCall 点头记缓存（只收 mobileUse）。
+　❸ **改** lib/widgets/settings/capability_grants_section.dart 2 处 —— 副标题拼接把 capability 传进 _modeDescription；签名加参数＋mobileUse 在「每次询问」档改用新文案（设置页说的必须与闸的真实行为一致，否则设置页在说谎）。
+　❹ **改** arb ×2 各 1 键 capabilityAuthAskMobileUseDesc ＋ gen-l10n 重生成 3 份。
+　❺ **改** test/unit/chat_provider_tool_test.dart —— ToolMockClient 加 streamOverride（StreamController 实时流，模拟「端脑收到结果才发下一条」）＋ 新 group 6 条：首次弹／同轮第二次不弹／下一轮重新弹／敏感包出现缓存作废后续每步重弹／其他能力不受缓存影响／敏感清单纯函数。
+
+⑥ **⚠️ 途中那几课**
+　❶ 同一轮多条 tool_call 的时序测试：静态一次性 yield 的 mock 做不出「approve 后下一条自动放行」⇒ 必须 StreamController 实时 add（端脑本来就是这么发的：收到结果才发下一条）。
+　❷ worktree 全量验证链在 Windows 上 pub get 报 Developer Mode（插件 symlink 需要）⇒ ⇒ 不影响 test／analyze／gen-l10n（80/80 绿）；真机构建时再看。
+　❸ git diff 的 hunk 里「+ 行」是判断归属的依据，但 hunk 的**上下文行**可能含对方的代码 ⇒ apply 失败是 fail-closed 的安全失败（本刀 14 hunk 一次通过，未触发）。
+
+⑦ **✅ 判据与分级读数（全部实测，都在「HEAD＋仅本刀」的临时 worktree 上取）**
+　❶ **判据级**：三件套 **80/80 全绿**（chat_provider_tool_test 23 ＋ capability_grants_test 42 ＋ capability_tool_card_test 15）；flutter analyze 全项目 57 条（HEAD 存量 info）**本刀 5 个改动文件零命中、全项目零 error**。
+　❷ **隔离级**：过滤 patch 丢弃兄弟 5 个 hunk（grants×3＋arb×2）、保留本刀 14 个；apply 后 worktree git status 恰 6 格（5 M ＋ 1 ??）⇒ ⇒ 兄弟的行零混入；共享工作树原样。
+　❸ **预期读数变化（预期，非实测）**：真机一轮任务只弹 1 张授权卡；进入支付宝等敏感 App 后该轮每步重新弹；数据面能力仍逐条弹；设置页「每次询问」档手机操作的副标题变成新文案。真机级与真 CI 级**待取**（推 origin ＋ 真机）。
+
+⑧ **⚠️ 仍然欠着的**
+　❶ **悬浮窗运行模式**（用户句中点名的另一半）：无障碍服务以悬浮窗承载 ⇒ SYSTEM_ALERT_WINDOW 权限＋悬浮窗 UI＋生命周期，大件另刀（产品形状未定，开工前先问）。
+　❷ **敏感清单只有 3 包**（宁短勿错）⇒ 银行族包名核真后另刀扩展。
+　❸ push origin 待用户决定（本刀 ＋ 此前 d33e22f／2770527／534da85 都未推）。
+　❹ 本刀在真 CI 上的读数待回填（构造式提交的第一次真 CI 验证）。
+
+⑨ **⚠ 圈码：本条占 U+3322（㌢）** —— 号按**官方口径**在**提交树面**取（取样时刻 2026-11-12T08:14:31.864Z ｜ HEAD 534da85 ⇒ 移动端水位 U+3320 ⇒ 候选头一个 U+3322，U+3321 已被桌面端 ㌡ 占）⇒ ⇒ 方块字由 String.fromCodePoint 生成，不手打。
+
 **Updated:** 2026-11-11 (㌠ **「助手回复也是一张卡片 —— 卡片下方带读数行：时间 · token 速度 · 总量」** —— 本条记**取证（端脑流两面都无 usage ＋ 桌面端先例）**、**口径（客户端估算 · 首 delta 起算 · 没流过不挂）**、**这一刀的落点**、**途中那几课**、**判据与分级读数**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-11 | authority=measured | scope=project | source=端脑 SSE 两面（客户端 `StreamEvent` 字段清单无 usage ＋ 服务端 shadow.rs 的 `TelencephalonStreamEvent` 形状 `Delta{ text }`／`Done{ reply, state, timestamp }` 无 usage）＋ 桌面端先例（`src/lib/tokenStats.ts` 注释逐字「do not reliably report usage on stream, so we approximate」＋ ConversationPage 的 meta 行：时间 HH:mm ＋ assistant 才挂「{{tokens}} tokens · {{speed}} tok/s」徽章）＋ 官方取号闸 --next（取样时刻 2026-11-11T07:55:51.586Z ｜ HEAD d33e22f5 ⇒ 移动端提交树面水位 U+331F ⇒ 候选头一个 U+3320）｜ 改动：lib/providers/chat_provider.dart（`MessageTokenStats` ＋ `estimateTokens`／`computeTokenStats` 与桌面端逐字同源 ＋ `ChatMessageModel` 增 createdAt／tokenStats ＋ 九个构造点全接线）＋ lib/widgets/chat_bubble.dart（助手气泡描边 ＋ `MessageMetaRow`）＋ lib/widgets/chat/local_chat_view.dart（读数行接线 ＋ HH:mm 格式化）＋ lib/l10n 两个 arb（各 1 键）＋ lib/generated/l10n（gen-l10n 重生成 3 份）＋ **新增** test/unit/chat_token_stats_test.dart（8 条）＋ **新增** test/widget/message_meta_row_test.dart（2 条）⇒ ⇒ **11 个文件（2 新增）** ＋ 零新增依赖 ＋ 不碰父仓 AGENTS.md 在飞面 ｜ 读数：见 ⑤ | status=active | supersedes=none

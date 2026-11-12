@@ -11,6 +11,7 @@ import '../services/telencephalon/telencephalon_client.dart';
 import '../services/client_tools/client_tool_registry.dart';
 import '../services/capabilities/capability.dart';
 import '../services/capabilities/capability_declaration.dart';
+import '../services/capabilities/sensitive_packages.dart';
 import 'capability_policy_provider.dart';
 import 'conversation_mode_provider.dart';
 import 'genui_provider.dart';
@@ -321,6 +322,23 @@ class ChatNotifier extends StateNotifier<ChatState> {
   /// 「会话 id + 参数 + 工具」一起留着。
   final Map<String, _PendingToolCall> _pendingToolCalls = {};
 
+  /// **本轮已点过头的「手机操作」** —— 「模拟用户行为一轮只授权一次」的缓存。
+  ///
+  /// 用户拍板的逻辑（2026-11-12）：手机操作这族工具在「每次询问」档下，
+  /// **一轮只问第一次** ⇒ ⇒ 用户点头后，同一轮里后续的手机操作直接放行
+  /// ⇒ ⇒ 否则每个动作都弹一张卡片，任务页面一关，任务就卡死在授权上。
+  ///
+  /// ⚠️ 只收 [Capability.mobileUse] —— 其他能力（日历/联系人…）是
+  /// **数据面**（外泄面），每一条都要过目，不缓存。
+  ///
+  /// ⚠️ 敏感目标（支付类前台包，见 sensitive_packages.dart）一出现
+  /// ⇒ ⇒ 本缓存立即作废 ⇒ ⇒ 退回逐次询问（见 [_runToolCall]）。
+  final Set<Capability> _turnGrantedMobileUse = <Capability>{};
+
+  /// **本轮见过敏感目标** —— 支付类 App 到过前台 ⇒ 本轮的手机操作
+  /// 退回「每次都问」，已授权的缓存一并作废（宁可多问，不可错放）。
+  bool _sensitiveTargetSeenThisTurn = false;
+
   /// 客户端合成调用 id 用的计数器。
   ///
   /// 端脑**会带**调用 id（`tool_call_id`，端脑生成的 uuid）⇒ 这个计数器
@@ -459,6 +477,11 @@ class ChatNotifier extends StateNotifier<ChatState> {
   /// 给的是文件路径，Kotlin 那边要的是目录），用户看到的只是一条
   /// 「已就绪」的红横幅和一句永远等不来的回复。
   Future<void> _sendToTelencephalon(String prompt) async {
+    // ⚠️ **新一轮 ⇒ 「手机操作一轮一次」的授权缓存清零** ——
+    // 「一轮」＝ 一次发送 ⇒ 无论从哪个入口进来（发送 / 重试 / 撤销重发，
+    // 它们都汇到这个漏斗），缓存都从这里重置。
+    _turnGrantedMobileUse.clear();
+    _sensitiveTargetSeenThisTurn = false;
     // ⚠️ **闸门（漏斗就在这儿）**：上一次切会话失败了 ⇒ 现在**不知道自己在
     // 哪条会话里** ⇒ ⇒ 不许写 ⇒ ⇒ 否则用户以为自己在 B、消息却落进 A
     // ⇒ ⇒ **消息落错会话**（它看起来是成功的）。
@@ -891,7 +914,18 @@ class ChatNotifier extends StateNotifier<ChatState> {
     if (tool.requiresApproval) return true;
     final capability = tool.capability;
     if (capability == null) return false;
-    return _capabilityModeFor(capability) == AuthorizationMode.askEveryTime;
+    if (_capabilityModeFor(capability) != AuthorizationMode.askEveryTime) {
+      return false;
+    }
+    // ⚠️ **手机操作：一轮只问第一次** —— 同一轮里用户已经点过头、
+    // 且本轮没见过敏感目标 ⇒ 后续调用直接放行。
+    // 敏感目标一出现（[_sensitiveTargetSeenThisTurn] 置位）⇒ 缓存已作废 ⇒ 照问。
+    if (capability == Capability.mobileUse &&
+        _turnGrantedMobileUse.contains(capability) &&
+        !_sensitiveTargetSeenThisTurn) {
+      return false;
+    }
+    return true;
   }
 
   /// 当前档位下「彻底关闭」的那些能力，对应的工具名。
@@ -933,6 +967,18 @@ class ChatNotifier extends StateNotifier<ChatState> {
       errorText = e.toString();
     }
     final elapsed = watch.elapsedMilliseconds;
+
+    // ⚠️ **敏感目标守卫**：手机操作一族触到支付类前台包 ⇒ 本轮的
+    // 「一轮一次」立即作废 ⇒ 后续每一步都重新问（用户拍板：支付等
+    // 更敏感的行为除外，仍逐次确认）。读屏结果里的 foregroundPackage
+    // 是客户端唯一机械可见的「现在在谁家 App 里」⇒ 判它。
+    if (tool.capability == Capability.mobileUse && result is Map) {
+      final foreground = result['foregroundPackage'] as String?;
+      if (isSensitiveForegroundPackage(foreground)) {
+        _sensitiveTargetSeenThisTurn = true;
+        _turnGrantedMobileUse.clear();
+      }
+    }
 
     final base =
         _toolCallById(callId) ??
@@ -1001,6 +1047,11 @@ class ChatNotifier extends StateNotifier<ChatState> {
   Future<void> approveToolCall(String callId) async {
     final pending = _pendingToolCalls.remove(callId);
     if (pending == null) return;
+    // ⚠️ 「手机操作」点头一次 ⇒ 记入本轮缓存 ⇒ 同轮后续同族调用不再弹
+    // （一轮一次；敏感目标出现时由 [_runToolCall] 把缓存作废）。
+    if (pending.tool.capability == Capability.mobileUse) {
+      _turnGrantedMobileUse.add(Capability.mobileUse);
+    }
     await _runToolCall(
       sessionId: pending.sessionId,
       callId: callId,

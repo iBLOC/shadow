@@ -1602,6 +1602,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get capabilityAuthAskDesc => 'Ask before every call';
 
   @override
+  String get capabilityAuthAskMobileUseDesc =>
+      'Ask once per task round; inside sensitive apps (e.g. payment) every step asks again';
+
+  @override
   String get capabilityAuthFullDesc => 'No per-call prompt';
 
   @override

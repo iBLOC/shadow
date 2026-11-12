@@ -225,7 +225,7 @@ class _CapabilityGrantRow extends ConsumerWidget {
       title: capabilityLabel(l10n, capability),
       icon: _capabilityIcon(capability),
       subtitle: supported
-          ? '${_modeDescription(l10n, mode)} · ${_systemStateText(l10n, capability, granted)}'
+          ? '${_modeDescription(l10n, mode, capability)} · ${_systemStateText(l10n, capability, granted)}'
           : l10n.capabilityUnsupportedPlatform,
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
@@ -334,10 +334,20 @@ String _modeLabel(AppLocalizations l10n, AuthorizationMode mode) {
 }
 
 /// 档位 → 副标题里那半句解释。
-String _modeDescription(AppLocalizations l10n, AuthorizationMode mode) {
+///
+/// ⚠️ 「手机操作」在「每次询问」档下的**真实语义**是「一轮问一次」
+/// ⇒ ⇒ 执行闸上同一轮点过头就不再弹（敏感目标除外）⇒ ⇒
+/// 这里必须按真实语义说，否则设置页在说谎。
+String _modeDescription(
+  AppLocalizations l10n,
+  AuthorizationMode mode,
+  Capability capability,
+) {
   switch (mode) {
     case AuthorizationMode.askEveryTime:
-      return l10n.capabilityAuthAskDesc;
+      return capability == Capability.mobileUse
+          ? l10n.capabilityAuthAskMobileUseDesc
+          : l10n.capabilityAuthAskDesc;
     case AuthorizationMode.fullAccess:
       return l10n.capabilityAuthFullDesc;
     case AuthorizationMode.disabled:

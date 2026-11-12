@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shadow_mobile/providers/chat_provider.dart';
+import 'package:shadow_mobile/services/capabilities/capability.dart';
+import 'package:shadow_mobile/services/capabilities/sensitive_packages.dart';
 import 'package:shadow_mobile/services/client_tools/client_tool_registry.dart';
 import 'package:shadow_mobile/services/telencephalon/telencephalon_client.dart';
 import 'package:shadow_mobile/tts_engine.dart';
@@ -23,6 +25,10 @@ class ToolMockClient extends TelencephalonClient {
 
   /// 模拟端脑还没上这个端点（404）。
   bool reportThrows = false;
+
+  /// 实时流 override —— 「同一轮多条 tool_call」的时序测试用
+  /// （静态 events 是一次性 yield，做不出「收到结果才发下一条」）。
+  Stream<StreamEvent>? streamOverride;
 
   ToolMockClient(this.events) : super(baseUrl: 'http://127.0.0.1:60080');
 
@@ -47,6 +53,11 @@ class ToolMockClient extends TelencephalonClient {
     SendMessageRequest req,
   ) async* {
     requests.add(req);
+    final override = streamOverride;
+    if (override != null) {
+      yield* override;
+      return;
+    }
     for (final event in events) {
       yield event;
     }
@@ -443,6 +454,236 @@ void main() {
       expect(client.reports.single['ok'], isFalse);
     });
   });
+
+  group('手机操作：一轮一次授权（敏感目标除外）', () {
+      /// 等最后一张工具卡片进入指定状态。
+      Future<void> waitForStatus(
+        ChatNotifier notifier,
+        ToolCallStatus status,
+      ) async {
+        for (var i = 0; i < 200; i++) {
+          final call = lastToolCall(notifier);
+          if (call != null && call.status == status) return;
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+        }
+        fail('1 秒内没等到状态 $status');
+      }
+
+      ClientToolRegistry mobileTools(
+        List<Map<String, dynamic>> executed, {
+        String? readForegroundPackage,
+      }) {
+        return ClientToolRegistry([
+          ClientTool(
+            name: 'mobile_tap',
+            description: 'Tap a point.',
+            capability: Capability.mobileUse,
+            execute: (args) async {
+              executed.add(args);
+              return <String, dynamic>{'tapped': true};
+            },
+          ),
+          ClientTool(
+            name: 'mobile_read_screen',
+            description: 'Read the screen.',
+            capability: Capability.mobileUse,
+            execute: (args) async => <String, dynamic>{
+              'foregroundPackage': readForegroundPackage ?? 'com.example.notes',
+            },
+          ),
+        ]);
+      }
+
+      test('默认档：第一次手机操作弹卡片', () async {
+        final executed = <Map<String, dynamic>>[];
+        final controller = StreamController<StreamEvent>();
+        final client = ToolMockClient(const [])..streamOverride = controller.stream;
+        final notifier = ChatNotifier(
+          MockTts(),
+          client,
+          clientTools: mobileTools(executed),
+        );
+        final done = notifier.generateResponse('帮我点一下');
+        controller.add(StreamEvent(
+          type: 'tool_call',
+          name: 'mobile_tap',
+          toolCallId: 'c1',
+        ));
+
+        await waitForStatus(notifier, ToolCallStatus.awaitingApproval);
+        expect(executed, isEmpty);
+        await notifier.approveToolCall('c1');
+        await waitForSettled(notifier);
+        expect(executed, hasLength(1));
+
+        await controller.close();
+        await done;
+      });
+
+      test('点头后同一轮的第二次手机操作不再弹（一轮一次）', () async {
+        final executed = <Map<String, dynamic>>[];
+        final controller = StreamController<StreamEvent>();
+        final client = ToolMockClient(const [])..streamOverride = controller.stream;
+        final notifier = ChatNotifier(
+          MockTts(),
+          client,
+          clientTools: mobileTools(executed),
+        );
+        final done = notifier.generateResponse('连点两下');
+        controller.add(StreamEvent(
+          type: 'tool_call',
+          name: 'mobile_tap',
+          toolCallId: 'c1',
+        ));
+        await waitForStatus(notifier, ToolCallStatus.awaitingApproval);
+        await notifier.approveToolCall('c1');
+        await waitForSettled(notifier);
+
+        // 同一轮第二条：端脑收到 c1 的结果后才发 c2 —— 此时不再弹。
+        controller.add(StreamEvent(
+          type: 'tool_call',
+          name: 'mobile_tap',
+          toolCallId: 'c2',
+        ));
+        await waitForSettled(notifier);
+        expect(executed, hasLength(2));
+
+        await controller.close();
+        await done;
+      });
+
+      test('下一轮重新弹（缓存跟着「一轮」走，不跟着会话走）', () async {
+        final executed = <Map<String, dynamic>>[];
+        final controller = StreamController<StreamEvent>();
+        final client = ToolMockClient(const [])..streamOverride = controller.stream;
+        final notifier = ChatNotifier(
+          MockTts(),
+          client,
+          clientTools: mobileTools(executed),
+        );
+        final done = notifier.generateResponse('点一下');
+        controller.add(StreamEvent(
+          type: 'tool_call',
+          name: 'mobile_tap',
+          toolCallId: 'r1c1',
+        ));
+        await waitForStatus(notifier, ToolCallStatus.awaitingApproval);
+        await notifier.approveToolCall('r1c1');
+        await waitForSettled(notifier);
+        await controller.close();
+        await done;
+
+        // 新一轮（第二次发送）：缓存已清 ⇒ 又要重新点头。
+        final controller2 = StreamController<StreamEvent>();
+        client.streamOverride = controller2.stream;
+        final done2 = notifier.generateResponse('再点一下');
+        controller2.add(StreamEvent(
+          type: 'tool_call',
+          name: 'mobile_tap',
+          toolCallId: 'r2c1',
+        ));
+        await waitForStatus(notifier, ToolCallStatus.awaitingApproval);
+        expect(executed, hasLength(1)); // 第二次没执行（还在等点头）
+        await notifier.approveToolCall('r2c1');
+        await waitForSettled(notifier);
+        expect(executed, hasLength(2));
+
+        await controller2.close();
+        await done2;
+      });
+
+      test('敏感目标（支付类前台包）出现 ⇒ 缓存作废，后续每步重新弹', () async {
+        final executed = <Map<String, dynamic>>[];
+        final controller = StreamController<StreamEvent>();
+        final client = ToolMockClient(const [])..streamOverride = controller.stream;
+        final notifier = ChatNotifier(
+          MockTts(),
+          client,
+          clientTools: mobileTools(
+            executed,
+            readForegroundPackage: 'com.eg.android.AlipayGphone',
+          ),
+        );
+        final done = notifier.generateResponse('帮我付款');
+        controller.add(StreamEvent(
+          type: 'tool_call',
+          name: 'mobile_tap',
+          toolCallId: 'p1',
+        ));
+        await waitForStatus(notifier, ToolCallStatus.awaitingApproval);
+        await notifier.approveToolCall('p1');
+        await waitForSettled(notifier);
+
+        // 读屏（已授权 ⇒ 自动执行）读到支付宝前台 ⇒ 缓存作废。
+        controller.add(StreamEvent(
+          type: 'tool_call',
+          name: 'mobile_read_screen',
+          toolCallId: 'p2',
+        ));
+        await waitForSettled(notifier);
+
+        // 下一步 tap：不再自动放行，重新弹卡片。
+        controller.add(StreamEvent(
+          type: 'tool_call',
+          name: 'mobile_tap',
+          toolCallId: 'p3',
+        ));
+        await waitForStatus(notifier, ToolCallStatus.awaitingApproval);
+        expect(executed, hasLength(1)); // p3 没执行（还在等点头）
+
+        await controller.close();
+        await done;
+      });
+
+      test('其他能力不受缓存影响：同一轮的每条日历调用仍逐条弹', () async {
+        final executed = <Map<String, dynamic>>[];
+        final controller = StreamController<StreamEvent>();
+        final client = ToolMockClient(const [])..streamOverride = controller.stream;
+        final notifier = ChatNotifier(
+          MockTts(),
+          client,
+          clientTools: ClientToolRegistry([
+            ClientTool(
+              name: 'calendar_read_events',
+              description: 'Read calendar.',
+              capability: Capability.calendarRead,
+              execute: (args) async {
+                executed.add(args);
+                return <String, dynamic>{'events': <String>[]};
+              },
+            ),
+          ]),
+        );
+        final done = notifier.generateResponse('看看日历');
+        controller.add(StreamEvent(
+          type: 'tool_call',
+          name: 'calendar_read_events',
+          toolCallId: 'd1',
+        ));
+        await waitForStatus(notifier, ToolCallStatus.awaitingApproval);
+        await notifier.approveToolCall('d1');
+        await waitForSettled(notifier);
+
+        controller.add(StreamEvent(
+          type: 'tool_call',
+          name: 'calendar_read_events',
+          toolCallId: 'd2',
+        ));
+        await waitForStatus(notifier, ToolCallStatus.awaitingApproval); // 仍弹 ⇒ 不缓存
+        expect(executed, hasLength(1));
+
+        await controller.close();
+        await done;
+      });
+
+      test('敏感包名清单纯函数', () {
+        expect(isSensitiveForegroundPackage('com.eg.android.AlipayGphone'), isTrue);
+        expect(isSensitiveForegroundPackage('com.tencent.mm'), isTrue);
+        expect(isSensitiveForegroundPackage('com.unionpay'), isTrue);
+        expect(isSensitiveForegroundPackage('com.example.notes'), isFalse);
+        expect(isSensitiveForegroundPackage(null), isFalse);
+      });
+    });
 
   group('StreamEvent 解析', () {
     test('tool_call 的字段都认下来', () {

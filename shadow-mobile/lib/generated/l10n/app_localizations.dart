@@ -3038,6 +3038,12 @@ abstract class AppLocalizations {
   /// **'Ask before every call'**
   String get capabilityAuthAskDesc;
 
+  /// No description provided for @capabilityAuthAskMobileUseDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Ask once per task round; inside sensitive apps (e.g. payment) every step asks again'**
+  String get capabilityAuthAskMobileUseDesc;
+
   /// No description provided for @capabilityAuthFullDesc.
   ///
   /// In en, this message translates to:

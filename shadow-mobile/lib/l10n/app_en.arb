@@ -855,6 +855,7 @@
   "capabilityAuthFull": "Full access",
   "capabilityAuthDisabled": "Disabled",
   "capabilityAuthAskDesc": "Ask before every call",
+  "capabilityAuthAskMobileUseDesc": "Ask once per task round; inside sensitive apps (e.g. payment) every step asks again",
   "capabilityAuthFullDesc": "No per-call prompt",
   "capabilityAuthDisabledDesc": "The model cannot see this capability",
   "capabilitySystemGranted": "System permission granted",

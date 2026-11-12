@@ -819,6 +819,7 @@
   "capabilityAuthFull": "完全访问",
   "capabilityAuthDisabled": "彻底关闭",
   "capabilityAuthAskDesc": "每次调用前都先问你",
+  "capabilityAuthAskMobileUseDesc": "每轮任务问一次；进入支付等敏感应用后每步都问",
   "capabilityAuthFullDesc": "不再逐次询问",
   "capabilityAuthDisabledDesc": "模型看不到这个能力",
   "capabilitySystemGranted": "系统权限已授予",
