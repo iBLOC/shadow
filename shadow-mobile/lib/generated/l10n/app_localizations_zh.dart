@@ -628,9 +628,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get capOcr => '文字识别';
 
   @override
-  String get capImageGen => '图片生成';
-
-  @override
   String get providersTitle => '大模型服务提供商';
 
   @override
@@ -1104,11 +1101,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get encephalonInferFailed => '推理失败';
 
   @override
-  String get encephalonModelSourceTitle => '默认模型';
+  String get encephalonModelSourceTitle => '大脑模型来源';
 
   @override
   String get encephalonModelSourceHint =>
-      '每一类模型各选各的，互不影响 —— 对话可以走云端，语音识别留在本地。叶区默认跟随这里的对话模型，也可以在下面单独指定。';
+      '全局默认：各叶区都用这个来源。也可以在下面的「叶区模型路由」里单独覆盖某个叶区。';
 
   @override
   String get encephalonModelLocalNeuron => '本地 neuron 权重';
@@ -1126,6 +1123,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get encephalonModelOptionsUnavailable => '读不到大脑的供应商目录 —— 大脑可能没在跑。';
 
   @override
+  String get capabilityDefaultsTitle => '按能力分档的默认模型';
+
+  @override
+  String get capabilityDefaultsHint => '文本 / 语音识别 / 语音合成 各自一个默认模型；不指定就由端脑自己挑。';
+
+  @override
   String get capabilityDefaultsAppliedButNotCached =>
       '已下发到大脑，但本地副本没存住 —— 重启后这一档会回到默认。';
 
@@ -1134,26 +1137,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get capabilityDefaultsEmpty => '这台大脑没有暴露任何能力档位。';
-
-  @override
-  String get brainChatModelLabel => '对话模型';
-
-  @override
-  String get brainModelBadgeLocal => '本地';
-
-  @override
-  String get brainModelBadgeCloud => '云端';
-
-  @override
-  String brainTiersNotReadNote(String tiers) {
-    return '$tiers：大脑目前不读取这几类的默认模型，暂不提供选择。';
-  }
-
-  @override
-  String get brainLobeSectionHint => '每个叶区默认跟随上面的对话模型，也可以单独指定。语音等其他类别目前只有全局默认。';
-
-  @override
-  String get brainLobeListEmpty => '这台大脑没有可单独指定模型的叶区。';
 
   @override
   String get encephalonLobeRoutingTitle => '叶区模型路由';
@@ -2026,9 +2009,4 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get providersDownloadEmpty => '大脑没有返回模型目录';
-
-  @override
-  String clientToolsImageGenerated(int count, String size) {
-    return '已生成 $count 张图片（$size），已展示给用户。';
-  }
 }

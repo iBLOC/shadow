@@ -1,3 +1,31 @@
+**Updated**: 2026-11-12 (㌣ **「会话列表第一次知道『正在跑什么』—— 而全量测试的 -5 里没有一条是本体的」** —— 本条记**取证（两编译 error 成因＋归属实验 5 条失败逐条排除）**、**判据（运行徽章＋工具轨迹两格）**、**途中那几课（构造式提交的名单是时态的）**、**判据与分级读数**，以及**仍然欠着的**.
+> 信封：epoch=2026-11-12 | authority=measured | scope=project | source=主仓 analyze（error 2→0、61→57 条＝存量基线）＋ gen-l10n EXIT=0 ＋ 定向单测 chat_provider_tool_test 扩展后 +32 绿 ＋ 主 WT 全量 flutter test 归属实验（+807 ~12 **-5**；worktree（裸 HEAD 2356e2d＋本刀）复测同一测试文件仍 -4 ⇒ 4 例为 HEAD notificationsRead 刀既存尾账、第 5 例只在主 WT ⇒ 兄弟在飞 imageGen 第 7 能力 ⇒ 5 条全非本体）＋ worktree 承载级全绿（analyze 57 条 0 error／定向 +32）｜ 改动：chat_provider（轨迹累积＋轮末 ingestTrace，成功轮末＋catch 双落点）＋ conversation_screen（列表徽章接线）＋ capability_i18n（capabilityToolShortLabel 人话短词表）＋ telencephalon_client（ingestTrace 走 _adminPost /api/flows/traces/ingest）＋ arb×2（running／runningTool 两键）＋ generated l10n×3（gen-l10n 重生成）＋ **新增** lib/widgets/conversation_running_badge.dart ＋ test/unit/chat_provider_tool_test.dart 扩展 ＋ AGENTS.md 本条 ⇒ ⇒ **13 个文件（1 个新增）** ⇒ ⇒ 零 ci.yml 改动 ＋ 不碰兄弟在飞面 | status=active | supersedes=none
+
+① **⚠️ 取证：两处编译 error 的成因 ＋ 全量测试 -5 的归属**
+　❶ error 1：_flushToolTrajectory 签名带 sessionId 而两处调用不传 ⇒ 修法＝签名去掉该参数；error 2：chat.toolCalls 字段无人维护 ⇒ 修法＝**从 chat.messages 派生**（_runningBadgeLabel 接收 messages，whereType<ToolCallModel> 挑工具卡）⇒ ⇒ 派生优于双写：少一份要同步的状态。
+　❷ **归属实验（决定性）**：主 WT 全量 flutter test ＝ +807 ~12 **-5**，失败全在 capability_grants_section_test ⇒ 同一文件在 worktree（裸 HEAD＋本刀）复测**仍 -4** ⇒ ⇒ 4 例是 HEAD 上 notificationsRead 刀的既存尾账（「五个能力各一行」标题过期＋findsNWidgets 计数错位）；第 5 例**只在主 WT** ⇒ 兄弟在飞 imageGen 第 7 能力 ⇒ ⇒ **5 条全与本体无关**。
+
+② **✅ 判据（徽章＋轨迹两格）**
+　❶ **徽章**：运行中的会话在列表页显示「运行中 · {{tool}}」（arb runningTool 键）＋呼吸圆点；工具词走 capabilityToolShortLabel 人话短词表，表外回退工具名原文。
+　❷ **轨迹**：行形状 {tool, ok, at(UTC ISO)}；**成功与失败都喂**（unsupported 工具记失败一行）；轮末＝成功轮末＋catch 双落点；fire-and-forget 不阻塞 UI；载荷 {source, trajectory, user_input?, intent_signature?} 走 /api/flows/traces/ingest。
+
+③ **⚠️ 途中那几课**
+　❶ **构造式提交的「纯我名单」是时态的**：chat_provider 在量完 numstat 之后被兄弟写入 image-gen hunk 一次 ⇒ 整文件 hash-object 会替别人提交半成品 ⇒ 回滚 HEAD 重过滤（7 hunks 保 6 拍 1）⇒ ⇒ 提交前一刻必须重验，黑名单终扫放最后（全 worktree 终扫 0 命中）。
+　❷ **全量测试的红要先归属再下手**：-5 里 4 例既存尾账＋1 例兄弟在飞 ⇒ 不归属就会「顺手修别人的账」或「被别人的红吓停」。
+
+④ **✅ 判据与分级读数（全部实测）**
+　❶ **判据级**：gen-l10n EXIT=0；主仓 analyze 61→57 条（error 2→0，57＝存量基线）；定向单测扩展后 +32 绿。
+　❷ **承载级**：worktree（钉 HEAD 2356e2d＋本刀 11 改动文件＋1 新增）gen-l10n EXIT=0／analyze 57 条 0 error／定向 +32。
+　❸ **归属级**：见 ①❷（5 条失败全非本体）。
+　❹ **真 CI 级**：**待取**（未 push）。
+
+⑤ **⚠️ 仍然欠着的**
+　❶ capability_grants_section_test 4 例既存尾账归属 notificationsRead 刀，本刀不代改；第 5 例随兄弟 imageGen 刀落地。
+　❷ 徽章工具词短词表只覆盖移动端；桌面端徽章暂用工具名原文（桌面端另条）。
+　❸ 真 CI 读数待取。
+
+⑨ **⚠ 圈码：本条占 U+3323 (㌣)** —— 号是按**官方口径**在**提交树面**取的（闸 --next：移动端水位 U+3322 ⇒ 候选头一个 U+3323；桌面端候选头一个同号 ⇒ 让位取下一个，见下条）⇒ ⇒ 方块字由 String.fromCodePoint 生成，不手打.
+
 **Updated**: 2026-11-12 (㔕 **「图片生成的四块零件早就都在 —— 缺的是中间三段管子：端脑没有那一档词、没有那张分流门面、两端没有那双看图的手」** —— 承 U+3500 条（失败长得像成功）＋ U+3508 条（取号读数必须带面），本条记**取证（四块零件的逐一盘点 ＋ 缺口清单）**、**第一因（能力词表的单一真源缺档 ⇒ 两端全瞎）**、**第二因（门面分流照 voice 先例：调用者是设备 ⇒ admin 门，不是主人门）**、**第三因（目录条目的能力词是引擎名 ⇒ 按 engine_impl 家族标注；parse 是 feature 门控不能用）**、**这一刀的落点（两仓 ＋ 零 neuron／零 synapse）**、**途中那几课**、**判据与分级读数**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-12 | authority=measured | scope=project | source=全链盘点逐字（neuron `src/imagegen/`：`POST /v1/images/generations`（OpenAI Images 形状、b64_json、同步）＋ `ImageGenRuntimeRegistry` ＋ 目录条目 `cap("candle","moss-image",…,ApiStyle::openai_images())` 已在，且 neuron 路由被端脑 merge 在根上 ⇒ 端点已可达；synapse `catalog.rs:483` `infer_capability` 对 dall-e/cogview/seedream/flux 等已标 `image_gen`（测试钉死）＋ 端脑 `lobes/manifest.rs` Capability 枚举 8 档无 image_gen ＋ 端脑 `api/providers.rs` 只有 `/chat/completions` 代理 ＋ 两端客户端 grep 图片生成零命中 ＋ 桌面 `modelDownloadService` 是 GGUF＋IndexedDB（装不下 ~27GB 多文件 candle 仓库））＋ neuron `handlers.rs:414-539`（请求/响应/翻译纯函数逐字）｜ 改动：**telencephalon**（`src/lobes/manifest.rs` 词表 8→9 ＋ `ENGINE_RESOLVED` 2→3 ＋ `src/api/images.rs` 新门面 ＋ `src/api/mod.rs` 接线 ＋ `src/api/providers.rs` 两个复用访问器 ＋ `src/neuron_embed.rs` 内置条目按 `engine_impl` 家族标注 `image_gen` ＋ `src/api/door_policy.txt` admin 开口 ＋ 单测 7 条）＋ **shadow**（桌面 `telencephalonClient.generateImage` ＋ `agentCapabilities` 标签 ＋ `clientTools.generate_image` ＋ `ToolCallMessageCard` 图片内联 ＋ `NeuronCatalogCard` 目录下载面 ＋ i18n 两份 ＋ 端点清单 5 行 ＋ vitest 10 条；移动 `capability_labels` ＋ arb 两份＋gen-l10n ＋ `telencephalon_client.generateImage` ＋ 注册表工具 ＋ `tool_call_card` 图片块 ＋ chat_provider 接线 ＋ 测试 8 处调用点补参 ＋ 新测 9 条）⇒ ⇒ **零 neuron 改动 ＋ 零 synapse 改动 ＋ 零 ci.yml 改动** ｜ 读数：端脑 lib **852 过 / 1 红**（那 1 红＝兄弟在飞件 `lobe_runtime.rs` 的存量断言，非本线）＋ 本线定向 **7/7** ＋ 桌面 vitest **1572 绿**（+10）＋ `tsc -b` EXIT=0 ＋ 四闸全绿（tools 阻断 0 ／ endpoint-map ／ provider-parity ／ i18n 951/951）＋ 移动 analyze **0 error** ＋ 移动定向 **9/9** ＋ 移动全量见⑤⑦ ｜ 真 CI 待取 | status=active | supersedes=none

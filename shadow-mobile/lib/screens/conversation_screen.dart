@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../router/app_router.dart';
 import '../providers/chat_provider.dart';
+import '../services/capabilities/capability_i18n.dart';
+import '../services/client_tools/client_tool_registry.dart';
+import '../widgets/conversation_running_badge.dart';
 import '../providers/telencephalon_provider.dart';
 import '../services/telencephalon/telencephalon_client.dart';
 import '../widgets/glass_card.dart';
@@ -319,10 +322,26 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
       itemCount: state.conversations.length,
       itemBuilder: (context, index) {
         final conv = state.conversations[index];
+        // ⚠️ **运行状态从这里来** —— 正在跑的那条会话（当前 ChatNotifier
+        // 绑定的会话）在列表条目上显示「运行中 · 工具」徽章；其他会话
+        // 不受影响（客户端只知道本机的运行状态，别的设备照旧）。
+        final chat = ref.watch(chatProvider);
+        final isRunning =
+            chat.sessionId == conv.id &&
+            (chat.isLoading || chat.streamingText.isNotEmpty);
+        String? runningBadge;
+        if (isRunning) {
+          final l10n = AppLocalizations.of(context)!;
+          final tool = _runningBadgeLabel(context, chat.messages);
+          runningBadge = tool == null
+              ? l10n.conversationRunning
+              : '${l10n.conversationRunning} · $tool';
+        }
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: _ConversationCard(
             conversation: conv,
+            runningBadge: runningBadge,
             onArchive: () => _runAction(
               context,
               ref,
@@ -342,6 +361,32 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen>
         );
       },
     );
+  }
+
+  /// 「正在执行的工具」的人话短标签 —— 取**最后一张还没落定**的
+  /// 工具卡片（running／awaitingApproval）；全落定了就返回 null
+  /// ⇒ 徽章退化为纯「运行中」。
+  String? _runningBadgeLabel(
+    BuildContext context,
+    List<ChatMessageModel> messages,
+  ) {
+    // 工具卡片住在 ~messages~ 里（ChatMessageModel.toolCall）——
+    // ChatState 没有独立的 toolCalls 列表 ⇒ 从消息流里挑出来。
+    final calls =
+        messages.map((m) => m.toolCall).whereType<ToolCallModel>().toList();
+    for (final call in calls.reversed) {
+      if (call.status == ToolCallStatus.running ||
+          call.status == ToolCallStatus.awaitingApproval) {
+        final cap = call.capability;
+        if (cap == null) return call.name;
+        return capabilityToolShortLabel(
+          AppLocalizations.of(context)!,
+          cap,
+          toolName: call.name,
+        );
+      }
+    }
+    return null;
   }
 
   /// 跑一个会改状态的动作 —— **失败要说真话**。
@@ -442,11 +487,15 @@ class _ConversationCard extends StatelessWidget {
   final VoidCallback onUnarchive;
   final VoidCallback onDelete;
 
+  /// **运行中徽章**（「运行中 · 读屏」）—— 只有正在跑的那条会话非空。
+  final String? runningBadge;
+
   const _ConversationCard({
     required this.conversation,
     required this.onArchive,
     required this.onUnarchive,
     required this.onDelete,
+    this.runningBadge,
   });
 
   @override
@@ -480,6 +529,11 @@ class _ConversationCard extends StatelessWidget {
                 ),
                 // ⚠️ 归档标记**摆出来** —— 否则用户进归档箱也不知道
                 // 哪些是归档的（而默认列表里它们直接消失 ⇒ 像是丢了）。
+                if (runningBadge != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: RunningToolBadge(label: runningBadge!),
+                  ),
                 if (conversation.archived)
                   Padding(
                     padding: const EdgeInsets.only(top: 4),

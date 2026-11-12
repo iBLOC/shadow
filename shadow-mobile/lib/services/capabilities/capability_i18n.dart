@@ -79,6 +79,35 @@ String capabilityRequestText(
   }
 }
 
+/// 工具 → **徽章上的短动作词**（「读屏」「点击」…）。
+///
+/// ⚠️ 与 [capabilityRequestText] 的区别：那是点头前的**请求句**
+/// （「要读取你手机屏幕上的内容」），这是**正在执行**的**短标签**
+/// ⇒ ⇒ 徽章空间小，一词最好。非 mobileUse 的能力直接用能力名。
+String capabilityToolShortLabel(
+  AppLocalizations l10n,
+  Capability capability, {
+  String? toolName,
+}) {
+  if (capability == Capability.mobileUse) {
+    switch (toolName) {
+      case 'mobile_read_screen':
+        return l10n.conversationToolReadScreen;
+      case 'mobile_tap':
+        return l10n.conversationToolTap;
+      case 'mobile_long_press':
+        return l10n.conversationToolLongPress;
+      case 'mobile_swipe':
+        return l10n.conversationToolSwipe;
+      case 'mobile_find_and_click':
+        return l10n.conversationToolFindAndClick;
+      case 'mobile_global_action':
+        return l10n.conversationToolGlobalAction;
+    }
+  }
+  return capabilityLabel(l10n, capability);
+}
+
 /// 能力 → 「要读的是哪一段」的参数摘要。
 ///
 /// ⚠️ 原来的卡片把参数按 `key: value` 原样摊出来 ⇒ ⇒ 用户看到的是

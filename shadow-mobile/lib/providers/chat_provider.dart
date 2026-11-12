@@ -1323,11 +1323,6 @@ final chatProvider = StateNotifierProvider<ChatNotifier, ChatState>((ref) {
       // ⇒ ⇒ `watch` 会把**整段对话**冲掉（那是对话的状态，不是地址的）。
       fetchSurfaceEvents: (view) =>
           ref.read(genUIAgentServiceProvider).fetchSurfaceEvents(view),
-      // 图片生成的**纯运输**那一半 —— 地址 / 影子锁 / admin token 都在
-      // telencephalonClientProvider 里配好了（门是 admin，client 两把都带）。
-      // 同样 `read` 不 `watch`（理由同上）。
-      generateImage: (body) =>
-          ref.read(telencephalonClientProvider).generateImage(body),
     ),
     // ⚠️ **档位在调用时才读** —— 用户随时能在设置里改档位
     // ⇒ ⇒ 改完立刻生效，不需要重建 ChatNotifier（那会把对话冲掉）。

@@ -30,7 +30,25 @@ class ToolMockClient extends TelencephalonClient {
   /// （静态 events 是一次性 yield，做不出「收到结果才发下一条」）。
   Stream<StreamEvent>? streamOverride;
 
+  /// 「思维定式」ingest 调用的记录（测试断言用）。
+  final List<Map<String, dynamic>> ingestCalls = <Map<String, dynamic>>[];
+
   ToolMockClient(this.events) : super(baseUrl: 'http://127.0.0.1:60080');
+
+  @override
+  Future<void> ingestTrace({
+    required String source,
+    required List<Map<String, dynamic>> trajectory,
+    String? userInput,
+    String? intentSignature,
+  }) async {
+    ingestCalls.add(<String, dynamic>{
+      'source': source,
+      'trajectory': trajectory,
+      'user_input': userInput,
+      'intent_signature': intentSignature,
+    });
+  }
 
   @override
   Future<Conversation> createConversation({
@@ -682,6 +700,102 @@ void main() {
         expect(isSensitiveForegroundPackage('com.unionpay'), isTrue);
         expect(isSensitiveForegroundPackage('com.example.notes'), isFalse);
         expect(isSensitiveForegroundPackage(null), isFalse);
+      });
+    });
+
+  group('历史工具记录：轮末喂「思维定式」（traces/ingest）', () {
+      Future<void> waitForStatus(
+        ChatNotifier notifier,
+        ToolCallStatus status,
+      ) async {
+        for (var i = 0; i < 200; i++) {
+          final call = lastToolCall(notifier);
+          if (call != null && call.status == status) return;
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+        }
+        fail('1 秒内没等到状态 $status');
+      }
+
+      ClientToolRegistry trajectoryTools(List<Map<String, dynamic>> executed) {
+        return ClientToolRegistry([
+          ClientTool(
+            name: 'mobile_tap',
+            description: 'Tap a point.',
+            capability: Capability.mobileUse,
+            execute: (args) async {
+              executed.add(args);
+              return <String, dynamic>{'tapped': true};
+            },
+          ),
+          ClientTool(
+            name: 'mobile_boom',
+            description: 'Always fails.',
+            capability: Capability.mobileUse,
+            execute: (args) async => throw Exception('boom'),
+          ),
+        ]);
+      }
+
+      test('一轮带工具调用（一成一败）⇒ 轮末 ingest 一次，轨迹形状正确', () async {
+        final executed = <Map<String, dynamic>>[];
+        final controller = StreamController<StreamEvent>();
+        final client = ToolMockClient(const [])..streamOverride = controller.stream;
+        final notifier = ChatNotifier(
+          MockTts(),
+          client,
+          clientTools: trajectoryTools(executed),
+        );
+        final done = notifier.generateResponse('帮我点一下屏幕');
+        controller.add(StreamEvent(
+          type: 'tool_call',
+          name: 'mobile_tap',
+          toolCallId: 't1',
+        ));
+        await waitForStatus(notifier, ToolCallStatus.awaitingApproval);
+        await notifier.approveToolCall('t1');
+        await waitForSettled(notifier);
+        // 第二条：已授权 ⇒ 自动放行；它抛异常 ⇒ ok:false。
+        controller.add(StreamEvent(
+          type: 'tool_call',
+          name: 'mobile_boom',
+          toolCallId: 't2',
+        ));
+        await waitForSettled(notifier);
+        controller.add(StreamEvent(type: 'delta', delta: '好了'));
+        await controller.close();
+        await done;
+
+        expect(client.ingestCalls, hasLength(1));
+        final call = client.ingestCalls.single;
+        expect(call['source'], 'agent:shadow-mobile');
+        expect(call['user_input'], '帮我点一下屏幕');
+        expect(call['intent_signature'], isNotEmpty);
+        final steps = call['trajectory'] as List;
+        expect(steps, hasLength(2));
+        expect(steps[0]['tool'], 'mobile_tap');
+        expect(steps[0]['ok'], isTrue);
+        expect(steps[1]['tool'], 'mobile_boom');
+        expect(steps[1]['ok'], isFalse);
+        expect((steps[0] as Map).containsKey('at'), isTrue);
+      });
+
+      test('无工具的轮不上报（轨迹为空 ⇒ 静默跳过）', () async {
+        final controller = StreamController<StreamEvent>();
+        final client = ToolMockClient(const [])..streamOverride = controller.stream;
+        final notifier = ChatNotifier(MockTts(), client);
+        final done = notifier.generateResponse('今天天气怎么样');
+        controller.add(StreamEvent(type: 'delta', delta: '晴'));
+        await controller.close();
+        await done;
+
+        expect(client.ingestCalls, isEmpty);
+      });
+
+      test('意图签名：同句同键；标点空白不参与；长句截到 40', () {
+        expect(intentSignatureOf('帮我 点一下！'), intentSignatureOf('帮我点一下'));
+        expect(intentSignatureOf(null), '');
+        expect(intentSignatureOf('a' * 100).length, 40);
+        expect(intentSignatureOf('点一下，谢谢'), intentSignatureOf('点一下谢谢'));
       });
     });
 
