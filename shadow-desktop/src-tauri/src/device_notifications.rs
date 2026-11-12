@@ -42,6 +42,9 @@ pub(crate) fn unix_ms_from_winrt(ticks: i64) -> i64 {
 /// ⚠️ 刻意不用正则（多层拼接的代码路径上转义字符会被逐层吃掉 ——
 /// 台账 U+350B 条的教训）⇒ 手写扫描，零反斜杠。
 /// 模板形状：`<binding template="ToastGeneric"><text>标题</text><text>正文</text></binding>`。
+///
+/// ⚠️ 真机实测（Win11 26300）：通知平台把 `Template()` 收成**模板名**（如 "ToastGeneric"）⇒
+/// XML 不再给 ⇒ 本函数退居**回退路径**（老 build 兜底）；主路径见 win::texts_from_binding。
 #[cfg_attr(not(windows), allow(dead_code))]
 pub(crate) fn extract_text_values(template: &str) -> Vec<String> {
     let mut out = Vec::new();
@@ -108,10 +111,41 @@ fn xml_unescape(s: &str) -> String {
 #[cfg(windows)]
 mod win {
     use super::{build_title_and_text, extract_text_values, unix_ms_from_winrt, NotificationEvent};
+    use windows::UI::Notifications::NotificationBinding;
     use windows::UI::Notifications::NotificationKinds;
     use windows::UI::Notifications::Management::{
         UserNotificationListener, UserNotificationListenerAccessStatus,
     };
+
+    /// 从一个 binding 里提文本 —— 真机修法（Win11 26300 实测）：
+    /// `Template()` 只回**模板名**（如 "ToastGeneric"），XML 不给 ⇒ 旧路径（解析模板 XML）永远空；
+    /// 文本在 `GetTextElements()` 解析好的元素里（`AdaptiveNotificationText.Text()`，
+    /// windows-rs 0.61 里方法在**类**结构体上，直调即可，不必 cast 接口）。
+    /// 元素拿不到 / 为空 ⇒ 回退旧 XML 路径（老 build 上 Template() 可能给全文）。
+    fn texts_from_binding(binding: &NotificationBinding) -> Vec<String> {
+        if let Ok(elements) = binding.GetTextElements() {
+            if let Ok(count) = elements.Size() {
+                let mut out = Vec::with_capacity(count as usize);
+                for i in 0..count {
+                    if let Ok(el) = elements.GetAt(i) {
+                        if let Ok(t) = el.Text() {
+                            let s = t.to_string();
+                            if !s.trim().is_empty() {
+                                out.push(s);
+                            }
+                        }
+                    }
+                }
+                if !out.is_empty() {
+                    return out;
+                }
+            }
+        }
+        match binding.Template() {
+            Ok(template) => extract_text_values(&template.to_string()),
+            Err(_) => Vec::new(),
+        }
+    }
 
     /// 读通知中心里**当前还在**的通知（按创建时间倒序，取前 limit 条）。
     ///
@@ -181,10 +215,7 @@ mod win {
                 let binding = bindings
                     .GetAt(b as u32)
                     .map_err(|e| format!("无法读取第 {b} 个 binding：{e}"))?;
-                let template = binding
-                    .Template()
-                    .map_err(|e| format!("无法读取通知模板：{e}"))?;
-                values.extend(extract_text_values(&template.to_string()));
+                values.extend(texts_from_binding(&binding));
             }
             let (title, text) = build_title_and_text(&values);
             rows.push((unix_ms_from_winrt(created.UniversalTime), id, title, text, app_name));

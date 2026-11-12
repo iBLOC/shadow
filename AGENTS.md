@@ -1,3 +1,37 @@
+**Updated**: 2026-11-12 (㔔 **「桌面端通知的 title/text 在真面上一直是空的 —— 提取路径走进了一扇『模板名化』之后的门」** —— 承 U+3513 条（第 1 刀：两端读取通知）＋ U+3500 条（失败长得像成功），本条记**取证（真机探针逐字 ＋ 受控 toast A/B 端到端）**、**第一因（Template() 的新契约是模板名 ⇒ 解析 XML 的旧路径永远空）**、**第二因（windows-rs 0.61 的方法在类上不在接口上）**、**这一刀的落点**、**判据与分级读数**，以及**仍然欠着的**.
+> 信封：epoch=2026-11-12 | authority=measured | scope=project | source=真机探针逐字（Win11 build 26300，unpackaged，ACCESS=Allowed：8 条真实通知每条 bindings=1 ＋ Template() ＝ "ToastGeneric" 恰 12 字符模板名 ＋ Hints 恰 1 条 hint-originalTemplate 保留原模板名（ToastText02 也在）＋ GetTextElements 每条 2 元素且 Text() 逐字回真实标题正文）＋ 受控 toast A/B（PowerShell AUMID 发 MCodeProbeTitle777/MCodeProbeBody888 ⇒ 修复后 read_events 最新一条 title/text 逐字回填）＋ 绑定源码逐字（windows-0.61.3：define_interface! 只造结构体＋Vtbl＋IID ⇒ 接口结构体零方法；AdaptiveNotificationText 类结构体合并默认接口全部方法）＋ 修复前后同一 read_events 红绿对照（修前 5 条全空 ⇒ 修后 5 条全回填）＋ 单测 --include-ignored 5/5 EXIT=0（4 纯函数 ＋ 1 探针）｜ 改动：shadow-desktop/src-tauri/src/device_notifications.rs（新增 win::texts_from_binding：GetTextElements → Text() 收集，空/错 ⇒ 回退 Template() XML 路径；read_events 改走它；extract_text_values 注明回退身份）＋ AGENTS.md 本条 ⇒ ⇒ **2 个文件** ⇒ ⇒ 零新增文件 ＋ 零新增依赖 ＋ 零 ci.yml 改动 ＋ 不碰兄弟在飞面（探针 #[ignore] 测试跑完即还原不落仓；两个临时 ps1 用完顶层 rm）｜ 读数：见⑤ ｜ 真 CI 待取 | status=active | supersedes=none
+
+① **⚠️ 取证：Template() 只给模板名，文本换到了 GetTextElements() 这扇门**
+　❶ 真机探针逐字（8 条真实通知逐条）：bindings=1；binding.Template() ＝ **"ToastGeneric"（恰 12 字符的模板名，不是 XML）**；Hints 恰 1 条 ＝ hint-originalTemplate（老模板 ToastText02 的原始名也保留在这）⇒ ⇒ **通知平台在新 build 上把模板 XML 收成了模板名** ⇒ 第 1 刀的提取路径（解析 <text> XML）在这一面上**永远空**。
+　❷ GetTextElements() 每条回 **2 个元素**，el.Text() 逐字回真实内容（例：「排查移动端与桌面端供应商添加不一致」／「等待你的确认」；ToastText02 老模板那条回「任务已完成」／「整理简历并增加bevy虚拟形象」）⇒ ⇒ **文本一直都在，只是换了个门** ⇒ 修前「title/text 全空」的定性被当场证伪为「提取门走错」，不是「没有文本」。
+　❸ 受控 A/B（端到端）：PowerShell AUMID 发内容已知的 toast ⇒ 修复后 read_events（**产品代码路径**）最新一条逐字命中 MCodeProbeTitle777 ／ MCodeProbeBody888 ⇒ ⇒ 不是探针特调，是命令真跑出来的。
+
+② **⚠️ 第一因：Template() 的新契约是模板名 ⇒ 「失败长得像成功」**
+　❶ 旧路径空串不报错 ⇒ 读起来像「这条通知没有文本」⇒ 实际是「提取门走错」⇒ ⇒ 承 U+3500 条又一格：**降级必须可辨**（真没有文本＝空是如实；拿得到却拿丢了＝空是说谎）⇒ 这一刀把「说谎」那一格修掉了。
+　❷ ⇒ ⇒ 方法论一格：定性之前先做**受控实验**（发已知内容再读回）——「平台拿不到文本」的初步定性差一步就被真面读数推翻。
+
+③ **⚠️ 第二因（途中）：windows-rs 0.61 的方法在「类」上不在「接口」上**
+　❶ cast 到 IAdaptiveNotificationText 再调 Text() ⇒ E0599：define_interface! 只造 #[repr(transparent)] 结构体 ＋ Vtbl ＋ IID ⇒ **接口结构体零方法**；AdaptiveNotificationText **类**结构体合并了默认接口全部方法（Text／SetText／Language／SetLanguage／Kind／Hints）⇒ ⇒ 直调 el.Text() 即可。
+　❷ ⇒ ⇒ 通用形态：**找方法先问「这个类型是运行时类还是接口」** —— 类＝默认接口方法已合并；接口＝只有 vtbl（windows-core 0.61 的 Interface::vtable／as_raw 仍可达）⇒ 探针当时卡住的那格 E0599 是「问错了对象」。
+
+④ **✅ 这一刀的落点（2 个文件 ＋ 零新增文件 ＋ 零新增依赖 ＋ 零 ci.yml 改动）**
+　❶ device_notifications.rs：新增 win::texts_from_binding —— GetTextElements → 逐元素 Text() 收集（空串跳过），**空/错 ⇒ 回退** extract_text_values(Template())（老 build 上 XML 可能还给全文，回退兜底）；read_events 的 binding 循环改走它；extract_text_values 与 build_title_and_text 两纯函数与 4 组单测**原样保留**（回退路径仍被测着）。
+　❷ AGENTS.md：本条（U+3514），以 HEAD blob（1885b584，水位 U+3513）为基底顶部纯插入 ⇒ 提交按独立索引 ＋ commit-tree -p ＋ update-ref 带 CAS（基准＝取号脚本读到的 HEAD 1885b5845264de59fb84c00bf77dbd8738ad6ebf）⇒ 共享索引只对齐本刀两条路径。
+　❸ 探针（#[ignore] windows_real_machine_probe）跑完即还原不落仓 ⇒ 本刀提交里没有它；tmp_probe_notify.ps1 ／ tmp_send_toast.ps1 用完顶层 rm。
+
+⑤ **✅ 判据与分级读数（全部实测）**
+　❶ **判据级**：落仓内容 cargo test --lib device_notifications **4/4 EXIT=0**（纯函数与回退路径）；含探针的全量读数 **5/5 EXIT=0**（--include-ignored）。
+　❷ **真面级（本刀决定性读数）**：同一 read_events 修前 5 条 title/text **全空** ⇒ 修后 **5 条全部回填**（含受控 toast 逐字命中；真实通知如「添加长按消息复制撤销并合并语音模式」「开工」「任务已完成／整理简历并增加bevy虚拟形象」）⇒ ⇒ 红绿对照闭合。
+　❸ **闸级**：码位闸三面零违规 EXIT=0（提交后另跑回填）；跨端对齐闸不受影响（字段名／schema 未动）。
+　❹ **真 CI 级**：**待取**（推 origin 后回填）。
+
+⑥ **⚠️ 仍然欠着的**
+　❶ **Android 真机**的授权流 ＋ 服务连接态验证（本机无法替代）⇒ 第 1 刀移动端半边仍缺真机读数。
+　❷ **第 2 刀**（encephalon/diencephalon：通知事件作为 IngestSource 挂 AcpBus topic="data.event"）＋ **第 3 刀**（telencephalon 评估门）跨仓改动 ⇒ **待用户授权**（只读取证已毕：Thalamus／IngestSource／RingBuffer ＋ AcpEnvelope topic 通道都在）。
+　❸ 「Template() 模板名化」是**系统版本相关**的平台行为 ⇒ 老 build 分布未取证（回退路径兜着）。
+
+⑨ **⚠ 圈码：本条占 U+3514 (㔔)** —— 号是按**官方口径**在**提交树面**取的（取样时刻 2026-11-12T05:09:14.434Z ｜ HEAD 1885b584 ⇒ 父仓水位 U+3513 ⇒ 候选头一个 U+3514）⇒ ⇒ 方块字由 String.fromCodePoint 生成，不手打。
+
 **Updated**: 2026-11-12 (㔓 **「两端第一次能读设备通知 —— 『按元数据记忆写的 WinRT 面』两把 cargo check 才绿，绑定源码才是唯一判据」** —— 本条是「读取设备通知」三刀里的**第 1 刀**（两端能力＋共享工具）；承 U+3509 条（谁在那个面上调它）＋ U+3500 条（失败长得像成功），本条记**取证（两端现状＋用户的感知模式设计）**、**设计判据（五格）**、**这一刀的落点（24 个文件）**、**途中那几课（windows-rs 0.61 四课＋AppInfo 事实订正＋计数闸）**、**判据与分级读数**，以及**仍然欠着的**.)
 > 信封：epoch=2026-11-12 | authority=measured | scope=project | source=官方绑定面逐字（windows-0.61.3 生成源码：UI/Notifications/Management/mod.rs ＋ UI/Notifications/mod.rs 的 pub fn／impl const 清单）＋ 跨端对齐闸（阻断 0）＋ 真编译两把 cargo check（2 错 → 4 错 → 0）＋ 两端单测（Dart 全量 unit 428 绿 0 红／Rust --lib device_notifications 4/4）｜ 改动：移动端 18（Kotlin 3 其中 1 新增＋Dart lib 8 含 arb 2＋gen-l10n 3＋测试 4 其中 1 新增）＋ 桌面端 5 其中 1 新增（Rust 2＋Cargo.toml＋lib.rs＋TS 2）＋ AGENTS.md 本条 ⇒ ⇒ **24 个文件（3 个新增）** ⇒ ⇒ 零 ci.yml 改动 ＋ 不碰兄弟在飞面（兄弟在飞：AGENTS.md 工作树面／playwright 报告／桌面 i18n／移动端 task 板面等，本刀零混入）｜ 读数：见⑦ ｜ 真 CI 待取 | status=active | supersedes=none
 
