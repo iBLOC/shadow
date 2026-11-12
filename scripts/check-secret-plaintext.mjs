@@ -231,6 +231,18 @@ export const KNOWN_DEBT = [
     why: '⚠️ **已知假红**：写出去的是**密文**（`encryptor.encrypt(&json)`）⇒ ⇒ 不是材料；但探测器的链追到了「password」⇒ ⇒ 它证明不了 ⇒ ⇒ 登记在册',
     when: '—— ⚠️⚠️ **另有一笔真问题，闸抓不到**：`with_data_dir` 用的默认密码是 `sha256("synapse-default-key")`（**源码里的常量**）⇒ ⇒ ⇒ 「加密」可被任何人还原 ⇒ ⇒ ⇒ 那条路要么换成真钥匙环，要么别用',
   },
+  // ---- encephalon（2026-11-12 补进覆盖面实测露出的最后一条 fresh）----
+  // ⚠️ **宿主密钥生成器本体**（台账 U+3519 条⑧段）：`ensure_secret()` 的
+  // 「读或生成」把 shadow.key／admin.key 落在 dataDir 根（Unix 0600 已设）——
+  // 文件本身就是密钥存放处，是设计而非泄漏；桌面同责实现 admin_token.rs 已在册。
+  {
+    repo: 'encephalon',
+    file: 'src/mobile/host.rs',
+    kind: 'file',
+    count: 1,
+    why: '宿主密钥生成器本体：ensure_secret() 读或生成 shadow.key／admin.key 写进 dataDir 根（0600 已设）—— 命中的是「密钥存放处本身」而非「把密钥写进普通文件」；与桌面 admin_token.rs（P2c 在册）同责同债',
+    when: 'P2c（同 admin_token 族：搬平台钥匙环 / OS Keychain）—— 手机侧真钥匙环落地时与桌面族一起销',
+  },
 ];
 
 /**
@@ -922,3 +934,4 @@ function main(argv) {
 }
 
 main(process.argv.slice(2));
+
