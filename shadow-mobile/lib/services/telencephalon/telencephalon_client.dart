@@ -1255,6 +1255,23 @@ class TelencephalonClient {
     return FlowRunResult.fromJson(json);
   }
 
+  /// 把**本机真实跑出来的**工具轨迹喂给端脑的「思维定式」闭环
+  /// （POST /api/flows/traces/ingest）—— learner 会把成功轨迹蒸馏成
+  /// flow 草稿（人工 promote/reject 后成为可复用的思维定式）。
+  /// ⚠️ 失败轨迹也照喂（轨迹行里 `ok: false`）—— 意图检索要能
+  /// 避开已知的失败路径、复用成功的。
+  Future<void> ingestTrace({
+    required String source,
+    required List<Map<String, dynamic>> trajectory,
+    String? userInput,
+    String? intentSignature,
+  }) async {
+    final body = <String, dynamic>{'source': source, 'trajectory': trajectory};
+    if (userInput != null) body['user_input'] = userInput;
+    if (intentSignature != null) body['intent_signature'] = intentSignature;
+    await _adminPost('/api/flows/traces/ingest', body);
+  }
+
   bool _looksLikeFlowId(String s) {
     if (s.isEmpty) return false;
     final uuidLike = RegExp(
@@ -1864,6 +1881,25 @@ class TelencephalonClient {
     }
   }
 
+  // =========================================================================
+  // 图片生成面（`image_gen` 档的门面 —— admin 门）
+  // =========================================================================
+
+  /// **图片生成**（大脑面 POST /api/telencephalon/images/generations）。
+  ///
+  /// ⚠️ **门面会自己分流**：`model` 落在云供应商模型表 ⇒ 端脑代理
+  /// （key 不出大脑）；否则 ⇒ 内嵌 neuron 的 imagegen 注册表。
+  /// `model` 不给就用 `image_gen` 分档默认。
+  ///
+  /// ⚠️ **门是 admin** ⇒ `_headers()` 本来就**两把都带**（影子锁 ∪ admin
+  /// token）⇒ 与 TTS 那一格同一档。
+  ///
+  /// ⚠️ body 形状与桌面端 `GenerateImageRequest` 同一份
+  /// （prompt 必填；size = "WxH" 16 的倍数；n 1..=4）⇒ 两端一种请求形状。
+  Future<Map<String, dynamic>> generateImage(Map<String, dynamic> body) async {
+    return _post('/api/telencephalon/images/generations', body);
+  }
+
   /// 大脑两个模型端点的**形状不一样** ⇒ ⇒ 一个解析器吃两种。
   ///
   /// * preview ⇒ synapse 目录那份 ModelSummary（display_name / capability）
@@ -2084,12 +2120,18 @@ class NeuronCatalogEntry {
   /// 默认仓库（`huggingface:owner/repo`）—— **直接当 pull 的 reference**。
   final String? defaultRepo;
 
+  /// 目录自带的**能力词**（llm / vision / asr / tts / embedding / rerank…）
+  /// —— 端脑的能力目录说了算 ⇒ ⇒ 下载后客户端拿它当**默认参数**，
+  /// 不让用户手填（「添加自持模型 ＝ 挑一个下载」那一刀）。
+  final List<String> capabilities;
+
   const NeuronCatalogEntry({
     required this.id,
     required this.engine,
     required this.available,
     this.sizeBytes,
     this.defaultRepo,
+    this.capabilities = const [],
   });
 
   factory NeuronCatalogEntry.fromJson(Map<String, dynamic> json) =>
@@ -2099,6 +2141,9 @@ class NeuronCatalogEntry {
         available: json['available'] as bool? ?? false,
         sizeBytes: json['size_bytes'] as int?,
         defaultRepo: json['default_repo'] as String?,
+        capabilities:
+            (json['capabilities'] as List?)?.whereType<String>().toList() ??
+            const [],
       );
 
   /// pull 端点要的 id —— **去掉 engine 前缀**（`asr/x` → `x`；

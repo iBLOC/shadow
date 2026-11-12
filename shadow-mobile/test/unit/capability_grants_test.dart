@@ -231,6 +231,8 @@ void main() {
       setAccentColor: (_) async {},
       setDarkMode: (_) async {},
       fetchSurfaceEvents: (_) async => const [],
+      // 图片生成的**纯运输**那一半 —— 单测给空壳（真调用在 generate_image 自己的测试里 mock）。
+      generateImage: (_) async => <String, dynamic>{},
       deviceDataChannel: channel,
     );
   }
@@ -788,6 +790,8 @@ void main() {
           setAccentColor: (_) async {},
           setDarkMode: (_) async {},
           fetchSurfaceEvents: (_) async => const [],
+          // 图片生成的**纯运输**那一半 —— 单测给空壳（真调用在 generate_image 自己的测试里 mock）。
+          generateImage: (_) async => <String, dynamic>{},
           accessibilityOps: ops,
         ),
         capabilityModeFor: (_) => AuthorizationMode.askEveryTime,
@@ -817,6 +821,8 @@ void main() {
           setAccentColor: (_) async {},
           setDarkMode: (_) async {},
           fetchSurfaceEvents: (_) async => const [],
+          // 图片生成的**纯运输**那一半 —— 单测给空壳（真调用在 generate_image 自己的测试里 mock）。
+          generateImage: (_) async => <String, dynamic>{},
           accessibilityOps: ops,
         ),
         capabilityModeFor: (_) => AuthorizationMode.disabled,

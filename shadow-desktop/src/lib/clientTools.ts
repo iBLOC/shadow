@@ -128,6 +128,41 @@ export function pickReportPayload(result: unknown): unknown {
   return result;
 }
 
+/** 图片生成工具（`generate_image`）执行结果里的**一张图片附件**。 */
+export interface GeneratedImageAttachment {
+  /** data URL（`data:image/png;base64,…`）—— 直接给 `<img src>` 用。 */
+  url: string;
+  /** `"WxH"`（端脑回的实际尺寸；拿不到就空串）。 */
+  size: string;
+}
+
+/**
+ * 从工具执行结果里抽**图片附件**（`{ images: [{ b64, size, mime? }] }`）。
+ *
+ * ⚠️ **shape 是两端共用的契约**（桌面 `ToolCallMessageCard` 与移动
+ * `tool_call_card` 都吃它）⇒ ⇒ 改这里必须连移动端一起改
+ * （`check-client-tools.mjs` 盯的是参数表，渲染形状靠这条注释守）。
+ *
+ * ⚠️ 认不出的条目**跳过**（不抛）—— 一张坏图不该把整块结果画崩。
+ */
+export function imageAttachmentsOf(result: unknown): GeneratedImageAttachment[] {
+  if (!result || typeof result !== 'object' || Array.isArray(result)) return [];
+  const images = (result as { images?: unknown }).images;
+  if (!Array.isArray(images)) return [];
+  const out: GeneratedImageAttachment[] = [];
+  for (const item of images) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+    const b64 = (item as { b64?: unknown }).b64;
+    if (typeof b64 !== 'string' || b64 === '') continue;
+    const mimeRaw = (item as { mime?: unknown }).mime;
+    const mime = typeof mimeRaw === 'string' && mimeRaw !== '' ? mimeRaw : 'image/png';
+    const sizeRaw = (item as { size?: unknown }).size;
+    const size = typeof sizeRaw === 'string' ? sizeRaw : '';
+    out.push({ url: `data:${mime};base64,${b64}`, size });
+  }
+  return out;
+}
+
 /**
  * 端脑 `tool_call.args` 的线上形态有**两种**，必须都认：
  * - **字符串**（JSON 文本）—— 端脑的 `TelencephalonStreamEvent::ToolCall`
@@ -736,6 +771,72 @@ export const desktopClientTools = new ClientToolRegistry()
       )
       // ⚠️ 不设 report ⇒ 整份结果回给模型（与移动端同一语义：读就是让它看）。
       return result
+    },
+  })
+  .register({
+    // ⚠️ **工具名、参数表（JSON Schema）与移动端必须逐字一致**
+    // （shadow/scripts/check-client-tools.mjs 逐字段比对 ⇒ 一边改了两边不改
+    // 就红）。形状是：结果 = `{ report, images }` —— **整图留在本地给界面
+    // 渲染**（`imageAttachmentsOf`），模型只拿到 `report` 那一句
+    // （`pickReportPayload`），不把几百 KB 的 base64 塞回模型上下文。
+    name: 'generate_image',
+    description:
+      'Generate an image from a text prompt. Use this when the user asks to draw, create, or generate a picture/illustration/photo. The generated image is shown to the user in the chat.',
+    parameters: {
+      type: 'object',
+      properties: {
+        prompt: {
+          type: 'string',
+          description:
+            'What to draw. Describe the subject, style and composition concretely; the model on the other side cannot ask you questions.',
+        },
+        size: {
+          type: 'string',
+          description:
+            'Image size as "WxH", e.g. "1024x1024". Width and height must be multiples of 16 and at most 2048. Omit for the default (1024x1024).',
+        },
+        model: {
+          type: 'string',
+          description:
+            'Image model id to use. Omit to use the configured image_gen default (a cloud provider model or the local model, whichever is configured).',
+        },
+      },
+      required: ['prompt'],
+    },
+    execute: async (args) => {
+      // ⚠️ **确保 i18n 已初始化** —— 否则 `t()` 退化成返回 key（同 a2ui 那条）。
+      const i18n = ensureI18n();
+      const prompt = typeof args.prompt === 'string' ? args.prompt.trim() : '';
+      if (!prompt) {
+        throw new Error('generate_image expects a non-empty "prompt"');
+      }
+      const size = typeof args.size === 'string' && args.size.trim() ? args.size.trim() : undefined;
+      const model =
+        typeof args.model === 'string' && args.model.trim() ? args.model.trim() : undefined;
+
+      const resp = await telencephalonClient.generateImage({
+        prompt,
+        ...(size ? { size } : {}),
+        ...(model ? { model } : {}),
+      });
+
+      const images = resp.data.map((d) => ({
+        b64: d.b64_json,
+        size: d.size,
+        mime: 'image/png',
+      }));
+
+      // ⚠️ **report ≠ 全量**：模型只需要「成了、多大了、给用户看了」这一句；
+      // base64 的部分走 `images` 给界面。
+      // ⚠️ **report 走真 i18n**（用户看得见 ⇒ 随用户语言走），且**键与文案
+      // 两端同文**（移动端 arb 同键，测试互读比对 —— 同 a2ui 那一族）。
+      return {
+        report: i18n.t('clientTools.imageGenerated', {
+          count: images.length,
+          size: images[0]?.size ?? '',
+        }),
+        images,
+      };
     },
   })
 ;

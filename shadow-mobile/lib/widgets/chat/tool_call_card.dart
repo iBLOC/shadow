@@ -30,6 +30,10 @@ class ToolCallCard extends ConsumerWidget {
     final scheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final l10n = AppLocalizations.of(context)!;
+    // ⚠️ **图片内联** —— generate_image 的结果里带了 base64 图片 ⇒ 画在
+    // **这张卡片里**（用户往回翻还能看见）；base64 本身**不许**再进
+    // 「结果」那几行文字（几百 KB 的字节摊在界面上 = 一坨协议字节）。
+    final imageBytes = imageAttachmentBytesOf(call.result);
 
     return Align(
       alignment: Alignment.centerLeft,
@@ -126,6 +130,17 @@ class ToolCallCard extends ConsumerWidget {
                 call.errorText!,
                 style: TextStyle(fontSize: 12, color: scheme.error),
               ),
+            ],
+            if (imageBytes.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              for (final bytes in imageBytes)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.memory(bytes, fit: BoxFit.fitWidth),
+                  ),
+                ),
             ],
             if (call.reportErrorText != null) ...[
               const SizedBox(height: 4),

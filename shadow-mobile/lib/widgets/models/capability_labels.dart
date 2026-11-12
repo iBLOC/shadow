@@ -26,6 +26,10 @@ String catalogCapabilityLabel(AppLocalizations l10n, String? capability) {
       return l10n.capRerank;
     case 'ocr':
       return l10n.capOcr;
+    case 'image_gen':
+      // ⚠️ **词是 `image_gen`（带下划线）** —— 端脑词表与 synapse 云端目录
+      // 同一拼法；写错一个字母这行就「认不出」了（default 会原样显示）。
+      return l10n.capImageGen;
     default:
       return capability ?? '';
   }

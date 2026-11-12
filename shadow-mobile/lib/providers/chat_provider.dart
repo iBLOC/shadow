@@ -27,6 +27,21 @@ import '../agents/providers/agent_provider.dart';
 AuthorizationMode alwaysAskCapability(Capability capability) =>
     AuthorizationMode.askEveryTime;
 
+/// 「意图签名」：把用户指令规范化成检索键（learner 按它把相似轮次
+/// 分组、再蒸馏成 flow 草稿）。
+///
+/// ⚠️ 规则刻意**笨**：去空白与标点、小写、截前 40 字符 ——
+/// **确定性比聪明重要**（同一句话两次必须得到同一个键；
+/// 签名错了顶多分组不准，不会错动作）。
+String intentSignatureOf(String? input) {
+  if (input == null) return '';
+  final flattened = input
+      .toLowerCase()
+      .replaceAll(RegExp(r'[\s，。！？、,.!?;；:："\u300c\u300d()（）]+'), '');
+  if (flattened.isEmpty) return '';
+  return flattened.length > 40 ? flattened.substring(0, 40) : flattened;
+}
+
 /// 每条助手回复的**客户端侧** token 读数（与桌面端 `src/lib/tokenStats.ts`
 /// 同一条口径 —— 两端数字必须能对上）。
 ///
@@ -339,6 +354,14 @@ class ChatNotifier extends StateNotifier<ChatState> {
   /// 退回「每次都问」，已授权的缓存一并作废（宁可多问，不可错放）。
   bool _sensitiveTargetSeenThisTurn = false;
 
+  /// **本轮的工具轨迹**（「历史工具记录存思维定式」的数据入口）——
+  /// 每次客户端工具执行完成记一行；轮末（成功/出错都算）一次性
+  /// POST 给端脑的 traces/ingest（learner 从这里蒸馏 flow 草稿）。
+  final List<Map<String, dynamic>> _turnToolTrajectory = <Map<String, dynamic>>[];
+
+  /// 本轮的用户指令 —— ingest 的 user_input 与 intent_signature 素材。
+  String? _turnUserInput;
+
   /// 客户端合成调用 id 用的计数器。
   ///
   /// 端脑**会带**调用 id（`tool_call_id`，端脑生成的 uuid）⇒ 这个计数器
@@ -482,6 +505,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
     // 它们都汇到这个漏斗），缓存都从这里重置。
     _turnGrantedMobileUse.clear();
     _sensitiveTargetSeenThisTurn = false;
+    _turnToolTrajectory.clear();
+    _turnUserInput = prompt;
     // ⚠️ **闸门（漏斗就在这儿）**：上一次切会话失败了 ⇒ 现在**不知道自己在
     // 哪条会话里** ⇒ ⇒ 不许写 ⇒ ⇒ 否则用户以为自己在 B、消息却落进 A
     // ⇒ ⇒ **消息落错会话**（它看起来是成功的）。
@@ -623,7 +648,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
       if (response.isNotEmpty) {
         await _ttsEngine.speak(response);
       }
+      _flushToolTrajectory();
     } catch (e) {
+      // 出错的轮也算「轮末」⇒ 轨迹照喂（带 ok:false 的失败步骤）。
+      _flushToolTrajectory();
       state = state.copyWith(
         errorMessage: 'Error: $e',
         errorMessageL10nKey: ChatStateL10nKey.errorGeneric,
@@ -944,6 +972,24 @@ class ChatNotifier extends StateNotifier<ChatState> {
     };
   }
 
+  /// 轮末把工具轨迹喂给「思维定式」（fire-and-forget：失败只记日志，
+  /// 绝不影响对话本身 —— 数据面永远不能挡住对话面）。
+  void _flushToolTrajectory() {
+    if (_turnToolTrajectory.isEmpty) return;
+    final steps = List<Map<String, dynamic>>.of(_turnToolTrajectory);
+    _turnToolTrajectory.clear();
+    _telencephalonClient
+        .ingestTrace(
+          source: 'agent:shadow-mobile',
+          trajectory: steps,
+          userInput: _turnUserInput,
+          intentSignature: intentSignatureOf(_turnUserInput),
+        )
+        .catchError((Object e) {
+          _log.warning('ingestTrace failed: $e');
+        });
+  }
+
   /// 执行一个客户端工具，然后把结果回传端脑。
   Future<void> _runToolCall({
     required String sessionId,
@@ -979,6 +1025,14 @@ class ChatNotifier extends StateNotifier<ChatState> {
         _turnGrantedMobileUse.clear();
       }
     }
+
+    // ⚠️ **历史工具记录**：执行完成即入本轮轨迹（成功失败都记 ——
+    // learner 蒸馏成功的成 flow 草稿；意图检索靠它避开失败路径）。
+    _turnToolTrajectory.add(<String, dynamic>{
+      'tool': tool.name,
+      'ok': ok,
+      'at': DateTime.now().toUtc().toIso8601String(),
+    });
 
     final base =
         _toolCallById(callId) ??
@@ -1269,6 +1323,11 @@ final chatProvider = StateNotifierProvider<ChatNotifier, ChatState>((ref) {
       // ⇒ ⇒ `watch` 会把**整段对话**冲掉（那是对话的状态，不是地址的）。
       fetchSurfaceEvents: (view) =>
           ref.read(genUIAgentServiceProvider).fetchSurfaceEvents(view),
+      // 图片生成的**纯运输**那一半 —— 地址 / 影子锁 / admin token 都在
+      // telencephalonClientProvider 里配好了（门是 admin，client 两把都带）。
+      // 同样 `read` 不 `watch`（理由同上）。
+      generateImage: (body) =>
+          ref.read(telencephalonClientProvider).generateImage(body),
     ),
     // ⚠️ **档位在调用时才读** —— 用户随时能在设置里改档位
     // ⇒ ⇒ 改完立刻生效，不需要重建 ChatNotifier（那会把对话冲掉）。

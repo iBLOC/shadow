@@ -164,6 +164,8 @@
     "archiveBox": "Archive box",
     "archiveBoxEmpty": "The archive box is empty",
     "archivedBadge": "Archived",
+    "running": "Running",
+    "runningTool": "Running · {{tool}}",
     "deleteConfirm": "Delete this conversation? The copy in the endbrain and the hippocampus goes with it — this cannot be undone.",
     "deleteFailed": "Could not delete: {error}",
     "archiveFailed": "Could not archive: {error}",
@@ -1195,6 +1197,24 @@
     "ready": "Ready",
     "specs": "{{quant}} · ctx {{ctx}} · {{size}}"
   },
+  "neuronCatalog": {
+    "title": "neuron catalog",
+    "subtitle": "Multi-file local models pulled by the brain server directly (image-gen candle repos, etc.) — a separate download path from the GGUF cards above.",
+    "downloaded": "Downloaded",
+    "notDownloaded": "Not downloaded",
+    "download": "Download",
+    "cancel": "Cancel",
+    "failed": "Failed",
+    "done": "Done",
+    "cancelled": "Cancelled",
+    "sizeUnknown": "size unknown",
+    "noRepo": "This entry has no default repo reference and cannot be pulled.",
+    "loading": "Loading neuron catalog…",
+    "empty": "Catalog is empty (no neuron embedded in the brain, or no catalog source configured)."
+  },
+  "clientTools": {
+    "imageGenerated": "Generated {{count}} image(s) ({{size}}) and showed them to the user."
+  },
   "flows": {
     "title": "Telencephalon Flows",
     "refresh": "Refresh",
@@ -1575,6 +1595,19 @@
     "title": "Audio event",
     "confidence": "Confidence {{pct}}%",
     "class": "Class {{classId}}"
+  },
+  "documentEditor": {
+    "title": "Task workbook",
+    "mounting": "Loading editor…",
+    "mountFailed": "Failed to initialize the editor",
+    "loadFailed": "Can't read the task workbook",
+    "savedAt": "Saved {{time}}",
+    "saveFailed": "Auto-save failed",
+    "publish": "Publish to Feishu",
+    "publishing": "Publishing…",
+    "publishFailed": "Publish failed",
+    "publishedTitle": "Published to Feishu",
+    "feishuOff": "Feishu integration is off (enable it in Settings)"
   },
   "feishuPublished": {
     "title": "Published to Feishu",

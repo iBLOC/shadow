@@ -1,5 +1,6 @@
 import { ToolPartRouter } from './ToolPartRouter';
 import { A2uiToolSurface, a2uiEvents, a2uiReport } from './A2uiToolSurface';
+import { imageAttachmentsOf } from '../../lib/clientTools';
 import type { ToolField } from './ClientToolForm';
 import type { ToolUIPart } from './toolPartTypes';
 import type { ToolCallMessage } from '../../types';
@@ -82,14 +83,32 @@ export function ToolCallMessageCard({
   // （不是顶部面板、不是另一个页面）⇒ ⇒ 用户往回翻还能看见它。
   const inlineEvents = a2uiEvents(call.result);
 
-  // ⚠️ **结果卡片只显示 `report` 那一句** —— 事件那一半**已经画成界面**了；
+  // ⚠️ **图片内联** —— generate_image 的结果里带了 base64 图片 ⇒ ⇒ 同样画在
+  // **这条消息里**（用户往回翻还能看见）；base64 本身**不许**再进输出卡片
+  // （几百 KB 的字节甩在用户脸上 = 一坨协议字节）。
+  const images = imageAttachmentsOf(call.result);
+
+  // ⚠️ **结果卡片只显示 `report` 那一句** —— 事件／图片那几半**已经画出来**了；
   // 再把原始 JSON 一并甩出来 ⇒ 用户看到的是一坨协议字节（而不是人话）。
   const report = a2uiReport(call.result);
-  const displayOutput = inlineEvents && report ? { value: report } : undefined;
+  const displayOutput =
+    (inlineEvents || images.length > 0) && report ? { value: report } : undefined;
 
   return (
     <div className="flex flex-col gap-1">
       {inlineEvents ? <A2uiToolSurface events={inlineEvents} /> : null}
+      {images.length > 0 ? (
+        <div className="flex flex-col gap-2" data-testid="tool-call-images">
+          {images.map((img, i) => (
+            <img
+              key={i}
+              src={img.url}
+              alt={img.size ? `generated image (${img.size})` : 'generated image'}
+              className="max-h-96 w-auto max-w-full rounded-md border border-border"
+            />
+          ))}
+        </div>
+      ) : null}
       <ToolPartRouter
         part={toToolUIPart(call, displayOutput)}
         toolName={call.name}

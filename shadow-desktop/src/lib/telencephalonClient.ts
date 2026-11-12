@@ -637,10 +637,77 @@ export interface NeuronStats {
   models_loaded: number;
 }
 
+/**
+ * neuron **目录条目**（`GET /v1/models` 的 `data[]` 元素）—— 与移动端
+ * `NeuronCatalogEntry.fromJson` 同一份线上形状（两端一个解析口径）。
+ */
+export interface NeuronCatalogEntry {
+  /** `engine/model`（如 `candle/moss-image`）—— engine 前缀要去掉才是 pull 的 id。 */
+  id: string;
+  engine: string;
+  /** **盘上真的有吗** —— false ＝ 目录里有、还没下载。 */
+  available: boolean;
+  size_bytes?: number;
+  /** 默认仓库（`huggingface:owner/repo`）—— 直接当 pull 的 reference。 */
+  default_repo?: string;
+  capabilities: string[];
+}
+
+/** 一个下载任务（`GET /v1/models/pull` 的 `data[]` 元素）。 */
+export interface NeuronPullJob {
+  job_id: string;
+  /** pending / in_progress / completed / failed / cancelled */
+  status: string;
+  reference: string;
+  engine: string;
+  bytes_downloaded: number;
+  total_bytes?: number;
+  current_file?: string;
+  error?: string;
+}
+
 export interface SubsystemTokenResponse {
   token: string;
   scopes: string[];
   expires_at_unix: number;
+}
+
+/**
+ * **图片生成请求** —— 与端脑门面（`POST /api/telencephalon/images/generations`）
+ * 同形（OpenAI Images 近似族 + neuron 扩展）。
+ *
+ * ⚠️ neuron 扩展字段（negative_prompt / steps / …）是**可选**：显式给了才
+ * 往云上游转发（不把本地默认值强塞给不认识的供应商）；本地分支端脑自己补
+ * 默认（1024×1024 / 50 步 / CFG 3.0）。
+ */
+export interface GenerateImageRequest {
+  prompt: string;
+  /** 模型 id 覆盖；不给 ⇒ `image_gen` 分档默认（云端或本地端脑自己分流）。 */
+  model?: string;
+  /** 1..=4。 */
+  n?: number;
+  /** `"WxH"`，须为 16 的倍数、≤ 2048（本地管线的约束）。 */
+  size?: string;
+  /** 仅支持 `b64_json`（缺省即它）。 */
+  response_format?: string;
+  negative_prompt?: string;
+  steps?: number;
+  guidance_scale?: number;
+  seed?: number;
+  max_sequence_length?: number;
+}
+
+export interface GenerateImageDatum {
+  b64_json: string;
+  /** `"WxH"`（实际出图的尺寸）。 */
+  size: string;
+  /** 实际用的种子（请求没给 ⇒ 端脑采的）。 */
+  seed: number;
+}
+
+export interface GenerateImageResponse {
+  created: number;
+  data: GenerateImageDatum[];
 }
 
 export class Telencephalon412Error extends Error {
@@ -950,6 +1017,36 @@ export class TelencephalonClient {
     );
   }
 
+  /**
+   * 把**本机真实跑出来的**工具轨迹喂给端脑的「思维定式」闭环
+   * （POST /api/flows/traces/ingest）—— learner 会把成功轨迹蒸馏成
+   * flow 草稿（人工 promote/reject 后成为可复用的思维定式）。
+   * ⚠️ 失败轨迹也照喂（轨迹行里 `ok: false`）—— 意图检索要能
+   * 避开已知的失败路径、复用成功的。
+   *
+   * ⚠️ **写门（admin token）**：与 flow 管理同一族 ⇒ 递 admin 钥匙
+   * （与移动端 `_adminPost` 同一档）。调用方负责 fire-and-forget
+   * （catch 不外抛）—— 数据面永远不能挡住对话面。
+   */
+  async ingestTrace(req: {
+    source: string;
+    trajectory: Array<{ tool: string; ok: boolean; at: string }>;
+    userInput?: string;
+    intentSignature?: string;
+  }): Promise<void> {
+    const body: Record<string, unknown> = {
+      source: req.source,
+      trajectory: req.trajectory,
+    };
+    if (req.userInput) body.user_input = req.userInput;
+    if (req.intentSignature) body.intent_signature = req.intentSignature;
+    await this.request('/api/flows/traces/ingest', {
+      method: 'POST',
+      headers: await adminHeaders(),
+      body: JSON.stringify(body),
+    });
+  }
+
   webrtcSignalingUrl(sessionId: string, modality: string = 'voice'): string {
     return `${this.baseUrl}/api/webrtc/${modality}/sessions/${encodeURIComponent(sessionId)}/ws`;
   }
@@ -1242,6 +1339,35 @@ export class TelencephalonClient {
   }
 
   /**
+   * **图片生成**（`image_gen` 档的门面）—— 云供应商的模型走**端脑代理**
+   * （key 不出大脑），本地模型走**内嵌 neuron 的 imagegen 注册表**；
+   * `model` 不给就用 `image_gen` 分档默认。
+   *
+   * ⚠️ 门是 **admin**（与 voice 同一把尺 ⇒ `request()` 递的那把）。
+   * ⚠️ **显式类型参数**（`request<GenerateImageResponse>(…)`）⇒ ⇒ 才进得了
+   * 契约清单（见 getCapabilityDefaults 的注释）。
+   */
+  async generateImage(req: GenerateImageRequest): Promise<GenerateImageResponse> {
+    return this.request<GenerateImageResponse>('/api/telencephalon/images/generations', {
+      method: 'POST',
+      body: JSON.stringify({
+        prompt: req.prompt,
+        ...(req.model ? { model: req.model } : {}),
+        ...(req.n != null ? { n: req.n } : {}),
+        ...(req.size ? { size: req.size } : {}),
+        ...(req.response_format ? { response_format: req.response_format } : {}),
+        ...(req.negative_prompt ? { negative_prompt: req.negative_prompt } : {}),
+        ...(req.steps != null ? { steps: req.steps } : {}),
+        ...(req.guidance_scale != null ? { guidance_scale: req.guidance_scale } : {}),
+        ...(req.seed != null ? { seed: req.seed } : {}),
+        ...(req.max_sequence_length != null
+          ? { max_sequence_length: req.max_sequence_length }
+          : {}),
+      }),
+    });
+  }
+
+  /**
    * **分档默认模型** —— 「这一类能力用哪个模型」。
    *
    * ⚠️ 键是**能力词**（llm / asr / tts …）⇒ ⇒ 端脑的 `Capability` 词表是
@@ -1466,6 +1592,41 @@ export class TelencephalonClient {
       this.request<NeuronModelsResponse>('/api/telencephalon/neuron/preview/models').then((r) => r.models),
     stats: (): Promise<NeuronStats> =>
       this.request<NeuronStats>('/api/telencephalon/neuron/preview/stats'),
+
+    /**
+     * neuron **目录面**（`GET /v1/models`，neuron 路由挂在脑面根上）——
+     * **全量**（含「目录里有、还没下载」的条目）。
+     *
+     * ⚠️ 与 `/models/providers` 里内置条目的读视图是**两份形状**：这边带
+     * `engine`／`default_repo`（发起下载要用的两样）⇒ 那边没有 ⇒
+     * 「下载面」的数据源是**这一份**（与移动端 NeuronDownloadSheet 同源）。
+     */
+    catalog: (): Promise<NeuronCatalogEntry[]> =>
+      this.request<{ data: NeuronCatalogEntry[] }>('/v1/models').then((r) => r.data ?? []),
+
+    /**
+     * 发起下载（`POST /v1/models/pull`）—— **异步任务**（202 Accepted ＋
+     * job_id）⇒ `request()` 对 2xx 都放行 ⇒ 不用单独写。
+     *
+     * ⚠️ `reference` 用目录条目的 `default_repo`（`huggingface:owner/repo`）；
+     * `id` 用**去掉 engine 前缀**的模型 id（与移动端 `modelId` 同一刀法）。
+     */
+    pull: (req: { reference: string; engine: string; id: string }): Promise<string> =>
+      this.request<{ job_id: string }>('/v1/models/pull', {
+        method: 'POST',
+        body: JSON.stringify(req),
+      }).then((r) => r.job_id),
+
+    /** 下载任务列表（进度轮询用）。 */
+    pullJobs: (): Promise<NeuronPullJob[]> =>
+      this.request<{ data: NeuronPullJob[] }>('/v1/models/pull').then((r) => r.data ?? []),
+
+    /** 取消一个下载任务（`DELETE /v1/models/pull/{job_id}`）。 */
+    pullCancel: (jobId: string): Promise<void> =>
+      this.request<void>(
+        `/v1/models/pull/${encodeURIComponent(jobId)}`,
+        { method: 'DELETE' },
+      ),
   };
 
   issueSubsystemToken = async (

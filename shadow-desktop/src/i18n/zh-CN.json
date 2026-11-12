@@ -164,6 +164,8 @@
     "archiveBox": "归档箱",
     "archiveBoxEmpty": "归档箱是空的",
     "archivedBadge": "已归档",
+    "running": "运行中",
+    "runningTool": "运行中 · {{tool}}",
     "deleteConfirm": "删掉这条会话？端脑和海马体里的那份也会一起删掉，撤不回来。",
     "deleteFailed": "删不掉：{error}",
     "archiveFailed": "归档失败：{error}",
@@ -1119,6 +1121,24 @@
     "ready": "就绪",
     "specs": "{{quant}} · ctx {{ctx}} · {{size}}"
   },
+  "neuronCatalog": {
+    "title": "neuron 目录",
+    "subtitle": "由端脑服务端直接拉取的多文件本地模型（图片生成等 candle 仓库），与上面的 GGUF 是两条下载路。",
+    "downloaded": "已下载",
+    "notDownloaded": "未下载",
+    "download": "下载",
+    "cancel": "取消",
+    "failed": "失败",
+    "done": "完成",
+    "cancelled": "已取消",
+    "sizeUnknown": "大小未知",
+    "noRepo": "该条目没有默认仓库地址，无法发起下载。",
+    "loading": "正在读取 neuron 目录…",
+    "empty": "目录为空（端脑未内嵌 neuron 或目录源未配置）。"
+  },
+  "clientTools": {
+    "imageGenerated": "已生成 {{count}} 张图片（{{size}}），已展示给用户。"
+  },
   "logsPage": {
     "title": "错误日志",
     "subtitle": "本地已存储 {{count}} 条记录，超过 100 条时自动清除最旧项。",
@@ -1575,6 +1595,19 @@
     "title": "声音事件",
     "confidence": "置信度 {{pct}}%",
     "class": "类别 {{classId}}"
+  },
+  "documentEditor": {
+    "title": "任务工作簿",
+    "mounting": "编辑器加载中…",
+    "mountFailed": "编辑器初始化失败",
+    "loadFailed": "读不到任务工作簿",
+    "savedAt": "已保存 {{time}}",
+    "saveFailed": "自动保存失败",
+    "publish": "发布到飞书",
+    "publishing": "发布中…",
+    "publishFailed": "发布失败",
+    "publishedTitle": "已发布到飞书",
+    "feishuOff": "飞书集成已关闭（可在设置中开启）"
   },
   "feishuPublished": {
     "title": "已发布到飞书",

@@ -38,6 +38,8 @@ void main() {
       fetchSurfaceEvents:
           fetchSurfaceEvents ?? (_) async => const <Map<String, Object?>>[],
       l10nProvider: l10nProvider,
+      // 图片生成的**纯运输**那一半 —— 单测给空壳（真调用在 generate_image 自己的测试里 mock）。
+      generateImage: (_) async => <String, dynamic>{},
     );
   }
 

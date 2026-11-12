@@ -20,6 +20,9 @@ export const AGENT_CAPABILITY_FALLBACK_LABELS: Record<string, string> = {
   embedding: '向量模型',
   vision: '视觉模型',
   forecast: '预测模型',
+  // ⚠️ **词是 `image_gen`（带下划线）** —— 与端脑词表、synapse 云端目录
+  // 同一拼法；写错一个字母，能力分档那一行就「认不出」了。
+  image_gen: '图片生成',
 };
 
 /**

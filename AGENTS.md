@@ -1,3 +1,57 @@
+**Updated**: 2026-11-12 (㔕 **「图片生成的四块零件早就都在 —— 缺的是中间三段管子：端脑没有那一档词、没有那张分流门面、两端没有那双看图的手」** —— 承 U+3500 条（失败长得像成功）＋ U+3508 条（取号读数必须带面），本条记**取证（四块零件的逐一盘点 ＋ 缺口清单）**、**第一因（能力词表的单一真源缺档 ⇒ 两端全瞎）**、**第二因（门面分流照 voice 先例：调用者是设备 ⇒ admin 门，不是主人门）**、**第三因（目录条目的能力词是引擎名 ⇒ 按 engine_impl 家族标注；parse 是 feature 门控不能用）**、**这一刀的落点（两仓 ＋ 零 neuron／零 synapse）**、**途中那几课**、**判据与分级读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-12 | authority=measured | scope=project | source=全链盘点逐字（neuron `src/imagegen/`：`POST /v1/images/generations`（OpenAI Images 形状、b64_json、同步）＋ `ImageGenRuntimeRegistry` ＋ 目录条目 `cap("candle","moss-image",…,ApiStyle::openai_images())` 已在，且 neuron 路由被端脑 merge 在根上 ⇒ 端点已可达；synapse `catalog.rs:483` `infer_capability` 对 dall-e/cogview/seedream/flux 等已标 `image_gen`（测试钉死）＋ 端脑 `lobes/manifest.rs` Capability 枚举 8 档无 image_gen ＋ 端脑 `api/providers.rs` 只有 `/chat/completions` 代理 ＋ 两端客户端 grep 图片生成零命中 ＋ 桌面 `modelDownloadService` 是 GGUF＋IndexedDB（装不下 ~27GB 多文件 candle 仓库））＋ neuron `handlers.rs:414-539`（请求/响应/翻译纯函数逐字）｜ 改动：**telencephalon**（`src/lobes/manifest.rs` 词表 8→9 ＋ `ENGINE_RESOLVED` 2→3 ＋ `src/api/images.rs` 新门面 ＋ `src/api/mod.rs` 接线 ＋ `src/api/providers.rs` 两个复用访问器 ＋ `src/neuron_embed.rs` 内置条目按 `engine_impl` 家族标注 `image_gen` ＋ `src/api/door_policy.txt` admin 开口 ＋ 单测 7 条）＋ **shadow**（桌面 `telencephalonClient.generateImage` ＋ `agentCapabilities` 标签 ＋ `clientTools.generate_image` ＋ `ToolCallMessageCard` 图片内联 ＋ `NeuronCatalogCard` 目录下载面 ＋ i18n 两份 ＋ 端点清单 5 行 ＋ vitest 10 条；移动 `capability_labels` ＋ arb 两份＋gen-l10n ＋ `telencephalon_client.generateImage` ＋ 注册表工具 ＋ `tool_call_card` 图片块 ＋ chat_provider 接线 ＋ 测试 8 处调用点补参 ＋ 新测 9 条）⇒ ⇒ **零 neuron 改动 ＋ 零 synapse 改动 ＋ 零 ci.yml 改动** ｜ 读数：端脑 lib **852 过 / 1 红**（那 1 红＝兄弟在飞件 `lobe_runtime.rs` 的存量断言，非本线）＋ 本线定向 **7/7** ＋ 桌面 vitest **1572 绿**（+10）＋ `tsc -b` EXIT=0 ＋ 四闸全绿（tools 阻断 0 ／ endpoint-map ／ provider-parity ／ i18n 951/951）＋ 移动 analyze **0 error** ＋ 移动定向 **9/9** ＋ 移动全量见⑤⑦ ｜ 真 CI 待取 | status=active | supersedes=none
+
+① **⚠️ 取证：四块零件都在，缺的是三段管子**
+　❶ **neuron 会出图**：`POST /v1/images/generations`（同步、`b64_json`）、`MOSS-Image`（candle，~27GB，CUDA 实用）、`NEURON_IMAGEGEN_RUNTIME=moss-image` 激活；**产品规则写死「永不代理云端图片 API」** ⇒ ⇒ 所以「云端那一半」天然不在 neuron。
+　❷ **synapse 已认云端图片模型**：`infer_capability` 按模型 id 标 `image_gen` —— **带下划线的拼法已经在库里**（`assert_eq!(infer_capability("dall-e-3"), Some("image_gen"))`）⇒ 词表必须跟它同一个拼法。
+　❸ **端脑缺三样**：Capability 枚举没有这一档（词表是单一真源 ⇒ 两端「端脑下发什么渲染什么」⇒ 档缺 ＝ 两端全瞎）；只有 `/chat/completions` 代理（供应商 key 密封在端脑 ⇒ 客户端不许直连 ⇒ 图片同样要门面）；内置（neuron）供应商条目的模型 `capabilities` 装的是**引擎名**（`candle`）⇒ 客户端按能力词过滤看不见 moss-image。
+　❹ **两端缺 UI**：没有任何「画一张…」的触发与图片渲染；桌面连 neuron 目录模型的**下载面都没有**（GGUF＋IndexedDB 那套装不下多文件仓库）。
+
+② **⚠️ 第一因：能力词表缺一档 ⇒ 全平台这一档集体失明**
+　❶ 两端的能力标签、能力分档（`CapabilityDefaultsCard` / `CapabilityDefaultSection`）都是**端脑词表驱动** ⇒ ⇒ 端脑加档，两端**自动多一行** ⇒ ⇒ 这一次端脑加 `ImageGen`（serde rename = `image_gen`）后实测两端候选与标签**自动跟随**，唯一要手补的是**人类可读标签**各一条。
+　❷ ⇒ ⇒ 通用形态：**单一真源缺一项， symptoms 出现在所有消费者** ⇒ 修一处，不要去每处补。
+
+③ **⚠️ 第二因：门面分流照 voice 先例 —— 调用者是设备 ⇒ admin 门**
+　❶ `/api/telencephalon/chat/completions` 代理是**主人门**：它唯一的合法调用者是端脑自己（叶区经回环打它）。而图片生成的调用者是**设备上的客户端工具** ⇒ ⇒ 不能抄主人门 ⇒ ⇒ 照 **voice 先例**（`/api/telencephalon/voice/*`：客户端面、admin 门、服务端按 id 解析引擎）。
+　❷ 解析顺序钉死：**显式 `model`** → **`image_gen` 分档默认**（`capability_default("image_gen")`）→ **本地第一个注册的引擎**；解析出的 id 落在**云供应商模型表** ⇒ 代理（`provider_for_model` 与 chat 代理同一匹配口径 ＋ `open_api_key` 解封 ＋ 5031 族错误透传）；否则 ⇒ 内嵌 neuron `imagegen_registry.runtime_for(id)`（找不到带 neuron 原话 **400** —— 「存得进去、用不了」那一档不许静默回落）。
+　❸ 云分支的 `response_format` 缺省**强制 `b64_json`**：OpenAI 族上游缺省给**临时 URL** ⇒ 两腿（云/本地）必须拿到同一种形状。
+　❹ ⚠️ 门型表**默认全关**（匹配不到 ⇒ 403）⇒ `door_policy.txt` 显式开口一行（admin），与 voice 同段。`/v1/*` 那张 auto 罩着 neuron 裸面 ⇒ 两张面同一把钥匙 ⇒ 不会「一张面要凭据、另一张面不要」。
+
+④ **⚠️ 第三因：目录条目的能力词是引擎名 ⇒ 标注要按 engine_impl 家族，且不能用 parse**
+　❶ neuron 目录 `CatalogEntry.capabilities = vec![engine_str]`（`candle`）⇒ `catalog_models_from_state` 原样透传 ⇒ moss-image 在客户端眼里能力词是 `candle` ⇒ ⇒ **内置条目按 `engine_impl`（`moss-image` 家族四拼法）标注 `image_gen`**，其余条目照旧引擎名（既有行为零变化）。
+　❷ ⚠️ **不能用 `ImageGenImpl::parse` 来判**：本仓对 neuron 是 **router-only 消费**（`default-features=false` ⇒ 无 candle）⇒ parse 的 `moss-image` 分支被 `#[cfg(feature="candle")]` 门着 ⇒ 部署形态下**恒 Err** ⇒ 而目录条目里的 `engine_impl` 是**与 feature 无关的静态串** ⇒ 用它。
+　❸ ⇒ ⇒ 通用形态：**跨 crate 判别要先问「这个函数在我这个 feature 组合下还存在吗」**。
+
+⑤ **✅ 这一刀的落点（telencephalon 6 文件 ＋ shadow 16 文件 ＋ 零 neuron／零 synapse）**
+　❶ telencephalon：词表（枚举＋as_route＋ALL 9＋ENGINE_RESOLVED 3＋as_str＋模态＋`neuron_available_capabilities`＋钉拼法测试）；`api/images.rs` 新门面（验证翻译纯函数 5 测＋云/本地分流＋5031 族透传＋本地 GeneratedImage→`b64_json`）；`api/mod.rs` 挂载；`providers.rs` 复用访问器 `provider_for_model`／`http_client`（**该文件携带上一刀未提交的 `api_key_material_for`** —— 按共享工作树纪律列明）；`neuron_embed.rs` 标注＋测试；`door_policy.txt` 一行。
+　❷ 桌面：client（类型＋`generateImage`＋neuron 目录面 4 方法）；`agentCapabilities` 标签；`clientTools` 注册 `generate_image`（**report 走真 i18n**：`clientTools.imageGenerated`，两端同键同文互读比对）＋ `imageAttachmentsOf`；`ToolCallMessageCard` 图片内联＋输出卡片只显示 report；`NeuronCatalogCard`（目录＋pull＋任务轮询）；ModelDownloadPage 挂段；i18n 两份；端点清单 5 行（门面 1 ＋ neuron 面 4）；vitest 10 条。
+　❸ 移动：标签 case；arb 两份（`capImageGen` ＋ `clientToolsImageGenerated` 带占位符）＋ gen-l10n；`telencephalon_client.generateImage`；注册表注册工具（**执行器注入是必填** —— 理由同 `fetchSurfaceEvents`：两端 tools 数组必须一致）＋ `imageAttachmentBytesOf`；`tool_call_card` 图片块；chat_provider 接线；8 处测试调用点补参；新测 9 条。
+　❹ 渲染契约（两端）：结果 = `{ report, images:[{b64,size,mime}] }` —— **整图留在本地给界面，模型只拿 report 一句**（`pickReportPayload` 同族：组件树不进模型上下文，base64 同理）。
+
+⑥ **⚠️ 途中那几课**
+　❶ **工具 description/参数是「发给模型的接口」** ⇒ 两端逐字一致有闸盯着；**report 是「发给模型的一句话」** ⇒ 同样两端同文 ⇒ 走 i18n 同键（硬编码中文在英文系统上就是「英文用户看到中文」那一族）。
+　❷ **TS 的 `required` 在 JSON Schema 的 `parameters` 里**，不在 function 层 —— 测试断言写错位置就假红。
+　❸ **批量脚本改 8 处测试调用点 ⇒ 配对括号处理写坏 5 个文件** ⇒ `git checkout --` 还原 ⇒ 逐个 Edit。⇒ ⇒ 通用形态：**机械批量编辑走脚本一次成形的前提是「写坏可无损还原」** —— 先确认目标是 git 干净文件再动手。
+　❹ **Edge 无头（旧式 `--headless`）把 `--window-size` 当整窗高 ⇒ 底部 92px 幻影白带**（另一刀的读数，此处不展开）。
+　❺ **Mimosa 拦 Bash 直写 AGENTS.md** ⇒ 修复走 `git checkout --`（git 管道）＋ Edit（置顶条目）。
+
+⑦ **✅ 判据与分级读数（全部实测）**
+　❶ **端脑级**：`cargo test --lib` **852 过 / 1 红**（那 1 红＝`api::lobe_runtime::resolve_pulls_the_key_from_the_brain_store_by_id`，兄弟在飞文件的存量断言，本刀不碰该文件）｜ 本线定向：`manifest::tests::image_gen_word_and_route_are_pinned` ＋ `api::images` 5 条 ＋ `imagegen_catalog_entries` ＝ **7/7**。
+　❷ **桌面级**：`tsc -b` EXIT=0；vitest 全量 **1572 绿 / 16 跳（1588）**（基线 1562 ⇒ +10：工具 8 ＋ 两端比对 1 ＋ 卡片…）；四闸：`check-client-tools` **阻断 0**（桌面 12 工具／移动 15，generate_image 两端同 schema；ask_user 缺口为已登记 known-gap）＋ `check-client-endpoint-map` EXIT=0 ＋ `check-provider-parity` EXIT=0 ＋ `check-i18n-key-completeness` **951/951**。
+　❸ **移动级**：`flutter analyze` **0 error**（61 条存量 info/warning）；定向 **9/9**（工具 5 ＋ client 2 ＋ 附件 2）；全量 `flutter test` 见下方回填段。
+　❹ **⚠️ 移动全量回填（2026-11-12）**：`flutter test` 全量 **816+ 过 / 12 跳 / 4 红**——那 4 红**全部**落在 `test/widget/capability_grants_section_test.dart` 一个文件 ⇒ 归属**机械坐实**（不是推测）：①该文件与被测物（`capability_grants_section.dart` / `capability_policy_provider.dart`）都**不在任何在飞面**；②暂存兄弟唯一的在飞邻件（`capability_i18n.dart`）后重跑 ⇒ **照样 4 红**；③**HEAD 干净 worktree**（`git worktree add @17455d48`）里单跑 ⇒ **照样 +6 -4** ⇒ ⇒ **存量红，HEAD 上就红，与本刀无关**（本刀方向的反向证据：移动定向 9/9 ＋ analyze 0 error ＋ 六处调用点补参零回归）。
+
+⑧ **⚠️ 仍然欠着的**
+　❶ **moss-image 真机出图读数**（~27GB 权重 ＋ CUDA）—— 门面本地腿的端到端真值还没从**这条命令**里拿回来（不许拿「neuron 自己验证过」冒充门面读数）。
+　❷ **云供应商真 key 读数**（CogView/dall-e 任一）—— 云腿的端到端真值同样缺。
+　❸ **桌面下载双轨 UX**：GGUF（IndexedDB）与 neuron 目录（服务端拉盘）两张卡并存 ⇒ 要不要合并成一张目录驱动面是**产品决定**。
+　❹ **移动端内置卡片的 `available` 联动**：下载完成后模型页「未下载」徽章翻绿依赖 builtin 读视图的刷新时机（本轮未验）。
+　❺ **真 CI 级读数**（两仓）—— 待推到 origin 后取 run 逐字回填。
+　❻ **`n` > 1 的多图**：工具 schema 未暴露（schema 只有 prompt/size/model）⇒ 端脑支持但模型叫不出 ⇒ 要不要暴露是产品决定。
+
+⑨ **⚠️ 圈码：本条占 U+3515（㔕）** —— 取号按**官方口径**（`check-ledger-codepoint-take.mjs --next`，取样时刻 2026-11-12T05:23:00Z ｜ HEAD 17455d48 ⇒ 父仓三面水位均 U+3514 ⇒ 候选头一个 **U+3515**）⇒ 字形由 String.fromCodePoint 生成不手打 ⇒ ⚠️ **本条落笔前顺手修了一次账本本身**：工作树 AGENTS.md 是**U+350B 代的过期快照**（相对 HEAD 丢 876 行 ＝ U+350C..U+3514 九条已提交条目）⇒ 按 U+3506 条先例 `git checkout -- AGENTS.md` 从 HEAD blob 重建 ＋ 本条置顶 ⇒ ⇒ 这是「整文件重写顶掉条目」同族事故的**第二次**（第一次见 U+3506 条⑥❻）⇒ 那道「工作树条目数 ≥ 提交树条目数」的闸**仍然欠着**（承 U+3506 条⑧❻）。
+
 **Updated**: 2026-11-12 (㔔 **「桌面端通知的 title/text 在真面上一直是空的 —— 提取路径走进了一扇『模板名化』之后的门」** —— 承 U+3513 条（第 1 刀：两端读取通知）＋ U+3500 条（失败长得像成功），本条记**取证（真机探针逐字 ＋ 受控 toast A/B 端到端）**、**第一因（Template() 的新契约是模板名 ⇒ 解析 XML 的旧路径永远空）**、**第二因（windows-rs 0.61 的方法在类上不在接口上）**、**这一刀的落点**、**判据与分级读数**，以及**仍然欠着的**.
 > 信封：epoch=2026-11-12 | authority=measured | scope=project | source=真机探针逐字（Win11 build 26300，unpackaged，ACCESS=Allowed：8 条真实通知每条 bindings=1 ＋ Template() ＝ "ToastGeneric" 恰 12 字符模板名 ＋ Hints 恰 1 条 hint-originalTemplate 保留原模板名（ToastText02 也在）＋ GetTextElements 每条 2 元素且 Text() 逐字回真实标题正文）＋ 受控 toast A/B（PowerShell AUMID 发 MCodeProbeTitle777/MCodeProbeBody888 ⇒ 修复后 read_events 最新一条 title/text 逐字回填）＋ 绑定源码逐字（windows-0.61.3：define_interface! 只造结构体＋Vtbl＋IID ⇒ 接口结构体零方法；AdaptiveNotificationText 类结构体合并默认接口全部方法）＋ 修复前后同一 read_events 红绿对照（修前 5 条全空 ⇒ 修后 5 条全回填）＋ 单测 --include-ignored 5/5 EXIT=0（4 纯函数 ＋ 1 探针）｜ 改动：shadow-desktop/src-tauri/src/device_notifications.rs（新增 win::texts_from_binding：GetTextElements → Text() 收集，空/错 ⇒ 回退 Template() XML 路径；read_events 改走它；extract_text_values 注明回退身份）＋ AGENTS.md 本条 ⇒ ⇒ **2 个文件** ⇒ ⇒ 零新增文件 ＋ 零新增依赖 ＋ 零 ci.yml 改动 ＋ 不碰兄弟在飞面（探针 #[ignore] 测试跑完即还原不落仓；两个临时 ps1 用完顶层 rm）｜ 读数：见⑤ ｜ 真 CI 待取 | status=active | supersedes=none
 

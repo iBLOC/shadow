@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data' show Uint8List;
 import 'dart:ui' show Color;
 // ⚠️ `TargetPlatform` 在 **package:flutter/foundation.dart** 里
 // ⇒ ⇒ `dart:ui` **不导出**它（那里只有 `Color`）。
@@ -368,6 +369,33 @@ Object? pickReportPayload(Object? result) {
   return result;
 }
 
+/// 工具执行结果里的**图片附件**（`{ images: [{ b64, size, mime? }] }`），
+/// 解成字节给 `tool_call_card` 渲染。
+///
+/// ⚠️ **shape 是两端共用的契约**：桌面端同一形状的解析在
+/// `shadow-desktop/src/lib/clientTools.ts` 的 `imageAttachmentsOf`
+/// ⇒ ⇒ 改这里必须连桌面端一起改（工具参数表有闸盯着，渲染形状靠这条注释守）。
+///
+/// ⚠️ 认不出的条目**跳过**（不抛）—— 一张坏图不该把整块结果画崩；
+/// base64 解不动的也跳过。
+List<Uint8List> imageAttachmentBytesOf(Object? result) {
+  if (result is! Map) return const [];
+  final images = result['images'];
+  if (images is! List) return const [];
+  final out = <Uint8List>[];
+  for (final item in images) {
+    if (item is! Map) continue;
+    final b64 = item['b64'];
+    if (b64 is! String || b64.isEmpty) continue;
+    try {
+      out.add(base64Decode(b64));
+    } catch (_) {
+      // 解不动的条目跳过（不把整块结果画崩）。
+    }
+  }
+  return out;
+}
+
 /// 工具结果里带的 surface id —— 内联渲染用。
 ///
 /// ⚠️ **只有 `beginRendering` 才算数** ⇒ 只有 `surfaceUpdate` 那些
@@ -407,6 +435,12 @@ ClientToolRegistry buildMobileClientTools({
   // ⚠️ **同样可注入**：否则单测只能测到「服务没开 ⇒ 失败」，
   // ⇒ ⇒ 测不到「服务已开 ⇒ 真的会去点」那条正路径。
   AccessibilityOps? accessibilityOps,
+  // ⚠️ **必填** —— 没有它就没有 `generate_image` 这个工具
+  // ⇒ ⇒ 两端发给模型的 `tools` 数组会**不一样**（桌面端总有它）
+  // ⇒ ⇒ 同一个模型在手机上叫不出它 ⇒ ⇒ 「两端一致」就破了。
+  // 注入的是**纯运输**那一半（`TelencephalonClient.generateImage`）；
+  // 解析与 report 的 l10n 都在下面工具定义里（与桌面端同构）。
+  required Future<Map<String, dynamic>> Function(Map<String, dynamic> body) generateImage,
 }) {
   final l10n = l10nProvider ?? currentL10n;
   // 能力工具的**执行器** —— 工具定义在下面（必须是**字面量**形式，
@@ -925,6 +959,73 @@ ClientToolRegistry buildMobileClientTools({
         'required': ['action'],
       },
       execute: (args) => capabilityTools.globalAction(args),
+    ),
+    ClientTool(
+      // ⚠️ **工具名、参数表（JSON Schema）与桌面端逐字一致**
+      // （shadow/scripts/check-client-tools.mjs 逐字段比对）。形状是：
+      // 结果 = `{ report, images }` —— **整图留在本地给界面渲染**
+      // （tool_call_card 吃 `images`），模型只拿到 `report` 那一句
+      // （pickReportPayload），不把几百 KB 的 base64 塞回模型上下文。
+      name: 'generate_image',
+      description:
+          'Generate an image from a text prompt. Use this when the user asks to draw, create, or generate a picture/illustration/photo. The generated image is shown to the user in the chat.',
+      parameters: <String, dynamic>{
+        'type': 'object',
+        'properties': <String, dynamic>{
+          'prompt': <String, dynamic>{
+            'type': 'string',
+            'description':
+                'What to draw. Describe the subject, style and composition concretely; the model on the other side cannot ask you questions.',
+          },
+          'size': <String, dynamic>{
+            'type': 'string',
+            'description':
+                'Image size as "WxH", e.g. "1024x1024". Width and height must be multiples of 16 and at most 2048. Omit for the default (1024x1024).',
+          },
+          'model': <String, dynamic>{
+            'type': 'string',
+            'description':
+                'Image model id to use. Omit to use the configured image_gen default (a cloud provider model or the local model, whichever is configured).',
+          },
+        },
+        'required': ['prompt'],
+      },
+      execute: (args) async {
+        final prompt = (args['prompt'] as String?)?.trim() ?? '';
+        if (prompt.isEmpty) {
+          throw const FormatException('generate_image expects a non-empty "prompt"');
+        }
+        final size = (args['size'] as String?)?.trim();
+        final model = (args['model'] as String?)?.trim();
+
+        final resp = await generateImage(<String, dynamic>{
+          'prompt': prompt,
+          if (size != null && size.isNotEmpty) 'size': size,
+          if (model != null && model.isNotEmpty) 'model': model,
+        });
+
+        final data = (resp['data'] as List?) ?? const [];
+        final images = <Map<String, dynamic>>[
+          for (final d in data.cast<Map<String, dynamic>>())
+            <String, dynamic>{
+              'b64': d['b64_json'],
+              'size': d['size'] ?? '',
+              // 端脑本地腿产 PNG；云上游 b64_json 也按 png 给界面标。
+              'mime': 'image/png',
+            },
+        ];
+
+        // ⚠️ **report ≠ 全量**：模型只需要「成了、多大了、给用户看了」这一句；
+        // base64 的部分走 `images` 给界面。l10n 文案与桌面端
+        // `clientTools.imageGenerated` 同键同文（两端互读比对）。
+        final firstSize = images.isNotEmpty ? (images.first['size'] as String? ?? '') : '';
+        return <String, dynamic>{
+          // ⚠️ `l10n()` 是**拿不到 BuildContext 时**取当前语言的那一套
+          //（与 a2ui 的 report 同一形态）。
+          'report': l10n().clientToolsImageGenerated(images.length, firstSize),
+          'images': images,
+        };
+      },
     ),
   ]);
 }

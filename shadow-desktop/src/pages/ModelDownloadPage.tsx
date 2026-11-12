@@ -5,6 +5,7 @@ import { Button, Card, CardContent, CardHeader, CardTitle, CardDescription } fro
 import { Badge } from '../components/ui/badge';
 import { Progress } from '../components/ui/progress';
 import { useModelDownloadStore } from '../stores/modelDownloadStore';
+import { NeuronCatalogSection } from '../components/models/NeuronCatalogCard';
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(0)} KB`;
@@ -132,6 +133,10 @@ export function ModelDownloadPage() {
           <ModelCard key={m.id} modelId={m.id} />
         ))}
       </div>
+
+      {/* ⚠️ neuron 目录面 —— 多文件 candle 仓库（如 moss-image）只有这条路能下；
+          GGUF 那张卡走的是浏览器 IndexedDB，装不下 ~27GB 的多文件仓库。 */}
+      <NeuronCatalogSection />
     </div>
   );
 }
