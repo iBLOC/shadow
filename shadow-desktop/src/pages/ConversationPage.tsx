@@ -4,6 +4,12 @@ import { invoke } from '@tauri-apps/api/core';
 import { composeSystemPrompt, telencephalonClient } from '../lib/telencephalonClient';
 import { deleteConversationEverywhere, setConversationArchived } from '../lib/conversationLifecycle';
 import { computeTokenStats } from '../lib/tokenStats';
+import {
+  intentSignatureOf,
+  lastUnsettledToolCall,
+  trajectoryStep,
+  type ToolTrajectoryStep,
+} from '../lib/toolTrajectory';
 import { useConversationStore } from '../stores/conversationStore';
 import { useThemeStore } from '../stores/themeStore';
 import { isChatBackgroundDataUrl } from '../lib/chatBackground';
@@ -93,6 +99,9 @@ export function ConversationPage() {
 
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  // 本轮工具轨迹（「历史工具记录喂思维定式」）—— ref 不触发渲染，
+  // 轮末 finally 里一次性喂给端脑。
+  const turnToolTrajectory = useRef<ToolTrajectoryStep[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   // ⚠️ 归档箱开关：默认**只列没归档的**（与端脑那侧默认列表同一口径）。
   const [showArchived, setShowArchived] = useState(false);
@@ -331,6 +340,8 @@ export function ConversationPage() {
         status: 'failed',
         errorText: `unsupported tool: ${call.name}`,
       });
+      // 历史工具记录：这台设备不会的活也记一条失败轨迹。
+      turnToolTrajectory.current.push(trajectoryStep(call.name, false));
       await reportToolResult(pending, false, { error: 'unsupported tool' });
       return;
     }
@@ -352,6 +363,9 @@ export function ConversationPage() {
       errorText,
       latencyMs: Date.now() - startedAt,
     });
+    // ⚠️ **历史工具记录**：执行完成即入本轮轨迹（成功失败都记 ——
+    // learner 蒸馏成功的成 flow 草稿；意图检索靠它避开失败路径）。
+    turnToolTrajectory.current.push(trajectoryStep(call.name, ok));
     // ⚠️ **回给端脑的只有 `report` 那一句** —— 组件树是**给界面**的，
     // 原样喂回模型 ⇒ 模型上下文被一堆 JSON 淹了。
     await reportToolResult(
@@ -361,8 +375,28 @@ export function ConversationPage() {
     );
   };
 
+  /** 轮末把工具轨迹喂给「思维定式」（fire-and-forget：失败只记日志，
+   *  绝不影响对话本身 —— 数据面永远不能挡住对话面）。 */
+  const flushToolTrajectory = (userInput: string) => {
+    if (turnToolTrajectory.current.length === 0) return;
+    const steps = turnToolTrajectory.current;
+    turnToolTrajectory.current = [];
+    telencephalonClient
+      .ingestTrace({
+        source: 'agent:shadow-desktop',
+        trajectory: steps,
+        userInput,
+        intentSignature: intentSignatureOf(userInput),
+      })
+      .catch((err: unknown) => {
+        console.warn('ingestTrace failed:', err);
+      });
+  };
+
   const handleSendMessage = async () => {
     if ((!input.trim() && stagedImages.length === 0) || !activeConversationId) return;
+    // 本轮的用户输入 —— 意图签名的原料（setInput('') 之前先抓住）。
+    const promptText = input;
 
     const userMessage: Message = {
       id: crypto.randomUUID(),
@@ -612,6 +646,8 @@ export function ConversationPage() {
       addMessage(activeConversationId, errorMessage);
     } finally {
       setIsLoading(false);
+      // 出错的轮也算「轮末」⇒ 轨迹照喂（带 ok:false 的失败步骤）。
+      flushToolTrajectory(promptText);
     }
   };
 
@@ -756,6 +792,19 @@ export function ConversationPage() {
             />
           ) : (
             filteredConversations.map((conv) => {
+              // ⚠️ **运行状态从这里来** —— 正在跑的那条会话（isLoading
+              // 属于本组件，侧栏与主区同组件）在列表条目上显示
+              // 「运行中 · 工具」徽章；其他会话不受影响（客户端只知道
+              // 本机的运行状态，别的设备照旧）。
+              const runningBadge =
+                activeConversationId === conv.id && isLoading
+                  ? (() => {
+                      const tool = lastUnsettledToolCall(conv.messages);
+                      return tool
+                        ? t('conversation.runningTool', { tool: tool.name })
+                        : t('conversation.running');
+                    })()
+                  : null;
               const kind = conv.kind ?? 'text';
               const meta =
                 kind === 'audio'
@@ -790,6 +839,18 @@ export function ConversationPage() {
                       ) : null}
                     </span>
                     <span className="text-xs text-muted-foreground">{meta}</span>
+                    {runningBadge ? (
+                      <span
+                        className="inline-flex items-center gap-1.5 text-xs font-medium text-primary"
+                        data-testid="conversation-running-badge"
+                      >
+                        <span className="relative flex h-1.5 w-1.5">
+                          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
+                          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-primary" />
+                        </span>
+                        {runningBadge}
+                      </span>
+                    ) : null}
                   </div>
                   <Button
                     size="icon"

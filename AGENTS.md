@@ -1,3 +1,27 @@
+**Updated**: 2026-11-12 (㌤ **「桌面端侧栏同一盏『运行中』灯 —— 而兄弟的整文件提交已经把我的在飞 hunks 『携带』入了链」** —— 承上条（移动端 U+3323）同族需求，本条记**取证（HEAD 携带的机械证明＋路径级三向分派）**、**判据（同族形状）**、**这一刀的落点**、**判据与分级读数**，以及**仍然欠着的**.
+> 信封：epoch=2026-11-12 | authority=measured | scope=project | source=tsc --noEmit EXIT=0 ＋ vitest toolTrajectory.test **9/9 绿** ＋ vite build ✓15.1s（worktree 承载级）＋ zh/en 两份 JSON 解析合法 ＋ 插值判据源 core.ts 逐字 interpolation:{ escapeValue: false } ⇒ i18next 默认 {{ }} ＋ **携带验证（机械）**：ef18662 的 telencephalonClient 含 ingestTrace／traces/ingest／_adminPost ＋ zh/en 含 running／runningTool ⇒ 我的 3 个在飞内容文件已随兄弟 U+3515 刀整文件提交先行入链；diff 方向：那 3 个文件 HEAD vs 我的 worktree ＝ **纯 deletions（131／31／31）＝ worktree 是子集 ⇒ 提交它会回退兄弟内容 ⇒ 跳过**；ConversationPage.tsx ＝ **纯 insertions（+61）＝ 纯加 ⇒ 提交** ｜ 改动：**新增** src/lib/toolTrajectory.ts（trajectoryStep／intentSignatureOf／lastUnsettledToolCall 三纯函数）＋ **新增** src/lib/__tests__/toolTrajectory.test.ts（9 条）＋ ConversationPage.tsx（轨迹 ref／unsupported 工具也记失败／主路径 push／flushToolTrajectory 定义／promptText 捕获／finally flush／侧栏 runningBadge＋呼吸圆点）＋ AGENTS.md 本条 ⇒ ⇒ **4 个文件（2 个新增；ingestTrace 与 i18n 两键随兄弟 U+3515 刀携带先行入链，本刀不重复提交）** ⇒ ⇒ 零 ci.yml 改动 ＋ 不碰兄弟在飞面 | status=active | supersedes=none
+
+① **⚠️ 取证：兄弟的整文件提交把我的在飞 hunks 「携带」入了链 ⇒ 路径级三向分派**
+　❶ **机械证明（不是推测）**：ef18662:telencephalonClient.ts 含 ingestTrace ＋ /api/flows/traces/ingest ＋ _adminPost；ef18662:zh-CN.json／en-US.json 含 running／runningTool 两键 ⇒ ⇒ 兄弟 U+3515 刀整文件提交时把共享工作树里我的在飞内容一并带入（其提交信息「携带（共享工作树纪律）」一格自述了 i18n 两键）。
+　❷ **路径级三向分派（本刀提交前对每个路径机械判）**：HEAD 版已含我的关键内容 ＋ diff 方向**纯 deletions** ⇒ HEAD 是超集 ⇒ **跳过**（提交 worktree 版＝回退兄弟 131／31／31 行）；diff 方向**纯 insertions** ⇒ worktree 是纯加超集 ⇒ **提交**（ConversationPage +61）；HEAD 没有 ⇒ **新增**（两个新文件）⇒ ⇒ **通用形态：共享工作树上「我的提交」的单位不是文件清单，是逐路径三向分派（已含⇒跳过／纯加⇒提交／交叠⇒合并）——「携带」让在飞内容提前入链，盲目整文件提交会把它倒退回去**。
+
+② **✅ 判据与形状（与移动端同族）**
+　❶ 轨迹行 {tool, ok, at(UTC ISO)}；成功失败都喂；轮末 flush＝主路径＋finally 兜底；fire-and-forget；ingestTrace 载荷 {source, trajectory, user_input?, intent_signature?}（符号已在链上＝兄弟携带）。
+　❷ 判据与 I/O 分离：trajectoryStep／intentSignatureOf／lastUnsettledToolCall 三纯函数独立成模块可单测自检（9 条）。
+　❸ 徽章＝runningBadge＋呼吸圆点渲染在侧栏会话列表；i18n 键 running／runningTool 已在链上（携带），"runningTool": "运行中 · {{tool}}" 插值按 core.ts 的 i18next 默认 {{ }}。
+
+③ **✅ 判据与分级读数（全部实测）**
+　❶ **判据级**：vitest toolTrajectory.test 9/9 绿；tsc --noEmit EXIT=0。
+　❷ **承载级**：vite build ✓15.1s（worktree＝HEAD＋本刀全组合）；zh/en 两份 JSON 解析合法；主仓 build ✓26.9s。
+　❸ **真 CI 级**：**待取**（未 push）。
+
+④ **⚠️ 仍然欠着的**
+　❶ 徽章工具词人话短词表（与移动端 capabilityToolShortLabel 同族）另刀。
+　❷ 存量 {error} 单括号键是既存缺口，未修。
+　❸ 真 CI 读数待取。
+
+⑨ **⚠ 圈码：本条占 U+3324 (㌤)** —— 号在提交 A（移动端 U+3323，水位 U+3322）之后按闸 --next 复跑取（桌面端候选头一个与移动端已占之号相撞 ⇒ 跳撞号取下一枚）⇒ ⇒ 方块字由 String.fromCodePoint 生成，不手打.
+
 **Updated**: 2026-11-12 (㌣ **「会话列表第一次知道『正在跑什么』—— 而全量测试的 -5 里没有一条是本体的」** —— 本条记**取证（两编译 error 成因＋归属实验 5 条失败逐条排除）**、**判据（运行徽章＋工具轨迹两格）**、**途中那几课（构造式提交的名单是时态的）**、**判据与分级读数**，以及**仍然欠着的**.
 > 信封：epoch=2026-11-12 | authority=measured | scope=project | source=主仓 analyze（error 2→0、61→57 条＝存量基线）＋ gen-l10n EXIT=0 ＋ 定向单测 chat_provider_tool_test 扩展后 +32 绿 ＋ 主 WT 全量 flutter test 归属实验（+807 ~12 **-5**；worktree（裸 HEAD 2356e2d＋本刀）复测同一测试文件仍 -4 ⇒ 4 例为 HEAD notificationsRead 刀既存尾账、第 5 例只在主 WT ⇒ 兄弟在飞 imageGen 第 7 能力 ⇒ 5 条全非本体）＋ worktree 承载级全绿（analyze 57 条 0 error／定向 +32）｜ 改动：chat_provider（轨迹累积＋轮末 ingestTrace，成功轮末＋catch 双落点）＋ conversation_screen（列表徽章接线）＋ capability_i18n（capabilityToolShortLabel 人话短词表）＋ telencephalon_client（ingestTrace 走 _adminPost /api/flows/traces/ingest）＋ arb×2（running／runningTool 两键）＋ generated l10n×3（gen-l10n 重生成）＋ **新增** lib/widgets/conversation_running_badge.dart ＋ test/unit/chat_provider_tool_test.dart 扩展 ＋ AGENTS.md 本条 ⇒ ⇒ **13 个文件（1 个新增）** ⇒ ⇒ 零 ci.yml 改动 ＋ 不碰兄弟在飞面 | status=active | supersedes=none
 
