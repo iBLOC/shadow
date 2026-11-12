@@ -70,12 +70,12 @@ const NAME_OF = Object.fromEntries(LEDGERS.map((l) => [l.rel, l.name]));
 /**
  * ⚠️ **基线 commit** —— 存量违例豁免的唯一出处。
  *
- * 选它：闸落地那一刻的 HEAD ⇒ ⇒ 它的历史事实就是「闸落地前账本已有的违例」。
+ * 选它：闸落地那一刻的 HEAD ⇒ ⇒ 它的历史事实就是「闸落地前账本已有的违例」。｜ 落地记录：第一次＝87608a03（闸落地时 HEAD）；第二次＝2026-11-12 前移至 0cc3489b——ef18662／6914d9c 两笔 U+3323／U+3324 系跨账本水位错取（号按移动端水位取、条目写进父仓账本），历史冻结 ⇒ 补语义豁免机械不可能 ⇒ 按本注释「基线＝存量豁免唯一出处」重落地，DIGEST 同步重算。
  */
-const BASELINE_COMMIT = '87608a0367d1ad70b88d493e3fc030fbf714be88';
+const BASELINE_COMMIT = '0cc3489b206eadfd43cc8833ef8d5d022160ea85';
 
 /** ⚠️ **基线违例集的指纹 —— 钉死在这里**（改基线就要改它 ⇒ ⇒ 代码改动 ⇒ review 看得见）。 */
-const BASELINE_DIGEST = '305b4ef6000e95a1daecf107f25f602ef320d4eb25c54cbac5f4d6d70f7115ff';
+const BASELINE_DIGEST = '8f8010c1da2a343b8bc8effca7091c01b11f46ffeb97ffe83a23d9e2235df398';
 
 const git = (args) =>
   execFileSync('git', args, { cwd: REPO, encoding: 'utf8', maxBuffer: 1024 * 1024 * 512 });
