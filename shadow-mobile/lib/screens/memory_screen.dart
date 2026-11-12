@@ -222,6 +222,13 @@ class MemoryScreen extends ConsumerWidget {
           Expanded(
             child: memoryState.isLoading
                 ? const Center(child: CircularProgressIndicator())
+                // ⚠️ **三态，不是两态**（2026-11-12）：以前只有
+                // 「加载中 / 空」⇒ ⇒ 请求 404 / 网络失败也画成「暂无记忆」
+                // ⇒ ⇒ **读不到长得像没有**。手机上的内置大脑是 `mobile`
+                // profile（不含 hippocampus）⇒ `/hippocampus/api/search`
+                // 根本没挂 ⇒ 这条分支就是手机上**必然**走的那一条。
+                : memoryState.error != null
+                ? _buildUnavailableState(context, memoryState.error!)
                 : memoryState.filteredMemories.isEmpty
                 ? _buildEmptyState(context)
                 : _buildMemoryList(context, memoryState.filteredMemories),
@@ -233,6 +240,37 @@ class MemoryScreen extends ConsumerWidget {
 
   Widget _buildEmptyState(BuildContext context) {
     return EmptyState(icon: Icons.psychology_outlined, title: AppLocalizations.of(context)!.memoryEmpty);
+  }
+
+  /// 「读不到」的第三态 —— **说真话**：这台设备的记忆面没挂 / 请求失败。
+  ///
+  /// ⚠️ 与 [`_buildEmptyState`] 分开是这一格的全部意义：**空 ≠ 读不到**。
+  Widget _buildUnavailableState(BuildContext context, String reason) {
+    final l10n = AppLocalizations.of(context)!;
+    final scheme = Theme.of(context).colorScheme;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.cloud_off_outlined, size: 48, color: scheme.outline),
+            const SizedBox(height: 12),
+            Text(
+              l10n.memoryUnavailable,
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: scheme.onSurface),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              l10n.memoryUnavailableHint('端脑', reason),
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildMemoryList(BuildContext context, List<MemoryInfo> memories) {

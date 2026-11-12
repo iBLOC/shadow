@@ -1148,6 +1148,18 @@ abstract class AppLocalizations {
   /// **'No memories yet'**
   String get memoryEmpty;
 
+  /// No description provided for @memoryUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Cannot reach the memory store'**
+  String get memoryUnavailable;
+
+  /// No description provided for @memoryUnavailableHint.
+  ///
+  /// In en, this message translates to:
+  /// **'The {brain} on this device has no memory face (hippocampus not enabled), or the request failed. Reason: {reason}'**
+  String memoryUnavailableHint(String brain, String reason);
+
   /// No description provided for @commonAll.
   ///
   /// In en, this message translates to:
@@ -1279,6 +1291,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'OCR'**
   String get capOcr;
+
+  /// No description provided for @capImageGen.
+  ///
+  /// In en, this message translates to:
+  /// **'Image generation'**
+  String get capImageGen;
 
   /// No description provided for @providersTitle.
   ///
@@ -2141,13 +2159,13 @@ abstract class AppLocalizations {
   /// No description provided for @encephalonModelSourceTitle.
   ///
   /// In en, this message translates to:
-  /// **'Brain model source'**
+  /// **'Default models'**
   String get encephalonModelSourceTitle;
 
   /// No description provided for @encephalonModelSourceHint.
   ///
   /// In en, this message translates to:
-  /// **'Global default: every lobe uses this source. You can override a single lobe under \"Lobe model routing\" below.'**
+  /// **'Each category picks its own model - chat can run in the cloud while speech recognition stays local. Lobes follow the chat model here unless you set one for them below.'**
   String get encephalonModelSourceHint;
 
   /// No description provided for @encephalonModelLocalNeuron.
@@ -2180,18 +2198,6 @@ abstract class AppLocalizations {
   /// **'Could not read the provider catalog from the brain - it may not be running.'**
   String get encephalonModelOptionsUnavailable;
 
-  /// No description provided for @capabilityDefaultsTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Default model per capability'**
-  String get capabilityDefaultsTitle;
-
-  /// No description provided for @capabilityDefaultsHint.
-  ///
-  /// In en, this message translates to:
-  /// **'Text / speech recognition / speech synthesis each get their own default model; leave a tier unset and the brain picks one.'**
-  String get capabilityDefaultsHint;
-
   /// No description provided for @capabilityDefaultsAppliedButNotCached.
   ///
   /// In en, this message translates to:
@@ -2209,6 +2215,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This brain exposes no capability tiers.'**
   String get capabilityDefaultsEmpty;
+
+  /// No description provided for @brainChatModelLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat model'**
+  String get brainChatModelLabel;
+
+  /// No description provided for @brainModelBadgeLocal.
+  ///
+  /// In en, this message translates to:
+  /// **'Local'**
+  String get brainModelBadgeLocal;
+
+  /// No description provided for @brainModelBadgeCloud.
+  ///
+  /// In en, this message translates to:
+  /// **'Cloud'**
+  String get brainModelBadgeCloud;
+
+  /// No description provided for @brainTiersNotReadNote.
+  ///
+  /// In en, this message translates to:
+  /// **'{tiers}: the brain does not read a default model for these categories yet, so there is nothing to choose here.'**
+  String brainTiersNotReadNote(String tiers);
+
+  /// No description provided for @brainLobeSectionHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Each lobe follows the chat model above until you set one for it. Other categories (speech etc.) only have a global default for now.'**
+  String get brainLobeSectionHint;
+
+  /// No description provided for @brainLobeListEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'This brain has no lobes that can be set individually.'**
+  String get brainLobeListEmpty;
 
   /// No description provided for @encephalonLobeRoutingTitle.
   ///
@@ -3853,6 +3895,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The brain returned no model catalog'**
   String get providersDownloadEmpty;
+
+  /// No description provided for @clientToolsImageGenerated.
+  ///
+  /// In en, this message translates to:
+  /// **'Generated {count} image(s) ({size}) and showed them to the user.'**
+  String clientToolsImageGenerated(int count, String size);
 }
 
 class _AppLocalizationsDelegate

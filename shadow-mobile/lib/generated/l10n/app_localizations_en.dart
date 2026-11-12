@@ -568,6 +568,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get memoryEmpty => 'No memories yet';
 
   @override
+  String get memoryUnavailable => 'Cannot reach the memory store';
+
+  @override
+  String memoryUnavailableHint(String brain, String reason) {
+    return 'The $brain on this device has no memory face (hippocampus not enabled), or the request failed. Reason: $reason';
+  }
+
+  @override
   String get commonAll => 'All';
 
   @override
@@ -633,6 +641,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get capOcr => 'OCR';
+
+  @override
+  String get capImageGen => 'Image generation';
 
   @override
   String get providersTitle => 'Model Providers';
@@ -1115,11 +1126,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get encephalonInferFailed => 'Inference failed';
 
   @override
-  String get encephalonModelSourceTitle => 'Brain model source';
+  String get encephalonModelSourceTitle => 'Default models';
 
   @override
   String get encephalonModelSourceHint =>
-      'Global default: every lobe uses this source. You can override a single lobe under \"Lobe model routing\" below.';
+      'Each category picks its own model - chat can run in the cloud while speech recognition stays local. Lobes follow the chat model here unless you set one for them below.';
 
   @override
   String get encephalonModelLocalNeuron => 'Local neuron weights';
@@ -1139,13 +1150,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Could not read the provider catalog from the brain - it may not be running.';
 
   @override
-  String get capabilityDefaultsTitle => 'Default model per capability';
-
-  @override
-  String get capabilityDefaultsHint =>
-      'Text / speech recognition / speech synthesis each get their own default model; leave a tier unset and the brain picks one.';
-
-  @override
   String get capabilityDefaultsAppliedButNotCached =>
       'Applied to the brain, but the local copy was not saved - this tier will reset after a restart.';
 
@@ -1155,6 +1159,28 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get capabilityDefaultsEmpty =>
       'This brain exposes no capability tiers.';
+
+  @override
+  String get brainChatModelLabel => 'Chat model';
+
+  @override
+  String get brainModelBadgeLocal => 'Local';
+
+  @override
+  String get brainModelBadgeCloud => 'Cloud';
+
+  @override
+  String brainTiersNotReadNote(String tiers) {
+    return '$tiers: the brain does not read a default model for these categories yet, so there is nothing to choose here.';
+  }
+
+  @override
+  String get brainLobeSectionHint =>
+      'Each lobe follows the chat model above until you set one for it. Other categories (speech etc.) only have a global default for now.';
+
+  @override
+  String get brainLobeListEmpty =>
+      'This brain has no lobes that can be set individually.';
 
   @override
   String get encephalonLobeRoutingTitle => 'Lobe model routing';
@@ -2075,4 +2101,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get providersDownloadEmpty => 'The brain returned no model catalog';
+
+  @override
+  String clientToolsImageGenerated(int count, String size) {
+    return 'Generated $count image(s) ($size) and showed them to the user.';
+  }
 }

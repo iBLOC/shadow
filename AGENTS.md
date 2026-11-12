@@ -1,54 +1,26 @@
-**Updated**: 2026-11-12 (㌤ **「桌面端侧栏同一盏『运行中』灯 —— 而兄弟的整文件提交已经把我的在飞 hunks 『携带』入了链」** —— 承上条（移动端 U+3323）同族需求，本条记**取证（HEAD 携带的机械证明＋路径级三向分派）**、**判据（同族形状）**、**这一刀的落点**、**判据与分级读数**，以及**仍然欠着的**.
-> 信封：epoch=2026-11-12 | authority=measured | scope=project | source=tsc --noEmit EXIT=0 ＋ vitest toolTrajectory.test **9/9 绿** ＋ vite build ✓15.1s（worktree 承载级）＋ zh/en 两份 JSON 解析合法 ＋ 插值判据源 core.ts 逐字 interpolation:{ escapeValue: false } ⇒ i18next 默认 {{ }} ＋ **携带验证（机械）**：ef18662 的 telencephalonClient 含 ingestTrace／traces/ingest／_adminPost ＋ zh/en 含 running／runningTool ⇒ 我的 3 个在飞内容文件已随兄弟 U+3515 刀整文件提交先行入链；diff 方向：那 3 个文件 HEAD vs 我的 worktree ＝ **纯 deletions（131／31／31）＝ worktree 是子集 ⇒ 提交它会回退兄弟内容 ⇒ 跳过**；ConversationPage.tsx ＝ **纯 insertions（+61）＝ 纯加 ⇒ 提交** ｜ 改动：**新增** src/lib/toolTrajectory.ts（trajectoryStep／intentSignatureOf／lastUnsettledToolCall 三纯函数）＋ **新增** src/lib/__tests__/toolTrajectory.test.ts（9 条）＋ ConversationPage.tsx（轨迹 ref／unsupported 工具也记失败／主路径 push／flushToolTrajectory 定义／promptText 捕获／finally flush／侧栏 runningBadge＋呼吸圆点）＋ AGENTS.md 本条 ⇒ ⇒ **4 个文件（2 个新增；ingestTrace 与 i18n 两键随兄弟 U+3515 刀携带先行入链，本刀不重复提交）** ⇒ ⇒ 零 ci.yml 改动 ＋ 不碰兄弟在飞面 | status=active | supersedes=none
+**Updated**: 2026-11-12 (㔖 **「『没有记忆』与『读不到记忆』长得一模一样 —— 而手机上那条路**必然**走的是后者」** —— 承 U+3500 条（失败长得像成功），本条记**取证（三段存储链的逐一取证 ＋ 404 被画成空态）**、**第一因（记忆页只有两态：加载中／空 ⇒ 错误分支不存在）**、**第二因（手机上对话历史其实只在内存里 —— `mobile` profile 不含 hippocampus 且 `conversation_store_file` 从没设）**、**第三因（硬链接不在 Lance 里、在 `object_store` 的**本地**实现里 ⇒ 换 S3 就绕开；`mobile+hippocampus` 交叉编译实测 8m09s 0 error ⇒ 老结论归因归错层）**、**这一刀的落点**、**判据与分级读数**，以及**仍然欠着的**.)
 
-① **⚠️ 取证：兄弟的整文件提交把我的在飞 hunks 「携带」入了链 ⇒ 路径级三向分派**
-　❶ **机械证明（不是推测）**：ef18662:telencephalonClient.ts 含 ingestTrace ＋ /api/flows/traces/ingest ＋ _adminPost；ef18662:zh-CN.json／en-US.json 含 running／runningTool 两键 ⇒ ⇒ 兄弟 U+3515 刀整文件提交时把共享工作树里我的在飞内容一并带入（其提交信息「携带（共享工作树纪律）」一格自述了 i18n 两键）。
-　❷ **路径级三向分派（本刀提交前对每个路径机械判）**：HEAD 版已含我的关键内容 ＋ diff 方向**纯 deletions** ⇒ HEAD 是超集 ⇒ **跳过**（提交 worktree 版＝回退兄弟 131／31／31 行）；diff 方向**纯 insertions** ⇒ worktree 是纯加超集 ⇒ **提交**（ConversationPage +61）；HEAD 没有 ⇒ **新增**（两个新文件）⇒ ⇒ **通用形态：共享工作树上「我的提交」的单位不是文件清单，是逐路径三向分派（已含⇒跳过／纯加⇒提交／交叠⇒合并）——「携带」让在飞内容提前入链，盲目整文件提交会把它倒退回去**。
+> 信封：epoch=2026-11-12 | authority=measured | scope=project | source=存储链取证（`memory_screen.dart` 只渲染 `isLoading`／`filteredMemories.isEmpty` ⇒ **`memoryState.error` 一次都没渲染**；`prefrontal_client.dart:289-308` 记忆打 `POST /hippocampus/api/search`；`prefrontal_client.dart:1266-1274` 注释自陈「嵌入式端脑不带海马体 ⇒ `/hippocampus/*` 直接 404 ⇒ 记忆页永远是空的」⇒ 它跟的是**用户配置的地址**；`encephalon/Cargo.toml` `mobile` profile 不含 `hippocampus`；`telencephalon/src/boot.rs:557-575` 三条持久化取舍 ＋ 移动端 Kotlin/Dart 两端 grep `conversation_store_file` **零命中** ⇒ 手机上 `ConversationStore::new()` ＝ 纯内存）＋ 硬链接定位（`object_store-0.14.2/src/local.rs:237/652/683`）＋ 交叉编译实测（`cargo check --target aarch64-linux-android --features "mobile,hippocampus"` ⇒ Finished **8m09s**、0 error）｜ 改动：**shadow**（`shadow-mobile/lib/screens/memory_screen.dart` 三态 ＋ `app_zh.arb`／`app_en.arb` 两键 ＋ gen-l10n ＋ `test/widget/memory_screen_test.dart` 两条三态断言）＋ **telencephalon**（`api/images.rs` 校验分层 ＋ `boot.rs` Android fail-loud 护栏，见该仓 ㌌ 条）＋ **synapse**（H3 能力词 ＋ `minimax-h3` 预设，见该仓 2026-11-12 条）＋ **encephalon**（`mobile-memory` 可选构建档）⇒ ⇒ **4 仓** ｜ 读数：移动 `flutter test test/widget/memory_screen_test.dart` **7/7**（含「失败不许画成空」＋「真空才画空」）＋ `flutter analyze` 记忆页 **0 issue** ＋ 端脑 `api::images` 6/6／`boot::` 13/13 ＋ synapse catalog 15/15 ＋ Android 交叉编译 2 档通过 ｜ 真机待取 | status=active | supersedes=none
 
-② **✅ 判据与形状（与移动端同族）**
-　❶ 轨迹行 {tool, ok, at(UTC ISO)}；成功失败都喂；轮末 flush＝主路径＋finally 兜底；fire-and-forget；ingestTrace 载荷 {source, trajectory, user_input?, intent_signature?}（符号已在链上＝兄弟携带）。
-　❷ 判据与 I/O 分离：trajectoryStep／intentSignatureOf／lastUnsettledToolCall 三纯函数独立成模块可单测自检（9 条）。
-　❸ 徽章＝runningBadge＋呼吸圆点渲染在侧栏会话列表；i18n 键 running／runningTool 已在链上（携带），"runningTool": "运行中 · {{tool}}" 插值按 core.ts 的 i18next 默认 {{ }}。
+① **⚠️ 取证：三段存储，三种真相**
+　❶ **对话历史（手机）**：读 `/shadow/v1/conversations` ⇒ 端脑 `ConversationStore`；而手机上 `hippocampus` feature 关 ⇒ Lance 腿 `None`，`conversation_store_file` **从没设** ⇒ `ConversationStore::new()` ＝ **纯内存** ⇒ 前台服务活着时看得见、进程一死全没（**不是持久化坏了，是没接**）。
+　❷ **记忆（手机）**：记忆页打 `/hippocampus/api/search`，而 `mobile` profile 不编 hippocampus ⇒ **404**。
+　❸ **而记忆页把 404 画成了「暂无记忆」** —— `memoryState.error` 在界面里**一次都没被读**（只有 `isLoading` 与 `isEmpty` 两态）⇒ ⇒ **读不到 ＝ 没有**，正是本账反复记的那一档。
 
-③ **✅ 判据与分级读数（全部实测）**
-　❶ **判据级**：vitest toolTrajectory.test 9/9 绿；tsc --noEmit EXIT=0。
-　❷ **承载级**：vite build ✓15.1s（worktree＝HEAD＋本刀全组合）；zh/en 两份 JSON 解析合法；主仓 build ✓26.9s。
-　❸ **真 CI 级**：**待取**（未 push）。
+② **⚠️ 第一因：两态 UI 把「查不到」吞进「空」**
+　❶ 判据要按「**三种**可能」写：真的没有／**读不到**／正在读。少一态 ⇒ 缺的那一态会被并进最像它的那一态 ⇒ 这里是「并进空」。⇒ 修法是加**第三态**并让它说真话（带原因串），不是把空态文案改得含糊。
 
-④ **⚠️ 仍然欠着的**
-　❶ 徽章工具词人话短词表（与移动端 capabilityToolShortLabel 同族）另刀。
-　❷ 存量 {error} 单括号键是既存缺口，未修。
-　❸ 真 CI 读数待取。
+③ **⚠️ 第二因：手机上的对话历史只在内存 —— 这是产品选择，不是 bug**
+　❶ 当年的取舍是「Lance 本地盘在 Android 上 panic ⇒ 会话落 JSON 文件」，但**移动端并没有设那个 JSON 路径** ⇒ 实际是纯内存。⇒ ⇒ 要说清的是「**它现在不持久**」，而不是「它存在某处」。
 
-⑨ **⚠ 圈码：本条占 U+3324 (㌤)** —— 号在提交 A（移动端 U+3323，水位 U+3322）之后按闸 --next 复跑取（桌面端候选头一个与移动端已占之号相撞 ⇒ 跳撞号取下一枚）⇒ ⇒ 方块字由 String.fromCodePoint 生成，不手打.
+④ **⚠️ 第三因：老结论归因归错了一层（跨仓）**
+　❶ 「Android 写不了硬链接」的真实射程是 **`object_store` 的本地文件系统后端**（`local.rs` 用 `std::fs::hard_link`），`s3://` 走对象存储**不碰它**；且 `mobile+hippocampus` 在 `aarch64-linux-android` 上 **8 分 09 秒 0 error** 编得出来 ⇒ ⇒ 2026-11-01 那条「手机上开不了海马体」是**运行时**结论（真机 `avc: denied { link }`），被写成了「所以不编它」⇒ ⇒ **约束的射程要先划清**（详见 telencephalon ㌌ 条）。
 
-**Updated**: 2026-11-12 (㌣ **「会话列表第一次知道『正在跑什么』—— 而全量测试的 -5 里没有一条是本体的」** —— 本条记**取证（两编译 error 成因＋归属实验 5 条失败逐条排除）**、**判据（运行徽章＋工具轨迹两格）**、**途中那几课（构造式提交的名单是时态的）**、**判据与分级读数**，以及**仍然欠着的**.
-> 信封：epoch=2026-11-12 | authority=measured | scope=project | source=主仓 analyze（error 2→0、61→57 条＝存量基线）＋ gen-l10n EXIT=0 ＋ 定向单测 chat_provider_tool_test 扩展后 +32 绿 ＋ 主 WT 全量 flutter test 归属实验（+807 ~12 **-5**；worktree（裸 HEAD 2356e2d＋本刀）复测同一测试文件仍 -4 ⇒ 4 例为 HEAD notificationsRead 刀既存尾账、第 5 例只在主 WT ⇒ 兄弟在飞 imageGen 第 7 能力 ⇒ 5 条全非本体）＋ worktree 承载级全绿（analyze 57 条 0 error／定向 +32）｜ 改动：chat_provider（轨迹累积＋轮末 ingestTrace，成功轮末＋catch 双落点）＋ conversation_screen（列表徽章接线）＋ capability_i18n（capabilityToolShortLabel 人话短词表）＋ telencephalon_client（ingestTrace 走 _adminPost /api/flows/traces/ingest）＋ arb×2（running／runningTool 两键）＋ generated l10n×3（gen-l10n 重生成）＋ **新增** lib/widgets/conversation_running_badge.dart ＋ test/unit/chat_provider_tool_test.dart 扩展 ＋ AGENTS.md 本条 ⇒ ⇒ **13 个文件（1 个新增）** ⇒ ⇒ 零 ci.yml 改动 ＋ 不碰兄弟在飞面 | status=active | supersedes=none
+⑤ **✅ 这一刀的落点（4 仓）** —— shadow：记忆页三态（新 `_buildUnavailableState`，错误态显示「读不到记忆库 ＋ 原因」）＋ l10n 两键（`memoryUnavailable`／`memoryUnavailableHint`）＋ 两条 widget 断言（失败**不许**画成空）；telencephalon：images 校验分层 ＋ Android「本地落点 ⇒ 报错不 panic、记忆面关」；synapse：H3 能力词 ＋ `minimax-h3` 预设；encephalon：`mobile-memory = ["mobile","hippocampus"]` 可选档（默认仍 `mobile`，APK 不涨）。
 
-① **⚠️ 取证：两处编译 error 的成因 ＋ 全量测试 -5 的归属**
-　❶ error 1：_flushToolTrajectory 签名带 sessionId 而两处调用不传 ⇒ 修法＝签名去掉该参数；error 2：chat.toolCalls 字段无人维护 ⇒ 修法＝**从 chat.messages 派生**（_runningBadgeLabel 接收 messages，whereType<ToolCallModel> 挑工具卡）⇒ ⇒ 派生优于双写：少一份要同步的状态。
-　❷ **归属实验（决定性）**：主 WT 全量 flutter test ＝ +807 ~12 **-5**，失败全在 capability_grants_section_test ⇒ 同一文件在 worktree（裸 HEAD＋本刀）复测**仍 -4** ⇒ ⇒ 4 例是 HEAD 上 notificationsRead 刀的既存尾账（「五个能力各一行」标题过期＋findsNWidgets 计数错位）；第 5 例**只在主 WT** ⇒ 兄弟在飞 imageGen 第 7 能力 ⇒ ⇒ **5 条全与本体无关**。
+⑥ **✅ 判据与分级读数** —— 移动记忆页 **7/7**（新两条：请求失败 ⇒ 说「读不到」且 `No memories yet` **findsNothing**；真空 ⇒ 才画空）；端脑 `api::images` **6/6**、`boot::` **13/13**、`cargo check --lib` EXIT=0；synapse `providers::catalog` **15/15**；Android 交叉编译 **2/2**（8m09s／12.53s）；`flutter analyze` 该文件 0 issue。
 
-② **✅ 判据（徽章＋轨迹两格）**
-　❶ **徽章**：运行中的会话在列表页显示「运行中 · {{tool}}」（arb runningTool 键）＋呼吸圆点；工具词走 capabilityToolShortLabel 人话短词表，表外回退工具名原文。
-　❷ **轨迹**：行形状 {tool, ok, at(UTC ISO)}；**成功与失败都喂**（unsupported 工具记失败一行）；轮末＝成功轮末＋catch 双落点；fire-and-forget 不阻塞 UI；载荷 {source, trajectory, user_input?, intent_signature?} 走 /api/flows/traces/ingest。
-
-③ **⚠️ 途中那几课**
-　❶ **构造式提交的「纯我名单」是时态的**：chat_provider 在量完 numstat 之后被兄弟写入 image-gen hunk 一次 ⇒ 整文件 hash-object 会替别人提交半成品 ⇒ 回滚 HEAD 重过滤（7 hunks 保 6 拍 1）⇒ ⇒ 提交前一刻必须重验，黑名单终扫放最后（全 worktree 终扫 0 命中）。
-　❷ **全量测试的红要先归属再下手**：-5 里 4 例既存尾账＋1 例兄弟在飞 ⇒ 不归属就会「顺手修别人的账」或「被别人的红吓停」。
-
-④ **✅ 判据与分级读数（全部实测）**
-　❶ **判据级**：gen-l10n EXIT=0；主仓 analyze 61→57 条（error 2→0，57＝存量基线）；定向单测扩展后 +32 绿。
-　❷ **承载级**：worktree（钉 HEAD 2356e2d＋本刀 11 改动文件＋1 新增）gen-l10n EXIT=0／analyze 57 条 0 error／定向 +32。
-　❸ **归属级**：见 ①❷（5 条失败全非本体）。
-　❹ **真 CI 级**：**待取**（未 push）。
-
-⑤ **⚠️ 仍然欠着的**
-　❶ capability_grants_section_test 4 例既存尾账归属 notificationsRead 刀，本刀不代改；第 5 例随兄弟 imageGen 刀落地。
-　❷ 徽章工具词短词表只覆盖移动端；桌面端徽章暂用工具名原文（桌面端另条）。
-　❸ 真 CI 读数待取。
-
-⑨ **⚠ 圈码：本条占 U+3323 (㌣)** —— 号是按**官方口径**在**提交树面**取的（闸 --next：移动端水位 U+3322 ⇒ 候选头一个 U+3323；桌面端候选头一个同号 ⇒ 让位取下一个，见下条）⇒ ⇒ 方块字由 String.fromCodePoint 生成，不手打.
+⑦ **⚠️ 仍然欠着的** —— ❶ `mobile-memory` 的 `.so` **没编、没装、没验**（只到 `cargo check`）⇒ **不许把编译通过说成真机可用**；❷ 体量：带 hippocampus 的 arm64 `.so` 350.7 MB（不带 159 MB）⇒ APK +190 MB ⇒ 还没拍板要不要发这个档；❸ S3 凭据落点（控制面远端 vs Android Keystore）未定；❹ 离网记忆写入的降级策略未定；❺ 手机对话历史要不要落盘（`with_file_persistence` 现成）未定；❻ 「工作树条目数 ≥ 提交树条目数」那道闸仍欠（承 U+3515 条⑨）。
 
 **Updated**: 2026-11-12 (㔕 **「图片生成的四块零件早就都在 —— 缺的是中间三段管子：端脑没有那一档词、没有那张分流门面、两端没有那双看图的手」** —— 承 U+3500 条（失败长得像成功）＋ U+3508 条（取号读数必须带面），本条记**取证（四块零件的逐一盘点 ＋ 缺口清单）**、**第一因（能力词表的单一真源缺档 ⇒ 两端全瞎）**、**第二因（门面分流照 voice 先例：调用者是设备 ⇒ admin 门，不是主人门）**、**第三因（目录条目的能力词是引擎名 ⇒ 按 engine_impl 家族标注；parse 是 feature 门控不能用）**、**这一刀的落点（两仓 ＋ 零 neuron／零 synapse）**、**途中那几课**、**判据与分级读数**，以及**仍然欠着的**.)
 
