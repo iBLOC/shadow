@@ -1564,6 +1564,18 @@
     "vision": "视觉模型",
     "forecast": "预测模型"
   },
+  "lobeModelMatrix": {
+    "title": "每个叶区用什么模型",
+    "hint": "每一格各选各的。留空＝跟随全局那一档；单独指定才进覆盖表（改全局默认时，留空的叶区会跟着变）。文本模型走大脑路由（会同时把云模型注册成远端引擎）；语音识别 / 语音合成 / 图片生成走分档默认。",
+    "followGlobalWith": "跟随全局（{{model}}）",
+    "followGlobalLocal": "跟随全局（本地 / 第一个可用）",
+    "forceLocal": "强制本地权重",
+    "applied": "已应用叶区模型",
+    "appliedButNotCached": "已下发到大脑，但本地副本没存住 —— 大脑重启后这一格会回到跟随全局。",
+    "failed": "叶区模型设置失败",
+    "unknownLobes": "这些叶区名端脑不认识，没有生效：{{lobes}}",
+    "empty": "这台大脑没有注册任何原生叶区。"
+  },
   "subsystem": {
     "title": "子系统管理",
     "refresh": "刷新",

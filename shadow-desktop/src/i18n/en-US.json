@@ -1564,6 +1564,18 @@
     "vision": "Vision model",
     "forecast": "Forecast model"
   },
+  "lobeModelMatrix": {
+    "title": "Model per lobe",
+    "hint": "Each cell is chosen independently. Empty = follow the global setting for that type; only explicit choices are stored as overrides (lobes left empty keep following the global default). Text models go through brain routing (which also registers the cloud model as a remote engine); speech recognition / speech synthesis / image generation use the per-type defaults.",
+    "followGlobalWith": "Follow global ({{model}})",
+    "followGlobalLocal": "Follow global (local / first available)",
+    "forceLocal": "Force local weights",
+    "applied": "Lobe model applied",
+    "appliedButNotCached": "Sent to the brain, but the local copy was not saved — this cell will fall back to \"follow global\" after a brain restart.",
+    "failed": "Failed to set the lobe model",
+    "unknownLobes": "The brain does not know these lobe names, so they were not applied: {{lobes}}",
+    "empty": "This brain has no native lobes registered."
+  },
   "subsystem": {
     "title": "Subsystem Management",
     "refresh": "Refresh",

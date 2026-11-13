@@ -359,6 +359,18 @@ export interface FlowRunResult {
  */
 export interface CapabilityDefaultsView {
   defaults: Record<string, string>;
+
+  /**
+   * **逐叶区的分档覆盖**（叶区 → 能力词 → 模型 id）。
+   *
+   * 端脑的解析链：显式 `model` → **叶区覆盖** → 全局分档默认 → 第一个
+   * 注册的引擎。不在表里＝该叶区该档**跟随全局**（与 llm 的
+   * `lobe_models` 同一约定：只装显式覆盖）。
+   *
+   * ⚠️ **`llm` 不在这张表里** —— 逐叶区 llm 走 `lobes/models` 路由面
+   * （那里有持久化与引擎注册）⇒ ⇒ 端脑收到 `llm` 会整份拒绝（4008）。
+   */
+  lobe_defaults?: Record<string, Record<string, string>>;
   capabilities: string[];
 
   /**
@@ -410,6 +422,29 @@ export interface LobeModelsView {
   unknown: string[];
   /** 注册成功的远端引擎数。 */
   registered: number;
+}
+
+/**
+ * `GET /api/telencephalon/lobes/routing` 的响应 —— 模型路由的**覆盖表**
+ * 全貌（不是生效值）。
+ *
+ * ⚠️ 两张表都是「只装显式覆盖」：不在表里＝跟随全局。矩阵 UI 合并写回时
+ * 必须基于它，否则会把「跟随全局」钉死。
+ */
+export interface LobeRoutingView {
+  /** 全局默认对话模型（`null` = 全体回落本地）。 */
+  default_model: string | null;
+  /** 逐叶区 llm 覆盖（`null` = 该叶区强制本地）。 */
+  lobe_models: Record<string, string | null>;
+  /** 逐叶区按引擎 id 解析的档（asr / tts / image_gen）。 */
+  lobe_capability_models: Record<string, Record<string, string>>;
+}
+
+/** `GET /api/telencephalon/lobes/manifest` 里的一条（只取界面用的字段）。 */
+export interface LobeManifestSummary {
+  name: string;
+  description?: string;
+  version?: string;
 }
 
 export interface AgentMutationResult {
@@ -719,6 +754,11 @@ export interface GenerateImageRequest {
   prompt: string;
   /** 模型 id 覆盖；不给 ⇒ `image_gen` 分档默认（云端或本地端脑自己分流）。 */
   model?: string;
+  /**
+   * **哪个叶区在用**（如 `occipital` —— 视觉那一叶）⇒ ⇒ 端脑先查该叶区的
+   * `image_gen` 覆盖，再回落全局分档默认。不传 ＝ 走全局。
+   */
+  lobe?: string;
   /** 1..=4。 */
   n?: number;
   /** `"WxH"`，须为 16 的倍数、≤ 2048（本地管线的约束）。 */
@@ -1368,30 +1408,58 @@ export class TelencephalonClient {
    * ⚠️ 端脑现在**真的按 id 选引擎**（以前这个字段收下就丢 ⇒ ⇒ 实际跑的
    * 永远是「第一个注册的引擎」）⇒ ⇒ 给了不存在的 id 会**明确报错**，
    * 不会静默换一个引擎。
+   *
+   * ⚠️ **`lobe` 决定「用哪个叶区的语音模型」**：端脑的解析链是
+   * 显式 `model` → **该叶区的 asr 覆盖** → 全局分档默认 → 第一个注册的
+   * 引擎。不传 ＝ 走全局（旧行为）。
+   *
+   * ⚠️ **不是 `conversation_id`**（2026-11-13 订正）：端脑**没有**
+   * 「会话 → 叶区」这张映射 ⇒ ⇒ 发 `conversation_id` 只会被 serde
+   * 静默丢掉 ⇒ ⇒ 看着像配了、其实没生效（失败长得像成功）。调用方
+   * 是**哪个叶区的耳朵**，就直说哪个叶区。
    */
   async transcribeAudio(
     audio: string,
     format: string = 'webm',
     language: string = 'zh',
     model?: string,
+    lobe?: string,
   ): Promise<{ text: string }> {
     return this.request<{ text: string }>('/api/telencephalon/voice/transcribe', {
       method: 'POST',
-      body: JSON.stringify({ audio, format, language, ...(model ? { model } : {}) }),
+      body: JSON.stringify({
+        audio,
+        format,
+        language,
+        ...(model ? { model } : {}),
+        ...(lobe ? { lobe } : {}),
+      }),
     });
   }
 
   /**
    * **大脑 TTS** —— `model` 不给就用端脑那档（tts）的**分档默认**。
+   *
+   * `lobe` 语义同 {@link transcribeAudio}（叶区覆盖优先于全局）。
    */
-  async synthesizeSpeech(text: string, voice: string = 'alloy', model?: string): Promise<Blob> {
+  async synthesizeSpeech(
+    text: string,
+    voice: string = 'alloy',
+    model?: string,
+    lobe?: string,
+  ): Promise<Blob> {
     const response = await fetch(`${this.baseUrl}/api/telencephalon/voice/synthesize`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...(await adminHeaders()),
       },
-      body: JSON.stringify({ text, voice, ...(model ? { model } : {}) }),
+      body: JSON.stringify({
+        text,
+        voice,
+        ...(model ? { model } : {}),
+        ...(lobe ? { lobe } : {}),
+      }),
     });
 
     if (!response.ok) {
@@ -1416,6 +1484,7 @@ export class TelencephalonClient {
       body: JSON.stringify({
         prompt: req.prompt,
         ...(req.model ? { model: req.model } : {}),
+        ...(req.lobe ? { lobe: req.lobe } : {}),
         ...(req.n != null ? { n: req.n } : {}),
         ...(req.size ? { size: req.size } : {}),
         ...(req.response_format ? { response_format: req.response_format } : {}),
@@ -1449,17 +1518,25 @@ export class TelencephalonClient {
   /**
    * 写**分档默认模型**（写门 ⇒ 要 admin 钥匙 ⇒ `request()` 递的那把）。
    *
-   * ⚠️ **整份替换** —— 下发的是全量 ⇒ ⇒ 两端不会各留一半。
+   * ⚠️ **`defaults` 整份替换** —— 下发的是全量 ⇒ ⇒ 两端不会各留一半。
+   *
+   * ⚠️ **`lobeDefaults` 是可加段**（2026-11-13）：不带 ⇒ 端脑**不动**
+   * 已有的逐叶区表（旧客户端/只要改全局的调用方不该顺手抹掉叶区选择）；
+   * 带了 ⇒ 整份替换那张表（空对象 = 清空 ⇒ 全部叶区回到跟随全局）。
    */
   async setCapabilityDefaults(
     defaults: Record<string, string>,
+    lobeDefaults?: Record<string, Record<string, string>>,
   ): Promise<CapabilityDefaultsView> {
     // ⚠️ 同上：**显式类型参数** ⇒ ⇒ 才进得了契约清单。
     return this.request<CapabilityDefaultsView>(
       '/api/telencephalon/lobes/capability-defaults',
       {
         method: 'PUT',
-        body: JSON.stringify({ defaults }),
+        body: JSON.stringify({
+          defaults,
+          ...(lobeDefaults !== undefined ? { lobe_defaults: lobeDefaults } : {}),
+        }),
       },
     );
   }
@@ -1486,6 +1563,25 @@ export class TelencephalonClient {
         ...(req.lobe_models ? { lobe_models: req.lobe_models } : {}),
       }),
     });
+  }
+
+  /**
+   * **模型路由全貌**（只读）—— 叶区 × 类型的矩阵要合并写回，就必须先读到
+   * **当前那份覆盖表**（不是生效值：生效值回填会把「跟随全局」钉死）。
+   *
+   * ⚠️ 路径是 `lobes/routing`（只读），与写面 `lobes/models`（POST）分开。
+   * ⚠️ 显式类型参数 ⇒ 进契约清单。
+   */
+  async getLobeRouting(): Promise<LobeRoutingView> {
+    return this.request<LobeRoutingView>('/api/telencephalon/lobes/routing');
+  }
+
+  /** **原生叶区清单**（名字 ＋ 描述）—— 端脑注册了哪些就显示哪些。 */
+  async getLobeManifests(): Promise<LobeManifestSummary[]> {
+    const body = await this.request<{ lobes?: LobeManifestSummary[] }>(
+      '/api/telencephalon/lobes/manifest',
+    );
+    return body.lobes ?? [];
   }
 
   // Task methods

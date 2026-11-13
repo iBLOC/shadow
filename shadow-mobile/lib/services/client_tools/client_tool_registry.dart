@@ -1002,6 +1002,10 @@ ClientToolRegistry buildMobileClientTools({
           'prompt': prompt,
           if (size != null && size.isNotEmpty) 'size': size,
           if (model != null && model.isNotEmpty) 'model': model,
+          // ⚠️ **出图是枕叶的活**（视觉处理那一叶）⇒ 带上叶区 ⇒ 端脑先查
+          // 枕叶的 `image_gen` 覆盖，再回落全局分档默认。不带 ⇒ 用户配的
+          // 叶区覆盖永远不生效（「存得进去、用不了」那一族）。
+          'lobe': 'occipital',
         });
 
         final data = (resp['data'] as List?) ?? const [];

@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button, Badge, EmptyState, Loading } from '../components/ui';
 import { AddProviderModal } from '../components/business';
 import { CapabilityDefaultsCard } from '../components/business/CapabilityDefaultsCard';
+import { LobeModelMatrixCard } from '../components/business/LobeModelMatrixCard';
 import type { ProviderTypeOption } from '../components/business/ProviderForm/types';
 import {
   Plus, Trash2, Cpu, TestTube, CheckCircle, XCircle,
@@ -180,6 +181,11 @@ export function ModelsPage() {
       「默认模型」槽 ⇒ ⇒ 文本 / 语音识别 / 语音合成 **只能用同一个模型**
       ⇒ ⇒ 语音那一档根本没人管）。 */}
       <CapabilityDefaultsCard />
+
+      {/* ⚠️ **叶区 × 类型的矩阵** —— 全局那一张说的是「没单独指定的叶区
+      用哪个」，这一张说的是「哪些叶区单独指定了」（模型使用的最小单位
+      是叶区 ⇒ ⇒ 两件事挨着放）。 */}
+      <LobeModelMatrixCard />
 
       {/* Main tabs: Cloud / Local */}
       <div className="flex gap-1 rounded-lg bg-muted p-1">

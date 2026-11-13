@@ -404,6 +404,14 @@ async function runCuRead<T>(
 }
 
 /**
+ * **出图是枕叶的活**（端脑的叶区占位记录里，枕叶管「视觉处理」）。
+ *
+ * ⚠️ 端脑**没有**「会话 → 叶区」那张映射 ⇒ ⇒ 叶区只能由调用方直说；
+ * 不说 ⇒ 用户配的枕叶 `image_gen` 覆盖永远不生效（「存得进去、用不了」）。
+ */
+const IMAGE_LOBE = 'occipital';
+
+/**
  * 桌面端内置的客户端工具。
  *
  * 主题色的两端色调由 `styles/accent.g.ts` 的 `deriveAccentTones` 派生
@@ -818,6 +826,10 @@ export const desktopClientTools = new ClientToolRegistry()
         prompt,
         ...(size ? { size } : {}),
         ...(model ? { model } : {}),
+        // ⚠️ **出图是枕叶的活**（视觉处理那一叶）⇒ 带上叶区 ⇒ 端脑先查枕叶
+        // 的 `image_gen` 覆盖，再回落全局分档默认。不带 ⇒ 用户配的叶区
+        // 覆盖永远不生效（「存得进去、用不了」那一族）。
+        lobe: IMAGE_LOBE,
       });
 
       const images = resp.data.map((d) => ({

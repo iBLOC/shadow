@@ -14,6 +14,16 @@ interface VoiceButtonProps {
 
 type RecordingState = 'idle' | 'recording' | 'processing';
 
+/**
+ * 语音是**颞叶**的活 —— 端脑的叶区占位记录里，颞叶的声明技能就是
+ * `asr / tts`（「听觉处理」）。
+ *
+ * ⚠️ 这里直说叶区名，**不**递会话 id：端脑**没有**「会话 → 叶区」那张
+ * 映射 ⇒ ⇒ 递 `conversation_id` 会被静默丢掉 ⇒ ⇒ 用户配的颞叶语音模型
+ * 永远不生效（失败长得像成功）。
+ */
+const VOICE_LOBE = 'temporal';
+
 export function VoiceButton({ onTranscription, onError, disabled, className }: VoiceButtonProps) {
   const { t } = useTranslation();
   const [state, setState] = useState<RecordingState>('idle');
@@ -91,7 +101,15 @@ export function VoiceButton({ onTranscription, onError, disabled, className }: V
       // 不是端脑 ⇒ 在 Tauri 里必然失败。
       // 走 client 还顺带拿到两件事：① 可配置的 `baseUrl` ② `X-Shadow-Key`。
       // （`telencephalonClient.transcribeAudio` 已经封装好了这条路。）
-      const result = await telencephalonClient.transcribeAudio(base64Audio, 'wav', 'zh');
+      // ⚠️ **带上叶区** ⇒ 端脑先查颞叶的 asr 覆盖（per-lobe 优先于全局
+      // 分档默认）。`VOICE_LOBE` 就是颞叶 —— 语音是它的声明技能。
+      const result = await telencephalonClient.transcribeAudio(
+        base64Audio,
+        'wav',
+        'zh',
+        undefined,
+        VOICE_LOBE,
+      );
 
       if (result.text) {
         onTranscription(result.text);
