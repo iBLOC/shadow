@@ -76,19 +76,17 @@ export function CapabilityDefaultsCard() {
         registered: view.registered ?? {},
       };
       setEngineInfo(info);
-      // ⚠️ **云供应商把对话模型标成 `chat`，端脑词表是 `llm`** —— 按词直
-      // 分组会把云模型分进一个词表里**没有**的桶 ⇒ ⇒ 文本模型档看不见
-      // 它们 ⇒ ⇒ UI 钉不了云默认（真机读数 2026-11-13：分档候选缺云模型，
-      // 服务端 PUT 却接受 ⇒ 缺口在客户端）。把 chat 桶并进 llm 桶（同 id
-      // 去重交给 capabilityOptionsByCapability 的下游逻辑；词表没有 chat
-      // 行 ⇒ 并掉不丢行）。
-      // ⚠️ 这条别名只放在**桌面卡片的组合层**，不动 `capabilityDefaults.ts`
-      // 纯模块 —— 那份算法与移动端 Dart 孪生「必须一模一样」，而 Dart 侧
-      // 文件在飞（模型路由重构），别名要等那刀拍板时两端一起进。
-      const grouped = capabilityCandidatesByCapability(providers);
-      grouped['llm'] = [...(grouped['llm'] ?? []), ...(grouped['chat'] ?? [])];
-      delete grouped['chat'];
-      setCandidates(capabilityOptionsByCapability(grouped, info));
+      // ⚠️ **chat→llm 的别名已撤**（2026-11-13 晚）：端脑**读面**做了词表
+      // 归一（`normalize_word`）⇒ ⇒ 云模型到客户端时 `capabilities[0]`
+      // 已经是 `llm` ⇒ ⇒ 这里按词直分组就够了。
+      // 撤掉客户端补丁的意义：**两端不再各写一份归一**（移动端的 Dart
+      // 孪生也就不会与桌面漂开）。
+      setCandidates(
+        capabilityOptionsByCapability(
+          capabilityCandidatesByCapability(providers),
+          info,
+        ),
+      );
 
       // ⚠️ **端脑刚重启 ⇒ 它的运行态槽是空的** ⇒ ⇒ 而本机还留着 durable
       // 副本 ⇒ ⇒ 这时候把副本**再下发一遍**（与移动端「开机下发」同一

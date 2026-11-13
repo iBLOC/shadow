@@ -36,7 +36,9 @@ const cloudProvider: ModelProvider = {
       name: 'qwen3.8-max',
       model_id: 'qwen3.8-max',
       is_default: true,
-      capabilities: ['chat', 'tools'],
+      // ⚠️ 端脑读面已把上游的 `chat` 归一到 `llm`（`normalize_word`）⇒ ⇒
+      // 客户端拿到的是词表内的词，不再需要 chat→llm 别名。
+      capabilities: ['llm', 'tools'],
       supports_vision: false,
       supports_function_calling: true,
     },

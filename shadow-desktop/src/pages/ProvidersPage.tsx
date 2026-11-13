@@ -20,6 +20,8 @@ import {
 } from 'lucide-react';
 import { Button, EmptyState, Modal, Input } from '../components/ui';
 import { cn } from '../lib/utils';
+import { telencephalonClient } from '../lib/telencephalonClient';
+import { AGENT_CAPABILITY_FALLBACK_LABELS } from '../lib/agentCapabilities';
 
 // ---- backend contract (synapse catalog + encephalon ProviderManager) ----
 
@@ -46,6 +48,14 @@ interface ModelSummary {
    * ⚠️ 「这条是聊天模型还是语音模型」。
    */
   capability?: string;
+  /**
+   * 这条能力**从哪来**（`user` / `upstream` / `catalog` / `inferred` /
+   * `default`）。
+   *
+   * ⚠️ 只给最终词、不说来源 ⇒ ⇒「上游真给的」与「系统猜的」在界面上长得
+   * 一样 ⇒ ⇒ 猜错了用户也发现不了。`user` ⇒ 是用户自己在这张页面上改的。
+   */
+  capability_source?: string;
   /**
    * 盘上真的有吗？
    *
@@ -230,6 +240,22 @@ export function ProvidersPage() {
   const [providers, setProviders] = useState<ProviderEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // ---- 模型类型（人工覆盖）----
+  // ⚠️ 词表从**端脑**下发（`Capability::ALL` 单一真源）⇒ 客户端不自己造词。
+  const [capWords, setCapWords] = useState<string[]>([
+    'llm',
+    'asr',
+    'tts',
+    'vad',
+    'rerank',
+    'embedding',
+    'vision',
+    'forecast',
+    'image_gen',
+  ]);
+  /** 正在保存覆盖的模型 id（逐行禁用 + 转圈）。 */
+  const [savingTypeOf, setSavingTypeOf] = useState<string | null>(null);
+  const [typeError, setTypeError] = useState<string | null>(null);
 
   // Add modal: preset flow (select card → key) + custom form.
   const [showAddModal, setShowAddModal] = useState(false);
@@ -314,7 +340,36 @@ export function ProvidersPage() {
     } finally {
       setIsLoading(false);
     }
+    // ⚠️ 词表单独取（读不到不挡列表 —— 列表是主内容，词表只是下拉选项）。
+    try {
+      const view = await telencephalonClient.listCapabilityOverrides();
+      if (view.capabilities?.length) setCapWords(view.capabilities);
+    } catch {
+      // 保留内置的 9 档兜底（端脑词表就是这 9 档）。
+    }
   }, []);
+
+  /**
+   * 改一条模型的类型（写人工覆盖 ⇒ **立刻重读**，让来源徽章同步翻新）。
+   *
+   * ⚠️ `null` = 清掉覆盖（回到自动判定）。
+   * ⚠️ **失败要说真话**：端脑会拒未知词/未连接，把原话带出来。
+   */
+  const changeModelType = useCallback(
+    async (modelId: string, word: string | null) => {
+      setSavingTypeOf(modelId);
+      setTypeError(null);
+      try {
+        await telencephalonClient.putCapabilityOverrides({ [modelId]: word });
+        await loadAll();
+      } catch (err) {
+        setTypeError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setSavingTypeOf(null);
+      }
+    },
+    [loadAll],
+  );
 
   useEffect(() => {
     loadAll();
@@ -987,6 +1042,106 @@ export function ProvidersPage() {
                           </option>
                         ))}
                       </select>
+                    )}
+                    {!provider.builtin && provider.models.length > 0 && (
+                      // **模型类型**（人工覆盖）—— 可折叠：一家可能上百条模型，
+                      // 展开会把卡片撑爆。默认收起，但**计数**要露出来
+                      // （否则用户不知道这里能改）。
+                      <details
+                        className="mt-3 rounded-md border border-border"
+                        data-testid={`model-types-${provider.id}`}
+                      >
+                        <summary className="cursor-pointer select-none px-2.5 py-1.5 text-xs text-muted-foreground">
+                          {t('providers.modelType.title') || '模型类型'} ·{' '}
+                          {provider.models.length}
+                          {provider.models.some(
+                            (m) => m.capability_source === 'user',
+                          ) && (
+                            <span className="ml-1.5 text-foreground">
+                              ·{' '}
+                              {provider.models.filter(
+                                (m) => m.capability_source === 'user',
+                              ).length}{' '}
+                              {t('providers.modelType.customCount') || '条自定义'}
+                            </span>
+                          )}
+                        </summary>
+                        <div className="max-h-72 overflow-y-auto border-t border-border">
+                          {provider.models.map((m) => (
+                            <div
+                              key={m.id}
+                              className="flex items-center gap-2 border-b border-border/50 px-2.5 py-1 last:border-b-0"
+                              data-testid={`model-type-row-${m.id}`}
+                            >
+                              <span
+                                className="min-w-0 flex-1 truncate text-xs text-foreground"
+                                title={m.id}
+                              >
+                                {m.display_name || m.id}
+                              </span>
+                              <span
+                                className={cn(
+                                  'shrink-0 rounded px-1 py-0.5 text-[10px]',
+                                  m.capability_source === 'user'
+                                    ? 'bg-primary/15 text-primary'
+                                    : m.capability_source === 'upstream'
+                                      ? 'bg-muted text-muted-foreground'
+                                      : m.capability_source === 'catalog'
+                                        ? 'bg-muted text-muted-foreground'
+                                        : 'bg-muted text-muted-foreground',
+                                )}
+                                title={
+                                  t(
+                                    `providers.modelType.sourceHint_${m.capability_source ?? 'default'}`,
+                                  ) || ''
+                                }
+                              >
+                                {t(
+                                  `providers.modelType.source_${m.capability_source ?? 'default'}`,
+                                ) ||
+                                  m.capability_source ||
+                                  'default'}
+                              </span>
+                              {savingTypeOf === m.id ? (
+                                <Loader2
+                                  size={12}
+                                  className="shrink-0 animate-spin text-muted-foreground"
+                                />
+                              ) : null}
+                              <select
+                                className="w-28 shrink-0 rounded border border-border bg-background px-1.5 py-1 text-[11px] text-foreground"
+                                value={
+                                  m.capability_source === 'user'
+                                    ? (m.capability ?? '')
+                                    : ''
+                                }
+                                disabled={savingTypeOf === m.id}
+                                onChange={(e) =>
+                                  void changeModelType(
+                                    m.id,
+                                    e.target.value || null,
+                                  )
+                                }
+                              >
+                                <option value="">
+                                  {t('providers.modelType.auto') || '自动'}
+                                </option>
+                                {capWords.map((w) => (
+                                  <option key={w} value={w}>
+                                    {AGENT_CAPABILITY_FALLBACK_LABELS[w] || w}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          ))}
+                        </div>
+                        {typeError && (
+                          <div className="flex items-start gap-1.5 border-t border-border px-2.5 py-1.5 text-[11px] text-red-500">
+                            <AlertCircle size={11} className="mt-0.5 shrink-0" />
+                            <span className="break-all">{typeError}</span>
+                          </div>
+                        )}
+                      </details>
                     )}
                     {!provider.builtin && (
                       // ⚠️ 内置条目的模型清单是**活的**（neuron 下载完就有）

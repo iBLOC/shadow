@@ -1003,6 +1003,25 @@ class TelencephalonClient {
     });
   }
 
+  /// **模型能力的人工覆盖**（`model_id` → 端脑词表里的词）。
+  ///
+  /// ⚠️ 按 `model_id` **全局**：同一模型在多家供应商下改一次全生效
+  /// （能力是**模型**的属性，不是供应商的）。
+  /// ⚠️ 与「拉模型列表」分开存（那个整份替换 `provider.models` ⇒ ⇒ 写进
+  /// 模型的标注必被冲掉）。
+  Future<Map<String, dynamic>> getCapabilityOverrides() =>
+      _adminGet('/models/capability-overrides');
+
+  /// 写人工覆盖（**增量合并**；`null` = 删掉这条覆盖、回到自动判定）。
+  ///
+  /// ⚠️ 值必须是端脑词表里的词（未知词整份 400 且回词表）。
+  Future<Map<String, dynamic>> putCapabilityOverrides(
+    Map<String, String?> patch,
+  ) =>
+      _put('/models/capability-overrides', {
+        'overrides': patch,
+      });
+
   Future<Map<String, dynamic>> getAgent(String name) =>
       _get('/shadow/v1/agents/${Uri.encodeComponent(name)}');
 

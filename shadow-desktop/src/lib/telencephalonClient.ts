@@ -520,9 +520,26 @@ export interface ModelInfo {
   name: string;
   model_id: string;
   is_default: boolean;
+  /** ⚠️ 首词 = **有效能力**（端脑五档判据算出的），其余是上游原词。 */
   capabilities: string[];
   supports_vision: boolean;
   supports_function_calling: boolean;
+  /**
+   * 这条模型的能力**从哪来**（`user` / `upstream` / `catalog` /
+   * `inferred` / `default`）。
+   *
+   * ⚠️ 端脑读面算的五档判据结果 —— 只给最终词、不说来源 ⇒ ⇒「上游真
+   * 给的」与「我们猜的」在界面上长得一样 ⇒ ⇒ 猜错了没人发现。
+   */
+  capability_source?: string;
+}
+
+/** `GET/PUT /models/capability-overrides` 的响应。 */
+export interface CapabilityOverridesView {
+  /** `model_id` → 端脑词表里的能力词。 */
+  overrides: Record<string, string>;
+  /** 合法词表（端脑 `Capability::ALL` 下发 ⇒ 客户端不自己造词）。 */
+  capabilities: string[];
 }
 
 export type McpServerState = 'stopped' | 'starting' | 'running' | 'error';
@@ -1563,6 +1580,39 @@ export class TelencephalonClient {
         ...(req.lobe_models ? { lobe_models: req.lobe_models } : {}),
       }),
     });
+  }
+
+  /**
+   * **模型能力的人工覆盖**（`model_id` → 端脑词表里的词）—— 用户最终
+   * 裁决，压过上游标注与自动判定。
+   *
+   * ⚠️ 按 `model_id` **全局**：同一模型在多家供应商下改一次全生效（能力
+   * 是**模型**的属性，不是供应商的）。
+   * ⚠️ 与 `fetch-models` 分开存（那个整份替换 `provider.models` ⇒ ⇒ 写进
+   * 模型的标注必被冲掉）。
+   */
+  async listCapabilityOverrides(): Promise<CapabilityOverridesView> {
+    return this.request<CapabilityOverridesView>(
+      '/models/capability-overrides',
+    );
+  }
+
+  /**
+   * 写人工覆盖（**增量合并**：只动 `patch` 里出现的 `model_id`）。
+   *
+   * `null` = **删掉这条覆盖**（回到自动判定）。
+   * ⚠️ 写门是 admin（改了会影响分档与叶区匹配）。
+   */
+  async putCapabilityOverrides(
+    patch: Record<string, string | null>,
+  ): Promise<CapabilityOverridesView> {
+    return this.request<CapabilityOverridesView>(
+      '/models/capability-overrides',
+      {
+        method: 'PUT',
+        body: JSON.stringify({ overrides: patch }),
+      },
+    );
   }
 
   /**

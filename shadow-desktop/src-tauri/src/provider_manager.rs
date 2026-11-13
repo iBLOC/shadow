@@ -259,6 +259,14 @@ pub(crate) fn entry_from_brain(raw: &Value) -> Result<ProviderEntry, String> {
                     // ⇒ ⇒ 的模型也列出来 ⇒ ⇒ 不透传 ⇒ ⇒ 界面会把「选了也跑不
                     // ⇒ ⇒ 起来」的模型当成能用的 ⇒ ⇒ 「失败长得像成功」。
                     available: m.get("available").and_then(|v| v.as_bool()),
+                    // ⚠️ **这条能力从哪来**（user / upstream / catalog /
+                    // inferred / default）—— 端脑读面算的五档判据结果。
+                    // 不透传 ⇒ ⇒ 界面分不清「上游给的」与「我们猜的」⇒ ⇒
+                    // 猜错了用户也发现不了（「失败长得像成功」）。
+                    capability_source: m
+                        .get("capability_source")
+                        .and_then(|v| v.as_str())
+                        .map(str::to_string),
                 })
                 .collect()
         })

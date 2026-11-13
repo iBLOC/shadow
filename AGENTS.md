@@ -1,3 +1,39 @@
+**Updated**: 2026-11-13 (㔢 **「分类这件事以前只有『猜』一档 —— 现在有清单、有用户拍板，而且每一条都说得出自己从哪来」** —— 承 㔞 条（空标注回填：只解决「有值」，不解决「值对不对」），本条记**取证（用户诉求＋真机 182 条）**、**第一因（一个判据撑不起真相）**、**第二因（写时回填把猜测烙进盘）**、**第三因（覆盖必须独立存：刷新会冲掉模型上的标注）**、**这一刀的落点（两仓＋三端）**、**词表归一放读面的理由**、**判据与分级读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-13 | authority=measured | scope=project | source=真机逐字（`qianwenai` 182 条：修前全空 → 上一笔回填后全 `llm`（含 `qwen-audio-*` 被误标）→ 本笔后 catalog 174 / default 8，`qwen-audio-3.1-realtime-flash` → **asr(catalog)**）＋ 用户诉求逐字（「获取模型后无法针对模型进行分类，没有分类就无法分类选择默认模型」「用户可以在模型管理页面修改模型的类型」）＋ 源码逐字（`parse_models_from_response` 整份替换 `provider.models`、`door.rs:193` `include_str!` 门型表）｜ 改动：**synapse**（`src/providers/model_capabilities.rs` 新：glob 清单＋7 测；`ModelSummary` 加 `capability_source`）＋ **telencephalon**（`providers.rs`：五档判据 `effective_capabilities_for`／`CapabilitySource`／读面归一 `normalize_word`／覆盖表 sidecar `model-capabilities.json`＋GET/PUT 端点＋增量合并＋未知词 400／`auto_match` 改有效能力／写时不再落推断值；`door_policy.txt` 显式开口两行；65/65）＋ **shadow**（桌面 `telencephalonClient` 两方法＋`ModelInfo.capability_source`、`provider_manager` 透传、`ProvidersPage` 模型类型折叠区（行＝名称＋来源徽章＋类型下拉＋「自动」）、撤上笔的 chat→llm 别名、i18n 中英各 12 键、新测 6 条；移动端 `telencephalon_client` 两方法；endpoint-map ＋4；台账本条）⇒ ⇒ **3 仓** ｜ 读数：synapse 清单 7/7；端脑 863/863（api::providers 65/65）；桌面 vitest **1601 绿/0 红**（基线 1582＋新测 6＋兄弟件）、tsc 0；真机后端三格＋UI 两格全绿 ｜ 真 CI 待取 | status=active | supersedes=none
+
+① **⚠️ 取证：用户要的不是「猜得更准」，是「有据可查」** —— 上一笔（㔞）只做了一件事：**空标注按 id 推断一个词**。它让模型「看得见了」，但两个问题没解：❶ 推断不准时**用户改不了**（`UpdateProviderRequest` 没有模型级能力写入，且 `fetch-models` 整份替换 `provider.models` ⇒ 写进模型的标注必被冲掉）；❷ 界面上**分不清**哪条是上游真给的、哪条是我们猜的 ⇒ ⇒ 猜错了没人发现。真机读数：`qwen-audio-3.1-realtime-flash` 被推断成 `llm`（族缀表里没有 audio 一族）⇒ 它出现在「文本模型」候选里，选了必失败。
+
+② **⚠️ 第一因：一个判据撑不起「真相」** —— 「这条模型是什么」有三种**性质不同**的来源，混在一档里必然互相污染：
+　❶ **上游真值**（供应商自己回的标注）—— 最权威但常常没有；
+　❷ **产品知识**（我们认得的模型名）—— 稳定、可维护、可升级，但会过期；
+　❸ **用户意图**（用户知道自己在买什么）—— 最高权威，但只能靠界面收集。
+　⇒ ⇒ 本笔把它们拆成**五档显式优先级**，并且**每档都带 `capability_source` 出给界面**（`user`/`upstream`/`catalog`/`inferred`/`default`）⇒ ⇒ 通用形态：**「自动判定」必须能报出依据，否则它和「猜」没有区别，而用户无法参与修正。**
+
+③ **⚠️ 第二因：写时回填把猜测烙进盘（承 㔞 条的自省）** —— 上一笔在 `parse_models_from_response` 里把推断值写进了 `ModelInfo.capabilities`。后果是**不可分辨**：下一次读面看到 `capabilities:["llm"]`，分不清这是上游说的还是我们猜的（真机现场：182 条全被判成 `upstream`，而实际全是上一笔塞的）。⇒ ⇒ 本笔改成**写时只存上游原值、有效值全部读面算**：链可重算 ⇒ 清单升级能覆盖旧数据、用户覆盖能立刻生效、上游后来给了真值也能自动胜出。⚠️ **存量被污染的数据靠一次 `fetch-models` 天然洗掉**（真机验证：刷新后 `raw=[]`，判据从 `upstream` 变回 `catalog`/`default`）。
+
+④ **⚠️ 第三因：覆盖必须**独立存** —— 刷新会冲掉模型上的标注** —— `fetch-models` 是 `provider.models = models`（整份替换）⇒ ⇒ 任何写进 `ModelInfo` 的用户标注下一次刷新就没了 ⇒ ⇒ 「改完、点刷新、又变回去」。⇒ ⇒ 覆盖放 **sidecar `model-capabilities.json`**（`providers.json` 旁边，照 `builtin-neuron.json` 样板），生命周期与 providers.json 一致但**内容归用户**。⇒ ⇒ 通用形态：**用户的意图与上游的数据要有不同的落盘位置，否则「同步」会静默吞掉意图。**
+
+⑤ **✅ 这一刀的落点（3 仓）**
+　❶ **synapse**：`model_capabilities.rs` —— glob 规则表（**包含**语义：模型 id 带 `org/` 前缀是常态，`vanchin/deepseek-…`／`kimi/kimi-…` 必须认得）+ 运行时按模式长度降序求值（`*minimax-h3*` 先于 `*minimax*`）。只补 `infer_capability` 覆盖不到的两族（语音交互 / 主流对话），**whisper / bge / dall-e 归推断、不重复登记**；视频族归 `image_gen`（端脑词表无 video 档）。7 测含「具体者先命中」「词表合法」。
+　❷ **telencephalon**：五档判据 `effective_capabilities_for` + `CapabilitySource`；**写时不再落推断值**；读面归一 `normalize_word`（`chat`/`text`→`llm`、`video_gen`→`image_gen`、`ocr`→`vision`）；覆盖表 + `GET/PUT /models/capability-overrides`（读门/写门，**增量合并**，`null`=删，未知词整份 400 带词表）；`auto_match_models_to_lobes` 改用有效能力；`door_policy.txt` 两行。
+　❸ **shadow 桌面**：`ProvidersPage` 每个供应商卡片加**可折叠的「模型类型」区**（默认收起 + 计数，182 行不撑爆卡片）；每行 = 名称 + 来源徽章 + 类型下拉（9 档 + 「自动」）；改动即 PUT、失败把端脑原话显示出来；**内置条目不给改**（能力来自 neuron 目录）。**撤掉上一笔的 `chat→llm` 客户端别名** —— 读面归一后不再需要，两端不必各写一份归一。
+　❹ **shadow 移动端**：只加 client 两方法（`getCapabilityOverrides`/`putCapabilityOverrides`）—— ⚠️ `model_management_screen.dart` 是**兄弟在飞面**，UI 按纪律不碰。
+
+⑥ **✅ 判据与分级读数（全部实测）**
+　❶ **synapse 级**：`providers::model_capabilities` **7/7**（含「minimax-h3 不被 minimax 吃」「mistral-embed 不被 mistral 吃」「命名空间 id」「认不出沉默」「词表合法」）。
+　❷ **端脑级**：`cargo test --lib` **863/863 零红**；`api::providers` **65/65**（五档各一 + 来源标注 + 非模态词不算分类 + 读面归一 + sidecar 往返 + 坏文件不崩）。
+　❸ **桌面级**：`tsc -b` 0；vitest 全量 **1601 绿 / 16 跳 / 0 红**（新测 6 条：来源徽章三态 / 只有 user 行有值 / 改类型 PUT / 「自动」→ null / 失败报错 / 内置无类型区）。
+　❹ **真机后端四格**：① 读门 200 回词表；② 写覆盖 200；③ 读面 `src=user` 压过 `catalog`，清掉回 `catalog`；④ 未知词 **400** 带词表原话。
+　❺ **真机分布（决定性）**：刷新后 182 条 → `catalog` **174** ／ `default` **8**；`qwen-audio-3.1-realtime-flash` → **`asr`**、`kimi-k3.1-pro`/`vanchin/deepseek-v4.1-flash-1017` → `llm`（catalog）、`antdigital/Ling-3.1-flash` → `llm`（default，认不出就诚实标兜底）；`raw=[]` 证明盘上只存上游原值。
+　❻ **真机 UI 两格**：类型区渲染「模型类型 · 182」，徽章逐行正确（清单/兜底）；把 `kimi-k3.1-pro` 改成「向量模型」⇒ 徽章翻「自定义」+ 下拉有值，且**分档卡里它从「文本模型」(184) 挪进「向量模型」(8)** ⇒ ⇒ **端到端闭合**。
+
+⑦ **⚠️ 途中那几格** —— ❶ **新增路由默认关着**：真机第一次 PUT 吃 `telencephalon_door_unclassified`（403）⇒ ⇒ 必须显式写进 `door_policy.txt`（那是 `include_str!` 编译期嵌入 ⇒ 改完要重编）。❷ **glob 前缀 vs 包含**：第一版用严格前缀，`vanchin/deepseek-…` 匹配不到 ⇒ 改包含语义（`*gpt-*` 也会命中中转站别名 —— 那**正是**想要的）。❸ **锁序**：`update_provider` 里持 `providers` 写锁再去读覆盖表会与 PUT overrides 形成相反锁序 ⇒ 改成**先取覆盖快照再拿写锁**。
+
+⑧ **⚠️ 仍然欠着的** —— ❶ **移动端 UI**（`model_management_screen` 的类型下拉）—— 文件在飞，等那刀落地后接；❷ **音频族没有独立词**：`*-audio-*` 现在归 `asr`（近似落点），端脑词表 9 档没有 audio / ocr / video 档 ⇒ 这类模型仍可能被放到不够准的桶里（`default` 8 条里就有）；❸ **云 asr/tts 在分档卡里仍空**：那两档按 `engine_resolved`（已注册引擎）取候选，云模型不注册引擎 ⇒ 即使标对了类型也选不进默认；❹ **清单会过期**：新模型上线要发版才能认得（用户可用「改类型」自救，但没有「导入清单」的面）；❺ **`vision` 仍推断不出**（只能靠上游标注或清单）；❻ 真 CI 待推后取。
+
+⑨ **⚠ 圈码：本条占 U+3522（㔢）** —— 号按官方口径在**提交树面**取（取样时刻 2026-11-13T04:1x ｜ HEAD 2b593a2 ⇒ 父仓水位 U+3521 ⇒ 候选头一个 U+3522）⇒ 字形由 String.fromCodePoint 生成，不手打。
+
 **Updated**: 2026-11-13 (㔡 **「四盏假绿：一盏是『该扫没扫』，一盏是『上游被当成本仓』，两盏是『该删没删』」** —— 承 㔠 条（同一族：判据对着空气跑），本条记**取证（两闸逐字＋六条缺口）**、**第一因（顶层对账要求「每个目录都有交代」，但没人定期对账）**、**三种事实＝三种处置（扫／登记／删）**、**修法**、**判据与分级读数**，以及**仍然欠着的（其余九道红的逐条归因）**.)
 
 > 信封：epoch=2026-11-13 | authority=measured | scope=project | source=两闸逐字（跨仓残留闸：`✗ 配置缺口（判据对着空气跑 ⇒ 绿灯是**假的**）` 下两条 —— 「hippocampus：顶层目录 vendor 没有交代（既没被扫，也没登记成刻意不扫）」「顶层目录 web 没有交代」；自有残留闸：`✗ 顶层目录/文件没有交代` 下四个未跟踪文件 fixed-mdns.rlib／fixed-opencode_manager.rlib／两个 long-type-*.txt）＋ 源码判据（`check-legacy-residue-all.mjs` 的 `checkRepoConfig`：accounted ＝ scanDirs ∪ excludeDirs ∪ COMMON_EXCLUDE_DIRS ∪ ignoredTopDirs ⇒ 否则「没人判」）＋ 定性取证（hippocampus/web/package.json 逐字 `"name": "@ibloc/hippocampus-web"`、`"description": "Optional memory-management web UI for hippocampus (served at /ui by hippocampus-server)"`、16 个跟踪文件；hippocampus/vendor 65 个跟踪文件＝object_store 上游副本）｜ 改动：**shadow**（scripts/lib/legacy-registry.mjs：hippocampus.scanDirs 加 `web`、新增 ignoredTopDirs 登记 `vendor`（带理由）；仓根删除 4 个未跟踪调试残留；AGENTS.md 本条）⇒ ⇒ **2 个文件**（registry +15/−1）＋ 零新增依赖 ＋ 零 ci.yml 改动 ｜ 读数：跨仓闸 **EXIT=1 ⇒ 0**（16 仓／1897 文件，未登记仓 0）＋ 自有闸 **EXIT=1 ⇒ 0**（hippocampus 扫 151 个文件）＋ 码位闸三面零违规 ＋ 取号闸提交树面水位 U+3520 ⇒ 本笔 U+3521 | status=active | supersedes=none
