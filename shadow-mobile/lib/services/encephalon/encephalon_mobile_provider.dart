@@ -395,22 +395,93 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
     return applyModelRouting();
   }
 
-  /// 改**某个叶区某一档**（asr / tts）的模型 —— 覆盖全局分档默认。
+  /// 改**某个叶区某一档**（asr / tts / image_gen）的模型 —— 覆盖全局分档默认。
   ///
   /// [model] 传 null / 空串 ⇒ 删掉这一格 ⇒ 该叶区该档回到跟随全局。
-  /// 与 [applyLobeOverride] 同一条下发链（槽位 ＋ 端脑面），**不必重启**。
   ///
-  /// ⚠️ **能力词的合法性由端脑判**（`PER_LOBE_CAPABILITIES`）—— 界面只
-  /// 给端脑 `engine_resolved` 里那几档，所以正常路径不会撞 400。
+  /// ## 写路径：**先端脑、后本地**，且带**合并基线**
+  ///
+  /// 端脑的 `PUT /lobes/capability-defaults` 对 `defaults` 与 `lobe_defaults`
+  /// 都是**整份替换**（`replace_capability_defaults` /
+  /// `replace_lobe_capability_defaults`）⇒ ⇒ 只把本机那一份发过去 ⇒ ⇒
+  /// **桌面矩阵卡设的覆盖会被抹掉**（两端各留一半的镜像事故）。
+  ///
+  /// 所以顺序钉死：
+  /// 1. **读端脑当前值**（权威基线）—— 读不到就**不写**（拿不到基线就发
+  ///    全量＝盲发，抹掉别人 ⇒ 失败长得像成功）；
+  /// 2. **合并**（[mergeLobeDefaultsForPush]）：基线 = 本地 ∪ 端脑，
+  ///    而**改的这一格以本地这次动作为准**；
+  /// 3. **整份 PUT**（两张表一起发 —— 只发表化一份，另一份会被 `defaults`
+  ///    的整份替换清空）；
+  /// 4. **端脑收下才落本地**（存**合并后**的那一份 —— 本地副本是「开机
+  ///    重放」的源，存窄了 ⇒ 重启一次就把对方的格子重放没了）；
+  /// 5. 作废 `capabilityDefaultsProvider` 让界面从端脑重读。
+  ///
+  /// ⚠️ **与 [applyLobeOverride] 不是一条链**：那个走 `lobes/models` 路由面
+  /// （只管对话档），这个走分档默认面（只管引擎档）。两面的读者不同，
+  /// 硬塞进一份负载会被 serde 静默丢掉。
+  ///
+  /// ⚠️ **能力词的合法性由端脑判**（词表严格 4005、空值 4006、`llm` 4008
+  /// 指路到路由面）—— 界面只渲染 `engine_resolved` ∩ 词表 ＝ asr / tts /
+  /// image_gen 那几档，所以正常路径撞不到这些 400。
   Future<bool> applyLobeCapability(
     String lobe,
     String capability,
     String? model,
   ) async {
-    await _ref
-        .read(brainModelSourceProvider.notifier)
-        .setLobeCapabilityOverride(lobe, capability, model);
-    return applyModelRouting();
+    final client = _ref.read(telencephalonClientProvider);
+    final notifier = _ref.read(brainModelSourceProvider.notifier);
+    final routing = _ref.read(brainModelSourceProvider).routing;
+
+    // 1) 读端脑基线（读不到 ⇒ 不盲发）。
+    CapabilityDefaultsView view;
+    try {
+      view = CapabilityDefaultsView.fromJson(
+        await client.getCapabilityDefaults(),
+      );
+    } catch (e) {
+      _log.warning('分档默认基线读取失败，叶区覆盖未下发: $e');
+      return false;
+    }
+
+    // 2) 合并（两张表都要 —— PUT 是整份替换）。
+    //    ⚠️ 并集只用 [unionCapabilityDefaults] / [unionLobeDefaults] 这一处
+    //    实现 —— 与用户改动那条路共用同一条规则，两边不许各写一份。
+    final nextDefaults = unionCapabilityDefaults(
+      routing.capabilityDefaults,
+      view.defaults,
+    );
+    final nextLobe = mergeLobeDefaultsForPush(
+      local: routing.lobeCapabilityOverrides,
+      remote: view.lobeDefaults,
+      lobe: lobe,
+      capability: capability,
+      model: model,
+    );
+
+    // 3) 先端脑。
+    try {
+      await client.setCapabilityDefaults(
+        nextDefaults,
+        lobeDefaults: nextLobe,
+      );
+    } catch (e) {
+      // ⚠️ **说真话**：带出端脑原话（是词不认识、值为空，还是 llm 走错面）。
+      _log.warning('叶区分档覆盖下发失败: $e');
+      return false;
+    }
+
+    // 4) 后本地（存合并后那一份）。
+    final persisted = await notifier.replaceCapabilitySnapshot(
+      defaults: nextDefaults,
+      lobeDefaults: nextLobe,
+    );
+    // 5) 让界面从端脑重读（不拿本地副本冒充「生效」）。
+    _ref.invalidate(capabilityDefaultsProvider);
+    if (!persisted) {
+      _log.warning('叶区分档覆盖已下发，但本地副本没存住（重启会回默认）');
+    }
+    return true;
   }
 
   /// 把当前路由**落地**（用户改了全局默认或某个叶区）。
@@ -459,25 +530,52 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
   ///
   /// ⚠️ **它不走模型路由那条面** —— `POST /api/telencephalon/lobes/models`
   /// 的请求体里没有这两档 ⇒ ⇒ serde 会**静默丢掉** ⇒ ⇒ 所以单独一条面
-  /// （`PUT /api/telencephalon/lobes/capability-defaults`）。
+  /// （`PUT /lobes/capability-defaults`）。
   ///
   /// ⚠️ **`lobe_defaults` 必须一起发**（2026-11-13）：手机的大脑随 App
   /// 起停 ⇒ ⇒ 端脑那张表是**内存态** ⇒ ⇒ 不带 ⇒ 冷启一次，用户配的
   /// 「颞叶用哪个语音模型」全丢。
   ///
-  /// ⚠️ **两面都是整份语义**（与模型路由同一套路）⇒ ⇒ 两端不会各留一半。
+  /// ⚠️ **发之前先读端脑、按并集合并**（2026-11-13 订正）—— 这一条面是
+  /// **整份替换**，而端脑那张表现在**有两个写者**（本机的分档卡 ＋ 桌面
+  /// 端的叶区矩阵卡）。以前这里直接发本地那一份全量 ⇒ ⇒ 用户只是改了个
+  /// **对话模型**，连带把桌面配的「颞叶用 whisper」抹掉了 ⇒ ⇒ 一次无关的
+  /// 写造成另一族配置消失（比「没生效」更坏）。
+  /// ⇒ 现在：基线 = 本地 ∪ 端脑，并把合并结果**回写本地副本**（下次重放
+  /// 的是同一份，不会来回摆）。读不到端脑 ⇒ 退回「只发本地」（大脑冷启时
+  /// 那张表本来就是空的，发全量正是重放的本职）。
   Future<bool> _pushCapabilityDefaults() async {
     final client = _ref.read(telencephalonClientProvider);
     final routing = _ref.read(brainModelSourceProvider).routing;
-    final defaults = routing.capabilityDefaults;
-    final lobeDefaults = routing.lobeCapabilityOverrides;
+    var defaults = routing.capabilityDefaults;
+    var lobeDefaults = routing.lobeCapabilityOverrides;
     try {
-      await client.setCapabilityDefaults(
-        defaults,
-        // ⚠️ **总是发**（含空表）—— 这里发的是**全量真相**：手机是这份
-        // 配置的主人，清空一个格也要真的清掉。
-        lobeDefaults: lobeDefaults,
+      final view = CapabilityDefaultsView.fromJson(
+        await client.getCapabilityDefaults(),
       );
+      defaults = unionCapabilityDefaults(defaults, view.defaults);
+      lobeDefaults = unionLobeDefaults(lobeDefaults, view.lobeDefaults);
+      // 合并结果回写本地副本（失败只影响「下次重放的完整度」，不影响本次
+      // 下发 ⇒ ⇒ 不改变返回值，但要记一行）。
+      if (!sameCapabilityDefaults(defaults, routing.capabilityDefaults) ||
+          !sameLobeDefaults(lobeDefaults, routing.lobeCapabilityOverrides)) {
+        final saved = await _ref
+            .read(brainModelSourceProvider.notifier)
+            .replaceCapabilitySnapshot(
+              defaults: defaults,
+              lobeDefaults: lobeDefaults,
+            );
+        if (!saved) {
+          _log.warning('分档默认合并结果没落进本地副本（下次重放可能不带对方的格子）');
+        }
+      }
+    } catch (e) {
+      // ⚠️ 基线读不到 ⇒ 用本地那份全量（不静默改成「不发」—— 冷启重放
+      // 这条腿断了会更糟：App 一重启，用户配的全丢）。
+      _log.warning('分档默认基线读取失败，按本地副本下发: $e');
+    }
+    try {
+      await client.setCapabilityDefaults(defaults, lobeDefaults: lobeDefaults);
       _log.info('分档默认模型已下发: $defaults / 叶区覆盖: $lobeDefaults');
       return true;
     } catch (e) {

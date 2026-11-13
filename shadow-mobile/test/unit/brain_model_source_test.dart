@@ -298,6 +298,118 @@ void main() {
     });
   });
 
+  /// 写路径的**合并基线** —— 端脑那张 `lobe_defaults` 表有**两个写者**
+  /// （本机分档卡 ＋ 桌面叶区矩阵卡），而 PUT 是整份替换。
+  group('mergeLobeDefaultsForPush —— 整份替换面上的并集写', () {
+    test('⚠️ 基线 = 本地 ∪ 端脑：对方写的叶区必须原样带上', () {
+      final next = mergeLobeDefaultsForPush(
+        local: const {
+          'prefrontal': {'asr': 'local-asr'},
+        },
+        remote: const {
+          'temporal': {'asr': 'sensevoice-small', 'tts': 'voxcpm2'},
+        },
+        lobe: 'prefrontal',
+        capability: 'tts',
+        model: 'voxcpm-model',
+      );
+      expect(next['prefrontal'], {'asr': 'local-asr', 'tts': 'voxcpm-model'});
+      expect(
+        next['temporal'],
+        {'asr': 'sensevoice-small', 'tts': 'voxcpm2'},
+        reason: '本机没配过的叶区不许在这次 PUT 里消失',
+      );
+    });
+
+    test('没动的格以端脑为准（那张表是权威），改的这一格以本地动作为准', () {
+      final next = mergeLobeDefaultsForPush(
+        local: const {
+          'temporal': {'asr': 'stale-id'},
+        },
+        remote: const {
+          'temporal': {'asr': 'brain-id', 'tts': 'voxcpm2'},
+        },
+        lobe: 'temporal',
+        capability: 'tts',
+        model: 'new-tts',
+      );
+      expect(next['temporal']!['asr'], 'brain-id');
+      expect(next['temporal']!['tts'], 'new-tts');
+    });
+
+    test('⚠️ 删掉一个叶区的最后一格 ⇒ 整个叶区退出表（不发空 inner）', () {
+      final next = mergeLobeDefaultsForPush(
+        local: const {
+          'prefrontal': {'asr': 'whisper-model'},
+        },
+        remote: const {},
+        lobe: 'prefrontal',
+        capability: 'asr',
+        model: null,
+      );
+      expect(next.containsKey('prefrontal'), isFalse);
+    });
+
+    test('删格只删那一格，同叶区别的档不动', () {
+      final next = mergeLobeDefaultsForPush(
+        local: const {},
+        remote: const {
+          'temporal': {'asr': 'a', 'tts': 'b'},
+        },
+        lobe: 'temporal',
+        capability: 'asr',
+        model: '',
+      );
+      expect(next['temporal'], {'tts': 'b'});
+    });
+  });
+
+  /// 「有没有变化」的比较必须按**内容** —— Dart 的 `Map.==` 是身份比较。
+  group('sameLobeDefaults / sameCapabilityDefaults', () {
+    test('内容相同 ⇒ 算相同（不同实例也一样）', () {
+      expect(
+        sameLobeDefaults({
+          'a': {'asr': 'x'},
+        }, {
+          'a': {'asr': 'x'},
+        }),
+        isTrue,
+      );
+      expect(sameCapabilityDefaults({'asr': 'x'}, {'asr': 'x'}), isTrue);
+    });
+
+    test('⚠️ 值不同 / 键不同 ⇒ 算不同（不是恒真的比较）', () {
+      expect(
+        sameLobeDefaults({
+          'a': {'asr': 'x'},
+        }, {
+          'a': {'asr': 'y'},
+        }),
+        isFalse,
+      );
+      expect(
+        sameLobeDefaults({
+          'a': {'asr': 'x'},
+        }, {
+          'b': {'asr': 'x'},
+        }),
+        isFalse,
+      );
+      expect(sameCapabilityDefaults({'asr': 'x'}, {'asr': 'y'}), isFalse);
+    });
+
+    test('钉住「为什么需要这两个函数」：Map 的 == 会把相同内容判成不同', () {
+      final a = <String, Map<String, String>>{
+        'x': {'asr': '1'},
+      };
+      final b = <String, Map<String, String>>{
+        'x': {'asr': '1'},
+      };
+      expect(a == b, isFalse);
+      expect(sameLobeDefaults(a, b), isTrue);
+    });
+  });
+
   /// 路由 → 大脑要的负载。
   group('buildModelRoutingPayload', () {
     test('⚠️ 逐叶区分档覆盖**不进**这份负载（它走分档默认面）', () {

@@ -92,13 +92,26 @@ void main() {
     ),
   ];
 
+  /// 当前那张卡用的假 client（[buildCard] 里现建，用例改它的「端脑当前值」）。
+  _FakeTelencephalonClient? fakeClient;
+  _FakeAppSettings? fakeSettings;
+
   Widget buildCard({
     List<RegisteredProvider>? providers,
     CapabilityDefaultsView view = defaultView,
     List<NativeLobeInfo> lobes = defaultLobes,
     Object? lobesError,
+    /// 端脑**当前**已有哪些格子（别的客户端写的）—— 假 client 用它当
+    /// 写路径的合并基线。
+    Map<String, String> serverDefaults = const {},
+    Map<String, Map<String, String>> serverLobeDefaults = const {},
+    bool failDefaultsRead = false,
   }) {
     mockChannel();
+    fakeClient = _FakeTelencephalonClient()
+      ..serverDefaults = serverDefaults
+      ..serverLobeDefaults = serverLobeDefaults
+      ..failCapabilityDefaultsRead = failDefaultsRead;
     return ProviderScope(
       overrides: [
         // 大脑目录直读 —— 覆盖注入，不真发 HTTP。
@@ -123,9 +136,12 @@ void main() {
               : Future.value(lobes),
         ),
         // 设置仓储换内存版（真库那次读是真实文件 I/O，fake-async 卡死）。
-        appSettingsRepositoryProvider.overrideWithValue(_FakeAppSettings()),
-        // 端脑 client 换假的 —— 下发路由不真发 HTTP。
-        telencephalonClientProvider.overrideWithValue(_FakeTelencephalonClient()),
+        // 存进 [fakeSettings] —— 有用例要核「本地副本到底存了哪一份」。
+        appSettingsRepositoryProvider.overrideWithValue(
+          fakeSettings = _FakeAppSettings(),
+        ),
+        // 端脑 client 换假的 —— 下发路由与分档默认都不真发 HTTP。
+        telencephalonClientProvider.overrideWithValue(fakeClient!),
       ],
       child: const MaterialApp(
         localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -610,6 +626,118 @@ void main() {
       // 路由那份负载里**不许**再出现（两位读者都没有这个字段）。
       expect(lastRoutingPayload().containsKey('lobe_capability_models'), isFalse);
     });
+
+    testWidgets('⚠️ 写之前先读端脑基线（不许盲发 —— 那一发会抹掉对方写的格子）',
+        (tester) async {
+      await tester.pumpWidget(buildCard(
+        providers: [brainProvider()],
+        view: const CapabilityDefaultsView(
+          capabilities: ['llm', 'asr'],
+          engineResolved: ['asr'],
+          registered: {
+            'asr': ['whisper-model'],
+          },
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      final before = fakeClient!.capabilityDefaultsReads;
+      final l10n = l10nOf(tester);
+      final row = find.descendant(
+        of: find.widgetWithText(LobeCapabilityRow, l10n.capAsr).first,
+        matching: find.byType(DropdownButton<String>),
+      );
+      await pick(tester, row, 'whisper-model');
+
+      expect(
+        fakeClient!.capabilityDefaultsReads,
+        greaterThan(before),
+        reason: 'PUT 是整份替换 ⇒ 不先读基线就是把别人的表当自己的发上去',
+      );
+    });
+
+    testWidgets('⚠️ 桌面矩阵卡已写的格子**不许被本机一次写抹掉**（并集下发）',
+        (tester) async {
+      // 摆出现场：端脑那张表里 temporal 的 asr 是**别的客户端**写的，
+      // 本机这份 durable 副本**不知道**它。
+      await tester.pumpWidget(buildCard(
+        providers: [brainProvider()],
+        view: const CapabilityDefaultsView(
+          capabilities: ['llm', 'asr'],
+          engineResolved: ['asr'],
+          registered: {
+            'asr': ['whisper-model', 'sensevoice-small'],
+          },
+          lobeDefaults: {
+            'temporal': {'asr': 'sensevoice-small'},
+          },
+        ),
+        serverLobeDefaults: const {
+          'temporal': {'asr': 'sensevoice-small'},
+        },
+      ));
+      await tester.pumpAndSettle();
+
+      final l10n = l10nOf(tester);
+      // 本机给 prefrontal 设一格。
+      final row = find.descendant(
+        of: find.widgetWithText(LobeCapabilityRow, l10n.capAsr).first,
+        matching: find.byType(DropdownButton<String>),
+      );
+      await pick(tester, row, 'whisper-model');
+
+      final caps = lastCapabilityDefaultsPushed!['lobe_defaults'] as Map;
+      expect(caps['prefrontal'], {'asr': 'whisper-model'});
+      // ⚠️ **这一条是本用例的全部意义**：对方写的 temporal 必须还在。
+      expect(
+        caps['temporal'],
+        {'asr': 'sensevoice-small'},
+        reason: '端脑那张表有两个写者 ⇒ 本机一次写不许把对方抹掉',
+      );
+      // 本地 durable 副本也要存**合并后**那份 —— 它是开机重放的源，
+      // 存窄了＝重启一次又把对方的格子重放没了。
+      final persisted = BrainModelRouting.decode(
+        fakeSettings!.values[BrainModelSource.routingSettingKey],
+      );
+      expect(persisted.lobeCapabilityOverrides['temporal'], {
+        'asr': 'sensevoice-small',
+      });
+      expect(persisted.lobeCapabilityOverrides['prefrontal'], {
+        'asr': 'whisper-model',
+      });
+    });
+
+    testWidgets('⚠️ 基线读不到 ⇒ 不发（宁可不生效，也不拿半份表去整份替换）',
+        (tester) async {
+      await tester.pumpWidget(buildCard(
+        providers: [brainProvider()],
+        view: const CapabilityDefaultsView(
+          capabilities: ['llm', 'asr'],
+          engineResolved: ['asr'],
+          registered: {
+            'asr': ['whisper-model'],
+          },
+        ),
+        failDefaultsRead: true,
+      ));
+      await tester.pumpAndSettle();
+
+      lastCapabilityDefaultsPushed = null;
+      final l10n = l10nOf(tester);
+      final row = find.descendant(
+        of: find.widgetWithText(LobeCapabilityRow, l10n.capAsr).first,
+        matching: find.byType(DropdownButton<String>),
+      );
+      await pick(tester, row, 'whisper-model');
+
+      expect(
+        lastCapabilityDefaultsPushed,
+        isNull,
+        reason: '没有基线就发全量＝拿自己那一份去整份替换别人的表',
+      );
+      // 而且要说出来（失败不许长得像成功）。
+      expect(find.text(l10n.encephalonLobeRoutingFailed), findsOneWidget);
+    });
   });
 }
 
@@ -620,6 +748,38 @@ class _FakeTelencephalonClient extends TelencephalonClient {
 
   @override
   Future<List<RegisteredProvider>> listProviders() async => const [];
+
+  /// 端脑**当前**的分档默认（写路径要先读它当**合并基线**）。
+  ///
+  /// 用例用它摆出「别的客户端（桌面矩阵卡）已经写了哪些格子」⇒ ⇒
+  /// 才能钉住「本机一次写不许把对方抹掉」。
+  Map<String, String> serverDefaults = const {};
+  Map<String, Map<String, String>> serverLobeDefaults = const {};
+
+  /// 基线读了几次（钉「**不许盲发**」：写之前必须有一次 GET）。
+  int capabilityDefaultsReads = 0;
+
+  /// 置 true ⇒ 读取失败（大脑没起 / 钥匙不对）—— 用来钉「读不到基线 ⇒
+  /// **不发**」这一格。
+  bool failCapabilityDefaultsRead = false;
+
+  @override
+  Future<Map<String, dynamic>> getCapabilityDefaults() async {
+    capabilityDefaultsReads++;
+    if (failCapabilityDefaultsRead) {
+      throw Exception('capability-defaults unreachable');
+    }
+    return {
+      'capabilities': const ['llm', 'asr', 'tts', 'image_gen'],
+      'engine_resolved': const ['asr', 'tts', 'image_gen'],
+      'defaults': Map<String, String>.from(serverDefaults),
+      'lobe_defaults': {
+        for (final e in serverLobeDefaults.entries)
+          e.key: Map<String, String>.from(e.value),
+      },
+      'registered': const <String, List<String>>{},
+    };
+  }
 
   @override
   Future<Map<String, dynamic>> applyLobeModels({

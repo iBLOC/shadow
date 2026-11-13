@@ -724,40 +724,24 @@ class BrainModelSourceNotifier extends StateNotifier<BrainModelSourceState> {
     await _persist();
   }
 
-  /// 记下某个叶区**某一档**（asr / tts / image_gen）的覆盖。
+  /// 把本地 durable 副本换成**端脑刚接受的那两份**（分档全局 ＋ 逐叶区）。
   ///
-  /// 传 null / 空串 ⇒ 删掉这一格 ⇒ 该叶区该档回到**跟随全局分档默认**。
-  /// 某一叶区的最后一格被删掉 ⇒ 该叶区整个从表里消失（不留空表）。
-  ///
-  /// ⚠️ **能力词的合法性不在这一层判**（端脑按 `Capability` 词表整份拒绝
-  /// ⇒ 4005；`llm` 另有一条 4008 指路到路由面）—— 这里只负责把用户的
-  /// 选择记下来、下发。
+  /// ⚠️ 写路径的顺序是「先端脑、后本地」—— 这里存的**不是**用户本机的
+  /// 一份小表，而是**合并后的整份**（含别的客户端设的格）⇒ ⇒ 开机重放
+  /// 不会把对方抹掉（本地副本的角色是「重放源」，存窄了＝重放时丢格子）。
   ///
   /// ⚠️ **返回「存没存住」** —— 与 [setCapabilityDefault] 同一条纪律：
-  /// 端脑那份是权威、本地这份是「开机重下发」的副本 ⇒ 存不住 ≠ 这次没
-  /// 生效，但界面**必须说真话**。
-  Future<bool> setLobeCapabilityOverride(
-    String lobe,
-    String capability,
-    String? model,
-  ) async {
-    final all = <String, Map<String, String>>{
-      for (final e in state.lobeCapabilityOverrides.entries)
-        e.key: Map<String, String>.from(e.value),
-    };
-    final one = all[lobe] ?? <String, String>{};
-    final id = model?.trim() ?? '';
-    if (id.isEmpty) {
-      one.remove(capability);
-    } else {
-      one[capability] = id;
-    }
-    if (one.isEmpty) {
-      all.remove(lobe);
-    } else {
-      all[lobe] = one;
-    }
-    state = state.copyWith(lobeCapabilityOverrides: all, clearError: true);
+  /// 端脑那份已经是权威，存不住 ≠ 这次没生效，但界面**必须说真话**
+  /// （「已下发到大脑，但本地副本没存住 —— 重启后这一档会回到默认」）。
+  Future<bool> replaceCapabilitySnapshot({
+    required Map<String, String> defaults,
+    required Map<String, Map<String, String>> lobeDefaults,
+  }) async {
+    state = state.copyWith(
+      capabilityDefaults: defaults,
+      lobeCapabilityOverrides: lobeDefaults,
+      clearError: true,
+    );
     return _persist();
   }
 
@@ -955,6 +939,99 @@ Map<String, String> mergeCapabilityDefaultsForPush({
     next[capability] = id;
   }
   return next;
+}
+
+/// 两份逐叶区分档覆盖的**并集**（同一格以 [remote] 为准）。
+///
+/// ⚠️ **这条规则只许有一处实现** —— 分档默认面的两个写者（本机的用户改动
+/// 与开机重放）都必须走这里：各自内联一份「`{...local, ...remote}`」看着
+/// 等价，实际会漂（漂了就是「本机一次写抹掉对方写的格子」）。
+Map<String, Map<String, String>> unionLobeDefaults(
+  Map<String, Map<String, String>> local,
+  Map<String, Map<String, String>> remote,
+) {
+  final next = <String, Map<String, String>>{
+    for (final e in local.entries) e.key: Map<String, String>.from(e.value),
+  };
+  for (final e in remote.entries) {
+    next[e.key] = {...(next[e.key] ?? const <String, String>{}), ...e.value};
+  }
+  return next;
+}
+
+/// 两份分档默认的并集（同一格以 [remote] 为准）—— 同一条规则的全局档版。
+Map<String, String> unionCapabilityDefaults(
+  Map<String, String> local,
+  Map<String, String> remote,
+) {
+  return {...local, ...remote};
+}
+
+/// 构造「要下发给端脑的那一份」**逐叶区分档覆盖**（`lobe_defaults`）。
+///
+/// ⚠️ 基线 = **本地副本 ∪ 端脑当前值**（[unionLobeDefaults]）⇒ ⇒ 只拿本地
+/// 那份去发 ⇒ ⇒ **整份替换会把另一边设的覆盖抹掉**（与
+/// [mergeCapabilityDefaultsForPush] 同一条纪律的两层版）。
+///
+/// ⚠️ 改的那一格**以本地的这次动作为准**：给了值 ⇒ 覆盖；给空 ⇒
+/// **删掉这一格**（不是「空串」—— 端脑会 4006 拒掉）。删完这个叶区
+/// 最后一格 ⇒ 整个叶区键退出表（空 inner 在端脑那边是 4006 族的形状）。
+Map<String, Map<String, String>> mergeLobeDefaultsForPush({
+  required Map<String, Map<String, String>> local,
+  required Map<String, Map<String, String>> remote,
+  required String lobe,
+  required String capability,
+  required String? model,
+}) {
+  final next = unionLobeDefaults(local, remote);
+  final one = Map<String, String>.from(next[lobe] ?? const <String, String>{});
+  final id = (model ?? '').trim();
+  if (id.isEmpty) {
+    one.remove(capability);
+  } else {
+    one[capability] = id;
+  }
+  if (one.isEmpty) {
+    next.remove(lobe);
+  } else {
+    next[lobe] = one;
+  }
+  return next;
+}
+
+/// 两份逐叶区分档覆盖**内容相同**吗？
+///
+/// ⚠️ 不能用 `==` —— Dart 的 `Map.==` 是**身份**比较，两份内容一样的
+/// 不同实例永远不等。拿它判「有没有变化」⇒ ⇒ 每次下发都会多写一次盘
+/// （不坏，但白写；而且会让人以为「变化检测」在工作，其实恒真）。
+bool sameLobeDefaults(
+  Map<String, Map<String, String>> a,
+  Map<String, Map<String, String>> b,
+) {
+  if (identical(a, b)) return true;
+  if (a.length != b.length) return false;
+  for (final e in a.entries) {
+    final other = b[e.key];
+    if (other == null) return false;
+    if (other.length != e.value.length) return false;
+    for (final cap in e.value.entries) {
+      if (other[cap.key] != cap.value) return false;
+    }
+  }
+  return true;
+}
+
+/// 两份分档默认**内容相同**吗（同一族：`Map.==` 不可信）。
+bool sameCapabilityDefaults(
+  Map<String, String> a,
+  Map<String, String> b,
+) {
+  if (identical(a, b)) return true;
+  if (a.length != b.length) return false;
+  for (final e in a.entries) {
+    if (b[e.key] != e.value) return false;
+  }
+  return true;
 }
 
 /// 一条**可选项**（端脑认的那个 id ＋ 显示名）。
