@@ -1,3 +1,22 @@
+**Updated**: 2026-11-13 (㔥 **「持久化的数据不许住在内存库里 —— 而全客户端只有一处这么干：桌面配置中心的兜底」** —— 承 㔝 条（大脑是唯一数据源 / 设置住哪儿）＋ 㔖 条（手机上「对话只在内存」那一族），本条记**用户裁定**、**审计（两端逐项清点）**、**第一因（兜底把「不可用」写成了「可用」）**、**这一刀的落点**、**判据与分级读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-13 | authority=measured | scope=project | source=用户裁定逐字（「持久化的数据不应该使用内存数据库存储，检查客户端中有哪些使用了内存数据库，缓存可以数据不行」）＋ 两端逐项审计（移动端 `lib/` 对 `inMemoryDatabasePath` / `:memory:` / `sqflite_common_ffi` **零命中**；`database_helper.dart` 用 `getDatabasesPath()` ＋ `openDatabase` ＝ **文件库**；Kotlin 无 Room/in-memory；桌面 TS 无内存库（`localStorage` / IndexedDB 都是**磁盘**面）；桌面 Rust **唯一一处** `:memory:` ＝ `telencephalon_http.rs` 的配置中心兜底）＋ 端脑 `BuildOptions` 语义逐字（`conversation_store_file: None` ⇒ 有海马体走 Lance、无则纯内存；`secret_store: None` ⇒ `InMemorySecretStore`）｜ 改动：**shadow**（`shadow-desktop/src-tauri/src/telencephalon_http.rs`：抽 `desktop_control_plane(Option<PathBuf>) -> Option<Bootstrap>`，拿不到配置目录 ⇒ **`None` ＋ `tracing::error!`**（绝不 `:memory:`）；新增 2 条测试；AGENTS.md 本条）⇒ ⇒ **1 个文件** ＋ 零新增依赖 ＋ 零 ci.yml 改动 ｜ 读数：`cargo test --lib telencephalon_http::tests::control_plane` **2/2** ＋ 变异（把 `None` 改回 `:memory:`）⇒ `control_plane_disabled_without_a_config_dir` **FAILED** ⇒ 还原 2/2 ＋ 端脑 `cargo check --lib` EXIT=0 ｜ 真 CI 待取 | status=active | supersedes=none
+
+① **⚠️ 审计结果（两端逐项，分类是这一条的重点）** ——
+　❶ **数据面（必须落磁盘，已全部合规）**：移动端设置库＝**SQLite 文件**（`getDatabasesPath()` ＋ `openDatabase`）；打断流经的会话＝`data_dir/shadow/conversations.json`（`conversation_store_file`，移动端已设）；移动端控制面＝`data_dir/control-plane.db`（`control_plane_for` 在**没有 data_dir 时返回 `None`**，不是内存库）；桌面会话＝Lance（`hippocampus` feature 在必为 `Some(store)`）；供应商目录＝`providers.json`；账号＝`identity` 目录。
+　❷ **缓存面（允许）**：两端 UI 的 Riverpod／zustand 状态、桌面 `localStorage`（分档 durable 副本）／IndexedDB（模型下载）—— 都是**磁盘**或**可重建**，不在「数据」这一类。
+　❸ **违规（唯一一处，本刀修掉）**：桌面配置中心 `control_plane` 在 `dirs::config_dir()` 为 `None` 时 `unwrap_or_else(|| ":memory:")` ⇒ ⇒ **把「拿不到配置目录」兜成了一块内存 libSQL**。
+　❹ **测试面（可接受，不动）**：`model_metadata_test.dart` 用 `inMemoryDatabasePath` —— 单测夹具，天然该内存。
+　❺ **不算「内存数据库」但同类要记**：`secret_store` 桌面没递 ⇒ `InMemorySecretStore`；但 `seal_api_key` 在 memory 仓库下**退成明文写进 `providers.json`** ⇒ ⇒ **数据不丢（明文落盘），丢的是「加密」** ⇒ 安全债，归 㔢 条⑨❸，不是本条。
+
+② **⚠️ 第一因：兜底把「不可用」写成了「可用」** —— 内存库在这一条链上比「不可用」更糟：写返回 **200**、同一进程里读得回来 ⇒ 设置页显示「已保存」⇒ **重启即失** ⇒ 用户以为存住了。⇒ 而 `None` 会让配置中心**禁用**，读面如实答「控制面未连接」（503）⇒ 界面说真话。⇒ ⇒ **通用形态：兜底值必须与「真实能力」同义 —— 拿一块内存库去兜「存储不可用」，是把「办不到」伪装成「办到了」。**
+
+③ **✅ 这一刀的落点（1 个文件）** —— ❶ 把内联的 `Some(Bootstrap{ url: …unwrap_or_else(‖":memory:") })` 抽成纯函数 `desktop_control_plane(config_dir)`：`Some(dir)` ⇒ `dir/shadow/control-plane.db`（本地 libSQL **文件**）；`None` ⇒ **`None`** ＋ `tracing::error!`（大声，不静默）。❷ 两条判据：`control_plane_is_a_file_and_never_in_memory`（有目录 ⇒ 路径是文件且**不含** `:memory:`、`token` 为 None）＋ `control_plane_disabled_without_a_config_dir`（无目录 ⇒ `None`）。
+
+④ **✅ 判据与分级读数（全部实测）** —— ❶ **判据级**：`cargo test --lib …::control_plane` **2/2 passed**（0.00s）。❷ **反向验证级**：把 `None` 分支改回 `:memory:` ⇒ 第二条 **FAILED**（`EXIT=101`，1 passed / 1 failed）⇒ 还原 ⇒ 2/2 ⇒ ⇒ 判据有牙。❸ **依赖级**：端脑 `cargo check --lib` **EXIT=0**（构建前先确认依赖面干净，否则测的是别人在飞面）。❹ **真 CI 级**：**待取**。
+
+⑤ **⚠️ 仍然欠着的** —— ❶ **密钥仓库仍是内存实现**（桌面没递 `secret_store`）：不是数据丢失（明文落盘），但「加密」是假的 ⇒ 归 㔢 条⑨❸ 的安全债；要真修得注入 OS 钥匙环（新依赖 ＋ 平台面）。❷ **`conversation_store_file: None` 在桌面是设计**（有海马体就 Lance）—— ⚠️ **但将来若做「无海马体」的桌面构建，这一格会静默退化成纯内存**（`ConversationStore::new()`）⇒ 届时要给文件兜底（与移动端同一条 `conversations.json`）。❸ 移动端 `mobile-lean`（remote-only）没有本地控制面 ⇒ 如实 503，**不是**内存库。❹ 真 CI 读数待取。
+
 **Updated**: 2026-11-13 (㔤 **「台账被顶掉这件事一天里发生了两次 —— 而两次都不是『文件坏了』，是『提交前没人问一句：你这份比 HEAD 少了什么』」** —— 承 㔝 条 ⑧❹（那格一直写着「那道闸仍欠」）＋ U+3506 条⑧❻（同一条的原始出处），本条记**取证（两次损失）**、**第一因（判据看的是「条目数」，不是「文件非空」）**、**第二因（共享判据按符号去重，拿来计数会少算）**、**这一刀的落点（受管 pre-commit ＋ 纯判据 lib）**、**判据与分级读数**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-13 | authority=measured | scope=project | source=两次真事故（① 2026-11-13 早：并行会话拿**过期整文件快照**写 AGENTS.md ⇒ 顶掉已提交条目（U+3506 条⑥❻ 记的是丢 876 行）；② 同日我自己两次遇到「工作树面比 HEAD 落后」，只能手工 `grep -c` 核条目数）＋ 受管钩子的形状（`.githooks/pre-commit` **只拦专用码 10**、判不了/崩了一律放行 ⇒ fail-safe 是既有约定）｜ 改动：**shadow**（**新** `scripts/lib/precommit-ledger-shrink.mjs`（纯判据）＋ **改** `scripts/check-precommit-hook.mjs`（取两侧正文 ＋ 判红 ＋ 自检 6 → **10** 格）＋ AGENTS.md 本条）⇒ ⇒ 零新增依赖 ＋ 零 ci.yml 改动 ＋ **不动 `.githooks/pre-commit`**（它只认专用码 10，条件挂在 node 侧）｜ 读数：自检 **10/10** ＋ 真仓上（当前没暂存台账）逐字 `::notice::这一笔没动台账 ⇒ ⇒ 不判条目数` 且放行 ＋ 变异（把判定摘成 `null`）⇒ **9/10**（⑦「2 条 ⇒ 1 条」那格红）⇒ 还原 **10/10** ｜ 真 CI 待取 | status=active | supersedes=none

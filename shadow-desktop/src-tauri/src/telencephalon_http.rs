@@ -388,16 +388,21 @@ async fn build_face(
         //
         // ⚠️ 生效时机：控制面在 boot 时打开一次 ⇒ 改配置后**重启**才生效
         // （读面回包的 `applies_when` 就是 `restart`）。
-        control_plane: Some(encephalon::telencephalon::config_center::Bootstrap {
-            url: dirs::config_dir()
-                .map(|dir| {
-                    dir.join("shadow")
-                        .join("control-plane.db")
-                        .to_string_lossy()
-                        .to_string()
-                })
-                .unwrap_or_else(|| ":memory:".to_string()),
-            token: None,
+        //
+        // ⚠️⚠️ **拿不到配置目录 ⇒ 控制面本次不启用（`None`），绝不退化成
+        // `:memory:`**（2026-11-13 用户裁定：**持久化数据不许落在内存库里，
+        // 缓存才可以**）。内存库在这条链上比「不可用」更糟：写成功、读得回、
+        // **重启即失** ⇒ 用户以为存住了 ⇒ **失败长得像成功**。`None` 会让
+        // 读面如实答「控制面未连接」，界面说真话。
+        control_plane: desktop_control_plane(dirs::config_dir()),
+        // **记忆存储换根的断点文件**（2026-11-13）：与 identity / 控制面同源
+        // （`config_dir/shadow/`）—— 迁移途中退出、再打开时从这里续跑。
+        // ⚠️ 它**不是记忆数据**：只记「搬到哪一步／目标是谁」，不含明文密钥。
+        migration_state_file: dirs::config_dir().map(|dir| {
+            dir.join("shadow")
+                .join("storage-migration.json")
+                .to_string_lossy()
+                .to_string()
         }),
         // ⚠️ **其余字段走 Default** —— `BuildOptions` 手写了 `Default`
         // ⇒ ⇒ 新增字段时不必在这里补 ⇒ ⇒ 也就不必「改一处、漏一处」
@@ -422,12 +427,64 @@ async fn build_face(
     .map_err(|e| format!("build_brain_face: {e}"))
 }
 
+/// 桌面端的**配置中心**引导参数（本地 libSQL **文件**）。
+///
+/// ⚠️⚠️ **拿不到系统配置目录 ⇒ 返回 `None`（控制面本次不启用），
+/// 绝不退化成 `:memory:`**（2026-11-13 用户裁定：**持久化数据不许落在
+/// 内存库里，缓存才可以**）。
+///
+/// 为什么内存库在这条链上比「不可用」更糟：
+/// · 写成功（200）＋ 读得回（同一进程内）⇒ 界面显示「已保存」；
+/// · **重启即失** ⇒ 用户以为存住了 ⇒ **失败长得像成功**；
+/// · 而 `None` 会让读面如实答「控制面未连接」（503）⇒ 界面说真话。
+///
+/// 纯函数（不碰文件系统）：`Some(dir)` ⇒ `dir/shadow/control-plane.db`；
+/// `None` ⇒ `None` ＋ 一条 error 日志（大声，不静默）。
+fn desktop_control_plane(
+    config_dir: Option<std::path::PathBuf>,
+) -> Option<encephalon::telencephalon::config_center::Bootstrap> {
+    let Some(dir) = config_dir else {
+        tracing::error!(
+            "拿不到系统配置目录 ⇒ 配置中心本次**不启用**（绝不退化成 :memory: —— \
+             那会让「保存成功」变成重启即失）。记忆存储等设置页会如实显示「读不到」。"
+        );
+        return None;
+    };
+    Some(encephalon::telencephalon::config_center::Bootstrap {
+        url: dir
+            .join("shadow")
+            .join("control-plane.db")
+            .to_string_lossy()
+            .to_string(),
+        token: None,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use axum::routing::get;
     use axum::Router;
     use tower::ServiceExt;
+
+    /// ⚠️ **持久化数据不许落在内存库里**（用户裁定 2026-11-13）：
+    /// 拿得到配置目录 ⇒ 指向**文件**；拿不到 ⇒ **不启用**（绝不给 `:memory:`）。
+    #[test]
+    fn control_plane_is_a_file_and_never_in_memory() {
+        let dir = std::path::PathBuf::from("C:/tmp/cfg");
+        let b = desktop_control_plane(Some(dir)).expect("有目录 ⇒ 有引导参数");
+        assert!(b.url.ends_with("shadow/control-plane.db") || b.url.ends_with("shadow\\control-plane.db"),
+            "url 必须是文件路径，实际是 {}", b.url);
+        assert!(!b.url.contains(":memory:"), "绝不许内存库");
+        assert!(b.token.is_none(), "本地文件模式不需要 token");
+    }
+
+    #[test]
+    fn control_plane_disabled_without_a_config_dir() {
+        // 没有配置目录 ⇒ None（读面会如实答「控制面未连接」），
+        // ⚠️ 不是 Some(":memory:") —— 那会「写成功、重启即失」。
+        assert!(desktop_control_plane(None).is_none());
+    }
 
     /// 前缀挂载：内层 `/api/memory` 对外是 `/hippocampus/api/memory`。
     ///
