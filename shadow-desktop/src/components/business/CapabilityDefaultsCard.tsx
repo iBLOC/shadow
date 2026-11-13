@@ -11,7 +11,7 @@ import {
   type CapabilityCandidateOption,
   type EngineResolvedInfo,
 } from '@/lib/capabilityDefaults';
-import { telencephalonClient } from '@/lib/telencephalonClient';
+import { telencephalonClient, type ModelProvider } from '@/lib/telencephalonClient';
 
 /**
  * 「**按能力分档**的默认模型」卡 —— 每一类能力各有一个默认模型。
@@ -48,6 +48,9 @@ export function CapabilityDefaultsCard() {
     engineResolved: [],
     registered: {},
   });
+  // ⚠️ **llm 档的路由注册要用供应商明细**（id/base_url/模型归属）——
+  // 分档卡的 llm 行选了云模型 ⇒ 顺手把它注册成远端引擎（见 apply）。
+  const [providers, setProviders] = useState<ModelProvider[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -64,6 +67,7 @@ export function CapabilityDefaultsCard() {
       const remote = view.defaults ?? {};
       setCapabilities(view.capabilities ?? []);
       setDefaults(remote);
+      setProviders(providers);
       // ⚠️ **目录面只是「有哪些模型可以下载」** ⇒ ⇒ 按引擎 id 解析的那两档
       // ⇒ ⇒ 候选取**已注册面**（端脑真解析引擎用的那套 id）⇒ ⇒ 否则用户
       // 选一个端脑永远解析不到的 id ⇒ ⇒ 存得进去、用不了。
@@ -72,12 +76,19 @@ export function CapabilityDefaultsCard() {
         registered: view.registered ?? {},
       };
       setEngineInfo(info);
-      setCandidates(
-        capabilityOptionsByCapability(
-          capabilityCandidatesByCapability(providers),
-          info,
-        ),
-      );
+      // ⚠️ **云供应商把对话模型标成 `chat`，端脑词表是 `llm`** —— 按词直
+      // 分组会把云模型分进一个词表里**没有**的桶 ⇒ ⇒ 文本模型档看不见
+      // 它们 ⇒ ⇒ UI 钉不了云默认（真机读数 2026-11-13：分档候选缺云模型，
+      // 服务端 PUT 却接受 ⇒ 缺口在客户端）。把 chat 桶并进 llm 桶（同 id
+      // 去重交给 capabilityOptionsByCapability 的下游逻辑；词表没有 chat
+      // 行 ⇒ 并掉不丢行）。
+      // ⚠️ 这条别名只放在**桌面卡片的组合层**，不动 `capabilityDefaults.ts`
+      // 纯模块 —— 那份算法与移动端 Dart 孪生「必须一模一样」，而 Dart 侧
+      // 文件在飞（模型路由重构），别名要等那刀拍板时两端一起进。
+      const grouped = capabilityCandidatesByCapability(providers);
+      grouped['llm'] = [...(grouped['llm'] ?? []), ...(grouped['chat'] ?? [])];
+      delete grouped['chat'];
+      setCandidates(capabilityOptionsByCapability(grouped, info));
 
       // ⚠️ **端脑刚重启 ⇒ 它的运行态槽是空的** ⇒ ⇒ 而本机还留着 durable
       // 副本 ⇒ ⇒ 这时候把副本**再下发一遍**（与移动端「开机下发」同一
@@ -121,6 +132,41 @@ export function CapabilityDefaultsCard() {
       try {
         // ⚠️ **先端脑** —— 端脑收下了才落本地。
         await telencephalonClient.setCapabilityDefaults(next);
+        // ⚠️ **llm 档的路由真消费面是 `lobes/models`**（capability-defaults
+        // 的 llm 分档不进会话路由 —— 真机读数：钉了也路由不变）⇒ ⇒ 选了
+        // 云模型就把它**注册成远端引擎＋设全局默认**（key 不出大脑，端脑按
+        // 供应商 id 自己解析）；清空 ⇒ `default_model: null`（回落本地）；
+        // 内置权重模型（builtin-neuron，无独立供应商端点）⇒ 不动路由 ——
+        // 它的引擎要等权重下载后才注册，这里不替它做主。
+        if (capability === 'llm') {
+          const owner = model
+            ? providers.find(
+                (p) =>
+                  p.id !== 'builtin-neuron' &&
+                  !!p.api_base &&
+                  (p.models ?? []).some((m) => m.id === model),
+              )
+            : undefined;
+          if (model && owner) {
+            // ⚠️ **路由键是「上游模型 id」（`model_id`），不是供应商目录的
+            // 复合 id** —— 真机读数：注册成目录 id ⇒ 上游回 `Model not
+            // exist`（移动端 `upstreamModelIdOf` 的语义就是它）。
+            const upstream =
+              owner.models.find((m) => m.id === model)?.model_id?.trim() ||
+              model;
+            await telencephalonClient.setLobeModels({
+              providers: [
+                { id: owner.id, base_url: owner.api_base!, model: upstream },
+              ],
+              default_model: upstream,
+            });
+          } else if (!model) {
+            await telencephalonClient.setLobeModels({
+              providers: [],
+              default_model: null,
+            });
+          }
+        }
         // ⚠️ **本地副本存没存住，要说真话** —— 端脑那份已经是权威了 ⇒ ⇒
         // 存不住 ≠ 这次没生效；但「重启后这一档会回到默认」**必须让用户
         // 知道** ⇒ ⇒ 否则用户以为「持久了」⇒ ⇒ 失败长得像成功。
@@ -140,7 +186,7 @@ export function CapabilityDefaultsCard() {
         setSaving(null);
       }
     },
-    [defaults, t],
+    [defaults, providers, t],
   );
 
   return (

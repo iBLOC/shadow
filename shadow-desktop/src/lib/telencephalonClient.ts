@@ -377,6 +377,41 @@ export interface CapabilityDefaultsView {
   registered?: Record<string, string[]>;
 }
 
+/**
+ * `POST /api/telencephalon/lobes/models` 的一条**远端 llm 引擎注册**。
+ *
+ * ⚠️ **不带 `api_key`** —— 端脑按 `id` 从自己的供应商目录解析 key
+ * （供应商材料不出大脑；与移动端 `buildModelRoutingPayload` 同一约定）。
+ */
+export interface LobeModelProviderRegistration {
+  /** 供应商 id（端脑据此解析 key）。 */
+  id: string;
+  base_url: string;
+  /** 路由键＝供应商目录的模型 id（`default_model` 认的也是它）。 */
+  model: string;
+}
+
+/** `POST /api/telencephalon/lobes/models` 的请求体（三态字段见方法注释）。 */
+export interface LobeModelsPush {
+  providers: LobeModelProviderRegistration[];
+  /** 三态：不给字段＝不动；`null`＝回落本地；串＝该模型。 */
+  default_model?: string | null;
+  /** per-lobe 覆盖，**整份替换**；「跟随全局」不进表。 */
+  lobe_models?: Record<string, string | null>;
+}
+
+/** `POST /api/telencephalon/lobes/models` 的响应。 */
+export interface LobeModelsView {
+  default_model: string | null;
+  /** 各叶区此刻生效的模型（含跟随全局解析后的值）。 */
+  applied: Record<string, string | null>;
+  overrides: Record<string, string | null>;
+  /** 表里出现但端脑不认识的叶区名。 */
+  unknown: string[];
+  /** 注册成功的远端引擎数。 */
+  registered: number;
+}
+
 export interface AgentMutationResult {
   name: string;
   version: string;
@@ -1427,6 +1462,30 @@ export class TelencephalonClient {
         body: JSON.stringify({ defaults }),
       },
     );
+  }
+
+  /**
+   * **llm 路由的真消费面**（`POST /api/telencephalon/lobes/models`）——
+   * 把云供应商模型**注册成 neuron 的远端 llm 引擎**＋设**全局默认**；
+   * per-lobe 覆盖整份替换（不在表里＝跟随全局）。
+   *
+   * ⚠️ **key 不出大脑**：请求体只递供应商 `id`（端脑按 id 从自己的供应商
+   * 目录解析 key —— 与移动端 `buildModelRoutingPayload` 同一约定）。
+   * ⚠️ **`default_model` 三态**：字段不出现＝不动；`null`＝回落本地；
+   * 串＝该模型。`lobe_models` 只装显式覆盖（「跟随全局」不进表）。
+   * ⚠️ 显式类型参数 ⇒ 进契约清单（端点漂移才抓得到）。
+   */
+  async setLobeModels(req: LobeModelsPush): Promise<LobeModelsView> {
+    return this.request<LobeModelsView>('/api/telencephalon/lobes/models', {
+      method: 'POST',
+      body: JSON.stringify({
+        providers: req.providers,
+        ...(req.default_model !== undefined
+          ? { default_model: req.default_model }
+          : {}),
+        ...(req.lobe_models ? { lobe_models: req.lobe_models } : {}),
+      }),
+    });
   }
 
   // Task methods

@@ -100,6 +100,8 @@ shadow-desktop/src/lib/telencephalonClient.ts GET /v1/models/pull outer neuron G
 shadow-desktop/src/lib/telencephalonClient.ts DELETE /v1/models/pull/{param} outer neuron DELETE /v1/models/pull/{job_id}
 shadow-desktop/src/lib/telencephalonClient.ts GET /api/telencephalon/lobes/capability-defaults aligned telencephalon GET /api/telencephalon/lobes/capability-defaults
 shadow-desktop/src/lib/telencephalonClient.ts PUT /api/telencephalon/lobes/capability-defaults aligned telencephalon PUT /api/telencephalon/lobes/capability-defaults
+shadow-desktop/src/lib/telencephalonClient.ts POST /api/telencephalon/lobes/models aligned telencephalon POST /api/telencephalon/lobes/models
+shadow-desktop/src/lib/telencephalonClient.ts POST /api/flows/traces/ingest aligned telencephalon POST /api/flows/traces/ingest
 shadow-desktop/src/lib/telencephalonClient.ts GET /api/telencephalon/notifications aligned telencephalon GET /api/telencephalon/notifications
 shadow-desktop/src/lib/telencephalonClient.ts POST /api/telencephalon/notifications/ack aligned telencephalon POST /api/telencephalon/notifications/ack
 shadow-desktop/src/lib/telencephalonClient.ts GET /api/telencephalon/tasks aligned telencephalon GET /api/telencephalon/tasks
