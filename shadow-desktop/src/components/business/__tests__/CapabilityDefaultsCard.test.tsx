@@ -165,7 +165,9 @@ describe('CapabilityDefaultsCard（分档默认卡 · llm 路由真消费面）'
 
   it('setLobeModels 拒绝 ⇒ 说真话报错，本地副本不落（先端脑后本地）', async () => {
     mockBackend();
-    vi.spyOn(telencephalonClient, 'setLobeModels').mockRejectedValue(new Error('boom: neuron 503'));
+    const rejectedLobePush = vi
+      .spyOn(telencephalonClient, 'setLobeModels')
+      .mockRejectedValue(new Error('boom: neuron 503'));
     vi.spyOn(telencephalonClient, 'setCapabilityDefaults').mockResolvedValue(defaultsView());
 
     render(<CapabilityDefaultsCard />);
@@ -173,6 +175,10 @@ describe('CapabilityDefaultsCard（分档默认卡 · llm 路由真消费面）'
 
     await userEvent.selectOptions(llmSelect, 'qwenai-qwen38-max');
 
+    // ⚠️ **必须核替身真被调用过** —— 只断言文案与 localStorage 的话，这个
+    // reject 替身生不生效都看不出来（闸 R5「替身空转」抓的就是恒绿用例：
+    // 装配了失败，却没人证明这条路径真的走到它）。
+    await waitFor(() => expect(rejectedLobePush).toHaveBeenCalledTimes(1));
     expect(await screen.findByText(/capabilityDefaults\.failed/)).toBeInTheDocument();
     expect(globalThis.localStorage.getItem(CAPABILITY_DEFAULTS_STORAGE_KEY)).toBeNull();
   });

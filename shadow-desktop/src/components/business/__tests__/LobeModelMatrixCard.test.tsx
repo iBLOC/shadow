@@ -240,11 +240,14 @@ describe('LobeModelMatrixCard（叶区 × 类型）', () => {
 
   it('读不到叶区清单 ⇒ 说真话，不画成「没有叶区」', async () => {
     mockBackend();
-    vi.spyOn(telencephalonClient, 'getLobeManifests').mockRejectedValue(
-      new Error('lobes unreachable'),
-    );
+    const spy = vi
+      .spyOn(telencephalonClient, 'getLobeManifests')
+      .mockRejectedValue(new Error('lobes unreachable'));
     render(<LobeModelMatrixCard />);
 
+    // ⚠️ **必须核 spy 真被调用过** —— 只断言界面文案的话，替身生不生效都
+    // 看不出来（闸 R5「替身空转」抓的就是这种恒绿用例）。
+    expect(spy).toHaveBeenCalledTimes(1);
     expect(await screen.findByText(/lobes unreachable/)).toBeTruthy();
     expect(screen.queryByText('lobeModelMatrix.empty')).toBeNull();
   });
