@@ -54,7 +54,12 @@ class BackgroundRunNotifier extends StateNotifier<BackgroundRunState> {
   }
 
   Future<void> _onTaskEvent(Object data) async {
-    if (data is Map && data['event'] is String) {
+    // ⚠️ 先拷贝一层再查 —— 跨 isolate 端口传来的 map 可能是 canonicalized
+    // 的 const（发送端 `const {...}`）⇒ 直接 `[]` 查找会炸
+    // `_createIndex` 断言（真机 MIX 4 每次启动必现）。`of()` 走迭代不走
+    // 查找 ⇒ 安全。（发送端的 const 已修 —— 这一层是防别的发送点再犯。）
+    final map = data is Map ? Map<Object?, Object?>.of(data) : null;
+    if (map != null && map['event'] is String) {
       await refresh();
     }
   }

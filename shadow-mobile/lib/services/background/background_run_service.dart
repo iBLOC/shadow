@@ -170,8 +170,14 @@ void backgroundTaskCallback() {
 class BackgroundKeepAliveHandler extends TaskHandler {
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
+    // ⚠️ **跨 isolate 端口的消息不许 `const`** —— canonicalized map 穿过
+    // 端口后，接收 isolate 对它做 `[]` 查找会炸
+    // `_ImmutableLinkedHashMapMixin._createIndex` 断言（真机 MIX 4 每次启动
+    // 必现：started 事件一发就崩，heartbeat 非 const 所以不崩）。
+    // 心跳（181 行）一直是非 const 字面量 ⇒ 那条从来没炸过 ⇒ 修法就是
+    // 同款：非 const 字面量。
     FlutterForegroundTask.sendDataToMain(
-      const <String, Object>{'event': 'started'},
+      <String, Object>{'event': 'started'},
     );
   }
 
@@ -186,8 +192,9 @@ class BackgroundKeepAliveHandler extends TaskHandler {
 
   @override
   Future<void> onDestroy(DateTime timestamp, bool isTimeout) async {
+    // 同 onStart：不许 const（见上）。
     FlutterForegroundTask.sendDataToMain(
-      const <String, Object>{'event': 'stopped'},
+      <String, Object>{'event': 'stopped'},
     );
   }
 
