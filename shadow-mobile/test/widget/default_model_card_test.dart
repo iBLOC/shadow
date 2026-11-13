@@ -105,6 +105,8 @@ void main() {
     /// 写路径的合并基线。
     Map<String, String> serverDefaults = const {},
     Map<String, Map<String, String>> serverLobeDefaults = const {},
+    /// 本机已存的**模型路由**（叶区覆盖的来源，开机从这里重放）。
+    BrainModelRouting? initialRouting,
     bool failDefaultsRead = false,
   }) {
     mockChannel();
@@ -112,6 +114,11 @@ void main() {
       ..serverDefaults = serverDefaults
       ..serverLobeDefaults = serverLobeDefaults
       ..failCapabilityDefaultsRead = failDefaultsRead;
+    fakeSettings = _FakeAppSettings();
+    if (initialRouting != null) {
+      fakeSettings!.values[BrainModelSource.routingSettingKey] =
+          initialRouting.encode();
+    }
     return ProviderScope(
       overrides: [
         // 大脑目录直读 —— 覆盖注入，不真发 HTTP。
@@ -137,9 +144,7 @@ void main() {
         ),
         // 设置仓储换内存版（真库那次读是真实文件 I/O，fake-async 卡死）。
         // 存进 [fakeSettings] —— 有用例要核「本地副本到底存了哪一份」。
-        appSettingsRepositoryProvider.overrideWithValue(
-          fakeSettings = _FakeAppSettings(),
-        ),
+        appSettingsRepositoryProvider.overrideWithValue(fakeSettings!),
         // 端脑 client 换假的 —— 下发路由与分档默认都不真发 HTTP。
         telencephalonClientProvider.overrideWithValue(fakeClient!),
       ],
@@ -625,6 +630,51 @@ void main() {
       );
       // 路由那份负载里**不许**再出现（两位读者都没有这个字段）。
       expect(lastRoutingPayload().containsKey('lobe_capability_models'), isFalse);
+    });
+
+    testWidgets('⚠️ 删掉**最后一格** ⇒ 下发的必须是「空表」，不许省略这个字段', (
+      tester,
+    ) async {
+      // 端脑那一面是三态：**缺席＝不动／出现＝整份替换（空表＝清空）**。
+      // ⚠️ 真机 2026-11-13 逮到：以前服务端把「空表」与「不带字段」同貌处理
+      // ⇒ 清空被静默吞掉 ⇒ 界面说「已应用」而覆盖还在（失败长得像成功）。
+      // 服务端已修（Option），客户端这边钉住「**必须把空表发出去**」——
+      // 省略字段＝「什么都不改」，那才是把同一个 bug 搬到客户端。
+      await tester.pumpWidget(buildCard(
+        providers: [brainProvider()],
+        view: const CapabilityDefaultsView(
+          capabilities: ['llm', 'asr'],
+          engineResolved: ['asr'],
+          registered: {
+            'asr': ['whisper-model'],
+          },
+        ),
+        serverLobeDefaults: const {
+          'prefrontal': {'asr': 'whisper-model'},
+        },
+        initialRouting: const BrainModelRouting(
+          lobeCapabilityOverrides: {
+            'prefrontal': {'asr': 'whisper-model'},
+          },
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      final l10n = l10nOf(tester);
+      final row = find.descendant(
+        of: find.widgetWithText(LobeCapabilityRow, l10n.capAsr).first,
+        matching: find.byType(DropdownButton<String>),
+      );
+      // 那一格现在显式覆盖着 ⇒ 选「跟随全局」＝删掉最后一格。
+      await pick(tester, row, l10n.encephalonLobeFollowGlobal);
+
+      final pushed = lastCapabilityDefaultsPushed!;
+      expect(
+        pushed.containsKey('lobe_defaults'),
+        isTrue,
+        reason: '空表必须**带字段**发出去 ⇒ 省略＝不动＝清空没发生',
+      );
+      expect(pushed['lobe_defaults'], isEmpty);
     });
 
     testWidgets('⚠️ 写之前先读端脑基线（不许盲发 —— 那一发会抹掉对方写的格子）',

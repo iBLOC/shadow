@@ -184,6 +184,30 @@ describe('LobeModelMatrixCard（叶区 × 类型）', () => {
     expect(setCaps.mock.calls[0][1]).toEqual({ temporal: { tts: 'voxcpm2' } });
   });
 
+  it('⚠️ 删掉**最后一格** ⇒ 下发的必须是「空表」而不是省略这个字段', async () => {
+    // 端脑那一面「缺席＝不动／出现＝整份替换（空表＝清空）」是三态
+    // （真机 2026-11-13 逮到：以前空表与缺席同貌 ⇒ 清空被静默吞掉）。
+    // ⇒ 客户端这边必须**把空表发出去**，省略字段就等于「什么都不改」。
+    mockBackend({
+      caps: {
+        ...capsView,
+        lobe_defaults: { temporal: { asr: 'whisper-model' } },
+      },
+    });
+    const setCaps = vi
+      .spyOn(telencephalonClient, 'setCapabilityDefaults')
+      .mockResolvedValue({ ...capsView, lobe_defaults: {} });
+    render(<LobeModelMatrixCard />);
+
+    const asrSel = await selectOf('temporal', 'asr');
+    expect(asrSel.value).toBe('whisper-model');
+    await userEvent.selectOptions(asrSel, '');
+
+    const [, lobeDefaults] = setCaps.mock.calls[0];
+    expect(lobeDefaults).toEqual({});
+    expect(lobeDefaults).toBeDefined();
+  });
+
   it('llm：选云模型 ⇒ setLobeModels({providers: [], lobe_models})，不带 default_model', async () => {
     mockBackend();
     const setLobe = vi
