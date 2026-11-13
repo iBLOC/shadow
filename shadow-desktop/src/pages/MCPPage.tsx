@@ -13,29 +13,6 @@ import {
 import { cn } from '../lib/utils';
 import { useTelencephalonStore } from '../stores/telencephalonStore';
 
-interface FormState {
-  name: string;
-  description: string;
-  // stdio
-  command: string;
-  args: string;
-  env: string;
-  // http
-  url: string;
-  bearer: string;
-  // wasm
-  wasm_name: string;
-  wasm_version: string;
-  wasm_sha256: string;
-}
-
-const EMPTY_FORM: FormState = {
-  name: '', description: '',
-  command: '', args: '', env: '',
-  url: '', bearer: '',
-  wasm_name: '', wasm_version: '', wasm_sha256: '',
-};
-
 export function MCPPage() {
   const { t } = useTranslation();
   const telencephalonStatus = useTelencephalonStore((s) => s.status);
@@ -51,9 +28,11 @@ export function MCPPage() {
   // commit `1c0c3ec`; the useState declaration was missing so the page
   // threw `ReferenceError: form is not defined` whenever the modal opened.
   type Transport = 'stdio' | 'http' | 'wasm';
+  type Template = 'custom' | 'hamcp';
   interface ServerForm {
     name: string;
     description: string;
+    template: Template;
     transport: Transport;
     command: string;
     args: string;
@@ -67,6 +46,7 @@ export function MCPPage() {
   const emptyForm = (): ServerForm => ({
     name: '',
     description: '',
+    template: 'custom',
     transport: 'stdio',
     command: '',
     args: '',
@@ -78,6 +58,31 @@ export function MCPPage() {
     wasm_sha256: '',
   });
   const [form, setForm] = useState<ServerForm>(emptyForm);
+
+  // Picking the ha-mcp template presets the shape the Home Assistant
+  // MCP server actually needs (streamable HTTP, secret URL as the
+  // credential) while leaving every field editable — it is a preset,
+  // not a locked form. ⚠️ The URL is deliberately *not* prefilled:
+  // the secret URL is per-instance and unguessable.
+  const selectTemplate = (template: Template) =>
+    setForm((f) => ({
+      ...f,
+      template,
+      ...(template === 'hamcp'
+        ? {
+            transport: 'http' as Transport,
+            name: 'ha-mcp',
+            description: t('mcp.templateHaMcpDescription'),
+          }
+        : {}),
+    }));
+
+  // No blind submit: each transport's one mandatory target field
+  // must be filled before the request goes out.
+  const missingTransportField =
+    (form.transport === 'http' && !form.url.trim()) ||
+    (form.transport === 'stdio' && !form.command.trim()) ||
+    (form.transport === 'wasm' && !form.wasm_name.trim());
 
   const loadServers = async () => {
     if (telencephalonStatus !== 'running') { setServers([]); return; }
@@ -228,6 +233,28 @@ export function MCPPage() {
       <Modal isOpen={showAddForm} onClose={() => setShowAddForm(false)}
         title={t('mcp.addServer')} size="md">
         <div className="flex flex-col gap-4">
+          {/* template selector — presets the fields below, everything stays editable */}
+          <div>
+            <label className="mb-1 block text-[11px] font-medium text-muted-foreground">
+              {t('mcp.templateLabel')}
+            </label>
+            <div className="flex gap-2">
+              {(['custom', 'hamcp'] as const).map((tpl) => (
+                <button key={tpl}
+                  className={cn(
+                    'rounded-md border px-3 py-1.5 text-xs font-medium transition-colors',
+                    form.template === tpl
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border text-muted-foreground hover:border-foreground/30',
+                  )}
+                  onClick={() => selectTemplate(tpl)}
+                >
+                  {tpl === 'custom' ? t('mcp.templateCustom') : 'Home Assistant · ha-mcp'}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <Input label={t('mcp.fieldName')} value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
             placeholder="my-mcp-server" />
@@ -277,10 +304,18 @@ export function MCPPage() {
             <div className="flex flex-col gap-3 rounded-md border border-border bg-muted/30 p-3">
               <Input label="URL" value={form.url}
                 onChange={(e) => setForm({ ...form, url: e.target.value })}
-                placeholder="http://localhost:3000/mcp" />
+                placeholder={form.template === 'hamcp'
+                  ? t('mcp.haMcpUrlPlaceholder')
+                  : 'http://localhost:3000/mcp'} />
+              {form.template === 'hamcp' && (
+                <p className="text-xs text-muted-foreground">{t('mcp.haMcpUrlHint')}</p>
+              )}
               <Input label="Bearer Token (optional)" value={form.bearer}
                 onChange={(e) => setForm({ ...form, bearer: e.target.value })}
                 placeholder="token (optional)" />
+              {form.template === 'hamcp' && (
+                <p className="text-xs text-muted-foreground">{t('mcp.haMcpBearerHint')}</p>
+              )}
             </div>
           )}
 
@@ -303,12 +338,17 @@ export function MCPPage() {
           <div className="flex justify-end gap-3 border-t border-border pt-4">
             <Button variant="secondary" onClick={() => setShowAddForm(false)}>{t('common.cancel')}</Button>
             <Button variant="primary" loading={submitting}
-              disabled={!form.name?.trim()}
+              disabled={!form.name?.trim() || missingTransportField}
               onClick={() => {
                 setSubmitting(true); setError(null);
                 telencephalonClient.createMcpServer({
                   name: form.name.trim(),
                   ...(form.description.trim() && { description: form.description.trim() }),
+                  // transport records still send the empty-wasm
+                  // placeholder: a brain older than the
+                  // `#[serde(default)]` fix rejects the missing
+                  // field outright.
+                  ...(form.transport !== 'wasm' && { wasm: { name: '', version: '', sha256: '' } }),
                   ...(form.transport === 'stdio' && {
                     transport: {
                       kind: 'stdio' as const,
@@ -339,7 +379,7 @@ export function MCPPage() {
                     },
                   }),
                 })
-                  .then(() => { setShowAddForm(false); Object.assign(form, EMPTY_FORM); loadServers(); })
+                  .then(() => { setShowAddForm(false); setForm(emptyForm()); loadServers(); })
                   .catch((err) => setError(err instanceof Error ? err.message : String(err)))
                   .finally(() => setSubmitting(false));
               }}>
