@@ -344,8 +344,10 @@ export function ProvidersPage() {
     try {
       const view = await telencephalonClient.listCapabilityOverrides();
       if (view.capabilities?.length) setCapWords(view.capabilities);
-    } catch {
-      // 保留内置的 9 档兜底（端脑词表就是这 9 档）。
+    } catch (e) {
+      // 保留内置的 9 档兜底（端脑词表就是这 9 档）—— 但**要出声**：
+      // 静默吞掉＝「词表读不到」没人知道（失败长得像成功）。
+      console.warn('capability vocabulary read failed (用内置 9 档兜底):', e);
     }
   }, []);
 

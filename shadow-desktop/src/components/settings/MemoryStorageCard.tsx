@@ -132,10 +132,20 @@ export function MemoryStorageCard() {
 
   const putOrDelete = async (key: string, value: string, secret = false) => {
     if (value.trim() === '') {
+      // ⚠️ **键本来不存在就不发 DELETE**（真机 2026-11-13 红 toast 那一格
+      // 的修法）：切后端时卡片会顺手清 `storage_endpoint`/`storage_region`，
+      // 而从没配过远端的用户这两键**不存在** ⇒ 404 ⇒ 全局拦截器弹红 ⇒ ⇒
+      // 「保存成功」与红报错同屏（成功长得像失败）。entries 是 load() 刚读
+      // 回来的真值，用它决定发不发。
+      const exists = (entries ?? []).some((e) => e.key === key);
+      if (!exists) return;
       try {
         await telencephalonClient.neuron.deleteConfig(SECTION, key);
-      } catch {
-        // 不存在 = 已经是想要的状态。
+      } catch (e) {
+        // 竞态兜底：读回来之后被别人删了 ⇒ 404 就是想要的状态；
+        // 其余错误（500/503/网络）**必须照抛** —— 吞掉它们＝「控制面
+        // 坏了也说保存成功」＝失败长得像成功。
+        if (!/404|not_found/i.test(String(e))) throw e;
       }
       return;
     }

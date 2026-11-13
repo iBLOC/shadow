@@ -175,8 +175,10 @@ export function NeuronCatalogSection() {
       const next = await telencephalonClient.neuron.pullJobs();
       setJobs(next);
       jobsRef.current = next;
-    } catch {
-      // 读不到任务列表不炸整个段（目录还在）。
+    } catch (e) {
+      // 读不到任务列表不炸整个段（目录还在）—— 但**要出声**：
+      // 静默吞掉＝「轮询坏了」没人知道（失败长得像成功）。
+      console.warn('neuron pull-jobs poll failed (目录仍在，任务区暂缺):', e);
     }
   }, []);
 

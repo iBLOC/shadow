@@ -120,4 +120,60 @@ describe('MemoryStorageCard（记忆存储）', () => {
     );
     expect(wroteSecrets).toBe(false);
   });
+
+  // ⚠️ 真机 2026-11-13 红 toast 那一格的回归测试：切本地后端时，卡片会顺手
+  // 清 storage_endpoint/storage_region。若这两键**本来就不存在**（从没配过
+  // 远端），发 DELETE 会拿 404 ⇒ 全局拦截器弹红 ⇒ 「保存成功」与红报错同屏
+  // （成功长得像失败）。修法＝entries 里没有的键**根本不发 DELETE**。
+  it('本地后端保存：endpoint/region 键不存在 ⇒ 不发 DELETE（红 toast 那一格）', async () => {
+    // entries 只有 storage_uri（用户从没配过远端）。
+    mockSection([entry('storage_uri', 's3://old/bucket')]);
+    vi
+      .spyOn(telencephalonClient.neuron, 'putConfig')
+      .mockResolvedValue({ ...entry('storage_uri', '/tmp/mem'), applies_when: 'restart' });
+    const del = vi
+      .spyOn(telencephalonClient.neuron, 'deleteConfig')
+      .mockResolvedValue({ removed: true });
+
+    render(<MemoryStorageCard />);
+    await screen.findByTestId('memory-storage-card');
+    await userEvent.click(screen.getByTestId('memory-storage-backend-local'));
+    await userEvent.clear(screen.getByTestId('memory-storage-location'));
+    await userEvent.type(screen.getByTestId('memory-storage-location'), '/tmp/mem');
+    await userEvent.click(screen.getByText('settings.memoryStorage.save'));
+
+    // ⚠️ 全量并行跑时默认 1s 的 waitFor 会抖（本文件在 60s+ 的重负载下
+    // 首跑红过一次）⇒ 显式放宽，别留偶发红。
+    await waitFor(
+      () => expect(screen.getByTestId('memory-storage-saved')).toBeInTheDocument(),
+      { timeout: 5000 },
+    );
+    // 关键断言：endpoint/region 不存在 ⇒ 一次 DELETE 都不发。
+    expect(
+      del.mock.calls.filter((c) => c[1] === 'storage_endpoint' || c[1] === 'storage_region'),
+    ).toHaveLength(0);
+  });
+
+  it('本地后端保存：endpoint 键存在 ⇒ 才发 DELETE 清掉它', async () => {
+    mockSection([
+      entry('storage_uri', 's3://old/bucket'),
+      entry('storage_endpoint', 'http://127.0.0.1:9000'),
+    ]);
+    vi
+      .spyOn(telencephalonClient.neuron, 'putConfig')
+      .mockResolvedValue({ ...entry('storage_uri', '/tmp/mem'), applies_when: 'restart' });
+    const del = vi
+      .spyOn(telencephalonClient.neuron, 'deleteConfig')
+      .mockResolvedValue({ removed: true });
+
+    render(<MemoryStorageCard />);
+    await screen.findByTestId('memory-storage-card');
+    await userEvent.click(screen.getByTestId('memory-storage-backend-local'));
+    await userEvent.clear(screen.getByTestId('memory-storage-location'));
+    await userEvent.type(screen.getByTestId('memory-storage-location'), '/tmp/mem');
+    await userEvent.click(screen.getByText('settings.memoryStorage.save'));
+
+    await waitFor(() => expect(del).toHaveBeenCalled(), { timeout: 5000 });
+    expect(del.mock.calls.some((c) => c[1] === 'storage_endpoint')).toBe(true);
+  });
 });

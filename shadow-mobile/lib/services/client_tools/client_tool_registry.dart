@@ -3,7 +3,7 @@ import 'dart:typed_data' show Uint8List;
 import 'dart:ui' show Color;
 // ⚠️ `TargetPlatform` 在 **package:flutter/foundation.dart** 里
 // ⇒ ⇒ `dart:ui` **不导出**它（那里只有 `Color`）。
-import 'package:flutter/foundation.dart' show TargetPlatform;
+import 'package:flutter/foundation.dart' show TargetPlatform, debugPrint;
 
 import '../../generated/l10n/app_localizations.dart';
 import '../../l10n/current_l10n.dart';
@@ -389,8 +389,10 @@ List<Uint8List> imageAttachmentBytesOf(Object? result) {
     if (b64 is! String || b64.isEmpty) continue;
     try {
       out.add(base64Decode(b64));
-    } catch (_) {
-      // 解不动的条目跳过（不把整块结果画崩）。
+    } catch (e) {
+      // 解不动的条目跳过（不把整块结果画崩）—— 但**要出声**：
+      // 静默跳过＝「数据坏了」没人知道（失败长得像成功）。
+      debugPrint('imageAttachmentBytesOf: 跳过一个解不动的条目: $e');
     }
   }
   return out;
