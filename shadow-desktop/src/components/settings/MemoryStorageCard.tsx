@@ -5,7 +5,13 @@ import { Button, Card, CardContent, CardHeader, CardTitle, CardDescription } fro
 import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
 import { telencephalonClient } from '../../lib/telencephalonClient';
-import type { ConfigEntry } from '../../lib/telencephalonClient';
+import type {
+  ConfigEntry,
+  StorageMigrationStatus,
+  StorageMigrationTarget,
+} from '../../lib/telencephalonClient';
+import { restartApp } from '../../lib/appRestart';
+import { StorageMigrationDialog } from './StorageMigrationDialog';
 
 /**
  * **记忆存储**设置 —— 记忆体（海马体 / Lance 数据集）落在哪里。
@@ -80,6 +86,9 @@ export function MemoryStorageCard() {
   const [secretKey, setSecretKey] = useState('');
   const [allowHttp, setAllowHttp] = useState(false);
   const [copyIfNotExists, setCopyIfNotExists] = useState('');
+  // **换根迁移**（2026-11-13）：非 null ⇒ 弹阻塞弹窗并轮询。
+  const [migration, setMigration] = useState<StorageMigrationStatus | null>(null);
+  const [restarting, setRestarting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -109,6 +118,43 @@ export function MemoryStorageCard() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // **迁移进度轮询**：迁移进行中每秒读一次；到 `done` 就重启应用
+  // （存储根只在 boot 时读一次 ⇒ 新根要下一次启动才生效）。
+  useEffect(() => {
+    if (!migration) return;
+    const state = migration.state;
+    if (state === 'done') {
+      if (!restarting) {
+        setRestarting(true);
+        void restartApp();
+      }
+      return;
+    }
+    if (state === 'failed' || state === 'aborted') return;
+    const timer = globalThis.setInterval(() => {
+      void telencephalonClient.neuron
+        .storageMigration()
+        .then((next) => {
+          if (next.state !== 'idle') setMigration(next);
+        })
+        .catch((e) => {
+          // ⚠️ 读不到就**停下来并说真话**（不静默重试到天荒地老）：
+          // 迁移期 `/hippocampus` 都被挡，这条状态面不受影响；它要是也
+          // 读不到，那是大脑真的没了。
+          setMigration((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  state: 'failed',
+                  error: e instanceof Error ? e.message : String(e),
+                }
+              : prev,
+          );
+        });
+    }, 1000);
+    return () => globalThis.clearInterval(timer);
+  }, [migration, restarting]);
 
   const configured = useMemo(
     () => (entries ?? []).some((e) => e.key === KEY_URI),
@@ -163,6 +209,32 @@ export function MemoryStorageCard() {
     setError('');
     setSaved(false);
     try {
+      // ⚠️ **换根要搬数据**（2026-11-13 用户拍板）：目标与当前不同 ⇒ 不要
+      // 只改一行 `storage_uri`（那样新根是空库、旧数据留在原处）⇒ 交给
+      // 大脑的迁移面：它搬完 → 校验 → 切配置 → 删旧 → 等重启。
+      const current = (entries ?? []).find((e) => e.key === KEY_URI)?.value;
+      const currentUri = typeof current === 'string' ? current : '';
+      if (currentUri && currentUri.trim().replace(/\/+$/, '') !== location.trim().replace(/\/+$/, '')) {
+        const target: StorageMigrationTarget = {
+          uri: location.trim(),
+          ...(backend === 'local' ? {} : { endpoint: endpoint.trim() }),
+          ...(backend === 's3' ? { region: region.trim() } : {}),
+          ...(backend !== 'local' ? { allow_http: allowHttp } : {}),
+          ...(backend !== 'local' && copyIfNotExists.trim()
+            ? { copy_if_not_exists: copyIfNotExists.trim() }
+            : {}),
+          ...(accessKey && accessKey !== MASK ? { access_key: accessKey } : {}),
+          ...(secretKey && secretKey !== MASK ? { secret_key: secretKey } : {}),
+        };
+        const started = await telencephalonClient.neuron.startStorageMigration(target);
+        setMigration({
+          state: started.needs_migration ? 'copying' : 'done',
+          restart_required: started.restart_required,
+          src: started.src,
+          dst: started.dst,
+        });
+        return;
+      }
       await putOrDelete(KEY_URI, location);
       await putOrDelete(KEY_ENDPOINT, backend === 'local' ? '' : endpoint);
       await putOrDelete(KEY_REGION, backend === 's3' ? region : '');
@@ -219,7 +291,8 @@ export function MemoryStorageCard() {
   const Icon = backend === 'local' ? HardDrive : backend === 's3' ? CloudCog : Cloud;
 
   return (
-    <Card data-testid="memory-storage-card">
+    <>
+      <Card data-testid="memory-storage-card">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Icon className="h-4 w-4" />
@@ -351,13 +424,42 @@ export function MemoryStorageCard() {
           </div>
         )}
 
-        {/* ⚠️ 两件必须说的事：要重启、不迁移；外加优先级（谁赢过谁）。 */}
+        {/* ⚠️ 两件必须说的事：要重启、（现在**会**迁移了）；外加优先级。 */}
         <div className="space-y-1 text-xs text-muted-foreground">
           <p>{t('settings.memoryStorage.pendingRestartHint')}</p>
-          <p>{t('settings.memoryStorage.noMigrationHint')}</p>
+          <p>{t('settings.memoryStorage.migrationHint')}</p>
           <p>{t('settings.memoryStorage.priorityHint')}</p>
         </div>
       </CardContent>
-    </Card>
+      </Card>
+
+      {migration && (
+        <StorageMigrationDialog
+          status={migration}
+          restarting={restarting}
+          onRetry={() => {
+            // 重试 = 关掉旧记录再发一次：先让大脑把失败记录清掉（放弃），
+            // 再用卡片上**当前**的输入重发。
+            void telencephalonClient.neuron
+              .cancelStorageMigration()
+              .catch(() => undefined)
+              .then(() => {
+                setMigration(null);
+                setRestarting(false);
+                void save();
+              });
+          }}
+          onAbort={() => {
+            void telencephalonClient.neuron
+              .cancelStorageMigration()
+              .catch(() => undefined)
+              .then(() => {
+                setMigration(null);
+                setRestarting(false);
+              });
+          }}
+        />
+      )}
+    </>
   );
 }

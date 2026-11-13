@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../generated/l10n/app_localizations.dart';
 import '../../providers/telencephalon_provider.dart';
+import '../../services/encephalon/encephalon_mobile_provider.dart';
+import 'storage_migration_dialog.dart';
 
 /// **记忆存储** —— 长期记忆（海马体 / Lance 数据集）落在哪里。
 ///
@@ -54,6 +56,9 @@ class _MemoryStorageSectionState extends ConsumerState<MemoryStorageSection> {
   String? _savedNote;
 
   bool _configured = false;
+  /// **当前生效的根**（`_load` 时读回来的那份）—— 与用户输入比较：
+  /// 不同 ⇒ 换根 ⇒ 走迁移（不是改一行配置）。
+  String _storedUri = '';
   _Backend _backend = _Backend.local;
   final _location = TextEditingController();
   final _endpoint = TextEditingController();
@@ -110,6 +115,7 @@ class _MemoryStorageSectionState extends ConsumerState<MemoryStorageSection> {
       if (!mounted) return;
       setState(() {
         _configured = uri.isNotEmpty;
+        _storedUri = uri;
         _backend = _backendOf(uri);
         _location.text = uri;
         _endpoint.text = _valueOf(entries, _keyEndpoint);
@@ -169,6 +175,16 @@ class _MemoryStorageSectionState extends ConsumerState<MemoryStorageSection> {
       _error = null;
       _savedNote = null;
     });
+    // ⚠️ **换根要搬数据**（2026-11-13 用户拍板）：目标与当前不同 ⇒ 不要只改
+    // 一行 `storage_uri`（新根会是空库、旧数据留在原处）⇒ 交给大脑的迁移面。
+    final target = _location.text.trim();
+    String trimSlashes(String v) => v.replaceFirst(RegExp(r'/+$'), '');
+    final switchingRoot = _storedUri.isNotEmpty &&
+        trimSlashes(_storedUri.trim()) != trimSlashes(target);
+    if (switchingRoot) {
+      await _startMigration(target);
+      return;
+    }
     try {
       await _putOrDelete(_keyUri, _location.text);
       await _putOrDelete(
@@ -203,6 +219,64 @@ class _MemoryStorageSectionState extends ConsumerState<MemoryStorageSection> {
         _error = '$e';
       });
     }
+  }
+
+  /// 发起换根迁移 ＋ 阻塞对话框 ＋ 完成后重启大脑。
+  Future<void> _startMigration(String target) async {
+    final l10n = AppLocalizations.of(context)!;
+    setState(() {
+      _saving = true;
+      _error = null;
+      _savedNote = null;
+    });
+    Map<String, dynamic> started;
+    try {
+      final client = ref.read(telencephalonClientProvider);
+      started = await client.startStorageMigration({
+        'uri': target,
+        if (_backend != _Backend.local) 'endpoint': _endpoint.text.trim(),
+        if (_backend == _Backend.s3) 'region': _region.text.trim(),
+        if (_backend != _Backend.local) 'allow_http': _allowHttp,
+        // 秘密只在**真的输入了新值**时带上（掩码 / 空 ⇒ 用已存的）。
+        if (_accessKey.text.isNotEmpty && _accessKey.text != _mask)
+          'access_key': _accessKey.text,
+        if (_secretKey.text.isNotEmpty && _secretKey.text != _mask)
+          'secret_key': _secretKey.text,
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _error = '$e';
+      });
+      return;
+    }
+    if (!mounted) return;
+    setState(() => _saving = false);
+
+    final outcome = await showDialog<StorageMigrationOutcome>(
+      context: context,
+      // ⚠️ 迁移期记忆面与会话落盘都是 503 ⇒ 关掉对话框只会撞一串「请求失败」
+      // ⇒ ⇒ 不可点遮罩关闭（对话框自己也 `PopScope(canPop:false)`）。
+      barrierDismissible: false,
+      builder: (_) => StorageMigrationDialog(initial: started),
+    );
+    if (!mounted) return;
+
+    if (outcome == StorageMigrationOutcome.done) {
+      // **重启大脑**让新根生效（手机上 stop+start 就够了 —— 大脑随 App 起停）。
+      setState(() => _savedNote = l10n.memoryStorageMigrationRestarting);
+      final notifier = ref.read(encephalonMobileProvider.notifier);
+      await notifier.stop();
+      await notifier.start();
+      if (!mounted) return;
+      setState(() => _savedNote = l10n.memoryStorageSavedPending);
+      await _load();
+      return;
+    }
+    // failed / aborted：源没动过 ⇒ 重新读一次真实状态。
+    await _load();
+    setState(() => _savedNote = null);
   }
 
   @override
@@ -353,7 +427,7 @@ class _MemoryStorageSectionState extends ConsumerState<MemoryStorageSection> {
           ),
           const SizedBox(height: 4),
           Text(
-            l10n.memoryStorageNoMigrationHint,
+            l10n.memoryStorageMigrationHint,
             style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
           ),
           const SizedBox(height: 4),

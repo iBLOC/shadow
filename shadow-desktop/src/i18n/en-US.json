@@ -332,7 +332,9 @@
     "tokenStats": {
       "summary": "{{tokens}} tokens · {{speed}} tok/s",
       "tooltip": "{{tokens}} tokens · {{seconds}}s"
-    }
+    },
+    "speak": "Read aloud",
+    "stopSpeaking": "Stop speaking"
   },
   "lobes": {
     "prefrontal": "Prefrontal Lobe",
@@ -586,7 +588,13 @@
     "fieldDescription": "Description",
     "transportType": "Transport",
     "bind": "Bind MCP",
-    "noServersDesc": "No MCP server is configured yet."
+    "noServersDesc": "No MCP server is configured yet.",
+    "templateLabel": "Template",
+    "templateCustom": "Custom",
+    "templateHaMcpDescription": "Home Assistant control & automation (ha-mcp)",
+    "haMcpUrlPlaceholder": "http://<HA-host>:9584/private_… or …/api/webhook/mcp_…",
+    "haMcpUrlHint": "Paste the connect URL from the HA-MCP integration's Configure screen: on the LAN it is http://<HA-host>:9584/private_…, remote access goes through the webhook. The secret URL itself is the credential.",
+    "haMcpBearerHint": "Usually leave it empty — the URL is the credential. ha-mcp's Home Assistant sign-in mode uses OAuth, which the brain does not support yet."
   },
   "skills": {
     "title": "Skills",
@@ -946,8 +954,22 @@
       "invalidScheme": "The location must start with {{scheme}}.",
       "invalidOssEndpoint": "OSS requires an endpoint.",
       "pendingRestartHint": "⚠️ The storage location is read once at boot — saving takes effect only after the brain restarts.",
-      "noMigrationHint": "⚠️ Switching backends does not migrate existing memory: a Lance dataset takes root where it is first created, and the old data stays put.",
-      "priorityHint": "Priority: control plane (here) → host-provided directory → environment → platform default."
+      "priorityHint": "Priority: control plane (here) → host-provided directory → environment → platform default.",
+      "migrationHint": "Changing the location **migrates** the existing memories: chat and memory operations pause while it runs, and the app must stay open until it finishes.",
+      "migration": {
+        "title": "Migrating the memory store",
+        "runningHint": "Moving memories, conversations and graph data to the new location. Please don't use the app; if it is closed mid-way, the migration resumes next time.",
+        "failedHint": "The migration did not finish. Your existing data is untouched — retry or abort.",
+        "doneHint": "Migration complete — restarting the app so the new location takes effect.",
+        "datasets": "Datasets {{done}}/{{total}}",
+        "current": "Copying: {{name}}",
+        "cleanupWarn": "The new location is ready, but some files in the old location could not be removed (harmless):",
+        "abort": "Abort and keep the old store",
+        "retry": "Retry",
+        "preparingRestart": "Preparing to restart…",
+        "restarting": "Restarting the app…",
+        "pleaseWait": "Please wait…"
+      }
     },
     "aiCapabilities": "AI Capabilities",
     "aiCapabilitiesDesc": "Configure AI agent settings",

@@ -1394,19 +1394,30 @@ class TelencephalonClient {
         .toList();
   }
 
+  /// Register an MCP server on the brain.
+  ///
+  /// Two shapes share this one face (same as the desktop client):
+  /// * **wasm** — pass `wasmName`/`wasmVersion`/`wasmSha256`, leave
+  ///   `transport` null (the historical shape);
+  /// * **http / stdio** — pass `transport`
+  ///   (e.g. `{'kind':'http','url':…,'bearer':…}`); the empty-wasm
+  ///   placeholder is still sent so brains older than the
+  ///   `#[serde(default)]` fix don't reject the request outright.
   Future<Map<String, dynamic>> createMcpServer({
     required String name,
-    required String wasmName,
-    required String wasmVersion,
-    required String wasmSha256,
+    String wasmName = '',
+    String wasmVersion = '',
+    String wasmSha256 = '',
     int? memoryBytes,
     int? fuel,
     int? wallClockMs,
     String? description,
+    Map<String, dynamic>? transport,
   }) async {
     final body = <String, dynamic>{
       'name': name,
       'wasm': {'name': wasmName, 'version': wasmVersion, 'sha256': wasmSha256},
+      if (transport != null) 'transport': transport,
     };
     if (memoryBytes != null || fuel != null || wallClockMs != null) {
       body['quota'] = {
@@ -1974,6 +1985,38 @@ class TelencephalonClient {
         'DELETE /api/telencephalon/config/$section/$key → ${r.statusCode}: ${r.body}',
       );
     }
+  }
+
+  /// **记忆存储换根** —— 看进度（`idle` = 没有记录）。
+  ///
+  /// ⚠️ 迁移期 `/hippocampus/*` 与 `/shadow/v1/conversations*` 全部 503
+  /// （`storage_migration_in_progress`）⇒ ⇒ 界面要弹阻塞提示。
+  Future<Map<String, dynamic>> storageMigration() async {
+    return await _get('/api/telencephalon/hippocampus/storage-migration');
+  }
+
+  /// 发起换根迁移（目标 = `uri` ＋ 可选的 endpoint / region / 凭据）。
+  ///
+  /// 三种回答：
+  /// * `{needs_migration: true, state: "copying"}` ⇒ 已开始，轮询 [storageMigration]；
+  /// * `{needs_migration: false, restart_required: true}` ⇒ 源里没数据，
+  ///   配置已切 ⇒ 只需重启大脑；
+  /// * 抛错 ⇒ 目标不合法 / 已在迁 / 这个构建没有记忆体。
+  Future<Map<String, dynamic>> startStorageMigration(
+    Map<String, dynamic> target,
+  ) async {
+    return await _adminPost(
+      '/api/telencephalon/hippocampus/storage-migration',
+      target,
+    );
+  }
+
+  /// 放弃迁移（只在数据集之间生效）。
+  Future<Map<String, dynamic>> cancelStorageMigration() async {
+    return await _adminPost(
+      '/api/telencephalon/hippocampus/storage-migration/cancel',
+      const {},
+    );
   }
 
   /// **大脑两个模型端点的**形状不一样** ⇒ ⇒ 一个解析器吃两种。

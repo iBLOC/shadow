@@ -1709,8 +1709,39 @@ class AppLocalizationsEn extends AppLocalizations {
       '⚠️ The storage location is read once at boot — saving takes effect only after a restart';
 
   @override
-  String get memoryStorageNoMigrationHint =>
-      '⚠️ Switching backends does not migrate existing memory: a Lance dataset takes root where it is first created';
+  String get memoryStorageMigrationHint =>
+      '⚠️ Changing the location **migrates** the existing memories (copy first, then switch; old data removed). Chat and memory operations pause while it runs — keep the app open';
+
+  @override
+  String get memoryStorageMigrationTitle => 'Migrating the memory store';
+
+  @override
+  String get memoryStorageMigrationRunningHint =>
+      'Moving memories, conversations and graph data to the new location. Please don\'t use the app; if it is closed mid-way, the migration resumes next time';
+
+  @override
+  String get memoryStorageMigrationFailedHint =>
+      'The migration did not finish. Your existing data is untouched — retry or abort';
+
+  @override
+  String memoryStorageMigrationDatasets(int done, int total) {
+    return 'Datasets $done/$total';
+  }
+
+  @override
+  String memoryStorageMigrationCurrent(String name) {
+    return 'Copying: $name';
+  }
+
+  @override
+  String get memoryStorageMigrationAbort => 'Abort and keep the old store';
+
+  @override
+  String get memoryStorageMigrationRetry => 'Retry';
+
+  @override
+  String get memoryStorageMigrationRestarting =>
+      'Migration complete — restarting the brain…';
 
   @override
   String get memoryStorageInvalidLocation => 'The location cannot be empty';

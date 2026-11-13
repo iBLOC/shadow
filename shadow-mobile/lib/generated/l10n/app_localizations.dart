@@ -3218,11 +3218,59 @@ abstract class AppLocalizations {
   /// **'⚠️ The storage location is read once at boot — saving takes effect only after a restart'**
   String get memoryStoragePendingHint;
 
-  /// No description provided for @memoryStorageNoMigrationHint.
+  /// No description provided for @memoryStorageMigrationHint.
   ///
   /// In en, this message translates to:
-  /// **'⚠️ Switching backends does not migrate existing memory: a Lance dataset takes root where it is first created'**
-  String get memoryStorageNoMigrationHint;
+  /// **'⚠️ Changing the location **migrates** the existing memories (copy first, then switch; old data removed). Chat and memory operations pause while it runs — keep the app open'**
+  String get memoryStorageMigrationHint;
+
+  /// No description provided for @memoryStorageMigrationTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Migrating the memory store'**
+  String get memoryStorageMigrationTitle;
+
+  /// No description provided for @memoryStorageMigrationRunningHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Moving memories, conversations and graph data to the new location. Please don\'t use the app; if it is closed mid-way, the migration resumes next time'**
+  String get memoryStorageMigrationRunningHint;
+
+  /// No description provided for @memoryStorageMigrationFailedHint.
+  ///
+  /// In en, this message translates to:
+  /// **'The migration did not finish. Your existing data is untouched — retry or abort'**
+  String get memoryStorageMigrationFailedHint;
+
+  /// No description provided for @memoryStorageMigrationDatasets.
+  ///
+  /// In en, this message translates to:
+  /// **'Datasets {done}/{total}'**
+  String memoryStorageMigrationDatasets(int done, int total);
+
+  /// No description provided for @memoryStorageMigrationCurrent.
+  ///
+  /// In en, this message translates to:
+  /// **'Copying: {name}'**
+  String memoryStorageMigrationCurrent(String name);
+
+  /// No description provided for @memoryStorageMigrationAbort.
+  ///
+  /// In en, this message translates to:
+  /// **'Abort and keep the old store'**
+  String get memoryStorageMigrationAbort;
+
+  /// No description provided for @memoryStorageMigrationRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get memoryStorageMigrationRetry;
+
+  /// No description provided for @memoryStorageMigrationRestarting.
+  ///
+  /// In en, this message translates to:
+  /// **'Migration complete — restarting the brain…'**
+  String get memoryStorageMigrationRestarting;
 
   /// No description provided for @memoryStorageInvalidLocation.
   ///

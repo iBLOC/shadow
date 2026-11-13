@@ -912,7 +912,26 @@
   "memoryStorageRetry": "Retry",
   "memoryStorageBuildHint": "Note: the default build does not include the memory system (needs a mobile-memory build); a setting here only applies in such a build",
   "memoryStoragePendingHint": "⚠️ The storage location is read once at boot — saving takes effect only after a restart",
-  "memoryStorageNoMigrationHint": "⚠️ Switching backends does not migrate existing memory: a Lance dataset takes root where it is first created",
+  "memoryStorageMigrationHint": "⚠️ Changing the location **migrates** the existing memories (copy first, then switch; old data removed). Chat and memory operations pause while it runs — keep the app open",
+  "memoryStorageMigrationTitle": "Migrating the memory store",
+  "memoryStorageMigrationRunningHint": "Moving memories, conversations and graph data to the new location. Please don't use the app; if it is closed mid-way, the migration resumes next time",
+  "memoryStorageMigrationFailedHint": "The migration did not finish. Your existing data is untouched — retry or abort",
+  "memoryStorageMigrationDatasets": "Datasets {done}/{total}",
+  "@memoryStorageMigrationDatasets": {
+    "placeholders": {
+      "done": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
+  "memoryStorageMigrationCurrent": "Copying: {name}",
+  "@memoryStorageMigrationCurrent": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "memoryStorageMigrationAbort": "Abort and keep the old store",
+  "memoryStorageMigrationRetry": "Retry",
+  "memoryStorageMigrationRestarting": "Migration complete — restarting the brain…",
   "memoryStorageInvalidLocation": "The location cannot be empty",
   "memoryStorageInvalidScheme": "The location must start with {scheme}",
   "@memoryStorageInvalidScheme": {

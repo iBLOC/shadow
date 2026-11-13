@@ -429,6 +429,10 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             show_window,
+            // **重启应用**（2026-11-13）：记忆存储迁移完成后必须重启 ——
+            // 大脑的存储根只在 boot 时读一次 ⇒ ⇒ 新根要下一次启动才生效。
+            // 用 core 的 `AppHandle::restart()`（Tauri 2 自带，不必加插件）。
+            restart_app,
             hide_window,
             minimize_window,
             // 这台机器的 admin token（端脑面认它）—— 前端要拿它去带
@@ -563,6 +567,15 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+/// **重启应用** —— 记忆存储迁移完成后客户端调用它让新根生效。
+///
+/// ⚠️ `restart()` 会走 `RunEvent::ExitRequested/Exit`（从非主线程调用时）
+/// ⇒ ⇒ 优雅退出那一套（端点释放、临时文件）照跑。
+#[tauri::command]
+fn restart_app(app: tauri::AppHandle) {
+    app.restart();
 }
 
 #[tauri::command]

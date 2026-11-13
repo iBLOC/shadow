@@ -826,6 +826,46 @@ export interface ConfigSectionView {
 }
 
 /** 写一条配置的回包（脱敏后的那条 ＋ 何时生效）。 */
+/** **换存储的目标**（与 `hippocampus` 段那 7 个键一一对应）。 */
+export interface StorageMigrationTarget {
+  uri: string;
+  endpoint?: string;
+  region?: string;
+  access_key?: string;
+  secret_key?: string;
+  allow_http?: boolean;
+  copy_if_not_exists?: string;
+}
+
+/** 迁移状态（`idle` = 没有记录）。 */
+export interface StorageMigrationStatus {
+  state: 'idle' | 'copying' | 'flipping' | 'done' | 'failed' | 'aborted';
+  src?: string;
+  dst?: string;
+  /** 数据集名 → `pending` / `done` / `skipped`。 */
+  datasets?: Record<string, string>;
+  datasets_done?: number;
+  datasets_total?: number;
+  bytes_total?: number;
+  bytes_done?: number;
+  current?: string | null;
+  error?: string | null;
+  cleanup_failures?: string[];
+  restart_required?: boolean;
+  started_at?: string;
+  finished_at?: string | null;
+}
+
+/** 发起迁移的三种回答（见后端 `POST` 的形状）。 */
+export interface StorageMigrationStartResult {
+  /** `false` = 源里没有数据（第一次配置）⇒ 配置已经切了，只差重启。 */
+  needs_migration: boolean;
+  restart_required?: boolean;
+  state?: string;
+  src?: string;
+  dst?: string;
+}
+
 export interface ConfigWriteResult extends ConfigEntry {
   applies_when: string;
 }
@@ -1858,6 +1898,35 @@ export class TelencephalonClient {
       this.request<{ removed: boolean }>(
         `/api/telencephalon/config/${encodeURIComponent(section)}/${encodeURIComponent(key)}`,
         { method: 'DELETE' },
+      ),
+
+    /**
+     * **记忆存储换根**（`/api/telencephalon/hippocampus/storage-migration`）。
+     *
+     * ⚠️ 为什么不在 `configSection` 里直接写 `storage_uri`：换根＝**搬数据**
+     * ＋**改配置**＋**重启** 三件事，顺序错了会丢数据（先切配置再搬 ⇒ 崩了
+     * 就指向一个空库）⇒ ⇒ 由大脑做，客户端只发起和看进度。
+     *
+     * ⚠️ **迁移期 `/hippocampus/*` 与 `/shadow/v1/conversations*` 一律 503**
+     * （`storage_migration_in_progress`）⇒ ⇒ 界面必须弹阻塞提示。
+     */
+    storageMigration: (): Promise<StorageMigrationStatus> =>
+      this.request<StorageMigrationStatus>(
+        '/api/telencephalon/hippocampus/storage-migration',
+      ),
+
+    startStorageMigration: (
+      target: StorageMigrationTarget,
+    ): Promise<StorageMigrationStartResult> =>
+      this.request<StorageMigrationStartResult>(
+        '/api/telencephalon/hippocampus/storage-migration',
+        { method: 'POST', body: JSON.stringify(target) },
+      ),
+
+    cancelStorageMigration: (): Promise<{ cancel_requested: boolean }> =>
+      this.request<{ cancel_requested: boolean }>(
+        '/api/telencephalon/hippocampus/storage-migration/cancel',
+        { method: 'POST' },
       ),
 
     /**

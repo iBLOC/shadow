@@ -876,7 +876,26 @@
   "memoryStorageRetry": "重试",
   "memoryStorageBuildHint": "注意：默认构建未编入记忆体（需 mobile-memory 构建），配了也只在那样的构建里生效",
   "memoryStoragePendingHint": "⚠️ 存储位置在启动时读取一次 —— 保存后需要重启大脑才生效",
-  "memoryStorageNoMigrationHint": "⚠️ 切换存储后端不会迁移已有记忆：Lance 数据集在第一次创建时就地生根",
+  "memoryStorageMigrationHint": "⚠️ 换存储位置会**自动迁移**已有记忆（搬完再切换、旧位置的数据会删掉）；迁移期间聊天与记忆操作会暂停，请勿关闭应用",
+  "memoryStorageMigrationTitle": "正在迁移记忆存储",
+  "memoryStorageMigrationRunningHint": "把记忆、会话与图数据搬到新位置 —— 完成前请勿操作；中途退出应用也会在下次打开时接着搬",
+  "memoryStorageMigrationFailedHint": "迁移没有完成。旧数据没有被改动，可以重试或放弃",
+  "memoryStorageMigrationDatasets": "数据集 {done}/{total}",
+  "@memoryStorageMigrationDatasets": {
+    "placeholders": {
+      "done": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
+  "memoryStorageMigrationCurrent": "正在搬：{name}",
+  "@memoryStorageMigrationCurrent": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "memoryStorageMigrationAbort": "放弃并保留原存储",
+  "memoryStorageMigrationRetry": "重试",
+  "memoryStorageMigrationRestarting": "迁移完成，正在重启大脑…",
   "memoryStorageInvalidLocation": "存储位置不能为空",
   "memoryStorageInvalidScheme": "位置必须以 {scheme} 开头",
   "@memoryStorageInvalidScheme": {

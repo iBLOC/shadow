@@ -1664,8 +1664,37 @@ class AppLocalizationsZh extends AppLocalizations {
   String get memoryStoragePendingHint => '⚠️ 存储位置在启动时读取一次 —— 保存后需要重启大脑才生效';
 
   @override
-  String get memoryStorageNoMigrationHint =>
-      '⚠️ 切换存储后端不会迁移已有记忆：Lance 数据集在第一次创建时就地生根';
+  String get memoryStorageMigrationHint =>
+      '⚠️ 换存储位置会**自动迁移**已有记忆（搬完再切换、旧位置的数据会删掉）；迁移期间聊天与记忆操作会暂停，请勿关闭应用';
+
+  @override
+  String get memoryStorageMigrationTitle => '正在迁移记忆存储';
+
+  @override
+  String get memoryStorageMigrationRunningHint =>
+      '把记忆、会话与图数据搬到新位置 —— 完成前请勿操作；中途退出应用也会在下次打开时接着搬';
+
+  @override
+  String get memoryStorageMigrationFailedHint => '迁移没有完成。旧数据没有被改动，可以重试或放弃';
+
+  @override
+  String memoryStorageMigrationDatasets(int done, int total) {
+    return '数据集 $done/$total';
+  }
+
+  @override
+  String memoryStorageMigrationCurrent(String name) {
+    return '正在搬：$name';
+  }
+
+  @override
+  String get memoryStorageMigrationAbort => '放弃并保留原存储';
+
+  @override
+  String get memoryStorageMigrationRetry => '重试';
+
+  @override
+  String get memoryStorageMigrationRestarting => '迁移完成，正在重启大脑…';
 
   @override
   String get memoryStorageInvalidLocation => '存储位置不能为空';

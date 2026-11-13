@@ -21,6 +21,11 @@ class _FakeClient extends TelencephalonClient {
   final Map<String, dynamic>? section;
   final Object? error;
   final puts = <String>[];
+  /// 迁移面的调用记录（`uri`）—— 换根必须走它，不许只写 storage_uri。
+  final migrationStarts = <Map<String, dynamic>>[];
+  final cancels = <String>[];
+  /// 状态面依次返回这些（模拟「正在搬 → 完成」）。
+  List<Map<String, dynamic>> migrationStatuses = const [];
 
   @override
   Future<Map<String, dynamic>> configSection(String section) async {
@@ -41,6 +46,28 @@ class _FakeClient extends TelencephalonClient {
 
   @override
   Future<void> deleteConfig(String section, String key) async {}
+
+  @override
+  Future<Map<String, dynamic>> startStorageMigration(
+    Map<String, dynamic> target,
+  ) async {
+    migrationStarts.add(target);
+    return {'needs_migration': true, 'state': 'copying'};
+  }
+
+  @override
+  Future<Map<String, dynamic>> storageMigration() async {
+    if (migrationStatuses.isEmpty) {
+      return {'state': 'idle'};
+    }
+    return migrationStatuses.removeAt(0);
+  }
+
+  @override
+  Future<Map<String, dynamic>> cancelStorageMigration() async {
+    cancels.add('cancel');
+    return {'cancel_requested': true};
+  }
 }
 
 void main() {
@@ -77,6 +104,8 @@ void main() {
     expect(find.textContaining('mobile-memory'), findsWidgets);
   });
 
+  _migrationTests();
+
   testWidgets('已配置 s3 ⇒ 回填位置、密钥显示 ***、状态是「已配置」', (tester) async {
     final client = _FakeClient(
       section: {
@@ -112,5 +141,124 @@ void main() {
     expect(client.puts.any((p) => p.startsWith('storage_access_key=')), isFalse);
     expect(client.puts.any((p) => p.startsWith('storage_secret_key=')), isFalse);
     expect(find.textContaining('重启大脑后生效'), findsOneWidget);
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// **换存储 = 迁移**（2026-11-13）
+// ─────────────────────────────────────────────────────────────────────
+
+void _migrationTests() {
+  testWidgets('换根 ⇒ 调迁移面，且**不**直接写 storage_uri', (tester) async {
+    final client = _FakeClient(section: {
+      'section': 'hippocampus',
+      'entries': [
+        {'key': 'storage_uri', 'value': '/data/old-lance'},
+      ],
+      'applies_when': 'restart',
+    });
+    await pumpWidgetForTest(
+      tester,
+      ProviderScope(
+        overrides: [telencephalonClientProvider.overrideWithValue(client)],
+        child: MaterialApp(
+          localizationsDelegates: [
+            AppLocalizations.delegate,
+            ...GlobalMaterialLocalizations.delegates,
+          ],
+          supportedLocales: const [Locale('zh')],
+          locale: const Locale('zh'),
+          home: const Scaffold(body: SingleChildScrollView(child: MemoryStorageSection())),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField).first, '/data/new-lance');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+
+    expect(client.migrationStarts, hasLength(1));
+    expect(client.migrationStarts.first['uri'], '/data/new-lance');
+    // ⚠️ 这一格是全部意义：换根**不能**只写一行 URI。
+    expect(client.puts.any((p) => p.startsWith('storage_uri=')), isFalse);
+  });
+
+  testWidgets('同一个根 ⇒ 走老路径（直接写配置，不启动迁移）', (tester) async {
+    final client = _FakeClient(section: {
+      'section': 'hippocampus',
+      'entries': [
+        {'key': 'storage_uri', 'value': '/data/old-lance'},
+      ],
+      'applies_when': 'restart',
+    });
+    await pumpWidgetForTest(
+      tester,
+      ProviderScope(
+        overrides: [telencephalonClientProvider.overrideWithValue(client)],
+        child: MaterialApp(
+          localizationsDelegates: [
+            AppLocalizations.delegate,
+            ...GlobalMaterialLocalizations.delegates,
+          ],
+          supportedLocales: const [Locale('zh')],
+          locale: const Locale('zh'),
+          home: const Scaffold(body: SingleChildScrollView(child: MemoryStorageSection())),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+
+    expect(client.migrationStarts, isEmpty);
+    expect(client.puts.any((p) => p.startsWith('storage_uri=')), isTrue);
+  });
+
+  testWidgets('迁移中 ⇒ 阻塞对话框带数据集进度', (tester) async {
+    final client = _FakeClient(section: {
+      'section': 'hippocampus',
+      'entries': [
+        {'key': 'storage_uri', 'value': '/data/old-lance'},
+      ],
+      'applies_when': 'restart',
+    })
+      ..migrationStatuses = [
+        {
+          'state': 'copying',
+          'datasets_done': 3,
+          'datasets_total': 10,
+          'current': 'messages',
+        },
+        {'state': 'copying', 'datasets_done': 4, 'datasets_total': 10},
+      ];
+    await pumpWidgetForTest(
+      tester,
+      ProviderScope(
+        overrides: [telencephalonClientProvider.overrideWithValue(client)],
+        child: MaterialApp(
+          localizationsDelegates: [
+            AppLocalizations.delegate,
+            ...GlobalMaterialLocalizations.delegates,
+          ],
+          supportedLocales: const [Locale('zh')],
+          locale: const Locale('zh'),
+          home: const Scaffold(body: SingleChildScrollView(child: MemoryStorageSection())),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField).first, '/data/new-lance');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('正在迁移记忆存储'), findsOneWidget);
+    expect(find.textContaining('数据集'), findsWidgets);
+    // 阻塞层：没有关闭钮、点遮罩不关（`barrierDismissible: false`）。
+    expect(find.byType(AlertDialog), findsOneWidget);
   });
 }
