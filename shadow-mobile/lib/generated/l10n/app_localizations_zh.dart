@@ -559,6 +559,30 @@ class AppLocalizationsZh extends AppLocalizations {
   String get mcpAuthTokenOptional => '认证 Token (可选)';
 
   @override
+  String get mcpLoadFailed => '读不到端脑的 MCP 服务器清单';
+
+  @override
+  String get mcpTemplateLabel => '模板';
+
+  @override
+  String get mcpTemplateCustom => '自定义';
+
+  @override
+  String get mcpHaMcpUrlPlaceholder =>
+      'http://<HA主机>:9584/private_… 或 …/api/webhook/mcp_…';
+
+  @override
+  String get mcpHaMcpUrlHint =>
+      '填 HA-MCP 集成 Configure 页给出的连接地址：局域网直连是 http://<HA 地址>:9584/private_…，远程走 webhook。secret URL 本身就是凭证。';
+
+  @override
+  String get mcpHaMcpBearerHint =>
+      '通常留空——URL 即凭证；ha-mcp 的「Home Assistant 登录」模式走 OAuth，大脑暂不支持。';
+
+  @override
+  String get mcpHaMcpDescription => 'Home Assistant 控制与自动化（ha-mcp）';
+
+  @override
   String get memoryEmpty => '暂无记忆';
 
   @override
@@ -1600,6 +1624,25 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get memoryStorageBackendS3 => 'S3 兼容';
+
+  @override
+  String get memoryStorageBackendRustfs => 'RustFS';
+
+  @override
+  String get memoryStorageInvalidRustfsEndpoint =>
+      'RustFS 必须填写 endpoint（例如 http://127.0.0.1:9000）';
+
+  @override
+  String memoryStorageDefaultRootHint(String path) {
+    return '留空 = 用默认位置：$path';
+  }
+
+  @override
+  String get memoryStorageCopyIfNotExists => 'copy_if_not_exists';
+
+  @override
+  String get memoryStorageCopyIfNotExistsHint =>
+      '对象存储需要「不存在才创建」时的头（RustFS：header: if-none-match: *；AWS S3 不支持，留空）';
 
   @override
   String get memoryStorageBackendOss => '阿里云 OSS';

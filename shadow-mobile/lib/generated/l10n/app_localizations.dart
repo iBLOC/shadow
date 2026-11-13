@@ -1142,6 +1142,48 @@ abstract class AppLocalizations {
   /// **'Auth token (optional)'**
   String get mcpAuthTokenOptional;
 
+  /// No description provided for @mcpLoadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Cannot read the MCP server list from the brain'**
+  String get mcpLoadFailed;
+
+  /// No description provided for @mcpTemplateLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Template'**
+  String get mcpTemplateLabel;
+
+  /// No description provided for @mcpTemplateCustom.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom'**
+  String get mcpTemplateCustom;
+
+  /// No description provided for @mcpHaMcpUrlPlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'http://<HA-host>:9584/private_… or …/api/webhook/mcp_…'**
+  String get mcpHaMcpUrlPlaceholder;
+
+  /// No description provided for @mcpHaMcpUrlHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Paste the connect URL from the HA-MCP integration\'s Configure screen: on the LAN it is http://<HA-host>:9584/private_…, remote access goes through the webhook. The secret URL itself is the credential.'**
+  String get mcpHaMcpUrlHint;
+
+  /// No description provided for @mcpHaMcpBearerHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Usually leave it empty — the URL is the credential. ha-mcp\'s Home Assistant sign-in mode uses OAuth, which the brain does not support yet.'**
+  String get mcpHaMcpBearerHint;
+
+  /// No description provided for @mcpHaMcpDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Home Assistant control & automation (ha-mcp)'**
+  String get mcpHaMcpDescription;
+
   /// No description provided for @memoryEmpty.
   ///
   /// In en, this message translates to:
@@ -3097,6 +3139,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'S3-compatible'**
   String get memoryStorageBackendS3;
+
+  /// No description provided for @memoryStorageBackendRustfs.
+  ///
+  /// In en, this message translates to:
+  /// **'RustFS'**
+  String get memoryStorageBackendRustfs;
+
+  /// No description provided for @memoryStorageInvalidRustfsEndpoint.
+  ///
+  /// In en, this message translates to:
+  /// **'RustFS needs an endpoint (e.g. http://127.0.0.1:9000)'**
+  String get memoryStorageInvalidRustfsEndpoint;
+
+  /// No description provided for @memoryStorageDefaultRootHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Leave empty to use the default location: {path}'**
+  String memoryStorageDefaultRootHint(String path);
+
+  /// No description provided for @memoryStorageCopyIfNotExists.
+  ///
+  /// In en, this message translates to:
+  /// **'copy_if_not_exists'**
+  String get memoryStorageCopyIfNotExists;
+
+  /// No description provided for @memoryStorageCopyIfNotExistsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Header for create-if-not-exists copies (RustFS: header: if-none-match: *; AWS S3 does not support it — leave empty)'**
+  String get memoryStorageCopyIfNotExistsHint;
 
   /// No description provided for @memoryStorageBackendOss.
   ///

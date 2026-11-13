@@ -1987,6 +1987,16 @@ class TelencephalonClient {
     }
   }
 
+  /// **存储落点的默认地址**（`…/hippocampus/preview/storage-defaults`）。
+  ///
+  /// ⚠️ 由**大脑**回答（宿主目录 ＋ 平台默认算出来的事实）⇒ ⇒ 客户端自己
+  /// 拼一个默认位置，界面显示的地方与真正落盘的地方可能不是同一个。
+  Future<Map<String, dynamic>> storageDefaults() async {
+    return await _get(
+      '/api/telencephalon/hippocampus/preview/storage-defaults',
+    );
+  }
+
   /// **记忆存储换根** —— 看进度（`idle` = 没有记录）。
   ///
   /// ⚠️ 迁移期 `/hippocampus/*` 与 `/shadow/v1/conversations*` 全部 503

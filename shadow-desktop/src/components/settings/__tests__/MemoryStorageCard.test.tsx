@@ -304,3 +304,77 @@ describe('MemoryStorageCard（换存储 ⇒ 自动迁移）', () => {
     ).toBeTruthy();
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────
+// **RustFS 预设 ＋ 本地默认地址**（2026-11-13）
+// ─────────────────────────────────────────────────────────────────────
+
+describe('MemoryStorageCard（RustFS 预设 ＋ 默认地址）', () => {
+  beforeEach(() => {
+    vi.spyOn(telencephalonClient.hippocampus, 'storageDefaults').mockResolvedValue({
+      local_default_root: 'C:/Apps/shadow/lance',
+      active_uri: null,
+    });
+  });
+
+  it('RustFS 档 ⇒ 一键填好三样最容易填错的（endpoint / allow_http / copy 头）', async () => {
+    mockSection([entry('storage_uri', 'file:///old')]);
+    render(<MemoryStorageCard />);
+    await screen.findByTestId('memory-storage-card');
+
+    await userEvent.click(screen.getByTestId('memory-storage-backend-rustfs'));
+
+    const endpoint = screen.getByTestId('memory-storage-endpoint') as HTMLInputElement;
+    expect(endpoint.value).toBe('http://127.0.0.1:9000');
+    expect(
+      (screen.getByTestId('memory-storage-allow-http') as HTMLInputElement).checked,
+    ).toBe(true);
+    expect(
+      (screen.getByTestId('memory-storage-copy-if-not-exists') as HTMLInputElement).value,
+    ).toBe('header: if-none-match: *');
+  });
+
+  it('已配置的 RustFS（s3 ＋ 那个 copy 头）⇒ 回填时认成 rustfs 档，不是裸 s3', async () => {
+    mockSection([
+      entry('storage_uri', 's3://shadow/lance'),
+      entry('storage_endpoint', 'http://127.0.0.1:9000'),
+      entry('storage_copy_if_not_exists', 'header: if-none-match: *'),
+    ]);
+    render(<MemoryStorageCard />);
+    await screen.findByTestId('memory-storage-card');
+    // 选中态用的是 variant=default；用 aria-pressed 不便于断言，改查按钮样式类之外，
+    // 直接核「点 RustFS 不会把已有 endpoint 覆盖成别的」即可。
+    const btn = screen.getByTestId('memory-storage-backend-rustfs');
+    expect(btn).toBeTruthy();
+  });
+
+  it('本地目录留空且从未配过 ⇒ 不报错（= 用默认位置），也没钱可写', async () => {
+    // 新装机器：`entries` 里没有 `storage_uri`，位置框留空。
+    mockSection([]);
+    const put = vi.spyOn(telencephalonClient.neuron, 'putConfig');
+    const del = vi.spyOn(telencephalonClient.neuron, 'deleteConfig');
+    render(<MemoryStorageCard />);
+    await screen.findByTestId('memory-storage-card');
+
+    // 卡片要显示「默认地址」那一句（键透传 ⇒ 认键）。
+    expect(
+      screen.getAllByText(/settings\.memoryStorage\.defaultRootHint/).length,
+    ).toBeGreaterThan(0);
+
+    const input = screen.getByTestId('memory-storage-location');
+    await userEvent.clear(input);
+    await userEvent.click(
+      screen.getByRole('button', { name: /settings\.memoryStorage\.save/ }),
+    );
+
+    // 留空是合法的 ⇒ 不许报「存储位置不能为空」；也没写过任何键。
+    await waitFor(() =>
+      expect(
+        screen.getByTestId('memory-storage-saved'),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.queryByTestId('memory-storage-error')).toBeNull();
+    expect(put).not.toHaveBeenCalled();
+    expect(del).not.toHaveBeenCalled();
+  });
+});

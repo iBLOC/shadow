@@ -44,9 +44,15 @@ const _keySecret = 'storage_secret_key';
 const _keyRegion = 'storage_region';
 const _keyEndpoint = 'storage_endpoint';
 const _keyAllowHttp = 'storage_allow_http';
+const _keyCopyIfNotExists = 'storage_copy_if_not_exists';
 const _mask = '***';
 
-enum _Backend { local, s3, oss }
+enum _Backend { local, rustfs, s3, oss }
+
+/// **RustFS 预设**（2026-11-13）—— S3 兼容服务，协议上仍是 `s3://`，但三样
+/// 最容易填错的东西不同：endpoint 必填、常用 http、`If-None-Match: *` 支持。
+const _rustfsDefaultEndpoint = 'http://127.0.0.1:9000';
+const _rustfsCopyHeader = 'header: if-none-match: *';
 
 class _MemoryStorageSectionState extends ConsumerState<MemoryStorageSection> {
   bool _loading = true;
@@ -66,6 +72,9 @@ class _MemoryStorageSectionState extends ConsumerState<MemoryStorageSection> {
   final _accessKey = TextEditingController();
   final _secretKey = TextEditingController();
   bool _allowHttp = false;
+  final _copyIfNotExists = TextEditingController();
+  /// 大脑给的**本地默认根**（留空时落这儿）。
+  String? _defaultRoot;
 
   @override
   void initState() {
@@ -80,6 +89,7 @@ class _MemoryStorageSectionState extends ConsumerState<MemoryStorageSection> {
     _region.dispose();
     _accessKey.dispose();
     _secretKey.dispose();
+    _copyIfNotExists.dispose();
     super.dispose();
   }
 
@@ -95,10 +105,25 @@ class _MemoryStorageSectionState extends ConsumerState<MemoryStorageSection> {
     return '';
   }
 
-  _Backend _backendOf(String uri) {
+  /// ⚠️ RustFS 与 S3 在磁盘上**同一个 scheme**（`s3://`）⇒ 只能从「我们写
+  /// 的那个 copy 头」反推；认不准时落到 `s3`（不影响保存结果，写的是同一组键）。
+  _Backend _backendOf(String uri, String copyHeader) {
     if (uri.startsWith('oss://')) return _Backend.oss;
-    if (uri.startsWith('s3://') || uri.startsWith('s3a://')) return _Backend.s3;
+    if (uri.startsWith('s3://') || uri.startsWith('s3a://')) {
+      return copyHeader.trim() == _rustfsCopyHeader ? _Backend.rustfs : _Backend.s3;
+    }
     return _Backend.local;
+  }
+
+  /// 「留空」= 用大脑的默认位置 ⇒ 比较与迁移都需要一个具体 URI。
+  String _effectiveUri() {
+    final loc = _location.text.trim();
+    if (loc.isNotEmpty) return loc;
+    if (_backend == _Backend.local && _defaultRoot != null && _defaultRoot!.isNotEmpty) {
+      final normalized = _defaultRoot!.replaceAll(r'\', '/');
+      return normalized.startsWith('file://') ? normalized : 'file://$normalized';
+    }
+    return '';
   }
 
   Future<void> _load() async {
@@ -107,7 +132,15 @@ class _MemoryStorageSectionState extends ConsumerState<MemoryStorageSection> {
       _unreadable = null;
     });
     try {
-      final view = await ref.read(telencephalonClientProvider).configSection(_section);
+      final client = ref.read(telencephalonClientProvider);
+      final view = await client.configSection(_section);
+      // ⚠️ 默认地址读不到不挡卡片（它只是提示）。
+      Map<String, dynamic>? defaults;
+      try {
+        defaults = await client.storageDefaults();
+      } catch (_) {
+        defaults = null;
+      }
       final entries = (view['entries'] as List?) ?? const [];
       final uri = _valueOf(entries, _keyUri);
       final access = _valueOf(entries, _keyAccess);
@@ -116,7 +149,8 @@ class _MemoryStorageSectionState extends ConsumerState<MemoryStorageSection> {
       setState(() {
         _configured = uri.isNotEmpty;
         _storedUri = uri;
-        _backend = _backendOf(uri);
+        _defaultRoot = defaults?['local_default_root'] as String?;
+        _backend = _backendOf(uri, _valueOf(entries, 'storage_copy_if_not_exists'));
         _location.text = uri;
         _endpoint.text = _valueOf(entries, _keyEndpoint);
         _region.text = _valueOf(entries, _keyRegion);
@@ -124,6 +158,7 @@ class _MemoryStorageSectionState extends ConsumerState<MemoryStorageSection> {
         _accessKey.text = access.isEmpty ? '' : _mask;
         _secretKey.text = secret.isEmpty ? '' : _mask;
         _allowHttp = _valueOf(entries, _keyAllowHttp) == 'true';
+        _copyIfNotExists.text = _valueOf(entries, _keyCopyIfNotExists);
         _loading = false;
       });
     } catch (e) {
@@ -137,8 +172,10 @@ class _MemoryStorageSectionState extends ConsumerState<MemoryStorageSection> {
 
   String? _validate(AppLocalizations l10n) {
     final loc = _location.text.trim();
+    // 本地目录**允许留空**（= 用大脑的默认位置）。
+    if (_backend == _Backend.local) return null;
     if (loc.isEmpty) return l10n.memoryStorageInvalidLocation;
-    if (_backend != _Backend.local) {
+    {
       final prefix = _backend == _Backend.oss ? 'oss://' : 's3://';
       final ok = loc.startsWith(prefix) ||
           (_backend == _Backend.s3 && loc.startsWith('s3a://'));
@@ -146,6 +183,9 @@ class _MemoryStorageSectionState extends ConsumerState<MemoryStorageSection> {
     }
     if (_backend == _Backend.oss && _endpoint.text.trim().isEmpty) {
       return l10n.memoryStorageInvalidOssEndpoint;
+    }
+    if (_backend == _Backend.rustfs && _endpoint.text.trim().isEmpty) {
+      return l10n.memoryStorageInvalidRustfsEndpoint;
     }
     return null;
   }
@@ -177,10 +217,11 @@ class _MemoryStorageSectionState extends ConsumerState<MemoryStorageSection> {
     });
     // ⚠️ **换根要搬数据**（2026-11-13 用户拍板）：目标与当前不同 ⇒ 不要只改
     // 一行 `storage_uri`（新根会是空库、旧数据留在原处）⇒ 交给大脑的迁移面。
-    final target = _location.text.trim();
+    final target = _effectiveUri();
     String trimSlashes(String v) => v.replaceFirst(RegExp(r'/+$'), '');
-    final switchingRoot = _storedUri.isNotEmpty &&
-        trimSlashes(_storedUri.trim()) != trimSlashes(target);
+    final baseline = _storedUri.trim().isNotEmpty ? _storedUri.trim() : target;
+    final switchingRoot = baseline.isNotEmpty &&
+        trimSlashes(baseline) != trimSlashes(target);
     if (switchingRoot) {
       await _startMigration(target);
       return;
@@ -197,6 +238,7 @@ class _MemoryStorageSectionState extends ConsumerState<MemoryStorageSection> {
       );
       if (_backend != _Backend.local) {
         await _putOrDelete(_keyAllowHttp, _allowHttp ? 'true' : '');
+        await _putOrDelete(_keyCopyIfNotExists, _copyIfNotExists.text);
       }
       // ⚠️ 秘密只在**真的输入了新值**时写（掩码/空 ⇒ 保留原值）。
       if (_accessKey.text.isNotEmpty && _accessKey.text != _mask) {
@@ -237,6 +279,8 @@ class _MemoryStorageSectionState extends ConsumerState<MemoryStorageSection> {
         if (_backend != _Backend.local) 'endpoint': _endpoint.text.trim(),
         if (_backend == _Backend.s3) 'region': _region.text.trim(),
         if (_backend != _Backend.local) 'allow_http': _allowHttp,
+        if (_backend != _Backend.local && _copyIfNotExists.text.trim().isNotEmpty)
+          'copy_if_not_exists': _copyIfNotExists.text.trim(),
         // 秘密只在**真的输入了新值**时带上（掩码 / 空 ⇒ 用已存的）。
         if (_accessKey.text.isNotEmpty && _accessKey.text != _mask)
           'access_key': _accessKey.text,
@@ -339,13 +383,23 @@ class _MemoryStorageSectionState extends ConsumerState<MemoryStorageSection> {
           SegmentedButton<_Backend>(
             segments: [
               ButtonSegment(value: _Backend.local, label: Text(l10n.memoryStorageBackendLocal)),
+              ButtonSegment(value: _Backend.rustfs, label: Text(l10n.memoryStorageBackendRustfs)),
               ButtonSegment(value: _Backend.s3, label: Text(l10n.memoryStorageBackendS3)),
               ButtonSegment(value: _Backend.oss, label: Text(l10n.memoryStorageBackendOss)),
             ],
             selected: {_backend},
-            onSelectionChanged: (s) => setState(() {
-              _backend = s.first;
+            onSelectionChanged: (sel) => setState(() {
+              _backend = sel.first;
               _savedNote = null;
+              // **RustFS 预设**：协议仍是 s3://，把三样最容易填错的填好
+              // （endpoint 本机、允许 http、copy 头能开）；用户仍可改。
+              if (_backend == _Backend.rustfs) {
+                if (_endpoint.text.trim().isEmpty) {
+                  _endpoint.text = _rustfsDefaultEndpoint;
+                }
+                _allowHttp = true;
+                _copyIfNotExists.text = _rustfsCopyHeader;
+              }
             }),
           ),
           const SizedBox(height: 12),
@@ -354,7 +408,9 @@ class _MemoryStorageSectionState extends ConsumerState<MemoryStorageSection> {
             decoration: InputDecoration(
               labelText: l10n.memoryStorageLocation,
               helperText: _backend == _Backend.local
-                  ? l10n.memoryStorageLocationLocalHint
+                  ? (_defaultRoot != null && _defaultRoot!.isNotEmpty
+                      ? l10n.memoryStorageDefaultRootHint(_defaultRoot!)
+                      : l10n.memoryStorageLocationLocalHint)
                   : l10n.memoryStorageLocationRemoteHint,
             ),
           ),
@@ -397,6 +453,14 @@ class _MemoryStorageSectionState extends ConsumerState<MemoryStorageSection> {
               value: _allowHttp,
               onChanged: (v) => setState(() => _allowHttp = v),
               title: Text(l10n.memoryStorageAllowHttp, style: const TextStyle(fontSize: 13)),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _copyIfNotExists,
+              decoration: InputDecoration(
+                labelText: l10n.memoryStorageCopyIfNotExists,
+                helperText: l10n.memoryStorageCopyIfNotExistsHint,
+              ),
             ),
           ],
           const SizedBox(height: 12),

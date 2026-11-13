@@ -866,6 +866,14 @@ export interface StorageMigrationStartResult {
   dst?: string;
 }
 
+/** `GET …/hippocampus/preview/storage-defaults` —— 「留空会落到哪」。 */
+export interface StorageDefaultsView {
+  /** 不填 `storage_uri` 时的**本地**落点（`null` = 这个构建没有记忆体）。 */
+  local_default_root: string | null;
+  /** 这个进程此刻实际打开的那个根（含控制面覆盖）。 */
+  active_uri: string | null;
+}
+
 export interface ConfigWriteResult extends ConfigEntry {
   applies_when: string;
 }
@@ -1858,6 +1866,17 @@ export class TelencephalonClient {
       this.request<ConsolidatorState>('/api/telencephalon/hippocampus/preview/consolidator'),
     graphNode: (nodeId: string): Promise<GraphNode> =>
       this.request<GraphNode>(`/api/telencephalon/hippocampus/preview/graph/${encodeURIComponent(nodeId)}`),
+
+    /**
+     * **存储落点的默认地址**（2026-11-13）—— 设置页要显示「留空会落到哪」。
+     *
+     * ⚠️ 由**大脑**回答（宿主目录 ＋ 平台默认算出来的事实）⇒ ⇒ 客户端自己
+     * 拼一个默认位置，界面显示的地方与真正落盘的地方可能不是同一个。
+     */
+    storageDefaults: (): Promise<StorageDefaultsView> =>
+      this.request<StorageDefaultsView>(
+        '/api/telencephalon/hippocampus/preview/storage-defaults',
+      ),
   };
 
   neuron = {

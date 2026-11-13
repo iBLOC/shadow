@@ -565,6 +565,31 @@ class AppLocalizationsEn extends AppLocalizations {
   String get mcpAuthTokenOptional => 'Auth token (optional)';
 
   @override
+  String get mcpLoadFailed => 'Cannot read the MCP server list from the brain';
+
+  @override
+  String get mcpTemplateLabel => 'Template';
+
+  @override
+  String get mcpTemplateCustom => 'Custom';
+
+  @override
+  String get mcpHaMcpUrlPlaceholder =>
+      'http://<HA-host>:9584/private_… or …/api/webhook/mcp_…';
+
+  @override
+  String get mcpHaMcpUrlHint =>
+      'Paste the connect URL from the HA-MCP integration\'s Configure screen: on the LAN it is http://<HA-host>:9584/private_…, remote access goes through the webhook. The secret URL itself is the credential.';
+
+  @override
+  String get mcpHaMcpBearerHint =>
+      'Usually leave it empty — the URL is the credential. ha-mcp\'s Home Assistant sign-in mode uses OAuth, which the brain does not support yet.';
+
+  @override
+  String get mcpHaMcpDescription =>
+      'Home Assistant control & automation (ha-mcp)';
+
+  @override
   String get memoryEmpty => 'No memories yet';
 
   @override
@@ -1639,6 +1664,25 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get memoryStorageBackendS3 => 'S3-compatible';
+
+  @override
+  String get memoryStorageBackendRustfs => 'RustFS';
+
+  @override
+  String get memoryStorageInvalidRustfsEndpoint =>
+      'RustFS needs an endpoint (e.g. http://127.0.0.1:9000)';
+
+  @override
+  String memoryStorageDefaultRootHint(String path) {
+    return 'Leave empty to use the default location: $path';
+  }
+
+  @override
+  String get memoryStorageCopyIfNotExists => 'copy_if_not_exists';
+
+  @override
+  String get memoryStorageCopyIfNotExistsHint =>
+      'Header for create-if-not-exists copies (RustFS: header: if-none-match: *; AWS S3 does not support it — leave empty)';
 
   @override
   String get memoryStorageBackendOss => 'Alibaba OSS';

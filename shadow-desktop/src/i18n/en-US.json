@@ -969,7 +969,10 @@
         "preparingRestart": "Preparing to restart…",
         "restarting": "Restarting the app…",
         "pleaseWait": "Please wait…"
-      }
+      },
+      "backend_rustfs": "RustFS (S3-compatible)",
+      "invalidRustfsEndpoint": "RustFS needs an endpoint (e.g. http://127.0.0.1:9000).",
+      "defaultRootHint": "Leave empty to use the default location: {{path}} (next to the executable; an existing legacy location is kept)"
     },
     "aiCapabilities": "AI Capabilities",
     "aiCapabilitiesDesc": "Configure AI agent settings",

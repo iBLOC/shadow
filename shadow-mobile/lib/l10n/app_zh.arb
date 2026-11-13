@@ -246,6 +246,13 @@
   "commonName": "名称",
   "mcpServerUrl": "服务器 URL",
   "mcpAuthTokenOptional": "认证 Token (可选)",
+  "mcpLoadFailed": "读不到端脑的 MCP 服务器清单",
+  "mcpTemplateLabel": "模板",
+  "mcpTemplateCustom": "自定义",
+  "mcpHaMcpUrlPlaceholder": "http://<HA主机>:9584/private_… 或 …/api/webhook/mcp_…",
+  "mcpHaMcpUrlHint": "填 HA-MCP 集成 Configure 页给出的连接地址：局域网直连是 http://<HA 地址>:9584/private_…，远程走 webhook。secret URL 本身就是凭证。",
+  "mcpHaMcpBearerHint": "通常留空——URL 即凭证；ha-mcp 的「Home Assistant 登录」模式走 OAuth，大脑暂不支持。",
+  "mcpHaMcpDescription": "Home Assistant 控制与自动化（ha-mcp）",
   "memoryEmpty": "暂无记忆",
   "memoryUnavailable": "读不到记忆库",
   "memoryUnavailableHint": "这台设备的 {brain} 没有记忆面（海马体未启用），或请求失败。原因：{reason}",
@@ -856,6 +863,16 @@
   "memoryStorageDesc": "长期记忆落在哪里（本地目录 / S3 兼容 / 阿里云 OSS）",
   "memoryStorageBackendLocal": "本地",
   "memoryStorageBackendS3": "S3 兼容",
+  "memoryStorageBackendRustfs": "RustFS",
+  "memoryStorageInvalidRustfsEndpoint": "RustFS 必须填写 endpoint（例如 http://127.0.0.1:9000）",
+  "memoryStorageDefaultRootHint": "留空 = 用默认位置：{path}",
+  "@memoryStorageDefaultRootHint": {
+    "placeholders": {
+      "path": { "type": "String" }
+    }
+  },
+  "memoryStorageCopyIfNotExists": "copy_if_not_exists",
+  "memoryStorageCopyIfNotExistsHint": "对象存储需要「不存在才创建」时的头（RustFS：header: if-none-match: *；AWS S3 不支持，留空）",
   "memoryStorageBackendOss": "阿里云 OSS",
   "memoryStorageLocation": "存储位置",
   "memoryStorageLocationLocalHint": "本地目录的绝对路径",

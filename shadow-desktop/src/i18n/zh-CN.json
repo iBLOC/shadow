@@ -974,7 +974,10 @@
         "preparingRestart": "准备重启…",
         "restarting": "正在重启应用…",
         "pleaseWait": "请稍候…"
-      }
+      },
+      "backend_rustfs": "RustFS（S3 兼容）",
+      "invalidRustfsEndpoint": "RustFS 必须填写 endpoint（例如 http://127.0.0.1:9000）。",
+      "defaultRootHint": "留空 = 用默认位置：{{path}}（桌面端在可执行二进制同目录；旧位置已有数据时继续用它）"
     },
     "aiCapabilities": "AI 能力",
     "aiCapabilitiesDesc": "配置 AI 智能体设置",

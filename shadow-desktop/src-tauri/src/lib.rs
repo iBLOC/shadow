@@ -261,7 +261,33 @@ pub fn run() {
                 (None, HippocampusBoot::Degraded { reason })
             }
         },
-        None => (None, HippocampusBoot::Default),
+        // **没有配置过** ⇒ ⇒ 2026-11-13 用户拍板：默认落在**可执行二进制同目录**
+        // （便携布局）；但**老位置里已经有数据的继续用它** —— 换默认位置会让
+        // 老用户的记忆「看起来消失」（数据还在，只是没人去读）。
+        None => match default_hippocampus_root() {
+            Some(root) => match probe_storage_root(std::path::Path::new(&root)) {
+                Ok(()) => (Some(root), HippocampusBoot::Default),
+                Err(reason) => {
+                    // ⚠️ 便携目录不可写（比如装在 Program Files）⇒ ⇒ 退回平台
+                    // 默认，并把原因说出来 —— 交给端脑一个不可写的根会 panic。
+                    tracing::error!(
+                        concat!(
+                            "default hippocampus root {} is unusable ({}); ",
+                            "falling back to the platform data directory"
+                        ),
+                        root,
+                        reason
+                    );
+                    (
+                        dirs::data_dir().map(|d| {
+                            d.join("shadow").join("lance").display().to_string()
+                        }),
+                        HippocampusBoot::Degraded { reason },
+                    )
+                }
+            },
+            None => (None, HippocampusBoot::Default),
+        },
     };
     // The endbrain face's status handle — written by the boot path, read
     // by the UI.
@@ -574,6 +600,30 @@ pub fn run() {
 /// ⚠️ `restart()` 会走 `RunEvent::ExitRequested/Exit`（从非主线程调用时）
 /// ⇒ ⇒ 优雅退出那一套（端点释放、临时文件）照跑。
 #[tauri::command]
+/// **本地存储的默认根** —— 桌面端放在**可执行二进制同目录**（便携布局）。
+///
+/// 判据顺序（**数据优先于布局**）：
+/// 1. `<exe_dir>/lance` 已存在 ⇒ 用它（便携布局已经建过）；
+/// 2. 平台默认 `<data_dir>/shadow/lance` 已存在 ⇒ 用它（**老用户**：
+///    改默认位置不会搬数据，只会让记忆「看起来消失」）；
+/// 3. 都不存在（全新安装）⇒ `<exe_dir>/lance`。
+fn default_hippocampus_root() -> Option<String> {
+    let exe_dir = std::env::current_exe()
+        .ok()?
+        .parent()?
+        .to_path_buf();
+    let portable = exe_dir.join("lance");
+    if portable.exists() {
+        return Some(portable.display().to_string());
+    }
+    if let Some(legacy) = dirs::data_dir().map(|d| d.join("shadow").join("lance")) {
+        if legacy.exists() {
+            return Some(legacy.display().to_string());
+        }
+    }
+    Some(portable.display().to_string())
+}
+
 fn restart_app(app: tauri::AppHandle) {
     app.restart();
 }

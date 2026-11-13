@@ -24,6 +24,8 @@ class _FakeClient extends TelencephalonClient {
   /// 迁移面的调用记录（`uri`）—— 换根必须走它，不许只写 storage_uri。
   final migrationStarts = <Map<String, dynamic>>[];
   final cancels = <String>[];
+  /// `preview/storage-defaults` 的返回值（默认地址）。
+  Map<String, dynamic>? defaults;
   /// 状态面依次返回这些（模拟「正在搬 → 完成」）。
   List<Map<String, dynamic>> migrationStatuses = const [];
 
@@ -46,6 +48,11 @@ class _FakeClient extends TelencephalonClient {
 
   @override
   Future<void> deleteConfig(String section, String key) async {}
+
+  @override
+  Future<Map<String, dynamic>> storageDefaults() async {
+    return defaults ?? {'local_default_root': null, 'active_uri': null};
+  }
 
   @override
   Future<Map<String, dynamic>> startStorageMigration(
@@ -105,6 +112,7 @@ void main() {
   });
 
   _migrationTests();
+  _rustfsTests();
 
   testWidgets('已配置 s3 ⇒ 回填位置、密钥显示 ***、状态是「已配置」', (tester) async {
     final client = _FakeClient(
@@ -135,6 +143,9 @@ void main() {
     expect(find.text('***'), findsNWidgets(2));
 
     // 保存：只写非秘密的键，秘密保持不动。
+    // ⚠️ 加了 copy_if_not_exists 那格之后按钮落到 600px 视口外 ⇒ 先滚过去。
+    await tester.ensureVisible(find.text('保存'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('保存'));
     await tester.pumpAndSettle();
     expect(client.puts.any((p) => p.startsWith('storage_uri=')), isTrue);
@@ -260,5 +271,69 @@ void _migrationTests() {
     expect(find.textContaining('数据集'), findsWidgets);
     // 阻塞层：没有关闭钮、点遮罩不关（`barrierDismissible: false`）。
     expect(find.byType(AlertDialog), findsOneWidget);
+  });
+}
+
+void _rustfsTests() {
+  testWidgets('RustFS 档 ⇒ 一键填好 endpoint / allow_http / copy 头', (tester) async {
+    final client = _FakeClient(section: {
+      'section': 'hippocampus',
+      'entries': const [],
+      'applies_when': 'restart',
+    });
+    await pumpWidgetForTest(
+      tester,
+      ProviderScope(
+        overrides: [telencephalonClientProvider.overrideWithValue(client)],
+        child: MaterialApp(
+          localizationsDelegates: [
+            AppLocalizations.delegate,
+            ...GlobalMaterialLocalizations.delegates,
+          ],
+          supportedLocales: const [Locale('zh')],
+          locale: const Locale('zh'),
+          home: const Scaffold(body: SingleChildScrollView(child: MemoryStorageSection())),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('RustFS'));
+    await tester.pumpAndSettle();
+
+    // endpoint 被预填成 RustFS 默认（http://127.0.0.1:9000）
+    expect(find.text('http://127.0.0.1:9000'), findsOneWidget);
+    // copy 头也预填（RustFS 支持 If-None-Match: *）
+    expect(find.text('header: if-none-match: *'), findsOneWidget);
+  });
+
+  testWidgets('本地档 ⇒ helper 里显示大脑给的默认地址', (tester) async {
+    final client = _FakeClient(section: {
+      'section': 'hippocampus',
+      'entries': const [],
+      'applies_when': 'restart',
+    })
+      ..defaults = {
+        'local_default_root': '/data/app/lance',
+        'active_uri': null,
+      };
+    await pumpWidgetForTest(
+      tester,
+      ProviderScope(
+        overrides: [telencephalonClientProvider.overrideWithValue(client)],
+        child: MaterialApp(
+          localizationsDelegates: [
+            AppLocalizations.delegate,
+            ...GlobalMaterialLocalizations.delegates,
+          ],
+          supportedLocales: const [Locale('zh')],
+          locale: const Locale('zh'),
+          home: const Scaffold(body: SingleChildScrollView(child: MemoryStorageSection())),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('/data/app/lance'), findsOneWidget);
   });
 }

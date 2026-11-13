@@ -268,6 +268,13 @@
   "commonName": "Name",
   "mcpServerUrl": "Server URL",
   "mcpAuthTokenOptional": "Auth token (optional)",
+  "mcpLoadFailed": "Cannot read the MCP server list from the brain",
+  "mcpTemplateLabel": "Template",
+  "mcpTemplateCustom": "Custom",
+  "mcpHaMcpUrlPlaceholder": "http://<HA-host>:9584/private_… or …/api/webhook/mcp_…",
+  "mcpHaMcpUrlHint": "Paste the connect URL from the HA-MCP integration's Configure screen: on the LAN it is http://<HA-host>:9584/private_…, remote access goes through the webhook. The secret URL itself is the credential.",
+  "mcpHaMcpBearerHint": "Usually leave it empty — the URL is the credential. ha-mcp's Home Assistant sign-in mode uses OAuth, which the brain does not support yet.",
+  "mcpHaMcpDescription": "Home Assistant control & automation (ha-mcp)",
   "memoryEmpty": "No memories yet",
   "memoryUnavailable": "Cannot reach the memory store",
   "memoryUnavailableHint": "The {brain} on this device has no memory face (hippocampus not enabled), or the request failed. Reason: {reason}",
@@ -892,6 +899,16 @@
   "memoryStorageDesc": "Where long-term memory lives (local directory / S3-compatible / Alibaba OSS)",
   "memoryStorageBackendLocal": "Local",
   "memoryStorageBackendS3": "S3-compatible",
+  "memoryStorageBackendRustfs": "RustFS",
+  "memoryStorageInvalidRustfsEndpoint": "RustFS needs an endpoint (e.g. http://127.0.0.1:9000)",
+  "memoryStorageDefaultRootHint": "Leave empty to use the default location: {path}",
+  "@memoryStorageDefaultRootHint": {
+    "placeholders": {
+      "path": { "type": "String" }
+    }
+  },
+  "memoryStorageCopyIfNotExists": "copy_if_not_exists",
+  "memoryStorageCopyIfNotExistsHint": "Header for create-if-not-exists copies (RustFS: header: if-none-match: *; AWS S3 does not support it — leave empty)",
   "memoryStorageBackendOss": "Alibaba OSS",
   "memoryStorageLocation": "Location",
   "memoryStorageLocationLocalHint": "Absolute path of a local directory",

@@ -7,6 +7,7 @@ import { Badge } from '../ui/badge';
 import { telencephalonClient } from '../../lib/telencephalonClient';
 import type {
   ConfigEntry,
+  StorageDefaultsView,
   StorageMigrationStatus,
   StorageMigrationTarget,
 } from '../../lib/telencephalonClient';
@@ -43,11 +44,34 @@ const KEY_COPY = 'storage_copy_if_not_exists';
 /** 读回来的掩码（服务端对 secret 条目这么回）。 */
 const MASK = '***';
 
-type Backend = 'local' | 's3' | 'oss';
+type Backend = 'local' | 'rustfs' | 's3' | 'oss';
 
-function backendOf(uri: string): Backend {
+/**
+ * **RustFS 预设**（2026-11-13）—— 它是 S3 兼容服务，协议上仍是 `s3://`，
+ * 但有三样东西与「公有云 S3」不同，而这三样正是用户最容易填错的地方：
+ *
+ * 1. **endpoint 必填**（自建服务，没有默认 AWS 端点）；
+ * 2. 局域网/本机通常是 **http**（`allow_http` 必须开，否则 object_store 只
+ *    肯走 HTTPS，报错还只说 "only HTTPS is allowed"）；
+ * 3. 它实现 `If-None-Match: *` ⇒ **copy_if_not_exists 能开**（AWS S3 不支持，
+ *    开了反而报错）—— 迁移的「独占创建」语义在它上面是真的。
+ */
+const RUSTFS_DEFAULT_ENDPOINT = 'http://127.0.0.1:9000';
+const RUSTFS_COPY_HEADER = 'header: if-none-match: *';
+
+/**
+ * 已有配置属于哪一档。
+ *
+ * ⚠️ RustFS 与 S3 在磁盘上**同一个 scheme**（`s3://`）⇒ ⇒ 只能从「那三样
+ * 特征」反推：copy 头是我们写的那个、且 endpoint 不是云厂商域名 ⇒ 认成
+ * RustFS。认不准时落到 `s3`（更常见的那个），不影响保存结果（写下去的是
+ * 同一组键）。
+ */
+function backendOf(uri: string, copyHeader = ''): Backend {
   if (uri.startsWith('oss://')) return 'oss';
-  if (uri.startsWith('s3://') || uri.startsWith('s3a://')) return 's3';
+  if (uri.startsWith('s3://') || uri.startsWith('s3a://')) {
+    return copyHeader.trim() === RUSTFS_COPY_HEADER ? 'rustfs' : 's3';
+  }
   return 'local';
 }
 
@@ -79,6 +103,8 @@ export function MemoryStorageCard() {
   const [error, setError] = useState('');
 
   const [backend, setBackend] = useState<Backend>('local');
+  /** 大脑给的**本地默认根**（留空时落这儿）。 */
+  const [defaultRoot, setDefaultRoot] = useState('');
   const [location, setLocation] = useState('');
   const [endpoint, setEndpoint] = useState('');
   const [region, setRegion] = useState('');
@@ -94,11 +120,19 @@ export function MemoryStorageCard() {
     setLoading(true);
     setUnreadable('');
     try {
-      const view = await telencephalonClient.neuron.configSection(SECTION);
+      const [view, defaults] = await Promise.all([
+        telencephalonClient.neuron.configSection(SECTION),
+        // ⚠️ 默认地址由**大脑**回答（宿主目录 ＋ 平台默认）—— 读不到不该
+        // 挡住卡片（它只是提示），所以单独 catch。
+        telencephalonClient.hippocampus
+          .storageDefaults()
+          .catch(() => null as StorageDefaultsView | null),
+      ]);
       setEntries(view.entries);
       setAppliesWhen(view.applies_when ?? '');
+      setDefaultRoot(defaults?.local_default_root ?? '');
       const uri = valueOf(view.entries, KEY_URI);
-      setBackend(backendOf(uri));
+      setBackend(backendOf(uri, valueOf(view.entries, KEY_COPY)));
       setLocation(uri);
       setEndpoint(valueOf(view.entries, KEY_ENDPOINT));
       setRegion(valueOf(view.entries, KEY_REGION));
@@ -161,9 +195,28 @@ export function MemoryStorageCard() {
     [entries],
   );
 
+  /**
+   * 「留空」= 用大脑的默认位置 ⇒ 但**比较与迁移**都需要一个具体 URI
+   * （大脑那边不认空串）。
+   *
+   * ⚠️ 只在**本地档**兜底：远端档留空是错误，不是默认。
+   */
+  const effectiveUri = useCallback((): string => {
+    const loc = location.trim();
+    if (loc) return loc;
+    if (backend === 'local' && defaultRoot) {
+      const normalized = defaultRoot.split('\\').join('/');
+      return normalized.startsWith('file://') ? normalized : `file://${normalized}`;
+    }
+    return '';
+  }, [location, backend, defaultRoot]);
+
   const validate = (): string => {
+    // ⚠️ 本地目录**允许留空**（2026-11-13）：空 = 用大脑的默认位置
+    // （桌面端是「可执行二进制同目录」，手机上在 App 私有目录里）。
+    if (backend === 'local') return '';
     if (!location.trim()) return t('settings.memoryStorage.invalidLocation');
-    if (backend !== 'local') {
+    {
       const prefix = backend === 'oss' ? 'oss://' : 's3://';
       const ok = location.startsWith(prefix) || (backend === 's3' && location.startsWith('s3a://'));
       if (!ok) return t('settings.memoryStorage.invalidScheme', { scheme: prefix });
@@ -172,6 +225,9 @@ export function MemoryStorageCard() {
     }
     if (backend === 'oss' && !endpoint.trim()) {
       return t('settings.memoryStorage.invalidOssEndpoint');
+    }
+    if (backend === 'rustfs' && !endpoint.trim()) {
+      return t('settings.memoryStorage.invalidRustfsEndpoint');
     }
     return '';
   };
@@ -213,10 +269,16 @@ export function MemoryStorageCard() {
       // 只改一行 `storage_uri`（那样新根是空库、旧数据留在原处）⇒ 交给
       // 大脑的迁移面：它搬完 → 校验 → 切配置 → 删旧 → 等重启。
       const current = (entries ?? []).find((e) => e.key === KEY_URI)?.value;
-      const currentUri = typeof current === 'string' ? current : '';
-      if (currentUri && currentUri.trim().replace(/\/+$/, '') !== location.trim().replace(/\/+$/, '')) {
+      const storedUri = typeof current === 'string' ? current : '';
+      // 「没配过」时当前生效的就是默认位置 ⇒ 拿它当基线比（清空 ⇒ 回到默认
+      // 与「原本就在默认」是同一件事，不该触发迁移）。
+      const currentUri = storedUri.trim() ? storedUri.trim() : effectiveUri();
+      if (
+        currentUri &&
+        currentUri.replace(/\/+$/, '') !== effectiveUri().replace(/\/+$/, '')
+      ) {
         const target: StorageMigrationTarget = {
-          uri: location.trim(),
+          uri: effectiveUri(),
           ...(backend === 'local' ? {} : { endpoint: endpoint.trim() }),
           ...(backend === 's3' ? { region: region.trim() } : {}),
           ...(backend !== 'local' ? { allow_http: allowHttp } : {}),
@@ -308,7 +370,7 @@ export function MemoryStorageCard() {
       <CardContent className="space-y-4">
         {/* 后端三选一 —— 受 Lance feature 限制（见文件头） */}
         <div className="flex flex-wrap gap-2" role="group" aria-label={t('settings.memoryStorage.backend')}>
-          {(['local', 's3', 'oss'] as Backend[]).map((b) => (
+          {(['local', 'rustfs', 's3', 'oss'] as Backend[]).map((b) => (
             <Button
               key={b}
               type="button"
@@ -318,9 +380,18 @@ export function MemoryStorageCard() {
               onClick={() => {
                 setBackend(b);
                 setSaved(false);
+                // ⚠️ **RustFS 是「预设」不是新协议**：它写下去的仍是 `s3://`
+                // ＋ endpoint，但把三样最容易填错的默认值填好（endpoint 本机、
+                // 允许 http、copy 头能开）。用户仍然可以改。
+                if (b === 'rustfs') {
+                  setEndpoint((prev) => prev.trim() || RUSTFS_DEFAULT_ENDPOINT);
+                  setAllowHttp(true);
+                  setCopyIfNotExists(RUSTFS_COPY_HEADER);
+                }
                 // 换后端时把位置换成对应前缀的形状提示（不擅自填内容）。
                 setLocation((prev) => {
-                  if (b === 'local') return prev.startsWith('s3') || prev.startsWith('oss') ? '' : prev;
+                  if (b === 'local')
+                    return prev.startsWith('s3') || prev.startsWith('oss') ? '' : prev;
                   const prefix = b === 'oss' ? 'oss://' : 's3://';
                   return prev.startsWith(prefix) ? prev : prefix;
                 });
@@ -337,7 +408,9 @@ export function MemoryStorageCard() {
           data-testid="memory-storage-location"
           onChange={(e) => setLocation(e.target.value)}
           hint={
-            backend === 'local'
+            backend === 'local' && defaultRoot
+              ? t('settings.memoryStorage.defaultRootHint', { path: defaultRoot })
+              : backend === 'local'
               ? t('settings.memoryStorage.locationLocalHint')
               : t('settings.memoryStorage.locationRemoteHint')
           }
