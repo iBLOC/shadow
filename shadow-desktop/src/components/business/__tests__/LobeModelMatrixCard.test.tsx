@@ -56,7 +56,9 @@ const cloudProvider: ModelProvider = {
       name: 'qwen3.8-max',
       model_id: 'qwen3.8-max',
       is_default: true,
-      capabilities: ['chat'],
+      // ⚠️ 端脑读面已把上游的 `chat` 归一到 `llm`（`normalize_word`）⇒ 客户端
+      // 拿到的是词表内的词 ⇒ 矩阵卡不再自己合并 chat 桶（与 㔢 同一决定）。
+      capabilities: ['llm'],
       supports_vision: false,
       supports_function_calling: true,
     },

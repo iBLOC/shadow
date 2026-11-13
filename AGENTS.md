@@ -54,6 +54,12 @@
 
 ⑨ **⚠ 圈码：本条占 U+3522（㔢）** —— 号按官方口径在**提交树面**取（取样时刻 2026-11-13T04:1x ｜ HEAD 2b593a2 ⇒ 父仓水位 U+3521 ⇒ 候选头一个 U+3522）⇒ 字形由 String.fromCodePoint 生成，不手打。
 
+　❿ **⚠️ 真 CI 回填（2026-11-13，取样时刻 04:2xZ）** —— 三仓推后那一轮：30 道 workflow（**25 success / 5 failure**）｜ **主 CI run 43360627860 ＝ completed/failure（7m23s）**，**失败步 7 格逐字**：Brain gates step6「External tools wiring check」＋ step12 判读汇总 ｜ Legacy residue step27「Gate discipline check」＋ step29 判读汇总 ｜ **Mobile Test step9「Flutter test」** ｜ Prefrontal Rust step11「Cargo check」 ｜ **Desktop Build step26「Failure masking check」** ＋ step36 判读汇总 ｜ **Mobile Analyze step8「Flutter analyze」** ｜ CI 总分母 step4 ｜ ⚠️ **上一轮的 Neuron ownership 族（step8/16）本轮已绿**（兄弟修掉了）⇒ ⇒ **红灯集合换了一族**。逐格归因（全部机械核对，不猜）：
+　　❶ **Mobile Analyze / Mobile Test** ← **`04cae20` 漏提交的接线**：提交树 `chat_provider.dart` 里 `buildMobileClientTools(` **没有** `generateImage:` 参数（`git show HEAD:…| grep generateImage` **零命中**），而工作树那份**一直是对的**（+5 行）⇒ ⇒ 图片生成那刀只在工作树接了线、提交时漏了这一文件 ⇒ ⇒ CI（跑提交树）报 `missing_required_argument:1312` 而本地 analyze 全绿。**修法**：构造式提交 `245afc4` —— 只带这 5 行 hunk（兄弟在飞内容零混入），analyze 立刻 `No issues found`。
+　　❷ **Desktop Build step26 Failure masking** ← **本仓自己的「失败长得像成功」闸抓到了三处静默 `catch {`**（真缺陷 0 条、但「新增落点」照样红）：`NeuronCatalogCard.tsx:178`（轮询失败不炸段）／`MemoryStorageCard.tsx:137`（DELETE 不存在的键）／`ProvidersPage.tsx:347`（词表读不到用兜底）。⇒ ⇒ **闸抓得对**：三处都是我这两刀写的。**修法**：轮询与词表两处改成 `catch (e) { console.warn(...) }`（**出声**，兜底保留）；MemoryStorageCard 那处改成**根因修法** —— entries 里没有的键**根本不发 DELETE**（真机 2026-11-13 红 toast 那一格：切后端时清 endpoint/region、两键从没存在 ⇒ 404 ⇒ 全局拦截器弹红 ⇒ 保存成功与红报错同屏），404 只作竞态兜底且**其余错误照抛**；补 2 条回归测试钉住「不存在⇒不发」「存在⇒才发」（全量 **1603 绿 / 0 红**，首跑 2 红是重负载下 `waitFor` 1s 抖动 ⇒ 已放宽到 5s）。
+　　❸ **Brain gates step6 ＋ Legacy residue step27 ＋ Prefrontal Rust step11** ← **`secrets.IBLOC_TOKEN` 未配置**（日志逐字「secrets.IBLOC_TOKEN is not configured … private siblings cannot be checked out with the default GITHUB_TOKEN」）⇒ ⇒ **存量环境债**，与本笔零交集（那几格的判据本身是绿的：Legacy residue 的 YAML 闸逐字「✅ 零违规（52 个 YAML 文件全过）」、自检「✓ 基线：正常形态零违规」）。
+　　⇒ ⇒ **通用形态（本轮最值钱的一格）**：**「工作树对了」与「提交树对了」是两件事** —— `04cae20` 那刀在本地 analyze 全绿，而提交树少了一个文件 ⇒ ⇒ CI 红两周没人发现（因为那两格的红被归进了「跨仓存量债」的同一片）。⇒ ⇒ 判据：**凡是「本地全绿而 CI 红」的格，先 `git show HEAD:<file> | grep <符号>` 逐字比提交树**，不要先怀疑 CI 环境。
+
 **Updated**: 2026-11-13 (㔡 **「四盏假绿：一盏是『该扫没扫』，一盏是『上游被当成本仓』，两盏是『该删没删』」** —— 承 㔠 条（同一族：判据对着空气跑），本条记**取证（两闸逐字＋六条缺口）**、**第一因（顶层对账要求「每个目录都有交代」，但没人定期对账）**、**三种事实＝三种处置（扫／登记／删）**、**修法**、**判据与分级读数**，以及**仍然欠着的（其余九道红的逐条归因）**.)
 
 > 信封：epoch=2026-11-13 | authority=measured | scope=project | source=两闸逐字（跨仓残留闸：`✗ 配置缺口（判据对着空气跑 ⇒ 绿灯是**假的**）` 下两条 —— 「hippocampus：顶层目录 vendor 没有交代（既没被扫，也没登记成刻意不扫）」「顶层目录 web 没有交代」；自有残留闸：`✗ 顶层目录/文件没有交代` 下四个未跟踪文件 fixed-mdns.rlib／fixed-opencode_manager.rlib／两个 long-type-*.txt）＋ 源码判据（`check-legacy-residue-all.mjs` 的 `checkRepoConfig`：accounted ＝ scanDirs ∪ excludeDirs ∪ COMMON_EXCLUDE_DIRS ∪ ignoredTopDirs ⇒ 否则「没人判」）＋ 定性取证（hippocampus/web/package.json 逐字 `"name": "@ibloc/hippocampus-web"`、`"description": "Optional memory-management web UI for hippocampus (served at /ui by hippocampus-server)"`、16 个跟踪文件；hippocampus/vendor 65 个跟踪文件＝object_store 上游副本）｜ 改动：**shadow**（scripts/lib/legacy-registry.mjs：hippocampus.scanDirs 加 `web`、新增 ignoredTopDirs 登记 `vendor`（带理由）；仓根删除 4 个未跟踪调试残留；AGENTS.md 本条）⇒ ⇒ **2 个文件**（registry +15/−1）＋ 零新增依赖 ＋ 零 ci.yml 改动 ｜ 读数：跨仓闸 **EXIT=1 ⇒ 0**（16 仓／1897 文件，未登记仓 0）＋ 自有闸 **EXIT=1 ⇒ 0**（hippocampus 扫 151 个文件）＋ 码位闸三面零违规 ＋ 取号闸提交树面水位 U+3520 ⇒ 本笔 U+3521 | status=active | supersedes=none
@@ -100,7 +106,7 @@
 　❶ **llm 格** ⇒ `POST /lobes/models` 的 `lobe_models`（三态：不在表里＝跟随全局；`null`＝**强制本地**；串＝该模型）。这一面还负责把云模型注册成远端引擎 ⇒ ⇒ 不能挪到分档面；
 　❷ **asr/tts/image_gen 格** ⇒ `PUT /capability-defaults` 的 `lobe_defaults`（端脑 voice/images 面带 `lobe` 时先查这一格）；
 　❸ **两张表都「只装显式覆盖」** ⇒ 写之前**重读当前覆盖表**再合并（拿页面打开时那份当基线会抹掉别处刚写的）；
-　❹ 引擎档候选取**已注册面**（`registered`），llm 候选取目录面 `chat`＋`llm` 合并（与分档卡同一处别名约定）；
+　❹ 引擎档候选取**已注册面**（`registered`），llm 候选取目录面 —— ⚠️ **就地订正（2026-11-13 午后，随 㔢）**：本条初版在组合层做了 `chat`＋`llm` 合并（落笔时端脑读面还没有词表归一）；㔢 那刀把归一做进 `api/providers.rs::normalize_word` 并撤掉分档卡的补丁 ⇒ ⇒ 这颗矩阵卡就成了**唯一还在客户端各写一份归一**的地方，正是那一刀要消灭的漂移 ⇒ ⇒ 同形状撤掉（夹具改 `capabilities: ['llm']`＝端脑给客户端的已经是词表内的词）；
 　❺ **durable 副本**（localStorage，`brain_lobe_capability_defaults`）：端脑那张表是内存态 ⇒ 大脑重启后空了就重下发（与全局分档卡/移动端开机重放同一套路），存不住会**说真话**；
 　❻ **三态**：读不到叶区清单 ⇒ 只出错误 Alert，**不画空态**（「读不到」与「没有」同屏是 㔖/㔛 两条的老坑）。
 

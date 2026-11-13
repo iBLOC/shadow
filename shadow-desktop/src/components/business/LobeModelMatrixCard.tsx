@@ -163,18 +163,20 @@ export function LobeModelMatrixCard() {
   /**
    * llm 的候选（本地权重 ＋ 云模型）。
    *
-   * ⚠️ 组件目录把对话模型标成 `chat`、端脑词表是 `llm` ⇒ ⇒ 组合层合并
-   * （与 `CapabilityDefaultsCard` 同一处约定）。
+   * ⚠️ **不在这里做 `chat`→`llm` 别名**（2026-11-13 晚随 㔢 撤）：端脑**读面**
+   * 已做词表归一（`api/providers.rs::normalize_word`）⇒ ⇒ 云模型到客户端时
+   * 就是 `llm` ⇒ ⇒ 客户端按词直分组即可。以前在这一层合并一次 = **两端各写
+   * 一份归一**（Dart 孪生没有那份 ⇒ ⇒ 桌面能选、手机选不了那样的漂）——
+   * 与 `CapabilityDefaultsCard` 同一处决定。
    */
-  const llmOptions = useMemo(() => {
-    const grouped = capabilityCandidatesByCapability(providers);
-    grouped['llm'] = [...(grouped['llm'] ?? []), ...(grouped['chat'] ?? [])];
-    delete grouped['chat'];
-    return capabilityOptionsByCapability(grouped, {
-      engineResolved: [],
-      registered: {},
-    })['llm'] ?? [];
-  }, [providers]);
+  const llmOptions = useMemo(
+    () =>
+      capabilityOptionsByCapability(capabilityCandidatesByCapability(providers), {
+        engineResolved: [],
+        registered: {},
+      })['llm'] ?? [],
+    [providers],
+  );
 
   /** 引擎档的候选（已注册面）。 */
   const engineOptions = useMemo(() => {
