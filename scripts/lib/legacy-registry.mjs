@@ -378,9 +378,23 @@ export const REGISTRY = {
   },
 
   hippocampus: {
-    scanDirs: ['hippocampus-core', 'hippocampus-mcp', 'hippocampus-server', 'hippocampus-storage', 'hippocampus-cli', 'scripts'],
+    // ⚠️ 2026-11-13 实测补上 'web'：hippocampus/web 是**真产品前端**
+    //    （@ibloc/hippocampus-web，由 hippocampus-server 在 /ui 上服务；16 个跟踪文件：
+    //    index.html / package.json / src/*.tsx）⇒ ⇒ 它此前**既没被扫、也没登记**
+    //    ⇒ 跨仓闸报「顶层目录 web 没有交代（判据对着空气跑）」⇒ 那是一盏**假绿**。
+    //    node_modules / dist 已在 COMMON_EXCLUDE_DIRS ⇒ 自动排除，不会扫到依赖与产物。
+    scanDirs: ['hippocampus-core', 'hippocampus-mcp', 'hippocampus-server', 'hippocampus-storage', 'hippocampus-cli', 'scripts', 'web'],
     scanFiles: ['README.md', 'Cargo.toml'],
     excludeDirs: [...COMMON_EXCLUDE_DIRS, 'bench', 'benchmarks', 'hippocampus-bench', 'models'],
+    // ⚠️ vendor/ 是 **vendored 第三方 crate**（object_store，65 个跟踪文件）——
+    //    上游源码整份抄进来的副本 ⇒ 它里面出现什么词都不代表本仓有命名残留
+    //    （改它等于改别人的 crate）⇒ 登记成刻意不扫，理由写在这里。
+    ignoredTopDirs: [
+      {
+        dir: 'vendor',
+        reason: '**vendored 第三方 crate**（object_store）⇒ 上游源码副本，不是本项目的命名残留。',
+      },
+    ],
     excludeFiles: [...COMMON_EXCLUDE_FILES],
     allowed: [
       {
