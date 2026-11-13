@@ -6457,6 +6457,7 @@ dependencies = [
  "anyhow",
  "axum",
  "chrono",
+ "dirs 5.0.1",
  "hippocampus-core",
  "hippocampus-storage",
  "jsonwebtoken",
@@ -6619,6 +6620,12 @@ dependencies = [
  "http-body 1.1.0",
  "pin-project-lite",
 ]
+
+[[package]]
+name = "http-range-header"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9171a2ea8a68358193d15dd5d70c1c10a2afc3e7e4c5bc92bc9f025cebd7359c"
 
 [[package]]
 name = "httparse"
@@ -15898,6 +15905,11 @@ dependencies = [
  "http 1.5.0",
  "http-body 1.1.0",
  "http-body-util",
+ "http-range-header",
+ "httpdate",
+ "mime",
+ "mime_guess",
+ "percent-encoding",
  "pin-project-lite",
  "tokio",
  "tokio-util",
