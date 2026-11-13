@@ -139,12 +139,16 @@ class BrainModelSource {
   String toString() => 'BrainModelSource(${raw ?? 'auto'})';
 }
 
-/// 大脑的**模型路由**：全局默认 + 每叶区覆盖。
+/// 大脑的**模型路由**：对话档的全局默认 + 每叶区覆盖。
 ///
 /// 模型使用的**最小单位是叶区**：
-/// - [defaultSource] —— 全局默认。各叶区都走本地，还是都走云端；
+/// - [defaultSource] —— **对话模型**的全局默认（本地权重，还是某个云端）；
 /// - [lobeOverrides] —— per-lobe 覆盖。某个叶区单独换一边
 ///   （比如前额叶本地、实际执行任务的区域云端、颞叶本地）。
+///
+/// ⚠️ 这张表管的是**对话这一类**；语音识别 / 语音合成等分档默认在
+/// [capabilityDefaults]（**全局**那一层），按叶区单独覆盖在
+/// [lobeCapabilityOverrides]。
 ///
 /// **三层语义别混**（这是全局默认与覆盖的差别）：
 /// - 某个叶区**不在** [lobeOverrides] 里 ⇒ 跟随全局默认；
@@ -169,10 +173,24 @@ class BrainModelRouting {
   /// `Capability`（单一真源）⇒ ⇒ 这里只存**原样**的词，不自己造词。
   final Map<String, String> capabilityDefaults;
 
+  /// per-lobe 的**分档**覆盖（叶区名 → 能力词 → 引擎 id）。
+  ///
+  /// ⚠️ 只装**按引擎 id 解析**的档（端脑的 `engine_resolved`：asr / tts /
+  /// image_gen）⇒ ⇒ `llm` 不在这一层（它走 `lobe_models` 路由）；
+  /// 端脑收到 `llm` 会整份拒绝（4008）。
+  ///
+  /// ⚠️ **下发面是分档默认面**（`PUT /lobes/capability-defaults` 的
+  /// `lobe_defaults`），**不是** `lobes/models`（2026-11-13 订正）。
+  /// 消费点：端脑 voice / images 面带请求体的 `lobe` 时先查这一格。
+  ///
+  /// **不在表里** = 该叶区该档跟随**全局**分档默认（[capabilityDefaults]）。
+  final Map<String, Map<String, String>> lobeCapabilityOverrides;
+
   const BrainModelRouting({
     this.defaultSource = const BrainModelSource.auto(),
     this.lobeOverrides = const {},
     this.capabilityDefaults = const {},
+    this.lobeCapabilityOverrides = const {},
   });
 
   /// 某个叶区的**有效**来源（覆盖优先于全局默认）。
@@ -187,11 +205,14 @@ class BrainModelRouting {
     BrainModelSource? defaultSource,
     Map<String, BrainModelSource>? lobeOverrides,
     Map<String, String>? capabilityDefaults,
+    Map<String, Map<String, String>>? lobeCapabilityOverrides,
   }) {
     return BrainModelRouting(
       defaultSource: defaultSource ?? this.defaultSource,
       lobeOverrides: lobeOverrides ?? this.lobeOverrides,
       capabilityDefaults: capabilityDefaults ?? this.capabilityDefaults,
+      lobeCapabilityOverrides:
+          lobeCapabilityOverrides ?? this.lobeCapabilityOverrides,
     );
   }
 
@@ -205,6 +226,13 @@ class BrainModelRouting {
       // ⚠️ **分档默认模型**与「来源」是**两件事** ⇒ ⇒ 分开存 ⇒ ⇒ 改
       // 「语音用哪个模型」不会把「走本地还是走云端」一起改掉。
       'capability_defaults': Map<String, String>.from(capabilityDefaults),
+      // ⚠️ **per-lobe 分档覆盖**：只装显式覆盖的叶区（不在表里 = 跟随全局）。
+      // 键名与端脑分档面**同一个词**（`lobe_defaults`）—— 本地副本与服务端
+      // 用两套名字，排查时每次都要脑内翻译一次。
+      'lobe_defaults': {
+        for (final e in lobeCapabilityOverrides.entries)
+          if (e.value.isNotEmpty) e.key: Map<String, String>.from(e.value),
+      },
     };
   }
 
@@ -248,10 +276,27 @@ class BrainModelRouting {
         }
       });
     }
+    // ⚠️ **per-lobe 分档覆盖**：两层都只认非空 ⇒ ⇒ 坏数据不进来。
+    // 键名与端脑分档面同一个词（`lobe_defaults`）；旧键名**只读兼容**
+    // （我自己上一版落的本地副本用过它，读不到就等于用户设置丢了）。
+    final lobeCapabilityOverrides = <String, Map<String, String>>{};
+    final rawLobeCaps =
+        json['lobe_defaults'] ?? json['lobe_capability_models'];
+    if (rawLobeCaps is Map) {
+      rawLobeCaps.forEach((lobe, caps) {
+        if (caps is! Map) return;
+        final one = <String, String>{};
+        caps.forEach((cap, id) {
+          if (id is String && id.trim().isNotEmpty) one['$cap'] = id.trim();
+        });
+        if (one.isNotEmpty) lobeCapabilityOverrides['$lobe'] = one;
+      });
+    }
     return BrainModelRouting(
       defaultSource: BrainModelSource.parse(json['default'] as String?),
       lobeOverrides: lobes,
       capabilityDefaults: capabilityDefaults,
+      lobeCapabilityOverrides: lobeCapabilityOverrides,
     );
   }
 
@@ -269,16 +314,37 @@ class BrainModelRouting {
     for (final e in capabilityDefaults.entries) {
       if (other.capabilityDefaults[e.key] != e.value) return false;
     }
+    if (other.lobeCapabilityOverrides.length != lobeCapabilityOverrides.length) {
+      return false;
+    }
+    for (final e in lobeCapabilityOverrides.entries) {
+      final mine = _canonicalCapMap(e.value);
+      final theirs = _canonicalCapMap(other.lobeCapabilityOverrides[e.key]);
+      if (mine != theirs) return false;
+    }
     return true;
   }
 
+  /// 分档覆盖的一层规范化（排序后的 `cap=id` 串）—— 比较用，
+  /// **不依赖 Map 的插入顺序**（同一份配置换个写法不该算「不相等」）。
+  static String _canonicalCapMap(Map<String, String>? caps) {
+    if (caps == null || caps.isEmpty) return '';
+    final keys = caps.keys.toList()..sort();
+    return [for (final k in keys) '$k=${caps[k]}'].join('&');
+  }
+
   @override
-  int get hashCode =>
-      Object.hash(defaultSource, lobeOverrides.length, capabilityDefaults.length);
+  int get hashCode => Object.hash(
+        defaultSource,
+        lobeOverrides.length,
+        capabilityDefaults.length,
+        lobeCapabilityOverrides.length,
+      );
 
   @override
   String toString() =>
-      'BrainModelRouting(default: $defaultSource, lobes: $lobeOverrides)';
+      'BrainModelRouting(default: $defaultSource, lobes: $lobeOverrides, '
+      'lobeCaps: $lobeCapabilityOverrides)';
 }
 
 /// 大脑页「模型来源」选择器的**分组**。
@@ -459,6 +525,13 @@ Map<String, String?> effectiveLobeModels({
 /// ⚠️ **`lobe_models` 只装显式覆盖的叶区。**
 /// 「不在表里」= 跟随全局默认 —— 要是把每个叶区的**有效值**都塞进去，
 /// 「跟随全局」就被钉死了，改全局默认时那些叶区不会跟着变。
+///
+/// ⚠️ **per-lobe 分档覆盖（asr / tts / image_gen）不在这份负载里**
+/// （2026-11-13 订正）—— 它跟着**分档默认面**走
+/// （`setCapabilityDefaults(lobeDefaults: …)`）。这份负载的两个读者
+/// （Rust 槽位的 `ModelRouting`、端脑的 `lobes/models`）**都没有**那个
+/// 字段 ⇒ ⇒ 塞进来会被 serde 静默丢掉 ⇒ ⇒ 用户配的叶区语音模型永远
+/// 不生效（失败长得像成功）。
 Map<String, dynamic> buildModelRoutingPayload({
   required BrainModelRouting routing,
   required List<BrainModelOption> options,
@@ -508,6 +581,9 @@ class BrainModelSourceState {
   /// **分档默认模型**（能力词 → 上游模型 id）。
   final Map<String, String> capabilityDefaults;
 
+  /// **per-lobe 分档覆盖**（叶区名 → 能力词 → 引擎 id）。
+  final Map<String, Map<String, String>> lobeCapabilityOverrides;
+
   final bool isLoading;
   final String? error;
 
@@ -515,6 +591,7 @@ class BrainModelSourceState {
     this.source = const BrainModelSource.auto(),
     this.lobeOverrides = const {},
     this.capabilityDefaults = const {},
+    this.lobeCapabilityOverrides = const {},
     this.isLoading = false,
     this.error,
   });
@@ -523,6 +600,7 @@ class BrainModelSourceState {
     BrainModelSource? source,
     Map<String, BrainModelSource>? lobeOverrides,
     Map<String, String>? capabilityDefaults,
+    Map<String, Map<String, String>>? lobeCapabilityOverrides,
     bool? isLoading,
     String? error,
     bool clearError = false,
@@ -531,6 +609,8 @@ class BrainModelSourceState {
       source: source ?? this.source,
       lobeOverrides: lobeOverrides ?? this.lobeOverrides,
       capabilityDefaults: capabilityDefaults ?? this.capabilityDefaults,
+      lobeCapabilityOverrides:
+          lobeCapabilityOverrides ?? this.lobeCapabilityOverrides,
       isLoading: isLoading ?? this.isLoading,
       error: clearError ? null : (error ?? this.error),
     );
@@ -550,6 +630,8 @@ class BrainModelSourceState {
         // ⚠️ **分档默认模型**必须跟着走 ⇒ ⇒ 否则「路由」这一层会把它
         // 悄悄丢掉 ⇒ ⇒ 下发时变成「没配」⇒ ⇒ 失败长得像成功。
         capabilityDefaults: capabilityDefaults,
+        // ⚠️ **per-lobe 分档覆盖**同理 —— 掉了就等于「用户配了、没下发」。
+        lobeCapabilityOverrides: lobeCapabilityOverrides,
       );
 }
 
@@ -578,6 +660,7 @@ class BrainModelSourceNotifier extends StateNotifier<BrainModelSourceState> {
           source: routing.defaultSource,
           lobeOverrides: routing.lobeOverrides,
           capabilityDefaults: routing.capabilityDefaults,
+          lobeCapabilityOverrides: routing.lobeCapabilityOverrides,
           isLoading: false,
         );
         return;
@@ -641,6 +724,43 @@ class BrainModelSourceNotifier extends StateNotifier<BrainModelSourceState> {
     await _persist();
   }
 
+  /// 记下某个叶区**某一档**（asr / tts / image_gen）的覆盖。
+  ///
+  /// 传 null / 空串 ⇒ 删掉这一格 ⇒ 该叶区该档回到**跟随全局分档默认**。
+  /// 某一叶区的最后一格被删掉 ⇒ 该叶区整个从表里消失（不留空表）。
+  ///
+  /// ⚠️ **能力词的合法性不在这一层判**（端脑按 `Capability` 词表整份拒绝
+  /// ⇒ 4005；`llm` 另有一条 4008 指路到路由面）—— 这里只负责把用户的
+  /// 选择记下来、下发。
+  ///
+  /// ⚠️ **返回「存没存住」** —— 与 [setCapabilityDefault] 同一条纪律：
+  /// 端脑那份是权威、本地这份是「开机重下发」的副本 ⇒ 存不住 ≠ 这次没
+  /// 生效，但界面**必须说真话**。
+  Future<bool> setLobeCapabilityOverride(
+    String lobe,
+    String capability,
+    String? model,
+  ) async {
+    final all = <String, Map<String, String>>{
+      for (final e in state.lobeCapabilityOverrides.entries)
+        e.key: Map<String, String>.from(e.value),
+    };
+    final one = all[lobe] ?? <String, String>{};
+    final id = model?.trim() ?? '';
+    if (id.isEmpty) {
+      one.remove(capability);
+    } else {
+      one[capability] = id;
+    }
+    if (one.isEmpty) {
+      all.remove(lobe);
+    } else {
+      all[lobe] = one;
+    }
+    state = state.copyWith(lobeCapabilityOverrides: all, clearError: true);
+    return _persist();
+  }
+
   /// 去掉某个叶区的覆盖（回到「跟随全局默认」）。
   Future<void> clearLobeOverride(String lobe) async {
     if (!state.lobeOverrides.containsKey(lobe)) return;
@@ -699,11 +819,18 @@ class CapabilityDefaultsView {
   /// ⚠️ **空列表 = 这台大脑此刻没注册这类引擎**（不是「没有这个能力」）。
   final Map<String, List<String>> registered;
 
+  /// **逐叶区的分档覆盖**（叶区 → 能力词 → 引擎 id）—— 端脑当前的那一份。
+  ///
+  /// ⚠️ 与 [defaults] 同一分工：**端脑是权威**，本地那份只是「开机重下发」
+  /// 的 durable 副本 ⇒ ⇒ 显示时**先看这里**（别处改过的配置要看得见）。
+  final Map<String, Map<String, String>> lobeDefaults;
+
   const CapabilityDefaultsView({
     this.capabilities = const [],
     this.defaults = const {},
     this.engineResolved = const [],
     this.registered = const {},
+    this.lobeDefaults = const {},
   });
 
   factory CapabilityDefaultsView.fromJson(Map<String, dynamic> json) {
@@ -744,11 +871,25 @@ class CapabilityDefaultsView {
         registered['$key'] = ids;
       });
     }
+    // ⚠️ **lobe_defaults** —— 逐叶区分档覆盖（端脑权威那份）。
+    final lobeDefaults = <String, Map<String, String>>{};
+    final rawLobeDefaults = json['lobe_defaults'];
+    if (rawLobeDefaults is Map) {
+      rawLobeDefaults.forEach((lobe, caps) {
+        if (caps is! Map) return;
+        final one = <String, String>{};
+        caps.forEach((cap, id) {
+          if (id is String && id.trim().isNotEmpty) one['$cap'] = id.trim();
+        });
+        if (one.isNotEmpty) lobeDefaults['$lobe'] = one;
+      });
+    }
     return CapabilityDefaultsView(
       capabilities: capabilities,
       defaults: defaults,
       engineResolved: engineResolved,
       registered: registered,
+      lobeDefaults: lobeDefaults,
     );
   }
 }
@@ -900,6 +1041,61 @@ List<({String capability, String modelId})> unusableCapabilityDefaults(
   });
   return out;
 }
+
+/// 「对话」这一档的能力词。
+///
+/// ⚠️ 它**不走**分档默认那张表 —— 对话模型由路由面决定
+/// （`POST /api/telencephalon/lobes/models`：全局默认 ＋ per-lobe 覆盖）。
+/// 往分档默认里写 `llm` ⇒ ⇒ 存得进去、路由一点不动（真机 2026-11-11 实测）。
+const String chatCapability = 'llm';
+
+/// 分档默认里**端脑真的会读**的那几档（不含对话档）。
+///
+/// ⚠️ 分档默认那张表在端脑里**只有按引擎 id 解析的档有读者**（语音识别 /
+/// 语音合成 / 图片生成 —— 端脑用 `engine_resolved` 说出来）；其余档
+/// （向量 / 重排 / …）写得进去、没人读 ⇒ ⇒ 给一个下拉就是「选了没用」
+/// ⇒ ⇒ 失败长得像成功 ⇒ ⇒ 界面只给选了真有用的档。
+///
+/// ⚠️ **端脑没说**（`engine_resolved` 为空 —— 老端脑不带这个字段）⇒ ⇒
+/// 客户端没有依据判断哪档有读者 ⇒ ⇒ **不替它判**：除对话档外原样全给。
+///
+/// 顺序跟端脑的词表走（[capabilities] 的顺序）。
+List<String> consumedCapabilityTiers(
+  List<String> capabilities,
+  List<String> engineResolved,
+) {
+  final resolved = engineResolved.toSet();
+  return [
+    for (final cap in capabilities)
+      if (cap != chatCapability && (resolved.isEmpty || resolved.contains(cap)))
+        cap,
+  ];
+}
+
+/// 分档默认里**端脑不读**的那几档（要拿去告诉用户「这几类暂时没得选」）。
+///
+/// 与 [consumedCapabilityTiers] 互补：词表 − 对话档 − 有读者的档。
+/// 端脑没说哪几档有读者 ⇒ ⇒ 空列表（不许编一句「这几类没人读」）。
+List<String> unconsumedCapabilityTiers(
+  List<String> capabilities,
+  List<String> engineResolved,
+) {
+  final resolved = engineResolved.toSet();
+  if (resolved.isEmpty) return const [];
+  return [
+    for (final cap in capabilities)
+      if (cap != chatCapability && !resolved.contains(cap)) cap,
+  ];
+}
+
+/// 端脑注册的**原生叶区**清单（直读端脑 —— 叶区列表不硬编码）。
+///
+/// 只有原生叶区进这张表：per-lobe 模型覆盖（路由负载的 `lobe_models`）
+/// 按原生叶区名下发，别的叶区种类不吃这份路由。
+final nativeLobesProvider = FutureProvider<List<NativeLobeInfo>>((ref) async {
+  final client = ref.watch(telencephalonClientProvider);
+  return client.listNativeLobes();
+});
 
 /// 端脑的**分档默认模型**（词表 ＋ 当前值）—— 端脑是单一真源。
 final capabilityDefaultsProvider = FutureProvider<CapabilityDefaultsView>((ref) async {

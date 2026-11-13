@@ -641,8 +641,24 @@
       }
     }
   },
-  "brainLobeSectionHint": "Each lobe follows the chat model above until you set one for it. Other categories (speech etc.) only have a global default for now.",
+  "brainLobeSectionHint": "Each lobe follows the chat model above until you set one for it; speech recognition / speech synthesis can each pick their own engine per lobe.",
   "brainLobeListEmpty": "This brain has no lobes that can be set individually.",
+  "brainLobeCapabilityCurrent": "Current: {model}",
+  "@brainLobeCapabilityCurrent": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      }
+    }
+  },
+  "brainLobeCapabilityFollowsGlobal": "Follows global: {model}",
+  "@brainLobeCapabilityFollowsGlobal": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      }
+    }
+  },
   "encephalonLobeRoutingTitle": "Lobe model routing",
   "encephalonLobeFollowGlobal": "Follow global",
   "encephalonLobeRoutingApplied": "Lobe model updated",

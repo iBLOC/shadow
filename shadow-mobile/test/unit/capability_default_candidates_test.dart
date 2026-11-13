@@ -280,4 +280,68 @@ void main() {
       expect(next['tts'], 'tts-1');
     });
   });
+
+  group('consumedCapabilityTiers / unconsumedCapabilityTiers —— 哪几档选了真有用', () {
+    // 端脑 HEAD 的词表与「按引擎 id 解析」的那几档（逐字照端脑的顺序）。
+    const capabilities = [
+      'llm',
+      'asr',
+      'tts',
+      'vad',
+      'rerank',
+      'embedding',
+      'vision',
+      'forecast',
+      'image_gen',
+    ];
+    const engineResolved = ['asr', 'tts', 'image_gen'];
+
+    test('只给端脑真的会读的档；顺序跟端脑词表走', () {
+      expect(
+        consumedCapabilityTiers(capabilities, engineResolved),
+        ['asr', 'tts', 'image_gen'],
+      );
+    });
+
+    test('⚠️ 对话档不在分档里 —— 它走路由面（写进分档默认是死槽）', () {
+      expect(
+        consumedCapabilityTiers(capabilities, engineResolved),
+        isNot(contains(chatCapability)),
+      );
+      // 也不算「端脑不读」—— 它有读者，只是不在这张表里。
+      expect(
+        unconsumedCapabilityTiers(capabilities, engineResolved),
+        isNot(contains(chatCapability)),
+      );
+    });
+
+    test('端脑不读的档单独列出来（拿去告诉用户，不给下拉）', () {
+      expect(
+        unconsumedCapabilityTiers(capabilities, engineResolved),
+        ['vad', 'rerank', 'embedding', 'vision', 'forecast'],
+      );
+    });
+
+    test('两张表互补：词表 − 对话档 ＝ 有读者 ∪ 没读者，且不相交', () {
+      final read = consumedCapabilityTiers(capabilities, engineResolved);
+      final notRead = unconsumedCapabilityTiers(capabilities, engineResolved);
+      expect(
+        {...read, ...notRead},
+        capabilities.where((c) => c != chatCapability).toSet(),
+      );
+      expect(read.toSet().intersection(notRead.toSet()), isEmpty);
+    });
+
+    test('⚠️ 端脑没说哪几档有读者（老端脑）⇒ 不替它判：除对话档外原样全给', () {
+      expect(
+        consumedCapabilityTiers(const ['llm', 'asr', 'tts'], const []),
+        ['asr', 'tts'],
+      );
+      expect(
+        unconsumedCapabilityTiers(const ['llm', 'asr', 'tts'], const []),
+        isEmpty,
+        reason: '没有依据 ⇒ 不许编一句「这几类没人读」',
+      );
+    });
+  });
 }

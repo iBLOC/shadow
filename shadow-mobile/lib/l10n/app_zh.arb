@@ -619,8 +619,24 @@
       }
     }
   },
-  "brainLobeSectionHint": "每个叶区默认跟随上面的对话模型，也可以单独指定。语音等其他类别目前只有全局默认。",
+  "brainLobeSectionHint": "每个叶区默认跟随上面的对话模型，也可以单独指定；语音识别 / 语音合成还能各自再单独选一个引擎。",
   "brainLobeListEmpty": "这台大脑没有可单独指定模型的叶区。",
+  "brainLobeCapabilityCurrent": "当前：{model}",
+  "@brainLobeCapabilityCurrent": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      }
+    }
+  },
+  "brainLobeCapabilityFollowsGlobal": "跟随全局：{model}",
+  "@brainLobeCapabilityFollowsGlobal": {
+    "placeholders": {
+      "model": {
+        "type": "String"
+      }
+    }
+  },
   "encephalonLobeRoutingTitle": "叶区模型路由",
   "encephalonLobeFollowGlobal": "跟随全局",
   "encephalonLobeRoutingApplied": "叶区模型已更新",

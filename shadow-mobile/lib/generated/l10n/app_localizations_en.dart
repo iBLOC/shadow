@@ -1176,11 +1176,21 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get brainLobeSectionHint =>
-      'Each lobe follows the chat model above until you set one for it. Other categories (speech etc.) only have a global default for now.';
+      'Each lobe follows the chat model above until you set one for it; speech recognition / speech synthesis can each pick their own engine per lobe.';
 
   @override
   String get brainLobeListEmpty =>
       'This brain has no lobes that can be set individually.';
+
+  @override
+  String brainLobeCapabilityCurrent(String model) {
+    return 'Current: $model';
+  }
+
+  @override
+  String brainLobeCapabilityFollowsGlobal(String model) {
+    return 'Follows global: $model';
+  }
 
   @override
   String get encephalonLobeRoutingTitle => 'Lobe model routing';

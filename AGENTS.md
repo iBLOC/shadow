@@ -1,3 +1,54 @@
+**Updated**: 2026-11-13 (㔝 **「同一件事两个会话各写了一套 —— 我把重复的真相提交进了两个仓，然后按机械取证把它撤了」** —— 承 U+3500 条（失败长得像成功）＋ U+3506 条（整文件重写顶掉在飞改动），本条记**取证（两套契约逐字对照）**、**第一因（同一功能两个会话各起一套真相）**、**第二因（我的形状弱在哪三处）**、**第三因（提交只查 HEAD、不查在飞面 ⇒ 造出第二真相）**、**这一刀的落点**、**途中那几课**、**判据与分级读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-13 | authority=measured | scope=project | source=两套契约逐字（**我的**：`POST /lobes/models` 的 `lobe_capability_models` ＋ voice 的 `conversation_id` ＋ `encephalon::embedded::ModelRouting` 新字段 —— 已提交 telencephalon `66fc93c` / encephalon `bd4c59a`（**均未推送**）；**兄弟在飞面**：`PUT /lobes/capability-defaults` 的 `lobe_defaults` ＋ 新 `GET /lobes/routing` ＋ voice/images 的 `lobe` 参数 ＋ `LobeCache::lobe_capability_defaults/replace_lobe_capability_defaults`（`src/registry/cache.rs`、`src/api/lobe_manifest.rs`、`src/api/voice.rs`、`src/api/images.rs` 在飞 diff 逐字）＋ 桌面 `LobeModelMatrixCard.tsx`）｜ 改动：**shadow**（移动端 19 文件：`brain_model_source_provider.dart`（状态层 per-lobe 分档覆盖，本地键 `lobe_defaults`，旧键只读兼容）＋ `lobe_capability_row.dart`（新）＋ `lobe_routing_section.dart`（新）＋ `lobe_model_override_row.dart`（新，与智能体页共用）＋ `default_model_card.dart`（按类默认表）＋ `capability_default_section.dart`（只给端脑真读的档）＋ `agents_screen.dart` ＋ `encephalon_mobile_provider.dart`（`applyLobeCapability` ＋ push 带 `lobeDefaults`）＋ `telencephalon_client.dart` ＋ arb×2 ＋ generated×3 ＋ 测试 8 文件 ＋ `AGENTS.md` 本条）＋ **撤销** telencephalon `66fc93c` / encephalon `bd4c59a`（CAS 回退到 `522998a` / `393212d`，未推送）⇒ ⇒ 零新依赖 ＋ 零 ci.yml 改动 ｜ 读数：`dart analyze` 本刀文件 **0 issue** ＋ 定向 **59/59** ＋ 移动全量 **843 过 / 12 跳 / 5 红**（4 `capability_grants_section_test` ＋ 1 `backend_shadow_key_entry_test` —— **两者都是已提交文件的 HEAD 既有红，与本刀零交集**）＋ i18n **991/991** ＋ endpoint-map 7 条 missing **全非本刀**（desktop `lobes/routing`＋`lobes/manifest` 属兄弟在飞；mobile `images_generations`／`config`／`traces` 属既存未登记）｜ 真 CI 待取 | status=active | supersedes=none
+
+① **⚠️ 取证：两套契约逐字对照（同一功能，两个会话，各一套真相）**
+　❶ **我的形状**（先落）：`lobe_capability_models` 挂在 **`POST /lobes/models`**（与 `lobe_models` 同面）× voice 面带 **`conversation_id`**（端脑拿会话存储解析「会话 → 叶区」）× `encephalon::embedded::ModelRouting` 加新字段做槽位回放。
+　❷ **兄弟的形状**（在飞）：`lobe_defaults` 挂在 **`PUT /lobes/capability-defaults`** × voice/images 面带 **`lobe`**（调用方直接说「替哪个叶区办」）× 新 `GET /lobes/routing`（覆盖表读视图）× `LobeCache::lobe_capability_defaults` / `replace_lobe_capability_defaults` × 桌面 `LobeModelMatrixCard.tsx`（叶区 × 类型矩阵）。
+　❸ ⇒ ⇒ **两套都在实现「叶区能按类别单独设模型」** ⇒ ⇒ 而我先提交了两仓（`66fc93c` / `bd4c59a`，均未推送）⇒ ⇒ **master 上多了一份重复真相**。
+
+② **⚠️ 第一因：同一功能两个会话各起一套真相 —— 提交前只核了 HEAD，没核「同族设计是不是已在别人工作树里」**
+　❶ 我做设计时的取证止于「端脑 HEAD 有没有 per-lobe 分档消费点」（答：没有）⇒ ⇒ 于是按 HEAD 的空白起了一套 ⇒ ⇒ 而**兄弟的在飞面早就写好了同一件事**（`git status` 里 `M src/api/lobe_manifest.rs` / `M src/registry/cache.rs` / `M src/api/images.rs` 就在那儿，我第一次 `git status` 时**看见过**、却没读它们的 diff）。
+　❷ ⇒ ⇒ **通用形态：判断「这个功能有没有人做」不能只看 HEAD —— 同一功能可能整个躺在别人的工作树里；`git status` 里那些 `M` 不是噪音，是「已有人在改这一族」的**第一手信号**，尤其当它们与你要动的文件同族时。**
+
+③ **⚠️ 第二因：我的形状弱在哪三处（逐条对照，不是「谁先谁赢」）**
+　❶ **多一层耦合**：`conversation_id` 要求端脑 voice 路由**持有会话存储**（`router_with_store` 新入口）⇒ ⇒ 依赖 shadow 的会话面；而 `lobe` 参数由调用方直说 ⇒ ⇒ 端脑不需要知道「会话」这个概念。**后者的射程更小。**
+　❷ **少一档能力**：我的 `PER_LOBE_CAPABILITIES` 把 **`image_gen` 明确拒掉**（理由：工具执行器没有会话身份）；兄弟的 `lobe` 参数下 image_gen 同样能按叶区配（调用方带 lobe 即可）⇒ ⇒ **我的理由只在「conversation_id」这一形状下成立** —— 形状本身制造了那个限制。
+　❸ **没有读视图**：我的实现只有写（`applied` 回显），**没有「整份覆盖表」的读入口** ⇒ ⇒ 客户端要做「合并写回」就必须自己镜像 ⇒ ⇒ 迟早漂；兄弟有 `GET /lobes/routing`。
+　❹ ⇒ ⇒ **通用形态：判「两个形状谁该赢」的三把尺 —— 依赖面更小、被形状限制掉的档更少、有没有读视图（写-读闭合）。三条都输 ⇒ 撤，不争先后。**
+
+④ **⚠️ 第三因：撤销要按机械判据做，不按「我觉得」—— 先证「它只在本地」**
+　❶ 两笔提交**都未推送**（`git log origin/master..refs/heads/master` 只在本地；`update-ref` 前 `refs/heads/master` 仍等于我提交前的基线 `522998a` / `393212d`）⇒ ⇒ 可以**直接 CAS 回退**，不需要 revert 提交（历史里不留噪音）。
+　❷ 回退逐字：`git update-ref refs/heads/master <旧基线> <我的提交>`（给**旧值**做 CAS ⇒ 期间若有人推进，这条会失败而不是覆盖）⇒ ⇒ 两仓各一条，回退后 `rev-parse refs/heads/master` 逐字等于基线 ⇒ ⇒ **撤干净**。
+　❸ ⇒ ⇒ **通用形态：未推送的「重复真相」最佳处置是 CAS 回退而不是 revert —— revert 会把「我做过一份错的」永久写进历史，而它本来可以不存在。**
+
+⑤ **✅ 这一刀的落点（shadow 19 文件 ＋ 撤销两仓各一笔）**
+　❶ **移动端状态层**：`BrainModelRouting.lobeCapabilityOverrides`（叶区→能力词→引擎 id）＋ 本地持久化键 **`lobe_defaults`**（与端脑分档面同一个词；**旧键 `lobe_capability_models` 只读兼容** —— 我自己上一版落的本地副本用过它，读不到就等于用户设置丢了）＋ `setLobeCapabilityOverride`（null＝跟随全局，该叶区最后一格删掉时整个叶区退出表）。
+　❷ **下发面**：`_pushCapabilityDefaults` 带 `lobeDefaults: routing.lobeCapabilityOverrides`（走 `PUT /lobes/capability-defaults`，**不是** `lobes/models` —— 后者两个读者都没有那个字段，塞进去会被 serde 静默丢掉＝失败长得像成功）。
+　❸ **界面**：能力页首卡从「二选一单选」改成**按类默认表**（上一刀）＋ 每个叶区多出 **asr / tts / image_gen** 三行（档位来自端脑 `engine_resolved`，客户端不列举）＋ 显示「端脑那份优先、读不到回落本地副本」（别处改过的配置要看得见）。
+　❹ **桌面**：**整块让给兄弟**（他们已在写 `LobeModelMatrixCard` 并把 voice-button 改成 `VOICE_LOBE='temporal'` 的 `lobe` 参数）⇒ ⇒ 我先前那版 `conversationId` 改动**已被他们的整文件重写顶掉**（承 U+3506 条那一族），我那个 `telencephalonVoicePerLobe.test.ts`（测 `conversation_id`）**删除** —— 它测的形状已不存在。
+
+⑥ **⚠️ 途中那几课**
+　❶ **`git status` 里别人的 `M` 要读 diff，不要当噪音** —— 本刀唯一一次「看一眼就知道该停」的信号第一次就出现了，我却跳过它直接开工。
+　❷ **「未跟踪新文件」也是信号**：`?? shadow-desktop/src/components/business/LobeModelMatrixCard.tsx` 从一开始就在 —— 一个新组件名里就写着「叶区×模型矩阵」。
+　❸ **撤销之后要重跑测试**：形状换了（`lobe_capability_models` → `lobe_defaults`、写面从 `lobes/models` → `capability-defaults`），测试夹具与断言跟着换；定向 59/59 是在**对齐之后**跑的，不是撤销前那一版。
+　❹ **同一文件被双方编辑时，先读现状再改** —— 兄弟已把我文件里的 payload 与 push 改到新契约，我若照记忆重写就会把它顶回去。
+
+⑦ **✅ 判据与分级读数（全部实测）**
+　❶ **判据级**：`dart analyze` 本刀 4 个主文件 **0 issue**（3 条 info 是既有债）；定向 **59/59 绿**（`brain_model_source_test` ＋ `default_model_card_test` ＋ `agents_screen_test` ＋ `management_hub_screen_test`）。
+　❷ **全量级**：移动 `flutter test` **843 过 / 12 跳 / 5 红** —— 5 红分两个文件：`capability_grants_section_test` 4 条（HEAD 既有，上一刀已取证归 `notificationsRead`）＋ `backend_shadow_key_entry_test` 1 条（**已提交文件**，非本刀）⇒ ⇒ **本刀零新增红**。
+　❸ **闸级**：i18n 完整性 **991/991**（词表 zh/en 各 1532）；endpoint-map **7 条 missing 全非本刀**（desktop `lobes/routing`＋`lobes/manifest` 属兄弟在飞；mobile `images/generations`／`config`／`traces` 属既存未登记）。
+　❹ **撤销级**：两仓 `rev-parse refs/heads/master` 回退后逐字等于基线（`522998a` / `393212d`）⇒ ⇒ **重复真相已不在历史里**。
+　❺ **真 CI 级**：**待取**（推送后回填）。
+
+⑧ **⚠️ 仍然欠着的**
+　❶ **端脑侧（兄弟在飞）**：`lobe_defaults` 面 ＋ `lobe` 参数 ＋ `GET /lobes/routing` ＋ 桌面矩阵卡 ⇒ **等他们落链后**本卡的写路径才在提交树上成立（当前移动端代码按**他们的形状**写，提交树上那两个面还没有 ⇒ ⇒ 本刀在真端脑上要等他们那一笔）。
+　❷ **槽位回放没延伸**：`lobe_defaults` 只走运行时推送（与既有 `capability_defaults` 同一条纪律：那张表**从来没进过槽位**）⇒ ⇒ 「大脑起来之前就有叶区分档」这一格**仍缺**（要不要进槽位是产品决定）。
+　❸ **移动端 image_gen 的 per-lobe 候选只有「已注册面」**（`registered.image_gen` 常空）⇒ ⇒ 云图片模型 id 在移动端没有枚举源 ⇒ 那一行多数时候只能选「跟随全局」。
+　❹ **「工作树条目数 ≥ 提交树条目数」那道闸仍欠**（承 U+3506 条⑧❻）—— 本刀工作树面比 HEAD 落后时又是手工核的。
+
+⑨ **⚠️ 圈码：本条占 U+351D（㔝）** —— 号按**官方口径**在**提交树面**取（`check-ledger-codepoint-take.mjs --next`，取样时刻 2026-11-13T02:20:42.662Z ｜ HEAD c2adc985 ⇒ 父仓三面水位均 U+351C ⇒ 候选头一个 **U+351D**，三面一致）⇒ 字形由 String.fromCodePoint 生成，不手打。
+
 **Updated**: 2026-11-13 (㔜 **「桌面补上 llm 路由那半 —— 分档卡选云模型即注册远端引擎＋设全局默认，桌面对话真机首次走通云腿端到端」** —— 承 㔛 条④（对话链三格成因：桌面零调用 `set_lobe_models`），本条记**修法（对齐移动端三约定）**、**别名放组合层的理由（Dart 孪生在飞不碰）**、**途中那格（三个 id 撞名：目录复合 id ≠ 上游 model_id）**、**判据与真机红绿对照**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-13 | authority=measured | scope=project | source=真机红绿对照（修前：llm 候选 14 个全内置、发消息 ⇒ `404 no_engine_for_model 'llm/minicpm5-1b'`；修后：候选 15 个含云模型、三叶区 `default_model=qwen3.8-max`、发「回复一个字：好」⇒ 助手回「**好**」）＋ 服务端请求形状逐字（`LobeModelsRequest` 三态：字段不出现＝不动／null＝本地／串＝该模型）＋ 移动端形状逐字（`buildModelRoutingPayload`：providers **不带 api_key**（端脑按 id 自己解析）、路由键＝**上游 model_id**）｜ 改动：**shadow**（`telencephalonClient.ts`：`setLobeModels`＋三态类型＋显式类型参数进契约清单；`CapabilityDefaultsCard.tsx`：chat→llm 别名（**组合层**）＋ llm apply 三叉（云＝注册＋默认／清空＝null／内置＝不动路由）＋上游 id 映射；新测 `CapabilityDefaultsCard.test.tsx` **5 条**；`client-endpoint-map.txt` ＋2 行（`lobes/models` 本刀 ＋ `flows/traces/ingest` —— 兄弟 6914d9c 已提交未登记，服务端面 `flow/api/mod.rs:42` 逐字核实后顺手补齐；移动端在飞方法**不代登记**）＋ AGENTS.md 本条）⇒ ⇒ **1 仓 6 文件** ｜ 读数：vitest 全量 **1582 绿 / 16 跳 / 0 红**（基线 1577 ⇒ +5）＋ `tsc -b` 0 ＋ tools 阻断 0 ＋ i18n **981/981** ＋ endpoint-map 残余红仅移动端**在飞**方法（提交树上不存在 ⇒ CI 绿）＋ provider-parity ✔ ＋ **真机端到端首通（修前 404 ⇒ 修后回话）** | status=active | supersedes=none

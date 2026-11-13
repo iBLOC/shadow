@@ -996,6 +996,10 @@ class TelencephalonClient {
         for (final entry in lobeModels.entries) entry.key: entry.value,
       },
       'providers': providers,
+      // ⚠️ **per-lobe 分档覆盖不在这里**（2026-11-13 订正）：端脑这一面
+      // **没有**这个字段 ⇒ ⇒ 塞进来会被 serde 静默丢掉 ⇒ ⇒ 用户配的叶区
+      // 语音模型永远不生效（失败长得像成功）。它走分档默认面
+      // （`setCapabilityDefaults(lobeDefaults: …)`）。
     });
   }
 
@@ -1514,12 +1518,23 @@ class TelencephalonClient {
 
   /// 写**分档默认模型**（写门 ⇒ `_headers()` 两把钥匙都带）。
   ///
-  /// ⚠️ **整份替换** —— 下发的是全量 ⇒ ⇒ 两端不会各留一半。
+  /// ⚠️ **`defaults` 整份替换** —— 下发的是全量 ⇒ ⇒ 两端不会各留一半。
+  ///
+  /// ⚠️ **`lobeDefaults` 是可加段**（2026-11-13）：`null`（不传）⇒ 端脑
+  /// **不动**已有的逐叶区表（只改全局的调用方不该顺手抹掉叶区选择）；
+  /// 传了（含空表）⇒ 整份替换那张表 —— 空表 = 清空 ⇒ 全部叶区回到跟随
+  /// 全局。
   Future<Map<String, dynamic>> setCapabilityDefaults(
-    Map<String, String> defaults,
-  ) async {
+    Map<String, String> defaults, {
+    Map<String, Map<String, String>>? lobeDefaults,
+  }) async {
     return await _put('/api/telencephalon/lobes/capability-defaults', {
       'defaults': defaults,
+      if (lobeDefaults != null)
+        'lobe_defaults': {
+          for (final e in lobeDefaults.entries)
+            e.key: Map<String, String>.from(e.value),
+        },
     });
   }
 

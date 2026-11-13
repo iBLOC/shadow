@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shadow_mobile/providers/brain_model_source_provider.dart';
 import 'package:shadow_mobile/services/telencephalon/telencephalon_client.dart';
@@ -207,10 +209,114 @@ void main() {
       expect(BrainModelRouting.decode(null).defaultSource.isAuto, isTrue);
       expect(BrainModelRouting.decode('').defaultSource.isAuto, isTrue);
     });
+
+    // ⚠️ 这是**本地持久化**的形状（设置里的那份副本，开机重放用）；
+    // 下发给端脑时它走 `setCapabilityDefaults(lobeDefaults: …)`，
+    // 不进 `buildModelRoutingPayload`（见下面那一组）。
+    group('per-lobe 分档覆盖（本地副本 lobe_defaults）', () {
+      test('编码 → 解码 能原样还原（叶区 → 能力词 → 引擎 id）', () {
+        const routing = BrainModelRouting(
+          lobeCapabilityOverrides: {
+            'temporal': {'asr': 'whisper-model', 'tts': 'voxcpm2'},
+          },
+        );
+        final decoded = BrainModelRouting.decode(routing.encode());
+        expect(decoded.lobeCapabilityOverrides['temporal'], {
+          'asr': 'whisper-model',
+          'tts': 'voxcpm2',
+        });
+        expect(decoded, routing);
+      });
+
+      test('⚠️ 两层都只认非空 ⇒ 坏数据不进表（不留空表）', () {
+        final decoded = BrainModelRouting.decode(jsonEncode({
+          'lobe_defaults': {
+            'temporal': {'asr': '  ', 'tts': 'voxcpm2'},
+            'prefrontal': {'asr': ''},
+            'parietal': 'not-a-map',
+          },
+        }));
+        expect(decoded.lobeCapabilityOverrides['temporal'], {'tts': 'voxcpm2'});
+        expect(
+          decoded.lobeCapabilityOverrides.containsKey('prefrontal'),
+          isFalse,
+          reason: '一格都没剩 ⇒ 那个叶区整个不进表',
+        );
+        expect(decoded.lobeCapabilityOverrides.containsKey('parietal'), isFalse);
+      });
+
+      test('⚠️ 旧本地键名（lobe_capability_models）只读兼容 —— 不丢用户设置', () {
+        final decoded = BrainModelRouting.decode(jsonEncode({
+          'lobe_capability_models': {
+            'temporal': {'asr': 'whisper-model'},
+          },
+        }));
+        expect(decoded.lobeCapabilityOverrides['temporal'], {
+          'asr': 'whisper-model',
+        });
+      });
+
+      test('顺序不是身份：同一份配置换个写法算相等', () {
+        const a = BrainModelRouting(
+          lobeCapabilityOverrides: {
+            'temporal': {'asr': 'w', 'tts': 'v'},
+          },
+        );
+        const b = BrainModelRouting(
+          lobeCapabilityOverrides: {
+            'temporal': {'tts': 'v', 'asr': 'w'},
+          },
+        );
+        expect(a, b);
+        expect(a.hashCode, b.hashCode);
+      });
+
+      test('值不同 ⇒ 不相等（不是恒真的比较）', () {
+        const a = BrainModelRouting(
+          lobeCapabilityOverrides: {
+            'temporal': {'asr': 'w'},
+          },
+        );
+        const b = BrainModelRouting(
+          lobeCapabilityOverrides: {
+            'temporal': {'asr': 'other'},
+          },
+        );
+        expect(a == b, isFalse);
+      });
+
+      test('旧数据（没有这个键）⇒ 空表，其余照旧', () {
+        final decoded = BrainModelRouting.decode(jsonEncode({
+          'default': 'local',
+          'lobes': {'temporal': 'cloud:deepseek'},
+          'capability_defaults': {'asr': 'w'},
+        }));
+        expect(decoded.lobeCapabilityOverrides, isEmpty);
+        expect(decoded.defaultSource.isLocal, isTrue);
+        expect(decoded.capabilityDefaults['asr'], 'w');
+      });
+    });
   });
 
   /// 路由 → 大脑要的负载。
   group('buildModelRoutingPayload', () {
+    test('⚠️ 逐叶区分档覆盖**不进**这份负载（它走分档默认面）', () {
+      final payload = buildModelRoutingPayload(
+        routing: const BrainModelRouting(
+          lobeCapabilityOverrides: {
+            'temporal': {'asr': 'whisper-model'},
+          },
+        ),
+        options: usableBrainOptions([provider()]),
+      );
+      // ⚠️ 这份负载的两个读者（Rust 槽位的 `ModelRouting`、端脑的
+      // `lobes/models`）**都没有**那个字段 ⇒ ⇒ 塞进来会被 serde 静默丢掉
+      // ⇒ ⇒ 「看起来下发了、其实没生效」。它走
+      // `setCapabilityDefaults(lobeDefaults: …)`。
+      expect(payload.containsKey('lobe_capability_models'), isFalse);
+      expect(payload.containsKey('lobe_defaults'), isFalse);
+    });
+
     test('⚠️ providers 条目带 id/base_url/model 且**不带 api_key**', () {
       final payload = buildModelRoutingPayload(
         routing: const BrainModelRouting(),

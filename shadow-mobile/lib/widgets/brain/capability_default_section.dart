@@ -6,7 +6,8 @@ import '../../providers/brain_model_source_provider.dart';
 import '../../providers/telencephalon_provider.dart';
 import '../models/capability_labels.dart';
 
-/// 「**按能力分档**的默认模型」段 —— 挂在「默认模型」卡里。
+/// 「默认模型」卡里**对话以外**的那几行 —— 语音识别 / 语音合成 / 图片生成 …
+/// 每一类各自一个默认模型。
 ///
 /// ## 为什么要有这一段
 ///
@@ -16,6 +17,13 @@ import '../models/capability_labels.dart';
 ///
 /// 现在每一类能力各有一个默认模型（端脑的 `Capability` 词表是单一真源）
 /// ⇒ ⇒ 界面照端脑给的词表渲染，不自己造词。
+///
+/// ## 只给「选了真有用」的档
+///
+/// ⚠️ 端脑词表里**不是每一档都有读者**（见 [consumedCapabilityTiers]）：
+/// - 对话档（llm）走路由面 ⇒ ⇒ 在卡片顶上那一行，**不在这里**（以前这里
+///   也画了一行「文本」⇒ ⇒ 同一页两个文本模型入口、只有一个生效）；
+/// - 端脑不读的档（向量 / 重排 / …）⇒ ⇒ 不给下拉，只说一句「暂时没得选」。
 ///
 /// ## 写路径
 ///
@@ -34,85 +42,89 @@ class CapabilityDefaultSection extends ConsumerWidget {
     final viewAsync = ref.watch(capabilityDefaultsProvider);
     final candidatesAsync = ref.watch(capabilityOptionsProvider);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Divider(height: 24),
-        Text(
-          l10n.capabilityDefaultsTitle,
-          style: Theme.of(context).textTheme.titleSmall,
-        ),
-        const SizedBox(height: 4),
-        Text(
-          l10n.capabilityDefaultsHint,
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-        const SizedBox(height: 8),
-        viewAsync.when(
-          loading: () => const Padding(
-            padding: EdgeInsets.all(12),
-            child: Center(child: CircularProgressIndicator()),
-          ),
-          // 读不到端脑 ⇒ 说真话（端脑没起 / 钥匙不对 / 地址不对），
-          // 不画成「没有这一档」。
-          //
-          // ⚠️ **直接显示端脑的原话**（不套一层「错误详情」模板）⇒ ⇒
-          // 排查时能看到**它到底说了什么**（404 / 403 / 连接失败）。
-          error: (_, e) => Text(
-            e.toString(),
+    return viewAsync.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.all(12),
+        child: Center(child: CircularProgressIndicator()),
+      ),
+      // 读不到端脑 ⇒ 说真话（端脑没起 / 钥匙不对 / 地址不对），
+      // 不画成「没有这一档」。
+      //
+      // ⚠️ **直接显示端脑的原话**（不套一层「错误详情」模板）⇒ ⇒
+      // 排查时能看到**它到底说了什么**（404 / 403 / 连接失败）。
+      error: (_, e) => Text(
+        e.toString(),
+        style: Theme.of(context).textTheme.bodySmall,
+      ),
+      data: (view) {
+        final candidates =
+            candidatesAsync.valueOrNull ??
+            const <String, List<CapabilityCandidateOption>>{};
+        final local = ref.watch(brainModelSourceProvider).capabilityDefaults;
+        if (view.capabilities.isEmpty) {
+          return Text(
+            l10n.capabilityDefaultsEmpty,
             style: Theme.of(context).textTheme.bodySmall,
-          ),
-          data: (view) {
-            final candidates =
-                candidatesAsync.valueOrNull ??
-                const <String, List<CapabilityCandidateOption>>{};
-            final local = ref.watch(brainModelSourceProvider).capabilityDefaults;
-            if (view.capabilities.isEmpty) {
-              return Text(
-                l10n.capabilityDefaultsEmpty,
+          );
+        }
+        final tiers = consumedCapabilityTiers(
+          view.capabilities,
+          view.engineResolved,
+        );
+        final notRead = unconsumedCapabilityTiers(
+          view.capabilities,
+          view.engineResolved,
+        );
+        // ⚠️ **当前默认值此刻用不了** ⇒ ⇒ 必须说出来 —— 「存得进去、
+        // 用不了」若界面不吭声 ⇒ ⇒ 用户以为配好了 ⇒ ⇒ 真到用语音时
+        // 才发现 503 ⇒ ⇒ 失败长得像成功。
+        final unusable = unusableCapabilityDefaults(
+          view.defaults,
+          view.engineResolved,
+          view.registered,
+        );
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (unusable.isNotEmpty) ...[
+              Text(
+                l10n.capabilityDefaultsUnusableNow,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.error,
+                ),
+              ),
+              for (final u in unusable)
+                Text(
+                  '${catalogCapabilityLabel(l10n, u.capability)} · ${u.modelId}',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                ),
+              const SizedBox(height: 8),
+            ],
+            for (final cap in tiers)
+              _CapabilityRow(
+                capability: cap,
+                // ⚠️ 端脑是**当前值的真源**；端脑刚重启（运行态槽清空）
+                // 而本地还留着 durable 副本时 ⇒ ⇒ 显示本地的值，
+                // 但**不假装它已经在端脑生效**（下发在保存时做）。
+                current: view.defaults[cap] ?? local[cap],
+                candidates: candidates[cap] ?? const [],
+              ),
+            // ⚠️ 端脑不读的档 ⇒ ⇒ **说出来**，不是悄悄藏掉（用户会找
+            // 「向量模型去哪了」）⇒ ⇒ 也不给下拉（选了没人用）。
+            if (notRead.isNotEmpty)
+              Text(
+                l10n.brainTiersNotReadNote(
+                  notRead
+                      .map((cap) => catalogCapabilityLabel(l10n, cap))
+                      .join(' / '),
+                ),
                 style: Theme.of(context).textTheme.bodySmall,
-              );
-            }
-            // ⚠️ **当前默认值此刻用不了** ⇒ ⇒ 必须说出来 —— 「存得进去、
-            // 用不了」若界面不吭声 ⇒ ⇒ 用户以为配好了 ⇒ ⇒ 真到用语音时
-            // 才发现 503 ⇒ ⇒ 失败长得像成功。
-            final unusable = unusableCapabilityDefaults(
-              view.defaults,
-              view.engineResolved,
-              view.registered,
-            );
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (unusable.isNotEmpty) ...[
-                  Text(
-                    l10n.capabilityDefaultsUnusableNow,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                  ),
-                  for (final u in unusable)
-                    Text(
-                      '${catalogCapabilityLabel(l10n, u.capability)} · ${u.modelId}',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                    ),
-                ],
-                for (final cap in view.capabilities)
-                  _CapabilityRow(
-                    capability: cap,
-                    // ⚠️ 端脑是**当前值的真源**；端脑刚重启（运行态槽清空）
-                    // 而本地还留着 durable 副本时 ⇒ ⇒ 显示本地的值，
-                    // 但**不假装它已经在端脑生效**（下发在保存时做）。
-                    current: view.defaults[cap] ?? local[cap],
-                    candidates: candidates[cap] ?? const [],
-                  ),
-              ],
-            );
-          },
-        ),
-      ],
+              ),
+          ],
+        );
+      },
     );
   }
 }

@@ -1,5 +1,6 @@
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
+
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -279,7 +280,8 @@ class AppLocalizationsZh extends AppLocalizations {
   String get continueDesktopTitle => '在桌面端继续';
 
   @override
-  String get continueDesktopDescription => '选择一个桌面端节点，把当前对话交接过去。音频和 TTS 保留在手机上，推理移动到桌面端。';
+  String get continueDesktopDescription =>
+      '选择一个桌面端节点，把当前对话交接过去。音频和 TTS 保留在手机上，推理移动到桌面端。';
 
   @override
   String get continueDesktopConfirm => '开始交接';
@@ -386,7 +388,8 @@ class AppLocalizationsZh extends AppLocalizations {
   String get openVoiceAssistant => '语音助手';
 
   @override
-  String get customerServiceHint => 'AI 会自动接听电话并回复。shadow-esp32 播放来电方语音和 AI 回复。插入耳机后自动切到耳机。';
+  String get customerServiceHint =>
+      'AI 会自动接听电话并回复。shadow-esp32 播放来电方语音和 AI 回复。插入耳机后自动切到耳机。';
 
   @override
   String get visualQaPickCamera => '请选择摄像头';
@@ -979,7 +982,8 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsEncephalonEmbedded => '大脑运行时';
 
   @override
-  String get settingsEncephalonEmbeddedDesc => '大脑运行状态、启停与进程内推理探针（模型选择在能力 tab：默认模型首卡与叶区 Agents 页）';
+  String get settingsEncephalonEmbeddedDesc =>
+      '大脑运行状态、启停与进程内推理探针（模型选择在能力 tab：默认模型首卡与叶区 Agents 页）';
 
   @override
   String get soulDescHintExample => '例如：\n- 语气友好、简洁\n- 称呼用户为“你”\n- 主动提供有用的建议';
@@ -1095,7 +1099,8 @@ class AppLocalizationsZh extends AppLocalizations {
   String get encephalonInferTitle => '进程内推理';
 
   @override
-  String get encephalonInferHint => '请求直接进入进程内 neuron 的 adapter 管线 —— 不走 socket，没有 CORS。';
+  String get encephalonInferHint =>
+      '请求直接进入进程内 neuron 的 adapter 管线 —— 不走 socket，没有 CORS。';
 
   @override
   String get encephalonInferPrompt => '提示词';
@@ -1110,7 +1115,8 @@ class AppLocalizationsZh extends AppLocalizations {
   String get encephalonModelSourceTitle => '默认模型';
 
   @override
-  String get encephalonModelSourceHint => '每一类模型各选各的，互不影响 —— 对话可以走云端，语音识别留在本地。叶区默认跟随这里的对话模型，也可以在下面单独指定。';
+  String get encephalonModelSourceHint =>
+      '每一类模型各选各的，互不影响 —— 对话可以走云端，语音识别留在本地。叶区默认跟随这里的对话模型，也可以在下面单独指定。';
 
   @override
   String get encephalonModelLocalNeuron => '本地 neuron 权重';
@@ -1128,7 +1134,8 @@ class AppLocalizationsZh extends AppLocalizations {
   String get encephalonModelOptionsUnavailable => '读不到大脑的供应商目录 —— 大脑可能没在跑。';
 
   @override
-  String get capabilityDefaultsAppliedButNotCached => '已下发到大脑，但本地副本没存住 —— 重启后这一档会回到默认。';
+  String get capabilityDefaultsAppliedButNotCached =>
+      '已下发到大脑，但本地副本没存住 —— 重启后这一档会回到默认。';
 
   @override
   String get capabilityDefaultUnset => '不指定';
@@ -1151,10 +1158,21 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get brainLobeSectionHint => '每个叶区默认跟随上面的对话模型，也可以单独指定。语音等其他类别目前只有全局默认。';
+  String get brainLobeSectionHint =>
+      '每个叶区默认跟随上面的对话模型，也可以单独指定；语音识别 / 语音合成还能各自再单独选一个引擎。';
 
   @override
   String get brainLobeListEmpty => '这台大脑没有可单独指定模型的叶区。';
+
+  @override
+  String brainLobeCapabilityCurrent(String model) {
+    return '当前：$model';
+  }
+
+  @override
+  String brainLobeCapabilityFollowsGlobal(String model) {
+    return '跟随全局：$model';
+  }
 
   @override
   String get encephalonLobeRoutingTitle => '叶区模型路由';
@@ -1593,7 +1611,8 @@ class AppLocalizationsZh extends AppLocalizations {
   String get memoryStorageLocationLocalHint => '本地目录的绝对路径';
 
   @override
-  String get memoryStorageLocationRemoteHint => '形如 s3://bucket/prefix 或 oss://bucket/prefix';
+  String get memoryStorageLocationRemoteHint =>
+      '形如 s3://bucket/prefix 或 oss://bucket/prefix';
 
   @override
   String get memoryStorageEndpoint => 'Endpoint';
@@ -1638,13 +1657,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get memoryStorageRetry => '重试';
 
   @override
-  String get memoryStorageBuildHint => '注意：默认构建未编入记忆体（需 mobile-memory 构建），配了也只在那样的构建里生效';
+  String get memoryStorageBuildHint =>
+      '注意：默认构建未编入记忆体（需 mobile-memory 构建），配了也只在那样的构建里生效';
 
   @override
   String get memoryStoragePendingHint => '⚠️ 存储位置在启动时读取一次 —— 保存后需要重启大脑才生效';
 
   @override
-  String get memoryStorageNoMigrationHint => '⚠️ 切换存储后端不会迁移已有记忆：Lance 数据集在第一次创建时就地生根';
+  String get memoryStorageNoMigrationHint =>
+      '⚠️ 切换存储后端不会迁移已有记忆：Lance 数据集在第一次创建时就地生根';
 
   @override
   String get memoryStorageInvalidLocation => '存储位置不能为空';
@@ -2044,10 +2065,12 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get zitiIdentityPlaceholder => '粘贴身份 JSON（含 ztAPI / id / ca / cert / key）';
+  String get zitiIdentityPlaceholder =>
+      '粘贴身份 JSON（含 ztAPI / id / ca / cert / key）';
 
   @override
-  String get zitiIdentityHint => '身份里必须含内联的 ca / cert / key 三段 PEM；写文件路径的会明确报错（那台机器上没有那个文件）';
+  String get zitiIdentityHint =>
+      '身份里必须含内联的 ca / cert / key 三段 PEM；写文件路径的会明确报错（那台机器上没有那个文件）';
 
   @override
   String get zitiImport => '导入身份';
@@ -2062,7 +2085,8 @@ class AppLocalizationsZh extends AppLocalizations {
   String get zitiRestartHint => '零信任角色在启动时定死 ⇒ 保存只落盘，重启 App 后生效。';
 
   @override
-  String get zitiSecretHint => '身份含私钥，存在 App 私有目录；shadow key / admin token 仍走宿主，不在这里填。';
+  String get zitiSecretHint =>
+      '身份含私钥，存在 App 私有目录；shadow key / admin token 仍走宿主，不在这里填。';
 
   @override
   String get zitiImportFailed => '导入失败';
@@ -2071,7 +2095,8 @@ class AppLocalizationsZh extends AppLocalizations {
   String get zitiSaveFailed => '保存失败';
 
   @override
-  String get capabilityDefaultsUnusableNow => '下面这几档指向的模型这台大脑还没注册 —— 设置存住了，但引擎注册前跑不起来。';
+  String get capabilityDefaultsUnusableNow =>
+      '下面这几档指向的模型这台大脑还没注册 —— 设置存住了，但引擎注册前跑不起来。';
 
   @override
   String get providersDownloadModels => '下载本地模型';

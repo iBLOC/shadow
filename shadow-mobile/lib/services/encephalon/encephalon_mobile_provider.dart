@@ -395,6 +395,24 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
     return applyModelRouting();
   }
 
+  /// 改**某个叶区某一档**（asr / tts）的模型 —— 覆盖全局分档默认。
+  ///
+  /// [model] 传 null / 空串 ⇒ 删掉这一格 ⇒ 该叶区该档回到跟随全局。
+  /// 与 [applyLobeOverride] 同一条下发链（槽位 ＋ 端脑面），**不必重启**。
+  ///
+  /// ⚠️ **能力词的合法性由端脑判**（`PER_LOBE_CAPABILITIES`）—— 界面只
+  /// 给端脑 `engine_resolved` 里那几档，所以正常路径不会撞 400。
+  Future<bool> applyLobeCapability(
+    String lobe,
+    String capability,
+    String? model,
+  ) async {
+    await _ref
+        .read(brainModelSourceProvider.notifier)
+        .setLobeCapabilityOverride(lobe, capability, model);
+    return applyModelRouting();
+  }
+
   /// 把当前路由**落地**（用户改了全局默认或某个叶区）。
   ///
   /// 两步：
@@ -437,20 +455,30 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
     return slotOk;
   }
 
-  /// 把**分档默认模型**（能力词 → 模型 id）打到端脑面。
+  /// 把**分档默认模型**（能力词 → 模型 id）**＋ 逐叶区覆盖**打到端脑面。
   ///
   /// ⚠️ **它不走模型路由那条面** —— `POST /api/telencephalon/lobes/models`
-  /// 的请求体里没有这一档 ⇒ ⇒ serde 会**静默丢掉** ⇒ ⇒ 所以单独一条面
+  /// 的请求体里没有这两档 ⇒ ⇒ serde 会**静默丢掉** ⇒ ⇒ 所以单独一条面
   /// （`PUT /api/telencephalon/lobes/capability-defaults`）。
   ///
-  /// ⚠️ **整份替换**（与模型路由同一套路）⇒ ⇒ 两端不会各留一半。
+  /// ⚠️ **`lobe_defaults` 必须一起发**（2026-11-13）：手机的大脑随 App
+  /// 起停 ⇒ ⇒ 端脑那张表是**内存态** ⇒ ⇒ 不带 ⇒ 冷启一次，用户配的
+  /// 「颞叶用哪个语音模型」全丢。
+  ///
+  /// ⚠️ **两面都是整份语义**（与模型路由同一套路）⇒ ⇒ 两端不会各留一半。
   Future<bool> _pushCapabilityDefaults() async {
     final client = _ref.read(telencephalonClientProvider);
-    final defaults =
-        _ref.read(brainModelSourceProvider).routing.capabilityDefaults;
+    final routing = _ref.read(brainModelSourceProvider).routing;
+    final defaults = routing.capabilityDefaults;
+    final lobeDefaults = routing.lobeCapabilityOverrides;
     try {
-      await client.setCapabilityDefaults(defaults);
-      _log.info('分档默认模型已下发: $defaults');
+      await client.setCapabilityDefaults(
+        defaults,
+        // ⚠️ **总是发**（含空表）—— 这里发的是**全量真相**：手机是这份
+        // 配置的主人，清空一个格也要真的清掉。
+        lobeDefaults: lobeDefaults,
+      );
+      _log.info('分档默认模型已下发: $defaults / 叶区覆盖: $lobeDefaults');
       return true;
     } catch (e) {
       _log.warning('分档默认模型下发失败: $e');
@@ -484,7 +512,9 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
             .cast<Map<String, String>>()
             .toList(growable: false),
       );
-      _log.info('模型路由已下发: 默认=${payload['default_model']}, 覆盖=$lobeModels');
+      _log.info(
+        '模型路由已下发: 默认=${payload['default_model']}, 覆盖=$lobeModels',
+      );
       return true;
     } catch (e) {
       _log.warning('模型路由下发失败: $e');

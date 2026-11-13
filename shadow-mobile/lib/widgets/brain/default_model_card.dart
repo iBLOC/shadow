@@ -6,18 +6,28 @@ import '../../providers/brain_model_source_provider.dart';
 import '../../services/encephalon/encephalon_mobile_provider.dart';
 import '../glass_card.dart';
 import 'capability_default_section.dart';
+import 'lobe_routing_section.dart';
 
-/// 「默认模型」卡 —— **全局默认**的大脑模型来源选择。
+/// 「默认模型」卡 —— 大脑**每一类**模型各用哪个，以及哪些叶区单独指定了。
 ///
-/// 这是「大脑用哪个模型回答」的唯一全局入口，住在能力 tab 落地首屏
-/// （从嵌入式大脑页搬上来 —— 那页是运行时/排障面，模型选择埋在那里
-/// 用户找不到 ⇒ 「无处设置默认模型」）。叶区级的单独覆盖在叶区
-/// Agents 页（每个 agent 行内的下拉），两处共用同一份状态与下发链。
+/// 住在能力 tab 落地首屏，是「大脑用哪个模型」的唯一全局入口。
+///
+/// ## 不是二选一
+///
+/// ⚠️ 以前这张卡是一组单选（本地权重 / 某个云端）⇒ ⇒ 读起来像「整个大脑
+/// 要么本地、要么云端」。实际上大脑是**混合态**：每一类模型各有各的默认
+/// （对话可以走云端、语音识别留在本地），每个叶区还能单独换一边。
+/// ⇒ ⇒ 所以卡片是一张**按类的表**，一类一行，各选各的：
+///
+/// - **对话模型**（[_ChatModelRow]）—— 本地权重或某个云端；写路由面
+///   （`applyModelSource` ⇒ 落盘 + 下发大脑，不重启生效）；
+/// - **语音识别 / 语音合成 / 图片生成 …**（[CapabilityDefaultSection]）——
+///   端脑真的会读的那几档，写分档默认面；
+/// - **叶区**（[LobeRoutingSection]）—— 跟随上面的对话模型，或单独指定；
+///   与叶区 Agents 页是同一行组件、同一份状态。
 ///
 /// ⚠️ 选项**直读大脑**的供应商目录（App 本地不镜像供应商表）：
 /// loading / error 都要说真话，不许静默空列表装作「没有云供应商」。
-/// ⚠️ 写入走 `EncephalonMobileNotifier.applyModelSource` —— 与嵌入式大脑页
-/// 同一条链（落盘 + 下发大脑，不重启生效），这里不另造一条写路径。
 class DefaultModelCard extends ConsumerWidget {
   const DefaultModelCard({super.key});
 
@@ -53,9 +63,9 @@ class DefaultModelCard extends ConsumerWidget {
             l10n.encephalonModelSourceHint,
             style: Theme.of(context).textTheme.bodySmall,
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           optionsAsync.when(
-            data: (options) => _DefaultModelChoices(
+            data: (options) => _ChatModelRow(
               sourceState: sourceState,
               options: options,
             ),
@@ -70,22 +80,24 @@ class DefaultModelCard extends ConsumerWidget {
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ),
-          // ⚠️ **「来源」之上还有一层「分档默认」** —— 「走本地还是走云端」
-          // 说的是**哪一边**，而「文本 / 语音识别 / 语音合成 各用哪个模型」
-          // 说的是**哪一个** ⇒ ⇒ 两件事，两个界面。
+          const SizedBox(height: 12),
           const CapabilityDefaultSection(),
+          const LobeRoutingSection(),
         ],
       ),
     );
   }
 }
 
-/// 默认模型的选择列表（按模态分组：文本模型 / 视觉模型）。
-class _DefaultModelChoices extends ConsumerWidget {
+/// 「对话模型」这一行 —— 全局默认的对话模型：本地权重，或某个云端。
+///
+/// 文本模型与视觉模型都是对话上游（视觉 = 还能看图的对话模型）⇒ ⇒
+/// 同一个下拉里，每条带上自己是哪一种。
+class _ChatModelRow extends ConsumerWidget {
   final BrainModelSourceState sourceState;
   final List<BrainModelOption> options;
 
-  const _DefaultModelChoices({
+  const _ChatModelRow({
     required this.sourceState,
     required this.options,
   });
@@ -93,16 +105,9 @@ class _DefaultModelChoices extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context)!;
+    final textTheme = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
     final notifier = ref.read(encephalonMobileProvider.notifier);
-
-    final textOptions = [
-      for (final o in options)
-        if (o.chatCategory == ModelChatCategory.text) o,
-    ];
-    final visionOptions = [
-      for (final o in options)
-        if (o.chatCategory == ModelChatCategory.vision) o,
-    ];
 
     // 实际在用的是哪个 —— 用户没显式选过时是「自动」（第一条可对话
     // 选项，没有就是本地权重）。resolve 与下发链用**同一份**选项列表。
@@ -112,8 +117,43 @@ class _DefaultModelChoices extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        RadioGroup<String>(
-          groupValue: selected,
+        DropdownButtonFormField<String>(
+          // ⚠️ key 里带当前值 ⇒ ⇒ 换完之后这一行会**重建** ⇒ ⇒ 下拉框里
+          // 显示的是新值（`initialValue` 只在首次 build 时读）。
+          key: ValueKey<String>('chat-default-$selected'),
+          initialValue: selected,
+          isExpanded: true,
+          decoration: InputDecoration(
+            labelText: l10n.brainChatModelLabel,
+            border: const OutlineInputBorder(),
+            isDense: true,
+          ),
+          items: [
+            DropdownMenuItem(
+              value: BrainModelSource.local,
+              child: Text(l10n.encephalonModelLocalNeuron),
+            ),
+            for (final o in options)
+              DropdownMenuItem(
+                value: o.id,
+                child: Row(
+                  children: [
+                    Flexible(
+                      child: Text(o.name, overflow: TextOverflow.ellipsis),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      o.chatCategory == ModelChatCategory.vision
+                          ? l10n.modelCategoryVision
+                          : l10n.modelCategoryText,
+                      style: textTheme.labelSmall?.copyWith(
+                        color: scheme.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
           onChanged: (value) async {
             if (value == null) return;
             final source = value == BrainModelSource.local
@@ -131,67 +171,57 @@ class _DefaultModelChoices extends ConsumerWidget {
               ),
             );
           },
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              RadioListTile<String>(
-                value: BrainModelSource.local,
-                title: Text(l10n.encephalonModelLocalNeuron),
+        ),
+        const SizedBox(height: 6),
+        // 这一类此刻落在哪一边 —— 混合态要一眼看得出来。
+        Row(
+          children: [
+            _SourceBadge(
+              label: effective == null
+                  ? l10n.brainModelBadgeLocal
+                  : l10n.brainModelBadgeCloud,
+            ),
+            if (effective != null) ...[
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '${effective.baseUrl} · ${effective.model}',
+                  style: textTheme.bodySmall,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
-              // ── 文本模型（对话）──────────────────────────
-              if (textOptions.isNotEmpty) ...[
-                _GroupLabel(label: l10n.modelCategoryText),
-                for (final o in textOptions)
-                  RadioListTile<String>(
-                    value: o.id,
-                    title: Text(o.name),
-                    subtitle: Text(
-                      '${o.baseUrl} · ${o.model}',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ),
-              ],
-              // ── 视觉模型（文本 + 图像输入）───────────────
-              if (visionOptions.isNotEmpty) ...[
-                _GroupLabel(label: l10n.modelCategoryVision),
-                for (final o in visionOptions)
-                  RadioListTile<String>(
-                    value: o.id,
-                    title: Text(o.name),
-                    subtitle: Text(
-                      '${o.baseUrl} · ${o.model}',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ),
-              ],
             ],
-          ),
+          ],
         ),
         if (options.isEmpty) ...[
           const SizedBox(height: 8),
-          Text(
-            l10n.encephalonModelNoCloudProvider,
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
+          Text(l10n.encephalonModelNoCloudProvider, style: textTheme.bodySmall),
         ],
       ],
     );
   }
 }
 
-class _GroupLabel extends StatelessWidget {
+/// 「本地 / 云端」小徽章。
+class _SourceBadge extends StatelessWidget {
   final String label;
 
-  const _GroupLabel({required this.label});
+  const _SourceBadge({required this.label});
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 16, top: 8, bottom: 4),
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: scheme.primary.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(4),
+      ),
       child: Text(
         label,
-        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: Theme.of(context).colorScheme.primary,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: scheme.primary,
             ),
       ),
     );

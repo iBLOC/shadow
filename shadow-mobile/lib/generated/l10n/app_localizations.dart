@@ -2243,7 +2243,7 @@ abstract class AppLocalizations {
   /// No description provided for @brainLobeSectionHint.
   ///
   /// In en, this message translates to:
-  /// **'Each lobe follows the chat model above until you set one for it. Other categories (speech etc.) only have a global default for now.'**
+  /// **'Each lobe follows the chat model above until you set one for it; speech recognition / speech synthesis can each pick their own engine per lobe.'**
   String get brainLobeSectionHint;
 
   /// No description provided for @brainLobeListEmpty.
@@ -2251,6 +2251,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This brain has no lobes that can be set individually.'**
   String get brainLobeListEmpty;
+
+  /// No description provided for @brainLobeCapabilityCurrent.
+  ///
+  /// In en, this message translates to:
+  /// **'Current: {model}'**
+  String brainLobeCapabilityCurrent(String model);
+
+  /// No description provided for @brainLobeCapabilityFollowsGlobal.
+  ///
+  /// In en, this message translates to:
+  /// **'Follows global: {model}'**
+  String brainLobeCapabilityFollowsGlobal(String model);
 
   /// No description provided for @encephalonLobeRoutingTitle.
   ///

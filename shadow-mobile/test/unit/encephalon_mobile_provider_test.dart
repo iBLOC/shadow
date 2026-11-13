@@ -756,9 +756,9 @@ Future<void> _waitUntil(
   await Future<void>.delayed(Duration.zero);
 }
 
-/// 假的端脑 client —— 只实现「叶区列表」和「下发路由」两条。
+/// 假的端脑 client —— 只实现「叶区列表」「下发路由」「下发分档默认」三条。
 ///
-/// 这两条是**纯本地**的（不真的发 HTTP），所以测试里不该走真网络。
+/// 这几条在测试里不该走真网络（纯本地状态）。
 class _FakeTelencephalonClient extends TelencephalonClient {
   /// 端脑面返回的原生叶区清单。
   final List<String> lobes = const ['temporal', 'prefrontal', 'parietal'];
@@ -766,6 +766,9 @@ class _FakeTelencephalonClient extends TelencephalonClient {
   /// 每次 `applyLobeModels` 收到的**整份**路由
   /// （`default_model` + `lobe_models` 覆盖集合）。
   final List<Map<String, dynamic>> applied = [];
+
+  /// 每次 `setCapabilityDefaults` 收到的（全局默认 ＋ 逐叶区表）。
+  final List<Map<String, dynamic>> appliedCapabilityDefaults = [];
 
   _FakeTelencephalonClient() : super(baseUrl: 'http://127.0.0.1:1');
 
@@ -784,8 +787,27 @@ class _FakeTelencephalonClient extends TelencephalonClient {
     applied.add({
       'default_model': defaultModel,
       'lobe_models': Map<String, String?>.from(lobeModels),
+      // ⚠️ 这一面**没有**逐叶区分档字段（多塞会被 serde 丢掉）⇒ ⇒ 记录
+      // 实际发出去的东西，测试据此钉「它不在这份负载里」。
+      'providers': providers,
     });
     return {'applied': lobeModels};
+  }
+
+  @override
+  Future<Map<String, dynamic>> setCapabilityDefaults(
+    Map<String, String> defaults, {
+    Map<String, Map<String, String>>? lobeDefaults,
+  }) async {
+    appliedCapabilityDefaults.add({
+      'defaults': Map<String, String>.from(defaults),
+      if (lobeDefaults != null)
+        'lobe_defaults': {
+          for (final e in lobeDefaults.entries)
+            e.key: Map<String, String>.from(e.value),
+        },
+    });
+    return {'defaults': defaults};
   }
 }
 
