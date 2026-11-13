@@ -1,3 +1,35 @@
+**Updated**: 2026-11-13 (㔞 **「获取模型后没有分类 —— 不是分类器坏了，是这份清单从来没人给过分类」** —— 承 㔜 条（llm 路由那半：分档卡看得见才选得了）＋ 㔛 条④❷（分档候选缺云模型），本条记**取证（真机 182 条全空逐字）**、**第一因（上游不回标注、端脑只透传）**、**第二因（空标注在所有按能力分桶的消费方都等于「不存在」）**、**第三因（只修写时不够：存量数据已是空）**、**词表选择（llm 而非 chat 的四方兼容理由）**、**这一刀的落点（一处判据＋两处调用）**、**判据与分级读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-13 | authority=measured | scope=project | source=真机逐字（用户既有 `qianwenai` 供应商，`POST /models/providers/qianwenai/fetch-models` 修前响应：`{"id":"kimi-k3.1-pro",…,"capabilities":[]}` 等 **182 条全空**）＋ 源码逐字（`parse_models_from_response` 只读上游 `capabilities` 数组；`ProviderView::from` 原样 `models: p.models.clone()`；`synapse::providers::catalog::infer_capability` 只认非对话族、认不出 ⇒ None）｜ 改动：**telencephalon**（`src/api/providers.rs`：新 `inferred_capability_for`（一处判据）＋ 写时 `parse_models_from_response` 回填 ＋ 读面 `backfill_model_capabilities`（`ProviderView::from` 里调用，只改视图不写盘）＋ 6 条测试）＋ **shadow**（AGENTS.md 本条）⇒ ⇒ **2 仓** ｜ 读数：真机**写时**（fetch-models 响应 182 条零空标注：llm 177／embedding 2／tts 2／rerank 1）＋ **读时**（同一批存量数据走 `list_providers` 立刻带分类，不必重刷）＋ **UI**（分档卡「文本模型」192 候选含 `kimi-k3.1-pro`；重排 4 含云端 `qwen3.7-text-rerank`；向量 7 含 `qwen3.7-text-embedding`）＋ `cargo check --lib` 通过 ＋ 干净 worktree 内 providers 测试 **51/51** ｜ 真 CI 待取 | status=active | supersedes=none
+
+① **⚠️ 取证：不是「分不了类」，是「根本没有分类值」** —— 用户报「云端大模型供应商的获取模型后无法针对模型进行分类，没有分类就无法分类选择默认模型」。真机逐字：`qianwenai` 的 `fetch-models` 拉回 **182 条**真实模型（`kimi-k3.1-pro`／`antdigital/Ling-3.1-flash`／`vanchin/deepseek-v4.1-flash-1017`／`cmaas-glm-5.3` …），**每一条 `capabilities: []`**。⇒ ⇒ 不是推断了错的值，是**这个字段从来没人写过**。
+
+② **⚠️ 第一因：上游不回标注，端脑只透传 ⇒ 空在链上原样流通** —— OpenAI 兼容的 `GET /v1/models` 只回 `id`（有时带 `name`），**没有能力字段**；`parse_models_from_response` 只读 `model.capabilities` ⇒ 拿不到就是空数组 ⇒ 原样存进 provider。而唯一「有分类」的那条（`qwenai-qwen38-max` 标着 `chat`/`tools`）走的是 **preset 目录**（`synapse` 里手写的），不是拉回来的 ⇒ ⇒ **两条路两个真相：手写的模型有分类，拉回来的没有**。
+
+③ **⚠️ 第二因：空标注在所有「按能力分桶」的消费方那里都等于「不存在」** —— 这一格是它为什么表现为「看不见」而不是「标错了」：
+　❶ **分档默认卡**：`capabilityCandidatesByCapability` 按 `capability` 词分桶 ⇒ 空词不进任何一桶 ⇒ 文本模型行只剩内置目录模型（真机修前：14 个候选全内置）。
+　❷ **端脑 auto-match**：`auto_match_models_to_lobes` 按 `required_capabilities` 匹配 ⇒ 空永远匹配不上 ⇒ 叶区拿不到云模型。
+　❸ **移动端大脑页**：`chatCategoryOf(null)` 虽返回 text（`''`/null 也算对话），但 `capabilityCandidatesByCapability` 里 `cap.isEmpty() ⇒ continue` ⇒ 仍被丢掉。
+　❹ **供应商页的模型下拉**：`m.capability` 为空 ⇒ 只是不显示前缀（这一格不痛）。
+　⇒ ⇒ **通用形态：一个「分类」字段的空值，在按类分桶的每个消费方都表现为「这条模型不存在」—— 用户看到的是「获取了但用不上」，不是「标注错了」。**
+
+④ **⚠️ 第三因：只修「写时」不够 —— 用户手里那批已经是空的了** —— 用户早就点过刷新（182 条已落在 provider 里）⇒ 只改 `parse_models_from_response` 要等他**再点一次刷新**才生效 ⇒ 期间界面照旧空 ⇒ 「修好了吗」看不出来。⇒ ⇒ 判据要落在**读面**：`ProviderView::from` 里对空标注回填 ⇒ 存量立刻可见（真机：重启后 `list_providers` 直接回 177 llm／2 embedding／2 tts／1 rerank，**零空标注**）。⚠️ 读面回填**只改视图不写盘**（读是纯读；盘上那份等下次 fetch-models 自然覆盖 —— 真机两格都验了）。
+
+⑤ **⚠️ 词表选择：标 `llm` 不标 `chat`** —— 云供应商把对话模型标成 `chat`，而端脑词表是 `llm`。回填必须用**消费方能认的那个词**，逐个核过四个消费方：
+　❶ 端脑 `auto_match_models_to_lobes`：按 `required_capabilities` 匹配 ⇒ 叶区要的是 `llm`；
+　❷ 移动端 `chatCategoryOf`：认 `llm`/`text`，**不认 `chat`**；
+　❸ 桌面分档卡：按词分桶 ⇒ `llm` 直接进「文本模型」桶（`chat` 要额外搭别名，见 㔜 条②）；
+　❹ 供应商页显示：`m.capability` 原样当徽章。
+　⇒ ⇒ **`llm` 一个词四方全兼容；`chat` 要三处搭桥。** ⇒ 通用形态：**回填词要选「消费方词表里的那个」，不是「上游语境的直觉词」。**
+
+⑥ **✅ 这一刀的落点（telencephalon 1 文件 ＋ shadow 台账）** —— ❶ 新 `inferred_capability_for(id) -> String`：**一处判据** —— 先 `synapse::providers::catalog::infer_capability`（族缀保守推断：`rerank` → `embedding` → `asr` → `tts` → `image_gen` → `video_gen`，**rerank 必须先于 embedding** —— `bge-reranker-*` 两个族缀都有），认不出 ⇒ `llm`。❷ 写时：`parse_models_from_response` 对空标注 push 一个推断词（落盘即带分类）。❸ 读面：`backfill_model_capabilities(&p.models)` 在 `ProviderView::from` 里（存量数据不必重刷）。❹ 6 条测试：族缀推断 ／ 认不出⇒llm ／ rerank 先于 embedding ／ 上游标注原样保留 ／ 存量读面回填（且断言**盘上那份没被改**）／ 存量真标注不被覆盖。
+
+⑦ **⚠️ 仍然欠着的** —— ❶ **音频族**：`infer_capability` 不认 `audio`/`realtime`（真机 `qwen-audio-3.1-realtime-flash` 被标成 `llm`）⇒ 它会出现在「文本模型」候选里，选了必失败 ⇒ 欠一条音频词（要动 synapse 的词表 ⇒ 与 㔝 条那族的词表收敛一起做）；❷ **手动更正**：自动推断错了，界面目前**没有**「改这条模型的能力」入口（`UpdateProviderRequest` 没有 model 级 capabilities 写入）⇒ 需要一条「手动覆盖」的路，否则用户只能等词表扩展；❸ **视觉**：`vision` 只能从上游标注来，推断不出 ⇒ 多模态模型的「视觉模型」档仍然空；❹ 兄弟在飞面（`lobe_defaults` per-lobe 分档）与本法互补：**本刀保证「有分类」，那刀决定「分类后的默认值按叶区分」** —— 两条要一起才闭合「按叶区选模型」；❺ 真 CI 待推后取。
+
+⑧ **⚠️ 途中那格（与兄弟仓有关，如实记）** —— `telencephalon` 的 **HEAD 提交本身 `cargo test --lib` 编不过**：`src/api/images.rs` 与 `src/api/mod.rs` 已用 `state.provider_store`，而 `src/state.rs` 的该字段**还在兄弟在飞面**（`M src/state.rs`）⇒ ⇒ **半截提交**。本刀的测试因此在**干净 worktree ＋ 兄弟 state.rs 临时带入**下跑（51/51）；`cargo check --lib`（非 test）在主仓通过 ⇒ 真机可验。⇒ ⇒ 通用形态：**跨文件的新字段要么一个提交带齐，要么测试面会替下一个人红**（承 㔝 条同族）。
+
+⑨ **⚠ 圈码：本条占 U+351E（㔞）** —— 号按官方口径在**提交树面**取（取样时刻 2026-11-13T02:4x ｜ HEAD c64b406 ⇒ 父仓三面水位 U+351D ⇒ 候选头一个 U+351E）⇒ 字形由 String.fromCodePoint 生成，不手打。
+
 **Updated**: 2026-11-13 (㔝 **「同一件事两个会话各写了一套 —— 我把重复的真相提交进了两个仓，然后按机械取证把它撤了」** —— 承 U+3500 条（失败长得像成功）＋ U+3506 条（整文件重写顶掉在飞改动），本条记**取证（两套契约逐字对照）**、**第一因（同一功能两个会话各起一套真相）**、**第二因（我的形状弱在哪三处）**、**第三因（提交只查 HEAD、不查在飞面 ⇒ 造出第二真相）**、**这一刀的落点**、**途中那几课**、**判据与分级读数**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-13 | authority=measured | scope=project | source=两套契约逐字（**我的**：`POST /lobes/models` 的 `lobe_capability_models` ＋ voice 的 `conversation_id` ＋ `encephalon::embedded::ModelRouting` 新字段 —— 已提交 telencephalon `66fc93c` / encephalon `bd4c59a`（**均未推送**）；**兄弟在飞面**：`PUT /lobes/capability-defaults` 的 `lobe_defaults` ＋ 新 `GET /lobes/routing` ＋ voice/images 的 `lobe` 参数 ＋ `LobeCache::lobe_capability_defaults/replace_lobe_capability_defaults`（`src/registry/cache.rs`、`src/api/lobe_manifest.rs`、`src/api/voice.rs`、`src/api/images.rs` 在飞 diff 逐字）＋ 桌面 `LobeModelMatrixCard.tsx`）｜ 改动：**shadow**（移动端 19 文件：`brain_model_source_provider.dart`（状态层 per-lobe 分档覆盖，本地键 `lobe_defaults`，旧键只读兼容）＋ `lobe_capability_row.dart`（新）＋ `lobe_routing_section.dart`（新）＋ `lobe_model_override_row.dart`（新，与智能体页共用）＋ `default_model_card.dart`（按类默认表）＋ `capability_default_section.dart`（只给端脑真读的档）＋ `agents_screen.dart` ＋ `encephalon_mobile_provider.dart`（`applyLobeCapability` ＋ push 带 `lobeDefaults`）＋ `telencephalon_client.dart` ＋ arb×2 ＋ generated×3 ＋ 测试 8 文件 ＋ `AGENTS.md` 本条）＋ **撤销** telencephalon `66fc93c` / encephalon `bd4c59a`（CAS 回退到 `522998a` / `393212d`，未推送）⇒ ⇒ 零新依赖 ＋ 零 ci.yml 改动 ｜ 读数：`dart analyze` 本刀文件 **0 issue** ＋ 定向 **59/59** ＋ 移动全量 **843 过 / 12 跳 / 5 红**（4 `capability_grants_section_test` ＋ 1 `backend_shadow_key_entry_test` —— **两者都是已提交文件的 HEAD 既有红，与本刀零交集**）＋ i18n **991/991** ＋ endpoint-map 7 条 missing **全非本刀**（desktop `lobes/routing`＋`lobes/manifest` 属兄弟在飞；mobile `images_generations`／`config`／`traces` 属既存未登记）｜ 真 CI 待取 | status=active | supersedes=none
