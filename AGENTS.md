@@ -1,3 +1,25 @@
+**Updated**: 2026-11-13 (㔫 **「评估其他 MCP 支持：真第三方 streamable HTTP 端到端打通、stdio 真服务器热启动 1.6s、Windows 的 npx 是 .cmd shim 裸 spawn 必挂、SSE-only 长尾的拒绝形状实测、GitHub hosted 401+Bearer 可接」** —— 承 㔩 条（两端添加 ha-mcp 落地）＋ 端脑 ㌑ 条（活会话客户端），本条为**纯评估**：五组探针实测、零代码改动，记**真第三方 HTTP 端到端**、**stdio 真服务器读数**、**Windows spawn 缺口与今天的解法**、**SSE-only 拒绝形状**、**hosted/OAuth 面**、**优先级建议**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-13 | authority=measured | scope=project | source=五组探针（① rustc `Command` 探针：`Command::new("npx")` ⇒ **`program not found`**（npx 是 `npx.CMD` shim，CreateProcess 不解析）；`cmd /c npx` ⇒ 版本 11.6.2；`node`/`uvx`（真 `.exe`）⇒ 正常——`uvx.exe` 在 `C:\Users\<user>\.local\bin`；② 真第三方 **DeepWiki** `https://mcp.deepwiki.com/mcp`（公开 streamable HTTP）全链 curl：initialize ⇒ 200 **SSE 帧**＋**无 `mcp-session-id`**（stateless）⇒ notification ⇒ tools/list（4 工具）⇒ **tools/call `read_wiki_structure("modelcontextprotocol/servers")` 返回真 wiki 目录**；③ 真第三方 stdio：`cmd /c npx -y @modelcontextprotocol/server-filesystem` 握手 16 工具、`tools/call read_file` 真内容——**冷 14.7s（npm 下载）／热 1.6s**；④ 本地 SSE-only 服务器实测：POST-only 客户端（＝端脑形状）打 `/messages` ⇒ **202 空体**，无响应可读 ⇒ 旧握手不可完成；⑤ GitHub hosted `api.githubcopilot.com/mcp/` ⇒ **401＋`WWW-Authenticate: Bearer`＋resource_metadata**）＋ 承端脑 ㌑（streamable 活会话客户端与 DeepWiki 形状逐条对上）｜ 改动：**仅本仓 AGENTS.md 本条**（零代码／零依赖／零端点；探针脚本在仓外 `%TEMP%\probe-mcp`，不入库）｜ 读数：见 ①–⑤，全部本机实测 ｜ status=active | supersedes=none
+
+① **✅ 真第三方 streamable HTTP：端到端打通（决定性一格）** —— DeepWiki 全链四步全绿；**无会话头**的 stateless 形状照绿 ⇒ 端脑 ㌑「给了才带回」纪律在**真部署**上首证（此前的假服务器只证协议形状，承「本机绿≠CI绿」同族教训）；响应是 SSE 帧 ⇒ 新客户端的帧解析在真服务器上兑现。⇒ **hosted MCP 里凡是 bearer/免鉴权形状的，今天就能接**（端脑 bearer 直传，桌面/移动同面）。
+
+② **✅ stdio 腿×真服务器：形状兼容，热启动 1.6s 实用** —— `@modelcontextprotocol/server-filesystem`（16 工具）initialize/tools/list/tools/call 全绿；**热 1.6s**（缓存后）⇒ stdio 不是死腿；冷 14.7s 是 npm 首次下载，start 面可接受（有 state=Starting 显示）。
+
+③ **⚠️ Windows spawn 缺口（实测）＋今天的解法** —— `npx` 是 `npx.CMD` shim ⇒ 端脑 `Command::new("npx")` **必挂**（`program not found`）；`cmd /c npx …`／直接填 `.exe`（uvx／自制 node 入口）今天就能用（探针实测）。桌面表单即日可用的填法：command=`cmd`、args=`/c npx -y <pkg> <path>`；**`uvx`/`uv` 是真 exe，直填即可**（ha-mcp 的 stdio 形状就是 `uvx ha-mcp@latest`）。⚠️ 两格既有约束照旧：args 按空白切分（带空格路径会碎）＋ UI 无引导 ⇒ **P1 小刀：桌面 stdio 表单加 cmd/uvx 引导文案（一行 placeholder）**；更深修法（客户端解析 `.cmd`/PATHEXT 或自动包 `cmd /c`）属端脑刀。
+
+④ **⚠️ SSE-only 长尾：拒绝形状实测（缺口实锤）** —— 旧传输（GET `/sse` 开流＋`endpoint` 事件＋POST `/messages`，响应走流）在端脑腿上：POST `/messages` 回 **202 空体** ⇒ 无响应可读 ⇒ start 必落 Error。hosted 生态已基本迁移 streamable（DeepWiki 即证），长尾主要是 self-host 老服务器与个别云（如 HA 旧版集成）⇒ **P2 刀：端脑补 SSE 腿**（GET 事件流＋endpoint 事件＋message POST，会话语义与 ㌑ 会话并行）。
+
+⑤ **⚠️ hosted/OAuth 面：bearer 形状可接、OAuth-only 接不了** —— GitHub hosted 端点 401＋`WWW-Authenticate: Bearer`＋resource_metadata ⇒ PAT-as-bearer 形状**形状可接**（未带真 token 实测，本机无 PAT）；OAuth-only hosted（Notion/Linear/Atlassian 一族）需要浏览器授权流，端脑纯 bearer 做不了 ⇒ 与 㔩⑥❸ 同族，**P3**（要做就是桌面开一个本机回调端口跑 Authorization Code＋PKCE，端脑只认结果 token）。
+
+⑥ **⚠️ wasm 腿的现实意义** —— npm/PyPI 生态没有「MCP server as wasm」的发行形态，wasm 腿只服务**自家工具打包**（`telencephalon_wasm_binaries` 表），不是接第三方生态的路 ⇒ 维持现状即可，不在评估建议里。
+
+⑦ **⚠️ 仍然欠着的** —— ❶ P1 引导文案未落（桌面表单一行字）；❷ SSE 腿（P2）与 OAuth 流（P3）未立项；❸ DeepWiki/GitHub hosted 的**长期**可用性未监控（公开端点会变）；❹ 本机探针脚本不入库（一次性），复跑命令写在 ①③④ 各段。
+
+⑧ **⚠ 圈码：本条占 U+352B（㔫）** —— 号按官方口径在**提交树面**取（取样时刻 2026-11-14T00:1x ｜ HEAD f9df375 ⇒ 父仓提交树面水位 U+352A（兄弟已占 㔪）⇒ 候选头一个 U+352B）⇒ 字形由 `String.fromCodePoint(0x352B)` 生成，不手打。
+
+⑨ **⚠️ 就地续记（不占新码位）：本条第一版在「闸跑完 → 提交」的窗口里被并行会话的整文件重写从工作树顶掉（HEAD 里没有它 ⇒ 正是 㔤/U+3506 那一族，这次被顶掉的是本条自己）** —— 处置按纪律：确认工作树==HEAD 后**原样重插**并立即以最小窗口提交（本次）；⇒ 通用形态再证一次：**共享工作树上「写完就立刻提交」，评估类纯台账条目也不例外**；㔤 条那道「暂存面条目数不许少于 HEAD」的闸只护提交时刻，护不了工作树窗口。
+
 **Updated**: 2026-11-13 (㔪 **「MIX 4 真机第二轮 —— 记忆存储三段链与两把钥匙在手机上全部闭合；两个每次启动必炸的稳定异常浮出水面」** —— 承 㔚 条（MIX 4 真机第一轮：SELinux 四格）＋ 㔗 条（记忆存储设置页）＋ 㔓 条（通知读取第 1 刀），本条记**读数① 启动链（两把钥匙严格分家）**、**读数② 通知授权态跨重启稳定而服务未绑定**、**读数③ 记忆存储三段链真机闭合**、**两个新浮出的稳定异常（routing -1 ＋ background_run 断言）**、**方法学（IME 吃注入 ⇒ 控制面直打）**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-13 | authority=measured | scope=project | source=真机逐字（MIX 4 ＝ ee6b4832 / odin，USB adb；APK 265MB ＝ mobile-memory 档，兄弟 01:56 装；force-stop 冷启两轮：port 38145 → 41943；`run-as` 读 files/；`adb forward tcp:18081 tcp:<agentPort>` ＋ 脑面 HTTP 逐字；截图 9 张）｜ 改动：**shadow**（AGENTS.md 本条；真机测试零代码改动、测试残留已清——mem-e2e 数据集目录已删、storage_uri 已 DELETE、forward 已摘）⇒ ⇒ **1 仓零代码** ｜ 读数：①启动链 ②通知 ③记忆存储 ④两异常 ｜ 状态：手机上 app 保持运行（最新 boot port 41943） | status=active | supersedes=none
