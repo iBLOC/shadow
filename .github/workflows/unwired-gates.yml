@@ -8,6 +8,7 @@ name: Unwired Gates
 #   ⚠️ 债表里当时的理由是「多数要本机工具链 ⇒ ⇒ 贸然接进 CI 只会让 CI 因**无关原因**变红」
 #   ⇒ ⇒ 但 2026-11-11 **逐条在本机量过**：14 道**真跑绿**、1 道**判不了**（msrv-floor 找不到 Cargo.toml）
 #   ⇒ ⇒ 那条理由**已过期** ⇒ ⇒ 这一刀就是把它兑现。
+#   ⇒ ⇒ 2026-11-13 订正：那 1 道（msrv-floor）**已兑现** —— 接线补上 `-- --manifest-path shadow-desktop/src-tauri/Cargo.toml`
 #
 #   ⚠️ 同一刀顺带补齐 **D3**（接进 CI 的闸，自检必须印出**可数读数** N/N）
 #   ⇒ ⇒ 11 道闸的自检原本只印「✅ 自检全过」/「（13 只样本）」⇒ ⇒ 读数**不可比**
@@ -158,7 +159,10 @@ jobs:
         run: node scripts/run-gate-once.mjs scripts/check-endpoint-matrix.mjs
       # ⚠️ Rust MSRV 下限
       - name: msrv-floor
-        run: node scripts/run-gate-once.mjs scripts/check-msrv-floor.mjs
+        # ⚠️ 必须带 --manifest-path（2026-11-13 本机实测）：不带 ⇒ 闸在仓根找不到 Cargo.toml
+        #    ⇒ 退出码 2 ⇒ 被包装器转成 0 ⇒ **这一步永远是绿的，什么都没验**。
+        #    闸自己的参数必须写在「--」之后（跑批器的约定）。
+        run: node scripts/run-gate-once.mjs scripts/check-msrv-floor.mjs -- --manifest-path shadow-desktop/src-tauri/Cargo.toml
       # ⚠️ provider 面挂没挂门
       - name: provider-admin-headers
         run: node scripts/run-gate-once.mjs scripts/check-provider-admin-headers.mjs
