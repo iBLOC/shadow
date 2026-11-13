@@ -99,11 +99,14 @@ void main() {
       // ⚠️ 「手机操作」也在这张表里 —— 它是移动端对标桌面端
       // computer-use 的那条腿（读屏 / 点击 / 滑动）。
       '手机操作',
+      // ⚠️ 「读取通知」也是这张表的一档（2026-11-12 通知那一刀）——
+      // 它的「授权」是**服务开关**（通知使用权），措辞与入口都另算。
+      '读取通知',
     ]) {
       expect(find.text(label), findsOneWidget, reason: '$label 那一行不见了');
     }
-    // ⚠️ 默认档位 = 每次询问（fail-closed）—— 六项各一个下拉。
-    expect(find.text('每次询问'), findsNWidgets(6));
+    // ⚠️ 默认档位 = 每次询问（fail-closed）—— 七项各一个下拉。
+    expect(find.text('每次询问'), findsNWidgets(7));
     expect(find.text('完全访问'), findsNothing);
   });
 
@@ -115,7 +118,9 @@ void main() {
 
     // ⚠️ 副标题是**整句**一个 Text ⇒ ⇒ 用包含匹配（精确匹配找不到）。
     expect(find.textContaining('系统权限未授予'), findsNWidgets(5));
-    expect(find.text('去授权'), findsNWidgets(5));
+    // ⚠️ 六行有「去授权」：五条运行时权限 ＋ 通知使用权（服务开关也走
+    // 这个入口，但它的副标题说的是「通知使用权」而不是「系统权限」）。
+    expect(find.text('去授权'), findsNWidgets(6));
     // ⚠️ 「手机操作」缺的不是「权限」而是「**无障碍服务**」那个开关
     // ⇒ ⇒ 说法必须不一样（说「系统权限未授予」会让用户去权限页里
     // 找一个**根本不存在**的开关）⇒ ⇒ 入口也是另一个词。
@@ -272,8 +277,8 @@ void main() {
 
     expect(find.text('彻底关闭'), findsOneWidget);
     expect(find.textContaining('模型看不到这个能力'), findsOneWidget);
-    // ⚠️ 别的五行**不受影响** ⇒ ⇒ 分档是独立的。
-    expect(find.text('每次询问'), findsNWidgets(5));
+    // ⚠️ 别的六行**不受影响** ⇒ ⇒ 分档是独立的。
+    expect(find.text('每次询问'), findsNWidgets(6));
   });
 
   testWidgets('iOS 上短信那一行标成「当前平台不支持」且不给「去授权」入口', (
@@ -286,10 +291,11 @@ void main() {
       mockChannel(granted: false);
       await pump(tester);
 
-      // ⚠️ iOS 上**两行**不支持：短信（没有公开的读取 API）
-      // 与手机操作（没有等价于无障碍服务的那套 API）。
-      expect(find.textContaining('当前平台不支持这个能力'), findsNWidgets(2));
-      // ⚠️ 只有那两行没有「去授权」⇒ ⇒ 别的四行还有。
+      // ⚠️ iOS 上**三行**不支持：短信（没有公开的读取 API）、手机操作
+      // （没有等价于无障碍服务的那套 API）、读取通知（没有
+      // NotificationListenerService 那套）。
+      expect(find.textContaining('当前平台不支持这个能力'), findsNWidgets(3));
+      // ⚠️ 只有那三行没有「去授权」⇒ ⇒ 别的四行还有。
       expect(find.text('去授权'), findsNWidgets(4));
     } finally {
       // ⚠️ **必须在这个用例里还原**（不能靠 addTearDown）——
