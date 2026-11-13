@@ -212,6 +212,24 @@ abstract class AppLocalizations {
   /// **'Copy'**
   String get messageActionCopy;
 
+  /// No description provided for @messageActionCopyJson.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy as JSON'**
+  String get messageActionCopyJson;
+
+  /// No description provided for @messageActionCopyConversationJson.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy chat history as JSON'**
+  String get messageActionCopyConversationJson;
+
+  /// No description provided for @messageDebugJsonCopiedToast.
+  ///
+  /// In en, this message translates to:
+  /// **'Chat JSON copied to clipboard'**
+  String get messageDebugJsonCopiedToast;
+
   /// No description provided for @messageActionRetry.
   ///
   /// In en, this message translates to:

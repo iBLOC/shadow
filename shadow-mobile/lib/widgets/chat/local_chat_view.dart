@@ -7,6 +7,7 @@ import '../../providers/chat_provider.dart';
 import '../../utils/conversation_title.dart';
 import '../../providers/conversation_mode_provider.dart';
 import '../../utils/chat_state_l10n.dart';
+import '../../utils/chat_debug_json.dart';
 import '../../theme/app_colors.dart';
 import '../../multimodal/multimodal.dart';
 import '../../widgets/chat_bubble.dart';
@@ -445,7 +446,21 @@ class _LocalChatViewState extends ConsumerState<LocalChatView> {
                                 ],
                               )
                             : bubble;
-                    if (isToolCard) return bubble;
+                    if (isToolCard) {
+                      // 工具卡片：**只给调试 JSON**（没有纯文本可复制，
+                      // 撤/重试会搅乱状态机 —— 见上方注释）。工具卡片的
+                      // 参数/结果恰恰是调试最缺的那一半，所以长按保留，
+                      // 菜单按能力裁剪后只剩「复制为 JSON」与「取消」。
+                      return GestureDetector(
+                        onLongPress: () => _showMessageActions(
+                          context,
+                          index,
+                          msg,
+                          toolCard: true,
+                        ),
+                        child: bubble,
+                      );
+                    }
                     return GestureDetector(
                       onLongPress: () =>
                           _showMessageActions(context, index, msg),
@@ -629,31 +644,41 @@ class _LocalChatViewState extends ConsumerState<LocalChatView> {
 
   // ---- 长按毛玻璃菜单（消息 / 错误横幅）--------------------------------
 
-  /// 长按一条消息 ⇒ 毛玻璃菜单（复制 / 重试 / 撤销）。
+  /// 长按一条消息 ⇒ 毛玻璃菜单（复制 / 复制为 JSON / 重试 / 撤销）。
   ///
   /// 动作按消息类型裁剪：
   /// - 复制：只有**有文字内容**的气泡给（附件气泡的内容是路径/空，
-  ///   复制它没有意义）。
+  ///   复制它没有意义）。⚠️ 工具卡片不给（`content` 本来就是空）。
+  /// - 复制为 JSON：**所有消息都给**（含工具卡片）—— 这是给开发 agent
+  ///   调试用的，它要看的恰恰是解析后的字段（工具参数/结果、token 读数、
+  ///   会话 id），纯文本复制拿不到这些。
   /// - 重试：用户消息 ⇒ 从这条重来；助手消息 ⇒ 重新生成；
-  ///   附件气泡不给（端脑链路只收纯文本，附件本来就发不出去）。
+  ///   附件气泡与工具卡片不给。
   /// - 撤销：文本气泡都给；工具卡片整格不给（见上）。
   Future<void> _showMessageActions(
     BuildContext context,
     int index,
-    ChatMessageModel msg,
-  ) async {
+    ChatMessageModel msg, {
+    bool toolCard = false,
+  }) async {
     final l10n = AppLocalizations.of(context)!;
-    final canCopy = msg.content.isNotEmpty;
+    final canCopy = !toolCard && msg.content.isNotEmpty;
     final canRetry =
         canCopy &&
         (msg.role == ChatRole.user || msg.role == ChatRole.assistant);
     final action = await showMessageActionSheet(
       context,
       canCopy: canCopy,
+      // 调试 JSON 永远可复制 —— 连**空内容**的消息也算（工具卡片就是
+      // 空 content + toolCall），所以不跟着 `canCopy` 走。
+      canCopyJson: true,
+      canCopyConversationJson: widget.chatState.messages.isNotEmpty,
       canRetry: canRetry,
-      canUndo: true,
+      canUndo: !toolCard,
       labels: MessageActionLabels(
         copy: l10n.messageActionCopy,
+        copyJson: l10n.messageActionCopyJson,
+        copyConversationJson: l10n.messageActionCopyConversationJson,
         retry: l10n.messageActionRetry,
         undo: l10n.messageActionUndo,
         cancel: l10n.cancel,
@@ -662,6 +687,7 @@ class _LocalChatViewState extends ConsumerState<LocalChatView> {
     if (!context.mounted || action == null || action == MessageAction.dismiss) {
       return;
     }
+    final chatState = widget.chatState;
     final notifier = ref.read(chatProvider.notifier);
     switch (action) {
       case MessageAction.copy:
@@ -670,6 +696,48 @@ class _LocalChatViewState extends ConsumerState<LocalChatView> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(l10n.messageCopiedToast),
+            duration: const Duration(seconds: 1),
+          ),
+        );
+      case MessageAction.copyJson:
+        // 载荷是**这一条 + 会话上下文**（第几条、一共几条、会话 id、
+        // 叶区）—— 只有一条消息的 JSON 在调试里几乎没用。
+        await Clipboard.setData(
+          ClipboardData(
+            text: buildChatMessageDebugJson(
+              message: msg,
+              index: index,
+              messages: chatState.messages,
+              sessionId: chatState.sessionId,
+              agent: chatState.activeConversationAgent,
+            ),
+          ),
+        );
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(l10n.messageDebugJsonCopiedToast),
+            duration: const Duration(seconds: 1),
+          ),
+        );
+      case MessageAction.copyConversationJson:
+        // 整段聊天记录 —— 开发 agent 一次拿到完整因果链（谁先说了什么、
+        // 工具在哪一轮被点名、流式尾巴与原始错误）。
+        await Clipboard.setData(
+          ClipboardData(
+            text: buildChatConversationDebugJson(
+              messages: chatState.messages,
+              sessionId: chatState.sessionId,
+              agent: chatState.activeConversationAgent,
+              streamingText: chatState.streamingText,
+              errorMessage: chatState.errorMessage,
+            ),
+          ),
+        );
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(l10n.messageDebugJsonCopiedToast),
             duration: const Duration(seconds: 1),
           ),
         );
@@ -698,10 +766,15 @@ class _LocalChatViewState extends ConsumerState<LocalChatView> {
     final action = await showMessageActionSheet(
       context,
       canCopy: raw.isNotEmpty,
+      // 错误横幅不是一条消息 ⇒ 没有「单条 JSON」；但**整段聊天记录 + 错误**
+      // 正是要贴给开发 agent 的那一份 ⇒ ⇒ 给整段那项。
+      canCopyConversationJson: chatState.messages.isNotEmpty,
       canRetry: hasRetryableUser,
       canUndo: true,
       labels: MessageActionLabels(
         copy: l10n.messageActionCopy,
+        copyJson: l10n.messageActionCopyJson,
+        copyConversationJson: l10n.messageActionCopyConversationJson,
         retry: l10n.messageActionRetry,
         undo: l10n.messageActionUndo,
         cancel: l10n.cancel,
@@ -719,6 +792,28 @@ class _LocalChatViewState extends ConsumerState<LocalChatView> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(l10n.messageCopiedToast),
+            duration: const Duration(seconds: 1),
+          ),
+        );
+      case MessageAction.copyJson:
+        // 横幅没有「这一条」⇒ 菜单永远不给这项；这里只是穷尽 switch。
+        break;
+      case MessageAction.copyConversationJson:
+        await Clipboard.setData(
+          ClipboardData(
+            text: buildChatConversationDebugJson(
+              messages: chatState.messages,
+              sessionId: chatState.sessionId,
+              agent: chatState.activeConversationAgent,
+              streamingText: chatState.streamingText,
+              errorMessage: chatState.errorMessage,
+            ),
+          ),
+        );
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(l10n.messageDebugJsonCopiedToast),
             duration: const Duration(seconds: 1),
           ),
         );

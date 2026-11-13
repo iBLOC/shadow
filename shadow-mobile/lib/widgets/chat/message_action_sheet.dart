@@ -3,18 +3,29 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 
 /// 长按消息 / 错误横幅弹出的操作菜单里，用户选的那个动作。
-enum MessageAction { copy, retry, undo, dismiss }
+enum MessageAction {
+  copy,
+  copyJson,
+  copyConversationJson,
+  retry,
+  undo,
+  dismiss,
+}
 
 /// 菜单文案 —— 由调用方从 l10n 取（这个文件不 import 生成代码，
 /// 桌面/测试环境里没有 ~AppLocalizations~ 也能实例化）。
 class MessageActionLabels {
   final String copy;
+  final String copyJson;
+  final String copyConversationJson;
   final String retry;
   final String undo;
   final String cancel;
 
   const MessageActionLabels({
     required this.copy,
+    required this.copyJson,
+    required this.copyConversationJson,
     required this.retry,
     required this.undo,
     required this.cancel,
@@ -31,6 +42,8 @@ class MessageActionLabels {
 Future<MessageAction?> showMessageActionSheet(
   BuildContext context, {
   required bool canCopy,
+  bool canCopyJson = false,
+  bool canCopyConversationJson = false,
   required bool canRetry,
   required bool canUndo,
   required MessageActionLabels labels,
@@ -43,6 +56,8 @@ Future<MessageAction?> showMessageActionSheet(
     barrierColor: Colors.black.withValues(alpha: 0.25),
     builder: (context) => _GlassActionSheet(
       canCopy: canCopy,
+      canCopyJson: canCopyJson,
+      canCopyConversationJson: canCopyConversationJson,
       canRetry: canRetry,
       canUndo: canUndo,
       labels: labels,
@@ -52,12 +67,16 @@ Future<MessageAction?> showMessageActionSheet(
 
 class _GlassActionSheet extends StatelessWidget {
   final bool canCopy;
+  final bool canCopyJson;
+  final bool canCopyConversationJson;
   final bool canRetry;
   final bool canUndo;
   final MessageActionLabels labels;
 
   const _GlassActionSheet({
     required this.canCopy,
+    required this.canCopyJson,
+    required this.canCopyConversationJson,
     required this.canRetry,
     required this.canUndo,
     required this.labels,
@@ -83,39 +102,62 @@ class _GlassActionSheet extends StatelessWidget {
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: scheme.outlineVariant, width: 0.5),
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (canCopy)
-                    _ActionTile(
-                      icon: Icons.copy_all_outlined,
-                      label: labels.copy,
-                      onTap: () => _pick(context, MessageAction.copy),
-                    ),
-                  if (canRetry) ...[
+              child: SingleChildScrollView(
+                // 动作变多之后（复制 / 复制 JSON / 复制聊天记录 / 重试 /
+                // 撤销 / 取消），矮屏上这一列会超过 bottom sheet 的默认
+                // 高度（约 9/16 屏）⇒ ⇒ 不滚就是 RenderFlex overflow
+                // （黄黑条纹 + 最后一项点不到）。滚起来：宁可多划一下，
+                // 不许有一项被裁掉。
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
                     if (canCopy)
+                      _ActionTile(
+                        icon: Icons.copy_all_outlined,
+                        label: labels.copy,
+                        onTap: () => _pick(context, MessageAction.copy),
+                      ),
+                    // 调试用：给开发 agent 贴上下文，不是给人读的纯文本。
+                    // 放在「复制」之下、重试之上 —— 它是复制的一种，只是
+                    // 载荷换成带信封的 JSON。
+                    if (canCopyJson)
+                      _ActionTile(
+                        icon: Icons.data_object,
+                        label: labels.copyJson,
+                        onTap: () => _pick(context, MessageAction.copyJson),
+                      ),
+                    if (canCopyConversationJson)
+                      _ActionTile(
+                        icon: Icons.article_outlined,
+                        label: labels.copyConversationJson,
+                        onTap: () =>
+                            _pick(context, MessageAction.copyConversationJson),
+                      ),
+                    if (canRetry) ...[
+                      if (canCopy || canCopyJson || canCopyConversationJson)
+                        Divider(height: 1, color: scheme.outlineVariant),
+                      _ActionTile(
+                        icon: Icons.refresh,
+                        label: labels.retry,
+                        onTap: () => _pick(context, MessageAction.retry),
+                      ),
+                    ],
+                    if (canUndo) ...[
                       Divider(height: 1, color: scheme.outlineVariant),
-                    _ActionTile(
-                      icon: Icons.refresh,
-                      label: labels.retry,
-                      onTap: () => _pick(context, MessageAction.retry),
-                    ),
-                  ],
-                  if (canUndo) ...[
+                      _ActionTile(
+                        icon: Icons.undo,
+                        label: labels.undo,
+                        onTap: () => _pick(context, MessageAction.undo),
+                      ),
+                    ],
                     Divider(height: 1, color: scheme.outlineVariant),
                     _ActionTile(
-                      icon: Icons.undo,
-                      label: labels.undo,
-                      onTap: () => _pick(context, MessageAction.undo),
+                      icon: Icons.close,
+                      label: labels.cancel,
+                      onTap: () => _pick(context, MessageAction.dismiss),
                     ),
                   ],
-                  Divider(height: 1, color: scheme.outlineVariant),
-                  _ActionTile(
-                    icon: Icons.close,
-                    label: labels.cancel,
-                    onTap: () => _pick(context, MessageAction.dismiss),
-                  ),
-                ],
+                ),
               ),
             ),
           ),

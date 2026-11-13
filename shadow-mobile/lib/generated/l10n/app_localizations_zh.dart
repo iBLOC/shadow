@@ -67,6 +67,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get messageActionCopy => '复制';
 
   @override
+  String get messageActionCopyJson => '复制为 JSON';
+
+  @override
+  String get messageActionCopyConversationJson => '复制聊天记录为 JSON';
+
+  @override
+  String get messageDebugJsonCopiedToast => '聊天 JSON 已复制到剪贴板';
+
+  @override
   String get messageActionRetry => '重试';
 
   @override

@@ -1,9 +1,13 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { composeSystemPrompt, telencephalonClient } from '../lib/telencephalonClient';
 import { deleteConversationEverywhere, setConversationArchived } from '../lib/conversationLifecycle';
 import { computeTokenStats } from '../lib/tokenStats';
+import {
+  buildChatConversationDebugJson,
+  buildChatMessageDebugJson,
+} from '../lib/chatDebugJson';
 import {
   intentSignatureOf,
   lastUnsettledToolCall,
@@ -51,7 +55,7 @@ import {
   Sparkles,
   Mic,
   Video,
-  
+  FileJson,
   Paperclip,
   X,
 } from 'lucide-react';
@@ -107,6 +111,18 @@ export function ConversationPage() {
   const [showArchived, setShowArchived] = useState(false);
   // ⚠️ 动作失败时的**原话**（不说真话 = 界面骗人）。
   const [lifecycleError, setLifecycleError] = useState<string | null>(null);
+  // 调试 JSON：右键消息弹出的菜单（屏幕坐标 + 是第几条消息）。
+  // 右键是桌面端「长按」的等价手势 —— 触屏上的长按在这里没有可靠的事件源。
+  const [debugMenu, setDebugMenu] = useState<{
+    x: number;
+    y: number;
+    index: number;
+  } | null>(null);
+  // 复制结果提示：**失败也要说**（静默失败＝「复制成功」的假象）。
+  const [debugNotice, setDebugNotice] = useState<{
+    kind: 'ok' | 'error';
+    text: string;
+  } | null>(null);
   const [stagedImages, setStagedImages] = useState<StagedImage[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showCreateMenu, setShowCreateMenu] = useState(false);
@@ -163,6 +179,52 @@ export function ConversationPage() {
       document.removeEventListener('keydown', onKey);
     };
   }, [showCreateMenu]);
+
+  // 调试 JSON 菜单：Esc / 滚动关闭（滚动后菜单坐标就失效了，留着会
+  // 悬在别的内容上 ⇒ ⇒ 看起来像「点这条复制了旁边那条」）。
+  // 点菜单外由渲染里的全屏背板负责。
+  useEffect(() => {
+    if (!debugMenu) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setDebugMenu(null);
+    };
+    const onScroll = () => setDebugMenu(null);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('scroll', onScroll, true);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', onScroll, true);
+    };
+  }, [debugMenu]);
+
+  // 复制结果提示 2 秒后自动消失（新提示到来时重新计时）。
+  useEffect(() => {
+    if (!debugNotice) return;
+    const timer = window.setTimeout(() => setDebugNotice(null), 2000);
+    return () => window.clearTimeout(timer);
+  }, [debugNotice]);
+
+  const copyDebugJson = useCallback(
+    async (text: string) => {
+      setDebugMenu(null);
+      try {
+        await navigator.clipboard.writeText(text);
+        setDebugNotice({
+          kind: 'ok',
+          text: t('conversation.debugJson.copied'),
+        });
+      } catch (e) {
+        // 失败不许被吞 —— 静默失败会让用户以为剪贴板里已经有 JSON 了。
+        setDebugNotice({
+          kind: 'error',
+          text: t('conversation.debugJson.copyFailed', {
+            error: e instanceof Error ? e.message : String(e),
+          }),
+        });
+      }
+    },
+    [t],
+  );
 
   // 启动时从后端拉 recording 会话，补齐 store 中尚未存在的项。
   // 这是 /recording 页面被吸收进来的关键：历史录音会话要继续出现在统一收件箱里。
@@ -955,9 +1017,19 @@ export function ConversationPage() {
                 </div>
               ) : (
                 <>
-                  {activeConversation.messages.map((msg) => (
+                  {activeConversation.messages.map((msg, messageIndex) => (
                     <div
                       key={msg.id}
+                      onContextMenu={(e) => {
+                        // 右键 = 桌面端的「长按」。preventDefault 是必须的：
+                        // 否则 WebView2 会盖一层系统菜单，把我们的入口挡住。
+                        e.preventDefault();
+                        setDebugMenu({
+                          x: e.clientX,
+                          y: e.clientY,
+                          index: messageIndex,
+                        });
+                      }}
                       className={cn(
                         'flex max-w-[80%] gap-3',
                         msg.role === 'user' && 'self-end flex-row-reverse'
@@ -1181,6 +1253,81 @@ export function ConversationPage() {
           computer-use actions. The modal lifecycle is independent
           of the message stream so it can block (Cancel clears the
           pending state without re-running the message render). */}
+      {/* 调试 JSON —— 右键消息弹出的菜单。
+          调试器（开发 agent）吃这一份：消息本身 + 第几条 + 会话上下文。
+          点背板 / Esc / 滚动都会关掉它（见上面的 effect）。 */}
+      {debugMenu && activeConversation && activeConversation.messages[debugMenu.index] && (
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setDebugMenu(null)}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setDebugMenu(null);
+            }}
+            data-testid="conversation-debug-menu-backdrop"
+          />
+          <div
+            role="menu"
+            className="fixed z-50 w-60 overflow-hidden rounded-md border border-border bg-card py-1 shadow-lg"
+            style={{
+              left: Math.min(debugMenu.x, Math.max(0, window.innerWidth - 248)),
+              top: Math.min(debugMenu.y, Math.max(0, window.innerHeight - 104)),
+            }}
+            data-testid="conversation-debug-menu"
+          >
+            <button
+              type="button"
+              role="menuitem"
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted"
+              onClick={() =>
+                void copyDebugJson(
+                  buildChatMessageDebugJson({
+                    conversation: activeConversation,
+                    message: activeConversation.messages[debugMenu.index],
+                    index: debugMenu.index,
+                  }),
+                )
+              }
+              data-testid="conversation-copy-message-json"
+            >
+              <FileJson size={14} className="text-muted-foreground" />
+              <span className="flex-1">{t('conversation.debugJson.copyMessage')}</span>
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted"
+              onClick={() =>
+                void copyDebugJson(
+                  buildChatConversationDebugJson({
+                    conversation: activeConversation,
+                  }),
+                )
+              }
+              data-testid="conversation-copy-conversation-json"
+            >
+              <FileJson size={14} className="text-muted-foreground" />
+              <span className="flex-1">{t('conversation.debugJson.copyConversation')}</span>
+            </button>
+          </div>
+        </>
+      )}
+      {/* 复制结果 —— 成功与失败都出声（失败静默＝复制成功的假象）。 */}
+      {debugNotice && (
+        <div
+          role="status"
+          className={cn(
+            'fixed bottom-6 left-1/2 z-[60] -translate-x-1/2 rounded-md px-3 py-2 text-xs shadow-lg',
+            debugNotice.kind === 'error'
+              ? 'bg-destructive text-destructive-foreground'
+              : 'bg-foreground text-background',
+          )}
+          data-testid="conversation-debug-copy-notice"
+        >
+          {debugNotice.text}
+        </div>
+      )}
       <ComputerUsePendingModal
         action={pendingCuAction}
         onResolved={() => setPendingCuAction(null)}

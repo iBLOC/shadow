@@ -67,6 +67,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get messageActionCopy => 'Copy';
 
   @override
+  String get messageActionCopyJson => 'Copy as JSON';
+
+  @override
+  String get messageActionCopyConversationJson => 'Copy chat history as JSON';
+
+  @override
+  String get messageDebugJsonCopiedToast => 'Chat JSON copied to clipboard';
+
+  @override
   String get messageActionRetry => 'Retry';
 
   @override

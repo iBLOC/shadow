@@ -173,6 +173,12 @@
     "welcome": "欢迎使用",
     "welcomeDesc": "开始与智能体对话，规划任务",
     "placeholder": "输入消息...",
+    "debugJson": {
+      "copyMessage": "复制为 JSON（这条消息）",
+      "copyConversation": "复制聊天记录为 JSON",
+      "copied": "聊天 JSON 已复制到剪贴板",
+      "copyFailed": "复制失败：{error}"
+    },
     "thinking": "思考中...",
     "selectOrCreate": "选择或创建新对话",
     "noResponse": "未收到回复",

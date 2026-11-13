@@ -173,6 +173,12 @@
     "welcome": "Welcome",
     "welcomeDesc": "Start a conversation with an agent to plan tasks",
     "placeholder": "Type a message...",
+    "debugJson": {
+      "copyMessage": "Copy as JSON (this message)",
+      "copyConversation": "Copy chat history as JSON",
+      "copied": "Chat JSON copied to clipboard",
+      "copyFailed": "Copy failed: {error}"
+    },
     "thinking": "Thinking...",
     "selectOrCreate": "Select or create a new conversation",
     "noResponse": "No response received",
