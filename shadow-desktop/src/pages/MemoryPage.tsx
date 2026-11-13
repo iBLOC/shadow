@@ -162,7 +162,11 @@ export function MemoryPage() {
       )}
 
       <div className="flex flex-col gap-3">
-        {displayMemories.length === 0 ? (
+        {/* ⚠️⚠️ **读不到 ≠ 没有**（2026-11-13）：没有海马体的桌面运行
+            （记忆面没挂 ⇒ `/hippocampus/*` 404）会进 `error`；那时**只许画错误**，
+            不许同时画「暂无记忆」空态 —— 两者同屏，用户分不清「这台大脑没有
+            记忆体」与「这里确实没有记忆」。 */}
+        {displayMemories.length === 0 && !error ? (
           <div className="flex flex-col items-center justify-center p-10 text-center text-muted-foreground">
             <Database size={48} strokeWidth={1} />
             <p className="mt-3 text-sm">{t('memory.noMemories')}</p>

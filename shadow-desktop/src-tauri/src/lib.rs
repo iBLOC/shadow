@@ -624,6 +624,13 @@ fn default_hippocampus_root() -> Option<String> {
     Some(portable.display().to_string())
 }
 
+/// 重启整个应用（迁移完成后的那一步）。
+///
+/// ⚠️ **`#[tauri::command]` 缺了会直接编不过**（`generate_handler!` 引用
+/// 的是它生成的 `__cmd__restart_app` 宏 ⇒ 报「cannot find macro」）——
+/// 而只跑前端测试（vitest/tsc）看不出来。2026-11-13 补：上一笔只加了
+/// 函数本体与 handler 登记，漏了属性 ⇒ HEAD 上桌面 crate 编译红。
+#[tauri::command]
 fn restart_app(app: tauri::AppHandle) {
     app.restart();
 }

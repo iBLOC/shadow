@@ -395,6 +395,17 @@ async fn build_face(
         // **重启即失** ⇒ 用户以为存住了 ⇒ **失败长得像成功**。`None` 会让
         // 读面如实答「控制面未连接」，界面说真话。
         control_plane: desktop_control_plane(dirs::config_dir()),
+        // ⚠️ **会话存储的兜底文件**（2026-11-13）：只在「这次运行**没有 Lance**」
+        // 时生效（记忆面关掉：storage_uri 的 scheme 不支持 / Android 本地根
+        // 未放行 / 构建没编 hippocampus）⇒ ⇒ 没有它，那种桌面运行的会话就只剩
+        // **纯内存**（重启即失 ⇒ 违反「持久化数据不许住内存库」）。
+        //
+        // ⚠️ **不能复用 `conversation_store_file`** —— 那个字段**赢过**
+        // Lance（移动端用它绕 SELinux 的硬链接限制）⇒ 桌面拿它当兜底会把
+        // 自己的 Lance 会话切到 JSON。兜底是**第三档**，只在没有 Lance 时用。
+        conversation_store_fallback_file: desktop_conversations_fallback(
+            dirs::config_dir(),
+        ),
         // **记忆存储换根的断点文件**（2026-11-13）：与 identity / 控制面同源
         // （`config_dir/shadow/`）—— 迁移途中退出、再打开时从这里续跑。
         // ⚠️ 它**不是记忆数据**：只记「搬到哪一步／目标是谁」，不含明文密钥。
@@ -460,13 +471,27 @@ fn desktop_control_plane(
     })
 }
 
+/// 会话存储的**兜底文件**（只在该次运行**没有 Lance** 时生效）。
+///
+/// 与配置中心同目录（`config_dir/shadow/`）；拿不到配置目录 ⇒ `None`
+/// （端脑会退回纯内存并**大声报错**：历史重启即失 —— 宁可说出来，
+/// 也不假装持久）。
+fn desktop_conversations_fallback(config_dir: Option<std::path::PathBuf>) -> Option<String> {
+    let dir = config_dir?;
+    Some(
+        dir.join("shadow")
+            .join("conversations.json")
+            .to_string_lossy()
+            .to_string(),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use axum::routing::get;
     use axum::Router;
     use tower::ServiceExt;
-
     /// ⚠️ **持久化数据不许落在内存库里**（用户裁定 2026-11-13）：
     /// 拿得到配置目录 ⇒ 指向**文件**；拿不到 ⇒ **不启用**（绝不给 `:memory:`）。
     #[test]
@@ -484,6 +509,27 @@ mod tests {
         // 没有配置目录 ⇒ None（读面会如实答「控制面未连接」），
         // ⚠️ 不是 Some(":memory:") —— 那会「写成功、重启即失」。
         assert!(desktop_control_plane(None).is_none());
+    }
+
+    /// ⚠️ **没有海马体的桌面运行也要落盘**（2026-11-13）：
+    /// 兜底文件是**第三档**（只在没有 Lance 时生效），不能是内存。
+    #[test]
+    fn conversations_fallback_is_a_file_on_disk() {
+        let dir = std::path::PathBuf::from("C:/tmp/cfg");
+        let path = desktop_conversations_fallback(Some(dir)).expect("有目录 ⇒ 有兜底文件");
+        assert!(
+            path.ends_with("shadow/conversations.json")
+                || path.ends_with("shadow\\conversations.json"),
+            "兜底必须是文件路径，实际是 {path}"
+        );
+        assert!(!path.contains(":memory:"));
+    }
+
+    #[test]
+    fn conversations_fallback_is_none_without_a_config_dir() {
+        // 没有目录 ⇒ None（端脑会把「纯内存 + 历史会丢」打进 error 日志），
+        // ⚠️ 不是编一个相对路径 —— 相对路径会落到不可预期的 cwd。
+        assert!(desktop_conversations_fallback(None).is_none());
     }
 
     /// 前缀挂载：内层 `/api/memory` 对外是 `/hippocampus/api/memory`。
