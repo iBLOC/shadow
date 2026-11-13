@@ -78,10 +78,18 @@ class CapabilityDefaultSection extends ConsumerWidget {
         // ⚠️ **当前默认值此刻用不了** ⇒ ⇒ 必须说出来 —— 「存得进去、
         // 用不了」若界面不吭声 ⇒ ⇒ 用户以为配好了 ⇒ ⇒ 真到用语音时
         // 才发现 503 ⇒ ⇒ 失败长得像成功。
+        //
+        // ⚠️ 放行表用**这一页真正提供的候选**（`candidates`）＝「已注册 ∪
+        // 目录面（仅 image_gen）」⇒ ⇒ 与下拉里能选的那些是**同一份** ⇒ ⇒
+        // 不会出现「下拉里有、下面却标它用不了」这种自相矛盾。
         final unusable = unusableCapabilityDefaults(
           view.defaults,
           view.engineResolved,
           view.registered,
+          catalog: {
+            for (final entry in candidates.entries)
+              entry.key: [for (final o in entry.value) o.id],
+          },
         );
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,

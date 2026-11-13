@@ -1049,6 +1049,18 @@ class CapabilityCandidateOption {
   });
 }
 
+/// **按引擎 id 解析、但目录面的 id 端脑也解析得到**的那几档。
+///
+/// ⚠️ 只收 `image_gen`，理由要**逐档**看服务端：`api/images.rs` 的分流是
+/// 「先拿解析出的 id 去**云供应商模型表**里找 ⇒ 命中就代理云端；否则才进
+/// 本地 `imagegen_registry` 按 id 解析」⇒ ⇒ 目录面（供应商目录里标了
+/// `image_gen` 的模型 id）在那一档**是真的能用**的。
+///
+/// ⚠️ **asr / tts 不在这里**：`api/voice.rs` 只有注册表那一条腿（没有云
+/// 代理面）⇒ 目录面的 id（`whisper-base` 那套）端脑解析不到 ⇒ 收进来就是
+/// 「存得进去、用不了」（2026-11-09 实测的根因）。
+const Set<String> catalogResolvedTiers = {'image_gen'};
+
 /// 每档的**可选项** —— 端脑说哪几档按引擎 id 解析，就按哪套命名空间取。
 ///
 /// ⚠️⚠️ **目录面 ≠ 已注册面**（2026-11-09 实测的根因）：
@@ -1060,6 +1072,8 @@ class CapabilityCandidateOption {
 /// asr 档 ⇒ ⇒ 端脑永远解析不到 ⇒ ⇒ **存得进去、用不了**。
 ///
 /// ⚠️ **不按引擎 id 解析的档 ⇒ 候选取目录面**（原样，不许被这一刀改掉）。
+/// ⚠️ **`image_gen` 是两套的并集**（见 [catalogResolvedTiers]）—— 它既有
+/// 本地引擎注册表、又有云供应商那条腿 ⇒ 只给一半 ⇒ 用户少看到一半能用的模型。
 Map<String, List<CapabilityCandidateOption>> capabilityOptionsByCapability(
   Map<String, List<CapabilityModelCandidate>> catalog,
   List<String> engineResolved,
@@ -1078,10 +1092,18 @@ Map<String, List<CapabilityCandidateOption>> capabilityOptionsByCapability(
     }
     final ids = registered[cap] ?? const <String>[];
     final labels = <String, String>{for (final c in list) c.id: c.label};
-    out[cap] = [
+    final options = <CapabilityCandidateOption>[
       for (final id in ids)
         CapabilityCandidateOption(id: id, label: labels[id] ?? id),
     ];
+    if (catalogResolvedTiers.contains(cap)) {
+      final seen = {for (final o in options) o.id};
+      for (final c in list) {
+        if (seen.contains(c.id)) continue;
+        options.add(CapabilityCandidateOption(id: c.id, label: c.label));
+      }
+    }
+    out[cap] = options;
   }
   // ⚠️ **按引擎 id 解析、但目录面里没有这一档** ⇒ ⇒ 也要列出来（已注册的
   // id 才是唯一真相 ⇒ ⇒ 它可能压根不在供应商目录里）。
@@ -1098,13 +1120,17 @@ Map<String, List<CapabilityCandidateOption>> capabilityOptionsByCapability(
 
 /// **当前默认值里，此刻用不了的那几档**（要拿去提醒用户）。
 ///
-/// ⚠️ 只对**按引擎 id 解析**的档说「用不了」—— 那一档的 id 必须已注册。
+/// ⚠️ 只对**按引擎 id 解析**的档说「用不了」—— 那一档的 id 必须已注册
+/// （或者，对 [catalogResolvedTiers] 那几档，目录面里有 ⇒ 端脑也解析得到）。
 /// ⚠️ **不按引擎 id 解析的档不在这里说**（客户端没有依据判断 ⇒ ⇒ 不许编）。
 List<({String capability, String modelId})> unusableCapabilityDefaults(
   Map<String, String> defaults,
   List<String> engineResolved,
-  Map<String, List<String>> registered,
-) {
+  Map<String, List<String>> registered, {
+  /// 目录面里各档的 id（只用来给 [catalogResolvedTiers] 那几档放行 ——
+  /// 端脑在那些档**也查云供应商模型表**，见 [catalogResolvedTiers]）。
+  Map<String, List<String>> catalog = const {},
+}) {
   final resolved = engineResolved.toSet();
   final out = <({String capability, String modelId})>[];
   defaults.forEach((cap, modelId) {
@@ -1112,9 +1138,14 @@ List<({String capability, String modelId})> unusableCapabilityDefaults(
     final id = modelId.trim();
     if (id.isEmpty) return;
     final ids = registered[cap] ?? const <String>[];
-    if (!ids.contains(id)) {
-      out.add((capability: cap, modelId: id));
+    if (ids.contains(id)) return;
+    // ⚠️ **别把「能用」报成「用不了」**：image_gen 那一档的云模型 id
+    // 走的是 images 门面的云端代理，不在本地注册表里但真的能用。
+    if (catalogResolvedTiers.contains(cap) &&
+        (catalog[cap] ?? const <String>[]).contains(id)) {
+      return;
     }
+    out.add((capability: cap, modelId: id));
   });
   return out;
 }

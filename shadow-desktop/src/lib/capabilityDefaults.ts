@@ -188,6 +188,23 @@ export interface CapabilityCandidateOption {
 }
 
 /**
+ * **按引擎 id 解析、但目录面的 id 端脑也解析得到**的那几档。
+ *
+ * ⚠️ 只收 `image_gen`：端脑 `api/images.rs` 的分流是「解析出的 id 先查
+ * **云供应商模型表** ⇒ 命中就代理云端；否则才进本地 imagegen 注册表」⇒ ⇒
+ * 目录面里标了 `image_gen` 的云模型 id 在那一档**真的能用**。
+ * ⚠️ **asr / tts 不在这里**：`api/voice.rs` 只有注册表一条腿（没有云代理
+ * 面）⇒ 目录面的 id（`whisper-base` 那套）端脑解析不到 ⇒ 收进来就是
+ * 「存得进去、用不了」（2026-11-09 实测根因）。
+ *
+ * ⚠️ 与移动端 `brain_model_source_provider.dart` 的 `catalogResolvedTiers`
+ * **必须一模一样**（两端纯模块同源，改一边就改另一边）。
+ */
+export const CATALOG_RESOLVED_TIERS: ReadonlySet<string> = new Set([
+  'image_gen',
+]);
+
+/**
  * 每档的**可选项** —— 端脑说哪几档按引擎 id 解析，就按哪套命名空间取。
  *
  * ⚠️ **按引擎 id 解析的档 ⇒ 候选取「已注册面」**（不是目录面）—— 目录面
@@ -196,6 +213,8 @@ export interface CapabilityCandidateOption {
  * ⚠️ **不按引擎 id 解析的档 ⇒ 候选取目录面**（原样，不许被这一刀改掉）。
  * ⚠️ 已注册的 id 若同时在目录面里 ⇒ ⇒ **显示名用目录面那份**（同一个 id
  * 两套显示名更让人困惑）。
+ * ⚠️ **`image_gen` 是两套的并集**（见 [CATALOG_RESOLVED_TIERS]）—— 它既有
+ * 本地引擎注册表、又有云供应商那条腿 ⇒ 只给一半 ⇒ 用户少看到一半能用的模型。
  */
 export function capabilityOptionsByCapability(
   catalog: Record<string, CapabilityModelCandidate[]>,
@@ -216,11 +235,19 @@ export function capabilityOptionsByCapability(
     }
     const ids = registered[cap] ?? [];
     const labels = new Map((list ?? []).map((c) => [c.id, c.label]));
-    out[cap] = ids.map((id) => ({
+    const options = ids.map((id) => ({
       id,
       label: labels.get(id) ?? id,
       usableNow: true,
     }));
+    if (CATALOG_RESOLVED_TIERS.has(cap)) {
+      const seen = new Set(options.map((o) => o.id));
+      for (const c of list ?? []) {
+        if (seen.has(c.id)) continue;
+        options.push({ id: c.id, label: c.label, usableNow: true });
+      }
+    }
+    out[cap] = options;
   }
 
   // ⚠️ **按引擎 id 解析、但目录面里没有这一档** ⇒ ⇒ 也要列出来（已注册的
@@ -242,10 +269,13 @@ export function capabilityOptionsByCapability(
  * 否则端脑一调用就报「按那个 id 找不到」⇒ ⇒ **存得进去、用不了**。
  * ⚠️ **不按引擎 id 解析的档不在这里说**（那是供应商路由的事 ⇒ ⇒ 客户端
  * 没有依据判断 ⇒ ⇒ 不许编）。
+ * ⚠️ **别把「能用」报成「用不了」**：[CATALOG_RESOLVED_TIERS] 那几档的
+ * 目录面 id 端脑也解析得到（走云端代理）⇒ 传了 [catalog] 就一并放行。
  */
 export function unusableCapabilityDefaults(
   defaults: Record<string, string>,
   info: EngineResolvedInfo,
+  catalog: Record<string, CapabilityModelCandidate[]> = {},
 ): { capability: string; modelId: string }[] {
   const engineResolved = new Set(info?.engineResolved ?? []);
   const registered = info?.registered ?? {};
@@ -255,7 +285,14 @@ export function unusableCapabilityDefaults(
     const id = (modelId ?? '').trim();
     if (!id) continue;
     const ids = registered[cap] ?? [];
-    if (!ids.includes(id)) out.push({ capability: cap, modelId: id });
+    if (ids.includes(id)) continue;
+    if (
+      CATALOG_RESOLVED_TIERS.has(cap) &&
+      (catalog[cap] ?? []).some((c) => c.id === id)
+    ) {
+      continue;
+    }
+    out.push({ capability: cap, modelId: id });
   }
   return out;
 }

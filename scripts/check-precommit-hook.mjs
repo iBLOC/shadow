@@ -36,6 +36,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { checkStagedWipes, emptyBlobHash } from './lib/precommit-wipe.mjs';
+import { checkLedgerShrunk } from './lib/precommit-ledger-shrink.mjs';
 
 // ⚠️ **不许写死 Windows 绝对路径**（2026-11-11 真 CI 实测）：写死 ⇒ ⇒ Linux CI 上
 //   夹具建在字面目录名 `C:` 下，且「用绝对路径调用自己」会找不到模块
@@ -104,14 +105,45 @@ export function collectEntries(git, cwd) {
   return { entries: paths, notes: [] };
 }
 
-/** 在当前仓里查（返回 { wipes, notes }）。 */
+/** 在当前仓里查（返回 { wipes, shrink, notes }）。 */
 export function scan(cwd) {
   const git = mkGit(cwd);
   const hasHead = git(['rev-parse', '--verify', 'HEAD'], {}).ok;
-  if (!hasHead) return { wipes: [], notes: ['这个仓还没有 HEAD（第一次提交）⇒ ⇒ 没有「被抹掉」可言'] };
+  if (!hasHead) return {
+    wipes: [],
+    shrink: { violation: null, note: '这个仓还没有 HEAD（第一次提交）⇒ ⇒ 没有「被抹掉」可言' },
+    notes: ['这个仓还没有 HEAD（第一次提交）⇒ ⇒ 没有「被抹掉」可言'],
+  };
   const { entries, notes } = collectEntries(git, cwd);
   const fmt = git(['rev-parse', '--show-object-format'], {}).out.trim();
-  return { wipes: checkStagedWipes(entries, emptyBlobHash(fmt)), notes: notes };
+  const shrink = collectLedgerShrink(git);
+  return { wipes: checkStagedWipes(entries, emptyBlobHash(fmt)), shrink, notes: notes };
+}
+
+/**
+ * 「台账条目数不许少于 HEAD」—— **取两侧正文**（判定在 lib 里，纯函数）。
+ *
+ * ⚠️ 只在这一笔**动了 `AGENTS.md`** 时才判 —— 其余提交不碰台账 ⇒ ⇒ 不判
+ *   （少打两次 git；也避免在没 HEAD 的仓里瞎判）。
+ * ⚠️ **任何一侧读不到 ⇒ 传 null ⇒ 判不了 ⇒ 放行**（钩子绝不卡人）。
+ */
+export function collectLedgerShrink(git) {
+  const staged = git(['diff', '--cached', '--name-only', '--diff-filter=AM'], {}).out
+    .split('\n').map((s) => s.trim()).filter(Boolean);
+  if (!staged.includes('AGENTS.md')) {
+    return { violation: null, note: '这一笔没动台账 ⇒ ⇒ 不判条目数' };
+  }
+  const headHasFile = git(['cat-file', '-e', 'HEAD:AGENTS.md'], {}).ok;
+  let headText = null;
+  if (headHasFile) {
+    const r = git(['show', 'HEAD:AGENTS.md'], {});
+    headText = r.ok ? r.out : null;
+  } else {
+    headText = '';
+  }
+  const idx = git(['show', ':AGENTS.md'], {});
+  const stagedText = idx.ok ? idx.out : null;
+  return checkLedgerShrunk({ headHasFile, headText, stagedText });
 }
 
 function selftest() {
@@ -213,6 +245,39 @@ function selftestIn(TMP) {
     hookSrc.includes('"10"') && !hookBlocksOne,
     '钩子里拦的是 1 ｜=为 ' + hookBlocksOne);
 
+  // ⑦ 台账条目被顶掉（暂存面的条目数少于 HEAD）⇒ ⇒ **必须拦下**（hook 模式 10）
+  const ent = (cp) => '**Updated**: 2026-11-13 (' + String.fromCodePoint(cp) + ' **t**.)\n\n正文。\n\n';
+  git(['reset', '--hard', 'HEAD'], {});
+  write('AGENTS.md', ent(0x3511) + ent(0x3512));
+  commit('ledger with two entries');
+  write('AGENTS.md', ent(0x3511)); // 顶掉了 3512 那一条
+  git(['add', 'AGENTS.md'], {});
+  const r7 = runCliHook();
+  add('⚠️ 台账条目被顶掉（2 条 ⇒ 1 条）⇒ ⇒ **必须拦下**（hook 模式 10）',
+    r7.code === 10 && r7.out.includes('少了 1 条'),
+    'hook 模式退出码=' + r7.code);
+
+  // ⑧ 台账**变多**（新增一条）⇒ ⇒ 必须放行
+  git(['reset', '--hard', 'HEAD'], {});
+  write('AGENTS.md', ent(0x3513) + ent(0x3511) + ent(0x3512));
+  git(['add', 'AGENTS.md'], {});
+  const r8 = runCliHook();
+  add('台账新增一条（1 条 ⇒ 3 条）⇒ ⇒ 必须放行', r8.code === 0, '退出码=' + r8.code);
+
+  // ⑨ 条目数不变、只改某条正文 ⇒ ⇒ 必须放行（改写不是丢条目）
+  git(['reset', '--hard', 'HEAD'], {});
+  write('AGENTS.md', ent(0x3511).replace('正文。', '正文（改写过）。') + ent(0x3512));
+  git(['add', 'AGENTS.md'], {});
+  const r9 = runCliHook();
+  add('条目数不变、只改正文 ⇒ ⇒ 必须放行', r9.code === 0, '退出码=' + r9.code);
+
+  // ⑩ 这一笔没动台账 ⇒ ⇒ 不判（改别的文件照样放行）
+  git(['reset', '--hard', 'HEAD'], {});
+  write('other.txt', 'x\n');
+  git(['add', 'other.txt'], {});
+  const r10 = runCliHook();
+  add('这一笔没动台账 ⇒ ⇒ 不判条目数（放行）', r10.code === 0, '退出码=' + r10.code);
+
   const ok = results.filter((r) => r.ok).length;
   for (const r of results) console.log((r.ok ? '  ✅ ' : '  ❌ ') + r.name + ' —— ' + r.detail);
   console.log('判据自检：' + ok + '/' + results.length + ' 通过');
@@ -225,21 +290,34 @@ function main(argv) {
   const cwd = process.cwd();
   const isHook = argv.includes('--hook');
   try {
-    const { wipes, notes } = scan(cwd);
-    for (const n of notes) console.log('::notice::' + n);
-    if (wipes.length === 0) {
-      console.log('提交前闸：暂存面里没有「非空文件被写成零字节」⇒ ⇒ 放行');
+    const { wipes, shrink, notes } = scan(cwd);
+    for (const n of [...notes, shrink.note].filter(Boolean)) console.log('::notice::' + n);
+    const ledgerLost = shrink.violation;
+    if (wipes.length === 0 && !ledgerLost) {
+      console.log('提交前闸：没有「非空文件被写成零字节」，台账条目数也不少于 HEAD ⇒ ⇒ 放行');
       process.exit(0);
     }
-    console.log('');
-    console.log('❌ 提交前闸：这一笔把 **' + wipes.length + ' 个非空文件写成了零字节**：');
-    for (const w of wipes) {
-      console.log('   · ' + w.path + '（HEAD 里的 blob ' + w.headBlob.slice(0, 8) + '… 是非空的 ⇒ ⇒ 暂存面里被写成了**空 blob**）');
+    if (wipes.length > 0) {
+      console.log('');
+      console.log('❌ 提交前闸：这一笔把 **' + wipes.length + ' 个非空文件写成了零字节**：');
+      for (const w of wipes) {
+        console.log('   · ' + w.path + '（HEAD 里的 blob ' + w.headBlob.slice(0, 8) + '… 是非空的 ⇒ ⇒ 暂存面里被写成了**空 blob**）');
+      }
+      console.log('');
+      console.log('⚠️ 这一类事故**真发生过**（2026-11-11：台账 AGENTS.md 被提交成零字节 ⇒ ⇒ master 上整本消失）。');
+      console.log('⚠️ 若这是**故意**的（例如要清空一个文件）⇒ ⇒ 请在提交信息里写明「清空 <路径>」，再重新提交。');
+      console.log('⚠️ 确实要绕过：git commit --no-verify');
     }
-    console.log('');
-    console.log('⚠️ 这一类事故**真发生过**（2026-11-11：台账 AGENTS.md 被提交成零字节 ⇒ ⇒ master 上整本消失）。');
-    console.log('⚠️ 若这是**故意**的（例如要清空一个文件）⇒ ⇒ 请在提交信息里写明「清空 <路径>」，再重新提交。');
-    console.log('⚠️ 确实要绕过：git commit --no-verify');
+    if (ledgerLost) {
+      console.log('');
+      console.log('❌ 提交前闸：这一笔的台账**条目数比 HEAD 少了 ' + ledgerLost.lost + ' 条**'
+        + '（暂存面 ' + ledgerLost.staged + ' 条 ／ HEAD ' + ledgerLost.head + ' 条）。');
+      console.log('');
+      console.log('⚠️ 这一类事故**真发生过**（2026-11-13：用过期的整文件快照写 AGENTS.md ⇒ ⇒ 顶掉别人刚落链的条目，一次丢 876 行）。');
+      console.log('⚠️ 正确做法：**从 HEAD 的 blob 重建台账，再把你的条目插到顶部**（`git checkout -- AGENTS.md` 后重新 Edit）。');
+      console.log('⚠️ 若确属**有意删条目**（合并／作废）⇒ ⇒ 请在提交信息里写明「删除台账条目 <符号>」，再重新提交。');
+      console.log('⚠️ 确实要绕过：git commit --no-verify');
+    }
     process.exit(isHook ? HOOK_RED_EXIT : 1);
   } catch (e) {
     // ⚠️ **fail-safe**：判不了 ⇒ ⇒ 放行（绝不卡住别人的提交）

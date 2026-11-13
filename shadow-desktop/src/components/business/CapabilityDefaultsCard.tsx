@@ -114,7 +114,14 @@ export function CapabilityDefaultsCard() {
 
   // ⚠️ **哪些档的当前默认值此刻用不了** —— 端脑说「按引擎 id 解析」的
   // 那些档，其 id 必须已注册 ⇒ ⇒ 没注册就是「配了也跑不起来」。
-  const unusable = unusableCapabilityDefaults(defaults, engineInfo);
+  // ⚠️ 但 `image_gen` 那一档另有**云供应商模型表**那条腿（端脑 images
+  // 门面按 id 先查云端）⇒ ⇒ 把目录面一并传进去，别把「能用」报成
+  // 「用不了」（与移动端同一判据，见 `CATALOG_RESOLVED_TIERS`）。
+  const unusable = unusableCapabilityDefaults(
+    defaults,
+    engineInfo,
+    capabilityCandidatesByCapability(providers),
+  );
 
   const apply = useCallback(
     async (capability: string, model: string) => {

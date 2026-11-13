@@ -159,6 +159,86 @@ void main() {
     });
   });
 
+  group('image_gen：候选＝已注册 ∪ 目录面（端脑那条云端腿）', () {
+    test('⚠️ 已注册的在前、目录面的排后、同 id 只留一条且用目录面的显示名', () {
+      final out = capabilityOptionsByCapability(
+        const {
+          'image_gen': [
+            CapabilityModelCandidate(id: 'moss-image', label: 'Candle · MOSS'),
+            CapabilityModelCandidate(id: 'cogview-4', label: 'Zhipu · CogView-4'),
+          ],
+        },
+        const ['image_gen'],
+        const {
+          'image_gen': ['moss-image'],
+        },
+      );
+      expect(
+        out['image_gen']!.map((o) => o.id).toList(),
+        ['moss-image', 'cogview-4'],
+        reason: '本地注册的先列（它们一定解析得到），云端目录的补在后面',
+      );
+      expect(
+        out['image_gen']!.first.label,
+        'Candle · MOSS',
+        reason: '同一个 id 两套显示名更让人困惑 ⇒ 用目录面那份',
+      );
+    });
+
+    test('⚠️ asr 不许把目录面的 id 并进来（voice 面没有云端腿 ⇒ 选了必然失败）',
+        () {
+      final out = capabilityOptionsByCapability(
+        const {
+          'asr': [
+            CapabilityModelCandidate(id: 'whisper-base', label: 'Whisper base'),
+          ],
+        },
+        const ['asr'],
+        const {
+          'asr': ['whisper-model'],
+        },
+      );
+      expect(out['asr']!.map((o) => o.id).toList(), ['whisper-model']);
+    });
+
+    test('⚠️ 不可用提醒：image_gen 的云模型 id（在目录面里）不算「用不了」', () {
+      final out = unusableCapabilityDefaults(
+        const {'image_gen': 'cogview-4'},
+        const ['image_gen'],
+        const {'image_gen': <String>[]},
+        catalog: const {
+          'image_gen': ['cogview-4'],
+        },
+      );
+      expect(out, isEmpty);
+    });
+
+    test('⚠️ 放行不是「一律不报」：真解析不到的 id 照旧要说', () {
+      // asr 的目录面 id：voice 面没有云端腿 ⇒ 仍然「用不了」。
+      final asr = unusableCapabilityDefaults(
+        const {'asr': 'whisper-base'},
+        const ['asr'],
+        const {
+          'asr': ['whisper-model'],
+        },
+        catalog: const {
+          'asr': ['whisper-base'],
+        },
+      );
+      expect(asr, hasLength(1));
+      // image_gen 里两处都不在的 id：同样要说。
+      final img = unusableCapabilityDefaults(
+        const {'image_gen': 'not-anywhere'},
+        const ['image_gen'],
+        const {'image_gen': <String>[]},
+        catalog: const {
+          'image_gen': ['cogview-4'],
+        },
+      );
+      expect(img, hasLength(1));
+    });
+  });
+
   group('unusableCapabilityDefaults —— 当前默认值此刻用不了', () {
     test('指向没注册的 id ⇒ 判为「用不了」（存得进去、用不了）', () {
       final out = unusableCapabilityDefaults(

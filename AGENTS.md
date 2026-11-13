@@ -1,3 +1,24 @@
+**Updated**: 2026-11-13 (㔤 **「台账被顶掉这件事一天里发生了两次 —— 而两次都不是『文件坏了』，是『提交前没人问一句：你这份比 HEAD 少了什么』」** —— 承 㔝 条 ⑧❹（那格一直写着「那道闸仍欠」）＋ U+3506 条⑧❻（同一条的原始出处），本条记**取证（两次损失）**、**第一因（判据看的是「条目数」，不是「文件非空」）**、**第二因（共享判据按符号去重，拿来计数会少算）**、**这一刀的落点（受管 pre-commit ＋ 纯判据 lib）**、**判据与分级读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-13 | authority=measured | scope=project | source=两次真事故（① 2026-11-13 早：并行会话拿**过期整文件快照**写 AGENTS.md ⇒ 顶掉已提交条目（U+3506 条⑥❻ 记的是丢 876 行）；② 同日我自己两次遇到「工作树面比 HEAD 落后」，只能手工 `grep -c` 核条目数）＋ 受管钩子的形状（`.githooks/pre-commit` **只拦专用码 10**、判不了/崩了一律放行 ⇒ fail-safe 是既有约定）｜ 改动：**shadow**（**新** `scripts/lib/precommit-ledger-shrink.mjs`（纯判据）＋ **改** `scripts/check-precommit-hook.mjs`（取两侧正文 ＋ 判红 ＋ 自检 6 → **10** 格）＋ AGENTS.md 本条）⇒ ⇒ 零新增依赖 ＋ 零 ci.yml 改动 ＋ **不动 `.githooks/pre-commit`**（它只认专用码 10，条件挂在 node 侧）｜ 读数：自检 **10/10** ＋ 真仓上（当前没暂存台账）逐字 `::notice::这一笔没动台账 ⇒ ⇒ 不判条目数` 且放行 ＋ 变异（把判定摘成 `null`）⇒ **9/10**（⑦「2 条 ⇒ 1 条」那格红）⇒ 还原 **10/10** ｜ 真 CI 待取 | status=active | supersedes=none
+
+① **⚠️ 取证：两次损失，同一个形状** —— ❶ 第一次是**并行会话**用过期快照整文件重写台账 ⇒ ⇒ 顶掉别人刚落链的条目（U+3506 条⑥❻ 有那次的行数读数）；❷ 第二次是我自己：工作树面比 HEAD 落后时，只能靠手工 `grep -c '^\*\*Updated\*\*'` 两边各数一遍才知道少了没有 —— **手工核了两次，两次都核出差异**。
+
+② **⚠️ 第一因：既有那道钩子看的是「文件非空」，而覆盖式顶掉**不会**让文件变空** —— 2.4 MB 的台账少了 876 行，仍然是 2.4 MB **非空** ⇒ ⇒ 现有判据（「HEAD 非空 ＋ 暂存面是空 blob」）一句话都不会说。⇒ ⇒ **通用形态：判据问的是「有没有坏」，而事故的形态是「少了点什么」——「非空」这个门槛挡不住「缩水」。**
+
+③ **⚠️ 第二因：共享台账判据按**符号**去重，拿来**计数**会少算** —— `ledgerEntries()` 是 `Map<符号, 正文>`（同一符号取第一次），而本仓台账里有**合法撞号**（基线登记在案 48 个码位）⇒ ⇒ 用它 `.size` 当条目数 ⇒ ⇒ 两条同号条目数成一条 ⇒ ⇒ **这条闸自己会误报**。⇒ ⇒ 计数必须按**头部行**数（`ENTRY_HEADER_RE` 的 `matchAll`）。
+
+④ **✅ 这一刀的落点（1 个新文件 ＋ 1 个改动 ＋ 台账）** ——
+　❶ **新** `scripts/lib/precommit-ledger-shrink.mjs`：`countLedgerEntries(text)`（**每次新建**带 `g` 的正则 —— 共享字面量的 `lastIndex` 会让同进程里第二次少算）＋ `checkLedgerShrunk({headHasFile, headText, stagedText})` —— **只判一种形态**：HEAD 里有这个台账 **且** 暂存面条目数 **<** HEAD ⇒ 判红；新增台账 / 持平 / 变多 / 任一侧读不到 ⇒ 一律放行。
+　❷ **改** `scripts/check-precommit-hook.mjs`：`collectLedgerShrink()` 只在**这一笔动了 `AGENTS.md`** 时才取正文（`git show HEAD:AGENTS.md` ／ `git show :AGENTS.md`）；`main` 里两条判据**各自报**、合并判红、**仍走专用码 10**（钩子只认 10 ⇒ 不动钩子）；判红文案带**正确做法**（从 HEAD blob 重建台账再插条目）与**有意删条目的出路**（提交信息写明，或 `--no-verify`）。
+　❸ 自检 **6 → 10 格**：⑦ 顶掉一条 ⇒ **必须拦**（hook 模式 10）｜⑧ 条目变多 ⇒ 放行｜⑨ 只改正文、条目数不变 ⇒ 放行｜⑩ 这一笔没动台账 ⇒ **不判**（不误伤改别的文件的提交）。
+
+⑤ **✅ 判据与分级读数（全部实测）** —— ❶ **判据级**：`--self-test` **10/10 通过**（含新增 4 格）。❷ **真仓级**（当前没暂存台账）：逐字 `::notice::这一笔没动台账 ⇒ ⇒ 不判条目数` ＋ `提交前闸：…台账条目数也不少于 HEAD ⇒ ⇒ 放行`。❸ **反向验证级**：把 `ledgerLost` 摘成 `null` ⇒ **9/10**（红的正是 ⑦）⇒ 还原 10/10 ⇒ ⇒ 这条闸有牙、且负控（⑧⑨⑩）不会误伤。❹ **真 CI 级**：**待取**。
+
+⑥ **⚠️ 仍然欠着的** —— ❶ **CI 面看不到「工作树」**：这闸只在**本地提交**时生效（CI 检出的提交树永远自洽）⇒ 它防的是「拿旧快照提交」，**不防**「提交之后别处再顶掉」⇒ ⇒ 后者的唯一防线仍是「从 HEAD blob 重建」的纪律。❷ **只比「条目数」，不比「哪一条」**：顶掉一条 ＋ 塞一条自己的（数不变）仍会漏 ⇒ ⇒ 下一刀要按**符号集合**判（例如「HEAD 的符号 ⊄ 暂存面」以及「新增符号必须出现在提交信息里」），但那条会与「合法撞号」和「合并条目」打架，要另设计。❸ **只看 `AGENTS.md`**：移动端／桌面端两本账本（`shadow-mobile/AGENTS.md` 等）还没覆盖。❹ 真 CI 读数待取。
+
+⑨ **⚠️ 圈码：本条占 U+3524（㔤）** —— 号按官方口径在**提交树面**取（`check-ledger-codepoint-take.mjs --next`，取样时刻 2026-11-13T08:33:55Z ｜ HEAD d80809b1 ⇒ 父仓提交树面水位 U+3523 ⇒ 候选头一个 **U+3524**）⇒ 字形由 String.fromCodePoint 生成，不手打。
+
 **Updated**: 2026-11-13 (㔣 **「那一步永远是绿的 —— 闸退出 2、包装器把它转成 0，于是『判不了』在 CI 面板上长得和『没问题』一模一样」** —— 承 㔡 条（同一族：绿灯是假的）＋ 㔠 条（闸的覆盖面当被测对象），本条记**取证（两形对照逐字）**、**第一因（闸的用法是向上找 Cargo.toml，而仓根没有）**、**第二因（包装器把 2 转成 0 是有意的，代价是面板上不可区分）**、**修法（`--` 之后才是闸的参数）**、**判据与读数**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-13 | authority=measured | scope=project | source=逐字两形（改前：`node scripts/run-gate-once.mjs scripts/check-msrv-floor.mjs` ⇒ 闸打印「check-msrv-floor: 找不到 Cargo.toml」、退出码 2 ⇒ 包装器逐字「⚠ **判不了**（闸的退出码 2）：这一格**没验成**」⇒ 最终 **EXIT=0**；改后：同一闸带 `-- --manifest-path shadow-desktop/src-tauri/Cargo.toml` ⇒ `VERDICT: PASS`（mode=auto floor=1.95 violations=0 max=1.95）＋ 包装器逐字「⇒ ⇒ ✅ 绿」⇒ **EXIT=0**）＋ 源码逐字（`check-msrv-floor.mjs` 用法行「不传 --manifest-path 时，从当前目录向上找 Cargo.toml」；`run-gate-once.mjs` 的 `spawnSync(process.execPath, [scriptPath, ...opts.args], { cwd: process.cwd() })` 与用法行「… <闸脚本> [-- <闸自己的参数>]」）＋ workflow 自证（`unwired-gates.yml` 头部第 9 行逐字「14 道**真跑绿**、1 道**判不了**（msrv-floor 找不到 Cargo.toml）」）｜ 改动：**shadow**（`.github/workflows/unwired-gates.yml`：msrv-floor 那步补 `-- --manifest-path shadow-desktop/src-tauri/Cargo.toml` ＋ 三行注释说明「不带参数 ⇒ 这步永远绿」＋ 头部注释订正那条债 ⇒ 现为 15 道真判；AGENTS.md 本条）⇒ ⇒ **2 个文件** ＋ 零新增依赖 ＋ 零新增文件 ｜ 读数：本机按 CI 形状跑 **判不了 ⇒ PASS**（EXIT=0 两形都是 0，但一个是「没验」一个是「真绿」—— 这正是本条的题）＋ yaml 闸 EXIT=0（31 个 workflow）＋ tally 闸 EXIT=0（unwired-gates.yml 闸步 15／经由通道 15）＋ gate-discipline 无新增（仍 4 条，全在兄弟在飞面）｜ 取号闸提交树面父仓水位 U+3522 ⇒ 本笔 U+3523 | status=active | supersedes=none
@@ -207,8 +228,8 @@
 ⑧ **⚠️ 仍然欠着的**
 　❶ **端脑侧（兄弟在飞）**：`lobe_defaults` 面 ＋ `lobe` 参数 ＋ `GET /lobes/routing` ＋ 桌面矩阵卡 ⇒ **等他们落链后**本卡的写路径才在提交树上成立（当前移动端代码按**他们的形状**写，提交树上那两个面还没有 ⇒ ⇒ 本刀在真端脑上要等他们那一笔）。
 　❷ **槽位回放没延伸**：`lobe_defaults` 只走运行时推送（与既有 `capability_defaults` 同一条纪律：那张表**从来没进过槽位**）⇒ ⇒ 「大脑起来之前就有叶区分档」这一格**仍缺**（要不要进槽位是产品决定）。
-　❸ **移动端 image_gen 的 per-lobe 候选只有「已注册面」**（`registered.image_gen` 常空）⇒ ⇒ 云图片模型 id 在移动端没有枚举源 ⇒ 那一行多数时候只能选「跟随全局」。
-　❹ **「工作树条目数 ≥ 提交树条目数」那道闸仍欠**（U+3506 条⑧❻）—— 本刀工作树面比 HEAD 落后时又是手工核的。
+　❸ **移动端 image_gen 的 per-lobe 候选只有「已注册面」**（`registered.image_gen` 常空）⇒ ⇒ 云图片模型 id 在移动端没有枚举源 ⇒ 那一行多数时候只能选「跟随全局」。（⚠️ **订正（2026-11-13）：已由本笔 ⓫ 修掉** —— 候选改成「已注册 ∪ 目录面」，只对 `image_gen` 放行。）
+　❹ **「工作树条目数 ≥ 提交树条目数」那道闸仍欠**（U+3506 条⑧❻）—— 本刀工作树面比 HEAD 落后时又是手工核的。（⚠️ **订正（2026-11-13）：已由 㔤 条那笔补上** —— 受管 pre-commit 里新增「暂存台账条目数不许少于 HEAD」。）
 
 ⑨ **⚠️ 圈码：本条占 U+351D（㔝）** —— 号按**官方口径**在**提交树面**取（`check-ledger-codepoint-take.mjs --next`，取样时刻 2026-11-13T02:20:42.662Z ｜ HEAD c2adc985 ⇒ 父仓三面水位均 U+351C ⇒ 候选头一个 **U+351D**，三面一致）⇒ 字形由 String.fromCodePoint 生成，不手打。
 
@@ -226,6 +247,8 @@
 　　❺ 两盏独立灯：`Commit Revert` 判「`245afc4` 把 `ef18662` 的增量整个退掉了」⇒ **修复与回退同貌**的归因问题（㔢 条⑧❹ 已定性，`245afc4` 是补接线不是回退）；`Secret Plaintext` 判「`telencephalon|src/api/providers.rs|file：清单记 1 处，现在 0 处`」⇒ 㔢 条⑨❸ 已定性**债没真还、只是探测器追不到** ⇒ ⇒ 两格都不许照着判语销账，也都与本笔无关。
 　　❻ `CI 总分母` step4 ＝ 上面各格的下游汇总。
 　　❼ **零新增判据**：与父笔 `8c13804` 比，红灯集合**换了族没换因**（少 `Desktop Test Assertions`／`Unwired Gates`、多 `Commit Revert`／`Secret Plaintext` —— 四条判语逐字都指向兄弟在飞面与 40 笔扫描窗口滑入的旧提交，无一指本笔）；本笔自己动的面（Mobile Analyze／码位／i18n／tally／state-surface）**逐格 success**。⇒ ⇒ 通用形态：**「红灯集合变了」不等于「本笔造成了变化」——要变的是判语点名的文件/提交，不是集合的大小**。
+
+　⓫ **✅ 续记（同日第三笔）：`image_gen` 的候选面补上「云端那条腿」（两端同改）** —— ❶ **缺陷**：`capabilityOptionsByCapability` 对「端脑按引擎 id 解析」的档一律只给**已注册面**。但 `api/images.rs` 的分流是「解析出的 id **先查云供应商模型表** ⇒ 命中就代理云端；否则才进本地 `imagegen_registry`」⇒ ⇒ `image_gen` 那一档**有两条腿**，只给一半 ⇒ ⇒ 下拉里一个云图片模型都看不见 ⇒ 那一行只能「跟随全局」（正是 ⑧❸ 记的那一格）。❷ **修法**：新增放行名单 `catalogResolvedTiers = {'image_gen'}`（Dart `catalogResolvedTiers` ↔ 桌面 `CATALOG_RESOLVED_TIERS`，两端各一份、必须同口径）⇒ 候选＝**已注册在前 ∪ 目录面补后**（同 id 去重、显示名用目录面那份）；`unusableCapabilityDefaults` 同一条放行（否则「下拉里能选、下面却标它用不了」自相矛盾）。**asr / tts 明确不进**：`api/voice.rs` 只有注册表一条腿（2026-11-09 实测根因）⇒ 并目录面就是「存得进去、用不了」。❸ **判据**：移动 **4 格**（并集顺序与去重／asr 不许并／云 id 不报「用不了」／真解析不到的照旧报）＋ 桌面 **6 格**（同形 ＋「不传目录面 ⇒ 回到旧口径」＋ 放行名单只含 image_gen）＋ 变异**两端各打一次**（摘掉并集 ⇒ 移动 1 红、桌面 1 红）⇒ 还原全绿。❹ **读数**：移动 `capability_default_candidates_test` ＋ 首卡 **53/53**；桌面 `capabilityDefaults.test` **6/6** ＋ 全量 **1610 绿 / 16 跳 / 0 红** ＋ `tsc -b` 0；analyze 本刀文件 0 issue。❺ **桌面矩阵卡自动跟上**（它调的就是 `capabilityOptionsByCapability`）⇒ 那一格的候选也一起变成并集。
 
 **Updated**: 2026-11-13 (㔜 **「桌面补上 llm 路由那半 —— 分档卡选云模型即注册远端引擎＋设全局默认，桌面对话真机首次走通云腿端到端」** —— 承 㔛 条④（对话链三格成因：桌面零调用 `set_lobe_models`），本条记**修法（对齐移动端三约定）**、**别名放组合层的理由（Dart 孪生在飞不碰）**、**途中那格（三个 id 撞名：目录复合 id ≠ 上游 model_id）**、**判据与真机红绿对照**，以及**仍然欠着的**.)
 
