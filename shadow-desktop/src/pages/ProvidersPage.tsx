@@ -952,8 +952,14 @@ export function ProvidersPage() {
                       >
                         <span
                           className={cn(
-                            'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
-                            provider.enabled ? 'translate-x-6' : 'translate-x-1'
+                            'inline-block h-4 w-4 transform rounded-full transition-transform',
+                            // ⚠️ 旋钮颜色必须与轨道**成对**：暗色主题下
+                            // primary 是近白色 ⇒ 开启态旋钮用 primary-foreground
+                            // （深色），否则白旋钮贴白轨道整个看不见；
+                            // 关闭态轨道是 muted ⇒ 旋钮用 foreground（两主题都可见）。
+                            provider.enabled
+                              ? 'translate-x-6 bg-primary-foreground'
+                              : 'translate-x-1 bg-foreground'
                           )}
                         />
                       </button>

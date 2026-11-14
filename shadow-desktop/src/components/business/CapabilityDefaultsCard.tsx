@@ -292,4 +292,5 @@ const CAPABILITY_FALLBACK_LABELS: Record<string, string> = {
   embedding: '向量模型',
   vision: '视觉模型',
   forecast: '预测模型',
+  image_gen: '图片生成',
 };

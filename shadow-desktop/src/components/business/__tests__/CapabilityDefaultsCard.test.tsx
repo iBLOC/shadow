@@ -94,6 +94,20 @@ describe('CapabilityDefaultsCard（分档默认卡 · llm 路由真消费面）'
     expect(document.querySelectorAll('select')).toHaveLength(NINE_CAPS.length);
   });
 
+  it('image_gen 档的标签是「图片生成」（兜底词表九档齐全，不再露出原始能力词）', async () => {
+    mockBackend();
+    render(<CapabilityDefaultsCard />);
+
+    // 修前：image_gen 不在 CAPABILITY_FALLBACK_LABELS ⇒ t(key, cap) 的
+    // default 就是 'image_gen' 原样露出；修后九档每档都有中文兜底，
+    // 且 i18n 表（zh/en）补了 capabilityDefaults.image_gen ⇒ 真翻译也在。
+    const row = await findRowSelect('图片生成');
+    expect(row).not.toBeNull();
+    // 认得出的能力词不允许以原始词形态出现在标签上。
+    expect(screen.queryByText('image_gen')).not.toBeInTheDocument();
+    expect(screen.queryByText('forecast')).not.toBeInTheDocument();
+  });
+
   it('选云模型 ⇒ setCapabilityDefaults 之外还调 setLobeModels（注册＋全局默认；payload 无 api_key）', async () => {
     mockBackend();
     const setLobeModels = vi

@@ -1289,7 +1289,10 @@
     "tags": "Tags",
     "actions": "Actions",
     "run": "Run",
-    "running": "Running..."
+    "running": "Running...",
+    "subtitle": "Flows registered on the brain (mindsets), runnable right here.",
+    "emptyTitle": "No flows yet",
+    "emptyHint": "Flows registered by the brain will appear here; hit Refresh to re-fetch."
   },
   "onboarding": {
     "title": "Configure your first model",
@@ -1608,7 +1611,8 @@
     "rerank": "Rerank model",
     "embedding": "Embedding model",
     "vision": "Vision model",
-    "forecast": "Forecast model"
+    "forecast": "Forecast model",
+    "image_gen": "Image generation"
   },
   "lobeModelMatrix": {
     "title": "Model per lobe",

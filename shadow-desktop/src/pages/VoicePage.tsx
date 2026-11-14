@@ -5,6 +5,9 @@ import { useCompanionModeStore } from '../stores/companionModeStore';
 import { isTauri } from '../lib/platform';
 
 function StatusBadge({ phase }: { phase: string }) {
+  // ⚠️ label 存的是 **i18n 键**，渲染必须过 `t()` —— 之前直接输出键字符串，
+  // 界面上永远是「voice.status.idle」这样的原文（翻译表里有词也到不了）。
+  const { t } = useTranslation();
   const config: Record<string, { label: string; dot: string }> = {
     idle: { label: 'voice.status.idle', dot: 'bg-muted' },
     connecting: { label: 'voice.status.connecting', dot: 'bg-amber-500 animate-pulse' },
@@ -18,7 +21,7 @@ function StatusBadge({ phase }: { phase: string }) {
   return (
     <div className="inline-flex items-center gap-2 rounded-full border bg-card px-3 py-1.5">
       <span className={`h-2 w-2 rounded-full ${entry.dot}`} aria-hidden="true" />
-      <span className="text-sm font-medium">{entry.label}</span>
+      <span className="text-sm font-medium">{t(entry.label)}</span>
     </div>
   );
 }

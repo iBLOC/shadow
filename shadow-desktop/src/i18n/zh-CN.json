@@ -1289,7 +1289,10 @@
     "tags": "标签",
     "actions": "操作",
     "run": "运行",
-    "running": "运行中..."
+    "running": "运行中...",
+    "subtitle": "端脑侧注册的流程（思维定式），可在这里直接运行。",
+    "emptyTitle": "暂无流程",
+    "emptyHint": "端脑注册的流程会显示在这里；点「刷新」重新拉取。"
   },
   "onboarding": {
     "title": "配置你的第一个模型",
@@ -1564,7 +1567,7 @@
     "discovery": "设备发现",
     "logs": "日志",
     "trace": "追踪",
-    "resonance": "Resonance",
+    "resonance": "共鸣",
     "telencephalon": "端脑",
     "settings": "设置",
     "setup": "初始设置",
@@ -1608,7 +1611,8 @@
     "rerank": "重排模型",
     "embedding": "向量模型",
     "vision": "视觉模型",
-    "forecast": "预测模型"
+    "forecast": "预测模型",
+    "image_gen": "图片生成"
   },
   "lobeModelMatrix": {
     "title": "每个叶区用什么模型",
