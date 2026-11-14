@@ -28,6 +28,17 @@ export interface CapabilityModelCandidate {
 
   /** 显示名（供应商名 · 模型名）—— 只给人看。 */
   label: string;
+
+  /**
+   * 这条候选来自**云供应商**（OpenAI 兼容的 HTTP 面）还是**内置 neuron
+   * 目录**（本地权重，`provider_type === 'neuron'`）。
+   *
+   * ⚠️ 为什么分：asr/tts 档并目录面 id 时，**只有云供应商的 id 端脑真的
+   * 解析得到**（先查云供应商模型表 ⇒ 代理云端）；内置目录的本地 id
+   * （`whisper-base` 那套）要**注册**了才能用 ⇒ ⇒ 并进来就是「存得进去、
+   * 用不了」（2026-11-09 实测根因——别让它回来）。
+   */
+  cloud: boolean;
 }
 
 /**
@@ -49,6 +60,8 @@ export interface CatalogModelEntry {
 /** 大脑供应商目录里的一家。 */
 export interface CatalogProviderEntry {
   name?: string;
+  /** `openai` / `openai_compatible` / `neuron`（内置目录）……—— 分「云/本地」用。 */
+  provider_type?: string;
   models?: CatalogModelEntry[];
 }
 
@@ -86,6 +99,9 @@ export function capabilityCandidatesByCapability(
 ): Record<string, CapabilityModelCandidate[]> {
   const out: Record<string, CapabilityModelCandidate[]> = {};
   for (const p of providers ?? []) {
+    // ⚠️ 内置 neuron 目录（`provider_type === 'neuron'`）的 id 是**本地
+    // 权重**（要注册了才能用），云供应商的 id 端脑能按 id 代理 ⇒ 分开记。
+    const cloud = (p.provider_type ?? '').trim().toLowerCase() !== 'neuron';
     for (const m of p.models ?? []) {
       const cap = firstCapabilityOf(m);
       if (!cap) continue;
@@ -98,6 +114,7 @@ export function capabilityCandidatesByCapability(
       list.push({
         id,
         label: providerName ? `${providerName} · ${modelName}` : modelName,
+        cloud,
       });
     }
   }
@@ -190,18 +207,45 @@ export interface CapabilityCandidateOption {
 /**
  * **按引擎 id 解析、但目录面的 id 端脑也解析得到**的那几档。
  *
- * ⚠️ 只收 `image_gen`：端脑 `api/images.rs` 的分流是「解析出的 id 先查
- * **云供应商模型表** ⇒ 命中就代理云端；否则才进本地 imagegen 注册表」⇒ ⇒
- * 目录面里标了 `image_gen` 的云模型 id 在那一档**真的能用**。
- * ⚠️ **asr / tts 不在这里**：`api/voice.rs` 只有注册表一条腿（没有云代理
- * 面）⇒ 目录面的 id（`whisper-base` 那套）端脑解析不到 ⇒ 收进来就是
- * 「存得进去、用不了」（2026-11-09 实测根因）。
+ * ⚠️ 三档全收（2026-11-14，小米 MiMo 那刀后）—— 端脑的分流现在是「先查
+ * **云供应商模型表** ⇒ 命中就代理云端；否则才进本地引擎注册表」：
+ * · `image_gen`：`api/images.rs` 一直有云腿 ⇒ 目录面里标了 `image_gen` 的
+ *   云模型 id 在那一档**真的能用**；
+ * · `asr` / `tts`：`api/voice.rs` 2026-11-14 起补上了同一形状的云腿
+ *   （`/audio/transcriptions` / `/audio/speech`，key 不出大脑）⇒ 供应商目录
+ *   里标了这两档的云模型 id（小米 MiMo 的 `mimo-2.5-tts` / `mimo-2.5-asr`）
+ *   同样**真的能用**。
+ *
+ * ⚠️ 历史教训仍然成立（2026-11-09 实测的根因）：**voice 只认本地注册表的
+ * 年代**，目录面 id 收进来就是「存得进去、用不了」⇒ ⇒ 那一刀把 asr/tts
+ * 挡在外面是对的；**云腿落地之后**，挡在外面就成了「用户少看到一半能用的
+ * 模型」⇒ ⇒ 两刀是一对，缺谁都不行。
  *
  * ⚠️ 与移动端 `brain_model_source_provider.dart` 的 `catalogResolvedTiers`
  * **必须一模一样**（两端纯模块同源，改一边就改另一边）。
  */
 export const CATALOG_RESOLVED_TIERS: ReadonlySet<string> = new Set([
   'image_gen',
+  'asr',
+  'tts',
+]);
+
+/**
+ * [CATALOG_RESOLVED_TIERS] 之中，目录面**只并「云供应商」条目**的那几档。
+ *
+ * ⚠️ `asr` / `tts` 在列：内置 neuron 目录的本地 id（`whisper-base` /
+ * `voxcpm2` 那套）端脑按 id **解析不到**（那是另一套命名空间——已注册面
+ * 才算数）⇒ ⇒ 并进来就是「存得进去、用不了」（2026-11-09 实测根因）。
+ * 云供应商的 id（小米 MiMo 的 `mimo-2.5-tts`）走云端代理 ⇒ 真的能用。
+ * ⚠️ `image_gen` **不在**：内置目录的 imagegen 条目（`moss-image`）在
+ * imagegen 注册表那套同名 ⇒ 维持原状（整档并）。
+ *
+ * ⚠️ 与移动端 `brain_model_source_provider.dart` 的 `cloudOnlyUnionTiers`
+ * **必须一模一样**（两端纯模块同源，改一边就改另一边）。
+ */
+export const CLOUD_ONLY_UNION_TIERS: ReadonlySet<string> = new Set([
+  'asr',
+  'tts',
 ]);
 
 /**
@@ -213,8 +257,9 @@ export const CATALOG_RESOLVED_TIERS: ReadonlySet<string> = new Set([
  * ⚠️ **不按引擎 id 解析的档 ⇒ 候选取目录面**（原样，不许被这一刀改掉）。
  * ⚠️ 已注册的 id 若同时在目录面里 ⇒ ⇒ **显示名用目录面那份**（同一个 id
  * 两套显示名更让人困惑）。
- * ⚠️ **`image_gen` 是两套的并集**（见 [CATALOG_RESOLVED_TIERS]）—— 它既有
- * 本地引擎注册表、又有云供应商那条腿 ⇒ 只给一半 ⇒ 用户少看到一半能用的模型。
+ * ⚠️ **[CATALOG_RESOLVED_TIERS] 那几档（asr / tts / image_gen）是两套的
+ * 并集** —— 它们既有本地引擎注册表、又有云供应商那条腿 ⇒ 只给一半 ⇒
+ * 用户少看到一半能用的模型。
  */
 export function capabilityOptionsByCapability(
   catalog: Record<string, CapabilityModelCandidate[]>,
@@ -244,6 +289,9 @@ export function capabilityOptionsByCapability(
       const seen = new Set(options.map((o) => o.id));
       for (const c of list ?? []) {
         if (seen.has(c.id)) continue;
+        // ⚠️ asr/tts 只并**云供应商**条目 —— 内置目录的本地 id 端脑解析
+        // 不到（[CLOUD_ONLY_UNION_TIERS]）。image_gen 整档并（原状）。
+        if (CLOUD_ONLY_UNION_TIERS.has(cap) && !c.cloud) continue;
         options.push({ id: c.id, label: c.label, usableNow: true });
       }
     }
@@ -288,7 +336,13 @@ export function unusableCapabilityDefaults(
     if (ids.includes(id)) continue;
     if (
       CATALOG_RESOLVED_TIERS.has(cap) &&
-      (catalog[cap] ?? []).some((c) => c.id === id)
+      (catalog[cap] ?? []).some(
+        (c) =>
+          c.id === id &&
+          // ⚠️ asr/tts 的目录面放行只对**云供应商**的 id 成立（内置目录的
+          // 本地 id 端脑解析不到 ⇒ 照旧要报）。
+          (!CLOUD_ONLY_UNION_TIERS.has(cap) || c.cloud),
+      )
     ) {
       continue;
     }

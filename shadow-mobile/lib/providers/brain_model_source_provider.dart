@@ -887,7 +887,19 @@ class CapabilityModelCandidate {
   /// 显示名（供应商名 · 模型名）—— 只给人看。
   final String label;
 
-  const CapabilityModelCandidate({required this.id, required this.label});
+  /// 这条候选来自**云供应商**还是**内置 neuron 目录**（本地权重）。
+  ///
+  /// ⚠️ asr/tts 档并目录面 id 时，**只有云供应商的 id 端脑真的解析得到**
+  /// （先查云供应商模型表 ⇒ 代理云端）；内置目录的本地 id（`whisper-base`
+  /// 那套）要**注册**了才能用 ⇒ ⇒ 并进来就是「存得进去、用不了」
+  /// （2026-11-09 实测根因——别让它回来）。缺省 false ＝ 内置/本地。
+  final bool cloud;
+
+  const CapabilityModelCandidate({
+    required this.id,
+    required this.label,
+    this.cloud = false,
+  });
 }
 
 /// 把大脑供应商目录里的模型**按能力分组**（纯函数 ⇒ 可单测）。
@@ -911,7 +923,13 @@ Map<String, List<CapabilityModelCandidate>> capabilityCandidatesByCapability(
       final list = out.putIfAbsent(cap, () => <CapabilityModelCandidate>[]);
       // 同一条模型在目录里出现两次（多个供应商都提供它）⇒ ⇒ 只留一条。
       if (list.any((c) => c.id == id)) continue;
-      list.add(CapabilityModelCandidate(id: id, label: '${p.name} · ${m.name}'));
+      list.add(CapabilityModelCandidate(
+        id: id,
+        label: '${p.name} · ${m.name}',
+        // ⚠️ 内置 neuron 目录（`builtin: true`）的 id 是**本地权重**（要
+        // 注册了才能用），云供应商的 id 端脑能按 id 代理 ⇒ 分开记。
+        cloud: !p.builtin,
+      ));
     }
   }
   return out;
@@ -1051,15 +1069,37 @@ class CapabilityCandidateOption {
 
 /// **按引擎 id 解析、但目录面的 id 端脑也解析得到**的那几档。
 ///
-/// ⚠️ 只收 `image_gen`，理由要**逐档**看服务端：`api/images.rs` 的分流是
-/// 「先拿解析出的 id 去**云供应商模型表**里找 ⇒ 命中就代理云端；否则才进
-/// 本地 `imagegen_registry` 按 id 解析」⇒ ⇒ 目录面（供应商目录里标了
-/// `image_gen` 的模型 id）在那一档**是真的能用**的。
+/// ⚠️ 三档全收（2026-11-14，小米 MiMo 那刀后）—— 端脑的分流现在是「先拿
+/// 解析出的 id 去**云供应商模型表**里找 ⇒ 命中就代理云端；否则才进本地
+/// 引擎注册表」：
+/// · `image_gen`：`api/images.rs` 一直有云腿 ⇒ 目录面（供应商目录里标了
+///   `image_gen` 的模型 id）在那一档**是真的能用**的；
+/// · `asr` / `tts`：`api/voice.rs` 2026-11-14 起补上了同一形状的云腿
+///   （`/audio/transcriptions` / `/audio/speech`，key 不出大脑）⇒ 供应商
+///   目录里标了这两档的云模型 id（小米 MiMo 的 `mimo-2.5-tts` /
+///   `mimo-2.5-asr`）同样**真的能用**。
 ///
-/// ⚠️ **asr / tts 不在这里**：`api/voice.rs` 只有注册表那一条腿（没有云
-/// 代理面）⇒ 目录面的 id（`whisper-base` 那套）端脑解析不到 ⇒ 收进来就是
-/// 「存得进去、用不了」（2026-11-09 实测的根因）。
-const Set<String> catalogResolvedTiers = {'image_gen'};
+/// ⚠️ 历史教训仍然成立（2026-11-09 实测的根因）：**voice 只认本地注册表
+/// 的年代**，目录面 id 收进来就是「存得进去、用不了」⇒ ⇒ 那一刀把 asr/tts
+/// 挡在外面是对的；**云腿落地之后**，挡在外面就成了「用户少看到一半能用
+/// 的模型」⇒ ⇒ 两刀是一对，缺谁都不行。
+///
+/// ⚠️ 与桌面端 `capabilityDefaults.ts` 的 `CATALOG_RESOLVED_TIERS`
+/// **必须一模一样**（两端纯模块同源，改一边就改另一边）。
+const Set<String> catalogResolvedTiers = {'image_gen', 'asr', 'tts'};
+
+/// [catalogResolvedTiers] 之中，目录面**只并「云供应商」条目**的那几档。
+///
+/// ⚠️ `asr` / `tts` 在列：内置 neuron 目录的本地 id（`whisper-base` /
+/// `voxcpm2` 那套）端脑按 id **解析不到**（那是另一套命名空间——已注册面
+/// 才算数）⇒ ⇒ 并进来就是「存得进去、用不了」（2026-11-09 实测根因）。
+/// 云供应商的 id（小米 MiMo 的 `mimo-2.5-tts`）走云端代理 ⇒ 真的能用。
+/// ⚠️ `image_gen` **不在**：内置目录的 imagegen 条目（`moss-image`）在
+/// imagegen 注册表那套同名 ⇒ 维持原状（整档并）。
+///
+/// ⚠️ 与桌面端 `capabilityDefaults.ts` 的 `CLOUD_ONLY_UNION_TIERS`
+/// **必须一模一样**（两端纯模块同源，改一边就改另一边）。
+const Set<String> cloudOnlyUnionTiers = {'asr', 'tts'};
 
 /// 每档的**可选项** —— 端脑说哪几档按引擎 id 解析，就按哪套命名空间取。
 ///
@@ -1072,8 +1112,10 @@ const Set<String> catalogResolvedTiers = {'image_gen'};
 /// asr 档 ⇒ ⇒ 端脑永远解析不到 ⇒ ⇒ **存得进去、用不了**。
 ///
 /// ⚠️ **不按引擎 id 解析的档 ⇒ 候选取目录面**（原样，不许被这一刀改掉）。
-/// ⚠️ **`image_gen` 是两套的并集**（见 [catalogResolvedTiers]）—— 它既有
-/// 本地引擎注册表、又有云供应商那条腿 ⇒ 只给一半 ⇒ 用户少看到一半能用的模型。
+/// ⚠️ **[catalogResolvedTiers] 那几档（asr / tts / image_gen）是两套的并集**
+/// —— 它们既有本地引擎注册表、又有云供应商那条腿；其中 **asr/tts 只并云
+/// 供应商的条目**（[cloudOnlyUnionTiers]——内置目录的本地 id 端脑解析不到），
+/// image_gen 维持整档并 ⇒ 只给一半 ⇒ 用户少看到一半能用的模型。
 Map<String, List<CapabilityCandidateOption>> capabilityOptionsByCapability(
   Map<String, List<CapabilityModelCandidate>> catalog,
   List<String> engineResolved,
@@ -1100,6 +1142,9 @@ Map<String, List<CapabilityCandidateOption>> capabilityOptionsByCapability(
       final seen = {for (final o in options) o.id};
       for (final c in list) {
         if (seen.contains(c.id)) continue;
+        // ⚠️ asr/tts 只并**云供应商**条目 —— 内置目录的本地 id 端脑解析
+        // 不到（[cloudOnlyUnionTiers]）。image_gen 整档并（原状）。
+        if (cloudOnlyUnionTiers.contains(cap) && !c.cloud) continue;
         options.add(CapabilityCandidateOption(id: c.id, label: c.label));
       }
     }

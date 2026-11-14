@@ -201,6 +201,77 @@ void main() {
       expect(out['asr']!.map((o) => o.id).toList(), ['whisper-model']);
     });
 
+    test('⚠️ asr/tts：**云供应商**的目录 id 并进来（云腿落地，小米 MiMo）', () {
+      final out = capabilityOptionsByCapability(
+        const {
+          'asr': [
+            CapabilityModelCandidate(id: 'whisper-base', label: '本地 · whisper-base'),
+            CapabilityModelCandidate(
+              id: 'mimo-2.5-asr',
+              label: 'Xiaomi MiMo · mimo-2.5-asr',
+              cloud: true,
+            ),
+          ],
+          'tts': [
+            CapabilityModelCandidate(
+              id: 'mimo-2.5-tts',
+              label: 'Xiaomi MiMo · mimo-2.5-tts',
+              cloud: true,
+            ),
+          ],
+        },
+        const ['asr', 'tts'],
+        const {
+          'asr': ['whisper-model'],
+          'tts': <String>[],
+        },
+      );
+      // 已注册的在前；目录面里**只有云的**补进来，内置的 whisper-base
+      // 不许回来（那是「选了必然失败」的另一族）。
+      expect(
+        out['asr']!.map((o) => o.id).toList(),
+        ['whisper-model', 'mimo-2.5-asr'],
+      );
+      // 本地一个都没注册 ⇒ 目录面里云的 MiMo 就是全部候选。
+      expect(out['tts']!.map((o) => o.id).toList(), ['mimo-2.5-tts']);
+    });
+
+    test('⚠️ 不可用提醒：云模型 id（在目录面里）不算「用不了」', () {
+      final out = unusableCapabilityDefaults(
+        const {'asr': 'mimo-2.5-asr', 'tts': 'mimo-2.5-tts', 'image_gen': 'cogview-4'},
+        const ['asr', 'tts', 'image_gen'],
+        const {
+          'asr': ['whisper-model'],
+          'tts': <String>[],
+          'image_gen': <String>[],
+        },
+        catalog: const {
+          'asr': ['mimo-2.5-asr'],
+          'tts': ['mimo-2.5-tts'],
+          'image_gen': ['cogview-4'],
+        },
+      );
+      expect(out, isEmpty);
+    });
+
+    test('⚠️ 内置目录的本地 id 照旧要报 —— 界面不给的 id（云腿分流后）', () {
+      // 调用方（capability_default_section）传的是**下拉里真有的 id**
+      // （已注册 ∪ 目录面云条目）⇒ 内置的 whisper-base 被并集排除 ⇒
+      // 不在放行表里 ⇒ ⇒ 照旧「用不了」。
+      final out = unusableCapabilityDefaults(
+        const {'asr': 'whisper-base'},
+        const ['asr'],
+        const {
+          'asr': ['whisper-model'],
+        },
+        catalog: const {
+          'asr': ['mimo-2.5-asr'],
+        },
+      );
+      expect(out, hasLength(1));
+      expect(out.single.modelId, 'whisper-base');
+    });
+
     test('⚠️ 不可用提醒：image_gen 的云模型 id（在目录面里）不算「用不了」', () {
       final out = unusableCapabilityDefaults(
         const {'image_gen': 'cogview-4'},
@@ -214,15 +285,16 @@ void main() {
     });
 
     test('⚠️ 放行不是「一律不报」：真解析不到的 id 照旧要说', () {
-      // asr 的目录面 id：voice 面没有云端腿 ⇒ 仍然「用不了」。
+      // asr 档里**不在**放行表的 id（既没注册、界面也没给）⇒ 照旧要说。
+      // （whisper-base 这类内置 id 已由云腿分流挡在下拉外 ⇒ 不传进来。）
       final asr = unusableCapabilityDefaults(
-        const {'asr': 'whisper-base'},
+        const {'asr': 'gone-model'},
         const ['asr'],
         const {
           'asr': ['whisper-model'],
         },
         catalog: const {
-          'asr': ['whisper-base'],
+          'asr': ['mimo-2.5-asr'],
         },
       );
       expect(asr, hasLength(1));

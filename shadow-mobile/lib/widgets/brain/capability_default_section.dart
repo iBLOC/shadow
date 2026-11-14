@@ -80,8 +80,9 @@ class CapabilityDefaultSection extends ConsumerWidget {
         // 才发现 503 ⇒ ⇒ 失败长得像成功。
         //
         // ⚠️ 放行表用**这一页真正提供的候选**（`candidates`）＝「已注册 ∪
-        // 目录面（仅 image_gen）」⇒ ⇒ 与下拉里能选的那些是**同一份** ⇒ ⇒
-        // 不会出现「下拉里有、下面却标它用不了」这种自相矛盾。
+        // 目录面（asr/tts 只并云供应商，image_gen 整档并）」⇒ ⇒ 与下拉里
+        // 能选的那些是**同一份** ⇒ ⇒ 不会出现「下拉里有、下面却标它用不了」
+        // 这种自相矛盾。
         final unusable = unusableCapabilityDefaults(
           view.defaults,
           view.engineResolved,
