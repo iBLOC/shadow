@@ -18,6 +18,7 @@
 　❶ **判据 ＋ 形状订正**：`conversation.workflowStudio` 嵌套块（zh/en 各 22 键）**零消费方**——全仓 `t()` 调用点去重逐字，无一挂 `conversation.` 前缀，全部走**顶层** `workflowStudio.*`；⚠️ ①❸ 那句「json last-wins」要订正：两块是**不同路径**（`conversation.workflowStudio` vs 顶层 `workflowStudio`），last-wins 并不适用——第一轮翻嵌套块界面不动，真因是**翻错了路径**（消费面在顶层）；`nav.workflowStudio`（字符串）／`surface.workflowStudio`（字符串）也是**不同路径的合法键**，同层重复扫描（逐行缩进分组）两文件均**零同路径重复**。
 　❷ **落点**：两份词表各删嵌套对象 23 行（Edit 双锚：`noteMcp` 前锚 ＋ `tokenStats` 后锚——③ 自伤教训的执行形状，裸键名必误伤）。
 　❸ **读数**：JSON 双双可解析 ＋ 全量 vitest **1644 过 / 16 跳 / 0 红**（与基线持平）＋ `tsc -b` 0；i18n 闸此时报的 2 条问题**全部**是兄弟在飞的 `mcp.stdioWindowsHint`（MCPPage.tsx:293 引用、词表半截）⇒ 本刀零责；删后 `"workflowStudio"` 每文件剩 3 处＝nav／surface／顶层三路全合法。
+　❹ **携带登记（提交后自查逮住）**：zh blob 以工作树文件为准 hash ⇒ 把兄弟在飞的**同文件**两行一起带上了链（`haMcpBearerHint` 措辞改写 ＋ `stdioWindowsHint` 新键——恰是他们 MCPPage 引用的那把钥匙的 zh 半边；en 半边仍在飞 ⇒ i18n 闸对 en 的红仍是他们的）；归属以条目自述为准（㔩④ 先例）。⇒ 通用形态再证：**构造式提交只防「别的文件」，防不了「同文件的在飞行」——共享树上的文件在核完 diff 之后随时会被别人再碰 ⇒ 提交前对每个 blob 重跑 `git diff <parent> -- <file>` 核「是否只含自己的 hunk」，同文件在飞 ⇒ 等、或把对方 hunk 一并如实登记。**
 
 **Updated**: 2026-11-14 (㔮 **「『未连接』与『画布空白』各拆出多层谎 —— 探活全仓只有一个调用点、指示器被 resonance 绑架、dmn-js 没有 createDiagram、示例 XML 根本不是 DMN、裸符号被 as 成枚举」** —— 承 㔭 条⑤「仍然欠着的」，本条记**诊断链（curl 逐层定死谁在说谎）**、**连接态两格**、**dmn-js 三层**、**判据与读数**，以及**仍然欠着的**.)
 
