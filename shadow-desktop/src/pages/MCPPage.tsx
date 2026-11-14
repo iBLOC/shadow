@@ -125,7 +125,8 @@ export function MCPPage() {
 
       {!isRunning ? (
         <EmptyState icon={<Server size={48} />}
-          title={t('agents.startTelencephalonHint') || t('mcp.noServers')} size="sm" />
+          title={t('agents.startTelencephalonHint') || t('mcp.noServers')} size="sm"
+          className="py-16" />
       ) : error ? (
         <div className="flex items-start gap-2 rounded-md border border-red-500/30 bg-red-500/10 p-2 text-sm text-red-500">
           <AlertCircle size={14} /><span>{error}</span>
@@ -135,7 +136,8 @@ export function MCPPage() {
       ) : servers.length === 0 ? (
         <EmptyState icon={<Server size={48} />} title={t('mcp.noServers')}
           description={t('mcp.noServersDesc')}
-          action={{ label: t('mcp.addServer'), onClick: () => setShowAddForm(true) }} />
+          action={{ label: t('mcp.addServer'), onClick: () => setShowAddForm(true) }}
+          className="py-16" />
       ) : (
         <div className="flex flex-col gap-3">
           {servers.map((server) => {

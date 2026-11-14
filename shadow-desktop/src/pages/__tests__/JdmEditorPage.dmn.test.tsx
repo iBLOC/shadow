@@ -41,8 +41,9 @@ beforeEach(() => {
 describe('JdmEditorPage（dmn-js 画布初始化）', () => {
   it('挂载后不出现 TypeError 错误条，徽章走到 canvas ready', async () => {
     render(<JdmEditorPage />);
+    // ⚠️ 全局 setup 的 t 是键透传 ⇒ 断言键名（真翻译由 i18n 词表闸兜底）。
     await waitFor(() =>
-      expect(screen.getByText('canvas ready')).toBeInTheDocument(),
+      expect(screen.getByText('jdmEditor.canvasReady')).toBeInTheDocument(),
     );
     // 修前这里挂着 `TypeError: modeler.createDiagram is not a function`。
     expect(screen.queryByText(/createDiagram/)).not.toBeInTheDocument();

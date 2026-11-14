@@ -13,7 +13,7 @@
 // Layout.tsx 加 "JDM Editor" 一项，本页用 React 函数式组件。
 
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-// import { useTranslation } from 'react-i18next'; // reserved for future i18n keys
+import { useTranslation } from 'react-i18next';
 import {
   Play, FileCode, Save, Download, Upload, X,
 } from 'lucide-react';
@@ -141,6 +141,7 @@ interface TryRunResult {
 }
 
 export function JdmEditorPage() {
+  const { t } = useTranslation();
   const [rule, setRule] = useState<JdmRule>(EMPTY_RULE);
   const [inputJson, setInputJson] = useState(
     '{\n  "sensor": "bath_temp",\n  "value": 27.3\n}',
@@ -185,7 +186,9 @@ export function JdmEditorPage() {
         } catch (e) {
           if (!cancelled) {
             setDmnError(
-              `dmn import failed: ${e instanceof Error ? e.message : String(e)}`,
+              t('jdmEditor.importFailed', {
+                detail: e instanceof Error ? e.message : String(e),
+              }),
             );
           }
         }
@@ -213,18 +216,18 @@ export function JdmEditorPage() {
   const syncFromCanvas = useCallback(async () => {
     const modeler = modelerRef.current;
     if (!modeler) {
-      setDmnError('dmn-js modeler not ready');
+      setDmnError(t('jdmEditor.modelerNotReady'));
       return;
     }
     try {
       const { xml } = await modeler.saveXML({ format: true });
       const rules = parseDmnXmlToRules(String(xml));
       if (rules.length === 0) {
-        setTryRun({ ok: false, detail: 'canvas has no parsable decision rows' });
+        setTryRun({ ok: false, detail: t('jdmEditor.noParsableRows') });
         return;
       }
       setRule((prev) => ({ ...prev, any_of: rules }));
-      setTryRun({ ok: true, detail: `synced ${rules.length} rule(s) from canvas` });
+      setTryRun({ ok: true, detail: t('jdmEditor.synced', { count: rules.length }) });
     } catch (e) {
       setDmnError(String(e));
     }
@@ -235,12 +238,12 @@ export function JdmEditorPage() {
   const syncToCanvas = useCallback(async () => {
     const modeler = modelerRef.current;
     if (!modeler) {
-      setDmnError('dmn-js modeler not ready');
+      setDmnError(t('jdmEditor.modelerNotReady'));
       return;
     }
     try {
       await modeler.importXML(buildSampleDmn(rule));
-      setTryRun({ ok: true, detail: 'canvas re-imported from form' });
+      setTryRun({ ok: true, detail: t('jdmEditor.reimported') });
     } catch (e) {
       setDmnError(String(e));
     }
@@ -284,7 +287,7 @@ export function JdmEditorPage() {
       });
       setTryRun({
         ok: true,
-        detail: `evaluate → ${outcome.action}`,
+        detail: t('jdmEditor.evaluated', { action: outcome.action }),
         action: outcome.action,
       });
     } catch (e) {
@@ -292,7 +295,7 @@ export function JdmEditorPage() {
     } finally {
       setBusy(false);
     }
-  }, [rule, inputJson]);
+  }, [rule, inputJson, t]);
 
   // Publish: register the rule on the running thalamus so the
   // hot path evaluates it on every subsequent sensor event (no
@@ -309,14 +312,14 @@ export function JdmEditorPage() {
       });
       setTryRun({
         ok: true,
-        detail: `published "${rule.rule_id}" — hot path will evaluate it on every event`,
+        detail: t('jdmEditor.published', { id: rule.rule_id }),
       });
     } catch (e) {
-      setTryRun({ ok: false, detail: `publish failed: ${e}` });
+      setTryRun({ ok: false, detail: t('jdmEditor.publishFailed', { detail: String(e) }) });
     } finally {
       setPublishing(false);
     }
-  }, [rule]);
+  }, [rule, t]);
 
   const onUpload = useCallback((ev: React.ChangeEvent<HTMLInputElement>) => {
     const f = ev.target.files?.[0];
@@ -326,28 +329,28 @@ export function JdmEditorPage() {
       try {
         const parsed = JSON.parse(String(reader.result));
         if (parsed.rule_id) setRule(parsed);
-        else setTryRun({ ok: false, detail: 'JSON missing `rule_id`' });
+        else setTryRun({ ok: false, detail: t('jdmEditor.jsonMissingRuleId') });
       } catch (e) {
-        setTryRun({ ok: false, detail: `parse: ${e}` });
+        setTryRun({ ok: false, detail: t('jdmEditor.parseFailed', { detail: String(e) }) });
       }
     };
     reader.readAsText(f);
-  }, []);
+  }, [t]);
 
   return (
     <div className="container mx-auto p-6 space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <FileCode className="w-6 h-6" />
-          <h1 className="text-2xl font-semibold">JDM Editor</h1>
-          <Badge variant="secondary">zen-engine backed</Badge>
+          <h1 className="text-2xl font-semibold">{t('jdmEditor.title')}</h1>
+          <Badge variant="secondary">{t('jdmEditor.zenBacked')}</Badge>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => {
             navigator.clipboard?.writeText(zenGraph);
-            setTryRun({ ok: true, detail: 'graph copied to clipboard' });
+            setTryRun({ ok: true, detail: t('jdmEditor.graphCopied') });
           }}>
-            <Download className="w-4 h-4 mr-1" /> Copy Graph
+            <Download className="w-4 h-4 mr-1" /> {t('jdmEditor.copyGraph')}
           </Button>
           <label>
             <input
@@ -357,7 +360,7 @@ export function JdmEditorPage() {
               onChange={onUpload}
             />
             <Button variant="outline" size="sm" asChild={false}>
-              <span><Upload className="w-4 h-4 mr-1" /> Upload JSON</span>
+              <span><Upload className="w-4 h-4 mr-1" /> {t('jdmEditor.uploadJson')}</span>
             </Button>
           </label>
         </div>
@@ -366,21 +369,21 @@ export function JdmEditorPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
           <CardHeader>
-            <CardTitle>Rule</CardTitle>
+            <CardTitle>{t('jdmEditor.rule')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <label className="text-sm font-medium">Rule ID</label>
+            <label className="text-sm font-medium">{t('jdmEditor.ruleId')}</label>
             <Input
               value={rule.rule_id}
               onChange={(e) => setRule({ ...rule, rule_id: e.target.value })}
             />
             <RuleSection
-              title="any_of (OR)"
+              title={t('jdmEditor.anyOf')}
               items={rule.any_of}
               onChange={(items) => setRule({ ...rule, any_of: items })}
             />
             <RuleSection
-              title="all_of (AND)"
+              title={t('jdmEditor.allOf')}
               items={rule.all_of}
               onChange={(items) => setRule({ ...rule, all_of: items })}
             />
@@ -389,10 +392,10 @@ export function JdmEditorPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Try Run (zen-engine in-process)</CardTitle>
+            <CardTitle>{t('jdmEditor.tryRunTitle')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <label className="text-sm font-medium">Input (JSON)</label>
+            <label className="text-sm font-medium">{t('jdmEditor.inputJson')}</label>
             <Textarea
               rows={5}
               value={inputJson}
@@ -401,7 +404,7 @@ export function JdmEditorPage() {
             />
             <div className="flex items-center gap-2">
               <Button onClick={run} disabled={busy}>
-                <Play className="w-4 h-4 mr-1" /> Evaluate
+                <Play className="w-4 h-4 mr-1" /> {t('jdmEditor.evaluate')}
               </Button>
               {tryRun && (
                 <Badge variant={tryRun.ok ? 'default' : 'destructive'}>
@@ -415,12 +418,12 @@ export function JdmEditorPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>dmn-js Modeler</CardTitle>
+            <CardTitle>{t('jdmEditor.dmnTitle')}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
           <div className="flex items-center gap-2">
             <Badge variant={dmnReady ? 'default' : 'secondary'}>
-              {dmnReady ? 'canvas ready' : 'loading…'}
+              {dmnReady ? t('jdmEditor.canvasReady') : t('jdmEditor.loading')}
             </Badge>
             {dmnError && <Badge variant="destructive">{dmnError}</Badge>}
             <div className="flex-1" />
@@ -431,16 +434,16 @@ export function JdmEditorPage() {
               disabled={busy || publishing}
             >
               <Save className="w-4 h-4 mr-1" />
-              {publishing ? 'Publishing…' : 'Publish to thalamus'}
+              {publishing ? t('jdmEditor.publishing') : t('jdmEditor.publish')}
             </Button>
             <Button size="sm" variant="outline" onClick={syncFromCanvas} disabled={!dmnReady}>
-              <Download className="w-4 h-4 mr-1" /> Sync from canvas
+              <Download className="w-4 h-4 mr-1" /> {t('jdmEditor.syncFromCanvas')}
             </Button>
             <Button size="sm" variant="outline" onClick={syncToCanvas} disabled={!dmnReady}>
-              <Upload className="w-4 h-4 mr-1" /> Sync to canvas
+              <Upload className="w-4 h-4 mr-1" /> {t('jdmEditor.syncToCanvas')}
             </Button>
             <Button size="sm" variant="outline" onClick={exportXml} disabled={!dmnReady}>
-              <Save className="w-4 h-4 mr-1" /> Export XML
+              <Save className="w-4 h-4 mr-1" /> {t('jdmEditor.exportXml')}
             </Button>
           </div>
           <div
@@ -449,17 +452,14 @@ export function JdmEditorPage() {
             style={{ background: 'var(--background)' }}
           />
           <p className="text-xs text-muted-foreground">
-            Edit rows in the decision table above, then "Sync from canvas" pulls the
-            comparison conditions back into the form (which is what the zen-engine
-            evaluation uses). Only simple comparisons (variable &gt;/&lt;/= number)
-            round-trip; complex FEEL expressions are skipped.
+            {t('jdmEditor.canvasHint')}
           </p>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>Generated JDM Graph (zen-engine input)</CardTitle>
+            <CardTitle>{t('jdmEditor.graphTitle')}</CardTitle>
         </CardHeader>
         <CardContent>
           <pre className="bg-muted p-3 rounded text-xs overflow-auto max-h-64 font-mono">
@@ -478,6 +478,7 @@ interface RuleSectionProps {
 }
 
 function RuleSection({ title, items, onChange }: RuleSectionProps) {
+  const { t } = useTranslation();
   const update = (idx: number, patch: Partial<ComparisonRule>) => {
     onChange(items.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
   };
@@ -493,11 +494,11 @@ function RuleSection({ title, items, onChange }: RuleSectionProps) {
       <div className="flex items-center justify-between">
         <label className="text-sm font-medium">{title}</label>
         <Button size="sm" variant="ghost" onClick={add}>
-          <Save className="w-3 h-3 mr-1" /> add
+          <Save className="w-3 h-3 mr-1" /> {t('jdmEditor.add')}
         </Button>
       </div>
       {items.length === 0 && (
-        <p className="text-xs text-muted-foreground">empty — fall-through</p>
+        <p className="text-xs text-muted-foreground">{t('jdmEditor.emptyFallThrough')}</p>
       )}
       {items.map((r, i) => (
         <div key={r.id} className="flex items-center gap-2">
@@ -505,7 +506,7 @@ function RuleSection({ title, items, onChange }: RuleSectionProps) {
             className="flex-1"
             value={r.variable}
             onChange={(e) => update(i, { variable: e.target.value })}
-            placeholder="variable"
+            placeholder={t('jdmEditor.variable')}
           />
           <select
             className="border rounded px-2 py-1 bg-background text-foreground"
@@ -523,7 +524,7 @@ function RuleSection({ title, items, onChange }: RuleSectionProps) {
             type="number"
             value={r.threshold}
             onChange={(e) => update(i, { threshold: Number(e.target.value) })}
-            placeholder={(r.op === 'between' || r.op === 'outside') ? 'lo' : 'value'}
+            placeholder={(r.op === 'between' || r.op === 'outside') ? t('jdmEditor.lo') : t('jdmEditor.value')}
           />
           {(r.op === 'between' || r.op === 'outside') && (
             <Input
@@ -535,14 +536,14 @@ function RuleSection({ title, items, onChange }: RuleSectionProps) {
                   high: e.target.value === '' ? undefined : Number(e.target.value),
                 })
               }
-              placeholder="hi"
+              placeholder={t('jdmEditor.hi')}
             />
           )}
           <Button
             size="icon"
             variant="ghost"
             onClick={() => remove(i)}
-            aria-label="remove"
+            aria-label={t('jdmEditor.remove')}
           >
             <X className="w-4 h-4" />
           </Button>
