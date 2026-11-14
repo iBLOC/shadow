@@ -64,6 +64,22 @@ const MODEL_TYPE_TABS: { key: ModelType; label: string; icon: React.ReactNode }[
   { key: 'vision', label: 'Vision', icon: <Cpu size={16} /> },
 ];
 
+/**
+ * `/v1/models/pull` 应提交的 id —— **只剥引擎前缀，保留命名空间**。
+ *
+ * catalog 行 id 是 `<engine>/<ns>/<name>`（如 `llm/Qwen/Qwen3-0.6B`），
+ * neuron 落盘时把引擎前缀**拼回去**（落盘 id ＝ `engine/` ＋ 提交的 id；
+ * 真机证据：`vision/detr-resnet50` 行由裸名 pull 点亮）⇒ 提交
+ * `Qwen/Qwen3-0.6B` 才落成 `llm/Qwen/Qwen3-0.6B` 点亮原行。
+ * ⚠️ 旧 `pop()` 把命名空间也剥掉 ⇒ 落成 `llm/Qwen3-0.6B` ⇒ registry
+ * 连不上 catalog 行 ⇒ 下成功却以「额外行」浮现、原行永远「未下载」
+ * （盘上 `llm/qwen3-0.6b` 小写旧痕即此形状）。两段式 id 与旧行为一致。
+ */
+export function pullIdFor(row: { id: string; engine: string }): string {
+  const prefix = `${row.engine}/`;
+  return row.id.startsWith(prefix) ? row.id.slice(prefix.length) : row.id;
+}
+
 export function LocalEnginePanel() {
   const { t } = useTranslation();
   const [models, setModels] = useState<EngineModel[]>([]);
@@ -357,7 +373,7 @@ export function LocalEnginePanel() {
                   ...(await telencephalonClient.readHeaders()),
                 },
                 body: JSON.stringify({
-                  id: target.id.split('/').pop() || target.id,
+                  id: pullIdFor(target),
                   engine: target.engine,
                   reference,
                   source,
