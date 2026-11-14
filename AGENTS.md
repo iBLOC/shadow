@@ -28,7 +28,7 @@
 
 ⑤ **⚠️ hosted/OAuth 面：bearer 形状可接、OAuth-only 接不了** —— GitHub hosted 端点 401＋`WWW-Authenticate: Bearer`＋resource_metadata ⇒ PAT-as-bearer 形状**形状可接**（未带真 token 实测，本机无 PAT）；OAuth-only hosted（Notion/Linear/Atlassian 一族）需要浏览器授权流，端脑纯 bearer 做不了 ⇒ 与 㔩⑥❸ 同族，**P3**（要做就是桌面开一个本机回调端口跑 Authorization Code＋PKCE，端脑只认结果 token）。
 
-⑥ **⚠️ wasm 腿的现实意义（⚠️ 本段初版论断已由 ⑩ 订正）** —— npm/PyPI 生态没有「MCP server as wasm」的发行形态，wasm 腿只服务**自家工具打包**（`telencephalon_wasm_binaries` 表），不是接第三方生态的路 ⇒ 维持现状即可，不在评估建议里。
+⑥ **⚠️ wasm 腿的现实意义（初版论断两次订正：⑩ 库级双真相 → ⑪ 用户裁定的分类面）** —— wasm 腿的位置是给**适合嵌入大脑本地运行的服务器类** MCP；**并非所有 MCP 都适合改造成 wasm**——云服务商在线的与 HA 里 in-process 的照 ① 走**网络直连**，根本不碰 wasm（⑪ 逐字）；npm/PyPI 没有「wasm MCP server」发行形态 ⇒ 外部现成服务器落不成 wasm，本腿价值＝自家/端上适合嵌入的工具打包（`telencephalon_wasm_binaries` 表）⇒ 不是接第三方在线生态的路，维持现状。
 
 ⑦ **⚠️ 仍然欠着的** —— ❶ P1 引导文案未落（桌面表单一行字）；❷ SSE 腿（P2）与 OAuth 流（P3）未立项；❸ DeepWiki/GitHub hosted 的**长期**可用性未监控（公开端点会变）；❹ 本机探针脚本不入库（一次性），复跑命令写在 ①③④ 各段。
 
@@ -37,6 +37,8 @@
 ⑨ **⚠️ 就地续记（不占新码位）：本条第一版在「闸跑完 → 提交」的窗口里被并行会话的整文件重写从工作树顶掉（HEAD 里没有它 ⇒ 正是 㔤/U+3506 那一族，这次被顶掉的是本条自己）** —— 处置按纪律：确认工作树==HEAD 后**原样重插**并立即以最小窗口提交（本次）；⇒ 通用形态再证一次：**共享工作树上「写完就立刻提交」，评估类纯台账条目也不例外**；㔤 条那道「暂存面条目数不许少于 HEAD」的闸只护提交时刻，护不了工作树窗口。
 
 ⑩ **⚠️ 就地续记（不占新码位，同日追问「wasm mcp 能力是否已沉淀到 synapse」触发的核查）：synapse 里**确实**已沉淀了半座 MCP 库，而 ⑥ 段初版论断要订正一半** —— 逐字取证（`synapse/src/`）：**❶ `synapse::mcp` 是一套完整协议库**（`types.rs` 全套 MCP/JSON-RPC 类型、`stdio_client.rs`（`initialize`＋`notifications/initialized`）、`http_client.rs`（**早已是会话形状**：`session_id` 捕获+回放 73-75 行、`Accept: application/json, text/event-stream` 56 行、SSE `data:` 帧解析 142 行——**比端脑 ㌑ 之前的形状更早正确**）、`server.rs`（`SimpleMcpServer`＝把 `ToolHandler` 集合导出成 MCP 服务器）、`tool.rs`（`McpToolAdapter`＝把远程 MCP 工具适配成 synapse `BaseTool`））；**❷ `synapse::wasm` 是引擎全套**（`WasmRuntime`／`InstanceManager`／`WasmPackage`+Registry——端脑 `McpWasmRef` 的 name/version/sha256 三元组与它同形状；端脑 `runtime.rs` 注释明说 v1 **没拉** synapse 的 InstanceManager、自己写了简化版）；**❸ 但「wasm 当 MCP 服务器」的那座桥不在 synapse**——`call_wasm`（JSON-RPC → wasm `handle` 入口）＋管理面（记录存储／admin API／三 transport 分发／每 server 会话缓存）全在端脑 `src/mcp/`，synapse 不知道 MCP 服务器可以由 wasm 承载 ⇒ **对用户问题的准确回答：底座（引擎＋协议库）在 synapse，桥与管理面在端脑**。**❹ 新发现两格（评估延伸）**：❶ `synapse::mcp` 是**沉淀了但零消费**的库（`HttpMcpClient`/`SimpleMcpServer`/`McpToolAdapter` 在 synapse/telencephalon/encephalon 三仓 grep 零外部调用者）⇒ 与端脑 `src/mcp/` 构成「同一件事两份真相」的**库级版**（㔝 条那一族）——JSON-RPC 类型、stdio/http 客户端各一份，形状已在漂移；❷ 两份 http 客户端的形状差逐字：synapse 版有会话＋SSE 帧解析但**无 404 重握手**（非 2xx 直接报错），端脑 ㌑ 版有 404 自愈＋`ensure_initialized` 状态门 ⇒ 㔫① 的 DeepWiki 端到端读数只证明端脑那份；**收口方向（记为 P2.5，不立项）**：让端脑 `transport_clients` 改用/薄封装 `synapse::mcp`（或反向），消掉第二份——谁吃谁需要单独立刀（synapse 仓归兄弟在飞，本笔不动）。
+
+⑪ **✅ 就地续记（用户裁定逐字，不占新码位）：接入面按「服务器端在哪」分两类，不是所有 MCP 都走 wasm** —— 用户裁定原文：「**并非所有 mcp 都适合改造为 wasm mcp 服务支持嵌入；有的 mcp 是云服务商提供在线的 mcp，这些依然是直接接入；HA-MCP 是嵌入 HA 的，这种就是网络接入就可以了**」⇒ ⇒ 分类定形：**A. 服务器端已存在于别处**（云服务商在线 MCP ／ HA-MCP 这种 in-process 在 HA 里的 ／ self-host 的）⇒ 大脑只是**客户端，网络直连**即可（① DeepWiki 已实测 streamable 全绿；GitHub hosted bearer 形状同理；ha-mcp 两端 UI 即 㔩 条落地）——**不改造为 wasm，也无从改造**（服务器代码/运行时根本不在大脑手里）；**B. 服务器端需要在大脑设备上跑起来** ⇒ 才轮到 **wasm 嵌入腿**（适合嵌入执行的服务器类——⑥ 初版「只服务自家工具打包」据此修正）或 **stdio spawn 腿**（②/③，含 Windows `.cmd` shim 的 `cmd /c` 解法）。⇒ 连带修正 ⑩ 的 P2.5：收口目标是**协议库去重**（两份 http/stdio 客户端），**不是**把在线接入类搬进 wasm——两条腿各管一类，别互相抢活。
 
 **Updated**: 2026-11-13 (㔪 **「MIX 4 真机第二轮 —— 记忆存储三段链与两把钥匙在手机上全部闭合；两个每次启动必炸的稳定异常浮出水面」** —— 承 㔚 条（MIX 4 真机第一轮：SELinux 四格）＋ 㔗 条（记忆存储设置页）＋ 㔓 条（通知读取第 1 刀），本条记**读数① 启动链（两把钥匙严格分家）**、**读数② 通知授权态跨重启稳定而服务未绑定**、**读数③ 记忆存储三段链真机闭合**、**两个新浮出的稳定异常（routing -1 ＋ background_run 断言）**、**方法学（IME 吃注入 ⇒ 控制面直打）**，以及**仍然欠着的**.)
 
