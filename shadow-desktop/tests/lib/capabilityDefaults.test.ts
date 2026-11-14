@@ -117,14 +117,17 @@ describe('capabilityOptionsByCapability —— 「此刻能不能用」', () => 
   //   ⇒ 精确匹配已注册的 model_id）⇒ ⇒ 形如 `whisper-model`。
   //   两套只有 `sensevoice-small` / `voxcpm2` 恰好同名 ⇒ ⇒ 客户端拿目录面
   //   的 id 去填 asr 档 ⇒ ⇒ 端脑永远解析不到 ⇒ ⇒ **存得进去、用不了**。
+  // ⚠️ 候选自 2026-11-14 起带 `cloud` 标记（内置目录＝false）—— asr/tts 档
+  //    并目录面 id 时**只并云供应商的**（`CLOUD_ONLY_UNION_TIERS`）⇒ ⇒ 这组
+  //    全是内置条目的夹具，并集后一个都不该出现 ⇒ ⇒ 与上面那句判据同语。
   const CATALOG = {
     asr: [
-      { id: 'whisper-base', label: '本地 neuron（内置） · whisper-base' },
-      { id: 'whisper-tiny', label: '本地 neuron（内置） · whisper-tiny' },
-      { id: 'sensevoice-small', label: '本地 neuron（内置） · sensevoice-small' },
+      { id: 'whisper-base', label: '本地 neuron（内置） · whisper-base', cloud: false },
+      { id: 'whisper-tiny', label: '本地 neuron（内置） · whisper-tiny', cloud: false },
+      { id: 'sensevoice-small', label: '本地 neuron（内置） · sensevoice-small', cloud: false },
     ],
-    tts: [{ id: 'voxcpm2', label: '本地 neuron（内置） · voxcpm2' }],
-    llm: [{ id: 'Qwen/Qwen3-0.6B', label: '本地 neuron（内置） · Qwen/Qwen3-0.6B' }],
+    tts: [{ id: 'voxcpm2', label: '本地 neuron（内置） · voxcpm2', cloud: false }],
+    llm: [{ id: 'Qwen/Qwen3-0.6B', label: '本地 neuron（内置） · Qwen/Qwen3-0.6B', cloud: false }],
   };
 
   it('按引擎 id 解析的档 ⇒ 候选取「已注册面」，不取目录面', () => {
