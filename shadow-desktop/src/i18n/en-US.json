@@ -577,7 +577,8 @@
     "templateHaMcpDescription": "Home Assistant control & automation (ha-mcp)",
     "haMcpUrlPlaceholder": "http://<HA-host>:9584/private_… or …/api/webhook/mcp_…",
     "haMcpUrlHint": "Paste the connect URL from the HA-MCP integration's Configure screen: on the LAN it is http://<HA-host>:9584/private_…, remote access goes through the webhook. The secret URL itself is the credential.",
-    "haMcpBearerHint": "Usually leave it empty — the URL is the credential. ha-mcp's Home Assistant sign-in mode uses OAuth, which the brain does not support yet."
+    "haMcpBearerHint": "Usually leave it empty — the URL is the credential. ha-mcp's Home Assistant sign-in mode uses OAuth, which the brain does not support yet.",
+    "stdioWindowsHint": "Windows: put cmd in Command and start the args with /c (npm's npx is a .cmd shim — bare npx will not spawn); uv/pip servers ship a real uvx.exe and can be used directly. Args are split on spaces — paths containing spaces will be broken apart."
   },
   "skills": {
     "title": "Skills",

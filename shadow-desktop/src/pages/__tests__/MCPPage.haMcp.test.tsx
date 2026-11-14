@@ -132,4 +132,14 @@ describe('MCPPage：ha-mcp 模板', () => {
     fireEvent.change(screen.getByLabelText('Command'), { target: { value: 'npx -y @mcp/foo' } });
     expect(submitButton()).toBeEnabled();
   });
+
+  it('stdio 面板带 Windows 引导（cmd/uvx/空格切分）—— 㔫③ 的读数进 UI', () => {
+    render(<MCPPage />);
+    openAddModal();
+    // 默认 transport 就是 stdio ⇒ 提示必须在场（不选模板也在）
+    expect(screen.getByText('mcp.stdioWindowsHint')).toBeInTheDocument();
+    // 切到 http 面板 ⇒ 该引导不该串台
+    fireEvent.click(screen.getByRole('button', { name: 'Home Assistant · ha-mcp' }));
+    expect(screen.queryByText('mcp.stdioWindowsHint')).not.toBeInTheDocument();
+  });
 });

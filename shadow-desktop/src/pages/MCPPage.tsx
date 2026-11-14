@@ -290,12 +290,13 @@ export function MCPPage() {
 
           {form.transport === 'stdio' && (
             <div className="flex flex-col gap-3 rounded-md border border-border bg-muted/30 p-3">
+              <p className="text-xs text-muted-foreground">{t('mcp.stdioWindowsHint')}</p>
               <Input label="Command" value={form.command}
                 onChange={(e) => setForm({ ...form, command: e.target.value })}
-                placeholder="npx -y @modelcontextprotocol/server-filesystem /path" />
+                placeholder="cmd" />
               <Input label="Args (space-separated)" value={form.args}
                 onChange={(e) => setForm({ ...form, args: e.target.value })}
-                placeholder="--readonly --verbose" />
+                placeholder="/c npx -y @modelcontextprotocol/server-filesystem C:\mcp-data" />
               <Input label="Env (KEY=VAL, space-separated)" value={form.env}
                 onChange={(e) => setForm({ ...form, env: e.target.value })}
                 placeholder="API_KEY=xxx DEBUG=1" />
