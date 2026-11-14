@@ -395,12 +395,6 @@ async fn build_face(
         // **重启即失** ⇒ 用户以为存住了 ⇒ **失败长得像成功**。`None` 会让
         // 读面如实答「控制面未连接」，界面说真话。
         control_plane: desktop_control_plane(dirs::config_dir()),
-        // ⚠️ **密钥仓库由大脑自己推导**（2026-11-14 用户裁定：「secret_store 应该
-        // 在大脑中实现 这样就可以跨平台了 使用turso存储就好了」）：宿主**零接线**，
-        // 大脑见 `control_plane` 是本地文件路径 ⇒ 自己开同目录 `secrets.db`
-        // （turso 后端；此前的 `desktop_secret_store` 宿主接线已被这条裁定收编
-        // 拆除）。推导不出／打不开 ⇒ 大脑退内存＋大声 warn（诚实纪律不变）。
-        // `secret_store` 字段保留为**覆盖槽**（特殊部署／测试用）。
         // ⚠️ **会话存储的兜底文件**（2026-11-13）：只在「这次运行**没有 Lance**」
         // 时生效（记忆面关掉：storage_uri 的 scheme 不支持 / Android 本地根
         // 未放行 / 构建没编 hippocampus）⇒ ⇒ 没有它，那种桌面运行的会话就只剩
@@ -517,9 +511,6 @@ mod tests {
         assert!(desktop_control_plane(None).is_none());
     }
 
-    // ⚠️ **密钥仓库的宿主侧测试已随接线拆除**（2026-11-14 用户裁定：大脑实现、
-    // 宿主零接线）—— 推导判据与往返读数在端脑仓
-    // `secret_store::turso::tests`（同目录推导／远程拒绝／真开文件往返）。
     /// ⚠️ **没有海马体的桌面运行也要落盘**（2026-11-13）：
     /// 兜底文件是**第三档**（只在没有 Lance 时生效），不能是内存。
     #[test]
