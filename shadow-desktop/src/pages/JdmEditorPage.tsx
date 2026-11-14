@@ -172,12 +172,22 @@ export function JdmEditorPage() {
           keyboard: { bindTo: document },
         });
         modelerRef.current = modeler;
-        await modeler.createDiagram();
+        // ⚠️ dmn-js（@17.x）的 Modeler **没有** `createDiagram()` —— 那是
+        // bpmn-js 的 API；dmn-js 的初始化就是 `importXML()`（上一版在这里
+        // 调 createDiagram 必炸 `TypeError` ⇒ 外层 catch 挂红条 ⇒ 画布
+        // 永远空白，Sync/Export 全灰）。示例 XML 由下方规则即时生成。
+        // ⚠️ 导入失败**要说**：静默吞掉后照样标 ready = 「canvas ready」
+        // 长在没加载 definitions 的空 modeler 上（saveXML 会答
+        // 「no definitions loaded」—— 失败长得像成功）。
         try {
           await modeler.importXML(buildSampleDmn(rule));
-        } catch {
-          // Empty canvas acceptable — the form remains the
-          // source of truth; the canvas is an optional view.
+          if (!cancelled) setDmnReady(true);
+        } catch (e) {
+          if (!cancelled) {
+            setDmnError(
+              `dmn import failed: ${e instanceof Error ? e.message : String(e)}`,
+            );
+          }
         }
         if (!cancelled) setDmnReady(true);
       } catch (e) {
@@ -543,31 +553,55 @@ function RuleSection({ title, items, onChange }: RuleSectionProps) {
 }
 
 function buildSampleDmn(rule: JdmRule): string {
-  // Minimal valid DMN 1.4 XML with one decision table. This is
-  // the dmn-js importXML target — dmn-js will draw the table UI
-  // around this. We don't actually use the XML for evaluation
-  // (the form below is canonical), but it's a sane default
-  // for new rules.
-  const cases = rule.any_of
-    .map(
-      (r) => `        <inputEntry id="i1-${r.id}"><text>${r.variable}</text></inputEntry>
-        <outputEntry id="o1-${r.id}"><text>"notify"</text></outputEntry>
-        <ruleEntry id="r-${r.id}"><text>${opToFeel(r.op, r)}</text></ruleEntry>`,
-    )
+  // Minimal valid DMN 1.2 XML with one decision table — the
+  // dmn-js importXML target（命名空间必须是 dmn-moddle 描述符声明的
+  // `20191111/MODEL/`＝DMN 1.2 —— 1.1/1.4 它都不认，根元素会落成
+  // unknown ⇒ definitions 为空）。⚠️ **这一版是真的 DMN**：上一版产出的
+  // `<ruleEntry>` 不是 DMN 元素、`<rule>` 从未出现、inputExpression
+  // 缺 `<text>` 子元素、命名空间是 dmn-js 不认的 1.4 ⇒ dmn-js 解析不出
+  // definitions ⇒ saveXML 答「no definitions loaded」（画布 ready 也是假绿）。
+  // 行形状与 parseDmnXmlToRules 对齐：inputEntry text =
+  // `variable op num`（gt/lt/eq）或 `between(...)` / `not(between(...))`。
+  const rows = rule.any_of
+    .map((r, i) => {
+      const feel =
+        r.op === 'between' || r.op === 'outside'
+          ? opToFeel(r.op, r)
+          : `${r.variable} ${opToFeel(r.op, r)} ${r.threshold}`;
+      return `    <rule id="rule-${r.id}">
+      <inputEntry id="InputEntry_${i + 1}"><text>${xmlText(feel)}</text></inputEntry>
+      <outputEntry id="OutputEntry_${i + 1}"><text>"notify"</text></outputEntry>
+    </rule>`;
+    })
     .join('\n');
   return `<?xml version="1.0" encoding="UTF-8"?>
-<definitions xmlns="https://www.omg.org/spec/DMN/20230324/MODEL/"
-  id="definitions" name="definitions">
-  <decision id="decision" name="${rule.rule_id}">
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/" namespace="http://camunda.org/schema/1.0/dmn" id="definitions" name="definitions">
+  <decision id="decision" name="${xmlAttr(rule.rule_id)}">
     <decisionTable id="decisionTable" hitPolicy="FIRST">
       <input id="input" label="value">
-        <inputExpression>value</inputExpression>
+        <inputExpression id="inputExpression" typeRef="string"><text>value</text></inputExpression>
       </input>
       <output id="output" name="action" typeRef="string" />
-${cases}
+${rows}
     </decisionTable>
   </decision>
 </definitions>`;
+}
+
+/** XML 文本节点最小转义 —— FEEL 里的 `<` 不转义会把整个文档吃断。 */
+function xmlText(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+/** XML 属性值最小转义。 */
+function xmlAttr(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;');
 }
 
 /// Parse the rule rows back out of a dmn-js-exported DMN XML.
@@ -580,6 +614,13 @@ ${cases}
 ///
 /// Other FEEL forms (functions, durations, ranges) are skipped —
 /// those need a full expression editor and remain deferred.
+/** FEEL 比较符号 → ComparisonRule 枚举词（表单下拉的 option value）。 */
+const OP_SYMBOL_TO_WORD: Record<string, string> = {
+  '>': 'gt',
+  '<': 'lt',
+  '=': 'eq',
+};
+
 export function parseDmnXmlToRules(xml: string): ComparisonRule[] {
   const out: ComparisonRule[] = [];
   const doc = new DOMParser().parseFromString(xml, 'application/xml');
@@ -593,10 +634,15 @@ export function parseDmnXmlToRules(xml: string): ComparisonRule[] {
       const simple = text.match(/^(\w+)\s*(>|<|=)\s*(-?\d+(?:\.\d+)?)$/);
       if (simple) {
         const [, variable, op, threshold] = simple;
+        // ⚠️ 符号→枚举：ComparisonRule['op'] 是 'gt'/'lt'/'eq'（表单下拉
+        // 的 option value）。`as` 直塞裸符号 ⇒ select 匹配不上任何项
+        // ⇒ 静默显示成第一项（「< 20」同步回表单变「> 20」—— 失败
+        // 长得像成功，且数据被改）。
+        const opWord = OP_SYMBOL_TO_WORD[op] as ComparisonRule['op'];
         out.push({
           id: `${variable}_${out.length}`,
           variable,
-          op: op as ComparisonRule['op'],
+          op: opWord,
           threshold: Number(threshold),
         });
         continue;

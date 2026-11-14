@@ -19,7 +19,6 @@ export function Layout() {
   const { t } = useTranslation();
   const { pendingTasks } = useResonanceStore();
   const telencephalonStatus = useTelencephalonStore((s) => s.status);
-  const resonanceStatus = useResonanceStore((s) => s.connectionStatus);
 
   /** 可折叠段默认收起 —— 能力与「更多」是低频，不该占常驻位置 */
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -28,11 +27,11 @@ export function Layout() {
     setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
 
   const getTelencephalonIndicator = () => {
-    if (telencephalonStatus === 'running' && resonanceStatus === 'connected') {
+    // ⚠️ 指示器只回答一个问题：「大脑在不在」。以前 running ＋ resonance
+    // 未连会落到灰「未连接」—— 大脑明明在跑也说没连（与 health() 的探活
+    // 注释「要反映大脑链」自相矛盾）；resonance 的连接态有自己的页（共鸣）。
+    if (telencephalonStatus === 'running') {
       return { dot: 'bg-green-500', label: t('common.status.connected') };
-    }
-    if (telencephalonStatus === 'running' && resonanceStatus === 'connecting') {
-      return { dot: 'bg-yellow-500 animate-pulse', label: t('common.status.connecting') };
     }
     if (telencephalonStatus === 'starting') {
       return { dot: 'bg-yellow-500 animate-pulse', label: t('common.status.connecting') };

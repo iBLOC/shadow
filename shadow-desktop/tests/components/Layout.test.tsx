@@ -169,11 +169,14 @@ describe('Layout', () => {
       expect(screen.getByText(/common\.status\.connecting/i)).toBeInTheDocument();
     });
 
-    it('shows connecting label when telencephalon running and resonance connecting', () => {
+    it('shows connected label when telencephalon running — even if resonance is not connecting（指示器只回答「大脑在不在」）', () => {
+      // ⚠️ 旧语义：running ＋ resonance connecting ⇒ 黄「connecting」、
+      // running ＋ resonance disconnected ⇒ 灰「未连接」⇒ 大脑明明在跑
+      // 也说没连。新语义（U+352E 刀）：running ⇒ 绿「已连接」。
       telencephalonState.status = 'running';
       resonanceState.connectionStatus = 'connecting';
       renderLayout();
-      expect(screen.getByText(/common\.status\.connecting/i)).toBeInTheDocument();
+      expect(screen.getByText(/common\.status\.connected/i)).toBeInTheDocument();
     });
 
     it('shows connected label when telencephalon running and resonance connected', () => {

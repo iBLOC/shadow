@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { invoke } from '@tauri-apps/api/core';
 import { isTauri } from '../lib/platform';
+import { useTelencephalonStore } from '../stores/telencephalonStore';
 // ⚠️⚠️ **「有没有配好模型」这个判定现在只有一份实现。**
 // ⇒ ⇒ 这一页以前**自己抄了一份**（hasConfiguredModelsTauri / ...Web）⇒ ⇒
 // ⇒ ⇒ 于是「改了一边忘了另一边」⇒ ⇒ 同一个病、两处症状。
@@ -122,6 +123,13 @@ export function AppInitializer({ children }: AppInitializerProps) {
 
   useEffect(() => {
     const init = async () => {
+      // ⚠️ **启动即探活** —— 全仓原来只有 SettingsPage 一个调用点：
+      // 用户不开设置页，status 就永远停在初始 'stopped' ⇒ 侧栏画「未连接」、
+      // MCP 页画「请先启动端脑内核」，而大脑明明在跑（ hippocampus 面能
+      // 200 就是证明）。探活失败会如实落 'unreachable'，不吞。
+      // 每次路由变化顺路刷一次（一发 HTTP，换全应用的新鲜状态）。
+      void useTelencephalonStore.getState().refreshStatus();
+
       const setupComplete = localStorage.getItem('shadow_setup_complete');
       if (!setupComplete) {
         navigate('/setup', { replace: true });
