@@ -173,6 +173,10 @@
 　❹ **买到什么／没买到什么（诚实分级）**：材料**集中到一个专用文件** ＋ 引用/主人/回读/删除许可整套机制**真实生效** ⇒ `providers.json` 里从此只有 `{"$secret":{…}}` 引用（明文债的 providers.json 面**闭合**）；但 `secrets.db` 本身仍是**可拷走的普通文件** ⇒ 这不是 OS 钥匙环级保护 —— 下一档（Windows 凭据管理器 / macOS 钥匙串 / Android Keystore）要 OS FFI，另刀。
 　❺ **真形状测试又逮住一格（㔪④ 同族）**：端脑单测全绿（它自己建临时目录）⇒ 桌面接线测试当场红——`secrets.db` 落 `config_dir/shadow/` 子目录而宿主只建了 `config_dir` ⇒ libsql 不替你建父目录 ⇒ 打开必失败 ⇒ 按诚实纪律返回 None。修法＝**建目录是宿主的活**（架构裁定：宿主提供「哪个目录可写」）⇒ `create_dir_all` ＋ 建失败也 `None` ＋ error。
 　❻ **读数**：端脑 `cargo test --lib secret_store::` **13/0**（原 7 ＋ turso 6：经门面往返／覆盖幂等／删后 NotFound／Debug 零材料／远程无 token 构造期拒绝／重开同文件材料还在）＋ 桌面 `telencephalon_http::tests` **14/0**（＋2：turso 文件往返＋drop 重开材料活着／无目录 None）。变异两刀：端脑 put 写假值 ⇒ **3 红**；桌面 Ok 臂捏成 None ⇒ **1 红** ⇒ 还原全绿。⇒ 移动端照旧欠（`turso-remote` 无本地库 ⇒ 远端 Turso 或 Keystore，另行拍板）；桌面默认根 exe 同目录「真机两条路」照旧欠。
+⑫ **⚠️ 真 CI 回填 ＋ 两个明文闸落点登记（2026-11-14，`be5ef5a`／`a60f21d`）**
+　❶ **shadow（`be5ef5a`）**：30 道 → **23 success / 6 failure**，判语逐字：`Desktop Test Assertions` ＝ R5 2 全点兄弟在飞 `MemoryStorageCard.test.tsx:34/:283`（本刀两条新测不在 findings）；`Desktop Rust` ＝ `E0599 with_extra_header`（hippocampus-core 调 synapse HEAD 没有的方法，㔟⑪❶ 同族——本 crate 本机编测干净）；`Secret Plaintext` ＝ **本刀真被闸逮住**：`src/secret_store/turso.rs` 两个新落点（`[db]`:137 ／ `[db-secret-capable]`:134）⇒ 按闸自己的口径（源码注释逐字「新落盘点要么真泄漏 ⇒ 修掉，要么登记进 KNOWN_DEBT（写清 why/when）⇒ 别让它隐形」）登记 ＋2 条，理由逐字带用户裁定：材料住专用文件 secrets.db＝仓库本体不是泄漏（与 `config_center/store.rs` 那条 `db-secret-capable` 同款形状）；本地闸 18 命中/18 清单对齐 ＋ 自检 **36/36**；同轮「清单过期」3 条（providers.rs 记1现0 ／ credential_signer.rs ／ app_config_service.dart）全在兄弟面——㔢⑨❸ 的裁定照旧：**清单过期 ≠ 债还了**；`Commit Revert`／`Unwired Gates`／`CI` ＝ 已知环境/分母族。
+　❷ **telencephalon（`a60f21d`）**：CI 灯 **steps=0**（计费挡门，注解同前族）⇒ **读数不存在**；⑪ 的本机 13/0 仍是当前最强证据。
+　❸ **登记那一格的通用形态**：「探测器现在追得到的新落点」有两种真相——真泄漏（修掉）与**裁定允许的设计落点**（登记出声）；反过来的「清单过期」也有两种（债还了／探测器追不到了）⇒ 只有读源码＋带裁定能分开，照判语机械销账会把两头都做错。
 
 **Updated**: 2026-11-13 (㔦 **「换存储不再等于换一个空库 —— 迁移期整页挡住、进度每秒动一次、中途退出下次接着搬」** —— 用户拍板「FS 不是手机专属，是大脑的默认能力；配置要能来回切，切换时自动迁移、弹窗报进度、迁移完成前不许操作、退出再进入能断点续传」，本条记**两端各自改了什么**、**为什么客户端只发起不搬**、**途中那几格（路由提取器 / cfg 门 / 兄弟携带）**、**判据与读数**，以及**仍然欠着的**.)
 

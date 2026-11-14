@@ -103,6 +103,30 @@ export const KNOWN_DEBT = [
     why: '配置中心的写入函数**能**写凭据（secret 标志位只管读面脱敏，材料原样入库）',
     when: 'P2（凭据进密钥仓库，表里只留引用）',
   },
+  // ✅ **裁定后的设计落点（2026-11-14 用户裁定逐字「secret_store 可以用 turso 存储」）**
+  //    —— 下面两条**不是泄漏**，是密钥仓库的本体：材料就该住专用 libSQL 文件
+  //    （`secrets.db` 的 `secret_material` 表）。登记是为了**出声**（㔟⑨❸ 的教训：
+  //    探测器看不见 ≠ 债还了；反过来，裁定允许的落点也要写清为什么）。
+  //    读取面 = `Secrets::resolve`（主人/凭据种类校验）；`providers.json` 里
+  //    只留 `{"$secret":…}` 引用 ⇒ 引用面不在此列。
+  //    下一档（OS 凭据仓库：Windows 凭据管理器 / macOS 钥匙串 / Android Keystore）
+  //    落地时这两条面会被替换 ⇒ 届时销账。
+  {
+    repo: 'telencephalon',
+    file: 'src/secret_store/turso.rs',
+    kind: 'db',
+    count: 1,
+    why: '密钥材料住 `secret_material` 表（INSERT/UPDATE 的 value 列）—— 2026-11-14 用户裁定 secret_store 落 turso ⇒ 专用文件 secrets.db 就是材料的仓库本体，不是泄漏',
+    when: '裁定后落点（secret_store/turso.rs，a60f21d）；OS 凭据仓库落地时替换并销账',
+  },
+  {
+    repo: 'telencephalon',
+    file: 'src/secret_store/turso.rs',
+    kind: 'db-secret-capable',
+    count: 1,
+    why: '`put(&self, handle, secret)` 的 secret 参数即入库参数 —— 密钥仓库的本职（与 config_center/store.rs 同款形状）',
+    when: '裁定后落点（secret_store/turso.rs，a60f21d）；OS 凭据仓库落地时替换并销账',
+  },
   {
     repo: 'telencephalon',
     file: 'src/security/credential_signer.rs',
