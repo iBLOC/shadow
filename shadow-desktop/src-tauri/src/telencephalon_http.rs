@@ -62,7 +62,6 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::time::Duration;
 
 use encephalon::Embedded;
-use encephalon::telencephalon::secret_store::{SecretStore, turso::TursoSecretStore};
 
 use crate::brain_face::{self, BrainFaceHandle};
 
@@ -396,13 +395,12 @@ async fn build_face(
         // **重启即失** ⇒ 用户以为存住了 ⇒ **失败长得像成功**。`None` 会让
         // 读面如实答「控制面未连接」，界面说真话。
         control_plane: desktop_control_plane(dirs::config_dir()),
-        // ⚠️ **密钥仓库**（2026-11-14 用户裁定「secret_store 可以用 turso 存储」）：
-        // 材料进 `config_dir/shadow/secrets.db` 的专用表，`providers.json` 里
-        // 只留 `{"$secret":{…}}` 引用 ⇒ 此前「明文 key 躺在 providers.json」
-        // 的那笔安全债（㔥⑤❶）在这一格闭合。⚠️ 与控制面同一个诚实纪律：
-        // 拿不到目录 ⇒ `None` ＋ error（端脑 boot 会大声 warn 材料住内存），
-        // **绝不**静默退内存。
-        secret_store: desktop_secret_store(dirs::config_dir()).await,
+        // ⚠️ **密钥仓库由大脑自己推导**（2026-11-14 用户裁定：「secret_store 应该
+        // 在大脑中实现 这样就可以跨平台了 使用turso存储就好了」）：宿主**零接线**，
+        // 大脑见 `control_plane` 是本地文件路径 ⇒ 自己开同目录 `secrets.db`
+        // （turso 后端；此前的 `desktop_secret_store` 宿主接线已被这条裁定收编
+        // 拆除）。推导不出／打不开 ⇒ 大脑退内存＋大声 warn（诚实纪律不变）。
+        // `secret_store` 字段保留为**覆盖槽**（特殊部署／测试用）。
         // ⚠️ **会话存储的兜底文件**（2026-11-13）：只在「这次运行**没有 Lance**」
         // 时生效（记忆面关掉：storage_uri 的 scheme 不支持 / Android 本地根
         // 未放行 / 构建没编 hippocampus）⇒ ⇒ 没有它，那种桌面运行的会话就只剩
@@ -459,58 +457,6 @@ async fn build_face(
 ///
 /// 纯函数（不碰文件系统）：`Some(dir)` ⇒ `dir/shadow/control-plane.db`；
 /// `None` ⇒ `None` ＋ 一条 error 日志（大声，不静默）。
-/// 桌面端的**密钥仓库**（turso/libSQL **文件**）。
-///
-/// ⚠️ **2026-11-14 用户裁定：「secret_store 可以用 turso 存储」** ——
-/// 此前桌面端没递仓库 ⇒ 端脑退到 `InMemorySecretStore` ⇒ `seal_api_key`
-/// **退成明文**写进 `providers.json`（㔥⑤❶ 登记的安全债）。
-///
-/// 落点：`dir/shadow/secrets.db`（与控制面 / 会话兜底 / 迁移断点同源目录）。
-/// 材料住这张专用表；`providers.json` 里从此只留 `{"$secret":{…}}` 引用
-/// ⇒ 密封 / 回读校验 / 删除许可那套语义**真的活起来**。
-///
-/// ⚠️ **诚实分级**：这是「材料集中到专用文件 ＋ 引用机制生效」，**不是**
-/// OS 钥匙环级保护（文件仍可被拷走）—— 钥匙环仍是下一档（要 OS FFI）。
-///
-/// ⚠️ **拿不到配置目录 ⇒ `None` ＋ error（绝不静默退内存）**；
-/// **库打不开 ⇒ 也是 `None` ＋ error（带后端原话）** —— 端脑 boot 对
-/// `None` 自有那条大声 warn（材料住内存、重启即失），界面说真话。
-async fn desktop_secret_store(
-    config_dir: Option<std::path::PathBuf>,
-) -> Option<std::sync::Arc<dyn SecretStore>> {
-    let Some(dir) = config_dir else {
-        tracing::error!(
-            "拿不到系统配置目录 ⇒ 密钥仓库本次**不启用**（绝不静默退成内存实现 —— \
-             那会让供应商 key 的密封语义变成重启即失）。"
-        );
-        return None;
-    };
-    let path = dir.join("shadow").join("secrets.db");
-    // ⚠️ **建目录是宿主的活**（架构裁定：宿主提供「哪个目录可写」）——
-    // libsql 不会替你建父目录 ⇒ 首次运行 `config_dir/shadow/` 还不存在时，
-    // 打开必失败（这条被桌面测试当场逮住过）。建失败 ⇒ 同样诚实退 None。
-    if let Some(parent) = path.parent() {
-        if let Err(e) = std::fs::create_dir_all(parent) {
-            tracing::error!(
-                "密钥仓库目录 {} 建不了：{e} ⇒ 本次退回内存实现（材料重启即失）",
-                parent.display()
-            );
-            return None;
-        }
-    }
-    match TursoSecretStore::open_local("brain-local", &path).await {
-        Ok(store) => Some(std::sync::Arc::new(store) as std::sync::Arc<dyn SecretStore>),
-        Err(e) => {
-            tracing::error!(
-                "密钥仓库 {} 打不开：{e} ⇒ 本次退回内存实现（材料重启即失）—— \
-                 请检查目录权限或磁盘",
-                path.display()
-            );
-            None
-        }
-    }
-}
-
 fn desktop_control_plane(
     config_dir: Option<std::path::PathBuf>,
 ) -> Option<encephalon::telencephalon::config_center::Bootstrap> {
@@ -571,47 +517,9 @@ mod tests {
         assert!(desktop_control_plane(None).is_none());
     }
 
-    /// ⚠️ **密钥仓库是真文件、真 turso**（2026-11-14 用户裁定）：
-    /// 有配置目录 ⇒ 打开 `shadow/secrets.db` ⇒ 材料经 trait 对象
-    /// put/get 往返成立（供应商 key 的密封链从此有真仓库兜底）。
-    #[tokio::test]
-    async fn secret_store_is_a_turso_file_that_round_trips() {
-        let dir = std::env::temp_dir().join(format!(
-            "shadow-secret-store-{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .expect("clock")
-                .as_nanos()
-        ));
-        std::fs::create_dir_all(&dir).expect("temp dir");
-
-        let store = desktop_secret_store(Some(dir.clone()))
-            .await
-            .expect("有目录 ⇒ 有密钥仓库");
-        assert_eq!(store.vendor(), "turso", "必须走 turso 后端，不是 memory");
-        store.put("prov-1", b"sk-desktop-a91c").await.expect("put");
-        assert_eq!(store.get("prov-1").await.expect("get"), b"sk-desktop-a91c");
-        // ⚠️ 材料真的落了盘：关掉这个进程模拟（drop 连接）再开一份照样读得到。
-        drop(store);
-        let reopened = desktop_secret_store(Some(dir.clone()))
-            .await
-            .expect("reopen");
-        assert_eq!(
-            reopened.get("prov-1").await.expect("get after reopen"),
-            b"sk-desktop-a91c",
-            "材料必须活着（重启语义）"
-        );
-
-        std::fs::remove_dir_all(&dir).ok();
-    }
-
-    #[tokio::test]
-    async fn secret_store_is_none_without_a_config_dir() {
-        // 与控制面同一条诚实纪律：拿不到目录 ⇒ None ＋ error，
-        // 端脑 boot 的 warn 会大声说「材料住内存」—— 不静默。
-        assert!(desktop_secret_store(None).await.is_none());
-    }
-
+    // ⚠️ **密钥仓库的宿主侧测试已随接线拆除**（2026-11-14 用户裁定：大脑实现、
+    // 宿主零接线）—— 推导判据与往返读数在端脑仓
+    // `secret_store::turso::tests`（同目录推导／远程拒绝／真开文件往返）。
     /// ⚠️ **没有海马体的桌面运行也要落盘**（2026-11-13）：
     /// 兜底文件是**第三档**（只在没有 Lance 时生效），不能是内存。
     #[test]
