@@ -312,29 +312,6 @@
       "noteOther": "macOS / Linux 走坐标点击 + 键盘（enigo）。坐标在窗口 resize / 移动时会失效；优先用 Windows 路径。",
       "noteMcp": "agent 驱动的使用，cu_* 原语由后续改造包装为 MCP 工具。MCP 包装沿用 feishu_mcp 的模式 —— 与 diencephalon 同一 substrate。"
     },
-    "workflowStudio": {
-      "namePlaceholder": "workflow-name",
-      "addNodeSource": "输入节点",
-      "addNodeTransform": "转换节点",
-      "addNodeAgent": "智能体节点",
-      "addNodeSink": "输出节点",
-      "export": "导出 JSON",
-      "import": "导入",
-      "imported": "已导入 {{count}} 个节点",
-      "exported": "已导出 {{file}}",
-      "cycleDetected": "检测到环 —— 工作流必须是有向无环图（DAG）",
-      "connectOut": "点击，再点目标节点连线",
-      "connectHint": "点节点的圆点，再点目标节点即可连线；点连线本身可删除。",
-      "empty": "Canvas is empty. Add nodes from the toolbar.",
-      "properties": "属性",
-      "noSelection": "选择一个节点以编辑其配置。",
-      "deleteNode": "删除节点",
-      "nodeKindSource": "输入",
-      "nodeKindTransform": "转换",
-      "nodeKindAgent": "智能体",
-      "nodeKindSink": "输出",
-      "dragHint": "拖动节点卡片排版；点右侧圆点再点目标节点连线。"
-    },
     "tokenStats": {
       "summary": "{{tokens}} tokens · {{speed}} tok/s",
       "tooltip": "{{tokens}} tokens · {{seconds}}s"
@@ -600,7 +577,8 @@
     "templateHaMcpDescription": "Home Assistant 控制与自动化（ha-mcp）",
     "haMcpUrlPlaceholder": "http://<HA主机>:9584/private_… 或 …/api/webhook/mcp_…",
     "haMcpUrlHint": "填 HA-MCP 集成 Configure 页给出的连接地址：局域网直连是 http://<HA 地址>:9584/private_…，远程走 webhook。secret URL 本身就是凭证。",
-    "haMcpBearerHint": "通常留空——URL 即凭证；ha-mcp 的「Home Assistant 登录」模式走 OAuth，大脑暂不支持。"
+    "haMcpBearerHint": "通常留空——URL 即凭证；ha-mcp 的「Home Assistant 登录」模式走 OAuth，大脑暂不支持。",
+    "stdioWindowsHint": "Windows：Command 填 cmd、参数以 /c 开头（npm 的 npx 是 .cmd 垫片，直接填 npx 起不来）；uv/pip 一族的 uvx 是真 exe，直接填 uvx。参数按空格切分——带空格的路径会被拆开。"
   },
   "skills": {
     "title": "技能",
