@@ -141,6 +141,29 @@ AG-UI 有、端脑完全没有的事件族(接入即白拿,不接也不亏):
 **建议执行序:C(G1 先行——按 §5 取证修正,治标档端脑单仓可做,治本档跨 synapse 需独立立项)
 → A(适配层 + 移动端 ag_ui 客户端试点一条链)→ 用真机读数决定 B。**
 
+### 6a. 选项 A 的翻译设计已定稿(2026-11-16,权威源 spec/1.0/schema.json 逐字段取证)
+
+C 路线(G1/G2/G3)落地后,DriverEvent 已带齐 run_id / message_id / tool_call_id,翻译层无缺口:
+
+| DriverEvent | AG-UI 事件(type 为 UPPER_SNAKE 枚举值) | 必填字段落法 |
+|---|---|---|
+| RunStarted{run_id,timestamp} | RUN_STARTED | threadId=conversation_id, runId, timestamp |
+| MessageStart{message_id} | TEXT_MESSAGE_START | messageId, role="assistant" |
+| Delta{text,message_id} | TEXT_MESSAGE_CONTENT | messageId, delta |
+| MessageEnd{message_id} | TEXT_MESSAGE_END | messageId |
+| ToolCall{name,args,tool_call_id} | TOOL_CALL_START + TOOL_CALL_ARGS + TOOL_CALL_END(1→3) | toolCallId, toolCallName;ARGS.delta=args 整串;parentMessageId=当前段 id(若有) |
+| ToolResult(lobe 本地工具) | **CUSTOM**(name="telencephalon_tool_result") | ⚠️ 不用 TOOL_CALL_RESULT——那是**客户端回传**语义(messageId 必填、role=tool),lobe 自跑工具的结果硬套会说谎 |
+| Step / Route / Handoff | **CUSTOM**(name 原样) | value 带全部字段——AG-UI 的 STEP_* 是"步骤开/关"语义,与 lobe 内部步进/路由不同形,不硬套 |
+| Done{state,timestamp,run_id} | RUN_FINISHED | threadId, runId, timestamp;outcome 省略(可选字段,缺省即 success;state≠COMPLETED 时再映射) |
+| Error{message,run_id} | RUN_ERROR | message;code 省略(端脑无错误码) |
+
+公共字段:AG-UI BaseEvent 的 timestamp(integer)/metadata/rawEvent 均可选;字段名 **camelCase**
+(端脑自有 wire 是 snake_case ⇒ 两套 wire 并存,互不改写)。请求侧:适配层端点接受
+RunAgentInput(messages[] 取最后一条 user 当 text、tools[] 平铺形状包回 OpenAI function 壳、
+threadId=conversation_id),也容忍现有 SendMessageRequest(§4 选项 A 的会话哲学不动)。
+端点挂 router_with_store 的 require_shadow_key 门内;endpoint-map 闸按**客户端代码**扫描生成,
+无客户端调用的新端点不进图、不触红(已核)。
+
 ## 7. 未核实清单(据实)
 
 - AG-UI 官方 a2ui-middleware / a2ui-toolkit 的桥接实现未逐行读(A2UI 载荷最终走 TOOL_CALL_RESULT
