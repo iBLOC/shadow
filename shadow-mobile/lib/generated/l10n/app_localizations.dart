@@ -428,6 +428,12 @@ abstract class AppLocalizations {
   /// **'Release to cancel'**
   String get releaseToCancel;
 
+  /// No description provided for @releaseToCamera.
+  ///
+  /// In en, this message translates to:
+  /// **'Release to open camera'**
+  String get releaseToCamera;
+
   /// No description provided for @photoOrVideo.
   ///
   /// In en, this message translates to:

@@ -7,7 +7,9 @@ import 'package:shadow_mobile/widgets/chat/unified_input_bar.dart';
 /// ⚠️ 这一族钉的是 2026-11-15 那一刀的交互约定：
 ///   ❶ **轻触** ⇒ 打字（**不许**开录音）；
 ///   ❷ **长按** ⇒ 录音；**松手** ⇒ 结束（**不放弃**）；
-///   ❸ **按住时左右滑动** ⇒ 进入「放弃」⇒ ⇒ 松手 ⇒ **放弃**；
+///   ❸ **按住时左滑** ⇒ 进入「放弃」⇒ ⇒ 松手 ⇒ **放弃**；
+///   ⓫ **按住时右滑** ⇒ 进入「相机」⇒ ⇒ 松手 ⇒ **丢掉这段录音 ＋ 打开摄像头**；
+///   ⓬ 「＋」**只支持单击**（长按零反应）；
 ///   ❹ 附件入口形状是「＋」、在**输入框左侧**；
 ///   ❺ 相机钮：**轻触**拍照、**长按**录像（同一个钮分流）。
 ///   ❻ **没有**发送按钮（文字靠键盘上的发送键）；
@@ -47,6 +49,7 @@ void main() {
       recordingText: '松手发送',
       cancelText: '松手放弃',
       cancelZoneText: '取消',
+      cameraText: '松手打开相机',
       galleryLabel: '相册',
       fileLabel: '文件',
       cameraLabel: '轻触拍照 · 长按录像',
@@ -105,7 +108,8 @@ void main() {
     expect(find.text('松手发送'), findsNothing);
   });
 
-  testWidgets('❸ 按住后**左右滑动** ⇒ 松手就是**放弃**', (tester) async {
+  testWidgets('❸ 按住后**左滑** ⇒ 松手就是**放弃**（且**不许**开摄像头）',
+      (tester) async {
     await tester.pumpWidget(wrap(bar()));
 
     final gesture = await tester.startGesture(
@@ -114,14 +118,15 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
     expect(started, 1);
 
-    await gesture.moveBy(const Offset(140, 0));
+    await gesture.moveBy(const Offset(-140, 0));
     await tester.pump();
-    expect(find.text('松手放弃'), findsOneWidget, reason: '滑到两侧 ⇒ 提示要换');
+    expect(find.text('松手放弃'), findsOneWidget, reason: '左滑 ⇒ 提示要换成「放弃」');
 
     await gesture.up();
     await tester.pump();
 
-    expect(finished, isTrue, reason: '滑到两侧松手 ⇒ **放弃**（不许发送）');
+    expect(finished, isTrue, reason: '左滑松手 ⇒ **放弃**（不许发送）');
+    expect(photos, 0, reason: '左滑是「放弃」不是「切相机」 ⇒ ⇒ 不许开摄像头');
   });
 
   testWidgets('❹ 附件入口形状是「＋」、在**输入框左侧**；菜单里有相册/文件',
@@ -293,5 +298,68 @@ void main() {
     final cameraX = tester.getCenter(find.byIcon(Icons.camera_alt)).dx;
     expect(addX, lessThan(fieldX), reason: '「＋」在左边');
     expect(cameraX, greaterThan(fieldX), reason: '「📷」在右边');
+  });
+
+  testWidgets('⓫ 右滑 ⇒ 提示翻成「松手打开相机」⇒ 松手＝放弃 ＋ 打开摄像头',
+      (tester) async {
+    await tester.pumpWidget(wrap(bar()));
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byType(TextField)),
+    );
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(started, 1, reason: '按住到点 ⇒ 必须开录');
+
+    // ⚠️ **右滑** ⇒ ⇒ 提示翻成「松手打开相机」（不是「松手放弃」）。
+    await gesture.moveBy(const Offset(140, 0));
+    await tester.pump();
+    expect(find.text('松手打开相机'), findsOneWidget, reason: '右滑 ⇒ 提示要翻成相机');
+    expect(find.text('松手放弃'), findsNothing, reason: '右滑不是放弃');
+    expect(find.text('松手发送'), findsNothing, reason: '右滑不是发送');
+
+    await gesture.up();
+    await tester.pump();
+
+    expect(finished, isTrue, reason: '切到相机 ⇒ 这段录音**丢掉**（不许发出去）');
+    expect(photos, 1, reason: '右滑松手 ⇒ 打开摄像头');
+    expect(find.byKey(UnifiedInputBar.recordingOverlayKey), findsNothing,
+        reason: '松手 ⇒ 遮罩必须撤掉');
+  });
+
+  testWidgets('⓬ 「＋」**只支持单击**（长按零反应，单击才弹菜单）',
+      (tester) async {
+    await tester.pumpWidget(wrap(bar()));
+
+    final add = find.byIcon(Icons.add);
+
+    // ⚠️ **不许**在那个钮上挂 Tooltip —— 它的长按会弹一句提示 ⇒ ⇒
+    // 那就不是「只支持单击」了（2026-11-16 实测取到过：_TooltipBox ＋
+    // RichText）。判据按**祖先**方向查（旧结构里 Tooltip 是祖先）。
+    expect(
+      find.ancestor(of: add, matching: find.byType(Tooltip)),
+      findsNothing,
+      reason: '「＋」上不许挂 Tooltip（它的长按会弹提示）',
+    );
+
+    // ⚠️ 长按 ⇒ ⇒ 菜单不弹、也不开录音。
+    final gesture = await tester.startGesture(tester.getCenter(add));
+    await tester.pump(const Duration(milliseconds: 700));
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    expect(find.text('相册'), findsNothing, reason: '长按「＋」不许弹菜单');
+    expect(find.text('文件'), findsNothing, reason: '长按「＋」不许弹菜单');
+    expect(started, 0, reason: '长按「＋」不许顺带开录音');
+    expect(images, 0);
+    expect(files, 0);
+
+    // ⚠️ 单击 ⇒ ⇒ 菜单照常弹（不许把功能改没了）。
+    await tester.tap(add);
+    await tester.pumpAndSettle();
+    expect(find.text('相册'), findsOneWidget, reason: '单击「＋」⇒ 菜单照常弹');
+
+    await tester.tap(find.text('文件'));
+    await tester.pumpAndSettle();
+    expect(files, 1);
   });
 }

@@ -72,6 +72,7 @@
   "tapToTypeHoldToTalk": "Tap to type · Hold to talk",
   "releaseToSend": "Release to send",
   "releaseToCancel": "Release to cancel",
+  "releaseToCamera": "Release to open camera",
   "photoOrVideo": "Tap: photo · Hold: video",
   "retry": "Retry",
   "manage": "Manage",

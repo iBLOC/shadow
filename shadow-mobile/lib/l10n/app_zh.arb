@@ -65,6 +65,7 @@
   "tapToTypeHoldToTalk": "轻触输入 · 长按说话",
   "releaseToSend": "松手发送",
   "releaseToCancel": "松手放弃",
+  "releaseToCamera": "松手打开相机",
   "photoOrVideo": "轻触拍照 · 长按录像",
   "retry": "重试",
   "manage": "管理",

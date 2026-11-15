@@ -179,6 +179,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get releaseToCancel => '松手放弃';
 
   @override
+  String get releaseToCamera => '松手打开相机';
+
+  @override
   String get photoOrVideo => '轻触拍照 · 长按录像';
 
   @override

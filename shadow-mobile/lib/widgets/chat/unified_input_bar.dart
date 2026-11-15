@@ -14,7 +14,8 @@ import 'package:flutter/material.dart';
 /// - **轻触** ⇒ 键盘（正常打字）；
 /// - **长按** ⇒ 录音（按住说话）；
 /// - **松手** ⇒ 转写成文字 ⇒ ⇒ 直接进对话；
-/// - **按住时左右滑动** ⇒ 进入「放弃」态 ⇒ ⇒ 松手**不发送**；
+/// - **按住时左滑** ⇒ 进入「放弃」态 ⇒ ⇒ 松手**不发送**；
+/// - **按住时右滑** ⇒ 进入「相机」态 ⇒ ⇒ 松手**丢掉这段录音 ＋ 打开摄像头**；
 /// - **按住时上滑到屏幕顶部的「取消」区** ⇒ ⇒ 同样进入「放弃」态（微信那一族）。
 ///
 /// ## 为什么用 Listener 而不是 GestureDetector
@@ -60,10 +61,50 @@ import 'package:flutter/material.dart';
 /// ⚠️ 遮罩是 `IgnorePointer` ⇒ ⇒ 它**不**接管手势 ⇒ ⇒ 指针事件仍旧由
 /// 输入框那个 `Listener` 收（它是 DOWN 时就在命中路径上的）。
 ///
+/// ## 录音态的三条手势：**左＝放弃、右＝相机、上＝放弃**
+///
+/// ⚠️ 2026-11-16：原来「按住时左右滑动」**两个方向都是放弃** ⇒ ⇒ 右滑那一下
+/// 什么也换不来 ⇒ ⇒ 用户要的是「右滑顺势打开摄像头」。
+///
+/// ⇒ ⇒ 现在按**松手位置**判三件事：
+/// - **左滑** ⇒ 放弃（丢掉这段录音，不发送）；
+/// - **右滑** ⇒ 打开摄像头（**这段录音照样丢掉** —— 已经切模式了）；
+/// - **上滑到顶部「取消」区** ⇒ 放弃。
+///
+/// ⚠️ 优先级：**顶部取消区 > 右滑 > 左滑** ⇒ ⇒ 那个区是**看得见**的目标
+/// （药丸变红）⇒ ⇒ 「看到的」和「做的」必须一致 ⇒ ⇒ 进了它就一定是放弃。
+///
+/// ## 「＋」**只支持单击**
+///
+/// ⚠️ 2026-11-16 取证（实测）：`PopupMenuButton` 的结构是
+/// `Tooltip(→ InkWell(onTap))` ⇒ ⇒ `Tooltip` 的长按识别器**比** `onTap`
+/// **先赢下手势竞技场**（长按 500ms 时它先接受 ⇒ `onTap` 被拒）⇒ ⇒
+/// **长按「＋」不弹菜单，但会弹一句 Tooltip 提示**（树里能看到
+/// `_TooltipBox` ＋ `RichText`）。
+///
+/// ⇒ ⇒ 「只支持单击」＝ 长按**不许有任何反应** ⇒ ⇒ 那句提示也不许有
+/// ⇒ ⇒ **自己开菜单**（`showMenu`，与 `PopupMenuButton` 内部同一条路），
+/// 标签改用 `Semantics`（设备上仍是 `Button cd=[文件]`）。
+///
 /// ## 键盘开着的时候，长按**不算**录音
 ///
 /// ⚠️ 键盘开着 ⇒ 用户长按多半是想**选字／复制**⇒ ⇒ 那时抢走手势是抢
 /// ⇒ ⇒ 只有**输入框没聚焦**时，长按才是「说话」。
+/// 录音时「**松手**会发生什么」。
+///
+/// ⚠️ 三个态**共用**一条判据（`_actionFor`）⇒ ⇒ 「看到的」（遮罩上的提示）
+/// 与「做的」（松手的后果）**永远一致** ⇒ ⇒ 不会出现「界面说一套、手指做另一套」。
+enum _ReleaseAction {
+  /// 正常录音 ⇒ 松手＝转写并发送。
+  send,
+
+  /// 放弃 ⇒ 松手＝丢掉这段录音。
+  cancel,
+
+  /// 切相机 ⇒ 松手＝丢掉这段录音 ＋ 打开摄像头。
+  camera,
+}
+
 class UnifiedInputBar extends StatefulWidget {
   final TextEditingController controller;
 
@@ -92,6 +133,9 @@ class UnifiedInputBar extends StatefulWidget {
 
   /// 顶部「取消发送」**目标区**的标签（上滑到那里就放弃）。
   final String cancelZoneText;
+
+  /// 录音中（**右滑**＝切相机）的提示 —— 此刻松手就是**打开摄像头**。
+  final String cameraText;
 
   /// 「＋」菜单里的两项。
   final String galleryLabel;
@@ -137,6 +181,7 @@ class UnifiedInputBar extends StatefulWidget {
     required this.recordingText,
     required this.cancelText,
     required this.cancelZoneText,
+    required this.cameraText,
     required this.galleryLabel,
     required this.fileLabel,
     required this.cameraLabel,
@@ -157,8 +202,8 @@ class _UnifiedInputBarState extends State<UnifiedInputBar> {
   /// 按住多久算「说话」（短于它 ⇒ 就是点一下 ⇒ 打字）。
   static const Duration _holdDelay = Duration(milliseconds: 380);
 
-  /// 左右滑动多少像素算「放弃」（**老手势**，保留）。
-  static const double _slideCancelThreshold = 72;
+  /// 左右滑动多少像素算「切模式」（**左＝放弃、右＝开相机**）。
+  static const double _slideThreshold = 72;
 
   /// 顶部「取消发送」目标区的高度（逻辑像素，从**屏幕顶**算起）。
   static const double _cancelZoneHeight = 88;
@@ -166,15 +211,14 @@ class _UnifiedInputBarState extends State<UnifiedInputBar> {
   final FocusNode _focusNode = FocusNode();
   Timer? _holdTimer;
   bool _recording = false;
-  bool _cancelArmed = false;
+
+  /// 录音中「松手会发生什么」（由**松手位置**判 ⇒ ⇒ 遮罩上写什么就是做什么）。
+  _ReleaseAction _action = _ReleaseAction.send;
   double _pressDx = 0;
   double _slideDx = 0;
 
   /// 指针当前的位置（**全局**坐标）—— 判「在不在取消区」用。
   double _pointerDy = 0;
-
-  /// 手指是不是在**顶部取消区**里（微信那一族：上滑到那儿松手＝放弃）。
-  bool _zoneArmed = false;
 
   /// 整屏遮罩（挂在 `Overlay` 上）。
   OverlayEntry? _overlayEntry;
@@ -208,7 +252,7 @@ class _UnifiedInputBarState extends State<UnifiedInputBar> {
     _pressDx = event.position.dx;
     _pointerDy = event.position.dy;
     _slideDx = 0;
-    _zoneArmed = false;
+    _action = _ReleaseAction.send;
     _holdTimer?.cancel();
     _holdTimer = Timer(_holdDelay, _beginRecording);
   }
@@ -221,19 +265,16 @@ class _UnifiedInputBarState extends State<UnifiedInputBar> {
     final offset = event.position.dx - _pressDx;
     if (_recording) {
       _slideDx = offset;
-      // ⚠️ **两条放弃路径**（往两边滑 ／ 上滑到顶部取消区）共用一个
-      // 「armed」态 ⇒ ⇒ 提示只翻一次 ⇒ ⇒ 两条路径都认。
-      final slideArmed = offset.abs() > _slideCancelThreshold;
-      final zoneArmed = _inCancelZone(event.position.dy);
-      final armed = slideArmed || zoneArmed;
-      if ((armed != _cancelArmed || zoneArmed != _zoneArmed) && mounted) {
+      // ⚠️ **三条路径**（左滑放弃 ／ 右滑切相机 ／ 上滑进顶部取消区）**共用**
+      // 一个判据 ⇒ ⇒ 「遮罩上写的」与「松手做的」永远一致。
+      final action = _actionFor(offset, event.position.dy);
+      if (action != _action && mounted) {
         debugPrint(
-          'UnifiedInputBar: armed=$armed 滑到两侧=$slideArmed 取消区=$zoneArmed offset=${offset.toStringAsFixed(1)}',
+          'UnifiedInputBar: armed=${action.name} 右滑=${offset >= _slideThreshold} '
+          '左滑=${offset <= -_slideThreshold} 取消区=${_inCancelZone(event.position.dy)} '
+          'offset=${offset.toStringAsFixed(1)}',
         );
-        setState(() {
-          _cancelArmed = armed;
-          _zoneArmed = zoneArmed;
-        });
+        setState(() => _action = action);
         // ⚠️ 遮罩住在 `Overlay` 上 ⇒ ⇒ 它的重建**不归**我们的 setState
         // 管 ⇒ ⇒ 要**单独**叫它重建。
         _overlayEntry?.markNeedsBuild();
@@ -243,7 +284,7 @@ class _UnifiedInputBarState extends State<UnifiedInputBar> {
     // ⚠️ 还没到按住时长就滑开了 ⇒ ⇒ 那不是「说话」，是**划走** ⇒ ⇒
     // 取消计时器（别等它到点才开录）。
     if (_holdTimer?.isActive ?? false) {
-      if ((event.position.dx - _pressDx).abs() > _slideCancelThreshold) {
+      if ((event.position.dx - _pressDx).abs() > _slideThreshold) {
         _holdTimer?.cancel();
         _holdTimer = null;
       }
@@ -259,8 +300,8 @@ class _UnifiedInputBarState extends State<UnifiedInputBar> {
     // 放弃判不出来 ⇒ ⇒ 请求照发。
     _pointerDy = event.position.dy;
     _slideDx = event.position.dx - _pressDx;
-    // ⚠️ 取消区也按**松手位置**判（同一条纪律）—— 中途路过顶部不算数。
-    _zoneArmed = _inCancelZone(event.position.dy);
+    // ⚠️ **松手位置才算数**（同一条纪律）—— 中途路过顶部／滑到右边都不算数。
+    _action = _actionFor(_slideDx, _pointerDy);
     _endPointer();
   }
 
@@ -273,11 +314,9 @@ class _UnifiedInputBarState extends State<UnifiedInputBar> {
     if (_focusNode.hasFocus) _focusNode.unfocus();
     setState(() {
       _recording = true;
-      _cancelArmed = false;
       _slideDx = 0;
       // ⚠️ 可能在**按住之前**就把手指滑到顶部了 ⇒ ⇒ 开录那一刻就要算。
-      _zoneArmed = _inCancelZone(_pointerDy);
-      _cancelArmed = _zoneArmed;
+      _action = _actionFor(0, _pointerDy);
     });
     // ⚠️ 弹**整屏遮罩**（微信那一族）—— 以前录音态只在输入框那一小块变红
     // ⇒ ⇒ 用户根本看不见「往哪移才算放弃」。
@@ -289,24 +328,43 @@ class _UnifiedInputBarState extends State<UnifiedInputBar> {
     _holdTimer?.cancel();
     _holdTimer = null;
     if (!_recording) return;
-    // ⚠️ 判定用**松手时的偏移**（_slideDx）与**松手时在不在取消区**
-    // （_zoneArmed），不是中途的「armed」态。
-    final abandon =
-        cancel || _zoneArmed || _slideDx.abs() > _slideCancelThreshold;
+    // ⚠️ 判定用**松手位置**算出来的那个态（`_action`）⇒ ⇒ 「遮罩上写的」
+    // 就是「松手做的」⇒ ⇒ 不会有「界面说一套、手指做另一套」。
+    final action = cancel ? _ReleaseAction.cancel : _action;
+    final abandon = action != _ReleaseAction.send;
     debugPrint(
-      'UnifiedInputBar: 松手 offset=${_slideDx.toStringAsFixed(1)} zone=$_zoneArmed abandon=$abandon',
+      'UnifiedInputBar: 松手 offset=${_slideDx.toStringAsFixed(1)} '
+      'armed=${action.name} abandon=$abandon',
     );
     setState(() {
       _recording = false;
-      _cancelArmed = false;
-      _zoneArmed = false;
+      _action = _ReleaseAction.send;
       _slideDx = 0;
     });
     _hideRecordingOverlay();
     widget.onFinishRecording(abandon);
+    // ⚠️ 右滑切相机 ⇒ ⇒ 这段录音**丢掉**（`abandon` 已经是真）⇒ ⇒ 然后开摄像头。
+    // ⚠️ 顺序不许反 —— 先把录音收干净（别让端脑收到一段没人要的音频），
+    // 再切到相机。
+    if (action == _ReleaseAction.camera) {
+      widget.onCapturePhoto?.call();
+    }
   }
 
   // ---- 整屏遮罩（微信那一族）----------------------------------------------
+
+  /// 按**当前**位置算「松手会发生什么」。
+  ///
+  /// ⚠️ 优先级：**顶部取消区** > **右滑** > **左滑**。
+  /// - 顶部取消区是**看得见**的目标（药丸变红）⇒ ⇒ 「看到的」和「做的」必须
+  ///   一致 ⇒ ⇒ 进了那个区 ⇒ ⇒ 一定是放弃，不许翻成相机。
+  /// - **右滑** ⇒ 打开摄像头；**左滑** ⇒ 放弃。
+  _ReleaseAction _actionFor(double offset, double dy) {
+    if (_inCancelZone(dy)) return _ReleaseAction.cancel;
+    if (offset >= _slideThreshold) return _ReleaseAction.camera;
+    if (offset <= -_slideThreshold) return _ReleaseAction.cancel;
+    return _ReleaseAction.send;
+  }
 
   /// 顶部「取消」目标区在**全局坐标**里的上沿。
   ///
@@ -342,7 +400,7 @@ class _UnifiedInputBarState extends State<UnifiedInputBar> {
   }
 
   Widget _buildRecordingOverlay(BuildContext overlayContext) {
-    final armed = _cancelArmed;
+    final action = _action;
     final top = MediaQuery.maybeViewPaddingOf(overlayContext)?.top ?? 0;
     return Positioned.fill(
       // ⚠️ `AbsorbPointer`（**不是** IgnorePointer）⇒ ⇒ 遮罩**吃掉**落在
@@ -359,8 +417,8 @@ class _UnifiedInputBarState extends State<UnifiedInputBar> {
         child: AbsorbPointer(
           child: Stack(
             children: [
-              _buildCancelZone(top, armed),
-              _buildCenterBubble(armed),
+              _buildCancelZone(top, action == _ReleaseAction.cancel),
+              _buildCenterBubble(action),
             ],
           ),
         ),
@@ -395,8 +453,30 @@ class _UnifiedInputBarState extends State<UnifiedInputBar> {
     );
   }
 
-  /// 正中的大圆 ＋ 大字（进取消区就翻成「松手放弃」）。
-  Widget _buildCenterBubble(bool armed) {
+  /// 正中的大圆 ＋ 大字（三个态：发送 ／ 放弃 ／ 切相机）。
+  Widget _buildCenterBubble(_ReleaseAction action) {
+    final isCancel = action == _ReleaseAction.cancel;
+    final isCamera = action == _ReleaseAction.camera;
+    final icon = isCancel
+        ? Icons.delete_outline
+        : isCamera
+            ? Icons.camera_alt
+            : // ⚠️ 用**波形**（微信那族）而不是 `Icons.mic` —— `Icons.mic`
+              // 是「没有独立麦克风钮」那条判据的**反例符号** ⇒ ⇒ 遮罩里
+              // 用它 ⇒ ⇒ 一边说没有麦克风钮、一边画一个麦克风 ⇒ ⇒ 自相矛盾。
+              Icons.graphic_eq;
+    final label = isCancel
+        ? widget.cancelText
+        : isCamera
+            ? widget.cameraText
+            : widget.recordingText;
+    // ⚠️ 相机态用**主色**（不是红）⇒ ⇒ 红＝放弃是**专属**的颜色 ⇒ ⇒
+    // 「红＝别发」不会被误读成「红＝切相机」。
+    final color = isCancel
+        ? const Color(0xFFE5484D)
+        : isCamera
+            ? Theme.of(context).colorScheme.primary
+            : const Color(0x1FFFFFFF);
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -406,21 +486,14 @@ class _UnifiedInputBarState extends State<UnifiedInputBar> {
             height: 120,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: armed ? const Color(0xFFE5484D) : const Color(0x1FFFFFFF),
+              color: color,
               border: Border.all(color: const Color(0x59FFFFFF), width: 2),
             ),
-            child: Icon(
-              // ⚠️ 用**波形**（微信那族）而不是 `Icons.mic` —— `Icons.mic`
-              // 是「没有独立麦克风钮」那条判据的**反例符号** ⇒ ⇒ 遮罩里
-              // 用它 ⇒ ⇒ 一边说没有麦克风钮、一边画一个麦克风 ⇒ ⇒ 自相矛盾。
-              armed ? Icons.delete_outline : Icons.graphic_eq,
-              color: Colors.white,
-              size: 48,
-            ),
+            child: Icon(icon, color: Colors.white, size: 48),
           ),
           const SizedBox(height: 18),
           Text(
-            armed ? widget.cancelText : widget.recordingText,
+            label,
             style: const TextStyle(
               color: Colors.white,
               fontSize: 20,
@@ -554,26 +627,25 @@ class _UnifiedInputBarState extends State<UnifiedInputBar> {
     );
   }
 
-  Widget _buildPlusButton(ThemeData theme) {
-    return PopupMenuButton<String>(
-      // ⚠️ 「＋」与「📷」现在在**同一个圆角框**里 ⇒ ⇒ 颜色得一致
-      // （一个灰一个蓝看着像两件东西）。
-      icon: Icon(
-        Icons.add,
-        color: widget.enabled
-            ? theme.colorScheme.primary
-            : theme.disabledColor,
-      ),
-      tooltip: widget.fileLabel,
-      onSelected: (value) {
-        if (value == 'gallery') {
-          widget.onPickImage?.call();
-        } else if (value == 'file') {
-          widget.onPickFile?.call();
-        }
-      },
-      itemBuilder: (context) => [
-        PopupMenuItem(
+  /// 「＋」菜单（**自己开**，不用 `PopupMenuButton` —— 见类注释里那条取证）。
+  Future<void> _openPlusMenu(BuildContext buttonContext) async {
+    final buttonBox = buttonContext.findRenderObject() as RenderBox?;
+    final overlayBox =
+        Overlay.of(buttonContext).context.findRenderObject() as RenderBox?;
+    if (buttonBox == null || overlayBox == null) {
+      // ⚠️ **说真话**（别静悄悄变成「点了没反应」）。
+      debugPrint('UnifiedInputBar: 「＋」菜单开不了（拿不到位置）');
+      return;
+    }
+    final buttonRect = buttonBox.localToGlobal(Offset.zero) & buttonBox.size;
+    final overlayRect = overlayBox.localToGlobal(Offset.zero) & overlayBox.size;
+    final value = await showMenu<String>(
+      context: buttonContext,
+      // ⚠️ 位置跟 `PopupMenuButton` 内部那条路**一样**（按钮矩形相对 overlay）
+      // ⇒ ⇒ 菜单照旧弹在钮的下方 ⇒ ⇒ 观感不变。
+      position: RelativeRect.fromRect(buttonRect, overlayRect),
+      items: <PopupMenuEntry<String>>[
+        PopupMenuItem<String>(
           value: 'gallery',
           child: Row(
             children: [
@@ -583,7 +655,7 @@ class _UnifiedInputBarState extends State<UnifiedInputBar> {
             ],
           ),
         ),
-        PopupMenuItem(
+        PopupMenuItem<String>(
           value: 'file',
           child: Row(
             children: [
@@ -594,6 +666,52 @@ class _UnifiedInputBarState extends State<UnifiedInputBar> {
           ),
         ),
       ],
+    );
+    if (!mounted) return;
+    if (value == 'gallery') {
+      widget.onPickImage?.call();
+    } else if (value == 'file') {
+      widget.onPickFile?.call();
+    }
+  }
+
+  Widget _buildPlusButton(ThemeData theme) {
+    // ⚠️ **只支持单击** ⇒ ⇒ 这个钮上**不许**挂 `Tooltip`（它的长按会弹提示）
+    // ⇒ ⇒ 标签改用 `Semantics`（设备上仍是 `Button cd=[文件]`）。
+    //
+    // ⚠️ 为什么不用 `PopupMenuButton`：它的结构是 `Tooltip(→ InkWell(onTap))`
+    // ⇒ ⇒ `Tooltip` 的长按识别器**先赢下手势竞技场** ⇒ ⇒ `onTap` 被拒 ⇒ ⇒
+    // **长按不弹菜单，但会弹一句提示**（2026-11-16 实测取到的）。
+    return Builder(
+      builder: (buttonContext) => Semantics(
+        button: true,
+        label: widget.fileLabel,
+        // ⚠️ 读屏用户双击 ⇒ ⇒ 也得有这个动作 ⇒ ⇒ 不许只靠触摸。
+        onTap: widget.enabled ? () => _openPlusMenu(buttonContext) : null,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.enabled ? () => _openPlusMenu(buttonContext) : null,
+          // ⚠️ 长按**只被吞掉**：什么都不发生（不许弹菜单、也不许弹提示）。
+          onLongPress: widget.enabled
+              ? () {
+                  debugPrint(
+                    'UnifiedInputBar: 长按「＋」⇒ 什么都不做（只支持单击）',
+                  );
+                }
+              : null,
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: Icon(
+              Icons.add,
+              // ⚠️ 「＋」与「📷」在**同一个圆角框**里 ⇒ ⇒ 颜色得一致
+              // （一个灰一个蓝看着像两件东西）。
+              color: widget.enabled
+                  ? theme.colorScheme.primary
+                  : theme.disabledColor,
+            ),
+          ),
+        ),
+      ),
     );
   }
 

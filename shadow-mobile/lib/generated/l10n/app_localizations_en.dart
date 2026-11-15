@@ -179,6 +179,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get releaseToCancel => 'Release to cancel';
 
   @override
+  String get releaseToCamera => 'Release to open camera';
+
+  @override
   String get photoOrVideo => 'Tap: photo · Hold: video';
 
   @override
