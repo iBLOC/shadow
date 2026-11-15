@@ -14,6 +14,7 @@ import 'theme/shad_scheme.g.dart';
 import 'services/app_config_service.dart';
 import 'services/background/background_run_provider.dart';
 import 'widgets/config_save_error_banner.dart';
+import 'widgets/tts_error_banner.dart';
 import 'services/encephalon/encephalon_mobile_provider.dart';
 import 'providers/telencephalon_provider.dart';
 import 'services/reminder_inbox.dart';
@@ -171,6 +172,9 @@ class ShadowApp extends ConsumerWidget {
           child: Column(
             children: [
               const ConfigSaveErrorBanner(),
+              // ⚠️ **「没出声」横幅也挂在根部** —— 出声失败发生在哪个页面
+              // 都不该被吞掉（对话页 / 本地会话页 / 能力页都能触发）。
+              const TtsErrorBanner(),
               Expanded(child: child ?? const SizedBox.shrink()),
             ],
           ),

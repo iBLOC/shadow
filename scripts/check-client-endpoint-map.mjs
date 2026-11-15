@@ -345,6 +345,11 @@ const DART_CALLS = [
   // 而它压根没看见过它们）。
   { name: 'request', method: null },
   { name: 'requestList', method: null },
+  // ⚠️ 2026-11-15：**回二进制**的那一族（`_postBytes`）—— 端脑的
+  // `voice/synthesize` 回的是 `audio/mpeg` 字节（不能走会 jsonDecode 的
+  // 那条）⇒ ⇒ 它是**真的在发**的形态 ⇒ ⇒ 不认它 ⇒ ⇒ 那条调用点**永远
+  // 漏报**（闸说「客户端的每个调用点都在表里」，而它压根没看见过它）。
+  { name: '_postBytes', method: 'POST' },
 ];
 
 /** 取一段文本里的第一个标识符（跳过空白）。 */

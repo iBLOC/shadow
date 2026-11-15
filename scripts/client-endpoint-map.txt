@@ -152,6 +152,7 @@ shadow-mobile/lib/services/telencephalon/telencephalon_client.dart GET /shadow/v
 shadow-mobile/lib/services/telencephalon/telencephalon_client.dart GET /shadow/v1/conversations/{param} aligned telencephalon GET /shadow/v1/conversations/{id}
 shadow-mobile/lib/services/telencephalon/telencephalon_client.dart GET /api/flows/{param} aligned telencephalon GET /api/flows/{id}
 shadow-mobile/lib/services/telencephalon/telencephalon_client.dart GET /api/telencephalon/agents/discover aligned telencephalon GET /api/telencephalon/agents/discover
+shadow-mobile/lib/tts_engine.dart POST /api/telencephalon/voice/synthesize aligned telencephalon POST /api/telencephalon/voice/synthesize
 shadow-mobile/lib/services/telencephalon/telencephalon_client.dart POST /shadow/v1/identity aligned telencephalon POST /shadow/v1/identity
 shadow-mobile/lib/services/telencephalon/telencephalon_client.dart POST /shadow/v1/conversations aligned telencephalon POST /shadow/v1/conversations
 shadow-mobile/lib/services/telencephalon/telencephalon_client.dart POST /shadow/v1/conversations/{param}/import aligned telencephalon POST /shadow/v1/conversations/{id}/import

@@ -56,7 +56,8 @@ const _historyA = [
 /// TTS 不打真接口（测试里没有平台通道）。
 class MockTtsEngine extends TtsEngine {
   @override
-  Future<void> speak(String text, {String lang = 'zh-CN', bool allowFallback = true}) async {}
+  Future<TtsSpeakResult> speak(String text, {String lang = 'zh-CN', bool allowFallback = true, String? lobe}) async =>
+      const TtsSpeakResult.spoke();
 }
 const _historyB = [
   {'role': 'user', 'text': '另一条会话的问题'},

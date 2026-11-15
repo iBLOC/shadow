@@ -107,6 +107,14 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
     // 把 Rust TTS 的端口钩子挂上 —— 闭包每次调用**现读** `_service.port`
     // ⇒ 启动 / 重启换端口后自动跟，不需要每条启动路径都来同步一次。
     TtsEngine.runtimeNeuronPort = () => _service.port;
+    // ⚠️ **端脑面**（`voice/synthesize` ＝ 能力页那张默认模型说了算的那条腿）
+    // 的端口 —— **与 neuron 面不是同一个**（neuron 面是本地模型那套 `/v1/*`）。
+    // ⇒ ⇒ 同样用闭包现读 ⇒ ⇒ 大脑重启换端口后自动跟。
+    TtsEngine.runtimeAgentPort = () => _service.agentPort;
+    // ⚠️ **嵌入式大脑自己的 admin token**（写门的凭据）—— 与配置里那把
+    // **不是同一把**（配置里那把是用户填的外部端脑的）⇒ ⇒ 不挂这个钩子
+    // ⇒ ⇒ 打写门就是 401（真机实测 2026-11-15 22:23）。
+    TtsEngine.runtimeAdminToken = () => _service.adminToken;
     // ⚠️ **「用户喊过停」是持久偏好，不是会话状态** ⇒ 从配置里读。
     //
     // 为什么必须落盘：那个标记原先只是**内存里的实例字段** ⇒ 而 Activity

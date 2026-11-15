@@ -76,7 +76,8 @@ class MockTelencephalonClient extends TelencephalonClient {
 
 class MockTtsEngine extends TtsEngine {
   @override
-  Future<void> speak(String text, {String lang = 'zh-CN', bool allowFallback = true}) async {}
+  Future<TtsSpeakResult> speak(String text, {String lang = 'zh-CN', bool allowFallback = true, String? lobe}) async =>
+      const TtsSpeakResult.spoke();
 }
 
 void main() {

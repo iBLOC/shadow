@@ -259,6 +259,14 @@ class AppLocalizationsZh extends AppLocalizations {
   String get ttsEngine => '语音引擎';
 
   @override
+  String get ttsEngineBrain => '大脑（跟随默认模型）';
+
+  @override
+  String ttsSpeakFailed(Object reason) {
+    return '语音没播出来：$reason';
+  }
+
+  @override
   String get ttsEngineAndroid => 'Android 内置';
 
   @override

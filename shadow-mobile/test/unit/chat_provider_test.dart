@@ -64,9 +64,10 @@ class MockTtsEngine extends TtsEngine {
   String? lastText;
 
   @override
-  Future<void> speak(String text, {String lang = 'zh-CN', bool allowFallback = true}) async {
+  Future<TtsSpeakResult> speak(String text, {String lang = 'zh-CN', bool allowFallback = true, String? lobe}) async {
     speakCalled = true;
     lastText = text;
+    return const TtsSpeakResult.spoke();
   }
 }
 

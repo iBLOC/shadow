@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -23,6 +24,8 @@ void main() {
   const channel = MethodChannel('com.ibloc.shadow/tts');
 
   late List<MethodCall> nativeCalls;
+  late Directory tempDir;
+  late File tempFile;
 
   Iterable<MethodCall> spoken() =>
       nativeCalls.where((c) => c.method == 'speak');
@@ -35,14 +38,25 @@ void main() {
       if (call.method == 'isInitialized') return true;
       return null;
     });
+    // ⚠️ **配置面换成临时文件** —— 否则「显式选过的引擎」写不进盘
+    // （真实路径在测试环境里写不进去）⇒ ⇒ 读回来会掉回默认档 ⇒ ⇒
+    // 「用户选过 ⇒ 说话那条路用的就是它」那一格就验不了。
+    tempDir = await Directory.systemTemp.createTemp('tts_fallback_');
+    tempFile = File('${tempDir.path}/app_config.json');
+    AppConfigService.configFileOverride = () async => tempFile;
+
     // AppConfigService 是单例 —— 用例间显式清回「什么都没配」。
     await AppConfigService().setTtsEngineType(null);
     await AppConfigService().setTtsExternalUrl(null);
   });
 
-  tearDown(() {
+  tearDown(() async {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, null);
+    AppConfigService.configFileOverride = null;
+    if (await tempDir.exists()) {
+      await tempDir.delete(recursive: true);
+    }
   });
 
   /// 记请求、按脚本回包的 client。[throwOn] 非空 ⇒ 请求直接抛（模拟连不上）。
@@ -134,6 +148,8 @@ void main() {
   test('Android 内置引擎 ⇒ 一个 HTTP 请求都不发', () async {
     final seen = <http.Request>[];
     final engine = TtsEngine(httpClient: scripted(seen, status: 400));
+    // ⚠️ **显式选** —— 默认档现在是 brain（跟随能力页的默认模型）。
+    await engine.setEngineType(TtsEngineType.androidBuiltIn);
 
     await engine.speak('你好');
 

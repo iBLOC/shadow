@@ -105,6 +105,8 @@
   "whatCanYouHelp": "What can you help me with?",
   "howAudioWorks": "How does audio input work?",
   "ttsEngine": "Voice Engine",
+  "ttsEngineBrain": "Brain (follows the default model)",
+  "ttsSpeakFailed": "Speech did not play: {reason}",
   "ttsEngineAndroid": "Android Built-in",
   "ttsEngineExternal": "External Service",
   "ttsStatus": "Engine Status",

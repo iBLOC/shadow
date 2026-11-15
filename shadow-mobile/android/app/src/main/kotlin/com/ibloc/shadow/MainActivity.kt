@@ -8,6 +8,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.provider.Settings
+import android.util.Base64
 import android.view.View
 import android.view.ViewGroup
 import android.accessibilityservice.AccessibilityServiceInfo
@@ -405,6 +406,19 @@ class MainActivity : FlutterActivity() {
                     val lang = call.argument<String>("lang") ?: "zh-CN"
                     ttsManager?.speak(text, lang)
                     result.success(true)
+                }
+                "playAudio" -> {
+                    // ⚠️ **端脑合成回来的音频** —— 真播（MediaPlayer 在 TtsManager 里）。
+                    // 形状：**base64**（MethodChannel 的 ByteArray 会走 StandardMessageCodec，
+                    // 但这里用 base64 ⇒ ⇒ 免掉 codec 的版本坑）。
+                    val b64 = call.argument<String>("bytes") ?: ""
+                    val bytes = try {
+                        Base64.decode(b64, Base64.DEFAULT)
+                    } catch (e: Exception) {
+                        AppLog.e("ShadowTts", "playAudio: base64 decode failed: $e")
+                        ByteArray(0)
+                    }
+                    result.success(ttsManager?.playAudioBytes(bytes) ?: false)
                 }
                 "stop" -> {
                     ttsManager?.stop()

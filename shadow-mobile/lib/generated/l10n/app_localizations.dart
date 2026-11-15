@@ -584,6 +584,18 @@ abstract class AppLocalizations {
   /// **'Voice Engine'**
   String get ttsEngine;
 
+  /// No description provided for @ttsEngineBrain.
+  ///
+  /// In en, this message translates to:
+  /// **'Brain (follows the default model)'**
+  String get ttsEngineBrain;
+
+  /// No description provided for @ttsSpeakFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Speech did not play: {reason}'**
+  String ttsSpeakFailed(Object reason);
+
   /// No description provided for @ttsEngineAndroid.
   ///
   /// In en, this message translates to:

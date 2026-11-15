@@ -646,7 +646,9 @@ class ChatNotifier extends StateNotifier<ChatState> {
         streamingText: '',
       );
       if (response.isNotEmpty) {
-        await _ttsEngine.speak(response);
+        // ⚠️ **带叶区** ⇒ ⇒ 端脑按「显式 → 叶区覆盖 → 全局默认」解析
+        // （叶区级那一档 TTS 覆盖才生效）。
+        await _ttsEngine.speak(response, lobe: state.activeConversationAgent);
       }
       _flushToolTrajectory();
     } catch (e) {
@@ -1178,7 +1180,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
       orElse: () => ChatMessageModel('', ChatRole.assistant),
     );
     if (lastAssistant.content.isNotEmpty) {
-      await _ttsEngine.speak(lastAssistant.content);
+      await _ttsEngine.speak(
+        lastAssistant.content,
+        lobe: state.activeConversationAgent,
+      );
     }
   }
 
@@ -1191,6 +1196,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
     }
     await _ttsEngine.speak(
       message.content.isNotEmpty ? message.content : 'Audio message',
+      lobe: state.activeConversationAgent,
     );
   }
 

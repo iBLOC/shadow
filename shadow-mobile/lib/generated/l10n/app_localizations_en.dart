@@ -259,6 +259,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ttsEngine => 'Voice Engine';
 
   @override
+  String get ttsEngineBrain => 'Brain (follows the default model)';
+
+  @override
+  String ttsSpeakFailed(Object reason) {
+    return 'Speech did not play: $reason';
+  }
+
+  @override
   String get ttsEngineAndroid => 'Android Built-in';
 
   @override

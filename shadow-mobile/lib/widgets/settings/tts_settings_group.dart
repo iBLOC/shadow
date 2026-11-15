@@ -20,7 +20,13 @@ class TtsSettingsGroup extends StatefulWidget {
 class _TtsSettingsGroupState extends State<TtsSettingsGroup> {
   final TtsEngine _ttsEngine = TtsEngine();
   bool _isInitialized = false;
-  TtsEngineType _engineType = TtsEngineType.androidBuiltIn;
+
+  /// **当前这条腿**就绪吗（不是别的腿的状态）。
+  bool _engineReady = false;
+  /// ⚠️ **首帧就是真相** —— 默认腿是「大脑」⇒ ⇒ 字段初值也必须是 brain
+  /// （写 androidBuiltIn ⇒ ⇒ 默认档改成大脑之后，首帧先显示「Android
+  /// 内置／未就绪」⇒ ⇒ 界面在骗人，2.5 秒后才翻过来）。
+  TtsEngineType _engineType = TtsEngineType.brain;
   bool _isEditingUrl = false;
   final _urlController = TextEditingController();
 
@@ -31,10 +37,23 @@ class _TtsSettingsGroupState extends State<TtsSettingsGroup> {
   }
 
   Future<void> _initTts() async {
+    // ❶ **先**把「用户选的是哪条腿」摆出来（这一步是快的）—— 别让
+    //    Android TTS 的探针（设备上没有内置 TTS 时 ≈ 2.5 秒）挡在第一帧
+    //    前面 ⇒ ⇒ 否则首帧显示的是**默认值**，不是用户的选择。
+    final selected = await _ttsEngine.loadEngineSelection();
+    if (!mounted) return;
+    setState(() => _engineType = selected);
+
+    // ❷ 再探「当前那条腿」的就绪状态。
     final initialized = await _ttsEngine.initialize();
+    // ⚠️ **状态按「当前那条腿」判** —— 默认腿是「大脑」⇒ ⇒ 拿 Android 内置
+    // TTS 的探针结果冒充 ⇒ ⇒ 界面会说「未就绪」而大脑那条腿明明是通的
+    // ⇒ ⇒ 「界面在骗人」。
+    final engineReady = await _ttsEngine.isEngineReady();
     if (!mounted) return;
     setState(() {
       _isInitialized = initialized;
+      _engineReady = engineReady;
       _engineType = _ttsEngine.engineType;
       _urlController.text = _ttsEngine.externalUrl;
     });
@@ -43,8 +62,12 @@ class _TtsSettingsGroupState extends State<TtsSettingsGroup> {
   Future<void> _onEngineTypeChanged(TtsEngineType? type) async {
     if (type == null) return;
     await _ttsEngine.setEngineType(type);
+    final ready = await _ttsEngine.isEngineReady();
     if (mounted) {
-      setState(() => _engineType = type);
+      setState(() {
+        _engineType = type;
+        _engineReady = ready;
+      });
     }
   }
 
@@ -79,7 +102,7 @@ class _TtsSettingsGroupState extends State<TtsSettingsGroup> {
         SettingsRow(
           title: l10n.ttsEngine,
           icon: Icons.record_voice_over,
-          subtitle: _isInitialized ? l10n.ttsReady : l10n.ttsNotReady,
+          subtitle: _engineReady ? l10n.ttsReady : l10n.ttsNotReady,
           trailing: SizedBox(
             width: 128,
             child: ShadSelect<TtsEngineType>(
@@ -87,6 +110,12 @@ class _TtsSettingsGroupState extends State<TtsSettingsGroup> {
               selectedOptionBuilder: (context, value) =>
                   Text(_engineLabel(l10n, value)),
               options: [
+                // ⚠️ **「大脑」排第一** —— 它是**默认腿**：用哪个模型由
+                // **能力页那张表**决定（端脑自己按分档默认解析）。
+                ShadOption(
+                  value: TtsEngineType.brain,
+                  child: Text(_engineLabel(l10n, TtsEngineType.brain)),
+                ),
                 ShadOption(
                   value: TtsEngineType.androidBuiltIn,
                   child: Text(_engineLabel(l10n, TtsEngineType.androidBuiltIn)),
@@ -179,7 +208,7 @@ class _TtsSettingsGroupState extends State<TtsSettingsGroup> {
         SettingsRow(
           title: l10n.ttsTest,
           icon: Icons.play_circle_outline,
-          subtitle: _isInitialized ? l10n.ttsReady : l10n.ttsNotReady,
+          subtitle: _engineReady ? l10n.ttsReady : l10n.ttsNotReady,
           trailing: ShadIconButton.ghost(
             icon: Icon(
               Icons.play_arrow,
@@ -188,7 +217,7 @@ class _TtsSettingsGroupState extends State<TtsSettingsGroup> {
                   ? theme.colorScheme.primary
                   : theme.colorScheme.mutedForeground,
             ),
-            onPressed: _isInitialized ? _testSpeech : null,
+            onPressed: _engineReady ? _testSpeech : null,
           ),
         ),
       ],
@@ -197,6 +226,8 @@ class _TtsSettingsGroupState extends State<TtsSettingsGroup> {
 
   static String _engineLabel(AppLocalizations l10n, TtsEngineType type) {
     switch (type) {
+      case TtsEngineType.brain:
+        return l10n.ttsEngineBrain;
       case TtsEngineType.androidBuiltIn:
         return l10n.ttsEngineAndroid;
       case TtsEngineType.rust:

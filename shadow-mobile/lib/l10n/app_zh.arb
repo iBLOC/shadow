@@ -91,6 +91,8 @@
   "whatCanYouHelp": "有什么可以帮助你的？",
   "howAudioWorks": "音频输入是如何工作的？",
   "ttsEngine": "语音引擎",
+  "ttsEngineBrain": "大脑（跟随默认模型）",
+  "ttsSpeakFailed": "语音没播出来：{reason}",
   "ttsEngineAndroid": "Android 内置",
   "ttsEngineExternal": "外部服务",
   "ttsStatus": "引擎状态",

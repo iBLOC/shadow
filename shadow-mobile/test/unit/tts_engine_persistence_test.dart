@@ -56,17 +56,32 @@ void main() {
       expect(fresh.externalUrl, 'http://tts.example.com/speak');
     });
 
-    test('孪生：没配过 ⇒ 默认 Android 内置，且配置文件里**不留默认壳**', () async {
+    test('孪生：没配过 ⇒ 默认**大脑**（跟随能力页的默认模型），且配置文件里**不留默认壳**', () async {
       final fresh = TtsEngine();
       await fresh.initialize();
-      expect(fresh.engineType, TtsEngineType.androidBuiltIn);
+      // ⚠️ **默认档是 brain** —— 能力页那张表（defaults.tts）才是
+      // 「用哪个模型」的真相源 ⇒ ⇒ 客户端不该自己猜。
+      expect(fresh.engineType, TtsEngineType.brain);
       expect(fresh.externalUrl, '');
 
       // 默认值不该被写进配置文件（只写非默认）。
       final cfg = AppConfigService();
-      await cfg.setTtsEngineType('android');
+      await cfg.setTtsEngineType('brain');
       final raw = jsonDecode(await tempFile.readAsString()) as Map<String, dynamic>;
       expect(raw.containsKey('ttsEngineType'), isFalse);
+    });
+
+    test('显式选「Android 内置」⇒ **要写进配置**（它是选择，不是默认壳）', () async {
+      final engine = TtsEngine();
+      await engine.setEngineType(TtsEngineType.androidBuiltIn);
+
+      final raw = jsonDecode(await tempFile.readAsString()) as Map<String, dynamic>;
+      expect(raw['ttsEngineType'], 'android');
+
+      // 新实例读得回这个**显式**选择（重启后不许退回默认）。
+      final fresh = TtsEngine();
+      await fresh.initialize();
+      expect(fresh.engineType, TtsEngineType.androidBuiltIn);
     });
   });
 }

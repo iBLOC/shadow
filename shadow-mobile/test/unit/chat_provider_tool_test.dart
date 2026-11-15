@@ -10,7 +10,8 @@ import 'package:shadow_mobile/tts_engine.dart';
 
 class MockTts extends TtsEngine {
   @override
-  Future<void> speak(String text, {String lang = 'zh-CN', bool allowFallback = true}) async {}
+  Future<TtsSpeakResult> speak(String text, {String lang = 'zh-CN', bool allowFallback = true, String? lobe}) async =>
+      const TtsSpeakResult.spoke();
 }
 
 /// 会发一串事件、并记录「结果回传」的端脑 mock。

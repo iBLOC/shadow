@@ -198,8 +198,11 @@ class AppConfigService {
           'chatBackgroundPath': _chatBackgroundPath,
         if (_tenantMigrationTarget != null)
           'tenantMigrationTarget': _tenantMigrationTarget,
-        // ⚠️ **只写非默认** —— 默认引擎是 android ⇒ ⇒ 配置文件里不留默认壳。
-        if (_ttsEngineType != null && _ttsEngineType != 'android')
+        // ⚠️ **只写非默认** —— 默认引擎是 **brain**（跟随能力页的默认模型）
+        // ⇒ ⇒ 配置文件里不留默认壳。
+        // ⚠️ 「android」现在**要写**（它是显式选择，不是默认）⇒ ⇒ 别把
+        // 用户明选的内置引擎当成默认壳抹掉。
+        if (_ttsEngineType != null && _ttsEngineType != 'brain')
           'ttsEngineType': _ttsEngineType,
         if (_ttsExternalUrl != null && _ttsExternalUrl!.isNotEmpty)
           'ttsExternalUrl': _ttsExternalUrl,
