@@ -204,6 +204,45 @@ void main() {
       expect(find.text('openai · gpt-4o'), findsOneWidget);
       expect(find.byType(Switch), findsOneWidget);
     });
+    // ⚠️ **国内站预设也要有自己的图标**（2026-11-15）：`minimax-cn` 是
+    // 本刀新增的预设 id ⇒ ⇒ 图标映射漏了它 ⇒ ⇒ 界面上落回默认云图标
+    // ⇒ ⇒ 用户认不出自己刚加的供应商。
+    testWidgets('✅ minimax-cn 预设有自己的图标（voice_chat）', (
+      WidgetTester tester,
+    ) async {
+      final notifier = ProvidersNotifier(
+        clientReturning((req) {
+          if (req.url.path.endsWith('/presets')) {
+            return http.Response(jsonEncode(<Object>[]), 200);
+          }
+          return http.Response(
+            jsonEncode([
+              {
+                'id': 'prov-mm-cn',
+                'name': 'MiniMax 中国',
+                'base_url': 'https://api.minimax.cn/v1',
+                'api_standard': 'openai',
+                'enabled': true,
+                'selected_model': 'MiniMax-M3.1-Flash',
+                'preset_id': 'minimax-cn',
+                'models': [
+                  {'id': 'MiniMax-M3.1-Flash', 'name': 'MiniMax-M3.1-Flash'},
+                ],
+              },
+            ]),
+            200,
+            // ⚠️ 必须给 content-type ⇒ ⇒ 否则 http 包按 **latin1** 构造 ⇒ ⇒
+            // ⇒ body 里有中文就**构造失败**（不是解码问题）。
+            headers: {'content-type': 'application/json'},
+          );
+        }),
+      );
+      await pumpWidgetForTest(tester, app(notifier));
+      await tester.pumpAndSettle();
+
+      expect(find.text('MiniMax 中国'), findsOneWidget);
+      expect(find.byIcon(Icons.voice_chat), findsOneWidget);
+    });
 
     // ⚠️ 内置供应商（neuron）**只读** ⇒ ⇒ 启停/编辑/删除**都写不进去**
     // ⇒ ⇒ 界面不能给这些按钮（给一个必然 400 的按钮 = 把「大脑拒了」

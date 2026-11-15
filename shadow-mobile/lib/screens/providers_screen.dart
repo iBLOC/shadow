@@ -616,7 +616,7 @@ class _ProviderIcon extends StatelessWidget {
       'ollama' || 'local' => Icons.computer,
       'groq' => Icons.bolt,
       'deepseek' => Icons.water_drop,
-      'minimax' || 'minimax-abab' => Icons.voice_chat,
+      'minimax' || 'minimax-abab' || 'minimax-cn' => Icons.voice_chat,
       'qwen' => Icons.smart_toy,
       'moonshot' => Icons.rocket_launch,
       'zhipuai' => Icons.star,
