@@ -115,14 +115,43 @@ class _MemoryStorageSectionState extends ConsumerState<MemoryStorageSection> {
     return _Backend.local;
   }
 
-  /// 「留空」= 用大脑的默认位置 ⇒ 比较与迁移都需要一个具体 URI。
+
+  /// **两个根是不是同一个**（比较用）—— 形状不同但同指一个地方 ⇒ 不该触发迁移。
+  ///
+  /// ⚠️ 归一规则：**去 `file://` 前缀、去尾部斜杠、Windows 下盘符小写**
+  /// （`C:/x` 与 `file:///C:/x` 是同一个地方）。⚠️ **不做 `canonicalize`**：
+  /// 那是服务端 `normalize_base` 的事（要解析符号链接、要处理 `\?\` 前缀），
+  /// 客户端做一半反而会误判（「一半的归一」＝ 两边都不认的形状）。
+  bool _sameRoot(String a, String b) {
+    String norm(String v) {
+      var t = v.trim();
+      if (t.toLowerCase().startsWith('file://')) t = t.substring(7);
+      t = t.replaceFirst(RegExp(r'/+$'), '');
+      return RegExp(r'^[A-Za-z]:').hasMatch(t) ? t.toLowerCase() : t;
+    }
+
+    return norm(a) == norm(b);
+  }
+
+  /// **默认根的具体 URI**（大脑给的 `local_default_root`）——
+  /// 比较「当前在哪个根」与「目标在哪个根」时要用**具体**值。
+  String _defaultUri() {
+    final root = (_defaultRoot ?? '').trim();
+    if (root.isEmpty) return '';
+    final normalized = root.split(r'\').join('/');
+    return normalized.startsWith('file://') ? normalized : 'file://$normalized';
+  }
+
+  /// **迁移的目标**（本地档留空时 ＝「跟随默认」）。
+  ///
+  /// ⚠️ **空串不是「没有目标」**（2026-11-15 真机那一格）：端脑把**空 uri**
+  /// 解释成「搬到宿主默认根去搬、但配置写回空串」⇒ ⇒ 「跟随默认」是一个
+  /// **持久状态**（宿主默认变了它跟着变），而不是「把当时那次的默认路径
+  /// 写死」—— 那样「默认位置」就变成只能看、不能选回去的东西。
   String _effectiveUri() {
     final loc = _location.text.trim();
     if (loc.isNotEmpty) return loc;
-    if (_backend == _Backend.local && _defaultRoot != null && _defaultRoot!.isNotEmpty) {
-      final normalized = _defaultRoot!.replaceAll(r'\', '/');
-      return normalized.startsWith('file://') ? normalized : 'file://$normalized';
-    }
+    // 本地档留空 ⇒ 「跟随默认」（端脑知道自己的默认根是哪个）。
     return '';
   }
 
@@ -218,10 +247,13 @@ class _MemoryStorageSectionState extends ConsumerState<MemoryStorageSection> {
     // ⚠️ **换根要搬数据**（2026-11-13 用户拍板）：目标与当前不同 ⇒ 不要只改
     // 一行 `storage_uri`（新根会是空库、旧数据留在原处）⇒ 交给大脑的迁移面。
     final target = _effectiveUri();
-    String trimSlashes(String v) => v.replaceFirst(RegExp(r'/+$'), '');
-    final baseline = _storedUri.trim().isNotEmpty ? _storedUri.trim() : target;
-    final switchingRoot = baseline.isNotEmpty &&
-        trimSlashes(baseline) != trimSlashes(target);
+    // ⚠️ **比较要拿「具体根」比**（不是拿语义比）：
+    //   · 当前生效的根 ＝ 配了绝对路径就用它；没配 ⇒ **它就在默认根**；
+    //   · 目标根 ＝ 用户填的路径；留空 ⇒ 「跟随默认」⇒ 具体就是默认根。
+    final current = _storedUri.trim().isNotEmpty ? _storedUri.trim() : _defaultUri();
+    final targetConcrete = target.isNotEmpty ? target : _defaultUri();
+    final switchingRoot =
+        current.isNotEmpty && !_sameRoot(current, targetConcrete);
     if (switchingRoot) {
       await _startMigration(target);
       return;

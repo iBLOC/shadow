@@ -47,6 +47,25 @@ const MASK = '***';
 type Backend = 'local' | 'rustfs' | 's3' | 'oss';
 
 /**
+ * **两个根是不是同一个**（比较用）—— 形状不同但同指一个地方 ⇒ 不该触发迁移。
+ *
+ * ⚠️ 归一规则：**去 `file://` 前缀、去尾部斜杠、Windows 下盘符小写**
+ * （`C:/x` 与 `file:///C:/x` 是同一个地方）。⚠️ **不做 `canonicalize`**：
+ * 那是服务端 `normalize_base` 的事（要解析符号链接、要处理 `\?\` 前缀），
+ * 客户端做一半反而会误判（「一半的归一」＝ 两边都不认的形状）。
+ */
+function sameRoot(a: string, b: string): boolean {
+  const norm = (v: string) => {
+    let t = v.trim();
+    if (/^file:\/\//i.test(t)) t = t.slice(7);
+    t = t.replace(/\/+$/, '');
+    return /^[A-Za-z]:/.test(t) ? t.toLowerCase() : t;
+  };
+  return norm(a) === norm(b);
+}
+
+
+/**
  * **RustFS 预设**（2026-11-13）—— 它是 S3 兼容服务，协议上仍是 `s3://`，
  * 但有三样东西与「公有云 S3」不同，而这三样正是用户最容易填错的地方：
  *
@@ -196,20 +215,33 @@ export function MemoryStorageCard() {
   );
 
   /**
-   * 「留空」= 用大脑的默认位置 ⇒ 但**比较与迁移**都需要一个具体 URI
-   * （大脑那边不认空串）。
+   * **迁移的目标**（本地档留空时 ＝「跟随默认」）。
    *
-   * ⚠️ 只在**本地档**兜底：远端档留空是错误，不是默认。
+   * ⚠️ **空串不是「没有目标」**（2026-11-15 真机那一格）：端脑把**空 uri**
+   * 解释成「搬到宿主默认根去搬、但配置写回空串」⇒ ⇒ 「跟随默认」是一个
+   * **持久状态**（宿主默认变了它跟着变）⇒ ⇒ 而不是「把当时那次的默认路径
+   * 写死」—— 那样「默认位置」就变成只能看、不能选回去的东西。
+   *
+   * ⚠️ 远端档留空是**错误**，不是默认（`validate` 会当场拒）。
    */
   const effectiveUri = useCallback((): string => {
     const loc = location.trim();
     if (loc) return loc;
-    if (backend === 'local' && defaultRoot) {
-      const normalized = defaultRoot.split('\\').join('/');
-      return normalized.startsWith('file://') ? normalized : `file://${normalized}`;
-    }
-    return '';
-  }, [location, backend, defaultRoot]);
+    // 本地档留空 ⇒ 「跟随默认」（端脑知道自己的默认根是哪个：桌面端是
+    // 「可执行二进制同目录」，手机上在 App 私有目录里）。
+    return backend === 'local' ? '' : '';
+  }, [location, backend]);
+
+  /**
+   * **默认根的具体 URI**（大脑给的 `local_default_root`）——
+   * 比较「当前在哪个根」与「目标在哪个根」时要用**具体**值。
+   */
+  const defaultUri = useCallback((): string => {
+    const root = (defaultRoot ?? '').trim();
+    if (!root) return '';
+    const normalized = root.split('\\').join('/');
+    return normalized.startsWith('file://') ? normalized : `file://${normalized}`;
+  }, [defaultRoot]);
 
   const validate = (): string => {
     // ⚠️ 本地目录**允许留空**（2026-11-13）：空 = 用大脑的默认位置
@@ -270,15 +302,17 @@ export function MemoryStorageCard() {
       // 大脑的迁移面：它搬完 → 校验 → 切配置 → 删旧 → 等重启。
       const current = (entries ?? []).find((e) => e.key === KEY_URI)?.value;
       const storedUri = typeof current === 'string' ? current : '';
-      // 「没配过」时当前生效的就是默认位置 ⇒ 拿它当基线比（清空 ⇒ 回到默认
-      // 与「原本就在默认」是同一件事，不该触发迁移）。
-      const currentUri = storedUri.trim() ? storedUri.trim() : effectiveUri();
-      if (
-        currentUri &&
-        currentUri.replace(/\/+$/, '') !== effectiveUri().replace(/\/+$/, '')
-      ) {
+      // ⚠️ **比较要拿「具体根」比**（不是拿语义比）：
+      //   · 当前生效的根 ＝ 配了绝对路径就用它；没配 ⇒ **它就在默认根**；
+      //   · 目标根 ＝ 用户填的路径；留空 ⇒ 「跟随默认」⇒ 具体就是默认根。
+      const currentUri = storedUri.trim() ? storedUri.trim() : defaultUri();
+      const targetUri = effectiveUri();
+      const targetConcrete = targetUri || defaultUri();
+      const needsMigration = !!currentUri && !sameRoot(currentUri, targetConcrete);
+      if (needsMigration) {
         const target: StorageMigrationTarget = {
-          uri: effectiveUri(),
+          // ⚠️ 空串 ＝「跟随默认」（端脑搬去默认根、配置写回空 ⇒ 持久跟随）
+          uri: targetUri,
           ...(backend === 'local' ? {} : { endpoint: endpoint.trim() }),
           ...(backend === 's3' ? { region: region.trim() } : {}),
           ...(backend !== 'local' ? { allow_http: allowHttp } : {}),

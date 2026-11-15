@@ -277,6 +277,28 @@ describe('MemoryStorageCard（换存储 ⇒ 自动迁移）', () => {
     expect(status).toHaveBeenCalled();
   });
 
+  it('本地档留空 ⇒ 目标是「跟随默认」（空 uri），不是把默认根写死', async () => {
+    restartAppMock.mockReset();
+    mockSection([entry('storage_uri', 'file:///old/lance')]);
+    vi.spyOn(telencephalonClient.hippocampus, 'storageDefaults').mockResolvedValue({
+      local_default_root: 'C:/apps/shadow/lance',
+      active_uri: null,
+    });
+    const start = vi
+      .spyOn(telencephalonClient.neuron, 'startStorageMigration')
+      .mockResolvedValue({ needs_migration: true, state: 'copying' });
+
+    render(<MemoryStorageCard />);
+    const input = await screen.findByTestId('memory-storage-location');
+    await userEvent.clear(input);
+    await userEvent.click(screen.getByRole('button', { name: /settings\.memoryStorage\.save/ }));
+
+    await waitFor(() => expect(start).toHaveBeenCalledTimes(1));
+    // ⚠️ **空 uri ＝「跟随默认」**（端脑：搬到默认根去搬、配置写回空 ⇒ 之后
+    // 宿主默认变了它跟着变）。写成绝对路径 ⇒ 「默认」退化成「当时那次的路径」。
+    expect(start.mock.calls[0][0].uri).toBe('');
+  });
+
   it('失败 ⇒ 弹窗显示后端原话，且 [重试] 在', async () => {
     restartAppMock.mockReset();
     mockSection([entry('storage_uri', LOCAL_URI)]);

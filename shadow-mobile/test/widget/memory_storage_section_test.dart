@@ -113,6 +113,7 @@ void main() {
 
   _migrationTests();
   _rustfsTests();
+  _followDefaultTests();
 
   testWidgets('已配置 s3 ⇒ 回填位置、密钥显示 ***、状态是「已配置」', (tester) async {
     final client = _FakeClient(
@@ -271,6 +272,96 @@ void _migrationTests() {
     expect(find.textContaining('数据集'), findsWidgets);
     // 阻塞层：没有关闭钮、点遮罩不关（`barrierDismissible: false`）。
     expect(find.byType(AlertDialog), findsOneWidget);
+  });
+}
+
+void _followDefaultTests() {
+  testWidgets('本地档留空 ⇒ 目标是「跟随默认」（空 uri），不是把默认根写死',
+      (tester) async {
+    // ⚠️ **空 uri ＝「跟随默认」**（端脑的语义：搬到默认根去搬、配置写回空
+    // ⇒ 之后宿主默认变了它跟着变）。写成绝对路径 ⇒ 「默认」就退化成「当时
+    // 那次的路径」⇒ 默认位置变成只能看、不能选回去的东西。
+    final client = _FakeClient(section: {
+      'section': 'hippocampus',
+      'entries': [
+        {'key': 'storage_uri', 'value': '/data/old-lance'},
+      ],
+      'applies_when': 'restart',
+    })
+      ..defaults = {
+        'local_default_root': '/data/app/lance',
+        'active_uri': null,
+      };
+    await pumpWidgetForTest(
+      tester,
+      ProviderScope(
+        overrides: [telencephalonClientProvider.overrideWithValue(client)],
+        child: MaterialApp(
+          localizationsDelegates: [
+            AppLocalizations.delegate,
+            ...GlobalMaterialLocalizations.delegates,
+          ],
+          supportedLocales: const [Locale('zh')],
+          locale: const Locale('zh'),
+          home: const Scaffold(body: SingleChildScrollView(child: MemoryStorageSection())),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField).first, '');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+
+    expect(client.migrationStarts, hasLength(1));
+    expect(
+      client.migrationStarts.first['uri'],
+      '',
+      reason: '本地档留空 ⇒ 目标 uri 是空串（＝跟随默认）',
+    );
+  });
+
+  testWidgets('已经就在默认根 ⇒ 清空位置不触发迁移（只是把配置清成「跟随」）',
+      (tester) async {
+    final client = _FakeClient(section: {
+      'section': 'hippocampus',
+      'entries': [
+        {'key': 'storage_uri', 'value': '/data/app/lance'},
+      ],
+      'applies_when': 'restart',
+    })
+      ..defaults = {
+        'local_default_root': '/data/app/lance',
+        'active_uri': null,
+      };
+    await pumpWidgetForTest(
+      tester,
+      ProviderScope(
+        overrides: [telencephalonClientProvider.overrideWithValue(client)],
+        child: MaterialApp(
+          localizationsDelegates: [
+            AppLocalizations.delegate,
+            ...GlobalMaterialLocalizations.delegates,
+          ],
+          supportedLocales: const [Locale('zh')],
+          locale: const Locale('zh'),
+          home: const Scaffold(body: SingleChildScrollView(child: MemoryStorageSection())),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField).first, '');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+
+    expect(
+      client.migrationStarts,
+      isEmpty,
+      reason: '已经在默认根 ⇒ 没什么可搬 ⇒ 只把配置清成「跟随默认」',
+    );
   });
 }
 
