@@ -111,6 +111,13 @@ AG-UI 有、端脑完全没有的事件族(接入即白拿,不接也不亏):
     分支仅记日志(卡片状态由本地执行驱动),采纳属新功能不属本刀。
 - **G2 delta 无 messageId、无消息边界** —— 工具调用后续说的文本与前一段在客户端被拼成同一条气泡;
   AG-UI 的 TEXT_MESSAGE_START/CONTENT/END 三段式正是解这个。
+  - ✅ **服务端半已落地(2026-11-16,端脑单仓纯新增)**:新事件 `message_start`/`message_end`
+    (成对同 `message_id`)+ `delta` 带 `message_id` 字段;段边界=首个 delta 开段、
+    tool_call/done/error 之前关段(6 个关段点全覆盖),工具卡片打断后续说的话开**新段**。
+    对齐 TEXT_MESSAGE_START/CONTENT/END(§3 E1/E3 由「需新造」变「已存在」)。判据 2 条 +
+    真变异(摘 delta 的 message_id)当场红且只红目标判据;裁剪档 **42 过 / 0 红**。
+    老客户端零破坏(未知事件走 default 忽略、delta 新字段无人读)。
+    **客户端采纳仍欠**:两端用 message_id 分气泡是后续小刀(等服务端形状在真流量上验过)。
 - **G3 无显式 run 开始事件** —— 客户端分不清"连上了在排队"与"没人应答";done 带 conversation_id
   而开始侧什么都不带,首尾不对称。
   - ✅ **已落地(2026-11-16,端脑单仓纯新增)**:wire 新增 `run_started` 事件
