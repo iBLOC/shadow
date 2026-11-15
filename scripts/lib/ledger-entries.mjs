@@ -74,6 +74,63 @@ export function ledgerEntries(text) {
   return out;
 }
 
+/**
+ * **条目级回退的收窄条件** —— **面无关**的那一条（2026-11-11 抽）。
+ * ============================================================================
+ *
+ * ## 它是什么
+ * 一句话：**「从【from】退回【to】」这一族里，只有当【from】**真的含有**【to】没有的行时，
+ * 才算「被退回」；否则那是**合法演进**（去重／回填旧内容）。**
+ *
+ * ## 为什么它必须**面无关**
+ * ⚠️ **同一族的收窄条件，两面拿得到的东西不一样**（这是 2026-11-11 兄弟会话提的问题）：
+ *   · **提交面**（`commit-revert.mjs`）—— 事件里有「A」＝ B 的父链上最近改过该文件的提交
+ *     ⇒ ⇒ 「A 的增量」拿得到 ⇒ ⇒ 收窄条件天然可判；
+ *   · **暂存面**（`index-revert.mjs` 的 R5）—— **没有「A」这个对象**
+ *     ⇒ ⇒ 若把条件写成「A 真的引入过新行」⇒ ⇒ 那一条在暂存面**落进「判不了」那一格**。
+ * ⇒ ⇒ **解法不是给两面各写一条判据（那会漂），而是把条件改写成面无关的形状。**
+ *
+ * ## 面无关的写法
+ * 把「A 的增量」换成「**退回前的那一版 vs 被退回到的那一版**」：
+ *   · 提交面：`from` ＝ A 的那一版（退回事件里的 A），`to` ＝ A^ 的那一版；
+ *   · 暂存面：`from` ＝ **HEAD** 的那一版（暂存面拿得到，且逐字就在判据手里），
+ *     `to` ＝ 历史上被匹配到的那一版。
+ * ⇒ ⇒ **两面都判得了 ⇒ ⇒ 不落「判不了」那一格** ⇒ ⇒ 而且**同一份实现** ⇒ ⇒ 不会两处漂。
+ *
+ * ## 为什么这一条**必须**成立（真历史实测，不是推的）
+ * 真样本 `0ab9bec`（**合法去重**）—— A 把同一段**重复插了两份**，B 删掉一份
+ * ⇒ ⇒ 这一条的正文**逐字**变回 A 之前的版本 ⇒ ⇒ 「逐字等于旧版」这一条**单独**会误判红
+ * ⇒ ⇒ 而那一笔**一行新内容都没引入**（行集合一模一样，只是份数变了）
+ * ⇒ ⇒ ⇒ **判据要问「退回前的那一版到底有没有多出来的东西」，而不只是「是不是回到了旧版」**。
+ *
+ * ⚠️ **归一**：行比较一律 `trimEnd()` 后去空行 ⇒ ⇒ Windows 上工作树是 CRLF、blob 里是 LF
+ *   ⇒ ⇒ 不归一 ⇒ ⇒ 同一份内容在两个面上逐字不等 ⇒ ⇒ 这一档**恒不触发**。
+ */
+export function entryContentLines(body) {
+  return String(body == null ? '' : body)
+    .split('\n')
+    .map((l) => l.trimEnd())
+    .filter((l) => l.trim() !== '');
+}
+
+/** 这一条在【from】里比【to】**多出来的行**（行集合，去掉空白行）。 */
+export function entryIntroducedLines(fromBody, toBody) {
+  const to = new Set(entryContentLines(toBody));
+  return entryContentLines(fromBody).filter((l) => !to.has(l));
+}
+
+/**
+ * **收窄条件**（面无关）：`from` ＝ 退回**前**的那一版，`to` ＝ 被退回到的那一版。
+ * 返回 true ＝ 这一族**够格**判红；false ＝ 合法演进（去重等）⇒ ⇒ 留在提示层。
+ *
+ * ⚠️ **两个面传进来的【from】来源不同，但形状一样** —— 这就是「面无关」的含义：
+ *   · 提交面：`entryRevertNarrowing(tAfter, tBefore)`（A 的版本 vs A^ 的版本）；
+ *   · 暂存面：`entryRevertNarrowing(headBody, oldBody)`（HEAD 的版本 vs 历史上那一版）。
+ */
+export function entryRevertNarrowing(fromBody, toBody) {
+  return entryIntroducedLines(fromBody, toBody).length > 0;
+}
+
 /** 台账面（符号不许在暂存面里凭空消失）。 */
 export const LEDGER_PATHS = [
   'AGENTS.md',

@@ -28,6 +28,8 @@
 /// 表示该模型不支持推理档位开关（如 deepseek-r1 恒开思考、无档位）。
 library;
 
+import '../database/model_metadata.dart';
+
 /// 输入类型（模态）的取值域 —— 与表单的 chips 一一对应。
 const List<String> kModelInputTypes = ['text', 'image', 'audio', 'video'];
 
@@ -465,4 +467,53 @@ List<String> reasoningLevelNames(int levels) {
     default:
       return List.generate(levels, (i) => 'level-$i');
   }
+}
+
+/// 目录下载模型的**默认参数**（「添加自持模型 ＝ 挑一个下载」那一刀）。
+///
+/// ⚠️ 参数**不许用户手填** —— 下载完成后客户端拿这一份自动落
+/// `model_metadata` 表：
+/// · 注册表命中 ⇒ 上下文窗口 / 最大输出 / 输入类型 / 能力 / 推理档位
+///   与映射全套用**出厂默认**（与旧表单「智能配置」同源，不另造一份）；
+/// · 未命中 ⇒ 能力用目录条目自带的 [catalogCapabilities]（端脑的能力
+///   目录说了算），其余留空 —— 留空 ≠ 错，客户端私有元数据大脑不管。
+///
+/// 纯函数（零 I/O）—— 自检直接喂。
+ModelMetadata catalogDownloadMetadata({
+  required String modelId,
+  List<String> catalogCapabilities = const [],
+}) {
+  final match = lookupKnownModel(modelId);
+  if (match == null) {
+    return ModelMetadata(
+      modelId: modelId,
+      inputTypes: const ['text'],
+      capabilities: catalogCapabilities.isEmpty
+          ? const ['llm']
+          : List.unmodifiable(catalogCapabilities),
+      reasoningLevels: 0,
+      source: 'catalog_download',
+    );
+  }
+  final p = match.params;
+  final levels = p.reasoningLevels;
+  return ModelMetadata(
+    modelId: modelId,
+    contextWindow: p.contextWindow,
+    maxOutputTokens: p.maxOutputTokens,
+    inputTypes: p.inputTypes.toList(),
+    capabilities: p.capabilities.toList(),
+    reasoningLevels: levels,
+    reasoningParamMapping: levels <= 0
+        ? null
+        : {
+            'standard': 'openai',
+            'levels': reasoningLevelNames(levels),
+            'params': {
+              for (var i = 0; i < levels; i++)
+                '$i': defaultReasoningParams(levels, i),
+            },
+          },
+    source: 'catalog_download',
+  );
 }

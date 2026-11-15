@@ -3,8 +3,8 @@ name: Release
 # One repo, one download surface.
 #
 # Everything a user can install is published as an asset of a **GitHub
-# Release** on this repository: the Tauri bundles (Windows / macOS / Linux),
-# the Android APK, and the web build. Workflow *artifacts* are not a
+# Release** on this repository: the Tauri bundles (Windows / macOS / Linux)
+# and the Android APK. Workflow *artifacts* are not a
 # distribution channel — they expire (5 days by default) and need a
 # signed-in account, so they cannot be the thing users download.
 #
@@ -63,11 +63,266 @@ env:
 
 jobs:
   # ---------------------------------------------------------------------
+  # Rust: the Rust-stack defense line —— **it gates the release**.
+  #
+  # ⚠️ **Why it lives here (2026-11-15)**: 这活原来在 `ci.yml` 里
+  #    （job 名 `prefrontal-rust`）⇒ ⇒ **每次提交**都要付一次整栈冷编
+  #    （60 分钟超时）⇒ ⇒ ⇒ 现在只在**打版本**时跑 ⇒ ⇒ 而且它**拦住发布**：
+  #    Rust 栈编不过 ⇒ ⇒ 不打包 ⇒ ⇒ 不发版（比「打包完才发现」省一个多小时）。
+  #    ⇒ ⇒ 它与 `desktop` job **并行**跑 ⇒ ⇒ 不占打包那条关键路径的时间。
+  #
+  # ⚠️ **钉版清单是 `desktop` job 那份的副本**（同样 8 个 commit）⇒ ⇒
+  #    闸要量的**就是发出去的那批 commit**（不是兄弟仓分支的尖端）⇒ ⇒
+  #    ⚠️ 两处**必须同时改** —— 只改一处 ⇒ ⇒ 闸量的与发出去的就不是同一批。
+  # ---------------------------------------------------------------------
+  rust:
+    name: Rust 防线（Rust 栈 · 拦住发布）
+    runs-on: ubuntu-latest
+    # 整栈编译 + 链接很慢，给足时间；但别让它无限跑下去 —— 磁盘/内存
+    # 打满时 runner 会被直接掐掉，日志都传不回来（比超时更难查）。
+    timeout-minutes: 60
+    steps:
+      - name: Checkout shadow
+        uses: actions/checkout@v7
+        with:
+          path: shadow
+
+      - name: Require cross-repo token
+        env:
+          IBLOC_TOKEN: ${{ secrets.IBLOC_TOKEN }}
+        shell: bash
+        run: |
+          if [ -z "$IBLOC_TOKEN" ]; then
+            echo "::error::secrets.IBLOC_TOKEN is not configured."
+            echo "::error::The iBLOC stack is a local-path workspace. telencephalon,"
+            echo "::error::prefrontal, hippocampus, diencephalon, neuron, synapse,"
+            echo "::error::encephalon and ziti-rust are private siblings and cannot"
+            echo "::error::be checked out with the default GITHUB_TOKEN, which is"
+            echo "::error::scoped to iBLOC/shadow only."
+            exit 1
+          fi
+
+      # ⚠️⚠️ **钉版清单 —— 与下面 `desktop` job 的那份逐条相同** ⇒ ⇒
+      #    改一处就要改两处（闸与产物必须是同一批 commit）。
+      #      telencephalon ecc5f9e0 · encephalon 9027e3d · diencephalon 7d1f596
+      #      synapse 28979f9 · prefrontal e62af06 · hippocampus ae6b73a
+      #      neuron c14b77f · ziti-rust 2403c57
+      - name: Checkout telencephalon
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/telencephalon
+          path: telencephalon
+          ref: ecc5f9e0276f45ff2170d3334623a61d4193c074
+          token: ${{ secrets.IBLOC_TOKEN }}
+
+      - name: Checkout encephalon
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/encephalon
+          path: encephalon
+          ref: 9027e3dd17cb74643a476e3d31e1eb7b8507b976
+          token: ${{ secrets.IBLOC_TOKEN }}
+
+      - name: Checkout diencephalon
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/diencephalon
+          path: diencephalon
+          ref: 7d1f596ce1495d21562c65236f300880e53a5d4c
+          token: ${{ secrets.IBLOC_TOKEN }}
+
+      - name: Checkout synapse
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/synapse
+          path: synapse
+          ref: 28979f93368bfeb9c71fee05c6aeb03ede393954
+          token: ${{ secrets.IBLOC_TOKEN }}
+
+      - name: Checkout prefrontal
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/prefrontal
+          path: prefrontal
+          ref: e62af06068173a0c6650bab7d0eb803300d332db
+          token: ${{ secrets.IBLOC_TOKEN }}
+
+      - name: Checkout hippocampus
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/hippocampus
+          path: hippocampus
+          ref: ae6b73aa74506ec9c7e07d965df4c45960f58650
+          token: ${{ secrets.IBLOC_TOKEN }}
+
+      - name: Checkout neuron
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/neuron
+          path: neuron
+          ref: c14b77fd65bdb290ba113c558022b5d7f8308cfe
+          token: ${{ secrets.IBLOC_TOKEN }}
+
+      # ziti-rust holds synapse's `ziti-v2` crate. Cargo reads the manifest
+      # of an **optional** path dependency too, so it must be in place for
+      # the dependency graph to resolve at all.
+      - name: Checkout ziti-rust
+        uses: actions/checkout@v7
+        with:
+          repository: iBLOC/ziti-rust
+          path: ziti-rust
+          ref: 2403c576d2f154df9354470bb260e7e941f20733
+          token: ${{ secrets.IBLOC_TOKEN }}
+
+      # runner 磁盘：GitHub 托管的 ubuntu-latest 预装了一堆用不上的工具
+      # （合计 ~10GB），而本 job 要编整个 iBLOC 栈（datafusion / burn /
+      # aws-sdk 全家），target/ 轻松上 10GB ⇒ ⇒ 先把没用的预装工具删掉
+      # （2026-10-29 实测：磁盘写满会把 runner 打死，日志都传不回来）。
+      - name: Free disk space (Linux)
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost || true
+          sudo rm -rf /usr/local/lib/android /opt/hostedtoolcache/CodeSC || true
+          sudo rm -rf /usr/share/swift /usr/local/share/powershell || true
+          sudo rm -f /swapfile || true
+          df -h /home/runner
+
+      - name: Setup Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            telencephalon
+            encephalon
+            diencephalon
+            synapse
+            prefrontal
+            hippocampus
+            neuron
+            ziti-rust
+
+      # ⚠️⚠️ 同 `desktop` job：**被钉住的版本必须显式装** —— `RUSTUP_TOOLCHAIN`
+      #    只是**指定**版本 ⇒ ⇒ runner 预装的 stable 里未必有那个精确版本
+      #    ⇒ ⇒ 必须显式装（否则 cargo 直接报 "toolchain '1.99.0' is not installed"）。
+      #    ⚠️ 这里的 `--component clippy` 是**本 job 独有**的（desktop 那格
+      #    只编不 lint ⇒ ⇒ 不需要 clippy）⇒ ⇒ 两处的差别只在这一项。
+      - name: Install pinned Rust toolchain
+        shell: bash
+        run: |
+          set -eu
+          rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal --component clippy
+          rustup default "$RUSTUP_TOOLCHAIN"
+          rustc --version
+          cargo --version
+          cargo clippy --version
+          # ⚠️⚠️ **必须断言它真的生效了** —— 装了不等于用了。
+          active="$(rustup show active-toolchain)"
+          echo "active toolchain: $active"
+          case "$active" in
+            "$RUSTUP_TOOLCHAIN"*) echo "✅ pinned toolchain is active" ;;
+            *) echo "::error::pinned toolchain is NOT active (active=$active, pinned=$RUSTUP_TOOLCHAIN)"; exit 1 ;;
+          esac
+
+      # lance-encoding's build script compiles .proto files with prost —
+      # it needs protoc, which the runner image does not guarantee.
+      - name: Install protoc
+        shell: bash
+        run: |
+          set -e
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq protobuf-compiler
+          protoc --version
+
+      - name: Cargo check
+        working-directory: prefrontal
+        run: cargo check --manifest-path Cargo.toml
+
+      - name: Cargo test
+        working-directory: prefrontal
+        run: cargo test --manifest-path Cargo.toml
+
+      # ⚠️ prefrontal 的 clippy 口径是 **`-D warnings`**（它已清零）⇒ ⇒
+      #    其余三仓仍按「只挡 error」（它们还有存量 warning）⇒ ⇒ 分阶段收紧。
+      - name: Cargo clippy
+        working-directory: prefrontal
+        run: cargo clippy --manifest-path Cargo.toml --all-targets -- -D warnings
+
+      # ⚠️ synapse 是「叶区那条链」上最底层的传输与协议仓 ⇒ ⇒ 它的 lint
+      #    红了没人知道。默认 features 即可（`ziti` feature 不开）⇒ ⇒
+      #    那 8 个走 feature 门的 example 会被 cargo **跳过** ⇒ ⇒
+      #    但**仍需要 ziti-rust 在位**（cargo 连 optional 的 path 依赖也要
+      #    读 manifest）⇒ ⇒ 靠上面那步 Checkout ziti-rust。
+      - name: Cargo clippy (synapse)
+        working-directory: synapse
+        run: cargo clippy --manifest-path Cargo.toml --all-targets
+
+      # ⚠️⚠️ **neuron 必须保持「candle-free 可编译」** ⇒ ⇒ 端脑
+      #    (telencephalon) 与桌面端都用 `default-features = false` 消费它
+      #    ⇒ ⇒ 谁把 candle 依赖漏回非可选，这里当场红。
+      - name: Neuron candle-free check (router-only consumers)
+        working-directory: neuron
+        run: cargo check --manifest-path Cargo.toml --no-default-features --all-targets
+
+  # ---------------------------------------------------------------------
+  # Frontend: the front-end compile defense line (moved here 2026-11-15).
+  #
+  # ⚠️ **Why**: `pnpm build`（= `tsc -b && vite build`）＋ `pnpm build:web`
+  #    原来在 `ci.yml` 的 `desktop-build` job 里 ⇒ ⇒ **每次提交**都真打一遍
+  #    前端包 ⇒ ⇒ 而「打版本」时 `pnpm tauri build` 本来就会打一遍
+  #    ⇒ ⇒ ⇒ 每次提交打一次包是纯浪费 ⇒ ⇒ 现在：**类型判据留在每次提交**
+  #    （`ci.yml` 里那步 `tsc --noEmit`），**真打包挪到这里**。
+  # ⚠️ 它**只在一台 ubuntu 上编一次**（不是 ×3 平台）⇒ ⇒ 它是**发布前的
+  #    快闸**：前端编不过 ⇒ ⇒ 三个平台的打包根本不必开始。
+  # ⚠️ `pnpm build:web`（Web 目标）**只有这一处跑** ⇒ ⇒ Web 目标虽然
+  #    不作为产物发布，但「它编得过」这件事仍有人管。
+  # ---------------------------------------------------------------------
+  frontend:
+    name: 前端编译防线（Tauri 前端 ＋ Web 目标）
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout shadow
+        uses: actions/checkout@v7
+        with:
+          path: shadow
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+          cache: pnpm
+          cache-dependency-path: shadow/shadow-desktop/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: shadow/shadow-desktop
+        run: pnpm install --frozen-lockfile
+
+      - name: TypeScript check
+        working-directory: shadow/shadow-desktop
+        run: pnpm exec tsc --noEmit
+
+      - name: Build web frontend (Tauri Rust side is NOT built here)
+        working-directory: shadow/shadow-desktop
+        run: pnpm build
+
+      - name: Build web
+        working-directory: shadow/shadow-desktop
+        run: pnpm build:web
+
+  # ---------------------------------------------------------------------
   # Desktop: Tauri bundles for the three desktop platforms.
   # ---------------------------------------------------------------------
   desktop:
     name: Tauri Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    # ⚠️⚠️ **打包等两道闸**（2026-11-15）—— `rust`（Rust 栈）与 `frontend`
+    #    （前端真打包）⇒ ⇒ 两者**并行**跑（不占彼此的时间）⇒ ⇒ 任一红 ⇒ ⇒
+    #    这一格**不开始打包** ⇒ ⇒ `publish`（needs 本 job）也就**不发布**
+    #    ⇒ ⇒ 「编不过就别发版」在**打包之前**就成立（不是打包完才发现）。
+    needs: [rust, frontend]
     # ⚠️ 整栈编译（lance + datafusion + candle + burn + 三个 ML 后端）实测
     #    **单平台就要 50 分钟以上**（还没到打包那一步）⇒ ⇒ ⇒ 而打包（AppImage
     #    要下 linuxdeploy、msi 要 WiX）还要再加 ⇒ ⇒ ⇒ ⇒ ⇒ 90 分钟不够，
@@ -356,81 +611,19 @@ jobs:
           retention-days: 5
 
   # ---------------------------------------------------------------------
-  # Web: the PWA build. Attached to the release as a zip, and deployed to
-  # GitHub Pages when Pages is enabled for this repository.
+  # Web: the PWA build — **not** a distribution channel (removed on
+  # purpose, 2026-11-15).
+  #
+  # The web build is a *build target*, not a product: it has no sidecar
+  # (the brain rides inside the desktop binary), so it only works when
+  # pointed at a real brain via VITE_PREFRONTAL_URL; window controls,
+  # tray, secure storage, file access and mDNS are no-ops, and the setup
+  # + models pages are hidden outright. Shipping it as `shadow-web.zip`
+  # ("免安装，解压即用") promised something the artifact is not.
+  #
+  # The build target itself stays in the repo at shadow-desktop/web/ for
+  # anyone who wants to self-host it.
   # ---------------------------------------------------------------------
-  web:
-    name: Web PWA
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
-    outputs:
-      pages_enabled: ${{ steps.pages.outputs.enabled }}
-    steps:
-      - name: Checkout shadow
-        uses: actions/checkout@v7
-        with:
-          path: shadow
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
-        with:
-          version: 9
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: '20'
-          cache: pnpm
-          cache-dependency-path: shadow/shadow-desktop/pnpm-lock.yaml
-
-      - name: Install dependencies
-        working-directory: shadow/shadow-desktop
-        run: pnpm install --frozen-lockfile
-
-      - name: Build web
-        working-directory: shadow/shadow-desktop
-        run: pnpm build:web
-
-      - name: Package web build
-        run: |
-          mkdir -p dist-pkg/shadow-web
-          cp -r shadow/shadow-desktop/dist-web/. dist-pkg/shadow-web/
-          (cd dist-pkg && zip -qr shadow-web.zip shadow-web)
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: web-pwa
-          path: |
-            dist-pkg/shadow-web.zip
-          retention-days: 5
-
-      # Pages is a convenience mirror, not the distribution channel. If it
-      # is not enabled for this repository the deploy is skipped — the
-      # release still carries the web build.
-      - name: Detect Pages
-        id: pages
-        shell: bash
-        run: |
-          if gh api "repos/${GITHUB_REPOSITORY}/pages" >/dev/null 2>&1; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::GitHub Pages is not enabled for this repository — skipping the Pages deploy."
-          fi
-
-      - name: Upload GitHub Pages artifact
-        if: steps.pages.outputs.enabled == 'true'
-        uses: actions/upload-pages-artifact@v5
-        with:
-          path: shadow/shadow-desktop/dist-web
-
-      - name: Deploy to GitHub Pages
-        if: steps.pages.outputs.enabled == 'true'
-        uses: actions/deploy-pages@v5
 
   # ---------------------------------------------------------------------
   # Mobile: the Android APK.
@@ -516,7 +709,7 @@ jobs:
   publish:
     name: Publish Release
     runs-on: ubuntu-latest
-    needs: [desktop, web, mobile]
+    needs: [desktop, mobile]
     steps:
       - name: Checkout shadow
         uses: actions/checkout@v7
@@ -604,7 +797,6 @@ jobs:
           | macOS | `*.dmg` ／ `*.app.tar.gz` |
           | Linux | `*.deb` ／ `*.AppImage` ／ `*.rpm` |
           | Android | `*.apk`（按 ABI 分包） |
-          | 浏览器 | `shadow-web.zip`（免安装） |
 
           桌面端内置自动更新：它从本仓的 Releases 页面取 `latest.json`。
           EOF

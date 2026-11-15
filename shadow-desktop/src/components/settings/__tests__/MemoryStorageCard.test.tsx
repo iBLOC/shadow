@@ -31,9 +31,11 @@ function mockSection(entries: ConfigEntry[], appliesWhen = 'restart') {
 
 describe('MemoryStorageCard（记忆存储）', () => {
   it('读不到控制面（503）⇒ 说「读不到」，并区分出「不是没配过」', async () => {
-    vi.spyOn(telencephalonClient.neuron, 'configSection').mockRejectedValue(
-      new Error('telencephalon 503: {"error":{"code":5030,"message":"config centre unavailable"}}'),
-    );
+    const unreadable = vi
+      .spyOn(telencephalonClient.neuron, 'configSection')
+      .mockRejectedValue(
+        new Error('telencephalon 503: {"error":{"code":5030,"message":"config centre unavailable"}}'),
+      );
 
     render(<MemoryStorageCard />);
 
@@ -44,6 +46,9 @@ describe('MemoryStorageCard（记忆存储）', () => {
     expect(screen.queryByText('settings.memoryStorage.notConfigured')).toBeNull();
     // 原因串要带上（用户/支持据此区分「没配」与「控制面没连上」）。
     expect(screen.getByTestId('memory-storage-unreadable-reason')).toHaveTextContent(/503/);
+    // ⚠️ **必须核替身真被调用过**（闸 R5「替身空转」：装配了 reject，但没人
+    // 证明这条路径真的走到它 ⇒ ⇒ 用例可能恒绿）。
+    expect(unreadable).toHaveBeenCalled();
   });
 
   it('已配置 s3：位置回填、后端选中 s3、秘密显示掩码', async () => {
@@ -306,12 +311,14 @@ describe('MemoryStorageCard（换存储 ⇒ 自动迁移）', () => {
       needs_migration: true,
       state: 'copying',
     });
-    vi.spyOn(telencephalonClient.neuron, 'storageMigration').mockResolvedValue({
-      state: 'failed',
-      error: 'copy dataset memory: disk full',
-      datasets_done: 2,
-      datasets_total: 10,
-    });
+    const statusProbe = vi
+      .spyOn(telencephalonClient.neuron, 'storageMigration')
+      .mockResolvedValue({
+        state: 'failed',
+        error: 'copy dataset memory: disk full',
+        datasets_done: 2,
+        datasets_total: 10,
+      });
 
     render(<MemoryStorageCard />);
     const input = await screen.findByTestId('memory-storage-location');
@@ -324,6 +331,8 @@ describe('MemoryStorageCard（换存储 ⇒ 自动迁移）', () => {
     expect(
       screen.getByRole('button', { name: /settings\.memoryStorage\.migration\.retry/ }),
     ).toBeTruthy();
+    // ⚠️ 状态面真被读过（不然「失败」那句可能压根不是它说的）。
+    expect(statusProbe).toHaveBeenCalled();
   });
 });
 

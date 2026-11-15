@@ -1,15 +1,20 @@
 // 记录模式 — /document/:taskId 页面数据展示。
 //
-// v1 使用纯 HTML 表格展示 task 事件数据（不依赖 Univer——
-// @univerjs/presets 0.6.10 的 API 需要在真实浏览器里验证后接入）。
-// 数据来源：recording_events 命令（同 RecordingPage 的数据源）。
-// 后续版本接入 Univer 表格编辑 + 飞书发布。
+// 纯 HTML 表格展示 task 事件数据（recording_events 命令，同 RecordingPage
+// 的数据源）＋ **Univer 任务工作簿编辑器**（DOC-01/02/03，见
+// components/document/UniverSheet.tsx：快照加载 / 防抖自动保存 / 发布到
+// 飞书——真浏览器读数由 scripts/prove-univer-sheet-mount.mjs 负责）。
 
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { invoke } from '@tauri-apps/api/core';
 import { ArrowLeft, FileText, Loader2 } from 'lucide-react';
 import { cn } from '../lib/utils';
+
+// DOC-01 — 编辑器面（Univer）。懒加载：主包不背表格引擎的体积。
+const UniverSheet = lazy(() =>
+  import('../components/document/UniverSheet').then((m) => ({ default: m.UniverSheet })),
+);
 
 interface RecordingEvent {
   id: string;
@@ -113,6 +118,17 @@ export function DocumentPage() {
           Can&apos;t read the summary report: {reportError}
         </div>
       )}
+
+      {/* DOC-01/02/03 — 任务工作簿（Univer 编辑器；读不到/还没创建由组件自己说清） */}
+      <Suspense
+        fallback={(
+          <div className="flex justify-center p-4">
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          </div>
+        )}
+      >
+        <UniverSheet taskId={taskId} />
+      </Suspense>
 
       {/* 事件表 */}
       <div className="flex-1 overflow-y-auto">

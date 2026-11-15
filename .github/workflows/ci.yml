@@ -14,239 +14,8 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  prefrontal-rust:
-    name: Prefrontal Rust
-    runs-on: ubuntu-latest
-    # 整栈编译 + 链接很慢，给足时间；但别让它无限跑下去 —— 磁盘/内存
-    # 打满时 runner 会被直接掐掉，日志都传不回来（比超时更难查）。
-    timeout-minutes: 60
-    env:
-      # 关掉调试信息：debug info 占 target/ 的大头，去掉后体积能降一大截，
-      # 直接缓解 runner 磁盘写满的问题。
-      CARGO_PROFILE_DEV_DEBUG: '0'
-      CARGO_PROFILE_TEST_DEBUG: '0'
-      CARGO_INCREMENTAL: '0'
-      # ⚠️⚠️ **尺子要钉住** —— CI 用的本来是 runner 预装的 stable（**不 pin**）
-      #    ⇒ ⇒ **尺子的刻度会随 Rust 发版漂移**：新版本会把某个 lint 从
-      #    pedantic/allow **提升为 warn-by-default** ⇒ ⇒ 同一份代码昨天绿、
-      #    今天红，而**红的原因不在代码**。
-      #    ⇒ ⇒ 实测（2026-11-05 真 CI run 42009927423）：CI 的 clippy 是
-      #    **1.99.0**（提示链接逐字 `rust-clippy/rust-1.99.0/`）⇒ ⇒ 同一份
-      #    代码本地 1.96 量 `-D warnings` 是 EXIT=0，CI 那把尺子报了 15 条
-      #    `clippy::double_must_use` ＋ 1 条 `useless_borrows_in_formatting`。
-      #    ⇒ ⇒ **钉住 1.99.0**（＝CI 现在这把尺子）⇒ ⇒ 本次 pin **零行为变化**
-      #    （不是升级、不是降级）⇒ ⇒ 只是把「漂移」冻结在今天的刻度上。
-      #    ⇒ ⇒ 代价要说清：**新 lint 不会再自动冒出来** ⇒ ⇒ 想看新 lint 得
-      #    手动抬这个版本号（那是另一个决定，另记）。
-      #    ⇒ ⇒ **不引第三方 action**（如 `dtolnay/rust-toolchain`）⇒ ⇒ 少一个
-      #    供应链面；runner 自带 rustup ⇒ ⇒ 直接用它装。
-      # ⚠️⚠️ **变量名必须是 `RUSTUP_TOOLCHAIN`**（带 `UP`）—— 不是 `RUST_TOOLCHAIN`！
-      #    ⚠️ **真机实测（2026-11-05）**：我最后写的是 `RUST_TOOLCHAIN`（没有 `UP`）⇒ ⇒
-      #    **rustup 完全无视它**⇒ ⇒ 本地量到 `rustc 1.96.0`（= stable）⇒ ⇒ CI 上量到
-      #    `rustc 1.99.1`（而不是装好的 1.99.0）⇒ ⇒ **装了不等于用了**⇒ ⇒ 这就是**假钉**。
-      #    ⚠️ 正确名字的行为（本机三段对照）：只设 `RUSTUP_TOOLCHAIN` ⇒ ⇒ `rustc 1.99.0`
-      #    （且 `rustup show active-toolchain` 逐字报 "overridden by environment variable
-      #    RUSTUP_TOOLCHAIN"）⇒ ⇒ 只设 `RUST_TOOLCHAIN` ⇒ ⇒ 回到 stable ⇒ ⇒ 两个都设 ⇒ ⇒ `RUSTUP_TOOLCHAIN` 赢。
-      RUSTUP_TOOLCHAIN: '1.99.0'
-    steps:
-      # ⚠️ 判读落盘路径（**仓外**）—— 2026-11-11：分母要覆盖**所有**真跑的闸 ⇒ ⇒ 每道闸的结论都得落到同一份记录里 ⇒ ⇒ 收尾一步汇总成带分母的读数。
-      # ⚠️ 落在仓根会污染被测面（顶层对账闸会当场判红）⇒ ⇒ 用 RUNNER_TEMP。
-      # ⚠️ 落盘路径**不能**用表达式上下文（job 级 env 里不可用 ⇒ ⇒ 整个 workflow 文件会被拒绝加载 ⇒ ⇒ run 零 job 失败）。
-      - name: 准备判读落盘路径（仓外）
-        run: echo "GATE_RESULT_FILE=$RUNNER_TEMP/gate-results.ndjson" >> "$GITHUB_ENV"
-      - name: Checkout shadow
-        uses: actions/checkout@v7
-
-      # ⚠️⚠️ 2026-11-11（清单收编刀）：本 job 的兄弟仓检出**收编进 ibloc-siblings
-      #    composite** ⇒ ⇒ 检出清单从此**只有一份**（
-      #    .github/actions/ibloc-siblings/action.yml，与 brain-gates /
-      #    desktop-e2e / desktop-rust 共用）⇒ ⇒ 这里那份手写的 7 仓清单
-      #    （prefrontal / synapse / hippocampus / neuron ＋ 2026-11-06 为
-      #    ziti-face 补的 encephalon / telencephalon ＋ 2026-11-05 为
-      #    cargo-101 补的 ziti-rust）**消失** ⇒ ⇒ 那是全仓最后一份**没有对账
-      #    闸看守**的手写检出清单（composite 那份由 neuron-ownership 闸对账、
-      #    legacy-residue-stack 那份由 legacy-residue-all 判据 ③ 对账）。
-      #    ⚠️ 检出面 7 → 14 仓（超集）：cargo 只读**依赖图上**的 manifest ⇒ ⇒
-      #    多检出的兄弟仓不会被解析 ⇒ ⇒ 零行为变化；ziti-face 判的四个位置
-      #    （encephalon / telencephalon / synapse / shadow-desktop）全部仍在位。
-      # The iBLOC stack is a multi-repo local-path workspace: every crate
-      # resolves siblings via `path = "../<repo>"`. `actions/checkout`
-      # refuses any path outside GITHUB_WORKSPACE, so siblings MUST be
-      # checked out into workspace sub-directories (not `../<repo>`).
-      - name: Checkout the iBLOC stack
-        id: stack
-        uses: ./.github/actions/ibloc-siblings
-        with:
-          token: ${{ secrets.IBLOC_TOKEN }}
-
-      # ⚠️ 2026-11-06：零信任面闸（check-ziti-face）接进 **这个** job ——
-      #    它判的四个位置（encephalon / telencephalon / synapse /
-      #    shadow-desktop）这里全在（前三个由上面的 checkout 提供，
-      #    shadow-desktop 在 shadow 仓自身）。首跑（run 42137603583）红在
-      #    跨仓 stack job（今 legacy-residue-stack；时名 cortex-residue-stack）：闸判的是 `../<repo>` 布局 ⇒ CI 上兄弟
-      #    仓在 shadow 仓根**之下** ⇒ exit 2「判不了」⇒ 红的是**布局层**
-      #    不是判据层（闸已补双布局解析，与 ziti-v2-wire 同款）。
-      - name: Zero-trust face check
-        run: node scripts/run-gate-once.mjs --strict scripts/check-ziti-face.mjs
-
-      - name: Zero-trust face check (self-test)
-        run: node scripts/check-ziti-face.mjs --self-test
-
-      # ⚠️ ziti-rust 由上面的 ibloc-siblings composite 检出。历史（2026-11-05
-      #    真 CI）：它漏检时 synapse 的 optional path 依赖 ziti-v2 连 feature
-      #    不开也要读 manifest ⇒ ⇒ cargo 直接「failed to load manifest for
-      #    dependency ziti-v2」⇒ ⇒ 整个 job 连依赖图都解析不出来（cargo-101）
-      #    ⇒ ⇒ 「搬完家要逐个 job 核对检出清单」—— 收编后这一族事故不再可发生。
-
-      # cargo 自己 clone **私有 git 依赖**时也要凭据 ——
-      # synapse 的 ziti feature 指向私有的 iBLOC/ziti-rust。actions/checkout
-      # 的 token 只作用于 checkout 步骤，cargo 自己的 git fetch 拿不到 →
-      # "failed to authenticate when downloading repository"。
-      #
-      # 关键：cargo 默认用 libgit2 拉依赖，而 **libgit2 不认
-      # url.<base>.insteadOf** —— 必须让 cargo 改用 git CLI
-      # （net.git-fetch-with-cli），改写才生效。
-      #
-      # 顺带装 protoc：lance-encoding 的 build script 要它（prost_build 编译
-      # .proto），runner 镜像不保证带 protobuf 编译器。
-      # 2026-11-11（[net] 双写修）：凭据、insteadOf、net.git-fetch-with-cli 这三样
-      # 已由上面 ibloc-siblings composite 的「Prepare Rust credentials」统一提供 ⇒
-      # 这里本地再写一遍 = ~/.cargo/config.toml 两个 [net] 段 ⇒ TOML duplicate key
-      # ⇒ cargo clippy --version exit 101（真 CI run 42800136091 step 10 逐字实测）。
-      # 本步只留本 job 独有的 protoc 安装。
-      - name: Prepare Rust dependencies
-        run: |
-          set -eu
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq protobuf-compiler
-
-      # runner 磁盘：GitHub 托管的 ubuntu-latest 预装了 dotnet/ghc/boost/
-      # android ndk 等一堆用不上的工具（合计 ~10GB），而本 job 要编整个
-      # iBLOC 栈（datafusion / burn / aws-sdk 全家），target/ 轻松上 10GB。
-      # 2026-10-29 实测就是磁盘写满把 runner 打死：
-      #   "No space left on device" → ld 报 "Bus error, core dumped"
-      # → 整个 job 失败且日志都传不上来。先把没用的预装工具删掉。
-      - name: Free disk space
-        run: |
-          # ⚠️ 每一刀都 `|| true`：GitHub 的 bash 是 `-e` 模式 ⇒ ⇒ 任何一条
-          #    rm 失败 ⇒ ⇒ **整个 step 就红了** —— 而这一步的目的只是
-          #    「尽量腾出磁盘」⇒ ⇒ 「腾不出来」不该阻断 CI。
-          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost || true
-          sudo rm -rf /usr/local/lib/android /opt/hostedtoolcache/CodeSC || true
-          sudo rm -rf /usr/share/swift /usr/local/share/powershell || true
-          sudo rm -f /swapfile || true
-          df -h /home/runner
-
-      # rust-cache 的 workspaces 是**逐行**列表，用逗号分隔会被当成一个
-      # 路径 —— 缓存直接失效（"The cwd: .../a,b,c does not exist!"），
-      # 于是每次都从零重编整栈，又慢又撑爆磁盘。
-      # ⚠️ rust-cache **不能**放进 composite ⇒ ⇒ composite 没有 post 步 ⇒ ⇒
-      #    真正「存缓存」的那一步不会跑 ⇒ ⇒ 所以它留在 job 层；`workspaces`
-      #    由 composite 输出 ⇒ ⇒ 检出清单仍然只有一份。
-      - name: Setup Rust
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: ${{ steps.stack.outputs.workspaces }}
-
-      # ⚠️⚠️ 2026-11-05：**把尺子钉住，并且让它可见**。
-      #    上面的 `RUST_TOOLCHAIN` 只是**指定**版本 —— runner 预装的 stable
-      #    里**未必**有那个精确版本 ⇒ ⇒ 必须显式装（否则 cargo 会直接报
-      #    "toolchain '1.99.0' is not installed"）。
-      #    ⇒ ⇒ **用 runner 自带的 rustup**，不引第三方 action ⇒ ⇒ 少一个供应链面。
-      #    ⇒ ⇒ `--profile minimal` 只装要用的部分 ⇒ ⇒ 省时间省磁盘（这个 job
-      #    的磁盘本来就被 target/ 撑到过 —— 见上面 Free disk space）。
-      #    ⇒ ⇒ **必须打出来**：cargo 成功时不印版本 ⇒ ⇒ 尺子漂了（日志里只有
-      #    clippy 提示链接里的版本号）没人会发现 ⇒ ⇒ 这里把 rustc/clippy 的
-      #    版本**逐字印进日志** ⇒ ⇒ 下次尺子变了，一眼能看见。
-      - name: Install pinned Rust toolchain
-        run: |
-          set -eu
-          rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal --component clippy
-          rustup default "$RUSTUP_TOOLCHAIN"
-          rustc --version
-          cargo --version
-          cargo clippy --version
-          # ⚠️⚠️ **必须断言它真的生效了** —— 装了不等于用了。
-          #    ⇒ ⇒ 上一轮就是这个坑（变量名写错一个字母 ⇒ ⇒ 装了、全绿、而实际用的是 stable）。
-          #    ⇒ ⇒ 这一步不看版本号就不能放行。
-          active="$(rustup show active-toolchain)"
-          echo "active toolchain: $active"
-          case "$active" in
-            "$RUSTUP_TOOLCHAIN"*) echo "✅ pinned toolchain is active" ;;
-            *) echo "::error::pinned toolchain is NOT active (active=$active, pinned=$RUSTUP_TOOLCHAIN)"; exit 1 ;;
-          esac
-
-      - name: Cargo check
-        working-directory: prefrontal
-        run: cargo check --manifest-path Cargo.toml
-
-      - name: Cargo test
-        working-directory: prefrontal
-        run: cargo test --manifest-path Cargo.toml
-
-      # ⚠️⚠️ 2026-11-05：**prefrontal 这一步把口径收回了 `-D warnings`**。
-      #    之前是「只挡 error」—— 当时 `-D warnings` 下**每一个仓都红**
-      #    （prefrontal 132 条 / telencephalon 256 / neuron 192 / synapse 145 /
-      #    encephalon 6 条）⇒ ⇒ 这道 step 从来没有绿过 ⇒ ⇒ 红久了没人看
-      #    ⇒ ⇒ 整条 lint 防线静默失效（**比没有更坏**：它给人「已经 lint 过了」
-      #    的错觉）。
-      #    ⇒ ⇒ **分阶段收紧**：prefrontal 先清零（132 → 62 → 26 → **0**）⇒ ⇒
-      #    先收回它；**其余四仓仍按「只挡 error」**（它们还红着）。
-      # ⚠️⚠️ **这一步现在是真正的防线** —— 本地
-      #    `cargo clippy --offline --all-targets -- -D warnings` ⇒ EXIT=0 / 零 lint
-      #    ⇒ ⇒ 但 **CI 的 Rust 是 runner 预装 stable（没有 pin）** ⇒ ⇒
-      #    若 CI 的 clippy 比本地 1.96 新 ⇒ ⇒ 可能冒出新 lint ⇒ ⇒
-      #    那正是收紧循环该有的样子（**可见的红**，不是恒绿）。
-      # ⚠️ 加 `--all-targets` ⇒ ⇒ 把 **benches** 也拉进编译面
-      #    （`cargo test` 本来就编 tests 与 examples ⇒ ⇒ 真正零覆盖的
-      #    是 benches；而 synapse 在这个 job 里**一个 cargo 步骤都没有** ⇒ ⇒
-      #    它那一整层 —— 15 个 example ＋ 22 个集成测试 —— 从来没被编过
-      #    —— 本轮就抓到：8 个 example 走 feature 门，不声明
-      #    required-features 就编不过 ⇒ ⇒ 那 8 段 required-features 就是
-      #    这么补上的）。
-      - name: Cargo clippy
-        working-directory: prefrontal
-        run: cargo clippy --manifest-path Cargo.toml --all-targets -- -D warnings
-
-      # ⚠️ 2026-11-05：synapse 也要有 —— 它是「叶区那条链」上最底层的
-      #    传输与协议仓（v2 线路层的调用方）⇒ ⇒ 它的 lint 红了没人知道。
-      #    ⚠️ 默认 features 即可（`ziti` feature 不开）⇒ ⇒ 那 8 个走 feature
-      #    门的 example 会被 cargo **跳过** ⇒ ⇒ 不需要编 ziti-v2 ⇒ ⇒
-      #    但**仍需要 ziti-rust 在位**（cargo 连 optional 的 path 依赖也要
-      #    读 manifest）⇒ ⇒ 靠上面那步 Checkout ziti-rust。
-      # ⚠️ **synapse 这步仍是「只挡 error」** —— 它还有 145 条 warning 存量
-      #    ⇒ ⇒ 分阶段收紧：谁先清零，谁先收回口径（prefrontal 已收回，见上）。
-      - name: Cargo clippy (synapse)
-        working-directory: synapse
-        run: cargo clippy --manifest-path Cargo.toml --all-targets
-
-      # ⚠️⚠️ **neuron 必须保持「candle-free 可编译」** ⇒ ⇒ 端脑
-      #    (telencephalon) 与桌面端都用 `default-features = false` 消费它
-      #    ⇒ ⇒ 那是 router-only 的构建 ⇒ ⇒ neuron 的 candle 一旦漏成
-      #    「假可选」，这两个消费者就编不过（2026-11-04 实测：92 个编译
-      #    错误，其中 71 个集中在 `src/mage_vl/`）。
-      # ⇒ ⇒ 这条把那个不变量钉在 CI 上：谁把 candle 依赖漏回非可选，
-      # ⇒ ⇒ 这里当场红，而不是等到端脑/桌面端编不过才发现。
-      - name: Neuron candle-free check (router-only consumers)
-        working-directory: neuron
-        run: cargo check --manifest-path Cargo.toml --no-default-features --all-targets
 
 
-      # ⚠️ 收尾：把这一盏灯「绿得有多真」写出来 —— 这一盏灯里**所有**真跑的闸
-      #    都落了判读 ⇒ ⇒ 这里汇总成**带分母的读数**（真判 N ｜ 判不了 K ｜ 红 M）
-      #    ⇒ ⇒ 「判不了」不当红（它不是「有问题」）⇒ ⇒ 但也不当绿（它不是「没问题」）。
-      - name: 判读汇总（带分母的绿灯）
-        if: always()
-        run: node scripts/lib/gate-tally.mjs --report
-      # ⚠️ 把这一盏灯的判读记录**交上去** ⇒ ⇒ 收尾的「CI 总分母」那个 job 靠 artifacts 把各 job 的记录收齐 ⇒ ⇒ 「一盏灯一个分母」才立得住。
-      # ⚠️ `if: always()` ⇒ ⇒ **这个 job 红了也要交** ⇒ ⇒ 否则「红」的那几盏恰恰是**唯一没有分母**的那几盏 ⇒ ⇒ 红灯也读不出「到底跑了哪几道」。
-      - name: 交出判读记录（供总分母汇总）
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: gate-results-${{ github.job }}
-          path: ${{ env.GATE_RESULT_FILE }}
-          if-no-files-found: ignore
   desktop-test:
     name: Desktop Tests
     runs-on: ubuntu-latest
@@ -331,6 +100,21 @@ jobs:
       # local-models 或 candle）／产物层（编译出来的二进制里装了几套运行时）。
       - name: Neuron ownership check
         run: node shadow/scripts/run-gate-once.mjs --strict shadow/scripts/check-neuron-ownership.mjs
+
+      # ⚠️⚠️ **零信任面闸（2026-11-15 搬来的）** —— 它原来在 `ci.yml` 的
+      #    `prefrontal-rust` job 里（那个 job 连同**整栈 Rust 编译**一起搬去
+      #    `release.yml` 的「打 tag 时防线」了）⇒ ⇒ 而**这道闸本身是静态的**
+      #    （它判的是文本形状，**不编任何东西**）⇒ ⇒ ⇒ 它不该跟着编译一起搬家
+      #    ⇒ ⇒ ⇒ 挪到**本 job**（这里已经把整栈检出来了 ⇒ ⇒ **零额外检出成本**）。
+      #    ⚠️ 它判的四个位置：encephalon / telencephalon / synapse（上面
+      #    composite 检出提供）＋ shadow-desktop（shadow 仓自身）⇒ ⇒ 全在位。
+      #    ⚠️ 布局：本 job 把 shadow 检在 `shadow/` ⇒ ⇒ 兄弟仓在它**之上**
+      #    ⇒ ⇒ 闸的布局 A（`../<name>`）正好命中 ⇒ ⇒ 不落「判不了」。
+      - name: Zero-trust face check
+        run: node shadow/scripts/run-gate-once.mjs --strict shadow/scripts/check-ziti-face.mjs
+
+      - name: Zero-trust face check (self-test)
+        run: node shadow/scripts/check-ziti-face.mjs --self-test
 
       # ── 测试里的进程级 env 竞争闸 ──────────────────────────────────────────
       # ⚠️⚠️ **为什么这道闸存在**（2026-11-08 真机实测）：`cargo test` 把**同一个
@@ -625,22 +409,18 @@ jobs:
         working-directory: shadow-desktop
         run: pnpm exec tsc --noEmit
 
-      # ⚠️ 名字叫「Build Tauri」，但 `pnpm build` = `tsc -b && vite build`
-      #    ⇒ ⇒ **只编前端，不碰 cargo** ⇒ ⇒ **桌面端 Rust 侧（src-tauri）
-      #    在 CI 上零覆盖** ⇒ ⇒ 它的三个 path 依赖（encephalon / synapse /
-      #    neuron，指向 `../../../`）在 CI 上从未被解析过 ⇒ ⇒ 而在
-      #    「本仓检在 GITHUB_WORKSPACE 根」这个布局下它们**根本指不到**
-      #    ⇒ ⇒ 要补这块覆盖，得先把本仓检出到 `path: shadow`（release.yml
-      #    踩的是同一个坑）—— 本轮只把名字改对，覆盖另记。
-      - name: Build web frontend (Tauri Rust side is NOT built here)
-        if: always()
-        working-directory: shadow-desktop
-        run: pnpm build
-
-      - name: Build web
-        if: always()
-        working-directory: shadow-desktop
-        run: pnpm build:web
+      # ⚠️⚠️ **两个 vite build 已搬走（2026-11-15）** —— 原来这两步在这里
+      #    （`pnpm build` = `tsc -b && vite build` ＋ `pnpm build:web`）⇒ ⇒
+      #    每次提交都要真打一次前端包 ⇒ ⇒ 而「打版本」时 `pnpm tauri build`
+      #    本来就会打一遍 ⇒ ⇒ ⇒ **每次提交打一次包是纯浪费**。
+      #    ⇒ ⇒ 现在：**类型判据留在每次提交**（上面那步 `tsc --noEmit` ——
+      #    它是秒级的、且能抓到类型错），**真打包挪到打 tag 时** ⇒ ⇒
+      #    挪到 `.github/workflows/release.yml` 的 `frontend` job（那里一次
+      #    编完，挡住整个发布）。
+      #    ⚠️ 顺带把老注释留在这里：**桌面端 Rust 侧（src-tauri）在 ci.yml 里
+      #    依旧零覆盖** —— 它的三个 path 依赖（encephalon / synapse / neuron，
+      #    指向 `../../../`）在本仓检在 GITHUB_WORKSPACE 根的布局下**根本指不到**
+      #    ⇒ ⇒ 桌面 crate 的 Rust 防线是 `desktop-rust.yml`（打 tag + 夜间 + 手动）。
       # ⚠️ **收尾：把这一轮「绿得有多真」写出来** —— 本 job 里走 `run-gate-once` 的
       #    那几道闸，逐个落了 GATE_RESULT ⇒ ⇒ 这里汇总成**带分母的读数**：
       #    「真判 N ｜ 判不了 K ｜ 红 M」⇒ ⇒ 「判不了」**不当红**（它不是「有问题」）
@@ -659,174 +439,6 @@ jobs:
           name: gate-results-${{ github.job }}
           path: ${{ env.GATE_RESULT_FILE }}
           if-no-files-found: ignore
-
-  mobile-analyze:
-    name: Mobile Analyze
-    runs-on: ubuntu-latest
-    steps:
-      # ⚠️ 判读落盘路径（**仓外**）—— 2026-11-11：分母要覆盖**所有**真跑的闸 ⇒ ⇒ 每道闸的结论都得落到同一份记录里 ⇒ ⇒ 收尾一步汇总成带分母的读数。
-      # ⚠️ 落在仓根会污染被测面（顶层对账闸会当场判红）⇒ ⇒ 用 RUNNER_TEMP。
-      # ⚠️ 落盘路径**不能**用表达式上下文（job 级 env 里不可用 ⇒ ⇒ 整个 workflow 文件会被拒绝加载 ⇒ ⇒ run 零 job 失败）。
-      - name: 准备判读落盘路径（仓外）
-        run: echo "GATE_RESULT_FILE=$RUNNER_TEMP/gate-results.ndjson" >> "$GITHUB_ENV"
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Setup Java
-        uses: actions/setup-java@v6
-        with:
-          java-version: '17'
-          distribution: temurin
-
-      # Flutter 3.47.8 ships Dart SDK 3.13.7, which satisfies the
-      # `environment: sdk: ^3.11.1` constraint in shadow-mobile/pubspec.yaml.
-      #
-      # 升级到 3.47 是为了引入 shadcn_flutter 0.0.55（它要求
-      # Flutter >=3.47.0 / Dart >=3.13.0）。旧版 3.11 的 `flutter-version`
-      # 带的是 Dart 3.0.x，在 stable 通道上既装不上也不满足 pubspec。
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: 3.47.8
-          channel: stable
-
-      - name: Cache Flutter pub
-        uses: actions/cache@v4
-        with:
-          path: ~/.pub-cache
-          key: ${{ runner.os }}-flutter-pub-${{ hashFiles('shadow-mobile/pubspec.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-flutter-pub-
-
-      - name: Flutter pub get
-        working-directory: shadow-mobile
-        run: flutter pub get
-
-      - name: Flutter analyze
-        working-directory: shadow-mobile
-        run: flutter analyze --no-fatal-infos --no-fatal-warnings
-
-      # v2.9 — 「后台常驻面」闸：manifest 的 FGS 权限/服务、pubspec 依赖、
-      # Dart 侧 start/stop 接线 —— 三处少一处就是「写着常驻、其实不常驻」，
-      # 且失败模式都静默 ⇒ 文本层判形状（判据见 scripts/lib/mobile-background-service.mjs）。
-      - name: Mobile background-service contract check
-        run: node scripts/run-gate-once.mjs --strict scripts/check-mobile-background-service.mjs
-
-
-      # ⚠️ 收尾：把这一盏灯「绿得有多真」写出来 —— 这一盏灯里**所有**真跑的闸
-      #    都落了判读 ⇒ ⇒ 这里汇总成**带分母的读数**（真判 N ｜ 判不了 K ｜ 红 M）
-      #    ⇒ ⇒ 「判不了」不当红（它不是「有问题」）⇒ ⇒ 但也不当绿（它不是「没问题」）。
-      - name: 判读汇总（带分母的绿灯）
-        if: always()
-        run: node scripts/lib/gate-tally.mjs --report
-      # ⚠️ 把这一盏灯的判读记录**交上去** ⇒ ⇒ 收尾的「CI 总分母」那个 job 靠 artifacts 把各 job 的记录收齐 ⇒ ⇒ 「一盏灯一个分母」才立得住。
-      # ⚠️ `if: always()` ⇒ ⇒ **这个 job 红了也要交** ⇒ ⇒ 否则「红」的那几盏恰恰是**唯一没有分母**的那几盏 ⇒ ⇒ 红灯也读不出「到底跑了哪几道」。
-      - name: 交出判读记录（供总分母汇总）
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: gate-results-${{ github.job }}
-          path: ${{ env.GATE_RESULT_FILE }}
-          if-no-files-found: ignore
-  mobile-test:
-    name: Mobile Test
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      # sqflite_common_ffi reaches SQLite through dart:ffi and looks for a
-      # plain "libsqlite3.so". ubuntu-latest ships libsqlite3.so.0 but not
-      # always the -dev symlink, so install it explicitly.
-      - name: Install SQLite runtime
-        run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
-
-      - name: Setup Java
-        uses: actions/setup-java@v6
-        with:
-          java-version: '17'
-          distribution: temurin
-
-      # ⚠️ gradle 一步要配 Android SDK：不接受许可证 ⇒ Gradle 报
-      #    "LicenceNotAcceptedException: ndk;30.0.14904198"（mobile-test
-      #    第一次真跑就栽在这 —— 以前 wrapper 不入库，根本没跑到过这）。
-      #    与 release.yml 的 Mobile APK job 同一款（那里早修过）。
-      - name: Accept Android SDK licenses and install the pinned NDK
-        shell: bash
-        run: |
-          set -e
-          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/tools/bin:$PATH"
-          yes | timeout 180 sdkmanager --licenses > /dev/null 2>&1 || true
-          sdkmanager "ndk;30.0.14904198" "platform-tools" > /dev/null
-          sdkmanager --list_installed 2>/dev/null | grep -E "ndk;|platform-tools" || true
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: 3.47.8
-          channel: stable
-
-      - name: Cache Flutter pub
-        uses: actions/cache@v4
-        with:
-          path: ~/.pub-cache
-          key: ${{ runner.os }}-flutter-pub-${{ hashFiles('shadow-mobile/pubspec.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-flutter-pub-
-
-      - name: Flutter pub get
-        working-directory: shadow-mobile
-        run: flutter pub get
-
-      # The suite was never wired into CI before, so it had rotted: 28 of
-      # 201 cases failed (stale copy assertions, missing localization
-      # delegates, two infinite-animation pumpAndSettle timeouts). Keep this
-      # job so the same drift cannot come back unnoticed.
-      - name: Flutter test
-        working-directory: shadow-mobile
-        run: flutter test
-
-      # Android 模块的 **JVM 单测**（2026-11-03 建）—— Kotlin 侧的纯逻辑
-      # 在这里跑。此前 Android 模块**一个单测都没有** ⇒ ⇒ Kotlin 的纯逻辑
-      # 只靠「编译通过」担保 ⇒ ⇒ 而「编译通过」证明不了**边界值**。
-      #
-      # ⚠️ `local.properties` 是 **gitignore** 的（本地绝对路径，不能进仓）
-      #    ⇒ ⇒ CI 上要自己生成：`flutter.sdk` 从 `FLUTTER_ROOT` 取（没有就
-      #    从 `which flutter` 反推两级），`sdk.dir` 从 `ANDROID_HOME` 取。
-      # ⚠️ 这一步会拉 `androidx.test:runner`（`integration_test` 的传递依赖，
-      #    而且是**动态版本** `1.2+`）⇒ ⇒ 必须**联网** ⇒ ⇒ 不能加 --offline。
-      - name: Android unit test
-        working-directory: shadow-mobile/android
-        run: |
-          FLUTTER_SDK="${FLUTTER_ROOT:-$(dirname "$(dirname "$(readlink -f "$(command -v flutter)")")")}"
-          printf 'sdk.dir=%s\nflutter.sdk=%s\n' "$ANDROID_HOME" "$FLUTTER_SDK" > local.properties
-          # ⚠️⚠️ **先下载 Gradle 分发包，再跑测试** —— 两件事**拆开**
-          #    ⇒ ⇒ 「下载失败」与「测试失败」**不会长得一样** ⇒ ⇒ 红的时候
-          #    一眼能看出是哪一层（这一族的老毛病：失败长得像失败）。
-          #
-          # ⚠️ 实测 2026-11-09：GitHub 的 release CDN 偶发 **HTTP 504**
-          #    （gradle-8.14-all.zip 那个 ~200MB 的包）⇒ ⇒ 一失败就整条
-          #    job 红 ⇒ ⇒ 而红的其实是**网络**，不是测试 ⇒ ⇒ ⇒ 重试 3 次，
-          #    仍失败就**明确说网络**（不是「测试失败」）⇒ ⇒ 让人一眼知道
-          #    该重跑 job，而不是去查代码。
-          #
-          # ⚠️ 用 `./gradlew --version` 触发下载（wrapper 会先把分发包装好）
-          #    ⇒ ⇒ 下载这步**单独**判 ⇒ ⇒ 真测试失败时不会被重试掩盖。
-          for attempt in 1 2 3; do
-            if ./gradlew --version > /tmp/gradle-dist.log 2>&1; then
-              echo "Gradle 分发包就绪（第 ${attempt} 次尝试）"
-              break
-            fi
-            cat /tmp/gradle-dist.log
-            if [ "${attempt}" -lt 3 ]; then
-              echo "::warning::Gradle 分发包下载失败（第 ${attempt}/3 次）—— 15 秒后重试"
-              sleep 15
-            else
-              echo "::error::Gradle 分发包连续 3 次下载失败 ⇒ ⇒ 这是**网络**问题（GitHub release CDN 偶发 504），**不是测试失败** ⇒ ⇒ 直接重跑本 job 即可，不必查代码。"
-              exit 1
-            fi
-          done
-          ./gradlew :app:testDebugUnitTest
 
   ps1-portability:
     name: PS1 Portability (Windows PowerShell 5.1)
@@ -1217,7 +829,12 @@ jobs:
   # ⚠️ `if: always()` ⇒ ⇒ **前面任一 job 红了也要汇总** ⇒ ⇒ 不然「红」的那几盏恰恰是**唯一没有分母**的那几盏 ⇒ ⇒ 红灯也读不出「跑了哪几道」。
   ci-tally:
     name: CI 总分母（一盏灯一个分母）
-    needs: [ps1-portability, brain-gates, prefrontal-rust, mobile-analyze, yaml-validity, legacy-residue-stack, desktop-build, ledger-codepoints]
+    # ⚠️⚠️ **2026-11-15：prefrontal-rust 与 mobile-analyze 已搬去打 tag 时跑**
+    #    （Rust 栈编译 → release.yml 的 `rust` job；移动端 → mobile-ci.yml）
+    #    ⇒ ⇒ 这个列表里**点名一个本文件不存在的 job ⇒ ⇒ GitHub 拒绝整个
+    #    workflow 文件 ⇒ ⇒ ci.yml 里每个 job 都不再跑**（本地任何闸都测不出来）
+    #    ⇒ ⇒ 搬走 job 时**必须**同步改这一行。
+    needs: [ps1-portability, brain-gates, yaml-validity, legacy-residue-stack, desktop-build, ledger-codepoints]
     if: always()
     runs-on: ubuntu-latest
     steps:

@@ -47,7 +47,16 @@ class TaskBoardColumn {
 }
 
 /// 端脑 `TaskStatus` → 看板列 id。
-String boardColumnOf(String telencephalonStatus) {
+///
+/// ⚠️ Pending 拆两列：**未确认** → 「待规划」(backlog)、**已确认** →
+/// 「待办」(todo)。端脑只有 5 个状态、看板有 6 列 —— 「待办」没有对应的
+/// 服务端状态，以前恒回 backlog ⇒ 这一列**永远是空的**。在只能「看」的
+/// 看板上那只是浪费一列；有了**长按拖拽**之后就不行了：拖进「待办」⇒
+/// 服务端存的是 Pending ⇒ boardColumnOf 恒回 backlog ⇒ 卡片当场弹回
+/// 「待规划」⇒ 「放下了但没到那里」—— 失败长得像成功。
+/// 拆分依据用 `confirmed`（卡片上本来就有「待确认」提示，确认过的任务
+/// 端脑才会调度 ⇒ 它就是「待办」）。
+String boardColumnOf(String telencephalonStatus, {bool confirmed = false}) {
   switch (telencephalonStatus) {
     case 'InProgress':
       return TaskBoardColumn.inProgress;
@@ -59,8 +68,63 @@ String boardColumnOf(String telencephalonStatus) {
       // 端脑没有 Failed 状态 —— 「逾期」是它唯一的「有问题」状态。
       return TaskBoardColumn.failed;
     default:
-      // Pending（含未知值）→ 待规划。
-      return TaskBoardColumn.backlog;
+      // Pending（含未知值）：确认过的进「待办」，没确认的留在「待规划」。
+      return confirmed ? TaskBoardColumn.todo : TaskBoardColumn.backlog;
+  }
+}
+
+/// 看板列 id → 本地化列名。
+///
+/// 看板列头、详情弹窗的状态 chip／概览行共用这一把尺 —— 别再把
+/// `backlog` / `in-progress` 这类**机器 id** 直接上屏（那就是
+/// 「界面漏英文」的产地）。
+String localizedColumnTitle(AppLocalizations l10n, String columnId) {
+  switch (columnId) {
+    case TaskBoardColumn.todo:
+      return l10n.taskStatusTodo;
+    case TaskBoardColumn.inProgress:
+      return l10n.taskStatusInProgress;
+    case TaskBoardColumn.done:
+      return l10n.taskStatusDone;
+    case TaskBoardColumn.failed:
+      return l10n.taskStatusFailed;
+    case TaskBoardColumn.cancelled:
+      return l10n.taskStatusCancelled;
+    default:
+      return l10n.taskStatusBacklog;
+  }
+}
+
+/// 端脑状态 serde 变体名 → 本地化文案。编辑弹窗的状态下拉框用
+///（下拉框的 value 仍是变体名 —— 发给端脑的还是它认得的形状）。
+String localizedServerStatus(AppLocalizations l10n, String serverStatus) {
+  switch (serverStatus) {
+    case TelencephalonTaskStatus.inProgress:
+      return l10n.taskStatusInProgress;
+    case TelencephalonTaskStatus.completed:
+      return l10n.taskStatusDone;
+    case TelencephalonTaskStatus.overdue:
+      return l10n.taskStatusFailed;
+    case TelencephalonTaskStatus.cancelled:
+      return l10n.taskStatusCancelled;
+    default:
+      return l10n.taskStatusBacklog;
+  }
+}
+
+/// 优先级（小写词）→ 本地化文案。卡片、详情弹窗的 chip／概览行共用。
+String localizedPriority(AppLocalizations l10n, String priority) {
+  switch (priority.toLowerCase()) {
+    case 'low':
+      return l10n.priorityLow;
+    case 'medium':
+      return l10n.priorityMedium;
+    case 'high':
+      return l10n.priorityHigh;
+    case 'urgent':
+      return l10n.priorityUrgent;
+    default:
+      return priority;
   }
 }
 
@@ -72,12 +136,19 @@ String serverStatusOf(String uiStatus) {
   switch (uiStatus.toLowerCase()) {
     case 'in-progress':
     case 'in_progress':
+    case 'inprogress':
+    // ⚠️ 端脑 serde 变体名（'InProgress'）也要认得 —— 编辑弹窗的下拉框
+    // 存的就是变体名，直接传进来。只认带连字符的写法时，把任务改成
+    // 「进行中」会被这里的 default 吞成 Pending ⇒ 请求 200、下拉框显示
+    // 你选的那项、库里存的却是另一个状态 —— 失败长得像成功。
     case 'running':
       return TelencephalonTaskStatus.inProgress;
     case 'done':
     case 'completed':
       return TelencephalonTaskStatus.completed;
     case 'failed':
+    case 'overdue':
+      // 同上 —— 'Overdue' 不认得就会被 default 吞成 Pending。
       return TelencephalonTaskStatus.overdue;
     case 'cancelled':
     case 'canceled':
@@ -170,7 +241,7 @@ class TaskInfo {
     return TaskInfo(
       id: (json['taskId'] ?? json['task_id'] ?? json['id'] ?? '').toString(),
       title: (json['title'] ?? '').toString(),
-      status: boardColumnOf(rawStatus),
+      status: boardColumnOf(rawStatus, confirmed: json['confirmed'] == true),
       priority: (json['priority'] ?? 'medium').toString().toLowerCase(),
       description: json['description'] as String?,
       tags: strings(json['tags']),
@@ -210,7 +281,7 @@ class TasksNotifier extends StateNotifier<TasksState> {
     // 端脑的 title 是必填的，但老数据可能是空串 —— 退回 id，
     // 免得列表里出现空标题。
     title: t.title.trim().isEmpty ? t.id : t.title,
-    status: boardColumnOf(t.status),
+    status: boardColumnOf(t.status, confirmed: t.confirmed),
     priority: t.priority.toLowerCase(),
     description: t.description,
     tags: t.tags,
@@ -446,6 +517,8 @@ class TaskBoardScreen extends ConsumerWidget {
               tasks: columnTasks,
               onAddTask: () => _showAddTaskDialog(context, ref, column.id),
               onTaskTap: (task) => _openTaskDetail(context, task),
+              onMoveTask: (task, targetColumnId) =>
+                  _moveTask(context, ref, task, targetColumnId),
             );
           },
         ),
@@ -476,6 +549,33 @@ class TaskBoardScreen extends ConsumerWidget {
         },
       ),
     );
+  }
+
+  /// 长按拖拽落列 —— 把任务挪到另一列（= 改端脑任务状态）。
+  ///
+  /// 原列放下 ＝ no-op（任务状态没变，不发请求）。
+  /// 成功后 notifier 会拿服务端返回的任务就地替换 —— 卡片落在哪由
+  /// **服务端真值**决定（比如未确认的任务拖进「待办」会落回「待规划」，
+  /// 因为它还是 Pending ＋ confirmed:false）。
+  /// 失败走 SnackBar（与详情弹窗同一惯例：`'$e'`）—— 卡片留在原列，
+  /// notifier 自己会把 error 置上（顶部错误横幅也会亮）。
+  Future<void> _moveTask(
+    BuildContext context,
+    WidgetRef ref,
+    TaskInfo task,
+    String targetColumnId,
+  ) async {
+    if (task.status == targetColumnId) return;
+    // 在 await 之前把 messenger 拿到手 —— 异步间隙里不再摸 context
+    //（use_build_context_synchronously）。
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    try {
+      await ref
+          .read(tasksNotifierProvider.notifier)
+          .updateTask(task.id, status: targetColumnId);
+    } catch (e) {
+      messenger?.showSnackBar(SnackBar(content: Text('$e')));
+    }
   }
 }
 
@@ -534,18 +634,31 @@ class _KanbanColumn extends StatelessWidget {
   final VoidCallback onAddTask;
   final ValueChanged<TaskInfo> onTaskTap;
 
+  /// 长按拖拽落列 —— 把卡片挪进本列（＝ 改端脑任务状态）。
+  /// 「原列放下算不算 no-op」由页面侧的 _moveTask 判，这里不重复判。
+  final void Function(TaskInfo task, String targetColumnId) onMoveTask;
+
   const _KanbanColumn({
     required this.column,
     required this.tasks,
     required this.onAddTask,
     required this.onTaskTap,
+    required this.onMoveTask,
   });
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Container(
+    // 整列（表头＋卡片列表＋加号）都是一个 DragTarget —— 落点面积越大，
+    // 手机上越容易松手松准。有卡片悬在列上时用列色描边，告诉用户
+    // 「松手就落到这一列」。
+    return DragTarget<TaskInfo>(
+      onWillAcceptWithDetails: (details) => true,
+      onAcceptWithDetails: (details) => onMoveTask(details.data, column.id),
+      builder: (context, candidate, _) {
+        final hovering = candidate.isNotEmpty;
+        return Container(
       width: 280,
       margin: const EdgeInsets.only(right: 16),
       child: ClipRRect(
@@ -559,7 +672,12 @@ class _KanbanColumn extends StatelessWidget {
                   : AppColors.lightSurfaceGlass,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                color: hovering
+                    ? column.color
+                    : (isDark
+                        ? AppColors.darkBorder
+                        : AppColors.lightBorder),
+                width: hovering ? 2 : 1,
               ),
             ),
             child: Column(
@@ -639,6 +757,8 @@ class _KanbanColumn extends StatelessWidget {
         ),
       ),
     );
+      },
+    );
   }
 }
 
@@ -654,7 +774,27 @@ class _TaskCard extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: GlassCard(
+      // 长按（默认 kLongPressTimeout ≈ 500ms，平台标准 long-press 时长）
+      // 起拖 —— 拖到别的列松手 ＝ 改端脑任务状态。轻点仍是打开详情：
+      // tap 识别器与拖拽识别器在同一个手势竞技场里，快速点按 tap 赢、
+      // 按住不动 long-press 赢，两种意图互不干扰。
+      child: LongPressDraggable<TaskInfo>(
+        data: task,
+        // 拖动时跟着手指走的浮卡。feedback 在 Overlay 里渲染 ——
+        // 自己包透明 Material，文字着色与墨水才有依归。
+        feedback: _TaskDragCard(task: task),
+        // 原位留一张半透明的 —— 看得出「这张卡被拿起来了」。
+        childWhenDragging: Opacity(
+          opacity: 0.4,
+          child: _buildCardBody(context, l10n),
+        ),
+        child: _buildCardBody(context, l10n),
+      ),
+    );
+  }
+
+  Widget _buildCardBody(BuildContext context, AppLocalizations l10n) {
+    return GlassCard(
         padding: const EdgeInsets.all(12),
         margin: EdgeInsets.zero,
         child: ListTile(
@@ -675,7 +815,10 @@ class _TaskCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 4),
-                  Text(task.priority, style: const TextStyle(fontSize: 12)),
+                  Text(
+                    localizedPriority(l10n, task.priority),
+                    style: const TextStyle(fontSize: 12),
+                  ),
                   if (task.dueTime != null) ...[
                     const SizedBox(width: 8),
                     Icon(
@@ -713,8 +856,7 @@ class _TaskCard extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
+      );
   }
 
   Color _getPriorityColor(String priority) {
@@ -730,6 +872,60 @@ class _TaskCard extends StatelessWidget {
       default:
         return AppColors.darkTextSecondary;
     }
+  }
+}
+
+/// 拖拽时跟着手指走的浮卡。
+///
+/// 不复用 [GlassCard]：它带 BackdropFilter，在 Overlay 里对着一小块
+/// 实时再模糊没必要；这里用一张带投影的实色小卡，宽 240（280 宽的列里
+/// 卡片几乎占满，收窄一点才分得清「拖着的」与「原位的」），微倾 3 度。
+class _TaskDragCard extends StatelessWidget {
+  final TaskInfo task;
+
+  const _TaskDragCard({required this.task});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Transform.rotate(
+      angle: -0.05,
+      child: Material(
+        elevation: 8,
+        borderRadius: BorderRadius.circular(12),
+        shadowColor: Colors.black.withValues(alpha: 0.4),
+        color: isDark ? AppColors.darkSurfaceGlass : AppColors.lightSurfaceGlass,
+        child: SizedBox(
+          width: 240,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.drag_indicator,
+                  size: 16,
+                  color: isDark
+                      ? AppColors.darkTextSecondary
+                      : AppColors.lightTextSecondary,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    task.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

@@ -2,7 +2,7 @@
 
 // ⚠️ **台账「条目正文」那一层住在共享文件里** ⇒ ⇒ 两把尺子（提交面／暂存面）
 //   判的是**同一族** ⇒ ⇒ **判据不许各判各的** ⇒ ⇒ 「台账一条怎么切」只有一份。
-import { ledgerEntries, LEDGER_PATHS } from './ledger-entries.mjs';
+import { ledgerEntries, LEDGER_PATHS, entryRevertNarrowing } from './ledger-entries.mjs';
 
 /**
  * 一个「回退事件」的描述。
@@ -155,30 +155,18 @@ export function classifyEntryRevert({ file, aBeforeText, aAfterText, bAfterText 
     //   ⇒ ⇒ 这一条的正文**逐字**变回 A 之前的版本 ⇒ ⇒ 「逐字等于旧版」这一条**单独**会误判红
     //   ⇒ ⇒ 而那一笔**一行新内容都没引入**（行集合一模一样，只是份数变了）
     //   ⇒ ⇒ ⇒ **判据要问「A 到底有没有引入新东西」，而不只是「B 是不是回到了旧版」**。
-    if (entryIntroducedLines(tAfter, tBefore).length === 0) continue;
+    if (!entryRevertNarrowing(tAfter, tBefore)) continue;
     symbols.push(sym);
   }
   if (!symbols.length) return null;
   return { kind: 'entry-reverted', symbols };
 }
 
-/**
- * 这一条在【A 之后】比【A 之前】**多出来的行**（行集合，去掉空白行）。
- *
- * ⚠️ **它为什么存在**（真历史实测，见 `classifyEntryRevert` 的 ④）：
- *   「B 的这一条逐字等于 A 之前的版本」**不足以**判红 ⇒ ⇒ 因为**去重**那一族
- *   （A 重复插入一段、B 删掉一份）会让正文**逐字**回到旧版 ⇒ ⇒ 而那一族是**合法的修复**。
- *   ⇒ ⇒ 分界线取「**A 真的引入过新行**」⇒ ⇒ 合法去重不误伤、真正的静悄悄回退照样抓到。
- */
-function entryIntroducedLines(tAfter, tBefore) {
-  const before = new Set(
-    String(tBefore).split('\n').map((l) => l.trimEnd()).filter((l) => l.trim() !== '')
-  );
-  return String(tAfter)
-    .split('\n')
-    .map((l) => l.trimEnd())
-    .filter((l) => l.trim() !== '' && !before.has(l));
-}
+// ⚠️⚠️ **收窄条件住在共享文件里**（`ledger-entries.mjs` 的 `entryRevertNarrowing`）——
+//   ⚠️ **判据不许各判各的** ⇒ ⇒ 暂存面那把（R5）判的是**同一族** ⇒ ⇒ 必须用**同一份**。
+//   ⇒ ⇒ 而这一份必须**面无关**（提交面传「A 的版本」／暂存面传「HEAD 的版本」）
+//   ⇒ ⇒ ⇒ 两面都判得了 ⇒ ⇒ **不落「判不了」那一格**。
+//   ⇒ ⇒ 形状与理由见 `ledger-entries.mjs` 里那个函数的注释（那一处是**唯一的说明面**）。
 
 /**
  * 「这次提交**声明了**自己要回退别人」—— 认三种形状：

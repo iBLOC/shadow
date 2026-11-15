@@ -15188,6 +15188,7 @@ dependencies = [
  "futures-util",
  "hippocampus-core",
  "hippocampus-server",
+ "hippocampus-storage",
  "hostname",
  "hyper 1.12.0",
  "jsonwebtoken",

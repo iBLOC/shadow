@@ -13,7 +13,7 @@ import '../services/telencephalon/telencephalon_client.dart'
 import '../theme/app_colors.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/models/capability_labels.dart';
-import '../widgets/models/self_hosted_model_sheet.dart';
+import '../widgets/models/neuron_download_sheet.dart';
 
 /// 模型管理页。
 ///
@@ -30,9 +30,10 @@ import '../widgets/models/self_hosted_model_sheet.dart';
 /// 现在的分工：
 ///   · **云端模型** → 供应商页（`/manage/providers`）加供应商，模型
 ///     **自动获取**（preview ＋ fetch-models，两端同源）；
-///   · **自持模型** → FAB 开 [SelfHostedModelSheet] 手动添加
-///     （ZCode 风格字段＋智能配置），落大脑 custom provider ＋ 本地
-///     元数据表。
+///   · **自持模型** → FAB 开 [NeuronDownloadSheet]：在 neuron 支持的
+///     模型目录里**挑一个下载**（2026-11-12 刀）—— 参数不需要用户
+///     配置：注册表命中 ⇒ 出厂默认全套；未命中 ⇒ 目录自带的能力词
+///     兜底，下载成功自动落 `model_metadata`（原手填参数表单退场）。
 class ModelManagementScreen extends ConsumerStatefulWidget {
   const ModelManagementScreen({super.key});
 
@@ -56,9 +57,12 @@ class _ModelManagementScreenState extends ConsumerState<ModelManagementScreen> {
     });
   }
 
+  /// 「添加自持模型」＝ **neuron 目录下载**：挑一个 → 下载 → 默认参数
+  /// 自动落（弹窗里做）—— 没有手填参数这一步。关掉弹窗就刷新
+  /// （下载完成的条目这时已出现在大脑目录里，元数据也落了）。
   Future<void> _addSelfHosted() async {
-    final ok = await SelfHostedModelSheet.show(context);
-    if (ok == true && mounted) {
+    await NeuronDownloadSheet.show(context);
+    if (mounted) {
       setState(() => _catalogVersion += 1);
       await ref.read(modelMetadataProvider.notifier).load();
     }

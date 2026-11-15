@@ -27,7 +27,7 @@
 React 前端 (WebView)
    │  HTTP  端脑方言
    ▼
-127.0.0.1:60080  端脑 HTTP 面 (telencephalon_http.rs)
+127.0.0.1:60080  大脑那张面（脑面 · 桌面 Rust 侧 telencephalon_http.rs 起）
    │
    ├── /shadow/v1/*            会话 / agent
    ├── /api/telencephalon/*    管理面：状态 / provider / MCP / 任务 / 语音 / thalamus 预览
@@ -41,10 +41,12 @@ React 前端 (WebView)
 neuron（router-only，**没有自己的端口**）← 唯一推理实例，经脑面上的 /v1/* 进出
 ```
 
-装配代码在两个地方：
+**装配只有一个入口**（三个宿主共用 —— 各拼各的必然漂）：
 
+- `encephalon::surface::build_brain_face(options, neuron, FaceContent)` —— **大脑那张面**的唯一组装处（`encephalon/src/surface.rs`）。面里装什么由 `FaceContent` 选：`EndbrainOnly` / `EndbrainPlusNeuron` / `Full`（桌面端与独立服务器用 `Full` ⇒ 端脑方言 ＋ 推理面 ＋ `/hippocampus`；移动端默认 `EndbrainPlusNeuron` ⇒ 不挂海马体，因为 Android 编不了 Lance）。
+  ⚠️ **桌面端不许自己拼面** —— `scripts/check-brain-chain.mjs` 的 `single-brain-face-entrypoint` 规则会拦（三个宿主都必须走这一个入口）。
 - `shadow-desktop/src-tauri/src/lib.rs` —— `encephalon::Embedded::boot(...)`，`Embedded` 只负责**钉住生命周期**（2026-11-03 起 neuron 改成 **router-only**：不再自己监听一个口、`neuron_port` 字段已删，推理面由统一入口挂在脑面上）。
-- `shadow-desktop/src-tauri/src/telencephalon_http.rs` —— `telencephalon::boot::build_app_state(...)` + `telencephalon::api::build_full_app(...)`，把端脑 + neuron + 海马体合成一台**形状与独立端脑完全一致**的服务，挂 `127.0.0.1:60080`。
+- `shadow-desktop/src-tauri/src/telencephalon_http.rs` —— **宿主起面**：`bind 127.0.0.1:60080` ＋ `axum::serve(listener, brain_face.router)`（它拿的是 `build_brain_face` 的结果，**不再**自己调 `build_app_state` / `build_full_app`）。
 
 前端 `DEFAULT_BASE_URL = http://127.0.0.1:60080`，**一行都不用改**就换掉了旧的直连路径。
 
@@ -88,28 +90,30 @@ MainActivity (Kotlin)  ── JNI ──▶  libencephalon.so (Rust)
 
 | 端口 | 谁在听 | 说明 |
 |---|---|---|
-| `60080` | 端脑 HTTP 面 | 桌面端固定；移动端嵌入式时是随机端口。 |
-| `8085` | neuron | 桌面端固定（loopback 元数据读取依赖它）。 |
-| `8081` | 外部海马体 | 移动端默认指向（桌面端的海马体在进程内，不占这个端口）。 |
+| `60080` | **大脑那张面**（桌面 Rust 侧 `telencephalon_http::serve` 起） | 桌面端固定；移动端嵌入式时是随机端口。 |
+| ~~`8085`~~ | ~~neuron~~ | **已作废**（2026-11-03）：neuron 改成 **router-only**，**不再自己监听** ⇒ 推理面挂在脑面根 `/v1/*`。 |
+| `8081` | 外部海马体（独立 hippocampus server 自己的默认口） | **移动端不指向它** —— 手机上默认解析到 `http://localhost:60080/hippocampus`（脑面那张面）；桌面端的海马体在进程内，不占这个端口。 |
 | `9500` | 杏仁核 amygdala | 独立进程叶区；`9501` 是它的 Prometheus。 |
+
+> ⚠️ **端口不是「端脑在听」** —— 端脑是**组件**，只提供路由与方言；`bind` 端口、`axum::serve` 的是**宿主**（桌面 Rust 侧 ／ 移动端 .so 内）。见下面的「三种运行形态」。
 
 ## 改代码前必读的约束
 
 1. **客户端不许直连推理。** 桌面端的 `neuron_infer` Tauri 命令已整个拆掉。绕过端脑 = 工具调用、意图路由、人格注入、工作流全部失效，而且**不会报错**。
-2. **海马体只有一份。** 桌面端 `encephalon` 关掉 `hippocampus` feature，状态由端脑的 `build_app_state` 建、路由从**同一个** state 挂出来。两份 Lance 指向同一存储会抢锁。
-3. **`telencephalon` 必须是 path 依赖**，且与 `encephalon` 同目录（`../../../telencephalon`）。两份端脑 = 两套 `AppState` / `ConversationStore` 类型，传不过去。
-4. **叶区要指向活着的那个 neuron，而且端点必须跟着 client 走。** `neuron::create_router` 每次调用都**重建** `ServerState`，所以装配完必须用 `native_lobes.reconfigure(name, stack.neuron_addr())` 显式改端点。⚠️ 但 `reconfigure` 只改 `NativeLobeRegistry` 的 `runtimes`，而 shadow API 走的是另一套 `inner`（`Arc<dyn NativeLobe>`）—— **宿主改完端点、client 仍读硬编码的 `http://localhost:60080`**，于是叶区发起的 LLM 调用 connection refused 而对话照样有回音（2026-10-30 真机定位到的断链，三种形态全中）。修法在端脑仓：新增 `LobeClient::NativeAt(lobe, config, url)` 让端点随 client 传递（`telencephalon/src/a2a/skill_router.rs`），环境变量降级为兜底。
+2. **海马体只有一份。** 桌面端 `encephalon` 的 `hippocampus` feature 是**开着的**（`src-tauri/Cargo.toml` 里显式列了 `"hippocampus"`）⇒ ⇒ 海马体状态由**端脑**在 boot 时建、路由从**同一个** state 挂出来（桌面 Rust 侧**不再自己摸** `hippocampus_server`）⇒ ⇒ 两份 Lance 指向同一存储会抢锁。
+3. **桌面端不许直接依赖 `telencephalon`。** 端脑的 path 依赖在**大脑仓**里（`encephalon/Cargo.toml` → `../telencephalon`）⇒ ⇒ 桌面端只 path 依赖 `encephalon`（＋ `synapse`）⇒ ⇒ 两份端脑 = 两套 `AppState` / `ConversationStore` 类型，传不过去 —— 而桌面端只需要**大脑那张面**，不需要自己拼端脑。
+4. **叶区要指向活着的那张面（大脑那张面），而且端点必须跟着 client 走。** ⚠️ 2026-11-03 起 neuron 改成 **router-only**（不再自己监听一个口、`neuron_port` 字段已删）⇒ ⇒ `stack.neuron_addr()` 那个方法**也被删了**（还在调就编不过，E0599）⇒ ⇒ 叶区一律指**大脑那张面**（它合并了 neuron 的 OpenAI 面，「neuron 与大脑同一张面」是 2026-11-02 起的架构口径）。⚠️ 但装配完仍必须用 `native_lobes.reconfigure(...)` 显式改端点：`neuron::create_router` 每次调用都**重建** `ServerState`，而 `reconfigure` 只改 `NativeLobeRegistry` 的 `runtimes`，shadow API 走的却是另一套 `inner`（`Arc<dyn NativeLobe>`）—— **宿主改完端点、client 仍读硬编码的 `http://localhost:60080`**，于是叶区发起的 LLM 调用 connection refused 而对话照样有回音（2026-10-30 真机定位到的断链，三种形态全中）。**这条已经修好**：端脑仓新增了 `LobeClient::NativeAt(lobe, config, url)`，端点随 client 传递（`telencephalon/src/a2a/skill_router.rs`），注册表里的当前端点**赢**、环境变量降级为兜底。
 5. **移动端不许留本地直连编排器。** `MainAgentNotifier`（直接拿 `ModelEngine` 跑 MNN）已删除——留着就可能被重新接上。
 
 ## 三种运行形态，同一条链路
 
-| 形态 | 端脑面对外端口 | 叶区 → LLM 指向 | 修在哪 |
+| 形态 | 大脑那张面对外端口 | 叶区 → LLM 指向 | 修在哪 |
 |---|---|---|---|
-| 桌面端 sidecar（进程内嵌） | `127.0.0.1:60080` | `native_lobes.reconfigure` → `:8085`（neuron 自己的 listener） | shadow 仓 `src-tauri/src/telencephalon_http.rs` |
-| 移动端 App（`libencephalon.so`） | 随机端口 | `point_lobes_at_neuron` → 进程内 neuron | 大脑仓 `point_lobes_at_neuron`（已合并） |
+| 桌面端主进程（进程内嵌） | `127.0.0.1:60080`（**桌面 Rust 侧** `telencephalon_http::serve` 起） | **大脑那张面**（router-only ⇒ neuron 没有独立 listener） | shadow 仓 `src-tauri/src/telencephalon_http.rs` |
+| 移动端 App（`libencephalon.so`） | 随机端口（`start_agent_surface` 绑 `127.0.0.1:0`） | 同上 | 大脑仓 `point_lobes_at_neuron`（已合并） |
 | 独立大脑（`encephalon-server`） | `:8082` | 同上 | 同上 |
 
-**为什么必须指向 neuron 自己的 listener**：端脑 HTTP 面里合并的那张 neuron 路由是 `neuron::create_router` **重建**的 `ServerState` —— 不是活着的那个实例。更要紧的是叶区的默认端点 `http://localhost:60080` 在移动端与独立大脑上**没有任何东西在听**（端脑面分别是随机端口和 `:8082`），于是叶区发起的 LLM 调用 connection refused，而对话照样有回音 —— 能力静默失效。
+**为什么叶区指「大脑那张面」而不是 neuron 自己的 listener**：2026-11-03 起 neuron 改成 **router-only**（不再自己监听一个口）⇒ ⇒ 脑面里合并的那张 neuron 路由**就是**活着的那个实例（`neuron::create_router` 重建 `ServerState` 导致「不是活实例」的旧问题随之消失）。更要紧的是叶区的默认端点 `http://localhost:60080` 在移动端与独立大脑上**没有任何东西在听**（那张面分别是随机端口和 `:8082`）⇒ ⇒ 这就是 2026-10-30 那次「叶区 connection refused 而对话照样有回音」的成因 ⇒ ⇒ **今天已闭环**：端脑 boot 后会 `note_bound` 把真实地址写回，并 `point_lobes_at_neuron` 把叶区指到脑面自己。
 
 ### LLM 供给：叶区要的是一个 OpenAI 兼容端点
 
@@ -131,7 +135,7 @@ App 的云端供应商设置 → MethodChannel → JNI → EmbeddedConfig.llm_pr
 
 ⚠️ **注册引擎 ≠ 叶区会用它**：叶区是**按模型 id** 请求 neuron's OpenAI 面的，宿主还要把叶区的默认模型指过去。两件事都要做，否则叶区只会去 `/v1/models` 里翻本地权重，最后报 `NO_MODEL_CONFIGURED`。
 
-⚠️ **两个仓的 neuron 版本必须一致**：`telencephalon` 与 `encephalon` 各自锁自己的 `Cargo.lock`，`[patch]` 只在各自 workspace 生效 —— 不同版本会出现「telencephalon 自己编得过、encephalon 编不过」的情况（2026-10-30 实测：encephalon 锁在 `401f86c`，那里还没有 `neuron::engine::remote`）。
+⚠️ **两个仓的 neuron 版本必须一致**（**这条现在是历史隐患，但纪律仍在**）：`telencephalon` 与 `encephalon` 各自锁自己的 `Cargo.lock`，`[patch]` 只在各自 workspace 生效 —— 不同版本会出现「telencephalon 自己编得过、encephalon 编不过」的情况（2026-10-30 实测：encephalon 锁在 `401f86c`，那里还没有 `neuron::engine::remote`）。⚠️ 今天两边都 path 依赖同一个 `../neuron`（0.1.0）⇒ ⇒ 隐患暂时不成立，但**改动 neuron 版本时两边仍要一起动**。
 
 ⚠️ **listener 与 router 必须共用同一份 `ServerState`**：neuron 的 `run_embedded` 把 state 建了**两份**（一份给 `NeuronHandle.state`，另一份在 `create_router` 里、**那份才是真正在服务请求的**）⇒ 往 `NeuronHandle.state` 注册的引擎，listener **完全看不见**（真机表现：`no engine registered for model 'xxx'`）。`telencephalon` 因此自己建一份 state 并让 listener 与 `NeuronEmbed::state` 共用它。
 
@@ -174,7 +178,7 @@ Lance 数据集是**单写者**；`local_s3_sync` 是**单向备份**（远端�
 | 三 · 手机性能过剩 | 手机跑整颗大脑，**PC 反过来**用它的 | 零信任**服务端**模式（手机发布脑面，走 `encephalon/src/ziti.rs` 的**唯一** serve） |
 | 四 · 多台备用机 | 主力机留颞叶 / 前额叶 / 海马体；备用机起顶叶 / 枕叶 ＋ 模型 | 叶区放置（顶叶 / 枕叶在备用机）＋ 海马体指向主力机 |
 
-⚠️ **证据等级**：两条放置腿都有**承载级**读数（生产**同一条**代码路径在 loopback 上真跑）；**真网级**（真的 controller ＋ edge router）仍**一次都没跑过** ⇒ ⇒ 4 条 `#[ignore]` 已备好。
+⚠️ **证据等级**：两条放置腿都有**承载级**读数（生产**同一条**代码路径在 loopback 上真跑）；**真网级**（真的 controller ＋ edge router）仍**一次都没跑过** ⇒ ⇒ 5 条 `#[ignore]` 已备好（`synapse/src/transport/ziti/live_tests.rs`）。
 
 ⇒ ⇒ **仍然欠着**：① 手机身份文件分发 UI；② 两端「大脑来源」的可点开关（Rust 侧机制齐了，UI 没有入口）；③ neuron 模型还没有独立放置（当前「叶区 ＋ 模型」绑在一台机器上）。
 
@@ -207,10 +211,11 @@ Lance 数据集是**单写者**；`local_s3_sync` 是**单向备份**（远端�
   最靠近用户轮次的位置（`compose_system_prompt` / `llm_messages` / `call_llm`
   的签名一个都没改）。注记带**两层**信号：**这一句**的判定 + **持续心境**
   （`mood.dominant` / `mood.streak`）—— 语气该跟的是**心境**，不是单句。
-* **⚠️ 叶区只拿注册表的「只读视图」，不是 `AppState`** —— native 叶区这条路调
-  `handle` 时 `app_state` 是 `None`，而那是**承重**的：`VisualTask` 分支在有
-  `AppState` 时会真的去起摄像头 runner。情绪只需要「谁注册了、在哪」⇒ 给叶区
-  一份 `Arc<LobeCache>`（与端脑注册叶区用的是**同一份**）就够，别的什么都给不了它。
+* **⚠️ 情绪这条路的叶区只拿注册表的「只读视图」，不是 `AppState`** —— ⚠️ **前提变了**：
+  端脑 boot 时会把 `AppState` **附给 native 叶区**（`attach_app_state`）⇒ ⇒ 调 `handle`
+  时 `app_state` 现在是 `Some` ⇒ ⇒ 「有 AppState 就会去起摄像头 runner」这件事对
+  **别的**叶区（`VisualTask` 分支）成立 ⇒ ⇒ 而**情绪**只需要「谁注册了、在哪」⇒ ⇒
+  给它一份 `Arc<LobeCache>`（与端脑注册叶区用的是**同一份**）就够，别的什么都给不了它。
 * **推（心境突变）**：杏仁核只有心境**突变**（主标签变了，或效价移动超阈值）
   才回推颞叶的 `emotion_affect` skill，让对话调整语气。
   ⚠️ 回推 payload **必须带 `user_id`** —— synapse 的 `JsonCtx` 把它收在具名字段，
@@ -220,8 +225,7 @@ Lance 数据集是**单写者**；`local_s3_sync` 是**单向备份**（远端�
   每 N 轮一条心境快照（`dimension=user`，uri `emotion:profile:<用户id>:<ts>`）。
 
 ⚠️ **注册路径**：`POST /telencephalon/lobes/{name}`（端脑挂的是这个）。
-`synapse::lobe::register_with_encephalon` 打的是**旧路径** `/encephalon/lobes/{name}` ⇒
-temporal / occipital 的自注册今天应该 404（读代码结论，未在真端脑上跑过）。
+`synapse::lobe::register_with_encephalon` **先打这个新路径**，只有它 404 才回落旧路径 `/encephalon/lobes/{name}`（`synapse/src/lobe/encephalon_registration.rs`）⇒ ⇒ temporal / occipital 的自注册**今天不会 404**。
 杏仁核**没有**用那个 helper：自己打正确路径，只有正确路径 404 时才回落旧路径。
 
 ⚠️ **海马体的 wire 坑**：请求体是 **camelCase**（`tenantId`/`sessionId` —— 发 snake_case 会被
@@ -260,7 +264,7 @@ temporal / occipital 的自注册今天应该 404（读代码结论，未在真�
 
 | 脚本 | 管什么 | CI |
 |---|---|---|
-| `scripts/check-brain-chain.mjs` | 上面 5 条约束（6 条规则） | `Brain chain check` |
+| `scripts/check-brain-chain.mjs` | 上面 5 条约束（9 条规则） | `Brain chain check` |
 | `scripts/check-agent-surface.mjs` | 能力清单 ↔ 两端路由、生成物漂移、两端手写色值、玻璃语义对等 | `Cross-client consistency check` |
 | `scripts/gen_tokens.mjs --check` | 设计 token 漂移 | `Design token drift check` |
 | `scripts/gen_nav.mjs --check` | 导航结构漂移 | `Navigation drift check` |

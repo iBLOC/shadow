@@ -3,6 +3,15 @@
 **日期**：2026-10-29
 **起因**：用户定调 ——「所有的通信都要走大脑 端脑 叶区，两个客户端都需要维持这个链路」。
 
+> ⚠️ **这份是 2026-10-29 那天的改造过程记录 —— 其中四条架构结论已被后来的决策推翻**：
+> ① 桌面端 `encephalon` 的 `hippocampus` feature 是**开着**的（不是「关掉」）；
+> ② neuron 自 **2026-11-03** 起是 **router-only**（**不再自己监听端口**）⇒ ⇒ 那个 `:8085` 早已作废 ⇒ ⇒ 叶区一律指**大脑那张面**（只有一个入口）；
+> ③ `cortex_http.rs` 已改名 **`telencephalon_http.rs`**；
+> ④ 那张面现在由 `encephalon::surface::build_brain_face` **统一组装**（桌面端不再自己拼端脑面 —— 仓里的 `single-brain-face-entrypoint` 规则会拦）。
+>
+> 现状看 [`ARCHITECTURE.md`](../../../ARCHITECTURE.md) ＋ [`AGENTS.md`](../../../AGENTS.md)；
+> 本目录每份文档的状态见 [`INDEX.md`](INDEX.md)。
+
 ---
 
 ## 1. 这条链路是什么
@@ -54,7 +63,7 @@ Tauri 下对话直连 neuron 的 `/v1/chat/completions`（`streamMessageNeuron` 
 
 ## 3. 桌面端改造
 
-### 3.1 sidecar：起完整端脑面（`src-tauri/src/cortex_http.rs`）
+### 3.1 sidecar：起完整端脑面（`src-tauri/src/telencephalon_http.rs`）
 
 替换掉只挂海马体的 `hippo_http.rs`：
 
@@ -82,16 +91,19 @@ let app = telencephalon::api::build_full_app(
 
 三个关键决策：
 
-1. **海马体只有一份。** `encephalon` 的 `hippocampus` feature 在桌面端**关掉**
-   （`Cargo.toml` 里 `default-features = false, features = ["telencephalon"]`）：海马体状态由
-   `telencephalon::boot::build_app_state` 建，路由也从**同一个** state 挂出来。两份 Lance
-   指向同一份存储会互相抢锁。
-2. **叶区指向活着的那个 neuron。** `neuron::create_router` 每次调用都会**重建**
-   `ServerState`，所以合并进端脑面的那张 neuron 路由和进程内**活的**那个不是同一份状态。
-   装配完 AppState 后用 `state.native_lobes.reconfigure(name, url)` 把三个叶区的 LLM 端点
-   显式改到 `stack.neuron_addr()`（桌面端 `127.0.0.1:8085`）。
+1. **海马体只有一份。** ~~`encephalon` 的 `hippocampus` feature 在桌面端**关掉**~~
+   ⚠️ **这条已翻**：桌面端 `Cargo.toml` 现在**显式列了** `"hippocampus"`（`default-features = false,
+   features = ["telencephalon", …, "hippocampus", …]`）⇒ ⇒ **开着** —— 因为 `/hippocampus` 那张面
+   要由端脑 boot 时建的状态挂出来。两份 Lance 指向同一份存储会互相抢锁 ⇒ ⇒ 这条纪律仍然成立。
+2. **叶区指向活着的那个 neuron。** ~~用 `state.native_lobes.reconfigure(name, url)` 把三个叶区的 LLM 端点
+   显式改到 `stack.neuron_addr()`（桌面端 `127.0.0.1:8085`）~~
+   ⚠️ **这条已翻（2026-11-03，neuron 改 router-only）**：`stack.neuron_addr()` 那个方法**被删了**
+   （还在调就编不过，E0599）⇒ ⇒ 叶区一律指**大脑那张面**（它合并了 neuron 的 OpenAI 面）。
+   `reconfigure` 那一步仍在（端点必须跟着 client 走），但**端点的值**不再是 `:8085`。
 3. **`telencephalon` 必须是 path 依赖，且和 `encephalon` 指向同一个目录** —— 两份端脑
    = 两套 `AppState` / `ConversationStore` 类型，互相传不过去。
+   ⚠️ **落点已挪**：现在这条 path 依赖在**大脑仓**里（`encephalon/Cargo.toml` → `../telencephalon`），
+   桌面端**只**依赖 `encephalon`（＋ `synapse`）⇒ ⇒ 桌面端不该再直接碰 `telencephalon`。
 
 ### 3.2 前端：去掉旁路（`telencephalonClient.ts`）
 
@@ -228,7 +240,9 @@ $env:PROTOC="$env:USERPROFILE\.cargo\registry\src\index.crates.io-1949cf8c6b5b55
 - **云端供应商还没进叶区**：叶区的 LLM 端点只有一个（`TELENCEPHALON_NEURON_URL`），
   桌面端 provider_manager 配的云端模型怎么选到叶区，是另一个问题。
 - **`/v1/chat/completions` 仍挂在端脑根上**（与独立端脑同形状），叶区默认指向它；
-  本轮显式改到了 neuron 的真实监听 `:8085`，但两个面都在，属于已知冗余。
+  ~~本轮显式改到了 neuron 的真实监听 `:8085`，但两个面都在，属于已知冗余~~
+  ⚠️ **已作废**（2026-11-03 router-only）：neuron 不再自己监听 ⇒ ⇒ **只剩一张面**，
+  叶区指的就是它（`:8085` 那个口今天不存在）。
 
 ---
 
@@ -263,8 +277,8 @@ $env:PROTOC="$env:USERPROFILE\.cargo\registry\src\index.crates.io-1949cf8c6b5b55
 trait 对象，自己读环境变量 `TELENCEPHALON_NEURON_URL`，读不到就退回硬编码的
 `http://localhost:60080` ⇒ **宿主的配置对实际调用路径完全无效**。
 
-⚠️ **桌面端有完全相同的 bug**：`shadow-desktop/src-tauri/src/cortex_http.rs:126` 用的也是
-`state.native_lobes.reconfigure(...)`，改的同样是 `runtimes`。
+⚠️ **桌面端有完全相同的 bug**：`shadow-desktop/src-tauri/src/telencephalon_http.rs` 用的也是
+`state.native_lobes.reconfigure(...)`，改的同样是 `runtimes`。（⚠️ 文件名已从 `cortex_http.rs` 改过来。）
 
 ### 9.3 修法
 
@@ -401,6 +415,10 @@ model id `mock-model`），**mock 记录每一个请求** ⇒ 「人设与多轮
 | 端脑 → 叶区 | ✅ | `POST /shadow/v1/conversations/{id}/messages` → **200**，`"reply":"MOCK-OK"` |
 | 叶区 → neuron | ✅ | neuron 面 `127.0.0.1:40315`：`/health` → healthy；错误信息从 `localhost:60080` 断链 → `NO_MODEL_CONFIGURED` → `no_engine_for_model` → **消失** |
 | neuron → 上游 | ✅ | PC 上的 mock 收到了请求，`model` = `mock-model` |
+
+> ⚠️ **这张表是 2026-10-30 的现场读数（史证，保留原样）** —— 但它记的**形状**今天变了：
+> 当时 neuron **自己监听** `127.0.0.1:40315`，叶区去打它；现在 neuron 是 **router-only**
+> （2026-11-03）⇒ ⇒ **没有那个口了** ⇒ ⇒ 叶区改打**大脑那张面**（`/v1/*` merge 在脑面根）。
 
 **人设与多轮（上游收到的原始请求）**：
 

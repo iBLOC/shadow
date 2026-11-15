@@ -1,0 +1,214 @@
+name: Mobile CI
+
+# ⚠️⚠️ **为什么它单独成文件**（2026-11-15）——
+#   这两格原来在 `ci.yml` 里（job 名 `mobile-analyze` / `mobile-test`）⇒ ⇒
+#   **每次提交**都要装 Flutter SDK ＋ **Android NDK 30** ＋ **~200MB 的
+#   Gradle 分发包** ⇒ ⇒ ⇒ 那不是「判据」，那是**编译** ⇒ ⇒ ⇒ 现在只在
+#   **打 tag**时跑（＋ 夜间定时 ＋ 手动）⇒ ⇒ 每次提交那条流水线只剩
+#   秒级/分钟级的判据（闸 + vitest + tsc）。
+#
+# ⚠️ **它不拦住发布**（有意）—— 移动端 CI 现在有**已知红**（台账记着
+#    `management_hub_screen_test` / `encephalon_page_credential_probe_test`
+#    超时）⇒ ⇒ 拿它当发布闸 ⇒ ⇒ 会把**发版整条堵死** ⇒ ⇒ ⇒ 它是
+#    「打 tag 时的读数」＋「每晚的兜底」，**不是闸**。
+#    ⇒ ⇒ 真正拦住发布的那道是 `release.yml` 的 `rust` job（Rust 栈编译）。
+#
+# ⚠️ **夜间时间与另两个重型 workflow 错峰**（desktop-e2e 19:37Z ＝ 北京
+#    03:37 ／ desktop-rust 21:23Z ＝ 北京 05:23 ⇒ ⇒ 本文件 22:23Z ＝ 北京
+#    06:23）⇒ ⇒ 三个重型 job 不会同时抢 runner。
+#
+# ⚠️ **并发组永不取消**（`cancel-in-progress: false`）—— 与 desktop-rust /
+#    desktop-e2e 同一条纪律：长任务被下一次 push 砍掉 ⇒ ⇒「跑了但没跑完」
+#    ＝「没有防线」。
+
+on:
+  # ⚠️⚠️ **打 tag 时跑**（2026-11-15 换掉了 push 到分支的触发）—— 原来它
+  #    在 `ci.yml` 里 ⇒ ⇒ 每提交一次（而 `ci.yml` 的并发组是
+  #    `cancel-in-progress: false` ⇒ ⇒ **每次 push 都排队跑一整轮**）⇒ ⇒
+  #    ⇒ 现在：打版本时跑一次 ＋ 每晚兜底 ＋ 想跑随时手动。
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+  schedule:
+    - cron: '23 22 * * *'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # ---------------------------------------------------------------------
+  # Mobile Analyze: `flutter analyze` ＋ 「后台常驻面」闸。
+  # ---------------------------------------------------------------------
+  mobile-analyze:
+    name: Mobile Analyze
+    runs-on: ubuntu-latest
+    steps:
+      # ⚠️ 判读落盘路径（**仓外**）—— 2026-11-11：分母要覆盖**所有**真跑的闸 ⇒ ⇒ 每道闸的结论都得落到同一份记录里 ⇒ ⇒ 收尾一步汇总成带分母的读数。
+      # ⚠️ 落在仓根会污染被测面（顶层对账闸会当场判红）⇒ ⇒ 用 RUNNER_TEMP。
+      # ⚠️ 落盘路径**不能**用表达式上下文（job 级 env 里不可用 ⇒ ⇒ 整个 workflow 文件会被拒绝加载 ⇒ ⇒ run 零 job 失败）。
+      - name: 准备判读落盘路径（仓外）
+        run: echo "GATE_RESULT_FILE=$RUNNER_TEMP/gate-results.ndjson" >> "$GITHUB_ENV"
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Java
+        uses: actions/setup-java@v6
+        with:
+          java-version: '17'
+          distribution: temurin
+
+      # Flutter 3.47.8 ships Dart SDK 3.13.7, which satisfies the
+      # `environment: sdk: ^3.11.1` constraint in shadow-mobile/pubspec.yaml.
+      #
+      # 升级到 3.47 是为了引入 shadcn_flutter 0.0.55（它要求
+      # Flutter >=3.47.0 / Dart >=3.13.0）。旧版 3.11 的 `flutter-version`
+      # 带的是 Dart 3.0.x，在 stable 通道上既装不上也不满足 pubspec。
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.8
+          channel: stable
+
+      - name: Cache Flutter pub
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-flutter-pub-${{ hashFiles('shadow-mobile/pubspec.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-pub-
+
+      - name: Flutter pub get
+        working-directory: shadow-mobile
+        run: flutter pub get
+
+      - name: Flutter analyze
+        working-directory: shadow-mobile
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      # v2.9 — 「后台常驻面」闸：manifest 的 FGS 权限/服务、pubspec 依赖、
+      # Dart 侧 start/stop 接线 —— 三处少一处就是「写着常驻、其实不常驻」，
+      # 且失败模式都静默 ⇒ 文本层判形状（判据见 scripts/lib/mobile-background-service.mjs）。
+      - name: Mobile background-service contract check
+        run: node scripts/run-gate-once.mjs --strict scripts/check-mobile-background-service.mjs
+
+
+      # ⚠️ 收尾：把这一盏灯「绿得有多真」写出来 —— 这一盏灯里**所有**真跑的闸
+      #    都落了判读 ⇒ ⇒ 这里汇总成**带分母的读数**（真判 N ｜ 判不了 K ｜ 红 M）
+      #    ⇒ ⇒ 「判不了」不当红（它不是「有问题」）⇒ ⇒ 但也不当绿（它不是「没问题」）。
+      - name: 判读汇总（带分母的绿灯）
+        if: always()
+        run: node scripts/lib/gate-tally.mjs --report
+      # ⚠️ 把这一盏灯的判读记录**交上去** ⇒ ⇒ 收尾的「CI 总分母」那个 job 靠 artifacts 把各 job 的记录收齐 ⇒ ⇒ 「一盏灯一个分母」才立得住。
+      # ⚠️ `if: always()` ⇒ ⇒ **这个 job 红了也要交** ⇒ ⇒ 否则「红」的那几盏恰恰是**唯一没有分母**的那几盏 ⇒ ⇒ 红灯也读不出「到底跑了哪几道」。
+      - name: 交出判读记录（供总分母汇总）
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-results-${{ github.job }}
+          path: ${{ env.GATE_RESULT_FILE }}
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------
+  # Mobile Test: `flutter test` ＋ Android 模块的 JVM 单测。
+  # ---------------------------------------------------------------------
+  mobile-test:
+    name: Mobile Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # sqflite_common_ffi reaches SQLite through dart:ffi and looks for a
+      # plain "libsqlite3.so". ubuntu-latest ships libsqlite3.so.0 but not
+      # always the -dev symlink, so install it explicitly.
+      - name: Install SQLite runtime
+        run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
+
+      - name: Setup Java
+        uses: actions/setup-java@v6
+        with:
+          java-version: '17'
+          distribution: temurin
+
+      # ⚠️ gradle 一步要配 Android SDK：不接受许可证 ⇒ Gradle 报
+      #    "LicenceNotAcceptedException: ndk;30.0.14904198"（mobile-test
+      #    第一次真跑就栽在这 —— 以前 wrapper 不入库，根本没跑到过这）。
+      #    与 release.yml 的 Mobile APK job 同一款（那里早修过）。
+      - name: Accept Android SDK licenses and install the pinned NDK
+        shell: bash
+        run: |
+          set -e
+          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/tools/bin:$PATH"
+          yes | timeout 180 sdkmanager --licenses > /dev/null 2>&1 || true
+          sdkmanager "ndk;30.0.14904198" "platform-tools" > /dev/null
+          sdkmanager --list_installed 2>/dev/null | grep -E "ndk;|platform-tools" || true
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.8
+          channel: stable
+
+      - name: Cache Flutter pub
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-flutter-pub-${{ hashFiles('shadow-mobile/pubspec.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-flutter-pub-
+
+      - name: Flutter pub get
+        working-directory: shadow-mobile
+        run: flutter pub get
+
+      # The suite was never wired into CI before, so it had rotted: 28 of
+      # 201 cases failed (stale copy assertions, missing localization
+      # delegates, two infinite-animation pumpAndSettle timeouts). Keep this
+      # job so the same drift cannot come back unnoticed.
+      - name: Flutter test
+        working-directory: shadow-mobile
+        run: flutter test
+
+      # Android 模块的 **JVM 单测**（2026-11-03 建）—— Kotlin 侧的纯逻辑
+      # 在这里跑。此前 Android 模块**一个单测都没有** ⇒ ⇒ Kotlin 的纯逻辑
+      # 只靠「编译通过」担保 ⇒ ⇒ 而「编译通过」证明不了**边界值**。
+      #
+      # ⚠️ `local.properties` 是 **gitignore** 的（本地绝对路径，不能进仓）
+      #    ⇒ ⇒ CI 上要自己生成：`flutter.sdk` 从 `FLUTTER_ROOT` 取（没有就
+      #    从 `which flutter` 反推两级），`sdk.dir` 从 `ANDROID_HOME` 取。
+      # ⚠️ 这一步会拉 `androidx.test:runner`（`integration_test` 的传递依赖，
+      #    而且是**动态版本** `1.2+`）⇒ ⇒ 必须**联网** ⇒ ⇒ 不能加 --offline。
+      - name: Android unit test
+        working-directory: shadow-mobile/android
+        run: |
+          FLUTTER_SDK="${FLUTTER_ROOT:-$(dirname "$(dirname "$(readlink -f "$(command -v flutter)")")")}"
+          printf 'sdk.dir=%s\nflutter.sdk=%s\n' "$ANDROID_HOME" "$FLUTTER_SDK" > local.properties
+          # ⚠️⚠️ **先下载 Gradle 分发包，再跑测试** —— 两件事**拆开**
+          #    ⇒ ⇒ 「下载失败」与「测试失败」**不会长得一样** ⇒ ⇒ 红的时候
+          #    一眼能看出是哪一层（这一族的老毛病：失败长得像失败）。
+          #
+          # ⚠️ 实测 2026-11-09：GitHub 的 release CDN 偶发 **HTTP 504**
+          #    （gradle-8.14-all.zip 那个 ~200MB 的包）⇒ ⇒ 一失败就整条
+          #    job 红 ⇒ ⇒ 而红的其实是**网络**，不是测试 ⇒ ⇒ ⇒ 重试 3 次，
+          #    仍失败就**明确说网络**（不是「测试失败」）⇒ ⇒ 让人一眼知道
+          #    该重跑 job，而不是去查代码。
+          #
+          # ⚠️ 用 `./gradlew --version` 触发下载（wrapper 会先把分发包装好）
+          #    ⇒ ⇒ 下载这步**单独**判 ⇒ ⇒ 真测试失败时不会被重试掩盖。
+          for attempt in 1 2 3; do
+            if ./gradlew --version > /tmp/gradle-dist.log 2>&1; then
+              echo "Gradle 分发包就绪（第 ${attempt} 次尝试）"
+              break
+            fi
+            cat /tmp/gradle-dist.log
+            if [ "${attempt}" -lt 3 ]; then
+              echo "::warning::Gradle 分发包下载失败（第 ${attempt}/3 次）—— 15 秒后重试"
+              sleep 15
+            else
+              echo "::error::Gradle 分发包连续 3 次下载失败 ⇒ ⇒ 这是**网络**问题（GitHub release CDN 偶发 504），**不是测试失败** ⇒ ⇒ 直接重跑本 job 即可，不必查代码。"
+              exit 1
+            fi
+          done
+          ./gradlew :app:testDebugUnitTest

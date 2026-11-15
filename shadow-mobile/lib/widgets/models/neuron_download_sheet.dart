@@ -2,9 +2,12 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:logging/logging.dart';
 
 import '../../generated/l10n/app_localizations.dart';
+import '../../providers/model_metadata_provider.dart';
 import '../../providers/telencephalon_provider.dart';
+import '../../services/models/known_models.dart';
 import '../../services/telencephalon/telencephalon_client.dart';
 import '../../theme/app_colors.dart';
 
@@ -16,6 +19,13 @@ import '../../theme/app_colors.dart';
 /// ⚠️ 下载是**异步任务**（POST /v1/models/pull ⇒ 202 ＋ job_id）⇒ ⇒ 弹窗用
 /// ≈2 秒一次的轮询刷新进度；任务全部结束后刷新目录（available 翻绿）。
 /// 关掉弹窗任务照跑（服务端在跑）；再进来会接上还在跑的任务。
+///
+/// ## 「添加自持模型 ＝ 挑一个下载」（2026-11-12）
+///
+/// ⚠️ **参数不许用户手填** —— 下载成功的条目，客户端拿
+/// [catalogDownloadMetadata]（注册表命中 ⇒ 出厂默认全套；未命中 ⇒
+/// 目录自带的能力词兜底）**自动落** `model_metadata` 表 ⇒ ⇒ 用户
+/// 「选一个 → 下载」就完事，没有参数表单这一步。
 class NeuronDownloadSheet extends ConsumerStatefulWidget {
   const NeuronDownloadSheet({super.key});
 
@@ -38,6 +48,8 @@ class NeuronDownloadSheet extends ConsumerStatefulWidget {
 }
 
 class _NeuronDownloadSheetState extends ConsumerState<NeuronDownloadSheet> {
+  static final _log = Logger('NeuronDownloadSheet');
+
   /// neuron 目录（null = 还在拉）。
   List<NeuronCatalogEntry>? _catalog;
 
@@ -123,12 +135,50 @@ class _NeuronDownloadSheetState extends ConsumerState<NeuronDownloadSheet> {
           ..addEntries(jobs.map((j) => MapEntry(j.jobId, j)));
       });
       if (finishedNow.isNotEmpty) {
+        // ⚠️ **下载成功 ⇒ 默认参数自动落**（catalog_download 那一刀）——
+        // 只挑「这一拍刚跑完且成功」的任务，失败/取消不落（盘上没有的
+        // 模型不该有元数据徽章）。
+        final succeeded = jobs
+            .where((j) => finishedNow.contains(j.jobId) && j.isDone)
+            .toList();
+        for (final j in succeeded) {
+          final entry = _entryForJob(j);
+          if (entry != null) await _saveDefaultsFor(entry);
+        }
         await _loadCatalog();
       } else {
         _syncPolling();
       }
     } catch (_) {
       // 轮询失败不弹全局错误 —— 下一拍再试（弹窗里已有任务快照可看）。
+    }
+  }
+
+  /// 任务 → 目录条目（engine ＋ reference 各自对上就算同一条；目录此刻
+  /// 还在手里，赶在刷新前查）。
+  NeuronCatalogEntry? _entryForJob(NeuronPullJob job) {
+    for (final e in _catalog ?? const <NeuronCatalogEntry>[]) {
+      if (e.engine == job.engine && (e.defaultRepo ?? '') == job.reference) {
+        return e;
+      }
+    }
+    return null;
+  }
+
+  /// 默认参数落盘 —— **best-effort**：失败只记日志（徽章缺一块 ≠ 下载
+  /// 失败，弹窗不该被它打断）。
+  Future<void> _saveDefaultsFor(NeuronCatalogEntry entry) async {
+    try {
+      await ref
+          .read(modelMetadataProvider.notifier)
+          .save(
+            catalogDownloadMetadata(
+              modelId: entry.modelId,
+              catalogCapabilities: entry.capabilities,
+            ),
+          );
+    } catch (e) {
+      _log.warning('目录模型默认参数落盘失败 (${entry.id}): $e');
     }
   }
 

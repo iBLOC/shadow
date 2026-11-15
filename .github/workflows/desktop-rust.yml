@@ -3,46 +3,38 @@ name: Desktop Rust
 # ⚠️⚠️ **这个 workflow 单独成文件，是因为它编整栈** —— 桌面 crate（`shadow-desktop/src-tauri`）
 #   的依赖面是 **tauri + wasmtime + lance + datafusion + 整条 iBLOC 栈**（encephalon →
 #   telencephalon → neuron → synapse → hippocampus）⇒ ⇒ 冷编是**几十分钟**量级
-#   ⇒ ⇒ 而 CI 主 workflow 的 concurrency 是 `cancel-in-progress: true` ⇒ ⇒ 放进 push
-#   流水线 ⇒ ⇒ **每次 push 都会把它砍掉** ⇒ ⇒ 「跑了但没跑完」＝「没有防线」
-#   ⇒ ⇒ 修法与 desktop-e2e.yml 同一条纪律：**长任务不进 push 流水线** ⇒ 它有自己的
+#   ⇒ ⇒ ⇒ **它不进每次提交的流水线**（2026-11-15 裁定：编译型防线只在打版本时跑）
+#   ⇒ ⇒ ⇒ 触发只剩三档：**打 tag（v\*）/ 夜间定时 / 手动** ⇒ ⇒ 它有自己的
 #   workflow、自己的并发组（`cancel-in-progress: false`）⇒ ⇒ 没人能取消它。
 #
-# ⚠️ **为什么触发只有手动与夜间定时**（与 desktop-e2e.yml 同理由）：一次 ~几十分钟 ⇒ ⇒
-#   在「每 2–4 分钟一次 push」的协作节奏下，push 触发 ⇒ ⇒ 排队的那一个永远被下一次
-#   push 顶掉 ⇒ ⇒ 手动触发也会被推挤掉 ⇒ ⇒ 只留 workflow_dispatch 与 schedule。
-#   ⚡️ 本 workflow 的**第一次真跑**会给出**冷编时长读数** ⇒ ⇒ 那个读数决定「它能不能进
-#   push 流水线」（见仓内 ㏀ 条⑥❶ 的登记：桌面 Rust crate 无 CI 防线）。
+# ⚠️ **它的红是「读数」不是「闸」** —— 桌面 crate 的 `cargo test --lib` ＋
+#   `clippy -D warnings` 在打 tag 时与 `release.yml` 的打包**并行**跑 ⇒ ⇒
+#   不阻塞发布 ⇒ ⇒ 真正拦住发布的是 `release.yml` 的 `rust` job（Rust 栈编译）。
+#   ⚡️ 也就是说：**桌面 crate 的 Rust 防线要在打 tag 之后看**，不在每次提交时看。
 
 on:
-  # ⚠️⚠️ 2026-11-08 **加了 push 触发** —— 以前「只留手动与夜间定时」的理由是
-  # 「一次 ~几十分钟 ⇒ ⇒ 在每 2–4 分钟一次 push 的节奏下，push 触发 ⇒ ⇒ 排队的那一个
-  # 永远被下一次 push 顶掉 ⇒ ⇒ 手动触发也会被推挤掉」⇒ ⇒ 而那条理由**只在「push 触发
-  # 排队并互相等」时成立** ⇒ ⇒ 现在两处前提都改了：
-  #   ① **冷编从 13 分 53 秒压到分钟级**（rust-cache 现在把桌面 crate 自己的 target
-  #      也纳入 ⇒ ⇒ 详见下面 Setup Rust 那一步的注释 ⇒ ⇒ 这一跑不再是「几十分钟」）；
-  #   ② **push 触发的那几跑互相顶掉**（并发组按事件名分开 ＋ push 那一档
-  #      cancel-in-progress: true）⇒ ⇒ 不排队 ⇒ ⇒ 队列那条反对理由不成立。
-  # ⇒ ⇒ **只推桌面 crate 相关的改动才触发**（paths 过滤）⇒ ⇒ 前端/文档改动不触发。
+  # ⚠️⚠️ 2026-11-15 **push 触发换成了 tag 触发** —— 原来是（2026-11-08 加的）
+  # 「push 到 master 且只推 `shadow-desktop/src-tauri/**`」⇒ ⇒ 那意味着
+  # 「**每次碰桌面 crate 就整栈冷编一次**」（实测冷编 13 分 53 秒）⇒ ⇒ ⇒
+  # 现在：**打版本时跑一次** ⇒ ⇒ 每次提交不再付这份钱。
+  #   ⚠️ 另注：`ci.yml` 那一档（Rust 栈编译 + 前端真打包）也在同一天搬去了
+  #   `release.yml` ⇒ ⇒ 「每次提交 = 只跑判据，不跑编译」现在是**一致的纪律**。
   push:
-    branches: [master]
-    paths:
-      - 'shadow-desktop/src-tauri/**'
-      - '.github/workflows/desktop-rust.yml'
-      - '.github/actions/ibloc-siblings/**'
+    tags:
+      - 'v*'
   workflow_dispatch:
   schedule:
-    # UTC 21:23 ＝ 北京 05:23 ⇒ ⇒ 与 desktop-e2e 的 19:37 UTC **错峰** ⇒ ⇒ 两个重型
-    # job 不会同时抢 runner。
+    # UTC 21:23 ＝ 北京 05:23 ⇒ ⇒ 与 desktop-e2e 的 19:37 UTC、mobile-ci 的
+    # 22:23 UTC **错峰** ⇒ ⇒ 三个重型 job 不会同时抢 runner。
     - cron: '23 21 * * *'
 
 concurrency:
-  # ⚠️ **两组**：push 触发的那一档**互相顶掉**（只留最新一次 ⇒ ⇒ 不排队 ⇒ ⇒ 队列不会
-  #   越积越长）；夜间/手动那一档**永不取消**（false 是这个 workflow 存在的全部理由
-  #   ⇒ ⇒ 改回 true ⇒ ⇒ 「它从来没跑完过」回来）。
-  group: ${{ github.event_name == 'push' && 'desktop-rust-push' || 'desktop-rust' }}
+  # ⚠️ **合成一档，一律不取消**（2026-11-15）—— 触发只剩「打 tag / 夜间 / 手动」
+  #   ⇒ ⇒ 原来「push 那一档互相顶掉」已无对象 ⇒ ⇒ 而这一跑是**几十分钟**的长任务
+  #   ⇒ ⇒ 被砍掉＝「跑了但没跑完」＝**没有防线** ⇒ ⇒ 一律 false。
+  group: ${{ github.workflow }}-${{ github.ref }}
   # ⚠️ **false 是这个 workflow 存在的全部理由** ⇒ ⇒ 改回 true ⇒ ⇒ 「它从来没跑完过」回来。
-  cancel-in-progress: ${{ github.event_name == 'push' }}
+  cancel-in-progress: false
 
 env:
   CARGO_TERM_COLOR: always
@@ -59,8 +51,10 @@ jobs:
       CARGO_PROFILE_TEST_DEBUG: '0'
       CARGO_INCREMENTAL: '0'
       # ⚠️⚠️ **尺子必须与另两个 workflow 同一把**（1.99.0）—— desktop-e2e.yml 与
-      #   ci.yml 的 prefrontal-rust job 都钉死它 ⇒ ⇒ 三个 job 编同一套 path 依赖 ⇒ ⇒
+      #   release.yml 的 rust job 都钉死它 ⇒ ⇒ 三个 job 编同一套 path 依赖 ⇒ ⇒
       #   用不同版本编会出现「这里编过、那里编不过」的尺子漂移。
+      #   ⚠️（2026-11-15：`ci.yml` 的 `prefrontal-rust` job 搬到了 `release.yml`
+      #   ⇒ ⇒ 那把尺子现在住在 release.yml 的 `rust` job 里。）
       # ⚠️⚠️ **变量名必须是 `RUSTUP_TOOLCHAIN`**（带 `UP`）—— 写成 `RUST_TOOLCHAIN` ⇒ ⇒
       #   rustup **完全无视它** ⇒ ⇒ 装了 1.99.0、却用 stable 跑 ⇒ ⇒ 假钉（真机实测过）。
       RUSTUP_TOOLCHAIN: '1.99.0'

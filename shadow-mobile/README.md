@@ -25,7 +25,7 @@ flutter analyze --no-fatal-infos --no-fatal-warnings
 flutter test
 ```
 
-环境要求：Flutter ≥ 3.47.0（Dart ≥ 3.13.0）、JDK 17、Android SDK（compileSdk 36 / minSdk 31）、NDK 30.0.14904198、CMake 3.22.1。
+环境要求：Flutter ≥ 3.47.0（Dart ≥ 3.13.0）、JDK 17、Android SDK（compileSdk 36 / **minSdk 24**）、NDK 30.0.14904198、CMake 3.22.1。
 
 ## 目录
 
@@ -39,20 +39,20 @@ shadow-mobile/
 │   ├── services/
 │   │   ├── encephalon/        嵌入式大脑（Dart 侧 MethodChannel 客户端 + provider）
 │   │   ├── telencephalon/     端脑方言客户端 —— 唯一的对话入口
-│   │   ├── prefrontal/        旧「前额叶方言」客户端（见「已知边界」）
+│   │   ├── prefrontal_client.dart  旧「前额叶方言」客户端（单个文件，见「已知边界」）
 │   │   ├── database/           sqflite 仓储
+│   │   ├── models/             数据模型
 │   │   └── genui/              Agent2UI 渲染
 │   ├── agents/                agent provider（工具注册表、人设）
 │   ├── theme/                 app_tokens.g.dart / shad_scheme.g.dart（生成物）
 │   ├── navigation/nav.g.dart  ← 生成物
 │   ├── l10n/                  en / zh ARB
-│   └── models/ providers/ai/  数据模型与本地 LLM provider 封装
+│   └── providers/ai/          本地 LLM provider 封装
 ├── android/app/src/main/
 │   ├── kotlin/com/ibloc/shadow/
 │   │   ├── MainActivity.kt
 │   │   ├── EncephalonRuntime.kt   嵌入式大脑的 JNI 桥
-│   │   ├── PrefrontalRuntime.kt   旧嵌入式前额叶（遗留）
-│   │   └── mnn/ litert/ tts/ …    本地推理引擎与设备能力
+│   │   └── audio/ device/ pcm/ provision/ tts/ …   设备能力
 │   └── jniLibs/<abi>/         libencephalon.so 等（不入库，需自行构建）
 └── test/                      单元 + widget 测试
 ```
@@ -100,8 +100,8 @@ libencephalon.so（Rust）
 
 ## 已知边界
 
-- **`PrefrontalClient` 说的是旧方言** —— 路径是 `/api/sessions`、`/api/agents`、`/api/skills`、`/api/soul/*`、`/api/mcp/servers`、`/hippocampus/api/*`，与端脑方言**没有交集**。灵魂 / 任务 / 记忆 / 提供商 / 技能 / MCP / agent 列表这些页面仍走它，而嵌入式大脑**不提供**这些概念（记忆按设计走零信任网络上的海马体，不在移动端本地）。把 client 指向嵌入式大脑只会把「连接被拒」换成「404」，更难排查。
-- **本地推理引擎（MNN / LiteRT）还在**，但**不在对话链路上** —— 对话路径只有端脑一条。
+- **`PrefrontalClient` 说的是旧方言** —— 路径是 `/api/sessions`、`/api/agents`、`/api/skills`、`/api/soul/*`、`/api/mcp/servers`、`/api/providers`、`/hippocampus/api/*`，与端脑方言**没有交集**。**仍走它**的只有四页：**灵魂 / 记忆 / 群组 / 身份**（`soul_screen` / `memory_screen` / `group_screen` / `identity_provider`）⇒ ⇒ 任务、提供商、MCP、agent 列表**已经迁到端脑方言**，技能页走**本地 sqflite**（不走它）。把 client 指向嵌入式大脑只会把「连接被拒」换成「404」，更难排查。
+- **本地推理引擎（MNN）还在，但**没接上**任何调用通道** —— `com.ibloc.shadow/mnn` 这个 MethodChannel **没有注册 handler** ⇒ ⇒ 随包的 `libMNN*.so` 是死重量；**LiteRT 已经出仓**（`litert/LitertEngine.kt` 与 `litertlm-android` 依赖都已删）。对话路径只有端脑一条。
 - **`libencephalon.so` 不入库** —— 它是兄弟仓 `encephalon` 的交叉编译产物（Android 侧是 cdylib，Kotlin 侧 `System.loadLibrary("encephalon")`）。构建后拷进 `android/app/src/main/jniLibs/<abi>/libencephalon.so`。缺失时 App **不会崩**：加载失败被 catch，运行时优雅降级。
 - **ABI**：只出 `arm64-v8a`。
   ⚠️ **2026-11-11 订正**：此前这里写的是「`arm64-v8a` 与 `x86_64`」—— **那是错的**
@@ -125,7 +125,7 @@ libencephalon.so（Rust）
 ## 约定
 
 - **不要并发跑两个 flutter 命令**。
-- Dart 源码行尾是 **CRLF**（生成器也是这么产的）。
+- Dart 源码行尾是 **CRLF**（⚠️ 但**生成器写的是 LF** —— `scripts/lib/eol.mjs` 里 `GENERATED_EOL = '\n'`，「生成物一律写 LF」；新写的 `.dart` 记得转成 CRLF）。
 - 设计 token 与导航是**生成物**：改 `../design-tokens.json` 或 `../agent-surface.json` 后跑 `node ../scripts/gen_tokens.mjs` / `node ../scripts/gen_nav.mjs` —— CI 会查漂移。
 - shadcn 组件页面必须有 `ShadTheme` 祖先（生产 `main.dart` 已挂；测试用 `withShadTheme(...)` 装配同一套 `ShadScheme`）。
 - 移动端**不许**引入本地直连推理的对话编排器 —— `node ../scripts/check-brain-chain.mjs` 会拦。

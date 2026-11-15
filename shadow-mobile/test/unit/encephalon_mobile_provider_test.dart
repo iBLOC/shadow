@@ -715,6 +715,146 @@ void main() {
         reason: '换路由不需要重启大脑',
       );
     });
+
+    // ── 逐叶区分档覆盖（`lobe_defaults` 那张面）───────────────────────
+    //
+    // ⚠️ 端脑那张表是**内存态**（随 App 起停）＋**整份替换**语义 ⇒ ⇒
+    // 这一组钉的是四件事：重启不丢、不抹对方、不盲发、清空真清。
+
+    /// 预置一份已落盘的路由（模拟「用户上次在手机上配过」）。
+    _FakeAppSettings settingsWith({
+      Map<String, Map<String, String>> lobeCaps = const {},
+      Map<String, String> caps = const {},
+    }) {
+      final s = _FakeAppSettings();
+      s.values[BrainModelSource.routingSettingKey] = BrainModelRouting(
+        lobeCapabilityOverrides: lobeCaps,
+        capabilityDefaults: caps,
+      ).encode();
+      return s;
+    }
+
+    test('⚠️ 冷启动重放必须把 lobe_defaults 带上（否则 App 一重启，配过的叶区语音全丢）',
+        () async {
+      mockChannel(running: false);
+      final client = _FakeTelencephalonClient();
+      final container = makeContainer(
+        catalog: [_miniMax],
+        telencephalonClient: client,
+        settings: settingsWith(lobeCaps: const {
+          'temporal': {'asr': 'whisper-model'},
+        }),
+      );
+      container.read(encephalonMobileProvider.notifier);
+
+      await _waitUntil(
+        () => container.read(encephalonMobileProvider).status ==
+            EncephalonMobileStatus.running,
+      );
+
+      expect(
+        client.appliedCapabilityDefaults,
+        isNotEmpty,
+        reason: '启动链要往分档默认面重放一次',
+      );
+      final last = client.appliedCapabilityDefaults.last;
+      expect(
+        (last['lobe_defaults'] as Map)['temporal'],
+        {'asr': 'whisper-model'},
+      );
+    });
+
+    test('⚠️ 重放是「本地 ∪ 端脑」—— 桌面矩阵卡设的格子不许被本机一次重放抹掉',
+        () async {
+      mockChannel(running: false);
+      final client = _FakeTelencephalonClient()
+        ..serverLobeDefaults = const {
+          // 别的客户端（桌面矩阵卡）写的，本机这份里没有。
+          'prefrontal': {'tts': 'voxcpm2'},
+        };
+      final container = makeContainer(
+        catalog: [_miniMax],
+        telencephalonClient: client,
+        settings: settingsWith(lobeCaps: const {
+          'temporal': {'asr': 'whisper-model'},
+        }),
+      );
+      container.read(encephalonMobileProvider.notifier);
+
+      await _waitUntil(
+        () => container.read(encephalonMobileProvider).status ==
+            EncephalonMobileStatus.running,
+      );
+
+      final caps =
+          client.appliedCapabilityDefaults.last['lobe_defaults'] as Map;
+      expect(caps['temporal'], {'asr': 'whisper-model'});
+      expect(
+        caps['prefrontal'],
+        {'tts': 'voxcpm2'},
+        reason: 'PUT 是整份替换 ⇒ 发之前不把对方的格子并进来就是删别人配置',
+      );
+    });
+
+    test('⚠️ 基线读不到 ⇒ 那一面本次不发（三态服务端下，盲发＝可能整张清空）',
+        () async {
+      mockChannel(running: false);
+      final client = _FakeTelencephalonClient()
+        ..failCapabilityDefaults = true;
+      final container = makeContainer(
+        catalog: [_miniMax],
+        telencephalonClient: client,
+        settings: settingsWith(lobeCaps: const {
+          'temporal': {'asr': 'whisper-model'},
+        }),
+      );
+      container.read(encephalonMobileProvider.notifier);
+
+      await _waitUntil(
+        () => container.read(encephalonMobileProvider).status ==
+            EncephalonMobileStatus.running,
+      );
+
+      expect(
+        client.appliedCapabilityDefaults,
+        isEmpty,
+        reason: '没有可信基线就发全量 ＋ 「出现且空表＝清空」⇒ 会删掉对方写的格子',
+      );
+    });
+
+    test('⚠️ 删掉某叶区最后一格 ⇒ 发出去的是「空表」，不是省略这个字段', () async {
+      mockChannel(running: false);
+      final client = _FakeTelencephalonClient();
+      final container = makeContainer(
+        catalog: [_miniMax],
+        telencephalonClient: client,
+        settings: settingsWith(lobeCaps: const {
+          'temporal': {'asr': 'whisper-model'},
+        }),
+      );
+      final notifier = container.read(encephalonMobileProvider.notifier);
+
+      await _waitUntil(
+        () => container.read(encephalonMobileProvider).status ==
+            EncephalonMobileStatus.running,
+      );
+
+      final ok = await notifier.applyLobeCapability('temporal', 'asr', null);
+      expect(ok, isTrue);
+
+      final last = client.appliedCapabilityDefaults.last;
+      // ⚠️ 三态：**省略＝不动**、**空表＝清空**。想清空就必须把字段带出去。
+      expect(
+        last.containsKey('lobe_defaults'),
+        isTrue,
+        reason: '省略这个字段＝告诉端脑「别动那张表」⇒ 用户的删除被静默吞掉',
+      );
+      expect(
+        last['lobe_defaults'],
+        isEmpty,
+        reason: '删掉最后一格 ⇒ 整个叶区退出表 ⇒ 这份就是空表',
+      );
+    });
   });
 }
 
@@ -770,6 +910,16 @@ class _FakeTelencephalonClient extends TelencephalonClient {
   /// 每次 `setCapabilityDefaults` 收到的（全局默认 ＋ 逐叶区表）。
   final List<Map<String, dynamic>> appliedCapabilityDefaults = [];
 
+  /// 端脑**当前**的两张表 —— 写路径要先读它当合并基线。
+  Map<String, String> serverDefaults = const {};
+  Map<String, Map<String, String>> serverLobeDefaults = const {};
+
+  /// true ⇒ 基线读不通（大脑面挂了 / 钥匙不对）。
+  bool failCapabilityDefaults = false;
+
+  /// `getCapabilityDefaults` 被调了几次（钉「不盲发」：发之前必须读）。
+  int capabilityDefaultsReads = 0;
+
   _FakeTelencephalonClient() : super(baseUrl: 'http://127.0.0.1:1');
 
   @override
@@ -792,6 +942,24 @@ class _FakeTelencephalonClient extends TelencephalonClient {
       'providers': providers,
     });
     return {'applied': lobeModels};
+  }
+
+  @override
+  Future<Map<String, dynamic>> getCapabilityDefaults() async {
+    capabilityDefaultsReads++;
+    if (failCapabilityDefaults) {
+      throw Exception('capability-defaults unreachable');
+    }
+    return {
+      'capabilities': const ['llm', 'asr', 'tts', 'image_gen'],
+      'engine_resolved': const ['asr', 'tts', 'image_gen'],
+      'defaults': Map<String, String>.from(serverDefaults),
+      'lobe_defaults': {
+        for (final e in serverLobeDefaults.entries)
+          e.key: Map<String, String>.from(e.value),
+      },
+      'registered': const <String, List<String>>{},
+    };
   }
 
   @override

@@ -185,7 +185,12 @@ class _TaskDetailDialogState extends ConsumerState<TaskDetailDialog>
               _StatusChip(status: task.status),
               if (task.priority.isNotEmpty)
                 Chip(
-                  label: Text(task.priority),
+                  label: Text(
+                    localizedPriority(
+                      AppLocalizations.of(context)!,
+                      task.priority,
+                    ),
+                  ),
                   visualDensity: VisualDensity.compact,
                 ),
               Chip(
@@ -222,8 +227,14 @@ class _TaskDetailDialogState extends ConsumerState<TaskDetailDialog>
             ),
             const SizedBox(height: 16),
           ],
-          _InfoRow(label: l10n.taskStatus, value: task.status),
-          _InfoRow(label: l10n.taskPriority, value: task.priority),
+          _InfoRow(
+            label: l10n.taskStatus,
+            value: localizedColumnTitle(l10n, task.status),
+          ),
+          _InfoRow(
+            label: l10n.taskPriority,
+            value: localizedPriority(l10n, task.priority),
+          ),
           _InfoRow(
             label: l10n.taskCreatedAt,
             value: _fmtDate(task.createdAt),
@@ -426,7 +437,8 @@ class _StatusChip extends StatelessWidget {
     };
     final color = colors[status] ?? Colors.grey;
     return Chip(
-      label: Text(status),
+      // 列 id 是机器形状（'in-progress'）—— 上屏要走本地化，与看板列头同一把尺。
+      label: Text(localizedColumnTitle(AppLocalizations.of(context)!, status)),
       backgroundColor: color.withOpacity(0.15),
       labelStyle: TextStyle(color: color, fontWeight: FontWeight.bold),
       visualDensity: VisualDensity.compact,

@@ -1,12 +1,13 @@
 // 「提交面回退闸」的判据自检 —— 在**临时 git 仓**里造真形状，跑同一段扫描代码。
 
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { scanReverts } from './commit-revert-scan.mjs';
 import { declaresRevert, shouldFail } from './commit-revert.mjs';
+import { entryRevertNarrowing } from './ledger-entries.mjs';
 
 function mkGit(cwd) {
   const run = (args) => {
@@ -359,6 +360,52 @@ function runSelfTestIn(TMP, MINI) {
   const declaredEnt = Object.assign({}, entHit || {}, { message: 'Revert "A rewrites two ledger entries"' });
   add('条目退回旧版但有声明 ⇒ 放行', !!entHit && shouldFail(declaredEnt) === false,
     '判红=' + shouldFail(declaredEnt));
+
+  // ㉓ **收窄条件必须是「面无关」的**（2026-11-11 实测落成判据）
+  //    ⚠️ **它回答的是兄弟会话提的那个问题**：同一族的收窄条件，
+  //      · **提交面**拿得到「A 的增量」（事件里有 A ＝ B 的父链上最近改过该文件的提交）；
+  //      · **暂存面**拿不到（那里**没有「A」这个对象**）⇒ ⇒ 若条件写成
+  //        「A 真的引入过新行」⇒ ⇒ **暂存面就落进「判不了」那一格**。
+  //    ⚠️ **解法（这一格就是证明它）**：把条件改写成**面无关**的形状 ——
+  //      「**退回前的那一版** vs **被退回到的那一版**」
+  //      ⇒ ⇒ 提交面传「A 的版本 vs A^ 的版本」，暂存面传「HEAD 的版本 vs 历史上那一版」
+  //      ⇒ ⇒ **两面都判得了** ⇒ ⇒ **不落「判不了」**。
+  //    ⚠️ 本格刻意让**两个面的 from 不是同一份正文**（暂存面的 HEAD 版本比 A 的版本更新）
+  //      ⇒ ⇒ 它证明的是「**结论与 from 的具体版本无关**」，不是「同一份数据调两次」。
+  const OLD_BODY = '**Updated**: 2026-01-01 (' + G1 + ' **条目一** —— 本条占 U+32FF。)\n① 正文一。';
+  const COMMIT_FACE_FROM = OLD_BODY + '\n① A 引入的新行。';
+  const STAGED_FACE_FROM = COMMIT_FACE_FROM + '\n① 后来又演进的一段。';
+  const commitFace = entryRevertNarrowing(COMMIT_FACE_FROM, OLD_BODY);
+  const stagedFace = entryRevertNarrowing(STAGED_FACE_FROM, OLD_BODY);
+  add('收窄条件**面无关** ⇒ 提交面与暂存面给**同一个结论**（⇒ ⇒ 不落「判不了」那一格）',
+    commitFace === true && stagedFace === true,
+    '提交面=' + commitFace + ' ｜ 暂存面=' + stagedFace);
+
+  // ㉔ **合法去重在**两面**都不判红**（真历史 0ab9bec 那一族）
+  //    ⇒ ⇒ 「退回前的那一版」与「旧版」的**行集合**相同（只是份数不同）⇒ ⇒ 收窄条件不成立
+  //    ⇒ ⇒ 提交面（from ＝ A 的版本）不红、暂存面（from ＝ HEAD 的版本）也不红
+  const DEDUP_FROM = '**Updated**: 2026-01-01 (' + G1 + ' **条目一** —— 本条占 U+32FF。)\n① 正文一。\n① 正文一。';
+  //    ⚠️ **两面在「合法去重」这一族里，from 恰好是同一份内容** —— 因为那一族的形状就是
+  //    「HEAD 此刻仍带着那份重复」⇒ ⇒ 提交面的 from ＝ A 的版本、暂存面的 from ＝ HEAD 的版本
+  //    ⇒ ⇒ 在这一族里两者**内容相同**（不同���是**版本号**不同）⇒ ⇒ 结论必然一致。
+  const dedupCommit = entryRevertNarrowing(DEDUP_FROM, OLD_BODY);
+  const dedupStaged = entryRevertNarrowing(DEDUP_FROM, OLD_BODY);
+  // ⚠️ **边界对照**：若 HEAD 在那一族之后**又演进过**（真的多出新内容）⇒ ⇒
+  //    那么暂存面把它退回去**真的会丢掉那些新内容** ⇒ ⇒ 收窄条件成立 ⇒ ⇒ 判红
+  //    ⇒ ⇒ 收窄条件量的不是「这是不是去重」，是「**退回前的那一版有没有多出来的东西**」。
+  const evolvedStaged = entryRevertNarrowing(DEDUP_FROM + '\n① 后来又演进的一段。', OLD_BODY);
+  add('负控（**合法去重**）⇒ 两面都**不**判红（收窄条件不成立）｜ 而 HEAD 若**又演进过**⇒ ⇒ 退回就真的丢内容 ⇒ ⇒ 判红',
+    dedupCommit === false && dedupStaged === false && evolvedStaged === true,
+    '提交面=' + dedupCommit + ' ｜ 暂存面=' + dedupStaged + ' ｜ 演进后=' + evolvedStaged);
+
+  // ㉕ **判据只有一处实现** —— 两把尺子判的是**同一族** ⇒ ⇒ 收窄条件必须**只有一份**
+  //    ⇒ ⇒ 提交面**不许**自带本地副本（自带一份 ⇒ ⇒ 迟早漂 ⇒ ⇒ 同一族两个结论）
+  const commitRevertSrc = readFileSync(new URL('./commit-revert.mjs', import.meta.url), 'utf8');
+  const localDef = /function\s+entry(IntroducedLines|RevertNarrowing)\b/.test(commitRevertSrc);
+  const fromShared = /import\s*\{[^}]*entryRevertNarrowing[^}]*\}\s*from\s*'\.\/ledger-entries\.mjs'/.test(commitRevertSrc);
+  add('判据**只有一处实现** ⇒ 提交面不许自带收窄条件的本地副本（必须从共享文件取）',
+    localDef === false && fromShared === true,
+    '本地定义=' + localDef + ' ｜ 从共享文件 import=' + fromShared);
 
   const passed = cases.filter((c) => c.ok).length;
   return { passed, total: cases.length, cases };

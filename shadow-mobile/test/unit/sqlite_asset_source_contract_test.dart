@@ -67,13 +67,28 @@ void main() {
     });
 
     test('❹ CI 仍装 libsqlite3-dev（Linux 分支的真正提供者）', () {
-      final ci = File('../.github/workflows/ci.yml');
-      expect(ci.existsSync(), isTrue, reason: '读不到 .github/workflows/ci.yml');
+      // ⚠️ **扫全部 workflow 文件**，不是只读 ci.yml（2026-11-15 订正）：
+      // CI 的 Rust/Linux 活被拆进了各自的 workflow（desktop-e2e.yml /
+      // mobile-ci.yml）⇒ ⇒ 只看 ci.yml 会在拆分那一刻**假红**，而依赖其实
+      // 还在（那两份里都有 `apt-get install -y libsqlite3-dev`）。
+      //
+      // ⇒ 契约问的是「**CI 里**还装不装」，那就问整个 workflow 集合。
+      final dir = Directory('../.github/workflows');
+      expect(dir.existsSync(), isTrue, reason: '读不到 .github/workflows');
+      final files = dir
+          .listSync()
+          .whereType<File>()
+          .where((f) => f.path.endsWith('.yml') || f.path.endsWith('.yaml'))
+          .toList();
+      expect(files, isNotEmpty, reason: '一个 workflow 都没有');
+      final withSqlite = files.where((f) =>
+          f.readAsStringSync().contains('libsqlite3-dev'));
       expect(
-        ci.readAsStringSync(),
-        contains('libsqlite3-dev'),
+        withSqlite,
+        isNotEmpty,
         reason: 'Linux 走 system ⇒ ⇒ CI 必须装系统那份 libsqlite3（-dev 才有那个软链）'
-            '⇒ ⇒ 少了它，Mobile Test 的 native asset 阶段会红',
+            '⇒ ⇒ 少了它，Mobile Test 的 native asset 阶段会红'
+            '（扫了 ${files.length} 个 workflow 文件，一个都没装）',
       );
     });
   });

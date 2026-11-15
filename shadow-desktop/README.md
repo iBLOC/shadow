@@ -31,9 +31,9 @@ pnpm dev           # 只跑前端开发服务器
 pnpm dev:web       # 纯 Web / PWA 构建的开发服务器
 ```
 
-> `pnpm tauri dev` 需要**同级目录**有兄弟仓：`../encephalon`、`../telencephalon`、`../hippocampus`、`../synapse`、`../diencephalon`。它们是**本地 path 依赖**（不是 crates.io / git），少一个就编不过。
+> `pnpm tauri dev` 需要**与本仓同级**的兄弟仓目录。桌面 crate 现在**只直接 path 依赖两个**：`../encephalon` 与 `../synapse`；端脑 / 海马体 / 叶区 / neuron 由 `encephalon` **传递**引入（`../telencephalon` 那条 path 依赖在**大脑仓**的 `Cargo.toml` 里）⇒ ⇒ 但 `telencephalon` 自己又 path 依赖 `../neuron` 与 `../prefrontal` ⇒ ⇒ **这两个也得在同级**（少一个就编不过）。它们是**本地 path 依赖**（不是 crates.io / git）。
 >
-> 纯 Web 构建没有 sidecar，需要另有端脑在 `127.0.0.1:60080` 提供服务。
+> 纯 Web 构建没有 sidecar，需要另有端脑在 `127.0.0.1:60080` 提供服务（地址可用构建期 `VITE_PREFRONTAL_URL` 覆盖 ⇒ 注意那个名字是历史遗留，它指的是**端脑**不是前额叶）。
 
 ## 目录
 
@@ -49,23 +49,23 @@ shadow-desktop/
 │   ├── styles/accent.g.ts    ← 生成物
 │   ├── i18n/               en-US / zh-CN
 │   └── config/
-├── src-tauri/              Rust sidecar
+├── src-tauri/              Rust 侧（**与前端同一个进程**，不是独立 sidecar 进程）
 │   └── src/
-│       ├── lib.rs            启动：boot 嵌入式大脑 + 起端脑 HTTP 面
-│       ├── telencephalon_http.rs  端脑 + neuron + 海马体 合成一台服务（:60080）
+│       ├── lib.rs            启动：boot 嵌入式大脑 + spawn 那张面
+│       ├── telencephalon_http.rs  宿主起面：bind :60080 + serve `brain_face.router`
 │       ├── computer_use.rs   宿主 RPA（鼠标 / 键盘 / Windows UI Automation）
 │       ├── provider_manager.rs / model_store.rs   模型与供应商
 │       ├── mcp_catalog.rs / feishu_mcp/            MCP 目录与飞书 MCP
 │       ├── config_manager.rs / crypto.rs           配置与加密
 │       └── recording/ / ws_client.rs / mdns.rs …   录制 / WS / 发现
-├── e2e-tests/              Playwright 用例
-├── tests/                  Vitest 用例 + API 契约快照
-└── web/                    纯 Web 入口
+├── e2e-tests/              WebdriverIO 用例（打 Tauri 应用本体）
+├── tests/                  Vitest 用例 + API 契约快照；Playwright 用例在 `tests/e2e-ui/`
+└── web/                    纯 Web 目标的部署配置（vercel.json / netlify.toml）
 ```
 
 ## 通信
 
-前端**只**跟端脑说话（`src/lib/telencephalonClient.ts`，`DEFAULT_BASE_URL = http://127.0.0.1:60080`）。
+前端**只**跟**大脑那张面**说话（`src/lib/telencephalonClient.ts`）；默认地址在 `src/stores/telencephalonStore.ts`：`buildTimeTelencephalonUrl() ?? 'http://127.0.0.1:60080'`（构建期 `VITE_PREFRONTAL_URL` → 运行时设置 → 默认值）。
 
 | 场景 | 端点 |
 |---|---|
@@ -87,7 +87,8 @@ shadow-desktop/
 | `pnpm build` / `pnpm build:web` | 构建（Tauri / 纯 Web）；两者前置都会跑 `pnpm test:api` |
 | `pnpm exec vitest run` | 单元测试 |
 | `pnpm test:api` | API 契约测试（先抓端点快照再跑） |
-| `pnpm test:e2e` | Playwright E2E（需要 `xvfb-run`） |
+| `pnpm test:e2e` | WebdriverIO E2E（打 Tauri 应用本体，需要 `xvfb-run`） |
+| `pnpm exec playwright test` | Playwright E2E（`tests/e2e-ui/`，**没有**对应的 npm script，要手动跑这个命令） |
 | `pnpm test:wdio` | WebdriverIO（Web） |
 | `pnpm test:tauri` | WebdriverIO（Tauri 应用） |
 | `pnpm lint` | ESLint |
@@ -95,9 +96,9 @@ shadow-desktop/
 ## 约定
 
 - **行尾是 CRLF**（仓库 `core.autocrlf=true`）。新写或生成的 `.tsx` 记得转成 CRLF。
-- 设计 token 与导航是**生成物**：改 `../../design-tokens.json` 或 `../../agent-surface.json` 之后要跑 `node ../../scripts/gen_tokens.mjs` / `node ../../scripts/gen_nav.mjs` —— CI 会查漂移。
-- 主题色派生算法（`deriveAccentTones`）与移动端是**同一套规则**，契约快照在 `../../scripts/accent-tones.fixture.json`，两端各断言一次。
-- 不要在客户端引入直连推理的代码路径 —— `node ../../scripts/check-brain-chain.mjs` 会拦（`Brain chain check`）。
+- 设计 token 与导航是**生成物**：改 `../design-tokens.json` 或 `../agent-surface.json` 之后要跑 `node ../scripts/gen_tokens.mjs` / `node ../scripts/gen_nav.mjs` —— CI 会查漂移。
+- 主题色派生算法（`deriveAccentTones`）与移动端是**同一套规则**，契约快照在 `../scripts/accent-tones.fixture.json`，两端各断言一次。
+- 不要在客户端引入直连推理的代码路径 —— `node ../scripts/check-brain-chain.mjs` 会拦（`Brain chain check`）。
 
 ## 相关
 

@@ -134,7 +134,13 @@ class _TaskEditDialogState extends ConsumerState<TaskEditDialog> {
                 border: OutlineInputBorder(),
               ),
               items: _statuses
-                  .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+                  .map(
+                    (s) => DropdownMenuItem(
+                      value: s,
+                      // 显示本地化文案，value 仍是端脑认得的 serde 变体名。
+                      child: Text(localizedServerStatus(l10n, s)),
+                    ),
+                  )
                   .toList(),
               onChanged: (v) {
                 if (v != null) setState(() => _status = v);
