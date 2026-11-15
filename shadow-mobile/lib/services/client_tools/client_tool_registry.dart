@@ -12,6 +12,7 @@ import '../capabilities/accessibility_ops.dart';
 import '../capabilities/capability.dart';
 import '../capabilities/capability_tools.dart';
 import '../capabilities/device_data_channel.dart';
+import '../weather/weather_client.dart';
 /// **客户端工具** —— 在**用户这台设备上**执行的那一半。
 ///
 /// 端脑的 `tool_call` SSE 事件带着工具名和参数。工具分两种：
@@ -443,8 +444,12 @@ ClientToolRegistry buildMobileClientTools({
   // 注入的是**纯运输**那一半（`TelencephalonClient.generateImage`）；
   // 解析与 report 的 l10n 都在下面工具定义里（与桌面端同构）。
   required Future<Map<String, dynamic>> Function(Map<String, dynamic> body) generateImage,
+  // 天气工具的**取数那一半** —— ⚠️ **可注入**（单测喂假响应，不必真连网）
+  // ⇒ ⇒ 真连网那条路另用真机读数验（DNS / TLS / 上游形状）。
+  WeatherClient? weatherClient,
 }) {
   final l10n = l10nProvider ?? currentL10n;
+  final weather = weatherClient ?? WeatherClient();
   // 能力工具的**执行器** —— 工具定义在下面（必须是**字面量**形式，
   // 跨端对齐闸要看得见），干活的那一半在 `capabilities/capability_tools.dart`。
   final capabilityTools = CapabilityTools(
@@ -1032,6 +1037,55 @@ ClientToolRegistry buildMobileClientTools({
           'images': images,
         };
       },
+    ),
+        ClientTool(
+      // ⚠️ **工具名、参数表（JSON Schema）与桌面端逐字一致**
+      // （shadow/scripts/check-client-tools.mjs 逐字段比对）。
+      // ⚠️ **不设 report** ⇒ ⇒ 整份结果回传给模型（pickReportPayload 的规则：
+      // 没有 report 的工具原样回传）⇒ ⇒ 模型拿到的是**真的数字**，而不是一句
+      // 人话摘要（天气这类数据模型自己会挑重点，用户问哪句答哪句）。
+      // ⚠️ 结果里带 source（Open-Meteo）—— CC BY 4.0 要求署名。
+      name: 'get_weather',
+      description:
+          'Get the current weather and a short daily forecast for a place. Use this when the user asks about the weather, temperature, rain or forecast for a city or coordinates. Give the place as a city/place name in "location" (Chinese names work, e.g. "北京"), or as "latitude" plus "longitude".',
+      parameters: <String, dynamic>{
+        'type': 'object',
+        'properties': <String, dynamic>{
+          'location': <String, dynamic>{
+            'type': 'string',
+            'description':
+                'City or place name to look up, e.g. "北京" or "Tokyo". Chinese names are supported. Omit it only when latitude and longitude are given.',
+          },
+          'latitude': <String, dynamic>{
+            'type': 'number',
+            'description':
+                'Latitude in degrees, -90 to 90. Use with longitude instead of location when the exact coordinates are known.',
+          },
+          'longitude': <String, dynamic>{
+            'type': 'number',
+            'description':
+                'Longitude in degrees, -180 to 180. Use with latitude instead of location when the exact coordinates are known.',
+          },
+          'days': <String, dynamic>{
+            'type': 'integer',
+            'description':
+                'How many days of daily forecast to include, 1 to 7. Defaults to 3.',
+          },
+          'units': <String, dynamic>{
+            'type': 'string',
+            'enum': ['celsius', 'fahrenheit'],
+            'description':
+                'Temperature unit for the result. Defaults to celsius.',
+          },
+        },
+      },
+      execute: (args) => weather.fetchWeather(
+            location: args['location'],
+            latitude: args['latitude'],
+            longitude: args['longitude'],
+            days: args['days'],
+            units: args['units'],
+          ),
     ),
   ]);
 }

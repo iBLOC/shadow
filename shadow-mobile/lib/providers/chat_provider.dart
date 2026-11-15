@@ -9,6 +9,7 @@ import '../tts_engine.dart';
 import '../multimodal/multimodal.dart';
 import '../services/telencephalon/telencephalon_client.dart';
 import '../services/client_tools/client_tool_registry.dart';
+import '../services/weather/weather_client.dart';
 import '../services/capabilities/capability.dart';
 import '../services/capabilities/capability_declaration.dart';
 import '../services/capabilities/sensitive_packages.dart';
@@ -1354,6 +1355,10 @@ final chatProvider = StateNotifierProvider<ChatNotifier, ChatState>((ref) {
       // 同样 `read` 不 `watch`（理由同上）。
       generateImage: (body) =>
           ref.read(telencephalonClientProvider).generateImage(body),
+      // 天气工具的取数那一半 —— **直连公开数据源**（免 Key、免注册）
+      // ⇒ ⇒ 不需要端脑路由、不需要地址、不需要 admin token
+      // ⇒ ⇒ 也因此**不用 `read` 不 `watch` 的那套讲究**（它压根不看 provider）。
+      weatherClient: WeatherClient(),
     ),
     // ⚠️ **档位在调用时才读** —— 用户随时能在设置里改档位
     // ⇒ ⇒ 改完立刻生效，不需要重建 ChatNotifier（那会把对话冲掉）。

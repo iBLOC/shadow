@@ -22,6 +22,7 @@ import {
   type CuOutcome,
 } from './cuErrors';
 import { requestA2uiSurface } from './a2uiClient';
+import { weatherClient } from './weatherClient';
 import { buildSurfaceFromEvents } from './a2uiProtocol';
 import type { ToolField } from '../components/chat/ClientToolForm';
 import type { OpenAiTool, ToolParameters } from './telencephalonClient';
@@ -850,5 +851,54 @@ export const desktopClientTools = new ClientToolRegistry()
         images,
       };
     },
+  })
+  .register({
+    // ⚠️ **工具名、参数表（JSON Schema）与移动端必须逐字一致**
+    // （shadow/scripts/check-client-tools.mjs 逐字段比对）。
+    // ⚠️ **不设 report** ⇒ ⇒ 整份结果回传给模型（pickReportPayload 的规则：
+    // 没有 report 的工具原样回传）⇒ ⇒ 模型拿到的是**真的数字**，而不是一句
+    // 人话摘要（天气这类数据模型自己会挑重点，用户问哪句答哪句）。
+    // ⚠️ 结果里带 source（Open-Meteo）—— CC BY 4.0 要求署名。
+    name: 'get_weather',
+    description:
+      'Get the current weather and a short daily forecast for a place. Use this when the user asks about the weather, temperature, rain or forecast for a city or coordinates. Give the place as a city/place name in "location" (Chinese names work, e.g. "北京"), or as "latitude" plus "longitude".',
+    parameters: {
+      type: 'object',
+      properties: {
+        location: {
+          type: 'string',
+          description:
+            'City or place name to look up, e.g. "北京" or "Tokyo". Chinese names are supported. Omit it only when latitude and longitude are given.',
+        },
+        latitude: {
+          type: 'number',
+          description:
+            'Latitude in degrees, -90 to 90. Use with longitude instead of location when the exact coordinates are known.',
+        },
+        longitude: {
+          type: 'number',
+          description:
+            'Longitude in degrees, -180 to 180. Use with latitude instead of location when the exact coordinates are known.',
+        },
+        days: {
+          type: 'integer',
+          description:
+            'How many days of daily forecast to include, 1 to 7. Defaults to 3.',
+        },
+        units: {
+          type: 'string',
+          enum: ['celsius', 'fahrenheit'],
+          description: 'Temperature unit for the result. Defaults to celsius.',
+        },
+      },
+    },
+    execute: async (args) =>
+      weatherClient.fetchWeather({
+        location: args.location,
+        latitude: args.latitude,
+        longitude: args.longitude,
+        days: args.days,
+        units: args.units,
+      }),
   })
 ;
