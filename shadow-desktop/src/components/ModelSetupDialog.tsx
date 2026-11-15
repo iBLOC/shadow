@@ -44,7 +44,7 @@ const PROVIDERS: Array<{
   {
     id: 'mimo',
     name: 'Xiaomi Mimo',
-    description: 'mimo-v2.5-pro 等（魔搭默认）',
+    description: 'mimo-v2.6-pro 等（官方当前目录）',
     requiresKey: true,
     icon: 'cloud',
   },
