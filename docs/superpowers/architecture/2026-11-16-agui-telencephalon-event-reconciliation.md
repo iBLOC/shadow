@@ -113,6 +113,13 @@ AG-UI 有、端脑完全没有的事件族(接入即白拿,不接也不亏):
   AG-UI 的 TEXT_MESSAGE_START/CONTENT/END 三段式正是解这个。
 - **G3 无显式 run 开始事件** —— 客户端分不清"连上了在排队"与"没人应答";done 带 conversation_id
   而开始侧什么都不带,首尾不对称。
+  - ✅ **已落地(2026-11-16,端脑单仓纯新增)**:wire 新增 `run_started` 事件
+    `{type, conversation_id, agent, run_id, timestamp}`(流的第一个事件);driver 生成 `run_id`(uuid)
+    并由 `done`/`error` **原样带回** ⇒ 一次 run 首尾可配对(对齐 AG-UI RUN_STARTED/RUN_FINISHED,
+    §3 E2/E9 由"需新造"变为"已存在")。payload 组装三个纯函数 + 判据 2 条;真变异(摘 done 的
+    run_id)当场红且只红配对判据。老客户端零破坏(移动 default 分支只记日志 / 桌面
+    translateEvent default 返回 [])。读数:全特征 worktree exit 0 + 特征裁剪档
+    (关 hippocampus feature,绕开兄弟在飞面)**40 过 / 0 红**。
 - **G4 clarification 走 metadata 私有通道** —— 类型安全为零(移动端 ClarificationPayload 手工解析),
   AG-UI 的 Interrupt 有 responseSchema(结构化选项)。
 
