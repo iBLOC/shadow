@@ -14,7 +14,6 @@ void main() {
   late TextEditingController controller;
   int started = 0;
   bool? finished;
-  bool cancelledFlag = false;
   int photos = 0;
   int videos = 0;
   int images = 0;
@@ -33,12 +32,11 @@ void main() {
     );
   }
 
-  Widget bar() {
+  Widget bar({bool isLoading = false}) {
     return UnifiedInputBar(
       controller: controller,
       enabled: true,
-      isLoading: false,
-      hasAttachments: false,
+      isLoading: isLoading,
       hintText: '轻触输入 · 长按说话',
       focusedHintText: '输入内容…',
       recordingText: '松手发送',
@@ -61,7 +59,6 @@ void main() {
     controller = TextEditingController();
     started = 0;
     finished = null;
-    cancelledFlag = false;
     photos = 0;
     videos = 0;
     images = 0;
@@ -158,5 +155,53 @@ void main() {
 
     expect(videos, 1, reason: '长按 ⇒ 拍视频');
     expect(photos, 1, reason: '长按**不许**顺带拍一张照片');
+  });
+
+  testWidgets('❻ **没有**发送按钮（文字靠键盘上的发送键）', (tester) async {
+    await tester.pumpWidget(wrap(bar()));
+
+    // ⚠️ 2026-11-15：右侧那个圆形发送钮**退休了** ⇒ ⇒ 文字走输入框自带
+    // 的「发送」键（textInputAction: TextInputAction.send ＋ onSubmitted）。
+    expect(find.byIcon(Icons.send), findsNothing,
+        reason: '发送按钮不许再出现');
+    // 剩下的两个钮还在。
+    expect(find.byIcon(Icons.add), findsOneWidget);
+    expect(find.byIcon(Icons.camera_alt), findsOneWidget);
+  });
+
+  testWidgets('❼ 正在等回话 ⇒ 输入框**外面**有一枚小转圈（**不是**按钮）', (tester) async {
+    await tester.pumpWidget(wrap(bar(isLoading: true)));
+    await tester.pump();
+
+    // ⚠️ 转圈以前住在**发送按钮**里 ⇒ ⇒ 删掉按钮之后它**不许跟着一起没**
+    // ⇒ ⇒ 否则「等回话」那一段界面一点动静都没有 ⇒ ⇒ 按了发送没反应
+    // 和正在回话，长得一模一样。
+    expect(find.byType(CircularProgressIndicator), findsOneWidget,
+        reason: '等回话要有忙碌指示');
+    expect(find.byIcon(Icons.send), findsNothing);
+
+    // ⚠️ 转圈必须**小** —— 真机第一版把它塞进输入框的 suffixIcon ⇒ ⇒
+    // suffix 槽给的约束把它**撑成一大坨**（真机实测约 125px，糊住半个
+    // 输入框）⇒ ⇒ 现在用 OverflowBox 让它**自己定尺寸** ⇒ ⇒ 钉死 18px。
+    // ⚠️ 转圈必须**小** —— 第一版把它塞进输入框的 suffixIcon ⇒ ⇒ suffix 槽
+    // 给的约束把它**撑成一大坨**（真机实测约 125px，糊住半个输入框）⇒ ⇒
+    // 现在它是**输入框外面**的固定槽 ⇒ ⇒ 钉死 18px。
+    final size = tester.getSize(find.byType(CircularProgressIndicator));
+    expect(size.width, inInclusiveRange(14, 22),
+        reason: '转圈不许被撑大（实测宽 ${size.width.toStringAsFixed(1)}px）');
+    expect(size.height, inInclusiveRange(14, 22),
+        reason: '转圈不许被撑大（实测高 ${size.height.toStringAsFixed(1)}px）');
+
+    // ⚠️ 转圈不许**盖住输入框** —— 它在「＋」「📷」两个钮的**左边**。
+    final spinnerX = tester.getCenter(find.byType(CircularProgressIndicator)).dx;
+    final cameraX = tester.getCenter(find.byIcon(Icons.camera_alt)).dx;
+    final fieldX = tester.getCenter(find.byType(TextField)).dx;
+    expect(spinnerX, lessThan(cameraX), reason: '转圈在两个钮的左边');
+    expect(spinnerX, greaterThan(fieldX), reason: '转圈在输入框的右边（不许盖住字）');
+
+    // 不等回话了 ⇒ 转圈消失。
+    await tester.pumpWidget(wrap(bar()));
+    await tester.pump();
+    expect(find.byType(CircularProgressIndicator), findsNothing);
   });
 }

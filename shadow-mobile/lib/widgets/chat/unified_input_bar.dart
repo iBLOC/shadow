@@ -27,6 +27,16 @@ import 'package:flutter/material.dart';
 /// - TextField 照常处理点击／选字；
 /// - 我们用**计时器**判断「按住了多久」⇒ ⇒ 到点才开始录音。
 ///
+/// ## 为什么**没有**发送按钮
+///
+/// ⚠️ 2026-11-15 那一刀把右侧那个圆形发送钮**删了** ⇒ ⇒ 文字**靠键盘上的
+/// 发送键**发出去（`textInputAction: TextInputAction.send` ＋
+/// `onSubmitted` ⇒ ⇒ 输入框自带那个「发送」键）⇒ ⇒ 右侧只留「＋」「📷」。
+///
+/// ⚠️ 顺带把**空发**这条防线也带走了（以前那个钮在没有字、也没有附件时
+/// 是**禁用**的）⇒ ⇒ 现在**唯一**的防线是 `chat_screen._sendMessage()` 里
+/// 「没文字也没附件 ⇒ 直接返回」那一格 ⇒ ⇒ 那一格**不许**被删。
+///
 /// ## 键盘开着的时候，长按**不算**录音
 ///
 /// ⚠️ 键盘开着 ⇒ 用户长按多半是想**选字／复制**⇒ ⇒ 那时抢走手势是抢
@@ -37,11 +47,13 @@ class UnifiedInputBar extends StatefulWidget {
   /// 输入框能不能用（会话身份不确定／正在加载时为假）。
   final bool enabled;
 
-  /// 正在等回话（发送按钮转圈）。
+  /// 正在等回话（输入框**外面**有一枚小转圈）。
+  ///
+  /// ⚠️ 这个参数以前是喂给**发送按钮**的（按钮转圈）⇒ ⇒ 删掉发送按钮之后
+  /// 它**不能跟着一起死** —— 「等回话」那一段**必须有忙碌指示** ⇒ ⇒ 否则
+  /// 「按了发送、界面没动静」和「正在回话」长得**一模一样**
+  /// ⇒ ⇒ 「失败长得像成功」那一族。
   final bool isLoading;
-
-  /// 已经挂了附件（发送按钮不许空发）。
-  final bool hasAttachments;
 
   /// 没聚焦时的提示（应当写清「轻触输入 · 长按说话」）。
   final String hintText;
@@ -88,7 +100,6 @@ class UnifiedInputBar extends StatefulWidget {
     required this.controller,
     required this.enabled,
     required this.isLoading,
-    required this.hasAttachments,
     required this.hintText,
     required this.focusedHintText,
     required this.recordingText,
@@ -228,8 +239,6 @@ class _UnifiedInputBarState extends State<UnifiedInputBar> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final canSend = widget.enabled &&
-        (widget.hasAttachments || widget.controller.text.trim().isNotEmpty);
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.end,
@@ -244,7 +253,7 @@ class _UnifiedInputBarState extends State<UnifiedInputBar> {
             onPointerCancel: _onPointerCancel,
             child: Stack(
               children: [
-                _buildTextField(theme),
+                _buildTextField(),
                 // ⚠️ 录音时盖一层 —— **不换掉** TextField（换掉会让它手里的
                 // 手势识别器在半途被 dispose ⇒ ⇒ Flutter 会抱怨）。
                 if (_recording)
@@ -275,18 +284,27 @@ class _UnifiedInputBarState extends State<UnifiedInputBar> {
           ),
         ),
         const SizedBox(width: 4),
+        // ⚠️ **忙碌指示槽**（等回话时的转圈）—— 放在输入框**外面**、两个钮
+        // 的**左边**。
+        //
+        // ⚠️ 为什么不是「输入框里的 suffixIcon」：suffix 槽给的约束会把转圈
+        // **撑成一大坨**（真机实测约 125px）⇒ ⇒ 改用 OverflowBox 后真机又
+        // **整个看不见** ⇒ ⇒ 这条路走不通 ⇒ ⇒ 自己给一个**固定尺寸**的槽。
+        //
+        // ⚠️ **固定占位**（不 loading 时槽也留着）⇒ ⇒ 「＋」「📷」两个钮
+        // 的位置**不会**因为回话开始/结束而**左右跳**。
+        _buildBusySlot(theme),
+        const SizedBox(width: 4),
         // ⚠️ 文件／图片入口 ⇒ ⇒ **挪到右边**，并变成「＋」。
         _buildPlusButton(theme),
         const SizedBox(width: 4),
         // ⚠️ 相机钮 —— 轻触拍照片、**长按拍视频**。
         _buildCameraButton(theme),
-        const SizedBox(width: 4),
-        _buildSendButton(theme, canSend),
       ],
     );
   }
 
-  Widget _buildTextField(ThemeData theme) {
+  Widget _buildTextField() {
     final focused = _focusNode.hasFocus;
     return TextField(
       controller: widget.controller,
@@ -302,6 +320,10 @@ class _UnifiedInputBarState extends State<UnifiedInputBar> {
       decoration: InputDecoration(
         hintText: focused ? widget.focusedHintText : widget.hintText,
         isDense: true,
+        // ⚠️ **这里故意不放转圈** —— 第一版把它塞进 suffixIcon ⇒ ⇒ suffix
+        // 槽给的约束把它**撑成一大坨**（真机实测约 125px，糊住半个输入框）⇒ ⇒
+        // 改用 OverflowBox 后真机又**整个看不见**⇒ ⇒ 转圈改成**输入框外面**
+        // 的固定槽（见 build 里的 _buildBusySlot）。
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(24),
         ),
@@ -310,6 +332,20 @@ class _UnifiedInputBarState extends State<UnifiedInputBar> {
           vertical: 12,
         ),
       ),
+    );
+  }
+
+  /// 忙碌指示槽（**固定 18×18**）—— 正在等回话时里面转一枚小圈。
+  Widget _buildBusySlot(ThemeData theme) {
+    return SizedBox(
+      width: 18,
+      height: 18,
+      child: widget.isLoading
+          ? CircularProgressIndicator(
+              strokeWidth: 2,
+              color: theme.colorScheme.primary,
+            )
+          : null,
     );
   }
 
@@ -370,19 +406,4 @@ class _UnifiedInputBarState extends State<UnifiedInputBar> {
     );
   }
 
-  Widget _buildSendButton(ThemeData theme, bool canSend) {
-    return IconButton.filled(
-      onPressed: canSend ? widget.onSend : null,
-      icon: widget.isLoading && widget.controller.text.trim().isEmpty
-          ? const SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: Colors.white,
-              ),
-            )
-          : const Icon(Icons.send),
-    );
-  }
 }

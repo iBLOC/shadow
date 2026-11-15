@@ -55,7 +55,9 @@ void main() {
       expect(find.byType(Center), findsWidgets);
     });
 
-    testWidgets('has send button', (WidgetTester tester) async {
+    testWidgets('**没有**发送按钮（文字靠键盘上的发送键）', (
+      WidgetTester tester,
+    ) async {
       await tester.pumpWidget(
         ProviderScope(
           overrides: getTestOverrides(),
@@ -73,7 +75,13 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.byIcon(Icons.send), findsOneWidget);
+      // ⚠️ 2026-11-15：对话输入区右侧那个圆形发送钮**退休了** ⇒ ⇒ 文字
+      // 靠**键盘上的发送键**发出去。
+      //
+      // ⚠️ 这一族认的是「对话页上**一个**发送图标都没有」—— A2UI 面板
+      // （Agent2UIPanel）默认**不开**（useAgent2UIModeProvider 默认 false）
+      // ⇒ ⇒ 那块面板里的发送钮**不算**进来。
+      expect(find.byIcon(Icons.send), findsNothing);
     });
 
     testWidgets('has TextField for input', (WidgetTester tester) async {
@@ -146,7 +154,7 @@ void main() {
       expect(find.byIcon(Icons.camera_alt), findsOneWidget);
     });
 
-    testWidgets('can enter text and tap send button', (
+    testWidgets('can enter text and send via the keyboard send key', (
       WidgetTester tester,
     ) async {
       await tester.pumpWidget(
@@ -172,10 +180,9 @@ void main() {
       await tester.enterText(textField, 'Hello, Shadow!');
       await tester.pumpAndSettle();
 
-      final sendButton = find.byIcon(Icons.send);
-      expect(sendButton, findsOneWidget);
-
-      await tester.tap(sendButton);
+      // ⚠️ 2026-11-15：发送**按钮**退休了 ⇒ ⇒ 文字靠**键盘上的发送键**
+      // （textInputAction: TextInputAction.send ＋ onSubmitted）。
+      await tester.testTextInput.receiveAction(TextInputAction.send);
       await tester.pumpAndSettle();
 
       // 断言的是「**输入框**被清空」，而不是「页面上找不到这句话」。

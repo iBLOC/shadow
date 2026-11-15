@@ -522,7 +522,6 @@ class _LocalChatViewState extends ConsumerState<LocalChatView> {
                   controller: widget.promptController,
                   enabled: chatState.canChat && !chatState.isLoading,
                   isLoading: chatState.isLoading,
-                  hasAttachments: chatState.attachments.isNotEmpty,
                   hintText: l10n.tapToTypeHoldToTalk,
                   focusedHintText: l10n.askSomething,
                   recordingText: l10n.releaseToSend,

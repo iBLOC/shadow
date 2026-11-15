@@ -16,11 +16,15 @@ void main() {
       expect(find.byType(TextField), findsOneWidget);
     });
 
-    testWidgets('chat screen has send button', (WidgetTester tester) async {
+    testWidgets('chat screen has **no** send button', (
+      WidgetTester tester,
+    ) async {
       app.main();
       await tester.pumpAndSettle(const Duration(seconds: 5));
 
-      expect(find.byIcon(Icons.send), findsOneWidget);
+      // ⚠️ 2026-11-15：对话输入区右侧那个圆形发送钮**退休了** ⇒ ⇒ 文字
+      // 靠**键盘上的发送键**发出去。
+      expect(find.byIcon(Icons.send), findsNothing);
     });
 
     testWidgets('chat screen can enter text', (WidgetTester tester) async {
