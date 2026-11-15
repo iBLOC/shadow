@@ -12,6 +12,20 @@ import 'package:http/http.dart' as http;
 /// ⚠️ **为什么设备侧直连、不绕端脑**：天气是**纯网络数据**、不碰这台设备
 /// ⇒ ⇒ 手机（INTERNET 权限）／桌面（tauri.conf.json 的 csp = null）都能直连
 /// ⇒ ⇒ **零新增端脑路由、零新增依赖、零新增权限**。
+///
+/// ⚠️ **额度这一格已经裁定**（用户逐字：「我这是客户端使用的无所谓10000次」，
+/// 2026-11-16）—— 官方条款逐字（open-meteo.com/en/terms 的 Non-Commercial
+/// Use 段）：「**Rate limits are applied by IP addresses and application**」
+/// ⇒ ⇒ 客户端直连 ⇒ 每个用户从**自己的 IP** 各算各的
+/// ⇒ ⇒ 10,000 次/天**不是产品级天花板** ⇒ ⇒ 不订阅、也不换源。
+/// ⚠️ **但这三条还欠着**（别把「额度不是问题」读成「全清了」）：
+/// ① **署名** —— CC BY 4.0 的义务（结果里的 source 字段就是它）；
+/// ② **取数必须留在客户端** —— 一旦挪到端脑／服务器代理 ⇒ 所有用户共用我们
+/// 的出口 IP ⇒ ⇒ 限额立刻变成产品级（官方同段逐字点名：Vercel／Netlify／
+/// Render 这类托管「might be rate-limited earlier then expected」）；
+/// ③ **产品一旦开始订阅／收费** —— free API 那条「only for non-commercial
+/// purposes」就不再覆盖 ⇒ ⇒ 那时才要订阅或换源（WeatherAPI 免费档官方
+/// 写明含商用）。
 const String kWeatherSourceName = 'Open-Meteo';
 const String kWeatherForecastBase = 'https://api.open-meteo.com/v1/forecast';
 const String kWeatherGeocodingBase = 'https://geocoding-api.open-meteo.com/v1/search';
