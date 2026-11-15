@@ -51,8 +51,15 @@ class PcmAudioRecorder {
     try {
       _stopListening();
       final result = await _channel.invokeMethod<Uint8List>('stopRecording');
+      if (result == null) {
+        // ⚠️ 原生说「没在录」⇒ ⇒ **说清楚**（不许静默返回 null ⇒ ⇒
+        // 上游会以为「录到了但是空的」⇒ ⇒ 失败长得像成功）。
+        debugPrint('PcmAudioRecorder.stopRecording: 原生没有交出音频（可能没在录）');
+      }
       return result;
     } catch (e) {
+      // ⚠️ 异常**不许吞成 null** ⇒ ⇒ 真因进日志。
+      debugPrint('PcmAudioRecorder.stopRecording error: $e');
       return null;
     }
   }

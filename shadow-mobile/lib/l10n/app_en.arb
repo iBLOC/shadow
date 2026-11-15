@@ -107,6 +107,7 @@
   "ttsEngine": "Voice Engine",
   "ttsEngineBrain": "Brain (follows the default model)",
   "ttsSpeakFailed": "Speech did not play: {reason}",
+  "asrFailed": "Speech was not recognized: {reason}",
   "ttsEngineAndroid": "Android Built-in",
   "ttsEngineExternal": "External Service",
   "ttsStatus": "Engine Status",

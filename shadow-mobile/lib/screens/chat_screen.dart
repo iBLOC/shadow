@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../generated/l10n/app_localizations.dart';
+import '../asr_engine.dart';
 import '../providers/chat_provider.dart';
 import '../providers/genui_provider.dart';
 import '../providers/wake_word_provider.dart';
@@ -107,19 +108,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       });
     });
 
-    // Set up audio chunk callback when conversation mode changes
+    // ⚠️ **不再把 PCM 块实时推给 WS** —— 端脑侧**没有**
+    // `/api/sessions/{id}/audio` 那条路由（端脑的语音面只有**请求-应答**的
+    // `voice/transcribe` / `voice/synthesize`）⇒ ⇒ 推过去是**死流量**，
+    // 而转写改走松手时的**一次性请求**（见 `_stopRecordingAndSend`）。
     ref.listen<ConversationState>(conversationModeProvider, (previous, next) {
-      if (next.mode == ConversationMode.conversation) {
-        ref
-            .read(chatProvider.notifier)
-            .setAudioChunkCallback(
-              (chunk) => ref
-                  .read(conversationModeProvider.notifier)
-                  .sendAudioData(chunk),
-            );
-      } else {
-        ref.read(chatProvider.notifier).setAudioChunkCallback(null);
-      }
+      ref.read(chatProvider.notifier).setAudioChunkCallback(null);
     });
 
     // 「本地模型没准备好就弹下载框」那一段**整块删掉**了 ——
@@ -303,20 +297,40 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   Future<void> _stopRecordingAndSend() async {
-    // ⚠️ 语音对话态下，音频块已经**实时**走 WS 流给服务端
-    // （`setAudioChunkCallback` ⇒ `sendAudioData`），转写文本由
-    // `transcriptionStream` 直接进对话 ⇒ 松手时本地这份 PCM 录音
-    // **不该**再当附件挂上去 —— 端脑链路只收纯文本，挂上去只会白报
-    // 一条「附件不可用」横幅（语音对话每说一句就红一次）。
+    // ⚠️ 语音对话态下，松手时本地这份 PCM 录音**不当附件**挂上去
+    // —— 端脑链路只收纯文本，挂上去只会白报一条「附件不可用」横幅
+    // （语音对话每说一句就红一次）。
+    //
+    // ⚠️ **这里没有「实时流」**：原来那条 WS 音频腿（`/api/sessions/{id}/audio`）
+    // **端脑侧压根没有这条路由** ⇒ ⇒ 以前推过去的音频块是**死流量**，
+    // 现在改成松手时**一次性**转写（端脑 `voice/transcribe`）。
     //
     // 文本态语义不变：录完挂附件（用户看得见自己发了什么）。
     final isConversationMode =
         ref.read(conversationModeProvider).mode ==
         ConversationMode.conversation;
     if (isConversationMode) {
-      await ref
+      // ⚠️ 语音对话态：录到的 PCM **不当附件**（端脑链路只收纯文本，挂上去
+      // 只会白报一条「附件不可用」横幅）⇒ ⇒ 改走**一次性转写**：端脑
+      // `voice/transcribe` ⇒ ⇒ **模型由能力页那张「语音识别」档决定**。
+      final input = await ref
           .read(chatProvider.notifier)
           .stopAudioRecording(keepAttachment: false);
+      if (input == null) {
+        // ⚠️ **失败要说真话** —— 「没录到音频」**不许静默返回**（那等于让
+        // 用户以为「说完了话、什么都没发生」）⇒ ⇒ 报出去 ⇒ ⇒ 全局横幅看得见。
+        AsrEngine.reportFailure('没录到声音（录音机没交出音频）');
+        return;
+      }
+      final result = await ref.read(asrEngineProvider).transcribe(
+            input.data,
+            lobe: ref.read(chatProvider).activeConversationAgent,
+          );
+      if (!result.ok) return;
+      final text = result.text ?? '';
+      if (text.isNotEmpty) {
+        ref.read(chatProvider.notifier).generateResponse(text);
+      }
       return;
     }
     await ref.read(chatProvider.notifier).stopAudioRecording();

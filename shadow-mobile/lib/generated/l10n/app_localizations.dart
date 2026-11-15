@@ -596,6 +596,12 @@ abstract class AppLocalizations {
   /// **'Speech did not play: {reason}'**
   String ttsSpeakFailed(Object reason);
 
+  /// No description provided for @asrFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Speech was not recognized: {reason}'**
+  String asrFailed(Object reason);
+
   /// No description provided for @ttsEngineAndroid.
   ///
   /// In en, this message translates to:

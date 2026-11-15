@@ -267,6 +267,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String asrFailed(Object reason) {
+    return 'Speech was not recognized: $reason';
+  }
+
+  @override
   String get ttsEngineAndroid => 'Android Built-in';
 
   @override

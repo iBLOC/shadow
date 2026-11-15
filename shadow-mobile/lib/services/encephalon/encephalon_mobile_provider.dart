@@ -8,6 +8,7 @@ import '../background/background_run_provider.dart';
 import '../../l10n/current_l10n.dart';
 import '../../providers/brain_model_source_provider.dart';
 import '../../providers/telencephalon_provider.dart';
+import '../../asr_engine.dart';
 import '../../tts_engine.dart';
 import 'encephalon_mobile_service.dart';
 
@@ -115,6 +116,11 @@ class EncephalonMobileNotifier extends StateNotifier<EncephalonMobileState> {
     // **不是同一把**（配置里那把是用户填的外部端脑的）⇒ ⇒ 不挂这个钩子
     // ⇒ ⇒ 打写门就是 401（真机实测 2026-11-15 22:23）。
     TtsEngine.runtimeAdminToken = () => _service.adminToken;
+    // ⚠️ **语音输入**（端脑 `voice/transcribe`）走**同一张端脑面** ⇒ ⇒
+    // 端口与 admin token 与 TTS 那条腿**同一把** ⇒ ⇒ 两个钩子都挂上
+    // （不挂 ⇒ 端口 0 ⇒ 一条请求都不该发出去）。
+    AsrEngine.runtimeAgentPort = () => _service.agentPort;
+    AsrEngine.runtimeAdminToken = () => _service.adminToken;
     // ⚠️ **「用户喊过停」是持久偏好，不是会话状态** ⇒ 从配置里读。
     //
     // 为什么必须落盘：那个标记原先只是**内存里的实例字段** ⇒ 而 Activity

@@ -427,12 +427,15 @@ class ChatNotifier extends StateNotifier<ChatState> {
   /// ⚠️ [keepAttachment] ＝ 语音对话态传 **false**：音频块在对话态下已经
   /// 实时走 WS 流（服务端 ASR），本地这份 PCM 文件不该再当附件挂上去
   /// （端脑链路只收纯文本 ⇒ 挂上去必报「附件不可用」）。文本态默认 true。
-  Future<void> stopAudioRecording({bool keepAttachment = true}) async {
+  /// ⚠️ **返回录到的那份** —— 语音对话态要拿它去**转写**（端脑
+  /// `voice/transcribe`）⇒ ⇒ 以前返回 `void` ⇒ ⇒ 调用方拿不到音频。
+  Future<MultimodalInput?> stopAudioRecording({bool keepAttachment = true}) async {
     final input = await _multimodalManager.stopAudioRecording();
     state = state.copyWith(isRecordingAudio: false);
     if (input != null && keepAttachment) {
       state = state.copyWith(attachments: [...state.attachments, input]);
     }
+    return input;
   }
 
   void removeAttachment(int index) {

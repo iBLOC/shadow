@@ -93,6 +93,7 @@
   "ttsEngine": "语音引擎",
   "ttsEngineBrain": "大脑（跟随默认模型）",
   "ttsSpeakFailed": "语音没播出来：{reason}",
+  "asrFailed": "语音没听清：{reason}",
   "ttsEngineAndroid": "Android 内置",
   "ttsEngineExternal": "外部服务",
   "ttsStatus": "引擎状态",

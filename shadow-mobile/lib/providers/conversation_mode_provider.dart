@@ -149,22 +149,25 @@ class ConversationModeNotifier extends StateNotifier<ConversationState> {
     return await _audioService!.connect();
   }
 
+  /// **进对话态** —— 按住说话的那一格。
+  ///
+  /// ⚠️ **不再拿 WS 当必经条件** —— 端脑侧**没有**
+  /// `/api/sessions/{id}/audio` 这条路由（端脑的语音面只有**请求-应答**的
+  /// `voice/transcribe` / `voice/synthesize`）⇒ ⇒ 真机上 WS 必然连不上。
+  ///
+  /// 真机实测 2026-11-15 23:02（点「语音对话」时逐字）：
+  /// `ConversationModeNotifier: Failed to create session: ClientException with
+  /// SocketException: Connection refused … uri=http://localhost:60080/hippocampus/api/sessions`
+  /// ⇒ ⇒ 以前这里一失败就 `return` ⇒ ⇒ **对话态根本进不去** ⇒ ⇒ 语音输入
+  /// 整条腿是死的。
+  ///
+  /// ⇒ ⇒ 语音输入改走「录一段 → **一次性转写**」（`AsrEngine` ⇒ 端脑
+  /// `voice/transcribe`）⇒ ⇒ 进对话态**不再依赖**任何 WS/session。
   Future<void> startConversationMode() async {
-    if (_audioService == null) {
-      final ok = await connect();
-      if (!ok) {
-        state = state.copyWith(
-          errorMessage: 'Failed to connect to audio service',
-        );
-        return;
-      }
-    }
-
     if (state.videoState != VideoState.off) {
       await _videoCollector.initialize();
     }
 
-    await _audioService!.startListening();
     state = state.copyWith(mode: ConversationMode.conversation);
   }
 

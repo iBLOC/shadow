@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../asr_engine.dart';
 import '../generated/l10n/app_localizations.dart';
 import '../theme/app_tokens.g.dart';
 import '../tts_engine.dart';
@@ -25,22 +26,40 @@ class TtsErrorBanner extends StatefulWidget {
 
 class _TtsErrorBannerState extends State<TtsErrorBanner> {
   StreamSubscription<String>? _sub;
+  StreamSubscription<String>? _asrSub;
   String? _reason;
+
+  /// 这一条是**听不清**（ASR）还是**没播出来**（TTS）⇒ ⇒ 文案不一样。
+  bool _isAsr = false;
 
   @override
   void initState() {
     super.initState();
     // ⚠️ 补上**当前**已有的错误（横幅是后挂的 ⇒ 之前的失败它没听见）。
-    _reason = TtsEngine.lastFailure;
+    _reason = TtsEngine.lastFailure ?? AsrEngine.lastFailure;
+    _isAsr = TtsEngine.lastFailure == null && AsrEngine.lastFailure != null;
     _sub = TtsEngine.failures.listen((reason) {
       if (!mounted) return;
-      setState(() => _reason = reason);
+      setState(() {
+        _reason = reason;
+        _isAsr = false;
+      });
+    });
+    // ⚠️ **语音输入的失败也进同一块横幅** —— 「听不清」和「没播出来」是同一
+    // 件用户要处理的事（都不许静默）⇒ ⇒ 但**文案要分开**（原话不同）。
+    _asrSub = AsrEngine.failures.listen((reason) {
+      if (!mounted) return;
+      setState(() {
+        _reason = reason;
+        _isAsr = true;
+      });
     });
   }
 
   @override
   void dispose() {
     _sub?.cancel();
+    _asrSub?.cancel();
     super.dispose();
   }
 
@@ -67,7 +86,9 @@ class _TtsErrorBannerState extends State<TtsErrorBanner> {
               // （HTTP 码 / 门 / 引擎没初始化，处置完全不同）。
               l10n == null
                   ? 'Speech failed: $reason'
-                  : l10n.ttsSpeakFailed(reason),
+                  : (_isAsr
+                        ? l10n.asrFailed(reason)
+                        : l10n.ttsSpeakFailed(reason)),
               style: TextStyle(color: fg, fontSize: 13),
             ),
           ),

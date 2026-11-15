@@ -78,7 +78,10 @@ class AudioInputHandler {
   }
 
   Future<Uint8List?> stopRecording() async {
-    if (_state != AudioInputState.recording) return null;
+    if (_state != AudioInputState.recording) {
+      debugPrint('AudioInputHandler.stopRecording: 当前不在录音态（state=$_state）');
+      return null;
+    }
 
     _amplitudeTimer?.cancel();
     _amplitudeTimer = null;

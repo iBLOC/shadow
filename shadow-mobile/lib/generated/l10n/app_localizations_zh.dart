@@ -267,6 +267,11 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String asrFailed(Object reason) {
+    return '语音没听清：$reason';
+  }
+
+  @override
   String get ttsEngineAndroid => 'Android 内置';
 
   @override
