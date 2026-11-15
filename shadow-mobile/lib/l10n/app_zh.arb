@@ -896,7 +896,7 @@
   "memoryStorageRetry": "重试",
   "memoryStorageBuildHint": "注意：默认构建未编入记忆体（需 mobile-memory 构建），配了也只在那样的构建里生效",
   "memoryStoragePendingHint": "⚠️ 存储位置在启动时读取一次 —— 保存后需要重启大脑才生效",
-  "memoryStorageMigrationHint": "⚠️ 换存储位置会**自动迁移**已有记忆（搬完再切换、旧位置的数据会删掉）；迁移期间聊天与记忆操作会暂停，请勿关闭应用",
+  "memoryStorageMigrationHint": "⚠️ 换存储位置会自动迁移已有记忆（搬完再切换、旧位置的数据会删掉）；迁移期间聊天与记忆操作会暂停，请勿关闭应用",
   "memoryStorageMigrationTitle": "正在迁移记忆存储",
   "memoryStorageMigrationRunningHint": "把记忆、会话与图数据搬到新位置 —— 完成前请勿操作；中途退出应用也会在下次打开时接着搬",
   "memoryStorageMigrationFailedHint": "迁移没有完成。旧数据没有被改动，可以重试或放弃",

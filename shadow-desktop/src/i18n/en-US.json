@@ -939,7 +939,7 @@
       "invalidOssEndpoint": "OSS requires an endpoint.",
       "pendingRestartHint": "⚠️ The storage location is read once at boot — saving takes effect only after the brain restarts.",
       "priorityHint": "Priority: control plane (here) → host-provided directory → environment → platform default.",
-      "migrationHint": "Changing the location **migrates** the existing memories: chat and memory operations pause while it runs, and the app must stay open until it finishes.",
+      "migrationHint": "Changing the location migrates the existing memories: chat and memory operations pause while it runs, and the app must stay open until it finishes.",
       "migration": {
         "title": "Migrating the memory store",
         "runningHint": "Moving memories, conversations and graph data to the new location. Please don't use the app; if it is closed mid-way, the migration resumes next time.",

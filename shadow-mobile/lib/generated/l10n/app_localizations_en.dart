@@ -1763,7 +1763,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get memoryStorageMigrationHint =>
-      '⚠️ Changing the location **migrates** the existing memories (copy first, then switch; old data removed). Chat and memory operations pause while it runs — keep the app open';
+      '⚠️ Changing the location migrates the existing memories (copy first, then switch; old data removed). Chat and memory operations pause while it runs — keep the app open';
 
   @override
   String get memoryStorageMigrationTitle => 'Migrating the memory store';

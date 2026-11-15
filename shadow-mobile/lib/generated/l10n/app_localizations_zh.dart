@@ -1717,7 +1717,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get memoryStorageMigrationHint =>
-      '⚠️ 换存储位置会**自动迁移**已有记忆（搬完再切换、旧位置的数据会删掉）；迁移期间聊天与记忆操作会暂停，请勿关闭应用';
+      '⚠️ 换存储位置会自动迁移已有记忆（搬完再切换、旧位置的数据会删掉）；迁移期间聊天与记忆操作会暂停，请勿关闭应用';
 
   @override
   String get memoryStorageMigrationTitle => '正在迁移记忆存储';

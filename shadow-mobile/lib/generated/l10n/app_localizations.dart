@@ -3311,7 +3311,7 @@ abstract class AppLocalizations {
   /// No description provided for @memoryStorageMigrationHint.
   ///
   /// In en, this message translates to:
-  /// **'⚠️ Changing the location **migrates** the existing memories (copy first, then switch; old data removed). Chat and memory operations pause while it runs — keep the app open'**
+  /// **'⚠️ Changing the location migrates the existing memories (copy first, then switch; old data removed). Chat and memory operations pause while it runs — keep the app open'**
   String get memoryStorageMigrationHint;
 
   /// No description provided for @memoryStorageMigrationTitle.
