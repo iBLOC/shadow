@@ -7,7 +7,8 @@ import 'package:shadow_mobile/services/app_config_service.dart';
 /// 落盘**必须原子**：目标文件**永远**不以「残缺态」出现。
 ///
 /// ⚠️ **为什么这条要单独钉**（2026-11-09 实测）：主 CI 的
-/// `backend_shadow_key_entry_test.dart` **偶发**红
+/// `backend_shadow_key_entry_test.dart` **偶发**红（该测试已随「手工填地址
+/// 表单」于 2026-11-13 删除 —— 后端只许选不许填；**症状史仍成立**）
 /// （`FormatException: Unexpected end of input (at character 1)`）⇒ ⇒ 根因是
 /// 落盘那一步用 `file.writeAsString(...)` ⇒ ⇒ **先截断再写** ⇒ ⇒ 读面在写的
 /// 瞬间可能拿到**空文件 / 半个文件**。

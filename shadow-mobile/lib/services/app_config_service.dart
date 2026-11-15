@@ -214,6 +214,8 @@ class AppConfigService {
       //   要么是**新的完整值**，**永远不会是半个**。
       //   ⚠️ 实测症状：主 CI 的 `backend_shadow_key_entry_test.dart` **偶发**红
       //   （`FormatException: Unexpected end of input (at character 1)`）。
+      //   （那个测试已随「手工填地址表单」一起删除 —— 2026-11-13 产品裁定，
+      //     后端只许选不许填；**症状史仍成立**，勿因文件名消失而怀疑这段。）
       await _writeAtomically(file, json.encode(config));
       // ⚠️ 写成功 ⇒ ⇒ 这一份**就是**磁盘上的真值了 ⇒ ⇒ 快照更新。
       _persisted = config;

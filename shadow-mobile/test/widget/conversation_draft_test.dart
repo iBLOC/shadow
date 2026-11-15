@@ -34,7 +34,7 @@ String sseDelta(String text) =>
 
 class MockTtsEngine extends TtsEngine {
   @override
-  Future<void> speak(String text, {String lang = 'zh-CN'}) async {}
+  Future<void> speak(String text, {String lang = 'zh-CN', bool allowFallback = true}) async {}
 }
 
 /// 端脑那边收到的一切请求 —— 记下来，才能断言「客户端没在端脑造垃圾」。

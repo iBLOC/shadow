@@ -6,9 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:shadcn_ui/shadcn_ui.dart';
 
 import '../generated/l10n/app_localizations.dart';
-import '../providers/telencephalon_provider.dart';
 import '../services/accessibility_controller.dart';
-import '../services/app_config_service.dart';
 import '../theme/app_tokens.g.dart';
 import '../widgets/glass_app_bar.dart';
 import '../widgets/glass_card.dart';
@@ -349,31 +347,12 @@ class SettingsScreen extends ConsumerWidget {
                           horizontal: AppTokens.spaceLg,
                         ),
                       ),
-                      SettingsDisclosure(
-                        title: l10n.settingsAdvancedBackend,
-                        subtitle: l10n.settingsAdvancedBackendDesc,
-                        icon: Icons.dns,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const ShadSeparator.horizontal(
-                              margin: EdgeInsets.symmetric(
-                                horizontal: AppTokens.spaceLg,
-                              ),
-                            ),
-                            const Padding(
-                              padding: EdgeInsets.all(AppTokens.spaceLg),
-                              child: BackendSettingsCard(),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const ShadSeparator.horizontal(
-                        margin: EdgeInsets.symmetric(
-                          horizontal: AppTokens.spaceLg,
-                        ),
-                      ),
+                      // 「端脑后端地址」手工表单**已删**（2026-11-13 产品裁定）：
+                      // 客户端不再允许直接填地址 —— 后端只能**选**零信任/局域网里
+                      // 的程序（发现式选择器另刀做）；「大脑」在端脑的**上一层**，
+                      // 这张面本来就不该叫「设置端脑地址」。
+                      // 配置字段（BaseUrl/AdminToken/ShadowKey）保留为**内部槽位**：
+                      // 读面不动（存量与将来的选择器共用它），写面从界面上收口。
                       // 大脑运行时（嵌入式大脑）—— **子系统内部**的面：
                       // 状态 / 启停 / 推理探针。模型选择已收到能力 tab
                       // （默认模型首卡＋叶区 Agents 页），这里不再管模型。
@@ -655,134 +634,6 @@ class _AccessibilityRowState extends State<AccessibilityRow>
           }
         },
       ),
-    );
-  }
-}
-
-/// 端脑（Telencephalon）后端地址与管理员令牌。
-///
-/// 原来是一个独立的大卡片（标题 + 描述 + 两个 TextField + Save），
-/// 现在收进「高级」折叠区里 —— 这是开发者才需要改的东西。
-class BackendSettingsCard extends ConsumerStatefulWidget {
-  const BackendSettingsCard({super.key});
-
-  @override
-  ConsumerState<BackendSettingsCard> createState() =>
-      _BackendSettingsCardState();
-}
-
-class _BackendSettingsCardState extends ConsumerState<BackendSettingsCard> {
-  late TextEditingController _urlCtrl;
-  late TextEditingController _tokenCtrl;
-  late TextEditingController _shadowKeyCtrl;
-  bool _loaded = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _urlCtrl = TextEditingController();
-    _tokenCtrl = TextEditingController();
-    _shadowKeyCtrl = TextEditingController();
-  }
-
-  @override
-  void dispose() {
-    _urlCtrl.dispose();
-    _tokenCtrl.dispose();
-    _shadowKeyCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _hydrate() async {
-    final cfg = AppConfigService();
-    await cfg.init();
-    // ⚠️ 显示「**用户配置的那个**」⇒ **不读 client**。
-    //
-    // 理由：client 会被内嵌大脑**接管**（地址换成 `127.0.0.1:<agentPort>`、
-    // admin token 换成内嵌那把）⇒ ⇒ 读 client 就是显示**内嵌那台**⇒
-    // ⇒ 用户看到「我配的远端地址不见了」⇒ 而他**一点 Save** 就把内嵌的
-    // 地址/token **写进持久化配置** ⇒ ⇒ 用户配的远端**被覆盖掉**
-    // ⇒ 「配了、存了、界面里还显示着、重启后却不生效」⇒ 失败长得像成功。
-    final configuredUrl = cfg.telencephalonBaseUrl ??
-        ref.read(telencephalonProvider).connection.baseUrl;
-    final configuredToken = cfg.telencephalonAdminToken ?? '';
-    // ⚠️ 影子锁也是「**用户配置的那个**」⇒ 读配置，不读 client
-    // （client 此刻拿着的可能是**内嵌端脑那把**）。
-    final configuredShadowKey = cfg.telencephalonShadowKey ?? '';
-    if (!mounted) return;
-    setState(() {
-      _urlCtrl.text = configuredUrl;
-      _tokenCtrl.text = configuredToken;
-      _shadowKeyCtrl.text = configuredShadowKey;
-      _loaded = true;
-    });
-  }
-
-  Future<void> _save() async {
-    final cfg = AppConfigService();
-    final url = _urlCtrl.text.trim();
-    final token = _tokenCtrl.text.trim();
-    final shadowKey = _shadowKeyCtrl.text.trim();
-    await cfg.setTelencephalonBaseUrl(url.isEmpty ? null : url);
-    await cfg.setTelencephalonAdminToken(token.isEmpty ? null : token);
-    await cfg.setTelencephalonShadowKey(shadowKey.isEmpty ? null : shadowKey);
-    // ⚠️ 改的是「**配置**」⇒
-    // - **记忆面**（`PrefrontalClient`）跟的就是它 ⇒ 立刻生效；
-    // - **端脑面**（client）归**内嵌大脑**管（它在跑 ⇒ 聊天面留在本机
-    //   内嵌那台 ⇒ 不被一条远端地址拽走 ⇒ 不会突然 401）。
-    ref.read(telencephalonProvider.notifier).setConfiguredEndpoint(
-          url.isEmpty ? null : url,
-          token.isEmpty ? null : token,
-          shadowKey: shadowKey.isEmpty ? null : shadowKey,
-        );
-    if (!mounted) return;
-    setState(() {});
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-
-    if (!_loaded) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _hydrate());
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // 标题与描述由外层的 SettingsDisclosure 提供，这里不再重复一遍 ——
-        // 同一个字符串在树上出现两次会让「折叠后不可见」这类断言失效。
-        ShadInput(
-          controller: _urlCtrl,
-          placeholder: const Text('http://127.0.0.1:60080'),
-          keyboardType: TextInputType.url,
-        ),
-        const SizedBox(height: AppTokens.spaceMd),
-        ShadInput(
-          controller: _tokenCtrl,
-          placeholder: Text(l10n.settingsBackendAdminTokenHint),
-          obscureText: true,
-        ),
-        const SizedBox(height: AppTokens.spaceMd),
-        // ⚠️ **影子锁**（`X-Shadow-Key`）—— 端脑面的读门是
-        // **影子锁 ∪ admin token** ⇒ 只填地址 + admin token 的话，
-        // 那台端脑只认影子锁时读面照样 401 ⇒ ⇒ 这里必须有个入口。
-        ShadInput(
-          controller: _shadowKeyCtrl,
-          placeholder: Text(l10n.settingsBackendShadowKeyHint),
-          obscureText: true,
-        ),
-        const SizedBox(height: AppTokens.spaceMd),
-        Align(
-          alignment: Alignment.centerRight,
-          child: ShadButton(
-            onPressed: _save,
-            leading: const Icon(Icons.save_outlined, size: 16),
-            child: Text(l10n.commonSave),
-          ),
-        ),
-      ],
     );
   }
 }

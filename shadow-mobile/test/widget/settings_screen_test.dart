@@ -99,10 +99,12 @@ void main() {
       await pumpSettings(tester);
 
       final l10n = l10nOf(tester);
-      // 三个折叠标题在
+      // 「日志」折叠标题在；「端脑后端地址」整条**已删**（2026-11-13 产品
+      // 裁定：客户端不允许手工填地址，后端只能**选**零信任/局域网的程序）
+      // ⇒ 标题该**找不着** —— 这一格是删除本身的回归钉。
       expect(find.text(l10n.settingsAdvancedLogs), findsOneWidget);
-      expect(find.text(l10n.settingsAdvancedBackend), findsOneWidget);
-      // 但折叠区里的内容不在（后端表单只有展开后才渲染）
+      expect(find.text(l10n.settingsAdvancedBackend), findsNothing);
+      // 但折叠区里的内容不在（日志面板只有展开后才渲染）
       expect(find.text(l10n.commonSave), findsNothing);
       // 旧入口整条删除 ⇒ 那两个标题不该再出现。
       // ⚠️ 这里用**字面量**而不是 l10nOf —— 那些键随旧入口一起删了，
@@ -128,13 +130,13 @@ void main() {
       expect(find.text(l10n.logsEmpty), findsOneWidget);
     });
 
-    testWidgets('展开「端脑后端地址」后能看到保存按钮', (WidgetTester tester) async {
+    testWidgets('手工「端脑后端地址」表单整条不在（只许选，不许填）', (WidgetTester tester) async {
       await pumpSettings(tester);
 
-      final l10n = l10nOf(tester);
-      await tapVisible(tester, find.text(l10n.settingsAdvancedBackend));
-
-      expect(find.text(l10n.commonSave), findsOneWidget);
+      // 地址输入框的占位符与保存按钮都不该出现在树上 —— 配置字段仍在
+      // （AppConfigService 内部槽位，读面不动），但**界面入口已收口**。
+      expect(find.text('http://127.0.0.1:60080'), findsNothing);
+      expect(find.text(l10nOf(tester).commonSave), findsNothing);
     });
 
     testWidgets('弹层里没有 Material 祖先也不崩（ShadSheet 不提供 Material）', (

@@ -58,6 +58,13 @@ class TtsEngine {
   String _externalUrl = '';
   bool _isInitialized = false;
 
+  /// HTTP client —— **测试可注入**（Rust 腿的「大脑这条腿说不了 ⇒ 回退」判据
+  /// 要能真实打到 400/连接失败，而不是靠真机）。形状照
+  /// `TelencephalonClient({http.Client? client})`。
+  final http.Client _http;
+
+  TtsEngine({http.Client? httpClient}) : _http = httpClient ?? http.Client();
+
   TtsEngineType get engineType => _engineType;
   String get externalUrl => _externalUrl;
   bool get isInitialized => _isInitialized;
@@ -124,12 +131,28 @@ class TtsEngine {
     return initialize();
   }
 
-  Future<void> speak(String text, {String lang = 'zh-CN'}) async {
+  /// 说话。
+  ///
+  /// ⚠️ **TTS 模型没设置 ⇒ 用 Android 内置出声**（2026-11-13 产品裁定）：
+  /// 引擎选了 Rust 而大脑里没有注册 TTS 引擎时，`/v1/audio/speech` 回
+  /// **400 + `NoRegisteredModel: register at least one TTS model`**
+  /// （neuron 的 tts registry 为空）；大脑没起来则是连接失败（端口 0）——
+  /// 这些对说话的人来说是同一件事：**这条腿说不了**。以前失败只剩一行
+  /// debugPrint ⇒ ⇒ **回复文本无声消失**。现在这条腿任何失败都落到
+  /// Android 内置通道出声 ⇒ 有声音才是诚实的结果。
+  ///
+  /// [allowFallback] 关掉回退是给设置页「试听」用的：试听要试的就是
+  /// **当前配置的那个引擎**，回退会把「没配置」听成「配置生效了」。
+  Future<void> speak(
+    String text, {
+    String lang = 'zh-CN',
+    bool allowFallback = true,
+  }) async {
     if (text.isEmpty) return;
 
     switch (_engineType) {
       case TtsEngineType.rust:
-        await _speakRust(text, lang);
+        await _speakRust(text, lang, allowFallback: allowFallback);
         break;
       case TtsEngineType.external:
         if (_externalUrl.isNotEmpty) {
@@ -137,26 +160,38 @@ class TtsEngine {
         }
         break;
       case TtsEngineType.androidBuiltIn:
-        final initialized = await initialize();
-        if (!initialized) {
-          debugPrint('TtsEngine.speak: TTS not initialized');
-          return;
-        }
-        try {
-          await _channel.invokeMethod<bool>('speak', {
-            'text': text,
-            'lang': lang,
-          });
-        } catch (e) {
-          debugPrint('TtsEngine.speak error: $e');
-        }
+        await _speakAndroid(text, lang);
         break;
     }
   }
 
-  Future<void> _speakRust(String text, String lang) async {
+  /// Android 内置 TTS（原生通道）—— **唯一实现**：正常腿与 Rust 腿的
+  /// 回退都走这一条。同一条规则写两份 ⇒ 变异只打掉一份时另一份会把
+  /// 断言喂饱（假绿教训，别再犯）。
+  Future<void> _speakAndroid(String text, String lang) async {
+    final initialized = await initialize();
+    if (!initialized) {
+      debugPrint('TtsEngine._speakAndroid: TTS not initialized');
+      return;
+    }
     try {
-      final response = await http.post(
+      await _channel.invokeMethod<bool>('speak', {
+        'text': text,
+        'lang': lang,
+      });
+    } catch (e) {
+      debugPrint('TtsEngine._speakAndroid error: $e');
+    }
+  }
+
+  Future<void> _speakRust(
+    String text,
+    String lang, {
+    required bool allowFallback,
+  }) async {
+    final http.Response response;
+    try {
+      response = await _http.post(
         Uri.parse(_rustTtsUrl),
         // ⚠️ **门罩住整张面**（2026-11-03）⇒ ⇒ neuron's `/v1/audio/speech`
         // 现在也在门型表管辖内 ⇒ ⇒ POST ⇒ 落**写门**（只认 admin token）
@@ -167,16 +202,30 @@ class TtsEngine {
         },
         body: json.encode({'text': text, 'voice_path': null, 'speed': null}),
       );
+    } catch (e) {
+      // 大脑没起来（端口 0 / 连接拒绝）：对「模型没设置」来说是同一个事实。
+      debugPrint('TtsEngine._speakRust: brain unreachable ($e)');
+      if (allowFallback) await _speakAndroid(text, lang);
+      return;
+    }
 
-      if (response.statusCode != 200) {
-        debugPrint('TtsEngine._speakRust: HTTP ${response.statusCode}');
-        return;
-      }
+    if (response.statusCode != 200) {
+      // 「没设置」的真机判据在体内：400 + NoRegisteredModel（neuron tts
+      // registry 空）。其余非 200（401 门禁 / 上游炸）同样是「这条腿说不了」。
+      debugPrint(
+        'TtsEngine._speakRust: HTTP ${response.statusCode} '
+        '${_excerpt(response.body)}',
+      );
+      if (allowFallback) await _speakAndroid(text, lang);
+      return;
+    }
 
+    try {
       final data = json.decode(response.body) as Map<String, dynamic>;
       final audioBase64 = data['audio'] as String?;
       if (audioBase64 == null || audioBase64.isEmpty) {
         debugPrint('TtsEngine._speakRust: No audio in response');
+        if (allowFallback) await _speakAndroid(text, lang);
         return;
       }
 
@@ -184,8 +233,13 @@ class TtsEngine {
       await _playAudio(audioBytes);
     } catch (e) {
       debugPrint('TtsEngine._speakRust error: $e');
+      if (allowFallback) await _speakAndroid(text, lang);
     }
   }
+
+  /// 日志用的响应体摘录（真因要看得见，但不许把整段音频糊进日志）。
+  static String _excerpt(String s) =>
+      s.length <= 160 ? s : '${s.substring(0, 160)}…';
 
   Future<void> _playAudio(Uint8List audioBytes) async {
     debugPrint('TtsEngine._playAudio: Playing ${audioBytes.length} bytes');

@@ -56,7 +56,10 @@ class _TtsSettingsGroupState extends State<TtsSettingsGroup> {
 
   Future<void> _testSpeech() async {
     final l10n = AppLocalizations.of(context)!;
-    await _ttsEngine.speak(l10n.ttsTestText);
+    // 试听**不许回退**（allowFallback:false）：这一发要试的就是当前配置的
+    // 引擎 —— 若大脑没配 TTS 模型时回退到 Android 内置出声，用户会把
+    // 「Rust 没配置」听成「配置生效了」。
+    await _ttsEngine.speak(l10n.ttsTestText, allowFallback: false);
   }
 
   @override

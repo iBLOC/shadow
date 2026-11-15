@@ -28,6 +28,7 @@ import { VisualQaClarificationChip } from '../components/chat/VisualQaClarificat
 import { ConversationModeSwitcher } from '../components/chat/ConversationModeSwitcher';
 import { FeishuPublishedCard } from '../components/chat/FeishuPublishedCard';
 import { AudioEventChip } from '../components/chat/AudioEventChip';
+import { MessageSpeakButton } from '../components/chat/MessageSpeakButton';
 import { ToolCallMessageCard } from '../components/chat/ToolCallMessageCard';
 import { A2uiPanel } from '../components/chat/A2uiPanel';
 import { BrainFaceBanner } from '../components/chat/BrainFaceBanner';
@@ -1147,6 +1148,11 @@ export function ConversationPage() {
                                 speed: msg.token_stats.tokensPerSecond.toFixed(1),
                               })}
                             </span>
+                          )}
+                          {/* 朗读 —— TTS 兜底策略的最前端落点：有模型走大脑，
+                              没模型系统默认语音接上（见 MessageSpeakButton / lib/tts）。 */}
+                          {msg.role === 'assistant' && msg.content.trim() !== '' && (
+                            <MessageSpeakButton text={msg.content} />
                           )}
                         </div>
                       </div>
