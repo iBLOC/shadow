@@ -526,6 +526,7 @@ class _LocalChatViewState extends ConsumerState<LocalChatView> {
                   focusedHintText: l10n.askSomething,
                   recordingText: l10n.releaseToSend,
                   cancelText: l10n.releaseToCancel,
+                  cancelZoneText: l10n.cancel,
                   galleryLabel: l10n.gallery,
                   fileLabel: l10n.file,
                   cameraLabel: l10n.photoOrVideo,

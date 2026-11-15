@@ -123,7 +123,8 @@ void main() {
         ),
       );
 
-      // ⚠️ 2026-11-15 起附件入口挪到**右边**、形状是「＋」（回形针退休）。
+      // ⚠️ 2026-11-15 起附件入口形状改成「＋」（回形针退休）；
+      // ⚠️ 2026-11-16 起「＋」挪到**输入框左侧**（输入区变成一个整体容器）。
       expect(find.byIcon(Icons.add), findsOneWidget);
       expect(find.byIcon(Icons.attach_file), findsNothing);
     });

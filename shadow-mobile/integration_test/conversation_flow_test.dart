@@ -61,18 +61,25 @@ void main() {
       expect(find.byType(ListView), findsOneWidget);
     });
 
-    testWidgets('has attachment button for media', (WidgetTester tester) async {
+    testWidgets('attachment entry is the **plus** button', (WidgetTester tester) async {
       app.main();
       await tester.pumpAndSettle(const Duration(seconds: 5));
 
-      expect(find.byIcon(Icons.attach_file), findsOneWidget);
+      // ⚠️ 2026-11-15：回形针入口**退休了**（改成「＋」）⇒ ⇒ 这条断言跟着改
+      // ⇒ ⇒ 不许留一条「与界面相反」的过期断言（真机上它会**假红**）。
+      expect(find.byIcon(Icons.attach_file), findsNothing);
+      expect(find.byIcon(Icons.add), findsOneWidget);
     });
 
-    testWidgets('has microphone button for voice', (WidgetTester tester) async {
+    testWidgets('has **no** standalone microphone button', (
+      WidgetTester tester,
+    ) async {
       app.main();
       await tester.pumpAndSettle(const Duration(seconds: 5));
 
-      expect(find.byIcon(Icons.mic), findsOneWidget);
+      // ⚠️ 输入区**统一成一个输入框**（轻触打字、长按说话）⇒ ⇒ 那个
+      // 「键盘／麦克风」切换钮**退休了** ⇒ ⇒ 也不许再有 VoiceInputView。
+      expect(find.byIcon(Icons.mic), findsNothing);
     });
   });
 }

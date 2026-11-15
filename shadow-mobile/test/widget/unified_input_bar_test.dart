@@ -8,8 +8,13 @@ import 'package:shadow_mobile/widgets/chat/unified_input_bar.dart';
 ///   ❶ **轻触** ⇒ 打字（**不许**开录音）；
 ///   ❷ **长按** ⇒ 录音；**松手** ⇒ 结束（**不放弃**）；
 ///   ❸ **按住时左右滑动** ⇒ 进入「放弃」⇒ ⇒ 松手 ⇒ **放弃**；
-///   ❹ 附件入口在**右边**、形状是「＋」；
+///   ❹ 附件入口形状是「＋」、在**输入框左侧**；
 ///   ❺ 相机钮：**轻触**拍照、**长按**录像（同一个钮分流）。
+///   ❻ **没有**发送按钮（文字靠键盘上的发送键）；
+///   ❼ 等回话 ⇒ 输入区容器里有一枚**固定 18px** 的小转圈；
+///   ❽ 录音态弹的是**整屏遮罩**（**不在**文字框里）；
+///   ❾ 上滑到顶部「取消」区 ⇒ 提示翻成「松手放弃」⇒ 松手**放弃**；
+///   ❿ 「＋」在左、「📷」在右，三样在**同一个圆角框**里。
 void main() {
   late TextEditingController controller;
   int started = 0;
@@ -41,6 +46,7 @@ void main() {
       focusedHintText: '输入内容…',
       recordingText: '松手发送',
       cancelText: '松手放弃',
+      cancelZoneText: '取消',
       galleryLabel: '相册',
       fileLabel: '文件',
       cameraLabel: '轻触拍照 · 长按录像',
@@ -118,7 +124,7 @@ void main() {
     expect(finished, isTrue, reason: '滑到两侧松手 ⇒ **放弃**（不许发送）');
   });
 
-  testWidgets('❹ 附件入口在**右边**、形状是「＋」；菜单里有相册/文件',
+  testWidgets('❹ 附件入口形状是「＋」、在**输入框左侧**；菜单里有相册/文件',
       (tester) async {
     await tester.pumpWidget(wrap(bar()));
 
@@ -169,7 +175,8 @@ void main() {
     expect(find.byIcon(Icons.camera_alt), findsOneWidget);
   });
 
-  testWidgets('❼ 正在等回话 ⇒ 输入框**外面**有一枚小转圈（**不是**按钮）', (tester) async {
+  testWidgets('❼ 正在等回话 ⇒ 输入区容器里有一枚小转圈（**不是**按钮）',
+      (tester) async {
     await tester.pumpWidget(wrap(bar(isLoading: true)));
     await tester.pump();
 
@@ -180,28 +187,111 @@ void main() {
         reason: '等回话要有忙碌指示');
     expect(find.byIcon(Icons.send), findsNothing);
 
-    // ⚠️ 转圈必须**小** —— 真机第一版把它塞进输入框的 suffixIcon ⇒ ⇒
-    // suffix 槽给的约束把它**撑成一大坨**（真机实测约 125px，糊住半个
-    // 输入框）⇒ ⇒ 现在用 OverflowBox 让它**自己定尺寸** ⇒ ⇒ 钉死 18px。
     // ⚠️ 转圈必须**小** —— 第一版把它塞进输入框的 suffixIcon ⇒ ⇒ suffix 槽
     // 给的约束把它**撑成一大坨**（真机实测约 125px，糊住半个输入框）⇒ ⇒
-    // 现在它是**输入框外面**的固定槽 ⇒ ⇒ 钉死 18px。
+    // 现在它是**固定尺寸**的槽 ⇒ ⇒ 钉死 18px。
     final size = tester.getSize(find.byType(CircularProgressIndicator));
     expect(size.width, inInclusiveRange(14, 22),
         reason: '转圈不许被撑大（实测宽 ${size.width.toStringAsFixed(1)}px）');
     expect(size.height, inInclusiveRange(14, 22),
         reason: '转圈不许被撑大（实测高 ${size.height.toStringAsFixed(1)}px）');
 
-    // ⚠️ 转圈不许**盖住输入框** —— 它在「＋」「📷」两个钮的**左边**。
+    // ⚠️ 转圈不许**盖住字** —— 它住在输入区容器里、文字框**右边**、
+    // 「📷」**左边**（固定占位 ⇒ 「＋」「📷」不跳）。
     final spinnerX = tester.getCenter(find.byType(CircularProgressIndicator)).dx;
     final cameraX = tester.getCenter(find.byIcon(Icons.camera_alt)).dx;
     final fieldX = tester.getCenter(find.byType(TextField)).dx;
-    expect(spinnerX, lessThan(cameraX), reason: '转圈在两个钮的左边');
-    expect(spinnerX, greaterThan(fieldX), reason: '转圈在输入框的右边（不许盖住字）');
+    expect(spinnerX, lessThan(cameraX), reason: '转圈在「📷」的左边');
+    expect(spinnerX, greaterThan(fieldX), reason: '转圈在文字框的右边（不许盖住字）');
 
     // 不等回话了 ⇒ 转圈消失。
     await tester.pumpWidget(wrap(bar()));
     await tester.pump();
     expect(find.byType(CircularProgressIndicator), findsNothing);
+  });
+
+  testWidgets('❽ 录音态弹的是**整屏遮罩**（**不在**文字框里）', (tester) async {
+    await tester.pumpWidget(wrap(bar()));
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byType(TextField)),
+    );
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(started, 1, reason: '按住到点 ⇒ 必须开录');
+
+    final overlay = find.byKey(UnifiedInputBar.recordingOverlayKey);
+    expect(overlay, findsOneWidget, reason: '录音态必须弹一层遮罩（要有提示）');
+
+    // ⚠️ 遮罩是**整屏** —— 尺寸必须等于屏幕，不许只是输入框那一小块。
+    final overlaySize = tester.getSize(overlay);
+    final screenSize = tester.getSize(find.byType(Scaffold));
+    expect(overlaySize.width, screenSize.width,
+        reason: '遮罩必须盖满整屏宽（实测 ${overlaySize.width} vs ${screenSize.width}）');
+    expect(overlaySize.height, screenSize.height,
+        reason: '遮罩必须盖满整屏高（实测 ${overlaySize.height} vs ${screenSize.height}）');
+
+    // ⚠️ 遮罩**不在**文字框里面 —— 它是 `Overlay` 上单独的一层。
+    expect(
+      find.descendant(of: find.byType(TextField), matching: overlay),
+      findsNothing,
+      reason: '遮罩不是输入框里的那一小块',
+    );
+
+    await gesture.up();
+    await tester.pump();
+    expect(find.byKey(UnifiedInputBar.recordingOverlayKey), findsNothing,
+        reason: '松手 ⇒ 遮罩必须撤掉');
+  });
+
+  testWidgets('❾ 上滑到顶部「取消」区 ⇒ 提示翻成「松手放弃」⇒ 松手**放弃**',
+      (tester) async {
+    await tester.pumpWidget(wrap(bar()));
+
+    final start = tester.getCenter(find.byType(TextField));
+    final gesture = await tester.startGesture(start);
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(started, 1);
+
+    // ⚠️ 顶部那条**放弃目标区**必须看得见 —— 用户得知道往哪移。
+    expect(find.text('取消'), findsOneWidget, reason: '顶部要有放弃目标区');
+    expect(find.text('松手发送'), findsOneWidget, reason: '没进区 ⇒ 提示是「松手发送」');
+
+    // ⚠️ 上滑到顶部（y ≤ 88 逻辑像素）⇒ ⇒ 进区 ⇒ ⇒ 提示翻。
+    await gesture.moveTo(Offset(start.dx, 20));
+    await tester.pump();
+    expect(find.text('松手放弃'), findsOneWidget, reason: '进区了 ⇒ 提示要翻');
+    expect(find.text('松手发送'), findsNothing, reason: '进区了 ⇒ 不许还说「松手发送」');
+
+    await gesture.up();
+    await tester.pump();
+    expect(finished, isTrue, reason: '在取消区松手 ⇒ **放弃**（不许发送）');
+    expect(find.byKey(UnifiedInputBar.recordingOverlayKey), findsNothing);
+  });
+
+  testWidgets('❿ 「＋」在左、「📷」在右，三样在**同一个圆角框**里',
+      (tester) async {
+    await tester.pumpWidget(wrap(bar()));
+
+    final area = find.byKey(UnifiedInputBar.inputAreaKey);
+    expect(area, findsOneWidget, reason: '输入区是一个整体容器');
+
+    // ⚠️ 两个钮都在**那个容器**里面（不是一个在框内、一个在框外）。
+    expect(
+      find.descendant(of: area, matching: find.byIcon(Icons.add)),
+      findsOneWidget,
+      reason: '「＋」必须在输入区容器里',
+    );
+    expect(
+      find.descendant(of: area, matching: find.byIcon(Icons.camera_alt)),
+      findsOneWidget,
+      reason: '「📷」必须在输入区容器里',
+    );
+
+    // ⚠️ 「＋」在文字框**左边**，「📷」在**右边**。
+    final addX = tester.getCenter(find.byIcon(Icons.add)).dx;
+    final fieldX = tester.getCenter(find.byType(TextField)).dx;
+    final cameraX = tester.getCenter(find.byIcon(Icons.camera_alt)).dx;
+    expect(addX, lessThan(fieldX), reason: '「＋」在左边');
+    expect(cameraX, greaterThan(fieldX), reason: '「📷」在右边');
   });
 }
