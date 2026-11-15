@@ -52,10 +52,57 @@ class ImageInputHandler {
     }
   }
 
-  Future<String?> _saveToAppDirectory(File sourceFile, String fileName) async {
+  /// **拍视频**（长按相机钮走这条）。
+  ///
+  /// ⚠️ 走**系统相机**（image_picker 的 ImageSource.camera ⇒ ⇒
+  /// ACTION_VIDEO_CAPTURE）⇒ ⇒ **App 自己不需要 CAMERA 权限**（那是系统
+  /// 相机应用的权限）⇒ ⇒ 零新增权限、零新增依赖。
+  Future<File?> pickVideo({
+    ImagePickSource source = ImagePickSource.camera,
+  }) async {
+    try {
+      final XFile? video = await _picker.pickVideo(
+        source: source == ImagePickSource.camera
+            ? ImageSource.camera
+            : ImageSource.gallery,
+      );
+
+      if (video == null) {
+        debugPrint('ImageInputHandler: No video selected');
+        return null;
+      }
+
+      final file = File(video.path);
+      if (!await file.exists()) {
+        debugPrint(
+          'ImageInputHandler: Video file does not exist at path: ${video.path}',
+        );
+        return null;
+      }
+      final savedPath = await _saveToAppDirectory(
+        file,
+        video.name,
+        dirName: 'captured_videos',
+      );
+      if (savedPath != null) {
+        debugPrint('ImageInputHandler: Video saved to $savedPath');
+        return File(savedPath);
+      }
+      return file;
+    } catch (e) {
+      debugPrint('ImageInputHandler: Error picking video: $e');
+      return null;
+    }
+  }
+
+  Future<String?> _saveToAppDirectory(
+    File sourceFile,
+    String fileName, {
+    String dirName = 'captured_images',
+  }) async {
     try {
       final appDir = await getApplicationDocumentsDirectory();
-      final imagesDir = Directory('${appDir.path}/captured_images');
+      final imagesDir = Directory('${appDir.path}/$dirName');
       if (!await imagesDir.exists()) {
         await imagesDir.create(recursive: true);
       }

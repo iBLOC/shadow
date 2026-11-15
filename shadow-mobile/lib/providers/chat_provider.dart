@@ -400,6 +400,23 @@ class ChatNotifier extends StateNotifier<ChatState> {
     }
   }
 
+  /// **拍视频**（长按相机钮）—— 录完挂成附件。
+  Future<void> captureVideo() async {
+    final input = await _multimodalManager.captureVideo();
+    if (input != null) {
+      state = state.copyWith(attachments: [...state.attachments, input]);
+    }
+  }
+
+  /// **放弃这次录音**（按住时滑到两侧松手）⇒ ⇒ 不转写、不发送。
+  ///
+  /// ⚠️ 必须把录音器**真的关掉** ⇒ ⇒ 否则麦克风一直占着（用户听不到自己
+  /// 说话、也录不进下一段）。
+  Future<void> cancelAudioRecording() async {
+    await _multimodalManager.cancelAudioRecording();
+    state = state.copyWith(isRecordingAudio: false);
+  }
+
   Future<void> pickFile() async {
     final input = await _multimodalManager.pickFile();
     if (input != null) {

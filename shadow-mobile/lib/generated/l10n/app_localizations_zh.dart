@@ -170,6 +170,18 @@ class AppLocalizationsZh extends AppLocalizations {
   String get recording => '录音中...';
 
   @override
+  String get tapToTypeHoldToTalk => '轻触输入 · 长按说话';
+
+  @override
+  String get releaseToSend => '松手发送';
+
+  @override
+  String get releaseToCancel => '松手放弃';
+
+  @override
+  String get photoOrVideo => '轻触拍照 · 长按录像';
+
+  @override
   String get retry => '重试';
 
   @override

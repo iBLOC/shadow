@@ -14,7 +14,7 @@ import '../../widgets/chat_bubble.dart';
 import 'a2ui_inline_block.dart';
 import 'message_bubbles.dart';
 import 'tool_call_card.dart';
-import 'voice_input_view.dart';
+import 'unified_input_bar.dart';
 import 'camera_preview.dart';
 import 'message_action_sheet.dart';
 
@@ -31,8 +31,12 @@ class LocalChatView extends ConsumerStatefulWidget {
   final VoidCallback onCaptureImage;
   final VoidCallback onPickFile;
   final VoidCallback onStartAudioRecording;
-  final VoidCallback onStopAudioRecording;
-  final VoidCallback onStopAndSend;
+
+  /// 松手 ⇒ 结束录音。[cancel] 为真表示**放弃**（按住时滑到两侧松手）。
+  final Future<void> Function(bool cancel) onFinishRecording;
+
+  /// 相机钮**长按** ⇒ 拍视频（轻触是拍照片）。
+  final VoidCallback onCaptureVideo;
 
   const LocalChatView({
     super.key,
@@ -47,8 +51,8 @@ class LocalChatView extends ConsumerStatefulWidget {
     required this.onCaptureImage,
     required this.onPickFile,
     required this.onStartAudioRecording,
-    required this.onStopAudioRecording,
-    required this.onStopAndSend,
+    required this.onFinishRecording,
+    required this.onCaptureVideo,
   });
 
   @override
@@ -508,131 +512,31 @@ class _LocalChatViewState extends ConsumerState<LocalChatView> {
                       },
                     ),
                   ),
-                Row(
-                  children: [
-                    // Attachment menu
-                    PopupMenuButton<String>(
-                      icon: const Icon(Icons.attach_file),
-                      onSelected: (value) {
-                        switch (value) {
-                          case 'gallery':
-                            widget.onPickImage();
-                            break;
-                          case 'camera':
-                            widget.onCaptureImage();
-                            break;
-                          case 'file':
-                            widget.onPickFile();
-                            break;
-                        }
-                      },
-                      itemBuilder: (context) => [
-                        PopupMenuItem(
-                          value: 'gallery',
-                          child: Row(
-                            children: [
-                              const Icon(Icons.photo_library),
-                              const SizedBox(width: 8),
-                              Text(l10n.gallery),
-                            ],
-                          ),
-                        ),
-                        PopupMenuItem(
-                          value: 'camera',
-                          child: Row(
-                            children: [
-                              const Icon(Icons.camera_alt),
-                              const SizedBox(width: 8),
-                              Text(l10n.camera),
-                            ],
-                          ),
-                        ),
-                        PopupMenuItem(
-                          value: 'file',
-                          child: Row(
-                            children: [
-                              const Icon(Icons.insert_drive_file),
-                              const SizedBox(width: 8),
-                              Text(l10n.file),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    // Voice mode toggle button
-                    IconButton(
-                      icon: Icon(
-                        isConversationMode ? Icons.keyboard : Icons.mic,
-                        color: isConversationMode
-                            ? Theme.of(context).colorScheme.primary
-                            : null,
-                      ),
-                      onPressed: () {
-                        final notifier = ref.read(
-                          conversationModeProvider.notifier,
-                        );
-                        if (isConversationMode) {
-                          notifier.startMessageMode();
-                        } else {
-                          notifier.startConversationMode();
-                        }
-                      },
-                    ),
-                    // Input area: voice mode or text mode
-                    Expanded(
-                      child: isConversationMode
-                          ? VoiceInputView(
-                              isRecording: chatState.isRecordingAudio,
-                              isEnabled:
-                                  chatState.canChat && !chatState.isLoading,
-                              onStartRecording: widget.onStartAudioRecording,
-                              onStopAndSend: widget.onStopAndSend,
-                            )
-                          : TextField(
-                              controller: widget.promptController,
-                              decoration: InputDecoration(
-                                // `canChat` 现在恒真（本地 LiteRT 下线后
-                                // 没有「引擎没就绪」这个前置条件了），
-                                // 所以这里**永远**是问句提示，不再有
-                                // 「初始化中…」那种永远转不完的状态。
-                                hintText: l10n.askSomething,
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(24),
-                                ),
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 12,
-                                ),
-                              ),
-                              enabled:
-                                  chatState.canChat && !chatState.isLoading,
-                              maxLines: 4,
-                              minLines: 1,
-                              textInputAction: TextInputAction.send,
-                              onSubmitted: (_) => widget.onSendMessage(),
-                            ),
-                    ),
-                    if (!isConversationMode) ...[
-                      const SizedBox(width: 8),
-                      IconButton.filled(
-                        onPressed: chatState.canChat && !chatState.isLoading
-                            ? widget.onSendMessage
-                            : null,
-                        icon:
-                            chatState.isLoading &&
-                                chatState.streamingText.isEmpty
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Icon(Icons.send),
-                      ),
-                    ],
-                  ],
+                // ⚠️ **一个**输入框 —— 轻触打字、长按说话；文件入口挪到
+                // 右边变成「＋」；相机钮轻触拍照、**长按录像**。
+                //
+                // ⚠️ 以前这一行是「附件钮 ＋ 键盘/麦克风切换钮 ＋（TextField
+                // 或 VoiceInputView 二选一）＋ 发送钮」⇒ ⇒ 「我想说话」要先
+                // **切模式**、再长按 ⇒ ⇒ 两步 ⇒ ⇒ 现在**一步**。
+                UnifiedInputBar(
+                  controller: widget.promptController,
+                  enabled: chatState.canChat && !chatState.isLoading,
+                  isLoading: chatState.isLoading,
+                  hasAttachments: chatState.attachments.isNotEmpty,
+                  hintText: l10n.tapToTypeHoldToTalk,
+                  focusedHintText: l10n.askSomething,
+                  recordingText: l10n.releaseToSend,
+                  cancelText: l10n.releaseToCancel,
+                  galleryLabel: l10n.gallery,
+                  fileLabel: l10n.file,
+                  cameraLabel: l10n.photoOrVideo,
+                  onSend: widget.onSendMessage,
+                  onStartRecording: widget.onStartAudioRecording,
+                  onFinishRecording: widget.onFinishRecording,
+                  onPickImage: widget.onPickImage,
+                  onPickFile: widget.onPickFile,
+                  onCapturePhoto: widget.onCaptureImage,
+                  onCaptureVideo: widget.onCaptureVideo,
                 ),
               ],
             ),

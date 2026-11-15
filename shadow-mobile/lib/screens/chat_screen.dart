@@ -257,9 +257,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           ref.read(chatProvider.notifier).pickFile(),
                       onStartAudioRecording: () =>
                           ref.read(chatProvider.notifier).startAudioRecording(),
-                      onStopAudioRecording: () =>
-                          ref.read(chatProvider.notifier).stopAudioRecording(),
-                      onStopAndSend: _stopRecordingAndSend,
+                      onFinishRecording: _finishRecording,
+                      onCaptureVideo: () =>
+                          ref.read(chatProvider.notifier).captureVideo(),
                     ),
                   ),
                 ],
@@ -296,45 +296,41 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
-  Future<void> _stopRecordingAndSend() async {
-    // ⚠️ 语音对话态下，松手时本地这份 PCM 录音**不当附件**挂上去
-    // —— 端脑链路只收纯文本，挂上去只会白报一条「附件不可用」横幅
-    // （语音对话每说一句就红一次）。
-    //
-    // ⚠️ **这里没有「实时流」**：原来那条 WS 音频腿（`/api/sessions/{id}/audio`）
-    // **端脑侧压根没有这条路由** ⇒ ⇒ 以前推过去的音频块是**死流量**，
-    // 现在改成松手时**一次性**转写（端脑 `voice/transcribe`）。
-    //
-    // 文本态语义不变：录完挂附件（用户看得见自己发了什么）。
-    final isConversationMode =
-        ref.read(conversationModeProvider).mode ==
-        ConversationMode.conversation;
-    if (isConversationMode) {
-      // ⚠️ 语音对话态：录到的 PCM **不当附件**（端脑链路只收纯文本，挂上去
-      // 只会白报一条「附件不可用」横幅）⇒ ⇒ 改走**一次性转写**：端脑
-      // `voice/transcribe` ⇒ ⇒ **模型由能力页那张「语音识别」档决定**。
-      final input = await ref
-          .read(chatProvider.notifier)
-          .stopAudioRecording(keepAttachment: false);
-      if (input == null) {
-        // ⚠️ **失败要说真话** —— 「没录到音频」**不许静默返回**（那等于让
-        // 用户以为「说完了话、什么都没发生」）⇒ ⇒ 报出去 ⇒ ⇒ 全局横幅看得见。
-        AsrEngine.reportFailure('没录到声音（录音机没交出音频）');
-        return;
-      }
-      final result = await ref.read(asrEngineProvider).transcribe(
-            input.data,
-            lobe: ref.read(chatProvider).activeConversationAgent,
-          );
-      if (!result.ok) return;
-      final text = result.text ?? '';
-      if (text.isNotEmpty) {
-        ref.read(chatProvider.notifier).generateResponse(text);
-      }
+  /// **松手** ⇒ 结束这次录音。
+  ///
+  /// ⚠️ [cancel] 为真 ⇒ 用户按住时**滑到了两侧** ⇒ ⇒ 那是**放弃** ⇒ ⇒
+  /// 不转写、不发送、但**必须把录音器关掉**（否则麦克风一直占着 ⇒ ⇒ 下
+  /// 一段录不进去、用户也听不到自己说话）。
+  ///
+  /// ⚠️ 正常松手 ⇒ ⇒ 录到的 PCM **不当附件**挂上去 —— 端脑链路只收纯
+  /// 文本，挂上去只会白报一条「附件不可用」横幅 ⇒ ⇒ 改走**一次性转写**：
+  /// 端脑 `voice/transcribe` ⇒ ⇒ **模型由能力页那张「语音识别」档决定**。
+  ///
+  /// ⚠️ **这里没有「实时流」**：原来那条 WS 音频腿（`/api/sessions/{id}/audio`）
+  /// **端脑侧压根没有这条路由** ⇒ ⇒ 以前推过去的音频块是**死流量**。
+  Future<void> _finishRecording(bool cancel) async {
+    if (cancel) {
+      await ref.read(chatProvider.notifier).cancelAudioRecording();
       return;
     }
-    await ref.read(chatProvider.notifier).stopAudioRecording();
-    _sendMessage();
+    final input = await ref
+        .read(chatProvider.notifier)
+        .stopAudioRecording(keepAttachment: false);
+    if (input == null) {
+      // ⚠️ **失败要说真话** —— 「没录到音频」**不许静默返回**（那等于让
+      // 用户以为「说完了话、什么都没发生」）⇒ ⇒ 报出去 ⇒ ⇒ 全局横幅看得见。
+      AsrEngine.reportFailure('没录到声音（录音机没交出音频）');
+      return;
+    }
+    final result = await ref.read(asrEngineProvider).transcribe(
+          input.data,
+          lobe: ref.read(chatProvider).activeConversationAgent,
+        );
+    if (!result.ok) return;
+    final text = result.text ?? '';
+    if (text.isNotEmpty) {
+      ref.read(chatProvider.notifier).generateResponse(text);
+    }
   }
 
   void _showSettings(BuildContext context) {

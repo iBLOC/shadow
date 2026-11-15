@@ -104,7 +104,7 @@ void main() {
       //（以前是二选一 ⇒ 对话整块被顶掉 ⇒ 入口也跟着让位）。
       expect(find.byIcon(Icons.settings), findsOneWidget);
       // ⚠️ 而且**对话还在** ⇒ 这才是「共存」而不是「换页」。
-      expect(find.text(l10nOf(tester).askSomething), findsOneWidget);
+      expect(find.text(l10nOf(tester).tapToTypeHoldToTalk), findsOneWidget);
     });
 
     testWidgets('进首页不会弹本地模型下载框', (WidgetTester tester) async {
@@ -125,11 +125,13 @@ void main() {
       expect(find.byType(MessageBubble), findsNothing);
     });
 
-    testWidgets('输入框可用：提示是「问点什么」而不是「初始化中…」', (WidgetTester tester) async {
+    testWidgets('输入框可用：提示是「轻触输入 · 长按说话」而不是「初始化中…」', (WidgetTester tester) async {
       await pumpChat(tester);
 
       final l10n = l10nOf(tester);
-      expect(find.text(l10n.askSomething), findsOneWidget);
+      // ⚠️ 2026-11-15 起未聚焦的提示是**手势提示**（长按＝说话）⇒ ⇒
+      // 聚焦后才是「输入内容…」（askSomething）。
+      expect(find.text(l10n.tapToTypeHoldToTalk), findsOneWidget);
       expect(find.text(l10n.initializing), findsNothing);
     });
 

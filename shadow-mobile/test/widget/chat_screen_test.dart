@@ -115,10 +115,12 @@ void main() {
         ),
       );
 
-      expect(find.byIcon(Icons.attach_file), findsOneWidget);
+      // ⚠️ 2026-11-15 起附件入口挪到**右边**、形状是「＋」（回形针退休）。
+      expect(find.byIcon(Icons.add), findsOneWidget);
+      expect(find.byIcon(Icons.attach_file), findsNothing);
     });
 
-    testWidgets('has microphone button', (WidgetTester tester) async {
+    testWidgets('**没有**独立的麦克风钮（长按输入框就是录音）＋ 有相机钮', (WidgetTester tester) async {
       await pumpWidgetForTest(
         tester,
         ProviderScope(
@@ -136,7 +138,12 @@ void main() {
         ),
       );
 
-      expect(find.byIcon(Icons.mic), findsOneWidget);
+      // ⚠️ 2026-11-15：输入区**统一成一个输入框**（轻触打字、长按说话）⇒ ⇒
+      // 那个「键盘／麦克风」切换钮**退休**了 ⇒ ⇒ 也不许再有 VoiceInputView。
+      expect(find.byIcon(Icons.mic), findsNothing);
+      expect(find.byType(TextField), findsOneWidget);
+      // 相机钮（轻触拍照、长按录像）在。
+      expect(find.byIcon(Icons.camera_alt), findsOneWidget);
     });
 
     testWidgets('can enter text and tap send button', (

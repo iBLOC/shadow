@@ -71,6 +71,19 @@ class MultimodalInputManager {
     return null;
   }
 
+  /// **拍视频**（长按相机钮）—— 走系统相机 ⇒ ⇒ App 不需要 CAMERA 权限。
+  Future<MultimodalInput?> captureVideo() async {
+    final file = await _imageHandler.pickVideo(source: ImagePickSource.camera);
+    if (file != null) {
+      return MultimodalInput(
+        type: MultimodalInputType.video,
+        data: file,
+        path: file.path,
+      );
+    }
+    return null;
+  }
+
   // File
   Future<MultimodalInput?> pickFile({List<String>? allowedExtensions}) async {
     final file = await _fileHandler.pickFile(

@@ -84,15 +84,15 @@ void main() {
 
       // ⚠️ **对话也在** —— 这是「共存」与「换页」的分水岭。
       final l10n = l10nOf(tester);
-      expect(find.text(l10n.askSomething), findsOneWidget);
+      expect(find.text(l10n.tapToTypeHoldToTalk), findsOneWidget);
     });
 
     testWidgets('两个输入框的占位文案**不重样**（分得清在跟谁说话）', (WidgetTester tester) async {
       await pumpChat(tester, agent2UI: true);
 
       final l10n = l10nOf(tester);
-      // 对话那个：「问点什么…」
-      expect(find.text(l10n.askSomething), findsOneWidget);
+      // 对话那个：「轻触输入 · 长按说话」（未聚焦时的手势提示）
+      expect(find.text(l10n.tapToTypeHoldToTalk), findsOneWidget);
       // A2UI 那个：「让端脑画界面…」
       expect(find.text(l10n.askAgent2UI), findsOneWidget);
     });
@@ -121,7 +121,7 @@ void main() {
       expect(find.byType(Agent2UIPanel), findsOneWidget);
       // ⚠️ 面板在 ⇒ 对话**仍然**在。
       final l10n = l10nOf(tester);
-      expect(find.text(l10n.askSomething), findsOneWidget);
+      expect(find.text(l10n.tapToTypeHoldToTalk), findsOneWidget);
 
       // 再点一次 ⇒ 面板收起来（实心图标 ⇒ 亮着＝开着）。
       await tester.tap(find.byIcon(Icons.widgets));
@@ -131,7 +131,7 @@ void main() {
 
       expect(find.byType(Agent2UIPanel), findsNothing);
       // 收起来之后对话占满。
-      expect(find.text(l10n.askSomething), findsOneWidget);
+      expect(find.text(l10n.tapToTypeHoldToTalk), findsOneWidget);
     });
   });
 }

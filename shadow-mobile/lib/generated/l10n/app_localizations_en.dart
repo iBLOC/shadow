@@ -170,6 +170,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get recording => 'Recording...';
 
   @override
+  String get tapToTypeHoldToTalk => 'Tap to type · Hold to talk';
+
+  @override
+  String get releaseToSend => 'Release to send';
+
+  @override
+  String get releaseToCancel => 'Release to cancel';
+
+  @override
+  String get photoOrVideo => 'Tap: photo · Hold: video';
+
+  @override
   String get retry => 'Retry';
 
   @override

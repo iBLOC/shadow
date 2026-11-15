@@ -410,6 +410,30 @@ abstract class AppLocalizations {
   /// **'Recording...'**
   String get recording;
 
+  /// No description provided for @tapToTypeHoldToTalk.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to type · Hold to talk'**
+  String get tapToTypeHoldToTalk;
+
+  /// No description provided for @releaseToSend.
+  ///
+  /// In en, this message translates to:
+  /// **'Release to send'**
+  String get releaseToSend;
+
+  /// No description provided for @releaseToCancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Release to cancel'**
+  String get releaseToCancel;
+
+  /// No description provided for @photoOrVideo.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap: photo · Hold: video'**
+  String get photoOrVideo;
+
   /// No description provided for @retry.
   ///
   /// In en, this message translates to:
