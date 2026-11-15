@@ -6,7 +6,7 @@
  * **真的能用**：
  * · `image_gen`：`api/images.rs` 一直有云腿；
  * · `asr` / `tts`：`api/voice.rs` 2026-11-14 起补上同一形状的云腿
- *   （小米 MiMo 的 `mimo-2.5-tts` / `mimo-2.5-asr` 就是从这里进的分档卡）。
+ *   （小米 MiMo 的 `mimo-v2.5-tts` / `mimo-v2.5-asr` 就是从这里进的分档卡）。
  *
  * ⚠️ **但内置 neuron 目录的本地 id 不并**（asr/tts 档）：那是另一套命名
  * 空间（`whisper-base` 要**注册**了才能用）⇒ ⇒ 并进来就是「存得进去、
@@ -36,11 +36,32 @@ const catalog: Record<string, CapabilityModelCandidate[]> = {
   ],
   asr: [
     { id: 'whisper-base', label: '本地 neuron（内置） · whisper-base', cloud: false },
-    { id: 'mimo-2.5-asr', label: 'Xiaomi MiMo · mimo-2.5-asr', cloud: true },
+    { id: 'mimo-v2.5-asr', label: 'Xiaomi MiMo · mimo-v2.5-asr', cloud: true },
   ],
   tts: [
     { id: 'voxcpm2', label: '本地 neuron（内置） · voxcpm2', cloud: false },
-    { id: 'mimo-2.5-tts', label: 'Xiaomi MiMo · mimo-2.5-tts', cloud: true },
+    { id: 'mimo-v2.5-tts', label: 'Xiaomi MiMo · mimo-v2.5-tts', cloud: true },
+    {
+      id: 'mimo-v2.5-tts-voiceclone',
+      label: 'Xiaomi MiMo · mimo-v2.5-tts-voiceclone',
+      cloud: true,
+    },
+    {
+      id: 'mimo-v2.5-tts-voicedesign',
+      label: 'Xiaomi MiMo · mimo-v2.5-tts-voicedesign',
+      cloud: true,
+    },
+  ],
+  // ⚠️ 官方目录里的**对话**那三条（2026-11-15 逐字）⇒ ⇒ 它们**不许**混进
+  // 语音档 ⇒ ⇒ 这一格是「分档要真分对」的负控。
+  llm: [
+    { id: 'mimo-v2.6-pro', label: 'Xiaomi MiMo · mimo-v2.6-pro', cloud: true },
+    { id: 'mimo-v2.6-flash', label: 'Xiaomi MiMo · mimo-v2.6-flash', cloud: true },
+    {
+      id: 'mimo-v2.6-pro-ultraspeed',
+      label: 'Xiaomi MiMo · mimo-v2.6-pro-ultraspeed',
+      cloud: true,
+    },
   ],
 };
 
@@ -53,20 +74,37 @@ describe('capabilityCandidatesByCapability —— 云/本地分家', () => {
         models: [{ id: 'whisper-base', capability: 'asr' }],
       },
       {
+        // ⚠️ **官方目录真表**（2026-11-15 逐字：7 条，其中 4 条语音）⇒ ⇒
+        // 夹具不许再用假 id（官方目录里没有 `mimo-2.5-tts` 那种）。
         name: 'Xiaomi MiMo',
         provider_type: 'openai_compatible',
         models: [
-          { id: 'mimo-2.5-tts', capability: 'tts' },
-          { id: 'mimo-2.5-asr', capability: 'asr' },
+          { id: 'mimo-v2.5-asr', capability: 'asr' },
+          { id: 'mimo-v2.5-tts', capability: 'tts' },
+          { id: 'mimo-v2.5-tts-voiceclone', capability: 'tts' },
+          { id: 'mimo-v2.5-tts-voicedesign', capability: 'tts' },
+          { id: 'mimo-v2.6-pro', capability: 'llm' },
+          { id: 'mimo-v2.6-flash', capability: 'llm' },
+          { id: 'mimo-v2.6-pro-ultraspeed', capability: 'llm' },
         ],
       },
     ];
     const out = capabilityCandidatesByCapability(providers);
     expect(out.asr?.map((c) => [c.id, c.cloud])).toEqual([
       ['whisper-base', false],
-      ['mimo-2.5-asr', true],
+      ['mimo-v2.5-asr', true],
     ]);
-    expect(out.tts?.map((c) => [c.id, c.cloud])).toEqual([['mimo-2.5-tts', true]]);
+    expect(out.tts?.map((c) => [c.id, c.cloud])).toEqual([
+      ['mimo-v2.5-tts', true],
+      ['mimo-v2.5-tts-voiceclone', true],
+      ['mimo-v2.5-tts-voicedesign', true],
+    ]);
+    // ⚠️ 对话那三条归对话档（不许混进语音档）。
+    expect(out.llm?.map((c) => c.id)).toEqual([
+      'mimo-v2.6-pro',
+      'mimo-v2.6-flash',
+      'mimo-v2.6-pro-ultraspeed',
+    ]);
   });
 });
 
@@ -88,11 +126,15 @@ describe('capabilityOptionsByCapability —— 已注册面 ∪ 目录面（三�
       registered: { asr: ['whisper-model'], tts: [] },
     };
     const out = capabilityOptionsByCapability(catalog, info);
-    // whisper-model（已注册面）在前；目录面里只有云的 mimo-2.5-asr 补进来，
+    // whisper-model（已注册面）在前；目录面里只有云的 mimo-v2.5-asr 补进来，
     // 内置的 whisper-base **不许**回来（那是「选了必然失败」的另一族）。
-    expect(out.asr.map((o) => o.id)).toEqual(['whisper-model', 'mimo-2.5-asr']);
-    // 本地一个都没注册 ⇒ 目录面里云的 MiMo 就是全部候选。
-    expect(out.tts.map((o) => o.id)).toEqual(['mimo-2.5-tts']);
+    expect(out.asr.map((o) => o.id)).toEqual(['whisper-model', 'mimo-v2.5-asr']);
+    // 本地一个都没注册 ⇒ 目录面里云的 MiMo（官方三条 TTS）就是全部候选。
+    expect(out.tts.map((o) => o.id)).toEqual([
+      'mimo-v2.5-tts',
+      'mimo-v2.5-tts-voiceclone',
+      'mimo-v2.5-tts-voicedesign',
+    ]);
   });
 
   it('放行名单是三档（asr/tts/image_gen —— 改名单要连移动端一起改）', () => {
@@ -111,7 +153,7 @@ describe('unusableCapabilityDefaults —— 别把「能用」报成「用不了
   it('云模型 id（在目录面里）⇒ 不算用不了（三档同理）', () => {
     expect(
       unusableCapabilityDefaults(
-        { image_gen: 'cogview-4', asr: 'mimo-2.5-asr', tts: 'mimo-2.5-tts' },
+        { image_gen: 'cogview-4', asr: 'mimo-v2.5-asr', tts: 'mimo-v2.5-tts' },
         info,
         catalog,
       ),
@@ -141,7 +183,7 @@ describe('unusableCapabilityDefaults —— 别把「能用」报成「用不了
       unusableCapabilityDefaults({ image_gen: 'cogview-4' }, info),
     ).toHaveLength(1);
     expect(
-      unusableCapabilityDefaults({ tts: 'mimo-2.5-tts' }, info),
+      unusableCapabilityDefaults({ tts: 'mimo-v2.5-tts' }, info),
     ).toHaveLength(1);
   });
 });

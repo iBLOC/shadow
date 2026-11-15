@@ -213,7 +213,7 @@ export interface CapabilityCandidateOption {
  *   云模型 id 在那一档**真的能用**；
  * · `asr` / `tts`：`api/voice.rs` 2026-11-14 起补上了同一形状的云腿
  *   （`/audio/transcriptions` / `/audio/speech`，key 不出大脑）⇒ 供应商目录
- *   里标了这两档的云模型 id（小米 MiMo 的 `mimo-2.5-tts` / `mimo-2.5-asr`）
+ *   里标了这两档的云模型 id（小米 MiMo 的 `mimo-v2.5-tts` / `mimo-v2.5-asr`）
  *   同样**真的能用**。
  *
  * ⚠️ 历史教训仍然成立（2026-11-09 实测的根因）：**voice 只认本地注册表的
@@ -236,7 +236,7 @@ export const CATALOG_RESOLVED_TIERS: ReadonlySet<string> = new Set([
  * ⚠️ `asr` / `tts` 在列：内置 neuron 目录的本地 id（`whisper-base` /
  * `voxcpm2` 那套）端脑按 id **解析不到**（那是另一套命名空间——已注册面
  * 才算数）⇒ ⇒ 并进来就是「存得进去、用不了」（2026-11-09 实测根因）。
- * 云供应商的 id（小米 MiMo 的 `mimo-2.5-tts`）走云端代理 ⇒ 真的能用。
+ * 云供应商的 id（小米 MiMo 的 `mimo-v2.5-tts`）走云端代理 ⇒ 真的能用。
  * ⚠️ `image_gen` **不在**：内置目录的 imagegen 条目（`moss-image`）在
  * imagegen 注册表那套同名 ⇒ 维持原状（整档并）。
  *

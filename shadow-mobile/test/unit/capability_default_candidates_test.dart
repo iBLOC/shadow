@@ -207,15 +207,44 @@ void main() {
           'asr': [
             CapabilityModelCandidate(id: 'whisper-base', label: '本地 · whisper-base'),
             CapabilityModelCandidate(
-              id: 'mimo-2.5-asr',
-              label: 'Xiaomi MiMo · mimo-2.5-asr',
+              id: 'mimo-v2.5-asr',
+              label: 'Xiaomi MiMo · mimo-v2.5-asr',
               cloud: true,
             ),
           ],
           'tts': [
             CapabilityModelCandidate(
-              id: 'mimo-2.5-tts',
-              label: 'Xiaomi MiMo · mimo-2.5-tts',
+              id: 'mimo-v2.5-tts',
+              label: 'Xiaomi MiMo · mimo-v2.5-tts',
+              cloud: true,
+            ),
+            CapabilityModelCandidate(
+              id: 'mimo-v2.5-tts-voiceclone',
+              label: 'Xiaomi MiMo · mimo-v2.5-tts-voiceclone',
+              cloud: true,
+            ),
+            CapabilityModelCandidate(
+              id: 'mimo-v2.5-tts-voicedesign',
+              label: 'Xiaomi MiMo · mimo-v2.5-tts-voicedesign',
+              cloud: true,
+            ),
+          ],
+          // ⚠️ 官方目录里的**对话**那三条（2026-11-15 逐字）⇒ ⇒ 负控：
+          // 它们不许混进语音档。
+          'llm': [
+            CapabilityModelCandidate(
+              id: 'mimo-v2.6-pro',
+              label: 'Xiaomi MiMo · mimo-v2.6-pro',
+              cloud: true,
+            ),
+            CapabilityModelCandidate(
+              id: 'mimo-v2.6-flash',
+              label: 'Xiaomi MiMo · mimo-v2.6-flash',
+              cloud: true,
+            ),
+            CapabilityModelCandidate(
+              id: 'mimo-v2.6-pro-ultraspeed',
+              label: 'Xiaomi MiMo · mimo-v2.6-pro-ultraspeed',
               cloud: true,
             ),
           ],
@@ -230,15 +259,19 @@ void main() {
       // 不许回来（那是「选了必然失败」的另一族）。
       expect(
         out['asr']!.map((o) => o.id).toList(),
-        ['whisper-model', 'mimo-2.5-asr'],
+        ['whisper-model', 'mimo-v2.5-asr'],
       );
-      // 本地一个都没注册 ⇒ 目录面里云的 MiMo 就是全部候选。
-      expect(out['tts']!.map((o) => o.id).toList(), ['mimo-2.5-tts']);
+      // 本地一个都没注册 ⇒ 目录面里云的 MiMo（官方三条 TTS）就是全部候选。
+      expect(out['tts']!.map((o) => o.id).toList(), [
+        'mimo-v2.5-tts',
+        'mimo-v2.5-tts-voiceclone',
+        'mimo-v2.5-tts-voicedesign',
+      ]);
     });
 
     test('⚠️ 不可用提醒：云模型 id（在目录面里）不算「用不了」', () {
       final out = unusableCapabilityDefaults(
-        const {'asr': 'mimo-2.5-asr', 'tts': 'mimo-2.5-tts', 'image_gen': 'cogview-4'},
+        const {'asr': 'mimo-v2.5-asr', 'tts': 'mimo-v2.5-tts', 'image_gen': 'cogview-4'},
         const ['asr', 'tts', 'image_gen'],
         const {
           'asr': ['whisper-model'],
@@ -246,8 +279,8 @@ void main() {
           'image_gen': <String>[],
         },
         catalog: const {
-          'asr': ['mimo-2.5-asr'],
-          'tts': ['mimo-2.5-tts'],
+          'asr': ['mimo-v2.5-asr'],
+          'tts': ['mimo-v2.5-tts'],
           'image_gen': ['cogview-4'],
         },
       );
@@ -265,7 +298,7 @@ void main() {
           'asr': ['whisper-model'],
         },
         catalog: const {
-          'asr': ['mimo-2.5-asr'],
+          'asr': ['mimo-v2.5-asr'],
         },
       );
       expect(out, hasLength(1));
@@ -294,7 +327,7 @@ void main() {
           'asr': ['whisper-model'],
         },
         catalog: const {
-          'asr': ['mimo-2.5-asr'],
+          'asr': ['mimo-v2.5-asr'],
         },
       );
       expect(asr, hasLength(1));

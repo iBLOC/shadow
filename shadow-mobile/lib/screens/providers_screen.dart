@@ -123,6 +123,28 @@ class ProvidersNotifier extends StateNotifier<ProvidersState> {
         providerType: providerType,
         apiKey: apiKey,
       );
+      // ⚠️ **建完立刻把模型清单落盘**（2026-11-15，小米 MiMo 那格）——
+      // 与桌面端 `AddProviderModal` **同一个顺序、同一个端点**
+      // （POST /models/providers/{id}/fetch-models）。
+      //
+      // ⚠️ **为什么这一格是承重的**：能力页（分档卡）的候选**只**来自大脑
+      // 的供应商目录（GET /models/providers ⇒ 每条模型的 capability 标注）
+      // ⇒ ⇒ 大脑里这条供应商的 `models` 是空的 ⇒ ⇒ **语音合成档里根本没
+      // 有云模型**（小米 MiMo 的 `mimo-v2.5-tts` 选不上）⇒ ⇒ 「预览里看得
+      // 见、能力页里选不了」⇒ ⇒ **失败长得像成功**。
+      //
+      // ⚠️ **桌面的 AddProviderModal 早就这么做了**（建完立刻 fetch-models）
+      // ⇒ ⇒ 两端同一顺序 ⇒ ⇒ 不可能漂；本刀把手机补齐 —— **根因不是能力
+      // 表、也不是下拉，是模型清单根本没落盘**。
+      //
+      // ⚠️ **拉取失败不许把「接入」判成失败** —— 供应商已经建好（写面已生
+      // 效）⇒ ⇒ 失败的原因由**大脑记在供应商自己身上**（`last_error` ⇒
+      // 供应商卡会显示）⇒ ⇒ 这里只留一条日志，不把整页变成「读不到」。
+      try {
+        await _client.fetchProviderModels(created.id);
+      } catch (e) {
+        debugPrint('⚠️ 供应商 ${created.id} 已建好，但拉模型列表失败：$e');
+      }
       await loadProviders();
       return created;
     } catch (e) {
