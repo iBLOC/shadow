@@ -103,6 +103,12 @@ AG-UI 有、端脑完全没有的事件族(接入即白拿,不接也不亏):
     keeps_names_independent)。两端客户端**零改动**即受益(mobile `StreamEvent.fromJson` 与桌面
     `StreamEvent` 接口本就解析任意事件上的 `tool_call_id`)。无闸钉死 tool_result 线上形状
     (endpoint-map 只管路径;桌面临近测试自构输入)。治本档(synapse ToolEnd 带 id)**仍欠**。
+  - ✅ **wire 层判据补齐(同日第二笔)**:payload 组装抽成纯函数 `tool_result_payload`,
+    判据三条(有 id 带上 / 无候选**字段整个不存在**(不是 null 不是空串)/ 既有字段逐字透传);
+    真变异(摘掉 if-let)当场红且只红目标判据。桌面端核实:`translateEvent` 的 tool_result
+    分支**一直**透传 `toolCallId: event.tool_call_id`(既有测试 `call-2` 用例钉住)⇒
+    服务端带上 id 后桌面自动受益,**零客户端改动**这句成立。移动面:tool_result 走 default
+    分支仅记日志(卡片状态由本地执行驱动),采纳属新功能不属本刀。
 - **G2 delta 无 messageId、无消息边界** —— 工具调用后续说的文本与前一段在客户端被拼成同一条气泡;
   AG-UI 的 TEXT_MESSAGE_START/CONTENT/END 三段式正是解这个。
 - **G3 无显式 run 开始事件** —— 客户端分不清"连上了在排队"与"没人应答";done 带 conversation_id
