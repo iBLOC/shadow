@@ -165,22 +165,30 @@ class _CapabilityRow extends ConsumerWidget {
       for (final c in candidates)
         DropdownMenuItem(
           value: c.id,
-          child: Text(c.label),
+          // ⚠️ 单行截断 —— 显示区是**所有候选的 IndexedStack**（宽度＝
+          // 最长那条），不截断时长引擎 id 会换行把按钮撑高、把行撑爆
+          // （真机 2026-11-15 黄黑条纹）。
+          child: Text(c.label, maxLines: 1, overflow: TextOverflow.ellipsis),
         ),
       if (value.isNotEmpty && !candidates.any((c) => c.id == value))
         DropdownMenuItem(
           value: value,
-          child: Text(value),
+          child: Text(value, maxLines: 1, overflow: TextOverflow.ellipsis),
         ),
     ];
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: DropdownButtonFormField<String>(
-        // ⚠️ key 里带当前值 ⇒ ⇒ 保存后这一行会**重建** ⇒ ⇒ 下拉框里
-        // 显示的是新值（`initialValue` 只在首次 build 时读）。
+        // ⚠️ key 里带当前值 ⇒ ⇒ 保存后这一行会**重建** ⇒ ⇒ 显示的是新值
+        // （`initialValue` 只在首次 build 时读）。
         key: ValueKey<String>('cap-default-$capability-$value'),
         initialValue: value,
+        // ⚠️ 必须展开：不展开时按钮内是 Row[最长候选的 IndexedStack,
+        // 箭头]，最长候选（引擎 id）＋箭头超出字段宽 ⇒ RenderFlex 右溢出
+        // （真机 2026-11-15「图片生成」行黄黑条纹）。展开后候选被约束在
+        // 字段宽度内，配合上面的 ellipsis 单行截断。
+        isExpanded: true,
         decoration: InputDecoration(
           labelText: catalogCapabilityLabel(l10n, capability),
           border: const OutlineInputBorder(),

@@ -91,43 +91,54 @@ class LobeModelOverrideRow extends ConsumerWidget {
           ),
         ),
         const SizedBox(width: 12),
-        DropdownButton<String>(
-          value: currentValue,
-          underline: const SizedBox.shrink(),
-          items: [
-            DropdownMenuItem(
-              value: _kFollowGlobal,
-              child: Text(l10n.encephalonLobeFollowGlobal),
-            ),
-            DropdownMenuItem(
-              value: BrainModelSource.local,
-              child: Text(l10n.encephalonModelLocalNeuron),
-            ),
-            for (final o in options)
+        // ⚠️ Flexible ＋ isExpanded ＋ 单行截断 —— 不展开时按钮的固有
+        // 宽度＝**最长候选**（显示区是全体候选的 IndexedStack）＋箭头，
+        // 长供应商名会把外层 Row 撑到右溢出（真机 2026-11-15 能力页
+        // 黄黑条纹同族；这一行与叶区 Agents 页共用）。
+        Flexible(
+          child: DropdownButton<String>(
+            value: currentValue,
+            isExpanded: true,
+            underline: const SizedBox.shrink(),
+            items: [
               DropdownMenuItem(
-                value: BrainModelSource.cloud(o.id).raw,
-                child: Text(o.name),
+                value: _kFollowGlobal,
+                child: Text(l10n.encephalonLobeFollowGlobal),
               ),
-          ],
-          onChanged: (value) async {
-            if (value == null) return;
-            final source = value == _kFollowGlobal
-                ? const BrainModelSource.auto()
-                : BrainModelSource.parse(value);
-            final ok = await ref
-                .read(encephalonMobileProvider.notifier)
-                .applyLobeOverride(lobe, source);
-            if (!context.mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  ok
-                      ? l10n.encephalonLobeRoutingApplied
-                      : l10n.encephalonLobeRoutingFailed,
+              DropdownMenuItem(
+                value: BrainModelSource.local,
+                child: Text(l10n.encephalonModelLocalNeuron),
+              ),
+              for (final o in options)
+                DropdownMenuItem(
+                  value: BrainModelSource.cloud(o.id).raw,
+                  child: Text(
+                    o.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-              ),
-            );
-          },
+            ],
+            onChanged: (value) async {
+              if (value == null) return;
+              final source = value == _kFollowGlobal
+                  ? const BrainModelSource.auto()
+                  : BrainModelSource.parse(value);
+              final ok = await ref
+                  .read(encephalonMobileProvider.notifier)
+                  .applyLobeOverride(lobe, source);
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    ok
+                        ? l10n.encephalonLobeRoutingApplied
+                        : l10n.encephalonLobeRoutingFailed,
+                  ),
+                ),
+              );
+            },
+          ),
         ),
       ],
     );

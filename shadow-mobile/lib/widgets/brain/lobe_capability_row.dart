@@ -84,11 +84,20 @@ class LobeCapabilityRow extends ConsumerWidget {
         child: Text(l10n.encephalonLobeFollowGlobal),
       ),
       for (final c in options)
-        DropdownMenuItem(value: c.id, child: Text(c.label)),
+        DropdownMenuItem(
+          value: c.id,
+          // ⚠️ 单行截断 —— 显示区是**所有候选的 IndexedStack**（宽度＝
+          // 最长那条），不截断时长引擎 id 会把这一行撑爆（真机 2026-11-15
+          // 黄黑条纹）。
+          child: Text(c.label, maxLines: 1, overflow: TextOverflow.ellipsis),
+        ),
       // ⚠️ **当前值不在候选里也要显示** —— 那个引擎可能已经被注销
       // （重启进程后注册表清空）⇒ 抹掉它 = 静默改掉用户设置。
       if (value.isNotEmpty && !options.any((c) => c.id == value))
-        DropdownMenuItem(value: value, child: Text(value)),
+        DropdownMenuItem(
+          value: value,
+          child: Text(value, maxLines: 1, overflow: TextOverflow.ellipsis),
+        ),
     ];
 
     final effectiveGlobal = (globalDefault ?? localDefault ?? '').trim();
@@ -119,30 +128,36 @@ class LobeCapabilityRow extends ConsumerWidget {
             ),
           ),
           const SizedBox(width: 12),
-          DropdownButton<String>(
-            value: value,
-            underline: const SizedBox.shrink(),
-            items: items,
-            onChanged: (v) async {
-              if (v == null) return;
-              final ok = await ref
-                  .read(encephalonMobileProvider.notifier)
-                  .applyLobeCapability(
-                    lobe,
-                    capability,
-                    v.isEmpty ? null : v,
-                  );
-              if (!context.mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    ok
-                        ? l10n.encephalonLobeRoutingApplied
-                        : l10n.encephalonLobeRoutingFailed,
+          // ⚠️ Flexible ＋ isExpanded —— 不展开时按钮的固有宽度＝**最长
+          // 候选**（显示区是全体候选的 IndexedStack）＋箭头，长引擎 id 会
+          // 把外层 Row 撑到右溢出（真机 2026-11-15「图片」行黄黑条纹）。
+          Flexible(
+            child: DropdownButton<String>(
+              value: value,
+              isExpanded: true,
+              underline: const SizedBox.shrink(),
+              items: items,
+              onChanged: (v) async {
+                if (v == null) return;
+                final ok = await ref
+                    .read(encephalonMobileProvider.notifier)
+                    .applyLobeCapability(
+                      lobe,
+                      capability,
+                      v.isEmpty ? null : v,
+                    );
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      ok
+                          ? l10n.encephalonLobeRoutingApplied
+                          : l10n.encephalonLobeRoutingFailed,
+                    ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
         ],
       ),

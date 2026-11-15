@@ -9,6 +9,7 @@ import 'package:shadow_mobile/providers/brain_model_source_provider.dart';
 import 'package:shadow_mobile/providers/telencephalon_provider.dart';
 import 'package:shadow_mobile/services/database/app_settings.dart';
 import 'package:shadow_mobile/services/telencephalon/telencephalon_client.dart';
+import 'package:shadow_mobile/widgets/brain/capability_default_section.dart';
 import 'package:shadow_mobile/widgets/brain/default_model_card.dart';
 import 'package:shadow_mobile/widgets/brain/lobe_capability_row.dart';
 import 'package:shadow_mobile/widgets/brain/lobe_model_override_row.dart';
@@ -787,6 +788,77 @@ void main() {
       );
       // 而且要说出来（失败不许长得像成功）。
       expect(find.text(l10n.encephalonLobeRoutingFailed), findsOneWidget);
+    });
+  });
+
+  group('默认模型卡 · 长候选不许撑爆行（黄黑条纹回归钉）', () {
+    // 真机 2026-11-15 能力页两处黄黑条纹（图片生成 1.8px、叶区图片行
+    // 8px）。机制（SDK dropdown.dart）：下拉按钮的显示区是**全体候选的
+    // IndexedStack** ⇒ 宽度＝最长那条，与当前显示值无关 —— 「不指定」
+    // 也照样被长引擎 id 撑爆；不展开时候选＋箭头超出行宽 ⇒ RenderFlex
+    // 右溢出（箭头被推到 flex 之外，条纹贴在它左边）。
+    const longEngineId =
+        'MiniMax/very-long-registered-engine-identifier-overflow-regression';
+
+    testWidgets('⚠️ 手机宽度下分档行与叶区行都不许 RenderFlex 溢出', (
+      tester,
+    ) async {
+      await tester.binding.setSurfaceSize(const Size(360, 780));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(buildCard(
+        providers: [brainProvider()],
+        view: const CapabilityDefaultsView(
+          capabilities: ['llm', 'asr', 'tts', 'image_gen'],
+          engineResolved: ['asr', 'tts', 'image_gen'],
+          registered: {
+            'asr': [longEngineId],
+            'tts': [longEngineId],
+            'image_gen': [longEngineId],
+          },
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      // 溢出会以 FlutterError 现形 ⇒ takeException 必须是 null。
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('⚠️ 展开后长候选单行截断显示，不折行撑高按钮', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(360, 780));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await tester.pumpWidget(buildCard(
+        providers: [brainProvider()],
+        view: const CapabilityDefaultsView(
+          capabilities: ['llm', 'asr', 'image_gen'],
+          engineResolved: ['image_gen'],
+          registered: {
+            'image_gen': [longEngineId],
+          },
+        ),
+        serverDefaults: const {'image_gen': longEngineId},
+      ));
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      // 当前值＝那条长 id ⇒ 收起态必须看得见它（被截断，不是消失）。
+      final dropdown = find.descendant(
+        of: find.byType(CapabilityDefaultSection),
+        matching: find.byWidgetPredicate(
+          (w) =>
+              w is DropdownButtonFormField<String> &&
+              w.key is ValueKey<String> &&
+              (w.key as ValueKey<String>).value.startsWith('cap-default-'),
+        ),
+      );
+      expect(dropdown, findsOneWidget);
+      final button = find.descendant(
+        of: dropdown,
+        matching: find.byType(DropdownButton<String>),
+      );
+      // isExpanded 真挂上了（回归钉：摘掉 ⇒ 上一条溢出红、这一条形状红）。
+      expect(tester.widget<DropdownButton<String>>(button).isExpanded, isTrue);
     });
   });
 }
