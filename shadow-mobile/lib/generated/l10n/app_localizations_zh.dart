@@ -1105,6 +1105,27 @@ class AppLocalizationsZh extends AppLocalizations {
   String get cameraClose => '关闭';
 
   @override
+  String get shutter => '拍照';
+
+  @override
+  String get recordVideo => '录像';
+
+  @override
+  String get stopRecording => '停止录像';
+
+  @override
+  String get cameraPermissionDenied => '相机权限被拒绝';
+
+  @override
+  String get cameraUnavailable => '相机不可用';
+
+  @override
+  String get cameraOpenFailed => '相机打开失败';
+
+  @override
+  String get captureFailed => '拍摄失败';
+
+  @override
   String get chatGreeting => '你好，我是Shadow，有什么可以帮你的吗？';
 
   @override

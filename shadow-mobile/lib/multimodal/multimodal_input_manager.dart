@@ -48,7 +48,7 @@ class MultimodalInputManager {
 
   // Image
   Future<MultimodalInput?> pickImageFromGallery() async {
-    final file = await _imageHandler.pickImage(source: ImagePickSource.gallery);
+    final file = await _imageHandler.pickImage();
     if (file != null) {
       return MultimodalInput(
         type: MultimodalInputType.image,
@@ -59,29 +59,25 @@ class MultimodalInputManager {
     return null;
   }
 
-  Future<MultimodalInput?> captureImage() async {
-    final file = await _imageHandler.pickImage(source: ImagePickSource.camera);
-    if (file != null) {
-      return MultimodalInput(
-        type: MultimodalInputType.image,
-        data: file,
-        path: file.path,
-      );
-    }
-    return null;
-  }
-
-  /// **拍视频**（长按相机钮）—— 走系统相机 ⇒ ⇒ App 不需要 CAMERA 权限。
-  Future<MultimodalInput?> captureVideo() async {
-    final file = await _imageHandler.pickVideo(source: ImagePickSource.camera);
-    if (file != null) {
-      return MultimodalInput(
-        type: MultimodalInputType.video,
-        data: file,
-        path: file.path,
-      );
-    }
-    return null;
+  /// **内建相机**拍回来的文件 ⇒ ⇒ 收进来挂成附件（照片或录像）。
+  ///
+  /// ⚠️ 拍照那条路在 2026-11-16 那一刀里从**系统相机**换成了 **App 内建
+  /// 相机** ⇒ ⇒ 系统相机的 captureImage / captureVideo **整条删掉**
+  /// ⇒ ⇒ 这里只负责「把拍到的东西收进来、落到自己的目录」。
+  Future<MultimodalInput?> importCapturedFile(
+    File file, {
+    required bool isVideo,
+  }) async {
+    final saved = await _imageHandler.importCapture(
+      file,
+      dirName: isVideo ? 'captured_videos' : 'captured_images',
+    );
+    if (saved == null) return null;
+    return MultimodalInput(
+      type: isVideo ? MultimodalInputType.video : MultimodalInputType.image,
+      data: saved,
+      path: saved.path,
+    );
   }
 
   // File

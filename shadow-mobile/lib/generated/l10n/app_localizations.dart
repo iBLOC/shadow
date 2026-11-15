@@ -2138,6 +2138,48 @@ abstract class AppLocalizations {
   /// **'Close'**
   String get cameraClose;
 
+  /// No description provided for @shutter.
+  ///
+  /// In en, this message translates to:
+  /// **'Shutter'**
+  String get shutter;
+
+  /// No description provided for @recordVideo.
+  ///
+  /// In en, this message translates to:
+  /// **'Record video'**
+  String get recordVideo;
+
+  /// No description provided for @stopRecording.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop recording'**
+  String get stopRecording;
+
+  /// No description provided for @cameraPermissionDenied.
+  ///
+  /// In en, this message translates to:
+  /// **'Camera permission denied'**
+  String get cameraPermissionDenied;
+
+  /// No description provided for @cameraUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Camera unavailable'**
+  String get cameraUnavailable;
+
+  /// No description provided for @cameraOpenFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to open the camera'**
+  String get cameraOpenFailed;
+
+  /// No description provided for @captureFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Capture failed'**
+  String get captureFailed;
+
   /// No description provided for @chatGreeting.
   ///
   /// In en, this message translates to:

@@ -4,95 +4,72 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 
-enum ImagePickSource { gallery, camera }
-
 class ImageInputHandler {
   final ImagePicker _picker = ImagePicker();
 
-  Future<File?> pickImage({
-    ImagePickSource source = ImagePickSource.gallery,
-  }) async {
+  /// 判据时把「App 自己的目录」换掉。
+  ///
+  /// ⚠️ 单测里没有 path_provider 的平台实现 ⇒ 真去调会抛
+  /// MissingPluginException ⇒ ⇒ 落盘**静默失败**（那正好是「配了不生效」
+  /// 那一族的病）⇒ ⇒ 判据里指向临时目录。
+  /// ⚠️ 与 AppConfigService.configFileOverride 同一招 —— 不是为测试开的后门，
+  /// 是把「落盘目标」这件事**变成可注入的**。
+  static Future<Directory> Function()? documentsDirOverride;
+
+  /// **从相册选图**。
+  ///
+  /// ⚠️ 这里**只剩相册这一条**：拍照那条路在 2026-11-16 那一刀里换成了
+  /// **App 内建相机**（见 InAppCameraPage）⇒ ⇒ 系统相机那条路**整条删掉**。
+  ///
+  /// ⚠️ 为什么删：系统相机靠 **intent 回合**把照片带回来 ⇒ ⇒ 回合一断
+  /// 就**静默丢照片**（真机实测 MIX 4 / MIUI：OneShotCamera 一被拉起就崩 ——
+  /// 「FATAL EXCEPTION: JpegEncoderThread」⇒ ⇒
+  /// 「Force finishing activity com.android.camera/.OneShotCamera」
+  /// ⇒ ⇒ 拿不回照片 ⇒ ⇒ 候选里什么都没有，也没有提示）。
+  Future<File?> pickImage() async {
     try {
       final XFile? image = await _picker.pickImage(
-        source: source == ImagePickSource.gallery
-            ? ImageSource.gallery
-            : ImageSource.camera,
+        source: ImageSource.gallery,
         maxWidth: 1024,
         maxHeight: 1024,
         imageQuality: 85,
       );
 
       if (image != null) {
-        File cameraFile = File(image.path);
-        if (await cameraFile.exists()) {
-          if (source == ImagePickSource.camera) {
-            final savedPath = await _saveToAppDirectory(cameraFile, image.name);
-            if (savedPath != null) {
-              debugPrint('ImageInputHandler: Camera image saved to $savedPath');
-              return File(savedPath);
-            } else {
-              debugPrint(
-                'ImageInputHandler: Failed to save camera image, using original',
-              );
-            }
-          }
-          return cameraFile;
-        } else {
-          debugPrint(
-            'ImageInputHandler: Camera file does not exist at path: ${image.path}',
-          );
-          return null;
+        final file = File(image.path);
+        if (await file.exists()) {
+          return file;
         }
+        debugPrint(
+          'ImageInputHandler: 相册选到的文件不存在: ${image.path}',
+        );
+        return null;
       }
-      debugPrint('ImageInputHandler: No image selected');
+      debugPrint('ImageInputHandler: 没有选图');
       return null;
     } catch (e) {
-      debugPrint('ImageInputHandler: Error picking image: $e');
+      debugPrint('ImageInputHandler: 选图出错: $e');
       return null;
     }
   }
 
-  /// **拍视频**（长按相机钮走这条）。
+  /// **把内建相机拍到的文件收进 App 自己的目录** ⇒ ⇒ 挂成附件。
   ///
-  /// ⚠️ 走**系统相机**（image_picker 的 ImageSource.camera ⇒ ⇒
-  /// ACTION_VIDEO_CAPTURE）⇒ ⇒ **App 自己不需要 CAMERA 权限**（那是系统
-  /// 相机应用的权限）⇒ ⇒ 零新增权限、零新增依赖。
-  Future<File?> pickVideo({
-    ImagePickSource source = ImagePickSource.camera,
-  }) async {
-    try {
-      final XFile? video = await _picker.pickVideo(
-        source: source == ImagePickSource.camera
-            ? ImageSource.camera
-            : ImageSource.gallery,
-      );
-
-      if (video == null) {
-        debugPrint('ImageInputHandler: No video selected');
-        return null;
-      }
-
-      final file = File(video.path);
-      if (!await file.exists()) {
-        debugPrint(
-          'ImageInputHandler: Video file does not exist at path: ${video.path}',
-        );
-        return null;
-      }
-      final savedPath = await _saveToAppDirectory(
-        file,
-        video.name,
-        dirName: 'captured_videos',
-      );
-      if (savedPath != null) {
-        debugPrint('ImageInputHandler: Video saved to $savedPath');
-        return File(savedPath);
-      }
-      return file;
-    } catch (e) {
-      debugPrint('ImageInputHandler: Error picking video: $e');
+  /// ⚠️ 为什么还要拷一份：camera 插件拍出来的文件落在**缓存目录**
+  /// ⇒ ⇒ 系统随时可以清掉它 ⇒ ⇒ 拷进 documents 才靠得住。
+  Future<File?> importCapture(File source, {required String dirName}) async {
+    if (!await source.exists()) {
+      debugPrint('ImageInputHandler: 拍到的文件不存在: ${source.path}');
       return null;
     }
+    final name = source.path.split('/').last;
+    final savedPath = await _saveToAppDirectory(
+      source,
+      name,
+      dirName: dirName,
+    );
+    if (savedPath == null) return null;
+    return File(savedPath);
   }
 
   Future<String?> _saveToAppDirectory(
@@ -101,7 +78,8 @@ class ImageInputHandler {
     String dirName = 'captured_images',
   }) async {
     try {
-      final appDir = await getApplicationDocumentsDirectory();
+      final appDir = await (documentsDirOverride?.call() ??
+          getApplicationDocumentsDirectory());
       final imagesDir = Directory('${appDir.path}/$dirName');
       if (!await imagesDir.exists()) {
         await imagesDir.create(recursive: true);

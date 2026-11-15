@@ -15,6 +15,8 @@ import '../providers/conversation_mode_provider.dart';
 import '../providers/theme_provider.dart';
 import '../widgets/continue_on_desktop_dialog.dart';
 import '../widgets/chat/local_chat_view.dart';
+import 'in_app_camera_page.dart';
+import '../services/in_app_camera_service.dart';
 import '../widgets/chat/agent2ui_panel.dart';
 import '../widgets/chat/mode_switcher.dart';
 import '../widgets/chat/conversation_mode_switcher.dart';
@@ -251,15 +253,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           ref.read(chatProvider.notifier).speakLastResponse(),
                       onPickImage: () =>
                           ref.read(chatProvider.notifier).pickImage(),
-                      onCaptureImage: () =>
-                          ref.read(chatProvider.notifier).captureImage(),
+                      onCaptureImage: () => _openInAppCamera(InAppCameraMode.photo),
                       onPickFile: () =>
                           ref.read(chatProvider.notifier).pickFile(),
                       onStartAudioRecording: () =>
                           ref.read(chatProvider.notifier).startAudioRecording(),
                       onFinishRecording: _finishRecording,
-                      onCaptureVideo: () =>
-                          ref.read(chatProvider.notifier).captureVideo(),
+                      onCaptureVideo: () => _openInAppCamera(InAppCameraMode.video),
                     ),
                   ),
                 ],
@@ -269,6 +269,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ],
       ),
     );
+  }
+
+  /// **内建相机** ⇒ ⇒ 不再走系统相机。
+  ///
+  /// ⚠️ 为什么改：系统相机那条路是 **intent 回合** ⇒ ⇒ 回合一断，照片就
+  /// **静默丢了**（真机实测 MIX 4 / MIUI：OneShotCamera 一被拉起就崩 ——
+  /// 「FATAL EXCEPTION: JpegEncoderThread」⇒ ⇒
+  /// 「Force finishing activity com.android.camera/.OneShotCamera」）
+  /// ⇒ ⇒ 用户只看到「按了没反应」，候选里什么都没有。
+  /// ⇒ ⇒ 自己拍 ⇒ ⇒ 拍完直接进附件。
+  Future<void> _openInAppCamera(InAppCameraMode mode) async {
+    final capture = await Navigator.of(context).push<InAppCameraCapture>(
+      InAppCameraPage.route(mode: mode),
+    );
+    if (capture == null || !mounted) return;
+    await ref
+        .read(chatProvider.notifier)
+        .attachCapturedFile(capture.path, isVideo: capture.isVideo);
   }
 
   void _sendMessage() {

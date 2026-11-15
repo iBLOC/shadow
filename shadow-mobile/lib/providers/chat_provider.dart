@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -394,19 +395,24 @@ class ChatNotifier extends StateNotifier<ChatState> {
     }
   }
 
-  Future<void> captureImage() async {
-    final input = await _multimodalManager.captureImage();
-    if (input != null) {
-      state = state.copyWith(attachments: [...state.attachments, input]);
+  /// 把**内建相机**拍回来的文件挂成附件（候选行）。
+  ///
+  /// ⚠️ 「拍完了却没进候选」那条病根就在这一层 ⇒ ⇒ 所以这里**不许**静默：
+  /// 文件不在 / 拷不进 ⇒ ⇒ 说真话（错误横幅），不许假装没事。
+  ///
+  /// ⚠️ 走的是 **App 内建相机**（InAppCameraPage）⇒ ⇒ 不再走系统相机
+  /// ⇒ ⇒ 那个 intent 回合（回合一断就静默丢照片）根本不存在了。
+  Future<bool> attachCapturedFile(String path, {required bool isVideo}) async {
+    final input = await _multimodalManager.importCapturedFile(
+      File(path),
+      isVideo: isVideo,
+    );
+    if (input == null) {
+      state = state.copyWith(errorMessage: currentL10n().captureFailed);
+      return false;
     }
-  }
-
-  /// **拍视频**（长按相机钮）—— 录完挂成附件。
-  Future<void> captureVideo() async {
-    final input = await _multimodalManager.captureVideo();
-    if (input != null) {
-      state = state.copyWith(attachments: [...state.attachments, input]);
-    }
+    state = state.copyWith(attachments: [...state.attachments, input]);
+    return true;
   }
 
   /// **放弃这次录音**（按住时滑到两侧松手）⇒ ⇒ 不转写、不发送。

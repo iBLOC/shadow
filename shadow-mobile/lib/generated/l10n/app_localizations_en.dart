@@ -1119,6 +1119,27 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cameraClose => 'Close';
 
   @override
+  String get shutter => 'Shutter';
+
+  @override
+  String get recordVideo => 'Record video';
+
+  @override
+  String get stopRecording => 'Stop recording';
+
+  @override
+  String get cameraPermissionDenied => 'Camera permission denied';
+
+  @override
+  String get cameraUnavailable => 'Camera unavailable';
+
+  @override
+  String get cameraOpenFailed => 'Failed to open the camera';
+
+  @override
+  String get captureFailed => 'Capture failed';
+
+  @override
   String get chatGreeting => 'Hello! I am Shadow. How can I help you?';
 
   @override
