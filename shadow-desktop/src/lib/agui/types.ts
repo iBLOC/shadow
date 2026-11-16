@@ -158,8 +158,15 @@ export type AguiContentPart = AguiTextPart | AguiBinaryPart;
 export interface AguiMessage {
   role: 'user' | 'assistant' | 'tool';
   content: string | AguiContentPart[];
-  /** 工具结果消息要带它 —— 端脑按它把结果配回那次调用。 */
+  /** 工具结果消息要带它 —— 端脑按它把结果配回那次调用（缺了就认不出是哪一次）。 */
   toolCallId?: string;
+  /**
+   * 工具**失败**的原因 —— 端脑那边「`error` 在场 ⇒ ⇒ 状态就是 failed」。
+   *
+   * ⚠️ 失败**不许**长得像成功 ⇒ ⇒ 工具失败必须把这个字段带上，
+   * 不能只把失败原因塞进 `content`（那样端脑会当成成功的结果）。
+   */
+  error?: string;
 }
 
 export interface AguiTool {
