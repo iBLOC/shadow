@@ -2,7 +2,7 @@ import { AGUI_CUSTOM_NAMES } from './types';
 import { initialAguiTurnState, isKnownAguiEvent, reduceAguiEvent } from './protocol';
 import type { AguiToolCallState } from './protocol';
 import type { AguiClient } from './client';
-import type { AguiMessage } from './types';
+import type { AguiMessage, AguiRunRequest } from './types';
 
 /** 端脑点名让**这台设备**干的一次活（**参数已拼齐**）。 */
 export interface AguiToolCall {
@@ -84,11 +84,14 @@ export class AguiDriver {
 
   async *streamTurn(
     conversationId: string,
-    messages: AguiMessage[],
+    req: AguiRunRequest,
     signal?: AbortSignal,
   ): AsyncGenerator<AguiDriverEvent> {
     // 每一轮**重发全量** messages[]（AG-UI 的哲学）⇒ ⇒ 用副本，别动调用方的数组。
-    const sent: AguiMessage[] = messages.slice();
+    //
+    // ⚠️ **请求面要整份带上**（tools／threadId／runId）⇒ ⇒ 只发 messages
+    // ⇒ ⇒ 模型**不知道这台设备会什么** ⇒ ⇒ 设备工具静默失灵（这一格真踩过）。
+    const sent: AguiRunRequest = { ...req, messages: req.messages.slice() };
 
     for (let round = 0; ; round++) {
       if (round > this.maxContinuations) {
@@ -100,11 +103,7 @@ export class AguiDriver {
       /** 本轮跑完、等着回传的工具结果（**按调用顺序**）。 */
       const toolResults: AguiMessage[] = [];
 
-      for await (const ev of this.client.streamTurn(
-        conversationId,
-        { messages: sent },
-        signal,
-      )) {
+      for await (const ev of this.client.streamTurn(conversationId, sent, signal)) {
         state = reduceAguiEvent(state, ev);
         if (!isKnownAguiEvent(ev)) continue;
         switch (ev.type) {
@@ -172,7 +171,7 @@ export class AguiDriver {
         return;
       }
       // ⇒ ⇒ 工具结果随**下一次请求**带回去（端脑那边就是「续轮」）。
-      for (const r of toolResults) sent.push(r);
+      for (const r of toolResults) sent.messages.push(r);
     }
   }
 

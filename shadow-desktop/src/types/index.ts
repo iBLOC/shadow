@@ -265,6 +265,15 @@ export interface ToolCallMessage {
    * but the model is still waiting for the result.
    */
   reported?: boolean;
+  /**
+   * 结果**怎么**回到端脑。
+   *
+   * ⚠️ `'endpoint'` = 走 `/tool-results` 旁路（legacy 路）；
+   * `'inline'` = **随下一次请求**带回去（AG-UI 路）⇒ ⇒ 卡片上的措辞
+   * **不许**写「已回传端脑」—— 那句话在 inline 这一路上**是假的**
+   * ⇒ ⇒ 「说谎的界面」和「失败长得像成功」是同一族病。
+   */
+  delivery?: 'endpoint' | 'inline';
   /** Why the result didn't make it back to the brain. */
   reportErrorText?: string;
 }

@@ -2,6 +2,10 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { composeSystemPrompt, telencephalonClient } from '../lib/telencephalonClient';
+import { AguiClient } from '../lib/agui/client';
+import { runAguiTurn } from '../lib/agui/conversationTurn';
+import { ToolOutcomeGate } from '../lib/agui/toolOutcomeGate';
+import { buildAguiUserParts, toAguiTools, toToolOutcome } from '../lib/agui/bridge';
 import { deleteConversationEverywhere, setConversationArchived } from '../lib/conversationLifecycle';
 import { computeTokenStats } from '../lib/tokenStats';
 import {
@@ -32,17 +36,15 @@ import { MessageSpeakButton } from '../components/chat/MessageSpeakButton';
 import { ToolCallMessageCard } from '../components/chat/ToolCallMessageCard';
 import { A2uiPanel } from '../components/chat/A2uiPanel';
 import { BrainFaceBanner } from '../components/chat/BrainFaceBanner';
-import { ComputerUsePendingModal, type ComputerUseAction } from '../components/computerUse/ComputerUsePendingModal';
+import { ComputerUsePendingModal } from '../components/computerUse/ComputerUsePendingModal';
 import { RecordingPanel } from '../components/recording/RecordingPanel';
 import { isChatBiPayload } from '../lib/chatbi/guards';
 import type { ChatBiPayload } from '../lib/chatbi/guards';
 import {
   desktopClientTools,
   parseToolArgs,
-  pickReportPayload,
-  toOpenAiTools,
 } from '../lib/clientTools';
-import type { Conversation, ConversationKind, Message, RecordingMode, ToolCallMessage, VisualQaClarification } from '../types';
+import type { Conversation, ConversationKind, Message, RecordingMode, ToolCallMessage } from '../types';
 import {
   Send,
   Plus,
@@ -342,6 +344,9 @@ export function ConversationPage() {
   // （随机串会让卡片看起来乱跳）。
   const toolCallSeq = useRef(0);
   const pendingToolCalls = useRef(new Map<string, PendingClientTool>());
+  // AG-UI 那一路：工具结果**随下一次请求带回去** ⇒ ⇒ 端脑**不等**设备
+  // ⇒ ⇒ 设备这边必须一定交出去 ⇒ ⇒ 结算闸守着这件事。
+  const aguiToolGate = useRef(new ToolOutcomeGate());
 
   /** 改工具卡片上的字段 —— 从 store 里读当前值再打补丁，
    *  免得两次更新（比如「执行中」再「成功」）互相覆盖。 */
@@ -360,37 +365,23 @@ export function ConversationPage() {
     });
   };
 
-  /** 把工具执行结果回传端脑。
+  /** 把工具执行结果**结算**给端脑（AG-UI 那一路）。
    *
-   *  回传失败**不能**抛出去 —— 工具在本地已经做完了，用户看到的结果
-   *  是真的；只是端脑那头模型还在等。这两件事在卡片上分开显示。 */
-  const reportToolResult = async (
+   *  ⚠️ AG-UI 的工具结果**不**走 `/tool-results` 旁路 ⇒ ⇒ 端脑**不等**设备
+   *  ⇒ ⇒ 结果随**下一次请求**带回去 ⇒ ⇒ 这里只是把结局交还 driver。
+   *  ⚠️ 结算**不许抛**：工具在本地已经做完了，用户看到的结果是真的
+   *  ⇒ ⇒ 失败也要交（交一条带 error 的失败结果）⇒ ⇒ 模型不会干等。
+   */
+  const settleToolOutcome = (
     pending: PendingClientTool,
     ok: boolean,
     result: unknown,
+    errorText?: string,
   ) => {
-    try {
-      await telencephalonClient.reportToolResult(
-        pending.telencephalonConversationId,
-        {
-          name: pending.call.name,
-          toolCallId: pending.call.id,
-          result,
-          ok,
-        },
-      );
-      patchToolCall(pending.localConversationId, pending.call.id, {
-        reported: true,
-      });
-    } catch (err) {
-      patchToolCall(pending.localConversationId, pending.call.id, {
-        reportErrorText: `not reported to telencephalon: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
-      });
-    }
+    const outcome = toToolOutcome(ok, ok ? result : undefined, errorText);
+    // ⚠️ **只第一次有效**（用户点了两次「批准」？）⇒ ⇒ 不许再喂模型一次。
+    aguiToolGate.current.settle(pending.call.id, outcome);
   };
-
   /** 执行一个客户端工具，然后把结果回传端脑。 */
   const runClientToolCall = async (
     pending: PendingClientTool,
@@ -405,7 +396,7 @@ export function ConversationPage() {
       });
       // 历史工具记录：这台设备不会的活也记一条失败轨迹。
       turnToolTrajectory.current.push(trajectoryStep(call.name, false));
-      await reportToolResult(pending, false, { error: 'unsupported tool' });
+      settleToolOutcome(pending, false, undefined, 'unsupported tool');
       return;
     }
 
@@ -431,11 +422,8 @@ export function ConversationPage() {
     turnToolTrajectory.current.push(trajectoryStep(call.name, ok));
     // ⚠️ **回给端脑的只有 `report` 那一句** —— 组件树是**给界面**的，
     // 原样喂回模型 ⇒ 模型上下文被一堆 JSON 淹了。
-    await reportToolResult(
-      pending,
-      ok,
-      ok ? pickReportPayload(result) : { error: errorText },
-    );
+    // AG-UI：结果随**下一次请求**带回去 ⇒ ⇒ 这里只结算，不走旁路。
+    settleToolOutcome(pending, ok, result, errorText);
   };
 
   /** 轮末把工具轨迹喂给「思维定式」（fire-and-forget：失败只记日志，
@@ -460,6 +448,9 @@ export function ConversationPage() {
     if ((!input.trim() && stagedImages.length === 0) || !activeConversationId) return;
     // 本轮的用户输入 —— 意图签名的原料（setInput('') 之前先抓住）。
     const promptText = input;
+    // ⚠️ 图片要在清空前**抓住**（setStagedImages([]) 之后就没了）
+    // ⇒ ⇒ AG-UI 那一路把它们**内联**进这一轮的内容。
+    const stagedImagesSnapshot = stagedImages;
 
     const userMessage: Message = {
       id: crypto.randomUUID(),
@@ -493,7 +484,6 @@ export function ConversationPage() {
 
           let accumulated = '';
           let chatbiPayload: ChatBiPayload | undefined;
-          let visualQaClarification: VisualQaClarification | undefined;
           // Local engines stream slowly (seconds per token on CPU) —
           // render the reply incrementally instead of only after the
           // stream ends, which looked like a hung app.
@@ -505,144 +495,128 @@ export function ConversationPage() {
             showTokenStats
               ? computeTokenStats(accumulated, firstDeltaAt ?? Date.now())
               : undefined;
-          for await (const event of telencephalonClient.streamMessage(
-            conversationId,
+          // ⚠️ **AG-UI 那一路**：协议形状用官方的，依赖不引官方的
+          // ⇒ ⇒ 这一轮走 `runAguiTurn`（运输层无关）⇒ ⇒ 页面只管界面。
+          // ⚠️ `conversationId` 是 `let` ⇒ ⇒ 收窄**活不进闭包**
+          // ⇒ ⇒ 先抓成 const（否则回调里又变回 `string | undefined`）。
+          const convId = conversationId;
+          const aguiClient = new AguiClient({
+            // ⚠️ 端脑可能换端口 ⇒ ⇒ **每次发请求前读一次**（不缓存）。
+            baseUrl: telencephalonClient.getBaseUrl(),
+            readHeaders: () => telencephalonClient.readHeaders(),
+          });
+          const turn = await runAguiTurn(
+            aguiClient,
             {
-              text: input,
+              conversationId: convId,
+              // ⚠️ 图片**内联**（端脑不去拉远程 URL）⇒ ⇒ 客户端必须带字节。
+              content: buildAguiUserParts(promptText, stagedImagesSnapshot),
               // **这台设备能跑的工具**告诉模型 —— 端脑透传给 LLM，
               // 模型才知道 `set_theme` 要吃一个 `color`。
-              tools: toOpenAiTools(desktopClientTools),
-              // 让端脑**等**这台设备把工具干完 —— 它就能把结果喂回模型，
-              // 在**同一条流**上接着说「主题已经换成靛蓝了」⇒ 用户看到的
-              // 是一个回合，而不是一张沉默的卡片。
-              await_tool_result: true,
+              tools: toAguiTools(desktopClientTools),
             },
-          )) {
-            if (event.type === 'delta' && event.delta) {
-              accumulated += event.delta;
-              if (firstDeltaAt === null) firstDeltaAt = Date.now();
-              if (!streamingId) {
-                streamingId = crypto.randomUUID();
-                addMessage(activeConversationId, {
-                  id: streamingId,
-                  role: 'assistant',
-                  content: event.delta,
-                  timestamp: new Date(),
-                  token_stats: liveStats(),
-                });
-              } else {
-                updateMessage(activeConversationId, streamingId, {
-                  content: accumulated,
-                  token_stats: liveStats(),
-                });
-              }
-            } else if (event.type === 'clarification' && event.clarification) {
-              // The telencephalon wire does not yet emit 'clarification'
-              // events; this branch is a desktop-side hook for a future
-              // visual-QA clarification flow. Cast through unknown.
-              visualQaClarification = event.clarification as
-                | VisualQaClarification
-                | undefined;
-            } else if (event.type === 'audio_event' && event.audio) {
-              // BC-01..05 — surface the audio event as its own
-              // message so it appears as a distinct chip in the
-              // chat stream rather than text the agent reacted to.
-              addMessage(activeConversationId, {
-                id: crypto.randomUUID(),
-                role: 'assistant',
-                content: '',
-                timestamp: new Date(event.timestamp ?? Date.now()),
-                audio_event: {
-                  classId: event.audio.classId,
-                  confidence: event.audio.confidence,
-                  source: event.audio.source,
-                  timestamp: event.timestamp,
-                },
-              });
-            } else if (event.type === 'computer_use_action' && event.computerUse) {
-              // R-11 — surface the proposed action as a modal
-              // outside the message stream so the user gets a
-              // blocking Proceed / Cancel dialog. The modal maps the
-              // SSE event to the corresponding cu_* Tauri command on
-              // confirm; Cancel just clears state.
-              const cu = event.computerUse;
-              let action: ComputerUseAction | null = null;
-              if (cu.action === 'mouse_click' && cu.x != null && cu.y != null && cu.button != null) {
-                action = { kind: 'mouse_click', x: cu.x, y: cu.y, button: cu.button };
-              } else if (cu.action === 'mouse_move' && cu.x != null && cu.y != null) {
-                action = { kind: 'mouse_move', x: cu.x, y: cu.y };
-              } else if (cu.action === 'keyboard_type' && cu.text != null) {
-                action = { kind: 'keyboard_type', text: cu.text };
-              } else if (cu.action === 'keyboard_combo' && cu.combo != null) {
-                action = { kind: 'keyboard_combo', combo: cu.combo };
-              }
-              if (action) setPendingCuAction(action);
-            } else if (event.type === 'tool_call' && event.name) {
-              // 端脑让**这台设备**干活（换主题之类）。
-              //
-              // 端脑只负责**点名**（工具名 + 参数）；真正干活的是桌面端，
-              // 干完再把结果回传端脑 —— 端脑把它喂回模型，模型才知道
-              // 「主题已经换好了」，否则模型会一直等一个不来的结果。
-              const tool = desktopClientTools.lookup(event.name);
-              const callId =
-                event.tool_call_id ??
-                `client-tool-${toolCallSeq.current++}-${event.name}`;
-              const call: ToolCallMessage = {
-                id: callId,
-                name: event.name,
-                description: tool?.description,
-                args: parseToolArgs(event.args),
-                status: 'pending',
-              };
-              addMessage(activeConversationId, {
-                id: callId,
-                role: 'assistant',
-                content: '',
-                timestamp: new Date(),
-                tool_call: call,
-              });
-              const pending: PendingClientTool = {
-                telencephalonConversationId: conversationId,
-                localConversationId: activeConversationId,
-                call,
-              };
-              pendingToolCalls.current.set(callId, pending);
-
-              if (!tool) {
-                // 端脑点了一个这台设备不会的活。**明确失败并回传** ——
-                // 闷着不吭声的话，模型会一直等一个永远不来的结果。
-                patchToolCall(activeConversationId, callId, {
-                  status: 'failed',
-                  errorText: `unsupported tool: ${event.name}`,
-                });
-                void reportToolResult(pending, false, {
-                  error: 'unsupported tool',
-                });
-              } else if (tool.requiresApproval) {
-                patchToolCall(activeConversationId, callId, {
-                  status: 'awaiting-approval',
-                });
-              } else if (tool.collectsInput) {
-                patchToolCall(activeConversationId, callId, {
-                  status: 'awaiting-input',
-                });
-              } else {
-                void runClientToolCall(pending);
-              }
-            } else if (event.type === 'done') {
-              if (accumulated.trim().startsWith('{')) {
-                try {
-                  const parsed = JSON.parse(accumulated);
-                  if (isChatBiPayload(parsed)) {
-                    chatbiPayload = parsed;
-                  }
-                } catch {
-                  // not JSON — keep as plain text
+            {
+              onTextDelta: (delta, acc) => {
+                accumulated = acc;
+                if (firstDeltaAt === null) firstDeltaAt = Date.now();
+                if (!streamingId) {
+                  streamingId = crypto.randomUUID();
+                  addMessage(activeConversationId, {
+                    id: streamingId,
+                    role: 'assistant',
+                    content: delta,
+                    timestamp: new Date(),
+                    token_stats: liveStats(),
+                  });
+                } else {
+                  updateMessage(activeConversationId, streamingId, {
+                    content: acc,
+                    token_stats: liveStats(),
+                  });
                 }
+              },
+              onToolCall: async (call) => {
+                // 端脑让**这台设备**干活（换主题之类）。
+                //
+                // ⚠️ AG-UI 那一路：**结果随下一次请求带回去** ⇒ ⇒ 端脑**不等**
+                // 设备 ⇒ ⇒ 这里必须**一定**交出结局（成功/失败都交）。
+                const tool = desktopClientTools.lookup(call.toolCallName);
+                const callId =
+                  call.toolCallId ||
+                  `client-tool-${toolCallSeq.current++}-${call.toolCallName}`;
+                const callMessage: ToolCallMessage = {
+                  id: callId,
+                  name: call.toolCallName,
+                  description: tool?.description,
+                  args: parseToolArgs(call.args),
+                  status: 'pending',
+                  // ⚠️ AG-UI 没有 `/tool-results` 旁路 ⇒ ⇒ 结果是**随下一轮**
+                  // 带回去的 ⇒ ⇒ 卡片不能写「已回传端脑」。
+                  delivery: 'inline',
+                };
+                addMessage(activeConversationId, {
+                  id: callId,
+                  role: 'assistant',
+                  content: '',
+                  timestamp: new Date(),
+                  tool_call: callMessage,
+                });
+                const pending: PendingClientTool = {
+                  telencephalonConversationId: convId,
+                  localConversationId: activeConversationId,
+                  call: callMessage,
+                };
+                pendingToolCalls.current.set(callId, pending);
+                const settled = aguiToolGate.current.open(callId);
+                if (!tool) {
+                  // 端脑点了一个这台设备不会的活。**明确失败并交回** ——
+                  // 闷着不吭声的话，模型会一直等一个永远不来的结果。
+                  patchToolCall(activeConversationId, callId, {
+                    status: 'failed',
+                    errorText: `unsupported tool: ${call.toolCallName}`,
+                  });
+                  turnToolTrajectory.current.push(trajectoryStep(call.toolCallName, false));
+                  settleToolOutcome(
+                    pending,
+                    false,
+                    undefined,
+                    `unsupported tool: ${call.toolCallName}`,
+                  );
+                } else if (tool.requiresApproval) {
+                  patchToolCall(activeConversationId, callId, {
+                    status: 'awaiting-approval',
+                  });
+                } else if (tool.collectsInput) {
+                  patchToolCall(activeConversationId, callId, {
+                    status: 'awaiting-input',
+                  });
+                } else {
+                  void runClientToolCall(pending);
+                }
+                return settled;
+              },
+              onToolFailed: (call, error) => {
+                const pending = pendingToolCalls.current.get(call.toolCallId);
+                if (!pending) return;
+                patchToolCall(pending.localConversationId, pending.call.id, {
+                  status: 'failed',
+                  errorText: error,
+                });
+              },
+              // lobe 自己跑的工具结果：页面今天**不**单独渲染 ⇒ ⇒ 不画卡片。
+              onToolResult: () => {},
+            },
+          );
+          accumulated = turn.text;
+          if (turn.firstDeltaAt !== null) firstDeltaAt = turn.firstDeltaAt;
+          if (accumulated.trim().startsWith('{')) {
+            try {
+              const parsed = JSON.parse(accumulated);
+              if (isChatBiPayload(parsed)) {
+                chatbiPayload = parsed;
               }
-              break;
-            } else if (event.type === 'error') {
-              throw new Error(event.error || 'telencephalon stream error');
+            } catch {
+              // not JSON — keep as plain text
             }
           }
 
@@ -666,7 +640,6 @@ export function ConversationPage() {
             updateMessage(activeConversationId, streamingId, {
               content: finalContent,
               chatbi: chatbiPayload,
-              visual_qa_clarification: visualQaClarification,
               token_stats: finalStats ?? liveStats(),
             });
           } else {
@@ -676,7 +649,6 @@ export function ConversationPage() {
               content: finalContent,
               timestamp: new Date(),
               chatbi: chatbiPayload,
-              visual_qa_clarification: visualQaClarification,
               token_stats: finalStats,
             });
           }
@@ -1072,9 +1044,14 @@ export function ConversationPage() {
                                   errorText: 'denied by user',
                                 },
                               );
-                              void reportToolResult(pending, false, {
-                                error: 'denied by user',
-                              });
+                              // ⚠️ 用户拒了 ⇒ ⇒ **必须**交一条失败结果回去
+                              // ⇒ ⇒ 模型才知道这条路走不通（不许干等）。
+                              settleToolOutcome(
+                                pending,
+                                false,
+                                undefined,
+                                'denied by user',
+                              );
                             }}
                             onSubmitInput={(input) => {
                               const pending = pendingToolCalls.current.get(

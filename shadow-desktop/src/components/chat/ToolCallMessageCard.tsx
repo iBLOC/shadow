@@ -141,11 +141,19 @@ function footerText(call: ToolCallMessage): string | null {
   switch (call.status) {
     case 'succeeded': {
       const took = call.latencyMs != null ? ` in ${call.latencyMs}ms` : '';
+      // ⚠️ AG-UI 那一路**没有**旁路回传 ⇒ ⇒ 措辞不许写「reported to
+      // telencephalon」⇒ ⇒ 那句话在那一路上是**假的**。
+      if (call.delivery === 'inline') {
+        return `done${took} · result carried in the next turn`;
+      }
       return call.reported
         ? `done${took} · reported to telencephalon`
         : `done${took} · NOT reported to telencephalon`;
     }
     case 'failed':
+      if (call.delivery === 'inline') {
+        return 'failed · failure carried in the next turn';
+      }
       return call.reported
         ? 'failed · reported to telencephalon'
         : 'failed · NOT reported to telencephalon';

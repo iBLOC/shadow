@@ -10,23 +10,41 @@ import { useChatDisplayStore } from '../../src/stores/chatDisplayStore';
 // `setBaseUrl` exists on the real client and is called from
 // `companionModeStore` via `prefrontalClient` during module init, so the
 // mock must keep every method the import chain touches.
+// ⚠️ **AG-UI 那一路**：页面现在走 `ag-ui:stream`（POST ＋ SSE）
+// ⇒ ⇒ 这里 mock 的是 **fetch**（协议形状），不是 legacy 的 `streamMessage`。
 vi.mock('../../src/lib/telencephalonClient', () => {
   return {
-    // 人设现在随会话创建送进端脑，ConversationPage 会调这个函数。
-    // mock 必须提供它，否则页面在 createConversation 之前就炸了。
     composeSystemPrompt: (custom?: string) => (custom ?? '').trim(),
     telencephalonClient: {
       setBaseUrl: vi.fn(),
       getBaseUrl: () => 'http://127.0.0.1:60080',
+      readHeaders: async () => ({}),
       createConversation: vi.fn(async () => ({ id: 'c1' })),
-      streamMessage: vi.fn(async function* () {
-        yield { type: 'delta', delta: '你好', conversation_id: 'c1', timestamp: 1 };
-        yield { type: 'delta', delta: ' world', conversation_id: 'c1', timestamp: 2 };
-        yield { type: 'done', conversation_id: 'c1', state: 'COMPLETED', timestamp: 3 };
-      }),
     },
   };
 });
+
+/** 一份 AG-UI 的 SSE 响应（端脑每帧一行 data）。 */
+function aguiSse(frames: string[]): Response {
+  const encoder = new TextEncoder();
+  let i = 0;
+  return {
+    ok: true,
+    status: 200,
+    statusText: 'OK',
+    text: async () => '',
+    body: {
+      getReader() {
+        return {
+          read: async () =>
+            i < frames.length
+              ? { done: false, value: encoder.encode(frames[i++]) }
+              : { done: true, value: undefined },
+        };
+      },
+    },
+  } as unknown as Response;
+}
 
 vi.mock('../../src/lib/wakeWordDetector', () => ({
   WakeWordDetector: class {
@@ -63,10 +81,22 @@ describe('ConversationPage token stats', () => {
     localStorage.clear();
     useConversationStore.setState({ conversations: [], activeConversationId: null });
     useChatDisplayStore.setState({ showTokenStats: false });
+    // ⚠️ 页面现在走 AG-UI ⇒ ⇒ mock 的是 `fetch`（协议形状）。
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        aguiSse([
+          'data:{"type":"TEXT_MESSAGE_CONTENT","messageId":"m1","delta":"你好"}\n\n',
+          'data:{"type":"TEXT_MESSAGE_CONTENT","messageId":"m1","delta":" world"}\n\n',
+          'data:{"type":"RUN_FINISHED","threadId":"c1","runId":"r1"}\n\n',
+        ]),
+      ),
+    );
   });
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.unstubAllGlobals();
   });
 
   const renderPage = () =>
