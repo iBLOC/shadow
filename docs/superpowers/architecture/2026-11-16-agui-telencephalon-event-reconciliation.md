@@ -317,6 +317,39 @@ threadId=conversation_id),也容忍现有 SendMessageRequest(§4 选项 A 的会
 - ⚠️ **仍欠**:Dart 侧 `ag_ui` 0.3.0 认不认 1.0 的事件名(`TEXT_MESSAGE_START/CONTENT/END`)
   **未验** ⇒ ⇒ 那是**客户端**那一格 ⇒ ⇒ 属客户端接入那一刀。
 
+### 6g. 多模态那一格:AG-UI 那一路此前把图片/文件**静默跳过**(2026-11-16,端脑单仓)
+
+- **缺口(以前)**:AG-UI 的 `content[]` 里, `text` 之外的 part(`image`/`document`/`audio`)
+  被 `content_text()` **只挑 `type == "text"`** ⇒ ⇒ **其余 part 静静丢掉** ⇒ ⇒ 客户端**按协议**
+  发图/发文件 ⇒ ⇒ 端脑回 200、模型**什么都没收到** ⇒ ⇒ **失败长得像成功**。
+  ⚠️ 而 legacy `messages:stream` 那一路**早就支持**附件(图片 ✔ / 文本类文件 ✔ / PDF ✔ /
+  wav·mp3 音频 ✔;**视频与其他二进制明确拒**,报错逐字 *"Video and other binary formats are
+  not wired up."*)⇒ ⇒ **两条路能力不对等** ⇒ ⇒ 客户端一旦改走 AG-UI ⇒ ⇒ 那格能力**被丢掉**。
+- **补正**:❶ 按 AG-UI 多模态规范(`docs.ag-ui.com/sdk/js/core/multimodal-inputs.md`)解析 part
+  —— `{ type: "image"|"document"|"audio", source: { type: "data"|"url", value, mimeType } }`;
+  ❷ `source.type == "data"` ⇒ ⇒ **内联 base64**(规范要求 `mimeType`)⇒ ⇒ 直接映射我们的
+  `Attachment`(零转换成本);❸ `source.type == "url"` ⇒ ⇒ 规范允许 HTTP(S) **或 data URL**
+  ⇒ ⇒ **data URL** 认(剥出字节与 MIME)／**HTTP(S) 响亮地拒**(**不去拉** ⇒ ⇒ 不开 SSRF 那个面;
+  且**绝不静默丢**)⇒ ⇒ 错误说清「请内联字节」;❹ 认不出的 part(没有 `source`)⇒ ⇒ **响亮地拒**
+  (不静默跳过)⇒ ⇒ 用户发了图却什么都没发生 ⇒ ⇒ 那是失败长得像成功。
+- **附件的闸复用既有那道**:`validate_attachments`(≤8 件/条、≤10MB/个、非空 base64、
+  `ensure_we_can_send` 那档我们发不发得动)⇒ ⇒ **AG-UI 路与 legacy 路同一把尺** ⇒ ⇒
+  **视频在 AG-UI 路也明确拒**(与 legacy 同一事实,不是新限制);⚠️ **模型吃不吃这一档**仍在叶区
+  (`ensure_model_accepts_attachment`)⇒ ⇒ 因为要等请求那一刻才知道选中的是哪个模型。
+- **附件只从最后那条 user 消息取**(与文本同源)⇒ ⇒ 不会这一轮带图、下一轮带文件。
+- **判据**:新增 **7 条** —— 单元 6 条(image part ⇒ 附件 / data URL ⇒ 附件 / 远程 URL ⇒ 响亮地拒 /
+  文本 part 不是附件 / 附件只从最后那条取 / 非规范形状 ⇒ 响亮地拒)＋ **承载级 1 条**
+  (`the_agui_endpoint_carries_multimodal_attachments_to_the_lobe` —— **叶区眼里的那条消息**
+  里真的有那个 `MessagePart::File`,mime 与字节逐字)⇒ ⇒ 断言的是**叶区收到的**,
+  不是我们自己的中间状态。
+- **读数**:`cargo test --lib --no-default-features --features flow,dm-rules,turso api::shadow`
+  **106 过 / 0 红**(隔离树裁剪档;上一刀 99 ⇒ ⇒ **+7**)＋ **四道真变异当场红且只红目标判据**
+  (handler 丢附件 ⇒ 只红承载级 / 远程 URL 静默跳过 ⇒ 只红「响亮地拒」/ data URL 字节丢 ⇒ 只红
+  data URL 那条 / 非规范形状静默跳过 ⇒ 只红那条)⇒ ⇒ 每次还原后 sha256 逐字一致 ＋ 推 mtime。
+- ⚠️ **仍欠**:❶ **客户端接入**仍欠(桌面端 React 绑定 ＋ 移动端 `ag_ui`;两端 client 文件在
+  兄弟在飞面)⇒ ⇒ 本节是它的**服务端前置**(协议规定的方式发附件 ⇒ ⇒ 适配层不许吞)。
+  ❷ **视频**仍明确拒(既有事实,两路同尺)。❸ **远程 URL 不去拉** ⇒ ⇒ 客户端必须内联字节。
+  ❹ **真模型那一格**仍欠(承 §6e)。❺ 真 CI 待取。
 ## 7. 未核实清单(据实)
 
 - AG-UI 官方 a2ui-middleware / a2ui-toolkit 的桥接实现未逐行读(A2UI 载荷最终走 TOOL_CALL_RESULT
