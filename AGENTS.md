@@ -1,3 +1,21 @@
+**Updated**: 2026-11-16 (㕕 **「真机那一格：产物**编出来了**，装不上是**设备侧**的事」** —— 承 U+354E 条（附件泛化那族）与 U+3551 条（枕叶那一档那族），本条记**真机那一格的实际经过**、**两处受阻**、**这一份 `.so` 带了兄弟哪些未入库代码**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-16 | authority=measured | scope=project | source=本刀为「拍照真能发出去」那一格去装真机 ｜ 改动：**零文件**（**纯读数**条目 ⇒ ⇒ 不改代码）｜ 读数：**`.so` 重编成功**（7m17s／strip 后 157.9MB／**14 个 JNI 符号全部在位**）＋ **APK 编译成功**（213MB，15:12）｜ 闸：台账圈码 **三面零违规** | status=active | supersedes=none
+
+① **✅ 编是编出来了（两件产物都在）** —— ❶ **`libencephalon.so` 重编成功**：`cargo build --release --target aarch64-linux-android --no-default-features --features mobile --lib` ⇒ ⇒ **7m17s**（复用 `target-android` 缓存，承 U+3548 条那条「20m57s」的量级）⇒ ⇒ strip 后 **157.9MB**（省 84.4MB）⇒ ⇒ 脚本**自动拷进** `shadow-mobile/android/app/src/main/jniLibs/arm64-v8a/libencephalon.so` ⇒ ⇒ **出厂核验：14 个 JNI 符号全部在位**。❷ **APK 编译成功**：`flutter build apk --debug` ⇒ ⇒ **213MB**（15:12）⇒ ⇒ ⚠️ 中途失败过一次（见 ④❶）。
+
+② **⚠️ 装不上：**两个受阻都**在设备侧**，不是代码** —— ❶ **MIX 4（WiFi `192.168.31.85:5555`）不在线** ⇒ ⇒ 本机同网段（`192.168.31.147`）⇒ ⇒ `adb connect` 报「**连接尝试失败 (10060)**」⇒ ⇒ 设备没开机或没连这个 WiFi ⇒ ⇒ **等设备**。❷ **MI MAX 2（USB `2bcb05ec`，**在线**）禁止 adb 安装** ⇒ ⇒ `adb install -r` 与（push 之后的）`pm install -r -t` **都**报 `INSTALL_FAILED_USER_RESTRICTED: Install canceled by user` ⇒ ⇒ 那是 MIUI 的**「开发者选项 → USB 安装（安全设置）」**开关 ⇒ ⇒ **adb 绕不过**（那是设备自己的安全策略）⇒ ⇒ **要人手动开**。❸ ⇒ ⇒ APK **已经 push 到设备**（`/data/local/tmp/shadow-img.apk`，213,381,619 字节，15:12）⇒ ⇒ **开关一开就能装**（`pm install -r -t /data/local/tmp/shadow-img.apk`）⇒ ⇒ ⇒ **这一格现在只差设备侧的一个开关**。
+
+③ **⚠️ 这一份 `.so` 含兄弟的未入库代码**（承 U+3548 条那条「兄弟那笔 synapse 改动落库后需重编一次 .so」的债 —— **这一刀把它兑现了**）—— 逐仓清点**会被编进 `.so` 的源码**：**synapse 17 处**（`src/a2a/*` 那族扩展协商 ＋ `src/tools/web/` 那族 ＋ `src/providers/catalog.rs`）／**telencephalon 7 处**（`src/tools/web_provider.rs` 那族 ＋ `src/api/providers.rs`／`voice.rs` ＋ `src/registry/{cache,store}.rs` 那处**编译必需**的修补）／**neuron 4 处**（`src/llm/mistralrs_runtime.rs` 等）／**hippocampus 14 处**（`hippocampus-storage/src/lance/*` 那族）⇒ ⇒ ⇒ 「**装上去的 ＝ 我编出来的**」成立；但「**装上去的 ＝ 提交编出来的**」**不成立**（带了未入库代码）⇒ ⇒ ⇒ 与 U+3548 条记的是**同一形态** ⇒ ⇒ 如实记，不销账。
+
+④ **⚠️ 途中三格（都是本刀自己踩出来、当场修掉的）** —— ❶ **生成物与 arb 不同步 ⇒ ⇒ Dart 编译当场失败**：`lib/widgets/tts_error_banner.dart:118` 用 `l10n.ttsSkipped(reason)` ⇒ ⇒ 而编译用的是**旧生成物**（兄弟刚提交了含 `ttsSkipped` 的 arb，**生成物还没跟着提交**）⇒ ⇒ 报逐字：`Error: The method 'ttsSkipped' isn't defined for the type 'AppLocalizations'` ⇒ ⇒ ⇒ **`flutter build` 不会自动重跑 `gen-l10n`** ⇒ ⇒ 必须**手动跑一次** ⇒ ⇒ ⚠️ 而那次重新生成带出的**兄弟的键**是**他的活**（他提交 arb 时会一起带上）⇒ ⇒ **本刀不提交生成物**。❷ **后台任务在这个环境里**吞输出** ⇒ ⇒ `run_in_background` 的日志**全空** ⇒ ⇒ 看起来「没跑」⇒ ⇒ 实际**在跑**（第一次手搓 cargo 就这样白等了一轮）⇒ ⇒ ⇒ 通用形态：**这个环境里后台任务要么 `nohup … > log 2>&1 &` 重定向，要么前台跑**。❸ **同一个 target 目录只能有一个构建** ⇒ ⇒ 我同时起了两个 ⇒ ⇒ cargo 报 `Blocking waiting for file lock on build directory` ⇒ ⇒ 第二个白等 ⇒ ⇒ 要靠 `tasklist | findstr cargo.exe` 才看得出 ⇒ ⇒ ⇒ **通用形态：起第二个之前先看锁**。
+
+⑤ **⚠️ 途中两格（**踩的是台账里已经记过的坑**，那一记就省了两轮）** —— ❶ `tar` 把 `C:` 当**远程主机**（`/usr/bin/tar: Cannot connect to C: resolve failed`）⇒ ⇒ **Git Bash 的 GNU tar 不行**⇒ ⇒ 要 **bsdtar** ⇒ ⇒ `PATH="/c/Windows/System32:$PATH"` 把它顶到前面（承 U+3548 条记的「apk 闸要 bsdtar ⇒ System32 放 PATH 前」那一族）。❷ **「钉一份不够」** ⇒ ⇒ 只给镜像里的 `synapse` 指主树 ⇒ ⇒ cargo 当场拒绝：`package collision in the lockfile: packages synapse v0.1.0 (…\_cc\m1\synapse) and synapse v0.1.0 (…\iBLOC\synapse) are different` ⇒ ⇒ ⇒ ⇒ **正确编法是直接在主仓跑**（各 path 依赖天然指向主树 ⇒ ⇒ synapse 主树**自带**那处必需的未入库代码 ⇒ ⇒ **manifest 一个都不用改** ⇒ ⇒ 零风险）—— 这正是 U+3548 条早就写下的结论。
+
+⑥ **⚠️ 仍然欠着的** —— ❶ **真机那一格**（拍完真能问）：**只差设备侧** —— MIX 4 开机连上 WiFi，**或** MI MAX 2 开「USB 安装」⇒ ⇒ 然后 `pm install` ＋ 跑一遍「拍照 → 发送 → 看端脑有没有收到 attachments」⇒ ⇒ **本刀的所有读数都还是判据面的**。❷ **真上游那一格**（真模型真的读到了那张图）：判据全用**假上游**⇒ ⇒ 还要一个**真模型**（本地 neuron 要下模型）⇒ ⇒ 未跑。❸ 枕叶那一档（承 U+3551 条）**一步没做**。❹ 真 CI 待取（两仓都未推远端）。
+
+⑦ **⚠ 圈码：本条占 U+3555（㕕）** —— 插前逐字扫九本账本（父仓 ＋ 移动端 ＋ 桌面端 ＋ src-tauri ＋ mobile/lib ＋ desktop/src ＋ mobile/android kotlin ＋ 端脑 ＋ synapse）⇒ ⇒ U+3551…3554 各 2 处 ⇒ ⇒ **U+3555 各 0 处** ⇒ ⇒ 取 **U+3555**。字形由 `String.fromCodePoint(0x3555)` 生成，不手打。
+
 **Updated**: 2026-11-16 (㕔 **「合并台账条目**别手搓** —— 手搓过一次，把**一整本账本写成了 35 行**」** —— 承 U+3551 条（枕叶那一档的架构取证那族），本条记**那一次踩坑的逐字经过**、**根因**、**落进仓的脚本**与它的**两道闸**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-16 | authority=measured | scope=project | source=本刀在落 U+3551／3553 两条台账时**自己踩的坑** ｜ 改动：**shadow**（`scripts/merge-ledger-entry.mjs` **新**）＋ `AGENTS.md`（本条）⇒ ⇒ **2 文件** ＋ 零新增依赖 ｜ 读数：脚本两道闸各跑一遍**当场拦住**（重复插入 ⇒ 报错；截断 ⇒ 报错）｜ 闸：台账圈码 **三面零违规** | status=active | supersedes=none
