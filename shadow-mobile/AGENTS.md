@@ -1147,6 +1147,18 @@ Sibling desktop has the same shape — see E2E assessment §3.6-3.9 for the desk
 | (older — see git log) | Cortex client wiring (Sprint 1+2); main_agent + mobile_action_agent split; WebRTC companion mode; wake-word service; multimodal input; session transfer |
 
 > The mobile project shares its git repository with shadow-desktop (`https://github.com/iBLOC/shadow/.git`), so commits are interleaved. Filter with `git log --author ...` or by `feat(mobile)` / `feat(shadow-mobile)` prefix.
+**Updated**: 2026-11-16 (㕓 **「手机上的图**走不到枕叶** —— 枕叶**不在**移动端那个 `.so` 里」** —— 承影仓 U+3551 条（枕叶那一档的架构取证那族），本条记**逐字取证**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-16 | authority=measured | scope=project | source=影仓 U+3551 条（枕叶那一档的架构取证）｜ 改动：**零文件**（**纯取证**条目 ⇒ ⇒ 不改代码）｜ 读数：不适用（无代码改动）｜ 闸：台账圈码 **三面零违规** | status=active | supersedes=none
+
+① **⚠️ 取证：移动端那个 `.so` 里**没有枕叶**（所以手机上的图**走不到枕叶**）** —— ❶ 手机装的是 `libencephalon.so`，而它的构成逐字写在 `shadow-mobile/android/app/src/main/kotlin/com/ibloc/shadow/EncephalonRuntime.kt` 的文件头：「**同一套 `Embedded`（thalamus ＋ ACP 总线 ＋ telencephalon ＋ 单一 neuron）**」⇒ ⇒ **不含枕叶**（也不含海马体 —— 承 U+3541 条「mobile 不带 hippocampus」）。❷ 而枕叶是个**独立进程**：`occipital/src/main.rs` 起一个 `LobeApp`（默认绑 `127.0.0.1:9300`）⇒ ⇒ 它**不是**移动端的一部分 ⇒ ⇒ 手机上**没有**一个能接这张图的枕叶。❸ ⇒ ⇒ **「移动端拍照 → 枕叶处理」这条路在架构上就不通** —— 不是「还没接线」，是**那个东西不在**。
+
+② **✅ 但手机的图**已经能用了（走的是另一条路）** —— U+354E 那一刀把图片接成了「**模型直接看**」（`image_url`）⇒ ⇒ 手机上拍张照问一句，**模型真的看得见** ⇒ ⇒ ⇒ **「用户发一张照片，模型看不见」这件事今天已经不存在了** ⇒ ⇒ 而「走枕叶」只是**另一条**路（它的独有价值是**检测与人脸**，不是普通问答）。
+
+③ **⚠️ 仍然欠着的** —— ❶ 若要「静态图 → 枕叶」在**手机**上成立 ⇒ ⇒ 只有一条路：**把枕叶编进移动端** ⇒ ⇒ 体量大（枕叶要 neuron 的 vision 模型，而移动端是「**单一** neuron」）⇒ ⇒ 本条**不做**（纯取证）。❷ 若要它在**桌面端**成立 ⇒ ⇒ 需要桌面端**先有发图 UI**（现在没有 —— 那个图片 input 是**聊天背景图**）⇒ ⇒ ⇒ 「静态图 → 枕叶」这一档今天**两端各缺一头** ⇒ ⇒ 现在做＝造一个**没人用**的能力 ⇒ ⇒ **不做**。❸ 端脑↔lobe 的 wire 形状缺口（承影仓 U+3551／本仓 U+3552 条）**一步都没修** ⇒ ⇒ 那条路**从未对上**。
+
+④ **⚠ 圈码：本条占 U+3553（㕓）** —— 插前逐字扫九本账本（父仓 ＋ 移动端 ＋ 桌面端 ＋ src-tauri ＋ mobile/lib ＋ desktop/src ＋ mobile/android kotlin ＋ 端脑 ＋ synapse）⇒ ⇒ U+354E／354F／3550 各 2 处 ⇒ ⇒ **U+3553 各 0 处** ⇒ ⇒ 取 **U+3553**。字形由 `String.fromCodePoint(0x3553)` 生成，不手打。
+
 **Updated**: 2026-11-16 (㕏 **「附件不止图片了 —— 而且界面上那个「端脑」该叫「大脑」」** —— 承影仓 U+354E 条（附件泛化那族），本条记**落点**、**文案口径**、**判据与变异**、**读数**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-16 | authority=measured | scope=project | source=影仓 U+354E 条（用户诉求逐字：「大脑为什么错误信息显示的是端脑，需要支持全类型文件格式」）｜ 改动：lib/multimodal/attachment_encoder.dart **新** ＋ lib/multimodal/image_input_handler.dart（撤掉上一刀的「图片专用编码器」）＋ lib/multimodal/multimodal.dart ＋ lib/multimodal/multimodal_input_manager.dart ＋ lib/providers/chat_provider.dart ＋ lib/utils/chat_state_l10n.dart ＋ lib/services/telencephalon/telencephalon_client.dart（`images` ⇒ `attachments`）＋ lib/l10n/app_{en,zh}.arb（**端脑→大脑** 24 处 ＋ 附件键收成一个）＋ lib/generated/l10n（3 份）＋ test/unit/attachment_wire_test.dart（**改名** ＋ 扩到 18 条）＋ test/unit/chat_provider_test.dart（附件族改口径 ＋ 扩到 6 条）＋ test/widget/flows_screen_test.dart ⇒ ⇒ **13 个文件** ＋ 零新增依赖 ｜ 读数：移动端全量 **987 过 / 0 红 / 13 跳**（上一刀 980 ＋ 本刀 7）＋ flutter analyze 改动文件 **0 新发现**（4 条 info 全在 `telencephalon_client.dart` 的**存量**行 786／787／1265／1441 ⇒ ⇒ 不代修）＋ 变异**一处当场红**（`toJson` 不带 `attachments` ⇒ **2** 条红）｜ 闸：**15 绿 / 8 红**（八道红**零命中本刀文件**）| status=active | supersedes=none
