@@ -94,6 +94,8 @@ AG-UI 有、端脑完全没有的事件族(接入即白拿,不接也不亏):
     并注释写清限制(同轮并发多工具调用时按序关联仍可能错位);
   - **治本(跨仓)**:synapse 的 AgentStreamEvent / lobe runtime 让 ToolResult 自带 tool_call_id,
     端脑透传即可 —— 波及 synapse + lobe + 端脑 + 双端客户端 + endpoint-matrix 登记,是一刀独立工作。
+    ⚠️ **这段定性已被 2026-11-16 的取证修正**:改动面比「ToolResult 带 id」**更大**(announce 侧
+    与 wire 那一层都要带),而「缓」的理由也**换了** —— 不是「等 A2A wire」⇒ ⇒ 见下面两条。
   AG-UI 的 TOOL_CALL_RESULT 把 toolCallId 定为必填 ⇒ 走适配层路线(§6 选项 A)时这个缺口**必须**先补,
   否则翻译层只能拿治标方案顶。
   - ✅ **治标档已落地(2026-11-16)**:端脑单仓,`shadow.rs` 新增 `ToolCallIdCorrelator`
@@ -109,6 +111,45 @@ AG-UI 有、端脑完全没有的事件族(接入即白拿,不接也不亏):
     分支**一直**透传 `toolCallId: event.tool_call_id`(既有测试 `call-2` 用例钉住)⇒
     服务端带上 id 后桌面自动受益,**零客户端改动**这句成立。移动面:tool_result 走 default
     分支仅记日志(卡片状态由本地执行驱动),采纳属新功能不属本刀。
+  - ✅ **治标档加固(2026-11-16,端脑单仓)**:correlator 的配对键从「**工具名**」改成
+    「**(agent, 工具名)**」⇒ ⇒ 端脑**不再把配对正确性外包给 synapse 的调度不变式**。
+    - **取证(今天没有洞,但仍然要改)**:synapse 的工具执行处处**串行** ——
+      `adk/react.rs` 的 `for call in calls { execute_tool(...).await }`、
+      `adk/multiagent/hybrid.rs` 的 `for (…) in pending_calls { agent.run(...).await }`;
+      整个 `adk/` **零**并行原语(无 `join_all`/`JoinSet`/`FuturesUnordered`),
+      而 `compose/` **根本不产工具事件** ⇒ ⇒ 「同名工具并发」**当前不发生**
+      ⇒ ⇒ 按名字 FIFO **今天是对的** ⇒ ⇒ **这是加固,不是补一个正在流血的洞**。
+    - **但那正确性依赖的是另一个仓的调度不变式** ⇒ ⇒ 谁哪天把工具执行改成并行,端脑就会
+      **静默错配**:结果被挂到**别的**那次调用的 id 上 ⇒ ⇒ 客户端回传的 `toolCallId` 指错
+      调用 ⇒ ⇒ 工具结果接到**错的**那次调用上 ⇒ ⇒ *失败长得像成功*。
+    - **两侧 agent 必然一致** ⇒ ⇒ 换键**不会漏配**:原生叶区路径上 `ToolStart` 与 `ToolEnd`
+      都带 lobe 的真实 agent 名;跨 A2A 那一跳上 side channel 两侧都被
+      `tool_event_to_agent_event` 盖上**同一个 peer URL**。
+    - **零跨仓、零新依赖、零破坏** ⇒ ⇒ 两端客户端**零改动**。
+    - **读数**:`cargo test --lib --no-default-features --features flow,dm-rules,turso api::shadow`
+      **99 过 / 0 红**(隔离树裁剪档)＋ **两道真变异当场红且只红目标判据**:❶ 键退回
+      「只有工具名」⇒ ⇒ **98 过 / 1 红**,红的就是新增那条,读数逐字是
+      `left: Some("id-a")` / `right: Some("id-t")` ⇒ ⇒ **错配真的被钉住了**;
+      ❷ `pop_front`→`pop_back` ⇒ ⇒ 98/1,红的是「同名按序」那条 ⇒ ⇒ 顺序规则也承重
+      ⇒ ⇒ 每次还原后 sha256 逐字一致 ＋ 推 mtime,还原后复跑 **99 过 / 0 红**。
+  - ⚠️ **治本档的阻塞理由要改写(2026-11-16 取证)** —— 原记「等 A2A 升级落库后评估」**不准确**:
+    - **id 早就在手边**:synapse 的生产点 `adk/react.rs` 构造 `ToolStart`/`ToolEnd` 时,
+      `call.id` **就在同一个作用域里**(同函数 301 行已经在用 `call.id.clone()`)
+      ⇒ ⇒ **治本档不依赖 A2A v1.0 的 wire 定型**。
+    - **改动面比「ToolEnd 带 id」更大**:**announce 侧也要带** —— 端脑实际收到的「工具调用」
+      来自 `AgentStreamEvent::ToolStart { agent, name, args }`(端脑 `a2a/client.rs` 的
+      `translate_event` 把它映射成 `ToolCall`),而 `ToolStart` **也没有 id**
+      ⇒ ⇒ 两侧都得改。
+    - **wire 那一层也要带**:跨 A2A 那一跳走 `synapse/src/a2a/tool_event.rs` 的 side channel
+      (`StatusUpdate.metadata` 里的 `ToolEvent`)⇒ ⇒ `ToolEvent::Start`/`End` 都得带 id
+      ⇒ ⇒ 否则 id 在 wire 上照样丢。
+    - **端脑这一侧也要改**:`translate_event` 现在把 `call.id` **丢掉**(只取
+      `call.function.name`/`arguments`)⇒ ⇒ `TelencephalonStreamEvent::ToolCall` 得带 id 透传,
+      `ToolResult` 也得带。
+    - **真正的阻塞**:① `AgentStreamEvent` 是 synapse 的**公共枚举** ⇒ ⇒ 加字段 =
+      **breaking change** ⇒ ⇒ 波及整个 workspace(端脑/neuron/hippocampus/lobe);
+      ② `src/a2a/server.rs` **在兄弟在飞面**(A2A v1.0 wire 迁移正在此刻)⇒ ⇒ 现在动就是撞。
+    - ⇒ ⇒ **仍然缓**,但**缓的理由是上面两条**,不是「等 A2A wire」。
 - **G2 delta 无 messageId、无消息边界** —— 工具调用后续说的文本与前一段在客户端被拼成同一条气泡;
   AG-UI 的 TEXT_MESSAGE_START/CONTENT/END 三段式正是解这个。
   - ✅ **服务端半已落地(2026-11-16,端脑单仓纯新增)**:新事件 `message_start`/`message_end`
