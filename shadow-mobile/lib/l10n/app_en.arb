@@ -178,7 +178,7 @@
   "@addManually": {},
   "confirm": "Confirm",
   "@confirm": {},
-  "telencephalonFlows": "Telencephalon Flows",
+  "telencephalonFlows": "Brain Flows",
   "@telencephalonFlows": {},
   "active": "Active",
   "@active": {},
@@ -391,7 +391,7 @@
   "priorityUrgent": "Urgent",
   "taskEditTitle": "Edit Task",
   "taskStatus": "Status",
-  "taskEditPersistenceNote": "Telencephalon task: the status can be changed at any time; the title, description, priority and tags are only written when the task is created.",
+  "taskEditPersistenceNote": "Brain task: the status can be changed at any time; the title, description, priority and tags are only written when the task is created.",
   "taskDueTime": "Due",
   "taskDueTimeField": "Due date",
   "taskDueTimeHint": "Optional. Relative times such as \"tomorrow 3pm\" are accepted.",
@@ -593,10 +593,8 @@
   "@cameraClose": {},
   "chatGreeting": "Hello! I am Shadow. How can I help you?",
   "@chatGreeting": {},
-  "chatAttachmentNotAvailable": "Images can be sent to the model now; video, files and audio are not wired up yet",
-  "@chatAttachmentNotAvailable": {},
-  "chatAttachmentImageFailed": "This image could not be sent: {reason}",
-  "@chatAttachmentImageFailed": {
+  "chatAttachmentFailed": "This file could not be sent: {reason}",
+  "@chatAttachmentFailed": {
     "placeholders": {
       "reason": {
         "type": "String"
@@ -772,7 +770,7 @@
   "surfaceLogs": "Logs",
   "surfaceTrace": "Trace",
   "surfaceResonance": "Resonance",
-  "surfaceTelencephalon": "Telencephalon",
+  "surfaceTelencephalon": "Brain",
   "surfaceSettings": "Settings",
   "surfaceSetup": "Setup",
   "navSectionConverse": "Converse",
@@ -831,7 +829,7 @@
   "identityTitle": "Identity",
   "identityTitleDesc": "Who this device is, and which memory it reads and writes",
   "identityCurrentTitle": "Who you are",
-  "identityCurrentDesc": "The endbrain decides the tenant — the persona it reports is the memory isolation unit.",
+  "identityCurrentDesc": "The brain decides the tenant — the persona it reports is the memory isolation unit.",
   "identityPrincipal": "Person",
   "identityPersona": "Persona",
   "identityDevice": "Device",
@@ -847,7 +845,7 @@
   "identityImportAction": "Import it",
   "identityImportActionDesc": "Import takes effect immediately, no brain restart.",
   "identityImportPlaceholder": "Account key",
-  "identityImportFailed": "Import failed — the key is invalid, or the endbrain refused it.",
+  "identityImportFailed": "Import failed — the key is invalid, or the brain refused it.",
   "identityImportDone": "Imported — this device is that person now.",
   "identityCopy": "Copy",
   "identityCopied": "Copied to clipboard",
@@ -861,7 +859,7 @@
   "resetEngineDesc": "Reinitialize the engine",
   "resetEngineConfirmDesc": "Resetting reinitializes the runtime and discards unsaved sessions. This cannot be undone.",
   "resetEngineConfirm": "Reset",
-  "telencephalonFlowsDesc": "Browse and run telencephalon flows",
+  "telencephalonFlowsDesc": "Browse and run brain flows",
   "settingsThemeModeLight": "Light",
   "settingsThemeModeDark": "Dark",
   "settingsDialogBackgroundDesc": "Override the background of dialogs and panels.",
@@ -895,10 +893,10 @@
   },
   "surfaceA2ui": "Generative UI",
   "surfaceIdentity": "Identity",
-  "agent2uiNoConnection": "Not connected to the telencephalon",
-  "agent2uiWaiting": "Connecting to the telencephalon…",
-  "agent2uiNoSurface": "Connected, but the telencephalon produced no surface",
-  "agent2uiSurfaceHint": "The surface drawn by the telencephalon will appear here",
+  "agent2uiNoConnection": "Not connected to the brain",
+  "agent2uiWaiting": "Connecting to the brain…",
+  "agent2uiNoSurface": "Connected, but the brain produced no surface",
+  "agent2uiSurfaceHint": "The surface drawn by the brain will appear here",
   "ttsEngineRust": "Rust",
   "logsExported": "Logs exported to {path}",
   "@logsExported": {
@@ -908,11 +906,11 @@
       }
     }
   },
-  "askAgent2UI": "Ask the telencephalon to draw...",
+  "askAgent2UI": "Ask the brain to draw...",
   "a2uiSurfaceReportTasks": "Expanded the task board.",
   "a2uiSurfaceReportAgents": "Expanded the agent list.",
-  "a2uiSurfaceReportNoSurface": "The telencephalon did not draw an interface this time.",
-  "a2uiSurfaceReportNoSurfaceSaid": "The telencephalon did not draw an interface this time. It said: {words}",
+  "a2uiSurfaceReportNoSurface": "The brain did not draw an interface this time.",
+  "a2uiSurfaceReportNoSurfaceSaid": "The brain did not draw an interface this time. It said: {words}",
   "@a2uiSurfaceReportNoSurfaceSaid": {
     "placeholders": {
       "words": {

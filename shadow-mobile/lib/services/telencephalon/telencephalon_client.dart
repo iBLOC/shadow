@@ -419,19 +419,24 @@ class SendMessageRequest {
   /// ⚠️ 键名是 **snake_case**（与 `await_tool_result` 同一条规矩）。
   final Map<String, String>? capabilityModes;
 
-  /// 这条消息随带的**图片附件**（每项：`{media_type, data}`）。
+  /// 这条消息随带的**附件**（每项：`{media_type, data, filename?}`）。
   ///
   /// ⚠️ `data` 是**纯 base64**（**不带** `data:` 前缀）⇒ ⇒ 端脑那侧负责
   /// 拼成 `data:<media_type>;base64,<data>` ⇒ ⇒ **两端只有端脑那一处**
   /// 知道最终形状。
   ///
-  /// ⚠️ 为什么是 **base64 内联**而不是 URI：手机上的照片是**本地文件**
+  /// ⚠️ **不限类型**：图片／纯文本（代码、JSON、CSV、Markdown…）／PDF／
+  /// 音频（wav、mp3）都走这一格 ⇒ ⇒ 由**端脑按 MIME 分档**决定变成模型
+  /// 认得的那种形状 ⇒ ⇒ 客户端**不需要**知道模型要什么形状 ⇒ ⇒ 两端
+  /// 不会各猜一份。
+  ///
+  /// ⚠️ 为什么是 **base64 内联**而不是 URI：手机上的文件是**本地文件**
   /// ⇒ ⇒ 端脑拿不到它的路径 ⇒ ⇒ 要么内联字节，要么先上传再给 URI。
   /// 这一刀走内联。
   ///
   /// ⚠️ **老端脑不认识这个字段 ⇒ 无害**（serde 忽略未知字段）⇒ ⇒
   /// 所以**不必等端脑先改**就能先把这半边做掉。
-  final List<Map<String, String>>? images;
+  final List<Map<String, String>>? attachments;
 
   const SendMessageRequest({
     required this.text,
@@ -439,14 +444,14 @@ class SendMessageRequest {
     this.tools,
     this.awaitToolResult = false,
     this.capabilityModes,
-    this.images,
+    this.attachments,
   });
 
   Map<String, dynamic> toJson() => {
     'text': text,
     if (agent != null) 'agent': agent,
     if (tools != null && tools!.isNotEmpty) 'tools': tools,
-    if (images != null && images!.isNotEmpty) 'images': images,
+    if (attachments != null && attachments!.isNotEmpty) 'attachments': attachments,
     if (awaitToolResult) 'await_tool_result': true,
     // ⚠️ 端脑认这个字段之前 ⇒ ⇒ serde 忽略未知字段 ⇒ ⇒ **无害**。
     if (capabilityModes != null && capabilityModes!.isNotEmpty)

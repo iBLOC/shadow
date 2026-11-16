@@ -767,7 +767,7 @@ abstract class AppLocalizations {
   /// No description provided for @telencephalonFlows.
   ///
   /// In en, this message translates to:
-  /// **'Telencephalon Flows'**
+  /// **'Brain Flows'**
   String get telencephalonFlows;
 
   /// No description provided for @active.
@@ -1847,7 +1847,7 @@ abstract class AppLocalizations {
   /// No description provided for @taskEditPersistenceNote.
   ///
   /// In en, this message translates to:
-  /// **'Telencephalon task: the status can be changed at any time; the title, description, priority and tags are only written when the task is created.'**
+  /// **'Brain task: the status can be changed at any time; the title, description, priority and tags are only written when the task is created.'**
   String get taskEditPersistenceNote;
 
   /// No description provided for @taskDueTime.
@@ -2186,17 +2186,11 @@ abstract class AppLocalizations {
   /// **'Hello! I am Shadow. How can I help you?'**
   String get chatGreeting;
 
-  /// No description provided for @chatAttachmentNotAvailable.
+  /// No description provided for @chatAttachmentFailed.
   ///
   /// In en, this message translates to:
-  /// **'Images can be sent to the model now; video, files and audio are not wired up yet'**
-  String get chatAttachmentNotAvailable;
-
-  /// No description provided for @chatAttachmentImageFailed.
-  ///
-  /// In en, this message translates to:
-  /// **'This image could not be sent: {reason}'**
-  String chatAttachmentImageFailed(String reason);
+  /// **'This file could not be sent: {reason}'**
+  String chatAttachmentFailed(String reason);
 
   /// No description provided for @chatSorryError.
   ///
@@ -2741,7 +2735,7 @@ abstract class AppLocalizations {
   /// No description provided for @surfaceTelencephalon.
   ///
   /// In en, this message translates to:
-  /// **'Telencephalon'**
+  /// **'Brain'**
   String get surfaceTelencephalon;
 
   /// No description provided for @surfaceSettings.
@@ -2861,7 +2855,7 @@ abstract class AppLocalizations {
   /// No description provided for @identityCurrentDesc.
   ///
   /// In en, this message translates to:
-  /// **'The endbrain decides the tenant — the persona it reports is the memory isolation unit.'**
+  /// **'The brain decides the tenant — the persona it reports is the memory isolation unit.'**
   String get identityCurrentDesc;
 
   /// No description provided for @identityPrincipal.
@@ -2957,7 +2951,7 @@ abstract class AppLocalizations {
   /// No description provided for @identityImportFailed.
   ///
   /// In en, this message translates to:
-  /// **'Import failed — the key is invalid, or the endbrain refused it.'**
+  /// **'Import failed — the key is invalid, or the brain refused it.'**
   String get identityImportFailed;
 
   /// No description provided for @identityImportDone.
@@ -3041,7 +3035,7 @@ abstract class AppLocalizations {
   /// No description provided for @telencephalonFlowsDesc.
   ///
   /// In en, this message translates to:
-  /// **'Browse and run telencephalon flows'**
+  /// **'Browse and run brain flows'**
   String get telencephalonFlowsDesc;
 
   /// No description provided for @settingsThemeModeLight.
@@ -3161,25 +3155,25 @@ abstract class AppLocalizations {
   /// No description provided for @agent2uiNoConnection.
   ///
   /// In en, this message translates to:
-  /// **'Not connected to the telencephalon'**
+  /// **'Not connected to the brain'**
   String get agent2uiNoConnection;
 
   /// No description provided for @agent2uiWaiting.
   ///
   /// In en, this message translates to:
-  /// **'Connecting to the telencephalon…'**
+  /// **'Connecting to the brain…'**
   String get agent2uiWaiting;
 
   /// No description provided for @agent2uiNoSurface.
   ///
   /// In en, this message translates to:
-  /// **'Connected, but the telencephalon produced no surface'**
+  /// **'Connected, but the brain produced no surface'**
   String get agent2uiNoSurface;
 
   /// No description provided for @agent2uiSurfaceHint.
   ///
   /// In en, this message translates to:
-  /// **'The surface drawn by the telencephalon will appear here'**
+  /// **'The surface drawn by the brain will appear here'**
   String get agent2uiSurfaceHint;
 
   /// No description provided for @ttsEngineRust.
@@ -3197,7 +3191,7 @@ abstract class AppLocalizations {
   /// No description provided for @askAgent2UI.
   ///
   /// In en, this message translates to:
-  /// **'Ask the telencephalon to draw...'**
+  /// **'Ask the brain to draw...'**
   String get askAgent2UI;
 
   /// No description provided for @a2uiSurfaceReportTasks.
@@ -3215,13 +3209,13 @@ abstract class AppLocalizations {
   /// No description provided for @a2uiSurfaceReportNoSurface.
   ///
   /// In en, this message translates to:
-  /// **'The telencephalon did not draw an interface this time.'**
+  /// **'The brain did not draw an interface this time.'**
   String get a2uiSurfaceReportNoSurface;
 
   /// No description provided for @a2uiSurfaceReportNoSurfaceSaid.
   ///
   /// In en, this message translates to:
-  /// **'The telencephalon did not draw an interface this time. It said: {words}'**
+  /// **'The brain did not draw an interface this time. It said: {words}'**
   String a2uiSurfaceReportNoSurfaceSaid(String words);
 
   /// No description provided for @settingsGroupCapabilities.

@@ -371,7 +371,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get confirm => '确认';
 
   @override
-  String get telencephalonFlows => '端脑流程';
+  String get telencephalonFlows => '大脑流程';
 
   @override
   String get active => '活跃';
@@ -596,7 +596,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get mcpAuthTokenOptional => '认证 Token (可选)';
 
   @override
-  String get mcpLoadFailed => '读不到端脑的 MCP 服务器清单';
+  String get mcpLoadFailed => '读不到大脑的 MCP 服务器清单';
 
   @override
   String get mcpTemplateLabel => '模板';
@@ -919,7 +919,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get taskStatus => '状态';
 
   @override
-  String get taskEditPersistenceNote => '端脑任务：状态随时可改；标题、描述、优先级与标签只在创建时写入。';
+  String get taskEditPersistenceNote => '大脑任务：状态随时可改；标题、描述、优先级与标签只在创建时写入。';
 
   @override
   String get taskDueTime => '截止时间';
@@ -1129,11 +1129,8 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chatGreeting => '你好，我是Shadow，有什么可以帮你的吗？';
 
   @override
-  String get chatAttachmentNotAvailable => '图片可以直接发给模型看了；视频、文件、音频这条链路还没接上';
-
-  @override
-  String chatAttachmentImageFailed(String reason) {
-    return '这张图片发不出去：$reason';
+  String chatAttachmentFailed(String reason) {
+    return '这个文件发不出去：$reason';
   }
 
   @override
@@ -1423,7 +1420,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get surfaceResonance => 'Resonance';
 
   @override
-  String get surfaceTelencephalon => '端脑';
+  String get surfaceTelencephalon => '大脑';
 
   @override
   String get surfaceSettings => '设置';
@@ -1483,7 +1480,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get identityCurrentTitle => '当前是谁';
 
   @override
-  String get identityCurrentDesc => '租户由端脑说了算 —— 它报出的人格就是记忆的隔离单元。';
+  String get identityCurrentDesc => '租户由大脑说了算 —— 它报出的人格就是记忆的隔离单元。';
 
   @override
   String get identityPrincipal => '人';
@@ -1531,7 +1528,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get identityImportPlaceholder => '账号密钥';
 
   @override
-  String get identityImportFailed => '导入失败 —— 密钥不合法，或者端脑拒绝了。';
+  String get identityImportFailed => '导入失败 —— 密钥不合法，或者大脑拒绝了。';
 
   @override
   String get identityImportDone => '导入完成 —— 这台设备现在是那个人了。';
@@ -1573,7 +1570,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get resetEngineConfirm => '重置';
 
   @override
-  String get telencephalonFlowsDesc => '浏览并运行端脑流程';
+  String get telencephalonFlowsDesc => '浏览并运行大脑流程';
 
   @override
   String get settingsThemeModeLight => '浅色';
@@ -1637,16 +1634,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get surfaceIdentity => '身份';
 
   @override
-  String get agent2uiNoConnection => '未连接到端脑';
+  String get agent2uiNoConnection => '未连接到大脑';
 
   @override
-  String get agent2uiWaiting => '正在连接端脑…';
+  String get agent2uiWaiting => '正在连接大脑…';
 
   @override
-  String get agent2uiNoSurface => '已连接，但端脑这次没有给出界面';
+  String get agent2uiNoSurface => '已连接，但大脑这次没有给出界面';
 
   @override
-  String get agent2uiSurfaceHint => '端脑把界面画出来后会显示在这里';
+  String get agent2uiSurfaceHint => '大脑把界面画出来后会显示在这里';
 
   @override
   String get ttsEngineRust => 'Rust';
@@ -1657,7 +1654,7 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get askAgent2UI => '让端脑画界面...';
+  String get askAgent2UI => '让大脑画界面...';
 
   @override
   String get a2uiSurfaceReportTasks => '已展开「任务看板」。';
@@ -1666,11 +1663,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get a2uiSurfaceReportAgents => '已展开「Agent 列表」。';
 
   @override
-  String get a2uiSurfaceReportNoSurface => '端脑这次没有画界面。';
+  String get a2uiSurfaceReportNoSurface => '大脑这次没有画界面。';
 
   @override
   String a2uiSurfaceReportNoSurfaceSaid(String words) {
-    return '端脑这次没有画界面，它说：$words';
+    return '大脑这次没有画界面，它说：$words';
   }
 
   @override
@@ -2028,7 +2025,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get backgroundKeepAlive => '后台常驻';
 
   @override
-  String get backgroundKeepAliveHint => '切到后台或息屏时，端脑与本地引擎继续运行（显示常驻通知）';
+  String get backgroundKeepAliveHint => '切到后台或息屏时，大脑与本地引擎继续运行（显示常驻通知）';
 
   @override
   String get backgroundServiceStatus => '前台服务';
@@ -2043,7 +2040,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get backgroundServiceTitle => 'Shadow 正在后台运行';
 
   @override
-  String get backgroundServiceText => '端脑与本地引擎保持可用';
+  String get backgroundServiceText => '大脑与本地引擎保持可用';
 
   @override
   String get backgroundStop => '停止';

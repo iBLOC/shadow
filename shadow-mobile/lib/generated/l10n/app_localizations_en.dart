@@ -372,7 +372,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get confirm => 'Confirm';
 
   @override
-  String get telencephalonFlows => 'Telencephalon Flows';
+  String get telencephalonFlows => 'Brain Flows';
 
   @override
   String get active => 'Active';
@@ -931,7 +931,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get taskEditPersistenceNote =>
-      'Telencephalon task: the status can be changed at any time; the title, description, priority and tags are only written when the task is created.';
+      'Brain task: the status can be changed at any time; the title, description, priority and tags are only written when the task is created.';
 
   @override
   String get taskDueTime => 'Due';
@@ -1143,12 +1143,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatGreeting => 'Hello! I am Shadow. How can I help you?';
 
   @override
-  String get chatAttachmentNotAvailable =>
-      'Images can be sent to the model now; video, files and audio are not wired up yet';
-
-  @override
-  String chatAttachmentImageFailed(String reason) {
-    return 'This image could not be sent: $reason';
+  String chatAttachmentFailed(String reason) {
+    return 'This file could not be sent: $reason';
   }
 
   @override
@@ -1443,7 +1439,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get surfaceResonance => 'Resonance';
 
   @override
-  String get surfaceTelencephalon => 'Telencephalon';
+  String get surfaceTelencephalon => 'Brain';
 
   @override
   String get surfaceSettings => 'Settings';
@@ -1505,7 +1501,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get identityCurrentDesc =>
-      'The endbrain decides the tenant — the persona it reports is the memory isolation unit.';
+      'The brain decides the tenant — the persona it reports is the memory isolation unit.';
 
   @override
   String get identityPrincipal => 'Person';
@@ -1559,7 +1555,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get identityImportFailed =>
-      'Import failed — the key is invalid, or the endbrain refused it.';
+      'Import failed — the key is invalid, or the brain refused it.';
 
   @override
   String get identityImportDone => 'Imported — this device is that person now.';
@@ -1606,7 +1602,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get resetEngineConfirm => 'Reset';
 
   @override
-  String get telencephalonFlowsDesc => 'Browse and run telencephalon flows';
+  String get telencephalonFlowsDesc => 'Browse and run brain flows';
 
   @override
   String get settingsThemeModeLight => 'Light';
@@ -1673,18 +1669,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get surfaceIdentity => 'Identity';
 
   @override
-  String get agent2uiNoConnection => 'Not connected to the telencephalon';
+  String get agent2uiNoConnection => 'Not connected to the brain';
 
   @override
-  String get agent2uiWaiting => 'Connecting to the telencephalon…';
+  String get agent2uiWaiting => 'Connecting to the brain…';
 
   @override
   String get agent2uiNoSurface =>
-      'Connected, but the telencephalon produced no surface';
+      'Connected, but the brain produced no surface';
 
   @override
   String get agent2uiSurfaceHint =>
-      'The surface drawn by the telencephalon will appear here';
+      'The surface drawn by the brain will appear here';
 
   @override
   String get ttsEngineRust => 'Rust';
@@ -1695,7 +1691,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get askAgent2UI => 'Ask the telencephalon to draw...';
+  String get askAgent2UI => 'Ask the brain to draw...';
 
   @override
   String get a2uiSurfaceReportTasks => 'Expanded the task board.';
@@ -1705,11 +1701,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get a2uiSurfaceReportNoSurface =>
-      'The telencephalon did not draw an interface this time.';
+      'The brain did not draw an interface this time.';
 
   @override
   String a2uiSurfaceReportNoSurfaceSaid(String words) {
-    return 'The telencephalon did not draw an interface this time. It said: $words';
+    return 'The brain did not draw an interface this time. It said: $words';
   }
 
   @override
