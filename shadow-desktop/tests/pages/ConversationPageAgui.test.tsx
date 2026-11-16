@@ -189,8 +189,13 @@ describe('ConversationPage —— AG-UI 那一路', () => {
       const messages =
         useConversationStore.getState().conversations.find((c) => c.id === 'conv-agui-error')
           ?.messages ?? [];
-      const errored = messages.find((m) => m.content.includes('conversation.error'));
-      expect(errored).toBeTruthy();
+      // ⚠️ 断言要**承重**：不只看「有一条消息」，要看它**真的是错误那条**
+      // ⇒ ⇒ 光「某个值非空」是弱断言（桌面那道闸会红）。
+      const assistantTexts = messages
+        .filter((m) => m.role === 'assistant')
+        .map((m) => m.content)
+        .join('|');
+      expect(assistantTexts).toContain('conversation.error');
     });
   });
 });

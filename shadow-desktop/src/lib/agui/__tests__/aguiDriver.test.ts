@@ -75,7 +75,7 @@ describe('AguiDriver', () => {
     ]);
     const kinds: string[] = [];
     const texts: string[] = [];
-    for await (const ev of driver.streamTurn('c', [{ role: 'user', content: 'hi' }])) {
+    for await (const ev of driver.streamTurn('c', { messages: [{ role: 'user', content: 'hi' }] })) {
       kinds.push(ev.kind);
       if (ev.kind === 'text') texts.push(ev.delta);
     }
@@ -102,7 +102,7 @@ describe('AguiDriver', () => {
       },
     );
     const kinds: string[] = [];
-    for await (const ev of driver.streamTurn('c', [{ role: 'user', content: '换个主题' }])) {
+    for await (const ev of driver.streamTurn('c', { messages: [{ role: 'user', content: '换个主题' }] })) {
       kinds.push(ev.kind);
     }
     expect(executed).toEqual(['set_theme']);
@@ -128,7 +128,7 @@ describe('AguiDriver', () => {
     );
     const kinds: string[] = [];
     let failure = '';
-    for await (const ev of driver.streamTurn('c', [{ role: 'user', content: '换个主题' }])) {
+    for await (const ev of driver.streamTurn('c', { messages: [{ role: 'user', content: '换个主题' }] })) {
       kinds.push(ev.kind);
       if (ev.kind === 'tool_failed') failure = ev.error;
     }
@@ -149,7 +149,7 @@ describe('AguiDriver', () => {
       { chunks: ['data:{"type":"RUN_FINISHED","threadId":"t","runId":"r2"}\n\n'] },
     ]);
     const kinds: string[] = [];
-    for await (const ev of driver.streamTurn('c', [{ role: 'user', content: '换个主题' }])) {
+    for await (const ev of driver.streamTurn('c', { messages: [{ role: 'user', content: '换个主题' }] })) {
       kinds.push(ev.kind);
     }
     expect(kinds).toContain('tool_failed');
@@ -170,7 +170,7 @@ describe('AguiDriver', () => {
       },
     ]);
     await expect(async () => {
-      for await (const _ of driver.streamTurn('c', [{ role: 'user', content: 'hi' }])) {
+      for await (const _ of driver.streamTurn('c', { messages: [{ role: 'user', content: 'hi' }] })) {
         void _;
       }
     }).rejects.toThrow(/设备拒绝了/);
@@ -183,7 +183,7 @@ describe('AguiDriver', () => {
       },
     ]);
     await expect(async () => {
-      for await (const _ of driver.streamTurn('c', [{ role: 'user', content: 'hi' }])) {
+      for await (const _ of driver.streamTurn('c', { messages: [{ role: 'user', content: 'hi' }] })) {
         void _;
       }
     }).rejects.toThrow(/without RUN_FINISHED/);
@@ -204,7 +204,7 @@ describe('AguiDriver', () => {
       ],
       async () => ({ ok: true, content: 'ok' }),
     );
-    for await (const _ of driver.streamTurn('c', [{ role: 'user', content: '换个主题' }])) {
+    for await (const _ of driver.streamTurn('c', { messages: [{ role: 'user', content: '换个主题' }] })) {
       void _;
     }
     expect(calls).toHaveLength(3);
@@ -221,7 +221,7 @@ describe('AguiDriver', () => {
     ]);
     const kinds: string[] = [];
     let name = '';
-    for await (const ev of driver.streamTurn('c', [{ role: 'user', content: '天气?' }])) {
+    for await (const ev of driver.streamTurn('c', { messages: [{ role: 'user', content: '天气?' }] })) {
       kinds.push(ev.kind);
       if (ev.kind === 'tool_result') name = ev.name;
     }
