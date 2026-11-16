@@ -460,6 +460,60 @@ driver 当时只发 `{messages}` ⇒ ⇒ **工具清单根本没进请求** ⇒ 
 影仓 U+3560 条里有一句「该页**零判据覆盖**（只有 store／lifecycle 有测试）」⇒ ⇒
 **事实是页面有判据**（`tests/pages/ConversationPage*.test.tsx` ＋ e2e）⇒ ⇒
 那是**取证时只在 `src/` 下找、漏了 `tests/`** ⇒ ⇒ 本节更正，不改那一条。
+### 6j. 移动端 driver:结算闸 ＋ 桥接层 ＋ 请求面整份带(2026-11-17,影仓父仓)
+
+**这一格补的是移动端那一半** —— 影仓 U+3568 条那把 driver(`src/lib/agui/driver.ts` ＋
+`toolOutcomeGate.ts` ＋ `bridge.ts`)在手机侧一直是空的 ⇒ ⇒ 手机接设备工具时
+只能各写各的 ⇒ ⇒ 这一刀照**逐字同口径**补一份。
+
+**落点(移动端 4 个新文件 ＋ 3 份判据)**
+
+| 文件 | 干什么 | 桌面孪生 |
+|---|---|---|
+| `lib/agui/agui_types.dart` | 请求面(`AguiMessage`／`AguiTool`／`AguiRunRequest` ＋ `toJson()`) | `src/lib/agui/types.ts` 的请求面那半 |
+| `lib/agui/agui_tool_outcome_gate.dart` | 结算闸(`ToolOutcomeGate` ＋ `failedOutcome`) | `toolOutcomeGate.ts` |
+| `lib/agui/agui_bridge.dart` | 形状转换(工具清单→**扁平**／data URL→**内联**／工具结果→outcome) | `bridge.ts` |
+| `lib/agui/agui_driver.dart` | 一轮驱动(工具续轮／失败带 `error`／干不了⇒合成失败) | `driver.ts` |
+
+**三件必须同口径的(桌面那边真踩过的坑)**
+
+1. **请求面要整份带**(`messages`＋`tools`＋`threadId`／`runId`)⇒ ⇒ 只发
+   `messages` ⇒ ⇒ 模型不知道这台设备会什么 ⇒ ⇒ 设备工具**静默失灵**。
+   ⚠️ 桌面那边这一格是在**页面级**判据里钉的;手机页面还没接线 ⇒ ⇒
+   **这一格得在 driver 级钉住** ⇒ ⇒ 补了「工具清单随请求出去」＋
+   「续轮不丢工具清单」两条。
+2. **失败必须带 `error`** ⇒ ⇒ 端脑那边「`error` 在场 ⇒ 状态就是 failed」。
+3. **这台设备干不了 ⇒ ⇒ 合成一条失败结果回传** ⇒ ⇒ 模型不会干等。
+
+**判据与读数**
+
+- 移动端 AG-UI 判据 **40 过 / 0 红**(协议层 19 ＋ 结算闸 4 ＋ 桥接 7 ＋ driver 10)
+  ⇒ ⇒ 与桌面端**逐字同口径**(driver 那 10 条里 8 条与桌面一一对应,另 2 条是
+  这一端特有的)。
+- `flutter analyze`(改动文件)**No issues found**;移动端**全量 1044 过 / 0 红 / 13 跳**
+  (上一刀 1025 ⇒ 差 +19;本刀判据 +21 ⇒ ⇒ 在飞面净 −2 ⇒ ⇒ **跨刀全量数会漂,
+  不做趋势判断**)。
+- **8 道真变异**全部**当场红**、无一道红 0 ⇒ ⇒ 判据承重;还原后 sha256 **逐字一致**
+  ＋ 推 mtime。
+
+**⚠️ 途中那一格:变异脚本自己也要判**
+
+第一遍 8 道全读成「**红 0**」⇒ ⇒ 按纪律那该判「8 个判据缺口」⇒ ⇒
+**真相是解析器有缺口**:`flutter test` 的失败清单在 `Failing tests:` 段里,
+路径给的是**绝对路径**(不是 `package:` 前缀)⇒ ⇒ 只认 package: 前缀的解析器
+永远读到 0 ⇒ ⇒ **差点把「判据没缺口」误判成「判据全是缺口」**。
+⇒ ⇒ 探针抓了一份真实失败输出才发现。
+⇒ ⇒ **通用形态:「红 0」有两个来源 —— 判据缺口,或读数工具的缺口** ⇒ ⇒
+脚本必须**自检**(变异后若 `All tests passed` ⇒ ⇒ 立刻判「这条变异没生效或
+没读懂」,不许沉默)。
+
+**仍然欠着**
+
+- **手机页面接线**(`lib/providers/chat_provider.dart` 带着兄弟在飞的改动)⇒ ⇒
+  **单独一刀**。
+- **真机那一格**没跑(只过了判据面)。
+- **G1 治本档**仍缓(唯一阻塞＝兄弟未落库的 `synapse/src/a2a/server.rs`)。
+
 ## 7. 未核实清单(据实)
 
 - AG-UI 官方 a2ui-middleware / a2ui-toolkit 的桥接实现未逐行读(A2UI 载荷最终走 TOOL_CALL_RESULT

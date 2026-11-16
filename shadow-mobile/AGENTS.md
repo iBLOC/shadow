@@ -1,3 +1,21 @@
+**Updated**: 2026-11-17 (㕫 **「手机这一侧的 driver 补上了 —— 与桌面逐字同口径的四件（请求面／结算闸／桥接层／一轮驱动）」** —— 承影仓 U+3568 条（页面换线那一族），本条记**本仓落点**、**三件必须同口径的**、**一格值得单独说**、**判据与八道真变异**、**途中那个坑**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-17 | authority=measured | scope=project | source=承影仓 U+3568 条（页面换线那一族）｜ 改动：`lib/agui/agui_types.dart` ＋ `lib/agui/agui_tool_outcome_gate.dart` ＋ `lib/agui/agui_bridge.dart` ＋ `lib/agui/agui_driver.dart` ＋ `test/unit/agui_driver_test.dart` ＋ `test/unit/agui_bridge_test.dart` ＋ `test/unit/agui_tool_outcome_gate_test.dart` ＋ 本条 ⇒ ⇒ **7 文件** ＋ 零新增依赖 ＋ 零新增端点 ｜ 读数：移动端 AG-UI 判据 **40 过 / 0 红**（协议层 19 ＋ 结算闸 4 ＋ 桥接 7 ＋ driver 10）＋ `flutter analyze`（改动文件）**No issues found** ＋ 全量 **1044 过 / 0 红 / 13 跳** ｜ **8 道真变异**各**当场红**、无一道红 0 ｜ 闸：**11 绿 / 10 红**（十道红**零命中本刀文件** ⇒ ⇒ 不代修、不销账）| status=active | supersedes=none
+
+① **⚠️ 本仓落点（四个新文件 ＋ 三份判据）** —— ❶ `lib/agui/agui_types.dart`：**请求面**（`AguiMessage`／`AguiTool`／`AguiRunRequest` ＋ `toJson()`）⇒ ⇒ 事件那半在 `agui_events.dart` ⇒ ⇒ 两份合起来才是一份完整协议（与桌面端 `src/lib/agui/types.ts` 的请求面那半逐字对账）。❷ `lib/agui/agui_tool_outcome_gate.dart`：**结算闸**（`ToolOutcomeGate`：登记／兑现**只第一次有效**／放弃全部 ⇒ ⇒ 每一条都兑现成失败）＋ `failedOutcome`（失败原因**不许留空**）⇒ ⇒ 与桌面端 `toolOutcomeGate.ts` 同口径。❸ `lib/agui/agui_bridge.dart`：**形状转换层** —— 工具清单→**扁平**（AG-UI 的工具是 `{name, description?, parameters?}`，**不套 `function`** ⇒ ⇒ 端脑自己再包一次 ⇒ ⇒ 客户端这一处不许包）＋ data URL→**内联**（形状不对 ⇒ ⇒ **响亮地拒**，不许静默丢图）＋ 工具结果→`{ok, content, error?}`（失败**必须带 error**）。❹ `lib/agui/agui_driver.dart`：**一轮驱动** —— 工具结果随**下一次请求**带回去；失败**必须带 `error`**；这台设备干不了 ⇒ ⇒ **合成一条失败结果**（模型不干等）；流没跑完（没有 RUN_FINISHED）⇒ ⇒ **抛**；RUN_ERROR ⇒ ⇒ 抛且**带上端脑的原话**。
+
+② **⚠️ 三件必须同口径的（桌面那边真踩过的坑，本刀逐字照抄）** —— ❶ **请求面要整份带**（`messages`＋`tools`＋`threadId`／`runId`）⇒ ⇒ 只发 `messages` ⇒ ⇒ 模型**不知道这台设备会什么** ⇒ ⇒ 设备工具**静默失灵**。❷ **失败必须带 `error`**（端脑那边「`error` 在场 ⇒ 状态就是 failed」）。❸ **干不了 ⇒ ⇒ 合成失败结果回传**。
+
+③ **⚠️ 一格值得单独说：「工具清单随请求出去」这条判据** —— 桌面那边是在**页面级**判据里钉的；**手机页面还没接线** ⇒ ⇒ 那一格若等接线才钉 ⇒ ⇒ 中间这段**没人看着** ⇒ ⇒ 因此这一刀把它提到 **driver 级**：补「**工具清单随请求出去**」＋「**续轮不丢工具清单**」两条 ⇒ ⇒ 变异「请求面不带工具清单」⇒ ⇒ **当场红 2** ⇒ ⇒ 这一格**有人看着**。
+
+④ **✅ 判据与八道真变异** —— ❶ 本仓 AG-UI 判据 **40 过 / 0 红**（协议层 19 ＋ 结算闸 4 ＋ 桥接 7 ＋ driver 10）⇒ ⇒ 与桌面端**逐字同口径**（driver 那 10 条里 8 条一一对应，另 2 条是这一端特有的）。❷ `flutter analyze`（改动文件）**No issues found**。❸ 全量 **1044 过 / 0 红 / 13 跳**（上一刀 1025 ⇒ 差 +19；本刀判据 +21 ⇒ ⇒ 在飞面净 −2 ⇒ ⇒ **跨刀全量数会漂，不做趋势判断**）。❹ **8 道真变异全部当场红、无一道红 0** ⇒ ⇒ 每道只红目标判据所在机制族 ⇒ ⇒ 还原后 sha256 **逐字一致** ＋ 推 mtime。
+
+⑤ **⚠️ 途中那个坑：变异脚本自己也要判** —— 第一遍 8 道**全读成「红 0」** ⇒ ⇒ 按纪律那该判「8 个判据缺口」⇒ ⇒ **真相是解析器有缺口**（`flutter test` 的失败清单在 `Failing tests:` 段、路径给的是**绝对路径**而不是 `package:` 前缀）⇒ ⇒ **差点把「判据没缺口」误判成「判据全是缺口」** ⇒ ⇒ 探针抓了一份真实失败输出才发现 ⇒ ⇒ 补了自检（变异后若 `All tests passed` ⇒ ⇒ 立刻判「这条变异没生效或没读懂」）。
+
+⑥ **⚠️ 仍然欠着的** —— ❶ **页面接线**（`lib/providers/chat_provider.dart` 带着兄弟在飞的改动）⇒ ⇒ **单独一刀**。❷ **真机那一格**没跑（只过了判据面）。❸ 本刀**没动** `lib/providers/chat_provider.dart` ＋ `lib/services/telencephalon/telencephalon_client.dart`（兄弟在飞面）⇒ ⇒ 零撞号。
+
+⑦ **⚠ 圈码：本条占 U+356B (㕫)** —— 落笔前**逐字重扫**五本账本（Node 读文件；⚠️ `rg`／PowerShell 管道读这本账本会漏（父仓根目录那本实测零命中）⇒ ⇒ **必须用 Node 逐字读**）⇒ ⇒ 读数：移动端最高已声明 U+3569 ⇒ ⇒ 35xx 段下一枚取 **U+356B**（高于自己那一本的水位）⇒ ⇒ 父仓那条取 U+356C（两枚互不相同）⇒ ⇒ 字形由 `String.fromCodePoint()` 生成，不手打。
+
 **Updated**: 2026-11-16 (㕩 **「手机这一侧：页面接线仍欠 —— 桌面那边已经把「工具闭环＝下一次请求带回去」这条路走通了，可照抄」** —— 承影仓 U+3567 条（页面换线那一族），本条记**本仓现状**、**可照抄的那三件**、**仍然欠着的**.)
 
 > 信封：epoch=2026-11-16 | authority=measured | scope=project | source=影仓 U+3567 条（页面换线那一族）｜ 改动：**零代码改动**（本仓这一刀**不碰**兄弟在飞面；结论落账）｜ 读数：桌面端 AG-UI 判据 **51 过 / 0 红** ＋ 移动端既有 **19 过 / 0 红**（协议层）｜ 闸：**13 绿 / 8 红**（零命中本刀）| status=active | supersedes=none
