@@ -136,4 +136,32 @@ void main() {
     expect(screen.contains('captureImage()'), isFalse);
     expect(screen.contains('captureVideo()'), isFalse);
   });
+
+  test('⓰ 相机**不再跳页**（机制判据）：零 Navigator.push ＋ 独立相机页已删', () {
+    // ⚠️ 这一条钉的是 2026-11-16 那一刀的约定：「拍照要不要叠在聊天页上」
+    // ⇒ ⇒ 相机**不许**再是独立页面 ⇒ ⇒ 不许靠 push 一个 route 实现。
+    String code(String rel) {
+      final src = File(rel).readAsStringSync();
+      return src
+          .replaceAll(RegExp(r'/\*[\s\S]*?\*/'), '')
+          .split('\n')
+          .map((l) => l.contains('//') ? l.substring(0, l.indexOf('//')) : l)
+          .join('\n');
+    }
+
+    // ① 独立的相机页**已经不存在** ⇒ ⇒ 相机只能叠在聊天页上。
+    expect(
+      File('lib/screens/in_app_camera_page.dart').existsSync(),
+      isFalse,
+    );
+
+    final screen = code('lib/screens/chat_screen.dart');
+    // ② 聊天页**零** Navigator（跳页会让聊天页整页重建 ⇒ ⇒ 不是一体化）。
+    expect(screen.contains('Navigator'), isFalse);
+    expect(screen.contains('push<InAppCameraCapture>'), isFalse);
+    expect(screen.contains('InAppCameraPage'), isFalse);
+    // ③ 但**必须**真的把叠加层挂上去（不许只是「不跳页」而根本不拍）。
+    expect(screen.contains('InAppCameraOverlay'), isTrue);
+    expect(screen.contains('_cameraMode'), isTrue);
+  });
 }

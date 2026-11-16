@@ -15,7 +15,7 @@ import '../providers/conversation_mode_provider.dart';
 import '../providers/theme_provider.dart';
 import '../widgets/continue_on_desktop_dialog.dart';
 import '../widgets/chat/local_chat_view.dart';
-import 'in_app_camera_page.dart';
+import '../widgets/chat/in_app_camera_overlay.dart';
 import '../services/in_app_camera_service.dart';
 import '../widgets/chat/agent2ui_panel.dart';
 import '../widgets/chat/mode_switcher.dart';
@@ -34,6 +34,14 @@ class ChatScreen extends ConsumerStatefulWidget {
 class _ChatScreenState extends ConsumerState<ChatScreen> {
   final TextEditingController _promptController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+
+  /// 相机叠加层开着没（null ＝ 关着）。
+  ///
+  /// ⚠️ 为什么是**状态**而不是「再跳一页」：跳页 ⇒ ⇒ 聊天页**整页重建**
+  /// ⇒ ⇒ 输入框里已经打的字**可能丢**、滚动位置**跳回**、附件行**闪一下**
+  /// ⇒ ⇒ 用户感觉「换了个页」⇒ ⇒ 那不是一体化。
+  /// ⇒ ⇒ 叠在同一棵 widget 树上 ⇒ ⇒ 聊天页**一秒都没动过**。
+  InAppCameraMode? _cameraMode;
   ProviderSubscription<AsyncValue<WakeWordEvent>>? _wakeWordSub;
 
   @override
@@ -266,6 +274,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               ),
             ),
           ),
+          // ⚠️ **相机叠加层** —— 叠在聊天页**自己身上**（不跳页 ⇒ ⇒ 聊天页
+          // 不重建 ⇒ ⇒ 输入框里打的字不丢 ⇒ ⇒ 拍完附件**原地**出现）。
+          if (_cameraMode != null)
+            InAppCameraOverlay(
+              mode: _cameraMode!,
+              onCaptured: _onCameraCaptured,
+              onCancel: _onCameraCancel,
+            ),
         ],
       ),
     );
@@ -279,14 +295,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// 「Force finishing activity com.android.camera/.OneShotCamera」）
   /// ⇒ ⇒ 用户只看到「按了没反应」，候选里什么都没有。
   /// ⇒ ⇒ 自己拍 ⇒ ⇒ 拍完直接进附件。
-  Future<void> _openInAppCamera(InAppCameraMode mode) async {
-    final capture = await Navigator.of(context).push<InAppCameraCapture>(
-      InAppCameraPage.route(mode: mode),
-    );
-    if (capture == null || !mounted) return;
+  void _openInAppCamera(InAppCameraMode mode) {
+    // ⚠️ **不再跳页** —— 相机是**叠在聊天页自己身上的一层**（一体化）。
+    setState(() => _cameraMode = mode);
+  }
+
+  /// 拍到了 ⇒ ⇒ **原地**进附件（候选行真的多一条）＋ 这一层收摊。
+  Future<void> _onCameraCaptured(InAppCameraCapture capture) async {
     await ref
         .read(chatProvider.notifier)
         .attachCapturedFile(capture.path, isVideo: capture.isVideo);
+    if (!mounted) return;
+    // ⚠️ 成功失败都**要收摊** —— 不许让相机一直盖在聊天页上。
+    // 失败的话 provider 已经说了真话（errorMessage）。
+    setState(() => _cameraMode = null);
+  }
+
+  /// 用户关掉了相机 ⇒ ⇒ **不带任何东西**（不许挂半截附件）。
+  void _onCameraCancel() {
+    if (!mounted) return;
+    setState(() => _cameraMode = null);
   }
 
   void _sendMessage() {

@@ -16,6 +16,18 @@ enum InAppCameraOpenStatus {
   failed,
 }
 
+/// 要**拍照片**还是**录视频**。
+///
+/// ⚠️ 它跟着「能力层」走（不是 UI 层）⇒ ⇒ 页面、叠加层、聊天页
+/// 说的是**同一个**请求，不许各写一份。
+enum InAppCameraMode {
+  /// 拍照（📷 **轻触**）。
+  photo,
+
+  /// 录像（📷 **长按**）。
+  video,
+}
+
 /// 拍摄产物 —— 照片或录像（**路径** ＋ **是不是视频**）。
 class InAppCameraCapture {
   final String path;
