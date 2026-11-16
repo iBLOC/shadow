@@ -184,7 +184,13 @@ threadId=conversation_id),也容忍现有 SendMessageRequest(§4 选项 A 的会
   真变异(CUSTOM→TOOL_CALL_RESULT)当场红(8 绿 1 红,只红负控那条)⇒ 还原后 sha256 与主树**逐字一致**、复跑绿。
 - **闸**:state-surface / client-endpoint-map **绿**;六道红闸(endpoint-matrix / failure-masking /
   secret-plaintext / replacement-chars / gate-discipline / legacy-residue)**零命中本刀文件** ⇒ 存量基线,按纪律不代修、不销账。
-- **仍欠**:承载级判据(http 层真打这条端点)—— 需假 lobe;synapse A2A v1.0 升级在飞,wire 未定型 ⇒ 暂缓;
+- **承载级判据已落地(2026-11-16,端脑 `http_tests.rs`)** —— ⚠️ **这一格不需要假 lobe**:验的是
+  「**装配之后的那张面**」,四件事全在**碰到叶区之前**就能验 —— ❶ 门(什么凭据都不带 ⇒
+  **401**)/ ❷ 响亮地拒(只有 assistant 消息 ⇒ **400**,不是静默空转)/ ❸ 请求体被认(⇒ 落到
+  「会话不存在」**404 + code 4040**,证明 ❷ 的 400 不是「根本没路由」的兜底)/ ❹ **负控**
+  (不存在的路由 ⇒ 404 但**不是**我们那条的形状 ⇒ ⇒ 400/404 各有出处)。读数:**1 条绿**
+  (真起 TCP 监听 ＋ 真 HTTP 客户端,`.no_proxy()` 直连)。
+- **仍欠**:「**跑通一次对话**」(过 A2A 那一跳)—— synapse A2A v1.0 升级在飞、wire 未定型 ⇒ ⇒ 暂缓;
   移动/桌面客户端接入 \`ag_ui\` Dart 包(§6 选项 A 的真正红利);AG-UI 工具闭环(客户端回传面)。
 
 ## 7. 未核实清单(据实)
