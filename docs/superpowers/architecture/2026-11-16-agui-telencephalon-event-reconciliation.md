@@ -408,6 +408,58 @@ threadId=conversation_id),也容忍现有 SendMessageRequest(§4 选项 A 的会
   覆盖**(只有 store／lifecycle 有测试)⇒ ⇒ 单独一刀:**先补判据,再换线**;
 - **移动端接线**: `lib/providers/chat_provider.dart` 带着兄弟在飞的改动 ⇒ ⇒ 本刀**不混**;
 - **G1 治本档**:仍缓(唯一阻塞＝兄弟**未落库**的 `synapse/src/a2a/server.rs`)。
+### 6i. 桌面端页面换线:AG-UI 那一路**真的在跑**(2026-11-16,影仓父仓)
+
+**这一格做了什么**
+
+- **页面换线**：桌面 `ConversationPage.tsx` 的聊天那一路从
+  `telencephalonClient.streamMessage`（legacy SSE）换成 **AG-UI**
+  （`POST /shadow/v1/conversations/{id}/ag-ui:stream` ＋ SSE）;
+- **三个新模块**（都带判据）:
+  - `src/lib/agui/toolOutcomeGate.ts` —— 设备工具的**结算闸**（一次调用只兑现一次；
+    放弃时每一条都兑现成失败 ⇒ ⇒ 模型不干等）;
+  - `src/lib/agui/bridge.ts` —— **形状转换层**（工具清单→AG-UI 扁平形状；
+    data URL→内联 part；工具结果→`{ok, content, error?}`）;
+  - `src/lib/agui/conversationTurn.ts` —— **运输层无关**的一轮驱动（页面只跟这层说话）;
+- **卡片措辞**跟着改：`ToolCallMessage.delivery = 'inline'` ⇒ ⇒ 脚注不再写
+  「reported to telencephalon」（那一路上**没有**旁路回传 ⇒ ⇒ 那句话是假的）。
+
+**⚠️ 最值钱的一格：判据抓到一个真 bug**
+
+driver 当时只发 `{messages}` ⇒ ⇒ **工具清单根本没进请求** ⇒ ⇒ 模型**不知道**
+这台设备会什么 ⇒ ⇒ 设备工具**静默失灵**（界面什么都不显示，模型也不调用）⇒ ⇒
+「失败长得像成功」的产品级形态。⇒ ⇒ 现在请求面**整份带**
+（`{messages, tools, threadId?, runId?}`）⇒ ⇒ 并且补了一条**页面级**判据
+钉住「工具清单随请求出去」。
+
+**⚠️ 另一格：一道变异红 0 ⇒ ⇒ 判据没覆盖 ⇒ ⇒ 补判据**
+
+把页面的工具清单那一格改成空 ⇒ ⇒ **红 0** ⇒ ⇒ 说明「工具清单随请求出去」
+这条当时**没人钉** ⇒ ⇒ 补上后再变异 ⇒ ⇒ 当场红。
+
+**读数**
+
+- AG-UI 判据 **51 过 / 0 红**（协议层 19 ＋ driver 8 ＋ 结算闸 4 ＋ 桥接层 8
+  ＋ 一轮驱动 6 ＋ **页面级 6**）;
+- `tsc --noEmit` **0 错**;
+- **23 道真变异**（协议层 10 ＋ driver 6 ＋ 新模块 5 ＋ 页面 2）⇒ ⇒ 每道当场红
+  且只红目标判据所在机制族 ⇒ ⇒ 还原后 sha256 逐字一致 ＋ 推 mtime;
+- 桌面全量 **1747 过 / 1 红**（那 1 红＝兄弟在飞的跨端措辞，**零命中本刀文件**）;
+- 闸 **13 绿 / 8 红**（八道红**零命中本刀文件** ⇒ ⇒ 不代修、不销账）。
+
+**仍然欠着的**
+
+- **真机那一格没跑**：这一刀只过了判据面（页面在 jsdom 里真跑了一遍续轮闭环）
+  ⇒ ⇒ 真机上的端脑 ＋ 真模型这一跳**没验过**;
+- **移动端接线仍欠**：`lib/providers/chat_provider.dart` 带着兄弟在飞的改动
+  ⇒ ⇒ 本刀**不混**;
+- **G1 治本档仍缓**（唯一阻塞＝兄弟未落库的 `synapse/src/a2a/server.rs`）。
+
+**⚠️ 更正一处说错（不改历史条目）**
+
+影仓 U+3560 条里有一句「该页**零判据覆盖**（只有 store／lifecycle 有测试）」⇒ ⇒
+**事实是页面有判据**（`tests/pages/ConversationPage*.test.tsx` ＋ e2e）⇒ ⇒
+那是**取证时只在 `src/` 下找、漏了 `tests/`** ⇒ ⇒ 本节更正，不改那一条。
 ## 7. 未核实清单(据实)
 
 - AG-UI 官方 a2ui-middleware / a2ui-toolkit 的桥接实现未逐行读(A2UI 载荷最终走 TOOL_CALL_RESULT

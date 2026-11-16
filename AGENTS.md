@@ -1,3 +1,21 @@
+**Updated**: 2026-11-16 (㕨 **「桌面端页面换线：AG-UI 那一路**真的在跑** —— 判据抓到「工具清单没进请求」这一格（设备工具会静默失灵）」** —— 承影仓 U+3560 条（客户端接入那一族），本条记**页面换线**、**三个新模块**、**判据抓到的真 bug**、**更正一处说错**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-16 | authority=measured | scope=project | source=用户诉求逐字（「继续」）＋ 影仓 U+3560 条（客户端接入那一族）| 改动：**影仓父仓**（桌面 `ConversationPage.tsx` ＋ `src/lib/agui/{toolOutcomeGate,bridge,conversationTurn}.ts` ＋ `src/lib/agui/driver.ts` ＋ `src/lib/agui/__tests__/{aguiGate,aguiBridge,aguiTurn}.test.ts` ＋ `src/types/index.ts` ＋ `src/components/chat/ToolCallMessageCard.tsx` ＋ `tests/pages/{ConversationPageAgui,ConversationPageTokenStats}.test.tsx` ＋ 文档 §6i ＋ 本条）⇒ ⇒ **12 文件** ＋ **零新增依赖** ＋ **零新增端点** ｜ 读数：AG-UI 判据 **51 过 / 0 红**（协议层 19 ＋ driver 8 ＋ 结算闸 4 ＋ 桥接层 8 ＋ 一轮驱动 6 ＋ **页面级 6**）＋ `tsc --noEmit` **0 错** ｜ **23 道真变异**（协议层 10 ＋ driver 6 ＋ 新模块 5 ＋ 页面 2）**各只红目标判据所在机制族**、还原后 sha256 逐字一致 ｜ 桌面全量 **1747 过 / 1 红**（那 1 红＝兄弟在飞的跨端措辞，**零命中本刀文件**）｜ 闸：**13 绿 / 8 红**（八道红**零命中本刀文件** ⇒ ⇒ 不代修、不销账）| status=active | supersedes=none
+
+① **✅ 这一格做了什么** —— ❶ **页面换线**：桌面 `ConversationPage.tsx` 的聊天那一路从 `telencephalonClient.streamMessage`（legacy SSE）换成 **AG-UI**（`POST /shadow/v1/conversations/{id}/ag-ui:stream` ＋ SSE）⇒ ⇒ 协议形状用官方的，**依赖不引官方的**。❷ **三个新模块**（都带判据）：`toolOutcomeGate.ts`（设备工具的**结算闸**：一次调用只兑现一次；放弃时每一条都兑现成失败 ⇒ ⇒ 模型不干等）、`bridge.ts`（**形状转换层**：工具清单→AG-UI **扁平**形状；data URL→**内联** part；工具结果→`{ok, content, error?}`）、`conversationTurn.ts`（**运输层无关**的一轮驱动 ⇒ ⇒ 页面只跟这层说话）。❸ **卡片措辞跟着改**：`ToolCallMessage.delivery = 'inline'` ⇒ ⇒ 脚注写「result carried in the next turn」⇒ ⇒ **不**写「reported to telencephalon」（那一路上没有旁路回传 ⇒ ⇒ 那句话是假的）⇒ ⇒ 「说谎的界面」与「失败长得像成功」同族。
+
+② **⚠️⚠️ 最值钱的一格：判据抓到一个**真 bug**（差点上线）** —— driver 当时只发 `{messages}` ⇒ ⇒ **工具清单根本没进请求** ⇒ ⇒ 模型**不知道这台设备会什么** ⇒ ⇒ 设备工具**静默失灵**（界面什么都不显示，模型也不调用）⇒ ⇒ 「失败长得像成功」的**产品级**形态。⇒ ⇒ 现在请求面**整份带**（`{messages, tools, threadId?, runId?}`）⇒ ⇒ 并补一条**页面级**判据钉住「工具清单随请求出去」。
+
+③ **⚠️ 另一格：一道变异红 0 ⇒ ⇒ 判据没覆盖 ⇒ ⇒ 补判据** —— 把页面的工具清单那一格改成空 ⇒ ⇒ **红 0** ⇒ ⇒ 说明「工具清单随请求出去」当时**没人钉** ⇒ ⇒ 补上后再变异 ⇒ ⇒ **当场红**（页面级那条）⇒ ⇒ 这就是「红 0 比红 1 更值钱」：它指出的是**判据的缺口**，不是代码的缺口。
+
+④ **⚠️ 更正一处说错（不改历史条目）** —— 本条所承的那一条里写着「该页**零判据覆盖**（只有 store／lifecycle 有测试）」⇒ ⇒ **事实是页面有判据**（`tests/pages/ConversationPage*.test.tsx` ＋ `tests/e2e/conversation-lifecycle.test.tsx`）⇒ ⇒ 那是**取证时只在 `src/` 下找、漏了 `tests/`** ⇒ ⇒ **更正写在这里**，历史条目不动（台账是流水，不是可以回改的草稿）。
+
+⑤ **✅ 判据与读数** —— ❶ **51 过 / 0 红**（含**页面级 6 条**：工具续轮／错误不空白／token stats）＋ `tsc --noEmit` **0 错**。❷ **23 道真变异**（协议层 10 ＋ driver 6 ＋ 新模块 5 ＋ 页面 2）⇒ ⇒ 每道**当场红**且只红目标判据所在机制族 ⇒ ⇒ 还原后 sha256 逐字一致 ＋ 推 mtime。❸ 途中三格：❶ **页面那一大段（190 行）用按行号切片改**（整块替换风险太高）⇒ ⇒ 每个锚点都断言唯一；❷ **判据自己写错两处**（把别的 `fetch` 当成 AG-UI 的那一发 ⇒ ⇒ 按 URL 过滤；mock 缺 `ingestTrace` ⇒ ⇒ 未处理的拒绝 ⇒ ⇒ 退出码 1）⇒ ⇒ **判据也要判**；❸ **桌面那道断言闸抓到我自己一条弱断言**（只「有值非空」）⇒ ⇒ 改成钉「真的是错误那条」⇒ ⇒ 闸转绿。
+
+⑥ **⚠️ 仍然欠着的** —— ❶ **真机那一格没跑**：只过了判据面（页面在 jsdom 里真跑了一遍续轮闭环）⇒ ⇒ 真机上的端脑 ＋ 真模型这一跳**没验过**。❷ **移动端接线仍欠**：`lib/providers/chat_provider.dart` 带着兄弟在飞的改动 ⇒ ⇒ 本刀**不混**。❸ **G1 治本档仍缓**（唯一阻塞＝兄弟未落库的 `synapse/src/a2a/server.rs`）。❹ 桌面全量里那道**次序型偶发**（`tests/e2e/conversation-lifecycle.test.tsx`）单跑是绿的 ⇒ ⇒ 不销账、如实记。
+
+⑦ **⚠ 圈码：本条占 U+3568 (㕨)** —— 落笔前**重扫**全树：官方候选那几枚（U+3562／3563／3339）**已被兄弟并发占掉**（落笔前那一刻护栏又拦下一枚 U+3567 ⇒ ⇒ 换号重落） ⇒ ⇒ 真判据是**自己逐字扫**整个 iBLOC 树 ⇒ ⇒ 本条取 **U+3568**（父仓）／**U+3569**（移动端）／**U+333A**（桌面端）⇒ ⇒ 三枚**互不相同**（R1′）＋ 各自高于自己那一本的水位 ⇒ ⇒ 字形由 `String.fromCodePoint()` 生成，不手打。
+
 **Updated**: 2026-11-16 (㕠 **「客户端接入那一格」—— 两端协议层 ＋ 桌面端 driver：设备工具的结果随**下一次请求**带回去（AG-UI 的闭环）；治本仍缓（兄弟那一个文件）** —— 承影仓 U+355A 条（多模态那一族）与 U+355F 条（视频模型那一族），本条记**客户端接入那族**、**两端同口径**、**driver 的工具续轮**、**判据与读数**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-16 | authority=measured | scope=project | source=用户诉求逐字（「先完成治本和客户端接入」）＋ 承影仓 U+355A 条 | 改动：**影仓父仓**（`shadow-desktop/src/lib/agui/{types,protocol,client,driver}.ts` ＋ `shadow-desktop/src/lib/agui/__tests__/{aguiClient,aguiDriver}.test.ts` ＋ `shadow-mobile/lib/agui/{agui_events,agui_client}.dart` ＋ `shadow-mobile/test/unit/agui_client_test.dart` ＋ `docs/superpowers/architecture/2026-11-16-agui-telencephalon-event-reconciliation.md`（§6h）＋ 本条）⇒ ⇒ **9 文件** ＋ **零新增依赖** ＋ **零新增端点** ｜ 读数：桌面端 `vitest src/lib/agui/__tests__` **27 过 / 0 红**（协议层 19 ＋ driver 8）＋ `tsc --noEmit` **0 错**；移动端 `flutter test test/unit/agui_client_test.dart` **19 过 / 0 红** ＋ `flutter analyze` **No issues found** ｜ **16 道真变异**（桌面协议层 10 ＋ driver 6）**各只红目标判据所在机制族**、还原后 sha256 逐字一致 ｜ 闸：**13 绿 / 8 红**（八道红**零命中本刀文件** ⇒ ⇒ 不代修、不销账）| status=active | supersedes=none

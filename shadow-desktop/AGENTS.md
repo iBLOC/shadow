@@ -1,3 +1,19 @@
+**Updated**: 2026-11-16 (㌺ **「桌面这一侧：页面真的走 AG-UI 了 —— 判据抓到「工具清单没进请求」这一格」** —— 承影仓 U+3567 条（页面换线那一族），本条记**本仓落点**、**判据抓到的真 bug**、**更正一处说错**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-16 | authority=measured | scope=project | source=影仓 U+3567 条（页面换线那一族）｜ 改动：`src/pages/ConversationPage.tsx` ＋ `src/lib/agui/{toolOutcomeGate,bridge,conversationTurn}.ts`（**新**）＋ `src/lib/agui/driver.ts` ＋ `src/lib/agui/__tests__/{aguiGate,aguiBridge,aguiTurn}.test.ts`（**新**）＋ `src/types/index.ts` ＋ `src/components/chat/ToolCallMessageCard.tsx` ＋ `tests/pages/ConversationPageAgui.test.tsx`（**新**）＋ `tests/pages/ConversationPageTokenStats.test.tsx` ⇒ ⇒ **12 文件** ＋ 零新增依赖 ＋ 零新增端点 ｜ 读数：AG-UI 判据 **51 过 / 0 红**（含**页面级 6 条**）＋ `tsc --noEmit` **0 错** ｜ **23 道真变异**各只红目标判据所在机制族 ｜ 桌面全量 **1747 过 / 1 红**（那 1 红＝兄弟在飞的跨端措辞，**零命中本刀文件**）｜ 闸：**13 绿 / 8 红**（零命中本刀文件）| status=active | supersedes=none
+
+① **✅ 本仓落点（十二文件，零新依赖）** —— ❶ **页面换线**：聊天那一路从 legacy SSE 换成 **AG-UI**（`ag-ui:stream` ＋ SSE）⇒ ⇒ 图片这一路顺带**内联**进请求（端脑不去拉远程 URL）⇒ ⇒ 页面第一次能带图。❷ **三个新模块**：`toolOutcomeGate.ts`（**结算闸**：一次调用只兑现一次；放弃时每条都兑现成失败 ⇒ ⇒ 模型不干等）、`bridge.ts`（**形状转换层**：工具清单→扁平形状／data URL→内联 part／工具结果→`{ok, content, error?}`）、`conversationTurn.ts`（**运输层无关**的一轮驱动 ⇒ ⇒ 页面只跟这层说话 ⇒ ⇒ 换协议不再改页面那一大段）。❸ **卡片措辞**：新增 `delivery: 'inline'` ⇒ ⇒ 脚注写「result carried in the next turn」⇒ ⇒ **不**写「reported to telencephalon」（那一路上没有旁路回传 ⇒ ⇒ 那句话是假的）。
+
+② **⚠️⚠️ 判据抓到一个**真 bug**（差点上线）** —— driver 当时只发 `{messages}` ⇒ ⇒ **工具清单根本没进请求** ⇒ ⇒ 模型**不知道这台设备会什么** ⇒ ⇒ 设备工具**静默失灵**（界面什么都不显示，模型也不调用）⇒ ⇒ 「失败长得像成功」的**产品级**形态。⇒ ⇒ 现在请求面**整份带**（messages ＋ tools ＋ threadId?/runId?）⇒ ⇒ 补一条**页面级**判据钉住「工具清单随请求出去」。
+
+③ **⚠️ 一道变异红 0 ⇒ ⇒ 判据没覆盖 ⇒ ⇒ 补判据** —— 把页面的工具清单改成空 ⇒ ⇒ **红 0** ⇒ ⇒ 补判据后再变异 ⇒ ⇒ **当场红**⇒ ⇒ 「红 0 比红 1 更值钱」：它指的是**判据的缺口**。
+
+④ **⚠️ 更正一处说错（不改历史条目）** —— 影仓 U+3338 条里写着「该页**零判据覆盖**」⇒ ⇒ **事实是页面有判据**（`tests/pages/ConversationPage*.test.tsx` ＋ `tests/e2e/conversation-lifecycle.test.tsx`）⇒ ⇒ 那是**取证时只在 `src/` 下找、漏了 `tests/`** ⇒ ⇒ **更正写在这里**，历史条目不动。
+
+⑤ **⚠️ 仍然欠着的** —— ❶ **真机那一格没跑**（只过了判据面：页面在 jsdom 里真跑了一遍续轮闭环）⇒ ⇒ 真机上的端脑 ＋ 真模型这一跳**没验过**。❷ **移动端接线仍欠**（兄弟在飞面）⇒ ⇒ 本仓这一刀**不混**。❸ 桌面全量里那道**次序型偶发**（e2e 空状态那条）单跑是绿的 ⇒ ⇒ 不销账、如实记。❹ 本刀**没动** `src/lib/telencephalonClient.ts`（兄弟在飞面）⇒ ⇒ 零撞号；但页面**不再调用**它的 `streamMessage` ⇒ ⇒ 那把 legacy 传输**只留给别的调用方**。
+
+⑥ **⚠ 圈码：本条占 U+333A (㌺)** —— 落笔前**重扫**全树：官方候选（U+3562／3563／3339）**已被兄弟并发占掉** ⇒ ⇒ 真判据是**自己逐字扫**整个 iBLOC 树 ⇒ ⇒ 33xx 段自 U+333A 起零命中 ⇒ ⇒ 取 **U+333A** ⇒ ⇒ 与父仓／移动端那两枚**互不相同**（R1′）＋ 高于桌面端自己的水位（U+3338）⇒ ⇒ 字形由 `String.fromCodePoint()` 生成，不手打。
+
 **Updated**: 2026-11-16 (㌸ **「桌面这一侧：AG-UI 协议层 ＋ driver —— 设备工具的结果随**下一次请求**带回去」** —— 承影仓 U+3560 条（客户端接入那一族），本条记**本仓落点**、**两档失败语义**、**判据与读数**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-16 | authority=measured | scope=project | source=影仓 U+3560 条（客户端接入那一族）｜ 改动：`src/lib/agui/{types,protocol,client}.ts` ＋ `src/lib/agui/driver.ts` ＋ `src/lib/agui/__tests__/{aguiClient,aguiDriver}.test.ts`（**6 个新文件**）＋ 本条 ⇒ ⇒ **零新增依赖** ＋ **零新增端点** ｜ 读数：`vitest src/lib/agui/__tests__` **27 过 / 0 红**（协议层 19 ＋ driver 8）＋ `tsc --noEmit` **0 错** ｜ **16 道真变异**（协议层 10 ＋ driver 6）**各只红目标判据所在机制族**、还原后 sha256 逐字一致 ｜ 闸：**13 绿 / 8 红**（八道红**零命中本刀文件** ⇒ ⇒ 不代修、不销账）| status=active | supersedes=none
