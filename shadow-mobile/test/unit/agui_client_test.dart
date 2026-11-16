@@ -29,6 +29,23 @@ class _FakeHttpClient extends http.BaseClient {
   }
 }
 
+/// **真端脑抓到的 AG-UI 帧**（**真形状，脱敏后**）—— 判据钉的是「端脑真发的那几帧，
+/// 客户端这一层吃得下吗」。
+///
+/// ⚠️ 这份 fixture 是 `scripts/prove-agui-on-device.ps1` 在**真机**上抓到的
+/// （手机里那台端脑 ＋ **真模型**）⇒ ⇒ 脱敏后逐字照抄 ⇒ ⇒ **不是手写的形状**。
+const String _realDeviceFrames =
+    r'data:{"type":"RUN_STARTED","threadId":"thread-1","runId":"run-1","timestamp":1794851814992}'
+    '\n\n'
+    r'data:{"type":"TEXT_MESSAGE_START","messageId":"m1","role":"assistant"}'
+    '\n\n'
+    r'data:{"type":"TEXT_MESSAGE_CONTENT","messageId":"m1","delta":"收到"}'
+    '\n\n'
+    r'data:{"type":"TEXT_MESSAGE_END","messageId":"m1"}'
+    '\n\n'
+    r'data:{"type":"RUN_FINISHED","threadId":"thread-1","runId":"run-1","timestamp":1794851976510}'
+    '\n\n';
+
 void main() {
   group('parseSseDataLines', () {
     test('逐帧取 data —— 端脑只发 data(不带 event 名)', () {
@@ -303,4 +320,31 @@ void main() {
       expect(seen, <String>['RUN_FINISHED']);
     });
   });
+  group('真端脑抓到的 AG-UI 帧（真机 fixture）', () {
+    test('逐字归约 ⇒ ⇒ 一条消息、文本逐字、状态 finished', () {
+      final SseParseResult parsed = parseSseDataLines(_realDeviceFrames);
+      expect(parsed.payloads, hasLength(5));
+      AguiTurnState s = initialAguiTurnState();
+      for (final String payload in parsed.payloads) {
+        s = reduceAguiEvent(s, AguiEvent.parse(payload));
+      }
+      expect(s.status, 'finished');
+      expect(s.runId, 'run-1');
+      expect(s.messages, hasLength(1));
+      expect(s.messages.first.text, '收到');
+      expect(s.messages.first.ended, isTrue);
+    });
+
+    test('真帧**没有** protocolVersion ⇒ ⇒ 客户端**仍**认得(可选字段 ⇒ 不许炸)', () {
+      // ⚠️ 真机上那台端脑**没发** protocolVersion（端脑仓 §6f 说 producer 必须
+      // 声明 ⇒ ⇒ 真机那台 sidecar 比仓 HEAD 旧）⇒ ⇒ 客户端这一格**不许**因此炸掉。
+      final SseParseResult parsed = parseSseDataLines(_realDeviceFrames);
+      expect(parsed.payloads.first.contains('protocolVersion'), isFalse);
+      final AguiTurnState s = reduceAguiEvent(
+          initialAguiTurnState(), AguiEvent.parse(parsed.payloads.first));
+      expect(s.status, 'running');
+      expect(s.runId, 'run-1');
+    });
+  });
+
 }

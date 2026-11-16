@@ -514,6 +514,42 @@ driver 当时只发 `{messages}` ⇒ ⇒ **工具清单根本没进请求** ⇒ 
 - **真机那一格**没跑(只过了判据面)。
 - **G1 治本档**仍缓(唯一阻塞＝兄弟未落库的 `synapse/src/a2a/server.rs`)。
 
+### 6k. 真机那一格:AG-UI 那一路在**真端脑**上真通(2026-11-17,影仓父仓)
+
+**这一格补的是「真机级读数」** —— 前面几刀都只过了**判据面**(单测／jsdom 里跑通
+闭环)⇒ ⇒ 端脑那一路在**真机上的真端脑**里到底通不通,此前**一条读数都没有**。
+
+**落点**
+
+| 文件 | 干什么 |
+|---|---|
+| `scripts/prove-agui-on-device.ps1` | **真机 AG-UI 探针**(同族 `prove-*-on-device.ps1` 形状):找端脑端口 → 401 对照 → 建会话 → 真跑一轮 → 记事件序列 → 清理 |
+| `shadow-mobile/test/unit/agui_client_test.dart` | ＋2 条判据:**真端脑抓到的帧**(脱敏后逐字照抄)⇒ 客户端吃得下吗 |
+
+**真机读数(设备 ee6b4832,探针退出码 0)**
+
+- `POST /shadow/v1/conversations`:**不带钥匙 ⇒ 401**(`telencephalon_door_closed`)⇒
+  ⇒ 带钥匙 ⇒ **200**(对照格:证明门真在,不是「反正都能过」);
+- `POST /shadow/v1/conversations/{id}/ag-ui:stream` ⇒ **200** ＋ `text/event-stream`;
+- **真事件序列(5 帧)**:`RUN_STARTED → TEXT_MESSAGE_START → TEXT_MESSAGE_CONTENT
+  → TEXT_MESSAGE_END → RUN_FINISHED`;
+- **真模型回话了**(文本非空)⇒ ⇒ 这一跳不是拿 fixture 冒充的;
+- ⚠️ **耗时波动大**:实测 **3 秒 ～ 162 秒** ⇒ ⇒ 探针超时给到 300 秒。
+
+**⚠️ 两个真发现**
+
+1. **真机那台端脑**(手机 App 里的 sidecar)**支持 AG-UI**(AG-UI 端点回 422
+   `data did not match any variant of untagged enum AguiStreamBody` ⇒ ⇒ 端点存在且认形状)
+   ⇒ ⇒ 但它**比端脑仓 HEAD 旧**:它发的 `RUN_STARTED` **没有 `protocolVersion`**
+   (端脑仓 §6f 说 producer 必须声明 `"1.0"`)⇒ ⇒ **「1.0 版本声明」那一格在真机上是空的**
+   ⇒ ⇒ 客户端那一格因此加了判据(**可选字段 ⇒ 不许炸**);
+2. **真模型耗时波动很大**(3～162 秒)⇒ ⇒ 任何「等模型回来」的探针,超时不能给 180 秒。
+
+**仍然欠着**
+
+- **客户端侧的真机读数**还没拿到:手机 App **还没接 AG-UI**(⇒ 跑出来是 legacy 路);
+  桌面端那一跳要本机端脑 sidecar(本机没编)⇒ ⇒ 两端都还欠「客户端真跑 AG-UI」这一格。
+
 ## 7. 未核实清单(据实)
 
 - AG-UI 官方 a2ui-middleware / a2ui-toolkit 的桥接实现未逐行读(A2UI 载荷最终走 TOOL_CALL_RESULT

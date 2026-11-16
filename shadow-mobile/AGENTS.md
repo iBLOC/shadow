@@ -1,3 +1,17 @@
+**Updated**: 2026-11-17 (㕵 **「真机那一格:手机里的端脑**真的**跑 AG-UI —— 真事件序列进判据面了」** —— 承影仓 U+356C 条（移动端 driver 那一族），本条记**本仓那一半**、**真机读数**、**一个真发现**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-17 | authority=measured | scope=project | source=承影仓 U+356C 条（移动端 driver 那一族）｜ 改动：`test/unit/agui_client_test.dart`（＋2 条真机 fixture 判据）＋ 本条 ⇒ ⇒ **2 文件** ＋ 零新增依赖 ＋ 零新增端点 ｜ 读数：移动端协议层判据 **21 过 / 0 红**（19 ＋ 真机 fixture 2）＋ 全量 **1064 过 / 0 红 / 13 跳** ｜ 真机：**5 帧真事件 ＋ 真模型回话**（探针在父仓 `scripts/prove-agui-on-device.ps1`，退出码 0）｜ 闸：**13 绿 / 8 红**（八道红**零命中本刀文件** ⇒ ⇒ 不代修、不销账）| status=active | supersedes=none
+
+① **⚠️ 本仓那一半** —— `test/unit/agui_client_test.dart` ＋2 条判据：**真端脑抓到的帧**（脱敏后**逐字照抄**，不是手写）⇒ ⇒ 归约出「一条消息 ＋ 文本 ＋ finished」；真帧**没有** `protocolVersion` ⇒ ⇒ 客户端**仍**认得（**可选字段 ⇒ 不许炸**）⇒ ⇒ 这一格从「只过判据面」升级到「**判据面装的是真端脑的形状**」。
+
+② **✅ 真机读数**（设备 ee6b4832）—— 真事件序列 5 帧（`RUN_STARTED → TEXT_MESSAGE_START → TEXT_MESSAGE_CONTENT → TEXT_MESSAGE_END → RUN_FINISHED`）＋ **真模型回话** ＋ 不带钥匙 401 对照 ⇒ ⇒ 真机那台端脑**支持 AG-UI**（端点回 422 `AguiStreamBody` ⇒ 端点存在且认形状）。
+
+③ **⚠️ 一个真发现** —— 真机那台端脑发的 `RUN_STARTED` **没有 `protocolVersion`**（端脑仓 §6f 说 producer 必须声明 `"1.0"`）⇒ ⇒ **真机那台 sidecar 比仓 HEAD 旧** ⇒ ⇒ 「1.0 版本声明」那一格在真机上是**空的** ⇒ ⇒ 客户端这一格因此补了判据（可选字段不许炸）⇒ ⇒ 真机要补的那一格＝**重编端脑 sidecar**。
+
+④ **⚠️ 仍然欠着的** —— ❶ **客户端侧的真机读数**：本仓 App **还没接 AG-UI**（⇒ 真机上跑出来仍是 legacy 路）⇒ ⇒ 页面接线仍等兄弟放行 `chat_provider.dart`。❷ **真模型耗时波动 3～162 秒** ⇒ ⇒ 探针超时给到 300 秒。❸ 本刀**没动** `lib/providers/chat_provider.dart` ＋ `lib/services/telencephalon/telencephalon_client.dart`（兄弟在飞面）⇒ ⇒ 零撞号。
+
+⑤ **⚠ 圈码：本条占 U+3575 (㕵)** —— 落笔前**逐字重扫**五本账本（Node 读文件）⇒ ⇒ 移动端最高已声明 U+356E ⇒ ⇒ 35xx 段下一枚 **U+3575**（高于自己那一本的水位）⇒ ⇒ 父仓那条取 U+__CP_PARENT__（两枚互不相同）⇒ ⇒ 字形由 `String.fromCodePoint()` 生成，不手打。
+
 **Updated**: 2026-11-17 (㕫 **「手机这一侧的 driver 补上了 —— 与桌面逐字同口径的四件（请求面／结算闸／桥接层／一轮驱动）」** —— 承影仓 U+3568 条（页面换线那一族），本条记**本仓落点**、**三件必须同口径的**、**一格值得单独说**、**判据与八道真变异**、**途中那个坑**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-17 | authority=measured | scope=project | source=承影仓 U+3568 条（页面换线那一族）｜ 改动：`lib/agui/agui_types.dart` ＋ `lib/agui/agui_tool_outcome_gate.dart` ＋ `lib/agui/agui_bridge.dart` ＋ `lib/agui/agui_driver.dart` ＋ `test/unit/agui_driver_test.dart` ＋ `test/unit/agui_bridge_test.dart` ＋ `test/unit/agui_tool_outcome_gate_test.dart` ＋ 本条 ⇒ ⇒ **7 文件** ＋ 零新增依赖 ＋ 零新增端点 ｜ 读数：移动端 AG-UI 判据 **40 过 / 0 红**（协议层 19 ＋ 结算闸 4 ＋ 桥接 7 ＋ driver 10）＋ `flutter analyze`（改动文件）**No issues found** ＋ 全量 **1044 过 / 0 红 / 13 跳** ｜ **8 道真变异**各**当场红**、无一道红 0 ｜ 闸：**11 绿 / 10 红**（十道红**零命中本刀文件** ⇒ ⇒ 不代修、不销账）| status=active | supersedes=none

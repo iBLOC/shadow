@@ -1,3 +1,19 @@
+**Updated**: 2026-11-17 (㕳 **「真机那一格补上了 —— AG-UI 那一路在**真端脑**上真通(5 帧真事件 ＋ 真模型回话)」** —— 承影仓 U+356C 条（移动端 driver 那一族），本条记**取证**、**两处落点**、**真机读数**、**两个真发现**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-17 | authority=measured | scope=project | source=承影仓 U+356C 条（移动端 driver 那一族）｜ 改动：**影仓父仓**（`scripts/prove-agui-on-device.ps1` **新** ＋ `shadow-mobile/test/unit/agui_client_test.dart` ＋2 条判据 ＋ 文档 §6k ＋ 本条）⇒ ⇒ **4 文件** ＋ 零新增依赖 ＋ 零新增端点 ｜ 读数：真机 `ag-ui:stream` **200** ＋ **5 帧真事件** ＋ **真模型回话**（探针退出码 0）＋ 移动端协议层判据 **21 过 / 0 红** ＋ 全量 **1064 过 / 0 红 / 13 跳** ｜ 闸：**13 绿 / 8 红**（八道红**零命中本刀文件** ⇒ ⇒ 不代修、不销账） | status=active | supersedes=none
+
+① **⚠️ 取证：这一格此前**零读数** —— 前面几刀都只过了**判据面**（单测／jsdom 里跑通闭环）⇒ ⇒ 端脑那一路在**真机上的真端脑**里通不通，此前**一条读数都没有** ⇒ ⇒ 而「真机那台端脑」不是本机进程 —— 它是 **App 内嵌的端脑运行时** ⇒ ⇒ 真机这一格**不需要编译本机端脑**。
+
+② **✅ 两处落点** —— ❶ `scripts/prove-agui-on-device.ps1`（**新**，同族 `prove-*-on-device.ps1` 形状）：自动发现端脑端口 ⇒ ⇒ **401 对照**（不带钥匙）⇒ ⇒ 带钥匙建会话 ⇒ ⇒ **真跑一轮** `ag-ui:stream` ⇒ ⇒ 逐字记事件类型序列 ＋ 文本 ⇒ ⇒ **只清理自己建的会话**（不动别人的）⇒ ⇒ 退出码自评（没有 RUN_STARTED/RUN_FINISHED 或模型没回话 ⇒ 1）。❷ 移动端 `test/unit/agui_client_test.dart` ＋2 条：**真端脑抓到的帧**（脱敏后**逐字照抄**，不是手写）⇒ ⇒ 归约出「一条消息 ＋ 文本 ＋ finished」；真帧**没有** `protocolVersion` ⇒ ⇒ 客户端**仍**认得（**可选字段 ⇒ 不许炸**）。
+
+③ **✅ 真机读数（设备 ee6b4832，探针退出码 0）** —— ❶ 不带钥匙 POST `/shadow/v1/conversations` ⇒ **401**（`telencephalon_door_closed`）⇒ ⇒ 带钥匙 ⇒ **200**（**对照格**：证明门真在，不是「反正都能过」）。❷ `POST /shadow/v1/conversations/{id}/ag-ui:stream` ⇒ **200** ＋ `text/event-stream`。❸ **真事件序列（5 帧）**：`RUN_STARTED → TEXT_MESSAGE_START → TEXT_MESSAGE_CONTENT → TEXT_MESSAGE_END → RUN_FINISHED`。❹ **真模型回话了**（文本非空）⇒ ⇒ 这一跳**不是**拿 fixture 冒充的。❺ 移动端协议层判据 **21 过 / 0 红**（19 ＋ 真机 fixture 2）＋ 全量 **1064 过 / 0 红 / 13 跳**（上一刀 1044 ⇒ 差 +20；本刀判据 +2 ⇒ ⇒ 在飞面净 +18 ⇒ ⇒ **跨刀全量数会漂，不做趋势判断**）。
+
+④ **⚠️ 两个真发现** —— ❶ **真机那台端脑支持 AG-UI**（AG-UI 端点回 422「`data did not match any variant of untagged enum AguiStreamBody`」⇒ ⇒ 端点存在且认形状）⇒ ⇒ 但它**比端脑仓 HEAD 旧**：它发的 `RUN_STARTED` **没有 `protocolVersion`**（端脑仓 §6f 说 producer 必须声明 `"1.0"`）⇒ ⇒ **「1.0 版本声明」那一格在真机上是空的** ⇒ ⇒ 客户端那一格因此补了判据。❷ **真模型耗时波动很大**：实测 **3 秒 ～ 162 秒** ⇒ ⇒ 探针超时给到 **300 秒**（180 秒会偶发砍掉一次真读数）。
+
+⑤ **⚠️ 仍然欠着的** —— ❶ **客户端侧的真机读数**还没拿到：手机 App **还没接 AG-UI**（⇒ 真机上跑出来仍是 legacy 路）⇒ ⇒ 桌面端那一跳要本机端脑 sidecar（本机没编）⇒ ⇒ 两端都还欠「客户端真跑 AG-UI」这一格。❷ **移动端页面接线**仍等兄弟放行 `chat_provider.dart`。❸ **G1 治本档**仍缓（兄弟未落库的 `synapse/src/a2a/server.rs`）。❹ 桌面端本刀**零改动** ⇒ ⇒ 按纪律**不占号**。
+
+⑥ **⚠ 圈码：本条占 U+3573 (㕳)** —— 落笔前**逐字重扫**五本账本（Node 读文件）⇒ ⇒ 读数：父仓最高已声明 U+356D／移动端 U+356E／桌面端 U+333A／端脑 U+3566 ⇒ ⇒ **U+356D／356E 已被兄弟那两条占掉**（本刀期间）⇒ ⇒ 35xx 段下一枚 **U+356F**（给本条）⇒ ⇒ 移动端那条取 **U+__CP_MOBILE__**（两枚互不相同，各自高于自己那一本的水位）⇒ ⇒ 字形由 `String.fromCodePoint()` 生成，不手打。
+
 **Updated**: 2026-11-17 (㕬 **「手机那一侧的 driver 补上了 —— 结算闸／请求面整份带／失败带 error 三件，与桌面逐字同口径」** —— 承影仓 U+3568 条（页面换线那一族），本条记**取证**、**四个落点**、**三件必须同口径的**、**判据与八道真变异**、**途中那个坑（变异脚本自己也要判）**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-17 | authority=measured | scope=project | source=承影仓 U+3568 条（页面换线那一族）｜ 改动：**影仓父仓**（移动端 `lib/agui/{agui_types,agui_tool_outcome_gate,agui_bridge,agui_driver}.dart` ＋ `test/unit/agui_{driver,bridge,tool_outcome_gate}_test.dart` ＋ 文档 §6j ＋ 本条）⇒ ⇒ **8 文件** ＋ 零新增依赖 ＋ 零新增端点 ｜ 读数：移动端 AG-UI 判据 **40 过 / 0 红**（协议层 19 ＋ 结算闸 4 ＋ 桥接 7 ＋ driver 10）＋ `flutter analyze`（改动文件）**No issues found** ＋ 移动端全量 **1044 过 / 0 红 / 13 跳** ｜ **8 道真变异**各**当场红**、无一道红 0、还原后 sha256 逐字一致 ｜ 闸：**11 绿 / 10 红**（十道红**零命中本刀文件** ⇒ ⇒ 不代修、不销账）| status=active | supersedes=none
