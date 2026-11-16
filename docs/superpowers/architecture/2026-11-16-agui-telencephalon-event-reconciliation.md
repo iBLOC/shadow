@@ -350,6 +350,64 @@ threadId=conversation_id),也容忍现有 SendMessageRequest(§4 选项 A 的会
   兄弟在飞面)⇒ ⇒ 本节是它的**服务端前置**(协议规定的方式发附件 ⇒ ⇒ 适配层不许吞)。
   ❷ **视频**仍明确拒(既有事实,两路同尺)。❸ **远程 URL 不去拉** ⇒ ⇒ 客户端必须内联字节。
   ❹ **真模型那一格**仍欠(承 §6e)。❺ 真 CI 待取。
+### 6h. 客户端接入那一格:两端协议层 ＋ 桌面端 driver(2026-11-16,影仓父仓)
+
+**这一格做了什么**
+
+- **桌面端** `shadow-desktop/src/lib/agui/{types,protocol,client}.ts` ＋ `driver.ts`;
+- **移动端** `shadow-mobile/lib/agui/{agui_events,agui_client}.dart`;
+- 两端**逐字同口径**(19 条对 19 条)⇒ ⇒ 两端不会各写各的;
+- **零新增依赖**:官方**没有** React 组件包(`@ag-ui/react` / `ag-ui` 在 npm 上 404);
+  `@ag-ui/client` 的核心是它自己的 `HttpAgent` 抽象与 endpoint 假设 ⇒ ⇒ 与影仓
+  「会话史在服务端、自己写 driver」的架构不合 ⇒ ⇒ **自己写薄绑定**:协议用官方的形状,
+  **依赖不引官方的**。
+
+**SSE 解析:按行取 data(两端同一口径)**
+
+端脑发的**每一帧就是一行 data**(axum 的 `Sse` 逐事件写一行)⇒ ⇒ 按行取既够用,
+又与移动端既有那把 transport 的解析同口径 ⇒ ⇒ 两端的 SSE 解析不会各写各的。
+半行留在 `rest` 里**不丢**;CRLF／注释行／非 `data` 行都不算事件。
+
+**失败不许长得像成功(客户端层三档)**
+
+1. **坏 JSON ⇒ 抛**(响亮)—— 静默跳过事件＝用户看着「回复少了一段」却不知道为什么;
+2. **未知事件类型 ⇒ 忽略但出声**(规范要求消费者忽略未知类型 ⇒ ⇒ 但记进
+   `unknownEventTypes`);
+3. **非 2xx ⇒ 抛且带端脑的原话**(例如「请把字节内联成 data source」)⇒ ⇒ 用户能看懂
+   自己错在哪,而不是「ag-ui 400」。
+
+⚠️ **与既有那把 transport 的差别**:移动端既有 `streamMessage` 对坏帧是
+`// skip malformed`(**静默跳过**)⇒ ⇒ 这一层**刻意不学它**。
+
+**driver 那一格:AG-UI 的工具闭环是「下一次请求带回去」**
+
+- 端脑在 AG-UI 这一路**不等**设备回传(`may_wait=false`;模块头逐字:**AG-UI 客户端
+  不认识 /tool-results 旁路 ⇒ 绝不等它**)⇒ ⇒ 客户端跑完工具**必须重发**这一轮
+  (`messages[]` 末尾追加 tool 消息)⇒ ⇒ 端脑把它当**续轮**喂回模型 ⇒ ⇒ 模型这一轮
+  就能接着说「换好了」;
+- 端脑认的工具回传形状**逐字**是 `{role:'tool', toolCallId, content, error?}`
+  ⇒ ⇒ 失败**必须带 `error`**(端脑那边「`error` 在场 ⇒ 状态就是 failed」)
+  ⇒ ⇒ 不能只把失败原因塞进 `content`;
+- **这台设备干不了的工具** ⇒ ⇒ driver **合成一条失败结果**回传 ⇒ ⇒ 模型不干等
+  (与 legacy「unsupported tool → 回传失败」同口径);
+- **流没跑完就断**(没有 RUN_FINISHED)⇒ ⇒ **抛** ⇒ ⇒ 不许当成「跑完了」。
+
+**读数**
+
+- 桌面端 `vitest src/lib/agui/__tests__` **27 过 / 0 红**(协议层 19 ＋ driver 8)
+  ＋ `tsc --noEmit` **0 错**;
+- 移动端 `flutter test test/unit/agui_client_test.dart` **19 过 / 0 红**
+  ＋ `flutter analyze` **No issues found**;
+- **16 道真变异**(桌面协议层 10 ＋ driver 6)⇒ ⇒ 每道**当场红**且只红目标判据所在的
+  机制族 ⇒ ⇒ 还原后 sha256 逐字一致 ＋ 推 mtime。
+
+**仍然欠着的**
+
+- **页面换线**(桌面 `ConversationPage.tsx`):它的设备工具状态机(审批／输入／pending／
+  `reportToolResult`)与 AG-UI 的续轮语义**不同**⇒ ⇒ 要重接那一段;且该页**零判据
+  覆盖**(只有 store／lifecycle 有测试)⇒ ⇒ 单独一刀:**先补判据,再换线**;
+- **移动端接线**: `lib/providers/chat_provider.dart` 带着兄弟在飞的改动 ⇒ ⇒ 本刀**不混**;
+- **G1 治本档**:仍缓(唯一阻塞＝兄弟**未落库**的 `synapse/src/a2a/server.rs`)。
 ## 7. 未核实清单(据实)
 
 - AG-UI 官方 a2ui-middleware / a2ui-toolkit 的桥接实现未逐行读(A2UI 载荷最终走 TOOL_CALL_RESULT

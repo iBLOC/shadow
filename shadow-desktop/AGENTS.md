@@ -1,3 +1,19 @@
+**Updated**: 2026-11-16 (㌸ **「桌面这一侧：AG-UI 协议层 ＋ driver —— 设备工具的结果随**下一次请求**带回去」** —— 承影仓 U+3560 条（客户端接入那一族），本条记**本仓落点**、**两档失败语义**、**判据与读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-16 | authority=measured | scope=project | source=影仓 U+3560 条（客户端接入那一族）｜ 改动：`src/lib/agui/{types,protocol,client}.ts` ＋ `src/lib/agui/driver.ts` ＋ `src/lib/agui/__tests__/{aguiClient,aguiDriver}.test.ts`（**6 个新文件**）＋ 本条 ⇒ ⇒ **零新增依赖** ＋ **零新增端点** ｜ 读数：`vitest src/lib/agui/__tests__` **27 过 / 0 红**（协议层 19 ＋ driver 8）＋ `tsc --noEmit` **0 错** ｜ **16 道真变异**（协议层 10 ＋ driver 6）**各只红目标判据所在机制族**、还原后 sha256 逐字一致 ｜ 闸：**13 绿 / 8 红**（八道红**零命中本刀文件** ⇒ ⇒ 不代修、不销账）| status=active | supersedes=none
+
+① **⚠️ 本仓落点（四个新文件，零新依赖）** —— ❶ `src/lib/agui/types.ts`：事件类型（**只认端脑真发的那几种**）＋ 请求面类型。❷ `src/lib/agui/protocol.ts`：SSE **按行取 data** ＋ 事件解析 ＋ **归约器**。❸ `src/lib/agui/client.ts`：**客户端薄绑定**（POST ＋ SSE ＋ 内联附件构造）。❹ `src/lib/agui/driver.ts`：**一轮对话的驱动**（设备工具的续轮闭环）。⚠️ **为什么不引官方包**：官方**没有** React 组件包；`@ag-ui/client` 的 `HttpAgent` 抽象与影仓「会话史在服务端、自己写 driver」的架构不合 ⇒ ⇒ 协议用官方的形状，**依赖不引官方的**。
+
+② **⚠️ 两档失败语义（本仓最危险的那族）** —— ❶ **坏 JSON ⇒ 抛**；**未知事件类型 ⇒ 忽略但出声**（记进 `unknownEventTypes`）；**非 2xx ⇒ 抛且带端脑的原话**。❷ **driver 那一档**：工具失败 ⇒ ⇒ 回传的消息**必须带 `error`**（端脑那边「error 在场 ⇒ 状态就是 failed」）；这台设备干不了的工具 ⇒ ⇒ **合成一条失败结果**回传 ⇒ ⇒ 模型不干等；流没跑完就断（没有 RUN_FINISHED）⇒ ⇒ **抛** ⇒ ⇒ 不许当成「跑完了」。
+
+③ **⚠️ AG-UI 的工具闭环是「下一次请求带回去」** —— 端脑在 AG-UI 路**不等**设备回传（`may_wait=false`）⇒ ⇒ 客户端跑完工具**必须重发**这一轮（`messages[]` 末尾追加 tool 消息）⇒ ⇒ 端脑当**续轮**喂回模型 ⇒ ⇒ 模型这一轮就能接着说「换好了」。
+
+④ **✅ 判据与读数** —— ❶ **27 过 / 0 红**（协议层 19 ＋ driver 8）＋ `tsc --noEmit` **0 错**。❷ **16 道真变异**：协议层 10 道（半行丢／坏 JSON 静默／缺 type 静默／未知类型不记／CUSTOM 被吞／RUN_ERROR 丢 runId／端脑状态被吞／端脑原话被吞／MIME 分档错／最后一帧丢）＋ driver 6 道（失败不带 error／干不了却报成功／没收完也当跑完／RUN_ERROR 被吞／结果不回传／lobe 结果被吞）⇒ ⇒ 每道**当场红**且只红目标判据所在的机制族 ⇒ ⇒ **无旁支红** ⇒ ⇒ 还原后 sha256 逐字一致 ＋ 推 mtime。❸ 途中两格：改 `types.ts` 加 `error` 字段后有一处 import 指错模块（**编译级红**，当场修）；第一版归约器把 **CUSTOM** 当成未知类型丢掉 ⇒ ⇒ 补上（端脑的 lobe 工具结果只走 CUSTOM 这一条路）。
+
+⑤ **⚠️ 仍然欠着的** —— ❶ **页面换线仍欠**：`src/pages/ConversationPage.tsx` 的设备工具状态机（审批／输入／pending／`reportToolResult`）与 AG-UI 的续轮语义**不同** ⇒ ⇒ 要重接那一段；且该页**零判据覆盖**（只有 store／lifecycle 有测试）⇒ ⇒ 单独一刀：**先补判据，再换线**。❷ **端脑那一面变了，本仓会跟着变**（形状逐字对着端脑 `agui.rs` 的翻译表）⇒ ⇒ 改那边要改这边。❸ 真机那一格没跑（只过了判据面）；真 CI 待取。❹ 本刀**没动** `src/lib/telencephalonClient.ts`（兄弟在飞面）⇒ ⇒ 零撞号。
+
+⑥ **⚠ 圈码：本条占 U+3338 (㌸)** —— 官方 `--next` 给桌面端的候选只当**线索** ⇒ ⇒ 真判据是自己逐字扫 ＋ 用闸自己的判据库算水位：桌面端水位 **U+3337** ⇒ ⇒ 33xx 段自 U+3338 起零命中全树 ⇒ ⇒ 取 **U+3338** ⇒ ⇒ 与父仓／移动端那两枚**互不相同**（R1′）＋ 高于桌面端自己的水位 ⇒ ⇒ 字形由 `String.fromCodePoint()` 生成，不手打。
+
 **Updated:** 2026-11-11 (㌡ **「下拉『选项』黑底黑字 —— 弹层是原生控件，而页面从来没告诉它自己处于什么主题」** —— 承「失败长得像成功」族（下拉看起来像『主题坏了』，实际是**两套配色系统各画各的**），本条记**取证（三份 CSS ＋ 全仓 9 处原生 select 逐处读数 ＋ 主题挂载点）**、**第一因（原生弹层不读 CSS 变量，color-scheme 全仓零声明）**、**第二因（6 处 select 无显式文字色 ⇒ 可读性挂在 body 继承链上）**、**落点（三层修法）**、**全应用同类扫描清单**，以及**仍然欠着的**。)
 
 > 信封：epoch=2026-11-11 | authority=measured | scope=project | source=官方读数（src/index.css ＋ src/App.css ＋ src/styles/tokens.css 全文；grep color-scheme 仅命中 .dark 选择器本身 ⇒ 零声明；全仓原生 <select> 9 处 className 逐处；stores/themeStore.ts:107 .dark 挂 documentElement）｜ 改动：src/index.css（:root/.dark color-scheme ＋ select option 钉 popover token ＋ option:disabled 灰化）＋ src/pages/ProvidersPage.tsx（4 处补 text-foreground）＋ src/pages/JdmEditorPage.tsx（1 处）＋ src/components/business/CapabilityDefaultsCard.tsx（1 处）＋ 本条 ⇒ ⇒ **5 个文件** ⇒ ⇒ 零新增文件 ＋ 零新增依赖 ＋ 零 ci.yml 改动 ＋ 不碰兄弟在飞面（git status 逐条核对：DocumentPage/i18n/src-tauri 两文件/ci.yml/scripts/playwright-report 均与本刀路径不相交）| status=active | supersedes=none

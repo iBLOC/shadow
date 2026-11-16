@@ -1,3 +1,19 @@
+**Updated**: 2026-11-16 (㕡 **「手机这一侧：AG-UI 协议层 —— 与桌面端逐字同口径（19 条对 19 条）」** —— 承影仓 U+3560 条（客户端接入那一族），本条记**本仓落点**、**两档失败语义**、**途中那一个坑**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-16 | authority=measured | scope=project | source=影仓 U+3560 条（客户端接入那一族）｜ 改动：`lib/agui/agui_events.dart` ＋ `lib/agui/agui_client.dart` ＋ `test/unit/agui_client_test.dart`（**3 个新文件**）＋ 本条 ⇒ ⇒ **零新增依赖** ＋ **零新增端点** ｜ 读数：`flutter test test/unit/agui_client_test.dart` **19 过 / 0 红** ＋ `flutter analyze`（改动文件）**No issues found** ｜ 判据与桌面端**逐字同口径**（19 条对 19 条）｜ 闸：**13 绿 / 8 红**（八道红**零命中本刀文件** ⇒ ⇒ 不代修、不销账）| status=active | supersedes=none
+
+① **⚠️ 本仓落点（三个新文件，零新依赖）** —— ❶ `lib/agui/agui_events.dart`：事件类型 ＋ **归约器** ＋ `aguiToolResults`（从 CUSTOM 里挑出工具结果，**只挑端脑真发的那种名字**）。❷ `lib/agui/agui_client.dart`：SSE **按行取 data** ＋ **客户端薄绑定** ＋ `buildAguiUserContent`（**只给内联 data source**）＋ `shadowReadHeaders`（读门＝影子锁 ∪ admin token；**拿不到就不带那个头**，绝不塞空串）。❸ `test/unit/agui_client_test.dart`：**19 条判据**，与桌面端**逐字同口径** ⇒ ⇒ 两端不会各写各的 ⇒ ⇒ 端脑改一处两端都要改，且**改漏了会当场红**。
+
+② **⚠️ 两档失败语义（与桌面端同一口径）** —— ❶ **坏 JSON ⇒ 抛**（`AguiProtocolException`）；**缺 type ⇒ 抛**；**未知 type ⇒ 不抛但记下来**（规范要求消费者忽略未知类型）。❷ **非 2xx ⇒ 抛且带端脑的原话**。❸ ⚠️ **与既有那把 transport 的差别（要说清）**：既有 `streamMessage` 对坏帧是 `// skip malformed`（**静默跳过**）⇒ ⇒ 这一层**刻意不学它** —— AG-UI 的帧是协议帧，掉一帧就是「回复少了一段」，必须响亮。
+
+③ **⚠️ 途中那一个坑（值得记，因为会再来）** —— ❶ **JS 模板串会把 Dart 源码里的 `\n` 吃成真换行** ⇒ ⇒ 落笔后**编译级红**（「String starting with ' must end with '」）⇒ ⇒ 读文件时**看不出**（读出来一模一样）⇒ ⇒ 只能靠**编译**或**逐字节扫控制字符**发现 ⇒ ⇒ 修法：**按字节扫**（CR/换行落在两个单引号之间 ⇒ ⇒ 换成两字符的转义）＋ 落笔前先扫。❷ 移动端两条 `prefer_interpolation_to_compose_strings`（`info` 级）⇒ ⇒ 改成插值 ⇒ ⇒ `flutter analyze` 归零。
+
+④ **✅ 判据与读数** —— ❶ **19 过 / 0 红** ＋ `flutter analyze` **No issues found**。❷ 判据覆盖面：SSE 三条（逐帧／CRLF 与注释／半行留 rest）＋ 解析三条（坏 JSON／缺 type／未知 type）＋ 归约七条（文本三段／工具三段／完成与失败／未知类型／CUSTOM 不丢／RUN_ERROR 的 runId／端脑状态原样）＋ 请求面三条（文本＋图片／**没有**远程 URL 入口／MIME 分档）＋ 客户端三条（请求体形状／非 2xx 带原话／最后一帧不丢）。
+
+⑤ **⚠️ 仍然欠着的** —— ❶ **移动端接线仍欠**：`lib/providers/chat_provider.dart` 带着兄弟在飞的改动 ⇒ ⇒ 本刀**不混**（混刀会把兄弟那一刀卷进来）⇒ ⇒ 接线单独一刀。❷ **本仓这一侧还没有 driver**：桌面端已有一份 driver（设备工具的续轮闭环）⇒ ⇒ 移动端要接设备工具时得照那份**同口径**补一份 ⇒ ⇒ 不许两份各写各的。❸ 真机那一格没跑（只过了判据面）；真 CI 待取。❹ 本刀**没动** `lib/services/telencephalon/telencephalon_client.dart`（兄弟在飞面）⇒ ⇒ 零撞号。
+
+⑥ **⚠ 圈码：本条占 U+3561 (㕡)** —— 官方 `--next` 给移动端的候选只当**线索**（它按**并集**给候选 ⇒ ⇒ 父仓与移动端会拿到**同一个**候选）⇒ ⇒ 真判据是**自己逐字扫**整个 iBLOC 树 ⇒ ⇒ 35xx 段由父仓／移动端／端脑共用 ⇒ ⇒ 全树已占到 U+355F ⇒ ⇒ 取 **U+3561** ⇒ ⇒ 与父仓那枚／桌面端那枚**互不相同**（R1′）＋ 高于移动端自己的水位（U+3559）⇒ ⇒ 字形由 `String.fromCodePoint()` 生成，不手打。
+
 **Updated:** 2026-11-12 (㌢ **「模拟用户行为一轮只授权一次 —— 支付等敏感前台包一出现，缓存当场作废退回逐次问」** —— 本条记**取证（执行时闸是无状态纯判定 ⇒ 每条调用都弹）**、**第一因（「每次询问」档的粒度是「每条调用」，用户要的粒度是「一轮任务」）**、**第二因（「一轮」的边界与「敏感」的判定都要落在机械可见的读数上）**、**第三因（共享工作树上按文件粒度提交会带走别人的在飞行 ⇒ 提交树要从 HEAD 重放自己的 hunk 构造）**、**这一刀的落点**、**途中那几课**、**判据与分级读数**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-12 | authority=measured | scope=project | source=官方取号闸 --next（取样时刻 2026-11-12T08:14:31.864Z ｜ HEAD 534da85 ⇒ 移动端提交树面水位 U+3320 ⇒ 候选头一个 U+3322（U+3321 已被桌面端 ㌡ 占，闸自动跳过））＋ 临时 worktree（HEAD 检出＋仅本刀 14 hunk）实证三件套 80/80 全绿 ＋ analyze 本刀文件零命中（全项目 57 条存量 info、零 error）＋ gen-l10n 产物 NotificationsRead 零命中（兄弟 6 键零混入）｜ 改动：lib/services/capabilities/sensitive_packages.dart（**新增** 敏感前台包清单＋纯函数）＋ lib/providers/chat_provider.dart（6 处：import／轮内两字段／漏斗清缓存／_needsApproval 一轮一次放行／_runToolCall 敏感守卫／approveToolCall 记缓存）＋ lib/widgets/settings/capability_grants_section.dart（2 处：调用点带能力参数＋_modeDescription 签名加参数＋mobileUse 分支）＋ lib/l10n 两个 arb（各 1 键）＋ lib/generated/l10n（gen-l10n 重生成 3 份）＋ test/unit/chat_provider_tool_test.dart（streamOverride 时序 mock＋6 条新测）＋ AGENTS.md（本条）⇒ ⇒ **11 个文件（1 新增）** ＋ 零新增依赖 ＋ 零 ci.yml 改动 ＋ **构造式提交**（从 HEAD 重放本刀 14 个 hunk，兄弟「通知读取」在飞面的 5 个 hunk 机械排除、原样留在共享工作树）⇒ ⇒ 不碰兄弟在飞面 ｜ 读数：见 ⑦ | status=active | supersedes=none
