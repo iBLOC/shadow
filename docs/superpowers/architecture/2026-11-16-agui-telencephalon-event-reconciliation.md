@@ -199,14 +199,54 @@ threadId=conversation_id),也容忍现有 SendMessageRequest(§4 选项 A 的会
 - **仍欠**:「**跑通一次对话**」(过 A2A 那一跳)—— synapse A2A v1.0 升级在飞、wire 未定型 ⇒ ⇒ 暂缓;
   移动/桌面客户端接入 \`ag_ui\` Dart 包(§6 选项 A 的真正红利);AG-UI 工具闭环(客户端回传面)。
 
+### 6d. 工具闭环已接上(2026-11-16,端脑单仓)
+
+- **取证**:AG-UI 1.0 的 `ToolMessage` 形状 = `{ id, role:"tool", content, toolCallId, error? }`
+  (`RunAgentInput.messages[]` 的元素就是 `Message`,按 role 区分的 oneOf,**含 `ToolMessage`**)
+  ⇒ ⇒ 客户端回传是**协议规定**的动作;⚠ **它不带工具名**(规范原文:*it carries no name*)
+  ⇒ ⇒ 名字只能由**服务端自己记**。
+- **缺口(以前)**:适配层只取**最后一条 user 消息** ⇒ ⇒ `role=tool` 的消息被**静默丢掉**
+  ⇒ ⇒ 设备工具的结果**永远进不了大脑** ⇒ ⇒ 闭环是断的(失败长得像成功:客户端明明回传了,
+  服务端这边毫无反应)。
+- **落点**:
+  - **分段**:按「最后一条 user 消息」把工具回传分成 **尾部**(续轮)与**中段**(先落账)——
+    AG-UI 客户端每轮重发**全量** `messages[]` ⇒ ⇒ 「新的」只能相对最后一条用户消息而言。
+  - **名字**:driver 在 announce 客户端工具调用时记「`toolCallId` ⇒ 工具名」(`ToolCalls` 记忆表,
+    上限 1024 条,满了丢最老的);查不到 ⇒ **用 `toolCallId` 当标签,绝不编一个工具名**
+    (编了会让模型以为它叫过一个它没叫过的工具)。
+  - **落账**:中段 ⇒ 写进会话历史,文本与 `/tool-results` 旁路**同一种**
+    (`[tool_result] {name} → ok|failed: {payload}`)⇒ ⇒ 大脑下一轮看得见;落过的**不重复落**
+    (`recorded` 标记 —— 客户端每轮重发全量 `messages[]`,不去重历史会涨成噪音)。
+  - **续轮**:尾部 ⇒ 把结果**接着**喂回模型(driver 的 `tool_continuation`:turn_text 变成工具结果 ＋
+    `continuation=true` ⇒ 叶区**不会重跑本体工具**)⇒ ⇒ 与设备回传续轮**同一条路**。
+  - **失败不许长得像成功**:AG-UI 的 `error` 在场 ⇒ ⇒ 状态就是 `failed`。
+- **判据 5 条**:工具回传被认且**按「最后一条 user 消息」分段** / 没有 `toolCallId` **不编** /
+  **失败读成 failed** / 查不到名字**用 id 且不编造** / 记忆表**记住名字**且落过账的**记得落过**。
+- **读数**:`cargo test --lib --no-default-features --features flow,dm-rules,turso api::shadow`
+  **97 过 / 0 红**(隔离树裁剪档);**四道真变异当场红**(段位 / 编名字 / 失败读成 ok / 记忆表不记)
+  ⇒ ⇒ 每次还原后 sha256 逐字一致 ＋ 推 mtime。
+- ⚠️ **仍欠**:「**真模型真的读得到那份工具结果**」要过 A2A 那一跳 ⇒ ⇒ A2A v1.0 的 wire 正在迁移
+  ⇒ ⇒ 现在跑**必假红** ⇒ ⇒ **driver 续轮那一段没有端到端读数** —— 本节只钉住**请求面**
+  (分段/名字/失败/去重/记忆)。
+
 ## 7. 未核实清单(据实)
 
 - AG-UI 官方 a2ui-middleware / a2ui-toolkit 的桥接实现未逐行读(A2UI 载荷最终走 TOOL_CALL_RESULT
   还是 CUSTOM 事件,以读码为准)。
 - ag_ui Dart 包(pub,^0.3.0)未实际引入编译验证;其 defaultHeaders 能否做"请求时现读钥匙"
   (我们 ShadowKeySseTransport 的时序要求)未验。
-- 端脑 `messages:stream` 在"工具等待超时"(wait_for_device,None 分支)时发的 tool_result 形状
-  未逐字取证(推断同 E5)。
-- route/handoff 事件在真机流量里的实际出现频率未测(E7/E8 的映射优先级取决于此)。
-- clarification 事件是否也出现在 messages:stream(还是只在视觉 QA 自己的通道)未逐字确认,
-  移动端注释称其为 "telencephalon stream event of type clarification"。
+- ✅ **已核实(2026-11-16,端脑源码逐字)**:工具等待超时(`wait_for_device` ⇒ `None`)时
+  **SSE 面上根本不发 `tool_result` 事件** ⇒ ⇒ driver 合成一个**失败**的
+  `ToolOutcome`(`{"error":"the device did not report back within N seconds"}`)⇒ ⇒ 走
+  **带内续轮**(再喂回叶区)⇒ ⇒ 原先"推断同 E5"的猜测**是错的** ⇒ ⇒ AG-UI 适配层
+  **不需要**为它做映射(它根本不是一个事件)。
+- ⚠️ **半闭**:route/handoff 的**形状**已逐字确认(route: supervisor/target/reason;
+  handoff: from/to/context_size)⇒ 但在真机流量里的**实际出现频率**仍未测
+  (E7/E8 的映射优先级取决于此)⇒ ⇒ 仍欠一次真流量读数。
+- ✅ **已核实(2026-11-16,端脑源码逐字)**:clarification **不在端脑 `messages:stream` 面上**
+  —— 端脑全仓只有 `src/visual_qa/clarify.rs`(类型)与 `src/visual_qa/router.rs`(`Clarify`
+  变体)两处 ⇒ ⇒ 都是 **visual_qa 的内部类型**,不是 SSE 事件变体 ⇒ ⇒ 它挂在 **cortex
+  侧** chat reply 的 `metadata.shadow.clarification` 上(影仓 spec
+  `2026-08-26-cortex-visual-qa-router-design.md:190`)⇒ ⇒ **AG-UI 适配层不需要为它做映射**
+  ⇒ ⇒ **G4「clarification 升舱」的前提不成立** —— 那是**另一条面**(cortex visual-qa)的
+  形状问题,不是端脑 SSE 面的缺口。
