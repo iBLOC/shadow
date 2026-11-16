@@ -229,6 +229,53 @@ threadId=conversation_id),也容忍现有 SendMessageRequest(§4 选项 A 的会
   ⇒ ⇒ 现在跑**必假红** ⇒ ⇒ **driver 续轮那一段没有端到端读数** —— 本节只钉住**请求面**
   (分段/名字/失败/去重/记忆)。
 
+### 6e. 承载级读数补上:整条链真的走了一遍(2026-11-16,端脑单仓)
+
+- **缺口(以前)**:§6d 之后仍欠「**跑通一次对话**」那一格 ⇒ ⇒ 原计划用**假 lobe ＋ HTTP**
+  ⇒ ⇒ 但那一跳要过 `LobeClient::Http`(JSON-RPC)⇒ ⇒ 而 lobe server(`build_a2a_router`)
+  **只收 REST** ⇒ ⇒ 形状从**未对上** ⇒ ⇒ 现在钉它**必假红**。
+- **这一刀改走原生叶区**:`NativeLobeRegistry::with_lobe`(`#[cfg(test)]` ⇒ ⇒ **只在测试编译期
+  存在** ⇒ ⇒ 生产二进制里没有这条入口)⇒ ⇒ driver 对原生叶区是**同进程**派发
+  ⇒ ⇒ **没有 wire** ⇒ ⇒ 验的是「请求面 → driver → 叶区 → 事件 → AG-UI 翻译 → SSE」**这一整条**,
+  **不含** A2A。⚠️ 「原生叶区 ≠ 假 lobe ＋ HTTP」—— 前者绕过 wire,后者踩在 wire 上。
+- **判据(1 条,承载级)**:`the_agui_endpoint_really_runs_a_turn_and_speaks_agui` —— **真起 TCP、
+  真打 HTTP**:❶ 事件序列逐字 = `RUN_STARTED → TEXT_MESSAGE_START → TEXT_MESSAGE_CONTENT ×2 →
+  TEXT_MESSAGE_END → RUN_FINISHED`;❷ 首尾**同一个 runId**;❸ 一条消息**同一个 messageId**;
+  ❹ 两段 delta **原文**;❺ 这一轮**真的落账**(盘上两条历史)。
+- **读数**:`cargo test --lib --no-default-features --features flow,dm-rules,turso api::shadow`
+  **98 过 / 0 红**(隔离树裁剪档)＋ **五道真变异当场红且只红那一条判据**(序列少一段 / Done 带另一个
+  runId / 不落账 / 每个 delta 另开一段 / delta 发空串)⇒ ⇒ 每次还原后 sha256 逐字一致 ＋ 推 mtime。
+- ⚠️ **仍欠**:「**真模型真的读得到那份工具结果**」**逐字仍然欠着** ⇒ ⇒ 真叶区(走 A2A)那一跳
+  **仍未验** ⇒ ⇒ 「真模型那一格」没有读数。
+
+### 6f. 1.0 合规补正:producer 必须声明版本 ＋ outcome 不许缺省成成功(2026-11-16,端脑单仓)
+
+- **取证**:AG-UI **1.0** 规范(`docs.ag-ui.com/spec/1.0/schema.md` 与 `basic/versioning.md`)
+  逐字 —— ❶ `RunStartedEvent` 有 **`protocolVersion`**(optional),规范原文:*"A 1.0 producer MUST
+  declare the protocol version it speaks on RUN_STARTED"* ⇒ ⇒ **缺它 = 被认成 pre-1.0 producer**。
+  ❷ `RunFinishedEvent` 有 **`outcome`**(optional),成员只有 `success`/`interrupt`/`cancelled`;
+  规范原文:*"an absent outcome means success"* ⇒ ⇒ **不带 outcome = 成功**。
+  ❸ 版本化页原文:*"the run's outcome ... MUST travel in the fields the schema describes for them,
+  never only in a new event type or a new property that an older consumer will drop."*
+- **缺口(以前)**:❶ 我们的 `RUN_STARTED` **没有** `protocolVersion` ⇒ ⇒ 客户端把我们当 pre-1.0。
+  ❷ 非 `COMPLETED` 的收口状态塞在 **`metadata.telencephalonState`** ⇒ ⇒ 1.0 客户端按
+  「outcome 缺省即 success」⇒ ⇒ **把它读成成功** ⇒ ⇒ **失败长得像成功** ⇒ ⇒ 而且这**正是规范
+  明文禁止**的那种做法(把已有位置的语义搬进新属性)。
+- **补正**:❶ `RUN_STARTED` 带 `protocolVersion`(值取自官方 TS SDK 的常量 —— `@ag-ui/core` 包里的
+  `agui.protocolVersion` ⇒ `"1.0"` ⇒ ⇒ **不手打**);❷ 成功轮 ⇒ **整个 `outcome` 字段都不带**
+  (缺省即 success ⇒ ⇒ 也不许塞 `{"type":"success"}`);❸ 非成功轮 ⇒ 带
+  `outcome: {"type":"cancelled"}` ＋ 端脑原状态**仍留** `metadata` ⇒ ⇒ 我们**不产** AG-UI 的
+  `interrupt`(那要 `interrupts` 数组,我们没有这个概念)⇒ ⇒ 只发 schema 描述过的值
+  (规范:*MUST NOT* 发明别的 outcome 值)。
+- **判据(改口径 ＋ 新增断言)**:旧判据「非 COMPLETED ⇒ 状态在 metadata」**口径变了** ⇒ ⇒ 改成
+  「非 COMPLETED ⇒ **有** `outcome` 且 `type == "cancelled"` ＋ metadata 仍带原状态」;新增
+  「`RUN_STARTED` 带 `protocolVersion`」与「成功轮**没有** `outcome` 字段」两条断言。
+- **读数**:**98 过 / 0 红** ＋ **三道真变异当场红且只红目标判据**(outcome 改成 success ⇒ ⇒
+  「失败长得像成功」那条当场红 / 去掉 `protocolVersion` ⇒ ⇒ 声明那条当场红 / 版本号手打成
+  `"1.0.0"` ⇒ ⇒ 声明那条当场红)。
+- ⚠️ **仍欠**:Dart 侧 `ag_ui` 0.3.0 认不认 1.0 的事件名(`TEXT_MESSAGE_START/CONTENT/END`)
+  **未验** ⇒ ⇒ 那是**客户端**那一格 ⇒ ⇒ 属客户端接入那一刀。
+
 ## 7. 未核实清单(据实)
 
 - AG-UI 官方 a2ui-middleware / a2ui-toolkit 的桥接实现未逐行读(A2UI 载荷最终走 TOOL_CALL_RESULT
@@ -250,3 +297,21 @@ threadId=conversation_id),也容忍现有 SendMessageRequest(§4 选项 A 的会
   `2026-08-26-cortex-visual-qa-router-design.md:190`)⇒ ⇒ **AG-UI 适配层不需要为它做映射**
   ⇒ ⇒ **G4「clarification 升舱」的前提不成立** —— 那是**另一条面**(cortex visual-qa)的
   形状问题,不是端脑 SSE 面的缺口。
+- ✅ **已核实(2026-11-16,AG-UI **1.0** 规范原文)**:`TEXT_MESSAGE_CHUNK` 在 1.0 里**不是**退休形状
+  —— 它是「紧凑写法」,规范原文:*"A consumer MUST expand chunks into the three events above"*
+  ⇒ ⇒ 我们发 `TEXT_MESSAGE_START`/`CONTENT`/`END` 三连**正是规范主形** ⇒ ⇒ 不用改。
+- ✅ **已核实(2026-11-16,npm 逐包 HEAD ＋ 官方文档 SDK 目录)**:AG-UI **官方没有** React 组件包
+  —— `@ag-ui/react` / `@ag-ui/react-hooks` / `ag-ui` / `@ag-ui/agent` 全部 **404**;官方 JS 只有
+  `@ag-ui/core` / `@ag-ui/client`(latest 1.0.4)/ `@ag-ui/encoder` / `@ag-ui/proto` ⇒ ⇒ 官方文档的
+  SDK 目录里 JS **没有 React 页** ⇒ ⇒ **桌面端的 React 绑定要自己写**(几十行 hooks)。
+- ✅ **已核实(2026-11-16)**:React 组件库**是 CopilotKit 那套**(`@copilotkit/react-ui` ＋
+  `@copilotkit/react-core`)⇒ ⇒ AG-UI 本就是 CopilotKit 牵头、和 LangGraph 一起做的协议 ⇒ ⇒ 一家的;
+  但它绑自己的 `CopilotKitProvider` ＋ runtimeUrl ＋ agent 抽象 ⇒ ⇒ 与影仓「会话史在服务端、
+  自己写 driver」的架构**正面冲突**,且组件文案**英文硬编码**(影仓桌面端是 en-US/zh-CN 双语)
+  ⇒ ⇒ **结论:不整体搬** —— 协议层用 `@ag-ui/client`,组件用影仓**自己的** shadcn/ui
+  (`shadow-desktop/components.json` 已在:tailwind ＋ cssVariables ＋ `@/components/ui` 别名)。
+- ✅ **已核实(2026-11-16)**:**Dojo 不是组件库** —— 它是仓库里的 `apps/dojo`(Next.js ＋ CopilotKit)
+  ⇒ ⇒ 官方文档对它的定位是「一组 hello-world 尺寸的演示」,用法是当**实施清单**
+  (*"Using the Dojo as an Implementation Checklist"*)⇒ ⇒ **当对照测试集用,不当组件包 import**。
+- ⚠️ **仍欠**:`ag_ui` Dart **0.3.0**(社区 SDK;官方 SDK 目录只有 python/dotnet/js)认不认协议 **1.0**
+  的事件名与形状 ⇒ ⇒ **未验** ⇒ ⇒ 那属**客户端**那一刀 ⇒ ⇒ 也是移动端「自己实现」那一刀的前置。
