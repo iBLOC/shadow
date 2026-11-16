@@ -164,6 +164,29 @@ threadId=conversation_id),也容忍现有 SendMessageRequest(§4 选项 A 的会
 端点挂 router_with_store 的 require_shadow_key 门内;endpoint-map 闸按**客户端代码**扫描生成,
 无客户端调用的新端点不进图、不触红(已核)。
 
+### 6b. 选项 A 已实现(2026-11-16,端脑单仓)
+
+- **手术**:driver 整块搬进 `build_turn_driver(TurnDriverInput) -> Pin<Box<dyn Stream<Item = DriverEvent>>>`,
+  前半段(会话/叶区/身份)抽成 `prepare_turn` —— **行为零变化**,只是给 driver 开了第二扇门
+  (原注释"driver owns the loop, the SSE layer owns the wire"的设计意图落地);
+  `messages:stream` 的 wire 逐字不变。
+- **新面**:\`src/api/shadow/agui.rs\` + 端点 \`POST /shadow/v1/conversations/{id}/ag-ui:stream\`
+  (同一道 require_shadow_key 门、同一个 driver、wire 说 AG-UI:camelCase + UPPER_SNAKE type、SSE 只发 data:)。
+- **请求面**:untagged 双形 —— AG-UI \`RunAgentInput\`(messages[] 只取**最后一条 user**、平铺 tools 包回
+  OpenAI 壳、无 user 文本**响亮拒绝**)或现有 \`SendMessageRequest\`(容忍);RunAgent 体一律
+  \`may_wait=false\` —— AG-UI 客户端不认识 \`/tool-results\` 旁路 ⇒ 大脑不能等一个永远不会应答的设备。
+- **翻译层**:§6a 逐行落地,含两处"不硬套语义":lobe 工具结果 → \`CUSTOM(telencephalon_tool_result)\`
+  (**不是** TOOL_CALL_RESULT —— 那是客户端回传语义,判据里有负控钉死);\`RUN_ERROR\` 的 runId 进
+  \`metadata\`(schema 闭合,不塞不存在的字段);非 COMPLETED 收口如实进 metadata。
+- **判据 9 条**:run 首尾配对 / 非 COMPLETED 如实 / 文本段三连 / 工具三连带 parentMessageId /
+  工具结果负控 / 进度事件 CUSTOM 兜底静默 / 最后一条 user 消息 / tools 包壳 / 空输入响亮拒+双形解析。
+- **读数**:\`cargo test --lib api::shadow\` **79 过 / 0 红**(42 影子模块 + 9 适配层新判据 + http_tests 全绿);
+  真变异(CUSTOM→TOOL_CALL_RESULT)当场红(8 绿 1 红,只红负控那条)⇒ 还原后 sha256 与主树**逐字一致**、复跑绿。
+- **闸**:state-surface / client-endpoint-map **绿**;六道红闸(endpoint-matrix / failure-masking /
+  secret-plaintext / replacement-chars / gate-discipline / legacy-residue)**零命中本刀文件** ⇒ 存量基线,按纪律不代修、不销账。
+- **仍欠**:承载级判据(http 层真打这条端点)—— 需假 lobe;synapse A2A v1.0 升级在飞,wire 未定型 ⇒ 暂缓;
+  移动/桌面客户端接入 \`ag_ui\` Dart 包(§6 选项 A 的真正红利);AG-UI 工具闭环(客户端回传面)。
+
 ## 7. 未核实清单(据实)
 
 - AG-UI 官方 a2ui-middleware / a2ui-toolkit 的桥接实现未逐行读(A2UI 载荷最终走 TOOL_CALL_RESULT
