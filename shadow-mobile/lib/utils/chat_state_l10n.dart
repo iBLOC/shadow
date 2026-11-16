@@ -7,10 +7,8 @@ extension ChatStateL10n on ChatState {
     switch (errorMessageL10nKey!) {
       case ChatStateL10nKey.errorGeneric:
         return l10n.errorGeneric(errorMessageArg ?? '');
-      case ChatStateL10nKey.errorAttachmentNotAvailable:
-        return l10n.chatAttachmentNotAvailable;
-      case ChatStateL10nKey.errorAttachmentImageFailed:
-        return l10n.chatAttachmentImageFailed(errorMessageArg ?? '');
+      case ChatStateL10nKey.errorAttachmentFailed:
+        return l10n.chatAttachmentFailed(errorMessageArg ?? '');
     }
   }
 }

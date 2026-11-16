@@ -152,20 +152,16 @@ enum ChatRole { user, assistant, system }
 enum ChatStateL10nKey {
   errorGeneric,
 
-  /// 带附件发送被拒（端脑链路只处理纯文本）。
+  /// **一份附件发不出去**（读不出／这一档还没接／太大／张数超了）。
   ///
-  /// 以前这个场景复用的是 `errorGeneric` + `chatImageNotAvailable`
-  /// —— 那条文案写的是「LiteRT 图片功能暂时不可用」，本地 LiteRT
-  /// 下线之后已经不成立了。现在有自己的 key，文案说清楚**为什么**。
-  errorAttachmentNotAvailable,
-
-  /// **一张图片发不出去**（读不出／格式不支持／太大）。
-  ///
-  /// ⚠️ 为什么单独一个 key：图片这一刀**通了**（会真发）⇒ ⇒ 所以「附件
-  /// 不可用」那句现在**只**适用于视频／文件／音频 ⇒ ⇒ 图片的失败原因
-  /// **完全不同**（不是「不支持」，是「这张发不出去」）⇒ ⇒ 压成同一句
-  /// ⇒ ⇒ 用户能做的事（换一张／拍一张／别拍这么大）就分不出来了。
-  errorAttachmentImageFailed,
+  /// ⚠️ 为什么只有这一个 key（以前有「附件不可用」那一个）：附件这一刀
+  /// **通了**（图片／纯文本／PDF／wav/mp3 都会真发）⇒ ⇒ 「不可用」现在
+  /// **只**适用于**还没接的那一档** ⇒ ⇒ 而「发不出去」是**完全不同**的
+  /// 失败 ⇒ ⇒ 两者用**同一个带 reason 的键**就能说清 ⇒ ⇒ **不拆成两句**
+  /// ⇒ ⇒ 用户看到的横幅**带原因**（「unsupported file type: .mp4」／
+  /// 「file is too large …」）⇒ ⇒ 用户能做的事（换一份／转成 PDF／别发
+  /// 这么大）就分得出来了。
+  errorAttachmentFailed,
 }
 
 /// Chat state
@@ -506,80 +502,67 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
   /// 带附件的发送。
   ///
-  /// ⚠️ **图片现在能真发了**（2026-11-16 这一刀）：端脑那条链路
-  /// （`/shadow/v1/conversations`）加了 `images` 字段 ⇒ ⇒ 照片被读成
-  /// base64 随消息发出去 ⇒ ⇒ 端脑把它装进 `MessagePart::File` ⇒ ⇒
-  /// 最后变成模型看得见的 `image_url` ⇒ ⇒ **模型真的能看那张照片**。
+  /// ⚠️ **附件现在能真发了**（2026-11-16 这一刀，从「只有图片」扩到**全
+  /// 类型**）：端脑那条链路（`/shadow/v1/conversations`）加了 `attachments`
+  /// 字段 ⇒ ⇒ 文件被读成 base64 随消息发出去 ⇒ ⇒ 端脑按 MIME **分档** ⇒ ⇒
+  /// 变成模型认得的那种形状 ⇒ ⇒ **模型真的能读那份文件**。
   ///
-  /// ⚠️ **视频／文件／音频附件这一刀还没接通** ⇒ ⇒ 那几种**明确报错**
-  /// （而不是静默丢掉）⇒ ⇒ 但文案**必须改准**：以前那句「图片、文件等
-  /// 附件暂不支持」现在**对图片是假的**（图片已经支持了）⇒ ⇒ 一句假的
-  /// 提示比没有提示更坏（用户会以为图也没发出去）。
+  /// ⚠️ **分档的依据是**扩展名／MIME**，**不是**「用户是从哪儿选的」⇒ ⇒
+  /// 「＋」里选的一个 `.txt` 与一个 `.jpg` 走**同一条路**（各自按自己的
+  /// MIME 分档）⇒ ⇒ 否则「从相册选」这个来源会**决定**能不能发 ⇒ ⇒ 用户
+  /// 会看到「同一份文件，换个入口就能发」。
+  ///
+  /// ⚠️ **还没接的那一档（视频、Word/Excel、别的音频格式）⇒ ⇒ 明确报错**
+  /// （而不是静默丢掉）⇒ ⇒ 而且要说清是**「这一类还没接」**（不是「你配
+  /// 得不对」）⇒ ⇒ 用户去换模型**也没用** ⇒ ⇒ 不能让他白折腾。
   Future<void> generateResponseWithAttachments(
     String prompt,
     List<MultimodalInput> attachments,
   ) async {
     if (state.isLoading) return;
 
-    // ⚠️ **先分类**：图片这一刀通了；其它那一刀没通 ⇒ ⇒ 分开说。
-    final imageInputs = <MultimodalInput>[];
-    final unsupported = <MultimodalInput>[];
-    for (final attachment in attachments) {
-      if (attachment.type == MultimodalInputType.image) {
-        imageInputs.add(attachment);
-      } else {
-        unsupported.add(attachment);
-      }
-    }
-
-    if (unsupported.isNotEmpty) {
-      state = state.copyWith(
-        errorMessage: currentL10n().chatAttachmentNotAvailable,
-        errorMessageL10nKey: ChatStateL10nKey.errorAttachmentNotAvailable,
+    if (attachments.length > AttachmentEncoder.maxAttachmentsPerMessage) {
+      _setAttachmentFailure(
+        'too many attachments (max ${AttachmentEncoder.maxAttachmentsPerMessage})',
       );
       return;
     }
 
-    if (imageInputs.length > ImageInputHandler.maxImagesPerMessage) {
-      _setImageFailure('too many images (max ${ImageInputHandler.maxImagesPerMessage})');
-      return;
-    }
-
-    // ⚠️ **读成 base64** ⇒ ⇒ 读不出／格式不认识／太大 ⇒ ⇒ 一律**带原因**
-    // 报错 ⇒ ⇒ 绝不许把一段未知字节假装成图片发出去。
+    // ⚠️ **读成 base64** ⇒ ⇒ 读不出／这一档还没接／太大 ⇒ ⇒ 一律**带
+    // 原因**报错 ⇒ ⇒ 绝不许把一段未知字节假装成能发的东西发出去。
     final payloads = <Map<String, String>>[];
-    for (final image in imageInputs) {
-      final file = image.data;
+    for (final attachment in attachments) {
+      final file = attachment.data;
       if (file is! File) {
-        _setImageFailure('not a readable image file');
+        _setAttachmentFailure('not a readable file');
         return;
       }
-      final encoded = await _multimodalManager.encodeImageForTelencephalon(file);
+      final encoded = await _multimodalManager.encodeAttachment(file);
       final payload = encoded.payload;
       if (payload == null) {
-        _setImageFailure(encoded.reason ?? 'unknown reason');
+        _setAttachmentFailure(encoded.reason ?? 'unknown reason');
         return;
       }
       payloads.add(payload);
     }
 
-    await _sendToTelencephalon(prompt, images: payloads);
+    await _sendToTelencephalon(prompt, attachments: payloads);
 
-    // ⚠️ **发成功了 ⇒ 候选行清空** ⇒ ⇒ 否则用户再点一次发送 ⇒ ⇒ 那张图
+    // ⚠️ **发成功了 ⇒ 候选行清空** ⇒ ⇒ 否则用户再点一次发送 ⇒ ⇒ 那份文件
     // 会被**再发一遍**。
     if (state.attachments.isNotEmpty) {
       state = state.copyWith(attachments: const []);
     }
   }
 
-  /// **一张图片发不出去** ⇒ ⇒ 记下**原因**（横幅要说得清是哪一张、为什么）。
-  void _setImageFailure(String reason) {
+  /// **一份附件发不出去** ⇒ ⇒ 记下**原因**（横幅要说得清是哪一份、为什么）。
+  void _setAttachmentFailure(String reason) {
     state = state.copyWith(
-      errorMessage: currentL10n().chatAttachmentImageFailed(reason),
+      errorMessage: currentL10n().chatAttachmentFailed(reason),
       // ⚠️ **原因也要存进 `errorMessageArg`** ⇒ ⇒ 否则 `displayErrorMessage`
       // 重渲染时会拿不到它 ⇒ ⇒ 横幅上只剩一个空括号。
       errorMessageArg: reason,
-      errorMessageL10nKey: ChatStateL10nKey.errorAttachmentImageFailed,
+      errorMessageL10nKey: ChatStateL10nKey.errorAttachmentFailed,
     );
   }
 
@@ -593,7 +576,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
   /// 「已就绪」的红横幅和一句永远等不来的回复。
   Future<void> _sendToTelencephalon(
     String prompt, {
-    List<Map<String, String>>? images,
+    List<Map<String, String>>? attachments,
   }) async {
     // ⚠️ **新一轮 ⇒ 「手机操作一轮一次」的授权缓存清零** ——
     // 「一轮」＝ 一次发送 ⇒ 无论从哪个入口进来（发送 / 重试 / 撤销重发，
@@ -683,9 +666,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
           // ⚠️ **老端脑不认识这个字段 ⇒ 无害**（serde 忽略未知字段）
           // ⇒ ⇒ 所以**不必等端脑先改**就能先把这半边做掉。
           capabilityModes: capabilityModesPayload(_capabilityModeFor),
-          // ⚠️ **随消息带上的图片**（base64）⇒ ⇒ 端脑把它变成模型看得见
-          // 的 `image_url` ⇒ ⇒ 「拍张照问一句」从此是**真的**。
-          images: images,
+          // ⚠️ **随消息带上的附件**（base64）⇒ ⇒ 端脑按 MIME 分档 ⇒ ⇒
+          // 变成模型看得见的 `image_url`／`input_audio`／`file`／内联文字 ⇒ ⇒
+          // 「拍张照问一句」「丢份 PDF 过来」从此是**真的**。
+          attachments: attachments,
         ),
       )) {
         switch (event.type) {

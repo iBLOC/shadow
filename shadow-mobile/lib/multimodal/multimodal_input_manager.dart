@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'audio_input_handler.dart';
 import 'image_input_handler.dart';
+import 'attachment_encoder.dart';
 import 'file_input_handler.dart';
 
 enum MultimodalInputType { audio, image, camera, file, voice, video }
@@ -59,12 +60,12 @@ class MultimodalInputManager {
     return null;
   }
 
-  /// **把一张图片读成端脑协议要的那一档**（base64 + MIME）。
+  /// **把一份附件读成协议要的那一档**（base64 + MIME + 文件名）。
   ///
   /// ⚠️ 为什么在这里露一个口：媒体类型**从扩展名推**⇒ ⇒ 那件事归
-  /// [`ImageInputHandler`] ⇒ ⇒ 别处各猜一份 ⇒ ⇒ 迟早漂。
-  Future<ImageEncodeResult> encodeImageForTelencephalon(File file) =>
-      _imageHandler.encodeForTelencephalon(file);
+  /// [`AttachmentEncoder`] ⇒ ⇒ 别处各猜一份 ⇒ ⇒ 迟早漂。
+  Future<AttachmentEncodeResult> encodeAttachment(File file) =>
+      AttachmentEncoder().encode(file);
 
   /// **内建相机**拍回来的文件 ⇒ ⇒ 收进来挂成附件（照片或录像）。
   ///

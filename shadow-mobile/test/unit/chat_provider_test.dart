@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shadow_mobile/providers/chat_provider.dart';
+import 'package:shadow_mobile/multimodal/attachment_encoder.dart';
 import 'package:shadow_mobile/multimodal/multimodal_input_manager.dart';
 import 'package:shadow_mobile/l10n/current_l10n.dart';
 import 'package:shadow_mobile/tts_engine.dart';
@@ -209,17 +210,13 @@ void main() {
     });
 
     test('带图片 → 真的发到端脑，请求体里带着那张图', () async {
-      // ⚠️ **这一格的口径变了**（2026-11-16 这一刀）。
+      // ⚠️ **这一格的口径变过两次**（2026-11-16）。
       //
-      // 以前是「带图片 ⇒ 明确报错，且根本没到端脑」⇒ ⇒ 钉的是「端脑链路
+      // 第一次：「带图片 ⇒ 明确报错，且根本没到端脑」⇒ ⇒ 钉的是「端脑链路
       // 只处理纯文本」⇒ ⇒ 而那句话**现在是假的**（图片已经能发了）⇒ ⇒
-      // 判据不改的话，它会**红**，而它红的原因不是代码坏了，是**它钉的
-      // 那个世界变了**。
-      //
-      // ⇒ ⇒ 同一个意图（「不许静默丢附件」）**换一条更狠的钉法**：
-      // 以前「没到端脑」就能证明「没丢」（因为压根没发）⇒ ⇒ 现在图**真的
-      // 发了** ⇒ ⇒ 「没丢」必须由**请求体里那张图**来证明 ⇒ ⇒ 判据升级
-      // 成「请求体带 images，且 base64 与文件字节逐字一致」。
+      // 同一个意图（「不许静默丢附件」）**换一条更狠的钉法**：以前「没到
+      // 端脑」就能证明「没丢」（因为压根没发）⇒ ⇒ 现在图**真的发了** ⇒ ⇒
+      // 「没丢」必须由**请求体里那张图**来证明。
       final dir = await Directory.systemTemp.createTemp('shadow-img-');
       addTearDown(() => dir.delete(recursive: true));
       final file = File('${dir.path}/IMG_1.jpg');
@@ -240,34 +237,116 @@ void main() {
       expect(state.errorMessage, isNull);
       // 图**真的**发出去了。
       expect(mockClient.streamMessageCalls, 1);
-      final images = mockClient.lastRequest?.images;
-      expect(images, isNotNull, reason: 'the request must carry the image');
-      expect(images!.length, 1);
-      expect(images.first['media_type'], 'image/jpeg');
+      final attachments = mockClient.lastRequest?.attachments;
+      expect(attachments, isNotNull, reason: 'the request must carry the image');
+      expect(attachments!.length, 1);
+      expect(attachments.first['media_type'], 'image/jpeg');
       // base64 必须与文件字节**逐字**一致 ⇒ ⇒ 不能是空串、不能是文件名。
-      expect(images.first['data'], base64Encode(bytes));
+      expect(attachments.first['data'], base64Encode(bytes));
       // ⚠️ **还要钉住「真正发出去的那个形状」** ⇒ ⇒ 请求**对象**里带着图
       // **不等于**请求**体**里带着图 ⇒ ⇒ 真机上发出去的是 `toJson()` 的
       // 结果 ⇒ ⇒ 只断言对象 ⇒ ⇒ 变异掉 `toJson` 那一条**照样全绿**
-      // （实测踩过：变异 `toJson` 不带 images ⇒ ⇒ 下面这条判据**没红**，
-      // 而「请求体形状」那条红了 ⇒ ⇒ 两处都得钉）。
+      // （实测踩过：变异 `toJson` 不带 attachments ⇒ ⇒ 下面这条判据**没
+      // 红**，而「请求体形状」那条红了 ⇒ ⇒ 两处都得钉）。
       final wire = mockClient.lastRequest!.toJson();
-      expect(wire.containsKey('images'), isTrue);
-      final wireImages = wire['images'] as List<dynamic>;
-      expect(wireImages.length, 1);
-      expect((wireImages.first as Map<String, dynamic>)['data'], base64Encode(bytes));
+      expect(wire.containsKey('attachments'), isTrue);
+      final wireAttachments = wire['attachments'] as List<dynamic>;
+      expect(wireAttachments.length, 1);
+      expect(
+          (wireAttachments.first as Map<String, dynamic>)['data'], base64Encode(bytes));
       // 消息**真的**进了对话流 ⇒ ⇒ 用户不会以为它发出去了却没发。
       expect(state.messages.length, 2);
       // 候选行清空 ⇒ ⇒ 用户再点一次发送不会把同一张图**再发一遍**。
       expect(state.attachments, isEmpty);
     });
 
-    test('图片格式不认识 → 明确报错，且根本没到端脑', () async {
+    test('带**文本文件** → 也能真发（全类型那一刀的重点）', () async {
+      final dir = await Directory.systemTemp.createTemp('shadow-txt-');
+      addTearDown(() => dir.delete(recursive: true));
+      final file = File('${dir.path}/note.txt');
+      final bytes = Uint8List.fromList('hello world'.codeUnits);
+      await file.writeAsBytes(bytes);
+
+      await container.read(chatProvider.notifier).generateResponseWithAttachments(
+        '读一下',
+        [
+          MultimodalInput(
+            type: MultimodalInputType.file,
+            data: file,
+            path: file.path,
+          ),
+        ],
+      );
+
+      final state = container.read(chatProvider);
+      expect(state.errorMessage, isNull);
+      expect(mockClient.streamMessageCalls, 1);
+      final attachments = mockClient.lastRequest!.attachments!;
+      expect(attachments.length, 1);
+      expect(attachments.first['media_type'], 'text/plain');
+      expect(attachments.first['data'], base64Encode(bytes));
+      expect(attachments.first['filename'], 'note.txt');
+    });
+
+    test('带 **PDF** → 也能真发', () async {
+      final dir = await Directory.systemTemp.createTemp('shadow-pdf-');
+      addTearDown(() => dir.delete(recursive: true));
+      final file = File('${dir.path}/doc.pdf');
+      await file.writeAsBytes(Uint8List.fromList([1, 2, 3, 4]));
+
+      await container.read(chatProvider.notifier).generateResponseWithAttachments(
+        '总结一下',
+        [
+          MultimodalInput(
+            type: MultimodalInputType.file,
+            data: file,
+            path: file.path,
+          ),
+        ],
+      );
+
+      final state = container.read(chatProvider);
+      expect(state.errorMessage, isNull);
+      final attachments = mockClient.lastRequest!.attachments!;
+      expect(attachments.first['media_type'], 'application/pdf');
+      expect(attachments.first['filename'], 'doc.pdf');
+    });
+
+    test('**这一档还没接**（视频）→ 明确报错说清原因，且根本没到端脑', () async {
+      final dir = await Directory.systemTemp.createTemp('shadow-vid-');
+      addTearDown(() => dir.delete(recursive: true));
+      final file = File('${dir.path}/v.mp4');
+      await file.writeAsBytes(Uint8List.fromList([1, 2, 3, 4]));
+
+      await container.read(chatProvider.notifier).generateResponseWithAttachments(
+        '',
+        [
+          MultimodalInput(
+            type: MultimodalInputType.video,
+            data: file,
+            path: file.path,
+          ),
+        ],
+      );
+
+      final state = container.read(chatProvider);
+      expect(
+        state.errorMessageL10nKey,
+        equals(ChatStateL10nKey.errorAttachmentFailed),
+      );
+      // ⚠️ **原因要说清是「这一类还没接」** ⇒ ⇒ 不是「你配得不对」⇒ ⇒
+      // 用户去换模型**也没用** ⇒ ⇒ 不能让他白折腾。
+      expect(state.errorMessage, contains('unsupported'));
+      expect(mockClient.streamMessageCalls, 0);
+      expect(state.messages, isEmpty);
+    });
+
+    test('格式不认识 → 明确报错，且根本没到端脑', () async {
       final dir = await Directory.systemTemp.createTemp('shadow-img-');
       addTearDown(() => dir.delete(recursive: true));
       // ⚠️ 扩展名不在那张表里 ⇒ ⇒ 端脑那边没有「认这个格式」的办法
       // ⇒ ⇒ 必须在**发出去之前**就说清楚 ⇒ ⇒ 绝不许把一段未知字节
-      // 假装成图片发出去。
+      // 假装成能发的东西发出去。
       final file = File('${dir.path}/IMG_1.heic');
       await file.writeAsBytes(Uint8List.fromList([1, 2, 3, 4]));
 
@@ -284,14 +363,14 @@ void main() {
       final state = container.read(chatProvider);
       expect(
         state.errorMessageL10nKey,
-        equals(ChatStateL10nKey.errorAttachmentImageFailed),
+        equals(ChatStateL10nKey.errorAttachmentFailed),
       );
-      expect(state.errorMessage, contains('format'));
+      expect(state.errorMessage, contains('unsupported'));
       expect(mockClient.streamMessageCalls, 0);
       expect(state.messages, isEmpty);
     });
 
-    test('图片文件读不出 → 明确报错，且根本没到端脑', () async {
+    test('附件读不出 → 明确报错，且根本没到端脑', () async {
       final attachment = MultimodalInput(
         type: MultimodalInputType.image,
         data: File('/definitely/not/here/IMG_1.jpg'),
@@ -305,47 +384,70 @@ void main() {
       final state = container.read(chatProvider);
       expect(
         state.errorMessageL10nKey,
-        equals(ChatStateL10nKey.errorAttachmentImageFailed),
+        equals(ChatStateL10nKey.errorAttachmentFailed),
       );
       expect(mockClient.streamMessageCalls, 0);
     });
 
-    test('带视频附件 → 仍然明确报错（这一刀只通了图片）', () async {
-      final attachment = MultimodalInput(
-        type: MultimodalInputType.video,
-        data: null,
-        path: '/test/video.mp4',
+    test('带**相机照片** → 现在也能真发（它就是一张图片）', () async {
+      // ⚠️ **这一格的口径也变了**：以前「带相机照片 ⇒ 明确报错」⇒ ⇒ 钉的
+      // 是「端脑只处理纯文本」⇒ ⇒ 现在图片能发了 ⇒ ⇒ **相机照片当然也能
+      // 发**（它落进同一个 image 档）⇒ ⇒ 判据不改就会红，而它红的原因不是
+      // 代码坏了，是**它钉的那个世界变了**。
+      final dir = await Directory.systemTemp.createTemp('shadow-cam-');
+      addTearDown(() => dir.delete(recursive: true));
+      final file = File('${dir.path}/IMG_9.jpg');
+      await file.writeAsBytes(Uint8List.fromList([1, 2, 3, 4]));
+
+      await container.read(chatProvider.notifier).generateResponseWithAttachments(
+        '这是什么',
+        [
+          MultimodalInput(
+            type: MultimodalInputType.camera,
+            data: file,
+            path: file.path,
+          ),
+        ],
+      );
+
+      expect(container.read(chatProvider).errorMessage, isNull);
+      expect(mockClient.streamMessageCalls, 1);
+      expect(mockClient.lastRequest!.attachments!.first['media_type'],
+          'image/jpeg');
+    });
+
+    test('附件数超了 → 明确报错，且根本没到端脑', () async {
+      final dir = await Directory.systemTemp.createTemp('shadow-many-');
+      addTearDown(() => dir.delete(recursive: true));
+      final file = File('${dir.path}/IMG_1.jpg');
+      await file.writeAsBytes(Uint8List.fromList([1, 2, 3, 4]));
+
+      final many = List.generate(
+        AttachmentEncoder.maxAttachmentsPerMessage + 1,
+        (_) => MultimodalInput(
+          type: MultimodalInputType.image,
+          data: file,
+          path: file.path,
+        ),
       );
 
       await container
           .read(chatProvider.notifier)
-          .generateResponseWithAttachments('', [attachment]);
+          .generateResponseWithAttachments('看', many);
 
+      final state = container.read(chatProvider);
       expect(
-        container.read(chatProvider).errorMessage,
-        equals(currentL10n().chatAttachmentNotAvailable),
+        state.errorMessageL10nKey,
+        equals(ChatStateL10nKey.errorAttachmentFailed),
       );
+      expect(state.errorMessage, contains('too many'));
       expect(mockClient.streamMessageCalls, 0);
     });
 
-    test('带相机照片 → 同样明确报错', () async {
-      final attachment = MultimodalInput(
-        type: MultimodalInputType.camera,
-        data: null,
-        path: '/test/camera.jpg',
-      );
-
-      await container
-          .read(chatProvider.notifier)
-          .generateResponseWithAttachments('', [attachment]);
-
-      expect(
-        container.read(chatProvider).errorMessage,
-        equals(currentL10n().chatAttachmentNotAvailable),
-      );
-    });
-
-    test('带音频 → 同样明确报错（端脑只处理纯文本）', () async {
+    test('带音频字节（不是文件）→ 明确报错，且根本没到端脑', () async {
+      // ⚠️ 这一格**不是**「音频不支持」⇒ ⇒ **wav/mp3 现在能发**⇒ ⇒ 这里
+      // 报错的原因是**它不是一个文件**（data 是裸字节，不是路径）⇒ ⇒
+      // 理由变了，判据要跟着变。
       final attachment = MultimodalInput(
         type: MultimodalInputType.audio,
         data: Uint8List.fromList([1, 2, 3]),
@@ -356,10 +458,12 @@ void main() {
           .read(chatProvider.notifier)
           .generateResponseWithAttachments('听语音', [attachment]);
 
+      final state = container.read(chatProvider);
       expect(
-        container.read(chatProvider).errorMessage,
-        equals(currentL10n().chatAttachmentNotAvailable),
+        state.errorMessageL10nKey,
+        equals(ChatStateL10nKey.errorAttachmentFailed),
       );
+      expect(mockClient.streamMessageCalls, 0);
     });
 
     test('没有附件时照常走端脑', () async {

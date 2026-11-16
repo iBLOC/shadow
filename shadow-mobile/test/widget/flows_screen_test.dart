@@ -56,11 +56,21 @@ void main() {
     );
   }
 
-  testWidgets('renders Telencephalon Flows title (i18n updated)', (tester) async {
+  testWidgets('renders the flows title (i18n updated)', (tester) async {
     await pumpFlowsScreen(tester);
-    // i18n key stays `telencephalonFlows` but the value is now 'Telencephalon Flows'
+    // ⚠️ **这里逐字钉英文值**（不是 `currentL10n()`）⇒ ⇒ 因为这个测试把
+    // widget 的 locale 强制成 `en`，而 `currentL10n()` 取的是**系统语言**
+    // ⇒ ⇒ 两者可能不一致 ⇒ ⇒ 用它断言会**时红时绿**。
+    //
+    // ⇒ ⇒ 代价是：l10n 的**英文值**一改，这条判据就要跟着改 ⇒ ⇒ 而这正是
+    // 它的本意（这条判据本来就叫「i18n updated」⇒ ⇒ 它就是**跟着文案走**
+    // 的那一条）。
+    //
+    // ⚠️ 文案为什么从「Telencephalon Flows」变成「Brain Flows」⇒ ⇒ 用户
+    // 看到的界面不该出现内部架构名「端脑」⇒ ⇒ 产品名是「大脑」（见台账
+    // U+354E 条那一族）。
     await tester.pumpAndSettle();
-    expect(find.text('Telencephalon Flows'), findsOneWidget);
+    expect(find.text('Brain Flows'), findsOneWidget);
   });
 
   testWidgets('renders Active / Drafts tabs', (tester) async {
