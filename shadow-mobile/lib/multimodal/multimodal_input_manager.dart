@@ -59,6 +59,13 @@ class MultimodalInputManager {
     return null;
   }
 
+  /// **把一张图片读成端脑协议要的那一档**（base64 + MIME）。
+  ///
+  /// ⚠️ 为什么在这里露一个口：媒体类型**从扩展名推**⇒ ⇒ 那件事归
+  /// [`ImageInputHandler`] ⇒ ⇒ 别处各猜一份 ⇒ ⇒ 迟早漂。
+  Future<ImageEncodeResult> encodeImageForTelencephalon(File file) =>
+      _imageHandler.encodeForTelencephalon(file);
+
   /// **内建相机**拍回来的文件 ⇒ ⇒ 收进来挂成附件（照片或录像）。
   ///
   /// ⚠️ 拍照那条路在 2026-11-16 那一刀里从**系统相机**换成了 **App 内建

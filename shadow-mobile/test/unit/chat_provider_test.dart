@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,6 +21,14 @@ class MockTelencephalonClient extends TelencephalonClient {
   /// 建了几次会话 —— 用来断言「附件被拒时**根本没到端脑**」。
   int createConversationCalls = 0;
   int streamMessageCalls = 0;
+
+  /// **最后一次发出去的请求** —— 用来断言「图片**真的**进了请求体」。
+  ///
+  /// ⚠️ 为什么必须有它：以前这条链是「带附件 ⇒ 报错 ⇒ 压根没发」⇒ ⇒
+  /// 「没发」这件事由 `streamMessageCalls == 0` 就能看出来 ⇒ ⇒ 现在图片
+  /// **真的发了** ⇒ ⇒ 那个计数**证明不了**「图在不在里面」⇒ ⇒ 必须把
+  /// 请求体本身抓下来看。
+  SendMessageRequest? lastRequest;
 
   MockTelencephalonClient() : super(baseUrl: 'http://127.0.0.1:60080');
 
@@ -47,6 +57,7 @@ class MockTelencephalonClient extends TelencephalonClient {
     SendMessageRequest req,
   ) async* {
     streamMessageCalls++;
+    lastRequest = req;
     if (!shouldSucceed) {
       throw Exception('Mock streamMessage failed');
     }
@@ -197,25 +208,124 @@ void main() {
       container = makeContainer(mockTts, mockClient);
     });
 
-    test('带图片 → 明确报错，且根本没到端脑', () async {
+    test('带图片 → 真的发到端脑，请求体里带着那张图', () async {
+      // ⚠️ **这一格的口径变了**（2026-11-16 这一刀）。
+      //
+      // 以前是「带图片 ⇒ 明确报错，且根本没到端脑」⇒ ⇒ 钉的是「端脑链路
+      // 只处理纯文本」⇒ ⇒ 而那句话**现在是假的**（图片已经能发了）⇒ ⇒
+      // 判据不改的话，它会**红**，而它红的原因不是代码坏了，是**它钉的
+      // 那个世界变了**。
+      //
+      // ⇒ ⇒ 同一个意图（「不许静默丢附件」）**换一条更狠的钉法**：
+      // 以前「没到端脑」就能证明「没丢」（因为压根没发）⇒ ⇒ 现在图**真的
+      // 发了** ⇒ ⇒ 「没丢」必须由**请求体里那张图**来证明 ⇒ ⇒ 判据升级
+      // 成「请求体带 images，且 base64 与文件字节逐字一致」。
+      final dir = await Directory.systemTemp.createTemp('shadow-img-');
+      addTearDown(() => dir.delete(recursive: true));
+      final file = File('${dir.path}/IMG_1.jpg');
+      final bytes = Uint8List.fromList([0xFF, 0xD8, 0xFF, 0xE0, 1, 2, 3, 4]);
+      await file.writeAsBytes(bytes);
+
       final attachment = MultimodalInput(
         type: MultimodalInputType.image,
+        data: file,
+        path: file.path,
+      );
+
+      await container
+          .read(chatProvider.notifier)
+          .generateResponseWithAttachments('这是什么', [attachment]);
+
+      final state = container.read(chatProvider);
+      expect(state.errorMessage, isNull);
+      // 图**真的**发出去了。
+      expect(mockClient.streamMessageCalls, 1);
+      final images = mockClient.lastRequest?.images;
+      expect(images, isNotNull, reason: 'the request must carry the image');
+      expect(images!.length, 1);
+      expect(images.first['media_type'], 'image/jpeg');
+      // base64 必须与文件字节**逐字**一致 ⇒ ⇒ 不能是空串、不能是文件名。
+      expect(images.first['data'], base64Encode(bytes));
+      // ⚠️ **还要钉住「真正发出去的那个形状」** ⇒ ⇒ 请求**对象**里带着图
+      // **不等于**请求**体**里带着图 ⇒ ⇒ 真机上发出去的是 `toJson()` 的
+      // 结果 ⇒ ⇒ 只断言对象 ⇒ ⇒ 变异掉 `toJson` 那一条**照样全绿**
+      // （实测踩过：变异 `toJson` 不带 images ⇒ ⇒ 下面这条判据**没红**，
+      // 而「请求体形状」那条红了 ⇒ ⇒ 两处都得钉）。
+      final wire = mockClient.lastRequest!.toJson();
+      expect(wire.containsKey('images'), isTrue);
+      final wireImages = wire['images'] as List<dynamic>;
+      expect(wireImages.length, 1);
+      expect((wireImages.first as Map<String, dynamic>)['data'], base64Encode(bytes));
+      // 消息**真的**进了对话流 ⇒ ⇒ 用户不会以为它发出去了却没发。
+      expect(state.messages.length, 2);
+      // 候选行清空 ⇒ ⇒ 用户再点一次发送不会把同一张图**再发一遍**。
+      expect(state.attachments, isEmpty);
+    });
+
+    test('图片格式不认识 → 明确报错，且根本没到端脑', () async {
+      final dir = await Directory.systemTemp.createTemp('shadow-img-');
+      addTearDown(() => dir.delete(recursive: true));
+      // ⚠️ 扩展名不在那张表里 ⇒ ⇒ 端脑那边没有「认这个格式」的办法
+      // ⇒ ⇒ 必须在**发出去之前**就说清楚 ⇒ ⇒ 绝不许把一段未知字节
+      // 假装成图片发出去。
+      final file = File('${dir.path}/IMG_1.heic');
+      await file.writeAsBytes(Uint8List.fromList([1, 2, 3, 4]));
+
+      final attachment = MultimodalInput(
+        type: MultimodalInputType.image,
+        data: file,
+        path: file.path,
+      );
+
+      await container
+          .read(chatProvider.notifier)
+          .generateResponseWithAttachments('这是什么', [attachment]);
+
+      final state = container.read(chatProvider);
+      expect(
+        state.errorMessageL10nKey,
+        equals(ChatStateL10nKey.errorAttachmentImageFailed),
+      );
+      expect(state.errorMessage, contains('format'));
+      expect(mockClient.streamMessageCalls, 0);
+      expect(state.messages, isEmpty);
+    });
+
+    test('图片文件读不出 → 明确报错，且根本没到端脑', () async {
+      final attachment = MultimodalInput(
+        type: MultimodalInputType.image,
+        data: File('/definitely/not/here/IMG_1.jpg'),
+        path: '/definitely/not/here/IMG_1.jpg',
+      );
+
+      await container
+          .read(chatProvider.notifier)
+          .generateResponseWithAttachments('这是什么', [attachment]);
+
+      final state = container.read(chatProvider);
+      expect(
+        state.errorMessageL10nKey,
+        equals(ChatStateL10nKey.errorAttachmentImageFailed),
+      );
+      expect(mockClient.streamMessageCalls, 0);
+    });
+
+    test('带视频附件 → 仍然明确报错（这一刀只通了图片）', () async {
+      final attachment = MultimodalInput(
+        type: MultimodalInputType.video,
         data: null,
-        path: '/test/image.jpg',
+        path: '/test/video.mp4',
       );
 
       await container
           .read(chatProvider.notifier)
           .generateResponseWithAttachments('', [attachment]);
 
-      final state = container.read(chatProvider);
-      expect(state.errorMessage, equals(currentL10n().chatAttachmentNotAvailable));
-      expect(state.errorMessageL10nKey, equals(ChatStateL10nKey.errorAttachmentNotAvailable));
-      // 附件被拒 ⇒ 连会话都没建，更没发过消息。
-      expect(mockClient.createConversationCalls, 0);
+      expect(
+        container.read(chatProvider).errorMessage,
+        equals(currentL10n().chatAttachmentNotAvailable),
+      );
       expect(mockClient.streamMessageCalls, 0);
-      // 消息**没有**进对话流 —— 用户不会以为它发出去了。
-      expect(state.messages, isEmpty);
     });
 
     test('带相机照片 → 同样明确报错', () async {
