@@ -2189,8 +2189,14 @@ abstract class AppLocalizations {
   /// No description provided for @chatAttachmentNotAvailable.
   ///
   /// In en, this message translates to:
-  /// **'Only plain text is supported right now - images, files and other attachments are not supported yet'**
+  /// **'Images can be sent to the model now; video, files and audio are not wired up yet'**
   String get chatAttachmentNotAvailable;
+
+  /// No description provided for @chatAttachmentImageFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'This image could not be sent: {reason}'**
+  String chatAttachmentImageFailed(String reason);
 
   /// No description provided for @chatSorryError.
   ///

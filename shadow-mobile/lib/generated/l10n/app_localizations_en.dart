@@ -1144,7 +1144,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatAttachmentNotAvailable =>
-      'Only plain text is supported right now - images, files and other attachments are not supported yet';
+      'Images can be sent to the model now; video, files and audio are not wired up yet';
+
+  @override
+  String chatAttachmentImageFailed(String reason) {
+    return 'This image could not be sent: $reason';
+  }
 
   @override
   String chatSorryError(String error) {

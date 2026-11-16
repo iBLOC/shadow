@@ -1129,7 +1129,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get chatGreeting => '你好，我是Shadow，有什么可以帮你的吗？';
 
   @override
-  String get chatAttachmentNotAvailable => '端脑链路当前只处理纯文本，图片、文件等附件暂不支持';
+  String get chatAttachmentNotAvailable => '图片可以直接发给模型看了；视频、文件、音频这条链路还没接上';
+
+  @override
+  String chatAttachmentImageFailed(String reason) {
+    return '这张图片发不出去：$reason';
+  }
 
   @override
   String chatSorryError(String error) {
