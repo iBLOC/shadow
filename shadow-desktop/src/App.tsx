@@ -37,6 +37,7 @@ import { ProvidersPage } from './pages/ProvidersPage';
 import { TracePage } from './pages/TracePage';
 import { DocumentPage } from './pages/DocumentPage';
 import { PreviewsPage } from './pages/PreviewsPage';
+import { ResourcesPage } from './pages/ResourcesPage';
 import { ComputerUsePage } from './pages/ComputerUsePage';
 import { WorkflowStudioPage } from './pages/WorkflowStudioPage';
 import { JdmEditorPage } from './pages/JdmEditorPage';
@@ -150,6 +151,7 @@ function App() {
           <Route path="logs" element={<LogsPage />} />
           <Route path="document/:taskId" element={<DocumentPage />} />
           <Route path="previews" element={<PreviewsPage />} />
+          <Route path="resources" element={<ResourcesPage />} />
           <Route path="computer-use" element={<ComputerUsePage />} />
           <Route path="workflow-studio" element={<WorkflowStudioPage />} />
           <Route path="cortex-status" element={<TelencephalonStatusPage />} />

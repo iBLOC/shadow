@@ -1390,6 +1390,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get surfaceMemory => '记忆';
 
   @override
+  String get surfaceResources => '资源管理';
+
+  @override
   String get surfacePromptSettings => '提示词';
 
   @override

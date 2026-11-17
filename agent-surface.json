@@ -199,6 +199,14 @@
       "mobile": { "route": "/manage/memory", "nav": false }
     },
     {
+      "id": "resources",
+      "group": "capability",
+      "labelKey": "surface.resources",
+      "icon": "file",
+      "desktop": { "route": "/resources", "nav": true },
+      "mobile": { "route": null, "nav": false, "_endSideExclusive": "资源管理这一刀只做桌面端（2026-11-17）—— 海马体的文档面（/api/documents/*）是**两端共用**的，但移动端的入口与页面还没做 ⇒ ⇒ 桌面端先把「文件/产物」这一格立起来。⚠️ 桌面端专属 ≠ 能力专属：移动端接上同一个端点就能用。"}
+    },
+    {
       "id": "prompt-settings",
       "group": "capability",
       "labelKey": "surface.promptSettings",
@@ -339,6 +347,7 @@
             "mcp",
             "skills",
             "memory",
+            "resources",
             "flows",
             "prompt-settings",
             "workflow-studio"

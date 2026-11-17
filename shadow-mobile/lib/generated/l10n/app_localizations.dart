@@ -2672,6 +2672,12 @@ abstract class AppLocalizations {
   /// **'Memory'**
   String get surfaceMemory;
 
+  /// No description provided for @surfaceResources.
+  ///
+  /// In en, this message translates to:
+  /// **'Resources'**
+  String get surfaceResources;
+
   /// No description provided for @surfacePromptSettings.
   ///
   /// In en, this message translates to:

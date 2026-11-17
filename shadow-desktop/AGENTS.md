@@ -1,3 +1,17 @@
+**Updated:** 2026-11-17 (㕻 **「桌面端「资源管理」页 —— 文件与产物能上传、能搜、能取回、能改名、能删；且「读不到」不许画成「没有」」** —— 承海马体 U+3283／U+3284 两条（文档面）与影仓 U+357A 条，本条记**本仓落点**、**判据与真变异**、**承载级真读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-17 | authority=measured | scope=project | source=承海马体 U+3283／U+3284 两条（文档面）与影仓 U+357A 条｜ 改动：src/lib/documentsClient.ts（**新**）＋ src/pages/ResourcesPage.tsx（**新**）＋ src/App.tsx（路由）＋ src/i18n/{zh-CN,en-US}.json ＋ src/navigation/nav.g.ts（重生成）＋ src/lib/__tests__/documentsClient.test.ts（**新**，13 条）＋ src/pages/__tests__/ResourcesPage.test.tsx（**新**，11 条）＋ tests/lib/resourcesLive.test.ts（**新**，7 条）＋ 本条 ⇒ ⇒ **10 文件** ＋ 零新增依赖 ＋ 零新增端点 ｜ 读数：本仓判据 **24 过 / 0 红**（客户端 13 ＋ 页面 11）＋ 承载级 live **7 过 / 0 红**（真 hippocampus 服务 ＋ 真 blob 目录）＋ 桌面全量 **1782 过 / 1 红 / 18 跳**（那 1 红 ＝ **存量债**：桌面 i18n「端脑这次没有画界面。」vs 移动端 ARB「大脑这次没有画界面。」⇒ ⇒ **HEAD 就是红的**，零命中本刀文件）＋ tsc -b **0 错** ＋ eslint **0 问题** ｜ **5 道真变异**各当场红（1／2／1／1／1）、还原后 sha256 逐字一致 ｜ 闸：**45 绿 / 15 红 / 2 判不了**（62 道脚本闸全跑；十五道红**逐字零命中本刀文件** ⇒ ⇒ 不代修、不销账 —— ⚠️ 两处提到 agent-surface.json 的是**存量债**：替换字符闸那边 HEAD／工作树／提交版**都是 3 个 U+FFFD**（本刀**零新增**），遗留残留闸**自己写着**「能力清单正在被别的会话改，本轮不动它」；⚠️ 2 道**判不了**（exit 2，不算红）：check-ci-actually-ran（要 CI 上下文）＋ check-msrv-floor（仓级脚本）） | status=active | supersedes=none
+
+① **⚠️ 本仓落点** —— ❶ src/lib/documentsClient.ts（**新**）：六个动词 ＋ **裸字节通道**（上传／下载都不走 JSON）＋ **两半方言**（请求 camelCase／响应 snake_case）＋ 租户只认身份 store 的人格。❷ src/pages/ResourcesPage.tsx（**新**）：列表／搜索／上传／下载／改名／删除；**读不到 ≠ 没有**（读失败**只画错误**，空态**不画**）；**删除三事实分开说**（deleted／bytesDeleted／bytesError ⇒ ⇒「索引删了、字节还在」**走错误通道**）。❸ 接线：src/App.tsx 加 /resources 路由 ＋ src/i18n/{zh-CN,en-US}.json 加 surface.resources 与 resources.* 一段（26 键）＋ src/navigation/nav.g.ts 重生成（进「能力与资源」组，紧挨「记忆」）。
+
+② **✅ 判据与真变异** —— ❶ 客户端契约 **13 条**（含「上传走裸字节」「删除回包是 snake_case」「两个通道分开回」「地址跟随端脑配置」）。❷ 页面行为 **11 条**（含「读失败不画空态」「空名字不许提交」）。❸ 承载级 live **7 条**（describe.skipIf(!LIVE) ⇒ 默认整组跳过 ⇒ **不假装绿**）。❹ **5 道真变异**各**当场红**（1／2／1／1／1）⇒ ⇒ 每道还原后 **sha256 逐字一致**。
+
+③ **✅ 承载级真读数** —— 真 hippocampus 服务（独立形态 ＋ BLOB_BACKEND=fs）＋ 真 HTTP ＋ 真 blob 目录 ⇒ ⇒ **live 判据 7/7** ⇒ ⇒ 上传的**二进制逐字节取回一致**（sha256 相同 ⇒ ⇒ 没有被悄悄转成 Base64）＋ 改名后列表真的变了 ＋ 删除回包三事实齐 ＋ 负控（删后再取 ⇒ 404）。⚠️ 客户端打的是 {端脑}/hippocampus/... ⇒ ⇒ 真读数里用**代理**补上那一层嵌套 ⇒ ⇒ 客户端**一字不改**。
+
+④ **⚠️ 仍然欠着的** —— ❶ **落盘**（选目录保存）没有：桌面端无 fs/dialog 插件 ⇒ ⇒ 下载走浏览器下载通道。❷ **按 kind 过滤**没有（metadata.kind 是自由词表）。❸ **PDF/DOCX 抽取**没有 ⇒ ⇒ 二进制**只能按名字**搜到（行里如实标）。❹ **真端脑里跑**没有（端脑编不过 ⇒ ⇒ 本刀的承载级读数是**真 hippocampus ＋ 代理**）。❺ **端点映射表**没有登记本仓这个新客户端（那道闸只扫移动端全树 ＋ 表内文件 ⇒ ⇒ 如实标注）。
+
+⑤ **⚠ 圈码：本条占 U+357B (㕻)** —— 落笔前**逐字重扫**五本账本（Node 读文件）⇒ ⇒ 桌面端水位 U+3579 ⇒ ⇒ 从 U+357A 起五本皆 0 命中 ⇒ ⇒ 桌面端取 **U+357B**（高于自己那一本的水位；父仓那条取 U+357A、移动端那条取 U+357C ⇒ ⇒ 三枚**互不相同**）⇒ ⇒ 字形由 String.fromCodePoint() 生成，不手打。
+
 **Updated**: 2026-11-17 (㕹 **「桌面这一侧多了 AG-UI 的活体联调判据 —— 客户端代码第一次能对着**活的**端脑被验」** —— 承影仓 U+3573 条（真机那一格），本条记**本仓落点**、**判据形状**、**读数状态**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-17 | authority=measured | scope=project | source=承影仓 U+3573 条（真机那一格）｜ 改动：`src/lib/agui/__tests__/agui.live.test.ts`（**新**）＋ 本条 ⇒ ⇒ **2 文件** ＋ 零新增依赖 ＋ 零新增端点 ｜ 读数：`tsc --noEmit` **0 错** ＋ 本仓 AG-UI 判据 **45 过 / 0 红 / 2 跳**（活体那 2 条**没设备时整组跳过** ⇒ ⇒ **不是「跑过」**）| status=active | supersedes=none

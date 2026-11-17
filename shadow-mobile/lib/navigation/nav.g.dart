@@ -178,6 +178,8 @@ String navLabel(AppLocalizations l10n, String labelKey) {
       return l10n.surfaceProvisioning;
     case 'surface.resonance':
       return l10n.surfaceResonance;
+    case 'surface.resources':
+      return l10n.surfaceResources;
     case 'surface.settings':
       return l10n.surfaceSettings;
     case 'surface.setup':

@@ -760,6 +760,7 @@
   "surfaceMcp": "MCP tools",
   "surfaceSkills": "Skills",
   "surfaceMemory": "Memory",
+  "surfaceResources": "Resources",
   "surfacePromptSettings": "Prompts",
   "surfaceFlows": "Flows",
   "surfaceWorkflowStudio": "Workflow studio",

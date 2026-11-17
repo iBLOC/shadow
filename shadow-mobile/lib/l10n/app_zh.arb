@@ -738,6 +738,7 @@
   "surfaceMcp": "MCP 工具",
   "surfaceSkills": "技能",
   "surfaceMemory": "记忆",
+  "surfaceResources": "资源管理",
   "surfacePromptSettings": "提示词",
   "surfaceFlows": "流程",
   "surfaceWorkflowStudio": "编排",

@@ -1409,6 +1409,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get surfaceMemory => 'Memory';
 
   @override
+  String get surfaceResources => 'Resources';
+
+  @override
   String get surfacePromptSettings => 'Prompts';
 
   @override

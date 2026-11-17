@@ -1,3 +1,17 @@
+**Updated:** 2026-11-17 (㕼 **「移动端这一侧：清单登记 ＋ 文案补齐 —— 「资源管理」这一格在两端同名同义；移动端入口待接线」** —— 承影仓 U+357A 条（桌面端资源管理页），本条记**本仓那一半**、**为什么必须动移动端**、**读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-17 | authority=measured | scope=project | source=承影仓 U+357A 条（桌面端资源管理页）｜ 改动：lib/l10n/app_{en,zh}.arb（＋surfaceResources）＋ lib/generated/l10n/×3（重生成）＋ lib/navigation/nav.g.dart（重生成）＋ 本条 ⇒ ⇒ **7 文件** ＋ 零新增依赖 ＋ 零新增端点 ｜ 读数：flutter analyze（生成物两处）**No issues found** ＋ 跨端一致性闸 **0 阻断 / 0 提示** ＋ i18n 齐备度 **1100/1100** ｜ 闸：**45 绿 / 15 红 / 2 判不了**（62 道脚本闸全跑；十五道红**逐字零命中本刀文件** ⇒ ⇒ 不代修、不销账 —— ⚠️ 两处提到 agent-surface.json 的是**存量债**：替换字符闸那边 HEAD／工作树／提交版**都是 3 个 U+FFFD**（本刀**零新增**），遗留残留闸**自己写着**「能力清单正在被别的会话改，本轮不动它」；⚠️ 2 道**判不了**（exit 2，不算红）：check-ci-actually-ran（要 CI 上下文）＋ check-msrv-floor（仓级脚本）） | status=active | supersedes=none
+
+① **⚠️ 为什么这一刀**必须**动本仓六份文件** —— ❶ 能力清单里的 labelKey 由 collectLabelKeys() **全部**收集 ⇒ ⇒ 连**桌面端专属**的能力（surface.computerUse／surface.jdmEditor／surface.trace）在移动端 ARB 里**也都有文案** ⇒ ⇒ 「资源管理」新增一格 ⇒ ⇒ 移动端 ARB **必须**有 surfaceResources，否则跨端闸报提示、且 nav.g.dart 会引用一个不存在的 getter ⇒ ⇒ **Dart 编译断**。❷ navLabel switch 覆盖**全部**能力 ⇒ ⇒ nav.g.dart 必改 ⇒ ⇒ 两份 nav 生成物与清单同源（gen_nav --check「已是最新」）。
+
+② **✅ 本仓那一半** —— lib/l10n/app_{en,zh}.arb 各加 surfaceResources（＝「资源管理」／「Resources」）＋ lib/generated/l10n/×3 重生成 ＋ lib/navigation/nav.g.dart 重生成 ⇒ ⇒ **只动文案与生成物**，**零** Dart 业务代码改动 ⇒ ⇒ 本仓页面与路由**一个字没动** ⇒ ⇒ 移动端入口明确**待接线**（清单里 mobile.route: null ＋ _endSideExclusive 写清「桌面端专属 ≠ 能力专属」）。
+
+③ **⚠️ 读数（如实）** —— ❶ flutter analyze（lib/navigation/nav.g.dart ＋ lib/generated/l10n）**No issues found** ⇒ ⇒ 新 getter 解析得到 ⇒ ⇒ 移动端仍编得过。❷ ⚠️ gen-l10n 前后**逐行比对**：只有**新增**、**零删除** ⇒ ⇒ 证明兄弟的 ARB 与生成物本来同步 ⇒ ⇒ 本次重生成**没有回退**任何在飞改动。❸ 跨端一致性闸 **0 阻断 / 0 提示**（桌面端路由 27 条／移动端 27 条／清单能力 34 条；导航生成物 2 个目标 0 过期）＋ i18n 齐备度 **1100/1100**。
+
+④ **⚠️ 仍然欠着的** —— ❶ **移动端入口与页面**没做（本刀只把清单与文案登记齐 ⇒ ⇒ 能力清单里这一格在移动端是 route: null）。❷ **真机读数**欠着（本刀的真读数在桌面端 ＋ 真 hippocampus，不在手机上）。❸ **按 kind 过滤**与 **PDF/DOCX 抽取**欠着（服务端那一侧）。
+
+⑤ **⚠ 圈码：本条占 U+357C (㕼)** —— 落笔前**逐字重扫**五本账本（Node 读文件）⇒ ⇒ 移动端水位 U+3575 ⇒ ⇒ 从 U+357A 起五本皆 0 命中 ⇒ ⇒ 移动端取 **U+357C**（高于自己那一本的水位；父仓 U+357A／桌面端 U+357B ⇒ ⇒ 三枚**互不相同**）⇒ ⇒ 字形由 String.fromCodePoint() 生成，不手打。
+
 **Updated**: 2026-11-17 (㕵 **「真机那一格:手机里的端脑**真的**跑 AG-UI —— 真事件序列进判据面了」** —— 承影仓 U+356C 条（移动端 driver 那一族），本条记**本仓那一半**、**真机读数**、**一个真发现**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-17 | authority=measured | scope=project | source=承影仓 U+356C 条（移动端 driver 那一族）｜ 改动：`test/unit/agui_client_test.dart`（＋2 条真机 fixture 判据）＋ 本条 ⇒ ⇒ **2 文件** ＋ 零新增依赖 ＋ 零新增端点 ｜ 读数：移动端协议层判据 **21 过 / 0 红**（19 ＋ 真机 fixture 2）＋ 全量 **1064 过 / 0 红 / 13 跳** ｜ 真机：**5 帧真事件 ＋ 真模型回话**（探针在父仓 `scripts/prove-agui-on-device.ps1`，退出码 0）｜ 闸：**13 绿 / 8 红**（八道红**零命中本刀文件** ⇒ ⇒ 不代修、不销账）| status=active | supersedes=none
