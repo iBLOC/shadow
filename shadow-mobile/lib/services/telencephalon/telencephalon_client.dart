@@ -2267,8 +2267,20 @@ class NeuronCatalogEntry {
   final bool available;
   final int? sizeBytes;
 
-  /// 默认仓库（`huggingface:owner/repo`）—— **直接当 pull 的 reference**。
+  /// 默认仓库（`modelscope:owner/repo` / `huggingface:owner/repo`）
+  /// —— **直接当 pull 的 reference**。
   final String? defaultRepo;
+
+  /// 引擎档（candle / mistralrs / litert / …）—— 同一个模型在不同
+  /// 引擎下**要下载的文件不一样**，行上把它亮出来，用户挑的才是
+  /// 「引擎 × 模型」。
+  final String engineImpl;
+
+  /// false ＝ 历史支持模型库（老模型：仍可下载，不再推荐）。
+  final bool recommended;
+
+  /// 主源 id（modelscope / hf-mirror / huggingface）—— 国内默认魔搭。
+  final String source;
 
   /// 目录自带的**能力词**（llm / vision / asr / tts / embedding / rerank…）
   /// —— 端脑的能力目录说了算 ⇒ ⇒ 下载后客户端拿它当**默认参数**，
@@ -2281,6 +2293,9 @@ class NeuronCatalogEntry {
     required this.available,
     this.sizeBytes,
     this.defaultRepo,
+    this.engineImpl = '',
+    this.recommended = true,
+    this.source = '',
     this.capabilities = const [],
   });
 
@@ -2291,6 +2306,9 @@ class NeuronCatalogEntry {
         available: json['available'] as bool? ?? false,
         sizeBytes: json['size_bytes'] as int?,
         defaultRepo: json['default_repo'] as String?,
+        engineImpl: json['engine_impl'] as String? ?? '',
+        recommended: json['recommended'] as bool? ?? true,
+        source: json['source'] as String? ?? '',
         capabilities:
             (json['capabilities'] as List?)?.whereType<String>().toList() ??
             const [],

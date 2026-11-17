@@ -2397,6 +2397,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get providersDownloadEmpty => 'The brain returned no model catalog';
 
   @override
+  String get providersDownloadRecommended => 'Recommended';
+
+  @override
+  String providersDownloadLegacy(int count) {
+    return 'Legacy model library ($count)';
+  }
+
+  @override
+  String get providersDownloadLegacyHint =>
+      'Older-generation models: no longer recommended, still downloadable.';
+
+  @override
   String clientToolsImageGenerated(int count, String size) {
     return 'Generated $count image(s) ($size) and showed them to the user.';
   }

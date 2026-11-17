@@ -4400,6 +4400,24 @@ abstract class AppLocalizations {
   /// **'The brain returned no model catalog'**
   String get providersDownloadEmpty;
 
+  /// No description provided for @providersDownloadRecommended.
+  ///
+  /// In en, this message translates to:
+  /// **'Recommended'**
+  String get providersDownloadRecommended;
+
+  /// No description provided for @providersDownloadLegacy.
+  ///
+  /// In en, this message translates to:
+  /// **'Legacy model library ({count})'**
+  String providersDownloadLegacy(int count);
+
+  /// No description provided for @providersDownloadLegacyHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Older-generation models: no longer recommended, still downloadable.'**
+  String get providersDownloadLegacyHint;
+
   /// No description provided for @clientToolsImageGenerated.
   ///
   /// In en, this message translates to:

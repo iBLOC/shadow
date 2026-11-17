@@ -1261,6 +1261,14 @@
     }
   },
   "providersDownloadEmpty": "大脑没有返回模型目录",
+  "providersDownloadRecommended": "推荐",
+  "providersDownloadLegacy": "历史支持模型库（{count}）",
+  "@providersDownloadLegacy": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "providersDownloadLegacyHint": "老一代模型：不再推荐，仍可下载。",
   "clientToolsImageGenerated": "已生成 {count} 张图片（{size}），已展示给用户。",
   "@clientToolsImageGenerated": {
     "placeholders": {

@@ -1297,6 +1297,14 @@
     }
   },
   "providersDownloadEmpty": "The brain returned no model catalog",
+  "providersDownloadRecommended": "Recommended",
+  "providersDownloadLegacy": "Legacy model library ({count})",
+  "@providersDownloadLegacy": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "providersDownloadLegacyHint": "Older-generation models: no longer recommended, still downloadable.",
   "clientToolsImageGenerated": "Generated {count} image(s) ({size}) and showed them to the user.",
   "@clientToolsImageGenerated": {
     "placeholders": {

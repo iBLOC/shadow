@@ -48,6 +48,33 @@ void main() {
       expect(e.engine, '');
       expect(e.available, isFalse);
     });
+
+    test('引擎档／推荐档／主源三个新字段（2026-11-18 那一刀）', () {
+      // 老模型：recommended=false ⇒ 进「历史支持模型库」段。
+      final legacy = NeuronCatalogEntry.fromJson(const {
+        'id': 'llm/qwen2.5-0.5b',
+        'engine': 'llm',
+        'engine_impl': 'candle',
+        'recommended': false,
+        'source': 'modelscope',
+        'default_repo': 'modelscope:Qwen/Qwen2.5-0.5B-Instruct',
+        'available': false,
+      });
+      expect(legacy.engineImpl, 'candle');
+      expect(legacy.recommended, isFalse);
+      expect(legacy.source, 'modelscope');
+
+      // 当前世代：recommended 缺字段 ⇒ 兜底 true（不许把老服务的目录
+      // 全画进历史库）。
+      final modern = NeuronCatalogEntry.fromJson(const {
+        'id': 'llm/qwen3-0.6b',
+        'engine': 'llm',
+        'available': false,
+      });
+      expect(modern.recommended, isTrue);
+      expect(modern.engineImpl, '');
+      expect(modern.source, '');
+    });
   });
 
   group('NeuronPullJob.fromJson（下载任务）', () {

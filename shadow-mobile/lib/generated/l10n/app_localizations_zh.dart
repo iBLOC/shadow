@@ -2321,6 +2321,17 @@ class AppLocalizationsZh extends AppLocalizations {
   String get providersDownloadEmpty => '大脑没有返回模型目录';
 
   @override
+  String get providersDownloadRecommended => '推荐';
+
+  @override
+  String providersDownloadLegacy(int count) {
+    return '历史支持模型库（$count）';
+  }
+
+  @override
+  String get providersDownloadLegacyHint => '老一代模型：不再推荐，仍可下载。';
+
+  @override
   String clientToolsImageGenerated(int count, String size) {
     return '已生成 $count 张图片（$size），已展示给用户。';
   }

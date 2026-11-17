@@ -336,28 +336,76 @@ class _NeuronDownloadSheetState extends ConsumerState<NeuronDownloadSheet> {
       );
     }
     final downloadedCount = catalog.where((e) => e.available).length;
-    // 按 engine 分组（llm / asr / tts / embedding…），保持服务端顺序。
+    // ⚠️ 两段式（2026-11-18 用户逐字：「像 qwen2.5 这类的老模型不再
+    // 推荐下载 用户可以在历史支持模型库中选择下载」）：推荐档在上
+    // （当前世代），老模型收进「历史支持模型库」—— **仍可下载**，
+    // 只是折叠起来不占推荐位。判据来自服务端目录的 `recommended`
+    // 字段（neuron LEGACY_MODEL_IDS 说了算），客户端不维护第二份清单。
+    final recommended =
+        catalog.where((e) => e.recommended).toList(growable: false);
+    final legacy = catalog.where((e) => !e.recommended).toList(growable: false);
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Text(
+            '${l10n.providersDownloadedOnly} $downloadedCount · ${catalog.length}',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ),
+        if (recommended.isNotEmpty) ...[
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              l10n.providersDownloadRecommended,
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: AppColors.darkTextSecondary,
+                  ),
+            ),
+          ),
+          ..._tierSections(context, l10n, recommended),
+        ],
+        if (legacy.isNotEmpty)
+          Theme(
+            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+            child: ExpansionTile(
+              tilePadding: EdgeInsets.zero,
+              childrenPadding: const EdgeInsets.only(left: 12, bottom: 8),
+              initiallyExpanded: false,
+              maintainState: true,
+              title: Text(
+                l10n.providersDownloadLegacy(legacy.length),
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      color: AppColors.darkTextSecondary,
+                    ),
+              ),
+              subtitle: Text(
+                l10n.providersDownloadLegacyHint,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              children: _tierSections(context, l10n, legacy, inset: false),
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// 一个档位（推荐 / 历史库）里的条目按 engine 分组渲染 ——
+  /// 保持服务端顺序，组头是 engine 名。
+  List<Widget> _tierSections(
+    BuildContext context,
+    AppLocalizations l10n,
+    List<NeuronCatalogEntry> entries, {
+    bool inset = true,
+  }) {
     final groups = <String, List<NeuronCatalogEntry>>{};
-    for (final e in catalog) {
+    for (final e in entries) {
       groups.putIfAbsent(e.engine.isEmpty ? '-' : e.engine, () => []).add(e);
     }
-    return ListView.builder(
-      shrinkWrap: true,
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-      itemCount: groups.length + 1,
-      itemBuilder: (context, index) {
-        if (index == 0) {
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Text(
-              '${l10n.providersDownloadedOnly} $downloadedCount · ${catalog.length}',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          );
-        }
-        final engine = groups.keys.elementAt(index - 1);
-        final entries = groups[engine]!;
-        return Column(
+    return [
+      for (final engine in groups.keys)
+        Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
@@ -369,31 +417,34 @@ class _NeuronDownloadSheetState extends ConsumerState<NeuronDownloadSheet> {
                     ),
               ),
             ),
-            for (final e in entries)
-              _EntryTile(
-                entry: e,
-                job: _jobFor(e),
-                starting: _starting.contains(e.id),
-                onDownload: () => _download(e),
-                onCancel: () {
-                  final job = _jobFor(e);
-                  if (job != null) _cancel(job.jobId);
-                },
-                fmtBytes: _fmtBytes,
-                progressLabel: (received, total) => total == null
-                    ? l10n.providersDownloadReceived(received)
-                    : l10n.providersDownloadProgress(received, total),
-                doneLabel: l10n.providersDownloadDone,
-                failedLabel: l10n.providersDownloadFailed,
-                retryLabel: l10n.providersDownloadRetry,
-                cancelLabel: l10n.commonCancel,
-                downloadLabel: l10n.providersDownloadAction,
-                downloadingLabel: l10n.providersDownloading,
+            for (final e in groups[engine]!)
+              Padding(
+                // 历史库的 ExpansionTile 自带 childrenPadding ⇒ 不再垫一层。
+                padding: EdgeInsets.only(left: inset ? 0 : 8, right: inset ? 0 : 8),
+                child: _EntryTile(
+                  entry: e,
+                  job: _jobFor(e),
+                  starting: _starting.contains(e.id),
+                  onDownload: () => _download(e),
+                  onCancel: () {
+                    final job = _jobFor(e);
+                    if (job != null) _cancel(job.jobId);
+                  },
+                  fmtBytes: _fmtBytes,
+                  progressLabel: (received, total) => total == null
+                      ? l10n.providersDownloadReceived(received)
+                      : l10n.providersDownloadProgress(received, total),
+                  doneLabel: l10n.providersDownloadDone,
+                  failedLabel: l10n.providersDownloadFailed,
+                  retryLabel: l10n.providersDownloadRetry,
+                  cancelLabel: l10n.commonCancel,
+                  downloadLabel: l10n.providersDownloadAction,
+                  downloadingLabel: l10n.providersDownloading,
+                ),
               ),
           ],
-        );
-      },
-    );
+        ),
+    ];
   }
 
   static String _fmtBytes(int? bytes) {
@@ -447,14 +498,42 @@ class _EntryTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final subtitle = <String>[
+      // 主源亮出来（modelscope / hf-mirror / huggingface）—— 「国内
+      // 模型从魔搭社区下载」在 UI 上要看得见，否则来源翻车只能猜。
+      if (entry.source.isNotEmpty) entry.source,
       if (entry.sizeBytes != null) fmtBytes(entry.sizeBytes),
     ];
     return ListTile(
       dense: true,
       contentPadding: EdgeInsets.zero,
-      title: Text(
-        entry.modelId,
-        style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+      title: Row(
+        children: [
+          Expanded(
+            child: Text(
+              entry.modelId,
+              style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+            ),
+          ),
+          // 引擎档徽标 —— 同一个模型在不同引擎下要下载的文件不一样
+          // （candle 吃 safetensors、litert 吃 tflite…），挑的必须是
+          // 「引擎 × 模型」，徽标让它可见。
+          if (entry.engineImpl.isNotEmpty)
+            Container(
+              margin: const EdgeInsets.only(left: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.secondaryContainer,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                entry.engineImpl,
+                style: TextStyle(
+                  fontSize: 10,
+                  color: theme.colorScheme.onSecondaryContainer,
+                ),
+              ),
+            ),
+        ],
       ),
       subtitle: subtitle.isEmpty
           ? null
@@ -522,6 +601,22 @@ class _EntryTile extends StatelessWidget {
               failedLabel,
               style: TextStyle(fontSize: 11, color: theme.colorScheme.error),
             ),
+            // ⚠️ 失败要**说真话**：服务端那行错误（404 ／ 401 ／ 建目录
+            // 失败 …）原样亮出来 —— 此前只画「下载失败」四个字，真原因
+            // 只在日志里 ⇒ 「失败长得像成功」的反面：失败长得像谜语。
+            if ((j.error ?? '').isNotEmpty)
+              SizedBox(
+                width: 180,
+                child: Text(
+                  j.error!,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.end,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.error.withValues(alpha: 0.8),
+                  ),
+                ),
+              ),
             TextButton(
               onPressed: onDownload,
               style: TextButton.styleFrom(

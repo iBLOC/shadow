@@ -1,3 +1,12 @@
+**Updated:** 2026-11-18 (㟁 **「桌面端这一侧只落一行：`model_dir: None` **显式不挪窝** —— 模型库的默认落点（`$HOME/.neuron/models`）在桌面上是可写的 ⇒ 已下载的模型库一个字节都不动；而「显式写 None」本身是闸钉着的形状」** —— 承 父仓 U+37BD 条（本地模型下载那一刀：`EmbeddedConfig` 新增 `model_dir` 字段），本条记**落点**、**为什么不挪窝**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-18 | authority=measured | scope=project | source=父仓 U+37BD 条（本地模型下载那一刀）｜ 改动：桌面端（**改** `src-tauri/src/lib.rs` 一行：`EmbeddedConfig` 构造补 `model_dir: None`）｜ 读数：桌面 `cargo check --lib`（src-tauri）**零 error** ＋ 父仓新闸 **7/7**（N5 钉着这一行的形状——缺了它就是「谁把桌面默认改成挪窝，历史下载全部变成没下载」） | status=active | supersedes=none
+
+① **✅ 落点与理由** —— neuron 那一刀给 `encephalon::EmbeddedConfig` 加了 `model_dir: Option<PathBuf>` 字段（宿主可指定本地模型库落点；手机侧从 `data_dir` 派生，因为 Android 进程没有 `$HOME`）⇒ ⇒ 桌面构造点必须显式表态：**None**。桌面进程有 `$HOME` ⇒ 默认落点 `~/.neuron/models` 可写 ⇒ 既有模型库不挪窝（挪了＝历史下载全部「变成没下载」＝失败长得像成功）。⚠️ 父仓闸 N5 钉着这一行：不是「可写可不写」，是**必须显式写 None**。
+
+② **⚠️ 仍然欠着的** —— ❶ **桌面下载面板没有两段式**（LocalEnginePanel 不认 `recommended` ⇒ 老模型照样混在推荐档）⇒ 另一刀；❷ 真机／真上游那一格与本刀无关，不占。
+
+③ **⚠ 圈码：本条占 U+37C1（㟁）** —— 承 父仓 U+37BD 条的取号（逐字扫十二本账本 ⇒ U+37C1 全局零命中 ＋ 高于本账水位 U+37A4；⚠️ U+37C0 已被兄弟在飞面占着 ⇒ 顺延跳过）⇒ 字形由 String.fromCodePoint() 生成，不手打。
 **Updated:** 2026-11-17 (㕻 **「桌面端「资源管理」页 —— 文件与产物能上传、能搜、能取回、能改名、能删；且「读不到」不许画成「没有」」** —— 承海马体 U+3283／U+3284 两条（文档面）与影仓 U+357A 条，本条记**本仓落点**、**判据与真变异**、**承载级真读数**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-17 | authority=measured | scope=project | source=承海马体 U+3283／U+3284 两条（文档面）与影仓 U+357A 条｜ 改动：src/lib/documentsClient.ts（**新**）＋ src/pages/ResourcesPage.tsx（**新**）＋ src/App.tsx（路由）＋ src/i18n/{zh-CN,en-US}.json ＋ src/navigation/nav.g.ts（重生成）＋ src/lib/__tests__/documentsClient.test.ts（**新**，13 条）＋ src/pages/__tests__/ResourcesPage.test.tsx（**新**，11 条）＋ tests/lib/resourcesLive.test.ts（**新**，7 条）＋ 本条 ⇒ ⇒ **10 文件** ＋ 零新增依赖 ＋ 零新增端点 ｜ 读数：本仓判据 **24 过 / 0 红**（客户端 13 ＋ 页面 11）＋ 承载级 live **7 过 / 0 红**（真 hippocampus 服务 ＋ 真 blob 目录）＋ 桌面全量 **1782 过 / 1 红 / 18 跳**（那 1 红 ＝ **存量债**：桌面 i18n「端脑这次没有画界面。」vs 移动端 ARB「大脑这次没有画界面。」⇒ ⇒ **HEAD 就是红的**，零命中本刀文件）＋ tsc -b **0 错** ＋ eslint **0 问题** ｜ **5 道真变异**各当场红（1／2／1／1／1）、还原后 sha256 逐字一致 ｜ 闸：**45 绿 / 15 红 / 2 判不了**（62 道脚本闸全跑；十五道红**逐字零命中本刀文件** ⇒ ⇒ 不代修、不销账 —— ⚠️ 两处提到 agent-surface.json 的是**存量债**：替换字符闸那边 HEAD／工作树／提交版**都是 3 个 U+FFFD**（本刀**零新增**），遗留残留闸**自己写着**「能力清单正在被别的会话改，本轮不动它」；⚠️ 2 道**判不了**（exit 2，不算红）：check-ci-actually-ran（要 CI 上下文）＋ check-msrv-floor（仓级脚本）） | status=active | supersedes=none

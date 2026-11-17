@@ -144,6 +144,33 @@ jobs:
       - name: Ontology network gate check (self-test)
         run: node shadow/scripts/check-ontology-network.mjs --self-test
 
+      # 本地模型下载闸 —— 「**手机上真的能把模型下下来、下下来就能用**」这一刀的门面。
+      # ⚠️ 它判 **neuron ＋ 端脑 ＋ 大脑宿主 ＋ 两端客户端**（neuron / telencephalon /
+      #    encephalon / shadow-mobile / shadow-desktop）⇒ ⇒ 必须在本 job（本 job 已
+      #    checkout 整套兄弟仓）⇒ ⇒ 布局 A/B 都命中 ⇒ ⇒ 不落「判不了」。
+      # ⚠️ 七条里两条是**负控**（ModelScope 源不许回潮 one-shot ＋ puller 失败路径
+      #    不许删目录）⇒ ⇒ 断点续传与「失败保现场」这两条纪律不许被悄悄拆掉。
+      # ⚠️ 用**默认**口径（不带 `--strict`）：「判不了」显眼但不阻断。
+      - name: Neuron model download gate check
+        run: node shadow/scripts/run-gate-once.mjs shadow/scripts/check-neuron-model-download.mjs
+
+      - name: Neuron model download gate check (self-test)
+        run: node shadow/scripts/check-neuron-model-download.mjs --self-test
+
+      # 叶区直发闸 —— 「**简单一次 ⇒ 直连；长程/定时 ⇒ 前额叶**」这一刀的门面。
+      # ⚠️ 它判**前额叶 ＋ 端脑**（prefrontal / telencephalon）⇒ ⇒ 必须在本 job
+      #    （本 job 已 checkout 整套兄弟仓）⇒ ⇒ 布局 A/B 都命中 ⇒ ⇒ 不落「判不了」。
+      # ⚠️ 它守的是**「直发 seam 这一面」**（出站身份 ＋ 定时任务打到叶区 ＋
+      #    dispatch_to_skill 不许分叉复制）⇒ ⇒ 摘掉它编译照样过 ⇒ ⇒ 唯一的
+      #    证据是**形状** ⇒ ⇒ 三条是**负控**（不许写死地址 ＋ 感知契约不许拆
+      #    ＋ 告示牌不许倒退回来）。
+      # ⚠️ 用**默认**口径（不带 `--strict`）：「判不了」显眼但不阻断。
+      - name: Lobe dispatch gate check
+        run: node shadow/scripts/run-gate-once.mjs shadow/scripts/check-lobe-dispatch.mjs
+
+      - name: Lobe dispatch gate check (self-test)
+        run: node shadow/scripts/check-lobe-dispatch.mjs --self-test
+
       # ── 测试里的进程级 env 竞争闸 ──────────────────────────────────────────
       # ⚠️⚠️ **为什么这道闸存在**（2026-11-08 真机实测）：`cargo test` 把**同一个
       #   二进制**里的测试**开多线程并发跑** ⇒ ⇒ 进程级 `env` 变量是**共享全局**

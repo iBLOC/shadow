@@ -217,6 +217,11 @@ pub fn run() {
             // 去掉它。neuron 的面由**统一入口**挂在脑面上（见
             // `telencephalon_http.rs`）。
             llm_provider: None,
+            // 模型库落点不覆盖（`None` = `$HOME/.neuron/models`）——
+            // 桌面进程有 `$HOME`，默认落点可写，已下载的模型库不挪窝
+            // （挪了会把历史下载全部「变成没下载」）。手机那一侧才
+            // 从 `data_dir` 派生（Android 进程没有 `$HOME`）。
+            model_dir: None,
         },
     ))
     .expect("boot embedded encephalon");

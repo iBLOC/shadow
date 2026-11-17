@@ -19,11 +19,25 @@ class _FakeBrainClient extends TelencephalonClient {
 
   @override
   Future<List<NeuronCatalogEntry>> neuronCatalog() async => const [
+    // 老模型（recommended=false ⇒ 历史支持模型库）＋ 引擎档／主源亮行。
     NeuronCatalogEntry(
       id: 'llm/qwen2.5-0.5b',
       engine: 'llm',
+      engineImpl: 'candle',
+      recommended: false,
+      source: 'modelscope',
       available: false,
-      defaultRepo: 'huggingface:Qwen/Qwen2.5-0.5B-Instruct',
+      defaultRepo: 'modelscope:Qwen/Qwen2.5-0.5B-Instruct',
+      capabilities: ['llm'],
+    ),
+    // 当前世代（recommended 缺省 true ⇒ 推荐段）。
+    NeuronCatalogEntry(
+      id: 'llm/qwen3-0.6b',
+      engine: 'llm',
+      engineImpl: 'candle',
+      source: 'modelscope',
+      available: false,
+      defaultRepo: 'modelscope:Qwen/Qwen3-0.6B',
       capabilities: ['llm'],
     ),
     NeuronCatalogEntry(
@@ -117,11 +131,35 @@ void main() {
 
       // 下载弹窗开着（离线假目录 ⇒ 列表渲染）。
       expect(find.text('Download local models'), findsOneWidget);
-      // 目录条目进了列表（假数据那两条）。
-      expect(find.text('qwen2.5-0.5b'), findsOneWidget);
       // ⚠️ 旧手填表单的字段**不在场** —— 参数不需要用户配置。
       expect(find.text('Model ID'), findsNothing);
       expect(find.text('Endpoint (OpenAI-compatible base URL)'), findsNothing);
+    });
+
+    testWidgets('目录两段式：推荐档在上，老模型收进历史支持模型库（折叠）', (tester) async {
+      await pumpModels(tester);
+
+      await tester.tap(find.byType(FloatingActionButton));
+      await tester.pumpAndSettle();
+
+      // 推荐段头 ＋ 当前世代条目直接可见。
+      expect(find.text('Recommended'), findsOneWidget);
+      expect(find.text('qwen3-0.6b'), findsOneWidget);
+      // 引擎档徽标亮在行上（同一模型不同引擎要下载的文件不一样）。
+      expect(find.text('candle'), findsWidgets);
+      // 主源亮在行上（国内默认魔搭）。
+      expect(find.textContaining('modelscope'), findsWidgets);
+
+      // 老模型默认**折叠**：段头在场、条目不在场。
+      expect(find.text('Legacy model library (1)'), findsOneWidget);
+      expect(find.text('qwen2.5-0.5b'), findsNothing);
+
+      // 展开 ⇒ 老模型可挑可下载（历史库不是隐藏，是不占推荐位）。
+      await tester.tap(find.text('Legacy model library (1)'));
+      await tester.pumpAndSettle();
+      expect(find.text('qwen2.5-0.5b'), findsOneWidget);
+      // 老模型的下载入口照常在场。
+      expect(find.text('Download'), findsWidgets);
     });
   });
 }
