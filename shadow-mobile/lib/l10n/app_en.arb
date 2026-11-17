@@ -24,6 +24,11 @@
   "messageDebugJsonCopiedToast": "Chat JSON copied to clipboard",
   "messageActionRetry": "Retry",
   "messageActionUndo": "Undo",
+  "messageActionQuote": "Quote",
+  "chatQuoteMarker": "Quote: ",
+  "chatQuoteFromUser": "Your message",
+  "chatQuoteFromAssistant": "Assistant reply",
+  "chatQuoteDismiss": "Remove quote",
   "messageCopiedToast": "Copied to clipboard",
   "messageTokenStatsSummary": "{tokens} tokens · {speed} tok/s",
   "@messageTokenStatsSummary": {
@@ -59,7 +64,7 @@
   "camera": "Camera",
   "file": "File",
   "voiceMode": "Conversation Mode",
-  "agent2uiReady": "Agent2UI Ready",
+  "a2uiReady": "A2UI Ready",
   "askMeAnything": "Ask me anything and I will generate UI for you",
   "connectedToShadowA2AServer": "Connected to Shadow A2A Server",
   "connectingToShadow": "Connecting to Shadow...",
@@ -89,7 +94,7 @@
   "unhealthy": "Unhealthy",
   "unknown": "Unknown",
   "custom": "Custom",
-  "agent2UI": "Agent2UI",
+  "a2ui": "A2UI",
   "removeAttachment": "Remove attachment",
   "dimensionUser": "User",
   "dimensionAgent": "Agent",
@@ -112,6 +117,9 @@
   "ttsEngine": "Voice Engine",
   "ttsEngineBrain": "Brain (follows the default model)",
   "ttsSpeakFailed": "Speech did not play: {reason}",
+  "ttsSkipped": "Read-aloud skipped: {reason}",
+  "ttsSkippedNotice": "Read-aloud skipped ({reason})",
+  "ttsSpeakAnyway": "Read aloud anyway",
   "asrFailed": "Speech was not recognized: {reason}",
   "ttsEngineAndroid": "Android Built-in",
   "ttsEngineExternal": "External Service",
@@ -305,6 +313,11 @@
   "promptRestoreDefault": "Restore default",
   "providerBuiltin": "Built-in",
   "providerModelNotDownloaded": "Not downloaded",
+  "providerModelsFromDocs": "Preset from the provider's official docs (not a live list)",
+  "providerInputModalitiesSource": "Input modalities source",
+  "providerInputModalitiesSourceUpstream": "Upstream",
+  "providerInputModalitiesSourceCatalog": "Preset from official docs",
+  "providerInputModalitiesSourceDefault": "Default (text only)",
   "modelCategoryText": "Text models",
   "modelCategoryVision": "Vision models",
   "modelCatalogTitle": "Supported models",
@@ -318,6 +331,7 @@
   "capRerank": "Rerank",
   "capOcr": "OCR",
   "capImageGen": "Image generation",
+  "capVideoGen": "Video generation",
   "providersTitle": "Model Providers",
   "providersEmpty": "No providers configured",
   "providersEmptyHint": "Tap the button below to add your first provider",
@@ -894,10 +908,10 @@
   },
   "surfaceA2ui": "Generative UI",
   "surfaceIdentity": "Identity",
-  "agent2uiNoConnection": "Not connected to the brain",
-  "agent2uiWaiting": "Connecting to the brain…",
-  "agent2uiNoSurface": "Connected, but the brain produced no surface",
-  "agent2uiSurfaceHint": "The surface drawn by the brain will appear here",
+  "a2uiNoConnection": "Not connected to the brain",
+  "a2uiWaiting": "Connecting to the brain…",
+  "a2uiNoSurface": "Connected, but the brain produced no surface",
+  "a2uiSurfaceHint": "The surface drawn by the brain will appear here",
   "ttsEngineRust": "Rust",
   "logsExported": "Logs exported to {path}",
   "@logsExported": {
@@ -907,7 +921,7 @@
       }
     }
   },
-  "askAgent2UI": "Ask the brain to draw...",
+  "askA2ui": "Ask the brain to draw...",
   "a2uiSurfaceReportTasks": "Expanded the task board.",
   "a2uiSurfaceReportAgents": "Expanded the agent list.",
   "a2uiSurfaceReportNoSurface": "The brain did not draw an interface this time.",
@@ -1260,6 +1274,7 @@
   "zitiSaveFailed": "Save failed",
   "@zitiSaveFailed": {},
   "capabilityDefaultsUnusableNow": "These tiers point at a model this brain has not registered - the setting is saved, but it cannot run until the engine is registered.",
+  "capabilityDefaultsUnservedNow": "These tiers are not served by this brain yet (no endpoint behind them) - the setting is saved, but the brain cannot run them yet.",
   "providersDownloadModels": "Download local models",
   "providersDownloadedOnly": "Downloaded",
   "providersDownloadAction": "Download",
@@ -1288,5 +1303,36 @@
       "count": { "type": "int" },
       "size": { "type": "String" }
     }
-  }
+  },
+  "clientToolsVideoGenerated": "The video was generated and shown to the user: {url}",
+  "@clientToolsVideoGenerated": {
+    "placeholders": {
+      "url": { "type": "String" }
+    }
+  },
+  "clientToolsVideoProcessing": "The video is still rendering (task {taskId}, model {model}) — ask me again in a moment to fetch it.",
+  "@clientToolsVideoProcessing": {
+    "placeholders": {
+      "taskId": { "type": "String" },
+      "model": { "type": "String" }
+    }
+  },
+  "imageActionSaveToGallery": "Save to album",
+  "imageActionShareToWeChat": "Share to WeChat",
+  "imageActionSaved": "Saved to album",
+  "imageActionSharedToWeChat": "Shared to WeChat",
+  "imageActionSharedSystem": "WeChat was not found — opened the system share sheet",
+  "imageActionSaveFailed": "Could not save: {reason}",
+  "@imageActionSaveFailed": {
+    "placeholders": {
+      "reason": { "type": "String" }
+    }
+  },
+  "imageActionShareFailed": "Could not share: {reason}",
+  "@imageActionShareFailed": {
+    "placeholders": {
+      "reason": { "type": "String" }
+    }
+  },
+  "imageActionNoImage": "That image can no longer be read (it may have been cleaned up)"
 }

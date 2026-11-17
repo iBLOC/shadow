@@ -225,6 +225,25 @@ class DeviceDataChannel {
     return _asMaps(raw);
   }
 
+  /// 把相册里的**一张图**复制进 App 自己的目录，返回那份**稳定副本**的路径。
+  ///
+  /// ⚠️ **为什么要这一层**（2026-11-17）—— Dart **读不了** `content://`
+  /// URI ⇒ ⇒ 而模型拿到的相册图片标识**就是** content URI（`readPhotos`
+  /// 给的 `contentUri`）⇒ ⇒ 原生层把字节搬进 App 目录，模型给的 URI 才
+  /// **真的用得了**（聊天背景就是这样用的）。
+  ///
+  /// ⚠️ **返回的是 App 目录里的路径** ⇒ ⇒ 跨重启还在 ⇒ ⇒ content URI 的
+  /// 临时授权失效也不影响。
+  Future<String> copyMediaToAppFiles(String uri) async {
+    final raw = await _channel.invokeMethod<Object?>('copyMediaToAppFiles', {
+      'uri': uri,
+    });
+    if (raw is! String || raw.isEmpty) {
+      throw StateError('the native side did not return a path for $uri');
+    }
+    return raw;
+  }
+
   /// 「通知使用权」（NotificationListenerService）授了没有（**只读**，不跳页）。
   ///
   /// ⚠️ 通知使用权是**服务开关**，不是运行时权限 ⇒ ⇒ 查它要走专用方法，

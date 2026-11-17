@@ -21,9 +21,10 @@ import '../services/weather/weather_client.dart';
 import '../services/capabilities/capability.dart';
 import '../services/capabilities/capability_declaration.dart';
 import '../services/capabilities/sensitive_packages.dart';
+import '../utils/chat_quote.dart';
 import 'capability_policy_provider.dart';
 import 'conversation_mode_provider.dart';
-import 'genui_provider.dart';
+import 'a2ui_provider.dart';
 import 'telencephalon_provider.dart';
 import 'theme_provider.dart';
 import '../l10n/current_l10n.dart';
@@ -142,6 +143,24 @@ class ChatMessageModel {
   /// 服务端历史没有这份读数 ⇒ 那些卡片下方只有时间，**不编数字**。
   final MessageTokenStats? tokenStats;
 
+  /// 这条回复**因为设备「该安静」而没朗读**（音量 0 ／ 静音档 ／ 振动档
+  /// ／ 勿扰）⇒ ⇒ 气泡旁给一个「**仍要朗读**」开关。
+  ///
+  /// ⚠️ **跳过 ≠ 失败** ⇒ ⇒ 不走失败横幅（那是「TTS 坏了」那一套）⇒ ⇒
+  /// 就地一行提示 ＋ 一个开关 ⇒ ⇒ 用户执意要听就能点（2026-11-16 用户原话：
+  /// 「回复的时候给个开关提示如果用户执意要打开也可以打开」）。
+  final bool ttsSkipped;
+
+  /// 跳过的**原因**（原话，不重包）⇒ ⇒ 界面能说清「为什么没声」。
+  final String? ttsSkipReason;
+
+  /// 这条消息里**画出来的那块 A2UI 面**（surface id 列表）。
+  ///
+  /// ⚠️ **AG-UI 承载**的那条路：端脑在 AG-UI 流里发官方
+  /// `ACTIVITY_SNAPSHOT` ⇒ ⇒ ops 喂进 processor ⇒ ⇒ surface 才存在
+  /// ⇒ ⇒ 这里才有 id ⇒ ⇒ 界面才画得出（没有 id ⇒ 界面上什么都没有）。
+  final List<String> a2uiSurfaceIds;
+
   ChatMessageModel(
     this.content,
     this.role, {
@@ -150,10 +169,55 @@ class ChatMessageModel {
     this.toolCall,
     this.createdAt,
     this.tokenStats,
+    this.ttsSkipped = false,
+    this.ttsSkipReason,
+    this.a2uiSurfaceIds = const <String>[],
   });
+
+  /// 复制一份（改其中一格）⇒ ⇒ 标记「已跳过」时**不动**其它字段。
+  ChatMessageModel copyWith({
+    String? content,
+    ChatRole? role,
+    bool? ttsSkipped,
+    String? ttsSkipReason,
+    List<String>? a2uiSurfaceIds,
+  }) {
+    return ChatMessageModel(
+      content ?? this.content,
+      role ?? this.role,
+      attachmentPath: attachmentPath,
+      attachmentType: attachmentType,
+      toolCall: toolCall,
+      createdAt: createdAt,
+      tokenStats: tokenStats,
+      ttsSkipped: ttsSkipped ?? this.ttsSkipped,
+      ttsSkipReason: ttsSkipReason ?? this.ttsSkipReason,
+      a2uiSurfaceIds: a2uiSurfaceIds ?? this.a2uiSurfaceIds,
+    );
+  }
 }
 
 enum ChatRole { user, assistant, system }
+
+/// 长按气泡 ⇒ ⇒ **引用**到输入框：**待引用的那一条**。
+///
+/// ⚠️ 它是**草稿态**，**不是**对话历史 ⇒ ⇒ 发出去就没了（用完即清）。
+class QuotedMessage {
+  /// 被引的是**谁**说的（决定引用条上写「你的消息」还是「助手的回复」）。
+  final ChatRole role;
+
+  /// 被引那条的**原文**（截断前 —— 片段是显示与发送时才截的）。
+  final String text;
+
+  /// 它在会话里的第几条。
+  final int index;
+
+  const QuotedMessage({
+    required this.role,
+    required this.text,
+    required this.index,
+  });
+}
 
 /// L10n keys for provider messages (resolved in UI with AppLocalizations).
 enum ChatStateL10nKey {
@@ -199,6 +263,12 @@ class ChatState {
   /// 「发不出去」严重得多）。
   final String? failedSwitchSessionId;
 
+  /// **待引用**的那一条（长按气泡 ⇒ ⇒ 引用到输入框）。
+  ///
+  /// ⚠️ 它是**草稿**，不是历史 ⇒ ⇒ 一次发送就**用掉**（见
+  /// [_sendToTelencephalon] 里那一格）⇒ ⇒ 否则下一句普通发言也会带着它。
+  final QuotedMessage? quotedMessage;
+
   const ChatState({
     this.messages = const [],
     this.isLoading = false,
@@ -212,6 +282,7 @@ class ChatState {
     this.sessionId,
     this.activeConversationAgent,
     this.failedSwitchSessionId,
+    this.quotedMessage,
   });
 
   /// 能不能发消息。
@@ -251,6 +322,7 @@ class ChatState {
     Object? sessionId = _omit,
     Object? activeConversationAgent = _omit,
     Object? failedSwitchSessionId = _omit,
+    Object? quotedMessage = _omit,
   }) {
     final explicitError = !identical(errorMessage, _omit);
     final clearError = explicitError && errorMessage == null;
@@ -281,6 +353,9 @@ class ChatState {
       failedSwitchSessionId: identical(failedSwitchSessionId, _omit)
           ? this.failedSwitchSessionId
           : failedSwitchSessionId as String?,
+      quotedMessage: identical(quotedMessage, _omit)
+          ? this.quotedMessage
+          : quotedMessage as QuotedMessage?,
     );
   }
 }
@@ -409,11 +484,26 @@ class ChatNotifier extends StateNotifier<ChatState> {
     AuthorizationMode Function(Capability capability)? capabilityModeFor,
     // AG-UI 那一轮的**运输层**（判据注入一个假的 http 客户端；生产不传）。
     http.Client? aguiHttpClient,
+    // A2UI 那个 service —— **注入**（不是 `ref.read`）。
+    //
+    // ⚠️⚠️ **2026-11-17 修掉的编译缺口**：这一格原来写的是
+    // `ref.read(a2uiAgentServiceProvider)` ⇒ ⇒ **但 `ChatNotifier` 是
+    // `StateNotifier`** ⇒ ⇒ 它**没有 `ref`** ⇒ ⇒ 整个 lib 编不过 ⇒ ⇒
+    // 连**别人的**判据与 APK 构建都一起挂（Gradle 的 Flutter 那一步也是
+    // 编 Dart）。
+    //
+    // ⚠️ **口径与本文件既有的一族一致**：别的 service（`telencephalonClient`
+    // 那些）也是**在 provider 里 `ref.read` 完再注进来** ⇒ ⇒ 这里照抄那
+    // 一族 ⇒ ⇒ 不是另立一套规矩。
+    this._a2uiAgentService,
   }) : _systemPromptProvider = systemPromptProvider ?? noSystemPrompt,
        _clientTools = clientTools ?? ClientToolRegistry(),
        _capabilityModeFor = capabilityModeFor ?? alwaysAskCapability,
        _aguiHttp = aguiHttpClient ?? http.Client(),
        super(const ChatState());
+
+  /// A2UI 那个 service —— 由 provider 注进来（见上面那个参数）。
+  final A2uiAgentService? _a2uiAgentService;
 
   // Multimodal input methods
   Future<void> pickImage() async {
@@ -521,7 +611,11 @@ class ChatNotifier extends StateNotifier<ChatState> {
     //
     // 现在本地 LiteRT 已下线，移动端**只有端脑一条链路** ——
     // 「所有通信都要走 大脑 → 端脑 → 叶区」这条规则在移动端也成立。
-    await _sendToTelencephalon(prompt);
+    //
+    // ⚠️ **「用户新说的话」** ⇒ ⇒ 带上前面积压的那条引用
+    // ⇒ ⇒ 重试那条路**不走这里**（它自己调 [_sendToTelencephalon]）
+    // ⇒ ⇒ 「重发原文」就是原文。
+    await _sendToTelencephalon(prompt, attachPendingQuote: true);
   }
 
   /// 带附件的发送。
@@ -570,7 +664,12 @@ class ChatNotifier extends StateNotifier<ChatState> {
       payloads.add(payload);
     }
 
-    await _sendToTelencephalon(prompt, attachments: payloads);
+    await _sendToTelencephalon(
+      prompt,
+      attachments: payloads,
+      // ⇒ ⇒ 带附件的那一句**也是用户新说的话** ⇒ ⇒ 引用一样拼上去。
+      attachPendingQuote: true,
+    );
 
     // ⚠️ **发成功了 ⇒ 候选行清空** ⇒ ⇒ 否则用户再点一次发送 ⇒ ⇒ 那份文件
     // 会被**再发一遍**。
@@ -601,6 +700,12 @@ class ChatNotifier extends StateNotifier<ChatState> {
   Future<void> _sendToTelencephalon(
     String prompt, {
     List<Map<String, String>>? attachments,
+    /// 这一句是**用户新说的话**吗？⇒ ⇒ 是的话才把「待引用的那条」拼上去。
+    ///
+    /// ⚠️ **重试那条路不许带这个标记** —— 「重发原文」就是原文
+    /// ⇒ ⇒ 否则重发一条旧消息时，会把**现在**待引用的那条也拼上去
+    /// ⇒ ⇒ 那不是用户要的东西（他说的是「把那条再发一遍」）。
+    bool attachPendingQuote = false,
   }) async {
     // ⚠️ **新一轮 ⇒ 「手机操作一轮一次」的授权缓存清零** ——
     // 「一轮」＝ 一次发送 ⇒ 无论从哪个入口进来（发送 / 重试 / 撤销重发，
@@ -608,7 +713,6 @@ class ChatNotifier extends StateNotifier<ChatState> {
     _turnGrantedMobileUse.clear();
     _sensitiveTargetSeenThisTurn = false;
     _turnToolTrajectory.clear();
-    _turnUserInput = prompt;
     // ⚠️ **闸门（漏斗就在这儿）**：上一次切会话失败了 ⇒ 现在**不知道自己在
     // 哪条会话里** ⇒ ⇒ 不许写 ⇒ ⇒ 否则用户以为自己在 B、消息却落进 A
     // ⇒ ⇒ **消息落错会话**（它看起来是成功的）。
@@ -617,10 +721,19 @@ class ChatNotifier extends StateNotifier<ChatState> {
     // ⇒ 但守卫放在**漏斗**上 ⇒ 所有入口都归它管（一条规则、一处实现）。
     if (state.failedSwitchSessionId != null) return;
 
+    // ⚠️ **引用在这一格拼进去**（闸门**之后**）⇒ ⇒ 闸门关着的时候
+    // **不动**那个待引用的引用 ⇒ ⇒ 否则用户的话压根没发出去、引用却
+    // 没了 ⇒ ⇒ 那就是「失败长得像成功」。
+    //
+    // ⚠️ 拼完的这句话**同时**是：界面上那条气泡的正文 ＋ 发给端脑的那句
+    // ⇒ ⇒ 用户看到的与模型收到的**同一个字符串** ⇒ ⇒ 不会分叉。
+    final String outgoing = attachPendingQuote ? _consumePendingQuote(prompt) : prompt;
+    _turnUserInput = outgoing;
+
     state = state.copyWith(
       messages: [
         ...state.messages,
-        ChatMessageModel(prompt, ChatRole.user, createdAt: DateTime.now()),
+        ChatMessageModel(outgoing, ChatRole.user, createdAt: DateTime.now()),
       ],
       isLoading: true,
       errorMessage: null,
@@ -664,6 +777,12 @@ class ChatNotifier extends StateNotifier<ChatState> {
       // 调用）—— 那时候「空回复」不是错误，工具卡片本身就是回复。
       var toolCallSeen = false;
 
+      // 这一轮由 **AG-UI 承载**画出来的那块面（官方 `ACTIVITY_SNAPSHOT`）。
+      //
+      // ⚠️ 空列表＝这一轮没有面 ⇒ ⇒ 界面不画任何东西
+      // ⇒ ⇒ 而不是「画了个空的」（那是在说谎）。
+      final List<String> a2uiSurfaceIds = <String>[];
+
       // ⚠️ **AG-UI 那一路**（与桌面端同一条路：桌面 `ConversationPage.tsx`
       // 也是 AG-UI）⇒ ⇒ 端脑**不等**设备 ⇒ ⇒ 工具结果**随下一次请求**带回去。
       //
@@ -674,8 +793,13 @@ class ChatNotifier extends StateNotifier<ChatState> {
           AguiMessage(
             role: 'user',
             // ⚠️ **内联**附件（base64）⇒ ⇒ 端脑不去拉远程 URL。
+            //
+            // ⚠️ **发出去的是 `outgoing`**（带引用那一版）⇒ ⇒ 不是
+            // `prompt` ⇒ ⇒ 模型看到的与界面上那条气泡**是同一句**
+            // ⇒ ⇒ 引用**真的**到了模型那里（不然就是「界面上引用了、
+            // 模型压根不知道」）。
             content: buildAguiUserContent(
-              prompt,
+              outgoing,
               aguiInlineFilesFromAttachments(attachments),
             ),
           ),
@@ -730,6 +854,18 @@ class ChatNotifier extends StateNotifier<ChatState> {
               ),
             );
             break;
+          case 'a2ui_surface':
+            // ⚠️ **AG-UI 承载的那块面**（官方 `ACTIVITY_SNAPSHOT`）
+            // ⇒ ⇒ ops 喂进官方 processor ⇒ ⇒ surface 才存在
+            // ⇒ ⇒ 才有 id 可画 ⇒ ⇒ 零翻译。
+            final List<Map<String, Object?>>? ops = event.a2uiOps;
+            if (ops == null || ops.isEmpty) break;
+            // ⚠️ **注进来的那个 service**（`StateNotifier` 里没有 `ref`）。
+            final A2uiAgentService? service = _a2uiAgentService;
+            if (service == null) break;
+            service.ingestA2uiOps(ops);
+            a2uiSurfaceIds.addAll(service.surfaceIds);
+            break;
           case 'finished':
             // 收口事件（RUN_FINISHED）⇒ ⇒ 这一轮结束了。
             break;
@@ -739,7 +875,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
         }
       }
       final response = buffer.toString();
-      if (response.isEmpty && !toolCallSeen) {
+      // ⚠️ **只有面、没有话**也是一次**有答案**的回合 ⇒ ⇒ 不许报「抱歉」。
+      if (response.isEmpty && !toolCallSeen && a2uiSurfaceIds.isEmpty) {
         throw Exception(currentL10n().chatSorryErrorShort);
       }
 
@@ -761,12 +898,15 @@ class ChatNotifier extends StateNotifier<ChatState> {
         messages: [
           ...state.messages,
           // 空回复 + 有工具调用 ⇒ 不插一条空气泡（工具卡片已经在了）。
-          if (response.isNotEmpty)
+          // ⚠️ **但「只有面、没有话」也要落一条** ⇒ ⇒ 否则面无处安放
+          // ⇒ ⇒ 用户什么都看不到 ⇒ ⇒ 失败长得像成功。
+          if (response.isNotEmpty || a2uiSurfaceIds.isNotEmpty)
             ChatMessageModel(
               response,
               ChatRole.assistant,
               createdAt: DateTime.now(),
               tokenStats: stats,
+              a2uiSurfaceIds: a2uiSurfaceIds,
             ),
         ],
         isLoading: false,
@@ -776,7 +916,23 @@ class ChatNotifier extends StateNotifier<ChatState> {
       if (response.isNotEmpty) {
         // ⚠️ **带叶区** ⇒ ⇒ 端脑按「显式 → 叶区覆盖 → 全局默认」解析
         // （叶区级那一档 TTS 覆盖才生效）。
-        await _ttsEngine.speak(response, lobe: state.activeConversationAgent);
+        //
+        // ⚠️ **reportSkip: false** —— 自动朗读是**后台行为**（每轮都会来
+        // 一次）⇒ ⇒ 设备静音时跳过（省 TTS 算力）是**尊重用户意图**，
+        // 不是故障 ⇒ ⇒ 不弹横幅（每轮弹一次 ⇒ ⇒ 变成噪音）⇒ ⇒ 手动朗读／
+        // 试听那两条路才报出去。
+        final speakResult = await _ttsEngine.speak(
+          response,
+          lobe: state.activeConversationAgent,
+          reportSkip: false,
+        );
+        // ⚠️ **但「回复处」要看得见**（用户 2026-11-16 原话：「回复的时候给
+        // 个开关提示如果用户执意要打开也可以打开」）⇒ ⇒ 就地在那条气泡旁
+        // 标一行「已跳过朗读」＋ 一个「仍要朗读」开关 ⇒ ⇒ 不弹全局横幅
+        // （那会打断阅读）⇒ ⇒ 跳过不吞死：他点一下就能听。
+        if (speakResult.skipped) {
+          _markLastAssistantTtsSkipped(speakResult.reason);
+        }
       }
       _flushToolTrajectory();
     } catch (e) {
@@ -1311,17 +1467,51 @@ class ChatNotifier extends StateNotifier<ChatState> {
     return null;
   }
 
+  /// **朗读最后一条回复**（气泡上那个喇叭按钮）。
+  ///
+  /// ⚠️ 被跳过了（设备「该安静」）⇒ ⇒ **标到那条气泡上** ⇒ ⇒ 用户看得见
+  /// 「为什么没声」＋ 有一个「仍要朗读」可点。
   Future<void> speakLastResponse() async {
     final lastAssistant = state.messages.lastWhere(
       (m) => m.role == ChatRole.assistant,
       orElse: () => ChatMessageModel('', ChatRole.assistant),
     );
     if (lastAssistant.content.isNotEmpty) {
-      await _ttsEngine.speak(
-        lastAssistant.content,
-        lobe: state.activeConversationAgent,
-      );
+      await speakText(lastAssistant.content);
     }
+  }
+
+  /// **朗读一段文字**。
+  ///
+  /// [force] **用户点「仍要朗读」** ⇒ ⇒ 绕过安静判定（他执意要听 ⇒ ⇒ 替
+  /// 他省算力就是替他做主）。
+  Future<void> speakText(String text, {bool force = false}) async {
+    if (text.isEmpty) return;
+    final result = await _ttsEngine.speak(
+      text,
+      lobe: state.activeConversationAgent,
+      force: force,
+    );
+    if (result.skipped) {
+      _markLastAssistantTtsSkipped(result.reason);
+    }
+  }
+
+  /// **把「这条回复被跳过了朗读」标到气泡上** ⇒ ⇒ 用户看得见「为什么没
+  /// 声」＋ 有一个「仍要朗读」可点。
+  void _markLastAssistantTtsSkipped(String? reason) {
+    // ⚠️ **dispose 之后读 state 也会抛** ⇒ ⇒ 先问还在不在。
+    if (!mounted) return;
+    final messages = state.messages;
+    if (messages.isEmpty) return;
+    final idx = messages.lastIndexWhere((m) => m.role == ChatRole.assistant);
+    if (idx < 0) return;
+    final updated = [...messages];
+    updated[idx] = messages[idx].copyWith(
+      ttsSkipped: true,
+      ttsSkipReason: reason,
+    );
+    state = state.copyWith(messages: updated);
   }
 
   Future<void> playVoiceMessage(int index) async {
@@ -1348,6 +1538,50 @@ class ChatNotifier extends StateNotifier<ChatState> {
   /// ⚠️ 端脑 shadow API 没有「删一条轮次」的端点 ⇒ 服务端那份记录动不了
   /// ⇒ 撤销是**当前视图**的动作：切走再切回来，服务端历史原样回来。
   /// 这是**说出来的**限制，不是静默 —— 别把「视图撤了」当成「服务端撤了」。
+  // ---- 引用（长按气泡 ⇒ ⇒ 引用到输入框）--------------------------------
+
+  /// 长按一条消息 ⇒ ⇒ **引用**它（引用条出现在输入框上方）。
+  ///
+  /// ⚠️ **只有有文字的那条能引用**：工具卡片的 `content` 是空的、附件气泡
+  /// 的是**路径** ⇒ ⇒ 引用它们没有意义 ⇒ ⇒ 那一格在菜单里就被裁掉了
+  /// （见 `message_action_sheet.dart` 的 `canQuote`）。
+  void quoteMessage(int index) {
+    if (index < 0 || index >= state.messages.length) return;
+    final ChatMessageModel msg = state.messages[index];
+    if (msg.content.trim().isEmpty) return;
+    state = state.copyWith(
+      quotedMessage: QuotedMessage(
+        role: msg.role,
+        text: msg.content,
+        index: index,
+      ),
+    );
+  }
+
+  /// 取消引用（引用条上的 ×）⇒ ⇒ 待发的那句**回到没引用的样子**。
+  void clearQuotedMessage() {
+    if (state.quotedMessage == null) return;
+    state = state.copyWith(quotedMessage: null);
+  }
+
+  /// 把「待引用的那条」拼进这句话，并**用掉**那个引用。
+  ///
+  /// ⚠️ **用完即清**：引用是**草稿**，不是历史 ⇒ ⇒ 不清的话，下一句
+  /// 普通发言也会带着它 ⇒ ⇒ 而那不是用户说的。
+  ///
+  /// ⚠️ **标记取自 l10n** ⇒ ⇒ 这一格**不写死**中文 ⇒ ⇒ 英文界面下模型
+  /// 看到的也是英文标记。
+  String _consumePendingQuote(String prompt) {
+    final QuotedMessage? quote = state.quotedMessage;
+    if (quote == null) return prompt;
+    state = state.copyWith(quotedMessage: null);
+    return composeQuotedPrompt(
+      quoted: quote.text,
+      prompt: prompt,
+      marker: currentL10n().chatQuoteMarker,
+    );
+  }
+
   void undoMessage(int index) {
     if (state.isLoading) return; // 回复流式生成中 ⇒ 列表不动
     if (index < 0 || index >= state.messages.length) return;
@@ -1366,7 +1600,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
     final prompt = messages[index].content;
     if (prompt.isEmpty) return;
     state = state.copyWith(messages: [...messages.sublist(0, index)]);
-    await generateResponse(prompt);
+    // ⚠️ **直调漏斗，不走 [generateResponse]** ⇒ ⇒ 「重发原文」就是原文
+    // ⇒ ⇒ 不会把**现在**待引用的那条也拼进去（那句话是用户**下一句**
+    // 要说的东西，不是这一句的）。
+    await _sendToTelencephalon(prompt);
   }
 
   /// 重试：重新生成这条**助手回复** —— 按它前面最近的一条用户消息。
@@ -1386,7 +1623,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
     final prompt = messages[userIdx].content;
     if (prompt.isEmpty) return;
     state = state.copyWith(messages: [...messages.sublist(0, userIdx)]);
-    await generateResponse(prompt);
+    // ⚠️ 同上：**直调漏斗** ⇒ ⇒ 重新生成的是**原来那句**（不带引用）。
+    await _sendToTelencephalon(prompt);
   }
 
   /// 重试上一次失败的发送（错误横幅上的「重试」）。
@@ -1450,6 +1688,10 @@ final chatProvider = StateNotifierProvider<ChatNotifier, ChatState>((ref) {
         ref.read(customPromptProvider) ?? MainAgentPrompt.defaultSystemPrompt,
     // 客户端工具 —— 端脑让**这台设备**干的活。
     //
+    // A2UI 那个 service —— **注进去**（`ChatNotifier` 是 `StateNotifier`，
+    // 它**没有 `ref`** ⇒ ⇒ 那一格只能注入 ⇒ ⇒ 2026-11-17 修的编译缺口）。
+    a2uiAgentService: ref.watch(a2uiAgentServiceProvider),
+    //
     // 主题色 / 明暗走的是**用户的外观偏好** provider，和设置页改的
     // 是同一份 ⇒ 模型让手机换主题，换完设置页里也是同一个值。
     clientTools: buildMobileClientTools(
@@ -1458,6 +1700,15 @@ final chatProvider = StateNotifierProvider<ChatNotifier, ChatState>((ref) {
       setDarkMode: (dark) async => ref
           .read(themeModeProvider.notifier)
           .setThemeMode(dark ? ThemeMode.dark : ThemeMode.light),
+      // ⚠️ **聊天背景**（2026-11-17）—— 与设置页改的是**同一份**
+      // （`themeAppearanceProvider`）⇒ ⇒ 模型换完背景，设置页里也是
+      // 同一个值 ⇒ ⇒ 两边不会各说各话。
+      //
+      // ⚠️ 落盘路径**由原生层给**（`copyMediaToAppFiles` 把 content URI
+      // 搬进 App 目录）⇒ ⇒ 这里只负责把那条**稳定路径**记下来。
+      setChatBackgroundPath: (path) => ref
+          .read(themeAppearanceProvider.notifier)
+          .setChatBackgroundPath(path),
       // ⚠️ **取 surface 走既有那条 A2UI 通道** —— 端脑面的地址 / 影子锁 /
       // admin token / 语言**已经**在那个 transport 里配好了
       // ⇒ ⇒ 这里不另写一套 HTTP。
@@ -1465,12 +1716,18 @@ final chatProvider = StateNotifierProvider<ChatNotifier, ChatState>((ref) {
       // ⚠️ **用 `read` 而不是 `watch`**：地址变了整个 provider 会重建
       // ⇒ ⇒ `watch` 会把**整段对话**冲掉（那是对话的状态，不是地址的）。
       fetchSurfaceEvents: (view) =>
-          ref.read(genUIAgentServiceProvider).fetchSurfaceEvents(view),
+          ref.read(a2uiAgentServiceProvider).fetchSurfaceEvents(view),
       // 图片生成的**纯运输**那一半 —— 地址 / 影子锁 / admin token 都在
       // telencephalonClientProvider 里配好了（门是 admin，client 两把都带）。
       // 同样 `read` 不 `watch`（理由同上）。
       generateImage: (body) =>
           ref.read(telencephalonClientProvider).generateImage(body),
+      // 视频生成的**纯运输**那一半 —— 理由与上面那张一样（门是 admin，
+      // client 两把钥匙都带；用 `read` 不 `watch`，理由同上）。
+      generateVideo: (body) =>
+          ref.read(telencephalonClientProvider).generateVideo(body),
+      queryVideo: (taskId, model) =>
+          ref.read(telencephalonClientProvider).queryVideo(taskId, model),
       // 天气工具的取数那一半 —— **直连公开数据源**（免 Key、免注册）
       // ⇒ ⇒ 不需要端脑路由、不需要地址、不需要 admin token
       // ⇒ ⇒ 也因此**不用 `read` 不 `watch` 的那套讲究**（它压根不看 provider）。

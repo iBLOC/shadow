@@ -27,22 +27,48 @@ class MemoryState {
   MemoryState copyWith({
     List<MemoryInfo>? memories,
     bool? isLoading,
-    String? error,
+    Object? error = _omit,
     String? searchQuery,
-    String? selectedDimension,
+    Object? selectedDimension = _omit,
   }) {
     return MemoryState(
       memories: memories ?? this.memories,
       isLoading: isLoading ?? this.isLoading,
-      error: error,
+      // ⚠️⚠️ **哨兵**（2026-11-17 修）—— 以前写的是 `error: error`
+      // ⇒ ⇒ 任何一次**没提 error** 的更新都把错误**清成 null**
+      // ⇒ ⇒ 「加载失败」那条横幅**下一次更新就没了**⇒ ⇒ 用户只看到
+      // ⇒ ⇒ 「空的记忆列表」⇒ ⇒ **失败长得像成功**。
+      // ⇒ ⇒ 与 `ChatState.copyWith` 同一族（那边早就是哨兵了）。
+      error: identical(error, _omit) ? this.error : error as String?,
       searchQuery: searchQuery ?? this.searchQuery,
-      selectedDimension: selectedDimension,
+      // ⚠️ **同一族**：以前写的是 `selectedDimension: selectedDimension`
+      // ⇒ ⇒ 任何一次更新都把**维度筛选**悄悄重置回 null
+      // ⇒ ⇒ 用户选完维度、列表一刷新就没了。
+      selectedDimension: identical(selectedDimension, _omit)
+          ? this.selectedDimension
+          : selectedDimension as String?,
     );
   }
 
   List<MemoryInfo> get filteredMemories {
+    // ⚠️⚠️ **维度名的大小写**（2026-11-17 修）——
+    // 界面上的筛选值是 **'User'／'Agent'／'Session'**（首字母大写），
+    // 而海马体给回来的 `dimension` 是**小写**（`user`／`agent`／`session`
+    // —— 服务端那一侧认的也是小写）⇒ ⇒ 直接 `!=` 比 ⇒ ⇒ **一条都对不上**
+    // ⇒ ⇒ ⇒ 用户一点「用户」维度，列表**整个空了**（而记忆还在）
+    // ⇒ ⇒ ⇒ **失败长得像成功**。
+    //
+    // ⚠️⚠️ **归一只有一处**（2026-11-17 自曝）—— 头一版是「两边各归一
+    // 一次」（`wanted` 归一 + `m.dimension` 归一）⇒ ⇒ 那条规则有**两份
+    // 实现** ⇒ ⇒ 改一边、另一边还在 ⇒ ⇒ 「大小写无关」**没有真的被改掉**
+    // ⇒ ⇒ 变异打掉其中一份**测不出来** ⇒ ⇒ **尺子钝了没人知道**
+    // ⇒ ⇒ 现在归一走**同一个函数** ⇒ ⇒ 一处错 ⇒ ⇒ 两边一起错 ⇒ ⇒ 判据
+    // 能逮到。
+    final wanted = selectedDimension == null
+        ? null
+        : normalizeDimension(selectedDimension!);
     return memories.where((m) {
-      if (selectedDimension != null && m.dimension != selectedDimension) {
+      if (wanted != null && normalizeDimension(m.dimension) != wanted) {
         return false;
       }
       if (searchQuery.isNotEmpty) {
@@ -52,6 +78,20 @@ class MemoryState {
     }).toList();
   }
 }
+
+/// 维度名**归一** —— **一处**实现（两边都走它）。
+///
+/// ⚠️ 为什么住在**外面**（而不是 `MemoryState` 的私有静态）：判据要能
+/// 直接问它 ⇒ ⇒ 「这条规则现在是什么形状」必须是**可问的**，不是「藏在
+/// 两个调用点里、每个都归一一次」。
+String normalizeDimension(String dimension) => dimension.trim().toLowerCase();
+
+/// 「**没传**」的哨兵 —— 让 `copyWith` 能**显式**把某格置空。
+class _CopyWithOmit {
+  const _CopyWithOmit();
+}
+
+const _omit = _CopyWithOmit();
 
 class MemoryInfo {
   final String id;
@@ -89,7 +129,15 @@ class MemoryNotifier extends StateNotifier<MemoryState> {
   Future<void> loadMemories() async {
     state = state.copyWith(isLoading: true, error: null);
     try {
-      final results = await _client.searchMemory('');
+      // ⚠️⚠️ **列表走 `GET /api/memory`**（2026-11-17 修）——
+      // 以前这里打的是 `searchMemory('')`（**空查询的搜索**）⇒ ⇒
+      // ⇒ ① 空查询在混合检索里**没有词**⇒ ⇒ 得分低于服务端的 `min_score`
+      // ⇒ ⇒ 整条被滤掉 ⇒ ⇒ ② 就算不过滤，「搜索」也不是「列表」这一格
+      // ⇒ ⇒ ⇒ **界面上「一条记忆都没有」，明明有**⇒ ⇒ **失败长得像成功**。
+      // ⇒ ⇒ 桌面端列的就是 `listMemories`（同一口径，桌面端是对的）。
+      final results = await _client.listMemories(
+        dimension: state.selectedDimension,
+      );
       state = state.copyWith(
         memories: results
             .map(

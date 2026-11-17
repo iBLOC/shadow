@@ -179,10 +179,27 @@ void main() {
 class _ThrowingClient extends PrefrontalClient {
   _ThrowingClient() : super(baseUrl: 'http://127.0.0.1:1');
 
+  /// ⚠️ **列表走的是这一条**（2026-11-17 修）—— 以前记忆页打的是
+  /// `searchMemory('')`（空查询的搜索）⇒ ⇒ 空查询没有词 ⇒ ⇒ 得分低于
+  /// 服务端的 `min_score` ⇒ ⇒ **整条被滤掉** ⇒ ⇒ 明明有记忆，页面却是空的
+  /// ⇒ ⇒ **失败长得像成功**。
+  ///
+  /// ⇒ ⇒ 列表走 `GET /api/memory` ⇒ ⇒ 这一格也必须跟着改（不然判据还在
+  /// 钉**已经不走的那条路**）。
+  @override
+  Future<List<MemoryResponse>> listMemories({
+    String? tenantId,
+    String? dimension,
+    int limit = 200,
+  }) async {
+    throw StateError('GET /hippocampus/api/memory → 404');
+  }
+
   @override
   Future<List<MemoryResponse>> searchMemory(
     String query, {
     int limit = 20,
+    double minScore = 0.0,
     String? tenantId,
   }) async {
     throw StateError('POST /hippocampus/api/search → 404');
@@ -194,9 +211,17 @@ class _EmptyClient extends PrefrontalClient {
   _EmptyClient() : super(baseUrl: 'http://127.0.0.1:1');
 
   @override
+  Future<List<MemoryResponse>> listMemories({
+    String? tenantId,
+    String? dimension,
+    int limit = 200,
+  }) async => const <MemoryResponse>[];
+
+  @override
   Future<List<MemoryResponse>> searchMemory(
     String query, {
     int limit = 20,
+    double minScore = 0.0,
     String? tenantId,
   }) async => const <MemoryResponse>[];
 }

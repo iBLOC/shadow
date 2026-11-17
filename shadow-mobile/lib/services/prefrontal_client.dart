@@ -74,6 +74,47 @@ class PrefrontalClient {
     baseUrl = url;
   }
 
+  /// 门闩 —— `X-Shadow-Key`（客户端 ↔ 自己端脑那扇门）。
+  ///
+  /// ⚠️ **为什么记忆面现在也需要它**（2026-11-17）：端脑的门型表把
+  /// `/hippocampus/*` 归成 `auto` 门 ⇒ ⇒ 读（`/api/memory`、`/api/search`）
+  /// 落**读门**（shadow key ∪ admin token）、写落**写门**（admin token）
+  /// ⇒ ⇒ 而**内嵌端脑的 shadow key 一定非空**（宿主 `ensure_secret` 生成
+  /// `<filesDir>/shadow.key` 并递进端脑）⇒ ⇒ **不带这把钥匙 ⇒ 401**。
+  ///
+  /// ⇒ ⇒ 后果：手机端带上本机海马体（`mobile-memory` 档）之后，记忆面若
+  /// 仍不带钥匙 ⇒ ⇒ **海马体建好了、路由挂上了、客户端却被门挡在外面**
+  /// ⇒ ⇒ 记忆页还是「读不到」（失败长得像成功）。
+  ///
+  /// ⚠️ 远端端脑用的是**它自己**那把 ⇒ ⇒ 这里只带**本机内嵌端脑**那把
+  /// ⇒ ⇒ 地址指向远端时，带的是远端自己的 key（由 `AppConfigService` 决定，
+  /// 见 `prefrontalClientProvider`）。
+  String? _shadowKey;
+
+  /// 当前带的门闩（诊断用；**不要**打进日志 —— 它是秘密）。
+  String? get shadowKey => _shadowKey;
+
+  /// 换门闩 —— 内嵌端脑起来后由 `_pointClientsAtAgentSurface` 递进来。
+  void setShadowKey(String? key) {
+    _shadowKey = (key == null || key.isEmpty) ? null : key;
+  }
+
+  /// admin token —— 写门（`auto` 门的非 GET 那一支）**只认**它。
+  ///
+  /// ⚠️ 与桌面对齐（`shadow-desktop/src/lib/hippocampusClient.ts` 的
+  /// `readDoorHeaders`）：读门 = shadow key ∪ admin token；写门 = admin token
+  /// ⇒ ⇒ **两组都要带**，读写都过 ⇒ ⇒ 只带一把 ⇒ 读过了、写不过
+  /// ⇒ ⇒ 「记忆能读、任务写不进去」（失败长得像成功）。
+  String? _adminToken;
+
+  /// 当前带的 admin token（诊断用；**不要**打进日志 —— 它是秘密）。
+  String? get adminToken => _adminToken;
+
+  /// 换 admin token。
+  void setAdminToken(String? token) {
+    _adminToken = (token == null || token.isEmpty) ? null : token;
+  }
+
   /// 基础请求方法
   Future<T> _request<T>(
     String method,
@@ -83,7 +124,19 @@ class PrefrontalClient {
     T Function(dynamic)? parser,
   }) async {
     final uri = Uri.parse('$baseUrl$path');
-    final requestHeaders = {'Content-Type': 'application/json', ...?headers};
+    final requestHeaders = {
+      'Content-Type': 'application/json',
+      // ⚠️ 门闩（2026-11-17）—— `/hippocampus/*` 是 `auto` 门 ⇒ 读面要
+      // shadow key ∪ admin token ⇒ 不带 ⇒ 401 ⇒ ⇒ 记忆面「读不到」。
+      // ⇒ ⇒ 空值**绝不下发**（不塞空串 —— 空串头会被判成「带了一个空的
+      // 门闩」⇒ ⇒ 401 且看不出原因）。
+      if (_shadowKey != null && _shadowKey!.isNotEmpty)
+        'X-Shadow-Key': _shadowKey!,
+      // ⚠️ 写门只认 admin token ⇒ ⇒ 写操作（upsert / DELETE）要它。
+      if (_adminToken != null && _adminToken!.isNotEmpty)
+        'X-Admin-Token': _adminToken!,
+      ...?headers,
+    };
 
     http.Response response;
 
@@ -286,16 +339,30 @@ class PrefrontalClient {
   /// 响应形状是 `[{memory: {...}, score, source}]` —— 记忆本体在 `memory`
   /// 里，`score` 在**外层**（桌面端 `lib/hippocampusClient.ts` 的
   /// `searchMemories` 是同一套形状）。
+  ///
+  /// ⚠️⚠️ **`minScore` 必须显式给 0.0**（2026-11-17 修）——
+  /// 海马体的 `/api/search` 在**没给**这一格时用 **`0.3`**（服务端默认）
+  /// ⇒ ⇒ 而「空查询」（或很弱的查询）的得分**本来就低于 0.3** ⇒ ⇒
+  /// ⇒ **结果被整条滤掉** ⇒ ⇒ 界面上「一条记忆都没有」⇒ ⇒
+  /// ⇒ **失败长得像成功**（明明有记忆，页面上是空的）。
+  /// ⇒ ⇒ 端脑那条记忆叶区也是显式给 `0.0` 的（同一口径）。
   Future<List<MemoryResponse>> searchMemory(
     String query, {
     int limit = 20,
     String? tenantId,
+    double minScore = 0.0,
   }) async {
     final tenant = tenantId ?? _tenantId;
     final data = await _request<List<dynamic>>(
       'POST',
       '/hippocampus/api/search',
-      body: {'query': query, 'limit': limit, 'tenantId': tenant},
+      body: {
+        'query': query,
+        'limit': limit,
+        // ⇒ ⇒ **不许**让服务端那个 0.3 的默认把结果滤掉。
+        'minScore': minScore,
+        'tenantId': tenant,
+      },
     );
     return data.map((r) {
       final raw = r as Map<String, dynamic>;
@@ -1277,12 +1344,18 @@ final prefrontalClientProvider = Provider<PrefrontalClient>((ref) {
   // ⇒ 终态：「**端脑面 = 本机内嵌那台**」＋「**记忆面 = 配的那台（带海马体）**」
   // —— 两张面**本来就该指不同的端脑**。
   //
-  // ⚠️ 而海马体那张面**不在 shadow key 门后面** —— 判据（2026-10-31 复核
-  // `telencephalon/src/api/mod.rs`）：`/hippocampus` 是 `build_full_app` 里
-  // **外层** `nest` 的（`outer.nest("/hippocampus", h)` ⇒ 与端脑 router
-  // **并列** merge），而影子锁那道门在 `shadow::router_with_store` **内部**
-  // （按路由挂）⇒ ⇒ `/hippocampus/*` 不在门后 ⇒ ⇒ 记忆面**不需要钥匙**就能通
-  // ⇒ ⇒ 配了远端地址就**真的**能读到远端的记忆。
+  // ⚠️⚠️ **这条注释在 2026-11-17 作废** —— 海马体那张面**现在在门后面**。
+  // 旧说法（2026-10-31）：「`/hippocampus` 是 `build_full_app` 里**外层**
+  // `nest` 的 ⇒ 与端脑 router **并列** merge ⇒ ⇒ 门（当时挂在 `shadow::router_with_store`
+  // **内部**）管不到它 ⇒ ⇒ 不需要钥匙」。
+  // ⇒ ⇒ **今非昔比**：端脑的门型表（`telencephalon/src/api/door_policy.txt`）
+  // 有一条 `/hippocampus/*  *  auto` ⇒ ⇒ 读落**读门**（shadow key ∪ admin
+  // token）、写落**写门**（admin token）⇒ ⇒ **要钥匙**。
+  // ⚠️ 而**内嵌端脑的 shadow key 一定非空**（宿主 `ensure_secret` 生成
+  // `<filesDir>/shadow.key` 并递进端脑）⇒ ⇒ **不带钥匙 ⇒ 401** ⇒ ⇒
+  // 「本机海马体建好了、路由挂上了、客户端却被门挡在外面」⇒ ⇒ 记忆页
+  // 还是「读不到」（失败长得像成功）。
+  // ⇒ ⇒ 所以下面要**把内嵌端脑那把门闩递给记忆面**。
   //
   // ⚠️ 别和 `hippocampus_public::router` 混：那是**另一组**路由
   // （`/api/telencephalon/hippocampus/*`），跟本 client 打的
@@ -1290,12 +1363,37 @@ final prefrontalClientProvider = Provider<PrefrontalClient>((ref) {
   //
   // ⚠️ 实例必须**共享**（不每次重建）：重建会把租户重置回 `default`
   // ⇒ 记忆页读到**另一个桶** ⇒ 失败长得像成功。
+  // ⚠️ **记忆面打哪台**（2026-11-17）—— 不再直接读 `connection.baseUrl`：
+  // 那个是「用户配的」⇒ ⇒ 移动端**没有任何 UI 能改它** ⇒ ⇒ 恒为默认
+  // 回环口 `127.0.0.1:60080` ⇒ ⇒ **手机上永远没人监听**（内嵌端脑用
+  // 随机端口）⇒ ⇒ 记忆页必败。
+  // ⇒ ⇒ 改读 `memoryBaseUrl`：配置了远端 ⇒ 指远端；没配 ⇒ 指**本机
+  // 内嵌端脑**（`mobile-memory` 档下它**带海马体** ⇒ 本机记忆在它那儿）。
   final baseUrl = ref.watch(
-    telencephalonProvider.select((s) => s.connection.baseUrl),
+    telencephalonProvider.select((s) => s.memoryBaseUrl),
   );
   if (sharedPrefrontalClient.baseUrl != baseUrl) {
     sharedPrefrontalClient.setBaseUrl(baseUrl);
   }
+  // ⚠️ **门闩跟着地址一起给**（2026-11-17）—— `/hippocampus/*` 是 `auto` 门
+  // ⇒ ⇒ 读面要 shadow key ⇒ ⇒ 记忆面不带 ⇒ 401。
+  //
+  // ⚠️ **哪一把**：地址指**本机内嵌端脑** ⇒ 用**内嵌那把**（宿主生成）；
+  // 地址指**远端端脑** ⇒ 用**远端自己那把**（用户配的）⇒ ⇒ 两者不能混。
+  // ⇒ ⇒ 这里取「配置里那把」，内嵌那把由 `_pointClientsAtAgentSurface`
+  // 在接管时递进来（它知道地址换了）。
+  final shadowKey = ref.watch(
+    telencephalonProvider.select((s) => s.memoryShadowKey),
+  );
+  sharedPrefrontalClient.setShadowKey(shadowKey);
+  // ⚠️ admin token 也跟着（写门只认它 ⇒ ⇒ 写操作要它）—— 与桌面对齐
+  // （`readDoorHeaders` 带的是**两组**）。
+  // ⚠️ 取 `memoryAdminToken`：**接管期间**它是**内嵌端脑那把**（本机海马体
+  // 的写门认它）⇒ ⇒ 没接管时是**配置里那把**（远端自己的）。
+  final adminToken = ref.watch(
+    telencephalonProvider.select((s) => s.memoryAdminToken),
+  );
+  sharedPrefrontalClient.setAdminToken(adminToken);
   return sharedPrefrontalClient;
 });
 

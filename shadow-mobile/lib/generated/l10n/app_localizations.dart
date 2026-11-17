@@ -242,6 +242,36 @@ abstract class AppLocalizations {
   /// **'Undo'**
   String get messageActionUndo;
 
+  /// No description provided for @messageActionQuote.
+  ///
+  /// In en, this message translates to:
+  /// **'Quote'**
+  String get messageActionQuote;
+
+  /// No description provided for @chatQuoteMarker.
+  ///
+  /// In en, this message translates to:
+  /// **'Quote: '**
+  String get chatQuoteMarker;
+
+  /// No description provided for @chatQuoteFromUser.
+  ///
+  /// In en, this message translates to:
+  /// **'Your message'**
+  String get chatQuoteFromUser;
+
+  /// No description provided for @chatQuoteFromAssistant.
+  ///
+  /// In en, this message translates to:
+  /// **'Assistant reply'**
+  String get chatQuoteFromAssistant;
+
+  /// No description provided for @chatQuoteDismiss.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove quote'**
+  String get chatQuoteDismiss;
+
   /// No description provided for @messageCopiedToast.
   ///
   /// In en, this message translates to:
@@ -350,11 +380,11 @@ abstract class AppLocalizations {
   /// **'Conversation Mode'**
   String get voiceMode;
 
-  /// No description provided for @agent2uiReady.
+  /// No description provided for @a2uiReady.
   ///
   /// In en, this message translates to:
-  /// **'Agent2UI Ready'**
-  String get agent2uiReady;
+  /// **'A2UI Ready'**
+  String get a2uiReady;
 
   /// No description provided for @askMeAnything.
   ///
@@ -530,11 +560,11 @@ abstract class AppLocalizations {
   /// **'Custom'**
   String get custom;
 
-  /// No description provided for @agent2UI.
+  /// No description provided for @a2ui.
   ///
   /// In en, this message translates to:
-  /// **'Agent2UI'**
-  String get agent2UI;
+  /// **'A2UI'**
+  String get a2ui;
 
   /// No description provided for @removeAttachment.
   ///
@@ -625,6 +655,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Speech did not play: {reason}'**
   String ttsSpeakFailed(Object reason);
+
+  /// No description provided for @ttsSkipped.
+  ///
+  /// In en, this message translates to:
+  /// **'Read-aloud skipped: {reason}'**
+  String ttsSkipped(Object reason);
+
+  /// No description provided for @ttsSkippedNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'Read-aloud skipped ({reason})'**
+  String ttsSkippedNotice(Object reason);
+
+  /// No description provided for @ttsSpeakAnyway.
+  ///
+  /// In en, this message translates to:
+  /// **'Read aloud anyway'**
+  String get ttsSpeakAnyway;
 
   /// No description provided for @asrFailed.
   ///
@@ -1328,6 +1376,36 @@ abstract class AppLocalizations {
   /// **'Not downloaded'**
   String get providerModelNotDownloaded;
 
+  /// No description provided for @providerModelsFromDocs.
+  ///
+  /// In en, this message translates to:
+  /// **'Preset from the provider\'s official docs (not a live list)'**
+  String get providerModelsFromDocs;
+
+  /// No description provided for @providerInputModalitiesSource.
+  ///
+  /// In en, this message translates to:
+  /// **'Input modalities source'**
+  String get providerInputModalitiesSource;
+
+  /// No description provided for @providerInputModalitiesSourceUpstream.
+  ///
+  /// In en, this message translates to:
+  /// **'Upstream'**
+  String get providerInputModalitiesSourceUpstream;
+
+  /// No description provided for @providerInputModalitiesSourceCatalog.
+  ///
+  /// In en, this message translates to:
+  /// **'Preset from official docs'**
+  String get providerInputModalitiesSourceCatalog;
+
+  /// No description provided for @providerInputModalitiesSourceDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Default (text only)'**
+  String get providerInputModalitiesSourceDefault;
+
   /// No description provided for @modelCategoryText.
   ///
   /// In en, this message translates to:
@@ -1405,6 +1483,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Image generation'**
   String get capImageGen;
+
+  /// No description provided for @capVideoGen.
+  ///
+  /// In en, this message translates to:
+  /// **'Video generation'**
+  String get capVideoGen;
 
   /// No description provided for @providersTitle.
   ///
@@ -3158,29 +3242,29 @@ abstract class AppLocalizations {
   /// **'Identity'**
   String get surfaceIdentity;
 
-  /// No description provided for @agent2uiNoConnection.
+  /// No description provided for @a2uiNoConnection.
   ///
   /// In en, this message translates to:
   /// **'Not connected to the brain'**
-  String get agent2uiNoConnection;
+  String get a2uiNoConnection;
 
-  /// No description provided for @agent2uiWaiting.
+  /// No description provided for @a2uiWaiting.
   ///
   /// In en, this message translates to:
   /// **'Connecting to the brain…'**
-  String get agent2uiWaiting;
+  String get a2uiWaiting;
 
-  /// No description provided for @agent2uiNoSurface.
+  /// No description provided for @a2uiNoSurface.
   ///
   /// In en, this message translates to:
   /// **'Connected, but the brain produced no surface'**
-  String get agent2uiNoSurface;
+  String get a2uiNoSurface;
 
-  /// No description provided for @agent2uiSurfaceHint.
+  /// No description provided for @a2uiSurfaceHint.
   ///
   /// In en, this message translates to:
   /// **'The surface drawn by the brain will appear here'**
-  String get agent2uiSurfaceHint;
+  String get a2uiSurfaceHint;
 
   /// No description provided for @ttsEngineRust.
   ///
@@ -3194,11 +3278,11 @@ abstract class AppLocalizations {
   /// **'Logs exported to {path}'**
   String logsExported(String path);
 
-  /// No description provided for @askAgent2UI.
+  /// No description provided for @askA2ui.
   ///
   /// In en, this message translates to:
   /// **'Ask the brain to draw...'**
-  String get askAgent2UI;
+  String get askA2ui;
 
   /// No description provided for @a2uiSurfaceReportTasks.
   ///
@@ -4244,6 +4328,12 @@ abstract class AppLocalizations {
   /// **'These tiers point at a model this brain has not registered - the setting is saved, but it cannot run until the engine is registered.'**
   String get capabilityDefaultsUnusableNow;
 
+  /// No description provided for @capabilityDefaultsUnservedNow.
+  ///
+  /// In en, this message translates to:
+  /// **'These tiers are not served by this brain yet (no endpoint behind them) - the setting is saved, but the brain cannot run them yet.'**
+  String get capabilityDefaultsUnservedNow;
+
   /// No description provided for @providersDownloadModels.
   ///
   /// In en, this message translates to:
@@ -4315,6 +4405,66 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Generated {count} image(s) ({size}) and showed them to the user.'**
   String clientToolsImageGenerated(int count, String size);
+
+  /// No description provided for @clientToolsVideoGenerated.
+  ///
+  /// In en, this message translates to:
+  /// **'The video was generated and shown to the user: {url}'**
+  String clientToolsVideoGenerated(String url);
+
+  /// No description provided for @clientToolsVideoProcessing.
+  ///
+  /// In en, this message translates to:
+  /// **'The video is still rendering (task {taskId}, model {model}) — ask me again in a moment to fetch it.'**
+  String clientToolsVideoProcessing(String taskId, String model);
+
+  /// No description provided for @imageActionSaveToGallery.
+  ///
+  /// In en, this message translates to:
+  /// **'Save to album'**
+  String get imageActionSaveToGallery;
+
+  /// No description provided for @imageActionShareToWeChat.
+  ///
+  /// In en, this message translates to:
+  /// **'Share to WeChat'**
+  String get imageActionShareToWeChat;
+
+  /// No description provided for @imageActionSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved to album'**
+  String get imageActionSaved;
+
+  /// No description provided for @imageActionSharedToWeChat.
+  ///
+  /// In en, this message translates to:
+  /// **'Shared to WeChat'**
+  String get imageActionSharedToWeChat;
+
+  /// No description provided for @imageActionSharedSystem.
+  ///
+  /// In en, this message translates to:
+  /// **'WeChat was not found — opened the system share sheet'**
+  String get imageActionSharedSystem;
+
+  /// No description provided for @imageActionSaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save: {reason}'**
+  String imageActionSaveFailed(String reason);
+
+  /// No description provided for @imageActionShareFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not share: {reason}'**
+  String imageActionShareFailed(String reason);
+
+  /// No description provided for @imageActionNoImage.
+  ///
+  /// In en, this message translates to:
+  /// **'That image can no longer be read (it may have been cleaned up)'**
+  String get imageActionNoImage;
 }
 
 class _AppLocalizationsDelegate

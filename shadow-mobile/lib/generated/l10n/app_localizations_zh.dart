@@ -82,6 +82,21 @@ class AppLocalizationsZh extends AppLocalizations {
   String get messageActionUndo => '撤销';
 
   @override
+  String get messageActionQuote => '引用';
+
+  @override
+  String get chatQuoteMarker => '引用：';
+
+  @override
+  String get chatQuoteFromUser => '你的消息';
+
+  @override
+  String get chatQuoteFromAssistant => '助手的回复';
+
+  @override
+  String get chatQuoteDismiss => '取消引用';
+
+  @override
   String get messageCopiedToast => '已复制到剪贴板';
 
   @override
@@ -140,7 +155,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get voiceMode => '对话模式';
 
   @override
-  String get agent2uiReady => 'Agent2UI 就绪';
+  String get a2uiReady => 'A2UI 就绪';
 
   @override
   String get askMeAnything => '问我任何问题，我会为您生成界面';
@@ -230,7 +245,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get custom => '自定义';
 
   @override
-  String get agent2UI => 'Agent2UI';
+  String get a2ui => 'A2UI';
 
   @override
   String get removeAttachment => '移除附件';
@@ -280,6 +295,19 @@ class AppLocalizationsZh extends AppLocalizations {
   String ttsSpeakFailed(Object reason) {
     return '语音没播出来：$reason';
   }
+
+  @override
+  String ttsSkipped(Object reason) {
+    return '已跳过朗读：$reason';
+  }
+
+  @override
+  String ttsSkippedNotice(Object reason) {
+    return '已跳过朗读（$reason）';
+  }
+
+  @override
+  String get ttsSpeakAnyway => '仍要朗读';
 
   @override
   String asrFailed(Object reason) {
@@ -661,6 +689,21 @@ class AppLocalizationsZh extends AppLocalizations {
   String get providerModelNotDownloaded => '未下载';
 
   @override
+  String get providerModelsFromDocs => '这份清单按官方文档预设（不是实时拉的）';
+
+  @override
+  String get providerInputModalitiesSource => '输入模态来源';
+
+  @override
+  String get providerInputModalitiesSourceUpstream => '上游标注';
+
+  @override
+  String get providerInputModalitiesSourceCatalog => '按官方文档预设';
+
+  @override
+  String get providerInputModalitiesSourceDefault => '默认（只支持文本）';
+
+  @override
   String get modelCategoryText => '文本模型';
 
   @override
@@ -698,6 +741,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get capImageGen => '图片生成';
+
+  @override
+  String get capVideoGen => '视频生成';
 
   @override
   String get providersTitle => '大模型服务提供商';
@@ -1637,16 +1683,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get surfaceIdentity => '身份';
 
   @override
-  String get agent2uiNoConnection => '未连接到大脑';
+  String get a2uiNoConnection => '未连接到大脑';
 
   @override
-  String get agent2uiWaiting => '正在连接大脑…';
+  String get a2uiWaiting => '正在连接大脑…';
 
   @override
-  String get agent2uiNoSurface => '已连接，但大脑这次没有给出界面';
+  String get a2uiNoSurface => '已连接，但大脑这次没有给出界面';
 
   @override
-  String get agent2uiSurfaceHint => '大脑把界面画出来后会显示在这里';
+  String get a2uiSurfaceHint => '大脑把界面画出来后会显示在这里';
 
   @override
   String get ttsEngineRust => 'Rust';
@@ -1657,7 +1703,7 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get askAgent2UI => '让大脑画界面...';
+  String get askA2ui => '让大脑画界面...';
 
   @override
   String get a2uiSurfaceReportTasks => '已展开「任务看板」。';
@@ -2234,6 +2280,10 @@ class AppLocalizationsZh extends AppLocalizations {
       '下面这几档指向的模型这台大脑还没注册 —— 设置存住了，但引擎注册前跑不起来。';
 
   @override
+  String get capabilityDefaultsUnservedNow =>
+      '下面这几档这台大脑还没服务（背后没有对应的调用入口）—— 设置存住了，但端脑现在调不了。';
+
+  @override
   String get providersDownloadModels => '下载本地模型';
 
   @override
@@ -2274,4 +2324,42 @@ class AppLocalizationsZh extends AppLocalizations {
   String clientToolsImageGenerated(int count, String size) {
     return '已生成 $count 张图片（$size），已展示给用户。';
   }
+
+  @override
+  String clientToolsVideoGenerated(String url) {
+    return '视频已生成并展示给用户：$url';
+  }
+
+  @override
+  String clientToolsVideoProcessing(String taskId, String model) {
+    return '视频还在生成中（任务 $taskId，模型 $model）—— 过一会儿再让我取一次。';
+  }
+
+  @override
+  String get imageActionSaveToGallery => '保存到相册';
+
+  @override
+  String get imageActionShareToWeChat => '分享到微信';
+
+  @override
+  String get imageActionSaved => '已保存到相册';
+
+  @override
+  String get imageActionSharedToWeChat => '已分享到微信';
+
+  @override
+  String get imageActionSharedSystem => '没检测到微信，已打开系统分享';
+
+  @override
+  String imageActionSaveFailed(String reason) {
+    return '保存失败：$reason';
+  }
+
+  @override
+  String imageActionShareFailed(String reason) {
+    return '分享失败：$reason';
+  }
+
+  @override
+  String get imageActionNoImage => '这张图已经读不到了（可能已被系统清理）';
 }

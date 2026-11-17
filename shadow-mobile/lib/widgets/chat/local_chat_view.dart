@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../generated/l10n/app_localizations.dart';
 import '../../providers/chat_provider.dart';
 import '../../utils/conversation_title.dart';
+import '../../utils/chat_quote.dart';
 import '../../providers/conversation_mode_provider.dart';
 import '../../utils/chat_state_l10n.dart';
 import '../../utils/chat_debug_json.dart';
@@ -17,6 +18,7 @@ import 'tool_call_card.dart';
 import 'unified_input_bar.dart';
 import 'camera_preview.dart';
 import 'message_action_sheet.dart';
+import 'image_action_sheet.dart';
 
 /// Local chat view for on-device inference
 class LocalChatView extends ConsumerStatefulWidget {
@@ -379,6 +381,15 @@ class _LocalChatViewState extends ConsumerState<LocalChatView> {
                                       );
                                     }
                                   },
+                                  // ⚠️ **长按 ⇒ ⇒ 保存到相册 / 分享到微信**
+                                  // （2026-11-17）—— 用户自己发进来的那张
+                                  // 图**也能带走**。
+                                  onLongPress: msg.attachmentPath == null
+                                      ? null
+                                      : () => showImageActionsForFile(
+                                            context,
+                                            msg.attachmentPath!,
+                                          ),
                                 )
                               : isAudio
                               ? AudioMessageBubble(
@@ -431,6 +442,12 @@ class _LocalChatViewState extends ConsumerState<LocalChatView> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   bubble,
+                                  // ⚠️ **AG-UI 承载的那块面** —— 画在这条消息下面
+                                  // ⇒ ⇒ 不是顶部面板、不是另开一页。
+                                  if (msg.a2uiSurfaceIds.isNotEmpty)
+                                    A2uiSurfacesBlock(
+                                      surfaceIds: msg.a2uiSurfaceIds,
+                                    ),
                                   MessageMetaRow(
                                     timeText:
                                         msg.createdAt == null
@@ -447,6 +464,21 @@ class _LocalChatViewState extends ConsumerState<LocalChatView> {
                                                   .toStringAsFixed(1),
                                             ),
                                   ),
+                                  // ⚠️ **「这次没朗读」就地看得见** ＋ 一个
+                                  // 「仍要朗读」开关（用户 2026-11-16 原话：
+                                  // 「回复的时候给个开关提示如果用户执意要
+                                  // 打开也可以打开」）⇒ ⇒ 跳过不吞死（文字
+                                  // 还在屏上），用户执意要听就能点。
+                                  if (msg.ttsSkipped)
+                                    _TtsSkippedRow(
+                                      notice: l10n.ttsSkippedNotice(
+                                        msg.ttsSkipReason ?? '',
+                                      ),
+                                      label: l10n.ttsSpeakAnyway,
+                                      onSpeakAnyway: () => ref
+                                          .read(chatProvider.notifier)
+                                          .speakText(msg.content, force: true),
+                                    ),
                                 ],
                               )
                             : bubble;
@@ -512,6 +544,20 @@ class _LocalChatViewState extends ConsumerState<LocalChatView> {
                       },
                     ),
                   ),
+                // ⚠️ **引用条** —— 长按气泡 ⇒ ⇒「引用」⇒ ⇒ 引用条出现在
+                // 输入框**上方**（不是塞进输入框里的字）⇒ ⇒ 用户接着打的
+                // 那句**不受打扰**⇒ ⇒ 要取消就点那个 ×。
+                if (chatState.quotedMessage != null)
+                  _QuoteBar(
+                    quote: chatState.quotedMessage!,
+                    authorLabel:
+                        chatState.quotedMessage!.role == ChatRole.user
+                        ? l10n.chatQuoteFromUser
+                        : l10n.chatQuoteFromAssistant,
+                    dismissLabel: l10n.chatQuoteDismiss,
+                    onDismiss: () =>
+                        ref.read(chatProvider.notifier).clearQuotedMessage(),
+                  ),
                 // ⚠️ **一个**输入框 —— 轻触打字、长按说话；文件入口挪到
                 // 右边变成「＋」；相机钮轻触拍照、**长按录像**。
                 //
@@ -571,6 +617,10 @@ class _LocalChatViewState extends ConsumerState<LocalChatView> {
     final canRetry =
         canCopy &&
         (msg.role == ChatRole.user || msg.role == ChatRole.assistant);
+    // ⚠️ **引用**与「复制」同一条规则：只有**有文字**的那条能给
+    // （工具卡片的内容是空的、附件气泡的是**路径** ⇒ ⇒ 引用它们没有
+    // 意义 ⇒ ⇒ 那一格在菜单里就被裁掉了）。
+    final canQuote = canCopy;
     final action = await showMessageActionSheet(
       context,
       canCopy: canCopy,
@@ -580,6 +630,7 @@ class _LocalChatViewState extends ConsumerState<LocalChatView> {
       canCopyConversationJson: widget.chatState.messages.isNotEmpty,
       canRetry: canRetry,
       canUndo: !toolCard,
+      canQuote: canQuote,
       labels: MessageActionLabels(
         copy: l10n.messageActionCopy,
         copyJson: l10n.messageActionCopyJson,
@@ -587,6 +638,7 @@ class _LocalChatViewState extends ConsumerState<LocalChatView> {
         retry: l10n.messageActionRetry,
         undo: l10n.messageActionUndo,
         cancel: l10n.cancel,
+        quote: l10n.messageActionQuote,
       ),
     );
     if (!context.mounted || action == null || action == MessageAction.dismiss) {
@@ -654,6 +706,11 @@ class _LocalChatViewState extends ConsumerState<LocalChatView> {
         }
       case MessageAction.undo:
         notifier.undoMessage(index);
+      case MessageAction.quote:
+        // ⚠️ **引用**＝把这一条放进「待发的那句」里 ⇒ ⇒ 引用条出现在
+        // 输入框上方 ⇒ ⇒ **下一句**发出去时会带着它（见
+        // `ChatNotifier._consumePendingQuote`）⇒ ⇒ 用完即清。
+        notifier.quoteMessage(index);
       case MessageAction.dismiss:
         break;
     }
@@ -683,6 +740,9 @@ class _LocalChatViewState extends ConsumerState<LocalChatView> {
         retry: l10n.messageActionRetry,
         undo: l10n.messageActionUndo,
         cancel: l10n.cancel,
+        // ⚠️ 错误横幅**不是一条消息** ⇒ ⇒ 没有「引用谁」⇒ ⇒ 菜单里
+        // **不给**这一项（`canQuote` 保持假）。
+        quote: l10n.messageActionQuote,
       ),
     );
     if (!context.mounted || action == null || action == MessageAction.dismiss) {
@@ -726,6 +786,10 @@ class _LocalChatViewState extends ConsumerState<LocalChatView> {
         await notifier.retryLastFailure();
       case MessageAction.undo:
         notifier.clearError();
+      case MessageAction.quote:
+        // ⚠️ 横幅**不是消息** ⇒ ⇒ 不许引用（菜单里根本没给这一项）
+        // ⇒ ⇒ 这一支只是穷尽 switch。
+        break;
       case MessageAction.dismiss:
         break;
     }
@@ -751,5 +815,132 @@ class _LocalChatViewState extends ConsumerState<LocalChatView> {
       case MessageRole.system:
         return ChatMessage.system(content);
     }
+  }
+}
+
+/// **引用条** —— 输入框上方那一行「你正在引用哪一条」。
+///
+/// ⚠️ **为什么是「条」而不是把引文塞进输入框**：用户接着要打的那句
+/// **不该被引文占着**（那是两件事）⇒ ⇒ 引文单独一行、点 × 就取消
+/// ⇒ ⇒ 用户接着打的字**一个字都不用改**。
+///
+/// ⚠️ **为什么写「谁说的」**：引的是助手那句还是自己那句 ⇒ ⇒ 意思完全
+/// 不同 ⇒ ⇒ 只给一段文字 ⇒ ⇒ 用户会分不清「我引的是它」还是「我说的」。
+class _QuoteBar extends StatelessWidget {
+  final QuotedMessage quote;
+  final String authorLabel;
+  final String dismissLabel;
+  final VoidCallback onDismiss;
+
+  const _QuoteBar({
+    required this.quote,
+    required this.authorLabel,
+    required this.dismissLabel,
+    required this.onDismiss,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHighest.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(12),
+        border: Border(left: BorderSide(color: scheme.primary, width: 3)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.format_quote, size: 16, color: scheme.primary),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  authorLabel,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: scheme.primary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  quoteSnippet(quote.text),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: onDismiss,
+            icon: const Icon(Icons.close, size: 18),
+            tooltip: dismissLabel,
+            visualDensity: VisualDensity.compact,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// **「这次没朗读」＋「仍要朗读」** —— 就地的一行提示。
+///
+/// ⚠️ **为什么就地，而不是全局横幅**：全局横幅会打断阅读，而这一格是
+/// **每条回复自己的**事实（「这一条刚才没出声」）⇒ ⇒ 挂在它自己的气泡下
+/// 面最贴切。
+///
+/// ⚠️ **跳过 ≠ 失败** ⇒ ⇒ 弱化色（不是横幅那种红）⇒ ⇒ 用户不会以为
+/// TTS 坏了。
+class _TtsSkippedRow extends StatelessWidget {
+  const _TtsSkippedRow({
+    required this.notice,
+    required this.label,
+    required this.onSpeakAnyway,
+  });
+
+  final String notice;
+  final String label;
+  final VoidCallback onSpeakAnyway;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final muted = theme.disabledColor;
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.volume_off_outlined, size: 14, color: muted),
+          const SizedBox(width: 4),
+          Flexible(
+            child: Text(
+              notice,
+              style: theme.textTheme.bodySmall?.copyWith(color: muted),
+            ),
+          ),
+          const SizedBox(width: 4),
+          // ⚠️ **开关** ⇒ ⇒ 点它 ⇒ ⇒ 绕过安静判定，强制出声（用户既然
+          // 执意要听，就别替他省这一次算力）。
+          TextButton(
+            onPressed: onSpeakAnyway,
+            style: TextButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+            ),
+            child: Text(label),
+          ),
+        ],
+      ),
+    );
   }
 }

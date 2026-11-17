@@ -82,6 +82,21 @@ class AppLocalizationsEn extends AppLocalizations {
   String get messageActionUndo => 'Undo';
 
   @override
+  String get messageActionQuote => 'Quote';
+
+  @override
+  String get chatQuoteMarker => 'Quote: ';
+
+  @override
+  String get chatQuoteFromUser => 'Your message';
+
+  @override
+  String get chatQuoteFromAssistant => 'Assistant reply';
+
+  @override
+  String get chatQuoteDismiss => 'Remove quote';
+
+  @override
   String get messageCopiedToast => 'Copied to clipboard';
 
   @override
@@ -140,7 +155,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get voiceMode => 'Conversation Mode';
 
   @override
-  String get agent2uiReady => 'Agent2UI Ready';
+  String get a2uiReady => 'A2UI Ready';
 
   @override
   String get askMeAnything => 'Ask me anything and I will generate UI for you';
@@ -230,7 +245,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get custom => 'Custom';
 
   @override
-  String get agent2UI => 'Agent2UI';
+  String get a2ui => 'A2UI';
 
   @override
   String get removeAttachment => 'Remove attachment';
@@ -280,6 +295,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String ttsSpeakFailed(Object reason) {
     return 'Speech did not play: $reason';
   }
+
+  @override
+  String ttsSkipped(Object reason) {
+    return 'Read-aloud skipped: $reason';
+  }
+
+  @override
+  String ttsSkippedNotice(Object reason) {
+    return 'Read-aloud skipped ($reason)';
+  }
+
+  @override
+  String get ttsSpeakAnyway => 'Read aloud anyway';
 
   @override
   String asrFailed(Object reason) {
@@ -668,6 +696,23 @@ class AppLocalizationsEn extends AppLocalizations {
   String get providerModelNotDownloaded => 'Not downloaded';
 
   @override
+  String get providerModelsFromDocs =>
+      'Preset from the provider\'s official docs (not a live list)';
+
+  @override
+  String get providerInputModalitiesSource => 'Input modalities source';
+
+  @override
+  String get providerInputModalitiesSourceUpstream => 'Upstream';
+
+  @override
+  String get providerInputModalitiesSourceCatalog =>
+      'Preset from official docs';
+
+  @override
+  String get providerInputModalitiesSourceDefault => 'Default (text only)';
+
+  @override
   String get modelCategoryText => 'Text models';
 
   @override
@@ -706,6 +751,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get capImageGen => 'Image generation';
+
+  @override
+  String get capVideoGen => 'Video generation';
 
   @override
   String get providersTitle => 'Model Providers';
@@ -1672,17 +1720,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get surfaceIdentity => 'Identity';
 
   @override
-  String get agent2uiNoConnection => 'Not connected to the brain';
+  String get a2uiNoConnection => 'Not connected to the brain';
 
   @override
-  String get agent2uiWaiting => 'Connecting to the brain…';
+  String get a2uiWaiting => 'Connecting to the brain…';
 
   @override
-  String get agent2uiNoSurface =>
-      'Connected, but the brain produced no surface';
+  String get a2uiNoSurface => 'Connected, but the brain produced no surface';
 
   @override
-  String get agent2uiSurfaceHint =>
+  String get a2uiSurfaceHint =>
       'The surface drawn by the brain will appear here';
 
   @override
@@ -1694,7 +1741,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get askAgent2UI => 'Ask the brain to draw...';
+  String get askA2ui => 'Ask the brain to draw...';
 
   @override
   String get a2uiSurfaceReportTasks => 'Expanded the task board.';
@@ -2309,6 +2356,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'These tiers point at a model this brain has not registered - the setting is saved, but it cannot run until the engine is registered.';
 
   @override
+  String get capabilityDefaultsUnservedNow =>
+      'These tiers are not served by this brain yet (no endpoint behind them) - the setting is saved, but the brain cannot run them yet.';
+
+  @override
   String get providersDownloadModels => 'Download local models';
 
   @override
@@ -2349,4 +2400,44 @@ class AppLocalizationsEn extends AppLocalizations {
   String clientToolsImageGenerated(int count, String size) {
     return 'Generated $count image(s) ($size) and showed them to the user.';
   }
+
+  @override
+  String clientToolsVideoGenerated(String url) {
+    return 'The video was generated and shown to the user: $url';
+  }
+
+  @override
+  String clientToolsVideoProcessing(String taskId, String model) {
+    return 'The video is still rendering (task $taskId, model $model) — ask me again in a moment to fetch it.';
+  }
+
+  @override
+  String get imageActionSaveToGallery => 'Save to album';
+
+  @override
+  String get imageActionShareToWeChat => 'Share to WeChat';
+
+  @override
+  String get imageActionSaved => 'Saved to album';
+
+  @override
+  String get imageActionSharedToWeChat => 'Shared to WeChat';
+
+  @override
+  String get imageActionSharedSystem =>
+      'WeChat was not found — opened the system share sheet';
+
+  @override
+  String imageActionSaveFailed(String reason) {
+    return 'Could not save: $reason';
+  }
+
+  @override
+  String imageActionShareFailed(String reason) {
+    return 'Could not share: $reason';
+  }
+
+  @override
+  String get imageActionNoImage =>
+      'That image can no longer be read (it may have been cleaned up)';
 }

@@ -24,6 +24,11 @@
   "messageDebugJsonCopiedToast": "聊天 JSON 已复制到剪贴板",
   "messageActionRetry": "重试",
   "messageActionUndo": "撤销",
+  "messageActionQuote": "引用",
+  "chatQuoteMarker": "引用：",
+  "chatQuoteFromUser": "你的消息",
+  "chatQuoteFromAssistant": "助手的回复",
+  "chatQuoteDismiss": "取消引用",
   "messageCopiedToast": "已复制到剪贴板",
   "messageTokenStatsSummary": "{tokens} tokens · {speed} tok/s",
   "@messageTokenStatsSummary": {
@@ -52,7 +57,7 @@
   "camera": "相机",
   "file": "文件",
   "voiceMode": "对话模式",
-  "agent2uiReady": "Agent2UI 就绪",
+  "a2uiReady": "A2UI 就绪",
   "askMeAnything": "问我任何问题，我会为您生成界面",
   "connectedToShadowA2AServer": "已连接到 Shadow A2A 服务器",
   "connectingToShadow": "正在连接 Shadow...",
@@ -82,7 +87,7 @@
   "unhealthy": "异常",
   "unknown": "未知",
   "custom": "自定义",
-  "agent2UI": "Agent2UI",
+  "a2ui": "A2UI",
   "removeAttachment": "移除附件",
   "dimensionUser": "用户",
   "dimensionAgent": "代理",
@@ -98,6 +103,9 @@
   "ttsEngine": "语音引擎",
   "ttsEngineBrain": "大脑（跟随默认模型）",
   "ttsSpeakFailed": "语音没播出来：{reason}",
+  "ttsSkipped": "已跳过朗读：{reason}",
+  "ttsSkippedNotice": "已跳过朗读（{reason}）",
+  "ttsSpeakAnyway": "仍要朗读",
   "asrFailed": "语音没听清：{reason}",
   "ttsEngineAndroid": "Android 内置",
   "ttsEngineExternal": "外部服务",
@@ -283,6 +291,11 @@
   "promptRestoreDefault": "恢复默认",
   "providerBuiltin": "内置",
   "providerModelNotDownloaded": "未下载",
+  "providerModelsFromDocs": "这份清单按官方文档预设（不是实时拉的）",
+  "providerInputModalitiesSource": "输入模态来源",
+  "providerInputModalitiesSourceUpstream": "上游标注",
+  "providerInputModalitiesSourceCatalog": "按官方文档预设",
+  "providerInputModalitiesSourceDefault": "默认（只支持文本）",
   "modelCategoryText": "文本模型",
   "modelCategoryVision": "视觉模型",
   "modelCatalogTitle": "支持的模型",
@@ -296,6 +309,7 @@
   "capRerank": "重排",
   "capOcr": "文字识别",
   "capImageGen": "图片生成",
+  "capVideoGen": "视频生成",
   "providersTitle": "大模型服务提供商",
   "providersEmpty": "暂未配置提供商",
   "providersEmptyHint": "点击右下角添加第一个提供商",
@@ -858,10 +872,10 @@
   "settingsConfigSaveFailed": "没存上：{error}",
   "surfaceA2ui": "生成式界面",
   "surfaceIdentity": "身份",
-  "agent2uiNoConnection": "未连接到大脑",
-  "agent2uiWaiting": "正在连接大脑…",
-  "agent2uiNoSurface": "已连接，但大脑这次没有给出界面",
-  "agent2uiSurfaceHint": "大脑把界面画出来后会显示在这里",
+  "a2uiNoConnection": "未连接到大脑",
+  "a2uiWaiting": "正在连接大脑…",
+  "a2uiNoSurface": "已连接，但大脑这次没有给出界面",
+  "a2uiSurfaceHint": "大脑把界面画出来后会显示在这里",
   "ttsEngineRust": "Rust",
   "logsExported": "日志已导出到 {path}",
   "@logsExported": {
@@ -871,7 +885,7 @@
       }
     }
   },
-  "askAgent2UI": "让大脑画界面...",
+  "askA2ui": "让大脑画界面...",
   "a2uiSurfaceReportTasks": "已展开「任务看板」。",
   "a2uiSurfaceReportAgents": "已展开「Agent 列表」。",
   "a2uiSurfaceReportNoSurface": "大脑这次没有画界面。",
@@ -1224,6 +1238,7 @@
   "zitiSaveFailed": "保存失败",
   "@zitiSaveFailed": {},
   "capabilityDefaultsUnusableNow": "下面这几档指向的模型这台大脑还没注册 —— 设置存住了，但引擎注册前跑不起来。",
+  "capabilityDefaultsUnservedNow": "下面这几档这台大脑还没服务（背后没有对应的调用入口）—— 设置存住了，但端脑现在调不了。",
   "providersDownloadModels": "下载本地模型",
   "providersDownloadedOnly": "已下载",
   "providersDownloadAction": "下载",
@@ -1252,5 +1267,36 @@
       "count": { "type": "int" },
       "size": { "type": "String" }
     }
-  }
+  },
+  "clientToolsVideoGenerated": "视频已生成并展示给用户：{url}",
+  "@clientToolsVideoGenerated": {
+    "placeholders": {
+      "url": { "type": "String" }
+    }
+  },
+  "clientToolsVideoProcessing": "视频还在生成中（任务 {taskId}，模型 {model}）—— 过一会儿再让我取一次。",
+  "@clientToolsVideoProcessing": {
+    "placeholders": {
+      "taskId": { "type": "String" },
+      "model": { "type": "String" }
+    }
+  },
+  "imageActionSaveToGallery": "保存到相册",
+  "imageActionShareToWeChat": "分享到微信",
+  "imageActionSaved": "已保存到相册",
+  "imageActionSharedToWeChat": "已分享到微信",
+  "imageActionSharedSystem": "没检测到微信，已打开系统分享",
+  "imageActionSaveFailed": "保存失败：{reason}",
+  "@imageActionSaveFailed": {
+    "placeholders": {
+      "reason": { "type": "String" }
+    }
+  },
+  "imageActionShareFailed": "分享失败：{reason}",
+  "@imageActionShareFailed": {
+    "placeholders": {
+      "reason": { "type": "String" }
+    }
+  },
+  "imageActionNoImage": "这张图已经读不到了（可能已被系统清理）"
 }

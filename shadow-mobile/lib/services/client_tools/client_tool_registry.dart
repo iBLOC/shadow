@@ -7,7 +7,7 @@ import 'package:flutter/foundation.dart' show TargetPlatform, debugPrint;
 
 import '../../generated/l10n/app_localizations.dart';
 import '../../l10n/current_l10n.dart';
-import '../genui/a2ui_surface_events.dart';
+import '../a2ui/a2ui_surface_events.dart';
 import '../capabilities/accessibility_ops.dart';
 import '../capabilities/capability.dart';
 import '../capabilities/capability_tools.dart';
@@ -345,7 +345,7 @@ Set<String> unsupportedCapabilityToolNames(
 /// 取 surface 的**原始事件** —— 注入进来的。
 ///
 /// ⚠️ **为什么注入**：工具这一层不该自己去碰端脑的地址 / 钥匙
-/// ⇒ ⇒ 真相源是 [GenUIAgentService]（它已经在用既有传输与凭据）
+/// ⇒ ⇒ 真相源是 [A2uiAgentService]（它已经在用既有传输与凭据）
 /// ⇒ ⇒ 单测里换成喂 fixture 的假 fetcher 就行。
 typedef A2uiSurfaceEventFetcher =
     Future<List<Map<String, Object?>>> Function(String view);
@@ -444,17 +444,82 @@ ClientToolRegistry buildMobileClientTools({
   // 注入的是**纯运输**那一半（`TelencephalonClient.generateImage`）；
   // 解析与 report 的 l10n 都在下面工具定义里（与桌面端同构）。
   required Future<Map<String, dynamic>> Function(Map<String, dynamic> body) generateImage,
+  // ⚠️ **可空**（不是 required）—— 没有它就没有 `generate_video` 这个工具
+  // ⇒ ⇒ 两端发给模型的 `tools` 数组会**不一样**（桌面端总有它）
+  // ⇒ ⇒ 同一个模型在手机上叫不出它 ⇒ ⇒ 「两端一致」就破了。
+  //
+  // ⚠️⚠️ **为什么不是 required** —— 那会让**既有那十来个调用点**（测试里
+  // 构造注册表的地方）全部编不过 ⇒ ⇒ 其中有**兄弟在飞面**的文件 ⇒ ⇒ 本刀
+  // 不去动它们 ⇒ ⇒ 改成**可空** ＋ 缺了就**响亮失败**（见下面 execute）
+  // ⇒ ⇒ 「没接线」绝不会长得像「成功了」。
+  //
+  // ⚠️ 注入的是**纯运输**那一半（`TelencephalonClient.generateVideo` /
+  // `queryVideo`）；解析与 report 的 l10n 都在下面工具定义里（与桌面端同构）。
+  Future<Map<String, dynamic>> Function(Map<String, dynamic> body)? generateVideo,
+  Future<Map<String, dynamic>> Function(String taskId, String model)? queryVideo,
+  // ⚠️ **视频生成的轮询预算**（**可注入** ⇒ ⇒ 判据不必真等三分钟）。
+  //
+  // ⚠️ 缺省 **180 秒** —— 官方那套视频要几十秒到几分钟 ⇒ ⇒ 同步等会撞
+  // HTTP 超时 ⇒ ⇒ 这里有**明确的预算**。
+  // ⚠️ **超时不许假装失败** —— 任务还在上游跑着 ⇒ ⇒ 报「还在生成」＋
+  // 任务 id ⇒ ⇒ 用户过一会儿可以再来取（**失败长得像成功**的另一种形态
+  // 是「超时被说成失败」）。
+  Duration videoPollBudget = const Duration(milliseconds: 180000),
+  // ⚠️ **轮询间隔**（同上，可注入 ⇒ ⇒ 判据能把它缩到毫秒级）。
+  Duration videoPollInterval = const Duration(milliseconds: 3000),
   // 天气工具的**取数那一半** —— ⚠️ **可注入**（单测喂假响应，不必真连网）
   // ⇒ ⇒ 真连网那条路另用真机读数验（DNS / TLS / 上游形状）。
   WeatherClient? weatherClient,
+  // ⚠️ **聊天背景的落盘那一半**（2026-11-17）—— **可注入**（单测塞假的
+  // 进去 ⇒ ⇒ 判据不必真碰文件系统）＋ **可空**（宿主没接线 ⇒ ⇒ 工具
+  // **响亮失败**，见 `CapabilityTools.setChatBackground`）。
+  //
+  // ⚠️ **为什么不是 required**：那会让**既有那十来个调用点**（测试里构造
+  // 注册表的地方）全部编不过 ⇒ ⇒ 其中有**别人在飞面**的文件 ⇒ ⇒ 本刀
+  // 不去动它们 ⇒ ⇒ 改成**可空** ＋ 缺了就**明确失败** ⇒ ⇒ 「没接线」
+  // 绝不会长得像「成功了」。
+  Future<void> Function(String? path)? setChatBackgroundPath,
 }) {
   final l10n = l10nProvider ?? currentL10n;
+  // ⚠️ **一个视频任务的工具结果** —— **成功 / 还在跑** 两种形状。
+  //
+  // ⚠️ **失败不走这里** —— 上游说 failed / cancelled ⇒ ⇒ **抛出去**（让
+  // 这一次工具调用真的是失败的）⇒ ⇒ 不许做成一句「生成失败」的报告 ⇒ ⇒
+  // 那会让模型把失败说成「视频好了」。
+  Map<String, dynamic> videoToolResult(
+    Map<String, dynamic> view,
+    String taskId,
+    String model,
+  ) {
+    final url = view['url'] as String?;
+    final status = (view['status'] as String?) ?? 'unknown';
+    if (status == 'succeeded' && url != null && url.isNotEmpty) {
+      return <String, dynamic>{
+        'report': l10n().clientToolsVideoGenerated(url),
+        'video': <String, dynamic>{
+          'url': url,
+          'status': status,
+          'task_id': taskId,
+          'model': model,
+        },
+      };
+    }
+    return <String, dynamic>{
+      'report': l10n().clientToolsVideoProcessing(taskId, model),
+      'video': <String, dynamic>{
+        'task_id': taskId,
+        'status': 'processing',
+        'model': model,
+      },
+    };
+  }
   final weather = weatherClient ?? WeatherClient();
   // 能力工具的**执行器** —— 工具定义在下面（必须是**字面量**形式，
   // 跨端对齐闸要看得见），干活的那一半在 `capabilities/capability_tools.dart`。
   final capabilityTools = CapabilityTools(
     channel: deviceDataChannel,
     accessibility: accessibilityOps,
+    setChatBackgroundPath: setChatBackgroundPath,
   );
   return ClientToolRegistry([
     ClientTool(
@@ -731,6 +796,37 @@ ClientToolRegistry buildMobileClientTools({
         },
       },
       execute: (args) => capabilityTools.readPhotos(args),
+    ),
+    ClientTool(
+      name: 'set_chat_background',
+      description:
+          'Set the chat background of this app to a picture from the phone album, or clear it back to the default. Call photos_list_recent first to get a contentUri, then pass that contentUri here.',
+      capability: Capability.photos,
+      parameters: <String, dynamic>{
+        'type': 'object',
+        'properties': <String, dynamic>{
+          'content_uri': <String, dynamic>{
+            'type': 'string',
+            'description':
+                'The contentUri of the photo to use as the chat background, exactly as photos_list_recent returned it (for example content://media/external/images/media/123). Leave it out when clear is true.',
+          },
+          'clear': <String, dynamic>{
+            'type': 'boolean',
+            'description':
+                'true = remove the chat background and go back to the default gradient.',
+          },
+          'required_permissions': <String, dynamic>{
+            'type': 'array',
+            'items': <String, dynamic>{
+              'type': 'string',
+              'enum': ['photos'],
+            },
+            'description':
+                'Declare which device permission this call needs on this phone. It must be exactly ["photos"] for this tool. The app checks the declaration against the real requirement and refuses the call if they do not match.',
+          },
+        },
+      },
+      execute: (args) => capabilityTools.setChatBackground(args),
     ),
     ClientTool(
       name: 'notification_read_events',
@@ -1039,6 +1135,123 @@ ClientToolRegistry buildMobileClientTools({
       },
     ),
         ClientTool(
+      // ⚠️ **工具名、参数表（JSON Schema）与桌面端逐字一致**
+      // （shadow/scripts/check-client-tools.mjs 逐字段比对 ⇒ 一边改了两边不改
+      // 就红）。形状是：结果 = `{ report, video }` —— **产物链接留在本地给
+      // 界面渲染**，模型只拿到 `report` 那一句。
+      name: 'generate_video',
+      description:
+          'Generate a video from a text prompt. Use this when the user asks to make, create or render a video, animation or clip. The finished video link is shown to the user in the chat.',
+      parameters: <String, dynamic>{
+        'type': 'object',
+        'properties': <String, dynamic>{
+          'prompt': <String, dynamic>{
+            'type': 'string',
+            'description':
+                'What the video should show. Describe the subject, the motion and the camera concretely; the model on the other side cannot ask you questions. Omit it only when "task_id" is given.',
+          },
+          'model': <String, dynamic>{
+            'type': 'string',
+            'description':
+                'Video model id to use. Omit to use the configured video_gen default (a cloud provider model).',
+          },
+          'duration': <String, dynamic>{
+            'type': 'integer',
+            'description': 'Length of the video in seconds, 4 to 15. Defaults to 5.',
+          },
+          'resolution': <String, dynamic>{
+            'type': 'string',
+            'enum': ['480P', '768P', '2K'],
+            'description':
+                'Output resolution. 2K is only supported by MiniMax-H3. Defaults to 768P.',
+          },
+          'ratio': <String, dynamic>{
+            'type': 'string',
+            'enum': ['adaptive', '21:9', '16:9', '4:3', '1:1', '3:4', '9:16'],
+            'description':
+                'Aspect ratio. "adaptive" is not allowed for text-only videos — pick a concrete ratio such as 16:9. Defaults to 16:9.',
+          },
+          'task_id': <String, dynamic>{
+            'type': 'string',
+            'description':
+                'Task id of a video generation that is still running. Pass it (with the model reported for that task) to fetch the finished video instead of starting a new one.',
+          },
+        },
+      },
+      execute: (args) async {
+        // ⚠️ **没接线 ⇒ 响亮失败**（不许静默成功、也不许假装「不可用」
+        // 就悄悄不做）⇒ ⇒ 这一格是「失败长得像成功」的对面。
+        final create = generateVideo;
+        final query = queryVideo;
+        if (create == null || query == null) {
+          throw const FormatException(
+              'generate_video is not wired on this device (no transport injected)');
+        }
+        final taskId = (args['task_id'] as String?)?.trim() ?? '';
+        final prompt = (args['prompt'] as String?)?.trim() ?? '';
+        final model = (args['model'] as String?)?.trim();
+
+        // ---- 查回上一轮还在跑的任务（不新建）----
+        if (taskId.isNotEmpty) {
+          if (model == null || model.isEmpty) {
+            throw const FormatException(
+                'generate_video needs the "model" of the task when "task_id" is given (the brain does not remember it)');
+          }
+          final view = await query(taskId, model);
+          return videoToolResult(view, taskId, model);
+        }
+
+        if (prompt.isEmpty) {
+          throw const FormatException('generate_video expects a non-empty "prompt"');
+        }
+        final duration = args['duration'];
+        final resolution = (args['resolution'] as String?)?.trim();
+        final ratio = (args['ratio'] as String?)?.trim();
+
+        final created = await create(<String, dynamic>{
+          'prompt': prompt,
+          if (model != null && model.isNotEmpty) 'model': model,
+          if (duration is int) 'duration': duration,
+          if (resolution != null && resolution.isNotEmpty) 'resolution': resolution,
+          if (ratio != null && ratio.isNotEmpty) 'ratio': ratio,
+        });
+        final id = (created['task_id'] as String?) ?? '';
+        final usedModel = (created['model'] as String?) ?? model ?? '';
+
+        // ⚠️ **轮询到完成或超时** —— 官方那套是异步 ⇒ ⇒ 这里有**明确的
+        // 预算** ⇒ ⇒ 超时**不许**假装失败（那会让用户以为视频坏了）。
+        final deadline = DateTime.now().add(videoPollBudget);
+        for (;;) {
+          final view = await query(id, usedModel);
+          final status = (view['status'] as String?) ?? 'unknown';
+          if (status == 'succeeded') {
+            final url = view['url'] as String?;
+            if (url == null || url.isEmpty) {
+              throw const FormatException(
+                  'generate_video: the task succeeded but no video url came back');
+            }
+            return videoToolResult(view, id, usedModel);
+          }
+          if (status == 'failed' || status == 'cancelled') {
+            final err = (view['error'] as String?) ?? '';
+            throw FormatException(
+                'generate_video: the video task $id $status${err.isEmpty ? '' : ' — $err'}');
+          }
+          if (DateTime.now().isAfter(deadline)) {
+            return <String, dynamic>{
+              'report': l10n().clientToolsVideoProcessing(id, usedModel),
+              'video': <String, dynamic>{
+                'task_id': id,
+                'status': 'processing',
+                'model': usedModel,
+              },
+            };
+          }
+          await Future<void>.delayed(videoPollInterval);
+        }
+      },
+    ),
+    ClientTool(
       // ⚠️ **工具名、参数表（JSON Schema）与桌面端逐字一致**
       // （shadow/scripts/check-client-tools.mjs 逐字段比对）。
       // ⚠️ **不设 report** ⇒ ⇒ 整份结果回传给模型（pickReportPayload 的规则：

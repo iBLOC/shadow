@@ -91,7 +91,7 @@ void main() {
     );
   });
 
-  test('端脑面被内嵌大脑接管时：记忆面仍指向配的那台（两张面各归各位）', () async {
+  test('端脑面被内嵌大脑接管时：记忆面**配了远端就仍指远端**（显式意图优先）', () async {
     await storeEndpoint(baseUrl: 'http://192.168.1.50:60080');
     final container = newContainer();
 
@@ -102,11 +102,46 @@ void main() {
           adminToken: 'embedded-admin-token',
         );
 
-    // ⇒ 端脑面 = 本机内嵌那台；记忆面 = 配的那台（带海马体）。
+    // ⇒ 端脑面 = 本机内嵌那台；记忆面 = 配的那台（用户显式配的 ⇒ 优先）。
     expect(container.read(telencephalonClientProvider).baseUrl,
         'http://127.0.0.1:43210');
     expect(container.read(prefrontalClientProvider).baseUrl,
         'http://192.168.1.50:60080');
+  });
+
+  test('**没配远端**时：记忆面指本机内嵌端脑（它带海马体）', () async {
+    // ⚠️ 移动端**没有任何 UI 能改「后端地址」** ⇒ ⇒ 配置恒为 null ⇒ ⇒
+    // 记忆面若仍指默认回环口 `127.0.0.1:60080` ⇒ ⇒ **手机上永远没人
+    // 监听**（内嵌端脑用每次启动都变的随机端口）⇒ ⇒ 记忆页必败。
+    // ⇒ ⇒ 没配 ⇒ 指本机内嵌端脑（`mobile-memory` 档下它**带海马体**）。
+    final container = newContainer();
+
+    container.read(telencephalonProvider.notifier).takeOverByAgentSurface(
+          'http://127.0.0.1:43210',
+          shadowKey: 'shadow-key',
+          adminToken: 'embedded-admin-token',
+        );
+
+    expect(container.read(prefrontalClientProvider).baseUrl,
+        'http://127.0.0.1:43210');
+  });
+
+  test('内嵌大脑放手后：记忆面回到配置里那个（没配过 ⇒ 默认回环口）',
+      () async {
+    final container = newContainer();
+    final notifier = container.read(telencephalonProvider.notifier);
+
+    notifier.takeOverByAgentSurface(
+      'http://127.0.0.1:43210',
+      shadowKey: 'shadow-key',
+      adminToken: 'embedded-admin-token',
+    );
+    expect(container.read(prefrontalClientProvider).baseUrl,
+        'http://127.0.0.1:43210');
+
+    notifier.releaseAgentSurface();
+    expect(container.read(prefrontalClientProvider).baseUrl,
+        'http://127.0.0.1:60080');
   });
 
   test('地址变了租户也不能丢（重建实例 = 读到另一个桶）', () async {

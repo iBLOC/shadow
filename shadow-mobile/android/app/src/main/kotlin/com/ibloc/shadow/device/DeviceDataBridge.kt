@@ -445,6 +445,7 @@ class DeviceDataBridge(
         "readContacts" -> readContacts(args)
         "readSms" -> readSms(args)
         "readPhotos" -> readPhotos(args)
+        "copyMediaToAppFiles" -> copyMediaToAppFiles(args)
         "notificationsAccessGranted" -> Outcome.Ok(DeviceNotificationListener.isAccessGranted(context))
         "readNotifications" -> readNotifications(args)
         else -> {
@@ -952,6 +953,56 @@ class DeviceDataBridge(
         }
         AppLog.i(TAG, "readPhotos：${out.size} 张图片的元数据")
         return Outcome.Ok(out)
+    }
+
+    /// 把相册里的**一张图**复制进 App 自己的目录（聊天背景用）。
+    ///
+    /// ## 为什么必须在这一层（2026-11-17）
+    ///
+    /// ⚠️ **Dart 侧读不了 `content://` URI** ⇒ ⇒ 而模型能拿到的相册图片标识
+    /// **就是** content URI（`readPhotos` 给的 `contentUri`）⇒ ⇒ 不在这一层
+    /// 把字节搬进 App 目录，模型给的 URI 就**永远用不了** ⇒ ⇒ 「让模型把
+    /// 某张照片设成聊天背景」这件事**做不成** ⇒ ⇒ 模型只能退回去用无障碍
+    /// 盲点屏幕（那就是用户看到的「模型只会瞎点」）。
+    ///
+    /// ⚠️ **复制而不是原地读**：背景图要**跨重启**生效 ⇒ ⇒ content URI 的
+    /// 读授权是**临时的**（重启后可能失效）⇒ ⇒ 必须落一份**稳定的副本**。
+    ///
+    /// ⚠️ **相册权限照样要**：这是读用户的相册 ⇒ ⇒ 权限位没给 ⇒ ⇒ 明确
+    /// 报错（不静默）。
+    private fun copyMediaToAppFiles(args: Map<*, *>?): Outcome {
+        val uriText = (args?.get("uri") as? String)?.trim().orEmpty()
+        if (uriText.isEmpty()) {
+            return Outcome.Err(ERROR_DEVICE_DATA, "缺少参数：uri", null)
+        }
+        val denied = missingPermission(Capability.PHOTOS)
+        if (denied != null) {
+            AppLog.w(TAG, "copyMediaToAppFiles 被拒：$denied")
+            return Outcome.Err(ERROR_PERMISSION_DENIED, denied, null)
+        }
+        val uri = Uri.parse(uriText)
+        val dir = java.io.File(context.filesDir, "chat_background")
+        if (!dir.exists() && !dir.mkdirs()) {
+            return Outcome.Err(ERROR_DEVICE_DATA, "建不出目录：${dir.absolutePath}", null)
+        }
+        val ext = when (context.contentResolver.getType(uri)) {
+            "image/png" -> ".png"
+            "image/webp" -> ".webp"
+            else -> ".jpg"
+        }
+        val target = java.io.File(dir, "background_${System.currentTimeMillis()}$ext")
+        try {
+            val stream = context.contentResolver.openInputStream(uri)
+                ?: return Outcome.Err(ERROR_DEVICE_DATA, "读不了这张图：$uriText", null)
+            stream.use { input ->
+                target.outputStream().use { output -> input.copyTo(output) }
+            }
+        } catch (e: Exception) {
+            AppLog.w(TAG, "copyMediaToAppFiles 失败：${e.message}")
+            return Outcome.Err(ERROR_DEVICE_DATA, "复制失败：${e.message}", null)
+        }
+        AppLog.i(TAG, "copyMediaToAppFiles：${target.absolutePath}")
+        return Outcome.Ok(target.absolutePath)
     }
 
     // ─────────────────────────────────────────────────────────────

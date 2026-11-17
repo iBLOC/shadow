@@ -85,11 +85,21 @@ class CapabilityTools {
     this.channel = const DeviceDataChannel(),
     this.accessibility,
     this.ownAppInForeground,
+    this.setChatBackgroundPath,
   });
 
   /// 无障碍那一层（没注入就用真机实现）。
   AccessibilityOps get _a11y =>
       accessibility ?? const PlatformAccessibilityOps();
+
+  /// 「把聊天背景设成某张图」—— **干活的那一半**。
+  ///
+  /// ⚠️ **可注入**（2026-11-17）：真正落盘的是**界面那一层**
+  /// （`themeAppearanceProvider.setChatBackgroundPath`）⇒ ⇒ 单测要能塞
+  /// 一个假的进来 ⇒ ⇒ 不然单测只能测到「没接线 ⇒ 失败」这一条。
+  ///
+  /// ⚠️ **可空** ⇒ ⇒ 宿主没接线时**明确失败**（不假装成功）。
+  final Future<void> Function(String? path)? setChatBackgroundPath;
 
   /// 自家 app 在前台吗（没注入判据 ⇒ 问真实生命周期）。
   bool _ownAppInForeground() =>
@@ -173,6 +183,55 @@ class CapabilityTools {
       'photos': photos,
       'count': photos.length,
     };
+  }
+
+  /// 把聊天背景设成相册里的某张图（或者清掉它）。
+  ///
+  /// ## 为什么要有这一格（2026-11-17）
+  ///
+  /// ⚠️ **手机本来就有聊天背景**（设置页能挑图、能落盘、能跨重启）⇒ ⇒
+  /// 但**模型调不到它** ⇒ ⇒ 用户说「把聊天背景换成这张」⇒ ⇒ 模型**只能**
+  /// 退回去用无障碍**盲点屏幕**（`mobile_tap` 一个坐标）⇒ ⇒ 那不是
+  /// 「设置背景」，是「赌坐标」⇒ ⇒ 用户看到的现象就是「模型只会瞎点」。
+  ///
+  /// ⚠️ **为什么要 `Capability.photos`**：背景图来自**用户的相册** ⇒ ⇒
+  /// 读相册这一档授权照样适用 ⇒ ⇒ 不因为「只是换背景」就绕过授权。
+  ///
+  /// ⚠️ **为什么必须走原生那一层**：`content://` URI **Dart 读不了** ⇒ ⇒
+  /// 字节要由原生层搬进 App 目录（`copyMediaToAppFiles`）⇒ ⇒ 而且搬过去
+  /// 的**副本**才跨重启有效（content URI 的授权是临时的）。
+  Future<Object?> setChatBackground(Map<String, dynamic> args) async {
+    // ⚠️ **参数先验，权限后问，宿主后问**（2026-11-17）—— 顺序反了会怎样：
+    // 模型传了个**坏参数** ⇒ ⇒ 先弹**相册权限框**给用户 ⇒ ⇒ 用户被问了一
+    // 个跟这次调用**没关系**的权限 ⇒ ⇒ 然后这次调用还是失败 ⇒ ⇒ 用户
+    // 白被打扰一次 ⇒ ⇒ 「失败长得像成功」的一种。
+    //
+    // ⚠️ **清空不需要相册权限** —— 清背景**不读相册** ⇒ ⇒ 不该问用户要
+    // 相册授权（问了就是白问）。
+    final clear = args['clear'] == true;
+    final uri = clear ? '' : (args['content_uri'] as String?)?.trim() ?? '';
+    if (!clear && uri.isEmpty) {
+      throw const FormatException(
+        'set_chat_background expects "content_uri" (from photos_list_recent) or clear=true',
+      );
+    }
+
+    final apply = setChatBackgroundPath;
+    if (apply == null) {
+      throw StateError(
+        'this host cannot set the chat background — the background setter is not wired',
+      );
+    }
+
+    if (clear) {
+      await apply(null);
+      return <String, dynamic>{'applied': 'cleared'};
+    }
+
+    await _ensureOsPermission(Capability.photos, channel);
+    final path = await channel.copyMediaToAppFiles(uri);
+    await apply(path);
+    return <String, dynamic>{'applied': 'background', 'path': path};
   }
 
   /// 读设备通知栏的近期通知（应用 / 标题 / 正文 / 时间）。

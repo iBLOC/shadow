@@ -1,3 +1,216 @@
+**Updated**: 2026-11-17 (㞰 **「聊天框能发**表格**了 —— 而这一刀真正的收获是：**「二进制不许当文本解」那条纪律，在**放行**的时候也要守住」」** —— 用户诉求逐字（「……聊天框支持发送excel相关格式……」）＋ 承 父仓 U+37AE 条（表格导入 ⇒ agent 建本体那一刀），本条记**这一侧落了什么**、**读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-17 | authority=measured | scope=project | source=用户逐字（「……聊天框支持发送excel相关格式……」）＋ 父仓 U+37AE 条 ｜ 改动：移动端（**改** lib/multimodal/attachment_encoder.dart（**新** AttachmentKind.spreadsheet 这一档 ＋ xlsx／xlsm 的 MIME ＋ 按 MIME 反查档位时**大小写无关**）＋ **改** test/unit/attachment_wire_test.dart（Word 仍拒 ＋ 表格认得 ＋ MIME 大小写无关））｜ 读数：flutter test test/unit/attachment_wire_test.dart **20/20**（原 17 ⇒ **+3**）| status=active | supersedes=none
+
+① **✅ 落点（两处）** —— ❶ **`lib/multimodal/attachment_encoder.dart`**：**新** `AttachmentKind.spreadsheet` 这一档 ＋ 扩展名表里加 xlsx（openxmlformats 那串）与 xlsm（macroEnabled 那串）＋ `kindForMime` 改成**大小写无关**比较（⚠️ xlsm 的 MIME 里有个大写 E ⇒ ⇒ 原来的比较会让它落 unsupported ⇒ ⇒ **不是新功能的问题，是旧比较的坑**）；❷ **`test/unit/attachment_wire_test.dart`**：原来那条「Word ／ Excel 那类二进制 → 还没接」**拆成两条** —— Word 仍拒（docx 落 unsupported）＋ **表格认得**（xlsx／xlsm 落 spreadsheet 且带对 MIME 与文件名）＋ 另加一条「按 MIME 反查档位时大小写无关」。
+
+② **⚠️ 为什么表格**不是**文本那一档** —— xlsx 是 **zip ＋ xml** 的二进制 ⇒ ⇒ 当 UTF-8 解一遍 ⇒ ⇒ 乱码 ⇒ ⇒ **失败长得像成功** ⇒ ⇒ 它必须**原样**以 base64 走过去 ⇒ ⇒ 由**顶叶**（Rust 那侧）用 calamine 真解 ⇒ ⇒ 客户端**一个字节都不解释**。
+
+③ **⚠️ 读数** —— `flutter test test/unit/attachment_wire_test.dart` **20 过 / 0 红**（原 17 ⇒ **+3**）⇒ ⇒ 其中新加的三条各钉一格：表格认得（xlsx／xlsm）＋ MIME 反查大小写无关 ＋ Word 仍拒。
+
+④ **⚠️ 仍然欠着的** —— ❶ **客户端「界面新建本体」界面**（用户明确要的那一格 ⇒ ⇒ 今天只能靠 agent 推断出一份模板包）；❷ **「表格 ⇒ 数据那条路」在客户端这一侧**已经能发出去，但**端脑与顶叶那一侧的转发**还没接通（端脑发的 A2A 信封与 synapse 的叶区入口**形状对不上** ⇒ ⇒ 那是存量债，见 父仓 U+37AE 条 ④）；❸ **真机那一格**仍空。
+
+⑤ **⚠ 圈码：本条占 U+37B0** —— 取号：逐字扫**八本账本**（hippocampus／shadow／shadow-mobile／shadow-desktop／telencephalon／synapse／prefrontal／parietal）⇒ ⇒ U+37AE／U+37AF／U+37B0 里 **U+37B0 起全局零命中**（37C0 已被占）⇒ ⇒ 字形由 `String.fromCodePoint()` 生成，不手打。
+**Updated**: 2026-11-17 (㞩 **「三个存量 bug 里的**两个**在移动端这一侧 —— **记忆页读得出**（列表走列表面／搜索显式给 `minScore`／维度大小写无关）＋ **模型能设置聊天背景**（`set_chat_background` 工具 ＋ 原生层把相册图片搬进 App 目录）；而这一刀真正的收获是：**「归一」写了两份 ⇒ ⇒ 变异打掉一份测不出来**」** —— 用户指令逐字（「三个bug你都没修吗你在干什么 先修存量bug」）＋ 承影仓 U+37A7 条（那一族），本条记**取证**、**落点**、**判据与真变异**、**自曝一处**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-17 | authority=measured | scope=project | source=用户指令逐字（「三个bug你都没修吗你在干什么 先修存量bug」）｜ 改动：移动端（**改** `lib/screens/memory_screen.dart`（列表改走 `listMemories` ＋ 维度归一**收成一处** ＋ `copyWith` 哨兵）＋ **改** `lib/services/prefrontal_client.dart`（`searchMemory` 显式带 `minScore`）＋ **改** `lib/services/client_tools/client_tool_registry.dart`（**新** `set_chat_background` 工具 ＋ 背景落盘那一半注入）＋ **改** `lib/services/capabilities/capability_tools.dart`（**新** `setChatBackground` ＋ 参数先验／权限后问）＋ **改** `lib/services/capabilities/device_data_channel.dart`（**新** `copyMediaToAppFiles`）＋ **改** `lib/providers/chat_provider.dart`（接线 ＋ **去掉重复的 `QuotedMessage`**）＋ **改** `android/.../DeviceDataBridge.kt`（**新** `copyMediaToAppFiles` 原生那一半）＋ **改** `test/widget/memory_screen_test.dart`（假客户端跟着改走列表面）＋ **改** `test/unit/capability_declaration_model_test.dart`（能力工具 12 ⇒ 13）＋ **新** `test/unit/memory_face_read_test.dart`（4 条）＋ **新** `test/unit/set_chat_background_tool_test.dart`（7 条））｜ 读数：新判据 **11 条全绿**（记忆读面 4 ＋ 背景工具 7）＋ **两道真变异各当场红**（❶ 列表改回空查询的搜索 ⇒ ⇒ 恰好 1 条红；❷ 维度归一去掉大小写 ⇒ ⇒ **头一版没红**（尺子钝了）⇒ ⇒ 归一收成一处后 ⇒ ⇒ 恰好 1 条红）＋ 移动端全量 `flutter test --concurrency=1` **1149 过 / 13 跳 / 0 红**（上一刀 1133 ⇒ ⇒ **+16**）＋ `flutter analyze --no-pub` **0 error**（61 条**存量** info）｜ 闸：跨端工具闸 **绿**（`check-client-tools` 退出码 0 ＋ 新工具已登记为**端侧专属**）｜ 父仓那一侧见 U+37A8 条 | status=active | supersedes=none
+
+① **⚠️ 取证：记忆页「一条都没有」是**读面自己**的三个毛病叠在一起**（都**不报错**）** ——
+　❶ **列表走的是「空查询的搜索」**（`searchMemory('')`）⇒ ⇒ 空查询在混合检索里**没有词**⇒ ⇒ 得分低于服务端 `min_score`（**0.3**）⇒ ⇒ **整条被滤掉** ⇒ ⇒ 明明有记忆、页面是空的。
+　❷ **维度筛选比的是大小写**：界面上的筛选值是 `User`，服务端给的是 `user` ⇒ ⇒ `!=` 比 ⇒ ⇒ **一条都对不上** ⇒ ⇒ 用户一点「用户」维度、列表**整个空了**。
+　❸ **`copyWith` 把错误与维度悄悄清掉** ⇒ ⇒ 「加载失败」那条横幅下一次更新就没了 ⇒ ⇒ 用户只看到「空的记忆列表」⇒ ⇒ **失败长得像成功**。
+
+② **✅ 落点（两处）** ——
+　❶ **记忆页**（`lib/screens/memory_screen.dart` ＋ `lib/services/prefrontal_client.dart`）：列表改走 `GET /api/memory`（**列表面**，不是搜索面）＋ 搜索**显式**带 `minScore: 0.0`（不许让服务端那个 0.3 的默认把结果滤光）＋ 维度归一 ＋ `copyWith` 用**哨兵**（`error`／`selectedDimension` 两格改成「不传就不动」）。
+　❷ **`set_chat_background` 工具**（`lib/services/client_tools/client_tool_registry.dart` ＋ `lib/services/capabilities/capability_tools.dart` ＋ `lib/services/capabilities/device_data_channel.dart` ＋ `android/.../DeviceDataBridge.kt` ＋ `lib/providers/chat_provider.dart`）：手机**本来就有**聊天背景（设置页能挑图、能落盘、能跨重启）⇒ ⇒ 但**模型调不到它** ⇒ ⇒ 用户说「把聊天背景换成这张」⇒ ⇒ 模型**只能**退回去用无障碍**盲点屏幕**（赌坐标）⇒ ⇒ **那才是用户看到的「模型只会瞎点」**。⇒ ⇒ 模型拿到的相册图片标识**就是** `content://` URI（`readPhotos` 给的 `contentUri`）⇒ ⇒ **Dart 读不了它** ⇒ ⇒ 原生层把字节**搬进 App 目录**（`copyMediaToAppFiles`）⇒ ⇒ 落盘的是**稳定副本**（content URI 的授权是临时的、重启会失效）⇒ ⇒ 再交给界面那一层（`themeAppearanceProvider.setChatBackgroundPath`）⇒ ⇒ **与设置页改的是同一份**。
+
+③ **⚠️ 自曝一处（这一刀真正的收获）** —— **「归一」写了两份 ⇒ ⇒ 变异打掉一份测不出来**：维度大小写这一格，头一版是「`wanted` 归一一次 ＋ `m.dimension` 归一一次」⇒ ⇒ 那条规则**有两份实现** ⇒ ⇒ 我把其中一份改回**大小写敏感** ⇒ ⇒ 判据**照样绿**（另一份还在归一）⇒ ⇒ **「尺子钝了没人知道」**。⇒ ⇒ 现在归一走**同一个函数**（`normalizeDimension`）⇒ ⇒ 一处错 ⇒ ⇒ 两边一起错 ⇒ ⇒ 变异当场**恰好 1 条红**。
+
+④ **⚠️ 仍然欠着的** ——
+　❶ **真机那一格仍空**（设备未授权）⇒ ⇒ 「手机上真的能记住、真的读得出、真的能换背景」**未在真机验过**（不许说「真机已验证」）。
+　❷ **「记住 X」那条写路**在端脑那一侧（见端脑 U+37AA 条）⇒ ⇒ 移动端**这一侧没有新按钮**（那是有意的：记忆是**模型**的活，不是用户的活）⇒ ⇒ 但**桌面端那条路**仍只有读（桌面没有写记忆的入口 ⇒ ⇒ 两端**不对等**，记在这里）。
+　❸ **原生那一格只过了编译**：`:app:compileReleaseKotlin` **退出码 0**（那半个搬运真的编过了）⇒ ⇒ 但**真机读数仍欠**（设备未授权）⇒ ⇒ 「从相册选一张 ⇒ 背景真的换了」**未在真机验过**。
+　❹ **这一刀没提交** ⇒ ⇒ 父仓那道「提交树面」的乱码闸仍红（**存量债**，本刀文件零命中）。
+**Updated**: 2026-11-17 (㞦 **「长按气泡 ⇒ ⇒ **引用**到输入框 —— 而这一刀真正的收获是：**「引用」必须真的到模型那里**，否则界面上的引用条就是**失败长得像成功**」** —— 用户指令逐字（「对话气泡支持长按引用消息到输入」）＋ 承影仓 U+37A1（㞡）条（双承载那一族），本条记**取证**、**落点**、**引用为什么必须拼进正文**、**判据与真变异**、**自曝一处**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-17 | authority=measured | scope=project | source=用户指令逐字（「聊天记录中的图片长按需要支持保存到相册或者分享到微信，对话气泡支持长按引用消息到输入」） ｜ 改动：移动端（**新** `lib/utils/chat_quote.dart`（引文压行／截断／拼装，**纯函数**）＋ **改** `lib/providers/chat_provider.dart`（`QuotedMessage` ＋ `ChatState.quotedMessage` ＋ `quoteMessage`／`clearQuotedMessage` ＋ 漏斗里拼引用 ＋ **重试那条路改成直调漏斗**）＋ **改** `lib/widgets/chat/message_action_sheet.dart`（`MessageAction.quote` ＋ `canQuote` ＋ 菜单项）＋ **改** `lib/widgets/chat/local_chat_view.dart`（菜单接线 ＋ **引用条**画在输入框上方）＋ **改** `lib/l10n/app_zh.arb`／`app_en.arb`（5 键）＋ `lib/generated/l10n/*`（重生成）＋ **新** `test/unit/chat_quote_test.dart`（11 条）＋ **新** `test/widget/message_quote_test.dart`（5 条））｜ 读数：新判据 **16/16 绿**（纯函数 5 ＋ 承重 6 ＋ 接线 5）＋ **三道真变异各当场红**（❶ 引用没被拼进去 ⇒ ⇒ **恰好 1 条红**；❷ 重发那条路也拼引用 ⇒ ⇒ **恰好 1 条红**；❸ 引用条不画 ⇒ ⇒ **恰好 3 条红**）＋ 还原后 sha256 `C546AA87…C9F72`／`EA5438E1…D03F6`／`DE7F2986…F09B`／`F63ECB50…F267B`／`9955D433…68279`／`B05D004D…14F0` **逐字一致** ＋ 移动端全量 `flutter test --concurrency=1` **1133 过 / 13 跳 / 0 红**（上一刀 1117 ⇒ ⇒ **+16** ⇒ ⇒ 正是这 16 条）＋ `flutter analyze --no-pub` **0 error / 0 warning**（61 条**存量** info）｜ 闸：相关闸 **10 道**：**8 绿**（i18n-key-completeness／mobile-test-assertions／mobile-a11y-contract／jni-surface／legacy-residue／state-surface／yaml-valid／**ledger-codepoints**）／**2 红** ⇒ ⇒ `check-replacement-chars`（**存量债**：3 处全在别人在飞的文件，**零命中本刀文件**）／`check-failure-masking`（**6 处落点全在别人在飞的文件**，**零命中本刀文件**） | status=active | supersedes=none
+
+① **⚠️ 取证：长按气泡原本只有「复制／复制 JSON／重试／撤销」** —— 菜单里**没有一个动作**能把某条消息**带进下一句** ⇒ ⇒ 用户想针对某一句追问，只能手打或复制粘贴整段 ⇒ ⇒ 「我指的是它说的哪一句」这件事在界面上**说不清** ⇒ ⇒ 这不是「少一个按钮」，是**追问这一交互压根没有**。
+
+② **✅ 落点（四层）** ——
+　❶ **纯函数**（**新** `lib/utils/chat_quote.dart`）：`quoteSnippet()`（引文压成**一行** ＋ 截到 200 字）＋ `composeQuotedPrompt()`（拼成**一条**：`标记 + 引文` 换行 `你的话`）。⚠️ **单独一份纯函数**（不塞在 provider 里）⇒ ⇒ 这一格的形状能被**单测**钉住，而 provider 那层要绑一整台假端脑才跑得起来。
+　❷ **状态与动作**（**改** `chat_provider.dart`）：`QuotedMessage`（角色／原文／第几条）＋ `ChatState.quotedMessage`（**草稿**，不是历史）＋ `quoteMessage(index)`／`clearQuotedMessage()` ＋ `_consumePendingQuote()`（拼装 ＋ **用完即清**）。⚠️ 引用**带哨兵**进 `copyWith` ⇒ ⇒ 清得掉（`??` 那套清不掉）。
+　❸ **菜单**（**改** `message_action_sheet.dart`）：`MessageAction.quote` ＋ `canQuote` ＋ 菜单项「引用」（紧跟「复制」——它也是「拿这条消息去做点什么」）。
+　❹ **界面**（**改** `local_chat_view.dart`）：长按 ⇒ ⇒ 菜单里点「引用」⇒ ⇒ **引用条**画在**输入框上方**（写明「你的消息」还是「助手的回复」＋ 被引片段 ＋ 一个 ×）。
+
+③ **⚠️ 这一刀真正的收获：引用**必须拼进正文**（不然就是「失败长得像成功」）** —— AG-UI 那一路**只发当轮那一条 user 消息** ⇒ ⇒ 引用若只活在界面上 ⇒ ⇒ 模型**压根不知道**被引的是哪一句 ⇒ ⇒ 界面上有引用条、模型那边**没有** ⇒ ⇒ 用户以为「我引用它了」⇒ ⇒ **失败长得像成功** ⇒ ⇒ 所以引用**拼进那一条正文**（`引用：<被引的那句>` ＋ 换行 ＋ `<你的话>`）⇒ ⇒ 而且**界面上那条气泡与发出去的那句话是同一个字符串** ⇒ ⇒ 用户看到的与模型收到的**不分叉**。
+
+④ **⚠️ 三个容易做错的地方（都想过）** ——
+　❶ **把拼装放在漏斗最前面** ⇒ ⇒ 「重发旧消息」也会把**现在**待引用的那条拼上去 ⇒ ⇒ 「重发原文」就不是原文了 ⇒ ⇒ 所以重试／重新生成那两条路**直调漏斗**、不带那个标记。
+　❷ **在闸门之前消费引用** ⇒ ⇒ 切会话失败时（话**压根没发出去**）引用却没了 ⇒ ⇒ **失败长得像成功** ⇒ ⇒ 所以拼装放在**闸门之后**（`_sendToTelencephalon` 里那道 `failedSwitchSessionId` 守卫**之后**）。
+　❸ **把引文塞进输入框里的字** ⇒ ⇒ 用户接着打的那句被占着 ⇒ ⇒ 单独一行、点 × 取消 ⇒ ⇒ 用户接着打的字**一个字都不用改**。
+
+⑤ **✅ 判据与真变异（绿不算数）** ——
+　❶ **16 条**（三层）：纯函数层 **5 条**（压行／截断／引文在前／空引文原样返回／空话只发引文）＋ 承重层 **6 条**（**端脑真的收到了被引的那句**〔真 driver ＋ 假运输层〕／**界面上那条气泡与发出去的那句是同一个字符串**／用完即清／取消得掉／**重发旧消息不拼引用**／空内容引用不了）＋ 接线层 **5 条**（菜单里有「引用」／**引用条画在输入框上方**／写明是谁说的／点 × 消失／**工具卡片的菜单里没有「引用」**）。
+　❷ ⚠️ **承重那一格是这一刀的关键**：只钉「菜单里有个按钮」⇒ ⇒ 那是**假绿**；钉「端脑**真的收到**了被引的那句」⇒ ⇒ 才是真的。
+　❸ **三道真变异，各当场红**：❶ 引用**没被拼进去**（`_consumePendingQuote` 直接返回原文）⇒ ⇒ **恰好 1 条红**（承重那条「端脑收到的那一句里含被引的那句」）⇒ ⇒ 其余 15 条仍绿；❷ 重发那条路**也**拼引用 ⇒ ⇒ **恰好 1 条红**（那条「重发旧消息不拼引用」）⇒ ⇒ 其余仍绿；❸ 引用条**不画** ⇒ ⇒ **恰好 3 条红**（三条「画出来了」的判据）⇒ ⇒ 「菜单里有引用」与「工具卡片没有引用」那两条**仍绿** ⇒ ⇒ 它们不是复本。
+　❹ 还原后 sha256 **逐字一致**（六个文件）⇒ ⇒ 三道变异**没有**留下残迹。
+
+⑥ **⚠️ 自曝一处：判据的夹具分叉，冒充成「实现坏了」** —— 第一版接线判据把消息塞给 widget 的 prop、**却不塞给 provider** ⇒ ⇒ 而生产里 `chat_screen` 是 `ref.watch(chatProvider)` ⇒ ⇒ prop 与 provider 的状态是**同一份** ⇒ ⇒ 夹具分叉 ⇒ ⇒ `quoteMessage(index)` 在 provider 的**空状态**里找不到那条 ⇒ ⇒ 「引用」那一格**必然红** ⇒ ⇒ 那是**夹具**的问题、不是实现的问题 ⇒ ⇒ 差点改错地方 ⇒ ⇒ 判据改成「消息**同时**在 provider 的状态里」（`SeedableChatNotifier`）⇒ ⇒ 才立得住。
+
+⑦ **⚠️ 仍然欠着的** ——
+　❶ **真机那一格仍空**（设备未授权）⇒ ⇒ 「手机上长按真能引用」**未验**（不许说「真机已验证」）。
+　❷ **桌面端没有这一格** ⇒ ⇒ 两端**不对等**（桌面长按气泡也只有复制／重试／撤销）⇒ ⇒ **只报告不代修**（补齐要牵桌面端那条线 ⇒ ⇒ 那是另开一刀的事）。
+　❸ **空输入按发送 ⇒ ⇒ 不发**（引用还在）⇒ ⇒ 「只引用、不发言」这条路**没有**。
+　❹ **引用完不自动聚焦输入框**（`UnifiedInputBar` 的 FocusNode 是它**私有**的）⇒ ⇒ 用户得自己再点一下输入框。
+　❺ **语音那条路也带引用**（转写后直接发 ⇒ ⇒ 走的是同一个漏斗）⇒ ⇒ 但**没有判据**钉它（那一格要真录音）。
+　❻ **「引用一条**附件**／工具卡片」那一格没有** —— 菜单里按「有文字」裁掉了（内容是路径或空）⇒ ⇒ 是**故意**的，但也是**取舍**。
+　❼ **本刀未提交** ⇒ ⇒ 台账这条也未进提交。
+
+⑧ **⚠ 圈码：本条占 U+37A6（㞦）** —— 落笔前**逐字重扫全树 63 本账本**（Node 逐字读；⚠️ PowerShell 管道会把方块字读成 `?` ⇒ ⇒ 那是**假零**）⇒ ⇒ `㞦` **全树 0 命中** ⇒ ⇒ 高于本账本水位 U+37A5（上一条）⇒ ⇒ ⚠️ **兄弟那条（U+37A2）已在本刀期间落笔** ⇒ ⇒ 那一枚**不再是悬着的**⇒ ⇒ 本刀让开它、取 **U+37A6**（移动端）⇒ ⇒ 字形由 `String.fromCodePoint()` 生成，不手打。
+
+**Updated**: 2026-11-17 (㞢 **「移动端这一侧 —— AG-UI 流里那块面**认得**、**取得到**、**画得出**；而这一刀真正的收获是：**第一次全量跑出来的红不是测试红，是编译红**；第二次全量跑**直接卡住**，而根因是 **`pub get` 不是测试**」** —— 承影仓 U+37A1 条（双承载那一族）＋ 用户裁决逐字（「agui 主要是对用户 和 agent 间无关」／「多种协议尽量都要兼容 所以保留 a2a」），本条记**落点**、**官方一手事实**、**判据与真变异**、**自曝两处**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-17 | authority=measured | scope=project | source=用户裁决逐字（「agui 主要是对用户 和 agent 间无关」＋「多种协议尽量都要兼容 所以保留 a2a」）＋ 影仓 U+37A1 条（双承载那一族） ｜ 改动：移动端（**新** `lib/agui/a2ui_activity.dart`（官方字面量 ＋ 三档提取器）＋ **新** `lib/services/a2ui/a2ui_message_shape.dart`（服务层与协议层**共用一份**判据）＋ **改** `lib/agui/agui_events.dart`（认得 `ACTIVITY_SNAPSHOT` ＋ 三个 getter）＋ **改** `lib/agui/agui_driver.dart`（交出 `a2ui_surface`）＋ **改** `lib/services/a2ui/a2ui_surface_events.dart`（改用共用判据）＋ **改** `lib/services/a2ui/a2ui_agent_service.dart`（**新** `ingestA2uiOps()` ＋ 抽出 `_clearSurfaces()`）＋ **改** `lib/providers/chat_provider.dart`（`a2uiSurfaceIds` ＋ 「只有面没有话」也算有答案）＋ **改** `lib/widgets/chat/a2ui_inline_block.dart`（`_A2uiSurfaces` ⇒ `A2uiSurfacesBlock`）＋ **改** `lib/widgets/chat/local_chat_view.dart`（消息下渲染面）＋ **新** `test/unit/agui_a2ui_activity_test.dart`（9 条）＋ **新** `test/support/fixtures/agui_activity_v1.json`）｜ 读数：新判据 **9/9 绿** ＋ 移动端全量 `flutter test`（并发度 1，**--no-pub**）**1117 过 / 13 跳 / 0 红**（exit 0；上一刀 1102 ⇒ ⇒ 本刀新判据 9 条在列 ⇒ ⇒ 余下增量**来自兄弟在飞面的新判据文件** ⇒ ⇒ **零红**） ＋ `flutter analyze --no-pub` **0 error / 0 warning**（本刀引入的 2 条 doc 注释尖括号**同刀清掉** ⇒ ⇒ 余下 62 条**存量** info）＋ **真变异 M3**（移动端自造 activity 名 `a2ui-surface-v2`）⇒ ⇒ 移动端 **5 条红** ＋ 形状闸 **1 条红（W3）** ⇒ ⇒ 还原后 sha256 `447038124A082D3EB0269DD1952C84F3CF63FC6241A2D2B29E200FAAB4BEF935` **逐字一致** ｜ 闸：影仓 **64 道闸全跑：52 绿 / 9 红 / 3 判不了 / 0 超时** ⇒ ⇒ 本刀新闸 **绿** ＋ 余下 **9 道红与上一刀逐条相同**（零新增） | status=active | supersedes=none
+
+① **✅ 落点（九个文件，两新）** —— ❶ **协议层**（**新** `lib/agui/a2ui_activity.dart`）：官方字面量 `a2ui-surface` ＋ `a2ui-surface-`（**照抄官方那一处**，不手打）＋ `a2uiOpsFromEvent()`（**三档各有一档的读数**：不是 activity ⇒ `null`；是 activity 但**不是**那块面 ⇒ `null`（别的不归我们管）；是那块面但**形状不对** ⇒ ⇒ **抛** ⇒ ⇒ 响亮地拒）＋ `a2uiSurfaceIdOf()`。❷ **共用判据**（**新** `lib/services/a2ui/a2ui_message_shape.dart`）：`a2uiV1MessageKeys` ＋ `isA2uiV1Message` —— **服务层与协议层共用同一份** ⇒ ⇒ 两边对「这是不是 v1.0 消息」**不会各说各话**。❸ **事件层**（**改** `lib/agui/agui_events.dart`）：已知事件类型加 `ACTIVITY_SNAPSHOT` ＋ 三个 getter（`activityType`／`content`／`replace`）⇒ ⇒ **认不得就等于面静默消失**（失败长得像成功）。❹ **driver**（**改** `lib/agui/agui_driver.dart`）：交出 `a2uiOps` ＋ `ACTIVITY_SNAPSHOT` ⇒ `a2ui_surface`。❺ **服务层**（**改** `lib/services/a2ui/a2ui_agent_service.dart`）：抽出 `_clearSurfaces()` ＋ **新** `ingestA2uiOps()`（**先删旧面**再把 ops **原样**喂进官方 processor ⇒ ⇒ 零翻译 ⇒ ⇒ 面真的存在）。❻ **会话层**（**改** `lib/providers/chat_provider.dart`）：`ChatMessageModel.a2uiSurfaceIds` ＋ copyWith ＋ AG-UI 循环里 case `a2ui_surface` ⇒ `ingestA2uiOps` ＋ **「只有面、没有话」也算有答案**（⇒ ⇒ **不报「抱歉」**）＋ 面 id 挂在**那条消息**上。❼ **界面层**（**改** `lib/widgets/chat/a2ui_inline_block.dart`：`_A2uiSurfaces` ⇒ 公开的 `A2uiSurfacesBlock`；**改** `lib/widgets/chat/local_chat_view.dart`：面画在**那条消息下面**）。❽ **A2A 那条路一行没删**（移动端仍旧走 `message/stream`）⇒ ⇒ 由新闸的 **W7 负控**钉住（负控＝证明「旧路还在」的那条判据，拆了就红）。
+
+② **✅ 官方一手事实（形状只认官方，不自造）** —— ❶ 现行规范 `https://a2ui.org/specification/v1.0-a2ui` 的 Transport bindings 段：**AG-UI 是 Agent↔User 的标准传输绑定**；**A2A Extension 映射给 agent↔agent** ⇒ ⇒ **面向用户的面归 AG-UI**，A2A 保留它自己的用途 ⇒ ⇒ 用户那两条裁决一字不改地落进布局。❷ 官方 npm `@ag-ui/a2ui-middleware` v0.0.16 的 `buildLifecycleActivity` **逐字**：`{type:"ACTIVITY_SNAPSHOT", messageId:"a2ui-surface-<surfaceId>", activityType:"a2ui-surface", content:<ops 数组>, replace:true}` ⇒ ⇒ **字段数恰为 5**。❸ 官方 npm `@ag-ui/core` v1.0.4：`EventType` 含 `ACTIVITY_SNAPSHOT`／`ACTIVITY_DELTA` ⇒ ⇒ 事件类型**有官方名**，不是我们自造的。❹ 契约**四处逐字一致**（父仓发布那份 ＋ 端脑／桌面端／移动端三份副本）⇒ ⇒ 闸 W2 对账（用**解析后 canonical JSON** 比 ⇒ 不受键序与缩进影响）。
+
+③ **✅ 判据与真变异（绿不算数）** —— ❶ **新判据** `test/unit/agui_a2ui_activity_test.dart`（**9 条**）：契约逐字是官方那五个字段／从 activity 里取出 ops（**逐字不翻译**）／**这条事件认得**（认不得 ⇒ ⇒ 面静默消失）／不是 activity ⇒ null，别的 activity ⇒ null／**形状不对 ⇒ 响亮地拒**（不许静默吞）／driver 交成 `a2ui_surface`／别的 activity ⇒ 不画／**官方 SDK 真收下那份契约**（ops 喂进 processor ⇒ ⇒ 面真的存在）／**同一个面不许重复建**（上一轮的面要先删，否则这一轮没有界面）⇒ ⇒ **9/9 绿**。❷ **真变异 M3**（把移动端的 activity 名改成自造的 `a2ui-surface-v2`）⇒ ⇒ 移动端 **5 条红** ＋ 形状闸 **1 条红（W3）** ⇒ ⇒ 还原后 sha256 `447038124A082D3EB0269DD1952C84F3CF63FC6241A2D2B29E200FAAB4BEF935` **逐字一致** ⇒ ⇒ 「改错了会红」是**读数**，不是推测。
+
+④ **⚠️ 自曝两处（这一刀真正的收获）** ——
+　❶ **第一次全量跑出来的红不是测试红，是编译红**：`flutter test` 第一次跑 exit 1、**48 个测试文件加载失败** ⇒ ⇒ 根因是本刀中途那一版把 `ref.read(a2uiAgentServiceProvider)` 写进了 `ChatNotifier` —— 而它是个 `StateNotifier` ⇒ ⇒ **里面没有 `ref`** ⇒ ⇒ 那**不是「测试失败」，是编译不过** ⇒ ⇒ 修法是**构造注入**（`ChatNotifier` 收 `a2uiAgentService`，provider 侧注入）⇒ ⇒ `flutter analyze` **0 error** ⇒ ⇒ 「48 红」其实只是**一条编译错** ⇒ ⇒ **红的含义要先验，别急着归因**（差点把它记成「本刀引入了 48 处回归」）。
+　❷ **第二次全量跑直接卡住，而根因不是测试**：那一轮**19 分钟 CPU 纹丝不动**（9.30 s ／ 4.70 s 两次采样**逐字相同**）、**没有任何 `flutter_tester` 进程** ⇒ ⇒ 「卡死」和「测试挂死」**长得一模一样** ⇒ ⇒ 但根因是 `flutter test` 隐式做的那步 **`pub get`**（`pubspec.yaml`／`pubspec.lock` 被兄弟在飞面动过 ⇒ ⇒ 包配置要重解析 ⇒ ⇒ 网络解析卡在那儿）⇒ ⇒ 加 `--no-pub` ⇒ ⇒ 单文件 **9/9 秒过**、全量 12 秒跑到 +173 ⇒ ⇒ **先看 CPU 有没有涨**，再判断是不是测试挂死 ⇒ ⇒ 这一格若不量 CPU，就会被写成「全量跑挂死」这种**假结论**。
+
+　❸ **尺子自己也会骗自己（本刀第三次撞上同一族）**：落笔脚本里「数一数本条占号出现几次」那句我写成了正则 ⇒ ⇒ 正则里的 `+` 是**量词**不是字面 ⇒ ⇒ 它匹配的是「U37A2」⇒ ⇒ 数出来是 **0** ⇒ ⇒ 那道自检本来会**误报**「声明不是 2 次」⇒ ⇒ 幸好它偏在**误报**那一侧（宁红勿绿）⇒ ⇒ 改成**逐字数**（`split().length-1`）⇒ ⇒ **不经正则** ⇒ ⇒ 通用形态：**要数「带符号的码」就别用正则**（`+` 是元字符）⇒ ⇒ 同一族还有上一刀那条「词元是别个标识符的子串」⇒ ⇒ 两道都指向同一件事：**尺子要自己证明自己咬得动**。
+
+⑤ **⚠️ 仍然欠着的** ——
+　❶ **真机那一格仍空**（设备未授权）⇒ ⇒ 「手机上真能画出这块面」**未验**（不许说「真机已验证」）。
+　❷ **真上游仍打不动**（无 key ⇒ 官方 401）⇒ ⇒ 官方**服务端**那一格没法在官方服务上验。
+　❸ **A2UI 仍然没有消息流／流式原语** ⇒ ⇒ 会话流仍归 AG-UI ⇒ ⇒ 这条分界本刀**没有**动。
+　❹ 桌面端那条**跨端措辞漂移**红（桌面「端脑这次没有画界面。」vs 移动「大脑这次没有画界面。」）⇒ ⇒ **两端文案都在别人在飞面** ⇒ ⇒ **只报告不代修**。
+　❺ `check-secret-plaintext` 指的那笔（`app_config_service.dart` **明文存** admin token ＋ shadow key）**仍是真债** ⇒ ⇒ 修法是「搬进钥匙环」⇒ ⇒ 依赖与迁移决定，本刀**不猜**。
+　❻ 本刀**未提交** ⇒ ⇒ `check-replacement-chars`（**只读提交树面**）仍红 ⇒ ⇒ 「这一刀已修好」只在**工作树面**成立。
+　❼ 移动端**端点图**那一格：客户端端点映射表是**闸生成的产物**，而 AG-UI 那条路径在客户端是**动态拼出来**的（`'/shadow/v1/conversations/' + id + '/ag-ui:stream'`）⇒ ⇒ 生成器**抓不到它** ⇒ ⇒ **不手改生成物**（手改会被下一次生成覆盖）⇒ ⇒ 端点那一格改记在**判定表**（父仓矩阵文档）上。
+
+⑥ **⚠ 圈码：本条占 U+37A2（㞢）** —— 落笔前**逐字重扫**六本账本（父仓／移动端／桌面端／端脑／海马体／前额叶）⇒ ⇒ 移动端**工作树面**水位 U+379F、**提交树面**水位 U+3782 ⇒ ⇒ **提交树面也零命中**（前额叶那本**不占号** ⇒ ⇒ 它不是这套圈码账本制）⇒ ⇒ 取 **U+37A1**（父仓）／**U+37A2**（移动端）／**U+37A3**（端脑）／**U+37A4**（桌面端）—— 四枚**互不相同**、各自高于自己那一本的水位 ⇒ ⇒ 字形由 `String.fromCodePoint()` 生成，**不手打**。
+
+**Updated**: 2026-11-17 (㞥 **「聊天记录里的图片，长按 ⇒ ⇒ **存进相册**／**分享给微信** —— 而这一刀真正的收获是：**「分享成功」其实有三种**（真交到微信了／走了系统分享面板／压根没做成）⇒ ⇒ **三种必须说三句不同的话**，说错一句就是**失败长得像成功**」** —— 承影仓 U+37A1（㞡）条（AG-UI／A2UI 那一族）＋ 承端脑 U+3796（㞖）条（出图路由那一族），本条记**取证**、**落点**、**三种分享**、**判据与真变异**、**自曝一处**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-17 | authority=measured | scope=project | source=用户指令逐字（「聊天记录中的图片长按需要支持保存到相册或者分享到微信」） ｜ 改动：移动端（**新** `lib/services/media/media_actions.dart` ＋ **新** `lib/widgets/chat/image_action_sheet.dart` ＋ **新** `android/app/src/main/kotlin/com/ibloc/shadow/media/MediaActionsBridge.kt` ＋ **新** `android/app/src/main/res/xml/file_paths.xml` ＋ **改** `android/app/src/main/AndroidManifest.xml`（FileProvider ＋ `<queries>` ＋ `WRITE_EXTERNAL_STORAGE`）＋ **改** `android/app/src/main/kotlin/com/ibloc/shadow/MainActivity.kt` ＋ **改** `lib/widgets/chat/tool_call_card.dart`／`message_bubbles.dart`／`local_chat_view.dart` ＋ **改** `lib/l10n/app_zh.arb`／`app_en.arb`（8 键）＋ `lib/generated/l10n/*`（重生成）＋ **改** `lib/providers/chat_provider.dart`（**修兄弟在飞面的编译断点**，见 ⑥❶）＋ **新** `test/widget/image_action_sheet_test.dart`（6 条））｜ 读数：新增判据 **6/6 绿** ＋ **两道真变异各当场红**（❶ 失败也说成功 ⇒ ⇒ **恰好 1 条红**；❷ 通道打到了但字节没带过去 ⇒ ⇒ **恰好 1 条红**）＋ 还原后 sha256 `755C85C8…E7E8D5`／`FB56CFF3…64E7934` **逐字一致** ＋ 移动端全量 `flutter test --concurrency=1` **1117 过 / 13 跳 / 0 红** ＋ `flutter analyze` **0 error / 0 warning**（61 条**存量** info）＋ Gradle **BUILD SUCCESSFUL** ｜ 闸：相关闸 **10 道**：**7 绿**（i18n-key-completeness／mobile-test-assertions／mobile-a11y-contract／jni-surface／legacy-residue／state-surface／yaml-valid）／**3 红** ⇒ ⇒ `check-replacement-chars`（**存量债**：3 处全在别人在飞的文件，**零命中本刀文件**）／`check-failure-masking`（**6 处落点全在别人在飞的文件**，**零命中本刀文件**）／`check-ledger-codepoints`（**工作树面 2 条红**＝`enum-mismatch`：影仓与桌面端都写着「移动端 → U+37A2」⇒ ⇒ **移动端那本还没落笔** ⇒ ⇒ 兄弟那条在飞面 ⇒ ⇒ **本刀不代修**） | status=active | supersedes=none
+
+① **⚠️ 取证：聊天里的图之前是「只读渲染」** —— ❶ 工具产出的那张图（`generate_image` 的 base64）与用户自己发进来的那张（磁盘上的文件）⇒ ⇒ 两处都**只渲染、不给任何出口** ⇒ ⇒ 「翻回聊天记录把那张图存下来」是**死路** ⇒ ⇒ 这一格不是「功能少」，是**图出了聊天记录就找不回来了**。
+　❷ ⚠️ **这两个动作没法「两端各写一份」**：存进系统相册要 MediaStore、分享给微信要 `ACTION_SEND` ⇒ ⇒ 都是**操作系统**的动作 ⇒ ⇒ 只有 Android 宿主能做 ⇒ ⇒ 桌面端压根没有这两样东西 ⇒ ⇒ 本刀**只动移动端** ⇒ ⇒ 移动端账本占一枚，父仓不占。
+
+② **✅ 落点（四层）** ——
+　❶ **宿主那一侧**：**新** `MediaActionsBridge.kt` —— `saveToGallery`：API≥29 走 MediaStore ＋ **`IS_PENDING`**（写完才翻成 0 ⇒ ⇒ 别的 App 不会扫到半张图）；API≤28 走 legacy 外部存储目录、**先查权限**（没有就**响亮失败** `permission_denied`）／`shareToWeChat`：写进 `cacheDir/shared` ⇒ ⇒ `FileProvider` 换 `content://` ⇒ ⇒ `ACTION_SEND` ＋ **`setPackage("com.tencent.mm")`**；另有 `sanitizeFileName`／`mimeOf`。
+　❷ **接线（清单与入口）**：`AndroidManifest.xml` 加 `FileProvider` ＋ **新** `res/xml/file_paths.xml`（`<cache-path name="shared" path="shared/">`）＋ `<queries><package android:name="com.tencent.mm"/></queries>`（Android 11+ 包可见性 ⇒ ⇒ 不声明就**看不见微信**）＋ `WRITE_EXTERNAL_STORAGE` 限 `maxSdkVersion=28`；`MainActivity.kt` 起 `com.ibloc.shadow/media_actions` 通道。
+　❸ **客户端那一侧**：**新** `lib/services/media/media_actions.dart` —— `MediaActions`（**通道可注入** ⇒ ⇒ 判据能造假通道；`MediaActionResult{ok,code,message,viaWechat}` ⇒ ⇒ **失败带着原因出来**；`imageFileName`／`imageExtensionOf` 按**字节魔数**认 PNG／JPEG／WebP）＋ **新** `lib/widgets/chat/image_action_sheet.dart`（毛玻璃菜单：保存到相册／分享到微信／取消；`LongPressImage` 把长按接上；`runImageAction` 负责**说真话**；`showImageActionsForFile` 管**磁盘文件**那一路）。
+　❹ **接线（界面）**：`tool_call_card.dart` 里工具产出的那张图 ⇒ ⇒ 换成 `LongPressImage`；`message_bubbles.dart` 的 `ImageMessageBubble` 加 `onLongPress`；`local_chat_view.dart` 把用户自己那张图接到 `showImageActionsForFile`。
+
+③ **⚠️ 这一刀真正的收获：「分享成功」有三种，三种必须说三句不同的话** ——
+　❶ **压根没做成**（写盘失败／没权限）⇒ ⇒ 界面说「**保存失败：…**」⇒ ⇒ **不许**说「已保存」（相册里其实没有那张图）。
+　❷ **成了，但走的是系统分享面板**（没装微信 ⇒ ⇒ 原生把 `wechat=false` 带回来）⇒ ⇒ 界面说「**没检测到微信，已打开系统分享**」⇒ ⇒ **不许**说「已分享到微信」（微信**根本没收到**）。
+　❸ **真交到微信了** ⇒ ⇒ 界面说「已分享到微信」。
+　⇒ ⇒ 三句都长得像「分享」⇒ ⇒ 只钉前两种就够（第三种是默认分支）⇒ ⇒ **判据必须分别钉**。
+
+④ **⚠️ 几个容易踩空的形状（都踩过）** ——
+　❶ **`file://` 分享给微信在 Android 7+ 会炸**（`FileUriExposedException`）⇒ ⇒ 必须 `FileProvider` 换 `content://` ⇒ ⇒ `file_paths.xml` 少一行就分享不出去。
+　❷ **MediaStore 写完不把 `IS_PENDING` 翻成 0** ⇒ ⇒ 图库里那张图**永远不出现**（还是半成品）⇒ ⇒ 写完必须翻牌。
+　❸ **扩展名一律 `.jpg`** ⇒ ⇒ 云上游给的是 JPEG、**本地腿**给的是 PNG ⇒ ⇒ 一律 .jpg ⇒ ⇒ 相册里出现「扩展名是 jpg、内容是 png」⇒ ⇒ 有些图库**认不出**（用户看到「打不开」）⇒ ⇒ 按**字节魔数**认。
+　❹ **Android 11+ 不声明 `<queries>` 就看不见微信** ⇒ ⇒ `setPackage` 分享会**静默**落到系统面板 ⇒ ⇒ 那一格的表现是「像回落、不是失败」⇒ ⇒ `wechat=false` 这个字段就是为它准备的。
+　❺ **那张图可能已经被系统清掉**（App 缓存）⇒ ⇒ 读不到就响亮说「这张图已经读不到了」⇒ ⇒ **不假装有图**（弹出个空菜单更让人困惑）。
+
+⑤ **✅ 判据与真变异（绿不算数）** ——
+　❶ **6 条**：长按 ⇒ ⇒ 弹出那两项／点「保存到相册」⇒ ⇒ **真的打到了宿主那一侧（带字节）**／宿主说失败 ⇒ ⇒ 界面说「保存失败：…」且**不许**说「已保存」／`wechat:false` ⇒ ⇒ 界面说「没检测到微信…」且**不许**说「已分享到微信」／工具卡片里的那张图**带上了长按**（接线那一格）／扩展名按魔数来。
+　❷ ⚠️ **通道可注入是这一刀的关键**：不注入的话，判据只能验到「按钮画出来了」⇒ ⇒ 那是**假绿**；注入之后才钉得住「点了菜单项 ⇒ ⇒ 真的打到了宿主那一侧」。
+　❸ **真变异两道，各当场红**：❶ 把失败分支改成「失败也不出声」（说成功）⇒ ⇒ **恰好 1 条红**（诚实性那条：`Expected: no matching candidates / Actual: Found 1 widget with text "已保存到相册"`）⇒ ⇒ 其余 5 条仍绿 ⇒ ⇒ 那 5 条各自钉的是**别的**形状、不是这一条的复本；❷ 通道打到了但**字节没带过去** ⇒ ⇒ **恰好 1 条红**（带字节那条：`Actual: <null>`）⇒ ⇒ 其余 5 条仍绿。
+　❹ 还原后 sha256 **逐字一致**（`755C85C8…E7E8D5`／`FB56CFF3…64E7934`）⇒ ⇒ 两道变异**没有**留下残迹。
+
+⑥ **⚠️ 自曝一处：本刀动了一个别人的在飞文件** ——
+　❶ 兄弟在 `chat_provider.dart` 里写了 `ref.read(a2uiAgentServiceProvider)` ⇒ ⇒ 但 `ChatNotifier` 是 `StateNotifier`（**没有 ref**）⇒ ⇒ 整个移动端**编译不过**（`compileFlutterBuildDebug` 直接挂）⇒ ⇒ 连「读数」都拿不到。
+　❷ 本刀**没有**把那一格改成 provider（那是**兄弟的设计**）⇒ ⇒ 只把它**接好**：`ChatNotifier` 加一个可注入的 `A2uiAgentService?` ＋ `chatProvider` 那里 `ref.watch(a2uiAgentServiceProvider)` 递进来 ⇒ ⇒ **兄弟那一格的意思一个字没改**（还是「取那个服务」）⇒ ⇒ 但**本刀动了别人在飞的文件** ⇒ ⇒ 记账写明（他推的时候这一处会一起带上）。
+
+⑦ **⚠️ 仍然欠着的** ——
+　❶ **真机那一格仍空**（设备未授权）⇒ ⇒ 「手机上长按真能存进相册、真能拉起微信」**未验**（不许说「真机已验证」）。
+　❷ **微信那一格没在真机验过** ⇒ ⇒ `setPackage("com.tencent.mm")` 能不能被目标机的微信接住，取决于对方的 Intent 过滤器 ⇒ ⇒ 未验 ⇒ ⇒ 那一格最坏的表现是「点了没反应」⇒ ⇒ **待真机取证**。
+　❸ **API ≤ 28 那一档没在旧机验过**（legacy 分支写了，但没跑过）。
+　❹ **用户自己发进来的那张图（磁盘文件那一路）只到「接线」** ⇒ ⇒ `showImageActionsForFile` 那一格**没有直接判据**（只钉了工具卡片那一路的接线）⇒ ⇒ **缺口写在这里**，不许当成「钉住了」。
+　❺ **A2UI 面里出的图没接长按**（工具卡片那一路接了；A2UI 面那一路没接）。
+　❻ **本刀未提交** ⇒ ⇒ 台账这条也未进提交 ⇒ ⇒ `check-ledger-codepoints` 那 2 条红**会跟着进提交**（那是兄弟那条的缺口，不是本刀的）。
+　❼ 闸的账：`check-replacement-chars`／`check-failure-masking` **仍是红的** ⇒ ⇒ **存量债**（零命中本刀文件）⇒ ⇒ 不代修、不销账。
+
+⑧ **⚠ 圈码：本条占 U+37A5（㞥）** —— 落笔前**逐字重扫全树 63 本账本**（Node 逐字读；⚠️ PowerShell 管道会把方块字读成 `?` ⇒ ⇒ 那是**假零**）⇒ ⇒ `㞥` **全树 0 命中** ⇒ ⇒ ⚠️ **为什么不是 U+37A2**：影仓 U+37A1（㞡）条（AG-UI／A2UI 那一族）**已经枚举**「移动端 → U+37A2」，而移动端那本**还没落笔**（`lib/agui/a2ui_activity.dart` 已经在工作树里，账还没写）⇒ ⇒ 那一枚**不是本刀的** ⇒ ⇒ 本刀**让开** ⇒ ⇒ 取 **U+37A5**（移动端）—— 高于本账本水位 U+379F、让开 U+37A0~U+37A4（那一族的四枚）⇒ ⇒ 字形由 `String.fromCodePoint()` 生成，不手打。
+
+**Updated**: 2026-11-17 (㞝 **「移动端那一笔老债 —— **端脑把 A2UI 载荷发成 JSON 字符串时，客户端静默跳过**（界面上什么都没有，**也不报错**）；而桌面端同一件事**已经**会出声 ⇒ ⇒ 两端不一致 ⇒ ⇒ 一致地修：**都拒收，但都说真话**」** —— 承影仓 U+3797 条（A2UI 升官方 v1.0 那一族）＋ 用户指令逐字（「及时清理老的技术债务」），本条记**落点**、**为什么修在客户端而不是端脑**、**判据与真变异**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-17 | authority=measured | scope=project | source=用户指令逐字（「及时清理老的技术债务」）＋ 影仓 U+3797 条（A2UI 升官方 v1.0 那一族） ｜ 改动：移动端（**改** `lib/services/a2ui/a2ui_surface_events.dart`（**新** `hasStringA2uiPayload()`）＋ **改** `lib/services/a2ui/a2ui_agent_service.dart`（`_run()` 里字符串载荷 ⇒ `_reportFailure`）＋ **改** `test/support/a2ui_fixture.dart`（**新** `a2aEventWithRawData()`／`a2uiSseOf()`／`a2uiFixtureEventsWithStringPayload()`）＋ **新** `test/widget/a2ui_payload_shape_test.dart`（4 条））｜ 读数：新增判据 **4/4 绿**（对象载荷不报警／字符串载荷认得出／服务层响亮报错／正常载荷不误伤）＋ **真变异**（拆掉服务层那一格）⇒ ⇒ **恰好 1 条红**、其余 3 条仍绿 ⇒ ⇒ 还原后 sha256 `19B90F50FDDAF72E…` **逐字一致** ／ 移动端全量 `flutter test`（并发度 1）**1102 过 / 13 跳 / 0 红**（上一刀是 1098 ⇒ ⇒ **多 4** ⇒ ⇒ 正是这 4 条）｜ 闸：影仓 **63 道闸全跑：51 绿 / 9 红 / 3 判不了 / 0 超时** ⇒ ⇒ 余下 9 道红**零命中本刀** | status=active | supersedes=none
+
+① **✅ 落点** ——
+　❶ **生产代码**：`lib/services/a2ui/a2ui_surface_events.dart` **新** `hasStringA2uiPayload()`（认「A2A 事件里的载荷是**字符串**」这件事）＋ `lib/services/a2ui/a2ui_agent_service.dart` 的 `_run()` 里检出字符串载荷 ⇒ ⇒ `_reportFailure('端脑把 A2UI 载荷发成了 JSON 字符串（官方 v1.0 要求是对象）')` ⇒ ⇒ **错误原因上屏**（只 `_logger.warning` 的话 ⇒ ⇒ 界面上还是「已连接，但端脑这次没给出界面」⇒ ⇒ **失败长得像成功**）。
+　❷ **判据**：`test/support/a2ui_fixture.dart` **新**三个助手（`a2aEventWithRawData()`／`a2uiSseOf()`／`a2uiFixtureEventsWithStringPayload()`）＋ **新** `test/widget/a2ui_payload_shape_test.dart`（4 条：对象载荷**不**报警／字符串载荷**认得出**／服务层**响亮报错**／正常载荷**不误伤**）⇒ ⇒ **4/4 绿**。
+
+② **⚠️ 为什么修在客户端、而不是端脑** ——
+　❶ 端脑那侧**已经**是官方 v1.0 产出面（官方形状是**对象**）⇒ ⇒ 字符串载荷**只可能**来自「有人把载荷序列化成了字符串」⇒ ⇒ 那正是上一刀自曝的**三处「失败长得像成功」**之一（A2A 信封里的载荷写成 JSON 字符串 ⇒ ⇒ 客户端提取器只认 `Map` ⇒ ⇒ **整条跳过**）⇒ ⇒ 端脑侧**现在**是对的。
+　❷ 但**客户端不能因此就假装没看见** ⇒ ⇒ 「上游说了假话」这件事**必须让用户看见**（哪怕那不是客户端的错）⇒ ⇒ 否则这一格永远是「界面上什么都没有，也不报错」⇒ ⇒ **失败长得像成功**。
+　❸ ⚠️ **两端必须一致**：桌面端的 `extractA2uiMessages` **已经**会 push warning（**不是**静默吞）⇒ ⇒ 若移动端继续静默 ⇒ ⇒ 就是**跨端宽严不一致**⇒ ⇒ 正确做法是「**都拒收，但都说真话**」⇒ ⇒ 本刀把移动端**对齐到桌面端那侧**。
+
+③ **✅ 真变异（绿不算数）** —— 拆掉服务层那一格（让字符串载荷回到静默跳过）⇒ ⇒ **恰好 1 条红**（「服务层响亮报错」那条）⇒ ⇒ 其余 3 条**仍绿** ⇒ ⇒ 说明那 3 条各自钉的是**别的**形状（认得出／不报警／不误伤），**不是**服务层那一条的复本 ⇒ ⇒ 还原后 sha256 `19B90F50FDDAF72E…` **逐字一致**。
+
+④ **⚠️ 仍然欠着的** ——
+　❶ **真机那一格仍空**（设备未授权）⇒ ⇒ 「手机上真能画出这块面」**未验**。
+　❷ `check-secret-plaintext` 指的那笔（`app_config_service.dart` **明文存** admin token ＋ shadow key）**是真债** ⇒ ⇒ 修法是「搬进钥匙环」⇒ ⇒ 依赖与迁移决定，本刀**不猜**。
+　❸ 跨端措辞漂移那条（桌面「端脑这次没有画界面。」vs 移动「大脑这次没有画界面。」）**两处都在别人在飞面** ⇒ ⇒ **只报告不代修**。
+　❹ 端脑那台设备上「载荷被发成字符串」的**真因**（谁发的）**未定位** ⇒ ⇒ 客户端这侧只能做到「**认出它并出声**」。
+　❺ 本刀的移动端全量数字是**编译级＋判据级** ⇒ ⇒ 「真机上那张面画得出来」那一格**仍然空着**。
+
+⑤ **⚠ 圈码：本条占 U+379D（㞝）** —— 落笔前**逐字重扫**六本账本（父仓／移动端／桌面端／端脑／海马体／前额叶）⇒ ⇒ 父仓水位 U+379A、端脑水位 U+379B ⇒ ⇒ **两枚都是兄弟会话刚占的** ⇒ ⇒ 取 **U+379C**（父仓）／**U+379D**（移动端）／**U+379E**（端脑）／**U+379F**（桌面端）—— 四枚**互不相同**、各自高于自己那一本的水位、全局零命中 ⇒ ⇒ 字形由 `String.fromCodePoint()` 生成，不手打。
+
+**Updated**: 2026-11-17 (㞘 **「移动端换官方 A2UI SDK ＋ **把 GenUI／Agent2UI 那套旧名彻底换掉** —— `genui`／`genui_a2ui` 退场（官方点名弃用），`a2ui_core` ＋ `a2ui_flutter` 上位；随后**两轮改名**把目录、类、provider、判据文件名、i18n 键、用户可见文案一并换成官方 A2UI 命名（**功能零影响，名字不再骗人**）；这一刀自曝**两处**客户端上的「失败长得像成功」」** —— 承影仓 U+3797 条（A2UI 升 v1.0 那一族），本条记**落点**、**自曝两处**、**判据与读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-17 | authority=measured | scope=project | source=影仓父仓 U+3797 条（A2UI 升 v1.0 那一族） | 改动：移动端（**改** `pubspec.yaml`（去 `genui`／`genui_a2ui` ⇒ 加 `a2ui_core ^0.7.0` ＋ `a2ui_flutter ^0.3.0`）＋ `lib/services/a2ui/shadow_catalog.dart`＋`a2ui_surface_events.dart`＋`shadow_key_sse_transport.dart`＋`a2ui_agent_service.dart` ＋ `lib/widgets/chat/a2ui_view.dart`＋`a2ui_inline_block.dart` ＋ 八个 A2UI 判据文件（**迁移**，一个没删）＋ **新** `test/support/a2ui_fixture.dart` ＋ **新** `test/widget/a2ui_catalog_contract_test.dart` ＋ **改** `lib/providers/a2ui_provider.dart`（三处注释的**依据**从**已删除的 `genui_a2ui`／`genui-0.7.0`** 换成**我们自己那份传输层** ⇒ ⇒ 注释不再拿**不存在的包**当依据）＋ **改名两轮**（目录／类／provider／判据文件名／i18n 键／用户可见文案）＋ **改** `AGENTS.md` 现状树与 `README.md` 的**旧名条目**）｜ 读数：改名后全量 `flutter test`（并发度 1）**1098 过 / 13 跳 / 0 红**（与改名前**逐数相同** ⇒ ⇒ 零回归）／ `flutter analyze --no-pub` **0 error / 0 warning**（61 条存量 info）／ A2UI 家族合跑 **63 过 / 0 红** ／ 新增目录契约判据 **5 过** ／ 仓里 i18n 对账闸 **exit 0**（被引用键 1097 个，zh 1640／en 1640，0 问题）｜ 闸：改名后复跑 `check-failure-masking`（**6 处新增落点分布在 5 个文件**，全在别人在飞的范围，**零命中**本刀改名触及的文件）／ `check-replacement-chars`（红 1 ＝ **存量债** `scripts/lib/commit-revert-selftest.mjs`，零命中本刀文件）／ 移动端 legacy 闸 **残留 0 处** ／ **标识符层** `genui`／`agent2ui` **零命中**（`lib/` ＋ `pubspec.yaml` 里那 11 处**全是故意留的注释**） | status=active | supersedes=none
+
+① **✅ 落点（生产代码四改 ＋ 两 widget ＋ 依赖换血 ＋ 两轮改名）** —— ❶ **依赖**：`pubspec.yaml` 去掉 `genui`／`genui_a2ui`（官方明确弃用）⇒ ⇒ 换 `a2ui_core ^0.7.0` ＋ `a2ui_flutter ^0.3.0`（`json_schema_builder` 抬到 `^0.1.7`）⇒ ⇒ lockfile 里零 genui。❷ **目录**（`lib/services/a2ui/shadow_catalog.dart`）：官方 `CatalogImplementation` ＋ 自建两个组件（`TaskCard`／`AgentStatusIndicator`）⇒ ⇒ **status 五档**（pending／in_progress／completed／cancelled／overdue）、**priority 三档**、`AgentStatusIndicator.status` 五档（idle／thinking／executing／error／unknown）⇒ ⇒ **枚举少一档 ⇒ 官方 SDK 校验会拒掉整条消息 ⇒ 界面「什么都没有」**。❸ **提取**（`a2ui_surface_events.dart`）：v1.0 消息从 `parts[].data` 里挖（旧形状**另外**检出，不静默混过去）＋ 纯文本 part ＋ 可画 surface id 名单。❹ **传输**（`shadow_key_sse_transport.dart`）：自写 HTTP＋SSE（官方 SDK 只给协议栈，不给传输）⇒ ⇒ 带 `X-Shadow-Key`／`X-Admin-Token`／`Accept-Language`／`X-A2A-Extensions`（v1.0 URI）⇒ ⇒ **空值绝不下发**。❺ **服务**（`a2ui_agent_service.dart`）：官方 `MessageProcessor<ComponentImplementation>`（**两个目录都注册**：官方基础 ＋ 自建）＋ `defaultVersion: v1_0` ＋ `reportErrorsOnly: true` ＋ surface 增删订阅（**每次发新的 List**，因为 `List == List` 是引用比较）＋ **旧形状 ⇒ 响亮报错**。❻ **两个 widget**：`GenUiSurface` ⇒ 官方 `A2uiSurface(surface:)`；找不到 surface 就画空白（不许画假界面）。❼ **两轮改名（SDK 身份层 ＋ 功能层）** —— ❶ **身份层**：`lib/services/genui/` ⇒ `lib/services/a2ui/`（`gen_ui_agent_service.dart` ⇒ `a2ui_agent_service.dart`）、`lib/providers/genui_provider.dart` ⇒ `lib/providers/a2ui_provider.dart`、`GenUIAgentService` ⇒ `A2uiAgentService`、`genUIAgentServiceProvider` ⇒ `a2uiAgentServiceProvider`；❷ **功能层**：`Agent2UIView`／`Agent2UIPanel`／`Agent2UIAnswerState`／`Agent2UIInputBar` ⇒ `A2uiView`／`A2uiPanel`／`A2uiAnswerState`／`A2uiInputBar`、`useAgent2UIModeProvider` ⇒ `useA2uiModeProvider`、`lib/widgets/chat/agent2ui_{view,panel,answer_state}.dart` ⇒ `a2ui_*.dart`、`test/widget/agent2ui_{coexist,empty_state}_test.dart` ⇒ `a2ui_*.dart`、七个 i18n 键（`agent2uiReady`／`agent2UI`／`agent2uiNoConnection`／`agent2uiWaiting`／`agent2uiNoSurface`／`agent2uiSurfaceHint`／`askAgent2UI`）⇒ `a2ui*`，**用户可见文案**「Agent2UI 就绪」→「A2UI 就绪」、「Agent2UI Ready」→「A2UI Ready」、标签「Agent2UI」→「A2UI」⇒ ⇒ **旧文件全走回收站**（不留残影）⇒ ⇒ **故意保留**的：`lib/providers/a2ui_provider.dart` 里引用**已弃用** `genui_a2ui`／`genui-0.7.0` 的注释（那三处**就是**「旧依据为何作废」的说明，删掉反而会说谎）＋ `lib/services/a2ui/shadow_key_sse_transport.dart` 里「当初照抄官方 `genui-0.7.0` 的 SSE 解析」那行**出处**。
+
+② **⚠️ 自曝两处（worker 交付时点名 ⇒ 本刀同刀销掉）** ——
+　❶ **协议层的错只进日志** ⇒ ⇒ 官方 SDK 的校验错只走 `model.onError` 一个出口 ⇒ ⇒ 客户端只 `_logger.warning` ⇒ ⇒ **界面上是「已连接，但端脑这次没给出界面」** ⇒ ⇒ **失败长得像成功**。⇒ ⇒ 改成 `_reportFailure`（`lastError` ＋ 错误原因上屏）⇒ ⇒ 并且 `_run()` 里**协议层报错就不许再报「已连接」**。
+　❷ **同名 surface 的第二轮被官方 SDK 拒收** ⇒ ⇒ v1.0 **不许**同一个面被重复 `createSurface`（v0.8 那个「重复创建 ⇒ 再触发一次 SurfaceAdded」的机制没了）⇒ ⇒ 而 `sendMessage` 已把上一轮名单清空 ⇒ ⇒ **那一轮界面上「没有界面」**。⇒ ⇒ 客户端在每轮开始时把上一轮的面**从模型里删掉**（`model.deleteSurface(id)`）⇒ ⇒ 同名两轮都拿得到面。
+　❸ ⚠️ **删面有两个坑（都踩过）**：❶ `deleteSurface` 会触发 `onSurfaceDeleted` ⇒ ⇒ 回调里会把名单**改掉** ⇒ ⇒ **不能一边遍历一边改**（并发修改异常，实测 5 条判据当场红）⇒ ⇒ 先复制再删；❷ 那次回调还会**再发一次空列表** ⇒ ⇒ 「空列表＝这一轮开始了」会有第二种含义 ⇒ ⇒ 清轮时**抑制**那次发送。
+
+③ **✅ 判据与读数** —— ❶ **依赖换血**：`genui`／`genui_a2ui` 退场（官方点名弃用）⇒ ⇒ 换 `a2ui_core ^0.7.0` ＋ `a2ui_flutter ^0.3.0`（`json_schema_builder` 抬到 `^0.1.7`）⇒ ⇒ lockfile 里零 genui。❷ **判据迁移**：八个 A2UI 判据文件**全迁完**、**一个没删**（`chat_provider`／`capability_grants`／`capability_modes_e2e`／`chat_token_stats`／`chat_message_actions`／`mobile_session_switch`／`conversation_draft`／`mobile_conversation_contract`）＋ 另两个同类文件 ⇒ ⇒ 断言尽量**一字不改**（靠 `aguiSentText`／`aguiFramesFromStreamEvents` 翻译形状）⇒ ⇒ 钉的机制一个没变 ⇒ ⇒ A2UI 家族合跑 **63 过 / 0 红**。❸ **两处客户端债（同刀销掉，worker 交付时点名）**：协议层的错**只进日志** ⇒ ⇒ 界面看着像「没给出界面」⇒ ⇒ 改成 `_reportFailure`（`lastError` ＋ 错误原因上屏）＋ `_run()` 里协议层报错**不许再报「已连接」**；同名 surface 的第二轮**被官方 SDK 拒收** ⇒ ⇒ 每轮开始 `model.deleteSurface(id)` 删掉上一轮的面 ⇒ ⇒ 删面两个坑也踩过（`onSurfaceDeleted` 回调里改名单 ⇒ **并发修改异常**，实测 5 条判据当场红 ⇒ ⇒ 先复制再删；那次回调还会**再发一次空列表** ⇒ ⇒ 清轮时抑制那次发送）⇒ ⇒ 对应两条「钉现状」的判据已翻成「必须报出来」。❹ **本刀补的目录契约判据（5 条，绿）**：发布目录契约 `a2ui/catalogs/v1/catalog.json` 与移动端**在代码里注册**的那份目录**逐字一致**（catalogId／协议版本／组件集合／属性集／必填集／三档枚举）⇒ ⇒ 且它**接受**端脑真字节里的每一个业务组件 ⇒ ⇒ **这份「发布出去的契约」不再是一份没人验的声明**。❺ **全量**：**1098 过 / 13 跳 / 0 红** ⇒ ⇒ 零红。❻ **改名读数（零回归）**：改名后全量 `flutter test`（并发度 1）**1098 过 / 13 跳 / 0 红** ⇒ ⇒ **与改名前逐数相同**（两轮改名**零回归**）／ `flutter analyze --no-pub` **0 error / 0 warning**（61 条存量 info ＝ 存量 baseline）／ 仓里 i18n 对账闸 `check-i18n-key-completeness.mjs` **exit 0**（被引用键 1097 个，zh 1640／en 1640，**0 问题** ⇒ ⇒ arb ↔ 生成物 ↔ 两语言**对账通过**）／ 移动端 legacy 闸 **残留 0 处** ／ 改名后复跑两道闸：`check-failure-masking` 那 **6 处新增落点分布在 5 个文件**（`MemoryStorageCard.tsx` 两处／`agui/client.ts`／`documentsClient.ts`／`neuron_download_sheet.dart`／`storage_migration_dialog.dart`）**全在别人在飞的范围** ⇒ ⇒ **零命中**本刀改名触及的文件；`check-replacement-chars` 红 1 ＝ **存量债** `scripts/lib/commit-revert-selftest.mjs` ⇒ ⇒ **零命中**本刀文件。
+
+④ **⚠️ 仍然欠着的** —— ❶ **真机那一格仍空**：手机嵌入式端脑那台设备未授权 ⇒ ⇒ 「手机上真能画出这块面」**未验**。❷ **不认识的 status 那一档**：v1.0 按目录 schema 校验 ⇒ `brand-new-status` 违反枚举 ⇒ ⇒ **整条 createSurface 被拒**（比落绿更响）⇒ ⇒ 但**错误只走 onError** ⇒ ⇒ 界面那一格现在会说「拒收了」而不是「不认识」——**语义差别**仍在。❸ **桌面端那一侧宽严不同**：它的 `extractA2uiMessages` **对象／字符串两种形状都收**，本仓**只收对象** ⇒ ⇒ 跨端一致性那一格仍开着（等桌面端那一刀收口）。❹ 本仓**没写台账之外的任何登记**（`agent-surface.json` 那条在父仓面）。❺ **✅ 命名残留已销（同一刀内做完两轮改名）** —— 原先记的是「`lib/services/genui/` 目录、`genui_provider.dart`、`GenUIAgentService`、`genUIAgentServiceProvider` **名字**还叫 GenUI，而**实现**已经是官方 SDK ⇒ ⇒ **功能零影响**，但**读代码的人会被名字骗**」⇒ ⇒ **两轮改名把它换掉了**（见 ① ❼）⇒ ⇒ **文档层**同刀清掉 6 处旧名（`AGENTS.md` 现状树 3 处 ＋ `CONVENTIONS` 依赖行 ＋ 「Planned」里那条**已完成**的 A2UI streaming ＋ `README.md` 2 处）⇒ ⇒ **空态判据里那条已过期的事实**（端脑「根本不产出 A2UI」）同刀订正（端脑自 2026-11-17 起**确实**产 v1.0，但「宣称就绪却永远空白」那个病**仍然成立** ⇒ ⇒ 那条判据**继续有效**）⇒ ⇒ ⚠️ **故意留着的**：`lib/` ＋ `pubspec.yaml` 里还有 11 处 `genui` 字样（3 在 `pubspec.yaml` 的弃用说明、3 在 `a2ui_view.dart`、1 在 `shadow_key_sse_transport.dart` 的**出处**、4 在 `a2ui_provider.dart`）⇒ ⇒ **全部是故意留的注释**（在说明「旧依据为何作废」／「SSE 解析当初照抄谁」）⇒ ⇒ **不是残留** ⇒ ⇒ 但**别让后来的人以为是残留** ⇒ ⇒ 这就是本条把它写下来的理由。
+
+⑤ **⚠ 圈码：本条占 U+3798（㞘）** —— 落笔前**逐字重扫**五本账本 ⇒ ⇒ 本仓水位 U+3793 ⇒ ⇒ 取 **U+3798**（高于本仓水位、且与父仓／端脑／桌面三枚**互不相同**、全局零命中）⇒ ⇒ 字形由 `String.fromCodePoint()` 生成，不手打。⚠️ **本条在同日晚些时候被改写过一次**（两轮改名**并入本条** ⇒ ⇒ ④ ❺ 从「残留还在」改成「已销」＋ ① 补 ❼）⇒ ⇒ **码位不变**（U+3798）⇒ ⇒ 改写**没有**新增条目 ⇒ ⇒ 圈码自洽性不受影响。
+
+**Updated**: 2026-11-17 (㞓 **「手机上的海马体这一格补上了 —— 但它**卡在两处**而不是一处：门（`/hippocampus/*` 是 auto 门 ⇒ 记忆面一个凭据头都不带 ⇒ 401）＋ 地址（记忆面指着一个**手机上永远没人监听**的端口 ⇒ 连接被拒）⇒ ⇒ 海马体建好了、路由挂上了、客户端照样读不到」** —— 承本仓 U+3782 条（移动端换线 AG-UI 那一族）与父仓 U+3792 条（海马体进包那一刀），本条记**落点**、**两处卡点**、**判据与真变异**、**读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-17 | authority=measured | scope=project | source=移动端全量单测 ＋ 三道真变异 ＋ 端脑门型表复核 | 改动：shadow-mobile（**改** `lib/providers/telencephalon_provider.dart` ＋ `lib/services/prefrontal_client.dart` ＋ `lib/services/encephalon/encephalon_mobile_provider.dart` ＋ `test/unit/prefrontal_client_endpoint_test.dart` ＋ **新** `test/unit/prefrontal_client_door_test.dart`） ｜ 读数：移动端全量 **1085 过 / 13 跳 / 0 红**（之前 1078 ⇒ ⇒ **+7**）＋ `flutter analyze` **No issues found** ＋ **3 道真变异各当场红**、还原后 **18/18 绿** ｜ 闸：影仓 **62 道脚本闸**：**绿 46 / 红 12 / 判不了 2 / 超时 2**（`check-commit-revert` **实测 104 s** ⇒ ⇒ 慢不是挂死；`check-gate-discipline` **存量挂死**）＋ 台账闸 **三个面零违规** ＋ 自检 **46/46**（本刀新加 R10 三条腿）＋ 演练腿全绿 | status=active | supersedes=none
+
+① **⚠️ 取证：「记忆面读不到」有**两处**独立的因** —— ❶ **门**：端脑门型表有一条 `/hippocampus/*  *  auto` ⇒ ⇒ 读落**读门**（shadow key ∪ admin token）、写落**写门**（**只认** admin token）⇒ ⇒ 而**本仓的 `PrefrontalClient` 一个凭据头都不带** ⇒ ⇒ **401**。
+　❷ **地址**：记忆面跟的是「用户配的那个端脑地址」⇒ ⇒ 而**移动端没有任何 UI 能改它**（`setConfiguredEndpoint` 在移动端**零调用方**；仓内注释自己写着「手机上永远没人监听 `localhost:60080`」「手机上必败」）⇒ ⇒ 它恒为 `null` ⇒ ⇒ 记忆面恒指 `http://127.0.0.1:60080` ⇒ ⇒ **连接被拒**。
+　❸ ⇒ ⇒ 两处**各自独立地**让「读不到」看起来像「没有记忆」⇒ ⇒ 而**端脑那一侧把海马体编进去之后**，服务端其实已经就位 ⇒ ⇒ 这次是**客户端**欠了两步。
+
+② **✅ 落点（三处 ＋ 一份新判据）** —— ❶ **门闩**（`lib/services/prefrontal_client.dart`）：`PrefrontalClient` 加 `_shadowKey` ＋ `_adminToken` ＋ `setShadowKey()` ＋ `setAdminToken()` ⇒ ⇒ `_request()` 里带上 `X-Shadow-Key` ／ `X-Admin-Token` ⇒ ⇒ **空值绝不下发**（塞空串头 ⇒ 401 且看不出原因 ⇒ ⇒ 那就是「失败长得像成功」的又一个形状）。
+　❷ **地址**（`lib/providers/telencephalon_provider.dart`）：`TelencephalonState` 加 `memorySurfaceUrl` ／ `memorySurfaceKey` ／ `memorySurfaceAdminToken` ＋ 三个 getter（`memoryBaseUrl` ／ `memoryShadowKey` ／ `memoryAdminToken`）⇒ ⇒ **配置优先**（配了远端 ⇒ 仍指远端、用远端那把钥匙）⇒ ⇒ **没配 ⇒ 指本机内嵌端脑**（`mobile-memory` 档下它**带海马体**）⇒ ⇒ 内嵌大脑放手时**回到配置里那个**。
+　❸ **接线**（`lib/services/encephalon/encephalon_mobile_provider.dart`）：`_pointClientsAtAgentSurface()` 在接管时把**内嵌端脑那把**门闩 ＋ admin token 递给记忆面 ⇒ ⇒ 与端脑面**同一台、同一把钥匙**。
+　❹ **新判据**（`test/unit/prefrontal_client_door_test.dart`，**5 条**）：❶门闩真的发出去（断言**请求头**）／❷写操作带 admin token／❸空值**绝不下发**／❹接管时记忆面拿到内嵌那把 ＋ 地址跟本机／❺配了远端时**仍指远端**、用远端那把钥匙 ⇒ ⇒ 用仓内既有做法（`MockClient` 注入）⇒ ⇒ **不碰真网络**。
+
+③ **⚠️ 一处差点踩坏的不变量** —— ❶ 「**两张面各归各位**」（2026-10-31 定的：端脑面归内嵌大脑、记忆面归配置）⇒ ⇒ 我第一版把门闩**写进 `state.connection`** ⇒ ⇒ 那就**夺走了端脑面的所有权** ⇒ ⇒ 既有判据（`telencephalon_endpoint_ownership_test.dart`）会红 ⇒ ⇒ 回退 ＋ 改成**记忆面单独一个地址事实**（`memorySurfaceUrl`）⇒ ⇒ 既有判据的语义（「配了远端就仍指远端」）**一字未改**，只**加**了两条新判据（「没配 ⇒ 指本机」「放手 ⇒ 回配置」）。
+
+④ **✅ 判据与真变异** —— ❶ **3 道真变异各当场红**：**去掉 `X-Shadow-Key` 头** ⇒ ⇒ **2 条红**（❶❷）／**去掉 `X-Admin-Token` 头** ⇒ ⇒ **1 条红**（❷，精确命中）／**记忆面地址不跟本机** ⇒ ⇒ **3 条红**（❹ ＋ 两份既有判据）⇒ ⇒ 还原后 **18/18 绿** ＋ 零 `MUTATION-` 残留。
+　❷ **移动端全量** `flutter test --concurrency=1` ⇒ ⇒ **1085 过 / 13 跳 / 0 红**（之前 **1078 过** ⇒ ⇒ **+7**）⇒ ⇒ `flutter analyze`（我改的三个文件 ＋ 新判据）**No issues found**。
+　❸ **✅ 产物级真读数（服务端侧那一格已取）** —— `mobile-memory` 档交叉编译 **31m40s ／ error count 0** ⇒ ⇒ `.so` strip 后 **285.7 MB**（sha256 **37AE5F6C…CC3C0**）⇒ ⇒ **符号级差分**：新 `hippocampus_server` **5** ／ `hippocampus-server` **40** ／ `hippocampus-storage` **26** ／ `lance-core` **23**，旧那份（165,119,224 B，负控）**全是 0** ⇒ ⇒ 海马体真进了包 ⇒ ⇒ 产物级闸 `check-apk-surface.mjs`：debug **257.70 MB EXIT=0** ／ release **127.50 MB EXIT=0**（14 个 JNI 符号在位 ＋ APK 内那份与 `jniLibs` 那份逐字节相同）。⚠️ **一个坑**：`/hippocampus` 字符串旧包**也有 15 处**（门型表里的串）⇒ ⇒ 判别靠 `hippocampus_server`，不靠它。
+
+⑤ **⚠️ 仍然欠着的** —— ❶ **真机读数没拿到**（设备 `192.168.31.235` 在线 ⇒ ⇒ 实测装**不上**：该机 `/data` 共 1.0 G、**只剩 153 MB**，而 debug APK **257.70 MB** ⇒ ⇒ **空间不够** ⇒ ⇒ 读数改由**用户远程**取）⇒ ⇒ **不许说「手机上记忆已通」**。
+　❷ **本地海马体落点**（`files/lance`）在真机上**能不能写成**（硬链接退路那一条）**未验** ⇒ ⇒ 端脑起不来 ⇒ ⇒ **App 整个起不来**（那一刀的原阻断）⇒ ⇒ 这一格是**真机必验**。
+　❸ 「**两端读写同一份记忆**」在手机上仍只是「**租户选对了**」⇒ ⇒ 真互通要等**存储落点统一**（控制面 `hippocampus` 段 ＋ `s3://`/`oss://`）。
+　❹ **本条落账时自己也写错了三处，同一刀里销了**：❶ 圈码枚举里「父仓 U+3791／端脑 U+3781」**全是错的**（3791 谁都没占、3781 是别的条目）⇒ ⇒ 已改成 **U+3792／U+3794**；❷ 标题里的「父仓 U+3791 条」**悬空** ⇒ ⇒ 改成「父仓 U+3792 条」；❸ 三本账本是「**新的在前**」⇒ ⇒ 而本条**追加到了末尾**（第 79/80 条）⇒ ⇒ **已挪到顶部**（条目数 80 未变）⇒ ⇒ 顺带把这一族补成机器判据 **R10**（圈码枚举必须指向那本账本里真实存在的条目 ⇒ ⇒ 正控 1 红／负控 0 红／真变异：注回错枚举 ⇒ ⇒ 红 2）。
+　❺ 移动端的**远端端脑 shadow key 没有配置入口**（`AppConfigService` 只有 baseUrl ＋ admin token）⇒ ⇒ 记忆面指向远端时**读门**可能过不了（远端那把要用户自己填）⇒ ⇒ 这一格欠着。
+
+⑥ **⚠ 圈码：本条占 U+3793（㞓）** —— 落笔前**逐字重扫**三本账本 ⇒ ⇒ 父仓水位 U+3790／移动端 U+3782／端脑 U+3780 ⇒ ⇒ 取 **U+3792**（父仓）／**U+3793**（移动端）／**U+3794**（端脑）（三枚**互不相同**）⇒ ⇒ 字形由 `String.fromCodePoint()` 生成，不手打。
+
 **Updated**: 2026-11-17 (㞂 **「手机这一侧终于走 AG-UI —— 对话那条流**换线**了，工具结果**随下一次请求**带回去」** —— 承影仓 U+3781 条（移动端换线那族），本条记**落点**、**判据三层**、**迁移八处**、**自曝三处**、**真变异五道**、**读数**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-17 | authority=measured | scope=project | source=承影仓 U+3781 条（移动端换线那族）｜ 改动：lib/agui/agui_device_tool.dart（**新**）＋ lib/providers/chat_provider.dart（**换线 AG-UI** ＋ 三处诚实性修正）＋ test/unit/agui_fakes.dart（**新**：共享假件）＋ **八个** legacy 判据文件（**迁移**）｜ 读数：移动端**全量 1078 过 / 13 跳 / 0 红**（本刀前 35 红）＋ analyze **0 错** ＋ 十一文件合跑 **152 过 / 0 红** ＋ 真变异 **5 道各当场红**、还原 sha256 逐字一致 ｜ 闸：影仓脚本闸 **13 绿 / 8 红**（零命中本刀文件）｜ 闸自检：check-brain-chain --self-test **11/11 绿** ＋ 闸本身真变异**当场红** | status=active | supersedes=none
@@ -17,6 +230,19 @@
 ⑦ **⚠️ 仍然欠着的** —— ❶ **真机读数**：设备未授权（需人在设备点「允许 USB 调试」）⇒ ⇒ **那一格是空的**。❷ **附件的文件名在 AG-UI 这一路丢了**（part 只有 `{type, source:{type,value,mimeType}}`）⇒ ⇒ 桌面端同样丢 ⇒ ⇒ 判据只钉 MIME ＋ 字节 ⇒ ⇒ 缺口记在这里。❸ 真机端脑**重编**才有 `protocolVersion`。❹ 移动端设备工具在**旧 sidecar** 上能否点名，未知。❺ **G1 治本档**仍缓（兄弟未落库的 `synapse/src/a2a/server.rs`）。
 
 ⑧ **⚠ 圈码：本条占 U+3782 (㞂)** —— 落笔前**逐字重扫**三本账本 ⇒ ⇒ 父仓水位 U+377F／移动端 U+3780／桌面端 U+357B ⇒ ⇒ **U+3781 起**三本皆 0 命中 ⇒ ⇒ 父仓取 **U+3781**、移动端取 **U+3782**（两枚**互不相同**（R1′）＋ 各自高于自己那一本的水位）⇒ ⇒ 字形由 String.fromCodePoint() 生成，不手打。
+**Updated**: 2026-11-17 (㞀 **「手机上那份大脑**换成带视频路由的**了 —— 产物级闸的阻断 3 → 1」** —— 承影仓 U+3570 条（分发链那族）＋ 端脑 U+3577 条（视频门面那族），本条记**落点（构建产物，不是跟踪文件）**、**读数**、**两台设备的真实情况**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-17 | authority=measured | scope=project | source=承影仓 U+3570 条（分发链那族）＋ 端脑 U+3577 条（视频门面那族）｜ 改动：android/app/src/main/jniLibs/arm64-v8a/libencephalon.so（**重编**；⚠️ **gitignore 的构建产物**，不是跟踪文件 ⇒ ⇒ 本条在 git 上**零改动**）＋ build/app/outputs/flutter-apk/app-release.apk ＋ app-debug.apk（**都是构建产物**）｜ 读数：新 .so **165,119,224 字节** ＋ sha256 **159E6389…8F9** ＋ **APK 内那份逐字相同** ＋ release APK **80,874,824 字节** ＋ debug APK 已重打（66.8s）｜ 闸：影仓 62 道闸 **45 绿 / 14 红 / 2 判不了 ＋ 1 挂死（check-gate-discipline，存量）** | status=active | supersedes=none
+
+① **✅ 落点（都是构建产物 ⇒ git 上零改动 —— 说清楚，免得下次找不到「改了什么」）** —— ❶ android/app/src/main/jniLibs/arm64-v8a/libencephalon.so（**重编**；165,119,224 字节；sha256 159E6389…8F9）⚠️ **它在 .gitignore 里**（.gitignore:72）⇒ ⇒ **不是跟踪文件** ⇒ ⇒ 本条在 git 上**零改动**。❷ build/app/outputs/flutter-apk/app-release.apk（**80,874,824 字节**）＋ app-debug.apk（重打，66.8s）⇒ ⇒ 两者都是构建产物。
+
+② **✅ 读数（这一格是「装上去的就是刚编的那份」的硬证据）** —— ❶ check-apk-surface.mjs **绿**：**APK 里那份 .so 与 jniLibs 那份逐字节相同**（sha256 159e63898e02…）⇒ ⇒ 上一轮「装错 .so ⇒ Kotlin 把 UnsatisfiedLinkError catch 掉 ⇒ 静默失效」那个老坑，现在有闸钉住。❷ .so 出厂核验：**14 个 JNI 符号全部在位**。❸ **本刀自己造成过一条红** ⇒ ⇒ 销掉了：check-apk-surface 默认查 app-debug.apk ⇒ ⇒ jniLibs 换新后它与**旧的** debug APK 不匹配 ⇒ ⇒ 红 ⇒ ⇒ **自己造成的债自己还** ⇒ ⇒ 重打 debug APK（66.8s）⇒ ⇒ 复跑回绿。
+
+③ **⚠️ 两台设备** —— ❶ **无线那台＝小爱同学 XiaoAiTongXue LX04**（192.168.31.235:5555）⇒ ⇒ **只支持 armeabi-v7a**（32 位）⇒ ⇒ **装不上**：INSTALL_FAILED_NO_MATCHING_ABIS ⇒ ⇒ 应用 ABI 白名单只有 arm64-v8a ⇒ ⇒ 而 armv7 编不出来（端脑的非可选依赖 wasmtime ⇒ cranelift 无 armv7 后端）⇒ ⇒ 这一格要覆盖得**先解 wasmtime/armv7** ＋ 再翻应用的 ABI 决定。❷ **USB 那台**（RFCW70FK31W）⇒ ⇒ adb **unauthorized** ⇒ ⇒ 需要人在手机屏幕上点「允许 USB 调试」。
+
+④ **⚠️ 仍然欠着的** —— ❶ **真机上的路由读数还没有**（一台装不上、一台没授权）⇒ ⇒ 探针已写好但**没跑过**。❷ 真上游仍打不动（无 key ⇒ 官方 401）⇒ ⇒ 最多证明「服务这一档」，**不能**证明「视频真能生成」。❸ 客户端那一格（App 里真的能点出 generate_video 并走通）仍未跑。
+
+⑤ **⚠ 圈码：本条占 U+3780 (㞀)** —— 落笔前**逐字重扫**全部账本（Node 读文件）⇒ ⇒ 移动端水位 U+357C／端脑 U+3577／桌面端 U+357B／父仓 U+377D ⇒ ⇒ **U+377E~U+3780 全局 0 命中** ⇒ ⇒ 端脑取 **U+377E**、父仓取 **U+377F**、移动端取 **U+3780**（三枚**互不相同**，各自高于自己那一本的水位）⇒ ⇒ 字形由 String.fromCodePoint() 生成，不手打。
 **Updated:** 2026-11-17 (㕼 **「移动端这一侧：清单登记 ＋ 文案补齐 —— 「资源管理」这一格在两端同名同义；移动端入口待接线」** —— 承影仓 U+357A 条（桌面端资源管理页），本条记**本仓那一半**、**为什么必须动移动端**、**读数**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-17 | authority=measured | scope=project | source=承影仓 U+357A 条（桌面端资源管理页）｜ 改动：lib/l10n/app_{en,zh}.arb（＋surfaceResources）＋ lib/generated/l10n/×3（重生成）＋ lib/navigation/nav.g.dart（重生成）＋ 本条 ⇒ ⇒ **7 文件** ＋ 零新增依赖 ＋ 零新增端点 ｜ 读数：flutter analyze（生成物两处）**No issues found** ＋ 跨端一致性闸 **0 阻断 / 0 提示** ＋ i18n 齐备度 **1100/1100** ｜ 闸：**45 绿 / 15 红 / 2 判不了**（62 道脚本闸全跑；十五道红**逐字零命中本刀文件** ⇒ ⇒ 不代修、不销账 —— ⚠️ 两处提到 agent-surface.json 的是**存量债**：替换字符闸那边 HEAD／工作树／提交版**都是 3 个 U+FFFD**（本刀**零新增**），遗留残留闸**自己写着**「能力清单正在被别的会话改，本轮不动它」；⚠️ 2 道**判不了**（exit 2，不算红）：check-ci-actually-ran（要 CI 上下文）＋ check-msrv-floor（仓级脚本）） | status=active | supersedes=none
@@ -45,6 +271,45 @@
 
 ⑤ **⚠ 圈码：本条占 U+3575 (㕵)** —— 落笔前**逐字重扫**五本账本（Node 读文件）⇒ ⇒ 移动端最高已声明 U+356E ⇒ ⇒ 35xx 段下一枚 **U+3575**（高于自己那一本的水位）⇒ ⇒ 父仓那条取 U+3573（两枚互不相同）⇒ ⇒ 字形由 `String.fromCodePoint()` 生成，不手打。
 
+**Updated**: 2026-11-17 (㕲 **「手机这一侧：`generate_video` 客户端工具 —— 与桌面逐字同口径；没接线就响亮抛」** —— 承影仓 U+356D 条（输入格式收口那一族）与端脑 U+356F 条（视频门面那一族），本条记**本仓落点**、**判据与真变异**、**读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-17 | authority=measured | scope=project | source=影仓 U+356D 条（输入格式收口那一族）与端脑 U+356F 条（视频门面那一族）｜ 改动：`lib/services/client_tools/client_tool_registry.dart`（`generate_video` 注册 ＋ 轮询）＋ `lib/services/telencephalon/telencephalon_client.dart` ＋ `lib/providers/chat_provider.dart`（注入）＋ `lib/providers/brain_model_source_provider.dart`（**只改注释**）＋ `lib/l10n/app_zh.arb` ＋ `lib/l10n/app_en.arb` ＋ `lib/generated/l10n/`（×3，重生成）＋ `test/unit/generate_video_tool_test.dart`（**新**，11 条）⇒ ⇒ **10 文件** ＋ 零新增依赖 ＋ **零新增端点** ｜ 读数：新判据 **11 过 / 0 红** ＋ 移动端全量 **1062 过 / 0 红 / 13 跳**（基线 1025／0／13）｜ **1 道真变异**（恰好 1 红）、还原后逐字一致 ｜ 闸：影仓 ****44 绿 / 16 红 / 2 判不了**（十六道红**逐字零命中本刀文件** ⇒ ⇒ 不代修、不销账；⚠️ 本刀**唯一**新增的阻断是 `brain-route-surface` 那两条 —— 手机端 `libencephalon.so` 落后于源码 ⇒ ⇒ 真机上就是 404 ⇒ ⇒ 「失败长得像成功」；⚠️ `check-cross-client` 是**连带**红（因上一条）；⚠️ `check-door-policy`（8 条 voice.rs 存量）与 `check-endpoint-matrix`（23 条存量）**delta 0** ⇒ ⇒ 本刀那两条视频路由**门型与锁矩阵都对得上**）**  | status=active | supersedes=none
+
+① **⚠️ 取证：手机这一侧的形状必须与桌面**逐字**一样** —— ❶ 跨端一致性闸（`check-client-tools.mjs`）**逐字段**比对工具名／描述／参数表（含 `enum`）⇒ ⇒ 两端各写一套 ⇒ ⇒ 闸当场红 ⇒ ⇒ 本刀**不新造形状** ⇒ ⇒ 直接与桌面同表登记。❷ ⚠️ 官方视频是**两步**（创建 ⇒ 回 task_id ⇒ 查询拿产物）⇒ ⇒ 手机这一侧也要**轮询** ⇒ ⇒ 工具内部轮询，对模型只呈现一次调用。
+
+② **✅ 落点 A：`client_tool_registry.dart` —— 注册 ＋ 轮询 ＋ **可注入的预算**（**为了判据能缩到毫秒级**）** —— ❶ 注册 `generate_video`（工具名／描述／参数表与桌面**逐字一致**）。❷ 轮询间隔默认 **3s**、预算默认 **180s**，**可注入**（判据注入 20ms ⇒ ⇒ 不用真等三分钟）。❸ ⚠️ 那两个运输函数（`generateVideo`／`queryVideo`）**做成可空** —— 否则 10 个既有 `buildMobileClientTools` 调用点**编不过**（其中有兄弟在飞面的测试文件 ⇒ ⇒ **不改它们**）⇒ ⇒ 缺接线时**响亮抛**（`generate_video is not wired on this device`）⇒ ⇒ **不是静默不可用**。❹ 结局三态与桌面同口径：**失败真的抛** ＋ **超时报 processing**（不许说失败）。
+
+③ **✅ 落点 B：接线与文案** —— ❶ `lib/services/telencephalon/telencephalon_client.dart` 加 `generateVideo(body)` ＋ `queryVideo(taskId, model)`。❷ `lib/providers/chat_provider.dart` 注入这两个（**read 不 watch**，理由同出图那一族）。❸ `lib/providers/brain_model_source_provider.dart` 的兜底名单**保留 `video_gen` 不动**（那是**老**端脑的产品事实 ⇒ ⇒ 新端脑的 `served` 优先 ⇒ ⇒ 自动放行）⇒ ⇒ 本刀**只改注释**。❹ l10n：`app_zh.arb` ＋ `app_en.arb` 加 `clientToolsVideoGenerated(url)` ＋ `clientToolsVideoProcessing(taskId, model)` ⇒ ⇒ `flutter gen-l10n` 重生成 `lib/generated/l10n/` ×3。
+
+④ **✅ 判据（11 条，`test/unit/generate_video_tool_test.dart`）** —— ❶ 注册与**参数表逐字**（含 enum）② 成功路径 ③ **轮询用端脑给回来的模型 id** ④ **失败真的抛** ⑤ **超时 ⇒ processing**（注入 20ms 预算 ⇒ ⇒ 毫秒级跑完）⑥ task_id 查回 ⑦ 缺 model 报错 ⑧ 空 prompt 报错 ⑨ **没接线就响亮抛** ⑩ **可选参数不外塞** ⑪ **report 随语言走**（zh／en 两份文案都在）。
+
+⑤ **⚠️ 变异 M5（当场红 ＋ 还原逐字一致）** —— 与桌面同一处变异（「失败 ⇒ 抛」改成「返回报告」）⇒ ⇒ **恰好 1 红** ⇒ ⇒ 两端**同一处机制**各自被钉住 ⇒ ⇒ 还原后**逐字一致**。
+
+⑥ **⚠️ 仍然欠着的** —— ❶ **真机那一格未跑**。❷ **真上游仍打不动**（无 key ⇒ ⇒ 官方 401）⇒ ⇒ 不能说「视频真能用」。❸ ⚠️ 手机端那份 `libencephalon.so` 落后于源码（构建于 2026-11-16 14:55）⇒ ⇒ 缺端脑那两条视频路由 ⇒ ⇒ `check-brain-route-surface.mjs` 阻断 1 → 3 ⇒ ⇒ 修法是重编 `.so`（**cargo-ndk 未装**；且会把兄弟在飞的端脑代码一起编进去 ⇒ ⇒ **本刀不代跑**）⇒ ⇒ 如实记账。❹ 视频产物在聊天里的呈现／下载留后续一刀。
+
+本条占 U+3572（㕲）
+
+**Updated**: 2026-11-17 (㕮 **「手机这一侧：独立语音页整页删掉，直播／客服两格入口下线 —— 代码留着，放回来只要一行」** —— 承 U+331F 条（语音并进对话页那一族）与父仓 U+356D 条（隐藏那一族），本条记**取证**、**落点**、**判据与变异**、**读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-17 | authority=measured | scope=project | source=用户诉求逐字（「移动端语音对话页面已经没什么意义先删除吧」＋「直播和智能客服页面先隐藏」）｜ 改动：lib/screens/voice_conversation_screen.dart **删** ＋ test/widget/voice_conversation_screen_test.dart **删** ＋ lib/router/app_router.dart（三处注释改真话）＋ lib/navigation/nav.g.dart（生成物）＋ test/widget/nav_conversation_modes_test.dart **新** ＋ AGENTS.md（架构树／设计注／功能清单三处 ＋ 本条）⇒ ⇒ **6 个文件** ＋ 零新增依赖 ＋ 零新增端点 ｜ 读数：判据 **7 过 / 0 红** ＋ 移动端全量 **1051 过 / 0 红 / 13 跳** ＋ analyze 本刀三文件 **0 发现** ｜ 闸：**45 绿 / 15 红 / 2 判不了**（十五道红**零新增命中本刀改动** ⇒ ⇒ 不代修、不销账）| status=active | supersedes=none
+
+① **⚠️ 取证：那个「语音对话页面」早就没入口了** —— ❶ `/voice` 自 2026-11-11 起渲染 **ChatScreen 本体**（对话页 ＋ 语音输入态）⇒ ⇒ 独立的 `VoiceConversationScreen` **只是留档** ⇒ ⇒ 用户今天说的「语音对话页面」＝那份留档 ⇒ ⇒ 删它**不动**语音能力。❷ 那份留档**不记记忆**：`LlmChatView` ＋ 进程内 `BrainLlmProvider` ⇒ ⇒ 推理**不进**端脑的 `/shadow/v1/conversations` ⇒ ⇒ 说过的话在会话列表里找不到 ⇒ ⇒ 「不记记忆的第二个房间」。❸ 它的测试是**假的**（**从没 import 那个页面**，只渲染一个占位 Text）⇒ ⇒ 页面删了它还绿 ⇒ ⇒ 它钉不到任何东西 ⇒ ⇒ 跟着一起走。
+
+② **✅ 落点 A：删掉那份留档（两个文件）** —— ❶ `lib/screens/voice_conversation_screen.dart` **整文件删除**（`git rm` ⇒ ⇒ 进回收站，可恢复）⇒ ⇒ 「独立语音页」这个形状**在代码里不存在了**。❷ `test/widget/voice_conversation_screen_test.dart` **一起删**。❸ `lib/router/app_router.dart` 的三处注释改成真话（「留档不删」→「已删」＋ 直播／客服「入口已隐藏」＋ 恢复怎么做）⇒ ⇒ `/voice` 那条路由**留着**（它现在只表示「进对话页的语音输入态」）⇒ ⇒ 删的是**页面**，不是**语音**。❹ `AGENTS.md` 的架构树／设计注（v2.6 那句 USB 音频自动路由）／功能清单三处过期说法一并改成真话 ⇒ ⇒ **文档不许说假话**。
+
+③ **✅ 落点 B：两格入口下线（真源在父仓）** —— ❶ 真源＝仓根 `agent-surface.json` 的 `navigation.mobile.conversationModes` ⇒ ⇒ 从 4 项变 2 项（`chat` ＋ `voice`）⇒ ⇒ 形态切换条只剩两格 ⇒ ⇒ **本仓零手改**（`nav.g.dart` 是生成物，重跑生成器即可）。❷ 两条能力**仍在清单里**（路由仍在、页面仍在）⇒ ⇒ 只是**入口下线** ⇒ ⇒ 放回来＝把两个 id 加回清单 ＋ 重跑 `node scripts/gen_nav.mjs`。❸ 客服页内部那个跳 `/livestream` 的按钮 ⇒ ⇒ 两页都从入口下线 ⇒ ⇒ **那一跳也一起看不见了**（客服页自己都进不去）。❹ 桌面端**零命中**（那一面的清单本来就只有 chat／voice ⇒ ⇒ 生成器复跑「桌面端已是最新」⇒ ⇒ **零漂移**）。
+
+④ **✅ 判据（7 条，`test/widget/nav_conversation_modes_test.dart`）** —— ❶ 形态清单**逐字**等于 `['chat','voice']`（只钉「不含直播」不够 ⇒ ⇒ 清单被清空也会绿）❷ **留档可恢复**：两条路由常量还在 ＋ 两个页面文件还在 ❸ 底 tab 仍四个（**负控**：隐藏没顺手砍掉别的入口）❹ 语音这一格仍在（**负控**：用户只让删页面，没让删语音）❺ 独立语音页文件不在树里（死文件不许复活）❻ 那份假测试不在 ❼ **承载级**：真把 `ConversationModeSwitcher` 摆进 `MaterialApp.router` ⇒ ⇒ 界面上**只画两格**，直播／客服文案**看不见**。
+
+⑤ **⚠️ 变异（两处，当场红 ＋ 复原 sha256 逐字一致）** —— ❶ 真源里把 `livestream` 加回 ＋ 重跑生成器 ⇒ ⇒ 判据 ❶ ＋ ❼ **当场红**（读数 `+5 -2`，恰好那两条，其余照绿）❷ 把 `voice_conversation_screen.dart` 放回去 ⇒ ⇒ 判据 ❺ **当场红**（读数 `+6 -1`，恰好那一条）❸ 复原后两个文件 sha256 与变异前**逐字一致** ⇒ ⇒ 复原面与落笔面同一份。
+
+⑥ **⚠️ 读数** —— ❶ 判据 **7 过 / 0 红**（基线 7/7；变异两处各红一次；复原回 7/7）。❷ 移动端全量 **1051 过 / 0 红 / 13 跳**（⚠️ 共享工作树 ⇒ ⇒ 兄弟在飞面也在内 ⇒ ⇒ **不是本刀独占**的数）。❸ `flutter analyze` 本刀三文件 **No issues found**。❹ 跨端一致性闸 **0 阻断 / 0 提示**（导航生成物 **0 过期**）。❺ 失败伪装闸：那条点名被删文件的 D1 登记**同刀销掉** ⇒ ⇒ 债务清单 **28 条** ＋ **无「过期」段**（销对了 ⇒ ⇒ 否则这一刀落地就把那道闸打红）。
+
+⑦ **⚠️ 闸读数（45 绿 / 15 红 / 2 判不了；取样时刻 2026-11-17 01:40（+08:00））** —— ❌ 15 红全部**零新增命中本刀改动**（其中替换字符闸点到的 `agent-surface.json` ＋ `scripts/check-failure-masking.mjs` 两处 U+FFFD，**HEAD 与工作树计数相同**（3／2）⇒ ⇒ 存量债 ⇒ ⇒ 不代修、不销账）｜ 两道**判不了**（exit 2，不算红）：`check-ci-actually-ran`（要 CI 上下文）＋ `check-msrv-floor`（仓级脚本）。
+
+⑧ **⚠️ 仍然欠着的** —— ❶ **真机那一格没跑**（本刀读数全在判据面 ⇒ ⇒ 真机上「形态条只剩两格」没亲眼看过）。❷ **直播／客服那两页仍能靠 deep link 打开**（路由留档）⇒ ⇒ 「隐藏」＝**入口下线**，不是**路由下线** ⇒ ⇒ 要更彻底得另开一刀（路由也重定向）—— 本刀**没做**，因为用户说的是「**先**隐藏」。❸ **语音那一格现在没有承载页了** ⇒ ⇒ 原先那份语音页的 USB 音频自动路由（shadow-esp32）**没有落点** ⇒ ⇒ 设备侧诉求另行处理。❹ **客服页内部那个跳 `/livestream` 的按钮**随两页一起进不来 ⇒ ⇒ 想放回来时要连它一起看。❺ 真 CI 待取。❻ 本刀**零新增依赖**：`flutter_ai_toolkit` 与 `BrainLlmProvider` 仍被客服页用着 ⇒ ⇒ 不是孤儿依赖 ⇒ ⇒ pubspec 不动。
+
+⑨ **⚠ 圈码：本条占 U+356E（㕮）** —— ⚠️ **这一格当场撞了一次**（不是演练）：官方取号闸给**父仓与移动端同一个候选 U+356B** ⇒ ⇒ 跨书撞号（R1′）⇒ ⇒ 真判据是**自己用 Node 逐字扫全树**（⚠️ PowerShell 管道会把方块字读成 `?` ⇒ ⇒ **假零**）⇒ ⇒ 先取 U+356B（父仓）＋ U+356C（本仓）⇒ ⇒ **落笔那一刻兄弟会话把同一窗口的两枚号占了、而且是「对调」**（父仓吃 U+356C、本仓吃 U+356B）⇒ ⇒ 圈码闸当场报两条「新增撞号」⇒ ⇒ 两枚全废 ⇒ ⇒ 改号重落。❹ ⚠️ **根因是我自己的护栏写窄了**：它只扫**目标那一个文件** ⇒ ⇒ 兄弟占的是**另外那一本** ⇒ ⇒ 查不到 ⇒ ⇒ **护栏必须扫「闸会读的那几本」**（父仓／移动端／桌面端），不是扫「我要写的那一本」。❺ 重扫后 U+356D 起零命中 ⇒ ⇒ 父仓取 **U+356D**、本仓取 **U+356E** ⇒ ⇒ 互不相同（R1′）＋ 各自高于自己那一本的水位（本仓 356B）⇒ ⇒ 字形由 `String.fromCodePoint()` 生成，不手打。
 **Updated**: 2026-11-17 (㕫 **「手机这一侧的 driver 补上了 —— 与桌面逐字同口径的四件（请求面／结算闸／桥接层／一轮驱动）」** —— 承影仓 U+3568 条（页面换线那一族），本条记**本仓落点**、**三件必须同口径的**、**一格值得单独说**、**判据与八道真变异**、**途中那个坑**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-17 | authority=measured | scope=project | source=承影仓 U+3568 条（页面换线那一族）｜ 改动：`lib/agui/agui_types.dart` ＋ `lib/agui/agui_tool_outcome_gate.dart` ＋ `lib/agui/agui_bridge.dart` ＋ `lib/agui/agui_driver.dart` ＋ `test/unit/agui_driver_test.dart` ＋ `test/unit/agui_bridge_test.dart` ＋ `test/unit/agui_tool_outcome_gate_test.dart` ＋ 本条 ⇒ ⇒ **7 文件** ＋ 零新增依赖 ＋ 零新增端点 ｜ 读数：移动端 AG-UI 判据 **40 过 / 0 红**（协议层 19 ＋ 结算闸 4 ＋ 桥接 7 ＋ driver 10）＋ `flutter analyze`（改动文件）**No issues found** ＋ 全量 **1044 过 / 0 红 / 13 跳** ｜ **8 道真变异**各**当场红**、无一道红 0 ｜ 闸：**11 绿 / 10 红**（十道红**零命中本刀文件** ⇒ ⇒ 不代修、不销账）| status=active | supersedes=none
@@ -75,6 +340,20 @@
 
 ④ **⚠ 圈码：本条占 U+3569 (㕩)** —— 落笔前**重扫**全树：官方候选那几枚**已被兄弟并发占掉** ⇒ ⇒ 真判据是**自己逐字扫**整个 iBLOC 树 ⇒ ⇒ 35xx 段自 U+3569 起零命中 ⇒ ⇒ 取 **U+3569** ⇒ ⇒ 与父仓／桌面端那两枚**互不相同**（R1′）＋ 高于移动端自己的水位（U+3561）⇒ ⇒ 字形由 `String.fromCodePoint()` 生成，不手打。
 
+**Updated**: 2026-11-16 (㕣 **「手机这一侧：视频生成有自己的标签 —— 且这一档端脑**不读**（不给下拉，只说一句）」** —— 承影仓 U+3562 条（第 10 档那一族），本条记**本仓落点**、**天然少一半的那一格**、**判据与变异**、**读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-16 | authority=measured | scope=project | source=影仓 U+3562 条（第 10 档那一族）｜ 改动：`lib/providers/brain_model_source_provider.dart` ＋ `lib/widgets/models/capability_labels.dart` ＋ `lib/widgets/brain/capability_default_section.dart` ＋ `lib/l10n/app_{zh,en}.arb` ＋ `lib/generated/l10n/{app_localizations,app_localizations_en,app_localizations_zh}.dart` ＋ `test/unit/capability_default_candidates_test.dart` ⇒ ⇒ **6 文件** ＋ 零新增依赖 ＋ **零新增端点** ｜ 读数：`flutter test test/unit/capability_default_candidates_test.dart` **38 过 / 0 红**（上一刀 33 ＋ 本刀 5）＋ 全量 **1025 过 / 0 红 / 13 跳** ＋ `flutter analyze`（改动文件）**No issues found** ｜ **1 道真变异**（去掉「端脑不服务」兜底档 ⇒ ⇒ 红 2）｜ 闸：**13 绿 / 9 红**（九道红**零命中本刀文件** ⇒ ⇒ 不代修、不销账；多出的那道＝兄弟在飞面新落的 `tests/pages/ConversationPageAgui.test.tsx`〔R3 弱断言独占〕⇒ ⇒ **不是本刀的** ⇒ ⇒ 按纪律不代修）| status=active | supersedes=none
+
+① **⚠️ 本仓落点（六个文件）** —— ❶ `lib/providers/brain_model_source_provider.dart`：`CapabilityDefaultsView` 增 `served`（解析端脑下发的那个字段）＋ 新增 `telencephalonUnservedTiers`（＝ `{'video_gen'}`）＋ `isServedCapability(cap, served)`（**与桌面端 `capabilityDefaults.ts` 同源同口径** ⇒ ⇒ 两端不会各说各话）。❷ `unusableCapabilityDefaults` 增一个可选参数 `served`：端脑不服务的那一档**照样要报**（不论它是不是按引擎 id 解析的档）⇒ ⇒ 这一格**有依据**（不是凭空指控）。❸ `lib/widgets/models/capability_labels.dart`：switch 增 `case 'video_gen'` ⇒ ⇒ 界面上不再露出生词 `video_gen`。❹ `lib/widgets/brain/capability_default_section.dart`：把「用不了」**拆成两段**（端脑不服务／引擎没注册）＋ 传 `served`。❺ `lib/l10n/app_{zh,en}.arb` ＋ `lib/generated/l10n/*.dart`（3 份，`flutter gen-l10n` 重生成）：新增 `capVideoGen` ＋ `capabilityDefaultsUnservedNow`。
+
+② **⚠️ 这一侧天然少一半（不必硬凑对称）** —— `consumedCapabilityTiers` 只给**端脑真读**的档 ⇒ ⇒ `video_gen` 落在「端脑不读」那一列（`unconsumedCapabilityTiers`）⇒ ⇒ **不给下拉**、只说一句「这几类端脑不读：视频生成」⇒ ⇒ 比桌面端（给下拉但标不可用）更保守，但**同样不撒谎** ⇒ ⇒ 两端**措辞不同、事实相同**（这是允许的：桌面有下拉可标，移动端没有下拉可标）。
+
+③ **✅ 判据与变异** —— ❶ 该判据文件 **＋5 条**：老端脑（没 `served`）⇒ 视频档判「不服务」＋ 别的档照旧服务；端脑给了 `served` ⇒ 以端脑为准（含「将来放行」）；配了视频那一档 ⇒ 要报「用不了」；端脑说服务了 ⇒ 不再报；`CapabilityDefaultsView` 解析 `served`（老端脑没这个字段 ⇒ 空表）。❷ **判据词表也改了**（口径改写，已记账）：端脑词表从 9 档变 10 档 ⇒ ⇒ `unconsumedCapabilityTiers` 的期望值**多了 `video_gen`**。❸ **变异**：把 `telencephalonUnservedTiers` 清空 ⇒ ⇒ **2 条当场红**（38 过／2 红）⇒ ⇒ 判据**真的承重** ⇒ ⇒ 还原后逐字一致。
+
+④ **⚠️ 仍然欠着的** —— ❶ **视频门面本身没做** ⇒ ⇒ 这一档**调不通**（移动端连下拉都不给）⇒ ⇒ 界面那句话说的是**实话**。❷ 真机那一格没跑（只过了判据面）；真 CI 待取。❸ 本刀**没动** `lib/providers/chat_provider.dart`（兄弟在飞面）⇒ ⇒ 零撞号。
+
+本条占 U+3563（㕣）
+
 **Updated**: 2026-11-16 (㕡 **「手机这一侧：AG-UI 协议层 —— 与桌面端逐字同口径（19 条对 19 条）」** —— 承影仓 U+3560 条（客户端接入那一族），本条记**本仓落点**、**两档失败语义**、**途中那一个坑**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-16 | authority=measured | scope=project | source=影仓 U+3560 条（客户端接入那一族）｜ 改动：`lib/agui/agui_events.dart` ＋ `lib/agui/agui_client.dart` ＋ `test/unit/agui_client_test.dart`（**3 个新文件**）＋ 本条 ⇒ ⇒ **零新增依赖** ＋ **零新增端点** ｜ 读数：`flutter test test/unit/agui_client_test.dart` **19 过 / 0 红** ＋ `flutter analyze`（改动文件）**No issues found** ｜ 判据与桌面端**逐字同口径**（19 条对 19 条）｜ 闸：**13 绿 / 8 红**（八道红**零命中本刀文件** ⇒ ⇒ 不代修、不销账）| status=active | supersedes=none
@@ -90,6 +369,118 @@
 ⑤ **⚠️ 仍然欠着的** —— ❶ **移动端接线仍欠**：`lib/providers/chat_provider.dart` 带着兄弟在飞的改动 ⇒ ⇒ 本刀**不混**（混刀会把兄弟那一刀卷进来）⇒ ⇒ 接线单独一刀。❷ **本仓这一侧还没有 driver**：桌面端已有一份 driver（设备工具的续轮闭环）⇒ ⇒ 移动端要接设备工具时得照那份**同口径**补一份 ⇒ ⇒ 不许两份各写各的。❸ 真机那一格没跑（只过了判据面）；真 CI 待取。❹ 本刀**没动** `lib/services/telencephalon/telencephalon_client.dart`（兄弟在飞面）⇒ ⇒ 零撞号。
 
 ⑥ **⚠ 圈码：本条占 U+3561 (㕡)** —— 官方 `--next` 给移动端的候选只当**线索**（它按**并集**给候选 ⇒ ⇒ 父仓与移动端会拿到**同一个**候选）⇒ ⇒ 真判据是**自己逐字扫**整个 iBLOC 树 ⇒ ⇒ 35xx 段由父仓／移动端／端脑共用 ⇒ ⇒ 全树已占到 U+355F ⇒ ⇒ 取 **U+3561** ⇒ ⇒ 与父仓那枚／桌面端那枚**互不相同**（R1′）＋ 高于移动端自己的水位（U+3559）⇒ ⇒ 字形由 `String.fromCodePoint()` 生成，不手打。
+
+**Updated**: 2026-11-16 (㕙 **「手机上那一声：三档安静 ＋ 气泡上的「仍要朗读」」** —— 承影仓 U+3556 条（设备静音 ⇒ 不合成那一族）与影仓 U+3558 条（静音模式 ＋ 可恢复开关那族），本条记**移动端这一侧的落点**、**途中两格**、**判据与读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-16 | authority=measured | scope=project | source=影仓 U+3558 条（静音模式 ＋「仍要朗读」开关）｜ 改动：`lib/tts_engine.dart` ＋ `lib/providers/chat_provider.dart` ＋ `lib/widgets/chat/local_chat_view.dart` ＋ `lib/l10n/app_{zh,en}.arb` ＋ `lib/generated/l10n/`（3 份）＋ `android/.../tts/TtsManager.kt` ＋ `android/.../MainActivity.kt` ＋ `test/unit/tts_engine_muted_test.dart` ＋ `test/unit/chat_provider_test.dart` ＋ **9 个替身签名**（`capability_grants` ／ `capability_modes_e2e` ／ `conversation_draft` ／ `chat_provider_test` ／ `chat_provider_tool` ／ `chat_message_actions` ／ `chat_token_stats` ／ `mobile_conversation_contract` ／ `mobile_session_switch`）｜ 读数：`flutter test` **1001 过 / 0 红 / 13 跳**（上一刀 993 ⇒ ⇒ **+8**）＋ `flutter analyze` 改动文件 **0 新发现** ＋ Kotlin `:app:compileDebugKotlin` **BUILD SUCCESSFUL**（产物 `TtsManager.class` 里逐字命中 `deviceSilentState`／`ringerState`／`dndState`，且**旧的 `mediaVolumeState` 已不存在**）＋ 变异**当场红 6 条** ｜ 闸：影仓 U+3558 条的闸读数（**13 绿 / 9 红**，九道红**零命中本刀文件** ⇒ ⇒ 不代修、不销账）| status=active | supersedes=none
+
+① **⚠️ 取证：手机这一侧「谁在出声」** —— ❶ **每轮回复都自动出声**（`chat_provider.dart`：流结束后 `_ttsEngine.speak(response, lobe: …)`）⇒ ⇒ 这是**最费算力**的一格。❷ 手动朗读（`speakLastResponse`）与语音消息（`playVoiceMessage`）是**用户明确要求出声**。❸ 设置页「试听」要试的就是**当前那条腿**（不许回退）。❹ **出声出口**：`TextToSpeech.speak` 与 `MediaPlayer` 默认都走 **`STREAM_MUSIC`**。
+
+② **⚠️ 取证：三档在物理上不是一回事（这一格最容易骗自己）** —— ❶ **媒体音量 0** ⇒ ⇒ 合成出来的音频**没人听得见** ⇒ ⇒ 那一发纯属浪费。❷ **响铃档（静音／振动）与勿扰** ⇒ ⇒ ⚠️ **媒体流其实还有声**（静音模式管的是通知/铃声，不是媒体流）⇒ ⇒ 这两档是**产品裁定**（用户明确说「静音模式也不需要 tts」⇒ ⇒ 尊重用户意图、少烧算力）⇒ ⇒ **不是**「没人听得见」⇒ ⇒ 措辞必须如实，**不许**写成「没人听得见」⇒ ⇒ 否则那一格就是骗自己。❸ 用户已拍板 **B**（三档都跳）。
+
+③ **✅ 落点 A：Kotlin 探针从「一档」扩成「三档，每档各自三态」** —— ❶ 通道方法 `mediaVolumeState`（单档字符串）**改名** `deviceSilentState`（回 **Map**）⇒ ⇒ 改名不是洁癖：**名字必须说清它查的是什么** ⇒ ⇒ 旧名会让后来人以为只查音量。❷ 三档：**volume**（`muted`／`unmuted`／`unknown`）／**ringer**（`silent`／`vibrate`／`normal`／`unknown`）／**dnd**（`on`／`off`／`unknown`）⇒ ⇒ ⚠️ **每档的取值空间不同** ⇒ ⇒ Dart 侧**三个映射函数**（不是一个通用函数）⇒ ⇒ 静音与振动在 Dart 侧都映射成 `muted`，但**档名保留在原生那一侧** ⇒ ⇒ 真机 logcat 能逐档认出「查到的是哪一档」。❸ ⚠️ **DND 的 `INTERRUPTION_FILTER_UNKNOWN` 必须当「查不到」**（真机读数：`settings get global zen_mode` = 4）⇒ ⇒ 拿它当「勿扰开着」⇒ ⇒ 那台机器上**每一轮都被跳过**（用户永远听不到）⇒ ⇒ 那是「查不到长得像确定」。❹ ⚠️ **零新增依赖**：`AudioManager`／`NotificationManager` 都是系统 API（`getRingerMode()` 与 `getCurrentInterruptionFilter()` 自 API 23 起公开 ⇒ ⇒ 本仓 minSdk=24 ⇒ ⇒ **不必**做版本判断；做版本判断反而会在旧机上退化成「查不到」）。❺ ⚠️ **规则只有一份**（Dart 侧 `DeviceAudioState.skipReason` 纯函数）⇒ ⇒ 任何一档 `unknown` **都不会导致跳过**。
+
+④ **✅ 落点 B：跳过的那条消息上挂「仍要朗读」** —— ❶ `ChatMessageModel` 加 `ttsSkipped`／`ttsSkipReason` ＋ `copyWith` ⇒ ⇒ 被跳过的那条消息**自己**记着「为什么没声」。❷ **气泡下面**就地一行「已跳过朗读（原因）」＋ 一个「仍要朗读」按钮（`_TtsSkippedRow`）⇒ ⇒ 点它 ⇒ ⇒ `speakText(msg.content, force: true)` ⇒ ⇒ **绕过整个安静判定**。❸ ⚠️ **自动朗读那条路仍然 `reportSkip: false`**（静默）⇒ ⇒ 不弹全局横幅（每轮弹一次 ⇒ ⇒ 变成噪音）⇒ ⇒ 但**气泡上那行提示照旧出现**（就地 ⇒ ⇒ 不打断阅读）⇒ ⇒ 两者**不冲突**：横幅管「失败」，气泡管「这一条没出声」。❹ ⚠️ **开关是「那一条」的，不是持久偏好** ⇒ ⇒ 用户原话是「**回复的时候**给个开关」⇒ ⇒ 落成全局偏好 ⇒ ⇒ 一次打开就**永久废掉**省算力那一刀 ⇒ ⇒ 那是把一个开关做成一个陷阱。❺ ⚠️ **读文本而不是下标**：`onSpeakAnyway` 传**那段文字** ⇒ ⇒ 下标会随新消息漂移，文本不会。
+
+⑤ **⚠️ 途中两格（这一刀自己踩出来的）** —— ❶ **给 `speak()` 加命名参数 ⇒ 9 个替身全部编译不过**（同上一刀那一族）：Dart 的覆写必须接受父类的**全部**命名参数 ⇒ ⇒ 加 `force` ⇒ ⇒ 9 个 `MockTts` 失配 ⇒ ⇒ **全量套件红**（编译级，不是断言级）⇒ ⇒ 修法：逐个补同名参数（**不是**删掉那个参数 —— 删掉就没法钉「force 时照常发」那一格）。❷ **产物逐字核验**：Kotlin `.class` 里 `deviceSilentState`／`ringerState`／`dndState` **命中**，而**旧的 `mediaVolumeState` 不存在** ⇒ ⇒ 证明改名彻底、**没有两份规则并存**（同一规则写两份 ⇒ ⇒ 变异只打掉一份时另一份会把断言喂饱 —— 假绿教训）。
+
+⑥ **✅ 判据与读数** —— ❶ **新增 12 条**（`test/unit/tts_engine_muted_test.dart`）：音量 0 ⇒ **HTTP 0 次** ＋ 原生 0 次 ＋ `skipped == true` ／ 响铃档＝静音 ⇒ 跳过 ／ 响铃档＝振动 ⇒ 跳过 ／ 勿扰开 ⇒ 跳过 ／ 三档都正常 ⇒ 照常发 ／ **三档全「查不到」⇒ 照常发**（查不到 ≠ 该安静 —— 绝不静默吞声音）／ **一档确定 ⇒ 就跳**（其余档查不到也**不许稀释**这一档）／ 形状不认识（原生回的不是 Map）⇒ 落回「查不到」⇒ 照常发 ／ **force ⇒ 照常发** ／ `reportSkip` ⇒ 报出去 ／ `reportSkip:false` ⇒ 静默 ／ 探针三态**逐档**映射。❷ **新增 2 条**（`chat_provider_test.dart`）：自动朗读被跳过 ⇒ 那条气泡标上 `ttsSkipped` ＋ 原因（且**不许**被 force）／「仍要朗读」⇒ `force == true` ＋ 读的是**那一条**。❸ **变异当场红**：把安静判定改成「永不跳过」⇒ ⇒ **6 条红**，逐字是 `Actual: [Request:POST http://127.0.0.1:0/v1/audio/speech]` ⇒ ⇒ 请求**真的**发出去了 ⇒ ⇒ 判据承重。❹ **全量**：`flutter test` **1001 过 / 0 红 / 13 跳**（上一刀 993 ⇒ ⇒ 本刀净增 8）＋ `flutter analyze` **0 新发现** ＋ Kotlin `:app:compileDebugKotlin` **BUILD SUCCESSFUL**。
+
+⑦ **⚠️ 仍然欠着的** —— ❶ **真机读数**：这一刀的 Kotlin 那一段（`ringerState`／`dndState`）**只过了编译**（产物里逐字命中）⇒ ⇒ 「**这三档真跑在设备上**」那一格**仍未验** ⇒ ⇒ 已重打 debug APK 待真机验（用户装到另一台手机试）⇒ ⇒ 逐档验法：改响铃档（静音／振动／勿扰）⇒ ⇒ 看 logcat 的 `deviceSilentState:` 那一行 ⇒ ⇒ 那一行会逐字给出三档各自的读数。❷ **Kotlin 侧没有 JVM 单测**（`AudioManager`／`NotificationManager` 要 Android 运行时 ⇒ ⇒ 这一格靠 Dart 替身 ＋ 真机两头兜）⇒ ⇒ 仍是欠项。❸ **只查 `STREAM_MUSIC`** ⇒ ⇒ 用户把声音走在**通话流／蓝牙流**上的那一格查不到 ⇒ ⇒ 那一格仍会白烧（漏检只浪费算力，不吞声音）。❹ **分路由音量公开 API 查不到**（真机 `dumpsys` 显示 `speaker: 0` 而 `default: 10`）⇒ ⇒ 同上。❺ **固定音量设备**（车机/kiosk）⇒ ⇒ 永远是「查不到」⇒ ⇒ 那一档按「未静音」处理（**故意**的取舍）。❻ 真 CI 待取（本仓未推远端）。
+
+⑧ **⚠ 圈码：本条占 U+3559（㕙）** —— 插前**逐字扫全部账本**（`C:\Projects\iBLOC` 下 Depth 3 的每一本 `AGENTS.md`）⇒ ⇒ U+3558／3559／3332 **各 0 处** ⇒ ⇒ 取 **U+3558**（父仓）／ **U+3559**（移动端）／ **U+3332**（桌面端）⇒ ⇒ 三本**互不相同**（R1′ 跨账本不撞号）⇒ ⇒ ⚠️ 桌面端那枚**不是** `--next` 给的 332C ⇒ ⇒ 逐字扫出来 332C／332D／332E／332F／3330／3331／3333 **全部已被端脑或父仓占掉** ⇒ ⇒ 只有 **3332** 空着 ⇒ ⇒ **官方候选当线索，真判据是自己扫**。字形由 `String.fromCodePoint()` 生成，不手打。
+
+**Updated**: 2026-11-16 (㕗 **「手机上那一声**不合成** —— 设备静音 ⇒ 省一次 TTS 算力」** —— 承影仓 U+3556 条（设备静音 ⇒ 不合成那一族），本条记**移动端这一侧的落点**、**途中两格**、**判据与读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-16 | authority=measured | scope=project | source=影仓 U+3556 条（设备静音 ⇒ 不合成 TTS）｜ 改动：`lib/tts_engine.dart` ＋ `lib/widgets/tts_error_banner.dart` ＋ `lib/providers/chat_provider.dart` ＋ `lib/l10n/app_{zh,en}.arb` ＋ `lib/generated/l10n/`（3 份）＋ `android/app/src/main/kotlin/com/ibloc/shadow/tts/TtsManager.kt` ＋ `android/app/src/main/kotlin/com/ibloc/shadow/MainActivity.kt` ＋ `test/unit/tts_engine_muted_test.dart` **新** ＋ `test/unit/chat_provider_test.dart` ＋ **8 个替身签名**（`capability_modes_e2e` ／ `capability_grants` ／ `conversation_draft` ／ `chat_message_actions` ／ `chat_provider_tool` ／ `chat_token_stats` ／ `mobile_conversation_contract` ／ `mobile_session_switch`）｜ 读数：`flutter test` **993 过 / 0 红 / 13 跳**（上一刀 987 ⇒ ⇒ **+6** ＝ 本刀新增）＋ `flutter analyze` 改动文件 **0 新发现** ＋ Kotlin `:app:compileDebugKotlin` **BUILD SUCCESSFUL**（产物 `TtsManager.class` 里逐字命中 `mediaVolumeState`）＋ 变异**当场红 2 条** ｜ 闸：影仓 U+3556 条的闸读数（**13 绿 / 9 红**，九道红**零命中本刀文件** ⇒ ⇒ 不代修、不销账）| status=active | supersedes=none
+
+① **⚠️ 取证：移动端这一侧「谁在出声」** —— ❶ **每轮回复都自动出声**（`chat_provider.dart:733`：流结束后 `_ttsEngine.speak(response, lobe: …)`）⇒ ⇒ 用户把媒体音量调到 0 时，那一发**没人听得见** ⇒ ⇒ **这一刀省的就是它**。❷ 手动朗读（`speakLastResponse`）与语音消息（`playVoiceMessage`）是**用户明确要求出声**。❸ 设置页「试听」要试的就是**当前那条腿**（不许回退）⇒ ⇒ 静音时它也听不见 ⇒ ⇒ 必须说清「为什么没声」。❹ **出声出口**：`TextToSpeech.speak` 与 `MediaPlayer` 默认都走 **`STREAM_MUSIC`** ⇒ ⇒ 探针必须查这一条流。
+
+② **✅ 落点 A：Kotlin 探针（三态字符串）** —— `TtsManager.mediaVolumeState()` ⇒ ⇒ 返回 `"muted"` ／ `"unmuted"` ／ `"unknown"` ⇒ ⇒ 通道方法 `mediaVolumeState`（`MainActivity` 的 `com.ibloc.shadow/tts`）⇒ ⇒ **零新增依赖**（`AudioManager` 是系统 API）。❶ **固定音量设备**（车机/kiosk，`isVolumeFixed`）⇒ ⇒ 「音量是不是 0」**没有意义** ⇒ ⇒ 如实说「查不到」，不猜。❷ **查不到 ≠ 有声音** ⇒ ⇒ Dart 侧按「没静音」处理（宁可多合成一次，也绝不静默吞掉声音）。❸ ⚠️ **通道协议是三态字符串**（不是布尔）⇒ ⇒ 理由同上：布尔会把「查不到」和「有声音」焊在一起 ⇒ ⇒ 焊在一起 ⇒ ⇒ 那台机器上的声音会**静默消失**。❹ ⚠️ **「流被静音」与「音量为 0」是两件事** —— 真机读数（`dumpsys audio` 逐字）：`STREAM_MUSIC: Muted: false / Current: 10`，而**别的流**出现 `Muted: true` 却 `Current: 10` ⇒ ⇒ 只查音量会**漏掉那一格** ⇒ ⇒ 所以判据是 `volume == 0 || isStreamMute(STREAM_MUSIC)`。
+
+③ **✅ 落点 B：Dart 侧跳过（一次都不发）** —— ❶ `TtsEngine.speak` 在**最前面**查探针（`deviceAudioState()`）⇒ ⇒ 静音 ⇒ ⇒ **不读配置、不发 HTTP、连原生那条腿也不走** ⇒ ⇒ 零请求、零算力。❷ 探针失败／通道不存在 ⇒ ⇒ 落回「查不到」⇒ ⇒ 照常合成（**不对称**：误判静音＝吞声音，不可接受；误判有声＝白烧一次，可接受）。❸ **三态结果**：`TtsSpeakResult.spoke()` ／ `.failed(reason)` ／ **`.skippedMuted(reason)`**（跳过 ≠ 失败 ⇒ ⇒ 但也不许静默）。
+
+④ **✅ 落点 C：跳过要看得见，但自动那条路要静默** —— ❶ 「因为静音而跳过」走**单独一条流**（`TtsEngine.skips` ＋ `lastSkip`）⇒ ⇒ **不混进失败流** ⇒ ⇒ 混进去 ⇒ ⇒ 横幅会用「语音没播出来」那套红字 ⇒ ⇒ 用户以为 TTS 坏了 ⇒ ⇒ 那是另一种骗法。❷ 横幅**琥珀色** ＋ 新文案键 `ttsSkipped`（中英各一份 ＋ 生成文件 3 份）。❸ **自动朗读**（每轮都来一次）⇒ ⇒ `reportSkip: false` ⇒ ⇒ **静默** ⇒ ⇒ 每轮弹一次横幅 ⇒ ⇒ 变成噪音 ⇒ ⇒ 那一格的静音跳过是**尊重用户意图**，不是故障 ⇒ ⇒ 手动朗读／试听那两条路才报出去。
+
+⑤ **⚠️ 途中两格（这一刀自己踩出来的）** —— **给 `speak()` 加一个命名参数 ⇒ 8 个替身全部编译不过**：Dart 的覆写必须接受父类的**全部**命名参数 ⇒ ⇒ 我这一刀加了 `reportSkip` ⇒ ⇒ 8 个 `MockTts` 覆写失配 ⇒ ⇒ **全量套件 8 红**（全是「loading」级**编译**错，不是断言红）⇒ ⇒ 修法：8 个替身逐个补同名参数 ⇒ ⇒ ⚠️ **不是**「把那一个参数删掉」（删掉就没法钉「自动朗读静默」那一格）。❷ **真机读数当场暴露了漏检** —— 探针本来只查「媒体音量是不是 0」⇒ ⇒ 真机（MI MAX 2 / Android 7.1）的 `dumpsys audio` 一读 ⇒ ⇒ 别的流出现 `Muted: true` 却 `Current: 10` ⇒ ⇒ **「流被 mute」不等于「音量为 0」** ⇒ ⇒ 判据改成 `volume == 0 || isStreamMute(...)`（`isStreamMute` 是**公开 API**，android.jar 在 API 28／33／36 上逐字命中）⇒ ⇒ ⚠️ **打桩判据永远发现不了这一格**（替身回的是三态字符串，mute 标志那一层在 Kotlin 里）⇒ ⇒ 是**真机读数**逼出来的。
+
+⑥ **✅ 判据与读数** —— ❶ **新增 6 条**（`test/unit/tts_engine_muted_test.dart`）：静音 ⇒ **HTTP 0 次** ＋ 原生 0 次 ＋ `skipped == true` ／「查不到」⇒ 照常发 ／ 有声 ⇒ 照常发 ／ 静音＋`reportSkip` ⇒ **报出去** ／ 静音＋`reportSkip:false` ⇒ **静默** ／ 探针三态各归各的（认不出来的值 ⇒ 「查不到」）。❷ **两条既有判据改口径**（`chat_provider_test.dart`）：自动朗读 ⇒ `reportSkip == false`（静默）／ 手动朗读 ⇒ `reportSkip == true`（报出去）⇒ ⇒ 改口径≠ 降标准。❸ **变异当场红**：把静音判定改成「永不跳过」⇒ ⇒ **2 条红**，读数逐字是 `Actual: [Request:POST http://127.0.0.1:0/v1/audio/speech]` ⇒ ⇒ 请求**真的**发出去了 ⇒ ⇒ 判据承重。❹ **全量**：`flutter test` **993 过 / 0 红 / 13 跳**（上一刀 987 ⇒ ⇒ 本刀净增 6）＋ `flutter analyze` **0 新发现** ＋ Kotlin `:app:compileDebugKotlin` **BUILD SUCCESSFUL**（编译产物里逐字命中 `mediaVolumeState` ⇒ ⇒ 那一格**不是**只过了 Dart）。
+
+⑦ **⚠️ 仍然欠着的** —— ❶ **真机读数**：**前提**已在本机真机上读到（`dumpsys audio`：`STREAM_MUSIC: Muted: false / Current: 10`）⇒ ⇒ 缺的只剩「**我这段 Kotlin 真跑在设备上**」⇒ ⇒ **已打成 debug APK**（用户装到另一台手机实测）⇒ ⇒ 装完那一格就有读数。⚠️ **Android 只查流级音量**：真机 `dumpsys` 显示 `speaker: 0` 而 `default: 10` ⇒ ⇒ **分路由的音量公开 API 查不到** ⇒ ⇒ 用户若走那个 0 音量的路由，仍会白烧（漏检只浪费算力，不吞声音）。❷ **Kotlin 侧没有 JVM 单测**（`AudioManager` 要 Android 运行时 ⇒ ⇒ 这一格靠 Dart 替身 ＋ 真机两头来兜）⇒ ⇒ 仍是欠项。❸ **只查 `STREAM_MUSIC`** ⇒ ⇒ 用户把声音走在**通话流／蓝牙流**上的那一格，查不到 ⇒ ⇒ 那一格仍会白烧（漏检只浪费算力，不吞声音）。❹ **固定音量设备**（车机/kiosk）⇒ ⇒ 永远是「查不到」⇒ ⇒ 那一档按「未静音」处理（**故意**的取舍）。❺ 真 CI 待取（本仓未推远端）。
+
+⑧ **⚠ 圈码：本条占 U+3557（㕗）** —— 插前**逐字扫七本账本**（父仓 ＋ 移动端 ＋ 桌面端 ＋ src-tauri ＋ mobile/lib ＋ desktop/src ＋ mobile/android kotlin）⇒ ⇒ U+3557 **0 处** ⇒ ⇒ 取 **U+3557**（与父仓 U+3556、桌面端 U+332B **互不相同** ⇒ ⇒ R1′ 跨账本不撞号）⇒ ⇒ 字形由 `String.fromCodePoint()` 生成，不手打。
+
+**Updated**: 2026-11-16 (㕓 **「手机上的图**走不到枕叶** —— 枕叶**不在**移动端那个 `.so` 里」** —— 承影仓 U+3551 条（枕叶那一档的架构取证那族），本条记**逐字取证**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-16 | authority=measured | scope=project | source=影仓 U+3551 条（枕叶那一档的架构取证）｜ 改动：**零文件**（**纯取证**条目 ⇒ ⇒ 不改代码）｜ 读数：不适用（无代码改动）｜ 闸：台账圈码 **三面零违规** | status=active | supersedes=none
+
+① **⚠️ 取证：移动端那个 `.so` 里**没有枕叶**（所以手机上的图**走不到枕叶**）** —— ❶ 手机装的是 `libencephalon.so`，而它的构成逐字写在 `shadow-mobile/android/app/src/main/kotlin/com/ibloc/shadow/EncephalonRuntime.kt` 的文件头：「**同一套 `Embedded`（thalamus ＋ ACP 总线 ＋ telencephalon ＋ 单一 neuron）**」⇒ ⇒ **不含枕叶**（也不含海马体 —— 承 U+3541 条「mobile 不带 hippocampus」）。❷ 而枕叶是个**独立进程**：`occipital/src/main.rs` 起一个 `LobeApp`（默认绑 `127.0.0.1:9300`）⇒ ⇒ 它**不是**移动端的一部分 ⇒ ⇒ 手机上**没有**一个能接这张图的枕叶。❸ ⇒ ⇒ **「移动端拍照 → 枕叶处理」这条路在架构上就不通** —— 不是「还没接线」，是**那个东西不在**。
+
+② **✅ 但手机的图**已经能用了（走的是另一条路）** —— U+354E 那一刀把图片接成了「**模型直接看**」（`image_url`）⇒ ⇒ 手机上拍张照问一句，**模型真的看得见** ⇒ ⇒ ⇒ **「用户发一张照片，模型看不见」这件事今天已经不存在了** ⇒ ⇒ 而「走枕叶」只是**另一条**路（它的独有价值是**检测与人脸**，不是普通问答）。
+
+③ **⚠️ 仍然欠着的** —— ❶ 若要「静态图 → 枕叶」在**手机**上成立 ⇒ ⇒ 只有一条路：**把枕叶编进移动端** ⇒ ⇒ 体量大（枕叶要 neuron 的 vision 模型，而移动端是「**单一** neuron」）⇒ ⇒ 本条**不做**（纯取证）。❷ 若要它在**桌面端**成立 ⇒ ⇒ 需要桌面端**先有发图 UI**（现在没有 —— 那个图片 input 是**聊天背景图**）⇒ ⇒ ⇒ 「静态图 → 枕叶」这一档今天**两端各缺一头** ⇒ ⇒ 现在做＝造一个**没人用**的能力 ⇒ ⇒ **不做**。❸ 端脑↔lobe 的 wire 形状缺口（承影仓 U+3551／本仓 U+3552 条）**一步都没修** ⇒ ⇒ 那条路**从未对上**。
+
+④ **⚠ 圈码：本条占 U+3553（㕓）** —— 插前逐字扫九本账本（父仓 ＋ 移动端 ＋ 桌面端 ＋ src-tauri ＋ mobile/lib ＋ desktop/src ＋ mobile/android kotlin ＋ 端脑 ＋ synapse）⇒ ⇒ U+354E／354F／3550 各 2 处 ⇒ ⇒ **U+3553 各 0 处** ⇒ ⇒ 取 **U+3553**。字形由 `String.fromCodePoint(0x3553)` 生成，不手打。
+
+**Updated**: 2026-11-16 (㕏 **「附件不止图片了 —— 而且界面上那个「端脑」该叫「大脑」」** —— 承影仓 U+354E 条（附件泛化那族），本条记**落点**、**文案口径**、**判据与变异**、**读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-16 | authority=measured | scope=project | source=影仓 U+354E 条（用户诉求逐字：「大脑为什么错误信息显示的是端脑，需要支持全类型文件格式」）｜ 改动：lib/multimodal/attachment_encoder.dart **新** ＋ lib/multimodal/image_input_handler.dart（撤掉上一刀的「图片专用编码器」）＋ lib/multimodal/multimodal.dart ＋ lib/multimodal/multimodal_input_manager.dart ＋ lib/providers/chat_provider.dart ＋ lib/utils/chat_state_l10n.dart ＋ lib/services/telencephalon/telencephalon_client.dart（`images` ⇒ `attachments`）＋ lib/l10n/app_{en,zh}.arb（**端脑→大脑** 24 处 ＋ 附件键收成一个）＋ lib/generated/l10n（3 份）＋ test/unit/attachment_wire_test.dart（**改名** ＋ 扩到 18 条）＋ test/unit/chat_provider_test.dart（附件族改口径 ＋ 扩到 6 条）＋ test/widget/flows_screen_test.dart ⇒ ⇒ **13 个文件** ＋ 零新增依赖 ｜ 读数：移动端全量 **987 过 / 0 红 / 13 跳**（上一刀 980 ＋ 本刀 7）＋ flutter analyze 改动文件 **0 新发现**（4 条 info 全在 `telencephalon_client.dart` 的**存量**行 786／787／1265／1441 ⇒ ⇒ 不代修）＋ 变异**一处当场红**（`toJson` 不带 `attachments` ⇒ **2** 条红）｜ 闸：**15 绿 / 8 红**（八道红**零命中本刀文件**）| status=active | supersedes=none
+
+① **✅ 落点 A：附件按扩展名分档（新建 `attachment_encoder.dart`）** —— ❶ 扩展名 ⇒ MIME ⇒ 档（image／text／pdf／audio／**unsupported**）⇒ ⇒ 一律 **base64 内联**（**只有一种编码** ⇒ ⇒ 端脑只解一次）⇒ ⇒ 载荷带 `filename`（模型要知道这是个什么文件）。❷ ⚠️ **分档的依据是扩展名／MIME，不是「用户是从哪儿选的」** ⇒ ⇒ 「＋」里选的一个 `.txt` 与一个 `.jpg` 走**同一条路**（各自按自己的 MIME 分档）⇒ ⇒ 否则「从相册选」这个**来源**会决定能不能发 ⇒ ⇒ 用户会看到「同一份文件，换个入口就能发」。❸ ⚠️ **撤掉上一刀那个「图片专用」的编码器**（`image_input_handler` 里那份）⇒ ⇒ 避免**同一规则写两份实现** ⇒ ⇒ 变异只打掉一份、另一份把断言喂饱 ⇒ ⇒ 判据假绿。❹ ⚠️ **文本类的上限单独更严**（256KB）⇒ ⇒ 文本类会**整段进 prompt**（不是当图片那样由模型「看」）⇒ ⇒ 10MB 的文本会把这一轮的上下文顶爆 ⇒ ⇒ 「能发」不等于「发得出去」。❺ ⚠️ **零新增依赖**：MIME 用**扩展名表**（不引 `package:mime`）⇒ ⇒ 手机上的文件来自相机／相册／文件管理器，扩展名都是明确的。
+
+② **✅ 落点 B：provider 按档真发，不支持的明确说清** —— ❶ 图片／纯文本／PDF／wav／mp3 ⇒ ⇒ **真发**；**还没接的那一档**（视频／Word/Excel／别的音频格式）⇒ ⇒ **明确报错**，且理由要说清是**「这一类还没接」**⇒ ⇒ 不是「你配得不对」⇒ ⇒ 用户去换模型**也没用**⇒ ⇒ 不能让他白折腾。❷ 附件那两个 l10n 键**收成一个**（`chatAttachmentFailed`，带 `{reason}`）⇒ ⇒ 理由变了 ⇒ ⇒ 两句合成一句 ⇒ ⇒ **不拆成两句** ⇒ ⇒ 用户看到的横幅**带原因**（「unsupported file type: .mp4」／「file is too large …」）。
+
+③ **✅ 落点 C：界面上那个「端脑」改成「大脑」（口径写清）** —— ❶ 用户诉求逐字：「大脑为什么错误信息显示的是端脑」⇒ ⇒ 逐字扫 `app_zh.arb` ⇒ ⇒ **「端脑」出现 21 处** ⇒ ⇒ 不是一两处，是**系统性**的架构名外泄 ⇒ ⇒ 而产品里**「大脑」本来就是用户的说法**（`encephalonStart`「启动大脑」…）⇒ ⇒ 两种叫法在同一个界面里并存 ⇒ ⇒ 用户得自己猜。❷ ⚠️ **口径**（用户**没答**这一格 ⇒ ⇒ 按最佳判断定，并写进台账）：**普通用户**会读到的**错误提示与说明文字**（AG-UI 提示、身份页、任务提示、后台服务、MCP 读失败、导航标签）⇒ ⇒ 换成「大脑」；**运维配置项**（端脑后端地址／管理员令牌／影子锁）与**开发者日志**里的「端脑」⇒ ⇒ **保留** ⇒ ⇒ 那里它指的是**一个具体的服务实例**，换掉反而丢了信息。❸ 实际改了 **zh 16 处 ＋ en 8 处**（en 另有 4 处本就是「brain」/「Brain」）⇒ ⇒ 改完 en 里剩下的 4 处**恰好**是日志 1 处 ＋ 运维配置 3 处 ⇒ ⇒ 与口径**逐字吻合**。❹ ⚠️ `flows_screen_test.dart` 那条判据**逐字钉了**「Telencephalon Flows」⇒ ⇒ 改文案后它红 ⇒ ⇒ 改口径（→ 'Brain Flows'）⇒ ⇒ 并在注释里写清**为什么逐字钉**（那个测试把 widget locale 强制成 `en`，而 `currentL10n()` 取的是**系统语言**⇒ ⇒ 两者可能不一致 ⇒ ⇒ 用它断言会**时红时绿**）。
+
+④ **⚠️ 途中一格（自己踩出来、当场修掉的）** —— **批量改 arb 时「整行替换」会把长文案的后半截丢掉** ⇒ ⇒ JSON 的字符串**没闭合** ⇒ ⇒ arb 整个坏掉 ⇒ ⇒ ⚠️ **而且报错指向的是「解析停下来」的地方，不是「真正坏的那行」**（`gen-l10n` 报第 399 行，真正坏的是第 372 行）⇒ ⇒ 得**逐行扫引号配对**才找得全 ⇒ ⇒ 修法：**行内替换**（只换行内那一段）⇒ ⇒ 这是「批量改文案」这一族的新坑 ⇒ ⇒ 记下来。
+
+⑤ **✅ 判据与变异** —— ❶ `attachment_wire_test.dart`（**改名** ＋ 扩到 **18** 条）：扩展名→MIME→档逐条（含大写扩展名）／ 视频／Word/Excel／别的音频格式／无扩展名 ⇒ **带原因失败** ／ base64 与文件字节**逐字**一致 ／ **data 不带 `data:` 前缀** ／ **filename 带上** ／ 读不出 ／ 太大 ／ **文本类太大** ／ `toJson` 的键名与形状 ／ 没附件 ⇒ **不带** `attachments` 键 ／ 空列表 ⇒ 也不带。❷ `chat_provider_test.dart` 附件族改口径并扩到 **6** 条：**图片真发**（请求体带 attachments ＋ base64 **逐字**一致）／ **文本文件真发** ／ **PDF 真发** ／ **相机照片真发**（它就是一张图片）／ **这一档还没接 ⇒ 明确报错**（理由要说清）／ 格式不认识 ／ 读不出 ／ 件数超 ／ 「不是文件」的音频字节。❸ ⚠️ **三处旧判据的口径都变了**：旧判据钉的是「端脑只处理纯文本」⇒ ⇒ 现在那句话**对图片／相机照片／音频文件都是假的**⇒ ⇒ 同一个意图（「不许静默丢附件」）换更狠的钉法。❹ **变异**：`toJson` 不带 `attachments` ⇒ ⇒ **2** 条红 ⇒ ⇒ 证明判据有牙。
+
+⑥ **⚠️ 仍然欠着的** —— ❶ **真机读数欠**（要真编 APK ＋ 真编 `.so`）⇒ ⇒ 「丢份 PDF 过去真能被读」那一格还没在 MIX 4 上跑过。❷ **视频仍未通**（明确说清「这一类还没接」）⇒ ⇒ 要通得**抽帧**（要引 ffmpeg）⇒ ⇒ 本刀**没引**。❸ **Word/Excel 那类二进制仍未通**（要通得先有解析器）。❹ ⚠️ 本刀的 arb 改动是**隔离 worktree** 落库的（兄弟在飞同一批 arb）⇒ ⇒ 主树工作树里他那 5 行**逐字未动**（diff 核对过：主树与隔离树的 arb 差异**恰好**是那 5 行）⇒ ⇒ 提交树面是「HEAD ＋ 我这些改动」。❺ 真 CI 待取（本刀未推远端）。❻ ⚠️ 移动端全量读数**不是本刀独占**（共享工作树：兄弟的内建相机重构那族也在飞）。
+
+⑦ **⚠ 圈码：本条占 U+354F（㕏）** —— 插前逐字扫九本账本（父仓 ＋ 移动端 ＋ 桌面端 ＋ src-tauri ＋ mobile/lib ＋ desktop/src ＋ mobile/android kotlin ＋ 端脑 ＋ synapse）⇒ ⇒ U+354B／354C／354D 各 2 处（上一刀那三本）⇒ ⇒ **U+354F 各 0 处** ⇒ ⇒ 取 **U+354F**。字形由 `String.fromCodePoint(0x354F)` 生成，不手打。
+
+**Updated**: 2026-11-16 (㕌 **「照片能真发出去了 —— 撤掉「端脑链路当前只处理纯文本」那道硬拦」** —— 承影仓 U+354B 条（端脑协议收图片位那族），本条记**落点**、**判据与变异**、**读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-16 | authority=measured | scope=project | source=影仓 U+354B 条｜ 改动：lib/multimodal/image_input_handler.dart（`ImageEncodeResult` ＋ `encodeForTelencephalon` ＋ 两个上限常量 ＋ 扩展名→MIME 表）＋ lib/multimodal/multimodal_input_manager.dart（露一个口）＋ lib/providers/chat_provider.dart（撤硬拦 ＋ 图片真发 ＋ `_setImageFailure`）＋ lib/utils/chat_state_l10n.dart（新错误键）＋ lib/services/telencephalon/telencephalon_client.dart（`SendMessageRequest.images` ＋ `toJson` 带出）＋ lib/l10n/app_{en,zh}.arb（各改 1 键 ＋ 增 1 键）＋ lib/generated/l10n（3 份）＋ test/unit/chat_provider_test.dart（改 1 条口径 ＋ 新 3 条）＋ test/unit/image_attachment_wire_test.dart **新** ⇒ ⇒ **12 个文件** ＋ 零新增依赖 ｜ 读数：移动端全量 **980 过 / 0 红 / 13 跳**（基线 960 ＋ 本刀 20）＋ flutter analyze 改动文件 **0 新发现**（4 条 info 全在 `telencephalon_client.dart` 的**存量**行 781／782／1260／1436 ⇒ ⇒ 不代修）＋ 变异**一处当场红**（`toJson` 不带 `images` ⇒ **2** 条红）｜ 闸：**15 绿 / 8 红**（八道红**零命中本刀文件**）| status=active | supersedes=none
+
+① **⚠️ 取证：那道硬拦把**照片**也一并挡了** —— 用户实测逐字「端脑链路当前只处理纯文本，图片、文件等附件暂不支持」⇒ ⇒ 那是 `chat_provider.dart` 的 `generateResponseWithAttachments` ⇒ ⇒ 旧实现对**任何**附件都直接报错（本地 LiteRT 下线后，附件没有第二条路可走）⇒ ⇒ 但那句文案**对图片是假的**（图片本来就不该被这条拦住）⇒ ⇒ 而且它**只说结论不说原因**（用户不知道「换个模型行不行」「重拍行不行」）。
+
+② **✅ 落点 A：读成 base64 ＋ 从扩展名推 MIME** —— ❶ `ImageInputHandler.encodeForTelencephalon` 读文件 ⇒ ⇒ `{media_type, data}`（`data` 是**纯 base64**、**不带** `data:` 前缀 ⇒ ⇒ 拼前缀是**端脑那一端**的活）⇒ ⇒ MIME 由**扩展名**推（jpg/jpeg/png/webp/gif）⇒ ⇒ 媒体类型这件事**只有这一层**知道 ⇒ ⇒ 别处各猜一份 ⇒ ⇒ 迟早漂。❷ ⚠️ **读不出／格式不认识／太大 ⇒ 一律带原因失败** ⇒ ⇒ **绝不许把一段未知字节假装成图片发出去**（上游会拿它当图片解 ⇒ ⇒ 然后报一个**指向别处**的错误）⇒ ⇒ HEIC 之类落在表外 ⇒ ⇒ 明确报错（相机插件默认出 JPEG ⇒ ⇒ 这四个覆盖了**实际会出现**的形态）。❸ ⚠️ **上限两端必须一致**（10MB／8 张，与端脑那侧同值）⇒ ⇒ 否则会出现「客户端放行、端脑拒」⇒ ⇒ 那种错会指向别处。
+
+③ **✅ 落点 B：撤掉硬拦，图片**真发** ——** ❶ `generateResponseWithAttachments` 把附件**分类**：**图片**这一刀通了 ⇒ ⇒ 读成 base64 ⇒ ⇒ 填进 `images` ⇒ ⇒ **真发**；**视频／文件／音频** ⇒ ⇒ 仍然**明确报错**（这一刀只通图片）⇒ ⇒ 但**不许静默丢**。❷ ⚠️ **文案必须改准**：`chatAttachmentNotAvailable` 改成「图片可以直接发给模型看了；视频、文件、音频这条链路还没接上」⇒ ⇒ 一句假的提示比没有提示更坏（用户会以为图也没发出去）⇒ ⇒ 新增 `chatAttachmentImageFailed`（带 `{reason}`，形状与既有 `chatSorryError` 一致）⇒ ⇒ 界面**不说中文硬串**。❸ 发成功 ⇒ ⇒ **候选行清空** ⇒ ⇒ 否则用户再点一次发送 ⇒ ⇒ 那张图会被**再发一遍**。
+
+④ **✅ 判据与变异** —— ❶ `test/unit/image_attachment_wire_test.dart` **14 条新**（扩展名→MIME 逐条 ／ 大写扩展名 ／ 不认得的格式带原因失败 ／ 没有扩展名带原因失败 ／ base64 与文件字节**逐字一致** ／ **data 不带 `data:` 前缀** ／ 读不出的文件带原因失败 ／ 太大的图带原因失败 ／ `toJson` 的键名与形状 ／ 没图 ⇒ **不带** `images` 这一键 ／ 空列表 ⇒ 也不带）。❷ `test/unit/chat_provider_test.dart`：**旧的那条判据「带图片 ⇒ 明确报错，且根本没到端脑」钉的是「端脑只处理纯文本」⇒ ⇒ 而那句话现在是假的** ⇒ ⇒ 同一个意图（「不许静默丢附件」）**换一条更狠的钉法** ⇒ ⇒ 请求体里必须带那张图，且 base64 与文件字节**逐字**一致 ⇒ ⇒ 另加「格式不认识 ⇒ 明确报错且根本没到端脑」／「文件读不出 ⇒ 同」／「视频附件 ⇒ 仍明确报错」／「相机照片 ⇒ 仍明确报错」／「音频 ⇒ 仍明确报错」。⚠️ Mock 加了 `lastRequest` ⇒ ⇒ 因为**图真的发了** ⇒ ⇒ 「没发」那个计数**证明不了**「图在不在里面」。❸ **变异**：`toJson` 不带 `images` ⇒ ⇒ **2** 条红 ⇒ ⇒ ⚠️ 补强**之前**只有 1 条（那条只断言了请求**对象**）⇒ ⇒ **「请求对象里有图」≠「请求体里有图」** ⇒ ⇒ 真机上发出去的是 `toJson()` 的结果 ⇒ ⇒ **两处都得钉**。
+
+⑤ **⚠️ 仍然欠着的** —— ❶ **真机读数欠**（要真编 APK ＋ 真编 `.so`）⇒ ⇒ 「拍完真能问」那一格还没在 MIX 4 上跑过。❷ **视频附件仍未通**（界面明确报错，不说假话）⇒ ⇒ 那是「还没做」。❸ **桌面端零改动**：桌面端**对话页没有发图入口**（`SettingsPage` 那个图片 input 是**聊天背景图**）⇒ ⇒ 协议位已共用。❹ **兄弟在飞的重构**：`in_app_camera_page.dart` → `in_app_camera_overlay.dart` ＋ `in_app_camera_view.dart` 那一刀**在本刀期间**发生 ⇒ ⇒ 本刀**没碰**它 ⇒ ⇒ 但移动端全量读数**不是本刀独占**（共享工作树）。❺ 真 CI 待取（本刀未推远端）。❻ ⚠️ 本刀的 arb 改动是**隔离 worktree** 落库的（兄弟在飞同一批 arb）⇒ ⇒ 主树工作树里他那 5 行**逐字未动** ⇒ ⇒ 提交树面是「HEAD ＋ 我这两个键」。
+
+⑥ **⚠ 圈码：本条占 U+354C（㕌）** —— 插前逐字扫九本账本（父仓 ＋ 移动端 ＋ 桌面端 ＋ src-tauri ＋ mobile/lib ＋ desktop/src ＋ mobile/android kotlin ＋ 端脑 ＋ synapse）⇒ ⇒ U+3544…U+354A 各 2–3 处（全在父仓）⇒ ⇒ **U+354C 各 0 处** ⇒ ⇒ 取 **U+354C**。字形由 `String.fromCodePoint(0x354C)` 生成，不手打。
+
+**Updated**: 2026-11-16 (㌧ **「手机这一侧也要说清每条模型吃什么输入、那份模态是从哪来的」** —— 承影仓 U+3543 条（输入格式收口成一份真源），本条记**落点**、**判据**、**读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-16 | authority=measured | scope=project | source=影仓 U+3543 条｜ 改动：lib/services/telencephalon/telencephalon_client.dart（`RegisteredModel` 加 `inputModalities` ＋ `inputModalitiesSource` ＋ `fromJson` 读两个新字段）＋ lib/screens/providers_screen.dart（芯片文案里写模态 ＋ 供应商卡片加一行「输入模态来源」 ＋ 两个助手函数）＋ lib/services/models/known_models.dart（文件头明确「只管自持/本地模型」）＋ lib/l10n/app_zh.arb ＋ app_en.arb（各 4 键）＋ lib/generated/l10n（gen-l10n 重生成 3 份）＋ test/widget/providers_screen_test.dart（＋2 条判据）⇒ ⇒ **8 个文件** ＋ 零新增依赖 ｜ 读数：本刀文件 **16 过 / 0 红**（含新增 2 条）＋ 移动端全量 **945 过 / 0 红 / 13 跳**（＋2）＋ flutter analyze 改动三文件 **0 新发现**（存量 4 条 info 不代修） | status=active | supersedes=none
+
+① **⚠️ 为什么要显示模态 ＋ 来源** —— 模态回答「这条模型吃什么」（能不能传图/音）；来源回答「那份模态是谁说的」（上游真给的 ＝ 还是我们按官方文档预设的）⇒ ⇒ **只给最终值不说来源** ⇒ ⇒「上游真给的」与「我们猜的」在界面上长得一样 ⇒ ⇒ 猜错了没人发现。
+
+② **✅ 落点** —— ❶ `RegisteredModel` 加两个字段（`inputModalities` ＝ 词表里的模态；`inputModalitiesSource` ＝ `upstream`/`catalog`/`default`）⇒ ⇒ 字段名与端脑逐字一致（两端同一份数据）。❷ 芯片文案：`能力 · 模态 · id` —— **只吃文本不写模态**（那是兜底默认值 ⇒ ⇒ 每条都写出来全是噪音）⇒ ⇒ 只在「不止文本」时显示。❸ 供应商卡片加**一行**「输入模态来源：上游标注 · 按官方文档预设 · 默认」⇒ ⇒ 用到的来源**都列出来**（顺序固定）。❹ `known_models.dart` 文件头补一段：**它只管自持/本地模型**；云供应商那份**只走大脑** ⇒ ⇒ 两处不许各抄一份。
+
+③ **✅ 判据与读数** —— ❶ **＋2 条**：模态进芯片文案（`llm · text/image · gpt-4o`）＋ 来源那一行在（`Preset from official docs`）；**负控**：只吃文本 ⇒ 芯片**不**写模态、但来源**照样**说（`Default (text only)`）。❷ 本刀文件 **16 过 / 0 红**；移动端全量 **945 过 / 0 红 / 13 跳**（＋2）＋ `flutter analyze` 改动三文件 **0 新发现**（存量 4 条 info 在 765/766/1244/1420 ⇒ ⇒ 不代修）。
+
+④ **⚠️ 仍然欠着的** —— ❶ **真机那一格没跑**（判据用的是假上游 ⇒ ⇒ 真机上供应商页那一行长什么样没看过）。❷ **自持模型那张表**（`known_models.dart`）的词表比大脑那份少一个 `pdf` ⇒ ⇒ 暂不扩。❸ 桌面**供应商页**那处模型行还没显示模态（只有模型管理页有）⇒ ⇒ 手机与桌面的覆盖面暂不齐。
+
+⑤ **⚠ 圈码：本条占 U+3327（㌧）** —— 插前**逐字扫五本账本**（父仓 ＋ 移动 ＋ 桌面 ＋ synapse ＋ 端脑）的字形命中 ⇒ ⇒ 取 **U+3327**（五本皆 0 命中）⇒ ⇒ 字形由 `String.fromCodePoint(0x3327)` 生成，不手打。
+
+**Updated**: 2026-11-16 (㌥ **「供应商页要说出这份模型清单是『实时拉的』还是『按官方文档预设的』」** —— 承影仓 U+3541 条（云供应商里 MiniMax 三四条 ＋ 「拉不到可用模型」那一格），本条记**落点（端脑那条 `models_source` 落到手机这一侧）**、**判据**、**读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-16 | authority=measured | scope=project | source=影仓 U+3541 条（用户诉求逐字：「如果供应商不支持接口获取可用模型需要根据供应商接口文档预设」）｜ 改动：lib/services/telencephalon/telencephalon_client.dart（`RegisteredProvider` 加 `modelsSource` ＋ `fromJson` 读 `models_source`）＋ lib/screens/providers_screen.dart（供应商卡片上标出「这份清单按官方文档预设（不是实时拉的）」）＋ lib/l10n/app_zh.arb ＋ app_en.arb（各 1 键）＋ lib/generated/l10n（gen-l10n 重生成 3 份）＋ test/widget/providers_screen_test.dart（＋3 条判据）＋ 本条 ⇒ ⇒ **6 个文件** ＋ 零新增依赖 ｜ 读数：本刀文件 **14 过 / 0 红**（含新增 3 条）＋ 移动端全量 **940 过 / 0 红 / 13 跳**（比上轮 +3＝本刀那 3 条） | status=active | supersedes=none
+
+① **⚠️ 为什么要标出来** —— 端脑在「上游**压根没有**『模型列表』这个接口」（Google 的 OpenAI 兼容面 ⇒ 404；百度千帆 ⇒ 302）时会顶上**按官方文档预设的清单** ⇒ ⇒ 那份清单**不是实时拉的** ⇒ ⇒ 界面不说 ⇒ ⇒ 用户以为「拉通了」⇒ ⇒ 「失败长得像成功」。
+
+② **✅ 落点（对齐大脑那条字段）** —— ❶ `RegisteredProvider` 加 `modelsSource`（`json['models_source']`；老数据没这个键 ⇒ `null` ⇒ 界面**不乱标**）⇒ ⇒ 字段名与端脑逐字一致（两端同一份数据）。❷ 供应商卡片在**错误行下面**加一行「这份清单按官方文档预设（不是实时拉的）」⇒ ⇒ 与上面那条真因（`lastError`）同时在 ⇒ ⇒ 既有清单、又说清它的来历。❸ l10n 两个 arb 各 1 键（`providerModelsFromDocs`）＋ `flutter gen-l10n` 重生成（3 份生成物）⇒ ⇒ 界面不说中文硬串。
+
+③ **✅ 判据（3 条）** —— ❶ 清单是「按文档预设」⇒ ⇒ 界面**标出来**；❷ 清单是实时拉的 ⇒ ⇒ **不标**（否则标记成摆设）；❸ 老数据没这个字段 ⇒ ⇒ **不标**（「不知道来源」时不许乱说）。
+
+④ **⚠️ 仍然欠着的** —— ❶ **真机那一格**：本刀读数是**宿主跑单测**，装机后「刷新模型」看到那行字的那一格未跑。❷ `lib/services/models/known_models.dart` 里那条 MiniMax 族仍是**已下线**的 `['minimax-m2','abab']`（官方 FAQ 把 M2.x 列在**历史模型**里）⇒ ⇒ 那是**存量债**，本刀没碰（不代修、不销账）。❸ 移动端那条 `minimax-abab` 的图标映射（providers_screen.dart:641）还留着**退役**的预设 id ⇒ ⇒ 同属存量债。
 
 **Updated:** 2026-11-12 (㌢ **「模拟用户行为一轮只授权一次 —— 支付等敏感前台包一出现，缓存当场作废退回逐次问」** —— 本条记**取证（执行时闸是无状态纯判定 ⇒ 每条调用都弹）**、**第一因（「每次询问」档的粒度是「每条调用」，用户要的粒度是「一轮任务」）**、**第二因（「一轮」的边界与「敏感」的判定都要落在机械可见的读数上）**、**第三因（共享工作树上按文件粒度提交会带走别人的在飞行 ⇒ 提交树要从 HEAD 重放自己的 hunk 构造）**、**这一刀的落点**、**途中那几课**、**判据与分级读数**，以及**仍然欠着的**.)
 
@@ -709,7 +1100,7 @@ The `ShadowOperationModeProvider` / `ShadowOutputRouteProvider` Riverpod state h
 | `com.ibloc.shadow/usb_audio` | **v2.5** ⇅ | `listRoutes` / `routeTo(id)` route Android audio to shadow-esp32 USB sink |
 | `com.ibloc.shadow/call_state` | **v2.8** ⇅ | InCallService call events: `onCallState(idle/ringing/active/ended)`, `onEarphoneTakeover(taken)`, `setAiAutoAnswer(enabled)`, `setPreferredDevice(device)` |
 
-> **Design note (v2.6+):** `com.ibloc.shadow/ble_provision` and `com.ibloc.shadow/usb_audio` were added in v2.5 to support the BLE provisioning flow. The `voice_conversation_screen.dart` and `livestream_screen.dart` screens automatically call `UsbAudioRouter.routeTo()` on initialization when they detect a connected shadow-esp32 — no explicit user-tap needed after initial provisioning.
+> **Design note (v2.6+):** `com.ibloc.shadow/ble_provision` and `com.ibloc.shadow/usb_audio` were added in v2.5 to support the BLE provisioning flow. The `livestream_screen.dart` screen automatically calls `UsbAudioRouter.routeTo()` on initialization when it detects a connected shadow-esp32 — no explicit user-tap needed after initial provisioning. ⚠️ **2026-11-16 更新**：原句里的 `voice_conversation_screen.dart` **已删**（独立语音页先并进对话页、后整体下线）⇒ ⇒ 语音这一格现在走对话页的输入条，**没有单独的页面**去自动路由 USB 音频；`livestream_screen.dart` 仍在，但**入口已隐藏** ⇒ ⇒ 真机上那条自动路由暂时**不会被触发**（设备侧诉求另行处理）。
 
 ```
 shadow-mobile/
@@ -737,13 +1128,12 @@ shadow-mobile/
 │   │   ├── prompt_settings_screen.dart / providers_screen.dart / settings_screen.dart
 │   │   ├── setup_wizard_screen.dart     # First-run wizard (telencephalon discovery + model check)
 │   │   ├── skills_screen.dart / soul_screen.dart / task_board_screen.dart
-│   │   ├── voice_conversation_screen.dart  # Hands-free voice mode
 │   │   └── manage/                      # Sub-management screens
 │   ├── services/                        # Wire-level + service layer (23 files)
 │   │   ├── cortex/                      # cortex_client.dart — HTTP to telencephalon :60080 (dir name kept for git history)
 │   │   ├── prefrontal/                  # Embedded prefrontal (.so) JNI bridge + settings page (4 files)
 │   │   ├── database/                    # SQLite repositories (11 files)
-│   │   ├── genui/                       # GenUI server helpers (Agent2UI)
+│   │   ├── a2ui/                        # A2UI helpers (official a2ui_core + a2ui_flutter)
 │   │   ├── audio_ws_service.dart        # WebSocket audio streaming (VAD-driven)
 │   │   ├── wake_word_service.dart       # Wake-word detection
 │   │   ├── accessibility_controller.dart  # Android Accessibility API bridge
@@ -764,7 +1154,7 @@ shadow-mobile/
 │   │   ├── ai/                          # AI-specific providers (model registry, embeddings)
 │   │   ├── cortex_provider.dart
 │   │   ├── chat_provider.dart / conversation_mode_provider.dart
-│   │   ├── flow_provider.dart / genui_provider.dart
+│   │   ├── flow_provider.dart / a2ui_provider.dart
 │   │   ├── mnn_agent_integration.dart
 │   │   ├── model_download_provider.dart / engine_models_provider.dart
 │   │   ├── wake_word_provider.dart / theme_provider.dart / log_provider.dart
@@ -772,7 +1162,7 @@ shadow-mobile/
 │   ├── multimodal/                      # Audio / image / file input handlers (5 files)
 │   ├── models/                          # Data classes (conversations, agents, flows, etc.)
 │   ├── skills/                          # Skill definitions
-│   ├── flutter_genui/                   # GenUI runtime (Agent2UI)
+
 │   ├── theme/                           # Material 3 + glassmorphism themes
 │   ├── widgets/                         # Reusable widgets
 │   ├── utils/                           # Helpers (logging, formatting, etc.)
@@ -1098,7 +1488,7 @@ CI runs `flutter_localization_linter` — adding a UI string to only one locale 
 - GoRouter 14.8 for declarative routing (`lib/router/app_router.dart`)
 - speech_to_text 7.0 for ASR fallback
 - sqflite 2.3 (mobile) + sqflite_common_ffi 2.3 (desktop tests) for local persistence
-- genui 0.7 + genui_a2ui 0.7 for Agent2UI
+- a2ui_core 0.7 + a2ui_flutter 0.3 for A2UI (official SDK)
 - flutter_ai_toolkit 1.0 for chat UI primitives
 - freezed_annotation + json_annotation for DTOs
 - **Never** call `/v1/chat/completions` directly from a screen — always go through a provider or service
@@ -1167,7 +1557,7 @@ No errors, no warnings — only style-level info issues (deprecated `value` / `a
 - **i18n** — `app_en.arb` + `app_zh.arb` with `flutter_localization_linter` enforcement
 - **Database layer** — `lib/services/database/` with repositories for agents / MCP servers / skills / models
 - **Agent review** — `agent_review_service.dart` for approve / reject draft flows
-- **Voice conversation screen** — `lib/screens/voice_conversation_screen.dart` for hands-free mode
+- **Voice conversation** — 语音是**对话页的输入模式**（`/voice` ⇒ ChatScreen ＋ conversation mode）⇒ ⇒ 独立的 `voice_conversation_screen.dart` **已于 2026-11-16 删除**
 - **Phone-as-Engine mode** (`OpenAIServer.kt` on port 8085, SSE streaming, bridged to `LitertEngine` via `EngineProvider`, mDNS `_shadow._tcp` advertisement with capabilities TXT records)
 - **Engine Platform Channel** `com.ibloc.shadow/engine` (startServer/stopServer/isServerRunning/getServerUrl/getApiKey/setApiKey/setAuthEnabled/getServiceName)
 - **Network security config** permitting cleartext to `localhost` / `127.0.0.1` / `10.0.2.2` / `*.local` (dev only)
@@ -1185,7 +1575,7 @@ No errors, no warnings — only style-level info issues (deprecated `value` / `a
 - Voice wake word integration hardening
 - ESP32 / hardware device pairing (per `2026-06-04-shadow-architecture-redesign.md` Phase 6)
 - Voice cloning on mobile (per platform-wide v0.9+ backlog)
-- A2UI streaming on mobile (genui_a2ui 0.7 already declared; widgets not yet wired)
+- ~~A2UI streaming on mobile~~ — **DONE** (official a2ui_core 0.7 + a2ui_flutter 0.3; widgets wired)
 - Battery-aware inference scheduling (throttle MNN / LiteRT when device is unplugged or below 20% battery)
 - ~~Prefrontal mobile (as library, not server) via Tauri embedding or FFI~~ — **DONE as A2A** (`c5812a3`); FFI scaffolding removed
 
@@ -1240,49 +1630,3 @@ Sibling desktop has the same shape — see E2E assessment §3.6-3.9 for the desk
 | (older — see git log) | Cortex client wiring (Sprint 1+2); main_agent + mobile_action_agent split; WebRTC companion mode; wake-word service; multimodal input; session transfer |
 
 > The mobile project shares its git repository with shadow-desktop (`https://github.com/iBLOC/shadow/.git`), so commits are interleaved. Filter with `git log --author ...` or by `feat(mobile)` / `feat(shadow-mobile)` prefix.
-**Updated**: 2026-11-16 (㕓 **「手机上的图**走不到枕叶** —— 枕叶**不在**移动端那个 `.so` 里」** —— 承影仓 U+3551 条（枕叶那一档的架构取证那族），本条记**逐字取证**，以及**仍然欠着的**.)
-
-> 信封：epoch=2026-11-16 | authority=measured | scope=project | source=影仓 U+3551 条（枕叶那一档的架构取证）｜ 改动：**零文件**（**纯取证**条目 ⇒ ⇒ 不改代码）｜ 读数：不适用（无代码改动）｜ 闸：台账圈码 **三面零违规** | status=active | supersedes=none
-
-① **⚠️ 取证：移动端那个 `.so` 里**没有枕叶**（所以手机上的图**走不到枕叶**）** —— ❶ 手机装的是 `libencephalon.so`，而它的构成逐字写在 `shadow-mobile/android/app/src/main/kotlin/com/ibloc/shadow/EncephalonRuntime.kt` 的文件头：「**同一套 `Embedded`（thalamus ＋ ACP 总线 ＋ telencephalon ＋ 单一 neuron）**」⇒ ⇒ **不含枕叶**（也不含海马体 —— 承 U+3541 条「mobile 不带 hippocampus」）。❷ 而枕叶是个**独立进程**：`occipital/src/main.rs` 起一个 `LobeApp`（默认绑 `127.0.0.1:9300`）⇒ ⇒ 它**不是**移动端的一部分 ⇒ ⇒ 手机上**没有**一个能接这张图的枕叶。❸ ⇒ ⇒ **「移动端拍照 → 枕叶处理」这条路在架构上就不通** —— 不是「还没接线」，是**那个东西不在**。
-
-② **✅ 但手机的图**已经能用了（走的是另一条路）** —— U+354E 那一刀把图片接成了「**模型直接看**」（`image_url`）⇒ ⇒ 手机上拍张照问一句，**模型真的看得见** ⇒ ⇒ ⇒ **「用户发一张照片，模型看不见」这件事今天已经不存在了** ⇒ ⇒ 而「走枕叶」只是**另一条**路（它的独有价值是**检测与人脸**，不是普通问答）。
-
-③ **⚠️ 仍然欠着的** —— ❶ 若要「静态图 → 枕叶」在**手机**上成立 ⇒ ⇒ 只有一条路：**把枕叶编进移动端** ⇒ ⇒ 体量大（枕叶要 neuron 的 vision 模型，而移动端是「**单一** neuron」）⇒ ⇒ 本条**不做**（纯取证）。❷ 若要它在**桌面端**成立 ⇒ ⇒ 需要桌面端**先有发图 UI**（现在没有 —— 那个图片 input 是**聊天背景图**）⇒ ⇒ ⇒ 「静态图 → 枕叶」这一档今天**两端各缺一头** ⇒ ⇒ 现在做＝造一个**没人用**的能力 ⇒ ⇒ **不做**。❸ 端脑↔lobe 的 wire 形状缺口（承影仓 U+3551／本仓 U+3552 条）**一步都没修** ⇒ ⇒ 那条路**从未对上**。
-
-④ **⚠ 圈码：本条占 U+3553（㕓）** —— 插前逐字扫九本账本（父仓 ＋ 移动端 ＋ 桌面端 ＋ src-tauri ＋ mobile/lib ＋ desktop/src ＋ mobile/android kotlin ＋ 端脑 ＋ synapse）⇒ ⇒ U+354E／354F／3550 各 2 处 ⇒ ⇒ **U+3553 各 0 处** ⇒ ⇒ 取 **U+3553**。字形由 `String.fromCodePoint(0x3553)` 生成，不手打。
-
-**Updated**: 2026-11-16 (㕏 **「附件不止图片了 —— 而且界面上那个「端脑」该叫「大脑」」** —— 承影仓 U+354E 条（附件泛化那族），本条记**落点**、**文案口径**、**判据与变异**、**读数**，以及**仍然欠着的**.)
-
-> 信封：epoch=2026-11-16 | authority=measured | scope=project | source=影仓 U+354E 条（用户诉求逐字：「大脑为什么错误信息显示的是端脑，需要支持全类型文件格式」）｜ 改动：lib/multimodal/attachment_encoder.dart **新** ＋ lib/multimodal/image_input_handler.dart（撤掉上一刀的「图片专用编码器」）＋ lib/multimodal/multimodal.dart ＋ lib/multimodal/multimodal_input_manager.dart ＋ lib/providers/chat_provider.dart ＋ lib/utils/chat_state_l10n.dart ＋ lib/services/telencephalon/telencephalon_client.dart（`images` ⇒ `attachments`）＋ lib/l10n/app_{en,zh}.arb（**端脑→大脑** 24 处 ＋ 附件键收成一个）＋ lib/generated/l10n（3 份）＋ test/unit/attachment_wire_test.dart（**改名** ＋ 扩到 18 条）＋ test/unit/chat_provider_test.dart（附件族改口径 ＋ 扩到 6 条）＋ test/widget/flows_screen_test.dart ⇒ ⇒ **13 个文件** ＋ 零新增依赖 ｜ 读数：移动端全量 **987 过 / 0 红 / 13 跳**（上一刀 980 ＋ 本刀 7）＋ flutter analyze 改动文件 **0 新发现**（4 条 info 全在 `telencephalon_client.dart` 的**存量**行 786／787／1265／1441 ⇒ ⇒ 不代修）＋ 变异**一处当场红**（`toJson` 不带 `attachments` ⇒ **2** 条红）｜ 闸：**15 绿 / 8 红**（八道红**零命中本刀文件**）| status=active | supersedes=none
-
-① **✅ 落点 A：附件按扩展名分档（新建 `attachment_encoder.dart`）** —— ❶ 扩展名 ⇒ MIME ⇒ 档（image／text／pdf／audio／**unsupported**）⇒ ⇒ 一律 **base64 内联**（**只有一种编码** ⇒ ⇒ 端脑只解一次）⇒ ⇒ 载荷带 `filename`（模型要知道这是个什么文件）。❷ ⚠️ **分档的依据是扩展名／MIME，不是「用户是从哪儿选的」** ⇒ ⇒ 「＋」里选的一个 `.txt` 与一个 `.jpg` 走**同一条路**（各自按自己的 MIME 分档）⇒ ⇒ 否则「从相册选」这个**来源**会决定能不能发 ⇒ ⇒ 用户会看到「同一份文件，换个入口就能发」。❸ ⚠️ **撤掉上一刀那个「图片专用」的编码器**（`image_input_handler` 里那份）⇒ ⇒ 避免**同一规则写两份实现** ⇒ ⇒ 变异只打掉一份、另一份把断言喂饱 ⇒ ⇒ 判据假绿。❹ ⚠️ **文本类的上限单独更严**（256KB）⇒ ⇒ 文本类会**整段进 prompt**（不是当图片那样由模型「看」）⇒ ⇒ 10MB 的文本会把这一轮的上下文顶爆 ⇒ ⇒ 「能发」不等于「发得出去」。❺ ⚠️ **零新增依赖**：MIME 用**扩展名表**（不引 `package:mime`）⇒ ⇒ 手机上的文件来自相机／相册／文件管理器，扩展名都是明确的。
-
-② **✅ 落点 B：provider 按档真发，不支持的明确说清** —— ❶ 图片／纯文本／PDF／wav／mp3 ⇒ ⇒ **真发**；**还没接的那一档**（视频／Word/Excel／别的音频格式）⇒ ⇒ **明确报错**，且理由要说清是**「这一类还没接」**⇒ ⇒ 不是「你配得不对」⇒ ⇒ 用户去换模型**也没用**⇒ ⇒ 不能让他白折腾。❷ 附件那两个 l10n 键**收成一个**（`chatAttachmentFailed`，带 `{reason}`）⇒ ⇒ 理由变了 ⇒ ⇒ 两句合成一句 ⇒ ⇒ **不拆成两句** ⇒ ⇒ 用户看到的横幅**带原因**（「unsupported file type: .mp4」／「file is too large …」）。
-
-③ **✅ 落点 C：界面上那个「端脑」改成「大脑」（口径写清）** —— ❶ 用户诉求逐字：「大脑为什么错误信息显示的是端脑」⇒ ⇒ 逐字扫 `app_zh.arb` ⇒ ⇒ **「端脑」出现 21 处** ⇒ ⇒ 不是一两处，是**系统性**的架构名外泄 ⇒ ⇒ 而产品里**「大脑」本来就是用户的说法**（`encephalonStart`「启动大脑」…）⇒ ⇒ 两种叫法在同一个界面里并存 ⇒ ⇒ 用户得自己猜。❷ ⚠️ **口径**（用户**没答**这一格 ⇒ ⇒ 按最佳判断定，并写进台账）：**普通用户**会读到的**错误提示与说明文字**（AG-UI 提示、身份页、任务提示、后台服务、MCP 读失败、导航标签）⇒ ⇒ 换成「大脑」；**运维配置项**（端脑后端地址／管理员令牌／影子锁）与**开发者日志**里的「端脑」⇒ ⇒ **保留** ⇒ ⇒ 那里它指的是**一个具体的服务实例**，换掉反而丢了信息。❸ 实际改了 **zh 16 处 ＋ en 8 处**（en 另有 4 处本就是「brain」/「Brain」）⇒ ⇒ 改完 en 里剩下的 4 处**恰好**是日志 1 处 ＋ 运维配置 3 处 ⇒ ⇒ 与口径**逐字吻合**。❹ ⚠️ `flows_screen_test.dart` 那条判据**逐字钉了**「Telencephalon Flows」⇒ ⇒ 改文案后它红 ⇒ ⇒ 改口径（→ 'Brain Flows'）⇒ ⇒ 并在注释里写清**为什么逐字钉**（那个测试把 widget locale 强制成 `en`，而 `currentL10n()` 取的是**系统语言**⇒ ⇒ 两者可能不一致 ⇒ ⇒ 用它断言会**时红时绿**）。
-
-④ **⚠️ 途中一格（自己踩出来、当场修掉的）** —— **批量改 arb 时「整行替换」会把长文案的后半截丢掉** ⇒ ⇒ JSON 的字符串**没闭合** ⇒ ⇒ arb 整个坏掉 ⇒ ⇒ ⚠️ **而且报错指向的是「解析停下来」的地方，不是「真正坏的那行」**（`gen-l10n` 报第 399 行，真正坏的是第 372 行）⇒ ⇒ 得**逐行扫引号配对**才找得全 ⇒ ⇒ 修法：**行内替换**（只换行内那一段）⇒ ⇒ 这是「批量改文案」这一族的新坑 ⇒ ⇒ 记下来。
-
-⑤ **✅ 判据与变异** —— ❶ `attachment_wire_test.dart`（**改名** ＋ 扩到 **18** 条）：扩展名→MIME→档逐条（含大写扩展名）／ 视频／Word/Excel／别的音频格式／无扩展名 ⇒ **带原因失败** ／ base64 与文件字节**逐字**一致 ／ **data 不带 `data:` 前缀** ／ **filename 带上** ／ 读不出 ／ 太大 ／ **文本类太大** ／ `toJson` 的键名与形状 ／ 没附件 ⇒ **不带** `attachments` 键 ／ 空列表 ⇒ 也不带。❷ `chat_provider_test.dart` 附件族改口径并扩到 **6** 条：**图片真发**（请求体带 attachments ＋ base64 **逐字**一致）／ **文本文件真发** ／ **PDF 真发** ／ **相机照片真发**（它就是一张图片）／ **这一档还没接 ⇒ 明确报错**（理由要说清）／ 格式不认识 ／ 读不出 ／ 件数超 ／ 「不是文件」的音频字节。❸ ⚠️ **三处旧判据的口径都变了**：旧判据钉的是「端脑只处理纯文本」⇒ ⇒ 现在那句话**对图片／相机照片／音频文件都是假的**⇒ ⇒ 同一个意图（「不许静默丢附件」）换更狠的钉法。❹ **变异**：`toJson` 不带 `attachments` ⇒ ⇒ **2** 条红 ⇒ ⇒ 证明判据有牙。
-
-⑥ **⚠️ 仍然欠着的** —— ❶ **真机读数欠**（要真编 APK ＋ 真编 `.so`）⇒ ⇒ 「丢份 PDF 过去真能被读」那一格还没在 MIX 4 上跑过。❷ **视频仍未通**（明确说清「这一类还没接」）⇒ ⇒ 要通得**抽帧**（要引 ffmpeg）⇒ ⇒ 本刀**没引**。❸ **Word/Excel 那类二进制仍未通**（要通得先有解析器）。❹ ⚠️ 本刀的 arb 改动是**隔离 worktree** 落库的（兄弟在飞同一批 arb）⇒ ⇒ 主树工作树里他那 5 行**逐字未动**（diff 核对过：主树与隔离树的 arb 差异**恰好**是那 5 行）⇒ ⇒ 提交树面是「HEAD ＋ 我这些改动」。❺ 真 CI 待取（本刀未推远端）。❻ ⚠️ 移动端全量读数**不是本刀独占**（共享工作树：兄弟的内建相机重构那族也在飞）。
-
-⑦ **⚠ 圈码：本条占 U+354F（㕏）** —— 插前逐字扫九本账本（父仓 ＋ 移动端 ＋ 桌面端 ＋ src-tauri ＋ mobile/lib ＋ desktop/src ＋ mobile/android kotlin ＋ 端脑 ＋ synapse）⇒ ⇒ U+354B／354C／354D 各 2 处（上一刀那三本）⇒ ⇒ **U+354F 各 0 处** ⇒ ⇒ 取 **U+354F**。字形由 `String.fromCodePoint(0x354F)` 生成，不手打。
-
-**Updated**: 2026-11-16 (㕌 **「照片能真发出去了 —— 撤掉「端脑链路当前只处理纯文本」那道硬拦」** —— 承影仓 U+354B 条（端脑协议收图片位那族），本条记**落点**、**判据与变异**、**读数**，以及**仍然欠着的**.)
-
-> 信封：epoch=2026-11-16 | authority=measured | scope=project | source=影仓 U+354B 条｜ 改动：lib/multimodal/image_input_handler.dart（`ImageEncodeResult` ＋ `encodeForTelencephalon` ＋ 两个上限常量 ＋ 扩展名→MIME 表）＋ lib/multimodal/multimodal_input_manager.dart（露一个口）＋ lib/providers/chat_provider.dart（撤硬拦 ＋ 图片真发 ＋ `_setImageFailure`）＋ lib/utils/chat_state_l10n.dart（新错误键）＋ lib/services/telencephalon/telencephalon_client.dart（`SendMessageRequest.images` ＋ `toJson` 带出）＋ lib/l10n/app_{en,zh}.arb（各改 1 键 ＋ 增 1 键）＋ lib/generated/l10n（3 份）＋ test/unit/chat_provider_test.dart（改 1 条口径 ＋ 新 3 条）＋ test/unit/image_attachment_wire_test.dart **新** ⇒ ⇒ **12 个文件** ＋ 零新增依赖 ｜ 读数：移动端全量 **980 过 / 0 红 / 13 跳**（基线 960 ＋ 本刀 20）＋ flutter analyze 改动文件 **0 新发现**（4 条 info 全在 `telencephalon_client.dart` 的**存量**行 781／782／1260／1436 ⇒ ⇒ 不代修）＋ 变异**一处当场红**（`toJson` 不带 `images` ⇒ **2** 条红）｜ 闸：**15 绿 / 8 红**（八道红**零命中本刀文件**）| status=active | supersedes=none
-
-① **⚠️ 取证：那道硬拦把**照片**也一并挡了** —— 用户实测逐字「端脑链路当前只处理纯文本，图片、文件等附件暂不支持」⇒ ⇒ 那是 `chat_provider.dart` 的 `generateResponseWithAttachments` ⇒ ⇒ 旧实现对**任何**附件都直接报错（本地 LiteRT 下线后，附件没有第二条路可走）⇒ ⇒ 但那句文案**对图片是假的**（图片本来就不该被这条拦住）⇒ ⇒ 而且它**只说结论不说原因**（用户不知道「换个模型行不行」「重拍行不行」）。
-
-② **✅ 落点 A：读成 base64 ＋ 从扩展名推 MIME** —— ❶ `ImageInputHandler.encodeForTelencephalon` 读文件 ⇒ ⇒ `{media_type, data}`（`data` 是**纯 base64**、**不带** `data:` 前缀 ⇒ ⇒ 拼前缀是**端脑那一端**的活）⇒ ⇒ MIME 由**扩展名**推（jpg/jpeg/png/webp/gif）⇒ ⇒ 媒体类型这件事**只有这一层**知道 ⇒ ⇒ 别处各猜一份 ⇒ ⇒ 迟早漂。❷ ⚠️ **读不出／格式不认识／太大 ⇒ 一律带原因失败** ⇒ ⇒ **绝不许把一段未知字节假装成图片发出去**（上游会拿它当图片解 ⇒ ⇒ 然后报一个**指向别处**的错误）⇒ ⇒ HEIC 之类落在表外 ⇒ ⇒ 明确报错（相机插件默认出 JPEG ⇒ ⇒ 这四个覆盖了**实际会出现**的形态）。❸ ⚠️ **上限两端必须一致**（10MB／8 张，与端脑那侧同值）⇒ ⇒ 否则会出现「客户端放行、端脑拒」⇒ ⇒ 那种错会指向别处。
-
-③ **✅ 落点 B：撤掉硬拦，图片**真发** ——** ❶ `generateResponseWithAttachments` 把附件**分类**：**图片**这一刀通了 ⇒ ⇒ 读成 base64 ⇒ ⇒ 填进 `images` ⇒ ⇒ **真发**；**视频／文件／音频** ⇒ ⇒ 仍然**明确报错**（这一刀只通图片）⇒ ⇒ 但**不许静默丢**。❷ ⚠️ **文案必须改准**：`chatAttachmentNotAvailable` 改成「图片可以直接发给模型看了；视频、文件、音频这条链路还没接上」⇒ ⇒ 一句假的提示比没有提示更坏（用户会以为图也没发出去）⇒ ⇒ 新增 `chatAttachmentImageFailed`（带 `{reason}`，形状与既有 `chatSorryError` 一致）⇒ ⇒ 界面**不说中文硬串**。❸ 发成功 ⇒ ⇒ **候选行清空** ⇒ ⇒ 否则用户再点一次发送 ⇒ ⇒ 那张图会被**再发一遍**。
-
-④ **✅ 判据与变异** —— ❶ `test/unit/image_attachment_wire_test.dart` **14 条新**（扩展名→MIME 逐条 ／ 大写扩展名 ／ 不认得的格式带原因失败 ／ 没有扩展名带原因失败 ／ base64 与文件字节**逐字一致** ／ **data 不带 `data:` 前缀** ／ 读不出的文件带原因失败 ／ 太大的图带原因失败 ／ `toJson` 的键名与形状 ／ 没图 ⇒ **不带** `images` 这一键 ／ 空列表 ⇒ 也不带）。❷ `test/unit/chat_provider_test.dart`：**旧的那条判据「带图片 ⇒ 明确报错，且根本没到端脑」钉的是「端脑只处理纯文本」⇒ ⇒ 而那句话现在是假的** ⇒ ⇒ 同一个意图（「不许静默丢附件」）**换一条更狠的钉法** ⇒ ⇒ 请求体里必须带那张图，且 base64 与文件字节**逐字**一致 ⇒ ⇒ 另加「格式不认识 ⇒ 明确报错且根本没到端脑」／「文件读不出 ⇒ 同」／「视频附件 ⇒ 仍明确报错」／「相机照片 ⇒ 仍明确报错」／「音频 ⇒ 仍明确报错」。⚠️ Mock 加了 `lastRequest` ⇒ ⇒ 因为**图真的发了** ⇒ ⇒ 「没发」那个计数**证明不了**「图在不在里面」。❸ **变异**：`toJson` 不带 `images` ⇒ ⇒ **2** 条红 ⇒ ⇒ ⚠️ 补强**之前**只有 1 条（那条只断言了请求**对象**）⇒ ⇒ **「请求对象里有图」≠「请求体里有图」** ⇒ ⇒ 真机上发出去的是 `toJson()` 的结果 ⇒ ⇒ **两处都得钉**。
-
-⑤ **⚠️ 仍然欠着的** —— ❶ **真机读数欠**（要真编 APK ＋ 真编 `.so`）⇒ ⇒ 「拍完真能问」那一格还没在 MIX 4 上跑过。❷ **视频附件仍未通**（界面明确报错，不说假话）⇒ ⇒ 那是「还没做」。❸ **桌面端零改动**：桌面端**对话页没有发图入口**（`SettingsPage` 那个图片 input 是**聊天背景图**）⇒ ⇒ 协议位已共用。❹ **兄弟在飞的重构**：`in_app_camera_page.dart` → `in_app_camera_overlay.dart` ＋ `in_app_camera_view.dart` 那一刀**在本刀期间**发生 ⇒ ⇒ 本刀**没碰**它 ⇒ ⇒ 但移动端全量读数**不是本刀独占**（共享工作树）。❺ 真 CI 待取（本刀未推远端）。❻ ⚠️ 本刀的 arb 改动是**隔离 worktree** 落库的（兄弟在飞同一批 arb）⇒ ⇒ 主树工作树里他那 5 行**逐字未动** ⇒ ⇒ 提交树面是「HEAD ＋ 我这两个键」。
-
-⑥ **⚠ 圈码：本条占 U+354C（㕌）** —— 插前逐字扫九本账本（父仓 ＋ 移动端 ＋ 桌面端 ＋ src-tauri ＋ mobile/lib ＋ desktop/src ＋ mobile/android kotlin ＋ 端脑 ＋ synapse）⇒ ⇒ U+3544…U+354A 各 2–3 处（全在父仓）⇒ ⇒ **U+354C 各 0 处** ⇒ ⇒ 取 **U+354C**。字形由 `String.fromCodePoint(0x354C)` 生成，不手打。
-

@@ -10,6 +10,9 @@ enum MessageAction {
   retry,
   undo,
   dismiss,
+
+  /// **引用**这一条到输入框（⇒ ⇒ 下一句话会带着它发出去）。
+  quote,
 }
 
 /// 菜单文案 —— 由调用方从 l10n 取（这个文件不 import 生成代码，
@@ -21,6 +24,7 @@ class MessageActionLabels {
   final String retry;
   final String undo;
   final String cancel;
+  final String quote;
 
   const MessageActionLabels({
     required this.copy,
@@ -29,6 +33,7 @@ class MessageActionLabels {
     required this.retry,
     required this.undo,
     required this.cancel,
+    required this.quote,
   });
 }
 
@@ -46,6 +51,7 @@ Future<MessageAction?> showMessageActionSheet(
   bool canCopyConversationJson = false,
   required bool canRetry,
   required bool canUndo,
+  bool canQuote = false,
   required MessageActionLabels labels,
 }) {
   return showModalBottomSheet<MessageAction>(
@@ -60,6 +66,7 @@ Future<MessageAction?> showMessageActionSheet(
       canCopyConversationJson: canCopyConversationJson,
       canRetry: canRetry,
       canUndo: canUndo,
+      canQuote: canQuote,
       labels: labels,
     ),
   );
@@ -71,6 +78,7 @@ class _GlassActionSheet extends StatelessWidget {
   final bool canCopyConversationJson;
   final bool canRetry;
   final bool canUndo;
+  final bool canQuote;
   final MessageActionLabels labels;
 
   const _GlassActionSheet({
@@ -79,6 +87,7 @@ class _GlassActionSheet extends StatelessWidget {
     required this.canCopyConversationJson,
     required this.canRetry,
     required this.canUndo,
+    required this.canQuote,
     required this.labels,
   });
 
@@ -116,6 +125,14 @@ class _GlassActionSheet extends StatelessWidget {
                         icon: Icons.copy_all_outlined,
                         label: labels.copy,
                         onTap: () => _pick(context, MessageAction.copy),
+                      ),
+                    // ⚠️ **引用**紧跟在「复制」后面 —— 它也是「拿这条消息
+                    // 去做点什么」，而不是「对这条消息做点什么」。
+                    if (canQuote)
+                      _ActionTile(
+                        icon: Icons.format_quote_outlined,
+                        label: labels.quote,
+                        onTap: () => _pick(context, MessageAction.quote),
                       ),
                     // 调试用：给开发 agent 贴上下文，不是给人读的纯文本。
                     // 放在「复制」之下、重试之上 —— 它是复制的一种，只是
