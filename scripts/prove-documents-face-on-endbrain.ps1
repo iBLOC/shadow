@@ -76,13 +76,16 @@ $script:seq = 0
 $script:outDir = $OutDir
 
 # ---- 探针：一次 HTTP 往返 ⇒ 状态码 ＋ 体长 ＋ sha256（体是**字节**，不是字符串）----
-function Probe($base, $name, $method, $path, $inFile) {
+function Probe($base, $name, $method, $path, $inFile, $jsonFile) {
   $script:seq = $script:seq + 1
   $outFile = Join-Path $script:outDir ('body-' + $script:seq + '-' + ($name -replace '[^A-Za-z0-9_-]', '_') + '.bin')
   $a = @('-s', '-o', $outFile, '-w', '%{http_code}', '-X', $method, '--max-time', '30')
   if ($script:adminToken) { $a += @('-H', ('X-Admin-Token: ' + $script:adminToken)) }
   if ($script:shadowKey) { $a += @('-H', ('X-Shadow-Key: ' + $script:shadowKey)) }
-  if ($inFile) {
+  if ($jsonFile) {
+    # ⚠️ JSON 体**也**走文件 —— 双引号放在命令行参数里会被 Windows 的参数解析吃掉。
+    $a += @('-H', 'Content-Type: application/json', '--data-binary', ('@' + $jsonFile))
+  } elseif ($inFile) {
     # ⚠️ body 走文件（--data-binary @file）—— 直接把字节当命令行参数传会被转义弄坏。
     $a += @('-H', 'Content-Type: application/octet-stream', '--data-binary', ('@' + $inFile))
   }
@@ -197,15 +200,47 @@ function Invoke-DocumentsProbe($base) {
   }
   Say ('  ✓ 字节逐字一致（sha256 = ' + $upSha + '）')
 
-  $patch = Probe $base 'rename' 'PATCH' ('/hippocampus/api/documents/' + $t + '/' + [uri]::EscapeDataString($id)) $null
-  if ($patch.Status -eq 200) {
-    $pj = ReadJson $patch.File
-    $newName = ''
-    if ($pj -and $pj.name) { $newName = [string]$pj.name }
-    Say ('  · 改名回包的 name = ' + $newName)
-  } else {
-    Say ('  · 改名跳过（HTTP ' + $patch.Status + '）⇒ ⇒ 不影响字节那一格')
+  # ⚠️ 改名那一格必须**带 JSON 体** —— 真服务器的 PATCH 契约是
+  # `Json<UpdateDocumentRequest>`（hippocampus-server/src/handlers_documents.rs:524）
+  # ⇒ ⇒ 没带 `Content-Type: application/json` 时 axum 的 extractor 按规矩回 **415**
+  # （"Expected request with `Content-Type: application/json`"）⇒ ⇒
+  # **尺子自己也有债**：旧版探针没带 ⇒ ⇒ 真面上那一格一直「跳过」⇒ ⇒ 「改名」
+  # 从来没被真面证过 ⇒ ⇒ 现在它是一等公民：回包要对 ＋ **落库**也要对。
+  $renameTo = 'probe-renamed.bin'
+  $renameFile = Join-Path $script:outDir ('rename-' + $script:seq + '.json')
+  [IO.File]::WriteAllText($renameFile, ('{"name":"' + $renameTo + '"}'), (New-Object Text.UTF8Encoding($false)))
+  $patch = Probe $base 'rename' 'PATCH' ('/hippocampus/api/documents/' + $t + '/' + [uri]::EscapeDataString($id)) $null $renameFile
+  if ($patch.Status -ne 200) {
+    Say ('  ✗ 改名没证到（HTTP ' + $patch.Status + '）⇒ ⇒ 改名那一格**没证到**')
+    return 1
   }
+  $pj = ReadJson $patch.File
+  $newName = ''
+  if ($pj -and $pj.name) { $newName = [string]$pj.name }
+  if ($newName -ne $renameTo) {
+    Say ('  ✗ 改名回包的 name = ' + $newName + '（要的是 ' + $renameTo + '）⇒ ⇒ 改名那一格**没证到**')
+    return 1
+  }
+  Say ('  ✓ 改名回包 name = ' + $newName)
+  # ⚠️ 回包对了**不等于**落库了（回包可以只是把请求体照抄一遍）⇒ ⇒ 再列一次。
+  $after = Probe $base 'documents-list-after-rename' 'GET' ('/hippocampus/api/documents?tenantId=' + $script:tenant + '&limit=200') $null
+  $aj = ReadJson $after.File
+  $names = @()
+  $foundName = ''
+  if ($aj -and $aj.documents) {
+    foreach ($d in $aj.documents) {
+      if ($d.name) { $names += [string]$d.name }
+      # ⚠️⚠️ **按 id 认领** —— 只问「列表里有没有这个名字」会被**别的文档**
+      # 顶替（上一轮跑剩的同名文档就在列表里 ⇒ ⇒ 实测真的在）⇒ ⇒ 那一格恒绿
+      # ⇒ ⇒ **尺子自己骗自己** ⇒ ⇒ 必须认领**这一条**（id 对上）再比名字。
+      if ($d.id -eq $id) { $foundName = [string]$d.name }
+    }
+  }
+  if ($foundName -ne $renameTo) {
+    Say ('  ✗ 改名**没落库**：列表里 id=' + $id + ' 的那条名字 = 「' + $foundName + '」（要的是 ' + $renameTo + '）｜ 列表里的名字 = ' + ($names -join ', '))
+    return 1
+  }
+  Say ('  ✓ 改名落库（再列一次，id=' + $id + ' 那条的名字 = ' + $renameTo + '）')
 
   $del = Probe $base 'delete' 'DELETE' ('/hippocampus/api/documents/' + $t + '/' + [uri]::EscapeDataString($id)) $null
   $dj = ReadJson $del.File
@@ -237,6 +272,10 @@ $crlf = [string][char]13 + [string][char]10
 $listener = New-Object System.Net.Sockets.TcpListener([System.Net.IPAddress]::Loopback, $Port)
 $listener.Start()
 $store = @{}
+# ⚠️ 文档名也要存 —— 真面的改名会**落库**（handlers_documents.rs:572 重新索引）
+# ⇒ ⇒ 假端脑必须同形状：改名后列表里得看得到新名字 ⇒ ⇒ 否则「落库」那一格
+# 在自测里恒绿（假端脑压根不存名）⇒ ⇒ 尺子自己骗自己。
+$names = @{}
 
 function Read-Request($stream) {
   $ms = New-Object System.IO.MemoryStream
@@ -335,9 +374,24 @@ while ($true) {
         } else {
           Send-Response $stream '404 Not Found' '' 'text/plain'
         }
+      } elseif ($m -eq 'PATCH') {
+        # ⚠️ 真服务器的 PATCH 契约要 JSON 体 ⇒ ⇒ 假端脑必须**同形状**：
+        # 读体里的 name ⇒ 回包照抄 ⇒ 并把它落到列表里（真面会重新索引）。
+        $newName = ''
+        try { $j = ([System.Text.Encoding]::UTF8.GetString($req.Body)) | ConvertFrom-Json; if ($j.name) { $newName = [string]$j.name } } catch { }
+        $names['probe-doc-1'] = $newName
+        Send-Response $stream '200 OK' ('{"id":"probe-doc-1","name":"' + $newName + '"}') $json
       } elseif ($m -eq 'DELETE') {
         $store.Remove('probe-doc-1')
+        $names.Remove('probe-doc-1')
         Send-Response $stream '200 OK' '{"success":true,"deleted":true,"bytes_deleted":512,"bytes_error":null}' $json
+      } elseif ($m -eq 'GET' -and $p -notlike '*probe-doc-1*') {
+        # 列表：改名落库后，新名字必须出现在这儿（真面：GET /api/documents?...）
+        $items = @()
+        if ($store.ContainsKey('probe-doc-1') -and $names.ContainsKey('probe-doc-1')) {
+          $items = @('{"id":"probe-doc-1","name":"' + $names['probe-doc-1'] + '"}')
+        }
+        Send-Response $stream '200 OK' ('{"documents":[' + ($items -join ',') + ']}') $json
       } else {
         Send-Response $stream '200 OK' '{"documents":[]}' $json
       }
