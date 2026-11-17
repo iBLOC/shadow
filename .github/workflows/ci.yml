@@ -116,6 +116,21 @@ jobs:
       - name: Zero-trust face check (self-test)
         run: node shadow/scripts/check-ziti-face.mjs --self-test
 
+      # Android 记忆面闸 —— 「**档位不该决定功能可用性**」这一刀的门面。
+      # ⚠️ 它判**端脑**（telencephalon）与**大脑**（encephalon）两个兄弟仓 ⇒ ⇒
+      #    必须在本 job（本 job 已 checkout 整套兄弟仓）⇒ ⇒ 布局 A（`../<name>`）
+      #    正好命中 ⇒ ⇒ 不落「判不了」。
+      # ⚠️ 它守的是**一个删掉的东西**（Android 平台闸 ＋ 构建档位开关）⇒ ⇒ 删漏了
+      #    **编译照样过** ⇒ ⇒ 唯一的证据是**形状** ⇒ ⇒ 七条里两条是**负控**
+      #    （不许把真错护栏一起拆了／不许把宿主那一侧留下）。
+      # ⚠️ 用**默认**口径（不带 `--strict`）：新接的闸 ⇒ ⇒ 「判不了」那一档
+      #    只显眼不阻断 ⇒ ⇒ 与 `run-gate-once.mjs` 的设计说明一致。
+      - name: Android memory gate check
+        run: node shadow/scripts/run-gate-once.mjs shadow/scripts/check-android-memory-gate.mjs
+
+      - name: Android memory gate check (self-test)
+        run: node shadow/scripts/check-android-memory-gate.mjs --self-test
+
       # ── 测试里的进程级 env 竞争闸 ──────────────────────────────────────────
       # ⚠️⚠️ **为什么这道闸存在**（2026-11-08 真机实测）：`cargo test` 把**同一个
       #   二进制**里的测试**开多线程并发跑** ⇒ ⇒ 进程级 `env` 变量是**共享全局**
