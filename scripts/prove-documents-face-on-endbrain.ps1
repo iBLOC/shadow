@@ -126,7 +126,10 @@ function Invoke-DocumentsProbe($base) {
 
   Say '--- 三件套（正控 ＋ 负控 ＋ 正题）---'
   $health = Probe $base 'healthz' 'GET' '/healthz' $null
-  $pos = Probe $base 'hippocampus-control' 'GET' '/hippocampus/api/memory' $null
+  # ⚠️ 正控**带租户参数** —— 海马体的租户可以来自 query（auth.rs：tenantId 在
+  # JSON 体／query／路径三处之一）⇒ ⇒ 不带它时「租户从请求来」那条规则会落到
+  # 共享的 default 桶 ⇒ ⇒ 带上更贴近客户端真实打法（客户端就是带租户调的）。
+  $pos = Probe $base 'hippocampus-control' 'GET' ('/hippocampus/api/memory?tenantId=' + $script:tenant) $null
   $neg = Probe $base 'negative-control' 'GET' '/hippocampus/api/definitely-not-a-route' $null
   $sub = Probe $base 'documents-list' 'GET' ('/hippocampus/api/documents?tenantId=' + $script:tenant + '&limit=1') $null
 
@@ -338,7 +341,7 @@ while ($true) {
       } else {
         Send-Response $stream '200 OK' '{"documents":[]}' $json
       }
-    } elseif ($p -eq '/hippocampus/api/memory') {
+    } elseif ($p -like '/hippocampus/api/memory*') {
       Send-Response $stream '200 OK' '{"memories":[]}' $json
     } else {
       Send-Response $stream '404 Not Found' '' 'text/plain'

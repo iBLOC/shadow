@@ -40,6 +40,17 @@ import { documentsClient } from '../../src/lib/documentsClient';
 import { useTelencephalonStore } from '../../src/stores/telencephalonStore';
 
 const LIVE = process.env.SHADOW_LIVE_HIPPOCAMPUS === '1';
+/**
+ * ⚠️ **直连模式**（SHADOW_LIVE_HIPPOCAMPUS_DIRECT=1）—— 摘掉代理那一层。
+ *
+ * 那台端脑**自己**就把海马体挂在 /hippocampus 下（telencephalon/src/api/mod.rs：
+ * `outer.nest("/hippocampus", h)`）⇒ ⇒ 代理**不需要**了 ⇒ ⇒ 客户端这一发
+ * 真的过了端脑的 **nest ＋ 门 ＋ 租户校验** ⇒ ⇒ 这才是「**真端脑里跑**」那一档。
+ *
+ * ⚠️ 默认那一档是「真海马体 ＋ 十几行代理」⇒ ⇒ **端脑那一层压根没被检验过**
+ * ⇒ ⇒ 「能上传能下载」**不代表**「在端脑上也能」⇒ ⇒ 失败会长得像成功。
+ */
+const DIRECT = process.env.SHADOW_LIVE_HIPPOCAMPUS_DIRECT === '1';
 /** 真 hippocampus 服务（独立形态）。 */
 const SERVER_URL =
   process.env.SHADOW_LIVE_HIPPOCAMPUS_SERVER ?? 'http://127.0.0.1:18080';
@@ -88,6 +99,19 @@ describe.skipIf(!LIVE)('资源管理 —— 真 hippocampus 服务', () => {
       // ⚠️ **原样转发 body** —— 二进制上传全靠这一行。
       req.pipe(upstream);
     });
+    if (DIRECT) {
+      // ⚠️ 直连真端脑 ⇒ ⇒ 代理那一层**不启动** ⇒ ⇒ 客户端打的是端脑自己的面。
+      //
+      // ⚠️ 端脑的**门**认两把钥匙：读门＝影子锁 ∪ admin token；写门＝**只**认
+      // admin token ⇒ ⇒ 桌面端在浏览器里那把 admin token 从 localStorage 取
+      // （adminToken.ts 的 web 版分支）⇒ ⇒ 这里塞进去（**不打印**）。
+      const admin = process.env.SHADOW_LIVE_HIPPOCAMPUS_ADMIN_TOKEN ?? '';
+      if (admin) {
+        window.localStorage.setItem('shadow-admin-token', admin);
+      }
+      useTelencephalonStore.getState().setBaseUrl(SERVER_URL);
+      return;
+    }
     await new Promise<void>((resolve) =>
       proxy.listen(PROXY_PORT, '127.0.0.1', () => resolve()),
     );
@@ -98,6 +122,7 @@ describe.skipIf(!LIVE)('资源管理 —— 真 hippocampus 服务', () => {
   });
 
   afterAll(async () => {
+    if (DIRECT) return;
     await new Promise<void>((resolve) => proxy.close(() => resolve()));
   });
 
