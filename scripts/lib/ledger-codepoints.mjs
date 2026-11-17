@@ -165,10 +165,10 @@ export function findCollisions(ledgers) {
  *
  * ⚠️ **为什么形状必须收窄到「保留名」** —— 账本里**合法**的 `__xxx__` token
  *    多到满树都是：`__tests__`（目录名）／`__cmd__`（Rust 宏）／`__VITEST__`（正文里的
- *    读者占位）／`__cortex_meta_v1__`（A2A 信封旧键）／`__media__`／
+ *    读者占位）／**A2A 信封的旧键名**／`__media__`／
  *    `__SHADOW_TELENCEPHALON_AVAILABLE__`（环境变量名）⇒ ⇒ 「两个下划线包起来就是
  *    占位符」会**一片红** ⇒ ⇒ 只认**落笔模板用的那几个名字**。
- *    ⚠️ **大小写敏感**（`__cortex_meta_v1__` 是小写 ⇒ ⇒ 不命中）。
+ *    ⚠️ **大小写敏感**（`__media__` 是小写 ⇒ ⇒ 不命中）。
  */
 export const LEDGER_PLACEHOLDER = /__(?:CP__|CP_[A-Z_]+__|GLYPH__|AGUI__|GATES__)/g;
 
@@ -286,7 +286,27 @@ export function findViolations(text) {
   }
   // ⚠️⚠️ **R8（落笔占位符）** —— 模板占位符没替换就落笔（2026-11-17 实测入库）。
   const placeholders = findPlaceholderIssues(text);
-  return { entries, dups, mismatched, swallowed, foreign, glyphMismatch, orphanClaims, placeholders };
+  // ⚠️⚠️ **R9（占号声明写成了解析不出来的样子）** —— 条目里提到「本条占 U+」，
+  //   却**整条没有一个能解析的声明** ⇒ ⇒ 那条条目**没有有效的占号声明**
+  //   ⇒ ⇒ 闸对它**什么都判不出来**（R2 看不见、查重也看不见）⇒ ⇒ 它在骗人。
+  //   ⚠️ **2026-11-17 实测入库**：本刀自己写坏过一条（占号写成了「U+」后面又接
+  //   一个「U+」）⇒ ⇒ R2 不红、查重不红、**所有闸都绿** ⇒ ⇒ 那一格是空的。
+  //   ⚠️ **为什么不是「每个条目都必须有声明」** —— 真账本里有**不少条目没有**
+  //   占号段落（那是允许的）⇒ ⇒ 只抓「**提到了但解析不出来**」这一族。
+  //   ⚠️ **实测零误报**：三本账本 × 全部条目 ⇒ ⇒ 命中**只有那 2 条自己写坏的**。
+  const malformedClaims = [];
+  {
+    for (let k = 0; k < entries.length; k++) {
+      const start = entries[k].line - 1;
+      const end = k + 1 < entries.length ? entries[k + 1].line - 1 : lines.length;
+      const body = lines.slice(start, end).join('\n');
+      if (!/本条占\s*\*{0,2}U\+/.test(body)) continue;
+      OWN_CLAIM.lastIndex = 0;
+      if (OWN_CLAIM.test(body)) continue;
+      malformedClaims.push({ line: entries[k].line, snippet: lines[start].slice(0, 60) });
+    }
+  }
+  return { entries, dups, mismatched, swallowed, foreign, glyphMismatch, orphanClaims, placeholders, malformedClaims };
 }
 
 /**
