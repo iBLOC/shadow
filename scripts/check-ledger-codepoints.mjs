@@ -212,6 +212,10 @@ export function checkText(text) {
   for (const o of v.orphanClaims || []) {
     out.push('❌ [orphan-declaration] 第 ' + o.line + ' 行：「本条占 U+' + o.claimed + '」**不归属任何条目** ⇒ ⇒ 那条条目的标题行被吞了（正文浮在文件里），或这是一条重复声明 ⇒ ⇒ 圈码声明必须挂在自己那条的体内｜ …' + o.snippet + '…');
   }
+  // ⚠️⚠️ **R8（落笔占位符没替换就落笔）** —— 账本里留着模板占位符 ⇒ ⇒ 那条在说假话。
+  for (const p of v.placeholders || []) {
+    out.push('❌ [unresolved-placeholder] 第 ' + p.line + ' 行：落笔模板占位符「' + p.token + '」**没被替换** ⇒ ⇒ 这条条目在说自己都不信的话（码位／字形根本没写进去）｜ …' + p.snippet + '…');
+  }
   return { v, out };
 }
 
@@ -232,7 +236,7 @@ export function checkLedgers(ledgerTexts, opts = {}) {
   const warnings = [];
   const debtItems = (opts.debt && opts.debt.items) || [];
   const debtMap = new Map(debtItems.map((i) => [String(i.cp).toUpperCase(), i]));
-  const agg = { mismatched: [], swallowed: [], foreign: [], dups: [], glyphMismatch: [], orphanClaims: [] };
+  const agg = { mismatched: [], swallowed: [], foreign: [], dups: [], glyphMismatch: [], orphanClaims: [], placeholders: [] };
 
   for (const l of ledgerTexts) {
     const v = findViolations(l.text);
@@ -241,6 +245,7 @@ export function checkLedgers(ledgerTexts, opts = {}) {
     for (const f of v.foreign) agg.foreign.push({ ...f, ledger: l.name });
     for (const g of v.glyphMismatch || []) agg.glyphMismatch.push({ ...g, ledger: l.name });
     for (const o of v.orphanClaims || []) agg.orphanClaims.push({ ...o, ledger: l.name });
+    for (const p of v.placeholders || []) agg.placeholders.push({ ...p, ledger: l.name });
     for (const m of v.mismatched) {
       out.push('❌ [annotation-mismatch] ' + l.name + ' 第 ' + m.line + ' 行：注解写 U+' + m.claimed + '，而标题里的「' + m.ch + '」真实码位是 U+' + m.actual);
     }
@@ -256,6 +261,10 @@ export function checkLedgers(ledgerTexts, opts = {}) {
     // ⚠️⚠️ **R7（孤儿声明）** —— 声明必须挂在自己那条的体内（2026-11-09 实测入库）。
     for (const o of v.orphanClaims || []) {
       out.push('❌ [orphan-declaration] ' + l.name + ' 第 ' + o.line + ' 行：「本条占 U+' + o.claimed + '」**不归属任何条目** ⇒ ⇒ 那条条目的标题行被吞了（正文浮在文件里），或这是一条重复声明 ⇒ ⇒ 圈码声明必须挂在自己那条的体内｜ …' + o.snippet + '…');
+    }
+    // ⚠️⚠️ **R8（落笔占位符没替换就落笔）** —— 账本里留着模板占位符 ⇒ ⇒ 那条在说假话。
+    for (const p of v.placeholders || []) {
+      out.push('❌ [unresolved-placeholder] ' + l.name + ' 第 ' + p.line + ' 行：落笔模板占位符「' + p.token + '」**没被替换** ⇒ ⇒ 这条条目在说自己都不信的话（码位／字形根本没写进去）｜ …' + p.snippet + '…');
     }
   }
 
@@ -373,6 +382,16 @@ function selfTest() {
     od.out.length === 1 && od.v.orphanClaims.length === 1, JSON.stringify(od.out));
   const ownedDecl = ['# PROJECT KNOWLEDGE BASE', '', headReal(G_32FF, '32FF', G_32FF) + '\n⑨ **⚠️ 圈码：本条占 U+32FF（' + G_32FF + '）** —— 挂在体里的声明。'].join('\n');
   check('同一句声明**挂在条目体内** ⇒ 零违规（R7 不误报）', checkText(ownedDecl).out.length === 0, JSON.stringify(checkText(ownedDecl).out));
+  // ⚠️⚠️ **R8（落笔占位符没替换就落笔）** —— 2026-11-17 实测入库：
+  //   上一刀落笔时把 `U+__CP_PARENT__`／`U+__CP_MOBILE__` **原样提交了**
+  //   ⇒ ⇒ 三本账本里都有「没替换的模板占位符」⇒ ⇒ 而当时**所有闸都绿**。
+  const phBad = ['# PROJECT KNOWLEDGE BASE', '', headReal(G_32FF, '32FF', G_32FF) + '\n⑨ **⚠️ 圈码：本条占 U+__CP_PARENT__** —— 父仓那条取的是同一枚（**占位符只出现一次**）。'].join('\n');
+  const phBadR = checkText(phBad);
+  check('落笔占位符没替换 ⇒ 恰好 1 条红（unresolved-placeholder）',
+    phBadR.out.length === 1 && phBadR.v.placeholders.length === 1, JSON.stringify(phBadR.out));
+  const phLegal = ['# PROJECT KNOWLEDGE BASE', '', headReal(G_32FF, '32FF', G_32FF) + '\n② 路径 `src/lib/__tests__/x.test.ts` ／宏 `__cmd__` ／占位 `__VITEST__` ／旧键 `__cortex_meta_v1__` ／环境变量 `__SHADOW_TELENCEPHALON_AVAILABLE__`。'].join('\n');
+  check('**合法**的 `__xxx__` token（`__tests__`／`__cmd__`／`__VITEST__`／`__cortex_meta_v1__`）⇒ 零违规（R8 不误报）',
+    checkText(phLegal).out.length === 0, JSON.stringify(checkText(phLegal).out));
   const headMobile = (ch, claim, body) => '**Updated:** 2026-11-05 (' + ch + ' **条目** —— ' + claim + ' —— 讲点事。)\n' + body;
   const twoShapes = [
     '**Updated**: 2026-11-05 (㋿ **条目** —— 本条占 **U+32FF** —— 父仓形状。）\n① 正文。',
@@ -521,7 +540,8 @@ function selfTest() {
       && r.v.swallowed.length === perLedger('swallowed')
       && r.v.foreign.length === perLedger('foreign')
       && (r.v.glyphMismatch || []).length === perLedger('glyphMismatch')
-      && (r.v.orphanClaims || []).length === perLedger('orphanClaims'),
+      && (r.v.orphanClaims || []).length === perLedger('orphanClaims')
+      && (r.v.placeholders || []).length === perLedger('placeholders'),
       JSON.stringify({ agg: r.v.mismatched.length + '/' + r.v.swallowed.length + '/' + r.v.foreign.length + '/' + (r.v.glyphMismatch || []).length + '/' + (r.v.orphanClaims || []).length, direct: perLedger('mismatched') + '/' + perLedger('swallowed') + '/' + perLedger('foreign') + '/' + perLedger('glyphMismatch') + '/' + perLedger('orphanClaims') }));
     console.log('  ℹ️ 真账本当前 verdict：' + r.out.length + ' 条红（**这是仓库状态**，由主检查负责判定；自检只管尺子）');
     const realClaimed = real.reduce((n, l) => n + findViolations(l.text).entries.filter((e) => e.claimed).length, 0);

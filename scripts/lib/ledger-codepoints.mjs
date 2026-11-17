@@ -158,6 +158,38 @@ export function findCollisions(ledgers) {
 }
 
 /** 判据本体：返回 { dups, mismatched, swallowed, foreign, entries }。 */
+/**
+ * ⚠️ **R8（落笔占位符没替换就落笔）** —— 台账里留着**落笔模板的占位符**
+ *    （`__CP__`／`__CP_PARENT__`／`__CP_MOBILE__`／`__CP_DESKTOP__`／`__GLYPH__`／
+ *    `__AGUI__`／`__GATES__`）⇒ ⇒ 那条条目**在说假话**（码位／字形根本没写进去）。
+ *
+ * ⚠️ **为什么形状必须收窄到「保留名」** —— 账本里**合法**的 `__xxx__` token
+ *    多到满树都是：`__tests__`（目录名）／`__cmd__`（Rust 宏）／`__VITEST__`（正文里的
+ *    读者占位）／`__cortex_meta_v1__`（A2A 信封旧键）／`__media__`／
+ *    `__SHADOW_TELENCEPHALON_AVAILABLE__`（环境变量名）⇒ ⇒ 「两个下划线包起来就是
+ *    占位符」会**一片红** ⇒ ⇒ 只认**落笔模板用的那几个名字**。
+ *    ⚠️ **大小写敏感**（`__cortex_meta_v1__` 是小写 ⇒ ⇒ 不命中）。
+ */
+export const LEDGER_PLACEHOLDER = /__(?:CP__|CP_[A-Z_]+__|GLYPH__|AGUI__|GATES__)/g;
+
+/** R8 违规清单 —— 纯函数（判据与 I/O 分离，脚本层只管跑）。 */
+export function findPlaceholderIssues(text) {
+  const lines = String(text || '').split(/\r?\n/);
+  const out = [];
+  for (let i = 0; i < lines.length; i++) {
+    LEDGER_PLACEHOLDER.lastIndex = 0;
+    let m;
+    while ((m = LEDGER_PLACEHOLDER.exec(lines[i])) !== null) {
+      out.push({
+        line: i + 1,
+        token: m[0],
+        snippet: lines[i].slice(Math.max(0, m.index - 30), m.index + m[0].length + 30).replace(/\r/g, ''),
+      });
+    }
+  }
+  return out;
+}
+
 export function findViolations(text) {
   const { entries, lines } = extractEntries(text);
   const byCp = new Map();
@@ -252,7 +284,9 @@ export function findViolations(text) {
       }
     }
   }
-  return { entries, dups, mismatched, swallowed, foreign, glyphMismatch, orphanClaims };
+  // ⚠️⚠️ **R8（落笔占位符）** —— 模板占位符没替换就落笔（2026-11-17 实测入库）。
+  const placeholders = findPlaceholderIssues(text);
+  return { entries, dups, mismatched, swallowed, foreign, glyphMismatch, orphanClaims, placeholders };
 }
 
 /**

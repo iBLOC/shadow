@@ -1,3 +1,15 @@
+**Updated**: 2026-11-17 (㕹 **「桌面这一侧多了 AG-UI 的活体联调判据 —— 客户端代码第一次能对着**活的**端脑被验」** —— 承影仓 U+3573 条（真机那一格），本条记**本仓落点**、**判据形状**、**读数状态**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-17 | authority=measured | scope=project | source=承影仓 U+3573 条（真机那一格）｜ 改动：`src/lib/agui/__tests__/agui.live.test.ts`（**新**）＋ 本条 ⇒ ⇒ **2 文件** ＋ 零新增依赖 ＋ 零新增端点 ｜ 读数：`tsc --noEmit` **0 错** ＋ 本仓 AG-UI 判据 **45 过 / 0 红 / 2 跳**（活体那 2 条**没设备时整组跳过** ⇒ ⇒ **不是「跑过」**）| status=active | supersedes=none
+
+① **⚠️ 本仓落点** —— `src/lib/agui/__tests__/agui.live.test.ts`（**新**）：**影仓自己的** `AguiClient` 与 `AguiDriver` 对着**活的**端脑跑一轮 ⇒ ⇒ 断言**真端脑那 5 帧**逐字 ＋ driver 的**收口事件**是 `finished` ＋ 真模型回话非空。⚠️ **请求面照生产那一版**（生产 `runAguiTurn` 发的是 `{messages, tools?}`，**不带 `threadId`／`runId`** ⇒ ⇒ 端脑认的是**路径里**的会话 id；内容用生产那个 `buildAguiUserParts` ⇒ ⇒ `ContentPart[]`）⇒ ⇒ 这一条判据跑的**就是生产发的那个形状** ⇒ ⇒ 形状错了这里就红。⚠️ 形状照同族 `a2ui.live.test.tsx`：`describe.skipIf(!live)` ＋ 三个环境变量（`AGUI_LIVE_URL/KEY/ADMIN_TOKEN`）⇒ ⇒ **没设就整组跳过** ⇒ ⇒ 常规 `vitest run` 不受影响（不许让「端脑没起」变成一条红）。⚠️ **只删本次建的会话** ＋ **会话 id 不打印**。
+
+② **⚠️ 读数状态（如实）** —— 落笔时**真机读数没取到**：设备已换成另一台且**未授权**（`RFCW70FK31W unauthorized`）⇒ ⇒ 这 2 条**一条都没跑**（整组跳过）⇒ ⇒ 端脑侧那一格（上一刀）有读数、**客户端侧这一格还没有** ⇒ ⇒ 等设备回来跑 `scripts\prove-agui-live-client.ps1` 取。
+
+③ **⚠️ 仍然欠着的** —— ❶ 本仓页面已换线 AG-UI，但**从没对着活端脑跑过** ⇒ ⇒ 这一格等上面的读数。❷ 移动端那一半**还没接 AG-UI**（页面接线等兄弟放行 `chat_provider.dart`）⇒ ⇒ 两端都还欠「客户端真跑 AG-UI」。❸ 本仓上一刀那条**没替换的码位占位符**已在本刀修掉（父仓那条同理）⇒ ⇒ 台账闸新增 **R8**（未替换的占位符 ⇒ ⇒ 红）⇒ ⇒ 那一族以后机器自己看着。
+
+④ **⚠ 圈码：本条占 U+U+3579 (㕹)** —— 落笔前**逐字重扫**五本账本（Node 读文件）⇒ ⇒ 桌面端水位 U+3571 ⇒ ⇒ 从 U+3578 起五本皆 0 命中 ⇒ ⇒ 桌面端取 **U+3579**（高于自己那一本的水位）⇒ ⇒ 父仓那条取 U+3578（两枚互不相同）⇒ ⇒ 字形由 `String.fromCodePoint()` 生成，不手打。
+
 **Updated**: 2026-11-16 (㌺ **「桌面这一侧：页面真的走 AG-UI 了 —— 判据抓到「工具清单没进请求」这一格」** —— 承影仓 U+3567 条（页面换线那一族），本条记**本仓落点**、**判据抓到的真 bug**、**更正一处说错**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-16 | authority=measured | scope=project | source=影仓 U+3567 条（页面换线那一族）｜ 改动：`src/pages/ConversationPage.tsx` ＋ `src/lib/agui/{toolOutcomeGate,bridge,conversationTurn}.ts`（**新**）＋ `src/lib/agui/driver.ts` ＋ `src/lib/agui/__tests__/{aguiGate,aguiBridge,aguiTurn}.test.ts`（**新**）＋ `src/types/index.ts` ＋ `src/components/chat/ToolCallMessageCard.tsx` ＋ `tests/pages/ConversationPageAgui.test.tsx`（**新**）＋ `tests/pages/ConversationPageTokenStats.test.tsx` ⇒ ⇒ **12 文件** ＋ 零新增依赖 ＋ 零新增端点 ｜ 读数：AG-UI 判据 **51 过 / 0 红**（含**页面级 6 条**）＋ `tsc --noEmit` **0 错** ｜ **23 道真变异**各只红目标判据所在机制族 ｜ 桌面全量 **1747 过 / 1 红**（那 1 红＝兄弟在飞的跨端措辞，**零命中本刀文件**）｜ 闸：**13 绿 / 8 红**（零命中本刀文件）| status=active | supersedes=none
