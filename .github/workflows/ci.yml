@@ -131,6 +131,19 @@ jobs:
       - name: Android memory gate check (self-test)
         run: node shadow/scripts/check-android-memory-gate.mjs --self-test
 
+      # 本体网络闸 —— 「**图能进化成本体**」这一刀的门面。
+      # ⚠️ 它判**海马体**（hippocampus）⇒ ⇒ 必须在本 job（本 job 已 checkout
+      #    整套兄弟仓，海马体在清单里）⇒ ⇒ 布局 A/B 都命中 ⇒ ⇒ 不落「判不了」。
+      # ⚠️ 它守的是**「多出来的一面」**（模式／出处／总结／传授／外部加载／
+      #    DataFusion 查询）⇒ ⇒ 删掉它编译照样过 ⇒ ⇒ 唯一的证据是**形状**
+      #    ⇒ ⇒ 八条里一条是**负控**（旧的共现通道不许被悄悄换掉）。
+      # ⚠️ 用**默认**口径（不带 `--strict`）：「判不了」显眼但不阻断。
+      - name: Ontology network gate check
+        run: node shadow/scripts/run-gate-once.mjs shadow/scripts/check-ontology-network.mjs
+
+      - name: Ontology network gate check (self-test)
+        run: node shadow/scripts/check-ontology-network.mjs --self-test
+
       # ── 测试里的进程级 env 竞争闸 ──────────────────────────────────────────
       # ⚠️⚠️ **为什么这道闸存在**（2026-11-08 真机实测）：`cargo test` 把**同一个
       #   二进制**里的测试**开多线程并发跑** ⇒ ⇒ 进程级 `env` 变量是**共享全局**
