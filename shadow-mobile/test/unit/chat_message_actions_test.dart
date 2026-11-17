@@ -1,20 +1,30 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shadow_mobile/providers/chat_provider.dart';
 import 'package:shadow_mobile/services/telencephalon/telencephalon_client.dart';
-import 'package:shadow_mobile/tts_engine.dart';
 
-class MockTts extends TtsEngine {
-  @override
-  Future<TtsSpeakResult> speak(String text, {String lang = 'zh-CN', bool allowFallback = true, String? lobe}) async =>
-      const TtsSpeakResult.spoke();
-}
+import 'agui_fakes.dart';
 
 /// 先失败 N 次、之后成功的端脑 mock —— 用来造「发送失败」的状态。
 class FlakyMockClient extends TelencephalonClient {
-  int failuresLeft;
-  final List<SendMessageRequest> requests = [];
-
   FlakyMockClient(this.failuresLeft) : super(baseUrl: 'http://127.0.0.1:60080');
+
+  int failuresLeft;
+
+  /// ⚠️ **AG-UI 那一路**：端脑那一面走 `ag-ui:stream`（POST ＋ SSE）
+  /// ⇒ ⇒ 这里假的是**运输层** ⇒ ⇒ 「先失败 N 次」＝ 前 N 次回 **5xx**
+  /// ⇒ ⇒ （客户端非 2xx ⇒ ⇒ 抛 ⇒ ⇒ provider 如实报错）。
+  late final FakeAguiBrain brain = FakeAguiBrain(
+    rounds: <List<String>>[
+      <String>[aguiText('回复'), aguiFinished()],
+    ],
+    statuses: <int>[for (int i = 0; i < failuresLeft; i++) 500],
+  );
+
+  /// 发出去的每一次请求（**AG-UI 的请求体**）。
+  List<Map<String, dynamic>> get requests => brain.requests;
+
+  /// 每一次请求里**用户那句话**（老判据断言「重发的是哪一句」）。
+  List<String> get sentTexts => brain.requests.map(aguiSentText).toList();
 
   @override
   Future<Conversation> createConversation({
@@ -29,19 +39,6 @@ class FlakyMockClient extends TelencephalonClient {
       updatedAt: now,
       history: const [],
     );
-  }
-
-  @override
-  Stream<StreamEvent> streamMessage(
-    String conversationId,
-    SendMessageRequest req,
-  ) async* {
-    requests.add(req);
-    if (failuresLeft > 0) {
-      failuresLeft--;
-      throw Exception('boom');
-    }
-    yield StreamEvent(type: 'delta', delta: '回复');
   }
 }
 
@@ -77,7 +74,7 @@ void main() {
 
   test('回复流式生成中 ⇒ undo/retry 都是 no-op', () async {
     final client = FlakyMockClient(0);
-    final notifier = ChatNotifier(MockTts(), client);
+    final notifier = ChatNotifier(MockTts(), client, aguiHttpClient: client.brain);
     notifier.state = ChatState(
       messages: [user('问题'), assistant('答')],
       isLoading: true,
@@ -91,13 +88,13 @@ void main() {
 
   test('retryFromUserMessage ⇒ 截掉旧的、原文重发', () async {
     final client = FlakyMockClient(0);
-    final notifier = ChatNotifier(MockTts(), client);
+    final notifier = ChatNotifier(MockTts(), client, aguiHttpClient: client.brain);
     notifier.state = ChatState(
       messages: [user('问题一'), assistant('答一'), user('问题二'), assistant('答二')],
     );
     await notifier.retryFromUserMessage(2);
     expect(client.requests, hasLength(1));
-    expect(client.requests.first.text, '问题二');
+    expect(client.sentTexts.first, '问题二');
     // 「从这条重来」＝ 它**之前**的历史原样保留，它自己和之后的一切
     // 被重发的那一轮换掉。
     expect(notifier.state.messages, hasLength(4));
@@ -114,13 +111,13 @@ void main() {
 
   test('retryAssistantMessage ⇒ 按前面最近的用户消息重发', () async {
     final client = FlakyMockClient(0);
-    final notifier = ChatNotifier(MockTts(), client);
+    final notifier = ChatNotifier(MockTts(), client, aguiHttpClient: client.brain);
     notifier.state = ChatState(
       messages: [user('问题一'), assistant('答一'), user('问题二')],
     );
     await notifier.retryAssistantMessage(1);
     expect(client.requests, hasLength(1));
-    expect(client.requests.first.text, '问题一');
+    expect(client.sentTexts.first, '问题一');
     expect(notifier.state.messages.map((m) => m.role).toList(), [
       ChatRole.user,
       ChatRole.assistant,
@@ -129,7 +126,7 @@ void main() {
 
   test('retryLastFailure ⇒ 撤掉失败那轮（含 system 错误气泡）再重发', () async {
     final client = FlakyMockClient(1);
-    final notifier = ChatNotifier(MockTts(), client);
+    final notifier = ChatNotifier(MockTts(), client, aguiHttpClient: client.brain);
     await notifier.generateResponse('第一次的问题');
     // 失败态：用户气泡还在（乐观插入），末尾多了 system 错误气泡。
     expect(client.requests, hasLength(1));
@@ -138,7 +135,7 @@ void main() {
 
     await notifier.retryLastFailure();
     expect(client.requests, hasLength(2));
-    expect(client.requests.last.text, '第一次的问题');
+    expect(client.sentTexts.last, '第一次的问题');
     expect(notifier.state.errorMessage, isNull);
     // 失败那轮的 system 气泡没了；用户气泡不会重复。
     expect(
@@ -154,7 +151,7 @@ void main() {
 
   test('切会话失败的闸门关着 ⇒ retryLastFailure 不许绕过', () async {
     final client = FlakyMockClient(0);
-    final notifier = ChatNotifier(MockTts(), client);
+    final notifier = ChatNotifier(MockTts(), client, aguiHttpClient: client.brain);
     notifier.state = ChatState(
       failedSwitchSessionId: 'conv-x',
       messages: [ChatMessageModel('问题', ChatRole.user)],

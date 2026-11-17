@@ -14,6 +14,8 @@ import 'package:shadow_mobile/services/client_tools/client_tool_registry.dart';
 import 'package:shadow_mobile/services/telencephalon/telencephalon_client.dart';
 import 'package:shadow_mobile/tts_engine.dart';
 
+import 'agui_fakes.dart';
+
 /// **假通道** —— 把原生层换成一个可断言的东西。
 ///
 /// ⚠️ 之所以能替换：`DeviceDataChannel` 的方法都是普通实例方法 ⇒ ⇒
@@ -160,47 +162,38 @@ class _FakeTts extends TtsEngine {
 }
 
 /// 会发一串事件、并记录「结果回传」的端脑 mock。
-class _MockClient extends TelencephalonClient {
-  _MockClient(this.events) : super(baseUrl: 'http://127.0.0.1:60080');
+///
+/// ⚠️ **AG-UI 那一路**：端脑走 `ag-ui:stream`（POST ＋ SSE）⇒ ⇒ 这里假的是
+/// **运输层**（[FakeAguiBrain]）⇒ ⇒ driver／协议解析／执行器**全是真的**
+/// ⇒ ⇒ 判据钉的是**生产那一路**。
+class _MockClient extends ToolMockClient {
+  _MockClient(this.events) : super();
 
   final List<StreamEvent> events;
-  final List<Map<String, dynamic>> reports = [];
 
-  @override
-  Future<Conversation> createConversation({
-    String? agent,
-    String? systemPrompt,
-  }) async {
-    final now = DateTime.now();
-    return Conversation(
-      id: 'conv-1',
-      agent: agent ?? 'test-agent',
-      createdAt: now,
-      updatedAt: now,
-      history: const [],
-    );
-  }
+  /// 端脑点名工具的那一帧组（**一轮的第一份**）。
+  late final List<String> _toolFrames = aguiFramesFromStreamEvents(events);
 
-  @override
-  Stream<StreamEvent> streamMessage(
-    String conversationId,
-    SendMessageRequest req,
-  ) async* {
-    for (final event in events) {
-      yield event;
-    }
-  }
+  /// AG-UI 那一面的**假端脑**。
+  ///
+  /// ⚠️ **每一轮都重新点名那个工具** —— 因为「每一轮」＝「用户又发了一条」
+  /// ⇒ ⇒ 判据要验的是「**这一轮**的工具调用」⇒ ⇒ 「续轮」（请求里**带**
+  /// tool 消息）**不再**点名 ⇒ ⇒ 工具闭环才收得住（否则 driver 会一直续
+  /// ⇒ ⇒ 撞续轮上限）。
+  late final FakeAguiBrain brain = FakeAguiBrain(
+    rounds: const <List<String>>[],
+    framesFor: (int round, Map<String, dynamic> request) =>
+        aguiHasToolMessage(request)
+            ? <String>[aguiText('好了'), aguiFinished()]
+            : _toolFrames,
+  );
 
-  @override
-  Future<void> reportToolResult(
-    String conversationId, {
-    required String name,
-    String? toolCallId,
-    required Object? result,
-    bool ok = true,
-  }) async {
-    reports.add({'name': name, 'ok': ok, 'result': result});
-  }
+  /// **legacy 形状**的回传记录（老判据断言「结果回传端脑了」用）。
+  ///
+  /// ⚠️ AG-UI 这一路**没有** `/tool-results` 旁路 ⇒ ⇒ 结果随**下一次请求**
+  /// 带回去 ⇒ ⇒ 这里那条记录是**把下一次请求里那条 tool 消息**翻译出来的
+  /// ⇒ ⇒ 而它钉的机制**是真的**（结果确实走了下一次请求 —— 没有它就是空的）。
+  List<Map<String, dynamic>> get reports => brain.reports;
 }
 
 void main() {
@@ -225,6 +218,22 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 5));
     }
     fail('工具调用在 1 秒内没落定');
+  }
+
+  /// 等那张工具卡片落到「等你点头」。
+  ///
+  /// ⚠️ **为什么需要它**：AG-UI 那一路的工具**在回合内**执行 ⇒ ⇒ driver
+  /// 会**等**用户点头 ⇒ ⇒ `await generateResponse(...)` 会**挂死**
+  /// ⇒ ⇒ 这一档必须「先不等，等卡片落定」。
+  Future<ToolCallModel> waitForPending(ChatNotifier notifier) async {
+    for (var i = 0; i < 200; i++) {
+      final call = lastToolCall(notifier);
+      if (call != null && call.status == ToolCallStatus.awaitingApproval) {
+        return call;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+    }
+    fail('工具调用没停在「等你点头」');
   }
 
   ClientToolRegistry registryWith(FakeDeviceDataChannel channel) {
@@ -363,18 +372,27 @@ void main() {
       final notifier = ChatNotifier(
         _FakeTts(),
         client,
+        // ⚠️ **AG-UI 那一面的运输层** —— 端脑走 `ag-ui:stream`
+        // ⇒ ⇒ 这里假的是**运输层**⇒ ⇒ 真 driver／真协议／真执行器**全在**
+        // ⇒ ⇒ 判据钉的是**生产那一路**。
+        aguiHttpClient: client.brain,
         clientTools: registryWith(channel),
         capabilityModeFor: (_) => AuthorizationMode.askEveryTime,
       );
 
-      await notifier.generateResponse('我明天有什么安排');
-
-      final call = lastToolCall(notifier);
-      expect(call, isNotNull);
-      expect(call!.status, ToolCallStatus.awaitingApproval);
+      // ⚠️ **不许 await** —— AG-UI 那一路的工具**在回合内**执行 ⇒ ⇒ driver
+      // 会**等**用户点头 ⇒ ⇒ await 就会挂死 ⇒ ⇒ 这一档必须「先不等，等
+      // 卡片落定」。
+      final Future<void> run = notifier.generateResponse('我明天有什么安排');
+      final call = await waitForPending(notifier);
+      expect(call.status, ToolCallStatus.awaitingApproval);
       // ⚠️ 没点头 ⇒ ⇒ 一个字节都不许去读。
       expect(channel.calendarReads, 0);
       expect(client.reports, isEmpty);
+      // ⚠️ **收尾**：这一轮还开着 ⇒ ⇒ 拒掉它，让那个 future 收口
+      // ⇒ ⇒ 不留一个永远不来的回合在后台跑。
+      await notifier.denyToolCall(call.id);
+      await run;
     });
 
     test('档位=完全访问 ⇒ 直接执行并回传端脑', () async {
@@ -393,6 +411,10 @@ void main() {
       final notifier = ChatNotifier(
         _FakeTts(),
         client,
+        // ⚠️ **AG-UI 那一面的运输层** —— 端脑走 `ag-ui:stream`
+        // ⇒ ⇒ 这里假的是**运输层**⇒ ⇒ 真 driver／真协议／真执行器**全在**
+        // ⇒ ⇒ 判据钉的是**生产那一路**。
+        aguiHttpClient: client.brain,
         clientTools: registryWith(channel),
         capabilityModeFor: (_) => AuthorizationMode.fullAccess,
       );
@@ -404,6 +426,9 @@ void main() {
       expect(call!.status, ToolCallStatus.succeeded);
       expect(channel.calendarReads, 1);
       expect(client.reports, hasLength(1));
+      // ⚠️ **AG-UI 这一路不许走 legacy 旁路**（`/tool-results`）⇒ ⇒ 结果
+      // 只随**下一次请求**带回去 ⇒ ⇒ 走一次旁路就是**多发一次**。
+      expect(client.legacyReports, isEmpty);
       expect(client.reports.single['ok'], isTrue);
       // ⚠️ 结果里**不能**有 `report` 键 —— 有的话明细到不了模型。
       final payload = client.reports.single['result'] as Map;
@@ -424,12 +449,22 @@ void main() {
       final notifier = ChatNotifier(
         _FakeTts(),
         client,
+        // ⚠️ **AG-UI 那一面的运输层** —— 端脑走 `ag-ui:stream`
+        // ⇒ ⇒ 这里假的是**运输层**⇒ ⇒ 真 driver／真协议／真执行器**全在**
+        // ⇒ ⇒ 判据钉的是**生产那一路**。
+        aguiHttpClient: client.brain,
         clientTools: registryWith(channel),
         capabilityModeFor: (_) => mode,
       );
 
-      await notifier.generateResponse('我明天有什么安排');
-      expect(lastToolCall(notifier)!.status, ToolCallStatus.awaitingApproval);
+      // ⚠️ **不许 await**（AG-UI 那一路的工具在回合内跑 ⇒ ⇒ driver 等点头）。
+      final Future<void> first = notifier.generateResponse('我明天有什么安排');
+      final call = await waitForPending(notifier);
+      expect(call.status, ToolCallStatus.awaitingApproval);
+      // ⚠️ **先把这一轮收掉**（拒绝）⇒ ⇒ 否则 `isLoading` 一直为真 ⇒ ⇒
+      // 下一条消息**发不出去**（`generateResponse` 直接 return）。
+      await notifier.denyToolCall(call.id);
+      await first;
 
       // 用户在设置里改成「完全访问」⇒ ⇒ 下一次调用就该直接跑。
       mode = AuthorizationMode.fullAccess;
@@ -450,12 +485,21 @@ void main() {
       final notifier = ChatNotifier(
         _FakeTts(),
         client,
+        // ⚠️ **AG-UI 那一面的运输层** —— 端脑走 `ag-ui:stream`
+        // ⇒ ⇒ 这里假的是**运输层**⇒ ⇒ 真 driver／真协议／真执行器**全在**
+        // ⇒ ⇒ 判据钉的是**生产那一路**。
+        aguiHttpClient: client.brain,
         clientTools: registryWith(channel),
       );
 
-      await notifier.generateResponse('我明天有什么安排');
-      expect(lastToolCall(notifier)!.status, ToolCallStatus.awaitingApproval);
+      // ⚠️ **不许 await**（AG-UI 那一路的工具在回合内跑 ⇒ ⇒ driver 等点头）。
+      final Future<void> run = notifier.generateResponse('我明天有什么安排');
+      final call = await waitForPending(notifier);
+      expect(call.status, ToolCallStatus.awaitingApproval);
       expect(channel.calendarReads, 0);
+      // ⚠️ **收尾**（见前面那一格）。
+      await notifier.denyToolCall(call.id);
+      await run;
     });
 
     test('普通工具不受档位影响（没有能力 ⇒ 照常直接跑）', () async {
@@ -469,6 +513,10 @@ void main() {
       final notifier = ChatNotifier(
         _FakeTts(),
         client,
+        // ⚠️ **AG-UI 那一面的运输层** —— 端脑走 `ag-ui:stream`
+        // ⇒ ⇒ 这里假的是**运输层**⇒ ⇒ 真 driver／真协议／真执行器**全在**
+        // ⇒ ⇒ 判据钉的是**生产那一路**。
+        aguiHttpClient: client.brain,
         clientTools: registryWith(FakeDeviceDataChannel()),
         capabilityModeFor: (_) => AuthorizationMode.askEveryTime,
       );
@@ -621,6 +669,10 @@ void main() {
       final notifier = ChatNotifier(
         _FakeTts(),
         client,
+        // ⚠️ **AG-UI 那一面的运输层** —— 端脑走 `ag-ui:stream`
+        // ⇒ ⇒ 这里假的是**运输层**⇒ ⇒ 真 driver／真协议／真执行器**全在**
+        // ⇒ ⇒ 判据钉的是**生产那一路**。
+        aguiHttpClient: client.brain,
         clientTools: registryWith(channel),
         capabilityModeFor: (capability) =>
             capability == Capability.calendarRead
@@ -641,8 +693,10 @@ void main() {
       // ⚠️ 必须**回传** —— 否则模型会一直等一个永远不来的结果。
       expect(client.reports, hasLength(1));
       expect(client.reports.single['ok'], isFalse);
-      final payload = client.reports.single['result'] as Map;
-      expect(payload['capability'], 'calendar_read');
+      // ⚠️ AG-UI 这一路失败**带 error**（content 是空）⇒ ⇒ 模型看到的是
+      // **那句原因**，不是 legacy 那份结构化载荷 ⇒ ⇒ 这里钉「原因里点名
+      // 那个能力」。
+      expect(client.reports.single['error'], contains('calendar_read'));
     });
 
     test('「彻底关闭」比「每次询问」更严 ⇒ 不许落到「等你点头」那格', () async {
@@ -657,6 +711,10 @@ void main() {
       final notifier = ChatNotifier(
         _FakeTts(),
         client,
+        // ⚠️ **AG-UI 那一面的运输层** —— 端脑走 `ag-ui:stream`
+        // ⇒ ⇒ 这里假的是**运输层**⇒ ⇒ 真 driver／真协议／真执行器**全在**
+        // ⇒ ⇒ 判据钉的是**生产那一路**。
+        aguiHttpClient: client.brain,
         clientTools: registryWith(channel),
         capabilityModeFor: (_) => AuthorizationMode.disabled,
       );
@@ -787,6 +845,10 @@ void main() {
       final notifier = ChatNotifier(
         _FakeTts(),
         client,
+        // ⚠️ **AG-UI 那一面的运输层** —— 端脑走 `ag-ui:stream`
+        // ⇒ ⇒ 这里假的是**运输层**⇒ ⇒ 真 driver／真协议／真执行器**全在**
+        // ⇒ ⇒ 判据钉的是**生产那一路**。
+        aguiHttpClient: client.brain,
         clientTools: buildMobileClientTools(
           setAccentColor: (_) async {},
           setDarkMode: (_) async {},
@@ -798,12 +860,15 @@ void main() {
         capabilityModeFor: (_) => AuthorizationMode.askEveryTime,
       );
 
-      await notifier.generateResponse('点一下屏幕右上角');
-
-      final call = lastToolCall(notifier);
-      expect(call!.status, ToolCallStatus.awaitingApproval);
+      // ⚠️ **不许 await**（AG-UI 那一路的工具在回合内跑 ⇒ ⇒ driver 等点头）。
+      final Future<void> run = notifier.generateResponse('点一下屏幕右上角');
+      final call = await waitForPending(notifier);
+      expect(call.status, ToolCallStatus.awaitingApproval);
       // ⚠️ 没点头 ⇒ ⇒ **一个手势都不许发**。
       expect(ops.calls, isEmpty);
+      // ⚠️ **收尾**（见前面那一格）。
+      await notifier.denyToolCall(call.id);
+      await run;
     });
 
     test('档位=彻底关闭 ⇒ 被点名 ⇒ 明确失败 + 回传 + **没碰**无障碍服务', () async {
@@ -818,6 +883,10 @@ void main() {
       final notifier = ChatNotifier(
         _FakeTts(),
         client,
+        // ⚠️ **AG-UI 那一面的运输层** —— 端脑走 `ag-ui:stream`
+        // ⇒ ⇒ 这里假的是**运输层**⇒ ⇒ 真 driver／真协议／真执行器**全在**
+        // ⇒ ⇒ 判据钉的是**生产那一路**。
+        aguiHttpClient: client.brain,
         clientTools: buildMobileClientTools(
           setAccentColor: (_) async {},
           setDarkMode: (_) async {},
@@ -838,6 +907,8 @@ void main() {
       expect(ops.calls, isEmpty);
       expect(client.reports, hasLength(1));
       expect(client.reports.single['ok'], isFalse);
+      // ⚠️ 失败**带 error** ⇒ ⇒ 模型看得到为什么（见上面那一格）。
+      expect(client.reports.single['error'], isNotNull);
     });
 
     test('iOS ⇒ 手机操作**不存在** ⇒ 它的工具**不进** tools 数组', () {
@@ -907,6 +978,10 @@ void main() {
       final notifier = ChatNotifier(
         _FakeTts(),
         client,
+        // ⚠️ **AG-UI 那一面的运输层** —— 端脑走 `ag-ui:stream`
+        // ⇒ ⇒ 这里假的是**运输层**⇒ ⇒ 真 driver／真协议／真执行器**全在**
+        // ⇒ ⇒ 判据钉的是**生产那一路**。
+        aguiHttpClient: client.brain,
         clientTools: registryWith(channel),
         capabilityModeFor: (_) => AuthorizationMode.fullAccess,
       );
@@ -935,6 +1010,10 @@ void main() {
       final notifier = ChatNotifier(
         _FakeTts(),
         client,
+        // ⚠️ **AG-UI 那一面的运输层** —— 端脑走 `ag-ui:stream`
+        // ⇒ ⇒ 这里假的是**运输层**⇒ ⇒ 真 driver／真协议／真执行器**全在**
+        // ⇒ ⇒ 判据钉的是**生产那一路**。
+        aguiHttpClient: client.brain,
         clientTools: registryWith(channel),
         capabilityModeFor: (_) => AuthorizationMode.fullAccess,
       );
@@ -949,9 +1028,9 @@ void main() {
       // ⚠️ 失败要**回传端脑** ⇒ ⇒ 模型能学到下次改对。
       expect(client.reports, hasLength(1));
       expect(client.reports.single['ok'], isFalse);
-      final payload = client.reports.single['result'] as Map;
-      expect(payload['declared'], contains('calendar_write'));
-      expect(payload['required'], contains('calendar_read'));
+      // ⚠️ 失败**带 error** ⇒ ⇒ 声明与要求都写在那句原因里（见上面那一格）。
+      expect(client.reports.single['error'], contains('calendar_write'));
+      expect(client.reports.single['error'], contains('calendar_read'));
       // ⚠️ 错误文案里要点名那个**多出来的**权限（不含语种地断言）。
       expect(call.errorText, contains('calendar_write'));
     });
@@ -968,6 +1047,10 @@ void main() {
       final notifier = ChatNotifier(
         _FakeTts(),
         client,
+        // ⚠️ **AG-UI 那一面的运输层** —— 端脑走 `ag-ui:stream`
+        // ⇒ ⇒ 这里假的是**运输层**⇒ ⇒ 真 driver／真协议／真执行器**全在**
+        // ⇒ ⇒ 判据钉的是**生产那一路**。
+        aguiHttpClient: client.brain,
         clientTools: registryWith(channel),
         capabilityModeFor: (_) => AuthorizationMode.fullAccess,
       );

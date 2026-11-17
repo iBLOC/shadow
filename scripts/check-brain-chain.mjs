@@ -283,8 +283,18 @@ requireRule(
       pattern: /createConversation\(/,
     },
     {
+      // ⚠️ **2026-11-17 换线**：移动端对话那一路现在是 **AG-UI**
+      // （`ag-ui:stream`）⇒ ⇒ 那条流叫 `streamTurn` ⇒ ⇒ 探测器要是还
+      // 只认 legacy 的 `streamMessage(` ⇒ ⇒ 换线那天它会**当场红**
+      // ⇒ ⇒ 而那条红**不是**真问题 ⇒ ⇒ 尺子钝了没人知道 ⇒ ⇒ 现在钉
+      // **当前生产那一路**（AG-UI）⇒ ⇒ 端脑改路径，这里会当场红。
       file: 'shadow-mobile/lib/providers/chat_provider.dart',
-      pattern: /streamMessage\(/,
+      pattern: /streamTurn\(/,
+    },
+    {
+      // ⚠️ AG-UI 那一路的**端点** —— 钉住「真的打的是端脑那张面」。
+      file: 'shadow-mobile/lib/agui/agui_client.dart',
+      pattern: /\/shadow\/v1\/conversations.*ag-ui:stream/,
     },
     {
       file: 'shadow-mobile/lib/services/telencephalon/telencephalon_client.dart',

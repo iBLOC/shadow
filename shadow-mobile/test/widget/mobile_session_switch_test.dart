@@ -7,8 +7,8 @@ import 'package:shadow_mobile/providers/chat_provider.dart';
 import 'package:shadow_mobile/providers/telencephalon_provider.dart';
 import 'package:shadow_mobile/router/app_router.dart';
 import 'package:shadow_mobile/services/telencephalon/telencephalon_client.dart';
-import 'package:shadow_mobile/tts_engine.dart';
 
+import '../unit/agui_fakes.dart';
 import 'test_helper.dart';
 
 /// 移动端的「多会话」—— 以前**切不了**。
@@ -25,11 +25,23 @@ class MockTelencephalonClient extends TelencephalonClient {
   MockTelencephalonClient() : super(baseUrl: 'http://127.0.0.1:60080');
 
   int createConversationCalls = 0;
-  int streamMessageCalls = 0;
-  String? lastStreamedConversationId;
 
   /// 端脑侧「存着」的会话。
   final Map<String, Conversation> conversations = {};
+
+  /// ⚠️ **AG-UI 那一路**：端脑那一面走 `ag-ui:stream`（POST ＋ SSE）
+  /// ⇒ ⇒ 这里假的是**运输层** ⇒ ⇒ 「消息发到哪条会话」从**路径**里看。
+  final FakeAguiBrain brain = FakeAguiBrain(
+    rounds: <List<String>>[
+      <String>[aguiText('这是一条测试回复'), aguiFinished()],
+    ],
+  );
+
+  /// 发了几轮（legacy 那个计数器叫「发了几次消息」）。
+  int get streamMessageCalls => brain.roundCount;
+
+  /// 最近一次发到哪条会话。
+  String? get lastStreamedConversationId => brain.lastConversationId;
 
   @override
   Future<Conversation> createConversation({
@@ -57,27 +69,6 @@ class MockTelencephalonClient extends TelencephalonClient {
     }
     return conversation;
   }
-
-  @override
-  Stream<StreamEvent> streamMessage(
-    String conversationId,
-    SendMessageRequest req,
-  ) async* {
-    streamMessageCalls++;
-    lastStreamedConversationId = conversationId;
-    yield StreamEvent(type: 'delta', delta: '这是一条测试回复');
-    yield StreamEvent(
-      type: 'done',
-      agent: 'temporal',
-      conversationId: conversationId,
-    );
-  }
-}
-
-class MockTtsEngine extends TtsEngine {
-  @override
-  Future<TtsSpeakResult> speak(String text, {String lang = 'zh-CN', bool allowFallback = true, String? lobe}) async =>
-      const TtsSpeakResult.spoke();
 }
 
 void main() {
@@ -105,7 +96,11 @@ void main() {
       final container = ProviderContainer(
         overrides: [
           chatProvider.overrideWith(
-            (ref) => ChatNotifier(MockTtsEngine(), client),
+            (ref) => ChatNotifier(
+              MockTts(),
+              client,
+              aguiHttpClient: client.brain,
+            ),
           ),
         ],
       );
@@ -136,7 +131,11 @@ void main() {
       final container = ProviderContainer(
         overrides: [
           chatProvider.overrideWith(
-            (ref) => ChatNotifier(MockTtsEngine(), client),
+            (ref) => ChatNotifier(
+              MockTts(),
+              client,
+              aguiHttpClient: client.brain,
+            ),
           ),
         ],
       );
@@ -154,7 +153,11 @@ void main() {
       final container = ProviderContainer(
         overrides: [
           chatProvider.overrideWith(
-            (ref) => ChatNotifier(MockTtsEngine(), client),
+            (ref) => ChatNotifier(
+              MockTts(),
+              client,
+              aguiHttpClient: client.brain,
+            ),
           ),
         ],
       );
@@ -190,7 +193,11 @@ void main() {
         overrides: [
           telencephalonClientProvider.overrideWithValue(client),
           chatProvider.overrideWith(
-            (ref) => ChatNotifier(MockTtsEngine(), client),
+            (ref) => ChatNotifier(
+              MockTts(),
+              client,
+              aguiHttpClient: client.brain,
+            ),
           ),
         ],
       );

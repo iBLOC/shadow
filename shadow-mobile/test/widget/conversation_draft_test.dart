@@ -14,6 +14,7 @@ import 'package:shadow_mobile/screens/conversation_screen.dart';
 import 'package:shadow_mobile/services/telencephalon/telencephalon_client.dart';
 import 'package:shadow_mobile/tts_engine.dart';
 
+import '../unit/agui_fakes.dart';
 import 'test_helper.dart';
 
 /// 端脑会回的那份会话 JSON —— 逐字照抄 Rust 的 serde 形状
@@ -27,10 +28,6 @@ Map<String, dynamic> serverConversation(String id, String agent) => {
   'history': <Map<String, dynamic>>[],
 };
 
-/// 端脑那条流式端点的一行：data: {json}
-/// （telencephalon/src/api/shadow.rs 的 messages:stream）。
-String sseDelta(String text) =>
-    'data: ${jsonEncode({'type': 'delta', 'delta': text})}\n\n';
 
 class MockTtsEngine extends TtsEngine {
   @override
@@ -46,6 +43,14 @@ class Endbrain {
   int listCount = 0;
   String? streamPath;
 
+  /// ⚠️ **AG-UI 那一路用的**同一个**运输层** —— 真 `AguiClient`／真 SSE
+  /// 解析／真协议归约**全在** ⇒ ⇒ 只有端脑那一面是假的。
+  ///
+  /// ⚠️ **为什么必须是同一个** —— `TelencephalonClient` 自己那些调用走它
+  /// 自己的 `http.Client`，AG-UI 那一路走**另一个** ⇒ ⇒ 不共用 ⇒ ⇒ 假端脑
+  /// **看不见** AG-UI 的请求 ⇒ ⇒ 失败长得像成功。
+  late final MockClient transport = MockClient(handle);
+
   Future<http.Response> handle(http.Request req) async {
     requests.add(req);
     final path = req.url.path;
@@ -57,11 +62,16 @@ class Endbrain {
         headers: {'content-type': 'application/json; charset=utf-8'},
       );
     }
-    if (path.endsWith('/messages:stream')) {
+    // ⚠️ **只服务 AG-UI 那条**（`ag-ui:stream`）—— legacy 的
+    // `messages:stream` **故意不服务** ⇒ ⇒ 万一客户端退回 legacy 那条
+    // ⇒ ⇒ 请求会掉进下面的兜底 ⇒ ⇒ 判据当场红（而不是悄悄通过）。
+    if (path.endsWith('/ag-ui:stream')) {
       streamCount++;
       streamPath = path;
+      // ⚠️ **AG-UI 的帧**（不是 legacy 的 delta）⇒ ⇒ 真 driver／真协议
+      // 归约**全在** ⇒ ⇒ 只有端脑那一面是假的。
       return http.Response(
-        sseDelta('好，换好了'),
+        '${aguiText('好，换好了')}${aguiFinished()}',
         200,
         headers: {'content-type': 'text/event-stream; charset=utf-8'},
       );
@@ -97,7 +107,8 @@ class Endbrain {
 TelencephalonClient liveClient(Endbrain endbrain) => TelencephalonClient(
   baseUrl: 'http://127.0.0.1:60080',
   apiKey: 'shadow-key-abc',
-  client: MockClient(endbrain.handle),
+  // ⚠️ **与 AG-UI 那一路共用同一个运输层** ⇒ ⇒ 假端脑两边都看得见。
+  client: endbrain.transport,
 );
 
 void main() {
@@ -106,7 +117,12 @@ void main() {
   group('草稿会话：客户端不许在端脑造垃圾', () {
     test('「新对话」⇒ 端脑那边**一个请求都没有**', () async {
       final endbrain = Endbrain();
-      final notifier = ChatNotifier(MockTtsEngine(), liveClient(endbrain));
+      final notifier = ChatNotifier(
+        MockTtsEngine(),
+        liveClient(endbrain),
+        // ⚠️ **AG-UI 那一路的运输层** ⇒ ⇒ 假端脑**看得见**那些请求。
+        aguiHttpClient: endbrain.transport,
+      );
       addTearDown(notifier.dispose);
 
       await notifier.startNewConversation();
@@ -127,7 +143,12 @@ void main() {
 
     test('草稿里的第一条消息 ⇒ 恰好建一条会话，消息落进它', () async {
       final endbrain = Endbrain();
-      final notifier = ChatNotifier(MockTtsEngine(), liveClient(endbrain));
+      final notifier = ChatNotifier(
+        MockTtsEngine(),
+        liveClient(endbrain),
+        // ⚠️ **AG-UI 那一路的运输层** ⇒ ⇒ 假端脑**看得见**那些请求。
+        aguiHttpClient: endbrain.transport,
+      );
       addTearDown(notifier.dispose);
 
       await notifier.startNewConversation();
@@ -138,7 +159,7 @@ void main() {
       // ⇒ ⇒ 消息落在**刚建出来的那条**会话上（不是别的）。
       expect(
         endbrain.streamPath,
-        '/shadow/v1/conversations/conv-new-1/messages:stream',
+        '/shadow/v1/conversations/conv-new-1/ag-ui:stream',
       );
       expect(notifier.state.sessionId, 'conv-new-1');
       expect(notifier.state.activeConversationAgent, 'temporal');
@@ -147,7 +168,12 @@ void main() {
 
     test('切会话失败之后「新对话」⇒ 闸门解开（草稿是干净的）', () async {
       final endbrain = Endbrain();
-      final notifier = ChatNotifier(MockTtsEngine(), liveClient(endbrain));
+      final notifier = ChatNotifier(
+        MockTtsEngine(),
+        liveClient(endbrain),
+        // ⚠️ **AG-UI 那一路的运输层** ⇒ ⇒ 假端脑**看得见**那些请求。
+        aguiHttpClient: endbrain.transport,
+      );
       addTearDown(notifier.dispose);
 
       final ok = await notifier.switchTo('conv-missing');

@@ -1,3 +1,22 @@
+**Updated**: 2026-11-17 (㞂 **「手机这一侧终于走 AG-UI —— 对话那条流**换线**了，工具结果**随下一次请求**带回去」** —— 承影仓 U+3781 条（移动端换线那族），本条记**落点**、**判据三层**、**迁移八处**、**自曝三处**、**真变异五道**、**读数**，以及**仍然欠着的**.)
+
+> 信封：epoch=2026-11-17 | authority=measured | scope=project | source=承影仓 U+3781 条（移动端换线那族）｜ 改动：lib/agui/agui_device_tool.dart（**新**）＋ lib/providers/chat_provider.dart（**换线 AG-UI** ＋ 三处诚实性修正）＋ test/unit/agui_fakes.dart（**新**：共享假件）＋ **八个** legacy 判据文件（**迁移**）｜ 读数：移动端**全量 1078 过 / 13 跳 / 0 红**（本刀前 35 红）＋ analyze **0 错** ＋ 十一文件合跑 **152 过 / 0 红** ＋ 真变异 **5 道各当场红**、还原 sha256 逐字一致 ｜ 闸：影仓脚本闸 **13 绿 / 8 红**（零命中本刀文件）｜ 闸自检：check-brain-chain --self-test **11/11 绿** ＋ 闸本身真变异**当场红** | status=active | supersedes=none
+
+① **✅ 落点（移动端第一次有 AG-UI）** —— ❶ **lib/agui/agui_device_tool.dart（新）**：设备工具判定**纯函数层** —— `decideAguiToolCall` 五道闸（名字空／这台设备不会这个活／能力「彻底关闭」／参数不是合法 JSON／权限声明对不上）＋ `aguiInlineFilesFromAttachments`（legacy 的 `media_type` ⇒ AG-UI 的 `mimeType`；**缺键响亮地拒**）。❷ **lib/providers/chat_provider.dart（换线）**：对话那条流从 legacy 的 `streamMessage` 换成 **AG-UI 的 `ag-ui:stream`**；工具执行器、审批流（**`Completer` 等点头**，拒绝也**必须**结束它）、结果回传（**随下一次请求**带回去）全部接上。❸ **test/unit/agui_fakes.dart（新）**：共享假件 —— `FakeAguiBrain` **只假运输层**（假 `http.Client`）⇒ ⇒ 真 driver／真 SSE 解析／真协议归约／真执行器**全在** ⇒ ⇒ 判据钉的是**生产那一路**。
+
+② **⚠️ 为什么「不 await」是新的写法** —— AG-UI 的工具**在回合内**执行 ⇒ ⇒ driver **等**用户点头 ⇒ ⇒ `await generateResponse(...)` 在「等你点头」那一档会**挂死** ⇒ ⇒ 那一族判据必须改成「**先不等**，等卡片落到 `awaitingApproval` ⇒ ⇒ 再点头／拒绝 ⇒ ⇒ 再 await」。⚠️ 顺带一格：**档位在客户端这一侧生效** —— AG-UI 的入参**没有** `capability_modes` ⇒ ⇒ 「彻底关闭」⇒ 工具**不进** tools 清单；「每次询问」⇒ 等点头；「完全访问」⇒ 直接跑。
+
+③ **⚠️ 自曝三处（都是「界面在说谎」那一族）** —— ❶ **失败与拒绝不亮「已回传」**：AG-UI 路的结果**随下一次请求**带回去 ⇒ ⇒ 那**就是**回传 ⇒ ⇒ 卡片不许停在「还没回传」⇒ ⇒ 两处补上（判定失败分支 ＋ `denyToolCall`）。❷ **「tool_failed」事件把整张工具卡片换掉** ⇒ ⇒ 连同「已回传」那一格 ＋ 能力／权限／参数那一格**一起抹掉** ⇒ ⇒ 用户看到的是工具名而不是「读取日历」⇒ ⇒ 改成**合并**。❸ **AG-UI 路走 legacy 旁路没人拦** ⇒ ⇒ 结果会**发两次** ⇒ ⇒ 补判据（`ToolMockClient.legacyReports` 必须是空）。
+
+④ **✅ 判据三层（152 条合跑全绿）** —— ❶ 纯函数层 **13**（五道闸 ＋ 附件映射）；❷ provider 层 **7**（文本累积／RUN_ERROR 带端脑原话／无 RUN_FINISHED 抛／非 2xx 带原话／tools 清单形状／「彻底关闭」不进清单／附件内联）；❸ 工具语义层 **19**（结果随下一次请求带回去／tools 清单／未知工具失败带 error／工具抛异常／只有工具调用不算错／审批与拒绝／dispose 不崩／手机操作一轮一次／日历逐条弹／轨迹 ingest／A2UI surface id）。❹ **八个 legacy 判据文件迁完**（chat_provider／capability_grants／capability_modes_e2e／chat_token_stats／chat_message_actions／mobile_session_switch／conversation_draft／mobile_conversation_contract）—— **改判据不删判据**，钉的机制一个没变。
+
+⑤ **✅ 真变异五道（各当场红 ＋ 还原 sha256 逐字一致）** —— ❶ 附件 MIME 接缝读错键名 ⇒ **红**（三条）；❷ 失败不亮「已回传」⇒ **红**（两条）；❸ tool_failed 整张换卡 ⇒ **红**（两条）；❹ 工具清单不进请求 ⇒ **红**（一条）；❺ AG-UI 路又走 legacy 旁路 ⇒ **红**（一条）。
+
+⑥ **⚠️ 读数（如实）** —— ❶ `flutter analyze` **0 错**（61 条存量 info）。❷ 移动端**全量 1078 过 / 13 跳 / 0 红**（本刀之前 35 红）。❸ 十一文件合跑 **152 过 / 0 红**。❹ 闸 **13 绿 / 8 红**（八红逐条核对后**零命中本刀文件** ⇒ ⇒ 不代修、不销账）。
+
+⑦ **⚠️ 仍然欠着的** —— ❶ **真机读数**：设备未授权（需人在设备点「允许 USB 调试」）⇒ ⇒ **那一格是空的**。❷ **附件的文件名在 AG-UI 这一路丢了**（part 只有 `{type, source:{type,value,mimeType}}`）⇒ ⇒ 桌面端同样丢 ⇒ ⇒ 判据只钉 MIME ＋ 字节 ⇒ ⇒ 缺口记在这里。❸ 真机端脑**重编**才有 `protocolVersion`。❹ 移动端设备工具在**旧 sidecar** 上能否点名，未知。❺ **G1 治本档**仍缓（兄弟未落库的 `synapse/src/a2a/server.rs`）。
+
+⑧ **⚠ 圈码：本条占 U+3782 (㞂)** —— 落笔前**逐字重扫**三本账本 ⇒ ⇒ 父仓水位 U+377F／移动端 U+3780／桌面端 U+357B ⇒ ⇒ **U+3781 起**三本皆 0 命中 ⇒ ⇒ 父仓取 **U+3781**、移动端取 **U+3782**（两枚**互不相同**（R1′）＋ 各自高于自己那一本的水位）⇒ ⇒ 字形由 String.fromCodePoint() 生成，不手打。
 **Updated:** 2026-11-17 (㕼 **「移动端这一侧：清单登记 ＋ 文案补齐 —— 「资源管理」这一格在两端同名同义；移动端入口待接线」** —— 承影仓 U+357A 条（桌面端资源管理页），本条记**本仓那一半**、**为什么必须动移动端**、**读数**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-17 | authority=measured | scope=project | source=承影仓 U+357A 条（桌面端资源管理页）｜ 改动：lib/l10n/app_{en,zh}.arb（＋surfaceResources）＋ lib/generated/l10n/×3（重生成）＋ lib/navigation/nav.g.dart（重生成）＋ 本条 ⇒ ⇒ **7 文件** ＋ 零新增依赖 ＋ 零新增端点 ｜ 读数：flutter analyze（生成物两处）**No issues found** ＋ 跨端一致性闸 **0 阻断 / 0 提示** ＋ i18n 齐备度 **1100/1100** ｜ 闸：**45 绿 / 15 红 / 2 判不了**（62 道脚本闸全跑；十五道红**逐字零命中本刀文件** ⇒ ⇒ 不代修、不销账 —— ⚠️ 两处提到 agent-surface.json 的是**存量债**：替换字符闸那边 HEAD／工作树／提交版**都是 3 个 U+FFFD**（本刀**零新增**），遗留残留闸**自己写着**「能力清单正在被别的会话改，本轮不动它」；⚠️ 2 道**判不了**（exit 2，不算红）：check-ci-actually-ran（要 CI 上下文）＋ check-msrv-floor（仓级脚本）） | status=active | supersedes=none

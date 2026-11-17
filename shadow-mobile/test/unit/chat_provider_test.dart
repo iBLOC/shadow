@@ -10,6 +10,8 @@ import 'package:shadow_mobile/l10n/current_l10n.dart';
 import 'package:shadow_mobile/tts_engine.dart';
 import 'package:shadow_mobile/services/telencephalon/telencephalon_client.dart';
 
+import 'agui_fakes.dart';
+
 /// 端脑 client 的 mock —— 对话走**端脑方言**
 /// （`/shadow/v1/conversations`），与桌面端同一条链路。
 ///
@@ -21,15 +23,22 @@ class MockTelencephalonClient extends TelencephalonClient {
 
   /// 建了几次会话 —— 用来断言「附件被拒时**根本没到端脑**」。
   int createConversationCalls = 0;
-  int streamMessageCalls = 0;
 
-  /// **最后一次发出去的请求** —— 用来断言「图片**真的**进了请求体」。
+  /// AG-UI 那一面的**假端脑**。
   ///
-  /// ⚠️ 为什么必须有它：以前这条链是「带附件 ⇒ 报错 ⇒ 压根没发」⇒ ⇒
-  /// 「没发」这件事由 `streamMessageCalls == 0` 就能看出来 ⇒ ⇒ 现在图片
-  /// **真的发了** ⇒ ⇒ 那个计数**证明不了**「图在不在里面」⇒ ⇒ 必须把
-  /// 请求体本身抓下来看。
-  SendMessageRequest? lastRequest;
+  /// ⚠️ **只假运输层** —— driver／SSE 解析／协议归约／provider 的执行器
+  /// **全都是真的** ⇒ ⇒ 判据钉的是**生产那一路**（与桌面端 `fetchImpl`
+  /// 假法同口径）。
+  ///
+  /// ⚠️ **为什么回复内容是「按需算」的**：「空回复＝失败」那一档必须能测
+  /// ⇒ ⇒ 内容必须在**发请求那一刻**才读（写死在这里就测不出来）。
+  late final FakeAguiBrain brain = FakeAguiBrain(
+    rounds: const <List<String>>[],
+    framesFor: (int round, Map<String, dynamic> request) => <String>[
+      if (mockResponse.isNotEmpty) aguiText(mockResponse),
+      aguiFinished(),
+    ],
+  );
 
   MockTelencephalonClient() : super(baseUrl: 'http://127.0.0.1:60080');
 
@@ -52,23 +61,9 @@ class MockTelencephalonClient extends TelencephalonClient {
     );
   }
 
-  @override
-  Stream<StreamEvent> streamMessage(
-    String conversationId,
-    SendMessageRequest req,
-  ) async* {
-    streamMessageCalls++;
-    lastRequest = req;
-    if (!shouldSucceed) {
-      throw Exception('Mock streamMessage failed');
-    }
-    yield StreamEvent(type: 'delta', delta: mockResponse);
-    yield StreamEvent(
-      type: 'done',
-      agent: 'test-agent',
-      conversationId: conversationId,
-    );
-  }
+  // ⚠️ **legacy 的 `streamMessage` 不再被调用** —— 生产那一路已经换成
+  // AG-UI（`ag-ui:stream`）⇒ ⇒ 这里**只假运输层**（[brain]）⇒ ⇒ 真
+  // driver／真协议归约／真执行器**全在**。
 }
 
 class MockTtsEngine extends TtsEngine {
@@ -94,7 +89,9 @@ void main() {
   ) {
     final c = ProviderContainer(
       overrides: [
-        chatProvider.overrideWith((ref) => ChatNotifier(tts, client)),
+        chatProvider.overrideWith(
+          (ref) => ChatNotifier(tts, client, aguiHttpClient: client.brain),
+        ),
       ],
     );
     addTearDown(c.dispose);
@@ -172,7 +169,7 @@ void main() {
       expect(state.errorMessage, isNotNull);
       expect(state.isLoading, isFalse);
       // 端脑答的不能再有本地兜底的第二次机会。
-      expect(mockClient.streamMessageCalls, 0);
+      expect(mockClient.brain.roundCount, 0);
     });
 
     test('端脑返回空内容时视为失败', () async {
@@ -236,24 +233,20 @@ void main() {
       final state = container.read(chatProvider);
       expect(state.errorMessage, isNull);
       // 图**真的**发出去了。
-      expect(mockClient.streamMessageCalls, 1);
-      final attachments = mockClient.lastRequest?.attachments;
-      expect(attachments, isNotNull, reason: 'the request must carry the image');
-      expect(attachments!.length, 1);
-      expect(attachments.first['media_type'], 'image/jpeg');
+      expect(mockClient.brain.roundCount, 1);
+      // ⚠️ **这里抓到的就是「真正发出去的那个形状」** —— 假端脑是从**请求体
+      // 的字节**里解出来的 ⇒ ⇒ 比 legacy 那个「请求对象」还靠下一层
+      // ⇒ ⇒ 变异掉 `toJson`／附件映射**当场红**。
+      final request = mockClient.brain.requests.single;
+      final parts = aguiAttachmentParts(request);
+      expect(parts, hasLength(1), reason: 'the request must carry the image');
+      // ⚠️ **键名是接缝**：AG-UI 用 **mimeType**（驼峰），不是 legacy 的
+      // media_type ⇒ ⇒ 照抄键名 ⇒ ⇒ 端脑按错类型处理（把 PDF 当纯文本
+      // 解 ⇒ ⇒ 乱码）⇒ ⇒ **失败长得像成功**。
+      expect(aguiAttachmentMimeType(request), 'image/jpeg');
+      final source = parts.first['source'] as Map<String, dynamic>;
       // base64 必须与文件字节**逐字**一致 ⇒ ⇒ 不能是空串、不能是文件名。
-      expect(attachments.first['data'], base64Encode(bytes));
-      // ⚠️ **还要钉住「真正发出去的那个形状」** ⇒ ⇒ 请求**对象**里带着图
-      // **不等于**请求**体**里带着图 ⇒ ⇒ 真机上发出去的是 `toJson()` 的
-      // 结果 ⇒ ⇒ 只断言对象 ⇒ ⇒ 变异掉 `toJson` 那一条**照样全绿**
-      // （实测踩过：变异 `toJson` 不带 attachments ⇒ ⇒ 下面这条判据**没
-      // 红**，而「请求体形状」那条红了 ⇒ ⇒ 两处都得钉）。
-      final wire = mockClient.lastRequest!.toJson();
-      expect(wire.containsKey('attachments'), isTrue);
-      final wireAttachments = wire['attachments'] as List<dynamic>;
-      expect(wireAttachments.length, 1);
-      expect(
-          (wireAttachments.first as Map<String, dynamic>)['data'], base64Encode(bytes));
+      expect(source['value'], base64Encode(bytes));
       // 消息**真的**进了对话流 ⇒ ⇒ 用户不会以为它发出去了却没发。
       expect(state.messages.length, 2);
       // 候选行清空 ⇒ ⇒ 用户再点一次发送不会把同一张图**再发一遍**。
@@ -280,12 +273,17 @@ void main() {
 
       final state = container.read(chatProvider);
       expect(state.errorMessage, isNull);
-      expect(mockClient.streamMessageCalls, 1);
-      final attachments = mockClient.lastRequest!.attachments!;
-      expect(attachments.length, 1);
-      expect(attachments.first['media_type'], 'text/plain');
-      expect(attachments.first['data'], base64Encode(bytes));
-      expect(attachments.first['filename'], 'note.txt');
+      expect(mockClient.brain.roundCount, 1);
+      final request = mockClient.brain.requests.single;
+      final parts = aguiAttachmentParts(request);
+      expect(parts, hasLength(1));
+      expect(aguiAttachmentMimeType(request), 'text/plain');
+      final source = parts.first['source'] as Map<String, dynamic>;
+      expect(source['value'], base64Encode(bytes));
+      // ⚠️ **文件名在 AG-UI 这一路丢了** —— part 只有
+      // `{type, source:{type,value,mimeType}}` ⇒ ⇒ 没有 filename 那一格
+      // ⇒ ⇒ **桌面端同样丢**（两端同口径）⇒ ⇒ 这里**不钉**文件名
+      // ⇒ ⇒ 缺口记在台账里，不许当成「钉住了」。
     });
 
     test('带 **PDF** → 也能真发', () async {
@@ -307,9 +305,11 @@ void main() {
 
       final state = container.read(chatProvider);
       expect(state.errorMessage, isNull);
-      final attachments = mockClient.lastRequest!.attachments!;
-      expect(attachments.first['media_type'], 'application/pdf');
-      expect(attachments.first['filename'], 'doc.pdf');
+      final request = mockClient.brain.requests.single;
+      final parts = aguiAttachmentParts(request);
+      expect(parts, hasLength(1));
+      expect(aguiAttachmentMimeType(request), 'application/pdf');
+      // ⚠️ 文件名同样丢了（见上面那一格）⇒ ⇒ 这里只钉 MIME。
     });
 
     test('**这一档还没接**（视频）→ 明确报错说清原因，且根本没到端脑', () async {
@@ -337,7 +337,7 @@ void main() {
       // ⚠️ **原因要说清是「这一类还没接」** ⇒ ⇒ 不是「你配得不对」⇒ ⇒
       // 用户去换模型**也没用** ⇒ ⇒ 不能让他白折腾。
       expect(state.errorMessage, contains('unsupported'));
-      expect(mockClient.streamMessageCalls, 0);
+      expect(mockClient.brain.roundCount, 0);
       expect(state.messages, isEmpty);
     });
 
@@ -366,7 +366,7 @@ void main() {
         equals(ChatStateL10nKey.errorAttachmentFailed),
       );
       expect(state.errorMessage, contains('unsupported'));
-      expect(mockClient.streamMessageCalls, 0);
+      expect(mockClient.brain.roundCount, 0);
       expect(state.messages, isEmpty);
     });
 
@@ -386,7 +386,7 @@ void main() {
         state.errorMessageL10nKey,
         equals(ChatStateL10nKey.errorAttachmentFailed),
       );
-      expect(mockClient.streamMessageCalls, 0);
+      expect(mockClient.brain.roundCount, 0);
     });
 
     test('带**相机照片** → 现在也能真发（它就是一张图片）', () async {
@@ -411,8 +411,8 @@ void main() {
       );
 
       expect(container.read(chatProvider).errorMessage, isNull);
-      expect(mockClient.streamMessageCalls, 1);
-      expect(mockClient.lastRequest!.attachments!.first['media_type'],
+      expect(mockClient.brain.roundCount, 1);
+      expect(aguiAttachmentMimeType(mockClient.brain.requests.single),
           'image/jpeg');
     });
 
@@ -441,7 +441,7 @@ void main() {
         equals(ChatStateL10nKey.errorAttachmentFailed),
       );
       expect(state.errorMessage, contains('too many'));
-      expect(mockClient.streamMessageCalls, 0);
+      expect(mockClient.brain.roundCount, 0);
     });
 
     test('带音频字节（不是文件）→ 明确报错，且根本没到端脑', () async {
@@ -463,7 +463,7 @@ void main() {
         state.errorMessageL10nKey,
         equals(ChatStateL10nKey.errorAttachmentFailed),
       );
-      expect(mockClient.streamMessageCalls, 0);
+      expect(mockClient.brain.roundCount, 0);
     });
 
     test('没有附件时照常走端脑', () async {
@@ -596,7 +596,7 @@ void main() {
       await notifier.generateResponse('第二句');
 
       expect(mockClient.createConversationCalls, 1);
-      expect(mockClient.streamMessageCalls, 2);
+      expect(mockClient.brain.roundCount, 2);
       expect(container.read(chatProvider).messages.length, equals(4));
     });
   });

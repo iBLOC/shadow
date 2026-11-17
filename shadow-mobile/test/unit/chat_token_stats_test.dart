@@ -1,17 +1,27 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shadow_mobile/providers/chat_provider.dart';
 import 'package:shadow_mobile/services/telencephalon/telencephalon_client.dart';
-import 'package:shadow_mobile/tts_engine.dart';
 
-class MockTts extends TtsEngine {
-  @override
-  Future<TtsSpeakResult> speak(String text, {String lang = 'zh-CN', bool allowFallback = true, String? lobe}) async =>
-      const TtsSpeakResult.spoke();
-}
+import 'agui_fakes.dart';
 
 /// 分多次吐 delta 的端脑 mock —— 造「真的流过」的计时窗。
 class StreamingMockClient extends TelencephalonClient {
   StreamingMockClient() : super(baseUrl: 'http://127.0.0.1:60080');
+
+  /// ⚠️ **AG-UI 那一路**：端脑那一面走 `ag-ui:stream`（POST ＋ SSE）
+  /// ⇒ ⇒ 这里假的是**运输层** ⇒ ⇒ 三段文本是三帧 SSE（中间有间隔
+  /// ⇒ ⇒ 「真的流过」那个计时窗才成立）。
+  final FakeAguiBrain brain = FakeAguiBrain(
+    rounds: <List<String>>[
+      <String>[
+        aguiText('你'),
+        aguiText('好'),
+        aguiText('呀'),
+        aguiFinished(),
+      ],
+    ],
+    frameDelay: const Duration(milliseconds: 5),
+  );
 
   @override
   Future<Conversation> createConversation({
@@ -26,19 +36,6 @@ class StreamingMockClient extends TelencephalonClient {
       updatedAt: now,
       history: const [],
     );
-  }
-
-  @override
-  Stream<StreamEvent> streamMessage(
-    String conversationId,
-    SendMessageRequest req,
-  ) async* {
-    await Future<void>.delayed(const Duration(milliseconds: 5));
-    yield StreamEvent(type: 'delta', delta: '你');
-    await Future<void>.delayed(const Duration(milliseconds: 5));
-    yield StreamEvent(type: 'delta', delta: '好');
-    await Future<void>.delayed(const Duration(milliseconds: 5));
-    yield StreamEvent(type: 'delta', delta: '呀');
   }
 }
 
@@ -91,7 +88,12 @@ void main() {
   // ---- provider 接线：流完才挂读数 ＋ 时间戳 ---------------------------
 
   test('generateResponse 流完 ⇒ 助手消息带 token 读数与 createdAt', () async {
-    final notifier = ChatNotifier(MockTts(), StreamingMockClient());
+    final client = StreamingMockClient();
+    final notifier = ChatNotifier(
+      MockTts(),
+      client,
+      aguiHttpClient: client.brain,
+    );
     await notifier.generateResponse('问题');
     final messages = notifier.state.messages;
     expect(messages, hasLength(2));
@@ -106,7 +108,7 @@ void main() {
     expect(messages[1].createdAt, isNotNull);
   });
 
-  test('没有 delta 就没有读数（不编数字）⇒ 失败路径无 stats', () async {
+  test('没有 delta 就没有读数（不编数字）⇒ 失败路径无 stats', () {
     // 直接构造「从服务端历史切进来」形状的消息：没有 tokenStats，
     // 界面只显时间 —— 这是模型层的判据，UI 按同一判据裁剪。
     final m = ChatMessageModel('历史回复', ChatRole.assistant);

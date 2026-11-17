@@ -14,6 +14,7 @@ import 'package:shadow_mobile/providers/telencephalon_provider.dart';
 import 'package:shadow_mobile/screens/conversation_screen.dart';
 import 'package:shadow_mobile/services/telencephalon/telencephalon_client.dart';
 
+import '../unit/agui_fakes.dart';
 import 'test_helper.dart';
 
 /// 端脑**真的**会回的那份 JSON —— 逐字照抄 Rust 那边的 serde 形状：
@@ -76,10 +77,13 @@ void main() {
   TelencephalonClient liveClient(
     Future<http.Response> Function(http.Request) handler, {
     String? apiKey = 'shadow-key-abc',
+    // ⚠️ **共用同一个运输层** —— AG-UI 那一路走**另一个** `http.Client`
+    // ⇒ ⇒ 不共用 ⇒ ⇒ 假端脑**看不见** AG-UI 的请求 ⇒ ⇒ 失败长得像成功。
+    http.Client? transport,
   }) => TelencephalonClient(
     baseUrl: 'http://127.0.0.1:60080',
     apiKey: apiKey,
-    client: MockClient(handler),
+    client: transport ?? MockClient(handler),
   );
 
   group('端脑会话契约（真 client + 真 HTTP 传输层）', () {
@@ -264,12 +268,15 @@ void main() {
   group('切会话 / 新开会话（真 client + 真 HTTP）', () {
     test('切会话：拉的是**那条**会话，下一条消息**续在它上面**（不新建）', () async {
       final requests = <http.Request>[];
-      final client = liveClient((req) async {
+      Future<http.Response> handler(http.Request req) async {
         requests.add(req);
-        if (req.url.path.endsWith(':stream')) {
+        // ⚠️ **只服务 AG-UI 那条**（`ag-ui:stream`）—— legacy 那条
+        // **故意不服务** ⇒ ⇒ 客户端退回 legacy ⇒ ⇒ 判据当场红。
+        if (req.url.path.endsWith('/ag-ui:stream')) {
+          // ⚠️ **AG-UI 的帧**（不是 legacy 的 delta）⇒ ⇒ 真 driver／真
+          // 协议归约**全在** ⇒ ⇒ 只有端脑那一面是假的。
           return http.Response(
-            'data: {"type":"delta","delta":"续上的回复"}\n'
-            'data: {"type":"done","conversation_id":"conv-a"}\n',
+            '${aguiText('续上的回复')}${aguiFinished()}',
             200,
             headers: {'content-type': 'text/event-stream; charset=utf-8'},
           );
@@ -279,9 +286,17 @@ void main() {
           200,
           headers: {'content-type': 'application/json; charset=utf-8'},
         );
-      });
+      }
 
-      final notifier = ChatNotifier(MockTtsEngine(), client);
+      // ⚠️ **同一个运输层** —— AG-UI 那一路也走它 ⇒ ⇒ 假端脑看得见。
+      final MockClient transport = MockClient(handler);
+      final client = liveClient(handler, transport: transport);
+
+      final notifier = ChatNotifier(
+        MockTtsEngine(),
+        client,
+        aguiHttpClient: transport,
+      );
       final ok = await notifier.switchTo('conv-a');
       expect(ok, isTrue);
 
@@ -298,7 +313,7 @@ void main() {
       final stream = requests.lastWhere((r) => r.url.path.endsWith(':stream'));
       expect(
         stream.url.path,
-        '/shadow/v1/conversations/conv-a/messages:stream',
+        '/shadow/v1/conversations/conv-a/ag-ui:stream',
       );
       expect(
         requests.where(

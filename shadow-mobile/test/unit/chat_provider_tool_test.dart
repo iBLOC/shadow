@@ -1,107 +1,13 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shadow_mobile/providers/chat_provider.dart';
 import 'package:shadow_mobile/services/capabilities/capability.dart';
 import 'package:shadow_mobile/services/capabilities/sensitive_packages.dart';
 import 'package:shadow_mobile/services/client_tools/client_tool_registry.dart';
-import 'package:shadow_mobile/services/telencephalon/telencephalon_client.dart';
-import 'package:shadow_mobile/tts_engine.dart';
 
-class MockTts extends TtsEngine {
-  @override
-  Future<TtsSpeakResult> speak(String text, {String lang = 'zh-CN', bool allowFallback = true, String? lobe}) async =>
-      const TtsSpeakResult.spoke();
-}
-
-/// 会发一串事件、并记录「结果回传」的端脑 mock。
-class ToolMockClient extends TelencephalonClient {
-  final List<StreamEvent> events;
-
-  /// 每次结果回传的请求体。
-  final List<Map<String, dynamic>> reports = [];
-
-  /// 每次发消息的请求体（用来断言「发出去什么」）。
-  final List<SendMessageRequest> requests = [];
-
-  /// 模拟端脑还没上这个端点（404）。
-  bool reportThrows = false;
-
-  /// 实时流 override —— 「同一轮多条 tool_call」的时序测试用
-  /// （静态 events 是一次性 yield，做不出「收到结果才发下一条」）。
-  Stream<StreamEvent>? streamOverride;
-
-  /// 「思维定式」ingest 调用的记录（测试断言用）。
-  final List<Map<String, dynamic>> ingestCalls = <Map<String, dynamic>>[];
-
-  ToolMockClient(this.events) : super(baseUrl: 'http://127.0.0.1:60080');
-
-  @override
-  Future<void> ingestTrace({
-    required String source,
-    required List<Map<String, dynamic>> trajectory,
-    String? userInput,
-    String? intentSignature,
-  }) async {
-    ingestCalls.add(<String, dynamic>{
-      'source': source,
-      'trajectory': trajectory,
-      'user_input': userInput,
-      'intent_signature': intentSignature,
-    });
-  }
-
-  @override
-  Future<Conversation> createConversation({
-    String? agent,
-    String? systemPrompt,
-  }) async {
-    final now = DateTime.now();
-    return Conversation(
-      id: 'conv-1',
-      agent: agent ?? 'test-agent',
-      createdAt: now,
-      updatedAt: now,
-      history: const [],
-    );
-  }
-
-  @override
-  Stream<StreamEvent> streamMessage(
-    String conversationId,
-    SendMessageRequest req,
-  ) async* {
-    requests.add(req);
-    final override = streamOverride;
-    if (override != null) {
-      yield* override;
-      return;
-    }
-    for (final event in events) {
-      yield event;
-    }
-  }
-
-  @override
-  Future<void> reportToolResult(
-    String conversationId, {
-    required String name,
-    String? toolCallId,
-    required Object? result,
-    bool ok = true,
-  }) async {
-    if (reportThrows) {
-      throw TelencephalonException('POST → 404: Not Found');
-    }
-    reports.add({
-      'conversation_id': conversationId,
-      'name': name,
-      'tool_call_id': toolCallId,
-      'result': result,
-      'ok': ok,
-    });
-  }
-}
+import 'agui_fakes.dart';
 
 void main() {
   /// 对话流里最后那张工具卡片。
@@ -113,23 +19,47 @@ void main() {
     return calls.isEmpty ? null : calls.last;
   }
 
-  /// 工具的执行 + 回传是**后台**跑的（不阻塞 SSE 读循环）⇒ 测试要等它落定。
-  ///
-  /// 「落定」= 状态到了终态 **并且**「结果回传」那条也走完了
-  /// （成功 ⇒ reported；失败 ⇒ reportErrorText）。
-  Future<void> waitForSettled(ChatNotifier notifier) async {
+  /// 等最后一张工具卡片进入指定状态。
+  Future<void> waitForStatus(
+    ChatNotifier notifier,
+    ToolCallStatus status,
+  ) async {
     for (var i = 0; i < 200; i++) {
       final call = lastToolCall(notifier);
-      if (call != null) {
-        final terminal = call.status == ToolCallStatus.succeeded ||
-            call.status == ToolCallStatus.failed;
-        if (terminal && (call.reported || call.reportErrorText != null)) {
-          return;
-        }
-      }
+      if (call != null && call.status == status) return;
       await Future<void>.delayed(const Duration(milliseconds: 5));
     }
-    fail('工具调用在 1 秒内没落定');
+    fail('1 秒内没等到状态 $status');
+  }
+
+  /// 等某张**指定的**卡片进入指定状态。
+  ///
+  /// ⚠️ 为什么不能只等「最后一张卡片」：那一格在「等点头」时会**立刻**命中
+  /// ⇒ ⇒ 断言会落在**上一张**卡上 ⇒ ⇒ 读数是假的。
+  Future<void> waitForCall(
+    ChatNotifier notifier,
+    String id,
+    ToolCallStatus status,
+  ) async {
+    for (var i = 0; i < 200; i++) {
+      final call = lastToolCall(notifier);
+      if (call != null && call.id == id && call.status == status) return;
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+    }
+    fail('1 秒内没等到 $id 进入 $status');
+  }
+
+  /// 「工具结果随**下一次请求**带回去」—— 那条 tool 消息。
+  ///
+  /// ⚠️ AG-UI 的闭环**不是** `/tool-results` 旁路 ⇒ ⇒ 结果在**下一次请求的**
+  /// `messages[]` 末尾 ⇒ ⇒ 判据只能在这儿找它。
+  Map<String, dynamic>? toolMessageOf(Map<String, dynamic> request) {
+    final messages = request['messages'] as List<dynamic>;
+    for (final dynamic m in messages.reversed) {
+      final Map<String, dynamic> msg = (m as Map).cast<String, dynamic>();
+      if (msg['role'] == 'tool') return msg;
+    }
+    return null;
   }
 
   ClientToolRegistry themeTool(List<Map<String, dynamic>> executed) {
@@ -145,136 +75,117 @@ void main() {
     ]);
   }
 
-  group('端脑 tool_call → 客户端执行 → 回传端脑', () {
-    test('执行成功：卡片是 succeeded，结果回传了端脑', () async {
+  group('端脑 tool_call → 客户端执行 → 结果随**下一次请求**带回去', () {
+    test('执行成功：卡片是 succeeded，结果随下一次请求带回去', () async {
       final executed = <Map<String, dynamic>>[];
-      final client = ToolMockClient([
-        StreamEvent(
-          type: 'tool_call',
-          name: 'set_theme',
-          args: parseToolArgs('{"color":"#4F46E5"}'),
-        ),
-        StreamEvent(type: 'delta', delta: '主题换好了'),
-      ]);
+      final brain = FakeAguiBrain(
+        rounds: <List<String>>[
+          <String>[
+            ...aguiToolCall(
+              toolCallId: 'tc1',
+              toolCallName: 'set_theme',
+              argsJson: '{"color":"#4F46E5"}',
+            ),
+            aguiFinished(),
+          ],
+          <String>[aguiText('主题换好了'), aguiFinished(runId: 'r2')],
+        ],
+      );
       final notifier = ChatNotifier(
         MockTts(),
-        client,
+        ToolMockClient(),
         clientTools: themeTool(executed),
+        aguiHttpClient: brain,
       );
 
       await notifier.generateResponse('把主题换成靛蓝');
-      await waitForSettled(notifier);
 
       final call = lastToolCall(notifier);
       expect(call, isNotNull);
       expect(call!.name, 'set_theme');
       expect(call.status, ToolCallStatus.succeeded);
       expect(call.args['color'], '#4F46E5');
-      expect(call.reported, isTrue);
 
       // 本地真的执行了，参数是对的。
       expect(executed.single['color'], '#4F46E5');
 
-      // 结果回传端脑了。
-      expect(client.reports, hasLength(1));
-      expect(client.reports.single['name'], 'set_theme');
-      expect(client.reports.single['ok'], isTrue);
-      expect(
-        (client.reports.single['result'] as Map)['applied'],
-        'accent',
+      // ⚠️ **结果随下一次请求带回去**（端脑那头据此续轮）。
+      expect(brain.roundCount, 2);
+      final Map<String, dynamic>? toolMessage = toolMessageOf(brain.requests.last);
+      expect(toolMessage, isNotNull);
+      expect(toolMessage!['role'], 'tool');
+      expect(toolMessage['toolCallId'], 'tc1');
+      // 成功 ⇒ **不许**带 error。
+      expect(toolMessage['error'], isNull);
+    });
+
+    test('发消息时工具清单**整份带上去** —— 端脑才知道这台设备会什么', () async {
+      final brain = FakeAguiBrain(
+        rounds: <List<String>>[
+          <String>[aguiText('你好'), aguiFinished()],
+        ],
       );
-    });
-
-    test('发消息时声明「等结果」—— 端脑才能在同一回合里接着说', () async {
-      final client = ToolMockClient([
-        StreamEvent(type: 'delta', delta: '你好'),
-      ]);
-      final notifier = ChatNotifier(MockTts(), client);
-
-      await notifier.generateResponse('换个色');
-
-      // 不声明的话，端脑不敢等 —— 那一回合就只剩一张沉默的卡片，
-      // 模型的话要等到**下一回合**才说得出。
-      expect(client.requests, isNotEmpty);
-      expect(client.requests.single.awaitToolResult, isTrue);
-    });
-
-    test('args 线上是对象形态时同样认', () async {
-      final executed = <Map<String, dynamic>>[];
-      final client = ToolMockClient([
-        StreamEvent(
-          type: 'tool_call',
-          name: 'set_theme',
-          args: <String, dynamic>{'color': '#71717A'},
-        ),
-      ]);
       final notifier = ChatNotifier(
         MockTts(),
-        client,
-        clientTools: themeTool(executed),
+        ToolMockClient(),
+        clientTools: themeTool(<Map<String, dynamic>>[]),
+        aguiHttpClient: brain,
       );
 
       await notifier.generateResponse('换个色');
-      await waitForSettled(notifier);
 
-      expect(executed.single['color'], '#71717A');
-      expect(lastToolCall(notifier)!.status, ToolCallStatus.succeeded);
+      final Map<String, dynamic> request = brain.requests.single;
+      final List<dynamic> tools = request['tools'] as List<dynamic>;
+      expect(tools, hasLength(1));
+      // ⚠️ AG-UI 的工具是**扁平**形状（**不套 function**）—— 端脑自己再包一次。
+      expect((tools.single as Map)['name'], 'set_theme');
+      expect((tools.single as Map).containsKey('function'), isFalse);
+      // 用户那句话在 messages 里。
+      final List<dynamic> messages = request['messages'] as List<dynamic>;
+      expect((messages.single as Map)['role'], 'user');
     });
 
-    test('未知工具：明确失败**并且**把失败回传给端脑', () async {
-      final client = ToolMockClient([
-        StreamEvent(type: 'tool_call', name: 'launch_missiles'),
-      ]);
-      final notifier = ChatNotifier(MockTts(), client);
+    test('未知工具：明确失败**并且**把失败带回去', () async {
+      final brain = FakeAguiBrain(
+        rounds: <List<String>>[
+          <String>[
+            ...aguiToolCall(toolCallId: 'tc1', toolCallName: 'launch_missiles'),
+            aguiFinished(),
+          ],
+          <String>[aguiFinished(runId: 'r2')],
+        ],
+      );
+      final notifier = ChatNotifier(
+        MockTts(),
+        ToolMockClient(),
+        aguiHttpClient: brain,
+      );
 
       await notifier.generateResponse('发射');
-      await waitForSettled(notifier);
 
       final call = lastToolCall(notifier);
       expect(call!.status, ToolCallStatus.failed);
       expect(call.errorText, contains('unsupported tool'));
       // 闷着不吭声的话，模型会一直等一个永远不来的结果。
-      expect(client.reports, hasLength(1));
-      expect(client.reports.single['ok'], isFalse);
+      final Map<String, dynamic>? toolMessage = toolMessageOf(brain.requests.last);
+      expect(toolMessage, isNotNull);
+      expect(toolMessage!['error'], contains('unsupported tool'));
+      expect(toolMessage['content'], '');
     });
 
-    test('回传失败（端脑还没上这个端点）：对话不崩，卡片说清楚', () async {
-      final executed = <Map<String, dynamic>>[];
-      final client = ToolMockClient([
-        StreamEvent(
-          type: 'tool_call',
-          name: 'set_theme',
-          args: parseToolArgs('{"color":"#4F46E5"}'),
-        ),
-      ])..reportThrows = true;
-      final notifier = ChatNotifier(
-        MockTts(),
-        client,
-        clientTools: themeTool(executed),
+    test('工具抛异常：卡片是 failed，失败**带 error** 回去', () async {
+      final brain = FakeAguiBrain(
+        rounds: <List<String>>[
+          <String>[
+            ...aguiToolCall(toolCallId: 'tc1', toolCallName: 'boom'),
+            aguiFinished(),
+          ],
+          <String>[aguiFinished(runId: 'r2')],
+        ],
       );
-
-      await notifier.generateResponse('把主题换成靛蓝');
-      await waitForSettled(notifier);
-
-      final call = lastToolCall(notifier);
-      // 工具在本地跑成了 —— 用户看到的主题色是真的。
-      expect(call!.status, ToolCallStatus.succeeded);
-      expect(executed, hasLength(1));
-      // 但端脑那头没收到 —— 这是两件事，必须分开显示。
-      expect(call.reported, isFalse);
-      expect(call.reportErrorText, isNotNull);
-      // 而且整条对话没有因此挂掉。
-      expect(notifier.state.isLoading, isFalse);
-      expect(notifier.state.errorMessage, isNull);
-    });
-
-    test('工具抛异常：卡片是 failed，失败回传给端脑', () async {
-      final client = ToolMockClient([
-        StreamEvent(type: 'tool_call', name: 'boom'),
-      ]);
       final notifier = ChatNotifier(
         MockTts(),
-        client,
+        ToolMockClient(),
         clientTools: ClientToolRegistry([
           ClientTool(
             name: 'boom',
@@ -282,34 +193,40 @@ void main() {
             execute: (args) async => throw StateError('炸了'),
           ),
         ]),
+        aguiHttpClient: brain,
       );
 
       await notifier.generateResponse('炸');
-      await waitForSettled(notifier);
 
       final call = lastToolCall(notifier);
       expect(call!.status, ToolCallStatus.failed);
       expect(call.errorText, contains('炸了'));
-      expect(client.reports.single['ok'], isFalse);
+      final Map<String, dynamic>? toolMessage = toolMessageOf(brain.requests.last);
+      expect(toolMessage!['error'], contains('炸了'));
     });
 
     test('这一轮只有工具调用、没有正文：不是错误（工具卡片就是回复）', () async {
-      final executed = <Map<String, dynamic>>[];
-      final client = ToolMockClient([
-        StreamEvent(
-          type: 'tool_call',
-          name: 'set_theme',
-          args: parseToolArgs('{"color":"#4F46E5"}'),
-        ),
-      ]);
+      final brain = FakeAguiBrain(
+        rounds: <List<String>>[
+          <String>[
+            ...aguiToolCall(
+              toolCallId: 'tc1',
+              toolCallName: 'set_theme',
+              argsJson: '{"color":"#4F46E5"}',
+            ),
+            aguiFinished(),
+          ],
+          <String>[aguiFinished(runId: 'r2')],
+        ],
+      );
       final notifier = ChatNotifier(
         MockTts(),
-        client,
-        clientTools: themeTool(executed),
+        ToolMockClient(),
+        clientTools: themeTool(<Map<String, dynamic>>[]),
+        aguiHttpClient: brain,
       );
 
       await notifier.generateResponse('把主题换成靛蓝');
-      await waitForSettled(notifier);
 
       expect(notifier.state.errorMessage, isNull);
       expect(lastToolCall(notifier)!.status, ToolCallStatus.succeeded);
@@ -327,24 +244,114 @@ void main() {
     });
   });
 
+  /// 等这一轮结束（**带超时**）⇒ ⇒ 「卡住了」是**当场红**，不是挂到测试超时。
+  Future<void> waitDone(Future<void> done) async {
+    await done.timeout(
+      const Duration(seconds: 10),
+      onTimeout: () => fail('这一轮在 10 秒内没结束 ⇒ ⇒ 端脑在等一个不会来的结果'),
+    );
+  }
+
   group('需要用户点头的工具', () {
-    test('用户在工具跑完之前离开页面 ⇒ 不崩（notifier 已被 dispose）', () async {
-      // 工具是**后台**跑的（执行 + 回传不阻塞 SSE 读循环）。
-      // 用户在它跑完之前离开页面 ⇒ notifier 已经被 dispose ⇒
-      // 这时候再往 `state` 写会抛「Bad state: Tried to modify a
-      // disposed provider」⇒ 整个 App 崩。
-      final gate = Completer<void>();
-      // ⚠️ **工具有没有真的跑完** —— 这一条是**承重**的。
-      //   以前这里写的是 `expect(true, isTrue)` ⇒ ⇒ 恒真的空断言
-      //   ⇒ ⇒ 而「工具压根没跑完」也会让那条空断言照样绿
-      //   ⇒ ⇒ 也就是「风险窗口没被踩到」被当成了「验过了」。
-      var toolRan = false;
-      final client = ToolMockClient([
-        StreamEvent(type: 'tool_call', name: 'slow'),
-      ]);
+    test('先等用户点头，不执行', () async {
+      final executed = <Map<String, dynamic>>[];
+      final brain = FakeAguiBrain(
+        rounds: <List<String>>[
+          <String>[
+            ...aguiToolCall(toolCallId: 'c1', toolCallName: 'delete_everything'),
+            aguiFinished(),
+          ],
+          <String>[aguiFinished(runId: 'r2')],
+        ],
+      );
       final notifier = ChatNotifier(
         MockTts(),
-        client,
+        ToolMockClient(),
+        clientTools: ClientToolRegistry([
+          ClientTool(
+            name: 'delete_everything',
+            description: '不可逆',
+            requiresApproval: true,
+            execute: (args) async {
+              executed.add(args);
+              return 'deleted';
+            },
+          ),
+        ]),
+        aguiHttpClient: brain,
+      );
+
+      final Future<void> done = notifier.generateResponse('全删了');
+      await waitForStatus(notifier, ToolCallStatus.awaitingApproval);
+      expect(executed, isEmpty);
+      // 还没点头 ⇒ **还不该有第二次请求**（端脑在等结果）。
+      expect(brain.roundCount, 1);
+
+      await notifier.approveToolCall('c1');
+      await waitDone(done);
+
+      expect(executed, hasLength(1));
+      expect(lastToolCall(notifier)!.status, ToolCallStatus.succeeded);
+      final Map<String, dynamic>? toolMessage = toolMessageOf(brain.requests.last);
+      expect(toolMessage!['toolCallId'], 'c1');
+      expect(toolMessage['error'], isNull);
+    });
+
+    test('用户拒绝 → 失败**并且**把拒绝带回去（不许让端脑干等）', () async {
+      final brain = FakeAguiBrain(
+        rounds: <List<String>>[
+          <String>[
+            ...aguiToolCall(toolCallId: 'c1', toolCallName: 'delete_everything'),
+            aguiFinished(),
+          ],
+          <String>[aguiFinished(runId: 'r2')],
+        ],
+      );
+      final notifier = ChatNotifier(
+        MockTts(),
+        ToolMockClient(),
+        clientTools: ClientToolRegistry([
+          ClientTool(
+            name: 'delete_everything',
+            description: '不可逆',
+            requiresApproval: true,
+            execute: (args) async => 'deleted',
+          ),
+        ]),
+        aguiHttpClient: brain,
+      );
+
+      final Future<void> done = notifier.generateResponse('全删了');
+      await waitForStatus(notifier, ToolCallStatus.awaitingApproval);
+      await notifier.denyToolCall('c1');
+      await waitDone(done);
+
+      final call = lastToolCall(notifier);
+      expect(call!.status, ToolCallStatus.failed);
+      expect(call.errorText, 'denied by user');
+      // 模型要知道这条路走不通，而不是干等着。
+      final Map<String, dynamic>? toolMessage = toolMessageOf(brain.requests.last);
+      expect(toolMessage!['error'], 'denied by user');
+    });
+
+    test('用户在工具跑完之前离开页面 ⇒ 不崩（notifier 已被 dispose）', () async {
+      // ⚠️ **AG-UI 那一路，工具在**回合内**跑** ⇒ ⇒ 这一格比 legacy 路更容易踩到：
+      //   用户在等「允许」那张卡片的期间就离开了页面 ⇒ ⇒ notifier 已被 dispose
+      //   ⇒ ⇒ 这一轮**后面**还要写 state ⇒ ⇒ 不许把 App 带崩。
+      final gate = Completer<void>();
+      var toolRan = false;
+      final brain = FakeAguiBrain(
+        rounds: <List<String>>[
+          <String>[
+            ...aguiToolCall(toolCallId: 's1', toolCallName: 'slow'),
+            aguiFinished(),
+          ],
+          <String>[aguiFinished(runId: 'r2')],
+        ],
+      );
+      final notifier = ChatNotifier(
+        MockTts(),
+        ToolMockClient(),
         clientTools: ClientToolRegistry([
           ClientTool(
             name: 'slow',
@@ -356,20 +363,21 @@ void main() {
             },
           ),
         ]),
+        aguiHttpClient: brain,
       );
 
       // ⚠️ **异步错误要收得上来** —— 「dispose 之后回写 state」这个错
-      //   是在**工具自己的续体里**抛的 ⇒ ⇒ 不是同步抛出
-      //   ⇒ ⇒ `expect(() {...}, returnsNormally)` **抓不到**
-      //   ⇒ ⇒ 必须用 zone 把「没人接手的异步错误」收上来。
+      //   是在**工具自己的续体**里抛的 ⇒ ⇒ 不是同步抛出
+      //   ⇒ ⇒ `expect(() {...}, returnsNormally)` **抓不到**。
       final asyncErrors = <Object>[];
       await runZonedGuarded(() async {
-        await notifier.generateResponse('慢慢来');
+        final Future<void> done = notifier.generateResponse('慢慢来');
+        await waitForStatus(notifier, ToolCallStatus.running);
         notifier.dispose();
 
         // 工具这时才跑完 —— 回写状态时 notifier 已经不在了。
         gate.complete();
-        await Future<void>.delayed(const Duration(milliseconds: 50));
+        await done;
       }, (error, stack) => asyncErrors.add(error));
 
       // ⚠️ **这条才是「真的踩到过」的证据** —— 工具跑完了
@@ -385,480 +393,318 @@ void main() {
         reason: 'dispose 之后的回写必须无声无息 ⇒ ⇒ 实际抛了：$asyncErrors',
       );
     });
-
-    test('先等用户点头，不执行、不回传', () async {
-      final executed = <Map<String, dynamic>>[];
-      final client = ToolMockClient([
-        StreamEvent(type: 'tool_call', name: 'delete_everything'),
-      ]);
-      final notifier = ChatNotifier(
-        MockTts(),
-        client,
-        clientTools: ClientToolRegistry([
-          ClientTool(
-            name: 'delete_everything',
-            description: '不可逆',
-            requiresApproval: true,
-            execute: (args) async {
-              executed.add(args);
-              return 'deleted';
-            },
-          ),
-        ]),
-      );
-
-      await notifier.generateResponse('全删了');
-
-      final call = lastToolCall(notifier);
-      expect(call!.status, ToolCallStatus.awaitingApproval);
-      expect(executed, isEmpty);
-      expect(client.reports, isEmpty);
-    });
-
-    test('用户点头 → 执行 + 回传', () async {
-      final executed = <Map<String, dynamic>>[];
-      final client = ToolMockClient([
-        StreamEvent(type: 'tool_call', name: 'delete_everything'),
-      ]);
-      final notifier = ChatNotifier(
-        MockTts(),
-        client,
-        clientTools: ClientToolRegistry([
-          ClientTool(
-            name: 'delete_everything',
-            description: '不可逆',
-            requiresApproval: true,
-            execute: (args) async {
-              executed.add(args);
-              return 'deleted';
-            },
-          ),
-        ]),
-      );
-
-      await notifier.generateResponse('全删了');
-      await notifier.approveToolCall(lastToolCall(notifier)!.id);
-
-      expect(executed, hasLength(1));
-      final call = lastToolCall(notifier);
-      expect(call!.status, ToolCallStatus.succeeded);
-      expect(call.reported, isTrue);
-      expect(client.reports.single['ok'], isTrue);
-    });
-
-    test('用户拒绝 → 失败**并且**把拒绝回传给端脑', () async {
-      final client = ToolMockClient([
-        StreamEvent(type: 'tool_call', name: 'delete_everything'),
-      ]);
-      final notifier = ChatNotifier(
-        MockTts(),
-        client,
-        clientTools: ClientToolRegistry([
-          ClientTool(
-            name: 'delete_everything',
-            description: '不可逆',
-            requiresApproval: true,
-            execute: (args) async => 'deleted',
-          ),
-        ]),
-      );
-
-      await notifier.generateResponse('全删了');
-      await notifier.denyToolCall(lastToolCall(notifier)!.id);
-
-      final call = lastToolCall(notifier);
-      expect(call!.status, ToolCallStatus.failed);
-      expect(call.errorText, 'denied by user');
-      // 模型要知道这条路走不通，而不是干等着。
-      expect(client.reports.single['ok'], isFalse);
-    });
   });
 
   group('手机操作：一轮一次授权（敏感目标除外）', () {
-      /// 等最后一张工具卡片进入指定状态。
-      Future<void> waitForStatus(
-        ChatNotifier notifier,
-        ToolCallStatus status,
-      ) async {
-        for (var i = 0; i < 200; i++) {
-          final call = lastToolCall(notifier);
-          if (call != null && call.status == status) return;
-          await Future<void>.delayed(const Duration(milliseconds: 5));
-        }
-        fail('1 秒内没等到状态 $status');
-      }
-
-      ClientToolRegistry mobileTools(
-        List<Map<String, dynamic>> executed, {
-        String? readForegroundPackage,
-      }) {
-        return ClientToolRegistry([
-          ClientTool(
-            name: 'mobile_tap',
-            description: 'Tap a point.',
-            capability: Capability.mobileUse,
-            execute: (args) async {
-              executed.add(args);
-              return <String, dynamic>{'tapped': true};
-            },
-          ),
-          ClientTool(
-            name: 'mobile_read_screen',
-            description: 'Read the screen.',
-            capability: Capability.mobileUse,
-            execute: (args) async => <String, dynamic>{
-              'foregroundPackage': readForegroundPackage ?? 'com.example.notes',
-            },
-          ),
-        ]);
-      }
-
-      test('默认档：第一次手机操作弹卡片', () async {
-        final executed = <Map<String, dynamic>>[];
-        final controller = StreamController<StreamEvent>();
-        final client = ToolMockClient(const [])..streamOverride = controller.stream;
-        final notifier = ChatNotifier(
-          MockTts(),
-          client,
-          clientTools: mobileTools(executed),
-        );
-        final done = notifier.generateResponse('帮我点一下');
-        controller.add(StreamEvent(
-          type: 'tool_call',
+    ClientToolRegistry mobileTools(
+      List<Map<String, dynamic>> executed, {
+      String? readForegroundPackage,
+    }) {
+      return ClientToolRegistry([
+        ClientTool(
           name: 'mobile_tap',
-          toolCallId: 'c1',
-        ));
-
-        await waitForStatus(notifier, ToolCallStatus.awaitingApproval);
-        expect(executed, isEmpty);
-        await notifier.approveToolCall('c1');
-        await waitForSettled(notifier);
-        expect(executed, hasLength(1));
-
-        await controller.close();
-        await done;
-      });
-
-      test('点头后同一轮的第二次手机操作不再弹（一轮一次）', () async {
-        final executed = <Map<String, dynamic>>[];
-        final controller = StreamController<StreamEvent>();
-        final client = ToolMockClient(const [])..streamOverride = controller.stream;
-        final notifier = ChatNotifier(
-          MockTts(),
-          client,
-          clientTools: mobileTools(executed),
-        );
-        final done = notifier.generateResponse('连点两下');
-        controller.add(StreamEvent(
-          type: 'tool_call',
-          name: 'mobile_tap',
-          toolCallId: 'c1',
-        ));
-        await waitForStatus(notifier, ToolCallStatus.awaitingApproval);
-        await notifier.approveToolCall('c1');
-        await waitForSettled(notifier);
-
-        // 同一轮第二条：端脑收到 c1 的结果后才发 c2 —— 此时不再弹。
-        controller.add(StreamEvent(
-          type: 'tool_call',
-          name: 'mobile_tap',
-          toolCallId: 'c2',
-        ));
-        await waitForSettled(notifier);
-        expect(executed, hasLength(2));
-
-        await controller.close();
-        await done;
-      });
-
-      test('下一轮重新弹（缓存跟着「一轮」走，不跟着会话走）', () async {
-        final executed = <Map<String, dynamic>>[];
-        final controller = StreamController<StreamEvent>();
-        final client = ToolMockClient(const [])..streamOverride = controller.stream;
-        final notifier = ChatNotifier(
-          MockTts(),
-          client,
-          clientTools: mobileTools(executed),
-        );
-        final done = notifier.generateResponse('点一下');
-        controller.add(StreamEvent(
-          type: 'tool_call',
-          name: 'mobile_tap',
-          toolCallId: 'r1c1',
-        ));
-        await waitForStatus(notifier, ToolCallStatus.awaitingApproval);
-        await notifier.approveToolCall('r1c1');
-        await waitForSettled(notifier);
-        await controller.close();
-        await done;
-
-        // 新一轮（第二次发送）：缓存已清 ⇒ 又要重新点头。
-        final controller2 = StreamController<StreamEvent>();
-        client.streamOverride = controller2.stream;
-        final done2 = notifier.generateResponse('再点一下');
-        controller2.add(StreamEvent(
-          type: 'tool_call',
-          name: 'mobile_tap',
-          toolCallId: 'r2c1',
-        ));
-        await waitForStatus(notifier, ToolCallStatus.awaitingApproval);
-        expect(executed, hasLength(1)); // 第二次没执行（还在等点头）
-        await notifier.approveToolCall('r2c1');
-        await waitForSettled(notifier);
-        expect(executed, hasLength(2));
-
-        await controller2.close();
-        await done2;
-      });
-
-      test('敏感目标（支付类前台包）出现 ⇒ 缓存作废，后续每步重新弹', () async {
-        final executed = <Map<String, dynamic>>[];
-        final controller = StreamController<StreamEvent>();
-        final client = ToolMockClient(const [])..streamOverride = controller.stream;
-        final notifier = ChatNotifier(
-          MockTts(),
-          client,
-          clientTools: mobileTools(
-            executed,
-            readForegroundPackage: 'com.eg.android.AlipayGphone',
-          ),
-        );
-        final done = notifier.generateResponse('帮我付款');
-        controller.add(StreamEvent(
-          type: 'tool_call',
-          name: 'mobile_tap',
-          toolCallId: 'p1',
-        ));
-        await waitForStatus(notifier, ToolCallStatus.awaitingApproval);
-        await notifier.approveToolCall('p1');
-        await waitForSettled(notifier);
-
-        // 读屏（已授权 ⇒ 自动执行）读到支付宝前台 ⇒ 缓存作废。
-        controller.add(StreamEvent(
-          type: 'tool_call',
+          description: 'Tap a point.',
+          capability: Capability.mobileUse,
+          execute: (args) async {
+            executed.add(args);
+            return <String, dynamic>{'tapped': true};
+          },
+        ),
+        ClientTool(
           name: 'mobile_read_screen',
-          toolCallId: 'p2',
-        ));
-        await waitForSettled(notifier);
-
-        // 下一步 tap：不再自动放行，重新弹卡片。
-        controller.add(StreamEvent(
-          type: 'tool_call',
-          name: 'mobile_tap',
-          toolCallId: 'p3',
-        ));
-        await waitForStatus(notifier, ToolCallStatus.awaitingApproval);
-        expect(executed, hasLength(1)); // p3 没执行（还在等点头）
-
-        await controller.close();
-        await done;
-      });
-
-      test('其他能力不受缓存影响：同一轮的每条日历调用仍逐条弹', () async {
-        final executed = <Map<String, dynamic>>[];
-        final controller = StreamController<StreamEvent>();
-        final client = ToolMockClient(const [])..streamOverride = controller.stream;
-        final notifier = ChatNotifier(
-          MockTts(),
-          client,
-          clientTools: ClientToolRegistry([
-            ClientTool(
-              name: 'calendar_read_events',
-              description: 'Read calendar.',
-              capability: Capability.calendarRead,
-              execute: (args) async {
-                executed.add(args);
-                return <String, dynamic>{'events': <String>[]};
-              },
-            ),
-          ]),
-        );
-        final done = notifier.generateResponse('看看日历');
-        controller.add(StreamEvent(
-          type: 'tool_call',
-          name: 'calendar_read_events',
-          toolCallId: 'd1',
-        ));
-        await waitForStatus(notifier, ToolCallStatus.awaitingApproval);
-        await notifier.approveToolCall('d1');
-        await waitForSettled(notifier);
-
-        controller.add(StreamEvent(
-          type: 'tool_call',
-          name: 'calendar_read_events',
-          toolCallId: 'd2',
-        ));
-        await waitForStatus(notifier, ToolCallStatus.awaitingApproval); // 仍弹 ⇒ 不缓存
-        expect(executed, hasLength(1));
-
-        await controller.close();
-        await done;
-      });
-
-      test('敏感包名清单纯函数', () {
-        expect(isSensitiveForegroundPackage('com.eg.android.AlipayGphone'), isTrue);
-        expect(isSensitiveForegroundPackage('com.tencent.mm'), isTrue);
-        expect(isSensitiveForegroundPackage('com.unionpay'), isTrue);
-        expect(isSensitiveForegroundPackage('com.example.notes'), isFalse);
-        expect(isSensitiveForegroundPackage(null), isFalse);
-      });
-    });
-
-  group('历史工具记录：轮末喂「思维定式」（traces/ingest）', () {
-      Future<void> waitForStatus(
-        ChatNotifier notifier,
-        ToolCallStatus status,
-      ) async {
-        for (var i = 0; i < 200; i++) {
-          final call = lastToolCall(notifier);
-          if (call != null && call.status == status) return;
-          await Future<void>.delayed(const Duration(milliseconds: 5));
-        }
-        fail('1 秒内没等到状态 $status');
-      }
-
-      ClientToolRegistry trajectoryTools(List<Map<String, dynamic>> executed) {
-        return ClientToolRegistry([
-          ClientTool(
-            name: 'mobile_tap',
-            description: 'Tap a point.',
-            capability: Capability.mobileUse,
-            execute: (args) async {
-              executed.add(args);
-              return <String, dynamic>{'tapped': true};
-            },
-          ),
-          ClientTool(
-            name: 'mobile_boom',
-            description: 'Always fails.',
-            capability: Capability.mobileUse,
-            execute: (args) async => throw Exception('boom'),
-          ),
-        ]);
-      }
-
-      test('一轮带工具调用（一成一败）⇒ 轮末 ingest 一次，轨迹形状正确', () async {
-        final executed = <Map<String, dynamic>>[];
-        final controller = StreamController<StreamEvent>();
-        final client = ToolMockClient(const [])..streamOverride = controller.stream;
-        final notifier = ChatNotifier(
-          MockTts(),
-          client,
-          clientTools: trajectoryTools(executed),
-        );
-        final done = notifier.generateResponse('帮我点一下屏幕');
-        controller.add(StreamEvent(
-          type: 'tool_call',
-          name: 'mobile_tap',
-          toolCallId: 't1',
-        ));
-        await waitForStatus(notifier, ToolCallStatus.awaitingApproval);
-        await notifier.approveToolCall('t1');
-        await waitForSettled(notifier);
-        // 第二条：已授权 ⇒ 自动放行；它抛异常 ⇒ ok:false。
-        controller.add(StreamEvent(
-          type: 'tool_call',
-          name: 'mobile_boom',
-          toolCallId: 't2',
-        ));
-        await waitForSettled(notifier);
-        controller.add(StreamEvent(type: 'delta', delta: '好了'));
-        await controller.close();
-        await done;
-
-        expect(client.ingestCalls, hasLength(1));
-        final call = client.ingestCalls.single;
-        expect(call['source'], 'agent:shadow-mobile');
-        expect(call['user_input'], '帮我点一下屏幕');
-        expect(call['intent_signature'], isNotEmpty);
-        final steps = call['trajectory'] as List;
-        expect(steps, hasLength(2));
-        expect(steps[0]['tool'], 'mobile_tap');
-        expect(steps[0]['ok'], isTrue);
-        expect(steps[1]['tool'], 'mobile_boom');
-        expect(steps[1]['ok'], isFalse);
-        expect((steps[0] as Map).containsKey('at'), isTrue);
-      });
-
-      test('无工具的轮不上报（轨迹为空 ⇒ 静默跳过）', () async {
-        final controller = StreamController<StreamEvent>();
-        final client = ToolMockClient(const [])..streamOverride = controller.stream;
-        final notifier = ChatNotifier(MockTts(), client);
-        final done = notifier.generateResponse('今天天气怎么样');
-        controller.add(StreamEvent(type: 'delta', delta: '晴'));
-        await controller.close();
-        await done;
-
-        expect(client.ingestCalls, isEmpty);
-      });
-
-      test('意图签名：同句同键；标点空白不参与；长句截到 40', () {
-        expect(intentSignatureOf('帮我 点一下！'), intentSignatureOf('帮我点一下'));
-        expect(intentSignatureOf(null), '');
-        expect(intentSignatureOf('a' * 100).length, 40);
-        expect(intentSignatureOf('点一下，谢谢'), intentSignatureOf('点一下谢谢'));
-      });
-    });
-
-  group('StreamEvent 解析', () {
-    test('tool_call 的字段都认下来', () {
-      final event = StreamEvent.fromJson({
-        'type': 'tool_call',
-        'agent': 'peer',
-        'name': 'set_theme',
-        'args': '{"color":"#4F46E5"}',
-        'tool_call_id': 'call-7',
-      });
-
-      expect(event.type, 'tool_call');
-      expect(event.name, 'set_theme');
-      expect(event.args!['color'], '#4F46E5');
-      expect(event.toolCallId, 'call-7');
-    });
-
-    test('tool_result 的字段都认下来', () {
-      final event = StreamEvent.fromJson({
-        'type': 'tool_result',
-        'name': 'set_theme',
-        'result': {'applied': 'accent'},
-        'latency_ms': 42,
-      });
-
-      expect(event.name, 'set_theme');
-      expect((event.result as Map)['applied'], 'accent');
-      expect(event.latencyMs, 42);
-    });
-
-    test('端脑今天不携带 tool_call_id ⇒ 客户端自己合成', () async {
-      final client = ToolMockClient([
-        StreamEvent(type: 'tool_call', name: 'set_theme'),
-      ]);
-      final notifier = ChatNotifier(MockTts(), client);
-
-      await notifier.generateResponse('换色');
-      await waitForSettled(notifier);
-
-      final call = lastToolCall(notifier);
-      expect(call!.id, isNotEmpty);
-      // 回传时带上这个 id —— 端脑以后按 id 匹配就用它。
-      expect(client.reports.single['tool_call_id'], call.id);
-    });
-
-    test('端脑给了 tool_call_id 就用端脑的', () async {
-      final client = ToolMockClient([
-        StreamEvent(
-          type: 'tool_call',
-          name: 'set_theme',
-          toolCallId: 'brain-call-1',
+          description: 'Read the screen.',
+          capability: Capability.mobileUse,
+          execute: (args) async => <String, dynamic>{
+            'foregroundPackage': readForegroundPackage ?? 'com.example.notes',
+          },
         ),
       ]);
-      final notifier = ChatNotifier(MockTts(), client);
+    }
 
-      await notifier.generateResponse('换色');
-      await waitForSettled(notifier);
+    test('默认档：第一次手机操作弹卡片', () async {
+      final executed = <Map<String, dynamic>>[];
+      final brain = FakeAguiBrain(
+        rounds: <List<String>>[
+          <String>[
+            ...aguiToolCall(toolCallId: 'c1', toolCallName: 'mobile_tap'),
+            aguiFinished(),
+          ],
+          <String>[aguiFinished(runId: 'r2')],
+        ],
+      );
+      final notifier = ChatNotifier(
+        MockTts(),
+        ToolMockClient(),
+        clientTools: mobileTools(executed),
+        aguiHttpClient: brain,
+      );
 
-      expect(lastToolCall(notifier)!.id, 'brain-call-1');
-      expect(client.reports.single['tool_call_id'], 'brain-call-1');
+      final Future<void> done = notifier.generateResponse('帮我点一下');
+      await waitForStatus(notifier, ToolCallStatus.awaitingApproval);
+      expect(executed, isEmpty);
+      await notifier.approveToolCall('c1');
+      await waitDone(done);
+      expect(executed, hasLength(1));
+    });
+
+    test('点头后同一轮的第二次手机操作不再弹（一轮一次）', () async {
+      final executed = <Map<String, dynamic>>[];
+      final brain = FakeAguiBrain(
+        rounds: <List<String>>[
+          <String>[
+            ...aguiToolCall(toolCallId: 'c1', toolCallName: 'mobile_tap'),
+            aguiFinished(),
+          ],
+          <String>[
+            ...aguiToolCall(toolCallId: 'c2', toolCallName: 'mobile_tap'),
+            aguiFinished(runId: 'r2'),
+          ],
+          <String>[aguiFinished(runId: 'r3')],
+        ],
+      );
+      final notifier = ChatNotifier(
+        MockTts(),
+        ToolMockClient(),
+        clientTools: mobileTools(executed),
+        aguiHttpClient: brain,
+      );
+
+      final Future<void> done = notifier.generateResponse('连点两下');
+      await waitForStatus(notifier, ToolCallStatus.awaitingApproval);
+      await notifier.approveToolCall('c1');
+      // ⚠️ **这一轮能自己结束** ⇒ ⇒ 证明 c2 **没有**再弹一次
+      // ⇒ ⇒ （c2 若弹了 ⇒ ⇒ 这一轮会一直等 ⇒ ⇒ waitDone 会**当场红**）。
+      await waitDone(done);
+      expect(executed, hasLength(2));
+    });
+
+    test('下一轮重新弹（缓存跟着「一轮」走，不跟着会话走）', () async {
+      final executed = <Map<String, dynamic>>[];
+      final brain = FakeAguiBrain(
+        rounds: <List<String>>[
+          <String>[
+            ...aguiToolCall(toolCallId: 'r1c1', toolCallName: 'mobile_tap'),
+            aguiFinished(),
+          ],
+          <String>[aguiFinished(runId: 'r2')],
+          <String>[
+            ...aguiToolCall(toolCallId: 'r2c1', toolCallName: 'mobile_tap'),
+            aguiFinished(runId: 'r3'),
+          ],
+          <String>[aguiFinished(runId: 'r4')],
+        ],
+      );
+      final notifier = ChatNotifier(
+        MockTts(),
+        ToolMockClient(),
+        clientTools: mobileTools(executed),
+        aguiHttpClient: brain,
+      );
+
+      final Future<void> done1 = notifier.generateResponse('点一下');
+      await waitForStatus(notifier, ToolCallStatus.awaitingApproval);
+      await notifier.approveToolCall('r1c1');
+      await waitDone(done1);
+      expect(executed, hasLength(1));
+
+      // 新一轮（第二次发送）：缓存已清 ⇒ ⇒ 又要重新点头。
+      final Future<void> done2 = notifier.generateResponse('再点一下');
+      await waitForStatus(notifier, ToolCallStatus.awaitingApproval);
+      expect(executed, hasLength(1)); // 第二次没执行（还在等点头）
+      await notifier.approveToolCall('r2c1');
+      await waitDone(done2);
+      expect(executed, hasLength(2));
+    });
+
+    test('敏感目标（支付类前台包）出现 ⇒ 缓存作废，后续每步重新弹', () async {
+      final executed = <Map<String, dynamic>>[];
+      final brain = FakeAguiBrain(
+        rounds: <List<String>>[
+          <String>[
+            ...aguiToolCall(toolCallId: 'p1', toolCallName: 'mobile_tap'),
+            aguiFinished(),
+          ],
+          <String>[
+            ...aguiToolCall(toolCallId: 'p2', toolCallName: 'mobile_read_screen'),
+            aguiFinished(runId: 'r2'),
+          ],
+          <String>[
+            ...aguiToolCall(toolCallId: 'p3', toolCallName: 'mobile_tap'),
+            aguiFinished(runId: 'r3'),
+          ],
+          <String>[aguiFinished(runId: 'r4')],
+        ],
+      );
+      final notifier = ChatNotifier(
+        MockTts(),
+        ToolMockClient(),
+        clientTools: mobileTools(
+          executed,
+          readForegroundPackage: 'com.eg.android.AlipayGphone',
+        ),
+        aguiHttpClient: brain,
+      );
+
+      final Future<void> done = notifier.generateResponse('帮我付款');
+      await waitForCall(notifier, 'p1', ToolCallStatus.awaitingApproval);
+      await notifier.approveToolCall('p1');
+
+      // 读屏（已授权 ⇒ 自动执行）读到支付宝前台 ⇒ 缓存作废 ⇒ p3 重新弹。
+      //
+      // ⚠️ **p3 重新弹**本身就是「读屏真的跑过并且读到了支付类前台包」的证据
+      // ⇒ ⇒ 缓存作废那条链**承重**（没跑读屏 ⇒ 缓存不会作废 ⇒ p3 会直接跑）。
+      await waitForCall(notifier, 'p3', ToolCallStatus.awaitingApproval);
+      // p3 还在等点头 ⇒ ⇒ 它**没执行**（executed 只记 tap）。
+      expect(executed, hasLength(1));
+
+      await notifier.approveToolCall('p3');
+      await waitDone(done);
+      expect(executed, hasLength(2));
+    });
+
+    test('其他能力不受缓存影响：同一轮的每条日历调用仍逐条弹', () async {
+      final executed = <Map<String, dynamic>>[];
+      final brain = FakeAguiBrain(
+        rounds: <List<String>>[
+          <String>[
+            ...aguiToolCall(
+              toolCallId: 'd1',
+              toolCallName: 'calendar_read_events',
+            ),
+            aguiFinished(),
+          ],
+          <String>[
+            ...aguiToolCall(
+              toolCallId: 'd2',
+              toolCallName: 'calendar_read_events',
+            ),
+            aguiFinished(runId: 'r2'),
+          ],
+          <String>[aguiFinished(runId: 'r3')],
+        ],
+      );
+      final notifier = ChatNotifier(
+        MockTts(),
+        ToolMockClient(),
+        clientTools: ClientToolRegistry([
+          ClientTool(
+            name: 'calendar_read_events',
+            description: 'Read calendar.',
+            capability: Capability.calendarRead,
+            execute: (args) async {
+              executed.add(args);
+              return <String, dynamic>{'events': <String>[]};
+            },
+          ),
+        ]),
+        aguiHttpClient: brain,
+      );
+
+      final Future<void> done = notifier.generateResponse('看看日历');
+      await waitForStatus(notifier, ToolCallStatus.awaitingApproval);
+      await notifier.approveToolCall('d1');
+      await waitForStatus(notifier, ToolCallStatus.awaitingApproval); // d2 仍弹
+      expect(executed, hasLength(1));
+
+      await notifier.approveToolCall('d2');
+      await waitDone(done);
+      expect(executed, hasLength(2));
+    });
+
+    test('敏感包名清单纯函数', () {
+      expect(isSensitiveForegroundPackage('com.eg.android.AlipayGphone'), isTrue);
+      expect(isSensitiveForegroundPackage('com.tencent.mm'), isTrue);
+      expect(isSensitiveForegroundPackage('com.unionpay'), isTrue);
+      expect(isSensitiveForegroundPackage('com.example.notes'), isFalse);
+      expect(isSensitiveForegroundPackage(null), isFalse);
+    });
+  });
+
+  group('历史工具记录：轮末喂「思维定式」（traces/ingest）', () {
+    ClientToolRegistry trajectoryTools(List<Map<String, dynamic>> executed) {
+      return ClientToolRegistry([
+        ClientTool(
+          name: 'mobile_tap',
+          description: 'Tap a point.',
+          capability: Capability.mobileUse,
+          execute: (args) async {
+            executed.add(args);
+            return <String, dynamic>{'tapped': true};
+          },
+        ),
+        ClientTool(
+          name: 'mobile_boom',
+          description: 'Always fails.',
+          capability: Capability.mobileUse,
+          execute: (args) async => throw Exception('boom'),
+        ),
+      ]);
+    }
+
+    test('一轮带工具调用（一成一败）⇒ 轮末 ingest 一次，轨迹形状正确', () async {
+      final executed = <Map<String, dynamic>>[];
+      final client = ToolMockClient();
+      final brain = FakeAguiBrain(
+        rounds: <List<String>>[
+          <String>[
+            ...aguiToolCall(toolCallId: 't1', toolCallName: 'mobile_tap'),
+            aguiFinished(),
+          ],
+          <String>[
+            ...aguiToolCall(toolCallId: 't2', toolCallName: 'mobile_boom'),
+            aguiFinished(runId: 'r2'),
+          ],
+          <String>[aguiFinished(runId: 'r3')],
+        ],
+      );
+      final notifier = ChatNotifier(
+        MockTts(),
+        client,
+        clientTools: trajectoryTools(executed),
+        aguiHttpClient: brain,
+      );
+
+      final Future<void> done = notifier.generateResponse('帮我点一下屏幕');
+      await waitForStatus(notifier, ToolCallStatus.awaitingApproval);
+      await notifier.approveToolCall('t1');
+      await waitDone(done);
+
+      expect(client.ingestCalls, hasLength(1));
+      final call = client.ingestCalls.single;
+      expect(call['source'], 'agent:shadow-mobile');
+      expect(call['user_input'], '帮我点一下屏幕');
+      expect(call['intent_signature'], isNotEmpty);
+      final steps = call['trajectory'] as List;
+      expect(steps, hasLength(2));
+      expect(steps[0]['tool'], 'mobile_tap');
+      expect(steps[0]['ok'], isTrue);
+      expect(steps[1]['tool'], 'mobile_boom');
+      expect(steps[1]['ok'], isFalse);
+      expect((steps[0] as Map).containsKey('at'), isTrue);
+    });
+
+    test('无工具的轮不上报（轨迹为空 ⇒ 静默跳过）', () async {
+      final client = ToolMockClient();
+      final brain = FakeAguiBrain(
+        rounds: <List<String>>[
+          <String>[aguiText('晴'), aguiFinished()],
+        ],
+      );
+      final notifier = ChatNotifier(
+        MockTts(),
+        client,
+        aguiHttpClient: brain,
+      );
+      await notifier.generateResponse('今天天气怎么样');
+
+      expect(client.ingestCalls, isEmpty);
+    });
+
+    test('意图签名：同句同键；标点空白不参与；长句截到 40', () {
+      expect(intentSignatureOf('帮我 点一下！'), intentSignatureOf('帮我点一下'));
+      expect(intentSignatureOf(null), '');
+      expect(intentSignatureOf('a' * 100).length, 40);
+      expect(intentSignatureOf('点一下，谢谢'), intentSignatureOf('点一下谢谢'));
     });
   });
 
@@ -903,21 +749,27 @@ void main() {
 
     test('执行完 ⇒ 卡片上带着 surface id（界面那一半）', () async {
       final executed = <Map<String, dynamic>>[];
-      final client = ToolMockClient([
-        StreamEvent(
-          type: 'tool_call',
-          name: 'show_a2ui_surface',
-          args: parseToolArgs('{"view":"tasks"}'),
-        ),
-      ]);
+      final brain = FakeAguiBrain(
+        rounds: <List<String>>[
+          <String>[
+            ...aguiToolCall(
+              toolCallId: 'a1',
+              toolCallName: 'show_a2ui_surface',
+              argsJson: '{"view":"tasks"}',
+            ),
+            aguiFinished(),
+          ],
+          <String>[aguiFinished(runId: 'r2')],
+        ],
+      );
       final notifier = ChatNotifier(
         MockTts(),
-        client,
+        ToolMockClient(),
         clientTools: a2uiTool(executed),
+        aguiHttpClient: brain,
       );
 
       await notifier.generateResponse('给我看看任务');
-      await waitForSettled(notifier);
 
       final call = lastToolCall(notifier)!;
       expect(call.status, ToolCallStatus.succeeded);
@@ -926,29 +778,38 @@ void main() {
       expect(call.a2uiSurfaceIds, <String>['shadow.tasks']);
     });
 
-    test('回传端脑的**只有 report**（组件树不进模型上下文）', () async {
+    test('回传给模型的**只有 report**（组件树不进模型上下文）', () async {
       final executed = <Map<String, dynamic>>[];
-      final client = ToolMockClient([
-        StreamEvent(
-          type: 'tool_call',
-          name: 'show_a2ui_surface',
-          args: parseToolArgs('{"view":"tasks"}'),
-        ),
-      ]);
+      final brain = FakeAguiBrain(
+        rounds: <List<String>>[
+          <String>[
+            ...aguiToolCall(
+              toolCallId: 'a1',
+              toolCallName: 'show_a2ui_surface',
+              argsJson: '{"view":"tasks"}',
+            ),
+            aguiFinished(),
+          ],
+          <String>[aguiFinished(runId: 'r2')],
+        ],
+      );
       final notifier = ChatNotifier(
         MockTts(),
-        client,
+        ToolMockClient(),
         clientTools: a2uiTool(executed),
+        aguiHttpClient: brain,
       );
 
       await notifier.generateResponse('给我看看任务');
-      await waitForSettled(notifier);
 
-      expect(client.reports, hasLength(1));
-      final reported = client.reports.single['result'] as Map;
+      final Map<String, dynamic>? toolMessage = toolMessageOf(brain.requests.last);
+      expect(toolMessage, isNotNull);
+      final String content = toolMessage!['content'] as String;
+      final Map<String, dynamic> decoded =
+          jsonDecode(content) as Map<String, dynamic>;
       // ⚠️ **只带 report** —— 模型上下文里不该有一棵组件树。
-      expect(reported, <String, Object?>{'report': '已展开「任务看板」。'});
-      expect(reported.containsKey('a2ui_events'), isFalse);
+      expect(decoded, <String, Object?>{'report': '已展开「任务看板」。'});
+      expect(decoded.containsKey('a2ui_events'), isFalse);
     });
   });
 }

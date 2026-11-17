@@ -4,12 +4,19 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
 
 import '../tts_engine.dart';
 import '../multimodal/multimodal.dart';
 import '../services/telencephalon/telencephalon_client.dart';
 import '../services/client_tools/client_tool_registry.dart';
+import '../agui/agui_bridge.dart';
+import '../agui/agui_client.dart';
+import '../agui/agui_device_tool.dart';
+import '../agui/agui_driver.dart';
+import '../agui/agui_tool_outcome_gate.dart';
+import '../agui/agui_types.dart';
 import '../services/weather/weather_client.dart';
 import '../services/capabilities/capability.dart';
 import '../services/capabilities/capability_declaration.dart';
@@ -343,6 +350,20 @@ class ChatNotifier extends StateNotifier<ChatState> {
   /// 「会话 id + 参数 + 工具」一起留着。
   final Map<String, _PendingToolCall> _pendingToolCalls = {};
 
+  /// **AG-UI 那一路的审批等号**（调用 id → 等结果的 Completer）。
+  ///
+  /// ⚠️ AG-UI 路端脑**不等**设备 ⇒ ⇒ 工具结果要**随下一次请求**带回去
+  /// ⇒ ⇒ driver 会 `await` 这一格 ⇒ ⇒ 用户点「允许」之前就挂在这儿。
+  final Map<String, Completer<AguiToolOutcome>> _aguiApprovals = {};
+
+  /// **AG-UI 那一轮的运输层**（真 HTTP 客户端）。
+  ///
+  /// ⚠️ **只创建一次** ⇒ ⇒ 每轮复用同一个 ⇒ ⇒ 不泄漏连接
+  /// （而 `AguiClient` 自己默认**每轮新建**一个 ⇒ ⇒ 用久了连接越挂越多）。
+  ///
+  /// ⚠️ 判据注入一个**假**的 ⇒ ⇒ 真端脑那一格不必起 ⇒ ⇒ 判据跑得快、跑得稳。
+  final http.Client _aguiHttp;
+
   /// **本轮已点过头的「手机操作」** —— 「模拟用户行为一轮只授权一次」的缓存。
   ///
   /// 用户拍板的逻辑（2026-11-12）：手机操作这族工具在「每次询问」档下，
@@ -386,9 +407,12 @@ class ChatNotifier extends StateNotifier<ChatState> {
     ClientToolRegistry? clientTools,
     // 能力档位的读取口 —— 注入是为了**运行时**能改档位。
     AuthorizationMode Function(Capability capability)? capabilityModeFor,
+    // AG-UI 那一轮的**运输层**（判据注入一个假的 http 客户端；生产不传）。
+    http.Client? aguiHttpClient,
   }) : _systemPromptProvider = systemPromptProvider ?? noSystemPrompt,
        _clientTools = clientTools ?? ClientToolRegistry(),
        _capabilityModeFor = capabilityModeFor ?? alwaysAskCapability,
+       _aguiHttp = aguiHttpClient ?? http.Client(),
        super(const ChatState());
 
   // Multimodal input methods
@@ -640,65 +664,80 @@ class ChatNotifier extends StateNotifier<ChatState> {
       // 调用）—— 那时候「空回复」不是错误，工具卡片本身就是回复。
       var toolCallSeen = false;
 
-      await for (final event in _telencephalonClient.streamMessage(
-        sessionId,
-        SendMessageRequest(
-          text: prompt,
-          // **这台设备能跑的工具**告诉模型 —— 端脑透传给 LLM，模型才知道
-          // `set_theme` 要吃一个 `color`。
-          // ⚠️ **「彻底关闭」的能力不进这个数组** ⇒ ⇒ 模型**看不见**它
-          // ⇒ ⇒ 既省了模型的回合，也断掉了「模型反复调一个必然被拒的
-          // 工具」这条路。
-          tools: toOpenAiTools(
-            _clientTools,
-            excludedNames: _disabledCapabilityToolNames(),
+      // ⚠️ **AG-UI 那一路**（与桌面端同一条路：桌面 `ConversationPage.tsx`
+      // 也是 AG-UI）⇒ ⇒ 端脑**不等**设备 ⇒ ⇒ 工具结果**随下一次请求**带回去。
+      //
+      // ⚠️ **请求面要整份带**（tools／threadId／runId）⇒ ⇒ 只发 messages
+      // ⇒ ⇒ 模型**不知道这台设备会什么** ⇒ ⇒ 设备工具静默失灵。
+      final AguiRunRequest aguiRequest = AguiRunRequest(
+        messages: <AguiMessage>[
+          AguiMessage(
+            role: 'user',
+            // ⚠️ **内联**附件（base64）⇒ ⇒ 端脑不去拉远程 URL。
+            content: buildAguiUserContent(
+              prompt,
+              aguiInlineFilesFromAttachments(attachments),
+            ),
           ),
-          // 让端脑**等**这台设备把工具干完 —— 它就能把结果喂回模型，
-          // 在**同一条流**上接着说「主题已经换成靛蓝了」⇒ 用户看到的
-          // 是一个回合，而不是一张沉默的卡片。
-          awaitToolResult: true,
-          // ⚠️ **用户给每个能力配了哪一档**（ask／full／off）⇒ ⇒ 告诉端脑。
-          //
-          // ⚠️ 为什么这一格不能省：端脑**只看得见**「这个工具存在」＋
-          // 「它要哪个权限 token」⇒ ⇒ **看不见**「用户把它配成了哪一档」
-          // ⇒ ⇒ 「谁来按声明匹配」那条链就**缺一份输入**。
-          //
-          // ⚠️ **老端脑不认识这个字段 ⇒ 无害**（serde 忽略未知字段）
-          // ⇒ ⇒ 所以**不必等端脑先改**就能先把这半边做掉。
-          capabilityModes: capabilityModesPayload(_capabilityModeFor),
-          // ⚠️ **随消息带上的附件**（base64）⇒ ⇒ 端脑按 MIME 分档 ⇒ ⇒
-          // 变成模型看得见的 `image_url`／`input_audio`／`file`／内联文字 ⇒ ⇒
-          // 「拍张照问一句」「丢份 PDF 过来」从此是**真的**。
-          attachments: attachments,
+        ],
+        // ⚠️ **「彻底关闭」的能力不进这个数组** ⇒ ⇒ 模型**看不见**它
+        // ⇒ ⇒ 既省了模型的回合，也断掉了「模型反复调一个必然被拒的
+        // 工具」这条路。
+        tools: toAguiTools(
+          _clientTools,
+          excludedNames: _disabledCapabilityToolNames(),
         ),
-      )) {
-        switch (event.type) {
-          case 'delta':
+      );
+
+      final Stream<AguiDriverEvent> aguiEvents =
+          _buildAguiDriver().streamTurn(sessionId, aguiRequest);
+
+      await for (final AguiDriverEvent event in aguiEvents) {
+        switch (event.kind) {
+          case 'text':
             // 首个 delta 到达 ＝ 计时窗起点（见上面的口径注释）。
             firstDeltaAt ??= DateTime.now();
-            final delta = event.delta ?? '';
+            final String delta = event.delta ?? '';
             if (delta.isEmpty) break;
             buffer.write(delta);
             state = state.copyWith(streamingText: buffer.toString());
             break;
-          case 'error':
-            throw Exception(event.error ?? currentL10n().chatSorryErrorShort);
           case 'tool_call':
             // 端脑让**这台设备**干活（换主题之类）。
-            //
-            // 这是「模型自己让客户端换主题」这条产品线的客户端一半：
-            // 端脑只负责**点名**（工具名 + 参数），真正干活的是客户端，
-            // 干完再把结果回传端脑，模型才知道主题换好了。
+            // AG-UI 路里 driver 会 await 我们的执行器 ⇒ ⇒ 结果**随下一次
+            // 请求**带回去（不走 legacy 的 /tool-results 旁路）。
             toolCallSeen = true;
-            await _handleToolCall(sessionId, event);
+            break;
+          case 'tool_failed':
+            // 失败**不许长得像成功** ⇒ ⇒ 卡片上写清为什么。
+            toolCallSeen = true;
+            // ⚠️ **不许整张卡换掉** —— 那样会把「已回传」那一格**抹掉**
+            // ⇒ ⇒ 界面会说「还没回传」，而失败结果**早就随下一次请求**回
+            // 去 ⇒ ⇒ 那是**界面在说谎**；也会把能力／权限／参数那一格**抹
+            // 掉** ⇒ ⇒ 用户看到的是工具名而不是「读取日历」。
+            final String failedId =
+                event.call?.toolCallId ?? 'agui-tool-failed';
+            final ToolCallModel? existing = _toolCallById(failedId);
+            _upsertToolCall(
+              (existing ??
+                      ToolCallModel(
+                        id: failedId,
+                        name: event.call?.toolCallName ?? 'unknown',
+                      ))
+                  .copyWith(
+                status: ToolCallStatus.failed,
+                errorText: event.error,
+              ),
+            );
+            break;
+          case 'finished':
+            // 收口事件（RUN_FINISHED）⇒ ⇒ 这一轮结束了。
             break;
           default:
-            // tool_result / route / handoff / step 等进度事件：
-            // 移动端目前不渲染，先记一条日志。
-            _log.fine('stream event: ${event.type}');
+            // tool_result / progress 等：移动端目前不渲染，先记一条日志。
+            _log.fine('ag-ui event: ${event.kind}');
         }
       }
-
       final response = buffer.toString();
       if (response.isEmpty && !toolCallSeen) {
         throw Exception(currentL10n().chatSorryErrorShort);
@@ -711,6 +750,13 @@ class ChatNotifier extends StateNotifier<ChatState> {
               ? null
               : computeTokenStats(response, firstDeltaAt, DateTime.now());
 
+      // ⚠️ **工具在**回合内**执行**（AG-UI 路）⇒ ⇒ 用户可能在这期间离开页面
+      // ⇒ ⇒ notifier 已经被 dispose ⇒ ⇒ 这时候再写 `state` 会抛
+      // 「Bad state: Tried to modify a disposed provider」⇒ ⇒ 写之前先看一眼。
+      if (!mounted) {
+        _flushToolTrajectory();
+        return;
+      }
       state = state.copyWith(
         messages: [
           ...state.messages,
@@ -736,6 +782,9 @@ class ChatNotifier extends StateNotifier<ChatState> {
     } catch (e) {
       // 出错的轮也算「轮末」⇒ 轨迹照喂（带 ok:false 的失败步骤）。
       _flushToolTrajectory();
+      // ⚠️ **页面已经没了 ⇒ 不许再写 state**（会抛「disposed provider」）
+      // ⇒ ⇒ 失败也要安静地收场 ⇒ ⇒ 不许把 App 带崩。
+      if (!mounted) return;
       state = state.copyWith(
         errorMessage: 'Error: $e',
         errorMessageL10nKey: ChatStateL10nKey.errorGeneric,
@@ -859,157 +908,113 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
   // ---- 客户端工具（端脑让这台设备干的活）-------------------------------
 
-  /// 处理端脑发来的 `tool_call`。
+  /// **AG-UI 那一路的 driver** —— 真端脑 ＋ 真门头。
   ///
-  /// 端脑只负责**点名**（工具名 + 参数）；真正干活的是这台设备，
-  /// 干完再把结果回传端脑 —— 端脑把它喂回模型，模型才知道
-  /// 「主题已经换好了」，否则模型会一直等一个不来的结果。
-  Future<void> _handleToolCall(String sessionId, StreamEvent event) async {
-    final name = event.name;
-    if (name == null || name.isEmpty) {
-      _log.warning('tool_call event without a name — ignored');
-      return;
+  /// ⚠️ **门头现取**（baseUrl／apiKey／adminToken 都是 getter）⇒ ⇒
+  /// 用户改了地址或钥匙，**下一轮**就用新的 ⇒ ⇒ 不用重建 ChatNotifier。
+  AguiDriver _buildAguiDriver() {
+    final AguiClient client = AguiClient(
+      baseUrl: _telencephalonClient.baseUrl,
+      readHeaders: () async => shadowReadHeaders(
+        apiKey: _telencephalonClient.apiKey,
+        adminToken: _telencephalonClient.adminToken,
+      ),
+      // ⚠️ **复用同一个运输层** ⇒ ⇒ 不每轮新建连接。
+      httpClient: _aguiHttp,
+    );
+    return AguiDriver(
+      client: client,
+      executeTool: (AguiToolCall call) => _executeAguiTool(call),
+    );
+  }
+
+  /// **AG-UI 那一路的设备工具执行器** —— driver 叫它。
+  ///
+  /// ⚠️ 与 legacy 路的区别只有**一处**：结果怎么回传。
+  /// · legacy 路 ⇒ 走 /tool-results 旁路（_reportToolResult）；
+  /// · AG-UI 路 ⇒ 端脑**不等** ⇒ ⇒ 结果**随下一次请求**带回去 ⇒ ⇒
+  ///   这里**只执行**，回传由 driver 交给它（它自己拼进下一次请求）。
+  ///
+  /// ⚠️ **失败不许长得像成功**：判不下去 ⇒ ⇒ 卡片写明原因 ＋ 回传带 error。
+  Future<AguiToolOutcome> _executeAguiTool(AguiToolCall call) async {
+    // ⚠️ **调用 id** —— 端脑 AG-UI 路**一定**带（toolCallId）⇒ ⇒ 用它
+    // ⇒ ⇒ 卡片与「随下一次请求带回去」的那条 tool 消息**对得上号**。
+    // 万一端脑没带 ⇒ ⇒ 自己兜一个（与 legacy 路同一处兜底口径）。
+    final String callId = call.toolCallId.isEmpty
+        ? 'agui-tool-${_toolCallCounter++}-${call.toolCallName}'
+        : call.toolCallId;
+    final AguiToolDecision decision = decideAguiToolCall(
+      name: call.toolCallName,
+      argsJson: call.args,
+      registry: _clientTools,
+      modeFor: _capabilityModeFor,
+    );
+    if (!decision.ok) {
+      _upsertToolCall(
+        ToolCallModel(
+          id: callId,
+          name: call.toolCallName,
+          status: ToolCallStatus.failed,
+          errorText: decision.error,
+        ),
+      );
+      // ⚠️ **失败也是「已回传」** —— 这条失败结果**随下一次请求**带回去
+      // ⇒ ⇒ 端脑那边立刻就知道「这个活干不了」⇒ ⇒ 卡片不许停在「还没
+      // 回传」⇒ ⇒ 那是**界面在说谎**。
+      _markAguiToolReported(callId);
+      return AguiToolOutcome(ok: false, content: '', error: decision.error);
     }
-    final args = event.args ?? <String, dynamic>{};
+    final ClientTool tool = decision.tool!;
+    final Map<String, dynamic> args = decision.args;
 
-    // 端脑**带**调用 id（`tool_call_id`）⇒ 直接用端脑那个，
-    // 这样「卡片」和「结果回传」能和端脑那边对上号；
-    // 端脑没带（老端脑）时才自己合成一个兜底。
-    final callId =
-        event.toolCallId ?? 'client-tool-${_toolCallCounter++}-$name';
-
-    final tool = _clientTools.lookup(name);
-    final model = ToolCallModel(
+    // ⚠️ **先把卡片挂上** ⇒ ⇒ 用户立刻看见「端脑要干这个活」
+    // ⇒ ⇒ （legacy 路也是先挂卡片再执行 ⇒ ⇒ 同一口径
+    // ⇒ ⇒ 卡片不会凭空出现，也不会晚半拍才冒出来）。
+    final ToolCallModel model = ToolCallModel(
       id: callId,
-      name: name,
-      description: tool?.description,
-      // ⚠️ 带上能力 ⇒ ⇒ 授权卡片能把 `calendar_read_events` 翻成「读取日历」。
-      capability: tool?.capability,
-      // ⚠️ 带上**真实**要的那一档权限 ⇒ ⇒ 卡片上写清楚「这次要哪个权限」
-      // ⇒ ⇒ 用户点头前就知道这扇门通向哪儿。
-      requiredPermissions: requiredPermissionsOf(tool?.capability),
+      name: tool.name,
+      description: tool.description,
+      capability: tool.capability,
+      requiredPermissions: requiredPermissionsOf(tool.capability),
       args: args,
     );
     _upsertToolCall(model);
 
-    if (tool == null) {
-      // 端脑点了一个这台设备不会的活。**明确失败并回传** ——
-      // 闷着不吭声的话，模型会一直等一个永远不来的结果。
-      _upsertToolCall(
-        model.copyWith(
-          status: ToolCallStatus.failed,
-          errorText: 'unsupported tool: $name',
-        ),
-      );
-      unawaited(
-        _reportToolResult(
-          sessionId,
-          callId,
-          name,
-          ok: false,
-          result: <String, dynamic>{'error': 'unsupported tool'},
-        ),
-      );
-      return;
-    }
-
-    // ⚠️ 「彻底关闭」这一档 ⇒ ⇒ **绝不执行**。
-    //
-    // 这一档的语义是「这个能力对模型**不存在**」⇒ ⇒ 但模型可能**缓存过**
-    // 工具表、或者干脆幻觉出这个名字 ⇒ ⇒ 客户端必须**明确拒绝并回传**
-    // ⇒ ⇒ 模型知道这条路走不通（而不是等一个永远不来的结果）。
-    //
-    // ⚠️ 这是**双保险**：第一道保险是「这个工具压根不在发给模型的
-    // `tools` 数组里」（见 `_disabledCapabilityToolNames`）⇒ ⇒ 模型正常
-    // 情况下根本叫不出它 ⇒ ⇒ 走到这一格说明它**绕过了**第一道。
-    final capability = tool.capability;
-    if (capability != null &&
-        _capabilityModeFor(capability) == AuthorizationMode.disabled) {
-      _upsertToolCall(
-        model.copyWith(
-          status: ToolCallStatus.failed,
-          errorText: currentL10n().capabilityRejectedDisabled,
-        ),
-      );
-      unawaited(
-        _reportToolResult(
-          sessionId,
-          callId,
-          name,
-          ok: false,
-          result: <String, dynamic>{
-            'error': 'capability disabled',
-            'capability': capability.wire,
-          },
-        ),
-      );
-      return;
-    }
-
-    // ⚠️ **agent 必须声明自己需要哪些权限** —— 这一份声明要**核对**。
-    //
-    // ⚠️ 核对**不等于**授权：真正要哪一档，永远由**工具**说了算
-    // ⇒ ⇒ 声明对不上 ⇒ ⇒ **明确失败**（模型能学到，下次改对）
-    // ⇒ ⇒ 而不是「按它说的给」⇒ ⇒ 那等于让模型给自己发权限。
-    //
-    // ⚠️ 「没声明」是**宽容**的（老模型不知道有这一栏）⇒ ⇒ 按工具真实要求走。
-    final declaration = evaluatePermissionDeclaration(
-      capability: tool.capability,
-      declared: declaredPermissionsOf(args),
-    );
-    if (!declaration.ok) {
-      _upsertToolCall(
-        model.copyWith(
-          status: ToolCallStatus.failed,
-          errorText: currentL10n().capabilityDeclarationMismatch(
-            declaration.extra.join(', '),
-            declaration.required.isEmpty
-                ? '—'
-                : declaration.required.join(', '),
-          ),
-        ),
-      );
-      unawaited(
-        _reportToolResult(
-          sessionId,
-          callId,
-          name,
-          ok: false,
-          // ⚠️ 回传里带上「它声明了什么 / 实际需要什么」⇒ ⇒ 模型能**改对**。
-          result: <String, dynamic>{
-            'error': 'permission declaration mismatch',
-            'declared': declaration.declared,
-            'required': declaration.required,
-          },
-        ),
-      );
-      return;
-    }
-
+    // ⚠️ **要不要问用户** —— 与 legacy 路同一处判（档位是运行时读的）。
     if (_needsApproval(tool)) {
-      final pending = model.copyWith(status: ToolCallStatus.awaitingApproval);
+      final ToolCallModel pending =
+          model.copyWith(status: ToolCallStatus.awaitingApproval);
       _pendingToolCalls[callId] = _PendingToolCall(
-        sessionId: sessionId,
+        sessionId: _currentSessionId ?? '',
         model: pending,
         tool: tool,
       );
       _upsertToolCall(pending);
-      return;
+      final Completer<AguiToolOutcome> completer =
+          _aguiApprovals[callId] ??= Completer<AguiToolOutcome>();
+      return completer.future;
     }
 
-    // 执行 + 回传**不阻塞** SSE 读循环 —— 回传是个 HTTP 请求，
-    // 端脑还没上这个端点时会 404；拖着读循环不放会让整条对话卡住。
-    //
-    // 回传是**独立的一条 HTTP 连接**，与 SSE 无关 ⇒ 端脑那头在同一条
-    // 流里等着结果（将来端脑支持了 (c)）时，这个 POST 照样立刻到。
-    unawaited(
-      _runToolCall(
-        sessionId: sessionId,
-        callId: callId,
-        tool: tool,
-        args: args,
-      ),
+    // 直接执行（**不回传** legacy 旁路 ⇒ ⇒ 结果由 driver 随下一次请求带回去）。
+    final (bool ok, Object? result, String? errorText) = await _runToolCall(
+      sessionId: _currentSessionId ?? '',
+      callId: callId,
+      tool: tool,
+      args: args,
+      reportToTelencephalon: false,
     );
+    // ⚠️ **「结果已交回端脑」要如实标出来** —— AG-UI 路是「随**下一次请求**
+    // 带回去」⇒ ⇒ 那**也是**回传 ⇒ ⇒ 卡片上「已回传」那一格该亮
+    // ⇒ ⇒ 不亮 ⇒ ⇒ 用户以为端脑那头还没收到（其实早就收到了）。
+    _markAguiToolReported(callId);
+    return toToolOutcome(ok, result, errorText);
+  }
+
+  /// 把那张工具卡片标成「结果已交回端脑」。
+  void _markAguiToolReported(String callId) {
+    final ToolCallModel? current = _toolCallById(callId);
+    if (current == null) return;
+    _upsertToolCall(current.copyWith(reported: true));
   }
 
   /// 这个工具**要不要先问用户**。
@@ -1075,11 +1080,14 @@ class ChatNotifier extends StateNotifier<ChatState> {
   }
 
   /// 执行一个客户端工具，然后把结果回传端脑。
-  Future<void> _runToolCall({
+  Future<(bool, Object?, String?)> _runToolCall({
     required String sessionId,
     required String callId,
     required ClientTool tool,
     required Map<String, dynamic> args,
+    // ⚠️ **回传要不要走 legacy 旁路** —— AG-UI 路端脑**不等** ⇒ ⇒ 结果
+    // **随下一次请求**带回去 ⇒ ⇒ 那条路**不许**再 POST 一次。
+    bool reportToTelencephalon = true,
   }) async {
     final current = _toolCallById(callId);
     if (current != null) {
@@ -1134,17 +1142,20 @@ class ChatNotifier extends StateNotifier<ChatState> {
       ),
     );
 
-    await _reportToolResult(
-      sessionId,
-      callId,
-      tool.name,
-      ok: ok,
-      // ⚠️ **模型那一半只有 `report`** —— 组件树不进模型上下文
-      // （见 `pickReportPayload`）⇒ ⇒ 与桌面端同一条规则。
-      result: pickReportPayload(
-        result ?? <String, dynamic>{'error': errorText},
-      ),
-    );
+    if (reportToTelencephalon) {
+      await _reportToolResult(
+        sessionId,
+        callId,
+        tool.name,
+        ok: ok,
+        // ⚠️ **模型那一半只有 `report`** —— 组件树不进模型上下文
+        // （见 `pickReportPayload`）⇒ ⇒ 与桌面端同一条规则。
+        result: pickReportPayload(
+          result ?? <String, dynamic>{'error': errorText},
+        ),
+      );
+    }
+    return (ok, result, errorText);
   }
 
   /// 把执行结果回传端脑。
@@ -1190,6 +1201,24 @@ class ChatNotifier extends StateNotifier<ChatState> {
     if (pending.tool.capability == Capability.mobileUse) {
       _turnGrantedMobileUse.add(Capability.mobileUse);
     }
+    // ⚠️ **AG-UI 路**：结果**随下一次请求**带回去 ⇒ ⇒ **不走** legacy 旁路
+    // ⇒ ⇒ 执行完把结果交给那个 Completer ⇒ ⇒ driver 接着续轮。
+    final Completer<AguiToolOutcome>? aguiCompleter =
+        _aguiApprovals.remove(callId);
+    if (aguiCompleter != null) {
+      final (bool ok, Object? result, String? errorText) = await _runToolCall(
+        sessionId: pending.sessionId,
+        callId: callId,
+        tool: pending.tool,
+        args: pending.model.args,
+        reportToTelencephalon: false,
+      );
+      final AguiToolOutcome outcome = toToolOutcome(ok, result, errorText);
+      // ⚠️ 同上：AG-UI 路的结果也是「回传」⇒ ⇒ 卡片要亮「已回传」。
+      _markAguiToolReported(callId);
+      if (!aguiCompleter.isCompleted) aguiCompleter.complete(outcome);
+      return;
+    }
     await _runToolCall(
       sessionId: pending.sessionId,
       callId: callId,
@@ -1203,6 +1232,32 @@ class ChatNotifier extends StateNotifier<ChatState> {
   Future<void> denyToolCall(String callId) async {
     final pending = _pendingToolCalls.remove(callId);
     if (pending == null) return;
+    // ⚠️ **AG-UI 路**：拒绝也要**结束**那一格 ⇒ ⇒ 否则 driver 永远等着
+    // ⇒ ⇒ 「模型在等一个永远不会来的结果」⇒ ⇒ 那是失败长得像成功。
+    final Completer<AguiToolOutcome>? aguiCompleter =
+        _aguiApprovals.remove(callId);
+    if (aguiCompleter != null) {
+      _upsertToolCall(
+        pending.model.copyWith(
+          status: ToolCallStatus.failed,
+          errorText: 'denied by user',
+        ),
+      );
+      if (!aguiCompleter.isCompleted) {
+        aguiCompleter.complete(
+          const AguiToolOutcome(
+            ok: false,
+            content: '',
+            error: 'denied by user',
+          ),
+        );
+      }
+      // ⚠️ **拒绝也是「已回传」** —— 拒绝这件事**随下一次请求**带回去
+      // ⇒ ⇒ 模型知道这条路走不通（而不是干等）⇒ ⇒ 卡片不许停在「还没
+      // 回传」。
+      _markAguiToolReported(callId);
+      return;
+    }
     _upsertToolCall(
       pending.model.copyWith(
         status: ToolCallStatus.failed,
