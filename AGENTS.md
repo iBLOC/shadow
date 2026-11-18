@@ -19,7 +19,13 @@
 **⑧ ✅ 追记（2026-11-18，用户指令「打包安装」—— 四仓已提交后的产物级读数 ＋ 安装面逐台实况）** ——
 　❶ **.so 重编**：`pwsh -File encephalon/scripts/build-android.ps1`（mobile-memory 档，**在真仓直接编**那条最省事的路）**7m26s exit 0**，strip 后 **290.2 MB**（450.5 → 290.2），出厂核验 **14 个 JNI 符号全部在位**；
 　❷ **两只 APK**：debug **259.3 MB**（sha256 `B16BCF90DD536DDD…`）／release **130.1 MB**（sha256 `810951057B4E674A…`）；**APK 里的 .so 与 jniLibs 逐字节一致**（sha256 `1861E2A911E24E04…`）⇒ ⇒ 「装上去的 ＝ 我编出来的」在**产物级**成立（真机格没开 ⇒ 证据只能到这一层）；
-　❸ **安装面逐台实况**：**MIX 4（ee6b4832）掉线**（USB 中途掉 ＋ WiFi adb 192.168.31.85:5555 超时，三轮重试不通）；**MI MAX 2（2bcb05ec）**实测再撞 MIUI「USB 安装」墙（`INSTALL_FAILED_USER_RESTRICTED: Install canceled by user`，与既有一致 ⇒ 不是新债）；**KOZ-AL00 未连接**；出现一台无线 adb（RFCW70FK31W ＝ **三星 SM-F946U Fold5／Android 15**）⇒ 按「三星日用机禁碰」纪律**不碰**；
+　❸ **安装面逐台实况（含 MIUI 那道墙的**精确根因**）**：
+　　❶ **MIX 4（ee6b4832）掉线**（USB 中途掉 ＋ WiFi adb 192.168.31.85:5555 超时 ⇒ 四轮重试不通）；
+　　❷ **MI MAX 2（2bcb05ec）**：安装仍被 `INSTALL_FAILED_USER_RESTRICTED` 拒 ⇒ ⇒ **抓到了逐字根因**：开发者选项里「USB安装」开关**点不动**，点下去屏幕中央弹 toast **「请先插入SIM卡」** ⇒ ⇒ MIUI V11 要求**插着 SIM 卡**才让开这个开关 ⇒ ⇒ 开关是死的 ⇒ ⇒ 装包被 `INSTALL_CANCELED_BY_USER`（系统日志逐字：`E/Pm: install msg : Failure [INSTALL_CANCELED_BY_USER]`／`E/PackageInstaller: Commit of session … failed: Install canceled by user`，且**耗时 24 秒**才落 ⇒ 不是「直接拒」而是「等确认、等不到」）⇒ ⇒ **这一格不是代码能绕的，是物理条件**（插卡 ＋ 已登录 Mi 账号）⇒ ⇒ 与既有一致（不是新债），但**根因精确了一级**（此前只记「adb 绕不过」）；
+　　❸ **KOZ-AL00 未连接**；出现一台无线 adb（RFCW70FK31W ＝ **三星 SM-F946U Fold5／Android 15**）⇒ 按「三星日用机禁碰」纪律**不碰**；
+　　❹ **模拟器路线也断**：`shadow_api36` AVD 在，但这台机器**没装 Android 模拟器硬件加速驱动**（`x86_64 emulation currently requires hardware acceleration`／AEHD 未装）⇒ 装驱动＝管理员权限＋可能重启 ⇒ **系统级变更，不静默做**；
+　　❺ **MI MAX 2 上已改的设置（如实登记，可逆）**：`settings put global verifier_verify_adb_installs 0`／`package_verifier_enable 0`／`adb_install_need_confirm 0`／`adb_install_security 1`／`secure install_monitor 0`／`secure install_monitor_enabled 0`／`secure miui_perform_install_adb 0`／`global miui_perform_install_adb 0`／`secure install_non_market_apps 1` ⇒ ⇒ **没有一条能绕开 SIM 卡那道闸**（逐条试过 ⇒ 全部仍 `INSTALL_FAILED_USER_RESTRICTED`）⇒ ⇒ **实测结论：MIUI 的闸在应用侧的状态机里，不在 Settings 里** ⇒ ⇒ 这台专用测试机上这些键留在「放宽」方向（本来就要装测试包）；
+　　❻ **仍欠**：真机安装 ＋ 真机下载那一格（等 MIX 4 回来插线，或用户授权装模拟器加速驱动后走 x86_64 腿——产物都已备好，装上即可验）。
 　❹ **模拟器路线也断**：`shadow_api36` AVD 在，但这台机器**没装 Android 模拟器硬件加速驱动**（`x86_64 emulation currently requires hardware acceleration`／AEHD 未装）⇒ 装驱动＝管理员权限＋可能重启 ⇒ **系统级变更，不静默做**；
 　❺ **仍欠**：真机安装 ＋ 真机下载那一格（等 MIX 4 回来插线，或用户授权装模拟器加速驱动后走 x86_64 腿——产物都已备好，装上即可验）。
 
