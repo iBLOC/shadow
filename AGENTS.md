@@ -16,6 +16,13 @@
 
 ⑦ **⚠ 圈码：本条占 U+37BD（㞽）** —— 取号用官方口径（check-ledger-codepoint-take.mjs --next：父仓候选 U+37BD 起）⇒ ⚠️ **U+37C0 已被兄弟在飞面占着**（父仓工作树里前一条目自己记着「U+37C0 已被兄弟在飞面占」）⇒ 逐字扫**十二本账本**（父仓／移动端／桌面端／端脑／synapse／neuron／前额叶／海马体／顶叶／枕叶／杏仁核／颞叶）⇒ **U+37BD / U+37BE / U+37BF / U+37C1 全局零命中** ⇒ 本刀动五本账 ⇒ **占四枚**（父仓 U+37BD ＋ 移动端 U+37BE ＋ 端脑 U+37BF ＋ 桌面端 U+37C1，互不相同、各自高于自己那本的水位；neuron 账本体例无码位、encephalon 无账本 ⇒ 不占）⇒ 字形由 String.fromCodePoint() 生成，不手打。
 
+**⑧ ✅ 追记（2026-11-18，用户指令「打包安装」—— 四仓已提交后的产物级读数 ＋ 安装面逐台实况）** ——
+　❶ **.so 重编**：`pwsh -File encephalon/scripts/build-android.ps1`（mobile-memory 档，**在真仓直接编**那条最省事的路）**7m26s exit 0**，strip 后 **290.2 MB**（450.5 → 290.2），出厂核验 **14 个 JNI 符号全部在位**；
+　❷ **两只 APK**：debug **259.3 MB**（sha256 `B16BCF90DD536DDD…`）／release **130.1 MB**（sha256 `810951057B4E674A…`）；**APK 里的 .so 与 jniLibs 逐字节一致**（sha256 `1861E2A911E24E04…`）⇒ ⇒ 「装上去的 ＝ 我编出来的」在**产物级**成立（真机格没开 ⇒ 证据只能到这一层）；
+　❸ **安装面逐台实况**：**MIX 4（ee6b4832）掉线**（USB 中途掉 ＋ WiFi adb 192.168.31.85:5555 超时，三轮重试不通）；**MI MAX 2（2bcb05ec）**实测再撞 MIUI「USB 安装」墙（`INSTALL_FAILED_USER_RESTRICTED: Install canceled by user`，与既有一致 ⇒ 不是新债）；**KOZ-AL00 未连接**；出现一台无线 adb（RFCW70FK31W ＝ **三星 SM-F946U Fold5／Android 15**）⇒ 按「三星日用机禁碰」纪律**不碰**；
+　❹ **模拟器路线也断**：`shadow_api36` AVD 在，但这台机器**没装 Android 模拟器硬件加速驱动**（`x86_64 emulation currently requires hardware acceleration`／AEHD 未装）⇒ 装驱动＝管理员权限＋可能重启 ⇒ **系统级变更，不静默做**；
+　❺ **仍欠**：真机安装 ＋ 真机下载那一格（等 MIX 4 回来插线，或用户授权装模拟器加速驱动后走 x86_64 腿——产物都已备好，装上即可验）。
+
 **Updated**: 2026-11-18 (㞼 **「简单一次 ⇒ 直连；长程/定时 ⇒ 前额叶 —— 叶区直发这一刀落三件：前额叶出站补身份、定时任务打到叶区（＋秒级档）、端脑直发 seam ＋ 视觉接上枕叶」** —— 承影仓上一轮的叶区链路真伪对账 ＋ 用户逐字（「叶区之间可以使用a2a协议互相通讯当评估为一个长程或者定时任务时才交给前额叶管理 如果是简单处理一次我觉得颞叶也可以直连枕叶或者顶叶 丘脑 海马体等等」）＋ 用户「继续完成所有任务」，本条记**三仓落点**、**新闸的八条与四道真变异**、**读数**、**自曝（尺子在 http:// 上失明）**，以及**仍然欠着的**.)
 
 > 信封：epoch=2026-11-18 | authority=measured | scope=project | source=用户逐字（「叶区之间可以使用a2a协议互相通讯当评估为一个长程或者定时任务时才交给前额叶管理 如果是简单处理一次我觉得颞叶也可以直连枕叶或者顶叶 丘脑 海马体等等」）＋ 用户「继续完成所有任务」 ｜ 改动：父仓（**新** scripts/check-lobe-dispatch.mjs〔八条判据 ＋ 自检 ＋ ci.yml 接线两步〕＋ 本条）｜ 前额叶（**改** src/a2a_outbound.rs〔`_with` 家族 ＋ skill/user_id 上 metadata ＋ 4002 兜底 ＋ **顺手销掉「测试缺 extensions 字段」那笔存量编译红**〕＋ src/server/a2a_admin_handler.rs〔delegate 带可选 skill/user_id〕＋ src/schedule.rs〔target_peer/skill/user_id ＋ EverySeconds ＋ create_with_routing ＋ has_seconds_cadence〕＋ src/server/schedule_runner.rs〔SECONDS_TICK ＋ 自适应节拍 ＋ dispatch_to_peer 分支〕＋ src/server/schedule_handler.rs〔创建时校验〕）｜ 端脑（**改** src/lobes/mod.rs —— 端脑那条另落：U+37BB）｜ 读数：前额叶 cargo check **exit 0** ＋ cargo test --lib **372/372** ＋ 端脑 lib 零 error ＋ 全量 **1058 过 / 2 环境红（隔离 2/2 绿）** ＋ 新闸 **8/8**（自检 **13/13**）＋ 四道真文件真变异各恰好一条红 | status=active | supersedes=none
